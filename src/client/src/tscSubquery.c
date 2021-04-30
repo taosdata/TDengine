@@ -615,7 +615,7 @@ static int32_t tscLaunchRealSubqueries(SSqlObj* pSql) {
     if ((pExpr->base.colInfo.colId != PRIMARYKEY_TIMESTAMP_COL_INDEX) ||
         (funcId != TSDB_FUNC_TS && funcId != TSDB_FUNC_TS_DUMMY && funcId != TSDB_FUNC_PRJ)) {
 
-      int16_t functionId = tscIsProjectionQuery(&pNew->cmd, pQueryInfo)? TSDB_FUNC_PRJ : TSDB_FUNC_TS;
+      int16_t functionId = tscIsProjectionQuery(pQueryInfo)? TSDB_FUNC_PRJ : TSDB_FUNC_TS;
 
       tscAddFuncInSelectClause(pQueryInfo, 0, functionId, &index, s, TSDB_COL_NORMAL);
       tscPrintSelNodeList(pNew, 0);
@@ -636,7 +636,7 @@ static int32_t tscLaunchRealSubqueries(SSqlObj* pSql) {
 
     if (UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo)) {
       assert(pTableMetaInfo->pVgroupTables != NULL);
-      if (tscNonOrderedProjectionQueryOnSTable(&pNew->cmd, pQueryInfo, 0)) {
+      if (tscNonOrderedProjectionQueryOnSTable(pQueryInfo, 0)) {
         SArray* p = buildVgroupTableByResult(pQueryInfo, pTableMetaInfo->pVgroupTables);
         tscFreeVgroupTableInfo(pTableMetaInfo->pVgroupTables);
         pTableMetaInfo->pVgroupTables = p;
@@ -1429,7 +1429,7 @@ static void joinRetrieveFinalResCallback(void* param, TAOS_RES* tres, int numOfR
   }
 
   SSubqueryState* pState = &pParentSql->subState;
-  if (tscNonOrderedProjectionQueryOnSTable(pCmd, pQueryInfo, 0) && numOfRows == 0) {
+  if (tscNonOrderedProjectionQueryOnSTable(pQueryInfo, 0) && numOfRows == 0) {
     STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
     assert(pQueryInfo->numOfTables == 1);
 
@@ -1561,7 +1561,7 @@ void tscFetchDatablockForSubquery(SSqlObj* pSql) {
       }
 
       SQueryInfo* p = tscGetQueryInfo(&pSub->cmd, 0);
-      orderedPrjQuery = tscNonOrderedProjectionQueryOnSTable(&pSub->cmd, p, 0);
+      orderedPrjQuery = tscNonOrderedProjectionQueryOnSTable(p, 0);
       if (orderedPrjQuery) {
         break;
       }
@@ -1586,7 +1586,7 @@ void tscFetchDatablockForSubquery(SSqlObj* pSql) {
 
       SQueryInfo* pQueryInfo = tscGetQueryInfo(&pSub->cmd, 0);
 
-      if (tscNonOrderedProjectionQueryOnSTable(&pSub->cmd, pQueryInfo, 0) && pSub->res.row >= pSub->res.numOfRows &&
+      if (tscNonOrderedProjectionQueryOnSTable(pQueryInfo, 0) && pSub->res.row >= pSub->res.numOfRows &&
           pSub->res.completed) {
         STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
         assert(pQueryInfo->numOfTables == 1);
@@ -1788,7 +1788,7 @@ void tscJoinQueryCallback(void* param, TAOS_RES* tres, int code) {
   }
 
   // In case of consequence query from other vnode, do not wait for other query response here.
-  if (!(pTableMetaInfo->vgroupIndex > 0 && tscNonOrderedProjectionQueryOnSTable(&pSql->cmd, pQueryInfo, 0))) {
+  if (!(pTableMetaInfo->vgroupIndex > 0 && tscNonOrderedProjectionQueryOnSTable(pQueryInfo, 0))) {
     if (!subAndCheckDone(pSql, pParentSql, pSupporter->subqueryIndex)) {
       return;
     }      
@@ -1800,7 +1800,7 @@ void tscJoinQueryCallback(void* param, TAOS_RES* tres, int code) {
    * if the query is a continue query (vgroupIndex > 0 for projection query) for next vnode, do the retrieval of
    * data instead of returning to its invoker
    */
-  if (pTableMetaInfo->vgroupIndex > 0 && tscNonOrderedProjectionQueryOnSTable(&pSql->cmd, pQueryInfo, 0)) {
+  if (pTableMetaInfo->vgroupIndex > 0 && tscNonOrderedProjectionQueryOnSTable(pQueryInfo, 0)) {
     pSql->fp = joinRetrieveFinalResCallback;  // continue retrieve data
     pSql->cmd.command = TSDB_SQL_FETCH;
     
@@ -2773,6 +2773,8 @@ static void tscAllDataRetrievedFromDnode(SRetrieveSupport *trsupport, SSqlObj* p
   // set the command flag must be after the semaphore been correctly set.
   if (pParentSql->cmd.command != TSDB_SQL_RETRIEVE_EMPTY_RESULT) {
     pParentSql->cmd.command = TSDB_SQL_RETRIEVE_LOCALMERGE;
+    
+    SQueryInfo *pQueryInfo2 = tscGetQueryInfo(&pParentSql->cmd, pParentSql->cmd.clauseIndex);
 
     size_t size = tscSqlExprNumOfExprs(pQueryInfo);
     for (int32_t j = 0; j < size; ++j) {
@@ -2781,7 +2783,7 @@ static void tscAllDataRetrievedFromDnode(SRetrieveSupport *trsupport, SSqlObj* p
       int32_t functionId = pCtx->functionId;
 
       if (functionId < 0) {
-        SUdfInfo* pUdfInfo = taosArrayGet(pParentSql->cmd.pUdfInfo, -1 * functionId - 1);
+        SUdfInfo* pUdfInfo = taosArrayGet(pQueryInfo2->pUdfInfo, -1 * functionId - 1);
         code = initUdfInfo(pUdfInfo);
         if (code != TSDB_CODE_SUCCESS) {
           pParentSql->res.code = code;
@@ -2862,8 +2864,7 @@ static void tscRetrieveFromDnodeCallBack(void *param, TAOS_RES *tres, int numOfR
     tscDebug("0x%"PRIx64" sub:%p retrieve numOfRows:%d totalNumOfRows:%" PRIu64 " from ep:%s, orderOfSub:%d",
         pParentSql->self, pSql, pRes->numOfRows, pState->numOfRetrievedRows, pSql->epSet.fqdn[pSql->epSet.inUse], idx);
 
-    SSqlCmd* pCmd = &pSql->cmd;
-    if (num > tsMaxNumOfOrderedResults && tscIsProjectionQueryOnSTable(pCmd, pQueryInfo, 0)) {
+    if (num > tsMaxNumOfOrderedResults && tscIsProjectionQueryOnSTable(pQueryInfo, 0)) {
       tscError("%p sub:%p num of OrderedRes is too many, max allowed:%" PRId32 " , current:%" PRId64,
                pParentSql, pSql, tsMaxNumOfOrderedResults, num);
       tscAbortFurtherRetryRetrieval(trsupport, tres, TSDB_CODE_TSC_SORTED_RES_TOO_MANY);

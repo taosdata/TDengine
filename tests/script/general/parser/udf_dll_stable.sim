@@ -678,7 +678,6 @@ if $data61 != 8 then
    return -1
 endi
 
-
 sql select add_one(f1)+1 from stb1;
 if $rows != 17 then
   return -1

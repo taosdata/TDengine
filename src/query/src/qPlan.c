@@ -138,6 +138,12 @@ SArray* createExecOperatorPlan(SQueryAttr* pQueryAttr) {
   } else {  // diff/add/multiply/subtract/division
     op = OP_Arithmetic;
     taosArrayPush(plan, &op);
+
+    //arithmetic on scalar function
+    if (pQueryAttr->pExpr2 != NULL) {
+      op = OP_Arithmetic;
+      taosArrayPush(plan, &op);
+    }    
   }
 
   if (pQueryAttr->limit.limit > 0 || pQueryAttr->limit.offset > 0) {

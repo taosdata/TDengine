@@ -139,11 +139,11 @@ bool isSimpleAggregate(SQueryInfo* pQueryInfo);
 bool isBlockDistQuery(SQueryInfo* pQueryInfo);
 int32_t tscGetTopbotQueryParam(SQueryInfo* pQueryInfo);
 
-bool tscNonOrderedProjectionQueryOnSTable(SSqlCmd *pCmd, SQueryInfo *pQueryInfo, int32_t tableIndex);
-bool tscOrderedProjectionQueryOnSTable(SSqlCmd *pCmd, SQueryInfo* pQueryInfo, int32_t tableIndex);
-bool tscIsProjectionQueryOnSTable(SSqlCmd *pCmd, SQueryInfo* pQueryInfo, int32_t tableIndex);
+bool tscNonOrderedProjectionQueryOnSTable(SQueryInfo *pQueryInfo, int32_t tableIndex);
+bool tscOrderedProjectionQueryOnSTable(SQueryInfo* pQueryInfo, int32_t tableIndex);
+bool tscIsProjectionQueryOnSTable(SQueryInfo* pQueryInfo, int32_t tableIndex);
 
-bool tscIsProjectionQuery(SSqlCmd* pCmd, SQueryInfo* pQueryInfo);
+bool tscIsProjectionQuery(SQueryInfo* pQueryInfo);
 
 bool tscIsTwoStageSTableQuery(SSqlCmd *pCmd, SQueryInfo* pQueryInfo, int32_t tableIndex);
 bool tscQueryTags(SQueryInfo* pQueryInfo);
@@ -246,7 +246,7 @@ void tscVgroupTableCopy(SVgroupTableInfo* info, SVgroupTableInfo* pInfo);
 int  tscGetSTableVgroupInfo(SSqlObj* pSql, int32_t clauseIndex);
 int  tscGetTableMeta(SSqlObj* pSql, STableMetaInfo* pTableMetaInfo);
 int  tscGetTableMetaEx(SSqlObj* pSql, STableMetaInfo* pTableMetaInfo, bool createIfNotExists);
-int32_t tscGetUdfFromNode(SSqlObj *pSql);
+int32_t tscGetUdfFromNode(SSqlObj *pSql, SQueryInfo* pQueryInfo);
 
 void tscResetForNextRetrieve(SSqlRes* pRes);
 void tscDoQuery(SSqlObj* pSql);

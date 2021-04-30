@@ -127,7 +127,7 @@ bool tscIsTwoStageSTableQuery(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t tab
   }
 
   // for ordered projection query, iterate all qualified vnodes sequentially
-  if (tscNonOrderedProjectionQueryOnSTable(pCmd, pQueryInfo, tableIndex)) {
+  if (tscNonOrderedProjectionQueryOnSTable(pQueryInfo, tableIndex)) {
     return false;
   }
 
@@ -138,7 +138,7 @@ bool tscIsTwoStageSTableQuery(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t tab
   return false;
 }
 
-bool tscIsProjectionQueryOnSTable(SSqlCmd *pCmd, SQueryInfo* pQueryInfo, int32_t tableIndex) {
+bool tscIsProjectionQueryOnSTable(SQueryInfo* pQueryInfo, int32_t tableIndex) {
   STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, tableIndex);
   
   /*
@@ -156,7 +156,7 @@ bool tscIsProjectionQueryOnSTable(SSqlCmd *pCmd, SQueryInfo* pQueryInfo, int32_t
     int32_t functionId = tscSqlExprGet(pQueryInfo, i)->base.functionId;
 
     if (functionId < 0) {
-      SUdfInfo* pUdfInfo = taosArrayGet(pCmd->pUdfInfo, -1 * functionId - 1);
+      SUdfInfo* pUdfInfo = taosArrayGet(pQueryInfo->pUdfInfo, -1 * functionId - 1);
       if (pUdfInfo->funcType == TSDB_UDF_TYPE_AGGREGATE) {
         return false;
       }
@@ -179,8 +179,8 @@ bool tscIsProjectionQueryOnSTable(SSqlCmd *pCmd, SQueryInfo* pQueryInfo, int32_t
 }
 
 // not order by timestamp projection query on super table
-bool tscNonOrderedProjectionQueryOnSTable(SSqlCmd *pCmd, SQueryInfo* pQueryInfo, int32_t tableIndex) {
-  if (!tscIsProjectionQueryOnSTable(pCmd, pQueryInfo, tableIndex)) {
+bool tscNonOrderedProjectionQueryOnSTable(SQueryInfo* pQueryInfo, int32_t tableIndex) {
+  if (!tscIsProjectionQueryOnSTable(pQueryInfo, tableIndex)) {
     return false;
   }
   
@@ -188,8 +188,8 @@ bool tscNonOrderedProjectionQueryOnSTable(SSqlCmd *pCmd, SQueryInfo* pQueryInfo,
   return pQueryInfo->order.orderColId < 0;
 }
 
-bool tscOrderedProjectionQueryOnSTable(SSqlCmd *pCmd, SQueryInfo* pQueryInfo, int32_t tableIndex) {
-  if (!tscIsProjectionQueryOnSTable(pCmd, pQueryInfo, tableIndex)) {
+bool tscOrderedProjectionQueryOnSTable(SQueryInfo* pQueryInfo, int32_t tableIndex) {
+  if (!tscIsProjectionQueryOnSTable(pQueryInfo, tableIndex)) {
     return false;
   }
   
@@ -197,14 +197,14 @@ bool tscOrderedProjectionQueryOnSTable(SSqlCmd *pCmd, SQueryInfo* pQueryInfo, in
   return pQueryInfo->order.orderColId >= 0;
 }
 
-bool tscIsProjectionQuery(SSqlCmd* pCmd, SQueryInfo* pQueryInfo) {
+bool tscIsProjectionQuery(SQueryInfo* pQueryInfo) {
   size_t size = tscSqlExprNumOfExprs(pQueryInfo);
 
   for (int32_t i = 0; i < size; ++i) {
     int32_t functionId = tscSqlExprGet(pQueryInfo, i)->base.functionId;
 
     if (functionId < 0) {
-      SUdfInfo* pUdfInfo = taosArrayGet(pCmd->pUdfInfo, -1 * functionId - 1);
+      SUdfInfo* pUdfInfo = taosArrayGet(pQueryInfo->pUdfInfo, -1 * functionId - 1);
       if (pUdfInfo->funcType == TSDB_UDF_TYPE_AGGREGATE) {
         return false;
       }
@@ -249,7 +249,7 @@ bool tscIsSecondStageQuery(SSqlCmd* pCmd, SQueryInfo* pQueryInfo) {
     }
   }
 
-  if (tscIsProjectionQuery(pCmd, pQueryInfo)) {
+  if (tscIsProjectionQuery(pQueryInfo)) {
     return false;
   }
 
@@ -422,6 +422,15 @@ bool isSimpleAggregate(SQueryInfo* pQueryInfo) {
     }
 
     int32_t functionId = pExpr->base.functionId;
+    if (functionId < 0) {
+      SUdfInfo* pUdfInfo = taosArrayGet(pQueryInfo->pUdfInfo, -1 * functionId - 1);
+      if (pUdfInfo->funcType == TSDB_UDF_TYPE_AGGREGATE) {
+        return true;
+      }
+
+      continue;
+    }
+    
     if (functionId == TSDB_FUNC_TS || functionId == TSDB_FUNC_TS_DUMMY) {
       continue;
     }
@@ -799,6 +808,12 @@ void tscFreeQueryInfo(SSqlCmd* pCmd, bool removeMeta) {
 
       tfree(pUp);
     }
+
+    if (pCmd->subCmd) {
+      pQueryInfo->pUdfInfo = taosArrayDestroy(pQueryInfo->pUdfInfo);
+    } else {
+      pQueryInfo->pUdfInfo = tscDestroyUdfArrayList(pQueryInfo->pUdfInfo);
+    }
     
     freeQueryInfoImpl(pQueryInfo);
     clearAllTableMetaInfo(pQueryInfo, removeMeta);
@@ -842,11 +857,6 @@ void tscResetSqlCmd(SSqlCmd* pCmd, bool removeMeta) {
 
   pCmd->pTableBlockHashList = tscDestroyBlockHashTable(pCmd->pTableBlockHashList, removeMeta);
   pCmd->pDataBlocks = tscDestroyBlockArrayList(pCmd->pDataBlocks);
-  if (pCmd->subCmd) {
-    pCmd->pUdfInfo = taosArrayDestroy(pCmd->pUdfInfo);
-  } else {
-    pCmd->pUdfInfo = tscDestroyUdfArrayList(pCmd->pUdfInfo);
-  }
   tscFreeQueryInfo(pCmd, removeMeta);
 }
 
@@ -2683,11 +2693,12 @@ SSqlObj* createSubqueryObj(SSqlObj* pSql, int16_t tableIndex, __async_cb_func_t 
     goto _error;
   }
 
-  if (pCmd->pUdfInfo) {
-    pnCmd->pUdfInfo = taosArrayDup(pCmd->pUdfInfo);
-  }
 
   SQueryInfo* pNewQueryInfo = tscGetQueryInfo(pnCmd, 0);
+
+  if (pQueryInfo->pUdfInfo) {
+    pNewQueryInfo->pUdfInfo = taosArrayDup(pQueryInfo->pUdfInfo);
+  }
 
   pNewQueryInfo->command = pQueryInfo->command;
   pnCmd->active = pNewQueryInfo;
@@ -3096,7 +3107,7 @@ bool hasMoreVnodesToTry(SSqlObj* pSql) {
     numOfVgroups = (int32_t)taosArrayGetSize(pTableMetaInfo->pVgroupTables);
   }
 
-  return tscNonOrderedProjectionQueryOnSTable(pCmd, pQueryInfo, 0) &&
+  return tscNonOrderedProjectionQueryOnSTable(pQueryInfo, 0) &&
          (!tscHasReachLimitation(pQueryInfo, pRes)) && (pTableMetaInfo->vgroupIndex < numOfVgroups - 1);
 }
 
@@ -3114,7 +3125,7 @@ void tscTryQueryNextVnode(SSqlObj* pSql, __async_cb_func_t fp) {
    * no result returned from the current virtual node anymore, try the next vnode if exists
    * if case of: multi-vnode super table projection query
    */
-  assert(pRes->numOfRows == 0 && tscNonOrderedProjectionQueryOnSTable(pCmd, pQueryInfo, 0) && !tscHasReachLimitation(pQueryInfo, pRes));
+  assert(pRes->numOfRows == 0 && tscNonOrderedProjectionQueryOnSTable(pQueryInfo, 0) && !tscHasReachLimitation(pQueryInfo, pRes));
   STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
   
   int32_t totalVgroups = pTableMetaInfo->vgroupList->numOfVgroups;
@@ -3489,9 +3500,15 @@ static int32_t createSecondaryExpr(SQueryAttr* pQueryAttr, SQueryInfo* pQueryInf
         functionId = TSDB_FUNC_STDDEV;
       }
 
+      SUdfInfo* pUdfInfo = NULL;
+      
+      if (functionId < 0) {
+        pUdfInfo = taosArrayGet(pQueryInfo->pUdfInfo, -1 * functionId - 1);
+      }
+
       int32_t inter = 0;
       getResultDataInfo(pExpr->base.colType, pExpr->base.colBytes, functionId, 0, &pse->resType,
-          &pse->resBytes, &inter, 0, false, NULL);
+          &pse->resBytes, &inter, 0, false, pUdfInfo);
       pse->colType  = pse->resType;
       pse->colBytes = pse->resBytes;
 
@@ -3558,8 +3575,14 @@ static int32_t createGlobalAggregateExpr(SQueryAttr* pQueryAttr, SQueryInfo* pQu
         functionId = TSDB_FUNC_STDDEV;
       }
 
+      SUdfInfo* pUdfInfo = NULL;
+      
+      if (functionId < 0) {
+        pUdfInfo = taosArrayGet(pQueryInfo->pUdfInfo, -1 * functionId - 1);
+      }
+
       getResultDataInfo(pExpr->base.colType, pExpr->base.colBytes, functionId, 0, &pse->resType, &pse->resBytes, &inter,
-                        0, false, NULL);
+                        0, false, pUdfInfo);
     }
   }
 
@@ -3633,7 +3656,8 @@ int32_t tscCreateQueryFromQueryInfo(SQueryInfo* pQueryInfo, SQueryAttr* pQueryAt
   pQueryAttr->fillType          = pQueryInfo->fillType;
   pQueryAttr->groupbyColumn     = tscGroupbyColumn(pQueryInfo);
   pQueryAttr->havingNum         = pQueryInfo->havingFieldNum;
-
+  pQueryAttr->pUdfInfo          = pQueryInfo->pUdfInfo;
+    
   if (pQueryInfo->order.order == TSDB_ORDER_ASC) {   // TODO refactor
     pQueryAttr->window = pQueryInfo->window;
   } else {

@@ -701,39 +701,72 @@ static int32_t getNumOfRowsInTimeWindow(SQueryRuntimeEnv* pRuntimeEnv, SDataBloc
   return num;
 }
 
-static void doInvokeUdf(SQueryRuntimeEnv *pRuntimeEnv, SQLFunctionCtx *pCtx, int32_t idx) {
+void doInvokeUdf(SUdfInfo* pUdfInfo, SQLFunctionCtx *pCtx, int32_t idx, int32_t type) {
   int32_t output = 0;
-  SUdfInfo* pUdfInfo = pRuntimeEnv->pUdfInfo;
 
-  if (pUdfInfo && pUdfInfo->funcs[TSDB_UDF_FUNC_NORMAL]) {
-    qDebug("invoke udf function:%s,%p", pUdfInfo->name, pUdfInfo->funcs[TSDB_UDF_FUNC_NORMAL]);
-    if (pUdfInfo->isScript) {
-      (*(scriptNormalFunc)pUdfInfo->funcs[TSDB_UDF_FUNC_NORMAL])(pUdfInfo->pScriptCtx,
-                   (char *)pCtx->pInput + idx * pCtx->inputType, pCtx->inputType, pCtx->inputBytes, pCtx->size, pCtx->ptsList, pCtx->pOutput,
-                  (char *)pCtx->ptsOutputBuf, &output, pCtx->outputType, pCtx->outputBytes);
-    } else {
-      SResultRowCellInfo *pResInfo = GET_RES_INFO(pCtx);
-
-      void *interBuf = (void *)GET_ROWCELL_INTERBUF(pResInfo);
-
-      (*(udfNormalFunc)pUdfInfo->funcs[TSDB_UDF_FUNC_NORMAL])((char *)pCtx->pInput + idx * pCtx->inputType, pCtx->inputType, pCtx->inputBytes, pCtx->size, pCtx->ptsList,
-        pCtx->pOutput, interBuf, (char *)pCtx->ptsOutputBuf, &output, pCtx->outputType, pCtx->outputBytes, &pUdfInfo->init);
-    }
-
-    if (pUdfInfo->funcType == TSDB_UDF_TYPE_AGGREGATE) {
-      pCtx->resultInfo->numOfRes = output;
-    } else {
-      pCtx->resultInfo->numOfRes += output;
-    }
-
-    if (pCtx->resultInfo->numOfRes > 0) {
-      pCtx->resultInfo->hasResult = DATA_SET_FLAG;
-    }
-
+  if (pUdfInfo == NULL || pUdfInfo->funcs[type] == NULL) {
+    qError("empty udf function, type:%d", type);
     return;
   }
 
-  qError("empty udf function");
+  qDebug("invoke udf function:%s,%p", pUdfInfo->name, pUdfInfo->funcs[type]);
+
+  switch (type) {
+    case TSDB_UDF_FUNC_NORMAL:
+      if (pUdfInfo->isScript) {
+        (*(scriptNormalFunc)pUdfInfo->funcs[TSDB_UDF_FUNC_NORMAL])(pUdfInfo->pScriptCtx,
+                     (char *)pCtx->pInput + idx * pCtx->inputType, pCtx->inputType, pCtx->inputBytes, pCtx->size, pCtx->ptsList, pCtx->pOutput,
+                    (char *)pCtx->ptsOutputBuf, &output, pCtx->outputType, pCtx->outputBytes);
+      } else {
+        SResultRowCellInfo *pResInfo = GET_RES_INFO(pCtx);
+
+        void *interBuf = (void *)GET_ROWCELL_INTERBUF(pResInfo);
+
+        (*(udfNormalFunc)pUdfInfo->funcs[TSDB_UDF_FUNC_NORMAL])((char *)pCtx->pInput + idx * pCtx->inputType, pCtx->inputType, pCtx->inputBytes, pCtx->size, pCtx->ptsList,
+          pCtx->pOutput, interBuf, (char *)pCtx->ptsOutputBuf, &output, pCtx->outputType, pCtx->outputBytes, &pUdfInfo->init);
+      }
+
+      if (pUdfInfo->funcType == TSDB_UDF_TYPE_AGGREGATE) {
+        pCtx->resultInfo->numOfRes = output;
+      } else {
+        pCtx->resultInfo->numOfRes += output;
+      }
+
+      if (pCtx->resultInfo->numOfRes > 0) {
+        pCtx->resultInfo->hasResult = DATA_SET_FLAG;
+      }
+
+      break;
+
+    case TSDB_UDF_FUNC_MERGE:
+      (*(udfMergeFunc)pUdfInfo->funcs[TSDB_UDF_FUNC_MERGE])(pCtx->pInput, pCtx->size, pCtx->pOutput, &output, &pUdfInfo->init);
+      
+      // set the output value exist
+      pCtx->resultInfo->numOfRes = output;
+      if (output > 0) {
+        pCtx->resultInfo->hasResult = DATA_SET_FLAG;
+      }
+
+      break;
+
+    case TSDB_UDF_FUNC_FINALIZE: {
+      SResultRowCellInfo *pResInfo = GET_RES_INFO(pCtx);
+      void *interBuf = (void *)GET_ROWCELL_INTERBUF(pResInfo);
+      if (pUdfInfo->isScript) {
+        (*(scriptFinalizeFunc)pUdfInfo->funcs[TSDB_UDF_FUNC_FINALIZE])(pUdfInfo->pScriptCtx, pCtx->pOutput, &output);
+      } else {    
+        (*(udfFinalizeFunc)pUdfInfo->funcs[TSDB_UDF_FUNC_FINALIZE])(pCtx->pOutput, interBuf, &output, &pUdfInfo->init);
+      }
+      // set the output value exist
+      pCtx->resultInfo->numOfRes = output;
+      if (output > 0) {
+        pCtx->resultInfo->hasResult = DATA_SET_FLAG;
+      }
+
+      break;
+      }
+  }
+
   return;
 }
 
@@ -768,7 +801,8 @@ static void doApplyFunctions(SQueryRuntimeEnv* pRuntimeEnv, SQLFunctionCtx* pCtx
     if (functionNeedToExecute(pRuntimeEnv, &pCtx[k], functionId)) {
 //      aAggs[functionId].xFunction(&pCtx[k]);
       if (functionId < 0) { // load the script and exec, pRuntimeEnv->pUdfInfo
-        doInvokeUdf(pRuntimeEnv, &pCtx[k], 0);
+        SUdfInfo* pUdfInfo = pRuntimeEnv->pUdfInfo;              
+        doInvokeUdf(pUdfInfo, &pCtx[k], 0, TSDB_UDF_FUNC_NORMAL);
       } else {
         aAggs[functionId].xFunction(&pCtx[k]);
       }
@@ -982,6 +1016,13 @@ static void doSetInputDataBlock(SOperatorInfo* pOperator, SQLFunctionCtx* pCtx, 
         pCtx[i].pInput = p->pData;
         assert(p->info.colId == pColIndex->colId && pCtx[i].inputType == p->info.type);
 
+        if (pCtx[i].functionId < 0) {
+          SColumnInfoData* tsInfo = taosArrayGet(pBlock->pDataBlock, 0);
+          pCtx[i].ptsList = (int64_t*) tsInfo->pData;            
+
+          continue;
+        }
+
         uint32_t status = aAggs[pCtx[i].functionId].status;
         if ((status & (TSDB_FUNCSTATE_SELECTIVITY | TSDB_FUNCSTATE_NEED_TS)) != 0) {
           SColumnInfoData* tsInfo = taosArrayGet(pBlock->pDataBlock, 0);
@@ -1011,7 +1052,8 @@ static void doAggregateImpl(SOperatorInfo* pOperator, TSKEY startTs, SQLFunction
       pCtx[k].startTs = startTs;// this can be set during create the struct
 //      aAggs[functionId].xFunction(&pCtx[k]);
       if (functionId < 0) {
-        doInvokeUdf(pRuntimeEnv, &pCtx[k], 0);
+        SUdfInfo* pUdfInfo = pRuntimeEnv->pUdfInfo;        
+        doInvokeUdf(pUdfInfo, &pCtx[k], 0, TSDB_UDF_FUNC_NORMAL);
       } else {
         aAggs[functionId].xFunction(&pCtx[k]);
       }
@@ -1033,8 +1075,9 @@ static void arithmeticApplyFunctions(SQueryRuntimeEnv *pRuntimeEnv, SQLFunctionC
     pCtx[k].startTs = pQueryAttr->window.skey;
 
     if (pCtx[k].functionId < 0) {
-      // load the script and exec
-      doInvokeUdf(pRuntimeEnv, &pCtx[k], 0);
+      // load the script and exec      
+      SUdfInfo* pUdfInfo = pRuntimeEnv->pUdfInfo;
+      doInvokeUdf(pUdfInfo, &pCtx[k], 0, TSDB_UDF_FUNC_NORMAL);
     } else {
       aAggs[pCtx[k].functionId].xFunction(&pCtx[k]);
     }
@@ -1359,7 +1402,8 @@ static void doHashGroupbyAgg(SOperatorInfo* pOperator, SGroupbyOperatorInfo *pIn
       pInfo->binfo.pCtx[k].size = 1;
       int32_t functionId = pInfo->binfo.pCtx[k].functionId;
       if (functionId < 0) {
-        doInvokeUdf(pRuntimeEnv, &pInfo->binfo.pCtx[k], j);
+        SUdfInfo* pUdfInfo = pRuntimeEnv->pUdfInfo;                      
+        doInvokeUdf(pUdfInfo, &pInfo->binfo.pCtx[k], j, TSDB_UDF_FUNC_NORMAL);
       } else if (functionNeedToExecute(pRuntimeEnv, &pInfo->binfo.pCtx[k], functionId)) {
         aAggs[functionId].xFunctionF(&pInfo->binfo.pCtx[k], j);
       }
@@ -1848,7 +1892,7 @@ static int32_t setupQueryRuntimeEnv(SQueryRuntimeEnv *pRuntimeEnv, int32_t numOf
 
       case OP_GlobalAggregate: {
         pRuntimeEnv->proot = createGlobalAggregateOperatorInfo(pRuntimeEnv, pRuntimeEnv->proot, pQueryAttr->pExpr3,
-                                                               pQueryAttr->numOfExpr3, merger);
+                                                               pQueryAttr->numOfExpr3, merger, pQueryAttr->pUdfInfo);
         break;
       }
 
@@ -3154,6 +3198,21 @@ void updateOutputBuf(SOptrBasicInfo* pBInfo, int32_t *bufCapacity, int32_t numOf
   }
 }
 
+void clearOutputBuf(SOptrBasicInfo* pBInfo, int32_t *bufCapacity) {
+  SSDataBlock* pDataBlock = pBInfo->pRes;
+
+  for (int32_t i = 0; i < pDataBlock->info.numOfCols; ++i) {
+    SColumnInfoData *pColInfo = taosArrayGet(pDataBlock->pDataBlock, i);
+
+    int32_t functionId = pBInfo->pCtx[i].functionId;
+    if (functionId < 0) {
+      memset(pBInfo->pCtx[i].pOutput, 0, pColInfo->info.bytes * (*bufCapacity));
+    }
+  }
+}
+
+
+
 void initCtxOutputBuffer(SQLFunctionCtx* pCtx, int32_t size) {
   for (int32_t j = 0; j < size; ++j) {
     SResultRowCellInfo* pResInfo = GET_RES_INFO(&pCtx[j]);
@@ -3221,23 +3280,7 @@ void finalizeQueryResult(SOperatorInfo* pOperator, SQLFunctionCtx* pCtx, SResult
 
       for (int32_t j = 0; j < numOfOutput; ++j) {
         if (pCtx[j].functionId < 0) {
-          int32_t output = 0;
-          SResultRowCellInfo *pResInfo = GET_RES_INFO(&pCtx[j]);
-          void *interBuf = (void *)GET_ROWCELL_INTERBUF(pResInfo);
-
-          if (pRuntimeEnv->pUdfInfo && pRuntimeEnv->pUdfInfo->funcs[TSDB_UDF_FUNC_FINALIZE]) {
-            if (pRuntimeEnv->pUdfInfo->isScript) {
-              (*(scriptFinalizeFunc)pRuntimeEnv->pUdfInfo->funcs[TSDB_UDF_FUNC_FINALIZE])(pRuntimeEnv->pUdfInfo->pScriptCtx, pCtx[j].pOutput, &output);
-            } else {
-              (*(udfFinalizeFunc)pRuntimeEnv->pUdfInfo->funcs[TSDB_UDF_FUNC_FINALIZE])(pCtx[j].pOutput, interBuf, &output, &pRuntimeEnv->pUdfInfo->init);
-            }
-          }
-
-          // set the output value exist
-          pCtx[j].resultInfo->numOfRes = output;
-          if (output > 0) {
-            pCtx[j].resultInfo->hasResult = DATA_SET_FLAG;
-          }
+          doInvokeUdf(pRuntimeEnv->pUdfInfo, &pCtx[j], 0, TSDB_UDF_FUNC_FINALIZE);
         } else {
           aAggs[pCtx[j].functionId].xFinalize(&pCtx[j]);
         }
@@ -3254,23 +3297,7 @@ void finalizeQueryResult(SOperatorInfo* pOperator, SQLFunctionCtx* pCtx, SResult
   } else {
     for (int32_t j = 0; j < numOfOutput; ++j) {
       if (pCtx[j].functionId < 0) {
-        int32_t output = 0;
-        SResultRowCellInfo *pResInfo = GET_RES_INFO(pCtx);
-        void *interBuf = (void *)GET_ROWCELL_INTERBUF(pResInfo);
-
-        if (pRuntimeEnv->pUdfInfo && pRuntimeEnv->pUdfInfo->funcs[TSDB_UDF_FUNC_FINALIZE]) {
-            if (pRuntimeEnv->pUdfInfo->isScript) {
-              (*(scriptFinalizeFunc)pRuntimeEnv->pUdfInfo->funcs[TSDB_UDF_FUNC_FINALIZE])(pRuntimeEnv->pUdfInfo->pScriptCtx, pCtx[j].pOutput, &output);
-            } else {
-              (*(udfFinalizeFunc)pRuntimeEnv->pUdfInfo->funcs[TSDB_UDF_FUNC_FINALIZE])(pCtx[j].pOutput, interBuf, &output, &pRuntimeEnv->pUdfInfo->init);
-            }
-        }
-
-        // set the output value exist
-        pCtx[j].resultInfo->numOfRes = output;
-        if (output > 0) {
-          pCtx[j].resultInfo->hasResult = DATA_SET_FLAG;
-        }
+        doInvokeUdf(pRuntimeEnv->pUdfInfo, &pCtx[j], 0, TSDB_UDF_FUNC_FINALIZE);
       } else {
         aAggs[pCtx[j].functionId].xFinalize(&pCtx[j]);
       }
@@ -4639,7 +4666,7 @@ static void destroySlimitOperatorInfo(void* param, int32_t numOfOutput) {
 }
 
 SOperatorInfo* createGlobalAggregateOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorInfo* upstream,
-                                                 SExprInfo* pExpr, int32_t numOfOutput, void* param) {
+                                                 SExprInfo* pExpr, int32_t numOfOutput, void* param, SArray* pUdfInfo) {
   SMultiwayMergeInfo* pInfo = calloc(1, sizeof(SMultiwayMergeInfo));
 
   pInfo->resultRowFactor =
@@ -4650,6 +4677,7 @@ SOperatorInfo* createGlobalAggregateOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, 
 
   pInfo->pMerge = param;
   pInfo->bufCapacity = 4096;
+  pInfo->udfInfo   = pUdfInfo;
 
   pInfo->binfo.pRes = createOutputBuf(pExpr, numOfOutput, pInfo->bufCapacity * pInfo->resultRowFactor);
   pInfo->binfo.pCtx = createSQLFunctionCtx(pRuntimeEnv, pExpr, numOfOutput, &pInfo->binfo.rowCellInfoOffset);
@@ -4916,7 +4944,7 @@ static SSDataBlock* doArithmeticOperation(void* param, bool* newgroup) {
     }
 
     // Return result of the previous group in the firstly.
-    if (newgroup && pRes->info.rows > 0) {
+    if (*newgroup && pRes->info.rows > 0) {
       pArithInfo->existDataBlock = pBlock;
       clearNumOfRes(pInfo->pCtx, pOperator->numOfOutput);
       return pInfo->pRes;

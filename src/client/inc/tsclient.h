@@ -240,6 +240,7 @@ typedef struct SQueryInfo {
   int32_t            havingFieldNum;
   bool               globalMerge; // need global merge
   bool               arithmCalOnAgg; // arithmetic calculation on aggregate result.
+  SArray            *pUdfInfo;       // user defined function information SArray<SUdfInfo>  
 } SQueryInfo;
 
 typedef struct {
@@ -284,7 +285,6 @@ typedef struct {
 
   SHashObj    *pTableBlockHashList;     // data block for each table
   SArray      *pDataBlocks;             // SArray<STableDataBlocks*>. Merged submit block for each vgroup
-  SArray      *pUdfInfo;       // user defined function information SArray<SUdfInfo>
 } SSqlCmd;
 
 typedef struct SResRec {

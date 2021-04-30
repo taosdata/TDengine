@@ -521,7 +521,7 @@ int tscBuildAndSendRequest(SSqlObj *pSql, SQueryInfo* pQueryInfo) {
     type = pQueryInfo->type;
 
     // while numOfTables equals to 0, it must be Heartbeat
-    assert((pQueryInfo->numOfTables == 0 && pQueryInfo->command == TSDB_SQL_HB) || pQueryInfo->numOfTables > 0);
+    assert((pQueryInfo->numOfTables == 0 && (pQueryInfo->command == TSDB_SQL_HB || pSql->cmd.command == TSDB_SQL_RETRIEVE_FUNC)) || pQueryInfo->numOfTables > 0);
   }
 
   tscDebug("0x%"PRIx64" SQL cmd:%s will be processed, name:%s, type:%d", pSql->self, sqlCmd[pCmd->command], name, type);
@@ -1026,10 +1026,10 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   }
 
   // support only one udf
-  if (pCmd->pUdfInfo != NULL && taosArrayGetSize(pCmd->pUdfInfo) > 0) {
+  if (pQueryInfo->pUdfInfo != NULL && taosArrayGetSize(pQueryInfo->pUdfInfo) > 0) {
     pQueryMsg->udfContentOffset = htonl((int32_t) (pMsg - pCmd->payload));
-    for(int32_t i = 0; i < taosArrayGetSize(pCmd->pUdfInfo); ++i) {
-      SUdfInfo* pUdfInfo = taosArrayGet(pCmd->pUdfInfo, i);
+    for(int32_t i = 0; i < taosArrayGetSize(pQueryInfo->pUdfInfo); ++i) {
+      SUdfInfo* pUdfInfo = taosArrayGet(pQueryInfo->pUdfInfo, i);
       *(int8_t*) pMsg = pUdfInfo->resType;
       pMsg += sizeof(pUdfInfo->resType);
 
@@ -1843,14 +1843,15 @@ int tscBuildRetrieveFuncMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   SSqlCmd *pCmd = &pSql->cmd;
 
   char *pMsg = pCmd->payload;
-  int32_t numOfFuncs = (int32_t)taosArrayGetSize(pCmd->pUdfInfo);
+  SQueryInfo* pQueryInfo = tscGetActiveQueryInfo(pCmd);
+  int32_t numOfFuncs = (int32_t)taosArrayGetSize(pQueryInfo->pUdfInfo);
 
   SRetrieveFuncMsg *pRetrieveFuncMsg = (SRetrieveFuncMsg *)pMsg;
   pRetrieveFuncMsg->num = htonl(numOfFuncs);
 
   pMsg += sizeof(SRetrieveFuncMsg);
   for(int32_t i = 0; i < numOfFuncs; ++i) {
-    SUdfInfo* pUdf = taosArrayGet(pCmd->pUdfInfo, i);
+    SUdfInfo* pUdf = taosArrayGet(pQueryInfo->pUdfInfo, i);
     STR_TO_NET_VARSTR(pMsg, pUdf->name);
     pMsg += varDataNetTLen(pMsg);
   }
@@ -2125,15 +2126,17 @@ int tscProcessMultiMeterMetaRsp(SSqlObj *pSql) {
 int tscProcessRetrieveFuncRsp(SSqlObj* pSql) {
   SSqlCmd* pCmd = &pSql->cmd;
   SUdfFuncMsg* pFuncMsg = (SUdfFuncMsg *)pSql->res.pRsp;
+  SQueryInfo* pQueryInfo = tscGetQueryInfo(pCmd, pCmd->clauseIndex);
+  
   pFuncMsg->num = htonl(pFuncMsg->num);
-  assert(pFuncMsg->num == taosArrayGetSize(pCmd->pUdfInfo));
+  assert(pFuncMsg->num == taosArrayGetSize(pQueryInfo->pUdfInfo));
 
   char* pMsg = pFuncMsg->content;
   for(int32_t i = 0; i < pFuncMsg->num; ++i) {
     SFunctionInfoMsg* pFunc = (SFunctionInfoMsg*) pMsg;
 
     for(int32_t j = 0; j < pFuncMsg->num; ++j) {
-      SUdfInfo* pUdfInfo = taosArrayGet(pCmd->pUdfInfo, j);
+      SUdfInfo* pUdfInfo = taosArrayGet(pQueryInfo->pUdfInfo, j);
       if (strcmp(pUdfInfo->name, pFunc->name) != 0) {
         continue;
       }
@@ -2161,11 +2164,13 @@ int tscProcessRetrieveFuncRsp(SSqlObj* pSql) {
     return pSql->res.code;
   }
 
-  assert(parent->signature == parent && (int64_t)pSql->param == parent->self);
-  taosArrayDestroy(parent->cmd.pUdfInfo);
+  SQueryInfo* parQueryInfo = tscGetQueryInfo(&parent->cmd, parent->cmd.clauseIndex);
 
-  parent->cmd.pUdfInfo = pCmd->pUdfInfo;   // assigned to parent sql obj.
-  pCmd->pUdfInfo = NULL;
+  assert(parent->signature == parent && (int64_t)pSql->param == parent->self);
+  taosArrayDestroy(parQueryInfo->pUdfInfo);
+
+  parQueryInfo->pUdfInfo = pQueryInfo->pUdfInfo;   // assigned to parent sql obj.
+  pQueryInfo->pUdfInfo = NULL;
   return TSDB_CODE_SUCCESS;
 }
 
@@ -2479,7 +2484,7 @@ int tscProcessRetrieveRspFromNode(SSqlObj *pSql) {
     tscSetResRawPtr(pRes, pQueryInfo);
   } else if ((UTIL_TABLE_IS_CHILD_TABLE(pTableMetaInfo) || UTIL_TABLE_IS_NORMAL_TABLE(pTableMetaInfo)) && !TSDB_QUERY_HAS_TYPE(pQueryInfo->type, TSDB_QUERY_TYPE_SUBQUERY)) {
     tscSetResRawPtr(pRes, pQueryInfo);
-  } else if (tscNonOrderedProjectionQueryOnSTable(pCmd, pQueryInfo, 0) && !TSDB_QUERY_HAS_TYPE(pQueryInfo->type, TSDB_QUERY_TYPE_JOIN_QUERY) && !TSDB_QUERY_HAS_TYPE(pQueryInfo->type, TSDB_QUERY_TYPE_JOIN_SEC_STAGE)) {
+  } else if (tscNonOrderedProjectionQueryOnSTable(pQueryInfo, 0) && !TSDB_QUERY_HAS_TYPE(pQueryInfo->type, TSDB_QUERY_TYPE_JOIN_QUERY) && !TSDB_QUERY_HAS_TYPE(pQueryInfo->type, TSDB_QUERY_TYPE_JOIN_SEC_STAGE)) {
     tscSetResRawPtr(pRes, pQueryInfo);
   }
 
@@ -2607,7 +2612,7 @@ int tscGetTableMetaEx(SSqlObj *pSql, STableMetaInfo *pTableMetaInfo, bool create
   return tscGetTableMeta(pSql, pTableMetaInfo);
 }
 
-int32_t tscGetUdfFromNode(SSqlObj *pSql) {
+int32_t tscGetUdfFromNode(SSqlObj *pSql, SQueryInfo* pQueryInfo) {
   SSqlObj *pNew = calloc(1, sizeof(SSqlObj));
   if (NULL == pNew) {
     tscError("%p malloc failed for new sqlobj to get user-defined functions", pSql);
@@ -2618,14 +2623,24 @@ int32_t tscGetUdfFromNode(SSqlObj *pSql) {
   pNew->signature = pNew;
   pNew->cmd.command = TSDB_SQL_RETRIEVE_FUNC;
 
-  pNew->cmd.pUdfInfo = taosArrayInit(4, sizeof(SUdfInfo));
-  for(int32_t i = 0; i < taosArrayGetSize(pSql->cmd.pUdfInfo); ++i) {
+  if (tscAddQueryInfo(&pNew->cmd) != TSDB_CODE_SUCCESS) {
+    tscError("%p malloc failed for new queryinfo", pSql);
+    tscFreeSqlObj(pNew);
+    return TSDB_CODE_TSC_OUT_OF_MEMORY;
+  }
+
+  SQueryInfo *pNewQueryInfo = tscGetQueryInfo(&pNew->cmd, 0);
+
+  pNewQueryInfo->pUdfInfo = taosArrayInit(4, sizeof(SUdfInfo));
+  for(int32_t i = 0; i < taosArrayGetSize(pQueryInfo->pUdfInfo); ++i) {
     SUdfInfo info = {0};
-    SUdfInfo* p1 = taosArrayGet(pSql->cmd.pUdfInfo, i);
+    SUdfInfo* p1 = taosArrayGet(pQueryInfo->pUdfInfo, i);
     info = *p1;
     info.name = strdup(p1->name);
-    taosArrayPush(pNew->cmd.pUdfInfo, &info);
+    taosArrayPush(pNewQueryInfo->pUdfInfo, &info);
   }
+  
+  pNew->cmd.active = pNewQueryInfo;
 
   if (TSDB_CODE_SUCCESS != tscAllocPayload(&pNew->cmd, TSDB_DEFAULT_PAYLOAD_SIZE + pSql->cmd.payloadLen)) {
     tscError("%p malloc failed for payload to get table meta", pSql);
