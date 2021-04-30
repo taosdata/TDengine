@@ -462,7 +462,6 @@ int tsParseOneRow(char **str, STableDataBlocks *pDataBlocks, SSqlCmd *pCmd, int1
     // Remove quotation marks
     if (TK_STRING == sToken.type) {
       // delete escape character: \\, \', \"
-//      char    delim = sToken.z[0];
       int32_t cnt = 0;
       int32_t j = 0;
       for (uint32_t k = 1; k < sToken.n - 1; ++k) {
@@ -704,6 +703,8 @@ static int32_t doParseInsertStatement(SSqlCmd* pCmd, char **str, STableDataBlock
   }
 
   code = TSDB_CODE_TSC_INVALID_SQL;
+
+  // todo the size should be limited to the current sql length
   char  *tmpTokenBuf = calloc(1, 16*1024);  // used for deleting Escape character: \\, \', \"
   if (NULL == tmpTokenBuf) {
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
