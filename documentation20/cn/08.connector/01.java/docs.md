@@ -16,7 +16,6 @@ TDengine 的 JDBC 驱动实现尽可能与关系型数据库驱动保持一致�
 
 * TDengine 目前不支持针对单条数据记录的删除操作。
 * 目前不支持事务操作。
-* 目前不支持表间的 union 操作。
 * 目前不支持嵌套查询（nested query）。
 * 对每个 Connection 的实例，至多只能有一个打开的 ResultSet 实例；如果在 ResultSet 还没关闭的情况下执行了新的查询，taos-jdbcdriver 会自动关闭上一个 ResultSet。
 
@@ -447,7 +446,7 @@ Query OK, 1 row(s) in set (0.000141s)
 
 
 
-## TAOS-JDBCDriver 版本以及支持的 TDengine 版本和 JDK 版本
+## <a class="anchor" id="version"></a>TAOS-JDBCDriver 版本以及支持的 TDengine 版本和 JDK 版本
 
 | taos-jdbcdriver 版本 | TDengine 版本     | JDK 版本 |
 | -------------------- | ----------------- | -------- |

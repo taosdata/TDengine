@@ -462,31 +462,31 @@ TDengine的所有可执行文件默认存放在 _/usr/local/taos/bin_ 目录下�
 
 | 关键字列表 |             |              |            |           |
 | ---------- | ----------- | ------------ | ---------- | --------- |
-| ABLOCKS    | CONNECTIONS | HAVING       | MODULES    | SLIMIT    |
-| ABORT      | COPY        | ID           | NCHAR      | SMALLINT  |
-| ACCOUNT    | COUNT       | IF           | NE         | SPREAD    |
-| ACCOUNTS   | CREATE      | IGNORE       | NONE       | STABLE    |
-| ADD        | CTIME       | IMMEDIATE    | NOT        | STABLES   |
-| AFTER      | DATABASE    | IMPORT       | NOTNULL    | STAR      |
-| ALL        | DATABASES   | IN           | NOW        | STATEMENT |
-| ALTER      | DAYS        | INITIALLY    | OF         | STDDEV    |
-| AND        | DEFERRED    | INSERT       | OFFSET     | STREAM    |
-| AS         | DELIMITERS  | INSTEAD      | OR         | STREAMS   |
-| ASC        | DESC        | INTEGER      | ORDER      | STRING    |
-| ATTACH     | DESCRIBE    | INTERVAL     | PASS       | SUM       |
-| AVG        | DETACH      | INTO         | PERCENTILE | TABLE     |
-| BEFORE     | DIFF        | IP           | PLUS       | TABLES    |
-| BEGIN      | DISTINCT    | IS           | PRAGMA     | TAG       |
-| BETWEEN    | DIVIDE      | ISNULL       | PREV       | TAGS      |
-| BIGINT     | DNODE       | JOIN         | PRIVILEGE  | TBLOCKS   |
-| BINARY     | DNODES      | KEEP         | QUERIES    | TBNAME    |
-| BITAND     | DOT         | KEY          | QUERY      | TIMES     |
-| BITNOT     | DOUBLE      | KILL         | RAISE      | TIMESTAMP |
-| BITOR      | DROP        | LAST         | REM        | TINYINT   |
-| BOOL       | EACH        | LE           | REPLACE    | TOP       |
-| BOTTOM     | END         | LEASTSQUARES | REPLICA    | TOPIC     |
-| BY         | EQ          | LIKE         | RESET      | TRIGGER   |
-| CACHE      | EXISTS      | LIMIT        | RESTRICT   | UMINUS    |
+| ABLOCKS    | CONNECTIONS | HAVING       | MODULES    | SMALLINT  |
+| ABORT      | COPY        | ID           | NCHAR      | SPREAD    |
+| ACCOUNT    | COUNT       | IF           | NE         | STABLE    |
+| ACCOUNTS   | CREATE      | IGNORE       | NONE       | STABLES   |
+| ADD        | CTIME       | IMMEDIATE    | NOT        | STAR      |
+| AFTER      | DATABASE    | IMPORT       | NOTNULL    | STATEMENT |
+| ALL        | DATABASES   | IN           | NOW        | STDDEV    |
+| ALTER      | DAYS        | INITIALLY    | OF         | STREAM    |
+| AND        | DEFERRED    | INSERT       | OFFSET     | STREAMS   |
+| AS         | DELIMITERS  | INSTEAD      | OR         | STRING    |
+| ASC        | DESC        | INTEGER      | ORDER      | SUM       |
+| ATTACH     | DESCRIBE    | INTERVAL     | PASS       | TABLE     |
+| AVG        | DETACH      | INTO         | PERCENTILE | TABLES    |
+| BEFORE     | DIFF        | IP           | PLUS       | TAG       |
+| BEGIN      | DISTINCT    | IS           | PRAGMA     | TAGS      |
+| BETWEEN    | DIVIDE      | ISNULL       | PREV       | TBLOCKS   |
+| BIGINT     | DNODE       | JOIN         | PRIVILEGE  | TBNAME    |
+| BINARY     | DNODES      | KEEP         | QUERIES    | TIMES     |
+| BITAND     | DOT         | KEY          | QUERY      | TIMESTAMP |
+| BITNOT     | DOUBLE      | KILL         | RAISE      | TINYINT   |
+| BITOR      | DROP        | LAST         | REM        | TOP       |
+| BOOL       | EACH        | LE           | REPLACE    | TOPIC     |
+| BOTTOM     | END         | LEASTSQUARES | REPLICA    | TRIGGER   |
+| BY         | EQ          | LIKE         | RESET      | UMINUS    |
+| CACHE      | EXISTS      | LIMIT        | RESTRICT   | UNION     |
 | CASCADE    | EXPLAIN     | LINEAR       | ROW        | UPLUS     |
 | CHANGE     | FAIL        | LOCAL        | ROWS       | USE       |
 | CLOG       | FILL        | LP           | RP         | USER      |
@@ -498,5 +498,5 @@ TDengine的所有可执行文件默认存放在 _/usr/local/taos/bin_ 目录下�
 | CONCAT     | GLOB        | METRICS      | SHOW       | VIEW      |
 | CONFIGS    | GRANTS      | MIN          | SLASH      | WAVG      |
 | CONFLICT   | GROUP       | MINUS        | SLIDING    | WHERE     |
-| CONNECTION | GT          | MNODES       |            |           |
+| CONNECTION | GT          | MNODES       | SLIMIT     |           |
 
