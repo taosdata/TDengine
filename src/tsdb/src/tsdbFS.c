@@ -1282,24 +1282,11 @@ static int tsdbRestoreDFileSet(STsdbRepo *pRepo) {
 }
 
 static int tsdbFullCheckRestoreDFileSet(STsdbRepo *pRepo) {
-  SArray *fSetArray = NULL;  // SDFileSet array
-
-  if (tsdbFetchDFileSet(pRepo, &fSetArray) < 0) {
-    tsdbError("vgId:%d failed to fetch DFileSet to restore in mode %d since %s", REPO_ID(pRepo), tsTsdbCheckRestoreMode,
-              strerror(terrno));
-    return -1;
-  }
-
   if (tsdbRecoverDataMain(pRepo) < 0) {
     tsdbError("vgId:%d failed to check and restore in mode %d since %s", REPO_ID(pRepo), tsTsdbCheckRestoreMode,
               strerror(terrno));
-    taosArrayDestroy(fSetArray);
     return -1;
   }
-
-  // Resource release
-  taosArrayDestroy(fSetArray);
-
   return 0;
 }
 
