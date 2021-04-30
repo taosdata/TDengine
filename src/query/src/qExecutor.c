@@ -4466,13 +4466,18 @@ SArray* getOrderCheckColumns(SQueryAttr* pQuery) {
     for(int32_t i = 0; i < numOfCols; ++i) {
       SColIndex* index = taosArrayGet(pOrderColumns, i);
       for(int32_t j = 0; j < pQuery->numOfOutput; ++j) {
-        if (index->colId == pQuery->pExpr1[j].base.colInfo.colId) {
+        SSqlExpr* pExpr = &pQuery->pExpr1[j].base;
+        int32_t functionId = pExpr->functionId;
+
+        if (index->colId == pExpr->colInfo.colId &&
+            (functionId == TSDB_FUNC_PRJ || functionId == TSDB_FUNC_TAG || functionId == TSDB_FUNC_TS)) {
           index->colIndex = j;
-          index->colId = pQuery->pExpr1[j].base.resColId;
+          index->colId = pExpr->resColId;
         }
       }
     }
   }
+
   return pOrderColumns;
 }
 
@@ -4804,7 +4809,7 @@ static SSDataBlock* doArithmeticOperation(void* param, bool* newgroup) {
     }
 
     // Return result of the previous group in the firstly.
-    if (newgroup && pRes->info.rows > 0) {
+    if (*newgroup && pRes->info.rows > 0) {
       pArithInfo->existDataBlock = pBlock;
       clearNumOfRes(pInfo->pCtx, pOperator->numOfOutput);
       return pInfo->pRes;

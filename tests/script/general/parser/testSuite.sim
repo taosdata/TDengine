@@ -56,3 +56,4 @@ run general/parser/function.sim
 run general/parser/stableOp.sim
 run general/parser/having.sim
 run general/parser/having_child.sim
+run general/parser/binary_escapeCharacter.sim
