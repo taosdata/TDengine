@@ -83,7 +83,7 @@ static int32_t validateSelectNodeList(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SAr
 
 static bool validateIpAddress(const char* ip, size_t size);
 static bool hasUnsupportFunctionsForSTableQuery(SSqlCmd* pCmd, SQueryInfo* pQueryInfo);
-static bool functionCompatibleCheck(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, bool joinQuery, bool twQuery);
+static bool functionCompatibleCheck(SQueryInfo* pQueryInfo, bool joinQuery, bool twQuery);
 
 static int32_t validateGroupbyNode(SQueryInfo* pQueryInfo, SArray* pList, SSqlCmd* pCmd);
 
@@ -1774,13 +1774,12 @@ void genUdfList(SArray* pUdfInfo, tSqlExpr *pNode) {
   }
 }
 
-static int32_t checkForUdf(SSqlObj* pSql, SArray* pSelection) {
-  SSqlCmd* pCmd = &pSql->cmd;
-  if (pCmd->pUdfInfo != NULL) {
+static int32_t checkForUdf(SSqlObj* pSql, SQueryInfo* pQueryInfo, SArray* pSelection) {
+  if (pQueryInfo->pUdfInfo != NULL) {
     return TSDB_CODE_SUCCESS;
   }
 
-  pCmd->pUdfInfo = taosArrayInit(4, sizeof(struct SUdfInfo));
+  pQueryInfo->pUdfInfo = taosArrayInit(4, sizeof(struct SUdfInfo));
 
   size_t nExpr = taosArrayGetSize(pSelection);
 
@@ -1789,12 +1788,12 @@ static int32_t checkForUdf(SSqlObj* pSql, SArray* pSelection) {
 
     int32_t type = pItem->pNode->type;
     if (type == SQL_NODE_EXPR || type == SQL_NODE_SQLFUNCTION) {
-      genUdfList(pCmd->pUdfInfo, pItem->pNode);
+      genUdfList(pQueryInfo->pUdfInfo, pItem->pNode);
     }
   }
 
-  if (taosArrayGetSize(pCmd->pUdfInfo) > 0) {
-    return tscGetUdfFromNode(pSql);
+  if (taosArrayGetSize(pQueryInfo->pUdfInfo) > 0) {
+    return tscGetUdfFromNode(pSql, pQueryInfo);
   } else {
     return TSDB_CODE_SUCCESS;
   }
@@ -1845,7 +1844,7 @@ int32_t validateSelectNodeList(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SArray* pS
     if (type == SQL_NODE_SQLFUNCTION) {
       pItem->pNode->functionId = isValidFunction(pItem->pNode->operand.z, pItem->pNode->operand.n);
       if (pItem->pNode->functionId < 0) {
-        SUdfInfo* pUdfInfo = isValidUdf(pCmd->pUdfInfo, pItem->pNode->operand.z, pItem->pNode->operand.n);
+        SUdfInfo* pUdfInfo = isValidUdf(pQueryInfo->pUdfInfo, pItem->pNode->operand.z, pItem->pNode->operand.n);
         if (pUdfInfo == NULL) {
           return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg5);
         }
@@ -1890,7 +1889,7 @@ int32_t validateSelectNodeList(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SArray* pS
     addPrimaryTsColIntoResult(pQueryInfo);
   }
 
-  if (!functionCompatibleCheck(pCmd, pQueryInfo, joinQuery, timeWindowQuery)) {
+  if (!functionCompatibleCheck(pQueryInfo, joinQuery, timeWindowQuery)) {
     return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg2);
   }
 
@@ -2700,7 +2699,7 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
     }
 
     default: {
-      SUdfInfo* pUdfInfo = isValidUdf(pCmd->pUdfInfo, pItem->pNode->operand.z, pItem->pNode->operand.n);
+      SUdfInfo* pUdfInfo = isValidUdf(pQueryInfo->pUdfInfo, pItem->pNode->operand.z, pItem->pNode->operand.n);
       if (pUdfInfo == NULL) {
         return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg9);
       }
@@ -3180,7 +3179,7 @@ static bool groupbyTagsOrNull(SQueryInfo* pQueryInfo) {
   return true;
 }
 
-static bool functionCompatibleCheck(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, bool joinQuery, bool twQuery) {
+static bool functionCompatibleCheck(SQueryInfo* pQueryInfo, bool joinQuery, bool twQuery) {
   int32_t startIdx = 0;
   int32_t aggUdf = 0;
   int32_t scalarUdf = 0;
@@ -3201,7 +3200,7 @@ static bool functionCompatibleCheck(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, bool 
 
     int16_t functionId = pExpr1->base.functionId;
     if (functionId < 0) {
-       SUdfInfo* pUdfInfo = taosArrayGet(pCmd->pUdfInfo, -1 * functionId - 1);
+       SUdfInfo* pUdfInfo = taosArrayGet(pQueryInfo->pUdfInfo, -1 * functionId - 1);
        pUdfInfo->funcType == TSDB_UDF_TYPE_AGGREGATE ? ++aggUdf : ++scalarUdf;
 
        continue;
@@ -5257,7 +5256,7 @@ int32_t validateOrderbyNode(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SSqlNode* pSq
         pQueryInfo->order.orderColId = PRIMARYKEY_TIMESTAMP_COL_INDEX;
 
         // orderby ts query on super table
-        if (tscOrderedProjectionQueryOnSTable(pCmd, pQueryInfo, 0)) {
+        if (tscOrderedProjectionQueryOnSTable(pQueryInfo, 0)) {
           addPrimaryTsColIntoResult(pQueryInfo);
         }
       }
@@ -5635,7 +5634,7 @@ int32_t validateFunctionsInIntervalOrGroupbyQuery(SSqlCmd* pCmd, SQueryInfo* pQu
     SExprInfo* pExpr = tscSqlExprGet(pQueryInfo, k);
 
     if (pExpr->base.functionId < 0) {
-      SUdfInfo* pUdfInfo = taosArrayGet(pCmd->pUdfInfo, -1 * pExpr->base.functionId - 1);
+      SUdfInfo* pUdfInfo = taosArrayGet(pQueryInfo->pUdfInfo, -1 * pExpr->base.functionId - 1);
       if (pUdfInfo->funcType == TSDB_UDF_TYPE_SCALAR) {
         isProjectionFunction = true;
         break;
@@ -5885,13 +5884,13 @@ int32_t validateLimitNode(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t clauseI
   // todo refactor
   if (UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo)) {
     if (!tscQueryTags(pQueryInfo)) {  // local handle the super table tag query
-      if (tscIsProjectionQueryOnSTable(pCmd, pQueryInfo, 0)) {
+      if (tscIsProjectionQueryOnSTable(pQueryInfo, 0)) {
         if (pQueryInfo->slimit.limit > 0 || pQueryInfo->slimit.offset > 0) {
           return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg2);
         }
 
         // for projection query on super table, all queries are subqueries
-        if (tscNonOrderedProjectionQueryOnSTable(pCmd, pQueryInfo, 0) &&
+        if (tscNonOrderedProjectionQueryOnSTable(pQueryInfo, 0) &&
             !TSDB_QUERY_HAS_TYPE(pQueryInfo->type, TSDB_QUERY_TYPE_JOIN_QUERY)) {
           pQueryInfo->type |= TSDB_QUERY_TYPE_SUBQUERY;
         }
@@ -5927,7 +5926,7 @@ int32_t validateLimitNode(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t clauseI
     pQueryInfo->prjOffset   = pQueryInfo->limit.offset;
     pQueryInfo->vgroupLimit = -1;
 
-    if (tscOrderedProjectionQueryOnSTable(pCmd, pQueryInfo, 0)) {
+    if (tscOrderedProjectionQueryOnSTable(pQueryInfo, 0)) {
       /*
        * the offset value should be removed during retrieve data from virtual node, since the
        * global order are done in client side, so the offset is applied at the client side
@@ -6280,7 +6279,7 @@ static int32_t checkUpdateTagPrjFunctions(SQueryInfo* pQueryInfo, SSqlCmd* pCmd)
     }
 
     if (functionId < 0) {
-      SUdfInfo* pUdfInfo = taosArrayGet(pCmd->pUdfInfo, -1 * functionId - 1);
+      SUdfInfo* pUdfInfo = taosArrayGet(pQueryInfo->pUdfInfo, -1 * functionId - 1);
       if (pUdfInfo->funcType == TSDB_UDF_TYPE_AGGREGATE) {
         ++numOfAggregation;
       }
@@ -6526,7 +6525,7 @@ int32_t doFunctionsCompatibleCheck(SSqlCmd* pCmd, SQueryInfo* pQueryInfo) {
     }
 
     // projection query on super table does not compatible with "group by" syntax
-    if (tscIsProjectionQuery(pCmd, pQueryInfo)) {
+    if (tscIsProjectionQuery(pQueryInfo)) {
       return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg3);
     }
 
@@ -6708,7 +6707,7 @@ void tscPrintSelNodeList(SSqlObj* pSql, int32_t subClauseIndex) {
     char   *name = NULL;
 
     if (pExpr->base.functionId < 0) {
-      SUdfInfo* pUdfInfo = taosArrayGet(pSql->cmd.pUdfInfo, -1 * pExpr->base.functionId - 1);
+      SUdfInfo* pUdfInfo = taosArrayGet(pQueryInfo->pUdfInfo, -1 * pExpr->base.functionId - 1);
       name = pUdfInfo->name;
     } else {
       name = aAggs[pExpr->base.functionId].name;
@@ -7034,7 +7033,7 @@ int32_t doCheckForStream(SSqlObj* pSql, SSqlInfo* pInfo) {
     return code;
   }
 
-  code = checkForUdf(pSql, pSqlNode->pSelNodeList);
+  code = checkForUdf(pSql, pQueryInfo, pSqlNode->pSelNodeList);
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }
@@ -7059,7 +7058,7 @@ int32_t doCheckForStream(SSqlObj* pSql, SSqlInfo* pInfo) {
     return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg2);
   }
 
-  if (!tscIsProjectionQuery(pCmd, pQueryInfo) && pQueryInfo->interval.interval == 0) {
+  if (!tscIsProjectionQuery(pQueryInfo) && pQueryInfo->interval.interval == 0) {
     return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg7);
   }
 
@@ -7399,7 +7398,7 @@ int32_t validateHavingClause(SQueryInfo* pQueryInfo, tSqlExpr* pExpr, SSqlCmd* p
   }
 
   //REDO function check
-  if (!functionCompatibleCheck(pCmd, pQueryInfo, joinQuery, timeWindowQuery)) {
+  if (!functionCompatibleCheck(pQueryInfo, joinQuery, timeWindowQuery)) {
     return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg2);
   }
 
@@ -7589,18 +7588,18 @@ int32_t validateSqlNode(SSqlObj* pSql, SSqlNode* pSqlNode, int32_t index) {
       TSDB_QUERY_SET_TYPE(pQueryInfo->type, TSDB_QUERY_TYPE_TABLE_QUERY);
     }
 
+    code = checkForUdf(pSql, pQueryInfo, pSqlNode->pSelNodeList);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
+
     // parse the group by clause in the first place
     if (validateGroupbyNode(pQueryInfo, pSqlNode->pGroupby, pCmd) != TSDB_CODE_SUCCESS) {
       return TSDB_CODE_TSC_INVALID_SQL;
     }
 
-  code = checkForUdf(pSql, pSqlNode->pSelNodeList);
-  if (code != TSDB_CODE_SUCCESS) {
-    return code;
-  }
-
-  // set where info
-  STableComInfo tinfo = tscGetTableInfo(pTableMetaInfo->pTableMeta);
+    // set where info
+    STableComInfo tinfo = tscGetTableInfo(pTableMetaInfo->pTableMeta);
 
     if (pSqlNode->pWhere != NULL) {
       if (validateWhereNode(pQueryInfo, &pSqlNode->pWhere, pSql) != TSDB_CODE_SUCCESS) {
