@@ -14,11 +14,12 @@
  *****************************************************************************/
 package com.taosdata.jdbc;
 
+import com.taosdata.jdbc.utils.Utils;
+
 import java.io.InputStream;
 import java.io.Reader;
 import java.math.BigDecimal;
 import java.net.URL;
-import java.nio.charset.Charset;
 import java.sql.*;
 import java.util.ArrayList;
 import java.util.Calendar;
@@ -126,28 +127,7 @@ public class TSDBPreparedStatement extends TSDBStatement implements PreparedStat
      * @return a string of the native sql statement for TSDB
      */
     private String getNativeSql(String rawSql) throws SQLException {
-        String sql = rawSql;
-        for (int i = 0; i < parameters.length; ++i) {
-            Object para = parameters[i];
-            if (para != null) {
-                String paraStr;
-                if (para instanceof byte[]) {
-                    paraStr = new String((byte[]) para, Charset.forName("UTF-8"));
-                } else {
-                    paraStr = para.toString();
-                }
-                // if para is timestamp or String or byte[] need to translate ' character
-                if (para instanceof Timestamp || para instanceof String || para instanceof byte[]) {
-                    paraStr = paraStr.replaceAll("'", "\\\\\\\\'");
-                    paraStr = "'" + paraStr + "'";
-                }
-                sql = sql.replaceFirst("[?]", paraStr);
-            } else {
-                sql = sql.replaceFirst("[?]", "NULL");
-            }
-        }
-        clearParameters();
-        return sql;
+        return Utils.getNativeSql(rawSql, this.parameters);
     }
 
     @Override
@@ -275,7 +255,7 @@ public class TSDBPreparedStatement extends TSDBStatement implements PreparedStat
     public void setObject(int parameterIndex, Object x, int targetSqlType) throws SQLException {
         if (isClosed())
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
-        setObject(parameterIndex,x);
+        setObject(parameterIndex, x);
     }
 
     @Override

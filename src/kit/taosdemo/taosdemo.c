@@ -81,7 +81,7 @@ enum QUERY_MODE {
 #define MAX_DB_NAME_SIZE   64
 #define MAX_HOSTNAME_SIZE  64
 #define MAX_TB_NAME_SIZE   64
-#define MAX_DATA_SIZE      (16*1024)
+#define MAX_DATA_SIZE      (16*1024)+20     // max record len: 16*1024, timestamp string and ,('') need extra space
 #define MAX_NUM_DATATYPE   10
 #define OPT_ABORT          1 /* –abort */
 #define STRING_LEN         60000
@@ -241,7 +241,7 @@ typedef struct SSuperTable_S {
   int8_t       autoCreateTable;         // 0: create sub table, 1: auto create sub table
   char         childTblPrefix[MAX_TB_NAME_SIZE];
   char         dataSource[MAX_TB_NAME_SIZE+1];  // rand_gen or sample
-  char         insertMode[MAX_TB_NAME_SIZE];    // taosc, restful
+  char         insertMode[MAX_TB_NAME_SIZE];    // taosc, rest
   int64_t      childTblLimit;
   int64_t      childTblOffset;
 
@@ -334,6 +334,8 @@ typedef struct SDataBase_S {
 typedef struct SDbs_S {
   char         cfgDir[MAX_FILE_NAME_LEN+1];
   char         host[MAX_HOSTNAME_SIZE];
+  struct sockaddr_in serv_addr;
+
   uint16_t     port;
   char         user[MAX_USERNAME_SIZE];
   char         password[MAX_PASSWORD_SIZE];
@@ -393,10 +395,11 @@ typedef struct SQueryMetaInfo_S {
   char         cfgDir[MAX_FILE_NAME_LEN+1];
   char         host[MAX_HOSTNAME_SIZE];
   uint16_t     port;
+  struct sockaddr_in serv_addr;
   char         user[MAX_USERNAME_SIZE];
   char         password[MAX_PASSWORD_SIZE];
   char         dbName[MAX_DB_NAME_SIZE+1];
-  char         queryMode[MAX_TB_NAME_SIZE];  // taosc, restful
+  char         queryMode[MAX_TB_NAME_SIZE];  // taosc, rest
 
   SpecifiedQueryInfo  specifiedQueryInfo;
   SuperQueryInfo    superQueryInfo;
@@ -566,7 +569,7 @@ SArguments g_args = {
                      1,               // query_times
                      0,               // interlace_rows;
                      30000,           // num_of_RPR
-                     1024000,         // max_sql_len
+                     (1024*1024),         // max_sql_len
                      10000,           // num_of_tables
                      10000,           // num_of_DPT
                      0,               // abort
@@ -663,11 +666,11 @@ static void printHelp() {
   printf("%s%s%s%s\n", indent, "-q", indent,
           "Query mode -- 0: SYNC, 1: ASYNC. Default is SYNC.");
   printf("%s%s%s%s\n", indent, "-b", indent,
-          "The data_type of columns, default: TINYINT,SMALLINT,INT,BIGINT,FLOAT,DOUBLE,BINARY,NCHAR,BOOL,TIMESTAMP.");
+          "The data_type of columns, default: INT,INT,INT,INT.");
   printf("%s%s%s%s\n", indent, "-w", indent,
           "The length of data_type 'BINARY' or 'NCHAR'. Default is 16");
   printf("%s%s%s%s\n", indent, "-l", indent,
-          "The number of columns per record. Default is 10.");
+          "The number of columns per record. Default is 4.");
   printf("%s%s%s%s\n", indent, "-T", indent,
           "The number of threads. Default is 10.");
   printf("%s%s%s%s\n", indent, "-i", indent,
@@ -1188,13 +1191,31 @@ static float rand_float(){
   return randfloat[cursor];
 }
 
+#if 0
+static const char charNum[] = "0123456789";
+
+static void nonrand_string(char *, int) __attribute__ ((unused));   // reserve for debugging purpose
+static void nonrand_string(char *str, int size)
+{
+  str[0] = 0;
+  if (size > 0) {
+    int n;
+    for (n = 0; n < size; n++) {
+      str[n] = charNum[n % 10];
+    }
+    str[n] = 0;
+  }
+}
+#endif
+
 static const char charset[] = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890";
+
 static void rand_string(char *str, int size) {
   str[0] = 0;
   if (size > 0) {
     //--size;
     int n;
-    for (n = 0; n < size - 1; n++) {
+    for (n = 0; n < size; n++) {
       int key = abs(rand_tinyint()) % (int)(sizeof(charset) - 1);
       str[n] = charset[key];
     }
@@ -1955,14 +1976,12 @@ static void printfQuerySystemInfo(TAOS * taos) {
   free(dbInfos);
 }
 
-static int postProceSql(char* host, uint16_t port, char* sqlstr)
+static int postProceSql(char *host, struct sockaddr_in *pServAddr, uint16_t port, char* sqlstr)
 {
     char *req_fmt = "POST %s HTTP/1.1\r\nHost: %s:%d\r\nAccept: */*\r\nAuthorization: Basic %s\r\nContent-Length: %d\r\nContent-Type: application/x-www-form-urlencoded\r\n\r\n%s";
 
     char *url = "/rest/sql";
 
-    struct hostent *server;
-    struct sockaddr_in serv_addr;
     int bytes, sent, received, req_str_len, resp_len;
     char *request_buf;
     char response_buf[RESP_BUF_LEN];
@@ -2011,27 +2030,7 @@ static int postProceSql(char* host, uint16_t port, char* sqlstr)
         ERROR_EXIT("ERROR opening socket");
     }
 
-    server = gethostbyname(host);
-    if (server == NULL) {
-        free(request_buf);
-        ERROR_EXIT("ERROR, no such host");
-    }
-
-    debugPrint("h_name: %s\nh_addretype: %s\nh_length: %d\n",
-            server->h_name,
-            (server->h_addrtype == AF_INET)?"ipv4":"ipv6",
-            server->h_length);
-
-    memset(&serv_addr, 0, sizeof(serv_addr));
-    serv_addr.sin_family = AF_INET;
-    serv_addr.sin_port = htons(rest_port);
-#ifdef WINDOWS
-    serv_addr.sin_addr.s_addr = inet_addr(host);
-#else
-    memcpy(&serv_addr.sin_addr.s_addr,server->h_addr,server->h_length);
-#endif
-
-    int retConn = connect(sockfd,(struct sockaddr *)&serv_addr,sizeof(serv_addr));
+    int retConn = connect(sockfd, (struct sockaddr *)pServAddr, sizeof(struct sockaddr));
     debugPrint("%s() LN%d connect() return %d\n", __func__, __LINE__, retConn);
     if (retConn < 0) {
         free(request_buf);
@@ -3335,7 +3334,7 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
   if (threads2 && threads2->type == cJSON_Number) {
     g_Dbs.threadCountByCreateTbl = threads2->valueint;
   } else if (!threads2) {
-    g_Dbs.threadCountByCreateTbl = g_args.num_of_threads;
+    g_Dbs.threadCountByCreateTbl = 1;
   } else {
     errorPrint("%s() LN%d, failed to read json, threads2 not found\n",
             __func__, __LINE__);
@@ -3379,7 +3378,7 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
   if (maxSqlLen && maxSqlLen->type == cJSON_Number) {
     g_args.max_sql_len = maxSqlLen->valueint;
   } else if (!maxSqlLen) {
-    g_args.max_sql_len = 1024000;
+    g_args.max_sql_len = (1024*1024);
   } else {
     errorPrint("%s() LN%d, failed to read json, max_sql_len input mistake\n",
         __func__, __LINE__);
@@ -3724,7 +3723,7 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
         goto PARSE_OVER;
       }
 
-      cJSON *insertMode = cJSON_GetObjectItem(stbInfo, "insert_mode"); // taosc , restful
+      cJSON *insertMode = cJSON_GetObjectItem(stbInfo, "insert_mode"); // taosc , rest
       if (insertMode && insertMode->type == cJSON_String
               && insertMode->valuestring != NULL) {
         tstrncpy(g_Dbs.db[i].superTbls[j].insertMode,
@@ -4457,11 +4456,11 @@ static int64_t generateRowData(char* recBuf, int64_t timestamp, SSuperTable* stb
   char  *pstr = recBuf;
   int64_t maxLen = MAX_DATA_SIZE;
 
-  dataLen += snprintf(pstr + dataLen, maxLen - dataLen, "(%" PRId64 ", ", timestamp);
+  dataLen += snprintf(pstr + dataLen, maxLen - dataLen, "(%" PRId64 ",", timestamp);
 
   for (int i = 0; i < stbInfo->columnCount; i++) {
-    if ((0 == strncasecmp(stbInfo->columns[i].dataType, "binary", 6))
-            || (0 == strncasecmp(stbInfo->columns[i].dataType, "nchar", 5))) {
+    if ((0 == strncasecmp(stbInfo->columns[i].dataType, "BINARY", strlen("BINARY")))
+            || (0 == strncasecmp(stbInfo->columns[i].dataType, "NCHAR", strlen("NCHAR")))) {
       if (stbInfo->columns[i].dataLen > TSDB_MAX_BINARY_LEN) {
         errorPrint( "binary or nchar length overflow, max size:%u\n",
                 (uint32_t)TSDB_MAX_BINARY_LEN);
@@ -4474,47 +4473,47 @@ static int64_t generateRowData(char* recBuf, int64_t timestamp, SSuperTable* stb
         return -1;
       }
       rand_string(buf, stbInfo->columns[i].dataLen);
-      dataLen += snprintf(pstr + dataLen, maxLen - dataLen, "\'%s\', ", buf);
+      dataLen += snprintf(pstr + dataLen, maxLen - dataLen, "\'%s\',", buf);
       tmfree(buf);
     } else if (0 == strncasecmp(stbInfo->columns[i].dataType,
-                "int", 3)) {
+                "INT", 3)) {
       dataLen += snprintf(pstr + dataLen, maxLen - dataLen,
-              "%d, ", rand_int());
+              "%d,", rand_int());
     } else if (0 == strncasecmp(stbInfo->columns[i].dataType,
-                "bigint", 6)) {
+                "BIGINT", 6)) {
       dataLen += snprintf(pstr + dataLen, maxLen - dataLen,
-              "%"PRId64", ", rand_bigint());
+              "%"PRId64",", rand_bigint());
     }  else if (0 == strncasecmp(stbInfo->columns[i].dataType,
-                "float", 5)) {
+                "FLOAT", 5)) {
       dataLen += snprintf(pstr + dataLen, maxLen - dataLen,
-              "%f, ", rand_float());
+              "%f,", rand_float());
     }  else if (0 == strncasecmp(stbInfo->columns[i].dataType,
-                "double", 6)) {
+                "DOUBLE", 6)) {
       dataLen += snprintf(pstr + dataLen, maxLen - dataLen,
-              "%f, ", rand_double());
+              "%f,", rand_double());
     }  else if (0 == strncasecmp(stbInfo->columns[i].dataType,
-                "smallint", 8)) {
+                "SMALLINT", 8)) {
       dataLen += snprintf(pstr + dataLen, maxLen - dataLen,
-          "%d, ", rand_smallint());
+          "%d,", rand_smallint());
     }  else if (0 == strncasecmp(stbInfo->columns[i].dataType,
-          "tinyint", strlen("tinyint"))) {
+          "TINYINT", strlen("TINYINT"))) {
       dataLen += snprintf(pstr + dataLen, maxLen - dataLen,
-          "%d, ", rand_tinyint());
+          "%d,", rand_tinyint());
     }  else if (0 == strncasecmp(stbInfo->columns[i].dataType,
-          "bool", strlen("bool"))) {
+          "BOOL", strlen("BOOL"))) {
       dataLen += snprintf(pstr + dataLen, maxLen - dataLen,
-          "%d, ", rand_bool());
+          "%d,", rand_bool());
     }  else if (0 == strncasecmp(stbInfo->columns[i].dataType,
-          "timestamp", strlen("timestamp"))) {
+          "TIMESTAMP", strlen("TIMESTAMP"))) {
       dataLen += snprintf(pstr + dataLen, maxLen - dataLen,
-          "%"PRId64", ", rand_bigint());
+          "%"PRId64",", rand_bigint());
     }  else {
       errorPrint( "No support data type: %s\n", stbInfo->columns[i].dataType);
       return -1;
     }
   }
 
-  dataLen -= 2;
+  dataLen -= 1;
   dataLen += snprintf(pstr + dataLen, maxLen - dataLen, ")");
 
   verbosePrint("%s() LN%d, recBuf:\n\t%s\n", __func__, __LINE__, recBuf);
@@ -4541,31 +4540,31 @@ static int64_t generateData(char *recBuf, char **data_type,
   }
 
   for (int i = 0; i < c; i++) {
-    if (strcasecmp(data_type[i % c], "tinyint") == 0) {
-      pstr += sprintf(pstr, ", %d", rand_tinyint() );
-    } else if (strcasecmp(data_type[i % c], "smallint") == 0) {
-      pstr += sprintf(pstr, ", %d", rand_smallint());
-    } else if (strcasecmp(data_type[i % c], "int") == 0) {
-      pstr += sprintf(pstr, ", %d", rand_int());
-    } else if (strcasecmp(data_type[i % c], "bigint") == 0) {
-      pstr += sprintf(pstr, ", %" PRId64, rand_bigint());
-    } else if (strcasecmp(data_type[i % c], "float") == 0) {
-      pstr += sprintf(pstr, ", %10.4f", rand_float());
-    } else if (strcasecmp(data_type[i % c], "double") == 0) {
+    if (strcasecmp(data_type[i % c], "TINYINT") == 0) {
+      pstr += sprintf(pstr, ",%d", rand_tinyint() );
+    } else if (strcasecmp(data_type[i % c], "SMALLINT") == 0) {
+      pstr += sprintf(pstr, ",%d", rand_smallint());
+    } else if (strcasecmp(data_type[i % c], "INT") == 0) {
+      pstr += sprintf(pstr, ",%d", rand_int());
+    } else if (strcasecmp(data_type[i % c], "BIGINT") == 0) {
+      pstr += sprintf(pstr, ",%" PRId64, rand_bigint());
+    } else if (strcasecmp(data_type[i % c], "FLOAT") == 0) {
+      pstr += sprintf(pstr, ",%10.4f", rand_float());
+    } else if (strcasecmp(data_type[i % c], "DOUBLE") == 0) {
       double t = rand_double();
-      pstr += sprintf(pstr, ", %20.8f", t);
-    } else if (strcasecmp(data_type[i % c], "bool") == 0) {
+      pstr += sprintf(pstr, ",%20.8f", t);
+    } else if (strcasecmp(data_type[i % c], "BOOL") == 0) {
       bool b = taosRandom() & 1;
-      pstr += sprintf(pstr, ", %s", b ? "true" : "false");
-    } else if (strcasecmp(data_type[i % c], "binary") == 0) {
+      pstr += sprintf(pstr, ",%s", b ? "true" : "false");
+    } else if (strcasecmp(data_type[i % c], "BINARY") == 0) {
       char *s = malloc(lenOfBinary);
       rand_string(s, lenOfBinary);
-      pstr += sprintf(pstr, ", \"%s\"", s);
+      pstr += sprintf(pstr, ",\"%s\"", s);
       free(s);
-    } else if (strcasecmp(data_type[i % c], "nchar") == 0) {
+    } else if (strcasecmp(data_type[i % c], "NCHAR") == 0) {
       char *s = malloc(lenOfBinary);
       rand_string(s, lenOfBinary);
-      pstr += sprintf(pstr, ", \"%s\"", s);
+      pstr += sprintf(pstr, ",\"%s\"", s);
       free(s);
     }
 
@@ -4619,14 +4618,18 @@ static int64_t execInsert(threadInfo *pThreadInfo, char *buffer, int k)
   if (superTblInfo) {
     if (0 == strncasecmp(superTblInfo->insertMode, "taosc", strlen("taosc"))) {
       affectedRows = queryDbExec(pThreadInfo->taos, buffer, INSERT_TYPE, false);
-    } else {
-      if (0 != postProceSql(g_Dbs.host, g_Dbs.port, buffer)) {
+    } else if (0 == strncasecmp(superTblInfo->insertMode, "rest", strlen("rest"))) {
+      if (0 != postProceSql(g_Dbs.host, &g_Dbs.serv_addr, g_Dbs.port, buffer)) {
         affectedRows = -1;
         printf("========restful return fail, threadID[%d]\n",
             pThreadInfo->threadID);
       } else {
         affectedRows = k;
       }
+    } else {
+      errorPrint("%s() LN%d: unknown insert mode: %s\n",
+        __func__, __LINE__, superTblInfo->insertMode);
+      affectedRows = 0;
     }
   } else {
     affectedRows = queryDbExec(pThreadInfo->taos, buffer, INSERT_TYPE, false);
@@ -5425,6 +5428,32 @@ static void *asyncWrite(void *sarg) {
   return NULL;
 }
 
+static int convertHostToServAddr(char *host, uint16_t port, struct sockaddr_in *serv_addr)
+{
+  uint16_t rest_port = port + TSDB_PORT_HTTP;
+  struct hostent *server = gethostbyname(host);
+  if ((server == NULL) || (server->h_addr == NULL)) {
+    errorPrint("%s", "ERROR, no such host");
+    return -1;
+  }
+
+  debugPrint("h_name: %s\nh_addr=%p\nh_addretype: %s\nh_length: %d\n",
+            server->h_name,
+            server->h_addr,
+            (server->h_addrtype == AF_INET)?"ipv4":"ipv6",
+            server->h_length);
+
+  memset(serv_addr, 0, sizeof(struct sockaddr_in));
+  serv_addr->sin_family = AF_INET;
+  serv_addr->sin_port = htons(rest_port);
+#ifdef WINDOWS
+  serv_addr->sin_addr.s_addr = inet_addr(host);
+#else
+  memcpy(&(serv_addr->sin_addr.s_addr), server->h_addr, server->h_length);
+#endif
+  return 0;
+}
+
 static void startMultiThreadInsertData(int threads, char* db_name,
         char* precision,SSuperTable* superTblInfo) {
 
@@ -5586,6 +5615,12 @@ static void startMultiThreadInsertData(int threads, char* db_name,
   int b = 0;
   if (threads != 0) {
     b = ntables % threads;
+  }
+
+  if ((superTblInfo)
+      && (0 == strncasecmp(superTblInfo->insertMode, "rest", strlen("rest")))) {
+    if (convertHostToServAddr(g_Dbs.host, g_Dbs.port, &(g_Dbs.serv_addr)) != 0)
+      exit(-1);
   }
 
   for (int i = 0; i < threads; i++) {
@@ -5996,7 +6031,7 @@ static void *specifiedTableQuery(void *sarg) {
 
     st = taosGetTimestampMs();
 
-    if (0 == strncasecmp(g_queryInfo.queryMode, "taosc", 5)) {
+    if (0 == strncasecmp(g_queryInfo.queryMode, "taosc", strlen("taosc"))) {
       int64_t t1 = taosGetTimestampMs();
       char tmpFile[MAX_FILE_NAME_LEN*2] = {0};
       if (g_queryInfo.specifiedQueryInfo.result[pThreadInfo->querySeq][0] != 0) {
@@ -6009,9 +6044,9 @@ static void *specifiedTableQuery(void *sarg) {
       int64_t t2 = taosGetTimestampMs();
       printf("=[taosc] thread[%"PRId64"] complete one sql, Spent %10.3f s\n",
               taosGetSelfPthreadId(), (t2 - t1)/1000.0);
-    } else {
+    } else if (0 == strncasecmp(g_queryInfo.queryMode, "rest", strlen("rest"))) {
       int64_t t1 = taosGetTimestampMs();
-      int retCode = postProceSql(g_queryInfo.host,
+      int retCode = postProceSql(g_queryInfo.host, &(g_queryInfo.serv_addr),
               g_queryInfo.port,
               g_queryInfo.specifiedQueryInfo.sql[pThreadInfo->querySeq]);
       if (0 != retCode) {
@@ -6022,6 +6057,10 @@ static void *specifiedTableQuery(void *sarg) {
       printf("=[restful] thread[%"PRId64"] complete one sql, Spent %10.3f s\n",
               taosGetSelfPthreadId(), (t2 - t1)/1000.0);
 
+    } else {
+      errorPrint("%s() LN%d, unknown query mode: %s\n",
+        __func__, __LINE__, g_queryInfo.queryMode);
+      return NULL;
     }
     totalQueried ++;
     g_queryInfo.specifiedQueryInfo.totalQueried ++;
@@ -6170,6 +6209,12 @@ static int queryTestProcess() {
   }
 
   printfQuerySystemInfo(taos);
+
+  if (0 == strncasecmp(g_queryInfo.queryMode, "rest", strlen("rest"))) {
+    if (convertHostToServAddr(
+        g_queryInfo.host, g_queryInfo.port, &g_queryInfo.serv_addr) != 0)
+      exit(-1);
+  }
 
   pthread_t  *pids  = NULL;
   threadInfo *infos = NULL;
