@@ -569,7 +569,7 @@ SArguments g_args = {
                      1,               // query_times
                      0,               // interlace_rows;
                      30000,           // num_of_RPR
-                     1024000,         // max_sql_len
+                     (1024*1024),         // max_sql_len
                      10000,           // num_of_tables
                      10000,           // num_of_DPT
                      0,               // abort
@@ -3360,7 +3360,7 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
   if (maxSqlLen && maxSqlLen->type == cJSON_Number) {
     g_args.max_sql_len = maxSqlLen->valueint;
   } else if (!maxSqlLen) {
-    g_args.max_sql_len = 1024000;
+    g_args.max_sql_len = (1024*1024);
   } else {
     errorPrint("%s() LN%d, failed to read json, max_sql_len input mistake\n",
         __func__, __LINE__);
