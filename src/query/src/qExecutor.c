@@ -4608,7 +4608,7 @@ SArray* getOrderCheckColumns(SQueryAttr* pQuery) {
         SSqlExpr* pExpr = &pQuery->pExpr1[j].base;
         int32_t functionId = pExpr->functionId;
 
-        if (index->colId == pExpr->colInfo.colId && (functionId == TSDB_FUNC_PRJ || functionId == TSDB_FUNC_TAG)) {
+        if (index->colId == pExpr->colInfo.colId && (functionId == TSDB_FUNC_PRJ || functionId == TSDB_FUNC_TAG || functionId == TSDB_FUNC_TS)) {
           index->colIndex = j;
           index->colId = pExpr->resColId;
         }
