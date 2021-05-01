@@ -166,7 +166,7 @@ steps:
 
 ---
 kind: pipeline
-name: goodbye
+name: goodbye-1
 
 platform:
   os: linux
