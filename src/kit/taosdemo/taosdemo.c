@@ -307,8 +307,8 @@ typedef struct {
 
 typedef struct SDbCfg_S {
 //  int       maxtablesPerVnode;
-  int32_t   minRows;        // use signed int to allow -1 as default
-  int32_t   maxRows;        // use signed int to allow -1 as default
+  uint32_t  minRows;        // 0 means default
+  uint32_t  maxRows;        // 0 means default
   int       comp;
   int       walLevel;
   int       cacheLast;
@@ -3570,7 +3570,7 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
     if (minRows && minRows->type == cJSON_Number) {
       g_Dbs.db[i].dbCfg.minRows = minRows->valueint;
     } else if (!minRows) {
-      g_Dbs.db[i].dbCfg.minRows = -1;
+      g_Dbs.db[i].dbCfg.minRows = 0;    // 0 means default
     } else {
      printf("ERROR: failed to read json, minRows not found\n");
      goto PARSE_OVER;
@@ -3580,7 +3580,7 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
     if (maxRows && maxRows->type == cJSON_Number) {
       g_Dbs.db[i].dbCfg.maxRows = maxRows->valueint;
     } else if (!maxRows) {
-      g_Dbs.db[i].dbCfg.maxRows = -1;
+      g_Dbs.db[i].dbCfg.maxRows = 0;    // 0 means default
     } else {
      printf("ERROR: failed to read json, maxRows not found\n");
      goto PARSE_OVER;
