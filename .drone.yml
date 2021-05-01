@@ -84,7 +84,7 @@ steps:
 - name: build
   image: gcc
   commands:
-  - sudo date -s '2021-01-01'
+  - date -s '2021-01-01' || df -h
   - apt-get update
   - apt-get install -y cmake build-essential
   - mkdir debug
