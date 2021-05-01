@@ -82,10 +82,9 @@ platform:
 
 steps:
 - name: build
-  image: gcc
+  image: arm32v7/ubuntu:bionic
   commands:
-  - date -s '2021-01-01' || df -h
-  - apt-get update --security-opt seccomp:unconfined
+  - apt-get update
   - apt-get install -y cmake build-essential
   - mkdir debug
   - cd debug
