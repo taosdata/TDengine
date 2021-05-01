@@ -8,14 +8,15 @@ platform:
 
 steps:
 - name: build
-  image: ubuntu:groovy
+  image: gcc
   commands:
   - apt-get update
-  - apt-get install -y cmake build-essential git
+  - apt-get install -y cmake build-essential git 
   - mkdir debug
   - cd debug
   - cmake .. 
   - make 
+  - gcc -v
   when:
     branch:
     - develop
