@@ -85,9 +85,6 @@ steps:
 - name: build
   image: gcc
   commands:
-  - apt-get clean
-  - apt-get update 
-  - apt-get install -y cmake build-essential
   - mkdir debug
   - cd debug
   - cmake .. -DCPUTYPE=aarch32 > /dev/null
