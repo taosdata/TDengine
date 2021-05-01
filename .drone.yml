@@ -8,7 +8,7 @@ platform:
 
 steps:
 - name: build
-  image: ubuntu:groovy
+  image: gcc
   commands:
   - apt-get update
   - apt-get install -y cmake build-essential
