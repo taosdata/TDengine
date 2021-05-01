@@ -2371,7 +2371,7 @@ static int getAllChildNameOfSuperTable(TAOS * taos, char* dbName,
 
     return getChildNameOfSuperTableWithLimitAndOffset(taos, dbName, sTblName,
             childTblNameOfSuperTbl, childTblCountOfSuperTbl,
-            -1, -1);
+            -1, 0);
 }
 
 static int getSuperTableFromServer(TAOS * taos, char* dbName,
@@ -4068,10 +4068,10 @@ static bool getMetaFromQueryJsonFile(cJSON* root) {
     goto PARSE_OVER;
   }
 
-  // super_table_query
+  // specified_table_query
   cJSON *specifiedQuery = cJSON_GetObjectItem(root, "specified_table_query");
   if (!specifiedQuery) {
-    g_queryInfo.specifiedQueryInfo.concurrent = 0;
+    g_queryInfo.specifiedQueryInfo.concurrent = 1;
     g_queryInfo.specifiedQueryInfo.sqlCount = 0;
   } else if (specifiedQuery->type != cJSON_Object) {
     printf("ERROR: failed to read json, super_table_query not found\n");
@@ -4215,7 +4215,7 @@ static bool getMetaFromQueryJsonFile(cJSON* root) {
   // sub_table_query
   cJSON *superQuery = cJSON_GetObjectItem(root, "super_table_query");
   if (!superQuery) {
-    g_queryInfo.superQueryInfo.threadCnt = 0;
+    g_queryInfo.superQueryInfo.threadCnt = 1;
     g_queryInfo.superQueryInfo.sqlCount = 0;
   } else if (superQuery->type != cJSON_Object) {
     printf("ERROR: failed to read json, sub_table_query not found\n");
@@ -4247,6 +4247,12 @@ static bool getMetaFromQueryJsonFile(cJSON* root) {
 
     cJSON* threads = cJSON_GetObjectItem(superQuery, "threads");
     if (threads && threads->type == cJSON_Number) {
+      if (threads->valueint <= 0) {
+        errorPrint("%s() LN%d, failed to read json, threads input mistake\n",
+          __func__, __LINE__);
+        goto PARSE_OVER;
+
+      }
       g_queryInfo.superQueryInfo.threadCnt = threads->valueint;
     } else if (!threads) {
       g_queryInfo.superQueryInfo.threadCnt = 1;
@@ -4286,10 +4292,15 @@ static bool getMetaFromQueryJsonFile(cJSON* root) {
       g_queryInfo.superQueryInfo.mode = SYNC_QUERY_MODE;
     }
 
-    cJSON* subinterval = cJSON_GetObjectItem(superQuery, "interval");
-    if (subinterval && subinterval->type == cJSON_Number) {
-      g_queryInfo.superQueryInfo.subscribeInterval = subinterval->valueint;
-    } else if (!subinterval) {
+    cJSON* superInterval = cJSON_GetObjectItem(superQuery, "interval");
+    if (superInterval && superInterval->type == cJSON_Number) {
+      if (superInterval->valueint < 0) {
+        errorPrint("%s() LN%d, failed to read json, interval input mistake\n",
+            __func__, __LINE__);
+        goto PARSE_OVER;
+      }
+      g_queryInfo.superQueryInfo.subscribeInterval = superInterval->valueint;
+    } else if (!superInterval) {
       //printf("failed to read json, subscribe interval no found\n");
       //goto PARSE_OVER;
       g_queryInfo.superQueryInfo.subscribeInterval = 10000;
