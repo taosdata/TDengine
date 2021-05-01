@@ -8,7 +8,7 @@ platform:
 
 steps:
 - name: build
-  image: ubuntu:focal
+  image: ubuntu:groovy
   commands:
   - apt-get update
   - apt-get install -y cmake build-essential
