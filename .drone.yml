@@ -11,7 +11,7 @@ steps:
   image: ubuntu:focal
   commands:
   - apt-get update
-  - apt-get install -y cmake build-essential git
+  - apt-get install -y cmake build-essential
   - mkdir debug
   - cd debug
   - cmake .. 
