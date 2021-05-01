@@ -82,7 +82,7 @@ platform:
 
 steps:
 - name: build
-  image: arm32v7/ubuntu:bionic
+  image: arm32v7/ubuntu
   commands:
   - apt-get update
   - apt-get install -y cmake build-essential
