@@ -1,6 +1,6 @@
 ---
 kind: pipeline
-name: test_amd64
+name: test_amd641
 
 platform:
   os: linux
