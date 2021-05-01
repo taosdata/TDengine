@@ -12,6 +12,7 @@ steps:
   commands:
   - apt-get update
   - apt-get install -y cmake build-essential git
+  - gcc -v
   - mkdir debug
   - cd debug
   - cmake .. 
