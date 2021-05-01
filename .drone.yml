@@ -21,6 +21,8 @@ steps:
     branch:
     - develop
     - master
+    event:
+    - pull_request
 
 - name: smoke_test
   image: python:3.8
@@ -34,6 +36,8 @@ steps:
     branch:
     - develop
     - master
+    event:
+    - pull_request
 
 
 - name: crash_gen
@@ -49,6 +53,8 @@ steps:
     branch:
     - develop
     - master
+    event:
+    - pull_request
 
 
 ---
@@ -73,6 +79,8 @@ steps:
     branch:
     - develop
     - master
+    event:
+    - pull_request
 ---
 kind: pipeline
 name: test_arm
@@ -85,6 +93,8 @@ steps:
 - name: build
   image: gcc
   commands:
+  - apt-get update
+  - apt-get install -y gcc cmake build-essential
   - mkdir debug
   - cd debug
   - cmake .. -DCPUTYPE=aarch32 > /dev/null
@@ -93,6 +103,8 @@ steps:
     branch:
     - develop
     - master
+    event:
+    - pull_request
 
 ---
 kind: pipeline
@@ -117,6 +129,8 @@ steps:
     branch:
     - develop
     - master
+    event:
+    - pull_request
 
 ---
 kind: pipeline
@@ -140,6 +154,8 @@ steps:
     branch:
     - develop
     - master
+    event:
+    - pull_request
 
 ---
 kind: pipeline
@@ -162,6 +178,8 @@ steps:
     branch:
     - develop
     - master
+    event:
+    - pull_request
 
 ---
 kind: pipeline
@@ -180,6 +198,8 @@ steps:
     branch:
     - develop
     - master
+    event:
+    - pull_request
 
 
 depends_on:
