@@ -1198,7 +1198,7 @@ int taosGetTableDes(char* dbName, char *table, STableDef *tableDes, TAOS* taosCo
       }
       case TSDB_DATA_TYPE_NCHAR: {
         memset(tableDes->cols[i].note, 0, sizeof(tableDes->cols[i].note));
-        char tbuf[COL_NOTE_LEN];
+        char tbuf[COL_NOTE_LEN-2];    // need reserve 2 bytes for ' ' 
         convertNCharToReadable((char *)row[0], length[0], tbuf, COL_NOTE_LEN);
         sprintf(tableDes->cols[i].note, "\'%s\'", tbuf);
         break;
