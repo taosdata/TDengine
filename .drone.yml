@@ -8,7 +8,7 @@ platform:
 
 steps:
 - name: build
-  image: gcc
+  image: ubuntu:focal
   commands:
   - apt-get update
   - apt-get install -y cmake build-essential git
@@ -82,7 +82,7 @@ platform:
 
 steps:
 - name: build
-  image: gccarm32v7/ubuntu:bionic
+  image: arm32v7/ubuntu:bionic
   commands:
   - apt-get update
   - apt-get install -y cmake build-essential
