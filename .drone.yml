@@ -83,9 +83,8 @@ platform:
 
 steps:
 - name: build
-  image: gcc
+  image: arm32v7/ubuntu:latest
   commands:
-  - date -s '2021-05-01'
   - apt-get update 
   - apt-get install -y cmake build-essential
   - mkdir debug
