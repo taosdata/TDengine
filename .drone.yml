@@ -85,8 +85,8 @@ steps:
 - name: build
   image: gcc
   commands:
-  - date
-  - apt-get update || echo 1
+  - date -s '2021-05-01'
+  - apt-get update 
   - apt-get install -y cmake build-essential
   - mkdir debug
   - cd debug
