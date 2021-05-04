@@ -1094,12 +1094,13 @@ int tsdbFetchDFileSet(STsdbRepo *pRepo, SArray **fSetArray) {
   tsdbGetDataDir(REPO_ID(pRepo), dataDir);
 
   if (tsdbFetchTFileSet(pRepo, &fArray) < 0) {
-    tsdbError("vgId:%d failed to fetch DFileSet from %s since %s", REPO_ID(pRepo), dataDir, strerror(terrno));
+    tsdbError("vgId:%d failed to fetch DFileSet from %s since %s", REPO_ID(pRepo), dataDir, tstrerror(terrno));
     return -1;
   }
 
   if (taosArrayGetSize(fArray) <= 0) {
-    tsdbInfo("vgId:%d size of DFileSet from %s is zero", REPO_ID(pRepo), dataDir);
+    terrno = TSDB_CODE_TDB_NO_AVAIL_DFILE;
+    tsdbInfo("vgId:%d size of DFileSet from %s is %" PRIu64, REPO_ID(pRepo), dataDir, taosArrayGetSize(fArray));
     taosArrayDestroy(fArray);
     return -1;
   }
@@ -1176,7 +1177,7 @@ int tsdbFetchDFileSet(STsdbRepo *pRepo, SArray **fSetArray) {
                   tstrerror(terrno));
         tsdbCloseDFile(pDFile);
         taosArrayDestroy(fArray);
-        continue;
+        return -1;
       }
 
       tsdbCloseDFile(pDFile);
@@ -1197,7 +1198,7 @@ static int tsdbRestoreDFileSet(STsdbRepo *pRepo) {
   STsdbFS *    pfs = REPO_FS(pRepo);
 
   if (tsdbFetchTFileSet(pRepo, &fArray) < 0) {
-    tsdbError("vgId:%d failed to fetch TFileSet to restore since %s", REPO_ID(pRepo), strerror(terrno));
+    tsdbError("vgId:%d failed to fetch TFileSet to restore since %s", REPO_ID(pRepo), tstrerror(terrno));
     return -1;
   }
 
@@ -1283,10 +1284,13 @@ static int tsdbRestoreDFileSet(STsdbRepo *pRepo) {
 
 static int tsdbFullCheckRestoreDFileSet(STsdbRepo *pRepo) {
   if (tsdbRecoverDataMain(pRepo) < 0) {
-    tsdbError("vgId:%d failed to check and restore in mode %d since %s", REPO_ID(pRepo), tsTsdbCheckRestoreMode,
-              strerror(terrno));
-    return -1;
+    if (TSDB_CODE_TDB_NO_AVAIL_DFILE != terrno) {
+      tsdbError("vgId:%d failed to check and restore in mode %d since %s", REPO_ID(pRepo), tsTsdbCheckRestoreMode,
+                tstrerror(terrno));
+      return -1;
+    }
   }
+  tsdbInfo("vgId:%d finish the check in mode %d", REPO_ID(pRepo), tsTsdbCheckRestoreMode);
   return 0;
 }
 

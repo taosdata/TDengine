@@ -20,11 +20,17 @@ extern int tsTsdbCheckRestoreMode;
 #define TSDB_FNAME_PREFIX_TMP "t."
 
 typedef struct {
-  SReadH  readh;
-  SArray *aBlkIdx;  // SBlockIdx array
-  SArray *aSupBlk;  // Table super-block array
-  SArray *aSubBlk;  // table sub-block array
+  SReadH    readh;
+  SDFileSet wSet;
+  SArray *  aBlkIdx;  // SBlockIdx array
+  SArray *  aSupBlk;  // Table super-block array
+  SArray *  aSubBlk;  // table sub-block array
 } SRecoverH;
+
+#define TSDB_RECOVER_WFSET(rh) (&((rh)->wSet))
+#define TSDB_RECOVER_WHEAD_FILE(rh) TSDB_DFILE_IN_SET(TSDB_RECOVER_WFSET(rh), TSDB_FILE_HEAD)
+#define TSDB_RECOVER_WDATA_FILE(rh) TSDB_DFILE_IN_SET(TSDB_RECOVER_WFSET(rh), TSDB_FILE_DATA)
+#define TSDB_RECOVER_WLAST_FILE(rh) TSDB_DFILE_IN_SET(TSDB_RECOVER_WFSET(rh), TSDB_FILE_LAST)
 
 static int tsdbInitRecoverH(SRecoverH *pRecoverH, STsdbRepo *pRepo);
 static int tsdbDestoryRecoverH(SRecoverH *pRecoverH);
@@ -66,33 +72,41 @@ int tsdbRecoverDataMain(STsdbRepo *pRepo) {
   STsdbFS * pfs = REPO_FS(pRepo);
 
   if (tsdbFetchDFileSet(pRepo, &fSetArray) < 0) {
-    tsdbError("vgId:%d failed to fetch DFileSet to recover since %s", REPO_ID(pRepo), strerror(terrno));
+    if (TSDB_CODE_TDB_NO_AVAIL_DFILE != terrno) {
+      tsdbError("vgId:%d failed to fetch DFileSet to restore since %s", REPO_ID(pRepo), tstrerror(terrno));
+    }
     return -1;
   }
 
+  tsdbInfo("vgId:%d restore with DFileSet size %" PRIu64, REPO_ID(pRepo), taosArrayGetSize(fSetArray));
+
   if (taosArrayGetSize(fSetArray) <= 0) {
     taosArrayDestroy(fSetArray);
-    tsdbInfo("vgId:%d no need to recover since empty DFileSet", REPO_ID(pRepo));
+    tsdbInfo("vgId:%d no need to restore since empty DFileSet", REPO_ID(pRepo));
     return 0;
   }
 
-  // init pRecoverH
-  tsdbInitRecoverH(&recoverH, pRepo);
+  if (tsdbInitRecoverH(&recoverH, pRepo) < 0) {
+    tsdbError("vgId:%d failed to init restore handle since %s", REPO_ID(pRepo), tstrerror(terrno));
+    return -1;
+  }
+
   // check for each SDFileSet
   for (size_t iDFileSet = 0; iDFileSet < taosArrayGetSize(fSetArray); ++iDFileSet) {
     pReadH->rSet = *(SDFileSet *)taosArrayGet(fSetArray, iDFileSet);
 
     if (tsdbRecoverManager(&recoverH) < 0) {
+      tsdbError("vgId:%d failed to restore DFileSet %d since %s", REPO_ID(pRepo), pReadH->rSet.fid, tstrerror(terrno));
       // backup the SDFileSet
       if (tsdbBackUpDFileSet(&pReadH->rSet) < 0) {
-        tsdbError("vgId:%d failed to backup DFileSet %d since %s", REPO_ID(pRepo), pReadH->rSet.fid, strerror(terrno));
+        tsdbError("vgId:%d failed to backup DFileSet %d since %s", REPO_ID(pRepo), pReadH->rSet.fid, tstrerror(terrno));
         return -1;
       }
       // check next SDFileSet although return not zero
       continue;
     }
 
-    tsdbInfo("vgId:%d FSET %d is restored in mode %d", REPO_ID(pRepo), pReadH->rSet.fid, tsTsdbCheckRestoreMode);
+    tsdbInfo("vgId:%d FSET %d is checked in mode %d", REPO_ID(pRepo), pReadH->rSet.fid, tsTsdbCheckRestoreMode);
     taosArrayPush(pfs->cstatus->df, &pReadH->rSet);
   }
 
@@ -183,7 +197,7 @@ static bool tsdbRecoverIsFatalError() {
 static int tsdbCheckDFileChksum(SRecoverH *pRecoverH) {
   SReadH *pReadH = &pRecoverH->readh;
   SDFile *pHeadF = TSDB_READ_HEAD_FILE(pReadH);
-  SDFile *pTmpHeadF = NULL;
+  SDFile *pTmpHeadF = TSDB_RECOVER_WHEAD_FILE(pRecoverH);
   SBlock *pSupBlk = NULL;
   SBlock  supBlk;
   size_t  nSupBlkScanned = 0;
@@ -235,20 +249,29 @@ static int tsdbCheckDFileChksum(SRecoverH *pRecoverH) {
       }
       // pass the check, add the supblk to SHeadFileInfo
       supBlk = *pSupBlk;
-      supBlk.offset = sizeof(SBlock) * taosArrayGetSize(pRecoverH->aSubBlk);
+
+      if (supBlk.numOfSubBlocks > 1) {
+        supBlk.offset = sizeof(SBlock) * taosArrayGetSize(pRecoverH->aSubBlk);
+      }
 
       if (tsdbHeadAddBlock(pRecoverH, &supBlk,
-                           supBlk.numOfSubBlocks > 1 ? POINTER_SHIFT(pRecoverH->readh.pBlkInfo, pSupBlk->offset) : NULL,
+                           supBlk.numOfSubBlocks > 1 ? POINTER_SHIFT(pReadH->pBlkInfo, pSupBlk->offset) : NULL,
                            pSupBlk->numOfSubBlocks) < 0) {
+        if (tsdbRecoverIsFatalError()) {
+          tsdbDestroyHFile(pTmpHeadF);
+          return -1;
+        }
+        continue;
+      }
+    }
+    if (tsdbHeadWriteBlockInfo(pRecoverH) < 0) {
+      tsdbError("vgId:%d failed to write SBlockInfo part into file %s since %s", REPO_ID(pReadH->pRepo),
+                TSDB_FILE_FULL_NAME(pTmpHeadF), tstrerror(terrno));
+      if (tsdbRecoverIsFatalError()) {
         tsdbDestroyHFile(pTmpHeadF);
         return -1;
       }
-      if (tsdbHeadWriteBlockInfo(pRecoverH) < 0) {
-        tsdbError("vgId:%d failed to write SBlockInfo part into file %s since %s", REPO_ID(pReadH->pRepo),
-                  TSDB_FILE_FULL_NAME(pTmpHeadF), tstrerror(terrno));
-        tsdbDestroyHFile(pTmpHeadF);
-        return -1;
-      }
+      continue;
     }
     // pass the check
     ++nBlkIdxChkPassed;
@@ -261,14 +284,36 @@ static int tsdbCheckDFileChksum(SRecoverH *pRecoverH) {
     return -1;
   }
 
+  if (tsdbUpdateDFileHeader(pTmpHeadF) < 0) {
+    tsdbError("vgId:%d failed to update header of file %s since %s", REPO_ID(pReadH->pRepo),
+              TSDB_FILE_FULL_NAME(pTmpHeadF), tstrerror(terrno));
+    tsdbDestroyHFile(pTmpHeadF);
+    return -1;
+  }
+
   // use the rebuilt .head file if partial pass
   if ((nSupBlkCorrupted > 0) || (nBlkIdxChkPassed != taosArrayGetSize(pReadH->aBlkIdx))) {
+    tsdbInfo("vgId:%d partial pass the chksum scan. nBlkIdxScan %" PRIu64 ", nBlkIdxAll %" PRIu64
+             ", nSupBlkCorrupt %" PRIu64 ", nSupBlkScan %" PRIu64 ", file %s ",
+             REPO_ID(pReadH->pRepo), nBlkIdxChkPassed, taosArrayGetSize(pReadH->aBlkIdx), nSupBlkCorrupted,
+             nSupBlkScanned, TSDB_FILE_FULL_NAME(pTmpHeadF));
     // rename t.vdfdddd.head{-ver2}. Use the prefix but not suffix to avoid error
-    if (tsdbRenameDFile(pHeadF, pTmpHeadF) < 0) {  // fsync/close/rename
+    if (tsdbRenameDFile(pTmpHeadF, pHeadF) < 0) {  // fsync/close/rename
       tsdbDestroyHFile(pTmpHeadF);
       return -1;
     }
+    // update the head file info in rset, which would be stored in cstatus->df as to generate the current file.
+    tsdbInfo("vgId:%d partial pass the chksum scan and head info updated. size:%" PRIu64 "->%" PRIu64 ", offset:%" PRIu32
+             "->%" PRIu32 ", len:%" PRIu32 "->%" PRIu32,
+             REPO_ID(pReadH->pRepo), pHeadF->info.size, pTmpHeadF->info.size, pHeadF->info.offset, pTmpHeadF->info.offset,
+             pHeadF->info.len, pTmpHeadF->info.len);
+             
+    pHeadF->info = pTmpHeadF->info;
   } else {
+    tsdbInfo("vgId:%d all pass the chksum scan. nBlkIdxScan %" PRIu64 ", nBlkIdxAll %" PRIu64
+             ", nSupBlkCorrupt %" PRIu64 ", nSupBlkScan %" PRIu64 ", file %s ",
+             REPO_ID(pReadH->pRepo), nBlkIdxChkPassed, taosArrayGetSize(pReadH->aBlkIdx), nSupBlkCorrupted,
+             nSupBlkScanned, TSDB_FILE_FULL_NAME(pTmpHeadF));
     tsdbDestroyHFile(pTmpHeadF);
   }
 
@@ -293,15 +338,15 @@ static int tsdbHeadAddBlock(SRecoverH *pRecoverH, const SBlock *pSupBlock, const
 
 static int tsdbHeadWriteBlockInfo(SRecoverH *pRecoverH) {
   SReadH *    pReadH = &pRecoverH->readh;
-  SDFile *    pHeadf = TSDB_READ_HEAD_FILE(pReadH);
+  SDFile *    pWHeadf = TSDB_RECOVER_WHEAD_FILE(pRecoverH);
   SBlockIdx * pBlkIdx = pReadH->pBlkIdx;
   SBlockIdx   blkIdx;
   SBlock *    pBlock = NULL;
-  size_t      nSupBlocks;
-  size_t      nSubBlocks;
-  uint32_t    tlen;
+  size_t      nSupBlocks = 0;
+  size_t      nSubBlocks = 0;
+  uint32_t    tlen = 0;
   SBlockInfo *pBlkInfo = NULL;
-  int64_t     offset;
+  int64_t     offset = 0;
 
   nSupBlocks = taosArrayGetSize(pRecoverH->aSupBlk);
   nSubBlocks = taosArrayGetSize(pRecoverH->aSubBlk);
@@ -327,7 +372,7 @@ static int tsdbHeadWriteBlockInfo(SRecoverH *pRecoverH) {
   if (nSubBlocks > 0) {
     memcpy((void *)(pBlkInfo->blocks + nSupBlocks), taosArrayGet(pRecoverH->aSubBlk, 0), nSubBlocks * sizeof(SBlock));
 
-    for (int i = 0; i < nSupBlocks; i++) {
+    for (int i = 0; i < nSupBlocks; ++i) {
       pBlock = pBlkInfo->blocks + i;
 
       if (pBlock->numOfSubBlocks > 1) {
@@ -338,11 +383,11 @@ static int tsdbHeadWriteBlockInfo(SRecoverH *pRecoverH) {
 
   taosCalcChecksumAppend(0, (uint8_t *)pBlkInfo, tlen);
 
-  if (tsdbAppendDFile(pHeadf, TSDB_READ_BUF(pReadH), tlen, &offset) < 0) {
+  if (tsdbAppendDFile(pWHeadf, TSDB_READ_BUF(pReadH), tlen, &offset) < 0) {
     return -1;
   }
 
-  tsdbUpdateDFileMagic(pHeadf, POINTER_SHIFT(pBlkInfo, tlen - sizeof(TSCKSUM)));
+  tsdbUpdateDFileMagic(pWHeadf, POINTER_SHIFT(pBlkInfo, tlen - sizeof(TSCKSUM)));
 
   // Set blkIdx
   pBlock = taosArrayGet(pRecoverH->aSupBlk, nSupBlocks - 1);
@@ -367,16 +412,16 @@ static int tsdbHeadWriteBlockInfo(SRecoverH *pRecoverH) {
 
 static int tsdbHeadWriteBlockIdx(SRecoverH *pRecoverH) {
   SReadH *   pReadH = &pRecoverH->readh;
-  SDFile *   pHeadf = TSDB_READ_HEAD_FILE(pReadH);
+  SDFile *   pWHeadf = TSDB_RECOVER_WHEAD_FILE(pRecoverH);
   SBlockIdx *pBlkIdx = NULL;
   size_t     nidx = taosArrayGetSize(pRecoverH->aBlkIdx);
-  int        tlen = 0, size;
-  int64_t    offset;
+  int        tlen = 0, size = 0;
+  int64_t    offset = 0;
 
   if (nidx <= 0) {
     // All data are deleted
-    pHeadf->info.offset = 0;
-    pHeadf->info.len = 0;
+    pWHeadf->info.offset = 0;
+    pWHeadf->info.len = 0;
     return 0;
   }
 
@@ -396,15 +441,15 @@ static int tsdbHeadWriteBlockIdx(SRecoverH *pRecoverH) {
   if (tsdbMakeRoom((void **)(&TSDB_READ_BUF(pReadH)), tlen) < 0) return -1;
   taosCalcChecksumAppend(0, (uint8_t *)TSDB_READ_BUF(pReadH), tlen);
 
-  if (tsdbAppendDFile(pHeadf, TSDB_READ_BUF(pReadH), tlen, &offset) < tlen) {
+  if (tsdbAppendDFile(pWHeadf, TSDB_READ_BUF(pReadH), tlen, &offset) < tlen) {
     tsdbError("vgId:%d failed to write block index part to file %s since %s", REPO_ID(pReadH->pRepo),
-              TSDB_FILE_FULL_NAME(pHeadf), tstrerror(terrno));
+              TSDB_FILE_FULL_NAME(pWHeadf), tstrerror(terrno));
     return -1;
   }
 
-  tsdbUpdateDFileMagic(pHeadf, POINTER_SHIFT(TSDB_READ_BUF(pReadH), tlen - sizeof(TSCKSUM)));
-  pHeadf->info.offset = (uint32_t)offset;
-  pHeadf->info.len = tlen;
+  tsdbUpdateDFileMagic(pWHeadf, POINTER_SHIFT(TSDB_READ_BUF(pReadH), tlen - sizeof(TSCKSUM)));
+  pWHeadf->info.offset = (uint32_t)offset;
+  pWHeadf->info.len = tlen;
 
   return 0;
 }
@@ -487,9 +532,11 @@ static int tsdbRecoverCheckBlockData(SRecoverH *pRecoverH, SBlock *pSupBlock, SB
   }
 
   // TODO: ASSERT update to if-else judgement.
+  #if 0
   ASSERT(pReadH->pDCols[0]->numOfRows == pSupBlock->numOfRows);
   ASSERT(dataColsKeyFirst(pReadH->pDCols[0]) == pSupBlock->keyFirst);
   ASSERT(dataColsKeyLast(pReadH->pDCols[0]) == pSupBlock->keyLast);
+  #endif
 
   return 0;
 }
@@ -500,22 +547,30 @@ static int tsdbInitHFile(SDFile *pDestDFile, const SDFile *pSrcDFile) {
   int          tfid = -1;
   TSDB_FILE_T  ttype = TSDB_FILE_MAX;
   uint32_t     tversion = -1;
-  char         aname[TSDB_FILENAME_LEN];
-  char         rname[TSDB_FILENAME_LEN];
-  char         dname[TSDB_FILENAME_LEN];
+  char         bname[TSDB_FILENAME_LEN];   // basename
+  char         dname[TSDB_FILENAME_LEN];   // absolute dir
+  char         rdname[TSDB_FILENAME_LEN];  // relative dir
+  // destHFile name
+  char         dest_aname[TSDB_FILENAME_LEN];
+  char         dest_rname[TSDB_FILENAME_LEN];
 
   memset(pDestDFile, 0, sizeof(SDFile));
   pDestDFile->info.magic = TSDB_FILE_INIT_MAGIC;
 
-  tfsbasename(pf, aname);
-  tfsdirname(pf, dname);
-  tsdbParseDFilename(aname, &tvid, &tfid, &ttype, &tversion);
+  tfsdirname(pf, dname); 
+  tfsrdirname(pf, rdname); 
+  tfsbasename(pf, bname);
+
+  tsdbParseDFilename(bname, &tvid, &tfid, &ttype, &tversion);
 
   ASSERT(tvid != -1 && tfid != -1 && ttype < TSDB_FILE_MAX && tversion != -1);
 
-  tsdbGetAbsoluteNameByPrefix(rname, tvid, tfid, tversion, ttype, TSDB_FNAME_PREFIX_TMP, dname);
-  tstrncpy(pDestDFile->f.aname, aname, sizeof(aname));
-  tstrncpy(pDestDFile->f.rname, rname, sizeof(rname));
+  tsdbGetFilePathNameByPrefix(dest_aname, tvid, tfid, tversion, ttype, TSDB_FNAME_PREFIX_TMP, dname);
+  tsdbGetFilePathNameByPrefix(dest_rname, tvid, tfid, tversion, ttype, TSDB_FNAME_PREFIX_TMP, rdname);
+
+
+  tstrncpy(pDestDFile->f.aname, dest_aname, sizeof(dest_aname));
+  tstrncpy(pDestDFile->f.rname, dest_rname, sizeof(dest_rname));
 
   if (tsdbCreateDFile(pDestDFile, true) < 0) {
     return -1;
@@ -570,10 +625,10 @@ static int tsdbCheckBlockDataColsChkSum(SReadH *pReadh, SBlock *pBlock, SDataCol
     return -1;
   }
 
-  int32_t tsize = TSDB_BLOCK_STATIS_SIZE(pBlock->numOfCols);
+  uint32_t tsize = TSDB_BLOCK_STATIS_SIZE(pBlock->numOfCols);
   if (!taosCheckChecksumWhole((uint8_t *)TSDB_READ_BUF(pReadh), tsize)) {
     terrno = TSDB_CODE_TDB_FILE_CORRUPTED;
-    tsdbError("vgId:%d block statis part in file %s is corrupted since wrong checksum, offset:%" PRId64 " len :%d",
+    tsdbError("vgId:%d block statis part in file %s is corrupted since wrong checksum, offset:%" PRId64 " len :%u",
               TSDB_READ_REPO_ID(pReadh), TSDB_FILE_FULL_NAME(pDFile), (int64_t)pBlock->offset, tsize);
     return -1;
   }
@@ -582,7 +637,7 @@ static int tsdbCheckBlockDataColsChkSum(SReadH *pReadh, SBlock *pBlock, SDataCol
   ASSERT(pBlockData->numOfCols == pBlock->numOfCols);
 
   pDataCols->numOfRows = pBlock->numOfRows;
-
+#if 0
   // Recover the data
   int ccol = 0;  // loop iter for SBlockCol object
   int dcol = 0;  // loop iter for SDataCols object
@@ -632,6 +687,6 @@ static int tsdbCheckBlockDataColsChkSum(SReadH *pReadh, SBlock *pBlock, SDataCol
       dcol++;
     }
   }
-
+#endif
   return 0;
 }

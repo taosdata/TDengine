@@ -73,6 +73,7 @@ int   tfsEncodeFile(void **buf, TFILE *pf);
 void *tfsDecodeFile(void *buf, TFILE *pf);
 void  tfsbasename(const TFILE *pf, char *dest);
 void  tfsdirname(const TFILE *pf, char *dest);
+void  tfsrdirname(const TFILE *pf, char *dest);
 
 // DIR APIs ====================================
 int tfsMkdirAt(const char *rname, int level, int id);

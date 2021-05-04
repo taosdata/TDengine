@@ -696,7 +696,7 @@ static void tsdbGetFilename(int vid, int fid, uint32_t ver, TSDB_FILE_T ftype, c
   }
 }
 
-void tsdbGetRelativeNameByPrefix(char *fname, int vid, int fid, uint32_t ver, TSDB_FILE_T ftype, const char *prefix) {
+void tsdbGetFileNameByPrefix(char *fname, int vid, int fid, uint32_t ver, TSDB_FILE_T ftype, const char *prefix) {
   ASSERT(ftype != TSDB_FILE_MAX);
 
   if (ftype < TSDB_FILE_MAX) {
@@ -708,7 +708,7 @@ void tsdbGetRelativeNameByPrefix(char *fname, int vid, int fid, uint32_t ver, TS
   }
 }
 
-void tsdbGetAbsoluteNameByPrefix(char *fname, int vid, int fid, uint32_t ver, TSDB_FILE_T ftype, const char *prefix,
+void tsdbGetFilePathNameByPrefix(char *fname, int vid, int fid, uint32_t ver, TSDB_FILE_T ftype, const char *prefix,
                                  const char *dir) {
   ASSERT(ftype != TSDB_FILE_MAX);
 
@@ -722,7 +722,7 @@ void tsdbGetAbsoluteNameByPrefix(char *fname, int vid, int fid, uint32_t ver, TS
   }
 }
 
-int tsdbRenameDFile(SDFile *toDFile, SDFile *fromDFile) {
+int tsdbRenameDFile(SDFile *fromDFile, SDFile *toDFile) {
   if (TSDB_FILE_OPENED(fromDFile)) {
     TSDB_FILE_FSYNC(fromDFile);
     tsdbCloseDFile(fromDFile);
