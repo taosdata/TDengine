@@ -725,7 +725,7 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
         errorPrint("%s", "\n\t-c need a valid path following!\n");
         exit(EXIT_FAILURE);
       }
-      tstrncpy(configDir, argv[++i], MAX_FILE_NAME_LEN);
+      tstrncpy(configDir, argv[++i], TSDB_FILENAME_LEN);
 
     } else if (strcmp(argv[i], "-h") == 0) {
       if (argc == i+1) {
@@ -967,9 +967,9 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
       }
     } else if (strcmp(argv[i], "-D") == 0) {
       arguments->method_of_delete = atoi(argv[++i]);
-      if (arguments->method_of_delete < 0
-              || arguments->method_of_delete > 3) {
-        arguments->method_of_delete = 0;
+      if (arguments->method_of_delete > 3) {
+        errorPrint("%s", "\n\t-D need a valud (0~3) number following!\n");
+        exit(EXIT_FAILURE);
       }
     } else if ((strcmp(argv[i], "--version") == 0) ||
         (strcmp(argv[i], "-V") == 0)){
@@ -1372,7 +1372,7 @@ static int printfInsertMeta() {
         printf("      childTblLimit:     \033[33m%"PRId64"\033[0m\n",
                 g_Dbs.db[i].superTbls[j].childTblLimit);
       }
-      if (g_Dbs.db[i].superTbls[j].childTblOffset >= 0) {
+      if (g_Dbs.db[i].superTbls[j].childTblOffset > 0) {
         printf("      childTblOffset:    \033[33m%"PRIu64"\033[0m\n",
                 g_Dbs.db[i].superTbls[j].childTblOffset);
       }
@@ -4706,8 +4706,7 @@ static void getTableName(char *pTblName, threadInfo* pThreadInfo, uint64_t table
 {
   SSuperTable* superTblInfo = pThreadInfo->superTblInfo;
   if (superTblInfo) {
-    if ((superTblInfo->childTblOffset >= 0)
-            && (superTblInfo->childTblLimit > 0)) {
+    if (superTblInfo->childTblLimit > 0) {
         snprintf(pTblName, TSDB_TABLE_NAME_LEN, "%s",
             superTblInfo->childTblName +
             (tableSeq - superTblInfo->childTblOffset) * TSDB_TABLE_NAME_LEN);
@@ -5611,8 +5610,7 @@ static void startMultiThreadInsertData(int threads, char* db_name,
       printf("WARNING: offset and limit will not be used since the child tables not exists!\n");
     }
 
-    if ((superTblInfo->childTblExists == TBL_ALREADY_EXISTS)
-            && (superTblInfo->childTblOffset >= 0)) {
+    if (superTblInfo->childTblExists == TBL_ALREADY_EXISTS) {
       if ((superTblInfo->childTblLimit < 0)
           || ((superTblInfo->childTblOffset + superTblInfo->childTblLimit)
             > (superTblInfo->childTblCount))) {
