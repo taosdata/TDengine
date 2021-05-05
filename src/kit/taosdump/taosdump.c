@@ -525,7 +525,7 @@ int main(int argc, char *argv[]) {
 
   /* Parse our arguments; every option seen by parse_opt will be
      reflected in arguments. */
-  if (argc > 1)
+  if (argc > 2)
     parse_args(argc, argv, &g_args);
 
   argp_parse(&argp, argc, argv, 0, 0, &g_args);
