@@ -468,7 +468,7 @@ static int tsdbHeadWriteBlockIdx(SRecoverH *pRecoverH) {
     return 0;
   }
 
-  for (size_t i = 0; i < nidx; i++) {
+  for (size_t i = 0; i < nidx; ++i) {
     pBlkIdx = (SBlockIdx *)taosArrayGet(pRecoverH->aBlkIdx, i);
 
     size = tsdbEncodeSBlockIdx(NULL, pBlkIdx);
@@ -574,7 +574,7 @@ static int tsdbRecoverCheckBlockData(SRecoverH *pRecoverH, SBlock *pSupBlock, SB
     }
   }
 
-// TODO: ASSERT update to if-else judgement.
+// Just verify checksum above, no real data to assert.
 #if 0
   ASSERT(pReadH->pDCols[0]->numOfRows == pSupBlock->numOfRows);
   ASSERT(dataColsKeyFirst(pReadH->pDCols[0]) == pSupBlock->keyFirst);
@@ -634,27 +634,27 @@ static int tsdbCloseHFile(SDFile *pDFile) {
   return 0;
 }
 
-static int tsdbCheckBlockDataColsChkSum(SReadH *pReadh, SBlock *pBlock, SDataCols *pDataCols) {
+static int tsdbCheckBlockDataColsChkSum(SReadH *pReadH, SBlock *pBlock, SDataCols *pDataCols) {
   ASSERT(pBlock->numOfSubBlocks == 0 || pBlock->numOfSubBlocks == 1);
 
-  SDFile *pDFile = (pBlock->last) ? TSDB_READ_LAST_FILE(pReadh) : TSDB_READ_DATA_FILE(pReadh);
+  SDFile *pDFile = (pBlock->last) ? TSDB_READ_LAST_FILE(pReadH) : TSDB_READ_DATA_FILE(pReadH);
 
   tdResetDataCols(pDataCols);
 
-  if (tsdbMakeRoom((void **)(&TSDB_READ_BUF(pReadh)), pBlock->len) < 0) return -1;
+  if (tsdbMakeRoom((void **)(&TSDB_READ_BUF(pReadH)), pBlock->len) < 0) return -1;
 
-  SBlockData *pBlockData = (SBlockData *)TSDB_READ_BUF(pReadh);
+  SBlockData *pBlockData = (SBlockData *)TSDB_READ_BUF(pReadH);
 
   if (tsdbSeekDFile(pDFile, pBlock->offset, SEEK_SET) < 0) {
     tsdbError("vgId:%d failed to load block data part while seek file %s to offset %" PRId64 " since %s",
-              TSDB_READ_REPO_ID(pReadh), TSDB_FILE_FULL_NAME(pDFile), (int64_t)pBlock->offset, tstrerror(terrno));
+              TSDB_READ_REPO_ID(pReadH), TSDB_FILE_FULL_NAME(pDFile), (int64_t)pBlock->offset, tstrerror(terrno));
     return -1;
   }
 
-  int64_t nread = tsdbReadDFile(pDFile, TSDB_READ_BUF(pReadh), pBlock->len);
+  int64_t nread = tsdbReadDFile(pDFile, TSDB_READ_BUF(pReadH), pBlock->len);
   if (nread < 0) {
     tsdbError("vgId:%d failed to load block data part while read file %s since %s, offset:%" PRId64 " len :%d",
-              TSDB_READ_REPO_ID(pReadh), TSDB_FILE_FULL_NAME(pDFile), tstrerror(terrno), (int64_t)pBlock->offset,
+              TSDB_READ_REPO_ID(pReadH), TSDB_FILE_FULL_NAME(pDFile), tstrerror(terrno), (int64_t)pBlock->offset,
               pBlock->len);
     return -1;
   }
@@ -663,72 +663,33 @@ static int tsdbCheckBlockDataColsChkSum(SReadH *pReadh, SBlock *pBlock, SDataCol
     terrno = TSDB_CODE_TDB_FILE_CORRUPTED;
     tsdbError("vgId:%d block data part in file %s is corrupted, offset:%" PRId64
               " expected bytes:%d read bytes: %" PRId64,
-              TSDB_READ_REPO_ID(pReadh), TSDB_FILE_FULL_NAME(pDFile), (int64_t)pBlock->offset, pBlock->len, nread);
+              TSDB_READ_REPO_ID(pReadH), TSDB_FILE_FULL_NAME(pDFile), (int64_t)pBlock->offset, pBlock->len, nread);
     return -1;
   }
 
   uint32_t tsize = TSDB_BLOCK_STATIS_SIZE(pBlock->numOfCols);
-  if (!taosCheckChecksumWhole((uint8_t *)TSDB_READ_BUF(pReadh), tsize)) {
+  if (!taosCheckChecksumWhole((uint8_t *)TSDB_READ_BUF(pReadH), tsize)) {
     terrno = TSDB_CODE_TDB_FILE_CORRUPTED;
     tsdbError("vgId:%d block statis part in file %s is corrupted since wrong checksum, offset:%" PRId64 " len :%u",
-              TSDB_READ_REPO_ID(pReadh), TSDB_FILE_FULL_NAME(pDFile), (int64_t)pBlock->offset, tsize);
+              TSDB_READ_REPO_ID(pReadH), TSDB_FILE_FULL_NAME(pDFile), (int64_t)pBlock->offset, tsize);
     return -1;
   }
 
   ASSERT(tsize < pBlock->len);
   ASSERT(pBlockData->numOfCols == pBlock->numOfCols);
 
-  pDataCols->numOfRows = pBlock->numOfRows;
-#if 0
-  // Recover the data
-  int ccol = 0;  // loop iter for SBlockCol object
-  int dcol = 0;  // loop iter for SDataCols object
-  while (dcol < pDataCols->numOfCols) {
-    SDataCol *pDataCol = &(pDataCols->cols[dcol]);
-    if (dcol != 0 && ccol >= pBlockData->numOfCols) {
-      // Set current column as NULL and forward
-      dataColSetNEleNull(pDataCol, pBlock->numOfRows, pDataCols->maxPoints);
-      dcol++;
-      continue;
-    }
+  for (int iCol = 0; iCol < pBlockData->numOfCols; ++iCol) {
+    SBlockCol *pBlockCol = pBlockData->cols + iCol;
+    uint32_t   toffset = tsdbGetBlockColOffset(pBlockCol);
+    int32_t    tlen = pBlockCol->len;
+    int16_t    tcolId = pBlockCol->colId;
 
-    int16_t  tcolId = 0;
-    uint32_t toffset = TSDB_KEY_COL_OFFSET;
-    int32_t  tlen = pBlock->keyLen;
-
-    if (dcol != 0) {
-      SBlockCol *pBlockCol = &(pBlockData->cols[ccol]);
-      tcolId = pBlockCol->colId;
-      toffset = tsdbGetBlockColOffset(pBlockCol);
-      tlen = pBlockCol->len;
-    } else {
-      ASSERT(pDataCol->colId == tcolId);
-    }
-
-    if (tcolId == pDataCol->colId) {
-      if (pBlock->algorithm == TWO_STAGE_COMP) {
-        int zsize = pDataCol->bytes * pBlock->numOfRows + COMP_OVERFLOW_BYTES;
-        if (tsdbMakeRoom((void **)(&TSDB_READ_COMP_BUF(pReadh)), zsize) < 0) return -1;
-      }
-
-      if (!taosCheckChecksumWhole((uint8_t *)POINTER_SHIFT(pBlockData, tsize + toffset), tlen)) {
-        terrno = TSDB_CODE_TDB_FILE_CORRUPTED;
-        tsdbError("vgId:%d file %s is broken at column %d block offset %" PRId64 " column offset %u",
-                  TSDB_READ_REPO_ID(pReadh), TSDB_FILE_FULL_NAME(pDFile), tcolId, (int64_t)pBlock->offset, toffset);
-        return -1;
-      }
-      if (dcol != 0) {
-        ccol++;
-      }
-      dcol++;
-    } else if (tcolId < pDataCol->colId) {
-      ccol++;
-    } else {
-      // Set current column as NULL and forward
-      dataColSetNEleNull(pDataCol, pBlock->numOfRows, pDataCols->maxPoints);
-      dcol++;
+    if (!taosCheckChecksumWhole((uint8_t *)POINTER_SHIFT(pBlockData, tsize + toffset), tlen)) {
+      terrno = TSDB_CODE_TDB_FILE_CORRUPTED;
+      tsdbError("vgId:%d file %s is broken at column %d block offset %" PRId64 " column offset %u",
+                TSDB_READ_REPO_ID(pReadH), TSDB_FILE_FULL_NAME(pDFile), tcolId, (int64_t)pBlock->offset, toffset);
+      return -1;
     }
   }
-#endif
   return 0;
 }
