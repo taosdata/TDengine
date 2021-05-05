@@ -99,11 +99,13 @@ enum _describe_table_index {
   TSDB_MAX_DESCRIBE_METRIC
 };
 
+#define COL_NOTE_LEN    128
+
 typedef struct {
   char field[TSDB_COL_NAME_LEN + 1];
   char type[16];
   int length;
-  char note[128];
+  char note[COL_NOTE_LEN];
 } SColDes;
 
 typedef struct {
@@ -523,7 +525,7 @@ int main(int argc, char *argv[]) {
 
   /* Parse our arguments; every option seen by parse_opt will be
      reflected in arguments. */
-  if (argc > 1)
+  if (argc > 2)
     parse_args(argc, argv, &g_args);
 
   argp_parse(&argp, argc, argv, 0, 0, &g_args);
@@ -1188,16 +1190,16 @@ int taosGetTableDes(char* dbName, char *table, STableDef *tableDes, TAOS* taosCo
       case TSDB_DATA_TYPE_BINARY: {
         memset(tableDes->cols[i].note, 0, sizeof(tableDes->cols[i].note));
         tableDes->cols[i].note[0] = '\'';
-        char tbuf[COMMAND_SIZE];
-        converStringToReadable((char *)row[0], length[0], tbuf, COMMAND_SIZE);
+        char tbuf[COL_NOTE_LEN];
+        converStringToReadable((char *)row[0], length[0], tbuf, COL_NOTE_LEN);
         char* pstr = stpcpy(&(tableDes->cols[i].note[1]), tbuf);
         *(pstr++) = '\'';
         break;
       }
       case TSDB_DATA_TYPE_NCHAR: {
         memset(tableDes->cols[i].note, 0, sizeof(tableDes->cols[i].note));
-        char tbuf[COMMAND_SIZE];
-        convertNCharToReadable((char *)row[0], length[0], tbuf, COMMAND_SIZE);
+        char tbuf[COL_NOTE_LEN-2];    // need reserve 2 bytes for ' ' 
+        convertNCharToReadable((char *)row[0], length[0], tbuf, COL_NOTE_LEN);
         sprintf(tableDes->cols[i].note, "\'%s\'", tbuf);
         break;
       }
