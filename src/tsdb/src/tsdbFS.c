@@ -1120,7 +1120,7 @@ int tsdbFetchDFileSet(STsdbRepo *pRepo, SArray **fSetArray) {
   // loop to retrieve each fileset
   size_t    iFSetSize = 0;  // should >= 3
   SDFileSet fset = {0};
-  // one fileset ends when (1) the array ends or (2) encouter different fid
+  // one fileset ends when (1) the array ends or (2) encounter different fid
   for (size_t index = 0; index < fArraySize; ++index) {
     int         tvid = -1, tfid = -1;
     TSDB_FILE_T ttype = TSDB_FILE_MAX;
@@ -1147,13 +1147,13 @@ int tsdbFetchDFileSet(STsdbRepo *pRepo, SArray **fSetArray) {
       pDFile->f = *pf;
       // (1) the array ends
       if ((index == fArraySize - 1) && (iFSetSize >= TSDB_FILE_MAX)) {
-        tsdbInfo("vgId:%d FSET %d is fetched", REPO_ID(pRepo), fset.fid);
+        tsdbInfo("vgId:%d DFileSet %d is fetched", REPO_ID(pRepo), fset.fid);
         taosArrayPush(*fSetArray, &fset);
       }
     } else {
       // (2) encounter different fid
       if (iFSetSize >= TSDB_FILE_MAX) {
-        tsdbInfo("vgId:%d FSET %d is fetched", REPO_ID(pRepo), fset.fid);
+        tsdbInfo("vgId:%d DFileSet %d is fetched", REPO_ID(pRepo), fset.fid);
         taosArrayPush(*fSetArray, &fset);
       }
 
@@ -1165,6 +1165,9 @@ int tsdbFetchDFileSet(STsdbRepo *pRepo, SArray **fSetArray) {
       pDFile->f = *pf;
     }
   }
+
+  // Resource release
+  taosArrayDestroy(fArray);
 
   return 0;
 }

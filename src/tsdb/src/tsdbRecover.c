@@ -574,12 +574,12 @@ static int tsdbRecoverCheckBlockData(SRecoverH *pRecoverH, SBlock *pSupBlock, SB
     }
   }
 
-  // TODO: ASSERT update to if-else judgement.
-  #if 0
+// TODO: ASSERT update to if-else judgement.
+#if 0
   ASSERT(pReadH->pDCols[0]->numOfRows == pSupBlock->numOfRows);
   ASSERT(dataColsKeyFirst(pReadH->pDCols[0]) == pSupBlock->keyFirst);
   ASSERT(dataColsKeyLast(pReadH->pDCols[0]) == pSupBlock->keyLast);
-  #endif
+#endif
 
   return 0;
 }
@@ -600,8 +600,8 @@ static int tsdbInitHFile(SDFile *pDestDFile, const SDFile *pSrcDFile) {
   memset(pDestDFile, 0, sizeof(SDFile));
   pDestDFile->info.magic = TSDB_FILE_INIT_MAGIC;
 
-  tfsdirname(pf, dname); 
-  tfsrdirname(pf, rdname); 
+  tfsdirname(pf, dname);
+  tfsrdirname(pf, rdname);
   tfsbasename(pf, bname);
 
   tsdbParseDFilename(bname, &tvid, &tfid, &ttype, &tversion);
@@ -610,7 +610,6 @@ static int tsdbInitHFile(SDFile *pDestDFile, const SDFile *pSrcDFile) {
 
   tsdbGetFilePathNameByPrefix(dest_aname, tvid, tfid, tversion, ttype, TSDB_FNAME_PREFIX_TMP, dname);
   tsdbGetFilePathNameByPrefix(dest_rname, tvid, tfid, tversion, ttype, TSDB_FNAME_PREFIX_TMP, rdname);
-
 
   tstrncpy(pDestDFile->f.aname, dest_aname, sizeof(dest_aname));
   tstrncpy(pDestDFile->f.rname, dest_rname, sizeof(dest_rname));
