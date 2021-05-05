@@ -50,7 +50,7 @@ static int tsdbCheckDFileChksum(SRecoverH *pRecoverH);
  *  function should return in case of fatal error, e.g. out of memory
  */
 static bool tsdbRecoverIsFatalError();
-static int  tsdbBackUpDFileSet(SDFileSet *pFileSet);
+static int  tsdbBackUpDFileSet(STsdbRepo *pRepo, SDFileSet *pFileSet);
 /**
  * load SBlockInfo from .head
  */
@@ -65,6 +65,8 @@ static int tsdbInitHFile(SDFile *pDestDFile, const SDFile *pSrcDFile);
 static int tsdbDestroyHFile(SDFile *pDFile);
 static int tsdbCloseHFile(SDFile *pDFile);
 
+static void tsdbGetDataBakPath(int repoid, SDFile *pDFile, char dirName[]);
+
 int tsdbRecoverDataMain(STsdbRepo *pRepo) {
   SRecoverH recoverH;
   SReadH *  pReadH = &recoverH.readh;
@@ -78,8 +80,6 @@ int tsdbRecoverDataMain(STsdbRepo *pRepo) {
     return -1;
   }
 
-  tsdbInfo("vgId:%d restore with DFileSet size %" PRIu64, REPO_ID(pRepo), taosArrayGetSize(fSetArray));
-
   if (taosArrayGetSize(fSetArray) <= 0) {
     taosArrayDestroy(fSetArray);
     tsdbInfo("vgId:%d no need to restore since empty DFileSet", REPO_ID(pRepo));
@@ -91,6 +91,8 @@ int tsdbRecoverDataMain(STsdbRepo *pRepo) {
     return -1;
   }
 
+  tsdbInfo("vgId:%d restore with DFileSet size %" PRIu64, REPO_ID(pRepo), taosArrayGetSize(fSetArray));
+
   // check for each SDFileSet
   for (size_t iDFileSet = 0; iDFileSet < taosArrayGetSize(fSetArray); ++iDFileSet) {
     pReadH->rSet = *(SDFileSet *)taosArrayGet(fSetArray, iDFileSet);
@@ -98,7 +100,7 @@ int tsdbRecoverDataMain(STsdbRepo *pRepo) {
     if (tsdbRecoverManager(&recoverH) < 0) {
       tsdbError("vgId:%d failed to restore DFileSet %d since %s", REPO_ID(pRepo), pReadH->rSet.fid, tstrerror(terrno));
       // backup the SDFileSet
-      if (tsdbBackUpDFileSet(&pReadH->rSet) < 0) {
+      if (tsdbBackUpDFileSet(pRepo, &pReadH->rSet) < 0) {
         tsdbError("vgId:%d failed to backup DFileSet %d since %s", REPO_ID(pRepo), pReadH->rSet.fid, tstrerror(terrno));
         return -1;
       }
@@ -118,8 +120,38 @@ int tsdbRecoverDataMain(STsdbRepo *pRepo) {
   return 0;
 }
 
-static int tsdbBackUpDFileSet(SDFileSet *pFileSet) {
-  //
+static void tsdbGetDataBakPath(int repoid, SDFile *pDFile, char dirName[]) {
+  char root_dname[TSDB_FILENAME_LEN - 32] = "\0";
+  snprintf(root_dname, strlen(pDFile->f.aname) - strlen(pDFile->f.rname), "%s", pDFile->f.aname);
+  snprintf(dirName, TSDB_FILENAME_LEN, "%s/vnode_bak/.tsdb/vnode%d", root_dname, repoid);
+}
+
+// path:    vnode_bak/.tsdb/${unix_ts_seconds}.fileName
+// expire:  default(half year, or 500G)
+static int tsdbBackUpDFileSet(STsdbRepo *pRepo, SDFileSet *pFileSet) {
+  int32_t ts = taosGetTimestampSec();
+  for (TSDB_FILE_T ftype = TSDB_FILE_HEAD; ftype < TSDB_FILE_MAX; ++ftype) {
+    SDFile *pDFile = &(pFileSet->files[ftype]);
+    char    bname[TSDB_FILENAME_LEN] = "\0";
+    char    dest_aname[TSDB_FILENAME_LEN] = "\0";
+
+    tfsbasename(&(pDFile->f), bname);
+
+    tsdbGetDataBakPath(REPO_ID(pRepo), pDFile, dest_aname);
+
+    if (taosMkDir(dest_aname, 0755) < 0) {  // make sure the parent path already exists
+      terrno = TAOS_SYSTEM_ERROR(errno);
+      return -1;
+    }
+
+    snprintf(dest_aname + strlen(dest_aname), TSDB_FILENAME_LEN - strlen(dest_aname), "/%" PRId32 ".%s", ts, bname);
+
+    if (taosRename(pDFile->f.aname, dest_aname) < 0) {
+      terrno = TAOS_SYSTEM_ERROR(errno);
+      return -1;
+    }
+    tsdbInfo("vgId:%d success to back up from %s to %s", REPO_ID(pRepo), pDFile->f.aname, dest_aname);
+  }
   return 0;
 }
 
@@ -163,14 +195,26 @@ static int tsdbDestoryRecoverH(SRecoverH *pRecoverH) {
 }
 
 static int tsdbRecoverManager(SRecoverH *pRecoverH) {
-  SReadH *pReadH = &pRecoverH->readh;
-  int     result = 0;
+  SReadH *   pReadH = &pRecoverH->readh;
+  STsdbRepo *pRepo = pReadH->pRepo;
+  int        result = 0;
 
   // init
   if (tsdbSetAndOpenReadFSet(pReadH, &pReadH->rSet) < 0) {
-    tsdbCloseDFileSet(TSDB_READ_FSET(pReadH));
     return -1;
   }
+
+  for (TSDB_FILE_T ftype = 0; ftype < TSDB_FILE_MAX; ++ftype) {
+    SDFile *pDFile = TSDB_DFILE_IN_SET(&pReadH->rSet, ftype);
+    // TODO:QA: If header of .head/.data/.last corrupted, the check of one fset would fail.
+    if (tsdbLoadDFileHeader(pDFile, &(pDFile->info)) < 0) {
+      tsdbError("vgId:%d failed to load DFile %s header since %s", REPO_ID(pRepo), TSDB_FILE_FULL_NAME(pDFile),
+                tstrerror(terrno));
+      tsdbCloseDFileSet(TSDB_READ_FSET(pReadH));
+      return -1;
+    }
+  }
+
   // process
   switch (tsTsdbCheckRestoreMode) {
     case TSDB_CHECK_MODE_CHKSUM_IF_NO_CURRENT: {
@@ -303,11 +347,10 @@ static int tsdbCheckDFileChksum(SRecoverH *pRecoverH) {
       return -1;
     }
     // update the head file info in rset, which would be stored in cstatus->df as to generate the current file.
-    tsdbInfo("vgId:%d partial pass the chksum scan and head info updated. size:%" PRIu64 "->%" PRIu64 ", offset:%" PRIu32
-             "->%" PRIu32 ", len:%" PRIu32 "->%" PRIu32,
-             REPO_ID(pReadH->pRepo), pHeadF->info.size, pTmpHeadF->info.size, pHeadF->info.offset, pTmpHeadF->info.offset,
-             pHeadF->info.len, pTmpHeadF->info.len);
-             
+    tsdbInfo("vgId:%d partial pass the chksum scan and head info updated. size:%" PRIu64 "->%" PRIu64
+             ", offset:%" PRIu32 "->%" PRIu32 ", len:%" PRIu32 "->%" PRIu32,
+             REPO_ID(pReadH->pRepo), pHeadF->info.size, pTmpHeadF->info.size, pHeadF->info.offset,
+             pTmpHeadF->info.offset, pHeadF->info.len, pTmpHeadF->info.len);
     pHeadF->info = pTmpHeadF->info;
   } else {
     tsdbInfo("vgId:%d all pass the chksum scan. nBlkIdxScan %" PRIu64 ", nBlkIdxAll %" PRIu64
@@ -547,12 +590,12 @@ static int tsdbInitHFile(SDFile *pDestDFile, const SDFile *pSrcDFile) {
   int          tfid = -1;
   TSDB_FILE_T  ttype = TSDB_FILE_MAX;
   uint32_t     tversion = -1;
-  char         bname[TSDB_FILENAME_LEN];   // basename
-  char         dname[TSDB_FILENAME_LEN];   // absolute dir
-  char         rdname[TSDB_FILENAME_LEN];  // relative dir
+  char         bname[TSDB_FILENAME_LEN] = "\0";   // basename
+  char         dname[TSDB_FILENAME_LEN] = "\0";   // absolute dir
+  char         rdname[TSDB_FILENAME_LEN] = "\0";  // relative dir
   // destHFile name
-  char         dest_aname[TSDB_FILENAME_LEN];
-  char         dest_rname[TSDB_FILENAME_LEN];
+  char dest_aname[TSDB_FILENAME_LEN] = "\0";
+  char dest_rname[TSDB_FILENAME_LEN] = "\0";
 
   memset(pDestDFile, 0, sizeof(SDFile));
   pDestDFile->info.magic = TSDB_FILE_INIT_MAGIC;

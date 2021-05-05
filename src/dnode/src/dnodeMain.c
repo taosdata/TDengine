@@ -251,6 +251,11 @@ static int32_t dnodeInitStorage() {
     return -1;
   }
 
+  if (tfsMkdir("vnode_bak/.tsdb") < 0) {
+    dError("failed to create vnode_bak/.tsdb dir since %s", tstrerror(terrno));
+    return -1;
+  }
+
   dnodeCheckDataDirOpenned(tsDnodeDir);
 
   dInfo("dnode storage is initialized at %s", tsDnodeDir);

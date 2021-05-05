@@ -1087,9 +1087,10 @@ static int tsdbFetchTFileSet(STsdbRepo *pRepo, SArray **fArray) {
 
 int tsdbFetchDFileSet(STsdbRepo *pRepo, SArray **fSetArray) {
   ASSERT(fSetArray != NULL && *fSetArray == NULL);
-  char         dataDir[TSDB_FILENAME_LEN];
+  char         dataDir[TSDB_FILENAME_LEN] = "\0";
   SArray *     fArray = NULL;  // TFile
   const TFILE *pf = NULL;
+  size_t       fArraySize = 0;
 
   tsdbGetDataDir(REPO_ID(pRepo), dataDir);
 
@@ -1098,14 +1099,16 @@ int tsdbFetchDFileSet(STsdbRepo *pRepo, SArray **fSetArray) {
     return -1;
   }
 
-  if (taosArrayGetSize(fArray) <= 0) {
+  fArraySize = taosArrayGetSize(fArray);
+
+  if (fArraySize <= 0) {
     terrno = TSDB_CODE_TDB_NO_AVAIL_DFILE;
-    tsdbInfo("vgId:%d size of DFileSet from %s is %" PRIu64, REPO_ID(pRepo), dataDir, taosArrayGetSize(fArray));
+    tsdbInfo("vgId:%d size of DFileSet from %s is %" PRIu64, REPO_ID(pRepo), dataDir, fArraySize);
     taosArrayDestroy(fArray);
     return -1;
   }
 
-  *fSetArray = taosArrayInit(taosArrayGetSize(fArray) / TSDB_FILE_MAX, sizeof(SDFileSet));
+  *fSetArray = taosArrayInit(fArraySize / TSDB_FILE_MAX, sizeof(SDFileSet));
   if (*fSetArray == NULL) {
     taosArrayDestroy(fArray);
     terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
@@ -1114,81 +1117,55 @@ int tsdbFetchDFileSet(STsdbRepo *pRepo, SArray **fSetArray) {
     return -1;
   }
 
-  size_t index = 0;
-  // Loop to recover each file set
-  for (;;) {
-    if (index >= taosArrayGetSize(fArray)) {
-      break;
-    }
+  // loop to retrieve each fileset
+  size_t    iFSetSize = 0;  // should >= 3
+  SDFileSet fset = {0};
+  // one fileset ends when (1) the array ends or (2) encouter different fid
+  for (size_t index = 0; index < fArraySize; ++index) {
+    int         tvid = -1, tfid = -1;
+    TSDB_FILE_T ttype = TSDB_FILE_MAX;
+    uint32_t    tversion = -1;
+    char        bname[TSDB_FILENAME_LEN] = "\0";
 
-    SDFileSet fset = {0};
+    pf = taosArrayGet(fArray, index);
+    tfsbasename(pf, bname);
+    tsdbParseDFilename(bname, &tvid, &tfid, &ttype, &tversion);
+    ASSERT(tvid == REPO_ID(pRepo));
+    SDFile *pDFile = TSDB_DFILE_IN_SET(&fset, ttype);
 
-    TSDB_FSET_SET_CLOSED(&fset);
-
-    // Loop to recover ONE fset
-    for (TSDB_FILE_T ftype = 0; ftype < TSDB_FILE_MAX; ++ftype) {
-      SDFile *pDFile = TSDB_DFILE_IN_SET(&fset, ftype);
-
-      if (index >= taosArrayGetSize(fArray)) {
-        taosArrayDestroy(fArray);
-        tsdbError("vgId:%d incomplete DFileSet, fid:%d", REPO_ID(pRepo), fset.fid);
-        return -1;
-      }
-
-      pf = taosArrayGet(fArray, index);
-
-      int         tvid, tfid;
-      TSDB_FILE_T ttype;
-      uint32_t    tversion;
-      char        bname[TSDB_FILENAME_LEN];
-
-      tfsbasename(pf, bname);
-      tsdbParseDFilename(bname, &tvid, &tfid, &ttype, &tversion);
-
-      ASSERT(tvid == REPO_ID(pRepo));
-
-      if (ftype == 0) {
-        fset.fid = tfid;
-      } else {
-        if (tfid != fset.fid) {
-          taosArrayDestroy(fArray);
-          tsdbError("vgId:%d incomplete dFileSet, fid:%d", REPO_ID(pRepo), fset.fid);
-          return -1;
-        }
-      }
-
-      if (ttype != ftype) {
-        taosArrayDestroy(fArray);
-        tsdbError("vgId:%d incomplete dFileSet, fid:%d", REPO_ID(pRepo), fset.fid);
-        return -1;
-      }
-
+    if (index == 0) {
+      memset(&fset, 0, sizeof(SDFileSet));
+      TSDB_FSET_SET_CLOSED(&fset);
+      iFSetSize = 1;
+      fset.fid = tfid;
       pDFile->f = *pf;
-
-      if (tsdbOpenDFile(pDFile, O_RDONLY) < 0) {
-        taosArrayDestroy(fArray);
-        tsdbError("vgId:%d failed to open DFile %s since %s", REPO_ID(pRepo), TSDB_FILE_FULL_NAME(pDFile),
-                  tstrerror(terrno));
-        return -1;
-      }
-
-      if (tsdbLoadDFileHeader(pDFile, &(pDFile->info)) < 0) {
-        tsdbError("vgId:%d failed to load DFile %s header since %s", REPO_ID(pRepo), TSDB_FILE_FULL_NAME(pDFile),
-                  tstrerror(terrno));
-        tsdbCloseDFile(pDFile);
-        taosArrayDestroy(fArray);
-        return -1;
-      }
-
-      tsdbCloseDFile(pDFile);
-      ++index;
+      continue;
     }
 
-    tsdbInfo("vgId:%d FSET %d is fetched", REPO_ID(pRepo), fset.fid);
-    taosArrayPush(*fSetArray, &fset);
+    if (fset.fid == tfid) {
+      ++iFSetSize;
+      pDFile->f = *pf;
+      // (1) the array ends
+      if ((index == fArraySize - 1) && (iFSetSize >= TSDB_FILE_MAX)) {
+        tsdbInfo("vgId:%d FSET %d is fetched", REPO_ID(pRepo), fset.fid);
+        taosArrayPush(*fSetArray, &fset);
+      }
+    } else {
+      // (2) encounter different fid
+      if (iFSetSize >= TSDB_FILE_MAX) {
+        tsdbInfo("vgId:%d FSET %d is fetched", REPO_ID(pRepo), fset.fid);
+        taosArrayPush(*fSetArray, &fset);
+      }
+
+      // next FSet
+      memset(&fset, 0, sizeof(SDFileSet));
+      TSDB_FSET_SET_CLOSED(&fset);
+      iFSetSize = 1;
+      fset.fid = tfid;
+      pDFile->f = *pf;
+    }
   }
-  // Resource release
-  taosArrayDestroy(fArray);
+
   return 0;
 }
 
@@ -1269,7 +1246,7 @@ static int tsdbRestoreDFileSet(STsdbRepo *pRepo) {
       }
 
       tsdbCloseDFile(pDFile);
-      ++index;
+      index++;
     }
 
     tsdbInfo("vgId:%d FSET %d is restored", REPO_ID(pRepo), fset.fid);
