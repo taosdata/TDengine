@@ -295,7 +295,7 @@ void *rpcOpen(const SRpcInit *pInit) {
       return NULL;
     }
   } else {
-    pRpc->pCache = rpcOpenConnCache(pRpc->sessions, rpcCloseConn, pRpc->tmrCtrl, pRpc->idleTime*30); 
+    pRpc->pCache = rpcOpenConnCache(pRpc->sessions, rpcCloseConn, pRpc->tmrCtrl, pRpc->idleTime * 20); 
     if ( pRpc->pCache == NULL ) {
       tError("%s failed to init connection cache", pRpc->label);
       rpcClose(pRpc);
@@ -470,7 +470,7 @@ void rpcSendResponse(const SRpcMsg *pRsp) {
   taosTmrStopA(&pConn->pTimer);
 
   // set the idle timer to monitor the activity
-  taosTmrReset(rpcProcessIdleTimer, pRpc->idleTime*30, pConn, pRpc->tmrCtrl, &pConn->pIdleTimer);
+  taosTmrReset(rpcProcessIdleTimer, pRpc->idleTime * 30, pConn, pRpc->tmrCtrl, &pConn->pIdleTimer);
   rpcSendMsgToPeer(pConn, msg, msgLen);
 
   // if not set to secured, set it expcet NOT_READY case, since client wont treat it as secured
@@ -997,8 +997,8 @@ static SRpcConn *rpcProcessMsgHead(SRpcInfo *pRpc, SRecvInfo *pRecv, SRpcReqCont
     }
 
     if ( rpcIsReq(pHead->msgType) ) {
-      terrno = rpcProcessReqHead(pConn, pHead);
       pConn->connType = pRecv->connType;
+      terrno = rpcProcessReqHead(pConn, pHead);
 
       // stop idle timer
       taosTmrStopA(&pConn->pIdleTimer);  

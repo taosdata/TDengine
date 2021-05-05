@@ -117,9 +117,9 @@ TDengine是一个高效的存储、查询、分析时序大数据的平台，专
 ## 常用工具
 
 * [TDengine样例导入工具](https://www.taosdata.com/blog/2020/01/18/1166.html)
-* [TDengine性能对比测试工具](https://www.taosdata.com/blog/2020/01/18/1166.html)
+* [TDengine写入性能测试工具](https://www.taosdata.com/blog/2020/01/18/1166.html)
 * [IDEA数据库管理工具可视化使用TDengine](https://www.taosdata.com/blog/2020/08/27/1767.html)
-* [基于eletron开发的跨平台TDengine图形化管理工具](https://github.com/skye0207/TDengineGUI)
+* [基于Electron开发的跨平台TDengine图形化管理工具](https://github.com/skye0207/TDengineGUI)
 * [DataX，支持TDengine的离线数据采集/同步工具](https://github.com/wgzhao/DataX)（文档：[读取插件](https://github.com/wgzhao/DataX/blob/master/docs/src/main/sphinx/reader/tdenginereader.md)、[写入插件](https://github.com/wgzhao/DataX/blob/master/docs/src/main/sphinx/writer/tdenginewriter.md)）
 
 ## TDengine与其他数据库的对比测试

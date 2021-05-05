@@ -414,6 +414,7 @@ if $rows != 1 then
 endi
 
 if $data00 != 0.204545455 then
+  print expect 0.204545455, actual: $data00
   return -1
 endi
 

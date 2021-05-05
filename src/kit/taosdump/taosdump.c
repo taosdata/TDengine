@@ -99,11 +99,13 @@ enum _describe_table_index {
   TSDB_MAX_DESCRIBE_METRIC
 };
 
+#define COL_NOTE_LEN    128
+
 typedef struct {
   char field[TSDB_COL_NAME_LEN + 1];
   char type[16];
   int length;
-  char note[128];
+  char note[COL_NOTE_LEN];
 } SColDes;
 
 typedef struct {
@@ -214,8 +216,8 @@ static struct argp_option options[] = {
   // dump format options
   {"schemaonly",    's', 0,             0,  "Only dump schema.",                                            3},
   {"with-property", 'M', 0,             0,  "Dump schema with properties.",                                 3},
-  {"start-time",    'S', "START_TIME",  0,  "Start time to dump.",                                          3},
-  {"end-time",      'E', "END_TIME",    0,  "End time to dump. Epoch or ISO8601/RFC3339 format is acceptable. For example: 2017-10-01T18:00:00+0800",  3},
+  {"start-time",    'S', "START_TIME",  0,  "Start time to dump. Either Epoch or ISO8601/RFC3339 format is acceptable. Epoch precision millisecond. ISO8601 format example: 2017-10-01T18:00:00.000+0800 or 2017-10-0100:00:00.000+0800 or '2017-10-01 00:00:00.000+0800'",  3},
+  {"end-time",      'E', "END_TIME",    0,  "End time to dump. Either Epoch or ISO8601/RFC3339 format is acceptable. Epoch precision millisecond. ISO8601 format example: 2017-10-01T18:00:00.000+0800 or 2017-10-0100:00:00.000+0800 or '2017-10-01 00:00:00.000+0800'",  3},
   {"data-batch",    'N', "DATA_BATCH",  0,  "Number of data point per insert statement. Default is 1.",     3},
   {"max-sql-len",   'L', "SQL_LEN",     0,  "Max length of one sql. Default is 65480.",                     3},
   {"table-batch",   't', "TABLE_BATCH", 0,  "Number of table dumpout into one output file. Default is 1.",  3},
@@ -482,7 +484,8 @@ static int queryDbImpl(TAOS *taos, char *command) {
 
 static void parse_args(int argc, char *argv[], SArguments *arguments) {
   for (int i = 1; i < argc; i++) {
-    if (strcmp(argv[i], "-E") == 0) {
+    if ((strcmp(argv[i], "-S") == 0)
+        || (strcmp(argv[i], "-E") == 0)) {
       if (argv[i+1]) {
         char *tmp = strdup(argv[++i]);
 
@@ -509,7 +512,7 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
           exit(-1);
         }
       } else {
-        errorPrint("%s() LN%d, -E need a valid value following!\n", __func__, __LINE__);
+        errorPrint("%s need a valid value following!\n", argv[i]);
         exit(-1);
       }
     } else if (strcmp(argv[i], "-g") == 0) {
@@ -522,7 +525,8 @@ int main(int argc, char *argv[]) {
 
   /* Parse our arguments; every option seen by parse_opt will be
      reflected in arguments. */
-  parse_args(argc, argv, &g_args);
+  if (argc > 1)
+    parse_args(argc, argv, &g_args);
 
   argp_parse(&argp, argc, argv, 0, 0, &g_args);
 
@@ -1186,16 +1190,16 @@ int taosGetTableDes(char* dbName, char *table, STableDef *tableDes, TAOS* taosCo
       case TSDB_DATA_TYPE_BINARY: {
         memset(tableDes->cols[i].note, 0, sizeof(tableDes->cols[i].note));
         tableDes->cols[i].note[0] = '\'';
-        char tbuf[COMMAND_SIZE];
-        converStringToReadable((char *)row[0], length[0], tbuf, COMMAND_SIZE);
+        char tbuf[COL_NOTE_LEN];
+        converStringToReadable((char *)row[0], length[0], tbuf, COL_NOTE_LEN);
         char* pstr = stpcpy(&(tableDes->cols[i].note[1]), tbuf);
         *(pstr++) = '\'';
         break;
       }
       case TSDB_DATA_TYPE_NCHAR: {
         memset(tableDes->cols[i].note, 0, sizeof(tableDes->cols[i].note));
-        char tbuf[COMMAND_SIZE];
-        convertNCharToReadable((char *)row[0], length[0], tbuf, COMMAND_SIZE);
+        char tbuf[COL_NOTE_LEN-2];    // need reserve 2 bytes for ' ' 
+        convertNCharToReadable((char *)row[0], length[0], tbuf, COL_NOTE_LEN);
         sprintf(tableDes->cols[i].note, "\'%s\'", tbuf);
         break;
       }

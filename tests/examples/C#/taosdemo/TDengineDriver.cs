@@ -31,7 +31,11 @@ namespace TDengineDriver
         TSDB_DATA_TYPE_DOUBLE = 7,   // 8 bytes
         TSDB_DATA_TYPE_BINARY = 8,   // string
         TSDB_DATA_TYPE_TIMESTAMP = 9,// 8 bytes
-        TSDB_DATA_TYPE_NCHAR = 10    // unicode string
+        TSDB_DATA_TYPE_NCHAR = 10,   // unicode string
+        TSDB_DATA_TYPE_UTINYINT = 11,// 1 byte
+        TSDB_DATA_TYPE_USMALLINT= 12,// 2 bytes
+        TSDB_DATA_TYPE_UINT = 13,    // 4 bytes
+        TSDB_DATA_TYPE_UBIGINT= 14   // 8 bytes
     }
 
     enum TDengineInitOption
@@ -53,15 +57,23 @@ namespace TDengineDriver
             switch ((TDengineDataType)type)
             {
                 case TDengineDataType.TSDB_DATA_TYPE_BOOL:
-                    return "BOOLEAN";
+                    return "BOOL";
                 case TDengineDataType.TSDB_DATA_TYPE_TINYINT:
-                    return "BYTE";
+                    return "TINYINT";
                 case TDengineDataType.TSDB_DATA_TYPE_SMALLINT:
-                    return "SHORT";
+                    return "SMALLINT";
                 case TDengineDataType.TSDB_DATA_TYPE_INT:
                     return "INT";
                 case TDengineDataType.TSDB_DATA_TYPE_BIGINT:
-                    return "LONG";
+                    return "BIGINT";
+                case TDengineDataType.TSDB_DATA_TYPE_UTINYINT:
+                    return "TINYINT UNSIGNED";
+                case TDengineDataType.TSDB_DATA_TYPE_USMALLINT:
+                    return "SMALLINT UNSIGNED";
+                case TDengineDataType.TSDB_DATA_TYPE_UINT:
+                    return "INT UNSIGNED";
+                case TDengineDataType.TSDB_DATA_TYPE_UBIGINT:
+                    return "BIGINT UNSIGNED";
                 case TDengineDataType.TSDB_DATA_TYPE_FLOAT:
                     return "FLOAT";
                 case TDengineDataType.TSDB_DATA_TYPE_DOUBLE:

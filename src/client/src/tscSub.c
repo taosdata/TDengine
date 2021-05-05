@@ -224,11 +224,11 @@ static SArray* getTableList( SSqlObj* pSql ) {
   
   SSqlObj* pNew = taos_query(pSql->pTscObj, sql);
   if (pNew == NULL) {
-    tscError("failed to retrieve table id: cannot create new sql object.");
+    tscError("0x%"PRIx64"failed to retrieve table id: cannot create new sql object.", pSql->self);
     return NULL;
 
   } else if (taos_errno(pNew) != TSDB_CODE_SUCCESS) {
-    tscError("failed to retrieve table id: %s", tstrerror(taos_errno(pNew)));
+    tscError("0x%"PRIx64"failed to retrieve table id,error: %s", pSql->self, tstrerror(taos_errno(pNew)));
     return NULL;
   }
 
@@ -284,7 +284,7 @@ static int tscUpdateSubscription(STscObj* pObj, SSub* pSub) {
   }
   size_t numOfTables = taosArrayGetSize(tables);
 
-  SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, 0);
+  SQueryInfo* pQueryInfo = tscGetQueryInfo(pCmd, 0);
   SArray* progress = taosArrayInit(numOfTables, sizeof(SSubscriptionProgress));
   for( size_t i = 0; i < numOfTables; i++ ) {
     STidTags* tt = taosArrayGet( tables, i );
@@ -304,7 +304,7 @@ static int tscUpdateSubscription(STscObj* pObj, SSub* pSub) {
   }
   taosArrayDestroy(tables);
 
-  TSDB_QUERY_SET_TYPE(tscGetQueryInfoDetail(pCmd, 0)->type, TSDB_QUERY_TYPE_MULTITABLE_QUERY);
+  TSDB_QUERY_SET_TYPE(tscGetQueryInfo(pCmd, 0)->type, TSDB_QUERY_TYPE_MULTITABLE_QUERY);
   return 1;
 }
 
@@ -487,11 +487,13 @@ TAOS_RES *taos_consume(TAOS_SUB *tsub) {
     if (pSql == NULL) {
       return NULL;
     }
+
     if (pSub->pSql->self != 0) {
       taosReleaseRef(tscObjRef, pSub->pSql->self);
     } else {
       tscFreeSqlObj(pSub->pSql);
     }
+
     pSub->pSql = pSql;
     pSql->pSubscription = pSub;
   }
@@ -502,7 +504,7 @@ TAOS_RES *taos_consume(TAOS_SUB *tsub) {
   SSqlRes *pRes = &pSql->res;
   SSqlCmd *pCmd = &pSql->cmd;
   STableMetaInfo *pTableMetaInfo = tscGetTableMetaInfoFromCmd(pCmd, pCmd->clauseIndex, 0);
-  SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(pCmd, 0);
+  SQueryInfo *pQueryInfo = tscGetQueryInfo(pCmd, 0);
   if (taosArrayGetSize(pSub->progress) > 0) { // fix crash in single table subscription
 
     size_t size = taosArrayGetSize(pSub->progress);
@@ -555,7 +557,10 @@ TAOS_RES *taos_consume(TAOS_SUB *tsub) {
     pSql->fp = asyncCallback;
     pSql->fetchFp = asyncCallback;
     pSql->param = pSub;
-    tscDoQuery(pSql);
+
+    pSql->cmd.active = pQueryInfo;
+    executeQuery(pSql, pQueryInfo);
+
     tsem_wait(&pSub->sem);
 
     if (pRes->code != TSDB_CODE_SUCCESS) {

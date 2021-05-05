@@ -191,7 +191,7 @@ TAOS *taos_connect_internal(const char *ip, const char *user, const char *pass, 
     pSql->fp = syncConnCallback;
     pSql->param = pSql;
 
-    tscProcessSql(pSql);
+    tscBuildAndSendRequest(pSql, NULL);
     tsem_wait(&pSql->rspSem);
 
     if (pSql->res.code != TSDB_CODE_SUCCESS) {
@@ -265,7 +265,7 @@ TAOS *taos_connect_a(char *ip, char *user, char *pass, char *db, uint16_t port, 
   if (taos) *taos = pObj;
 
   pSql->fetchFp = fp;
-  pSql->res.code = tscProcessSql(pSql);
+  pSql->res.code = tscBuildAndSendRequest(pSql, NULL);
   tscDebug("%p DB async connection is opening", taos);
   return pObj;
 }
@@ -292,7 +292,7 @@ void taos_close(TAOS *taos) {
         pHb->rpcRid = -1;
       }
 
-      tscDebug("%p HB is freed", pHb);
+      tscDebug("0x%"PRIx64" HB is freed", pHb->self);
       taosReleaseRef(tscObjRef, pHb->self);
 #ifdef __APPLE__
       // to satisfy later tsem_destroy in taos_free_result
@@ -373,7 +373,7 @@ int taos_num_fields(TAOS_RES *res) {
   if (pSql == NULL || pSql->signature != pSql) return 0;
 
   int32_t num = 0;
-  SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(&pSql->cmd, 0);
+  SQueryInfo *pQueryInfo = tscGetQueryInfo(&pSql->cmd, 0);
   if (pQueryInfo == NULL) {
     return num;
   }
@@ -408,7 +408,7 @@ TAOS_FIELD *taos_fetch_fields(TAOS_RES *res) {
   SSqlRes *pRes = &pSql->res;
   if (pSql == NULL || pSql->signature != pSql) return 0;
 
-  SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(&pSql->cmd, 0);
+  SQueryInfo *pQueryInfo = tscGetQueryInfo(&pSql->cmd, 0);
   if (pQueryInfo == NULL) {
     return NULL;
   }
@@ -559,7 +559,7 @@ static bool tscKillQueryInDnode(SSqlObj* pSql) {
     return true;
   }
 
-  SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(pCmd, 0);
+  SQueryInfo *pQueryInfo = tscGetQueryInfo(pCmd, 0);
 
   if ((pQueryInfo == NULL) || tscIsTwoStageSTableQuery(pQueryInfo, 0)) {
     return true;
@@ -576,9 +576,9 @@ static bool tscKillQueryInDnode(SSqlObj* pSql) {
        cmd == TSDB_SQL_FETCH)) {
     pQueryInfo->type = TSDB_QUERY_TYPE_FREE_RESOURCE;
     pCmd->command = (pCmd->command > TSDB_SQL_MGMT) ? TSDB_SQL_RETRIEVE : TSDB_SQL_FETCH;
-    tscDebug("%p send msg to dnode to free qhandle ASAP before free sqlObj, command:%s", pSql, sqlCmd[pCmd->command]);
+    tscDebug("0x%"PRIx64" send msg to dnode to free qhandle ASAP before free sqlObj, command:%s", pSql->self, sqlCmd[pCmd->command]);
 
-    tscProcessSql(pSql);
+    tscBuildAndSendRequest(pSql, NULL);
     return false;
   }
 
@@ -588,13 +588,13 @@ static bool tscKillQueryInDnode(SSqlObj* pSql) {
 void taos_free_result(TAOS_RES *res) {
   SSqlObj* pSql = (SSqlObj*) res;
   if (pSql == NULL || pSql->signature != pSql) {
-    tscError("%p already released sqlObj", res);
+    tscError("0x%"PRIx64" already released sqlObj", pSql ? pSql->self : -1);
     return;
   }
 
   bool freeNow = tscKillQueryInDnode(pSql);
   if (freeNow) {
-    tscDebug("%p free sqlObj in cache", pSql);
+    tscDebug("0x%"PRIx64" free sqlObj in cache", pSql->self);
     taosReleaseRef(tscObjRef, pSql->self);
   }
 }
@@ -672,7 +672,7 @@ char *taos_get_client_info() { return version; }
 static void tscKillSTableQuery(SSqlObj *pSql) {
   SSqlCmd* pCmd = &pSql->cmd;
 
-  SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
+  SQueryInfo* pQueryInfo = tscGetQueryInfo(pCmd, pCmd->clauseIndex);
 
   if (!tscIsTwoStageSTableQuery(pQueryInfo, 0)) {
     return;
@@ -708,7 +708,7 @@ static void tscKillSTableQuery(SSqlObj *pSql) {
 
   tscUnlockByThread(&pSql->squeryLock);
 
-  tscDebug("%p super table query cancelled", pSql);
+  tscDebug("0x%"PRIx64" super table query cancelled", pSql->self);
 }
 
 void taos_stop_query(TAOS_RES *res) {
@@ -717,13 +717,13 @@ void taos_stop_query(TAOS_RES *res) {
     return;
   }
 
-  tscDebug("%p start to cancel query", res);
+  tscDebug("0x%"PRIx64" start to cancel query", pSql->self);
   SSqlCmd *pCmd = &pSql->cmd;
 
   // set the error code for master pSqlObj firstly
   pSql->res.code = TSDB_CODE_TSC_QUERY_CANCELLED;
 
-  SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
+  SQueryInfo *pQueryInfo = tscGetQueryInfo(pCmd, pCmd->clauseIndex);
 
   if (tscIsTwoStageSTableQuery(pQueryInfo, 0)) {
     assert(pSql->rpcRid <= 0);
@@ -744,7 +744,7 @@ void taos_stop_query(TAOS_RES *res) {
     }
   }
 
-  tscDebug("%p query is cancelled", res);
+  tscDebug("0x%"PRIx64" query is cancelled", pSql->self);
 }
 
 bool taos_is_null(TAOS_RES *res, int32_t row, int32_t col) {
@@ -753,7 +753,7 @@ bool taos_is_null(TAOS_RES *res, int32_t row, int32_t col) {
     return true;
   }
 
-  SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(&pSql->cmd, 0);
+  SQueryInfo* pQueryInfo = tscGetQueryInfo(&pSql->cmd, 0);
   if (pQueryInfo == NULL) {
     return true;
   }
@@ -877,19 +877,18 @@ int taos_validate_sql(TAOS *taos, const char *sql) {
   pRes->numOfClauseTotal = 0;
 
 
-  tscDebug("%p Valid SQL: %s pObj:%p", pSql, sql, pObj);
+  tscDebug("0x%"PRIx64" Valid SQL: %s pObj:%p", pSql->self, sql, pObj);
 
   int32_t sqlLen = (int32_t)strlen(sql);
   if (sqlLen > tsMaxSQLStringLen) {
-    tscError("%p sql too long", pSql);
+    tscError("0x%"PRIx64" sql too long", pSql->self);
     tfree(pSql);
     return TSDB_CODE_TSC_EXCEED_SQL_LIMIT;
   }
 
   pSql->sqlstr = realloc(pSql->sqlstr, sqlLen + 1);
   if (pSql->sqlstr == NULL) {
-    tscError("%p failed to malloc sql string buffer", pSql);
-    tscDebug("%p Valid SQL result:%d, %s pObj:%p", pSql, pRes->code, taos_errstr(pSql), pObj);
+    tscError("0x%"PRIx64" failed to malloc sql string buffer", pSql->self);
     tfree(pSql);
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
   }
@@ -914,7 +913,7 @@ int taos_validate_sql(TAOS *taos, const char *sql) {
   }
 
   if (code != TSDB_CODE_SUCCESS) {
-    tscDebug("%p Valid SQL result:%d, %s pObj:%p", pSql, code, taos_errstr(pSql), pObj);
+    tscError("0x%"PRIx64" invalid SQL result:%d, %s pObj:%p", pSql->self, code, taos_errstr(pSql), pObj);
   }
 
   taos_free_result(pSql);
@@ -933,7 +932,7 @@ static int tscParseTblNameList(SSqlObj *pSql, const char *tblNameList, int32_t t
   int   code = TSDB_CODE_TSC_INVALID_TABLE_ID_LENGTH;
   char *str = (char *)tblNameList;
 
-  SQueryInfo *pQueryInfo = tscGetQueryInfoDetailSafely(pCmd, pCmd->clauseIndex);
+  SQueryInfo *pQueryInfo = tscGetQueryInfoS(pCmd, pCmd->clauseIndex);
   if (pQueryInfo == NULL) {
     pSql->res.code = terrno;
     return terrno;
@@ -1027,18 +1026,18 @@ int taos_load_table_info(TAOS *taos, const char *tableNameList) {
   pRes->numOfClauseTotal = 0;
 
   assert(pSql->fp == NULL);
-  tscDebug("%p tableNameList: %s pObj:%p", pSql, tableNameList, pObj);
+  tscDebug("0x%"PRIx64" tableNameList: %s pObj:%p", pSql->self, tableNameList, pObj);
 
   int32_t tblListLen = (int32_t)strlen(tableNameList);
   if (tblListLen > MAX_TABLE_NAME_LENGTH) {
-    tscError("%p tableNameList too long, length:%d, maximum allowed:%d", pSql, tblListLen, MAX_TABLE_NAME_LENGTH);
+    tscError("0x%"PRIx64" tableNameList too long, length:%d, maximum allowed:%d", pSql->self, tblListLen, MAX_TABLE_NAME_LENGTH);
     tscFreeSqlObj(pSql);
     return TSDB_CODE_TSC_INVALID_SQL;
   }
 
   char *str = calloc(1, tblListLen + 1);
   if (str == NULL) {
-    tscError("%p failed to malloc sql string buffer", pSql);
+    tscError("0x%"PRIx64" failed to malloc sql string buffer", pSql->self);
     tscFreeSqlObj(pSql);
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
   }
@@ -1048,7 +1047,7 @@ int taos_load_table_info(TAOS *taos, const char *tableNameList) {
 
   /*
    * set the qhandle to 0 before return in order to erase the qhandle value assigned in the previous successful query.
-   * If qhandle is NOT set 0, the function of taos_free_result() will send message to server by calling tscProcessSql()
+   * If qhandle is NOT set 0, the function of taos_free_result() will send message to server by calling tscBuildAndSendRequest()
    * to free connection, which may cause segment fault, when the parse phrase is not even successfully executed.
    */
   pRes->qId = 0;
@@ -1061,7 +1060,7 @@ int taos_load_table_info(TAOS *taos, const char *tableNameList) {
 
   tscDoQuery(pSql);
 
-  tscDebug("%p load multi table meta result:%d %s pObj:%p", pSql, pRes->code, taos_errstr(pSql), pObj);
+  tscDebug("0x%"PRIx64" load multi-table meta result:%d %s pObj:%p", pSql->self, pRes->code, taos_errstr(pSql), pObj);
   if ((code = pRes->code) != TSDB_CODE_SUCCESS) {
     tscFreeSqlObj(pSql);
   }
