@@ -17,10 +17,7 @@
 #include "os.h"
 #include "tsdbint.h"
 
-// global variable
-// tsTsdbCheckRestoreMode - for check and restore when open vnode
-// int tsTsdbCheckRestoreMode = TSDB_CHECK_MODE_DEFAULT;
-int tsTsdbCheckRestoreMode = TSDB_CHECK_MODE_CHKSUM_IF_NO_CURRENT;
+extern uint16_t tsTsdbCheckMode;
 
 typedef enum { TSDB_TXN_TEMP_FILE = 0, TSDB_TXN_CURR_FILE } TSDB_TXN_FILE_T;
 static const char *tsdbTxnFname[] = {"current.t", "current"};
@@ -1265,12 +1262,12 @@ static int tsdbRestoreDFileSet(STsdbRepo *pRepo) {
 static int tsdbFullCheckRestoreDFileSet(STsdbRepo *pRepo) {
   if (tsdbRecoverDataMain(pRepo) < 0) {
     if (TSDB_CODE_TDB_NO_AVAIL_DFILE != terrno) {
-      tsdbError("vgId:%d failed to check and restore in mode %d since %s", REPO_ID(pRepo), tsTsdbCheckRestoreMode,
+      tsdbError("vgId:%d failed to check and restore in mode %d since %s", REPO_ID(pRepo), tsTsdbCheckMode,
                 tstrerror(terrno));
       return -1;
     }
   }
-  tsdbInfo("vgId:%d finish the check in mode %d", REPO_ID(pRepo), tsTsdbCheckRestoreMode);
+  tsdbInfo("vgId:%d finish the check in mode %" PRIu16, REPO_ID(pRepo), tsTsdbCheckMode);
   return 0;
 }
 
@@ -1282,12 +1279,12 @@ static int tsdbRestoreCurrent(STsdbRepo *pRepo) {
   }
 
   // Loop to recover dfile set
-  if (tsTsdbCheckRestoreMode == TSDB_CHECK_MODE_DEFAULT) {
+  if (tsTsdbCheckMode == TSDB_CHECK_MODE_DEFAULT) {
     if (tsdbRestoreDFileSet(pRepo) < 0) {
       tsdbError("vgId:%d failed to restore DFileSet since %s", REPO_ID(pRepo), tstrerror(terrno));
       return -1;
     }
-  } else if (tsTsdbCheckRestoreMode == TSDB_CHECK_MODE_CHKSUM_IF_NO_CURRENT) {
+  } else if (tsTsdbCheckMode == TSDB_CHECK_MODE_CHKSUM_IF_NO_CURRENT) {
     if (tsdbFullCheckRestoreDFileSet(pRepo) < 0) {
       tsdbError("vgId:%d failed to restore DFileSet since %s", REPO_ID(pRepo), tstrerror(terrno));
       return -1;
@@ -1299,7 +1296,7 @@ static int tsdbRestoreCurrent(STsdbRepo *pRepo) {
   }
 
   if (tsdbSaveFSStatus(pRepo->fs->cstatus, REPO_ID(pRepo)) < 0) {
-    tsdbError("vgId:%d failed to restore current in mode %d since %s", REPO_ID(pRepo), tsTsdbCheckRestoreMode,
+    tsdbError("vgId:%d failed to restore current in mode %" PRIu16 " since %s", REPO_ID(pRepo), tsTsdbCheckMode,
               tstrerror(terrno));
     return -1;
   }

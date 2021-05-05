@@ -15,7 +15,7 @@
 
 #include "tsdbint.h"
 
-extern int tsTsdbCheckRestoreMode;
+extern uint16_t tsTsdbCheckMode;
 
 #define TSDB_FNAME_PREFIX_TMP "t."
 
@@ -108,7 +108,7 @@ int tsdbRecoverDataMain(STsdbRepo *pRepo) {
       continue;
     }
 
-    tsdbInfo("vgId:%d FSET %d is checked in mode %d", REPO_ID(pRepo), pReadH->rSet.fid, tsTsdbCheckRestoreMode);
+    tsdbInfo("vgId:%d FSET %d is checked in mode %" PRIu16, REPO_ID(pRepo), pReadH->rSet.fid, tsTsdbCheckMode);
     taosArrayPush(pfs->cstatus->df, &pReadH->rSet);
   }
 
@@ -216,7 +216,7 @@ static int tsdbRecoverManager(SRecoverH *pRecoverH) {
   }
 
   // process
-  switch (tsTsdbCheckRestoreMode) {
+  switch (tsTsdbCheckMode) {
     case TSDB_CHECK_MODE_CHKSUM_IF_NO_CURRENT: {
       result = tsdbCheckDFileChksum(pRecoverH);
       break;

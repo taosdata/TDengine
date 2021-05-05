@@ -62,6 +62,13 @@ int8_t  tsEnableCoreFile = 0;
 int32_t tsMaxBinaryDisplayWidth = 30;
 
 /*
+ * for check and restore when open vnode
+ *  TSDB_CHECK_MODE_DEFAULT = 0,               // check header and file size
+ *  TSDB_CHECK_MODE_CHKSUM_IF_NO_CURRENT = 1,  // check chksum if no current
+ */
+uint16_t tsTsdbCheckMode = TSDB_CHECK_MODE_DEFAULT;
+
+/*
  * denote if the server needs to compress response message at the application layer to client, including query rsp,
  * metricmeta rsp, and multi-meter query rsp message body. The client compress the submit message to server.
  *
@@ -1480,6 +1487,16 @@ static void doInitGlobalConfig(void) {
   cfg.minValue = 0;
   cfg.maxValue = 0;
   cfg.ptrLength = tListLen(tsTempDir);
+  cfg.unitType = TAOS_CFG_UTYPE_NONE;
+  taosInitConfigOption(cfg);
+
+  cfg.option = "tsdbCheckMode";
+  cfg.ptr = &tsTsdbCheckMode;
+  cfg.valType = TAOS_CFG_VTYPE_UINT16;
+  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW | TSDB_CFG_CTYPE_B_CLIENT;
+  cfg.minValue = TSDB_CHECK_MODE_DEFAULT;
+  cfg.maxValue = TSDB_CHECK_MODE_MAX;
+  cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosInitConfigOption(cfg);
 }
