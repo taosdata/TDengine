@@ -37,7 +37,7 @@ static int64_t getDelayValueAfterTimewindowClosed(SSqlStream* pStream, int64_t l
 
 static bool isProjectStream(SQueryInfo* pQueryInfo) {
   for (int32_t i = 0; i < pQueryInfo->fieldsInfo.numOfOutput; ++i) {
-    SExprInfo *pExpr = tscSqlExprGet(pQueryInfo, i);
+    SExprInfo *pExpr = tscExprGet(pQueryInfo, i);
     if (pExpr->base.functionId != TSDB_FUNC_PRJ) {
       return false;
     }

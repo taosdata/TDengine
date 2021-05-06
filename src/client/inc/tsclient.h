@@ -203,10 +203,11 @@ typedef struct SQueryInfo {
   SInterval        interval;      // tumble time window
   SSessionWindow   sessionWindow; // session time window
 
-  SSqlGroupbyExpr  groupbyExpr;   // groupby tags info
+  SGroupbyExpr  groupbyExpr;   // groupby tags info
   SArray *         colList;       // SArray<SColumn*>
   SFieldInfo       fieldsInfo;
   SArray *         exprList;      // SArray<SExprInfo*>
+  SArray *         exprList1;     // final exprlist in case of arithmetic expression exists
   SLimitVal        limit;
   SLimitVal        slimit;
   STagCond         tagCond;
@@ -230,8 +231,6 @@ typedef struct SQueryInfo {
   int32_t          bufLen;
   char*            buf;
   SQInfo*          pQInfo;      // global merge operator
-  SArray*          pDSOperator;    // data source operator
-  SArray*          pPhyOperator;   // physical query execution plan
   SQueryAttr*      pQueryAttr;     // query object
 
   struct SQueryInfo *sibling;     // sibling
@@ -244,6 +243,7 @@ typedef struct SQueryInfo {
   bool               arithmeticOnAgg;
   bool               projectionQuery;
   bool               hasFilter;
+  bool               onlyTagQuery;
 } SQueryInfo;
 
 typedef struct {
@@ -268,8 +268,8 @@ typedef struct {
   char *       payload;
   int32_t      payloadLen;
 
-  SQueryInfo **pQueryInfo;
-  int32_t      numOfClause;
+  SQueryInfo  *pQueryInfo;
+//  int32_t      numOfClause;
   int32_t      clauseIndex;  // index of multiple subclause query
   SQueryInfo  *active;       // current active query info
 

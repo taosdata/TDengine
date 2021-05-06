@@ -341,13 +341,13 @@ static int32_t createOrderDescriptor(tOrderDescriptor **pOrderDesc, SQueryInfo* 
   if (numOfGroupByCols > 0) {
 
     if (pQueryInfo->groupbyExpr.numOfGroupCols > 0) {
-      int32_t numOfInternalOutput = (int32_t) tscSqlExprNumOfExprs(pQueryInfo);
+      int32_t numOfInternalOutput = (int32_t) tscNumOfExprs(pQueryInfo);
 
       // the last "pQueryInfo->groupbyExpr.numOfGroupCols" columns are order-by columns
       for (int32_t i = 0; i < pQueryInfo->groupbyExpr.numOfGroupCols; ++i) {
         SColIndex* pColIndex = taosArrayGet(pQueryInfo->groupbyExpr.columnInfo, i);
         for(int32_t j = 0; j < numOfInternalOutput; ++j) {
-          SExprInfo* pExprInfo = tscSqlExprGet(pQueryInfo, j);
+          SExprInfo* pExprInfo = tscExprGet(pQueryInfo, j);
 
           int32_t functionId = pExprInfo->base.functionId;
           if (pColIndex->colId == pExprInfo->base.colInfo.colId && (functionId == TSDB_FUNC_PRJ || functionId == TSDB_FUNC_TAG)) {
@@ -369,9 +369,9 @@ static int32_t createOrderDescriptor(tOrderDescriptor **pOrderDesc, SQueryInfo* 
       if (pQueryInfo->interval.interval != 0) {
         orderColIndexList[0] = PRIMARYKEY_TIMESTAMP_COL_INDEX;
       } else {
-        size_t size = tscSqlExprNumOfExprs(pQueryInfo);
+        size_t size = tscNumOfExprs(pQueryInfo);
         for (int32_t i = 0; i < size; ++i) {
-          SExprInfo *pExpr = tscSqlExprGet(pQueryInfo, i);
+          SExprInfo *pExpr = tscExprGet(pQueryInfo, i);
           if (pExpr->base.functionId == TSDB_FUNC_PRJ && pExpr->base.colInfo.colId == PRIMARYKEY_TIMESTAMP_COL_INDEX) {
             orderColIndexList[0] = i;
           }
@@ -405,7 +405,7 @@ int32_t tscLocalReducerEnvCreate(SQueryInfo *pQueryInfo, tExtMemBuffer ***pMemBu
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
   }
   
-  size_t size = tscSqlExprNumOfExprs(pQueryInfo);
+  size_t size = tscNumOfExprs(pQueryInfo);
   
   pSchema = (SSchema *)calloc(1, sizeof(SSchema) * size);
   if (pSchema == NULL) {
@@ -415,7 +415,7 @@ int32_t tscLocalReducerEnvCreate(SQueryInfo *pQueryInfo, tExtMemBuffer ***pMemBu
 
   int32_t rlen = 0;
   for (int32_t i = 0; i < size; ++i) {
-    SExprInfo *pExpr = tscSqlExprGet(pQueryInfo, i);
+    SExprInfo *pExpr = tscExprGet(pQueryInfo, i);
 
     pSchema[i].bytes = pExpr->base.resBytes;
     pSchema[i].type = (int8_t)pExpr->base.resType;
@@ -702,12 +702,12 @@ int32_t doArithmeticCalculate(SQueryInfo* pQueryInfo, tFilePage* pOutput, int32_
 
   // todo refactor
   arithSup.offset     = 0;
-  arithSup.numOfCols  = (int32_t) tscSqlExprNumOfExprs(pQueryInfo);
+  arithSup.numOfCols  = (int32_t) tscNumOfExprs(pQueryInfo);
   arithSup.exprList   = pQueryInfo->exprList;
   arithSup.data       = calloc(arithSup.numOfCols, POINTER_BYTES);
 
   for(int32_t k = 0; k < arithSup.numOfCols; ++k) {
-    SExprInfo* pExpr = tscSqlExprGet(pQueryInfo, k);
+    SExprInfo* pExpr = tscExprGet(pQueryInfo, k);
     arithSup.data[k] = (pOutput->data + pOutput->num* pExpr->base.offset);
   }
 

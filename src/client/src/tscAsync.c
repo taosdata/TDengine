@@ -127,7 +127,8 @@ static void tscAsyncFetchRowsProxy(void *param, TAOS_RES *tres, int numOfRows) {
        * all available virtual node has been checked already, now we need to check
        * for the next subclause queries
        */
-      if (pCmd->clauseIndex < pCmd->numOfClause - 1) {
+      if (pCmd->active->sibling != NULL) {
+        pCmd->active = pCmd->active->sibling;
         tscTryQueryNextClause(pSql, tscAsyncQueryRowsForNextVnode);
         return;
       }
@@ -231,7 +232,8 @@ void taos_fetch_rows_a(TAOS_RES *tres, __async_cb_func_t fp, void *param) {
          * all available virtual nodes in current clause has been checked already, now try the
          * next one in the following union subclause
          */
-        if (pCmd->clauseIndex < pCmd->numOfClause - 1) {
+        if (pCmd->active->sibling != NULL) {
+          pCmd->active = pCmd->active->sibling;  // todo refactor
           tscTryQueryNextClause(pSql, tscAsyncQueryRowsForNextVnode);
           return;
         }
@@ -317,13 +319,13 @@ static int32_t updateMetaBeforeRetryQuery(SSqlObj* pSql, STableMetaInfo* pTableM
   // update the pExpr info, colList info, number of table columns
   // TODO Re-parse this sql and issue the corresponding subquery as an alternative for this case.
   if (pSql->retryReason == TSDB_CODE_TDB_INVALID_TABLE_ID) {
-    int32_t numOfExprs = (int32_t) tscSqlExprNumOfExprs(pQueryInfo);
+    int32_t numOfExprs = (int32_t) tscNumOfExprs(pQueryInfo);
     int32_t numOfCols = tscGetNumOfColumns(pTableMetaInfo->pTableMeta);
     int32_t numOfTags = tscGetNumOfTags(pTableMetaInfo->pTableMeta);
 
     SSchema *pSchema = tscGetTableSchema(pTableMetaInfo->pTableMeta);
     for (int32_t i = 0; i < numOfExprs; ++i) {
-      SSqlExpr *pExpr = &(tscSqlExprGet(pQueryInfo, i)->base);
+      SSqlExpr *pExpr = &(tscExprGet(pQueryInfo, i)->base);
       pExpr->uid = pTableMetaInfo->pTableMeta->id.uid;
 
       if (pExpr->colInfo.colIndex >= 0) {
@@ -474,7 +476,8 @@ void tscTableMetaCallBack(void *param, TAOS_RES *res, int code) {
     }
 
   } else {  // stream computing
-    STableMetaInfo *pTableMetaInfo = tscGetTableMetaInfoFromCmd(pCmd, pCmd->clauseIndex, 0);
+    SQueryInfo* pQueryInfo = tscGetActiveQueryInfo(pCmd);
+    STableMetaInfo *pTableMetaInfo = pQueryInfo->pTableMetaInfo[0];
 
     code = tscGetTableMeta(pSql, pTableMetaInfo);
     if (code == TSDB_CODE_TSC_ACTION_IN_PROGRESS) {
@@ -485,7 +488,7 @@ void tscTableMetaCallBack(void *param, TAOS_RES *res, int code) {
     }
 
     if (UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo)) {
-      code = tscGetSTableVgroupInfo(pSql, pCmd->clauseIndex);
+      code = tscGetSTableVgroupInfo(pSql, pQueryInfo);
       if (code == TSDB_CODE_TSC_ACTION_IN_PROGRESS) {
         taosReleaseRef(tscObjRef, pSql->self);
         return;

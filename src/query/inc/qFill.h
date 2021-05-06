@@ -62,7 +62,7 @@ typedef struct SFillInfo {
 
   SFillColInfo* pFillCol;         // column info for fill operations
   SFillTagColInfo* pTags;         // tags value for filling gap
-  void*     handle;               // for dubug purpose
+  void*     handle;               // for debug purpose
 } SFillInfo;
 
 typedef struct SPoint {

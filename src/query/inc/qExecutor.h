@@ -70,13 +70,13 @@ typedef struct SResultRowPool {
   SArray* pData;    // SArray<void*>
 } SResultRowPool;
 
-typedef struct SSqlGroupbyExpr {
+typedef struct SGroupbyExpr {
   int16_t tableIndex;
   SArray* columnInfo;  // SArray<SColIndex>, group by columns information
-  int16_t numOfGroupCols;
+  int16_t numOfGroupCols;  // todo remove it
   int16_t orderIndex;  // order by column index
   int16_t orderType;   // order by type: asc/desc
-} SSqlGroupbyExpr;
+} SGroupbyExpr;
 
 typedef struct SResultRow {
   int32_t       pageId;      // pageId & rowId is the position of current result in disk-based output buffer
@@ -216,7 +216,7 @@ typedef struct SQueryAttr {
   int32_t          intermediateResultRowSize; // intermediate result row size, in case of top-k query.
   int32_t          maxTableColumnWidth;
   int32_t          tagLen;           // tag value length of current query
-  SSqlGroupbyExpr* pGroupbyExpr;
+  SGroupbyExpr* pGroupbyExpr;
 
   SExprInfo*       pExpr1;
   SExprInfo*       pExpr2;
@@ -362,7 +362,7 @@ typedef struct SQueryParam {
 
   SColIndex       *pGroupColIndex;
   SColumnInfo     *pTagColumnInfo;
-  SSqlGroupbyExpr *pGroupbyExpr;
+  SGroupbyExpr *pGroupbyExpr;
   int32_t          tableScanOperator;
   SArray          *pOperator;
 } SQueryParam;
@@ -536,8 +536,8 @@ int32_t createQueryFunc(SQueriedTableInfo* pTableInfo, int32_t numOfOutput, SExp
 int32_t createIndirectQueryFuncExprFromMsg(SQueryTableMsg *pQueryMsg, int32_t numOfOutput, SExprInfo **pExprInfo,
                                            SSqlExpr **pExpr, SExprInfo *prevExpr);
 
-SSqlGroupbyExpr *createGroupbyExprFromMsg(SQueryTableMsg *pQueryMsg, SColIndex *pColIndex, int32_t *code);
-SQInfo *createQInfoImpl(SQueryTableMsg *pQueryMsg, SSqlGroupbyExpr *pGroupbyExpr, SExprInfo *pExprs,
+SGroupbyExpr *createGroupbyExprFromMsg(SQueryTableMsg *pQueryMsg, SColIndex *pColIndex, int32_t *code);
+SQInfo *createQInfoImpl(SQueryTableMsg *pQueryMsg, SGroupbyExpr *pGroupbyExpr, SExprInfo *pExprs,
                         SExprInfo *pSecExprs, STableGroupInfo *pTableGroupInfo, SColumnInfo* pTagCols, int32_t vgId, char* sql, uint64_t *qId);
 
 int32_t initQInfo(STsBufInfo* pTsBufInfo, void* tsdb, void* sourceOptr, SQInfo* pQInfo, SQueryParam* param, char* start,

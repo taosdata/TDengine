@@ -774,7 +774,6 @@ static int insertStmtExecute(STscStmt* stmt) {
     return TSDB_CODE_TSC_INVALID_VALUE;
   }
 
-  assert(pCmd->numOfClause == 1);
   if (taosHashGetSize(pCmd->pTableBlockHashList) == 0) {
     return TSDB_CODE_SUCCESS;
   }

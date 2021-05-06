@@ -1363,7 +1363,6 @@ static int doPackSendDataBlock(SSqlObj *pSql, int32_t numOfRows, STableDataBlock
   SSqlCmd *pCmd = &pSql->cmd;
   pSql->res.numOfRows = 0;
 
-  assert(pCmd->numOfClause == 1);
   STableMeta *pTableMeta = tscGetTableMetaInfoFromCmd(pCmd, pCmd->clauseIndex, 0)->pTableMeta;
 
   SSubmitBlk *pBlocks = (SSubmitBlk *)(pTableDataBlocks->pData);
@@ -1527,7 +1526,7 @@ void tscImportDataFromFile(SSqlObj *pSql) {
   }
 
   assert(pCmd->dataSourceType == DATA_FROM_DATA_FILE  && strlen(pCmd->payload) != 0);
-  pCmd->active = pCmd->pQueryInfo[0];
+  pCmd->active = pCmd->pQueryInfo;
 
   SImportFileSupport *pSupporter = calloc(1, sizeof(SImportFileSupport));
   SSqlObj *pNew = createSubqueryObj(pSql, 0, parseFileSendDataBlock, pSupporter, TSDB_SQL_INSERT, NULL);

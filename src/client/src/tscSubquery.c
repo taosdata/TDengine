@@ -417,14 +417,15 @@ static void tscDestroyJoinSupporter(SJoinSupporter* pSupporter) {
   }
 
   if (pSupporter->exprList != NULL) {
-    tscSqlExprInfoDestroy(pSupporter->exprList);
+    tscExprDestroy(pSupporter->exprList);
+    pSupporter->exprList = NULL;
   }
   
   if (pSupporter->colList != NULL) {
     tscColumnListDestroy(pSupporter->colList);
   }
 
-  tscFieldInfoClear(&pSupporter->fieldsInfo);
+//  tscFieldInfoClear(&pSupporter->fieldsInfo);
 
   if (pSupporter->pTSBuf != NULL) {
     tsBufDestroy(pSupporter->pTSBuf);
@@ -554,7 +555,7 @@ static int32_t tscLaunchRealSubqueries(SSqlObj* pSql) {
     pSubQueryInfo->tsBuf = NULL;
   
     // free result for async object will also free sqlObj
-    assert(tscSqlExprNumOfExprs(pSubQueryInfo) == 1); // ts_comp query only requires one result columns
+    assert(tscNumOfExprs(pSubQueryInfo) == 1); // ts_comp query only requires one result columns
     taos_free_result(pPrevSub);
   
     SSqlObj *pNew = createSubqueryObj(pSql, (int16_t) i, tscJoinQueryCallback, pSupporter, TSDB_SQL_SELECT, NULL);
@@ -582,7 +583,7 @@ static int32_t tscLaunchRealSubqueries(SSqlObj* pSql) {
     pQueryInfo->groupbyExpr = pSupporter->groupInfo;
     pQueryInfo->pUpstream   = taosArrayInit(4, sizeof(POINTER_BYTES));
 
-    assert(pNew->subState.numOfSub == 0 && pNew->cmd.numOfClause == 1 && pQueryInfo->numOfTables == 1);
+    assert(pNew->subState.numOfSub == 0 && pQueryInfo->numOfTables == 1);
   
     tscFieldInfoUpdateOffset(pQueryInfo);
   
@@ -593,7 +594,7 @@ static int32_t tscLaunchRealSubqueries(SSqlObj* pSql) {
     pSupporter->colList = NULL;
     pSupporter->pVgroupTables = NULL;
     memset(&pSupporter->fieldsInfo, 0, sizeof(SFieldInfo));
-    memset(&pSupporter->groupInfo, 0, sizeof(SSqlGroupbyExpr));
+    memset(&pSupporter->groupInfo, 0, sizeof(SGroupbyExpr));
 
     /*
      * When handling the projection query, the offset value will be modified for table-table join, which is changed
@@ -605,7 +606,7 @@ static int32_t tscLaunchRealSubqueries(SSqlObj* pSql) {
     SColumnIndex index = {.tableIndex = 0, .columnIndex = PRIMARYKEY_TIMESTAMP_COL_INDEX};
     SSchema* s = tscGetTableColumnSchema(pTableMetaInfo->pTableMeta, 0);
 
-    SExprInfo* pExpr = tscSqlExprGet(pQueryInfo, 0);
+    SExprInfo* pExpr = tscExprGet(pQueryInfo, 0);
     int16_t funcId = pExpr->base.functionId;
 
     // add the invisible timestamp column
@@ -618,7 +619,7 @@ static int32_t tscLaunchRealSubqueries(SSqlObj* pSql) {
       tscPrintSelNodeList(pNew, 0);
       tscFieldInfoUpdateOffset(pQueryInfo);
 
-      pExpr = tscSqlExprGet(pQueryInfo, 0);
+      pExpr = tscExprGet(pQueryInfo, 0);
     }
 
     // set the join condition tag column info, todo extract method
@@ -821,7 +822,7 @@ static void issueTsCompQuery(SSqlObj* pSql, SJoinSupporter* pSupporter, SSqlObj*
   
   // set the tags value for ts_comp function
   if (UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo)) {
-    SExprInfo *pExpr = tscSqlExprGet(pQueryInfo, 0);
+    SExprInfo *pExpr = tscExprGet(pQueryInfo, 0);
     int16_t tagColId = tscGetJoinTagColIdByUid(&pSupporter->tagCond, pTableMetaInfo->pTableMeta->id.uid);
     pExpr->base.param[0].i64 = tagColId;
     pExpr->base.param[0].nLen = sizeof(int64_t);
@@ -849,7 +850,7 @@ static void issueTsCompQuery(SSqlObj* pSql, SJoinSupporter* pSupporter, SSqlObj*
       "0x%"PRIx64" subquery:0x%"PRIx64" tableIndex:%d, vgroupIndex:%d, numOfVgroups:%d, type:%d, ts_comp query to retrieve timestamps, "
       "numOfExpr:%" PRIzu ", colList:%" PRIzu ", numOfOutputFields:%d, name:%s",
       pParent->self, pSql->self, 0, pTableMetaInfo->vgroupIndex, pTableMetaInfo->vgroupList->numOfVgroups, pQueryInfo->type,
-      tscSqlExprNumOfExprs(pQueryInfo), numOfCols, pQueryInfo->fieldsInfo.numOfOutput, tNameGetTableName(&pTableMetaInfo->name));
+      tscNumOfExprs(pQueryInfo), numOfCols, pQueryInfo->fieldsInfo.numOfOutput, tNameGetTableName(&pTableMetaInfo->name));
   
   tscBuildAndSendRequest(pSql, NULL);
 }
@@ -1688,7 +1689,7 @@ void tscSetupOutputColumnIndex(SSqlObj* pSql) {
 
   SQueryInfo* pQueryInfo = tscGetQueryInfo(pCmd, pCmd->clauseIndex);
 
-  int32_t numOfExprs = (int32_t)tscSqlExprNumOfExprs(pQueryInfo);
+  int32_t numOfExprs = (int32_t)tscNumOfExprs(pQueryInfo);
   pRes->pColumnIndex = calloc(1, sizeof(SColumnIndex) * numOfExprs);
   if (pRes->pColumnIndex == NULL) {
     pRes->code = TSDB_CODE_TSC_OUT_OF_MEMORY;
@@ -1696,7 +1697,7 @@ void tscSetupOutputColumnIndex(SSqlObj* pSql) {
   }
 
   for (int32_t i = 0; i < numOfExprs; ++i) {
-    SExprInfo* pExpr = tscSqlExprGet(pQueryInfo, i);
+    SExprInfo* pExpr = tscExprGet(pQueryInfo, i);
 
     int32_t tableIndexOfSub = -1;
     for (int32_t j = 0; j < pQueryInfo->numOfTables; ++j) {
@@ -1714,7 +1715,7 @@ void tscSetupOutputColumnIndex(SSqlObj* pSql) {
     
     size_t numOfSubExpr = taosArrayGetSize(pSubQueryInfo->exprList);
     for (int32_t k = 0; k < numOfSubExpr; ++k) {
-      SExprInfo* pSubExpr = tscSqlExprGet(pSubQueryInfo, k);
+      SExprInfo* pSubExpr = tscExprGet(pSubQueryInfo, k);
       if (pExpr->base.functionId == pSubExpr->base.functionId && pExpr->base.colInfo.colId == pSubExpr->base.colInfo.colId) {
         pRes->pColumnIndex[i] = (SColumnIndex){.tableIndex = tableIndexOfSub, .columnIndex = k};
         break;
@@ -1737,7 +1738,7 @@ void tscJoinQueryCallback(void* param, TAOS_RES* tres, int code) {
   SQueryInfo* pQueryInfo = tscGetQueryInfo(&pSql->cmd, 0);
   STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
 
-  assert(pQueryInfo->numOfTables == 1 && pSql->cmd.numOfClause == 1);
+  assert(pQueryInfo->numOfTables == 1);
 
   // retrieve actual query results from vnode during the second stage join subquery
   if (pParentSql->res.code != TSDB_CODE_SUCCESS) {
@@ -1865,7 +1866,7 @@ int32_t tscCreateJoinSubquery(SSqlObj *pSql, int16_t tableIndex, SJoinSupporter 
     }
 
     pSupporter->groupInfo = pNewQueryInfo->groupbyExpr;
-    memset(&pNewQueryInfo->groupbyExpr, 0, sizeof(SSqlGroupbyExpr));
+    memset(&pNewQueryInfo->groupbyExpr, 0, sizeof(SGroupbyExpr));
 
     pNew->cmd.numOfCols = 0;
     pNewQueryInfo->interval.interval = 0;
@@ -1878,7 +1879,7 @@ int32_t tscCreateJoinSubquery(SSqlObj *pSql, int16_t tableIndex, SJoinSupporter 
     pNewQueryInfo->order.orderColId = INT32_MIN;
 
     // backup the data and clear it in the sqlcmd object
-    memset(&pNewQueryInfo->groupbyExpr, 0, sizeof(SSqlGroupbyExpr));
+    memset(&pNewQueryInfo->groupbyExpr, 0, sizeof(SGroupbyExpr));
     
     tscInitQueryInfo(pNewQueryInfo);
     STableMetaInfo *pTableMetaInfo = tscGetMetaInfo(pNewQueryInfo, 0);
@@ -1912,7 +1913,7 @@ int32_t tscCreateJoinSubquery(SSqlObj *pSql, int16_t tableIndex, SJoinSupporter 
       tscDebug(
           "%p subquery:%p tableIndex:%d, vgroupIndex:%d, type:%d, transfer to tid_tag query to retrieve (tableId, tags), "
           "exprInfo:%" PRIzu ", colList:%" PRIzu ", fieldsInfo:%d, tagIndex:%d, name:%s",
-          pSql, pNew, tableIndex, pTableMetaInfo->vgroupIndex, pNewQueryInfo->type, tscSqlExprNumOfExprs(pNewQueryInfo),
+          pSql, pNew, tableIndex, pTableMetaInfo->vgroupIndex, pNewQueryInfo->type, tscNumOfExprs(pNewQueryInfo),
           numOfCols, pNewQueryInfo->fieldsInfo.numOfOutput, colIndex.columnIndex, tNameGetTableName(&pNewQueryInfo->pTableMetaInfo[0]->name));
     } else {
       SSchema      colSchema = {.type = TSDB_DATA_TYPE_BINARY, .bytes = 1};
@@ -1920,7 +1921,7 @@ int32_t tscCreateJoinSubquery(SSqlObj *pSql, int16_t tableIndex, SJoinSupporter 
       tscAddFuncInSelectClause(pNewQueryInfo, 0, TSDB_FUNC_TS_COMP, &colIndex, &colSchema, TSDB_COL_NORMAL);
 
       // set the tags value for ts_comp function
-      SExprInfo *pExpr = tscSqlExprGet(pNewQueryInfo, 0);
+      SExprInfo *pExpr = tscExprGet(pNewQueryInfo, 0);
 
       if (UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo)) {
         int16_t tagColId = tscGetJoinTagColIdByUid(&pSupporter->tagCond, pTableMetaInfo->pTableMeta->id.uid);
@@ -1947,7 +1948,7 @@ int32_t tscCreateJoinSubquery(SSqlObj *pSql, int16_t tableIndex, SJoinSupporter 
       tscDebug(
           "%p subquery:%p tableIndex:%d, vgroupIndex:%d, type:%u, transfer to ts_comp query to retrieve timestamps, "
           "exprInfo:%" PRIzu ", colList:%" PRIzu ", fieldsInfo:%d, name:%s",
-          pSql, pNew, tableIndex, pTableMetaInfo->vgroupIndex, pNewQueryInfo->type, tscSqlExprNumOfExprs(pNewQueryInfo),
+          pSql, pNew, tableIndex, pTableMetaInfo->vgroupIndex, pNewQueryInfo->type, tscNumOfExprs(pNewQueryInfo),
           numOfCols, pNewQueryInfo->fieldsInfo.numOfOutput, tNameGetTableName(&pNewQueryInfo->pTableMetaInfo[0]->name));
     }
   } else {
@@ -2086,7 +2087,7 @@ typedef struct SFirstRoundQuerySup {
 void doAppendData(SInterResult* pInterResult, TAOS_ROW row, int32_t numOfCols, SQueryInfo* pQueryInfo) {
   TSKEY key = INT64_MIN;
   for(int32_t i = 0; i < numOfCols; ++i) {
-    SExprInfo* pExpr = tscSqlExprGet(pQueryInfo, i);
+    SExprInfo* pExpr = tscExprGet(pQueryInfo, i);
     if (TSDB_COL_IS_TAG(pExpr->base.colInfo.flag) || pExpr->base.functionId == TSDB_FUNC_PRJ) {
       continue;
     }
@@ -2179,7 +2180,7 @@ void tscFirstRoundRetrieveCallback(void* param, TAOS_RES* tres, int numOfRows) {
 
         int32_t offset = 0;
         for (int32_t i = 0; i < numOfCols && offset < pSup->tagLen; ++i) {
-          SExprInfo* pExpr = tscSqlExprGet(pQueryInfo, i);
+          SExprInfo* pExpr = tscExprGet(pQueryInfo, i);
 
           // tag or group by column
           if (TSDB_COL_IS_TAG(pExpr->base.colInfo.flag) || pExpr->base.functionId == TSDB_FUNC_PRJ) {
@@ -2321,11 +2322,11 @@ int32_t tscHandleFirstRoundStableQuery(SSqlObj *pSql) {
   pCmd->command = TSDB_SQL_SELECT;
   pNew->fp = tscFirstRoundCallback;
 
-  int32_t numOfExprs = (int32_t) tscSqlExprNumOfExprs(pQueryInfo);
+  int32_t numOfExprs = (int32_t) tscNumOfExprs(pQueryInfo);
 
   int32_t index = 0;
   for(int32_t i = 0; i < numOfExprs; ++i) {
-    SExprInfo* pExpr = tscSqlExprGet(pQueryInfo, i);
+    SExprInfo* pExpr = tscExprGet(pQueryInfo, i);
     if (pExpr->base.functionId == TSDB_FUNC_TS && pQueryInfo->interval.interval > 0) {
       taosArrayPush(pSup->pColsInfo, &pExpr->base.resColId);
 
@@ -2385,7 +2386,7 @@ int32_t tscHandleFirstRoundStableQuery(SSqlObj *pSql) {
       "0x%"PRIx64" first round subquery:0x%"PRIx64" tableIndex:%d, vgroupIndex:%d, numOfVgroups:%d, type:%d, query to retrieve timestamps, "
       "numOfExpr:%" PRIzu ", colList:%d, numOfOutputFields:%d, name:%s",
       pSql->self, pNew->self, 0, pTableMetaInfo->vgroupIndex, pTableMetaInfo->vgroupList->numOfVgroups, pNewQueryInfo->type,
-      tscSqlExprNumOfExprs(pNewQueryInfo), index+1, pNewQueryInfo->fieldsInfo.numOfOutput, tNameGetTableName(&pTableMetaInfo->name));
+      tscNumOfExprs(pNewQueryInfo), index+1, pNewQueryInfo->fieldsInfo.numOfOutput, tNameGetTableName(&pTableMetaInfo->name));
 
   tscHandleMasterSTableQuery(pNew);
   return TSDB_CODE_SUCCESS;
@@ -2897,7 +2898,7 @@ static SSqlObj *tscCreateSTableSubquery(SSqlObj *pSql, SRetrieveSupport *trsuppo
     pQueryInfo->limit.limit = -1;
     pQueryInfo->limit.offset = 0;
 
-    assert(pQueryInfo->numOfTables == 1 && pNew->cmd.numOfClause == 1 && trsupport->subqueryIndex < pSql->subState.numOfSub);
+    assert(/*pQueryInfo->numOfTables == 1 && pNew->cmd.numOfClause == 1 &&*/ trsupport->subqueryIndex < pSql->subState.numOfSub);
     
     // launch subquery for each vnode, so the subquery index equals to the vgroupIndex.
     STableMetaInfo *pTableMetaInfo = tscGetMetaInfo(pQueryInfo, table_index);
@@ -2924,7 +2925,7 @@ void tscRetrieveDataRes(void *param, TAOS_RES *tres, int code) {
   SSqlObj*  pSql = (SSqlObj *) tres;
 
   SQueryInfo* pQueryInfo = tscGetQueryInfo(&pSql->cmd, 0);
-  assert(pSql->cmd.numOfClause == 1 && pQueryInfo->numOfTables == 1);
+  assert(pQueryInfo->numOfTables == 1);
   
   STableMetaInfo *pTableMetaInfo = tscGetTableMetaInfoFromCmd(&pSql->cmd, 0, 0);
   SVgroupInfo* pVgroup = &pTableMetaInfo->vgroupList->vgroups[trsupport->subqueryIndex];
@@ -3296,12 +3297,12 @@ static void doBuildResFromSubqueries(SSqlObj* pSql) {
       continue;
     }
 
-    SQueryInfo* pSubQueryInfo = pSub->cmd.pQueryInfo[0];
+    SQueryInfo* pSubQueryInfo = pSub->cmd.pQueryInfo;
     tscRestoreFuncForSTableQuery(pSubQueryInfo);
     tscFieldInfoUpdateOffset(pSubQueryInfo);
   }
 
-  size_t numOfExprs = tscSqlExprNumOfExprs(pQueryInfo);
+  size_t numOfExprs = tscNumOfExprs(pQueryInfo);
   for(int32_t i = 0; i < numOfExprs; ++i) {
     SColumnIndex* pIndex = &pRes->pColumnIndex[i];
     SSqlRes*      pRes1 = &pSql->pSubs[pIndex->tableIndex]->res;
@@ -3348,7 +3349,7 @@ void tscBuildResFromSubqueries(SSqlObj *pSql) {
 
   if (pRes->tsrow == NULL) {
     SQueryInfo* pQueryInfo = tscGetQueryInfo(&pSql->cmd, pSql->cmd.clauseIndex);
-    pRes->numOfCols = (int16_t) tscSqlExprNumOfExprs(pQueryInfo);
+    pRes->numOfCols = (int16_t) tscNumOfExprs(pQueryInfo);
 
     pRes->tsrow  = calloc(pRes->numOfCols, POINTER_BYTES);
     pRes->urow   = calloc(pRes->numOfCols, POINTER_BYTES);

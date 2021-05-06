@@ -624,7 +624,7 @@ static int32_t tscEstimateQueryMsgSize(SSqlObj *pSql, int32_t clauseIndex) {
 
   int32_t srcColListSize = (int32_t)(taosArrayGetSize(pQueryInfo->colList) * sizeof(SColumnInfo));
 
-  size_t  numOfExprs = tscSqlExprNumOfExprs(pQueryInfo);
+  size_t  numOfExprs = tscNumOfExprs(pQueryInfo);
   int32_t exprSize = (int32_t)(sizeof(SSqlExpr) * numOfExprs * 2);
 
   int32_t tsBufSize = (pQueryInfo->tsBuf != NULL) ? pQueryInfo->tsBuf->fileSize : 0;
@@ -929,7 +929,7 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
     goto _end;
   }
   
-  SSqlGroupbyExpr *pGroupbyExpr = query.pGroupbyExpr;
+  SGroupbyExpr *pGroupbyExpr = query.pGroupbyExpr;
   if (pGroupbyExpr->numOfGroupCols > 0) {
     pQueryMsg->orderByIdx = htons(pGroupbyExpr->orderIndex);
     pQueryMsg->orderType = htons(pGroupbyExpr->orderType);
@@ -1050,7 +1050,7 @@ int32_t tscBuildCreateDbMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
 
   SCreateDbMsg *pCreateDbMsg = (SCreateDbMsg *)pCmd->payload;
 
-  assert(pCmd->numOfClause == 1);
+//  assert(pCmd->numOfClause == 1);
   STableMetaInfo *pTableMetaInfo = tscGetTableMetaInfoFromCmd(pCmd, pCmd->clauseIndex, 0);
   int32_t code = tNameExtractFullName(&pTableMetaInfo->name, pCreateDbMsg->db);
   assert(code == TSDB_CODE_SUCCESS);
@@ -1632,9 +1632,9 @@ int tscProcessRetrieveLocalMergeRsp(SSqlObj *pSql) {
     taosArrayPush(group, &tableKeyInfo);
     taosArrayPush(tableGroupInfo.pGroupList, &group);
 
-    SExprInfo* list = calloc(tscSqlExprNumOfExprs(pQueryInfo), sizeof(SExprInfo));
-    for(int32_t i = 0; i < tscSqlExprNumOfExprs(pQueryInfo); ++i) {
-      SExprInfo* pExprInfo = tscSqlExprGet(pQueryInfo, i);
+    SExprInfo* list = calloc(tscNumOfExprs(pQueryInfo), sizeof(SExprInfo));
+    for(int32_t i = 0; i < tscNumOfExprs(pQueryInfo); ++i) {
+      SExprInfo* pExprInfo = tscExprGet(pQueryInfo, i);
       list[i] = *pExprInfo;
     }
 
@@ -2166,7 +2166,7 @@ int tscProcessShowRsp(SSqlObj *pSql) {
     TAOS_FIELD f = tscCreateField(pSchema->type, pSchema->name, pSchema->bytes);
     SInternalField* pInfo = tscFieldInfoAppend(pFieldInfo, &f);
     
-    pInfo->pExpr = tscSqlExprAppend(pQueryInfo, TSDB_FUNC_TS_DUMMY, &index,
+    pInfo->pExpr = tscExprAppend(pQueryInfo, TSDB_FUNC_TS_DUMMY, &index,
                      pTableSchema[i].type, pTableSchema[i].bytes, getNewResColId(pQueryInfo), pTableSchema[i].bytes, false);
   }
   
@@ -2411,7 +2411,7 @@ static int32_t getTableMetaFromMnode(SSqlObj *pSql, STableMetaInfo *pTableMetaIn
   }
 
   STableMetaInfo *pNewMeterMetaInfo = tscAddEmptyMetaInfo(pNewQueryInfo);
-  assert(pNew->cmd.numOfClause == 1 && pNewQueryInfo->numOfTables == 1);
+  assert(/*pNew->cmd.numOfClause == 1 && */pNewQueryInfo->numOfTables == 1);
 
   tNameAssign(&pNewMeterMetaInfo->name, &pTableMetaInfo->name);
 
@@ -2513,8 +2513,7 @@ int tscRenewTableMeta(SSqlObj *pSql, int32_t tableIndex) {
   return getTableMetaFromMnode(pSql, pTableMetaInfo);
 }
 
-static bool allVgroupInfoRetrieved(SSqlCmd* pCmd, int32_t clauseIndex) {
-  SQueryInfo *pQueryInfo = tscGetQueryInfo(pCmd, clauseIndex);
+static bool allVgroupInfoRetrieved(SQueryInfo* pQueryInfo) {
   for (int32_t i = 0; i < pQueryInfo->numOfTables; ++i) {
     STableMetaInfo *pTableMetaInfo = tscGetMetaInfo(pQueryInfo, i);
     if (pTableMetaInfo->vgroupList == NULL) {
@@ -2526,11 +2525,9 @@ static bool allVgroupInfoRetrieved(SSqlCmd* pCmd, int32_t clauseIndex) {
   return true;
 }
 
-int tscGetSTableVgroupInfo(SSqlObj *pSql, int32_t clauseIndex) {
-  int      code = TSDB_CODE_RPC_NETWORK_UNAVAIL;
-  SSqlCmd *pCmd = &pSql->cmd;
-  
-  if (allVgroupInfoRetrieved(pCmd, clauseIndex)) {
+int tscGetSTableVgroupInfo(SSqlObj *pSql, SQueryInfo* pQueryInfo) {
+  int32_t code = TSDB_CODE_RPC_NETWORK_UNAVAIL;
+  if (allVgroupInfoRetrieved(pQueryInfo)) {
     return TSDB_CODE_SUCCESS;
   }
 
@@ -2547,7 +2544,6 @@ int tscGetSTableVgroupInfo(SSqlObj *pSql, int32_t clauseIndex) {
     return code;
   }
   
-  SQueryInfo *pQueryInfo = tscGetQueryInfo(pCmd, clauseIndex);
   for (int32_t i = 0; i < pQueryInfo->numOfTables; ++i) {
     STableMetaInfo *pMInfo = tscGetMetaInfo(pQueryInfo, i);
     STableMeta* pTableMeta = tscTableMetaDup(pMInfo->pTableMeta);
