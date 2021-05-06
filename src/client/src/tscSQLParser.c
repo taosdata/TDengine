@@ -7190,7 +7190,8 @@ int32_t validateSqlNode(SSqlObj* pSql, SSqlNode* pSqlNode, SQueryInfo* pQueryInf
     SArray* list = taosArrayGetP(pSqlNode->from->list, 0);
     SSqlNode* p = taosArrayGetP(list, 0);
 
-    code = validateSqlNode(pSql, p, NULL);
+    SQueryInfo* pQueryInfo = tscGetQueryInfo(&pSql->cmd, 0);
+    code = validateSqlNode(pSql, p, pQueryInfo);
     if (code == TSDB_CODE_TSC_ACTION_IN_PROGRESS) {
       return code;
     }
@@ -7198,8 +7199,6 @@ int32_t validateSqlNode(SSqlObj* pSql, SSqlNode* pSqlNode, SQueryInfo* pQueryInf
     if (code != TSDB_CODE_SUCCESS) {
       return code;
     }
-
-    pQueryInfo = pCmd->pQueryInfo;
 
     SQueryInfo* current = calloc(1, sizeof(SQueryInfo));
 
@@ -7374,12 +7373,14 @@ int32_t validateSqlNode(SSqlObj* pSql, SSqlNode* pSqlNode, SQueryInfo* pQueryInf
     taosArrayPushBatch(pQueryInfo->exprList1, (void*) p, numOfExpr);
   }
 
+#if 0
   SQueryNode* p = qCreateQueryPlan(pQueryInfo);
   char* s = queryPlanToString(p);
-  printf("%s\n", s);
   tfree(s);
 
   qDestroyQueryPlan(p);
+#endif
+
   return TSDB_CODE_SUCCESS;  // Does not build query message here
 }
 

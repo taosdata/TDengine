@@ -2364,6 +2364,11 @@ static void freeQueryInfoImpl(SQueryInfo* pQueryInfo) {
   tscExprDestroy(pQueryInfo->exprList);
   pQueryInfo->exprList = NULL;
 
+  if (pQueryInfo->exprList1 != NULL) {
+    tscExprDestroy(pQueryInfo->exprList1);
+    pQueryInfo->exprList1 = NULL;
+  }
+
   tscColumnListDestroy(pQueryInfo->colList);
   pQueryInfo->colList = NULL;
 
