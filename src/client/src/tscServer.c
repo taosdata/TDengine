@@ -2544,6 +2544,7 @@ int32_t tscGetTableMeta(SSqlObj *pSql, STableMetaInfo *pTableMetaInfo) {
   } else {
     //uint32_t s = tscGetTableMetaSize(pTableMetaInfo->pTableMeta);
     memset(pTableMetaInfo->pTableMeta, 0, size);
+    pTableMetaInfo->tableMetaSize = size;
   }
 
   pTableMetaInfo->pTableMeta->tableType = -1;
