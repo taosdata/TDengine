@@ -1038,7 +1038,9 @@ int32_t tscCopyDataBlockToPayload(SSqlObj* pSql, STableDataBlocks* pDataBlock) {
       tfree(pTableMetaInfo->pTableMeta);
     }
 
-    pTableMetaInfo->pTableMeta = tscTableMetaDup(pDataBlock->pTableMeta);
+    pTableMetaInfo->pTableMeta    = tscTableMetaDup(pDataBlock->pTableMeta);
+    pTableMetaInfo->tableMetaSize = tscGetTableMetaSize(pTableMetaInfo->pTableMeta); 
+    
   }
 
   /*
@@ -2431,6 +2433,11 @@ STableMetaInfo* tscAddTableMetaInfo(SQueryInfo* pQueryInfo, SName* name, STableM
   }
 
   pTableMetaInfo->pTableMeta = pTableMeta;
+  if (pTableMeta == NULL) {
+    pTableMetaInfo->tableMetaSize = 0;
+  } else {
+    pTableMetaInfo->tableMetaSize = tscGetTableMetaSize(pTableMeta);
+  }
   
   if (vgroupList != NULL) {
     pTableMetaInfo->vgroupList = tscVgroupInfoClone(vgroupList);
@@ -3333,11 +3340,11 @@ CChildTableMeta* tscCreateChildMeta(STableMeta* pTableMeta) {
   return cMeta;
 }
 
-int32_t tscCreateTableMetaFromCChildMeta(STableMeta* pChild, const char* name) {
+int32_t tscCreateTableMetaFromCChildMeta(STableMeta* pChild, const char* name, void* buf) {
   assert(pChild != NULL);
 
-  uint32_t size = tscGetTableMetaMaxSize();
-  STableMeta* p = calloc(1, size);
+  //uint32_t size = tscGetTableMetaMaxSize();
+  STableMeta* p = buf; // calloc(1, size);
 
   taosHashGetClone(tscTableMetaInfo, pChild->sTableName, strnlen(pChild->sTableName, TSDB_TABLE_FNAME_LEN), NULL, p, -1);
   if (p->id.uid > 0) { // tableMeta exists, build child table meta and return
@@ -3349,12 +3356,12 @@ int32_t tscCreateTableMetaFromCChildMeta(STableMeta* pChild, const char* name) {
 
     memcpy(pChild->schema, p->schema, sizeof(SSchema) *total);
 
-    tfree(p);
+    //tfree(p);
     return TSDB_CODE_SUCCESS;
   } else { // super table has been removed, current tableMeta is also expired. remove it here
     taosHashRemove(tscTableMetaInfo, name, strnlen(name, TSDB_TABLE_FNAME_LEN));
 
-    tfree(p);
+    //tfree(p);
     return -1;
   }
 }
