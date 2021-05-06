@@ -82,8 +82,7 @@ int tsdbRecoverDataMain(STsdbRepo *pRepo) {
   SArray *  fSetArray = NULL;  // SDFileSet array
   STsdbFS * pfs = REPO_FS(pRepo);
 
-  
-  if (tsdbFetchDFileSet(pRepo, &fSetArray) < 0) {
+    if (tsdbFetchDFileSet(pRepo, &fSetArray) < 0) {
     if (TSDB_CODE_TDB_NO_AVAIL_DFILE != terrno) {
       tsdbError("vgId:%d failed to fetch DFileSet to restore since %s", REPO_ID(pRepo), tstrerror(terrno));
     }
@@ -168,13 +167,8 @@ static int tsdbBackUpDFileSet(STsdbRepo *pRepo, SDFileSet *pFileSet) {
 static void tsdbGetDataBakDir(char dirName[]) { snprintf(dirName, TSDB_FILENAME_LEN, "vnode_bak/.tsdb"); }
 
 void tsdbClearBakFiles() {
-  pthread_attr_t thAttr;
-  pthread_attr_init(&thAttr);
-  pthread_attr_setdetachstate(&thAttr, PTHREAD_CREATE_DETACHED);
-  pthread_t thread;
-  if (pthread_create(&thread, &thAttr, tsdbClearBakDFileSet, NULL) != 0) {
-    tsdbError("failed to create thread to clear bak dfiles, reason:%s", strerror(errno));
-  }
+  // no use of thread in case of conflict of rmdir and mkdir for future backup.
+  tsdbClearBakDFileSet(NULL);
 }
 
 static void *tsdbClearBakDFileSet(void *param) {
@@ -193,27 +187,39 @@ static void *tsdbClearBakDFileSet(void *param) {
     tsdbError("failed to open directory %s since %s", bakDir, tstrerror(terrno));
     return NULL;
   }
-
-  struct dirent *dp;
+  struct dirent *dp = NULL;
   while ((pf = tfsReaddir(tdir))) {
     dir = opendir(pf->aname);
     if (dir == NULL) {
       tsdbError("failed to opendir %s since %s", pf->aname, strerror(terrno));
-      return NULL;
+      continue;
     }
-    while ((dp = readdir(dir))) {
-      if (dp->d_type != DT_REG) {
+
+    int nEntry = 0, nFileRemoved = 0;
+    while ((dp = readdir(dir))) {  // consider subdir clear if needed
+      ++nEntry;
+      if (!(dp->d_type & DT_REG)) {
         continue;
       }
-      sscanf(dp->d_name, "%" PRId32 ".%s", &tsPrefix, bnameLatter);  // ${ts_sec}.fname-latter-part
+      if (sscanf(dp->d_name, "%" PRId32 ".%s", &tsPrefix, bnameLatter) < 2) {  // ${ts_sec}.fname-latter-part
+        continue;
+      }
       if ((tsPrefix > 0) && (tsNow - tsPrefix >= keep)) {
         snprintf(aname, TSDB_FILENAME_LEN * 2, "%s/%" PRId32 ".%s", pf->aname, tsPrefix, bnameLatter);
-        (void)remove(aname);
-        tsdbInfo("%s removed as expired", aname);
+        if (remove(aname) < 0) {
+          tsdbError("failed to remove %s as expired since %s", aname, strerror(terrno));
+        } else {
+          tsdbInfo("success to remove %s as expired", aname);
+          ++nFileRemoved;
+        }
       }
     }
     // release resource
     closedir(dir);
+    // rm empty dir
+    if (nEntry == (nFileRemoved + 2)) {  // skip . and ..
+      rmdir(pf->aname);
+    }
   }
   // release resource
   tfsClosedir(tdir);
