@@ -24,11 +24,10 @@ steps:
 - name: smoke_test
   image: python:3.8
   commands:
-  - apt-get update
-  - apt-get install -y cmake build-essential gcc
   - pip3 install psutil
   - pip3 install guppy3
   - pip3 install src/connector/python/linux/python3/
+  - mkdir sim/tsim
   - cd tests
   - ./test-all.sh smoke
   when:
