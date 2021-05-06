@@ -7,19 +7,6 @@ platform:
   arch: amd64
 
 steps:
-- name: build
-  image: gcc
-  commands:
-  - apt-get update
-  - apt-get install -y cmake build-essential
-  - mkdir debug
-  - cd debug
-  - cmake .. 
-  - make 
-  when:
-    branch:
-    - develop
-    - master
 
 - name: smoke_test
   image: python:3.8
