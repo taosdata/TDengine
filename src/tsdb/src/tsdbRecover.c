@@ -17,6 +17,9 @@
 
 // check and restore mode when open vnode
 uint16_t tsTsdbCheckMode = TSDB_CHECK_MODE_DEFAULT;
+// Default value, 180*86400; -1 means don't clear
+int32_t               tsTsdbBakFilesKeep = 180 * 86400;
+static pthread_once_t tsTsdbClearBakOnce = PTHREAD_ONCE_INIT;
 
 #define TSDB_FNAME_PREFIX_TMP "t."
 
@@ -51,7 +54,16 @@ static int tsdbCheckDFileChksum(SRecoverH *pRecoverH);
  *  function should return in case of fatal error, e.g. out of memory
  */
 static bool tsdbRecoverIsFatalError();
-static int  tsdbBackUpDFileSet(STsdbRepo *pRepo, SDFileSet *pFileSet);
+
+/**
+ *  the backing up and expiring policy about corrupted files
+ */
+static void  tsdbGetDataBakPath(int repoid, SDFile *pDFile, char dirName[]);
+static void  tsdbGetDataBakDir(char dirName[]);
+static int   tsdbBackUpDFileSet(STsdbRepo *pRepo, SDFileSet *pFileSet);
+static void *tsdbClearBakDFileSet(void *param);
+static void  tsdbClearBakFiles();
+
 /**
  * load SBlockInfo from .head
  */
@@ -66,13 +78,13 @@ static int tsdbInitHFile(SDFile *pDestDFile, const SDFile *pSrcDFile);
 static int tsdbDestroyHFile(SDFile *pDFile);
 static int tsdbCloseHFile(SDFile *pDFile);
 
-static void tsdbGetDataBakPath(int repoid, SDFile *pDFile, char dirName[]);
-
 int tsdbRecoverDataMain(STsdbRepo *pRepo) {
   SRecoverH recoverH;
   SReadH *  pReadH = &recoverH.readh;
   SArray *  fSetArray = NULL;  // SDFileSet array
   STsdbFS * pfs = REPO_FS(pRepo);
+
+  pthread_once(&tsTsdbClearBakOnce, tsdbClearBakFiles);
 
   if (tsdbFetchDFileSet(pRepo, &fSetArray) < 0) {
     if (TSDB_CODE_TDB_NO_AVAIL_DFILE != terrno) {
@@ -154,6 +166,62 @@ static int tsdbBackUpDFileSet(STsdbRepo *pRepo, SDFileSet *pFileSet) {
     tsdbInfo("vgId:%d success to back up from %s to %s", REPO_ID(pRepo), pDFile->f.aname, dest_aname);
   }
   return 0;
+}
+
+static void tsdbGetDataBakDir(char dirName[]) { snprintf(dirName, TSDB_FILENAME_LEN, "vnode_bak/.tsdb"); }
+
+static void tsdbClearBakFiles() {
+  pthread_attr_t thAttr;
+  pthread_attr_init(&thAttr);
+  pthread_attr_setdetachstate(&thAttr, PTHREAD_CREATE_DETACHED);
+  pthread_t thread;
+  if (pthread_create(&thread, &thAttr, tsdbClearBakDFileSet, NULL) != 0) {
+    tsdbError("failed to create thread to clear bak dfiles, reason:%s", strerror(errno));
+  }
+}
+
+static void *tsdbClearBakDFileSet(void *param) {
+  char         bakDir[TSDB_FILENAME_LEN] = "\0";
+  char         aname[TSDB_FILENAME_LEN * 2] = "\0";
+  char         bnameLatter[TSDB_FILENAME_LEN / 2] = "\0";
+  int32_t      tsNow = taosGetTimestampSec();
+  int32_t      tsPrefix = 0;
+  const TFILE *pf = NULL;
+  DIR *        dir = NULL;
+  int32_t      keep = tsTsdbBakFilesKeep;
+
+  tsdbGetDataBakDir(bakDir);
+  TDIR *tdir = tfsOpendir(bakDir);
+  if (tdir == NULL) {
+    tsdbError("failed to open directory %s since %s", bakDir, tstrerror(terrno));
+    return NULL;
+  }
+
+  struct dirent *dp;
+  while ((pf = tfsReaddir(tdir))) {
+    dir = opendir(pf->aname);
+    if (dir == NULL) {
+      tsdbError("failed to opendir %s since %s", pf->aname, strerror(terrno));
+      return NULL;
+    }
+    while ((dp = readdir(dir))) {
+      if (dp->d_type != DT_REG) {
+        continue;
+      }
+      sscanf(dp->d_name, "%" PRId32 ".%s", &tsPrefix, bnameLatter);  // ${ts_sec}.fname-latter-part
+      if ((tsPrefix > 0) && (tsNow - tsPrefix >= keep)) {
+        snprintf(aname, TSDB_FILENAME_LEN * 2, "%s/%" PRId32 ".%s", pf->aname, tsPrefix, bnameLatter);
+        (void)remove(aname);
+        tsdbInfo("%s removed as expired", aname);
+      }
+    }
+    // release resource
+    closedir(dir);
+  }
+  // release resource
+  tfsClosedir(tdir);
+
+  return NULL;
 }
 
 static int tsdbInitRecoverH(SRecoverH *pRecoverH, STsdbRepo *pRepo) {
