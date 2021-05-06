@@ -4672,7 +4672,7 @@ static int prepareSampleDataForSTable(SSuperTable *superTblInfo) {
   return 0;
 }
 
-static int64_t execInsert(threadInfo *pThreadInfo, char *buffer, int k)
+static int64_t execInsert(threadInfo *pThreadInfo, char *buffer, uint64_t k)
 {
   int affectedRows;
   SSuperTable* superTblInfo = pThreadInfo->superTblInfo;
@@ -5004,6 +5004,15 @@ static int64_t generateProgressiveDataBuffer(
   return k;
 }
 
+static void printStatPerThread(threadInfo *pThreadInfo)
+{
+  fprintf(stderr, "====thread[%d] completed total inserted rows: %"PRIu64 ", total affected rows: %"PRIu64". %.2f records/second====\n",
+          pThreadInfo->threadID,
+          pThreadInfo->totalInsertRows,
+          pThreadInfo->totalAffectedRows,
+          (double)(pThreadInfo->totalAffectedRows / (pThreadInfo->totalDelay/1000.0)));
+}
+
 static void* syncWriteInterlace(threadInfo *pThreadInfo) {
   debugPrint("[%d] %s() LN%d: ### interlace write\n",
          pThreadInfo->threadID, __func__, __LINE__);
@@ -5135,7 +5144,7 @@ static void* syncWriteInterlace(threadInfo *pThreadInfo) {
       if (generated < 0) {
         errorPrint("[%d] %s() LN%d, generated records is %"PRId64"\n",
                   pThreadInfo->threadID, __func__, __LINE__, generated);
-        goto free_and_statistics_interlace;
+        goto free_of_interlace;
       } else if (generated == 0) {
         break;
       }
@@ -5196,23 +5205,17 @@ static void* syncWriteInterlace(threadInfo *pThreadInfo) {
     verbosePrint("[%d] %s() LN%d affectedRows=%"PRId64"\n",
             pThreadInfo->threadID,
             __func__, __LINE__, affectedRows);
-    if (affectedRows > 0) {
-      printf("Spent %"PRIu64" milliseconds to insert rows: %"PRId64", affected rows: %"PRId64", %.2f records/second\n",
-              delay,
-              recOfBatch, affectedRows,
-              (double) (affectedRows / (delay / 1000.0)));
-    }
 
     if (delay > pThreadInfo->maxDelay) pThreadInfo->maxDelay = delay;
     if (delay < pThreadInfo->minDelay) pThreadInfo->minDelay = delay;
     pThreadInfo->cntDelay++;
     pThreadInfo->totalDelay += delay;
 
-    if ((affectedRows < 0) || (recOfBatch != affectedRows)) {
+    if (recOfBatch != affectedRows) {
         errorPrint("[%d] %s() LN%d execInsert insert %"PRIu64", affected rows: %"PRId64"\n%s\n",
                 pThreadInfo->threadID, __func__, __LINE__,
                 recOfBatch, affectedRows, buffer);
-        goto free_and_statistics_interlace;
+        goto free_of_interlace;
     }
 
     pThreadInfo->totalAffectedRows += affectedRows;
@@ -5239,13 +5242,9 @@ static void* syncWriteInterlace(threadInfo *pThreadInfo) {
     }
   }
 
-free_and_statistics_interlace:
+free_of_interlace:
   tmfree(buffer);
-
-  fprintf(stderr, "====thread[%d] completed total inserted rows: %"PRIu64 ", total affected rows: %"PRIu64 "====\n",
-          pThreadInfo->threadID,
-          pThreadInfo->totalInsertRows,
-          pThreadInfo->totalAffectedRows);
+  printStatPerThread(pThreadInfo);
   return NULL;
 }
 
@@ -5261,19 +5260,19 @@ static void* syncWriteProgressive(threadInfo *pThreadInfo) {
   debugPrint("%s() LN%d: ### progressive write\n", __func__, __LINE__);
 
   SSuperTable* superTblInfo = pThreadInfo->superTblInfo;
-  int maxSqlLen = superTblInfo?superTblInfo->maxSqlLen:g_args.max_sql_len;
+  uint64_t maxSqlLen = superTblInfo?superTblInfo->maxSqlLen:g_args.max_sql_len;
 
   char* buffer = calloc(maxSqlLen, 1);
   if (NULL == buffer) {
-    errorPrint( "Failed to alloc %d Bytes, reason:%s\n",
+    errorPrint( "Failed to alloc %"PRIu64" Bytes, reason:%s\n",
               maxSqlLen,
               strerror(errno));
     return NULL;
   }
 
-  int64_t lastPrintTime = taosGetTimestampMs();
-  int64_t startTs = taosGetTimestampMs();
-  int64_t endTs;
+  uint64_t lastPrintTime = taosGetTimestampMs();
+  uint64_t startTs = taosGetTimestampMs();
+  uint64_t endTs;
 
   int64_t timeStampStep =
       superTblInfo?superTblInfo->timeStampStep:DEFAULT_TIMESTAMP_STEP;
@@ -5288,15 +5287,15 @@ static void* syncWriteProgressive(threadInfo *pThreadInfo) {
 
   pThreadInfo->samplePos = 0;
 
-  for (int64_t tableSeq =
+  for (uint64_t tableSeq =
           pThreadInfo->start_table_from; tableSeq <= pThreadInfo->end_table_to;
         tableSeq ++) {
     int64_t start_time = pThreadInfo->start_time;
 
-    int64_t insertRows = (superTblInfo)?superTblInfo->insertRows:g_args.num_of_DPT;
+    uint64_t insertRows = (superTblInfo)?superTblInfo->insertRows:g_args.num_of_DPT;
     verbosePrint("%s() LN%d insertRows=%"PRId64"\n", __func__, __LINE__, insertRows);
 
-    for (int64_t i = 0; i < insertRows;) {
+    for (uint64_t i = 0; i < insertRows;) {
         /*
       if (insert_interval) {
             st = taosGetTimestampMs();
@@ -5326,7 +5325,7 @@ static void* syncWriteProgressive(threadInfo *pThreadInfo) {
       if (generated > 0)
         i += generated;
       else
-        goto free_and_statistics_2;
+        goto free_of_progressive;
 
       start_time +=  generated * timeStampStep;
       pThreadInfo->totalInsertRows += generated;
@@ -5342,12 +5341,6 @@ static void* syncWriteProgressive(threadInfo *pThreadInfo) {
       verbosePrint("[%d] %s() LN%d affectedRows=%"PRId64"\n",
             pThreadInfo->threadID,
             __func__, __LINE__, affectedRows);
-      if (affectedRows > 0) {
-        printf("Spent %.2f seconds to insert rows: %"PRId64", affected rows: %"PRId64", %.2f records/second\n",
-                (double) (delay / 1000.0),
-                generated, affectedRows,
-                (double) (affectedRows / (delay / 1000.0)));
-      }
 
       if (delay > pThreadInfo->maxDelay) pThreadInfo->maxDelay = delay;
       if (delay < pThreadInfo->minDelay) pThreadInfo->minDelay = delay;
@@ -5357,7 +5350,7 @@ static void* syncWriteProgressive(threadInfo *pThreadInfo) {
       if (affectedRows < 0) {
         errorPrint("%s() LN%d, affected rows: %"PRId64"\n",
                 __func__, __LINE__, affectedRows);
-        goto free_and_statistics_2;
+        goto free_of_progressive;
       }
 
       pThreadInfo->totalAffectedRows += affectedRows;
@@ -5397,13 +5390,9 @@ static void* syncWriteProgressive(threadInfo *pThreadInfo) {
     }
   } // tableSeq
 
-free_and_statistics_2:
+free_of_progressive:
   tmfree(buffer);
-
-  fprintf(stderr, "====thread[%d] completed total inserted rows: %"PRId64 ", total affected rows: %"PRId64 "====\n",
-          pThreadInfo->threadID,
-          pThreadInfo->totalInsertRows,
-          pThreadInfo->totalAffectedRows);
+  printStatPerThread(pThreadInfo);
   return NULL;
 }
 
@@ -5432,6 +5421,7 @@ static void* syncWrite(void *sarg) {
     // progressive mode
     return syncWriteProgressive(pThreadInfo);
   }
+
 }
 
 static void callBack(void *param, TAOS_RES *res, int code) {
