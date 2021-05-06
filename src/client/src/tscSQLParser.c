@@ -3678,9 +3678,13 @@ static bool validateJoinExprNode(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSqlExpr
   SSchema*        pLeftSchema = tscGetTableSchema(pLeftMeterMeta->pTableMeta);
   int16_t         leftType = pLeftSchema[pLeftIndex->columnIndex].type;
 
+  tscColumnListInsert(pQueryInfo->colList, pLeftIndex->columnIndex, pLeftMeterMeta->pTableMeta->id.uid, &pLeftSchema[pLeftIndex->columnIndex]);
+
   STableMetaInfo* pRightMeterMeta = tscGetMetaInfo(pQueryInfo, rightIndex.tableIndex);
   SSchema*        pRightSchema = tscGetTableSchema(pRightMeterMeta->pTableMeta);
   int16_t         rightType = pRightSchema[rightIndex.columnIndex].type;
+
+  tscColumnListInsert(pQueryInfo->colList, rightIndex.columnIndex, pRightMeterMeta->pTableMeta->id.uid, &pRightSchema[rightIndex.columnIndex]);
 
   if (leftType != rightType) {
     invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg3);
@@ -3846,7 +3850,7 @@ static int32_t handleExprInQueryCond(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSql
       taosArrayPush((*rightNode)->tsJoin, &leftIdx);
 
       /*
-       * to release expression, e.g., m1.ts = m2.ts,
+       * To release expression, e.g., m1.ts = m2.ts,
        * since this expression is used to set the join query type
        */
       tSqlExprDestroy(*pExpr);

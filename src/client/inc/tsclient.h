@@ -134,8 +134,8 @@ typedef struct SJoinNode {
 } SJoinNode;
 
 typedef struct SJoinInfo {
-  bool      hasJoin;
-  SJoinNode*  joinTables[TSDB_MAX_JOIN_TABLE_NUM];
+  bool       hasJoin;
+  SJoinNode *joinTables[TSDB_MAX_JOIN_TABLE_NUM];
 } SJoinInfo;
 
 typedef struct STagCond {

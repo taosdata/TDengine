@@ -23,8 +23,14 @@
 
 typedef struct SFillEssInfo {
   int32_t  fillType;  // fill type
-  int64_t *val;      // fill value
+  int64_t *val;       // fill value
 } SFillEssInfo;
+
+typedef struct SJoinCond {
+  bool     tagExists; // denote if tag condition exists or not
+  SColumn *tagCond[2];
+  SColumn *colCond[2];
+} SJoinCond;
 
 static SQueryNode* createQueryNode(int32_t type, const char* name, SQueryNode** prev,
                                    int32_t numOfPrev, SExprInfo** pExpr, int32_t numOfOutput, SQueryTableInfo* pTableInfo,
@@ -92,8 +98,8 @@ static SQueryNode* createQueryNode(int32_t type, const char* name, SQueryNode** 
   return pNode;
 }
 
-static SQueryNode* doAddTableColumnNode(SQueryInfo* pQueryInfo, STableMetaInfo* pTableMetaInfo,
-                                        SQueryTableInfo* info, SArray* pExprs, SArray* tableCols) {
+static SQueryNode* doAddTableColumnNode(SQueryInfo* pQueryInfo, STableMetaInfo* pTableMetaInfo, SQueryTableInfo* info,
+                                        SArray* pExprs, SArray* tableCols) {
   if (pQueryInfo->onlyTagQuery) {
     int32_t     num = taosArrayGetSize(pExprs);
     SQueryNode* pNode = createQueryNode(QNODE_TAGSCAN, "TableTagScan", NULL, 0, pExprs->pData, num, info, NULL);
@@ -232,28 +238,12 @@ SArray* createQueryPlanImpl(SQueryInfo* pQueryInfo) {
       tNameExtractFullName(&pTableMetaInfo->name, name);
       SQueryTableInfo info = {.tableName = strdup(name), .id = pTableMetaInfo->pTableMeta->id,};
 
-      // 3. add the join columns (the tags and the primary timestamp column)
-      tscInsertPrimaryTsSourceColumn(pQueryInfo, info.id.uid);
-
+      // 3. get the required table column list
       SArray* tableColumnList = taosArrayInit(4, sizeof(SColumn));
       tscColumnListCopy(tableColumnList, pQueryInfo->colList, uid);
 
-      // TODO add the tag column into the required column list
-      if (UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo)) {
-        int16_t tagColId = tscGetJoinTagColIdByUid(&pQueryInfo->tagCond, info.id.uid);
-        SSchema* s = tscGetColumnSchemaById(pTableMetaInfo->pTableMeta, tagColId);
-
-        SColumn* col    = calloc(1, sizeof(SColumn));
-        col->tableUid   = info.id.uid;
-        col->info.colId = tagColId;
-        col->info.type  = s->type;
-        col->info.bytes = s->bytes;
-        taosArrayPush(pQueryInfo->colList, &col);
-      }
-
       // 4. add the projection query node
       SQueryNode* pNode = doAddTableColumnNode(pQueryInfo, pTableMetaInfo, &info, exprList, tableColumnList);
-
       taosArrayPush(upstream, &pNode);
     }
 
@@ -497,7 +487,7 @@ static int32_t doPrintPlan(char* buf, SQueryNode* pQueryNode, int32_t level, int
 
     case QNODE_JOIN: {
       //  print join condition
-      len1 = sprintf(buf + len, "\n");
+      len1 = sprintf(buf + len, ")\n");
       len += len1;
       break;
     }

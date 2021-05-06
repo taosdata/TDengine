@@ -229,7 +229,6 @@ tSqlExpr *tSqlExprCreate(tSqlExpr *pLeft, tSqlExpr *pRight, int32_t optrType) {
         pExpr->flags &= ~(1 << EXPR_FLAG_TS_ERROR);
       }
 
-
       switch (optrType) {
         case TK_PLUS: {
           pExpr->value.i64 = pLeft->value.i64 + pRight->value.i64;
