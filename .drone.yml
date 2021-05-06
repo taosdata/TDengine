@@ -16,6 +16,8 @@ steps:
   - cd debug
   - cmake .. 
   - make 
+  - cd ../tests
+  - ./test-all.sh smoke
   when:
     branch:
     - develop
