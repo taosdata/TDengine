@@ -132,7 +132,7 @@ void initMultiTagSQLCmd(SSqlCmd *pSql, SColumnModel *pModel, int32_t numOfCols) 
     memcpy(pSql->offset, pModel->colOffset, sizeof(int16_t) * numOfCols);
     memcpy(pSql->fields, pModel->pFields, sizeof(TAOS_FIELD) * numOfCols);
 
-    pSql->pGroupbyExpr = calloc(2, sizeof(SSqlGroupbyExpr));
+    pSql->pGroupbyExpr = calloc(2, sizeof(SGroupbyExpr));
     pSql->pGroupbyExpr->numOfGroupbyCols = 2;
 
     strcpy(pSql->exprs[0].funcName, "count(*)");
@@ -158,8 +158,8 @@ void initMultiTagSQLCmd(SSqlCmd *pSql, SColumnModel *pModel, int32_t numOfCols) 
     pCmd->pGroupbyExpr = {0};
     pCmd->pGroupbyExpr.numOfGroupbyCols = 1;
 
-    tscSqlExprInsert(pCmd, 0, TSDB_FUNC_COUNT, 0, TSDB_DATA_TYPE_BIGINT, pModel->pFields[0].bytes);
-    tscSqlExprInsert(pCmd, 1, 21, 1, TSDB_DATA_TYPE_INT, pModel->pFields[1].bytes);
+    tscExprInsert(pCmd, 0, TSDB_FUNC_COUNT, 0, TSDB_DATA_TYPE_BIGINT, pModel->pFields[0].bytes);
+    tscExprInsert(pCmd, 1, 21, 1, TSDB_DATA_TYPE_INT, pModel->pFields[1].bytes);
 }
 
 void initMultiTagSQLCmd(SSqlCmd *pCmd, SColumnModel *pModel, int32_t numOfCols) {
@@ -168,7 +168,7 @@ void initMultiTagSQLCmd(SSqlCmd *pCmd, SColumnModel *pModel, int32_t numOfCols) 
     memcpy(pCmd->offset, pModel->colOffset, sizeof(int16_t) * numOfCols);
     memcpy(pCmd->fields, pModel->pFields, sizeof(TAOS_FIELD) * numOfCols);
 
-    pCmd->pGroupbyExpr = calloc(2, sizeof(SSqlGroupbyExpr));
+    pCmd->pGroupbyExpr = calloc(2, sizeof(SGroupbyExpr));
     pCmd->pGroupbyExpr->numOfGroupbyCols = 2;
 
     strcpy(pCmd->exprs[0].funcName, "count(*)");
