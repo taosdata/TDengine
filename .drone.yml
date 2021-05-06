@@ -27,7 +27,7 @@ steps:
   - pip3 install psutil
   - pip3 install guppy3
   - pip3 install src/connector/python/linux/python3/
-  - mkdir sim/tsim
+  - mkdir -p /drone/src/sim/tsim
   - cd tests
   - ./test-all.sh smoke
   when:
