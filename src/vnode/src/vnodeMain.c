@@ -170,29 +170,31 @@ static int32_t vnodeAlterImp(SVnodeObj *pVnode, SCreateVnodeMsg *pVnodeCfg) {
 
   vDebug("vgId:%d, tsdbchanged:%d syncchanged:%d while alter vnode", pVnode->vgId, tsdbCfgChanged, syncCfgChanged);
 
-  if (/*tsdbCfgChanged || */syncCfgChanged) {
+  if (tsdbCfgChanged || syncCfgChanged) {
     // vnode in non-ready state and still needs to return success instead of TSDB_CODE_VND_INVALID_STATUS
     // dbCfgVersion can be corrected by status msg
-    if (!vnodeSetUpdatingStatus(pVnode)) {
-      vDebug("vgId:%d, vnode is not ready, do alter operation later", pVnode->vgId);
-      pVnode->dbCfgVersion = dbCfgVersion;
-      pVnode->vgCfgVersion = vgCfgVersion;
-      pVnode->syncCfg = syncCfg;
-      pVnode->tsdbCfg = tsdbCfg;
-      return TSDB_CODE_SUCCESS;
+    if (syncCfgChanged) {
+      if (!vnodeSetUpdatingStatus(pVnode)) {
+        vDebug("vgId:%d, vnode is not ready, do alter operation later", pVnode->vgId);
+        pVnode->dbCfgVersion = dbCfgVersion;
+        pVnode->vgCfgVersion = vgCfgVersion;
+        pVnode->syncCfg = syncCfg;
+        pVnode->tsdbCfg = tsdbCfg;
+        return TSDB_CODE_SUCCESS;
+      }
+
+      code = syncReconfig(pVnode->sync, &pVnode->syncCfg);
+      if (code != TSDB_CODE_SUCCESS) {
+        pVnode->dbCfgVersion = dbCfgVersion;
+        pVnode->vgCfgVersion = vgCfgVersion;
+        pVnode->syncCfg = syncCfg;
+        pVnode->tsdbCfg = tsdbCfg;
+        vnodeSetReadyStatus(pVnode);
+        return code;
+      }
     }
 
-    code = syncReconfig(pVnode->sync, &pVnode->syncCfg);
-    if (code != TSDB_CODE_SUCCESS) {
-      pVnode->dbCfgVersion = dbCfgVersion;
-      pVnode->vgCfgVersion = vgCfgVersion;
-      pVnode->syncCfg = syncCfg;
-      pVnode->tsdbCfg = tsdbCfg;
-      vnodeSetReadyStatus(pVnode);
-      return code;
-    }
-
-    if (pVnode->tsdb) {
+    if (tsdbCfgChanged && pVnode->tsdb) {
       code = tsdbConfigRepo(pVnode->tsdb, &pVnode->tsdbCfg);
       if (code != TSDB_CODE_SUCCESS) {
         pVnode->dbCfgVersion = dbCfgVersion;

@@ -121,12 +121,12 @@ static void tsdbApplyRepoConfig(STsdbRepo *pRepo) {
   pRepo->config.keep1 = pRepo->save_config.keep1;
   pRepo->config.keep2 = pRepo->save_config.keep2;
   pRepo->config.cacheLastRow = pRepo->save_config.cacheLastRow;
-  pRepo->config.update = pRepo->save_config.update;
+  //pRepo->config.update = pRepo->save_config.update;
 
-  tsdbInfo("vgId:%d apply new config: compression(%d), keep(%d,%d,%d), totalBlocks(%d), cacheLastRow(%d), update(%d)",
+  tsdbInfo("vgId:%d apply new config: compression(%d), keep(%d,%d,%d), totalBlocks(%d), cacheLastRow(%d)",
     REPO_ID(pRepo),
     pSaveCfg->compression, pSaveCfg->keep,pSaveCfg->keep1, pSaveCfg->keep2,
-    pSaveCfg->totalBlocks, pSaveCfg->cacheLastRow, pSaveCfg->update);
+    pSaveCfg->totalBlocks, pSaveCfg->cacheLastRow);
 
 }
 

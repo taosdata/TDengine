@@ -230,9 +230,6 @@ int32_t tsdbConfigRepo(STsdbRepo *repo, STsdbCfg *pCfg) {
   if (pRCfg->cacheLastRow != pCfg->cacheLastRow) {
     configChanged = true;
   }
-  if (pRCfg->update != pCfg->update) {
-    configChanged = true;
-  }
 
   if (!configChanged) {
     tsdbError("vgId:%d no config changed", REPO_ID(repo));
@@ -253,16 +250,15 @@ int32_t tsdbConfigRepo(STsdbRepo *repo, STsdbCfg *pCfg) {
   pSaveCfg->keep1 = pCfg->keep1;
   pSaveCfg->keep2 = pCfg->keep2;
   pSaveCfg->cacheLastRow = pCfg->cacheLastRow;
-  pSaveCfg->update = pCfg->update;
 
-  tsdbInfo("vgId:%d old config: compression(%d), keep(%d,%d,%d), cacheLastRow(%d), update(%d)",
+  tsdbInfo("vgId:%d old config: compression(%d), keep(%d,%d,%d), cacheLastRow(%d)",
     REPO_ID(repo),
     pRCfg->compression, pRCfg->keep, pRCfg->keep1,pRCfg->keep2,
-    pRCfg->cacheLastRow, pRCfg->update);
-  tsdbInfo("vgId:%d new config: compression(%d), keep(%d,%d,%d), cacheLastRow(%d), update(%d)",
+    pRCfg->cacheLastRow);
+  tsdbInfo("vgId:%d new config: compression(%d), keep(%d,%d,%d), cacheLastRow(%d)",
     REPO_ID(repo),
     pSaveCfg->compression, pSaveCfg->keep,pSaveCfg->keep1, pSaveCfg->keep2,
-    pSaveCfg->cacheLastRow, pSaveCfg->update);
+    pSaveCfg->cacheLastRow);
 
   repo->config_changed = true;
 
