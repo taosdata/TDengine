@@ -3356,12 +3356,10 @@ int32_t tscCreateTableMetaFromCChildMeta(STableMeta* pChild, const char* name, v
 
     memcpy(pChild->schema, p->schema, sizeof(SSchema) *total);
 
-    //tfree(p);
     return TSDB_CODE_SUCCESS;
   } else { // super table has been removed, current tableMeta is also expired. remove it here
     taosHashRemove(tscTableMetaInfo, name, strnlen(name, TSDB_TABLE_FNAME_LEN));
 
-    //tfree(p);
     return -1;
   }
 }
