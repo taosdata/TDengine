@@ -2535,7 +2535,9 @@ int32_t tscGetTableMeta(SSqlObj *pSql, STableMetaInfo *pTableMetaInfo) {
     pTableMetaInfo->pTableMeta = calloc(1, size);
   } else if (pTableMetaInfo->tableMetaSize < size) {
     char *tmp = realloc(pTableMetaInfo->pTableMeta, size); 
-    if (tmp == NULL) { return TSDB_CODE_TSC_OUT_OF_MEMORY;}
+    if (tmp == NULL) { 
+      return TSDB_CODE_TSC_OUT_OF_MEMORY;
+    }
     pTableMetaInfo->pTableMeta = (STableMeta *)tmp;
     pTableMetaInfo->tableMetaSize = size;
   } else {
