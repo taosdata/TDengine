@@ -1,10 +1,11 @@
 #include "os.h"
+#include "tschemautil.h"
+#include "qPlan.h"
 #include "qExecutor.h"
 #include "qUtil.h"
 #include "texpr.h"
-#include "qPlan.h"
-#include "tsclient.h"
 #include "tscUtil.h"
+#include "tsclient.h"
 
 #define QNODE_TAGSCAN       1
 #define QNODE_TABLESCAN     2
@@ -226,13 +227,31 @@ SArray* createQueryPlanImpl(SQueryInfo* pQueryInfo) {
         exit(-1);
       }
 
-      SArray* tableColumnList = taosArrayInit(4, sizeof(SColumn));
-      tscColumnListCopy(tableColumnList, pQueryInfo->colList, uid);
-
       // 2. create the query execution node
       char name[TSDB_TABLE_FNAME_LEN] = {0};
       tNameExtractFullName(&pTableMetaInfo->name, name);
       SQueryTableInfo info = {.tableName = strdup(name), .id = pTableMetaInfo->pTableMeta->id,};
+
+      // 3. add the join columns (the tags and the primary timestamp column)
+      tscInsertPrimaryTsSourceColumn(pQueryInfo, info.id.uid);
+
+      SArray* tableColumnList = taosArrayInit(4, sizeof(SColumn));
+      tscColumnListCopy(tableColumnList, pQueryInfo->colList, uid);
+
+      // TODO add the tag column into the required column list
+      if (UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo)) {
+        int16_t tagColId = tscGetJoinTagColIdByUid(&pQueryInfo->tagCond, info.id.uid);
+        SSchema* s = tscGetColumnSchemaById(pTableMetaInfo->pTableMeta, tagColId);
+
+        SColumn* col    = calloc(1, sizeof(SColumn));
+        col->tableUid   = info.id.uid;
+        col->info.colId = tagColId;
+        col->info.type  = s->type;
+        col->info.bytes = s->bytes;
+        taosArrayPush(pQueryInfo->colList, &col);
+      }
+
+      // 4. add the projection query node
       SQueryNode* pNode = doAddTableColumnNode(pQueryInfo, pTableMetaInfo, &info, exprList, tableColumnList);
 
       taosArrayPush(upstream, &pNode);
@@ -315,9 +334,9 @@ static int32_t doPrintPlan(char* buf, SQueryNode* pQueryNode, int32_t level, int
 
   switch(pQueryNode->info.type) {
     case QNODE_TABLESCAN: {
-      STimeWindow* win = (STimeWindow*) pQueryNode->pExtInfo;
-      len1 = sprintf(buf + len, "%s #0x%"PRIx64") time_range: %"PRId64" - %"PRId64"\n", pQueryNode->tableInfo.tableName,
-                             pQueryNode->tableInfo.id.uid, win->skey, win->ekey);
+      STimeWindow* win = (STimeWindow*)pQueryNode->pExtInfo;
+      len1 = sprintf(buf + len, "%s #0x%" PRIx64 ") time_range: %" PRId64 " - %" PRId64 "\n",
+                     pQueryNode->tableInfo.tableName, pQueryNode->tableInfo.id.uid, win->skey, win->ekey);
       len += len1;
       break;
     }
@@ -387,8 +406,9 @@ static int32_t doPrintPlan(char* buf, SQueryNode* pQueryNode, int32_t level, int
       len += len1;
 
       SInterval* pInterval = pQueryNode->pExtInfo;
-      len1 = sprintf(buf + len, "interval:%"PRId64"(%c), sliding:%"PRId64"(%c), offset:%"PRId64"\n", pInterval->interval,
-             pInterval->intervalUnit, pInterval->sliding, pInterval->slidingUnit, pInterval->offset);
+      len1 = sprintf(buf + len, "interval:%" PRId64 "(%c), sliding:%" PRId64 "(%c), offset:%" PRId64 "\n",
+                     pInterval->interval, pInterval->intervalUnit, pInterval->sliding, pInterval->slidingUnit,
+                     pInterval->offset);
       len += len1;
 
       break;

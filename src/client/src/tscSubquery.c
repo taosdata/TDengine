@@ -439,7 +439,6 @@ static void tscDestroyJoinSupporter(SJoinSupporter* pSupporter) {
     pSupporter->f = NULL;
   }
 
-
   if (pSupporter->pVgroupTables != NULL) {
     taosArrayDestroy(pSupporter->pVgroupTables);
     pSupporter->pVgroupTables = NULL;
