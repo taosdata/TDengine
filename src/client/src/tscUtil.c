@@ -2079,7 +2079,11 @@ STableMetaInfo* tscAddTableMetaInfo(SQueryInfo* pQueryInfo, SName* name, STableM
   }
 
   pTableMetaInfo->pTableMeta = pTableMeta;
-  pTableMetaInfo->tableMetaSize = tscGetTableMetaSize(pTableMeta);
+  if (pTableMetaInfo->pTableMeta == NULL) {
+    pTableMetaInfo->tableMetaSize = 0; 
+  } else {
+    pTableMetaInfo->tableMetaSize = tscGetTableMetaSize(pTableMeta);
+  }
   
   if (vgroupList != NULL) {
     pTableMetaInfo->vgroupList = tscVgroupInfoClone(vgroupList);
