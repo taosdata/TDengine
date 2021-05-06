@@ -11,7 +11,24 @@ steps:
   image: gcc
   commands:
   - apt-get update
-  - apt-get install -y cmake build-essential python3.8 python3-pip
+  - apt-get install -y cmake build-essential
+  - pip3 install psutil
+  - pip3 install guppy3
+  - pip3 install src/connector/python/linux/python3/
+  - mkdir debug
+  - cd debug
+  - cmake .. 
+  - make 
+  when:
+    branch:
+    - develop
+    - master
+
+- name: smoke_test
+  image: python:3.8
+  commands:
+  - apt-get update
+  - apt-get install -y cmake build-essential gcc 
   - pip3 install psutil
   - pip3 install guppy3
   - pip3 install src/connector/python/linux/python3/
@@ -25,7 +42,6 @@ steps:
     branch:
     - develop
     - master
-
 
 
 - name: crash_gen
