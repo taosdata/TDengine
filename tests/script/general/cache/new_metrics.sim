@@ -5,7 +5,7 @@ system sh/deploy.sh -n dnode1 -i 1
 system sh/cfg.sh -n dnode1 -c walLevel -v 1
 system sh/exec.sh -n dnode1 -s start
 
-sleep 2000
+sleep 20000
 sql connect
 
 $i = 0
