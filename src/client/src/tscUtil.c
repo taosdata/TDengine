@@ -693,7 +693,8 @@ int32_t tscCopyDataBlockToPayload(SSqlObj* pSql, STableDataBlocks* pDataBlock) {
       tfree(pTableMetaInfo->pTableMeta);
     }
 
-    pTableMetaInfo->pTableMeta = tscTableMetaDup(pDataBlock->pTableMeta);
+    pTableMetaInfo->pTableMeta    = tscTableMetaDup(pDataBlock->pTableMeta);
+    pTableMetaInfo->tableMetaSize = tscGetTableMetaSize(pDataBlock->pTableMeta); 
   }
 
   /*
@@ -2078,6 +2079,7 @@ STableMetaInfo* tscAddTableMetaInfo(SQueryInfo* pQueryInfo, SName* name, STableM
   }
 
   pTableMetaInfo->pTableMeta = pTableMeta;
+  pTableMetaInfo->tableMetaSize = tscGetTableMetaSize(pTableMeta);
   
   if (vgroupList != NULL) {
     pTableMetaInfo->vgroupList = tscVgroupInfoClone(vgroupList);
@@ -2352,6 +2354,7 @@ SSqlObj* createSubqueryObj(SSqlObj* pSql, int16_t tableIndex, __async_cb_func_t 
 
     pFinalInfo = tscAddTableMetaInfo(pNewQueryInfo, &pTableMetaInfo->name, pTableMeta, pTableMetaInfo->vgroupList,
                                      pTableMetaInfo->tagColList, pTableMetaInfo->pVgroupTables);
+    
   } else {  // transfer the ownership of pTableMeta to the newly create sql object.
     STableMetaInfo* pPrevInfo = tscGetTableMetaInfoFromCmd(&pPrevSql->cmd, pPrevSql->cmd.clauseIndex, 0);
     if (pPrevInfo->pTableMeta && pPrevInfo->pTableMeta->tableType < 0) {

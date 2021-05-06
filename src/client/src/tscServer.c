@@ -2533,6 +2533,11 @@ int32_t tscGetTableMeta(SSqlObj *pSql, STableMetaInfo *pTableMetaInfo) {
   uint32_t size = tscGetTableMetaMaxSize();
   if (pTableMetaInfo->pTableMeta == NULL) {
     pTableMetaInfo->pTableMeta = calloc(1, size);
+  } else if (pTableMetaInfo->tableMetaSize < size) {
+    char *tmp = realloc(pTableMetaInfo->pTableMeta, size); 
+    if (tmp == NULL) { return TSDB_CODE_TSC_OUT_OF_MEMORY;}
+    pTableMetaInfo->pTableMeta = (STableMeta *)tmp;
+    pTableMetaInfo->tableMetaSize = size;
   } else {
     uint32_t s = tscGetTableMetaSize(pTableMetaInfo->pTableMeta);
     memset(pTableMetaInfo->pTableMeta, 0, s);
