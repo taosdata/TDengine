@@ -3580,6 +3580,8 @@ void* createQueryInfoFromQueryNode(SQueryInfo* pQueryInfo, SExprInfo* pExprs, ST
 
   tfree(pExprs);
 
+  createFilterInfo(pQueryAttr, 0);
+
   SArray* pa = NULL;
   if (stage == MASTER_SCAN) {
     pa = createExecOperatorPlan(pQueryAttr);

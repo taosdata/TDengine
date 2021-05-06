@@ -36,6 +36,9 @@ extern "C" {
 #define UTIL_TABLE_IS_NORMAL_TABLE(metaInfo)\
   (!(UTIL_TABLE_IS_SUPER_TABLE(metaInfo) || UTIL_TABLE_IS_CHILD_TABLE(metaInfo)))
 
+#define UTIL_TABLE_IS_TMP_TABLE(metaInfo)  \
+  (((metaInfo)->pTableMeta != NULL) && ((metaInfo)->pTableMeta->tableType == TSDB_TEMP_TABLE))
+
 #pragma pack(push,1)
 // this struct is transfered as binary, padding two bytes to avoid
 // an 'uid' whose low bytes is 0xff being recoginized as NULL,

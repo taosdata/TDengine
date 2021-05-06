@@ -479,9 +479,9 @@ void tscClearInterpInfo(SQueryInfo* pQueryInfo) {
 }
 
 int32_t tscCreateResPointerInfo(SSqlRes* pRes, SQueryInfo* pQueryInfo) {
-  if (pRes->tsrow == NULL) {
-    pRes->numOfCols = pQueryInfo->fieldsInfo.numOfOutput;
+  pRes->numOfCols = pQueryInfo->fieldsInfo.numOfOutput;
 
+  if (pRes->tsrow == NULL) {
     pRes->tsrow  = calloc(pRes->numOfCols, POINTER_BYTES);
     pRes->urow   = calloc(pRes->numOfCols, POINTER_BYTES);
     pRes->length = calloc(pRes->numOfCols, sizeof(int32_t));
@@ -704,8 +704,7 @@ SOperatorInfo* createDummyInputOperator(char* pResult, SSchema* pSchema, int32_t
   assert(numOfCols > 0);
   SDummyInputInfo* pInfo = calloc(1, sizeof(SDummyInputInfo));
 
-  pInfo->pRes = (SSqlRes*) pResult;
-
+  pInfo->pRes  = (SSqlRes*) pResult;
   pInfo->block = calloc(numOfCols, sizeof(SSDataBlock));
   pInfo->block->info.numOfCols = numOfCols;
 

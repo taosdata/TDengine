@@ -378,6 +378,10 @@ int taos_num_fields(TAOS_RES *res) {
     return num;
   }
 
+  while(pQueryInfo->pDownstream != NULL) {
+    pQueryInfo = pQueryInfo->pDownstream;
+  }
+
   size_t numOfCols = tscNumOfFields(pQueryInfo);
   for(int32_t i = 0; i < numOfCols; ++i) {
     SInternalField* pInfo = taosArrayGet(pQueryInfo->fieldsInfo.internalField, i);

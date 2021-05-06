@@ -543,6 +543,7 @@ SQInfo *createQInfoImpl(SQueryTableMsg *pQueryMsg, SGroupbyExpr *pGroupbyExpr, S
 int32_t initQInfo(STsBufInfo* pTsBufInfo, void* tsdb, void* sourceOptr, SQInfo* pQInfo, SQueryParam* param, char* start,
                   int32_t prevResultLen, void* merger);
 
+int32_t createFilterInfo(SQueryAttr* pQueryAttr, uint64_t qId);
 void freeColumnFilterInfo(SColumnFilterInfo* pFilter, int32_t numOfFilters);
 
 STableQueryInfo *createTableQueryInfo(SQueryAttr* pQueryAttr, void* pTable, bool groupbyColumn, STimeWindow win, void* buf);

@@ -1859,7 +1859,9 @@ int32_t addProjectionExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, t
 
     // add the primary timestamp column even though it is not required by user
     STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, index.tableIndex);
-    tscInsertPrimaryTsSourceColumn(pQueryInfo, pTableMetaInfo->pTableMeta->id.uid);
+    if (!UTIL_TABLE_IS_TMP_TABLE(pTableMetaInfo)) {
+      tscInsertPrimaryTsSourceColumn(pQueryInfo, pTableMetaInfo->pTableMeta->id.uid);
+    }
   } else {
     return TSDB_CODE_TSC_INVALID_SQL;
   }
@@ -7221,6 +7223,23 @@ int32_t validateSqlNode(SSqlObj* pSql, SSqlNode* pSqlNode, SQueryInfo* pQueryInf
       return TSDB_CODE_TSC_INVALID_SQL;
     }
 
+    // all columns are added into the table column list
+    for(int32_t i = 0; i < pTableMeta->tableInfo.numOfColumns; ++i) {
+      tscColumnListInsert(current->colList, i, pTableMetaInfo1->pTableMeta->id.uid,
+                          &pTableMetaInfo1->pTableMeta->schema[i]);
+    }
+
+    if (pSqlNode->pWhere != NULL) {
+      if (validateWhereNode(current, &pSqlNode->pWhere, pSql) != TSDB_CODE_SUCCESS) {
+        return TSDB_CODE_TSC_INVALID_SQL;
+      }
+
+      pSqlNode->pWhere = NULL;
+      if (pTableMeta->tableInfo.precision == TSDB_TIME_PRECISION_MILLI) {
+        current->window.skey = current->window.skey / 1000;
+        current->window.ekey = current->window.ekey / 1000;
+      }
+    }
   } else {
     pQueryInfo->command = TSDB_SQL_SELECT;
 

@@ -1748,7 +1748,7 @@ static int32_t setupQueryRuntimeEnv(SQueryRuntimeEnv *pRuntimeEnv, int32_t numOf
         SOperatorInfo* prev = pRuntimeEnv->proot;
         if (i == 0) {
           pRuntimeEnv->proot = createArithOperatorInfo(pRuntimeEnv, prev, pQueryAttr->pExpr1, pQueryAttr->numOfOutput);
-          if (pRuntimeEnv->proot != NULL && pRuntimeEnv->proot->operatorType != OP_DummyInput) {  // TODO refactor
+          if (pRuntimeEnv->proot != NULL && prev->operatorType != OP_DummyInput) {  // TODO refactor
             setTableScanFilterOperatorInfo(prev->info, pRuntimeEnv->proot);
           }
         } else {
@@ -1765,12 +1765,12 @@ static int32_t setupQueryRuntimeEnv(SQueryRuntimeEnv *pRuntimeEnv, int32_t numOf
       }
 
       case OP_Filter: {  // todo refactor
-        assert(pQueryAttr->havingNum > 0);
         if (pQueryAttr->stableQuery) {
           pRuntimeEnv->proot = createFilterOperatorInfo(pRuntimeEnv, pRuntimeEnv->proot, pQueryAttr->pExpr3, pQueryAttr->numOfExpr3);
         } else {
           pRuntimeEnv->proot = createFilterOperatorInfo(pRuntimeEnv, pRuntimeEnv->proot, pQueryAttr->pExpr1, pQueryAttr->numOfOutput);
         }
+
         break;
       }
 
@@ -4141,12 +4141,12 @@ static void doCloseAllTimeWindow(SQueryRuntimeEnv* pRuntimeEnv) {
 }
 
 static SSDataBlock* doTableScanImpl(void* param, bool* newgroup) {
-  SOperatorInfo*   pOperator = (SOperatorInfo*) param;
+  SOperatorInfo    *pOperator = (SOperatorInfo*) param;
 
-  STableScanInfo*  pTableScanInfo = pOperator->info;
-  SSDataBlock*      pBlock = &pTableScanInfo->block;
+  STableScanInfo   *pTableScanInfo = pOperator->info;
+  SSDataBlock      *pBlock = &pTableScanInfo->block;
   SQueryRuntimeEnv *pRuntimeEnv = pOperator->pRuntimeEnv;
-  SQueryAttr*       pQueryAttr = pRuntimeEnv->pQueryAttr;
+  SQueryAttr       *pQueryAttr = pRuntimeEnv->pQueryAttr;
   STableGroupInfo  *pTableGroupInfo = &pOperator->pRuntimeEnv->tableqinfoGroupInfo;
 
   *newgroup = false;
@@ -5410,7 +5410,7 @@ SOperatorInfo* createArithOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorI
 }
 
 SOperatorInfo* createFilterOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorInfo* upstream, SExprInfo* pExpr,
-                                           int32_t numOfOutput) {
+                                        int32_t numOfOutput) {
   SFilterOperatorInfo* pInfo = calloc(1, sizeof(SFilterOperatorInfo));
 
   {
@@ -5444,7 +5444,7 @@ SOperatorInfo* createFilterOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperator
 
   SOperatorInfo* pOperator = calloc(1, sizeof(SOperatorInfo));
 
-  pOperator->name         = "ConditionOperator";
+  pOperator->name         = "FilterOperator";
   pOperator->operatorType = OP_Filter;
   pOperator->blockingOptr = false;
   pOperator->status       = OP_IN_EXECUTING;
@@ -6685,7 +6685,7 @@ void* doDestroyFilterInfo(SSingleColumnFilterInfo* pFilterInfo, int32_t numOfFil
   return NULL;
 }
 
-static int32_t createFilterInfo(SQueryAttr* pQueryAttr, uint64_t qId) {
+int32_t createFilterInfo(SQueryAttr* pQueryAttr, uint64_t qId) {
   for (int32_t i = 0; i < pQueryAttr->numOfCols; ++i) {
     if (pQueryAttr->tableCols[i].flist.numOfFilters > 0) {
       pQueryAttr->numOfFilterCols++;
