@@ -23,6 +23,8 @@ typedef enum { TSDB_TXN_TEMP_FILE = 0, TSDB_TXN_CURR_FILE } TSDB_TXN_FILE_T;
 static const char *tsdbTxnFname[] = {"current.t", "current"};
 #define TSDB_MAX_FSETS(keep, days) ((keep) / (days) + 3)
 
+static pthread_once_t tsTsdbClearBakOnce = PTHREAD_ONCE_INIT;
+
 static int  tsdbComparFidFSet(const void *arg1, const void *arg2);
 static void tsdbResetFSStatus(SFSStatus *pStatus);
 static int  tsdbSaveFSStatus(SFSStatus *pStatus, int vid);
@@ -246,6 +248,10 @@ int tsdbOpenFS(STsdbRepo *pRepo) {
   ASSERT(pfs != NULL);
 
   tsdbGetTxnFname(REPO_ID(pRepo), TSDB_TXN_CURR_FILE, current);
+
+  if (tsTsdbCheckMode == TSDB_CHECK_MODE_CHKSUM_IF_NO_CURRENT) {
+    pthread_once(&tsTsdbClearBakOnce, tsdbClearBakFiles);
+  }
 
   if (access(current, F_OK) == 0) {
     if (tsdbOpenFSFromCurrent(pRepo) < 0) {

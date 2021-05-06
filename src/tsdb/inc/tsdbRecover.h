@@ -21,4 +21,6 @@
  */
 int tsdbRecoverDataMain(STsdbRepo *pRepo);
 
+void tsdbClearBakFiles();
+
 #endif /* _TD_TSDB_RECOVER_H_ */

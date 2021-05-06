@@ -18,8 +18,7 @@
 // check and restore mode when open vnode
 uint16_t tsTsdbCheckMode = TSDB_CHECK_MODE_DEFAULT;
 // Default value, 180*86400; -1 means don't clear
-int32_t               tsTsdbBakFilesKeep = 180 * 86400;
-static pthread_once_t tsTsdbClearBakOnce = PTHREAD_ONCE_INIT;
+int32_t tsTsdbBakFilesKeep = 180 * 86400;
 
 #define TSDB_FNAME_PREFIX_TMP "t."
 
@@ -62,7 +61,6 @@ static void  tsdbGetDataBakPath(int repoid, SDFile *pDFile, char dirName[]);
 static void  tsdbGetDataBakDir(char dirName[]);
 static int   tsdbBackUpDFileSet(STsdbRepo *pRepo, SDFileSet *pFileSet);
 static void *tsdbClearBakDFileSet(void *param);
-static void  tsdbClearBakFiles();
 
 /**
  * load SBlockInfo from .head
@@ -84,8 +82,7 @@ int tsdbRecoverDataMain(STsdbRepo *pRepo) {
   SArray *  fSetArray = NULL;  // SDFileSet array
   STsdbFS * pfs = REPO_FS(pRepo);
 
-  pthread_once(&tsTsdbClearBakOnce, tsdbClearBakFiles);
-
+  
   if (tsdbFetchDFileSet(pRepo, &fSetArray) < 0) {
     if (TSDB_CODE_TDB_NO_AVAIL_DFILE != terrno) {
       tsdbError("vgId:%d failed to fetch DFileSet to restore since %s", REPO_ID(pRepo), tstrerror(terrno));
@@ -170,7 +167,7 @@ static int tsdbBackUpDFileSet(STsdbRepo *pRepo, SDFileSet *pFileSet) {
 
 static void tsdbGetDataBakDir(char dirName[]) { snprintf(dirName, TSDB_FILENAME_LEN, "vnode_bak/.tsdb"); }
 
-static void tsdbClearBakFiles() {
+void tsdbClearBakFiles() {
   pthread_attr_t thAttr;
   pthread_attr_init(&thAttr);
   pthread_attr_setdetachstate(&thAttr, PTHREAD_CREATE_DETACHED);
