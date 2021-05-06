@@ -1349,11 +1349,8 @@ int tsParseSql(SSqlObj *pSql, bool initial) {
     ret = tsParseInsertSql(pSql);
     if (/*(sqlstr == NULL) || */(pSql->parseRetry >= 1) ||
         (ret != TSDB_CODE_TSC_SQL_SYNTAX_ERROR && ret != TSDB_CODE_TSC_INVALID_SQL)) {
-//      free(sqlstr);
     } else {
       tscResetSqlCmd(pCmd, true);
-//      free(pSql->sqlstr);
-//      pSql->sqlstr = sqlstr;
       pSql->parseRetry++;
       if ((ret = tsInsertInitialCheck(pSql)) == TSDB_CODE_SUCCESS) {
         ret = tsParseInsertSql(pSql);
