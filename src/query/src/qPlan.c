@@ -615,8 +615,13 @@ SArray* createExecOperatorPlan(SQueryAttr* pQueryAttr) {
       taosArrayPush(plan, &op);
     }
   } else {  // diff/add/multiply/subtract/division
-    op = OP_Arithmetic;
-    taosArrayPush(plan, &op);
+    if (pQueryAttr->numOfFilterCols > 0 && pQueryAttr->vgId == 0) { // todo refactor
+      op = OP_Filter;
+      taosArrayPush(plan, &op);
+    } else {
+      op = OP_Arithmetic;
+      taosArrayPush(plan, &op);
+    }
   }
 
   if (pQueryAttr->limit.limit > 0 || pQueryAttr->limit.offset > 0) {

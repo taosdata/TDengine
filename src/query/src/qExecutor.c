@@ -167,6 +167,8 @@ static void setBlockStatisInfo(SQLFunctionCtx *pCtx, SSDataBlock* pSDataBlock, S
 static void destroyTableQueryInfoImpl(STableQueryInfo *pTableQueryInfo);
 static bool hasMainOutput(SQueryAttr *pQueryAttr);
 
+static SColumnInfo* extractColumnFilterInfo(SExprInfo* pExpr, int32_t numOfOutput, int32_t* numOfFilterCols);
+
 static int32_t setTimestampListJoinInfo(SQueryRuntimeEnv* pRuntimeEnv, tVariant* pTag, STableQueryInfo *pTableQueryInfo);
 static void releaseQueryBuf(size_t numOfTables);
 static int32_t binarySearchForKey(char *pValue, int num, TSKEY key, int order);
@@ -1765,12 +1767,25 @@ static int32_t setupQueryRuntimeEnv(SQueryRuntimeEnv *pRuntimeEnv, int32_t numOf
       }
 
       case OP_Filter: {  // todo refactor
-        if (pQueryAttr->stableQuery) {
-          pRuntimeEnv->proot = createFilterOperatorInfo(pRuntimeEnv, pRuntimeEnv->proot, pQueryAttr->pExpr3, pQueryAttr->numOfExpr3);
+        int32_t numOfFilterCols = 0;
+        if (pQueryAttr->numOfFilterCols > 0) {
+          pRuntimeEnv->proot = createFilterOperatorInfo(pRuntimeEnv, pRuntimeEnv->proot, pQueryAttr->pExpr1,
+                                                        pQueryAttr->numOfOutput, pQueryAttr->tableCols, pQueryAttr->numOfFilterCols);
         } else {
-          pRuntimeEnv->proot = createFilterOperatorInfo(pRuntimeEnv, pRuntimeEnv->proot, pQueryAttr->pExpr1, pQueryAttr->numOfOutput);
+          if (pQueryAttr->stableQuery) {
+            SColumnInfo* pColInfo =
+                extractColumnFilterInfo(pQueryAttr->pExpr3, pQueryAttr->numOfExpr3, &numOfFilterCols);
+            pRuntimeEnv->proot = createFilterOperatorInfo(pRuntimeEnv, pRuntimeEnv->proot, pQueryAttr->pExpr3,
+                                                          pQueryAttr->numOfExpr3, pColInfo, numOfFilterCols);
+            freeColumnInfo(pColInfo, pQueryAttr->numOfExpr3);
+          } else {
+            SColumnInfo* pColInfo =
+                extractColumnFilterInfo(pQueryAttr->pExpr1, pQueryAttr->numOfOutput, &numOfFilterCols);
+            pRuntimeEnv->proot = createFilterOperatorInfo(pRuntimeEnv, pRuntimeEnv->proot, pQueryAttr->pExpr1,
+                                                          pQueryAttr->numOfOutput, pColInfo, numOfFilterCols);
+            freeColumnInfo(pColInfo, pQueryAttr->numOfOutput);
+          }
         }
-
         break;
       }
 
@@ -5409,38 +5424,37 @@ SOperatorInfo* createArithOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorI
   return pOperator;
 }
 
+static SColumnInfo* extractColumnFilterInfo(SExprInfo* pExpr, int32_t numOfOutput, int32_t* numOfFilterCols) {
+  SColumnInfo* pCols = calloc(numOfOutput, sizeof(SColumnInfo));
+
+  int32_t numOfFilter = 0;
+  for(int32_t i = 0; i < numOfOutput; ++i) {
+    if (pExpr[i].base.flist.numOfFilters > 0) {
+      numOfFilter += 1;
+    }
+
+    pCols[i].type = pExpr[i].base.resType;
+    pCols[i].bytes = pExpr[i].base.resBytes;
+    pCols[i].colId = pExpr[i].base.resColId;
+
+    pCols[i].flist.numOfFilters = pExpr[i].base.flist.numOfFilters;
+    pCols[i].flist.filterInfo = calloc(pCols[i].flist.numOfFilters, sizeof(SColumnFilterInfo));
+    memcpy(pCols[i].flist.filterInfo, pExpr[i].base.flist.filterInfo, pCols[i].flist.numOfFilters * sizeof(SColumnFilterInfo));
+  }
+
+  assert(numOfFilter > 0);
+
+  *numOfFilterCols = numOfFilter;
+  return pCols;
+}
+
 SOperatorInfo* createFilterOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorInfo* upstream, SExprInfo* pExpr,
-                                        int32_t numOfOutput) {
+                                        int32_t numOfOutput, SColumnInfo* pCols, int32_t numOfFilter) {
   SFilterOperatorInfo* pInfo = calloc(1, sizeof(SFilterOperatorInfo));
 
-  {
-    SColumnInfo* pCols = calloc(numOfOutput, sizeof(SColumnInfo));
-
-    int32_t numOfFilter = 0;
-    for(int32_t i = 0; i < numOfOutput; ++i) {
-      if (pExpr[i].base.flist.numOfFilters > 0) {
-        numOfFilter += 1;
-      }
-
-      pCols[i].type = pExpr[i].base.resType;
-      pCols[i].bytes = pExpr[i].base.resBytes;
-      pCols[i].colId = pExpr[i].base.resColId;
-
-      pCols[i].flist.numOfFilters = pExpr[i].base.flist.numOfFilters;
-      pCols[i].flist.filterInfo = calloc(pCols[i].flist.numOfFilters, sizeof(SColumnFilterInfo));
-      memcpy(pCols[i].flist.filterInfo, pExpr[i].base.flist.filterInfo, pCols[i].flist.numOfFilters * sizeof(SColumnFilterInfo));
-    }
-
-    assert(numOfFilter > 0);
-    doCreateFilterInfo(pCols, numOfOutput, numOfFilter, &pInfo->pFilterInfo, 0);
-    pInfo->numOfFilterCols = numOfFilter;
-
-    for(int32_t i = 0; i < numOfOutput; ++i) {
-      tfree(pCols[i].flist.filterInfo);
-    }
-
-    tfree(pCols);
-  }
+  assert(numOfFilter > 0 && pCols != NULL);
+  doCreateFilterInfo(pCols, numOfOutput, numOfFilter, &pInfo->pFilterInfo, 0);
+  pInfo->numOfFilterCols = numOfFilter;
 
   SOperatorInfo* pOperator = calloc(1, sizeof(SOperatorInfo));
 
@@ -7097,6 +7111,20 @@ void* destroyQueryFuncExpr(SExprInfo* pExprInfo, int32_t numOfExpr) {
   return NULL;
 }
 
+void* freeColumnInfo(SColumnInfo* pColumnInfo, int32_t numOfCols) {
+  if (pColumnInfo != NULL) {
+    assert(numOfCols > 0);
+
+    for (int32_t i = 0; i < numOfCols; i++) {
+      freeColumnFilterInfo(pColumnInfo[i].flist.filterInfo, pColumnInfo[i].flist.numOfFilters);
+    }
+
+    tfree(pColumnInfo);
+  }
+
+  return NULL;
+}
+
 void freeQInfo(SQInfo *pQInfo) {
   if (!isValidQInfo(pQInfo)) {
     return;
@@ -7281,13 +7309,7 @@ void freeQueryAttr(SQueryAttr* pQueryAttr) {
     tfree(pQueryAttr->tagColList);
     tfree(pQueryAttr->pFilterInfo);
 
-    if (pQueryAttr->tableCols != NULL) {
-      for (int32_t i = 0; i < pQueryAttr->numOfCols; i++) {
-        SColumnInfo* column = pQueryAttr->tableCols + i;
-        freeColumnFilterInfo(column->flist.filterInfo, column->flist.numOfFilters);
-      }
-      tfree(pQueryAttr->tableCols);
-    }
+    pQueryAttr->tableCols = freeColumnInfo(pQueryAttr->tableCols, pQueryAttr->numOfCols);
 
     if (pQueryAttr->pGroupbyExpr != NULL) {
       taosArrayDestroy(pQueryAttr->pGroupbyExpr->columnInfo);
