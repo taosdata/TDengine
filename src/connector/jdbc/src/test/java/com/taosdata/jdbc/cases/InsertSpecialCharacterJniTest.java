@@ -345,6 +345,31 @@ public class InsertSpecialCharacterJniTest {
         }
     }
 
+    @Test
+    public void testCase12() throws SQLException {
+        final long now = System.currentTimeMillis();
+        // insert
+        final String sql = "insert into " + tbname1 + "(ts, f1, f2) values(?, 'HelloTDengine', ?)  ; ";
+        try (PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            pstmt.setTimestamp(1, new Timestamp(now));
+            pstmt.setString(2, special_character_str_4);
+            int ret = pstmt.executeUpdate();
+            Assert.assertEquals(1, ret);
+        }
+        // query
+        final String query = "select * from " + tbname1;
+        try (Statement stmt = conn.createStatement()) {
+            ResultSet rs = stmt.executeQuery(query);
+            rs.next();
+            long timestamp = rs.getTimestamp(1).getTime();
+            Assert.assertEquals(now, timestamp);
+            String f1 = new String(rs.getBytes(2));
+            Assert.assertEquals("HelloTDengine", f1);
+            String f2 = rs.getString(3);
+            Assert.assertEquals(special_character_str_4, f2);
+        }
+    }
+
     @Before
     public void before() throws SQLException {
         try (Statement stmt = conn.createStatement()) {

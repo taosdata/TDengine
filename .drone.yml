@@ -11,7 +11,7 @@ steps:
   image: gcc
   commands:
   - apt-get update
-  - apt-get install -y cmake build-essential git
+  - apt-get install -y cmake build-essential
   - mkdir debug
   - cd debug
   - cmake .. 
@@ -82,7 +82,7 @@ platform:
 
 steps:
 - name: build
-  image: gcc
+  image: arm32v7/ubuntu:bionic
   commands:
   - apt-get update
   - apt-get install -y cmake build-essential
