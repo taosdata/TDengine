@@ -15,7 +15,8 @@
 
 #include "tsdbint.h"
 
-extern uint16_t tsTsdbCheckMode;
+// check and restore mode when open vnode
+uint16_t tsTsdbCheckMode = TSDB_CHECK_MODE_DEFAULT;
 
 #define TSDB_FNAME_PREFIX_TMP "t."
 
@@ -214,13 +215,15 @@ static int tsdbRecoverManager(SRecoverH *pRecoverH) {
       return -1;
     }
   }
-
+  // TODO: update the condition when importing other check mode.
+  ASSERT(tsTsdbCheckMode == TSDB_CHECK_MODE_CHKSUM_IF_NO_CURRENT);
   // process
   switch (tsTsdbCheckMode) {
     case TSDB_CHECK_MODE_CHKSUM_IF_NO_CURRENT: {
       result = tsdbCheckDFileChksum(pRecoverH);
       break;
     }
+    // TODO other check mode
     default:
       break;
   }
