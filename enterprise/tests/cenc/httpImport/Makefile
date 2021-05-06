@@ -1,6 +1,6 @@
 CFLAGS += -g -Wall# -DHTTP_IMPORT_DEBUG
 INCOPTS = -I/usr/include -I/usr/local/include -I.
-LIBOPTS = -L/usr/local/lib -lmseed -ltaos -lcurl
+LIBOPTS = -L/usr/local/lib -lmseed -ltaos -lcurl -lpthread
 
 SRCS = base64.c httpImport.c
 OBJS = $(SRCS:.c=.o)
