@@ -2444,7 +2444,7 @@ int32_t tscGetTableMeta(SSqlObj *pSql, STableMetaInfo *pTableMetaInfo) {
 
   uint32_t size = tscGetTableMetaMaxSize();
    
-  if (pTableMetaInfo->pTableMeta) {
+  if (pTableMetaInfo->pTableMeta == NULL) {
     pTableMetaInfo->pTableMeta = calloc(1, size);
   } else if (pTableMetaInfo->tableMetaSize < size) {
     char *tmp = realloc(pTableMetaInfo->pTableMeta, size); 
