@@ -423,7 +423,9 @@ retry:
         }
 #endif
 
-        fprintf(stdout, "%ld packet(s) transfered\r\n", packets);
+        if (packets % 50000 == 0) {
+            fprintf(stdout, "%ld packet(s) transfered\r\n", packets);
+        }
     }
 
     end = time(NULL);
@@ -1050,7 +1052,7 @@ void *seed_write_routine(void *arg)
         if (p->buffer.pos == p->buffer.last) {
             //fprintf(stderr, "thread(%d): buffer(%d) was empty\r\n", p->index + 1, p->index);
             //pthread_mutex_unlock(&p->buffer.mutex);
-            usleep(500);
+            usleep(10);
             continue;
         }
 

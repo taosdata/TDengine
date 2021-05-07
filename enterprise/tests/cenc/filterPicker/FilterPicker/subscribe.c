@@ -23,7 +23,7 @@
 
 int nTotalRows = 0;
 time_t nTotalTime = 0;
-int nTotalSamples = 0;
+int64_t nTotalSamples = 0;
 
 
 pthread_mutex_t  mutex;
@@ -36,10 +36,14 @@ int              run       = 1;
 int              async     = 0;
 int              restart   = 0;
 int              keep      = 1;
-const char      *host      = "localhost";
-const char      *user      = "root";
-const char      *passwd    = "taosdata";
-const char      *port      = "6030";
+const char      *src_host  = "localhost";
+const char      *dst_host  = "localhost";
+const char      *src_user  = "root";
+const char      *dst_user  = "root";
+const char      *src_passwd= "taosdata";
+const char      *dst_passwd= "taosdata";
+const char      *src_port  = "6030";
+const char      *dst_port  = "6030";
 const char      *topic     = "packet";
 const char      *fpicker   = "fpicker";
 const char      *stb_name  = "ms";
@@ -638,7 +642,7 @@ void *subscribe_routine(void *arg)
   // init TAOS
   taos_init();
 
-  pps->taos = taos_connect(host, user, passwd, "", 0);
+  pps->taos = taos_connect(src_host, src_user, src_passwd, "", (int) strtol(src_port, NULL, 10));
   if (pps->taos == NULL) {
     fprintf(stderr, "sub(%d): failed to connect to db\r\n", index);
     goto failed;
@@ -660,7 +664,7 @@ void *subscribe_routine(void *arg)
     goto failed;
   }
 
-  pps->res_taos = taos_connect(host, user, passwd, "", 0);
+  pps->res_taos = taos_connect(dst_host, dst_user, dst_passwd, "", (int) strtol(dst_port, NULL, 10));
   if (pps->res_taos == NULL) {
     fprintf(stderr, "sub(%d): failed to connect to result database\r\n", index);
     goto failed;
@@ -676,7 +680,7 @@ void *subscribe_routine(void *arg)
   cmd[np] = '\0';
 
   pthread_mutex_lock(&mutex);
-  res = taos_query(pps->taos, cmd);
+  res = taos_query(pps->res_taos, cmd);
   pthread_mutex_unlock(&mutex);
   if (check_and_free_res(&res, cmd) != 0) {
     goto failed;
@@ -791,22 +795,43 @@ int main(int argc, char *argv[])
 
   for (i = 1; i < argc; i++) {
     if (strncmp(argv[i], "-h=", 3) == 0) {
-      host = argv[i] + 3;
+      src_host = argv[i] + 3;
+      continue;
+    }
+
+    if (strncmp(argv[i], "-H=", 3) == 0) {
+      dst_host = argv[i] + 3;
       continue;
     }
 
     if (strncmp(argv[i], "-u=", 3) == 0) {
-      user = argv[i] + 3;
+      src_user = argv[i] + 3;
+      continue;
+    }
+
+    if (strncmp(argv[i], "-U=", 3) == 0) {
+      dst_user = argv[i] + 3;
       continue;
     }
 
     if (strncmp(argv[i], "-p=", 3) == 0) {
-      passwd = argv[i] + 3;
+      src_passwd = argv[i] + 3;
       continue;
     }
 
     if (strncmp(argv[i], "-P=", 3) == 0) {
-      port = argv[i] + 3;
+      dst_passwd = argv[i] + 3;
+      continue;
+    }
+
+
+    if (strncmp(argv[i], "-S=", 3) == 0) {
+      src_port = argv[i] + 3;
+      continue;
+    }
+
+    if (strncmp(argv[i], "-D=", 3) == 0) {
+      dst_port = argv[i] + 3;
       continue;
     }
 
@@ -832,8 +857,8 @@ int main(int argc, char *argv[])
 
     if (strcmp(argv[i], "-help") == 0) {
       fprintf(stderr,
-              "Usage: %s [-h=host -u=user -p=password -P=port "
-              "-t=topic -f=result_db_name -s=result_stb_name "
+              "Usage: %s [-h=src_host -u=src_user -p=src_password -H=dst_host -U=dst_user "
+	      "-P=dst_password -S=src_port -D=dst_port -t=topic -f=result_db_name -s=result_stb_name "
               "-c=channel -async -restart -nokeep -help]\r\n", argv[0]);
 
       exit(0);
@@ -869,9 +894,12 @@ int main(int argc, char *argv[])
   }
 
   fprintf(stdout, "################################################################\r\n");
-  fprintf(stdout, "# Server:                          %s\r\n", host);
-  fprintf(stdout, "# User:                            %s\r\n", user);
-  fprintf(stdout, "# Port:                            %s\r\n", port);
+  fprintf(stdout, "# Src Server:                      %s\r\n", src_host);
+  fprintf(stdout, "# Src User:                        %s\r\n", src_user);
+  fprintf(stdout, "# Dst Server:                      %s\r\n", dst_host);
+  fprintf(stdout, "# Dst User:                        %s\r\n", dst_user);
+  fprintf(stdout, "# Src Port:                        %s\r\n", src_port);
+  fprintf(stdout, "# Dst Port:                        %s\r\n", dst_port);
   fprintf(stdout, "# Topic:                           %s\r\n", topic);
   fprintf(stdout, "# Result Database Name:            %s\r\n", fpicker);
   fprintf(stdout, "# Result Super Table Name:         %s\r\n", stb_name);
@@ -915,7 +943,7 @@ int main(int argc, char *argv[])
     subscribe_routine_finalize(&pp[i]);
   }
 
-  fprintf(stdout, "total samples consumed: %d\r\n", nTotalSamples);
+  fprintf(stdout, "total samples consumed: %ld\r\n", nTotalSamples);
   fprintf(stdout, "total rows consumed: %d\r\n", nTotalRows);
   fprintf(stdout, "total time consumed: %ld\r\n", nTotalTime / TQ_CHAN_NUM);
 
