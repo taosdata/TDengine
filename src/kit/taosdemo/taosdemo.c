@@ -81,7 +81,7 @@ enum QUERY_MODE {
 #define MAX_DB_NAME_SIZE   64
 #define MAX_HOSTNAME_SIZE  64
 #define MAX_TB_NAME_SIZE   64
-#define MAX_DATA_SIZE      (16*1024)
+#define MAX_DATA_SIZE      (16*1024)+20     // max record len: 16*1024, timestamp string and ,('') need extra space
 #define MAX_NUM_DATATYPE   10
 #define OPT_ABORT          1 /* –abort */
 #define STRING_LEN         60000
@@ -188,7 +188,7 @@ typedef struct {
 /* Used by main to communicate with parse_opt. */
 typedef struct SArguments_S {
   char *   metaFile;
-  int      test_mode;
+  uint32_t test_mode;
   char *   host;
   uint16_t port;
   char *   user;
@@ -205,31 +205,31 @@ typedef struct SArguments_S {
   bool     verbose_print;
   bool     performance_print;
   char *   output_file;
-  int      query_mode;
+  uint32_t query_mode;
   char *   datatype[MAX_NUM_DATATYPE + 1];
-  int      len_of_binary;
-  int      num_of_CPR;
-  int      num_of_threads;
-  int64_t  insert_interval;
+  uint32_t len_of_binary;
+  uint32_t num_of_CPR;
+  uint32_t num_of_threads;
+  uint64_t insert_interval;
   int64_t  query_times;
-  int64_t  interlace_rows;
-  int64_t  num_of_RPR;                  // num_of_records_per_req
-  int64_t  max_sql_len;
-  int64_t  num_of_tables;
-  int64_t  num_of_DPT;
+  uint64_t interlace_rows;
+  uint64_t num_of_RPR;                  // num_of_records_per_req
+  uint64_t max_sql_len;
+  uint64_t num_of_tables;
+  uint64_t num_of_DPT;
   int      abort;
   int      disorderRatio;               // 0: no disorder, >0: x%
   int      disorderRange;               // ms or us by database precision
-  int      method_of_delete;
+  uint32_t method_of_delete;
   char **  arg_list;
-  int64_t  totalInsertRows;
-  int64_t  totalAffectedRows;
+  uint64_t totalInsertRows;
+  uint64_t totalAffectedRows;
 } SArguments;
 
 typedef struct SColumn_S {
-  char  field[TSDB_COL_NAME_LEN + 1];
-  char  dataType[MAX_TB_NAME_SIZE];
-  int   dataLen;
+  char      field[TSDB_COL_NAME_LEN + 1];
+  char      dataType[MAX_TB_NAME_SIZE];
+  uint32_t  dataLen;
   char  note[128];
 } StrColumn;
 
@@ -237,50 +237,50 @@ typedef struct SSuperTable_S {
   char         sTblName[MAX_TB_NAME_SIZE+1];
   int64_t      childTblCount;
   bool         childTblExists;          // 0: no, 1: yes
-  int64_t      batchCreateTableNum;     // 0: no batch,  > 0: batch table number in one sql
-  int8_t       autoCreateTable;         // 0: create sub table, 1: auto create sub table
+  uint64_t     batchCreateTableNum;     // 0: no batch,  > 0: batch table number in one sql
+  uint8_t      autoCreateTable;         // 0: create sub table, 1: auto create sub table
   char         childTblPrefix[MAX_TB_NAME_SIZE];
   char         dataSource[MAX_TB_NAME_SIZE+1];  // rand_gen or sample
   char         insertMode[MAX_TB_NAME_SIZE];    // taosc, rest
   int64_t      childTblLimit;
-  int64_t      childTblOffset;
+  uint64_t      childTblOffset;
 
 //  int          multiThreadWriteOneTbl;  // 0: no, 1: yes
-  int64_t      interlaceRows;           //
+  uint64_t     interlaceRows;           //
   int          disorderRatio;           // 0: no disorder, >0: x%
   int          disorderRange;           // ms or us by database precision
-  int64_t      maxSqlLen;               //
+  uint64_t     maxSqlLen;               //
 
-  int64_t      insertInterval;          // insert interval, will override global insert interval
-  int64_t      insertRows;
+  uint64_t     insertInterval;          // insert interval, will override global insert interval
+  uint64_t     insertRows;
   int64_t      timeStampStep;
   char         startTimestamp[MAX_TB_NAME_SIZE];
   char         sampleFormat[MAX_TB_NAME_SIZE];  // csv, json
   char         sampleFile[MAX_FILE_NAME_LEN+1];
   char         tagsFile[MAX_FILE_NAME_LEN+1];
 
-  int          columnCount;
+  uint32_t     columnCount;
   StrColumn    columns[MAX_COLUMN_COUNT];
-  int          tagCount;
+  uint32_t          tagCount;
   StrColumn    tags[MAX_TAG_COUNT];
 
   char*        childTblName;
   char*        colsOfCreateChildTable;
-  int64_t      lenOfOneRow;
-  int64_t      lenOfTagOfOneRow;
+  uint64_t     lenOfOneRow;
+  uint64_t     lenOfTagOfOneRow;
 
   char*        sampleDataBuf;
   //int          sampleRowCount;
   //int          sampleUsePos;
 
-  int          tagSource;    // 0: rand, 1: tag sample
+  uint32_t     tagSource;    // 0: rand, 1: tag sample
   char*        tagDataBuf;
-  int          tagSampleCount;
-  int          tagUsePos;
+  uint32_t     tagSampleCount;
+  uint32_t     tagUsePos;
 
   // statistics
-  int64_t       totalInsertRows;
-  int64_t       totalAffectedRows;
+  uint64_t     totalInsertRows;
+  uint64_t     totalAffectedRows;
 } SSuperTable;
 
 typedef struct {
@@ -307,8 +307,8 @@ typedef struct {
 
 typedef struct SDbCfg_S {
 //  int       maxtablesPerVnode;
-  int       minRows;
-  int       maxRows;
+  uint32_t  minRows;        // 0 means default
+  uint32_t  maxRows;        // 0 means default
   int       comp;
   int       walLevel;
   int       cacheLast;
@@ -327,7 +327,7 @@ typedef struct SDataBase_S {
   char         dbName[MAX_DB_NAME_SIZE];
   bool         drop;  // 0: use exists, 1: if exists, drop then new create
   SDbCfg       dbCfg;
-  int64_t      superTblCount;
+  uint64_t     superTblCount;
   SSuperTable  superTbls[MAX_SUPER_TABLE_COUNT];
 } SDataBase;
 
@@ -345,57 +345,57 @@ typedef struct SDbs_S {
   bool         do_aggreFunc;
   bool         queryMode;
 
-  int          threadCount;
-  int          threadCountByCreateTbl;
-  int          dbCount;
+  uint32_t     threadCount;
+  uint32_t     threadCountByCreateTbl;
+  uint32_t     dbCount;
   SDataBase    db[MAX_DB_COUNT];
 
   // statistics
-  int64_t       totalInsertRows;
-  int64_t       totalAffectedRows;
+  uint64_t     totalInsertRows;
+  uint64_t     totalAffectedRows;
 
 } SDbs;
 
 typedef struct SpecifiedQueryInfo_S {
-  int64_t      queryInterval;  // 0: unlimit  > 0   loop/s
-  int64_t      concurrent;
-  int64_t      sqlCount;
-  int          mode; // 0: sync, 1: async
-  int64_t      subscribeInterval; // ms
-  int64_t      queryTimes;
+  uint64_t     queryInterval;  // 0: unlimit  > 0   loop/s
+  uint64_t     concurrent;
+  uint64_t     sqlCount;
+  uint32_t     mode; // 0: sync, 1: async
+  uint64_t     subscribeInterval; // ms
+  uint64_t     queryTimes;
   int          subscribeRestart;
   int          subscribeKeepProgress;
   char         sql[MAX_QUERY_SQL_COUNT][MAX_QUERY_SQL_LENGTH+1];
   char         result[MAX_QUERY_SQL_COUNT][MAX_FILE_NAME_LEN+1];
   TAOS_SUB*    tsub[MAX_QUERY_SQL_COUNT];
-  int64_t      totalQueried;
+  uint64_t     totalQueried;
 } SpecifiedQueryInfo;
 
 typedef struct SuperQueryInfo_S {
   char         sTblName[MAX_TB_NAME_SIZE+1];
-  int64_t      queryInterval;  // 0: unlimit  > 0   loop/s
-  int          threadCnt;
-  int          mode; // 0: sync, 1: async
-  int64_t      subscribeInterval; // ms
+  uint64_t     queryInterval;  // 0: unlimit  > 0   loop/s
+  uint32_t     threadCnt;
+  uint32_t     mode; // 0: sync, 1: async
+  uint64_t     subscribeInterval; // ms
   int          subscribeRestart;
   int          subscribeKeepProgress;
-  int64_t      queryTimes;
-  int64_t      childTblCount;
+  uint64_t     queryTimes;
+  uint64_t     childTblCount;
   char         childTblPrefix[MAX_TB_NAME_SIZE];
-  int64_t      sqlCount;
+  uint64_t     sqlCount;
   char         sql[MAX_QUERY_SQL_COUNT][MAX_QUERY_SQL_LENGTH+1];
   char         result[MAX_QUERY_SQL_COUNT][MAX_FILE_NAME_LEN+1];
   TAOS_SUB*    tsub[MAX_QUERY_SQL_COUNT];
 
   char*        childTblName;
-  int64_t      totalQueried;
+  uint64_t     totalQueried;
 } SuperQueryInfo;
 
 typedef struct SQueryMetaInfo_S {
   char         cfgDir[MAX_FILE_NAME_LEN+1];
   char         host[MAX_HOSTNAME_SIZE];
   uint16_t     port;
-  struct sockaddr_in serv_addr;
+  struct       sockaddr_in serv_addr;
   char         user[MAX_USERNAME_SIZE];
   char         password[MAX_PASSWORD_SIZE];
   char         dbName[MAX_DB_NAME_SIZE+1];
@@ -403,47 +403,47 @@ typedef struct SQueryMetaInfo_S {
 
   SpecifiedQueryInfo  specifiedQueryInfo;
   SuperQueryInfo    superQueryInfo;
-  int64_t      totalQueried;
+  uint64_t     totalQueried;
 } SQueryMetaInfo;
 
 typedef struct SThreadInfo_S {
-  TAOS *taos;
-  int threadID;
-  char db_name[MAX_DB_NAME_SIZE+1];
-  uint32_t time_precision;
-  char fp[4096];
-  char tb_prefix[MAX_TB_NAME_SIZE];
-  int64_t start_table_from;
-  int64_t end_table_to;
-  int64_t ntables;
-  int64_t data_of_rate;
-  int64_t start_time;
-  char* cols;
-  bool  use_metric;
+  TAOS *    taos;
+  int       threadID;
+  char      db_name[MAX_DB_NAME_SIZE+1];
+  uint32_t  time_precision;
+  char      fp[4096];
+  char      tb_prefix[MAX_TB_NAME_SIZE];
+  uint64_t  start_table_from;
+  uint64_t  end_table_to;
+  uint64_t  ntables;
+  uint64_t  data_of_rate;
+  int64_t   start_time;
+  char*     cols;
+  bool      use_metric;
   SSuperTable* superTblInfo;
 
   // for async insert
-  tsem_t lock_sem;
-  int64_t  counter;
+  tsem_t    lock_sem;
+  int64_t   counter;
   uint64_t  st;
   uint64_t  et;
-  int64_t  lastTs;
+  uint64_t  lastTs;
 
   // sample data
-  int64_t samplePos;
+  int64_t   samplePos;
   // statistics
-  int64_t totalInsertRows;
-  int64_t totalAffectedRows;
+  uint64_t  totalInsertRows;
+  uint64_t  totalAffectedRows;
 
   // insert delay statistics
-  int64_t cntDelay;
-  int64_t totalDelay;
-  int64_t avgDelay;
-  int64_t maxDelay;
-  int64_t minDelay;
+  uint64_t  cntDelay;
+  uint64_t  totalDelay;
+  uint64_t  avgDelay;
+  uint64_t  maxDelay;
+  uint64_t  minDelay;
 
   // query
-  int64_t querySeq;   // sequence number of sql command
+  uint64_t  querySeq;   // sequence number of sql command
 } threadInfo;
 
 #ifdef WINDOWS
@@ -569,7 +569,7 @@ SArguments g_args = {
                      1,               // query_times
                      0,               // interlace_rows;
                      30000,           // num_of_RPR
-                     1024000,         // max_sql_len
+                     (1024*1024),         // max_sql_len
                      10000,           // num_of_tables
                      10000,           // num_of_DPT
                      0,               // abort
@@ -666,11 +666,11 @@ static void printHelp() {
   printf("%s%s%s%s\n", indent, "-q", indent,
           "Query mode -- 0: SYNC, 1: ASYNC. Default is SYNC.");
   printf("%s%s%s%s\n", indent, "-b", indent,
-          "The data_type of columns, default: TINYINT,SMALLINT,INT,BIGINT,FLOAT,DOUBLE,BINARY,NCHAR,BOOL,TIMESTAMP.");
+          "The data_type of columns, default: INT,INT,INT,INT.");
   printf("%s%s%s%s\n", indent, "-w", indent,
           "The length of data_type 'BINARY' or 'NCHAR'. Default is 16");
   printf("%s%s%s%s\n", indent, "-l", indent,
-          "The number of columns per record. Default is 10.");
+          "The number of columns per record. Default is 4.");
   printf("%s%s%s%s\n", indent, "-T", indent,
           "The number of threads. Default is 10.");
   printf("%s%s%s%s\n", indent, "-i", indent,
@@ -725,7 +725,7 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
         errorPrint("%s", "\n\t-c need a valid path following!\n");
         exit(EXIT_FAILURE);
       }
-      tstrncpy(configDir, argv[++i], MAX_FILE_NAME_LEN);
+      tstrncpy(configDir, argv[++i], TSDB_FILENAME_LEN);
 
     } else if (strcmp(argv[i], "-h") == 0) {
       if (argc == i+1) {
@@ -967,9 +967,9 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
       }
     } else if (strcmp(argv[i], "-D") == 0) {
       arguments->method_of_delete = atoi(argv[++i]);
-      if (arguments->method_of_delete < 0
-              || arguments->method_of_delete > 3) {
-        arguments->method_of_delete = 0;
+      if (arguments->method_of_delete > 3) {
+        errorPrint("%s", "\n\t-D need a valud (0~3) number following!\n");
+        exit(EXIT_FAILURE);
       }
     } else if ((strcmp(argv[i], "--version") == 0) ||
         (strcmp(argv[i], "-V") == 0)){
@@ -1004,17 +1004,17 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
                 break;
         printf("\n");
     }
-    printf("# Insertion interval:                %"PRId64"\n",
+    printf("# Insertion interval:                %"PRIu64"\n",
             arguments->insert_interval);
-    printf("# Number of records per req:         %"PRId64"\n",
+    printf("# Number of records per req:         %"PRIu64"\n",
             arguments->num_of_RPR);
-    printf("# Max SQL length:                    %"PRId64"\n",
+    printf("# Max SQL length:                    %"PRIu64"\n",
             arguments->max_sql_len);
     printf("# Length of Binary:                  %d\n", arguments->len_of_binary);
     printf("# Number of Threads:                 %d\n", arguments->num_of_threads);
-    printf("# Number of Tables:                  %"PRId64"\n",
+    printf("# Number of Tables:                  %"PRIu64"\n",
             arguments->num_of_tables);
-    printf("# Number of Data per Table:          %"PRId64"\n",
+    printf("# Number of Data per Table:          %"PRIu64"\n",
             arguments->num_of_DPT);
     printf("# Database name:                     %s\n", arguments->database);
     printf("# Table prefix:                      %s\n", arguments->tb_prefix);
@@ -1191,13 +1191,31 @@ static float rand_float(){
   return randfloat[cursor];
 }
 
+#if 0
+static const char charNum[] = "0123456789";
+
+static void nonrand_string(char *, int) __attribute__ ((unused));   // reserve for debugging purpose
+static void nonrand_string(char *str, int size)
+{
+  str[0] = 0;
+  if (size > 0) {
+    int n;
+    for (n = 0; n < size; n++) {
+      str[n] = charNum[n % 10];
+    }
+    str[n] = 0;
+  }
+}
+#endif
+
 static const char charset[] = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890";
+
 static void rand_string(char *str, int size) {
   str[0] = 0;
   if (size > 0) {
     //--size;
     int n;
-    for (n = 0; n < size - 1; n++) {
+    for (n = 0; n < size; n++) {
       int key = abs(rand_tinyint()) % (int)(sizeof(charset) - 1);
       str[n] = charset[key];
     }
@@ -1252,11 +1270,11 @@ static int printfInsertMeta() {
   printf("resultFile:                 \033[33m%s\033[0m\n", g_Dbs.resultFile);
   printf("thread num of insert data:  \033[33m%d\033[0m\n", g_Dbs.threadCount);
   printf("thread num of create table: \033[33m%d\033[0m\n", g_Dbs.threadCountByCreateTbl);
-  printf("top insert interval:        \033[33m%"PRId64"\033[0m\n",
+  printf("top insert interval:        \033[33m%"PRIu64"\033[0m\n",
           g_args.insert_interval);
-  printf("number of records per req:  \033[33m%"PRId64"\033[0m\n",
+  printf("number of records per req:  \033[33m%"PRIu64"\033[0m\n",
           g_args.num_of_RPR);
-  printf("max sql length:             \033[33m%"PRId64"\033[0m\n",
+  printf("max sql length:             \033[33m%"PRIu64"\033[0m\n",
           g_args.max_sql_len);
 
   printf("database count:             \033[33m%d\033[0m\n", g_Dbs.dbCount);
@@ -1318,10 +1336,10 @@ static int printfInsertMeta() {
       }
     }
 
-    printf("  super table count:     \033[33m%"PRId64"\033[0m\n",
+    printf("  super table count:     \033[33m%"PRIu64"\033[0m\n",
         g_Dbs.db[i].superTblCount);
-    for (int64_t j = 0; j < g_Dbs.db[i].superTblCount; j++) {
-      printf("  super table[\033[33m%"PRId64"\033[0m]:\n", j);
+    for (uint64_t j = 0; j < g_Dbs.db[i].superTblCount; j++) {
+      printf("  super table[\033[33m%"PRIu64"\033[0m]:\n", j);
 
       printf("      stbName:           \033[33m%s\033[0m\n",
           g_Dbs.db[i].superTbls[j].sTblName);
@@ -1342,7 +1360,7 @@ static int printfInsertMeta() {
         printf("      childTblExists:    \033[33m%s\033[0m\n",  "error");
       }
 
-      printf("      childTblCount:     \033[33m%"PRId64"\033[0m\n",
+      printf("      childTblCount:     \033[33m%"PRIu64"\033[0m\n",
               g_Dbs.db[i].superTbls[j].childTblCount);
       printf("      childTblPrefix:    \033[33m%s\033[0m\n",
               g_Dbs.db[i].superTbls[j].childTblPrefix);
@@ -1354,11 +1372,11 @@ static int printfInsertMeta() {
         printf("      childTblLimit:     \033[33m%"PRId64"\033[0m\n",
                 g_Dbs.db[i].superTbls[j].childTblLimit);
       }
-      if (g_Dbs.db[i].superTbls[j].childTblOffset >= 0) {
-        printf("      childTblOffset:    \033[33m%"PRId64"\033[0m\n",
+      if (g_Dbs.db[i].superTbls[j].childTblOffset > 0) {
+        printf("      childTblOffset:    \033[33m%"PRIu64"\033[0m\n",
                 g_Dbs.db[i].superTbls[j].childTblOffset);
       }
-      printf("      insertRows:        \033[33m%"PRId64"\033[0m\n",
+      printf("      insertRows:        \033[33m%"PRIu64"\033[0m\n",
               g_Dbs.db[i].superTbls[j].insertRows);
 /*
       if (0 == g_Dbs.db[i].superTbls[j].multiThreadWriteOneTbl) {
@@ -1367,11 +1385,11 @@ static int printfInsertMeta() {
         printf("      multiThreadWriteOneTbl:  \033[33myes\033[0m\n");
       }
       */
-      printf("      interlaceRows:     \033[33m%"PRId64"\033[0m\n",
+      printf("      interlaceRows:     \033[33m%"PRIu64"\033[0m\n",
               g_Dbs.db[i].superTbls[j].interlaceRows);
 
       if (g_Dbs.db[i].superTbls[j].interlaceRows > 0) {
-        printf("      stable insert interval:   \033[33m%"PRId64"\033[0m\n",
+        printf("      stable insert interval:   \033[33m%"PRIu64"\033[0m\n",
             g_Dbs.db[i].superTbls[j].insertInterval);
       }
 
@@ -1379,7 +1397,7 @@ static int printfInsertMeta() {
               g_Dbs.db[i].superTbls[j].disorderRange);
       printf("      disorderRatio:     \033[33m%d\033[0m\n",
               g_Dbs.db[i].superTbls[j].disorderRatio);
-      printf("      maxSqlLen:         \033[33m%"PRId64"\033[0m\n",
+      printf("      maxSqlLen:         \033[33m%"PRIu64"\033[0m\n",
               g_Dbs.db[i].superTbls[j].maxSqlLen);
       printf("      timeStampStep:     \033[33m%"PRId64"\033[0m\n",
               g_Dbs.db[i].superTbls[j].timeStampStep);
@@ -1445,8 +1463,8 @@ static void printfInsertMetaToFile(FILE* fp) {
   fprintf(fp, "resultFile:                 %s\n", g_Dbs.resultFile);
   fprintf(fp, "thread num of insert data:  %d\n", g_Dbs.threadCount);
   fprintf(fp, "thread num of create table: %d\n", g_Dbs.threadCountByCreateTbl);
-  fprintf(fp, "number of records per req:  %"PRId64"\n", g_args.num_of_RPR);
-  fprintf(fp, "max sql length:             %"PRId64"\n", g_args.max_sql_len);
+  fprintf(fp, "number of records per req:  %"PRIu64"\n", g_args.num_of_RPR);
+  fprintf(fp, "max sql length:             %"PRIu64"\n", g_args.max_sql_len);
   fprintf(fp, "database count:          %d\n", g_Dbs.dbCount);
 
   for (int i = 0; i < g_Dbs.dbCount; i++) {
@@ -1503,7 +1521,7 @@ static void printfInsertMetaToFile(FILE* fp) {
       }
     }
 
-    fprintf(fp, "  super table count:     %"PRId64"\n", g_Dbs.db[i].superTblCount);
+    fprintf(fp, "  super table count:     %"PRIu64"\n", g_Dbs.db[i].superTblCount);
     for (int j = 0; j < g_Dbs.db[i].superTblCount; j++) {
       fprintf(fp, "  super table[%d]:\n", j);
 
@@ -1525,7 +1543,7 @@ static void printfInsertMetaToFile(FILE* fp) {
         fprintf(fp, "      childTblExists:    %s\n",  "error");
       }
 
-      fprintf(fp, "      childTblCount:     %"PRId64"\n",
+      fprintf(fp, "      childTblCount:     %"PRIu64"\n",
               g_Dbs.db[i].superTbls[j].childTblCount);
       fprintf(fp, "      childTblPrefix:    %s\n",
               g_Dbs.db[i].superTbls[j].childTblPrefix);
@@ -1533,12 +1551,12 @@ static void printfInsertMetaToFile(FILE* fp) {
               g_Dbs.db[i].superTbls[j].dataSource);
       fprintf(fp, "      insertMode:        %s\n",
               g_Dbs.db[i].superTbls[j].insertMode);
-      fprintf(fp, "      insertRows:        %"PRId64"\n",
+      fprintf(fp, "      insertRows:        %"PRIu64"\n",
               g_Dbs.db[i].superTbls[j].insertRows);
-      fprintf(fp, "      interlace rows:    %"PRId64"\n",
+      fprintf(fp, "      interlace rows:    %"PRIu64"\n",
               g_Dbs.db[i].superTbls[j].interlaceRows);
       if (g_Dbs.db[i].superTbls[j].interlaceRows > 0) {
-        fprintf(fp, "      stable insert interval:   %"PRId64"\n",
+        fprintf(fp, "      stable insert interval:   %"PRIu64"\n",
                 g_Dbs.db[i].superTbls[j].insertInterval);
       }
 /*
@@ -1548,11 +1566,11 @@ static void printfInsertMetaToFile(FILE* fp) {
         fprintf(fp, "      multiThreadWriteOneTbl:  yes\n");
       }
       */
-      fprintf(fp, "      interlaceRows:     %"PRId64"\n",
+      fprintf(fp, "      interlaceRows:     %"PRIu64"\n",
               g_Dbs.db[i].superTbls[j].interlaceRows);
       fprintf(fp, "      disorderRange:     %d\n",  g_Dbs.db[i].superTbls[j].disorderRange);
       fprintf(fp, "      disorderRatio:     %d\n",  g_Dbs.db[i].superTbls[j].disorderRatio);
-      fprintf(fp, "      maxSqlLen:         %"PRId64"\n",
+      fprintf(fp, "      maxSqlLen:         %"PRIu64"\n",
               g_Dbs.db[i].superTbls[j].maxSqlLen);
 
       fprintf(fp, "      timeStampStep:     %"PRId64"\n",
@@ -1613,21 +1631,21 @@ static void printfQueryMeta() {
 
   printf("\n");
   printf("specified table query info:                   \n");
-  printf("query interval: \033[33m%"PRId64" ms\033[0m\n",
+  printf("query interval: \033[33m%"PRIu64" ms\033[0m\n",
       g_queryInfo.specifiedQueryInfo.queryInterval);
-  printf("top query times:\033[33m%"PRId64"\033[0m\n", g_args.query_times);
-  printf("concurrent:     \033[33m%"PRId64"\033[0m\n",
+  printf("top query times:\033[33m%"PRIu64"\033[0m\n", g_args.query_times);
+  printf("concurrent:     \033[33m%"PRIu64"\033[0m\n",
       g_queryInfo.specifiedQueryInfo.concurrent);
-  printf("sqlCount:       \033[33m%"PRId64"\033[0m\n",
+  printf("sqlCount:       \033[33m%"PRIu64"\033[0m\n",
       g_queryInfo.specifiedQueryInfo.sqlCount);
   printf("specified tbl query times:\n");
-  printf("                \033[33m%"PRId64"\033[0m\n",
+  printf("                \033[33m%"PRIu64"\033[0m\n",
       g_queryInfo.specifiedQueryInfo.queryTimes);
 
   if (SUBSCRIBE_TEST == g_args.test_mode) {
     printf("mod:            \033[33m%d\033[0m\n",
         g_queryInfo.specifiedQueryInfo.mode);
-    printf("interval:       \033[33m%"PRId64"\033[0m\n",
+    printf("interval:       \033[33m%"PRIu64"\033[0m\n",
         g_queryInfo.specifiedQueryInfo.subscribeInterval);
     printf("restart:        \033[33m%d\033[0m\n",
         g_queryInfo.specifiedQueryInfo.subscribeRestart);
@@ -1635,27 +1653,27 @@ static void printfQueryMeta() {
         g_queryInfo.specifiedQueryInfo.subscribeKeepProgress);
   }
 
-  for (int64_t i = 0; i < g_queryInfo.specifiedQueryInfo.sqlCount; i++) {
-    printf("  sql[%"PRId64"]: \033[33m%s\033[0m\n",
+  for (uint64_t i = 0; i < g_queryInfo.specifiedQueryInfo.sqlCount; i++) {
+    printf("  sql[%"PRIu64"]: \033[33m%s\033[0m\n",
         i, g_queryInfo.specifiedQueryInfo.sql[i]);
   }
   printf("\n");
   printf("super table query info:\n");
-  printf("query interval: \033[33m%"PRId64"\033[0m\n",
+  printf("query interval: \033[33m%"PRIu64"\033[0m\n",
       g_queryInfo.superQueryInfo.queryInterval);
   printf("threadCnt:      \033[33m%d\033[0m\n",
       g_queryInfo.superQueryInfo.threadCnt);
-  printf("childTblCount:  \033[33m%"PRId64"\033[0m\n",
+  printf("childTblCount:  \033[33m%"PRIu64"\033[0m\n",
       g_queryInfo.superQueryInfo.childTblCount);
   printf("stable name:    \033[33m%s\033[0m\n",
       g_queryInfo.superQueryInfo.sTblName);
-  printf("stb query times:\033[33m%"PRId64"\033[0m\n",
+  printf("stb query times:\033[33m%"PRIu64"\033[0m\n",
       g_queryInfo.superQueryInfo.queryTimes);
 
   if (SUBSCRIBE_TEST == g_args.test_mode) {
     printf("mod:            \033[33m%d\033[0m\n",
         g_queryInfo.superQueryInfo.mode);
-    printf("interval:       \033[33m%"PRId64"\033[0m\n",
+    printf("interval:       \033[33m%"PRIu64"\033[0m\n",
         g_queryInfo.superQueryInfo.subscribeInterval);
     printf("restart:        \033[33m%d\033[0m\n",
         g_queryInfo.superQueryInfo.subscribeRestart);
@@ -1663,7 +1681,7 @@ static void printfQueryMeta() {
         g_queryInfo.superQueryInfo.subscribeKeepProgress);
   }
 
-  printf("sqlCount:       \033[33m%"PRId64"\033[0m\n",
+  printf("sqlCount:       \033[33m%"PRIu64"\033[0m\n",
       g_queryInfo.superQueryInfo.sqlCount);
   for (int i = 0; i < g_queryInfo.superQueryInfo.sqlCount; i++) {
     printf("  sql[%d]: \033[33m%s\033[0m\n",
@@ -2272,7 +2290,7 @@ static int calcRowLen(SSuperTable*  superTbls) {
 
 static int getChildNameOfSuperTableWithLimitAndOffset(TAOS * taos,
         char* dbName, char* sTblName, char** childTblNameOfSuperTbl,
-        int64_t* childTblCountOfSuperTbl, int64_t limit, int64_t offset) {
+        uint64_t* childTblCountOfSuperTbl, int64_t limit, uint64_t offset) {
 
   char command[BUFFER_SIZE] = "\0";
   char limitBuf[100] = "\0";
@@ -2283,7 +2301,7 @@ static int getChildNameOfSuperTableWithLimitAndOffset(TAOS * taos,
   char* childTblName = *childTblNameOfSuperTbl;
 
   if (offset >= 0) {
-    snprintf(limitBuf, 100, " limit %"PRId64" offset %"PRId64"",
+    snprintf(limitBuf, 100, " limit %"PRId64" offset %"PRIu64"",
             limit, offset);
   }
 
@@ -2349,11 +2367,11 @@ static int getChildNameOfSuperTableWithLimitAndOffset(TAOS * taos,
 
 static int getAllChildNameOfSuperTable(TAOS * taos, char* dbName,
         char* sTblName, char** childTblNameOfSuperTbl,
-        int64_t* childTblCountOfSuperTbl) {
+        uint64_t* childTblCountOfSuperTbl) {
 
     return getChildNameOfSuperTableWithLimitAndOffset(taos, dbName, sTblName,
             childTblNameOfSuperTbl, childTblCountOfSuperTbl,
-            -1, -1);
+            -1, 0);
 }
 
 static int getSuperTableFromServer(TAOS * taos, char* dbName,
@@ -2689,7 +2707,7 @@ static int createDatabasesAndStables() {
       printf("\ncreate database %s success!\n\n", g_Dbs.db[i].dbName);
     }
 
-    debugPrint("%s() LN%d supertbl count:%"PRId64"\n",
+    debugPrint("%s() LN%d supertbl count:%"PRIu64"\n",
             __func__, __LINE__, g_Dbs.db[i].superTblCount);
 
     int validStbCount = 0;
@@ -2748,15 +2766,15 @@ static void* createTable(void *sarg)
   int len = 0;
   int batchNum = 0;
 
-  verbosePrint("%s() LN%d: Creating table from %"PRId64" to %"PRId64"\n",
+  verbosePrint("%s() LN%d: Creating table from %"PRIu64" to %"PRIu64"\n",
           __func__, __LINE__,
           pThreadInfo->start_table_from, pThreadInfo->end_table_to);
 
-  for (int64_t i = pThreadInfo->start_table_from;
+  for (uint64_t i = pThreadInfo->start_table_from;
           i <= pThreadInfo->end_table_to; i++) {
     if (0 == g_Dbs.use_metric) {
       snprintf(buffer, buff_len,
-              "create table if not exists %s.%s%"PRId64" %s;",
+              "create table if not exists %s.%s%"PRIu64" %s;",
               pThreadInfo->db_name,
               g_args.tb_prefix, i,
               pThreadInfo->cols);
@@ -2787,7 +2805,7 @@ static void* createTable(void *sarg)
         }
         len += snprintf(buffer + len,
                 buff_len - len,
-                "if not exists %s.%s%"PRId64" using %s.%s tags %s ",
+                "if not exists %s.%s%"PRIu64" using %s.%s tags %s ",
                 pThreadInfo->db_name, superTblInfo->childTblPrefix,
                 i, pThreadInfo->db_name,
                 superTblInfo->sTblName, tagsValBuf);
@@ -2811,7 +2829,7 @@ static void* createTable(void *sarg)
 
     int64_t  currentPrintTime = taosGetTimestampMs();
     if (currentPrintTime - lastPrintTime > 30*1000) {
-      printf("thread[%d] already create %"PRId64" - %"PRId64" tables\n",
+      printf("thread[%d] already create %"PRIu64" - %"PRIu64" tables\n",
               pThreadInfo->threadID, pThreadInfo->start_table_from, i);
       lastPrintTime = currentPrintTime;
     }
@@ -2879,7 +2897,7 @@ static int startMultiThreadCreateChildTable(
     startFrom = t_info->end_table_to + 1;
     t_info->use_metric = true;
     t_info->cols = cols;
-    t_info->minDelay = INT64_MAX;
+    t_info->minDelay = UINT64_MAX;
     pthread_create(pids + i, NULL, createTable, t_info);
   }
 
@@ -2945,7 +2963,7 @@ static void createChildTables() {
 
       snprintf(tblColsBuf + len, MAX_SQL_SIZE - len, ")");
 
-      verbosePrint("%s() LN%d: dbName: %s num of tb: %"PRId64" schema: %s\n",
+      verbosePrint("%s() LN%d: dbName: %s num of tb: %"PRIu64" schema: %s\n",
               __func__, __LINE__,
               g_Dbs.db[i].dbName, g_args.num_of_tables, tblColsBuf);
       startMultiThreadCreateChildTable(
@@ -3073,7 +3091,7 @@ static int readSampleFromCsvFileToMem(
     }
 
     if (readLen > superTblInfo->lenOfOneRow) {
-      printf("sample row len[%d] overflow define schema len[%"PRId64"], so discard this row\n",
+      printf("sample row len[%d] overflow define schema len[%"PRIu64"], so discard this row\n",
               (int32_t)readLen, superTblInfo->lenOfOneRow);
       continue;
     }
@@ -3316,7 +3334,7 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
   if (threads2 && threads2->type == cJSON_Number) {
     g_Dbs.threadCountByCreateTbl = threads2->valueint;
   } else if (!threads2) {
-    g_Dbs.threadCountByCreateTbl = g_args.num_of_threads;
+    g_Dbs.threadCountByCreateTbl = 1;
   } else {
     errorPrint("%s() LN%d, failed to read json, threads2 not found\n",
             __func__, __LINE__);
@@ -3325,6 +3343,11 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
 
   cJSON* gInsertInterval = cJSON_GetObjectItem(root, "insert_interval");
   if (gInsertInterval && gInsertInterval->type == cJSON_Number) {
+    if (gInsertInterval->valueint <0) {
+      errorPrint("%s() LN%d, failed to read json, insert interval input mistake\n",
+            __func__, __LINE__);
+      goto PARSE_OVER;
+    }
     g_args.insert_interval = gInsertInterval->valueint;
   } else if (!gInsertInterval) {
     g_args.insert_interval = 0;
@@ -3336,13 +3359,19 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
 
   cJSON* interlaceRows = cJSON_GetObjectItem(root, "interlace_rows");
   if (interlaceRows && interlaceRows->type == cJSON_Number) {
+    if (interlaceRows->valueint < 0) {
+      errorPrint("%s() LN%d, failed to read json, interlace_rows input mistake\n",
+        __func__, __LINE__);
+      goto PARSE_OVER;
+
+    }
     g_args.interlace_rows = interlaceRows->valueint;
 
     // rows per table need be less than insert batch
     if (g_args.interlace_rows > g_args.num_of_RPR) {
-      printf("NOTICE: interlace rows value %"PRId64" > num_of_records_per_req %"PRId64"\n\n",
+      printf("NOTICE: interlace rows value %"PRIu64" > num_of_records_per_req %"PRIu64"\n\n",
               g_args.interlace_rows, g_args.num_of_RPR);
-      printf("        interlace rows value will be set to num_of_records_per_req %"PRId64"\n\n",
+      printf("        interlace rows value will be set to num_of_records_per_req %"PRIu64"\n\n",
               g_args.num_of_RPR);
       printf("        press Enter key to continue or Ctrl-C to stop.");
       (void)getchar();
@@ -3358,9 +3387,14 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
 
   cJSON* maxSqlLen = cJSON_GetObjectItem(root, "max_sql_len");
   if (maxSqlLen && maxSqlLen->type == cJSON_Number) {
+    if (maxSqlLen->valueint < 0) {
+      errorPrint("%s() LN%d, failed to read json, max_sql_len input mistake\n",
+        __func__, __LINE__);
+      goto PARSE_OVER;
+    }
     g_args.max_sql_len = maxSqlLen->valueint;
   } else if (!maxSqlLen) {
-    g_args.max_sql_len = 1024000;
+    g_args.max_sql_len = (1024*1024);
   } else {
     errorPrint("%s() LN%d, failed to read json, max_sql_len input mistake\n",
         __func__, __LINE__);
@@ -3369,9 +3403,14 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
 
   cJSON* numRecPerReq = cJSON_GetObjectItem(root, "num_of_records_per_req");
   if (numRecPerReq && numRecPerReq->type == cJSON_Number) {
+    if (numRecPerReq->valueint <= 0) {
+      errorPrint("%s() LN%d, failed to read json, num_of_records_per_req input mistake\n",
+        __func__, __LINE__);
+      goto PARSE_OVER;
+    }
     g_args.num_of_RPR = numRecPerReq->valueint;
   } else if (!numRecPerReq) {
-    g_args.num_of_RPR = INT64_MAX;
+    g_args.num_of_RPR = UINT64_MAX;
   } else {
     errorPrint("%s() LN%d, failed to read json, num_of_records_per_req not found\n",
         __func__, __LINE__);
@@ -3531,7 +3570,7 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
     if (minRows && minRows->type == cJSON_Number) {
       g_Dbs.db[i].dbCfg.minRows = minRows->valueint;
     } else if (!minRows) {
-      g_Dbs.db[i].dbCfg.minRows = -1;
+      g_Dbs.db[i].dbCfg.minRows = 0;    // 0 means default
     } else {
      printf("ERROR: failed to read json, minRows not found\n");
      goto PARSE_OVER;
@@ -3541,7 +3580,7 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
     if (maxRows && maxRows->type == cJSON_Number) {
       g_Dbs.db[i].dbCfg.maxRows = maxRows->valueint;
     } else if (!maxRows) {
-      g_Dbs.db[i].dbCfg.maxRows = -1;
+      g_Dbs.db[i].dbCfg.maxRows = 0;    // 0 means default
     } else {
      printf("ERROR: failed to read json, maxRows not found\n");
      goto PARSE_OVER;
@@ -3686,7 +3725,7 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
 
       cJSON* count = cJSON_GetObjectItem(stbInfo, "childtable_count");
       if (!count || count->type != cJSON_Number || 0 >= count->valueint) {
-        errorPrint("%s() LN%d, failed to read json, childtable_count not found\n",
+        errorPrint("%s() LN%d, failed to read json, childtable_count input mistake\n",
                 __func__, __LINE__);
         goto PARSE_OVER;
       }
@@ -3840,12 +3879,17 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
 */
       cJSON* interlaceRows = cJSON_GetObjectItem(stbInfo, "interlace_rows");
       if (interlaceRows && interlaceRows->type == cJSON_Number) {
+        if (interlaceRows->valueint < 0) {
+          errorPrint("%s() LN%d, failed to read json, interlace rows input mistake\n",
+            __func__, __LINE__);
+          goto PARSE_OVER;
+        }
         g_Dbs.db[i].superTbls[j].interlaceRows = interlaceRows->valueint;
         // rows per table need be less than insert batch
         if (g_Dbs.db[i].superTbls[j].interlaceRows > g_args.num_of_RPR) {
-          printf("NOTICE: db[%d].superTbl[%d]'s interlace rows value %"PRId64" > num_of_records_per_req %"PRId64"\n\n",
+          printf("NOTICE: db[%d].superTbl[%d]'s interlace rows value %"PRIu64" > num_of_records_per_req %"PRIu64"\n\n",
                   i, j, g_Dbs.db[i].superTbls[j].interlaceRows, g_args.num_of_RPR);
-          printf("        interlace rows value will be set to num_of_records_per_req %"PRId64"\n\n",
+          printf("        interlace rows value will be set to num_of_records_per_req %"PRIu64"\n\n",
                   g_args.num_of_RPR);
           printf("        press Enter key to continue or Ctrl-C to stop.");
           (void)getchar();
@@ -3888,6 +3932,11 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
 
       cJSON* insertRows = cJSON_GetObjectItem(stbInfo, "insert_rows");
       if (insertRows && insertRows->type == cJSON_Number) {
+        if (insertRows->valueint < 0) {
+          errorPrint("%s() LN%d, failed to read json, insert_rows input mistake\n",
+                __func__, __LINE__);
+          goto PARSE_OVER;
+        }
         g_Dbs.db[i].superTbls[j].insertRows = insertRows->valueint;
       } else if (!insertRows) {
         g_Dbs.db[i].superTbls[j].insertRows = 0x7FFFFFFFFFFFFFFF;
@@ -3900,8 +3949,13 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
       cJSON* insertInterval = cJSON_GetObjectItem(stbInfo, "insert_interval");
       if (insertInterval && insertInterval->type == cJSON_Number) {
         g_Dbs.db[i].superTbls[j].insertInterval = insertInterval->valueint;
+        if (insertInterval->valueint < 0) {
+          errorPrint("%s() LN%d, failed to read json, insert_interval input mistake\n",
+                __func__, __LINE__);
+          goto PARSE_OVER;
+        }
       } else if (!insertInterval) {
-        verbosePrint("%s() LN%d: stable insert interval be overrided by global %"PRId64".\n",
+        verbosePrint("%s() LN%d: stable insert interval be overrided by global %"PRIu64".\n",
                 __func__, __LINE__, g_args.insert_interval);
         g_Dbs.db[i].superTbls[j].insertInterval = g_args.insert_interval;
       } else {
@@ -3982,6 +4036,11 @@ static bool getMetaFromQueryJsonFile(cJSON* root) {
 
   cJSON* gQueryTimes = cJSON_GetObjectItem(root, "query_times");
   if (gQueryTimes && gQueryTimes->type == cJSON_Number) {
+    if (gQueryTimes->valueint < 0) {
+      errorPrint("%s() LN%d, failed to read json, query_times input mistake\n",
+        __func__, __LINE__);
+      goto PARSE_OVER;
+    }
     g_args.query_times = gQueryTimes->valueint;
   } else if (!gQueryTimes) {
     g_args.query_times = 1;
@@ -4009,10 +4068,10 @@ static bool getMetaFromQueryJsonFile(cJSON* root) {
     goto PARSE_OVER;
   }
 
-  // super_table_query
+  // specified_table_query
   cJSON *specifiedQuery = cJSON_GetObjectItem(root, "specified_table_query");
   if (!specifiedQuery) {
-    g_queryInfo.specifiedQueryInfo.concurrent = 0;
+    g_queryInfo.specifiedQueryInfo.concurrent = 1;
     g_queryInfo.specifiedQueryInfo.sqlCount = 0;
   } else if (specifiedQuery->type != cJSON_Object) {
     printf("ERROR: failed to read json, super_table_query not found\n");
@@ -4028,6 +4087,12 @@ static bool getMetaFromQueryJsonFile(cJSON* root) {
     cJSON* specifiedQueryTimes = cJSON_GetObjectItem(specifiedQuery,
         "query_times");
     if (specifiedQueryTimes && specifiedQueryTimes->type == cJSON_Number) {
+      if (specifiedQueryTimes->valueint < 0) {
+        errorPrint("%s() LN%d, failed to read json, query_times input mistake\n",
+          __func__, __LINE__);
+        goto PARSE_OVER;
+
+      }
       g_queryInfo.specifiedQueryInfo.queryTimes = specifiedQueryTimes->valueint;
     } else if (!specifiedQueryTimes) {
       g_queryInfo.specifiedQueryInfo.queryTimes = g_args.query_times;
@@ -4039,13 +4104,14 @@ static bool getMetaFromQueryJsonFile(cJSON* root) {
 
     cJSON* concurrent = cJSON_GetObjectItem(specifiedQuery, "concurrent");
     if (concurrent && concurrent->type == cJSON_Number) {
-      g_queryInfo.specifiedQueryInfo.concurrent = concurrent->valueint;
-      if (g_queryInfo.specifiedQueryInfo.concurrent <= 0) {
-        errorPrint("%s() LN%d, query sqlCount %"PRId64" or concurrent %"PRId64" is not correct.\n",
-              __func__, __LINE__, g_queryInfo.specifiedQueryInfo.sqlCount,
+      if (concurrent->valueint <= 0) {
+        errorPrint("%s() LN%d, query sqlCount %"PRIu64" or concurrent %"PRIu64" is not correct.\n",
+              __func__, __LINE__,
+              g_queryInfo.specifiedQueryInfo.sqlCount,
               g_queryInfo.specifiedQueryInfo.concurrent);
         goto PARSE_OVER;
       }
+      g_queryInfo.specifiedQueryInfo.concurrent = concurrent->valueint;
     } else if (!concurrent) {
       g_queryInfo.specifiedQueryInfo.concurrent = 1;
     }
@@ -4149,7 +4215,7 @@ static bool getMetaFromQueryJsonFile(cJSON* root) {
   // sub_table_query
   cJSON *superQuery = cJSON_GetObjectItem(root, "super_table_query");
   if (!superQuery) {
-    g_queryInfo.superQueryInfo.threadCnt = 0;
+    g_queryInfo.superQueryInfo.threadCnt = 1;
     g_queryInfo.superQueryInfo.sqlCount = 0;
   } else if (superQuery->type != cJSON_Object) {
     printf("ERROR: failed to read json, sub_table_query not found\n");
@@ -4165,6 +4231,11 @@ static bool getMetaFromQueryJsonFile(cJSON* root) {
 
     cJSON* superQueryTimes = cJSON_GetObjectItem(superQuery, "query_times");
     if (superQueryTimes && superQueryTimes->type == cJSON_Number) {
+      if (superQueryTimes->valueint < 0) {
+        errorPrint("%s() LN%d, failed to read json, query_times input mistake\n",
+          __func__, __LINE__);
+        goto PARSE_OVER;
+      }
       g_queryInfo.superQueryInfo.queryTimes = superQueryTimes->valueint;
     } else if (!superQueryTimes) {
       g_queryInfo.superQueryInfo.queryTimes = g_args.query_times;
@@ -4176,6 +4247,12 @@ static bool getMetaFromQueryJsonFile(cJSON* root) {
 
     cJSON* threads = cJSON_GetObjectItem(superQuery, "threads");
     if (threads && threads->type == cJSON_Number) {
+      if (threads->valueint <= 0) {
+        errorPrint("%s() LN%d, failed to read json, threads input mistake\n",
+          __func__, __LINE__);
+        goto PARSE_OVER;
+
+      }
       g_queryInfo.superQueryInfo.threadCnt = threads->valueint;
     } else if (!threads) {
       g_queryInfo.superQueryInfo.threadCnt = 1;
@@ -4215,10 +4292,15 @@ static bool getMetaFromQueryJsonFile(cJSON* root) {
       g_queryInfo.superQueryInfo.mode = SYNC_QUERY_MODE;
     }
 
-    cJSON* subinterval = cJSON_GetObjectItem(superQuery, "interval");
-    if (subinterval && subinterval->type == cJSON_Number) {
-      g_queryInfo.superQueryInfo.subscribeInterval = subinterval->valueint;
-    } else if (!subinterval) {
+    cJSON* superInterval = cJSON_GetObjectItem(superQuery, "interval");
+    if (superInterval && superInterval->type == cJSON_Number) {
+      if (superInterval->valueint < 0) {
+        errorPrint("%s() LN%d, failed to read json, interval input mistake\n",
+            __func__, __LINE__);
+        goto PARSE_OVER;
+      }
+      g_queryInfo.superQueryInfo.subscribeInterval = superInterval->valueint;
+    } else if (!superInterval) {
       //printf("failed to read json, subscribe interval no found\n");
       //goto PARSE_OVER;
       g_queryInfo.superQueryInfo.subscribeInterval = 10000;
@@ -4438,11 +4520,11 @@ static int64_t generateRowData(char* recBuf, int64_t timestamp, SSuperTable* stb
   char  *pstr = recBuf;
   int64_t maxLen = MAX_DATA_SIZE;
 
-  dataLen += snprintf(pstr + dataLen, maxLen - dataLen, "(%" PRId64 ", ", timestamp);
+  dataLen += snprintf(pstr + dataLen, maxLen - dataLen, "(%" PRId64 ",", timestamp);
 
   for (int i = 0; i < stbInfo->columnCount; i++) {
-    if ((0 == strncasecmp(stbInfo->columns[i].dataType, "binary", 6))
-            || (0 == strncasecmp(stbInfo->columns[i].dataType, "nchar", 5))) {
+    if ((0 == strncasecmp(stbInfo->columns[i].dataType, "BINARY", strlen("BINARY")))
+            || (0 == strncasecmp(stbInfo->columns[i].dataType, "NCHAR", strlen("NCHAR")))) {
       if (stbInfo->columns[i].dataLen > TSDB_MAX_BINARY_LEN) {
         errorPrint( "binary or nchar length overflow, max size:%u\n",
                 (uint32_t)TSDB_MAX_BINARY_LEN);
@@ -4455,47 +4537,47 @@ static int64_t generateRowData(char* recBuf, int64_t timestamp, SSuperTable* stb
         return -1;
       }
       rand_string(buf, stbInfo->columns[i].dataLen);
-      dataLen += snprintf(pstr + dataLen, maxLen - dataLen, "\'%s\', ", buf);
+      dataLen += snprintf(pstr + dataLen, maxLen - dataLen, "\'%s\',", buf);
       tmfree(buf);
     } else if (0 == strncasecmp(stbInfo->columns[i].dataType,
-                "int", 3)) {
+                "INT", 3)) {
       dataLen += snprintf(pstr + dataLen, maxLen - dataLen,
-              "%d, ", rand_int());
+              "%d,", rand_int());
     } else if (0 == strncasecmp(stbInfo->columns[i].dataType,
-                "bigint", 6)) {
+                "BIGINT", 6)) {
       dataLen += snprintf(pstr + dataLen, maxLen - dataLen,
-              "%"PRId64", ", rand_bigint());
+              "%"PRId64",", rand_bigint());
     }  else if (0 == strncasecmp(stbInfo->columns[i].dataType,
-                "float", 5)) {
+                "FLOAT", 5)) {
       dataLen += snprintf(pstr + dataLen, maxLen - dataLen,
-              "%f, ", rand_float());
+              "%f,", rand_float());
     }  else if (0 == strncasecmp(stbInfo->columns[i].dataType,
-                "double", 6)) {
+                "DOUBLE", 6)) {
       dataLen += snprintf(pstr + dataLen, maxLen - dataLen,
-              "%f, ", rand_double());
+              "%f,", rand_double());
     }  else if (0 == strncasecmp(stbInfo->columns[i].dataType,
-                "smallint", 8)) {
+                "SMALLINT", 8)) {
       dataLen += snprintf(pstr + dataLen, maxLen - dataLen,
-          "%d, ", rand_smallint());
+          "%d,", rand_smallint());
     }  else if (0 == strncasecmp(stbInfo->columns[i].dataType,
-          "tinyint", strlen("tinyint"))) {
+          "TINYINT", strlen("TINYINT"))) {
       dataLen += snprintf(pstr + dataLen, maxLen - dataLen,
-          "%d, ", rand_tinyint());
+          "%d,", rand_tinyint());
     }  else if (0 == strncasecmp(stbInfo->columns[i].dataType,
-          "bool", strlen("bool"))) {
+          "BOOL", strlen("BOOL"))) {
       dataLen += snprintf(pstr + dataLen, maxLen - dataLen,
-          "%d, ", rand_bool());
+          "%d,", rand_bool());
     }  else if (0 == strncasecmp(stbInfo->columns[i].dataType,
-          "timestamp", strlen("timestamp"))) {
+          "TIMESTAMP", strlen("TIMESTAMP"))) {
       dataLen += snprintf(pstr + dataLen, maxLen - dataLen,
-          "%"PRId64", ", rand_bigint());
+          "%"PRId64",", rand_bigint());
     }  else {
       errorPrint( "No support data type: %s\n", stbInfo->columns[i].dataType);
       return -1;
     }
   }
 
-  dataLen -= 2;
+  dataLen -= 1;
   dataLen += snprintf(pstr + dataLen, maxLen - dataLen, ")");
 
   verbosePrint("%s() LN%d, recBuf:\n\t%s\n", __func__, __LINE__, recBuf);
@@ -4522,31 +4604,31 @@ static int64_t generateData(char *recBuf, char **data_type,
   }
 
   for (int i = 0; i < c; i++) {
-    if (strcasecmp(data_type[i % c], "tinyint") == 0) {
-      pstr += sprintf(pstr, ", %d", rand_tinyint() );
-    } else if (strcasecmp(data_type[i % c], "smallint") == 0) {
-      pstr += sprintf(pstr, ", %d", rand_smallint());
-    } else if (strcasecmp(data_type[i % c], "int") == 0) {
-      pstr += sprintf(pstr, ", %d", rand_int());
-    } else if (strcasecmp(data_type[i % c], "bigint") == 0) {
-      pstr += sprintf(pstr, ", %" PRId64, rand_bigint());
-    } else if (strcasecmp(data_type[i % c], "float") == 0) {
-      pstr += sprintf(pstr, ", %10.4f", rand_float());
-    } else if (strcasecmp(data_type[i % c], "double") == 0) {
+    if (strcasecmp(data_type[i % c], "TINYINT") == 0) {
+      pstr += sprintf(pstr, ",%d", rand_tinyint() );
+    } else if (strcasecmp(data_type[i % c], "SMALLINT") == 0) {
+      pstr += sprintf(pstr, ",%d", rand_smallint());
+    } else if (strcasecmp(data_type[i % c], "INT") == 0) {
+      pstr += sprintf(pstr, ",%d", rand_int());
+    } else if (strcasecmp(data_type[i % c], "BIGINT") == 0) {
+      pstr += sprintf(pstr, ",%" PRId64, rand_bigint());
+    } else if (strcasecmp(data_type[i % c], "FLOAT") == 0) {
+      pstr += sprintf(pstr, ",%10.4f", rand_float());
+    } else if (strcasecmp(data_type[i % c], "DOUBLE") == 0) {
       double t = rand_double();
-      pstr += sprintf(pstr, ", %20.8f", t);
-    } else if (strcasecmp(data_type[i % c], "bool") == 0) {
+      pstr += sprintf(pstr, ",%20.8f", t);
+    } else if (strcasecmp(data_type[i % c], "BOOL") == 0) {
       bool b = taosRandom() & 1;
-      pstr += sprintf(pstr, ", %s", b ? "true" : "false");
-    } else if (strcasecmp(data_type[i % c], "binary") == 0) {
+      pstr += sprintf(pstr, ",%s", b ? "true" : "false");
+    } else if (strcasecmp(data_type[i % c], "BINARY") == 0) {
       char *s = malloc(lenOfBinary);
       rand_string(s, lenOfBinary);
-      pstr += sprintf(pstr, ", \"%s\"", s);
+      pstr += sprintf(pstr, ",\"%s\"", s);
       free(s);
-    } else if (strcasecmp(data_type[i % c], "nchar") == 0) {
+    } else if (strcasecmp(data_type[i % c], "NCHAR") == 0) {
       char *s = malloc(lenOfBinary);
       rand_string(s, lenOfBinary);
-      pstr += sprintf(pstr, ", \"%s\"", s);
+      pstr += sprintf(pstr, ",\"%s\"", s);
       free(s);
     }
 
@@ -4569,7 +4651,7 @@ static int prepareSampleDataForSTable(SSuperTable *superTblInfo) {
   sampleDataBuf = calloc(
             superTblInfo->lenOfOneRow * MAX_SAMPLES_ONCE_FROM_FILE, 1);
   if (sampleDataBuf == NULL) {
-      errorPrint("%s() LN%d, Failed to calloc %"PRId64" Bytes, reason:%s\n",
+      errorPrint("%s() LN%d, Failed to calloc %"PRIu64" Bytes, reason:%s\n",
               __func__, __LINE__,
               superTblInfo->lenOfOneRow * MAX_SAMPLES_ONCE_FROM_FILE,
               strerror(errno));
@@ -4590,7 +4672,7 @@ static int prepareSampleDataForSTable(SSuperTable *superTblInfo) {
   return 0;
 }
 
-static int64_t execInsert(threadInfo *pThreadInfo, char *buffer, int k)
+static int64_t execInsert(threadInfo *pThreadInfo, char *buffer, uint64_t k)
 {
   int affectedRows;
   SSuperTable* superTblInfo = pThreadInfo->superTblInfo;
@@ -4620,18 +4702,17 @@ static int64_t execInsert(threadInfo *pThreadInfo, char *buffer, int k)
   return affectedRows;
 }
 
-static void getTableName(char *pTblName, threadInfo* pThreadInfo, int64_t tableSeq)
+static void getTableName(char *pTblName, threadInfo* pThreadInfo, uint64_t tableSeq)
 {
   SSuperTable* superTblInfo = pThreadInfo->superTblInfo;
   if (superTblInfo) {
-    if ((superTblInfo->childTblOffset >= 0)
-            && (superTblInfo->childTblLimit > 0)) {
+    if (superTblInfo->childTblLimit > 0) {
         snprintf(pTblName, TSDB_TABLE_NAME_LEN, "%s",
             superTblInfo->childTblName +
             (tableSeq - superTblInfo->childTblOffset) * TSDB_TABLE_NAME_LEN);
     } else {
 
-        verbosePrint("[%d] %s() LN%d: from=%"PRId64" count=%"PRId64" seq=%"PRId64"\n",
+        verbosePrint("[%d] %s() LN%d: from=%"PRIu64" count=%"PRIu64" seq=%"PRIu64"\n",
                 pThreadInfo->threadID, __func__, __LINE__,
                 pThreadInfo->start_table_from,
                 pThreadInfo->ntables, tableSeq);
@@ -4639,31 +4720,31 @@ static void getTableName(char *pTblName, threadInfo* pThreadInfo, int64_t tableS
             superTblInfo->childTblName + tableSeq * TSDB_TABLE_NAME_LEN);
     }
   } else {
-    snprintf(pTblName, TSDB_TABLE_NAME_LEN, "%s%"PRId64"",
+    snprintf(pTblName, TSDB_TABLE_NAME_LEN, "%s%"PRIu64"",
         g_args.tb_prefix, tableSeq);
   }
 }
 
 static int64_t generateDataTail(
         SSuperTable* superTblInfo,
-        int64_t batch, char* buffer, int64_t remainderBufLen, int64_t insertRows,
+        uint64_t batch, char* buffer, int64_t remainderBufLen, int64_t insertRows,
         int64_t startFrom, int64_t startTime, int64_t *pSamplePos, int64_t *dataLen) {
-  int64_t len = 0;
-  int ncols_per_record = 1; // count first col ts
+  uint64_t len = 0;
+  uint32_t ncols_per_record = 1; // count first col ts
 
   char *pstr = buffer;
 
   if (superTblInfo == NULL) {
-    int datatypeSeq = 0;
+    uint32_t datatypeSeq = 0;
     while(g_args.datatype[datatypeSeq]) {
         datatypeSeq ++;
         ncols_per_record ++;
     }
   }
 
-  verbosePrint("%s() LN%d batch=%"PRId64"\n", __func__, __LINE__, batch);
+  verbosePrint("%s() LN%d batch=%"PRIu64"\n", __func__, __LINE__, batch);
 
-  int64_t k = 0;
+  uint64_t k = 0;
   for (k = 0; k < batch;) {
     char data[MAX_DATA_SIZE];
     memset(data, 0, MAX_DATA_SIZE);
@@ -4738,7 +4819,7 @@ static int64_t generateDataTail(
       remainderBufLen -= retLen;
     }
 
-    verbosePrint("%s() LN%d len=%"PRId64" k=%"PRId64" \nbuffer=%s\n",
+    verbosePrint("%s() LN%d len=%"PRIu64" k=%"PRIu64" \nbuffer=%s\n",
             __func__, __LINE__, len, k, buffer);
 
     startFrom ++;
@@ -4820,12 +4901,12 @@ static int generateSQLHead(char *tableName, int32_t tableSeq,
 }
 
 static int64_t generateInterlaceDataBuffer(
-        char *tableName, int64_t batchPerTbl, int64_t i, int64_t batchPerTblTimes,
-        int64_t tableSeq,
+        char *tableName, uint64_t batchPerTbl, uint64_t i, uint64_t batchPerTblTimes,
+        uint64_t tableSeq,
         threadInfo *pThreadInfo, char *buffer,
-        int64_t insertRows,
+        uint64_t insertRows,
         int64_t startTime,
-        int64_t *pRemainderBufLen)
+        uint64_t *pRemainderBufLen)
 {
   assert(buffer);
   char *pstr = buffer;
@@ -4838,7 +4919,7 @@ static int64_t generateInterlaceDataBuffer(
     return 0;
   }
   // generate data buffer
-  verbosePrint("[%d] %s() LN%d i=%"PRId64" buffer:\n%s\n",
+  verbosePrint("[%d] %s() LN%d i=%"PRIu64" buffer:\n%s\n",
             pThreadInfo->threadID, __func__, __LINE__, i, buffer);
 
   pstr += headLen;
@@ -4846,7 +4927,7 @@ static int64_t generateInterlaceDataBuffer(
 
   int64_t dataLen = 0;
 
-  verbosePrint("[%d] %s() LN%d i=%"PRId64" batchPerTblTimes=%"PRId64" batchPerTbl = %"PRId64"\n",
+  verbosePrint("[%d] %s() LN%d i=%"PRIu64" batchPerTblTimes=%"PRIu64" batchPerTbl = %"PRIu64"\n",
             pThreadInfo->threadID, __func__, __LINE__,
             i, batchPerTblTimes, batchPerTbl);
 
@@ -4868,7 +4949,7 @@ static int64_t generateInterlaceDataBuffer(
     pstr += dataLen;
     *pRemainderBufLen -= dataLen;
   } else {
-    debugPrint("%s() LN%d, generated data tail: %"PRId64", not equal batch per table: %"PRId64"\n",
+    debugPrint("%s() LN%d, generated data tail: %"PRIu64", not equal batch per table: %"PRIu64"\n",
             __func__, __LINE__, k, batchPerTbl);
     pstr -= headLen;
     pstr[0] = '\0';
@@ -4878,7 +4959,7 @@ static int64_t generateInterlaceDataBuffer(
   return k;
 }
 
-static int generateProgressiveDataBuffer(
+static int64_t generateProgressiveDataBuffer(
         char *tableName,
         int64_t tableSeq,
         threadInfo *pThreadInfo, char *buffer,
@@ -4923,12 +5004,21 @@ static int generateProgressiveDataBuffer(
   return k;
 }
 
+static void printStatPerThread(threadInfo *pThreadInfo)
+{
+  fprintf(stderr, "====thread[%d] completed total inserted rows: %"PRIu64 ", total affected rows: %"PRIu64". %.2f records/second====\n",
+          pThreadInfo->threadID,
+          pThreadInfo->totalInsertRows,
+          pThreadInfo->totalAffectedRows,
+          (double)(pThreadInfo->totalAffectedRows / (pThreadInfo->totalDelay/1000.0)));
+}
+
 static void* syncWriteInterlace(threadInfo *pThreadInfo) {
   debugPrint("[%d] %s() LN%d: ### interlace write\n",
          pThreadInfo->threadID, __func__, __LINE__);
 
-  int64_t insertRows;
-  int64_t interlaceRows;
+  uint64_t insertRows;
+  uint64_t interlaceRows;
 
   SSuperTable* superTblInfo = pThreadInfo->superTblInfo;
 
@@ -4963,10 +5053,10 @@ static void* syncWriteInterlace(threadInfo *pThreadInfo) {
   // TODO: prompt tbl count multple interlace rows and batch
   //
 
-  int64_t maxSqlLen = superTblInfo?superTblInfo->maxSqlLen:g_args.max_sql_len;
+  uint64_t maxSqlLen = superTblInfo?superTblInfo->maxSqlLen:g_args.max_sql_len;
   char* buffer = calloc(maxSqlLen, 1);
   if (NULL == buffer) {
-    errorPrint( "%s() LN%d, Failed to alloc %"PRId64" Bytes, reason:%s\n",
+    errorPrint( "%s() LN%d, Failed to alloc %"PRIu64" Bytes, reason:%s\n",
               __func__, __LINE__, maxSqlLen, strerror(errno));
     return NULL;
   }
@@ -4978,18 +5068,18 @@ static void* syncWriteInterlace(threadInfo *pThreadInfo) {
 
   int64_t nTimeStampStep = superTblInfo?superTblInfo->timeStampStep:DEFAULT_TIMESTAMP_STEP;
 
-  int insert_interval =
+  uint64_t insert_interval =
       superTblInfo?superTblInfo->insertInterval:g_args.insert_interval;
-  int64_t st = 0;
-  int64_t et = 0xffffffff;
+  uint64_t st = 0;
+  uint64_t et = UINT64_MAX;
 
-  int64_t lastPrintTime = taosGetTimestampMs();
-  int64_t startTs = taosGetTimestampMs();
-  int64_t endTs;
+  uint64_t lastPrintTime = taosGetTimestampMs();
+  uint64_t startTs = taosGetTimestampMs();
+  uint64_t endTs;
 
-  int64_t tableSeq = pThreadInfo->start_table_from;
+  uint64_t tableSeq = pThreadInfo->start_table_from;
 
-  debugPrint("[%d] %s() LN%d: start_table_from=%"PRId64" ntables=%"PRId64" insertRows=%"PRId64"\n",
+  debugPrint("[%d] %s() LN%d: start_table_from=%"PRIu64" ntables=%"PRIu64" insertRows=%"PRIu64"\n",
           pThreadInfo->threadID, __func__, __LINE__, pThreadInfo->start_table_from,
           pThreadInfo->ntables, insertRows);
 
@@ -4997,9 +5087,9 @@ static void* syncWriteInterlace(threadInfo *pThreadInfo) {
 
   assert(pThreadInfo->ntables > 0);
 
-  int64_t batchPerTbl = interlaceRows;
+  uint64_t batchPerTbl = interlaceRows;
+  uint64_t batchPerTblTimes;
 
-  int64_t batchPerTblTimes;
   if ((interlaceRows > 0) && (pThreadInfo->ntables > 1)) {
     batchPerTblTimes =
         g_args.num_of_RPR / interlaceRows;
@@ -5007,9 +5097,9 @@ static void* syncWriteInterlace(threadInfo *pThreadInfo) {
     batchPerTblTimes = 1;
   }
 
-  int64_t generatedRecPerTbl = 0;
+  uint64_t generatedRecPerTbl = 0;
   bool flagSleep = true;
-  int64_t sleepTimeTotal = 0;
+  uint64_t sleepTimeTotal = 0;
 
   char *strInsertInto = "insert into ";
   int nInsertBufLen = strlen(strInsertInto);
@@ -5021,7 +5111,7 @@ static void* syncWriteInterlace(threadInfo *pThreadInfo) {
     }
     // generate data
     memset(buffer, 0, maxSqlLen);
-    int64_t remainderBufLen = maxSqlLen;
+    uint64_t remainderBufLen = maxSqlLen;
 
     char *pstr = buffer;
 
@@ -5029,9 +5119,9 @@ static void* syncWriteInterlace(threadInfo *pThreadInfo) {
     pstr += len;
     remainderBufLen -= len;
 
-    int64_t recOfBatch = 0;
+    uint64_t recOfBatch = 0;
 
-    for (int64_t i = 0; i < batchPerTblTimes; i ++) {
+    for (uint64_t i = 0; i < batchPerTblTimes; i ++) {
       getTableName(tableName, pThreadInfo, tableSeq);
       if (0 == strlen(tableName)) {
         errorPrint("[%d] %s() LN%d, getTableName return null\n",
@@ -5040,7 +5130,7 @@ static void* syncWriteInterlace(threadInfo *pThreadInfo) {
         return NULL;
       }
 
-      int64_t oldRemainderLen = remainderBufLen;
+      uint64_t oldRemainderLen = remainderBufLen;
       int64_t generated = generateInterlaceDataBuffer(
         tableName, batchPerTbl, i, batchPerTblTimes,
         tableSeq,
@@ -5049,10 +5139,12 @@ static void* syncWriteInterlace(threadInfo *pThreadInfo) {
         startTime,
         &remainderBufLen);
 
-      if (generated < 0) {
-        debugPrint("[%d] %s() LN%d, generated data is %"PRId64"\n",
+      debugPrint("[%d] %s() LN%d, generated records is %"PRId64"\n",
                   pThreadInfo->threadID, __func__, __LINE__, generated);
-        goto free_and_statistics_interlace;
+      if (generated < 0) {
+        errorPrint("[%d] %s() LN%d, generated records is %"PRId64"\n",
+                  pThreadInfo->threadID, __func__, __LINE__, generated);
+        goto free_of_interlace;
       } else if (generated == 0) {
         break;
       }
@@ -5096,7 +5188,7 @@ static void* syncWriteInterlace(threadInfo *pThreadInfo) {
         break;
     }
 
-    verbosePrint("[%d] %s() LN%d recOfBatch=%"PRId64" totalInsertRows=%"PRId64"\n",
+    verbosePrint("[%d] %s() LN%d recOfBatch=%"PRIu64" totalInsertRows=%"PRIu64"\n",
               pThreadInfo->threadID, __func__, __LINE__, recOfBatch,
               pThreadInfo->totalInsertRows);
     verbosePrint("[%d] %s() LN%d, buffer=%s\n",
@@ -5107,30 +5199,30 @@ static void* syncWriteInterlace(threadInfo *pThreadInfo) {
     int64_t affectedRows = execInsert(pThreadInfo, buffer, recOfBatch);
 
     endTs = taosGetTimestampMs();
-    int64_t delay = endTs - startTs;
-    performancePrint("%s() LN%d, insert execution time is %"PRId64"ms\n",
+    uint64_t delay = endTs - startTs;
+    performancePrint("%s() LN%d, insert execution time is %"PRIu64"ms\n",
             __func__, __LINE__, delay);
+    verbosePrint("[%d] %s() LN%d affectedRows=%"PRId64"\n",
+            pThreadInfo->threadID,
+            __func__, __LINE__, affectedRows);
 
     if (delay > pThreadInfo->maxDelay) pThreadInfo->maxDelay = delay;
     if (delay < pThreadInfo->minDelay) pThreadInfo->minDelay = delay;
     pThreadInfo->cntDelay++;
     pThreadInfo->totalDelay += delay;
 
-    verbosePrint("[%d] %s() LN%d affectedRows=%"PRId64"\n",
-            pThreadInfo->threadID,
-            __func__, __LINE__, affectedRows);
-    if ((affectedRows < 0) || (recOfBatch != affectedRows)) {
-        errorPrint("[%d] %s() LN%d execInsert insert %"PRId64", affected rows: %"PRId64"\n%s\n",
+    if (recOfBatch != affectedRows) {
+        errorPrint("[%d] %s() LN%d execInsert insert %"PRIu64", affected rows: %"PRId64"\n%s\n",
                 pThreadInfo->threadID, __func__, __LINE__,
                 recOfBatch, affectedRows, buffer);
-        goto free_and_statistics_interlace;
+        goto free_of_interlace;
     }
 
     pThreadInfo->totalAffectedRows += affectedRows;
 
     int64_t  currentPrintTime = taosGetTimestampMs();
     if (currentPrintTime - lastPrintTime > 30*1000) {
-      printf("thread[%d] has currently inserted rows: %"PRId64 ", affected rows: %"PRId64 "\n",
+      printf("thread[%d] has currently inserted rows: %"PRIu64 ", affected rows: %"PRIu64 "\n",
                     pThreadInfo->threadID,
                     pThreadInfo->totalInsertRows,
                     pThreadInfo->totalAffectedRows);
@@ -5150,13 +5242,9 @@ static void* syncWriteInterlace(threadInfo *pThreadInfo) {
     }
   }
 
-free_and_statistics_interlace:
+free_of_interlace:
   tmfree(buffer);
-
-  printf("====thread[%d] completed total inserted rows: %"PRId64 ", total affected rows: %"PRId64 "====\n",
-          pThreadInfo->threadID,
-          pThreadInfo->totalInsertRows,
-          pThreadInfo->totalAffectedRows);
+  printStatPerThread(pThreadInfo);
   return NULL;
 }
 
@@ -5172,19 +5260,19 @@ static void* syncWriteProgressive(threadInfo *pThreadInfo) {
   debugPrint("%s() LN%d: ### progressive write\n", __func__, __LINE__);
 
   SSuperTable* superTblInfo = pThreadInfo->superTblInfo;
-  int maxSqlLen = superTblInfo?superTblInfo->maxSqlLen:g_args.max_sql_len;
+  uint64_t maxSqlLen = superTblInfo?superTblInfo->maxSqlLen:g_args.max_sql_len;
 
   char* buffer = calloc(maxSqlLen, 1);
   if (NULL == buffer) {
-    errorPrint( "Failed to alloc %d Bytes, reason:%s\n",
+    errorPrint( "Failed to alloc %"PRIu64" Bytes, reason:%s\n",
               maxSqlLen,
               strerror(errno));
     return NULL;
   }
 
-  int64_t lastPrintTime = taosGetTimestampMs();
-  int64_t startTs = taosGetTimestampMs();
-  int64_t endTs;
+  uint64_t lastPrintTime = taosGetTimestampMs();
+  uint64_t startTs = taosGetTimestampMs();
+  uint64_t endTs;
 
   int64_t timeStampStep =
       superTblInfo?superTblInfo->timeStampStep:DEFAULT_TIMESTAMP_STEP;
@@ -5199,15 +5287,15 @@ static void* syncWriteProgressive(threadInfo *pThreadInfo) {
 
   pThreadInfo->samplePos = 0;
 
-  for (int64_t tableSeq =
+  for (uint64_t tableSeq =
           pThreadInfo->start_table_from; tableSeq <= pThreadInfo->end_table_to;
         tableSeq ++) {
     int64_t start_time = pThreadInfo->start_time;
 
-    int64_t insertRows = (superTblInfo)?superTblInfo->insertRows:g_args.num_of_DPT;
+    uint64_t insertRows = (superTblInfo)?superTblInfo->insertRows:g_args.num_of_DPT;
     verbosePrint("%s() LN%d insertRows=%"PRId64"\n", __func__, __LINE__, insertRows);
 
-    for (int64_t i = 0; i < insertRows;) {
+    for (uint64_t i = 0; i < insertRows;) {
         /*
       if (insert_interval) {
             st = taosGetTimestampMs();
@@ -5229,7 +5317,7 @@ static void* syncWriteProgressive(threadInfo *pThreadInfo) {
       pstr += len;
       remainderBufLen -= len;
 
-      int generated = generateProgressiveDataBuffer(
+      int64_t generated = generateProgressiveDataBuffer(
               tableName, tableSeq, pThreadInfo, pstr, insertRows,
             i, start_time,
             &(pThreadInfo->samplePos),
@@ -5237,7 +5325,7 @@ static void* syncWriteProgressive(threadInfo *pThreadInfo) {
       if (generated > 0)
         i += generated;
       else
-        goto free_and_statistics_2;
+        goto free_of_progressive;
 
       start_time +=  generated * timeStampStep;
       pThreadInfo->totalInsertRows += generated;
@@ -5247,17 +5335,23 @@ static void* syncWriteProgressive(threadInfo *pThreadInfo) {
       int64_t affectedRows = execInsert(pThreadInfo, buffer, generated);
 
       endTs = taosGetTimestampMs();
-      int64_t delay = endTs - startTs;
+      uint64_t delay = endTs - startTs;
       performancePrint("%s() LN%d, insert execution time is %"PRId64"ms\n",
               __func__, __LINE__, delay);
+      verbosePrint("[%d] %s() LN%d affectedRows=%"PRId64"\n",
+            pThreadInfo->threadID,
+            __func__, __LINE__, affectedRows);
 
       if (delay > pThreadInfo->maxDelay) pThreadInfo->maxDelay = delay;
       if (delay < pThreadInfo->minDelay) pThreadInfo->minDelay = delay;
       pThreadInfo->cntDelay++;
       pThreadInfo->totalDelay += delay;
 
-      if (affectedRows < 0)
-        goto free_and_statistics_2;
+      if (affectedRows < 0) {
+        errorPrint("%s() LN%d, affected rows: %"PRId64"\n",
+                __func__, __LINE__, affectedRows);
+        goto free_of_progressive;
+      }
 
       pThreadInfo->totalAffectedRows += affectedRows;
 
@@ -5296,13 +5390,9 @@ static void* syncWriteProgressive(threadInfo *pThreadInfo) {
     }
   } // tableSeq
 
-free_and_statistics_2:
+free_of_progressive:
   tmfree(buffer);
-
-  printf("====thread[%d] completed total inserted rows: %"PRId64 ", total affected rows: %"PRId64 "====\n",
-          pThreadInfo->threadID,
-          pThreadInfo->totalInsertRows,
-          pThreadInfo->totalAffectedRows);
+  printStatPerThread(pThreadInfo);
   return NULL;
 }
 
@@ -5331,6 +5421,7 @@ static void* syncWrite(void *sarg) {
     // progressive mode
     return syncWriteProgressive(pThreadInfo);
   }
+
 }
 
 static void callBack(void *param, TAOS_RES *res, int code) {
@@ -5521,15 +5612,15 @@ static void startMultiThreadInsertData(int threads, char* db_name,
   int startFrom;
 
   if (superTblInfo) {
-    int limit, offset;
+    int64_t limit;
+    uint64_t offset;
 
     if ((NULL != g_args.sqlFile) && (superTblInfo->childTblExists == TBL_NO_EXISTS) &&
             ((superTblInfo->childTblOffset != 0) || (superTblInfo->childTblLimit >= 0))) {
       printf("WARNING: offset and limit will not be used since the child tables not exists!\n");
     }
 
-    if ((superTblInfo->childTblExists == TBL_ALREADY_EXISTS)
-            && (superTblInfo->childTblOffset >= 0)) {
+    if (superTblInfo->childTblExists == TBL_ALREADY_EXISTS) {
       if ((superTblInfo->childTblLimit < 0)
           || ((superTblInfo->childTblOffset + superTblInfo->childTblLimit)
             > (superTblInfo->childTblCount))) {
@@ -5574,7 +5665,7 @@ static void startMultiThreadInsertData(int threads, char* db_name,
       exit(-1);
     }
 
-    int64_t childTblCount;
+    uint64_t childTblCount;
     getChildNameOfSuperTableWithLimitAndOffset(
         taos,
         db_name, superTblInfo->sTblName,
@@ -5613,7 +5704,7 @@ static void startMultiThreadInsertData(int threads, char* db_name,
     t_info->superTblInfo = superTblInfo;
 
     t_info->start_time = start_time;
-    t_info->minDelay = INT64_MAX;
+    t_info->minDelay = UINT64_MAX;
 
     if ((NULL == superTblInfo) ||
             (0 == strncasecmp(superTblInfo->insertMode, "taosc", 5))) {
@@ -5656,10 +5747,10 @@ static void startMultiThreadInsertData(int threads, char* db_name,
     pthread_join(pids[i], NULL);
   }
 
-  int64_t totalDelay = 0;
-  int64_t maxDelay = 0;
-  int64_t minDelay = INT64_MAX;
-  int64_t cntDelay = 1;
+  uint64_t totalDelay = 0;
+  uint64_t maxDelay = 0;
+  uint64_t minDelay = UINT64_MAX;
+  uint64_t cntDelay = 1;
   double  avgDelay = 0;
 
   for (int i = 0; i < threads; i++) {
@@ -5668,7 +5759,7 @@ static void startMultiThreadInsertData(int threads, char* db_name,
     tsem_destroy(&(t_info->lock_sem));
     taos_close(t_info->taos);
 
-    debugPrint("%s() LN%d, [%d] totalInsert=%"PRId64" totalAffected=%"PRId64"\n",
+    debugPrint("%s() LN%d, [%d] totalInsert=%"PRIu64" totalAffected=%"PRIu64"\n",
             __func__, __LINE__,
             t_info->threadID, t_info->totalInsertRows,
             t_info->totalAffectedRows);
@@ -5694,35 +5785,42 @@ static void startMultiThreadInsertData(int threads, char* db_name,
   int64_t t = end - start;
 
   if (superTblInfo) {
-    printf("Spent %.2f seconds to insert rows: %"PRId64", affected rows: %"PRId64" with %d thread(s) into %s.%s. %2.f records/second\n\n",
+    fprintf(stderr, "Spent %.2f seconds to insert rows: %"PRIu64", affected rows: %"PRIu64" with %d thread(s) into %s.%s. %.2f records/second\n\n",
           t / 1000.0, superTblInfo->totalInsertRows,
           superTblInfo->totalAffectedRows,
           threads, db_name, superTblInfo->sTblName,
           (double)superTblInfo->totalInsertRows / (t / 1000.0));
-    fprintf(g_fpOfInsertResult,
-          "Spent %.2f seconds to insert rows: %"PRId64", affected rows: %"PRId64" with %d thread(s) into %s.%s. %2.f records/second\n\n",
+
+    if (g_fpOfInsertResult) {
+      fprintf(g_fpOfInsertResult,
+          "Spent %.2f seconds to insert rows: %"PRIu64", affected rows: %"PRIu64" with %d thread(s) into %s.%s. %.2f records/second\n\n",
           t / 1000.0, superTblInfo->totalInsertRows,
           superTblInfo->totalAffectedRows,
           threads, db_name, superTblInfo->sTblName,
           (double)superTblInfo->totalInsertRows / (t / 1000.0));
+    }
   } else {
-    printf("Spent %.2f seconds to insert rows: %"PRId64", affected rows: %"PRId64" with %d thread(s) into %s %2.f records/second\n\n",
+    fprintf(stderr, "Spent %.2f seconds to insert rows: %"PRIu64", affected rows: %"PRIu64" with %d thread(s) into %s %.2f records/second\n\n",
           t / 1000.0, g_args.totalInsertRows,
           g_args.totalAffectedRows,
           threads, db_name,
           (double)g_args.totalInsertRows / (t / 1000.0));
-    fprintf(g_fpOfInsertResult,
-          "Spent %.2f seconds to insert rows: %"PRId64", affected rows: %"PRId64" with %d thread(s) into %s %2.f records/second\n\n",
+    if (g_fpOfInsertResult) {
+      fprintf(g_fpOfInsertResult,
+          "Spent %.2f seconds to insert rows: %"PRIu64", affected rows: %"PRIu64" with %d thread(s) into %s %.2f records/second\n\n",
           t * 1000.0, g_args.totalInsertRows,
           g_args.totalAffectedRows,
           threads, db_name,
           (double)g_args.totalInsertRows / (t / 1000.0));
+    }
   }
 
-  printf("insert delay, avg: %10.2fms, max: %"PRId64"ms, min: %"PRId64"ms\n\n",
+  fprintf(stderr, "insert delay, avg: %10.2fms, max: %"PRIu64"ms, min: %"PRIu64"ms\n\n",
           avgDelay, maxDelay, minDelay);
-  fprintf(g_fpOfInsertResult, "insert delay, avg:%10.2fms, max: %"PRId64"ms, min: %"PRId64"ms\n\n",
+  if (g_fpOfInsertResult) {
+    fprintf(g_fpOfInsertResult, "insert delay, avg:%10.2fms, max: %"PRIu64"ms, min: %"PRIu64"ms\n\n",
           avgDelay, maxDelay, minDelay);
+  }
 
   //taos_close(taos);
 
@@ -5762,11 +5860,11 @@ static void *readTable(void *sarg) {
   printf("%d records:\n", totalData);
   fprintf(fp, "| QFunctions |    QRecords    |   QSpeed(R/s)   |  QLatency(ms) |\n");
 
-  for (int j = 0; j < n; j++) {
+  for (uint64_t j = 0; j < n; j++) {
     double totalT = 0;
-    int count = 0;
-    for (int i = 0; i < num_of_tables; i++) {
-      sprintf(command, "select %s from %s%d where ts>= %" PRId64,
+    uint64_t count = 0;
+    for (uint64_t i = 0; i < num_of_tables; i++) {
+      sprintf(command, "select %s from %s%"PRIu64" where ts>= %" PRIu64,
               aggreFunc[j], tb_prefix, i, sTime);
 
       double t = taosGetTimestampMs();
@@ -5892,7 +5990,8 @@ static int insertTestProcess() {
     return -1;
   }
 
-  printfInsertMetaToFile(g_fpOfInsertResult);
+  if (g_fpOfInsertResult)
+    printfInsertMetaToFile(g_fpOfInsertResult);
 
   if (!g_args.answer_yes) {
     printf("Press enter key to continue\n\n");
@@ -5903,7 +6002,8 @@ static int insertTestProcess() {
 
   // create database and super tables
   if(createDatabasesAndStables() != 0) {
-    fclose(g_fpOfInsertResult);
+    if (g_fpOfInsertResult)
+      fclose(g_fpOfInsertResult);
     return -1;
   }
 
@@ -5919,11 +6019,13 @@ static int insertTestProcess() {
   end = taosGetTimestampMs();
 
   if (g_totalChildTables > 0) {
-    printf("Spent %.4f seconds to create %d tables with %d thread(s)\n\n",
+    fprintf(stderr, "Spent %.4f seconds to create %d tables with %d thread(s)\n\n",
             (end - start)/1000.0, g_totalChildTables, g_Dbs.threadCountByCreateTbl);
-    fprintf(g_fpOfInsertResult,
+    if (g_fpOfInsertResult) {
+      fprintf(g_fpOfInsertResult,
             "Spent %.4f seconds to create %d tables with %d thread(s)\n\n",
             (end - start)/1000.0, g_totalChildTables, g_Dbs.threadCountByCreateTbl);
+    }
   }
 
   taosMsleep(1000);
@@ -5996,14 +6098,14 @@ static void *specifiedTableQuery(void *sarg) {
     return NULL;
   }
 
-  int64_t st = 0;
-  int64_t et = 0;
+  uint64_t st = 0;
+  uint64_t et = 0;
 
-  int queryTimes = g_queryInfo.specifiedQueryInfo.queryTimes;
+  uint64_t queryTimes = g_queryInfo.specifiedQueryInfo.queryTimes;
 
-  int totalQueried = 0;
-  int64_t  lastPrintTime = taosGetTimestampMs();
-  int64_t  startTs = taosGetTimestampMs();
+  uint64_t totalQueried = 0;
+  uint64_t lastPrintTime = taosGetTimestampMs();
+  uint64_t startTs = taosGetTimestampMs();
 
   while(queryTimes --) {
     if (g_queryInfo.specifiedQueryInfo.queryInterval && (et - st) <
@@ -6049,12 +6151,12 @@ static void *specifiedTableQuery(void *sarg) {
 
     et = taosGetTimestampMs();
 
-    int64_t  currentPrintTime = taosGetTimestampMs();
-    int64_t  endTs = taosGetTimestampMs();
+    uint64_t  currentPrintTime = taosGetTimestampMs();
+    uint64_t  endTs = taosGetTimestampMs();
     if (currentPrintTime - lastPrintTime > 30*1000) {
-      debugPrint("%s() LN%d, endTs=%"PRId64"ms, startTs=%"PRId64"ms\n",
+      debugPrint("%s() LN%d, endTs=%"PRIu64"ms, startTs=%"PRIu64"ms\n",
           __func__, __LINE__, endTs, startTs);
-      printf("thread[%d] has currently completed queries: %d, QPS: %10.6f\n",
+      printf("thread[%d] has currently completed queries: %"PRIu64", QPS: %10.6f\n",
                     pThreadInfo->threadID,
                     totalQueried,
                     (double)(totalQueried/((endTs-startTs)/1000.0)));
@@ -6106,14 +6208,14 @@ static void *superTableQuery(void *sarg) {
     }
   }
 
-  int64_t st = 0;
-  int64_t et = (int64_t)g_queryInfo.superQueryInfo.queryInterval;
+  uint64_t st = 0;
+  uint64_t et = (int64_t)g_queryInfo.superQueryInfo.queryInterval;
 
-  int queryTimes = g_queryInfo.superQueryInfo.queryTimes;
-  int totalQueried = 0;
-  int64_t  startTs = taosGetTimestampMs();
+  uint64_t queryTimes = g_queryInfo.superQueryInfo.queryTimes;
+  uint64_t totalQueried = 0;
+  uint64_t  startTs = taosGetTimestampMs();
 
-  int64_t  lastPrintTime = taosGetTimestampMs();
+  uint64_t  lastPrintTime = taosGetTimestampMs();
   while(queryTimes --) {
     if (g_queryInfo.superQueryInfo.queryInterval
             && (et - st) < (int64_t)g_queryInfo.superQueryInfo.queryInterval) {
@@ -6140,7 +6242,7 @@ static void *superTableQuery(void *sarg) {
         int64_t  currentPrintTime = taosGetTimestampMs();
         int64_t  endTs = taosGetTimestampMs();
         if (currentPrintTime - lastPrintTime > 30*1000) {
-          printf("thread[%d] has currently completed queries: %d, QPS: %10.3f\n",
+          printf("thread[%d] has currently completed queries: %"PRIu64", QPS: %10.3f\n",
                     pThreadInfo->threadID,
                     totalQueried,
                     (double)(totalQueried/((endTs-startTs)/1000.0)));
@@ -6149,7 +6251,7 @@ static void *superTableQuery(void *sarg) {
       }
     }
     et = taosGetTimestampMs();
-    printf("####thread[%"PRId64"] complete all sqls to allocate all sub-tables[%"PRId64" - %"PRId64"] once queries duration:%.4fs\n\n",
+    printf("####thread[%"PRId64"] complete all sqls to allocate all sub-tables[%"PRIu64" - %"PRIu64"] once queries duration:%.4fs\n\n",
             taosGetSelfPthreadId(),
             pThreadInfo->start_table_from,
             pThreadInfo->end_table_to,
@@ -6204,7 +6306,7 @@ static int queryTestProcess() {
   int nConcurrent = g_queryInfo.specifiedQueryInfo.concurrent;
   int nSqlCount = g_queryInfo.specifiedQueryInfo.sqlCount;
 
-  int64_t startTs = taosGetTimestampMs();
+  uint64_t startTs = taosGetTimestampMs();
 
   if ((nSqlCount > 0) && (nConcurrent > 0)) {
 
@@ -6264,16 +6366,16 @@ static int queryTestProcess() {
       ERROR_EXIT("memory allocation failed for create threads\n");
     }
 
-    int ntables = g_queryInfo.superQueryInfo.childTblCount;
+    uint64_t ntables = g_queryInfo.superQueryInfo.childTblCount;
     int threads = g_queryInfo.superQueryInfo.threadCnt;
 
-    int a = ntables / threads;
+    uint64_t a = ntables / threads;
     if (a < 1) {
       threads = ntables;
       a = 1;
     }
 
-    int b = 0;
+    uint64_t b = 0;
     if (threads != 0) {
       b = ntables % threads;
     }
@@ -6315,12 +6417,12 @@ static int queryTestProcess() {
   tmfree((char*)infosOfSub);
 
 //  taos_close(taos);// TODO: workaround to use separate taos connection;
-  int64_t endTs = taosGetTimestampMs();
+  uint64_t endTs = taosGetTimestampMs();
 
-  int totalQueried = g_queryInfo.specifiedQueryInfo.totalQueried +
+  uint64_t totalQueried = g_queryInfo.specifiedQueryInfo.totalQueried +
     g_queryInfo.superQueryInfo.totalQueried;
 
-  printf("==== completed total queries: %d, the QPS of all threads: %10.3f====\n",
+  fprintf(stderr, "==== completed total queries: %"PRIu64", the QPS of all threads: %10.3f====\n",
           totalQueried,
           (double)(totalQueried/((endTs-startTs)/1000.0)));
   return 0;
@@ -6415,7 +6517,7 @@ static void *superSubscribe(void *sarg) {
       }
     }
     //et = taosGetTimestampMs();
-    //printf("========thread[%"PRId64"] complete all sqls to super table once queries duration:%.4fs\n", taosGetSelfPthreadId(), (double)(et - st)/1000.0);
+    //printf("========thread[%"PRIu64"] complete all sqls to super table once queries duration:%.4fs\n", taosGetSelfPthreadId(), (double)(et - st)/1000.0);
   } while(0);
 
   // start loop to consume result
@@ -6481,7 +6583,7 @@ static void *specifiedSubscribe(void *sarg) {
   do {
     //if (g_queryInfo.specifiedQueryInfo.queryInterval && (et - st) < g_queryInfo.specifiedQueryInfo.queryInterval) {
     //  taosMsleep(g_queryInfo.specifiedQueryInfo.queryInterval- (et - st)); // ms
-    //  //printf("========sleep duration:%"PRId64 "========inserted rows:%d, table range:%d - %d\n", (1000 - (et - st)), i, pThreadInfo->start_table_from, pThreadInfo->end_table_to);
+    //  //printf("========sleep duration:%"PRIu64 "========inserted rows:%d, table range:%d - %d\n", (1000 - (et - st)), i, pThreadInfo->start_table_from, pThreadInfo->end_table_to);
     //}
 
     //st = taosGetTimestampMs();
@@ -6501,7 +6603,7 @@ static void *specifiedSubscribe(void *sarg) {
       }
     }
     //et = taosGetTimestampMs();
-    //printf("========thread[%"PRId64"] complete all sqls to super table once queries duration:%.4fs\n", taosGetSelfPthreadId(), (double)(et - st)/1000.0);
+    //printf("========thread[%"PRIu64"] complete all sqls to super table once queries duration:%.4fs\n", taosGetSelfPthreadId(), (double)(et - st)/1000.0);
   } while(0);
 
   // start loop to consume result
@@ -6571,8 +6673,9 @@ static int subscribeTestProcess() {
   //==== create sub threads for query from super table
   if ((g_queryInfo.specifiedQueryInfo.sqlCount <= 0) ||
           (g_queryInfo.specifiedQueryInfo.concurrent <= 0)) {
-    errorPrint("%s() LN%d, query sqlCount %"PRId64" or concurrent %"PRId64" is not correct.\n",
-              __func__, __LINE__, g_queryInfo.specifiedQueryInfo.sqlCount,
+    errorPrint("%s() LN%d, query sqlCount %"PRIu64" or concurrent %"PRIu64" is not correct.\n",
+              __func__, __LINE__,
+              g_queryInfo.specifiedQueryInfo.sqlCount,
               g_queryInfo.specifiedQueryInfo.concurrent);
     exit(-1);
   }
