@@ -415,7 +415,7 @@ uint32_t tGetToken(char* z, uint32_t* tokenId) {
       int  delim = z[0];
       bool strEnd = false;
       for (i = 1; z[i]; i++) {
-        if (z[i] == '\\') { 
+        if (z[i] == '\\') {   // ignore the escaped character that follows this backslash
           i++;
           continue;
         }

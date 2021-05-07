@@ -468,11 +468,7 @@ int tsParseOneRow(char **str, STableDataBlocks *pDataBlocks, SSqlCmd *pCmd, int1
       int32_t j = 0;
       for (uint32_t k = 1; k < sToken.n - 1; ++k) {
         if (sToken.z[k] == '\\' || (sToken.z[k] == delim && sToken.z[k + 1] == delim)) {
-          if (sToken.z[k] == '\\') {
-            tmpTokenBuf[j] = GET_ESCAPE_CHAR(sToken.z[k+1]);
-          } else {
             tmpTokenBuf[j] = sToken.z[k + 1];
-          }
 
           cnt++;
           j++;
