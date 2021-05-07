@@ -3,6 +3,7 @@ from .constants import FieldType
 from .error import *
 import math
 import datetime
+import platform
 
 
 def _convert_millisecond_to_datetime(milli):
@@ -329,10 +330,29 @@ class TaosField(ctypes.Structure):
 
 # C interface class
 
+def _load_taos_linux():
+    return ctypes.CDLL('libtaos.so')
+
+def _load_taos_darwin():
+    return ctypes.cDLL('libtaos.dylib')
+
+def _load_taos_windows():
+    return ctypes.windll.LoadLibrary('taos')
+
+def _load_taos():
+    load_func = {
+        'Linux': _load_taos_linux,
+        'Darwin': _load_taos_darwin,
+        'Windows': _load_taos_windows,
+    }
+    try:
+        return load_func[platform.system()]()
+    except:
+        sys.exit('unsupported platform to TDengine connector')
 
 class CTaosInterface(object):
 
-    libtaos = ctypes.CDLL('libtaos.so')
+    libtaos = _load_taos()
 
     libtaos.taos_fetch_fields.restype = ctypes.POINTER(TaosField)
     libtaos.taos_init.restype = None
