@@ -97,6 +97,7 @@ int tsdbRecoverDataMain(STsdbRepo *pRepo) {
 
   if (tsdbInitRecoverH(&recoverH, pRepo) < 0) {
     tsdbError("vgId:%d failed to init restore handle since %s", REPO_ID(pRepo), tstrerror(terrno));
+    taosArrayDestroy(fSetArray);
     return -1;
   }
 
@@ -111,6 +112,8 @@ int tsdbRecoverDataMain(STsdbRepo *pRepo) {
       // backup the SDFileSet
       if (tsdbBackUpDFileSet(pRepo, &pReadH->rSet) < 0) {
         tsdbError("vgId:%d failed to backup DFileSet %d since %s", REPO_ID(pRepo), pReadH->rSet.fid, tstrerror(terrno));
+        taosArrayDestroy(fSetArray);
+        tsdbDestoryRecoverH(&recoverH);
         return -1;
       }
       // check next SDFileSet although return not zero
@@ -123,7 +126,6 @@ int tsdbRecoverDataMain(STsdbRepo *pRepo) {
 
   // release resources
   taosArrayDestroy(fSetArray);
-  // release pRecoverH
   tsdbDestoryRecoverH(&recoverH);
 
   return 0;
