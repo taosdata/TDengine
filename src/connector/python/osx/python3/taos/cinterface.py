@@ -21,11 +21,17 @@ def _crow_timestamp_to_python(data, num_of_rows, nbytes=None, micro=False):
         _timestamp_converter = _convert_microsecond_to_datetime
 
     if num_of_rows > 0:
-        return list(map(_timestamp_converter, ctypes.cast(
-            data, ctypes.POINTER(ctypes.c_int64))[:abs(num_of_rows)]))
+        return [
+            None if ele == FieldType.C_BIGINT_NULL else _timestamp_converter(ele) for ele in ctypes.cast(
+                data, ctypes.POINTER(
+                    ctypes.c_int64))[
+                :abs(num_of_rows)]]
     else:
-        return list(map(_timestamp_converter, ctypes.cast(
-            data, ctypes.POINTER(ctypes.c_int64))[:abs(num_of_rows)]))
+        return [
+            None if ele == FieldType.C_BIGINT_NULL else _timestamp_converter(ele) for ele in ctypes.cast(
+                data, ctypes.POINTER(
+                    ctypes.c_int64))[
+                :abs(num_of_rows)]]
 
 
 def _crow_bool_to_python(data, num_of_rows, nbytes=None, micro=False):
