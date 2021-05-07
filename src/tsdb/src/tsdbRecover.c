@@ -60,7 +60,7 @@ static bool tsdbRecoverIsFatalError();
 static void  tsdbGetDataBakPath(int repoid, SDFile *pDFile, char dirName[]);
 static void  tsdbGetDataBakDir(char dirName[]);
 static int   tsdbBackUpDFileSet(STsdbRepo *pRepo, SDFileSet *pFileSet);
-static void *tsdbClearBakDFileSet(void *param);
+static int   tsdbClearBakDFileSet();
 
 /**
  * load SBlockInfo from .head
@@ -136,7 +136,7 @@ static void tsdbGetDataBakPath(int repoid, SDFile *pDFile, char dirName[]) {
 }
 
 // path:    vnode_bak/.tsdb/${unix_ts_seconds}.fileName
-// expire:  default(half year, or 500G)
+// expire:  default(half year)
 static int tsdbBackUpDFileSet(STsdbRepo *pRepo, SDFileSet *pFileSet) {
   int32_t ts = taosGetTimestampSec();
   for (TSDB_FILE_T ftype = TSDB_FILE_HEAD; ftype < TSDB_FILE_MAX; ++ftype) {
@@ -168,10 +168,10 @@ static void tsdbGetDataBakDir(char dirName[]) { snprintf(dirName, TSDB_FILENAME_
 
 void tsdbClearBakFiles() {
   // no use of thread in case of conflict of rmdir and mkdir for future backup.
-  tsdbClearBakDFileSet(NULL);
+  tsdbClearBakDFileSet();
 }
 
-static void *tsdbClearBakDFileSet(void *param) {
+static int tsdbClearBakDFileSet() {
   char         bakDir[TSDB_FILENAME_LEN] = "\0";
   char         aname[TSDB_FILENAME_LEN * 2] = "\0";
   char         bnameLatter[TSDB_FILENAME_LEN / 2] = "\0";
@@ -181,15 +181,15 @@ static void *tsdbClearBakDFileSet(void *param) {
   DIR *        dir = NULL;
   int32_t      keep = tsTsdbBakFilesKeep;
 
-  if (keep < 0) { 
-    return NULL;
+  if (keep < 0) {
+    return 0;
   }
 
   tsdbGetDataBakDir(bakDir);
   TDIR *tdir = tfsOpendir(bakDir);
   if (tdir == NULL) {
     tsdbError("failed to open directory %s since %s", bakDir, tstrerror(terrno));
-    return NULL;
+    return -1;
   }
   struct dirent *dp = NULL;
   while ((pf = tfsReaddir(tdir))) {
@@ -228,7 +228,7 @@ static void *tsdbClearBakDFileSet(void *param) {
   // release resource
   tfsClosedir(tdir);
 
-  return NULL;
+  return 0;
 }
 
 static int tsdbInitRecoverH(SRecoverH *pRecoverH, STsdbRepo *pRepo) {
