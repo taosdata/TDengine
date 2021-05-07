@@ -98,17 +98,26 @@ int tsdbUnRefMemTable(STsdbRepo *pRepo, SMemTable *pMemTable) {
     STsdbBufPool *pBufPool = pRepo->pPool;
 
     SListNode *pNode = NULL;
+    bool recycleBlocks = pBufPool->nRecycleBlocks > 0;
     if (tsdbLockRepo(pRepo) < 0) return -1;
     while ((pNode = tdListPopHead(pMemTable->bufBlockList)) != NULL) {
-      tdListAppendNode(pBufPool->bufBlockList, pNode);
+      if (pBufPool->nRecycleBlocks > 0) {
+        tsdbRecycleBufferBlock(pBufPool, pNode);
+        pBufPool->nRecycleBlocks -= 1;
+      } else {
+        tdListAppendNode(pBufPool->bufBlockList, pNode);
+      }      
     }
-    int code = pthread_cond_signal(&pBufPool->poolNotEmpty);
-    if (code != 0) {
-      if (tsdbUnlockRepo(pRepo) < 0) return -1;
-      tsdbError("vgId:%d failed to signal pool not empty since %s", REPO_ID(pRepo), strerror(code));
-      terrno = TAOS_SYSTEM_ERROR(code);
-      return -1;
+    if (!recycleBlocks) {
+      int code = pthread_cond_signal(&pBufPool->poolNotEmpty);
+      if (code != 0) {
+        if (tsdbUnlockRepo(pRepo) < 0) return -1;
+        tsdbError("vgId:%d failed to signal pool not empty since %s", REPO_ID(pRepo), strerror(code));
+        terrno = TAOS_SYSTEM_ERROR(code);
+        return -1;
+      }
     }
+
     if (tsdbUnlockRepo(pRepo) < 0) return -1;
 
     for (int i = 0; i < pMemTable->maxTables; i++) {

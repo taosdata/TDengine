@@ -116,17 +116,21 @@ static void tsdbApplyRepoConfig(STsdbRepo *pRepo) {
   pRepo->config_changed = false;
   STsdbCfg * pSaveCfg = &pRepo->save_config;
 
+  int32_t oldTotalBlocks = pRepo->config.totalBlocks;
+
   pRepo->config.compression = pRepo->save_config.compression;
   pRepo->config.keep = pRepo->save_config.keep;
   pRepo->config.keep1 = pRepo->save_config.keep1;
   pRepo->config.keep2 = pRepo->save_config.keep2;
   pRepo->config.cacheLastRow = pRepo->save_config.cacheLastRow;
-  //pRepo->config.update = pRepo->save_config.update;
+  pRepo->config.totalBlocks = pRepo->save_config.totalBlocks;
 
-  tsdbInfo("vgId:%d apply new config: compression(%d), keep(%d,%d,%d), totalBlocks(%d), cacheLastRow(%d)",
+  tsdbInfo("vgId:%d apply new config: compression(%d), keep(%d,%d,%d), totalBlocks(%d), cacheLastRow(%d),totalBlocks(%d)",
     REPO_ID(pRepo),
     pSaveCfg->compression, pSaveCfg->keep,pSaveCfg->keep1, pSaveCfg->keep2,
-    pSaveCfg->totalBlocks, pSaveCfg->cacheLastRow);
+    pSaveCfg->totalBlocks, pSaveCfg->cacheLastRow, pSaveCfg->totalBlocks);
+
+  tsdbExpendPool(pRepo, oldTotalBlocks);
 
 }
 

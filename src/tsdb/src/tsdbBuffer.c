@@ -70,6 +70,7 @@ int tsdbOpenBufPool(STsdbRepo *pRepo) {
   pPool->tBufBlocks = pCfg->totalBlocks;
   pPool->nBufBlocks = 0;
   pPool->index = 0;
+  pPool->nRecycleBlocks = 0;
 
   for (int i = 0; i < pCfg->totalBlocks; i++) {
     STsdbBufBlock *pBufBlock = tsdbNewBufBlock(pPool->bufBlockSize);
@@ -157,3 +158,41 @@ _err:
 }
 
 static void tsdbFreeBufBlock(STsdbBufBlock *pBufBlock) { tfree(pBufBlock); }
+
+void tsdbExpendPool(STsdbRepo* pRepo, int32_t oldTotalBlocks) {
+  if (oldTotalBlocks == pRepo->config.totalBlocks) {
+    return;
+  }
+
+  if (tsdbLockRepo(pRepo) < 0) return;
+  STsdbBufPool* pPool = pRepo->pPool;
+
+  if (pRepo->config.totalBlocks > oldTotalBlocks) {
+    for (int i = 0; i < pRepo->config.totalBlocks - oldTotalBlocks; i++) {
+      STsdbBufBlock *pBufBlock = tsdbNewBufBlock(pPool->bufBlockSize);
+      if (pBufBlock == NULL) goto err;
+
+      if (tdListAppend(pPool->bufBlockList, (void *)(&pBufBlock)) < 0) {
+        tsdbFreeBufBlock(pBufBlock);
+        terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
+        goto err;
+      }
+
+      pPool->nBufBlocks++;      
+    }
+    pthread_cond_signal(&pPool->poolNotEmpty);
+  } else {
+    pPool->nRecycleBlocks = oldTotalBlocks - pRepo->config.totalBlocks;
+  } 
+
+err:
+  tsdbUnlockRepo(pRepo);
+}
+
+void tsdbRecycleBufferBlock(STsdbBufPool* pPool, SListNode *pNode) {
+  STsdbBufBlock *pBufBlock = NULL;
+  tdListNodeGetData(pPool->bufBlockList, pNode, (void *)(&pBufBlock));
+  tsdbFreeBufBlock(pBufBlock);
+  free(pNode);
+  pPool->nBufBlocks--;
+}
