@@ -152,8 +152,7 @@ python3 test.py -f tools/taosdemoTestTblAlt.py
 python3 test.py -f tools/taosdemoTestSampleData.py
 python3 test.py -f tools/taosdemoTestInterlace.py
 python3 test.py -f tools/taosdemoTestQuery.py
-python3 test.py -f tools/taosdemoAllTest/taosdemoTestInsertWithJson.py 
-python3 test.py -f tools/taosdemoAllTest/taosdemoTestQueryWithJson.py
+
 
 
 # update
@@ -328,5 +327,8 @@ python3 ./test.py -f insert/boundary2.py
 python3 ./test.py -f alter/alter_debugFlag.py
 python3 ./test.py -f query/queryBetweenAnd.py
 python3 ./test.py -f tag_lite/alter_tag.py
+
+python3 test.py -f tools/taosdemoAllTest/taosdemoTestInsertWithJson.py 
+python3 test.py -f tools/taosdemoAllTest/taosdemoTestQueryWithJson.py
 
 #======================p4-end===============
