@@ -85,10 +85,11 @@ class TDTestCase:
 
 
         # # use restful api to query
+        # os.system("%staosdemo -f tools/taosdemoAllTest/speciQueryInsertdata.json" % binPath)
         # os.system("%staosdemo -f tools/taosdemoAllTest/speciQueryRestful.json" % binPath)
         # os.system("cat query_res0.txt* |sort -u > all_query_res0.txt")
         # os.system("cat query_res1.txt* |sort -u > all_query_res1.txt")
-        # os.system("cat query_res2.txt* |sort -u > all_query_res2.txt")
+        # # os.system("cat query_res2.txt* |sort -u > all_query_res2.txt")
         # tdSql.execute("use db")
         # tdSql.execute('create table result0 using stb0 tags(121,43,"beijing","beijing","beijing","beijing","beijing")')
         # os.system("python3 tools/taosdemoAllTest/convertResFile.py")
