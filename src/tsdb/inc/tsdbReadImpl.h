@@ -18,8 +18,6 @@
 
 typedef struct SReadH SReadH;
 
-#define TSDB_KEY_COL_OFFSET 0
-
 typedef struct {
   int32_t  tid;
   uint32_t len;

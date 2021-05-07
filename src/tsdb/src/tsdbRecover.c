@@ -181,6 +181,10 @@ static void *tsdbClearBakDFileSet(void *param) {
   DIR *        dir = NULL;
   int32_t      keep = tsTsdbBakFilesKeep;
 
+  if (keep < 0) { 
+    return NULL;
+  }
+
   tsdbGetDataBakDir(bakDir);
   TDIR *tdir = tfsOpendir(bakDir);
   if (tdir == NULL) {

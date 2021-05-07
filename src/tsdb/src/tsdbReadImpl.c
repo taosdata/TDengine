@@ -15,6 +15,8 @@
 
 #include "tsdbint.h"
 
+#define TSDB_KEY_COL_OFFSET 0
+
 static void tsdbResetReadTable(SReadH *pReadh);
 static void tsdbResetReadFile(SReadH *pReadh);
 static int  tsdbLoadBlockDataImpl(SReadH *pReadh, SBlock *pBlock, SDataCols *pDataCols);
