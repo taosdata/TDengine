@@ -386,7 +386,7 @@ int32_t tsParseOneColumn(SSchema *pSchema, SStrToken *pToken, char *payload, cha
  * The server time/client time should not be mixed up in one sql string
  * Do not employ sort operation is not involved if server time is used.
  */
-static int32_t tsCheckTimestamp(STableDataBlocks *pDataBlocks, const char *start) {
+int32_t tsCheckTimestamp(STableDataBlocks *pDataBlocks, const char *start) {
   // once the data block is disordered, we do NOT keep previous timestamp any more
   if (!pDataBlocks->ordered) {
     return TSDB_CODE_SUCCESS;
@@ -411,6 +411,7 @@ static int32_t tsCheckTimestamp(STableDataBlocks *pDataBlocks, const char *start
 
   if (k <= pDataBlocks->prevTS && (pDataBlocks->tsSource == TSDB_USE_CLI_TS)) {
     pDataBlocks->ordered = false;
+    tscWarn("NOT ordered input timestamp");
   }
 
   pDataBlocks->prevTS = k;
@@ -693,6 +694,8 @@ void tscSortRemoveDataBlockDupRows(STableDataBlocks *dataBuf) {
     pBlocks->numOfRows = i + 1;
     dataBuf->size = sizeof(SSubmitBlk) + dataBuf->rowSize * pBlocks->numOfRows;
   }
+
+  dataBuf->prevTS = INT64_MIN;
 }
 
 static int32_t doParseInsertStatement(SSqlCmd* pCmd, char **str, STableDataBlocks* dataBuf, int32_t *totalNum) {
@@ -1262,7 +1265,7 @@ int tsParseInsertSql(SSqlObj *pSql) {
     goto _clean;
   }
 
-  if (taosHashGetSize(pCmd->pTableBlockHashList) > 0) { // merge according to vgId
+  if ((pCmd->insertType != TSDB_QUERY_TYPE_STMT_INSERT) && taosHashGetSize(pCmd->pTableBlockHashList) > 0) { // merge according to vgId
     if ((code = tscMergeTableDataBlocks(pSql, true)) != TSDB_CODE_SUCCESS) {
       goto _clean;
     }

@@ -1255,67 +1255,71 @@ int32_t tscMergeTableDataBlocks(SSqlObj* pSql, bool freeBlockMap) {
 
   STableDataBlocks* pOneTableBlock = *p;
   while(pOneTableBlock) {
-    // the maximum expanded size in byte when a row-wise data is converted to SDataRow format
-    int32_t expandSize = getRowExpandSize(pOneTableBlock->pTableMeta);
-    STableDataBlocks* dataBuf = NULL;
-    
-    int32_t ret = tscGetDataBlockFromList(pVnodeDataBlockHashList, pOneTableBlock->vgId, TSDB_PAYLOAD_SIZE,
-                                INSERT_HEAD_SIZE, 0, &pOneTableBlock->tableName, pOneTableBlock->pTableMeta, &dataBuf, pVnodeDataBlockList);
-    if (ret != TSDB_CODE_SUCCESS) {
-      tscError("0x%"PRIx64" failed to prepare the data block buffer for merging table data, code:%d", pSql->self, ret);
-      taosHashCleanup(pVnodeDataBlockHashList);
-      tscDestroyBlockArrayList(pVnodeDataBlockList);
-      return ret;
-    }
-
     SSubmitBlk* pBlocks = (SSubmitBlk*) pOneTableBlock->pData;
-    int64_t destSize = dataBuf->size + pOneTableBlock->size + pBlocks->numOfRows * expandSize + sizeof(STColumn) * tscGetNumOfColumns(pOneTableBlock->pTableMeta);
-
-    if (dataBuf->nAllocSize < destSize) {
-      while (dataBuf->nAllocSize < destSize) {
-        dataBuf->nAllocSize = (uint32_t)(dataBuf->nAllocSize * 1.5);
-      }
-
-      char* tmp = realloc(dataBuf->pData, dataBuf->nAllocSize);
-      if (tmp != NULL) {
-        dataBuf->pData = tmp;
-        memset(dataBuf->pData + dataBuf->size, 0, dataBuf->nAllocSize - dataBuf->size);
-      } else {  // failed to allocate memory, free already allocated memory and return error code
-        tscError("0x%"PRIx64" failed to allocate memory for merging submit block, size:%d", pSql->self, dataBuf->nAllocSize);
-
+    if (pBlocks->numOfRows > 0) {
+      // the maximum expanded size in byte when a row-wise data is converted to SDataRow format
+      int32_t expandSize = getRowExpandSize(pOneTableBlock->pTableMeta);
+      STableDataBlocks* dataBuf = NULL;
+      
+      int32_t ret = tscGetDataBlockFromList(pVnodeDataBlockHashList, pOneTableBlock->vgId, TSDB_PAYLOAD_SIZE,
+                                  INSERT_HEAD_SIZE, 0, &pOneTableBlock->tableName, pOneTableBlock->pTableMeta, &dataBuf, pVnodeDataBlockList);
+      if (ret != TSDB_CODE_SUCCESS) {
+        tscError("0x%"PRIx64" failed to prepare the data block buffer for merging table data, code:%d", pSql->self, ret);
         taosHashCleanup(pVnodeDataBlockHashList);
         tscDestroyBlockArrayList(pVnodeDataBlockList);
-        tfree(dataBuf->pData);
-
-        return TSDB_CODE_TSC_OUT_OF_MEMORY;
+        return ret;
       }
+
+      int64_t destSize = dataBuf->size + pOneTableBlock->size + pBlocks->numOfRows * expandSize + sizeof(STColumn) * tscGetNumOfColumns(pOneTableBlock->pTableMeta);
+
+      if (dataBuf->nAllocSize < destSize) {
+        while (dataBuf->nAllocSize < destSize) {
+          dataBuf->nAllocSize = (uint32_t)(dataBuf->nAllocSize * 1.5);
+        }
+
+        char* tmp = realloc(dataBuf->pData, dataBuf->nAllocSize);
+        if (tmp != NULL) {
+          dataBuf->pData = tmp;
+          memset(dataBuf->pData + dataBuf->size, 0, dataBuf->nAllocSize - dataBuf->size);
+        } else {  // failed to allocate memory, free already allocated memory and return error code
+          tscError("0x%"PRIx64" failed to allocate memory for merging submit block, size:%d", pSql->self, dataBuf->nAllocSize);
+
+          taosHashCleanup(pVnodeDataBlockHashList);
+          tscDestroyBlockArrayList(pVnodeDataBlockList);
+          tfree(dataBuf->pData);
+
+          return TSDB_CODE_TSC_OUT_OF_MEMORY;
+        }
+      }
+
+      tscSortRemoveDataBlockDupRows(pOneTableBlock);
+      char* ekey = (char*)pBlocks->data + pOneTableBlock->rowSize*(pBlocks->numOfRows-1);
+
+      tscDebug("0x%"PRIx64" name:%s, name:%d rows:%d sversion:%d skey:%" PRId64 ", ekey:%" PRId64, pSql->self, tNameGetTableName(&pOneTableBlock->tableName),
+          pBlocks->tid, pBlocks->numOfRows, pBlocks->sversion, GET_INT64_VAL(pBlocks->data), GET_INT64_VAL(ekey));
+
+      int32_t len = pBlocks->numOfRows * (pOneTableBlock->rowSize + expandSize) + sizeof(STColumn) * tscGetNumOfColumns(pOneTableBlock->pTableMeta);
+
+      pBlocks->tid = htonl(pBlocks->tid);
+      pBlocks->uid = htobe64(pBlocks->uid);
+      pBlocks->sversion = htonl(pBlocks->sversion);
+      pBlocks->numOfRows = htons(pBlocks->numOfRows);
+      pBlocks->schemaLen = 0;
+
+      // erase the empty space reserved for binary data
+      int32_t finalLen = trimDataBlock(dataBuf->pData + dataBuf->size, pOneTableBlock, pCmd->submitSchema);
+      assert(finalLen <= len);
+
+      dataBuf->size += (finalLen + sizeof(SSubmitBlk));
+      assert(dataBuf->size <= dataBuf->nAllocSize);
+
+      // the length does not include the SSubmitBlk structure
+      pBlocks->dataLen = htonl(finalLen);
+      dataBuf->numOfTables += 1;
+    }else {
+      tscWarn("table %s data block is empty", pOneTableBlock->tableName.tname);
     }
-
-    tscSortRemoveDataBlockDupRows(pOneTableBlock);
-    char* ekey = (char*)pBlocks->data + pOneTableBlock->rowSize*(pBlocks->numOfRows-1);
-
-    tscDebug("0x%"PRIx64" name:%s, name:%d rows:%d sversion:%d skey:%" PRId64 ", ekey:%" PRId64, pSql->self, tNameGetTableName(&pOneTableBlock->tableName),
-        pBlocks->tid, pBlocks->numOfRows, pBlocks->sversion, GET_INT64_VAL(pBlocks->data), GET_INT64_VAL(ekey));
-
-    int32_t len = pBlocks->numOfRows * (pOneTableBlock->rowSize + expandSize) + sizeof(STColumn) * tscGetNumOfColumns(pOneTableBlock->pTableMeta);
-
-    pBlocks->tid = htonl(pBlocks->tid);
-    pBlocks->uid = htobe64(pBlocks->uid);
-    pBlocks->sversion = htonl(pBlocks->sversion);
-    pBlocks->numOfRows = htons(pBlocks->numOfRows);
-    pBlocks->schemaLen = 0;
-
-    // erase the empty space reserved for binary data
-    int32_t finalLen = trimDataBlock(dataBuf->pData + dataBuf->size, pOneTableBlock, pCmd->submitSchema);
-    assert(finalLen <= len);
-
-    dataBuf->size += (finalLen + sizeof(SSubmitBlk));
-    assert(dataBuf->size <= dataBuf->nAllocSize);
-
-    // the length does not include the SSubmitBlk structure
-    pBlocks->dataLen = htonl(finalLen);
-    dataBuf->numOfTables += 1;
-
+    
     p = taosHashIterate(pCmd->pTableBlockHashList, p);
     if (p == NULL) {
       break;
