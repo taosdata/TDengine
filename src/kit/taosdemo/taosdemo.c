@@ -3407,7 +3407,7 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
 
   cJSON* numRecPerReq = cJSON_GetObjectItem(root, "num_of_records_per_req");
   if (numRecPerReq && numRecPerReq->type == cJSON_Number) {
-    if (numRecPerReq->valueint < 0) {
+    if (numRecPerReq->valueint <= 0) {
       errorPrint("%s() LN%d, failed to read json, num_of_records_per_req input mistake\n",
         __func__, __LINE__);
       goto PARSE_OVER;
@@ -4748,7 +4748,7 @@ static int64_t generateDataTail(
 
   verbosePrint("%s() LN%d batch=%"PRIu64"\n", __func__, __LINE__, batch);
 
-  int64_t k = 0;
+  uint64_t k = 0;
   for (k = 0; k < batch;) {
     char data[MAX_DATA_SIZE];
     memset(data, 0, MAX_DATA_SIZE);
