@@ -705,15 +705,10 @@ static int32_t doParseInsertStatement(SSqlCmd* pCmd, char **str, STableDataBlock
   }
 
   code = TSDB_CODE_TSC_INVALID_SQL;
-  char  *tmpTokenBuf = calloc(1, 16*1024);  // used for deleting Escape character: \\, \', \"
-  if (NULL == tmpTokenBuf) {
-    return TSDB_CODE_TSC_OUT_OF_MEMORY;
-  }
+  char  tmpTokenBuf[16*1024] = {0};  // used for deleting Escape character: \\, \', \"
 
   int32_t numOfRows = 0;
   code = tsParseValues(str, dataBuf, maxNumOfRows, pCmd, &numOfRows, tmpTokenBuf);
-
-  free(tmpTokenBuf);
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }
@@ -1323,15 +1318,11 @@ int tsParseSql(SSqlObj *pSql, bool initial) {
     }
 
     // make a backup as tsParseInsertSql may modify the string
-    char* sqlstr = strdup(pSql->sqlstr);
     ret = tsParseInsertSql(pSql);
-    if ((sqlstr == NULL) || (pSql->parseRetry >= 1) ||
+    if ((pSql->parseRetry >= 1) ||
         (ret != TSDB_CODE_TSC_SQL_SYNTAX_ERROR && ret != TSDB_CODE_TSC_INVALID_SQL)) {
-      free(sqlstr);
     } else {
       tscResetSqlCmd(pCmd, true);
-      free(pSql->sqlstr);
-      pSql->sqlstr = sqlstr;
       pSql->parseRetry++;
       if ((ret = tsInsertInitialCheck(pSql)) == TSDB_CODE_SUCCESS) {
         ret = tsParseInsertSql(pSql);
