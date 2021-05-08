@@ -82,13 +82,11 @@ extern "C" {
   int tsem_destroy(tsem_t *sem);
 
 #define TAOS_OS_FUNC_SOCKET_SETSOCKETOPT
-#define TAOS_OS_FUNC_STRING_STR2INT64
 #define TAOS_OS_FUNC_SYSINFO
 #define TAOS_OS_FUNC_TIMER
 #define TAOS_OS_FUNC_SEMPHONE_PTHREAD
 
 // specific
-#define htobe64 htonll
 typedef int(*__compar_fn_t)(const void *, const void *);
 
 // for send function in tsocket.c
@@ -107,8 +105,6 @@ typedef int(*__compar_fn_t)(const void *, const void *);
 #endif
 
 #define TAOS_OS_FUNC_PTHREAD_RWLOCK
-
-int64_t tsosStr2int64(char *str);
 
 #include "eok.h"
 

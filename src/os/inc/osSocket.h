@@ -74,6 +74,16 @@ int32_t taosGetSockOpt(SOCKET socketfd, int32_t level, int32_t optname, void *op
 uint32_t    taosInetAddr(char *ipAddr);
 const char *taosInetNtoa(struct in_addr ipInt);
 
+
+#if (defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)) 
+  #define htobe64 htonll
+  #if defined(_TD_GO_DLL_)
+    uint64_t htonll(uint64_t val);
+  #endif
+#elif defined(_TD_DARWIN_64)
+  #define htobe64 htonll
+#endif
+
 #ifdef __cplusplus
 }
 #endif

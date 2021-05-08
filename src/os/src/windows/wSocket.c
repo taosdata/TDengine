@@ -89,3 +89,9 @@ const char *taosInetNtoa(struct in_addr ipInt) {
 }
 
 #endif
+
+#if defined(_TD_GO_DLL_)
+
+uint64_t htonll(uint64_t val) { return (((uint64_t)htonl(val)) << 32) + htonl(val >> 32); }
+
+#endif

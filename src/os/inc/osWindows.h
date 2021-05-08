@@ -88,19 +88,6 @@ typedef SOCKET eventfd_t;
   #define EPOLLWAKEUP (1u << 29)
 #endif
 
-#define TAOS_OS_FUNC_STRING_WCHAR
-  int twcslen(const wchar_t *wcs);
-#define TAOS_OS_FUNC_STRING_GETLINE
-#define TAOS_OS_FUNC_STRING_STR2INT64
-  #ifdef _TD_GO_DLL_
-    int64_t tsosStr2int64(char *str);
-    uint64_t htonll(uint64_t val);
-  #else
-    #define tsosStr2int64 _atoi64
-  #endif
-#define TAOS_OS_FUNC_STRING_STRDUP
-  #define taosStrdupImp(str) _strdup(str)
-  #define taosStrndupImp(str, size) _strndup(str, size)  
 
 char *stpcpy (char *dest, const char *src);
 char *stpncpy (char *dest, const char *src, size_t n);
@@ -127,7 +114,6 @@ typedef int (*__compar_fn_t)(const void *, const void *);
 #define snprintf _snprintf
 #define in_addr_t unsigned long
 #define socklen_t int
-#define htobe64 htonll
 
 struct tm *localtime_r(const time_t *timep, struct tm *result);
 char *     strptime(const char *buf, const char *fmt, struct tm *tm);
