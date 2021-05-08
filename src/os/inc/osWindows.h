@@ -55,11 +55,6 @@
 extern "C" {
 #endif
 
-#define TAOS_OS_FUNC_LZ4
-  int32_t BUILDIN_CLZL(uint64_t val);
-  int32_t BUILDIN_CLZ(uint32_t val);
-  int32_t BUILDIN_CTZL(uint64_t val);
-  int32_t BUILDIN_CTZ(uint32_t val);
 
 #define TAOS_OS_FUNC_FILE
 #define TAOS_OS_FUNC_FILE_ISREG
@@ -69,17 +64,6 @@ extern "C" {
 #define TAOS_OS_FUNC_FILE_GETTMPFILEPATH
 #define TAOS_OS_FUNC_FILE_FTRUNCATE 
 
-#define TAOS_OS_FUNC_DIR
-
-#define TAOS_OS_FUNC_MATH
-  #define SWAP(a, b, c)      \
-    do {                     \
-      c __tmp = (c)(a);      \
-      (a) = (c)(b);          \
-      (b) = __tmp;           \
-    } while (0)
-  #define MAX(a,b)  (((a)>(b))?(a):(b))
-  #define MIN(a,b)  (((a)<(b))?(a):(b))
 
 #define TAOS_OS_FUNC_SEMPHONE_PTHREAD
 
@@ -103,9 +87,6 @@ typedef SOCKET eventfd_t;
 #ifndef EPOLLWAKEUP
   #define EPOLLWAKEUP (1u << 29)
 #endif
-
-#define TAOS_OS_DEF_ZU
-  #define PRIzu "ld"  
 
 #define TAOS_OS_FUNC_STRING_WCHAR
   int twcslen(const wchar_t *wcs);

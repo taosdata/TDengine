@@ -58,7 +58,6 @@ extern "C" {
 
 #include "osDef.h"
 #include "osAtomic.h"
-#include "osCommon.h"
 #include "osDir.h"
 #include "osFile.h"
 #include "osLz4.h"
