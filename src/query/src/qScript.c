@@ -103,7 +103,7 @@ int taosLoadScriptInit(void* pInit) {
   return 0;
 }
 void taosLoadScriptNormal(void *pInit, char *pInput, int16_t iType, int16_t iBytes, int32_t numOfRows, 
-    int64_t *ptsList, char* pOutput, char *ptsOutput, int32_t *numOfOutput, int16_t oType, int16_t oBytes) { 
+    int64_t *ptsList, int64_t key, char* pOutput, char *ptsOutput, int32_t *numOfOutput, int16_t oType, int16_t oBytes) { 
   ScriptCtx* pCtx = pInit;
   char funcName[MAX_FUNC_NAME] = {0};
   sprintf(funcName, "%s_add", pCtx->funcName);
@@ -124,8 +124,9 @@ void taosLoadScriptNormal(void *pInit, char *pInput, int16_t iType, int16_t iByt
   if (lua_istable(lua, -1)) {
     isGlobalState = true; 
   }
+  lua_pushnumber(lua, key);
   // do call lua script 
-  if (lua_pcall(lua, 2, 1, 0) != 0) {
+  if (lua_pcall(lua, 3, 1, 0) != 0) {
     qError("SCRIPT ERROR: %s", lua_tostring(lua, -1)); 
     lua_pop(lua, -1);
     return;
@@ -139,22 +140,51 @@ void taosLoadScriptNormal(void *pInit, char *pInput, int16_t iType, int16_t iByt
   *numOfOutput = tNumOfOutput;
 }
 
+void taosLoadScriptMerge(void *pInit, char* data, int32_t numOfRows, char* pOutput, int32_t* numOfOutput) {
+  ScriptCtx *pCtx = pInit;
+  char funcName[MAX_FUNC_NAME] = {0};
+  sprintf(funcName, "%s_merge", pCtx->funcName);
+
+  lua_State* lua  = pCtx->pEnv->lua_state;   
+  lua_getglobal(lua, funcName);
+  if (!lua_isfunction(lua, -1)) {
+    qError("SCRIPT ERROR: %s", lua_tostring(lua, -1)); 
+    return;
+  }
+
+  lua_getglobal(lua, "global"); 
+  if (lua_pcall(lua, 1, 1, 0) != 0) {
+    qError("SCRIPT ERROR: %s", lua_tostring(lua, -1)); 
+    lua_pop(lua, -1);
+    return;
+  }
+  int tNumOfOutput = 0; 
+  luaValueToTaosType(lua, pOutput, &tNumOfOutput, pCtx->resType, pCtx->resBytes);
+  *numOfOutput = tNumOfOutput;
+}
+
 //do not support agg now
-void taosLoadScriptFinalize(void *pInit, char *pOutput, int32_t* numOfOutput) {
+void taosLoadScriptFinalize(void *pInit,int64_t key, char *pOutput, int32_t* numOfOutput) {
   ScriptCtx *pCtx = pInit;
   char funcName[MAX_FUNC_NAME] = {0};
   sprintf(funcName, "%s_finalize", pCtx->funcName);
   
   lua_State* lua  = pCtx->pEnv->lua_state;   
   lua_getglobal(lua, funcName);
+  if (!lua_isfunction(lua, -1)) {
+    qError("SCRIPT ERROR: %s", lua_tostring(lua, -1)); 
+    return;
+  }
 
   lua_getglobal(lua, "global"); 
 
-  if (lua_pcall(lua, 1, 1, 0) != 0) {
+  lua_pushnumber(lua, key);
+  if (lua_pcall(lua, 2, 2, 0) != 0) {
     qError("SCRIPT ERROR: %s", lua_tostring(lua, -1)); 
     lua_pop(lua, -1);
     return;
   }
+  lua_setglobal(lua, "global"); 
   int tNumOfOutput = 0; 
   luaValueToTaosType(lua, pOutput, &tNumOfOutput, pCtx->resType, pCtx->resBytes);
   *numOfOutput = tNumOfOutput;
@@ -256,6 +286,8 @@ void luaValueToTaosType(lua_State *lua, char *interBuf, int32_t *numOfOutput, in
       }
       break;
     default:
+      setNull(interBuf, oType, oBytes);
+      sz = 1;
       break; 
   }
   lua_pop(lua,1); // pop ret value from script  

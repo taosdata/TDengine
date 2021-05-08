@@ -60,8 +60,9 @@ typedef struct ScriptCtx {
 
 int taosLoadScriptInit(void *pInit);
 void taosLoadScriptNormal(void *pInit, char *pInput, int16_t iType, int16_t iBytes, int32_t numOfRows, 
-    int64_t *ptsList, char* pOutput, char *ptsOutput, int32_t *numOfOutput, int16_t oType, int16_t oBytes);
-void taosLoadScriptFinalize(void *pInit, char *pOutput, int32_t *output);
+    int64_t *ptsList, int64_t key, char* pOutput, char *ptsOutput, int32_t *numOfOutput, int16_t oType, int16_t oBytes);
+void taosLoadScriptFinalize(void *pInit, int64_t key, char *pOutput, int32_t *output);
+void taosLoadScriptMerge(void *pCtx, char* data, int32_t numOfRows, char* dataOutput, int32_t* numOfOutput);
 void taosLoadScriptDestroy(void *pInit);
 
 typedef struct {

@@ -57,8 +57,8 @@ typedef struct SUdfInfo {
 
 typedef int32_t (*scriptInitFunc)(void *pCtx);
 typedef void (*scriptNormalFunc)(void *pCtx, char* data, int16_t iType, int16_t iBytes, int32_t numOfRows,
-                                 int64_t* ts, char* dataOutput, char* tsOutput, int32_t* numOfOutput, int16_t oType, int16_t oBytes);
-typedef void (*scriptFinalizeFunc)(void *pCtx, char* dataOutput, int32_t* numOfOutput);
+                                 int64_t* ptList, int64_t key, char* dataOutput, char* tsOutput, int32_t* numOfOutput, int16_t oType, int16_t oBytes);
+typedef void (*scriptFinalizeFunc)(void *pCtx, int64_t key, char* dataOutput, int32_t* numOfOutput);
 typedef void (*scriptMergeFunc)(void *pCtx, char* data, int32_t numOfRows, char* dataOutput, int32_t* numOfOutput);
 typedef void (*scriptDestroyFunc)(void* pCtx);
 
