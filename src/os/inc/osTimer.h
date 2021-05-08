@@ -20,7 +20,6 @@
 extern "C" {
 #endif
 
-// TAOS_OS_FUNC_TIMER
 int taosInitTimer(void (*callback)(int), int ms);
 void taosUninitTimer();
 

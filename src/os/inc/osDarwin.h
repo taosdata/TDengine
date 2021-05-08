@@ -75,7 +75,7 @@ extern "C" {
 #define TAOS_OS_FUNC_FILE_SENDIFLE
 
 #define TAOS_OS_FUNC_SOCKET_SETSOCKETOPT
-#define TAOS_OS_FUNC_SYSINFO
+
 #define TAOS_OS_FUNC_TIMERD
 
 // specific

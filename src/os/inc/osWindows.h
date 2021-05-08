@@ -91,17 +91,6 @@ typedef SOCKET eventfd_t;
 char *stpcpy (char *dest, const char *src);
 char *stpncpy (char *dest, const char *src, size_t n);
 
-#define TAOS_OS_FUNC_SYSINFO
-
-#define TAOS_OS_FUNC_TIME_DEF
-  #ifdef _TD_GO_DLL_
-    #define MILLISECOND_PER_SECOND (1000LL)
-  #else
-    #define MILLISECOND_PER_SECOND (1000i64)
-  #endif
-
-#define TAOS_OS_FUNC_TIMER
-
 // specific
 typedef int (*__compar_fn_t)(const void *, const void *);
 #define ssize_t int
@@ -156,8 +145,6 @@ int        gettimeofday(struct timeval *ptv, void *pTimeZone);
 #ifndef PATH_MAX
   #define PATH_MAX 256
 #endif
-
-#define TAOS_OS_FUNC_SIGNAL
 
 typedef struct {
   int    we_wordc;

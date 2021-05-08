@@ -18,7 +18,7 @@
 #include "ttimer.h"
 #include "tulog.h"
 
-#ifndef TAOS_OS_FUNC_TIMER
+#if !(defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32))
 
 static void taosDeleteTimer(void *tharg) {
   timer_t *pTimer = tharg;
