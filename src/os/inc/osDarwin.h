@@ -71,12 +71,7 @@ extern "C" {
 #include <fcntl.h>
 #include <sys/utsname.h>
 #include <math.h>
-
-#define TAOS_OS_FUNC_FILE_SENDIFLE
-
-#define TAOS_OS_FUNC_SOCKET_SETSOCKETOPT
-
-#define TAOS_OS_FUNC_TIMERD
+#include "osEok.h"
 
 // specific
 typedef int(*__compar_fn_t)(const void *, const void *);
@@ -96,15 +91,6 @@ typedef int(*__compar_fn_t)(const void *, const void *);
   #define  PTHREAD_MUTEX_RECURSIVE_NP PTHREAD_MUTEX_RECURSIVE
 #endif
 
-#include "eok.h"
-
-void taos_block_sigalrm(void);
-
-#define TAOS_OS_DEF_EPOLL
-  #define TAOS_EPOLL_WAIT_TIME 500
-  typedef int32_t SOCKET;
-  typedef SOCKET EpollFd;
-  #define EpollClose(pollFd) epoll_close(pollFd)
 
 #ifdef __cplusplus
 }

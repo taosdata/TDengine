@@ -32,9 +32,6 @@ void taosMsleep(int32_t ms) { Sleep(ms); }
   pthread_sigmask(SIG_BLOCK, &set, NULL);
 */
 void taosMsleep(int32_t mseconds) {
-#ifdef _TD_DARWIN_64
-  taos_block_sigalrm();
-#endif
 #if 1
   usleep(mseconds * 1000);
 #else

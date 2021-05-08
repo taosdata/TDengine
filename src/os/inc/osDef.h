@@ -26,9 +26,6 @@ extern "C" {
   #endif
 #endif
 
-
-// #define WCHAR wchar_t
-
 #define POINTER_SHIFT(p, b) ((void *)((char *)(p) + (b)))
 #define POINTER_DISTANCE(p1, p2) ((char *)(p1) - (char *)(p2)) 
 

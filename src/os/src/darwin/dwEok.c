@@ -18,7 +18,7 @@
 // https://stackoverflow.com/questions/4393197/erlangs-let-it-crash-philosophy-applicable-elsewhere
 // experimentally, we follow log-and-crash here
 
-#include "eok.h"
+#include "osEok.h"
 
 #include "os.h"
 
@@ -415,8 +415,6 @@ int epoll_ctl(int epfd, int op, int fd, struct epoll_event *event) {
 static struct timespec do_timespec_diff(struct timespec *from, struct timespec *to);
 
 int epoll_wait(int epfd, struct epoll_event *events, int maxevents, int timeout) {
-  taos_block_sigalrm();
-
   int e = 0;
   if (!events) {
     errno = EINVAL;
