@@ -67,13 +67,17 @@ class TDTestCase:
                 self.queryRows = len(self.queryResult)
                 self.queryCols = len(tdSql.cursor.description)
                 # tdLog.info("sql: %s, try to retrieve %d rows,get %d rows" % (sql, expectRows, self.queryRows))
-                if self.queryRows >= timeout:
+                if self.queryRows >= 1:
+                    tdSql.query(sql)
+                    tdSql.checkData(0, 5, None)
                     return (self.queryRows, i)
                 time.sleep(1)
         except Exception as e:
             tdLog.info(f"sql: {sql} except raise {exception}, actually raise {repr(e)} ")
         else:
             tdLog.exit(f"sql: {sql} except raise {exception}, actually not")
+
+        tdSql.checkData(0, 5, None)
 
 
     def run(self):
