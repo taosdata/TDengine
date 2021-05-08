@@ -539,7 +539,7 @@ static void taosNetTestServer(char *host, int32_t startPort, int32_t pkgLen) {
 }
 
 void taosNetTest(char *role, char *host, int32_t port, int32_t pkgLen) {
-//  tscEmbedded = 1;
+  tscEmbedded = 1;
   if (host == NULL) host = tsLocalFqdn;
   if (port == 0) port = tsServerPort;
   if (pkgLen <= 10) pkgLen = 1000;
@@ -550,6 +550,7 @@ void taosNetTest(char *role, char *host, int32_t port, int32_t pkgLen) {
   } else if (0 == strcmp("server", role)) {
     taosNetTestServer(host, port, pkgLen);
   } else if (0 == strcmp("rpc", role)) {
+    tscEmbedded = 0;
     taosNetTestRpc(host, port, pkgLen);
   } else if (0 == strcmp("sync", role)) {
     taosNetCheckSync(host, port);
@@ -559,5 +560,5 @@ void taosNetTest(char *role, char *host, int32_t port, int32_t pkgLen) {
     taosNetTestStartup(host, port);
   }
 
-//  tscEmbedded = 0;
+  tscEmbedded = 0;
 }
