@@ -20,7 +20,7 @@
 
 #define _DEFAULT_SOURCE
 #include "os.h"
-#include <stdint.h>>
+#include <stdint.h>
 
 #include <libproc.h>
 
