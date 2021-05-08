@@ -74,17 +74,9 @@ extern "C" {
 
 #define TAOS_OS_FUNC_FILE_SENDIFLE
 
-#define TAOS_OS_FUNC_SEMPHONE
-  typedef struct tsem_s *tsem_t;
-  int tsem_init(tsem_t *sem, int pshared, unsigned int value);
-  int tsem_wait(tsem_t *sem);
-  int tsem_post(tsem_t *sem);
-  int tsem_destroy(tsem_t *sem);
-
 #define TAOS_OS_FUNC_SOCKET_SETSOCKETOPT
 #define TAOS_OS_FUNC_SYSINFO
-#define TAOS_OS_FUNC_TIMER
-#define TAOS_OS_FUNC_SEMPHONE_PTHREAD
+#define TAOS_OS_FUNC_TIMERD
 
 // specific
 typedef int(*__compar_fn_t)(const void *, const void *);
@@ -103,8 +95,6 @@ typedef int(*__compar_fn_t)(const void *, const void *);
 #ifndef PTHREAD_MUTEX_RECURSIVE_NP
   #define  PTHREAD_MUTEX_RECURSIVE_NP PTHREAD_MUTEX_RECURSIVE
 #endif
-
-#define TAOS_OS_FUNC_PTHREAD_RWLOCK
 
 #include "eok.h"
 

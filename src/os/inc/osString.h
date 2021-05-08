@@ -28,7 +28,7 @@ extern "C" {
 #else
   #define tstrdup(str) strdup(str)
   #define tstrndup(str, size) strndup(str, size)
-  #define tgetline(lineptr, n, stream) getline(lineptr, n , stream)
+  #define tgetline(lineptr, n, stream) getline(lineptr, n, stream)
   #define twcslen wcslen
 #endif
 

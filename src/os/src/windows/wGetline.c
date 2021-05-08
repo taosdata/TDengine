@@ -22,6 +22,7 @@ General Public License for more details.  */
 #include <stdio.h>
 #include <assert.h>
 #include <errno.h>
+#include <stdint.h>
 
 #if STDC_HEADERS
 #include <stdlib.h>
