@@ -1006,7 +1006,7 @@ static void updateTableLatestColumn(STsdbRepo *pRepo, STable *pTable, SDataRow r
 static int tsdbUpdateTableLatestInfo(STsdbRepo *pRepo, STable *pTable, SDataRow row) {
   STsdbCfg *pCfg = &pRepo->config;
 
-  tsdbDebug("vgId:%d tsdbUpdateTableLatestInfo, %ld, %ld, %d", REPO_ID(pRepo), tsdbGetTableLastKeyImpl(pTable), dataRowKey(row), pCfg->cacheLastRow);
+  //tsdbDebug("vgId:%d tsdbUpdateTableLatestInfo, %ld, %ld, %d", REPO_ID(pRepo), tsdbGetTableLastKeyImpl(pTable), dataRowKey(row), pCfg->cacheLastRow);
 
   if (tsdbGetTableLastKeyImpl(pTable) < dataRowKey(row)) {
     if (CACHE_LAST_ROW(pCfg) || pTable->lastRow != NULL) {
