@@ -49,7 +49,8 @@ typedef struct SMultiTbStmt {
   uint64_t  currentUid;
   uint32_t  tbNum;
   SStrToken tbname;
-  SHashObj *pTableHash;
+  SHashObj *pTableHash;  
+  SHashObj *pTableBlockHashList;     // data block for each table
 } SMultiTbStmt;
 
 typedef struct STscStmt {
@@ -975,6 +976,7 @@ static void insertBatchClean(STscStmt* pStmt) {
 
   tfree(pCmd->pTableNameList);
 
+/*
   STableDataBlocks** p = taosHashIterate(pCmd->pTableBlockHashList, NULL);
 
   STableDataBlocks* pOneTableBlock = *p;
@@ -993,10 +995,12 @@ static void insertBatchClean(STscStmt* pStmt) {
 
     pOneTableBlock = *p;
   }
+*/
 
   pCmd->pDataBlocks = tscDestroyBlockArrayList(pCmd->pDataBlocks);
   pCmd->numOfTables = 0;
 
+  taosHashEmpty(pCmd->pTableBlockHashList);
   tscFreeSqlResult(pSql);
   tscFreeSubobj(pSql);
   tfree(pSql->pSubs);
@@ -1136,6 +1140,10 @@ int taos_stmt_prepare(TAOS_STMT* stmt, const char* sql, unsigned long length) {
       if (pStmt->mtb.pTableHash == NULL) {
         pStmt->mtb.pTableHash = taosHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, false);
       }
+      if (pStmt->mtb.pTableBlockHashList == NULL) {
+        pStmt->mtb.pTableBlockHashList = taosHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, false);
+      }
+
       return TSDB_CODE_SUCCESS;      
     }
 
@@ -1183,7 +1191,7 @@ int taos_stmt_set_tbname(TAOS_STMT* stmt, const char* name) {
   if (uid != NULL) {
     pStmt->mtb.currentUid = *uid;
 
-    STableDataBlocks** t1 = (STableDataBlocks**)taosHashGet(pCmd->pTableBlockHashList, (const char*)&pStmt->mtb.currentUid, sizeof(pStmt->mtb.currentUid));
+    STableDataBlocks** t1 = (STableDataBlocks**)taosHashGet(pStmt->mtb.pTableBlockHashList, (const char*)&pStmt->mtb.currentUid, sizeof(pStmt->mtb.currentUid));
     if (t1 == NULL) {
       tscError("no table data block in hash list, uid:%" PRId64 , pStmt->mtb.currentUid);
       return TSDB_CODE_TSC_APP_ERROR;
@@ -1191,6 +1199,8 @@ int taos_stmt_set_tbname(TAOS_STMT* stmt, const char* name) {
 
     SSubmitBlk* pBlk = (SSubmitBlk*) (*t1)->pData;    
     pCmd->batchSize = pBlk->numOfRows;
+
+    taosHashPut(pCmd->pTableBlockHashList, (void *)&pStmt->mtb.currentUid, sizeof(pStmt->mtb.currentUid), (void*)t1, POINTER_BYTES);
     
     tscDebug("table:%s is already prepared, uid:%" PRIu64, name, pStmt->mtb.currentUid);
     return TSDB_CODE_SUCCESS;
@@ -1236,6 +1246,8 @@ int taos_stmt_set_tbname(TAOS_STMT* stmt, const char* name) {
 
     pStmt->mtb.currentUid = pTableMeta->id.uid;
     pStmt->mtb.tbNum++;
+
+    taosHashPut(pStmt->mtb.pTableBlockHashList, (void *)&pStmt->mtb.currentUid, sizeof(pStmt->mtb.currentUid), (void*)&pBlock, POINTER_BYTES);
     
     taosHashPut(pStmt->mtb.pTableHash, name, strlen(name), (char*) &pTableMeta->id.uid, sizeof(pTableMeta->id.uid));
 

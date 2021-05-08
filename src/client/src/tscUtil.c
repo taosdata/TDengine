@@ -1316,8 +1316,10 @@ int32_t tscMergeTableDataBlocks(SSqlObj* pSql, bool freeBlockMap) {
       // the length does not include the SSubmitBlk structure
       pBlocks->dataLen = htonl(finalLen);
       dataBuf->numOfTables += 1;
+
+      pBlocks->numOfRows = 0;
     }else {
-      tscWarn("table %s data block is empty", pOneTableBlock->tableName.tname);
+      tscDebug("table %s data block is empty", pOneTableBlock->tableName.tname);
     }
     
     p = taosHashIterate(pCmd->pTableBlockHashList, p);
