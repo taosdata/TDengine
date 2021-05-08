@@ -43,7 +43,3 @@ int taosInitTimer(win_timer_f callback, int ms) {
 void taosUninitTimer() {
   timeKillEvent(timerId);
 }
-
-void taosMsleep(int mseconds) {
-  Sleep(mseconds);
-}

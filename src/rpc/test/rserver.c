@@ -52,7 +52,7 @@ void processShellMsg() {
 
     if (commit >=2) {
       num += numOfMsgs;
-      if ( fsync(dataFd) < 0 ) {
+      if ( taosFsync(dataFd) < 0 ) {
         tInfo("failed to flush data to file, reason:%s", strerror(errno));
       }
 

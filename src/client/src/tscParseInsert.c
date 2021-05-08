@@ -68,7 +68,7 @@ int tsParseTime(SStrToken *pToken, int64_t *time, char **next, char *error, int1
   } else if (strncmp(pToken->z, "0", 1) == 0 && pToken->n == 1) {
     // do nothing
   } else if (pToken->type == TK_INTEGER) {
-    useconds = tsosStr2int64(pToken->z);
+    useconds = taosStr2int64(pToken->z);
   } else {
     // strptime("2001-11-12 18:31:01", "%Y-%m-%d %H:%M:%S", &tm);
     if (taosParseTime(pToken->z, time, pToken->n, timePrec, tsDaylight) != TSDB_CODE_SUCCESS) {

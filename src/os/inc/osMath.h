@@ -23,26 +23,38 @@ extern "C" {
 #define POW2(x) ((x) * (x))
 #define ABS(x) ((x) > 0 ? (x) : -(x))
 
-#ifndef TAOS_OS_FUNC_MATH
-  #define SWAP(a, b, c)        \
-    do {                       \
-        typeof(a) __tmp = (a); \
-        (a) = (b);             \
-        (b) = __tmp;           \
+#if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
+
+  #define SWAP(a, b, c) \
+    do {                \
+      c __tmp = (c)(a); \
+      (a) = (c)(b);     \
+      (b) = __tmp;      \
+    } while (0)
+  #define MAX(a, b) (((a) > (b)) ? (a) : (b))
+  #define MIN(a, b) (((a) < (b)) ? (a) : (b))
+
+#else
+
+  #define SWAP(a, b, c)      \
+    do {                     \
+      typeof(a) __tmp = (a); \
+      (a) = (b);             \
+      (b) = __tmp;           \
     } while (0)
 
-  #define MAX(a, b)              \
-    ({                           \
-        typeof(a) __a = (a);     \
-        typeof(b) __b = (b);     \
-        (__a > __b) ? __a : __b; \
+  #define MAX(a, b)            \
+    ({                         \
+      typeof(a) __a = (a);     \
+      typeof(b) __b = (b);     \
+      (__a > __b) ? __a : __b; \
     })
 
-  #define MIN(a, b)              \
-    ({                           \
-        typeof(a) __a = (a);     \
-        typeof(b) __b = (b);     \
-        (__a < __b) ? __a : __b; \
+  #define MIN(a, b)            \
+    ({                         \
+      typeof(a) __a = (a);     \
+      typeof(b) __b = (b);     \
+      (__a < __b) ? __a : __b; \
     })
 #endif
 
