@@ -425,6 +425,8 @@ bool isVardataNull(char* val, int32_t type) {
   } else {
     assert(0);
   }
+
+  return false;
 }
 
 void setNull(char *val, int32_t type, int32_t bytes) { setNullN(val, type, bytes, 1); }
@@ -548,6 +550,7 @@ bool isNullN(char *val, int32_t type) {
     }
   }
 
+  return false;
 }
 
 static uint8_t   nullBool     = TSDB_DATA_BOOL_NULL;
