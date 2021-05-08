@@ -771,48 +771,49 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
       }
       arguments->sqlFile = argv[++i];
     } else if (strcmp(argv[i], "-q") == 0) {
-      if ((argc == i+1) ||
-        (!isStringNumber(argv[i+1]))) {
+      if ((argc == i+1)
+              || (!isStringNumber(argv[i+1]))) {
         printHelp();
         errorPrint("%s", "\n\t-q need a number following!\nQuery mode -- 0: SYNC, 1: ASYNC. Default is SYNC.\n");
         exit(EXIT_FAILURE);
       }
       arguments->query_mode = atoi(argv[++i]);
     } else if (strcmp(argv[i], "-T") == 0) {
-      if ((argc == i+1) ||
-        (!isStringNumber(argv[i+1]))) {
+      if ((argc == i+1)
+              || (!isStringNumber(argv[i+1]))) {
         printHelp();
         errorPrint("%s", "\n\t-T need a number following!\n");
         exit(EXIT_FAILURE);
       }
       arguments->num_of_threads = atoi(argv[++i]);
     } else if (strcmp(argv[i], "-i") == 0) {
-      if ((argc == i+1) ||
-        (!isStringNumber(argv[i+1]))) {
+      if ((argc == i+1)
+              || (!isStringNumber(argv[i+1]))) {
         printHelp();
         errorPrint("%s", "\n\t-i need a number following!\n");
         exit(EXIT_FAILURE);
       }
       arguments->insert_interval = atoi(argv[++i]);
     } else if (strcmp(argv[i], "-qt") == 0) {
-      if ((argc == i+1) ||
-        (!isStringNumber(argv[i+1]))) {
+      if ((argc == i+1)
+              || (!isStringNumber(argv[i+1]))
+              || (atoi(argv[i+1]) <= 0)) {
         printHelp();
-        errorPrint("%s", "\n\t-qt need a number following!\n");
+        errorPrint("%s", "\n\t-qt need a valid (>0) number following!\n");
         exit(EXIT_FAILURE);
       }
       arguments->query_times = atoi(argv[++i]);
     } else if (strcmp(argv[i], "-B") == 0) {
-      if ((argc == i+1) ||
-        (!isStringNumber(argv[i+1]))) {
+      if ((argc == i+1)
+              || (!isStringNumber(argv[i+1]))) {
         printHelp();
         errorPrint("%s", "\n\t-B need a number following!\n");
         exit(EXIT_FAILURE);
       }
       arguments->interlace_rows = atoi(argv[++i]);
     } else if (strcmp(argv[i], "-r") == 0) {
-      if ((argc == i+1) ||
-        (!isStringNumber(argv[i+1]))) {
+      if ((argc == i+1)
+              || (!isStringNumber(argv[i+1]))) {
         printHelp();
         errorPrint("%s", "\n\t-r need a number following!\n");
         exit(EXIT_FAILURE);
@@ -4040,9 +4041,9 @@ static bool getMetaFromQueryJsonFile(cJSON* root) {
 
   cJSON* gQueryTimes = cJSON_GetObjectItem(root, "query_times");
   if (gQueryTimes && gQueryTimes->type == cJSON_Number) {
-    if (gQueryTimes->valueint < 0) {
-      errorPrint("%s() LN%d, failed to read json, query_times input mistake\n",
-        __func__, __LINE__);
+    if (gQueryTimes->valueint <= 0) {
+      errorPrint("%s() LN%d, failed to read json, query_times: %"PRId64", need be a valid (>0) number\n",
+        __func__, __LINE__, gQueryTimes->valueint);
       goto PARSE_OVER;
     }
     g_args.query_times = gQueryTimes->valueint;
@@ -4091,9 +4092,9 @@ static bool getMetaFromQueryJsonFile(cJSON* root) {
     cJSON* specifiedQueryTimes = cJSON_GetObjectItem(specifiedQuery,
         "query_times");
     if (specifiedQueryTimes && specifiedQueryTimes->type == cJSON_Number) {
-      if (specifiedQueryTimes->valueint < 0) {
-        errorPrint("%s() LN%d, failed to read json, query_times input mistake\n",
-          __func__, __LINE__);
+      if (specifiedQueryTimes->valueint <= 0) {
+        errorPrint("%s() LN%d, failed to read json, query_times: %"PRId64", need be a valid (>0) number\n",
+                __func__, __LINE__, specifiedQueryTimes->valueint);
         goto PARSE_OVER;
 
       }
@@ -4235,9 +4236,9 @@ static bool getMetaFromQueryJsonFile(cJSON* root) {
 
     cJSON* superQueryTimes = cJSON_GetObjectItem(superQuery, "query_times");
     if (superQueryTimes && superQueryTimes->type == cJSON_Number) {
-      if (superQueryTimes->valueint < 0) {
-        errorPrint("%s() LN%d, failed to read json, query_times input mistake\n",
-          __func__, __LINE__);
+      if (superQueryTimes->valueint <= 0) {
+        errorPrint("%s() LN%d, failed to read json, query_times: %"PRId64", need be a valid (>0) number\n",
+                __func__, __LINE__, superQueryTimes->valueint);
         goto PARSE_OVER;
       }
       g_queryInfo.superQueryInfo.queryTimes = superQueryTimes->valueint;
