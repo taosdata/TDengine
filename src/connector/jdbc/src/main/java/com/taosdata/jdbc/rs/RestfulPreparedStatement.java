@@ -1,26 +1,15 @@
 package com.taosdata.jdbc.rs;
 
-import com.google.common.collect.Range;
-import com.google.common.collect.RangeSet;
-import com.google.common.collect.TreeRangeSet;
 import com.taosdata.jdbc.TSDBError;
 import com.taosdata.jdbc.TSDBErrorNumbers;
-import com.taosdata.jdbc.utils.SqlSyntaxValidator;
 import com.taosdata.jdbc.utils.Utils;
 
 import java.io.InputStream;
 import java.io.Reader;
 import java.math.BigDecimal;
 import java.net.URL;
-import java.nio.charset.Charset;
 import java.sql.*;
 import java.util.Calendar;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
-import java.util.stream.Collectors;
-import java.util.stream.IntStream;
 
 public class RestfulPreparedStatement extends RestfulStatement implements PreparedStatement {
 

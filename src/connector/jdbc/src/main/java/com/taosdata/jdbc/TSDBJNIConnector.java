@@ -18,6 +18,7 @@ package com.taosdata.jdbc;
 
 import com.taosdata.jdbc.utils.TaosInfo;
 
+import java.nio.ByteBuffer;
 import java.sql.SQLException;
 import java.sql.SQLWarning;
 import java.util.List;
@@ -75,7 +76,6 @@ public class TSDBJNIConnector {
 
     public boolean connect(String host, int port, String dbName, String user, String password) throws SQLException {
         if (this.taos != TSDBConstants.JNI_NULL_POINTER) {
-//            this.closeConnectionImp(this.taos);
             closeConnection();
             this.taos = TSDBConstants.JNI_NULL_POINTER;
         }
@@ -97,12 +97,6 @@ public class TSDBJNIConnector {
      * @throws SQLException
      */
     public long executeQuery(String sql) throws SQLException {
-        // close previous result set if the user forgets to invoke the
-        // free method to close previous result set.
-//        if (!this.isResultsetClosed) {
-//            freeResultSet(taosResultSetPointer);
-//        }
-
         Long pSql = 0l;
         try {
             pSql = this.executeQueryImp(sql.getBytes(TaosGlobalConfig.getCharset()), this.taos);
@@ -297,4 +291,54 @@ public class TSDBJNIConnector {
     }
 
     private native int validateCreateTableSqlImp(long connection, byte[] sqlBytes);
+    
+	public long prepareStmt(String sql) throws SQLException {
+    	Long stmt = 0L;
+    	try {
+    	stmt = prepareStmtImp(sql, this.taos);
+    	} catch (Exception e) {
+            e.printStackTrace();
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_ENCODING);
+        }
+    	
+        if (stmt == TSDBConstants.JNI_CONNECTION_NULL) {
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_JNI_CONNECTION_NULL);
+        }
+        
+        if (stmt == TSDBConstants.JNI_SQL_NULL) {
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_JNI_SQL_NULL);
+        }
+        
+        if (stmt == TSDBConstants.JNI_OUT_OF_MEMORY) {
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_JNI_OUT_OF_MEMORY);
+        }
+        
+    	return stmt;
+    }
+    
+    private native long prepareStmtImp(String sql, long con);
+    
+    public int setBindTableName(long stmt, String tableName) {
+		return setBindTableNameImp(stmt, tableName, this.taos);
+	}
+    
+    private native int setBindTableNameImp(long stmt, String name, long conn);
+    
+    public int bindColumnDataArray(long stmt, byte[] data, int type, int numOfRows, int columnIndex) {
+		return bindColDataImp(stmt, data, type, numOfRows, columnIndex, this.taos);
+	}
+    
+    private native int bindColDataImp(long stmt, byte[] data, int type, int numOfRows, int columnIndex, long conn);
+    
+    public int executeBatch(long stmt) {
+    	return executeBatchImp(stmt, this.taos);
+    }
+    
+    private native int executeBatchImp(long stmt, long con);
+    
+    public int closeBatch(long stmt) {
+    	return closeStmt(stmt, this.taos);
+    }
+    
+    private native int closeStmt(long stmt, long con);
 }
