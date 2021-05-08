@@ -124,8 +124,6 @@ int32_t vnodeDrop(int32_t vgId) {
   vInfo("vgId:%d, vnode will be dropped, refCount:%d pVnode:%p", pVnode->vgId, pVnode->refCount, pVnode);
   pVnode->dropped = 1;
 
-  // remove from hash, so new messages wont be consumed
-  vnodeRemoveFromHash(pVnode);
   vnodeRelease(pVnode);
   vnodeCleanupInMWorker(pVnode);
 

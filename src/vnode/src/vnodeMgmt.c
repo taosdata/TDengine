@@ -118,6 +118,8 @@ void vnodeRelease(void *vparam) {
       tsem_post(&pVnode->sem);
     }
   } else {
+    vnodeRemoveFromHash(pVnode);
+
     vDebug("vgId:%d, vnode will be destroyed, refCount:%d pVnode:%p", pVnode->vgId, refCount, pVnode);
     vnodeDestroyInMWorker(pVnode);
     int32_t count = taosHashGetSize(tsVnodesHash);
