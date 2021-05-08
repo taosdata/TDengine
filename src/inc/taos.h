@@ -119,6 +119,7 @@ int        taos_stmt_num_params(TAOS_STMT *stmt, int *nums);
 int        taos_stmt_get_param(TAOS_STMT *stmt, int idx, int *type, int *bytes);
 int        taos_stmt_bind_param(TAOS_STMT *stmt, TAOS_BIND *bind);
 int        taos_stmt_bind_param_batch(TAOS_STMT* stmt, TAOS_MULTI_BIND* bind);
+int        taos_stmt_bind_single_param_batch(TAOS_STMT* stmt, TAOS_MULTI_BIND* bind, int colIdx);
 int        taos_stmt_add_batch(TAOS_STMT *stmt);
 int        taos_stmt_execute(TAOS_STMT *stmt);
 TAOS_RES * taos_stmt_use_result(TAOS_STMT *stmt);
