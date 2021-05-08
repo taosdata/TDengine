@@ -73,12 +73,9 @@ class TDTestCase:
                     return (self.queryRows, i)
                 time.sleep(1)
         except Exception as e:
-            tdLog.info(f"sql: {sql} except raise {exception}, actually raise {repr(e)} ")
-        else:
-            tdLog.exit(f"sql: {sql} except raise {exception}, actually not")
-
-        tdSql.checkData(0, 5, None)
-
+            tdLog.exit(f"sql: {sql} except raise {exception}, actually raise {repr(e)} ")
+        # else:
+            # tdLog.exit(f"sql: {sql} except raise {exception}, actually not")
 
     def run(self):
         tdSql.execute("drop database if exists dbcq")
