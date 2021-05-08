@@ -67,6 +67,7 @@ extern "C" {
 #include "osRand.h"
 #include "osSemphone.h"
 #include "osSignal.h"
+#include "osSleep.h"
 #include "osSocket.h"
 #include "osString.h"
 #include "osSysinfo.h"

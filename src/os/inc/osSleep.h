@@ -13,16 +13,14 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_OS_TIMER_H
-#define TDENGINE_OS_TIMER_H
+#ifndef TDENGINE_OS_SLEEP_H
+#define TDENGINE_OS_SLEEP_H
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-// TAOS_OS_FUNC_TIMER
-int taosInitTimer(void (*callback)(int), int ms);
-void taosUninitTimer();
+void taosMsleep(int32_t ms);
 
 #ifdef __cplusplus
 }

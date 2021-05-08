@@ -26,8 +26,6 @@ extern "C" {
   #endif
 #endif
 
-#define FD_VALID(x) ((x) > STDERR_FILENO)
-#define FD_INITIALIZER  ((int32_t)-1)
 
 // #define WCHAR wchar_t
 

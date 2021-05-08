@@ -133,7 +133,6 @@ char *stpncpy (char *dest, const char *src, size_t n);
     #define MILLISECOND_PER_SECOND (1000i64)
   #endif
 
-#define TAOS_OS_FUNC_TIMER_SLEEP
 #define TAOS_OS_FUNC_TIMER
 
 // specific
@@ -154,7 +153,6 @@ char *     strptime(const char *buf, const char *fmt, struct tm *tm);
 char *     strsep(char **stringp, const char *delim);
 char *     getpass(const char *prefix);
 int        flock(int fd, int option);
-int        fsync(int filedes);
 char *     strndup(const char *s, size_t n);
 int        gettimeofday(struct timeval *ptv, void *pTimeZone);
 
