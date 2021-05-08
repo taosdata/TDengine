@@ -447,8 +447,10 @@ static int32_t tsdbCheckAndSetDefaultCfg(STsdbCfg *pCfg) {
   if (pCfg->update != 0) pCfg->update = 1;
 
   // update cacheLastRow
-  if (pCfg->cacheLastRow != 0) pCfg->cacheLastRow = 1;
-
+  if (pCfg->cacheLastRow != 0) {
+    if (pCfg->cacheLastRow > 3)
+      pCfg->cacheLastRow = 1;
+  }
   return 0;
 }
 
@@ -581,7 +583,7 @@ int tsdbRestoreInfo(STsdbRepo *pRepo) {
       if (pIdx && lastKey < pIdx->maxKey) {
         pTable->lastKey = pIdx->maxKey;
 
-        if (pCfg->cacheLastRow) {
+        if (CACHE_LAST_ROW(pCfg)) {
           if (tsdbLoadBlockInfo(&readh, NULL) < 0) {
             tsdbDestroyReadH(&readh);
             return -1;
