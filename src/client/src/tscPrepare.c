@@ -810,7 +810,7 @@ static int insertStmtBindParam(STscStmt* stmt, TAOS_BIND* bind) {
     
     STableDataBlocks** t1 = (STableDataBlocks**)taosHashGet(pCmd->pTableBlockHashList, (const char*)&pStmt->mtb.currentUid, sizeof(pStmt->mtb.currentUid));
     if (t1 == NULL) {
-      tscError("no table data block in hash list, uid:%" PRId64 , pStmt->mtb.currentUid);
+      tscError("0x%"PRIx64" no table data block in hash list, uid:%" PRId64 , pStmt->pSql->self, pStmt->mtb.currentUid);
       return TSDB_CODE_TSC_APP_ERROR;
     }
 
