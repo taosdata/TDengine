@@ -16,8 +16,8 @@ public class LoadOneDayData {
 	private static final String JDBC_PROTOCAL = "jdbc:TSDB://";
 	private static final String TSDB_DRIVER = "com.taosdata.jdbc.TSDBDriver";
 
-	private String host = "127.0.0.1";
-	private String configDir = "~/sec/cfg";
+	private String host = "ubuntu";
+	private String configDir = "~/first/cfg";
 	private String user = "root";
 	private String password = "taosdata";
 	private String jdbcUrl = "";
@@ -123,14 +123,9 @@ public class LoadOneDayData {
 		try {
 			stmt = (Statement) conn.createStatement();
 
-			ResultSet rset = stmt.executeQuery("select * from test.tu");
-			StringBuilder sb = new StringBuilder();
-			
+			ResultSet rset = stmt.executeQuery("select * from test.tm1");
 			while(rset.next()) {
-				sb.append(rset.getObject(2));
-				System.out.println(sb.toString());
-//				System.out.print(rset.getString(1) + ", " + rset.getString(2)
-//				+ ", " + rset.getObject(3) + ", " + rset.getString(1));
+				System.out.println(rset.getString(1) + ", " + rset.getString(2));
 			}
 
 			rset.close();
@@ -154,7 +149,8 @@ public class LoadOneDayData {
 
 			try {
 				stmt = (Statement) conn.createStatement();
-
+                conn.prepareStatement(arg0);
+                
 				for (String name : s) {
 					int r = rand.nextInt(data.size());
 
@@ -183,41 +179,9 @@ public class LoadOneDayData {
 		}
 	}
 
-	public void loadLastrow() {
-		while (true) {
-			long startTime = System.currentTimeMillis();
-
-			Statement stmt = null;
-			int num = 0;
-
-			try {
-				stmt = (Statement) this.conn.createStatement();
-
-				ResultSet rset = stmt.executeQuery("select last_row(*) from warninginfomt group by tbname");
-				while (rset.next()) {
-					num += 1;
-					String ts = rset.getString(1);
-					// do something
-				}
-
-				rset.close();
-				stmt.close();
-			} catch (SQLException e1) {
-				e1.printStackTrace();
-			}
-
-			long endTime = System.currentTimeMillis();
-			System.out.println("load rows " + num + " elapsed time:" + (endTime - startTime) + " ms");
-
-			try {
-				Thread.sleep(15 * 1000L);
-				startTime += 15 * 1000;
-			} catch (InterruptedException e) {
-				e.printStackTrace();
-			}
-		}
+	private int setResult() {
+		
 	}
-
 	public static void main(String[] args) {
 //		if (args.length < 4) {
 //			System.out.println("parameters are not sufficient");
@@ -225,26 +189,10 @@ public class LoadOneDayData {
 //			System.exit(-1);
 //		}
 
-//		System.out.println("cfg:" + args[0]);
-//		System.out.println("db:" + args[1]);
-//		System.out.println("file dir:" + args[2]);
-
 		LoadOneDayData loader = new LoadOneDayData();
-//		loader.setDB(args[1]);
 		loader.MakeJdbcUrl();
 		loader.connectdb();
 		
 		loader.doQuery();
-
-//		if (args[3].equals("load")) {
-//			System.out.println("start to launch last_row query");
-//			loader.loadLastrow();
-//		} else if (args[3].equals("insert")) {
-//			System.out.println("start to insert data");
-//			loader.insertData(args[2]);
-//		} else {
-//			System.err.println("wrong parameters!");
-//			System.out.println("exe cfg_dir db_name file_dir op_type(load|insert)");
-//		}
 	}
 }
