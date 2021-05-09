@@ -18,9 +18,9 @@
 // https://stackoverflow.com/questions/4393197/erlangs-let-it-crash-philosophy-applicable-elsewhere
 // experimentally, we follow log-and-crash here
 
-#include "osEok.h"
-
+#define _DEFAULT_SOURCE
 #include "os.h"
+#include "osEok.h"
 
 #include <sys/event.h>
 

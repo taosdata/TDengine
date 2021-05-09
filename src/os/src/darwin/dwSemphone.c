@@ -20,8 +20,6 @@
 
 #define _DEFAULT_SOURCE
 #include "os.h"
-#include <stdint.h>
-
 #include <libproc.h>
 
 // #define SEM_USE_PTHREAD
@@ -38,7 +36,7 @@
 static pthread_t                 sem_thread;
 static pthread_once_t            sem_once;
 static task_t                    sem_port;
-static volatile int32_t          sem_inited = 0;
+static volatile int              sem_inited = 0;
 static semaphore_t               sem_exit;
 
 static void* sem_thread_routine(void *arg) {
@@ -56,7 +54,7 @@ static void* sem_thread_routine(void *arg) {
 }
 
 static void once_init(void) {
-  int32_t r = 0;
+  int r = 0;
   r = pthread_create(&sem_thread, NULL, sem_thread_routine, NULL);
   if (r) {
     fprintf(stderr, "==%s[%d]%s()==failed to create thread\n", basename(__FILE__), __LINE__, __func__);
@@ -82,10 +80,10 @@ struct tsem_s {
   dispatch_semaphore_t         sem;
 #endif // SEM_USE_PTHREAD
 
-  volatile unsigned int32_t        valid:1;
+  volatile unsigned int        valid:1;
 };
 
-int32_t tsem_init(tsem_t *sem, int32_t pshared, unsigned int32_t value) {
+int tsem_init(tsem_t *sem, int pshared, unsigned int value) {
   // fprintf(stderr, "==%s[%d]%s():[%p]==creating\n", basename(__FILE__), __LINE__, __func__, sem);
   if (*sem) {
     fprintf(stderr, "==%s[%d]%s():[%p]==already initialized\n", basename(__FILE__), __LINE__, __func__, sem);
@@ -98,7 +96,7 @@ int32_t tsem_init(tsem_t *sem, int32_t pshared, unsigned int32_t value) {
   }
 
 #ifdef SEM_USE_PTHREAD
-  int32_t r = pthread_mutex_init(&p->lock, NULL);
+  int r = pthread_mutex_init(&p->lock, NULL);
   do {
     if (r) break;
     r = pthread_cond_init(&p->cond, NULL);
@@ -125,7 +123,7 @@ int32_t tsem_init(tsem_t *sem, int32_t pshared, unsigned int32_t value) {
     p->sem = sem_open(name, O_CREAT|O_EXCL, pshared, value);
     p->id  = id;
     if (p->sem!=SEM_FAILED) break;
-    int32_t e = errno;
+    int e = errno;
     if (e==EEXIST) continue;
     if (e==EINTR) continue;
     fprintf(stderr, "==%s[%d]%s():[%p]==not created[%d]%s\n", basename(__FILE__), __LINE__, __func__, sem, e, strerror(e));
@@ -159,7 +157,7 @@ int32_t tsem_init(tsem_t *sem, int32_t pshared, unsigned int32_t value) {
   return 0;
 }
 
-int32_t tsem_wait(tsem_t *sem) {
+int tsem_wait(tsem_t *sem) {
   if (!*sem) {
     fprintf(stderr, "==%s[%d]%s():[%p]==not initialized\n", basename(__FILE__), __LINE__, __func__, sem);
     abort();
@@ -195,7 +193,7 @@ int32_t tsem_wait(tsem_t *sem) {
 #endif // SEM_USE_PTHREAD
 }
 
-int32_t tsem_post(tsem_t *sem) {
+int tsem_post(tsem_t *sem) {
   if (!*sem) {
     fprintf(stderr, "==%s[%d]%s():[%p]==not initialized\n", basename(__FILE__), __LINE__, __func__, sem);
     abort();
@@ -231,7 +229,7 @@ int32_t tsem_post(tsem_t *sem) {
 #endif // SEM_USE_PTHREAD
 }
 
-int32_t tsem_destroy(tsem_t *sem) {
+int tsem_destroy(tsem_t *sem) {
   // fprintf(stderr, "==%s[%d]%s():[%p]==destroying\n", basename(__FILE__), __LINE__, __func__, sem);
   if (!*sem) {
     // fprintf(stderr, "==%s[%d]%s():[%p]==not initialized\n", basename(__FILE__), __LINE__, __func__, sem);
@@ -265,9 +263,9 @@ int32_t tsem_destroy(tsem_t *sem) {
 #elif defined(SEM_USE_POSIX)
   char name[NAME_MAX-4];
   snprintf(name, sizeof(name), "/t%ld", p->id);
-  int32_t r = sem_unlink(name);
+  int r = sem_unlink(name);
   if (r) {
-    int32_t e = errno;
+    int e = errno;
     fprintf(stderr, "==%s[%d]%s():[%p]==unlink failed[%d]%s\n", basename(__FILE__), __LINE__, __func__, sem, e, strerror(e));
     abort();
   }
@@ -285,7 +283,7 @@ int32_t tsem_destroy(tsem_t *sem) {
 
 bool taosCheckPthreadValid(pthread_t thread) {
   uint64_t id = 0;
-  int32_t r = pthread_threadid_np(thread, &id);
+  int r = pthread_threadid_np(thread, &id);
   return r ? false : true;
 }
 
