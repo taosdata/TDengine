@@ -372,8 +372,8 @@ static int32_t vnodePerformFlowCtrl(SVWriteMsg *pWrite) {
     taosMsleep(ms);
     return 0;
   } else {
-    void *unUsed = NULL;
-    taosTmrReset(vnodeFlowCtrlMsgToWQueue, 100, pWrite, tsDnodeTmr, &unUsed);
+    void *unUsedTimerId = NULL;
+    taosTmrReset(vnodeFlowCtrlMsgToWQueue, 100, pWrite, tsDnodeTmr, &unUsedTimerId);
 
     vTrace("vgId:%d, msg:%p, app:%p, perform flowctrl, retry:%d", pVnode->vgId, pWrite, pWrite->rpcMsg.ahandle,
            pWrite->processedCount);
