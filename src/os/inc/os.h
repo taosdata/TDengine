@@ -58,7 +58,6 @@ extern "C" {
 
 #include "osDef.h"
 #include "osAtomic.h"
-#include "osCommon.h"
 #include "osDir.h"
 #include "osFile.h"
 #include "osLz4.h"
@@ -67,6 +66,7 @@ extern "C" {
 #include "osRand.h"
 #include "osSemphone.h"
 #include "osSignal.h"
+#include "osSleep.h"
 #include "osSocket.h"
 #include "osString.h"
 #include "osSysinfo.h"

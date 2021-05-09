@@ -71,24 +71,9 @@ extern "C" {
 #include <fcntl.h>
 #include <sys/utsname.h>
 #include <math.h>
-
-#define TAOS_OS_FUNC_FILE_SENDIFLE
-
-#define TAOS_OS_FUNC_SEMPHONE
-  typedef struct tsem_s *tsem_t;
-  int tsem_init(tsem_t *sem, int pshared, unsigned int value);
-  int tsem_wait(tsem_t *sem);
-  int tsem_post(tsem_t *sem);
-  int tsem_destroy(tsem_t *sem);
-
-#define TAOS_OS_FUNC_SOCKET_SETSOCKETOPT
-#define TAOS_OS_FUNC_STRING_STR2INT64
-#define TAOS_OS_FUNC_SYSINFO
-#define TAOS_OS_FUNC_TIMER
-#define TAOS_OS_FUNC_SEMPHONE_PTHREAD
+#include "osEok.h"
 
 // specific
-#define htobe64 htonll
 typedef int(*__compar_fn_t)(const void *, const void *);
 
 // for send function in tsocket.c
@@ -106,19 +91,6 @@ typedef int(*__compar_fn_t)(const void *, const void *);
   #define  PTHREAD_MUTEX_RECURSIVE_NP PTHREAD_MUTEX_RECURSIVE
 #endif
 
-#define TAOS_OS_FUNC_PTHREAD_RWLOCK
-
-int64_t tsosStr2int64(char *str);
-
-#include "eok.h"
-
-void taos_block_sigalrm(void);
-
-#define TAOS_OS_DEF_EPOLL
-  #define TAOS_EPOLL_WAIT_TIME 500
-  typedef int32_t SOCKET;
-  typedef SOCKET EpollFd;
-  #define EpollClose(pollFd) epoll_close(pollFd)
 
 #ifdef __cplusplus
 }

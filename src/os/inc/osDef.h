@@ -26,11 +26,6 @@ extern "C" {
   #endif
 #endif
 
-#define FD_VALID(x) ((x) > STDERR_FILENO)
-#define FD_INITIALIZER  ((int32_t)-1)
-
-// #define WCHAR wchar_t
-
 #define POINTER_SHIFT(p, b) ((void *)((char *)(p) + (b)))
 #define POINTER_DISTANCE(p1, p2) ((char *)(p1) - (char *)(p2)) 
 
@@ -111,6 +106,12 @@ extern "C" {
   #define threadlocal __thread
 #else
   #define threadlocal __declspec( thread )
+#endif
+
+#if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
+  #define PRIzu "ld"  
+#else
+  #define PRIzu "zu"  
 #endif
 
 #ifdef __cplusplus

@@ -123,7 +123,7 @@ static void mnodePrintUserAuth() {
     mnodeDecUserRef(pUser);
   }
 
-  fsync(fileno(fp));
+  taosFsync(fileno(fp));
   fclose(fp);
 }
 

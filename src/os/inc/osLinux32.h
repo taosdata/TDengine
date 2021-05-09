@@ -79,12 +79,6 @@ extern "C" {
 #include <math.h>
 #include <poll.h>
 
-#define TAOS_OS_FUNC_LZ4
-#define BUILDIN_CLZL(val) __builtin_clzll(val)
-#define BUILDIN_CTZL(val) __builtin_ctzll(val)
-#define BUILDIN_CLZ(val) __builtin_clz(val)
-#define BUILDIN_CTZ(val) __builtin_ctz(val)
-
 #ifdef __cplusplus
 }
 #endif
