@@ -14,7 +14,6 @@
  *****************************************************************************/
 package com.taosdata.jdbc;
 
-import com.sun.tools.javac.util.Assert;
 import com.taosdata.jdbc.utils.Utils;
 
 import java.io.InputStream;
