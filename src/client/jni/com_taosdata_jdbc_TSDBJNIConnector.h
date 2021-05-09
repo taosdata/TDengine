@@ -204,10 +204,10 @@ JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_setBindTableNameI
 /*
  * Class:     com_taosdata_jdbc_TSDBJNIConnector
  * Method:    bindColDataImp
- * Signature: (J[BIIIJ)J
+ * Signature: (J[B[BIIIIJ)J
  */
 JNIEXPORT jlong JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_bindColDataImp
-(JNIEnv *, jobject, jlong, jbyteArray, jint, jint, jint, jlong);
+(JNIEnv *, jobject, jlong, jbyteArray, jbyteArray, jint, jint, jint, jint, jlong);
 
 /*
  * Class:     com_taosdata_jdbc_TSDBJNIConnector

@@ -746,14 +746,14 @@ JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_setBindTableNameI
     return JNI_TDENGINE_ERROR;
   }
 
-  jniDebug("jobj:%p, conn:%p, set stmt bind table name", jobj, tsconn);
+  jniDebug("jobj:%p, conn:%p, set stmt bind table name:%s", jobj, tsconn, name);
 
   (*env)->ReleaseStringUTFChars(env, jname, name);
   return JNI_SUCCESS;
 }
 
 JNIEXPORT jlong JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_bindColDataImp(JNIEnv *env, jobject jobj, jlong stmt,
-    jbyteArray data, jint dataType, jint numOfRows, jint colIndex, jlong con) {
+    jbyteArray data, jbyteArray length, jint dataType, jint dataBytes, jint numOfRows, jint colIndex, jlong con) {
   TAOS *tscon = (TAOS *)con;
   if (tscon == NULL) {
     jniError("jobj:%p, connection already closed", jobj);
@@ -766,15 +766,50 @@ JNIEXPORT jlong JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_bindColDataImp(J
     return JNI_SQL_NULL;
   }
 
-#if 0
-  TAOS_BIND* b = malloc(20);
-  b.num= jrows;
-  int32_t code = taos_stmt_bind_param_batch(stmt, b, colInex);
+  // todo refactor
+  jsize len = (*env)->GetArrayLength(env, data);
+  char *colBuf = (char *)calloc(1, sizeof(char) * len);
+  (*env)->GetByteArrayRegion(env, data, 0, len, (jbyte *)colBuf);
+  if ((*env)->ExceptionCheck(env)) {
+    // todo handle error
+  }
+
+  len = (*env)->GetArrayLength(env, length);
+  char *lengthArray = (char*) calloc(1, sizeof(char) * len);
+  (*env)->GetByteArrayRegion(env, length, 0, len, (jbyte*) lengthArray);
+  if ((*env)->ExceptionCheck(env)) {
+  }
+
+  // bind multi-rows with only one invoke.
+  TAOS_MULTI_BIND* b = calloc(1, sizeof(TAOS_MULTI_BIND));
+
+  b->num           = numOfRows;
+  b->buffer_type   = dataType;  // todo check data type
+  b->buffer_length = tDataTypes[dataType].bytes;
+  b->is_null       = calloc(numOfRows, sizeof(int32_t));
+  b->buffer        = colBuf;
+  b->length        = (uintptr_t*)lengthArray;
+
+  // set the length and is_null array
+  switch(dataType) {
+    case TSDB_DATA_TYPE_INT:
+    case TSDB_DATA_TYPE_TINYINT:
+    case TSDB_DATA_TYPE_SMALLINT:
+    case TSDB_DATA_TYPE_TIMESTAMP:
+    case TSDB_DATA_TYPE_BIGINT: {
+      int32_t bytes = tDataTypes[dataType].bytes;
+      for(int32_t i = 0; i < numOfRows; ++i) {
+        b->length[i]  = bytes;
+        b->is_null[i] = isNull(colBuf + bytes * i, dataType);
+      }
+    }
+  }
+
+  int32_t code = taos_stmt_bind_single_param_batch(pStmt, b, colIndex);
   if (code != TSDB_CODE_SUCCESS) {
     jniError("jobj:%p, conn:%p, code:%s", jobj, tscon, tstrerror(code));
     return JNI_TDENGINE_ERROR;
   }
-#endif
 
   return JNI_SUCCESS;
 }
@@ -792,6 +827,7 @@ JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_executeBatchImp(J
     return JNI_SQL_NULL;
   }
 
+  taos_stmt_add_batch(pStmt);
   int32_t code = taos_stmt_execute(pStmt);
   if (code != TSDB_CODE_SUCCESS) {
     jniError("jobj:%p, conn:%p, code:%s", jobj, tscon, tstrerror(code));

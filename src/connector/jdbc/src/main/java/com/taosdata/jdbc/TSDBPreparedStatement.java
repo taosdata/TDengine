@@ -22,8 +22,7 @@ import java.io.Reader;
 import java.math.BigDecimal;
 import java.net.URL;
 import java.nio.ByteBuffer;
-import java.nio.DoubleBuffer;
-import java.nio.IntBuffer;
+import java.nio.ByteOrder;
 import java.sql.*;
 import java.util.ArrayList;
 import java.util.Calendar;
@@ -45,12 +44,12 @@ public class TSDBPreparedStatement extends TSDBStatement implements PreparedStat
     private int type;
     
     private String tableName;
-    private long nativeStmtPtr = 0;
+    private long nativeStmtHandle = 0;
     
     private volatile TSDBParameterMetaData parameterMetaData;
 
-    TSDBPreparedStatement(TSDBConnection connection, TSDBJNIConnector connector, String sql) {
-		super(connection, connector);
+    TSDBPreparedStatement(TSDBConnection connection, String sql) {
+		super(connection);
         init(sql);
 
         int parameterCnt = 0;
@@ -64,8 +63,9 @@ public class TSDBPreparedStatement extends TSDBStatement implements PreparedStat
             this.isPrepared = true;
         }
         
-        this.colData = new ArrayList<ColumnInfo>(parameterCnt);
-        this.colData.addAll(Collections.nCopies(parameterCnt, null));
+        // the table name is also a parameter, so ignore it.
+        this.colData = new ArrayList<ColumnInfo>(parameterCnt - 1);
+        this.colData.addAll(Collections.nCopies(parameterCnt - 1, null));
     }
 
     private void init(String sql) {
@@ -543,12 +543,15 @@ public class TSDBPreparedStatement extends TSDBStatement implements PreparedStat
     	private int       type;
     	private boolean   typeIsSet;
     	
-    	public void ClumnInfo() {
+    	public ColumnInfo() {
     		this.typeIsSet = false;
     	}
     	
-    	public void setType(int type) {
-    		Assert.check(!this.typeIsSet);
+    	public void setType(int type) throws SQLException {
+    		if (this.isTypeSet()) {
+                throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNKNOWN, "column data type has been set");
+    		}
+
     		this.typeIsSet = true;
     		this.type = type;
     	}
@@ -562,106 +565,160 @@ public class TSDBPreparedStatement extends TSDBStatement implements PreparedStat
     	this.tableName = name;
     }
     
-    @SuppressWarnings("unchecked")
-	public void setInt(int columnIndex, ArrayList<Integer> list) throws SQLException {
+    public <T> void setValueImpl(int columnIndex, ArrayList<T> list, int type) throws SQLException {
     	ColumnInfo col = (ColumnInfo) this.colData.get(columnIndex);
     	if (col == null) {
     		ColumnInfo p = new ColumnInfo();
-    		p.setType(TSDBConstants.TSDB_DATA_TYPE_INT);
-    		p.data = (ArrayList) list.clone();
+    		p.setType(type);
+    		p.data = (ArrayList<?>) list.clone();
     		this.colData.set(columnIndex, p);
     	} else {
-    		if (col.type != TSDBConstants.TSDB_DATA_TYPE_INT) {
-                throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
+    		if (col.type != type) {
+                throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNKNOWN, "column data type mismatch");
     		}
     		
     		col.data.addAll(list);
     	}
     }
     
-    @SuppressWarnings("unchecked")
-	public void setFloat(int columnIndex, ArrayList<Float> list) throws SQLException {
-    	ColumnInfo col = (ColumnInfo) this.colData.get(columnIndex);
-    	if (col == null) {
-    		ColumnInfo p = new ColumnInfo();
-    		p.setType(TSDBConstants.TSDB_DATA_TYPE_INT);
-    		p.data = (ArrayList) list.clone();
-    		this.colData.set(columnIndex, p);
-    	} else {
-    		if (col.type != TSDBConstants.TSDB_DATA_TYPE_INT) {
-                throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
-    		}
-    		
-    		col.data.addAll(list);
-    	}
+    public void setInt(int columnIndex, ArrayList<Integer> list) throws SQLException {
+    	setValueImpl(columnIndex, list, TSDBConstants.TSDB_DATA_TYPE_INT);
     }
     
-    public void addColumnDataBatch() {
+    public void setFloat(int columnIndex, ArrayList<Float> list) throws SQLException {
+    	setValueImpl(columnIndex, list, TSDBConstants.TSDB_DATA_TYPE_FLOAT);
+    }
+    
+    public void setTimestamp(int columnIndex, ArrayList<Long> list) throws SQLException {
+    	setValueImpl(columnIndex, list, TSDBConstants.TSDB_DATA_TYPE_TIMESTAMP);
+    }
+    
+    public void setLong(int columnIndex, ArrayList<Long> list) throws SQLException {
+    	setValueImpl(columnIndex, list, TSDBConstants.TSDB_DATA_TYPE_BIGINT);
+    }
+    
+    public void setDouble(int columnIndex, ArrayList<Double> list) throws SQLException {
+    	setValueImpl(columnIndex, list, TSDBConstants.TSDB_DATA_TYPE_DOUBLE);
+    }
+    
+    public void setBoolean(int columnIndex, ArrayList<Boolean> list) throws SQLException {
+    	setValueImpl(columnIndex, list, TSDBConstants.TSDB_DATA_TYPE_BOOL);
+    }
+    
+    public void setByte(int columnIndex, ArrayList<Byte> list) throws SQLException {
+    	setValueImpl(columnIndex, list, TSDBConstants.TSDB_DATA_TYPE_TINYINT);
+    }
+    
+    public void setShort(int columnIndex, ArrayList<Short> list) throws SQLException {
+    	setValueImpl(columnIndex, list, TSDBConstants.TSDB_DATA_TYPE_SMALLINT);
+    }
+    
+    public void setString(int columnIndex, ArrayList<String> list) throws SQLException {
+    	setValueImpl(columnIndex, list, TSDBConstants.TSDB_DATA_TYPE_BINARY);
+    }
+    
+    public void setNString(int columnIndex, ArrayList<String> list) throws SQLException {
+    	setValueImpl(columnIndex, list, TSDBConstants.TSDB_DATA_TYPE_NCHAR);
+    }
+    
+    public void columnDataAddBatch() {
     	// do nothing
     }
     
-	public void columnDataExecuteBatch() {
-		int size = this.colData.size();
-		ColumnInfo col = (ColumnInfo) this.colData.get(0);
-		int rows = col.data.size();
+	public void columnDataExecuteBatch() throws SQLException {
+		int numOfCols = this.colData.size();
+		int rows = ((ColumnInfo) this.colData.get(0)).data.size();
 
 		// pass the data block to native code
-		TSDBJNIConnector conn = null;
+		TSDBJNIConnector connector = null;
 		try {
-			conn = (TSDBJNIConnector) this.getConnection();
-			this.nativeStmtPtr = conn.prepareStmt(rawSql);
-			conn.setBindTableName(this.nativeStmtPtr, this.tableName);
+			connector = ((TSDBConnection) this.getConnection()).getConnector();
+			this.nativeStmtHandle = connector.prepareStmt(rawSql);
+			
+			// table name is not set yet, abort
+			if (this.tableName == null) {
+                throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNKNOWN, "table name not set yet");
+			}
+			connector.setBindTableName(this.nativeStmtHandle, this.tableName);
 		} catch (SQLException e) {
 			e.printStackTrace();
 		}
 
-		for (int i = 0; i < size; ++i) {
+		int bytes = 0;
+		
+		for (int i = 0; i < numOfCols; ++i) {
 			ColumnInfo col1 = this.colData.get(i);
-			Assert.check(col.isTypeSet());
-			ByteBuffer ib = ByteBuffer.allocate(rows);
-
+			if (!col1.isTypeSet()) {
+                throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNKNOWN, "column data not bind");
+			}
+			
+			if (rows != col1.data.size()) {
+                throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNKNOWN, "the rows in column data not identical");
+			}
+			
+			ByteBuffer bbuf = null;
+			
+            ByteBuffer lengthBuf = ByteBuffer.allocate(rows * Integer.BYTES);
+            lengthBuf.order(ByteOrder.LITTLE_ENDIAN);
+            
 			switch (col1.type) {
 				case TSDBConstants.TSDB_DATA_TYPE_INT: {
+					bbuf = ByteBuffer.allocate(rows * Integer.BYTES);
+					bbuf.order(ByteOrder.LITTLE_ENDIAN);
+					
 					for (int j = 0; j < rows; ++j) {
-						Integer val = (Integer) col.data.get(j);
+						Integer val = (Integer) col1.data.get(j);
 						if (val == null) {
-							ib.putInt(Integer.MIN_VALUE);
+							bbuf.putInt(j * Integer.BYTES, Integer.MIN_VALUE);
 						} else {
-							ib.putInt((int) col.data.get(j));							
+							bbuf.putInt(j * Integer.BYTES, val);							
 						}
+						
+						lengthBuf.putInt(j * Integer.BYTES, Integer.BYTES);
 					}
 					
+					bytes = Integer.BYTES;
 					break;
 				}
 	
 				case TSDBConstants.TSDB_DATA_TYPE_TIMESTAMP: {
+					bbuf = ByteBuffer.allocate(rows * Long.BYTES);
+					bbuf.order(ByteOrder.LITTLE_ENDIAN);
+					
 					for (int j = 0; j < rows; ++j) {
-						ib.putLong((long) col.data.get(j));
+						Long val = (Long) col1.data.get(j);
+						if (val == null) {
+							bbuf.putLong(j * Long.BYTES, Long.MIN_VALUE);
+						} else {
+							bbuf.putLong(j * Long.BYTES, val);
+						}
+						lengthBuf.putInt(j * Integer.BYTES, Long.BYTES);
 					}
+					
+					bytes = Long.BYTES;
 					break;
 				}
 			};
 			
-			conn.bindColumnDataArray(this.nativeStmtPtr, ib.array(), col1.type, rows, i);
+			connector.bindColumnDataArray(this.nativeStmtHandle, bbuf, lengthBuf, col1.type, bytes, rows, i);
 		}
 		
-		conn.executeBatch(this.nativeStmtPtr);
+		connector.executeBatch(this.nativeStmtHandle);
 	}
     
-    public void columnDataClearBatchClear() {
+    public void columnDataClearBatch() {
     	// TODO clear data in this.colData
     }
     
-    public void close() {
-    	TSDBJNIConnector conn = null;
+    public void columnDataCloseBatch() {
+    	TSDBJNIConnector connector = null;
 		try {
-			conn = (TSDBJNIConnector) this.getConnection();
-			this.nativeStmtPtr = conn.prepareStmt(rawSql);
-			conn.setBindTableName(this.nativeStmtPtr, this.tableName);
+			connector = ((TSDBConnection) this.getConnection()).getConnector();
+			connector.closeBatch(this.nativeStmtHandle);
+			this.nativeStmtHandle = 0L;
+			this.tableName = null;
 		} catch (SQLException e) {
 			e.printStackTrace();
 		}
-		
-		conn.closeBatch(this.nativeStmtPtr);
     }
 }

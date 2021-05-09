@@ -102,11 +102,10 @@ typedef struct TAOS_BIND {
 
 typedef struct TAOS_MULTI_BIND {
   int            buffer_type;
-  void *         buffer;
-  uintptr_t      buffer_length;  // unused
-  uintptr_t      *length;
-  int *          is_null;
-  
+  void          *buffer;
+  uintptr_t      buffer_length;
+  uintptr_t     *length;
+  int           *is_null;
   int            num;
 } TAOS_MULTI_BIND;
 

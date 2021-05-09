@@ -1319,7 +1319,7 @@ int32_t tscMergeTableDataBlocks(SSqlObj* pSql, bool freeBlockMap) {
 
       pBlocks->numOfRows = 0;
     }else {
-      tscDebug("table %s data block is empty", pOneTableBlock->tableName.tname);
+      tscDebug("0x%"PRIx64" table %s data block is empty", pSql->self, pOneTableBlock->tableName.tname);
     }
     
     p = taosHashIterate(pCmd->pTableBlockHashList, p);

@@ -1306,10 +1306,9 @@ int taos_stmt_set_tbname(TAOS_STMT* stmt, const char* name) {
   }
   
   pStmt->mtb.tbname = tscReplaceStrToken(&pSql->sqlstr, &pStmt->mtb.tbname, name);
-
   pStmt->mtb.nameSet = true;
 
-  tscDebug("sqlstr set to %s", pSql->sqlstr);
+  tscDebug("0x%"PRIx64" SQL: %s", pSql->self, pSql->sqlstr);
 
   pSql->cmd.parseFinished = 0;
   pSql->cmd.numOfParams = 0;
@@ -1350,7 +1349,7 @@ int taos_stmt_set_tbname(TAOS_STMT* stmt, const char* name) {
     
     taosHashPut(pStmt->mtb.pTableHash, name, strlen(name), (char*) &pTableMeta->id.uid, sizeof(pTableMeta->id.uid));
 
-    tscDebug("table:%s is prepared, uid:%" PRIu64, name, pStmt->mtb.currentUid);
+    tscDebug("0x%"PRIx64" table:%s is prepared, uid:%" PRIx64, pSql->self, name, pStmt->mtb.currentUid);
   }
   
   return code;
