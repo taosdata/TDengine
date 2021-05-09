@@ -535,11 +535,11 @@ SArray *tVariantListInsert(SArray *pList, tVariant *pVar, uint8_t sortOrder, int
 SRelationInfo *setTableNameList(SRelationInfo* pRelationInfo, SStrToken *pName, SStrToken* pAlias) {
   if (pRelationInfo == NULL) {
     pRelationInfo = calloc(1, sizeof(SRelationInfo));
-    pRelationInfo->list = taosArrayInit(4, sizeof(STableNamePair));
+    pRelationInfo->list = taosArrayInit(4, sizeof(SRelElementPair));
   }
 
   pRelationInfo->type = SQL_NODE_FROM_TABLELIST;
-  STableNamePair p = {.name = *pName};
+  SRelElementPair p = {.tableName = *pName};
   if (pAlias != NULL) {
     p.aliasName = *pAlias;
   } else {
@@ -550,17 +550,41 @@ SRelationInfo *setTableNameList(SRelationInfo* pRelationInfo, SStrToken *pName, 
   return pRelationInfo;
 }
 
-SRelationInfo* setSubquery(SRelationInfo* pRelationInfo, SArray* pList) {
-  if (pRelationInfo == NULL) {
-    pRelationInfo = calloc(1, sizeof(SRelationInfo));
-    pRelationInfo->list = taosArrayInit(4, POINTER_BYTES);
-  }
+//SRelationInfo* setSubquery(SRelationInfo* pRelationInfo, SArray* pList, SStrToken* pAlias) {
+//  if (pRelationInfo == NULL) {
+//    pRelationInfo = calloc(1, sizeof(SRelationInfo));
+//    pRelationInfo->list = taosArrayInit(4, POINTER_BYTES);
+//  }
+//
+//  pRelationInfo->type = SQL_NODE_FROM_SUBQUERY;
+//  SRelElementPair p = {.pSubquery = pList};
+//  if (pAlias != NULL) {
+//    p.aliasName = *pAlias;
+//  } else {
+//    TPARSER_SET_NONE_TOKEN(p.aliasName);
+//  }
+//
+//  taosArrayPush(pRelationInfo->list, &p);
+//  return pRelationInfo;
+//}
 
-  pRelationInfo->type = SQL_NODE_FROM_SUBQUERY;
-  taosArrayPush(pRelationInfo->list, &pList);
-
-  return pRelationInfo;
-}
+//SRelationInfo* setSubquery(SRelationInfo* pRelationInfo, SRelElementPair* p) {
+//  if (pRelationInfo == NULL) {
+//    pRelationInfo = calloc(1, sizeof(SRelationInfo));
+//    pRelationInfo->list = taosArrayInit(4, POINTER_BYTES);
+//  }
+//
+//  pRelationInfo->type = SQL_NODE_FROM_SUBQUERY;
+//  SRelElementPair elem = *p;
+////  if (pAlias != NULL) {
+////    p.aliasName = *pAlias;
+////  } else {
+////    TPARSER_SET_NONE_TOKEN(p.aliasName);
+////  }
+//
+//  taosArrayPush(pRelationInfo->list, &p);
+//  return pRelationInfo;
+//}
 
 void* destroyRelationInfo(SRelationInfo* pRelationInfo) {
   if (pRelationInfo == NULL) {
@@ -580,6 +604,25 @@ void* destroyRelationInfo(SRelationInfo* pRelationInfo) {
 
   tfree(pRelationInfo);
   return NULL;
+}
+
+SRelationInfo* addSubqueryElem(SRelationInfo* pRelationInfo, SArray* pSub, SStrToken* pAlias) {
+  if (pRelationInfo == NULL) {
+    pRelationInfo = calloc(1, sizeof(SRelationInfo));
+    pRelationInfo->list = taosArrayInit(4, sizeof(SRelElementPair));
+  }
+
+  pRelationInfo->type = SQL_NODE_FROM_SUBQUERY;
+
+  SRelElementPair p = {.pSubquery = pSub};
+  if (pAlias != NULL) {
+    p.aliasName = *pAlias;
+  } else {
+    TPARSER_SET_NONE_TOKEN(p.aliasName);
+  }
+
+  taosArrayPush(pRelationInfo->list, &p);
+  return pRelationInfo;
 }
 
 

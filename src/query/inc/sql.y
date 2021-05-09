@@ -508,7 +508,13 @@ distinct(X) ::= .            { X.n = 0;}
 %type from {SRelationInfo*}
 %destructor from {destroyRelationInfo($$);}
 from(A) ::= FROM tablelist(X).                 {A = X;}
-from(A) ::= FROM LP union(Y) RP.               {A = setSubquery(NULL, Y);}
+from(A) ::= FROM sub(X).                       {A = X;}
+
+%type sub {SRelationInfo*}
+%destructor sub {destroyRelationInfo($$);}
+sub(A)  ::= LP union(Y) RP.                    {A = addSubqueryElem(NULL, Y, NULL);}
+sub(A)  ::= LP union(Y) RP ids(Z).             {A = addSubqueryElem(NULL, Y, &Z);}
+sub(A)  ::= sub(X) COMMA LP union(Y) RP ids(Z).{A = addSubqueryElem(X, Y, &Z);}
 
 %type tablelist {SRelationInfo*}
 %destructor tablelist {destroyRelationInfo($$);}

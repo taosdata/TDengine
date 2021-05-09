@@ -107,14 +107,19 @@ typedef struct SSqlNode {
   struct tSqlExpr   *pHaving;      // having clause [optional]
 } SSqlNode;
 
-typedef struct STableNamePair {
-  SStrToken name;
+typedef struct SRelElementPair {
+  union {
+    SStrToken  tableName;
+    SArray    *pSubquery;
+    //SSqlNode  *pSubquery;
+  };
+
   SStrToken aliasName;
-} STableNamePair;
+} SRelElementPair;
 
 typedef struct SRelationInfo {
   int32_t       type;        // nested query|table name list
-  SArray       *list;        // SArray<STableNamePair>|SArray<SSqlNode*>
+  SArray       *list;        // SArray<SRelElementPair>|SArray<SSqlNode*>
 } SRelationInfo;
 
 typedef struct SCreatedTableInfo {
@@ -254,8 +259,9 @@ SArray *tVariantListInsert(SArray *pList, tVariant *pVar, uint8_t sortOrder, int
 SArray *tVariantListAppendToken(SArray *pList, SStrToken *pAliasToken, uint8_t sortOrder);
 
 SRelationInfo *setTableNameList(SRelationInfo* pFromInfo, SStrToken *pName, SStrToken* pAlias);
-SRelationInfo *setSubquery(SRelationInfo* pFromInfo, SArray* pSqlNode);
+//SRelationInfo *setSubquery(SRelationInfo* pFromInfo, SRelElementPair* p);
 void          *destroyRelationInfo(SRelationInfo* pFromInfo);
+SRelationInfo *addSubqueryElem(SRelationInfo* pRelationInfo, SArray* pSub, SStrToken* pAlias);
 
 // sql expr leaf node
 tSqlExpr *tSqlExprCreateIdValue(SStrToken *pToken, int32_t optrType);

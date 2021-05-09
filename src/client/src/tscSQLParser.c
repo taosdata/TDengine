@@ -6689,8 +6689,8 @@ int32_t doCheckForStream(SSqlObj* pSql, SSqlInfo* pInfo) {
     return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg6);
   }
   
-  STableNamePair* p1 = taosArrayGet(pFromInfo->list, 0);
-  SStrToken srcToken = {.z = p1->name.z, .n = p1->name.n, .type = TK_STRING};
+  SRelElementPair* p1 = taosArrayGet(pFromInfo->list, 0);
+  SStrToken srcToken = {.z = p1->tableName.z, .n = p1->tableName.n, .type = TK_STRING};
   if (tscValidateName(&srcToken) != TSDB_CODE_SUCCESS) {
     return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg1);
   }
@@ -7085,8 +7085,8 @@ static int32_t doLoadAllTableMeta(SSqlObj* pSql, SQueryInfo* pQueryInfo, SSqlNod
       tscAddEmptyMetaInfo(pQueryInfo);
     }
 
-    STableNamePair *item = taosArrayGet(pSqlNode->from->list, i);
-    SStrToken      *oriName = &item->name;
+    SRelElementPair *item = taosArrayGet(pSqlNode->from->list, i);
+    SStrToken      *oriName = &item->tableName;
 
     if (oriName->type == TK_INTEGER || oriName->type == TK_FLOAT) {
       return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg1);
@@ -7284,10 +7284,9 @@ int32_t validateSqlNode(SSqlObj* pSql, SSqlNode* pSqlNode, SQueryInfo* pQueryInf
         pQueryInfo->window.skey = pQueryInfo->window.skey / 1000;
         pQueryInfo->window.ekey = pQueryInfo->window.ekey / 1000;
       }
-    } else {  // set the time rang
-      if (taosArrayGetSize(pSqlNode->from->list) > 1) {
-        // If it is a join query, no where clause is not allowed.
-        return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), "condition missing for join query ");
+    } else {
+      if (taosArrayGetSize(pSqlNode->from->list) > 1) { // Cross join not allowed yet
+        return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), "cross join not supported yet");
       }
     }
 
