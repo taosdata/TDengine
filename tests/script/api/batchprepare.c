@@ -548,6 +548,12 @@ int stmt_funcb1(TAOS_STMT *stmt) {
   unsigned long long endtime = getCurrentTime();
   printf("insert total %d records, used %u seconds, avg:%u useconds\n", 3000*300*60, (endtime-starttime)/1000000UL, (endtime-starttime)/(3000*300*60));
 
+  free(v.ts);  
+  free(lb);
+  free(params);
+  free(is_null);
+  free(no_null);
+
   return 0;
 }
 
@@ -699,6 +705,12 @@ int stmt_funcb2(TAOS_STMT *stmt) {
 
   unsigned long long endtime = getCurrentTime();
   printf("insert total %d records, used %u seconds, avg:%u useconds\n", 3000*300*60, (endtime-starttime)/1000000UL, (endtime-starttime)/(3000*300*60));
+
+  free(v.ts);  
+  free(lb);
+  free(params);
+  free(is_null);
+  free(no_null);
 
   return 0;
 }
@@ -857,6 +869,12 @@ int stmt_funcb3(TAOS_STMT *stmt) {
   unsigned long long endtime = getCurrentTime();
   printf("insert total %d records, used %u seconds, avg:%u useconds\n", 3000*300*60, (endtime-starttime)/1000000UL, (endtime-starttime)/(3000*300*60));
 
+  free(v.ts);  
+  free(lb);
+  free(params);
+  free(is_null);
+  free(no_null);
+
   return 0;
 }
 
@@ -1010,6 +1028,12 @@ int stmt_funcb4(TAOS_STMT *stmt) {
   unsigned long long endtime = getCurrentTime();
   printf("insert total %d records, used %u seconds, avg:%u useconds\n", 3000*300*60, (endtime-starttime)/1000000UL, (endtime-starttime)/(3000*300*60));
 
+  free(v.ts);  
+  free(lb);
+  free(params);
+  free(is_null);
+  free(no_null);
+
   return 0;
 }
 
@@ -1157,6 +1181,12 @@ int stmt_funcb5(TAOS_STMT *stmt) {
   unsigned long long endtime = getCurrentTime();
   printf("insert total %d records, used %u seconds, avg:%u useconds\n", 3000*300*60, (endtime-starttime)/1000000UL, (endtime-starttime)/(3000*300*60));
 
+  free(v.ts);  
+  free(lb);
+  free(params);
+  free(is_null);
+  free(no_null);
+
   return 0;
 }
 
@@ -1235,6 +1265,11 @@ int stmt_funcb_ssz1(TAOS_STMT *stmt) {
 
   unsigned long long endtime = getCurrentTime();
   printf("insert total %d records, used %u seconds, avg:%u useconds\n", 3000*300*60, (endtime-starttime)/1000000UL, (endtime-starttime)/(3000*300*60));
+
+  free(v.ts);  
+  free(lb);
+  free(params);
+  free(no_null);
 
   return 0;
 }
@@ -1387,6 +1422,12 @@ int stmt_funcb_s1(TAOS_STMT *stmt) {
 
   unsigned long long endtime = getCurrentTime();
   printf("insert total %d records, used %u seconds, avg:%u useconds\n", 3000*300*60, (endtime-starttime)/1000000UL, (endtime-starttime)/(3000*300*60));
+
+  free(v.ts);  
+  free(lb);
+  free(params);
+  free(is_null);
+  free(no_null);
 
   return 0;
 }
@@ -1544,6 +1585,12 @@ int stmt_funcb_sc1(TAOS_STMT *stmt) {
   unsigned long long endtime = getCurrentTime();
   printf("insert total %d records, used %u seconds, avg:%u useconds\n", 3000*300*60, (endtime-starttime)/1000000UL, (endtime-starttime)/(3000*300*60));
 
+  free(v.ts);  
+  free(lb);
+  free(params);
+  free(is_null);
+  free(no_null);
+
   return 0;
 }
 
@@ -1698,6 +1745,12 @@ int stmt_funcb_sc2(TAOS_STMT *stmt) {
   unsigned long long endtime = getCurrentTime();
   printf("insert total %d records, used %u seconds, avg:%u useconds\n", 3000*300*60, (endtime-starttime)/1000000UL, (endtime-starttime)/(3000*300*60));
 
+  free(v.ts);  
+  free(lb);
+  free(params);
+  free(is_null);
+  free(no_null);
+
   return 0;
 }
 
@@ -1849,6 +1902,12 @@ int stmt_funcb_sc3(TAOS_STMT *stmt) {
   unsigned long long endtime = getCurrentTime();
   printf("insert total %d records, used %u seconds, avg:%u useconds\n", 3000*300*60, (endtime-starttime)/1000000UL, (endtime-starttime)/(3000*300*60));
 
+  free(v.ts);  
+  free(lb);
+  free(params);
+  free(is_null);
+  free(no_null);
+
   return 0;
 }
 
@@ -1934,6 +1993,10 @@ int sql_perf1(TAOS     *taos) {
   unsigned long long endtime = getCurrentTime();
   printf("insert total %d records, used %u seconds, avg:%.1f useconds\n", 3000*120*60, (endtime-starttime)/1000000UL, (endtime-starttime)/(3000*120*60));
 
+  for (int i = 0; i < 3000; i++) {
+    free(sql[i]);
+  }
+
   return 0;
 }
 
@@ -1983,6 +2046,10 @@ int sql_perf_s1(TAOS     *taos) {
   unsigned long long endtime = getCurrentTime();
   printf("insert total %d records, used %u seconds, avg:%.1f useconds\n", 3000*120*60, (endtime-starttime)/1000000UL, (endtime-starttime)/(3000*120*60));
 
+  for (int i = 0; i < 360000; i++) {
+    free(sql[i]);
+  }
+
   return 0;
 }
 
@@ -2023,6 +2090,10 @@ int sql_s_perf1(TAOS     *taos) {
   }
   unsigned long long endtime = getCurrentTime();
   printf("insert total %d records, used %u seconds, avg:%.1f useconds\n", 3000*120*60, (endtime-starttime)/1000000UL, (endtime-starttime)/(3000*120*60));
+
+  for (int i = 0; i < 3000; i++) {
+    free(sql[i]);
+  }
 
   return 0;
 }

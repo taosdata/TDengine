@@ -1374,9 +1374,6 @@ int taos_stmt_set_tbname(TAOS_STMT* stmt, const char* name) {
 int taos_stmt_close(TAOS_STMT* stmt) {
   STscStmt* pStmt = (STscStmt*)stmt;
   if (!pStmt->isInsert) {
-    taosHashCleanup(pStmt->mtb.pTableHash);
-    taosHashCleanup(pStmt->mtb.pTableBlockHashList);
-
     SNormalStmt* normal = &pStmt->normal;
     if (normal->params != NULL) {
       for (uint16_t i = 0; i < normal->numParams; i++) {
@@ -1386,6 +1383,9 @@ int taos_stmt_close(TAOS_STMT* stmt) {
     }
     free(normal->parts);
     free(normal->sql);
+  } else {
+    taosHashCleanup(pStmt->mtb.pTableHash);
+    taosHashCleanup(pStmt->mtb.pTableBlockHashList);
   }
 
   taos_free_result(pStmt->pSql);
