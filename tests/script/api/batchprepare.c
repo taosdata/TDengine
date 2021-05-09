@@ -6,7 +6,13 @@
 #include <string.h>
 #include "taos.h"
 #include <sys/time.h>
+#include <pthread.h>
+#include <unistd.h>
 
+typedef struct {
+  TAOS     *taos;
+  int idx;
+}T_par;
 
 void taosMsleep(int mseconds);
 
@@ -585,7 +591,7 @@ int stmt_funcb2(TAOS_STMT *stmt) {
   for (int i = 0; i < 30000; i+=10) {
     params[i+0].buffer_type = TSDB_DATA_TYPE_TIMESTAMP;
     params[i+0].buffer_length = sizeof(int64_t);
-    params[i+0].buffer = &v.ts[60*i/10];
+    params[i+0].buffer = &v.ts[18000*i/10];
     params[i+0].length = NULL;
     params[i+0].is_null = no_null;
     params[i+0].num = 18000;
@@ -999,6 +1005,232 @@ int stmt_funcb4(TAOS_STMT *stmt) {
     }
 
     ++id;
+  }
+
+  unsigned long long endtime = getCurrentTime();
+  printf("insert total %d records, used %u seconds, avg:%u useconds\n", 3000*300*60, (endtime-starttime)/1000000UL, (endtime-starttime)/(3000*300*60));
+
+  return 0;
+}
+
+
+
+
+//1table 18000 reocrds
+int stmt_funcb5(TAOS_STMT *stmt) {
+  struct {
+      int64_t *ts;
+      int8_t b[18000];
+      int8_t v1[18000];
+      int16_t v2[18000];
+      int32_t v4[18000];
+      int64_t v8[18000];
+      float f4[18000];
+      double f8[18000];
+      char bin[18000][40];
+  } v = {0};
+
+  v.ts = malloc(sizeof(int64_t) * 900000 * 60);
+  
+  uintptr_t *lb = malloc(18000 * sizeof(uintptr_t));
+  
+  TAOS_MULTI_BIND *params = calloc(1, sizeof(TAOS_MULTI_BIND) * 3000*10);
+  int* is_null = malloc(sizeof(int) * 18000);
+  int* no_null = malloc(sizeof(int) * 18000);
+
+  for (int i = 0; i < 18000; ++i) {
+    lb[i] = 40;
+    no_null[i] = 0;
+    is_null[i] = (i % 10 == 2) ? 1 : 0;
+    v.b[i] = (int8_t)(i % 2);
+    v.v1[i] = (int8_t)((i+1) % 2);
+    v.v2[i] = (int16_t)i;
+    v.v4[i] = (int32_t)(i+1);
+    v.v8[i] = (int64_t)(i+2);
+    v.f4[i] = (float)(i+3);
+    v.f8[i] = (double)(i+4);
+    memset(v.bin[i], '0'+i%10, 40);
+  }
+  
+  for (int i = 0; i < 30000; i+=10) {
+    params[i+0].buffer_type = TSDB_DATA_TYPE_TIMESTAMP;
+    params[i+0].buffer_length = sizeof(int64_t);
+    params[i+0].buffer = &v.ts[18000*i/10];
+    params[i+0].length = NULL;
+    params[i+0].is_null = no_null;
+    params[i+0].num = 18000;
+    
+    params[i+1].buffer_type = TSDB_DATA_TYPE_BOOL;
+    params[i+1].buffer_length = sizeof(int8_t);
+    params[i+1].buffer = v.b;
+    params[i+1].length = NULL;
+    params[i+1].is_null = is_null;
+    params[i+1].num = 18000;
+
+    params[i+2].buffer_type = TSDB_DATA_TYPE_TINYINT;
+    params[i+2].buffer_length = sizeof(int8_t);
+    params[i+2].buffer = v.v1;
+    params[i+2].length = NULL;
+    params[i+2].is_null = is_null;
+    params[i+2].num = 18000;
+
+    params[i+3].buffer_type = TSDB_DATA_TYPE_SMALLINT;
+    params[i+3].buffer_length = sizeof(int16_t);
+    params[i+3].buffer = v.v2;
+    params[i+3].length = NULL;
+    params[i+3].is_null = is_null;
+    params[i+3].num = 18000;
+
+    params[i+4].buffer_type = TSDB_DATA_TYPE_INT;
+    params[i+4].buffer_length = sizeof(int32_t);
+    params[i+4].buffer = v.v4;
+    params[i+4].length = NULL;
+    params[i+4].is_null = is_null;
+    params[i+4].num = 18000;
+
+    params[i+5].buffer_type = TSDB_DATA_TYPE_BIGINT;
+    params[i+5].buffer_length = sizeof(int64_t);
+    params[i+5].buffer = v.v8;
+    params[i+5].length = NULL;
+    params[i+5].is_null = is_null;
+    params[i+5].num = 18000;
+
+    params[i+6].buffer_type = TSDB_DATA_TYPE_FLOAT;
+    params[i+6].buffer_length = sizeof(float);
+    params[i+6].buffer = v.f4;
+    params[i+6].length = NULL;
+    params[i+6].is_null = is_null;
+    params[i+6].num = 18000;
+
+    params[i+7].buffer_type = TSDB_DATA_TYPE_DOUBLE;
+    params[i+7].buffer_length = sizeof(double);
+    params[i+7].buffer = v.f8;
+    params[i+7].length = NULL;
+    params[i+7].is_null = is_null;
+    params[i+7].num = 18000;
+
+    params[i+8].buffer_type = TSDB_DATA_TYPE_BINARY;
+    params[i+8].buffer_length = 40;
+    params[i+8].buffer = v.bin;
+    params[i+8].length = lb;
+    params[i+8].is_null = is_null;
+    params[i+8].num = 18000;
+
+    params[i+9].buffer_type = TSDB_DATA_TYPE_BINARY;
+    params[i+9].buffer_length = 40;
+    params[i+9].buffer = v.bin;
+    params[i+9].length = lb;
+    params[i+9].is_null = is_null;
+    params[i+9].num = 18000;
+    
+  }
+
+  int64_t tts = 1591060628000;
+  for (int i = 0; i < 54000000; ++i) {
+    v.ts[i] = tts + i;
+  }
+
+  unsigned long long starttime = getCurrentTime();
+
+  char *sql = "insert into m0 values(?,?,?,?,?,?,?,?,?,?)";
+  int code = taos_stmt_prepare(stmt, sql, 0);
+  if (code != 0){
+    printf("failed to execute taos_stmt_prepare. code:0x%x\n", code);
+  }
+
+  int id = 0;
+  for (int l = 0; l < 10; l++) {
+    for (int zz = 0; zz < 1; zz++) {
+      taos_stmt_bind_param_batch(stmt, params + id * 10);
+      taos_stmt_add_batch(stmt);
+
+      if (taos_stmt_execute(stmt) != 0) {
+        printf("failed to execute insert statement.\n");
+        exit(1);
+      }
+      ++id;
+
+    }
+ 
+  }
+
+  unsigned long long endtime = getCurrentTime();
+  printf("insert total %d records, used %u seconds, avg:%u useconds\n", 3000*300*60, (endtime-starttime)/1000000UL, (endtime-starttime)/(3000*300*60));
+
+  return 0;
+}
+
+
+//1table 200000 reocrds
+int stmt_funcb_ssz1(TAOS_STMT *stmt) {
+  struct {
+      int64_t *ts;
+      int b[30000];
+  } v = {0};
+
+  v.ts = malloc(sizeof(int64_t) * 30000 * 3000);
+  
+  uintptr_t *lb = malloc(30000 * sizeof(uintptr_t));
+  
+  TAOS_MULTI_BIND *params = calloc(1, sizeof(TAOS_MULTI_BIND) * 3000*10);
+  int* no_null = malloc(sizeof(int) * 200000);
+
+  for (int i = 0; i < 30000; ++i) {
+    lb[i] = 40;
+    no_null[i] = 0;
+    v.b[i] = (int8_t)(i % 2);
+  }
+  
+  for (int i = 0; i < 30000; i+=10) {
+    params[i+0].buffer_type = TSDB_DATA_TYPE_TIMESTAMP;
+    params[i+0].buffer_length = sizeof(int64_t);
+    params[i+0].buffer = &v.ts[30000*i/10];
+    params[i+0].length = NULL;
+    params[i+0].is_null = no_null;
+    params[i+0].num = 30000;
+    
+    params[i+1].buffer_type = TSDB_DATA_TYPE_INT;
+    params[i+1].buffer_length = sizeof(int);
+    params[i+1].buffer = v.b;
+    params[i+1].length = NULL;
+    params[i+1].is_null = no_null;
+    params[i+1].num = 30000;
+  }
+
+  int64_t tts = 0;
+  for (int64_t i = 0; i < 90000000LL; ++i) {
+    v.ts[i] = tts + i;
+  }
+
+  unsigned long long starttime = getCurrentTime();
+
+  char *sql = "insert into ? values(?,?)";
+  int code = taos_stmt_prepare(stmt, sql, 0);
+  if (code != 0){
+    printf("failed to execute taos_stmt_prepare. code:0x%x\n", code);
+  }
+
+  int id = 0;
+  for (int l = 0; l < 10; l++) {
+    for (int zz = 0; zz < 300; zz++) {
+      char buf[32];
+      sprintf(buf, "m%d", zz);
+      code = taos_stmt_set_tbname(stmt, buf);
+      if (code != 0){
+        printf("failed to execute taos_stmt_set_tbname. code:0x%x\n", code);
+      }  
+
+      taos_stmt_bind_param_batch(stmt, params + id * 10);
+      taos_stmt_add_batch(stmt);
+
+      if (taos_stmt_execute(stmt) != 0) {
+        printf("failed to execute insert statement.\n");
+        exit(1);
+      }
+      ++id;
+
+    }
+ 
   }
 
   unsigned long long endtime = getCurrentTime();
@@ -1796,7 +2028,7 @@ int sql_s_perf1(TAOS     *taos) {
 }
 
 
-void prepare(TAOS     *taos) {
+void prepare(TAOS     *taos, int bigsize) {
   TAOS_RES *result;
   int      code;
 
@@ -1818,7 +2050,11 @@ void prepare(TAOS     *taos) {
   // create table
   for (int i = 0 ; i < 300; i++) {
     char buf[1024];
-    sprintf(buf, "create table m%d (ts timestamp, b bool, v1 tinyint, v2 smallint, v4 int, v8 bigint, f4 float, f8 double, bin binary(40), bin2 binary(40))", i) ;
+    if (bigsize) {
+      sprintf(buf, "create table m%d (ts timestamp, b bool, v1 tinyint, v2 smallint, v4 int, v8 bigint, f4 float, f8 double, bin binary(40), bin2 binary(40))", i) ;
+    } else {
+      sprintf(buf, "create table m%d (ts timestamp, b int)", i) ;
+    }
     result = taos_query(taos, buf);
     code = taos_errno(result);
     if (code != 0) {
@@ -1832,12 +2068,68 @@ void prepare(TAOS     *taos) {
 }
 
 
-void runcase(TAOS     *taos) {
+
+void preparem(TAOS     *taos, int bigsize, int idx) {
+  TAOS_RES *result;
+  int      code;
+  char dbname[32],sql[255];
+
+  sprintf(dbname, "demo%d", idx);
+  sprintf(sql, "drop database %s", dbname);
+  
+
+  result = taos_query(taos, sql); 
+  taos_free_result(result);
+
+  sprintf(sql, "create database %s", dbname);
+  result = taos_query(taos, sql);
+  code = taos_errno(result);
+  if (code != 0) {
+    printf("failed to create database, reason:%s\n", taos_errstr(result));
+    taos_free_result(result);
+    exit(1);
+  }
+  taos_free_result(result);
+
+  sprintf(sql, "use %s", dbname);
+  result = taos_query(taos, sql);
+  taos_free_result(result);
+  
+  // create table
+  for (int i = 0 ; i < 300; i++) {
+    char buf[1024];
+    if (bigsize) {
+      sprintf(buf, "create table m%d (ts timestamp, b bool, v1 tinyint, v2 smallint, v4 int, v8 bigint, f4 float, f8 double, bin binary(40), bin2 binary(40))", i) ;
+    } else {
+      sprintf(buf, "create table m%d (ts timestamp, b int)", i) ;
+    }
+    result = taos_query(taos, buf);
+    code = taos_errno(result);
+    if (code != 0) {
+      printf("failed to create table, reason:%s\n", taos_errstr(result));
+      taos_free_result(result);
+      exit(1);
+    }
+    taos_free_result(result);
+  }
+
+}
+
+
+
+//void runcase(TAOS     *taos, int idx) {
+void* runcase(void *par) {
+  T_par* tpar = (T_par *)par;
+  TAOS *taos = tpar->taos;
+  int idx = tpar->idx;
+  
   TAOS_STMT *stmt;
+
+  (void)idx;
 
 
 #if 1
-  prepare(taos);
+  prepare(taos, 1);
 
   stmt = taos_stmt_init(taos);
 
@@ -1861,7 +2153,7 @@ void runcase(TAOS     *taos) {
 #endif
 
 #if 1
-  prepare(taos);
+  prepare(taos, 1);
 
   stmt = taos_stmt_init(taos);
 
@@ -1885,7 +2177,7 @@ void runcase(TAOS     *taos) {
 #endif
 
 #if 1
-  prepare(taos);
+  prepare(taos, 1);
 
   stmt = taos_stmt_init(taos);
 
@@ -1910,7 +2202,7 @@ void runcase(TAOS     *taos) {
 
 
 #if 1  
-  prepare(taos);
+  prepare(taos, 1);
 
   stmt = taos_stmt_init(taos);
 
@@ -1928,14 +2220,14 @@ void runcase(TAOS     *taos) {
 #endif
 
 
-#if 1  
-  prepare(taos);
+#if 1
+  prepare(taos, 1);
 
   stmt = taos_stmt_init(taos);
 
-  printf("1t+9000r+bm start\n");
+  printf("1t+18000r+bm start\n");
   stmt_funcb2(stmt);
-  printf("1t+9000r+bm end\n");
+  printf("1t+18000r+bm end\n");
   printf("check result start\n");
   check_result(taos, "m0", 0, 180000);
   check_result(taos, "m1", 0, 180000);
@@ -1945,11 +2237,10 @@ void runcase(TAOS     *taos) {
   printf("check result end\n");
   taos_stmt_close(stmt);
 
-  //stmt_perf1(stmt);
 #endif
 
 #if 1  
-  prepare(taos);
+  prepare(taos, 1);
 
   stmt = taos_stmt_init(taos);
 
@@ -1969,7 +2260,7 @@ void runcase(TAOS     *taos) {
 
 
 #if 1  
-  prepare(taos);
+  prepare(taos, 1);
 
   stmt = taos_stmt_init(taos);
 
@@ -1986,9 +2277,24 @@ void runcase(TAOS     *taos) {
   taos_stmt_close(stmt);
 #endif
 
+#if 1  
+  prepare(taos, 1);
+
+  stmt = taos_stmt_init(taos);
+
+  printf("1t+18000r+nodyntable+bm start\n");
+  stmt_funcb5(stmt);
+  printf("1t+18000r+nodyntable+bm end\n");
+  printf("check result start\n");
+  check_result(taos, "m0", 0, 180000);
+  printf("check result end\n");
+  taos_stmt_close(stmt);
+
+#endif
+
 
 #if 1 
-  prepare(taos);
+  prepare(taos, 1);
 
   stmt = taos_stmt_init(taos);
 
@@ -2006,7 +2312,7 @@ void runcase(TAOS     *taos) {
 #endif
 
 #if 1  
-  prepare(taos);
+  prepare(taos, 1);
 
   stmt = taos_stmt_init(taos);
 
@@ -2025,7 +2331,7 @@ void runcase(TAOS     *taos) {
 #endif
 
 #if 1  
-  prepare(taos);
+  prepare(taos, 1);
 
   stmt = taos_stmt_init(taos);
 
@@ -2050,7 +2356,7 @@ void runcase(TAOS     *taos) {
 
 
 #if 1 
-  prepare(taos);
+  prepare(taos, 1);
 
   stmt = taos_stmt_init(taos);
 
@@ -2070,7 +2376,7 @@ void runcase(TAOS     *taos) {
 
 
 #if 1
-  prepare(taos);
+  prepare(taos, 1);
 
   (void)stmt;
   printf("120t+60r+sql start\n");
@@ -2086,7 +2392,7 @@ void runcase(TAOS     *taos) {
 #endif  
 
 #if 1
-  prepare(taos);
+  prepare(taos, 1);
 
   (void)stmt;
   printf("1t+60r+sql start\n");
@@ -2102,12 +2408,32 @@ void runcase(TAOS     *taos) {
 #endif  
 
 
+#if 1 
+  preparem(taos, 0, idx);
+
+  stmt = taos_stmt_init(taos);
+
+  printf("1t+30000r+bm start\n");
+  stmt_funcb_ssz1(stmt);
+  printf("1t+30000r+bm end\n");
+  printf("check result start\n");
+  check_result(taos, "m0", 0, 300000);
+  check_result(taos, "m1", 0, 300000);
+  check_result(taos, "m111", 0, 300000);  
+  check_result(taos, "m223", 0, 300000);
+  check_result(taos, "m299", 0, 300000);
+  printf("check result end\n");
+  taos_stmt_close(stmt);
+
+#endif
+
+  return NULL;
 
 }
 
 int main(int argc, char *argv[])
 {
-  TAOS     *taos;
+  TAOS     *taos[4];
 
   // connect to server
   if (argc < 2) {
@@ -2115,17 +2441,54 @@ int main(int argc, char *argv[])
     return 0;
   }
 
-  taos = taos_connect(argv[1], "root", "taosdata", NULL, 0);
+  taos[0] = taos_connect(argv[1], "root", "taosdata", NULL, 0);
   if (taos == NULL) {
     printf("failed to connect to db, reason:%s\n", taos_errstr(taos));
     exit(1);
   }   
 
-  prepare(taos);
+  taos[1] = taos_connect(argv[1], "root", "taosdata", NULL, 0);
+  if (taos == NULL) {
+    printf("failed to connect to db, reason:%s\n", taos_errstr(taos));
+    exit(1);
+  }   
 
-  runcase(taos);
+  taos[2] = taos_connect(argv[1], "root", "taosdata", NULL, 0);
+  if (taos == NULL) {
+    printf("failed to connect to db, reason:%s\n", taos_errstr(taos));
+    exit(1);
+  }   
 
+  taos[3] = taos_connect(argv[1], "root", "taosdata", NULL, 0);
+  if (taos == NULL) {
+    printf("failed to connect to db, reason:%s\n", taos_errstr(taos));
+    exit(1);
+  }     
+
+  pthread_t *pThreadList = (pthread_t *) calloc(sizeof(pthread_t), 4);
+
+  pthread_attr_t thattr;
+  pthread_attr_init(&thattr);
+  pthread_attr_setdetachstate(&thattr, PTHREAD_CREATE_JOINABLE);
+  T_par par[4];
+
+  par[0].taos = taos[0];
+  par[0].idx = 0;
+  par[1].taos = taos[1];
+  par[1].idx = 1;
+  par[2].taos = taos[2];
+  par[2].idx = 2;
+  par[3].taos = taos[3];
+  par[3].idx = 3;
   
+  pthread_create(&(pThreadList[0]), &thattr, runcase, (void *)&par[0]);
+  //pthread_create(&(pThreadList[1]), &thattr, runcase, (void *)&par[1]);
+  //pthread_create(&(pThreadList[2]), &thattr, runcase, (void *)&par[2]);
+  //pthread_create(&(pThreadList[3]), &thattr, runcase, (void *)&par[3]);
+
+  while(1) {
+    sleep(1);
+  }
   return 0;
 }
 
