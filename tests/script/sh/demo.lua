@@ -30,7 +30,7 @@ end
 function test_finalize(ans, key) 
   local ret = 0.0 
 
-  if (ans[key] ~= nil)    
+  if (ans[key] ~= nil and ans[key]["num"] == 30000)    
   then
     ret = ans[key]["sum"]/ans[key]["num"]
     ans[key]["sum"] = 0.0 
