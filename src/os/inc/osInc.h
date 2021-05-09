@@ -72,7 +72,7 @@ extern "C" {
   #include <wordexp.h>
   #include <wctype.h>
 
-  #if defined(TD_DARWIN_64)
+  #if defined(_TD_DARWIN_64)
     #include <dispatch/dispatch.h>
     #include "osEok.h"
   #else
