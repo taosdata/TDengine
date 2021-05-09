@@ -688,3 +688,139 @@ JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_TDDBJNIConnector_getResultTimePrec
 
   return taos_result_precision(result);
 }
+
+JNIEXPORT jlong JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_prepareStmtImp(JNIEnv *env, jobject jobj, jbyteArray jsql, jlong con) {
+  TAOS *tscon = (TAOS *)con;
+  if (tscon == NULL) {
+    jniError("jobj:%p, connection already closed", jobj);
+    return JNI_CONNECTION_NULL;
+  }
+
+  if (jsql == NULL) {
+    jniError("jobj:%p, conn:%p, empty sql string", jobj, tscon);
+    return JNI_SQL_NULL;
+  }
+
+  jsize len = (*env)->GetArrayLength(env, jsql);
+
+  char *str = (char *) calloc(1, sizeof(char) * (len + 1));
+  if (str == NULL) {
+    jniError("jobj:%p, conn:%p, alloc memory failed", jobj, tscon);
+    return JNI_OUT_OF_MEMORY;
+  }
+
+  (*env)->GetByteArrayRegion(env, jsql, 0, len, (jbyte *)str);
+  if ((*env)->ExceptionCheck(env)) {
+    // todo handle error
+  }
+
+  TAOS_STMT* pStmt = taos_stmt_init(tscon);
+  int32_t code = taos_stmt_prepare(pStmt, str, len);
+  if (code != TSDB_CODE_SUCCESS) {
+    jniError("jobj:%p, conn:%p, code:%s", jobj, tscon, tstrerror(code));
+    return JNI_TDENGINE_ERROR;
+  }
+
+  free(str);
+  return (jlong) pStmt;
+}
+
+JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_setBindTableNameImp(JNIEnv *env, jobject jobj, jlong stmt, jstring jname, jlong conn) {
+  TAOS *tsconn = (TAOS *)conn;
+  if (tsconn == NULL) {
+    jniError("jobj:%p, connection already closed", jobj);
+    return JNI_CONNECTION_NULL;
+  }
+
+  TAOS_STMT* pStmt = (TAOS_STMT*) stmt;
+  if (pStmt == NULL) {
+    jniError("jobj:%p, conn:%p, invalid stmt handle", jobj, tsconn);
+    return JNI_SQL_NULL;
+  }
+
+  const char *name = (*env)->GetStringUTFChars(env, jname, NULL);
+
+  int32_t code = taos_stmt_set_tbname((void*)stmt, name);
+  if (code != TSDB_CODE_SUCCESS) {
+    jniError("jobj:%p, conn:%p, code:%s", jobj, tsconn, tstrerror(code));
+    return JNI_TDENGINE_ERROR;
+  }
+
+  jniDebug("jobj:%p, conn:%p, set stmt bind table name", jobj, tsconn);
+
+  (*env)->ReleaseStringUTFChars(env, jname, name);
+  return JNI_SUCCESS;
+}
+
+JNIEXPORT jlong JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_bindColDataImp(JNIEnv *env, jobject jobj, jlong stmt,
+    jbyteArray data, jint dataType, jint numOfRows, jint colIndex, jlong con) {
+  TAOS *tscon = (TAOS *)con;
+  if (tscon == NULL) {
+    jniError("jobj:%p, connection already closed", jobj);
+    return JNI_CONNECTION_NULL;
+  }
+
+  TAOS_STMT* pStmt = (TAOS_STMT*) stmt;
+  if (pStmt == NULL) {
+    jniError("jobj:%p, conn:%p, invalid stmt", jobj, tscon);
+    return JNI_SQL_NULL;
+  }
+
+#if 0
+  TAOS_BIND* b = malloc(20);
+  b.num= jrows;
+  int32_t code = taos_stmt_bind_param_batch(stmt, b, colInex);
+  if (code != TSDB_CODE_SUCCESS) {
+    jniError("jobj:%p, conn:%p, code:%s", jobj, tscon, tstrerror(code));
+    return JNI_TDENGINE_ERROR;
+  }
+#endif
+
+  return JNI_SUCCESS;
+}
+
+JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_executeBatchImp(JNIEnv *env, jobject jobj, jlong stmt, jlong con) {
+  TAOS *tscon = (TAOS *)con;
+  if (tscon == NULL) {
+    jniError("jobj:%p, connection already closed", jobj);
+    return JNI_CONNECTION_NULL;
+  }
+
+  TAOS_STMT *pStmt = (TAOS_STMT*) stmt;
+  if (pStmt == NULL) {
+    jniError("jobj:%p, conn:%p, invalid stmt", jobj, tscon);
+    return JNI_SQL_NULL;
+  }
+
+  int32_t code = taos_stmt_execute(pStmt);
+  if (code != TSDB_CODE_SUCCESS) {
+    jniError("jobj:%p, conn:%p, code:%s", jobj, tscon, tstrerror(code));
+    return JNI_TDENGINE_ERROR;
+  }
+
+  jniDebug("jobj:%p, conn:%p, batch execute", jobj, tscon);
+  return JNI_SUCCESS;
+}
+
+JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_closeStmt(JNIEnv *env, jobject jobj, jlong stmt, jlong con) {
+  TAOS *tscon = (TAOS *)con;
+  if (tscon == NULL) {
+    jniError("jobj:%p, connection already closed", jobj);
+    return JNI_CONNECTION_NULL;
+  }
+
+  TAOS_STMT *pStmt = (TAOS_STMT*) stmt;
+  if (pStmt == NULL) {
+    jniError("jobj:%p, conn:%p, invalid stmt", jobj, tscon);
+    return JNI_SQL_NULL;
+  }
+
+  int32_t code = taos_stmt_close(pStmt);
+  if (code != TSDB_CODE_SUCCESS) {
+    jniError("jobj:%p, conn:%p, code:%s", jobj, tscon, tstrerror(code));
+    return JNI_TDENGINE_ERROR;
+  }
+
+  jniDebug("jobj:%p, conn:%p, stmt closed", jobj, tscon);
+  return JNI_SUCCESS;
+}

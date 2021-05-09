@@ -14,37 +14,47 @@
  *****************************************************************************/
 package com.taosdata.jdbc;
 
+import com.sun.tools.javac.util.Assert;
 import com.taosdata.jdbc.utils.Utils;
 
 import java.io.InputStream;
 import java.io.Reader;
 import java.math.BigDecimal;
 import java.net.URL;
+import java.nio.ByteBuffer;
+import java.nio.DoubleBuffer;
+import java.nio.IntBuffer;
 import java.sql.*;
 import java.util.ArrayList;
 import java.util.Calendar;
+import java.util.Collections;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /*
- * TDengine only supports a subset of the standard SQL, thus this implemetation of the
+ * TDengine only supports a subset of the standard SQL, thus this implementation of the
  * standard JDBC API contains more or less some adjustments customized for certain
  * compatibility needs.
  */
 public class TSDBPreparedStatement extends TSDBStatement implements PreparedStatement {
-
     private String rawSql;
     private Object[] parameters;
     private boolean isPrepared;
-
+    
+    private ArrayList<ColumnInfo> colData;
+    private int type;
+    
+    private String tableName;
+    private long nativeStmtPtr = 0;
+    
     private volatile TSDBParameterMetaData parameterMetaData;
 
-    TSDBPreparedStatement(TSDBConnection connection, TSDBJNIConnector connecter, String sql) {
-        super(connection, connecter);
+    TSDBPreparedStatement(TSDBConnection connection, TSDBJNIConnector connector, String sql) {
+		super(connection, connector);
         init(sql);
 
+        int parameterCnt = 0;
         if (sql.contains("?")) {
-            int parameterCnt = 0;
             for (int i = 0; i < sql.length(); i++) {
                 if ('?' == sql.charAt(i)) {
                     parameterCnt++;
@@ -53,6 +63,9 @@ public class TSDBPreparedStatement extends TSDBStatement implements PreparedStat
             parameters = new Object[parameterCnt];
             this.isPrepared = true;
         }
+        
+        this.colData = new ArrayList<ColumnInfo>(parameterCnt);
+        this.colData.addAll(Collections.nCopies(parameterCnt, null));
     }
 
     private void init(String sql) {
@@ -260,10 +273,14 @@ public class TSDBPreparedStatement extends TSDBStatement implements PreparedStat
 
     @Override
     public void setObject(int parameterIndex, Object x) throws SQLException {
-        if (isClosed())
+        if (isClosed()) {
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
-        if (parameterIndex < 1 && parameterIndex >= parameters.length)
+        }
+        
+        if (parameterIndex < 1 && parameterIndex >= parameters.length) {
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_PARAMETER_INDEX_OUT_RANGE);
+        }
+        
         parameters[parameterIndex - 1] = x;
     }
 
@@ -300,9 +317,10 @@ public class TSDBPreparedStatement extends TSDBStatement implements PreparedStat
 
     @Override
     public void setRef(int parameterIndex, Ref x) throws SQLException {
-        if (isClosed())
+        if (isClosed()) {
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
-
+        }
+        
         throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
     }
 
@@ -514,5 +532,136 @@ public class TSDBPreparedStatement extends TSDBStatement implements PreparedStat
         if (isClosed())
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
         throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
+    }
+    
+    ///////////////////////////////////////////////////////////////////////
+    // NOTE: the following APIs are not JDBC compatible
+    // set the bind table name
+    private static class ColumnInfo {
+    	@SuppressWarnings("rawtypes")
+		private ArrayList data;
+    	private int       type;
+    	private boolean   typeIsSet;
+    	
+    	public void ClumnInfo() {
+    		this.typeIsSet = false;
+    	}
+    	
+    	public void setType(int type) {
+    		Assert.check(!this.typeIsSet);
+    		this.typeIsSet = true;
+    		this.type = type;
+    	}
+    	
+    	public boolean isTypeSet() {
+    		return this.typeIsSet;
+    	}
+    };
+    
+    public void setTableName(String name) {
+    	this.tableName = name;
+    }
+    
+    @SuppressWarnings("unchecked")
+	public void setInt(int columnIndex, ArrayList<Integer> list) throws SQLException {
+    	ColumnInfo col = (ColumnInfo) this.colData.get(columnIndex);
+    	if (col == null) {
+    		ColumnInfo p = new ColumnInfo();
+    		p.setType(TSDBConstants.TSDB_DATA_TYPE_INT);
+    		p.data = (ArrayList) list.clone();
+    		this.colData.set(columnIndex, p);
+    	} else {
+    		if (col.type != TSDBConstants.TSDB_DATA_TYPE_INT) {
+                throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
+    		}
+    		
+    		col.data.addAll(list);
+    	}
+    }
+    
+    @SuppressWarnings("unchecked")
+	public void setFloat(int columnIndex, ArrayList<Float> list) throws SQLException {
+    	ColumnInfo col = (ColumnInfo) this.colData.get(columnIndex);
+    	if (col == null) {
+    		ColumnInfo p = new ColumnInfo();
+    		p.setType(TSDBConstants.TSDB_DATA_TYPE_INT);
+    		p.data = (ArrayList) list.clone();
+    		this.colData.set(columnIndex, p);
+    	} else {
+    		if (col.type != TSDBConstants.TSDB_DATA_TYPE_INT) {
+                throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
+    		}
+    		
+    		col.data.addAll(list);
+    	}
+    }
+    
+    public void addColumnDataBatch() {
+    	// do nothing
+    }
+    
+	public void columnDataExecuteBatch() {
+		int size = this.colData.size();
+		ColumnInfo col = (ColumnInfo) this.colData.get(0);
+		int rows = col.data.size();
+
+		// pass the data block to native code
+		TSDBJNIConnector conn = null;
+		try {
+			conn = (TSDBJNIConnector) this.getConnection();
+			this.nativeStmtPtr = conn.prepareStmt(rawSql);
+			conn.setBindTableName(this.nativeStmtPtr, this.tableName);
+		} catch (SQLException e) {
+			e.printStackTrace();
+		}
+
+		for (int i = 0; i < size; ++i) {
+			ColumnInfo col1 = this.colData.get(i);
+			Assert.check(col.isTypeSet());
+			ByteBuffer ib = ByteBuffer.allocate(rows);
+
+			switch (col1.type) {
+				case TSDBConstants.TSDB_DATA_TYPE_INT: {
+					for (int j = 0; j < rows; ++j) {
+						Integer val = (Integer) col.data.get(j);
+						if (val == null) {
+							ib.putInt(Integer.MIN_VALUE);
+						} else {
+							ib.putInt((int) col.data.get(j));							
+						}
+					}
+					
+					break;
+				}
+	
+				case TSDBConstants.TSDB_DATA_TYPE_TIMESTAMP: {
+					for (int j = 0; j < rows; ++j) {
+						ib.putLong((long) col.data.get(j));
+					}
+					break;
+				}
+			};
+			
+			conn.bindColumnDataArray(this.nativeStmtPtr, ib.array(), col1.type, rows, i);
+		}
+		
+		conn.executeBatch(this.nativeStmtPtr);
+	}
+    
+    public void columnDataClearBatchClear() {
+    	// TODO clear data in this.colData
+    }
+    
+    public void close() {
+    	TSDBJNIConnector conn = null;
+		try {
+			conn = (TSDBJNIConnector) this.getConnection();
+			this.nativeStmtPtr = conn.prepareStmt(rawSql);
+			conn.setBindTableName(this.nativeStmtPtr, this.tableName);
+		} catch (SQLException e) {
+			e.printStackTrace();
+		}
+		
+		conn.closeBatch(this.nativeStmtPtr);
     }
 }
