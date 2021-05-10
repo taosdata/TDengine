@@ -53,10 +53,20 @@ typedef struct SMultiTbStmt {
   SHashObj *pTableBlockHashList;     // data block for each table
 } SMultiTbStmt;
 
+typedef enum {
+  STMT_INIT = 1,
+  STMT_PREPARE,
+  STMT_SETTBNAME,
+  STMT_BIND,
+  STMT_BIND_COL,
+  STMT_ADD_BATCH,
+  STMT_EXECUTE
+} STMT_ST;
+
 typedef struct STscStmt {
   bool isInsert;
   bool multiTbInsert;
-  int64_t  prevTs;
+  int16_t  last;
   STscObj* taos;
   SSqlObj* pSql;
   SMultiTbStmt mtb;
@@ -1185,6 +1195,7 @@ TAOS_STMT* taos_stmt_init(TAOS* taos) {
   pSql->maxRetry  = TSDB_MAX_REPLICA;
   pSql->isBind    = true;
   pStmt->pSql     = pSql;
+  pStmt->last     = STMT_INIT;
 
   return pStmt;
 }
@@ -1197,6 +1208,13 @@ int taos_stmt_prepare(TAOS_STMT* stmt, const char* sql, unsigned long length) {
     return TSDB_CODE_TSC_DISCONNECTED;
   }
 
+  if (pStmt->last != STMT_INIT) {
+    tscError("prepare status error, last:%d", pStmt->last);
+    return TSDB_CODE_TSC_APP_ERROR;
+  }
+
+  pStmt->last = STMT_PREPARE;
+  
   SSqlObj* pSql = pStmt->pSql;
   size_t   sqlLen = strlen(sql);
 
@@ -1302,6 +1320,13 @@ int taos_stmt_set_tbname(TAOS_STMT* stmt, const char* name) {
     return TSDB_CODE_TSC_APP_ERROR;
   }
 
+  if (pStmt->last == STMT_INIT && pStmt->last == STMT_BIND && pStmt->last == STMT_BIND_COL) {
+    tscError("0x%"PRIx64" settbname status error, last:%d", pSql->self, pStmt->last);
+    return TSDB_CODE_TSC_APP_ERROR;
+  }
+
+  pStmt->last = STMT_SETTBNAME;
+
   uint64_t* uid = (uint64_t*)taosHashGet(pStmt->mtb.pTableHash, name, strlen(name));
   if (uid != NULL) {
     pStmt->mtb.currentUid = *uid;
@@ -1399,11 +1424,25 @@ int taos_stmt_close(TAOS_STMT* stmt) {
 
 int taos_stmt_bind_param(TAOS_STMT* stmt, TAOS_BIND* bind) {
   STscStmt* pStmt = (STscStmt*)stmt;
+  if (stmt == NULL || pStmt->pSql == NULL || pStmt->taos == NULL) {
+    terrno = TSDB_CODE_TSC_DISCONNECTED;
+    return TSDB_CODE_TSC_DISCONNECTED;
+  }
+  
   if (pStmt->isInsert) {
-    if (pStmt->multiTbInsert && pStmt->mtb.nameSet == false) {
-      tscError("no table name set");
-      return TSDB_CODE_TSC_APP_ERROR;
+    if (pStmt->multiTbInsert) {
+      if (pStmt->last != STMT_SETTBNAME && pStmt->last != STMT_ADD_BATCH) {
+        tscError("0x%"PRIx64" bind param status error, last:%d", pStmt->pSql->self, pStmt->last);
+        return TSDB_CODE_TSC_APP_ERROR;
+      }
+    } else {
+      if (pStmt->last != STMT_PREPARE && pStmt->last != STMT_ADD_BATCH) {
+        tscError("0x%"PRIx64" bind param status error, last:%d", pStmt->pSql->self, pStmt->last);
+        return TSDB_CODE_TSC_APP_ERROR;
+      }
     }
+
+    pStmt->last = STMT_BIND;
     
     return insertStmtBindParam(pStmt, bind);
   } else {
@@ -1414,6 +1453,12 @@ int taos_stmt_bind_param(TAOS_STMT* stmt, TAOS_BIND* bind) {
 
 int taos_stmt_bind_param_batch(TAOS_STMT* stmt, TAOS_MULTI_BIND* bind) {
   STscStmt* pStmt = (STscStmt*)stmt;
+
+  if (stmt == NULL || pStmt->pSql == NULL || pStmt->taos == NULL) {
+    terrno = TSDB_CODE_TSC_DISCONNECTED;
+    return TSDB_CODE_TSC_DISCONNECTED;
+  }
+
   if (bind == NULL || bind->num <= 0) {
     tscError("0x%"PRIx64" invalid parameter", pStmt->pSql->self);
     return TSDB_CODE_TSC_APP_ERROR;
@@ -1424,16 +1469,30 @@ int taos_stmt_bind_param_batch(TAOS_STMT* stmt, TAOS_MULTI_BIND* bind) {
     return TSDB_CODE_TSC_APP_ERROR;
   }
 
-  if (pStmt->multiTbInsert && !pStmt->mtb.nameSet) {
-    tscError("0x%"PRIx64" no table name set", pStmt->pSql->self);
-    return TSDB_CODE_TSC_APP_ERROR;
+  if (pStmt->multiTbInsert) {
+    if (pStmt->last != STMT_SETTBNAME && pStmt->last != STMT_ADD_BATCH) {
+      tscError("0x%"PRIx64" bind param status error, last:%d", pStmt->pSql->self, pStmt->last);
+      return TSDB_CODE_TSC_APP_ERROR;
+    }  
+  } else {
+    if (pStmt->last != STMT_PREPARE && pStmt->last != STMT_ADD_BATCH) {
+      tscError("0x%"PRIx64" bind param status error, last:%d", pStmt->pSql->self, pStmt->last);
+      return TSDB_CODE_TSC_APP_ERROR;
+    }
   }
+
+  pStmt->last = STMT_BIND;
   
   return insertStmtBindParamBatch(pStmt, bind, -1);
 }
 
 int taos_stmt_bind_single_param_batch(TAOS_STMT* stmt, TAOS_MULTI_BIND* bind, int colIdx) {
   STscStmt* pStmt = (STscStmt*)stmt;
+  if (stmt == NULL || pStmt->pSql == NULL || pStmt->taos == NULL) {
+    terrno = TSDB_CODE_TSC_DISCONNECTED;
+    return TSDB_CODE_TSC_DISCONNECTED;
+  }
+
   if (bind == NULL || bind->num <= 0) {
     tscError("0x%"PRIx64" invalid parameter", pStmt->pSql->self);
     return TSDB_CODE_TSC_APP_ERROR;
@@ -1444,11 +1503,19 @@ int taos_stmt_bind_single_param_batch(TAOS_STMT* stmt, TAOS_MULTI_BIND* bind, in
     return TSDB_CODE_TSC_APP_ERROR;
   }
 
-  if (pStmt->multiTbInsert && !pStmt->mtb.nameSet) {
-    tscError("0x%"PRIx64" no table name set", pStmt->pSql->self);
-    return TSDB_CODE_TSC_APP_ERROR;
+  if (pStmt->multiTbInsert) {
+    if (pStmt->last != STMT_SETTBNAME && pStmt->last != STMT_ADD_BATCH && pStmt->last != STMT_BIND_COL) {
+      tscError("0x%"PRIx64" bind param status error, last:%d", pStmt->pSql->self, pStmt->last);
+      return TSDB_CODE_TSC_APP_ERROR;
+    }  
+  } else {
+    if (pStmt->last != STMT_PREPARE && pStmt->last != STMT_ADD_BATCH && pStmt->last != STMT_BIND_COL) {
+      tscError("0x%"PRIx64" bind param status error, last:%d", pStmt->pSql->self, pStmt->last);
+      return TSDB_CODE_TSC_APP_ERROR;
+    }
   }
 
+  pStmt->last = STMT_BIND_COL;
 
   return insertStmtBindParamBatch(pStmt, bind, colIdx);
 }
@@ -1457,9 +1524,22 @@ int taos_stmt_bind_single_param_batch(TAOS_STMT* stmt, TAOS_MULTI_BIND* bind, in
 
 int taos_stmt_add_batch(TAOS_STMT* stmt) {
   STscStmt* pStmt = (STscStmt*)stmt;
+  if (stmt == NULL || pStmt->pSql == NULL || pStmt->taos == NULL) {
+    terrno = TSDB_CODE_TSC_DISCONNECTED;
+    return TSDB_CODE_TSC_DISCONNECTED;
+  }
+  
   if (pStmt->isInsert) {
+    if (pStmt->last != STMT_BIND && pStmt->last != STMT_BIND_COL) {
+      tscError("0x%"PRIx64" add batch status error, last:%d", pStmt->pSql->self, pStmt->last);
+      return TSDB_CODE_TSC_APP_ERROR;
+    }
+
+    pStmt->last = STMT_ADD_BATCH;
+    
     return insertStmtAddBatch(pStmt);
   }
+  
   return TSDB_CODE_COM_OPS_NOT_SUPPORT;
 }
 
@@ -1474,7 +1554,19 @@ int taos_stmt_reset(TAOS_STMT* stmt) {
 int taos_stmt_execute(TAOS_STMT* stmt) {
   int ret = 0;
   STscStmt* pStmt = (STscStmt*)stmt;
+  if (stmt == NULL || pStmt->pSql == NULL || pStmt->taos == NULL) {
+    terrno = TSDB_CODE_TSC_DISCONNECTED;
+    return TSDB_CODE_TSC_DISCONNECTED;
+  }
+  
   if (pStmt->isInsert) {
+    if (pStmt->last != STMT_ADD_BATCH) {
+      tscError("0x%"PRIx64" exec status error, last:%d", pStmt->pSql->self, pStmt->last);
+      return TSDB_CODE_TSC_APP_ERROR;
+    }
+
+    pStmt->last = STMT_EXECUTE;
+    
     if (pStmt->multiTbInsert) {
       ret = insertBatchStmtExecute(pStmt);
     } else {
