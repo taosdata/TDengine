@@ -28,7 +28,7 @@ typedef struct {
   SFSIter      fsIter;  // tsdb file iterator
   int          niters;  // memory iterators
   SCommitIter *iters;
-  bool         isRFileSet;  // read and commit FSET
+  bool         isRFileSet; // read and commit FSET
   SReadH       readh;
   SDFileSet    wSet;
   bool         isDFileSame;
