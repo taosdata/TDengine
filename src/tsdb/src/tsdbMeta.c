@@ -792,8 +792,7 @@ static void tsdbFreeTable(STable *pTable) {
     kvRowFree(pTable->tagVal);
 
     tSkipListDestroy(pTable->pIndex);
-    taosTZfree(pTable->lastRow);
-    tfree(pTable->lastCols);
+    taosTZfree(pTable->lastRow);    
     tfree(pTable->sql);
 
     for (int i = 0; i < pTable->lastColNum; ++i) {
@@ -802,6 +801,8 @@ static void tsdbFreeTable(STable *pTable) {
       }
       free(pTable->lastCols[i].pData);
     }
+    tfree(pTable->lastCols);
+    
     free(pTable);
   }
 }
