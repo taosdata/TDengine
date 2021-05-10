@@ -100,7 +100,7 @@ int tsdbRecoverDataMain(STsdbRepo *pRepo) {
     return -1;
   }
 
-  tsdbInfo("vgId:%d restore with DFileSet size %" PRIu64, REPO_ID(pRepo), taosArrayGetSize(fSetArray));
+  tsdbInfo("vgId:%d restore with DFileSet size %" PRIu32, REPO_ID(pRepo), (uint32_t)taosArrayGetSize(fSetArray));
 
   // check for each SDFileSet
   for (size_t iDFileSet = 0; iDFileSet < taosArrayGetSize(fSetArray); ++iDFileSet) {
