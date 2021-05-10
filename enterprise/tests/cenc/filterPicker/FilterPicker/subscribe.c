@@ -21,7 +21,7 @@
 #define  TQ_CHAN_NUM   16
 
 
-int nTotalRows = 0;
+int64_t nTotalRows = 0;
 time_t nTotalTime = 0;
 int64_t nTotalSamples = 0;
 
@@ -944,7 +944,7 @@ int main(int argc, char *argv[])
   }
 
   fprintf(stdout, "total samples consumed: %ld\r\n", nTotalSamples);
-  fprintf(stdout, "total rows consumed: %d\r\n", nTotalRows);
+  fprintf(stdout, "total rows consumed: %ld\r\n", nTotalRows);
   fprintf(stdout, "total time consumed: %ld\r\n", nTotalTime / TQ_CHAN_NUM);
 
   if (mtb) {
