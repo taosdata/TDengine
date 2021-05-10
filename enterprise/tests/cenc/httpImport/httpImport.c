@@ -14,7 +14,7 @@
 #endif
 
 
-#define CIR_BUF_NUM   4096
+#define CIR_BUF_NUM   8192
 #define CIR_BUF_SIZE  1536
 
 
@@ -62,7 +62,7 @@ typedef struct thread_arg_s
 
 
 #define BUF_SKIP_LEN                1
-#define TQ_CHAN_NUM                 10
+#define TQ_CHAN_NUM                 16
 #define MAX_TSQL_LEN                ((MAXRECLEN - 100) << 3)
 #define MAX_BUFF_LEN                (MAXRECLEN - 100)
 #define MAX_DB_ROWS                 32767
@@ -142,6 +142,7 @@ int main(int argc, char *argv[])
     thread_arg_t    *arg     = NULL;
     char            *base64;
     uint64_t         hash;
+    struct timeval   now;
 #else
     FILE            *fp      = NULL;
     char            *ofile   = NULL;
@@ -430,11 +431,14 @@ retry:
 
     end = time(NULL);
 
+    gettimeofday(&now, NULL);
+
     if (ret != MS_ENDOFFILE) {
-        fprintf(stderr, "terminated prematurely, %ld packet(s) transfered, %lds elapsed\r\n",
-                packets, end - start);
+        fprintf(stderr, "terminated prematurely, %ld packet(s) transfered, %lds elapsed, now: %ld\r\n",
+                packets, end - start, now.tv_sec * 1000000 + now.tv_usec);
     } else {
-        fprintf(stdout, "done, %ld packet(s) transfered, %lds elapsed\r\n", packets, end - start);
+        fprintf(stdout, "done, %ld packet(s) transfered, %lds elapsed, now: %ld\r\n",
+                packets, end - start, now.tv_sec * 1000000 + now.tv_usec);
     }
 
 failed:

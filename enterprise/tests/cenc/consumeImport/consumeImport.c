@@ -12,7 +12,7 @@
 
 #define  MAX_TSQL_LEN  1048576
 #define  SEG_TSQL_LEN  65536
-#define  TQ_CHAN_NUM   10
+#define  TQ_CHAN_NUM   16
 #define  MAX_DB_ROWS   32767
 
 
@@ -354,7 +354,7 @@ void subscribe_callback(TAOS_SUB *tsub, TAOS_RES *res, void *param, int code)
     nTotalTime += (end_time.tv_sec * 1000000 + end_time.tv_usec) - (start_time.tv_sec * 1000000 + start_time.tv_usec);
     pthread_mutex_unlock(&mutex_ttime);
 
-    fprintf(stderr, "%d rows consumed.\r\n", nRows);
+    fprintf(stderr, "%d rows consumed, now: %ld\r\n", nRows, end_time.tv_sec * 1000000 + end_time.tv_usec);
   }
 }
 
@@ -475,7 +475,7 @@ void *subscribe_routine(void *arg)
     pps->tsub = taos_subscribe(pps->taos, restart, topic_name, sql, subscribe_callback, pps, 1000);
   } else {
     // create an synchronized subscription, need to call 'taos_consume' manually
-    pps->tsub = taos_subscribe(pps->taos, restart, topic_name, sql, NULL, NULL, 0);
+    pps->tsub = taos_subscribe(pps->taos, restart, topic_name, sql, NULL, NULL, 10);
   }
 
   if (pps->tsub == NULL) {

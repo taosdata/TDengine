@@ -18,7 +18,7 @@
 #define  MAX_TSQL_LEN  65535
 #define  hash(key, c)  ((uint64_t) key * 31 + c)
 #define  MEM_TAB_MOD   500
-#define  TQ_CHAN_NUM   10
+#define  TQ_CHAN_NUM   16
 
 
 int nTotalRows = 0;
@@ -602,7 +602,7 @@ void subscribe_callback(TAOS_SUB *tsub, TAOS_RES *res, void *param, int code)
     nTotalTime += (end_time.tv_sec * 1000000 + end_time.tv_usec) - (start_time.tv_sec * 1000000 + start_time.tv_usec);
     pthread_mutex_unlock(&mutex_ttime);
 
-    fprintf(stderr, "sub(%d): %d row(s) consumed.\r\n", idx, nRows);
+    fprintf(stderr, "sub(%d): %d row(s) consumed, now: %ld\r\n", idx, nRows, end_time.tv_sec * 1000000 + end_time.tv_usec);
   }
 }
 
@@ -722,7 +722,7 @@ void *subscribe_routine(void *arg)
     pps->tsub = taos_subscribe(pps->taos, restart, topic_name, sql, subscribe_callback, pps, 1000);
   } else {
     // create an synchronized subscription, need to call 'taos_consume' manually
-    pps->tsub = taos_subscribe(pps->taos, restart, topic_name, sql, NULL, NULL, 0);
+    pps->tsub = taos_subscribe(pps->taos, restart, topic_name, sql, NULL, NULL, 10);
   }
 
   if (pps->tsub == NULL) {
