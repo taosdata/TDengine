@@ -1388,6 +1388,7 @@ int taos_stmt_close(TAOS_STMT* stmt) {
       taosHashCleanup(pStmt->mtb.pTableHash);
       pStmt->mtb.pTableBlockHashList = tscDestroyBlockHashTable(pStmt->mtb.pTableBlockHashList, true);
       taosHashCleanup(pStmt->pSql->cmd.pTableBlockHashList);
+      pStmt->pSql->cmd.pTableBlockHashList = NULL;
     }
   }
 
