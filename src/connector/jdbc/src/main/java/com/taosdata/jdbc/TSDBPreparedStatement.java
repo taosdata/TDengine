@@ -18,6 +18,7 @@ import com.taosdata.jdbc.utils.Utils;
 
 import java.io.InputStream;
 import java.io.Reader;
+import java.io.UnsupportedEncodingException;
 import java.math.BigDecimal;
 import java.net.URL;
 import java.nio.ByteBuffer;
@@ -40,8 +41,6 @@ public class TSDBPreparedStatement extends TSDBStatement implements PreparedStat
     private boolean isPrepared;
     
     private ArrayList<ColumnInfo> colData;
-    private int type;
-    
     private String tableName;
     private long nativeStmtHandle = 0;
     
@@ -540,6 +539,7 @@ public class TSDBPreparedStatement extends TSDBStatement implements PreparedStat
     	@SuppressWarnings("rawtypes")
 		private ArrayList data;
     	private int       type;
+    	private int       bytes;
     	private boolean   typeIsSet;
     	
     	public ColumnInfo() {
@@ -564,60 +564,61 @@ public class TSDBPreparedStatement extends TSDBStatement implements PreparedStat
     	this.tableName = name;
     }
     
-    public <T> void setValueImpl(int columnIndex, ArrayList<T> list, int type) throws SQLException {
+    public <T> void setValueImpl(int columnIndex, ArrayList<T> list, int type, int bytes) throws SQLException {
     	ColumnInfo col = (ColumnInfo) this.colData.get(columnIndex);
     	if (col == null) {
     		ColumnInfo p = new ColumnInfo();
     		p.setType(type);
+    		p.bytes = bytes;
     		p.data = (ArrayList<?>) list.clone();
     		this.colData.set(columnIndex, p);
     	} else {
     		if (col.type != type) {
                 throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNKNOWN, "column data type mismatch");
     		}
-    		
     		col.data.addAll(list);
     	}
     }
     
     public void setInt(int columnIndex, ArrayList<Integer> list) throws SQLException {
-    	setValueImpl(columnIndex, list, TSDBConstants.TSDB_DATA_TYPE_INT);
+    	setValueImpl(columnIndex, list, TSDBConstants.TSDB_DATA_TYPE_INT, Integer.BYTES);
     }
     
     public void setFloat(int columnIndex, ArrayList<Float> list) throws SQLException {
-    	setValueImpl(columnIndex, list, TSDBConstants.TSDB_DATA_TYPE_FLOAT);
+    	setValueImpl(columnIndex, list, TSDBConstants.TSDB_DATA_TYPE_FLOAT, Float.BYTES);
     }
     
     public void setTimestamp(int columnIndex, ArrayList<Long> list) throws SQLException {
-    	setValueImpl(columnIndex, list, TSDBConstants.TSDB_DATA_TYPE_TIMESTAMP);
+    	setValueImpl(columnIndex, list, TSDBConstants.TSDB_DATA_TYPE_TIMESTAMP, Long.BYTES);
     }
     
     public void setLong(int columnIndex, ArrayList<Long> list) throws SQLException {
-    	setValueImpl(columnIndex, list, TSDBConstants.TSDB_DATA_TYPE_BIGINT);
+    	setValueImpl(columnIndex, list, TSDBConstants.TSDB_DATA_TYPE_BIGINT, Long.BYTES);
     }
     
     public void setDouble(int columnIndex, ArrayList<Double> list) throws SQLException {
-    	setValueImpl(columnIndex, list, TSDBConstants.TSDB_DATA_TYPE_DOUBLE);
+    	setValueImpl(columnIndex, list, TSDBConstants.TSDB_DATA_TYPE_DOUBLE, Double.BYTES);
     }
     
     public void setBoolean(int columnIndex, ArrayList<Boolean> list) throws SQLException {
-    	setValueImpl(columnIndex, list, TSDBConstants.TSDB_DATA_TYPE_BOOL);
+    	setValueImpl(columnIndex, list, TSDBConstants.TSDB_DATA_TYPE_BOOL, Byte.BYTES);
     }
     
     public void setByte(int columnIndex, ArrayList<Byte> list) throws SQLException {
-    	setValueImpl(columnIndex, list, TSDBConstants.TSDB_DATA_TYPE_TINYINT);
+    	setValueImpl(columnIndex, list, TSDBConstants.TSDB_DATA_TYPE_TINYINT, Byte.BYTES);
     }
     
     public void setShort(int columnIndex, ArrayList<Short> list) throws SQLException {
-    	setValueImpl(columnIndex, list, TSDBConstants.TSDB_DATA_TYPE_SMALLINT);
+    	setValueImpl(columnIndex, list, TSDBConstants.TSDB_DATA_TYPE_SMALLINT, Short.BYTES);
     }
     
-    public void setString(int columnIndex, ArrayList<String> list) throws SQLException {
-    	setValueImpl(columnIndex, list, TSDBConstants.TSDB_DATA_TYPE_BINARY);
+    public void setString(int columnIndex, ArrayList<String> list, int size) throws SQLException {
+    	setValueImpl(columnIndex, list, TSDBConstants.TSDB_DATA_TYPE_BINARY, size);
     }
     
-    public void setNString(int columnIndex, ArrayList<String> list) throws SQLException {
-    	setValueImpl(columnIndex, list, TSDBConstants.TSDB_DATA_TYPE_NCHAR);
+    // note: expand the required space for each NChar character
+    public void setNString(int columnIndex, ArrayList<String> list, int size) throws SQLException {
+    	setValueImpl(columnIndex, list, TSDBConstants.TSDB_DATA_TYPE_NCHAR, size * Integer.BYTES);
     }
     
     public void columnDataAddBatch() {
@@ -643,11 +644,9 @@ public class TSDBPreparedStatement extends TSDBStatement implements PreparedStat
 			e.printStackTrace();
 		}
 
-		int bytes = 0;
-		
 		for (int i = 0; i < numOfCols; ++i) {
 			ColumnInfo col1 = this.colData.get(i);
-			if (!col1.isTypeSet()) {
+			if (col1 == null || !col1.isTypeSet()) {
                 throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNKNOWN, "column data not bind");
 			}
 			
@@ -655,51 +654,122 @@ public class TSDBPreparedStatement extends TSDBStatement implements PreparedStat
                 throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNKNOWN, "the rows in column data not identical");
 			}
 			
-			ByteBuffer bbuf = null;
+			ByteBuffer colDataList = ByteBuffer.allocate(rows * col1.bytes);
+			colDataList.order(ByteOrder.LITTLE_ENDIAN);
 			
-            ByteBuffer lengthBuf = ByteBuffer.allocate(rows * Integer.BYTES);
-            lengthBuf.order(ByteOrder.LITTLE_ENDIAN);
+            ByteBuffer lengthList = ByteBuffer.allocate(rows * Integer.BYTES);
+            lengthList.order(ByteOrder.LITTLE_ENDIAN);
+            
+            ByteBuffer isNullList = ByteBuffer.allocate(rows * Byte.BYTES);
+            isNullList.order(ByteOrder.LITTLE_ENDIAN);
             
 			switch (col1.type) {
 				case TSDBConstants.TSDB_DATA_TYPE_INT: {
-					bbuf = ByteBuffer.allocate(rows * Integer.BYTES);
-					bbuf.order(ByteOrder.LITTLE_ENDIAN);
-					
 					for (int j = 0; j < rows; ++j) {
 						Integer val = (Integer) col1.data.get(j);
-						if (val == null) {
-							bbuf.putInt(j * Integer.BYTES, Integer.MIN_VALUE);
-						} else {
-							bbuf.putInt(j * Integer.BYTES, val);							
-						}
-						
-						lengthBuf.putInt(j * Integer.BYTES, Integer.BYTES);
+						colDataList.putInt(val == null? Integer.MIN_VALUE:val);						
+						isNullList.put((byte) (val == null? 1:0));
 					}
-					
-					bytes = Integer.BYTES;
+					break;
+				}
+				
+				case TSDBConstants.TSDB_DATA_TYPE_TINYINT: {
+					for (int j = 0; j < rows; ++j) {
+						Byte val = (Byte) col1.data.get(j);
+						colDataList.put(val == null? 0:val);
+						isNullList.put((byte) (val == null? 1:0));
+					}
+					break;
+				}
+				
+				case TSDBConstants.TSDB_DATA_TYPE_BOOL: {
+					for (int j = 0; j < rows; ++j) {
+						Byte val = (Byte) col1.data.get(j);
+						colDataList.put(val == null? 0:val);
+						isNullList.put((byte) (val == null? 1:0));
+					}
+					break;
+				}
+				
+				case TSDBConstants.TSDB_DATA_TYPE_SMALLINT: {
+					for (int j = 0; j < rows; ++j) {
+						Short val = (Short) col1.data.get(j);
+						colDataList.putShort(val == null? 0:val);
+						isNullList.put((byte) (val == null? 1:0));
+					}
+					break;
+				}
+				
+				case TSDBConstants.TSDB_DATA_TYPE_TIMESTAMP:
+				case TSDBConstants.TSDB_DATA_TYPE_BIGINT: {
+					for (int j = 0; j < rows; ++j) {
+						Long val = (Long) col1.data.get(j);
+						colDataList.putLong(val == null? 0:val);
+						isNullList.put((byte) (val == null? 1:0));
+					}
+					break;
+				}
+				
+				case TSDBConstants.TSDB_DATA_TYPE_FLOAT: {
+					for (int j = 0; j < rows; ++j) {
+						Float val = (Float) col1.data.get(j);
+						colDataList.putFloat(val == null? 0:val);
+						isNullList.put((byte) (val == null? 1:0));
+					}
 					break;
 				}
 	
-				case TSDBConstants.TSDB_DATA_TYPE_TIMESTAMP: {
-					bbuf = ByteBuffer.allocate(rows * Long.BYTES);
-					bbuf.order(ByteOrder.LITTLE_ENDIAN);
-					
+				case TSDBConstants.TSDB_DATA_TYPE_DOUBLE: {
 					for (int j = 0; j < rows; ++j) {
-						Long val = (Long) col1.data.get(j);
-						if (val == null) {
-							bbuf.putLong(j * Long.BYTES, Long.MIN_VALUE);
-						} else {
-							bbuf.putLong(j * Long.BYTES, val);
-						}
-						lengthBuf.putInt(j * Integer.BYTES, Long.BYTES);
+						Double val = (Double) col1.data.get(j);
+						colDataList.putDouble(val == null? 0:val);
+						isNullList.put((byte) (val == null? 1:0));
 					}
-					
-					bytes = Long.BYTES;
 					break;
+				}
+				
+				case TSDBConstants.TSDB_DATA_TYPE_NCHAR: 
+				case TSDBConstants.TSDB_DATA_TYPE_BINARY: {
+					String charset = TaosGlobalConfig.getCharset();
+					for (int j = 0; j < rows; ++j) {
+						String val = (String) col1.data.get(j);
+						if (val != null && val.length() > col1.bytes) {
+			                throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNKNOWN, "string data too long");
+						}
+
+						colDataList.position(j * col1.bytes);  // seek to the correct position
+						if (val != null) {
+							byte[] b = null;
+							try {
+								if (col1.type == TSDBConstants.TSDB_DATA_TYPE_BINARY) {
+									b = val.getBytes();
+								} else {
+									b = val.getBytes(charset);
+								}
+							} catch (UnsupportedEncodingException e) {
+								e.printStackTrace();
+							}
+							
+							colDataList.put(b);
+							lengthList.putInt(b.length);
+							isNullList.put((byte) 0);
+						} else {
+							lengthList.putInt(0);
+							isNullList.put((byte) 1);
+						}
+					}
+					break;
+				}
+				
+				case TSDBConstants.TSDB_DATA_TYPE_UTINYINT:
+				case TSDBConstants.TSDB_DATA_TYPE_USMALLINT:
+				case TSDBConstants.TSDB_DATA_TYPE_UINT:
+				case TSDBConstants.TSDB_DATA_TYPE_UBIGINT: {
+	                throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNKNOWN, "not support data types");
 				}
 			};
 			
-			connector.bindColumnDataArray(this.nativeStmtHandle, bbuf, lengthBuf, col1.type, bytes, rows, i);
+			connector.bindColumnDataArray(this.nativeStmtHandle, colDataList, lengthList, isNullList, col1.type, col1.bytes, rows, i);
 		}
 		
 		connector.executeBatch(this.nativeStmtHandle);
