@@ -1106,7 +1106,7 @@ int tsdbFetchDFileSet(STsdbRepo *pRepo, SArray **fSetArray) {
 
   if (fArraySize <= 0) {
     terrno = TSDB_CODE_TDB_NO_AVAIL_DFILE;
-    tsdbInfo("vgId:%d size of DFileSet from %s is %" PRIu64, REPO_ID(pRepo), dataDir, fArraySize);
+    tsdbInfo("vgId:%d size of DFileSet from %s is %" PRIu32, REPO_ID(pRepo), dataDir, (uint32_t)fArraySize);
     taosArrayDestroy(fArray);
     return -1;
   }

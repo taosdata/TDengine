@@ -131,6 +131,7 @@ int tsdbRecoverDataMain(STsdbRepo *pRepo) {
 }
 
 static void tsdbGetDataBakPath(int repoid, SDFile *pDFile, char dirName[]) {
+  ASSERT(strlen(pDFile->f.aname) > strlen(pDFile->f.rname));
   char root_dname[TSDB_FILENAME_LEN - 32] = "\0";
   snprintf(root_dname, strlen(pDFile->f.aname) - strlen(pDFile->f.rname), "%s", pDFile->f.aname);
   snprintf(dirName, TSDB_FILENAME_LEN, "%s/vnode_bak/.tsdb/vnode%d", root_dname, repoid);
