@@ -80,6 +80,7 @@ enum {
   TSDB_DEFINE_SQL_TYPE( TSDB_SQL_TABLE_JOIN_RETRIEVE, "join-retrieve" )
 
   TSDB_DEFINE_SQL_TYPE( TSDB_SQL_SHOW_CREATE_TABLE, "show-create-table")
+  TSDB_DEFINE_SQL_TYPE( TSDB_SQL_SHOW_CREATE_STABLE, "show-create-stable")
   TSDB_DEFINE_SQL_TYPE( TSDB_SQL_SHOW_CREATE_DATABASE, "show-create-database")
 
   /*
