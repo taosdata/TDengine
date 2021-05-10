@@ -1409,7 +1409,7 @@ int taos_stmt_bind_param(TAOS_STMT* stmt, TAOS_BIND* bind) {
         return TSDB_CODE_TSC_APP_ERROR;
       }
     } else {
-      if (pStmt->last != STMT_PREPARE && pStmt->last != STMT_ADD_BATCH) {
+      if (pStmt->last != STMT_PREPARE && pStmt->last != STMT_ADD_BATCH && pStmt->last != STMT_EXECUTE) {
         tscError("0x%"PRIx64" bind param status error, last:%d", pStmt->pSql->self, pStmt->last);
         return TSDB_CODE_TSC_APP_ERROR;
       }
@@ -1448,7 +1448,7 @@ int taos_stmt_bind_param_batch(TAOS_STMT* stmt, TAOS_MULTI_BIND* bind) {
       return TSDB_CODE_TSC_APP_ERROR;
     }  
   } else {
-    if (pStmt->last != STMT_PREPARE && pStmt->last != STMT_ADD_BATCH) {
+    if (pStmt->last != STMT_PREPARE && pStmt->last != STMT_ADD_BATCH && pStmt->last != STMT_EXECUTE) {
       tscError("0x%"PRIx64" bind param status error, last:%d", pStmt->pSql->self, pStmt->last);
       return TSDB_CODE_TSC_APP_ERROR;
     }
@@ -1482,7 +1482,7 @@ int taos_stmt_bind_single_param_batch(TAOS_STMT* stmt, TAOS_MULTI_BIND* bind, in
       return TSDB_CODE_TSC_APP_ERROR;
     }  
   } else {
-    if (pStmt->last != STMT_PREPARE && pStmt->last != STMT_ADD_BATCH && pStmt->last != STMT_BIND_COL) {
+    if (pStmt->last != STMT_PREPARE && pStmt->last != STMT_ADD_BATCH && pStmt->last != STMT_BIND_COL && pStmt->last != STMT_EXECUTE) {
       tscError("0x%"PRIx64" bind param status error, last:%d", pStmt->pSql->self, pStmt->last);
       return TSDB_CODE_TSC_APP_ERROR;
     }
@@ -1670,4 +1670,3 @@ const char *taos_data_type(int type) {
   }
 }
 
-                               
