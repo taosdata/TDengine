@@ -70,6 +70,7 @@ enum TEST_MODE {
 
 #define MAX_SQL_SIZE       65536
 #define BUFFER_SIZE        (65536*2)
+#define COND_BUF_LEN        BUFFER_SIZE - 30
 #define MAX_USERNAME_SIZE  64
 #define MAX_PASSWORD_SIZE  64
 #define MAX_DB_NAME_SIZE   64
@@ -5950,7 +5951,7 @@ static void *readMetric(void *sarg) {
   fprintf(fp, "Querying On %d records:\n", totalData);
 
   for (int j = 0; j < n; j++) {
-    char condition[BUFFER_SIZE - 30] = "\0";
+    char condition[COND_BUF_LEN] = "\0";
     char tempS[64] = "\0";
 
     int m = 10 < num_of_tables ? 10 : num_of_tables;
@@ -5961,7 +5962,7 @@ static void *readMetric(void *sarg) {
       } else {
         sprintf(tempS, " or t1 = %d ", i);
       }
-      strcat(condition, tempS);
+      strncat(condition, tempS, COND_BUF_LEN - 1);
 
       sprintf(command, "select %s from meters where %s", aggreFunc[j], condition);
 
@@ -6189,14 +6190,14 @@ static void replaceChildTblName(char* inSql, char* outSql, int tblIndex) {
 
   tstrncpy(outSql, inSql, pos - inSql + 1);
   //printf("1: %s\n", outSql);
-  strcat(outSql, subTblName);
+  strncat(outSql, subTblName, MAX_QUERY_SQL_LENGTH - 1);
   //printf("2: %s\n", outSql);
-  strcat(outSql, pos+strlen(sourceString));
+  strncat(outSql, pos+strlen(sourceString), MAX_QUERY_SQL_LENGTH - 1);
   //printf("3: %s\n", outSql);
 }
 
 static void *superTableQuery(void *sarg) {
-  char sqlstr[1024];
+  char sqlstr[MAX_QUERY_SQL_LENGTH];
   threadInfo *pThreadInfo = (threadInfo *)sarg;
 
   if (pThreadInfo->taos == NULL) {
@@ -6471,7 +6472,7 @@ static TAOS_SUB* subscribeImpl(
 
 static void *superSubscribe(void *sarg) {
   threadInfo *pThreadInfo = (threadInfo *)sarg;
-  char subSqlstr[1024];
+  char subSqlstr[MAX_QUERY_SQL_LENGTH];
   TAOS_SUB*    tsub[MAX_QUERY_SQL_COUNT] = {0};
 
   if (g_queryInfo.superQueryInfo.sqlCount == 0)
