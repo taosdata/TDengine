@@ -349,7 +349,7 @@ TDengine提供时间驱动的实时流式计算API。可以每隔一指定的时
     * param：是应用提供的用于回调的一个参数，回调时，提供给应用
     * callback: 第二个回调函数，会在连续查询自动停止时被调用。
 
-  返回值为NULL，表示创建成功，返回值不为空，表示成功。
+  返回值为NULL，表示创建失败；返回值不为空，表示成功。
 
 - `void taos_close_stream (TAOS_STREAM *tstr)`
 
