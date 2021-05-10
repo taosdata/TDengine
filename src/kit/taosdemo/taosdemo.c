@@ -522,6 +522,8 @@ static int taosRandom()
 static int createDatabasesAndStables();
 static void createChildTables();
 static int queryDbExec(TAOS *taos, char *command, QUERY_TYPE type, bool quiet);
+static int postProceSql(char *host, struct sockaddr_in *pServAddr, uint16_t port,
+        char* sqlstr, char *resultFile);
 
 /* ************ Global variables ************  */
 
@@ -1090,27 +1092,33 @@ static int queryDbExec(TAOS *taos, char *command, QUERY_TYPE type, bool quiet) {
   return 0;
 }
 
-static void getResult(TAOS_RES *res, char* resultFileName) {
+static void appendResultBufToFile(char *resultBuf, char *resultFile)
+{
+  FILE *fp = NULL;
+  if (resultFile[0] != 0) {
+    fp = fopen(resultFile, "at");
+    if (fp == NULL) {
+      errorPrint(
+              "%s() LN%d, failed to open result file: %s, result will not save to file\n",
+              __func__, __LINE__, resultFile);
+      return;
+    }
+  }
+
+  fprintf(fp, "%s", resultBuf);
+  tmfclose(fp);
+}
+
+static void appendResultToFile(TAOS_RES *res, char* resultFile) {
   TAOS_ROW    row = NULL;
   int         num_rows = 0;
   int         num_fields = taos_field_count(res);
   TAOS_FIELD *fields     = taos_fetch_fields(res);
 
-  FILE *fp = NULL;
-  if (resultFileName[0] != 0) {
-    fp = fopen(resultFileName, "at");
-    if (fp == NULL) {
-      errorPrint("%s() LN%d, failed to open result file: %s, result will not save to file\n",
-              __func__, __LINE__, resultFileName);
-    }
-  }
-
   char* databuf = (char*) calloc(1, 100*1024*1024);
   if (databuf == NULL) {
     errorPrint("%s() LN%d, failed to malloc, warning: save result to file slowly!\n",
             __func__, __LINE__);
-    if (fp)
-        fclose(fp);
     return ;
   }
 
@@ -1120,7 +1128,7 @@ static void getResult(TAOS_RES *res, char* resultFileName) {
   // fetch the records row by row
   while((row = taos_fetch_row(res))) {
     if (totalLen >= 100*1024*1024 - 32000) {
-      if (fp) fprintf(fp, "%s", databuf);
+      appendResultBufToFile(databuf, resultFile);
       totalLen = 0;
       memset(databuf, 0, 100*1024*1024);
     }
@@ -1132,22 +1140,36 @@ static void getResult(TAOS_RES *res, char* resultFileName) {
     totalLen += len;
   }
 
-  if (fp) fprintf(fp, "%s", databuf);
-  tmfclose(fp);
+  appendResultToFile(databuf, resultFile);
   free(databuf);
 }
 
-static void selectAndGetResult(TAOS *taos, char *command, char* resultFileName) {
-  TAOS_RES *res = taos_query(taos, command);
-  if (res == NULL || taos_errno(res) != 0) {
-    errorPrint("%s() LN%d, failed to execute sql:%s, reason:%s\n",
-       __func__, __LINE__, command, taos_errstr(res));
-    taos_free_result(res);
-    return;
-  }
+static void selectAndGetResult(threadInfo *pThreadInfo, char *command, char* resultFileName) {
+  if (0 == strncasecmp(g_queryInfo.queryMode, "taosc", strlen("taosc"))) {
+    TAOS_RES *res = taos_query(pThreadInfo->taos, command);
+    if (res == NULL || taos_errno(res) != 0) {
+        errorPrint("%s() LN%d, failed to execute sql:%s, reason:%s\n",
+            __func__, __LINE__, command, taos_errstr(res));
+        taos_free_result(res);
+        return;
+    }
 
-  getResult(res, resultFileName);
-  taos_free_result(res);
+    appendResultToFile(res, resultFileName);
+    taos_free_result(res);
+
+  } else if (0 == strncasecmp(g_queryInfo.queryMode, "rest", strlen("rest"))) {
+      int retCode = postProceSql(
+              g_queryInfo.host, &(g_queryInfo.serv_addr), g_queryInfo.port,
+              g_queryInfo.specifiedQueryInfo.sql[pThreadInfo->querySeq],
+              resultFileName);
+      if (0 != retCode) {
+        printf("====restful return fail, threadID[%d]\n", pThreadInfo->threadID);
+      }
+
+  } else {
+      errorPrint("%s() LN%d, unknown query mode: %s\n",
+        __func__, __LINE__, g_queryInfo.queryMode);
+  }
 }
 
 static int32_t rand_bool(){
@@ -1940,13 +1962,13 @@ static void printfQuerySystemInfo(TAOS * taos) {
 
   // show variables
   res = taos_query(taos, "show variables;");
-  //getResult(res, filename);
+  //appendResultToFile(res, filename);
   xDumpResultToFile(filename, res);
 
   // show dnodes
   res = taos_query(taos, "show dnodes;");
   xDumpResultToFile(filename, res);
-  //getResult(res, filename);
+  //appendResultToFile(res, filename);
 
   // show databases
   res = taos_query(taos, "show databases;");
@@ -1981,7 +2003,8 @@ static void printfQuerySystemInfo(TAOS * taos) {
   free(dbInfos);
 }
 
-static int postProceSql(char *host, struct sockaddr_in *pServAddr, uint16_t port, char* sqlstr)
+static int postProceSql(char *host, struct sockaddr_in *pServAddr, uint16_t port,
+        char* sqlstr, char *resultFile)
 {
     char *req_fmt = "POST %s HTTP/1.1\r\nHost: %s:%d\r\nAccept: */*\r\nAuthorization: Basic %s\r\nContent-Length: %d\r\nContent-Type: application/x-www-form-urlencoded\r\n\r\n%s";
 
@@ -2116,6 +2139,10 @@ static int postProceSql(char *host, struct sockaddr_in *pServAddr, uint16_t port
 
     response_buf[RESP_BUF_LEN - 1] = '\0';
     printf("Response:\n%s\n", response_buf);
+
+    if (resultFile) {
+       appendResultBufToFile(response_buf, resultFile);
+    }
 
     free(request_buf);
 #ifdef WINDOWS
@@ -4688,7 +4715,8 @@ static int64_t execInsert(threadInfo *pThreadInfo, char *buffer, uint64_t k)
     if (0 == strncasecmp(superTblInfo->insertMode, "taosc", strlen("taosc"))) {
       affectedRows = queryDbExec(pThreadInfo->taos, buffer, INSERT_TYPE, false);
     } else if (0 == strncasecmp(superTblInfo->insertMode, "rest", strlen("rest"))) {
-      if (0 != postProceSql(g_Dbs.host, &g_Dbs.serv_addr, g_Dbs.port, buffer)) {
+      if (0 != postProceSql(g_Dbs.host, &g_Dbs.serv_addr, g_Dbs.port,
+                  buffer, NULL /* not set result file */)) {
         affectedRows = -1;
         printf("========restful return fail, threadID[%d]\n",
             pThreadInfo->threadID);
@@ -6125,43 +6153,24 @@ static void *specifiedTableQuery(void *sarg) {
       taosMsleep(g_queryInfo.specifiedQueryInfo.queryInterval - (et - st)); // ms
     }
 
-    st = taosGetTimestampMs();
-
-    if (0 == strncasecmp(g_queryInfo.queryMode, "taosc", strlen("taosc"))) {
-      int64_t t1 = taosGetTimestampMs();
-      char tmpFile[MAX_FILE_NAME_LEN*2] = {0};
-      if (g_queryInfo.specifiedQueryInfo.result[pThreadInfo->querySeq][0] != 0) {
+    char tmpFile[MAX_FILE_NAME_LEN*2] = {0};
+    if (g_queryInfo.specifiedQueryInfo.result[pThreadInfo->querySeq][0] != 0) {
         sprintf(tmpFile, "%s-%d",
                 g_queryInfo.specifiedQueryInfo.result[pThreadInfo->querySeq],
                 pThreadInfo->threadID);
-      }
-      selectAndGetResult(pThreadInfo->taos,
-          g_queryInfo.specifiedQueryInfo.sql[pThreadInfo->querySeq], tmpFile);
-      int64_t t2 = taosGetTimestampMs();
-      printf("=[taosc] thread[%"PRId64"] complete one sql, Spent %10.3f s\n",
-              taosGetSelfPthreadId(), (t2 - t1)/1000.0);
-    } else if (0 == strncasecmp(g_queryInfo.queryMode, "rest", strlen("rest"))) {
-      int64_t t1 = taosGetTimestampMs();
-      int retCode = postProceSql(g_queryInfo.host, &(g_queryInfo.serv_addr),
-              g_queryInfo.port,
-              g_queryInfo.specifiedQueryInfo.sql[pThreadInfo->querySeq]);
-      if (0 != retCode) {
-        printf("====restful return fail, threadID[%d]\n", pThreadInfo->threadID);
-        return NULL;
-      }
-      int64_t t2 = taosGetTimestampMs();
-      printf("=[restful] thread[%"PRId64"] complete one sql, Spent %10.3f s\n",
-              taosGetSelfPthreadId(), (t2 - t1)/1000.0);
-
-    } else {
-      errorPrint("%s() LN%d, unknown query mode: %s\n",
-        __func__, __LINE__, g_queryInfo.queryMode);
-      return NULL;
     }
-    totalQueried ++;
-    g_queryInfo.specifiedQueryInfo.totalQueried ++;
+
+    st = taosGetTimestampMs();
+
+    selectAndGetResult(pThreadInfo,
+          g_queryInfo.specifiedQueryInfo.sql[pThreadInfo->querySeq], tmpFile);
 
     et = taosGetTimestampMs();
+    printf("=thread[%"PRId64"] use %s complete one sql, Spent %10.3f s\n",
+              taosGetSelfPthreadId(), g_queryInfo.queryMode, (et - st)/1000.0);
+
+    totalQueried ++;
+    g_queryInfo.specifiedQueryInfo.totalQueried ++;
 
     uint64_t  currentPrintTime = taosGetTimestampMs();
     uint64_t  endTs = taosGetTimestampMs();
@@ -6246,7 +6255,7 @@ static void *superTableQuery(void *sarg) {
                   g_queryInfo.superQueryInfo.result[j],
                   pThreadInfo->threadID);
         }
-        selectAndGetResult(pThreadInfo->taos, sqlstr, tmpFile);
+        selectAndGetResult(pThreadInfo, sqlstr, tmpFile);
 
         totalQueried++;
         g_queryInfo.superQueryInfo.totalQueried ++;
@@ -6447,7 +6456,7 @@ static void subscribe_callback(TAOS_SUB* tsub, TAOS_RES *res, void* param, int c
     return;
   }
 
-  getResult(res, (char*)param);
+  appendResultToFile(res, (char*)param);
   // tao_unscribe() will free result.
 }
 
@@ -6552,7 +6561,7 @@ static void *superSubscribe(void *sarg) {
                   g_queryInfo.superQueryInfo.result[i],
                   pThreadInfo->threadID);
         }
-        getResult(res, tmpFile);
+        appendResultToFile(res, tmpFile);
       }
     }
   }
@@ -6640,7 +6649,7 @@ static void *specifiedSubscribe(void *sarg) {
           sprintf(tmpFile, "%s-%d",
                   g_queryInfo.specifiedQueryInfo.result[i], pThreadInfo->threadID);
         }
-        getResult(res, tmpFile);
+        appendResultToFile(res, tmpFile);
       }
     }
   }
