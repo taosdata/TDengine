@@ -74,7 +74,6 @@ static int tsdbCheckBlockDataColsChkSum(SReadH *pReadh, SBlock *pBlock, SDataCol
 
 static int tsdbInitHFile(SDFile *pDestDFile, const SDFile *pSrcDFile);
 static int tsdbDestroyHFile(SDFile *pDFile);
-static int tsdbCloseHFile(SDFile *pDFile);
 
 int tsdbRecoverDataMain(STsdbRepo *pRepo) {
   SRecoverH recoverH;
@@ -702,16 +701,8 @@ static int tsdbInitHFile(SDFile *pDestDFile, const SDFile *pSrcDFile) {
 }
 
 static int tsdbDestroyHFile(SDFile *pDFile) {
-  tsdbCloseHFile(pDFile);
+  tsdbCloseDFile(pDFile);
   return tsdbRemoveDFile(pDFile);
-}
-
-static int tsdbCloseHFile(SDFile *pDFile) {
-  if (TSDB_FILE_OPENED(pDFile)) {
-    TSDB_FILE_FSYNC(pDFile);
-    tsdbCloseDFile(pDFile);
-  }
-  return 0;
 }
 
 static int tsdbCheckBlockDataColsChkSum(SReadH *pReadH, SBlock *pBlock, SDataCols *pDataCols) {
