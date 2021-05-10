@@ -111,7 +111,6 @@ typedef struct SRelElementPair {
   union {
     SStrToken  tableName;
     SArray    *pSubquery;
-    //SSqlNode  *pSubquery;
   };
 
   SStrToken aliasName;
@@ -119,7 +118,7 @@ typedef struct SRelElementPair {
 
 typedef struct SRelationInfo {
   int32_t       type;        // nested query|table name list
-  SArray       *list;        // SArray<SRelElementPair>|SArray<SSqlNode*>
+  SArray       *list;        // SArray<SRelElementPair>
 } SRelationInfo;
 
 typedef struct SCreatedTableInfo {

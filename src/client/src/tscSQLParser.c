@@ -7189,16 +7189,11 @@ int32_t validateSqlNode(SSqlObj* pSql, SSqlNode* pSqlNode, SQueryInfo* pQueryInf
 
   if (pSqlNode->from->type == SQL_NODE_FROM_SUBQUERY) {
     // parse the subquery in the first place
-    SArray* list = taosArrayGetP(pSqlNode->from->list, 0);
-    SSqlNode* p = taosArrayGetP(list, 0);
+    SRelElementPair* sub = taosArrayGet(pSqlNode->from->list, 0);
+    SSqlNode* p = taosArrayGetP(sub->pSubquery, 0);
 
-    SQueryInfo* pQueryInfo = tscGetQueryInfo(&pSql->cmd, 0);
     code = validateSqlNode(pSql, p, pQueryInfo);
-    if (code == TSDB_CODE_TSC_ACTION_IN_PROGRESS) {
-      return code;
-    }
-
-    if (code != TSDB_CODE_SUCCESS) {
+    if (code == TSDB_CODE_TSC_ACTION_IN_PROGRESS || code != TSDB_CODE_SUCCESS) {
       return code;
     }
 
@@ -7210,6 +7205,13 @@ int32_t validateSqlNode(SSqlObj* pSql, SSqlNode* pSqlNode, SQueryInfo* pQueryInf
     STableMeta* pTableMeta = extractTempTableMetaFromNestQuery(pQueryInfo);
     STableMetaInfo* pTableMetaInfo1 = calloc(1, sizeof(STableMetaInfo));
     pTableMetaInfo1->pTableMeta = pTableMeta;
+
+    if (sub->aliasName.n > 0) {
+      if (sub->aliasName.n > TSDB_TABLE_FNAME_LEN) {
+        return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), "subquery alias name too long");
+      }
+      strncpy(pTableMetaInfo1->aliasName, sub->aliasName.z, sub->aliasName.n);
+    }
 
     current->pTableMetaInfo = calloc(1, POINTER_BYTES);
     current->pTableMetaInfo[0] = pTableMetaInfo1;
