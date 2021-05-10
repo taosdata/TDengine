@@ -55,14 +55,18 @@ static signed char index_64[128] = {
 
 
 typedef struct callback_params_s {
-  int        index;
-  TAOS      *taos;
-  TAOS      *res_taos;
-  TAOS_SUB  *tsub;
-  char       cmd[MAX_TSQL_LEN];
-  int        rows;
-  off_t      offset;
-  void      *data;
+  int              index;
+  TAOS            *taos;
+  TAOS            *res_taos;
+  TAOS_SUB        *tsub;
+  char             cmd[MAX_TSQL_LEN];
+  int              rows;
+  int              ready;
+  int              run; /* only for consumer */
+  off_t            offset;
+  void            *data;
+  pthread_mutex_t  mutex;
+  pthread_cond_t   cond;
 } callback_params_t;
 
 
@@ -159,7 +163,6 @@ void cenc_import_detail(MS3TraceList *mstl, callback_params_t *param)
   char                   sid[LM_SIDLEN];
   char                   net[LM_SIDLEN], stat[LM_SIDLEN], loc[LM_SIDLEN], chan[LM_SIDLEN];
   callback_params_t     *p;
-  TAOS_RES              *res = NULL;
   char                  *stb_name;
   char                   cmd[SEG_TSQL_LEN];
   time_t                 now;
@@ -264,16 +267,21 @@ void cenc_import_detail(MS3TraceList *mstl, callback_params_t *param)
       p->offset = 0;
       p->rows = 0;
 
-      //gettimeofday(&s_time, NULL);
-      res = taos_query(p->res_taos, p->cmd);
-      //gettimeofday(&e_time, NULL);
-      //printf("insert delta time=%ld\r\n", e_time.tv_sec * 1000000 + e_time.tv_usec - s_time.tv_sec * 1000000 - s_time.tv_usec);
-      check_and_free_res(&res, p->cmd);
+      pthread_mutex_lock(&p->mutex);
+
+      p->ready = 1;
+      pthread_cond_signal(&p->cond);
+
+      while (p->ready) {
+        pthread_cond_wait(&p->cond, &p->mutex);
+      }
 
       if (memcmp(cmd, prefix, prefix_len)) {
         memcpy(p->cmd, prefix, prefix_len);
         p->offset += prefix_len;
       }
+
+      pthread_mutex_unlock(&p->mutex);
     }
 
     memmove(p->cmd + p->offset, cmd, strlen(cmd));
@@ -368,6 +376,9 @@ void subscribe_routine_init(callback_params_t *params, const int index)
     params->taos = NULL;
     params->res_taos = NULL;
     params->tsub = NULL;
+    params->run = 1;
+    pthread_cond_init(&params->cond, NULL);
+    pthread_mutex_init(&params->mutex, NULL);
   }
 }
 
@@ -417,52 +428,9 @@ void *subscribe_routine(void *arg)
     goto failed;
   }
 
-  pps->res_taos = taos_connect(dst_host, dst_user, dst_passwd, "", (int) strtol(dst_port, NULL, 10));
-  if (pps->res_taos == NULL) {
-    fprintf(stderr, "sub(%d): failed to connect to result database\r\n", index);
-    goto failed;
-  }
-
-  // create databse for result
-  np = snprintf(cmd, sizeof(cmd), "create database if not exists %s;", result);
-  if (np <= 0) {
-    fprintf(stderr, "sub(%d): fnprintf error cmd: %s\r\n", index, cmd);
-    goto failed;
-  }
-
-  cmd[np] = '\0';
-
-  pthread_mutex_lock(&mutex);
-  res = taos_query(pps->res_taos, cmd);
-  pthread_mutex_unlock(&mutex);
-  if (check_and_free_res(&res, cmd) != 0) {
-    goto failed;
-  }
-
   pps->data = (void *) stb_name;
 
   taos_select_db(pps->taos, topic);
-  taos_select_db(pps->res_taos, result);
-
-  // create super table for result
-  np = snprintf(cmd, sizeof(cmd),
-                "create stable if not exists %s (ts timestamp, data int) "
-                "tags (network binary(20), station binary(20), location binary(20), channel binary(20));",
-                stb_name);
-
-  if (np <= 0) {
-    fprintf(stderr, "sub(%d): fnprintf error cmd: %s\r\n", index, cmd);
-    goto failed;
-  }
-
-  cmd[np] = '\0';
-
-  pthread_mutex_lock(&mutex);
-  res = taos_query(pps->res_taos, cmd);
-  pthread_mutex_unlock(&mutex);
-  if (check_and_free_res(&res, cmd) != 0) {
-    goto failed;
-  }
 
   memset(sql, 0, SEG_TSQL_LEN);
   memset(topic_name, 0, SEG_TSQL_LEN);
@@ -497,16 +465,26 @@ void *subscribe_routine(void *arg)
     }
   }
 
-  fprintf(stdout, "sub(%d) quit\r\n", index);
+  pthread_mutex_lock(&pps->mutex);
+
+  pps->ready = 1;
+  pps->run = 0; /* tell consumer to quit */
 
   if (pps->offset > 0) {
     pps->cmd[pps->offset++] = ';';
     pps->cmd[pps->offset] = '\0';
     pps->offset = 0;
-
-    res = taos_query(pps->res_taos, pps->cmd);
-    check_and_free_res(&res, pps->cmd);
   }
+
+  pthread_cond_signal(&pps->cond);
+
+  while (pps->ready == 1) {
+    pthread_cond_wait(&pps->cond, &pps->mutex);
+  }
+
+  pthread_mutex_unlock(&pps->mutex);
+
+  fprintf(stdout, "sub(%d) quit\r\n", index);
 
 failed:
   if (pps->taos) {
@@ -514,6 +492,93 @@ failed:
     pps->taos = NULL;
   }
 
+  return NULL;
+}
+
+
+void *writedb_routine(void *arg)
+{
+  int                 np;
+  int                 index;
+  char                cmd[SEG_TSQL_LEN];
+  TAOS_RES           *res;
+  callback_params_t  *pps;
+
+  if (arg == NULL) {
+    return NULL;
+  }
+
+  pps = (callback_params_t *) arg;
+
+  index = pps->index;
+
+  fprintf(stdout, "wdb(%d) created\r\n", index);
+
+  // init TAOS
+  taos_init();
+
+  pps->res_taos = taos_connect(dst_host, dst_user, dst_passwd, "", (int) strtol(dst_port, NULL, 10));
+  if (pps->res_taos == NULL) {
+    fprintf(stderr, "wdb(%d): failed to connect to result database\r\n", index);
+    goto failed;
+  }
+
+  // create databse for result
+  np = snprintf(cmd, sizeof(cmd), "create database if not exists %s;", result);
+  if (np <= 0) {
+    fprintf(stderr, "wdb(%d): fnprintf error cmd: %s\r\n", index, cmd);
+    goto failed;
+  }
+
+  cmd[np] = '\0';
+
+  pthread_mutex_lock(&mutex);
+  res = taos_query(pps->res_taos, cmd);
+  pthread_mutex_unlock(&mutex);
+  if (check_and_free_res(&res, cmd) != 0) {
+    goto failed;
+  }
+
+  taos_select_db(pps->res_taos, result);
+
+  // create super table for result
+  np = snprintf(cmd, sizeof(cmd),
+                "create stable if not exists %s (ts timestamp, data int) "
+                "tags (network binary(20), station binary(20), location binary(20), channel binary(20));",
+                stb_name);
+
+  if (np <= 0) {
+    fprintf(stderr, "wdb(%d): fnprintf error cmd: %s\r\n", index, cmd);
+    goto failed;
+  }
+
+  cmd[np] = '\0';
+
+  pthread_mutex_lock(&mutex);
+  res = taos_query(pps->res_taos, cmd);
+  pthread_mutex_unlock(&mutex);
+  if (check_and_free_res(&res, cmd) != 0) {
+    goto failed;
+  }
+
+  while (pps->run) {
+    pthread_mutex_lock(&pps->mutex);
+    while (pps->ready == 0) {
+      pthread_cond_wait(&pps->cond, &pps->mutex);
+    }
+
+    res = taos_query(pps->res_taos, pps->cmd);
+    check_and_free_res(&res, pps->cmd);
+
+    pps->ready = 0;
+    pthread_cond_signal(&pps->cond);
+
+    pthread_mutex_unlock(&pps->mutex);
+  }
+
+  fprintf(stdout, "wdb(%d) quit\r\n", index);
+
+failed:
   if (pps->res_taos) {
     taos_close(pps->res_taos);
     pps->res_taos = NULL;
@@ -541,7 +606,8 @@ void subscribe_routine_finalize(callback_params_t *params)
 }
 
 
-pthread_t           t[TQ_CHAN_NUM];
+pthread_t           p[TQ_CHAN_NUM];
+pthread_t           c[TQ_CHAN_NUM];
 callback_params_t   pp[TQ_CHAN_NUM];
 
 
@@ -666,7 +732,14 @@ int main(int argc, char **argv)
 
   for (i = 0; i < TQ_CHAN_NUM; i++) {
     subscribe_routine_init(&pp[i], i + 1);
-    pthread_create(&t[i], NULL, subscribe_routine, (void *) &pp[i]);
+  }
+
+  for (i = 0; i < TQ_CHAN_NUM; i++) {
+    pthread_create(&p[i], NULL, subscribe_routine, (void *) &pp[i]);
+  }
+
+  for (i = 0; i < TQ_CHAN_NUM; i++) {
+    pthread_create(&c[i], NULL, writedb_routine, (void *) &pp[i]);
   }
 
   if (async) {
@@ -674,10 +747,16 @@ int main(int argc, char **argv)
   }
 
   for (i = 0; i < TQ_CHAN_NUM; i++) {
-    pthread_join(t[i], NULL);
-    subscribe_routine_finalize(&pp[i]);
+    pthread_join(c[i], NULL);
   }
 
+  for (i = 0; i < TQ_CHAN_NUM; i++) {
+    pthread_join(p[i], NULL);
+  }
+
+  for (i = 0; i < TQ_CHAN_NUM; i++) {
+    subscribe_routine_finalize(&pp[i]);
+  }
 
   fprintf(stdout, "total samples consumed: %ld\r\n", nTotalSamples);
   fprintf(stdout, "total rows consumed: %d\r\n", nTotalRows);
