@@ -11,11 +11,11 @@ public class NullType {
     public static boolean isBooleanNull(byte val) {
         return val == NullType.NULL_BOOL_VAL;
     }
-
+    
     public static boolean isTinyIntNull(byte val) {
         return val == Byte.MIN_VALUE;
     }
-
+    
     public static boolean isSmallIntNull(short val) {
         return val == Short.MIN_VALUE;
     }
@@ -23,19 +23,19 @@ public class NullType {
     public static boolean isIntNull(int val) {
         return val == Integer.MIN_VALUE;
     }
-
+    
     public static boolean isBigIntNull(long val) {
         return val == Long.MIN_VALUE;
     }
-
+    
     public static boolean isFloatNull(float val) {
         return Float.isNaN(val);
     }
-
+    
     public static boolean isDoubleNull(double val) {
         return Double.isNaN(val);
     }
-
+    
     public static boolean isBinaryNull(byte[] val, int length) {
         if (length != Byte.BYTES) {
             return false;
@@ -43,13 +43,49 @@ public class NullType {
 
         return val[0] == 0xFF;
     }
-
+    
     public static boolean isNcharNull(byte[] val, int length) {
         if (length != Integer.BYTES) {
             return false;
         }
 
         return (val[0] & val[1] & val[2] & val[3]) == 0xFF;
+    }
+    
+    public static byte getBooleanNull() {
+    	return NullType.NULL_BOOL_VAL;
+    }
+    
+    public static byte getTinyintNull() {
+    	return Byte.MIN_VALUE;
+    }
+    
+    public static int getIntNull() {
+    	return Integer.MIN_VALUE;
+    }
+    
+    public static short getSmallIntNull() {
+    	return Short.MIN_VALUE;
+    }
+
+    public static long getBigIntNull() {
+    	return Long.MIN_VALUE;
+    }
+    
+    public static int getFloatNull() {
+    	return 0x7FF00000;
+    }
+
+    public static long getDoubleNull() {
+    	return 0x7FFFFF0000000000L;
+    }
+
+    public static byte getBinaryNull() {
+    	return (byte) 0xFF;
+    }
+    
+    public static byte[] getNcharNull() {
+    	return new byte[] {(byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF};
     }
 
 }

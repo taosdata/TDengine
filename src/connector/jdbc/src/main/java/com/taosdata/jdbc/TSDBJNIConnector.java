@@ -306,11 +306,11 @@ public class TSDBJNIConnector {
     
     private native int setBindTableNameImp(long stmt, String name, long conn);
     
-    public int bindColumnDataArray(long stmt, ByteBuffer colList, ByteBuffer lengthList, int type, int bytes, int numOfRows,int columnIndex) {
-    	return bindColDataImp(stmt, colList.array(), lengthList.array(), type, bytes, numOfRows, columnIndex, this.taos);
+    public int bindColumnDataArray(long stmt, ByteBuffer colDataList, ByteBuffer lengthList, ByteBuffer isNullList, int type, int bytes, int numOfRows,int columnIndex) {
+    	return bindColDataImp(stmt, colDataList.array(), lengthList.array(), isNullList.array(), type, bytes, numOfRows, columnIndex, this.taos);
 	}
     
-    private native int bindColDataImp(long stmt, byte[] data, byte[] length, int type, int bytes, int numOfRows, int columnIndex, long conn);
+    private native int bindColDataImp(long stmt, byte[] colDataList, byte[] lengthList, byte[] isNullList, int type, int bytes, int numOfRows, int columnIndex, long conn);
     
     public int executeBatch(long stmt) {
     	return executeBatchImp(stmt, this.taos);

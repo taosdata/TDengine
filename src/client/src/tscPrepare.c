@@ -148,7 +148,7 @@ static int normalStmtBindParam(STscStmt* stmt, TAOS_BIND* bind) {
         break;
 
       default:
-        tscDebug("0x%"PRIx64" param %d: type mismatch or invalid", stmt->pSql->self, i);
+        tscDebug("0x%"PRIx64" bind column%d: type mismatch or invalid", stmt->pSql->self, i);
         return TSDB_CODE_TSC_INVALID_VALUE;
     }
   }
@@ -776,7 +776,7 @@ static int doBindBatchParam(STableDataBlocks* pBlock, SParamInfo* param, TAOS_MU
       }
     } else if (param->type == TSDB_DATA_TYPE_BINARY) {
       if (bind->length[i] > (uintptr_t)param->bytes) {
-        tscError("invalid binary length");
+        tscError("binary length too long, ignore it, expect:%d, actual:%d", param->bytes, (int32_t)bind->length[i]);
         return TSDB_CODE_TSC_INVALID_VALUE;
       }
       int16_t bsize = (short)bind->length[i];
@@ -784,9 +784,10 @@ static int doBindBatchParam(STableDataBlocks* pBlock, SParamInfo* param, TAOS_MU
     } else if (param->type == TSDB_DATA_TYPE_NCHAR) {
       int32_t output = 0;
       if (!taosMbsToUcs4(bind->buffer + bind->buffer_length * i, bind->length[i], varDataVal(data + param->offset), param->bytes - VARSTR_HEADER_SIZE, &output)) {
-        tscError("convert failed");
+        tscError("convert nchar string to UCS4_LE failed:%s", (char*)(bind->buffer + bind->buffer_length * i));
         return TSDB_CODE_TSC_INVALID_VALUE;
       }
+
       varDataSetLen(data + param->offset, output);
     }
   }
@@ -850,7 +851,7 @@ static int insertStmtBindParam(STscStmt* stmt, TAOS_BIND* bind) {
 
     int code = doBindParam(pBlock, data, param, &bind[param->idx], 1);
     if (code != TSDB_CODE_SUCCESS) {
-      tscDebug("0x%"PRIx64" param %d: type mismatch or invalid", pStmt->pSql->self, param->idx);
+      tscDebug("0x%"PRIx64" bind column %d: type mismatch or invalid", pStmt->pSql->self, param->idx);
       return code;
     }
   }
@@ -920,7 +921,7 @@ static int insertStmtBindParamBatch(STscStmt* stmt, TAOS_MULTI_BIND* bind, int c
       
       int code = doBindBatchParam(pBlock, param, &bind[param->idx], pCmd->batchSize);
       if (code != TSDB_CODE_SUCCESS) {
-        tscError("0x%"PRIx64" param %d: type mismatch or invalid", pStmt->pSql->self, param->idx);
+        tscError("0x%"PRIx64" bind column %d: type mismatch or invalid", pStmt->pSql->self, param->idx);
         return code;
       }
     }
@@ -931,7 +932,7 @@ static int insertStmtBindParamBatch(STscStmt* stmt, TAOS_MULTI_BIND* bind, int c
    
     int code = doBindBatchParam(pBlock, param, bind, pCmd->batchSize);
     if (code != TSDB_CODE_SUCCESS) {
-      tscError("0x%"PRIx64" param %d: type mismatch or invalid", pStmt->pSql->self, param->idx);
+      tscError("0x%"PRIx64" bind column %d: type mismatch or invalid", pStmt->pSql->self, param->idx);
       return code;
     }
 

@@ -438,8 +438,8 @@ public class TSDBResultSetBlockData {
                 }
 
                 try {
-                    String ss = TaosGlobalConfig.getCharset();
-                    return new String(dest, ss);
+                    String charset = TaosGlobalConfig.getCharset();
+                    return new String(dest, charset);
                 } catch (UnsupportedEncodingException e) {
                     e.printStackTrace();
                 }

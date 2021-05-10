@@ -753,7 +753,7 @@ JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_setBindTableNameI
 }
 
 JNIEXPORT jlong JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_bindColDataImp(JNIEnv *env, jobject jobj, jlong stmt,
-    jbyteArray data, jbyteArray length, jint dataType, jint dataBytes, jint numOfRows, jint colIndex, jlong con) {
+    jbyteArray colDataList, jbyteArray lengthList, jbyteArray nullList, jint dataType, jint dataBytes, jint numOfRows, jint colIndex, jlong con) {
   TAOS *tscon = (TAOS *)con;
   if (tscon == NULL) {
     jniError("jobj:%p, connection already closed", jobj);
@@ -767,16 +767,22 @@ JNIEXPORT jlong JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_bindColDataImp(J
   }
 
   // todo refactor
-  jsize len = (*env)->GetArrayLength(env, data);
-  char *colBuf = (char *)calloc(1, sizeof(char) * len);
-  (*env)->GetByteArrayRegion(env, data, 0, len, (jbyte *)colBuf);
+  jsize len = (*env)->GetArrayLength(env, colDataList);
+  char *colBuf = (char *)calloc(1, len);
+  (*env)->GetByteArrayRegion(env, colDataList, 0, len, (jbyte *)colBuf);
   if ((*env)->ExceptionCheck(env)) {
     // todo handle error
   }
 
-  len = (*env)->GetArrayLength(env, length);
-  char *lengthArray = (char*) calloc(1, sizeof(char) * len);
-  (*env)->GetByteArrayRegion(env, length, 0, len, (jbyte*) lengthArray);
+  len = (*env)->GetArrayLength(env, lengthList);
+  char *lengthArray = (char*) calloc(1, len);
+  (*env)->GetByteArrayRegion(env, lengthList, 0, len, (jbyte*) lengthArray);
+  if ((*env)->ExceptionCheck(env)) {
+  }
+
+  len = (*env)->GetArrayLength(env, nullList);
+  char *nullArray = (char*) calloc(1, len);
+  (*env)->GetByteArrayRegion(env, nullList, 0, len, (jbyte*) nullArray);
   if ((*env)->ExceptionCheck(env)) {
   }
 
@@ -785,10 +791,10 @@ JNIEXPORT jlong JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_bindColDataImp(J
 
   b->num           = numOfRows;
   b->buffer_type   = dataType;  // todo check data type
-  b->buffer_length = tDataTypes[dataType].bytes;
-  b->is_null       = calloc(numOfRows, sizeof(int32_t));
+  b->buffer_length = IS_VAR_DATA_TYPE(dataType)? dataBytes:tDataTypes[dataType].bytes;
+  b->is_null       = nullArray;
   b->buffer        = colBuf;
-  b->length        = (uintptr_t*)lengthArray;
+  b->length        = (int32_t*)lengthArray;
 
   // set the length and is_null array
   switch(dataType) {
@@ -800,8 +806,13 @@ JNIEXPORT jlong JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_bindColDataImp(J
       int32_t bytes = tDataTypes[dataType].bytes;
       for(int32_t i = 0; i < numOfRows; ++i) {
         b->length[i]  = bytes;
-        b->is_null[i] = isNull(colBuf + bytes * i, dataType);
       }
+      break;
+    }
+
+    case TSDB_DATA_TYPE_NCHAR:
+    case TSDB_DATA_TYPE_BINARY: {
+      // do nothing
     }
   }
 
