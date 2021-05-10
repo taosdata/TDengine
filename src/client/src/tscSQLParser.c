@@ -650,7 +650,7 @@ int32_t tscToSQLCmd(SSqlObj* pSql, struct SSqlInfo* pInfo) {
 
       if (diffSize) {
         for (int32_t i = 1; i < pCmd->numOfClause; ++i) {
-          SQueryInfo* pQueryInfo2 = tscGetQueryInfoDetail(pCmd, i);        
+          SQueryInfo* pQueryInfo2 = tscGetQueryInfo(pCmd, i);        
           tscFieldInfoSetSize(&pQueryInfo1->fieldsInfo, &pQueryInfo2->fieldsInfo);
         }
       }
