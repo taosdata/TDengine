@@ -142,7 +142,7 @@ static void *shellCheckThreadFp(void *arg) {
     taos_free_result(pSql);
   }
 
-  fsync(fileno(fp));
+  taosFsync(fileno(fp));
   fclose(fp);
 
   return NULL;

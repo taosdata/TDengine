@@ -23,9 +23,16 @@ extern "C" {
 #include "os.h"
 #include "taosdef.h"
 
-#ifndef TAOS_OS_FUNC_TIME_DEF
+#if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
+  #ifdef _TD_GO_DLL_
+    #define MILLISECOND_PER_SECOND (1000LL)
+  #else
+    #define MILLISECOND_PER_SECOND (1000i64)
+  #endif
+#else
   #define MILLISECOND_PER_SECOND ((int64_t)1000L)
 #endif
+
 #define MILLISECOND_PER_MINUTE (MILLISECOND_PER_SECOND * 60)
 #define MILLISECOND_PER_HOUR   (MILLISECOND_PER_MINUTE * 60)
 #define MILLISECOND_PER_DAY    (MILLISECOND_PER_HOUR * 24)
@@ -85,7 +92,7 @@ int32_t parseAbsoluteDuration(char* token, int32_t tokenlen, int64_t* ts);
 int32_t parseNatualDuration(const char* token, int32_t tokenLen, int64_t* duration, char* unit);
 
 int32_t taosParseTime(char* timestr, int64_t* time, int32_t len, int32_t timePrec, int8_t dayligth);
-void deltaToUtcInitOnce();
+void    deltaToUtcInitOnce();
 
 #ifdef __cplusplus
 }

@@ -12,7 +12,7 @@ IF (HEADER_GTEST_INCLUDE_DIR AND LIB_GTEST_STATIC_DIR)
     
     LIST(REMOVE_ITEM SOURCE_LIST ${CMAKE_CURRENT_SOURCE_DIR}/trefTest.c)
     ADD_EXECUTABLE(utilTest ${SOURCE_LIST})
-    TARGET_LINK_LIBRARIES(utilTest tutil common osdetail gtest pthread gcov)
+    TARGET_LINK_LIBRARIES(utilTest tutil common os gtest pthread gcov)
 
     LIST(APPEND BIN_SRC ${CMAKE_CURRENT_SOURCE_DIR}/trefTest.c)
     ADD_EXECUTABLE(trefTest ${BIN_SRC})
