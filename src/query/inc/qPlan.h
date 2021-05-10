@@ -13,10 +13,12 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#define _DEFAULT_SOURCE
-#include "os.h"
+#ifndef TDENGINE_QPLAN_H
+#define TDENGINE_QPLAN_H
 
-int64_t tsosStr2int64(char *str) {
-  char *endptr = NULL;
-  return strtoll(str, &endptr, 10);
-}
+//TODO refactor
+SArray* createTableScanPlan(SQueryAttr* pQueryAttr);
+SArray* createExecOperatorPlan(SQueryAttr* pQueryAttr);
+SArray* createGlobalMergePlan(SQueryAttr* pQueryAttr);
+
+#endif  // TDENGINE_QPLAN_H

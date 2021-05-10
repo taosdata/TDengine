@@ -345,6 +345,7 @@ public class InsertSpecialCharacterJniTest {
         }
     }
 
+
     @Test
     public void testCase12() throws SQLException {
         final long now = System.currentTimeMillis();

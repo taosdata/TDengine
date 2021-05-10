@@ -63,7 +63,7 @@ namespace TDengineDriver
         static void HelpPrint(string arg, string desc)
         {
             string indent = "        ";
-            Console.WriteLine("{0}{1}", indent, arg.PadRight(25)+desc);
+            Console.WriteLine("{0}{1}", indent, arg.PadRight(25) + desc);
         }
 
         static void PrintHelp(String[] argv)
@@ -142,33 +142,33 @@ namespace TDengineDriver
             verbose = this.GetArgumentAsFlag(argv, "-v", true);
             debug = this.GetArgumentAsFlag(argv, "-g", true);
 
-            VerbosePrint        ("###################################################################\n");
-            VerbosePrintFormat  ("# Server IP:                         {0}\n", host);
-            VerbosePrintFormat  ("# User:                              {0}\n", user);
-            VerbosePrintFormat  ("# Password:                          {0}\n", password);
-            VerbosePrintFormat  ("# Number of Columns per record:      {0}\n", colsPerRecord);
-            VerbosePrintFormat  ("# Number of Threads:                 {0}\n", numOfThreads);
-            VerbosePrintFormat  ("# Number of Tables:                  {0}\n", numOfTables);
-            VerbosePrintFormat  ("# Number of records per Table:       {0}\n", recordsPerTable);
-            VerbosePrintFormat  ("# Records/Request:                   {0}\n", recordsPerRequest);
-            VerbosePrintFormat  ("# Database name:                     {0}\n", dbName);
-            VerbosePrintFormat  ("# Replica:                           {0}\n", replica);
-            VerbosePrintFormat  ("# Use STable:                        {0}\n", useStable);
-            VerbosePrintFormat  ("# Table prefix:                      {0}\n", tablePrefix);
+            VerbosePrint("###################################################################\n");
+            VerbosePrintFormat("# Server IP:                         {0}\n", host);
+            VerbosePrintFormat("# User:                              {0}\n", user);
+            VerbosePrintFormat("# Password:                          {0}\n", password);
+            VerbosePrintFormat("# Number of Columns per record:      {0}\n", colsPerRecord);
+            VerbosePrintFormat("# Number of Threads:                 {0}\n", numOfThreads);
+            VerbosePrintFormat("# Number of Tables:                  {0}\n", numOfTables);
+            VerbosePrintFormat("# Number of records per Table:       {0}\n", recordsPerTable);
+            VerbosePrintFormat("# Records/Request:                   {0}\n", recordsPerRequest);
+            VerbosePrintFormat("# Database name:                     {0}\n", dbName);
+            VerbosePrintFormat("# Replica:                           {0}\n", replica);
+            VerbosePrintFormat("# Use STable:                        {0}\n", useStable);
+            VerbosePrintFormat("# Table prefix:                      {0}\n", tablePrefix);
             if (useStable == true)
             {
                 VerbosePrintFormat("# STable prefix:                     {0}\n", stablePrefix);
             }
-            VerbosePrintFormat  ("# Data order:                        {0}\n", order);
-            VerbosePrintFormat  ("# Data out of order rate:            {0}\n", rateOfOutorder);
-            VerbosePrintFormat  ("# Delete method:                     {0}\n", methodOfDelete);
-            VerbosePrintFormat  ("# Query command:                     {0}\n", query);
-            VerbosePrintFormat  ("# Query Mode:                        {0}\n", queryMode);
-            VerbosePrintFormat  ("# Insert Only:                       {0}\n", isInsertOnly);
-            VerbosePrintFormat  ("# Verbose output                     {0}\n", verbose);
-            VerbosePrintFormat  ("# Test time:                         {0}\n", DateTime.Now.ToString("h:mm:ss tt"));
+            VerbosePrintFormat("# Data order:                        {0}\n", order);
+            VerbosePrintFormat("# Data out of order rate:            {0}\n", rateOfOutorder);
+            VerbosePrintFormat("# Delete method:                     {0}\n", methodOfDelete);
+            VerbosePrintFormat("# Query command:                     {0}\n", query);
+            VerbosePrintFormat("# Query Mode:                        {0}\n", queryMode);
+            VerbosePrintFormat("# Insert Only:                       {0}\n", isInsertOnly);
+            VerbosePrintFormat("# Verbose output                     {0}\n", verbose);
+            VerbosePrintFormat("# Test time:                         {0}\n", DateTime.Now.ToString("h:mm:ss tt"));
 
-            VerbosePrint        ("###################################################################\n");
+            VerbosePrint("###################################################################\n");
 
             if (skipReadKey == false)
             {
@@ -388,7 +388,7 @@ namespace TDengineDriver
         public void CreateDb()
         {
             StringBuilder sql = new StringBuilder();
-            sql.Append("CREATE DATABASE IF NOT EXISTS ").Append(this.dbName).Append(" replica ").Append(this.replica);
+            sql.Append("CREATE DATABASE IF NOT EXISTS ").Append(this.dbName).Append(" replica ").Append(this.replica).Append(" keep 36500");
             IntPtr res = TDengine.Query(this.conn, sql.ToString());
             if ((res == IntPtr.Zero) || (TDengine.ErrorNo(res) != 0))
             {
@@ -413,7 +413,7 @@ namespace TDengineDriver
             sql.Clear();
             sql.Append("CREATE TABLE IF NOT EXISTS ").
                 Append(this.dbName).Append(".").Append(this.stablePrefix).
-                Append("(ts timestamp, v1 bool, v2 tinyint, v3 smallint, v4 int, v5 bigint, v6 float, v7 double, v8 binary(10), v9 nchar(10)) tags(t1 int)");
+                Append("(ts timestamp, v1 bool, v2 tinyint, v3 smallint, v4 int, v5 bigint, v6 float, v7 double, v8 binary(10), v9 nchar(10), v10 tinyint unsigned, v11 smallint unsigned, v12 int unsigned, v13 bigint unsigned) tags(t1 int)");
             IntPtr res = TDengine.Query(this.conn, sql.ToString());
             if ((res == IntPtr.Zero) || (TDengine.ErrorNo(res) != 0))
             {
@@ -538,7 +538,7 @@ namespace TDengineDriver
                         int offset = IntPtr.Size * fields;
                         IntPtr data = Marshal.ReadIntPtr(rowdata, offset);
 
-                        builder.Append("---");
+                        builder.Append(" | ");
 
                         if (data == IntPtr.Zero)
                         {
@@ -553,7 +553,7 @@ namespace TDengineDriver
                                 builder.Append(v1);
                                 break;
                             case TDengineDataType.TSDB_DATA_TYPE_TINYINT:
-                                byte v2 = Marshal.ReadByte(data);
+                                sbyte v2 = (sbyte)Marshal.ReadByte(data);
                                 builder.Append(v2);
                                 break;
                             case TDengineDataType.TSDB_DATA_TYPE_SMALLINT:
@@ -588,9 +588,25 @@ namespace TDengineDriver
                                 string v10 = Marshal.PtrToStringAnsi(data);
                                 builder.Append(v10);
                                 break;
+                            case TDengineDataType.TSDB_DATA_TYPE_UTINYINT:
+                                byte v11 = Marshal.ReadByte(data);
+                                builder.Append(v11);
+                                break;
+                            case TDengineDataType.TSDB_DATA_TYPE_USMALLINT:
+                                ushort v12 = (ushort)Marshal.ReadInt16(data);
+                                builder.Append(v12);
+                                break;
+                            case TDengineDataType.TSDB_DATA_TYPE_UINT:
+                                uint v13 = (uint)Marshal.ReadInt32(data);
+                                builder.Append(v13);
+                                break;
+                            case TDengineDataType.TSDB_DATA_TYPE_UBIGINT:
+                                ulong v14 = (ulong)Marshal.ReadInt64(data);
+                                builder.Append(v14);
+                                break;
                         }
                     }
-                    builder.Append("---");
+                    builder.Append(" | ");
 
                     VerbosePrint(builder.ToString() + "\n");
                     builder.Clear();
@@ -657,8 +673,8 @@ namespace TDengineDriver
                 tester.ExecuteQuery();
                 watch.Stop();
                 elapsedMs = watch.Elapsed.TotalMilliseconds;
-                Console.WriteLine("C# taosdemo: Spent {0} seconds to query {1} records.\n", 
-                        elapsedMs/1000,
+                Console.WriteLine("C# taosdemo: Spent {0} seconds to query {1} records.\n",
+                        elapsedMs / 1000,
                         tester.recordsPerTable * tester.numOfTables
                         );
             }
@@ -727,9 +743,9 @@ namespace TDengineDriver
                 int m = now.Minute;
                 int s = now.Second;
 
-                long baseTimestamp = 1609430400000;    // 2021/01/01 0:0:0
+                long baseTimestamp = -16094340000;   // 1969-06-29 01:21:00
                 VerbosePrintFormat("beginTime is {0} + {1}h:{2}m:{3}s\n", baseTimestamp, h, m, s);
-                long beginTimestamp = baseTimestamp + ((h*60 + m) * 60 + s) * 1000;
+                long beginTimestamp = baseTimestamp + ((h * 60 + m) * 60 + s) * 1000;
                 Random random = new Random();
 
                 long rowsInserted = 0;
@@ -770,11 +786,16 @@ namespace TDengineDriver
 
                             sql.Append("(")
                                 .Append(writeTimeStamp)
-                                .Append(", 1, 2, 3,")
-                                .Append(i + batch)
-                                .Append(", 5, 6, 7, 'abc', 'def')");
+                                .Append(", 1, -2, -3,")
+                                .Append(i + batch - 127)
+                                .Append(", -5, -6, -7, 'abc', 'def', 254, 65534,")
+                                .Append(4294967294 - (uint)i - (uint)batch)
+                                .Append(",")
+                                .Append(18446744073709551614 - (ulong)i - (ulong)batch)
+                                .Append(")");
 
                         }
+                        VerbosePrint(sql.ToString() + "\n");
                         IntPtr res = TDengine.Query(this.conn, sql.ToString());
                         if ((res == IntPtr.Zero) || (TDengine.ErrorNo(res) != 0))
                         {
@@ -856,7 +877,7 @@ namespace TDengineDriver
                     }
                     else
                     {
-                        sql = sql.Append("(ts timestamp, v1 bool, v2 tinyint, v3 smallint, v4 int, v5 bigint, v6 float, v7 double, v8 binary(10), v9 nchar(10))");
+                        sql = sql.Append("(ts timestamp, v1 bool, v2 tinyint, v3 smallint, v4 int, v5 bigint, v6 float, v7 double, v8 binary(10), v9 nchar(10), v10 tinyint unsigned, v11 smallint unsigned, v12 int unsigned, v13 bigint unsigned)");
                     }
                     IntPtr res = TDengine.Query(this.conn, sql.ToString());
                     if ((res == IntPtr.Zero) || (TDengine.ErrorNo(res) != 0))

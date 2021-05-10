@@ -103,6 +103,7 @@ public class Utils {
      */
     private static String transformSql(String rawSql, Object[] paramArr, Map<Integer, Integer> placeholderPosition, RangeSet<Integer> clauseRangeSet) {
         String[] sqlArr = rawSql.split("\\?");
+
         return IntStream.range(0, sqlArr.length).mapToObj(index -> {
             if (index == paramArr.length)
                 return sqlArr[index];

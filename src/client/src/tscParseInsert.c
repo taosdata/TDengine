@@ -68,7 +68,7 @@ int tsParseTime(SStrToken *pToken, int64_t *time, char **next, char *error, int1
   } else if (strncmp(pToken->z, "0", 1) == 0 && pToken->n == 1) {
     // do nothing
   } else if (pToken->type == TK_INTEGER) {
-    useconds = tsosStr2int64(pToken->z);
+    useconds = taosStr2int64(pToken->z);
   } else {
     // strptime("2001-11-12 18:31:01", "%Y-%m-%d %H:%M:%S", &tm);
     if (taosParseTime(pToken->z, time, pToken->n, timePrec, tsDaylight) != TSDB_CODE_SUCCESS) {
@@ -740,7 +740,7 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql, char** boundC
   const int32_t STABLE_INDEX = 1;
   
   SSqlCmd *   pCmd = &pSql->cmd;
-  SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(pCmd, 0);
+  SQueryInfo *pQueryInfo = tscGetQueryInfo(pCmd, 0);
 
   char *sql = *sqlstr;
 
@@ -821,6 +821,7 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql, char** boundC
     index = 0;
     sToken = tStrGetToken(sql, &index, false);
     if (sToken.type != TK_TAGS && sToken.type != TK_LP) {
+      tscDestroyBoundColumnInfo(&spd);
       return tscInvalidSQLErrMsg(pCmd->payload, "keyword TAGS expected", sToken.z);
     }
 
@@ -833,6 +834,7 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql, char** boundC
       char* end = NULL;
       code = parseBoundColumns(pCmd, &spd, pTagSchema, sql, &end);
       if (code != TSDB_CODE_SUCCESS) {
+        tscDestroyBoundColumnInfo(&spd);
         return code;
       }
 
@@ -850,11 +852,13 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql, char** boundC
     sql += index;
 
     if (sToken.type != TK_LP) {
+      tscDestroyBoundColumnInfo(&spd);
       return tscInvalidSQLErrMsg(pCmd->payload, "( is expected", sToken.z);
     }
     
     SKVRowBuilder kvRowBuilder = {0};
     if (tdInitKVRowBuilder(&kvRowBuilder) < 0) {
+      tscDestroyBoundColumnInfo(&spd);
       return TSDB_CODE_TSC_OUT_OF_MEMORY;
     }
 
@@ -867,6 +871,7 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql, char** boundC
 
       if (TK_ILLEGAL == sToken.type) {
         tdDestroyKVRowBuilder(&kvRowBuilder);
+        tscDestroyBoundColumnInfo(&spd);
         return TSDB_CODE_TSC_INVALID_SQL;
       }
 
@@ -884,6 +889,7 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql, char** boundC
       code = tsParseOneColumn(pSchema, &sToken, tagVal, pCmd->payload, &sql, false, tinfo.precision);
       if (code != TSDB_CODE_SUCCESS) {
         tdDestroyKVRowBuilder(&kvRowBuilder);
+        tscDestroyBoundColumnInfo(&spd);
         return code;
       }
 
@@ -1093,7 +1099,7 @@ int tsParseInsertSql(SSqlObj *pSql) {
   int32_t totalNum = 0;
   int32_t code = TSDB_CODE_SUCCESS;
 
-  SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(pCmd, 0);
+  SQueryInfo *pQueryInfo = tscGetQueryInfo(pCmd, 0);
   assert(pQueryInfo != NULL);
 
   STableMetaInfo *pTableMetaInfo = (pQueryInfo->numOfTables == 0)? tscAddEmptyMetaInfo(pQueryInfo):tscGetMetaInfo(pQueryInfo, 0);
@@ -1313,7 +1319,7 @@ int tsInsertInitialCheck(SSqlObj *pSql) {
   pCmd->count = 0;
   pCmd->command = TSDB_SQL_INSERT;
 
-  SQueryInfo *pQueryInfo = tscGetQueryInfoDetailSafely(pCmd, pCmd->clauseIndex);
+  SQueryInfo *pQueryInfo = tscGetQueryInfoS(pCmd, pCmd->clauseIndex);
 
   TSDB_QUERY_SET_TYPE(pQueryInfo->type, TSDB_QUERY_TYPE_INSERT | pCmd->insertType);
 
@@ -1403,7 +1409,7 @@ static int doPackSendDataBlock(SSqlObj *pSql, int32_t numOfRows, STableDataBlock
     return code;
   }
 
-  return tscProcessSql(pSql);
+  return tscBuildAndSendRequest(pSql, NULL);
 }
 
 typedef struct SImportFileSupport {
@@ -1549,6 +1555,7 @@ void tscImportDataFromFile(SSqlObj *pSql) {
   }
 
   assert(pCmd->dataSourceType == DATA_FROM_DATA_FILE  && strlen(pCmd->payload) != 0);
+  pCmd->active = pCmd->pQueryInfo[0];
 
   SImportFileSupport *pSupporter = calloc(1, sizeof(SImportFileSupport));
   SSqlObj *pNew = createSubqueryObj(pSql, 0, parseFileSendDataBlock, pSupporter, TSDB_SQL_INSERT, NULL);

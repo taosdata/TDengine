@@ -15,6 +15,7 @@
 
 #include "os.h"
 
+#include "texpr.h"
 #include "exception.h"
 #include "taosdef.h"
 #include "taosmsg.h"
@@ -145,25 +146,25 @@ static void doExprTreeDestroy(tExprNode **pExpr, void (*fp)(void *)) {
   *pExpr = NULL;
 }
 
-bool exprTreeApplayFilter(tExprNode *pExpr, const void *pItem, SExprTraverseSupp *param) {
+bool exprTreeApplyFilter(tExprNode *pExpr, const void *pItem, SExprTraverseSupp *param) {
   tExprNode *pLeft  = pExpr->_node.pLeft;
   tExprNode *pRight = pExpr->_node.pRight;
 
   //non-leaf nodes, recursively traverse the expression tree in the post-root order
   if (pLeft->nodeType == TSQL_NODE_EXPR && pRight->nodeType == TSQL_NODE_EXPR) {
     if (pExpr->_node.optr == TSDB_RELATION_OR) {  // or
-      if (exprTreeApplayFilter(pLeft, pItem, param)) {
+      if (exprTreeApplyFilter(pLeft, pItem, param)) {
         return true;
       }
 
       // left child does not satisfy the query condition, try right child
-      return exprTreeApplayFilter(pRight, pItem, param);
+      return exprTreeApplyFilter(pRight, pItem, param);
     } else {  // and
-      if (!exprTreeApplayFilter(pLeft, pItem, param)) {
+      if (!exprTreeApplyFilter(pLeft, pItem, param)) {
         return false;
       }
 
-      return exprTreeApplayFilter(pRight, pItem, param);
+      return exprTreeApplyFilter(pRight, pItem, param);
     }
   }
 
@@ -463,3 +464,28 @@ tExprNode* exprTreeFromTableName(const char* tbnameCond) {
   CLEANUP_EXECUTE_TO(anchor, false);
   return expr;
 }
+
+tExprNode* exprdup(tExprNode* pTree) {
+  if (pTree == NULL) {
+    return NULL;
+  }
+
+  tExprNode* pNode = calloc(1, sizeof(tExprNode));
+  if (pTree->nodeType == TSQL_NODE_EXPR) {
+    tExprNode* pLeft  = exprdup(pTree->_node.pLeft);
+    tExprNode* pRight = exprdup(pTree->_node.pRight);
+
+    pNode->nodeType     = TSQL_NODE_EXPR;
+    pNode->_node.pLeft  = pLeft;
+    pNode->_node.pRight = pRight;
+  } else if (pTree->nodeType == TSQL_NODE_VALUE) {
+    pNode->pVal = calloc(1, sizeof(tVariant));
+    tVariantAssign(pNode->pVal, pTree->pVal);
+  } else if (pTree->nodeType == TSQL_NODE_COL) {
+    pNode->pSchema = calloc(1, sizeof(SSchema));
+    *pNode->pSchema = *pTree->pSchema;
+  }
+
+  return pNode;
+}
+

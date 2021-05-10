@@ -16,9 +16,9 @@
 #define _DEFAULT_SOURCE
 #include "os.h"
 
-#ifndef TAOS_OS_FUNC_SEMPHONE
+#if !defined (_TD_DARWIN_64)
 
-int tsem_wait(tsem_t* sem) {
+int32_t tsem_wait(tsem_t* sem) {
   int ret = 0;
   do {
     ret = sem_wait(sem);
@@ -28,9 +28,9 @@ int tsem_wait(tsem_t* sem) {
 
 #endif
 
-#ifndef TAOS_OS_FUNC_SEMPHONE_PTHREAD
+#if !(defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32) || defined (_TD_DARWIN_64))
 
-bool    taosCheckPthreadValid(pthread_t thread) { return thread != 0; }
+bool taosCheckPthreadValid(pthread_t thread) { return thread != 0; }
 
 int64_t taosGetSelfPthreadId() {
   static __thread int id = 0;

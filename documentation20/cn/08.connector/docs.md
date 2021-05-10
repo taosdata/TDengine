@@ -32,7 +32,7 @@ TDengine提供了丰富的应用程序开发接口，其中包括C/C++、Java、
 
 **Linux**
 
-**1.   从涛思官网（https://www.taosdata.com/cn/all-downloads/）下载**
+**1.   从[涛思官网](https://www.taosdata.com/cn/all-downloads/)下载**
 
 * X64硬件环境：TDengine-client-2.x.x.x-Linux-x64.tar.gz
 
@@ -68,7 +68,7 @@ TDengine提供了丰富的应用程序开发接口，其中包括C/C++、Java、
 
 **Windows x64/x86**
 
-**1.   从涛思官网（https://www.taosdata.com/cn/all-downloads/）下载 ：**
+**1.   从[涛思官网](https://www.taosdata.com/cn/all-downloads/)下载 ：**
 
 * X64硬件环境：TDengine-client-2.X.X.X-Windows-x64.exe
 
@@ -213,7 +213,7 @@ C/C++的API类似于MySQL的C API。应用程序使用时，需要包含TDengine
 
 - `int taos_result_precision(TAOS_RES *res)`
 
-  返回结果集时间戳字段的精度，`0` 代表毫秒，`1` 代表微秒，`2` 代表纳秒。
+  返回结果集时间戳字段的精度，`0` 代表毫秒，`1` 代表微秒。
 
 - `TAOS_ROW taos_fetch_row(TAOS_RES *res)`
 
@@ -349,7 +349,7 @@ TDengine提供时间驱动的实时流式计算API。可以每隔一指定的时
     * param：是应用提供的用于回调的一个参数，回调时，提供给应用
     * callback: 第二个回调函数，会在连续查询自动停止时被调用。
 
-  返回值为NULL，表示创建成功，返回值不为空，表示成功。
+  返回值为NULL，表示创建失败；返回值不为空，表示成功。
 
 - `void taos_close_stream (TAOS_STREAM *tstr)`
 
@@ -377,6 +377,7 @@ TDengine提供时间驱动的实时流式计算API。可以每隔一指定的时
     * res：查询结果集，注意结果集中可能没有记录
     * param：调用 `taos_subscribe`时客户程序提供的附加参数
     * code：错误码
+  **注意**：在这个回调函数里不可以做耗时过长的处理，尤其是对于返回的结果集中数据较多的情况，否则有可能导致客户端阻塞等异常状态。如果必须进行复杂计算，则建议在另外的线程中进行处理。
 
 * `TAOS_RES *taos_consume(TAOS_SUB *tsub)`
 
@@ -743,7 +744,7 @@ HTTP请求URL采用`sqlutc`时，返回结果集的时间戳将采用UTC时间�
 
 下面仅列出一些与RESTful接口有关的配置参数，其他系统参数请看配置文件里的说明。注意：配置修改后，需要重启taosd服务才能生效
 
-- httpPort: 对外提供RESTful服务的端口号，默认绑定到6041
+- 对外提供RESTful服务的端口号，默认绑定到 6041（实际取值是 serverPort + 11，因此可以通过修改 serverPort 参数的设置来修改）
 - httpMaxThreads: 启动的线程数量，默认为2（2.0.17版本开始，默认值改为CPU核数的一半向下取整）
 - restfulRowLimit: 返回结果集（JSON格式）的最大条数，默认值为10240
 - httpEnableCompress: 是否支持压缩，默认不支持，目前TDengine仅支持gzip压缩格式

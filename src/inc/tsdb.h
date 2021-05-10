@@ -221,7 +221,7 @@ typedef struct {
 
 typedef struct {
   uint32_t  numOfTables;
-  SArray *  pGroupList;
+  SArray   *pGroupList;
   SHashObj *map;  // speedup acquire the tableQueryInfo by table uid
 } STableGroupInfo;
 

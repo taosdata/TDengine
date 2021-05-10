@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _eok_h_fd274616_996c_400e_9023_ae70be881fa3_
-#define _eok_h_fd274616_996c_400e_9023_ae70be881fa3_
+#ifndef TDENGINE_OS_EOK_H
+#define TDENGINE_OS_EOK_H
 
 #include <stdint.h>
 

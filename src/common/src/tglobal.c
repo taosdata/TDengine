@@ -48,6 +48,7 @@ int32_t  tsDnodeId = 0;
 // common
 int32_t tsRpcTimer       = 1000;
 int32_t tsRpcMaxTime     = 600;  // seconds;
+int32_t tsRpcForceTcp    = 0;  //disable this, means query, show command use udp protocol as default
 int32_t tsMaxShellConns  = 50000;
 int32_t tsMaxConnections = 5000;
 int32_t tsShellActivityTimer  = 3;  // second
@@ -625,6 +626,16 @@ static void doInitGlobalConfig(void) {
   cfg.unitType = TAOS_CFG_UTYPE_MS;
   taosInitConfigOption(cfg);
 
+  cfg.option = "rpcForceTcp";
+  cfg.ptr = &tsRpcForceTcp;
+  cfg.valType = TAOS_CFG_VTYPE_INT32;
+  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_CLIENT;
+  cfg.minValue = 0;
+  cfg.maxValue = 1;
+  cfg.ptrLength = 0;
+  cfg.unitType = TAOS_CFG_UTYPE_NONE;
+  taosInitConfigOption(cfg);
+
   cfg.option = "rpcMaxTime";
   cfg.ptr = &tsRpcMaxTime;
   cfg.valType = TAOS_CFG_VTYPE_INT32;
@@ -921,7 +932,7 @@ static void doInitGlobalConfig(void) {
   cfg.valType = TAOS_CFG_VTYPE_INT32;
   cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_CLIENT | TSDB_CFG_CTYPE_B_SHOW;
   cfg.minValue = -1;
-  cfg.maxValue = 10000000;
+  cfg.maxValue = 100000000.0f;
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosInitConfigOption(cfg);

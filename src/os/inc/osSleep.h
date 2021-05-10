@@ -13,16 +13,14 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_OS_COMMON_H
-#define TDENGINE_OS_COMMON_H
+#ifndef TDENGINE_OS_SLEEP_H
+#define TDENGINE_OS_SLEEP_H
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#ifndef TAOS_OS_DEF_ZU
-  #define PRIzu "zu"
-#endif
+void taosMsleep(int32_t ms);
 
 #ifdef __cplusplus
 }
