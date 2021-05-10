@@ -401,7 +401,7 @@ static int tsdbSaveFSStatus(SFSStatus *pStatus, int vid) {
   }
 
   // fsync, close and rename
-  if (fsync(fd) < 0) {
+  if (taosFsync(fd) < 0) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     close(fd);
     remove(tfname);

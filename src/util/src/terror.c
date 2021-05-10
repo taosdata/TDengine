@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020 TAOS Data, Inc. <jhtao@taosdata.com>
+ * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
@@ -13,10 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <stdint.h>
-#include <pthread.h>
-#include <stdlib.h>
-#include <string.h>
+#include "os.h"
 
 #define TAOS_ERROR_C
  
