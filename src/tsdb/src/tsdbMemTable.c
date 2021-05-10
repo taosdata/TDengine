@@ -967,6 +967,15 @@ static void tsdbFreeRows(STsdbRepo *pRepo, void **rows, int rowCounter) {
 static int tsdbUpdateTableLatestInfo(STsdbRepo *pRepo, STable *pTable, SDataRow row) {
   STsdbCfg *pCfg = &pRepo->config;
 
+  // if cacheLastRow config has been reset, free the lastRow
+  if (!pCfg->cacheLastRow && pTable->lastRow != NULL) {
+    taosTZfree(pTable->lastRow);
+    TSDB_WLOCK_TABLE(pTable);
+    pTable->lastRow = NULL;
+    pTable->lastKey = TSKEY_INITIAL_VAL;
+    TSDB_WUNLOCK_TABLE(pTable);
+  }
+
   if (tsdbGetTableLastKeyImpl(pTable) < dataRowKey(row)) {
     if (pCfg->cacheLastRow || pTable->lastRow != NULL) {
       SDataRow nrow = pTable->lastRow;
