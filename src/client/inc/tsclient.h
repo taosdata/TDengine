@@ -154,12 +154,11 @@ typedef struct STagCond {
 
 typedef struct SParamInfo {
   int32_t  idx;
-  char     type;
+  uint8_t  type;
   uint8_t  timePrec;
   int16_t  bytes;
   uint32_t offset;
 } SParamInfo;
-
 
 typedef struct SBoundColumn {
   bool    hasVal;  // denote if current column has bound or not
