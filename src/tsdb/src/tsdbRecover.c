@@ -57,10 +57,10 @@ static bool tsdbRecoverIsFatalError();
 /**
  *  the backing up and expiring policy about corrupted files
  */
-static void  tsdbGetDataBakPath(int repoid, SDFile *pDFile, char dirName[]);
-static void  tsdbGetDataBakDir(char dirName[]);
-static int   tsdbBackUpDFileSet(STsdbRepo *pRepo, SDFileSet *pFileSet);
-static int   tsdbClearBakDFileSet();
+static void tsdbGetDataBakPath(int repoid, SDFile *pDFile, char dirName[]);
+static void tsdbGetDataBakDir(char dirName[]);
+static int  tsdbBackUpDFileSet(STsdbRepo *pRepo, SDFileSet *pFileSet);
+static int  tsdbClearBakDFileSet();
 
 /**
  * load SBlockInfo from .head
@@ -81,7 +81,7 @@ int tsdbRecoverDataMain(STsdbRepo *pRepo) {
   SArray *  fSetArray = NULL;  // SDFileSet array
   STsdbFS * pfs = REPO_FS(pRepo);
 
-    if (tsdbFetchDFileSet(pRepo, &fSetArray) < 0) {
+  if (tsdbFetchDFileSet(pRepo, &fSetArray) < 0) {
     if (TSDB_CODE_TDB_NO_AVAIL_DFILE != terrno) {
       tsdbError("vgId:%d failed to fetch DFileSet to restore since %s", REPO_ID(pRepo), tstrerror(terrno));
     }
@@ -318,14 +318,14 @@ static bool tsdbRecoverIsFatalError() {
 }
 
 static int tsdbCheckDFileChksum(SRecoverH *pRecoverH) {
-  SReadH *pReadH = &pRecoverH->readh;
-  SDFile *pHeadF = TSDB_READ_HEAD_FILE(pReadH);
-  SDFile *pTmpHeadF = TSDB_RECOVER_WHEAD_FILE(pRecoverH);
-  SBlock *pSupBlk = NULL;
-  SBlock  supBlk;
-  size_t  nSupBlkScanned = 0;
-  size_t  nSupBlkCorrupted = 0;
-  size_t  nBlkIdxChkPassed = 0;
+  SReadH * pReadH = &pRecoverH->readh;
+  SDFile * pHeadF = TSDB_READ_HEAD_FILE(pReadH);
+  SDFile * pTmpHeadF = TSDB_RECOVER_WHEAD_FILE(pRecoverH);
+  SBlock * pSupBlk = NULL;
+  SBlock   supBlk;
+  uint32_t nSupBlkScanned = 0;
+  uint32_t nSupBlkCorrupted = 0;
+  uint32_t nBlkIdxChkPassed = 0;
 
   // make sure DFileSet is opened before
   if (tsdbLoadBlockIdx(pReadH) < 0) {
@@ -343,7 +343,7 @@ static int tsdbCheckDFileChksum(SRecoverH *pRecoverH) {
     return -1;
   }
 
-  for (size_t iBlkIdx = 0; iBlkIdx < taosArrayGetSize(pReadH->aBlkIdx); ++iBlkIdx) {
+  for (uint32_t iBlkIdx = 0; iBlkIdx < taosArrayGetSize(pReadH->aBlkIdx); ++iBlkIdx) {
     pReadH->pBlkIdx = taosArrayGet(pReadH->aBlkIdx, iBlkIdx);
     pReadH->cidx = iBlkIdx;
 
@@ -359,7 +359,7 @@ static int tsdbCheckDFileChksum(SRecoverH *pRecoverH) {
     taosArrayClear(pRecoverH->aSupBlk);
     taosArrayClear(pRecoverH->aSubBlk);
 
-    for (size_t iSupBlk = 0; iSupBlk < pReadH->pBlkIdx->numOfBlocks; ++iSupBlk) {
+    for (uint32_t iSupBlk = 0; iSupBlk < pReadH->pBlkIdx->numOfBlocks; ++iSupBlk) {
       pSupBlk = pReadH->pBlkInfo->blocks + iSupBlk;
       ++nSupBlkScanned;
       if (tsdbRecoverCheckBlockData(pRecoverH, pSupBlk, NULL) < 0) {
@@ -416,9 +416,9 @@ static int tsdbCheckDFileChksum(SRecoverH *pRecoverH) {
 
   // use the rebuilt .head file if partial pass
   if ((nSupBlkCorrupted > 0) || (nBlkIdxChkPassed != taosArrayGetSize(pReadH->aBlkIdx))) {
-    tsdbInfo("vgId:%d partial pass the chksum scan. nBlkIdxScan %" PRIu64 ", nBlkIdxAll %" PRIu64
-             ", nSupBlkCorrupt %" PRIu64 ", nSupBlkScan %" PRIu64 ", file %s ",
-             REPO_ID(pReadH->pRepo), nBlkIdxChkPassed, taosArrayGetSize(pReadH->aBlkIdx), nSupBlkCorrupted,
+    tsdbInfo("vgId:%d partial pass the chksum scan. nBlkIdxScan %" PRIu32 ", nBlkIdxAll %" PRIu32
+             ", nSupBlkCorrupt %" PRIu32 ", nSupBlkScan %" PRIu32 ", file %s ",
+             REPO_ID(pReadH->pRepo), nBlkIdxChkPassed, (uint32_t)taosArrayGetSize(pReadH->aBlkIdx), nSupBlkCorrupted,
              nSupBlkScanned, TSDB_FILE_FULL_NAME(pTmpHeadF));
     // rename t.vdfdddd.head{-ver2}. Use the prefix but not suffix to avoid error
     if (tsdbRenameDFile(pTmpHeadF, pHeadF) < 0) {  // fsync/close/rename
@@ -432,9 +432,9 @@ static int tsdbCheckDFileChksum(SRecoverH *pRecoverH) {
              pTmpHeadF->info.offset, pHeadF->info.len, pTmpHeadF->info.len);
     pHeadF->info = pTmpHeadF->info;
   } else {
-    tsdbInfo("vgId:%d all pass the chksum scan. nBlkIdxScan %" PRIu64 ", nBlkIdxAll %" PRIu64
-             ", nSupBlkCorrupt %" PRIu64 ", nSupBlkScan %" PRIu64 ", file %s ",
-             REPO_ID(pReadH->pRepo), nBlkIdxChkPassed, taosArrayGetSize(pReadH->aBlkIdx), nSupBlkCorrupted,
+    tsdbInfo("vgId:%d all pass the chksum scan. nBlkIdxScan %" PRIu32 ", nBlkIdxAll %" PRIu32
+             ", nSupBlkCorrupt %" PRIu32 ", nSupBlkScan %" PRIu32 ", file %s ",
+             REPO_ID(pReadH->pRepo), nBlkIdxChkPassed, (uint32_t)taosArrayGetSize(pReadH->aBlkIdx), nSupBlkCorrupted,
              nSupBlkScanned, TSDB_FILE_FULL_NAME(pTmpHeadF));
     tsdbDestroyHFile(pTmpHeadF);
   }
@@ -464,14 +464,11 @@ static int tsdbHeadWriteBlockInfo(SRecoverH *pRecoverH) {
   SBlockIdx * pBlkIdx = pReadH->pBlkIdx;
   SBlockIdx   blkIdx;
   SBlock *    pBlock = NULL;
-  size_t      nSupBlocks = 0;
-  size_t      nSubBlocks = 0;
+  uint32_t    nSupBlocks = (uint32_t)taosArrayGetSize(pRecoverH->aSupBlk);
+  uint32_t    nSubBlocks = (uint32_t)taosArrayGetSize(pRecoverH->aSubBlk);
   uint32_t    tlen = 0;
   SBlockInfo *pBlkInfo = NULL;
   int64_t     offset = 0;
-
-  nSupBlocks = taosArrayGetSize(pRecoverH->aSupBlk);
-  nSubBlocks = taosArrayGetSize(pRecoverH->aSubBlk);
 
   if (nSupBlocks <= 0) {
     // No data (data all deleted)
@@ -494,7 +491,7 @@ static int tsdbHeadWriteBlockInfo(SRecoverH *pRecoverH) {
   if (nSubBlocks > 0) {
     memcpy((void *)(pBlkInfo->blocks + nSupBlocks), taosArrayGet(pRecoverH->aSubBlk, 0), nSubBlocks * sizeof(SBlock));
 
-    for (int i = 0; i < nSupBlocks; ++i) {
+    for (uint32_t i = 0; i < nSupBlocks; ++i) {
       pBlock = pBlkInfo->blocks + i;
 
       if (pBlock->numOfSubBlocks > 1) {
@@ -518,7 +515,7 @@ static int tsdbHeadWriteBlockInfo(SRecoverH *pRecoverH) {
   blkIdx.uid = pBlkIdx->uid;
   blkIdx.hasLast = pBlock->last ? 1 : 0;
   blkIdx.maxKey = pBlock->keyLast;
-  blkIdx.numOfBlocks = (uint32_t)nSupBlocks;
+  blkIdx.numOfBlocks = nSupBlocks;
   blkIdx.len = tlen;
   blkIdx.offset = (uint32_t)offset;
 
@@ -536,7 +533,7 @@ static int tsdbHeadWriteBlockIdx(SRecoverH *pRecoverH) {
   SReadH *   pReadH = &pRecoverH->readh;
   SDFile *   pWHeadf = TSDB_RECOVER_WHEAD_FILE(pRecoverH);
   SBlockIdx *pBlkIdx = NULL;
-  size_t     nidx = taosArrayGetSize(pRecoverH->aBlkIdx);
+  uint32_t   nidx = (uint32_t)taosArrayGetSize(pRecoverH->aBlkIdx);
   int        tlen = 0, size = 0;
   int64_t    offset = 0;
 
@@ -547,7 +544,7 @@ static int tsdbHeadWriteBlockIdx(SRecoverH *pRecoverH) {
     return 0;
   }
 
-  for (size_t i = 0; i < nidx; ++i) {
+  for (uint32_t i = 0; i < nidx; ++i) {
     pBlkIdx = (SBlockIdx *)taosArrayGet(pRecoverH->aBlkIdx, i);
 
     size = tsdbEncodeSBlockIdx(NULL, pBlkIdx);
@@ -690,8 +687,8 @@ static int tsdbInitHFile(SDFile *pDestDFile, const SDFile *pSrcDFile) {
   tsdbGetFilePathNameByPrefix(dest_aname, tvid, tfid, tversion, ttype, TSDB_FNAME_PREFIX_TMP, dname);
   tsdbGetFilePathNameByPrefix(dest_rname, tvid, tfid, tversion, ttype, TSDB_FNAME_PREFIX_TMP, rdname);
 
-  tstrncpy(pDestDFile->f.aname, dest_aname, sizeof(dest_aname));
-  tstrncpy(pDestDFile->f.rname, dest_rname, sizeof(dest_rname));
+  tstrncpy(TSDB_FILE_FULL_NAME(pDestDFile), dest_aname, sizeof(TSDB_FILE_FULL_NAME(pDestDFile)));
+  tstrncpy(TFILE_REL_NAME(&(pDestDFile->f)), dest_rname, sizeof(TFILE_REL_NAME(&(pDestDFile->f))));
 
   if (tsdbCreateDFile(pDestDFile, true) < 0) {
     return -1;
