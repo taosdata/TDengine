@@ -793,6 +793,7 @@ static void tsdbFreeTable(STable *pTable) {
 
     tSkipListDestroy(pTable->pIndex);
     taosTZfree(pTable->lastRow);
+    tfree(pTable->lastCols);
     tfree(pTable->sql);
 
     for (int i = 0; i < pTable->lastColNum; ++i) {
