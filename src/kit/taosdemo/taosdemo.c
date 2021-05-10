@@ -1161,7 +1161,7 @@ static void selectAndGetResult(threadInfo *pThreadInfo, char *command, char* res
   } else if (0 == strncasecmp(g_queryInfo.queryMode, "rest", strlen("rest"))) {
       int retCode = postProceSql(
               g_queryInfo.host, &(g_queryInfo.serv_addr), g_queryInfo.port,
-              g_queryInfo.specifiedQueryInfo.sql[pThreadInfo->querySeq],
+              command,
               resultFileName);
       if (0 != retCode) {
         printf("====restful return fail, threadID[%d]\n", pThreadInfo->threadID);
