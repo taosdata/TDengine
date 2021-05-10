@@ -310,11 +310,11 @@ int32_t vnodeOpen(int32_t vgId) {
     vnodeCleanUp(pVnode);
     return terrno;
   } else if (tsdbGetState(pVnode->tsdb) != TSDB_STATE_OK) {
-    vError("vgId:%d, failed to open tsdb, replica:%d reason:%s", pVnode->vgId, pVnode->syncCfg.replica,
-           tstrerror(terrno));
+    vError("vgId:%d, failed to open tsdb(state: %d), replica:%d reason:%s", pVnode->vgId,
+           tsdbGetState(pVnode->tsdb), pVnode->syncCfg.replica, tstrerror(terrno));
     if (pVnode->syncCfg.replica <= 1) {
       vnodeCleanUp(pVnode);
-      return terrno;
+      return TSDB_CODE_VND_INVALID_TSDB_STATE;
     } else {
       pVnode->fversion = 0;
       pVnode->version = 0;

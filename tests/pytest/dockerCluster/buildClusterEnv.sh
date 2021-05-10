@@ -32,43 +32,14 @@ do
   esac
 done
 
-function addTaoscfg {
-  for((i=1;i<=$NUM_OF_NODES;i++))
-  do 
-    touch $DOCKER_DIR/node$i/cfg/taos.cfg
-    echo 'firstEp          tdnode1:6030' > $DOCKER_DIR/node$i/cfg/taos.cfg
-    echo 'fqdn             tdnode'$i >> $DOCKER_DIR/node$i/cfg/taos.cfg
-    echo 'arbitrator       tdnode1:6042' >> $DOCKER_DIR/node$i/cfg/taos.cfg
-  done
-}
-
-function createDIR {
-  for((i=1;i<=$NUM_OF_NODES;i++))
-  do    
-    mkdir -p $DOCKER_DIR/node$i/data
-    mkdir -p $DOCKER_DIR/node$i/log
-    mkdir -p $DOCKER_DIR/node$i/cfg
-    mkdir -p $DOCKER_DIR/node$i/core
-  done
-}
-
-function cleanEnv {
-  echo "Clean up docker environment"    
-  for((i=1;i<=$NUM_OF_NODES;i++))
-  do    
-    rm -rf $DOCKER_DIR/node$i/data/*    
-    rm -rf $DOCKER_DIR/node$i/log/*
-  done
-}
-
 function prepareBuild {
 
-  if [ -d $CURR_DIR/../../../../release ]; then
+  if [ -d $CURR_DIR/../../../release ]; then
     echo release exists
-    rm -rf $CURR_DIR/../../../../release/*
+    rm -rf $CURR_DIR/../../../release/*
   fi
 
-  cd $CURR_DIR/../../../../packaging 
+  cd $CURR_DIR/../../../packaging 
 
   if [[ "$CURR_DIR" == *"$IN_TDINTERNAL"* ]]; then
     if [ ! -e $DOCKER_DIR/TDengine-enterprise-server-$VERSION-Linux-x64.tar.gz ] || [ ! -e $DOCKER_DIR/TDengine-enterprise-arbitrator-$VERSION-Linux-x64.tar.gz ]; then
@@ -76,17 +47,17 @@ function prepareBuild {
       echo "generating TDeninge enterprise packages"
       ./release.sh -v cluster -n $VERSION >> /dev/null 2>&1
       
-      if [ ! -e $CURR_DIR/../../../../release/TDengine-enterprise-server-$VERSION-Linux-x64.tar.gz ]; then
+      if [ ! -e $CURR_DIR/../../../release/TDengine-enterprise-server-$VERSION-Linux-x64.tar.gz ]; then
         echo "no TDengine install package found"
         exit 1
       fi
 
-      if [ ! -e $CURR_DIR/../../../../release/TDengine-enterprise-arbitrator-$VERSION-Linux-x64.tar.gz ]; then
+      if [ ! -e $CURR_DIR/../../../release/TDengine-enterprise-arbitrator-$VERSION-Linux-x64.tar.gz ]; then
         echo "no arbitrator install package found"
         exit 1
       fi
 
-      cd $CURR_DIR/../../../../release
+      cd $CURR_DIR/../../../release
       mv TDengine-enterprise-server-$VERSION-Linux-x64.tar.gz $DOCKER_DIR
       mv TDengine-enterprise-arbitrator-$VERSION-Linux-x64.tar.gz $DOCKER_DIR
     fi
@@ -96,17 +67,17 @@ function prepareBuild {
       echo "generating TDeninge community packages"
       ./release.sh -v edge -n $VERSION >> /dev/null 2>&1
       
-      if [ ! -e $CURR_DIR/../../../../release/TDengine-server-$VERSION-Linux-x64.tar.gz ]; then
+      if [ ! -e $CURR_DIR/../../../release/TDengine-server-$VERSION-Linux-x64.tar.gz ]; then
         echo "no TDengine install package found"
         exit 1
       fi
 
-      if [ ! -e $CURR_DIR/../../../../release/TDengine-arbitrator-$VERSION-Linux-x64.tar.gz ]; then
+      if [ ! -e $CURR_DIR/../../../release/TDengine-arbitrator-$VERSION-Linux-x64.tar.gz ]; then
         echo "no arbitrator install package found"
         exit 1
       fi
 
-      cd $CURR_DIR/../../../../release
+      cd $CURR_DIR/../../../release
       mv TDengine-server-$VERSION-Linux-x64.tar.gz $DOCKER_DIR
       mv TDengine-arbitrator-$VERSION-Linux-x64.tar.gz $DOCKER_DIR
     fi   
@@ -147,13 +118,10 @@ function clusterUp {
     done
     docker_run=$docker_run" up -d"
   fi
-  echo $docker_run |sh 
+  echo $docker_run |sh
   
   echo "docker compose finish"
 }
 
-createDIR
-cleanEnv
-addTaoscfg
 prepareBuild
 clusterUp
