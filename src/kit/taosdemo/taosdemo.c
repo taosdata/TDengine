@@ -1141,7 +1141,7 @@ static void appendResultToFile(TAOS_RES *res, char* resultFile) {
     totalLen += len;
   }
 
-  appendResultToFile(databuf, resultFile);
+  appendResultBufToFile(databuf, resultFile);
   free(databuf);
 }
 
