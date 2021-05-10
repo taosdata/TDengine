@@ -1145,7 +1145,8 @@ static void appendResultToFile(TAOS_RES *res, char* resultFile) {
   free(databuf);
 }
 
-static void selectAndGetResult(threadInfo *pThreadInfo, char *command, char* resultFileName) {
+static void selectAndGetResult(threadInfo *pThreadInfo, char *command, char* resultFile)
+{
   if (0 == strncasecmp(g_queryInfo.queryMode, "taosc", strlen("taosc"))) {
     TAOS_RES *res = taos_query(pThreadInfo->taos, command);
     if (res == NULL || taos_errno(res) != 0) {
@@ -1155,14 +1156,16 @@ static void selectAndGetResult(threadInfo *pThreadInfo, char *command, char* res
         return;
     }
 
-    appendResultToFile(res, resultFileName);
+    if ((resultFile) && (strlen(resultFile))) {
+      appendResultToFile(res, resultFile);
+    }
     taos_free_result(res);
 
   } else if (0 == strncasecmp(g_queryInfo.queryMode, "rest", strlen("rest"))) {
       int retCode = postProceSql(
               g_queryInfo.host, &(g_queryInfo.serv_addr), g_queryInfo.port,
               command,
-              resultFileName);
+              resultFile);
       if (0 != retCode) {
         printf("====restful return fail, threadID[%d]\n", pThreadInfo->threadID);
       }
@@ -6457,7 +6460,8 @@ static void subscribe_callback(TAOS_SUB* tsub, TAOS_RES *res, void* param, int c
     return;
   }
 
-  appendResultToFile(res, (char*)param);
+  if (param)
+    appendResultToFile(res, (char*)param);
   // tao_unscribe() will free result.
 }
 
@@ -6561,8 +6565,8 @@ static void *superSubscribe(void *sarg) {
           sprintf(tmpFile, "%s-%d",
                   g_queryInfo.superQueryInfo.result[i],
                   pThreadInfo->threadID);
+          appendResultToFile(res, tmpFile);
         }
-        appendResultToFile(res, tmpFile);
       }
     }
   }
@@ -6649,8 +6653,8 @@ static void *specifiedSubscribe(void *sarg) {
         if (g_queryInfo.specifiedQueryInfo.result[i][0] != 0) {
           sprintf(tmpFile, "%s-%d",
                   g_queryInfo.specifiedQueryInfo.result[i], pThreadInfo->threadID);
+          appendResultToFile(res, tmpFile);
         }
-        appendResultToFile(res, tmpFile);
       }
     }
   }
