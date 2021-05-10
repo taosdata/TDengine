@@ -64,7 +64,7 @@ static char*   getAccountId(SSqlObj* pSql);
 
 static bool has(SArray* pFieldList, int32_t startIdx, const char* name);
 static char* cloneCurrentDBName(SSqlObj* pSql);
-static bool hasSpecifyDB(SStrToken* pTableName);
+static int32_t getDelimiterIndex(SStrToken* pTableName);
 static bool validateTableColumnInfo(SArray* pFieldList, SSqlCmd* pCmd);
 static bool validateTagParams(SArray* pTagsList, SArray* pFieldList, SSqlCmd* pCmd);
 
@@ -426,17 +426,11 @@ int32_t tscToSQLCmd(SSqlObj* pSql, struct SSqlInfo* pInfo) {
 
     case TSDB_SQL_DESCRIBE_TABLE: {
       const char* msg1 = "invalid table name";
-      const char* msg2 = "table name too long";
 
       SStrToken* pToken = taosArrayGet(pInfo->pMiscInfo->a, 0);
       if (tscValidateName(pToken) != TSDB_CODE_SUCCESS) {
         return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg1);
       }
-
-      if (!tscValidateTableNameLength(pToken->n)) {
-        return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg2);
-      }
-
       // additional msg has been attached already
       code = tscSetTableFullName(pTableMetaInfo, pToken, pSql);
       if (code != TSDB_CODE_SUCCESS) {
@@ -447,15 +441,10 @@ int32_t tscToSQLCmd(SSqlObj* pSql, struct SSqlInfo* pInfo) {
     }
     case TSDB_SQL_SHOW_CREATE_TABLE: {
       const char* msg1 = "invalid table name";
-      const char* msg2 = "table name is too long";
 
       SStrToken* pToken = taosArrayGet(pInfo->pMiscInfo->a, 0);
       if (tscValidateName(pToken) != TSDB_CODE_SUCCESS) {
         return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg1);
-      }
-
-      if (!tscValidateTableNameLength(pToken->n)) {
-        return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg2);
       }
 
       code = tscSetTableFullName(pTableMetaInfo, pToken, pSql);
@@ -987,11 +976,13 @@ int32_t tscSetTableFullName(STableMetaInfo* pTableMetaInfo, SStrToken* pTableNam
   const char* msg1 = "name too long";
   const char* msg2 = "acctId too long";
   const char* msg3 = "no acctId";
+  const char* msg4 = "db name too long";
+  const char* msg5 = "table name too long";
 
   SSqlCmd* pCmd = &pSql->cmd;
   int32_t  code = TSDB_CODE_SUCCESS;
-
-  if (hasSpecifyDB(pTableName)) { // db has been specified in sql string so we ignore current db path
+  int32_t  idx  = getDelimiterIndex(pTableName);
+  if (idx != -1) { // db has been specified in sql string so we ignore current db path
     char* acctId = getAccountId(pSql);
     if (acctId == NULL || strlen(acctId) <= 0) {
       return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg3);
@@ -1001,6 +992,13 @@ int32_t tscSetTableFullName(STableMetaInfo* pTableMetaInfo, SStrToken* pTableNam
     if (code != 0) {
       return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg2);
     }
+    if (idx >= TSDB_DB_NAME_LEN) { 
+      return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg4);
+    }
+    if (pTableName->n - 1 - idx >= TSDB_TABLE_NAME_LEN) {
+      return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg5);
+    }
+    
     
     char name[TSDB_TABLE_FNAME_LEN] = {0};
     strncpy(name, pTableName->z, pTableName->n);
@@ -1345,14 +1343,13 @@ static char* cloneCurrentDBName(SSqlObj* pSql) {
 }
 
 /* length limitation, strstr cannot be applied */
-static bool hasSpecifyDB(SStrToken* pTableName) {
-  for (uint32_t i = 0; i < pTableName->n; ++i) {
-    if (pTableName->z[i] == TS_PATH_DELIMITER[0]) {
-      return true;
+static int32_t getDelimiterIndex(SStrToken* pTableName) {
+  for (uint32_t i = 0; i < pTableName->n; ++i) { 
+    if (pTableName->z[i] == TS_PATH_DELIMITER[0]) { 
+      return i;
     }
   }
-
-  return false;
+  return -1;
 }
 
 int32_t setObjFullName(char* fullName, const char* account, SStrToken* pDB, SStrToken* tableName, int32_t* xlen) {
@@ -7483,11 +7480,3 @@ bool hasNormalColumnFilter(SQueryInfo* pQueryInfo) {
 
   return false;
 }
-
-
-
-
-
-
-
-
