@@ -417,11 +417,11 @@ int stmt_funcb1(TAOS_STMT *stmt) {
 
   v.ts = malloc(sizeof(int64_t) * 900000 * 60);
   
-  uintptr_t *lb = malloc(60 * sizeof(uintptr_t));
+  int *lb = malloc(60 * sizeof(int));
   
   TAOS_MULTI_BIND *params = calloc(1, sizeof(TAOS_MULTI_BIND) * 900000*10);
-  int* is_null = malloc(sizeof(int) * 60);
-  int* no_null = malloc(sizeof(int) * 60);
+  char* is_null = malloc(sizeof(char) * 60);
+  char* no_null = malloc(sizeof(char) * 60);
 
   for (int i = 0; i < 60; ++i) {
     lb[i] = 40;
@@ -574,11 +574,11 @@ int stmt_funcb2(TAOS_STMT *stmt) {
 
   v.ts = malloc(sizeof(int64_t) * 900000 * 60);
   
-  uintptr_t *lb = malloc(18000 * sizeof(uintptr_t));
+  int *lb = malloc(18000 * sizeof(int));
   
   TAOS_MULTI_BIND *params = calloc(1, sizeof(TAOS_MULTI_BIND) * 3000*10);
-  int* is_null = malloc(sizeof(int) * 18000);
-  int* no_null = malloc(sizeof(int) * 18000);
+  char* is_null = malloc(sizeof(char) * 18000);
+  char* no_null = malloc(sizeof(char) * 18000);
 
   for (int i = 0; i < 18000; ++i) {
     lb[i] = 40;
@@ -732,11 +732,11 @@ int stmt_funcb3(TAOS_STMT *stmt) {
 
   v.ts = malloc(sizeof(int64_t) * 900000 * 60);
   
-  uintptr_t *lb = malloc(60 * sizeof(uintptr_t));
+  int *lb = malloc(60 * sizeof(int));
   
   TAOS_MULTI_BIND *params = calloc(1, sizeof(TAOS_MULTI_BIND) * 900000*10);
-  int* is_null = malloc(sizeof(int) * 60);
-  int* no_null = malloc(sizeof(int) * 60);
+  char* is_null = malloc(sizeof(char) * 60);
+  char* no_null = malloc(sizeof(char) * 60);
 
   for (int i = 0; i < 60; ++i) {
     lb[i] = 40;
@@ -897,11 +897,11 @@ int stmt_funcb4(TAOS_STMT *stmt) {
 
   v.ts = malloc(sizeof(int64_t) * 900000 * 60);
   
-  uintptr_t *lb = malloc(60 * sizeof(uintptr_t));
+  int *lb = malloc(60 * sizeof(int));
   
   TAOS_MULTI_BIND *params = calloc(1, sizeof(TAOS_MULTI_BIND) * 900000*10);
-  int* is_null = malloc(sizeof(int) * 60);
-  int* no_null = malloc(sizeof(int) * 60);
+  char* is_null = malloc(sizeof(char) * 60);
+  char* no_null = malloc(sizeof(char) * 60);
 
   for (int i = 0; i < 60; ++i) {
     lb[i] = 40;
@@ -1056,11 +1056,11 @@ int stmt_funcb5(TAOS_STMT *stmt) {
 
   v.ts = malloc(sizeof(int64_t) * 900000 * 60);
   
-  uintptr_t *lb = malloc(18000 * sizeof(uintptr_t));
+  int *lb = malloc(18000 * sizeof(int));
   
   TAOS_MULTI_BIND *params = calloc(1, sizeof(TAOS_MULTI_BIND) * 3000*10);
-  int* is_null = malloc(sizeof(int) * 18000);
-  int* no_null = malloc(sizeof(int) * 18000);
+  char* is_null = malloc(sizeof(char) * 18000);
+  char* no_null = malloc(sizeof(char) * 18000);
 
   for (int i = 0; i < 18000; ++i) {
     lb[i] = 40;
@@ -1200,10 +1200,10 @@ int stmt_funcb_ssz1(TAOS_STMT *stmt) {
 
   v.ts = malloc(sizeof(int64_t) * 30000 * 3000);
   
-  uintptr_t *lb = malloc(30000 * sizeof(uintptr_t));
+  int *lb = malloc(30000 * sizeof(int));
   
   TAOS_MULTI_BIND *params = calloc(1, sizeof(TAOS_MULTI_BIND) * 3000*10);
-  int* no_null = malloc(sizeof(int) * 200000);
+  char* no_null = malloc(sizeof(int) * 200000);
 
   for (int i = 0; i < 30000; ++i) {
     lb[i] = 40;
@@ -1291,11 +1291,11 @@ int stmt_funcb_s1(TAOS_STMT *stmt) {
 
   v.ts = malloc(sizeof(int64_t) * 900000 * 60);
   
-  uintptr_t *lb = malloc(60 * sizeof(uintptr_t));
+  int *lb = malloc(60 * sizeof(int));
   
   TAOS_MULTI_BIND *params = calloc(1, sizeof(TAOS_MULTI_BIND) * 900000*10);
-  int* is_null = malloc(sizeof(int) * 60);
-  int* no_null = malloc(sizeof(int) * 60);
+  char* is_null = malloc(sizeof(char) * 60);
+  char* no_null = malloc(sizeof(char) * 60);
 
   for (int i = 0; i < 60; ++i) {
     lb[i] = 40;
@@ -1453,11 +1453,11 @@ int stmt_funcb_sc1(TAOS_STMT *stmt) {
 
   v.ts = malloc(sizeof(int64_t) * 900000 * 60);
   
-  uintptr_t *lb = malloc(60 * sizeof(uintptr_t));
+  int *lb = malloc(60 * sizeof(int));
   
   TAOS_MULTI_BIND *params = calloc(1, sizeof(TAOS_MULTI_BIND) * 900000*10);
-  int* is_null = malloc(sizeof(int) * 60);
-  int* no_null = malloc(sizeof(int) * 60);
+  char* is_null = malloc(sizeof(char) * 60);
+  char* no_null = malloc(sizeof(char) * 60);
 
   for (int i = 0; i < 60; ++i) {
     lb[i] = 40;
@@ -1611,11 +1611,11 @@ int stmt_funcb_sc2(TAOS_STMT *stmt) {
 
   v.ts = malloc(sizeof(int64_t) * 900000 * 60);
   
-  uintptr_t *lb = malloc(60 * sizeof(uintptr_t));
+  int *lb = malloc(60 * sizeof(int));
   
   TAOS_MULTI_BIND *params = calloc(1, sizeof(TAOS_MULTI_BIND) * 900000*10);
-  int* is_null = malloc(sizeof(int) * 60);
-  int* no_null = malloc(sizeof(int) * 60);
+  char* is_null = malloc(sizeof(char) * 60);
+  char* no_null = malloc(sizeof(char) * 60);
 
   for (int i = 0; i < 60; ++i) {
     lb[i] = 40;
@@ -1771,11 +1771,11 @@ int stmt_funcb_sc3(TAOS_STMT *stmt) {
 
   v.ts = malloc(sizeof(int64_t) * 60);
   
-  uintptr_t *lb = malloc(60 * sizeof(uintptr_t));
+  int *lb = malloc(60 * sizeof(int));
   
   TAOS_MULTI_BIND *params = calloc(1, sizeof(TAOS_MULTI_BIND) * 60*10);
-  int* is_null = malloc(sizeof(int) * 60);
-  int* no_null = malloc(sizeof(int) * 60);
+  char* is_null = malloc(sizeof(char) * 60);
+  char* no_null = malloc(sizeof(char) * 60);
 
   for (int i = 0; i < 60; ++i) {
     lb[i] = 40;
