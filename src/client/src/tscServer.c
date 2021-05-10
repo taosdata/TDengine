@@ -1973,6 +1973,8 @@ int tscProcessTableMetaRsp(SSqlObj *pSql) {
     return TSDB_CODE_TSC_INVALID_VALUE;
   }
 
+  assert(pTableMeta->tableType == TSDB_SUPER_TABLE || pTableMeta->tableType == TSDB_CHILD_TABLE || pTableMeta->tableType == TSDB_NORMAL_TABLE || pTableMeta->tableType == TSDB_STREAM_TABLE);
+
   if (pTableMeta->tableType == TSDB_CHILD_TABLE) {
     // check if super table hashmap or not
     int32_t len = (int32_t) strnlen(pTableMeta->sTableName, TSDB_TABLE_FNAME_LEN);
@@ -2540,6 +2542,7 @@ int32_t tscGetTableMeta(SSqlObj *pSql, STableMetaInfo *pTableMetaInfo) {
       return TSDB_CODE_TSC_OUT_OF_MEMORY;
     }
     pTableMetaInfo->pTableMeta = (STableMeta *)tmp;
+    memset(pTableMetaInfo->pTableMeta, 0, size);
     pTableMetaInfo->tableMetaSize = size;
   } else {
     //uint32_t s = tscGetTableMetaSize(pTableMetaInfo->pTableMeta);
