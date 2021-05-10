@@ -2050,6 +2050,8 @@ int sql_perf_s1(TAOS     *taos) {
     free(sql[i]);
   }
 
+  free(sql);
+
   return 0;
 }
 
