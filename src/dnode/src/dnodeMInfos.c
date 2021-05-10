@@ -286,7 +286,7 @@ static int32_t dnodeWriteMInfos() {
   len += snprintf(content + len, maxLen - len, "}\n");
 
   fwrite(content, 1, len, fp);
-  fsync(fileno(fp));
+  taosFsync(fileno(fp));
   fclose(fp);
   free(content);
   terrno = 0;

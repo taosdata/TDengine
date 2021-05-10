@@ -13,10 +13,17 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#define _DEFAULT_SOURCE
-#include "os.h"
+#ifndef TDENGINE_OS_SLEEP_H
+#define TDENGINE_OS_SLEEP_H
 
-int64_t tsosStr2int64(char *str) {
-  char *endptr = NULL;
-  return strtoll(str, &endptr, 10);
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+void taosMsleep(int32_t ms);
+
+#ifdef __cplusplus
 }
+#endif
+
+#endif

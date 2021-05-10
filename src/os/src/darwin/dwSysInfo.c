@@ -22,7 +22,6 @@
 #include <errno.h>
 #include <libproc.h>
 
-
 static void taosGetSystemTimezone() {
   SGlobalCfg *cfg_timezone = taosGetConfigOption("timezone");
   if (cfg_timezone == NULL) return;

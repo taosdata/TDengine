@@ -16,8 +16,6 @@
 #define _DEFAULT_SOURCE
 #include "os.h"
 
-#ifndef TAOS_OS_FUNC_RAND
-
 uint32_t taosRand(void) { return rand(); }
 
 uint32_t taosSafeRand(void) {
@@ -37,8 +35,6 @@ uint32_t taosSafeRand(void) {
 
   return (uint32_t)seed;
 }
-
-#endif
 
 void taosRandStr(char* str, int32_t size) {
   const char* set = "abcdefghijklmnopqrstuvwxyz0123456789-_.";

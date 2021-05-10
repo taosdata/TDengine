@@ -20,7 +20,6 @@
 
 #define _DEFAULT_SOURCE
 #include "os.h"
-
 #include <libproc.h>
 
 // #define SEM_USE_PTHREAD

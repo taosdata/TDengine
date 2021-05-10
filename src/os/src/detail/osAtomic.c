@@ -53,4 +53,3 @@ int64_t atomic_exchange_64_impl(int64_t* ptr, int64_t val ) {
   return old;
 }
 #endif
-

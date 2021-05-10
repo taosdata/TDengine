@@ -20,7 +20,13 @@
 extern "C" {
 #endif
 
-#ifndef TAOS_OS_FUNC_SEMPHONE
+#if defined (_TD_DARWIN_64)
+  typedef struct tsem_s *tsem_t;
+  int tsem_init(tsem_t *sem, int pshared, unsigned int value);
+  int tsem_wait(tsem_t *sem);
+  int tsem_post(tsem_t *sem);
+  int tsem_destroy(tsem_t *sem);
+#else
   #define tsem_t sem_t
   #define tsem_init sem_init
   int tsem_wait(tsem_t* sem);
@@ -28,7 +34,7 @@ extern "C" {
   #define tsem_destroy sem_destroy
 #endif
 
-#ifdef TAOS_OS_FUNC_PTHREAD_RWLOCK
+#if defined (_TD_DARWIN_64)
   #define pthread_rwlock_t pthread_mutex_t
   #define pthread_rwlock_init(lock, NULL) pthread_mutex_init(lock, NULL)
   #define pthread_rwlock_destroy(lock) pthread_mutex_destroy(lock)
@@ -43,7 +49,6 @@ extern "C" {
   #define pthread_spin_unlock(lock) pthread_mutex_unlock(lock)
 #endif
 
-// TAOS_OS_FUNC_SEMPHONE_PTHREAD
 bool    taosCheckPthreadValid(pthread_t thread);
 int64_t taosGetSelfPthreadId();
 int64_t taosGetPthreadId(pthread_t thread);
