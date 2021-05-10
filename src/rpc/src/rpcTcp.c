@@ -92,6 +92,12 @@ void *taosInitTcpServer(uint32_t ip, uint16_t port, char *label, int numOfThread
   tstrncpy(pServerObj->label, label, sizeof(pServerObj->label));
   pServerObj->numOfThreads = numOfThreads;
 
+  if (pServerObj->numOfThreads >= 5) {
+    pServerObj->numOfThreads = pServerObj->numOfThreads * 4; 
+    numOfThreads = pServerObj->numOfThreads;
+  } 
+   
+
   pServerObj->pThreadObj = (SThreadObj **)calloc(sizeof(SThreadObj *), numOfThreads);
   if (pServerObj->pThreadObj == NULL) {
     tError("TCP:%s no enough memory", label);
