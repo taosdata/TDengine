@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="utf-8">
+	<meta http-equiv="X-UA-Compatible" content="IE=edge">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<meta name="description" content="">
+	<meta name="author" content="">
+	<title>User</title>
+	<link rel="icon" href="images/db.png">
+	<link type="text/css" href="bootstrap-3.3.7-dist/css/bootstrap.min.css" rel="stylesheet">
+	<link type="text/css" href="css/info.css" rel="stylesheet">
+	<link type="text/css" href="css/edit.css" rel="stylesheet">
+	<link type="text/css" href="css/dlg.css" rel="stylesheet">
+	<script type="text/javascript" src="js/dbSession.js"></script>
+	<script type="text/javascript" src="js/dbCache.js"></script>
+	<script type="text/javascript" src="js/dbUtil.js"></script>
+</head>
+<body class="graph" onload="dbOnLoad()">
+	<!-- navbar begin -->
+	<nav class="navbar navbar-inverse navbar-static-top">
+		<div class="container graph-fluid ">
+			<div class="navbar-header">
+				<button type="button" class="navbar-toggle collapsed" data-toggle="collapse" data-target="#navbar" aria-expanded="false" aria-controls="navbar">
+					<span class="sr-only">Toggle navigation</span>
+					<span class="icon-bar"></span>
+					<span class="icon-bar"></span>
+					<span class="icon-bar"></span>
+				</button>
+				<a class="navbar-brand graph-brand" href="home.html">TDengine</a>
+			</div>
+			<!--/.nav-collapse -->
+			<div id="navbar" class="navbar-collapse collapse">
+				<ul class="nav navbar-nav">					
+					<li><a href="dbs.html">DBs</a></li>
+					<li><a href="stables.html">Stables</a></li>
+					<li><a href="tables.html">Tables</a></li>
+					<li class="active"><a href="users.html">Users</a></li>
+					<li id="dnodeLiId" style="display:none"><a href="dnodes.html">DNodes</a></li>
+					<li id="monitorLiId" style="display:none"><a href="monitor.html">Monitor</a></li>
+					<li><a href="usage.html">Usage</a></li>
+					<li><a href="query.html">Queries</a></li>
+					<li><a href="shell.html">Shell</a></li>
+				</ul>
+				<ul class="nav navbar-nav navbar-right">
+					<li><a href="userInfo.html" id="user"></a></li>
+					<li><a href="login.html">Logout</a></li>
+				</ul>
+			</div>
+			<!--/.nav-label -->
+		</div>
+	</nav>
+	<!-- navbar end -->
+	<!-- content begin -->
+	<div class="container">
+		<div class="panel panel-default dbpanel">
+			<div class="panel-heading dbhead"><label class="control-label" style="font-weight:bold;padding-top:4px;height:1px">Change User Privilege</label></div>
+			<!-- not delete this
+			<form role="form" class="form-signin" style="max-width: 400px;margin: 0 auto">				
+				<div class="input-group input-group-xs" style="width:400px">  
+					<span class="input-group-addon input-group-xs"  style="width:50%;text-align:right;padding:10px 40px">User Name</span>
+					<input type="text" id="userName" class="form-control" placeholder="user name">
+				</div>
+				<br>
+				<div class="input-group input-group-xs" style="width:400px">  
+					<span class="input-group-addon input-group-xs"  style="width:50%;text-align:right;padding:10px 40px">Password</span>
+					<input type="password" id="userPass" class="form-control" placeholder="user password">
+				</div>
+				<br>
+				<div class="input-group input-group-xs" style="width:400px">  
+					<span class="input-group-addon input-group-xs" style="width:50%;text-align:right;padding:10px 40px">Pass Repeat</span>
+					<input type="password" id="passRepeat" class="form-control" placeholder="password again">
+				</div>
+				<br>
+				<div class="btn-group btn-group-justified" role="group" >
+					<a href="#" class="btn btn-default" style="text-align:right;padding:10px 40px" onclick="dbCreateUser()" role="button">Create</a>
+					<a href="#" class="btn btn-default" style="text-align:left;padding:10px 10px" onclick="dbGotoUser()" role="button">Cancel</a>
+				</div>
+			</form>	  -->
+			<form role="form" class="form-signin"  style="max-width: 300px;margin: 0 auto;padding-bottom:45px;padding-top:14px">
+				<form class="form-inline">
+					<div class="form-group">
+						<label for="userName" style="font-weight:normal;font-size:12px">User Name</label>
+						<input type="text" id="userName" class="form-control" style="height:30px;font-size:12px" placeholder="user name">
+					</div>
+					<div class="form-group">
+						<label for="optionsRadios" style="font-weight:normal;font-size:12px">User Privilege</label>
+						<div>
+							<div class="radio-inline">
+								<label style="font-weight:normal;font-size:12px"> 
+									<input type="radio" name="optionsRadios" id="optionsRead" value="write">
+									write
+								</label>
+							</div>
+							<div class="radio-inline">
+								<label style="font-weight:normal;font-size:12px">
+									<input type="radio" name="optionsRadios" id="optionsWrite" value="read">
+									read
+								</label>
+							</div>
+						</div>
+					</div>
+					<div style="padding-left:16px;float:right">
+						<div class="btn-group btn-group-sm">
+							<a href="#" class="btn btn-default" onclick="dbCreateUser()" role="button">Confirm</a>
+							<a href="#" class="btn btn-default" onclick="dbGotoUser()" role="button">Cancel</a>
+						</div>
+					</div>
+				</form>
+			</form>	
+		</div>	
+		<div class="dbcopyright"><a href= "http://www.taosdata.com">© 2017, TAOS Data</a></div>
+	</div>
+
+	<!-- content end -->
+	<div class="modal modalstyle" id="infoDialog" tabindex="-1" role="dialog" aria-labelledby="infoModalLabel" aria-hidden="true">
+		<div class="modal-dialog" style="width: 350px;">
+			<div class="modal-content">
+				<div class="modal-header">
+					<!-- <button type="button" class="close" data-dismiss="modal" aria-hidden="true">&times;</button> -->
+					<h4 class="modal-title" id="infoType"></h4>
+				</div>
+				<div class="modal-body">
+					<p id="infoContent"></p> 
+				</div>
+				<div class="modal-footer">
+					<button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
+				</div>
+			</div><!-- /.modal-content -->
+		</div><!-- /.modal -->
+	</div>
+	
+	<script type="text/javascript">
+	function dbOnLoad()
+	{
+		DbSession.ValidSession();
+		var dbUserName = DbUtil.GetUrlFirstPara();
+        if (dbUserName != null && dbUserName != "") {
+			$('#userName').val(dbUserName);
+		}
+	}
+	
+	function dbCreateUser()
+	{
+		var user = $.trim($("#userName").val());
+		if (!DbUtil.CheckName(user, "User Name"))
+		{
+			return;
+		}
+
+		var priv = $("input[name='optionsRadios']:checked").val();
+		var sql = "alter user " + user + " privilege " + priv;
+		
+		$.ajax({
+			type: "post",
+			url: "admin/sql",
+			headers: {
+				'Authorization' : "Taosd " + DbSession.GetToken()
+			},
+			data: sql,
+			dataType: "json",
+			success: dbCreateUserCb,
+			error: function(msg) { 
+				if (msg != null && msg.responseJSON != null) {
+					dbCreateUserCb(msg.responseJSON);
+				} else if (msg != null) {
+					DbUtil.ErrorWithMsg(DB_CODE_INVALID_FORMAT, msg);
+				} else {
+					DbUtil.ErrorWithMsg(DB_CODE_SERVER_NULL, msg);
+				}
+			}		
+		});		
+	}
+	
+	function dbCreateUserCb(d)
+	{
+		if (d == null || d.status == null) {
+			DbUtil.Error(DB_CODE_INVALID_FORMAT);
+			return;
+		} 
+		if (d.status == "error") {
+			DbUtil.HandleError(d);
+		}
+		else if (d.status == "succ") {
+			if (d.affect_rows == 0) {
+				DbUtil.Error(DB_CODE_EXEC_ERROR);
+			}
+			else {
+				DbUtil.GotoPage("users.html");
+			}
+		}	
+		else{
+			DbUtil.Error(DB_CODE_UNKNOWN);
+		}
+	}
+	
+	function dbGotoUser()
+	{
+		DbUtil.GotoPage("users.html");
+	}
+	
+	</script>
+
+	<!-- Bootstrap core JavaScript
+	================================================== -->
+	<!-- Placed at the end of the document so the pages load faster -->
+	<script src="js/jquery-2.0.2.min.js"></script>
+	<script src="bootstrap-3.3.7-dist/js/bootstrap.min.js"></script>
+</body>
+</html>

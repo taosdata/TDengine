@@ -260,7 +260,9 @@ void cenc_picker_func(MS3TraceList *mstl, callback_params_t *param)
   osamples = (char *) malloc(onumsamples * sizeof(float));
   ots = (char *) malloc(onumsamples * sizeof(long long));
 
-  callback_udf_func((char *) samps.samples, 4, inumsamples, samps.time, osamples, ots, &onumsamples, &init);
+  callback_udf_func((char *) samps.samples,
+                    TSDB_DATA_TYPE_INT, 0, inumsamples, samps.time, osamples, ots, &onumsamples,
+                    TSDB_DATA_TYPE_TIMESTAMP, 0, &init);
 
   free(osamples);
   free(ots);
