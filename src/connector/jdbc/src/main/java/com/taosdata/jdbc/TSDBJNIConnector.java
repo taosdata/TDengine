@@ -300,26 +300,38 @@ public class TSDBJNIConnector {
     
     private native long prepareStmtImp(byte[] sql, long con);
     
-    public int setBindTableName(long stmt, String tableName) {
-		return setBindTableNameImp(stmt, tableName, this.taos);
+    public void setBindTableName(long stmt, String tableName) throws SQLException {
+		int code = setBindTableNameImp(stmt, tableName, this.taos);
+		if (code != TSDBConstants.JNI_SUCCESS) {
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNKNOWN, "failed to set table name");
+		}
 	}
     
     private native int setBindTableNameImp(long stmt, String name, long conn);
     
-    public int bindColumnDataArray(long stmt, ByteBuffer colDataList, ByteBuffer lengthList, ByteBuffer isNullList, int type, int bytes, int numOfRows,int columnIndex) {
-    	return bindColDataImp(stmt, colDataList.array(), lengthList.array(), isNullList.array(), type, bytes, numOfRows, columnIndex, this.taos);
+    public void bindColumnDataArray(long stmt, ByteBuffer colDataList, ByteBuffer lengthList, ByteBuffer isNullList, int type, int bytes, int numOfRows,int columnIndex) throws SQLException {
+    	int code = bindColDataImp(stmt, colDataList.array(), lengthList.array(), isNullList.array(), type, bytes, numOfRows, columnIndex, this.taos);
+    	if (code != TSDBConstants.JNI_SUCCESS) {
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNKNOWN, "failed to bind column data");
+    	}
 	}
     
     private native int bindColDataImp(long stmt, byte[] colDataList, byte[] lengthList, byte[] isNullList, int type, int bytes, int numOfRows, int columnIndex, long conn);
     
-    public int executeBatch(long stmt) {
-    	return executeBatchImp(stmt, this.taos);
+    public void executeBatch(long stmt) throws SQLException {
+    	int code = executeBatchImp(stmt, this.taos);
+    	if (code != TSDBConstants.JNI_SUCCESS) {
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNKNOWN, "failed to execute batch bind");
+    	}
     }
     
     private native int executeBatchImp(long stmt, long con);
     
-    public int closeBatch(long stmt) {
-    	return closeStmt(stmt, this.taos);
+    public void closeBatch(long stmt) throws SQLException {
+    	int code = closeStmt(stmt, this.taos);
+    	if (code != TSDBConstants.JNI_SUCCESS) {
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNKNOWN, "failed to close batch bind");
+    	}
     }
     
     private native int closeStmt(long stmt, long con);

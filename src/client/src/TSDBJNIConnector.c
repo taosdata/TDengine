@@ -742,6 +742,8 @@ JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_setBindTableNameI
 
   int32_t code = taos_stmt_set_tbname((void*)stmt, name);
   if (code != TSDB_CODE_SUCCESS) {
+    (*env)->ReleaseStringUTFChars(env, jname, name);
+
     jniError("jobj:%p, conn:%p, code:%s", jobj, tsconn, tstrerror(code));
     return JNI_TDENGINE_ERROR;
   }
@@ -817,6 +819,11 @@ JNIEXPORT jlong JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_bindColDataImp(J
   }
 
   int32_t code = taos_stmt_bind_single_param_batch(pStmt, b, colIndex);
+  tfree(b->length);
+  tfree(b->buffer);
+  tfree(b->is_null);
+  tfree(b);
+
   if (code != TSDB_CODE_SUCCESS) {
     jniError("jobj:%p, conn:%p, code:%s", jobj, tscon, tstrerror(code));
     return JNI_TDENGINE_ERROR;

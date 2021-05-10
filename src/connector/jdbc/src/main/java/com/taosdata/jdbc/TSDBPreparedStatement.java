@@ -733,9 +733,6 @@ public class TSDBPreparedStatement extends TSDBStatement implements PreparedStat
 					String charset = TaosGlobalConfig.getCharset();
 					for (int j = 0; j < rows; ++j) {
 						String val = (String) col1.data.get(j);
-						if (val != null && val.length() > col1.bytes) {
-			                throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNKNOWN, "string data too long");
-						}
 
 						colDataList.position(j * col1.bytes);  // seek to the correct position
 						if (val != null) {
@@ -748,6 +745,10 @@ public class TSDBPreparedStatement extends TSDBStatement implements PreparedStat
 								}
 							} catch (UnsupportedEncodingException e) {
 								e.printStackTrace();
+							}
+							
+							if (val.length() > col1.bytes) {
+				                throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNKNOWN, "string data too long");
 							}
 							
 							colDataList.put(b);
