@@ -51,6 +51,29 @@ int taosMkDir(const char *path, mode_t mode) {
   return code;
 }
 
+int32_t taosMkDirRecur(const char *path, mode_t mode) {
+  if (taosMkDir(path, mode) < 0) {
+    if (errno == ENOENT) {
+      // Try to create upper
+      char *s = strdup(path);
+
+      if (taosMkDirRecur(dirname(s), mode) < 0) {
+        tfree(s);
+        return -1;
+      }
+      tfree(s);
+
+      if (taosMkDir(path, mode) < 0) {
+        return -1;
+      }
+    } else {
+      return -1;
+    }
+  }
+
+  return 0;
+}
+
 void taosRemoveOldLogFiles(char *rootDir, int32_t keepDays) {
   DIR *dir = opendir(rootDir);
   if (dir == NULL) return;

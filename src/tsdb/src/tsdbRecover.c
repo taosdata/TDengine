@@ -39,8 +39,7 @@ static int tsdbInitRecoverH(SRecoverH *pRecoverH, STsdbRepo *pRepo);
 static int tsdbDestoryRecoverH(SRecoverH *pRecoverH);
 static int tsdbHeadWriteBlockInfo(SRecoverH *pRecoverH);
 static int tsdbHeadWriteBlockIdx(SRecoverH *pRecoverH);
-static int tsdbHeadAddBlock(SRecoverH *pRecoverH, const SBlock *pSupBlock, const SBlock *pSubBlocks,
-                            const int nSubBlocks);
+static int tsdbHeadAddBlock(SRecoverH *pRecoverH, const SBlock *pSupBlock, const SBlock *pSubBlocks, int nSubBlocks);
 /**
  *  internal func
  */
@@ -150,7 +149,7 @@ static int tsdbBackUpDFileSet(STsdbRepo *pRepo, SDFileSet *pFileSet) {
 
     tsdbGetDataBakPath(REPO_ID(pRepo), pDFile, dest_aname);
 
-    if (taosMkDir(dest_aname, 0755) < 0) {  // make sure the parent path already exists
+    if (taosMkDirRecur(dest_aname, 0755) < 0) {
       terrno = TAOS_SYSTEM_ERROR(errno);
       return -1;
     }
