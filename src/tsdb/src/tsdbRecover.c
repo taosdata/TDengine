@@ -168,7 +168,7 @@ static int tsdbBackUpDFileSet(STsdbRepo *pRepo, SDFileSet *pFileSet) {
 
 static void tsdbGetDataBakDir(char dirName[]) { snprintf(dirName, TSDB_FILENAME_LEN, "vnode_bak/.tsdb"); }
 
-void tsdbClearBakFiles() {
+void tsdbClearBakFiles(void) {
   // no use of thread in case of conflict of rmdir and mkdir for future backup.
   tsdbClearBakDFileSet();
 }
