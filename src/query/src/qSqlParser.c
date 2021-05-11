@@ -324,7 +324,6 @@ static FORCE_INLINE int32_t tStrTokenCompare(SStrToken* left, SStrToken* right) 
   return (left->type == right->type && left->n == right->n && strncasecmp(left->z, right->z, left->n) == 0) ? 0 : 1;
 }
 
-
 int32_t tSqlExprCompare(tSqlExpr *left, tSqlExpr *right) {
   if ((left == NULL && right) || (left && right == NULL)) {
     return 1;
@@ -387,8 +386,6 @@ int32_t tSqlExprCompare(tSqlExpr *left, tSqlExpr *right) {
 
   return 0;
 }
-
-
 
 tSqlExpr *tSqlExprClone(tSqlExpr *pSrc) {
   tSqlExpr *pExpr = calloc(1, sizeof(tSqlExpr));
@@ -550,42 +547,6 @@ SRelationInfo *setTableNameList(SRelationInfo* pRelationInfo, SStrToken *pName, 
   return pRelationInfo;
 }
 
-//SRelationInfo* setSubquery(SRelationInfo* pRelationInfo, SArray* pList, SStrToken* pAlias) {
-//  if (pRelationInfo == NULL) {
-//    pRelationInfo = calloc(1, sizeof(SRelationInfo));
-//    pRelationInfo->list = taosArrayInit(4, POINTER_BYTES);
-//  }
-//
-//  pRelationInfo->type = SQL_NODE_FROM_SUBQUERY;
-//  SRelElementPair p = {.pSubquery = pList};
-//  if (pAlias != NULL) {
-//    p.aliasName = *pAlias;
-//  } else {
-//    TPARSER_SET_NONE_TOKEN(p.aliasName);
-//  }
-//
-//  taosArrayPush(pRelationInfo->list, &p);
-//  return pRelationInfo;
-//}
-
-//SRelationInfo* setSubquery(SRelationInfo* pRelationInfo, SRelElementPair* p) {
-//  if (pRelationInfo == NULL) {
-//    pRelationInfo = calloc(1, sizeof(SRelationInfo));
-//    pRelationInfo->list = taosArrayInit(4, POINTER_BYTES);
-//  }
-//
-//  pRelationInfo->type = SQL_NODE_FROM_SUBQUERY;
-//  SRelElementPair elem = *p;
-////  if (pAlias != NULL) {
-////    p.aliasName = *pAlias;
-////  } else {
-////    TPARSER_SET_NONE_TOKEN(p.aliasName);
-////  }
-//
-//  taosArrayPush(pRelationInfo->list, &p);
-//  return pRelationInfo;
-//}
-
 void* destroyRelationInfo(SRelationInfo* pRelationInfo) {
   if (pRelationInfo == NULL) {
     return NULL;
@@ -596,7 +557,7 @@ void* destroyRelationInfo(SRelationInfo* pRelationInfo) {
   } else {
     size_t size = taosArrayGetSize(pRelationInfo->list);
     for(int32_t i = 0; i < size; ++i) {
-      SArray* pa = taosArrayGetP(pRelationInfo->list, 0);
+      SArray* pa = taosArrayGetP(pRelationInfo->list, i);
       destroyAllSqlNode(pa);
     }
     taosArrayDestroy(pRelationInfo->list);
@@ -624,7 +585,6 @@ SRelationInfo* addSubqueryElem(SRelationInfo* pRelationInfo, SArray* pSub, SStrT
   taosArrayPush(pRelationInfo->list, &p);
   return pRelationInfo;
 }
-
 
 void tSetDbName(SStrToken *pCpxName, SStrToken *pDb) {
   pCpxName->type = pDb->type;
@@ -766,9 +726,9 @@ void tSetColumnType(TAOS_FIELD *pField, SStrToken *type) {
  * extract the select info out of sql string
  */
 SSqlNode *tSetQuerySqlNode(SStrToken *pSelectToken, SArray *pSelNodeList, SRelationInfo *pFrom, tSqlExpr *pWhere,
-                                SArray *pGroupby, SArray *pSortOrder, SIntervalVal *pInterval,
-                                SSessionWindowVal *pSession, SStrToken *pSliding, SArray *pFill, SLimitVal *pLimit,
-                                SLimitVal *psLimit, tSqlExpr *pHaving) {
+                           SArray *pGroupby, SArray *pSortOrder, SIntervalVal *pInterval, SSessionWindowVal *pSession,
+                           SStrToken *pSliding, SArray *pFill, SLimitVal *pLimit, SLimitVal *psLimit,
+                           tSqlExpr *pHaving) {
   assert(pSelNodeList != NULL);
 
   SSqlNode *pSqlNode = calloc(1, sizeof(SSqlNode));

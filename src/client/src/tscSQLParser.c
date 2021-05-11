@@ -131,6 +131,7 @@ static int32_t validateSqlNode(SSqlObj* pSql, SSqlNode* pSqlNode, SQueryInfo* pQ
 static int32_t exprTreeFromSqlExpr(SSqlCmd* pCmd, tExprNode **pExpr, const tSqlExpr* pSqlExpr, SQueryInfo* pQueryInfo, SArray* pCols, uint64_t *uid);
 static bool    validateDebugFlag(int32_t v);
 static int32_t checkQueryRangeForFill(SSqlCmd* pCmd, SQueryInfo* pQueryInfo);
+static int32_t loadAllTableMeta(SSqlObj* pSql, struct SSqlInfo* pInfo);
 
 static bool    isTimeWindowQuery(SQueryInfo* pQueryInfo) {
   return pQueryInfo->interval.interval > 0 || pQueryInfo->sessionWindow.gap > 0;
@@ -299,7 +300,7 @@ int32_t tscToSQLCmd(SSqlObj* pSql, struct SSqlInfo* pInfo) {
       } else if (pInfo->type == TSDB_SQL_DROP_TABLE) {
         assert(taosArrayGetSize(pInfo->pMiscInfo->a) == 1);
 
-        code = tscSetTableFullName(pTableMetaInfo, pzName, pSql);
+        code = tscSetTableFullName(&pTableMetaInfo->name, pzName, pSql);
         if(code != TSDB_CODE_SUCCESS) {
           return code; 
         }
@@ -440,7 +441,7 @@ int32_t tscToSQLCmd(SSqlObj* pSql, struct SSqlInfo* pInfo) {
       }
 
       // additional msg has been attached already
-      code = tscSetTableFullName(pTableMetaInfo, pToken, pSql);
+      code = tscSetTableFullName(&pTableMetaInfo->name, pToken, pSql);
       if (code != TSDB_CODE_SUCCESS) {
         return code;
       }
@@ -460,7 +461,7 @@ int32_t tscToSQLCmd(SSqlObj* pSql, struct SSqlInfo* pInfo) {
         return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg2);
       }
 
-      code = tscSetTableFullName(pTableMetaInfo, pToken, pSql);
+      code = tscSetTableFullName(&pTableMetaInfo->name, pToken, pSql);
       if (code != TSDB_CODE_SUCCESS) {
         return code;
       }
@@ -479,7 +480,7 @@ int32_t tscToSQLCmd(SSqlObj* pSql, struct SSqlInfo* pInfo) {
         return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg1);
       }
 
-      return tscSetTableFullName(pTableMetaInfo, pToken, pSql);
+      return tscSetTableFullName(&pTableMetaInfo->name, pToken, pSql);
     }
     case TSDB_SQL_CFG_DNODE: {
       const char* msg2 = "invalid configure options or values, such as resetlog / debugFlag 135 / balance 'vnode:2-dnode:2' / monitor 1 ";
@@ -618,6 +619,7 @@ int32_t tscToSQLCmd(SSqlObj* pSql, struct SSqlInfo* pInfo) {
 
     case TSDB_SQL_SELECT: {
       const char* msg1 = "columns in select clause not identical";
+      loadAllTableMeta(pSql, pInfo);
 
       SQueryInfo* pCurrent = pCmd->pQueryInfo;
       for(int32_t i = 0; i < pCmd->clauseIndex; ++i) {
@@ -983,7 +985,7 @@ int32_t parseSlidingClause(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SStrToken* pSl
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t tscSetTableFullName(STableMetaInfo* pTableMetaInfo, SStrToken* pTableName, SSqlObj* pSql) {
+int32_t tscSetTableFullName(SName* pName, SStrToken* pTableName, SSqlObj* pSql) {
   const char* msg1 = "name too long";
   const char* msg2 = "acctId too long";
   const char* msg3 = "no acctId";
@@ -997,7 +999,7 @@ int32_t tscSetTableFullName(STableMetaInfo* pTableMetaInfo, SStrToken* pTableNam
       return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg3);
     }
 
-    code = tNameSetAcctId(&pTableMetaInfo->name, acctId);
+    code = tNameSetAcctId(pName, acctId);
     if (code != 0) {
       return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg2);
     }
@@ -1005,7 +1007,7 @@ int32_t tscSetTableFullName(STableMetaInfo* pTableMetaInfo, SStrToken* pTableNam
     char name[TSDB_TABLE_FNAME_LEN] = {0};
     strncpy(name, pTableName->z, pTableName->n);
 
-    code = tNameFromString(&pTableMetaInfo->name, name, T_NAME_DB|T_NAME_TABLE);
+    code = tNameFromString(pName, name, T_NAME_DB|T_NAME_TABLE);
     if (code != 0) {
       return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg1);
     }
@@ -1015,7 +1017,7 @@ int32_t tscSetTableFullName(STableMetaInfo* pTableMetaInfo, SStrToken* pTableNam
       return TSDB_CODE_TSC_DB_NOT_SELECTED;
     }
 
-    code = tNameFromString(&pTableMetaInfo->name, t, T_NAME_ACCT | T_NAME_DB);
+    code = tNameFromString(pName, t, T_NAME_ACCT | T_NAME_DB);
     if (code != 0) {
       free(t);
       return TSDB_CODE_TSC_DB_NOT_SELECTED;
@@ -1030,7 +1032,7 @@ int32_t tscSetTableFullName(STableMetaInfo* pTableMetaInfo, SStrToken* pTableNam
     char name[TSDB_TABLE_FNAME_LEN] = {0};
     strncpy(name, pTableName->z, pTableName->n);
 
-    code = tNameFromString(&pTableMetaInfo->name, name, T_NAME_TABLE);
+    code = tNameFromString(pName, name, T_NAME_TABLE);
     if (code != 0) {
       code = invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg1);
     }
@@ -5062,7 +5064,7 @@ int32_t setAlterTableInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
     return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg1);
   }
 
-  code = tscSetTableFullName(pTableMetaInfo, &(pAlterSQL->name), pSql);
+  code = tscSetTableFullName(&pTableMetaInfo->name, &(pAlterSQL->name), pSql);
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }
@@ -6425,7 +6427,7 @@ int32_t doCheckForCreateTable(SSqlObj* pSql, int32_t subClauseIndex, SSqlInfo* p
     return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg1);
   }
 
-  int32_t code = tscSetTableFullName(pTableMetaInfo, pzTableName, pSql);
+  int32_t code = tscSetTableFullName(&pTableMetaInfo->name, pzTableName, pSql);
   if(code != TSDB_CODE_SUCCESS) {
     return code;
   }
@@ -6489,7 +6491,7 @@ int32_t doCheckForCreateFromStable(SSqlObj* pSql, SSqlInfo* pInfo) {
       return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg1);
     }
 
-    int32_t code = tscSetTableFullName(pStableMetaInfo, pToken, pSql);
+    int32_t code = tscSetTableFullName(&pStableMetaInfo->name, pToken, pSql);
     if (code != TSDB_CODE_SUCCESS) {
       return code;
     }
@@ -6645,7 +6647,7 @@ int32_t doCheckForCreateFromStable(SSqlObj* pSql, SSqlInfo* pInfo) {
     }
 
     STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, TABLE_INDEX);
-    ret = tscSetTableFullName(pTableMetaInfo, &pCreateTableInfo->name, pSql);
+    ret = tscSetTableFullName(&pTableMetaInfo->name, &pCreateTableInfo->name, pSql);
     if (ret != TSDB_CODE_SUCCESS) {
       return ret;
     }
@@ -6695,7 +6697,7 @@ int32_t doCheckForStream(SSqlObj* pSql, SSqlInfo* pInfo) {
     return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg1);
   }
 
-  int32_t code = tscSetTableFullName(pTableMetaInfo, &srcToken, pSql);
+  int32_t code = tscSetTableFullName(&pTableMetaInfo->name, &srcToken, pSql);
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }
@@ -6730,7 +6732,7 @@ int32_t doCheckForStream(SSqlObj* pSql, SSqlInfo* pInfo) {
   }
 
   // set the created table[stream] name
-  code = tscSetTableFullName(pTableMetaInfo, pName, pSql);
+  code = tscSetTableFullName(&pTableMetaInfo->name, pName, pSql);
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }
@@ -7072,6 +7074,122 @@ int32_t validateHavingClause(SQueryInfo* pQueryInfo, tSqlExpr* pExpr, SSqlCmd* p
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t getTableNameFromSqlNode(SSqlNode* pSqlNode, SArray* tableNameList, char* msgBuf, SSqlObj* pSql) {
+  const char* msg1 = "";
+
+  int32_t numOfTables = taosArrayGetSize(pSqlNode->from->list);
+  assert(pSqlNode->from->type == SQL_NODE_FROM_TABLELIST);
+
+  for(int32_t j = 0; j < numOfTables; ++j) {
+    SRelElementPair* item = taosArrayGet(pSqlNode->from->list, j);
+
+    SStrToken* t = &item->tableName;
+    if (t->type == TK_INTEGER || t->type == TK_FLOAT) {
+      return invalidSqlErrMsg(msgBuf, msg1);
+    }
+
+    tscDequoteAndTrimToken(t);
+    if (tscValidateName(t) != TSDB_CODE_SUCCESS) {
+      return invalidSqlErrMsg(msgBuf, msg1);
+    }
+
+    SName name = {0};
+    if (tscSetTableFullName(&name, t, pSql) != TSDB_CODE_SUCCESS) {
+      return invalidSqlErrMsg(msgBuf, msg1);
+    }
+
+    taosArrayPush(tableNameList, &name);
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t getTableNameFromSubquery(SSqlNode* pSqlNode, SArray* tableNameList, char* msgBuf, SSqlObj* pSql) {
+  int32_t numOfSub = (int32_t) taosArrayGetSize(pSqlNode->from->list);
+
+  for(int32_t j = 0; j < numOfSub; ++j) {
+    SRelElementPair* sub = taosArrayGet(pSqlNode->from->list, j);
+
+    int32_t num = (int32_t)taosArrayGetSize(sub->pSubquery);
+    for (int32_t i = 0; i < num; ++i) {
+      SSqlNode* p = taosArrayGetP(sub->pSubquery, i);
+      if (p->from->type == SQL_NODE_FROM_TABLELIST) {
+        int32_t code = getTableNameFromSqlNode(p, tableNameList, msgBuf, pSql);
+        if (code != TSDB_CODE_SUCCESS) {
+          return code;
+        }
+      } else {
+        getTableNameFromSubquery(p, tableNameList, msgBuf, pSql);
+      }
+    }
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t loadAllTableMeta(SSqlObj* pSql, struct SSqlInfo* pInfo) {
+  SSqlCmd* pCmd = &pSql->cmd;
+
+  // the table meta has already been loaded from local buffer or mnode already
+  if (pCmd->pTableMetaMap != NULL) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  pCmd->pTableMetaMap = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY),
+      false, HASH_NO_LOCK);
+
+  SArray* tableNameList = taosArrayInit(4, sizeof(SName));
+
+  int32_t size = taosArrayGetSize(pInfo->list);
+  for (int32_t i = 0; i < size; ++i) {
+    SSqlNode* pSqlNode = taosArrayGetP(pInfo->list, i);
+
+    // load the table meta in the from clause
+    if (pSqlNode->from->type == SQL_NODE_FROM_TABLELIST) {
+      int32_t code = getTableNameFromSqlNode(pSqlNode, tableNameList, tscGetErrorMsgPayload(pCmd), pSql);
+      if (code != TSDB_CODE_SUCCESS) {
+        return code;
+      }
+    } else {
+      int32_t code = getTableNameFromSubquery(pSqlNode, tableNameList, tscGetErrorMsgPayload(pCmd), pSql);
+      if (code != TSDB_CODE_SUCCESS) {
+        return code;
+      }
+    }
+  }
+
+  uint32_t maxSize = tscGetTableMetaMaxSize();
+  char name[TSDB_TABLE_FNAME_LEN] = {0};
+
+  int32_t numOfTables = taosArrayGetSize(tableNameList);
+  STableMeta* pTableMeta = calloc(1, maxSize);
+
+  for(int32_t i = 0; i < numOfTables; ++i) {
+    SName* pname = taosArrayGet(tableNameList, i);
+    tNameExtractFullName(pname, name);
+
+    size_t len = strlen(name);
+    memset(pTableMeta, 0, maxSize);
+    taosHashGetClone(tscTableMetaInfo, name, len, NULL, pTableMeta, -1);
+
+    if (pTableMeta->id.uid > 0) {
+      if (pTableMeta->tableType == TSDB_CHILD_TABLE) {
+        int32_t code = tscCreateTableMetaFromCChildMeta(pTableMeta, name);
+        if (code != TSDB_CODE_SUCCESS) {
+          // add to retrieve list
+          continue;
+        }
+      }
+
+      STableMeta* pMeta = tscTableMetaDup(pTableMeta);
+      taosHashPut(pCmd->pTableMetaMap, name, strlen(name), &pMeta, POINTER_BYTES);
+    }
+  }
+
+//  return getTableMetaFromMnode(pSql, pTableMetaInfo);
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t doLoadAllTableMeta(SSqlObj* pSql, SQueryInfo* pQueryInfo, SSqlNode* pSqlNode, int32_t numOfTables) {
   const char* msg1 = "invalid table name";
   const char* msg2 = "invalid table alias name";
@@ -7086,7 +7204,7 @@ static int32_t doLoadAllTableMeta(SSqlObj* pSql, SQueryInfo* pQueryInfo, SSqlNod
     }
 
     SRelElementPair *item = taosArrayGet(pSqlNode->from->list, i);
-    SStrToken      *oriName = &item->tableName;
+    SStrToken       *oriName = &item->tableName;
 
     if (oriName->type == TK_INTEGER || oriName->type == TK_FLOAT) {
       return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg1);
@@ -7098,7 +7216,7 @@ static int32_t doLoadAllTableMeta(SSqlObj* pSql, SQueryInfo* pQueryInfo, SSqlNod
     }
 
     STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, i);
-    code = tscSetTableFullName(pTableMetaInfo, oriName, pSql);
+    code = tscSetTableFullName(&pTableMetaInfo->name, oriName, pSql);
     if (code != TSDB_CODE_SUCCESS) {
       return code;
     }
@@ -7110,18 +7228,13 @@ static int32_t doLoadAllTableMeta(SSqlObj* pSql, SQueryInfo* pQueryInfo, SSqlNod
       }
 
       tscDequoteAndTrimToken(aliasName);
-      if (tscValidateName(aliasName) != TSDB_CODE_SUCCESS) {
-        return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg3);
-      }
-
-      if (aliasName->n >= TSDB_TABLE_NAME_LEN) {
+      if (tscValidateName(aliasName) != TSDB_CODE_SUCCESS || aliasName->n >= TSDB_TABLE_NAME_LEN) {
         return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg3);
       }
 
       strncpy(pTableMetaInfo->aliasName, aliasName->z, aliasName->n);
     } else {
-      strncpy(pTableMetaInfo->aliasName, tNameGetTableName(&pTableMetaInfo->name),
-              tListLen(pTableMetaInfo->aliasName));
+      strncpy(pTableMetaInfo->aliasName, tNameGetTableName(&pTableMetaInfo->name), tListLen(pTableMetaInfo->aliasName));
     }
 
     code = tscGetTableMeta(pSql, pTableMetaInfo);
@@ -7133,7 +7246,7 @@ static int32_t doLoadAllTableMeta(SSqlObj* pSql, SQueryInfo* pQueryInfo, SSqlNod
   return TSDB_CODE_SUCCESS;
 }
 
-static STableMeta* extractTempTableMetaFromNestQuery(SQueryInfo* pUpstream) {
+static STableMeta* extractTempTableMetaFromSubquery(SQueryInfo* pUpstream) {
   int32_t numOfColumns = pUpstream->fieldsInfo.numOfOutput;
 
   STableMeta* meta = calloc(1, sizeof(STableMeta) + sizeof(SSchema) * numOfColumns);
@@ -7189,6 +7302,8 @@ int32_t validateSqlNode(SSqlObj* pSql, SSqlNode* pSqlNode, SQueryInfo* pQueryInf
 
   if (pSqlNode->from->type == SQL_NODE_FROM_SUBQUERY) {
     // parse the subquery in the first place
+    int32_t numOfSub = taosArrayGetSize(pSqlNode->from->list);
+
     SRelElementPair* sub = taosArrayGet(pSqlNode->from->list, 0);
     SSqlNode* p = taosArrayGetP(sub->pSubquery, 0);
 
@@ -7202,7 +7317,7 @@ int32_t validateSqlNode(SSqlObj* pSql, SSqlNode* pSqlNode, SQueryInfo* pQueryInf
     tscInitQueryInfo(current);
     taosArrayPush(current->pUpstream, &pQueryInfo);
 
-    STableMeta* pTableMeta = extractTempTableMetaFromNestQuery(pQueryInfo);
+    STableMeta* pTableMeta = extractTempTableMetaFromSubquery(pQueryInfo);
     STableMetaInfo* pTableMetaInfo1 = calloc(1, sizeof(STableMetaInfo));
     pTableMetaInfo1->pTableMeta = pTableMeta;
 
@@ -7213,7 +7328,8 @@ int32_t validateSqlNode(SSqlObj* pSql, SSqlNode* pSqlNode, SQueryInfo* pQueryInf
       strncpy(pTableMetaInfo1->aliasName, sub->aliasName.z, sub->aliasName.n);
     }
 
-    current->pTableMetaInfo = calloc(1, POINTER_BYTES);
+    current->pTableMetaInfo = calloc(numOfSub, POINTER_BYTES);
+
     current->pTableMetaInfo[0] = pTableMetaInfo1;
     current->numOfTables = 1;
     current->order = pQueryInfo->order;

@@ -268,15 +268,16 @@ typedef struct {
   char *       payload;
   int32_t      payloadLen;
 
+  SHashObj    *pTableMetaMap;  // local buffer to keep the queried table meta, before validating the AST
   SQueryInfo  *pQueryInfo;
-//  int32_t      numOfClause;
+
   int32_t      clauseIndex;  // index of multiple subclause query
   SQueryInfo  *active;       // current active query info
 
   int32_t      batchSize;    // for parameter ('?') binding and batch processing
   int32_t      numOfParams;
 
-  int8_t       dataSourceType;     // load data from file or not
+  int8_t       dataSourceType; // load data from file or not
   char    reserve4[3];         // fix bus error on arm32
   int8_t       submitSchema;   // submit block is built with table schema
   char    reserve5[3];         // fix bus error on arm32

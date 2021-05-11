@@ -803,7 +803,7 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql, char** boundC
     }
 
     STableMetaInfo *pSTableMetaInfo = tscGetMetaInfo(pQueryInfo, STABLE_INDEX);
-    code = tscSetTableFullName(pSTableMetaInfo, &sToken, pSql);
+    code = tscSetTableFullName(&pTableMetaInfo->name, &sToken, pSql);
     if (code != TSDB_CODE_SUCCESS) {
       return code;
     }
@@ -938,7 +938,7 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql, char** boundC
       return tscInvalidSQLErrMsg(pCmd->payload, "invalid table name", *sqlstr);
     }
 
-    int32_t ret = tscSetTableFullName(pTableMetaInfo, &tableToken, pSql);
+    int32_t ret = tscSetTableFullName(&pTableMetaInfo->name, &tableToken, pSql);
     if (ret != TSDB_CODE_SUCCESS) {
       return ret;
     }
@@ -1133,7 +1133,7 @@ int tsParseInsertSql(SSqlObj *pSql) {
       goto _clean;
     }
 
-    if ((code = tscSetTableFullName(pTableMetaInfo, &sTblToken, pSql)) != TSDB_CODE_SUCCESS) {
+    if ((code = tscSetTableFullName(&pTableMetaInfo->name, &sTblToken, pSql)) != TSDB_CODE_SUCCESS) {
       goto _clean;
     }
 
