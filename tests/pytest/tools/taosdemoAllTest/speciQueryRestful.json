@@ -8,7 +8,7 @@
     "confirm_parameter_prompt": "no",
     "databases": "db",
     "query_times": 2,
-    "query_mode": "restful",
+    "query_mode": "rest",
     "specified_table_query": {
       "query_interval": 1,
       "concurrent": 3,

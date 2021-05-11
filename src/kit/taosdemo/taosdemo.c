@@ -68,6 +68,14 @@ enum TEST_MODE {
     INVAID_TEST
 };
 
+enum QUERY_MODE {
+  SYNC_QUERY_MODE,          // 0
+  ASYNC_QUERY_MODE,         // 1
+  INVALID_MODE
+};
+
+#define MAX_RECORDS_PER_REQ     32766
+
 #define MAX_SQL_SIZE       65536
 #define BUFFER_SIZE        (65536*2)
 #define COND_BUF_LEN        BUFFER_SIZE - 30
@@ -3436,10 +3444,12 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
       errorPrint("%s() LN%d, failed to read json, num_of_records_per_req input mistake\n",
         __func__, __LINE__);
       goto PARSE_OVER;
+    } else if (numRecPerReq->valueint > MAX_RECORDS_PER_REQ) {
+      numRecPerReq->valueint = MAX_RECORDS_PER_REQ;
     }
     g_args.num_of_RPR = numRecPerReq->valueint;
   } else if (!numRecPerReq) {
-    g_args.num_of_RPR = UINT64_MAX;
+    g_args.num_of_RPR = MAX_RECORDS_PER_REQ;
   } else {
     errorPrint("%s() LN%d, failed to read json, num_of_records_per_req not found\n",
         __func__, __LINE__);
