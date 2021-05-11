@@ -932,6 +932,11 @@ static int insertStmtUpdateBatch(STscStmt* stmt) {
   SSqlCmd* pCmd = &pSql->cmd;
   STableDataBlocks* pBlock = NULL;
 
+  if (pCmd->batchSize > INT16_MAX) {
+    tscError("too many record:%d", pCmd->batchSize);
+    return TSDB_CODE_TSC_APP_ERROR;
+  }
+  
   assert(pCmd->numOfClause == 1);
   if (taosHashGetSize(pCmd->pTableBlockHashList) == 0) {
     return TSDB_CODE_SUCCESS;
@@ -1432,7 +1437,7 @@ int taos_stmt_bind_param_batch(TAOS_STMT* stmt, TAOS_MULTI_BIND* bind) {
     return TSDB_CODE_TSC_DISCONNECTED;
   }
 
-  if (bind == NULL || bind->num <= 0) {
+  if (bind == NULL || bind->num <= 0 || bind->num > INT16_MAX) {
     tscError("0x%"PRIx64" invalid parameter", pStmt->pSql->self);
     return TSDB_CODE_TSC_APP_ERROR;
   }
@@ -1466,7 +1471,7 @@ int taos_stmt_bind_single_param_batch(TAOS_STMT* stmt, TAOS_MULTI_BIND* bind, in
     return TSDB_CODE_TSC_DISCONNECTED;
   }
 
-  if (bind == NULL || bind->num <= 0) {
+  if (bind == NULL || bind->num <= 0 || bind->num > INT16_MAX) {
     tscError("0x%"PRIx64" invalid parameter", pStmt->pSql->self);
     return TSDB_CODE_TSC_APP_ERROR;
   }
