@@ -32,7 +32,7 @@ public class TSDBJNIConnector {
     // Connection pointer used in C
     private long taos = TSDBConstants.JNI_NULL_POINTER;
     // result set status in current connection
-    private boolean isResultsetClosed = true;
+    private boolean isResultsetClosed;
     private int affectedRows = -1;
 
     static {
@@ -135,6 +135,7 @@ public class TSDBJNIConnector {
 
         // Try retrieving result set for the executed SQL using the current connection pointer. 
         pSql = this.getResultSetImp(this.taos, pSql);
+        // if pSql == 0L that means resultset is closed
         isResultsetClosed = (pSql == TSDBConstants.JNI_NULL_POINTER);
 
         return pSql;
@@ -172,16 +173,7 @@ public class TSDBJNIConnector {
      * Free resultset operation from C to release resultset pointer by JNI
      */
     public int freeResultSet(long pSql) {
-        int res = TSDBConstants.JNI_SUCCESS;
-//        if (result != taosResultSetPointer && taosResultSetPointer != TSDBConstants.JNI_NULL_POINTER) {
-//            throw new RuntimeException("Invalid result set pointer");
-//        }
-
-//        if (taosResultSetPointer != TSDBConstants.JNI_NULL_POINTER) {
-        res = this.freeResultSetImp(this.taos, pSql);
-//            taosResultSetPointer = TSDBConstants.JNI_NULL_POINTER;
-//        }
-
+        int res = this.freeResultSetImp(this.taos, pSql);
         isResultsetClosed = true;
         return res;
     }
@@ -199,7 +191,6 @@ public class TSDBJNIConnector {
 //        }
 //        return resCode;
 //    }
-
     private native int freeResultSetImp(long connection, long result);
 
     /**
