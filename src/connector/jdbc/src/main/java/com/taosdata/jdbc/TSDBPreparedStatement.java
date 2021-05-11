@@ -621,29 +621,32 @@ public class TSDBPreparedStatement extends TSDBStatement implements PreparedStat
     	setValueImpl(columnIndex, list, TSDBConstants.TSDB_DATA_TYPE_NCHAR, size * Integer.BYTES);
     }
     
-    public void columnDataAddBatch() {
-    	// do nothing
-    }
-    
-	public void columnDataExecuteBatch() throws SQLException {
-		int numOfCols = this.colData.size();
-		int rows = ((ColumnInfo) this.colData.get(0)).data.size();
-
-		// pass the data block to native code
-		TSDBJNIConnector connector = null;
-		try {
-			connector = ((TSDBConnection) this.getConnection()).getConnector();
-			this.nativeStmtHandle = connector.prepareStmt(rawSql);
-			
-			// table name is not set yet, abort
-			if (this.tableName == null) {
-                throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNKNOWN, "table name not set yet");
-			}
-			connector.setBindTableName(this.nativeStmtHandle, this.tableName);
-		} catch (SQLException e) {
-			e.printStackTrace();
+    public void columnDataAddBatch() throws SQLException {
+    	// pass the data block to native code
+		if (rawSql == null) {
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNKNOWN, "sql statement not set yet");
 		}
-
+		
+		// table name is not set yet, abort
+		if (this.tableName == null) {
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNKNOWN, "table name not set yet");
+		}
+		
+		int numOfCols = this.colData.size();
+		if (numOfCols == 0) {
+			throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNKNOWN, "column data not bind");
+		}
+		
+		TSDBJNIConnector connector = ((TSDBConnection) this.getConnection()).getConnector();
+		this.nativeStmtHandle = connector.prepareStmt(rawSql);
+		connector.setBindTableName(this.nativeStmtHandle, this.tableName);
+		
+		ColumnInfo colInfo = (ColumnInfo) this.colData.get(0);
+		if (colInfo == null) {
+			throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNKNOWN, "column data not bind");
+		}
+		
+		int rows = colInfo.data.size();
 		for (int i = 0; i < numOfCols; ++i) {
 			ColumnInfo col1 = this.colData.get(i);
 			if (col1 == null || !col1.isTypeSet()) {
@@ -684,8 +687,13 @@ public class TSDBPreparedStatement extends TSDBStatement implements PreparedStat
 				
 				case TSDBConstants.TSDB_DATA_TYPE_BOOL: {
 					for (int j = 0; j < rows; ++j) {
-						Byte val = (Byte) col1.data.get(j);
-						colDataList.put(val == null? 0:val);
+						Boolean val = (Boolean) col1.data.get(j);
+						if (val == null) {
+							colDataList.put((byte) 0);
+						} else {
+							colDataList.put((byte) (val? 1:0));
+						}
+						
 						isNullList.put((byte) (val == null? 1:0));
 					}
 					break;
@@ -772,23 +780,27 @@ public class TSDBPreparedStatement extends TSDBStatement implements PreparedStat
 			
 			connector.bindColumnDataArray(this.nativeStmtHandle, colDataList, lengthList, isNullList, col1.type, col1.bytes, rows, i);
 		}
-		
+    }
+    
+	public void columnDataExecuteBatch() throws SQLException {
+		TSDBJNIConnector connector = ((TSDBConnection) this.getConnection()).getConnector();
 		connector.executeBatch(this.nativeStmtHandle);
+		this.columnDataClearBatch();
 	}
     
     public void columnDataClearBatch() {
-    	// TODO clear data in this.colData
+    	int size = this.colData.size();
+    	this.colData.clear();
+    	
+        this.colData.addAll(Collections.nCopies(size, null));
+        this.tableName = null;   // clear the table name
     }
     
-    public void columnDataCloseBatch() {
-    	TSDBJNIConnector connector = null;
-		try {
-			connector = ((TSDBConnection) this.getConnection()).getConnector();
-			connector.closeBatch(this.nativeStmtHandle);
-			this.nativeStmtHandle = 0L;
-			this.tableName = null;
-		} catch (SQLException e) {
-			e.printStackTrace();
-		}
+    public void columnDataCloseBatch() throws SQLException {
+		TSDBJNIConnector connector = ((TSDBConnection) this.getConnection()).getConnector();
+		connector.closeBatch(this.nativeStmtHandle);
+		
+		this.nativeStmtHandle = 0L;
+		this.tableName = null;
     }
 }
