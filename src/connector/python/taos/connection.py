@@ -17,8 +17,7 @@ class TDengineConnection(object):
         self._config = None
         self._chandle = None
 
-        if len(kwargs) > 0:
-            self.config(**kwargs)
+        self.config(**kwargs)
 
     def config(self, **kwargs):
         # host
