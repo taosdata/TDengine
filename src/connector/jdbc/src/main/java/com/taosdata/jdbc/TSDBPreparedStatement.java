@@ -60,10 +60,12 @@ public class TSDBPreparedStatement extends TSDBStatement implements PreparedStat
             parameters = new Object[parameterCnt];
             this.isPrepared = true;
         }
-        
-        // the table name is also a parameter, so ignore it.
-        this.colData = new ArrayList<ColumnInfo>(parameterCnt - 1);
-        this.colData.addAll(Collections.nCopies(parameterCnt - 1, null));
+
+		if (parameterCnt > 1) {
+	        // the table name is also a parameter, so ignore it.
+	        this.colData = new ArrayList<ColumnInfo>(parameterCnt - 1);
+	        this.colData.addAll(Collections.nCopies(parameterCnt - 1, null));
+		}
     }
 
     private void init(String sql) {
