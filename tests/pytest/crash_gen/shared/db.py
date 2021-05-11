@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 import sys
+import os
+import datetime
 import time
 import threading
 import requests
 from requests.auth import HTTPBasicAuth
-from crash_gen.types import QueryResult
+
 
 import taos
 from util.sql import *
@@ -13,13 +15,12 @@ from util.cases import *
 from util.dnodes import *
 from util.log import *
 
-from .misc import Logging, CrashGenError, Helper, Dice
-import os
-import datetime
 import traceback
 # from .service_manager import TdeInstance
 
-from crash_gen.settings import Settings
+from .config import Config
+from .misc import Logging, CrashGenError, Helper
+from .types import QueryResult
 
 class DbConn:
     TYPE_NATIVE = "native-c"
@@ -250,7 +251,13 @@ class MyTDSql:
     def _execInternal(self, sql):        
         startTime = time.time() 
         # Logging.debug("Executing SQL: " + sql)
+        # ret = None # TODO: use strong type here
+        # try: # Let's not capture the error, and let taos.error.ProgrammingError pass through
         ret = self._cursor.execute(sql)
+        # except taos.error.ProgrammingError as err:
+        #     Logging.warning("Taos SQL execution error: {}, SQL: {}".format(err.msg, sql))
+        #     raise CrashGenError(err.msg)
+            
         # print("\nSQL success: {}".format(sql))
         queryTime =  time.time() - startTime
         # Record the query time
@@ -262,7 +269,7 @@ class MyTDSql:
                 cls.lqStartTime = startTime
 
         # Now write to the shadow database
-        if Settings.getConfig().use_shadow_db:
+        if Config.isSet('use_shadow_db'):
             if sql[:11] == "INSERT INTO":
                 if sql[:16] == "INSERT INTO db_0":
                     sql2 = "INSERT INTO db_s" + sql[16:]

@@ -47,7 +47,7 @@ class Logging:
         return cls.logger
 
     @classmethod
-    def clsInit(cls, gConfig): # TODO: refactor away gConfig
+    def clsInit(cls, debugMode: bool):
         if cls.logger:
             return
         
@@ -62,12 +62,8 @@ class Logging:
         # print("setting logger variable")
         # global logger
         cls.logger = MyLoggingAdapter(_logger, {})
-
-        if (gConfig.debug):
-            cls.logger.setLevel(logging.DEBUG)  # default seems to be INFO
-        else:
-            cls.logger.setLevel(logging.INFO)
-
+        cls.logger.setLevel(logging.DEBUG if debugMode else logging.INFO)  # default seems to be INFO
+        
     @classmethod
     def info(cls, msg):
         cls.logger.info(msg)

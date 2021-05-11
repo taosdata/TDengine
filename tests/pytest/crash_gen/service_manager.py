@@ -19,10 +19,15 @@ except:
     sys.exit(-1)
 from queue import Queue, Empty
 
-from crash_gen.misc import CrashGenError, Dice, Helper, Logging, Progress, Status
-from crash_gen.db import DbConn, DbTarget
-from crash_gen.settings import Settings
-from crash_gen.types import DirPath
+from .shared.config import Config
+from .shared.db import DbTarget, DbConn
+from .shared.misc import Logging, Helper, CrashGenError, Status, Progress, Dice
+from .shared.types import DirPath
+
+# from crash_gen.misc import CrashGenError, Dice, Helper, Logging, Progress, Status
+# from crash_gen.db import DbConn, DbTarget
+# from crash_gen.settings import Config
+# from crash_gen.types import DirPath
 
 class TdeInstance():
     """
@@ -173,7 +178,7 @@ quorum 2
 
     def getServiceCmdLine(self): # to start the instance
         cmdLine = []
-        if Settings.getConfig().track_memory_leaks:
+        if Config.getConfig().track_memory_leaks:
             Logging.info("Invoking VALGRIND on service...")
             cmdLine = ['valgrind', '--leak-check=yes']
         # TODO: move "exec -c" into Popen(), we can both "use shell" and NOT fork so ask to lose kill control
@@ -789,22 +794,10 @@ class ServiceManagerThread:
     def stop(self):
         # can be called from both main thread or signal handler
 
-        # Linux will send Control-C generated SIGINT to the TDengine process
-        # already, ref:
+        # Linux will send Control-C generated SIGINT to the TDengine process already, ref:
         # https://unix.stackexchange.com/questions/176235/fork-and-how-signals-are-delivered-to-processes
-        # if not self._tdeSubProcess:
-        #     raise RuntimeError("sub process object missing")
 
-        # self._status.set(Status.STATUS_STOPPING)
-        # TdeSubProcess.stop(self._tdeSubProcess) # must stop, no matter what
-        # self._tdeSubProcess = None
-        # if not self._tdeSubProcess.stop(): # everything withing
-        #     if self._tdeSubProcess.isRunning():  # still running, should now never happen
-        #         Logging.error("FAILED to stop sub process, it is still running... pid = {}".format(
-        #             self._tdeSubProcess.getPid()))
-        #     else:
-        #         self._tdeSubProcess = None  # not running any more
-        self.join()  # stop the thread, change the status, etc.
+        self.join()  # stop the thread, status change moved to TdeSubProcess
 
         # Check if it's really stopped
         outputLines = 10 # for last output
