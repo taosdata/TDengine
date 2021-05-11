@@ -50,46 +50,11 @@ class TDTestCase:
         binPath = buildPath+ "/build/bin/"      
         
         # query: query specified  table  and query  super table 
-        os.system("%staosdemo -f tools/taosdemoAllTest/speciQueryInsertdata.json" % binPath)
-        os.system("%staosdemo -f tools/taosdemoAllTest/speciQueryTaosc.json" % binPath)
-        os.system("cat query_res0.txt* |sort -u > all_query_res0.txt")
-        os.system("cat query_res1.txt* |sort -u > all_query_res1.txt")
-        os.system("cat query_res2.txt* |sort -u > all_query_res2.txt")
-        tdSql.execute("use db")
-        tdSql.execute('create table result0 using stb0 tags(121,43,"beijing","beijing","beijing","beijing","beijing")')
-        os.system("python3 tools/taosdemoAllTest/convertResFile.py")
-        tdSql.execute("insert into result0 file './test_query_res0.txt'")   
-        tdSql.query("select ts from result0")
-        tdSql.checkData(0, 0, "2020-11-01 00:00:00.099000") 
-        tdSql.query("select count(*) from result0")
-        tdSql.checkData(0, 0, 1) 
-        with open('./all_query_res1.txt','r+') as f1:    
-            result1 = int(f1.readline())
-            tdSql.query("select count(*) from stb00_1")
-            tdSql.checkData(0, 0, "%d" % result1)
-
-        with open('./all_query_res2.txt','r+') as f2:
-            result2 = int(f2.readline())
-            d2 = datetime.fromtimestamp(result2/1000)
-            timest = d2.strftime("%Y-%m-%d %H:%M:%S.%f")
-            tdSql.query("select last_row(ts) from stb1")
-            tdSql.checkData(0, 0, "%s" % timest)
-        
-        # # delete useless files
-        # os.system("rm -rf ./insert_res.txt")
-        # os.system("rm -rf tools/taosdemoAllTest/*.py.sql")        
-        # os.system("rm -rf ./querySystemInfo*")  
-        # os.system("rm -rf ./query_res*")   
-        # os.system("rm -rf ./all_query*")
-        # os.system("rm -rf ./test_query_res0.txt")
-
-
-        # # use restful api to query
-        # os.system("%staosdemo -f tools/taosdemoAllTest/speciQueryInsertdata.json" % binPath)
-        # os.system("%staosdemo -f tools/taosdemoAllTest/speciQueryRestful.json" % binPath)
+        # os.system("%staosdemo -f tools/taosdemoAllTest/subInsertdata.json" % binPath)
+        # os.system("%staosdemo -f tools/taosdemoAllTest/sub.json" % binPath)
         # os.system("cat query_res0.txt* |sort -u > all_query_res0.txt")
         # os.system("cat query_res1.txt* |sort -u > all_query_res1.txt")
-        # # os.system("cat query_res2.txt* |sort -u > all_query_res2.txt")
+        # os.system("cat query_res2.txt* |sort -u > all_query_res2.txt")
         # tdSql.execute("use db")
         # tdSql.execute('create table result0 using stb0 tags(121,43,"beijing","beijing","beijing","beijing","beijing")')
         # os.system("python3 tools/taosdemoAllTest/convertResFile.py")
@@ -108,25 +73,23 @@ class TDTestCase:
         #     d2 = datetime.fromtimestamp(result2/1000)
         #     timest = d2.strftime("%Y-%m-%d %H:%M:%S.%f")
         #     tdSql.query("select last_row(ts) from stb1")
-        #     tdSql.checkData(0, 0, "%s" % timest)
-        
+        #     tdSql.checkData(0, 0, "%s" % timest)        
 
         
-        # query times less than or equal to 100
-        os.system("%staosdemo -f tools/taosdemoAllTest/querySpeciMutisql100.json" % binPath)
-        os.system("%staosdemo -f tools/taosdemoAllTest/querySuperMutisql100.json" % binPath)
+        # # query times less than or equal to 100
+        # os.system("%staosdemo -f tools/taosdemoAllTest/QuerySpeciMutisql100.json" % binPath)
+        # os.system("%staosdemo -f tools/taosdemoAllTest/QuerySuperMutisql100.json" % binPath)
+        
 
-        # query result print QPS
-        os.system("%staosdemo -f tools/taosdemoAllTest/queryQps.json" % binPath)
 
 
         # delete useless files
-        os.system("rm -rf ./insert_res.txt")
-        os.system("rm -rf tools/taosdemoAllTest/*.py.sql")        
-        os.system("rm -rf ./querySystemInfo*")  
-        os.system("rm -rf ./query_res*")   
-        os.system("rm -rf ./all_query*")
-        os.system("rm -rf ./test_query_res0.txt")
+        # os.system("rm -rf ./insert_res.txt")
+        # os.system("rm -rf tools/taosdemoAllTest/*.py.sql")        
+        # os.system("rm -rf ./querySystemInfo*")  
+        # os.system("rm -rf ./query_res*")   
+        # os.system("rm -rf ./all_query*")
+        # os.system("rm -rf ./test_query_res0.txt")
          
     def stop(self):
         tdSql.close()

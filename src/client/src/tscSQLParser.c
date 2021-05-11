@@ -636,15 +636,23 @@ int32_t tscToSQLCmd(SSqlObj* pSql, struct SSqlInfo* pInfo) {
       // set the command/global limit parameters from the first subclause to the sqlcmd object
       SQueryInfo* pQueryInfo1 = tscGetQueryInfo(pCmd, 0);
       pCmd->command = pQueryInfo1->command;
-
+      int32_t diffSize = 0;
+      
       // if there is only one element, the limit of clause is the limit of global result.
       // validate the select node for "UNION ALL" subclause
       for (int32_t i = 1; i < pCmd->numOfClause; ++i) {
         SQueryInfo* pQueryInfo2 = tscGetQueryInfo(pCmd, i);
 
-        int32_t ret = tscFieldInfoCompare(&pQueryInfo1->fieldsInfo, &pQueryInfo2->fieldsInfo);
+        int32_t ret = tscFieldInfoCompare(&pQueryInfo1->fieldsInfo, &pQueryInfo2->fieldsInfo, &diffSize);
         if (ret != 0) {
           return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg1);
+        }
+      }
+
+      if (diffSize) {
+        for (int32_t i = 1; i < pCmd->numOfClause; ++i) {
+          SQueryInfo* pQueryInfo2 = tscGetQueryInfo(pCmd, i);        
+          tscFieldInfoSetSize(&pQueryInfo1->fieldsInfo, &pQueryInfo2->fieldsInfo);
         }
       }
 
@@ -1607,11 +1615,27 @@ bool isValidDistinctSql(SQueryInfo* pQueryInfo) {
   return false;
 }
 
+static bool hasNoneUserDefineExpr(SQueryInfo* pQueryInfo) {
+  size_t numOfExprs = taosArrayGetSize(pQueryInfo->exprList);
+  for (int32_t i = 0; i < numOfExprs; ++i) {
+    SSqlExpr* pExpr = taosArrayGetP(pQueryInfo->exprList, i);
+
+    if (TSDB_COL_IS_UD_COL(pExpr->colInfo.flag)) {
+      continue;
+    }
+
+    return true;
+  }
+
+  return false;
+}
+
 int32_t validateSelectNodeList(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SArray* pSelNodeList, bool isSTable, bool joinQuery,
                                bool timeWindowQuery) {
   assert(pSelNodeList != NULL && pCmd != NULL);
 
   const char* msg1 = "too many items in selection clause";
+
   const char* msg2 = "functions or others can not be mixed up";
   const char* msg3 = "not support query expression";
   const char* msg4 = "only support distinct one tag";
@@ -1676,7 +1700,7 @@ int32_t validateSelectNodeList(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SArray* pS
   
   // there is only one user-defined column in the final result field, add the timestamp column.
   size_t numOfSrcCols = taosArrayGetSize(pQueryInfo->colList);
-  if (numOfSrcCols <= 0 && !tscQueryTags(pQueryInfo) && !tscQueryBlockInfo(pQueryInfo)) {
+  if ((numOfSrcCols <= 0 || !hasNoneUserDefineExpr(pQueryInfo)) && !tscQueryTags(pQueryInfo) && !tscQueryBlockInfo(pQueryInfo)) {
     addPrimaryTsColIntoResult(pQueryInfo);
   }
 
