@@ -1,0 +1,112 @@
+system sh/stop_dnodes.sh
+
+system sh/deploy.sh -n dnode1 -i 1
+system sh/cfg.sh -n dnode1 -c walLevel -v 1
+system sh/cfg.sh -n dnode1 -c maxVgroupsPerDb -v 1
+system sh/cfg.sh -n dnode1 -c monitor -v 1
+system sh/exec.sh -n dnode1 -s start
+sleep 100
+sql connect
+
+$dbPrefix = lm_db
+$tbPrefix = lm_tb
+$stbPrefix = lm_stb
+$tbNum = 1
+$rowNum = 2000
+$totalNum = $tbNum * $rowNum
+$ts0 = 1537146000000
+$delta = 1
+print ========== limit.sim
+$i = 0
+$db = $dbPrefix . $i
+$stb = $stbPrefix . $i
+
+sql drop database $db -x step1
+step1:
+sql create database $db 
+print ====== create tables
+sql use $db
+sql create table $stb (ts timestamp, c8 binary(16000)) tags(t1 int)
+
+$i = 0
+$ts = $ts0
+while $i < $tbNum
+  $tb = $tbPrefix . $i
+  sql create table $tb using $stb tags( $i )
+ 
+  $x = 0
+  while $x < $rowNum
+    $ts1 = $ts0 + $delta
+    $ts2 = $ts1 + $delta
+    $ts3 = $ts2 + $delta
+    $ts4 = $ts3 + $delta
+    $ts5 = $ts4 + $delta
+    $ts6 = $ts5 + $delta
+    $ts7 = $ts6 + $delta
+    $ts8 = $ts7 + $delta
+    $ts9 = $ts8 + $delta
+    $ts10 = $ts9 + $delta
+    $ts11 = $ts10 + $delta
+    $ts12 = $ts11 + $delta
+    $ts13 = $ts12 + $delta
+    $ts14 = $ts13 + $delta
+    $ts15 = $ts14 + $delta
+    $ts16 = $ts15 + $delta
+    $ts17 = $ts16 + $delta
+    $ts18 = $ts17 + $delta
+    $ts19 = $ts18 + $delta
+    $ts20 = $ts19 + $delta
+    $c = $x / 10
+    $c = $c * 10
+    $c = $x - $c
+    $binary = 'binary . $c
+    $binary = $binary . '
+    $nchar = 'nchar . $c
+    $nchar = $nchar . '
+
+    sql insert into $tb values ( $ts1 , $binary ) ( $ts2 ,$binary ) ( $ts3 , $binary ) ( $ts4 , $binary ) ( $ts5 , $binary ) ( $ts6 , $binary ) ( $ts7 , $binary ) ( $ts8 , $binary ) ( $ts9 , $binary ) ( $ts10 , $binary ) ( $ts11 , $binary ) ( $ts12 ,$binary ) ( $ts13 , $binary ) ( $ts14 , $binary ) ( $ts15 , $binary ) ( $ts16 , $binary ) ( $ts17 , $binary ) ( $ts18 , $binary ) ( $ts19 , $binary ) ( $ts20 , $binary )
+    $x = $x + 20
+    $ts0 = $ts20
+  endw 
+
+  $i = $i + 1
+endw 
+print ====== tables created
+
+sql_slow select * from $stb
+if $rows != $rowNum then
+  return -1
+endi
+
+sleep 2000
+
+sql select * from log.slowquery
+if $rows != 1 then
+  print $rows
+  return -1
+endi
+
+sql select * from $stb
+if $rows != $rowNum then
+  return -1
+endi
+
+sleep 2000
+
+sql select * from log.slowquery
+if $rows != 1 then
+  return -1
+endi
+
+$i = 0
+$tb = $tbPrefix . $i
+sql_slow select * from $tb
+
+sleep 2000
+
+sql select * from log.slowquery
+if $rows != 2 then
+  return -1
+endi
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT
