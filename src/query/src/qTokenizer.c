@@ -562,9 +562,9 @@ uint32_t tSQLGetToken(char* z, uint32_t* tokenId) {
 
 SStrToken tscReplaceStrToken(char **str, SStrToken *token, const char* newToken) {
   char *src = *str;
-  int32_t nsize = strlen(newToken);
-  int32_t size = strlen(*str) - token->n + nsize + 1;
-  int32_t bsize = (uint64_t)token->z - (uint64_t)src;
+  size_t nsize = strlen(newToken);
+  int32_t size = (int32_t)strlen(*str) - token->n + (int32_t)nsize + 1;
+  int32_t bsize = (int32_t)((uint64_t)token->z - (uint64_t)src);
   SStrToken ntoken;
 
   *str = calloc(1, size);
@@ -573,7 +573,7 @@ SStrToken tscReplaceStrToken(char **str, SStrToken *token, const char* newToken)
   strcat(*str, newToken);
   strcat(*str, token->z + token->n);
 
-  ntoken.n = nsize;
+  ntoken.n = (uint32_t)nsize;
   ntoken.z = *str + bsize;
 
   tfree(src);

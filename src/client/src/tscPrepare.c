@@ -745,7 +745,7 @@ static int doBindBatchParam(STableDataBlocks* pBlock, SParamInfo* param, TAOS_MU
     }
 
     if (!IS_VAR_DATA_TYPE(param->type)) {
-      memcpy(data + param->offset, bind->buffer + bind->buffer_length * i, tDataTypes[param->type].bytes);
+      memcpy(data + param->offset, (char *)bind->buffer + bind->buffer_length * i, tDataTypes[param->type].bytes);
       
       if (param->offset == 0) {
         if (tsCheckTimestamp(pBlock, data + param->offset) != TSDB_CODE_SUCCESS) {
@@ -759,7 +759,7 @@ static int doBindBatchParam(STableDataBlocks* pBlock, SParamInfo* param, TAOS_MU
         return TSDB_CODE_TSC_INVALID_VALUE;
       }
       int16_t bsize = (short)bind->length[i];
-      STR_WITH_SIZE_TO_VARSTR(data + param->offset, bind->buffer + bind->buffer_length * i, bsize);
+      STR_WITH_SIZE_TO_VARSTR(data + param->offset, (char *)bind->buffer + bind->buffer_length * i, bsize);
     } else if (param->type == TSDB_DATA_TYPE_NCHAR) {
       if (bind->length[i] > (uintptr_t)param->bytes) {
         tscError("nchar string length too long, ignore it, max:%d, actual:%d", param->bytes, (int32_t)bind->length[i]);
@@ -767,8 +767,8 @@ static int doBindBatchParam(STableDataBlocks* pBlock, SParamInfo* param, TAOS_MU
       }
 
       int32_t output = 0;
-      if (!taosMbsToUcs4(bind->buffer + bind->buffer_length * i, bind->length[i], varDataVal(data + param->offset), param->bytes - VARSTR_HEADER_SIZE, &output)) {
-        tscError("convert nchar string to UCS4_LE failed:%s", (char*)(bind->buffer + bind->buffer_length * i));
+      if (!taosMbsToUcs4((char *)bind->buffer + bind->buffer_length * i, bind->length[i], varDataVal(data + param->offset), param->bytes - VARSTR_HEADER_SIZE, &output)) {
+        tscError("convert nchar string to UCS4_LE failed:%s", (char*)((char *)bind->buffer + bind->buffer_length * i));
         return TSDB_CODE_TSC_INVALID_VALUE;
       }
 
@@ -1293,7 +1293,7 @@ int taos_stmt_set_tbname(TAOS_STMT* stmt, const char* name) {
     return TSDB_CODE_TSC_APP_ERROR;
   }
 
-  if (pStmt->last == STMT_INIT && pStmt->last == STMT_BIND && pStmt->last == STMT_BIND_COL) {
+  if (pStmt->last == STMT_INIT || pStmt->last == STMT_BIND || pStmt->last == STMT_BIND_COL) {
     tscError("0x%"PRIx64" settbname status error, last:%d", pSql->self, pStmt->last);
     return TSDB_CODE_TSC_APP_ERROR;
   }
