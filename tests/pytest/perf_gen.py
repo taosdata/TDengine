@@ -467,9 +467,14 @@ def main():
     Dice.seed(0)  # initial seeding of dice
     
     bName = Config.getConfig().benchmark_name
-    bClass = globals()[bName + 'Benchmark']
-    bm = bClass() # Benchmark object
-    bm.run()
+    bClassName = bName + 'Benchmark'
+    x = globals()
+    if bClassName in globals():
+        bClass = globals()[bClassName]
+        bm = bClass() # Benchmark object
+        bm.run()
+    else:
+        raise PerfGenError("No such benchmark: {}".format(bName))
 
     # bm = Benchmark.create(Config.getConfig().target_database)
     # bm.run()
