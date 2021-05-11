@@ -6562,7 +6562,6 @@ static void *superSubscribe(void *sarg) {
                 appendResultToFile(res, tmpFile);
             }
         }
-        appendResultToFile(res, tmpFile);
       }
     }
   }
