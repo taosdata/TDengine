@@ -14,7 +14,6 @@ exe:
 	gcc $(CFLAGS) ./asyncdemo.c -o $(ROOT)asyncdemo $(LFLAGS)
 	gcc $(CFLAGS) ./demo.c -o $(ROOT)demo $(LFLAGS)
 	gcc $(CFLAGS) ./prepare.c -o $(ROOT)prepare $(LFLAGS)
-	gcc $(CFLAGS) ./batchprepare.c -o $(ROOT)batchprepare $(LFLAGS)
 	gcc $(CFLAGS) ./stream.c -o $(ROOT)stream $(LFLAGS)
 	gcc $(CFLAGS) ./subscribe.c -o $(ROOT)subscribe $(LFLAGS)
 	gcc $(CFLAGS) ./apitest.c -o $(ROOT)apitest $(LFLAGS)
