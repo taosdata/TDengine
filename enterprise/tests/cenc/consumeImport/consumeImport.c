@@ -31,6 +31,7 @@ int                 run       = 1;
 int                 async     = 0;
 int                 restart   = 0;
 int                 keep      = 1;
+int                 seed_only = 1;
 const char         *src_host  = "localhost";
 const char         *dst_host  = "localhost";
 const char         *src_user  = "root";
@@ -227,6 +228,13 @@ void cenc_import_detail(MS3TraceList *mstl, callback_params_t *param)
     cp = cmd + np;
 
     while (seg) {
+      if (seed_only) {
+        if ((int) seg->samprate != 100) {
+          seg = seg->next;
+          continue;
+        }
+      }
+
       if (seg->numsamples <= 0) {
         seg = seg->next;
         continue;
@@ -685,6 +693,11 @@ int main(int argc, char **argv)
               "-async -restart -nokeep -help]\r\n", argv[0]);
 
       exit(0);
+    }
+
+    if (strcmp(argv[i], "-all") == 0) {
+      seed_only = 0;
+      continue;
     }
 
     if (strcmp(argv[i], "-async") == 0) {
