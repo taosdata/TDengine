@@ -22,6 +22,7 @@ public class RestfulConnection extends AbstractConnection {
     private final DatabaseMetaData metadata;
 
     public RestfulConnection(String host, String port, Properties props, String database, String url) {
+        super(props);
         this.host = host;
         this.port = Integer.parseInt(port);
         this.database = database;

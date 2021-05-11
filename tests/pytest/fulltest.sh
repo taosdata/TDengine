@@ -23,6 +23,7 @@ python3 ./test.py -f insert/insertIntoTwoTables.py
 python3 ./test.py -f insert/before_1970.py
 python3 bug2265.py
 python3 ./test.py -f insert/bug3654.py
+python3 ./test.py -f insert/insertDynamicColBeforeVal.py
 
 #table
 python3 ./test.py -f table/alter_wal0.py
@@ -151,8 +152,7 @@ python3 test.py -f tools/taosdemoTestTblAlt.py
 python3 test.py -f tools/taosdemoTestSampleData.py
 python3 test.py -f tools/taosdemoTestInterlace.py
 python3 test.py -f tools/taosdemoTestQuery.py
-python3 test.py -f tools/taosdemoAllTest/taosdemoTestInsertWithJson.py 
-python3 test.py -f tools/taosdemoAllTest/taosdemoTestQueryWithJson.py
+
 
 
 # update
@@ -226,6 +226,7 @@ python3 ./test.py -f query/querySecondtscolumnTowherenow.py
 python3 ./test.py -f query/queryFilterTswithDateUnit.py
 python3 ./test.py -f query/queryTscomputWithNow.py
 python3 ./test.py -f query/computeErrorinWhere.py
+python3 ./test.py -f query/queryTsisNull.py
 
 
 
@@ -327,5 +328,8 @@ python3 ./test.py -f insert/boundary2.py
 python3 ./test.py -f alter/alter_debugFlag.py
 python3 ./test.py -f query/queryBetweenAnd.py
 python3 ./test.py -f tag_lite/alter_tag.py
+
+python3 test.py -f tools/taosdemoAllTest/taosdemoTestInsertWithJson.py 
+python3 test.py -f tools/taosdemoAllTest/taosdemoTestQueryWithJson.py
 
 #======================p4-end===============

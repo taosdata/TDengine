@@ -11,11 +11,11 @@
     "confirm_parameter_prompt": "no",
     "insert_interval": 0,
     "interlace_rows": 10,
-    "num_of_records_per_req": 100,
+    "num_of_records_per_req": 10,
     "max_sql_len": 10240000000, 
     "databases": [{
         "dbinfo": {
-            "name": "db1",
+            "name": "db",
             "drop": "yes",
             "replica": 1,
             "days": 10,
@@ -35,13 +35,13 @@
         "super_tables": [{
             "name": "stb0",
             "child_table_exists":"no",
-            "childtable_count": 10,
+            "childtable_count": 0,
             "childtable_prefix": "stb00_",
             "auto_create_table": "no",
             "batch_create_tbl_num": 10,
             "data_source": "rand",
             "insert_mode": "taosc",
-            "insert_rows": 1000,
+            "insert_rows": 1,
             "childtable_limit": 0,
             "childtable_offset":0,
             "multi_thread_write_one_tbl": "no",
@@ -55,19 +55,19 @@
             "sample_format": "csv",
             "sample_file": "./sample.csv",
             "tags_file": "",
-            "columns": [{"type": "INT"}, {"type": "DOUBLE", "count":1}, {"type": "BIGINT", "count":1}, {"type": "float", "count":1}, {"type": "double", "count":1}, {"type": "BINARY", "len": 16, "count":3}, {"type": "BINARY", "len": 32, "count":6}],
-            "tags": [{"type": "TINYINT", "count":127}, {"type": "BINARY", "len": 16, "count":2}]
+            "columns": [{"type": "BINARY", "len": 1, "count":1}],
+            "tags": [{"type": "TINYINT", "count":1}, {"type": "BINARY", "len": 16, "count":2}]
         },
         {
             "name": "stb1",
             "child_table_exists":"no",
-            "childtable_count": 20,
+            "childtable_count": 10,
             "childtable_prefix": "stb01_",
             "auto_create_table": "no",
             "batch_create_tbl_num": 12,
             "data_source": "rand",
             "insert_mode": "taosc",
-            "insert_rows": 2000,
+            "insert_rows": 2,
             "childtable_limit": 0,
             "childtable_offset":0,
             "multi_thread_write_one_tbl": "no",
@@ -81,7 +81,7 @@
             "sample_format": "csv",
             "sample_file": "./sample.csv",
             "tags_file": "",
-            "columns": [{"type": "INT"}, {"type": "DOUBLE", "count":10}, {"type": "BINARY", "len": 16, "count":3}, {"type": "BINARY", "len": 32, "count":6}],
+            "columns": [{"type": "BINARY", "len": 1, "count":1}],
             "tags": [{"type": "TINYINT", "count":2}, {"type": "BINARY", "len": 16, "count":5}]
         }]
     }]

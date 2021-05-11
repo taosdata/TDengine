@@ -693,7 +693,8 @@ int32_t tscCopyDataBlockToPayload(SSqlObj* pSql, STableDataBlocks* pDataBlock) {
       tfree(pTableMetaInfo->pTableMeta);
     }
 
-    pTableMetaInfo->pTableMeta = tscTableMetaDup(pDataBlock->pTableMeta);
+    pTableMetaInfo->pTableMeta    = tscTableMetaDup(pDataBlock->pTableMeta);
+    pTableMetaInfo->tableMetaSize = tscGetTableMetaSize(pDataBlock->pTableMeta); 
   }
 
   /*
@@ -1098,7 +1099,7 @@ int16_t tscFieldInfoGetOffset(SQueryInfo* pQueryInfo, int32_t index) {
   return pInfo->pSqlExpr->offset;
 }
 
-int32_t tscFieldInfoCompare(const SFieldInfo* pFieldInfo1, const SFieldInfo* pFieldInfo2) {
+int32_t tscFieldInfoCompare(const SFieldInfo* pFieldInfo1, const SFieldInfo* pFieldInfo2, int32_t *diffSize) {
   assert(pFieldInfo1 != NULL && pFieldInfo2 != NULL);
 
   if (pFieldInfo1->numOfOutput != pFieldInfo2->numOfOutput) {
@@ -1110,14 +1111,35 @@ int32_t tscFieldInfoCompare(const SFieldInfo* pFieldInfo1, const SFieldInfo* pFi
     TAOS_FIELD* pField2 = tscFieldInfoGetField((SFieldInfo*) pFieldInfo2, i);
 
     if (pField1->type != pField2->type ||
-        pField1->bytes != pField2->bytes ||
         strcasecmp(pField1->name, pField2->name) != 0) {
       return 1;
+    }
+
+    if (pField1->bytes != pField2->bytes) {
+      *diffSize = 1;
+
+      if (pField2->bytes > pField1->bytes) {
+        pField1->bytes = pField2->bytes;
+      }
     }
   }
 
   return 0;
 }
+
+int32_t tscFieldInfoSetSize(const SFieldInfo* pFieldInfo1, const SFieldInfo* pFieldInfo2) {
+  assert(pFieldInfo1 != NULL && pFieldInfo2 != NULL);
+
+  for (int32_t i = 0; i < pFieldInfo1->numOfOutput; ++i) {
+    TAOS_FIELD* pField1 = tscFieldInfoGetField((SFieldInfo*) pFieldInfo1, i);
+    TAOS_FIELD* pField2 = tscFieldInfoGetField((SFieldInfo*) pFieldInfo2, i);
+
+    pField2->bytes = pField1->bytes;
+  }
+
+  return 0;
+}
+
 
 int32_t tscGetResRowLength(SArray* pExprList) {
   size_t num = taosArrayGetSize(pExprList);
@@ -2057,6 +2079,11 @@ STableMetaInfo* tscAddTableMetaInfo(SQueryInfo* pQueryInfo, SName* name, STableM
   }
 
   pTableMetaInfo->pTableMeta = pTableMeta;
+  if (pTableMetaInfo->pTableMeta == NULL) {
+    pTableMetaInfo->tableMetaSize = 0; 
+  } else {
+    pTableMetaInfo->tableMetaSize = tscGetTableMetaSize(pTableMeta);
+  }
   
   if (vgroupList != NULL) {
     pTableMetaInfo->vgroupList = tscVgroupInfoClone(vgroupList);
@@ -2331,6 +2358,7 @@ SSqlObj* createSubqueryObj(SSqlObj* pSql, int16_t tableIndex, __async_cb_func_t 
 
     pFinalInfo = tscAddTableMetaInfo(pNewQueryInfo, &pTableMetaInfo->name, pTableMeta, pTableMetaInfo->vgroupList,
                                      pTableMetaInfo->tagColList, pTableMetaInfo->pVgroupTables);
+    
   } else {  // transfer the ownership of pTableMeta to the newly create sql object.
     STableMetaInfo* pPrevInfo = tscGetTableMetaInfoFromCmd(&pPrevSql->cmd, pPrevSql->cmd.clauseIndex, 0);
     if (pPrevInfo->pTableMeta && pPrevInfo->pTableMeta->tableType < 0) {
@@ -2682,7 +2710,13 @@ void tscTryQueryNextClause(SSqlObj* pSql, __async_cb_func_t fp) {
 
   //backup the total number of result first
   int64_t num = pRes->numOfTotal + pRes->numOfClauseTotal;
+
+
+  // DON't free final since it may be recoreded and used later in APP
+  TAOS_FIELD* finalBk = pRes->final;
+  pRes->final = NULL;
   tscFreeSqlResult(pSql);
+  pRes->final = finalBk;
   
   pRes->numOfTotal = num;
   
@@ -2915,11 +2949,11 @@ CChildTableMeta* tscCreateChildMeta(STableMeta* pTableMeta) {
   return cMeta;
 }
 
-int32_t tscCreateTableMetaFromCChildMeta(STableMeta* pChild, const char* name) {
-  assert(pChild != NULL);
+int32_t tscCreateTableMetaFromCChildMeta(STableMeta* pChild, const char* name, void* buf) {
+  assert(pChild != NULL && buf != NULL);
 
-  uint32_t size = tscGetTableMetaMaxSize();
-  STableMeta* p = calloc(1, size);
+//  uint32_t size = tscGetTableMetaMaxSize();
+  STableMeta* p = buf;//calloc(1, size);
 
   taosHashGetClone(tscTableMetaInfo, pChild->sTableName, strnlen(pChild->sTableName, TSDB_TABLE_FNAME_LEN), NULL, p, -1);
   if (p->id.uid > 0) { // tableMeta exists, build child table meta and return
@@ -2931,12 +2965,12 @@ int32_t tscCreateTableMetaFromCChildMeta(STableMeta* pChild, const char* name) {
 
     memcpy(pChild->schema, p->schema, sizeof(SSchema) *total);
 
-    tfree(p);
+//    tfree(p);
     return TSDB_CODE_SUCCESS;
   } else { // super table has been removed, current tableMeta is also expired. remove it here
     taosHashRemove(tscTableMetaInfo, name, strnlen(name, TSDB_TABLE_FNAME_LEN));
 
-    tfree(p);
+//    tfree(p);
     return -1;
   }
 }
