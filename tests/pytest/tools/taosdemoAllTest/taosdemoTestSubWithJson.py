@@ -19,6 +19,8 @@ from util.sql import *
 from util.dnodes import *
 import time
 from datetime import datetime
+import subprocess
+
 
 class TDTestCase:
     def init(self, conn, logSql):
@@ -50,15 +52,32 @@ class TDTestCase:
         binPath = buildPath+ "/build/bin/"      
         
         # query: query specified  table  and query  super table 
-        # os.system("%staosdemo -f tools/taosdemoAllTest/subInsertdata.json" % binPath)
-        # os.system("%staosdemo -f tools/taosdemoAllTest/sub.json" % binPath)
-        # os.system("cat query_res0.txt* |sort -u > all_query_res0.txt")
-        # os.system("cat query_res1.txt* |sort -u > all_query_res1.txt")
-        # os.system("cat query_res2.txt* |sort -u > all_query_res2.txt")
-        # tdSql.execute("use db")
-        # tdSql.execute('create table result0 using stb0 tags(121,43,"beijing","beijing","beijing","beijing","beijing")')
-        # os.system("python3 tools/taosdemoAllTest/convertResFile.py")
-        # tdSql.execute("insert into result0 file './test_query_res0.txt'")   
+        os.system("%staosdemo -f tools/taosdemoAllTest/subInsertdata.json" % binPath)
+        os.system("nohup %staosdemo -f tools/taosdemoAllTest/sub.json &" % binPath)
+        query_pid = int(subprocess.getstatusoutput('ps aux|grep "taosdemoAllTest/sub.json" |grep -v "grep"|awk \'{print $2}\'')[1])    
+        tdSql.execute("use db")
+        tdSql.execute("insert into stb00_0 values(1614218412000,'R','bf3',8637,98.861045)")   
+        tdSql.execute("insert into stb00_1 values(1614218412000,'R','bf3',8637,78.861045)(1614218422000,'R','bf3',8637,98.861045)")   
+        sleep(5)
+        sub0_0 = int(subprocess.getstatusoutput('cat subscribe_res0.txt-0 |wc -l')[1])
+        assert sub0_0 == 11
+        sub0_1 = int(subprocess.getstatusoutput('cat subscribe_res0.txt-1 |wc -l')[1])
+        assert sub0_1 == 11
+        sub1_0 = int(subprocess.getstatusoutput('cat subscribe_res1.txt-0 |wc -l')[1])
+        assert sub1_0 == 12
+        sub1_1 = int(subprocess.getstatusoutput('cat subscribe_res1.txt-1 |wc -l')[1])
+        assert sub1_1 == 12
+        # sub2_0 = int(subprocess.getstatusoutput('cat subscribe_res2.txt-0 |wc -l')[0])
+        # assert sub2_0 == 10
+        # sub2_1 = int(subprocess.getstatusoutput('cat subscribe_res2.txt-1 |wc -l')[0])
+        # assert sub2_1 == 10
+        # sub3_0 = int(subprocess.getstatusoutput('cat subscribe_res3.txt-0 |wc -l')[0])
+        # assert sub3_0 == 7
+        # sub3_1 = int(subprocess.getstatusoutput('cat subscribe_res3.txt-1 |wc -l')[0])
+        # assert sub3_1 == 7
+        sleep(1)
+        os.system("kill -9 %d" % query_pid)
+
         # tdSql.query("select ts from result0")
         # tdSql.checkData(0, 0, "2020-11-01 00:00:00.099000") 
         # tdSql.query("select count(*) from result0")
@@ -84,10 +103,10 @@ class TDTestCase:
 
 
         # delete useless files
-        # os.system("rm -rf ./insert_res.txt")
-        # os.system("rm -rf tools/taosdemoAllTest/*.py.sql")        
-        # os.system("rm -rf ./querySystemInfo*")  
-        # os.system("rm -rf ./query_res*")   
+        os.system("rm -rf ./insert_res.txt")
+        os.system("rm -rf tools/taosdemoAllTest/*.py.sql")        
+        os.system("rm -rf ./querySystemInfo*")  
+        os.system("rm -rf ./subscribe_res*")   
         # os.system("rm -rf ./all_query*")
         # os.system("rm -rf ./test_query_res0.txt")
          
