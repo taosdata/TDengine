@@ -2411,7 +2411,7 @@ static int32_t getTableMetaFromMnode(SSqlObj *pSql, STableMetaInfo *pTableMetaIn
   }
 
   STableMetaInfo *pNewMeterMetaInfo = tscAddEmptyMetaInfo(pNewQueryInfo);
-  assert(/*pNew->cmd.numOfClause == 1 && */pNewQueryInfo->numOfTables == 1);
+  assert(pNewQueryInfo->numOfTables == 1);
 
   tNameAssign(&pNewMeterMetaInfo->name, &pTableMetaInfo->name);
 

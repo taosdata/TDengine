@@ -7164,6 +7164,7 @@ int32_t loadAllTableMeta(SSqlObj* pSql, struct SSqlInfo* pInfo) {
   int32_t numOfTables = taosArrayGetSize(tableNameList);
   STableMeta* pTableMeta = calloc(1, maxSize);
 
+  SArray* plist = taosArrayInit(4, sizeof(SName));
   for(int32_t i = 0; i < numOfTables; ++i) {
     SName* pname = taosArrayGet(tableNameList, i);
     tNameExtractFullName(pname, name);
@@ -7183,7 +7184,14 @@ int32_t loadAllTableMeta(SSqlObj* pSql, struct SSqlInfo* pInfo) {
 
       STableMeta* pMeta = tscTableMetaDup(pTableMeta);
       taosHashPut(pCmd->pTableMetaMap, name, strlen(name), &pMeta, POINTER_BYTES);
+    } else {// add to the retrieve table meta array list.
+      taosArrayPush(plist, pname);
     }
+  }
+
+  // load the table meta for a given table name list
+  if (taosArrayGetSize(plist) > 0) {
+    doGetTableMetaFromMnode();
   }
 
 //  return getTableMetaFromMnode(pSql, pTableMetaInfo);
