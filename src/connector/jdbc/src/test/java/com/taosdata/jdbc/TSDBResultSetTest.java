@@ -3,7 +3,6 @@ package com.taosdata.jdbc;
 import com.google.common.primitives.Ints;
 import com.google.common.primitives.Longs;
 import com.google.common.primitives.Shorts;
-import com.taosdata.jdbc.rs.RestfulResultSet;
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.BeforeClass;
@@ -177,7 +176,8 @@ public class TSDBResultSetTest {
         rs.getAsciiStream("f1");
     }
 
-    @Test(expected = SQLFeatureNotSupportedException.class)
+    @SuppressWarnings("deprecation")
+	@Test(expected = SQLFeatureNotSupportedException.class)
     public void getUnicodeStream() throws SQLException {
         rs.getUnicodeStream("f1");
     }
@@ -326,7 +326,7 @@ public class TSDBResultSetTest {
 
     @Test(expected = SQLFeatureNotSupportedException.class)
     public void getRow() throws SQLException {
-        int row = rs.getRow();
+        rs.getRow();
     }
 
     @Test(expected = SQLFeatureNotSupportedException.class)
@@ -405,12 +405,12 @@ public class TSDBResultSetTest {
 
     @Test(expected = SQLFeatureNotSupportedException.class)
     public void updateByte() throws SQLException {
-        rs.updateByte(1, new Byte("0"));
+        rs.updateByte(1, (byte) 0);
     }
 
     @Test(expected = SQLFeatureNotSupportedException.class)
     public void updateShort() throws SQLException {
-        rs.updateShort(1, new Short("0"));
+        rs.updateShort(1, (short) 0);
     }
 
     @Test(expected = SQLFeatureNotSupportedException.class)
