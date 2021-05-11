@@ -29,8 +29,7 @@
 #include "taosdef.h"
 
 #include "tscLog.h"
-#include "tscSubquery.h"
-#include "tstoken.h"
+#include "ttoken.h"
 
 #include "tdataformat.h"
 
@@ -463,23 +462,24 @@ int tsParseOneRow(char **str, STableDataBlocks *pDataBlocks, SSqlCmd *pCmd, int1
     // Remove quotation marks
     if (TK_STRING == sToken.type) {
       // delete escape character: \\, \', \"
-      char    delim = sToken.z[0];
+      char delim = sToken.z[0];
+
       int32_t cnt = 0;
       int32_t j = 0;
       for (uint32_t k = 1; k < sToken.n - 1; ++k) {
-        if (sToken.z[k] == delim || sToken.z[k] == '\\') {
-          if (sToken.z[k + 1] == delim) {
-            cnt++;
+        if (sToken.z[k] == '\\' || (sToken.z[k] == delim && sToken.z[k + 1] == delim)) {
             tmpTokenBuf[j] = sToken.z[k + 1];
-            j++;
-            k++;
-            continue;
-          }
+
+          cnt++;
+          j++;
+          k++;
+          continue;
         }
 
         tmpTokenBuf[j] = sToken.z[k];
         j++;
       }
+
       tmpTokenBuf[j] = 0;
       sToken.z = tmpTokenBuf;
       sToken.n -= 2 + cnt;
@@ -997,7 +997,7 @@ int validateTableName(char *tblName, int len, SStrToken* psTblToken) {
 
   psTblToken->n    = len;
   psTblToken->type = TK_ID;
-  tSQLGetToken(psTblToken->z, &psTblToken->type);
+  tGetToken(psTblToken->z, &psTblToken->type);
 
   return tscValidateName(psTblToken);
 }

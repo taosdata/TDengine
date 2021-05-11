@@ -121,8 +121,8 @@ typedef enum TALBE_EXISTS_EN {
 } TALBE_EXISTS_EN;
 
 enum MODE {
-  SYNC,
-  ASYNC,
+  SYNC_MODE,
+  ASYNC_MODE,
   MODE_BUT
 };
 
@@ -208,7 +208,7 @@ typedef struct SArguments_S {
   bool     verbose_print;
   bool     performance_print;
   char *   output_file;
-  uint32_t query_mode;
+  bool     async_mode;
   char *   datatype[MAX_NUM_DATATYPE + 1];
   uint32_t len_of_binary;
   uint32_t num_of_CPR;
@@ -346,7 +346,7 @@ typedef struct SDbs_S {
   bool         use_metric;
   bool         insert_only;
   bool         do_aggreFunc;
-  bool         queryMode;
+  bool         asyncMode;
 
   uint32_t     threadCount;
   uint32_t     threadCountByCreateTbl;
@@ -363,7 +363,7 @@ typedef struct SpecifiedQueryInfo_S {
   uint64_t     queryInterval;  // 0: unlimit  > 0   loop/s
   uint64_t     concurrent;
   uint64_t     sqlCount;
-  uint32_t     mode; // 0: sync, 1: async
+  uint32_t     asyncMode; // 0: sync, 1: async
   uint64_t     subscribeInterval; // ms
   uint64_t     queryTimes;
   int          subscribeRestart;
@@ -378,7 +378,7 @@ typedef struct SuperQueryInfo_S {
   char         sTblName[MAX_TB_NAME_SIZE+1];
   uint64_t     queryInterval;  // 0: unlimit  > 0   loop/s
   uint32_t     threadCnt;
-  uint32_t     mode; // 0: sync, 1: async
+  uint32_t     asyncMode; // 0: sync, 1: async
   uint64_t     subscribeInterval; // ms
   int          subscribeRestart;
   int          subscribeKeepProgress;
@@ -776,49 +776,48 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
       }
       arguments->sqlFile = argv[++i];
     } else if (strcmp(argv[i], "-q") == 0) {
-      if ((argc == i+1)
-              || (!isStringNumber(argv[i+1]))) {
+      if ((argc == i+1) ||
+        (!isStringNumber(argv[i+1]))) {
         printHelp();
         errorPrint("%s", "\n\t-q need a number following!\nQuery mode -- 0: SYNC, 1: ASYNC. Default is SYNC.\n");
         exit(EXIT_FAILURE);
       }
-      arguments->query_mode = atoi(argv[++i]);
+      arguments->async_mode = atoi(argv[++i]);
     } else if (strcmp(argv[i], "-T") == 0) {
-      if ((argc == i+1)
-              || (!isStringNumber(argv[i+1]))) {
+      if ((argc == i+1) ||
+        (!isStringNumber(argv[i+1]))) {
         printHelp();
         errorPrint("%s", "\n\t-T need a number following!\n");
         exit(EXIT_FAILURE);
       }
       arguments->num_of_threads = atoi(argv[++i]);
     } else if (strcmp(argv[i], "-i") == 0) {
-      if ((argc == i+1)
-              || (!isStringNumber(argv[i+1]))) {
+      if ((argc == i+1) ||
+        (!isStringNumber(argv[i+1]))) {
         printHelp();
         errorPrint("%s", "\n\t-i need a number following!\n");
         exit(EXIT_FAILURE);
       }
       arguments->insert_interval = atoi(argv[++i]);
     } else if (strcmp(argv[i], "-qt") == 0) {
-      if ((argc == i+1)
-              || (!isStringNumber(argv[i+1]))
-              || (atoi(argv[i+1]) <= 0)) {
+      if ((argc == i+1) ||
+        (!isStringNumber(argv[i+1]))) {
         printHelp();
-        errorPrint("%s", "\n\t-qt need a valid (>0) number following!\n");
+        errorPrint("%s", "\n\t-qt need a number following!\n");
         exit(EXIT_FAILURE);
       }
       arguments->query_times = atoi(argv[++i]);
     } else if (strcmp(argv[i], "-B") == 0) {
-      if ((argc == i+1)
-              || (!isStringNumber(argv[i+1]))) {
+      if ((argc == i+1) ||
+        (!isStringNumber(argv[i+1]))) {
         printHelp();
         errorPrint("%s", "\n\t-B need a number following!\n");
         exit(EXIT_FAILURE);
       }
       arguments->interlace_rows = atoi(argv[++i]);
     } else if (strcmp(argv[i], "-r") == 0) {
-      if ((argc == i+1)
-              || (!isStringNumber(argv[i+1]))) {
+      if ((argc == i+1) ||
+        (!isStringNumber(argv[i+1]))) {
         printHelp();
         errorPrint("%s", "\n\t-r need a number following!\n");
         exit(EXIT_FAILURE);
@@ -1078,7 +1077,7 @@ static int queryDbExec(TAOS *taos, char *command, QUERY_TYPE type, bool quiet) {
   if (code != 0) {
     if (!quiet) {
       debugPrint("%s() LN%d - command: %s\n", __func__, __LINE__, command);
-      errorPrint("Failed to execute %s, reason: %s\n", command, taos_errstr(res));
+      errorPrint("Failed to run %s, reason: %s\n", command, taos_errstr(res));
     }
     taos_free_result(res);
     //taos_close(taos);
@@ -1674,7 +1673,7 @@ static void printfQueryMeta() {
       printf("concurrent:     \033[33m%"PRIu64"\033[0m\n",
       g_queryInfo.specifiedQueryInfo.concurrent);
       printf("mod:            \033[33m%s\033[0m\n",
-        (g_queryInfo.specifiedQueryInfo.mode)?"async":"sync");
+        (g_queryInfo.specifiedQueryInfo.asyncMode)?"async":"sync");
       printf("interval:       \033[33m%"PRIu64"\033[0m\n",
         g_queryInfo.specifiedQueryInfo.subscribeInterval);
       printf("restart:        \033[33m%d\033[0m\n",
@@ -1706,7 +1705,7 @@ static void printfQueryMeta() {
         g_queryInfo.superQueryInfo.queryTimes);
 
       printf("mod:            \033[33m%s\033[0m\n",
-        (g_queryInfo.superQueryInfo.mode)?"async":"sync");
+        (g_queryInfo.superQueryInfo.asyncMode)?"async":"sync");
       printf("interval:       \033[33m%"PRIu64"\033[0m\n",
         g_queryInfo.superQueryInfo.subscribeInterval);
       printf("restart:        \033[33m%d\033[0m\n",
@@ -4076,9 +4075,9 @@ static bool getMetaFromQueryJsonFile(cJSON* root) {
 
   cJSON* gQueryTimes = cJSON_GetObjectItem(root, "query_times");
   if (gQueryTimes && gQueryTimes->type == cJSON_Number) {
-    if (gQueryTimes->valueint <= 0) {
-      errorPrint("%s() LN%d, failed to read json, query_times: %"PRId64", need be a valid (>0) number\n",
-        __func__, __LINE__, gQueryTimes->valueint);
+    if (gQueryTimes->valueint < 0) {
+      errorPrint("%s() LN%d, failed to read json, query_times input mistake\n",
+        __func__, __LINE__);
       goto PARSE_OVER;
     }
     g_args.query_times = gQueryTimes->valueint;
@@ -4127,9 +4126,9 @@ static bool getMetaFromQueryJsonFile(cJSON* root) {
     cJSON* specifiedQueryTimes = cJSON_GetObjectItem(specifiedQuery,
         "query_times");
     if (specifiedQueryTimes && specifiedQueryTimes->type == cJSON_Number) {
-      if (specifiedQueryTimes->valueint <= 0) {
-        errorPrint("%s() LN%d, failed to read json, query_times: %"PRId64", need be a valid (>0) number\n",
-                __func__, __LINE__, specifiedQueryTimes->valueint);
+      if (specifiedQueryTimes->valueint < 0) {
+        errorPrint("%s() LN%d, failed to read json, query_times input mistake\n",
+          __func__, __LINE__);
         goto PARSE_OVER;
 
       }
@@ -4156,20 +4155,20 @@ static bool getMetaFromQueryJsonFile(cJSON* root) {
       g_queryInfo.specifiedQueryInfo.concurrent = 1;
     }
 
-    cJSON* mode = cJSON_GetObjectItem(specifiedQuery, "mode");
-    if (mode && mode->type == cJSON_String
-        && mode->valuestring != NULL) {
-      if (0 == strcmp("sync", mode->valuestring)) {
-        g_queryInfo.specifiedQueryInfo.mode = SYNC_QUERY_MODE;
-      } else if (0 == strcmp("async", mode->valuestring)) {
-        g_queryInfo.specifiedQueryInfo.mode = ASYNC_QUERY_MODE;
+    cJSON* specifiedAsyncMode = cJSON_GetObjectItem(specifiedQuery, "mode");
+    if (specifiedAsyncMode && specifiedAsyncMode->type == cJSON_String
+        && specifiedAsyncMode->valuestring != NULL) {
+      if (0 == strcmp("sync", specifiedAsyncMode->valuestring)) {
+        g_queryInfo.specifiedQueryInfo.asyncMode = SYNC_MODE;
+      } else if (0 == strcmp("async", specifiedAsyncMode->valuestring)) {
+        g_queryInfo.specifiedQueryInfo.asyncMode = ASYNC_MODE;
       } else {
-        errorPrint("%s() LN%d, failed to read json, query mode input error\n",
+        errorPrint("%s() LN%d, failed to read json, async mode input error\n",
             __func__, __LINE__);
         goto PARSE_OVER;
       }
     } else {
-      g_queryInfo.specifiedQueryInfo.mode = SYNC_QUERY_MODE;
+      g_queryInfo.specifiedQueryInfo.asyncMode = SYNC_MODE;
     }
 
     cJSON* interval = cJSON_GetObjectItem(specifiedQuery, "interval");
@@ -4271,9 +4270,9 @@ static bool getMetaFromQueryJsonFile(cJSON* root) {
 
     cJSON* superQueryTimes = cJSON_GetObjectItem(superQuery, "query_times");
     if (superQueryTimes && superQueryTimes->type == cJSON_Number) {
-      if (superQueryTimes->valueint <= 0) {
-        errorPrint("%s() LN%d, failed to read json, query_times: %"PRId64", need be a valid (>0) number\n",
-                __func__, __LINE__, superQueryTimes->valueint);
+      if (superQueryTimes->valueint < 0) {
+        errorPrint("%s() LN%d, failed to read json, query_times input mistake\n",
+          __func__, __LINE__);
         goto PARSE_OVER;
       }
       g_queryInfo.superQueryInfo.queryTimes = superQueryTimes->valueint;
@@ -4316,20 +4315,20 @@ static bool getMetaFromQueryJsonFile(cJSON* root) {
       goto PARSE_OVER;
     }
 
-    cJSON* submode = cJSON_GetObjectItem(superQuery, "mode");
-    if (submode && submode->type == cJSON_String
-        && submode->valuestring != NULL) {
-      if (0 == strcmp("sync", submode->valuestring)) {
-        g_queryInfo.superQueryInfo.mode = SYNC_QUERY_MODE;
-      } else if (0 == strcmp("async", submode->valuestring)) {
-        g_queryInfo.superQueryInfo.mode = ASYNC_QUERY_MODE;
+    cJSON* superAsyncMode = cJSON_GetObjectItem(superQuery, "mode");
+    if (superAsyncMode && superAsyncMode->type == cJSON_String
+        && superAsyncMode->valuestring != NULL) {
+      if (0 == strcmp("sync", superAsyncMode->valuestring)) {
+        g_queryInfo.superQueryInfo.asyncMode = SYNC_MODE;
+      } else if (0 == strcmp("async", superAsyncMode->valuestring)) {
+        g_queryInfo.superQueryInfo.asyncMode = ASYNC_MODE;
       } else {
-        errorPrint("%s() LN%d, failed to read json, query mode input error\n",
+        errorPrint("%s() LN%d, failed to read json, async mode input error\n",
             __func__, __LINE__);
         goto PARSE_OVER;
       }
     } else {
-      g_queryInfo.superQueryInfo.mode = SYNC_QUERY_MODE;
+      g_queryInfo.superQueryInfo.asyncMode = SYNC_MODE;
     }
 
     cJSON* superInterval = cJSON_GetObjectItem(superQuery, "interval");
@@ -5237,13 +5236,6 @@ static void* syncWriteInterlace(threadInfo *pThreadInfo) {
 
     startTs = taosGetTimestampMs();
 
-    if (recOfBatch == 0) {
-      errorPrint("[%d] %s() LN%d try inserting records of batch is %"PRIu64"\n",
-              pThreadInfo->threadID, __func__, __LINE__,
-              recOfBatch);
-      errorPrint("%s\n", "\tPlease check if the batch or the buffer length is proper value!\n");
-      goto free_of_interlace;
-    }
     int64_t affectedRows = execInsert(pThreadInfo, buffer, recOfBatch);
 
     endTs = taosGetTimestampMs();
@@ -5784,10 +5776,10 @@ static void startMultiThreadInsertData(int threads, char* db_name,
     }
 */
     tsem_init(&(t_info->lock_sem), 0, 0);
-    if (SYNC == g_Dbs.queryMode) {
-      pthread_create(pids + i, NULL, syncWrite, t_info);
-    } else {
+    if (ASYNC_MODE == g_Dbs.asyncMode) {
       pthread_create(pids + i, NULL, asyncWrite, t_info);
+    } else {
+      pthread_create(pids + i, NULL, syncWrite, t_info);
     }
   }
 
@@ -6473,7 +6465,7 @@ static TAOS_SUB* subscribeImpl(
         TAOS *taos, char *sql, char* topic, char* resultFileName) {
   TAOS_SUB* tsub = NULL;
 
-  if (ASYNC_QUERY_MODE == g_queryInfo.specifiedQueryInfo.mode) {
+  if (ASYNC_MODE == g_queryInfo.specifiedQueryInfo.asyncMode) {
     tsub = taos_subscribe(taos,
             g_queryInfo.specifiedQueryInfo.subscribeRestart,
             topic, sql, subscribe_callback, (void*)resultFileName,
@@ -6558,7 +6550,7 @@ static void *superSubscribe(void *sarg) {
   TAOS_RES* res = NULL;
   while(1) {
     for (int i = 0; i < g_queryInfo.superQueryInfo.sqlCount; i++) {
-      if (ASYNC_QUERY_MODE == g_queryInfo.superQueryInfo.mode) {
+      if (ASYNC_MODE == g_queryInfo.superQueryInfo.asyncMode) {
         continue;
       }
 
@@ -6647,7 +6639,7 @@ static void *specifiedSubscribe(void *sarg) {
   TAOS_RES* res = NULL;
   while(1) {
     for (int i = 0; i < g_queryInfo.specifiedQueryInfo.sqlCount; i++) {
-      if (ASYNC_QUERY_MODE == g_queryInfo.specifiedQueryInfo.mode) {
+      if (ASYNC_MODE == g_queryInfo.specifiedQueryInfo.asyncMode) {
         continue;
       }
 
@@ -6870,7 +6862,7 @@ static void setParaFromArg(){
     g_Dbs.db[0].superTbls[0].childTblCount = g_args.num_of_tables;
     g_Dbs.threadCount = g_args.num_of_threads;
     g_Dbs.threadCountByCreateTbl = g_args.num_of_threads;
-    g_Dbs.queryMode = g_args.query_mode;
+    g_Dbs.asyncMode = g_args.async_mode;
 
     g_Dbs.db[0].superTbls[0].autoCreateTable = PRE_CREATE_SUBTBL;
     g_Dbs.db[0].superTbls[0].childTblExists = TBL_NO_EXISTS;
