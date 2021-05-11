@@ -21,19 +21,19 @@
 #endif // __APPLE__
 
 #include "os.h"
-#include "ttype.h"
-#include "texpr.h"
 #include "taos.h"
 #include "taosmsg.h"
 #include "tcompare.h"
+#include "texpr.h"
 #include "tname.h"
 #include "tscLog.h"
 #include "tscUtil.h"
 #include "tschemautil.h"
 #include "tsclient.h"
-#include "tstoken.h"
 #include "tstrbuild.h"
+#include "ttoken.h"
 #include "ttokendef.h"
+#include "ttype.h"
 #include "qUtil.h"
 
 #define DEFAULT_PRIMARY_TIMESTAMP_COL_NAME "_c0"
@@ -4626,7 +4626,7 @@ int32_t getTimeRange(STimeWindow* win, tSqlExpr* pRight, int32_t optr, int16_t t
       }
     } else {
       SStrToken token = {.z = pRight->value.pz, .n = pRight->value.nLen, .type = TK_ID};
-      int32_t   len = tSQLGetToken(pRight->value.pz, &token.type);
+      int32_t   len = tGetToken(pRight->value.pz, &token.type);
 
       if ((token.type != TK_INTEGER && token.type != TK_FLOAT) || len != pRight->value.nLen) {
         return TSDB_CODE_TSC_INVALID_SQL;
@@ -5495,13 +5495,13 @@ int32_t validateLocalConfig(SMiscInfo* pOptions) {
 }
 
 int32_t validateColumnName(char* name) {
-  bool ret = isKeyWord(name, (int32_t)strlen(name));
+  bool ret = taosIsKeyWordToken(name, (int32_t)strlen(name));
   if (ret) {
     return TSDB_CODE_TSC_INVALID_SQL;
   }
 
   SStrToken token = {.z = name};
-  token.n = tSQLGetToken(name, &token.type);
+  token.n = tGetToken(name, &token.type);
 
   if (token.type != TK_STRING && token.type != TK_ID) {
     return TSDB_CODE_TSC_INVALID_SQL;
@@ -5512,7 +5512,7 @@ int32_t validateColumnName(char* name) {
     strntolower(token.z, token.z, token.n);
     token.n = (uint32_t)strtrim(token.z);
 
-    int32_t k = tSQLGetToken(token.z, &token.type);
+    int32_t k = tGetToken(token.z, &token.type);
     if (k != token.n) {
       return TSDB_CODE_TSC_INVALID_SQL;
     }
