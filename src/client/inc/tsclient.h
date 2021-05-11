@@ -359,7 +359,7 @@ typedef struct SSqlObj {
   __async_cb_func_t  fp;
   __async_cb_func_t  fetchFp;
   void            *param;
-  int64_t          stime;
+  int64_t          stime;          //us
   uint32_t         queryId;
   void *           pStream;
   void *           pSubscription;

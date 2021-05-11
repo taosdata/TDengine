@@ -45,6 +45,8 @@ void doAsyncQuery(STscObj* pObj, SSqlObj* pSql, __async_cb_func_t fp, void* para
   pSql->fp        = fp;
   pSql->fetchFp   = fp;
 
+  pSql->stime = taosGetTimestampUs();
+
   registerSqlObj(pSql);
 
   pSql->sqlstr = calloc(1, sqlLen + 1);

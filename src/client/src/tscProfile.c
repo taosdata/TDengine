@@ -58,7 +58,6 @@ void tscAddIntoSqlList(SSqlObj *pSql) {
 
   pthread_mutex_unlock(&pObj->mutex);
 
-  pSql->stime = taosGetTimestampMs();
   pSql->listed = 1;
 
   tscDebug("0x%"PRIx64" added into sqlList", pSql->self);
@@ -94,12 +93,15 @@ void tscSaveSlowQueryFp(void *handle, void *tmrId) {
 void tscSaveSlowQuery(SSqlObj *pSql) {
   const static int64_t SLOW_QUERY_INTERVAL = 3000000L; // todo configurable
   size_t size = 200;  // other part of sql string, expect the main sql str
+
+  int64_t now = taosGetTimestampUs();
+  int64_t useTime = now - pSql->stime; //us
   
-  if (pSql->res.useconds < SLOW_QUERY_INTERVAL) {
+  if (useTime < SLOW_QUERY_INTERVAL) {
     return;
   }
 
-  tscDebug("0x%"PRIx64" query time:%" PRId64 " sql:%s", pSql->self, pSql->res.useconds, pSql->sqlstr);
+  tscDebug("0x%"PRIx64" query use time:%" PRId64 " start time:%"PRId64 " sql:%s", pSql->self, useTime, pSql->stime, pSql->sqlstr);
   int32_t sqlSize = (int32_t)(TSDB_SLOW_QUERY_SQL_LEN + size);
   
   char *sql = malloc(sqlSize);
@@ -109,7 +111,7 @@ void tscSaveSlowQuery(SSqlObj *pSql) {
   }
   
   int len = snprintf(sql, size, "insert into %s.slowquery values(now, '%s', %" PRId64 ", %" PRId64 ", '", tsMonitorDbName,
-          pSql->pTscObj->user, pSql->stime, pSql->res.useconds);
+          pSql->pTscObj->user, pSql->stime, useTime);
   int sqlLen = snprintf(sql + len, TSDB_SLOW_QUERY_SQL_LEN, "%s", pSql->sqlstr);
   if (sqlLen > TSDB_SLOW_QUERY_SQL_LEN - 1) {
     sqlLen = len + TSDB_SLOW_QUERY_SQL_LEN - 1;
@@ -140,7 +142,6 @@ void tscRemoveFromSqlList(SSqlObj *pSql) {
   pSql->prev = NULL;
   pSql->listed = 0;
 
-  tscSaveSlowQuery(pSql);
   tscDebug("0x%"PRIx64" removed from sqlList", pSql->self);
 }
 
@@ -246,10 +247,10 @@ int tscBuildQueryStreamDesc(void *pMsg, STscObj *pObj) {
     }
 
     tstrncpy(pQdesc->sql, pSql->sqlstr, sizeof(pQdesc->sql));
-    pQdesc->stime = htobe64(pSql->stime);
+    pQdesc->stime = htobe64(pSql->stime/1000); //ms
     pQdesc->queryId = htonl(pSql->queryId);
     //pQdesc->useconds = htobe64(pSql->res.useconds);
-    pQdesc->useconds = htobe64(now - pSql->stime);
+    pQdesc->useconds = htobe64(now - pSql->stime/1000);
     pQdesc->qId = htobe64(pSql->res.qId);
 
     pHeartbeat->numOfQueries++;

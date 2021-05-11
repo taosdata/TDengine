@@ -313,6 +313,8 @@ int32_t tscCreateQueryFromQueryInfo(SQueryInfo* pQueryInfo, SQueryAttr* pQueryAt
 void tsCreateSQLFunctionCtx(SQueryInfo* pQueryInfo, SQLFunctionCtx* pCtx, SSchema* pSchema);
 void* createQueryInfoFromQueryNode(SQueryInfo* pQueryInfo, SExprInfo* pExprs, STableGroupInfo* pTableGroupInfo, SOperatorInfo* pOperator, char* sql, void* addr, int32_t stage);
 
+void tscSaveSlowQuery(SSqlObj *pSql);
+
 void* malloc_throw(size_t size);
 void* calloc_throw(size_t nmemb, size_t size);
 char* strdup_throw(const char* str);
