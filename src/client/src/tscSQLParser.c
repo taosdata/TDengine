@@ -272,7 +272,7 @@ int32_t readFromFile(char *name, uint32_t *len, void **buf) {
     return TAOS_SYSTEM_ERROR(errno);
   }
 
-  int64_t s = taosReadImp(fd, *buf, *len);
+  int64_t s = taosRead(fd, *buf, *len);
   if (s != *len) {
     tscError("read file %s failed, error:%s", name, strerror(errno));
     close(fd);
