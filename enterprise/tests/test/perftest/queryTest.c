@@ -328,8 +328,8 @@ void generatedData(TAOS* taos) {
 }
 
 int main(int argc, char** argv) {
-//  taos_options(TSDB_OPTION_CONFIGDIR, "~/first/cfg");
-  taos_options(TSDB_OPTION_CONFIGDIR, "/home/lisa/Documents/workspace/TDinternal/sim/tsim/cfg");
+  taos_options(TSDB_OPTION_CONFIGDIR, "~/first/cfg");
+//  taos_options(TSDB_OPTION_CONFIGDIR, "/home/lisa/Documents/workspace/TDinternal/sim/tsim/cfg");
   taos_init();
   TAOS* conn = taos_connect("ubuntu", "root", "taosdata", 0, 0);
   if (conn == NULL) {
