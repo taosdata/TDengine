@@ -45,6 +45,12 @@ class TDengineCursor(object):
         return self
 
     def __next__(self):
+        return self._taos_next()
+
+    def next(self):
+        return self._taos_next()
+
+    def _taos_next(self):
         if self._result is None or self._fields is None:
             raise OperationalError("Invalid use of fetch iterator")
 
