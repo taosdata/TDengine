@@ -120,6 +120,13 @@ enum MODE {
   MODE_BUT
 };
 
+enum INTERFACE {
+    TAOSC_INTERFACE,
+    REST_INTERFACE,
+    STMT_INTERFACE,
+    INTERFACE_BUT
+};
+
 typedef enum enum_INSERT_MODE {
     PROGRESSIVE_INSERT_MODE,
     INTERLACE_INSERT_MODE,
@@ -188,6 +195,7 @@ typedef struct SArguments_S {
   uint32_t test_mode;
   char *   host;
   uint16_t port;
+  uint16_t interface;
   char *   user;
   char *   password;
   char *   database;
@@ -536,6 +544,7 @@ SArguments g_args = {
                      0,               // test_mode
                      "127.0.0.1",     // host
                      6030,            // port
+                     TAOSC_INTERFACE, // interface
                      "root",          // user
                      #ifdef _TD_POWER_
                      "powerdb",      // password
@@ -652,6 +661,8 @@ static void printHelp() {
           "The host to connect to TDengine. Default is localhost.");
   printf("%s%s%s%s\n", indent, "-p", indent,
           "The TCP/IP port number to use for the connection. Default is 0.");
+  printf("%s%s%s%s\n", indent, "-I", indent,
+          "The interface (taosc, rest, and stmt) taosdemo uses. Default is 'taosc'.");
   printf("%s%s%s%s\n", indent, "-d", indent,
           "Destination database. Default is 'test'.");
   printf("%s%s%s%s\n", indent, "-a", indent,
@@ -741,6 +752,23 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
         exit(EXIT_FAILURE);
       }
       arguments->port = atoi(argv[++i]);
+    } else if (strcmp(argv[i], "-I") == 0) {
+      if (argc == i+1) {
+        printHelp();
+        errorPrint("%s", "\n\t-I need a valid string following!\n");
+        exit(EXIT_FAILURE);
+      }
+      ++i;
+      if (0 == strcasecmp(argv[i], "taosc")) {
+          arguments->interface = TAOSC_INTERFACE;
+      } else if (0 == strcasecmp(argv[i], "rest")) {
+          arguments->interface = REST_INTERFACE;
+      } else if (0 == strcasecmp(argv[i], "stmt")) {
+          arguments->interface = STMT_INTERFACE;
+      } else {
+        errorPrint("%s", "\n\t-I need a valid string following!\n");
+        exit(EXIT_FAILURE);
+      }
     } else if (strcmp(argv[i], "-u") == 0) {
       if (argc == i+1) {
         printHelp();
@@ -1141,7 +1169,8 @@ static void appendResultToFile(TAOS_RES *res, char* resultFile) {
   free(databuf);
 }
 
-static void selectAndGetResult(threadInfo *pThreadInfo, char *command, char* resultFileName) {
+static void selectAndGetResult(
+        threadInfo *pThreadInfo, char *command, char* resultFileName) {
   if (0 == strncasecmp(g_queryInfo.queryMode, "taosc", strlen("taosc"))) {
     TAOS_RES *res = taos_query(pThreadInfo->taos, command);
     if (res == NULL || taos_errno(res) != 0) {
