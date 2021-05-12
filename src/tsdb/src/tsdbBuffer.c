@@ -159,12 +159,14 @@ _err:
 
 static void tsdbFreeBufBlock(STsdbBufBlock *pBufBlock) { tfree(pBufBlock); }
 
-void tsdbExpendPool(STsdbRepo* pRepo, int32_t oldTotalBlocks) {
+int tsdbExpendPool(STsdbRepo* pRepo, int32_t oldTotalBlocks) {
   if (oldTotalBlocks == pRepo->config.totalBlocks) {
-    return;
+    return TSDB_CODE_SUCCESS;
   }
 
-  if (tsdbLockRepo(pRepo) < 0) return;
+  int err = TSDB_CODE_SUCCESS;
+
+  if (tsdbLockRepo(pRepo) < 0) return terrno;
   STsdbBufPool* pPool = pRepo->pPool;
 
   if (pRepo->config.totalBlocks > oldTotalBlocks) {
@@ -175,6 +177,7 @@ void tsdbExpendPool(STsdbRepo* pRepo, int32_t oldTotalBlocks) {
       if (tdListAppend(pPool->bufBlockList, (void *)(&pBufBlock)) < 0) {
         tsdbFreeBufBlock(pBufBlock);
         terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
+        err = TSDB_CODE_TDB_OUT_OF_MEMORY;
         goto err;
       }
 
@@ -187,6 +190,7 @@ void tsdbExpendPool(STsdbRepo* pRepo, int32_t oldTotalBlocks) {
 
 err:
   tsdbUnlockRepo(pRepo);
+  return err;
 }
 
 void tsdbRecycleBufferBlock(STsdbBufPool* pPool, SListNode *pNode) {
