@@ -32,7 +32,7 @@ TDengine提供了丰富的应用程序开发接口，其中包括C/C++、Java、
 
 **Linux**
 
-**1.   从涛思官网（https://www.taosdata.com/cn/all-downloads/）下载**
+**1.   从[涛思官网](https://www.taosdata.com/cn/all-downloads/)下载**
 
 * X64硬件环境：TDengine-client-2.x.x.x-Linux-x64.tar.gz
 
@@ -68,7 +68,7 @@ TDengine提供了丰富的应用程序开发接口，其中包括C/C++、Java、
 
 **Windows x64/x86**
 
-**1.   从涛思官网（https://www.taosdata.com/cn/all-downloads/）下载 ：**
+**1.   从[涛思官网](https://www.taosdata.com/cn/all-downloads/)下载 ：**
 
 * X64硬件环境：TDengine-client-2.X.X.X-Windows-x64.exe
 
@@ -213,7 +213,7 @@ C/C++的API类似于MySQL的C API。应用程序使用时，需要包含TDengine
 
 - `int taos_result_precision(TAOS_RES *res)`
 
-  返回结果集时间戳字段的精度，`0` 代表毫秒，`1` 代表微秒，`2` 代表纳秒。
+  返回结果集时间戳字段的精度，`0` 代表毫秒，`1` 代表微秒。
 
 - `TAOS_ROW taos_fetch_row(TAOS_RES *res)`
 
@@ -349,7 +349,7 @@ TDengine提供时间驱动的实时流式计算API。可以每隔一指定的时
     * param：是应用提供的用于回调的一个参数，回调时，提供给应用
     * callback: 第二个回调函数，会在连续查询自动停止时被调用。
 
-  返回值为NULL，表示创建成功，返回值不为空，表示成功。
+  返回值为NULL，表示创建失败；返回值不为空，表示成功。
 
 - `void taos_close_stream (TAOS_STREAM *tstr)`
 

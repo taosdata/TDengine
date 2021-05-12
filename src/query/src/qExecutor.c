@@ -744,7 +744,7 @@ void doInvokeUdf(SUdfInfo* pUdfInfo, SQLFunctionCtx *pCtx, int32_t idx, int32_t 
       } else {
         (*(udfMergeFunc)pUdfInfo->funcs[TSDB_UDF_FUNC_MERGE])(pCtx->pInput, pCtx->size, pCtx->pOutput, &output, &pUdfInfo->init);
       }
-      
+
       // set the output value exist
       pCtx->resultInfo->numOfRes = output;
       if (output > 0) {
@@ -758,7 +758,7 @@ void doInvokeUdf(SUdfInfo* pUdfInfo, SQLFunctionCtx *pCtx, int32_t idx, int32_t 
       void *interBuf = (void *)GET_ROWCELL_INTERBUF(pResInfo);
       if (pUdfInfo->isScript) {
         (*(scriptFinalizeFunc)pUdfInfo->funcs[TSDB_UDF_FUNC_FINALIZE])(pUdfInfo->pScriptCtx, pCtx->startTs, pCtx->pOutput, &output);
-      } else {    
+      } else {
         (*(udfFinalizeFunc)pUdfInfo->funcs[TSDB_UDF_FUNC_FINALIZE])(pCtx->pOutput, interBuf, &output, &pUdfInfo->init);
       }
       // set the output value exist
@@ -805,7 +805,7 @@ static void doApplyFunctions(SQueryRuntimeEnv* pRuntimeEnv, SQLFunctionCtx* pCtx
     if (functionNeedToExecute(pRuntimeEnv, &pCtx[k], functionId)) {
 //      aAggs[functionId].xFunction(&pCtx[k]);
       if (functionId < 0) { // load the script and exec, pRuntimeEnv->pUdfInfo
-        SUdfInfo* pUdfInfo = pRuntimeEnv->pUdfInfo;              
+        SUdfInfo* pUdfInfo = pRuntimeEnv->pUdfInfo;
         doInvokeUdf(pUdfInfo, &pCtx[k], 0, TSDB_UDF_FUNC_NORMAL);
       } else {
         aAggs[functionId].xFunction(&pCtx[k]);
@@ -1022,7 +1022,7 @@ static void doSetInputDataBlock(SOperatorInfo* pOperator, SQLFunctionCtx* pCtx, 
 
         if (pCtx[i].functionId < 0) {
           SColumnInfoData* tsInfo = taosArrayGet(pBlock->pDataBlock, 0);
-          pCtx[i].ptsList = (int64_t*) tsInfo->pData;            
+          pCtx[i].ptsList = (int64_t*) tsInfo->pData;
 
           continue;
         }
@@ -1056,7 +1056,7 @@ static void doAggregateImpl(SOperatorInfo* pOperator, TSKEY startTs, SQLFunction
       pCtx[k].startTs = startTs;// this can be set during create the struct
 //      aAggs[functionId].xFunction(&pCtx[k]);
       if (functionId < 0) {
-        SUdfInfo* pUdfInfo = pRuntimeEnv->pUdfInfo;        
+        SUdfInfo* pUdfInfo = pRuntimeEnv->pUdfInfo;
         doInvokeUdf(pUdfInfo, &pCtx[k], 0, TSDB_UDF_FUNC_NORMAL);
       } else {
         aAggs[functionId].xFunction(&pCtx[k]);
@@ -1079,7 +1079,7 @@ static void arithmeticApplyFunctions(SQueryRuntimeEnv *pRuntimeEnv, SQLFunctionC
     pCtx[k].startTs = pQueryAttr->window.skey;
 
     if (pCtx[k].functionId < 0) {
-      // load the script and exec      
+      // load the script and exec
       SUdfInfo* pUdfInfo = pRuntimeEnv->pUdfInfo;
       doInvokeUdf(pUdfInfo, &pCtx[k], 0, TSDB_UDF_FUNC_NORMAL);
     } else {
@@ -1406,7 +1406,7 @@ static void doHashGroupbyAgg(SOperatorInfo* pOperator, SGroupbyOperatorInfo *pIn
       pInfo->binfo.pCtx[k].size = 1;
       int32_t functionId = pInfo->binfo.pCtx[k].functionId;
       if (functionId < 0) {
-        SUdfInfo* pUdfInfo = pRuntimeEnv->pUdfInfo;                      
+        SUdfInfo* pUdfInfo = pRuntimeEnv->pUdfInfo;
         doInvokeUdf(pUdfInfo, &pInfo->binfo.pCtx[k], j, TSDB_UDF_FUNC_NORMAL);
       } else if (functionNeedToExecute(pRuntimeEnv, &pInfo->binfo.pCtx[k], functionId)) {
         aAggs[functionId].xFunctionF(&pInfo->binfo.pCtx[k], j);
@@ -4613,13 +4613,15 @@ SArray* getOrderCheckColumns(SQueryAttr* pQuery) {
         SSqlExpr* pExpr = &pQuery->pExpr1[j].base;
         int32_t functionId = pExpr->functionId;
 
-        if (index->colId == pExpr->colInfo.colId && (functionId == TSDB_FUNC_PRJ || functionId == TSDB_FUNC_TAG || functionId == TSDB_FUNC_TS)) {
+        if (index->colId == pExpr->colInfo.colId &&
+            (functionId == TSDB_FUNC_PRJ || functionId == TSDB_FUNC_TAG || functionId == TSDB_FUNC_TS)) {
           index->colIndex = j;
           index->colId = pExpr->resColId;
         }
       }
     }
   }
+
   return pOrderColumns;
 }
 

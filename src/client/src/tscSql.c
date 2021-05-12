@@ -457,6 +457,7 @@ static bool needToFetchNewBlock(SSqlObj* pSql) {
           pCmd->command == TSDB_SQL_FETCH ||
           pCmd->command == TSDB_SQL_SHOW ||
           pCmd->command == TSDB_SQL_SHOW_CREATE_TABLE ||
+          pCmd->command == TSDB_SQL_SHOW_CREATE_STABLE ||
           pCmd->command == TSDB_SQL_SHOW_CREATE_DATABASE ||
           pCmd->command == TSDB_SQL_SELECT ||
           pCmd->command == TSDB_SQL_DESCRIBE_TABLE ||
@@ -588,7 +589,7 @@ static bool tscKillQueryInDnode(SSqlObj* pSql) {
 void taos_free_result(TAOS_RES *res) {
   SSqlObj* pSql = (SSqlObj*) res;
   if (pSql == NULL || pSql->signature != pSql) {
-    tscError("%p already released sqlObj", res);
+    tscError("0x%"PRIx64" already released sqlObj", pSql ? pSql->self : -1);
     return;
   }
 
@@ -881,15 +882,14 @@ int taos_validate_sql(TAOS *taos, const char *sql) {
 
   int32_t sqlLen = (int32_t)strlen(sql);
   if (sqlLen > tsMaxSQLStringLen) {
-    tscError("%p sql too long", pSql);
+    tscError("0x%"PRIx64" sql too long", pSql->self);
     tfree(pSql);
     return TSDB_CODE_TSC_EXCEED_SQL_LIMIT;
   }
 
   pSql->sqlstr = realloc(pSql->sqlstr, sqlLen + 1);
   if (pSql->sqlstr == NULL) {
-    tscError("%p failed to malloc sql string buffer", pSql);
-    tscDebug("0x%"PRIx64" Valid SQL result:%d, %s pObj:%p", pSql->self, pRes->code, taos_errstr(pSql), pObj);
+    tscError("0x%"PRIx64" failed to malloc sql string buffer", pSql->self);
     tfree(pSql);
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
   }
@@ -914,7 +914,7 @@ int taos_validate_sql(TAOS *taos, const char *sql) {
   }
 
   if (code != TSDB_CODE_SUCCESS) {
-    tscDebug("0x%"PRIx64" Valid SQL result:%d, %s pObj:%p", pSql->self, code, taos_errstr(pSql), pObj);
+    tscError("0x%"PRIx64" invalid SQL result:%d, %s pObj:%p", pSql->self, code, taos_errstr(pSql), pObj);
   }
 
   taos_free_result(pSql);
@@ -963,7 +963,7 @@ static int tscParseTblNameList(SSqlObj *pSql, const char *tblNameList, int32_t t
     len = (int32_t)strtrim(tblName);
 
     SStrToken sToken = {.n = len, .type = TK_ID, .z = tblName};
-    tSQLGetToken(tblName, &sToken.type);
+    tGetToken(tblName, &sToken.type);
 
     // Check if the table name available or not
     if (tscValidateName(&sToken) != TSDB_CODE_SUCCESS) {
@@ -1031,14 +1031,14 @@ int taos_load_table_info(TAOS *taos, const char *tableNameList) {
 
   int32_t tblListLen = (int32_t)strlen(tableNameList);
   if (tblListLen > MAX_TABLE_NAME_LENGTH) {
-    tscError("%p tableNameList too long, length:%d, maximum allowed:%d", pSql, tblListLen, MAX_TABLE_NAME_LENGTH);
+    tscError("0x%"PRIx64" tableNameList too long, length:%d, maximum allowed:%d", pSql->self, tblListLen, MAX_TABLE_NAME_LENGTH);
     tscFreeSqlObj(pSql);
     return TSDB_CODE_TSC_INVALID_SQL;
   }
 
   char *str = calloc(1, tblListLen + 1);
   if (str == NULL) {
-    tscError("%p failed to malloc sql string buffer", pSql);
+    tscError("0x%"PRIx64" failed to malloc sql string buffer", pSql->self);
     tscFreeSqlObj(pSql);
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
   }

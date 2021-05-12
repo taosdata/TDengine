@@ -266,7 +266,7 @@ typedef struct SAcctObj {
 } SAcctObj;
 
 typedef struct {
-  char     db[TSDB_DB_NAME_LEN];
+  char     db[TSDB_ACCT_ID_LEN + TSDB_DB_NAME_LEN];
   int8_t   type;
   int16_t  numOfColumns;
   int32_t  index;

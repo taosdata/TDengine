@@ -74,6 +74,24 @@ int64_t mnodeGetDbNum() {
   return sdbGetNumOfRows(tsDbSdb);
 }
 
+int32_t mnodeGetDbMaxReplica() {
+  int32_t maxReplica = 0;
+  SDbObj *pDb = NULL;
+  void   *pIter = NULL;
+
+  while (1) {
+    pIter = mnodeGetNextDb(pIter, &pDb);
+    if (pDb == NULL) break;
+
+    if (pDb->cfg.replications > maxReplica)
+      maxReplica = pDb->cfg.replications;
+
+    mnodeDecDbRef(pDb);
+  }
+
+  return maxReplica;
+}
+
 static int32_t mnodeDbActionInsert(SSdbRow *pRow) {
   SDbObj *pDb = pRow->pObj;
   SAcctObj *pAcct = mnodeGetAcct(pDb->acct);

@@ -326,6 +326,7 @@ TAOS_ROW tscFetchRow(void *param) {
        pCmd->command == TSDB_SQL_FETCH ||
        pCmd->command == TSDB_SQL_SHOW ||
        pCmd->command == TSDB_SQL_SHOW_CREATE_TABLE ||
+       pCmd->command == TSDB_SQL_SHOW_CREATE_STABLE ||
        pCmd->command == TSDB_SQL_SHOW_CREATE_DATABASE ||
        pCmd->command == TSDB_SQL_SELECT ||
        pCmd->command == TSDB_SQL_DESCRIBE_TABLE ||
@@ -679,6 +680,9 @@ static int32_t tscProcessShowCreateTable(SSqlObj *pSql) {
   assert(pTableMetaInfo->pTableMeta != NULL);
 
   const char* tableName = tNameGetTableName(&pTableMetaInfo->name);
+  if (pSql->cmd.command == TSDB_SQL_SHOW_CREATE_STABLE && !UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo))  {
+    return TSDB_CODE_TSC_INVALID_VALUE;
+  }
 
   char *result = (char *)calloc(1, TSDB_MAX_BINARY_LEN);
   int32_t code = TSDB_CODE_SUCCESS;
@@ -907,7 +911,7 @@ int tscProcessLocalCmd(SSqlObj *pSql) {
      */
     pRes->qId = 0x1;
     pRes->numOfRows = 0;
-  } else if (pCmd->command == TSDB_SQL_SHOW_CREATE_TABLE) {
+  } else if (pCmd->command == TSDB_SQL_SHOW_CREATE_TABLE || pCmd->command == TSDB_SQL_SHOW_CREATE_STABLE) {
     pRes->code = tscProcessShowCreateTable(pSql); 
   } else if (pCmd->command == TSDB_SQL_SHOW_CREATE_DATABASE) {
     pRes->code = tscProcessShowCreateDatabase(pSql); 
@@ -926,7 +930,7 @@ int tscProcessLocalCmd(SSqlObj *pSql) {
     pRes->code = tscProcessServStatus(pSql);
   } else {
     pRes->code = TSDB_CODE_TSC_INVALID_SQL;
-    tscError("%p not support command:%d", pSql, pCmd->command);
+    tscError("0x%"PRIx64" not support command:%d", pSql->self, pCmd->command);
   }
 
   // keep the code in local variable in order to avoid invalid read in case of async query

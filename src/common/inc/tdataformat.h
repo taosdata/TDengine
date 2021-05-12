@@ -15,10 +15,7 @@
 #ifndef _TD_DATA_FORMAT_H_
 #define _TD_DATA_FORMAT_H_
 
-#include <stdint.h>
-#include <stdlib.h>
-#include <string.h>
-
+#include "os.h"
 #include "talgo.h"
 #include "ttype.h"
 #include "tutil.h"

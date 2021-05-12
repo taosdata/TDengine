@@ -136,21 +136,21 @@ public class RestfulStatement extends AbstractStatement {
             throw TSDBError.createSQLException(jsonObject.getInteger("code"), jsonObject.getString("desc"));
         }
         this.resultSet = null;
-        this.affectedRows = checkJsonResultSet(jsonObject);
+        this.affectedRows = getAffectedRows(jsonObject);
         return this.affectedRows;
     }
 
-    private int checkJsonResultSet(JSONObject jsonObject) {
+    private int getAffectedRows(JSONObject jsonObject) throws SQLException {
         // create ... SQLs should return 0 , and Restful result is this:
         // {"status": "succ", "head": ["affected_rows"], "data": [[0]], "rows": 1}
         JSONArray head = jsonObject.getJSONArray("head");
+        if (head.size() != 1 || !"affected_rows".equals(head.getString(0)))
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_INVALID_VARIABLE);
         JSONArray data = jsonObject.getJSONArray("data");
-        int rows = Integer.parseInt(jsonObject.getString("rows"));
-        if (head.size() == 1 && "affected_rows".equals(head.getString(0))
-                && data.size() == 1 && data.getJSONArray(0).getInteger(0) == 0 && rows == 1) {
-            return 0;
-        }
-        return rows;
+        if (data != null)
+            return data.getJSONArray(0).getInteger(0);
+
+        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_INVALID_VARIABLE);
     }
 
     @Override

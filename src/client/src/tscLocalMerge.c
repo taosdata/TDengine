@@ -113,14 +113,14 @@ void tscCreateLocalMerger(tExtMemBuffer **pMemBuffer, int32_t numOfBuffer, tOrde
   
   if (pMemBuffer == NULL) {
     tscLocalReducerEnvDestroy(pMemBuffer, pDesc, finalmodel, pFFModel, numOfBuffer);
-    tscError("%p pMemBuffer is NULL", pMemBuffer);
+    tscError("pMemBuffer:%p is NULL", pMemBuffer);
     pRes->code = TSDB_CODE_TSC_APP_ERROR;
     return;
   }
  
   if (pDesc->pColumnModel == NULL) {
     tscLocalReducerEnvDestroy(pMemBuffer, pDesc, finalmodel, pFFModel, numOfBuffer);
-    tscError("%p no local buffer or intermediate result format model", pSql);
+    tscError("0x%"PRIx64" no local buffer or intermediate result format model", pSql->self);
     pRes->code = TSDB_CODE_TSC_APP_ERROR;
     return;
   }
@@ -144,7 +144,7 @@ void tscCreateLocalMerger(tExtMemBuffer **pMemBuffer, int32_t numOfBuffer, tOrde
   }
 
   if (pDesc->pColumnModel->capacity >= pMemBuffer[0]->pageSize) {
-    tscError("%p Invalid value of buffer capacity %d and page size %d ", pSql, pDesc->pColumnModel->capacity,
+    tscError("0x%"PRIx64" Invalid value of buffer capacity %d and page size %d ", pSql->self, pDesc->pColumnModel->capacity,
              pMemBuffer[0]->pageSize);
 
     tscLocalReducerEnvDestroy(pMemBuffer, pDesc, finalmodel, pFFModel, numOfBuffer);
@@ -156,7 +156,7 @@ void tscCreateLocalMerger(tExtMemBuffer **pMemBuffer, int32_t numOfBuffer, tOrde
   
   SLocalMerger *pMerger = (SLocalMerger *) calloc(1, size);
   if (pMerger == NULL) {
-    tscError("%p failed to create local merge structure, out of memory", pSql);
+    tscError("0x%"PRIx64" failed to create local merge structure, out of memory", pSql->self);
 
     tscLocalReducerEnvDestroy(pMemBuffer, pDesc, finalmodel, pFFModel, numOfBuffer);
     pRes->code = TSDB_CODE_TSC_OUT_OF_MEMORY;
@@ -180,7 +180,7 @@ void tscCreateLocalMerger(tExtMemBuffer **pMemBuffer, int32_t numOfBuffer, tOrde
     for (int32_t j = 0; j < numOfFlushoutInFile; ++j) {
       SLocalDataSource *ds = (SLocalDataSource *)malloc(sizeof(SLocalDataSource) + pMemBuffer[0]->pageSize);
       if (ds == NULL) {
-        tscError("%p failed to create merge structure", pSql);
+        tscError("0x%"PRIx64" failed to create merge structure", pSql->self);
         pRes->code = TSDB_CODE_TSC_OUT_OF_MEMORY;
         tfree(pMerger);
         return;
@@ -538,7 +538,7 @@ int32_t tscLocalReducerEnvCreate(SSqlObj *pSql, tExtMemBuffer ***pMemBuffer, tOr
 
   (*pMemBuffer) = (tExtMemBuffer **)malloc(POINTER_BYTES * pSql->subState.numOfSub);
   if (*pMemBuffer == NULL) {
-    tscError("%p failed to allocate memory", pSql);
+    tscError("0x%"PRIx64" failed to allocate memory", pSql->self);
     pRes->code = TSDB_CODE_TSC_OUT_OF_MEMORY;
     return pRes->code;
   }
@@ -547,7 +547,7 @@ int32_t tscLocalReducerEnvCreate(SSqlObj *pSql, tExtMemBuffer ***pMemBuffer, tOr
   
   pSchema = (SSchema *)calloc(1, sizeof(SSchema) * size);
   if (pSchema == NULL) {
-    tscError("%p failed to allocate memory", pSql);
+    tscError("0x%"PRIx64" failed to allocate memory", pSql->self);
     pRes->code = TSDB_CODE_TSC_OUT_OF_MEMORY;
     return pRes->code;
   }

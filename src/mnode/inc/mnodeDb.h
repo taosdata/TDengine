@@ -31,6 +31,7 @@ enum _TSDB_DB_STATUS {
 int32_t mnodeInitDbs();
 void    mnodeCleanupDbs();
 int64_t mnodeGetDbNum();
+int32_t mnodeGetDbMaxReplica();
 SDbObj *mnodeGetDb(char *db);
 SDbObj *mnodeGetDbByTableName(char *db);
 void *  mnodeGetNextDb(void *pIter, SDbObj **pDb);
