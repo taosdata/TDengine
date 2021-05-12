@@ -924,92 +924,6 @@ int taos_validate_sql(TAOS *taos, const char *sql) {
   return code;
 }
 
-static int tscParseTblNameList(SSqlObj *pSql, const char *tblNameList, int32_t tblListLen) {
-  // must before clean the sqlcmd object
-  tscResetSqlCmd(&pSql->cmd, false);
-
-  SSqlCmd *pCmd = &pSql->cmd;
-
-  pCmd->command = TSDB_SQL_MULTI_META;
-  pCmd->count = 0;
-
-  int   code = TSDB_CODE_TSC_INVALID_TABLE_ID_LENGTH;
-  char *str = (char *)tblNameList;
-
-  SQueryInfo *pQueryInfo = tscGetQueryInfoS(pCmd, pCmd->clauseIndex);
-  if (pQueryInfo == NULL) {
-    pSql->res.code = terrno;
-    return terrno;
-  }
-
-  STableMetaInfo *pTableMetaInfo = tscAddEmptyMetaInfo(pQueryInfo);
-
-  if ((code = tscAllocPayload(pCmd, tblListLen + 16)) != TSDB_CODE_SUCCESS) {
-    return code;
-  }
-
-  char *nextStr;
-  char  tblName[TSDB_TABLE_FNAME_LEN];
-  int   payloadLen = 0;
-  char *pMsg = pCmd->payload;
-  while (1) {
-    nextStr = strchr(str, ',');
-    if (nextStr == NULL) {
-      break;
-    }
-
-    memcpy(tblName, str, nextStr - str);
-    int32_t len = (int32_t)(nextStr - str);
-    tblName[len] = '\0';
-
-    str = nextStr + 1;
-    len = (int32_t)strtrim(tblName);
-
-    SStrToken sToken = {.n = len, .type = TK_ID, .z = tblName};
-    tSQLGetToken(tblName, &sToken.type);
-
-    // Check if the table name available or not
-    if (tscValidateName(&sToken) != TSDB_CODE_SUCCESS) {
-      code = TSDB_CODE_TSC_INVALID_TABLE_ID_LENGTH;
-      sprintf(pCmd->payload, "table name is invalid");
-      return code;
-    }
-
-    if ((code = tscSetTableFullName(&pTableMetaInfo->name, &sToken, pSql)) != TSDB_CODE_SUCCESS) {
-      return code;
-    }
-
-    if (++pCmd->count > TSDB_MULTI_TABLEMETA_MAX_NUM) {
-      code = TSDB_CODE_TSC_INVALID_TABLE_ID_LENGTH;
-      sprintf(pCmd->payload, "tables over the max number");
-      return code;
-    }
-
-    int32_t xlen = tNameLen(&pTableMetaInfo->name);
-    if (payloadLen + xlen + 128 >= pCmd->allocSize) {
-      char *pNewMem = realloc(pCmd->payload, pCmd->allocSize + tblListLen);
-      if (pNewMem == NULL) {
-        code = TSDB_CODE_TSC_OUT_OF_MEMORY;
-        sprintf(pCmd->payload, "failed to allocate memory");
-        return code;
-      }
-
-      pCmd->payload = pNewMem;
-      pCmd->allocSize = pCmd->allocSize + tblListLen;
-      pMsg = pCmd->payload;
-    }
-
-    char n[TSDB_TABLE_FNAME_LEN] = {0};
-    tNameExtractFullName(&pTableMetaInfo->name, n);
-    payloadLen += sprintf(pMsg + payloadLen, "%s,", n);
-  }
-
-  *(pMsg + payloadLen) = '\0';
-  pCmd->payloadLen = payloadLen + 1;
-
-  return TSDB_CODE_SUCCESS;
-}
-
 int taos_load_table_info(TAOS *taos, const char *tableNameList) {
   const int32_t MAX_TABLE_NAME_LENGTH = 12 * 1024 * 1024;  // 12MB list
 
@@ -1022,52 +936,33 @@ int taos_load_table_info(TAOS *taos, const char *tableNameList) {
   SSqlObj* pSql = calloc(1, sizeof(SSqlObj));
   pSql->pTscObj = taos;
   pSql->signature = pSql;
+  pSql->fp = NULL;        // todo set the correct callback function pointer
 
-  SSqlRes *pRes = &pSql->res;
-
-  pRes->code = 0;
-  pRes->numOfTotal = 0;  // the number of getting table meta from server
-  pRes->numOfClauseTotal = 0;
-
-  assert(pSql->fp == NULL);
-  tscDebug("0x%"PRIx64" tableNameList: %s pObj:%p", pSql->self, tableNameList, pObj);
-
-  int32_t tblListLen = (int32_t)strlen(tableNameList);
-  if (tblListLen > MAX_TABLE_NAME_LENGTH) {
-    tscError("0x%"PRIx64" tableNameList too long, length:%d, maximum allowed:%d", pSql->self, tblListLen, MAX_TABLE_NAME_LENGTH);
+  int32_t length = (int32_t)strlen(tableNameList);
+  if (length > MAX_TABLE_NAME_LENGTH) {
+    tscError("0x%"PRIx64" tableNameList too long, length:%d, maximum allowed:%d", pSql->self, length, MAX_TABLE_NAME_LENGTH);
     tscFreeSqlObj(pSql);
     return TSDB_CODE_TSC_INVALID_SQL;
   }
 
-  char *str = calloc(1, tblListLen + 1);
+  char *str = calloc(1, length + 1);
   if (str == NULL) {
-    tscError("0x%"PRIx64" failed to malloc sql string buffer", pSql->self);
+    tscError("0x%"PRIx64" failed to allocate sql string buffer", pSql->self);
     tscFreeSqlObj(pSql);
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
   }
 
   strtolower(str, tableNameList);
-  int32_t code = (uint8_t) tscParseTblNameList(pSql, str, tblListLen);
+  int32_t code = (uint8_t) tscTransferTableNameList(pSql, str, length);
 
-  /*
-   * set the qhandle to 0 before return in order to erase the qhandle value assigned in the previous successful query.
-   * If qhandle is NOT set 0, the function of taos_free_result() will send message to server by calling tscBuildAndSendRequest()
-   * to free connection, which may cause segment fault, when the parse phrase is not even successfully executed.
-   */
-  pRes->qId = 0;
   free(str);
-
   if (code != TSDB_CODE_SUCCESS) {
     tscFreeSqlObj(pSql);
     return code;
   }
 
-  tscDoQuery(pSql);
-
-  tscDebug("0x%"PRIx64" load multi-table meta result:%d %s pObj:%p", pSql->self, pRes->code, taos_errstr(pSql), pObj);
-  if ((code = pRes->code) != TSDB_CODE_SUCCESS) {
-    tscFreeSqlObj(pSql);
-  }
-
+  registerSqlObj(pSql);
+  tscDebug("0x%"PRIx64" load multiple table meta, tableNameList: %s pObj:%p", pSql->self, tableNameList, pObj);
+  executeQuery(pSql, NULL);
   return code;
 }

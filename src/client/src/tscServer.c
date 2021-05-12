@@ -1719,44 +1719,36 @@ int tscBuildTableMetaMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
 
 /**
  *  multi table meta req pkg format:
- *  | SMgmtHead | SMultiTableInfoMsg | tableId0 | tableId1 | tableId2 | ......
- *      no used         4B
+ *  |SMultiTableInfoMsg | tableId0 | tableId1 | tableId2 | ......
+ *      4B
  **/
-int tscBuildMultiMeterMetaMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
-#if 0
+int tscBuildMultiTableMetaMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   SSqlCmd *pCmd = &pSql->cmd;
 
-  // copy payload content to temp buff
-  char *tmpData = 0;
-  if (pCmd->payloadLen > 0) {
-    if ((tmpData = calloc(1, pCmd->payloadLen + 1)) == NULL) return -1;
-    memcpy(tmpData, pCmd->payload, pCmd->payloadLen);
-  }
+  // copy payload content to temp buf
+//  char *tmpData = 0;
+//  if (pCmd->payloadLen > 0) {
+//    if ((tmpData = calloc(1, pCmd->payloadLen + 1)) == NULL) return -1;
+//    memcpy(tmpData, pCmd->payload, pCmd->payloadLen);
+//  }
 
-  // fill head info
-  SMgmtHead *pMgmt = (SMgmtHead *)(pCmd->payload + tsRpcHeadSize);
-  memset(pMgmt->db, 0, TSDB_TABLE_FNAME_LEN);  // server don't need the db
+//  SMultiTableInfoMsg *pInfoMsg = (SMultiTableInfoMsg *)(pCmd->payload);
+//  pInfoMsg->numOfTables = htonl((int32_t)pCmd->count);
+//
+//  if (pCmd->payloadLen > 0) {
+//    memcpy(pInfoMsg->tableIds, tmpData, pCmd->payloadLen);
+//  }
+//
+//  tfree(tmpData);
 
-  SMultiTableInfoMsg *pInfoMsg = (SMultiTableInfoMsg *)(pCmd->payload + tsRpcHeadSize + sizeof(SMgmtHead));
-  pInfoMsg->numOfTables = htonl((int32_t)pCmd->count);
-
-  if (pCmd->payloadLen > 0) {
-    memcpy(pInfoMsg->tableIds, tmpData, pCmd->payloadLen);
-  }
-
-  tfree(tmpData);
-
-  pCmd->payloadLen += sizeof(SMgmtHead) + sizeof(SMultiTableInfoMsg);
+//  pCmd->payloadLen += sizeof(SMgmtHead) + sizeof(SMultiTableInfoMsg);
   pCmd->msgType = TSDB_MSG_TYPE_CM_TABLES_META;
-
   assert(pCmd->payloadLen + minMsgSize() <= pCmd->allocSize);
 
-  tscDebug("0x%"PRIx64" build load multi-metermeta msg completed, numOfTables:%d, msg size:%d", pSql->self, pCmd->count,
+  tscDebug("0x%"PRIx64" build load multi-tablemeta msg completed, numOfTables:%d, msg size:%d", pSql->self, pCmd->count,
            pCmd->payloadLen);
 
   return pCmd->payloadLen;
-#endif
-  return 0;  
 }
 
 int tscBuildSTableVgroupMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
@@ -2443,6 +2435,63 @@ static int32_t getTableMetaFromMnode(SSqlObj *pSql, STableMetaInfo *pTableMetaIn
   return code;
 }
 
+int32_t getMultiTableMetaFromMnode(SSqlObj *pSql, SArray* pNameList, bool loadVgroupInfo) {
+  SSqlObj *pNew = calloc(1, sizeof(SSqlObj));
+  if (NULL == pNew) {
+    tscError("0x%"PRIx64" failed to allocate sqlobj to get multiple table meta", pSql->self);
+    return TSDB_CODE_TSC_OUT_OF_MEMORY;
+  }
+
+  pNew->pTscObj     = pSql->pTscObj;
+  pNew->signature   = pNew;
+  pNew->cmd.command = TSDB_SQL_MULTI_META;
+
+  int32_t numOfTables = taosArrayGetSize(pNameList);
+  int32_t size = numOfTables * TSDB_TABLE_FNAME_LEN + sizeof(SMultiTableInfoMsg);
+  if (TSDB_CODE_SUCCESS != tscAllocPayload(&pNew->cmd, size)) {
+    tscError("0x%"PRIx64" malloc failed for payload to get table meta", pSql->self);
+    tscFreeSqlObj(pNew);
+    return TSDB_CODE_TSC_OUT_OF_MEMORY;
+  }
+
+  SMultiTableInfoMsg* pInfo = (SMultiTableInfoMsg*) pNew->cmd.payload;
+  pInfo->loadVgroup = htonl(loadVgroupInfo? 1:0);
+  pInfo->numOfTables = htonl(numOfTables);
+
+  char* start = pInfo->tableNames;
+  int32_t len = 0;
+  for(int32_t i = 0; i < numOfTables; ++i) {
+    char* name = taosArrayGetP(pNameList, i);
+    if (i < numOfTables - 1) {
+      len = sprintf(start, "%s,", name);
+    } else {
+      len = sprintf(start, "%s", name);
+    }
+
+    start += len;
+  }
+
+  pNew->cmd.payloadLen = (start - pInfo->tableNames) + sizeof(SMultiTableInfoMsg);
+  pNew->cmd.msgType = TSDB_MSG_TYPE_CM_TABLES_META;
+
+  registerSqlObj(pNew);
+  tscDebug("0x%"PRIx64" new pSqlObj:0x%"PRIx64" to get %d tableMeta, loadVgroup:%d, msg size:%d", pSql->self,
+      pNew->self, numOfTables, loadVgroupInfo, pNew->cmd.payloadLen);
+
+  pNew->fp = tscTableMetaCallBack;
+  pNew->param = (void *)pSql->self;
+
+  tscDebug("0x%"PRIx64" metaRid from %" PRId64 " to %" PRId64 , pSql->self, pSql->metaRid, pNew->self);
+
+  pSql->metaRid = pNew->self;
+  int32_t code = tscBuildAndSendRequest(pNew, NULL);
+  if (code == TSDB_CODE_SUCCESS) {
+    code = TSDB_CODE_TSC_ACTION_IN_PROGRESS;  // notify application that current process needs to be terminated
+  }
+
+  return code;
+}
+
 int32_t tscGetTableMeta(SSqlObj *pSql, STableMetaInfo *pTableMetaInfo) {
   assert(tIsValidName(&pTableMetaInfo->name));
 
@@ -2604,7 +2653,6 @@ void tscInitMsgsFp() {
   tscBuildMsg[TSDB_SQL_USE_DB] = tscBuildUseDbMsg;
   tscBuildMsg[TSDB_SQL_META] = tscBuildTableMetaMsg;
   tscBuildMsg[TSDB_SQL_STABLEVGROUP] = tscBuildSTableVgroupMsg;
-  tscBuildMsg[TSDB_SQL_MULTI_META] = tscBuildMultiMeterMetaMsg;
 
   tscBuildMsg[TSDB_SQL_HB] = tscBuildHeartBeatMsg;
   tscBuildMsg[TSDB_SQL_SHOW] = tscBuildShowMsg;

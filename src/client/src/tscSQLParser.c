@@ -7127,6 +7127,10 @@ static int32_t getTableNameFromSubquery(SSqlNode* pSqlNode, SArray* tableNameLis
   return TSDB_CODE_SUCCESS;
 }
 
+static void freeElem(void* p) {
+  tfree(p);
+}
+
 int32_t loadAllTableMeta(SSqlObj* pSql, struct SSqlInfo* pInfo) {
   SSqlCmd* pCmd = &pSql->cmd;
 
@@ -7164,7 +7168,7 @@ int32_t loadAllTableMeta(SSqlObj* pSql, struct SSqlInfo* pInfo) {
   int32_t numOfTables = taosArrayGetSize(tableNameList);
   STableMeta* pTableMeta = calloc(1, maxSize);
 
-  SArray* plist = taosArrayInit(4, sizeof(SName));
+  SArray* plist = taosArrayInit(4, POINTER_BYTES);
   for(int32_t i = 0; i < numOfTables; ++i) {
     SName* pname = taosArrayGet(tableNameList, i);
     tNameExtractFullName(pname, name);
@@ -7185,16 +7189,19 @@ int32_t loadAllTableMeta(SSqlObj* pSql, struct SSqlInfo* pInfo) {
       STableMeta* pMeta = tscTableMetaDup(pTableMeta);
       taosHashPut(pCmd->pTableMetaMap, name, strlen(name), &pMeta, POINTER_BYTES);
     } else {// add to the retrieve table meta array list.
-      taosArrayPush(plist, pname);
+      char* t = strdup(name);
+      taosArrayPush(plist, &t);
     }
   }
 
   // load the table meta for a given table name list
   if (taosArrayGetSize(plist) > 0) {
-    doGetTableMetaFromMnode();
+    int32_t code = getMultiTableMetaFromMnode(pSql, plist, true);
+    taosArrayDestroyEx(plist, freeElem);
+
+    return code;
   }
 
-//  return getTableMetaFromMnode(pSql, pTableMetaInfo);
   return TSDB_CODE_SUCCESS;
 }
 

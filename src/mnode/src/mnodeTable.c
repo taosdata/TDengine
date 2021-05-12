@@ -1674,12 +1674,9 @@ static int32_t mnodeSetSchemaFromSuperTable(SSchema *pSchema, SSTableObj *pTable
   return (pTable->numOfColumns + pTable->numOfTags) * sizeof(SSchema);
 }
 
-static int32_t mnodeGetSuperTableMeta(SMnodeMsg *pMsg) {
+static int32_t mnodeDoGetSuperTableMeta(SMnodeMsg *pMsg, STableMetaMsg* pMeta) {
   SSTableObj *pTable = (SSTableObj *)pMsg->pTable;
-  STableMetaMsg *pMeta   = rpcMallocCont(sizeof(STableMetaMsg) + sizeof(SSchema) * (TSDB_MAX_TAGS + TSDB_MAX_COLUMNS + 16));
-  if (pMeta == NULL) {
-    return TSDB_CODE_MND_OUT_OF_MEMORY;
-  }
+
   pMeta->uid          = htobe64(pTable->uid);
   pMeta->sversion     = htons(pTable->sversion);
   pMeta->tversion     = htons(pTable->tversion);
@@ -1689,6 +1686,18 @@ static int32_t mnodeGetSuperTableMeta(SMnodeMsg *pMsg) {
   pMeta->tableType    = pTable->info.type;
   pMeta->contLen      = sizeof(STableMetaMsg) + mnodeSetSchemaFromSuperTable(pMeta->schema, pTable);
   tstrncpy(pMeta->tableFname, pTable->info.tableId, sizeof(pMeta->tableFname));
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t mnodeGetSuperTableMeta(SMnodeMsg *pMsg) {
+  SSTableObj *pTable = (SSTableObj *)pMsg->pTable;
+  STableMetaMsg *pMeta   = rpcMallocCont(sizeof(STableMetaMsg) + sizeof(SSchema) * (TSDB_MAX_TAGS + TSDB_MAX_COLUMNS + 16));
+  if (pMeta == NULL) {
+    return TSDB_CODE_MND_OUT_OF_MEMORY;
+  }
+
+  mnodeDoGetSuperTableMeta(pMsg, pMeta);
 
   pMsg->rpcRsp.len = pMeta->contLen;
   pMeta->contLen = htons(pMeta->contLen);
@@ -2417,7 +2426,7 @@ static int32_t mnodeDoGetChildTableMeta(SMnodeMsg *pMsg, STableMetaMsg *pMeta) {
   }
   pMeta->vgroup.vgId = htonl(pMsg->pVgroup->vgId);
 
-  mDebug("msg:%p, app:%p table:%s, uid:%" PRIu64 " table meta is retrieved, vgId:%d sid:%d", pMsg, pMsg->rpcMsg.ahandle,
+  mDebug("msg:%p, app:%p table:%s, uid:%" PRIu64 " table meta is retrieved, vgId:%d tid:%d", pMsg, pMsg->rpcMsg.ahandle,
          pTable->info.tableId, pTable->uid, pTable->vgId, pTable->tid);
 
   return TSDB_CODE_SUCCESS;
@@ -2809,11 +2818,15 @@ static void mnodeProcessAlterTableRsp(SRpcMsg *rpcMsg) {
   }
 }
 
+//TODO. set the vgroup info for the super table
 static int32_t mnodeProcessMultiTableMetaMsg(SMnodeMsg *pMsg) {
   SMultiTableInfoMsg *pInfo = pMsg->rpcMsg.pCont;
   pInfo->numOfTables = htonl(pInfo->numOfTables);
+  pInfo->loadVgroup = htonl(pInfo->loadVgroup);
 
-  int32_t totalMallocLen = 4 * 1024 * 1024;  // first malloc 4 MB, subsequent reallocation as twice
+  // first malloc 4KB, subsequent reallocation will expand the size as twice of the original size
+  int32_t totalMallocLen = 4 * 1024;
+
   SMultiTableMeta *pMultiMeta = rpcMallocCont(totalMallocLen);
   if (pMultiMeta == NULL) {
     return TSDB_CODE_MND_OUT_OF_MEMORY;
@@ -2823,13 +2836,21 @@ static int32_t mnodeProcessMultiTableMetaMsg(SMnodeMsg *pMsg) {
   pMultiMeta->numOfTables = 0;
 
   for (int32_t t = 0; t < pInfo->numOfTables; ++t) {
-    char * tableId = (char *)(pInfo->tableIds + t * TSDB_TABLE_FNAME_LEN);
-    SCTableObj *pTable = mnodeGetChildTable(tableId);
-    if (pTable == NULL) continue;
+    char *fullName = (char *)(pInfo->tableNames + t * TSDB_TABLE_FNAME_LEN);
 
-    if (pMsg->pDb == NULL) pMsg->pDb = mnodeGetDbByTableName(tableId);
+    if (pMsg->pTable == NULL) {
+      pMsg->pTable = mnodeGetTable(fullName);
+      if (pMsg->pTable == NULL) {  // TODO: return error to client?
+        continue;
+      }
+    }
+
+    if (pMsg->pDb == NULL) {
+      pMsg->pDb = mnodeGetDbByTableName(fullName);
+    }
+
     if (pMsg->pDb == NULL || pMsg->pDb->status != TSDB_DB_STATUS_READY) {
-      mnodeDecTableRef(pTable);
+      mnodeDecTableRef(pMsg->pTable);  // TODO: return error to client?
       continue;
     }
 
@@ -2838,23 +2859,26 @@ static int32_t mnodeProcessMultiTableMetaMsg(SMnodeMsg *pMsg) {
       totalMallocLen *= 2;
       pMultiMeta = rpcReallocCont(pMultiMeta, totalMallocLen);
       if (pMultiMeta == NULL) {
-        mnodeDecTableRef(pTable);
+        mnodeDecTableRef(pMsg->pTable);
         return TSDB_CODE_MND_OUT_OF_MEMORY;
-      } else {
-        t--;
-        mnodeDecTableRef(pTable);
-        continue;
       }
     }
 
-    STableMetaMsg *pMeta = (STableMetaMsg *)(pMultiMeta->metas + pMultiMeta->contLen);
-    int32_t code = mnodeDoGetChildTableMeta(pMsg, pMeta);
+    STableMetaMsg *pMeta = (STableMetaMsg *)(pMultiMeta->meta + pMultiMeta->contLen);
+
+    int32_t code = 0;
+    if (pMsg->pTable->type != TSDB_SUPER_TABLE) {
+      code = mnodeDoGetChildTableMeta(pMsg, pMeta);
+    } else {
+      code = mnodeDoGetSuperTableMeta(pMsg, pMeta);
+    }
+
     if (code == TSDB_CODE_SUCCESS) {
       pMultiMeta->numOfTables ++;
       pMultiMeta->contLen += pMeta->contLen;
     }
 
-    mnodeDecTableRef(pTable);
+    mnodeDecTableRef(pMsg->pTable);
   }
 
   pMsg->rpcRsp.rsp = pMultiMeta;

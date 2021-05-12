@@ -2352,7 +2352,6 @@ int32_t tscAddQueryInfo(SSqlCmd* pCmd) {
   }
 
   pCmd->active = pQueryInfo;
-//  pCmd->pQueryInfo[pCmd->numOfClause++] = pQueryInfo;
   return TSDB_CODE_SUCCESS;
 }
 
@@ -3737,3 +3736,87 @@ int32_t tscCreateQueryFromQueryInfo(SQueryInfo* pQueryInfo, SQueryAttr* pQueryAt
 
   return TSDB_CODE_SUCCESS;
 }
+
+int tscTransferTableNameList(SSqlObj *pSql, const char *pNameList, int32_t length) {
+  SSqlCmd *pCmd = &pSql->cmd;
+
+  pCmd->command = TSDB_SQL_MULTI_META;
+  pCmd->count = 0;
+
+  int   code = TSDB_CODE_TSC_INVALID_TABLE_ID_LENGTH;
+  char *str = (char *)pNameList;
+
+  SQueryInfo *pQueryInfo = tscGetQueryInfoS(pCmd, pCmd->clauseIndex);
+  if (pQueryInfo == NULL) {
+    pSql->res.code = terrno;
+    return terrno;
+  }
+
+  STableMetaInfo *pTableMetaInfo = tscAddEmptyMetaInfo(pQueryInfo);
+
+  if ((code = tscAllocPayload(pCmd, length + 16)) != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+
+  char *nextStr;
+  char  tblName[TSDB_TABLE_FNAME_LEN];
+  int   payloadLen = 0;
+  char *pMsg = pCmd->payload;
+  while (1) {
+    nextStr = strchr(str, ',');
+    if (nextStr == NULL) {
+      break;
+    }
+
+    memcpy(tblName, str, nextStr - str);
+    int32_t len = (int32_t)(nextStr - str);
+    tblName[len] = '\0';
+
+    str = nextStr + 1;
+    len = (int32_t)strtrim(tblName);
+
+    SStrToken sToken = {.n = len, .type = TK_ID, .z = tblName};
+    tSQLGetToken(tblName, &sToken.type);
+
+    // Check if the table name available or not
+    if (tscValidateName(&sToken) != TSDB_CODE_SUCCESS) {
+      code = TSDB_CODE_TSC_INVALID_TABLE_ID_LENGTH;
+      sprintf(pCmd->payload, "table name is invalid");
+      return code;
+    }
+
+    if ((code = tscSetTableFullName(&pTableMetaInfo->name, &sToken, pSql)) != TSDB_CODE_SUCCESS) {
+      return code;
+    }
+
+    if (++pCmd->count > TSDB_MULTI_TABLEMETA_MAX_NUM) {
+      code = TSDB_CODE_TSC_INVALID_TABLE_ID_LENGTH;
+      sprintf(pCmd->payload, "tables over the max number");
+      return code;
+    }
+
+    int32_t xlen = tNameLen(&pTableMetaInfo->name);
+    if (payloadLen + xlen + 128 >= pCmd->allocSize) {
+      char *pNewMem = realloc(pCmd->payload, pCmd->allocSize + length);
+      if (pNewMem == NULL) {
+        code = TSDB_CODE_TSC_OUT_OF_MEMORY;
+        sprintf(pCmd->payload, "failed to allocate memory");
+        return code;
+      }
+
+      pCmd->payload = pNewMem;
+      pCmd->allocSize = pCmd->allocSize + length;
+      pMsg = pCmd->payload;
+    }
+
+    char n[TSDB_TABLE_FNAME_LEN] = {0};
+    tNameExtractFullName(&pTableMetaInfo->name, n);
+    payloadLen += sprintf(pMsg + payloadLen, "%s,", n);
+  }
+
+  *(pMsg + payloadLen) = '\0';
+  pCmd->payloadLen = payloadLen + 1;
+
+  return TSDB_CODE_SUCCESS;
+}
+
