@@ -581,7 +581,7 @@ int32_t tsParseValues(char **str, STableDataBlocks *pDataBlock, int maxRows, SSq
     if (sToken.n == 0 || sToken.type != TK_RP) {
       tscSQLSyntaxErrMsg(pCmd->payload, ") expected", *str);
       code = TSDB_CODE_TSC_SQL_SYNTAX_ERROR;
-      return -1;
+      return code;
     }
 
     (*numOfRows)++;
@@ -712,6 +712,9 @@ static int32_t doParseInsertStatement(SSqlCmd* pCmd, char **str, STableDataBlock
 
   int32_t numOfRows = 0;
   code = tsParseValues(str, dataBuf, maxNumOfRows, pCmd, &numOfRows, tmpTokenBuf);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
 
   for (uint32_t i = 0; i < dataBuf->numOfParams; ++i) {
     SParamInfo *param = dataBuf->params + i;
