@@ -84,7 +84,8 @@ public class TSDBResultSetRowData {
         data.set(col, value);
     }
 
-    public int getInt(int col, int srcType) throws SQLException {
+    @SuppressWarnings("deprecation")
+	public int getInt(int col, int srcType) throws SQLException {
         Object obj = data.get(col);
 
         switch (srcType) {
@@ -128,7 +129,7 @@ public class TSDBResultSetRowData {
                 long value = (long) obj;
                 if (value < 0)
                     throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_NUMERIC_VALUE_OUT_OF_RANGE);
-                return new Long(value).intValue();
+                return Long.valueOf(value).intValue();
             }
         }
 

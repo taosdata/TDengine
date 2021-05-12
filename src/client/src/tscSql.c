@@ -457,6 +457,7 @@ static bool needToFetchNewBlock(SSqlObj* pSql) {
           pCmd->command == TSDB_SQL_FETCH ||
           pCmd->command == TSDB_SQL_SHOW ||
           pCmd->command == TSDB_SQL_SHOW_CREATE_TABLE ||
+          pCmd->command == TSDB_SQL_SHOW_CREATE_STABLE ||
           pCmd->command == TSDB_SQL_SHOW_CREATE_DATABASE ||
           pCmd->command == TSDB_SQL_SELECT ||
           pCmd->command == TSDB_SQL_DESCRIBE_TABLE ||
@@ -962,7 +963,7 @@ static int tscParseTblNameList(SSqlObj *pSql, const char *tblNameList, int32_t t
     len = (int32_t)strtrim(tblName);
 
     SStrToken sToken = {.n = len, .type = TK_ID, .z = tblName};
-    tSQLGetToken(tblName, &sToken.type);
+    tGetToken(tblName, &sToken.type);
 
     // Check if the table name available or not
     if (tscValidateName(&sToken) != TSDB_CODE_SUCCESS) {

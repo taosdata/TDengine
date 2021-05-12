@@ -94,6 +94,10 @@ cmd ::= SHOW CREATE TABLE ids(X) cpxName(Y).    {
    X.n += Y.n;
    setDCLSqlElems(pInfo, TSDB_SQL_SHOW_CREATE_TABLE, 1, &X);
 }    
+cmd ::= SHOW CREATE STABLE ids(X) cpxName(Y).    {
+   X.n += Y.n;
+   setDCLSqlElems(pInfo, TSDB_SQL_SHOW_CREATE_STABLE, 1, &X);
+}    
 
 cmd ::= SHOW CREATE DATABASE ids(X). {
   setDCLSqlElems(pInfo, TSDB_SQL_SHOW_CREATE_DATABASE, 1, &X);

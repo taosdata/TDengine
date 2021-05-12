@@ -4009,7 +4009,13 @@ static int32_t twa_function_impl(SQLFunctionCtx* pCtx, int32_t index, int32_t si
           continue;
         }
 
+#ifndef _TD_NINGSI_60
         SPoint1 st = {.key = tsList[i], .val = val[i]};
+#else
+        SPoint1 st;
+        st.key = tsList[i];
+        st.val = val[i];
+#endif        
         pInfo->dOutput += twa_get_area(pInfo->p, st);
         pInfo->p = st;
       }
@@ -4021,8 +4027,14 @@ static int32_t twa_function_impl(SQLFunctionCtx* pCtx, int32_t index, int32_t si
         if (pCtx->hasNull && isNull((const char*) &val[i], pCtx->inputType)) {
           continue;
         }
-
+        
+#ifndef _TD_NINGSI_60
         SPoint1 st = {.key = tsList[i], .val = val[i]};
+#else
+        SPoint1 st;
+        st.key = tsList[i];
+        st.val = val[i];
+#endif        
         pInfo->dOutput += twa_get_area(pInfo->p, st);
         pInfo->p = st;
       }
@@ -4034,8 +4046,14 @@ static int32_t twa_function_impl(SQLFunctionCtx* pCtx, int32_t index, int32_t si
         if (pCtx->hasNull && isNull((const char*) &val[i], pCtx->inputType)) {
           continue;
         }
-
+        
+#ifndef _TD_NINGSI_60
         SPoint1 st = {.key = tsList[i], .val = val[i]};
+#else
+        SPoint1 st;
+        st.key = tsList[i];
+        st.val = val[i];
+#endif        
         pInfo->dOutput += twa_get_area(pInfo->p, st);
         pInfo->p = st;
       }
@@ -4047,8 +4065,14 @@ static int32_t twa_function_impl(SQLFunctionCtx* pCtx, int32_t index, int32_t si
         if (pCtx->hasNull && isNull((const char*) &val[i], pCtx->inputType)) {
           continue;
         }
-
+        
+#ifndef _TD_NINGSI_60
         SPoint1 st = {.key = tsList[i], .val = (double) val[i]};
+#else
+        SPoint1 st;
+        st.key = tsList[i];
+        st.val = (double)val[i];
+#endif        
         pInfo->dOutput += twa_get_area(pInfo->p, st);
         pInfo->p = st;
       }
@@ -4060,8 +4084,14 @@ static int32_t twa_function_impl(SQLFunctionCtx* pCtx, int32_t index, int32_t si
         if (pCtx->hasNull && isNull((const char*) &val[i], pCtx->inputType)) {
           continue;
         }
-
+        
+#ifndef _TD_NINGSI_60
         SPoint1 st = {.key = tsList[i], .val = val[i]};
+#else
+        SPoint1 st;
+        st.key = tsList[i];
+        st.val = (double)val[i];
+#endif        
         pInfo->dOutput += twa_get_area(pInfo->p, st);
         pInfo->p = st;
       }
@@ -4073,8 +4103,14 @@ static int32_t twa_function_impl(SQLFunctionCtx* pCtx, int32_t index, int32_t si
         if (pCtx->hasNull && isNull((const char*) &val[i], pCtx->inputType)) {
           continue;
         }
-
+        
+#ifndef _TD_NINGSI_60
         SPoint1 st = {.key = tsList[i], .val = val[i]};
+#else
+        SPoint1 st;
+        st.key = tsList[i];
+        st.val = val[i];
+#endif        
         pInfo->dOutput += twa_get_area(pInfo->p, st);
         pInfo->p = st;
       }
@@ -4087,7 +4123,13 @@ static int32_t twa_function_impl(SQLFunctionCtx* pCtx, int32_t index, int32_t si
           continue;
         }
 
+#ifndef _TD_NINGSI_60
         SPoint1 st = {.key = tsList[i], .val = val[i]};
+#else
+        SPoint1 st;
+        st.key = tsList[i];
+        st.val = val[i];
+#endif        
         pInfo->dOutput += twa_get_area(pInfo->p, st);
         pInfo->p = st;
       }
@@ -4100,7 +4142,13 @@ static int32_t twa_function_impl(SQLFunctionCtx* pCtx, int32_t index, int32_t si
           continue;
         }
 
+#ifndef _TD_NINGSI_60
         SPoint1 st = {.key = tsList[i], .val = val[i]};
+#else
+        SPoint1 st;
+        st.key = tsList[i];
+        st.val = val[i];
+#endif        
         pInfo->dOutput += twa_get_area(pInfo->p, st);
         pInfo->p = st;
       }
@@ -4113,7 +4161,13 @@ static int32_t twa_function_impl(SQLFunctionCtx* pCtx, int32_t index, int32_t si
           continue;
         }
 
+#ifndef _TD_NINGSI_60
         SPoint1 st = {.key = tsList[i], .val = val[i]};
+#else
+        SPoint1 st;
+        st.key = tsList[i];
+        st.val = val[i];
+#endif        
         pInfo->dOutput += twa_get_area(pInfo->p, st);
         pInfo->p = st;
       }
@@ -4125,8 +4179,14 @@ static int32_t twa_function_impl(SQLFunctionCtx* pCtx, int32_t index, int32_t si
         if (pCtx->hasNull && isNull((const char*) &val[i], pCtx->inputType)) {
           continue;
         }
-
+        
+#ifndef _TD_NINGSI_60
         SPoint1 st = {.key = tsList[i], .val = (double) val[i]};
+#else
+        SPoint1 st;
+        st.key = tsList[i];
+        st.val = (double) val[i];
+#endif        
         pInfo->dOutput += twa_get_area(pInfo->p, st);
         pInfo->p = st;
       }

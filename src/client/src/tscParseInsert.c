@@ -29,8 +29,7 @@
 #include "taosdef.h"
 
 #include "tscLog.h"
-#include "tscSubquery.h"
-#include "tstoken.h"
+#include "ttoken.h"
 
 #include "tdataformat.h"
 
@@ -386,7 +385,7 @@ int32_t tsParseOneColumn(SSchema *pSchema, SStrToken *pToken, char *payload, cha
  * The server time/client time should not be mixed up in one sql string
  * Do not employ sort operation is not involved if server time is used.
  */
-static int32_t tsCheckTimestamp(STableDataBlocks *pDataBlocks, const char *start) {
+int32_t tsCheckTimestamp(STableDataBlocks *pDataBlocks, const char *start) {
   // once the data block is disordered, we do NOT keep previous timestamp any more
   if (!pDataBlocks->ordered) {
     return TSDB_CODE_SUCCESS;
@@ -411,6 +410,7 @@ static int32_t tsCheckTimestamp(STableDataBlocks *pDataBlocks, const char *start
 
   if (k <= pDataBlocks->prevTS && (pDataBlocks->tsSource == TSDB_USE_CLI_TS)) {
     pDataBlocks->ordered = false;
+    tscWarn("NOT ordered input timestamp");
   }
 
   pDataBlocks->prevTS = k;
@@ -463,23 +463,24 @@ int tsParseOneRow(char **str, STableDataBlocks *pDataBlocks, SSqlCmd *pCmd, int1
     // Remove quotation marks
     if (TK_STRING == sToken.type) {
       // delete escape character: \\, \', \"
-      char    delim = sToken.z[0];
+      char delim = sToken.z[0];
+
       int32_t cnt = 0;
       int32_t j = 0;
       for (uint32_t k = 1; k < sToken.n - 1; ++k) {
-        if (sToken.z[k] == delim || sToken.z[k] == '\\') {
-          if (sToken.z[k + 1] == delim) {
-            cnt++;
+        if (sToken.z[k] == '\\' || (sToken.z[k] == delim && sToken.z[k + 1] == delim)) {
             tmpTokenBuf[j] = sToken.z[k + 1];
-            j++;
-            k++;
-            continue;
-          }
+
+          cnt++;
+          j++;
+          k++;
+          continue;
         }
 
         tmpTokenBuf[j] = sToken.z[k];
         j++;
       }
+
       tmpTokenBuf[j] = 0;
       sToken.z = tmpTokenBuf;
       sToken.n -= 2 + cnt;
@@ -693,6 +694,8 @@ void tscSortRemoveDataBlockDupRows(STableDataBlocks *dataBuf) {
     pBlocks->numOfRows = i + 1;
     dataBuf->size = sizeof(SSubmitBlk) + dataBuf->rowSize * pBlocks->numOfRows;
   }
+
+  dataBuf->prevTS = INT64_MIN;
 }
 
 static int32_t doParseInsertStatement(SSqlCmd* pCmd, char **str, STableDataBlocks* dataBuf, int32_t *totalNum) {
@@ -705,18 +708,10 @@ static int32_t doParseInsertStatement(SSqlCmd* pCmd, char **str, STableDataBlock
   }
 
   code = TSDB_CODE_TSC_INVALID_SQL;
-  char  *tmpTokenBuf = calloc(1, 16*1024);  // used for deleting Escape character: \\, \', \"
-  if (NULL == tmpTokenBuf) {
-    return TSDB_CODE_TSC_OUT_OF_MEMORY;
-  }
+  char tmpTokenBuf[16*1024] = {0};  // used for deleting Escape character: \\, \', \"
 
   int32_t numOfRows = 0;
   code = tsParseValues(str, dataBuf, maxNumOfRows, pCmd, &numOfRows, tmpTokenBuf);
-
-  free(tmpTokenBuf);
-  if (code != TSDB_CODE_SUCCESS) {
-    return code;
-  }
 
   for (uint32_t i = 0; i < dataBuf->numOfParams; ++i) {
     SParamInfo *param = dataBuf->params + i;
@@ -934,6 +929,42 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql, char** boundC
       return tscSQLSyntaxErrMsg(pCmd->payload, ") expected", sToken.z);
     }
 
+    /* parse columns after super table tags values.
+     * insert into table_name using super_table(tag_name1, tag_name2) tags(tag_val1, tag_val2)
+     * (normal_col1, normal_col2) values(normal_col1_val, normal_col2_val);
+     * */
+    index = 0;
+    sToken = tStrGetToken(sql, &index, false);
+    sql += index;
+    int numOfColsAfterTags = 0;
+    if (sToken.type == TK_LP) {
+      if (*boundColumn != NULL) {
+        return tscSQLSyntaxErrMsg(pCmd->payload, "bind columns again", sToken.z);
+      } else {
+        *boundColumn = &sToken.z[0];
+      }
+
+      while (1) {
+        index = 0;
+        sToken = tStrGetToken(sql, &index, false);
+
+        if (sToken.type == TK_RP) {
+          break;
+        }
+
+        sql += index;
+        ++numOfColsAfterTags;
+      }
+
+      if (numOfColsAfterTags == 0 && (*boundColumn) != NULL) {
+        return TSDB_CODE_TSC_INVALID_SQL;
+      }
+
+      sToken = tStrGetToken(sql, &index, false);
+    }
+
+    sql = sToken.z;
+
     if (tscValidateName(&tableToken) != TSDB_CODE_SUCCESS) {
       return tscInvalidSQLErrMsg(pCmd->payload, "invalid table name", *sqlstr);
     }
@@ -975,7 +1006,7 @@ int validateTableName(char *tblName, int len, SStrToken* psTblToken) {
 
   psTblToken->n    = len;
   psTblToken->type = TK_ID;
-  tSQLGetToken(psTblToken->z, &psTblToken->type);
+  tGetToken(psTblToken->z, &psTblToken->type);
 
   return tscValidateName(psTblToken);
 }
@@ -1262,7 +1293,7 @@ int tsParseInsertSql(SSqlObj *pSql) {
     goto _clean;
   }
 
-  if (taosHashGetSize(pCmd->pTableBlockHashList) > 0) { // merge according to vgId
+  if ((pCmd->insertType != TSDB_QUERY_TYPE_STMT_INSERT) && taosHashGetSize(pCmd->pTableBlockHashList) > 0) { // merge according to vgId
     if ((code = tscMergeTableDataBlocks(pSql, true)) != TSDB_CODE_SUCCESS) {
       goto _clean;
     }

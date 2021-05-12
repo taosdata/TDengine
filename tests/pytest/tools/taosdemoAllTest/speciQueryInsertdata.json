@@ -69,7 +69,7 @@
             "insert_rows": 200,
             "childtable_limit": 0,
             "childtable_offset": 0,
-            "interlace_rows": 0,
+            "interlace_rows": 0 ,
             "insert_interval": 0,
             "max_sql_len": 1024000,
             "disorder_ratio": 0,

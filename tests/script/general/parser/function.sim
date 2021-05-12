@@ -393,6 +393,19 @@ if $rows != 24 then
   return -1
 endi
 
+print ========================> TD-3948
+sql drop table if exists meters
+sql create stable meters (ts timestamp, current float, voltage int, phase float) tags (location binary(64), groupId int);
+sql_error insert into td3948Err1(phase) using meters tags ("Beijng.Chaoyang", 2) (ts, current) values (now, 10.2);
+sql_error insert into td3948Err2(phase, voltage) using meters tags ("Beijng.Chaoyang", 2) (ts, current) values (now, 10.2);
+sql_error insert into td3948Err3(phase, current) using meters tags ("Beijng.Chaoyang", 2) (ts, current) values (now, 10.2);
+sql insert into td3948 using meters tags ("Beijng.Chaoyang", 2) (ts, current) values (now, 10.2);
+sql select count(ts) from td3948;
+if $rows != 1 then
+  print expect 1, actual:$rows
+  return -1
+endi
+
 print ========================> TD-2740
 sql drop table if exists m1;
 sql create table m1(ts timestamp, k int) tags(a int);
