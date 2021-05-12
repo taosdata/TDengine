@@ -323,6 +323,19 @@ void cenc_picker_func(MS3TraceList *mstl, callback_params_t *param)
 
     seg = id->first;
 
+    while (seg && seed_only) {
+      if ((int) seg->samprate == 100) {
+        break;
+      }
+
+      seg = seg->next;
+    }
+
+    if (seg == NULL) {
+      id = id->next;
+      continue;
+    }
+
     memset(&samps.time, 0, sizeof(samps.time));
     memset(&samps.samples, 0, sizeof(samps.samples));
 
@@ -359,14 +372,6 @@ void cenc_picker_func(MS3TraceList *mstl, callback_params_t *param)
     h = &(*t)->history;
 
     while (seg) {
-      if (seed_only) {
-        samprate = (int) seg->samprate;
-        if (samprate != 100) {
-          seg = seg->next;
-          continue;
-        }
-      }
-
       if (seg->numsamples <= 0) {
         seg = seg->next;
         continue;

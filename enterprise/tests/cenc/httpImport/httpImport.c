@@ -1107,7 +1107,7 @@ void *seed_write_routine(void *arg)
         }
     }
 
-    if (offset) {
+    if (offset > 0 && offset > cursor) {
         cmd[offset] = ';';
 
         res = taos_query(p->taos, cmd);

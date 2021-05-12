@@ -194,6 +194,20 @@ void cenc_import_detail(MS3TraceList *mstl, callback_params_t *param)
     }
 
     seg = id->first;
+
+    while (seg && seed_only) {
+      if ((int) seg->samprate == 100) {
+        break;
+      }
+
+      seg = seg->next;
+    }
+
+    if (seg == NULL) {
+      id = id->next;
+      continue;
+    }
+
     start_time = (int64_t) round(id->earliest * 0.001 * 0.001);
 
     memset(sid, 0, LM_SIDLEN);
@@ -228,13 +242,6 @@ void cenc_import_detail(MS3TraceList *mstl, callback_params_t *param)
     cp = cmd + np;
 
     while (seg) {
-      if (seed_only) {
-        if ((int) seg->samprate != 100) {
-          seg = seg->next;
-          continue;
-        }
-      }
-
       if (seg->numsamples <= 0) {
         seg = seg->next;
         continue;
