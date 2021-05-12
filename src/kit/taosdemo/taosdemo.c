@@ -3406,8 +3406,10 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
               g_args.interlace_rows, g_args.num_of_RPR);
       printf("        interlace rows value will be set to num_of_records_per_req %"PRIu64"\n\n",
               g_args.num_of_RPR);
-      printf("        press Enter key to continue or Ctrl-C to stop.");
-      (void)getchar();
+      if (!g_args.answer_yes) {
+        printf("        press Enter key to continue or Ctrl-C to stop.");
+        (void)getchar();
+      }
       g_args.interlace_rows = g_args.num_of_RPR;
     }
   } else if (!interlaceRows) {
@@ -3926,8 +3928,10 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
                   i, j, g_Dbs.db[i].superTbls[j].interlaceRows, g_args.num_of_RPR);
           printf("        interlace rows value will be set to num_of_records_per_req %"PRIu64"\n\n",
                   g_args.num_of_RPR);
-          printf("        press Enter key to continue or Ctrl-C to stop.");
-          (void)getchar();
+          if (!g_args.answer_yes) {
+            printf("        press Enter key to continue or Ctrl-C to stop.");
+            (void)getchar();
+          }
           g_Dbs.db[i].superTbls[j].interlaceRows = g_args.num_of_RPR;
         }
       } else if (!interlaceRows) {
@@ -6309,7 +6313,9 @@ static int queryTestProcess() {
     (void)getchar();
   }
 
-  printfQuerySystemInfo(taos);
+  if (g_args.debug_print || g_args.verbose_print) {
+    printfQuerySystemInfo(taos);
+  }
 
   if (0 == strncasecmp(g_queryInfo.queryMode, "rest", strlen("rest"))) {
     if (convertHostToServAddr(
