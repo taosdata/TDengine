@@ -4,7 +4,7 @@
 #include <iostream>
 
 #include "taos.h"
-#include "tstoken.h"
+#include "ttoken.h"
 #include "tutil.h"
 
 int main(int argc, char** argv) {
