@@ -538,7 +538,7 @@ static void taosTmrModuleInit(void) {
 
 void* taosTmrInit(int maxNumOfTmrs, int resolution, int longest, const char* label) {
   const char* ret = monotonicInit();
-  tmrInfo("ttimer monotonic clock source:%s", ret);
+  tmrDebug("ttimer monotonic clock source:%s", ret);
 
   pthread_once(&tmrModuleInit, taosTmrModuleInit);
 

@@ -1,7 +1,7 @@
 system sh/stop_dnodes.sh
 
 system sh/deploy.sh -n dnode1 -i 1
-system sh/cfg.sh -n dnode1 -c walLevel       -v 0
+system sh/cfg.sh -n dnode1 -c walLevel       -v 1
 
 system sh/cfg.sh -n dnode1 -c dDebugFlag       -v 135
 system sh/cfg.sh -n dnode1 -c mDebugFlag       -v 135
@@ -357,6 +357,13 @@ if $data00 != 0.300000000 then
   print expect: 0.300000000, actual:$data00
   return -1
 endi
+
+print =============================> td-3996
+sql select 'abc' as res from t1 where f1 < 0
+if $rows != 0 then
+  return -1
+endi
+
 
 print ======================udc with normal column group by
 

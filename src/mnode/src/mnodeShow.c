@@ -109,6 +109,7 @@ static char *mnodeGetShowType(int32_t showType) {
     case TSDB_MGMT_TABLE_VNODES:  return "show vnodes";
     case TSDB_MGMT_TABLE_CLUSTER: return "show clusters";
     case TSDB_MGMT_TABLE_STREAMTABLES : return "show streamtables";
+    case TSDB_MGMT_TABLE_TP:      return "show topics";
     default:                      return "undefined";
   }
 }

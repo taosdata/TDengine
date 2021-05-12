@@ -29,6 +29,7 @@
 #include "mnodeDef.h"
 #include "mnodeInt.h"
 #include "mnodeDnode.h"
+#include "mnodeDb.h"
 #include "mnodeMnode.h"
 #include "mnodeSdb.h"
 #include "mnodeShow.h"
@@ -437,14 +438,14 @@ static int32_t mnodeCheckClusterCfgPara(const SClusterCfg *clusterCfg) {
     return TAOS_DN_OFF_TIME_ZONE_NOT_MATCH;
   }
 
-  if (0 != strncasecmp(clusterCfg->locale, tsLocale, strlen(tsLocale))) {
-    mError("\"locale\"[%s - %s]  cfg parameters inconsistent", clusterCfg->locale, tsLocale);
-    return TAOS_DN_OFF_LOCALE_NOT_MATCH;
-  }
-  if (0 != strncasecmp(clusterCfg->charset, tsCharset, strlen(tsCharset))) {
-    mError("\"charset\"[%s - %s] cfg parameters inconsistent.", clusterCfg->charset, tsCharset);
-    return TAOS_DN_OFF_CHARSET_NOT_MATCH;
-  }
+  // if (0 != strncasecmp(clusterCfg->locale, tsLocale, strlen(tsLocale))) {
+  //   mError("\"locale\"[%s - %s]  cfg parameters inconsistent", clusterCfg->locale, tsLocale);
+  //   return TAOS_DN_OFF_LOCALE_NOT_MATCH;
+  // }
+  // if (0 != strncasecmp(clusterCfg->charset, tsCharset, strlen(tsCharset))) {
+  //   mError("\"charset\"[%s - %s] cfg parameters inconsistent.", clusterCfg->charset, tsCharset);
+  //   return TAOS_DN_OFF_CHARSET_NOT_MATCH;
+  // }
 
   if (clusterCfg->enableBalance != tsEnableBalance) {
     mError("\"balance\"[%d - %d] cfg parameters inconsistent", clusterCfg->enableBalance, tsEnableBalance);
@@ -628,6 +629,11 @@ static int32_t mnodeProcessDnodeStatusMsg(SMnodeMsg *pMsg) {
     bnNotify();
   }
 
+  if (!tsEnableBalance) {
+    int32_t numOfMnodes = mnodeGetMnodesNum();
+    if (numOfMnodes < tsNumOfMnodes) bnNotify();
+  }
+
   if (openVnodes != pDnode->openVnodes) {
     mnodeCheckUnCreatedVgroup(pDnode, pStatus->load, openVnodes);
   }
@@ -722,6 +728,10 @@ int32_t mnodeDropDnode(SDnodeObj *pDnode, void *pMsg) {
 static int32_t mnodeDropDnodeByEp(char *ep, SMnodeMsg *pMsg) {
   SDnodeObj *pDnode = mnodeGetDnodeByEp(ep);
   if (pDnode == NULL) {
+    if (strspn(ep, "0123456789 ;") != strlen(ep)) {
+      return TSDB_CODE_MND_DNODE_NOT_EXIST;
+    }
+
     int32_t dnodeId = (int32_t)strtol(ep, NULL, 10);
     pDnode = mnodeGetDnode(dnodeId);
     if (pDnode == NULL) {
@@ -734,6 +744,14 @@ static int32_t mnodeDropDnodeByEp(char *ep, SMnodeMsg *pMsg) {
     mError("dnode:%d, can't drop dnode:%s which is master", pDnode->dnodeId, ep);
     mnodeDecDnodeRef(pDnode);
     return TSDB_CODE_MND_NO_REMOVE_MASTER;
+  }
+
+  int32_t maxReplica = mnodeGetDbMaxReplica();
+  int32_t dnodesNum = mnodeGetDnodesNum();
+  if (dnodesNum <= maxReplica) {
+    mError("dnode:%d, can't drop dnode:%s, #dnodes: %d, replia: %d", pDnode->dnodeId, ep, dnodesNum, maxReplica);
+    mnodeDecDnodeRef(pDnode);
+    return TSDB_CODE_MND_NO_ENOUGH_DNODES;
   }
 
   mInfo("dnode:%d, start to drop it", pDnode->dnodeId);

@@ -124,88 +124,80 @@ int tsdbUnRefMemTable(STsdbRepo *pRepo, SMemTable *pMemTable) {
   return 0;
 }
 
-int tsdbTakeMemSnapshot(STsdbRepo *pRepo, SMemTable **pMem, SMemTable **pIMem, SArray *pATable) {
-  SMemTable *tmem;
+int tsdbTakeMemSnapshot(STsdbRepo *pRepo, SMemSnapshot *pSnapshot, SArray *pATable) {
+  memset(pSnapshot, 0, sizeof(*pSnapshot));
 
-  // Get snap object
   if (tsdbLockRepo(pRepo) < 0) return -1;
 
-  tmem = pRepo->mem;
-  *pIMem = pRepo->imem;
-  tsdbRefMemTable(pRepo, tmem);
-  tsdbRefMemTable(pRepo, *pIMem);
+  pSnapshot->omem = pRepo->mem;
+  pSnapshot->imem = pRepo->imem;
+  tsdbRefMemTable(pRepo, pRepo->mem);
+  tsdbRefMemTable(pRepo, pRepo->imem);
 
   if (tsdbUnlockRepo(pRepo) < 0) return -1;
 
-  // Copy mem objects and ref needed STableData
-  if (tmem) {
-    taosRLockLatch(&(tmem->latch));
+  if (pSnapshot->omem) {
+    taosRLockLatch(&(pSnapshot->omem->latch));
 
-    *pMem = (SMemTable *)calloc(1, sizeof(**pMem));
-    if (*pMem == NULL) {
+    pSnapshot->mem = &(pSnapshot->mtable);
+
+    pSnapshot->mem->tData = (STableData **)calloc(pSnapshot->omem->maxTables, sizeof(STableData *));
+    if (pSnapshot->mem->tData == NULL) {
       terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
-      taosRUnLockLatch(&(tmem->latch));
-      tsdbUnRefMemTable(pRepo, tmem);
-      tsdbUnRefMemTable(pRepo, *pIMem);
-      *pMem = NULL;
-      *pIMem = NULL;
+      taosRUnLockLatch(&(pSnapshot->omem->latch));
+      tsdbUnRefMemTable(pRepo, pSnapshot->omem);
+      tsdbUnRefMemTable(pRepo, pSnapshot->imem);
+      pSnapshot->mem = NULL;
+      pSnapshot->imem = NULL;
+      pSnapshot->omem = NULL;
       return -1;
     }
 
-    (*pMem)->tData = (STableData **)calloc(tmem->maxTables, sizeof(STableData *));
-    if ((*pMem)->tData == NULL) {
-      terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
-      taosRUnLockLatch(&(tmem->latch));
-      free(*pMem);
-      tsdbUnRefMemTable(pRepo, tmem);
-      tsdbUnRefMemTable(pRepo, *pIMem);
-      *pMem = NULL;
-      *pIMem = NULL;
-      return -1;
-    }
-
-    (*pMem)->keyFirst = tmem->keyFirst;
-    (*pMem)->keyLast = tmem->keyLast;
-    (*pMem)->numOfRows = tmem->numOfRows;
-    (*pMem)->maxTables = tmem->maxTables;
+    pSnapshot->mem->keyFirst = pSnapshot->omem->keyFirst;
+    pSnapshot->mem->keyLast = pSnapshot->omem->keyLast;
+    pSnapshot->mem->numOfRows = pSnapshot->omem->numOfRows;
+    pSnapshot->mem->maxTables = pSnapshot->omem->maxTables;
 
     for (size_t i = 0; i < taosArrayGetSize(pATable); i++) {
       STable *    pTable = *(STable **)taosArrayGet(pATable, i);
       int32_t     tid = TABLE_TID(pTable);
-      STableData *pTableData = (tid < tmem->maxTables) ? tmem->tData[tid] : NULL;
+      STableData *pTableData = (tid < pSnapshot->omem->maxTables) ? pSnapshot->omem->tData[tid] : NULL;
 
       if ((pTableData == NULL) || (TABLE_UID(pTable) != pTableData->uid)) continue;
 
-      (*pMem)->tData[tid] = tmem->tData[tid];
-      T_REF_INC(tmem->tData[tid]);
+      pSnapshot->mem->tData[tid] = pTableData;
+      T_REF_INC(pTableData);
     }
 
-    taosRUnLockLatch(&(tmem->latch));
+    taosRUnLockLatch(&(pSnapshot->omem->latch));
   }
 
-  tsdbUnRefMemTable(pRepo, tmem);
-
-  tsdbDebug("vgId:%d take memory snapshot, pMem %p pIMem %p", REPO_ID(pRepo), *pMem, *pIMem);
+  tsdbDebug("vgId:%d take memory snapshot, pMem %p pIMem %p", REPO_ID(pRepo), pSnapshot->omem, pSnapshot->imem);
   return 0;
 }
 
-void tsdbUnTakeMemSnapShot(STsdbRepo *pRepo, SMemTable *pMem, SMemTable *pIMem) {
-  tsdbDebug("vgId:%d untake memory snapshot, pMem %p pIMem %p", REPO_ID(pRepo), pMem, pIMem);
+void tsdbUnTakeMemSnapShot(STsdbRepo *pRepo, SMemSnapshot *pSnapshot) {
+  tsdbDebug("vgId:%d untake memory snapshot, pMem %p pIMem %p", REPO_ID(pRepo), pSnapshot->omem, pSnapshot->imem);
 
-  if (pMem != NULL) {
-    for (size_t i = 0; i < pMem->maxTables; i++) {
-      STableData *pTableData = pMem->tData[i];
+  if (pSnapshot->mem) {
+    ASSERT(pSnapshot->omem != NULL);
+
+    for (size_t i = 0; i < pSnapshot->mem->maxTables; i++) {
+      STableData *pTableData = pSnapshot->mem->tData[i];
       if (pTableData) {
         tsdbFreeTableData(pTableData);
       }
     }
-    free(pMem->tData);
-    free(pMem);
+    tfree(pSnapshot->mem->tData);
+
+    tsdbUnRefMemTable(pRepo, pSnapshot->omem);
   }
 
-  if (pIMem != NULL) {
-    tsdbUnRefMemTable(pRepo, pIMem);
-  }
+  tsdbUnRefMemTable(pRepo, pSnapshot->imem);
+
+  pSnapshot->mem = NULL;
+  pSnapshot->imem = NULL;
+  pSnapshot->omem = NULL;
 }
 
 void *tsdbAllocBytes(STsdbRepo *pRepo, int bytes) {

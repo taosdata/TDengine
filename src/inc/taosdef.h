@@ -22,7 +22,6 @@ extern "C" {
 
 #include <stdint.h>
 #include <stdbool.h>
-#include "osDef.h"
 #include "taos.h"
 
 #define TSDB__packed
@@ -222,6 +221,9 @@ do { \
 #define TSDB_MQTT_TOPIC_LEN       64
 #define TSDB_MQTT_CLIENT_ID_LEN   32
 
+#define TSDB_DB_TYPE_DEFAULT      0
+#define TSDB_DB_TYPE_TOPIC        1
+
 #define TSDB_DEFAULT_PKT_SIZE     65480  //same as RPC_MAX_UDP_SIZE
 
 #define TSDB_PAYLOAD_SIZE         TSDB_DEFAULT_PKT_SIZE
@@ -240,8 +242,9 @@ do { \
 #define TSDB_MAX_REPLICA          5
 
 #define TSDB_TBNAME_COLUMN_INDEX        (-1)
-#define TSDB_BLOCK_DIST_COLUMN_INDEX     (-2)
-#define TSDB_UD_COLUMN_INDEX            (-100)
+#define TSDB_BLOCK_DIST_COLUMN_INDEX    (-2)
+#define TSDB_UD_COLUMN_INDEX            (-1000)
+#define TSDB_RES_COL_ID                 (-5000)
 
 #define TSDB_MULTI_TABLEMETA_MAX_NUM    100000  // maximum batch size allowed to load table meta
 
@@ -306,11 +309,15 @@ do { \
 #define TSDB_MAX_DB_REPLICA_OPTION      3
 #define TSDB_DEFAULT_DB_REPLICA_OPTION  1
 
+#define TSDB_MIN_DB_PARTITON_OPTION     0
+#define TSDB_MAX_DB_PARTITON_OPTION     1000
+#define TSDB_DEFAULT_DB_PARTITON_OPTION 4
+
 #define TSDB_MIN_DB_QUORUM_OPTION       1
 #define TSDB_MAX_DB_QUORUM_OPTION       2
 #define TSDB_DEFAULT_DB_QUORUM_OPTION   1
 
-#define TSDB_MAX_JOIN_TABLE_NUM         5
+#define TSDB_MAX_JOIN_TABLE_NUM         10
 #define TSDB_MAX_UNION_CLAUSE           5
 
 #define TSDB_MAX_BINARY_LEN            (TSDB_MAX_BYTES_PER_ROW-TSDB_KEYSIZE)
@@ -381,9 +388,10 @@ typedef enum {
 typedef enum {
   TSDB_SUPER_TABLE  = 0,   // super table
   TSDB_CHILD_TABLE  = 1,   // table created from super table
-  TSDB_NORMAL_TABLE = 2,  // ordinary table
-  TSDB_STREAM_TABLE = 3,  // table created from stream computing
-  TSDB_TABLE_MAX    = 4
+  TSDB_NORMAL_TABLE = 2,   // ordinary table
+  TSDB_STREAM_TABLE = 3,   // table created from stream computing
+  TSDB_TEMP_TABLE   = 4,   // temp table created by nest query
+  TSDB_TABLE_MAX    = 5
 } ETableType;
 
 typedef enum {

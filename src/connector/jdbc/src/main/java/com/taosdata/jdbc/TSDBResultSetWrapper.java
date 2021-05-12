@@ -1153,11 +1153,11 @@ public class TSDBResultSetWrapper implements ResultSet {
     }
 
     public <T> T getObject(int columnIndex, Class<T> type) throws SQLException {
-        throw new SQLException(TSDBConstants.UNSUPPORTED_METHOD_EXCEPTION_MSG);
+        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
     }
 
     public <T> T getObject(String columnLabel, Class<T> type) throws SQLException {
-        throw new SQLException(TSDBConstants.UNSUPPORTED_METHOD_EXCEPTION_MSG);
+        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
     }
 
     @Override

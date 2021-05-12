@@ -5,6 +5,8 @@
 extern "C" {
 #endif
 
+#include <stdbool.h>
+#include <stdint.h>
 #include "taosdef.h"
 
 // ----------------- For variable data types such as TSDB_DATA_TYPE_BINARY and TSDB_DATA_TYPE_NCHAR
@@ -171,10 +173,10 @@ extern tDataTypeDescriptor tDataTypes[15];
 
 bool isValidDataType(int32_t type);
 
-void setVardataNull(char* val, int32_t type);
-void setNull(char *val, int32_t type, int32_t bytes);
-void setNullN(char *val, int32_t type, int32_t bytes, int32_t numOfElems);
-void* getNullValue(int32_t type);
+void  setVardataNull(char* val, int32_t type);
+void  setNull(char *val, int32_t type, int32_t bytes);
+void  setNullN(char *val, int32_t type, int32_t bytes, int32_t numOfElems);
+void *getNullValue(int32_t type);
 
 void assignVal(char *val, const char *src, int32_t len, int32_t type);
 void tsDataSwap(void *pLeft, void *pRight, int32_t type, int32_t size, void* buf);

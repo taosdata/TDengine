@@ -1,9 +1,8 @@
 def pre_test(){
-    catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
-                sh '''
-                sudo rmtaos
-                '''
-    }
+   
+    sh '''
+    sudo rmtaos||echo 'no taosd installed'
+    '''
     sh '''
     cd ${WKC}
     git reset --hard
@@ -22,6 +21,7 @@ def pre_test(){
     cmake .. > /dev/null
     make > /dev/null
     make install > /dev/null
+    pip3 install ${WKC}/src/connector/python/linux/python3/
     '''
     return 1
 }
@@ -55,9 +55,9 @@ pipeline {
             sh '''
             cd ${WKC}/tests
             ./test-all.sh b1
-            cd ${WKC}/tests
-            ./test-all.sh full jdbc
             date'''
+            
+            
           }
         }
 
@@ -77,9 +77,20 @@ pipeline {
             catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
                 sh '''
                 cd ${WKC}/tests/pytest
+                rm -rf /var/lib/taos/*
+                rm -rf /var/log/taos/*
                 ./handle_crash_gen_val_log.sh
                 '''
             }
+            catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
+                sh '''
+                cd ${WKC}/tests/pytest
+                rm -rf /var/lib/taos/*
+                rm -rf /var/log/taos/*
+                ./handle_taosd_val_log.sh
+                '''
+            }
+            
             sh'''
             systemctl start taosd 
             sleep 10
@@ -130,6 +141,10 @@ pipeline {
             ./test-all.sh b2
             date
             '''
+            sh '''
+            cd ${WKC}/tests
+            ./test-all.sh full unit
+            date'''
           }
         }
 
@@ -148,6 +163,10 @@ pipeline {
                 '''
             }
             sh '''
+            cd ${WKC}/tests
+            ./test-all.sh full jdbc
+            date'''
+            sh '''
             cd ${WKC}/tests/pytest
             ./valgrind-test.sh 2>&1 > mem-error-out.log
             ./handle_val_log.sh
@@ -155,6 +174,11 @@ pipeline {
             date
             cd ${WKC}/tests
             ./test-all.sh b3
+            date'''
+            sh '''
+            date
+            cd ${WKC}/tests
+            ./test-all.sh full example
             date'''
           }
         }
@@ -204,11 +228,11 @@ pipeline {
     }
 
   }
-  post {             
+  post {  
         success {
             emailext (
-                subject: "SUCCESSFUL: Job '${env.JOB_NAME} [${env.BUILD_NUMBER}]'",
-                body: '''<!DOCTYPE html>
+                subject: "PR-result: Job '${env.JOB_NAME} [${env.BUILD_NUMBER}]' SUCCESS",
+                body: """<!DOCTYPE html>
                 <html>
                 <head>
                 <meta charset="UTF-8">
@@ -224,29 +248,29 @@ pipeline {
                             <td>
                                 <ul>
                                 <div style="font-size:18px">
-                                    <li>构建名称>>分支：${PROJECT_NAME}</li>
+                                    <li>构建名称>>分支：${env.BRANCH_NAME}</li>
                                     <li>构建结果：<span style="color:green"> Successful </span></li>
                                     <li>构建编号：${BUILD_NUMBER}</li>
-                                    <li>触发用户：${CAUSE}</li>
-                                    <li>变更概要：${CHANGES}</li>
+                                    <li>触发用户：${env.CHANGE_AUTHOR}</li>
+                                    <li>提交信息：${env.CHANGE_TITLE}</li>
                                     <li>构建地址：<a href=${BUILD_URL}>${BUILD_URL}</a></li>
                                     <li>构建日志：<a href=${BUILD_URL}console>${BUILD_URL}console</a></li>
-                                    <li>变更集：${JELLY_SCRIPT}</li>
+                                    
                                 </div>
                                 </ul>
                             </td>
                         </tr>
                     </table></font>
                 </body>
-                </html>''',
+                </html>""",
                 to: "yqliu@taosdata.com,pxiao@taosdata.com",
                 from: "support@taosdata.com"
             )
         }
         failure {
             emailext (
-                subject: "FAILED: Job '${env.JOB_NAME} [${env.BUILD_NUMBER}]'",
-                body: '''<!DOCTYPE html>
+                subject: "PR-result: Job '${env.JOB_NAME} [${env.BUILD_NUMBER}]' FAIL",
+                body: """<!DOCTYPE html>
                 <html>
                 <head>
                 <meta charset="UTF-8">
@@ -262,21 +286,21 @@ pipeline {
                             <td>
                                 <ul>
                                 <div style="font-size:18px">
-                                    <li>构建名称>>分支：${PROJECT_NAME}</li>
-                                    <li>构建结果：<span style="color:green"> Successful </span></li>
+                                    <li>构建名称>>分支：${env.BRANCH_NAME}</li>
+                                    <li>构建结果：<span style="color:red"> Failure </span></li>
                                     <li>构建编号：${BUILD_NUMBER}</li>
-                                    <li>触发用户：${CAUSE}</li>
-                                    <li>变更概要：${CHANGES}</li>
+                                    <li>触发用户：${env.CHANGE_AUTHOR}</li>
+                                    <li>提交信息：${env.CHANGE_TITLE}</li>
                                     <li>构建地址：<a href=${BUILD_URL}>${BUILD_URL}</a></li>
                                     <li>构建日志：<a href=${BUILD_URL}console>${BUILD_URL}console</a></li>
-                                    <li>变更集：${JELLY_SCRIPT}</li>
+                                    
                                 </div>
                                 </ul>
                             </td>
                         </tr>
                     </table></font>
                 </body>
-                </html>''',
+                </html>""",
                 to: "yqliu@taosdata.com,pxiao@taosdata.com",
                 from: "support@taosdata.com"
             )

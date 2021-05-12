@@ -295,7 +295,7 @@ void *rpcOpen(const SRpcInit *pInit) {
       return NULL;
     }
   } else {
-    pRpc->pCache = rpcOpenConnCache(pRpc->sessions, rpcCloseConn, pRpc->tmrCtrl, pRpc->idleTime); 
+    pRpc->pCache = rpcOpenConnCache(pRpc->sessions, rpcCloseConn, pRpc->tmrCtrl, pRpc->idleTime * 20); 
     if ( pRpc->pCache == NULL ) {
       tError("%s failed to init connection cache", pRpc->label);
       rpcClose(pRpc);
@@ -399,7 +399,7 @@ void rpcSendRequest(void *shandle, const SRpcEpSet *pEpSet, SRpcMsg *pMsg, int64
   pContext->oldInUse = pEpSet->inUse;
 
   pContext->connType = RPC_CONN_UDPC; 
-  if (contLen > tsRpcMaxUdpSize) pContext->connType = RPC_CONN_TCPC;
+  if (contLen > tsRpcMaxUdpSize || tsRpcForceTcp ) pContext->connType = RPC_CONN_TCPC;
 
   // connection type is application specific. 
   // for TDengine, all the query, show commands shall have TCP connection
@@ -409,7 +409,7 @@ void rpcSendRequest(void *shandle, const SRpcEpSet *pEpSet, SRpcMsg *pMsg, int64
     || type == TSDB_MSG_TYPE_CM_TABLES_META || type == TSDB_MSG_TYPE_CM_TABLE_META
     || type == TSDB_MSG_TYPE_CM_SHOW || type == TSDB_MSG_TYPE_DM_STATUS)
     pContext->connType = RPC_CONN_TCPC;
-  
+
   pContext->rid = taosAddRef(tsRpcRefId, pContext);
   if (pRid) *pRid = pContext->rid;
 
@@ -470,7 +470,7 @@ void rpcSendResponse(const SRpcMsg *pRsp) {
   taosTmrStopA(&pConn->pTimer);
 
   // set the idle timer to monitor the activity
-  taosTmrReset(rpcProcessIdleTimer, pRpc->idleTime, pConn, pRpc->tmrCtrl, &pConn->pIdleTimer);
+  taosTmrReset(rpcProcessIdleTimer, pRpc->idleTime * 30, pConn, pRpc->tmrCtrl, &pConn->pIdleTimer);
   rpcSendMsgToPeer(pConn, msg, msgLen);
 
   // if not set to secured, set it expcet NOT_READY case, since client wont treat it as secured
@@ -997,8 +997,8 @@ static SRpcConn *rpcProcessMsgHead(SRpcInfo *pRpc, SRecvInfo *pRecv, SRpcReqCont
     }
 
     if ( rpcIsReq(pHead->msgType) ) {
-      terrno = rpcProcessReqHead(pConn, pHead);
       pConn->connType = pRecv->connType;
+      terrno = rpcProcessReqHead(pConn, pHead);
 
       // stop idle timer
       taosTmrStopA(&pConn->pIdleTimer);  
@@ -1017,6 +1017,13 @@ static SRpcConn *rpcProcessMsgHead(SRpcInfo *pRpc, SRecvInfo *pRecv, SRpcReqCont
   return pConn;
 }
 
+static void doRpcReportBrokenLinkToServer(void *param, void *id) {
+   SRpcMsg *pRpcMsg = (SRpcMsg *)(param); 
+   SRpcConn *pConn  = (SRpcConn *)(pRpcMsg->handle);
+   SRpcInfo *pRpc   = pConn->pRpc; 
+   (*(pRpc->cfp))(pRpcMsg, NULL);
+   free(pRpcMsg);
+}
 static void rpcReportBrokenLinkToServer(SRpcConn *pConn) {
   SRpcInfo *pRpc = pConn->pRpc;
   if (pConn->pReqMsg == NULL) return;
@@ -1025,16 +1032,20 @@ static void rpcReportBrokenLinkToServer(SRpcConn *pConn) {
   rpcAddRef(pRpc);
   tDebug("%s, notify the server app, connection is gone", pConn->info);
 
-  SRpcMsg rpcMsg;
-  rpcMsg.pCont = pConn->pReqMsg;     // pReqMsg is re-used to store the APP context from server
-  rpcMsg.contLen = pConn->reqMsgLen; // reqMsgLen is re-used to store the APP context length
-  rpcMsg.ahandle = pConn->ahandle;
-  rpcMsg.handle = pConn;
-  rpcMsg.msgType = pConn->inType;
-  rpcMsg.code = TSDB_CODE_RPC_NETWORK_UNAVAIL; 
+  SRpcMsg *rpcMsg = malloc(sizeof(SRpcMsg));
+  rpcMsg->pCont = pConn->pReqMsg;     // pReqMsg is re-used to store the APP context from server
+  rpcMsg->contLen = pConn->reqMsgLen; // reqMsgLen is re-used to store the APP context length
+  rpcMsg->ahandle = pConn->ahandle;
+  rpcMsg->handle = pConn;
+  rpcMsg->msgType = pConn->inType;
+  rpcMsg->code = TSDB_CODE_RPC_NETWORK_UNAVAIL; 
   pConn->pReqMsg = NULL;
   pConn->reqMsgLen = 0;
-  if (pRpc->cfp) (*(pRpc->cfp))(&rpcMsg, NULL);
+  if (pRpc->cfp) {
+    taosTmrStart(doRpcReportBrokenLinkToServer, 0, rpcMsg, pRpc->tmrCtrl);
+  } else {
+    free(rpcMsg);
+  }
 }
 
 static void rpcProcessBrokenLink(SRpcConn *pConn) {
@@ -1051,7 +1062,7 @@ static void rpcProcessBrokenLink(SRpcConn *pConn) {
     pConn->pReqMsg = NULL;
     taosTmrStart(rpcProcessConnError, 0, pContext, pRpc->tmrCtrl);
   }
-
+   
   if (pConn->inType) rpcReportBrokenLinkToServer(pConn); 
 
   rpcReleaseConn(pConn);
@@ -1281,7 +1292,7 @@ static void rpcSendReqToServer(SRpcInfo *pRpc, SRpcReqContext *pContext) {
   SRpcConn *pConn = rpcSetupConnToServer(pContext);
   if (pConn == NULL) {
     pContext->code = terrno;
-    taosTmrStart(rpcProcessConnError, 0, pContext, pRpc->tmrCtrl);
+    taosTmrStart(rpcProcessConnError, 1, pContext, pRpc->tmrCtrl);
     return;
   }
 
@@ -1356,7 +1367,7 @@ static void rpcProcessConnError(void *param, void *id) {
   
   tDebug("%s %p, connection error happens", pRpc->label, pContext->ahandle);
 
-  if (pContext->numOfTry >= pContext->epSet.numOfEps) {
+  if (pContext->numOfTry >= pContext->epSet.numOfEps || pContext->msgType == TSDB_MSG_TYPE_FETCH) {
     rpcMsg.msgType = pContext->msgType+1;
     rpcMsg.ahandle = pContext->ahandle;
     rpcMsg.code = pContext->code;

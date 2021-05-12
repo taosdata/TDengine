@@ -35,7 +35,7 @@
 #include "mnodeSdb.h"
 
 #define SDB_TABLE_LEN 12
-#define MAX_QUEUED_MSG_NUM 10000
+#define MAX_QUEUED_MSG_NUM 100000
 
 typedef enum {
   SDB_ACTION_INSERT = 0,
@@ -315,6 +315,10 @@ void sdbUpdateAsync() {
   taosTmrReset(sdbUpdateSyncTmrFp, 200, NULL, tsMnodeTmr, &tsSdbTmr);
 }
 
+static int node_cmp(const void *l, const void *r) {
+  return ((SNodeInfo *)l)->nodeId - ((SNodeInfo *)r)->nodeId;
+}
+
 int32_t sdbUpdateSync(void *pMnodes) {
   SMInfos *pMinfos = pMnodes;
   if (!mnodeIsRunning()) {
@@ -381,6 +385,8 @@ int32_t sdbUpdateSync(void *pMnodes) {
     sdbDebug("vgId:1, update sync config, info not changed");
     return TSDB_CODE_SUCCESS;
   }
+
+  qsort(syncCfg.nodeInfo, syncCfg.replica, sizeof(syncCfg.nodeInfo[0]), node_cmp);
 
   sdbInfo("vgId:1, work as mnode, replica:%d", syncCfg.replica);
   for (int32_t i = 0; i < syncCfg.replica; ++i) {
@@ -552,7 +558,7 @@ static int32_t sdbInsertHash(SSdbTable *pTable, SSdbRow *pRow) {
 
   int32_t code = (*pTable->fpInsert)(pRow);
   if (code != TSDB_CODE_SUCCESS) {
-    sdbError("vgId:1, sdb:%s, failed to insert key:%s to hash, remove it", pTable->name,
+    sdbError("vgId:1, sdb:%s, failed to perform insert action for key:%s, remove it", pTable->name,
              sdbGetRowStr(pTable, pRow->pObj));
     sdbDeleteHash(pTable, pRow);
   }
@@ -680,7 +686,7 @@ static int32_t sdbProcessWrite(void *wparam, void *hparam, int32_t qtype, void *
   if (pRow != NULL) {
     // forward to peers
     pRow->processedCount = 0;
-    int32_t syncCode = syncForwardToPeer(tsSdbMgmt.sync, pHead, pRow, TAOS_QTYPE_RPC);
+    int32_t syncCode = syncForwardToPeer(tsSdbMgmt.sync, pHead, pRow, TAOS_QTYPE_RPC, false);
     if (syncCode <= 0) pRow->processedCount = 1;
 
     if (syncCode < 0) {
@@ -700,7 +706,7 @@ static int32_t sdbProcessWrite(void *wparam, void *hparam, int32_t qtype, void *
            actStr[action], sdbGetKeyStr(pTable, pHead->cont), pHead->version);
 
   // even it is WAL/FWD, it shall be called to update version in sync
-  syncForwardToPeer(tsSdbMgmt.sync, pHead, pRow, TAOS_QTYPE_RPC);
+  syncForwardToPeer(tsSdbMgmt.sync, pHead, pRow, TAOS_QTYPE_RPC, false);
 
   // from wal or forward msg, row not created, should add into hash
   if (action == SDB_ACTION_INSERT) {
@@ -1019,7 +1025,7 @@ static int32_t sdbWriteToQueue(SSdbRow *pRow, int32_t qtype) {
 
   int32_t queued = atomic_add_fetch_32(&tsSdbMgmt.queuedMsg, 1);
   if (queued > MAX_QUEUED_MSG_NUM) {
-    sdbDebug("vgId:1, too many msg:%d in sdb queue, flow control", queued);
+    sdbInfo("vgId:1, too many msg:%d in sdb queue, flow control", queued);
     taosMsleep(1);
   }
 
@@ -1119,7 +1125,7 @@ static void *sdbWorkerFp(void *pWorker) {
         sdbConfirmForward(1, pRow, pRow->code);
       } else {
         if (qtype == TAOS_QTYPE_FWD) {
-          syncConfirmForward(tsSdbMgmt.sync, pRow->pHead.version, pRow->code);
+          syncConfirmForward(tsSdbMgmt.sync, pRow->pHead.version, pRow->code, false);
         }
         sdbFreeFromQueue(pRow);
       }

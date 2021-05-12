@@ -1,10 +1,12 @@
-[![Build Status](https://travis-ci.org/taosdata/TDengine.svg?branch=master)](https://travis-ci.org/taosdata/TDengine)
+[![Build Status](https://cloud.drone.io/api/badges/taosdata/TDengine/status.svg?ref=refs/heads/master)](https://cloud.drone.io/taosdata/TDengine)
 [![Build status](https://ci.appveyor.com/api/projects/status/kf3pwh2or5afsgl9/branch/master?svg=true)](https://ci.appveyor.com/project/sangshuduo/tdengine-2n8ge/branch/master)
 [![Coverage Status](https://coveralls.io/repos/github/taosdata/TDengine/badge.svg?branch=develop)](https://coveralls.io/github/taosdata/TDengine?branch=develop)
 [![CII Best Practices](https://bestpractices.coreinfrastructure.org/projects/4201/badge)](https://bestpractices.coreinfrastructure.org/projects/4201)
 [![tdengine](https://snapcraft.io//tdengine/badge.svg)](https://snapcraft.io/tdengine)
 
 [![TDengine](TDenginelogo.png)](https://www.taosdata.com)
+
+English | [简体中文](./README-CN.md) 
 
 # What is TDengine？
 
@@ -29,7 +31,7 @@ For user manual, system design and architecture, engineering blogs, refer to [TD
 # Building
 At the moment, TDengine only supports building and running on Linux systems. You can choose to [install from packages](https://www.taosdata.com/en/getting-started/#Install-from-Package) or from the source code. This quick guide is for installation from the source only.
 
-To build TDengine, use [CMake](https://cmake.org/) 3.5 or higher versions in the project directory. 
+To build TDengine, use [CMake](https://cmake.org/) 2.8.12.x or higher versions in the project directory. 
 
 ## Install tools
 
@@ -160,38 +162,41 @@ mkdir debug && cd debug
 cmake .. && cmake --build .
 ```
 
-# Quick Run
-
-# Quick Run
-To quickly start a TDengine server after building, run the command below in terminal:
-```bash
-./build/bin/taosd -c test/cfg
-```
-In another terminal, use the TDengine shell to connect the server:
-```bash
-./build/bin/taos -c test/cfg
-```
-option "-c test/cfg" specifies the system configuration file directory. 
-
 # Installing
+
 After building successfully, TDengine can be installed by:
 ```bash
-make install
+sudo make install
 ```
-Users can find more information about directories installed on the system in the [directory and files](https://www.taosdata.com/en/documentation/administrator/#Directory-and-Files) section. It should be noted that installing from source code does not configure service management for TDengine.
+
+Users can find more information about directories installed on the system in the [directory and files](https://www.taosdata.com/en/documentation/administrator/#Directory-and-Files) section. Since version 2.0, installing from source code will also configure service management for TDengine.
 Users can also choose to [install from packages](https://www.taosdata.com/en/getting-started/#Install-from-Package) for it.
 
 To start the service after installation, in a terminal, use:
-```cmd
-taosd
+```bash
+sudo systemctl start taosd
 ```
 
 Then users can use the [TDengine shell](https://www.taosdata.com/en/getting-started/#TDengine-Shell) to connect the TDengine server. In a terminal, use:
-```cmd
+```bash
 taos
 ```
 
 If TDengine shell connects the server successfully, welcome messages and version info are printed. Otherwise, an error message is shown.
+
+## Quick Run
+
+If you don't want to run TDengine as a service, you can run it in current shell. For example, to quickly start a TDengine server after building, run the command below in terminal:
+```bash
+./build/bin/taosd -c test/cfg
+```
+
+In another terminal, use the TDengine shell to connect the server:
+```bash
+./build/bin/taos -c test/cfg
+```
+
+option "-c test/cfg" specifies the system configuration file directory. 
 
 # Try TDengine
 It is easy to run SQL commands from TDengine shell which is the same as other SQL databases.
@@ -245,3 +250,6 @@ Please follow the [contribution guidelines](CONTRIBUTING.md) to contribute to th
 
 Add WeChat “tdengine” to join the group，you can communicate with other users.
 
+# [User List](https://github.com/taosdata/TDengine/issues/2432)
+
+If you are using TDengine and feel it helps or you'd like to do some contributions, please add your company to [user list](https://github.com/taosdata/TDengine/issues/2432) and let us know your needs.

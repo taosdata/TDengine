@@ -177,7 +177,7 @@ static void httpProcessHttpData(void *param) {
       if (!httpAlterContextState(pContext, HTTP_CONTEXT_STATE_READY, HTTP_CONTEXT_STATE_READY)) {
         httpDebug("context:%p, fd:%d, state:%s, not in ready state, ignore read events", pContext, pContext->fd,
                   httpContextStateStr(pContext->state));
-        httpReleaseContext(pContext, true);
+        httpReleaseContext(pContext/*, true*/);
         continue;
       }
 
@@ -191,7 +191,7 @@ static void httpProcessHttpData(void *param) {
           (*(pThread->processData))(pContext);
           atomic_fetch_add_32(&pServer->requestNum, 1);
         } else {
-          httpReleaseContext(pContext, false);
+          httpReleaseContext(pContext/*, false*/);
         }
       }
     }
@@ -275,7 +275,7 @@ static void *httpAcceptHttpConnection(void *arg) {
       httpError("context:%p, fd:%d, ip:%s, thread:%s, failed to add http fd for epoll, error:%s", pContext, connFd,
                 pContext->ipstr, pThread->label, strerror(errno));
       taosCloseSocket(pContext->fd);
-      httpReleaseContext(pContext, true);
+      httpReleaseContext(pContext/*, true*/);
       continue;
     }
 

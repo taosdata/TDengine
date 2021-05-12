@@ -159,9 +159,16 @@ void *simExecuteScript(void *inputScript) {
       script = simScriptList[simScriptPos];
     }
 
+    if (abortExecution) {
+      script->killed = true;
+    }
+
     if (script->killed || script->linePos >= script->numOfLines) {
       script = simProcessCallOver(script);
-      if (script == NULL) break;
+      if (script == NULL) {
+        simDebug("sim test abort now!");
+        break;
+      }
     } else {
       SCmdLine *line = &script->lines[script->linePos];
       char *    option = script->optionBuffer + line->optionOffset;

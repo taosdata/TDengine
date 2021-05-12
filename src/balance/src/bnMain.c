@@ -425,7 +425,7 @@ static bool bnMonitorVgroups() {
 
   while (1) {
     pIter = mnodeGetNextVgroup(pIter, &pVgroup);
-    if (pVgroup == NULL) break;
+    if (pVgroup == NULL || pVgroup->pDb == NULL) break;
 
     int32_t dbReplica = pVgroup->pDb->cfg.replications;
     int32_t vgReplica = pVgroup->numOfVnodes;

@@ -1,0 +1,35 @@
+{
+	"filetype": "insert",
+	"cfgdir": "/etc/taos",
+	"host": "127.0.0.1",
+	"port": 6030,
+	"user": "root",
+	"password": "taosdata",
+	"thread_count": 10,
+    "confirm_parameter_prompt": "no",
+	"databases": [{
+		"dbinfo": {
+			"name": "db",
+			"drop": "yes"
+		},
+		"super_tables": [{
+			"name": "stb",
+			"child_table_exists":"no",
+			"childtable_count": 20,
+			"childtable_prefix": "t_",
+			"auto_create_table": "no",
+			"data_source": "sample",
+			"insert_mode": "taosc",
+			"insert_rate": 0,
+			"insert_rows": 20,
+			"max_sql_len": 1048000,
+			"timestamp_step": 1000,
+			"start_timestamp": "2020-1-1 00:00:00",
+			"sample_format": "csv",
+			"sample_file": "./tools/sampledata.csv",
+            "columns": [{"type": "INT"}],
+            "tags": [{"type": "INT", "count":1}]
+		}]
+	}]
+
+}

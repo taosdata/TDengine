@@ -291,16 +291,16 @@ static void taosNetCheckPort(uint32_t hostIp, int32_t startPort, int32_t endPort
     info.port = port;
     ret = taosNetCheckTcpPort(&info);
     if (ret != 0) {
-      uError("failed to test TCP port:%d", port);
+      printf("failed to test TCP port:%d\n", port);
     } else {
-      uInfo("successed to test TCP port:%d", port);
+      printf("successed to test TCP port:%d\n", port);
     }
 
     ret = taosNetCheckUdpPort(&info);
     if (ret != 0) {
-      uError("failed to test UDP port:%d", port);
+      printf("failed to test UDP port:%d\n", port);
     } else {
-      uInfo("successed to test UDP port:%d", port);
+      printf("successed to test UDP port:%d\n", port);
     }
   }
 }
@@ -464,9 +464,9 @@ static void taosNetTestRpc(char *host, int32_t startPort, int32_t pkgLen) {
 
     int32_t ret = taosNetCheckRpc(host, port, sendpkgLen, spi, NULL);
     if (ret < 0) {
-      uError("failed to test TCP port:%d", port);
+      printf("failed to test TCP port:%d\n", port);
     } else {
-      uInfo("successed to test TCP port:%d", port);
+      printf("successed to test TCP port:%d\n", port);
     }
 
     if (pkgLen >= tsRpcMaxUdpSize) {
@@ -477,9 +477,9 @@ static void taosNetTestRpc(char *host, int32_t startPort, int32_t pkgLen) {
 
     ret = taosNetCheckRpc(host, port, pkgLen, spi, NULL);
     if (ret < 0) {
-      uError("failed to test UDP port:%d", port);
+      printf("failed to test UDP port:%d\n", port);
     } else {
-      uInfo("successed to test UDP port:%d", port);
+      printf("successed to test UDP port:%d\n", port);
     }
   }
 
@@ -550,6 +550,7 @@ void taosNetTest(char *role, char *host, int32_t port, int32_t pkgLen) {
   } else if (0 == strcmp("server", role)) {
     taosNetTestServer(host, port, pkgLen);
   } else if (0 == strcmp("rpc", role)) {
+    tscEmbedded = 0;
     taosNetTestRpc(host, port, pkgLen);
   } else if (0 == strcmp("sync", role)) {
     taosNetCheckSync(host, port);

@@ -256,6 +256,12 @@ void httpJsonInt64(JsonBuf* buf, int64_t num) {
   buf->lst += snprintf(buf->lst, MAX_NUM_STR_SZ, "%" PRId64, num);
 }
 
+void httpJsonUInt64(JsonBuf* buf, uint64_t num) {
+  httpJsonItemToken(buf);
+  httpJsonTestBuf(buf, MAX_NUM_STR_SZ);
+  buf->lst += snprintf(buf->lst, MAX_NUM_STR_SZ, "%" PRIu64, num);
+}
+
 void httpJsonTimestamp(JsonBuf* buf, int64_t t, bool us) {
   char       ts[35] = {0};
   struct tm* ptm;
@@ -301,6 +307,12 @@ void httpJsonInt(JsonBuf* buf, int32_t num) {
   httpJsonItemToken(buf);
   httpJsonTestBuf(buf, MAX_NUM_STR_SZ);
   buf->lst += snprintf(buf->lst, MAX_NUM_STR_SZ, "%d", num);
+}
+
+void httpJsonUInt(JsonBuf* buf, uint32_t num) {
+  httpJsonItemToken(buf);
+  httpJsonTestBuf(buf, MAX_NUM_STR_SZ);
+  buf->lst += snprintf(buf->lst, MAX_NUM_STR_SZ, "%u", num);
 }
 
 void httpJsonFloat(JsonBuf* buf, float num) {

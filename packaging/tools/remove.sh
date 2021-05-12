@@ -120,7 +120,7 @@ function clean_service_on_systemd() {
   
     if [ "$verMode" == "cluster" ]; then
 		  nginx_service_config="${service_config_dir}/${nginx_service_name}.service"	
-   	 	if [ -d ${bin_dir}/web ]; then
+   	 	if [ -d ${install_nginxd_dir} ]; then
    	    if systemctl is-active --quiet ${nginx_service_name}; then
    	      echo "Nginx for TDengine is running, stopping it..."
    	      ${csudo} systemctl stop ${nginx_service_name} &> /dev/null || echo &> /dev/null
@@ -213,10 +213,10 @@ fi
 
 if echo $osinfo | grep -qwi "ubuntu" ; then
 #  echo "this is ubuntu system"
-   ${csudo} rm -f /var/lib/dpkg/info/tdengine* || :
+   ${csudo} dpkg --force-all  -P tdengine || :
 elif echo $osinfo | grep -qwi "debian" ; then
 #  echo "this is debian system"
-   ${csudo} rm -f /var/lib/dpkg/info/tdengine* || :
+   ${csudo} dpkg --force-all  -P tdengine || :
 elif  echo $osinfo | grep -qwi "centos" ; then
 #  echo "this is centos system"
   ${csudo} rpm -e --noscripts tdengine || :

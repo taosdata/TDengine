@@ -338,10 +338,6 @@ system sh/exec.sh -n dnode1 -s stop  -x SIGINT
 print stop dnode1 and sleep 3000
 sleep 3000
 
-sql drop dnode $hostname1
-print drop dnode1 and sleep 9000
-sleep 9000
-
 sql show mnodes
 $dnode1Role = $data2_1
 $dnode4Role = $data2_4
@@ -356,6 +352,25 @@ endi
 
 print ============================== step6.1
 system sh/exec.sh -n dnode1 -s start
+
+$x = 0
+step6.1:
+	$x = $x + 1
+	sleep 1000
+	if $x == 10 then
+		return -1
+	endi
+
+sql show dnodes
+print dnode1 $data4_1
+
+if $data4_1 != ready then
+  goto step6.1
+endi
+
+sql drop dnode $hostname1
+print drop dnode1 and sleep 9000
+sleep 9000
 
 $x = 0
 show6: 

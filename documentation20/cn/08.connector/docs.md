@@ -14,7 +14,7 @@ TDengine提供了丰富的应用程序开发接口，其中包括C/C++、Java、
 | **Python**  | ●               | ●               | ●               | ○               | ●         | ●         | ○               | --               | ○              |
 | **Go**      | ●               | ●               | ●               | ○               | ●         | ●         | ○               | --               | --             |
 | **NodeJs**  | ●               | ●               | ○               | ○               | ●         | ●         | ○               | --               | --             |
-| **C#**      | ○               | ●               | ●               | ○               | ○         | ○         | ○               | --               | --             |
+| **C#**      | ●               | ●               | ○               | ○               | ○         | ○         | ○               | --               | --             |
 | **RESTful** | ●               | ●               | ●               | ●               | ●         | ●         | ○               | ○                | ○              |
 
 其中 ● 表示经过官方测试验证， ○ 表示非官方测试验证。
@@ -23,7 +23,7 @@ TDengine提供了丰富的应用程序开发接口，其中包括C/C++、Java、
 
 * 在没有安装TDengine服务端软件的系统中使用连接器（除RESTful外）访问 TDengine 数据库，需要安装相应版本的客户端安装包来使应用驱动（Linux系统中文件名为libtaos.so，Windows系统中为taos.dll）被安装在系统中，否则会产生无法找到相应库文件的错误。
 * 所有执行 SQL 语句的 API，例如 C/C++ Connector 中的 `tao_query`、`taos_query_a`、`taos_subscribe` 等，以及其它语言中与它们对应的API，每次都只能执行一条 SQL 语句，如果实际参数中包含了多条语句，它们的行为是未定义的。
-* 升级到TDengine到2.0.8.0版本的用户，必须更新JDBC连接TDengine必须升级taos-jdbcdriver到2.0.12及以上。
+* 升级到TDengine到2.0.8.0版本的用户，必须更新JDBC连接TDengine必须升级taos-jdbcdriver到2.0.12及以上。详细的版本依赖关系请参见 [taos-jdbcdriver 文档](https://www.taosdata.com/cn/documentation/connector/java#version)。
 * 无论选用何种编程语言的连接器，2.0 及以上版本的 TDengine 推荐数据库应用的每个线程都建立一个独立的连接，或基于线程建立连接池，以避免连接内的“USE statement”状态量在线程之间相互干扰（但连接的查询和写入操作都是线程安全的）。
 
 ## <a class="anchor" id="driver"></a>安装连接器驱动步骤
@@ -32,7 +32,7 @@ TDengine提供了丰富的应用程序开发接口，其中包括C/C++、Java、
 
 **Linux**
 
-**1.   从涛思官网（https://www.taosdata.com/cn/all-downloads/）下载**
+**1.   从[涛思官网](https://www.taosdata.com/cn/all-downloads/)下载**
 
 * X64硬件环境：TDengine-client-2.x.x.x-Linux-x64.tar.gz
 
@@ -68,7 +68,7 @@ TDengine提供了丰富的应用程序开发接口，其中包括C/C++、Java、
 
 **Windows x64/x86**
 
-**1.   从涛思官网（https://www.taosdata.com/cn/all-downloads/）下载 ：**
+**1.   从[涛思官网](https://www.taosdata.com/cn/all-downloads/)下载 ：**
 
 * X64硬件环境：TDengine-client-2.X.X.X-Windows-x64.exe
 
@@ -209,11 +209,11 @@ C/C++的API类似于MySQL的C API。应用程序使用时，需要包含TDengine
 
 - `TAOS_RES* taos_query(TAOS *taos, const char *sql)`
 
-  该API用来执行SQL语句，可以是DQL、DML或DDL语句。 其中的`taos`参数是通过`taos_connect`获得的指针。返回值 NULL 表示失败。
+  该API用来执行SQL语句，可以是DQL、DML或DDL语句。 其中的`taos`参数是通过`taos_connect`获得的指针。不能通过返回值是否是 NULL 来判断执行结果是否失败，而是需要用`taos_errno`函数解析结果集中的错误代码来进行判断。
 
 - `int taos_result_precision(TAOS_RES *res)`
 
-  返回结果集时间戳字段的精度，`0` 代表毫秒，`1` 代表微秒，`2` 代表纳秒。
+  返回结果集时间戳字段的精度，`0` 代表毫秒，`1` 代表微秒。
 
 - `TAOS_ROW taos_fetch_row(TAOS_RES *res)`
 
@@ -349,7 +349,7 @@ TDengine提供时间驱动的实时流式计算API。可以每隔一指定的时
     * param：是应用提供的用于回调的一个参数，回调时，提供给应用
     * callback: 第二个回调函数，会在连续查询自动停止时被调用。
 
-  返回值为NULL，表示创建成功，返回值不为空，表示成功。
+  返回值为NULL，表示创建失败；返回值不为空，表示成功。
 
 - `void taos_close_stream (TAOS_STREAM *tstr)`
 
@@ -377,6 +377,7 @@ TDengine提供时间驱动的实时流式计算API。可以每隔一指定的时
     * res：查询结果集，注意结果集中可能没有记录
     * param：调用 `taos_subscribe`时客户程序提供的附加参数
     * code：错误码
+  **注意**：在这个回调函数里不可以做耗时过长的处理，尤其是对于返回的结果集中数据较多的情况，否则有可能导致客户端阻塞等异常状态。如果必须进行复杂计算，则建议在另外的线程中进行处理。
 
 * `TAOS_RES *taos_consume(TAOS_SUB *tsub)`
 
@@ -591,7 +592,8 @@ curl -u username:password -d '<SQL>' <ip>:<PORT>/rest/sql
 ```json
 {
     "status": "succ",
-    "head": ["Time Stamp","current", …],
+    "head": ["ts","current", …],
+    "column_meta": [["ts",9,8],["current",6,4], …],
     "data": [
         ["2018-10-03 14:38:05.000", 10.3, …],
         ["2018-10-03 14:38:15.000", 12.6, …]
@@ -602,10 +604,23 @@ curl -u username:password -d '<SQL>' <ip>:<PORT>/rest/sql
 
 说明：
 
-- status: 告知操作结果是成功还是失败
-- head: 表的定义，如果不返回结果集，仅有一列“affected_rows”
-- data: 具体返回的数据，一排一排的呈现，如果不返回结果集，仅[[affected_rows]]
-- rows: 表明总共多少行数据
+- status: 告知操作结果是成功还是失败。
+- head: 表的定义，如果不返回结果集，则仅有一列“affected_rows”。（从 2.0.17 版本开始，建议不要依赖 head 返回值来判断数据列类型，而推荐使用 column_meta。在未来版本中，有可能会从返回值中去掉 head 这一项。）
+- column_meta: 从 2.0.17 版本开始，返回值中增加这一项来说明 data 里每一列的数据类型。具体每个列会用三个值来说明，分别为：列名、列类型、类型长度。例如`["current",6,4]`表示列名为“current”；列类型为 6，也即 float 类型；类型长度为 4，也即对应 4 个字节表示的 float。如果列类型为 binary 或 nchar，则类型长度表示该列最多可以保存的内容长度，而不是本次返回值中的具体数据长度。当列类型是 nchar 的时候，其类型长度表示可以保存的 unicode 字符数量，而不是 bytes。
+- data: 具体返回的数据，一行一行的呈现，如果不返回结果集，那么就仅有[[affected_rows]]。data 中每一行的数据列顺序，与 column_meta 中描述数据列的顺序完全一致。
+- rows: 表明总共多少行数据。
+
+column_meta 中的列类型说明：
+* 1：BOOL
+* 2：TINYINT
+* 3：SMALLINT
+* 4：INT
+* 5：BIGINT
+* 6：FLOAT
+* 7：DOUBLE
+* 8：BINARY
+* 9：TIMESTAMP
+* 10：NCHAR
 
 ### 自定义授权码
 
@@ -651,7 +666,8 @@ curl -H 'Authorization: Basic cm9vdDp0YW9zZGF0YQ==' -d 'select * from demo.d1001
 ```json
 {
     "status": "succ",
-    "head": ["Time Stamp","current","voltage","phase"],
+    "head": ["ts","current","voltage","phase"],
+    "column_meta": [["ts",9,8],["current",6,4],["voltage",4,4],["phase",6,4]],
     "data": [
         ["2018-10-03 14:38:05.000",10.3,219,0.31],
         ["2018-10-03 14:38:15.000",12.6,218,0.33]
@@ -671,8 +687,9 @@ curl -H 'Authorization: Basic cm9vdDp0YW9zZGF0YQ==' -d 'create database demo' 19
 {
     "status": "succ",
     "head": ["affected_rows"],
+    "column_meta": [["affected_rows",4,4]],
     "data": [[1]],
-    "rows": 1,
+    "rows": 1
 }
 ```
 
@@ -691,7 +708,8 @@ curl -H 'Authorization: Basic cm9vdDp0YW9zZGF0YQ==' -d 'select * from demo.d1001
 ```json
 {
     "status": "succ",
-    "head": ["column1","column2","column3"],
+    "head": ["ts","current","voltage","phase"],
+    "column_meta": [["ts",9,8],["current",6,4],["voltage",4,4],["phase",6,4]],
     "data": [
         [1538548685000,10.3,219,0.31],
         [1538548695000,12.6,218,0.33]
@@ -712,7 +730,8 @@ HTTP请求URL采用`sqlutc`时，返回结果集的时间戳将采用UTC时间�
 ```json
 {
     "status": "succ",
-    "head": ["column1","column2","column3"],
+    "head": ["ts","current","voltage","phase"],
+    "column_meta": [["ts",9,8],["current",6,4],["voltage",4,4],["phase",6,4]],
     "data": [
         ["2018-10-03T14:38:05.000+0800",10.3,219,0.31],
         ["2018-10-03T14:38:15.000+0800",12.6,218,0.33]
@@ -725,7 +744,7 @@ HTTP请求URL采用`sqlutc`时，返回结果集的时间戳将采用UTC时间�
 
 下面仅列出一些与RESTful接口有关的配置参数，其他系统参数请看配置文件里的说明。注意：配置修改后，需要重启taosd服务才能生效
 
-- httpPort: 对外提供RESTful服务的端口号，默认绑定到6041
+- 对外提供RESTful服务的端口号，默认绑定到 6041（实际取值是 serverPort + 11，因此可以通过修改 serverPort 参数的设置来修改）
 - httpMaxThreads: 启动的线程数量，默认为2（2.0.17版本开始，默认值改为CPU核数的一半向下取整）
 - restfulRowLimit: 返回结果集（JSON格式）的最大条数，默认值为10240
 - httpEnableCompress: 是否支持压缩，默认不支持，目前TDengine仅支持gzip压缩格式

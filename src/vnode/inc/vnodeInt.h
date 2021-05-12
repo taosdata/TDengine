@@ -37,9 +37,11 @@ extern int32_t vDebugFlag;
 typedef struct {
   int32_t  vgId;      // global vnode group ID
   int32_t  refCount;  // reference count
+  int64_t  queuedWMsgSize;
   int32_t  queuedWMsg;
   int32_t  queuedRMsg;
   int32_t  flowctrlLevel;
+  int64_t  sequence;  // for topic
   int8_t   status;
   int8_t   role;
   int8_t   accessState;
@@ -47,7 +49,7 @@ typedef struct {
   int8_t   isCommiting;
   int8_t   dbReplica;
   int8_t   dropped;
-  int8_t   reserved;
+  int8_t   dbType;
   uint64_t version;   // current version
   uint64_t cversion;  // version while commit start
   uint64_t fversion;  // version on saved data file

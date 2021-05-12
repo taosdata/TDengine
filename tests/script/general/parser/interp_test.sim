@@ -579,7 +579,7 @@ $tb = $tbPrefix . 0
 
   ## interp(*) from stb + group by + fill(none)
   $t = $ts0 + 1000
-  sql select interp(*) from $stb where ts = $t fill(NULL) group by tbname
+sql select interp(*) from $stb where ts = $t fill(NULL) group by tbname
 if $rows != $tbNum then
   return -1
 endi

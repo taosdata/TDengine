@@ -27,7 +27,7 @@
 #define MAX_IP_SIZE            20
 #define MAX_PASSWORD_SIZE      20
 #define MAX_HISTORY_SIZE       1000
-#define MAX_COMMAND_SIZE       65536
+#define MAX_COMMAND_SIZE       1048586
 #define HISTORY_FILE           ".taos_history"
 
 #define DEFAULT_RES_SHOW_NUM   100
@@ -51,6 +51,7 @@ typedef struct SShellArguments {
   char  file[TSDB_FILENAME_LEN];
   char  dir[TSDB_FILENAME_LEN];
   int   threadNum;
+  int   check;
   char* commands;
   int   abort;
   int   port;
@@ -71,7 +72,9 @@ void read_history();
 void write_history();
 void source_file(TAOS* con, char* fptr);
 void source_dir(TAOS* con, SShellArguments* args);
+void shellCheck(TAOS* con, SShellArguments* args);
 void get_history_path(char* history);
+void shellCheck(TAOS* con, SShellArguments* args);
 void cleanup_handler(void* arg);
 void exitShell();
 int shellDumpResult(TAOS_RES* con, char* fname, int* error_no, bool printMode);

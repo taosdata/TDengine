@@ -484,7 +484,7 @@ void tsBufFlush(STSBuf* pTSBuf) {
       .magic = TS_COMP_FILE_MAGIC, .numOfGroup = pTSBuf->numOfGroups, .tsOrder = pTSBuf->tsOrder};
   STSBufUpdateHeader(pTSBuf, &header);
   
-  fsync(fileno(pTSBuf->f));
+  taosFsync(fileno(pTSBuf->f));
 }
 
 static int32_t tsBufFindGroupById(STSGroupBlockInfoEx* pGroupInfoEx, int32_t numOfGroups, int32_t id) {
@@ -868,7 +868,7 @@ STSBuf* tsBufCreateFromCompBlocks(const char* pData, int32_t numOfBlocks, int32_
       .magic = TS_COMP_FILE_MAGIC, .numOfGroup = pTSBuf->numOfGroups, .tsOrder = pTSBuf->tsOrder};
   STSBufUpdateHeader(pTSBuf, &header);
   
-  fsync(fileno(pTSBuf->f));
+  taosFsync(fileno(pTSBuf->f));
   
   return pTSBuf;
 }

@@ -51,11 +51,9 @@ uint32_t tSQLGetToken(char *z, uint32_t *tokenType);
  * @param str
  * @param i
  * @param isPrevOptr
- * @param numOfIgnoreToken
- * @param ignoreTokenTypes
  * @return
  */
-SStrToken tStrGetToken(char *str, int32_t *i, bool isPrevOptr, uint32_t numOfIgnoreToken, uint32_t *ignoreTokenTypes);
+SStrToken tStrGetToken(char *str, int32_t *i, bool isPrevOptr);
 
 /**
  * check if it is a keyword or not
@@ -183,6 +181,9 @@ static FORCE_INLINE int32_t tGetNumericStringType(const SStrToken* pToken) {
 }
 
 void taosCleanupKeywordsTable();
+
+SStrToken tscReplaceStrToken(char **str, SStrToken *token, const char* newToken);
+
 
 #ifdef __cplusplus
 }

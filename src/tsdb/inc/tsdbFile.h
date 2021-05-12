@@ -32,7 +32,7 @@
 #define TSDB_FILE_SET_CLOSED(f) (TSDB_FILE_FD(f) = -1)
 #define TSDB_FILE_LEVEL(tf) TFILE_LEVEL(TSDB_FILE_F(tf))
 #define TSDB_FILE_ID(tf) TFILE_ID(TSDB_FILE_F(tf))
-#define TSDB_FILE_FSYNC(tf) fsync(TSDB_FILE_FD(tf))
+#define TSDB_FILE_FSYNC(tf) taosFsync(TSDB_FILE_FD(tf))
 #define TSDB_FILE_STATE(tf) ((tf)->state)
 #define TSDB_FILE_SET_STATE(tf, s) ((tf)->state = (s))
 #define TSDB_FILE_IS_OK(tf) (TSDB_FILE_STATE(tf) == TSDB_FILE_STATE_OK)
@@ -334,7 +334,7 @@ static FORCE_INLINE int tsdbOpenDFileSet(SDFileSet* pSet, int flags) {
 
 static FORCE_INLINE void tsdbRemoveDFileSet(SDFileSet* pSet) {
   for (TSDB_FILE_T ftype = 0; ftype < TSDB_FILE_MAX; ftype++) {
-    tsdbRemoveDFile(TSDB_DFILE_IN_SET(pSet, ftype));
+    (void)tsdbRemoveDFile(TSDB_DFILE_IN_SET(pSet, ftype));
   }
 }
 

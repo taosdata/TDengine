@@ -27,7 +27,6 @@ tests/hdfs/
 nmake/
 sln/
 hdfs/
-c/
 taoshebei/
 taosdalipu/
 Target/

@@ -16,7 +16,6 @@ TDengine 的 JDBC 驱动实现尽可能与关系型数据库驱动保持一致�
 
 * TDengine 目前不支持针对单条数据记录的删除操作。
 * 目前不支持事务操作。
-* 目前不支持表间的 union 操作。
 * 目前不支持嵌套查询（nested query）。
 * 对每个 Connection 的实例，至多只能有一个打开的 ResultSet 实例；如果在 ResultSet 还没关闭的情况下执行了新的查询，taos-jdbcdriver 会自动关闭上一个 ResultSet。
 
@@ -285,7 +284,7 @@ JDBC连接器可能报错的错误码包括3种：JDBC driver本身的报错（�
 * https://github.com/taosdata/TDengine/blob/develop/src/connector/jdbc/src/main/java/com/taosdata/jdbc/TSDBErrorNumbers.java
 * https://github.com/taosdata/TDengine/blob/develop/src/inc/taoserror.h
 
-### 订阅
+### <a class="anchor" id="subscribe"></a>订阅
 
 #### 创建
 
@@ -447,11 +446,12 @@ Query OK, 1 row(s) in set (0.000141s)
 
 
 
-## TAOS-JDBCDriver 版本以及支持的 TDengine 版本和 JDK 版本
+## <a class="anchor" id="version"></a>TAOS-JDBCDriver 版本以及支持的 TDengine 版本和 JDK 版本
 
 | taos-jdbcdriver 版本 | TDengine 版本     | JDK 版本 |
 | -------------------- | ----------------- | -------- |
-| 2.0.12 及以上        | 2.0.8.0 及以上    | 1.8.x    |
+| 2.0.22              | 2.0.18.0 及以上     | 1.8.x    |
+| 2.0.12 - 2.0.21     | 2.0.8.0 - 2.0.17.0 | 1.8.x    |
 | 2.0.4 - 2.0.11       | 2.0.0.0 - 2.0.7.x | 1.8.x    |
 | 1.0.3                | 1.6.1.x 及以上    | 1.8.x    |
 | 1.0.2                | 1.6.1.x 及以上    | 1.8.x    |
@@ -470,9 +470,11 @@ TDengine 目前支持时间戳、数字、字符、布尔类型，与 Java 对�
 | BIGINT            | java.lang.Long     |
 | FLOAT             | java.lang.Float    |
 | DOUBLE            | java.lang.Double   |
-| SMALLINT, TINYINT | java.lang.Short    |
+| SMALLINT	    | java.lang.Short    |
+| TINYINT           | java.lang.Byte     |
 | BOOL              | java.lang.Boolean  |
-| BINARY, NCHAR     | java.lang.String   |
+| BINARY            | byte array         |
+| NCHAR             | java.lang.String   |
 
 
 

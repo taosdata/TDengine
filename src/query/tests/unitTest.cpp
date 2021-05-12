@@ -227,10 +227,10 @@ TEST(testCase, db_table_name) {
   EXPECT_EQ(testValidateName(t60_1), TSDB_CODE_TSC_INVALID_SQL);
 
   char t61[] = "' ABC '";
-  EXPECT_EQ(testValidateName(t61), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(testValidateName(t61), TSDB_CODE_TSC_INVALID_SQL);
 
   char t61_1[] = "'  ABC '";
-  EXPECT_EQ(testValidateName(t61_1), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(testValidateName(t61_1), TSDB_CODE_TSC_INVALID_SQL);
 
   char t62[] = " ABC . def ";
   EXPECT_EQ(testValidateName(t62), TSDB_CODE_TSC_INVALID_SQL);
@@ -249,13 +249,13 @@ TEST(testCase, db_table_name) {
   EXPECT_EQ(testValidateName(t65), TSDB_CODE_TSC_INVALID_SQL);
 
   char t66[] = "' ABC '.'  DEF '";
-  EXPECT_EQ(testValidateName(t66), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(testValidateName(t66), TSDB_CODE_TSC_INVALID_SQL);
 
   char t67[] = "abc . '  DEF  '";
   EXPECT_EQ(testValidateName(t67), TSDB_CODE_TSC_INVALID_SQL);
 
   char t68[] = "'  abc '.'   DEF '";
-  EXPECT_EQ(testValidateName(t68), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(testValidateName(t68), TSDB_CODE_TSC_INVALID_SQL);
 
   // do not use key words 
   char t69[] = "table.'DEF'";
@@ -265,7 +265,7 @@ TEST(testCase, db_table_name) {
   EXPECT_EQ(testValidateName(t70), TSDB_CODE_TSC_INVALID_SQL);
 
   char t71[] = "'_abXYZ1234  '.' deFF  '";
-  EXPECT_EQ(testValidateName(t71), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(testValidateName(t71), TSDB_CODE_TSC_INVALID_SQL);
 
   char t72[] = "'_abDEF&^%1234'.'  DIef'";
   EXPECT_EQ(testValidateName(t72), TSDB_CODE_TSC_INVALID_SQL);

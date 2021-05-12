@@ -6,6 +6,7 @@ node {
 }
 
 def skipstage=0
+
 def abortPreviousBuilds() {
   def currentJobName = env.JOB_NAME
   def currentBuildNumber = env.BUILD_NUMBER.toInteger()
@@ -24,7 +25,7 @@ def abortPreviousBuilds() {
     build.doKill()    //doTerm(),doKill(),doTerm()
   }
 }
-//abort previous build
+//  abort previous build
 abortPreviousBuilds()
 def abort_previous(){
   def buildNumber = env.BUILD_NUMBER as int
@@ -32,34 +33,68 @@ def abort_previous(){
   milestone(buildNumber)
 }
 def pre_test(){
-    catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
-                sh '''
-                sudo rmtaos
-                '''
-    }
-    sh '''
     
+    
+    sh '''
+    sudo rmtaos || echo "taosd has not installed"
+    '''
+    sh '''
+    killall -9 taosd ||echo "no taosd running"
+    killall -9 gdb || echo "no gdb running"
     cd ${WKC}
-    git checkout develop
-    git reset --hard HEAD~10 >/dev/null 
-    git pull
+    git reset --hard HEAD~10 >/dev/null
+    '''
+    script {
+      if (env.CHANGE_TARGET == 'master') {
+        sh '''
+        cd ${WKC}
+        git checkout master
+        '''
+        }
+      else {
+        sh '''
+        cd ${WKC}
+        git checkout develop
+        '''
+      } 
+    }
+    sh'''
+    cd ${WKC}
+    git pull >/dev/null
     git fetch origin +refs/pull/${CHANGE_ID}/merge
     git checkout -qf FETCH_HEAD
-    git --no-pager diff --name-only FETCH_HEAD $(git merge-base FETCH_HEAD develop)|grep -v -E '.*md|//src//connector|Jenkinsfile' || exit 0
+    git clean -dfx
     cd ${WK}
     git reset --hard HEAD~10
-    git checkout develop
-    git pull
+    '''
+    script {
+      if (env.CHANGE_TARGET == 'master') {
+        sh '''
+        cd ${WK}
+        git checkout master
+        '''
+        }
+      else {
+        sh '''
+        cd ${WK}
+        git checkout develop
+        '''
+      } 
+    }
+    sh '''
     cd ${WK}
+    git pull >/dev/null 
+
     export TZ=Asia/Harbin
     date
-    rm -rf ${WK}/debug
+    git clean -dfx
     mkdir debug
     cd debug
     cmake .. > /dev/null
     make > /dev/null
     make install > /dev/null
     cd ${WKC}/tests
+    pip3 install ${WKC}/src/connector/python/linux/python3/
     '''
     return 1
 }
@@ -79,6 +114,10 @@ pipeline {
               changeRequest()
           }
           steps {
+            script{
+              abort_previous()
+              abortPreviousBuilds()
+            }
           sh'''
           cp -r ${WORKSPACE} ${WORKSPACE}.tes
           cd ${WORKSPACE}.tes
@@ -86,7 +125,8 @@ pipeline {
           git pull
           git fetch origin +refs/pull/${CHANGE_ID}/merge
           git checkout -qf FETCH_HEAD
-          '''
+          '''     
+          
           script{
             env.skipstage=sh(script:"cd ${WORKSPACE}.tes && git --no-pager diff --name-only FETCH_HEAD develop|grep -v -E '.*md|//src//connector|Jenkinsfile|test-all.sh' || echo 0 ",returnStdout:true) 
           }
@@ -115,7 +155,6 @@ pipeline {
               sh '''
               date
               cd ${WKC}/tests
-              find pytest -name '*'sql|xargs rm -rf
               ./test-all.sh p1
               date'''
             }
@@ -131,7 +170,6 @@ pipeline {
                 sh '''
                 date
                 cd ${WKC}/tests
-                find pytest -name '*'sql|xargs rm -rf
                 ./test-all.sh p2
                 date'''
             }
@@ -181,6 +219,12 @@ pipeline {
             rm -rf /var/log/taos/*
             ./handle_crash_gen_val_log.sh
             '''
+            sh '''
+            cd ${WKC}/tests/pytest
+            rm -rf /var/lib/taos/*
+            rm -rf /var/log/taos/*
+            ./handle_taosd_val_log.sh
+            '''
             timeout(time: 45, unit: 'MINUTES'){
                 sh '''
                 date
@@ -211,6 +255,11 @@ pipeline {
               cd ${WKC}/tests
               ./test-all.sh b3fq
               date'''
+              sh '''
+              date
+              cd ${WKC}/tests
+              ./test-all.sh full example
+              date'''
             }
           }
         }
@@ -227,6 +276,8 @@ pipeline {
               ./test-all.sh p4
               cd ${WKC}/tests
               ./test-all.sh full jdbc
+              cd ${WKC}/tests
+              ./test-all.sh full unit
               date'''
             }
           }
@@ -266,7 +317,7 @@ pipeline {
               date
               cd ${WKC}/tests
               ./test-all.sh b7fq
-              date'''
+              date'''              
             }
           }
         }        

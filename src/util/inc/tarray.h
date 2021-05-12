@@ -25,7 +25,8 @@ extern "C" {
 
 #define TARRAY_MIN_SIZE 8
 #define TARRAY_GET_ELEM(array, index) ((void*)((char*)((array)->pData) + (index) * (array)->elemSize))
-#define TARRAY_ELEM_IDX(array, ele) (POINTER_DISTANCE(ele, (array)->pData) / (array)->elemSize)
+#define TARRAY_ELEM_IDX(array, ele)   (POINTER_DISTANCE(ele, (array)->pData) / (array)->elemSize)
+#define TARRAY_GET_START(array)       ((array)->pData)
 
 typedef struct SArray {
   size_t size;

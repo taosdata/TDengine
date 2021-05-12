@@ -20,7 +20,7 @@
 #include "tulog.h"
 #include "taoserror.h"
 
-#ifndef TAOS_OS_FUNC_SYSINFO
+#if !(defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32) || defined (_TD_DARWIN_64))
 
 #define PROCESS_ITEM 12
 
@@ -319,13 +319,14 @@ bool taosGetCpuUsage(float *sysCpuUsage, float *procCpuUsage) {
 
 int32_t taosGetDiskSize(char *dataDir, SysDiskSize *diskSize) {
   struct statvfs info;
-  if (statvfs(tsDataDir, &info)) {
+  if (statvfs(dataDir, &info)) {
     uError("failed to get disk size, dataDir:%s errno:%s", tsDataDir, strerror(errno));
     terrno = TAOS_SYSTEM_ERROR(errno);
     return -1;
   } else {
     diskSize->tsize = info.f_blocks * info.f_frsize;
     diskSize->avail = info.f_bavail * info.f_frsize;
+    diskSize->used = (info.f_blocks - info.f_bfree) * info.f_frsize;
     return 0;
   }
 }
@@ -506,6 +507,8 @@ void taosPrintOsInfo() {
   uInfo(" os streamMax:           %" PRId64, tsStreamMax);
   uInfo(" os numOfCores:          %d", tsNumOfCores);
   uInfo(" os totalDisk:           %f(GB)", tsTotalDataDirGB);
+  uInfo(" os usedDisk:            %f(GB)", tsUsedDataDirGB);
+  uInfo(" os availDisk:           %f(GB)", tsAvailDataDirGB);
   uInfo(" os totalMemory:         %d(MB)", tsTotalMemoryMB);
 
   struct utsname buf;

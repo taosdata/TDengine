@@ -108,10 +108,12 @@ static int32_t mnodeChildTableActionDestroy(SSdbRow *pRow) {
 
 static int32_t mnodeChildTableActionInsert(SSdbRow *pRow) {
   SCTableObj *pTable = pRow->pObj;
+  int32_t code = 0;
 
   SVgObj *pVgroup = mnodeGetVgroup(pTable->vgId);
   if (pVgroup == NULL) {
     mError("ctable:%s, not in vgId:%d", pTable->info.tableId, pTable->vgId);
+    code = -1;
   }
 
   SDbObj *pDb = NULL;
@@ -119,6 +121,7 @@ static int32_t mnodeChildTableActionInsert(SSdbRow *pRow) {
     pDb = mnodeGetDb(pVgroup->dbName);
     if (pDb == NULL) {
       mError("ctable:%s, vgId:%d not in db:%s", pTable->info.tableId, pVgroup->vgId, pVgroup->dbName);
+      code = -1;
     }
   }
 
@@ -127,6 +130,7 @@ static int32_t mnodeChildTableActionInsert(SSdbRow *pRow) {
     pAcct = mnodeGetAcct(pDb->acct);
     if (pAcct == NULL) {
       mError("ctable:%s, acct:%s not exists", pTable->info.tableId, pDb->acct);
+      code = -1;
     }
   }
 
@@ -139,6 +143,7 @@ static int32_t mnodeChildTableActionInsert(SSdbRow *pRow) {
       if (pAcct) pAcct->acctInfo.numOfTimeSeries += (pTable->superTable->numOfColumns - 1);
     } else {
       mError("table:%s:%p, correspond stable not found suid:%" PRIu64, pTable->info.tableId, pTable, pTable->suid);
+      code = -1;
     }
   } else {
     grantAdd(TSDB_GRANT_TIMESERIES, pTable->numOfColumns - 1);
@@ -146,18 +151,31 @@ static int32_t mnodeChildTableActionInsert(SSdbRow *pRow) {
   }
 
   if (pDb) mnodeAddTableIntoDb(pDb);
-  if (pVgroup) mnodeAddTableIntoVgroup(pVgroup, pTable);
+  if (pVgroup) {
+    if (mnodeAddTableIntoVgroup(pVgroup, pTable, pRow->pMsg == NULL) != 0) {
+      mError("table:%s, vgId:%d tid:%d, failed to perform insert action, uid:%" PRIu64 " suid:%" PRIu64,
+             pTable->info.tableId, pTable->vgId, pTable->tid, pTable->uid, pTable->suid);
+      code = -1;
+    }
+  }
 
   mnodeDecVgroupRef(pVgroup);
   mnodeDecDbRef(pDb);
   mnodeDecAcctRef(pAcct);
 
-  return TSDB_CODE_SUCCESS;
+  if (code == 0) {
+    mTrace("table:%s, vgId:%d tid:%d, perform insert action, uid:%" PRIu64 " suid:%" PRIu64, pTable->info.tableId,
+           pTable->vgId, pTable->tid, pTable->uid, pTable->suid);
+  }
+
+  return code;
 }
 
 static int32_t mnodeChildTableActionDelete(SSdbRow *pRow) {
   SCTableObj *pTable = pRow->pObj;
   if (pTable->vgId == 0) {
+    mError("table:%s, vgId:%d tid:%d, failed to perform delete action, uid:%" PRIu64 " suid:%" PRIu64,
+           pTable->info.tableId, pTable->vgId, pTable->tid, pTable->uid, pTable->suid);
     return TSDB_CODE_MND_VGROUP_NOT_EXIST;
   }
 
@@ -188,6 +206,8 @@ static int32_t mnodeChildTableActionDelete(SSdbRow *pRow) {
   mnodeDecDbRef(pDb);
   mnodeDecAcctRef(pAcct);
 
+  mTrace("table:%s, vgId:%d tid:%d, perform delete action, uid:%" PRIu64 " suid:%" PRIu64, pTable->info.tableId,
+         pTable->vgId, pTable->tid, pTable->uid, pTable->suid);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -399,13 +419,13 @@ static void mnodeAddTableIntoStable(SSTableObj *pStable, SCTableObj *pCtable) {
 
   if (pStable->vgHash == NULL) {
     pStable->vgHash = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_ENTRY_LOCK);
-    mDebug("table:%s, create hash:%p", pStable->info.tableId, pStable->vgHash);
+    mDebug("stable:%s, create vgId hash:%p", pStable->info.tableId, pStable->vgHash);
   }
 
   if (pStable->vgHash != NULL) {
     if (taosHashGet(pStable->vgHash, &pCtable->vgId, sizeof(pCtable->vgId)) == NULL) {
       taosHashPut(pStable->vgHash, &pCtable->vgId, sizeof(pCtable->vgId), &pCtable->vgId, sizeof(pCtable->vgId));
-      mDebug("table:%s, vgId:%d is put into stable hash:%p, sizeOfVgList:%d", pStable->info.tableId, pCtable->vgId,
+      mDebug("stable:%s, vgId:%d is put into stable vgId hash:%p, sizeOfVgList:%d", pStable->info.tableId, pCtable->vgId,
              pStable->vgHash, taosHashGetSize(pStable->vgHash));
     }
   }
@@ -443,19 +463,21 @@ static int32_t mnodeSuperTableActionDestroy(SSdbRow *pRow) {
 
 static int32_t mnodeSuperTableActionInsert(SSdbRow *pRow) {
   SSTableObj *pStable = pRow->pObj;
-  SDbObj *pDb = mnodeGetDbByTableName(pStable->info.tableId);
+  SDbObj *    pDb = mnodeGetDbByTableName(pStable->info.tableId);
   if (pDb != NULL && pDb->status == TSDB_DB_STATUS_READY) {
     mnodeAddSuperTableIntoDb(pDb);
   }
   mnodeDecDbRef(pDb);
 
   taosHashPut(tsSTableUidHash, &pStable->uid, sizeof(int64_t), &pStable, sizeof(int64_t));
+
+  mTrace("stable:%s, perform insert action, uid:%" PRIu64, pStable->info.tableId, pStable->uid);
   return TSDB_CODE_SUCCESS;
 }
 
 static int32_t mnodeSuperTableActionDelete(SSdbRow *pRow) {
   SSTableObj *pStable = pRow->pObj;
-  SDbObj *pDb = mnodeGetDbByTableName(pStable->info.tableId);
+  SDbObj *    pDb = mnodeGetDbByTableName(pStable->info.tableId);
   if (pDb != NULL) {
     mnodeRemoveSuperTableFromDb(pDb);
     mnodeDropAllChildTablesInStable((SSTableObj *)pStable);
@@ -463,6 +485,8 @@ static int32_t mnodeSuperTableActionDelete(SSdbRow *pRow) {
   mnodeDecDbRef(pDb);
 
   taosHashRemove(tsSTableUidHash, &pStable->uid, sizeof(int64_t));
+
+  mTrace("stable:%s, perform delete action, uid:%" PRIu64, pStable->info.tableId, pStable->uid);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -832,12 +856,13 @@ static int32_t mnodeProcessBatchCreateTableMsg(SMnodeMsg *pMsg) {
         return code;
       } else if (code != TSDB_CODE_MND_ACTION_IN_PROGRESS) {
         ++pMsg->pBatchMasterMsg->received;
+        pMsg->pBatchMasterMsg->code = code;
         mnodeDestroySubMsg(pMsg);
       }
 
       if (pMsg->pBatchMasterMsg->successed + pMsg->pBatchMasterMsg->received
 	  >= pMsg->pBatchMasterMsg->expected) {
-        dnodeSendRpcMWriteRsp(pMsg->pBatchMasterMsg, TSDB_CODE_SUCCESS);
+        dnodeSendRpcMWriteRsp(pMsg->pBatchMasterMsg, pMsg->pBatchMasterMsg->code);
       }
 
       return TSDB_CODE_MND_ACTION_IN_PROGRESS;
@@ -1012,6 +1037,19 @@ static int32_t mnodeProcessCreateSuperTableMsg(SMnodeMsg *pMsg) {
 
   SCreateTableMsg* pCreate = (SCreateTableMsg*)((char*)pCreate1 + sizeof(SCMCreateTableMsg));
 
+  int16_t numOfTags = htons(pCreate->numOfTags);
+  if (numOfTags > TSDB_MAX_TAGS) {
+    mError("msg:%p, app:%p table:%s, failed to create, too many tags", pMsg, pMsg->rpcMsg.ahandle, pCreate->tableName);
+    return TSDB_CODE_MND_TOO_MANY_TAGS;
+  }
+
+  int16_t numOfColumns = htons(pCreate->numOfColumns);
+  int32_t numOfCols = numOfColumns + numOfTags;
+  if (numOfCols > TSDB_MAX_COLUMNS) {
+    mError("msg:%p, app:%p table:%s, failed to create, too many columns", pMsg, pMsg->rpcMsg.ahandle, pCreate->tableName);
+    return TSDB_CODE_MND_TOO_MANY_COLUMNS;
+  }
+
   SSTableObj *   pStable = calloc(1, sizeof(SSTableObj));
   if (pStable == NULL) {
     mError("msg:%p, app:%p table:%s, failed to create, no enough memory", pMsg, pMsg->rpcMsg.ahandle, pCreate->tableName);
@@ -1025,10 +1063,9 @@ static int32_t mnodeProcessCreateSuperTableMsg(SMnodeMsg *pMsg) {
   pStable->uid          = (us << 24) + ((sdbGetVersion() & ((1ul << 16) - 1ul)) << 8) + (taosRand() & ((1ul << 8) - 1ul));
   pStable->sversion     = 0;
   pStable->tversion     = 0;
-  pStable->numOfColumns = htons(pCreate->numOfColumns);
-  pStable->numOfTags    = htons(pCreate->numOfTags);
+  pStable->numOfColumns = numOfColumns;
+  pStable->numOfTags    = numOfTags;
 
-  int32_t numOfCols = pStable->numOfColumns + pStable->numOfTags;
   int32_t schemaSize = numOfCols * sizeof(SSchema);
   pStable->schema = (SSchema *)calloc(1, schemaSize);
   if (pStable->schema == NULL) {
@@ -1038,11 +1075,6 @@ static int32_t mnodeProcessCreateSuperTableMsg(SMnodeMsg *pMsg) {
   }
 
   memcpy(pStable->schema, pCreate->schema, numOfCols * sizeof(SSchema));
-
-  if (pStable->numOfColumns > TSDB_MAX_COLUMNS || pStable->numOfTags > TSDB_MAX_TAGS) {
-    mError("msg:%p, app:%p table:%s, failed to create, too many columns", pMsg, pMsg->rpcMsg.ahandle, pCreate->tableName);
-    return TSDB_CODE_MND_INVALID_TABLE_NAME;
-  }
 
   pStable->nextColId = 0;
 
@@ -1313,6 +1345,11 @@ static int32_t mnodeAddSuperTableColumn(SMnodeMsg *pMsg, SSchema schema[], int32
   if (ncols <= 0) {
     mError("msg:%p, app:%p stable:%s, add column, ncols:%d <= 0", pMsg, pMsg->rpcMsg.ahandle, pStable->info.tableId, ncols);
     return TSDB_CODE_MND_APP_ERROR;
+  }
+
+  if (pStable->numOfColumns + ncols + pStable->numOfTags > TSDB_MAX_COLUMNS) {
+    mError("msg:%p, app:%p stable:%s, add column, too many columns", pMsg, pMsg->rpcMsg.ahandle, pStable->info.tableId);
+    return TSDB_CODE_MND_TOO_MANY_COLUMNS;
   }
 
   for (int32_t i = 0; i < ncols; i++) {
@@ -1887,15 +1924,14 @@ static int32_t mnodeDoCreateChildTableCb(SMnodeMsg *pMsg, int32_t code) {
              pMsg->rpcMsg.handle);
 
       if (pMsg->pBatchMasterMsg) {
-	++pMsg->pBatchMasterMsg->successed;
-	if (pMsg->pBatchMasterMsg->successed + pMsg->pBatchMasterMsg->received
-	    >= pMsg->pBatchMasterMsg->expected) {
-	  dnodeSendRpcMWriteRsp(pMsg->pBatchMasterMsg, code);
-	}
+        ++pMsg->pBatchMasterMsg->successed;
+        if (pMsg->pBatchMasterMsg->successed + pMsg->pBatchMasterMsg->received >= pMsg->pBatchMasterMsg->expected) {
+          dnodeSendRpcMWriteRsp(pMsg->pBatchMasterMsg, code);
+        }
 
-	mnodeDestroySubMsg(pMsg);
+        mnodeDestroySubMsg(pMsg);
 
-	return TSDB_CODE_MND_ACTION_IN_PROGRESS;
+        return TSDB_CODE_MND_ACTION_IN_PROGRESS;
       }
 
       dnodeSendRpcMWriteRsp(pMsg, TSDB_CODE_SUCCESS);
@@ -1908,10 +1944,10 @@ static int32_t mnodeDoCreateChildTableCb(SMnodeMsg *pMsg, int32_t code) {
     sdbDeleteRow(&desc);
 
     if (pMsg->pBatchMasterMsg) {
-      ++pMsg->pBatchMasterMsg->successed;
-      if (pMsg->pBatchMasterMsg->successed + pMsg->pBatchMasterMsg->received
-	  >= pMsg->pBatchMasterMsg->expected) {
-	dnodeSendRpcMWriteRsp(pMsg->pBatchMasterMsg, code);
+      ++pMsg->pBatchMasterMsg->received;
+      pMsg->pBatchMasterMsg->code = code;
+      if (pMsg->pBatchMasterMsg->successed + pMsg->pBatchMasterMsg->received >= pMsg->pBatchMasterMsg->expected) {
+        dnodeSendRpcMWriteRsp(pMsg->pBatchMasterMsg, code);
       }
 
       mnodeDestroySubMsg(pMsg);
@@ -2660,9 +2696,8 @@ static void mnodeProcessCreateChildTableRsp(SRpcMsg *rpcMsg) {
 
     if (pMsg->pBatchMasterMsg) {
       ++pMsg->pBatchMasterMsg->successed;
-      if (pMsg->pBatchMasterMsg->successed + pMsg->pBatchMasterMsg->received
-	  >= pMsg->pBatchMasterMsg->expected) {
-	dnodeSendRpcMWriteRsp(pMsg->pBatchMasterMsg, rpcMsg->code);
+      if (pMsg->pBatchMasterMsg->successed + pMsg->pBatchMasterMsg->received >= pMsg->pBatchMasterMsg->expected) {
+        dnodeSendRpcMWriteRsp(pMsg->pBatchMasterMsg, rpcMsg->code);
       }
 
       mnodeDestroySubMsg(pMsg);
@@ -2690,6 +2725,7 @@ static void mnodeProcessCreateChildTableRsp(SRpcMsg *rpcMsg) {
 
       if (pMsg->pBatchMasterMsg) {
 	++pMsg->pBatchMasterMsg->received;
+	pMsg->pBatchMasterMsg->code = code;
 	if (pMsg->pBatchMasterMsg->successed + pMsg->pBatchMasterMsg->received
 	    >= pMsg->pBatchMasterMsg->expected) {
 	  dnodeSendRpcMWriteRsp(pMsg->pBatchMasterMsg, code);
@@ -2728,6 +2764,7 @@ static void mnodeProcessCreateChildTableRsp(SRpcMsg *rpcMsg) {
 
       if (pMsg->pBatchMasterMsg) {
 	++pMsg->pBatchMasterMsg->received;
+	pMsg->pBatchMasterMsg->code = rpcMsg->code;
 	if (pMsg->pBatchMasterMsg->successed + pMsg->pBatchMasterMsg->received
 	    >= pMsg->pBatchMasterMsg->expected) {
 	  dnodeSendRpcMWriteRsp(pMsg->pBatchMasterMsg, rpcMsg->code);

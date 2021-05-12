@@ -73,14 +73,14 @@ int main( int argc, char** argv ) {
 }
 */
 
-typedef struct {
+typedef struct SBufferReader {
   bool endian;
   const char* data;
   size_t pos;
   size_t size;
 } SBufferReader;
 
-typedef struct {
+typedef struct SBufferWriter {
   bool endian;
   char* data;
   size_t pos;

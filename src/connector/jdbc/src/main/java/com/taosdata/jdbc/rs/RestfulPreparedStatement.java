@@ -2,6 +2,7 @@ package com.taosdata.jdbc.rs;
 
 import com.taosdata.jdbc.TSDBError;
 import com.taosdata.jdbc.TSDBErrorNumbers;
+import com.taosdata.jdbc.utils.Utils;
 
 import java.io.InputStream;
 import java.io.Reader;
@@ -20,6 +21,7 @@ public class RestfulPreparedStatement extends RestfulStatement implements Prepar
     public RestfulPreparedStatement(RestfulConnection conn, String database, String sql) {
         super(conn, database);
         this.rawSql = sql;
+
         if (sql.contains("?")) {
             int parameterCnt = 0;
             for (int i = 0; i < sql.length(); i++) {
@@ -30,7 +32,9 @@ public class RestfulPreparedStatement extends RestfulStatement implements Prepar
             parameters = new Object[parameterCnt];
             this.isPrepared = true;
         }
-        //TODO: build parameterMetaData
+
+        // build parameterMetaData
+        this.parameterMetaData = new RestfulParameterMetaData(parameters);
     }
 
     @Override
@@ -55,22 +59,14 @@ public class RestfulPreparedStatement extends RestfulStatement implements Prepar
         return executeUpdate(sql);
     }
 
-    private String getNativeSql(String rawSql) throws SQLException {
-        String sql = rawSql;
-        for (int i = 0; i < parameters.length; ++i) {
-            Object para = parameters[i];
-            if (para != null) {
-                String paraStr = para.toString();
-                if (para instanceof Timestamp || para instanceof String) {
-                    paraStr = "'" + paraStr + "'";
-                }
-                sql = sql.replaceFirst("[?]", paraStr);
-            } else {
-                sql = sql.replaceFirst("[?]", "NULL");
-            }
-        }
-        clearParameters();
-        return sql;
+    /****
+     * 将rawSql转换成一条可执行的sql语句，使用属性parameters中的变脸进行替换
+     * 对于insert into ?.? (?,?,?) using ?.? (?,?,?) tags(?, ?, ?) values(?, ?, ?)
+     * @param rawSql，可能是insert、select或其他，使用?做占位符
+     * @return
+     */
+    private String getNativeSql(String rawSql) {
+        return Utils.getNativeSql(rawSql, this.parameters);
     }
 
     @Override
@@ -92,7 +88,7 @@ public class RestfulPreparedStatement extends RestfulStatement implements Prepar
     public void setByte(int parameterIndex, byte x) throws SQLException {
         if (isClosed())
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
-        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
+        setObject(parameterIndex, x);
     }
 
     @Override
@@ -153,7 +149,7 @@ public class RestfulPreparedStatement extends RestfulStatement implements Prepar
     public void setBytes(int parameterIndex, byte[] x) throws SQLException {
         if (isClosed())
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
-        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
+        setObject(parameterIndex, x);
     }
 
     @Override
@@ -210,19 +206,16 @@ public class RestfulPreparedStatement extends RestfulStatement implements Prepar
     public void setObject(int parameterIndex, Object x, int targetSqlType) throws SQLException {
         if (isClosed())
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
-        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
+
+        setObject(parameterIndex, x);
     }
 
     @Override
     public void setObject(int parameterIndex, Object x) throws SQLException {
-        if (isClosed())
-            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
-
         if (parameterIndex < 1 && parameterIndex >= parameters.length)
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_PARAMETER_INDEX_OUT_RANGE);
 
         parameters[parameterIndex - 1] = x;
-
     }
 
     @Override

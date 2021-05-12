@@ -27,11 +27,8 @@ public class TSDBConnection extends AbstractConnection {
         return this.batchFetch;
     }
 
-    public void setBatchFetch(Boolean batchFetch) {
-        this.batchFetch = batchFetch;
-    }
-
     public TSDBConnection(Properties info, TSDBDatabaseMetaData meta) throws SQLException {
+        super(info);
         this.databaseMetaData = meta;
         connect(info.getProperty(TSDBDriver.PROPERTY_KEY_HOST),
                 Integer.parseInt(info.getProperty(TSDBDriver.PROPERTY_KEY_PORT, "0")),
@@ -52,7 +49,7 @@ public class TSDBConnection extends AbstractConnection {
         this.databaseMetaData.setConnection(this);
     }
 
-    public TSDBJNIConnector getConnection() {
+    public TSDBJNIConnector getConnector() {
         return this.connector;
     }
 
@@ -61,9 +58,7 @@ public class TSDBConnection extends AbstractConnection {
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_CONNECTION_CLOSED);
         }
 
-        TSDBStatement statement = new TSDBStatement(this, this.connector);
-        statement.setConnection(this);
-        return statement;
+        return new TSDBStatement(this);
     }
 
     public TSDBSubscribe subscribe(String topic, String sql, boolean restart) throws SQLException {
@@ -82,16 +77,17 @@ public class TSDBConnection extends AbstractConnection {
         if (isClosed()) {
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_CONNECTION_CLOSED);
         }
-
-        return new TSDBPreparedStatement(this, this.connector, sql);
+        
+        return new TSDBPreparedStatement(this, sql);
     }
 
     public void close() throws SQLException {
-        if (isClosed()) {
-            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_CONNECTION_CLOSED);
+        if (isClosed) {
+            return;
         }
-        this.isClosed = true;
+        
         this.connector.closeConnection();
+        this.isClosed = true;
     }
 
     public boolean isClosed() throws SQLException {
@@ -103,13 +99,6 @@ public class TSDBConnection extends AbstractConnection {
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_CONNECTION_CLOSED);
         }
         return this.databaseMetaData;
-    }
-
-    public Statement createStatement(int resultSetType, int resultSetConcurrency) throws SQLException {
-        if (isClosed()) {
-            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_CONNECTION_CLOSED);
-        }
-        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
     }
 
 }

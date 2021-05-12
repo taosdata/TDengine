@@ -37,6 +37,7 @@ typedef struct {
 // FS APIs ====================================
 typedef struct {
   int64_t tsize;
+  int64_t used;
   int64_t avail;
 } SFSMeta;
 

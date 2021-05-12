@@ -22,6 +22,8 @@
   #define SIGPIPE EPIPE
 #endif
 
+#define TCP_CONN_TIMEOUT 3000  // conn timeout
+
 int32_t taosGetFqdn(char *fqdn) {
   char hostname[1024];
   hostname[1023] = '\0';
@@ -346,10 +348,47 @@ SOCKET taosOpenTcpClientSocket(uint32_t destIp, uint16_t destPort, uint32_t clie
   serverAddr.sin_addr.s_addr = destIp;
   serverAddr.sin_port = (uint16_t)htons((uint16_t)destPort);
 
-  ret = connect(sockFd, (struct sockaddr *)&serverAddr, sizeof(serverAddr));
+#ifdef _TD_LINUX 
+  taosSetNonblocking(sockFd, 1);   
+  ret = connect(sockFd, (struct sockaddr *)&serverAddr, sizeof(serverAddr)); 
+  if (ret == -1) {
+    if (errno == EHOSTUNREACH) {
+      uError("failed to connect socket, ip:0x%x, port:%hu(%s)", destIp, destPort, strerror(errno));
+      taosCloseSocket(sockFd);
+      return -1; 
+    } else if (errno == EINPROGRESS || errno == EAGAIN || errno == EWOULDBLOCK) {
+      struct pollfd wfd[1]; 
+
+      wfd[0].fd = sockFd;
+      wfd[0].events = POLLOUT;
+    
+      int res = poll(wfd, 1, TCP_CONN_TIMEOUT);
+      if (res == -1 || res == 0) {
+        uError("failed to connect socket, ip:0x%x, port:%hu(poll error/conn timeout)", destIp, destPort);
+        taosCloseSocket(sockFd); //  
+        return -1;
+      }
+      int optVal = -1, optLen = sizeof(int);  
+      if ((0 != taosGetSockOpt(sockFd, SOL_SOCKET, SO_ERROR, &optVal, &optLen)) || (optVal != 0)) {
+        uError("failed to connect socket, ip:0x%x, port:%hu(connect host error)", destIp, destPort);
+        taosCloseSocket(sockFd); //  
+        return -1;
+      }
+      ret = 0;
+    } else { // Other error
+      uError("failed to connect socket, ip:0x%x, port:%hu(target host cannot be reached)", destIp, destPort);
+      taosCloseSocket(sockFd); //  
+      return -1; 
+    } 
+  }
+  taosSetNonblocking(sockFd, 0);   
+
+#else
+  ret = connect(sockFd, (struct sockaddr *)&serverAddr, sizeof(serverAddr)); 
+#endif
 
   if (ret != 0) {
-    // uError("failed to connect socket, ip:0x%x, port:%hu(%s)", destIp, destPort, strerror(errno));
+    uError("failed to connect socket, ip:0x%x, port:%hu(%s)", destIp, destPort, strerror(errno));
     taosCloseSocket(sockFd);
     sockFd = -1;
   } else {
@@ -465,36 +504,36 @@ void tinet_ntoa(char *ipstr, uint32_t ip) {
 #define COPY_SIZE 32768
 // sendfile shall be used
 
-int32_t taosCopyFds(SOCKET sfd, int32_t dfd, int64_t len) {
+int64_t taosCopyFds(SOCKET sfd, int32_t dfd, int64_t len) {
   int64_t leftLen;
-  int32_t readLen, writeLen;
+  int64_t readLen, writeLen;
   char    temp[COPY_SIZE];
 
   leftLen = len;
 
   while (leftLen > 0) {
     if (leftLen < COPY_SIZE)
-      readLen = (int32_t)leftLen;
+      readLen = leftLen;
     else
       readLen = COPY_SIZE;  // 4K
 
-    int32_t retLen = taosReadMsg(sfd, temp, (int32_t)readLen);
+    int64_t retLen = taosReadMsg(sfd, temp, (int32_t)readLen);
     if (readLen != retLen) {
-      uError("read error, readLen:%d retLen:%d len:%" PRId64 " leftLen:%" PRId64 ", reason:%s", readLen, retLen, len,
-             leftLen, strerror(errno));
+      uError("read error, readLen:%" PRId64 " retLen:%" PRId64 " len:%" PRId64 " leftLen:%" PRId64 ", reason:%s",
+             readLen, retLen, len, leftLen, strerror(errno));
       return -1;
     }
 
-    writeLen = taosWriteMsg(dfd, temp, readLen);
+    writeLen = taosWriteMsg(dfd, temp, (int32_t)readLen);
 
     if (readLen != writeLen) {
-      uError("copy error, readLen:%d writeLen:%d len:%" PRId64 " leftLen:%" PRId64 ", reason:%s", readLen, writeLen,
-             len, leftLen, strerror(errno));
+      uError("copy error, readLen:%" PRId64 " writeLen:%" PRId64 " len:%" PRId64 " leftLen:%" PRId64 ", reason:%s",
+             readLen, writeLen, len, leftLen, strerror(errno));
       return -1;
     }
 
     leftLen -= readLen;
   }
 
-  return (int32_t)len;
+  return len;
 }

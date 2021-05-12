@@ -43,15 +43,17 @@ int8_t   tsEnableVnodeBak = 1;
 int8_t   tsEnableTelemetryReporting = 1;
 int8_t   tsArbOnline = 0;
 char     tsEmail[TSDB_FQDN_LEN] = {0};
+int32_t  tsDnodeId = 0;
 
 // common
 int32_t tsRpcTimer       = 1000;
 int32_t tsRpcMaxTime     = 600;  // seconds;
+int32_t tsRpcForceTcp    = 0;  //disable this, means query, show command use udp protocol as default
 int32_t tsMaxShellConns  = 50000;
 int32_t tsMaxConnections = 5000;
 int32_t tsShellActivityTimer  = 3;  // second
 float   tsNumOfThreadsPerCore = 1.0f;
-int32_t tsNumOfCommitThreads = 1;
+int32_t tsNumOfCommitThreads = 4;
 float   tsRatioOfQueryCores = 1.0f;
 int8_t  tsDaylight       = 0;
 char    tsTimezone[TSDB_TIMEZONE_LEN] = {0};
@@ -71,7 +73,7 @@ int32_t tsMaxBinaryDisplayWidth = 30;
 int32_t tsCompressMsgSize = -1;
 
 // client
-int32_t tsMaxSQLStringLen = TSDB_MAX_SQL_LEN;
+int32_t tsMaxSQLStringLen = TSDB_MAX_ALLOWED_SQL_LEN;
 int8_t  tsTscEnableRecordSql = 0;
 
 // the maximum number of results for projection query on super table that are returned from
@@ -126,8 +128,9 @@ int8_t  tsWAL           = TSDB_DEFAULT_WAL_LEVEL;
 int32_t tsFsyncPeriod   = TSDB_DEFAULT_FSYNC_PERIOD;
 int32_t tsReplications  = TSDB_DEFAULT_DB_REPLICA_OPTION;
 int32_t tsQuorum        = TSDB_DEFAULT_DB_QUORUM_OPTION;
+int16_t tsPartitons     = TSDB_DEFAULT_DB_PARTITON_OPTION;
 int8_t  tsUpdate        = TSDB_DEFAULT_DB_UPDATE_OPTION;
-int8_t  tsCacheLastRow  = TSDB_DEFAULT_CACHE_BLOCK_SIZE;
+int8_t  tsCacheLastRow  = TSDB_DEFAULT_CACHE_LAST_ROW;
 int32_t tsMaxVgroupsPerDb  = 0;
 int32_t tsMinTablePerVnode = TSDB_TABLES_STEP;
 int32_t tsMaxTablePerVnode = TSDB_DEFAULT_TABLES;
@@ -137,7 +140,7 @@ int32_t tsTableIncStepPerVnode = TSDB_TABLES_STEP;
 int8_t  tsEnableBalance = 1;
 int8_t  tsAlternativeRole = 0;
 int32_t tsBalanceInterval = 300;           // seconds
-int32_t tsOfflineThreshold = 86400 * 100;  // seconds 100 days
+int32_t tsOfflineThreshold = 86400 * 10;  // seconds of 10 days
 int32_t tsMnodeEqualVnodeNum = 4;
 int8_t  tsEnableFlowCtrl = 1;
 int8_t  tsEnableSlaveQuery = 1;
@@ -209,8 +212,9 @@ float   tsTotalTmpDirGB = 0;
 float   tsTotalDataDirGB = 0;
 float   tsAvailTmpDirectorySpace = 0;
 float   tsAvailDataDirGB = 0;
+float   tsUsedDataDirGB = 0;
 float   tsReservedTmpDirectorySpace = 1.0f;
-float   tsMinimalDataDirGB = 1.0f;
+float   tsMinimalDataDirGB = 2.0f;
 int32_t tsTotalMemoryMB = 0;
 uint32_t tsVersion = 0;
 
@@ -622,6 +626,16 @@ static void doInitGlobalConfig(void) {
   cfg.unitType = TAOS_CFG_UTYPE_MS;
   taosInitConfigOption(cfg);
 
+  cfg.option = "rpcForceTcp";
+  cfg.ptr = &tsRpcForceTcp;
+  cfg.valType = TAOS_CFG_VTYPE_INT32;
+  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_CLIENT;
+  cfg.minValue = 0;
+  cfg.maxValue = 1;
+  cfg.ptrLength = 0;
+  cfg.unitType = TAOS_CFG_UTYPE_NONE;
+  taosInitConfigOption(cfg);
+
   cfg.option = "rpcMaxTime";
   cfg.ptr = &tsRpcMaxTime;
   cfg.valType = TAOS_CFG_VTYPE_INT32;
@@ -853,6 +867,16 @@ static void doInitGlobalConfig(void) {
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosInitConfigOption(cfg);
 
+  cfg.option = "partitions";
+  cfg.ptr = &tsPartitons;
+  cfg.valType = TAOS_CFG_VTYPE_INT16;
+  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
+  cfg.minValue = TSDB_MIN_DB_PARTITON_OPTION;
+  cfg.maxValue = TSDB_MAX_DB_PARTITON_OPTION;
+  cfg.ptrLength = 0;
+  cfg.unitType = TAOS_CFG_UTYPE_NONE;
+  taosInitConfigOption(cfg);
+
   cfg.option = "quorum";
   cfg.ptr = &tsQuorum;
   cfg.valType = TAOS_CFG_VTYPE_INT32;
@@ -908,7 +932,7 @@ static void doInitGlobalConfig(void) {
   cfg.valType = TAOS_CFG_VTYPE_INT32;
   cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_CLIENT | TSDB_CFG_CTYPE_B_SHOW;
   cfg.minValue = -1;
-  cfg.maxValue = 10000000;
+  cfg.maxValue = 100000000.0f;
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosInitConfigOption(cfg);

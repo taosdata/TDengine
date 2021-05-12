@@ -15,6 +15,7 @@
 
 #include "os.h"
 
+#include "texpr.h"
 #include "exception.h"
 #include "taosdef.h"
 #include "taosmsg.h"
@@ -41,41 +42,46 @@ static uint8_t UNUSED_FUNC isQueryOnPrimaryKey(const char *primaryColumnName, co
 
 static void reverseCopy(char* dest, const char* src, int16_t type, int32_t numOfRows) {
   switch(type) {
-    case TSDB_DATA_TYPE_TINYINT: {
+    case TSDB_DATA_TYPE_TINYINT:
+    case TSDB_DATA_TYPE_UTINYINT:{
       int8_t* p = (int8_t*) dest;
       int8_t* pSrc = (int8_t*) src;
 
       for(int32_t i = 0; i < numOfRows; ++i) {
         p[i] = pSrc[numOfRows - i - 1];
       }
-      break;
+      return;
     }
-    case TSDB_DATA_TYPE_SMALLINT: {
+
+    case TSDB_DATA_TYPE_SMALLINT:
+    case TSDB_DATA_TYPE_USMALLINT:{
       int16_t* p = (int16_t*) dest;
       int16_t* pSrc = (int16_t*) src;
 
       for(int32_t i = 0; i < numOfRows; ++i) {
         p[i] = pSrc[numOfRows - i - 1];
       }
-      break;
+      return;
     }
-    case TSDB_DATA_TYPE_INT: {
+    case TSDB_DATA_TYPE_INT:
+    case TSDB_DATA_TYPE_UINT: {
       int32_t* p = (int32_t*) dest;
       int32_t* pSrc = (int32_t*) src;
 
       for(int32_t i = 0; i < numOfRows; ++i) {
         p[i] = pSrc[numOfRows - i - 1];
       }
-      break;
+      return;
     }
-    case TSDB_DATA_TYPE_BIGINT: {
+    case TSDB_DATA_TYPE_BIGINT:
+    case TSDB_DATA_TYPE_UBIGINT: {
       int64_t* p = (int64_t*) dest;
       int64_t* pSrc = (int64_t*) src;
 
       for(int32_t i = 0; i < numOfRows; ++i) {
         p[i] = pSrc[numOfRows - i - 1];
       }
-      break;
+      return;
     }
     case TSDB_DATA_TYPE_FLOAT: {
       float* p = (float*) dest;
@@ -84,7 +90,7 @@ static void reverseCopy(char* dest, const char* src, int16_t type, int32_t numOf
       for(int32_t i = 0; i < numOfRows; ++i) {
         p[i] = pSrc[numOfRows - i - 1];
       }
-      break;
+      return;
     }
     case TSDB_DATA_TYPE_DOUBLE: {
       double* p = (double*) dest;
@@ -93,7 +99,7 @@ static void reverseCopy(char* dest, const char* src, int16_t type, int32_t numOf
       for(int32_t i = 0; i < numOfRows; ++i) {
         p[i] = pSrc[numOfRows - i - 1];
       }
-      break;
+      return;
     }
     default: assert(0);
   }
@@ -140,25 +146,25 @@ static void doExprTreeDestroy(tExprNode **pExpr, void (*fp)(void *)) {
   *pExpr = NULL;
 }
 
-bool exprTreeApplayFilter(tExprNode *pExpr, const void *pItem, SExprTraverseSupp *param) {
+bool exprTreeApplyFilter(tExprNode *pExpr, const void *pItem, SExprTraverseSupp *param) {
   tExprNode *pLeft  = pExpr->_node.pLeft;
   tExprNode *pRight = pExpr->_node.pRight;
 
   //non-leaf nodes, recursively traverse the expression tree in the post-root order
   if (pLeft->nodeType == TSQL_NODE_EXPR && pRight->nodeType == TSQL_NODE_EXPR) {
     if (pExpr->_node.optr == TSDB_RELATION_OR) {  // or
-      if (exprTreeApplayFilter(pLeft, pItem, param)) {
+      if (exprTreeApplyFilter(pLeft, pItem, param)) {
         return true;
       }
 
       // left child does not satisfy the query condition, try right child
-      return exprTreeApplayFilter(pRight, pItem, param);
+      return exprTreeApplyFilter(pRight, pItem, param);
     } else {  // and
-      if (!exprTreeApplayFilter(pLeft, pItem, param)) {
+      if (!exprTreeApplyFilter(pLeft, pItem, param)) {
         return false;
       }
 
-      return exprTreeApplayFilter(pRight, pItem, param);
+      return exprTreeApplyFilter(pRight, pItem, param);
     }
   }
 
@@ -458,3 +464,28 @@ tExprNode* exprTreeFromTableName(const char* tbnameCond) {
   CLEANUP_EXECUTE_TO(anchor, false);
   return expr;
 }
+
+tExprNode* exprdup(tExprNode* pTree) {
+  if (pTree == NULL) {
+    return NULL;
+  }
+
+  tExprNode* pNode = calloc(1, sizeof(tExprNode));
+  if (pTree->nodeType == TSQL_NODE_EXPR) {
+    tExprNode* pLeft  = exprdup(pTree->_node.pLeft);
+    tExprNode* pRight = exprdup(pTree->_node.pRight);
+
+    pNode->nodeType     = TSQL_NODE_EXPR;
+    pNode->_node.pLeft  = pLeft;
+    pNode->_node.pRight = pRight;
+  } else if (pTree->nodeType == TSQL_NODE_VALUE) {
+    pNode->pVal = calloc(1, sizeof(tVariant));
+    tVariantAssign(pNode->pVal, pTree->pVal);
+  } else if (pTree->nodeType == TSQL_NODE_COL) {
+    pNode->pSchema = calloc(1, sizeof(SSchema));
+    *pNode->pSchema = *pTree->pSchema;
+  }
+
+  return pNode;
+}
+

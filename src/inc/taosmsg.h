@@ -59,6 +59,7 @@ TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_MD_DROP_STABLE, "drop-stable" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_MD_ALTER_STREAM, "alter-stream" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_MD_CONFIG_DNODE, "config-dnode" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_MD_ALTER_VNODE, "alter-vnode" )
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_MD_SYNC_VNODE, "sync-vnode" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_MD_CREATE_MNODE, "create-mnode" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_DUMMY6, "dummy6" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_DUMMY7, "dummy7" )
@@ -77,6 +78,7 @@ TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CM_CREATE_DB, "create-db" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CM_DROP_DB, "drop-db" )	  
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CM_USE_DB, "use-db" )	 
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CM_ALTER_DB, "alter-db" )
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CM_SYNC_DB, "sync-db-replica" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CM_CREATE_TABLE, "create-table" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CM_DROP_TABLE, "drop-table" )	
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CM_ALTER_TABLE, "alter-table" )
@@ -106,6 +108,12 @@ TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_DUMMY12, "dummy12" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_DUMMY13, "dummy13" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_DUMMY14, "dummy14" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_NETWORK_TEST, "nettest" )
+
+// message for topic
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CM_CREATE_TP, "create-tp" )
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CM_DROP_TP, "drop-tp" )	  
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CM_USE_TP, "use-tp" )	 
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CM_ALTER_TP, "alter-tp" )
 
 #ifndef TAOS_MESSAGE_C
   TSDB_MSG_TYPE_MAX  // 105
@@ -141,6 +149,7 @@ enum _mgmt_table {
   TSDB_MGMT_TABLE_VNODES,
   TSDB_MGMT_TABLE_STREAMTABLES,
   TSDB_MGMT_TABLE_CLUSTER,
+  TSDB_MGMT_TABLE_TP,
   TSDB_MGMT_TABLE_MAX,
 };
 
@@ -381,42 +390,14 @@ typedef struct {
 
 typedef struct {
   int32_t vgId;
-} SDropVnodeMsg;
+} SDropVnodeMsg, SSyncVnodeMsg;
 
 typedef struct SColIndex {
   int16_t  colId;      // column id
   int16_t  colIndex;   // column index in colList if it is a normal column or index in tagColList if a tag
   uint16_t flag;       // denote if it is a tag or a normal column
-  char     name[TSDB_COL_NAME_LEN];
+  char     name[TSDB_COL_NAME_LEN];  // TODO remove it
 } SColIndex;
-
-/* sql function msg, to describe the message to vnode about sql function
- * operations in select clause */
-typedef struct SSqlFuncMsg {
-  int16_t functionId;
-  int16_t numOfParams;
-  int16_t resColId;      // result column id, id of the current output column
-
-  SColIndex colInfo;
-  struct ArgElem {
-    int16_t argType;
-    int16_t argBytes;
-    union {
-      double  d;
-      int64_t i64;
-      char *  pz;
-    } argValue;
-  } arg[3];
-} SSqlFuncMsg;
-
-typedef struct SExprInfo {
-  SSqlFuncMsg base;
-  struct tExprNode* pExpr;
-  int16_t     bytes;
-  int16_t     type;
-  int32_t     interBytes;
-  int64_t     uid;
-} SExprInfo;
 
 typedef struct SColumnFilterInfo {
   int16_t lowerRelOptr;
@@ -439,6 +420,13 @@ typedef struct SColumnFilterInfo {
   };
 } SColumnFilterInfo;
 
+typedef struct SColumnFilterList {
+  int16_t              numOfFilters;
+  union{
+    int64_t placeholder;
+    SColumnFilterInfo *filterInfo;
+  };
+} SColumnFilterList;
 /*
  * for client side struct, we only need the column id, type, bytes are not necessary
  * But for data in vnode side, we need all the following information.
@@ -447,11 +435,7 @@ typedef struct SColumnInfo {
   int16_t            colId;
   int16_t            type;
   int16_t            bytes;
-  int16_t            numOfFilters;
-  union{
-    int64_t placeholder;
-    SColumnFilterInfo *filters;
-  };
+  SColumnFilterList  flist;
 } SColumnInfo;
 
 typedef struct STableIdInfo {
@@ -466,8 +450,27 @@ typedef struct STimeWindow {
 } STimeWindow;
 
 typedef struct {
+  int32_t     tsOffset;         // offset value in current msg body, NOTE: ts list is compressed
+  int32_t     tsLen;            // total length of ts comp block
+  int32_t     tsNumOfBlocks;    // ts comp block numbers
+  int32_t     tsOrder;          // ts comp block order
+} STsBufInfo;
+
+typedef struct {
   SMsgHead    head;
   char        version[TSDB_VERSION_LEN];
+
+  bool        stableQuery;      // super table query or not
+  bool        topBotQuery;      // TODO used bitwise flag
+  bool        groupbyColumn;    // denote if this is a groupby normal column query
+  bool        hasTagResults;    // if there are tag values in final result or not
+  bool        timeWindowInterpo;// if the time window start/end required interpolation
+  bool        queryBlockDist;    // if query data block distribution
+  bool        stabledev;        // super table stddev query
+  bool        tsCompQuery;      // is tscomp query
+  bool        simpleAgg;
+  bool        pointInterpQuery; // point interpolation query
+  bool        needReverseScan;  // need reverse scan
 
   STimeWindow window;
   int32_t     numOfTables;
@@ -475,12 +478,13 @@ typedef struct {
   int16_t     orderColId;
   int16_t     numOfCols;        // the number of columns will be load from vnode
   SInterval   interval;
+  SSessionWindow sw;            // session window
   uint16_t    tagCondLen;       // tag length in current query
   uint32_t    tbnameCondLen;    // table name filter condition string length
   int16_t     numOfGroupCols;   // num of group by columns
   int16_t     orderByIdx;
   int16_t     orderType;        // used in group by xx order by xxx
-  int64_t     vgroupLimit;       // limit the number of rows for each table, used in order by + limit in stable projection query.
+  int64_t     vgroupLimit;      // limit the number of rows for each table, used in order by + limit in stable projection query.
   int16_t     prjOrder;         // global order in super table projection query.
   int64_t     limit;
   int64_t     offset;
@@ -490,24 +494,24 @@ typedef struct {
   int16_t     fillType;         // interpolate type
   uint64_t    fillVal;          // default value array list
   int32_t     secondStageOutput;
-  int32_t     tsOffset;         // offset value in current msg body, NOTE: ts list is compressed
-  int32_t     tsLen;            // total length of ts comp block
-  int32_t     tsNumOfBlocks;    // ts comp block numbers
-  int32_t     tsOrder;          // ts comp block order
+  STsBufInfo  tsBuf;            // tsBuf info
   int32_t     numOfTags;        // number of tags columns involved
   int32_t     sqlstrLen;        // sql query string
   int32_t     prevResultLen;    // previous result length
-  SColumnInfo colList[];
+  int32_t     numOfOperator;
+  int32_t     tableScanOperator;// table scan operator. -1 means no scan operator
+  SColumnInfo tableCols[];
 } SQueryTableMsg;
 
 typedef struct {
   int32_t  code;
-  uint64_t qhandle; // query handle
+  union{uint64_t qhandle; uint64_t qId;}; // query handle
 } SQueryTableRsp;
 
+// todo: the show handle should be replaced with id
 typedef struct {
   SMsgHead header;
-  uint64_t qhandle;
+  union{uint64_t qhandle; uint64_t qId;}; // query handle
   uint16_t free;
 } SRetrieveTableMsg;
 
@@ -555,13 +559,15 @@ typedef struct {
   int8_t   ignoreExist;
   int8_t   update;
   int8_t   cacheLastRow;
-  int8_t   reserve[8];
+  int8_t   dbType;
+  int16_t  partitions;
+  int8_t   reserve[5];
 } SCreateDbMsg, SAlterDbMsg;
 
 typedef struct {
   char    db[TSDB_TABLE_FNAME_LEN];
   uint8_t ignoreNotExists;
-} SDropDbMsg, SUseDbMsg;
+} SDropDbMsg, SUseDbMsg, SSyncDbMsg;
 
 // IMPORTANT: sizeof(SVnodeStatisticInfo) should not exceed
 // TSDB_FILE_HEADER_LEN/4 - TSDB_FILE_HEADER_VERSION_SIZE
@@ -616,6 +622,7 @@ typedef struct {
   int32_t  maxtablesPerVnode;
   int32_t  maxVgroupsPerDb;
   char     arbitrator[TSDB_EP_LEN];   // tsArbitrator
+  char     reserve[2];                // to solve arm32 bus error
   char     timezone[64];              // tsTimezone
   int64_t  checkTime;                 // 1970-01-01 00:00:00.000
   char     locale[TSDB_LOCALE_LEN];   // tsLocale
@@ -674,7 +681,8 @@ typedef struct {
   int8_t   cacheLastRow;
   int32_t  vgCfgVersion;
   int8_t   dbReplica;
-  int8_t   reserved[9];
+  int8_t   dbType;
+  int8_t   reserved[8];
 } SVnodeCfg;
 
 typedef struct {
@@ -803,7 +811,7 @@ typedef struct {
   uint32_t queryId;
   int64_t  useconds;
   int64_t  stime;
-  uint64_t qHandle;
+  uint64_t qId;
 } SQueryDesc;
 
 typedef struct {

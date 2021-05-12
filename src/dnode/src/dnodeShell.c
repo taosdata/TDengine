@@ -47,8 +47,12 @@ int32_t dnodeInitShell() {
   dnodeProcessShellMsgFp[TSDB_MSG_TYPE_CM_CREATE_DNODE]= dnodeDispatchToMWriteQueue;
   dnodeProcessShellMsgFp[TSDB_MSG_TYPE_CM_DROP_DNODE]  = dnodeDispatchToMWriteQueue;
   dnodeProcessShellMsgFp[TSDB_MSG_TYPE_CM_CREATE_DB]   = dnodeDispatchToMWriteQueue;
+  dnodeProcessShellMsgFp[TSDB_MSG_TYPE_CM_CREATE_TP]   = dnodeDispatchToMWriteQueue;
   dnodeProcessShellMsgFp[TSDB_MSG_TYPE_CM_DROP_DB]     = dnodeDispatchToMWriteQueue;
+  dnodeProcessShellMsgFp[TSDB_MSG_TYPE_CM_SYNC_DB]     = dnodeDispatchToMWriteQueue;
+  dnodeProcessShellMsgFp[TSDB_MSG_TYPE_CM_DROP_TP]     = dnodeDispatchToMWriteQueue;
   dnodeProcessShellMsgFp[TSDB_MSG_TYPE_CM_ALTER_DB]    = dnodeDispatchToMWriteQueue;
+  dnodeProcessShellMsgFp[TSDB_MSG_TYPE_CM_ALTER_TP]    = dnodeDispatchToMWriteQueue;
   dnodeProcessShellMsgFp[TSDB_MSG_TYPE_CM_CREATE_TABLE]= dnodeDispatchToMWriteQueue;
   dnodeProcessShellMsgFp[TSDB_MSG_TYPE_CM_DROP_TABLE]  = dnodeDispatchToMWriteQueue;
   dnodeProcessShellMsgFp[TSDB_MSG_TYPE_CM_ALTER_TABLE] = dnodeDispatchToMWriteQueue;

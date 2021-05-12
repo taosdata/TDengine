@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020 TAOS Data, Inc. <jhtao@taosdata.com>
+ * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
@@ -13,10 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <stdint.h>
-#include <pthread.h>
-#include <stdlib.h>
-#include <string.h>
+#include "os.h"
 
 #define TAOS_ERROR_C
  
@@ -175,6 +172,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_TABLE_ID,         "Table name too long")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_TABLE_NAME,       "Table does not exist")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_TABLE_TYPE,       "Invalid table type in tsdb")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_TOO_MANY_TAGS,            "Too many tags")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_TOO_MANY_COLUMNS,         "Too many columns")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_TOO_MANY_TIMESERIES,      "Too many time series")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_NOT_SUPER_TABLE,          "Not super table")           // operation only available for super table
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_COL_NAME_TOO_LONG,        "Tag name too long")
@@ -196,6 +194,11 @@ TAOS_DEFINE_ERROR(TSDB_CODE_MND_VGROUP_NOT_READY,         "Database unsynced")
 
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_DB_OPTION_DAYS,   "Invalid database option: days out of range")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_DB_OPTION_KEEP,   "Invalid database option: keep >= keep1 >= keep0 >= days")
+
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_TOPIC,            "Invalid topic name")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_TOPIC_OPTION,     "Invalid topic option")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_TOPIC_PARTITONS,  "Invalid topic partitons num, valid range: [1, 1000]")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_TOPIC_ALREADY_EXIST,      "Topic already exists")
 
 // dnode
 TAOS_DEFINE_ERROR(TSDB_CODE_DND_MSG_NOT_PROCESSED,        "Message not processed")
@@ -224,6 +227,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_VND_IS_BALANCING,             "Database is balancing
 TAOS_DEFINE_ERROR(TSDB_CODE_VND_NOT_SYNCED,               "Database suspended")
 TAOS_DEFINE_ERROR(TSDB_CODE_VND_NO_WRITE_AUTH,            "Database write operation denied")
 TAOS_DEFINE_ERROR(TSDB_CODE_VND_IS_SYNCING,               "Database is syncing")
+TAOS_DEFINE_ERROR(TSDB_CODE_VND_INVALID_TSDB_STATE,       "Invalid tsdb state")
 
 // tsdb
 TAOS_DEFINE_ERROR(TSDB_CODE_TDB_INVALID_TABLE_ID,         "Invalid table ID")
@@ -247,6 +251,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_TDB_TABLE_RECONFIGURE,        "Need to reconfigure t
 TAOS_DEFINE_ERROR(TSDB_CODE_TDB_IVD_CREATE_TABLE_INFO,    "Invalid information to create table")
 TAOS_DEFINE_ERROR(TSDB_CODE_TDB_NO_AVAIL_DISK,            "No available disk")
 TAOS_DEFINE_ERROR(TSDB_CODE_TDB_MESSED_MSG,               "TSDB messed message")
+TAOS_DEFINE_ERROR(TSDB_CODE_TDB_IVLD_TAG_VAL,             "TSDB invalid tag value")
 
 // query
 TAOS_DEFINE_ERROR(TSDB_CODE_QRY_INVALID_QHANDLE,          "Invalid handle")

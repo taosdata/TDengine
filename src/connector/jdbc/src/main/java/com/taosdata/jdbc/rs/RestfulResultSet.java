@@ -2,26 +2,30 @@ package com.taosdata.jdbc.rs;
 
 import com.alibaba.fastjson.JSONArray;
 import com.alibaba.fastjson.JSONObject;
-import com.taosdata.jdbc.AbstractResultSet;
-import com.taosdata.jdbc.TSDBConstants;
-import com.taosdata.jdbc.TSDBError;
-import com.taosdata.jdbc.TSDBErrorNumbers;
+import com.google.common.primitives.Ints;
+import com.google.common.primitives.Longs;
+import com.google.common.primitives.Shorts;
+import com.taosdata.jdbc.*;
 
+import java.math.BigDecimal;
 import java.sql.*;
+import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
-import java.util.List;
+import java.util.Calendar;
 
 public class RestfulResultSet extends AbstractResultSet implements ResultSet {
     private volatile boolean isClosed;
     private int pos = -1;
 
+
     private final String database;
     private final Statement statement;
     // data
-    private ArrayList<ArrayList<Object>> resultSet = new ArrayList<>();
+    private final ArrayList<ArrayList<Object>> resultSet;
     // meta
-    private ArrayList<String> columnNames = new ArrayList<>();
-    private ArrayList<Field> columns = new ArrayList<>();
+    private ArrayList<String> columnNames;
+    private ArrayList<Field> columns;
     private RestfulResultSetMetaData metaData;
 
     /**
@@ -29,77 +33,114 @@ public class RestfulResultSet extends AbstractResultSet implements ResultSet {
      *
      * @param resultJson: 包含data信息的结果集，有sql返回的结果集
      ***/
-    public RestfulResultSet(String database, Statement statement, JSONObject resultJson) {
+    public RestfulResultSet(String database, Statement statement, JSONObject resultJson) throws SQLException {
         this.database = database;
         this.statement = statement;
-        // row data
-        JSONArray data = resultJson.getJSONArray("data");
-        int columnIndex = 0;
-        for (; columnIndex < data.size(); columnIndex++) {
-            ArrayList oneRow = new ArrayList<>();
-            JSONArray one = data.getJSONArray(columnIndex);
-            for (int j = 0; j < one.size(); j++) {
-                oneRow.add(one.getString(j));
-            }
-            resultSet.add(oneRow);
-        }
 
-        // column only names
-        JSONArray head = resultJson.getJSONArray("head");
-        for (int i = 0; i < head.size(); i++) {
-            String name = head.getString(i);
-            columnNames.add(name);
-            columns.add(new Field(name, "", 0, ""));
+        // column metadata
+        JSONArray columnMeta = resultJson.getJSONArray("column_meta");
+        columnNames = new ArrayList<>();
+        columns = new ArrayList<>();
+        for (int colIndex = 0; colIndex < columnMeta.size(); colIndex++) {
+            JSONArray col = columnMeta.getJSONArray(colIndex);
+            String col_name = col.getString(0);
+            int taos_type = col.getInteger(1);
+            int col_type = TSDBConstants.taosType2JdbcType(taos_type);
+            int col_length = col.getInteger(2);
+            columnNames.add(col_name);
+            columns.add(new Field(col_name, col_type, col_length, "", taos_type));
         }
         this.metaData = new RestfulResultSetMetaData(this.database, columns, this);
-    }
 
-    /**
-     * 由多个resultSet的JSON构造结果集
-     *
-     * @param resultJson: 包含data信息的结果集，有sql返回的结果集
-     * @param fieldJson:  包含多个（最多2个）meta信息的结果集，有describe xxx
-     **/
-    public RestfulResultSet(String database, Statement statement, JSONObject resultJson, List<JSONObject> fieldJson) {
-        this(database, statement, resultJson);
-        ArrayList<Field> newColumns = new ArrayList<>();
-
-        for (Field column : columns) {
-            Field field = findField(column.name, fieldJson);
-            if (field != null) {
-                newColumns.add(field);
-            } else {
-                newColumns.add(column);
+        // row data
+        JSONArray data = resultJson.getJSONArray("data");
+        resultSet = new ArrayList<>();
+        for (int rowIndex = 0; rowIndex < data.size(); rowIndex++) {
+            ArrayList row = new ArrayList();
+            JSONArray jsonRow = data.getJSONArray(rowIndex);
+            for (int colIndex = 0; colIndex < jsonRow.size(); colIndex++) {
+                row.add(parseColumnData(jsonRow, colIndex, columns.get(colIndex).taos_type));
             }
+            resultSet.add(row);
         }
-        this.columns = newColumns;
-        this.metaData = new RestfulResultSetMetaData(this.database, this.columns, this);
     }
 
-    public Field findField(String columnName, List<JSONObject> fieldJsonList) {
-        for (JSONObject fieldJSON : fieldJsonList) {
-            JSONArray fieldDataJson = fieldJSON.getJSONArray("data");
-            for (int i = 0; i < fieldDataJson.size(); i++) {
-                JSONArray field = fieldDataJson.getJSONArray(i);
-                if (columnName.equalsIgnoreCase(field.getString(0))) {
-                    return new Field(field.getString(0), field.getString(1), field.getInteger(2), field.getString(3));
+    private Object parseColumnData(JSONArray row, int colIndex, int taosType) throws SQLException {
+        switch (taosType) {
+            case TSDBConstants.TSDB_DATA_TYPE_BOOL:
+                return row.getBoolean(colIndex);
+            case TSDBConstants.TSDB_DATA_TYPE_TINYINT:
+                return row.getByte(colIndex);
+            case TSDBConstants.TSDB_DATA_TYPE_SMALLINT:
+                return row.getShort(colIndex);
+            case TSDBConstants.TSDB_DATA_TYPE_INT:
+                return row.getInteger(colIndex);
+            case TSDBConstants.TSDB_DATA_TYPE_BIGINT:
+                return row.getLong(colIndex);
+            case TSDBConstants.TSDB_DATA_TYPE_FLOAT:
+                return row.getFloat(colIndex);
+            case TSDBConstants.TSDB_DATA_TYPE_DOUBLE:
+                return row.getDouble(colIndex);
+            case TSDBConstants.TSDB_DATA_TYPE_TIMESTAMP: {
+                if (row.get(colIndex) == null)
+                    return null;
+                String timestampFormat = this.statement.getConnection().getClientInfo(TSDBDriver.PROPERTY_KEY_TIMESTAMP_FORMAT);
+                if ("TIMESTAMP".equalsIgnoreCase(timestampFormat)) {
+                    Long value = row.getLong(colIndex);
+                    //TODO: this implementation has bug if the timestamp bigger than 9999_9999_9999_9
+                    if (value < 1_0000_0000_0000_0L)
+                        return new Timestamp(value);
+                    long epochSec = value / 1000_000l;
+                    long nanoAdjustment = value % 1000_000l * 1000l;
+                    return Timestamp.from(Instant.ofEpochSecond(epochSec, nanoAdjustment));
                 }
+                if ("UTC".equalsIgnoreCase(timestampFormat)) {
+                    String value = row.getString(colIndex);
+                    long epochSec = Timestamp.valueOf(value.substring(0, 19).replace("T", " ")).getTime() / 1000;
+                    int fractionalSec = Integer.parseInt(value.substring(20, value.length() - 5));
+                    long nanoAdjustment = 0;
+                    if (value.length() > 28) {
+                        // ms timestamp: yyyy-MM-ddTHH:mm:ss.SSSSSS+0x00
+                        nanoAdjustment = fractionalSec * 1000l;
+                    } else {
+                        // ms timestamp: yyyy-MM-ddTHH:mm:ss.SSS+0x00
+                        nanoAdjustment = fractionalSec * 1000_000l;
+                    }
+                    ZoneOffset zoneOffset = ZoneOffset.of(value.substring(value.length() - 5));
+                    Instant instant = Instant.ofEpochSecond(epochSec, nanoAdjustment).atOffset(zoneOffset).toInstant();
+                    return Timestamp.from(instant);
+                }
+                String value = row.getString(colIndex);
+                if (value.length() <= 23)    // ms timestamp: yyyy-MM-dd HH:mm:ss.SSS
+                    return row.getTimestamp(colIndex);
+                // us timestamp: yyyy-MM-dd HH:mm:ss.SSSSSS
+                long epochSec = Timestamp.valueOf(value.substring(0, 19)).getTime() / 1000;
+                long nanoAdjustment = Integer.parseInt(value.substring(20)) * 1000l;
+                Timestamp timestamp = Timestamp.from(Instant.ofEpochSecond(epochSec, nanoAdjustment));
+                return timestamp;
             }
+            case TSDBConstants.TSDB_DATA_TYPE_BINARY:
+                return row.getString(colIndex) == null ? null : row.getString(colIndex).getBytes();
+            case TSDBConstants.TSDB_DATA_TYPE_NCHAR:
+                return row.getString(colIndex) == null ? null : row.getString(colIndex);
+            default:
+                return row.get(colIndex);
         }
-        return null;
     }
 
     public class Field {
         String name;
-        String type;
+        int type;
         int length;
         String note;
+        int taos_type;
 
-        public Field(String name, String type, int length, String note) {
+        public Field(String name, int type, int length, String note, int taos_type) {
             this.name = name;
             this.type = type;
             this.length = length;
             this.note = note;
+            this.taos_type = taos_type;
         }
     }
 
@@ -121,113 +162,232 @@ public class RestfulResultSet extends AbstractResultSet implements ResultSet {
         }
     }
 
-    @Override
-    public boolean wasNull() throws SQLException {
-        if (isClosed())
-            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_RESULTSET_CLOSED);
-        return resultSet.isEmpty();
-    }
+//    @Override
+//    public boolean wasNull() throws SQLException {
+//        if (isClosed())
+//            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_RESULTSET_CLOSED);
+//        return resultSet.isEmpty();
+//    }
 
     @Override
     public String getString(int columnIndex) throws SQLException {
-        if (isClosed())
-            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_RESULTSET_CLOSED);
+        checkAvailability(columnIndex, resultSet.get(pos).size());
 
-        if (columnIndex > resultSet.get(pos).size()) {
-            throw new SQLException(TSDBConstants.WrapErrMsg("Column Index out of range, " + columnIndex + " > " + resultSet.get(pos).size()));
-        }
-
-        columnIndex = getTrueColumnIndex(columnIndex);
-        return resultSet.get(pos).get(columnIndex).toString();
+        Object value = resultSet.get(pos).get(columnIndex - 1);
+        if (value == null)
+            return null;
+        if (value instanceof byte[])
+            return new String((byte[]) value);
+        return value.toString();
     }
 
     @Override
     public boolean getBoolean(int columnIndex) throws SQLException {
-        if (isClosed())
-            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_RESULTSET_CLOSED);
+        checkAvailability(columnIndex, resultSet.get(pos).size());
 
-        columnIndex = getTrueColumnIndex(columnIndex);
-        int result = getInt(columnIndex);
-        return result == 0 ? false : true;
+        Object value = resultSet.get(pos).get(columnIndex - 1);
+        if (value == null) {
+            wasNull = true;
+            return false;
+        }
+        wasNull = false;
+        if (value instanceof Boolean)
+            return (boolean) value;
+        return Boolean.valueOf(value.toString());
+    }
+
+    @Override
+    public byte getByte(int columnIndex) throws SQLException {
+        checkAvailability(columnIndex, resultSet.get(pos).size());
+
+        Object value = resultSet.get(pos).get(columnIndex - 1);
+        if (value == null) {
+            wasNull = true;
+            return 0;
+        }
+        wasNull = false;
+        long valueAsLong = Long.parseLong(value.toString());
+        if (valueAsLong == Byte.MIN_VALUE)
+            return 0;
+        if (valueAsLong < Byte.MIN_VALUE || valueAsLong > Byte.MAX_VALUE)
+            throwRangeException(value.toString(), columnIndex, Types.TINYINT);
+
+        return (byte) valueAsLong;
+    }
+
+    private void throwRangeException(String valueAsString, int columnIndex, int jdbcType) throws SQLException {
+        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_NUMERIC_VALUE_OUT_OF_RANGE,
+                "'" + valueAsString + "' in column '" + columnIndex + "' is outside valid range for the jdbcType " + TSDBConstants.jdbcType2TaosTypeName(jdbcType));
     }
 
     @Override
     public short getShort(int columnIndex) throws SQLException {
-        if (isClosed())
-            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_RESULTSET_CLOSED);
-        columnIndex = getTrueColumnIndex(columnIndex);
-        return Short.parseShort(resultSet.get(pos).get(columnIndex).toString());
+        checkAvailability(columnIndex, resultSet.get(pos).size());
+
+        Object value = resultSet.get(pos).get(columnIndex - 1);
+        if (value == null) {
+            wasNull = true;
+            return 0;
+        }
+        wasNull = false;
+        long valueAsLong = Long.parseLong(value.toString());
+        if (valueAsLong == Short.MIN_VALUE)
+            return 0;
+        if (valueAsLong < Short.MIN_VALUE || valueAsLong > Short.MAX_VALUE)
+            throwRangeException(value.toString(), columnIndex, Types.SMALLINT);
+        return (short) valueAsLong;
     }
 
     @Override
     public int getInt(int columnIndex) throws SQLException {
-        if (isClosed())
-            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_RESULTSET_CLOSED);
-        columnIndex = getTrueColumnIndex(columnIndex);
-        return Integer.parseInt(resultSet.get(pos).get(columnIndex).toString());
+        checkAvailability(columnIndex, resultSet.get(pos).size());
+
+        Object value = resultSet.get(pos).get(columnIndex - 1);
+        if (value == null) {
+            wasNull = true;
+            return 0;
+        }
+        wasNull = false;
+        long valueAsLong = Long.parseLong(value.toString());
+        if (valueAsLong == Integer.MIN_VALUE)
+            return 0;
+        if (valueAsLong < Integer.MIN_VALUE || valueAsLong > Integer.MAX_VALUE)
+            throwRangeException(value.toString(), columnIndex, Types.INTEGER);
+        return (int) valueAsLong;
     }
 
     @Override
     public long getLong(int columnIndex) throws SQLException {
-        if (isClosed())
-            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_RESULTSET_CLOSED);
-        columnIndex = getTrueColumnIndex(columnIndex);
-        return Long.parseLong(resultSet.get(pos).get(columnIndex).toString());
+        checkAvailability(columnIndex, resultSet.get(pos).size());
+
+        Object value = resultSet.get(pos).get(columnIndex - 1);
+        if (value == null) {
+            wasNull = true;
+            return 0;
+        }
+        wasNull = false;
+        if (value instanceof Timestamp) {
+            return ((Timestamp) value).getTime();
+        }
+        long valueAsLong = 0;
+        try {
+            valueAsLong = Long.parseLong(value.toString());
+            if (valueAsLong == Long.MIN_VALUE)
+                return 0;
+        } catch (NumberFormatException e) {
+            throwRangeException(value.toString(), columnIndex, Types.BIGINT);
+        }
+        return valueAsLong;
     }
 
     @Override
     public float getFloat(int columnIndex) throws SQLException {
-        if (isClosed())
-            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_RESULTSET_CLOSED);
-        columnIndex = getTrueColumnIndex(columnIndex);
-        return Float.parseFloat(resultSet.get(pos).get(columnIndex).toString());
+        checkAvailability(columnIndex, resultSet.get(pos).size());
+
+        Object value = resultSet.get(pos).get(columnIndex - 1);
+        if (value == null) {
+            wasNull = true;
+            return 0;
+        }
+        wasNull = false;
+        if (value instanceof Float || value instanceof Double)
+            return (float) value;
+        return Float.parseFloat(value.toString());
     }
 
     @Override
     public double getDouble(int columnIndex) throws SQLException {
-        if (isClosed())
-            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_RESULTSET_CLOSED);
+        checkAvailability(columnIndex, resultSet.get(pos).size());
 
-        columnIndex = getTrueColumnIndex(columnIndex);
-        return Double.parseDouble(resultSet.get(pos).get(columnIndex).toString());
+        Object value = resultSet.get(pos).get(columnIndex - 1);
+        if (value == null) {
+            wasNull = true;
+            return 0;
+        }
+        wasNull = false;
+        if (value instanceof Double || value instanceof Float)
+            return (double) value;
+        return Double.parseDouble(value.toString());
     }
 
-    private int getTrueColumnIndex(int columnIndex) throws SQLException {
-        if (columnIndex < 1) {
-            throw new SQLException("Column Index out of range, " + columnIndex + " < 1");
-        }
+    @Override
+    public byte[] getBytes(int columnIndex) throws SQLException {
+        checkAvailability(columnIndex, resultSet.get(pos).size());
 
-        int numOfCols = resultSet.get(pos).size();
-        if (columnIndex > numOfCols) {
-            throw new SQLException("Column Index out of range, " + columnIndex + " > " + numOfCols);
-        }
+        Object value = resultSet.get(pos).get(columnIndex - 1);
+        if (value == null)
+            return null;
+        if (value instanceof byte[])
+            return (byte[]) value;
+        if (value instanceof String)
+            return ((String) value).getBytes();
+        if (value instanceof Long)
+            return Longs.toByteArray((long) value);
+        if (value instanceof Integer)
+            return Ints.toByteArray((int) value);
+        if (value instanceof Short)
+            return Shorts.toByteArray((short) value);
+        if (value instanceof Byte)
+            return new byte[]{(byte) value};
 
-        return columnIndex - 1;
+        return value.toString().getBytes();
+    }
+
+    @Override
+    public Date getDate(int columnIndex) throws SQLException {
+        checkAvailability(columnIndex, resultSet.get(pos).size());
+
+        Object value = resultSet.get(pos).get(columnIndex - 1);
+        if (value == null)
+            return null;
+        if (value instanceof Timestamp)
+            return new Date(((Timestamp) value).getTime());
+        return Date.valueOf(value.toString());
+    }
+
+    @Override
+    public Time getTime(int columnIndex) throws SQLException {
+        checkAvailability(columnIndex, resultSet.get(pos).size());
+
+        Object value = resultSet.get(pos).get(columnIndex - 1);
+        if (value == null)
+            return null;
+        if (value instanceof Timestamp)
+            return new Time(((Timestamp) value).getTime());
+        return Time.valueOf(value.toString());
     }
 
     @Override
     public Timestamp getTimestamp(int columnIndex) throws SQLException {
-        if (isClosed())
-            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_RESULTSET_CLOSED);
+        checkAvailability(columnIndex, resultSet.get(pos).size());
 
-        columnIndex = getTrueColumnIndex(columnIndex);
-        String strDate = resultSet.get(pos).get(columnIndex).toString();
-//        strDate = strDate.substring(1, strDate.length() - 1);
-        return Timestamp.valueOf(strDate);
+        Object value = resultSet.get(pos).get(columnIndex - 1);
+        if (value == null)
+            return null;
+        if (value instanceof Timestamp)
+            return (Timestamp) value;
+//        if (value instanceof Long) {
+//            if (1_0000_0000_0000_0L > (long) value)
+//                return Timestamp.from(Instant.ofEpochMilli((long) value));
+//            long epochSec = (long) value / 1000_000L;
+//            long nanoAdjustment = (long) ((long) value % 1000_000L * 1000);
+//            return Timestamp.from(Instant.ofEpochSecond(epochSec, nanoAdjustment));
+//        }
+        return Timestamp.valueOf(value.toString());
     }
 
-    /*************************************************************************************************************/
     @Override
     public ResultSetMetaData getMetaData() throws SQLException {
         if (isClosed())
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_RESULTSET_CLOSED);
-
         return this.metaData;
     }
 
     @Override
-    public Object getObject(String columnLabel) throws SQLException {
-        return getObject(findColumn(columnLabel));
+    public Object getObject(int columnIndex) throws SQLException {
+        checkAvailability(columnIndex, resultSet.get(pos).size());
+
+        return resultSet.get(pos).get(columnIndex - 1);
     }
 
     @Override
@@ -239,6 +399,23 @@ public class RestfulResultSet extends AbstractResultSet implements ResultSet {
         if (columnIndex == -1)
             throw new SQLException("cannot find Column in resultSet");
         return columnIndex + 1;
+    }
+
+    @Override
+    public BigDecimal getBigDecimal(int columnIndex) throws SQLException {
+        checkAvailability(columnIndex, resultSet.get(pos).size());
+
+        Object value = resultSet.get(pos).get(columnIndex - 1);
+        if (value == null)
+            return null;
+
+        if (value instanceof Long || value instanceof Integer || value instanceof Short || value instanceof Byte)
+            return new BigDecimal(Long.valueOf(value.toString()));
+        if (value instanceof Double || value instanceof Float)
+            return new BigDecimal(Double.valueOf(value.toString()));
+        if (value instanceof Timestamp)
+            return new BigDecimal(((Timestamp) value).getTime());
+        return new BigDecimal(value.toString());
     }
 
     @Override
@@ -399,6 +576,12 @@ public class RestfulResultSet extends AbstractResultSet implements ResultSet {
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_RESULTSET_CLOSED);
 
         return this.statement;
+    }
+
+    @Override
+    public Timestamp getTimestamp(int columnIndex, Calendar cal) throws SQLException {
+        //TODO：did not use the specified timezone in cal
+        return getTimestamp(columnIndex);
     }
 
     @Override

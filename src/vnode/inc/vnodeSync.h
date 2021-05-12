@@ -31,7 +31,7 @@ void     vnodeConfirmForard(int32_t vgId, void *wparam, int32_t code);
 int32_t  vnodeWriteToCache(int32_t vgId, void *wparam, int32_t qtype, void *rparam);
 int32_t  vnodeGetVersion(int32_t vgId, uint64_t *fver, uint64_t *wver);
 
-void     vnodeConfirmForward(void *pVnode, uint64_t version, int32_t code);
+void     vnodeConfirmForward(void *pVnode, uint64_t version, int32_t code, bool force);
 
 #ifdef __cplusplus
 }

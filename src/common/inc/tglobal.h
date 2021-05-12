@@ -39,10 +39,12 @@ extern int8_t   tsEnableTelemetryReporting;
 extern char     tsEmail[];
 extern char     tsArbitrator[];
 extern int8_t   tsArbOnline;
+extern int32_t  tsDnodeId;
 
 // common
 extern int      tsRpcTimer;
 extern int      tsRpcMaxTime;
+extern int      tsRpcForceTcp; // all commands go to tcp protocol if this is enabled
 extern int32_t  tsMaxConnections;
 extern int32_t  tsMaxShellConns;
 extern int32_t  tsShellActivityTimer;
@@ -95,6 +97,7 @@ extern int8_t  tsCompression;
 extern int8_t  tsWAL;
 extern int32_t tsFsyncPeriod;
 extern int32_t tsReplications;
+extern int16_t tsPartitons;
 extern int32_t tsQuorum;
 extern int8_t  tsUpdate;
 extern int8_t  tsCacheLastRow;
@@ -162,6 +165,7 @@ extern float   tsTotalDataDirGB;
 extern float   tsAvailLogDirGB;
 extern float   tsAvailTmpDirectorySpace;
 extern float   tsAvailDataDirGB;
+extern float   tsUsedDataDirGB;
 extern float   tsMinimalLogDirGB;
 extern float   tsReservedTmpDirectorySpace;
 extern float   tsMinimalDataDirGB;
