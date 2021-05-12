@@ -174,7 +174,7 @@ static int normalStmtPrepare(STscStmt* stmt) {
 
   while (sql[i] != 0) {
     SStrToken token = {0};
-    token.n = tSQLGetToken(sql + i, &token.type);
+    token.n = tGetToken(sql + i, &token.type);
 
     if (token.type == TK_QUESTION) {
       sql[i] = 0;

@@ -3,10 +3,10 @@
 #include <cassert>
 #include <iostream>
 
+#include "qTsbuf.h"
 #include "taos.h"
 #include "tsdb.h"
-#include "qTsbuf.h"
-#include "tstoken.h"
+#include "ttoken.h"
 #include "tutil.h"
 
 namespace {

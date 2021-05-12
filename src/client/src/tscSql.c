@@ -963,7 +963,7 @@ static int tscParseTblNameList(SSqlObj *pSql, const char *tblNameList, int32_t t
     len = (int32_t)strtrim(tblName);
 
     SStrToken sToken = {.n = len, .type = TK_ID, .z = tblName};
-    tSQLGetToken(tblName, &sToken.type);
+    tGetToken(tblName, &sToken.type);
 
     // Check if the table name available or not
     if (tscValidateName(&sToken) != TSDB_CODE_SUCCESS) {

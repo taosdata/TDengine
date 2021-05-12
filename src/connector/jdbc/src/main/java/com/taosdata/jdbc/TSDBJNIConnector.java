@@ -35,8 +35,8 @@ public class TSDBJNIConnector {
     private long taos = TSDBConstants.JNI_NULL_POINTER;
     
     // result set status in current connection
-    private boolean isResultsetClosed = true;
-    
+    private boolean isResultsetClosed;
+
     private int affectedRows = -1;
 
     static {
@@ -132,6 +132,7 @@ public class TSDBJNIConnector {
 
         // Try retrieving result set for the executed SQL using the current connection pointer. 
         pSql = this.getResultSetImp(this.taos, pSql);
+        // if pSql == 0L that means resultset is closed
         isResultsetClosed = (pSql == TSDBConstants.JNI_NULL_POINTER);
 
         return pSql;
