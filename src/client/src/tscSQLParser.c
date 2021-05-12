@@ -440,6 +440,7 @@ int32_t tscToSQLCmd(SSqlObj* pSql, struct SSqlInfo* pInfo) {
 
       return tscGetTableMeta(pSql, pTableMetaInfo);
     }
+    case TSDB_SQL_SHOW_CREATE_STABLE:                           
     case TSDB_SQL_SHOW_CREATE_TABLE: {
       const char* msg1 = "invalid table name";
 

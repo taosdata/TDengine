@@ -185,6 +185,9 @@ static FORCE_INLINE int32_t tGetNumericStringType(const SStrToken* pToken) {
 
 void taosCleanupKeywordsTable();
 
+SStrToken tscReplaceStrToken(char **str, SStrToken *token, const char* newToken);
+
+
 #ifdef __cplusplus
 }
 #endif

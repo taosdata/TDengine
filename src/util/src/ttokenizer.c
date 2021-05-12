@@ -572,6 +572,28 @@ uint32_t tGetToken(char* z, uint32_t* tokenId) {
   return 0;
 }
 
+SStrToken tscReplaceStrToken(char **str, SStrToken *token, const char* newToken) {
+  char *src = *str;
+  size_t nsize = strlen(newToken);
+  int32_t size = (int32_t)strlen(*str) - token->n + (int32_t)nsize + 1;
+  int32_t bsize = (int32_t)((uint64_t)token->z - (uint64_t)src);
+  SStrToken ntoken;
+
+  *str = calloc(1, size);
+
+  strncpy(*str, src, bsize);
+  strcat(*str, newToken);
+  strcat(*str, token->z + token->n);
+
+  ntoken.n = (uint32_t)nsize;
+  ntoken.z = *str + bsize;
+
+  tfree(src);
+
+  return ntoken;
+}
+
+
 SStrToken tStrGetToken(char* str, int32_t* i, bool isPrevOptr) {
   SStrToken t0 = {0};
 
