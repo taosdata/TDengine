@@ -16,8 +16,8 @@
 #ifndef TDENGINE_TVARIANT_H
 #define TDENGINE_TVARIANT_H
 
-#include "tstoken.h"
 #include "tarray.h"
+#include "ttoken.h"
 
 #ifdef __cplusplus
 extern "C" {

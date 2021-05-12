@@ -98,7 +98,6 @@ endi
 
 print ========== step3
 system sh/exec.sh -n dnode2 -s stop -x SIGINT
-sql drop dnode $hostname2
 
 sql show dnodes
 print dnode1 openVnodes $data2_1
@@ -127,6 +126,26 @@ endi
 
 print ============ step 4.1
 system sh/exec.sh -n dnode2 -s start
+
+$x = 0
+step4.1:
+	$x = $x + 1
+	sleep 1000
+	if $x == 10 then
+		return -1
+	endi
+
+sql show dnodes
+print dnode1 $data4_1
+print dnode2 $data4_2
+print dnode3 $data4_3
+print dnode4 $data4_4
+
+if $data4_2 != ready then
+  goto step4.1
+endi
+
+sql drop dnode $hostname2
 
 $x = 0
 show4: 

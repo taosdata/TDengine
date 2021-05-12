@@ -13,13 +13,13 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "os.h"
 #include "qSqlparser.h"
+#include "os.h"
 #include "taosdef.h"
 #include "taosmsg.h"
 #include "tcmdtype.h"
-#include "tstoken.h"
 #include "tstrbuild.h"
+#include "ttoken.h"
 #include "ttokendef.h"
 #include "tutil.h"
 
@@ -38,7 +38,7 @@ SSqlInfo qSqlParse(const char *pStr) {
       goto abort_parse;
     }
 
-    t0.n = tSQLGetToken((char *)&pStr[i], &t0.type);
+    t0.n = tGetToken((char *)&pStr[i], &t0.type);
     t0.z = (char *)(pStr + i);
     i += t0.n;
 

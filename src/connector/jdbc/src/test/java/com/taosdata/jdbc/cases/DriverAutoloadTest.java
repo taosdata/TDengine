@@ -20,6 +20,7 @@ public class DriverAutoloadTest {
         final String url = "jdbc:TAOS-RS://" + host + ":6041/?user=root&password=taosdata";
         Connection conn = DriverManager.getConnection(url, properties);
         Assert.assertNotNull(conn);
+        conn.close();
     }
 
     @Test
@@ -27,6 +28,7 @@ public class DriverAutoloadTest {
         final String url = "jdbc:TAOS://" + host + ":6030/?user=root&password=taosdata";
         Connection conn = DriverManager.getConnection(url, properties);
         Assert.assertNotNull(conn);
+        conn.close();
     }
 
 

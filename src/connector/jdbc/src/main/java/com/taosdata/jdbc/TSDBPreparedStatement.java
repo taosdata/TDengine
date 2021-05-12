@@ -14,11 +14,12 @@
  *****************************************************************************/
 package com.taosdata.jdbc;
 
+import com.taosdata.jdbc.utils.Utils;
+
 import java.io.InputStream;
 import java.io.Reader;
 import java.math.BigDecimal;
 import java.net.URL;
-import java.nio.charset.Charset;
 import java.sql.*;
 import java.util.ArrayList;
 import java.util.Calendar;
@@ -33,17 +34,9 @@ import java.util.regex.Pattern;
 public class TSDBPreparedStatement extends TSDBStatement implements PreparedStatement {
 
     private String rawSql;
-    private String sql;
-    //    private ArrayList<Object> parameters = new ArrayList<>();
     private Object[] parameters;
     private boolean isPrepared;
 
-    //start with insert or import and is case-insensitive
-    private static Pattern savePattern = Pattern.compile("(?i)^\\s*(insert|import)");
-    // is insert or import
-    private boolean isSaved;
-
-    //    private SavedPreparedStatement savedPreparedStatement;
     private volatile TSDBParameterMetaData parameterMetaData;
 
     TSDBPreparedStatement(TSDBConnection connection, TSDBJNIConnector connecter, String sql) {
@@ -65,35 +58,11 @@ public class TSDBPreparedStatement extends TSDBStatement implements PreparedStat
     private void init(String sql) {
         this.rawSql = sql;
         preprocessSql();
-//        this.isSaved = isSavedSql(this.rawSql);
-//        if (this.isSaved) {
-//            try {
-//                this.savedPreparedStatement = new SavedPreparedStatement(this.rawSql, this);
-//            } catch (SQLException e) {
-//                e.printStackTrace();
-//            }
-//        }
-
-    }
-
-    /**
-     * if the precompiled sql is insert or import
-     *
-     * @param sql
-     * @return
-     */
-    private boolean isSavedSql(String sql) {
-        Matcher matcher = savePattern.matcher(sql);
-        return matcher.find();
     }
 
     @Override
     public int[] executeBatch() throws SQLException {
-//        if (isSaved) {
-//            return this.savedPreparedStatement.executeBatch();
-//        } else {
         return super.executeBatch();
-//        }
     }
 
     /*
@@ -157,152 +126,64 @@ public class TSDBPreparedStatement extends TSDBStatement implements PreparedStat
      *
      * @return a string of the native sql statement for TSDB
      */
-//    private String getNativeSql(String rawSql) {
-//        for (int i = 0; i < parameters.length; i++) {
-//            Object para = parameters[i];
-//            if (para != null) {
-//                String paraStr = para.toString();
-//                if (para instanceof Timestamp || para instanceof String) {
-//                    paraStr = "'" + paraStr + "'";
-//                }
-//                this.sql = this.sql.replaceFirst("[?]", paraStr);
-//            } else {
-//                this.sql = this.sql.replaceFirst("[?]", "NULL");
-//            }
-//        }
-//        parameters = new Object[parameters.length];
-//        return sql;
-//    }
-
     private String getNativeSql(String rawSql) throws SQLException {
-        String sql = rawSql;
-        for (int i = 0; i < parameters.length; ++i) {
-            Object para = parameters[i];
-            if (para != null) {
-                String paraStr;
-                if (para instanceof byte[]) {
-                    paraStr = new String((byte[]) para, Charset.forName("UTF-8"));
-                } else {
-                    paraStr = para.toString();
-                }
-                // if para is timestamp or String or byte[] need to translate ' character
-                if (para instanceof Timestamp || para instanceof String || para instanceof byte[]) {
-                    paraStr = paraStr.replaceAll("'", "\\\\\\\\'");
-                    paraStr = "'" + paraStr + "'";
-                }
-                sql = sql.replaceFirst("[?]", paraStr);
-            } else {
-                sql = sql.replaceFirst("[?]", "NULL");
-            }
-        }
-        clearParameters();
-        return sql;
+        return Utils.getNativeSql(rawSql, this.parameters);
     }
 
     @Override
     public ResultSet executeQuery() throws SQLException {
-//        if (isSaved) {
-//            this.savedPreparedStatement.executeBatchInternal();
-//            return null;
-//        } else {
-
         if (!isPrepared)
             return executeQuery(this.rawSql);
 
         final String sql = getNativeSql(this.rawSql);
         return executeQuery(sql);
-//        }
     }
 
     @Override
     public int executeUpdate() throws SQLException {
-//        if (isSaved) {
-//            return this.savedPreparedStatement.executeBatchInternal();
-//        } else {
         if (!isPrepared)
             return executeUpdate(this.rawSql);
         String sql = getNativeSql(this.rawSql);
         return executeUpdate(sql);
-//        }
-    }
-
-    private boolean isSupportedSQLType(int sqlType) {
-        switch (sqlType) {
-            case Types.TIMESTAMP:
-            case Types.INTEGER:
-            case Types.BIGINT:
-            case Types.FLOAT:
-            case Types.DOUBLE:
-            case Types.SMALLINT:
-            case Types.TINYINT:
-            case Types.BOOLEAN:
-            case Types.BINARY:
-            case Types.NCHAR:
-                return true;
-            default:
-                return false;
-        }
     }
 
     @Override
     public void setNull(int parameterIndex, int sqlType) throws SQLException {
-        if (isClosed())
-            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
-        if (!isSupportedSQLType(sqlType) || parameterIndex < 0)
-            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_INVALID_VARIABLE);
-//        if (parameterIndex >= parameters.size())
-//            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_PARAMETER_INDEX_OUT_BOUNDARY);
-
-        setObject(parameterIndex, "NULL");
+        setObject(parameterIndex, null);
     }
 
     @Override
     public void setBoolean(int parameterIndex, boolean x) throws SQLException {
-        if (isClosed())
-            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
-
         setObject(parameterIndex, x);
     }
 
     @Override
     public void setByte(int parameterIndex, byte x) throws SQLException {
-        if (isClosed())
-            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
-        setObject(parameterIndex,x);
+        setObject(parameterIndex, x);
     }
 
     @Override
     public void setShort(int parameterIndex, short x) throws SQLException {
-        if (isClosed())
-            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
         setObject(parameterIndex, x);
     }
 
     @Override
     public void setInt(int parameterIndex, int x) throws SQLException {
-        if (isClosed())
-            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
         setObject(parameterIndex, x);
     }
 
     @Override
     public void setLong(int parameterIndex, long x) throws SQLException {
-        if (isClosed())
-            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
         setObject(parameterIndex, x);
     }
 
     @Override
     public void setFloat(int parameterIndex, float x) throws SQLException {
-        if (isClosed())
-            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
         setObject(parameterIndex, x);
     }
 
     @Override
     public void setDouble(int parameterIndex, double x) throws SQLException {
-        if (isClosed())
-            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
         setObject(parameterIndex, x);
     }
 
@@ -315,17 +196,12 @@ public class TSDBPreparedStatement extends TSDBStatement implements PreparedStat
 
     @Override
     public void setString(int parameterIndex, String x) throws SQLException {
-        if (isClosed())
-            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
         setObject(parameterIndex, x);
     }
 
     @Override
     public void setBytes(int parameterIndex, byte[] x) throws SQLException {
-        if (isClosed())
-            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
-
-        setObject(parameterIndex,x);
+        setObject(parameterIndex, x);
     }
 
     @Override
@@ -344,8 +220,6 @@ public class TSDBPreparedStatement extends TSDBStatement implements PreparedStat
 
     @Override
     public void setTimestamp(int parameterIndex, Timestamp x) throws SQLException {
-        if (isClosed())
-            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
         setObject(parameterIndex, x);
     }
 
@@ -360,7 +234,6 @@ public class TSDBPreparedStatement extends TSDBStatement implements PreparedStat
     public void setUnicodeStream(int parameterIndex, InputStream x, int length) throws SQLException {
         if (isClosed())
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
-
         throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
     }
 
@@ -375,8 +248,6 @@ public class TSDBPreparedStatement extends TSDBStatement implements PreparedStat
     public void clearParameters() throws SQLException {
         if (isClosed())
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
-
-//        parameters.clear();
         parameters = new Object[parameters.length];
     }
 
@@ -384,43 +255,29 @@ public class TSDBPreparedStatement extends TSDBStatement implements PreparedStat
     public void setObject(int parameterIndex, Object x, int targetSqlType) throws SQLException {
         if (isClosed())
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
-
-        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
+        setObject(parameterIndex, x);
     }
 
     @Override
     public void setObject(int parameterIndex, Object x) throws SQLException {
-//        if (isSaved) {
-//            this.savedPreparedStatement.setParam(parameterIndex, x);
-//        } else {
+        if (isClosed())
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
         if (parameterIndex < 1 && parameterIndex >= parameters.length)
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_PARAMETER_INDEX_OUT_RANGE);
-
         parameters[parameterIndex - 1] = x;
-//            parameters.add(x);
-//        }
     }
 
     @Override
     public boolean execute() throws SQLException {
-//        if (isSaved) {
-//            int result = this.savedPreparedStatement.executeBatchInternal();
-//            return result > 0;
-//        } else {
         if (!isPrepared)
             return execute(this.rawSql);
 
         final String sql = getNativeSql(this.rawSql);
-
         return execute(sql);
-//        }
     }
 
     @Override
     public void addBatch() throws SQLException {
-//        if (isSaved) {
-//            this.savedPreparedStatement.addBatch();
-//        } else {
         if (this.batchedArgs == null) {
             batchedArgs = new ArrayList<>();
         }
@@ -431,7 +288,6 @@ public class TSDBPreparedStatement extends TSDBStatement implements PreparedStat
             String sql = this.getConnection().nativeSQL(this.rawSql);
             addBatch(sql);
         }
-//        }
     }
 
     @Override
@@ -475,7 +331,6 @@ public class TSDBPreparedStatement extends TSDBStatement implements PreparedStat
     public ResultSetMetaData getMetaData() throws SQLException {
         if (isClosed())
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
-//        return this.getResultSet().getMetaData();
         throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
     }
 

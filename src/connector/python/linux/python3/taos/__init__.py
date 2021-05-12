@@ -1,6 +1,7 @@
 
 from .connection import TDengineConnection
 from .cursor import TDengineCursor
+from .error import Error
 
 # Globals
 threadsafety = 0

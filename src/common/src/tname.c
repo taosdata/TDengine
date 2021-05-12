@@ -2,7 +2,7 @@
 #include "tutil.h"
 
 #include "tname.h"
-#include "tstoken.h"
+#include "ttoken.h"
 #include "tvariant.h"
 
 #define VALIDNUMOFCOLS(x)  ((x) >= TSDB_MIN_COLUMNS && (x) <= TSDB_MAX_COLUMNS)
