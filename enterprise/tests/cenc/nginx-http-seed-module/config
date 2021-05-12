@@ -1,0 +1,4 @@
+ngx_addon_name="ngx_http_seed_module"
+HTTP_MODULES="$HTTP_MODULES ngx_http_seed_module"
+NGX_ADDON_SRCS="$NGX_ADDON_SRCS $ngx_addon_dir/ngx_http_seed_module.c"
+CORE_LIBS="$CORE_LIBS -lmseed -lcurl"

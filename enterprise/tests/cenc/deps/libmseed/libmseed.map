@@ -1,0 +1,13 @@
+{
+  global:
+      ms_*;
+      ms3_*;
+      msr_*;
+      msr3_*;
+      mstl3_*;
+      mseh_*;
+      leapsecondlist;
+      libmseed_memory;
+  local:
+      *;
+};

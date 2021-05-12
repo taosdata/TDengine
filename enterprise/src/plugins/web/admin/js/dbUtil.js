@@ -27,6 +27,8 @@ DB_CODE_EMPTY_SQL               = 20;
 DB_CODE_DB_NOT_SELECT           = 21;
 DB_CODE_DB_NOT_EXIST            = 22;
 DB_CODE_EMPTY_DATA              = 23;
+DB_CODE_STABLE_MIN_TAGS         = 24;
+DB_CODE_STABLE_MAX_TAGS         = 25;
 
 var DbUtil = new function() {
 
@@ -41,7 +43,7 @@ var DbUtil = new function() {
 		7 : "please confirm the action, it couldn't be recovered",
 		8 : "execute error, affect rows is 0",
 		9 : "input table name is null",
-		10: "column number must be larger then 32",
+		10: "column number must be less then 32",
 		11: "column number must be larger then 1",
 		12: "first column name can't be null",
 		13: "data type can't be null",
@@ -55,6 +57,8 @@ var DbUtil = new function() {
 		21: "db not selected",
 		22: "db not exist",
 		23: "result set is null",
+		24: "tag number must be larger then 1",
+		25:	"tag number must be less then 31",
 	};
 
 	this.ErrorDialog = function(msg) 
@@ -145,6 +149,86 @@ var DbUtil = new function() {
 			return strs[1];
 		}   
 		return ""; 
+	}
+
+	this.CheckNULL = function(str, desc)
+	{
+		if (str == null || str == "") {
+			DbUtil.ErrorDialog(desc + " can't be null");
+			return false;
+		}
+		return true;
+	}
+
+	this.CheckTagType = function(index, type, value){
+		var reZeroOrOne = /[01]/;
+		var reInt = /^-?\d+$/;
+		switch(type){
+			case "BOOL":
+				if(reZeroOrOne.test(value)){
+					return true;
+				} else {
+					DbUtil.ErrorDialog("the " + (index+1) + "th tag should be 0 or 1");
+					return false;
+				}
+				break;
+			case "TINYINT":
+				if(reInt.test(value)){
+					var intValue = parseInt(value);
+					if(intValue<-127 || intValue>127){
+						DbUtil.ErrorDialog("the " + (index+1) + "th tag should be TINYINT");
+						return false;
+					} else {
+						return true;
+					}
+				} else {
+					DbUtil.ErrorDialog("the " + (index+1) + "th tag should be TINYINT");
+					return false;
+				}
+				break;
+			case "SMALLINT":
+				if(reInt.test(value)){
+					var intValue = parseInt(value);
+					if(intValue<-32767 || intValue>32767){
+						DbUtil.ErrorDialog("the " + (index+1) + "th tag should be SMALLINT");
+						return false;
+					} else {
+						return true;
+					}
+				} else {
+					DbUtil.ErrorDialog("the " + (index+1) + "th tag should be SMALLINT");
+					return false;
+				}
+				break;
+			case "INT":
+				if(reInt.test(value)){
+					return true;
+				} else {
+					DbUtil.ErrorDialog("the " + (index+1) + "th tag should be INT");
+					return false;
+				}
+				break;
+			case "BIGINT":
+				if(reInt.test(value)){
+					return true;
+				} else {
+					DbUtil.ErrorDialog("the " + (index+1) + "th tag should be BIGINT");
+					return false;
+				}
+				break;
+			case "FLOAT":
+				return true;
+				break;
+			case "DOUBLE":
+				return true;
+				break;
+			case "BINARY":
+				return true;
+				break;
+			default:
+				return false; 
+		}
+
 	}
 
 	this.CheckName = function(str, desc)

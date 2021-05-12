@@ -1,0 +1,6 @@
+TraceID for XFDSN:IU_COLA_00_L_H_1 (4), earliest: 2010,058,06:50:00.069539, latest: 2010,058,06:55:22.069539, segments: 1
+  Segment 2010,058,06:50:00.069539 - 2010,058,06:55:22.069539, samples: 323, sample rate: 1, sample type: i
+TraceID for XFDSN:IU_COLA_00_L_H_2 (4), earliest: 2010,058,07:19:01.069538, latest: 2010,058,07:30:38.069536, segments: 1
+  Segment 2010,058,07:19:01.069538 - 2010,058,07:30:38.069536, samples: 698, sample rate: 1, sample type: i
+TraceID for XFDSN:IU_COLA_00_L_H_Z (4), earliest: 2010,058,06:50:00.069539, latest: 2010,058,07:59:59.069538, segments: 1
+  Segment 2010,058,06:50:00.069539 - 2010,058,07:59:59.069538, samples: 4200, sample rate: 1, sample type: i

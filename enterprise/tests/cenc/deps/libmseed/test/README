@@ -1,0 +1,13 @@
+== The libmseed test suite ==
+
+General mechanics:
+
+Each *.c file is compiled into an executable, linking options for libmseed
+are included.  The test passes if an executable is produced.
+
+Each *.test file must be an executable (e.g. shell script) and have a
+companion *.test.ref reference file.  The *.test file is executed, the
+output saved to *.test.out and compared to the reference.  If the files
+match the test passes.
+
+The executables are built first as they are used in the later tests.

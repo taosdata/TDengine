@@ -1,0 +1,7 @@
+Error: XFDSN:IU_COLA_00_L_H_Z: Unknown blockette length for type 0
+XFDSN:IU_COLA_00_L_H_Z: Warning: Number of blockettes in fixed header (2) does not match the number parsed (0)
+XFDSN:IU_COLA_00_L_H_Z, 4, 512, 112 samples, 1 Hz, 2010,058,06:50:00.069500
+Error: XFDSN:IU_COLA_00_L_H_Z: Offset to next blockette (40) is within current blockette ending at byte 64
+XFDSN:IU_COLA_00_L_H_Z, 4, 512, 185 samples, 1 Hz, 2010,058,06:51:52.069541
+Error: XFDSN:IU_COLA_00_L_H_Z: Offset to next blockette (1000) from type 1001 is beyond record length
+XFDSN:IU_COLA_00_L_H_Z, 4, 512, 112 samples, 1 Hz, 2010,058,06:54:57.069539

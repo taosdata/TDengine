@@ -33,6 +33,7 @@
 			<div id="navbar" class="navbar-collapse collapse">
 				<ul class="nav navbar-nav">					
 					<li><a href="dbs.html">DBs</a></li>
+					<li><a href="stables.html">Stables</a></li>
 					<li class="active"><a href="tables.html">Tables</a></li>
 					<li><a href="users.html">Users</a></li>
 					<li id="dnodeLiId" style="display:none"><a href="dnodes.html">DNodes</a></li>
@@ -136,10 +137,12 @@
 	</div>
 	
 	<script type="text/javascript">
+	var dbSTableName = "";
 	function dbOnLoad()
 	{
 		DbSession.ValidSession();
 		DbCache.Clear();
+		dbSTableName = DbUtil.GetUrlFirstPara();
 		DbCache.Init(dbFillTableHead, dbFillTableBody);
 		
 		if (DbSession.GetCacheFlag()) {
@@ -274,7 +277,12 @@
 				DbUtil.Error(DB_CODE_EXEC_ERROR);
 			}
 			else {
-				DbUtil.GotoPage("tables.html");
+				if(dbSTableName){
+					DbUtil.GotoPage("tables.html?Stable="+dbSTableName);
+				} else {
+					DbUtil.GotoPage("tables.html");
+				}
+				
 			}
 		}	
 		else{
@@ -319,7 +327,7 @@
 			DbUtil.HandleError(d);
 		}
 		else if (d.status == "succ") {
-			DbCache.OnData(d);
+			DbCache.OnData(d, dbSTableName);
 		}	
 		else{
 			DbUtil.Error(DB_CODE_UNKNOWN);
@@ -329,7 +337,14 @@
 	function dbShowDbName()
 	{
 		var db = DbSession.GetDb();
-		$('#dbDbName').html("<a href='#' onclick='dbGotoDatabase()'>DB</a>: " + db + "/Table List");
+		var useStable =  dbSTableName ? " Using " + dbSTableName  : "";
+		$('#dbDbName').html("<a href='#' onclick='dbGotoDatabase()'>DB</a>: " + db + "/Table List" + useStable);
+	}
+
+	function dbGotoStable()
+	{
+		DbSession.SetCacheFlag();
+		DbUtil.GotoPage("stables.html");
 	}
 	
 	function dbGotoDatabase()

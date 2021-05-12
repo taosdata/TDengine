@@ -1,0 +1,44 @@
+#
+# Nmake file For libmseed - MS Visual C/C++ version
+# Use 'nmake -f Makefile.win'
+
+NODEBUG=1
+
+INCS = -I.
+OPTS = /O2 /D_CRT_SECURE_NO_WARNINGS
+LIB = libmseed.lib
+DLL = libmseed.dll
+
+OBJS=	fileutils.obj	\
+	genutils.obj	\
+	gswap.obj	\
+	msio.obj	\
+	lookup.obj	\
+	parson.obj	\
+	msrutils.obj	\
+	extraheaders.obj\
+	pack.obj	\
+	packdata.obj	\
+	tracelist.obj	\
+	gmtime64.obj	\
+	crc32c.obj	\
+	parseutils.obj	\
+	unpack.obj	\
+	unpackdata.obj  \
+	selection.obj	\
+	logging.obj
+
+all: lib
+
+lib: $(OBJS)
+	link.exe /lib /nologo /out:$(LIB) $(OBJS)
+
+dll: $(OBJS)
+	link.exe /dll /nologo /out:$(DLL) $(OBJS)
+
+.c.obj:
+	$(CC) /nologo $(CFLAGS) $(INCS) $(OPTS) /c $<
+
+# Clean-up directives
+clean:
+	-del a.out core *.o *.obj *% *~ $(LIB) $(DLL)

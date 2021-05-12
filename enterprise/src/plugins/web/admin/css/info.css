@@ -17,6 +17,7 @@ body.graph {
 	/* color: #5f8ab1; */
 	font-size: 12px;
 	font-family: "Hiragino Sans GB","Microsoft Yahei",Arial,sans-serif;
+	cursor:pointer;
 }
 
 .dbfoot {
