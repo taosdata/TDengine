@@ -5,16 +5,15 @@ with open("README.md", "r") as fh:
 
 setuptools.setup(
     name="taos",
-    version="2.0.9",
+    version="2.0.10",
     author="Taosdata Inc.",
     author_email="support@taosdata.com",
     description="TDengine python client package",
     long_description=long_description,
     long_description_content_type="text/markdown",
-    url="https://github.com/pypa/sampleproject",
+    url="https://github.com/taosdata/TDengine/tree/develop/src/connector/python",
     packages=setuptools.find_packages(),
     classifiers=[
-
         "Environment :: Console",
         "Environment :: MacOS X",
         "Environment :: Win32 (MS Windows)",
