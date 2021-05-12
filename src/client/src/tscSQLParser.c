@@ -619,7 +619,10 @@ int32_t tscToSQLCmd(SSqlObj* pSql, struct SSqlInfo* pInfo) {
 
     case TSDB_SQL_SELECT: {
       const char* msg1 = "columns in select clause not identical";
-      loadAllTableMeta(pSql, pInfo);
+      int32_t code = loadAllTableMeta(pSql, pInfo);
+      if (code != TSDB_CODE_SUCCESS) {
+        return code;
+      }
 
       SQueryInfo* pCurrent = pCmd->pQueryInfo;
       for(int32_t i = 0; i < pCmd->clauseIndex; ++i) {
@@ -7128,7 +7131,7 @@ static int32_t getTableNameFromSubquery(SSqlNode* pSqlNode, SArray* tableNameLis
 }
 
 static void freeElem(void* p) {
-  tfree(p);
+  tfree(*(char**)p);
 }
 
 int32_t loadAllTableMeta(SSqlObj* pSql, struct SSqlInfo* pInfo) {
@@ -7252,7 +7255,10 @@ static int32_t doLoadAllTableMeta(SSqlObj* pSql, SQueryInfo* pQueryInfo, SSqlNod
       strncpy(pTableMetaInfo->aliasName, tNameGetTableName(&pTableMetaInfo->name), tListLen(pTableMetaInfo->aliasName));
     }
 
-    code = tscGetTableMeta(pSql, pTableMetaInfo);
+    const char* name = tNameGetTableName(&pTableMetaInfo->name);
+    pTableMetaInfo->pTableMeta = taosHashGet(pCmd->pTableMetaMap, name, strlen(name));
+    assert(pTableMetaInfo->pTableMeta != NULL);
+
     if (code != TSDB_CODE_SUCCESS) {
       return code;
     }
@@ -7376,13 +7382,13 @@ int32_t validateSqlNode(SSqlObj* pSql, SSqlNode* pSqlNode, SQueryInfo* pQueryInf
   } else {
     pQueryInfo->command = TSDB_SQL_SELECT;
 
-    size_t fromSize = taosArrayGetSize(pSqlNode->from->list);
-    if (fromSize > TSDB_MAX_JOIN_TABLE_NUM) {
+    size_t numOfTables = taosArrayGetSize(pSqlNode->from->list);
+    if (numOfTables > TSDB_MAX_JOIN_TABLE_NUM) {
       return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg2);
     }
 
     // set all query tables, which are maybe more than one.
-    code = doLoadAllTableMeta(pSql, pQueryInfo, pSqlNode, (int32_t) fromSize);
+    code = doLoadAllTableMeta(pSql, pQueryInfo, pSqlNode, (int32_t) numOfTables);
     if (code != TSDB_CODE_SUCCESS) {
       return code;
     }

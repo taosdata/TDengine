@@ -754,6 +754,7 @@ typedef struct STableMetaMsg {
 
 typedef struct SMultiTableMeta {
   int32_t       numOfTables;
+  int32_t       numOfVgroup;
   int32_t       contLen;
   char          meta[];
 } SMultiTableMeta;
