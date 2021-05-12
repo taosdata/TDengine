@@ -22,10 +22,10 @@ public class RestfulResultSet extends AbstractResultSet implements ResultSet {
     private final String database;
     private final Statement statement;
     // data
-    private final ArrayList<ArrayList<Object>> resultSet;
+    private final ArrayList<ArrayList<Object>> resultSet = new ArrayList<>();
     // meta
-    private ArrayList<String> columnNames;
-    private ArrayList<Field> columns;
+    private ArrayList<String> columnNames = new ArrayList<>();
+    private ArrayList<Field> columns = new ArrayList<>();
     private RestfulResultSetMetaData metaData;
 
     /**
@@ -39,22 +39,55 @@ public class RestfulResultSet extends AbstractResultSet implements ResultSet {
 
         // column metadata
         JSONArray columnMeta = resultJson.getJSONArray("column_meta");
-        columnNames = new ArrayList<>();
-        columns = new ArrayList<>();
-        for (int colIndex = 0; colIndex < columnMeta.size(); colIndex++) {
-            JSONArray col = columnMeta.getJSONArray(colIndex);
-            String col_name = col.getString(0);
-            int taos_type = col.getInteger(1);
-            int col_type = TSDBConstants.taosType2JdbcType(taos_type);
-            int col_length = col.getInteger(2);
-            columnNames.add(col_name);
-            columns.add(new Field(col_name, col_type, col_length, "", taos_type));
-        }
-        this.metaData = new RestfulResultSetMetaData(this.database, columns, this);
-
         // row data
         JSONArray data = resultJson.getJSONArray("data");
-        resultSet = new ArrayList<>();
+        if (data == null || data.isEmpty()){
+            columnNames.clear();
+            columns.clear();
+            this.resultSet.clear();
+            return;
+        }
+        // head
+        JSONArray head = resultJson.getJSONArray("head");
+
+        // parse column_meta
+        if (columnMeta != null) {
+            columnNames.clear();
+            columns.clear();
+            for (int colIndex = 0; colIndex < columnMeta.size(); colIndex++) {
+                JSONArray col = columnMeta.getJSONArray(colIndex);
+                String col_name = col.getString(0);
+                int taos_type = col.getInteger(1);
+                int col_type = TSDBConstants.taosType2JdbcType(taos_type);
+                int col_length = col.getInteger(2);
+                columnNames.add(col_name);
+                columns.add(new Field(col_name, col_type, col_length, "", taos_type));
+            }
+        } else {
+            columnNames.clear();
+            columns.clear();
+            for (int colIndex = 0; colIndex < head.size(); colIndex++) {
+                String col_name = head.getString(colIndex);
+                columnNames.add(col_name);
+
+                int col_type = Types.NULL;
+                int col_length = 0;
+                int taos_type = TSDBConstants.TSDB_DATA_TYPE_NULL;
+
+                JSONArray row0Json = data.getJSONArray(0);
+                Object value = row0Json.get(colIndex);
+                if (value instanceof Boolean) {
+                    col_type = Types.BOOLEAN;
+                    col_length = 1;
+                    taos_type = TSDBConstants.TSDB_DATA_TYPE_BOOL;
+                }
+
+                columns.add(new Field(col_name, col_type, col_length, "", taos_type));
+            }
+        }
+        this.metaData = new RestfulResultSetMetaData(this.database, columns, this);
+        // parse row data
+        resultSet.clear();
         for (int rowIndex = 0; rowIndex < data.size(); rowIndex++) {
             ArrayList row = new ArrayList();
             JSONArray jsonRow = data.getJSONArray(rowIndex);
