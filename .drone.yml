@@ -169,7 +169,7 @@ steps:
 ---
 
 kind: pipeline
-name: build_bionic
+name: darwin
 platform:
   os: darwin
   arch: amd64
