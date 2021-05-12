@@ -22,6 +22,7 @@ clean:
 	rm $(ROOT)asyncdemo
 	rm $(ROOT)demo
 	rm $(ROOT)prepare
+	rm $(ROOT)batchprepare
 	rm $(ROOT)stream
 	rm $(ROOT)subscribe
 	rm $(ROOT)apitest
