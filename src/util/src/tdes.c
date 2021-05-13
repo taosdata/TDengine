@@ -155,26 +155,26 @@ void generate_key(unsigned char* key) {
   }
 }
 
-void print_key_set(key_set key_set) {
+void print_key_set(key_set _key_set) {
   int i;
   printf("K: \n");
   for (i = 0; i < 8; i++) {
-    printf("%02X : ", key_set.k[i]);
-    print_char_as_binary(key_set.k[i]);
+    printf("%02X : ", _key_set.k[i]);
+    print_char_as_binary(_key_set.k[i]);
     printf("\n");
   }
   printf("\nC: \n");
 
   for (i = 0; i < 4; i++) {
-    printf("%02X : ", key_set.c[i]);
-    print_char_as_binary(key_set.c[i]);
+    printf("%02X : ", _key_set.c[i]);
+    print_char_as_binary(_key_set.c[i]);
     printf("\n");
   }
   printf("\nD: \n");
 
   for (i = 0; i < 4; i++) {
-    printf("%02X : ", key_set.d[i]);
-    print_char_as_binary(key_set.d[i]);
+    printf("%02X : ", _key_set.d[i]);
+    print_char_as_binary(_key_set.d[i]);
     printf("\n");
   }
   printf("\n");
