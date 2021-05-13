@@ -725,7 +725,6 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
         exit(EXIT_FAILURE);
       }
       tstrncpy(configDir, argv[++i], TSDB_FILENAME_LEN);
-
     } else if (strcmp(argv[i], "-h") == 0) {
       if (argc == i+1) {
         printHelp();
@@ -849,6 +848,11 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
       }
       arguments->num_of_CPR = atoi(argv[++i]);
     } else if (strcmp(argv[i], "-b") == 0) {
+      if (argc == i+1) {
+        printHelp();
+        errorPrint("%s", "\n\t-b need valid string following!\n");
+        exit(EXIT_FAILURE);
+      }
       sptr = arguments->datatype;
       ++i;
       if (strstr(argv[i], ",") == NULL) {
@@ -3406,8 +3410,10 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
               g_args.interlace_rows, g_args.num_of_RPR);
       printf("        interlace rows value will be set to num_of_records_per_req %"PRIu64"\n\n",
               g_args.num_of_RPR);
-      printf("        press Enter key to continue or Ctrl-C to stop.");
-      (void)getchar();
+      if (!g_args.answer_yes) {
+        printf("        press Enter key to continue or Ctrl-C to stop.");
+        (void)getchar();
+      }
       g_args.interlace_rows = g_args.num_of_RPR;
     }
   } else if (!interlaceRows) {
@@ -3926,8 +3932,10 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
                   i, j, g_Dbs.db[i].superTbls[j].interlaceRows, g_args.num_of_RPR);
           printf("        interlace rows value will be set to num_of_records_per_req %"PRIu64"\n\n",
                   g_args.num_of_RPR);
-          printf("        press Enter key to continue or Ctrl-C to stop.");
-          (void)getchar();
+          if (!g_args.answer_yes) {
+            printf("        press Enter key to continue or Ctrl-C to stop.");
+            (void)getchar();
+          }
           g_Dbs.db[i].superTbls[j].interlaceRows = g_args.num_of_RPR;
         }
       } else if (!interlaceRows) {
@@ -6316,7 +6324,9 @@ static int queryTestProcess() {
     (void)getchar();
   }
 
-  printfQuerySystemInfo(taos);
+  if (g_args.debug_print || g_args.verbose_print) {
+    printfQuerySystemInfo(taos);
+  }
 
   if (0 == strncasecmp(g_queryInfo.queryMode, "rest", strlen("rest"))) {
     if (convertHostToServAddr(
