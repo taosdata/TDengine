@@ -12,9 +12,7 @@ import java.util.Properties;
 
 public class TwoTypeTimestampPercisionInRestfulTest {
 
-    //    private static final String host = "127.0.0.1";
-//    private static final String host = "192.168.1.200";
-    private static final String host = "master";
+    private static final String host = "127.0.0.1";
 
     private static final String ms_timestamp_db = "ms_precision_test";
     private static final String us_timestamp_db = "us_precision_test";
