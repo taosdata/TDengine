@@ -637,7 +637,13 @@ static int32_t tscLaunchRealSubqueries(SSqlObj* pSql) {
       int16_t colId = tscGetJoinTagColIdByUid(&pQueryInfo->tagCond, pTableMetaInfo->pTableMeta->id.uid);
 
       // set the tag column id for executor to extract correct tag value
+#ifndef _TD_NINGSI_60      
       pExpr->base.param[0] = (tVariant) {.i64 = colId, .nType = TSDB_DATA_TYPE_BIGINT, .nLen = sizeof(int64_t)};
+#else
+      pExpr->base.param[0].i64 = colId;
+      pExpr->base.param[0].nType = TSDB_DATA_TYPE_BIGINT;
+      pExpr->base.param[0].nLen = sizeof(int64_t);
+#endif
       pExpr->base.numOfParams = 1;
     }
 

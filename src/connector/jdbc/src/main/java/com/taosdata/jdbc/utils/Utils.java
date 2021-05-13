@@ -67,7 +67,7 @@ public class Utils {
         findPlaceholderPosition(preparedSql, placeholderPositions);
         findClauseRangeSet(preparedSql, clause, clauseRangeSet);
 
-        return transformSql(preparedSql, parameters, placeholderPositions, clauseRangeSet);
+        return transformSql(rawSql, parameters, placeholderPositions, clauseRangeSet);
     }
 
     private static void findClauseRangeSet(String preparedSql, String[] regexArr, RangeSet<Integer> clauseRangeSet) {
@@ -95,14 +95,15 @@ public class Utils {
 
     /***
      *
-     * @param preparedSql
+     * @param rawSql
      * @param paramArr
      * @param placeholderPosition
      * @param clauseRangeSet
      * @return
      */
-    private static String transformSql(String preparedSql, Object[] paramArr, Map<Integer, Integer> placeholderPosition, RangeSet<Integer> clauseRangeSet) {
-        String[] sqlArr = preparedSql.split("\\?");
+    private static String transformSql(String rawSql, Object[] paramArr, Map<Integer, Integer> placeholderPosition, RangeSet<Integer> clauseRangeSet) {
+        String[] sqlArr = rawSql.split("\\?");
+
         return IntStream.range(0, sqlArr.length).mapToObj(index -> {
             if (index == paramArr.length)
                 return sqlArr[index];

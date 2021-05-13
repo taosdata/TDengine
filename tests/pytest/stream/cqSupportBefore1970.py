@@ -75,7 +75,7 @@ class TDTestCase:
         self.insertnow()
         self.cq()
         self.querycq()
-        
+
         # after wal and sync, check again
         tdSql.query("show dnodes")
         index = tdSql.getData(0, 0)
