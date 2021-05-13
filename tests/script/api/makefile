@@ -12,6 +12,8 @@ all: $(TARGET)
 
 exe:
 	gcc $(CFLAGS) ./batchprepare.c -o $(ROOT)batchprepare $(LFLAGS)
+	gcc $(CFLAGS) ./stmtBatchTest.c -o $(ROOT)stmtBatchTest $(LFLAGS)
 
 clean:
 	rm $(ROOT)batchprepare
+	rm $(ROOT)stmtBatchTest
