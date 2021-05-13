@@ -588,14 +588,14 @@ void tSetDbName(SStrToken *pCpxName, SStrToken *pDb) {
 
 void tSetColumnInfo(TAOS_FIELD *pField, SStrToken *pName, TAOS_FIELD *pType) {
   int32_t maxLen = sizeof(pField->name) / sizeof(pField->name[0]);
-  
-  // truncate the column name
-  if ((int32_t)pName->n >= maxLen) {
-    pName->n = maxLen - 1;
-  }
 
-  strncpy(pField->name, pName->z, pName->n);
-  pField->name[pName->n] = 0;
+  // column name is too long, set the it to be invalid.
+  if ((int32_t) pName->n >= maxLen) {
+    pName->n = -1;
+  } else {
+    strncpy(pField->name, pName->z, pName->n);
+    pField->name[pName->n] = 0;
+  }
 
   pField->type = pType->type;
   if(!isValidDataType(pField->type)){
