@@ -724,7 +724,7 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
         errorPrint("%s", "\n\t-c need a valid path following!\n");
         exit(EXIT_FAILURE);
       }
-      tstrncpy(configDir, argv[++i], MAX_FILE_NAME_LEN);
+      tstrncpy(configDir, argv[++i], TSDB_FILENAME_LEN);
     } else if (strcmp(argv[i], "-h") == 0) {
       if (argc == i+1) {
         printHelp();
@@ -751,7 +751,7 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
       if (argc == i+1) {
         printHelp();
         errorPrint("%s", "\n\t-P need a valid string following!\n");
-        exit(EXIT_FAILURE);
+    exit(EXIT_FAILURE);
       }
       arguments->password = argv[++i];
     } else if (strcmp(argv[i], "-o") == 0) {
@@ -793,26 +793,16 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
       }
       arguments->insert_interval = atoi(argv[++i]);
     } else if (strcmp(argv[i], "-qt") == 0) {
-<<<<<<< HEAD
       if ((argc == i+1)
               || (!isStringNumber(argv[i+1]))) {
-=======
-      if ((argc == i+1) ||
-        (!isStringNumber(argv[i+1]))) {
->>>>>>> 2533a684f... [TD-3914]<fix>: taosdemo input argument validation.
         printHelp();
         errorPrint("%s", "\n\t-qt need a number following!\n");
         exit(EXIT_FAILURE);
       }
       arguments->query_times = atoi(argv[++i]);
     } else if (strcmp(argv[i], "-B") == 0) {
-<<<<<<< HEAD
       if ((argc == i+1)
               || (!isStringNumber(argv[i+1]))) {
-=======
-      if ((argc == i+1) ||
-        (!isStringNumber(argv[i+1]))) {
->>>>>>> 2533a684f... [TD-3914]<fix>: taosdemo input argument validation.
         printHelp();
         errorPrint("%s", "\n\t-B need a number following!\n");
         exit(EXIT_FAILURE);
