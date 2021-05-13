@@ -5698,7 +5698,7 @@ static void startMultiThreadInsertData(int threads, char* db_name,
   }
 
   uint64_t ntables = 0;
-  uint startFrom;
+  uint64_t startFrom;
 
   if (superTblInfo) {
     int64_t limit;
