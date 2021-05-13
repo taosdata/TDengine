@@ -18,7 +18,6 @@ public class RestfulResultSet extends AbstractResultSet implements ResultSet {
     private volatile boolean isClosed;
     private int pos = -1;
 
-
     private final String database;
     private final Statement statement;
     // data
@@ -37,53 +36,25 @@ public class RestfulResultSet extends AbstractResultSet implements ResultSet {
         this.database = database;
         this.statement = statement;
 
-        // column metadata
+        // get column metadata
         JSONArray columnMeta = resultJson.getJSONArray("column_meta");
-        // row data
+        // get row data
         JSONArray data = resultJson.getJSONArray("data");
-        if (data == null || data.isEmpty()){
+        if (data == null || data.isEmpty()) {
             columnNames.clear();
             columns.clear();
             this.resultSet.clear();
             return;
         }
-        // head
+        // get head
         JSONArray head = resultJson.getJSONArray("head");
-
+        // get rows
+        Integer rows = resultJson.getInteger("rows");
         // parse column_meta
         if (columnMeta != null) {
-            columnNames.clear();
-            columns.clear();
-            for (int colIndex = 0; colIndex < columnMeta.size(); colIndex++) {
-                JSONArray col = columnMeta.getJSONArray(colIndex);
-                String col_name = col.getString(0);
-                int taos_type = col.getInteger(1);
-                int col_type = TSDBConstants.taosType2JdbcType(taos_type);
-                int col_length = col.getInteger(2);
-                columnNames.add(col_name);
-                columns.add(new Field(col_name, col_type, col_length, "", taos_type));
-            }
+            parseColumnMeta_new(columnMeta);
         } else {
-            columnNames.clear();
-            columns.clear();
-            for (int colIndex = 0; colIndex < head.size(); colIndex++) {
-                String col_name = head.getString(colIndex);
-                columnNames.add(col_name);
-
-                int col_type = Types.NULL;
-                int col_length = 0;
-                int taos_type = TSDBConstants.TSDB_DATA_TYPE_NULL;
-
-                JSONArray row0Json = data.getJSONArray(0);
-                Object value = row0Json.get(colIndex);
-                if (value instanceof Boolean) {
-                    col_type = Types.BOOLEAN;
-                    col_length = 1;
-                    taos_type = TSDBConstants.TSDB_DATA_TYPE_BOOL;
-                }
-
-                columns.add(new Field(col_name, col_type, col_length, "", taos_type));
-            }
+            parseColumnMeta_old(head, data, rows);
         }
         this.metaData = new RestfulResultSetMetaData(this.database, columns, this);
         // parse row data
@@ -91,15 +62,78 @@ public class RestfulResultSet extends AbstractResultSet implements ResultSet {
         for (int rowIndex = 0; rowIndex < data.size(); rowIndex++) {
             ArrayList row = new ArrayList();
             JSONArray jsonRow = data.getJSONArray(rowIndex);
-            for (int colIndex = 0; colIndex < jsonRow.size(); colIndex++) {
+            for (int colIndex = 0; colIndex < this.metaData.getColumnCount(); colIndex++) {
                 row.add(parseColumnData(jsonRow, colIndex, columns.get(colIndex).taos_type));
             }
             resultSet.add(row);
         }
     }
 
+    /***
+     * use this method after TDengine-2.0.18.0 to parse column meta, restful add column_meta in resultSet
+     * @Param columnMeta
+     */
+    private void parseColumnMeta_new(JSONArray columnMeta) throws SQLException {
+        columnNames.clear();
+        columns.clear();
+        for (int colIndex = 0; colIndex < columnMeta.size(); colIndex++) {
+            JSONArray col = columnMeta.getJSONArray(colIndex);
+            String col_name = col.getString(0);
+            int taos_type = col.getInteger(1);
+            int col_type = TSDBConstants.taosType2JdbcType(taos_type);
+            int col_length = col.getInteger(2);
+            columnNames.add(col_name);
+            columns.add(new Field(col_name, col_type, col_length, "", taos_type));
+        }
+    }
+
+    /**
+     * use this method before TDengine-2.0.18.0 to parse column meta
+     */
+    private void parseColumnMeta_old(JSONArray head, JSONArray data, int rows) {
+        columnNames.clear();
+        columns.clear();
+        for (int colIndex = 0; colIndex < head.size(); colIndex++) {
+            String col_name = head.getString(colIndex);
+            columnNames.add(col_name);
+
+            int col_type = Types.NULL;
+            int col_length = 0;
+            int taos_type = TSDBConstants.TSDB_DATA_TYPE_NULL;
+
+            JSONArray row0Json = data.getJSONArray(0);
+            if (colIndex < row0Json.size()) {
+                Object value = row0Json.get(colIndex);
+                if (value instanceof Boolean) {
+                    col_type = Types.BOOLEAN;
+                    col_length = 1;
+                    taos_type = TSDBConstants.TSDB_DATA_TYPE_BOOL;
+                }
+                if (value instanceof Byte || value instanceof Short || value instanceof Integer || value instanceof Long){
+                    col_type = Types.BIGINT;
+                    col_length = 8;
+                    taos_type = TSDBConstants.TSDB_DATA_TYPE_BIGINT;
+                }
+                if (value instanceof Float || value instanceof Double){
+                    col_type = Types.DOUBLE;
+                    col_length = 8;
+                    taos_type = TSDBConstants.TSDB_DATA_TYPE_DOUBLE;
+                }
+                if (value instanceof String){
+                    col_type = Types.NCHAR;
+                    col_length = ((String) value).length();
+                    taos_type = TSDBConstants.TSDB_DATA_TYPE_NCHAR;
+                }
+            }
+            columns.add(new Field(col_name, col_type, col_length, "", taos_type));
+        }
+    }
+
+
     private Object parseColumnData(JSONArray row, int colIndex, int taosType) throws SQLException {
         switch (taosType) {
+            case TSDBConstants.TSDB_DATA_TYPE_NULL:
+                return null;
             case TSDBConstants.TSDB_DATA_TYPE_BOOL:
                 return row.getBoolean(colIndex);
             case TSDBConstants.TSDB_DATA_TYPE_TINYINT:
