@@ -9,6 +9,7 @@ import java.sql.Date;
 import java.sql.Time;
 import java.sql.Timestamp;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeFormatterBuilder;
@@ -39,7 +40,7 @@ public class Utils {
         return Time.valueOf(time);
     }
 
-    public static Date parseDate(String timestampStr) {
+    public static Date parseDate(String timestampStr) throws DateTimeParseException {
         LocalDate date;
         try {
             date = LocalDate.parse(timestampStr, formatter);
@@ -47,6 +48,16 @@ public class Utils {
             date = LocalDate.parse(timestampStr, formatter2);
         }
         return Date.valueOf(date);
+    }
+
+    public static Timestamp parseTimestamp(String timeStampStr) {
+        LocalDateTime dateTime;
+        try {
+            dateTime = LocalDateTime.parse(timeStampStr, formatter);
+        } catch (DateTimeParseException e) {
+            dateTime = LocalDateTime.parse(timeStampStr, formatter2);
+        }
+        return Timestamp.valueOf(dateTime);
     }
 
     public static String escapeSingleQuota(String origin) {
@@ -171,4 +182,6 @@ public class Utils {
             return timestamp.toLocalDateTime().format(formatter2);
         return timestamp.toLocalDateTime().format(formatter);
     }
+
+
 }

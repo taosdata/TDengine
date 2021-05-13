@@ -448,14 +448,20 @@ public class RestfulResultSet extends AbstractResultSet implements ResultSet {
             return null;
         if (value instanceof Timestamp)
             return (Timestamp) value;
-//        if (value instanceof Long) {
-//            if (1_0000_0000_0000_0L > (long) value)
-//                return Timestamp.from(Instant.ofEpochMilli((long) value));
-//            long epochSec = (long) value / 1000_000L;
-//            long nanoAdjustment = (long) ((long) value % 1000_000L * 1000);
-//            return Timestamp.from(Instant.ofEpochSecond(epochSec, nanoAdjustment));
-//        }
-        return Timestamp.valueOf(value.toString());
+        if (value instanceof Long) {
+            if (1_0000_0000_0000_0L > (long) value)
+                return Timestamp.from(Instant.ofEpochMilli((long) value));
+            long epochSec = (long) value / 1000_000L;
+            long nanoAdjustment = (long) value % 1000_000L * 1000;
+            return Timestamp.from(Instant.ofEpochSecond(epochSec, nanoAdjustment));
+        }
+        Timestamp ret;
+        try {
+            ret = Utils.parseTimestamp(value.toString());
+        } catch (Exception e) {
+            ret = null;
+        }
+        return ret;
     }
 
     @Override
@@ -497,8 +503,13 @@ public class RestfulResultSet extends AbstractResultSet implements ResultSet {
             return new BigDecimal(Double.valueOf(value.toString()));
         if (value instanceof Timestamp)
             return new BigDecimal(((Timestamp) value).getTime());
-
-        return new BigDecimal(value.toString());
+        BigDecimal ret;
+        try {
+            ret = new BigDecimal(value.toString());
+        } catch (Exception e) {
+            ret = null;
+        }
+        return ret;
     }
 
     @Override
