@@ -37,7 +37,7 @@ public class TD4174Test {
 
     @Before
     public void before() throws SQLException {
-        String url = "jdbc:TAOS://" + host + ":6030/test";
+        String url = "jdbc:TAOS://" + host + ":6030/?user=root&password=taosdata";
         Properties properties = new Properties();
         properties.setProperty(TSDBDriver.PROPERTY_KEY_CHARSET, "UTF-8");
         properties.setProperty(TSDBDriver.PROPERTY_KEY_LOCALE, "en_US.UTF-8");
