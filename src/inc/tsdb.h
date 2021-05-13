@@ -73,8 +73,8 @@ typedef struct {
 } STsdbCfg;
 
 #define CACHE_NO_LAST(c)          ((c)->cacheLastRow == 0)
-#define CACHE_LAST_ROW(c)         (((c)->cacheLastRow & 1) > 0)
-#define CACHE_LAST_NULL_COLUMN(c) (((c)->cacheLastRow & 2) > 0)
+#define CACHE_LAST_ROW(c)         ((c)->cacheLastRow == 1)
+#define CACHE_LAST_NULL_COLUMN(c) ((c)->cacheLastRow == 2)
 
 // --------- TSDB REPOSITORY USAGE STATISTICS
 typedef struct {
