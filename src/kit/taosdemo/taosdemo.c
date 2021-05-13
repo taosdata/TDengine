@@ -120,14 +120,14 @@ enum MODE {
   MODE_BUT
 };
 
-enum INTERFACE {
+enum enum_TAOS_INTERFACE {
     TAOSC_IFACE,
     REST_IFACE,
     STMT_IFACE,
     INTERFACE_BUT
 };
 
-typedef enum enum_INSERT_MODE {
+typedef enum enum_PROGRESSIVE_OR_INTERLACE {
     PROGRESSIVE_INSERT_MODE,
     INTERLACE_INSERT_MODE,
     INVALID_INSERT_MODE
@@ -1964,7 +1964,7 @@ static void printfDbInfoForQueryToFile(
   fprintf(fp, "================ database[%d] ================\n", index);
   fprintf(fp, "name: %s\n", dbInfos->name);
   fprintf(fp, "created_time: %s\n", dbInfos->create_time);
-  fprintf(fp, "ntables: %d\n", dbInfos->ntables);
+  fprintf(fp, "ntables: %"PRIu64"\n", dbInfos->ntables);
   fprintf(fp, "vgroups: %d\n", dbInfos->vgroups);
   fprintf(fp, "replica: %d\n", dbInfos->replica);
   fprintf(fp, "quorum: %d\n", dbInfos->quorum);
