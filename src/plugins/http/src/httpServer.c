@@ -269,7 +269,11 @@ static void *httpAcceptHttpConnection(void *arg) {
     sprintf(pContext->ipstr, "%s:%u", taosInetNtoa(clientAddr.sin_addr), htons(clientAddr.sin_port));
 
     struct epoll_event event;
+#ifndef _TD_NINGSI_60    
     event.events = EPOLLIN | EPOLLPRI | EPOLLWAKEUP | EPOLLERR | EPOLLHUP | EPOLLRDHUP;
+#else
+    event.events = EPOLLIN | EPOLLPRI | EPOLLERR | EPOLLHUP | EPOLLRDHUP;
+#endif    
     event.data.ptr = pContext;
     if (epoll_ctl(pThread->pollFd, EPOLL_CTL_ADD, connFd, &event) < 0) {
       httpError("context:%p, fd:%d, ip:%s, thread:%s, failed to add http fd for epoll, error:%s", pContext, connFd,
