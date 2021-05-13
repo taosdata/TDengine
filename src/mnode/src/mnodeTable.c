@@ -1724,16 +1724,19 @@ static int32_t calculateVgroupMsgLength(SSTableVgroupMsg* pInfo, int32_t numOfTa
   return contLen;
 }
 
-static char* serializeVgroupInfo(SSTableObj *pTable, char* msg,  SMnodeMsg* pMsgBody, void* handle) {
-  *(uint64_t*)msg = htobe64(pTable->uid);
-  msg += sizeof(sizeof(pTable->uid));
+static char* serializeVgroupInfo(SSTableObj *pTable, char* name, char* msg, SMnodeMsg* pMsgBody, void* handle) {
+  SName sn = {0};
+  tNameFromString(&sn, name, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
+  const char* tableName = tNameGetTableName(&sn);
+
+  strncpy(msg, tableName, TSDB_TABLE_NAME_LEN);
+  msg += TSDB_TABLE_NAME_LEN;
 
   if (pTable->vgHash == NULL) {
-    mDebug("msg:%p, app:%p stable:%s, no vgroup exist while get stable vgroup info", pMsgBody, handle, stableName);
+    mDebug("msg:%p, app:%p stable:%s, no vgroup exist while get stable vgroup info", pMsgBody, handle, name);
     mnodeDecTableRef(pTable);
 
     // even this super table has no corresponding table, still return
-    int64_t uid = htobe64(pTable->uid);
     SVgroupsMsg *pVgroupMsg = (SVgroupsMsg *)msg;
     pVgroupMsg->numOfVgroups = 0;
 
@@ -1805,59 +1808,8 @@ static int32_t mnodeProcessSuperTableVgroupMsg(SMnodeMsg *pMsg) {
       continue;
     }
 
-    msg = serializeVgroupInfo(pTable, msg, pMsg, pMsg->rpcMsg.ahandle);
+    msg = serializeVgroupInfo(pTable, stableName, msg, pMsg, pMsg->rpcMsg.ahandle);
     pRsp->numOfTables++;
-
-//    if (pTable->vgHash == NULL) {
-//      mDebug("msg:%p, app:%p stable:%s, no vgroup exist while get stable vgroup info", pMsg, pMsg->rpcMsg.ahandle,
-//             stableName);
-//      mnodeDecTableRef(pTable);
-//
-//      // even this super table has no corresponding table, still return
-//      pRsp->numOfTables++;
-//
-//      SVgroupsMsg *pVgroupMsg = (SVgroupsMsg *)msg;
-//      pVgroupMsg->numOfVgroups = 0;
-//
-//      msg += sizeof(SVgroupsMsg);
-//    } else {
-//      SVgroupsMsg *pVgroupMsg = (SVgroupsMsg *)msg;
-//      mDebug("msg:%p, app:%p stable:%s, hash:%p sizeOfVgList:%d will be returned", pMsg, pMsg->rpcMsg.ahandle,
-//             pTable->info.tableId, pTable->vgHash, taosHashGetSize(pTable->vgHash));
-//
-//      int32_t *pVgId = taosHashIterate(pTable->vgHash, NULL);
-//      int32_t  vgSize = 0;
-//      while (pVgId) {
-//        SVgObj *pVgroup = mnodeGetVgroup(*pVgId);
-//        pVgId = taosHashIterate(pTable->vgHash, pVgId);
-//        if (pVgroup == NULL) continue;
-//
-//        pVgroupMsg->vgroups[vgSize].vgId = htonl(pVgroup->vgId);
-//        pVgroupMsg->vgroups[vgSize].numOfEps = 0;
-//
-//        for (int32_t vn = 0; vn < pVgroup->numOfVnodes; ++vn) {
-//          SDnodeObj *pDnode = pVgroup->vnodeGid[vn].pDnode;
-//          if (pDnode == NULL) break;
-//
-//          tstrncpy(pVgroupMsg->vgroups[vgSize].epAddr[vn].fqdn, pDnode->dnodeFqdn, TSDB_FQDN_LEN);
-//          pVgroupMsg->vgroups[vgSize].epAddr[vn].port = htons(pDnode->dnodePort);
-//
-//          pVgroupMsg->vgroups[vgSize].numOfEps++;
-//        }
-//
-//        vgSize++;
-//        mnodeDecVgroupRef(pVgroup);
-//      }
-//
-//      taosHashCancelIterate(pTable->vgHash, pVgId);
-//      mnodeDecTableRef(pTable);
-//
-//      pVgroupMsg->numOfVgroups = htonl(vgSize);
-//
-//      // one table is done, try the next table
-//      msg += sizeof(SVgroupsMsg) + vgSize * sizeof(SVgroupMsg);
-//      pRsp->numOfTables++;
-//    }
   }
 
   if (pRsp->numOfTables != numOfTable) {
@@ -2887,8 +2839,9 @@ static void mnodeProcessAlterTableRsp(SRpcMsg *rpcMsg) {
 
 static int32_t mnodeProcessMultiTableMetaMsg(SMnodeMsg *pMsg) {
   SMultiTableInfoMsg *pInfo = pMsg->rpcMsg.pCont;
-  pInfo->numOfTables = htonl(pInfo->numOfTables);
-  pInfo->loadVgroup = htonl(pInfo->loadVgroup);
+
+  pInfo->numOfTables  = htonl(pInfo->numOfTables);
+  pInfo->numOfVgroups = htonl(pInfo->numOfVgroups);
 
   // first malloc 80KB, subsequent reallocation will expand the size as twice of the original size
   int32_t totalMallocLen = sizeof(STableMetaMsg) + sizeof(SSchema) * (TSDB_MAX_TAGS + TSDB_MAX_COLUMNS + 16);
@@ -2925,8 +2878,8 @@ static int32_t mnodeProcessMultiTableMetaMsg(SMnodeMsg *pMsg) {
       return TSDB_CODE_APP_NOT_READY;
     }
 
-    int availLen = totalMallocLen - pMultiMeta->contLen;
-    if (availLen <= sizeof(STableMetaMsg) + sizeof(SSchema) * (TSDB_MAX_TAGS + TSDB_MAX_COLUMNS + 16)) {
+    int remain = totalMallocLen - pMultiMeta->contLen;
+    if (remain <= sizeof(STableMetaMsg) + sizeof(SSchema) * (TSDB_MAX_TAGS + TSDB_MAX_COLUMNS + 16)) {
       totalMallocLen *= 2;
       pMultiMeta = rpcReallocCont(pMultiMeta, totalMallocLen);
       if (pMultiMeta == NULL) {
@@ -2942,7 +2895,9 @@ static int32_t mnodeProcessMultiTableMetaMsg(SMnodeMsg *pMsg) {
       code = mnodeDoGetChildTableMeta(pMsg, pMeta);
     } else {
       code = mnodeDoGetSuperTableMeta(pMsg, pMeta);
-      taosArrayPush(pList, fullName);   // keep the super table full name
+
+      // keep the full name for each super table for retrieve vgroup list
+      taosArrayPush(pList, &fullName);
     }
 
     if (code == TSDB_CODE_SUCCESS) {
@@ -2955,16 +2910,26 @@ static int32_t mnodeProcessMultiTableMetaMsg(SMnodeMsg *pMsg) {
 
   char* msg = (char*) pMultiMeta + pMultiMeta->contLen;
 
-  for(int32_t i = 0; i < taosArrayGetSize(pList); ++i) {
-    char* name = taosArrayGet(pList, i);
+  // add the additional super table names that needs the vgroup info
+  for(int32_t i = 0; i < pInfo->numOfVgroups; ++i) {
+    char *fullName = (char *)(pInfo->tableNames + (i + pInfo->numOfTables) * TSDB_TABLE_FNAME_LEN);
+    taosArrayPush(pList, fullName);
+  }
+
+  // add the pVgroupList into the pList
+  int32_t numOfStable = (int32_t) taosArrayGetSize(pList);
+  pMultiMeta->numOfVgroup = htonl(numOfStable);
+
+  for(int32_t i = 0; i < numOfStable; ++i) {
+    char* name = taosArrayGetP(pList, i);
     SSTableObj *pTable = mnodeGetSuperTable(name);
     if (pTable == NULL) {
-      mError("msg:%p, app:%p stable:%s, not exist while get stable vgroup info", pMsg, pMsg->rpcMsg.ahandle, stableName);
+      mError("msg:%p, app:%p stable:%s, not exist while get stable vgroup info", pMsg, pMsg->rpcMsg.ahandle, name);
       mnodeDecTableRef(pTable);
       continue;
     }
 
-    msg = serializeVgroupInfo(pTable, msg, pMsg, pMsg->rpcMsg.ahandle);
+    msg = serializeVgroupInfo(pTable, name, msg, pMsg, pMsg->rpcMsg.ahandle);
   }
 
   pMultiMeta->contLen = (msg - (char*) pMultiMeta);

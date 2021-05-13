@@ -5607,10 +5607,8 @@ int32_t validateLimitNode(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SSqlNode* pSqlN
      * And then launching multiple async-queries against all qualified virtual nodes, during the first-stage
      * query operation.
      */
-    int32_t code = tscGetSTableVgroupInfo(pSql, pQueryInfo);
-    if (code != TSDB_CODE_SUCCESS) {
-      return code;
-    }
+//    assert(allVgroupInfoRetrieved(pQueryInfo));
+
 
     // No tables included. No results generated. Query results are empty.
     if (pTableMetaInfo->vgroupList->numOfVgroups == 0) {
@@ -7172,6 +7170,8 @@ int32_t loadAllTableMeta(SSqlObj* pSql, struct SSqlInfo* pInfo) {
   STableMeta* pTableMeta = calloc(1, maxSize);
 
   SArray* plist = taosArrayInit(4, POINTER_BYTES);
+  SArray* pVgroupList = taosArrayInit(4, POINTER_BYTES);
+
   for(int32_t i = 0; i < numOfTables; ++i) {
     SName* pname = taosArrayGet(tableNameList, i);
     tNameExtractFullName(pname, name);
@@ -7183,14 +7183,19 @@ int32_t loadAllTableMeta(SSqlObj* pSql, struct SSqlInfo* pInfo) {
     if (pTableMeta->id.uid > 0) {
       if (pTableMeta->tableType == TSDB_CHILD_TABLE) {
         int32_t code = tscCreateTableMetaFromCChildMeta(pTableMeta, name);
-        if (code != TSDB_CODE_SUCCESS) {
-          // add to retrieve list
+        if (code != TSDB_CODE_SUCCESS) { // add to retrieve list
           continue;
         }
+      } else if (pTableMeta->tableType == TSDB_SUPER_TABLE) {
+        // the vgroup list of a super table is not kept in local buffer, so here need retrieve it
+        // from the mnode each time
+        char* t = strdup(name);
+        taosArrayPush(pVgroupList, &t);
       }
 
       STableMeta* pMeta = tscTableMetaDup(pTableMeta);
-      taosHashPut(pCmd->pTableMetaMap, name, strlen(name), &pMeta, POINTER_BYTES);
+      STableMetaVgroupInfo p = {.pTableMeta = pMeta,};
+      taosHashPut(pCmd->pTableMetaMap, name, strlen(name), &p, sizeof(STableMetaVgroupInfo));
     } else {// add to the retrieve table meta array list.
       char* t = strdup(name);
       taosArrayPush(plist, &t);
@@ -7199,7 +7204,7 @@ int32_t loadAllTableMeta(SSqlObj* pSql, struct SSqlInfo* pInfo) {
 
   // load the table meta for a given table name list
   if (taosArrayGetSize(plist) > 0) {
-    int32_t code = getMultiTableMetaFromMnode(pSql, plist, true);
+    int32_t code = getMultiTableMetaFromMnode(pSql, plist, pVgroupList);
     taosArrayDestroyEx(plist, freeElem);
 
     return code;
@@ -7256,7 +7261,11 @@ static int32_t doLoadAllTableMeta(SSqlObj* pSql, SQueryInfo* pQueryInfo, SSqlNod
     }
 
     const char* name = tNameGetTableName(&pTableMetaInfo->name);
-    pTableMetaInfo->pTableMeta = taosHashGet(pCmd->pTableMetaMap, name, strlen(name));
+    STableMetaVgroupInfo* p = taosHashGet(pCmd->pTableMetaMap, name, strlen(name));
+
+    pTableMetaInfo->pTableMeta = p->pTableMeta;
+    pTableMetaInfo->vgroupList = p->pVgroupInfo;
+
     assert(pTableMetaInfo->pTableMeta != NULL);
 
     if (code != TSDB_CODE_SUCCESS) {
@@ -7394,16 +7403,9 @@ int32_t validateSqlNode(SSqlObj* pSql, SSqlNode* pSqlNode, SQueryInfo* pQueryInf
     }
 
     bool isSTable = UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo);
-    if (isSTable) {
-      code = tscGetSTableVgroupInfo(pSql, pQueryInfo);  // TODO refactor: getTablemeta along with vgroupInfo
-      if (code != TSDB_CODE_SUCCESS) {
-        return code;
-      }
 
-      TSDB_QUERY_SET_TYPE(pQueryInfo->type, TSDB_QUERY_TYPE_STABLE_QUERY);
-    } else {
-      TSDB_QUERY_SET_TYPE(pQueryInfo->type, TSDB_QUERY_TYPE_TABLE_QUERY);
-    }
+    int32_t type = isSTable? TSDB_QUERY_TYPE_STABLE_QUERY:TSDB_QUERY_TYPE_TABLE_QUERY;
+    TSDB_QUERY_SET_TYPE(pQueryInfo->type, type);
 
     // parse the group by clause in the first place
     if (validateGroupbyNode(pQueryInfo, pSqlNode->pGroupby, pCmd) != TSDB_CODE_SUCCESS) {
@@ -7527,7 +7529,7 @@ int32_t validateSqlNode(SSqlObj* pSql, SSqlNode* pSqlNode, SQueryInfo* pQueryInf
       pQueryInfo->exprList1 = taosArrayInit(4, POINTER_BYTES);
     }
 
-    taosArrayPushBatch(pQueryInfo->exprList1, (void*) p, numOfExpr);
+    taosArrayAddBatch(pQueryInfo->exprList1, (void*) p, numOfExpr);
   }
 
 #if 0

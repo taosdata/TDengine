@@ -1829,7 +1829,7 @@ static int32_t tableMetaMsgConvert(STableMetaMsg* pMetaMsg) {
   pMetaMsg->vgroup.vgId = htonl(pMetaMsg->vgroup.vgId);
 
   pMetaMsg->uid = htobe64(pMetaMsg->uid);
-  pMetaMsg->contLen = htons(pMetaMsg->contLen);
+//  pMetaMsg->contLen = htonl(pMetaMsg->contLen);
   pMetaMsg->numOfColumns = htons(pMetaMsg->numOfColumns);
 
   if ((pMetaMsg->tableType != TSDB_SUPER_TABLE) &&
@@ -1941,16 +1941,61 @@ int tscProcessTableMetaRsp(SSqlObj *pSql) {
   return TSDB_CODE_SUCCESS;
 }
 
-/*
- *  multi table meta rsp pkg format:
- *  | SMultiTableInfoMsg | SMeterMeta0 | SSchema0 | SMeterMeta1 | SSchema1 | SMeterMeta2 | SSchema2
- *  | 4B
- */
+static SVgroupsInfo* createVgroupInfoFromMsg(char* pMsg, int32_t* size, uint64_t id) {
+  SVgroupsMsg *pVgroupMsg = (SVgroupsMsg *) pMsg;
+  pVgroupMsg->numOfVgroups = htonl(pVgroupMsg->numOfVgroups);
+
+  *size = (int32_t) (sizeof(SVgroupMsg) * pVgroupMsg->numOfVgroups + sizeof(SVgroupsMsg));
+
+  size_t vgroupsz = sizeof(SVgroupInfo) * pVgroupMsg->numOfVgroups + sizeof(SVgroupsInfo);
+  SVgroupsInfo* pVgroupInfo = calloc(1, vgroupsz);
+  assert(pVgroupInfo != NULL);
+
+  pVgroupInfo->numOfVgroups = pVgroupMsg->numOfVgroups;
+  if (pVgroupInfo->numOfVgroups <= 0) {
+    tscDebug("0x%"PRIx64" empty vgroup info, no corresponding tables for stable", id);
+  } else {
+    for (int32_t j = 0; j < pVgroupInfo->numOfVgroups; ++j) {
+      // just init, no need to lock
+      SVgroupInfo *pVgroup = &pVgroupInfo->vgroups[j];
+
+      SVgroupMsg *vmsg = &pVgroupMsg->vgroups[j];
+      vmsg->vgId     = htonl(vmsg->vgId);
+      vmsg->numOfEps = vmsg->numOfEps;
+      for (int32_t k = 0; k < vmsg->numOfEps; ++k) {
+        vmsg->epAddr[k].port = htons(vmsg->epAddr[k].port);
+      }
+
+      SNewVgroupInfo newVi = createNewVgroupInfo(vmsg);
+      pVgroup->numOfEps = newVi.numOfEps;
+      pVgroup->vgId = newVi.vgId;
+      for (int32_t k = 0; k < vmsg->numOfEps; ++k) {
+        pVgroup->epAddr[k].port = newVi.ep[k].port;
+        pVgroup->epAddr[k].fqdn = strndup(newVi.ep[k].fqdn, TSDB_FQDN_LEN);
+      }
+
+      // check if current buffer contains the vgroup info.
+      // If not, add it
+      SNewVgroupInfo existVgroupInfo = {.inUse = -1};
+      taosHashGetClone(tscVgroupMap, &newVi.vgId, sizeof(newVi.vgId), NULL, &existVgroupInfo, sizeof(SNewVgroupInfo));
+
+      if (((existVgroupInfo.inUse >= 0) && !vgroupInfoIdentical(&existVgroupInfo, vmsg)) ||
+          (existVgroupInfo.inUse < 0)) {  // vgroup info exists, compare with it
+        taosHashPut(tscVgroupMap, &newVi.vgId, sizeof(newVi.vgId), &newVi, sizeof(newVi));
+        tscDebug("0x%"PRIx64" add new VgroupInfo, vgId:%d, total cached:%d", id, newVi.vgId, (int32_t) taosHashGetSize(tscVgroupMap));
+      }
+    }
+  }
+
+  return pVgroupInfo;
+}
+
 int tscProcessMultiTableMetaRsp(SSqlObj *pSql) {
   char *rsp = pSql->res.pRsp;
 
   SMultiTableMeta *pMultiMeta = (SMultiTableMeta *)rsp;
   pMultiMeta->numOfTables = htonl(pMultiMeta->numOfTables);
+  pMultiMeta->numOfVgroup = htonl(pMultiMeta->numOfVgroup);
 
   rsp += sizeof(SMultiTableMeta);
 
@@ -1959,8 +2004,9 @@ int tscProcessMultiTableMetaRsp(SSqlObj *pSql) {
 
   SHashObj *pSet = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
 
+  char* pMsg = pMultiMeta->meta;
   for (int32_t i = 0; i < pMultiMeta->numOfTables; i++) {
-    STableMetaMsg *pMetaMsg = (STableMetaMsg *)pMultiMeta->meta;
+    STableMetaMsg *pMetaMsg = (STableMetaMsg *)pMsg;
     int32_t code = tableMetaMsgConvert(pMetaMsg);
     if (code != TSDB_CODE_SUCCESS) {
       return code;
@@ -1972,13 +2018,14 @@ int tscProcessMultiTableMetaRsp(SSqlObj *pSql) {
       return TSDB_CODE_TSC_INVALID_VALUE;
     }
 
-    int32_t t = tscGetTableMetaSize(pTableMeta);
-
     SName sn = {0};
     tNameFromString(&sn, pMetaMsg->tableFname, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
+
     const char* tableName = tNameGetTableName(&sn);
     int32_t keyLen = strlen(tableName);
-    taosHashPut(pParentCmd->pTableMetaMap, tableName, keyLen, pTableMeta, t);
+
+    STableMetaVgroupInfo p = {.pTableMeta = pTableMeta,};
+    taosHashPut(pParentCmd->pTableMetaMap, tableName, keyLen, &p, sizeof(STableMetaVgroupInfo));
 
     bool addToBuf = false;
     if (taosHashGet(pSet, &pMetaMsg->uid, sizeof(pMetaMsg->uid)) == NULL) {
@@ -1991,10 +2038,26 @@ int tscProcessMultiTableMetaRsp(SSqlObj *pSql) {
 
     // if the vgroup is not updated in current process, update it.
     int64_t vgId = pMetaMsg->vgroup.vgId;
-    if (taosHashGet(pSet, &vgId, sizeof(vgId)) == NULL) {
+    if (pTableMeta->tableType != TSDB_SUPER_TABLE && taosHashGet(pSet, &vgId, sizeof(vgId)) == NULL) {
       doUpdateVgroupInfo(pTableMeta, &pMetaMsg->vgroup);
       taosHashPut(pSet, &vgId, sizeof(vgId), "", 0);
     }
+
+    pMsg += pMetaMsg->contLen;
+  }
+
+  if (pMultiMeta->numOfVgroup > 0) {
+    char* name = pMsg;
+    pMsg += TSDB_TABLE_NAME_LEN;
+
+    STableMetaVgroupInfo* p = taosHashGet(pParentCmd->pTableMetaMap, name, strnlen(name, TSDB_TABLE_NAME_LEN));
+    assert(p != NULL);
+
+    int32_t size = 0;
+    SVgroupsInfo* pVgroupInfo = createVgroupInfoFromMsg(pMsg, &size, pSql->self);
+
+    p->pVgroupInfo = pVgroupInfo;
+    pMsg += size;
   }
 
   pSql->res.code = TSDB_CODE_SUCCESS;
@@ -2024,12 +2087,12 @@ int tscProcessSTableVgroupRsp(SSqlObj *pSql) {
   for(int32_t i = 0; i < pStableVgroup->numOfTables; ++i) {
     STableMetaInfo *pInfo = tscGetTableMetaInfoFromCmd(pCmd, pCmd->clauseIndex, i);
 
-    SVgroupsMsg *  pVgroupMsg = (SVgroupsMsg *) pMsg;
+    SVgroupsMsg *pVgroupMsg = (SVgroupsMsg *) pMsg;
     pVgroupMsg->numOfVgroups = htonl(pVgroupMsg->numOfVgroups);
 
-    size_t size = sizeof(SVgroupMsg) * pVgroupMsg->numOfVgroups + sizeof(SVgroupsMsg);
-
-    size_t vgroupsz = sizeof(SVgroupInfo) * pVgroupMsg->numOfVgroups + sizeof(SVgroupsInfo);
+    int32_t size = 0;
+    pInfo->vgroupList = createVgroupInfoFromMsg(pMsg, &size, pSql->self);
+ /*   size_t vgroupsz = sizeof(SVgroupInfo) * pVgroupMsg->numOfVgroups + sizeof(SVgroupsInfo);
     pInfo->vgroupList = calloc(1, vgroupsz);
     assert(pInfo->vgroupList != NULL);
 
@@ -2068,7 +2131,7 @@ int tscProcessSTableVgroupRsp(SSqlObj *pSql) {
         }
       }
     }
-
+*/
     pMsg += size;
   }
 
@@ -2403,7 +2466,7 @@ static int32_t getTableMetaFromMnode(SSqlObj *pSql, STableMetaInfo *pTableMetaIn
   return code;
 }
 
-int32_t getMultiTableMetaFromMnode(SSqlObj *pSql, SArray* pNameList, bool loadVgroupInfo) {
+int32_t getMultiTableMetaFromMnode(SSqlObj *pSql, SArray* pNameList, SArray* pVgroupNameList) {
   SSqlObj *pNew = calloc(1, sizeof(SSqlObj));
   if (NULL == pNew) {
     tscError("0x%"PRIx64" failed to allocate sqlobj to get multiple table meta", pSql->self);
@@ -2414,8 +2477,10 @@ int32_t getMultiTableMetaFromMnode(SSqlObj *pSql, SArray* pNameList, bool loadVg
   pNew->signature   = pNew;
   pNew->cmd.command = TSDB_SQL_MULTI_META;
 
-  int32_t numOfTables = taosArrayGetSize(pNameList);
-  int32_t size = numOfTables * TSDB_TABLE_FNAME_LEN + sizeof(SMultiTableInfoMsg);
+  int32_t numOfTable      = (int32_t) taosArrayGetSize(pNameList);
+  int32_t numOfVgroupList = (int32_t) taosArrayGetSize(pVgroupNameList);
+
+  int32_t size = (numOfTable + numOfVgroupList) * TSDB_TABLE_FNAME_LEN + sizeof(SMultiTableInfoMsg);
   if (TSDB_CODE_SUCCESS != tscAllocPayload(&pNew->cmd, size)) {
     tscError("0x%"PRIx64" malloc failed for payload to get table meta", pSql->self);
     tscFreeSqlObj(pNew);
@@ -2423,15 +2488,26 @@ int32_t getMultiTableMetaFromMnode(SSqlObj *pSql, SArray* pNameList, bool loadVg
   }
 
   SMultiTableInfoMsg* pInfo = (SMultiTableInfoMsg*) pNew->cmd.payload;
-  pInfo->loadVgroup = htonl(loadVgroupInfo? 1:0);
-  pInfo->numOfTables = htonl(numOfTables);
+  pInfo->numOfTables  = htonl((uint32_t) taosArrayGetSize(pNameList));
+  pInfo->numOfVgroups = htonl((uint32_t) taosArrayGetSize(pVgroupNameList));
 
   char* start = pInfo->tableNames;
   int32_t len = 0;
-  for(int32_t i = 0; i < numOfTables; ++i) {
+  for(int32_t i = 0; i < numOfTable; ++i) {
     char* name = taosArrayGetP(pNameList, i);
-    if (i < numOfTables - 1) {
+    if (i < numOfTable - 1 || numOfVgroupList > 0) {
       len = sprintf(start, "%s,", name);
+    } else {
+      len = sprintf(start, "%s", name);
+    }
+
+    start += len;
+  }
+
+  for(int32_t i = 0; i < numOfVgroupList; ++i) {
+    char* name = taosArrayGetP(pVgroupNameList, i);
+    if (i < numOfVgroupList - 1) {
+      len = sprintf(start, "%s, ", name);
     } else {
       len = sprintf(start, "%s", name);
     }
@@ -2443,8 +2519,8 @@ int32_t getMultiTableMetaFromMnode(SSqlObj *pSql, SArray* pNameList, bool loadVg
   pNew->cmd.msgType = TSDB_MSG_TYPE_CM_TABLES_META;
 
   registerSqlObj(pNew);
-  tscDebug("0x%"PRIx64" new pSqlObj:0x%"PRIx64" to get %d tableMeta, loadVgroup:%d, msg size:%d", pSql->self,
-      pNew->self, numOfTables, loadVgroupInfo, pNew->cmd.payloadLen);
+  tscDebug("0x%"PRIx64" new pSqlObj:0x%"PRIx64" to get %d tableMeta, vgroupInfo:%d, msg size:%d", pSql->self,
+      pNew->self, numOfTable, numOfVgroupList, pNew->cmd.payloadLen);
 
   pNew->fp = tscTableMetaCallBack;
   pNew->param = (void *)pSql->self;

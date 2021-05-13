@@ -215,7 +215,7 @@ SArray* createQueryPlanImpl(SQueryInfo* pQueryInfo) {
     for(int32_t i = 0; i < size; ++i) {
       SQueryInfo* pq = taosArrayGet(pQueryInfo->pUpstream, i);
       SArray* p = createQueryPlanImpl(pq);
-      taosArrayPushBatch(upstream, p->pData, (int32_t) taosArrayGetSize(p));
+      taosArrayAddBatch(upstream, p->pData, (int32_t) taosArrayGetSize(p));
     }
   }
 

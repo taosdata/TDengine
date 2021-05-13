@@ -703,7 +703,7 @@ typedef struct {
 } STableInfoMsg;
 
 typedef struct {
-  int32_t loadVgroup;
+  int32_t numOfVgroups;
   int32_t numOfTables;
   char    tableNames[];
 } SMultiTableInfoMsg;

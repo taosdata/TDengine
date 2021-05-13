@@ -4779,7 +4779,7 @@ static void mergeTableBlockDist(STableBlockDist* pDist, const STableBlockDist* p
     pDist->dataBlockInfos = taosArrayInit(4, sizeof(SFileBlockInfo));
   }
 
-  taosArrayPushBatch(pDist->dataBlockInfos, pSrc->dataBlockInfos->pData, (int32_t) taosArrayGetSize(pSrc->dataBlockInfos));
+  taosArrayAddBatch(pDist->dataBlockInfos, pSrc->dataBlockInfos->pData, (int32_t) taosArrayGetSize(pSrc->dataBlockInfos));
 }
 
 void block_func_merge(SQLFunctionCtx* pCtx) {

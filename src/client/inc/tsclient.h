@@ -247,6 +247,11 @@ typedef struct SQueryInfo {
 } SQueryInfo;
 
 typedef struct {
+  STableMeta   *pTableMeta;
+  SVgroupsInfo *pVgroupInfo;
+} STableMetaVgroupInfo;
+
+typedef struct {
   int     command;
   uint8_t msgType;
   char    reserve1[3];        // fix bus error on arm32
