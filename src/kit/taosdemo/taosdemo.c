@@ -195,7 +195,7 @@ typedef struct SArguments_S {
   uint32_t test_mode;
   char *   host;
   uint16_t port;
-  uint16_t interface;
+  uint16_t iface;
   char *   user;
   char *   password;
   char *   database;
@@ -545,7 +545,7 @@ SArguments g_args = {
                      0,               // test_mode
                      "127.0.0.1",     // host
                      6030,            // port
-                     TAOSC_IFACE,     // interface
+                     TAOSC_IFACE,     // iface
                      "root",          // user
                      #ifdef _TD_POWER_
                      "powerdb",      // password
@@ -760,11 +760,11 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
       }
       ++i;
       if (0 == strcasecmp(argv[i], "taosc")) {
-          arguments->interface = TAOSC_IFACE;
+          arguments->iface = TAOSC_IFACE;
       } else if (0 == strcasecmp(argv[i], "rest")) {
-          arguments->interface = REST_IFACE;
+          arguments->iface = REST_IFACE;
       } else if (0 == strcasecmp(argv[i], "stmt")) {
-          arguments->interface = STMT_IFACE;
+          arguments->iface = STMT_IFACE;
       } else {
         errorPrint("%s", "\n\t-I need a valid string following!\n");
         exit(EXIT_FAILURE);
@@ -1322,7 +1322,7 @@ static int printfInsertMeta() {
     SHOW_PARSE_RESULT_START();
 
   printf("interface:                  \033[33m%s\033[0m\n",
-          (g_args.interface==TAOSC_IFACE)?"taosc":(g_args.interface==REST_IFACE)?"rest":"stmt");
+          (g_args.iface==TAOSC_IFACE)?"taosc":(g_args.iface==REST_IFACE)?"rest":"stmt");
   printf("host:                       \033[33m%s:%u\033[0m\n", g_Dbs.host, g_Dbs.port);
   printf("user:                       \033[33m%s\033[0m\n", g_Dbs.user);
   printf("password:                   \033[33m%s\033[0m\n", g_Dbs.password);
@@ -6947,7 +6947,7 @@ static void setParaFromArg(){
     tstrncpy(g_Dbs.db[0].superTbls[0].childTblPrefix,
             g_args.tb_prefix, MAX_TB_NAME_SIZE);
     tstrncpy(g_Dbs.db[0].superTbls[0].dataSource, "rand", MAX_TB_NAME_SIZE);
-    g_Dbs.db[0].superTbls[0].insertMode = g_args.interface;
+    g_Dbs.db[0].superTbls[0].insertMode = g_args.iface;
     tstrncpy(g_Dbs.db[0].superTbls[0].startTimestamp,
             "2017-07-14 10:40:00.000", MAX_TB_NAME_SIZE);
     g_Dbs.db[0].superTbls[0].timeStampStep = DEFAULT_TIMESTAMP_STEP;
