@@ -17,7 +17,9 @@ import java.text.SimpleDateFormat;
 
 public class RestfulResultSetTest {
 
-    private static final String host = "127.0.0.1";
+//    private static final String host = "127.0.0.1";
+//    private static final String host = "192.168.1.200";
+    private static final String host = "master";
 
     private static Connection conn;
     private static Statement stmt;
@@ -119,7 +121,7 @@ public class RestfulResultSetTest {
     @Test
     public void getBytes() throws SQLException {
         byte[] f1 = rs.getBytes("f1");
-        Assert.assertEquals("2021-01-01 00:00:00.0", new String(f1));
+        Assert.assertEquals("2021-01-01 00:00:00.000", new String(f1));
 
         byte[] f2 = rs.getBytes("f2");
         Assert.assertEquals(1, Ints.fromByteArray(f2));

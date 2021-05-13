@@ -6,11 +6,13 @@ import com.google.common.primitives.Ints;
 import com.google.common.primitives.Longs;
 import com.google.common.primitives.Shorts;
 import com.taosdata.jdbc.*;
+import com.taosdata.jdbc.utils.Utils;
 
 import java.math.BigDecimal;
 import java.sql.*;
 import java.time.Instant;
 import java.time.ZoneOffset;
+import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.Calendar;
 
@@ -109,17 +111,17 @@ public class RestfulResultSet extends AbstractResultSet implements ResultSet {
                     col_length = 1;
                     taos_type = TSDBConstants.TSDB_DATA_TYPE_BOOL;
                 }
-                if (value instanceof Byte || value instanceof Short || value instanceof Integer || value instanceof Long){
+                if (value instanceof Byte || value instanceof Short || value instanceof Integer || value instanceof Long) {
                     col_type = Types.BIGINT;
                     col_length = 8;
                     taos_type = TSDBConstants.TSDB_DATA_TYPE_BIGINT;
                 }
-                if (value instanceof Float || value instanceof Double){
+                if (value instanceof Float || value instanceof Double || value instanceof BigDecimal) {
                     col_type = Types.DOUBLE;
                     col_length = 8;
                     taos_type = TSDBConstants.TSDB_DATA_TYPE_DOUBLE;
                 }
-                if (value instanceof String){
+                if (value instanceof String) {
                     col_type = Types.NCHAR;
                     col_length = ((String) value).length();
                     taos_type = TSDBConstants.TSDB_DATA_TYPE_NCHAR;
@@ -357,8 +359,10 @@ public class RestfulResultSet extends AbstractResultSet implements ResultSet {
             return 0;
         }
         wasNull = false;
-        if (value instanceof Float || value instanceof Double)
+        if (value instanceof Float)
             return (float) value;
+        if (value instanceof Double)
+            return new Float((Double) value);
         return Float.parseFloat(value.toString());
     }
 
@@ -396,6 +400,9 @@ public class RestfulResultSet extends AbstractResultSet implements ResultSet {
             return Shorts.toByteArray((short) value);
         if (value instanceof Byte)
             return new byte[]{(byte) value};
+        if (value instanceof Timestamp) {
+            return Utils.formatTimestamp((Timestamp) value).getBytes();
+        }
 
         return value.toString().getBytes();
     }
@@ -409,7 +416,9 @@ public class RestfulResultSet extends AbstractResultSet implements ResultSet {
             return null;
         if (value instanceof Timestamp)
             return new Date(((Timestamp) value).getTime());
-        return Date.valueOf(value.toString());
+        Date date = null;
+        date = Utils.parseDate(value.toString());
+        return date;
     }
 
     @Override
@@ -421,7 +430,13 @@ public class RestfulResultSet extends AbstractResultSet implements ResultSet {
             return null;
         if (value instanceof Timestamp)
             return new Time(((Timestamp) value).getTime());
-        return Time.valueOf(value.toString());
+        Time time = null;
+        try {
+            time = Utils.parseTime(value.toString());
+        } catch (DateTimeParseException e) {
+            time = null;
+        }
+        return time;
     }
 
     @Override
@@ -482,6 +497,7 @@ public class RestfulResultSet extends AbstractResultSet implements ResultSet {
             return new BigDecimal(Double.valueOf(value.toString()));
         if (value instanceof Timestamp)
             return new BigDecimal(((Timestamp) value).getTime());
+
         return new BigDecimal(value.toString());
     }
 
