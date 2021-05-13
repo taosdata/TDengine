@@ -1881,6 +1881,8 @@ int tscProcessTableMetaRsp(SSqlObj *pSql) {
     return TSDB_CODE_TSC_INVALID_VALUE;
   }
 
+  assert(pTableMeta->tableType == TSDB_SUPER_TABLE || pTableMeta->tableType == TSDB_CHILD_TABLE || pTableMeta->tableType == TSDB_NORMAL_TABLE || pTableMeta->tableType == TSDB_STREAM_TABLE);
+
   if (pTableMeta->tableType == TSDB_CHILD_TABLE) {
     // check if super table hashmap or not
     int32_t len = (int32_t) strnlen(pTableMeta->sTableName, TSDB_TABLE_FNAME_LEN);
@@ -2441,10 +2443,23 @@ static int32_t getTableMetaFromMnode(SSqlObj *pSql, STableMetaInfo *pTableMetaIn
 int32_t tscGetTableMeta(SSqlObj *pSql, STableMetaInfo *pTableMetaInfo) {
   assert(tIsValidName(&pTableMetaInfo->name));
 
-  tfree(pTableMetaInfo->pTableMeta);
-
   uint32_t size = tscGetTableMetaMaxSize();
-  pTableMetaInfo->pTableMeta = calloc(1, size);
+  if (pTableMetaInfo->pTableMeta == NULL) {
+    pTableMetaInfo->pTableMeta    = calloc(1, size);
+    pTableMetaInfo->tableMetaSize = size;
+  } else if (pTableMetaInfo->tableMetaSize < size) {
+    char *tmp = realloc(pTableMetaInfo->pTableMeta, size); 
+    if (tmp == NULL) { 
+      return TSDB_CODE_TSC_OUT_OF_MEMORY;
+    }
+    pTableMetaInfo->pTableMeta = (STableMeta *)tmp;
+    memset(pTableMetaInfo->pTableMeta, 0, size);
+    pTableMetaInfo->tableMetaSize = size;
+  } else {
+    //uint32_t s = tscGetTableMetaSize(pTableMetaInfo->pTableMeta);
+    memset(pTableMetaInfo->pTableMeta, 0, size);
+    pTableMetaInfo->tableMetaSize = size;
+  }
 
   pTableMetaInfo->pTableMeta->tableType = -1;
   pTableMetaInfo->pTableMeta->tableInfo.numOfColumns  = -1;
@@ -2456,10 +2471,13 @@ int32_t tscGetTableMeta(SSqlObj *pSql, STableMetaInfo *pTableMetaInfo) {
   taosHashGetClone(tscTableMetaInfo, name, len, NULL, pTableMetaInfo->pTableMeta, -1);
 
   // TODO resize the tableMeta
+  char buf[80*1024] = {0};
+  assert(size < 80*1024);
+
   STableMeta* pMeta = pTableMetaInfo->pTableMeta;
   if (pMeta->id.uid > 0) {
     if (pMeta->tableType == TSDB_CHILD_TABLE) {
-      int32_t code = tscCreateTableMetaFromCChildMeta(pTableMetaInfo->pTableMeta, name);
+      int32_t code = tscCreateTableMetaFromCChildMeta(pTableMetaInfo->pTableMeta, name, buf);
       if (code != TSDB_CODE_SUCCESS) {
         return getTableMetaFromMnode(pSql, pTableMetaInfo);
       }
