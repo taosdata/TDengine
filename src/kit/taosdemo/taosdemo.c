@@ -68,12 +68,6 @@ enum TEST_MODE {
     INVAID_TEST
 };
 
-enum QUERY_MODE {
-  SYNC_QUERY_MODE,          // 0
-  ASYNC_QUERY_MODE,         // 1
-  INVALID_MODE
-};
-
 #define MAX_RECORDS_PER_REQ     32766
 
 #define MAX_SQL_SIZE       65536
@@ -731,7 +725,6 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
         exit(EXIT_FAILURE);
       }
       tstrncpy(configDir, argv[++i], TSDB_FILENAME_LEN);
-
     } else if (strcmp(argv[i], "-h") == 0) {
       if (argc == i+1) {
         printHelp();
@@ -776,16 +769,16 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
       }
       arguments->sqlFile = argv[++i];
     } else if (strcmp(argv[i], "-q") == 0) {
-      if ((argc == i+1) ||
-        (!isStringNumber(argv[i+1]))) {
+      if ((argc == i+1)
+              || (!isStringNumber(argv[i+1]))) {
         printHelp();
         errorPrint("%s", "\n\t-q need a number following!\nQuery mode -- 0: SYNC, 1: ASYNC. Default is SYNC.\n");
         exit(EXIT_FAILURE);
       }
       arguments->async_mode = atoi(argv[++i]);
     } else if (strcmp(argv[i], "-T") == 0) {
-      if ((argc == i+1) ||
-        (!isStringNumber(argv[i+1]))) {
+      if ((argc == i+1)
+              || (!isStringNumber(argv[i+1]))) {
         printHelp();
         errorPrint("%s", "\n\t-T need a number following!\n");
         exit(EXIT_FAILURE);
@@ -800,24 +793,24 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
       }
       arguments->insert_interval = atoi(argv[++i]);
     } else if (strcmp(argv[i], "-qt") == 0) {
-      if ((argc == i+1) ||
-        (!isStringNumber(argv[i+1]))) {
+      if ((argc == i+1)
+              || (!isStringNumber(argv[i+1]))) {
         printHelp();
         errorPrint("%s", "\n\t-qt need a number following!\n");
         exit(EXIT_FAILURE);
       }
       arguments->query_times = atoi(argv[++i]);
     } else if (strcmp(argv[i], "-B") == 0) {
-      if ((argc == i+1) ||
-        (!isStringNumber(argv[i+1]))) {
+      if ((argc == i+1)
+              || (!isStringNumber(argv[i+1]))) {
         printHelp();
         errorPrint("%s", "\n\t-B need a number following!\n");
         exit(EXIT_FAILURE);
       }
       arguments->interlace_rows = atoi(argv[++i]);
     } else if (strcmp(argv[i], "-r") == 0) {
-      if ((argc == i+1) ||
-        (!isStringNumber(argv[i+1]))) {
+      if ((argc == i+1)
+              || (!isStringNumber(argv[i+1]))) {
         printHelp();
         errorPrint("%s", "\n\t-r need a number following!\n");
         exit(EXIT_FAILURE);
@@ -855,6 +848,11 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
       }
       arguments->num_of_CPR = atoi(argv[++i]);
     } else if (strcmp(argv[i], "-b") == 0) {
+      if (argc == i+1) {
+        printHelp();
+        errorPrint("%s", "\n\t-b need valid string following!\n");
+        exit(EXIT_FAILURE);
+      }
       sptr = arguments->datatype;
       ++i;
       if (strstr(argv[i], ",") == NULL) {
@@ -1077,7 +1075,7 @@ static int queryDbExec(TAOS *taos, char *command, QUERY_TYPE type, bool quiet) {
   if (code != 0) {
     if (!quiet) {
       debugPrint("%s() LN%d - command: %s\n", __func__, __LINE__, command);
-      errorPrint("Failed to run %s, reason: %s\n", command, taos_errstr(res));
+      errorPrint("Failed to execute %s, reason: %s\n", command, taos_errstr(res));
     }
     taos_free_result(res);
     //taos_close(taos);
@@ -1106,6 +1104,7 @@ static void appendResultBufToFile(char *resultBuf, char *resultFile)
       return;
     }
   }
+
 
   fprintf(fp, "%s", resultBuf);
   tmfclose(fp);
@@ -1142,6 +1141,7 @@ static void appendResultToFile(TAOS_RES *res, char* resultFile) {
     totalLen += len;
   }
 
+  verbosePrint("%s() LN%d, databuf=%s resultFile=%s\n", __func__, __LINE__, databuf, resultFile);
   appendResultBufToFile(databuf, resultFile);
   free(databuf);
 }
@@ -3410,8 +3410,10 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
               g_args.interlace_rows, g_args.num_of_RPR);
       printf("        interlace rows value will be set to num_of_records_per_req %"PRIu64"\n\n",
               g_args.num_of_RPR);
-      printf("        press Enter key to continue or Ctrl-C to stop.");
-      (void)getchar();
+      if (!g_args.answer_yes) {
+        printf("        press Enter key to continue or Ctrl-C to stop.");
+        (void)getchar();
+      }
       g_args.interlace_rows = g_args.num_of_RPR;
     }
   } else if (!interlaceRows) {
@@ -3930,8 +3932,10 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
                   i, j, g_Dbs.db[i].superTbls[j].interlaceRows, g_args.num_of_RPR);
           printf("        interlace rows value will be set to num_of_records_per_req %"PRIu64"\n\n",
                   g_args.num_of_RPR);
-          printf("        press Enter key to continue or Ctrl-C to stop.");
-          (void)getchar();
+          if (!g_args.answer_yes) {
+            printf("        press Enter key to continue or Ctrl-C to stop.");
+            (void)getchar();
+          }
           g_Dbs.db[i].superTbls[j].interlaceRows = g_args.num_of_RPR;
         }
       } else if (!interlaceRows) {
@@ -4075,7 +4079,7 @@ static bool getMetaFromQueryJsonFile(cJSON* root) {
 
   cJSON* gQueryTimes = cJSON_GetObjectItem(root, "query_times");
   if (gQueryTimes && gQueryTimes->type == cJSON_Number) {
-    if (gQueryTimes->valueint < 0) {
+    if (gQueryTimes->valueint <= 0) {
       errorPrint("%s() LN%d, failed to read json, query_times input mistake\n",
         __func__, __LINE__);
       goto PARSE_OVER;
@@ -4126,9 +4130,9 @@ static bool getMetaFromQueryJsonFile(cJSON* root) {
     cJSON* specifiedQueryTimes = cJSON_GetObjectItem(specifiedQuery,
         "query_times");
     if (specifiedQueryTimes && specifiedQueryTimes->type == cJSON_Number) {
-      if (specifiedQueryTimes->valueint < 0) {
-        errorPrint("%s() LN%d, failed to read json, query_times input mistake\n",
-          __func__, __LINE__);
+      if (specifiedQueryTimes->valueint <= 0) {
+        errorPrint("%s() LN%d, failed to read json, query_times: %"PRId64", need be a valid (>0) number\n",
+          __func__, __LINE__, specifiedQueryTimes->valueint);
         goto PARSE_OVER;
 
       }
@@ -4270,9 +4274,9 @@ static bool getMetaFromQueryJsonFile(cJSON* root) {
 
     cJSON* superQueryTimes = cJSON_GetObjectItem(superQuery, "query_times");
     if (superQueryTimes && superQueryTimes->type == cJSON_Number) {
-      if (superQueryTimes->valueint < 0) {
-        errorPrint("%s() LN%d, failed to read json, query_times input mistake\n",
-          __func__, __LINE__);
+      if (superQueryTimes->valueint <= 0) {
+        errorPrint("%s() LN%d, failed to read json, query_times: %"PRId64", need be a valid (>0) number\n",
+          __func__, __LINE__, superQueryTimes->valueint);
         goto PARSE_OVER;
       }
       g_queryInfo.superQueryInfo.queryTimes = superQueryTimes->valueint;
@@ -5236,6 +5240,13 @@ static void* syncWriteInterlace(threadInfo *pThreadInfo) {
 
     startTs = taosGetTimestampMs();
 
+    if (recOfBatch == 0) {
+      errorPrint("[%d] %s() LN%d try inserting records of batch is %"PRIu64"\n",
+              pThreadInfo->threadID, __func__, __LINE__,
+              recOfBatch);
+      errorPrint("%s\n", "\tPlease check if the batch or the buffer length is proper value!\n");
+      goto free_of_interlace;
+    }
     int64_t affectedRows = execInsert(pThreadInfo, buffer, recOfBatch);
 
     endTs = taosGetTimestampMs();
@@ -6313,7 +6324,9 @@ static int queryTestProcess() {
     (void)getchar();
   }
 
-  printfQuerySystemInfo(taos);
+  if (g_args.debug_print || g_args.verbose_print) {
+    printfQuerySystemInfo(taos);
+  }
 
   if (0 == strncasecmp(g_queryInfo.queryMode, "rest", strlen("rest"))) {
     if (convertHostToServAddr(
@@ -6517,59 +6530,63 @@ static void *superSubscribe(void *sarg) {
     return NULL;
   }
 
-  //int64_t st = 0;
-  //int64_t et = 0;
-  do {
-    //if (g_queryInfo.specifiedQueryInfo.queryInterval && (et - st) < g_queryInfo.specifiedQueryInfo.queryInterval) {
-    //  taosMsleep(g_queryInfo.specifiedQueryInfo.queryInterval- (et - st)); // ms
-    //  //printf("========sleep duration:%"PRId64 "========inserted rows:%d, table range:%d - %d\n", (1000 - (et - st)), i, pThreadInfo->start_table_from, pThreadInfo->end_table_to);
-    //}
-
-    //st = taosGetTimestampMs();
-    char topic[32] = {0};
-    for (int i = 0; i < g_queryInfo.superQueryInfo.sqlCount; i++) {
-      sprintf(topic, "taosdemo-subscribe-%d", i);
+  char topic[32] = {0};
+  for (uint64_t i = pThreadInfo->start_table_from;
+          i <= pThreadInfo->end_table_to; i++) {
+    for (int j = 0; j < g_queryInfo.superQueryInfo.sqlCount; j++) {
+      sprintf(topic, "taosdemo-subscribe-%"PRIu64"-%d", i, j);
       memset(subSqlstr,0,sizeof(subSqlstr));
-      replaceChildTblName(g_queryInfo.superQueryInfo.sql[i], subSqlstr, i);
+      replaceChildTblName(g_queryInfo.superQueryInfo.sql[j], subSqlstr, i);
       char tmpFile[MAX_FILE_NAME_LEN*2] = {0};
-      if (g_queryInfo.superQueryInfo.result[i][0] != 0) {
+      if (g_queryInfo.superQueryInfo.result[j][0] != 0) {
         sprintf(tmpFile, "%s-%d",
-                g_queryInfo.superQueryInfo.result[i], pThreadInfo->threadID);
+                g_queryInfo.superQueryInfo.result[j], pThreadInfo->threadID);
       }
-      tsub[i] = subscribeImpl(pThreadInfo->taos, subSqlstr, topic, tmpFile);
-      if (NULL == tsub[i]) {
+
+      uint64_t subSeq = i * g_queryInfo.superQueryInfo.sqlCount + j;
+      debugPrint("%s() LN%d, subSeq=%"PRIu64" subSqlstr: %s\n",
+              __func__, __LINE__, subSeq, subSqlstr);
+      tsub[subSeq] = subscribeImpl(pThreadInfo->taos, subSqlstr, topic, tmpFile);
+      if (NULL == tsub[subSeq]) {
         taos_close(pThreadInfo->taos);
         return NULL;
       }
     }
-    //et = taosGetTimestampMs();
-    //printf("========thread[%"PRIu64"] complete all sqls to super table once queries duration:%.4fs\n", taosGetSelfPthreadId(), (double)(et - st)/1000.0);
-  } while(0);
+  }
 
   // start loop to consume result
   TAOS_RES* res = NULL;
   while(1) {
-    for (int i = 0; i < g_queryInfo.superQueryInfo.sqlCount; i++) {
-      if (ASYNC_MODE == g_queryInfo.superQueryInfo.asyncMode) {
-        continue;
-      }
+    for (uint64_t i = pThreadInfo->start_table_from; i <= pThreadInfo->end_table_to; i++) {
+      for (int j = 0; j < g_queryInfo.superQueryInfo.sqlCount; j++) {
+        if (ASYNC_MODE == g_queryInfo.superQueryInfo.asyncMode) {
+            continue;
+        }
 
-      res = taos_consume(tsub[i]);
-      if (res) {
-        char tmpFile[MAX_FILE_NAME_LEN*2] = {0};
-        if (g_queryInfo.superQueryInfo.result[i][0] != 0) {
-          sprintf(tmpFile, "%s-%d",
-                  g_queryInfo.superQueryInfo.result[i],
+        uint64_t subSeq = i * g_queryInfo.superQueryInfo.sqlCount + j;
+        taosMsleep(100); // ms
+        res = taos_consume(tsub[subSeq]);
+        if (res) {
+            char tmpFile[MAX_FILE_NAME_LEN*2] = {0};
+            if (g_queryInfo.superQueryInfo.result[j][0] != 0) {
+                sprintf(tmpFile, "%s-%d",
+                  g_queryInfo.superQueryInfo.result[j],
                   pThreadInfo->threadID);
-          appendResultToFile(res, tmpFile);
+                appendResultToFile(res, tmpFile);
+            }
         }
       }
     }
   }
   taos_free_result(res);
 
-  for (int i = 0; i < g_queryInfo.superQueryInfo.sqlCount; i++) {
-    taos_unsubscribe(tsub[i], g_queryInfo.superQueryInfo.subscribeKeepProgress);
+  for (uint64_t i = pThreadInfo->start_table_from;
+          i <= pThreadInfo->end_table_to; i++) {
+    for (int j = 0; j < g_queryInfo.superQueryInfo.sqlCount; j++) {
+        uint64_t subSeq = i * g_queryInfo.superQueryInfo.sqlCount + j;
+        taos_unsubscribe(tsub[subSeq],
+                g_queryInfo.superQueryInfo.subscribeKeepProgress);
+    }
   }
 
   taos_close(pThreadInfo->taos);
@@ -6607,17 +6624,8 @@ static void *specifiedSubscribe(void *sarg) {
     return NULL;
   }
 
-  //int64_t st = 0;
-  //int64_t et = 0;
-  do {
-    //if (g_queryInfo.specifiedQueryInfo.queryInterval && (et - st) < g_queryInfo.specifiedQueryInfo.queryInterval) {
-    //  taosMsleep(g_queryInfo.specifiedQueryInfo.queryInterval- (et - st)); // ms
-    //  //printf("========sleep duration:%"PRIu64 "========inserted rows:%d, table range:%d - %d\n", (1000 - (et - st)), i, pThreadInfo->start_table_from, pThreadInfo->end_table_to);
-    //}
-
-    //st = taosGetTimestampMs();
-    char topic[32] = {0};
-    for (int i = 0; i < g_queryInfo.specifiedQueryInfo.sqlCount; i++) {
+  char topic[32] = {0};
+  for (int i = 0; i < g_queryInfo.specifiedQueryInfo.sqlCount; i++) {
       sprintf(topic, "taosdemo-subscribe-%d", i);
       char tmpFile[MAX_FILE_NAME_LEN*2] = {0};
       if (g_queryInfo.specifiedQueryInfo.result[i][0] != 0) {
@@ -6630,11 +6638,7 @@ static void *specifiedSubscribe(void *sarg) {
         taos_close(pThreadInfo->taos);
         return NULL;
       }
-    }
-    //et = taosGetTimestampMs();
-    //printf("========thread[%"PRIu64"] complete all sqls to super table once queries duration:%.4fs\n", taosGetSelfPthreadId(), (double)(et - st)/1000.0);
-  } while(0);
-
+  }
   // start loop to consume result
   TAOS_RES* res = NULL;
   while(1) {
@@ -6643,6 +6647,7 @@ static void *specifiedSubscribe(void *sarg) {
         continue;
       }
 
+      taosMsleep(1000); // ms
       res = taos_consume(tsub[i]);
       if (res) {
         char tmpFile[MAX_FILE_NAME_LEN*2] = {0};
@@ -6699,31 +6704,35 @@ static int subscribeTestProcess() {
 
   pthread_t  *pids = NULL;
   threadInfo *infos = NULL;
-  //==== create sub threads for query from super table
-  if ((g_queryInfo.specifiedQueryInfo.sqlCount <= 0) ||
-          (g_queryInfo.specifiedQueryInfo.concurrent <= 0)) {
-    errorPrint("%s() LN%d, query sqlCount %"PRIu64" or concurrent %"PRIu64" is not correct.\n",
+  //==== create sub threads for query for specified table
+  if (g_queryInfo.specifiedQueryInfo.sqlCount <= 0) {
+    printf("%s() LN%d, sepcified query sqlCount %"PRIu64".\n",
               __func__, __LINE__,
-              g_queryInfo.specifiedQueryInfo.sqlCount,
-              g_queryInfo.specifiedQueryInfo.concurrent);
-    exit(-1);
-  }
+              g_queryInfo.specifiedQueryInfo.sqlCount);
+  } else {
+    if (g_queryInfo.specifiedQueryInfo.concurrent <= 0) {
+        errorPrint("%s() LN%d, sepcified query sqlCount %"PRIu64".\n",
+              __func__, __LINE__,
+              g_queryInfo.specifiedQueryInfo.sqlCount);
+        exit(-1);
+    }
 
-  pids  = malloc(g_queryInfo.specifiedQueryInfo.concurrent * sizeof(pthread_t));
-  infos = malloc(g_queryInfo.specifiedQueryInfo.concurrent * sizeof(threadInfo));
-  if ((NULL == pids) || (NULL == infos)) {
-      errorPrint("%s() LN%d, malloc failed for create threads\n", __func__, __LINE__);
-      exit(-1);
-  }
+    pids  = malloc(g_queryInfo.specifiedQueryInfo.concurrent * sizeof(pthread_t));
+    infos = malloc(g_queryInfo.specifiedQueryInfo.concurrent * sizeof(threadInfo));
+    if ((NULL == pids) || (NULL == infos)) {
+        errorPrint("%s() LN%d, malloc failed for create threads\n", __func__, __LINE__);
+        exit(-1);
+    }
 
-  for (int i = 0; i < g_queryInfo.specifiedQueryInfo.concurrent; i++) {
+    for (int i = 0; i < g_queryInfo.specifiedQueryInfo.concurrent; i++) {
       threadInfo *t_info = infos + i;
       t_info->threadID = i;
       t_info->taos = NULL;  // TODO: workaround to use separate taos connection;
       pthread_create(pids + i, NULL, specifiedSubscribe, t_info);
+    }
   }
 
-  //==== create sub threads for query from sub table
+  //==== create sub threads for super table query
   pthread_t  *pidsOfSub  = NULL;
   threadInfo *infosOfSub = NULL;
   if ((g_queryInfo.superQueryInfo.sqlCount > 0)
