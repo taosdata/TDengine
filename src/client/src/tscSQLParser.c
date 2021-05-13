@@ -21,19 +21,19 @@
 #endif // __APPLE__
 
 #include "os.h"
-#include "ttype.h"
-#include "texpr.h"
 #include "taos.h"
 #include "taosmsg.h"
 #include "tcompare.h"
+#include "texpr.h"
 #include "tname.h"
 #include "tscLog.h"
 #include "tscUtil.h"
 #include "tschemautil.h"
 #include "tsclient.h"
-#include "tstoken.h"
 #include "tstrbuild.h"
+#include "ttoken.h"
 #include "ttokendef.h"
+#include "ttype.h"
 #include "qUtil.h"
 
 #define DEFAULT_PRIMARY_TIMESTAMP_COL_NAME "_c0"
@@ -432,7 +432,6 @@ int32_t tscToSQLCmd(SSqlObj* pSql, struct SSqlInfo* pInfo) {
       if (tscValidateName(pToken) != TSDB_CODE_SUCCESS) {
         return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg1);
       }
-
       // additional msg has been attached already
       code = tscSetTableFullName(pTableMetaInfo, pToken, pSql);
       if (code != TSDB_CODE_SUCCESS) {
@@ -468,8 +467,7 @@ int32_t tscToSQLCmd(SSqlObj* pSql, struct SSqlInfo* pInfo) {
       if (pToken->n > TSDB_DB_NAME_LEN) {
         return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg1);
       }
-
-      return tscSetTableFullName(pTableMetaInfo, pToken, pSql);
+      return tNameSetDbName(&pTableMetaInfo->name, getAccountId(pSql), pToken);
     }
     case TSDB_SQL_CFG_DNODE: {
       const char* msg2 = "invalid configure options or values, such as resetlog / debugFlag 135 / balance 'vnode:2-dnode:2' / monitor 1 ";
@@ -984,11 +982,10 @@ int32_t tscSetTableFullName(STableMetaInfo* pTableMetaInfo, SStrToken* pTableNam
   const char* msg3 = "no acctId";
   const char* msg4 = "db name too long";
   const char* msg5 = "table name too long";
-  
 
   SSqlCmd* pCmd = &pSql->cmd;
   int32_t  code = TSDB_CODE_SUCCESS;
-  int32_t idx = getDelimiterIndex(pTableName); 
+  int32_t  idx  = getDelimiterIndex(pTableName);
   if (idx != -1) { // db has been specified in sql string so we ignore current db path
     char* acctId = getAccountId(pSql);
     if (acctId == NULL || strlen(acctId) <= 0) {
@@ -1002,9 +999,9 @@ int32_t tscSetTableFullName(STableMetaInfo* pTableMetaInfo, SStrToken* pTableNam
     if (idx >= TSDB_DB_NAME_LEN) { 
       return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg4);
     }
-   
+
     if (pTableName->n - 1 - idx >= TSDB_TABLE_NAME_LEN) {
-       return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg5);
+      return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg5);
     }
     
     char name[TSDB_TABLE_FNAME_LEN] = {0};
@@ -1351,8 +1348,8 @@ static char* cloneCurrentDBName(SSqlObj* pSql) {
 
 /* length limitation, strstr cannot be applied */
 static int32_t getDelimiterIndex(SStrToken* pTableName) {
-  for (uint32_t i = 0; i < pTableName->n; ++i) {
-    if (pTableName->z[i] == TS_PATH_DELIMITER[0]) {
+  for (uint32_t i = 0; i < pTableName->n; ++i) { 
+    if (pTableName->z[i] == TS_PATH_DELIMITER[0]) { 
       return i;
     }
   }
@@ -4646,7 +4643,7 @@ int32_t getTimeRange(STimeWindow* win, tSqlExpr* pRight, int32_t optr, int16_t t
       }
     } else {
       SStrToken token = {.z = pRight->value.pz, .n = pRight->value.nLen, .type = TK_ID};
-      int32_t   len = tSQLGetToken(pRight->value.pz, &token.type);
+      int32_t   len = tGetToken(pRight->value.pz, &token.type);
 
       if ((token.type != TK_INTEGER && token.type != TK_FLOAT) || len != pRight->value.nLen) {
         return TSDB_CODE_TSC_INVALID_SQL;
@@ -5533,13 +5530,13 @@ int32_t validateLocalConfig(SMiscInfo* pOptions) {
 }
 
 int32_t validateColumnName(char* name) {
-  bool ret = isKeyWord(name, (int32_t)strlen(name));
+  bool ret = taosIsKeyWordToken(name, (int32_t)strlen(name));
   if (ret) {
     return TSDB_CODE_TSC_INVALID_SQL;
   }
 
   SStrToken token = {.z = name};
-  token.n = tSQLGetToken(name, &token.type);
+  token.n = tGetToken(name, &token.type);
 
   if (token.type != TK_STRING && token.type != TK_ID) {
     return TSDB_CODE_TSC_INVALID_SQL;
@@ -5550,7 +5547,7 @@ int32_t validateColumnName(char* name) {
     strntolower(token.z, token.z, token.n);
     token.n = (uint32_t)strtrim(token.z);
 
-    int32_t k = tSQLGetToken(token.z, &token.type);
+    int32_t k = tGetToken(token.z, &token.type);
     if (k != token.n) {
       return TSDB_CODE_TSC_INVALID_SQL;
     }
@@ -7527,4 +7524,3 @@ bool hasNormalColumnFilter(SQueryInfo* pQueryInfo) {
 
   return false;
 }
-
