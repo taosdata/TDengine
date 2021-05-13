@@ -713,13 +713,13 @@ static int32_t tscProcessShowCreateDatabase(SSqlObj *pSql) {
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
   }  
 
-  SCreateBuilder *param = (SCreateBuilder *)malloc(sizeof(SCreateBuilder));    
+  SCreateBuilder *param = (SCreateBuilder *)calloc(1, sizeof(SCreateBuilder));    
   if (param == NULL) {
     free(pInterSql);
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
   }
 
-  strncpy(param->buf, tNameGetTableName(&pTableMetaInfo->name), TSDB_TABLE_NAME_LEN);
+  tNameGetDbName(&pTableMetaInfo->name, param->buf);
 
   param->pParentSql = pSql;
   param->pInterSql  = pInterSql;
