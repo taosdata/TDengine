@@ -42,7 +42,21 @@ class TDTestCase:
                     buildPath = root[:len(root)-len("/build/bin")]
                     break
         return buildPath
-        
+
+    # 获取订阅次数
+    def subTimes(self,filename):
+        self.filename = filename
+        command = 'cat %s |wc -l'% filename
+        times = int(subprocess.getstatusoutput(command)[1]) 
+        return times
+
+    def assertCheck(self,filename,queryResult,expectResult):
+        self.filename = filename
+        self.queryResult = queryResult
+        self.expectResult = expectResult
+        args0 = (filename, queryResult, expectResult)
+        assert queryResult == expectResult , "Queryfile:%s ,result is %s != expect: %s" % args0    
+
     def run(self):
         buildPath = self.getBuildPath()
         if (buildPath == ""):
@@ -50,65 +64,54 @@ class TDTestCase:
         else:
             tdLog.info("taosd found in %s" % buildPath)
         binPath = buildPath+ "/build/bin/"      
-        
-        # query: query specified  table  and query  super table 
+
+        # clear env
+        os.system("ps -ef |grep 'taosdemoAllTest/sub.json' |grep -v 'grep' |awk '{print $2}'|xargs kill -9")
+        sleep(1)
+        os.system("rm -rf ./subscribe_res*")  
+        os.system("rm -rf ./all_subscribe_res*") 
+
+        # subscribe: resultfile 
         os.system("%staosdemo -f tools/taosdemoAllTest/subInsertdata.json" % binPath)
         os.system("nohup %staosdemo -f tools/taosdemoAllTest/sub.json &" % binPath)
-        query_pid = int(subprocess.getstatusoutput('ps aux|grep "taosdemoAllTest/sub.json" |grep -v "grep"|awk \'{print $2}\'')[1])    
+        query_pid = int(subprocess.getstatusoutput('ps aux|grep "taosdemoAllTest/sub.json" |grep -v "grep"|awk \'{print $2}\'')[1])
+
+        # insert extral data     
         tdSql.execute("use db")
         tdSql.execute("insert into stb00_0 values(1614218412000,'R','bf3',8637,98.861045)")   
         tdSql.execute("insert into stb00_1 values(1614218412000,'R','bf3',8637,78.861045)(1614218422000,'R','bf3',8637,98.861045)")   
         sleep(5)
-        sub0_0 = int(subprocess.getstatusoutput('cat subscribe_res0.txt-0 |wc -l')[1])
-        assert sub0_0 == 11
-        sub0_1 = int(subprocess.getstatusoutput('cat subscribe_res0.txt-1 |wc -l')[1])
-        assert sub0_1 == 11
-        sub1_0 = int(subprocess.getstatusoutput('cat subscribe_res1.txt-0 |wc -l')[1])
-        assert sub1_0 == 12
-        sub1_1 = int(subprocess.getstatusoutput('cat subscribe_res1.txt-1 |wc -l')[1])
-        assert sub1_1 == 12
-        # sub2_0 = int(subprocess.getstatusoutput('cat subscribe_res2.txt-0 |wc -l')[0])
-        # assert sub2_0 == 10
-        # sub2_1 = int(subprocess.getstatusoutput('cat subscribe_res2.txt-1 |wc -l')[0])
-        # assert sub2_1 == 10
-        # sub3_0 = int(subprocess.getstatusoutput('cat subscribe_res3.txt-0 |wc -l')[0])
-        # assert sub3_0 == 7
-        # sub3_1 = int(subprocess.getstatusoutput('cat subscribe_res3.txt-1 |wc -l')[0])
-        # assert sub3_1 == 7
-        sleep(1)
-        os.system("kill -9 %d" % query_pid)
 
-        # tdSql.query("select ts from result0")
-        # tdSql.checkData(0, 0, "2020-11-01 00:00:00.099000") 
-        # tdSql.query("select count(*) from result0")
-        # tdSql.checkData(0, 0, 1) 
-        # with open('./all_query_res1.txt','r+') as f1:    
-        #     result1 = int(f1.readline())
-        #     tdSql.query("select count(*) from stb00_1")
-        #     tdSql.checkData(0, 0, "%d" % result1)
-
-        # with open('./all_query_res2.txt','r+') as f2:
-        #     result2 = int(f2.readline())
-        #     d2 = datetime.fromtimestamp(result2/1000)
-        #     timest = d2.strftime("%Y-%m-%d %H:%M:%S.%f")
-        #     tdSql.query("select last_row(ts) from stb1")
-        #     tdSql.checkData(0, 0, "%s" % timest)        
-
+        # merge result files
+        os.system("cat subscribe_res0.txt* > all_subscribe_res0.txt")
+        os.system("cat subscribe_res1.txt* > all_subscribe_res1.txt")
+        os.system("cat subscribe_res2.txt* > all_subscribe_res2.txt")
         
+        # correct subscribeTimes testcase
+        subTimes0 = self.subTimes("all_subscribe_res0.txt")
+        self.assertCheck("all_subscribe_res0.txt",subTimes0 ,22)
+
+        subTimes1 = self.subTimes("all_subscribe_res1.txt")
+        self.assertCheck("all_subscribe_res1.txt",subTimes1 ,24)
+
+        subTimes2 = self.subTimes("all_subscribe_res2.txt")
+        self.assertCheck("all_subscribe_res2.txt",subTimes2 ,21)
+
+        # correct data testcase
+  
+        os.system("kill -9 %d" % query_pid)
+  
         # # query times less than or equal to 100
         # os.system("%staosdemo -f tools/taosdemoAllTest/QuerySpeciMutisql100.json" % binPath)
         # os.system("%staosdemo -f tools/taosdemoAllTest/QuerySuperMutisql100.json" % binPath)
         
-
-
-
         # delete useless files
         os.system("rm -rf ./insert_res.txt")
         os.system("rm -rf tools/taosdemoAllTest/*.py.sql")        
         os.system("rm -rf ./querySystemInfo*")  
         os.system("rm -rf ./subscribe_res*")   
-        # os.system("rm -rf ./all_query*")
-        # os.system("rm -rf ./test_query_res0.txt")
+        os.system("rm -rf ./all_subscribe*")
+        os.system("rm -rf ./test_query_res0.txt")
          
     def stop(self):
         tdSql.close()
