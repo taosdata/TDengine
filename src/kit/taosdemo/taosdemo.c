@@ -4788,6 +4788,8 @@ static int64_t execInsert(threadInfo *pThreadInfo, uint64_t k)
                     __func__, __LINE__);
         exit(-1);
       }
+
+      affectedRows = k;
     } else {
       errorPrint("%s() LN%d: unknown insert mode: %d\n",
         __func__, __LINE__, superTblInfo->insertMode);
