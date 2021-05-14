@@ -161,7 +161,7 @@ steps:
 - name: build
   image: ansible/centos7-ansible
   commands:
-  - yum install gcc cmake build-essential -y 
+  - yum install -y gcc gcc-c++ make cmake
   - mkdir debug
   - cd debug
   - cmake .. 
