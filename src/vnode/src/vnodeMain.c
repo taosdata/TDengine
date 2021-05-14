@@ -120,6 +120,10 @@ int32_t vnodeDrop(int32_t vgId) {
     vDebug("vgId:%d, failed to drop, vnode not find", vgId);
     return TSDB_CODE_VND_INVALID_VGROUP_ID;
   }
+  if (pVnode->dropped) {
+    vnodeRelease(pVnode);
+    return TSDB_CODE_VND_INVALID_VGROUP_ID;
+  }
 
   vInfo("vgId:%d, vnode will be dropped, refCount:%d pVnode:%p", pVnode->vgId, pVnode->refCount, pVnode);
   pVnode->dropped = 1;
@@ -472,6 +476,8 @@ void vnodeCleanUp(SVnodeObj *pVnode) {
   vDebug("vgId:%d, vnode will cleanup, refCount:%d pVnode:%p", pVnode->vgId, pVnode->refCount, pVnode);
 
   vnodeSetClosingStatus(pVnode);
+
+  vnodeRemoveFromHash(pVnode);
 
   // stop replication module
   if (pVnode->sync > 0) {
