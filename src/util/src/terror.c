@@ -230,6 +230,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_VND_IS_BALANCING,             "Database is balancing
 TAOS_DEFINE_ERROR(TSDB_CODE_VND_NOT_SYNCED,               "Database suspended")
 TAOS_DEFINE_ERROR(TSDB_CODE_VND_NO_WRITE_AUTH,            "Database write operation denied")
 TAOS_DEFINE_ERROR(TSDB_CODE_VND_IS_SYNCING,               "Database is syncing")
+TAOS_DEFINE_ERROR(TSDB_CODE_VND_INVALID_TSDB_STATE,       "Invalid tsdb state")
 
 // tsdb
 TAOS_DEFINE_ERROR(TSDB_CODE_TDB_INVALID_TABLE_ID,         "Invalid table ID")
@@ -253,6 +254,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_TDB_TABLE_RECONFIGURE,        "Need to reconfigure t
 TAOS_DEFINE_ERROR(TSDB_CODE_TDB_IVD_CREATE_TABLE_INFO,    "Invalid information to create table")
 TAOS_DEFINE_ERROR(TSDB_CODE_TDB_NO_AVAIL_DISK,            "No available disk")
 TAOS_DEFINE_ERROR(TSDB_CODE_TDB_MESSED_MSG,               "TSDB messed message")
+TAOS_DEFINE_ERROR(TSDB_CODE_TDB_IVLD_TAG_VAL,             "TSDB invalid tag value")
 
 // query
 TAOS_DEFINE_ERROR(TSDB_CODE_QRY_INVALID_QHANDLE,          "Invalid handle")

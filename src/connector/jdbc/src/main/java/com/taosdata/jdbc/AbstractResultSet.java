@@ -10,6 +10,7 @@ import java.util.Map;
 
 public abstract class AbstractResultSet extends WrapperImpl implements ResultSet {
     private int fetchSize;
+    protected boolean wasNull;
 
     protected void checkAvailability(int columnIndex, int bounds) throws SQLException {
         if (isClosed())
@@ -28,7 +29,7 @@ public abstract class AbstractResultSet extends WrapperImpl implements ResultSet
 
     @Override
     public boolean wasNull() throws SQLException {
-        return false;
+        return wasNull;
     }
 
     @Override

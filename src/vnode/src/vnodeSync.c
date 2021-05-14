@@ -119,7 +119,6 @@ void vnodeConfirmForard(int32_t vgId, void *wparam, int32_t code) {
   void *pVnode = vnodeAcquire(vgId);
   if (pVnode == NULL) {
     vError("vgId:%d, vnode not found while confirm forward", vgId);
-    return;
   }
 
   dnodeSendRpcVWriteRsp(pVnode, wparam, code);

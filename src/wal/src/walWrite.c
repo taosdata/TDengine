@@ -426,8 +426,8 @@ static int32_t walRestoreWalFile(SWal *pWal, void *pVnode, FWalWrite writeFp, ch
 #endif
     offset = offset + sizeof(SWalHead) + pHead->len;
 
-    wTrace("vgId:%d, restore wal, fileId:%" PRId64 " hver:%" PRIu64 " wver:%" PRIu64 " len:%d", pWal->vgId,
-           fileId, pHead->version, pWal->version, pHead->len);
+    wTrace("vgId:%d, restore wal, fileId:%" PRId64 " hver:%" PRIu64 " wver:%" PRIu64 " len:%d offset:%" PRId64,
+           pWal->vgId, fileId, pHead->version, pWal->version, pHead->len, offset);
 
     pWal->version = pHead->version;
     (*writeFp)(pVnode, pHead, TAOS_QTYPE_WAL, NULL);

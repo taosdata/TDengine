@@ -109,6 +109,8 @@ public class TSDBResultSet extends AbstractResultSet implements ResultSet {
     public void close() throws SQLException {
         if (isClosed)
             return;
+        if (this.statement == null)
+            return;
         if (this.jniConnector != null) {
             int code = this.jniConnector.freeResultSet(this.resultSetPointer);
             if (code == TSDBConstants.JNI_CONNECTION_NULL) {
@@ -203,7 +205,11 @@ public class TSDBResultSet extends AbstractResultSet implements ResultSet {
 
         this.lastWasNull = this.rowData.wasNull(columnIndex - 1);
         if (!lastWasNull) {
-            res = this.rowData.getLong(columnIndex - 1, this.columnMetaDataList.get(columnIndex - 1).getColType());
+            Object value = this.rowData.get(columnIndex - 1);
+            if (value instanceof Timestamp)
+                res = ((Timestamp) value).getTime();
+            else
+                res = this.rowData.getLong(columnIndex - 1, this.columnMetaDataList.get(columnIndex - 1).getColType());
         }
         return res;
     }
@@ -273,7 +279,6 @@ public class TSDBResultSet extends AbstractResultSet implements ResultSet {
         checkAvailability(columnIndex, this.columnMetaDataList.size());
 
         Timestamp res = null;
-
         if (this.getBatchFetch())
             return this.blockData.getTimestamp(columnIndex - 1);
 
@@ -458,12 +463,13 @@ public class TSDBResultSet extends AbstractResultSet implements ResultSet {
     }
 
     public boolean isClosed() throws SQLException {
-        if (isClosed)
-            return true;
-        if (jniConnector != null) {
-            isClosed = jniConnector.isResultsetClosed();
-        }
         return isClosed;
+//        if (isClosed)
+//            return true;
+//        if (jniConnector != null) {
+//            isClosed = jniConnector.isResultsetClosed();
+//        }
+//        return isClosed;
     }
 
     public String getNString(int columnIndex) throws SQLException {

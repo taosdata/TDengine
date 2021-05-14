@@ -30,6 +30,7 @@ public abstract class TSDBConstants {
     public static final int JNI_FETCH_END = -6;
     public static final int JNI_OUT_OF_MEMORY = -7;
     // TSDB Data Types
+    public static final int TSDB_DATA_TYPE_NULL = 0;
     public static final int TSDB_DATA_TYPE_BOOL = 1;
     public static final int TSDB_DATA_TYPE_TINYINT = 2;
     public static final int TSDB_DATA_TYPE_SMALLINT = 3;

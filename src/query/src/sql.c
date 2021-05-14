@@ -26,14 +26,14 @@
 #include <assert.h>
 /************ Begin %include sections from the grammar ************************/
 
+#include <assert.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <assert.h>
-#include <stdbool.h>
 #include "qSqlparser.h"
 #include "tcmdtype.h"
-#include "tstoken.h"
+#include "ttoken.h"
 #include "ttokendef.h"
 #include "tutil.h"
 #include "tvariant.h"
