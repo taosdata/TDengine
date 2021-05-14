@@ -1,10 +1,13 @@
 from __future__ import annotations
 
 import sys
+import os
+import datetime
 import time
 import threading
 import requests
 from requests.auth import HTTPBasicAuth
+
 
 import taos
 from util.sql import *
@@ -12,13 +15,12 @@ from util.cases import *
 from util.dnodes import *
 from util.log import *
 
-from .misc import Logging, CrashGenError, Helper, Dice
-import os
-import datetime
 import traceback
 # from .service_manager import TdeInstance
 
-import crash_gen.settings 
+from .config import Config
+from .misc import Logging, CrashGenError, Helper
+from .types import QueryResult
 
 class DbConn:
     TYPE_NATIVE = "native-c"
@@ -79,7 +81,7 @@ class DbConn:
             raise RuntimeError("Cannot query database until connection is open")
         nRows = self.query(sql)
         if nRows != 1:
-            raise taos.error.ProgrammingError(
+            raise CrashGenError(
                 "Unexpected result for query: {}, rows = {}".format(sql, nRows), 
                 (CrashGenError.INVALID_EMPTY_RESULT if nRows==0 else CrashGenError.INVALID_MULTIPLE_RESULT)
             )
@@ -115,7 +117,7 @@ class DbConn:
         try:
             self.execute(sql)
             return True # ignore num of results, return success
-        except taos.error.ProgrammingError as err:
+        except taos.error.Error as err:
             return False # failed, for whatever TAOS reason
         # Not possile to reach here, non-TAOS exception would have been thrown
 
@@ -126,7 +128,7 @@ class DbConn:
     def openByType(self):
         raise RuntimeError("Unexpected execution, should be overriden")
 
-    def getQueryResult(self):
+    def getQueryResult(self) -> QueryResult :
         raise RuntimeError("Unexpected execution, should be overriden")
 
     def getResultRows(self):
@@ -221,7 +223,7 @@ class DbConnRest(DbConn):
 class MyTDSql:
     # Class variables
     _clsLock = threading.Lock() # class wide locking
-    longestQuery = None # type: str
+    longestQuery = '' # type: str
     longestQueryTime = 0.0 # seconds
     lqStartTime = 0.0
     # lqEndTime = 0.0 # Not needed, as we have the two above already
@@ -249,7 +251,13 @@ class MyTDSql:
     def _execInternal(self, sql):        
         startTime = time.time() 
         # Logging.debug("Executing SQL: " + sql)
+        # ret = None # TODO: use strong type here
+        # try: # Let's not capture the error, and let taos.error.ProgrammingError pass through
         ret = self._cursor.execute(sql)
+        # except taos.error.ProgrammingError as err:
+        #     Logging.warning("Taos SQL execution error: {}, SQL: {}".format(err.msg, sql))
+        #     raise CrashGenError(err.msg)
+            
         # print("\nSQL success: {}".format(sql))
         queryTime =  time.time() - startTime
         # Record the query time
@@ -261,7 +269,7 @@ class MyTDSql:
                 cls.lqStartTime = startTime
 
         # Now write to the shadow database
-        if crash_gen.settings.gConfig.use_shadow_db:
+        if Config.isSet('use_shadow_db'):
             if sql[:11] == "INSERT INTO":
                 if sql[:16] == "INSERT INTO db_0":
                     sql2 = "INSERT INTO db_s" + sql[16:]
@@ -453,30 +461,10 @@ class DbManager():
         ''' Release the underlying DB connection upon deletion of DbManager '''
         self.cleanUp()
 
-    def getDbConn(self):
+    def getDbConn(self) -> DbConn :
+        if self._dbConn is None:
+            raise CrashGenError("Unexpected empty DbConn")
         return self._dbConn
-
-    # TODO: not used any more, to delete
-    def pickAndAllocateTable(self):  # pick any table, and "use" it
-        return self.tableNumQueue.pickAndAllocate()
-
-    # TODO: Not used any more, to delete
-    def addTable(self):
-        with self._lock:
-            tIndex = self.tableNumQueue.push()
-        return tIndex
-
-    # Not used any more, to delete
-    def releaseTable(self, i):  # return the table back, so others can use it
-        self.tableNumQueue.release(i)    
-
-    # TODO: not used any more, delete
-    def getTableNameToDelete(self):
-        tblNum = self.tableNumQueue.pop()  # TODO: race condition!
-        if (not tblNum):  # maybe false
-            return False
-
-        return "table_{}".format(tblNum)
 
     def cleanUp(self):
         if self._dbConn:
