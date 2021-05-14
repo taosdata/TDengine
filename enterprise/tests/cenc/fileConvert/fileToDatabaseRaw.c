@@ -10,7 +10,7 @@
 
 
 #define  MAX_TSQL_LEN  1048576
-#define  TQ_CHAN_NUM   10
+#define  TQ_CHAN_NUM   16
 #define  SEED_BUF_LEN  256
 #define  hash(key, c)  ((uint64_t) key * 31 + c)
 
