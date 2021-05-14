@@ -3884,7 +3884,7 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
         goto PARSE_OVER;
       }
 
-      cJSON* maxSqlLen = cJSON_GetObjectItem(stbInfo, "max_sql_len");
+      maxSqlLen = cJSON_GetObjectItem(stbInfo, "max_sql_len");
       if (maxSqlLen && maxSqlLen->type == cJSON_Number) {
         int32_t len = maxSqlLen->valueint;
         if (len > TSDB_MAX_ALLOWED_SQL_LEN) {
@@ -3918,7 +3918,7 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
         goto PARSE_OVER;
       }
 */
-      cJSON* interlaceRows = cJSON_GetObjectItem(stbInfo, "interlace_rows");
+      interlaceRows = cJSON_GetObjectItem(stbInfo, "interlace_rows");
       if (interlaceRows && interlaceRows->type == cJSON_Number) {
         if (interlaceRows->valueint < 0) {
           errorPrint("%s() LN%d, failed to read json, interlace rows input mistake\n",

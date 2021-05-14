@@ -189,8 +189,8 @@ void writeDataImp(void *param) {
       counter++;
 
       if (counter >= arguments.rowsPerRequest) {
-        TAOS_RES *result = taos_query(taos, sql);
-        int32_t   code = taos_errno(result);
+        result = taos_query(taos, sql);
+        code = taos_errno(result);
         if (code != 0) {
           printf("thread:%d error:%d reason:%s\n", pThread->threadId, code, taos_errstr(taos));
         }
@@ -207,8 +207,8 @@ void writeDataImp(void *param) {
   }
 
   if (counter > 0) {
-    TAOS_RES *result = taos_query(taos, sql);
-    int32_t   code = taos_errno(result);
+    result = taos_query(taos, sql);
+    code = taos_errno(result);
     if (code != 0) {
       printf("thread:%d error:%d reason:%s\n", pThread->threadId, code, taos_errstr(taos));
     }
