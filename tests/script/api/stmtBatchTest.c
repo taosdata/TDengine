@@ -1409,20 +1409,14 @@ static void prepareV(TAOS     *taos, int schemaCase, int tableNum, int lenOfBina
 
 }
 
-static void preparemV(TAOS     *taos, int schemaCase, int idx) {
+static void prepareV_long(TAOS     *taos, int schemaCase, int tableNum, int lenOfBinaryDef) {
   TAOS_RES *result;
   int      code;
-  char dbname[32],sql[255];
 
-  sprintf(dbname, "demo%d", idx);
-  sprintf(sql, "drop database if exists %s", dbname);
-  
-
-  result = taos_query(taos, sql); 
+  result = taos_query(taos, "drop database if exists demol"); 
   taos_free_result(result);
 
-  sprintf(sql, "create database %s", dbname);
-  result = taos_query(taos, sql);
+  result = taos_query(taos, "create database demol");
   code = taos_errno(result);
   if (code != 0) {
     printf("failed to create database, reason:%s\n", taos_errstr(result));
@@ -1431,18 +1425,18 @@ static void preparemV(TAOS     *taos, int schemaCase, int idx) {
   }
   taos_free_result(result);
 
-  sprintf(sql, "use %s", dbname);
-  result = taos_query(taos, sql);
+  result = taos_query(taos, "use demol");
   taos_free_result(result);
   
   // create table
-  for (int i = 0 ; i < 300; i++) {
+  for (int i = 0 ; i < tableNum; i++) {
     char buf[1024];
     if (schemaCase) {
-      sprintf(buf, "create table m%d (ts timestamp, b bool, v1 tinyint, v2 smallint, v4 int, v8 bigint, f4 float, f8 double, bin binary(40), bin2 binary(40), t2 timestamp)", i) ;
+      sprintf(buf, "create table m%d (ts timestamp, b bool, v1 tinyint, v2 smallint, v4 int, v8 bigint, f4 float, f8 double, br binary(%d), nr nchar(%d), ts2 timestamp)", i, lenOfBinaryDef, lenOfBinaryDef) ;
     } else {
       sprintf(buf, "create table m%d (ts timestamp, b int)", i) ;
     }
+    
     result = taos_query(taos, buf);
     code = taos_errno(result);
     if (code != 0) {
@@ -1985,12 +1979,284 @@ static void* runCase(void *para) {
 
 }
 
+
+static int stmt_bind_case_001_long(TAOS_STMT *stmt, int tableNum, int rowsOfPerColum, int bingNum, int lenOfBinaryDef, int lenOfBinaryAct, int columnNum, int64_t* startTs) {
+  sampleValue* v = (sampleValue *)calloc(1, sizeof(sampleValue));
+
+  int totalRowsPerTbl = rowsOfPerColum * bingNum;
+
+  v->ts = (int64_t *)malloc(sizeof(int64_t) * (size_t)(totalRowsPerTbl * tableNum));
+  v->br = (char *)malloc(sizeof(int64_t) * (size_t)(totalRowsPerTbl * lenOfBinaryDef));
+  v->nr = (char *)malloc(sizeof(int64_t) * (size_t)(totalRowsPerTbl * lenOfBinaryDef));
+  
+  int *lb = (int *)malloc(MAX_ROWS_OF_PER_COLUMN * sizeof(int));
+  
+  TAOS_MULTI_BIND *params = calloc(1, sizeof(TAOS_MULTI_BIND) * (size_t)(bingNum * columnNum * (tableNum+1) * rowsOfPerColum));
+  char* is_null = malloc(sizeof(char) * MAX_ROWS_OF_PER_COLUMN);
+  char* no_null = malloc(sizeof(char) * MAX_ROWS_OF_PER_COLUMN);
+
+  int64_t tts = *startTs;
+
+  for (int i = 0; i < rowsOfPerColum; ++i) {
+    lb[i] = lenOfBinaryAct;
+    no_null[i] = 0;
+    is_null[i] = (i % 10 == 2) ? 1 : 0;
+    v->b[i]  = (int8_t)(i % 2);
+    v->v1[i] = (int8_t)((i+1) % 2);
+    v->v2[i] = (int16_t)i;
+    v->v4[i] = (int32_t)(i+1);
+    v->v8[i] = (int64_t)(i+2);
+    v->f4[i] = (float)(i+3);
+    v->f8[i] = (double)(i+4);
+    char tbuf[MAX_BINARY_DEF_LEN];
+    memset(tbuf, 0, MAX_BINARY_DEF_LEN);
+    sprintf(tbuf, "binary-%d",  i%10);
+    memcpy(v->br + i*lenOfBinaryDef, tbuf, (size_t)lenOfBinaryAct);
+    memset(tbuf, 0, MAX_BINARY_DEF_LEN);
+    sprintf(tbuf, "nchar-%d",  i%10);
+    memcpy(v->nr + i*lenOfBinaryDef, tbuf, (size_t)lenOfBinaryAct);
+    v->ts2[i] = tts + i;
+  }
+
+  int i = 0;
+  for (int j = 0; j < bingNum * tableNum; j++) {
+    params[i+0].buffer_type = TSDB_DATA_TYPE_TIMESTAMP;
+    params[i+0].buffer_length = sizeof(int64_t);
+    params[i+0].buffer = &v->ts[j*rowsOfPerColum];
+    params[i+0].length = NULL;
+    params[i+0].is_null = no_null;
+    params[i+0].num = rowsOfPerColum;
+    
+    params[i+1].buffer_type = TSDB_DATA_TYPE_BOOL;
+    params[i+1].buffer_length = sizeof(int8_t);
+    params[i+1].buffer = v->b;
+    params[i+1].length = NULL;
+    params[i+1].is_null = is_null;
+    params[i+1].num = rowsOfPerColum;
+
+    params[i+2].buffer_type = TSDB_DATA_TYPE_TINYINT;
+    params[i+2].buffer_length = sizeof(int8_t);
+    params[i+2].buffer = v->v1;
+    params[i+2].length = NULL;
+    params[i+2].is_null = is_null;
+    params[i+2].num = rowsOfPerColum;
+
+    params[i+3].buffer_type = TSDB_DATA_TYPE_SMALLINT;
+    params[i+3].buffer_length = sizeof(int16_t);
+    params[i+3].buffer = v->v2;
+    params[i+3].length = NULL;
+    params[i+3].is_null = is_null;
+    params[i+3].num = rowsOfPerColum;
+
+    params[i+4].buffer_type = TSDB_DATA_TYPE_INT;
+    params[i+4].buffer_length = sizeof(int32_t);
+    params[i+4].buffer = v->v4;
+    params[i+4].length = NULL;
+    params[i+4].is_null = is_null;
+    params[i+4].num = rowsOfPerColum;
+
+    params[i+5].buffer_type = TSDB_DATA_TYPE_BIGINT;
+    params[i+5].buffer_length = sizeof(int64_t);
+    params[i+5].buffer = v->v8;
+    params[i+5].length = NULL;
+    params[i+5].is_null = is_null;
+    params[i+5].num = rowsOfPerColum;
+
+    params[i+6].buffer_type = TSDB_DATA_TYPE_FLOAT;
+    params[i+6].buffer_length = sizeof(float);
+    params[i+6].buffer = v->f4;
+    params[i+6].length = NULL;
+    params[i+6].is_null = is_null;
+    params[i+6].num = rowsOfPerColum;
+
+    params[i+7].buffer_type = TSDB_DATA_TYPE_DOUBLE;
+    params[i+7].buffer_length = sizeof(double);
+    params[i+7].buffer = v->f8;
+    params[i+7].length = NULL;
+    params[i+7].is_null = is_null;
+    params[i+7].num = rowsOfPerColum;
+
+    params[i+8].buffer_type = TSDB_DATA_TYPE_BINARY;
+    params[i+8].buffer_length = (uintptr_t)lenOfBinaryDef;
+    params[i+8].buffer = v->br;
+    params[i+8].length = lb;
+    params[i+8].is_null = is_null;
+    params[i+8].num = rowsOfPerColum;
+
+    params[i+9].buffer_type = TSDB_DATA_TYPE_NCHAR;
+    params[i+9].buffer_length = (uintptr_t)lenOfBinaryDef;
+    params[i+9].buffer = v->nr;
+    params[i+9].length = lb;
+    params[i+9].is_null = is_null;
+    params[i+9].num = rowsOfPerColum;
+
+    params[i+10].buffer_type = TSDB_DATA_TYPE_TIMESTAMP;
+    params[i+10].buffer_length = sizeof(int64_t);
+    params[i+10].buffer = v->ts2;
+    params[i+10].length = NULL;
+    params[i+10].is_null = is_null;
+    params[i+10].num = rowsOfPerColum;
+
+    i+=columnNum;
+  }
+
+  //int64_t tts = 1591060628000;
+  for (int i = 0; i < totalRowsPerTbl * tableNum; ++i) {
+    v->ts[i] = tts + i;
+  }
+
+  *startTs = tts + totalRowsPerTbl * tableNum; // return to next
+
+  unsigned long long starttime = getCurrentTime();
+
+  char *sql = "insert into ? values(?,?,?,?,?,?,?,?,?,?,?)";
+  int code = taos_stmt_prepare(stmt, sql, 0);
+  if (code != 0){
+    printf("failed to execute taos_stmt_prepare. code:0x%x[%s]\n", code, tstrerror(code));
+    return -1;
+  }
+
+  int id = 0;
+  for (int l = 0; l < bingNum; l++) {
+    for (int zz = 0; zz < tableNum; zz++) {
+      char buf[32];
+      sprintf(buf, "m%d", zz);
+      code = taos_stmt_set_tbname(stmt, buf);
+      if (code != 0){
+        printf("failed to execute taos_stmt_set_tbname. code:0x%x[%s]\n", code, tstrerror(code));
+        return -1;
+      }  
+
+      for (int col=0; col < columnNum; ++col) {
+        code = taos_stmt_bind_single_param_batch(stmt, params + id, col);
+        if (code != 0){
+          printf("failed to execute taos_stmt_bind_single_param_batch. code:0x%x[%s]\n", code, tstrerror(code));
+          return -1;
+        }
+        id++;
+      }
+      
+      code = taos_stmt_add_batch(stmt);
+      if (code != 0) {
+        printf("failed to execute taos_stmt_add_batch. code:0x%x[%s]\n", code, tstrerror(code));
+        return -1;
+      }
+    }
+
+    code = taos_stmt_execute(stmt);
+    if (code != 0) {
+      printf("failed to execute taos_stmt_execute. code:0x%x[%s]\n", code, tstrerror(code));
+      return -1;
+    }
+  }
+
+  unsigned long long endtime = getCurrentTime();
+  unsigned long long totalRows = (uint32_t)(totalRowsPerTbl * tableNum);
+  printf("insert total %d records, used %u seconds, avg:%u useconds per record\n", totalRows, (endtime-starttime)/1000000UL, (endtime-starttime)/totalRows);
+
+  free(v->ts);  
+  free(v->br);  
+  free(v->nr);  
+  free(v);
+  free(lb);
+  free(params);
+  free(is_null);
+  free(no_null);
+
+  return 0;
+}
+
+//void runcase(TAOS     *taos, int idx) {
+static void* runCase_long(void *para) {
+  ThreadInfo* tInfo = (ThreadInfo *)para;
+  TAOS *taos = tInfo->taos;
+  int   idx  = tInfo->idx;
+  
+  TAOS_STMT *stmt = NULL;
+
+  (void)idx;
+  
+  int tableNum;
+  int lenOfBinaryDef;
+  int rowsOfPerColum;
+  int bingNum;
+  int lenOfBinaryAct;
+  int columnNum;
+
+  int totalRowsPerTbl;
+
+//=======================================================================//
+    //========== long case 14: ======================//
+#if 0
+    {
+        stmt = taos_stmt_init(taos);
+        
+        tableNum = 1000;
+        rowsOfPerColum = 10;
+        bingNum = 5000000;
+        lenOfBinaryDef = 1000;
+        lenOfBinaryAct = 33;
+        columnNum = 11;
+        
+        prepareV(taos, 1, tableNum, lenOfBinaryDef);
+        stmt_bind_case_002(stmt, tableNum, rowsOfPerColum, bingNum, lenOfBinaryDef, lenOfBinaryAct, columnNum);
+    
+        totalRowsPerTbl = rowsOfPerColum * bingNum;
+        checkResult(taos, "m0", 0, totalRowsPerTbl);
+        checkResult(taos, "m1", 0, totalRowsPerTbl);
+        checkResult(taos, "m2", 0, totalRowsPerTbl);  
+        checkResult(taos, "m3", 0, totalRowsPerTbl);
+        checkResult(taos, "m4", 0, totalRowsPerTbl);
+        taos_stmt_close(stmt);
+        printf("long case 14 check result end\n\n");
+    }
+#endif  
+
+    
+  //========== case 15: ======================//
+#if 1
+  {
+      printf("====long case 15 test start\n\n");
+      
+      tableNum = 200;
+      rowsOfPerColum = 110;
+      bingNum = 100;
+      lenOfBinaryDef = 1000;
+      lenOfBinaryAct = 8;
+      columnNum = 11;
+
+      int64_t startTs = 1591060628000;
+      prepareV_long(taos, 1, tableNum, lenOfBinaryDef);
+
+      totalRowsPerTbl = 0;
+      for (int i = 0; i < 30000; i++) {
+        stmt = taos_stmt_init(taos);
+        stmt_bind_case_001_long(stmt, tableNum, rowsOfPerColum, bingNum, lenOfBinaryDef, lenOfBinaryAct, columnNum, &startTs);
+      
+        totalRowsPerTbl += rowsOfPerColum * bingNum;
+        checkResult(taos, "m0", 0, totalRowsPerTbl);
+        checkResult(taos, "m11", 0, totalRowsPerTbl);
+        checkResult(taos, "m22", 0, totalRowsPerTbl);  
+        checkResult(taos, "m133", 0, totalRowsPerTbl);
+        checkResult(taos, "m199", 0, totalRowsPerTbl);
+        taos_stmt_close(stmt);
+      }
+      
+      printf("====long case 15 check result end\n\n");
+  }
+#endif  
+
+  return NULL;
+
+}
+
+
 int main(int argc, char *argv[])
 {
   TAOS *taos;
   char  host[32] = "127.0.0.1";
   char* serverIp = NULL;
-  int   threadNum = 1;
+  int   threadNum = 2;
   
   // connect to server
   if (argc == 1) {
@@ -2021,7 +2287,11 @@ int main(int argc, char *argv[])
 
     tInfo->taos = taos;
     tInfo->idx = i;
-    pthread_create(&(pThreadList[0]), NULL, runCase, (void *)tInfo);
+    if (0 == i) {
+      pthread_create(&(pThreadList[0]), NULL, runCase, (void *)tInfo);
+    } else if (1 == i){
+      pthread_create(&(pThreadList[0]), NULL, runCase_long, (void *)tInfo);
+    }
     tInfo++;
   }
 
