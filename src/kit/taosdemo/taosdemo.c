@@ -3003,10 +3003,10 @@ static void createChildTables() {
 
           verbosePrint("%s() LN%d: %s\n", __func__, __LINE__,
                   g_Dbs.db[i].superTbls[j].colsOfCreateChildTable);
-          int startFrom = 0;
+          uint64_t startFrom = 0;
           g_totalChildTables += g_Dbs.db[i].superTbls[j].childTblCount;
 
-          verbosePrint("%s() LN%d: create %"PRIu64" child tables from %d\n",
+          verbosePrint("%s() LN%d: create %"PRIu64" child tables from %"PRIu64"\n",
                   __func__, __LINE__, g_totalChildTables, startFrom);
           startMultiThreadCreateChildTable(
                 g_Dbs.db[i].superTbls[j].colsOfCreateChildTable,
@@ -5335,8 +5335,8 @@ static void* syncWriteInterlace(threadInfo *pThreadInfo) {
       et = taosGetTimestampMs();
 
       if (insert_interval > (et - st) ) {
-        int sleepTime = insert_interval - (et -st);
-        performancePrint("%s() LN%d sleep: %d ms for insert interval\n",
+        uint64_t sleepTime = insert_interval - (et -st);
+        performancePrint("%s() LN%d sleep: %"PRId64" ms for insert interval\n",
                     __func__, __LINE__, sleepTime);
         taosMsleep(sleepTime); // ms
         sleepTimeTotal += insert_interval;
@@ -5963,7 +5963,7 @@ static void *readTable(void *sarg) {
     return NULL;
   }
 
-    int num_of_DPT;
+  uint64_t num_of_DPT;
 /*  if (rinfo->superTblInfo) {
     num_of_DPT = rinfo->superTblInfo->insertRows; //  nrecords_per_table;
   } else {
@@ -6033,7 +6033,7 @@ static void *readMetric(void *sarg) {
     return NULL;
   }
 
-  int num_of_DPT = rinfo->superTblInfo->insertRows;
+  uint64_t num_of_DPT = rinfo->superTblInfo->insertRows;
   int64_t num_of_tables = rinfo->ntables; // rinfo->end_table_to - rinfo->start_table_from + 1;
   int64_t totalData = num_of_DPT * num_of_tables;
   bool do_aggreFunc = g_Dbs.do_aggreFunc;
