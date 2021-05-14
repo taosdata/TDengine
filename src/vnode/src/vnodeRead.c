@@ -117,13 +117,17 @@ static SVReadMsg *vnodeBuildVReadMsg(SVnodeObj *pVnode, void *pCont, int32_t con
 }
 
 int32_t vnodeWriteToRQueue(void *vparam, void *pCont, int32_t contLen, int8_t qtype, void *rparam) {
+  SVnodeObj *pVnode = vparam;
+
+  if (pVnode->dropped) {
+    return TSDB_CODE_VND_INVALID_VGROUP_ID;
+  }
+
   SVReadMsg *pRead = vnodeBuildVReadMsg(vparam, pCont, contLen, qtype, rparam);
   if (pRead == NULL) {
     assert(terrno != 0);
     return terrno;
   }
-
-  SVnodeObj *pVnode = vparam;
 
   int32_t code = vnodeCheckRead(pVnode);
   if (code != TSDB_CODE_SUCCESS) {
