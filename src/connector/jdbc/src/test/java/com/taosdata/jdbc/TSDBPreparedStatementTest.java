@@ -8,6 +8,8 @@ import org.junit.Test;
 import java.io.IOException;
 import java.io.Serializable;
 import java.sql.*;
+import java.util.ArrayList;
+import java.util.Random;
 
 public class TSDBPreparedStatementTest {
     private static final String host = "127.0.0.1";
@@ -95,6 +97,118 @@ public class TSDBPreparedStatementTest {
         pstmt_insert.setNull(10, Types.OTHER);
         result = pstmt_insert.executeUpdate();
         Assert.assertEquals(1, result);
+    }
+
+    @Test
+    public void executeTest() throws SQLException {   
+        Statement stmt = conn.createStatement();            
+
+        int numOfRows = 1000;        
+
+        for (int loop = 0; loop < 10; loop++){
+            stmt.execute("drop table if exists weather_test");
+            stmt.execute("create table weather_test(ts timestamp, f1 nchar(4), f2 float, f3 double, f4 timestamp, f5 int, f6 bool, f7 binary(10))");            
+
+            TSDBPreparedStatement s = (TSDBPreparedStatement) conn.prepareStatement("insert into ? values(?, ?, ?, ?, ?, ?, ?, ?)");
+            Random r = new Random();
+            s.setTableName("weather_test");
+            
+            ArrayList<Long> ts = new ArrayList<Long>();
+            for(int i = 0; i < numOfRows; i++) {
+                ts.add(System.currentTimeMillis() + i);
+            }        
+            s.setTimestamp(0, ts);
+
+            int random = 10 + r.nextInt(5);
+            ArrayList<String> s2 = new ArrayList<String>();        
+            for(int i = 0; i < numOfRows; i++) {
+                if(i % random == 0) {
+                    s2.add(null);
+                }else{
+                    s2.add("分支" + i % 4);
+                }
+            }        
+            s.setNString(1, s2, 4);      
+
+            random = 10 + r.nextInt(5);
+            ArrayList<Float> s3 = new ArrayList<Float>();        
+            for(int i = 0; i < numOfRows; i++) {
+                if(i % random == 0) {
+                    s3.add(null);
+                }else{
+                    s3.add(r.nextFloat());
+                }
+            }        
+            s.setFloat(2, s3);
+
+            random = 10 + r.nextInt(5);
+            ArrayList<Double> s4 = new ArrayList<Double>();
+            for(int i = 0; i < numOfRows; i++) {
+                if(i % random == 0) {
+                    s4.add(null);
+                }else{
+                    s4.add(r.nextDouble());
+                }
+            }
+            s.setDouble(3, s4);
+
+            random = 10 + r.nextInt(5);
+            ArrayList<Long> ts2 = new ArrayList<Long>();
+            for(int i = 0; i < numOfRows; i++) {
+                if(i % random == 0) {
+                    ts2.add(null);
+                }else{
+                    ts2.add(System.currentTimeMillis() + i);
+                }
+            }
+            s.setTimestamp(4, ts2);
+
+            random = 10 + r.nextInt(5);
+            ArrayList<Integer>  vals = new ArrayList<>();
+            for(int i = 0; i < numOfRows; i++) {
+                if(i % random == 0) {
+                    vals.add(null);
+                }else{
+                    vals.add(r.nextInt());
+                }                
+            }
+            s.setInt(5, vals);
+
+            random = 10 + r.nextInt(5);
+            ArrayList<Boolean> sb = new ArrayList<>();
+            for(int i = 0; i < numOfRows; i++) {
+                if(i % random == 0) {
+                    sb.add(null);
+                }else{
+                    sb.add(i % 2 == 0 ? true : false);
+                }
+            }
+            s.setBoolean(6, sb);        
+
+            random = 10 + r.nextInt(5);
+            ArrayList<String> s5 = new ArrayList<String>();
+            for(int i = 0; i < numOfRows; i++) {
+                if(i % random == 0) {
+                    s5.add(null);
+                }else{
+                    s5.add("test" + i % 10);
+                }
+            }
+            s.setString(7, s5, 10);        
+
+            s.columnDataAddBatch();
+            s.columnDataExecuteBatch();
+            s.columnDataCloseBatch();
+
+            String sql = "select * from weather_test";
+            PreparedStatement statement = conn.prepareStatement(sql);
+            ResultSet rs = statement.executeQuery();
+            int rows = 0;
+            while(rs.next()) {
+                rows++;
+            }
+            Assert.assertEquals(numOfRows, rows);
+        }
     }
 
     @Test
