@@ -150,6 +150,29 @@ steps:
     branch:
     - develop
     - master
+---
+kind: pipeline
+name: build_centos7
+platform:
+  os: linux
+  arch: amd64
+
+steps:
+- name: build
+  image: ansible/centos7-ansible
+  commands:
+  - yum install gcc cmake build-essential -y 
+  - mkdir debug
+  - cd debug
+  - cmake .. 
+  - make 
+  trigger:
+    event:
+      - pull_request
+  when:
+    branch:
+    - develop
+    - master
 
 ---
 kind: pipeline
