@@ -376,6 +376,7 @@ retry:
 #endif
                              &reclen);
         if (ret != MS_NOERROR) {
+            running = 0;
             break;
         }
 

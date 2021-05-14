@@ -12,12 +12,12 @@
 
 #define  MAX_TSQL_LEN  131072
 #define  SEG_TSQL_LEN  4096
-#define  TQ_CHAN_NUM   10
+#define  TQ_CHAN_NUM   16
 
 
-int nTotalRows = 0;
+int64_t nTotalRows = 0;
 time_t nTotalTime = 0;
-int nTotalSamples = 0;
+int64_t nTotalSamples = 0;
 
 
 pthread_mutex_t  mutex;
@@ -30,10 +30,15 @@ int                 run       = 1;
 int                 async     = 0;
 int                 restart   = 0;
 int                 keep      = 1;
-const char         *host      = "localhost";
-const char         *user      = "root";
-const char         *passwd    = "taosdata";
-const char         *port      = "6030";
+int                 seed_only = 1;
+const char         *src_host  = "localhost";
+const char         *dst_host  = "localhost";
+const char         *src_user  = "root";
+const char         *dst_user  = "root";
+const char         *src_passwd= "taosdata";
+const char         *dst_passwd= "taosdata";
+const char         *src_port  = "6030";
+const char         *dst_port  = "6030";
 const char         *topic     = "packet";
 const char         *delay     = "delay";
 const char         *stb_name  = "ms";
@@ -142,14 +147,13 @@ void cenc_calc_delay(MS3TraceList *mstl, callback_params_t *param)
   int                    np;
   int                    index;
   char                  *cp;
-  int64_t                start_time, now;
+  int64_t                start_time, end_time, now;
   int64_t                numsamples;
   int                    samprate;
   const char            *prefix = "insert into";
   const int              prefix_len = sizeof("insert into") - 1;
   MS3TraceID            *id;
   MS3TraceSeg           *seg;
-  nstime_t               dtime;
   char                   sid[LM_SIDLEN];
   char                   net[LM_SIDLEN], stat[LM_SIDLEN], loc[LM_SIDLEN], chan[LM_SIDLEN];
   callback_params_t     *p;
@@ -168,7 +172,10 @@ void cenc_calc_delay(MS3TraceList *mstl, callback_params_t *param)
   index = p->index;
   stb_name = (char *) p->data;
 
+  start_time = 0;
+  end_time = 0;
   numsamples = 0;
+  samprate = 0;
 
   id = mstl->traces;
 
@@ -183,6 +190,20 @@ void cenc_calc_delay(MS3TraceList *mstl, callback_params_t *param)
     }
 
     seg = id->first;
+
+    while (seg && seed_only) {
+      if ((int) seg->samprate == 100) {
+        break;
+      }
+
+      seg = seg->next;
+    }
+
+    if (seg == NULL) {
+        id = id->next;
+        continue;
+    }
+
     start_time = (int64_t) round(id->earliest * 0.001 * 0.001);
 
     memset(sid, 0, LM_SIDLEN);
@@ -223,7 +244,6 @@ void cenc_calc_delay(MS3TraceList *mstl, callback_params_t *param)
       }
 
       samprate = (int) seg->samprate;
-      dtime = (int) round(1000.0 / seg->samprate);
 
       numsamples += seg->numsamples;
 
@@ -231,21 +251,23 @@ void cenc_calc_delay(MS3TraceList *mstl, callback_params_t *param)
       nTotalSamples += seg->numsamples;
       pthread_mutex_unlock(&mutex_tsamps);
 
-      seg = seg->next;
-    }
+      end_time = (int64_t) round(seg->endtime * 0.001 * 0.001);
 
-    if (numsamples > 0) {
-      gettimeofday(&tv, NULL);
-      now = tv.tv_sec * 1000 + tv.tv_usec / 1000;
+      if (numsamples > 0) {
+        gettimeofday(&tv, NULL);
+        now = tv.tv_sec * 1000 + tv.tv_usec / 1000;
 
-      np = snprintf(cp, cmd + SEG_TSQL_LEN - cp,
-                    "(%ld, %d, %ld, %ld, %ld, %d)",
-                    now, (int) (now - start_time), start_time, start_time + numsamples * dtime, numsamples, samprate);
+        np = snprintf(cp, cmd + SEG_TSQL_LEN - cp,
+                      "(%ld, %ld, %ld, %ld, %ld, %d)",
+                      now, now - end_time, start_time, end_time, numsamples, samprate);
 
-      if (np <= 0) {
-        fprintf(stderr, "sub(%d): fprintf error cmd: %s\r\n", index, cmd);
-        return;
+        if (np <= 0) {
+          fprintf(stderr, "sub(%d): fprintf error cmd: %s\r\n", index, cmd);
+          return;
+        }
       }
+
+      seg = seg->next;
     }
 
     if (strlen(cmd) > MAX_TSQL_LEN - p->offset - 1024) {
@@ -289,7 +311,7 @@ void subscribe_callback(TAOS_SUB *tsub, TAOS_RES *res, void *param, int code)
 
   gettimeofday(&start_time, NULL);
 
-  while ((row = taos_fetch_row(res))) {
+  while ((row = taos_fetch_row(res)) && run) {
     fields = taos_fetch_fields(res);
     nfields = taos_num_fields(res);
 
@@ -381,7 +403,7 @@ void *subscribe_routine(void *arg)
   // init TAOS
   taos_init();
 
-  params->taos = taos_connect(host, user, passwd, "", 0);
+  params->taos = taos_connect(src_host, src_user, src_passwd, "", (int) strtol(src_port, NULL, 10));
   if (params->taos == NULL) {
     fprintf(stderr, "sub(%d): failed to connect to db\r\n", index);
     goto failed;
@@ -403,7 +425,7 @@ void *subscribe_routine(void *arg)
     goto failed;
   }
 
-  params->res_taos = taos_connect(host, user, passwd, "", 0);
+  params->res_taos = taos_connect(dst_host, dst_user, dst_passwd, "", (int) strtol(dst_port, NULL, 10));
   if (params->res_taos == NULL) {
     fprintf(stderr, "sub(%d): failed to connect to delay database\r\n", index);
     goto failed;
@@ -432,7 +454,7 @@ void *subscribe_routine(void *arg)
 
   // create super table for delay
   np = snprintf(cmd, sizeof(cmd),
-                "create stable if not exists %s (ingesttime timestamp, delay int, starttime timestamp, endtime timestamp, npts int, samprate int) "
+                "create stable if not exists %s (ingesttime timestamp, delay bigint, starttime timestamp, endtime timestamp, npts int, samprate int) "
                 "tags (network binary(20), station binary(20), location binary(20), channel binary(20));",
                 stb_name);
 
@@ -541,22 +563,42 @@ int main(int argc, char *argv[])
 
   for (i = 1; i < argc; i++) {
     if (strncmp(argv[i], "-h=", 3) == 0) {
-      host = argv[i] + 3;
+      src_host = argv[i] + 3;
+      continue;
+    }
+
+    if (strncmp(argv[i], "-H=", 3) == 0) {
+      dst_host = argv[i] + 3;
       continue;
     }
 
     if (strncmp(argv[i], "-u=", 3) == 0) {
-      user = argv[i] + 3;
+      src_user = argv[i] + 3;
+      continue;
+    }
+
+    if (strncmp(argv[i], "-U=", 3) == 0) {
+      dst_user = argv[i] + 3;
       continue;
     }
 
     if (strncmp(argv[i], "-p=", 3) == 0) {
-      passwd = argv[i] + 3;
+      src_passwd = argv[i] + 3;
       continue;
     }
 
     if (strncmp(argv[i], "-P=", 3) == 0) {
-      port = argv[i] + 3;
+      dst_passwd = argv[i] + 3;
+      continue;
+    }
+
+    if (strncmp(argv[i], "-S=", 3) == 0) {
+      src_port = argv[i] + 3;
+      continue;
+    }
+
+    if (strncmp(argv[i], "-D=", 3) == 0) {
+      dst_port = argv[i] + 3;
       continue;
     }
 
@@ -577,11 +619,16 @@ int main(int argc, char *argv[])
 
     if (strcmp(argv[i], "-help") == 0) {
       fprintf(stderr,
-              "Usage: %s -i=index[ -h=host -u=user -p=password -P=port "
-              "-t=topic -d=result_db_name -s=result_stb_name "
+              "Usage: %s [-h=src_host -u=src_user -p=src_password -H=dst_host -U=dst_user "
+              "-P=dst_passwd -S=src_port -D=dst_port -t=topic -d=result_db_name -s=result_stb_name "
               "-async -restart -nokeep -help]\r\n", argv[0]);
 
       exit(0);
+    }
+
+    if (strcmp(argv[i], "-all") == 0) {
+      seed_only = 0;
+      continue;
     }
 
     if (strcmp(argv[i], "-async") == 0) {
@@ -601,9 +648,12 @@ int main(int argc, char *argv[])
   }
 
   fprintf(stderr, "################################################################\r\n");
-  fprintf(stderr, "# Server:                          %s\r\n", host);
-  fprintf(stderr, "# User:                            %s\r\n", user);
-  fprintf(stderr, "# Port:                            %s\r\n", port);
+  fprintf(stderr, "# Src Server:                      %s\r\n", src_host);
+  fprintf(stderr, "# Src User:                        %s\r\n", src_user);
+  fprintf(stderr, "# Dst Server:                      %s\r\n", dst_host);
+  fprintf(stderr, "# Dst User:                        %s\r\n", dst_user);
+  fprintf(stderr, "# Src Port:                        %s\r\n", src_port);
+  fprintf(stderr, "# Dst Port:                        %s\r\n", dst_port);
   fprintf(stderr, "# Topic:                           %s\r\n", topic);
   fprintf(stderr, "# Delay Database Name:             %s\r\n", delay);
   fprintf(stderr, "# Delay Super Table Name:          %s\r\n", stb_name);
@@ -638,8 +688,8 @@ int main(int argc, char *argv[])
     subscribe_routine_finalize(&pp[i]);
   }
 
-  fprintf(stdout, "total samples consumed: %d\r\n", nTotalSamples);
-  fprintf(stdout, "total rows consumed: %d\r\n", nTotalRows);
+  fprintf(stdout, "total samples consumed: %ld\r\n", nTotalSamples);
+  fprintf(stdout, "total rows consumed: %ld\r\n", nTotalRows);
   fprintf(stdout, "total time consumed: %ld\r\n", nTotalTime / TQ_CHAN_NUM);
 
   return 0;

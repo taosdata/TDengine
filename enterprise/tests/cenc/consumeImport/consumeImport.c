@@ -724,10 +724,10 @@ int main(int argc, char **argv)
   }
 
   fprintf(stderr, "################################################################\r\n");
-  fprintf(stdout, "# Src Server:                      %s\r\n", src_host);
-  fprintf(stdout, "# Src User:                        %s\r\n", src_user);
-  fprintf(stdout, "# Dst Server:                      %s\r\n", dst_host);
-  fprintf(stdout, "# Dst User:                        %s\r\n", dst_user);
+  fprintf(stderr, "# Src Server:                      %s\r\n", src_host);
+  fprintf(stderr, "# Src User:                        %s\r\n", src_user);
+  fprintf(stderr, "# Dst Server:                      %s\r\n", dst_host);
+  fprintf(stderr, "# Dst User:                        %s\r\n", dst_user);
   fprintf(stderr, "# Src Port:                        %s\r\n", src_port);
   fprintf(stderr, "# Dst Port:                        %s\r\n", dst_port);
   fprintf(stderr, "# Topic:                           %s\r\n", topic);

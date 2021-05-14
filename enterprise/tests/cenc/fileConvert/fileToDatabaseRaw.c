@@ -24,6 +24,7 @@
 
 
 int quit = 0;
+int64_t total = 0;
 
 
 void handler(int sig) {
@@ -155,6 +156,10 @@ int seed_detect(char *record, int recbuflen, uint32_t flags, char *sid, int sidl
     } else if (reclen < MINRECLEN || reclen > MAXRECLEN) {
         return MS_OUTOFRANGE;
     } else if (reclen > recbuflen) {
+        if (readlen) {
+          *readlen = reclen;
+        }
+
         return (int) (reclen - recbuflen);
     }
 
@@ -210,6 +215,7 @@ int main(int argc, char *argv[])
     int               id;
     int               begin;
     int               offset;
+    int               readlen;
     char             *file_name    = NULL;
     char             *tsdb_server  = NULL;
     char             *tsdb_usrname = NULL;
@@ -219,14 +225,14 @@ int main(int argc, char *argv[])
     TAOS             *taos         = NULL;
     TAOS_RES         *res          = NULL;
     FILE             *fp           = NULL;
-    char              buf[SEED_BUF_LEN];
+    char              buf[MAXRECLEN];
     char              cmd[MAX_TSQL_LEN];
     char              sid[LM_SIDLEN];
     const char       *prefix  = "insert into";
     const int         pfxlen  = sizeof("insert into") - 1;
     char             *base64;
     uint64_t          hash;
-    int64_t           ts;
+    int64_t           prv, ts;
     struct timeval    now;
     struct sigaction  act;
 
@@ -340,6 +346,7 @@ int main(int argc, char *argv[])
     }
 
     np = 0;
+    prv = -1;
     begin = 1;
     offset = 0;
     memset(sid, 0, LM_SIDLEN);
@@ -351,12 +358,22 @@ int main(int argc, char *argv[])
             break;
         }
 
-        if (seed_detect(buf, SEED_BUF_LEN, MSF_SKIPNOTDATA, sid, LM_SIDLEN, NULL) != MS_NOERROR) {
-            fprintf(stderr, "seed_detect error\r\n");
-            break;
+        readlen = 0;
+
+        if (seed_detect(buf, SEED_BUF_LEN, MSF_SKIPNOTDATA, sid, LM_SIDLEN, &readlen) != MS_NOERROR) {
+            if (readlen > SEED_BUF_LEN) {
+                if (fread(buf + SEED_BUF_LEN, 1, readlen - SEED_BUF_LEN, fp) != readlen - SEED_BUF_LEN) {
+                    fprintf(stderr, "seed_detect error\r\n");
+                    break;
+                }
+	    } else {
+                break;
+            }
         }
 
-        base64 = base64_encode((const unsigned char *) buf, SEED_BUF_LEN);
+        total++;
+
+        base64 = base64_encode((const unsigned char *) buf, readlen);
         if (base64 == NULL) {
             fprintf(stderr, "base64 error\r\n");
             break;
@@ -378,6 +395,16 @@ remain_data:
         if (offset + strlen(base64) < MAX_TSQL_LEN - 256) {
             gettimeofday(&now, NULL);
             ts = (int64_t) (now.tv_sec * 1000000 + now.tv_usec);
+
+            /* so fast */
+            if (prv == ts) {
+                usleep(5);
+                gettimeofday(&now, NULL);
+                ts = (int64_t) (now.tv_sec * 1000000 + now.tv_usec);
+            }
+
+            prv = ts;
+
             np = snprintf(cmd + offset, sizeof(cmd) - offset, " p%d using ps tags (%d) values (%ld, %ld, '%s')", id, id, ts, ts, base64);
 
             free(base64);
@@ -416,6 +443,8 @@ remain_data:
         res = taos_query(taos, cmd);
         taos_check_res(&res, cmd);
     }
+
+    fprintf(stdout, "total: %ld\r\n", total);
 
 failed:
 
