@@ -69,7 +69,7 @@ void doAsyncQuery(STscObj* pObj, SSqlObj* pSql, __async_cb_func_t fp, void* para
     return;
   }
 
-  SQueryInfo* pQueryInfo = tscGetQueryInfo(pCmd, pCmd->clauseIndex);
+  SQueryInfo* pQueryInfo = tscGetQueryInfo(pCmd);
   executeQuery(pSql, pQueryInfo);
 }
 
@@ -376,7 +376,7 @@ void tscTableMetaCallBack(void *param, TAOS_RES *res, int code) {
 
   tscDebug("0x%"PRIx64" get %s successfully", pSql->self, msg);
   if (pSql->pStream == NULL) {
-    SQueryInfo* pQueryInfo = tscGetQueryInfo(pCmd, pCmd->clauseIndex);
+    SQueryInfo* pQueryInfo = tscGetQueryInfo(pCmd);
 
     // check if it is a sub-query of super table query first, if true, enter another routine
     if (TSDB_QUERY_HAS_TYPE(pQueryInfo->type, (TSDB_QUERY_TYPE_STABLE_SUBQUERY|TSDB_QUERY_TYPE_SUBQUERY|TSDB_QUERY_TYPE_TAG_FILTER_QUERY))) {
@@ -406,7 +406,7 @@ void tscTableMetaCallBack(void *param, TAOS_RES *res, int code) {
       if (pCmd->parseFinished) {
         tscDebug("0x%"PRIx64" update local table meta, continue to process sql and send corresponding query", pSql->self);
 
-        STableMetaInfo* pTableMetaInfo = tscGetTableMetaInfoFromCmd(pCmd, pCmd->clauseIndex, 0);
+        STableMetaInfo* pTableMetaInfo = tscGetTableMetaInfoFromCmd(pCmd, 0);
         code = tscGetTableMeta(pSql, pTableMetaInfo);
 
         assert(code == TSDB_CODE_TSC_ACTION_IN_PROGRESS || code == TSDB_CODE_SUCCESS);
@@ -449,7 +449,7 @@ void tscTableMetaCallBack(void *param, TAOS_RES *res, int code) {
         }
 
         if (pCmd->insertType == TSDB_QUERY_TYPE_STMT_INSERT) {
-          STableMetaInfo *pTableMetaInfo = tscGetTableMetaInfoFromCmd(pCmd, pCmd->clauseIndex, 0);
+          STableMetaInfo *pTableMetaInfo = tscGetTableMetaInfoFromCmd(pCmd, 0);
           code = tscGetTableMeta(pSql, pTableMetaInfo);
           if (code == TSDB_CODE_TSC_ACTION_IN_PROGRESS) {
             taosReleaseRef(tscObjRef, pSql->self);
@@ -466,7 +466,7 @@ void tscTableMetaCallBack(void *param, TAOS_RES *res, int code) {
             tscHandleMultivnodeInsert(pSql);
           }
         } else {
-          SQueryInfo* pQueryInfo1 = tscGetQueryInfo(pCmd, pCmd->clauseIndex);
+          SQueryInfo* pQueryInfo1 = tscGetQueryInfo(pCmd);
           executeQuery(pSql, pQueryInfo1);
         }
 

@@ -748,7 +748,7 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql, char** boundC
   const int32_t STABLE_INDEX = 1;
   
   SSqlCmd *   pCmd = &pSql->cmd;
-  SQueryInfo *pQueryInfo = tscGetQueryInfo(pCmd, 0);
+  SQueryInfo *pQueryInfo = tscGetQueryInfo(pCmd);
 
   char *sql = *sqlstr;
 
@@ -1071,7 +1071,7 @@ int tsParseInsertSql(SSqlObj *pSql) {
   int32_t totalNum = 0;
   int32_t code = TSDB_CODE_SUCCESS;
 
-  SQueryInfo *pQueryInfo = tscGetQueryInfo(pCmd, 0);
+  SQueryInfo *pQueryInfo = tscGetQueryInfo(pCmd);
   assert(pQueryInfo != NULL);
 
   STableMetaInfo *pTableMetaInfo = (pQueryInfo->numOfTables == 0)? tscAddEmptyMetaInfo(pQueryInfo):tscGetMetaInfo(pQueryInfo, 0);
@@ -1219,7 +1219,7 @@ int tsParseInsertSql(SSqlObj *pSql) {
         }
       } else {  // bindedColumns != NULL
         // insert into tablename(col1, col2,..., coln) values(v1, v2,... vn);
-        STableMeta *pTableMeta = tscGetTableMetaInfoFromCmd(pCmd, pCmd->clauseIndex, 0)->pTableMeta;
+        STableMeta *pTableMeta = tscGetTableMetaInfoFromCmd(pCmd, 0)->pTableMeta;
 
         if (validateDataSource(pCmd, DATA_FROM_SQL_STRING, sToken.z) != TSDB_CODE_SUCCESS) {
           goto _clean;
@@ -1363,7 +1363,7 @@ static int doPackSendDataBlock(SSqlObj *pSql, int32_t numOfRows, STableDataBlock
   SSqlCmd *pCmd = &pSql->cmd;
   pSql->res.numOfRows = 0;
 
-  STableMeta *pTableMeta = tscGetTableMetaInfoFromCmd(pCmd, pCmd->clauseIndex, 0)->pTableMeta;
+  STableMeta *pTableMeta = tscGetTableMetaInfoFromCmd(pCmd, 0)->pTableMeta;
 
   SSubmitBlk *pBlocks = (SSubmitBlk *)(pTableDataBlocks->pData);
   code = tsSetBlockInfo(pBlocks, pTableMeta, numOfRows);
@@ -1425,7 +1425,7 @@ static void parseFileSendDataBlock(void *param, TAOS_RES *tres, int32_t numOfRow
   // accumulate the total submit records
   pParentSql->res.numOfRows += pSql->res.numOfRows;
 
-  STableMetaInfo *pTableMetaInfo = tscGetTableMetaInfoFromCmd(pCmd, pCmd->clauseIndex, 0);
+  STableMetaInfo *pTableMetaInfo = tscGetTableMetaInfoFromCmd(pCmd, 0);
   STableMeta *    pTableMeta = pTableMetaInfo->pTableMeta;
   STableComInfo   tinfo = tscGetTableInfo(pTableMeta);
 

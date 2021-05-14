@@ -696,7 +696,7 @@ static int doBindParam(char* data, SParamInfo* param, TAOS_BIND* bind) {
 static int insertStmtBindParam(STscStmt* stmt, TAOS_BIND* bind) {
   SSqlCmd* pCmd = &stmt->pSql->cmd;
 
-  STableMetaInfo* pTableMetaInfo = tscGetTableMetaInfoFromCmd(pCmd, 0, 0);
+  STableMetaInfo* pTableMetaInfo = tscGetTableMetaInfoFromCmd(pCmd, 0);
 
   STableMeta* pTableMeta = pTableMetaInfo->pTableMeta;
   if (pCmd->pTableBlockHashList == NULL) {
@@ -763,7 +763,7 @@ static int insertStmtReset(STscStmt* pStmt) {
   }
   pCmd->batchSize = 0;
 
-  STableMetaInfo* pTableMetaInfo = tscGetTableMetaInfoFromCmd(pCmd, pCmd->clauseIndex, 0);
+  STableMetaInfo* pTableMetaInfo = tscGetTableMetaInfoFromCmd(pCmd, 0);
   pTableMetaInfo->vgroupIndex = 0;
   return TSDB_CODE_SUCCESS;
 }
@@ -778,7 +778,7 @@ static int insertStmtExecute(STscStmt* stmt) {
     return TSDB_CODE_SUCCESS;
   }
 
-  STableMetaInfo* pTableMetaInfo = tscGetTableMetaInfoFromCmd(pCmd, 0, 0);
+  STableMetaInfo* pTableMetaInfo = tscGetTableMetaInfoFromCmd(pCmd, 0);
 
   STableMeta* pTableMeta = pTableMetaInfo->pTableMeta;
   if (pCmd->pTableBlockHashList == NULL) {
@@ -1057,7 +1057,7 @@ int taos_stmt_get_param(TAOS_STMT *stmt, int idx, int *type, int *bytes) {
 
   if (pStmt->isInsert) {
     SSqlCmd* pCmd = &pStmt->pSql->cmd;
-    STableMetaInfo* pTableMetaInfo = tscGetTableMetaInfoFromCmd(pCmd, 0, 0);
+    STableMetaInfo* pTableMetaInfo = tscGetTableMetaInfoFromCmd(pCmd, 0);
     STableMeta* pTableMeta = pTableMetaInfo->pTableMeta;
     if (pCmd->pTableBlockHashList == NULL) {
       pCmd->pTableBlockHashList = taosHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, false);

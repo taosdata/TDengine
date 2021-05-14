@@ -139,7 +139,7 @@ int32_t tscCreateLocalMerger(tExtMemBuffer **pMemBuffer, int32_t numOfBuffer, tO
 #ifdef _DEBUG_VIEW
       printf("load data page into mem for build loser tree: %" PRIu64 " rows\n", ds->filePage.num);
       SSrcColumnInfo colInfo[256] = {0};
-      SQueryInfo *   pQueryInfo = tscGetQueryInfo(pCmd, pCmd->clauseIndex);
+      SQueryInfo *   pQueryInfo = tscGetQueryInfo(pCmd);
 
       tscGetSrcColumnInfo(colInfo, pQueryInfo);
 

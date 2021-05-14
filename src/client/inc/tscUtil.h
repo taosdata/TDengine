@@ -93,8 +93,8 @@ typedef struct SVgroupTableInfo {
   SArray     *itemList;   // SArray<STableIdInfo>
 } SVgroupTableInfo;
 
-static FORCE_INLINE SQueryInfo* tscGetQueryInfo(SSqlCmd* pCmd, int32_t subClauseIndex) {
-  assert(pCmd != NULL && subClauseIndex >= 0);
+static FORCE_INLINE SQueryInfo* tscGetQueryInfo(SSqlCmd* pCmd) {
+  assert(pCmd != NULL);
   if (pCmd->pQueryInfo == NULL) {
     return NULL;
   }
@@ -175,12 +175,12 @@ void tscFieldInfoUpdateOffset(SQueryInfo* pQueryInfo);
 
 int16_t tscFieldInfoGetOffset(SQueryInfo* pQueryInfo, int32_t index);
 void    tscFieldInfoClear(SFieldInfo* pFieldInfo);
+void    tscFieldInfoCopy(SFieldInfo* pFieldInfo, const SFieldInfo* pSrc);
 
 static FORCE_INLINE int32_t tscNumOfFields(SQueryInfo* pQueryInfo) { return pQueryInfo->fieldsInfo.numOfOutput; }
 
 int32_t tscFieldInfoCompare(const SFieldInfo* pFieldInfo1, const SFieldInfo* pFieldInfo2);
 void tscInsertPrimaryTsSourceColumn(SQueryInfo* pQueryInfo, uint64_t uid);
-
 
 int32_t   tscGetResRowLength(SArray* pExprList);
 
@@ -211,6 +211,7 @@ bool tscColumnExists(SArray* pColumnList, int32_t columnIndex, uint64_t uid);
 SColumn* tscColumnListInsert(SArray* pColumnList, int32_t columnIndex, uint64_t uid, SSchema* pSchema);
 void tscColumnListDestroy(SArray* pColList);
 void tscColumnListCopy(SArray* dst, const SArray* src, uint64_t tableUid);
+void tscColumnListCopyAll(SArray* dst, const SArray* src);
 
 void convertQueryResult(SSqlRes* pRes, SQueryInfo* pQueryInfo);
 
@@ -232,13 +233,13 @@ void tscGetSrcColumnInfo(SSrcColumnInfo* pColInfo, SQueryInfo* pQueryInfo);
 
 bool tscShouldBeFreed(SSqlObj* pSql);
 
-STableMetaInfo* tscGetTableMetaInfoFromCmd(SSqlCmd *pCmd, int32_t subClauseIndex, int32_t tableIndex);
+STableMetaInfo* tscGetTableMetaInfoFromCmd(SSqlCmd *pCmd, int32_t tableIndex);
 STableMetaInfo* tscGetMetaInfo(SQueryInfo *pQueryInfo, int32_t tableIndex);
 
 void        tscInitQueryInfo(SQueryInfo* pQueryInfo);
 void        tscClearSubqueryInfo(SSqlCmd* pCmd);
 int32_t     tscAddQueryInfo(SSqlCmd *pCmd);
-SQueryInfo *tscGetQueryInfo(SSqlCmd* pCmd, int32_t subClauseIndex);
+SQueryInfo *tscGetQueryInfo(SSqlCmd* pCmd);
 SQueryInfo *tscGetQueryInfoS(SSqlCmd *pCmd, int32_t subClauseIndex);
 
 void tscClearTableMetaInfo(STableMetaInfo* pTableMetaInfo);
@@ -307,6 +308,8 @@ void tscTryQueryNextClause(SSqlObj* pSql, __async_cb_func_t fp);
 int  tscSetMgmtEpSetFromCfg(const char *first, const char *second, SRpcCorEpSet *corEpSet);
 int32_t getMultiTableMetaFromMnode(SSqlObj *pSql, SArray* pNameList, SArray* pVgroupList);
 int tscTransferTableNameList(SSqlObj *pSql, const char *pNameList, int32_t length);
+
+bool subAndCheckDone(SSqlObj *pSql, SSqlObj *pParentSql, int idx);
 
 bool tscSetSqlOwner(SSqlObj* pSql);
 void tscClearSqlOwner(SSqlObj* pSql);

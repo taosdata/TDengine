@@ -619,32 +619,32 @@ int32_t tscToSQLCmd(SSqlObj* pSql, struct SSqlInfo* pInfo) {
 
     case TSDB_SQL_SELECT: {
       const char* msg1 = "columns in select clause not identical";
-      int32_t code = loadAllTableMeta(pSql, pInfo);
+
+      code = loadAllTableMeta(pSql, pInfo);
       if (code != TSDB_CODE_SUCCESS) {
         return code;
       }
 
-      SQueryInfo* pCurrent = pCmd->pQueryInfo;
-      for(int32_t i = 0; i < pCmd->clauseIndex; ++i) {
-        pCurrent = pCurrent->sibling;
-      }
+      pQueryInfo = tscGetQueryInfo(pCmd);
 
       size_t size = taosArrayGetSize(pInfo->list);
-      for (int32_t i = pCmd->clauseIndex; i < size; ++i) {
+      for (int32_t i = 0; i < size; ++i) {
         SSqlNode* pSqlNode = taosArrayGetP(pInfo->list, i);
-        tscTrace("%p start to parse %dth subclause, total:%d", pSql, i, (int32_t) size);
-        if ((code = validateSqlNode(pSql, pSqlNode, pCurrent)) != TSDB_CODE_SUCCESS) {
+
+        tscTrace("%p start to parse %dth subclause, total:%"PRId64, pSql, i, size);
+        if ((code = validateSqlNode(pSql, pSqlNode, pQueryInfo)) != TSDB_CODE_SUCCESS) {
           return code;
         }
 
         tscPrintSelNodeList(pSql, i);
         pCmd->clauseIndex += 1;
-        if (i+1 < size && pCurrent->sibling == NULL) {
+
+        if ((i + 1) < size && pQueryInfo->sibling == NULL) {
           if ((code = tscAddQueryInfo(pCmd)) != TSDB_CODE_SUCCESS) {
             return code;
           }
 
-          pCurrent = pCmd->active;
+          pQueryInfo = pCmd->active;
         }
       }
 
@@ -1202,7 +1202,7 @@ bool validateOneTags(SSqlCmd* pCmd, TAOS_FIELD* pTagField) {
   const char* msg5 = "invalid binary/nchar tag length";
   const char* msg6 = "invalid data type in tags";
 
-  STableMetaInfo* pTableMetaInfo = tscGetTableMetaInfoFromCmd(pCmd, pCmd->clauseIndex, 0);
+  STableMetaInfo* pTableMetaInfo = tscGetTableMetaInfoFromCmd(pCmd,  0);
   STableMeta*     pTableMeta = pTableMetaInfo->pTableMeta;
 
   int32_t numOfTags = tscGetNumOfTags(pTableMeta);
@@ -1275,7 +1275,7 @@ bool validateOneColumn(SSqlCmd* pCmd, TAOS_FIELD* pColField) {
   const char* msg6 = "invalid column length";
 
 //  assert(pCmd->numOfClause == 1);
-  STableMetaInfo* pTableMetaInfo = tscGetTableMetaInfoFromCmd(pCmd, pCmd->clauseIndex, 0);
+  STableMetaInfo* pTableMetaInfo = tscGetTableMetaInfoFromCmd(pCmd,  0);
   STableMeta*     pTableMeta = pTableMetaInfo->pTableMeta;
   
   int32_t numOfTags = tscGetNumOfTags(pTableMeta);
@@ -2649,7 +2649,7 @@ int32_t getColumnIndexByName(SSqlCmd* pCmd, const SStrToken* pToken, SQueryInfo*
 
 int32_t setShowInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
   SSqlCmd*        pCmd = &pSql->cmd;
-  STableMetaInfo* pTableMetaInfo = tscGetTableMetaInfoFromCmd(pCmd, pCmd->clauseIndex, 0);
+  STableMetaInfo* pTableMetaInfo = tscGetTableMetaInfoFromCmd(pCmd,  0);
 //  assert(pCmd->numOfClause == 1);
 
   pCmd->command = TSDB_SQL_SHOW;
@@ -5059,7 +5059,7 @@ int32_t setAlterTableInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
 
   SSqlCmd*        pCmd = &pSql->cmd;
   SAlterTableInfo* pAlterSQL = pInfo->pAlterInfo;
-  SQueryInfo*     pQueryInfo = tscGetQueryInfo(pCmd, 0);
+  SQueryInfo*     pQueryInfo = tscGetQueryInfo(pCmd);
 
   STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, DEFAULT_TABLE_INDEX);
 
@@ -5747,10 +5747,10 @@ int32_t parseCreateDBOptions(SSqlCmd* pCmd, SCreateDbInfo* pCreateDbSql) {
 }
 
 void addGroupInfoForSubquery(SSqlObj* pParentObj, SSqlObj* pSql, int32_t subClauseIndex, int32_t tableIndex) {
-  SQueryInfo* pParentQueryInfo = tscGetQueryInfo(&pParentObj->cmd, subClauseIndex);
+  SQueryInfo* pParentQueryInfo = tscGetQueryInfo(&pParentObj->cmd);
 
   if (pParentQueryInfo->groupbyExpr.numOfGroupCols > 0) {
-    SQueryInfo* pQueryInfo = tscGetQueryInfo(&pSql->cmd, subClauseIndex);
+    SQueryInfo* pQueryInfo = tscGetQueryInfo(&pSql->cmd);
     SExprInfo* pExpr = NULL;
 
     size_t size = taosArrayGetSize(pQueryInfo->exprList);
@@ -6369,7 +6369,7 @@ int32_t tscCheckCreateDbParams(SSqlCmd* pCmd, SCreateDbMsg* pCreate) {
 
 // for debug purpose
 void tscPrintSelNodeList(SSqlObj* pSql, int32_t subClauseIndex) {
-  SQueryInfo* pQueryInfo = tscGetQueryInfo(&pSql->cmd, subClauseIndex);
+  SQueryInfo* pQueryInfo = tscGetQueryInfo(&pSql->cmd);
 
   int32_t size = (int32_t)tscNumOfExprs(pQueryInfo);
   if (size == 0) {
@@ -6411,7 +6411,7 @@ int32_t doCheckForCreateTable(SSqlObj* pSql, int32_t subClauseIndex, SSqlInfo* p
   const char* msg1 = "invalid table name";
 
   SSqlCmd*        pCmd = &pSql->cmd;
-  SQueryInfo*     pQueryInfo = tscGetQueryInfo(pCmd, subClauseIndex);
+  SQueryInfo*     pQueryInfo = tscGetQueryInfo(pCmd);
   STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
 
   SCreateTableSql* pCreateTable = pInfo->pCreateTableInfo;
@@ -6470,7 +6470,7 @@ int32_t doCheckForCreateFromStable(SSqlObj* pSql, SSqlInfo* pInfo) {
   SSqlCmd* pCmd = &pSql->cmd;
 
   SCreateTableSql* pCreateTable = pInfo->pCreateTableInfo;
-  SQueryInfo*      pQueryInfo = tscGetQueryInfo(pCmd, 0);
+  SQueryInfo*      pQueryInfo = tscGetQueryInfo(pCmd);
 
   // two table: the first one is for current table, and the secondary is for the super table.
   if (pQueryInfo->numOfTables < 2) {
@@ -6673,7 +6673,7 @@ int32_t doCheckForStream(SSqlObj* pSql, SSqlInfo* pInfo) {
   const char* msg7 = "time interval is required";
   
   SSqlCmd*    pCmd = &pSql->cmd;
-  SQueryInfo* pQueryInfo = tscGetQueryInfo(pCmd, 0);
+  SQueryInfo* pQueryInfo = tscGetQueryInfo(pCmd);
   assert(pQueryInfo->numOfTables == 1);
 
   SCreateTableSql* pCreateTable = pInfo->pCreateTableInfo;
@@ -7301,6 +7301,57 @@ static STableMeta* extractTempTableMetaFromSubquery(SQueryInfo* pUpstream) {
   return meta;
 }
 
+static int32_t doValidateSubquery(SSqlNode* pSqlNode, int32_t index, SSqlObj* pSql, SQueryInfo* pQueryInfo, char* msgBuf) {
+  SRelElementPair* subInfo = taosArrayGet(pSqlNode->from->list, index);
+
+  // union all is not support currently
+  SSqlNode* p = taosArrayGetP(subInfo->pSubquery, 0);
+
+  SQueryInfo* pSub = calloc(1, sizeof(SQueryInfo));
+  tscInitQueryInfo(pSub);
+
+  int32_t code = validateSqlNode(pSql, p, pSub);
+  assert(code != TSDB_CODE_TSC_ACTION_IN_PROGRESS);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+
+  pSub->pDownstream = pQueryInfo;
+
+  // create dummy table meta info
+  STableMetaInfo* pTableMetaInfo1 = calloc(1, sizeof(STableMetaInfo));
+  pTableMetaInfo1->pTableMeta = extractTempTableMetaFromSubquery(pSub);
+
+  if (subInfo->aliasName.n > 0) {
+    if (subInfo->aliasName.n >= TSDB_TABLE_FNAME_LEN) {
+      return invalidSqlErrMsg(msgBuf, "subquery alias name too long");
+    }
+
+    strncpy(pTableMetaInfo1->aliasName, subInfo->aliasName.z, subInfo->aliasName.n);
+  }
+
+  taosArrayPush(pQueryInfo->pUpstream, &pSub);
+
+  // NOTE: order mix up in subquery not support yet.
+  pQueryInfo->order = pSub->order;
+
+  char* tmp = realloc(pQueryInfo->pTableMetaInfo, (pQueryInfo->numOfTables + 1) * POINTER_BYTES);
+  if (tmp == NULL) {
+    return TSDB_CODE_TSC_OUT_OF_MEMORY;
+  }
+
+  pQueryInfo->pTableMetaInfo[pQueryInfo->numOfTables] = pTableMetaInfo1;
+  pQueryInfo->numOfTables += 1;
+
+  // all columns are added into the table column list
+  STableMeta* pMeta = pTableMetaInfo1->pTableMeta;
+  for(int32_t i = 0; i < pMeta->tableInfo.numOfColumns; ++i) {
+    tscColumnListInsert(pQueryInfo->colList, i, pMeta->id.uid, &pMeta->schema[i]);
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t validateSqlNode(SSqlObj* pSql, SSqlNode* pSqlNode, SQueryInfo* pQueryInfo) {
   assert(pSqlNode != NULL && (pSqlNode->from == NULL || taosArrayGetSize(pSqlNode->from->list) > 0));
 
@@ -7319,10 +7370,10 @@ int32_t validateSqlNode(SSqlObj* pSql, SSqlNode* pSqlNode, SQueryInfo* pQueryInf
 
   /*
    * handle the sql expression without from subclause
-   * select current_database();
+   * select server_status();
    * select server_version();
    * select client_version();
-   * select server_state();
+   * select current_database();
    */
   if (pSqlNode->from == NULL) {
     assert(pSqlNode->fillType == NULL && pSqlNode->pGroupby == NULL && pSqlNode->pWhere == NULL &&
@@ -7331,61 +7382,30 @@ int32_t validateSqlNode(SSqlObj* pSql, SSqlNode* pSqlNode, SQueryInfo* pQueryInf
   }
 
   if (pSqlNode->from->type == SQL_NODE_FROM_SUBQUERY) {
+    pQueryInfo->numOfTables = 0;
+
     // parse the subquery in the first place
-    int32_t numOfSub = taosArrayGetSize(pSqlNode->from->list);
-
-    SRelElementPair* sub = taosArrayGet(pSqlNode->from->list, 0);
-    SSqlNode* p = taosArrayGetP(sub->pSubquery, 0);
-
-    code = validateSqlNode(pSql, p, pQueryInfo);
-    if (code == TSDB_CODE_TSC_ACTION_IN_PROGRESS || code != TSDB_CODE_SUCCESS) {
-      return code;
-    }
-
-    SQueryInfo* current = calloc(1, sizeof(SQueryInfo));
-
-    tscInitQueryInfo(current);
-    taosArrayPush(current->pUpstream, &pQueryInfo);
-
-    STableMeta* pTableMeta = extractTempTableMetaFromSubquery(pQueryInfo);
-    STableMetaInfo* pTableMetaInfo1 = calloc(1, sizeof(STableMetaInfo));
-    pTableMetaInfo1->pTableMeta = pTableMeta;
-
-    if (sub->aliasName.n > 0) {
-      if (sub->aliasName.n > TSDB_TABLE_FNAME_LEN) {
-        return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), "subquery alias name too long");
+    int32_t numOfSub = (int32_t) taosArrayGetSize(pSqlNode->from->list);
+    for(int32_t i = 0; i < numOfSub; ++i) {
+      code = doValidateSubquery(pSqlNode, i, pSql, pQueryInfo, tscGetErrorMsgPayload(pCmd));
+      if (code != TSDB_CODE_SUCCESS) {
+        return code;
       }
-      strncpy(pTableMetaInfo1->aliasName, sub->aliasName.z, sub->aliasName.n);
     }
 
-    current->pTableMetaInfo = calloc(numOfSub, POINTER_BYTES);
-
-    current->pTableMetaInfo[0] = pTableMetaInfo1;
-    current->numOfTables = 1;
-    current->order = pQueryInfo->order;
-
-    pCmd->pQueryInfo = current;
-    pQueryInfo->pDownstream = current;
-
-    if (validateSelectNodeList(pCmd, current, pSqlNode->pSelNodeList, false, false, false) != TSDB_CODE_SUCCESS) {
+    if (validateSelectNodeList(pCmd, pQueryInfo, pSqlNode->pSelNodeList, false, false, false) != TSDB_CODE_SUCCESS) {
       return TSDB_CODE_TSC_INVALID_SQL;
     }
 
-    // all columns are added into the table column list
-    for(int32_t i = 0; i < pTableMeta->tableInfo.numOfColumns; ++i) {
-      tscColumnListInsert(current->colList, i, pTableMetaInfo1->pTableMeta->id.uid,
-                          &pTableMetaInfo1->pTableMeta->schema[i]);
-    }
-
     if (pSqlNode->pWhere != NULL) {
-      if (validateWhereNode(current, &pSqlNode->pWhere, pSql) != TSDB_CODE_SUCCESS) {
+      if (validateWhereNode(pQueryInfo, &pSqlNode->pWhere, pSql) != TSDB_CODE_SUCCESS) {
         return TSDB_CODE_TSC_INVALID_SQL;
       }
 
-      pSqlNode->pWhere = NULL;
+      STableMeta* pTableMeta = tscGetMetaInfo(pQueryInfo, 0)->pTableMeta;
       if (pTableMeta->tableInfo.precision == TSDB_TIME_PRECISION_MILLI) {
-        current->window.skey = current->window.skey / 1000;
-        current->window.ekey = current->window.ekey / 1000;
+        pQueryInfo->window.skey = pQueryInfo->window.skey / 1000;
+        pQueryInfo->window.ekey = pQueryInfo->window.ekey / 1000;
       }
     }
   } else {
