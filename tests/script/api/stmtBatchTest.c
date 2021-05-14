@@ -2166,7 +2166,6 @@ static int stmt_bind_case_001_long(TAOS_STMT *stmt, int tableNum, int rowsOfPerC
   return 0;
 }
 
-//void runcase(TAOS     *taos, int idx) {
 static void* runCase_long(void *para) {
   ThreadInfo* tInfo = (ThreadInfo *)para;
   TAOS *taos = tInfo->taos;
