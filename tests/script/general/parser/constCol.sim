@@ -358,6 +358,13 @@ if $data00 != 0.300000000 then
   return -1
 endi
 
+print =============================> td-3996
+sql select 'abc' as res from t1 where f1 < 0
+if $rows != 0 then
+  return -1
+endi
+
+
 print ======================udc with normal column group by
 
 sql_error select from t1

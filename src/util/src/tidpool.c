@@ -15,7 +15,6 @@
 
 #include "os.h"
 #include "tulog.h"
-#include <stdbool.h>
 
 typedef struct {
   int             maxId;

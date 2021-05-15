@@ -104,7 +104,7 @@ public class TSDBDriver extends AbstractDriver {
 
     static {
         try {
-            java.sql.DriverManager.registerDriver(new TSDBDriver());
+            DriverManager.registerDriver(new TSDBDriver());
         } catch (SQLException e) {
             throw TSDBError.createRuntimeException(TSDBErrorNumbers.ERROR_CANNOT_REGISTER_JNI_DRIVER, e);
         }

@@ -11,5 +11,5 @@ IF (HEADER_GTEST_INCLUDE_DIR AND LIB_GTEST_STATIC_DIR)
     AUX_SOURCE_DIRECTORY(${CMAKE_CURRENT_SOURCE_DIR} SOURCE_LIST)
 
     ADD_EXECUTABLE(osTest ${SOURCE_LIST})
-    TARGET_LINK_LIBRARIES(osTest taos osdetail tutil common gtest pthread)
+    TARGET_LINK_LIBRARIES(osTest taos os tutil common gtest pthread)
 ENDIF()
