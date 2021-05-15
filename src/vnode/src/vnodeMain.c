@@ -392,6 +392,10 @@ int32_t vnodeOpen(int32_t vgId) {
 int32_t vnodeClose(int32_t vgId) {
   SVnodeObj *pVnode = vnodeAcquire(vgId);
   if (pVnode == NULL) return 0;
+  if (pVnode->dropped) {
+    vnodeRelease(pVnode);
+    return 0;
+  }
 
   vDebug("vgId:%d, vnode will be closed, pVnode:%p", pVnode->vgId, pVnode);
   vnodeRemoveFromHash(pVnode);
