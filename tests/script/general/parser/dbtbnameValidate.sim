@@ -119,4 +119,8 @@ if $rows != 4 then
   return -1
 endi
 
+print ================>td-4147
+sql_error create table tx(ts timestamp, a1234_0123456789_0123456789_0123456789_0123456789_0123456789_0123456789 int)
+
+
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
