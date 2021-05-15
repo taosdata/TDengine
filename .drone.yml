@@ -14,7 +14,7 @@ steps:
   - apt-get install -y cmake build-essential gcc 
   - pip3 install psutil
   - pip3 install guppy3
-  - pip3 install src/connector/python/linux/python3/
+  - pip3 install src/connector/python/
   - mkdir debug
   - cd debug
   - cmake .. 
@@ -31,7 +31,7 @@ steps:
   image: python:3.8
   commands:
   - pip3 install requests
-  - pip3 install src/connector/python/linux/python3/
+  - pip3 install src/connector/python/
   - pip3 install psutil
   - pip3 install guppy3
   - cd tests/pytest 
