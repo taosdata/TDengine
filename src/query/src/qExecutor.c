@@ -1710,38 +1710,38 @@ static int32_t setupQueryRuntimeEnv(SQueryRuntimeEnv *pRuntimeEnv, int32_t numOf
       case OP_MultiTableTimeInterval: {
         pRuntimeEnv->proot =
             createMultiTableTimeIntervalOperatorInfo(pRuntimeEnv, pRuntimeEnv->proot, pQueryAttr->pExpr1, pQueryAttr->numOfOutput);
-        setTableScanFilterOperatorInfo(pRuntimeEnv->proot->upstream->info, pRuntimeEnv->proot);
+        setTableScanFilterOperatorInfo(pRuntimeEnv->proot->upstream[0]->info, pRuntimeEnv->proot);
         break;
       }
       case OP_TimeWindow: {
         pRuntimeEnv->proot =
             createTimeIntervalOperatorInfo(pRuntimeEnv, pRuntimeEnv->proot, pQueryAttr->pExpr1, pQueryAttr->numOfOutput);
-        setTableScanFilterOperatorInfo(pRuntimeEnv->proot->upstream->info, pRuntimeEnv->proot);
+        setTableScanFilterOperatorInfo(pRuntimeEnv->proot->upstream[0]->info, pRuntimeEnv->proot);
         break;
       }
       case OP_Groupby: {
         pRuntimeEnv->proot =
             createGroupbyOperatorInfo(pRuntimeEnv, pRuntimeEnv->proot, pQueryAttr->pExpr1, pQueryAttr->numOfOutput);
-        setTableScanFilterOperatorInfo(pRuntimeEnv->proot->upstream->info, pRuntimeEnv->proot);
+        setTableScanFilterOperatorInfo(pRuntimeEnv->proot->upstream[0]->info, pRuntimeEnv->proot);
         break;
       }
       case OP_SessionWindow: {
         pRuntimeEnv->proot =
             createSWindowOperatorInfo(pRuntimeEnv, pRuntimeEnv->proot, pQueryAttr->pExpr1, pQueryAttr->numOfOutput);
-        setTableScanFilterOperatorInfo(pRuntimeEnv->proot->upstream->info, pRuntimeEnv->proot);
+        setTableScanFilterOperatorInfo(pRuntimeEnv->proot->upstream[0]->info, pRuntimeEnv->proot);
         break;
       }
       case OP_MultiTableAggregate: {
         pRuntimeEnv->proot =
             createMultiTableAggOperatorInfo(pRuntimeEnv, pRuntimeEnv->proot, pQueryAttr->pExpr1, pQueryAttr->numOfOutput);
-        setTableScanFilterOperatorInfo(pRuntimeEnv->proot->upstream->info, pRuntimeEnv->proot);
+        setTableScanFilterOperatorInfo(pRuntimeEnv->proot->upstream[0]->info, pRuntimeEnv->proot);
         break;
       }
       case OP_Aggregate: {
         pRuntimeEnv->proot =
             createAggregateOperatorInfo(pRuntimeEnv, pRuntimeEnv->proot, pQueryAttr->pExpr1, pQueryAttr->numOfOutput);
-        if (pRuntimeEnv->proot->upstream->operatorType != OP_DummyInput) {
-          setTableScanFilterOperatorInfo(pRuntimeEnv->proot->upstream->info, pRuntimeEnv->proot);
+        if (pRuntimeEnv->proot->upstream[0]->operatorType != OP_DummyInput) {
+          setTableScanFilterOperatorInfo(pRuntimeEnv->proot->upstream[0]->info, pRuntimeEnv->proot);
         }
         break;
       }
@@ -3927,6 +3927,15 @@ void queryCostStatis(SQInfo *pQInfo) {
 //  return true;
 //}
 
+void appendUpstream(SOperatorInfo* p, SOperatorInfo* pUpstream) {
+  if (p->upstream == NULL) {
+    assert(p->numOfOutput == 0);
+  }
+
+  p->upstream = realloc(p->upstream, POINTER_BYTES * (p->numOfOutput + 1));
+  p->upstream[p->numOfOutput++] = pUpstream;
+}
+
 static void doDestroyTableQueryInfo(STableGroupInfo* pTableqinfoGroupInfo);
 
 static int32_t setupQueryHandle(void* tsdb, SQueryRuntimeEnv* pRuntimeEnv, int64_t qId, bool isSTableQuery) {
@@ -4604,13 +4613,14 @@ SOperatorInfo* createGlobalAggregateOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, 
   pOperator->blockingOptr = true;
   pOperator->status       = OP_IN_EXECUTING;
   pOperator->info         = pInfo;
-  pOperator->upstream     = upstream;
   pOperator->pExpr        = pExpr;
   pOperator->numOfOutput  = numOfOutput;
   pOperator->pRuntimeEnv  = pRuntimeEnv;
 
   pOperator->exec         = doGlobalAggregate;
   pOperator->cleanup      = destroyGlobalAggOperatorInfo;
+  appendUpstream(pOperator, upstream);
+
   return pOperator;
 }
 
@@ -4675,7 +4685,7 @@ static SSDataBlock* doAggregate(void* param, bool* newgroup) {
   SQueryAttr* pQueryAttr = pRuntimeEnv->pQueryAttr;
   int32_t order = pQueryAttr->order.order;
 
-  SOperatorInfo* upstream = pOperator->upstream;
+  SOperatorInfo* upstream = pOperator->upstream[0];
 
   while(1) {
     SSDataBlock* pBlock = upstream->exec(upstream, newgroup);
@@ -4730,7 +4740,7 @@ static SSDataBlock* doSTableAggregate(void* param, bool* newgroup) {
   SQueryAttr* pQueryAttr = pRuntimeEnv->pQueryAttr;
   int32_t order = pQueryAttr->order.order;
 
-  SOperatorInfo* upstream = pOperator->upstream;
+  SOperatorInfo* upstream = pOperator->upstream[0];
 
   while(1) {
     SSDataBlock* pBlock = upstream->exec(upstream, newgroup);
@@ -4814,7 +4824,7 @@ static SSDataBlock* doArithmeticOperation(void* param, bool* newgroup) {
     bool prevVal = *newgroup;
 
     // The upstream exec may change the value of the newgroup, so use a local variable instead.
-    SSDataBlock* pBlock = pOperator->upstream->exec(pOperator->upstream, newgroup);
+    SSDataBlock* pBlock = pOperator->upstream[0]->exec(pOperator->upstream, newgroup);
     if (pBlock == NULL) {
       assert(*newgroup == false);
 
@@ -4868,7 +4878,7 @@ static SSDataBlock* doLimit(void* param, bool* newgroup) {
 
   SSDataBlock* pBlock = NULL;
   while (1) {
-    pBlock = pOperator->upstream->exec(pOperator->upstream, newgroup);
+    pBlock = pOperator->upstream[0]->exec(pOperator->upstream, newgroup);
     if (pBlock == NULL) {
       setQueryStatus(pOperator->pRuntimeEnv, QUERY_COMPLETED);
       pOperator->status = OP_EXEC_DONE;
@@ -4939,7 +4949,7 @@ static SSDataBlock* doFilter(void* param, bool* newgroup) {
   SQueryRuntimeEnv* pRuntimeEnv = pOperator->pRuntimeEnv;
 
   while (1) {
-    SSDataBlock *pBlock = pOperator->upstream->exec(pOperator->upstream, newgroup);
+    SSDataBlock *pBlock = pOperator->upstream[0]->exec(pOperator->upstream, newgroup);
     if (pBlock == NULL) {
       break;
     }
@@ -4981,7 +4991,7 @@ static SSDataBlock* doIntervalAgg(void* param, bool* newgroup) {
   int32_t order = pQueryAttr->order.order;
   STimeWindow win = pQueryAttr->window;
 
-  SOperatorInfo* upstream = pOperator->upstream;
+  SOperatorInfo* upstream = pOperator->upstream[0];
 
   while(1) {
     SSDataBlock* pBlock = upstream->exec(upstream, newgroup);
@@ -5034,7 +5044,7 @@ static SSDataBlock* doSTableIntervalAgg(void* param, bool* newgroup) {
   SQueryAttr* pQueryAttr = pRuntimeEnv->pQueryAttr;
   int32_t order = pQueryAttr->order.order;
 
-  SOperatorInfo* upstream = pOperator->upstream;
+  SOperatorInfo* upstream = pOperator->upstream[0];
 
   while(1) {
     SSDataBlock* pBlock = upstream->exec(upstream, newgroup);
@@ -5089,7 +5099,7 @@ static SSDataBlock* doSessionWindowAgg(void* param, bool* newgroup) {
   int32_t order = pQueryAttr->order.order;
   STimeWindow win = pQueryAttr->window;
 
-  SOperatorInfo* upstream = pOperator->upstream;
+  SOperatorInfo* upstream = pOperator->upstream[0];
 
   while(1) {
     SSDataBlock* pBlock = upstream->exec(upstream, newgroup);
@@ -5140,7 +5150,7 @@ static SSDataBlock* hashGroupbyAggregate(void* param, bool* newgroup) {
     return pInfo->binfo.pRes;
   }
 
-  SOperatorInfo* upstream = pOperator->upstream;
+  SOperatorInfo* upstream = pOperator->upstream[0];
 
   while(1) {
     SSDataBlock* pBlock = upstream->exec(upstream, newgroup);
@@ -5209,7 +5219,7 @@ static SSDataBlock* doFill(void* param, bool* newgroup) {
   }
 
   while(1) {
-    SSDataBlock* pBlock = pOperator->upstream->exec(pOperator->upstream, newgroup);
+    SSDataBlock* pBlock = pOperator->upstream[0]->exec(pOperator->upstream, newgroup);
     if (*newgroup) {
       assert(pBlock != NULL);
     }
@@ -5285,7 +5295,7 @@ static void destroyOperatorInfo(SOperatorInfo* pOperator) {
     pOperator->cleanup(pOperator->info, pOperator->numOfOutput);
   }
 
-  destroyOperatorInfo(pOperator->upstream);
+  destroyOperatorInfo(pOperator->upstream[0]);
   tfree(pOperator->info);
   tfree(pOperator);
 }
@@ -5310,13 +5320,14 @@ SOperatorInfo* createAggregateOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOpera
   pOperator->blockingOptr = true;
   pOperator->status       = OP_IN_EXECUTING;
   pOperator->info         = pInfo;
-  pOperator->upstream     = upstream;
   pOperator->pExpr        = pExpr;
   pOperator->numOfOutput  = numOfOutput;
   pOperator->pRuntimeEnv  = pRuntimeEnv;
 
   pOperator->exec         = doAggregate;
   pOperator->cleanup      = destroyBasicOperatorInfo;
+  appendUpstream(pOperator, upstream);
+
   return pOperator;
 }
 
@@ -5383,13 +5394,13 @@ SOperatorInfo* createMultiTableAggOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SO
   pOperator->blockingOptr = true;
   pOperator->status       = OP_IN_EXECUTING;
   pOperator->info         = pInfo;
-  pOperator->upstream     = upstream;
   pOperator->pExpr        = pExpr;
   pOperator->numOfOutput  = numOfOutput;
   pOperator->pRuntimeEnv  = pRuntimeEnv;
 
   pOperator->exec         = doSTableAggregate;
   pOperator->cleanup      = destroyBasicOperatorInfo;
+  appendUpstream(pOperator, upstream);
 
   return pOperator;
 }
@@ -5413,13 +5424,13 @@ SOperatorInfo* createArithOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorI
   pOperator->blockingOptr = false;
   pOperator->status       = OP_IN_EXECUTING;
   pOperator->info         = pInfo;
-  pOperator->upstream     = upstream;
   pOperator->pExpr        = pExpr;
   pOperator->numOfOutput  = numOfOutput;
   pOperator->pRuntimeEnv  = pRuntimeEnv;
 
   pOperator->exec         = doArithmeticOperation;
   pOperator->cleanup      = destroyArithOperatorInfo;
+  appendUpstream(pOperator, upstream);
 
   return pOperator;
 }
@@ -5464,11 +5475,11 @@ SOperatorInfo* createFilterOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperator
   pOperator->status       = OP_IN_EXECUTING;
   pOperator->numOfOutput  = numOfOutput;
   pOperator->pExpr        = pExpr;
-  pOperator->upstream     = upstream;
   pOperator->exec         = doFilter;
   pOperator->info         = pInfo;
   pOperator->pRuntimeEnv  = pRuntimeEnv;
   pOperator->cleanup      = destroyConditionOperatorInfo;
+  appendUpstream(pOperator, upstream);
 
   return pOperator;
 }
@@ -5483,10 +5494,10 @@ SOperatorInfo* createLimitOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorI
   pOperator->operatorType = OP_Limit;
   pOperator->blockingOptr = false;
   pOperator->status       = OP_IN_EXECUTING;
-  pOperator->upstream     = upstream;
   pOperator->exec         = doLimit;
   pOperator->info         = pInfo;
   pOperator->pRuntimeEnv  = pRuntimeEnv;
+  appendUpstream(pOperator, upstream);
 
   return pOperator;
 }
@@ -5504,7 +5515,6 @@ SOperatorInfo* createTimeIntervalOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOp
   pOperator->operatorType = OP_TimeWindow;
   pOperator->blockingOptr = true;
   pOperator->status       = OP_IN_EXECUTING;
-  pOperator->upstream     = upstream;
   pOperator->pExpr        = pExpr;
   pOperator->numOfOutput  = numOfOutput;
   pOperator->info         = pInfo;
@@ -5512,6 +5522,7 @@ SOperatorInfo* createTimeIntervalOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOp
   pOperator->exec         = doIntervalAgg;
   pOperator->cleanup      = destroyBasicOperatorInfo;
 
+  appendUpstream(pOperator, upstream);
   return pOperator;
 }
 
@@ -5529,7 +5540,6 @@ SOperatorInfo* createSWindowOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperato
   pOperator->operatorType = OP_SessionWindow;
   pOperator->blockingOptr = true;
   pOperator->status       = OP_IN_EXECUTING;
-  pOperator->upstream     = upstream;
   pOperator->pExpr        = pExpr;
   pOperator->numOfOutput  = numOfOutput;
   pOperator->info         = pInfo;
@@ -5537,6 +5547,7 @@ SOperatorInfo* createSWindowOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperato
   pOperator->exec         = doSessionWindowAgg;
   pOperator->cleanup      = destroyBasicOperatorInfo;
 
+  appendUpstream(pOperator, upstream);
   return pOperator;
 }
 
@@ -5552,7 +5563,6 @@ SOperatorInfo* createMultiTableTimeIntervalOperatorInfo(SQueryRuntimeEnv* pRunti
   pOperator->operatorType = OP_MultiTableTimeInterval;
   pOperator->blockingOptr = true;
   pOperator->status       = OP_IN_EXECUTING;
-  pOperator->upstream     = upstream;
   pOperator->pExpr        = pExpr;
   pOperator->numOfOutput  = numOfOutput;
   pOperator->info         = pInfo;
@@ -5561,6 +5571,7 @@ SOperatorInfo* createMultiTableTimeIntervalOperatorInfo(SQueryRuntimeEnv* pRunti
   pOperator->exec         = doSTableIntervalAgg;
   pOperator->cleanup      = destroyBasicOperatorInfo;
 
+  appendUpstream(pOperator, upstream);
   return pOperator;
 }
 
@@ -5577,7 +5588,6 @@ SOperatorInfo* createGroupbyOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperato
   pOperator->blockingOptr = true;
   pOperator->status       = OP_IN_EXECUTING;
   pOperator->operatorType = OP_Groupby;
-  pOperator->upstream     = upstream;
   pOperator->pExpr        = pExpr;
   pOperator->numOfOutput  = numOfOutput;
   pOperator->info         = pInfo;
@@ -5585,6 +5595,7 @@ SOperatorInfo* createGroupbyOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperato
   pOperator->exec         = hashGroupbyAggregate;
   pOperator->cleanup      = destroyGroupbyOperatorInfo;
 
+  appendUpstream(pOperator, upstream);
   return pOperator;
 }
 
@@ -5614,8 +5625,6 @@ SOperatorInfo* createFillOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorIn
   pOperator->blockingOptr = false;
   pOperator->status       = OP_IN_EXECUTING;
   pOperator->operatorType = OP_Fill;
-
-  pOperator->upstream     = upstream;
   pOperator->pExpr        = pExpr;
   pOperator->numOfOutput  = numOfOutput;
   pOperator->info         = pInfo;
@@ -5624,6 +5633,7 @@ SOperatorInfo* createFillOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorIn
   pOperator->exec         = doFill;
   pOperator->cleanup      = destroySFillOperatorInfo;
 
+  appendUpstream(pOperator, upstream);
   return pOperator;
 }
 
@@ -5662,11 +5672,12 @@ SOperatorInfo* createSLimitOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperator
   pOperator->operatorType = OP_SLimit;
   pOperator->blockingOptr = false;
   pOperator->status       = OP_IN_EXECUTING;
-  pOperator->upstream     = upstream;
   pOperator->exec         = doSLimit;
   pOperator->info         = pInfo;
   pOperator->pRuntimeEnv  = pRuntimeEnv;
   pOperator->cleanup      = destroySlimitOperatorInfo;
+
+  appendUpstream(pOperator, upstream);
   return pOperator;
 }
 
@@ -5833,7 +5844,7 @@ static SSDataBlock* hashDistinct(void* param, bool* newgroup) {
   pRes->info.rows = 0;
   SSDataBlock* pBlock = NULL;
   while(1) {
-    pBlock = pOperator->upstream->exec(pOperator->upstream, newgroup);
+    pBlock = pOperator->upstream[0]->exec(pOperator->upstream, newgroup);
     if (pBlock == NULL) {
       setQueryStatus(pOperator->pRuntimeEnv, QUERY_COMPLETED);
       pOperator->status = OP_EXEC_DONE;
@@ -5894,12 +5905,13 @@ SOperatorInfo* createDistinctOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperat
   pOperator->blockingOptr = false;
   pOperator->status       = OP_IN_EXECUTING;
   pOperator->operatorType = OP_Distinct;
-  pOperator->upstream     = upstream;
   pOperator->numOfOutput  = numOfOutput;
   pOperator->info         = pInfo;
   pOperator->pRuntimeEnv  = pRuntimeEnv;
   pOperator->exec         = hashDistinct;
   pOperator->cleanup      = destroyDistinctOperatorInfo;
+
+  appendUpstream(pOperator, upstream);
   return pOperator;
 }
 

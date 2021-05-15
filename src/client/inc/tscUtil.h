@@ -154,7 +154,7 @@ bool tscMultiRoundQuery(SQueryInfo* pQueryInfo, int32_t tableIndex);
 bool tscQueryBlockInfo(SQueryInfo* pQueryInfo);
 
 SExprInfo* tscAddFuncInSelectClause(SQueryInfo* pQueryInfo, int32_t outputColIndex, int16_t functionId,
-                                       SColumnIndex* pIndex, SSchema* pColSchema, int16_t colType);
+                                       SColumnIndex* pIndex, SSchema* pColSchema, int16_t colType, int16_t colId);
 
 int32_t tscSetTableFullName(SName* pName, SStrToken* pzTableName, SSqlObj* pSql);
 void    tscClearInterpInfo(SQueryInfo* pQueryInfo);
@@ -290,7 +290,7 @@ void registerSqlObj(SSqlObj* pSql);
 SSqlObj* createSubqueryObj(SSqlObj* pSql, int16_t tableIndex, __async_cb_func_t fp, void* param, int32_t cmd, SSqlObj* pPrevSql);
 void     addGroupInfoForSubquery(SSqlObj* pParentObj, SSqlObj* pSql, int32_t subClauseIndex, int32_t tableIndex);
 
-void doAddGroupColumnForSubquery(SQueryInfo* pQueryInfo, int32_t tagIndex);
+void doAddGroupColumnForSubquery(SQueryInfo* pQueryInfo, int32_t tagIndex, SSqlCmd* pCmd);
 
 int16_t tscGetJoinTagColIdByUid(STagCond* pTagCond, uint64_t uid);
 int16_t tscGetTagColIndexById(STableMeta* pTableMeta, int16_t colId);

@@ -302,6 +302,7 @@ enum OPERATOR_TYPE_E {
   OP_GlobalAggregate   = 18,   // global merge for the multi-way data sources.
   OP_Filter            = 19,
   OP_Distinct          = 20,
+  OP_Join              = 21,
 };
 
 typedef struct SOperatorInfo {
@@ -314,7 +315,8 @@ typedef struct SOperatorInfo {
   SExprInfo            *pExpr;
   SQueryRuntimeEnv     *pRuntimeEnv;
 
-  struct SOperatorInfo *upstream;
+  struct SOperatorInfo **upstream;     // upstream pointer list
+  int32_t               numOfUpstream; // number of upstream. The value is always ONE expect for join operator
   __operator_fn_t       exec;
   __optr_cleanup_fn_t   cleanup;
 } SOperatorInfo;
@@ -494,6 +496,8 @@ typedef struct SMultiwayMergeInfo {
   bool                 groupMix;
 } SMultiwayMergeInfo;
 
+void appendUpstream(SOperatorInfo* p, SOperatorInfo* pUpstream);
+
 SOperatorInfo* createDataBlocksOptScanInfo(void* pTsdbQueryHandle, SQueryRuntimeEnv* pRuntimeEnv, int32_t repeatTime, int32_t reverseTime);
 SOperatorInfo* createTableScanOperator(void* pTsdbQueryHandle, SQueryRuntimeEnv* pRuntimeEnv, int32_t repeatTime);
 SOperatorInfo* createTableSeqScanOperator(void* pTsdbQueryHandle, SQueryRuntimeEnv* pRuntimeEnv);
@@ -516,6 +520,8 @@ SOperatorInfo* createGlobalAggregateOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, 
 SOperatorInfo* createSLimitOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorInfo* upstream, SExprInfo* pExpr, int32_t numOfOutput, void* merger);
 SOperatorInfo* createFilterOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorInfo* upstream, SExprInfo* pExpr,
                                         int32_t numOfOutput, SColumnInfo* pCols, int32_t numOfFilter);
+
+SOperatorInfo* createJoinOperator(SOperatorInfo** pUpstream, int32_t numOfUpstream, SExprInfo* pExprInfo, int32_t numOfOutput);
 
 SSDataBlock* doGlobalAggregate(void* param, bool* newgroup);
 SSDataBlock* doMultiwayMergeSort(void* param, bool* newgroup);

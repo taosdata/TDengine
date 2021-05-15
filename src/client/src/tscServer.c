@@ -1644,8 +1644,6 @@ int tscProcessRetrieveLocalMergeRsp(SSqlObj *pSql) {
   qTableQuery(pQueryInfo->pQInfo, &localQueryId);
   convertQueryResult(pRes, pQueryInfo);
 
-//  handleDownstreamOperator(pRes, pQueryInfo);
-
   code = pRes->code;
   if (pRes->code == TSDB_CODE_SUCCESS) {
     (*pSql->fp)(pSql->param, pSql, pRes->numOfRows);
@@ -2189,7 +2187,7 @@ int tscProcessShowRsp(SSqlObj *pSql) {
     SInternalField* pInfo = tscFieldInfoAppend(pFieldInfo, &f);
     
     pInfo->pExpr = tscExprAppend(pQueryInfo, TSDB_FUNC_TS_DUMMY, &index,
-                     pTableSchema[i].type, pTableSchema[i].bytes, getNewResColId(pQueryInfo), pTableSchema[i].bytes, false);
+                     pTableSchema[i].type, pTableSchema[i].bytes, getNewResColId(pCmd), pTableSchema[i].bytes, false);
   }
   
   pCmd->numOfCols = pQueryInfo->fieldsInfo.numOfOutput;

@@ -14,10 +14,11 @@
  */
 
 #include "tscUtil.h"
+#include "tsched.h"
 #include "hash.h"
 #include "os.h"
-#include "texpr.h"
 #include "taosmsg.h"
+#include "texpr.h"
 #include "tkey.h"
 #include "tmd5.h"
 #include "tscLocalMerge.h"
@@ -634,18 +635,12 @@ void tscSetResRawPtrRv(SSqlRes* pRes, SQueryInfo* pQueryInfo, SSDataBlock* pBloc
   }
 }
 
-static SColumnInfo* extractColumnInfoFromResult(STableMeta* pTableMeta, SArray* pTableCols) {
+static SColumnInfo* extractColumnInfoFromResult(SArray* pTableCols) {
   int32_t numOfCols = (int32_t) taosArrayGetSize(pTableCols);
   SColumnInfo* pColInfo = calloc(numOfCols, sizeof(SColumnInfo));
-
-  SSchema *pSchema = pTableMeta->schema;
   for(int32_t i = 0; i < numOfCols; ++i) {
     SColumn* pCol = taosArrayGetP(pTableCols, i);
-    int32_t index = pCol->columnIndex;
-
-    pColInfo[i].type  = pSchema[index].type;
-    pColInfo[i].bytes = pSchema[index].bytes;
-    pColInfo[i].colId = pSchema[index].colId;
+    pColInfo[i] = pCol->info;//[index].type;
   }
 
   return pColInfo;
@@ -655,6 +650,10 @@ typedef struct SDummyInputInfo {
   SSDataBlock    *block;
   SSqlRes        *pRes;  // refactor: remove it
 } SDummyInputInfo;
+
+typedef struct SJoinOperatorInfo {
+  int32_t a;
+} SJoinOperatorInfo;
 
 SSDataBlock* doGetDataBlock(void* param, bool* newgroup) {
   SOperatorInfo *pOperator = (SOperatorInfo*) param;
@@ -729,6 +728,39 @@ SOperatorInfo* createDummyInputOperator(char* pResult, SSchema* pSchema, int32_t
   return pOptr;
 }
 
+SOperatorInfo* createJoinOperator(SOperatorInfo** pUpstream, int32_t numOfUpstream, SExprInfo* pExprInfo, int32_t numOfOutput) {
+  SJoinInfo* pInfo = calloc(1, sizeof(SJoinInfo));
+/*
+  pInfo->pRes  = (SSqlRes*) pResult;
+  pInfo->block = calloc(numOfCols, sizeof(SSDataBlock));
+  pInfo->block->info.numOfCols = numOfCols;
+
+  pInfo->block->pDataBlock = taosArrayInit(numOfCols, sizeof(SColumnInfoData));
+  for(int32_t i = 0; i < numOfCols; ++i) {
+    SColumnInfoData colData = {{0}};
+    colData.info.bytes = pSchema[i].bytes;
+    colData.info.type  = pSchema[i].type;
+    colData.info.colId = pSchema[i].colId;
+
+    taosArrayPush(pInfo->block->pDataBlock, &colData);
+  }
+*/
+  SOperatorInfo* pOptr = calloc(1, sizeof(SOperatorInfo));
+  pOptr->name          = "JoinOperator";
+  pOptr->operatorType  = OP_Join;
+  pOptr->numOfOutput   = numOfOutput;
+  pOptr->blockingOptr  = false;
+  pOptr->info          = pInfo;
+  pOptr->exec          = doGetDataBlock;
+  pOptr->cleanup       = destroyDummyInputOperator;
+
+  for(int32_t i = 0; i < numOfUpstream; ++i) {
+    appendUpstream(pOptr, pUpstream[0]);
+  }
+
+  return pOptr;
+}
+
 void convertQueryResult(SSqlRes* pRes, SQueryInfo* pQueryInfo) {
   // set the correct result
   SSDataBlock* p = pQueryInfo->pQInfo->runtimeEnv.outputBuf;
@@ -743,40 +775,51 @@ void convertQueryResult(SSqlRes* pRes, SQueryInfo* pQueryInfo) {
   pRes->completed = (pRes->numOfRows == 0);
 }
 
-void handleDownstreamOperator(SSqlRes* pRes, SQueryInfo* pQueryInfo, SSqlRes* pOutput) {
-  if (pQueryInfo->pDownstream != NULL) {
-    // handle the following query process
-    SQueryInfo *px = pQueryInfo->pDownstream;
-    if (px->pQInfo == NULL) {
-      SColumnInfo* pColumnInfo = extractColumnInfoFromResult(px->pTableMetaInfo[0]->pTableMeta, px->colList);
-      int32_t numOfOutput = (int32_t) tscNumOfExprs(px);
+void handleDownstreamOperator(SSqlRes* pRes, SQueryInfo* px, SSqlRes* pOutput) {
+  // handle the following query process
+  if (px->pQInfo == NULL) {
+    SColumnInfo* pColumnInfo = extractColumnInfoFromResult(px->colList);
 
-      int32_t numOfCols = (int32_t) taosArrayGetSize(px->colList);
-      SQueriedTableInfo info = {.colList = pColumnInfo, .numOfCols = numOfCols,};
-      SSchema* pSchema = tscGetTableSchema(px->pTableMetaInfo[0]->pTableMeta);
+    int32_t numOfOutput = (int32_t)tscNumOfExprs(px);
+    int32_t numOfCols = (int32_t)taosArrayGetSize(px->colList);
 
-      STableGroupInfo tableGroupInfo = {.numOfTables = 1, .pGroupList = taosArrayInit(1, POINTER_BYTES),};
-      tableGroupInfo.map = taosHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_NO_LOCK);
+    SQueriedTableInfo info = {
+        .colList = pColumnInfo,
+        .numOfCols = numOfCols,
+    };
 
-      STableKeyInfo tableKeyInfo = {.pTable = NULL, .lastKey = INT64_MIN};
+    SSchema* pSchema = tscGetTableSchema(px->pTableMetaInfo[0]->pTableMeta);
 
-      SArray* group = taosArrayInit(1, sizeof(STableKeyInfo));
-      taosArrayPush(group, &tableKeyInfo);
+    STableGroupInfo tableGroupInfo = {
+        .numOfTables = 1,
+        .pGroupList = taosArrayInit(1, POINTER_BYTES),
+    };
 
-      taosArrayPush(tableGroupInfo.pGroupList, &group);
+    tableGroupInfo.map = taosHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_NO_LOCK);
 
-      SOperatorInfo* pSourceOptr = createDummyInputOperator((char*)pRes, pSchema, numOfCols);
+    STableKeyInfo tableKeyInfo = {.pTable = NULL, .lastKey = INT64_MIN};
 
-      SExprInfo *exprInfo = NULL;
-      /*int32_t code = */createQueryFunc(&info, numOfOutput, &exprInfo, px->exprList->pData, NULL, px->type, NULL);
-      px->pQInfo = createQueryInfoFromQueryNode(px, exprInfo, &tableGroupInfo, pSourceOptr, NULL, NULL, MASTER_SCAN);
-      tfree(pColumnInfo);
+    SArray* group = taosArrayInit(1, sizeof(STableKeyInfo));
+    taosArrayPush(group, &tableKeyInfo);
+
+    taosArrayPush(tableGroupInfo.pGroupList, &group);
+
+    // if it is a join query, create join operator here
+    SOperatorInfo* pSourceOperator = createDummyInputOperator((char*)pRes, pSchema, numOfCols);
+    if (px->numOfTables > 1) {
+
+      pSourceOperator = createJoinOperator(&pSourceOperator, 1, NULL, pSourceOperator->numOfOutput);
     }
 
-    uint64_t qId = 0;
-    qTableQuery(px->pQInfo, &qId);
-    convertQueryResult(pOutput, px);
+    SExprInfo* exprInfo = NULL;
+    /*int32_t code = */ createQueryFunc(&info, numOfOutput, &exprInfo, px->exprList->pData, NULL, px->type, NULL);
+    px->pQInfo = createQueryInfoFromQueryNode(px, exprInfo, &tableGroupInfo, pSourceOperator, NULL, NULL, MASTER_SCAN);
+    tfree(pColumnInfo);
   }
+
+  uint64_t qId = 0;
+  qTableQuery(px->pQInfo, &qId);
+  convertQueryResult(pOutput, px);
 }
 
 static void tscDestroyResPointerInfo(SSqlRes* pRes) {
@@ -2340,7 +2383,6 @@ void tscInitQueryInfo(SQueryInfo* pQueryInfo) {
   pQueryInfo->exprList       = taosArrayInit(4, POINTER_BYTES);
   pQueryInfo->colList        = taosArrayInit(4, POINTER_BYTES);
   pQueryInfo->udColumnId     = TSDB_UD_COLUMN_INDEX;
-  pQueryInfo->resColumnId    = TSDB_RES_COL_ID;
   pQueryInfo->limit.limit    = -1;
   pQueryInfo->limit.offset   = 0;
 
@@ -2949,6 +2991,40 @@ void doExecuteQuery(SSqlObj* pSql, SQueryInfo* pQueryInfo) {
   }
 }
 
+static void doRetrieveSubqueryData(SSchedMsg *pMsg) {
+  SSqlObj* pSql = (SSqlObj*)taosAcquireRef(tscObjRef, (int64_t)pMsg->ahandle);
+  if (pSql == NULL || pSql->signature != pSql) {
+    tscDebug("%p SqlObj is freed, not add into queue async res", pMsg->ahandle);
+    return;
+  }
+
+  int32_t numOfRows = 0;
+  for(int32_t i = 0; i < pSql->subState.numOfSub; ++i) {
+    SSqlObj*    pSub = pSql->pSubs[i];
+    /*TAOS_ROW row = */taos_fetch_row(pSub);
+//    SQueryInfo* pQueryInfo = tscGetQueryInfo(&pSub->cmd);
+//    int32_t rows = taos_fetch_block(pSub, &row);
+    if (numOfRows == 0) {
+      numOfRows = pSub->res.numOfRows;
+    }
+  }
+
+  if (numOfRows > 0) {
+    SQueryInfo *pQueryInfo = tscGetQueryInfo(&pSql->cmd);
+    SSqlObj    *pSub = pSql->pSubs[0];
+    handleDownstreamOperator(&pSub->res, pQueryInfo, &pSql->res);
+  }
+
+//  int32_t code = pSql->res.code;
+  pSql->res.qId = -1;
+  if (pSql->res.code == TSDB_CODE_SUCCESS) {
+    (*pSql->fp)(pSql->param, pSql, pSql->res.numOfRows);
+  } else {
+    tscAsyncResultOnError(pSql);
+  }
+}
+
+// NOTE: the blocking query can not be executed in the rpc message handler thread
 static void tscSubqueryRetrieveCallback(void* param, TAOS_RES* tres, int code) {
   // handle the pDownStream process
   SRetrieveSupport* ps = param;
@@ -2960,27 +3036,37 @@ static void tscSubqueryRetrieveCallback(void* param, TAOS_RES* tres, int code) {
     return;
   }
 
+  pParentSql->cmd.active = pParentSql->cmd.pQueryInfo;
+
+  SSchedMsg schedMsg = {0};
+  schedMsg.fp = doRetrieveSubqueryData;
+  schedMsg.ahandle = (void *)pParentSql->self;
+  schedMsg.thandle = (void *)1;
+  schedMsg.msg = 0;
+  taosScheduleTask(tscQhandle, &schedMsg);
+
   // merge all subquery result
-  SSqlCmd* pCmd = &pSql->cmd;
-  SSqlRes* pRes = &pSql->res;
+//  SSqlCmd* pCmd = &pSql->cmd;
+//  SSqlRes* pRes = &pSql->res;
 
-  SQueryInfo* pQueryInfo = tscGetQueryInfo(pCmd);
-  /*TAOS_ROW* pRow = */taos_fetch_row(pSql);
-  if (pSql->res.numOfRows > 0) {
-    handleDownstreamOperator(pRes, pQueryInfo, &pParentSql->res);
-  }
+  // add it to the message queue
 
-  code = pParentSql->res.code;
-  pParentSql->res.qId = -1;
-  if (pParentSql->res.code == TSDB_CODE_SUCCESS) {
-    (*pParentSql->fp)(pParentSql->param, pParentSql, pParentSql->res.numOfRows);
-  } else {
-    tscAsyncResultOnError(pParentSql);
-  }
+//  SQueryInfo* pQueryInfo = tscGetQueryInfo(pCmd);
+//  /*TAOS_ROW* pRow = */taos_fetch_row(pSql);
+//  if (pSql->res.numOfRows > 0) {
+//    handleDownstreamOperator(pRes, pQueryInfo, &pParentSql->res);
+//  }
+//
+//  code = pParentSql->res.code;
+//  pParentSql->res.qId = -1;
+//  if (pParentSql->res.code == TSDB_CODE_SUCCESS) {
+//    (*pParentSql->fp)(pParentSql->param, pParentSql, pParentSql->res.numOfRows);
+//  } else {
+//    tscAsyncResultOnError(pParentSql);
+//  }
 }
 
 static void tscSubqueryCompleteCallback(void* param, TAOS_RES* tres, int code) {
-  printf("123\n");
   taos_fetch_rows_a(tres, tscSubqueryRetrieveCallback, param);
 }
 
@@ -3000,43 +3086,44 @@ void executeQuery(SSqlObj* pSql, SQueryInfo* pQueryInfo) {
     pSql->pSubs = calloc(pSql->subState.numOfSub, POINTER_BYTES);
     pSql->subState.states = calloc(pSql->subState.numOfSub, sizeof(int8_t));
 
-    SQueryInfo* pSub = taosArrayGetP(pQueryInfo->pUpstream, 0);
+    for(int32_t i = 0; i < pSql->subState.numOfSub; ++i) {
+      SQueryInfo* pSub = taosArrayGetP(pQueryInfo->pUpstream, i);
 
-    pSql->cmd.active = pSub;
-    pSql->cmd.command = TSDB_SQL_SELECT;
+      pSql->cmd.active = pSub;
+      pSql->cmd.command = TSDB_SQL_SELECT;
 
-    SSqlObj* pNew = (SSqlObj*)calloc(1, sizeof(SSqlObj));
-    if (pNew == NULL) {
-      terrno = TSDB_CODE_TSC_OUT_OF_MEMORY;
-//      return NULL;
+      SSqlObj* pNew = (SSqlObj*)calloc(1, sizeof(SSqlObj));
+      if (pNew == NULL) {
+        terrno = TSDB_CODE_TSC_OUT_OF_MEMORY;
+        //      return NULL;
+      }
+
+      pNew->pTscObj = pSql->pTscObj;
+      pNew->signature = pNew;
+      pNew->sqlstr = strdup(pSql->sqlstr);  // todo refactor
+      pNew->fp = tscSubqueryCompleteCallback;
+
+      SRetrieveSupport* ps = calloc(1, sizeof(SRetrieveSupport));  // todo use object id
+      ps->pParentSql = pSql;
+      ps->subqueryIndex = i;
+
+      pNew->param = ps;
+      pSql->pSubs[i] = pNew;
+      registerSqlObj(pNew);
+
+      SSqlCmd* pCmd = &pNew->cmd;
+      pCmd->command = TSDB_SQL_SELECT;
+      pCmd->parseFinished = 1;
+
+      if (tscAddQueryInfo(pCmd) != TSDB_CODE_SUCCESS) {
+      }
+
+      SQueryInfo* pNewQueryInfo = tscGetQueryInfo(pCmd);
+      tscQueryInfoCopy(pNewQueryInfo, pSub);
+
+      // create sub query to handle the sub query.
+      executeQuery(pNew, pSub);
     }
-
-    pNew->pTscObj   = pSql->pTscObj;
-    pNew->signature = pNew;
-    pNew->sqlstr    = strdup(pSql->sqlstr); // todo refactor
-    pNew->fp        = tscSubqueryCompleteCallback;
-
-    SRetrieveSupport* ps = calloc(1, sizeof(SRetrieveSupport));// todo use object id
-    ps->pParentSql    = pSql;
-    ps->subqueryIndex = 0;
-
-    pNew->param    = ps;
-    pSql->pSubs[0] = pNew;
-    registerSqlObj(pNew);
-
-    SSqlCmd* pCmd = &pNew->cmd;
-    pCmd->command = TSDB_SQL_SELECT;
-    pCmd->parseFinished = 1;
-
-    if (tscAddQueryInfo(pCmd) != TSDB_CODE_SUCCESS) {
-    }
-
-    SQueryInfo* pNewQueryInfo = tscGetQueryInfo(pCmd);
-    tscQueryInfoCopy(pNewQueryInfo, pSub);
-
-    // create sub query to handle the sub query.
-    executeQuery(pNew, pSub);
-
     // merge sub query result and generate final results
     return;
   }

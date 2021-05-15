@@ -59,6 +59,7 @@ void doAsyncQuery(STscObj* pObj, SSqlObj* pSql, __async_cb_func_t fp, void* para
 
   tscDebugL("0x%"PRIx64" SQL: %s", pSql->self, pSql->sqlstr);
   pCmd->curSql = pSql->sqlstr;
+  pCmd->resColumnId = TSDB_RES_COL_ID;
 
   int32_t code = tsParseSql(pSql, true);
   if (code == TSDB_CODE_TSC_ACTION_IN_PROGRESS) return;

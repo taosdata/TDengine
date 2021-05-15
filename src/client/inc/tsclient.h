@@ -203,7 +203,7 @@ typedef struct SQueryInfo {
   SInterval        interval;      // tumble time window
   SSessionWindow   sessionWindow; // session time window
 
-  SGroupbyExpr  groupbyExpr;   // groupby tags info
+  SGroupbyExpr     groupbyExpr;   // groupby tags info
   SArray *         colList;       // SArray<SColumn*>
   SFieldInfo       fieldsInfo;
   SArray *         exprList;      // SArray<SExprInfo*>
@@ -251,6 +251,7 @@ typedef struct {
   SVgroupsInfo *pVgroupInfo;
 } STableMetaVgroupInfo;
 
+// TODO extract sql parser supporter
 typedef struct {
   int     command;
   uint8_t msgType;
@@ -293,6 +294,7 @@ typedef struct {
 
   SHashObj    *pTableBlockHashList;     // data block for each table
   SArray      *pDataBlocks;             // SArray<STableDataBlocks*>. Merged submit block for each vgroup
+  int32_t      resColumnId;
 } SSqlCmd;
 
 typedef struct SResRec {
@@ -514,7 +516,7 @@ extern int   tscNumOfObj;     // number of existed sqlObj in current process.
 extern int (*tscBuildMsg[TSDB_SQL_MAX])(SSqlObj *pSql, SSqlInfo *pInfo);
 
 void tscBuildVgroupTableInfo(SSqlObj* pSql, STableMetaInfo* pTableMetaInfo, SArray* tables);
-int16_t getNewResColId(SQueryInfo* pQueryInfo);
+int16_t getNewResColId(SSqlCmd* pCmd);
 
 #ifdef __cplusplus
 }
