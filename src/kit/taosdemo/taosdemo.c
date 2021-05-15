@@ -3884,7 +3884,7 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
         goto PARSE_OVER;
       }
 
-      cJSON* maxSqlLen = cJSON_GetObjectItem(stbInfo, "max_sql_len");
+      maxSqlLen = cJSON_GetObjectItem(stbInfo, "max_sql_len");
       if (maxSqlLen && maxSqlLen->type == cJSON_Number) {
         int32_t len = maxSqlLen->valueint;
         if (len > TSDB_MAX_ALLOWED_SQL_LEN) {
@@ -3918,7 +3918,7 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
         goto PARSE_OVER;
       }
 */
-      cJSON* interlaceRows = cJSON_GetObjectItem(stbInfo, "interlace_rows");
+      interlaceRows = cJSON_GetObjectItem(stbInfo, "interlace_rows");
       if (interlaceRows && interlaceRows->type == cJSON_Number) {
         if (interlaceRows->valueint < 0) {
           errorPrint("%s() LN%d, failed to read json, interlace rows input mistake\n",
@@ -4661,7 +4661,7 @@ static int64_t generateData(char *recBuf, char **data_type,
       double t = rand_double();
       pstr += sprintf(pstr, ",%20.8f", t);
     } else if (strcasecmp(data_type[i % c], "BOOL") == 0) {
-      bool b = rand_bool() & 1;
+      bool b = taosRandom() & 1;
       pstr += sprintf(pstr, ",%s", b ? "true" : "false");
     } else if (strcasecmp(data_type[i % c], "BINARY") == 0) {
       char *s = malloc(lenOfBinary);
