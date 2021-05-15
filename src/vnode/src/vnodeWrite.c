@@ -387,5 +387,5 @@ void vnodeWaitWriteCompleted(SVnodeObj *pVnode) {
     taosMsleep(10);
   }
 
-  taosMsleep(1000 * 3);
+  taosMsleep(1000);
 }
