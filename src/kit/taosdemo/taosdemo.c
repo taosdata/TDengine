@@ -283,7 +283,7 @@ typedef struct SSuperTable_S {
 typedef struct {
   char     name[TSDB_DB_NAME_LEN + 1];
   char     create_time[32];
-  int32_t  ntables;
+  int64_t  ntables;
   int32_t  vgroups;
   int16_t  replica;
   int16_t  quorum;
@@ -412,7 +412,7 @@ typedef struct SThreadInfo_S {
   char      tb_prefix[MAX_TB_NAME_SIZE];
   uint64_t  start_table_from;
   uint64_t  end_table_to;
-  uint64_t  ntables;
+  int64_t   ntables;
   uint64_t  data_of_rate;
   int64_t   start_time;
   char*     cols;
@@ -581,7 +581,7 @@ SArguments g_args = {
 
 
 static SDbs            g_Dbs;
-static int             g_totalChildTables = 0;
+static uint64_t        g_totalChildTables = 0;
 static SQueryMetaInfo  g_queryInfo;
 static FILE *          g_fpOfInsertResult = NULL;
 
@@ -1879,7 +1879,7 @@ static int getDbFromServer(TAOS * taos, SDbInfo** dbInfos) {
     formatTimestamp(dbInfos[count]->create_time,
             *(int64_t*)row[TSDB_SHOW_DB_CREATED_TIME_INDEX],
             TSDB_TIME_PRECISION_MILLI);
-    dbInfos[count]->ntables = *((int32_t *)row[TSDB_SHOW_DB_NTABLES_INDEX]);
+    dbInfos[count]->ntables = *((int64_t *)row[TSDB_SHOW_DB_NTABLES_INDEX]);
     dbInfos[count]->vgroups = *((int32_t *)row[TSDB_SHOW_DB_VGROUPS_INDEX]);
     dbInfos[count]->replica = *((int16_t *)row[TSDB_SHOW_DB_REPLICA_INDEX]);
     dbInfos[count]->quorum = *((int16_t *)row[TSDB_SHOW_DB_QUORUM_INDEX]);
@@ -1930,7 +1930,7 @@ static void printfDbInfoForQueryToFile(
   fprintf(fp, "================ database[%d] ================\n", index);
   fprintf(fp, "name: %s\n", dbInfos->name);
   fprintf(fp, "created_time: %s\n", dbInfos->create_time);
-  fprintf(fp, "ntables: %d\n", dbInfos->ntables);
+  fprintf(fp, "ntables: %"PRId64"\n", dbInfos->ntables);
   fprintf(fp, "vgroups: %d\n", dbInfos->vgroups);
   fprintf(fp, "replica: %d\n", dbInfos->replica);
   fprintf(fp, "quorum: %d\n", dbInfos->quorum);
@@ -2884,7 +2884,7 @@ static void* createTable(void *sarg)
 }
 
 static int startMultiThreadCreateChildTable(
-        char* cols, int threads, uint64_t startFrom, uint64_t ntables,
+        char* cols, int threads, uint64_t startFrom, int64_t ntables,
         char* db_name, SSuperTable* superTblInfo) {
 
   pthread_t *pids = malloc(threads * sizeof(pthread_t));
@@ -2899,13 +2899,13 @@ static int startMultiThreadCreateChildTable(
     threads = 1;
   }
 
-  uint64_t a = ntables / threads;
+  int64_t a = ntables / threads;
   if (a < 1) {
     threads = ntables;
     a = 1;
   }
 
-  uint64_t b = 0;
+  int64_t b = 0;
   b = ntables % threads;
 
   for (int64_t i = 0; i < threads; i++) {
@@ -2969,10 +2969,10 @@ static void createChildTables() {
 
           verbosePrint("%s() LN%d: %s\n", __func__, __LINE__,
                   g_Dbs.db[i].superTbls[j].colsOfCreateChildTable);
-          int startFrom = 0;
+          uint64_t startFrom = 0;
           g_totalChildTables += g_Dbs.db[i].superTbls[j].childTblCount;
 
-          verbosePrint("%s() LN%d: create %d child tables from %d\n",
+          verbosePrint("%s() LN%d: create %"PRId64" child tables from %"PRIu64"\n",
                   __func__, __LINE__, g_totalChildTables, startFrom);
           startMultiThreadCreateChildTable(
                 g_Dbs.db[i].superTbls[j].colsOfCreateChildTable,
@@ -4756,7 +4756,7 @@ static void getTableName(char *pTblName, threadInfo* pThreadInfo, uint64_t table
             (tableSeq - superTblInfo->childTblOffset) * TSDB_TABLE_NAME_LEN);
     } else {
 
-        verbosePrint("[%d] %s() LN%d: from=%"PRIu64" count=%"PRIu64" seq=%"PRIu64"\n",
+        verbosePrint("[%d] %s() LN%d: from=%"PRIu64" count=%"PRId64" seq=%"PRIu64"\n",
                 pThreadInfo->threadID, __func__, __LINE__,
                 pThreadInfo->start_table_from,
                 pThreadInfo->ntables, tableSeq);
@@ -5123,13 +5123,11 @@ static void* syncWriteInterlace(threadInfo *pThreadInfo) {
 
   uint64_t tableSeq = pThreadInfo->start_table_from;
 
-  debugPrint("[%d] %s() LN%d: start_table_from=%"PRIu64" ntables=%"PRIu64" insertRows=%"PRIu64"\n",
+  debugPrint("[%d] %s() LN%d: start_table_from=%"PRIu64" ntables=%"PRId64" insertRows=%"PRIu64"\n",
           pThreadInfo->threadID, __func__, __LINE__, pThreadInfo->start_table_from,
           pThreadInfo->ntables, insertRows);
 
   int64_t startTime = pThreadInfo->start_time;
-
-  assert(pThreadInfo->ntables > 0);
 
   uint64_t batchPerTbl = interlaceRows;
   uint64_t batchPerTblTimes;
@@ -5659,8 +5657,8 @@ static void startMultiThreadInsertData(int threads, char* db_name,
     exit(-1);
   }
 
-  int ntables = 0;
-  int startFrom;
+  int64_t ntables = 0;
+  int64_t startFrom;
 
   if (superTblInfo) {
     int64_t limit;
@@ -5730,13 +5728,13 @@ static void startMultiThreadInsertData(int threads, char* db_name,
 
   taos_close(taos);
 
-  uint64_t a = ntables / threads;
+  int64_t a = ntables / threads;
   if (a < 1) {
     threads = ntables;
     a = 1;
   }
 
-  uint64_t b = 0;
+  int64_t b = 0;
   if (threads != 0) {
     b = ntables % threads;
   }
@@ -5892,7 +5890,7 @@ static void *readTable(void *sarg) {
     return NULL;
   }
 
-    int num_of_DPT;
+  uint64_t num_of_DPT;
 /*  if (rinfo->superTblInfo) {
     num_of_DPT = rinfo->superTblInfo->insertRows; //  nrecords_per_table;
   } else {
@@ -5900,15 +5898,15 @@ static void *readTable(void *sarg) {
       num_of_DPT = g_args.num_of_DPT;
 //  }
 
-  int num_of_tables = rinfo->ntables; // rinfo->end_table_to - rinfo->start_table_from + 1;
-  int totalData = num_of_DPT * num_of_tables;
+  int64_t num_of_tables = rinfo->ntables; // rinfo->end_table_to - rinfo->start_table_from + 1;
+  int64_t totalData = num_of_DPT * num_of_tables;
   bool do_aggreFunc = g_Dbs.do_aggreFunc;
 
   int n = do_aggreFunc ? (sizeof(aggreFunc) / sizeof(aggreFunc[0])) : 2;
   if (!do_aggreFunc) {
     printf("\nThe first field is either Binary or Bool. Aggregation functions are not supported.\n");
   }
-  printf("%d records:\n", totalData);
+  printf("%"PRId64" records:\n", totalData);
   fprintf(fp, "| QFunctions |    QRecords    |   QSpeed(R/s)   |  QLatency(ms) |\n");
 
   for (uint64_t j = 0; j < n; j++) {
@@ -5940,7 +5938,7 @@ static void *readTable(void *sarg) {
       taos_free_result(pSql);
     }
 
-    fprintf(fp, "|%10s  |   %10d   |  %12.2f   |   %10.2f  |\n",
+    fprintf(fp, "|%10s  |   %"PRId64"   |  %12.2f   |   %10.2f  |\n",
             aggreFunc[j][0] == '*' ? "   *   " : aggreFunc[j], totalData,
             (double)(num_of_tables * num_of_DPT) / totalT, totalT * 1000);
     printf("select %10s took %.6f second(s)\n", aggreFunc[j], totalT * 1000);
@@ -5962,17 +5960,17 @@ static void *readMetric(void *sarg) {
     return NULL;
   }
 
-  int num_of_DPT = rinfo->superTblInfo->insertRows;
-  int num_of_tables = rinfo->ntables; // rinfo->end_table_to - rinfo->start_table_from + 1;
-  int totalData = num_of_DPT * num_of_tables;
+  int64_t num_of_DPT = rinfo->superTblInfo->insertRows;
+  int64_t num_of_tables = rinfo->ntables; // rinfo->end_table_to - rinfo->start_table_from + 1;
+  int64_t totalData = num_of_DPT * num_of_tables;
   bool do_aggreFunc = g_Dbs.do_aggreFunc;
 
   int n = do_aggreFunc ? (sizeof(aggreFunc) / sizeof(aggreFunc[0])) : 2;
   if (!do_aggreFunc) {
     printf("\nThe first field is either Binary or Bool. Aggregation functions are not supported.\n");
   }
-  printf("%d records:\n", totalData);
-  fprintf(fp, "Querying On %d records:\n", totalData);
+  printf("%"PRId64" records:\n", totalData);
+  fprintf(fp, "Querying On %"PRId64" records:\n", totalData);
 
   for (int j = 0; j < n; j++) {
     char condition[COND_BUF_LEN] = "\0";
@@ -6070,11 +6068,11 @@ static int insertTestProcess() {
   end = taosGetTimestampMs();
 
   if (g_totalChildTables > 0) {
-    fprintf(stderr, "Spent %.4f seconds to create %d tables with %d thread(s)\n\n",
+    fprintf(stderr, "Spent %.4f seconds to create %"PRId64" tables with %d thread(s)\n\n",
             (end - start)/1000.0, g_totalChildTables, g_Dbs.threadCountByCreateTbl);
     if (g_fpOfInsertResult) {
       fprintf(g_fpOfInsertResult,
-            "Spent %.4f seconds to create %d tables with %d thread(s)\n\n",
+            "Spent %.4f seconds to create %"PRId64" tables with %d thread(s)\n\n",
             (end - start)/1000.0, g_totalChildTables, g_Dbs.threadCountByCreateTbl);
     }
   }
@@ -6400,16 +6398,16 @@ static int queryTestProcess() {
       ERROR_EXIT("memory allocation failed for create threads\n");
     }
 
-    uint64_t ntables = g_queryInfo.superQueryInfo.childTblCount;
+    int64_t ntables = g_queryInfo.superQueryInfo.childTblCount;
     int threads = g_queryInfo.superQueryInfo.threadCnt;
 
-    uint64_t a = ntables / threads;
+    int64_t a = ntables / threads;
     if (a < 1) {
       threads = ntables;
       a = 1;
     }
 
-    uint64_t b = 0;
+    int64_t b = 0;
     if (threads != 0) {
       b = ntables % threads;
     }
@@ -6748,16 +6746,16 @@ static int subscribeTestProcess() {
       exit(-1);
     }
 
-    uint64_t ntables = g_queryInfo.superQueryInfo.childTblCount;
+    int64_t ntables = g_queryInfo.superQueryInfo.childTblCount;
     int threads = g_queryInfo.superQueryInfo.threadCnt;
 
-    uint64_t a = ntables / threads;
+    int64_t a = ntables / threads;
     if (a < 1) {
       threads = ntables;
       a = 1;
     }
 
-    uint64_t b = 0;
+    int64_t b = 0;
     if (threads != 0) {
       b = ntables % threads;
     }
