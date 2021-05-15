@@ -87,6 +87,8 @@ tExprNode* exprTreeFromBinary(const void* data, size_t size);
 tExprNode* exprTreeFromTableName(const char* tbnameCond);
 tExprNode* exprdup(tExprNode* pTree);
 
+void exprTreeToBinary(SBufferWriter* bw, tExprNode* pExprTree);
+
 bool exprTreeApplyFilter(tExprNode *pExpr, const void *pItem, SExprTraverseSupp *param);
 
 void arithmeticTreeTraverse(tExprNode *pExprs, int32_t numOfRows, char *pOutput, void *param, int32_t order,

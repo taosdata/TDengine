@@ -54,29 +54,7 @@ export PYTHONPATH=$(pwd)/../../src/connector/python:$(pwd)
 export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$LIB_DIR
 
 # Now we are all let, and let's see if we can find a crash. Note we pass all params
-CRASH_GEN_EXEC=crash_gen_bootstrap.py
-if [[ $1 == '--valgrind' ]]; then
-  shift
-  export PYTHONMALLOC=malloc
-  VALGRIND_OUT=valgrind.out 
-  VALGRIND_ERR=valgrind.err
-  # How to generate valgrind suppression file: https://stackoverflow.com/questions/17159578/generating-suppressions-for-memory-leaks
-  # valgrind --leak-check=full --gen-suppressions=all --log-fd=9 python3.8 ./crash_gen.py $@ 9>>memcheck.log
-  echo Executing under VALGRIND, with STDOUT/ERR going to $VALGRIND_OUT and $VALGRIND_ERR, please watch them from a different terminal.
-  valgrind  \
-    --leak-check=yes \
-    --suppressions=crash_gen/valgrind_taos.supp \
-    $PYTHON_EXEC \
-    $CRASH_GEN_EXEC $@ > $VALGRIND_OUT 2> $VALGRIND_ERR 
-elif [[ $1 == '--helgrind' ]]; then
-  shift
-  HELGRIND_OUT=helgrind.out 
-  HELGRIND_ERR=helgrind.err
-  valgrind  \
-    --tool=helgrind \
-    $PYTHON_EXEC \
-    $CRASH_GEN_EXEC $@ > $HELGRIND_OUT 2> $HELGRIND_ERR
-else
-  $PYTHON_EXEC $CRASH_GEN_EXEC $@
-fi
+PERF_GEN_EXEC=perf_gen.py
+$PYTHON_EXEC $PERF_GEN_EXEC $@
+
 
