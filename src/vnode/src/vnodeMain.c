@@ -122,7 +122,7 @@ int32_t vnodeDrop(int32_t vgId) {
   }
   if (pVnode->dropped) {
     vnodeRelease(pVnode);
-    return TSDB_CODE_VND_INVALID_VGROUP_ID;
+    return TSDB_CODE_SUCCESS;
   }
 
   vInfo("vgId:%d, vnode will be dropped, refCount:%d pVnode:%p", pVnode->vgId, pVnode->refCount, pVnode);
