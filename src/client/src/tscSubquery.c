@@ -55,9 +55,9 @@ static void skipRemainValue(STSBuf* pTSBuf, tVariant* tag1) {
   }
 
   while (tsBufNextPos(pTSBuf)) {
-    STSElem el1 = tsBufGetElem(pTSBuf);
+    el1 = tsBufGetElem(pTSBuf);
 
-    int32_t res = tVariantCompare(el1.tag, tag1);
+    res = tVariantCompare(el1.tag, tag1);
     if (res != 0) { // it is a record with new tag
       return;
     }
