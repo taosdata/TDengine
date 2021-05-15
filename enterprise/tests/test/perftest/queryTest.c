@@ -385,14 +385,14 @@ int main(int argc, char** argv) {
 //      taos_free_result(res);
 //    }
   executeSQL(conn, "use test", NULL);
-//    executeSQL(conn, "select first(ts),count(*) from select_tags_mt0 where tbname in ('select_tags_tb0', 'select_tags_tb1') interval(1s) group by tbname", NULL);
-//    executeSQL(conn, "select count(*) from m2 where tbname in ('t2m0') and ts>=1433955690870 and ts<=1433955690930 interval(30a) group by tbname", NULL);
+//    executeSQL(conn, "select * from (select count(*) from tm0 interval(1s)) a", NULL);
+//    executeSQL(conn, "select count(*) from m1", NULL);
 //    executeSQL(conn, "select count(k) from m2 where tbname in ('t2m0', 't2m1') and ts>=1433955690790 and "
 //                     "ts<=1433955690850 interval(10a) fill(value, 911) group by tbname", NULL);
-//    executeSQL(conn, "select a.ts,a.k "
-//                     "from (select count(*) k from tm0 interval(1s)) a, (select count(*) f from tm1 interval(1s)) b "
-//                     "where a.ts = b.ts", NULL);
-    executeSQL(conn, "select * from tm1", NULL);
+    executeSQL(conn, "select a.ts,a.k "
+                     "from (select count(*) k from tm0 interval(1s)) a, (select count(*) f from tm1 interval(1s)) b "
+                     "where a.ts = b.ts", NULL);
+//    executeSQL(conn, "select * from tb order by ts desc", NULL);
 //    executeSQL(conn, "select count(*) from t2m1 where ts<'2015-6-11 1:1:1.3' and ts>='2015-6-11 1:1:1' interval(20a) fill(next)", NULL);
 //    executeSQL(conn, "describe tux1", NULL);
 //    createEnvironment(conn, 5, 5, 4000, 30);
