@@ -166,7 +166,7 @@ connector_dir="${code_dir}/connector"
 mkdir -p ${install_dir}/connector
 if [[ "$pagMode" != "lite" ]] && [[ "$cpuType" != "aarch32" ]]; then
   cp ${build_dir}/lib/*.jar      ${install_dir}/connector ||:
-  cp -r ${connector_dir}/grafanaplugin ${install_dir}/connector/
+  cp -r ${connector_dir}/grafanaplugin/dist ${install_dir}/connector/grafanaplugin
   cp -r ${connector_dir}/python  ${install_dir}/connector/
   cp -r ${connector_dir}/go      ${install_dir}/connector
   
