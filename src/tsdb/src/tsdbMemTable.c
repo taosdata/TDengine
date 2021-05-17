@@ -985,7 +985,7 @@ static void updateTableLatestColumn(STsdbRepo *pRepo, STable *pTable, SDataRow r
   for (int j = 0; j < schemaNCols(pSchema); j++) {
     if (j >= pTable->lastColNum) {
       pTable->lastCols = realloc(pTable->lastCols, pTable->lastColNum + 10);
-      for (int i = 0; i < 10; ++i) {
+      for (i = 0; i < 10; ++i) {
         pTable->lastCols[i + pTable->lastColNum].bytes = 0;
         pTable->lastCols[i + pTable->lastColNum].pData = NULL;
       }
@@ -1009,6 +1009,7 @@ static void updateTableLatestColumn(STsdbRepo *pRepo, STable *pTable, SDataRow r
     //tsdbDebug("vgId:%d cache column %d for %d,%p", REPO_ID(pRepo), j, pDataCol->bytes, pDataCol->pData);
 
     memcpy(pDataCol->pData, value, pDataCol->bytes);
+    pDataCol->ts = dataRowTKey(row);
   }
 }
 
