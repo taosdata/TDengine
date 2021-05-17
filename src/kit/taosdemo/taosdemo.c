@@ -6661,7 +6661,8 @@ static void *superSubscribe(void *sarg) {
   }
 
   int consumed[MAX_QUERY_SQL_COUNT];
-  memset((void *)consumed, 0, MAX_QUERY_SQL_COUNT);
+  for (int i = 0; i < MAX_QUERY_SQL_COUNT; i++)
+      consumed[i] = 0;
 
   // start loop to consume result
   TAOS_RES* res = NULL;
@@ -6686,14 +6687,16 @@ static void *superSubscribe(void *sarg) {
             consumed[j] ++;
 
             if ((g_queryInfo.superQueryInfo.subscribeKeepProgress)
-                && (consumed[j] >= g_queryInfo.superQueryInfo.resubAfterConsume)) {
+                && (consumed[j] >=
+                    g_queryInfo.superQueryInfo.resubAfterConsume[j])) {
                 taos_unsubscribe(tsub[subSeq],
                     g_queryInfo.superQueryInfo.subscribeKeepProgress);
                 consumed[j] ++;
                 uint64_t subSeq = i * g_queryInfo.superQueryInfo.sqlCount + j;
                 debugPrint("%s() LN%d, subSeq=%"PRIu64" subSqlstr: %s\n",
                     __func__, __LINE__, subSeq, subSqlstr);
-                tsub[subSeq] = subscribeImpl(pThreadInfo->taos, subSqlstr, topic,
+                tsub[subSeq] = subscribeImpl(
+                        pThreadInfo->taos, subSqlstr, topic,
                     g_queryInfo.superQueryInfo.subscribeRestart,
                     tmpFile);
                 if (NULL == tsub[subSeq]) {
@@ -6711,8 +6714,7 @@ static void *superSubscribe(void *sarg) {
           i <= pThreadInfo->end_table_to; i++) {
     for (int j = 0; j < g_queryInfo.superQueryInfo.sqlCount; j++) {
         uint64_t subSeq = i * g_queryInfo.superQueryInfo.sqlCount + j;
-        taos_unsubscribe(tsub[subSeq],
-                g_queryInfo.superQueryInfo.subscribeKeepProgress);
+        taos_unsubscribe(tsub[subSeq], 0);
     }
   }
 
@@ -6766,8 +6768,14 @@ static void *specifiedSubscribe(void *sarg) {
         return NULL;
       }
   }
+
   // start loop to consume result
   TAOS_RES* res = NULL;
+
+  int consumed[MAX_QUERY_SQL_COUNT];
+  for (int i = 0; i < MAX_QUERY_SQL_COUNT; i++)
+      consumed[i] = 0;
+
   while(1) {
     for (int i = 0; i < g_queryInfo.specifiedQueryInfo.sqlCount; i++) {
       if (ASYNC_MODE == g_queryInfo.specifiedQueryInfo.asyncMode) {
@@ -6783,14 +6791,29 @@ static void *specifiedSubscribe(void *sarg) {
                   g_queryInfo.specifiedQueryInfo.result[i], pThreadInfo->threadID);
           appendResultToFile(res, tmpFile);
         }
+        consumed[i] ++;
+
+        if ((g_queryInfo.specifiedQueryInfo.subscribeKeepProgress)
+                && (consumed[i] >= 
+                    g_queryInfo.specifiedQueryInfo.resubAfterConsume[i])) {
+            taos_unsubscribe(tsub[i],
+                g_queryInfo.specifiedQueryInfo.subscribeKeepProgress);
+            tsub[i] = subscribeImpl(pThreadInfo->taos,
+                g_queryInfo.specifiedQueryInfo.sql[i], topic,
+                g_queryInfo.specifiedQueryInfo.subscribeRestart,
+                tmpFile);
+            if (NULL == tsub[i]) {
+                taos_close(pThreadInfo->taos);
+                return NULL;
+            }
+        }
       }
     }
   }
   taos_free_result(res);
 
   for (int i = 0; i < g_queryInfo.specifiedQueryInfo.sqlCount; i++) {
-    taos_unsubscribe(tsub[i],
-        g_queryInfo.specifiedQueryInfo.subscribeKeepProgress);
+    taos_unsubscribe(tsub[i], 0);
   }
 
   taos_close(pThreadInfo->taos);
