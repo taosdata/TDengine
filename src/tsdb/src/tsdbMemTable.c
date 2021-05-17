@@ -993,6 +993,10 @@ static void updateTableLatestColumn(STsdbRepo *pRepo, STable *pTable, SDataRow r
     }
 
     STColumn *pTCol = schemaColAt(pSchema, j);
+    if (pTCol == NULL) {
+      // since schema maybe changed, check if STColumn NULL then ignore
+      continue;
+    }
     SDataCol *pDataCol = &(pLatestCols[j]);
     void* value = tdGetRowDataOfCol(row, (int8_t)pTCol->type, TD_DATA_ROW_HEAD_SIZE + pSchema->columns[j].offset);
     if (isNullN(value, pTCol->type)) {
