@@ -691,11 +691,24 @@ int tsdbRestoreInfo(STsdbRepo *pRepo) {
 
         // restore NULL columns
         if (CACHE_LAST_NULL_COLUMN(pCfg)) {
+          if (tsdbLoadBlockInfo(&readh, NULL) < 0) {
+            tsdbDestroyReadH(&readh);
+            return -1;
+          }
+
+          pBlock = readh.pBlkInfo->blocks + pIdx->numOfBlocks - 1;
+
+          if (tsdbLoadBlockData(&readh, pBlock, NULL) < 0) {
+            tsdbDestroyReadH(&readh);
+            return -1;
+          }
+
           STSchema *pSchema = tsdbGetTableSchema(pTable);
           int numColumns = schemaNCols(pSchema);
           pTable->lastCols = (SDataCol*)malloc(numColumns * sizeof(SDataCol));
           if (pTable->lastCols == NULL) {
             terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
+            tsdbDestroyReadH(&readh);
             return -1;
           }
           pTable->lastColNum = numColumns;
@@ -704,11 +717,18 @@ int tsdbRestoreInfo(STsdbRepo *pRepo) {
           if (row == NULL) {
             tfree(pTable->lastCols);
             pTable->lastColNum = 0;
+            tsdbDestroyReadH(&readh);
             terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
             return -1;
           }
 
           tdInitDataRow(row, pSchema);
+          for (int icol = 0; icol < schemaNCols(pSchema); icol++) {
+            STColumn *pCol = schemaColAt(pSchema, icol);
+            SDataCol *pDataCol = readh.pDCols[0]->cols + icol;
+            tdAppendColVal(row, tdGetColDataOfRow(pDataCol, pBlock->numOfRows - 1), pCol->type, pCol->bytes,
+                           pCol->offset);
+          }
 
           SDataCol *pLatestCols = pTable->lastCols;
           for (i = 0; i < pTable->lastColNum; ++i) {
