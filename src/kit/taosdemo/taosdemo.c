@@ -5395,6 +5395,19 @@ static void* syncWriteProgressive(threadInfo *pThreadInfo) {
     int64_t start_time = pThreadInfo->start_time;
 
     int64_t insertRows = (superTblInfo)?superTblInfo->insertRows:g_args.num_of_DPT;
+
+    if (insertRows > g_args.num_of_RPR) {
+      printf("NOTICE: insert rows value %"PRIu64" > num_of_records_per_req %"PRIu64"\n\n",
+              insertRows, g_args.num_of_RPR);
+      printf("        insert rows value will be set to num_of_records_per_req %"PRIu64"\n\n",
+              g_args.num_of_RPR);
+      if (!g_args.answer_yes) {
+        printf("        press Enter key to continue or Ctrl-C to stop.");
+        (void)getchar();
+      }
+      insertRows = g_args.num_of_RPR;
+    }
+
     verbosePrint("%s() LN%d insertRows=%"PRId64"\n", __func__, __LINE__, insertRows);
 
     for (uint64_t i = 0; i < insertRows;) {
