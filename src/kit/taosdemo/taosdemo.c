@@ -3929,9 +3929,9 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
         goto PARSE_OVER;
       }
 
-      maxSqlLen = cJSON_GetObjectItem(stbInfo, "max_sql_len");
-      if (maxSqlLen && maxSqlLen->type == cJSON_Number) {
-        int32_t len = maxSqlLen->valueint;
+      cJSON* stbMaxSqlLen = cJSON_GetObjectItem(stbInfo, "max_sql_len");
+      if (stbMaxSqlLen && stbMaxSqlLen->type == cJSON_Number) {
+        int32_t len = stbMaxSqlLen->valueint;
         if (len > TSDB_MAX_ALLOWED_SQL_LEN) {
           len = TSDB_MAX_ALLOWED_SQL_LEN;
         } else if (len < 5) {
@@ -3941,7 +3941,7 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
       } else if (!maxSqlLen) {
         g_Dbs.db[i].superTbls[j].maxSqlLen = g_args.max_sql_len;
       } else {
-        errorPrint("%s() LN%d, failed to read json, maxSqlLen input mistake\n",
+        errorPrint("%s() LN%d, failed to read json, stbMaxSqlLen input mistake\n",
             __func__, __LINE__);
         goto PARSE_OVER;
       }
@@ -3963,14 +3963,14 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
         goto PARSE_OVER;
       }
 */
-      interlaceRows = cJSON_GetObjectItem(stbInfo, "interlace_rows");
-      if (interlaceRows && interlaceRows->type == cJSON_Number) {
-        if (interlaceRows->valueint < 0) {
+      cJSON* stbInterlaceRows = cJSON_GetObjectItem(stbInfo, "interlace_rows");
+      if (stbInterlaceRows && stbInterlaceRows->type == cJSON_Number) {
+        if (stbInterlaceRows->valueint < 0) {
           errorPrint("%s() LN%d, failed to read json, interlace rows input mistake\n",
             __func__, __LINE__);
           goto PARSE_OVER;
         }
-        g_Dbs.db[i].superTbls[j].interlaceRows = interlaceRows->valueint;
+        g_Dbs.db[i].superTbls[j].interlaceRows = stbInterlaceRows->valueint;
         // rows per table need be less than insert batch
         if (g_Dbs.db[i].superTbls[j].interlaceRows > g_args.num_of_RPR) {
           printf("NOTICE: db[%d].superTbl[%d]'s interlace rows value %"PRIu64" > num_of_records_per_req %"PRIu64"\n\n",
@@ -3983,7 +3983,7 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
           }
           g_Dbs.db[i].superTbls[j].interlaceRows = g_args.num_of_RPR;
         }
-      } else if (!interlaceRows) {
+      } else if (!stbInterlaceRows) {
         g_Dbs.db[i].superTbls[j].interlaceRows = 0; // 0 means progressive mode, > 0 mean interlace mode. max value is less or equ num_of_records_per_req
       } else {
         errorPrint(
