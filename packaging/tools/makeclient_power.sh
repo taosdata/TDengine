@@ -148,20 +148,11 @@ if [[ "$pagMode" != "lite" ]] && [[ "$cpuType" != "aarch32" ]]; then
   cp -r ${connector_dir}/python  ${install_dir}/connector/
   cp -r ${connector_dir}/go      ${install_dir}/connector 
   
-  sed -i '/password/ {s/taosdata/powerdb/g}'  ${install_dir}/connector/python/linux/python2/taos/cinterface.py
-  sed -i '/password/ {s/taosdata/powerdb/g}'  ${install_dir}/connector/python/linux/python3/taos/cinterface.py
-  sed -i '/password/ {s/taosdata/powerdb/g}'  ${install_dir}/connector/python/windows/python2/taos/cinterface.py
-  sed -i '/password/ {s/taosdata/powerdb/g}'  ${install_dir}/connector/python/windows/python3/taos/cinterface.py
+  sed -i '/password/ {s/taosdata/powerdb/g}'  ${install_dir}/connector/python/taos/cinterface.py
   
-  sed -i '/password/ {s/taosdata/powerdb/g}'  ${install_dir}/connector/python/linux/python2/taos/subscription.py
-  sed -i '/password/ {s/taosdata/powerdb/g}'  ${install_dir}/connector/python/linux/python3/taos/subscription.py
-  sed -i '/password/ {s/taosdata/powerdb/g}'  ${install_dir}/connector/python/windows/python2/taos/subscription.py
-  sed -i '/password/ {s/taosdata/powerdb/g}'  ${install_dir}/connector/python/windows/python3/taos/subscription.py
+  sed -i '/password/ {s/taosdata/powerdb/g}'  ${install_dir}/connector/python/taos/subscription.py
   
-  sed -i '/self._password/ {s/taosdata/powerdb/g}'  ${install_dir}/connector/python/linux/python2/taos/connection.py
-  sed -i '/self._password/ {s/taosdata/powerdb/g}'  ${install_dir}/connector/python/linux/python3/taos/connection.py
-  sed -i '/self._password/ {s/taosdata/powerdb/g}'  ${install_dir}/connector/python/windows/python2/taos/connection.py
-  sed -i '/self._password/ {s/taosdata/powerdb/g}'  ${install_dir}/connector/python/windows/python3/taos/connection.py 
+  sed -i '/self._password/ {s/taosdata/powerdb/g}'  ${install_dir}/connector/python/taos/connection.py
 fi
 # Copy release note
 # cp ${script_dir}/release_note ${install_dir}

@@ -98,7 +98,7 @@ TEST(testCase, parse_time) {
   taosParseTime(t41, &time, strlen(t41), TSDB_TIME_PRECISION_MILLI, 0);
   EXPECT_EQ(time, 852048000999);
 
-  int64_t k = timezone;
+//  int64_t k = timezone;
   char    t42[] = "1997-1-1T0:0:0.999999999Z";
   taosParseTime(t42, &time, strlen(t42), TSDB_TIME_PRECISION_MILLI, 0);
   EXPECT_EQ(time, 852048000999 - timezone * MILLISECOND_PER_SECOND);
@@ -163,7 +163,7 @@ TEST(testCase, parse_time) {
   taosParseTime(t13, &time, strlen(t13), TSDB_TIME_PRECISION_MILLI, 0);
   EXPECT_EQ(time, -28800 * MILLISECOND_PER_SECOND);
 
-  char* t = "2021-01-08T02:11:40.000+00:00";
+  char t[] = "2021-01-08T02:11:40.000+00:00";
   taosParseTime(t, &time, strlen(t), TSDB_TIME_PRECISION_MILLI, 0);
   printf("%ld\n", time);
 }
