@@ -965,11 +965,12 @@ static void tsdbFreeRows(STsdbRepo *pRepo, void **rows, int rowCounter) {
 }
 
 static void updateTableLatestColumn(STsdbRepo *pRepo, STable *pTable, SDataRow row) {
-  //tsdbDebug("vgId:%d updateTableLatestColumn, row version:%d", REPO_ID(pRepo), dataRowVersion(row));
+  //tsdbInfo("vgId:%d updateTableLatestColumn, row version:%d", REPO_ID(pRepo), dataRowVersion(row));
 
   if (pTable->numOfSchemas <= 0) {
     return;
   }
+
   STSchema* pSchema = pTable->schema[pTable->numOfSchemas - 1];
   int i = pTable->numOfSchemas - 1;
   while ((pSchema == NULL || pSchema->version != dataRowVersion(row)) && i >= 0) {
@@ -983,21 +984,18 @@ static void updateTableLatestColumn(STsdbRepo *pRepo, STable *pTable, SDataRow r
   SDataCol *pLatestCols = pTable->lastCols;
 
   for (int j = 0; j < schemaNCols(pSchema); j++) {
-    if (j >= pTable->lastColNum) {
-      pTable->lastCols = realloc(pTable->lastCols, pTable->lastColNum + 10);
+    STColumn *pTCol = schemaColAt(pSchema, j);
+
+    if (pTCol->colId >= pTable->lastColNum) {
+      pTable->lastCols = realloc(pTable->lastCols, pTCol->colId + 5);
       for (i = 0; i < 10; ++i) {
         pTable->lastCols[i + pTable->lastColNum].bytes = 0;
         pTable->lastCols[i + pTable->lastColNum].pData = NULL;
       }
-      pTable->lastColNum += 10;
+      pTable->lastColNum += pTCol->colId + 5;
     }
-
-    STColumn *pTCol = schemaColAt(pSchema, j);
-    if (pTCol == NULL) {
-      // since schema maybe changed, check if STColumn NULL then ignore
-      continue;
-    }
-    SDataCol *pDataCol = &(pLatestCols[j]);
+    
+    SDataCol *pDataCol = &(pLatestCols[pTCol->colId]);
     void* value = tdGetRowDataOfCol(row, (int8_t)pTCol->type, TD_DATA_ROW_HEAD_SIZE + pSchema->columns[j].offset);
     if (isNullN(value, pTCol->type)) {
       continue;
@@ -1010,9 +1008,8 @@ static void updateTableLatestColumn(STsdbRepo *pRepo, STable *pTable, SDataRow r
       pDataCol->bytes = pSchema->columns[j].bytes;
     }
 
-    //tsdbDebug("vgId:%d cache column %d for %d,%p", REPO_ID(pRepo), j, pDataCol->bytes, pDataCol->pData);
-
     memcpy(pDataCol->pData, value, pDataCol->bytes);
+    //tsdbInfo("updateTableLatestColumn vgId:%d cache column %d for %d,%s", REPO_ID(pRepo), j, pDataCol->bytes, (char*)pDataCol->pData);
     pDataCol->ts = dataRowTKey(row);
   }
 }

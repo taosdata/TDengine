@@ -645,6 +645,8 @@ int tsdbRestoreInfo(STsdbRepo *pRepo) {
       STable *pTable = pMeta->tables[i];
       if (pTable == NULL) continue;
 
+      //tsdbInfo("tsdbRestoreInfo restore vgId:%d,table:%s", REPO_ID(pRepo), pTable->name->data);
+
       if (tsdbSetReadTable(&readh, pTable) < 0) {
         tsdbDestroyReadH(&readh);
         return -1;
@@ -685,6 +687,49 @@ int tsdbRestoreInfo(STsdbRepo *pRepo) {
             tdAppendColVal(pTable->lastRow, tdGetColDataOfRow(pDataCol, pBlock->numOfRows - 1), pCol->type, pCol->bytes,
                            pCol->offset);
           }
+        }
+
+        // restore NULL columns
+        if (CACHE_LAST_NULL_COLUMN(pCfg)) {
+          STSchema *pSchema = tsdbGetTableSchema(pTable);
+          int numColumns = schemaNCols(pSchema);
+          pTable->lastCols = (SDataCol*)malloc(numColumns * sizeof(SDataCol));
+          if (pTable->lastCols == NULL) {
+            terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
+            return -1;
+          }
+          pTable->lastColNum = numColumns;
+
+          SDataRow row = taosTMalloc(dataRowMaxBytesFromSchema(pSchema));
+          if (row == NULL) {
+            tfree(pTable->lastCols);
+            pTable->lastColNum = 0;
+            terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
+            return -1;
+          }
+
+          tdInitDataRow(row, pSchema);
+
+          SDataCol *pLatestCols = pTable->lastCols;
+          for (i = 0; i < pTable->lastColNum; ++i) {
+            STColumn *pTCol = schemaColAt(pSchema, i);
+
+            SDataCol *pDataCol = &(pLatestCols[pTCol->colId]);
+            pDataCol->pData = malloc(pTCol->bytes);
+            pDataCol->bytes = pTCol->bytes;
+            
+            void* value = tdGetRowDataOfCol(row, (int8_t)pTCol->type, TD_DATA_ROW_HEAD_SIZE + pTCol->offset);
+            if (isNullN(value, pTCol->type)) {
+              //tsdbInfo("tsdbRestoreInfo restore vgId:%d,table:%s cache column %d NULL", REPO_ID(pRepo), pTable->name->data, pTCol->colId);
+              continue;
+            }
+
+            memcpy(pDataCol->pData, value, pDataCol->bytes);
+            //tsdbInfo("tsdbRestoreInfo restore vgId:%d,table:%s cache column %d for %d,%s", REPO_ID(pRepo), pTable->name->data, pTCol->colId, pDataCol->bytes, (char*)pDataCol->pData);
+            pDataCol->ts = dataRowTKey(row);   
+          }
+
+          taosTZfree(row);
         }
       }
       
