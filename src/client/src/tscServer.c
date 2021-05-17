@@ -1925,7 +1925,7 @@ int tscProcessTableMetaRsp(SSqlObj *pSql) {
   pMetaMsg->tversion    = htons(pMetaMsg->tversion);
   pMetaMsg->vgroup.vgId = htonl(pMetaMsg->vgroup.vgId);
   pMetaMsg->uid         = htobe64(pMetaMsg->uid);
-  pMetaMsg->suid        = htobe64(pMetaMsg->suid);
+  pMetaMsg->suid        = pMetaMsg->suid;
   pMetaMsg->contLen     = htons(pMetaMsg->contLen);
   pMetaMsg->numOfColumns = htons(pMetaMsg->numOfColumns);
   
