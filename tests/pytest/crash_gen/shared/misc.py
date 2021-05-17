@@ -3,6 +3,7 @@ import random
 import logging
 import os
 import sys
+from typing import Optional
 
 import taos
 
@@ -39,14 +40,14 @@ class MyLoggingAdapter(logging.LoggerAdapter):
 
 
 class Logging:
-    logger = None
+    logger = None # type: Optional[MyLoggingAdapter]
 
     @classmethod
     def getLogger(cls):
-        return logger
+        return cls.logger
 
     @classmethod
-    def clsInit(cls, gConfig): # TODO: refactor away gConfig
+    def clsInit(cls, debugMode: bool):
         if cls.logger:
             return
         
@@ -60,13 +61,9 @@ class Logging:
         # Logging adapter, to be used as a logger
         # print("setting logger variable")
         # global logger
-        cls.logger = MyLoggingAdapter(_logger, [])
-
-        if (gConfig.debug):
-            cls.logger.setLevel(logging.DEBUG)  # default seems to be INFO
-        else:
-            cls.logger.setLevel(logging.INFO)
-
+        cls.logger = MyLoggingAdapter(_logger, {})
+        cls.logger.setLevel(logging.DEBUG if debugMode else logging.INFO)  # default seems to be INFO
+        
     @classmethod
     def info(cls, msg):
         cls.logger.info(msg)
@@ -84,6 +81,7 @@ class Logging:
         cls.logger.error(msg)
 
 class Status:
+    STATUS_EMPTY    = 99
     STATUS_STARTING = 1
     STATUS_RUNNING  = 2
     STATUS_STOPPING = 3
@@ -95,11 +93,15 @@ class Status:
     def __repr__(self):
         return "[Status: v={}]".format(self._status)
 
-    def set(self, status):
+    def set(self, status: int):
         self._status = status
 
     def get(self):
         return self._status
+
+    def isEmpty(self):
+        ''' Empty/Undefined '''
+        return self._status == Status.STATUS_EMPTY
 
     def isStarting(self):
         return self._status == Status.STATUS_STARTING
@@ -116,6 +118,9 @@ class Status:
 
     def isStable(self):
         return self.isRunning() or self.isStopped()
+
+    def isActive(self):
+        return self.isStarting() or self.isRunning() or self.isStopping()
 
 # Deterministic random number generator
 class Dice():

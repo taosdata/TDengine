@@ -532,8 +532,8 @@ STable *tsdbGetTableByUid(STsdbMeta *pMeta, uint64_t uid) {
   return *(STable **)ptr;
 }
 
-STSchema *tsdbGetTableSchemaByVersion(STable *pTable, int16_t version) {
-  return tsdbGetTableSchemaImpl(pTable, true, false, version);
+STSchema *tsdbGetTableSchemaByVersion(STable *pTable, int16_t _version) {
+  return tsdbGetTableSchemaImpl(pTable, true, false, _version);
 }
 
 int tsdbWLockRepoMeta(STsdbRepo *pRepo) {
@@ -907,9 +907,9 @@ static void tsdbRemoveTableFromMeta(STsdbRepo *pRepo, STable *pTable, bool rmFro
     maxCols = 0;
     maxRowBytes = 0;
     for (int i = 0; i < pMeta->maxTables; i++) {
-      STable *pTable = pMeta->tables[i];
-      if (pTable != NULL) {
-        pSchema = tsdbGetTableSchemaImpl(pTable, false, false, -1);
+      STable *_pTable = pMeta->tables[i];
+      if (_pTable != NULL) {
+        pSchema = tsdbGetTableSchemaImpl(_pTable, false, false, -1);
         maxCols = MAX(maxCols, schemaNCols(pSchema));
         maxRowBytes = MAX(maxRowBytes, schemaTLen(pSchema));
       }

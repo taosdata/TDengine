@@ -72,7 +72,7 @@ void       tsdbFreeMeta(STsdbMeta* pMeta);
 int        tsdbOpenMeta(STsdbRepo* pRepo);
 int        tsdbCloseMeta(STsdbRepo* pRepo);
 STable*    tsdbGetTableByUid(STsdbMeta* pMeta, uint64_t uid);
-STSchema*  tsdbGetTableSchemaByVersion(STable* pTable, int16_t version);
+STSchema*  tsdbGetTableSchemaByVersion(STable* pTable, int16_t _version);
 int        tsdbWLockRepoMeta(STsdbRepo* pRepo);
 int        tsdbRLockRepoMeta(STsdbRepo* pRepo);
 int        tsdbUnlockRepoMeta(STsdbRepo* pRepo);
@@ -92,16 +92,16 @@ static FORCE_INLINE int tsdbCompareSchemaVersion(const void *key1, const void *k
   }
 }
 
-static FORCE_INLINE STSchema* tsdbGetTableSchemaImpl(STable* pTable, bool lock, bool copy, int16_t version) {
+static FORCE_INLINE STSchema* tsdbGetTableSchemaImpl(STable* pTable, bool lock, bool copy, int16_t _version) {
   STable*   pDTable = (TABLE_TYPE(pTable) == TSDB_CHILD_TABLE) ? pTable->pSuper : pTable;
   STSchema* pSchema = NULL;
   STSchema* pTSchema = NULL;
 
   if (lock) TSDB_RLOCK_TABLE(pDTable);
-  if (version < 0) {  // get the latest version of schema
+  if (_version < 0) {  // get the latest version of schema
     pTSchema = pDTable->schema[pDTable->numOfSchemas - 1];
   } else {  // get the schema with version
-    void* ptr = taosbsearch(&version, pDTable->schema, pDTable->numOfSchemas, sizeof(STSchema*),
+    void* ptr = taosbsearch(&_version, pDTable->schema, pDTable->numOfSchemas, sizeof(STSchema*),
                             tsdbCompareSchemaVersion, TD_EQ);
     if (ptr == NULL) {
       terrno = TSDB_CODE_TDB_IVD_TB_SCHEMA_VERSION;

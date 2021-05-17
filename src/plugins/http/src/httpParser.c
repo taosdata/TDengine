@@ -163,9 +163,9 @@ static int32_t httpOnRequestLine(HttpParser *pParser, char *method, char *target
 
   // parse decode method
   for (int32_t i = 0; i < tsHttpServer.methodScannerLen; i++) {
-    HttpDecodeMethod *method = tsHttpServer.methodScanner[i];
-    if (strcmp(method->module, pParser->path[0].str) == 0) {
-      pContext->decodeMethod = method;
+    HttpDecodeMethod *_method = tsHttpServer.methodScanner[i];
+    if (strcmp(_method->module, pParser->path[0].str) == 0) {
+      pContext->decodeMethod = _method;
       break;
     }
   }
