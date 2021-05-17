@@ -362,9 +362,9 @@ typedef struct SpecifiedQueryInfo_S {
   uint64_t     queryTimes;
   bool         subscribeRestart;
   int          subscribeKeepProgress;
-  int          resubAfterConsume;
   char         sql[MAX_QUERY_SQL_COUNT][MAX_QUERY_SQL_LENGTH+1];
   char         result[MAX_QUERY_SQL_COUNT][MAX_FILE_NAME_LEN+1];
+  int          resubAfterConsume[MAX_QUERY_SQL_COUNT];
   TAOS_SUB*    tsub[MAX_QUERY_SQL_COUNT];
   uint64_t     totalQueried;
 } SpecifiedQueryInfo;
@@ -377,13 +377,13 @@ typedef struct SuperQueryInfo_S {
   uint64_t     subscribeInterval; // ms
   bool         subscribeRestart;
   int          subscribeKeepProgress;
-  int          resubAfterConsume;
   uint64_t     queryTimes;
   int64_t      childTblCount;
   char         childTblPrefix[MAX_TB_NAME_SIZE];
   uint64_t     sqlCount;
   char         sql[MAX_QUERY_SQL_COUNT][MAX_QUERY_SQL_LENGTH+1];
   char         result[MAX_QUERY_SQL_COUNT][MAX_FILE_NAME_LEN+1];
+  int          resubAfterConsume[MAX_QUERY_SQL_COUNT];
   TAOS_SUB*    tsub[MAX_QUERY_SQL_COUNT];
 
   char*        childTblName;
@@ -401,7 +401,7 @@ typedef struct SQueryMetaInfo_S {
   char         queryMode[MAX_TB_NAME_SIZE];  // taosc, rest
 
   SpecifiedQueryInfo  specifiedQueryInfo;
-  SuperQueryInfo    superQueryInfo;
+  SuperQueryInfo      superQueryInfo;
   uint64_t     totalQueried;
 } SQueryMetaInfo;
 
@@ -4249,15 +4249,6 @@ static bool getMetaFromQueryJsonFile(cJSON* root) {
       g_queryInfo.specifiedQueryInfo.subscribeKeepProgress = 0;
     }
 
-    cJSON* resubAfterConsume = cJSON_GetObjectItem(specifiedQuery, "resubAfterConsume");
-    if (resubAfterConsume && resubAfterConsume->type == cJSON_Number) {
-      g_queryInfo.specifiedQueryInfo.resubAfterConsume = resubAfterConsume->valueint;
-    } else if (!resubAfterConsume) {
-      //printf("failed to read json, subscribe interval no found\n");
-      //goto PARSE_OVER;
-      g_queryInfo.specifiedQueryInfo.resubAfterConsume = 0;
-    }
-
     // sqls
     cJSON* superSqls = cJSON_GetObjectItem(specifiedQuery, "sqls");
     if (!superSqls) {
@@ -4286,6 +4277,18 @@ static bool getMetaFromQueryJsonFile(cJSON* root) {
         }
         tstrncpy(g_queryInfo.specifiedQueryInfo.sql[j],
                 sqlStr->valuestring, MAX_QUERY_SQL_LENGTH);
+
+        cJSON* resubAfterConsume =
+            cJSON_GetObjectItem(specifiedQuery, "resubAfterConsume");
+        if (resubAfterConsume
+                && resubAfterConsume->type == cJSON_Number) {
+            g_queryInfo.specifiedQueryInfo.resubAfterConsume[j]
+                = resubAfterConsume->valueint;
+        } else if (!resubAfterConsume) {
+            //printf("failed to read json, subscribe interval no found\n");
+            //goto PARSE_OVER;
+            g_queryInfo.specifiedQueryInfo.resubAfterConsume[j] = 0;
+        }
 
         cJSON *result = cJSON_GetObjectItem(sql, "result");
         if ((NULL != result) && (result->type == cJSON_String)
@@ -4428,15 +4431,6 @@ static bool getMetaFromQueryJsonFile(cJSON* root) {
       g_queryInfo.superQueryInfo.subscribeKeepProgress = 0;
     }
 
-    cJSON* superResubAfterConsume = cJSON_GetObjectItem(superQuery, "resubAfterConsume");
-    if (superResubAfterConsume && superResubAfterConsume->type == cJSON_Number) {
-      g_queryInfo.superQueryInfo.resubAfterConsume = superResubAfterConsume->valueint;
-    } else if (!superResubAfterConsume) {
-      //printf("failed to read json, subscribe interval no found\n");
-      //goto PARSE_OVER;
-      g_queryInfo.superQueryInfo.resubAfterConsume = 0;
-    }
-
     // sqls
     cJSON* subsqls = cJSON_GetObjectItem(superQuery, "sqls");
     if (!subsqls) {
@@ -4467,6 +4461,18 @@ static bool getMetaFromQueryJsonFile(cJSON* root) {
         }
         tstrncpy(g_queryInfo.superQueryInfo.sql[j], sqlStr->valuestring,
             MAX_QUERY_SQL_LENGTH);
+
+        cJSON* superResubAfterConsume =
+            cJSON_GetObjectItem(sql, "resubAfterConsume");
+        if (superResubAfterConsume
+                && superResubAfterConsume->type == cJSON_Number) {
+            g_queryInfo.superQueryInfo.resubAfterConsume[j] =
+                superResubAfterConsume->valueint;
+        } else if (!superResubAfterConsume) {
+            //printf("failed to read json, subscribe interval no found\n");
+            //goto PARSE_OVER;
+            g_queryInfo.superQueryInfo.resubAfterConsume[j] = 0;
+        }
 
         cJSON *result = cJSON_GetObjectItem(sql, "result");
         if (result != NULL && result->type == cJSON_String
@@ -6537,12 +6543,12 @@ static TAOS_SUB* subscribeImpl(
 
   if (ASYNC_MODE == g_queryInfo.specifiedQueryInfo.asyncMode) {
     tsub = taos_subscribe(taos,
-            g_queryInfo.specifiedQueryInfo.subscribeRestart,
+            restart,
             topic, sql, subscribe_callback, (void*)resultFileName,
             g_queryInfo.specifiedQueryInfo.subscribeInterval);
   } else {
     tsub = taos_subscribe(taos,
-            g_queryInfo.specifiedQueryInfo.subscribeRestart,
+            restart,
             topic, sql, NULL, NULL, 0);
   }
 
@@ -6613,6 +6619,9 @@ static void *superSubscribe(void *sarg) {
     }
   }
 
+  int consumed[MAX_QUERY_SQL_COUNT];
+  memset((void *)consumed, 0, MAX_QUERY_SQL_COUNT);
+
   // start loop to consume result
   TAOS_RES* res = NULL;
   while(1) {
@@ -6633,6 +6642,24 @@ static void *superSubscribe(void *sarg) {
                   g_queryInfo.superQueryInfo.result[j],
                   pThreadInfo->threadID);
                 appendResultToFile(res, tmpFile);
+            }
+            consumed[j] ++;
+
+            if ((g_queryInfo.superQueryInfo.subscribeKeepProgress)
+                && (consumed[j] >= g_queryInfo.superQueryInfo.resubAfterConsume)) {
+                taos_unsubscribe(tsub[subSeq],
+                    g_queryInfo.superQueryInfo.subscribeKeepProgress);
+                consumed[j] ++;
+                uint64_t subSeq = i * g_queryInfo.superQueryInfo.sqlCount + j;
+                debugPrint("%s() LN%d, subSeq=%"PRIu64" subSqlstr: %s\n",
+                    __func__, __LINE__, subSeq, subSqlstr);
+                tsub[subSeq] = subscribeImpl(pThreadInfo->taos, subSqlstr, topic,
+                    g_queryInfo.superQueryInfo.subscribeRestart,
+                    tmpFile);
+                if (NULL == tsub[subSeq]) {
+                    taos_close(pThreadInfo->taos);
+                    return NULL;
+                }
             }
         }
       }
