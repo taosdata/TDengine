@@ -10,7 +10,7 @@
 
 
 #include <stdarg.h>
-
+#include <stdint.h>
 
 #include "llimits.h"
 #include "lua.h"
@@ -357,7 +357,7 @@ typedef struct Table {
 
 
 #define twoto(x)	(1<<(x))
-#define sizenode(t)	(twoto((t)->lsizenode))
+#define sizenode(t)	(twoto((int64_t)((t)->lsizenode)))
 
 
 #define luaO_nilobject		(&luaO_nilobject_)
