@@ -386,4 +386,6 @@ void vnodeWaitWriteCompleted(SVnodeObj *pVnode) {
     vTrace("vgId:%d, queued wmsg num:%d", pVnode->vgId, pVnode->queuedWMsg);
     taosMsleep(10);
   }
+
+  taosMsleep(900);
 }
