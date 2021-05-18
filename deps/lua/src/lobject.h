@@ -356,7 +356,7 @@ typedef struct Table {
 	(check_exp((size&(size-1))==0, (cast(int, (s) & ((size)-1)))))
 
 
-#define twoto(x)	(1<<(x))
+#define twoto(x)	(1<<(int64_t)(x))
 #define sizenode(t)	(twoto((int64_t)((t)->lsizenode)))
 
 
