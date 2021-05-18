@@ -526,8 +526,6 @@ static int taosRandom()
 
 #endif // ifdef Windows
 
-static void prompt();
-static void prompt2();
 static int createDatabasesAndStables();
 static void createChildTables();
 static int queryDbExec(TAOS *taos, char *command, QUERY_TYPE type, bool quiet);
@@ -1064,8 +1062,10 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
     printf("# Print debug info:                  %d\n", arguments->debug_print);
     printf("# Print verbose info:                %d\n", arguments->verbose_print);
     printf("###################################################################\n");
-
-    prompt();
+    if (!arguments->answer_yes) {
+        printf("Press enter key to continue\n\n");
+        (void) getchar();
+    }
   }
 }
 
@@ -3446,7 +3446,10 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
               g_args.interlace_rows, g_args.num_of_RPR);
       printf("        interlace rows value will be set to num_of_records_per_req %"PRIu64"\n\n",
               g_args.num_of_RPR);
-      prompt2();
+      if (!g_args.answer_yes) {
+        printf("        press Enter key to continue or Ctrl-C to stop.");
+        (void)getchar();
+      }
       g_args.interlace_rows = g_args.num_of_RPR;
     }
   } else if (!interlaceRows) {
@@ -3503,9 +3506,9 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
       g_args.answer_yes = false;
     }
   } else if (!answerPrompt) {
-    g_args.answer_yes = true;   // default is no, mean answer_yes.
+    g_args.answer_yes = false;
   } else {
-    errorPrint("%s", "failed to read json, confirm_parameter_prompt input mistake\n");
+    printf("ERROR: failed to read json, confirm_parameter_prompt not found\n");
     goto PARSE_OVER;
   }
 
@@ -5392,7 +5395,6 @@ static void* syncWriteProgressive(threadInfo *pThreadInfo) {
     int64_t start_time = pThreadInfo->start_time;
 
     int64_t insertRows = (superTblInfo)?superTblInfo->insertRows:g_args.num_of_DPT;
-
     verbosePrint("%s() LN%d insertRows=%"PRId64"\n", __func__, __LINE__, insertRows);
 
     for (uint64_t i = 0; i < insertRows;) {
@@ -6093,21 +6095,6 @@ static void *readMetric(void *sarg) {
   return NULL;
 }
 
-static void prompt()
-{
-  if (!g_args.answer_yes) {
-    printf("Press enter key to continue\n\n");
-    (void)getchar();
-  }
-}
-
-static void prompt2()
-{
-    if (!g_args.answer_yes) {
-        printf("        press Enter key to continue or Ctrl-C to stop.");
-        (void)getchar();
-    }
-}
 
 static int insertTestProcess() {
 
@@ -6128,7 +6115,10 @@ static int insertTestProcess() {
   if (g_fpOfInsertResult)
     printfInsertMetaToFile(g_fpOfInsertResult);
 
-  prompt();
+  if (!g_args.answer_yes) {
+    printf("Press enter key to continue\n\n");
+    (void)getchar();
+  }
 
   init_rand_data();
 
@@ -6400,7 +6390,10 @@ static int queryTestProcess() {
             &g_queryInfo.superQueryInfo.childTblCount);
   }
 
-  prompt();
+  if (!g_args.answer_yes) {
+    printf("Press enter key to continue\n\n");
+    (void)getchar();
+  }
 
   if (g_args.debug_print || g_args.verbose_print) {
     printfQuerySystemInfo(taos);
@@ -6583,15 +6576,6 @@ static void *superSubscribe(void *sarg) {
   if (g_queryInfo.superQueryInfo.sqlCount == 0)
     return NULL;
 
-  if (g_queryInfo.superQueryInfo.sqlCount * pThreadInfo->ntables > MAX_QUERY_SQL_COUNT) {
-      errorPrint("The number %"PRId64" of sql count(%"PRIu64") multiple the table number(%"PRId64") of the thread is more than max query sql count: %d\n",
-              g_queryInfo.superQueryInfo.sqlCount * pThreadInfo->ntables,
-              g_queryInfo.superQueryInfo.sqlCount,
-              pThreadInfo->ntables,
-              MAX_QUERY_SQL_COUNT);
-      exit(-1);
-  }
-
   if (pThreadInfo->taos == NULL) {
     TAOS * taos = NULL;
     taos = taos_connect(g_queryInfo.host,
@@ -6762,7 +6746,10 @@ static int subscribeTestProcess() {
   printfQueryMeta();
   resetAfterAnsiEscape();
 
-  prompt();
+  if (!g_args.answer_yes) {
+    printf("Press enter key to continue\n\n");
+    (void) getchar();
+  }
 
   TAOS * taos = NULL;
   taos = taos_connect(g_queryInfo.host,
