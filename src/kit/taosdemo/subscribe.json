@@ -5,26 +5,26 @@
   "port": 6030,
   "user": "root",
   "password": "taosdata",
-  "databases": "dbx",
+  "databases": "test",
   "specified_table_query": {
     "concurrent": 1,
     "mode": "sync",
-    "interval": 5000,
+    "interval": 1000,
     "restart": "yes",
     "keepProgress": "yes",
-    "resubAfterConsume": 100,
+    "resubAfterConsume": 10,
     "sqls": [
       {
-        "sql": "select avg(col1) from stb01 where col1 > 1;",
+        "sql": "select avg(col1) from meters where col1 > 1;",
         "result": "./subscribe_res0.txt"
       }
     ]
   },
   "super_table_query": {
-    "stblname": "stb",
+    "stblname": "meters",
     "threads": 1,
     "mode": "sync",
-    "interval": 10000,
+    "interval": 1000,
     "restart": "yes",
     "keepProgress": "yes",
     "sqls": [
