@@ -7291,7 +7291,7 @@ int32_t doValidateSqlNode(SSqlObj* pSql, SQuerySqlNode* pQuerySqlNode, int32_t i
     }
 
     if(tscQueryTags(pQueryInfo)) {
-      int32_t numOfCols = taosArrayGetSize(pQueryInfo->colList);
+      int32_t numOfCols = (int32_t) taosArrayGetSize(pQueryInfo->colList);
       for(int32_t i = 0; i < numOfCols; ++i) {
         SColumn* pCols = taosArrayGetP(pQueryInfo->colList, i);
         if (pCols->numOfFilters > 0) {
