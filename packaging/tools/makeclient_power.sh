@@ -144,9 +144,11 @@ if [[ "$pagMode" != "lite" ]] && [[ "$cpuType" != "aarch32" ]]; then
   if [ "$osType" != "Darwin" ]; then
     cp ${build_dir}/lib/*.jar      ${install_dir}/connector ||:
   fi
-  cp -r ${connector_dir}/grafanaplugin/dist ${install_dir}/connector/grafanaplugin
-  cp -r ${connector_dir}/python  ${install_dir}/connector/
-  cp -r ${connector_dir}/go      ${install_dir}/connector 
+  if [ -d "${connector_dir}/grafanaplugin/dist" ]; then
+    cp -r ${connector_dir}/grafanaplugin/dist ${install_dir}/connector/grafanaplugin
+  fi
+  cp -r ${connector_dir}/python  ${install_dir}/connector
+  cp -r ${connector_dir}/go      ${install_dir}/connector
   
   sed -i '/password/ {s/taosdata/powerdb/g}'  ${install_dir}/connector/python/taos/cinterface.py
   

@@ -66,7 +66,9 @@ cp %{_compiledir}/build/bin/taosdump                %{buildroot}%{homepath}/bin
 cp %{_compiledir}/build/lib/${libfile}              %{buildroot}%{homepath}/driver
 cp %{_compiledir}/../src/inc/taos.h                 %{buildroot}%{homepath}/include
 cp %{_compiledir}/../src/inc/taoserror.h            %{buildroot}%{homepath}/include
-cp -r %{_compiledir}/../src/connector/grafanaplugin/dist %{buildroot}%{homepath}/connector/grafanaplugin
+if [ -d {_compiledir}/../src/connector/grafanaplugin/dist ]; then
+    cp -r %{_compiledir}/../src/connector/grafanaplugin/dist %{buildroot}%{homepath}/connector/grafanaplugin
+fi
 cp -r %{_compiledir}/../src/connector/python        %{buildroot}%{homepath}/connector
 cp -r %{_compiledir}/../src/connector/go            %{buildroot}%{homepath}/connector
 cp -r %{_compiledir}/../src/connector/nodejs        %{buildroot}%{homepath}/connector
