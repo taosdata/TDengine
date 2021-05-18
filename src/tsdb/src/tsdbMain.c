@@ -652,7 +652,8 @@ static int restoreLastColumns(STsdbRepo *pRepo, STable *pTable, SReadH* pReadh) 
   }
   memset(pBlockStatis, 0, numColumns * sizeof(SDataStatis));
   for(int32_t i = 0; i < numColumns; ++i) {
-    pBlockStatis[i].colId = i;
+    STColumn *pCol = schemaColAt(pSchema, i);
+    pBlockStatis[i].colId = pCol->colId;
   }
 
   // load block from backward
@@ -678,6 +679,17 @@ static int restoreLastColumns(STsdbRepo *pRepo, STable *pTable, SReadH* pReadh) 
     }
 
     for (uint32_t colId = 0; colId < numColumns && numColumns > pTable->restoreColumnNum; ++colId) {
+      STColumn *pCol = schemaColAt(pSchema, colId);
+
+      if (colId >= pTable->lastColNum) {
+        pTable->lastCols = realloc(pTable->lastCols, colId + 5);
+        for (int m = 0; m < 5; ++m) {
+          pTable->lastCols[m + pTable->lastColNum].bytes = 0;
+          pTable->lastCols[m + pTable->lastColNum].pData = NULL;
+        }
+        pTable->lastColNum += colId + 5;
+      }
+
       // ignore loaded columns
       if (pTable->lastCols[colId].bytes != 0) {
         continue;
@@ -689,7 +701,6 @@ static int restoreLastColumns(STsdbRepo *pRepo, STable *pTable, SReadH* pReadh) 
       }
 
       // OK,let's load row from backward to get not-null column
-      STColumn *pCol = schemaColAt(pSchema, colId);
       for (int32_t rowId = pBlock->numOfRows - 1; rowId >= 0; rowId--) {
         SDataCol *pDataCol = pReadh->pDCols[0]->cols + colId;
         tdAppendColVal(row, tdGetColDataOfRow(pDataCol, rowId), pCol->type, pCol->bytes, pCol->offset);
