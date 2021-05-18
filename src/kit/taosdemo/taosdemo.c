@@ -4298,7 +4298,7 @@ static bool getMetaFromQueryJsonFile(cJSON* root) {
         } else if (!resubAfterConsume) {
             //printf("failed to read json, subscribe interval no found\n");
             //goto PARSE_OVER;
-            g_queryInfo.specifiedQueryInfo.resubAfterConsume[j] = 0;
+            g_queryInfo.specifiedQueryInfo.resubAfterConsume[j] = 1;
         }
 
         cJSON *result = cJSON_GetObjectItem(sql, "result");
@@ -4479,7 +4479,7 @@ static bool getMetaFromQueryJsonFile(cJSON* root) {
         } else if (!superResubAfterConsume) {
             //printf("failed to read json, subscribe interval no found\n");
             //goto PARSE_OVER;
-            g_queryInfo.superQueryInfo.resubAfterConsume[j] = 0;
+            g_queryInfo.superQueryInfo.resubAfterConsume[j] = 1;
         }
 
         cJSON *result = cJSON_GetObjectItem(sql, "result");
@@ -6689,9 +6689,11 @@ static void *superSubscribe(void *sarg) {
             if ((g_queryInfo.superQueryInfo.subscribeKeepProgress)
                 && (consumed[j] >=
                     g_queryInfo.superQueryInfo.resubAfterConsume[j])) {
+                printf("keepProgress:%d, resub super table query: %d\n",
+                    g_queryInfo.superQueryInfo.subscribeKeepProgress, j);
                 taos_unsubscribe(tsub[subSeq],
                     g_queryInfo.superQueryInfo.subscribeKeepProgress);
-                consumed[j] ++;
+                consumed[j]= 0;
                 uint64_t subSeq = i * g_queryInfo.superQueryInfo.sqlCount + j;
                 debugPrint("%s() LN%d, subSeq=%"PRIu64" subSqlstr: %s\n",
                     __func__, __LINE__, subSeq, subSqlstr);
@@ -6794,8 +6796,11 @@ static void *specifiedSubscribe(void *sarg) {
         consumed[i] ++;
 
         if ((g_queryInfo.specifiedQueryInfo.subscribeKeepProgress)
-                && (consumed[i] >= 
+                && (consumed[i] >=
                     g_queryInfo.specifiedQueryInfo.resubAfterConsume[i])) {
+            printf("keepProgress:%d, resub specified query: %d\n",
+                    g_queryInfo.specifiedQueryInfo.subscribeKeepProgress, i);
+            consumed[i] = 0;
             taos_unsubscribe(tsub[i],
                 g_queryInfo.specifiedQueryInfo.subscribeKeepProgress);
             tsub[i] = subscribeImpl(pThreadInfo->taos,
