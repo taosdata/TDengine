@@ -678,6 +678,7 @@ static STable *tsdbNewTable() {
     pTable->lastCols[i].bytes = 0;
     pTable->lastCols[i].pData = NULL;
   }
+  pTable->restoreColumnNum = 0;
 
   return pTable;
 }

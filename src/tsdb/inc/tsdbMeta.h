@@ -39,6 +39,7 @@ typedef struct STable {
 
   SDataCol      *lastCols;
   int32_t        lastColNum;
+  int32_t        restoreColumnNum;
   T_REF_DECLARE()
 } STable;
 
