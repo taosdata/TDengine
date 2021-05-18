@@ -2944,15 +2944,20 @@ void tscDoQuery(SSqlObj* pSql) {
     return;
   }
   
-  if (pCmd->command == TSDB_SQL_SELECT) {
-    tscAddIntoSqlList(pSql);
-  }
-
   if (pCmd->dataSourceType == DATA_FROM_DATA_FILE) {
     tscImportDataFromFile(pSql);
   } else {
     SQueryInfo *pQueryInfo = tscGetQueryInfo(pCmd, pCmd->clauseIndex);
     uint16_t type = pQueryInfo->type;
+
+    if ((pCmd->command == TSDB_SQL_SELECT) && (!TSDB_QUERY_HAS_TYPE(type, TSDB_QUERY_TYPE_SUBQUERY)) && (!TSDB_QUERY_HAS_TYPE(type, TSDB_QUERY_TYPE_STABLE_SUBQUERY))) {
+      tscAddIntoSqlList(pSql);
+    }
+  
+    if (TSDB_QUERY_HAS_TYPE(type, TSDB_QUERY_TYPE_INSERT)) {  // multi-vnodes insertion
+      tscHandleMultivnodeInsert(pSql);
+      return;
+    }
 
     if (QUERY_IS_JOIN_QUERY(type)) {
       if (!TSDB_QUERY_HAS_TYPE(type, TSDB_QUERY_TYPE_SUBQUERY)) {

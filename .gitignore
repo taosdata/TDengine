@@ -2,6 +2,7 @@ build/
 .vscode/
 .idea/
 cmake-build-debug/
+cmake-build-release/
 cscope.out
 .DS_Store
 debug/

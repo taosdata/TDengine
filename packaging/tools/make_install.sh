@@ -243,7 +243,7 @@ function install_data() {
 }
 
 function install_connector() {
-    ${csudo} cp -rf ${source_dir}/src/connector/grafanaplugin ${install_main_dir}/connector
+    ${csudo} cp -rf ${source_dir}/src/connector/grafanaplugin/dist ${install_main_dir}/connector/grafanaplugin
     ${csudo} cp -rf ${source_dir}/src/connector/python ${install_main_dir}/connector
     ${csudo} cp -rf ${source_dir}/src/connector/go ${install_main_dir}/connector
         
@@ -333,6 +333,7 @@ function install_service_on_systemd() {
     ${csudo} bash -c "echo 'Type=simple'                        >> ${taosd_service_config}"
     ${csudo} bash -c "echo 'ExecStart=/usr/bin/taosd'           >> ${taosd_service_config}"
     ${csudo} bash -c "echo 'ExecStartPre=/usr/local/taos/bin/startPre.sh'           >> ${taosd_service_config}"
+    ${csudo} bash -c "echo 'TimeoutStopSec=1000000s'            >> ${taosd_service_config}"
     ${csudo} bash -c "echo 'LimitNOFILE=infinity'               >> ${taosd_service_config}"
     ${csudo} bash -c "echo 'LimitNPROC=infinity'                >> ${taosd_service_config}"
     ${csudo} bash -c "echo 'LimitCORE=infinity'                 >> ${taosd_service_config}"

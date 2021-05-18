@@ -48,7 +48,7 @@ fi
 PYTHON_EXEC=python3.8
 
 # First we need to set up a path for Python to find our own TAOS modules, so that "import" can work.
-export PYTHONPATH=$(pwd)/../../src/connector/python/linux/python3:$(pwd)
+export PYTHONPATH=$(pwd)/../../src/connector/python:$(pwd)
 
 # Then let us set up the library path so that our compiled SO file can be loaded by Python
 export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$LIB_DIR

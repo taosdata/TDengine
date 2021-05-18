@@ -610,8 +610,7 @@ int32_t tscToSQLCmd(SSqlObj* pSql, struct SSqlInfo* pInfo) {
       if (pToken->n > TSDB_DB_NAME_LEN) {
         return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg1);
       }
-
-      return tscSetTableFullName(pTableMetaInfo, pToken, pSql);
+      return tNameSetDbName(&pTableMetaInfo->name, getAccountId(pSql), pToken);
     }
     case TSDB_SQL_CFG_DNODE: {
       const char* msg2 = "invalid configure options or values, such as resetlog / debugFlag 135 / balance 'vnode:2-dnode:2' / monitor 1 ";
