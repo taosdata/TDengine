@@ -119,9 +119,15 @@ if [[ "$pagMode" != "lite" ]] && [[ "$cpuType" != "aarch32" ]]; then
   fi
   if [ -d "${connector_dir}/grafanaplugin/dist" ]; then
     cp -r ${connector_dir}/grafanaplugin/dist ${install_dir}/connector/grafanaplugin
+  else
+    echo "WARNING: grafanaplugin bundled dir not found, please check if want to use it!"
   fi
-  cp -r ${connector_dir}/python             ${install_dir}/connector/
-  cp -r ${connector_dir}/go                 ${install_dir}/connector
+  if find ${connector_dir}/go -mindepth 1 -maxdepth 1 | read; then
+    cp -r ${connector_dir}/go ${install_dir}/connector
+  else
+    echo "WARNING: go connector not found, please check if want to use it!"
+  fi
+  cp -r ${connector_dir}/python             ${install_dir}/connector
   cp -r ${connector_dir}/nodejs             ${install_dir}/connector
 fi
 # Copy release note

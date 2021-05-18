@@ -60,6 +60,9 @@ cp ${compile_dir}/../src/inc/taoserror.h            ${pkg_dir}${install_home_pat
 cp -r ${top_dir}/tests/examples/*                   ${pkg_dir}${install_home_path}/examples
 if [ -d "${top_dir}/src/connector/grafanaplugin/dist" ]; then
   cp -r ${top_dir}/src/connector/grafanaplugin/dist   ${pkg_dir}${install_home_path}/connector/grafanaplugin
+else
+  echo "grafanaplugin bundled directory not found!"
+  exit 1
 fi
 cp -r ${top_dir}/src/connector/python               ${pkg_dir}${install_home_path}/connector
 cp -r ${top_dir}/src/connector/go                   ${pkg_dir}${install_home_path}/connector
