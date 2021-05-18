@@ -1637,7 +1637,7 @@ int tscProcessRetrieveLocalMergeRsp(SSqlObj *pSql) {
       list[i] = *pExprInfo;
     }
 
-    pQueryInfo->pQInfo = createQueryInfoFromQueryNode(pQueryInfo, list, &tableGroupInfo, NULL, NULL, pRes->pLocalMerger, MERGE_STAGE);
+    pQueryInfo->pQInfo = createQInfoFromQueryNode(pQueryInfo, list, &tableGroupInfo, NULL, NULL, pRes->pLocalMerger, MERGE_STAGE);
   }
 
   uint64_t localQueryId = 0;

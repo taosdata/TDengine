@@ -7192,7 +7192,9 @@ int32_t loadAllTableMeta(SSqlObj* pSql, struct SSqlInfo* pInfo) {
 
       STableMeta* pMeta = tscTableMetaDup(pTableMeta);
       STableMetaVgroupInfo p = {.pTableMeta = pMeta,};
-      taosHashPut(pCmd->pTableMetaMap, name, strlen(name), &p, sizeof(STableMetaVgroupInfo));
+
+      const char* px = tNameGetTableName(pname);
+      taosHashPut(pCmd->pTableMetaMap, px, strlen(px), &p, sizeof(STableMetaVgroupInfo));
     } else {// add to the retrieve table meta array list.
       char* t = strdup(name);
       taosArrayPush(plist, &t);

@@ -3483,10 +3483,11 @@ static UNUSED_FUNC bool tscHasRemainDataInSubqueryResultSet(SSqlObj *pSql) {
   return hasData;
 }
 
-void* createQueryInfoFromQueryNode(SQueryInfo* pQueryInfo, SExprInfo* pExprs, STableGroupInfo* pTableGroupInfo,
-                                   SOperatorInfo* pSourceOperator, char* sql, void* merger, int32_t stage) {
+// todo remove pExprs
+void* createQInfoFromQueryNode(SQueryInfo* pQueryInfo, SExprInfo* pExprs, STableGroupInfo* pTableGroupInfo,
+                               SOperatorInfo* pSourceOperator, char* sql, void* merger, int32_t stage) {
   assert(pQueryInfo != NULL);
-  int16_t numOfOutput = pQueryInfo->fieldsInfo.numOfOutput;
+//  int16_t numOfOutput = pQueryInfo->fieldsInfo.numOfOutput;
 
   SQInfo *pQInfo = (SQInfo *)calloc(1, sizeof(SQInfo));
   if (pQInfo == NULL) {
@@ -3505,13 +3506,25 @@ void* createQueryInfoFromQueryNode(SQueryInfo* pQueryInfo, SExprInfo* pExprs, ST
   pQueryAttr->tableGroupInfo = *pTableGroupInfo;
 
   // calculate the result row size
-  for (int16_t col = 0; col < numOfOutput; ++col) {
-    assert(pExprs[col].base.resBytes > 0);
-    pQueryAttr->resultRowSize += pExprs[col].base.resBytes;
+  SExprInfo* pei = NULL;
+  int32_t num = 0;
+  if (pQueryAttr->pExpr3 != NULL) {
+    pei = pQueryAttr->pExpr3;
+    num = pQueryAttr->numOfExpr3;
+  } else if (pQueryAttr->pExpr2 != NULL) {
+    pei = pQueryAttr->pExpr2;
+    num = pQueryAttr->numOfExpr2;
+  } else {
+    pei = pQueryAttr->pExpr1;
+    num = pQueryAttr->numOfOutput;
+  }
+
+  for (int16_t col = 0; col < num; ++col) {
+    pQueryAttr->resultRowSize += pei[col].base.resBytes;
 
     // keep the tag length
-    if (TSDB_COL_IS_TAG(pExprs[col].base.colInfo.flag)) {
-      pQueryAttr->tagLen += pExprs[col].base.resBytes;
+    if (TSDB_COL_IS_TAG(pei[col].base.colInfo.flag)) {
+      pQueryAttr->tagLen += pei[col].base.resBytes;
     }
   }
 
@@ -3569,15 +3582,15 @@ void* createQueryInfoFromQueryNode(SQueryInfo* pQueryInfo, SExprInfo* pExprs, ST
     }
   }
 
-  for (int32_t i = 0; i < numOfOutput; ++i) {
-    SExprInfo* pExprInfo = &pExprs[i];
-    if (pExprInfo->pExpr != NULL) {
-      tExprTreeDestroy(pExprInfo->pExpr, NULL);
-      pExprInfo->pExpr = NULL;
-    }
-  }
-
-  tfree(pExprs);
+//  for (int32_t i = 0; i < numOfOutput; ++i) {
+//    SExprInfo* pExprInfo = &pExprs[i];
+//    if (pExprInfo->pExpr != NULL) {
+//      tExprTreeDestroy(pExprInfo->pExpr, NULL);
+//      pExprInfo->pExpr = NULL;
+//    }
+//  }
+//
+//  tfree(pExprs);
 
   createFilterInfo(pQueryAttr, 0);
 

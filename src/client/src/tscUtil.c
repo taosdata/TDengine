@@ -651,8 +651,16 @@ typedef struct SDummyInputInfo {
   SSqlRes        *pRes;  // refactor: remove it
 } SDummyInputInfo;
 
+typedef struct SJoinStatus {
+  SSDataBlock* pBlock;   // point to the upstream block
+  int32_t      index;
+  bool         completed;// current upstream is completed or not
+} SJoinStatus;
+
 typedef struct SJoinOperatorInfo {
-  int32_t a;
+  SSDataBlock *pRes;
+  SJoinStatus *status;
+  int32_t      numOfUpstream;
 } SJoinOperatorInfo;
 
 SSDataBlock* doGetDataBlock(void* param, bool* newgroup) {
@@ -683,6 +691,64 @@ SSDataBlock* doGetDataBlock(void* param, bool* newgroup) {
   pInput->pRes->numOfRows = 0;
   *newgroup = false;
   return pBlock;
+}
+
+SSDataBlock* doBlockJoin(void* param, bool* newgroup) {
+  SOperatorInfo *pOperator = (SOperatorInfo*) param;
+  assert(pOperator->numOfUpstream > 1);
+
+  SSDataBlock* block0 = pOperator->upstream[0]->exec(pOperator->upstream[0], newgroup);
+  SSDataBlock* block1 = pOperator->upstream[1]->exec(pOperator->upstream[1], newgroup);
+
+  if (block1 == NULL || block0 == NULL) {
+    return NULL;
+  }
+
+  assert(block0 != block1);
+
+  SJoinOperatorInfo* pJoinInfo = pOperator->info;
+  pJoinInfo->status[0].pBlock = block0;
+  pJoinInfo->status[1].pBlock = block1;
+
+  SJoinStatus* st0 = &pJoinInfo->status[0];
+  SJoinStatus* st1 = &pJoinInfo->status[1];
+
+  while (st0->index < st0->pBlock->info.rows && st1->index < st1->pBlock->info.rows) {
+    SColumnInfoData* p0 = taosArrayGet(st0->pBlock->pDataBlock, 0);
+    SColumnInfoData* p1 = taosArrayGet(st1->pBlock->pDataBlock, 0);
+
+    int64_t* ts0 = (int64_t*) p0->pData;
+    int64_t* ts1 = (int64_t*) p1->pData;
+    if (ts0[st0->index] == ts1[st1->index]) { // add to the final result buffer
+      // check if current output buffer is over the threshold to pause current loop
+      int32_t rows = pJoinInfo->pRes->info.rows;
+      for(int32_t j = 0; j < st0->pBlock->info.numOfCols; ++j) {
+        SColumnInfoData* pCol1 = taosArrayGet(pJoinInfo->pRes->pDataBlock, j);
+        SColumnInfoData* pSrc = taosArrayGet(st0->pBlock->pDataBlock, j);
+
+        int32_t bytes = pSrc->info.bytes;
+        memcpy(pCol1->pData + rows * bytes, pSrc->pData + st0->index * bytes, bytes);
+      }
+
+      for(int32_t j = 0; j < st1->pBlock->info.numOfCols; ++j) {
+        SColumnInfoData* pCol1 = taosArrayGet(pJoinInfo->pRes->pDataBlock, j + st0->pBlock->info.numOfCols);
+        SColumnInfoData* pSrc = taosArrayGet(st1->pBlock->pDataBlock, j);
+
+        int32_t bytes = pSrc->info.bytes;
+        memcpy(pCol1->pData + rows * bytes, pSrc->pData + st1->index * bytes, bytes);
+      }
+
+      st0->index++;
+      st1->index++;
+      pJoinInfo->pRes->info.rows++;
+    } else if (ts0[st0->index] < ts1[st1->index]) {
+      st0->index++;
+    } else {
+      st1->index++;
+    }
+  }
+
+  return pJoinInfo->pRes;
 }
 
 static void destroyDummyInputOperator(void* param, int32_t numOfOutput) {
@@ -728,34 +794,36 @@ SOperatorInfo* createDummyInputOperator(char* pResult, SSchema* pSchema, int32_t
   return pOptr;
 }
 
-SOperatorInfo* createJoinOperator(SOperatorInfo** pUpstream, int32_t numOfUpstream, SExprInfo* pExprInfo, int32_t numOfOutput) {
-  SJoinInfo* pInfo = calloc(1, sizeof(SJoinInfo));
-/*
-  pInfo->pRes  = (SSqlRes*) pResult;
-  pInfo->block = calloc(numOfCols, sizeof(SSDataBlock));
-  pInfo->block->info.numOfCols = numOfCols;
+SOperatorInfo* createJoinOperator(SOperatorInfo** pUpstream, int32_t numOfUpstream, SSchema* pSchema, int32_t numOfOutput) {
+  SJoinOperatorInfo* pInfo = calloc(1, sizeof(SJoinOperatorInfo));
+  pInfo->numOfUpstream = numOfUpstream;
+  pInfo->status = calloc(numOfUpstream, sizeof(SJoinStatus));
 
-  pInfo->block->pDataBlock = taosArrayInit(numOfCols, sizeof(SColumnInfoData));
-  for(int32_t i = 0; i < numOfCols; ++i) {
+  pInfo->pRes = calloc(1, sizeof(SSDataBlock));
+  pInfo->pRes->info.numOfCols = numOfOutput;
+
+  pInfo->pRes->pDataBlock = taosArrayInit(numOfOutput, sizeof(SColumnInfoData));
+  for(int32_t i = 0; i < numOfOutput; ++i) {
     SColumnInfoData colData = {{0}};
     colData.info.bytes = pSchema[i].bytes;
     colData.info.type  = pSchema[i].type;
     colData.info.colId = pSchema[i].colId;
+    colData.pData = calloc(1, colData.info.bytes * 4096);
 
-    taosArrayPush(pInfo->block->pDataBlock, &colData);
+    taosArrayPush(pInfo->pRes->pDataBlock, &colData);
   }
-*/
+
   SOperatorInfo* pOptr = calloc(1, sizeof(SOperatorInfo));
   pOptr->name          = "JoinOperator";
   pOptr->operatorType  = OP_Join;
   pOptr->numOfOutput   = numOfOutput;
   pOptr->blockingOptr  = false;
   pOptr->info          = pInfo;
-  pOptr->exec          = doGetDataBlock;
+  pOptr->exec          = doBlockJoin;
   pOptr->cleanup       = destroyDummyInputOperator;
 
   for(int32_t i = 0; i < numOfUpstream; ++i) {
-    appendUpstream(pOptr, pUpstream[0]);
+    appendUpstream(pOptr, pUpstream[i]);
   }
 
   return pOptr;
@@ -775,7 +843,7 @@ void convertQueryResult(SSqlRes* pRes, SQueryInfo* pQueryInfo) {
   pRes->completed = (pRes->numOfRows == 0);
 }
 
-void handleDownstreamOperator(SSqlRes* pRes, SQueryInfo* px, SSqlRes* pOutput) {
+void handleDownstreamOperator(SSqlRes** pRes, int32_t numOfUpstream, SQueryInfo* px, SSqlRes* pOutput) {
   // handle the following query process
   if (px->pQInfo == NULL) {
     SColumnInfo* pColumnInfo = extractColumnInfoFromResult(px->colList);
@@ -805,15 +873,44 @@ void handleDownstreamOperator(SSqlRes* pRes, SQueryInfo* px, SSqlRes* pOutput) {
     taosArrayPush(tableGroupInfo.pGroupList, &group);
 
     // if it is a join query, create join operator here
-    SOperatorInfo* pSourceOperator = createDummyInputOperator((char*)pRes, pSchema, numOfCols);
-    if (px->numOfTables > 1) {
+    int32_t numOfCol1 = px->pTableMetaInfo[0]->pTableMeta->tableInfo.numOfColumns;
 
-      pSourceOperator = createJoinOperator(&pSourceOperator, 1, NULL, pSourceOperator->numOfOutput);
+    SOperatorInfo* pSourceOperator = createDummyInputOperator((char*)pRes[0], pSchema, numOfCol1);
+
+    SSchema* schema = NULL;
+    if (px->numOfTables > 1) {
+      SOperatorInfo* p[2] = {0};
+      p[0] = pSourceOperator;
+
+      SSchema* pSchema1 = tscGetTableSchema(px->pTableMetaInfo[1]->pTableMeta);
+      numOfCol1 = px->pTableMetaInfo[1]->pTableMeta->tableInfo.numOfColumns;
+
+      SOperatorInfo* pSourceOperator1 = createDummyInputOperator((char*)pRes[1], pSchema1, numOfCol1);
+      p[1] = pSourceOperator1;
+
+      int32_t num = pSourceOperator->numOfOutput + pSourceOperator1->numOfOutput;
+      schema = calloc(num, sizeof(SSchema));
+
+      memcpy(&schema[0], pSchema, pSourceOperator->numOfOutput * sizeof(SSchema));
+
+      memcpy(&schema[pSourceOperator->numOfOutput], pSchema1, pSourceOperator1->numOfOutput * sizeof(SSchema));
+      pSourceOperator = createJoinOperator(p, px->numOfTables, schema, num);
     }
 
     SExprInfo* exprInfo = NULL;
     /*int32_t code = */ createQueryFunc(&info, numOfOutput, &exprInfo, px->exprList->pData, NULL, px->type, NULL);
-    px->pQInfo = createQueryInfoFromQueryNode(px, exprInfo, &tableGroupInfo, pSourceOperator, NULL, NULL, MASTER_SCAN);
+    for(int32_t i = 0; i < numOfOutput; ++i) {
+      SExprInfo* pex = taosArrayGetP(px->exprList, i);
+      int32_t colId = pex->base.colInfo.colId;
+      for(int32_t j = 0; j < pSourceOperator->numOfOutput; ++j) {
+        if (colId == schema[j].colId) {
+          pex->base.colInfo.colIndex = j;
+          break;
+        }
+      }
+    }
+
+    px->pQInfo = createQInfoFromQueryNode(px, exprInfo, &tableGroupInfo, pSourceOperator, NULL, NULL, MASTER_SCAN);
     tfree(pColumnInfo);
   }
 
@@ -3011,11 +3108,10 @@ static void doRetrieveSubqueryData(SSchedMsg *pMsg) {
 
   if (numOfRows > 0) {
     SQueryInfo *pQueryInfo = tscGetQueryInfo(&pSql->cmd);
-    SSqlObj    *pSub = pSql->pSubs[0];
-    handleDownstreamOperator(&pSub->res, pQueryInfo, &pSql->res);
+    SSqlRes* list[2] = {&pSql->pSubs[0]->res, &pSql->pSubs[1]->res};
+    handleDownstreamOperator(list, 2, pQueryInfo, &pSql->res);
   }
 
-//  int32_t code = pSql->res.code;
   pSql->res.qId = -1;
   if (pSql->res.code == TSDB_CODE_SUCCESS) {
     (*pSql->fp)(pSql->param, pSql, pSql->res.numOfRows);

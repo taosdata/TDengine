@@ -1750,7 +1750,7 @@ static int32_t setupQueryRuntimeEnv(SQueryRuntimeEnv *pRuntimeEnv, int32_t numOf
         SOperatorInfo* prev = pRuntimeEnv->proot;
         if (i == 0) {
           pRuntimeEnv->proot = createArithOperatorInfo(pRuntimeEnv, prev, pQueryAttr->pExpr1, pQueryAttr->numOfOutput);
-          if (pRuntimeEnv->proot != NULL && prev->operatorType != OP_DummyInput) {  // TODO refactor
+          if (pRuntimeEnv->proot != NULL && prev->operatorType != OP_DummyInput && prev->operatorType != OP_Join) {  // TODO refactor
             setTableScanFilterOperatorInfo(prev->info, pRuntimeEnv->proot);
           }
         } else {
@@ -3929,11 +3929,11 @@ void queryCostStatis(SQInfo *pQInfo) {
 
 void appendUpstream(SOperatorInfo* p, SOperatorInfo* pUpstream) {
   if (p->upstream == NULL) {
-    assert(p->numOfOutput == 0);
+    assert(p->numOfUpstream == 0);
   }
 
-  p->upstream = realloc(p->upstream, POINTER_BYTES * (p->numOfOutput + 1));
-  p->upstream[p->numOfOutput++] = pUpstream;
+  p->upstream = realloc(p->upstream, POINTER_BYTES * (p->numOfUpstream + 1));
+  p->upstream[p->numOfUpstream++] = pUpstream;
 }
 
 static void doDestroyTableQueryInfo(STableGroupInfo* pTableqinfoGroupInfo);
@@ -4824,7 +4824,7 @@ static SSDataBlock* doArithmeticOperation(void* param, bool* newgroup) {
     bool prevVal = *newgroup;
 
     // The upstream exec may change the value of the newgroup, so use a local variable instead.
-    SSDataBlock* pBlock = pOperator->upstream[0]->exec(pOperator->upstream, newgroup);
+    SSDataBlock* pBlock = pOperator->upstream[0]->exec(pOperator->upstream[0], newgroup);
     if (pBlock == NULL) {
       assert(*newgroup == false);
 
@@ -4878,7 +4878,7 @@ static SSDataBlock* doLimit(void* param, bool* newgroup) {
 
   SSDataBlock* pBlock = NULL;
   while (1) {
-    pBlock = pOperator->upstream[0]->exec(pOperator->upstream, newgroup);
+    pBlock = pOperator->upstream[0]->exec(pOperator->upstream[0], newgroup);
     if (pBlock == NULL) {
       setQueryStatus(pOperator->pRuntimeEnv, QUERY_COMPLETED);
       pOperator->status = OP_EXEC_DONE;
@@ -4949,7 +4949,7 @@ static SSDataBlock* doFilter(void* param, bool* newgroup) {
   SQueryRuntimeEnv* pRuntimeEnv = pOperator->pRuntimeEnv;
 
   while (1) {
-    SSDataBlock *pBlock = pOperator->upstream[0]->exec(pOperator->upstream, newgroup);
+    SSDataBlock *pBlock = pOperator->upstream[0]->exec(pOperator->upstream[0], newgroup);
     if (pBlock == NULL) {
       break;
     }
@@ -5219,7 +5219,7 @@ static SSDataBlock* doFill(void* param, bool* newgroup) {
   }
 
   while(1) {
-    SSDataBlock* pBlock = pOperator->upstream[0]->exec(pOperator->upstream, newgroup);
+    SSDataBlock* pBlock = pOperator->upstream[0]->exec(pOperator->upstream[0], newgroup);
     if (*newgroup) {
       assert(pBlock != NULL);
     }
@@ -5295,7 +5295,15 @@ static void destroyOperatorInfo(SOperatorInfo* pOperator) {
     pOperator->cleanup(pOperator->info, pOperator->numOfOutput);
   }
 
-  destroyOperatorInfo(pOperator->upstream[0]);
+  if (pOperator->upstream != NULL) {
+    for(int32_t i = 0; i < pOperator->numOfUpstream; ++i) {
+      destroyOperatorInfo(pOperator->upstream[i]);
+    }
+
+    tfree(pOperator->upstream);
+    pOperator->numOfUpstream = 0;
+  }
+
   tfree(pOperator->info);
   tfree(pOperator);
 }
@@ -5844,7 +5852,7 @@ static SSDataBlock* hashDistinct(void* param, bool* newgroup) {
   pRes->info.rows = 0;
   SSDataBlock* pBlock = NULL;
   while(1) {
-    pBlock = pOperator->upstream[0]->exec(pOperator->upstream, newgroup);
+    pBlock = pOperator->upstream[0]->exec(pOperator->upstream[0], newgroup);
     if (pBlock == NULL) {
       setQueryStatus(pOperator->pRuntimeEnv, QUERY_COMPLETED);
       pOperator->status = OP_EXEC_DONE;
@@ -6458,7 +6466,7 @@ static int32_t updateOutputBufForTopBotQuery(SQueriedTableInfo* pTableInfo, SCol
   return TSDB_CODE_SUCCESS;
 }
 
-// TODO tag length should be passed from client
+// TODO tag length should be passed from client, refactor
 int32_t createQueryFunc(SQueriedTableInfo* pTableInfo, int32_t numOfOutput, SExprInfo** pExprInfo,
                         SSqlExpr** pExprMsg, SColumnInfo* pTagCols, int32_t queryType, void* pMsg) {
   *pExprInfo = NULL;
