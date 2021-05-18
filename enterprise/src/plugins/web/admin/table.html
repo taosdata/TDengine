@@ -141,6 +141,8 @@
 	var dbTagNames = [];
 	var dbTagLengths = [];
 
+	var dbTagTitles = [];
+
 	/**
 	 * read all value of ctrls
 	 * for add/delete ctrls
@@ -333,6 +335,8 @@
 		dbTagTypes[dbTagIndex] = type;
 		dbTagNames[dbTagIndex] = "";
 		dbTagLengths[dbTagIndex] = colLength;
+
+		dbTagTitles[dbTagIndex] = name;
 		
 		var html = '<div id="dbGroup' + dbTagIndex + '" class="input-group input-group-sm"  style="width:300px">'
 			+ '<div class="input-group-btn" >'
@@ -460,32 +464,57 @@
 		} else {
 			//create table using stable SQL
 			var stableName = $('#stableSelect').val();
-			sql += DbSession.GetDb() + "." + dbTableName + " using " + DbSession.GetDb() + "." + stableName + " tags (";
+			sql += DbSession.GetDb() + "." + dbTableName + " using " + DbSession.GetDb() + "." + stableName;
 
-			for (var i = 0; i <= dbTagIndex; ++i)
-			{
-				var tagType = dbTagTypes[i];
-				var tagName = dbTagNames[i];
-				var tagLength = dbTagLengths[i];
-				if (!DbUtil.CheckNULL(tagName, "the value of tag"))
+			var flag = false 
+			var noneNullTagIndex = []
+			for (var i = 0; i <= dbTagIndex; ++i){
+				if (dbTagNames[i])
 				{
-					return;
+					noneNullTagIndex.push(i)
+					flag = true;
 				}
-
-				if (!DbUtil.CheckTagType(i, tagType, tagName))
-				{
-					return;
-				}
-
-				if(i != 0){
-					sql = sql + ", " + tagName;
-				}else {
-					sql = sql + tagName;
-				}	
 			}
-			sql += ")";
+
+			if (flag) {
+				sql += ' ' + '('
+				for (var i = 0; i < noneNullTagIndex.length; ++i) {
+					var index = noneNullTagIndex[i];
+					var tagType = dbTagTypes[index];
+					var tagName = dbTagNames[index];
+					var tagTitle = dbTagTitles[index];
+
+					if (!DbUtil.CheckTagType(index, tagType, tagName))
+					{
+						return;
+					}
+
+					if(i != 0){
+						sql = sql + ", " + tagTitle;
+					} else {
+						sql = sql + tagTitle;
+					}	
+				}
+				sql += ') TAGS (';
+				for (var i = 0; i < noneNullTagIndex.length; ++i) {
+					var index = noneNullTagIndex[i];
+					var tagName = dbTagNames[index];
+
+					if(i != 0){
+						sql = sql + ", " + tagName;
+					} else {
+						sql = sql + tagName;
+					}	
+				}
+				sql += ")";
+			} else {
+				DbUtil.ErrorDialog(" need at least one tag")
+				return;
+			}
+
+			
 		}
-				
+	
 		$.ajax({
 			type: "post",
 			url: "admin/sql",
@@ -685,6 +714,8 @@
 		dbTagTypes = [];
 		dbTagNames = [];
 		dbTagLengths = [];
+
+		dbTagTitles = [];
 		
 		$('#dbFrom1').html("");
 		$('#dbFrom2').html("<label>Tags:</label>");
