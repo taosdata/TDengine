@@ -113,7 +113,9 @@ class TDTestCase:
   
         # query times less than or equal to 100
         os.system("%staosdemo -f tools/taosdemoAllTest/subInsertdataMaxsql100.json" % binPath)
-        os.system("%staosdemo -f tools/taosdemoAllTest/subSyncMaxsql100.json" % binPath)
+        # os.system("%staosdemo -f tools/taosdemoAllTest/subSyncMaxsql100.json" % binPath)
+        os.system("%staosdemo -f tools/taosdemoAllTest/subSupermaxsql100.json" % binPath)
+
         
         # delete useless files
         os.system("rm -rf ./insert_res.txt")

@@ -35,10 +35,10 @@
         "super_tables": [{
             "name": "stb0",
             "child_table_exists":"no",
-            "childtable_count": 200,
+            "childtable_count": 100,
             "childtable_prefix": "stb00_",
             "auto_create_table": "no",
-            "batch_create_tbl_num": 10,
+            "batch_create_tbl_num": 1000,
             "data_source": "rand",
             "insert_mode": "taosc",
             "insert_rows": 10,
