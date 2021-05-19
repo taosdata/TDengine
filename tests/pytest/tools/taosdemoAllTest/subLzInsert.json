@@ -1,0 +1,44 @@
+{
+    "filetype": "insert",
+    "cfgdir": "/etc/taos",
+    "host": "node1",
+    "port": 6030,
+    "user": "root",
+    "password": "taosdata",
+    "thread_count": 4,
+    "thread_count_create_tbl": 4,
+    "num_of_records_per_req": 10000,
+    "result_file": "insert_stb1.txt",
+    "confirm_parameter_prompt": "no",
+    "databases": [{
+        "dbinfo": {
+            "name": "dy",
+            "drop": "yes"
+        },
+        "super_tables": [{
+            "name": "stb2",
+            "child_table_exists": "no",
+            "childtable_count": 100,
+            "childtable_prefix": "t2_",
+            "auto_create_table": "no",
+            "batch_create_tbl_num": 500,
+            "data_source": "rand",
+            "insert_mode": "taosc",
+            "insert_interval": 0,
+            "insert_rows": 20,
+            "interlace_rows": 0,
+            "childtable_limit": 10000,
+            "childtable_offset": 1,
+            "max_sql_len": 1048576,
+            "disorder_ratio": 0,
+            "disorder_range": 1000,
+            "timestamp_step": 1000,
+            "start_timestamp": "now",
+            "sample_format": "",
+            "sample_file": "",
+            "tags_file": "",
+            "columns": [{"type": "DOUBLE","count":1},{"type": "TIMESTAMP","count":1},{"type": "SMALLINT","count":2}],
+            "tags": [{"type": "INT","count":1},{"type": "BINARY","len": 32,"count":11},{"type": "NCHAR","len": 64,"count":4}]
+            }]
+    }]
+}

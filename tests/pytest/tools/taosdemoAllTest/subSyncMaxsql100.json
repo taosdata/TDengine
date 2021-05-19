@@ -11,7 +11,7 @@
       {
        "concurrent":2, 
        "mode":"sync", 
-       "interval":10000, 
+       "interval":0, 
        "restart":"no", 
        "keepProgress":"no",
        "sqls": [
