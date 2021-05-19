@@ -972,7 +972,11 @@ static void updateTableLatestColumn(STsdbRepo *pRepo, STable *pTable, SDataRow r
   }
 
   STSchema* pSchema = pTable->schema[pTable->numOfSchemas - 1];
-  int i = pTable->numOfSchemas - 1;
+  if (tsdbUpdateLastColSchema(pTable, pSchema) < 0) {
+    return;
+  }
+
+  int16_t i = pTable->numOfSchemas - 1;
   while ((pSchema == NULL || pSchema->version != dataRowVersion(row)) && i >= 0) {
     i -= 1;
     pSchema = pTable->schema[i];
@@ -983,23 +987,20 @@ static void updateTableLatestColumn(STsdbRepo *pRepo, STable *pTable, SDataRow r
 
   SDataCol *pLatestCols = pTable->lastCols;
 
-  for (int j = 0; j < schemaNCols(pSchema); j++) {
+  for (int16_t j = 0; j < schemaNCols(pSchema); j++) {
     STColumn *pTCol = schemaColAt(pSchema, j);
-
-    if (pTCol->colId >= pTable->lastColNum) {
-      pTable->lastCols = realloc(pTable->lastCols, pTCol->colId + 5);
-      for (i = 0; i < 10; ++i) {
-        pTable->lastCols[i + pTable->lastColNum].bytes = 0;
-        pTable->lastCols[i + pTable->lastColNum].pData = NULL;
-      }
-      pTable->lastColNum += pTCol->colId + 5;
+    // ignore not exist colId
+    int16_t idx = tsdbGetLastColumnsIndexByColId(pTable, pTCol->colId);
+    if (idx == -1) {
+      continue;
     }
     
-    SDataCol *pDataCol = &(pLatestCols[pTCol->colId]);
     void* value = tdGetRowDataOfCol(row, (int8_t)pTCol->type, TD_DATA_ROW_HEAD_SIZE + pSchema->columns[j].offset);
     if (isNullN(value, pTCol->type)) {
       continue;
     }
+
+    SDataCol *pDataCol = &(pLatestCols[idx]);
     if (pDataCol->pData == NULL) {
       pDataCol->pData = malloc(pSchema->columns[j].bytes);
       pDataCol->bytes = pSchema->columns[j].bytes;
