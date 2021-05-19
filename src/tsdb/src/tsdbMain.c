@@ -678,31 +678,31 @@ static int restoreLastColumns(STsdbRepo *pRepo, STable *pTable, SReadH* pReadh) 
       loadStatisData = true;
     }
 
-    for (uint32_t colId = 0; colId < numColumns && numColumns > pTable->restoreColumnNum; ++colId) {
-      STColumn *pCol = schemaColAt(pSchema, colId);
+    for (uint32_t i = 0; i < numColumns && numColumns > pTable->restoreColumnNum; ++i) {
+      STColumn *pCol = schemaColAt(pSchema, i);
 
-      if (colId >= pTable->lastColNum) {
-        pTable->lastCols = realloc(pTable->lastCols, colId + 5);
+      if (i >= pTable->lastColNum) {
+        pTable->lastCols = realloc(pTable->lastCols, i + 5);
         for (int m = 0; m < 5; ++m) {
           pTable->lastCols[m + pTable->lastColNum].bytes = 0;
           pTable->lastCols[m + pTable->lastColNum].pData = NULL;
         }
-        pTable->lastColNum += colId + 5;
+        pTable->lastColNum += i + 5;
       }
 
       // ignore loaded columns
-      if (pTable->lastCols[colId].bytes != 0) {
+      if (pTable->lastCols[i].bytes != 0) {
         continue;
       }
 
       // ignore block which has no not-null colId column
-      if (loadStatisData && pBlockStatis[colId].numOfNull == pBlock->numOfRows) {
+      if (loadStatisData && pBlockStatis[i].numOfNull == pBlock->numOfRows) {
         continue;
       }
 
       // OK,let's load row from backward to get not-null column
       for (int32_t rowId = pBlock->numOfRows - 1; rowId >= 0; rowId--) {
-        SDataCol *pDataCol = pReadh->pDCols[0]->cols + colId;
+        SDataCol *pDataCol = pReadh->pDCols[0]->cols + i;
         tdAppendColVal(row, tdGetColDataOfRow(pDataCol, rowId), pCol->type, pCol->bytes, pCol->offset);
         //SDataCol *pDataCol = readh.pDCols[0]->cols + j;
         void* value = tdGetRowDataOfCol(row, (int8_t)pCol->type, TD_DATA_ROW_HEAD_SIZE + pCol->offset);
@@ -710,8 +710,8 @@ static int restoreLastColumns(STsdbRepo *pRepo, STable *pTable, SReadH* pReadh) 
           continue;
         }
 
-        // save not-null column   
-        SDataCol *pLastCol = &(pTable->lastCols[colId]);
+        // save not-null column
+        SDataCol *pLastCol = &(pTable->lastCols[i]);
         pLastCol->pData = malloc(pCol->bytes);
         pLastCol->bytes = pCol->bytes;
         pLastCol->offset = pCol->offset;
@@ -726,7 +726,7 @@ static int restoreLastColumns(STsdbRepo *pRepo, STable *pTable, SReadH* pReadh) 
 
         pTable->restoreColumnNum += 1;
 
-        tsdbInfo("restoreLastColumns restore vgId:%d,table:%s cache column %d, %ld", REPO_ID(pRepo), pTable->name->data, colId, pLastCol->ts);
+        tsdbInfo("restoreLastColumns restore vgId:%d,table:%s cache column %d, %d", REPO_ID(pRepo), pTable->name->data, pCol->colId, (int32_t)pLastCol->ts);
         break;
       }
     }
