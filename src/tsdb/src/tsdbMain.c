@@ -511,8 +511,10 @@ static int32_t tsdbCheckAndSetDefaultCfg(STsdbCfg *pCfg) {
   if (pCfg->update != 0) pCfg->update = 1;
 
   // update cacheLastRow
-  if (pCfg->cacheLastRow != 0) pCfg->cacheLastRow = 1;
-
+  if (pCfg->cacheLastRow != 0) {
+    if (pCfg->cacheLastRow > 3)
+      pCfg->cacheLastRow = 1;
+  }
   return 0;
 }
 
@@ -614,6 +616,129 @@ static void tsdbStopStream(STsdbRepo *pRepo) {
   }
 }
 
+static int restoreLastColumns(STsdbRepo *pRepo, STable *pTable, SReadH* pReadh) {
+  SBlock* pBlock;
+  int numColumns;
+  int32_t blockIdx;
+  SDataStatis* pBlockStatis = NULL;
+  SDataRow row = NULL;
+  STSchema *pSchema = tsdbGetTableSchema(pTable);
+  int err = 0;
+
+  numColumns = schemaNCols(pSchema);
+  if (numColumns <= pTable->restoreColumnNum) {
+    return 0;
+  }
+
+  row = taosTMalloc(dataRowMaxBytesFromSchema(pSchema));
+  if (row == NULL) {
+    terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
+    err = -1;
+    goto out;
+  }
+  tdInitDataRow(row, pSchema);
+
+  // first load block index info
+  if (tsdbLoadBlockInfo(pReadh, NULL) < 0) {
+    err = -1;
+    goto out;
+  }
+
+  pBlockStatis = calloc(numColumns, sizeof(SDataStatis));
+  if (pBlockStatis == NULL) {
+    terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
+    err = -1;
+    goto out;
+  }
+  memset(pBlockStatis, 0, numColumns * sizeof(SDataStatis));
+  for(int32_t i = 0; i < numColumns; ++i) {
+    STColumn *pCol = schemaColAt(pSchema, i);
+    pBlockStatis[i].colId = pCol->colId;
+  }
+
+  // load block from backward
+  SBlockIdx *pIdx = pReadh->pBlkIdx;
+  blockIdx = (int32_t)(pIdx->numOfBlocks - 1);
+
+  while (numColumns > pTable->restoreColumnNum && blockIdx >= 0) {
+    bool loadStatisData = false;
+    pBlock = pReadh->pBlkInfo->blocks + blockIdx;
+    blockIdx -= 1;
+
+    // load block data
+    if (tsdbLoadBlockData(pReadh, pBlock, NULL) < 0) {
+      err = -1;
+      goto out;
+    }
+
+    // file block with sub-blocks has no statistics data
+    if (pBlock->numOfSubBlocks <= 1) {
+      tsdbLoadBlockStatis(pReadh, pBlock);
+      tsdbGetBlockStatis(pReadh, pBlockStatis, (int)numColumns);
+      loadStatisData = true;
+    }
+
+    for (uint32_t i = 0; i < numColumns && numColumns > pTable->restoreColumnNum; ++i) {
+      STColumn *pCol = schemaColAt(pSchema, i);
+
+      if (i >= pTable->lastColNum) {
+        pTable->lastCols = realloc(pTable->lastCols, i + 5);
+        for (int m = 0; m < 5; ++m) {
+          pTable->lastCols[m + pTable->lastColNum].bytes = 0;
+          pTable->lastCols[m + pTable->lastColNum].pData = NULL;
+        }
+        pTable->lastColNum += i + 5;
+      }
+
+      // ignore loaded columns
+      if (pTable->lastCols[i].bytes != 0) {
+        continue;
+      }
+
+      // ignore block which has no not-null colId column
+      if (loadStatisData && pBlockStatis[i].numOfNull == pBlock->numOfRows) {
+        continue;
+      }
+
+      // OK,let's load row from backward to get not-null column
+      for (int32_t rowId = pBlock->numOfRows - 1; rowId >= 0; rowId--) {
+        SDataCol *pDataCol = pReadh->pDCols[0]->cols + i;
+        tdAppendColVal(row, tdGetColDataOfRow(pDataCol, rowId), pCol->type, pCol->bytes, pCol->offset);
+        //SDataCol *pDataCol = readh.pDCols[0]->cols + j;
+        void* value = tdGetRowDataOfCol(row, (int8_t)pCol->type, TD_DATA_ROW_HEAD_SIZE + pCol->offset);
+        if (isNullN(value, pCol->type)) {
+          continue;
+        }
+
+        // save not-null column
+        SDataCol *pLastCol = &(pTable->lastCols[i]);
+        pLastCol->pData = malloc(pCol->bytes);
+        pLastCol->bytes = pCol->bytes;
+        pLastCol->offset = pCol->offset;
+        pLastCol->colId = pCol->colId;
+        memcpy(pLastCol->pData, value, pCol->bytes);
+
+        // save row ts(in column 0)
+        pDataCol = pReadh->pDCols[0]->cols + 0;
+        pCol = schemaColAt(pSchema, 0);
+        tdAppendColVal(row, tdGetColDataOfRow(pDataCol, rowId), pCol->type, pCol->bytes, pCol->offset);
+        pLastCol->ts = dataRowTKey(row);
+
+        pTable->restoreColumnNum += 1;
+
+        tsdbInfo("restoreLastColumns restore vgId:%d,table:%s cache column %d, %d", REPO_ID(pRepo), pTable->name->data, pCol->colId, (int32_t)pLastCol->ts);
+        break;
+      }
+    }
+  }
+
+out:
+  taosTZfree(row);
+  tfree(pBlockStatis);
+
+  return err;
+}
+
 int tsdbRestoreInfo(STsdbRepo *pRepo) {
   SFSIter    fsiter;
   SReadH     readh;
@@ -627,6 +752,14 @@ int tsdbRestoreInfo(STsdbRepo *pRepo) {
   }
 
   tsdbFSIterInit(&fsiter, REPO_FS(pRepo), TSDB_FS_ITER_BACKWARD);
+
+  if (CACHE_LAST_NULL_COLUMN(pCfg)) {
+    for (int i = 1; i < pMeta->maxTables; i++) {
+      STable *pTable = pMeta->tables[i];
+      if (pTable == NULL) continue;
+      pTable->restoreColumnNum = 0;  
+    }
+  }
 
   while ((pSet = tsdbFSIterNext(&fsiter)) != NULL) {
     if (tsdbSetAndOpenReadFSet(&readh, pSet) < 0) {
@@ -643,6 +776,8 @@ int tsdbRestoreInfo(STsdbRepo *pRepo) {
       STable *pTable = pMeta->tables[i];
       if (pTable == NULL) continue;
 
+      //tsdbInfo("tsdbRestoreInfo restore vgId:%d,table:%s", REPO_ID(pRepo), pTable->name->data);
+
       if (tsdbSetReadTable(&readh, pTable) < 0) {
         tsdbDestroyReadH(&readh);
         return -1;
@@ -653,7 +788,7 @@ int tsdbRestoreInfo(STsdbRepo *pRepo) {
       if (pIdx && lastKey < pIdx->maxKey) {
         pTable->lastKey = pIdx->maxKey;
 
-        if (pCfg->cacheLastRow) {
+        if (CACHE_LAST_ROW(pCfg)) {
           if (tsdbLoadBlockInfo(&readh, NULL) < 0) {
             tsdbDestroyReadH(&readh);
             return -1;
@@ -686,6 +821,13 @@ int tsdbRestoreInfo(STsdbRepo *pRepo) {
         }
       }
       
+      // restore NULL columns
+      if (CACHE_LAST_NULL_COLUMN(pCfg)) {
+        if (restoreLastColumns(pRepo, pTable, &readh) != 0) {
+          tsdbDestroyReadH(&readh);
+          return -1;
+        }
+      }
     }
   }
 

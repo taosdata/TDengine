@@ -417,6 +417,18 @@ void setVardataNull(char* val, int32_t type) {
   }
 }
 
+bool isVardataNull(char* val, int32_t type) {
+  if (type == TSDB_DATA_TYPE_BINARY) {
+    return *(uint8_t*) varDataVal(val) == TSDB_DATA_BINARY_NULL;
+  } else if (type == TSDB_DATA_TYPE_NCHAR) {
+    return *(uint32_t*) varDataVal(val) == TSDB_DATA_NCHAR_NULL;
+  } else {
+    assert(0);
+  }
+
+  return false;
+}
+
 void setNull(char *val, int32_t type, int32_t bytes) { setNullN(val, type, bytes, 1); }
 
 void setNullN(char *val, int32_t type, int32_t bytes, int32_t numOfElems) {
@@ -490,6 +502,55 @@ void setNullN(char *val, int32_t type, int32_t bytes, int32_t numOfElems) {
       break;
     }
   }
+}
+
+bool isNullN(char *val, int32_t type) {
+  switch (type) {
+    case TSDB_DATA_TYPE_BOOL:
+      return *(uint8_t *)(val) == TSDB_DATA_BOOL_NULL;
+      break;
+    case TSDB_DATA_TYPE_TINYINT:
+      return *(uint8_t *)(val) == TSDB_DATA_TINYINT_NULL;
+      break;
+    case TSDB_DATA_TYPE_SMALLINT:
+      return *(uint16_t *)(val) == TSDB_DATA_SMALLINT_NULL;
+      break;
+    case TSDB_DATA_TYPE_INT:
+      return *(uint32_t *)(val) == TSDB_DATA_INT_NULL;
+      break;
+    case TSDB_DATA_TYPE_BIGINT:
+    case TSDB_DATA_TYPE_TIMESTAMP:
+      return *(uint64_t *)(val) == TSDB_DATA_BIGINT_NULL;
+      break;
+    case TSDB_DATA_TYPE_UTINYINT:
+      return *(uint8_t *)(val) == TSDB_DATA_UTINYINT_NULL;
+      break;
+    case TSDB_DATA_TYPE_USMALLINT:
+      return *(uint16_t *)(val) == TSDB_DATA_USMALLINT_NULL;
+      break;
+    case TSDB_DATA_TYPE_UINT:
+      return *(uint32_t *)(val) == TSDB_DATA_UINT_NULL;
+      break;
+    case TSDB_DATA_TYPE_UBIGINT:
+      return *(uint64_t *)(val) == TSDB_DATA_UBIGINT_NULL;
+      break;
+    case TSDB_DATA_TYPE_FLOAT:
+      return *(uint32_t *)(val) == TSDB_DATA_FLOAT_NULL;
+      break;
+    case TSDB_DATA_TYPE_DOUBLE:
+      return *(uint64_t *)(val) == TSDB_DATA_DOUBLE_NULL;
+      break;
+    case TSDB_DATA_TYPE_NCHAR:
+    case TSDB_DATA_TYPE_BINARY:
+      return isVardataNull(val, type);
+      break;
+    default: {
+      return *(uint32_t *)(val) == TSDB_DATA_INT_NULL;
+      break;
+    }
+  }
+
+  return false;
 }
 
 static uint8_t   nullBool     = TSDB_DATA_BOOL_NULL;

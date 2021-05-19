@@ -36,6 +36,10 @@ typedef struct STable {
   char*          sql;
   void*          cqhandle;
   SRWLatch       latch;  // TODO: implementa latch functions
+
+  SDataCol      *lastCols;
+  int32_t        lastColNum;
+  int32_t        restoreColumnNum;
   T_REF_DECLARE()
 } STable;
 

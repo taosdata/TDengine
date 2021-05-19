@@ -14,6 +14,7 @@
  */
 #include "tsdbint.h"
 
+#define TSDB_LATEST_COLUMN_ARRAY_SIZE 20
 #define TSDB_SUPER_TABLE_SL_LEVEL 5
 #define DEFAULT_TAG_INDEX_COLUMN 0
 
@@ -671,6 +672,13 @@ static STable *tsdbNewTable() {
   }
 
   pTable->lastKey = TSKEY_INITIAL_VAL;
+  pTable->lastCols = (SDataCol*)malloc(TSDB_LATEST_COLUMN_ARRAY_SIZE * sizeof(SDataCol));
+  pTable->lastColNum = TSDB_LATEST_COLUMN_ARRAY_SIZE;
+  for (int i = 0; i < pTable->lastColNum; ++i) {
+    pTable->lastCols[i].bytes = 0;
+    pTable->lastCols[i].pData = NULL;
+  }
+  pTable->restoreColumnNum = 0;
 
   return pTable;
 }
@@ -785,8 +793,17 @@ static void tsdbFreeTable(STable *pTable) {
     kvRowFree(pTable->tagVal);
 
     tSkipListDestroy(pTable->pIndex);
-    taosTZfree(pTable->lastRow);
+    taosTZfree(pTable->lastRow);    
     tfree(pTable->sql);
+
+    for (int i = 0; i < pTable->lastColNum; ++i) {
+      if (pTable->lastCols[i].pData == NULL) {
+        continue;
+      }
+      free(pTable->lastCols[i].pData);
+    }
+    tfree(pTable->lastCols);
+    
     free(pTable);
   }
 }
