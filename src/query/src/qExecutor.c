@@ -1979,6 +1979,37 @@ static bool isFirstLastRowQuery(SQueryAttr *pQueryAttr) {
   return false;
 }
 
+static bool isCachedLastQuery(SQueryAttr *pQueryAttr) {
+  for (int32_t i = 0; i < pQueryAttr->numOfOutput; ++i) {
+    int32_t functionID = pQueryAttr->pExpr1[i].base.functionId;
+    if (functionID == TSDB_FUNC_LAST || functionID == TSDB_FUNC_LAST_DST) {
+      continue;
+    }
+
+    return false;
+  }
+
+  if (!TSWINDOW_IS_EQUAL(pQueryAttr->window, TSWINDOW_INITIALIZER)) {
+    return false;
+  }
+
+  if (pQueryAttr->groupbyColumn) {
+    return false;
+  }
+
+  if (pQueryAttr->interval.interval > 0) {
+    return false;
+  }
+
+  if (pQueryAttr->numOfFilterCols > 0 || pQueryAttr->havingNum > 0) {
+    return false;
+  }
+
+  return true;
+}
+
+
+
 /**
  * The following 4 kinds of query are treated as the tags query
  * tagprj, tid_tag query, count(tbname), 'abc' (user defined constant value column) query
@@ -3963,6 +3994,8 @@ static int32_t setupQueryHandle(void* tsdb, SQueryRuntimeEnv* pRuntimeEnv, int64
         }
       }
     }
+  } else if (isCachedLastQuery(pQueryAttr)) {
+    pRuntimeEnv->pQueryHandle = tsdbQueryCacheLast(tsdb, &cond, &pQueryAttr->tableGroupInfo, qId, &pQueryAttr->memRef);
   } else if (pQueryAttr->pointInterpQuery) {
     pRuntimeEnv->pQueryHandle = tsdbQueryRowsInExternalWindow(tsdb, &cond, &pQueryAttr->tableGroupInfo, qId, &pQueryAttr->memRef);
   } else {
