@@ -4706,7 +4706,7 @@ static int64_t generateData(char *recBuf, char **data_type,
       double t = rand_double();
       pstr += sprintf(pstr, ",%20.8f", t);
     } else if (strcasecmp(data_type[i % c], "BOOL") == 0) {
-      bool b = taosRandom() & 1;
+      bool b = rand_bool() & 1;
       pstr += sprintf(pstr, ",%s", b ? "true" : "false");
     } else if (strcasecmp(data_type[i % c], "BINARY") == 0) {
       char *s = malloc(lenOfBinary);
@@ -6575,6 +6575,15 @@ static void *superSubscribe(void *sarg) {
 
   if (g_queryInfo.superQueryInfo.sqlCount == 0)
     return NULL;
+
+  if (g_queryInfo.superQueryInfo.sqlCount * pThreadInfo->ntables > MAX_QUERY_SQL_COUNT) {
+      errorPrint("The number %"PRId64" of sql count(%"PRIu64") multiple the table number(%"PRId64") of the thread is more than max query sql count: %d\n",
+              g_queryInfo.superQueryInfo.sqlCount * pThreadInfo->ntables,
+              g_queryInfo.superQueryInfo.sqlCount,
+              pThreadInfo->ntables,
+              MAX_QUERY_SQL_COUNT);
+      exit(-1);
+  }
 
   if (pThreadInfo->taos == NULL) {
     TAOS * taos = NULL;
