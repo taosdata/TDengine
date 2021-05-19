@@ -4851,99 +4851,127 @@ static void getTableName(char *pTblName, threadInfo* pThreadInfo, uint64_t table
   }
 }
 
-static int64_t generateDataTail(
-        SSuperTable* superTblInfo,
-        uint64_t batch, char* buffer, int64_t remainderBufLen, int64_t insertRows,
-        uint64_t startFrom, int64_t startTime, int64_t *pSamplePos, int64_t *dataLen) {
-  uint64_t len = 0;
-  uint32_t ncols_per_record = 1; // count first col ts
+static int64_t generateDataTailWithoutStable(
+        uint64_t batch, char* buffer,
+        int64_t remainderBufLen, int64_t insertRows,
+        uint64_t startFrom, int64_t startTime,
+        int64_t *pSamplePos, int64_t *dataLen) {
 
+  uint64_t len = 0;
   char *pstr = buffer;
 
-  if (superTblInfo == NULL) {
-    uint32_t datatypeSeq = 0;
-    while(g_args.datatype[datatypeSeq]) {
+  uint32_t ncols_per_record = 1; // count first col ts
+
+  uint32_t datatypeSeq = 0;
+  while(g_args.datatype[datatypeSeq]) {
         datatypeSeq ++;
         ncols_per_record ++;
-    }
   }
-
   verbosePrint("%s() LN%d batch=%"PRIu64"\n", __func__, __LINE__, batch);
 
-  uint64_t k = 0;
+  int64_t k = 0;
   for (k = 0; k < batch;) {
     char data[MAX_DATA_SIZE];
     memset(data, 0, MAX_DATA_SIZE);
 
     int64_t retLen = 0;
 
-    if (superTblInfo) {
-      if (0 == strncasecmp(superTblInfo->dataSource,
-                    "sample", strlen("sample"))) {
-          retLen = getRowDataFromSample(
-                    data,
-                    remainderBufLen,
-                    startTime + superTblInfo->timeStampStep * k,
-                    superTblInfo,
-                    pSamplePos);
-      } else if (0 == strncasecmp(superTblInfo->dataSource,
-                   "rand", strlen("rand"))) {
+    char **data_type = g_args.datatype;
+    int lenOfBinary = g_args.len_of_binary;
 
-        int64_t randTail = superTblInfo->timeStampStep * k;
-        if (superTblInfo->disorderRatio > 0) {
-          int rand_num = taosRandom() % 100;
-          if(rand_num < superTblInfo->disorderRatio) {
-            randTail = (randTail + (taosRandom() % superTblInfo->disorderRange + 1)) * (-1);
-            debugPrint("rand data generated, back %"PRId64"\n", randTail);
-          }
-        }
+    int64_t randTail = DEFAULT_TIMESTAMP_STEP * k;
 
-        int64_t d = startTime
-                + randTail;
-        retLen = generateRowData(
-                      data,
-                      d,
-                      superTblInfo);
-      }
-
-      if (retLen > remainderBufLen) {
-        break;
-      }
-
-      pstr += snprintf(pstr , retLen + 1, "%s", data);
-      k++;
-      len += retLen;
-      remainderBufLen -= retLen;
-    } else {
-      char **data_type = g_args.datatype;
-      int lenOfBinary = g_args.len_of_binary;
-
-      int64_t randTail = DEFAULT_TIMESTAMP_STEP * k;
-
-      if (g_args.disorderRatio != 0) {
+    if (g_args.disorderRatio != 0) {
         int rand_num = taosRandom() % 100;
         if (rand_num < g_args.disorderRatio) {
-          randTail = (randTail + (taosRandom() % g_args.disorderRange + 1)) * (-1);
+          randTail = (randTail +
+                  (taosRandom() % g_args.disorderRange + 1)) * (-1);
 
           debugPrint("rand data generated, back %"PRId64"\n", randTail);
         }
-      } else {
+    } else {
         randTail = DEFAULT_TIMESTAMP_STEP * k;
-      }
+    }
 
-      retLen = generateData(data, data_type,
-                  ncols_per_record,
-                  startTime + randTail,
-                  lenOfBinary);
+    retLen = generateData(data, data_type,
+            ncols_per_record,
+            startTime + randTail,
+            lenOfBinary);
 
-      if (len > remainderBufLen)
+    if (len > remainderBufLen)
         break;
 
-      pstr += sprintf(pstr, "%s", data);
-      k++;
-      len += retLen;
-      remainderBufLen -= retLen;
+    pstr += sprintf(pstr, "%s", data);
+    k++;
+    len += retLen;
+    remainderBufLen -= retLen;
+
+    verbosePrint("%s() LN%d len=%"PRIu64" k=%"PRIu64" \nbuffer=%s\n",
+            __func__, __LINE__, len, k, buffer);
+
+    startFrom ++;
+
+    if (startFrom >= insertRows) {
+      break;
     }
+  }
+
+  *dataLen = len;
+  return k;
+}
+
+static int64_t generateDataTail(
+        SSuperTable* superTblInfo,
+        uint64_t batch, char* buffer,
+        int64_t remainderBufLen, int64_t insertRows,
+        uint64_t startFrom, int64_t startTime,
+        int64_t *pSamplePos, int64_t *dataLen) {
+  uint64_t len = 0;
+
+  char *pstr = buffer;
+
+  verbosePrint("%s() LN%d batch=%"PRIu64"\n", __func__, __LINE__, batch);
+
+  int64_t k = 0;
+  for (k = 0; k < batch;) {
+    char data[MAX_DATA_SIZE];
+    memset(data, 0, MAX_DATA_SIZE);
+
+    int64_t retLen = 0;
+
+    if (0 == strncasecmp(superTblInfo->dataSource,
+                "sample", strlen("sample"))) {
+          retLen = getRowDataFromSample(
+                  data,
+                  remainderBufLen,
+                  startTime + superTblInfo->timeStampStep * k,
+                  superTblInfo,
+                  pSamplePos);
+    } else if (0 == strncasecmp(superTblInfo->dataSource,
+                "rand", strlen("rand"))) {
+        int64_t randTail = superTblInfo->timeStampStep * k;
+        if (superTblInfo->disorderRatio > 0) {
+            int rand_num = taosRandom() % 100;
+            if(rand_num < superTblInfo->disorderRatio) {
+                randTail = (randTail +
+                        (taosRandom() % superTblInfo->disorderRange + 1)) * (-1);
+                debugPrint("rand data generated, back %"PRId64"\n", randTail);
+            }
+        }
+
+        int64_t d = startTime + randTail;
+        retLen = generateRowData(
+                data, d, superTblInfo);
+    }
+
+    if (retLen > remainderBufLen) {
+        break;
+    }
+
+    pstr += snprintf(pstr , retLen + 1, "%s", data);
+    k++;
+    len += retLen;
+    remainderBufLen -= retLen;
 
     verbosePrint("%s() LN%d len=%"PRIu64" k=%"PRIu64" \nbuffer=%s\n",
             __func__, __LINE__, len, k, buffer);
@@ -5057,19 +5085,24 @@ static int64_t generateInterlaceDataBuffer(
             pThreadInfo->threadID, __func__, __LINE__,
             i, batchPerTblTimes, batchPerTbl);
 
+  int64_t k;
   if (superTblInfo) {
     if (0 == strncasecmp(superTblInfo->startTimestamp, "now", 3)) {
       startTime = taosGetTimestamp(pThreadInfo->time_precision);
     }
-  } else {
-      startTime = 1500000000000;
-  }
 
-  int64_t k = generateDataTail(
-    superTblInfo,
-    batchPerTbl, pstr, *pRemainderBufLen, insertRows, 0,
-    startTime,
-    &(pThreadInfo->samplePos), &dataLen);
+    k = generateDataTail(
+            superTblInfo,
+            batchPerTbl, pstr, *pRemainderBufLen, insertRows, 0,
+            startTime,
+            &(pThreadInfo->samplePos), &dataLen);
+  } else {
+    startTime = 1500000000000;
+    k = generateDataTailWithoutStable(
+            batchPerTbl, pstr, *pRemainderBufLen, insertRows, 0,
+            startTime,
+            &(pThreadInfo->samplePos), &dataLen);
+  }
 
   if (k == batchPerTbl) {
     pstr += dataLen;
@@ -5108,11 +5141,10 @@ static int64_t generateProgressiveDataBuffer(
   assert(buffer != NULL);
   char *pstr = buffer;
 
-  int64_t k = 0;
-
   memset(buffer, 0, *pRemainderBufLen);
 
-  int64_t headLen = generateSQLHead(tableName, tableSeq, pThreadInfo, superTblInfo,
+  int64_t headLen = generateSQLHead(
+          tableName, tableSeq, pThreadInfo, superTblInfo,
           buffer, *pRemainderBufLen);
 
   if (headLen <= 0) {
@@ -5122,10 +5154,21 @@ static int64_t generateProgressiveDataBuffer(
   *pRemainderBufLen -= headLen;
 
   int64_t dataLen;
-  k = generateDataTail(superTblInfo,
+  int64_t k;
+
+  if (NULL == superTblInfo) {
+    k = generateDataTailWithoutStable(
           g_args.num_of_RPR, pstr, *pRemainderBufLen, insertRows, startFrom,
           startTime,
           pSamplePos, &dataLen);
+
+  } else {
+    k = generateDataTail(superTblInfo,
+          g_args.num_of_RPR, pstr, *pRemainderBufLen,
+          insertRows, startFrom,
+          startTime,
+          pSamplePos, &dataLen);
+  }
 
   return k;
 }
@@ -5415,13 +5458,15 @@ static void* syncWriteProgressive(threadInfo *pThreadInfo) {
 
   pThreadInfo->samplePos = 0;
 
-  for (uint64_t tableSeq =
-          pThreadInfo->start_table_from; tableSeq <= pThreadInfo->end_table_to;
-        tableSeq ++) {
+  for (uint64_t tableSeq = pThreadInfo->start_table_from;
+          tableSeq <= pThreadInfo->end_table_to;
+          tableSeq ++) {
     int64_t start_time = pThreadInfo->start_time;
 
-    int64_t insertRows = (superTblInfo)?superTblInfo->insertRows:g_args.num_of_DPT;
-    verbosePrint("%s() LN%d insertRows=%"PRId64"\n", __func__, __LINE__, insertRows);
+    int64_t insertRows =
+        (superTblInfo)?superTblInfo->insertRows:g_args.num_of_DPT;
+    verbosePrint("%s() LN%d insertRows=%"PRId64"\n",
+            __func__, __LINE__, insertRows);
 
     for (uint64_t i = 0; i < insertRows;) {
         /*
