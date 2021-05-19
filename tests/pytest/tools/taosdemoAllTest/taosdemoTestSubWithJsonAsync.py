@@ -49,14 +49,13 @@ class TDTestCase:
         command = 'cat %s |wc -l'% filename
         times = int(subprocess.getstatusoutput(command)[1]) 
         return times
-    
-    # 检查
-    def assertCheck(self,filename,subResult,expectResult):
+
+    def assertCheck(self,filename,queryResult,expectResult):
         self.filename = filename
-        self.subResult = subResult
+        self.queryResult = queryResult
         self.expectResult = expectResult
-        args0 = (filename, subResult, expectResult)
-        assert subResult == expectResult , "Queryfile:%s ,result is %s != expect: %s" % args0    
+        args0 = (filename, queryResult, expectResult)
+        assert queryResult == expectResult , "Queryfile:%s ,result is %s != expect: %s" % args0    
 
     def run(self):
         buildPath = self.getBuildPath()
@@ -67,59 +66,54 @@ class TDTestCase:
         binPath = buildPath+ "/build/bin/"      
 
         # clear env
-        os.system("ps -ef |grep 'taosdemoAllTest/subSync.json' |grep -v 'grep' |awk '{print $2}'|xargs kill -9")
+        os.system("ps -ef |grep 'taosdemoAllTest/subAsync.json' |grep -v 'grep' |awk '{print $2}'|xargs kill -9")
         sleep(1)
         os.system("rm -rf ./subscribe_res*")  
         os.system("rm -rf ./all_subscribe_res*") 
 
-        # # subscribe: async 
-        # os.system("%staosdemo -f tools/taosdemoAllTest/subInsertdata.json" % binPath)
-        # os.system("nohup %staosdemo -f tools/taosdemoAllTest/subSync.json &" % binPath)
-        # query_pid = int(subprocess.getstatusoutput('ps aux|grep "taosdemoAllTest/subSync.json" |grep -v "grep"|awk \'{print $2}\'')[1])
+        # subscribe: resultfile 
+        os.system("%staosdemo -f tools/taosdemoAllTest/subInsertdata.json" % binPath)
+        os.system("nohup %staosdemo -f tools/taosdemoAllTest/subAsync.json &" % binPath)
+        query_pid = int(subprocess.getstatusoutput('ps aux|grep "taosdemoAllTest/subAsync.json" |grep -v "grep"|awk \'{print $2}\'')[1])
 
-        # # insert extral data     
-        # tdSql.execute("use db")
-        # tdSql.execute("insert into stb00_0 values(1614218412000,'R','bf3',8637,98.861045)")   
-        # tdSql.execute("insert into stb00_1 values(1614218412000,'R','bf3',8637,78.861045)(1614218422000,'R','bf3',8637,98.861045)")   
-        # sleep(5)
+        # insert extral data     
+        tdSql.execute("use db")
+        tdSql.execute("insert into stb00_0 values(1614218412000,'R','bf3',8637,98.861045)")   
+        tdSql.execute("insert into stb00_1 values(1614218412000,'R','bf3',8637,78.861045)(1614218422000,'R','bf3',8637,98.861045)")   
+        sleep(5)
 
-        # # merge result files
-        # os.system("cat subscribe_res0.txt* > all_subscribe_res0.txt")
-        # os.system("cat subscribe_res1.txt* > all_subscribe_res1.txt")
-        # os.system("cat subscribe_res2.txt* > all_subscribe_res2.txt")
-        # os.system("cat subscribe_res3.txt* > all_subscribe_res3.txt")
+        # merge result files
+        os.system("cat subscribe_res0.txt* > all_subscribe_res0.txt")
+        os.system("cat subscribe_res1.txt* > all_subscribe_res1.txt")
+        os.system("cat subscribe_res2.txt* > all_subscribe_res2.txt")
+        os.system("cat subscribe_res3.txt* > all_subscribe_res3.txt")    
 
-        
-        # # correct subscribeTimes testcase
-        # subTimes0 = self.subTimes("all_subscribe_res0.txt")
-        # self.assertCheck("all_subscribe_res0.txt",subTimes0 ,22)
+        # correct subscribeTimes testcase
+        subTimes0 = self.subTimes("all_subscribe_res0.txt")
+        self.assertCheck("all_subscribe_res0.txt",subTimes0 ,22)
 
-        # subTimes1 = self.subTimes("all_subscribe_res1.txt")
-        # self.assertCheck("all_subscribe_res1.txt",subTimes1 ,24)
+        subTimes1 = self.subTimes("all_subscribe_res1.txt")
+        self.assertCheck("all_subscribe_res1.txt",subTimes1 ,24)
 
-        # subTimes2 = self.subTimes("all_subscribe_res2.txt")
-        # self.assertCheck("all_subscribe_res2.txt",subTimes2 ,21)
+        subTimes2 = self.subTimes("all_subscribe_res2.txt")
+        self.assertCheck("all_subscribe_res2.txt",subTimes2 ,21)
 
-        # subTimes3 = self.subTimes("all_subscribe_res3.txt")
-        # self.assertCheck("all_subscribe_res3.txt",subTimes3 ,13)
-        
+        subTimes3 = self.subTimes("all_subscribe_res3.txt")
+        self.assertCheck("all_subscribe_res3.txt",subTimes3 ,13)
 
-        # # correct data testcase
+        # correct data testcase
   
-        # os.system("kill -9 %d" % query_pid)
-        # sleep(3)
-        # os.system("rm -rf ./subscribe_res*")   
-        # os.system("rm -rf ./all_subscribe*")
+        os.system("kill -9 %d" % query_pid)
   
-        # query times less than or equal to 100
-        os.system("%staosdemo -f tools/taosdemoAllTest/subInsertdataMaxsql100.json" % binPath)
-        os.system("%staosdemo -f tools/taosdemoAllTest/subSyncMaxsql100.json" % binPath)
+        # # query times less than or equal to 100
+        # os.system("%staosdemo -f tools/taosdemoAllTest/QuerySpeciMutisql100.json" % binPath)
+        # os.system("%staosdemo -f tools/taosdemoAllTest/QuerySuperMutisql100.json" % binPath)
         
         # delete useless files
         os.system("rm -rf ./insert_res.txt")
         os.system("rm -rf tools/taosdemoAllTest/*.py.sql")        
-        # os.system("rm -rf ./subscribe_res*")   
-        # os.system("rm -rf ./all_subscribe*")
+        os.system("rm -rf ./subscribe_res*")   
+        os.system("rm -rf ./all_subscribe*")
          
     def stop(self):
         tdSql.close()
