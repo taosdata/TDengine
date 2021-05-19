@@ -6668,9 +6668,14 @@ static void *superSubscribe(void *sarg) {
   char topic[32] = {0};
   for (uint64_t i = pThreadInfo->start_table_from;
           i <= pThreadInfo->end_table_to; i++) {
+      verbosePrint("%s() LN%d, [%d], start=%"PRId64" end=%"PRId64" i=%"PRIu64"\n",
+              __func__, __LINE__,
+              pThreadInfo->threadID,
+              pThreadInfo->start_table_from,
+              pThreadInfo->end_table_to, i);
       sprintf(topic, "taosdemo-subscribe-%"PRIu64"-%"PRIu64"",
               i, pThreadInfo->querySeq);
-      memset(subSqlstr,0,sizeof(subSqlstr));
+      memset(subSqlstr, 0, sizeof(subSqlstr));
       replaceChildTblName(
               g_queryInfo.superQueryInfo.sql[pThreadInfo->querySeq],
               subSqlstr, i);
@@ -6823,12 +6828,11 @@ static void *specifiedSubscribe(void *sarg) {
                       g_queryInfo.specifiedQueryInfo.subscribeKeepProgress);
               tsub = subscribeImpl(
                       SPECIFIED_CLASS,
-                    pThreadInfo,
-                    g_queryInfo.specifiedQueryInfo.sql[pThreadInfo->querySeq],
-                    topic,
-                    g_queryInfo.specifiedQueryInfo.subscribeRestart,
-                    g_queryInfo.specifiedQueryInfo.subscribeInterval
-                    );
+                      pThreadInfo,
+                      g_queryInfo.specifiedQueryInfo.sql[pThreadInfo->querySeq],
+                      topic,
+                      g_queryInfo.specifiedQueryInfo.subscribeRestart,
+                      g_queryInfo.specifiedQueryInfo.subscribeInterval);
               if (NULL == tsub) {
                 taos_close(pThreadInfo->taos);
                 return NULL;
@@ -6883,7 +6887,7 @@ static int subscribeTestProcess() {
 
   //==== create threads for query for specified table
   if (g_queryInfo.specifiedQueryInfo.sqlCount <= 0) {
-    printf("%s() LN%d, sepcified query sqlCount %"PRIu64".\n",
+    debugPrint("%s() LN%d, sepcified query sqlCount %"PRIu64".\n",
               __func__, __LINE__,
               g_queryInfo.specifiedQueryInfo.sqlCount);
   } else {
@@ -6920,10 +6924,10 @@ static int subscribeTestProcess() {
   }
 
   //==== create threads for super table query
-  if (g_queryInfo.specifiedQueryInfo.sqlCount <= 0) {
-    printf("%s() LN%d, sepcified query sqlCount %"PRIu64".\n",
+  if (g_queryInfo.superQueryInfo.sqlCount <= 0) {
+    printf("%s() LN%d, super table query sqlCount %"PRIu64".\n",
               __func__, __LINE__,
-              g_queryInfo.specifiedQueryInfo.sqlCount);
+              g_queryInfo.superQueryInfo.sqlCount);
   } else {
     if ((g_queryInfo.superQueryInfo.sqlCount > 0)
           && (g_queryInfo.superQueryInfo.threadCnt > 0)) {
@@ -6956,8 +6960,8 @@ static int subscribeTestProcess() {
             b = ntables % threads;
         }
 
-        uint64_t startFrom = 0;
         for (uint64_t i = 0; i < g_queryInfo.superQueryInfo.sqlCount; i++) {
+            uint64_t startFrom = 0;
             for (int j = 0; j < threads; j++) {
                 uint64_t seq = i * threads + j;
                 threadInfo *t_info = infosOfStable + seq;
