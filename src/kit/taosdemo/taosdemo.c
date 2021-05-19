@@ -6572,7 +6572,8 @@ static void subscribe_callback(TAOS_SUB* tsub, TAOS_RES *res, void* param, int c
 }
 
 static TAOS_SUB* subscribeImpl(
-        TAOS *taos, char *sql, char* topic, char* resultFileName) {
+        TAOS *taos, char *sql, char* topic, bool restart,
+        char* resultFileName) {
   TAOS_SUB* tsub = NULL;
 
   if (ASYNC_MODE == g_queryInfo.specifiedQueryInfo.asyncMode) {
@@ -6636,6 +6637,7 @@ static void *superSubscribe(void *sarg) {
     return NULL;
   }
 
+  uint64_t subSeq;
   char topic[32] = {0};
   for (uint64_t i = pThreadInfo->start_table_from;
           i <= pThreadInfo->end_table_to; i++) {
@@ -6649,10 +6651,12 @@ static void *superSubscribe(void *sarg) {
                 g_queryInfo.superQueryInfo.result[j], pThreadInfo->threadID);
       }
 
-      uint64_t subSeq = i * g_queryInfo.superQueryInfo.sqlCount + j;
+      subSeq = i * g_queryInfo.superQueryInfo.sqlCount + j;
       debugPrint("%s() LN%d, subSeq=%"PRIu64" subSqlstr: %s\n",
               __func__, __LINE__, subSeq, subSqlstr);
-      tsub[subSeq] = subscribeImpl(pThreadInfo->taos, subSqlstr, topic, tmpFile);
+      tsub[subSeq] = subscribeImpl(pThreadInfo->taos, subSqlstr, topic,
+             g_queryInfo.superQueryInfo.subscribeRestart,
+             tmpFile);
       if (NULL == tsub[subSeq]) {
         taos_close(pThreadInfo->taos);
         return NULL;
@@ -6673,7 +6677,7 @@ static void *superSubscribe(void *sarg) {
             continue;
         }
 
-        uint64_t subSeq = i * g_queryInfo.superQueryInfo.sqlCount + j;
+        subSeq = i * g_queryInfo.superQueryInfo.sqlCount + j;
         taosMsleep(100); // ms
         res = taos_consume(tsub[subSeq]);
         if (res) {
@@ -6694,7 +6698,7 @@ static void *superSubscribe(void *sarg) {
                 taos_unsubscribe(tsub[subSeq],
                     g_queryInfo.superQueryInfo.subscribeKeepProgress);
                 consumed[j]= 0;
-                uint64_t subSeq = i * g_queryInfo.superQueryInfo.sqlCount + j;
+                subSeq = i * g_queryInfo.superQueryInfo.sqlCount + j;
                 debugPrint("%s() LN%d, subSeq=%"PRIu64" subSqlstr: %s\n",
                     __func__, __LINE__, subSeq, subSqlstr);
                 tsub[subSeq] = subscribeImpl(
@@ -6715,7 +6719,7 @@ static void *superSubscribe(void *sarg) {
   for (uint64_t i = pThreadInfo->start_table_from;
           i <= pThreadInfo->end_table_to; i++) {
     for (int j = 0; j < g_queryInfo.superQueryInfo.sqlCount; j++) {
-        uint64_t subSeq = i * g_queryInfo.superQueryInfo.sqlCount + j;
+        subSeq = i * g_queryInfo.superQueryInfo.sqlCount + j;
         taos_unsubscribe(tsub[subSeq], 0);
     }
   }
@@ -6764,7 +6768,9 @@ static void *specifiedSubscribe(void *sarg) {
                 g_queryInfo.specifiedQueryInfo.result[i], pThreadInfo->threadID);
       }
       tsub[i] = subscribeImpl(pThreadInfo->taos,
-          g_queryInfo.specifiedQueryInfo.sql[i], topic, tmpFile);
+          g_queryInfo.specifiedQueryInfo.sql[i], topic,
+          g_queryInfo.specifiedQueryInfo.subscribeRestart,
+          tmpFile);
       if (NULL == tsub[i]) {
         taos_close(pThreadInfo->taos);
         return NULL;
