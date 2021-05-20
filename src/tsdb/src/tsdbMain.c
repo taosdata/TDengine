@@ -623,7 +623,7 @@ static STSchema* getTableLatestSchema(STable *pTable) {
 
   if (pTable->type == TSDB_CHILD_TABLE) {
     if (pTable->pSuper && pTable->pSuper->numOfSchemas) {
-      tsdbInfo("getTableLatestSchema of table %s from super table", pTable->name->data);
+      tsdbDebug("getTableLatestSchema of table %s from super table %s", pTable->name->data, pTable->pSuper->name->data);
       return pTable->pSuper->schema[pTable->pSuper->numOfSchemas - 1];
     }
   }
