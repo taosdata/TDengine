@@ -29,7 +29,7 @@
        "stblname": "stb0",
        "threads":2, 
        "mode":"async", 
-       "interval":10000, 
+       "interval":0, 
        "restart":"yes", 
        "keepProgress":"yes",
        "sqls": [
