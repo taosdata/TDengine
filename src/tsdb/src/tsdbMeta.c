@@ -659,44 +659,53 @@ int tsdbUpdateLastColSchema(STable *pTable, STSchema *pNewSchema) {
   }
 
   TSDB_WLOCK_TABLE(pTable);
-  
-  int16_t oldIdx = 0;
+
   for (int16_t i = 0; i < numOfCols; ++i) {
     STColumn *pCol = schemaColAt(pNewSchema, i);
     int16_t idx = tsdbGetLastColumnsIndexByColId(pTable, pCol->colId);
 
     SDataCol* pDataCol = &(lastCols[i]);
     if (idx != -1) {
+      // move col data to new last column array
       SDataCol* pOldDataCol = &(pTable->lastCols[idx]);
       memcpy(pDataCol, pOldDataCol, sizeof(SDataCol));
     } else {
+      // init new colid data
       pDataCol->colId = pCol->colId;
       pDataCol->bytes = 0;
       pDataCol->pData = NULL;
     }
-
-    // free dropped column data
-    while (oldIdx < idx && oldIdx < pTable->lastColNum) {
-      SDataCol* pOldDataCol = &(pTable->lastCols[oldIdx]);
-      if (pOldDataCol->bytes != 0) {
-        tfree(pOldDataCol->pData);
-        pOldDataCol->bytes = 0;
-      }
-      ++oldIdx;
-    }
-    if (idx != -1 && oldIdx == idx) {
-      oldIdx += 1;
-    }
   }
 
-  // free old schema last column datas
-  tfree(pTable->lastCols);
+  SDataCol *oldLastCols = pTable->lastCols;
+  int16_t oldLastColNum = pTable->lastColNum;
 
   pTable->lastColSVersion = schemaVersion(pNewSchema);
   pTable->lastCols = lastCols;
   pTable->lastColNum = numOfCols;
 
+  if (oldLastCols == NULL) {
+    TSDB_WUNLOCK_TABLE(pTable);
+    return 0;
+  }
+
+  // free old schema last column datas
+  for (int16_t i = 0; i < oldLastColNum; ++i) {
+    SDataCol* pDataCol = &(oldLastCols[i]);
+    if (pDataCol->bytes == 0) {
+      continue;
+    }
+    int16_t idx = tsdbGetLastColumnsIndexByColId(pTable, pDataCol->colId);
+    if (idx != -1) {
+      continue;
+    }
+
+    // free not exist column data
+    tfree(pDataCol->pData);
+  }
   TSDB_WUNLOCK_TABLE(pTable);
+  tfree(oldLastCols);
+
   return 0;
 }
 
