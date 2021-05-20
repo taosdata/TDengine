@@ -1011,7 +1011,7 @@ static void updateTableLatestColumn(STsdbRepo *pRepo, STable *pTable, SDataRow r
 
     memcpy(pDataCol->pData, value, pDataCol->bytes);
     //tsdbInfo("updateTableLatestColumn vgId:%d cache column %d for %d,%s", REPO_ID(pRepo), j, pDataCol->bytes, (char*)pDataCol->pData);
-    pDataCol->ts = dataRowTKey(row);
+    pDataCol->ts = dataRowKey(row);
   }
 }
 
