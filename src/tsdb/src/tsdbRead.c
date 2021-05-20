@@ -2491,7 +2491,7 @@ static bool loadCachedLast(STsdbQueryHandle* pQueryHandle) {
   int32_t numOfRows = 0;
   assert(numOfTables > 0 && tgNumOfCols > 0);
 
-  while (pQueryHandle->activeIndex < numOfTables) {
+  while (++pQueryHandle->activeIndex < numOfTables) {
     STableCheckInfo* pCheckInfo = taosArrayGet(pQueryHandle->pTableCheckInfo, pQueryHandle->activeIndex);
     STable* pTable = pCheckInfo->pTableObj;  
     char* pData = NULL;
@@ -2500,7 +2500,6 @@ static bool loadCachedLast(STsdbQueryHandle* pQueryHandle) {
     
     if (pTable->lastCols == NULL || pTable->lastColNum <= 0) {
       tsdbWarn("no last cached for table, uid:%" PRIu64 ",tid:%d", pTable->tableId.uid, pTable->tableId.tid);
-      pQueryHandle->activeIndex++;
       continue;
     }
     
@@ -2594,8 +2593,6 @@ static bool loadCachedLast(STsdbQueryHandle* pQueryHandle) {
       i++;
       j++;
     }
-
-    pQueryHandle->activeIndex++;
 
     if (numOfRows > 0) {
       return true;
@@ -2899,7 +2896,7 @@ int32_t checkForCachedLast(STsdbQueryHandle* pQueryHandle, STableGroupInfo *grou
   if (pQueryHandle->cachelastrow) {
     pQueryHandle->window      = TSWINDOW_INITIALIZER;
     pQueryHandle->checkFiles  = false;
-    pQueryHandle->activeIndex = 0;  // start from -1
+    pQueryHandle->activeIndex = -1;  // start from -1
   }
 
   tfree(pRow);
