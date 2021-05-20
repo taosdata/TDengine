@@ -57,6 +57,12 @@ static SStep tsMnodeSteps[] = {
   {"show",    mnodeInitShow,    mnodeCleanUpShow}
 };
 
+/*
+static SStep tsMnodeCompactSteps[] = {
+  {"cluster", mnodeInitCluster, NULL},
+};
+*/
+
 static void mnodeInitTimer();
 static void mnodeCleanupTimer();
 static bool mnodeNeedStart() ;

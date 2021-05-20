@@ -40,6 +40,7 @@
 #include "dnodeShell.h"
 #include "dnodeTelemetry.h"
 #include "module.h"
+#include "mnode.h"
 
 #if !defined(_MODULE) || !defined(_TD_LINUX)
 int32_t moduleStart() { return 0; }

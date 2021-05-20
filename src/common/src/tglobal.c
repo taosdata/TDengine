@@ -176,6 +176,7 @@ int32_t tsMonitorInterval = 30;  // seconds
 int8_t  tsEnableStream = 1;
 
 // internal
+int8_t tsCompactMnodeWal = 0;
 int8_t tsPrintAuth = 0;
 int8_t tscEmbedded = 0;
 char   configDir[TSDB_FILENAME_LEN] = {0};

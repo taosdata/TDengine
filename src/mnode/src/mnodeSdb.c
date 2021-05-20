@@ -450,6 +450,12 @@ int32_t sdbInit() {
   }
 
   tsSdbMgmt.status = SDB_STATUS_SERVING;
+
+  if (tsCompactMnodeWal) {
+    mnodeCompactWal();
+    exit(EXIT_SUCCESS);
+  }
+
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1137,4 +1143,10 @@ static void *sdbWorkerFp(void *pWorker) {
 
 int32_t sdbGetReplicaNum() {
   return tsSdbMgmt.cfg.replica;
+}
+
+int32_t mnodeCompactWal() {
+  sdbInfo("vgId:1, start compact mnode wal...");
+
+  return 0;
 }
