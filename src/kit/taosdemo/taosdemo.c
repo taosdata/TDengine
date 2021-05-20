@@ -6747,13 +6747,18 @@ static void *superSubscribe(void *sarg) {
             continue;
         }
 
-        taosMsleep(g_queryInfo.superQueryInfo.subscribeInterval); // ms
         res = taos_consume(tsub[i]);
         if (res) {
             if (g_queryInfo.superQueryInfo.result[pThreadInfo->querySeq][0] != 0) {
                 sprintf(pThreadInfo->fp, "%s-%d",
-                  g_queryInfo.superQueryInfo.result[pThreadInfo->querySeq],
-                  pThreadInfo->threadID);
+                        g_queryInfo.superQueryInfo.result[pThreadInfo->querySeq],
+                        pThreadInfo->threadID);
+                appendResultToFile(res, pThreadInfo->fp);
+            }
+            if (g_queryInfo.superQueryInfo.result[pThreadInfo->querySeq][0] != 0) {
+                sprintf(pThreadInfo->fp, "%s-%d",
+                        g_queryInfo.superQueryInfo.result[pThreadInfo->querySeq],
+                        pThreadInfo->threadID);
                 appendResultToFile(res, pThreadInfo->fp);
             }
             consumed[i] ++;
@@ -6848,9 +6853,15 @@ static void *specifiedSubscribe(void *sarg) {
         continue;
       }
 
-      taosMsleep(g_queryInfo.specifiedQueryInfo.subscribeInterval); // ms
       res = taos_consume(tsub);
       if (res) {
+          if (g_queryInfo.specifiedQueryInfo.result[pThreadInfo->querySeq][0] != 0) {
+              sprintf(pThreadInfo->fp, "%s-%d",
+                      g_queryInfo.specifiedQueryInfo.result[pThreadInfo->querySeq],
+                      pThreadInfo->threadID);
+              appendResultToFile(res, pThreadInfo->fp);
+          }
+
           consumed ++;
           if ((g_queryInfo.specifiedQueryInfo.subscribeKeepProgress)
                 && (consumed >=
