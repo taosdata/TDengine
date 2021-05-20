@@ -222,6 +222,17 @@ void taos_fetch_rows_a(TAOS_RES *tres, __async_cb_func_t fp, void *param) {
   tscResetForNextRetrieve(pRes);
   
   // handle the sub queries of join query
+  SQueryInfo* pQueryInfo = tscGetQueryInfo(pCmd);
+  if (pQueryInfo->pUpstream != NULL && taosArrayGetSize(pQueryInfo->pUpstream) > 0) {
+    SSchedMsg schedMsg = {0};
+    schedMsg.fp = doRetrieveSubqueryData;
+    schedMsg.ahandle = (void *)pSql->self;
+    schedMsg.thandle = (void *)1;
+    schedMsg.msg = 0;
+    taosScheduleTask(tscQhandle, &schedMsg);
+    return;
+  }
+
   if (pCmd->command == TSDB_SQL_TABLE_JOIN_RETRIEVE) {
     tscFetchDatablockForSubquery(pSql);
   } else if (pRes->completed) {
@@ -258,7 +269,7 @@ void taos_fetch_rows_a(TAOS_RES *tres, __async_cb_func_t fp, void *param) {
       pCmd->command = (pCmd->command > TSDB_SQL_MGMT) ? TSDB_SQL_RETRIEVE : TSDB_SQL_FETCH;
     }
 
-    SQueryInfo* pQueryInfo1 = tscGetActiveQueryInfo(&pSql->cmd);
+    SQueryInfo* pQueryInfo1 = tscGetQueryInfo(&pSql->cmd);
     tscBuildAndSendRequest(pSql, pQueryInfo1);
   }
 }
@@ -477,7 +488,7 @@ void tscTableMetaCallBack(void *param, TAOS_RES *res, int code) {
     }
 
   } else {  // stream computing
-    SQueryInfo* pQueryInfo = tscGetActiveQueryInfo(pCmd);
+    SQueryInfo* pQueryInfo = tscGetQueryInfo(pCmd);
     STableMetaInfo *pTableMetaInfo = pQueryInfo->pTableMetaInfo[0];
 
     code = tscGetTableMeta(pSql, pTableMetaInfo);

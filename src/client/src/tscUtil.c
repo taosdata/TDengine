@@ -648,7 +648,7 @@ static SColumnInfo* extractColumnInfoFromResult(SArray* pTableCols) {
 
 typedef struct SDummyInputInfo {
   SSDataBlock    *block;
-  SSqlRes        *pRes;  // refactor: remove it
+  SSqlObj        *pSql;  // refactor: remove it
 } SDummyInputInfo;
 
 typedef struct SJoinStatus {
@@ -664,92 +664,198 @@ typedef struct SJoinOperatorInfo {
   SRspResultInfo resultInfo;  // todo refactor, add this info for each operator
 } SJoinOperatorInfo;
 
-SSDataBlock* doGetDataBlock(void* param, bool* newgroup) {
-  SOperatorInfo *pOperator = (SOperatorInfo*) param;
-
-  SDummyInputInfo *pInput = pOperator->info;
-  char* pData = pInput->pRes->data;
-
-  SSDataBlock* pBlock = pInput->block;
-  pBlock->info.rows = pInput->pRes->numOfRows;
-  if (pBlock->info.rows == 0) {
-    return NULL;
-  }
-
-  //TODO refactor
+static void doSetupSDataBlock(SSqlRes* pRes, SSDataBlock* pBlock) {
   int32_t offset = 0;
+  char* pData = pRes->data;
   for(int32_t i = 0; i < pBlock->info.numOfCols; ++i) {
     SColumnInfoData* pColData = taosArrayGet(pBlock->pDataBlock, i);
     if (pData != NULL) {
       pColData->pData = pData + offset * pBlock->info.rows;
     } else {
-      pColData->pData = pInput->pRes->urow[i];
+      pColData->pData = pRes->urow[i];
     }
 
     offset += pColData->info.bytes;
   }
 
-  pInput->pRes->numOfRows = 0;
+  pRes->numOfRows = 0;
+}
+
+// NOTE: there is already exists data blocks before this function calls.
+SSDataBlock* doGetDataBlock(void* param, bool* newgroup) {
+  SOperatorInfo *pOperator = (SOperatorInfo*) param;
+  if (pOperator->status == OP_EXEC_DONE) {
+    return NULL;
+  }
+
+  SDummyInputInfo *pInput = pOperator->info;
+  SSqlObj* pSql = pInput->pSql;
+  SSqlRes* pRes = &pSql->res;
+
+  SSDataBlock* pBlock = pInput->block;
+
+  pBlock->info.rows = pRes->numOfRows;
+  if (pRes->numOfRows != 0) {
+    doSetupSDataBlock(pRes, pBlock);
+    *newgroup = false;
+    return pBlock;
+  }
+
+  // No data block exists. So retrieve and transfer it into to SSDataBlock
+  TAOS_ROW pRow = NULL;
+  taos_fetch_block(pSql, &pRow);
+
+  if (pRes->numOfRows == 0) {
+    pOperator->status = OP_EXEC_DONE;
+    return NULL;
+  }
+
+  pBlock->info.rows = pRes->numOfRows;
+  doSetupSDataBlock(pRes, pBlock);
   *newgroup = false;
   return pBlock;
 }
 
-SSDataBlock* doBlockJoin(void* param, bool* newgroup) {
+static int32_t v = 0;
+SSDataBlock* doDataBlockJoin(void* param, bool* newgroup) {
   SOperatorInfo *pOperator = (SOperatorInfo*) param;
-  assert(pOperator->numOfUpstream > 1);
-
-  SSDataBlock* block0 = pOperator->upstream[0]->exec(pOperator->upstream[0], newgroup);
-  SSDataBlock* block1 = pOperator->upstream[1]->exec(pOperator->upstream[1], newgroup);
-
-  if (block1 == NULL || block0 == NULL) {
+  if (pOperator->status == OP_EXEC_DONE) {
     return NULL;
   }
 
-  assert(block0 != block1);
+  assert(pOperator->numOfUpstream > 1);
 
   SJoinOperatorInfo* pJoinInfo = pOperator->info;
-  pJoinInfo->status[0].pBlock = block0;
-  pJoinInfo->status[1].pBlock = block1;
+  pJoinInfo->pRes->info.rows = 0;
 
-  SJoinStatus* st0 = &pJoinInfo->status[0];
-  SJoinStatus* st1 = &pJoinInfo->status[1];
+  while(1) {
+    for (int32_t i = 0; i < pOperator->numOfUpstream; ++i) {
+      SJoinStatus* pStatus = &pJoinInfo->status[i];
+      if (pStatus->pBlock == NULL || pStatus->index >= pStatus->pBlock->info.rows) {
+        pStatus->pBlock = pOperator->upstream[i]->exec(pOperator->upstream[i], newgroup);
+        pStatus->index = 0;
 
-  while (st0->index < st0->pBlock->info.rows && st1->index < st1->pBlock->info.rows) {
-    SColumnInfoData* p0 = taosArrayGet(st0->pBlock->pDataBlock, 0);
-    SColumnInfoData* p1 = taosArrayGet(st1->pBlock->pDataBlock, 0);
+        if (i == 0 && pStatus->pBlock != NULL) {
+          v += pStatus->pBlock->info.rows;
+          printf("---------------%d\n", v);
+        }
 
-    int64_t* ts0 = (int64_t*) p0->pData;
-    int64_t* ts1 = (int64_t*) p1->pData;
-    if (ts0[st0->index] == ts1[st1->index]) { // add to the final result buffer
-      // check if current output buffer is over the threshold to pause current loop
-      int32_t rows = pJoinInfo->pRes->info.rows;
-      for(int32_t j = 0; j < st0->pBlock->info.numOfCols; ++j) {
-        SColumnInfoData* pCol1 = taosArrayGet(pJoinInfo->pRes->pDataBlock, j);
-        SColumnInfoData* pSrc = taosArrayGet(st0->pBlock->pDataBlock, j);
+        if (pStatus->pBlock == NULL) {
+          pOperator->status = OP_EXEC_DONE;
 
-        int32_t bytes = pSrc->info.bytes;
-        memcpy(pCol1->pData + rows * bytes, pSrc->pData + st0->index * bytes, bytes);
+          pJoinInfo->resultInfo.total += pJoinInfo->pRes->info.rows;
+          return pJoinInfo->pRes;
+        }
       }
-
-      for(int32_t j = 0; j < st1->pBlock->info.numOfCols; ++j) {
-        SColumnInfoData* pCol1 = taosArrayGet(pJoinInfo->pRes->pDataBlock, j + st0->pBlock->info.numOfCols);
-        SColumnInfoData* pSrc = taosArrayGet(st1->pBlock->pDataBlock, j);
-
-        int32_t bytes = pSrc->info.bytes;
-        memcpy(pCol1->pData + rows * bytes, pSrc->pData + st1->index * bytes, bytes);
-      }
-
-      st0->index++;
-      st1->index++;
-      pJoinInfo->pRes->info.rows++;
-    } else if (ts0[st0->index] < ts1[st1->index]) {
-      st0->index++;
-    } else {
-      st1->index++;
     }
-  }
 
-  return pJoinInfo->pRes;
+    SJoinStatus* st0 = &pJoinInfo->status[0];
+    SColumnInfoData* p0 = taosArrayGet(st0->pBlock->pDataBlock, 0);
+    int64_t* ts0 = (int64_t*) p0->pData;
+
+    bool prefixEqual = true;
+
+    while(1) {
+      prefixEqual = true;
+      for (int32_t i = 1; i < pJoinInfo->numOfUpstream; ++i) {
+        SJoinStatus* st = &pJoinInfo->status[i];
+
+        SColumnInfoData* p = taosArrayGet(st->pBlock->pDataBlock, 0);
+        int64_t*         ts = (int64_t*)p->pData;
+
+        if (ts[st->index] < ts0[st0->index]) {  // less than the first
+          prefixEqual = false;
+          if ((++(st->index)) >= st->pBlock->info.rows) {
+            break;
+          }
+        } else if (ts[st->index] > ts0[st0->index]) {  // greater than the first;
+          if (prefixEqual == true) {
+            prefixEqual = false;
+            for (int32_t j = 0; j < i; ++j) {
+              SJoinStatus* stx = &pJoinInfo->status[j];
+              if ((++(stx->index)) >= stx->pBlock->info.rows) {
+                break;
+              }
+            }
+          } else {
+            if ((++(st0->index)) >= st0->pBlock->info.rows) {
+              break;
+            }
+          }
+        }
+      }
+
+      if (prefixEqual) {
+        int32_t offset = 0;
+        bool completed = false;
+        for (int32_t i = 0; i < pOperator->numOfUpstream; ++i) {
+          SJoinStatus* st1 = &pJoinInfo->status[i];
+          int32_t      rows = pJoinInfo->pRes->info.rows;
+
+          for (int32_t j = 0; j < st1->pBlock->info.numOfCols; ++j) {
+            SColumnInfoData* pCol1 = taosArrayGet(pJoinInfo->pRes->pDataBlock, j + offset);
+            SColumnInfoData* pSrc = taosArrayGet(st1->pBlock->pDataBlock, j);
+
+            int32_t bytes = pSrc->info.bytes;
+            memcpy(pCol1->pData + rows * bytes, pSrc->pData + st1->index * bytes, bytes);
+          }
+
+          offset += st1->pBlock->info.numOfCols;
+          if ((++(st1->index)) == st1->pBlock->info.rows) {
+            completed = true;
+          }
+        }
+
+        if ((++pJoinInfo->pRes->info.rows) >= pJoinInfo->resultInfo.capacity) {
+          pJoinInfo->resultInfo.total += pJoinInfo->pRes->info.rows;
+          return pJoinInfo->pRes;
+        }
+
+        if (completed == true) {
+          break;
+        }
+      }
+    }
+/*
+    while (st0->index < st0->pBlock->info.rows && st1->index < st1->pBlock->info.rows) {
+      SColumnInfoData* p0 = taosArrayGet(st0->pBlock->pDataBlock, 0);
+      SColumnInfoData* p1 = taosArrayGet(st1->pBlock->pDataBlock, 0);
+
+      int64_t* ts0 = (int64_t*)p0->pData;
+      int64_t* ts1 = (int64_t*)p1->pData;
+      if (ts0[st0->index] == ts1[st1->index]) {  // add to the final result buffer
+        // check if current output buffer is over the threshold to pause current loop
+        int32_t rows = pJoinInfo->pRes->info.rows;
+        for (int32_t j = 0; j < st0->pBlock->info.numOfCols; ++j) {
+          SColumnInfoData* pCol1 = taosArrayGet(pJoinInfo->pRes->pDataBlock, j);
+          SColumnInfoData* pSrc = taosArrayGet(st0->pBlock->pDataBlock, j);
+
+          int32_t bytes = pSrc->info.bytes;
+          memcpy(pCol1->pData + rows * bytes, pSrc->pData + st0->index * bytes, bytes);
+        }
+
+        for (int32_t j = 0; j < st1->pBlock->info.numOfCols; ++j) {
+          SColumnInfoData* pCol1 = taosArrayGet(pJoinInfo->pRes->pDataBlock, j + st0->pBlock->info.numOfCols);
+          SColumnInfoData* pSrc = taosArrayGet(st1->pBlock->pDataBlock, j);
+
+          int32_t bytes = pSrc->info.bytes;
+          memcpy(pCol1->pData + rows * bytes, pSrc->pData + st1->index * bytes, bytes);
+        }
+
+        st0->index++;
+        st1->index++;
+
+        if ((++pJoinInfo->pRes->info.rows) >= pJoinInfo->resultInfo.capacity) {
+          pJoinInfo->resultInfo.total += pJoinInfo->pRes->info.rows;
+          return pJoinInfo->pRes;
+        }
+      } else if (ts0[st0->index] < ts1[st1->index]) {
+        st0->index++;
+      } else {
+        st1->index++;
+      }
+    }*/
+  }
 }
 
 static void destroyDummyInputOperator(void* param, int32_t numOfOutput) {
@@ -762,15 +868,15 @@ static void destroyDummyInputOperator(void* param, int32_t numOfOutput) {
   }
 
   pInfo->block = destroyOutputBuf(pInfo->block);
-  pInfo->pRes = NULL;
+  pInfo->pSql = NULL;
 }
 
 // todo this operator servers as the adapter for Operator tree and SqlRes result, remove it later
-SOperatorInfo* createDummyInputOperator(char* pResult, SSchema* pSchema, int32_t numOfCols) {
+SOperatorInfo* createDummyInputOperator(SSqlObj* pSql, SSchema* pSchema, int32_t numOfCols) {
   assert(numOfCols > 0);
   SDummyInputInfo* pInfo = calloc(1, sizeof(SDummyInputInfo));
 
-  pInfo->pRes  = (SSqlRes*) pResult;
+  pInfo->pSql  = pSql;
   pInfo->block = calloc(numOfCols, sizeof(SSDataBlock));
   pInfo->block->info.numOfCols = numOfCols;
 
@@ -824,7 +930,7 @@ SOperatorInfo* createJoinOperator(SOperatorInfo** pUpstream, int32_t numOfUpstre
   pOperator->numOfOutput   = numOfOutput;
   pOperator->blockingOptr  = false;
   pOperator->info          = pInfo;
-  pOperator->exec          = doBlockJoin;
+  pOperator->exec          = doDataBlockJoin;
   pOperator->cleanup       = destroyDummyInputOperator;
 
   for(int32_t i = 0; i < numOfUpstream; ++i) {
@@ -848,7 +954,7 @@ void convertQueryResult(SSqlRes* pRes, SQueryInfo* pQueryInfo) {
   pRes->completed = (pRes->numOfRows == 0);
 }
 
-void handleDownstreamOperator(SSqlRes** pRes, int32_t numOfUpstream, SQueryInfo* px, SSqlRes* pOutput) {
+void handleDownstreamOperator(SSqlObj** pSqlObjList, int32_t numOfUpstream, SQueryInfo* px, SSqlRes* pOutput) {
   // handle the following query process
   if (px->pQInfo == NULL) {
     SColumnInfo* pColumnInfo = extractColumnInfoFromResult(px->colList);
@@ -879,26 +985,29 @@ void handleDownstreamOperator(SSqlRes** pRes, int32_t numOfUpstream, SQueryInfo*
 
     // if it is a join query, create join operator here
     int32_t numOfCol1 = px->pTableMetaInfo[0]->pTableMeta->tableInfo.numOfColumns;
-
-    SOperatorInfo* pSourceOperator = createDummyInputOperator((char*)pRes[0], pSchema, numOfCol1);
+    SOperatorInfo* pSourceOperator = createDummyInputOperator(pSqlObjList[0], pSchema, numOfCol1);
 
     SSchema* schema = NULL;
     if (px->numOfTables > 1) {
-      SOperatorInfo* p[2] = {0};
+      SOperatorInfo** p = calloc(px->numOfTables, POINTER_BYTES);
       p[0] = pSourceOperator;
 
-      SSchema* pSchema1 = tscGetTableSchema(px->pTableMetaInfo[1]->pTableMeta);
-      numOfCol1 = px->pTableMetaInfo[1]->pTableMeta->tableInfo.numOfColumns;
-
-      SOperatorInfo* pSourceOperator1 = createDummyInputOperator((char*)pRes[1], pSchema1, numOfCol1);
-      p[1] = pSourceOperator1;
-
-      int32_t num = pSourceOperator->numOfOutput + pSourceOperator1->numOfOutput;
+      int32_t num = taosArrayGetSize(px->colList);
       schema = calloc(num, sizeof(SSchema));
+      memcpy(schema, pSchema, numOfCol1*sizeof(SSchema));
 
-      memcpy(&schema[0], pSchema, pSourceOperator->numOfOutput * sizeof(SSchema));
+      int32_t offset = pSourceOperator->numOfOutput;
 
-      memcpy(&schema[pSourceOperator->numOfOutput], pSchema1, pSourceOperator1->numOfOutput * sizeof(SSchema));
+      for(int32_t i = 1; i < px->numOfTables; ++i) {
+        SSchema* pSchema1 = tscGetTableSchema(px->pTableMetaInfo[i]->pTableMeta);
+        int32_t n = px->pTableMetaInfo[i]->pTableMeta->tableInfo.numOfColumns;
+
+        p[i] = createDummyInputOperator(pSqlObjList[i], pSchema1, n);
+
+        memcpy(&schema[offset], pSchema1, n * sizeof(SSchema));
+        offset += n;
+      }
+
       pSourceOperator = createJoinOperator(p, px->numOfTables, schema, num);
     }
 
@@ -917,6 +1026,7 @@ void handleDownstreamOperator(SSqlRes** pRes, int32_t numOfUpstream, SQueryInfo*
 
     px->pQInfo = createQInfoFromQueryNode(px, exprInfo, &tableGroupInfo, pSourceOperator, NULL, NULL, MASTER_SCAN);
     tfree(pColumnInfo);
+    tfree(schema);
   }
 
   uint64_t qId = 0;
@@ -1259,7 +1369,7 @@ int32_t tscCopyDataBlockToPayload(SSqlObj* pSql, STableDataBlocks* pDataBlock) {
   return TSDB_CODE_SUCCESS;
 }
 
-SQueryInfo* tscGetActiveQueryInfo(SSqlCmd* pCmd) {
+SQueryInfo* tscGetQueryInfo(SSqlCmd* pCmd) {
   return pCmd->active;
 }
 
@@ -2897,7 +3007,7 @@ SSqlObj* createSubqueryObj(SSqlObj* pSql, int16_t tableIndex, __async_cb_func_t 
     return NULL;
   }
 
-  SQueryInfo* pQueryInfo = tscGetActiveQueryInfo(pCmd);
+  SQueryInfo* pQueryInfo = tscGetQueryInfo(pCmd);
   STableMetaInfo* pTableMetaInfo = pQueryInfo->pTableMetaInfo[tableIndex];
 
   pNew->pTscObj   = pSql->pTscObj;
@@ -3093,29 +3203,15 @@ void doExecuteQuery(SSqlObj* pSql, SQueryInfo* pQueryInfo) {
   }
 }
 
-static void doRetrieveSubqueryData(SSchedMsg *pMsg) {
+void doRetrieveSubqueryData(SSchedMsg *pMsg) {
   SSqlObj* pSql = (SSqlObj*)taosAcquireRef(tscObjRef, (int64_t)pMsg->ahandle);
   if (pSql == NULL || pSql->signature != pSql) {
     tscDebug("%p SqlObj is freed, not add into queue async res", pMsg->ahandle);
     return;
   }
 
-  int32_t numOfRows = 0;
-  for(int32_t i = 0; i < pSql->subState.numOfSub; ++i) {
-    SSqlObj*    pSub = pSql->pSubs[i];
-    /*TAOS_ROW row = */taos_fetch_row(pSub);
-//    SQueryInfo* pQueryInfo = tscGetQueryInfo(&pSub->cmd);
-//    int32_t rows = taos_fetch_block(pSub, &row);
-    if (numOfRows == 0) {
-      numOfRows = pSub->res.numOfRows;
-    }
-  }
-
-  if (numOfRows > 0) {
-    SQueryInfo *pQueryInfo = tscGetQueryInfo(&pSql->cmd);
-    SSqlRes* list[2] = {&pSql->pSubs[0]->res, &pSql->pSubs[1]->res};
-    handleDownstreamOperator(list, 2, pQueryInfo, &pSql->res);
-  }
+  SQueryInfo *pQueryInfo = tscGetQueryInfo(&pSql->cmd);
+  handleDownstreamOperator(pSql->pSubs, pSql->subState.numOfSub, pQueryInfo, &pSql->res);
 
   pSql->res.qId = -1;
   if (pSql->res.code == TSDB_CODE_SUCCESS) {
@@ -3133,7 +3229,7 @@ static void tscSubqueryRetrieveCallback(void* param, TAOS_RES* tres, int code) {
   SSqlObj* pSql = tres;
 
   if (!subAndCheckDone(pSql, pParentSql, ps->subqueryIndex)) {
-    tscDebug("0x%"PRIx64" sub:0x%"PRIx64" orderOfSub:%d freed, not all subquery finished", pParentSql->self, pSql->self, ps->subqueryIndex);
+    tscDebug("0x%"PRIx64" sub:0x%"PRIx64" orderOfSub:%d completed, not all subquery finished", pParentSql->self, pSql->self, ps->subqueryIndex);
     return;
   }
 
@@ -4047,10 +4143,6 @@ int32_t tscCreateQueryFromQueryInfo(SQueryInfo* pQueryInfo, SQueryAttr* pQueryAt
       tscExprAssign(&pQueryAttr->pExpr2[i], p);
     }
   }
-//  int32_t code = createProjectionExpr(pQueryInfo, pTableMetaInfo, &pQueryAttr->pExpr2, &pQueryAttr->numOfExpr2);
-//  if (code != TSDB_CODE_SUCCESS) {
-//    return code;
-//  }
 
   // tag column info
   int32_t code = createTagColumnInfo(pQueryAttr, pQueryInfo, pTableMetaInfo);

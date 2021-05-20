@@ -20,6 +20,7 @@
 extern "C" {
 #endif
 
+#include <tsched.h>
 #include "exception.h"
 #include "os.h"
 #include "qExtbuffer.h"
@@ -93,22 +94,12 @@ typedef struct SVgroupTableInfo {
   SArray     *itemList;   // SArray<STableIdInfo>
 } SVgroupTableInfo;
 
-static FORCE_INLINE SQueryInfo* tscGetQueryInfo(SSqlCmd* pCmd) {
-  assert(pCmd != NULL);
-  if (pCmd->pQueryInfo == NULL) {
-    return NULL;
-  }
-
-  return pCmd->active;
-}
-
-SQueryInfo* tscGetActiveQueryInfo(SSqlCmd* pCmd);
-
 int32_t tscCreateDataBlock(size_t initialSize, int32_t rowSize, int32_t startOffset, SName* name, STableMeta* pTableMeta, STableDataBlocks** dataBlocks);
 void tscDestroyDataBlock(STableDataBlocks* pDataBlock, bool removeMeta);
 void tscSortRemoveDataBlockDupRows(STableDataBlocks* dataBuf);
 
 void tscDestroyBoundColumnInfo(SParsedDataColInfo* pColInfo);
+void doRetrieveSubqueryData(SSchedMsg *pMsg);
 
 SParamInfo* tscAddParamToDataBlock(STableDataBlocks* pDataBlock, char type, uint8_t timePrec, int16_t bytes,
                                    uint32_t offset);

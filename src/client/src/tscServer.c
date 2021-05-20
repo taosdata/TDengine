@@ -539,7 +539,7 @@ int tscBuildAndSendRequest(SSqlObj *pSql, SQueryInfo* pQueryInfo) {
 int tscBuildFetchMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   SRetrieveTableMsg *pRetrieveMsg = (SRetrieveTableMsg *) pSql->cmd.payload;
 
-  SQueryInfo *pQueryInfo = tscGetActiveQueryInfo(&pSql->cmd);
+  SQueryInfo *pQueryInfo = tscGetQueryInfo(&pSql->cmd);
 
   pRetrieveMsg->free = htons(pQueryInfo->type);
   pRetrieveMsg->qId  = htobe64(pSql->res.qId);
@@ -822,7 +822,7 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
     return TSDB_CODE_TSC_INVALID_SQL;  // todo add test for this
   }
 
-  SQueryInfo *pQueryInfo = tscGetActiveQueryInfo(pCmd);
+  SQueryInfo *pQueryInfo = tscGetQueryInfo(pCmd);
 
   SQueryAttr query = {{0}};
   tscCreateQueryFromQueryInfo(pQueryInfo, &query, pSql);
@@ -1620,7 +1620,7 @@ int tscProcessRetrieveLocalMergeRsp(SSqlObj *pSql) {
   }
 
   // global aggregation may be the upstream for parent query
-  SQueryInfo *pQueryInfo = tscGetActiveQueryInfo(pCmd);
+  SQueryInfo *pQueryInfo = tscGetQueryInfo(pCmd);
   if (pQueryInfo->pQInfo == NULL) {
     STableGroupInfo tableGroupInfo = {.numOfTables = 1, .pGroupList = taosArrayInit(1, POINTER_BYTES),};
     tableGroupInfo.map = taosHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_NO_LOCK);
@@ -2061,6 +2061,7 @@ int tscProcessMultiTableMetaRsp(SSqlObj *pSql) {
   pSql->res.numOfTotal = pMultiMeta->numOfTables;
   tscDebug("0x%"PRIx64" load multi-tableMeta resp from complete numOfTables:%d", pSql->self, pMultiMeta->numOfTables);
 
+  taosHashCleanup(pSet);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -2363,7 +2364,7 @@ int tscProcessRetrieveRspFromNode(SSqlObj *pSql) {
   pRes->completed = (pRetrieve->completed == 1);
   pRes->data      = pRetrieve->data;
   
-  SQueryInfo* pQueryInfo = tscGetActiveQueryInfo(pCmd);
+  SQueryInfo* pQueryInfo = tscGetQueryInfo(pCmd);
   if (tscCreateResPointerInfo(pRes, pQueryInfo) != TSDB_CODE_SUCCESS) {
     return pRes->code;
   }

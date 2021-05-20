@@ -7201,6 +7201,8 @@ int32_t loadAllTableMeta(SSqlObj* pSql, struct SSqlInfo* pInfo) {
     }
   }
 
+  tfree(pTableMeta);
+
   // load the table meta for a given table name list
   if (taosArrayGetSize(plist) > 0) {
     int32_t code = getMultiTableMetaFromMnode(pSql, plist, pVgroupList);
@@ -7334,10 +7336,12 @@ static int32_t doValidateSubquery(SSqlNode* pSqlNode, int32_t index, SSqlObj* pS
   // NOTE: order mix up in subquery not support yet.
   pQueryInfo->order = pSub->order;
 
-  char* tmp = realloc(pQueryInfo->pTableMetaInfo, (pQueryInfo->numOfTables + 1) * POINTER_BYTES);
+  STableMetaInfo** tmp = realloc(pQueryInfo->pTableMetaInfo, (pQueryInfo->numOfTables + 1) * POINTER_BYTES);
   if (tmp == NULL) {
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
   }
+
+  pQueryInfo->pTableMetaInfo = tmp;
 
   pQueryInfo->pTableMetaInfo[pQueryInfo->numOfTables] = pTableMetaInfo1;
   pQueryInfo->numOfTables += 1;

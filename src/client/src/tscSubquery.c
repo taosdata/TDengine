@@ -82,8 +82,7 @@ static bool allSubqueryDone(SSqlObj *pParentSql) {
   for (int i = 0; i < subState->numOfSub; i++) {
     SSqlObj* pSub = pParentSql->pSubs[i];
     if (0 == subState->states[i]) {
-      tscDebug("0x%"PRIx64" subquery:0x%"PRIx64", index: %d NOT finished, abort query completion check", pParentSql->self,
-               pSub->self, i);
+      tscDebug("0x%"PRIx64" subquery:0x%"PRIx64", index: %d NOT finished yet", pParentSql->self, pSub->self, i);
       done = false;
       break;
     } else {
@@ -100,23 +99,21 @@ static bool allSubqueryDone(SSqlObj *pParentSql) {
 
 bool subAndCheckDone(SSqlObj *pSql, SSqlObj *pParentSql, int idx) {
   SSubqueryState *subState = &pParentSql->subState;
-
   assert(idx < subState->numOfSub);
 
   pthread_mutex_lock(&subState->mutex);
 
-  bool done = allSubqueryDone(pParentSql);
-  if (done) {
-    tscDebug("0x%"PRIx64" subquery:0x%"PRIx64",%d all subs already done", pParentSql->self, pSql->self, idx);
-    pthread_mutex_unlock(&subState->mutex);
-    return false;
-  }
+//  bool done = allSubqueryDone(pParentSql);
+//  if (done) {
+//    tscDebug("0x%"PRIx64" subquery:0x%"PRIx64",%d all subs already done", pParentSql->self, pSql->self, idx);
+//    pthread_mutex_unlock(&subState->mutex);
+//    return false;
+//  }
   
-  tscDebug("0x%"PRIx64" subquery:0x%"PRIx64",%d state set to 1", pParentSql->self, pSql->self, idx);
-  
+  tscDebug("0x%"PRIx64" subquery:0x%"PRIx64", index:%d state set to 1", pParentSql->self, pSql->self, idx);
   subState->states[idx] = 1;
 
-  done = allSubqueryDone(pParentSql);
+  bool done = allSubqueryDone(pParentSql);
   pthread_mutex_unlock(&subState->mutex);
   return done;
 }
@@ -2415,7 +2412,7 @@ int32_t tscHandleMasterSTableQuery(SSqlObj *pSql) {
   
   const uint32_t nBufferSize = (1u << 16u);  // 64KB
   
-  SQueryInfo     *pQueryInfo = tscGetActiveQueryInfo(pCmd);
+  SQueryInfo     *pQueryInfo = tscGetQueryInfo(pCmd);
   STableMetaInfo *pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
   SSubqueryState *pState = &pSql->subState;
 
@@ -3487,8 +3484,6 @@ static UNUSED_FUNC bool tscHasRemainDataInSubqueryResultSet(SSqlObj *pSql) {
 void* createQInfoFromQueryNode(SQueryInfo* pQueryInfo, SExprInfo* pExprs, STableGroupInfo* pTableGroupInfo,
                                SOperatorInfo* pSourceOperator, char* sql, void* merger, int32_t stage) {
   assert(pQueryInfo != NULL);
-//  int16_t numOfOutput = pQueryInfo->fieldsInfo.numOfOutput;
-
   SQInfo *pQInfo = (SQInfo *)calloc(1, sizeof(SQInfo));
   if (pQInfo == NULL) {
     goto _cleanup;
@@ -3506,25 +3501,25 @@ void* createQInfoFromQueryNode(SQueryInfo* pQueryInfo, SExprInfo* pExprs, STable
   pQueryAttr->tableGroupInfo = *pTableGroupInfo;
 
   // calculate the result row size
-  SExprInfo* pei = NULL;
+  SExprInfo* pEx = NULL;
   int32_t num = 0;
   if (pQueryAttr->pExpr3 != NULL) {
-    pei = pQueryAttr->pExpr3;
+    pEx = pQueryAttr->pExpr3;
     num = pQueryAttr->numOfExpr3;
   } else if (pQueryAttr->pExpr2 != NULL) {
-    pei = pQueryAttr->pExpr2;
+    pEx = pQueryAttr->pExpr2;
     num = pQueryAttr->numOfExpr2;
   } else {
-    pei = pQueryAttr->pExpr1;
+    pEx = pQueryAttr->pExpr1;
     num = pQueryAttr->numOfOutput;
   }
 
   for (int16_t col = 0; col < num; ++col) {
-    pQueryAttr->resultRowSize += pei[col].base.resBytes;
+    pQueryAttr->resultRowSize += pEx[col].base.resBytes;
 
     // keep the tag length
-    if (TSDB_COL_IS_TAG(pei[col].base.colInfo.flag)) {
-      pQueryAttr->tagLen += pei[col].base.resBytes;
+    if (TSDB_COL_IS_TAG(pEx[col].base.colInfo.flag)) {
+      pQueryAttr->tagLen += pEx[col].base.resBytes;
     }
   }
 
