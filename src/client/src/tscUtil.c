@@ -1009,6 +1009,7 @@ void handleDownstreamOperator(SSqlObj** pSqlObjList, int32_t numOfUpstream, SQue
       }
 
       pSourceOperator = createJoinOperator(p, px->numOfTables, schema, num);
+      tfree(p);
     }
 
     SExprInfo* exprInfo = NULL;
@@ -1027,6 +1028,7 @@ void handleDownstreamOperator(SSqlObj** pSqlObjList, int32_t numOfUpstream, SQue
     px->pQInfo = createQInfoFromQueryNode(px, exprInfo, &tableGroupInfo, pSourceOperator, NULL, NULL, MASTER_SCAN);
     tfree(pColumnInfo);
     tfree(schema);
+    tfree(exprInfo);
   }
 
   uint64_t qId = 0;
@@ -3228,8 +3230,15 @@ static void tscSubqueryRetrieveCallback(void* param, TAOS_RES* tres, int code) {
   SSqlObj* pParentSql = ps->pParentSql;
   SSqlObj* pSql = tres;
 
-  if (!subAndCheckDone(pSql, pParentSql, ps->subqueryIndex)) {
-    tscDebug("0x%"PRIx64" sub:0x%"PRIx64" orderOfSub:%d completed, not all subquery finished", pParentSql->self, pSql->self, ps->subqueryIndex);
+  int32_t index = ps->subqueryIndex;
+  bool ret = subAndCheckDone(pSql, pParentSql, index);
+
+  // TODO refactor
+  tfree(ps);
+  pSql->param = NULL;
+
+  if (!ret) {
+    tscDebug("0x%"PRIx64" sub:0x%"PRIx64" orderOfSub:%d completed, not all subquery finished", pParentSql->self, pSql->self, index);
     return;
   }
 
@@ -3241,28 +3250,9 @@ static void tscSubqueryRetrieveCallback(void* param, TAOS_RES* tres, int code) {
   schedMsg.thandle = (void *)1;
   schedMsg.msg = 0;
   taosScheduleTask(tscQhandle, &schedMsg);
-
-  // merge all subquery result
-//  SSqlCmd* pCmd = &pSql->cmd;
-//  SSqlRes* pRes = &pSql->res;
-
-  // add it to the message queue
-
-//  SQueryInfo* pQueryInfo = tscGetQueryInfo(pCmd);
-//  /*TAOS_ROW* pRow = */taos_fetch_row(pSql);
-//  if (pSql->res.numOfRows > 0) {
-//    handleDownstreamOperator(pRes, pQueryInfo, &pParentSql->res);
-//  }
-//
-//  code = pParentSql->res.code;
-//  pParentSql->res.qId = -1;
-//  if (pParentSql->res.code == TSDB_CODE_SUCCESS) {
-//    (*pParentSql->fp)(pParentSql->param, pParentSql, pParentSql->res.numOfRows);
-//  } else {
-//    tscAsyncResultOnError(pParentSql);
-//  }
 }
 
+// todo handle the failure
 static void tscSubqueryCompleteCallback(void* param, TAOS_RES* tres, int code) {
   taos_fetch_rows_a(tres, tscSubqueryRetrieveCallback, param);
 }
@@ -3280,6 +3270,7 @@ void executeQuery(SSqlObj* pSql, SQueryInfo* pQueryInfo) {
 
   if (taosArrayGetSize(pQueryInfo->pUpstream) > 0) {  // nest query. do execute it firstly
     pSql->subState.numOfSub = taosArrayGetSize(pQueryInfo->pUpstream);
+
     pSql->pSubs = calloc(pSql->subState.numOfSub, POINTER_BYTES);
     pSql->subState.states = calloc(pSql->subState.numOfSub, sizeof(int8_t));
 
@@ -3289,6 +3280,7 @@ void executeQuery(SSqlObj* pSql, SQueryInfo* pQueryInfo) {
       pSql->cmd.active = pSub;
       pSql->cmd.command = TSDB_SQL_SELECT;
 
+      // TODO handle memory failure
       SSqlObj* pNew = (SSqlObj*)calloc(1, sizeof(SSqlObj));
       if (pNew == NULL) {
         terrno = TSDB_CODE_TSC_OUT_OF_MEMORY;
@@ -3321,6 +3313,7 @@ void executeQuery(SSqlObj* pSql, SQueryInfo* pQueryInfo) {
       // create sub query to handle the sub query.
       executeQuery(pNew, pSub);
     }
+
     // merge sub query result and generate final results
     return;
   }

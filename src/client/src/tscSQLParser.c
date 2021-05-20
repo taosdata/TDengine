@@ -7137,39 +7137,46 @@ int32_t loadAllTableMeta(SSqlObj* pSql, struct SSqlInfo* pInfo) {
     return TSDB_CODE_SUCCESS;
   }
 
-  pCmd->pTableMetaMap = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY),
-      false, HASH_NO_LOCK);
+  int32_t code = TSDB_CODE_SUCCESS;
 
-  SArray* tableNameList = taosArrayInit(4, sizeof(SName));
+  SArray* tableNameList = NULL;
+  SArray* pVgroupList   = NULL;
+  SArray* plist         = NULL;
 
+  pCmd->pTableMetaMap = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);
+
+  tableNameList = taosArrayInit(4, sizeof(SName));
   int32_t size = taosArrayGetSize(pInfo->list);
   for (int32_t i = 0; i < size; ++i) {
     SSqlNode* pSqlNode = taosArrayGetP(pInfo->list, i);
 
     // load the table meta in the from clause
     if (pSqlNode->from->type == SQL_NODE_FROM_TABLELIST) {
-      int32_t code = getTableNameFromSqlNode(pSqlNode, tableNameList, tscGetErrorMsgPayload(pCmd), pSql);
+      code = getTableNameFromSqlNode(pSqlNode, tableNameList, tscGetErrorMsgPayload(pCmd), pSql);
       if (code != TSDB_CODE_SUCCESS) {
-        return code;
+        goto _end;
       }
     } else {
-      int32_t code = getTableNameFromSubquery(pSqlNode, tableNameList, tscGetErrorMsgPayload(pCmd), pSql);
+      code = getTableNameFromSubquery(pSqlNode, tableNameList, tscGetErrorMsgPayload(pCmd), pSql);
       if (code != TSDB_CODE_SUCCESS) {
-        return code;
+        goto _end;
       }
     }
   }
 
   uint32_t maxSize = tscGetTableMetaMaxSize();
-  char name[TSDB_TABLE_FNAME_LEN] = {0};
+  char     name[TSDB_TABLE_FNAME_LEN] = {0};
 
   int32_t numOfTables = taosArrayGetSize(tableNameList);
-  STableMeta* pTableMeta = calloc(1, maxSize);
 
-  SArray* plist = taosArrayInit(4, POINTER_BYTES);
-  SArray* pVgroupList = taosArrayInit(4, POINTER_BYTES);
+  char buf[80 * 1024] = {0};
+  assert(maxSize < 80 * 1024);
+  STableMeta* pTableMeta = (STableMeta*)buf;
 
-  for(int32_t i = 0; i < numOfTables; ++i) {
+  plist = taosArrayInit(4, POINTER_BYTES);
+  pVgroupList = taosArrayInit(4, POINTER_BYTES);
+
+  for (int32_t i = 0; i < numOfTables; ++i) {
     SName* pname = taosArrayGet(tableNameList, i);
     tNameExtractFullName(pname, name);
 
@@ -7179,8 +7186,12 @@ int32_t loadAllTableMeta(SSqlObj* pSql, struct SSqlInfo* pInfo) {
 
     if (pTableMeta->id.uid > 0) {
       if (pTableMeta->tableType == TSDB_CHILD_TABLE) {
-        int32_t code = tscCreateTableMetaFromCChildMeta(pTableMeta, name);
-        if (code != TSDB_CODE_SUCCESS) { // add to retrieve list
+        code = tscCreateTableMetaFromCChildMeta(pTableMeta, name);
+
+        // create the child table meta from super table failed, try load it from mnode
+        if (code != TSDB_CODE_SUCCESS) {
+          char* t = strdup(name);
+          taosArrayPush(plist, &t);
           continue;
         }
       } else if (pTableMeta->tableType == TSDB_SUPER_TABLE) {
@@ -7191,27 +7202,37 @@ int32_t loadAllTableMeta(SSqlObj* pSql, struct SSqlInfo* pInfo) {
       }
 
       STableMeta* pMeta = tscTableMetaDup(pTableMeta);
-      STableMetaVgroupInfo p = {.pTableMeta = pMeta,};
+
+      STableMetaVgroupInfo p = { .pTableMeta = pMeta };
 
       const char* px = tNameGetTableName(pname);
       taosHashPut(pCmd->pTableMetaMap, px, strlen(px), &p, sizeof(STableMetaVgroupInfo));
-    } else {// add to the retrieve table meta array list.
+    } else {  // add to the retrieve table meta array list.
       char* t = strdup(name);
       taosArrayPush(plist, &t);
     }
   }
 
-  tfree(pTableMeta);
-
   // load the table meta for a given table name list
-  if (taosArrayGetSize(plist) > 0) {
-    int32_t code = getMultiTableMetaFromMnode(pSql, plist, pVgroupList);
-    taosArrayDestroyEx(plist, freeElem);
-
-    return code;
+  if (taosArrayGetSize(plist) > 0 || taosArrayGetSize(pVgroupList) > 0) {
+    code = getMultiTableMetaFromMnode(pSql, plist, pVgroupList);
   }
 
-  return TSDB_CODE_SUCCESS;
+_end:
+
+  if (plist != NULL) {
+    taosArrayDestroyEx(plist, freeElem);
+  }
+
+  if (pVgroupList != NULL) {
+    taosArrayDestroy(pVgroupList);
+  }
+
+  if (tableNameList != NULL) {
+    taosArrayDestroy(tableNameList);
+  }
+
+  return code;
 }
 
 static int32_t doLoadAllTableMeta(SSqlObj* pSql, SQueryInfo* pQueryInfo, SSqlNode* pSqlNode, int32_t numOfTables) {
