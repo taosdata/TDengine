@@ -226,6 +226,7 @@ typedef struct SQueryInfo {
   int32_t          udColumnId;    // current user-defined constant output field column id, monotonically decreases from TSDB_UD_COLUMN_INDEX
   int16_t          resColumnId;   // result column id
   bool             distinctTag;   // distinct tag or not
+  bool             windowState;   // window state or not
   int32_t          round;         // 0/1/....
   int32_t          bufLen;
   char*            buf;

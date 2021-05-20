@@ -89,6 +89,7 @@ static int32_t validateGroupbyNode(SQueryInfo* pQueryInfo, SArray* pList, SSqlCm
 static int32_t validateIntervalNode(SSqlObj* pSql, SQueryInfo* pQueryInfo, SSqlNode* pSqlNode);
 static int32_t parseIntervalOffset(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SStrToken* offsetToken);
 static int32_t parseSlidingClause(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SStrToken* pSliding);
+static int32_t validateWindowStateNode(SSqlCmd* pSql, SQueryInfo* pQueryInfo, SSqlNode* pSqlNode, bool isStable);
 
 static int32_t addProjectionExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSqlExprItem* pItem);
 
@@ -827,6 +828,35 @@ int32_t validateIntervalNode(SSqlObj* pSql, SQueryInfo* pQueryInfo, SSqlNode* pS
 
   // The following part is used to check for the invalid query expression.
   return checkInvalidExprForTimeWindow(pCmd, pQueryInfo);
+}
+static int32_t validateWindowStateNode(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SSqlNode* pSqlNode, bool isStable) {
+
+  const char* msg1 = "invalid column name";
+  const char* msg2 = "invalid window state";
+  const char* msg3 = "not support window_state on super table";
+
+  SStrToken *col = &(pSqlNode->windowstateVal.col) ;
+  if (col->z == NULL || col->n <= 0) {
+    return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg1);
+  } 
+  //TODO(dengyihao): check tag column
+  if (isStable) {
+    return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg3);
+  }
+
+  SColumnIndex index = COLUMN_INDEX_INITIALIZER;
+  if (getColumnIndexByName(pCmd,  col, pQueryInfo, &index) !=  TSDB_CODE_SUCCESS) {
+    return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg1);
+  } 
+
+  if (tscSqlExprNumOfExprs(pQueryInfo) == 1) {
+    SSqlExpr* pExpr = &(tscSqlExprGet(pQueryInfo, 0)->base);
+    if (index.columnIndex == pExpr->colInfo.colIndex && pExpr->colType == TSDB_DATA_TYPE_INT) {
+      pQueryInfo->windowState = true;
+      return TSDB_CODE_SUCCESS;
+    }
+  }    
+  return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg2);
 }
 
 int32_t validateSessionNode(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SSqlNode * pSqlNode) {
@@ -6721,6 +6751,7 @@ int32_t doCheckForStream(SSqlObj* pSql, SSqlInfo* pInfo) {
     return TSDB_CODE_TSC_INVALID_SQL;
   }
 
+
   if (isTimeWindowQuery(pQueryInfo) && (validateFunctionsInIntervalOrGroupbyQuery(pCmd, pQueryInfo) != TSDB_CODE_SUCCESS)) {
     return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg2);
   }
@@ -7288,7 +7319,9 @@ int32_t validateSqlNode(SSqlObj* pSql, SSqlNode* pSqlNode, int32_t index) {
         TSDB_CODE_SUCCESS) {
       return TSDB_CODE_TSC_INVALID_SQL;
     }
-
+    if (validateWindowStateNode(pCmd, pQueryInfo, pSqlNode, isSTable) != TSDB_CODE_SUCCESS) {
+      return TSDB_CODE_TSC_INVALID_SQL;
+    }
     // set order by info
     if (validateOrderbyNode(pCmd, pQueryInfo, pSqlNode, tscGetTableSchema(pTableMetaInfo->pTableMeta)) !=
         TSDB_CODE_SUCCESS) {
@@ -7311,6 +7344,7 @@ int32_t validateSqlNode(SSqlObj* pSql, SSqlNode* pSqlNode, int32_t index) {
       return TSDB_CODE_TSC_INVALID_SQL;
     }
 
+    // parse the window_state 
     /*
      * transfer sql functions that need secondary merge into another format
      * in dealing with super table queries such as: count/first/last

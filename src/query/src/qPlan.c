@@ -121,6 +121,10 @@ SArray* createExecOperatorPlan(SQueryAttr* pQueryAttr) {
     if (pQueryAttr->stableQuery && !pQueryAttr->tsCompQuery) {
       op = OP_MultiTableAggregate;
     } else {
+      if (pQueryAttr->windowState) {
+        op = OP_StateWindow;
+        taosArrayPush(plan, &op);
+      }
       op = OP_Aggregate;
     }
 

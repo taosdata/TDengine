@@ -725,7 +725,7 @@ void tSetColumnType(TAOS_FIELD *pField, SStrToken *type) {
  */
 SSqlNode *tSetQuerySqlNode(SStrToken *pSelectToken, SArray *pSelNodeList, SRelationInfo *pFrom, tSqlExpr *pWhere,
                                 SArray *pGroupby, SArray *pSortOrder, SIntervalVal *pInterval,
-                                SSessionWindowVal *pSession, SStrToken *pSliding, SArray *pFill, SLimitVal *pLimit,
+                                SSessionWindowVal *pSession, SWindowStateVal *pWindowStateVal, SStrToken *pSliding, SArray *pFill, SLimitVal *pLimit,
                                 SLimitVal *psLimit, tSqlExpr *pHaving) {
   assert(pSelNodeList != NULL);
 
@@ -775,6 +775,12 @@ SSqlNode *tSetQuerySqlNode(SStrToken *pSelectToken, SArray *pSelNodeList, SRelat
   } else {
     TPARSER_SET_NONE_TOKEN(pSqlNode->sessionVal.gap);
     TPARSER_SET_NONE_TOKEN(pSqlNode->sessionVal.col);
+  }
+
+  if (pWindowStateVal != NULL) {
+    pSqlNode->windowstateVal = *pWindowStateVal;
+  } else {
+    TPARSER_SET_NONE_TOKEN(pSqlNode->windowstateVal.col);
   }
 
   return pSqlNode;
