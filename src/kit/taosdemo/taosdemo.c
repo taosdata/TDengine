@@ -5085,7 +5085,8 @@ static int generateStbSQLHead(
   return len;
 }
 
-static int64_t generateInterlaceDataBuffer(
+static int64_t generateStbInterlaceData(
+        SSuperTable *superTblInfo,
         char *tableName, uint64_t batchPerTbl, uint64_t i, uint64_t batchPerTblTimes,
         uint64_t tableSeq,
         threadInfo *pThreadInfo, char *buffer,
@@ -5095,12 +5096,11 @@ static int64_t generateInterlaceDataBuffer(
 {
   assert(buffer);
   char *pstr = buffer;
-  SSuperTable* superTblInfo = pThreadInfo->superTblInfo;
 
   int headLen = generateStbSQLHead(
           superTblInfo,
           tableName, tableSeq, pThreadInfo->db_name,
-            pstr, *pRemainderBufLen);
+          pstr, *pRemainderBufLen);
 
   if (headLen <= 0) {
     return 0;
@@ -5118,24 +5118,15 @@ static int64_t generateInterlaceDataBuffer(
             pThreadInfo->threadID, __func__, __LINE__,
             i, batchPerTblTimes, batchPerTbl);
 
-  int64_t k;
-  if (superTblInfo) {
-    if (0 == strncasecmp(superTblInfo->startTimestamp, "now", 3)) {
+  if (0 == strncasecmp(superTblInfo->startTimestamp, "now", 3)) {
       startTime = taosGetTimestamp(pThreadInfo->time_precision);
-    }
+  }
 
-    k = generateStbDataTail(
+  int64_t  k = generateStbDataTail(
             superTblInfo,
             batchPerTbl, pstr, *pRemainderBufLen, insertRows, 0,
             startTime,
             &(pThreadInfo->samplePos), &dataLen);
-  } else {
-    startTime = 1500000000000;
-    k = generateDataTailWithoutStb(
-            batchPerTbl, pstr, *pRemainderBufLen, insertRows, 0,
-            startTime,
-            /* &(pThreadInfo->samplePos), */&dataLen);
-  }
 
   if (k == batchPerTbl) {
     pstr += dataLen;
@@ -5151,33 +5142,67 @@ static int64_t generateInterlaceDataBuffer(
   return k;
 }
 
-static int64_t generateProgressiveDataBuffer(
+static int64_t generateInterlaceDataWithoutStb(
+        char *tableName, uint64_t batchPerTbl,
+        uint64_t tableSeq,
+        char *dbName, char *buffer,
+        int64_t insertRows,
+        uint64_t *pRemainderBufLen)
+{
+  assert(buffer);
+  char *pstr = buffer;
+
+  int headLen = generateSQLHeadWithoutStb(
+          tableName, dbName,
+            pstr, *pRemainderBufLen);
+
+  if (headLen <= 0) {
+    return 0;
+  }
+
+  pstr += headLen;
+  *pRemainderBufLen -= headLen;
+
+  int64_t dataLen = 0;
+
+  int64_t startTime = 1500000000000;
+  int64_t  k = generateDataTailWithoutStb(
+            batchPerTbl, pstr, *pRemainderBufLen, insertRows, 0,
+            startTime,
+            &dataLen);
+
+  if (k == batchPerTbl) {
+    pstr += dataLen;
+    *pRemainderBufLen -= dataLen;
+  } else {
+    debugPrint("%s() LN%d, generated data tail: %"PRIu64", not equal batch per table: %"PRIu64"\n",
+            __func__, __LINE__, k, batchPerTbl);
+    pstr -= headLen;
+    pstr[0] = '\0';
+    k = 0;
+  }
+
+  return k;
+}
+
+static int64_t generateStbProgressiveData(
+        SSuperTable *superTblInfo,
         char *tableName,
         int64_t tableSeq,
-        threadInfo *pThreadInfo, char *buffer,
+        char *dbName, char *buffer,
         int64_t insertRows,
         uint64_t startFrom, int64_t startTime, int64_t *pSamplePos,
         int64_t *pRemainderBufLen)
 {
-  SSuperTable* superTblInfo = pThreadInfo->superTblInfo;
-
   assert(buffer != NULL);
   char *pstr = buffer;
 
   memset(buffer, 0, *pRemainderBufLen);
 
-  int64_t headLen;
-
-  if (superTblInfo) {
-      headLen = generateStbSQLHead(
+  int64_t headLen = generateStbSQLHead(
               superTblInfo,
-          tableName, tableSeq, pThreadInfo->db_name,
+          tableName, tableSeq, dbName,
           buffer, *pRemainderBufLen);
-  } else {
-      headLen = generateSQLHeadWithoutStb(
-          tableName, pThreadInfo->db_name,
-          buffer, *pRemainderBufLen);
-  }
 
   if (headLen <= 0) {
     return 0;
@@ -5186,22 +5211,43 @@ static int64_t generateProgressiveDataBuffer(
   *pRemainderBufLen -= headLen;
 
   int64_t dataLen;
-  int64_t k;
 
-  if (superTblInfo) {
-    k = generateStbDataTail(superTblInfo,
+  return generateStbDataTail(superTblInfo,
           g_args.num_of_RPR, pstr, *pRemainderBufLen,
           insertRows, startFrom,
           startTime,
           pSamplePos, &dataLen);
-  } else {
-    k = generateDataTailWithoutStb(
+}
+
+static int64_t generateProgressiveDataWithoutStb(
+        char *tableName,
+        int64_t tableSeq,
+        threadInfo *pThreadInfo, char *buffer,
+        int64_t insertRows,
+        uint64_t startFrom, int64_t startTime, int64_t *pSamplePos,
+        int64_t *pRemainderBufLen)
+{
+  assert(buffer != NULL);
+  char *pstr = buffer;
+
+  memset(buffer, 0, *pRemainderBufLen);
+
+  int64_t headLen = generateSQLHeadWithoutStb(
+          tableName, pThreadInfo->db_name,
+          buffer, *pRemainderBufLen);
+
+  if (headLen <= 0) {
+    return 0;
+  }
+  pstr += headLen;
+  *pRemainderBufLen -= headLen;
+
+  int64_t dataLen;
+
+  return generateDataTailWithoutStb(
           g_args.num_of_RPR, pstr, *pRemainderBufLen, insertRows, startFrom,
           startTime,
           /*pSamplePos, */&dataLen);
-  }
-
-  return k;
 }
 
 static void printStatPerThread(threadInfo *pThreadInfo)
@@ -5321,13 +5367,25 @@ static void* syncWriteInterlace(threadInfo *pThreadInfo) {
       }
 
       uint64_t oldRemainderLen = remainderBufLen;
-      int64_t generated = generateInterlaceDataBuffer(
-        tableName, batchPerTbl, i, batchPerTblTimes,
-        tableSeq,
-        pThreadInfo, pstr,
-        insertRows,
-        startTime,
-        &remainderBufLen);
+
+      int64_t generated;
+      if (superTblInfo) {
+        generated = generateStbInterlaceData(
+                superTblInfo,
+                tableName, batchPerTbl, i, batchPerTblTimes,
+                tableSeq,
+                pThreadInfo, pstr,
+                insertRows,
+                startTime,
+                &remainderBufLen);
+      } else {
+        generated = generateInterlaceDataWithoutStb(
+                tableName, batchPerTbl,
+                tableSeq,
+                pThreadInfo->db_name, pstr,
+                insertRows,
+                &remainderBufLen);
+      }
 
       debugPrint("[%d] %s() LN%d, generated records is %"PRId64"\n",
                   pThreadInfo->threadID, __func__, __LINE__, generated);
@@ -5500,11 +5558,21 @@ static void* syncWriteProgressive(threadInfo *pThreadInfo) {
       pstr += len;
       remainderBufLen -= len;
 
-      int64_t generated = generateProgressiveDataBuffer(
+      int64_t generated;
+      if (superTblInfo) {
+        generated = generateStbProgressiveData(
+                superTblInfo,
+              tableName, tableSeq, pThreadInfo->db_name, pstr, insertRows,
+            i, start_time,
+            &(pThreadInfo->samplePos),
+            &remainderBufLen);
+      } else {
+        generated = generateProgressiveDataWithoutStb(
               tableName, tableSeq, pThreadInfo, pstr, insertRows,
             i, start_time,
             &(pThreadInfo->samplePos),
             &remainderBufLen);
+      }
       if (generated > 0)
         i += generated;
       else
