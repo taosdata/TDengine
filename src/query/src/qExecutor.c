@@ -1335,7 +1335,10 @@ static void doSessionWindowAggImpl(SOperatorInfo* pOperator, SSWindowOperatorInf
       pInfo->curWindow.ekey = tsList[j];
       pInfo->prevTs = tsList[j];
       pInfo->numOfRows += 1;
-      //pInfo->start = j;
+      if (j == 0 && pInfo->start != 0) {
+        pInfo->numOfRows = 1;
+        pInfo->start = 0;
+      }
     } else {  // start a new session window
       SResultRow* pResult = NULL;
 
@@ -5093,6 +5096,10 @@ static void doStateWindowAggImpl(SOperatorInfo* pOperator, SStateWindowOperatorI
       pInfo->curWindow.ekey = tsList[j];
       pInfo->numOfRows += 1;
       pInfo->start = j;   
+      if (j == 0 && pInfo->start != 0) {
+        pInfo->numOfRows = 1;
+        pInfo->start = 0;
+      }
     } else {
       SResultRow* pResult = NULL;
       int32_t ret = setWindowOutputBufByKey(pRuntimeEnv, &pBInfo->resultRowInfo, &pInfo->curWindow, masterScan,
