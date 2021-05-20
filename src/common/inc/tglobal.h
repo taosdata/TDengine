@@ -149,6 +149,8 @@ extern char    configDir[];
 extern char    tsVnodeDir[];
 extern char    tsDnodeDir[];
 extern char    tsMnodeDir[];
+extern char    tsMnodeBakDir[];
+extern char    tsMnodeTmpDir[];
 extern char    tsDataDir[];
 extern char    tsLogDir[];
 extern char    tsScriptDir[];
