@@ -2490,6 +2490,7 @@ static bool loadCachedLast(STsdbQueryHandle* pQueryHandle) {
   size_t  numOfTables = taosArrayGetSize(pQueryHandle->pTableCheckInfo);
   int32_t numOfRows = 0;
   assert(numOfTables > 0 && tgNumOfCols > 0);
+  SQueryFilePos* cur = &pQueryHandle->cur;
 
   while (++pQueryHandle->activeIndex < numOfTables) {
     STableCheckInfo* pCheckInfo = taosArrayGet(pQueryHandle->pTableCheckInfo, pQueryHandle->activeIndex);
@@ -2517,7 +2518,7 @@ static bool loadCachedLast(STsdbQueryHandle* pQueryHandle) {
       if (ASCENDING_TRAVERSE(pQueryHandle->order)) {
         pData = (char*)pColInfo->pData + numOfRows * pColInfo->info.bytes;;
       } else {
-        pData = (char*)pColInfo->pData + (pQueryHandle->outputCapacity + numOfRows - 1) * pColInfo->info.bytes;
+        pData = (char*)pColInfo->pData + (pQueryHandle->outputCapacity - numOfRows - 1) * pColInfo->info.bytes;
       }
     
       if (pTable->lastCols[j].bytes > 0) {
@@ -2567,11 +2568,11 @@ static bool loadCachedLast(STsdbQueryHandle* pQueryHandle) {
             continue;
           }
 
-          SColumnInfoData* pColInfo = taosArrayGet(pQueryHandle->pColumns, i);
+          SColumnInfoData* pColInfo = taosArrayGet(pQueryHandle->pColumns, n);
           if (ASCENDING_TRAVERSE(pQueryHandle->order)) {
             pData = (char*)pColInfo->pData + numOfRows * pColInfo->info.bytes;;
           } else {
-            pData = (char*)pColInfo->pData + (pQueryHandle->outputCapacity + numOfRows - 1) * pColInfo->info.bytes;
+            pData = (char*)pColInfo->pData + (pQueryHandle->outputCapacity - numOfRows - 1) * pColInfo->info.bytes;
           }
 
           if (n == 0) {
@@ -2595,6 +2596,9 @@ static bool loadCachedLast(STsdbQueryHandle* pQueryHandle) {
     }
 
     if (numOfRows > 0) {
+      cur->rows     = numOfRows;
+      cur->mixBlock = true;
+      
       return true;
     }    
   }
