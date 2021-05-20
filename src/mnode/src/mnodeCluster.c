@@ -249,7 +249,7 @@ int32_t mnodeCompactCluster() {
     SSdbRow row = {
       .type   = SDB_OPER_GLOBAL,
       .pTable = tsClusterSdb,
-      .pObj   = pCluster,
+      .pObj   = pCluster,      
     };
 
     sdbInsertCompactRow(&row);

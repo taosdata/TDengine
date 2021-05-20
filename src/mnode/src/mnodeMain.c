@@ -59,6 +59,8 @@ static SStep tsMnodeSteps[] = {
 
 static SStep tsMnodeCompactSteps[] = {
   {"cluster", mnodeCompactCluster, NULL},
+
+/*
   {"dnodes",  mnodeCompactDnodes,  NULL},
   {"mnodes",  mnodeCompactMnodes,  NULL},
   {"accts",   mnodeCompactAccts,  NULL},
@@ -66,6 +68,7 @@ static SStep tsMnodeCompactSteps[] = {
   {"dbs",     mnodeCompactDbs,     NULL},
   {"vgroups", mnodeCompactVgroups, NULL},
   {"tables",  mnodeCompactTables,  NULL}, 
+*/
 };
 
 static void mnodeInitTimer();
