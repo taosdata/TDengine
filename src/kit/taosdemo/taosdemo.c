@@ -4643,16 +4643,22 @@ static int getRowDataFromSample(
   return dataLen;
 }
 
-static int64_t generateRowData(char* recBuf, int64_t timestamp, SSuperTable* stbInfo) {
+static int64_t generateStbRowData(
+        SSuperTable* stbInfo,
+        char* recBuf, int64_t timestamp
+        ) {
   int64_t   dataLen = 0;
   char  *pstr = recBuf;
   int64_t maxLen = MAX_DATA_SIZE;
 
-  dataLen += snprintf(pstr + dataLen, maxLen - dataLen, "(%" PRId64 ",", timestamp);
+  dataLen += snprintf(pstr + dataLen, maxLen - dataLen,
+          "(%" PRId64 ",", timestamp);
 
   for (int i = 0; i < stbInfo->columnCount; i++) {
-    if ((0 == strncasecmp(stbInfo->columns[i].dataType, "BINARY", strlen("BINARY")))
-            || (0 == strncasecmp(stbInfo->columns[i].dataType, "NCHAR", strlen("NCHAR")))) {
+    if ((0 == strncasecmp(stbInfo->columns[i].dataType,
+                    "BINARY", strlen("BINARY")))
+            || (0 == strncasecmp(stbInfo->columns[i].dataType,
+                    "NCHAR", strlen("NCHAR")))) {
       if (stbInfo->columns[i].dataLen > TSDB_MAX_BINARY_LEN) {
         errorPrint( "binary or nchar length overflow, max size:%u\n",
                 (uint32_t)TSDB_MAX_BINARY_LEN);
@@ -4714,7 +4720,7 @@ static int64_t generateRowData(char* recBuf, int64_t timestamp, SSuperTable* stb
 }
 
 static int64_t generateData(char *recBuf, char **data_type,
-        int num_of_cols, int64_t timestamp, int lenOfBinary) {
+        int64_t timestamp, int lenOfBinary) {
   memset(recBuf, 0, MAX_DATA_SIZE);
   char *pstr = recBuf;
   pstr += sprintf(pstr, "(%" PRId64, timestamp);
@@ -4874,13 +4880,6 @@ static int64_t generateDataTailWithoutStable(
   uint64_t len = 0;
   char *pstr = buffer;
 
-  uint32_t ncols_per_record = 1; // count first col ts
-
-  uint32_t datatypeSeq = 0;
-  while(g_args.datatype[datatypeSeq]) {
-        datatypeSeq ++;
-        ncols_per_record ++;
-  }
   verbosePrint("%s() LN%d batch=%"PRIu64"\n", __func__, __LINE__, batch);
 
   int64_t k = 0;
@@ -4908,7 +4907,6 @@ static int64_t generateDataTailWithoutStable(
     }
 
     retLen = generateData(data, data_type,
-            ncols_per_record,
             startTime + randTail,
             lenOfBinary);
 
@@ -4934,7 +4932,7 @@ static int64_t generateDataTailWithoutStable(
   return k;
 }
 
-static int64_t generateDataTailWithStable(
+static int64_t generateStbDataTail(
         SSuperTable* superTblInfo,
         uint64_t batch, char* buffer,
         int64_t remainderBufLen, int64_t insertRows,
@@ -4974,8 +4972,7 @@ static int64_t generateDataTailWithStable(
         }
 
         int64_t d = startTime + randTail;
-        retLen = generateRowData(
-                data, d, superTblInfo);
+        retLen = generateStbRowData(superTblInfo, data, d);
     }
 
     if (retLen > remainderBufLen) {
@@ -5105,7 +5102,7 @@ static int64_t generateInterlaceDataBuffer(
       startTime = taosGetTimestamp(pThreadInfo->time_precision);
     }
 
-    k = generateDataTailWithStable(
+    k = generateStbDataTail(
             superTblInfo,
             batchPerTbl, pstr, *pRemainderBufLen, insertRows, 0,
             startTime,
@@ -5142,16 +5139,6 @@ static int64_t generateProgressiveDataBuffer(
 {
   SSuperTable* superTblInfo = pThreadInfo->superTblInfo;
 
-  int ncols_per_record = 1; // count first col ts
-
-  if (superTblInfo == NULL) {
-    int datatypeSeq = 0;
-    while(g_args.datatype[datatypeSeq]) {
-        datatypeSeq ++;
-        ncols_per_record ++;
-    }
-  }
-
   assert(buffer != NULL);
   char *pstr = buffer;
 
@@ -5171,7 +5158,7 @@ static int64_t generateProgressiveDataBuffer(
   int64_t k;
 
   if (superTblInfo) {
-    k = generateDataTailWithStable(superTblInfo,
+    k = generateStbDataTail(superTblInfo,
           g_args.num_of_RPR, pstr, *pRemainderBufLen,
           insertRows, startFrom,
           startTime,
@@ -5620,10 +5607,12 @@ static void callBack(void *param, TAOS_RES *res, int code) {
     int rand_num = taosRandom() % 100;
     if (0 != pThreadInfo->superTblInfo->disorderRatio
             && rand_num < pThreadInfo->superTblInfo->disorderRatio) {
-      int64_t d = pThreadInfo->lastTs - (taosRandom() % pThreadInfo->superTblInfo->disorderRange + 1);
-      generateRowData(data, d, pThreadInfo->superTblInfo);
+      int64_t d = pThreadInfo->lastTs
+          - (taosRandom() % pThreadInfo->superTblInfo->disorderRange + 1);
+      generateStbRowData(pThreadInfo->superTblInfo, data, d);
     } else {
-      generateRowData(data, pThreadInfo->lastTs += 1000, pThreadInfo->superTblInfo);
+      generateStbRowData(pThreadInfo->superTblInfo,
+              data, pThreadInfo->lastTs += 1000);
     }
     pstr += sprintf(pstr, "%s", data);
     pThreadInfo->counter++;
