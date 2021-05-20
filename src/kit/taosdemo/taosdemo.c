@@ -526,7 +526,6 @@ static int taosRandom()
 #endif // ifdef Windows
 
 static void prompt();
-static void prompt2();
 static int createDatabasesAndStables();
 static void createChildTables();
 static int queryDbExec(TAOS *taos, char *command, QUERY_TYPE type, bool quiet);
@@ -3449,7 +3448,7 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
               g_args.interlace_rows, g_args.num_of_RPR);
       printf("        interlace rows value will be set to num_of_records_per_req %"PRIu64"\n\n",
               g_args.num_of_RPR);
-      prompt2();
+      prompt();
       g_args.interlace_rows = g_args.num_of_RPR;
     }
   } else if (!interlaceRows) {
@@ -3483,6 +3482,11 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
         __func__, __LINE__);
       goto PARSE_OVER;
     } else if (numRecPerReq->valueint > MAX_RECORDS_PER_REQ) {
+      printf("NOTICE: number of records per request value %"PRIu64" > %d\n\n",
+              numRecPerReq->valueint, MAX_RECORDS_PER_REQ);
+      printf("        number of records per request value will be set to %d\n\n",
+              MAX_RECORDS_PER_REQ);
+      prompt();
       numRecPerReq->valueint = MAX_RECORDS_PER_REQ;
     }
     g_args.num_of_RPR = numRecPerReq->valueint;
@@ -3968,10 +3972,7 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
                   i, j, g_Dbs.db[i].superTbls[j].interlaceRows, g_args.num_of_RPR);
           printf("        interlace rows value will be set to num_of_records_per_req %"PRIu64"\n\n",
                   g_args.num_of_RPR);
-          if (!g_args.answer_yes) {
-            printf("        press Enter key to continue or Ctrl-C to stop.");
-            (void)getchar();
-          }
+          prompt();
           g_Dbs.db[i].superTbls[j].interlaceRows = g_args.num_of_RPR;
         }
       } else if (!interlaceRows) {
@@ -5759,19 +5760,13 @@ static void startMultiThreadInsertData(int threads, char* db_name,
         && ((superTblInfo->childTblOffset + superTblInfo->childTblLimit )
             > superTblInfo->childTblCount)) {
       printf("WARNING: specified offset + limit > child table count!\n");
-      if (!g_args.answer_yes) {
-        printf("         Press enter key to continue or Ctrl-C to stop\n\n");
-        (void)getchar();
-      }
+      prompt();
     }
 
     if ((superTblInfo->childTblExists != TBL_NO_EXISTS)
             && (0 == superTblInfo->childTblLimit)) {
       printf("WARNING: specified limit = 0, which cannot find table name to insert or query! \n");
-      if (!g_args.answer_yes) {
-        printf("         Press enter key to continue or Ctrl-C to stop\n\n");
-        (void)getchar();
-      }
+      prompt();
     }
 
     superTblInfo->childTblName = (char*)calloc(1,
@@ -6093,17 +6088,9 @@ static void *readMetric(void *sarg) {
 static void prompt()
 {
   if (!g_args.answer_yes) {
-    printf("Press enter key to continue\n\n");
+    printf("        press Enter key to continue or Ctrl-C to stop.");
     (void)getchar();
   }
-}
-
-static void prompt2()
-{
-    if (!g_args.answer_yes) {
-        printf("        press Enter key to continue or Ctrl-C to stop.");
-        (void)getchar();
-    }
 }
 
 static int insertTestProcess() {
