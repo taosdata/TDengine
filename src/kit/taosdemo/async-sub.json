@@ -1,5 +1,5 @@
 {
-  "filetype":"subscribe",
+  "filetype": "subscribe",
   "cfgdir": "/etc/taos",
   "host": "127.0.0.1",
   "port": 6030,
@@ -8,15 +8,19 @@
   "databases": "test",
   "specified_table_query": {
     "concurrent": 1,
-    "mode": "sync",
+    "mode": "async",
     "interval": 1000,
     "restart": "yes",
     "keepProgress": "yes",
     "resubAfterConsume": 10,
     "sqls": [
       {
-        "sql": "select avg(col1) from meters where col1 > 1;",
+        "sql": "select col1 from meters where col1 > 1;",
         "result": "./subscribe_res0.txt"
+      },
+      {
+        "sql": "select col2 from meters where col2 > 1;",
+        "result": "./subscribe_res2.txt"
       }
     ]
   },
