@@ -389,13 +389,19 @@ int main(int argc, char** argv) {
 //    executeSQL(conn, "select count(*) from m1", NULL);
 //    executeSQL(conn, "select count(k) from m2 where tbname in ('t2m0', 't2m1') and ts>=1433955690790 and "
 //                     "ts<=1433955690850 interval(10a) fill(value, 911) group by tbname", NULL);
-    executeSQL(conn, "select a.ts,a.k "
-                     "from (select count(*) k from tm0 interval(1s)) a, (select count(*) f from tm1 interval(1s)) b "
-                     "where a.ts = b.ts", NULL);
-//    executeSQL(conn, "select * from tb order by ts desc", NULL);
+    executeSQL(conn, "select a.ts,a.k,b.ts,c.ts,c.ts,c.x "
+                     "from (select count(*) k from t2m0 interval(30a)) a, (select count(*) f from t2m1 interval(30a)) b,"
+                     " (select count(*) x from t2m2 interval(30a)) c "
+                     "where a.ts = b.ts and a.ts = c.ts", NULL);
+
+//  executeSQL(conn, "select a.ts,a.k "
+//                   "from (select count(*) k from t2m0 interval(30a)) a, (select count(*) f from t2m1 interval(30a)) b "
+//                   " where a.ts = b.ts", NULL);
+
+//    executeSQL(conn, "select count(*) k from t2m0 interval(30a)", NULL);
 //    executeSQL(conn, "select count(*) from t2m1 where ts<'2015-6-11 1:1:1.3' and ts>='2015-6-11 1:1:1' interval(20a) fill(next)", NULL);
 //    executeSQL(conn, "describe tux1", NULL);
-//    createEnvironment(conn, 5, 5, 4000, 30);
+//    createEnvironment(conn, 5, 5, 40000, 30);
     taos_close(conn);
     taos_cleanup();
     return 0;
