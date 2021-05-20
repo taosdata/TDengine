@@ -1997,6 +1997,10 @@ int tscProcessMultiTableMetaRsp(SSqlObj *pSql) {
   rsp += sizeof(SMultiTableMeta);
 
   SSqlObj* pParentSql = (SSqlObj*)taosAcquireRef(tscObjRef, (int64_t)pSql->param);
+  if(pParentSql == NULL) {
+    return pSql->res.code;
+  }
+
   SSqlCmd *pParentCmd = &pParentSql->cmd;
 
   SHashObj *pSet = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
@@ -2006,12 +2010,16 @@ int tscProcessMultiTableMetaRsp(SSqlObj *pSql) {
     STableMetaMsg *pMetaMsg = (STableMetaMsg *)pMsg;
     int32_t code = tableMetaMsgConvert(pMetaMsg);
     if (code != TSDB_CODE_SUCCESS) {
+      taosHashCleanup(pSet);
+      taosReleaseRef(tscObjRef, pParentSql->self);
       return code;
     }
 
     STableMeta* pTableMeta = tscCreateTableMetaFromMsg(pMetaMsg);
     if (!tIsValidSchema(pTableMeta->schema, pTableMeta->tableInfo.numOfColumns, pTableMeta->tableInfo.numOfTags)) {
       tscError("0x%"PRIx64" invalid table meta from mnode, name:%s", pSql->self, pMetaMsg->tableFname);
+      taosHashCleanup(pSet);
+      taosReleaseRef(tscObjRef, pParentSql->self);
       return TSDB_CODE_TSC_INVALID_VALUE;
     }
 
@@ -2062,6 +2070,7 @@ int tscProcessMultiTableMetaRsp(SSqlObj *pSql) {
   tscDebug("0x%"PRIx64" load multi-tableMeta resp from complete numOfTables:%d", pSql->self, pMultiMeta->numOfTables);
 
   taosHashCleanup(pSet);
+  taosReleaseRef(tscObjRef, pParentSql->self);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -2090,51 +2099,10 @@ int tscProcessSTableVgroupRsp(SSqlObj *pSql) {
 
     int32_t size = 0;
     pInfo->vgroupList = createVgroupInfoFromMsg(pMsg, &size, pSql->self);
- /*   size_t vgroupsz = sizeof(SVgroupInfo) * pVgroupMsg->numOfVgroups + sizeof(SVgroupsInfo);
-    pInfo->vgroupList = calloc(1, vgroupsz);
-    assert(pInfo->vgroupList != NULL);
-
-    pInfo->vgroupList->numOfVgroups = pVgroupMsg->numOfVgroups;
-    if (pInfo->vgroupList->numOfVgroups <= 0) {
-      tscDebug("0x%"PRIx64" empty vgroup info, no corresponding tables for stable", pSql->self);
-    } else {
-      for (int32_t j = 0; j < pInfo->vgroupList->numOfVgroups; ++j) {
-        // just init, no need to lock
-        SVgroupInfo *pVgroup = &pInfo->vgroupList->vgroups[j];
-
-        SVgroupMsg *vmsg = &pVgroupMsg->vgroups[j];
-        vmsg->vgId     = htonl(vmsg->vgId);
-        vmsg->numOfEps = vmsg->numOfEps;
-        for (int32_t k = 0; k < vmsg->numOfEps; ++k) {
-          vmsg->epAddr[k].port = htons(vmsg->epAddr[k].port);
-        }
-
-        SNewVgroupInfo newVi = createNewVgroupInfo(vmsg);
-        pVgroup->numOfEps = newVi.numOfEps;
-        pVgroup->vgId = newVi.vgId;
-        for (int32_t k = 0; k < vmsg->numOfEps; ++k) {
-          pVgroup->epAddr[k].port = newVi.ep[k].port;
-          pVgroup->epAddr[k].fqdn = strndup(newVi.ep[k].fqdn, TSDB_FQDN_LEN);
-        }
-
-        // check if current buffer contains the vgroup info.
-        // If not, add it
-        SNewVgroupInfo existVgroupInfo = {.inUse = -1};
-        taosHashGetClone(tscVgroupMap, &newVi.vgId, sizeof(newVi.vgId), NULL, &existVgroupInfo, sizeof(SNewVgroupInfo));
-
-        if (((existVgroupInfo.inUse >= 0) && !vgroupInfoIdentical(&existVgroupInfo, vmsg)) ||
-            (existVgroupInfo.inUse < 0)) {  // vgroup info exists, compare with it
-          taosHashPut(tscVgroupMap, &newVi.vgId, sizeof(newVi.vgId), &newVi, sizeof(newVi));
-          tscDebug("add new VgroupInfo, vgId:%d, total cached:%d", newVi.vgId, (int32_t) taosHashGetSize(tscVgroupMap));
-        }
-      }
-    }
-*/
     pMsg += size;
   }
 
   taosReleaseRef(tscObjRef, parent->self);
-  
   return pSql->res.code;
 }
 
@@ -2377,8 +2345,6 @@ int tscProcessRetrieveRspFromNode(SSqlObj *pSql) {
   } else if (tscNonOrderedProjectionQueryOnSTable(pQueryInfo, 0) && !TSDB_QUERY_HAS_TYPE(pQueryInfo->type, TSDB_QUERY_TYPE_JOIN_QUERY) && !TSDB_QUERY_HAS_TYPE(pQueryInfo->type, TSDB_QUERY_TYPE_JOIN_SEC_STAGE)) {
     tscSetResRawPtr(pRes, pQueryInfo);
   }
-
-//  handleDownstreamOperator(pRes, pQueryInfo);
 
   if (pSql->pSubscription != NULL) {
     int32_t numOfCols = pQueryInfo->fieldsInfo.numOfOutput;

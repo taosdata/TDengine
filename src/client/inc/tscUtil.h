@@ -166,7 +166,7 @@ void tscFieldInfoUpdateOffset(SQueryInfo* pQueryInfo);
 
 int16_t tscFieldInfoGetOffset(SQueryInfo* pQueryInfo, int32_t index);
 void    tscFieldInfoClear(SFieldInfo* pFieldInfo);
-void    tscFieldInfoCopy(SFieldInfo* pFieldInfo, const SFieldInfo* pSrc);
+void tscFieldInfoCopy(SFieldInfo* pFieldInfo, const SFieldInfo* pSrc, const SArray* pExprList);
 
 static FORCE_INLINE int32_t tscNumOfFields(SQueryInfo* pQueryInfo) { return pQueryInfo->fieldsInfo.numOfOutput; }
 
@@ -192,10 +192,13 @@ SExprInfo* tscExprUpdate(SQueryInfo* pQueryInfo, int32_t index, int16_t function
 size_t     tscNumOfExprs(SQueryInfo* pQueryInfo);
 SExprInfo *tscExprGet(SQueryInfo* pQueryInfo, int32_t index);
 int32_t    tscExprCopy(SArray* dst, const SArray* src, uint64_t uid, bool deepcopy);
+int32_t    tscExprCopyAll(SArray* dst, const SArray* src, bool deepcopy);
 void       tscExprAssign(SExprInfo* dst, const SExprInfo* src);
 void       tscExprDestroy(SArray* pExprInfo);
 
 int32_t createProjectionExpr(SQueryInfo* pQueryInfo, STableMetaInfo* pTableMetaInfo, SExprInfo*** pExpr, int32_t* num);
+
+void clearAllTableMetaInfo(SQueryInfo* pQueryInfo, bool removeMeta);
 
 SColumn* tscColumnClone(const SColumn* src);
 bool tscColumnExists(SArray* pColumnList, int32_t columnIndex, uint64_t uid);

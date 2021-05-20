@@ -974,7 +974,7 @@ static SSDataBlock* skipGroupBlock(SOperatorInfo* pOperator, bool* newgroup) {
 
   SSDataBlock* pBlock = NULL;
   if (pInfo->currentGroupOffset == 0) {
-    pBlock = pOperator->upstream[0]->exec(pOperator->upstream, newgroup);
+    pBlock = pOperator->upstream[0]->exec(pOperator->upstream[0], newgroup);
     if (pBlock == NULL) {
       setQueryStatus(pOperator->pRuntimeEnv, QUERY_COMPLETED);
       pOperator->status = OP_EXEC_DONE;
@@ -982,7 +982,7 @@ static SSDataBlock* skipGroupBlock(SOperatorInfo* pOperator, bool* newgroup) {
 
     if (*newgroup == false && pInfo->limit.limit > 0 && pInfo->rowsTotal >= pInfo->limit.limit) {
       while ((*newgroup) == false) {  // ignore the remain blocks
-        pBlock = pOperator->upstream[0]->exec(pOperator->upstream, newgroup);
+        pBlock = pOperator->upstream[0]->exec(pOperator->upstream[0], newgroup);
         if (pBlock == NULL) {
           setQueryStatus(pOperator->pRuntimeEnv, QUERY_COMPLETED);
           pOperator->status = OP_EXEC_DONE;
@@ -994,7 +994,7 @@ static SSDataBlock* skipGroupBlock(SOperatorInfo* pOperator, bool* newgroup) {
     return pBlock;
   }
 
-    pBlock = pOperator->upstream[0]->exec(pOperator->upstream, newgroup);
+    pBlock = pOperator->upstream[0]->exec(pOperator->upstream[0], newgroup);
     if (pBlock == NULL) {
       setQueryStatus(pOperator->pRuntimeEnv, QUERY_COMPLETED);
       pOperator->status = OP_EXEC_DONE;
@@ -1008,7 +1008,7 @@ static SSDataBlock* skipGroupBlock(SOperatorInfo* pOperator, bool* newgroup) {
       }
 
       while ((*newgroup) == false) {
-        pBlock = pOperator->upstream[0]->exec(pOperator->upstream, newgroup);
+        pBlock = pOperator->upstream[0]->exec(pOperator->upstream[0], newgroup);
         if (pBlock == NULL) {
           setQueryStatus(pOperator->pRuntimeEnv, QUERY_COMPLETED);
           pOperator->status = OP_EXEC_DONE;

@@ -803,7 +803,7 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql, char** boundC
     }
 
     STableMetaInfo *pSTableMetaInfo = tscGetMetaInfo(pQueryInfo, STABLE_INDEX);
-    code = tscSetTableFullName(&pTableMetaInfo->name, &sToken, pSql);
+    code = tscSetTableFullName(&pSTableMetaInfo->name, &sToken, pSql);
     if (code != TSDB_CODE_SUCCESS) {
       return code;
     }

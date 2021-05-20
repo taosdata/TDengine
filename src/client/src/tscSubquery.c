@@ -2894,7 +2894,7 @@ static SSqlObj *tscCreateSTableSubquery(SSqlObj *pSql, SRetrieveSupport *trsuppo
     pQueryInfo->limit.limit = -1;
     pQueryInfo->limit.offset = 0;
 
-    assert(/*pQueryInfo->numOfTables == 1 && pNew->cmd.numOfClause == 1 &&*/ trsupport->subqueryIndex < pSql->subState.numOfSub);
+    assert(trsupport->subqueryIndex < pSql->subState.numOfSub);
     
     // launch subquery for each vnode, so the subquery index equals to the vgroupIndex.
     STableMetaInfo *pTableMetaInfo = tscGetMetaInfo(pQueryInfo, table_index);
@@ -3577,17 +3577,9 @@ void* createQInfoFromQueryNode(SQueryInfo* pQueryInfo, SExprInfo* pExprs, STable
     }
   }
 
-//  for (int32_t i = 0; i < numOfOutput; ++i) {
-//    SExprInfo* pExprInfo = &pExprs[i];
-//    if (pExprInfo->pExpr != NULL) {
-//      tExprTreeDestroy(pExprInfo->pExpr, NULL);
-//      pExprInfo->pExpr = NULL;
-//    }
-//  }
-//
-//  tfree(pExprs);
-
+  // todo refactor: filter should not be applied here.
   createFilterInfo(pQueryAttr, 0);
+  pQueryAttr->numOfFilterCols = 0;
 
   SArray* pa = NULL;
   if (stage == MASTER_SCAN) {

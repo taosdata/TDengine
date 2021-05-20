@@ -226,7 +226,7 @@ void taos_fetch_rows_a(TAOS_RES *tres, __async_cb_func_t fp, void *param) {
   if (pQueryInfo->pUpstream != NULL && taosArrayGetSize(pQueryInfo->pUpstream) > 0) {
     SSchedMsg schedMsg = {0};
     schedMsg.fp = doRetrieveSubqueryData;
-    schedMsg.ahandle = (void *)pSql->self;
+    schedMsg.ahandle = (void *)pSql;
     schedMsg.thandle = (void *)1;
     schedMsg.msg = 0;
     taosScheduleTask(tscQhandle, &schedMsg);

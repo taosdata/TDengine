@@ -7149,6 +7149,9 @@ int32_t loadAllTableMeta(SSqlObj* pSql, struct SSqlInfo* pInfo) {
   int32_t size = taosArrayGetSize(pInfo->list);
   for (int32_t i = 0; i < size; ++i) {
     SSqlNode* pSqlNode = taosArrayGetP(pInfo->list, i);
+    if (pSqlNode->from == NULL) {
+      goto _end;
+    }
 
     // load the table meta in the from clause
     if (pSqlNode->from->type == SQL_NODE_FROM_TABLELIST) {
@@ -7330,6 +7333,7 @@ static int32_t doValidateSubquery(SSqlNode* pSqlNode, int32_t index, SSqlObj* pS
   SSqlNode* p = taosArrayGetP(subInfo->pSubquery, 0);
 
   SQueryInfo* pSub = calloc(1, sizeof(SQueryInfo));
+  printf("-------------queryinfo:%p\n", pSub);
   tscInitQueryInfo(pSub);
 
   int32_t code = validateSqlNode(pSql, p, pSub);
@@ -7408,6 +7412,7 @@ int32_t validateSqlNode(SSqlObj* pSql, SSqlNode* pSqlNode, SQueryInfo* pQueryInf
   }
 
   if (pSqlNode->from->type == SQL_NODE_FROM_SUBQUERY) {
+    clearAllTableMetaInfo(pQueryInfo, false);
     pQueryInfo->numOfTables = 0;
 
     // parse the subquery in the first place
