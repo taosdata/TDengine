@@ -616,17 +616,34 @@ static void tsdbStopStream(STsdbRepo *pRepo) {
   }
 }
 
+static STSchema* getTableLatestSchema(STable *pTable) {
+  if (pTable->numOfSchemas > 0) {
+    return pTable->schema[pTable->numOfSchemas - 1];
+  }
+
+  if (pTable->type == TSDB_CHILD_TABLE) {
+    if (pTable->pSuper && pTable->pSuper->numOfSchemas) {
+      tsdbDebug("getTableLatestSchema of table %s from super table %s", pTable->name->data, pTable->pSuper->name->data);
+      return pTable->pSuper->schema[pTable->pSuper->numOfSchemas - 1];
+    }
+  }
+  return NULL;
+}
+
 static int restoreLastColumns(STsdbRepo *pRepo, STable *pTable, SReadH* pReadh) {
-  if (pTable->numOfSchemas == 0) {
+  STSchema *pSchema = getTableLatestSchema(pTable);
+  if (pSchema == NULL) {
+    tsdbError("getTableLatestSchema of table %s fail", pTable->name->data);
     return 0;
   }
+
   SBlock* pBlock;
   int numColumns;
   int32_t blockIdx;
   SDataStatis* pBlockStatis = NULL;
   SDataRow row = NULL;
   // restore last column data with last schema
-  STSchema *pSchema = pTable->schema[pTable->numOfSchemas - 1];
+  
   int err = 0;
 
   numColumns = schemaNCols(pSchema);
