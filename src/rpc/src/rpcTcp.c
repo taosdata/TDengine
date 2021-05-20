@@ -529,9 +529,6 @@ static void *taosProcessTcpData(void *param) {
   struct epoll_event events[maxEvents];
   SRecvInfo          recvInfo;
 
-#ifdef __APPLE__
-  taos_block_sigalrm();
-#endif // __APPLE__
   while (1) {
     int fdNum = epoll_wait(pThreadObj->pollFd, events, maxEvents, TAOS_EPOLL_WAIT_TIME);
     if (pThreadObj->stop) {
@@ -579,7 +576,7 @@ static void *taosProcessTcpData(void *param) {
   }
 
   while (pThreadObj->pHead) {
-    SFdObj *pFdObj = pThreadObj->pHead;
+    pFdObj = pThreadObj->pHead;
     pThreadObj->pHead = pFdObj->next;
     taosReportBrokenLink(pFdObj);
   }

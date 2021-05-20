@@ -205,6 +205,7 @@ function install_service_on_systemd() {
     ${csudo} bash -c "echo '[Service]'                               >> ${tarbitratord_service_config}"
     ${csudo} bash -c "echo 'Type=simple'                             >> ${tarbitratord_service_config}"
     ${csudo} bash -c "echo 'ExecStart=/usr/bin/tarbitrator'          >> ${tarbitratord_service_config}"
+    ${csudo} bash -c "echo 'TimeoutStopSec=1000000s'                 >> ${tarbitratord_service_config}"
     ${csudo} bash -c "echo 'LimitNOFILE=infinity'                    >> ${tarbitratord_service_config}"
     ${csudo} bash -c "echo 'LimitNPROC=infinity'                     >> ${tarbitratord_service_config}"
     ${csudo} bash -c "echo 'LimitCORE=infinity'                      >> ${tarbitratord_service_config}"

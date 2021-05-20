@@ -13,6 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "os.h"
 #include "tarray.h"
 
 void* taosArrayInit(size_t size, size_t elemSize) {

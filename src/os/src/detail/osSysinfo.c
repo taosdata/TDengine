@@ -20,7 +20,7 @@
 #include "tulog.h"
 #include "taoserror.h"
 
-#ifndef TAOS_OS_FUNC_SYSINFO
+#if !(defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32) || defined (_TD_DARWIN_64))
 
 #define PROCESS_ITEM 12
 

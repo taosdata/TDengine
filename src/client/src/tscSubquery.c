@@ -55,9 +55,9 @@ static void skipRemainValue(STSBuf* pTSBuf, tVariant* tag1) {
   }
 
   while (tsBufNextPos(pTSBuf)) {
-    STSElem el1 = tsBufGetElem(pTSBuf);
+    el1 = tsBufGetElem(pTSBuf);
 
-    int32_t res = tVariantCompare(el1.tag, tag1);
+    res = tVariantCompare(el1.tag, tag1);
     if (res != 0) { // it is a record with new tag
       return;
     }
@@ -624,7 +624,13 @@ static int32_t tscLaunchRealSubqueries(SSqlObj* pSql) {
       int16_t colId = tscGetJoinTagColIdByUid(&pQueryInfo->tagCond, pTableMetaInfo->pTableMeta->id.uid);
 
       // set the tag column id for executor to extract correct tag value
+#ifndef _TD_NINGSI_60      
       pExpr->base.param[0] = (tVariant) {.i64 = colId, .nType = TSDB_DATA_TYPE_BIGINT, .nLen = sizeof(int64_t)};
+#else
+      pExpr->base.param[0].i64 = colId;
+      pExpr->base.param[0].nType = TSDB_DATA_TYPE_BIGINT;
+      pExpr->base.param[0].nLen = sizeof(int64_t);
+#endif
       pExpr->base.numOfParams = 1;
     }
 
@@ -2842,7 +2848,7 @@ static void tscRetrieveFromDnodeCallBack(void *param, TAOS_RES *tres, int numOfR
     tscDebug("0x%"PRIx64" sub:%p retrieve numOfRows:%d totalNumOfRows:%" PRIu64 " from ep:%s, orderOfSub:%d",
         pParentSql->self, pSql, pRes->numOfRows, pState->numOfRetrievedRows, pSql->epSet.fqdn[pSql->epSet.inUse], idx);
 
-    if (num > tsMaxNumOfOrderedResults && tscIsProjectionQueryOnSTable(pQueryInfo, 0)) {
+    if (num > tsMaxNumOfOrderedResults && tscIsProjectionQueryOnSTable(pQueryInfo, 0) && !(tscGetQueryInfo(&pParentSql->cmd)->distinctTag)) {
       tscError("0x%"PRIx64" sub:0x%"PRIx64" num of OrderedRes is too many, max allowed:%" PRId32 " , current:%" PRId64,
                pParentSql->self, pSql->self, tsMaxNumOfOrderedResults, num);
       tscAbortFurtherRetryRetrieval(trsupport, tres, TSDB_CODE_TSC_SORTED_RES_TOO_MANY);

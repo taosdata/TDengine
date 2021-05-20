@@ -2082,14 +2082,14 @@ int tscProcessSTableVgroupRsp(SSqlObj *pSql) {
   }
 
   assert(parent->signature == parent && (int64_t)pSql->param == parent->self);
-  
+
   SSqlRes* pRes = &pSql->res;
-  
+
   // NOTE: the order of several table must be preserved.
   SSTableVgroupRspMsg *pStableVgroup = (SSTableVgroupRspMsg *)pRes->pRsp;
   pStableVgroup->numOfTables = htonl(pStableVgroup->numOfTables);
   char *pMsg = pRes->pRsp + sizeof(SSTableVgroupRspMsg);
-  
+
   SSqlCmd* pCmd = &parent->cmd;
   for(int32_t i = 0; i < pStableVgroup->numOfTables; ++i) {
     STableMetaInfo *pInfo = tscGetTableMetaInfoFromCmd(pCmd, i);
@@ -2503,10 +2503,23 @@ int32_t getMultiTableMetaFromMnode(SSqlObj *pSql, SArray* pNameList, SArray* pVg
 int32_t tscGetTableMeta(SSqlObj *pSql, STableMetaInfo *pTableMetaInfo) {
   assert(tIsValidName(&pTableMetaInfo->name));
 
-  tfree(pTableMetaInfo->pTableMeta);
-
   uint32_t size = tscGetTableMetaMaxSize();
-  pTableMetaInfo->pTableMeta = calloc(1, size);
+  if (pTableMetaInfo->pTableMeta == NULL) {
+    pTableMetaInfo->pTableMeta    = calloc(1, size);
+    pTableMetaInfo->tableMetaSize = size;
+  } else if (pTableMetaInfo->tableMetaSize < size) {
+    char *tmp = realloc(pTableMetaInfo->pTableMeta, size);
+    if (tmp == NULL) {
+      return TSDB_CODE_TSC_OUT_OF_MEMORY;
+    }
+    pTableMetaInfo->pTableMeta = (STableMeta *)tmp;
+    memset(pTableMetaInfo->pTableMeta, 0, size);
+    pTableMetaInfo->tableMetaSize = size;
+  } else {
+    //uint32_t s = tscGetTableMetaSize(pTableMetaInfo->pTableMeta);
+    memset(pTableMetaInfo->pTableMeta, 0, size);
+    pTableMetaInfo->tableMetaSize = size;
+  }
 
   pTableMetaInfo->pTableMeta->tableType = -1;
   pTableMetaInfo->pTableMeta->tableInfo.numOfColumns  = -1;
@@ -2518,10 +2531,13 @@ int32_t tscGetTableMeta(SSqlObj *pSql, STableMetaInfo *pTableMetaInfo) {
   taosHashGetClone(tscTableMetaInfo, name, len, NULL, pTableMetaInfo->pTableMeta, -1);
 
   // TODO resize the tableMeta
+  char buf[80*1024] = {0};
+  assert(size < 80*1024);
+
   STableMeta* pMeta = pTableMetaInfo->pTableMeta;
   if (pMeta->id.uid > 0) {
     if (pMeta->tableType == TSDB_CHILD_TABLE) {
-      int32_t code = tscCreateTableMetaFromCChildMeta(pTableMetaInfo->pTableMeta, name);
+      int32_t code = tscCreateTableMetaFromCChildMeta(pTableMetaInfo->pTableMeta, name, buf);
       if (code != TSDB_CODE_SUCCESS) {
         return getTableMetaFromMnode(pSql, pTableMetaInfo);
       }
@@ -2600,7 +2616,7 @@ int tscGetSTableVgroupInfo(SSqlObj *pSql, SQueryInfo* pQueryInfo) {
     tscFreeSqlObj(pNew);
     return code;
   }
-  
+
   for (int32_t i = 0; i < pQueryInfo->numOfTables; ++i) {
     STableMetaInfo *pMInfo = tscGetMetaInfo(pQueryInfo, i);
     STableMeta* pTableMeta = tscTableMetaDup(pMInfo->pTableMeta);
@@ -2698,6 +2714,7 @@ void tscInitMsgsFp() {
   tscProcessMsgRsp[TSDB_SQL_ALTER_DB] = tscProcessAlterDbMsgRsp;
 
   tscProcessMsgRsp[TSDB_SQL_SHOW_CREATE_TABLE] = tscProcessShowCreateRsp;
+  tscProcessMsgRsp[TSDB_SQL_SHOW_CREATE_STABLE] = tscProcessShowCreateRsp;
   tscProcessMsgRsp[TSDB_SQL_SHOW_CREATE_DATABASE] = tscProcessShowCreateRsp;
 
   tscKeepConn[TSDB_SQL_SHOW] = 1;

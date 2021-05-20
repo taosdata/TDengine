@@ -295,7 +295,7 @@ void *rpcOpen(const SRpcInit *pInit) {
       return NULL;
     }
   } else {
-    pRpc->pCache = rpcOpenConnCache(pRpc->sessions, rpcCloseConn, pRpc->tmrCtrl, pRpc->idleTime * 30); 
+    pRpc->pCache = rpcOpenConnCache(pRpc->sessions, rpcCloseConn, pRpc->tmrCtrl, pRpc->idleTime * 20); 
     if ( pRpc->pCache == NULL ) {
       tError("%s failed to init connection cache", pRpc->label);
       rpcClose(pRpc);
@@ -399,7 +399,7 @@ void rpcSendRequest(void *shandle, const SRpcEpSet *pEpSet, SRpcMsg *pMsg, int64
   pContext->oldInUse = pEpSet->inUse;
 
   pContext->connType = RPC_CONN_UDPC; 
-  if (contLen > tsRpcMaxUdpSize) pContext->connType = RPC_CONN_TCPC;
+  if (contLen > tsRpcMaxUdpSize || tsRpcForceTcp ) pContext->connType = RPC_CONN_TCPC;
 
   // connection type is application specific. 
   // for TDengine, all the query, show commands shall have TCP connection
@@ -409,7 +409,7 @@ void rpcSendRequest(void *shandle, const SRpcEpSet *pEpSet, SRpcMsg *pMsg, int64
     || type == TSDB_MSG_TYPE_CM_TABLES_META || type == TSDB_MSG_TYPE_CM_TABLE_META
     || type == TSDB_MSG_TYPE_CM_SHOW || type == TSDB_MSG_TYPE_DM_STATUS)
     pContext->connType = RPC_CONN_TCPC;
-  
+
   pContext->rid = taosAddRef(tsRpcRefId, pContext);
   if (pRid) *pRid = pContext->rid;
 
@@ -1471,7 +1471,7 @@ static int32_t rpcCompressRpcMsg(char* pCont, int32_t contLen) {
    * only the compressed size is less than the value of contLen - overhead, the compression is applied
    * The first four bytes is set to 0, the second four bytes are utilized to keep the original length of message
    */
-  if (compLen < contLen - overhead) {
+  if (compLen > 0 && compLen < contLen - overhead) {
     SRpcComp *pComp = (SRpcComp *)pCont;
     pComp->reserved = 0; 
     pComp->contLen = htonl(contLen); 

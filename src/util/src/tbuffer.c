@@ -14,12 +14,9 @@
  */
 
 #include "os.h"
-#include <stdlib.h>
-#include <memory.h>
-#include <assert.h>
 #include "tbuffer.h"
 #include "exception.h"
-#include <taoserror.h>
+#include "taoserror.h"
 
 ////////////////////////////////////////////////////////////////////////////////
 // reader functions

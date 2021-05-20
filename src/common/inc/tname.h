@@ -18,7 +18,7 @@
 
 #include "os.h"
 #include "taosmsg.h"
-#include "tstoken.h"
+#include "ttoken.h"
 #include "tvariant.h"
 
 typedef struct SDataStatis {

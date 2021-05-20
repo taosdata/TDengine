@@ -326,6 +326,7 @@ TAOS_ROW tscFetchRow(void *param) {
        pCmd->command == TSDB_SQL_FETCH ||
        pCmd->command == TSDB_SQL_SHOW ||
        pCmd->command == TSDB_SQL_SHOW_CREATE_TABLE ||
+       pCmd->command == TSDB_SQL_SHOW_CREATE_STABLE ||
        pCmd->command == TSDB_SQL_SHOW_CREATE_DATABASE ||
        pCmd->command == TSDB_SQL_SELECT ||
        pCmd->command == TSDB_SQL_DESCRIBE_TABLE ||
@@ -679,6 +680,9 @@ static int32_t tscProcessShowCreateTable(SSqlObj *pSql) {
   assert(pTableMetaInfo->pTableMeta != NULL);
 
   const char* tableName = tNameGetTableName(&pTableMetaInfo->name);
+  if (pSql->cmd.command == TSDB_SQL_SHOW_CREATE_STABLE && !UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo))  {
+    return TSDB_CODE_TSC_INVALID_VALUE;
+  }
 
   char *result = (char *)calloc(1, TSDB_MAX_BINARY_LEN);
   int32_t code = TSDB_CODE_SUCCESS;
@@ -709,13 +713,12 @@ static int32_t tscProcessShowCreateDatabase(SSqlObj *pSql) {
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
   }  
 
-  SCreateBuilder *param = (SCreateBuilder *)malloc(sizeof(SCreateBuilder));    
+  SCreateBuilder *param = (SCreateBuilder *)calloc(1, sizeof(SCreateBuilder));    
   if (param == NULL) {
     free(pInterSql);
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
   }
-
-  strncpy(param->buf, tNameGetTableName(&pTableMetaInfo->name), TSDB_TABLE_NAME_LEN);
+  tNameGetDbName(&pTableMetaInfo->name, param->buf);
 
   param->pParentSql = pSql;
   param->pInterSql  = pInterSql;
@@ -907,7 +910,7 @@ int tscProcessLocalCmd(SSqlObj *pSql) {
      */
     pRes->qId = 0x1;
     pRes->numOfRows = 0;
-  } else if (pCmd->command == TSDB_SQL_SHOW_CREATE_TABLE) {
+  } else if (pCmd->command == TSDB_SQL_SHOW_CREATE_TABLE || pCmd->command == TSDB_SQL_SHOW_CREATE_STABLE) {
     pRes->code = tscProcessShowCreateTable(pSql); 
   } else if (pCmd->command == TSDB_SQL_SHOW_CREATE_DATABASE) {
     pRes->code = tscProcessShowCreateDatabase(pSql); 

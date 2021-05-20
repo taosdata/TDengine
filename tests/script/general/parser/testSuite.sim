@@ -1,14 +1,14 @@
-run general/parser/alter.sim
-run general/parser/alter1.sim
-run general/parser/alter_stable.sim
-run general/parser/auto_create_tb.sim
-run general/parser/auto_create_tb_drop_tb.sim
-run general/parser/col_arithmetic_operation.sim
-run general/parser/columnValue.sim
-run general/parser/commit.sim
-run general/parser/create_db.sim
-run general/parser/create_mt.sim
-run general/parser/create_tb.sim
+#run general/parser/alter.sim
+#run general/parser/alter1.sim
+#run general/parser/alter_stable.sim
+#run general/parser/auto_create_tb.sim
+#run general/parser/auto_create_tb_drop_tb.sim
+#run general/parser/col_arithmetic_operation.sim
+#run general/parser/columnValue.sim
+#run general/parser/commit.sim
+#run general/parser/create_db.sim
+#run general/parser/create_mt.sim
+#run general/parser/create_tb.sim
 run general/parser/dbtbnameValidate.sim
 run general/parser/fill.sim
 run general/parser/fill_stb.sim
@@ -56,4 +56,6 @@ run general/parser/function.sim
 run general/parser/stableOp.sim
 run general/parser/having.sim
 run general/parser/having_child.sim
+run general/parser/slimit_alter_tags.sim
 run general/parser/binary_escapeCharacter.sim
+

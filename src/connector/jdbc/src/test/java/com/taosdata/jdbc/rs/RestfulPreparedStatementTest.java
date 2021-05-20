@@ -6,7 +6,6 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import java.io.IOException;
-import java.io.Serializable;
 import java.sql.*;
 
 public class RestfulPreparedStatementTest {
@@ -370,7 +369,6 @@ public class RestfulPreparedStatementTest {
     public void setSQLXML() throws SQLException {
         pstmt_insert.setSQLXML(1, null);
     }
-
 
     @BeforeClass
     public static void beforeClass() {

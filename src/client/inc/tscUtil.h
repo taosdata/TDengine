@@ -20,7 +20,7 @@
 extern "C" {
 #endif
 
-#include <tsched.h>
+#include "tsched.h"
 #include "exception.h"
 #include "os.h"
 #include "qExtbuffer.h"
@@ -170,8 +170,11 @@ void tscFieldInfoCopy(SFieldInfo* pFieldInfo, const SFieldInfo* pSrc, const SArr
 
 static FORCE_INLINE int32_t tscNumOfFields(SQueryInfo* pQueryInfo) { return pQueryInfo->fieldsInfo.numOfOutput; }
 
-int32_t tscFieldInfoCompare(const SFieldInfo* pFieldInfo1, const SFieldInfo* pFieldInfo2);
+int32_t tscFieldInfoCompare(const SFieldInfo* pFieldInfo1, const SFieldInfo* pFieldInfo2, int32_t *diffSize);
 void tscInsertPrimaryTsSourceColumn(SQueryInfo* pQueryInfo, uint64_t uid);
+
+int32_t tscFieldInfoSetSize(const SFieldInfo* pFieldInfo1, const SFieldInfo* pFieldInfo2);
+void addExprParams(SSqlExpr* pExpr, char* argument, int32_t type, int32_t bytes);
 
 int32_t   tscGetResRowLength(SArray* pExprList);
 
@@ -316,7 +319,7 @@ STableMeta* createSuperTableMeta(STableMetaMsg* pChild);
 uint32_t tscGetTableMetaSize(STableMeta* pTableMeta);
 CChildTableMeta* tscCreateChildMeta(STableMeta* pTableMeta);
 uint32_t tscGetTableMetaMaxSize();
-int32_t tscCreateTableMetaFromCChildMeta(STableMeta* pChild, const char* name);
+int32_t tscCreateTableMetaFromCChildMeta(STableMeta* pChild, const char* name, void* buf);
 STableMeta* tscTableMetaDup(STableMeta* pTableMeta);
 int32_t tscCreateQueryFromQueryInfo(SQueryInfo* pQueryInfo, SQueryAttr* pQueryAttr, void* addr);
 

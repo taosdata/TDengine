@@ -18,8 +18,8 @@
 #define CHK_TEST(statement)                       \
 do {                                              \
   D("testing: %s", #statement);                   \
-  int r = (statement);                            \
-  if (r) {                                        \
+  int _r = (statement);                            \
+  if (_r) {                                        \
     D("testing failed: %s", #statement);          \
     return 1;                                     \
   }                                               \
@@ -181,7 +181,7 @@ static int do_statement(SQLHSTMT stmt, const char *statement) {
     r = traverse_cols(stmt, cols);
     char buf[4096];
     while (1) {
-      SQLRETURN r = SQLFetch(stmt);
+      r = SQLFetch(stmt);
       if (r==SQL_NO_DATA) break;
       CHK_RESULT(r, SQL_HANDLE_STMT, stmt, "");
       for (size_t i=0; i<cols; ++i) {

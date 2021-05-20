@@ -28,7 +28,7 @@
 #include <stdbool.h>
 #include "qSqlparser.h"
 #include "tcmdtype.h"
-#include "tstoken.h"
+#include "ttoken.h"
 #include "ttokendef.h"
 #include "tutil.h"
 #include "tvariant.h"
@@ -93,6 +93,10 @@ cpxName(A) ::= DOT ids(Y).   {A = Y; A.n += 1;    }
 cmd ::= SHOW CREATE TABLE ids(X) cpxName(Y).    {
    X.n += Y.n;
    setDCLSqlElems(pInfo, TSDB_SQL_SHOW_CREATE_TABLE, 1, &X);
+}    
+cmd ::= SHOW CREATE STABLE ids(X) cpxName(Y).    {
+   X.n += Y.n;
+   setDCLSqlElems(pInfo, TSDB_SQL_SHOW_CREATE_STABLE, 1, &X);
 }    
 
 cmd ::= SHOW CREATE DATABASE ids(X). {

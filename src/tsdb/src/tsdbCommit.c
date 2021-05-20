@@ -958,11 +958,11 @@ static int tsdbWriteBlockInfo(SCommitH *pCommih) {
 }
 
 static int tsdbWriteBlockIdx(SCommitH *pCommih) {
-  SBlockIdx *pBlkIdx;
+  SBlockIdx *pBlkIdx = NULL;
   SDFile *   pHeadf = TSDB_COMMIT_HEAD_FILE(pCommih);
   size_t     nidx = taosArrayGetSize(pCommih->aBlkIdx);
-  int        tlen = 0, size;
-  int64_t    offset;
+  int        tlen = 0, size = 0;
+  int64_t    offset = 0;
 
   if (nidx <= 0) {
     // All data are deleted

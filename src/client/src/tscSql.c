@@ -461,6 +461,7 @@ static bool needToFetchNewBlock(SSqlObj* pSql) {
           pCmd->command == TSDB_SQL_FETCH ||
           pCmd->command == TSDB_SQL_SHOW ||
           pCmd->command == TSDB_SQL_SHOW_CREATE_TABLE ||
+          pCmd->command == TSDB_SQL_SHOW_CREATE_STABLE ||
           pCmd->command == TSDB_SQL_SHOW_CREATE_DATABASE ||
           pCmd->command == TSDB_SQL_SELECT ||
           pCmd->command == TSDB_SQL_DESCRIBE_TABLE ||
