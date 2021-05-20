@@ -742,7 +742,7 @@ static int restoreLastColumns(STsdbRepo *pRepo, STable *pTable, SReadH* pReadh) 
         pDataCol = pReadh->pDCols[0]->cols + 0;
         pCol = schemaColAt(pSchema, 0);
         tdAppendColVal(row, tdGetColDataOfRow(pDataCol, rowId), pCol->type, pCol->bytes, pCol->offset);
-        pLastCol->ts = dataRowTKey(row);        
+        pLastCol->ts = dataRowKey(row);
 
         pTable->maxColumnNum += 1;
 

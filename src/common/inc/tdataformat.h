@@ -234,7 +234,7 @@ typedef struct SDataCol {
   int             len;        // column data length
   VarDataOffsetT *dataOff;    // For binary and nchar data, the offset in the data column
   void *          pData;      // Actual data pointer
-  TKEY            ts;         // only used in last NULL column
+  TSKEY           ts;         // only used in last NULL column
 } SDataCol;
 
 static FORCE_INLINE void dataColReset(SDataCol *pDataCol) { pDataCol->len = 0; }
