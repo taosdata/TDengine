@@ -3545,12 +3545,13 @@ int32_t tscCreateQueryFromQueryInfo(SQueryInfo* pQueryInfo, SQueryAttr* pQueryAt
   pQueryAttr->simpleAgg         = isSimpleAggregate(pQueryInfo);
   pQueryAttr->needReverseScan   = tscNeedReverseScan(pQueryInfo);
   pQueryAttr->stableQuery       = QUERY_IS_STABLE_QUERY(pQueryInfo->type);
-  pQueryAttr->groupbyColumn     = tscGroupbyColumn(pQueryInfo);
+  pQueryAttr->groupbyColumn     = (!pQueryInfo->stateWindow) && tscGroupbyColumn(pQueryInfo);
   pQueryAttr->queryBlockDist    = isBlockDistQuery(pQueryInfo);
   pQueryAttr->pointInterpQuery  = tscIsPointInterpQuery(pQueryInfo);
   pQueryAttr->timeWindowInterpo = timeWindowInterpoRequired(pQueryInfo);
   pQueryAttr->distinctTag       = pQueryInfo->distinctTag;
-  pQueryAttr->windowState       = pQueryInfo->windowState;
+  pQueryAttr->sw                = pQueryInfo->sessionWindow;
+  pQueryAttr->stateWindow       = pQueryInfo->stateWindow;
 
   pQueryAttr->numOfCols         = numOfCols;
   pQueryAttr->numOfOutput       = numOfOutput;
@@ -3558,8 +3559,8 @@ int32_t tscCreateQueryFromQueryInfo(SQueryInfo* pQueryInfo, SQueryAttr* pQueryAt
   pQueryAttr->slimit            = pQueryInfo->slimit;
   pQueryAttr->order             = pQueryInfo->order;
   pQueryAttr->fillType          = pQueryInfo->fillType;
-  pQueryAttr->groupbyColumn     = tscGroupbyColumn(pQueryInfo);
   pQueryAttr->havingNum         = pQueryInfo->havingFieldNum;
+  
 
   if (pQueryInfo->order.order == TSDB_ORDER_ASC) {   // TODO refactor
     pQueryAttr->window = pQueryInfo->window;

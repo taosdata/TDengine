@@ -196,7 +196,7 @@ typedef struct SQueryAttr {
   bool             pointInterpQuery; // point interpolation query
   bool             needReverseScan;  // need reverse scan
   bool             distinctTag;      // distinct tag query
-  bool             windowState;       // window State on sub/normal table
+  bool             stateWindow;       // window State on sub/normal table
   int32_t          interBufSize;     // intermediate buffer sizse
 
   int32_t          havingNum;        // having expr number
