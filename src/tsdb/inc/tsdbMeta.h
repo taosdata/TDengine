@@ -38,10 +38,14 @@ typedef struct STable {
   SRWLatch       latch;  // TODO: implementa latch functions
 
   SDataCol      *lastCols;
-  int32_t        lastColNum;
-  int32_t        restoreColumnNum;
+  int16_t        lastColNum;
+  int16_t        maxColumnNum;
+  int            lastColSVersion;
   T_REF_DECLARE()
 } STable;
+
+#define TSDB_LATEST_COLUMN_ARRAY_SIZE     20
+#define TSDB_LATEST_COLUMN_ARRAY_ADD_SIZE 5
 
 typedef struct {
   pthread_rwlock_t rwLock;
@@ -82,6 +86,9 @@ void       tsdbUnRefTable(STable* pTable);
 void       tsdbUpdateTableSchema(STsdbRepo* pRepo, STable* pTable, STSchema* pSchema, bool insertAct);
 int        tsdbRestoreTable(STsdbRepo* pRepo, void* cont, int contLen);
 void       tsdbOrgMeta(STsdbRepo* pRepo);
+int        tsdbInitColIdCacheWithSchema(STable* pTable, STSchema* pSchema);
+int16_t    tsdbGetLastColumnsIndexByColId(STable* pTable, int16_t colId);
+int        tsdbUpdateLastColSchema(STable *pTable, STSchema *pNewSchema);
 
 static FORCE_INLINE int tsdbCompareSchemaVersion(const void *key1, const void *key2) {
   if (*(int16_t *)key1 < schemaVersion(*(STSchema **)key2)) {

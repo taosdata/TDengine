@@ -617,17 +617,26 @@ static void tsdbStopStream(STsdbRepo *pRepo) {
 }
 
 static int restoreLastColumns(STsdbRepo *pRepo, STable *pTable, SReadH* pReadh) {
+  if (pTable->numOfSchemas == 0) {
+    return 0;
+  }
   SBlock* pBlock;
   int numColumns;
   int32_t blockIdx;
   SDataStatis* pBlockStatis = NULL;
   SDataRow row = NULL;
-  STSchema *pSchema = tsdbGetTableSchema(pTable);
+  // restore last column data with last schema
+  STSchema *pSchema = pTable->schema[pTable->numOfSchemas - 1];
   int err = 0;
 
   numColumns = schemaNCols(pSchema);
-  if (numColumns <= pTable->restoreColumnNum) {
+  if (numColumns <= pTable->maxColumnNum) {
     return 0;
+  }
+  if (pTable->lastColSVersion != schemaVersion(pSchema)) {
+    if (tsdbInitColIdCacheWithSchema(pTable, pSchema) < 0) {
+      return -1;
+    }
   }
 
   row = taosTMalloc(dataRowMaxBytesFromSchema(pSchema));
@@ -660,7 +669,7 @@ static int restoreLastColumns(STsdbRepo *pRepo, STable *pTable, SReadH* pReadh) 
   SBlockIdx *pIdx = pReadh->pBlkIdx;
   blockIdx = (int32_t)(pIdx->numOfBlocks - 1);
 
-  while (numColumns > pTable->restoreColumnNum && blockIdx >= 0) {
+  while (numColumns > pTable->maxColumnNum && blockIdx >= 0) {
     bool loadStatisData = false;
     pBlock = pReadh->pBlkInfo->blocks + blockIdx;
     blockIdx -= 1;
@@ -678,18 +687,8 @@ static int restoreLastColumns(STsdbRepo *pRepo, STable *pTable, SReadH* pReadh) 
       loadStatisData = true;
     }
 
-    for (uint32_t i = 0; i < numColumns && numColumns > pTable->restoreColumnNum; ++i) {
+    for (int16_t i = 0; i < numColumns && numColumns > pTable->maxColumnNum; ++i) {
       STColumn *pCol = schemaColAt(pSchema, i);
-
-      if (i >= pTable->lastColNum) {
-        pTable->lastCols = realloc(pTable->lastCols, i + 5);
-        for (int m = 0; m < 5; ++m) {
-          pTable->lastCols[m + pTable->lastColNum].bytes = 0;
-          pTable->lastCols[m + pTable->lastColNum].pData = NULL;
-        }
-        pTable->lastColNum += i + 5;
-      }
-
       // ignore loaded columns
       if (pTable->lastCols[i].bytes != 0) {
         continue;
@@ -710,11 +709,15 @@ static int restoreLastColumns(STsdbRepo *pRepo, STable *pTable, SReadH* pReadh) 
           continue;
         }
 
+        int16_t idx = tsdbGetLastColumnsIndexByColId(pTable, pCol->colId);
+        if (idx == -1) {
+          tsdbError("restoreLastColumns restore vgId:%d,table:%s cache column %d fail", REPO_ID(pRepo), pTable->name->data, pCol->colId);
+          continue;
+        }
         // save not-null column
-        SDataCol *pLastCol = &(pTable->lastCols[i]);
+        SDataCol *pLastCol = &(pTable->lastCols[idx]);
         pLastCol->pData = malloc(pCol->bytes);
         pLastCol->bytes = pCol->bytes;
-        pLastCol->offset = pCol->offset;
         pLastCol->colId = pCol->colId;
         memcpy(pLastCol->pData, value, pCol->bytes);
 
@@ -722,11 +725,11 @@ static int restoreLastColumns(STsdbRepo *pRepo, STable *pTable, SReadH* pReadh) 
         pDataCol = pReadh->pDCols[0]->cols + 0;
         pCol = schemaColAt(pSchema, 0);
         tdAppendColVal(row, tdGetColDataOfRow(pDataCol, rowId), pCol->type, pCol->bytes, pCol->offset);
-        pLastCol->ts = dataRowTKey(row);
+        pLastCol->ts = dataRowTKey(row);        
 
-        pTable->restoreColumnNum += 1;
+        pTable->maxColumnNum += 1;
 
-        tsdbInfo("restoreLastColumns restore vgId:%d,table:%s cache column %d, %d", REPO_ID(pRepo), pTable->name->data, pCol->colId, (int32_t)pLastCol->ts);
+        tsdbInfo("restoreLastColumns restore vgId:%d,table:%s cache column %d, %" PRId64, REPO_ID(pRepo), pTable->name->data, pLastCol->colId, pLastCol->ts);
         break;
       }
     }
@@ -757,7 +760,7 @@ int tsdbRestoreInfo(STsdbRepo *pRepo) {
     for (int i = 1; i < pMeta->maxTables; i++) {
       STable *pTable = pMeta->tables[i];
       if (pTable == NULL) continue;
-      pTable->restoreColumnNum = 0;  
+      pTable->maxColumnNum = 0;  
     }
   }
 
@@ -822,7 +825,7 @@ int tsdbRestoreInfo(STsdbRepo *pRepo) {
       }
       
       // restore NULL columns
-      if (CACHE_LAST_NULL_COLUMN(pCfg)) {
+      if (pIdx && CACHE_LAST_NULL_COLUMN(pCfg)) {
         if (restoreLastColumns(pRepo, pTable, &readh) != 0) {
           tsdbDestroyReadH(&readh);
           return -1;
