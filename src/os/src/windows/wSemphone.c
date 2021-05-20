@@ -50,7 +50,10 @@ int32_t taosGetCurrentAPPName(char *name, int32_t* len) {
   char filepath[1024] = {0};
 
   GetModuleFileName(NULL, filepath, MAX_PATH);
-  *strrchr(filepath,'.') = '\0';
+  char* sub=strrchr(filepath,'.');
+  if(sub!=NULL){
+    sub='\0';
+  }
   strcpy(name, filepath);
 
   if (len != NULL) {
