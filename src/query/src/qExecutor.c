@@ -5118,28 +5118,6 @@ static void doStateWindowAggImpl(SOperatorInfo* pOperator, SStateWindowOperatorI
       pInfo->start = j;
        
     }
-    // Compare with the previous row of this column, and do not set the output buffer again if they are identical.
-    //if (pInfo->prevData == NULL || (memcmp(pInfo->prevData, val, bytes) != 0)) {
-    //  if (pInfo->prevData == NULL) {
-    //    pInfo->prevData = malloc(bytes);
-    //  }
-    //  pInfo->curWindow.skey = tsList[j];
-    //  pInfo->curWindow.ekey = tsList[j];
-
-    //  memcpy(pInfo->prevData, val, bytes);
-    //  int32_t ret =
-    //      setGroupResultOutputBuf(pRuntimeEnv, &(pInfo->binfo), pOperator->numOfOutput, (char *)&v, type, bytes, item->groupIndex);
-    //  if (ret != TSDB_CODE_SUCCESS) {  // null data, too many state code
-    //    longjmp(pRuntimeEnv->env, TSDB_CODE_QRY_APP_ERROR);
-    //  }
-    //}
-    //for (int32_t k = 0; k < pOperator->numOfOutput; ++k) {
-    //  pInfo->binfo.pCtx[k].size = 1;
-    //  int32_t functionId = pInfo->binfo.pCtx[k].functionId;
-    //  if (functionNeedToExecute(pRuntimeEnv, &pInfo->binfo.pCtx[k], functionId)) {
-    //    aAggs[functionId].xFunctionF(&pInfo->binfo.pCtx[k], j);
-    //  }
-    //}
   }
   SResultRow* pResult = NULL;
 
