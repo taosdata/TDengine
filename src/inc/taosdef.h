@@ -33,6 +33,8 @@ extern "C" {
 #endif
 
 #define TSWINDOW_INITIALIZER ((STimeWindow) {INT64_MIN, INT64_MAX})
+#define TSWINDOW_DESC_INITIALIZER ((STimeWindow) {INT64_MAX, INT64_MIN})
+
 #define TSKEY_INITIAL_VAL    INT64_MIN
 
 // Bytes for each type.
