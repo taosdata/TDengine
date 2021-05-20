@@ -224,6 +224,9 @@ class TDTestCase:
         os.system("%staosdemo -f tools/taosdemoAllTest/insertMaxNumPerReq.json -y " % binPath)   
         tdSql.execute("use db") 
         tdSql.query("select count(*) from stb0")
+        tdSql.checkData(0, 0, 5000000)
+        tdSql.query("select count(*) from stb0")
+        tdSql.checkData(0, 0, 5000000)
 
 
 

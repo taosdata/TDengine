@@ -111,9 +111,30 @@ class TDTestCase:
         # os.system("rm -rf ./subscribe_res*")   
         # os.system("rm -rf ./all_subscribe*")
   
-        # query times less than or equal to 100
+        # sql number lager  100
         os.system("%staosdemo -f tools/taosdemoAllTest/subInsertdataMaxsql100.json" % binPath)
-        os.system("%staosdemo -f tools/taosdemoAllTest/subSyncMaxsql100.json" % binPath)
+        # assert os.system("%staosdemo -f tools/taosdemoAllTest/subSyncSpecMaxsql100.json" % binPath) !=0
+        os.system("%staosdemo -f tools/taosdemoAllTest/subSyncSuperMaxsql100.json" % binPath)
+
+        # # # merge result files
+        # os.system("cat subscribe_res0.txt* > all_subscribe_res0.txt")
+        # os.system("cat subscribe_res1.txt* > all_subscribe_res1.txt")
+        # os.system("cat subscribe_res2.txt* > all_subscribe_res2.txt")
+        # # os.system("cat subscribe_res3.txt* > all_subscribe_res3.txt")
+
+        # sleep(3)
+
+        # # correct subscribeTimes testcase
+        # subTimes0 = self.subTimes("all_subscribe_res0.txt")
+        # self.assertCheck("all_subscribe_res0.txt",subTimes0 ,3960)
+
+        # subTimes1 = self.subTimes("all_subscribe_res1.txt")
+        # self.assertCheck("all_subscribe_res1.txt",subTimes1 ,40)
+
+        # subTimes2 = self.subTimes("all_subscribe_res2.txt")
+        # self.assertCheck("all_subscribe_res2.txt",subTimes2 ,1900)
+
+
         # os.system("%staosdemo -f tools/taosdemoAllTest/subSupermaxsql100.json" % binPath)
         # os.system("%staosdemo -f tools/taosdemoAllTest/subSupermaxsql100.json" % binPath)
 
