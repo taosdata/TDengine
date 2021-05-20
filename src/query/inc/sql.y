@@ -554,7 +554,7 @@ session_option(X) ::= SESSION LP ids(V) cpxName(Z) COMMA tmvar(Y) RP.    {
 }
 %type windowstate_option {SWindowStateVal}
 windowstate_option(X) ::= .                                                  {X.col.n = 0;}
-windowstate_option(X) ::= WINDOW_STATE LP ids(V) RP.                       {
+windowstate_option(X) ::= STATE_WINDOW LP ids(V) RP.                       {
    X.col = V;
 }  
 
