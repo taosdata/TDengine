@@ -92,6 +92,7 @@ void    sdbUpdateMnodeRoles();
 int32_t sdbGetReplicaNum();
 
 int32_t sdbInsertRow(SSdbRow *pRow);
+int32_t sdbInsertCompactRow(SSdbRow *pRow);
 int32_t sdbDeleteRow(SSdbRow *pRow);
 int32_t sdbUpdateRow(SSdbRow *pRow);
 int32_t sdbInsertRowToQueue(SSdbRow *pRow);

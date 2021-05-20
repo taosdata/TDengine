@@ -57,11 +57,16 @@ static SStep tsMnodeSteps[] = {
   {"show",    mnodeInitShow,    mnodeCleanUpShow}
 };
 
-/*
 static SStep tsMnodeCompactSteps[] = {
-  {"cluster", mnodeInitCluster, NULL},
+  {"cluster", mnodeCompactCluster, NULL},
+  {"dnodes",  mnodeCompactDnodes,  NULL},
+  {"mnodes",  mnodeCompactMnodes,  NULL},
+  {"accts",   mnodeCompactAccts,  NULL},
+  {"users",   mnodeCompactUsers,  NULL},
+  {"dbs",     mnodeCompactDbs,     NULL},
+  {"vgroups", mnodeCompactVgroups, NULL},
+  {"tables",  mnodeCompactTables,  NULL}, 
 };
-*/
 
 static void mnodeInitTimer();
 static void mnodeCleanupTimer();
@@ -75,6 +80,11 @@ static void mnodeCleanupComponents() {
 static int32_t mnodeInitComponents() {
   int32_t stepSize = sizeof(tsMnodeSteps) / sizeof(SStep);
   return dnodeStepInit(tsMnodeSteps, stepSize);
+}
+
+int32_t mnodeCompactComponents() {
+  int32_t stepSize = sizeof(tsMnodeCompactSteps) / sizeof(SStep);
+  return dnodeStepInit(tsMnodeCompactSteps, stepSize);
 }
 
 int32_t mnodeStartSystem() {

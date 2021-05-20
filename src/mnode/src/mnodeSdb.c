@@ -732,6 +732,12 @@ static int32_t sdbProcessWrite(void *wparam, void *hparam, int32_t qtype, void *
   }
 }
 
+int32_t sdbInsertCompactRow(SSdbRow *pRow) {
+  SSdbTable *pTable = pRow->pTable;
+  if (pTable == NULL) return TSDB_CODE_MND_SDB_INVALID_TABLE_TYPE;
+  return sdbWriteRowToQueue(pRow, SDB_ACTION_INSERT);
+}
+
 int32_t sdbInsertRow(SSdbRow *pRow) {
   SSdbTable *pTable = pRow->pTable;
   if (pTable == NULL) return TSDB_CODE_MND_SDB_INVALID_TABLE_TYPE;
@@ -1147,6 +1153,27 @@ int32_t sdbGetReplicaNum() {
 
 int32_t mnodeCompactWal() {
   sdbInfo("vgId:1, start compact mnode wal...");
+
+  // close wal
+  walFsync(tsSdbMgmt.wal, true);
+  walClose(tsSdbMgmt.wal);
+
+  // change wal to wal_bak dir
+  char    temp[TSDB_FILENAME_LEN] = {0};
+  SWalCfg walCfg = {.vgId = 1, .walLevel = TAOS_WAL_FSYNC, .keep = TAOS_WAL_KEEP, .fsyncPeriod = 0};
+  sprintf(temp, "%s/wal_tmp", tsMnodeDir);
+  if (mkdir(temp, 0755) != 0 && errno != EEXIST) {
+    return -1;
+  }
+  tsSdbMgmt.wal = walOpen(temp, &walCfg);
+  walRenew(tsSdbMgmt.wal);
+
+  // compact memory tables info to wal tmp dir
+  mnodeCompactComponents();
+
+  // close wal
+  walFsync(tsSdbMgmt.wal, true);
+  walClose(tsSdbMgmt.wal);
 
   return 0;
 }

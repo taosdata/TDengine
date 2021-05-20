@@ -3242,3 +3242,65 @@ static int32_t mnodeRetrieveStreamTables(SShowObj *pShow, char *data, int32_t ro
 
   return numOfRows;
 }
+
+static int32_t mnodeCompactSuperTables() {
+  void *pIter = NULL;
+  SSTableObj *pTable = NULL;
+
+  mInfo("start to compact super table...");
+
+  while (1) {
+    pIter = mnodeGetNextSuperTable(pIter, &pTable);
+    if (pTable == NULL) break;
+
+    int32_t schemaSize = (pTable->numOfColumns + pTable->numOfTags) * sizeof(SSchema);
+    SSdbRow row = {
+      .type    = SDB_OPER_GLOBAL,
+      .pTable  = tsSuperTableSdb,
+      .pObj    = pTable,
+      .rowSize = sizeof(SSTableObj) + schemaSize,
+    };
+
+    mInfo("compact super %ld", pTable->uid);
+    
+    sdbInsertCompactRow(&row);
+  }
+
+  mInfo("end to compact super table...");
+
+  return 0; 
+}
+
+static int32_t mnodeCompactChildTables() {
+  void *pIter = NULL;
+  SCTableObj *pTable = NULL;
+
+  mInfo("start to compact child table...");
+
+  while (1) {
+    pIter = mnodeGetNextChildTable(pIter, &pTable);
+    if (pTable == NULL) break;
+
+    SSdbRow row = {
+      .type   = SDB_OPER_GLOBAL,
+      .pObj   = pTable,
+      .pTable = tsChildTableSdb,
+    };
+
+    mInfo("compact child %ld:%d", pTable->uid, pTable->tid);
+    
+    sdbInsertCompactRow(&row);
+  }
+
+  mInfo("end to compact child table...");
+
+  return 0; 
+}
+
+int32_t mnodeCompactTables() {
+  mnodeCompactSuperTables();
+
+  mnodeCompactChildTables();
+
+  return 0;
+}
