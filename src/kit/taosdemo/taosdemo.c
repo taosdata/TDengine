@@ -70,6 +70,8 @@ enum TEST_MODE {
 
 #define MAX_RECORDS_PER_REQ     32766
 
+#define HEAD_BUFF_LEN    1024*24  // 16*1024 + (192+32)*2 + insert into ..
+
 #define MAX_SQL_SIZE       65536
 #define BUFFER_SIZE        (65536*2)
 #define COND_BUF_LEN        BUFFER_SIZE - 30
@@ -4871,7 +4873,7 @@ static void getTableName(char *pTblName, threadInfo* pThreadInfo, uint64_t table
   }
 }
 
-static int64_t generateDataTailWithoutStable(
+static int64_t generateDataTailWithoutStb(
         uint64_t batch, char* buffer,
         int64_t remainderBufLen, int64_t insertRows,
         uint64_t startFrom, int64_t startTime,
@@ -4998,17 +5000,41 @@ static int64_t generateStbDataTail(
   return k;
 }
 
-static int generateSQLHead(char *tableName, int32_t tableSeq,
-        threadInfo* pThreadInfo, SSuperTable* superTblInfo,
+
+static int generateSQLHeadWithoutStb(char *tableName,
+        char *dbName,
         char *buffer, int remainderBufLen)
 {
   int len;
 
-#define HEAD_BUFF_LEN    1024*24  // 16*1024 + (192+32)*2 + insert into ..
   char headBuf[HEAD_BUFF_LEN];
 
-  if (superTblInfo) {
-    if (AUTO_CREATE_SUBTBL == superTblInfo->autoCreateTable) {
+  len = snprintf(
+          headBuf,
+          HEAD_BUFF_LEN,
+          "%s.%s values",
+          dbName,
+          tableName);
+
+  if (len > remainderBufLen)
+    return -1;
+
+  tstrncpy(buffer, headBuf, len + 1);
+
+  return len;
+}
+
+static int generateStbSQLHead(
+        SSuperTable* superTblInfo,
+        char *tableName, int32_t tableSeq,
+        char *dbName,
+        char *buffer, int remainderBufLen)
+{
+  int len;
+
+  char headBuf[HEAD_BUFF_LEN];
+
+  if (AUTO_CREATE_SUBTBL == superTblInfo->autoCreateTable) {
       char* tagsValBuf = NULL;
       if (0 == superTblInfo->tagSource) {
             tagsValBuf = generateTagVaulesForStb(superTblInfo, tableSeq);
@@ -5027,9 +5053,9 @@ static int generateSQLHead(char *tableName, int32_t tableSeq,
           headBuf,
                   HEAD_BUFF_LEN,
                   "%s.%s using %s.%s tags %s values",
-                  pThreadInfo->db_name,
+                  dbName,
                   tableName,
-                  pThreadInfo->db_name,
+                  dbName,
                   superTblInfo->sTblName,
                   tagsValBuf);
       tmfree(tagsValBuf);
@@ -5038,22 +5064,14 @@ static int generateSQLHead(char *tableName, int32_t tableSeq,
           headBuf,
                   HEAD_BUFF_LEN,
                   "%s.%s values",
-                  pThreadInfo->db_name,
+                  dbName,
                   tableName);
     } else {
       len = snprintf(
           headBuf,
                   HEAD_BUFF_LEN,
                   "%s.%s values",
-                  pThreadInfo->db_name,
-                  tableName);
-    }
-  } else {
-      len = snprintf(
-          headBuf,
-                  HEAD_BUFF_LEN,
-                  "%s.%s values",
-                  pThreadInfo->db_name,
+                  dbName,
                   tableName);
   }
 
@@ -5077,8 +5095,10 @@ static int64_t generateInterlaceDataBuffer(
   char *pstr = buffer;
   SSuperTable* superTblInfo = pThreadInfo->superTblInfo;
 
-  int headLen = generateSQLHead(tableName, tableSeq, pThreadInfo,
-            superTblInfo, pstr, *pRemainderBufLen);
+  int headLen = generateStbSQLHead(
+          superTblInfo,
+          tableName, tableSeq, pThreadInfo->db_name,
+            pstr, *pRemainderBufLen);
 
   if (headLen <= 0) {
     return 0;
@@ -5109,7 +5129,7 @@ static int64_t generateInterlaceDataBuffer(
             &(pThreadInfo->samplePos), &dataLen);
   } else {
     startTime = 1500000000000;
-    k = generateDataTailWithoutStable(
+    k = generateDataTailWithoutStb(
             batchPerTbl, pstr, *pRemainderBufLen, insertRows, 0,
             startTime,
             /* &(pThreadInfo->samplePos), */&dataLen);
@@ -5144,9 +5164,18 @@ static int64_t generateProgressiveDataBuffer(
 
   memset(buffer, 0, *pRemainderBufLen);
 
-  int64_t headLen = generateSQLHead(
-          tableName, tableSeq, pThreadInfo, superTblInfo,
+  int64_t headLen;
+
+  if (superTblInfo) {
+      headLen = generateStbSQLHead(
+              superTblInfo,
+          tableName, tableSeq, pThreadInfo->db_name,
           buffer, *pRemainderBufLen);
+  } else {
+      headLen = generateSQLHeadWithoutStb(
+          tableName, pThreadInfo->db_name,
+          buffer, *pRemainderBufLen);
+  }
 
   if (headLen <= 0) {
     return 0;
@@ -5164,7 +5193,7 @@ static int64_t generateProgressiveDataBuffer(
           startTime,
           pSamplePos, &dataLen);
   } else {
-    k = generateDataTailWithoutStable(
+    k = generateDataTailWithoutStb(
           g_args.num_of_RPR, pstr, *pRemainderBufLen, insertRows, startFrom,
           startTime,
           /*pSamplePos, */&dataLen);
