@@ -26,6 +26,7 @@ static STsdbRepo *tsdbNewRepo(STsdbCfg *pCfg, STsdbAppH *pAppH);
 static void       tsdbFreeRepo(STsdbRepo *pRepo);
 static void       tsdbStartStream(STsdbRepo *pRepo);
 static void       tsdbStopStream(STsdbRepo *pRepo);
+static int        tsdbRestoreLastColumns(STsdbRepo *pRepo, STable *pTable, SReadH* pReadh);
 
 // Function declaration
 int32_t tsdbCreateRepo(int repoid) {
@@ -616,24 +617,12 @@ static void tsdbStopStream(STsdbRepo *pRepo) {
   }
 }
 
-static STSchema* getTableLatestSchema(STable *pTable) {
-  if (pTable->numOfSchemas > 0) {
-    return pTable->schema[pTable->numOfSchemas - 1];
-  }
+static int tsdbRestoreLastColumns(STsdbRepo *pRepo, STable *pTable, SReadH* pReadh) {
+  //tsdbInfo("tsdbRestoreLastColumns of table %s", pTable->name->data);
 
-  if (pTable->type == TSDB_CHILD_TABLE) {
-    if (pTable->pSuper && pTable->pSuper->numOfSchemas) {
-      tsdbDebug("getTableLatestSchema of table %s from super table %s", pTable->name->data, pTable->pSuper->name->data);
-      return pTable->pSuper->schema[pTable->pSuper->numOfSchemas - 1];
-    }
-  }
-  return NULL;
-}
-
-static int restoreLastColumns(STsdbRepo *pRepo, STable *pTable, SReadH* pReadh) {
-  STSchema *pSchema = getTableLatestSchema(pTable);
+  STSchema *pSchema = tsdbGetTableLatestSchema(pTable);
   if (pSchema == NULL) {
-    tsdbError("getTableLatestSchema of table %s fail", pTable->name->data);
+    tsdbError("tsdbGetTableLatestSchema of table %s fail", pTable->name->data);
     return 0;
   }
 
@@ -728,7 +717,7 @@ static int restoreLastColumns(STsdbRepo *pRepo, STable *pTable, SReadH* pReadh) 
 
         int16_t idx = tsdbGetLastColumnsIndexByColId(pTable, pCol->colId);
         if (idx == -1) {
-          tsdbError("restoreLastColumns restore vgId:%d,table:%s cache column %d fail", REPO_ID(pRepo), pTable->name->data, pCol->colId);
+          tsdbError("tsdbRestoreLastColumns restore vgId:%d,table:%s cache column %d fail", REPO_ID(pRepo), pTable->name->data, pCol->colId);
           continue;
         }
         // save not-null column
@@ -746,7 +735,7 @@ static int restoreLastColumns(STsdbRepo *pRepo, STable *pTable, SReadH* pReadh) 
 
         pTable->maxColumnNum += 1;
 
-        tsdbInfo("restoreLastColumns restore vgId:%d,table:%s cache column %d, %" PRId64, REPO_ID(pRepo), pTable->name->data, pLastCol->colId, pLastCol->ts);
+        tsdbInfo("tsdbRestoreLastColumns restore vgId:%d,table:%s cache column %d, %" PRId64, REPO_ID(pRepo), pTable->name->data, pLastCol->colId, pLastCol->ts);
         break;
       }
     }
@@ -843,7 +832,7 @@ int tsdbRestoreInfo(STsdbRepo *pRepo) {
       
       // restore NULL columns
       if (pIdx && CACHE_LAST_NULL_COLUMN(pCfg)) {
-        if (restoreLastColumns(pRepo, pTable, &readh) != 0) {
+        if (tsdbRestoreLastColumns(pRepo, pTable, &readh) != 0) {
           tsdbDestroyReadH(&readh);
           return -1;
         }

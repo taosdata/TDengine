@@ -965,23 +965,15 @@ static void tsdbFreeRows(STsdbRepo *pRepo, void **rows, int rowCounter) {
 }
 
 static void updateTableLatestColumn(STsdbRepo *pRepo, STable *pTable, SDataRow row) {
-  //tsdbInfo("vgId:%d updateTableLatestColumn, row version:%d", REPO_ID(pRepo), dataRowVersion(row));
+  tsdbInfo("vgId:%d updateTableLatestColumn, %s row version:%d", REPO_ID(pRepo), pTable->name->data, dataRowVersion(row));
 
-  if (pTable->numOfSchemas <= 0) {
-    return;
-  }
-
-  STSchema* pSchema = pTable->schema[pTable->numOfSchemas - 1];
+  STSchema* pSchema = tsdbGetTableLatestSchema(pTable);
   if (tsdbUpdateLastColSchema(pTable, pSchema) < 0) {
     return;
   }
 
-  int16_t i = pTable->numOfSchemas - 1;
-  while ((pSchema == NULL || pSchema->version != dataRowVersion(row)) && i >= 0) {
-    i -= 1;
-    pSchema = pTable->schema[i];
-  }
-  if (pSchema == NULL || pSchema->version != dataRowVersion(row)) {
+  pSchema = tsdbGetTableSchemaByVersion(pTable, dataRowVersion(row));
+  if (pSchema == NULL) {
     return;
   }
 
