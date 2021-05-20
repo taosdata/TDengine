@@ -543,7 +543,7 @@ seed_net_open(SNETIO *io, const char *login, const char *url)
         io->curl = curl_easy_init();
         if (io->curl == NULL) {
             fprintf(stderr, "failed to initialize curl for login\r\n");
-            exit(1);
+            goto failed;
         }
 
         /* Set Login URL */
@@ -569,7 +569,7 @@ seed_net_open(SNETIO *io, const char *login, const char *url)
     io->curl = curl_easy_init();
     if (io->curl == NULL) {
         fprintf(stderr, "failed to initialize curl\r\n");
-        exit(1);
+        goto failed;
     }
 
     /* Set URL */
@@ -646,6 +646,7 @@ failed:
         }
 
         curl_easy_cleanup(io->curl);
+        io->curl = NULL;
     }
 
     return -1;
@@ -717,7 +718,7 @@ seed_net_read(SNETIO *io, void *buffer, size_t size)
 
         /* libcurl/system needs time to work, sleep 100 milliseconds */
         if (maxfd == -1) {
-            usleep(100000);
+            usleep(100);
             ret = 0;
         } else {
             ret = select(maxfd + 1, &fdread, &fdwrite, NULL, &timeout);
