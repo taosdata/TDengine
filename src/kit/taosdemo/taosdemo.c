@@ -61,6 +61,8 @@ extern char configDir[];
 #define QUERY_JSON_NAME       "query.json"
 #define SUBSCRIBE_JSON_NAME   "subscribe.json"
 
+#define STR_INSERT_INTO     "INSERT INTO "
+
 enum TEST_MODE {
     INSERT_TEST,            // 0
     QUERY_TEST,             // 1
@@ -5218,6 +5220,9 @@ static void* syncWriteInterlace(threadInfo *pThreadInfo) {
 
   int64_t insertRows;
   uint64_t interlaceRows;
+  uint64_t maxSqlLen;
+  int64_t nTimeStampStep;
+  uint64_t insert_interval;
 
   SSuperTable* superTblInfo = pThreadInfo->superTblInfo;
 
@@ -5230,58 +5235,27 @@ static void* syncWriteInterlace(threadInfo *pThreadInfo) {
     } else {
       interlaceRows = superTblInfo->interlaceRows;
     }
+    maxSqlLen = superTblInfo->maxSqlLen;
+    nTimeStampStep = superTblInfo->timeStampStep;
+    insert_interval = superTblInfo->insertInterval;
   } else {
     insertRows = g_args.num_of_DPT;
     interlaceRows = g_args.interlace_rows;
+    maxSqlLen = g_args.max_sql_len;
+    nTimeStampStep = DEFAULT_TIMESTAMP_STEP;
+    insert_interval = g_args.insert_interval;
   }
-
-  if (interlaceRows > insertRows)
-    interlaceRows = insertRows;
-
-  if (interlaceRows > g_args.num_of_RPR)
-    interlaceRows = g_args.num_of_RPR;
-
-  int progOrInterlace;
-
-  if (interlaceRows > 0) {
-    progOrInterlace= INTERLACE_INSERT_MODE;
-  } else {
-    progOrInterlace = PROGRESSIVE_INSERT_MODE;
-  }
-
-  uint64_t maxSqlLen = superTblInfo?superTblInfo->maxSqlLen:g_args.max_sql_len;
-  pThreadInfo->buffer = calloc(maxSqlLen, 1);
-  if (NULL == pThreadInfo->buffer) {
-    errorPrint( "%s() LN%d, Failed to alloc %"PRIu64" Bytes, reason:%s\n",
-              __func__, __LINE__, maxSqlLen, strerror(errno));
-    return NULL;
-  }
-
-  char tableName[TSDB_TABLE_NAME_LEN];
-
-  pThreadInfo->totalInsertRows = 0;
-  pThreadInfo->totalAffectedRows = 0;
-
-  int64_t nTimeStampStep =
-      superTblInfo?superTblInfo->timeStampStep:DEFAULT_TIMESTAMP_STEP;
-
-  uint64_t insert_interval =
-      superTblInfo?superTblInfo->insertInterval:g_args.insert_interval;
-  uint64_t st = 0;
-  uint64_t et = UINT64_MAX;
-
-  uint64_t lastPrintTime = taosGetTimestampMs();
-  uint64_t startTs = taosGetTimestampMs();
-  uint64_t endTs;
-
-  uint64_t tableSeq = pThreadInfo->start_table_from;
 
   debugPrint("[%d] %s() LN%d: start_table_from=%"PRIu64" ntables=%"PRId64" insertRows=%"PRIu64"\n",
           pThreadInfo->threadID, __func__, __LINE__,
           pThreadInfo->start_table_from,
           pThreadInfo->ntables, insertRows);
 
-  int64_t startTime = pThreadInfo->start_time;
+  if (interlaceRows > insertRows)
+    interlaceRows = insertRows;
+
+  if (interlaceRows > g_args.num_of_RPR)
+    interlaceRows = g_args.num_of_RPR;
 
   uint64_t batchPerTbl = interlaceRows;
   uint64_t batchPerTblTimes;
@@ -5293,12 +5267,29 @@ static void* syncWriteInterlace(threadInfo *pThreadInfo) {
     batchPerTblTimes = 1;
   }
 
+  pThreadInfo->buffer = calloc(maxSqlLen, 1);
+  if (NULL == pThreadInfo->buffer) {
+    errorPrint( "%s() LN%d, Failed to alloc %"PRIu64" Bytes, reason:%s\n",
+              __func__, __LINE__, maxSqlLen, strerror(errno));
+    return NULL;
+  }
+
+  pThreadInfo->totalInsertRows = 0;
+  pThreadInfo->totalAffectedRows = 0;
+
+  uint64_t st = 0;
+  uint64_t et = UINT64_MAX;
+
+  uint64_t lastPrintTime = taosGetTimestampMs();
+  uint64_t startTs = taosGetTimestampMs();
+  uint64_t endTs;
+
+  uint64_t tableSeq = pThreadInfo->start_table_from;
+  int64_t startTime = pThreadInfo->start_time;
+
   uint64_t generatedRecPerTbl = 0;
   bool flagSleep = true;
   uint64_t sleepTimeTotal = 0;
-
-  char *strInsertInto = "insert into ";
-  int nInsertBufLen = strlen(strInsertInto);
 
   while(pThreadInfo->totalInsertRows < pThreadInfo->ntables * insertRows) {
     if ((flagSleep) && (insert_interval)) {
@@ -5311,13 +5302,16 @@ static void* syncWriteInterlace(threadInfo *pThreadInfo) {
 
     char *pstr = pThreadInfo->buffer;
 
-    int len = snprintf(pstr, nInsertBufLen + 1, "%s", strInsertInto);
+    int len = snprintf(pstr,
+            strlen(STR_INSERT_INTO) + 1, "%s", STR_INSERT_INTO);
     pstr += len;
     remainderBufLen -= len;
 
     uint64_t recOfBatch = 0;
 
     for (uint64_t i = 0; i < batchPerTblTimes; i ++) {
+        char tableName[TSDB_TABLE_NAME_LEN];
+
       getTableName(tableName, pThreadInfo, tableSeq);
       if (0 == strlen(tableName)) {
         errorPrint("[%d] %s() LN%d, getTableName return null\n",
@@ -5354,8 +5348,7 @@ static void* syncWriteInterlace(threadInfo *pThreadInfo) {
                 pThreadInfo->threadID, __func__, __LINE__,
                 batchPerTbl, recOfBatch);
 
-      if (progOrInterlace == INTERLACE_INSERT_MODE) {
-          if (tableSeq == pThreadInfo->start_table_from + pThreadInfo->ntables) {
+      if (tableSeq == pThreadInfo->start_table_from + pThreadInfo->ntables) {
             // turn to first table
             tableSeq = pThreadInfo->start_table_from;
             generatedRecPerTbl += batchPerTbl;
@@ -5373,7 +5366,6 @@ static void* syncWriteInterlace(threadInfo *pThreadInfo) {
 
             if (pThreadInfo->ntables * batchPerTbl < g_args.num_of_RPR)
                 break;
-          }
       }
 
       verbosePrint("[%d] %s() LN%d generatedRecPerTbl=%"PRId64" insertRows=%"PRId64"\n",
@@ -5501,9 +5493,9 @@ static void* syncWriteProgressive(threadInfo *pThreadInfo) {
 
       int64_t remainderBufLen = maxSqlLen;
       char *pstr = pThreadInfo->buffer;
-      int nInsertBufLen = strlen("insert into ");
 
-      int len = snprintf(pstr, nInsertBufLen + 1, "%s", "insert into ");
+      int len = snprintf(pstr,
+              strlen(STR_INSERT_INTO) + 1, "%s", STR_INSERT_INTO);
 
       pstr += len;
       remainderBufLen -= len;
