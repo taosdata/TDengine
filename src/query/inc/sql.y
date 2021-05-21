@@ -674,6 +674,8 @@ expr(A) ::= PLUS(X) FLOAT(Y).    { X.n += Y.n; X.type = TK_FLOAT; A = tSqlExprCr
 expr(A) ::= STRING(X).           { A = tSqlExprCreateIdValue(&X, TK_STRING);}
 expr(A) ::= NOW(X).              { A = tSqlExprCreateIdValue(&X, TK_NOW); }
 expr(A) ::= VARIABLE(X).         { A = tSqlExprCreateIdValue(&X, TK_VARIABLE);}
+expr(A) ::= PLUS(X) VARIABLE(Y).   { X.n += Y.n; X.type = TK_VARIABLE; A = tSqlExprCreateIdValue(&X, TK_VARIABLE);}
+expr(A) ::= MINUS(X) VARIABLE(Y).  { X.n += Y.n; X.type = TK_VARIABLE; A = tSqlExprCreateIdValue(&X, TK_VARIABLE);}
 expr(A) ::= BOOL(X).             { A = tSqlExprCreateIdValue(&X, TK_BOOL);}
 expr(A) ::= NULL(X).             { A = tSqlExprCreateIdValue(&X, TK_NULL);}
 

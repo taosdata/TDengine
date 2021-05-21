@@ -14,14 +14,14 @@
  */
 #include "os.h"
 
-#include "tvariant.h"
 #include "hash.h"
 #include "taos.h"
 #include "taosdef.h"
-#include "tstoken.h"
+#include "ttoken.h"
 #include "ttokendef.h"
-#include "tutil.h"
 #include "ttype.h"
+#include "tutil.h"
+#include "tvariant.h"
 
 void tVariantCreate(tVariant *pVar, SStrToken *token) {
   int32_t ret = 0;
@@ -48,6 +48,13 @@ void tVariantCreate(tVariant *pVar, SStrToken *token) {
     case TSDB_DATA_TYPE_INT:{
       ret = tStrToInteger(token->z, token->type, token->n, &pVar->i64, true);
       if (ret != 0) {
+        SStrToken t = {0};
+        tGetToken(token->z, &t.type);
+        if (t.type == TK_MINUS) {  // it is a signed number which is greater than INT64_MAX or less than INT64_MIN
+          pVar->nType = -1;   // -1 means error type
+          return;
+        }
+
         // data overflow, try unsigned parse the input number
         ret = tStrToInteger(token->z, token->type, token->n, &pVar->i64, false);
         if (ret != 0) {
@@ -453,7 +460,7 @@ static FORCE_INLINE int32_t convertToInteger(tVariant *pVariant, int64_t *result
     *result = (int64_t) pVariant->dKey;
   } else if (pVariant->nType == TSDB_DATA_TYPE_BINARY) {
     SStrToken token = {.z = pVariant->pz, .n = pVariant->nLen};
-    /*int32_t n = */tSQLGetToken(pVariant->pz, &token.type);
+    /*int32_t n = */tGetToken(pVariant->pz, &token.type);
 
     if (token.type == TK_NULL) {
       if (releaseVariantPtr) {
@@ -488,10 +495,10 @@ static FORCE_INLINE int32_t convertToInteger(tVariant *pVariant, int64_t *result
     wchar_t *endPtr = NULL;
     
     SStrToken token = {0};
-    token.n = tSQLGetToken(pVariant->pz, &token.type);
+    token.n = tGetToken(pVariant->pz, &token.type);
     
     if (token.type == TK_MINUS || token.type == TK_PLUS) {
-      token.n = tSQLGetToken(pVariant->pz + token.n, &token.type);
+      token.n = tGetToken(pVariant->pz + token.n, &token.type);
     }
     
     if (token.type == TK_FLOAT) {

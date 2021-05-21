@@ -55,6 +55,11 @@ void vnodeNotifyRole(int32_t vgId, int8_t role) {
     vTrace("vgId:%d, vnode not found while notify role", vgId);
     return;
   }
+  if (pVnode->dropped) {
+    vTrace("vgId:%d, vnode dropped while notify role", vgId);
+    vnodeRelease(pVnode);
+    return;
+  }
 
   vInfo("vgId:%d, sync role changed from %s to %s", pVnode->vgId, syncRole[pVnode->role], syncRole[role]);
   pVnode->role = role;
@@ -73,6 +78,11 @@ void vnodeCtrlFlow(int32_t vgId, int32_t level) {
   SVnodeObj *pVnode = vnodeAcquire(vgId);
   if (pVnode == NULL) {
     vTrace("vgId:%d, vnode not found while flow ctrl", vgId);
+    return;
+  }
+  if (pVnode->dropped) {
+    vTrace("vgId:%d, vnode dropped while flow ctrl", vgId);
+    vnodeRelease(pVnode);
     return;
   }
 
@@ -119,7 +129,6 @@ void vnodeConfirmForard(int32_t vgId, void *wparam, int32_t code) {
   void *pVnode = vnodeAcquire(vgId);
   if (pVnode == NULL) {
     vError("vgId:%d, vnode not found while confirm forward", vgId);
-    return;
   }
 
   dnodeSendRpcVWriteRsp(pVnode, wparam, code);
@@ -130,6 +139,7 @@ int32_t vnodeWriteToCache(int32_t vgId, void *wparam, int32_t qtype, void *rpara
   SVnodeObj *pVnode = vnodeAcquire(vgId);
   if (pVnode == NULL) {
     vError("vgId:%d, vnode not found while write to cache", vgId);
+    vnodeRelease(pVnode);
     return TSDB_CODE_VND_INVALID_VGROUP_ID;
   }
 
