@@ -104,7 +104,7 @@ class taosdemoPerformace:
         return output
 
     def insertData(self):        
-        os.system("taosdemo -f %s > taosdemoperf.txt" % self.generateJson())
+        os.system("taosdemo -f %s > taosdemoperf.txt 2>&1" % self.generateJson())
         self.createTableTime = self.getCMDOutput("grep 'Spent' taosdemoperf.txt | awk 'NR==1{print $2}'")
         self.insertRecordsTime = self.getCMDOutput("grep 'Spent' taosdemoperf.txt | awk 'NR==2{print $2}'")
         self.recordsPerSecond = self.getCMDOutput("grep 'Spent' taosdemoperf.txt | awk 'NR==2{print $16}'")

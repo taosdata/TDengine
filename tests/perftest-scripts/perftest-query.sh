@@ -74,7 +74,7 @@ function runQueryPerfTest {
 	
 	python3 tools/taosdemoPerformance.py -c $LOCAL_COMMIT | tee -a $PERFORMANCE_TEST_REPORT
 
-	python3 perfbenchmark/joinPerformance.py  | tee -a $PERFORMANCE_TEST_REPORT
+	#python3 perfbenchmark/joinPerformance.py  | tee -a $PERFORMANCE_TEST_REPORT
 	
 }
 
