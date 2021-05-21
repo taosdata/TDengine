@@ -441,7 +441,7 @@ int tsParseOneRow(char **str, STableDataBlocks *pDataBlocks, SSqlCmd *pCmd, int1
     *str += index;
 
     if (sToken.type == TK_QUESTION) {
-      if (pCmd->insertType != TSDB_QUERY_TYPE_STMT_INSERT) {
+      if (pCmd->insertParam.insertType != TSDB_QUERY_TYPE_STMT_INSERT) {
         return tscSQLSyntaxErrMsg(pCmd->payload, "? only allowed in binding insertion", *str);
       }
 
@@ -1120,9 +1120,9 @@ int tsParseInsertSql(SSqlObj *pSql) {
     return code;
   }
 
-  if (NULL == pCmd->pTableBlockHashList) {
-    pCmd->pTableBlockHashList = taosHashInit(128, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, false);
-    if (NULL == pCmd->pTableBlockHashList) {
+  if (NULL == pCmd->insertParam.pTableBlockHashList) {
+    pCmd->insertParam.pTableBlockHashList = taosHashInit(128, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, false);
+    if (NULL == pCmd->insertParam.pTableBlockHashList) {
       code = TSDB_CODE_TSC_OUT_OF_MEMORY;
       goto _clean;
     }
@@ -1130,7 +1130,7 @@ int tsParseInsertSql(SSqlObj *pSql) {
     str = pCmd->curSql;
   }
   
-  tscDebug("0x%"PRIx64" create data block list hashList:%p", pSql->self, pCmd->pTableBlockHashList);
+  tscDebug("0x%"PRIx64" create data block list hashList:%p", pSql->self, pCmd->insertParam.pTableBlockHashList);
 
   while (1) {
     int32_t   index = 0;
@@ -1241,7 +1241,7 @@ int tsParseInsertSql(SSqlObj *pSql) {
         }
 
         STableDataBlocks *dataBuf = NULL;
-        int32_t ret = tscGetDataBlockFromList(pCmd->pTableBlockHashList, pTableMeta->id.uid, TSDB_DEFAULT_PAYLOAD_SIZE,
+        int32_t ret = tscGetDataBlockFromList(pCmd->insertParam.pTableBlockHashList, pTableMeta->id.uid, TSDB_DEFAULT_PAYLOAD_SIZE,
                                               sizeof(SSubmitBlk), tinfo.rowSize, &pTableMetaInfo->name, pTableMeta,
                                               &dataBuf, NULL);
         if (ret != TSDB_CODE_SUCCESS) {
@@ -1261,7 +1261,7 @@ int tsParseInsertSql(SSqlObj *pSql) {
         }
 
         STableDataBlocks *dataBuf = NULL;
-        int32_t ret = tscGetDataBlockFromList(pCmd->pTableBlockHashList, pTableMeta->id.uid, TSDB_DEFAULT_PAYLOAD_SIZE,
+        int32_t ret = tscGetDataBlockFromList(pCmd->insertParam.pTableBlockHashList, pTableMeta->id.uid, TSDB_DEFAULT_PAYLOAD_SIZE,
                                               sizeof(SSubmitBlk), tinfo.rowSize, &pTableMetaInfo->name, pTableMeta,
                                               &dataBuf, NULL);
         if (ret != TSDB_CODE_SUCCESS) {
@@ -1297,7 +1297,8 @@ int tsParseInsertSql(SSqlObj *pSql) {
     goto _clean;
   }
 
-  if ((pCmd->insertType != TSDB_QUERY_TYPE_STMT_INSERT) && taosHashGetSize(pCmd->pTableBlockHashList) > 0) { // merge according to vgId
+  // merge according to vgId
+  if (!TSDB_QUERY_HAS_TYPE(pQueryInfo->type, TSDB_QUERY_TYPE_STMT_INSERT) && taosHashGetSize(pCmd->insertParam.pTableBlockHashList) > 0) {
     if ((code = tscMergeTableDataBlocks(pSql, true)) != TSDB_CODE_SUCCESS) {
       goto _clean;
     }
@@ -1326,9 +1327,9 @@ int tsInsertInitialCheck(SSqlObj *pSql) {
   pCmd->count = 0;
   pCmd->command = TSDB_SQL_INSERT;
 
-  SQueryInfo *pQueryInfo = tscGetQueryInfoS(pCmd, pCmd->clauseIndex);
+  SQueryInfo *pQueryInfo = tscGetQueryInfoS(pCmd);
 
-  TSDB_QUERY_SET_TYPE(pQueryInfo->type, TSDB_QUERY_TYPE_INSERT | pCmd->insertType);
+  TSDB_QUERY_SET_TYPE(pQueryInfo->type, TSDB_QUERY_TYPE_INSERT | TSDB_QUERY_TYPE_STMT_INSERT);
 
   sToken = tStrGetToken(pSql->sqlstr, &index, false);
   if (sToken.type != TK_INTO) {
@@ -1410,7 +1411,7 @@ static int doPackSendDataBlock(SSqlObj *pSql, int32_t numOfRows, STableDataBlock
     return code;
   }
 
-  STableDataBlocks *pDataBlock = taosArrayGetP(pCmd->pDataBlocks, 0);
+  STableDataBlocks *pDataBlock = taosArrayGetP(pCmd->insertParam.pDataBlocks, 0);
   if ((code = tscCopyDataBlockToPayload(pSql, pDataBlock)) != TSDB_CODE_SUCCESS) {
     return code;
   }
@@ -1466,11 +1467,11 @@ static void parseFileSendDataBlock(void *param, TAOS_RES *tres, int32_t numOfRow
 
   destroyTableNameList(pCmd);
 
-  pCmd->pDataBlocks = tscDestroyBlockArrayList(pCmd->pDataBlocks);
+  pCmd->insertParam.pDataBlocks = tscDestroyBlockArrayList(pCmd->insertParam.pDataBlocks);
 
-  if (pCmd->pTableBlockHashList == NULL) {
-    pCmd->pTableBlockHashList = taosHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, false);
-    if (pCmd->pTableBlockHashList == NULL) {
+  if (pCmd->insertParam.pTableBlockHashList == NULL) {
+    pCmd->insertParam.pTableBlockHashList = taosHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, false);
+    if (pCmd->insertParam.pTableBlockHashList == NULL) {
       code = TSDB_CODE_TSC_OUT_OF_MEMORY;
       goto _error;
     }
@@ -1478,7 +1479,7 @@ static void parseFileSendDataBlock(void *param, TAOS_RES *tres, int32_t numOfRow
 
   STableDataBlocks *pTableDataBlock = NULL;
   int32_t           ret =
-      tscGetDataBlockFromList(pCmd->pTableBlockHashList, pTableMeta->id.uid, TSDB_PAYLOAD_SIZE, sizeof(SSubmitBlk),
+      tscGetDataBlockFromList(pCmd->insertParam.pTableBlockHashList, pTableMeta->id.uid, TSDB_PAYLOAD_SIZE, sizeof(SSubmitBlk),
                               tinfo.rowSize, &pTableMetaInfo->name, pTableMeta, &pTableDataBlock, NULL);
   if (ret != TSDB_CODE_SUCCESS) {
     pParentSql->res.code = TSDB_CODE_TSC_OUT_OF_MEMORY;

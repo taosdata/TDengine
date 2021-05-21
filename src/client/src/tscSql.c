@@ -901,9 +901,9 @@ int taos_validate_sql(TAOS *taos, const char *sql) {
   strtolower(pSql->sqlstr, sql);
 
   pCmd->curSql = NULL;
-  if (NULL != pCmd->pTableBlockHashList) {
-    taosHashCleanup(pCmd->pTableBlockHashList);
-    pCmd->pTableBlockHashList = NULL;
+  if (NULL != pCmd->insertParam.pTableBlockHashList) {
+    taosHashCleanup(pCmd->insertParam.pTableBlockHashList);
+    pCmd->insertParam.pTableBlockHashList = NULL;
   }
 
   pSql->fp = asyncCallback;

@@ -308,7 +308,7 @@ static int fillColumnsNull(STableDataBlocks* pBlock, int32_t rowNum) {
 int32_t fillTablesColumnsNull(SSqlObj* pSql) {
   SSqlCmd* pCmd = &pSql->cmd;
 
-  STableDataBlocks** p = taosHashIterate(pCmd->pTableBlockHashList, NULL);
+  STableDataBlocks** p = taosHashIterate(pCmd->insertParam.pTableBlockHashList, NULL);
 
   STableDataBlocks* pOneTableBlock = *p;
   while(pOneTableBlock) {
@@ -317,7 +317,7 @@ int32_t fillTablesColumnsNull(SSqlObj* pSql) {
       fillColumnsNull(pOneTableBlock, pBlocks->numOfRows);
     }
 
-    p = taosHashIterate(pCmd->pTableBlockHashList, p);
+    p = taosHashIterate(pCmd->insertParam.pTableBlockHashList, p);
     if (p == NULL) {
       break;
     }
@@ -840,12 +840,12 @@ static int insertStmtBindParam(STscStmt* stmt, TAOS_BIND* bind) {
   STableDataBlocks* pBlock = NULL;
 
   if (pStmt->multiTbInsert) {
-    if (pCmd->pTableBlockHashList == NULL) {
+    if (pCmd->insertParam.pTableBlockHashList == NULL) {
       tscError("0x%"PRIx64" Table block hash list is empty", pStmt->pSql->self);
       return TSDB_CODE_TSC_APP_ERROR;
     }
 
-    STableDataBlocks** t1 = (STableDataBlocks**)taosHashGet(pCmd->pTableBlockHashList, (const char*)&pStmt->mtb.currentUid, sizeof(pStmt->mtb.currentUid));
+    STableDataBlocks** t1 = (STableDataBlocks**)taosHashGet(pCmd->insertParam.pTableBlockHashList, (const char*)&pStmt->mtb.currentUid, sizeof(pStmt->mtb.currentUid));
     if (t1 == NULL) {
       tscError("0x%"PRIx64" no table data block in hash list, uid:%" PRId64 , pStmt->pSql->self, pStmt->mtb.currentUid);
       return TSDB_CODE_TSC_APP_ERROR;
@@ -856,12 +856,12 @@ static int insertStmtBindParam(STscStmt* stmt, TAOS_BIND* bind) {
     STableMetaInfo* pTableMetaInfo = tscGetTableMetaInfoFromCmd(pCmd, 0);
 
     STableMeta* pTableMeta = pTableMetaInfo->pTableMeta;
-    if (pCmd->pTableBlockHashList == NULL) {
-      pCmd->pTableBlockHashList = taosHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, false);
+    if (pCmd->insertParam.pTableBlockHashList == NULL) {
+      pCmd->insertParam.pTableBlockHashList = taosHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, false);
     }
 
     int32_t ret =
-        tscGetDataBlockFromList(pCmd->pTableBlockHashList, pTableMeta->id.uid, TSDB_PAYLOAD_SIZE, sizeof(SSubmitBlk),
+        tscGetDataBlockFromList(pCmd->insertParam.pTableBlockHashList, pTableMeta->id.uid, TSDB_PAYLOAD_SIZE, sizeof(SSubmitBlk),
                                 pTableMeta->tableInfo.rowSize, &pTableMetaInfo->name, pTableMeta, &pBlock, NULL);
     if (ret != 0) {
       return ret;
@@ -904,12 +904,12 @@ static int insertStmtBindParamBatch(STscStmt* stmt, TAOS_MULTI_BIND* bind, int c
   STableDataBlocks* pBlock = NULL;
 
   if (pStmt->multiTbInsert) {
-    if (pCmd->pTableBlockHashList == NULL) {
+    if (pCmd->insertParam.pTableBlockHashList == NULL) {
       tscError("0x%"PRIx64" Table block hash list is empty", pStmt->pSql->self);
       return TSDB_CODE_TSC_APP_ERROR;
     }
 
-    STableDataBlocks** t1 = (STableDataBlocks**)taosHashGet(pCmd->pTableBlockHashList, (const char*)&pStmt->mtb.currentUid, sizeof(pStmt->mtb.currentUid));
+    STableDataBlocks** t1 = (STableDataBlocks**)taosHashGet(pCmd->insertParam.pTableBlockHashList, (const char*)&pStmt->mtb.currentUid, sizeof(pStmt->mtb.currentUid));
     if (t1 == NULL) {
       tscError("0x%"PRIx64" no table data block in hash list, uid:%" PRId64 , pStmt->pSql->self, pStmt->mtb.currentUid);
       return TSDB_CODE_TSC_APP_ERROR;
@@ -920,12 +920,12 @@ static int insertStmtBindParamBatch(STscStmt* stmt, TAOS_MULTI_BIND* bind, int c
     STableMetaInfo* pTableMetaInfo = tscGetTableMetaInfoFromCmd(pCmd, 0);
 
     STableMeta* pTableMeta = pTableMetaInfo->pTableMeta;
-    if (pCmd->pTableBlockHashList == NULL) {
-      pCmd->pTableBlockHashList = taosHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, false);
+    if (pCmd->insertParam.pTableBlockHashList == NULL) {
+      pCmd->insertParam.pTableBlockHashList = taosHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, false);
     }
 
     int32_t ret =
-        tscGetDataBlockFromList(pCmd->pTableBlockHashList, pTableMeta->id.uid, TSDB_PAYLOAD_SIZE, sizeof(SSubmitBlk),
+        tscGetDataBlockFromList(pCmd->insertParam.pTableBlockHashList, pTableMeta->id.uid, TSDB_PAYLOAD_SIZE, sizeof(SSubmitBlk),
                                 pTableMeta->tableInfo.rowSize, &pTableMetaInfo->name, pTableMeta, &pBlock, NULL);
     if (ret != 0) {
       return ret;
@@ -991,11 +991,11 @@ static int insertStmtUpdateBatch(STscStmt* stmt) {
     return TSDB_CODE_TSC_APP_ERROR;
   }
 
-  if (taosHashGetSize(pCmd->pTableBlockHashList) == 0) {
+  if (taosHashGetSize(pCmd->insertParam.pTableBlockHashList) == 0) {
     return TSDB_CODE_SUCCESS;
   }
 
-  STableDataBlocks** t1 = (STableDataBlocks**)taosHashGet(pCmd->pTableBlockHashList, (const char*)&stmt->mtb.currentUid, sizeof(stmt->mtb.currentUid));
+  STableDataBlocks** t1 = (STableDataBlocks**)taosHashGet(pCmd->insertParam.pTableBlockHashList, (const char*)&stmt->mtb.currentUid, sizeof(stmt->mtb.currentUid));
   if (t1 == NULL) {
     tscError("0x%"PRIx64" no table data block in hash list, uid:%" PRId64 , pSql->self, stmt->mtb.currentUid);
     return TSDB_CODE_TSC_APP_ERROR;
@@ -1031,9 +1031,9 @@ static int insertStmtReset(STscStmt* pStmt) {
   if (pCmd->batchSize > 2) {
     int32_t alloced = (pCmd->batchSize + 1) / 2;
 
-    size_t size = taosArrayGetSize(pCmd->pDataBlocks);
+    size_t size = taosArrayGetSize(pCmd->insertParam.pDataBlocks);
     for (int32_t i = 0; i < size; ++i) {
-      STableDataBlocks* pBlock = taosArrayGetP(pCmd->pDataBlocks, i);
+      STableDataBlocks* pBlock = taosArrayGetP(pCmd->insertParam.pDataBlocks, i);
 
       uint32_t totalDataSize = pBlock->size - sizeof(SSubmitBlk);
       pBlock->size = sizeof(SSubmitBlk) + totalDataSize / alloced;
@@ -1055,21 +1055,21 @@ static int insertStmtExecute(STscStmt* stmt) {
     return TSDB_CODE_TSC_INVALID_VALUE;
   }
 
-  if (taosHashGetSize(pCmd->pTableBlockHashList) == 0) {
+  if (taosHashGetSize(pCmd->insertParam.pTableBlockHashList) == 0) {
     return TSDB_CODE_SUCCESS;
   }
 
   STableMetaInfo* pTableMetaInfo = tscGetTableMetaInfoFromCmd(pCmd, 0);
 
   STableMeta* pTableMeta = pTableMetaInfo->pTableMeta;
-  if (pCmd->pTableBlockHashList == NULL) {
-    pCmd->pTableBlockHashList = taosHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, false);
+  if (pCmd->insertParam.pTableBlockHashList == NULL) {
+    pCmd->insertParam.pTableBlockHashList = taosHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, false);
   }
 
   STableDataBlocks* pBlock = NULL;
 
   int32_t ret =
-      tscGetDataBlockFromList(pCmd->pTableBlockHashList, pTableMeta->id.uid, TSDB_PAYLOAD_SIZE, sizeof(SSubmitBlk),
+      tscGetDataBlockFromList(pCmd->insertParam.pTableBlockHashList, pTableMeta->id.uid, TSDB_PAYLOAD_SIZE, sizeof(SSubmitBlk),
                               pTableMeta->tableInfo.rowSize, &pTableMetaInfo->name, pTableMeta, &pBlock, NULL);
   assert(ret == 0);
   pBlock->size = sizeof(SSubmitBlk) + pCmd->batchSize * pBlock->rowSize;
@@ -1086,7 +1086,7 @@ static int insertStmtExecute(STscStmt* stmt) {
     return code;
   }
 
-  STableDataBlocks* pDataBlock = taosArrayGetP(pCmd->pDataBlocks, 0);
+  STableDataBlocks* pDataBlock = taosArrayGetP(pCmd->insertParam.pDataBlocks, 0);
   code = tscCopyDataBlockToPayload(stmt->pSql, pDataBlock);
   if (code != TSDB_CODE_SUCCESS) {
     return code;
@@ -1112,7 +1112,7 @@ static int insertStmtExecute(STscStmt* stmt) {
 
   pCmd->numOfTables = 0;
   tfree(pCmd->pTableNameList);
-  pCmd->pDataBlocks = tscDestroyBlockArrayList(pCmd->pDataBlocks);
+  pCmd->insertParam.pDataBlocks = tscDestroyBlockArrayList(pCmd->insertParam.pDataBlocks);
 
   return pSql->res.code;
 }
@@ -1120,7 +1120,7 @@ static int insertStmtExecute(STscStmt* stmt) {
 static void insertBatchClean(STscStmt* pStmt) {
   SSqlCmd *pCmd = &pStmt->pSql->cmd;
   SSqlObj *pSql = pStmt->pSql;
-  int32_t size = taosHashGetSize(pCmd->pTableBlockHashList);
+  int32_t size = taosHashGetSize(pCmd->insertParam.pTableBlockHashList);
 
   // data block reset
   pCmd->batchSize = 0;
@@ -1134,7 +1134,7 @@ static void insertBatchClean(STscStmt* pStmt) {
   tfree(pCmd->pTableNameList);
 
 /*
-  STableDataBlocks** p = taosHashIterate(pCmd->pTableBlockHashList, NULL);
+  STableDataBlocks** p = taosHashIterate(pCmd->insertParam.pTableBlockHashList, NULL);
 
   STableDataBlocks* pOneTableBlock = *p;
 
@@ -1145,7 +1145,7 @@ static void insertBatchClean(STscStmt* pStmt) {
 
     pBlocks->numOfRows = 0;
 
-    p = taosHashIterate(pCmd->pTableBlockHashList, p);
+    p = taosHashIterate(pCmd->insertParam.pTableBlockHashList, p);
     if (p == NULL) {
       break;
     }
@@ -1154,10 +1154,10 @@ static void insertBatchClean(STscStmt* pStmt) {
   }
 */
 
-  pCmd->pDataBlocks = tscDestroyBlockArrayList(pCmd->pDataBlocks);
+  pCmd->insertParam.pDataBlocks = tscDestroyBlockArrayList(pCmd->insertParam.pDataBlocks);
   pCmd->numOfTables = 0;
 
-  taosHashEmpty(pCmd->pTableBlockHashList);
+  taosHashEmpty(pCmd->insertParam.pTableBlockHashList);
   tscFreeSqlResult(pSql);
   tscFreeSubobj(pSql);
   tfree(pSql->pSubs);
@@ -1376,7 +1376,7 @@ int taos_stmt_set_tbname(TAOS_STMT* stmt, const char* name) {
     SSubmitBlk* pBlk = (SSubmitBlk*) (*t1)->pData;
     pCmd->batchSize = pBlk->numOfRows;
 
-    taosHashPut(pCmd->pTableBlockHashList, (void *)&pStmt->mtb.currentUid, sizeof(pStmt->mtb.currentUid), (void*)t1, POINTER_BYTES);
+    taosHashPut(pCmd->insertParam.pTableBlockHashList, (void *)&pStmt->mtb.currentUid, sizeof(pStmt->mtb.currentUid), (void*)t1, POINTER_BYTES);
 
     tscDebug("0x%"PRIx64" table:%s is already prepared, uid:%" PRIu64, pSql->self, name, pStmt->mtb.currentUid);
     return TSDB_CODE_SUCCESS;
@@ -1391,11 +1391,11 @@ int taos_stmt_set_tbname(TAOS_STMT* stmt, const char* name) {
   pSql->cmd.numOfParams = 0;
   pSql->cmd.batchSize   = 0;
 
-  if (taosHashGetSize(pCmd->pTableBlockHashList) > 0) {
-    SHashObj* hashList = pCmd->pTableBlockHashList;
-    pCmd->pTableBlockHashList = NULL;
+  if (taosHashGetSize(pCmd->insertParam.pTableBlockHashList) > 0) {
+    SHashObj* hashList = pCmd->insertParam.pTableBlockHashList;
+    pCmd->insertParam.pTableBlockHashList = NULL;
     tscResetSqlCmd(pCmd, true);
-    pCmd->pTableBlockHashList = hashList;
+    pCmd->insertParam.pTableBlockHashList = hashList;
   }
 
   int32_t code = tsParseSql(pStmt->pSql, true);
@@ -1411,7 +1411,7 @@ int taos_stmt_set_tbname(TAOS_STMT* stmt, const char* name) {
 
     STableMeta* pTableMeta = pTableMetaInfo->pTableMeta;
     STableDataBlocks* pBlock = NULL;
-    code = tscGetDataBlockFromList(pCmd->pTableBlockHashList, pTableMeta->id.uid, TSDB_PAYLOAD_SIZE, sizeof(SSubmitBlk),
+    code = tscGetDataBlockFromList(pCmd->insertParam.pTableBlockHashList, pTableMeta->id.uid, TSDB_PAYLOAD_SIZE, sizeof(SSubmitBlk),
                               pTableMeta->tableInfo.rowSize, &pTableMetaInfo->name, pTableMeta, &pBlock, NULL);
     if (code != TSDB_CODE_SUCCESS) {
       return code;
@@ -1688,14 +1688,14 @@ int taos_stmt_get_param(TAOS_STMT *stmt, int idx, int *type, int *bytes) {
     SSqlCmd* pCmd = &pStmt->pSql->cmd;
     STableMetaInfo* pTableMetaInfo = tscGetTableMetaInfoFromCmd(pCmd, 0);
     STableMeta* pTableMeta = pTableMetaInfo->pTableMeta;
-    if (pCmd->pTableBlockHashList == NULL) {
-      pCmd->pTableBlockHashList = taosHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, false);
+    if (pCmd->insertParam.pTableBlockHashList == NULL) {
+      pCmd->insertParam.pTableBlockHashList = taosHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, false);
     }
 
     STableDataBlocks* pBlock = NULL;
 
     int32_t ret =
-      tscGetDataBlockFromList(pCmd->pTableBlockHashList, pTableMeta->id.uid, TSDB_PAYLOAD_SIZE, sizeof(SSubmitBlk),
+      tscGetDataBlockFromList(pCmd->insertParam.pTableBlockHashList, pTableMeta->id.uid, TSDB_PAYLOAD_SIZE, sizeof(SSubmitBlk),
           pTableMeta->tableInfo.rowSize, &pTableMetaInfo->name, pTableMeta, &pBlock, NULL);
     if (ret != 0) {
       // todo handle error

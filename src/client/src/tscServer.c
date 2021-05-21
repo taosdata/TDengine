@@ -584,22 +584,22 @@ int tscBuildSubmitMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   SQueryInfo *pQueryInfo = tscGetQueryInfo(&pSql->cmd);
   STableMeta* pTableMeta = tscGetMetaInfo(pQueryInfo, 0)->pTableMeta;
   
-  char* pMsg = pSql->cmd.payload;
-  
-  // NOTE: shell message size should not include SMsgDesc
-  int32_t size = pSql->cmd.payloadLen - sizeof(SMsgDesc);
-
-  SMsgDesc* pMsgDesc = (SMsgDesc*) pMsg;
-  pMsgDesc->numOfVnodes = htonl(1); // always one vnode
-
-  pMsg += sizeof(SMsgDesc);
-  SSubmitMsg *pShellMsg = (SSubmitMsg *)pMsg;
-
-  pShellMsg->header.vgId = htonl(pTableMeta->vgId);
-  pShellMsg->header.contLen = htonl(size);      // the length not includes the size of SMsgDesc
-  pShellMsg->length = pShellMsg->header.contLen;
-  
-  pShellMsg->numOfBlocks = htonl(pSql->cmd.numOfTablesInSubmit);  // number of tables to be inserted
+//  char* pMsg = pSql->cmd.payload;
+//
+//  // NOTE: shell message size should not include SMsgDesc
+//  int32_t size = pSql->cmd.payloadLen - sizeof(SMsgDesc);
+//
+//  SMsgDesc* pMsgDesc = (SMsgDesc*) pMsg;
+//  pMsgDesc->numOfVnodes = htonl(1);    // always one vnode
+//
+//  pMsg += sizeof(SMsgDesc);
+//  SSubmitMsg *pShellMsg = (SSubmitMsg *)pMsg;
+//
+//  pShellMsg->header.vgId    = htonl(pTableMeta->vgId);               // data in current block all routes to the same vgroup
+//  pShellMsg->header.contLen = htonl(size);                           // the length not includes the size of SMsgDesc
+//  pShellMsg->length         = pShellMsg->header.contLen;
+//
+//  pShellMsg->numOfBlocks    = htonl(pSql->cmd.numOfTablesInSubmit);  // the number of tables to be inserted
 
   // pSql->cmd.payloadLen is set during copying data into payload
   pSql->cmd.msgType = TSDB_MSG_TYPE_SUBMIT;
@@ -608,15 +608,15 @@ int tscBuildSubmitMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   taosHashGetClone(tscVgroupMap, &pTableMeta->vgId, sizeof(pTableMeta->vgId), NULL, &vgroupInfo, sizeof(SNewVgroupInfo));
   tscDumpEpSetFromVgroupInfo(&pSql->epSet, &vgroupInfo);
 
-  tscDebug("0x%"PRIx64" build submit msg, vgId:%d numOfTables:%d numberOfEP:%d", pSql->self, pTableMeta->vgId, pSql->cmd.numOfTablesInSubmit,
-      pSql->epSet.numOfEps);
+  tscDebug("0x%"PRIx64" submit msg built, numberOfEP:%d", pSql->self, pSql->epSet.numOfEps);
+
   return TSDB_CODE_SUCCESS;
 }
 
 /*
  * for table query, simply return the size <= 1k
  */
-static int32_t tscEstimateQueryMsgSize(SSqlObj *pSql, int32_t clauseIndex) {
+static int32_t tscEstimateQueryMsgSize(SSqlObj *pSql) {
   const static int32_t MIN_QUERY_MSG_PKT_SIZE = TSDB_MAX_BYTES_PER_ROW * 5;
 
   SSqlCmd* pCmd = &pSql->cmd;
@@ -815,7 +815,7 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   SSqlCmd *pCmd = &pSql->cmd;
 
   int32_t code = TSDB_CODE_SUCCESS;
-  int32_t size = tscEstimateQueryMsgSize(pSql, pCmd->clauseIndex);
+  int32_t size = tscEstimateQueryMsgSize(pSql);
 
   if (TSDB_CODE_SUCCESS != tscAllocPayload(pCmd, size)) {
     tscError("%p failed to malloc for query msg", pSql);
@@ -2155,7 +2155,7 @@ static void createHbObj(STscObj* pObj) {
 
   pSql->fp = tscProcessHeartBeatRsp;
 
-  SQueryInfo *pQueryInfo = tscGetQueryInfoS(&pSql->cmd, 0);
+  SQueryInfo *pQueryInfo = tscGetQueryInfoS(&pSql->cmd);
   if (pQueryInfo == NULL) {
     terrno = TSDB_CODE_TSC_OUT_OF_MEMORY;
     tfree(pSql);
@@ -2369,7 +2369,7 @@ static int32_t getTableMetaFromMnode(SSqlObj *pSql, STableMetaInfo *pTableMetaIn
 
   tscAddQueryInfo(&pNew->cmd);
 
-  SQueryInfo *pNewQueryInfo = tscGetQueryInfoS(&pNew->cmd, 0);
+  SQueryInfo *pNewQueryInfo = tscGetQueryInfoS(&pNew->cmd);
 
   pNew->cmd.autoCreated = pSql->cmd.autoCreated;  // create table if not exists
   if (TSDB_CODE_SUCCESS != tscAllocPayload(&pNew->cmd, TSDB_DEFAULT_PAYLOAD_SIZE + pSql->cmd.payloadLen)) {
@@ -2592,7 +2592,7 @@ int tscGetSTableVgroupInfo(SSqlObj *pSql, SQueryInfo* pQueryInfo) {
   pNew->cmd.command = TSDB_SQL_STABLEVGROUP;
 
   // TODO TEST IT
-  SQueryInfo *pNewQueryInfo = tscGetQueryInfoS(&pNew->cmd, 0);
+  SQueryInfo *pNewQueryInfo = tscGetQueryInfoS(&pNew->cmd);
   if (pNewQueryInfo == NULL) {
     tscFreeSqlObj(pNew);
     return code;

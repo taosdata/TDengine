@@ -3056,7 +3056,7 @@ static void multiVnodeInsertFinalize(void* param, TAOS_RES* tres, int numOfRows)
 
         // clean up tableMeta in cache
         tscFreeQueryInfo(&pSql->cmd, false);
-        SQueryInfo* pQueryInfo = tscGetQueryInfoS(&pSql->cmd, 0);
+        SQueryInfo* pQueryInfo = tscGetQueryInfoS(&pSql->cmd);
         STableMetaInfo* pMasterTableMetaInfo = tscGetTableMetaInfoFromCmd(&pParentObj->cmd, 0);
         tscAddTableMetaInfo(pQueryInfo, &pMasterTableMetaInfo->name, NULL, NULL, NULL, NULL);
 
@@ -3145,7 +3145,7 @@ int32_t tscHandleMultivnodeInsert(SSqlObj *pSql) {
     return TSDB_CODE_SUCCESS;
   }
 
-  pSql->subState.numOfSub = (uint16_t)taosArrayGetSize(pCmd->pDataBlocks);
+  pSql->subState.numOfSub = (uint16_t)taosArrayGetSize(pCmd->insertParam.pDataBlocks);
   assert(pSql->subState.numOfSub > 0);
 
   pRes->code = TSDB_CODE_SUCCESS;
@@ -3195,7 +3195,7 @@ int32_t tscHandleMultivnodeInsert(SSqlObj *pSql) {
     pNew->fetchFp = pNew->fp;
     pSql->pSubs[numOfSub] = pNew;
 
-    STableDataBlocks* pTableDataBlock = taosArrayGetP(pCmd->pDataBlocks, numOfSub);
+    STableDataBlocks* pTableDataBlock = taosArrayGetP(pCmd->insertParam.pDataBlocks, numOfSub);
     pRes->code = tscCopyDataBlockToPayload(pNew, pTableDataBlock);
     if (pRes->code == TSDB_CODE_SUCCESS) {
       tscDebug("0x%"PRIx64" sub:%p create subObj success. orderOfSub:%d", pSql->self, pNew, numOfSub);
@@ -3213,7 +3213,7 @@ int32_t tscHandleMultivnodeInsert(SSqlObj *pSql) {
     goto _error;
   }
 
-  pCmd->pDataBlocks = tscDestroyBlockArrayList(pCmd->pDataBlocks);
+  pCmd->insertParam.pDataBlocks = tscDestroyBlockArrayList(pCmd->insertParam.pDataBlocks);
 
   // use the local variable
   for (int32_t j = 0; j < numOfSub; ++j) {

@@ -1130,8 +1130,8 @@ void tscResetSqlCmd(SSqlCmd* pCmd, bool removeMeta) {
 
   destroyTableNameList(pCmd);
 
-  pCmd->pTableBlockHashList = tscDestroyBlockHashTable(pCmd->pTableBlockHashList, removeMeta);
-  pCmd->pDataBlocks = tscDestroyBlockArrayList(pCmd->pDataBlocks);
+  pCmd->insertParam.pTableBlockHashList = tscDestroyBlockHashTable(pCmd->insertParam.pTableBlockHashList, removeMeta);
+  pCmd->insertParam.pDataBlocks = tscDestroyBlockArrayList(pCmd->insertParam.pDataBlocks);
   tscFreeQueryInfo(pCmd, removeMeta);
 
   if (pCmd->pTableMetaMap != NULL) {
@@ -1343,12 +1343,9 @@ int32_t tscCopyDataBlockToPayload(SSqlObj* pSql, STableDataBlocks* pDataBlock) {
   SSqlCmd* pCmd = &pSql->cmd;
   assert(pDataBlock->pTableMeta != NULL);
 
-  pCmd->numOfTablesInSubmit = pDataBlock->numOfTables;
-
-//  assert(pCmd->numOfClause == 1);
   STableMetaInfo* pTableMetaInfo = tscGetTableMetaInfoFromCmd(pCmd,  0);
 
-  // todo refactor
+  // todo remove it later
   // set the correct table meta object, the table meta has been locked in pDataBlocks, so it must be in the cache
   if (pTableMetaInfo->pTableMeta != pDataBlock->pTableMeta) {
     tNameAssign(&pTableMetaInfo->name, &pDataBlock->tableName);
@@ -1358,13 +1355,13 @@ int32_t tscCopyDataBlockToPayload(SSqlObj* pSql, STableDataBlocks* pDataBlock) {
     }
 
     pTableMetaInfo->pTableMeta    = tscTableMetaDup(pDataBlock->pTableMeta);
-    pTableMetaInfo->tableMetaSize = tscGetTableMetaSize(pDataBlock->pTableMeta); 
+    pTableMetaInfo->tableMetaSize = tscGetTableMetaSize(pDataBlock->pTableMeta);
   }
 
   /*
-   * the submit message consists of : [RPC header|message body|digest]
-   * the dataBlock only includes the RPC Header buffer and actual submit message body, space for digest needs
-   * additional space.
+   * the format of submit message is as follows [RPC header|message body|digest]
+   * the dataBlock only includes the RPC Header buffer and actual submit message body,
+   * space for digest needs additional space.
    */
   int ret = tscAllocPayload(pCmd, pDataBlock->size + 100);
   if (TSDB_CODE_SUCCESS != ret) {
@@ -1374,13 +1371,24 @@ int32_t tscCopyDataBlockToPayload(SSqlObj* pSql, STableDataBlocks* pDataBlock) {
   assert(pDataBlock->size <= pDataBlock->nAllocSize);
   memcpy(pCmd->payload, pDataBlock->pData, pDataBlock->size);
 
-  /*
-   * the payloadLen should be actual message body size
-   * the old value of payloadLen is the allocated payload size
-   */
+  //the payloadLen should be actual message body size, the old value of payloadLen is the allocated payload size
   pCmd->payloadLen = pDataBlock->size;
 
+  // NOTE: shell message size should not include SMsgDesc
+  int32_t size = pCmd->payloadLen - sizeof(SMsgDesc);
+
+  SMsgDesc* pMsgDesc    = (SMsgDesc*) pCmd->payload;
+  pMsgDesc->numOfVnodes = htonl(1);    // always for one vnode
+
+  SSubmitMsg *pShellMsg     = (SSubmitMsg *)(pCmd->payload + sizeof(SMsgDesc));
+  pShellMsg->header.vgId    = htonl(pDataBlock->pTableMeta->vgId);   // data in current block all routes to the same vgroup
+  pShellMsg->header.contLen = htonl(size);                           // the length not includes the size of SMsgDesc
+  pShellMsg->length         = pShellMsg->header.contLen;
+  pShellMsg->numOfBlocks    = htonl(pDataBlock->numOfTables);  // the number of tables to be inserted
+
   assert(pCmd->allocSize >= (uint32_t)(pCmd->payloadLen + 100) && pCmd->payloadLen > 0);
+
+  tscDebug("0x%"PRIx64" submit msg built, vgId:%d numOfTables:%d", pSql->self, pDataBlock->pTableMeta->vgId, pDataBlock->numOfTables);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1542,25 +1550,25 @@ static int32_t getRowExpandSize(STableMeta* pTableMeta) {
 }
 
 static void extractTableNameList(SSqlCmd* pCmd, bool freeBlockMap) {
-  pCmd->numOfTables = (int32_t) taosHashGetSize(pCmd->pTableBlockHashList);
+  pCmd->numOfTables = (int32_t) taosHashGetSize(pCmd->insertParam.pTableBlockHashList);
   if (pCmd->pTableNameList == NULL) {
     pCmd->pTableNameList = calloc(pCmd->numOfTables, POINTER_BYTES);
   } else {
     memset(pCmd->pTableNameList, 0, pCmd->numOfTables * POINTER_BYTES);
   }
 
-  STableDataBlocks **p1 = taosHashIterate(pCmd->pTableBlockHashList, NULL);
+  STableDataBlocks **p1 = taosHashIterate(pCmd->insertParam.pTableBlockHashList, NULL);
   int32_t i = 0;
   while(p1) {
     STableDataBlocks* pBlocks = *p1;
     tfree(pCmd->pTableNameList[i]);
 
     pCmd->pTableNameList[i++] = tNameDup(&pBlocks->tableName);
-    p1 = taosHashIterate(pCmd->pTableBlockHashList, p1);
+    p1 = taosHashIterate(pCmd->insertParam.pTableBlockHashList, p1);
   }
 
   if (freeBlockMap) {
-    pCmd->pTableBlockHashList = tscDestroyBlockHashTable(pCmd->pTableBlockHashList, false);
+    pCmd->insertParam.pTableBlockHashList = tscDestroyBlockHashTable(pCmd->insertParam.pTableBlockHashList, false);
   }
 }
 
@@ -1571,7 +1579,7 @@ int32_t tscMergeTableDataBlocks(SSqlObj* pSql, bool freeBlockMap) {
   void* pVnodeDataBlockHashList = taosHashInit(128, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, false);
   SArray* pVnodeDataBlockList = taosArrayInit(8, POINTER_BYTES);
 
-  STableDataBlocks** p = taosHashIterate(pCmd->pTableBlockHashList, NULL);
+  STableDataBlocks** p = taosHashIterate(pCmd->insertParam.pTableBlockHashList, NULL);
 
   STableDataBlocks* pOneTableBlock = *p;
   while(pOneTableBlock) {
@@ -1642,7 +1650,7 @@ int32_t tscMergeTableDataBlocks(SSqlObj* pSql, bool freeBlockMap) {
       tscDebug("0x%"PRIx64" table %s data block is empty", pSql->self, pOneTableBlock->tableName.tname);
     }
     
-    p = taosHashIterate(pCmd->pTableBlockHashList, p);
+    p = taosHashIterate(pCmd->insertParam.pTableBlockHashList, p);
     if (p == NULL) {
       break;
     }
@@ -1653,7 +1661,7 @@ int32_t tscMergeTableDataBlocks(SSqlObj* pSql, bool freeBlockMap) {
   extractTableNameList(pCmd, freeBlockMap);
 
   // free the table data blocks;
-  pCmd->pDataBlocks = pVnodeDataBlockList;
+  pCmd->insertParam.pDataBlocks = pVnodeDataBlockList;
   taosHashCleanup(pVnodeDataBlockHashList);
 
   return TSDB_CODE_SUCCESS;
@@ -1848,7 +1856,6 @@ void* sqlExprDestroy(SExprInfo* pExpr) {
     tExprTreeDestroy(pExpr->pExpr, NULL);
   }
 
-  printf("free---------------%p\n", pExpr);
   tfree(pExpr);
   return NULL;
 }
@@ -1918,7 +1925,6 @@ SExprInfo* tscExprCreate(SQueryInfo* pQueryInfo, int16_t functionId, SColumnInde
     return NULL;
   }
 
-  printf("malloc======================%p\n", pExpr);
   SSqlExpr* p = &pExpr->base;
   p->functionId = functionId;
 
@@ -2625,7 +2631,7 @@ STableMetaInfo* tscGetMetaInfo(SQueryInfo* pQueryInfo, int32_t tableIndex) {
   return pQueryInfo->pTableMetaInfo[tableIndex];
 }
 
-SQueryInfo* tscGetQueryInfoS(SSqlCmd* pCmd, int32_t subClauseIndex) {
+SQueryInfo* tscGetQueryInfoS(SSqlCmd* pCmd) {
   SQueryInfo* pQueryInfo = tscGetQueryInfo(pCmd);
   int32_t ret = TSDB_CODE_SUCCESS;
 
@@ -3025,9 +3031,7 @@ SSqlObj* createSimpleSubObj(SSqlObj* pSql, __async_cb_func_t fp, void* param, in
   pNew->sqlstr  = NULL;
   pNew->maxRetry = TSDB_MAX_REPLICA;
 
-  SQueryInfo* pQueryInfo = tscGetQueryInfoS(pCmd, 0);
-
-  assert(pSql->cmd.clauseIndex == 0);
+  SQueryInfo* pQueryInfo = tscGetQueryInfoS(pCmd);
   STableMetaInfo* pMasterTableMetaInfo = tscGetTableMetaInfoFromCmd(&pSql->cmd, 0);
 
   tscAddTableMetaInfo(pQueryInfo, &pMasterTableMetaInfo->name, NULL, NULL, NULL, NULL);
@@ -3102,7 +3106,6 @@ SSqlObj* createSubqueryObj(SSqlObj* pSql, int16_t tableIndex, __async_cb_func_t 
   pnCmd->pTableMetaMap = NULL;
 
   pnCmd->pQueryInfo  = NULL;
-  pnCmd->clauseIndex = 0;
   pnCmd->pDataBlocks = NULL;
 
   pnCmd->numOfTables = 0;
@@ -3401,71 +3404,6 @@ void executeQuery(SSqlObj* pSql, SQueryInfo* pQueryInfo) {
   doExecuteQuery(pSql, pQueryInfo);
 }
 
-/**
- * todo remove it
- * To decide if current is a two-stage super table query, join query, or insert. And invoke different
- * procedure accordingly
- * @param pSql
- */
-void tscDoQuery(SSqlObj* pSql) {
-  SSqlCmd* pCmd = &pSql->cmd;
-  SSqlRes* pRes = &pSql->res;
-  
-  pRes->code = TSDB_CODE_SUCCESS;
-  
-  if (pCmd->command > TSDB_SQL_LOCAL) {
-    tscProcessLocalCmd(pSql);
-    return;
-  }
-  
-  if (pCmd->dataSourceType == DATA_FROM_DATA_FILE) {
-    tscImportDataFromFile(pSql);
-  } else {
-    SQueryInfo *pQueryInfo = tscGetQueryInfo(pCmd);
-    uint16_t type = pQueryInfo->type;
-
-    if ((pCmd->command == TSDB_SQL_SELECT) && (!TSDB_QUERY_HAS_TYPE(type, TSDB_QUERY_TYPE_SUBQUERY)) && (!TSDB_QUERY_HAS_TYPE(type, TSDB_QUERY_TYPE_STABLE_SUBQUERY))) {
-      tscAddIntoSqlList(pSql);
-    }
-  
-    if (TSDB_QUERY_HAS_TYPE(type, TSDB_QUERY_TYPE_INSERT)) {  // multi-vnodes insertion
-      tscHandleMultivnodeInsert(pSql);
-      return;
-    }
-
-    if (QUERY_IS_JOIN_QUERY(type)) {
-      if (!TSDB_QUERY_HAS_TYPE(type, TSDB_QUERY_TYPE_SUBQUERY)) {
-        tscHandleMasterJoinQuery(pSql);
-      } else { // for first stage sub query, iterate all vnodes to get all timestamp
-        if (!TSDB_QUERY_HAS_TYPE(type, TSDB_QUERY_TYPE_JOIN_SEC_STAGE)) {
-          tscBuildAndSendRequest(pSql, NULL);
-        } else { // secondary stage join query.
-          if (tscIsTwoStageSTableQuery(pQueryInfo, 0)) {  // super table query
-            tscLockByThread(&pSql->squeryLock);
-            tscHandleMasterSTableQuery(pSql);
-            tscUnlockByThread(&pSql->squeryLock);
-          } else {
-            tscBuildAndSendRequest(pSql, NULL);
-          }
-        }
-      }
-
-      return;
-    } else if (tscMultiRoundQuery(pQueryInfo, 0) && pQueryInfo->round == 0) {
-      tscHandleFirstRoundStableQuery(pSql);  // todo lock?
-      return;
-    } else if (tscIsTwoStageSTableQuery(pQueryInfo, 0)) {  // super table query
-      tscLockByThread(&pSql->squeryLock);
-      tscHandleMasterSTableQuery(pSql);
-      tscUnlockByThread(&pSql->squeryLock);
-      return;
-    }
-
-    pCmd->active = pQueryInfo;
-    tscBuildAndSendRequest(pSql, NULL);
-  }
-}
-
 int16_t tscGetJoinTagColIdByUid(STagCond* pTagCond, uint64_t uid) {
   int32_t i = 0;
   while (i < TSDB_MAX_JOIN_TABLE_NUM) {
@@ -3687,7 +3625,6 @@ void tscTryQueryNextClause(SSqlObj* pSql, __async_cb_func_t fp) {
   SSqlCmd* pCmd = &pSql->cmd;
   SSqlRes* pRes = &pSql->res;
 
-  pCmd->clauseIndex++;
   SQueryInfo* pQueryInfo = tscGetQueryInfo(pCmd);
 
   pSql->cmd.command = pQueryInfo->command;
@@ -3708,7 +3645,7 @@ void tscTryQueryNextClause(SSqlObj* pSql, __async_cb_func_t fp) {
   pSql->subState.numOfSub = 0;
   pSql->fp = fp;
 
-  tscDebug("0x%"PRIx64" try data in the next subclause:%d", pSql->self, pCmd->clauseIndex);
+  tscDebug("0x%"PRIx64" try data in the next subclause", pSql->self);
   if (pCmd->command > TSDB_SQL_LOCAL) {
     tscProcessLocalCmd(pSql);
   } else {
@@ -4283,7 +4220,7 @@ int tscTransferTableNameList(SSqlObj *pSql, const char *pNameList, int32_t lengt
   int   code = TSDB_CODE_TSC_INVALID_TABLE_ID_LENGTH;
   char *str = (char *)pNameList;
 
-  SQueryInfo *pQueryInfo = tscGetQueryInfoS(pCmd, pCmd->clauseIndex);
+  SQueryInfo *pQueryInfo = tscGetQueryInfoS(pCmd);
   if (pQueryInfo == NULL) {
     pSql->res.code = terrno;
     return terrno;

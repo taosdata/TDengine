@@ -237,7 +237,7 @@ void        tscInitQueryInfo(SQueryInfo* pQueryInfo);
 void        tscClearSubqueryInfo(SSqlCmd* pCmd);
 int32_t     tscAddQueryInfo(SSqlCmd *pCmd);
 SQueryInfo *tscGetQueryInfo(SSqlCmd* pCmd);
-SQueryInfo *tscGetQueryInfoS(SSqlCmd *pCmd, int32_t subClauseIndex);
+SQueryInfo *tscGetQueryInfoS(SSqlCmd *pCmd);
 
 void tscClearTableMetaInfo(STableMetaInfo* pTableMetaInfo);
 
@@ -256,7 +256,6 @@ int  tscGetTableMeta(SSqlObj* pSql, STableMetaInfo* pTableMetaInfo);
 int  tscGetTableMetaEx(SSqlObj* pSql, STableMetaInfo* pTableMetaInfo, bool createIfNotExists);
 
 void tscResetForNextRetrieve(SSqlRes* pRes);
-void tscDoQuery(SSqlObj* pSql);
 void executeQuery(SSqlObj* pSql, SQueryInfo* pQueryInfo);
 void doExecuteQuery(SSqlObj* pSql, SQueryInfo* pQueryInfo);
 

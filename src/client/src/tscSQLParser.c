@@ -293,7 +293,7 @@ int32_t tscToSQLCmd(SSqlObj* pSql, struct SSqlInfo* pInfo) {
     return tscSQLSyntaxErrMsg(tscGetErrorMsgPayload(pCmd), NULL, pInfo->msg);
   }
 
-  SQueryInfo* pQueryInfo = tscGetQueryInfoS(pCmd, pCmd->clauseIndex);
+  SQueryInfo* pQueryInfo = tscGetQueryInfoS(pCmd);
   if (pQueryInfo == NULL) {
     pRes->code = terrno;
     return pRes->code;
@@ -656,7 +656,6 @@ int32_t tscToSQLCmd(SSqlObj* pSql, struct SSqlInfo* pInfo) {
         }
 
         tscPrintSelNodeList(pSql, i);
-        pCmd->clauseIndex += 1;
 
         if ((i + 1) < size && pQueryInfo->sibling == NULL) {
           if ((code = tscAddQueryInfo(pCmd)) != TSDB_CODE_SUCCESS) {
@@ -670,9 +669,6 @@ int32_t tscToSQLCmd(SSqlObj* pSql, struct SSqlInfo* pInfo) {
       if ((code = normalizeVarDataTypeLength(pCmd)) != TSDB_CODE_SUCCESS) {
         return code;
       }
-
-      // restore the clause index
-      pCmd->clauseIndex = 0;
 
       // set the command/global limit parameters from the first subclause to the sqlcmd object
       pCmd->active = pCmd->pQueryInfo;
