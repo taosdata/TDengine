@@ -2493,6 +2493,7 @@ static bool loadCachedLast(STsdbQueryHandle* pQueryHandle) {
   SQueryFilePos* cur = &pQueryHandle->cur;
   TSKEY priKey = TSKEY_INITIAL_VAL;
   int32_t priIdx = -1;
+  SColumnInfoData* pColInfo = NULL;
 
   while (++pQueryHandle->activeIndex < numOfTables) {
     STableCheckInfo* pCheckInfo = taosArrayGet(pQueryHandle->pTableCheckInfo, pQueryHandle->activeIndex);
@@ -2508,7 +2509,7 @@ static bool loadCachedLast(STsdbQueryHandle* pQueryHandle) {
     
     int32_t i = 0, j = 0;
     while(i < tgNumOfCols && j < numOfCols) {
-      SColumnInfoData* pColInfo = taosArrayGet(pQueryHandle->pColumns, i);
+      pColInfo = taosArrayGet(pQueryHandle->pColumns, i);
       if (pTable->lastCols[j].colId < pColInfo->info.colId) {
         j++;
         continue;
@@ -2606,7 +2607,7 @@ static bool loadCachedLast(STsdbQueryHandle* pQueryHandle) {
           continue;
         }
       
-        SColumnInfoData* pColInfo = taosArrayGet(pQueryHandle->pColumns, n);
+        pColInfo = taosArrayGet(pQueryHandle->pColumns, n);
         pData = (char*)pColInfo->pData + numOfRows * pColInfo->info.bytes;;
       
         assert (pColInfo->info.colId != PRIMARYKEY_TIMESTAMP_COL_INDEX);
