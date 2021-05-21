@@ -3470,16 +3470,6 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
 
     }
     g_args.interlace_rows = interlaceRows->valueint;
-
-    // rows per table need be less than insert batch
-    if (g_args.interlace_rows > g_args.num_of_RPR) {
-      printf("NOTICE: interlace rows value %"PRIu64" > num_of_records_per_req %"PRIu64"\n\n",
-              g_args.interlace_rows, g_args.num_of_RPR);
-      printf("        interlace rows value will be set to num_of_records_per_req %"PRIu64"\n\n",
-              g_args.num_of_RPR);
-      prompt();
-      g_args.interlace_rows = g_args.num_of_RPR;
-    }
   } else if (!interlaceRows) {
     g_args.interlace_rows = 0; // 0 means progressive mode, > 0 mean interlace mode. max value is less or equ num_of_records_per_req
   } else {
@@ -3543,6 +3533,16 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
   } else {
     errorPrint("%s", "failed to read json, confirm_parameter_prompt input mistake\n");
     goto PARSE_OVER;
+  }
+
+  // rows per table need be less than insert batch
+  if (g_args.interlace_rows > g_args.num_of_RPR) {
+      printf("NOTICE: interlace rows value %"PRIu64" > num_of_records_per_req %"PRIu64"\n\n",
+              g_args.interlace_rows, g_args.num_of_RPR);
+      printf("        interlace rows value will be set to num_of_records_per_req %"PRIu64"\n\n",
+              g_args.num_of_RPR);
+      prompt();
+      g_args.interlace_rows = g_args.num_of_RPR;
   }
 
   cJSON* dbs = cJSON_GetObjectItem(root, "databases");
