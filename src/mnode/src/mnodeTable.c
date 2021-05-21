@@ -2443,8 +2443,8 @@ static int32_t mnodeDoGetChildTableMeta(SMnodeMsg *pMsg, STableMetaMsg *pMeta) {
     pMeta->vgroup.numOfEps++;
     mnodeDecDnodeRef(pDnode);
   }
-  pMeta->vgroup.vgId = htonl(pMsg->pVgroup->vgId);
 
+  pMeta->vgroup.vgId = htonl(pMsg->pVgroup->vgId);
   mDebug("msg:%p, app:%p table:%s, uid:%" PRIu64 " table meta is retrieved, vgId:%d tid:%d", pMsg, pMsg->rpcMsg.ahandle,
          pTable->info.tableId, pTable->uid, pTable->vgId, pTable->tid);
 
@@ -2917,6 +2917,8 @@ static int32_t mnodeProcessMultiTableMetaMsg(SMnodeMsg *pMsg) {
     }
 
     mnodeDecTableRef(pMsg->pTable);
+    assert(((SCTableObj*)pMsg->pTable)->refCount >= 1);
+    pMsg->pTable = NULL;
   }
 
   char* msg = (char*) pMultiMeta + pMultiMeta->contLen;
@@ -2932,6 +2934,7 @@ static int32_t mnodeProcessMultiTableMetaMsg(SMnodeMsg *pMsg) {
 
   for(int32_t i = 0; i < numOfVgroupList; ++i) {
     char* name = taosArrayGetP(pList, i);
+
     SSTableObj *pTable = mnodeGetSuperTable(name);
     if (pTable == NULL) {
       mError("msg:%p, app:%p stable:%s, not exist while get stable vgroup info", pMsg, pMsg->rpcMsg.ahandle, name);
@@ -2955,6 +2958,7 @@ static int32_t mnodeProcessMultiTableMetaMsg(SMnodeMsg *pMsg) {
   tfree(nameList);
   rpcFreeCont(pMultiMeta);
   taosArrayDestroy(pList);
+  pMsg->pTable = NULL;
 
   return code;
 }
