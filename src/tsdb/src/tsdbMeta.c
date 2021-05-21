@@ -645,6 +645,10 @@ int tsdbInitColIdCacheWithSchema(STable* pTable, STSchema* pSchema) {
   return 0;
 }
 
+STSchema* tsdbGetTableLatestSchema(STable *pTable) {
+  return tsdbGetTableSchemaByVersion(pTable, -1);
+}
+
 int tsdbUpdateLastColSchema(STable *pTable, STSchema *pNewSchema) {
   if (pTable->lastColSVersion == schemaVersion(pNewSchema)) {
     return 0;
