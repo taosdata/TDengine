@@ -2491,6 +2491,8 @@ static bool loadCachedLast(STsdbQueryHandle* pQueryHandle) {
   int32_t numOfRows = 0;
   assert(numOfTables > 0 && tgNumOfCols > 0);
   SQueryFilePos* cur = &pQueryHandle->cur;
+  TSKEY priKey = TSKEY_INITIAL_VAL;
+  int32_t priIdx = -1;
 
   while (++pQueryHandle->activeIndex < numOfTables) {
     STableCheckInfo* pCheckInfo = taosArrayGet(pQueryHandle->pTableCheckInfo, pQueryHandle->activeIndex);
@@ -2515,13 +2517,9 @@ static bool loadCachedLast(STsdbQueryHandle* pQueryHandle) {
         continue;
       }
     
-      if (ASCENDING_TRAVERSE(pQueryHandle->order)) {
-        pData = (char*)pColInfo->pData + numOfRows * pColInfo->info.bytes;;
-      } else {
-        pData = (char*)pColInfo->pData + (pQueryHandle->outputCapacity - numOfRows - 1) * pColInfo->info.bytes;
-      }
+      pData = (char*)pColInfo->pData + numOfRows * pColInfo->info.bytes;
     
-      if (pTable->lastCols[j].bytes > 0) {
+      if (pTable->lastCols[j].bytes > 0) {        
         void* value = pTable->lastCols[j].pData;
         switch (pColInfo->info.type) {
           case TSDB_DATA_TYPE_BINARY:
@@ -2554,7 +2552,12 @@ static bool loadCachedLast(STsdbQueryHandle* pQueryHandle) {
             break;
           case TSDB_DATA_TYPE_TIMESTAMP:
             if (pColInfo->info.colId == PRIMARYKEY_TIMESTAMP_COL_INDEX) {
-              *(TSKEY *)pData = tdGetKey(*(TKEY *)value);
+              priKey = tdGetKey(*(TKEY *)value);
+              priIdx = i;
+
+              i++;
+              j++;
+              continue;
             } else {
               *(TSKEY *)pData = *(TSKEY *)value;
             }
@@ -2569,13 +2572,9 @@ static bool loadCachedLast(STsdbQueryHandle* pQueryHandle) {
           }
 
           SColumnInfoData* pColInfo = taosArrayGet(pQueryHandle->pColumns, n);
-          if (ASCENDING_TRAVERSE(pQueryHandle->order)) {
-            pData = (char*)pColInfo->pData + numOfRows * pColInfo->info.bytes;;
-          } else {
-            pData = (char*)pColInfo->pData + (pQueryHandle->outputCapacity - numOfRows - 1) * pColInfo->info.bytes;
-          }
+          pData = (char*)pColInfo->pData + numOfRows * pColInfo->info.bytes;;
 
-          if (n == 0) {
+          if (pColInfo->info.colId == PRIMARYKEY_TIMESTAMP_COL_INDEX) {
             *(TSKEY *)pData = pTable->lastCols[j].ts;
             continue;
           }
@@ -2595,6 +2594,33 @@ static bool loadCachedLast(STsdbQueryHandle* pQueryHandle) {
       j++;
     }
 
+    // leave the real ts column as the last row, because last function only (not stable) use the last row as res
+    if (priKey != TSKEY_INITIAL_VAL) {
+      SColumnInfoData* pColInfo = taosArrayGet(pQueryHandle->pColumns, priIdx);
+      pData = (char*)pColInfo->pData + numOfRows * pColInfo->info.bytes;
+    
+      *(TSKEY *)pData = priKey;
+
+      for (int32_t n = 0; n < tgNumOfCols; ++n) {
+        if (n == priIdx) {
+          continue;
+        }
+      
+        SColumnInfoData* pColInfo = taosArrayGet(pQueryHandle->pColumns, n);
+        pData = (char*)pColInfo->pData + numOfRows * pColInfo->info.bytes;;
+      
+        assert (pColInfo->info.colId != PRIMARYKEY_TIMESTAMP_COL_INDEX);
+        
+        if (pColInfo->info.type == TSDB_DATA_TYPE_BINARY || pColInfo->info.type == TSDB_DATA_TYPE_NCHAR) {
+          setVardataNull(pData, pColInfo->info.type);
+        } else {
+          setNull(pData, pColInfo->info.type, pColInfo->info.bytes);
+        }
+      }
+
+      numOfRows++;
+    }
+    
     if (numOfRows > 0) {
       cur->rows     = numOfRows;
       cur->mixBlock = true;
