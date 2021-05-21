@@ -2571,7 +2571,7 @@ static bool loadCachedLast(STsdbQueryHandle* pQueryHandle) {
             continue;
           }
 
-          SColumnInfoData* pColInfo = taosArrayGet(pQueryHandle->pColumns, n);
+          pColInfo = taosArrayGet(pQueryHandle->pColumns, n);
           pData = (char*)pColInfo->pData + numOfRows * pColInfo->info.bytes;;
 
           if (pColInfo->info.colId == PRIMARYKEY_TIMESTAMP_COL_INDEX) {
@@ -2596,7 +2596,7 @@ static bool loadCachedLast(STsdbQueryHandle* pQueryHandle) {
 
     // leave the real ts column as the last row, because last function only (not stable) use the last row as res
     if (priKey != TSKEY_INITIAL_VAL) {
-      SColumnInfoData* pColInfo = taosArrayGet(pQueryHandle->pColumns, priIdx);
+      pColInfo = taosArrayGet(pQueryHandle->pColumns, priIdx);
       pData = (char*)pColInfo->pData + numOfRows * pColInfo->info.bytes;
     
       *(TSKEY *)pData = priKey;
