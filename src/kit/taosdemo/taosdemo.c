@@ -1088,10 +1088,8 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
     printf("# Print debug info:                  %d\n", arguments->debug_print);
     printf("# Print verbose info:                %d\n", arguments->verbose_print);
     printf("###################################################################\n");
-    if (!arguments->answer_yes) {
-        printf("Press enter key to continue\n\n");
-        (void) getchar();
-    }
+
+    prompt();
   }
 }
 
@@ -3513,6 +3511,11 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
         __func__, __LINE__);
       goto PARSE_OVER;
     } else if (numRecPerReq->valueint > MAX_RECORDS_PER_REQ) {
+      printf("NOTICE: number of records per request value %"PRIu64" > %d\n\n",
+              numRecPerReq->valueint, MAX_RECORDS_PER_REQ);
+      printf("        number of records per request value will be set to %d\n\n",
+              MAX_RECORDS_PER_REQ);
+      prompt();
       numRecPerReq->valueint = MAX_RECORDS_PER_REQ;
     }
     g_args.num_of_RPR = numRecPerReq->valueint;
@@ -3536,9 +3539,9 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
       g_args.answer_yes = false;
     }
   } else if (!answerPrompt) {
-    g_args.answer_yes = false;
+    g_args.answer_yes = true;   // default is no, mean answer_yes.
   } else {
-    printf("ERROR: failed to read json, confirm_parameter_prompt not found\n");
+    errorPrint("%s", "failed to read json, confirm_parameter_prompt input mistake\n");
     goto PARSE_OVER;
   }
 
@@ -4007,10 +4010,7 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
                   i, j, g_Dbs.db[i].superTbls[j].interlaceRows, g_args.num_of_RPR);
           printf("        interlace rows value will be set to num_of_records_per_req %"PRIu64"\n\n",
                   g_args.num_of_RPR);
-          if (!g_args.answer_yes) {
-            printf("        press Enter key to continue or Ctrl-C to stop.");
-            (void)getchar();
-          }
+          prompt();
           g_Dbs.db[i].superTbls[j].interlaceRows = g_args.num_of_RPR;
         }
       } else if (!stbInterlaceRows) {
@@ -6263,10 +6263,7 @@ static int insertTestProcess() {
   if (g_fpOfInsertResult)
     printfInsertMetaToFile(g_fpOfInsertResult);
 
-  if (!g_args.answer_yes) {
-    printf("Press enter key to continue\n\n");
-    (void)getchar();
-  }
+  prompt();
 
   init_rand_data();
 
@@ -6536,10 +6533,7 @@ static int queryTestProcess() {
             &g_queryInfo.superQueryInfo.childTblCount);
   }
 
-  if (!g_args.answer_yes) {
-    printf("Press enter key to continue\n\n");
-    (void)getchar();
-  }
+  prompt();
 
   if (g_args.debug_print || g_args.verbose_print) {
     printfQuerySystemInfo(taos);
@@ -6977,10 +6971,7 @@ static int subscribeTestProcess() {
   printfQueryMeta();
   resetAfterAnsiEscape();
 
-  if (!g_args.answer_yes) {
-    printf("Press enter key to continue\n\n");
-    (void) getchar();
-  }
+  prompt();
 
   TAOS * taos = NULL;
   taos = taos_connect(g_queryInfo.host,
