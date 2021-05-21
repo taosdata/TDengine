@@ -68,11 +68,12 @@ class TDTestCase:
 
         # clear env
         os.system("ps -ef |grep 'taosdemoAllTest/subSync.json' |grep -v 'grep' |awk '{print $2}'|xargs kill -9")
+        os.system("ps -ef |grep 'taosdemoAllTest/subSyncKeepStart.json' |grep -v 'grep' |awk '{print $2}'|xargs kill -9")
         sleep(1)
         os.system("rm -rf ./subscribe_res*")  
         os.system("rm -rf ./all_subscribe_res*") 
 
-        # # subscribe: async 
+        # # subscribe: sync 
         # os.system("%staosdemo -f tools/taosdemoAllTest/subInsertdata.json" % binPath)
         # os.system("nohup %staosdemo -f tools/taosdemoAllTest/subSync.json &" % binPath)
         # query_pid = int(subprocess.getstatusoutput('ps aux|grep "taosdemoAllTest/subSync.json" |grep -v "grep"|awk \'{print $2}\'')[1])
@@ -105,7 +106,6 @@ class TDTestCase:
         
 
         # # correct data testcase
-  
         # os.system("kill -9 %d" % query_pid)
         # sleep(3)
         # os.system("rm -rf ./subscribe_res*")   
@@ -114,7 +114,10 @@ class TDTestCase:
         # sql number lager  100
         os.system("%staosdemo -f tools/taosdemoAllTest/subInsertdataMaxsql100.json" % binPath)
         # assert os.system("%staosdemo -f tools/taosdemoAllTest/subSyncSpecMaxsql100.json" % binPath) !=0
-        os.system("%staosdemo -f tools/taosdemoAllTest/subSyncSuperMaxsql100.json" % binPath)
+        # os.system("%staosdemo -f tools/taosdemoAllTest/subSyncSuperMaxsql100.json" % binPath)
+        os.system("%staosdemo -f tools/taosdemoAllTest/subSyncKeepStart.json" % binPath)
+        tdSql.execute("insert into db.stb00_1 values(1614218412000,'R','bf3',8637,78.861045)(1614218413000,'R','bf3',8637,98.861045)") 
+
 
         # # # merge result files
         # os.system("cat subscribe_res0.txt* > all_subscribe_res0.txt")
@@ -138,8 +141,7 @@ class TDTestCase:
         # os.system("%staosdemo -f tools/taosdemoAllTest/subSupermaxsql100.json" % binPath)
         # os.system("%staosdemo -f tools/taosdemoAllTest/subSupermaxsql100.json" % binPath)
 
-        # os.system("%staosdemo -f tools/taosdemoAllTest/subLzInsert.json" % binPath)
-        # os.system("%staosdemo -f tools/taosdemoAllTest/subStb2.json" % binPath)
+
 
 
 

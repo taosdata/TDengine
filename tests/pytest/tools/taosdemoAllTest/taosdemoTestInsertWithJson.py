@@ -221,12 +221,12 @@ class TDTestCase:
         # tdSql.checkData(0, 0, "2019-10-01 00:00:00")
         # tdSql.query("select last(ts) from blf.p_0_topics_6 ")        
         # tdSql.checkData(0, 0, "2020-09-29 23:59:00")
-        os.system("%staosdemo -f tools/taosdemoAllTest/insertMaxNumPerReq.json -y " % binPath)   
-        tdSql.execute("use db") 
-        tdSql.query("select count(*) from stb0")
-        tdSql.checkData(0, 0, 5000000)
-        tdSql.query("select count(*) from stb0")
-        tdSql.checkData(0, 0, 5000000)
+        # os.system("%staosdemo -f tools/taosdemoAllTest/insertMaxNumPerReq.json -y " % binPath)   
+        # tdSql.execute("use db") 
+        # tdSql.query("select count(*) from stb0")
+        # tdSql.checkData(0, 0, 5000000)
+        # tdSql.query("select count(*) from stb1")
+        # tdSql.checkData(0, 0, 5000000)
 
 
 

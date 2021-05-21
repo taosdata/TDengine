@@ -10,7 +10,7 @@
     "result_file": "./insert_res.txt",
     "confirm_parameter_prompt": "no",
     "insert_interval": 0,
-    "interlace_rows": 0,
+    "interlace_rows": 50000,
     "num_of_records_per_req": 50000,
     "max_sql_len": 1025000, 
     "databases": [{

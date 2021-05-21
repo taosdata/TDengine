@@ -12,8 +12,8 @@
        "concurrent":2, 
        "mode":"sync", 
        "interval":0, 
-       "restart":"yes", 
-       "keepProgress":"yes",
+       "restart":"no", 
+       "keepProgress":"no",
        "sqls": [
         {
           "sql": "select * from stb00_0", 
@@ -30,8 +30,8 @@
        "threads":2, 
        "mode":"sync", 
        "interval":10000, 
-       "restart":"yes", 
-       "keepProgress":"yes",
+       "restart":"no", 
+       "keepProgress":"no",
        "sqls": [
         {
           "sql": "select * from xxxx where ts >= '2021-02-25 10:00:01.000' ", 
