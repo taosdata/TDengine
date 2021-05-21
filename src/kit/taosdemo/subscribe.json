@@ -1,5 +1,5 @@
 {
-  "filetype":"subscribe",
+  "filetype": "subscribe",
   "cfgdir": "/etc/taos",
   "host": "127.0.0.1",
   "port": 6030,

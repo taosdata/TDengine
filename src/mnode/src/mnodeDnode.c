@@ -1270,3 +1270,30 @@ char* dnodeRoles[] = {
   "vnode",
   "any"
 };
+
+int32_t mnodeCompactDnodes() {
+  SDnodeObj *pDnode = NULL;
+  void *     pIter = NULL;
+
+  mInfo("start to compact dnodes table...");
+
+  while (1) {
+    pIter = mnodeGetNextDnode(pIter, &pDnode);
+    if (pDnode == NULL) break;
+
+    SSdbRow row = {
+      .type    = SDB_OPER_GLOBAL,
+      .pTable  = tsDnodeSdb,
+      .pObj    = pDnode,
+      .rowSize = sizeof(SDnodeObj),
+    };
+
+    mInfo("compact dnode %d", pDnode->dnodeId);
+    
+    sdbInsertCompactRow(&row);
+  }
+
+  mInfo("end to compact dnodes table...");
+
+  return 0;
+}

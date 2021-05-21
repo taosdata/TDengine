@@ -32,6 +32,7 @@ void    mnodeDropAllDbVgroups(SDbObj *pDropDb);
 void    mnodeSendDropAllDbVgroupsMsg(SDbObj *pDropDb);
 void    mnodeDropAllDnodeVgroups(SDnodeObj *pDropDnode);
 //void  mnodeUpdateAllDbVgroups(SDbObj *pAlterDb);
+int32_t mnodeCompactVgroups();
 
 void *  mnodeGetNextVgroup(void *pIter, SVgObj **pVgroup);
 void    mnodeCancelGetNextVgroup(void *pIter);
