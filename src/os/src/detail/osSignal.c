@@ -23,14 +23,14 @@
 typedef void (*FLinuxSignalHandler)(int32_t signum, siginfo_t *sigInfo, void *context);
 
 void taosSetSignal(int32_t signum, FSignalHandler sigfp) {
-  struct sigaction act = {{0}};	
+  struct sigaction act = {0};
 #if 1
   act.sa_flags = SA_SIGINFO;
   act.sa_sigaction = (FLinuxSignalHandler)sigfp;
 #else  
-  act.sa_handler = sigfp;	
+  act.sa_handler = sigfp;
 #endif  
-  sigaction(signum, &act, NULL);		
+  sigaction(signum, &act, NULL);
 }
 
 void taosIgnSignal(int32_t signum) {
