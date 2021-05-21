@@ -54,7 +54,8 @@ void    monCleanupSystem();
 void    monSaveAcctLog(SAcctMonitorObj *pMonObj);
 void    monSaveLog(int32_t level, const char *const format, ...);
 void    monExecuteSQL(char *sql);
-
+typedef void (*MonExecuteSQLCbFP)(void *param, TAOS_RES *, int code);
+void monExecuteSQLWithResultCallback(char *sql, MonExecuteSQLCbFP callback, void* param);
 #ifdef __cplusplus
 }
 #endif
