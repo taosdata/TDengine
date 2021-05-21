@@ -14,13 +14,14 @@
  */
 
 #define _DEFAULT_SOURCE
-#include <windows.h>
+
 #include "os.h"
 #include "taosdef.h"
 #include "tglobal.h"
 #include "ttimer.h"
 #include "tulog.h"
 #include "tutil.h"
+#include <windows.h>
 
 bool taosCheckPthreadValid(pthread_t thread) { return thread.p != NULL; }
 
