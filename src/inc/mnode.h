@@ -73,6 +73,9 @@ int32_t mnodeProcessPeerReq(SMnodeMsg *pMsg);
 void    mnodeProcessPeerRsp(SRpcMsg *pMsg);
 int32_t mnodeRetriveAuth(char *user, char *spi, char *encrypt, char *secret, char *ckey);
 
+int32_t mnodeCompactWal();
+int32_t mnodeCompactComponents();
+
 #ifdef __cplusplus
 }
 #endif
