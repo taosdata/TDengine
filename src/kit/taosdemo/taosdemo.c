@@ -4890,10 +4890,12 @@ static int64_t execInsert(threadInfo *pThreadInfo, uint64_t k)
   return affectedRows;
 }
 
-static void getTableName(char *pTblName, threadInfo* pThreadInfo, uint64_t tableSeq)
+static void getTableName(char *pTblName,
+        threadInfo* pThreadInfo, uint64_t tableSeq)
 {
   SSuperTable* superTblInfo = pThreadInfo->superTblInfo;
-  if (superTblInfo) {
+  if ((superTblInfo)
+          && (AUTO_CREATE_SUBTBL != superTblInfo->autoCreateTable)) {
     if (superTblInfo->childTblLimit > 0) {
         snprintf(pTblName, TSDB_TABLE_NAME_LEN, "%s",
             superTblInfo->childTblName +
