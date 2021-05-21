@@ -7135,7 +7135,7 @@ void* destroyQueryFuncExpr(SExprInfo* pExprInfo, int32_t numOfExpr) {
 
 void* freeColumnInfo(SColumnInfo* pColumnInfo, int32_t numOfCols) {
   if (pColumnInfo != NULL) {
-    assert(numOfCols > 0);
+    assert(numOfCols >= 0);
 
     for (int32_t i = 0; i < numOfCols; i++) {
       freeColumnFilterInfo(pColumnInfo[i].flist.filterInfo, pColumnInfo[i].flist.numOfFilters);

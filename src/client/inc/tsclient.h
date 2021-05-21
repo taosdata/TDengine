@@ -83,10 +83,10 @@ typedef struct STableMeta {
 } STableMeta;
 
 typedef struct STableMetaInfo {
-  STableMeta   *pTableMeta;      // table meta, cached in client side and acquired by name
+  STableMeta    *pTableMeta;      // table meta, cached in client side and acquired by name
   uint32_t       tableMetaSize;
-  SVgroupsInfo *vgroupList;
-  SArray       *pVgroupTables;   // SArray<SVgroupTableInfo>
+  SVgroupsInfo  *vgroupList;
+  SArray        *pVgroupTables;   // SArray<SVgroupTableInfo>
   
   /*
    * 1. keep the vgroup index during the multi-vnode super table projection query

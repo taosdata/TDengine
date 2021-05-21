@@ -1722,23 +1722,6 @@ int tscBuildTableMetaMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
 int tscBuildMultiTableMetaMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   SSqlCmd *pCmd = &pSql->cmd;
 
-  // copy payload content to temp buf
-//  char *tmpData = 0;
-//  if (pCmd->payloadLen > 0) {
-//    if ((tmpData = calloc(1, pCmd->payloadLen + 1)) == NULL) return -1;
-//    memcpy(tmpData, pCmd->payload, pCmd->payloadLen);
-//  }
-
-//  SMultiTableInfoMsg *pInfoMsg = (SMultiTableInfoMsg *)(pCmd->payload);
-//  pInfoMsg->numOfTables = htonl((int32_t)pCmd->count);
-//
-//  if (pCmd->payloadLen > 0) {
-//    memcpy(pInfoMsg->tableIds, tmpData, pCmd->payloadLen);
-//  }
-//
-//  tfree(tmpData);
-
-//  pCmd->payloadLen += sizeof(SMgmtHead) + sizeof(SMultiTableInfoMsg);
   pCmd->msgType = TSDB_MSG_TYPE_CM_TABLES_META;
   assert(pCmd->payloadLen + minMsgSize() <= pCmd->allocSize);
 
@@ -1885,7 +1868,7 @@ static void doUpdateVgroupInfo(STableMeta *pTableMeta, SVgroupMsg *pVgroupMsg) {
   }
 }
 
-static void doAddTableMetaLocalBuf(STableMeta* pTableMeta, STableMetaMsg* pMetaMsg, bool updateSTable) {
+static void doAddTableMetaToLocalBuf(STableMeta* pTableMeta, STableMetaMsg* pMetaMsg, bool updateSTable) {
   if (pTableMeta->tableType == TSDB_CHILD_TABLE) {
     // add or update the corresponding super table meta data info
     int32_t len = (int32_t) strnlen(pTableMeta->sTableName, TSDB_TABLE_FNAME_LEN);
@@ -1928,7 +1911,7 @@ int tscProcessTableMetaRsp(SSqlObj *pSql) {
   tNameExtractFullName(&pTableMetaInfo->name, name);
   assert(strncmp(pMetaMsg->tableFname, name, tListLen(pMetaMsg->tableFname)) == 0);
 
-  doAddTableMetaLocalBuf(pTableMeta, pMetaMsg, true);
+  doAddTableMetaToLocalBuf(pTableMeta, pMetaMsg, true);
   doUpdateVgroupInfo(pTableMeta, &pMetaMsg->vgroup);
 
   tscDebug("0x%"PRIx64" recv table meta, uid:%" PRIu64 ", tid:%d, name:%s", pSql->self, pTableMeta->id.uid, pTableMeta->id.tid,
@@ -2039,7 +2022,7 @@ int tscProcessMultiTableMetaRsp(SSqlObj *pSql) {
     }
 
     // create the tableMeta and add it into the TableMeta map
-    doAddTableMetaLocalBuf(pTableMeta, pMetaMsg, addToBuf);
+    doAddTableMetaToLocalBuf(pTableMeta, pMetaMsg, addToBuf);
 
     // if the vgroup is not updated in current process, update it.
     int64_t vgId = pMetaMsg->vgroup.vgId;
@@ -2051,7 +2034,7 @@ int tscProcessMultiTableMetaRsp(SSqlObj *pSql) {
     pMsg += pMetaMsg->contLen;
   }
 
-  if (pMultiMeta->numOfVgroup > 0) {
+  for(int32_t i = 0; i < pMultiMeta->numOfVgroup; ++i) {
     char* name = pMsg;
     pMsg += TSDB_TABLE_NAME_LEN;
 
@@ -2059,15 +2042,13 @@ int tscProcessMultiTableMetaRsp(SSqlObj *pSql) {
     assert(p != NULL);
 
     int32_t size = 0;
-    SVgroupsInfo* pVgroupInfo = createVgroupInfoFromMsg(pMsg, &size, pSql->self);
-
-    p->pVgroupInfo = pVgroupInfo;
+    p->pVgroupInfo = createVgroupInfoFromMsg(pMsg, &size, pSql->self);
     pMsg += size;
   }
 
   pSql->res.code = TSDB_CODE_SUCCESS;
   pSql->res.numOfTotal = pMultiMeta->numOfTables;
-  tscDebug("0x%"PRIx64" load multi-tableMeta resp from complete numOfTables:%d", pSql->self, pMultiMeta->numOfTables);
+  tscDebug("0x%"PRIx64" load multi-tableMeta from mnode, numOfTables:%d", pSql->self, pMultiMeta->numOfTables);
 
   taosHashCleanup(pSet);
   taosReleaseRef(tscObjRef, pParentSql->self);
@@ -2471,7 +2452,7 @@ int32_t getMultiTableMetaFromMnode(SSqlObj *pSql, SArray* pNameList, SArray* pVg
   for(int32_t i = 0; i < numOfVgroupList; ++i) {
     char* name = taosArrayGetP(pVgroupNameList, i);
     if (i < numOfVgroupList - 1) {
-      len = sprintf(start, "%s, ", name);
+      len = sprintf(start, "%s,", name);
     } else {
       len = sprintf(start, "%s", name);
     }

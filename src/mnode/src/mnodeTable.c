@@ -2922,7 +2922,7 @@ static int32_t mnodeProcessMultiTableMetaMsg(SMnodeMsg *pMsg) {
   char* msg = (char*) pMultiMeta + pMultiMeta->contLen;
 
   // add the additional super table names that needs the vgroup info
-  for(;t < pInfo->numOfVgroups; ++t) {
+  for(;t < num; ++t) {
     taosArrayPush(pList, &nameList[t]);
   }
 

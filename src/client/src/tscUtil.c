@@ -1077,16 +1077,16 @@ void tscFreeQueryInfo(SSqlCmd* pCmd, bool removeMeta) {
 
     int32_t numOfUpstream = taosArrayGetSize(pQueryInfo->pUpstream);
     for(int32_t i = 0; i < numOfUpstream; ++i) {
-      SQueryInfo* pUp = taosArrayGetP(pQueryInfo->pUpstream, i);
-      freeQueryInfoImpl(pUp);
+      SQueryInfo* pUpQueryInfo = taosArrayGetP(pQueryInfo->pUpstream, i);
+      freeQueryInfoImpl(pUpQueryInfo);
 
-      clearAllTableMetaInfo(pUp, removeMeta);
-      if (pUp->pQInfo != NULL) {
-        qDestroyQueryInfo(pUp->pQInfo);
-        pUp->pQInfo = NULL;
+      clearAllTableMetaInfo(pUpQueryInfo, removeMeta);
+      if (pUpQueryInfo->pQInfo != NULL) {
+        qDestroyQueryInfo(pUpQueryInfo->pQInfo);
+        pUpQueryInfo->pQInfo = NULL;
       }
 
-      tfree(pUp);
+      tfree(pUpQueryInfo);
     }
 
     freeQueryInfoImpl(pQueryInfo);
@@ -1134,8 +1134,17 @@ void tscResetSqlCmd(SSqlCmd* pCmd, bool removeMeta) {
   pCmd->pDataBlocks = tscDestroyBlockArrayList(pCmd->pDataBlocks);
   tscFreeQueryInfo(pCmd, removeMeta);
 
-  taosHashCleanup(pCmd->pTableMetaMap);
-  pCmd->pTableMetaMap = NULL;
+  if (pCmd->pTableMetaMap != NULL) {
+    STableMetaVgroupInfo* p = taosHashIterate(pCmd->pTableMetaMap, NULL);
+    while (p) {
+      tfree(p->pVgroupInfo);
+      tfree(p->pTableMeta);
+      p = taosHashIterate(pCmd->pTableMetaMap, p);
+    }
+
+    taosHashCleanup(pCmd->pTableMetaMap);
+    pCmd->pTableMetaMap = NULL;
+  }
 }
 
 void tscFreeSqlResult(SSqlObj* pSql) {
@@ -1189,7 +1198,6 @@ void tscFreeRegisteredSqlObj(void *pSql) {
   tscDebug("0x%"PRIx64" free SqlObj, total in tscObj:%d, total:%d", p->self, num, total);
   tscFreeSqlObj(p);
   taosReleaseRef(tscRefId, pTscObj->rid);
-
 }
 
 void tscFreeMetaSqlObj(int64_t *rid){
@@ -1725,16 +1733,14 @@ SInternalField* tscFieldInfoInsert(SFieldInfo* pFieldInfo, int32_t index, TAOS_F
 }
 
 void tscFieldInfoUpdateOffset(SQueryInfo* pQueryInfo) {
+  int32_t offset = 0;
   size_t numOfExprs = tscNumOfExprs(pQueryInfo);
-  
-  SExprInfo* pExpr = taosArrayGetP(pQueryInfo->exprList, 0);
-  pExpr->base.offset = 0;
 
-  for (int32_t i = 1; i < numOfExprs; ++i) {
-    SExprInfo* prev = taosArrayGetP(pQueryInfo->exprList, i - 1);
+  for (int32_t i = 0; i < numOfExprs; ++i) {
     SExprInfo* p = taosArrayGetP(pQueryInfo->exprList, i);
 
-    p->base.offset = prev->base.offset + prev->base.resBytes;
+    p->base.offset = offset;
+    offset += p->base.resBytes;
   }
 }
 
@@ -1842,6 +1848,7 @@ void* sqlExprDestroy(SExprInfo* pExpr) {
     tExprTreeDestroy(pExpr->pExpr, NULL);
   }
 
+  printf("free---------------%p\n", pExpr);
   tfree(pExpr);
   return NULL;
 }
@@ -1911,6 +1918,7 @@ SExprInfo* tscExprCreate(SQueryInfo* pQueryInfo, int16_t functionId, SColumnInde
     return NULL;
   }
 
+  printf("malloc======================%p\n", pExpr);
   SSqlExpr* p = &pExpr->base;
   p->functionId = functionId;
 
@@ -2056,7 +2064,7 @@ int32_t tscExprCopy(SArray* dst, const SArray* src, uint64_t uid, bool deepcopy)
   size_t size = taosArrayGetSize(src);
   for (int32_t i = 0; i < size; ++i) {
     SExprInfo* pExpr = taosArrayGetP(src, i);
-    
+
     if (pExpr->base.uid == uid) {
       if (deepcopy) {
         SExprInfo* p1 = calloc(1, sizeof(SExprInfo));
@@ -2066,8 +2074,6 @@ int32_t tscExprCopy(SArray* dst, const SArray* src, uint64_t uid, bool deepcopy)
       } else {
         taosArrayPush(dst, &pExpr);
       }
-    } else {
-      taosArrayPush(dst, &pExpr);
     }
   }
 
@@ -3953,10 +3959,20 @@ uint32_t tscGetTableMetaMaxSize() {
 
 STableMeta* tscTableMetaDup(STableMeta* pTableMeta) {
   assert(pTableMeta != NULL);
-  uint32_t size = tscGetTableMetaSize(pTableMeta);
+  size_t size = tscGetTableMetaSize(pTableMeta);
+
   STableMeta* p = calloc(1, size);
   memcpy(p, pTableMeta, size);
   return p;
+}
+
+SVgroupsInfo* tscVgroupsInfoDup(SVgroupsInfo* pVgroupsInfo) {
+  assert(pVgroupsInfo != NULL);
+
+  size_t size = sizeof(SVgroupInfo) * pVgroupsInfo->numOfVgroups + sizeof(SVgroupsInfo);
+  SVgroupsInfo* pInfo = calloc(1, size);
+  memcpy(pInfo, pVgroupsInfo, size);
+  return pInfo;
 }
 
 int32_t createProjectionExpr(SQueryInfo* pQueryInfo, STableMetaInfo* pTableMetaInfo, SExprInfo*** pExpr, int32_t* num) {

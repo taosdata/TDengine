@@ -7241,7 +7241,6 @@ int32_t loadAllTableMeta(SSqlObj* pSql, struct SSqlInfo* pInfo) {
       }
 
       STableMeta* pMeta = tscTableMetaDup(pTableMeta);
-
       STableMetaVgroupInfo p = { .pTableMeta = pMeta };
 
       const char* px = tNameGetTableName(pname);
@@ -7279,10 +7278,15 @@ static int32_t doLoadAllTableMeta(SSqlObj* pSql, SQueryInfo* pQueryInfo, SSqlNod
   const char* msg1 = "invalid table name";
   const char* msg2 = "invalid table alias name";
   const char* msg3 = "alias name too long";
+  const char* msg4 = "self join not allowed";
 
   int32_t code = TSDB_CODE_SUCCESS;
-
   SSqlCmd* pCmd = &pSql->cmd;
+
+  if (numOfTables > taosHashGetSize(pCmd->pTableMetaMap)) {
+    return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg4);
+  }
+
   for (int32_t i = 0; i < numOfTables; ++i) {
     if (pQueryInfo->numOfTables <= i) {  // more than one table
       tscAddEmptyMetaInfo(pQueryInfo);
@@ -7325,10 +7329,12 @@ static int32_t doLoadAllTableMeta(SSqlObj* pSql, SQueryInfo* pQueryInfo, SSqlNod
     const char* name = tNameGetTableName(&pTableMetaInfo->name);
     STableMetaVgroupInfo* p = taosHashGet(pCmd->pTableMetaMap, name, strlen(name));
 
-    pTableMetaInfo->pTableMeta = p->pTableMeta;
-    pTableMetaInfo->vgroupList = p->pVgroupInfo;
-
+    pTableMetaInfo->pTableMeta = tscTableMetaDup(p->pTableMeta);
     assert(pTableMetaInfo->pTableMeta != NULL);
+
+    if (p->pVgroupInfo != NULL) {
+      pTableMetaInfo->vgroupList = tscVgroupsInfoDup(p->pVgroupInfo);
+    }
 
     if (code != TSDB_CODE_SUCCESS) {
       return code;
@@ -7556,7 +7562,6 @@ int32_t validateSqlNode(SSqlObj* pSql, SSqlNode* pSqlNode, SQueryInfo* pQueryInf
      */
     if (isSTable) {
       tscTansformFuncForSTableQuery(pQueryInfo);
-
       if (hasUnsupportFunctionsForSTableQuery(pCmd, pQueryInfo)) {
         return TSDB_CODE_TSC_INVALID_SQL;
       }
