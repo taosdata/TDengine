@@ -389,7 +389,7 @@ static void mnodeSetDefaultDbCfg(SDbCfg *pCfg) {
   if (pCfg->compression < 0) pCfg->compression = tsCompression;
   if (pCfg->walLevel < 0) pCfg->walLevel = tsWAL;
   if (pCfg->replications < 0) pCfg->replications = tsReplications;
-  if (pCfg->quorum < 0) pCfg->quorum = tsQuorum;
+  if (pCfg->quorum < 0) pCfg->quorum = MIN(tsQuorum, pCfg->replications);
   if (pCfg->update < 0) pCfg->update = tsUpdate;
   if (pCfg->cacheLastRow < 0) pCfg->cacheLastRow = tsCacheLastRow;
   if (pCfg->dbType < 0) pCfg->dbType = 0;
