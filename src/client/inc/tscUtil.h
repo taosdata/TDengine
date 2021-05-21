@@ -307,7 +307,7 @@ STableMeta* createSuperTableMeta(STableMetaMsg* pChild);
 uint32_t tscGetTableMetaSize(STableMeta* pTableMeta);
 CChildTableMeta* tscCreateChildMeta(STableMeta* pTableMeta);
 uint32_t tscGetTableMetaMaxSize();
-int32_t tscCreateTableMetaFromCChildMeta(STableMeta* pChild, const char* name, void* buf);
+int32_t tscCreateTableMetaFromSTableMeta(STableMeta* pChild, const char* name, void* buf);
 STableMeta* tscTableMetaDup(STableMeta* pTableMeta);
 int32_t tscCreateQueryFromQueryInfo(SQueryInfo* pQueryInfo, SQueryAttr* pQueryAttr, void* addr);
 
