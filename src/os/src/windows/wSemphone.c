@@ -14,17 +14,17 @@
  */
 
 #define _DEFAULT_SOURCE
+#include <windows.h>
 #include "os.h"
 #include "taosdef.h"
 #include "tglobal.h"
 #include "ttimer.h"
 #include "tulog.h"
 #include "tutil.h"
-#include <windows.h>
 
 bool taosCheckPthreadValid(pthread_t thread) { return thread.p != NULL; }
 
-void taosResetPthread(pthread_t *thread) { thread->p = 0; }
+void taosResetPthread(pthread_t* thread) { thread->p = 0; }
 
 int64_t taosGetPthreadId(pthread_t thread) {
 #ifdef PTW32_VERSION
@@ -34,30 +34,24 @@ int64_t taosGetPthreadId(pthread_t thread) {
 #endif
 }
 
-int64_t taosGetSelfPthreadId() {
-  return GetCurrentThreadId();
-}
+int64_t taosGetSelfPthreadId() { return GetCurrentThreadId(); }
 
-bool taosComparePthread(pthread_t first, pthread_t second) {
-  return first.p == second.p;
-}
+bool taosComparePthread(pthread_t first, pthread_t second) { return first.p == second.p; }
 
-int32_t taosGetPId() {
-  return GetCurrentProcessId();
-}
+int32_t taosGetPId() { return GetCurrentProcessId(); }
 
-int32_t taosGetCurrentAPPName(char *name, int32_t* len) {
+int32_t taosGetCurrentAPPName(char* name, int32_t* len) {
   char filepath[1024] = {0};
 
   GetModuleFileName(NULL, filepath, MAX_PATH);
-  char* sub=strrchr(filepath,'.');
-  if(sub!=NULL){
-    sub='\0';
+  char* sub = strrchr(filepath, '.');
+  if (sub != NULL) {
+    *sub = '\0';
   }
   strcpy(name, filepath);
 
   if (len != NULL) {
-    *len = (int32_t) strlen(filepath);
+    *len = (int32_t)strlen(filepath);
   }
 
   return 0;
