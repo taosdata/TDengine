@@ -4243,7 +4243,7 @@ static SSDataBlock* doTableScan(void* param, bool *newgroup) {
     }
 
     if (++pTableScanInfo->current >= pTableScanInfo->times) {
-      if (pTableScanInfo->reverseTimes <= 0) {
+      if (pTableScanInfo->reverseTimes <= 0 || isTsdbCacheLastRow(pTableScanInfo->pQueryHandle)) {
         return NULL;
       } else {
         break;

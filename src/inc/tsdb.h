@@ -268,6 +268,8 @@ TsdbQueryHandleT tsdbQueryLastRow(STsdbRepo *tsdb, STsdbQueryCond *pCond, STable
 
 TsdbQueryHandleT tsdbQueryCacheLast(STsdbRepo *tsdb, STsdbQueryCond *pCond, STableGroupInfo *groupList, uint64_t qId, SMemRef* pMemRef);
 
+bool isTsdbCacheLastRow(TsdbQueryHandleT* pQueryHandle);
+
 
 /**
  * get the queried table object list

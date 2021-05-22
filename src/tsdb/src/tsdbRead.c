@@ -547,7 +547,9 @@ TsdbQueryHandleT tsdbQueryCacheLast(STsdbRepo *tsdb, STsdbQueryCond *pCond, STab
     return NULL;
   }
 
-  pQueryHandle->type = TSDB_QUERY_TYPE_LAST;
+  if (pQueryHandle->cachelastrow) {
+    pQueryHandle->type = TSDB_QUERY_TYPE_LAST;
+  }
   
   return pQueryHandle;
 }
@@ -2873,6 +2875,10 @@ int32_t tsdbGetCachedLastRow(STable* pTable, SDataRow* pRes, TSKEY* lastKey) {
   return TSDB_CODE_SUCCESS;
 }
 
+bool isTsdbCacheLastRow(TsdbQueryHandleT* pQueryHandle) {
+  return ((STsdbQueryHandle *)pQueryHandle)->cachelastrow > 0;
+}
+
 int32_t checkForCachedLastRow(STsdbQueryHandle* pQueryHandle, STableGroupInfo *groupList) {
   assert(pQueryHandle != NULL && groupList != NULL);
 
@@ -2921,7 +2927,6 @@ int32_t checkForCachedLast(STsdbQueryHandle* pQueryHandle, STableGroupInfo *grou
   if (((STable*)pInfo->pTable)->lastCols && ((STable*)pInfo->pTable)->lastColNum > 0){
     pQueryHandle->cachelastrow = 2;
   }
-  
 
   // update the tsdb query time range
   if (pQueryHandle->cachelastrow) {
