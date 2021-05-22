@@ -6612,15 +6612,6 @@ static void *superSubscribe(void *sarg) {
       exit(-1);
   }
 
-  if (g_queryInfo.superQueryInfo.sqlCount * pThreadInfo->ntables > MAX_QUERY_SQL_COUNT) {
-      errorPrint("The number %"PRId64" of sql count(%"PRIu64") multiple the table number(%"PRId64") of the thread is more than max query sql count: %d\n",
-              g_queryInfo.superQueryInfo.sqlCount * pThreadInfo->ntables,
-              g_queryInfo.superQueryInfo.sqlCount,
-              pThreadInfo->ntables,
-              MAX_QUERY_SQL_COUNT);
-      exit(-1);
-  }
-
   if (pThreadInfo->taos == NULL) {
     TAOS * taos = NULL;
     taos = taos_connect(g_queryInfo.host,
