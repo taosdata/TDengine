@@ -48,8 +48,8 @@ static bool isProjectStream(SQueryInfo* pQueryInfo) {
 
 static int64_t tscGetRetryDelayTime(SSqlStream* pStream, int64_t slidingTime, int16_t prec) {
   float retryRangeFactor = 0.3f;
-  int64_t retryDelta = (int64_t)(tsStreamCompRetryDelay * retryRangeFactor);
-  retryDelta = ((rand() % retryDelta) + tsStreamCompRetryDelay) * 1000L;
+  int64_t retryDelta = (int64_t)(tsRetryStreamCompDelay * retryRangeFactor);
+  retryDelta = ((rand() % retryDelta) + tsRetryStreamCompDelay) * 1000L;
 
   if (pStream->interval.intervalUnit != 'n' && pStream->interval.intervalUnit != 'y') {
     // change to ms
