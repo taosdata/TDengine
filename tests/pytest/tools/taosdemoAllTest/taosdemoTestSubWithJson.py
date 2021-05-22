@@ -113,10 +113,10 @@ class TDTestCase:
   
         # sql number lager  100
         os.system("%staosdemo -f tools/taosdemoAllTest/subInsertdataMaxsql100.json" % binPath)
-        # assert os.system("%staosdemo -f tools/taosdemoAllTest/subSyncSpecMaxsql100.json" % binPath) !=0
-        # os.system("%staosdemo -f tools/taosdemoAllTest/subSyncSuperMaxsql100.json" % binPath)
-        os.system("%staosdemo -f tools/taosdemoAllTest/subSyncKeepStart.json" % binPath)
-        tdSql.execute("insert into db.stb00_1 values(1614218412000,'R','bf3',8637,78.861045)(1614218413000,'R','bf3',8637,98.861045)") 
+        assert os.system("%staosdemo -f tools/taosdemoAllTest/subSyncSpecMaxsql100.json" % binPath) != 0
+        assert os.system("%staosdemo -f tools/taosdemoAllTest/subSyncSuperMaxsql100.json" % binPath) != 0
+        # os.system("%staosdemo -f tools/taosdemoAllTest/subSyncKeepStart.json" % binPath)
+        # tdSql.execute("insert into db.stb00_1 values(1614218412000,'R','bf3',8637,78.861045)(1614218413000,'R','bf3',8637,98.861045)") 
 
 
         # # # merge result files
@@ -149,8 +149,8 @@ class TDTestCase:
         # delete useless files
         os.system("rm -rf ./insert_res.txt")
         os.system("rm -rf tools/taosdemoAllTest/*.py.sql")        
-        # os.system("rm -rf ./subscribe_res*")   
-        # os.system("rm -rf ./all_subscribe*")
+        os.system("rm -rf ./subscribe_res*")   
+        os.system("rm -rf ./all_subscribe*")
          
     def stop(self):
         tdSql.close()

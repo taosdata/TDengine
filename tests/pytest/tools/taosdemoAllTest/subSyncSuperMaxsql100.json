@@ -10,7 +10,7 @@
       "super_table_query": 
       {
        "stblname": "stb0",
-       "threads":2, 
+       "threads":4, 
        "mode":"sync", 
        "interval":0, 
        "restart":"no", 
