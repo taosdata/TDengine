@@ -1002,6 +1002,7 @@ static void syncProcessForwardFromPeer(char *cont, SSyncPeer *pPeer) {
   if (nodeRole == TAOS_SYNC_ROLE_SLAVE) {
     // nodeVersion = pHead->version;
     code = (*pNode->writeToCacheFp)(pNode->vgId, pHead, TAOS_QTYPE_FWD, NULL);
+    syncConfirmForward(pNode->rid, pHead->version, code, false);
   } else {
     if (nodeSStatus != TAOS_SYNC_STATUS_INIT) {
       code = syncSaveIntoBuffer(pPeer, pHead);
@@ -1404,7 +1405,7 @@ static void syncMonitorFwdInfos(void *param, void *tmrId) {
       pthread_mutex_lock(&pNode->mutex);
       for (int32_t i = 0; i < pSyncFwds->fwds; ++i) {
         SFwdInfo *pFwdInfo = pSyncFwds->fwdInfo + (pSyncFwds->first + i) % SYNC_MAX_FWDS;
-        if (ABS(time - pFwdInfo->time) < 2000) break;
+        if (ABS(time - pFwdInfo->time) < 10000) break;
 
         sDebug("vgId:%d, forward info expired, hver:%" PRIu64 " curtime:%" PRIu64 " savetime:%" PRIu64, pNode->vgId,
                pFwdInfo->version, time, pFwdInfo->time);
