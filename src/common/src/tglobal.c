@@ -176,12 +176,15 @@ int32_t tsMonitorInterval = 30;  // seconds
 int8_t  tsEnableStream = 1;
 
 // internal
+int8_t tsCompactMnodeWal = 0;
 int8_t tsPrintAuth = 0;
 int8_t tscEmbedded = 0;
 char   configDir[TSDB_FILENAME_LEN] = {0};
 char   tsVnodeDir[TSDB_FILENAME_LEN] = {0};
 char   tsDnodeDir[TSDB_FILENAME_LEN] = {0};
 char   tsMnodeDir[TSDB_FILENAME_LEN] = {0};
+char   tsMnodeTmpDir[TSDB_FILENAME_LEN] = {0};
+char   tsMnodeBakDir[TSDB_FILENAME_LEN] = {0};
 char   tsDataDir[TSDB_FILENAME_LEN] = {0};
 char   tsScriptDir[TSDB_FILENAME_LEN] = {0};
 char   tsTempDir[TSDB_FILENAME_LEN] = "/tmp/";
