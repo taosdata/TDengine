@@ -1,4 +1,4 @@
-package com.taosdata.tsync.domain;
+package com.taosdata.tsync.entity;
 
 import java.util.Objects;
 

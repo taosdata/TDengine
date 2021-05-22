@@ -1,7 +1,7 @@
 package com.taosdata.tsync;
 
-import com.taosdata.tsync.domain.ConsumerConfig;
-import com.taosdata.tsync.domain.ConsumerRecord;
+import com.taosdata.tsync.entity.consumer.ConsumerConfig;
+import com.taosdata.tsync.entity.consumer.ConsumerRecord;
 
 import java.time.Duration;
 import java.util.List;

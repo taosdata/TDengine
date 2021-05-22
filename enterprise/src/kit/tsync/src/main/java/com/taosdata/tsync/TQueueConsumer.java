@@ -1,8 +1,8 @@
 package com.taosdata.tsync;
 
-import com.taosdata.tsync.domain.ConsumerRecord;
-import com.taosdata.tsync.domain.Topic;
-import com.taosdata.tsync.domain.TopicPartition;
+import com.taosdata.tsync.entity.consumer.ConsumerRecord;
+import com.taosdata.tsync.entity.Topic;
+import com.taosdata.tsync.entity.TopicPartition;
 import com.taosdata.tsync.utils.Utils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;

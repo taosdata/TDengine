@@ -1,4 +1,4 @@
-package com.taosdata.tsync.domain;
+package com.taosdata.tsync.entity;
 
 import java.sql.Timestamp;
 
@@ -13,6 +13,7 @@ public class Topic {
         this.created_time = created_time;
     }
 
+    // getter
     public String topic() {
         return this.topic;
     }

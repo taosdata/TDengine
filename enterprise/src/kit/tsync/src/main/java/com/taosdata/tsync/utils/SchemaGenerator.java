@@ -2,6 +2,7 @@ package com.taosdata.tsync.utils;
 
 import com.alibaba.fastjson.JSONArray;
 import com.alibaba.fastjson.JSONObject;
+import com.taosdata.tsync.serializer.SerializeIgnore;
 
 import java.lang.reflect.Field;
 

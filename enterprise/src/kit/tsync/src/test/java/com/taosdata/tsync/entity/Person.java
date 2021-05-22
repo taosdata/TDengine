@@ -1,6 +1,6 @@
-package com.taosdata.tsync.domain;
+package com.taosdata.tsync.entity;
 
-import com.taosdata.tsync.utils.SerializeIgnore;
+import com.taosdata.tsync.serializer.SerializeIgnore;
 
 public class Person {
     private String name;

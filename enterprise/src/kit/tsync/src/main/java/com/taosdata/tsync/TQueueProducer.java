@@ -1,6 +1,8 @@
 package com.taosdata.tsync;
 
-import com.taosdata.tsync.domain.*;
+import com.taosdata.tsync.entity.*;
+import com.taosdata.tsync.entity.producer.ProducerConfig;
+import com.taosdata.tsync.entity.producer.ProducerRecord;
 import com.taosdata.tsync.serializer.Serializer;
 import com.taosdata.tsync.serializer.TQueueAvroSerializer;
 import com.taosdata.tsync.serializer.TQueueStringSerializer;

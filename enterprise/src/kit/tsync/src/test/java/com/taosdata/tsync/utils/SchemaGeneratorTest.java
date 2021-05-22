@@ -1,6 +1,6 @@
 package com.taosdata.tsync.utils;
 
-import com.taosdata.tsync.domain.Person;
+import com.taosdata.tsync.entity.Person;
 import org.junit.Test;
 
 public class SchemaGeneratorTest {

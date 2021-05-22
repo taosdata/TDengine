@@ -1,8 +1,8 @@
 package com.taosdata.tsync;
 
-import com.taosdata.tsync.domain.Person;
-import com.taosdata.tsync.domain.ProducerConfig;
-import com.taosdata.tsync.domain.ProducerRecord;
+import com.taosdata.tsync.entity.Person;
+import com.taosdata.tsync.entity.producer.ProducerConfig;
+import com.taosdata.tsync.entity.producer.ProducerRecord;
 
 import java.util.List;
 import java.util.Properties;
@@ -16,7 +16,6 @@ public class TQueueProducerTest {
     private static final Random random = new Random(System.currentTimeMillis());
 
     public static void main(String[] args) throws InterruptedException {
-
         Properties props = new Properties();
         props.setProperty(ProducerConfig.HOST_CONFIG, "master");
         props.setProperty(ProducerConfig.PORT_CONFIG, "6041");
@@ -25,14 +24,13 @@ public class TQueueProducerTest {
         props.setProperty(ProducerConfig.CHARSET_CONFIG, "UTF-8");
         props.setProperty(ProducerConfig.LOCALE_CONFIG, "en_US.UTF-8");
         props.setProperty(ProducerConfig.TIMEZONE_CONFIG, "UTC-8");
-        props.setProperty(ProducerConfig.SERIALIZER, ProducerConfig.AVRO_SERIALIZER);
+        props.setProperty(ProducerConfig.SERIALIZER, ProducerConfig.STRING_SERIALIZER);
 
         TQueueProducer producer = new TQueueProducer(props);
 
         List<Thread> threads = IntStream.range(1, 11).mapToObj(partition -> new Thread(() -> {
             try {
                 for (int i = 0; i < 1000; i++) {
-
                     ProducerRecord<Person> record = new ProducerRecord(
                             TOPIC,
                             partition,

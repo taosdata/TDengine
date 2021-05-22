@@ -1,4 +1,6 @@
-package com.taosdata.tsync.domain;
+package com.taosdata.tsync.entity.producer;
+
+import com.taosdata.tsync.entity.AbstractBaseConfig;
 
 public class ProducerConfig extends AbstractBaseConfig {
 
@@ -8,5 +10,6 @@ public class ProducerConfig extends AbstractBaseConfig {
     public static final String SERIALIZER = "serializer";
 
     private ProducerConfig() {
+
     }
 }

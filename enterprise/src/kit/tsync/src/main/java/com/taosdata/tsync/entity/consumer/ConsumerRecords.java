@@ -1,4 +1,4 @@
-package com.taosdata.tsync.domain;
+package com.taosdata.tsync.entity.consumer;
 
 import java.util.Iterator;
 import java.util.Spliterator;

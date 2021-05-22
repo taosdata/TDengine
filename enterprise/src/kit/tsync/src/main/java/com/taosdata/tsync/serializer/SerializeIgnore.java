@@ -1,4 +1,4 @@
-package com.taosdata.tsync.utils;
+package com.taosdata.tsync.serializer;
 
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
