@@ -110,7 +110,7 @@ mkdir debug && cd debug
 cmake .. && cmake --build .
 ```
 
-TDengine build script can detect the host machine's architecture on X86-64, X86, arm64 and arm32 platform.
+TDengine build script can detect the host machine's architecture on X86-64, X86, arm64, arm32 and mips64 platform.
 You can also specify CPUTYPE option like aarch64 or aarch32 too if the detection result is not correct:
 
 aarch64:
@@ -121,6 +121,11 @@ cmake .. -DCPUTYPE=aarch64 && cmake --build .
 aarch32:
 ```bash
 cmake .. -DCPUTYPE=aarch32 && cmake --build .
+```
+
+mips64:
+```bash
+cmake .. -DCPUTYPE=mips64 && cmake --build .
 ```
 
 ### On Windows platform
