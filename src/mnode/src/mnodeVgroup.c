@@ -61,6 +61,7 @@ static int32_t mnodeRetrieveVgroups(SShowObj *pShow, char *data, int32_t rows, v
 static void    mnodeProcessCreateVnodeRsp(SRpcMsg *rpcMsg);
 static void    mnodeProcessAlterVnodeRsp(SRpcMsg *rpcMsg);
 static void    mnodeProcessSyncVnodeRsp(SRpcMsg *rpcMsg);
+static void    mnodeProcessCompactVnodeRsp(SRpcMsg *rpcMsg);
 static void    mnodeProcessDropVnodeRsp(SRpcMsg *rpcMsg);
 static int32_t mnodeProcessVnodeCfgMsg(SMnodeMsg *pMsg) ;
 static void    mnodeSendDropVgroupMsg(SVgObj *pVgroup, void *ahandle);
@@ -238,6 +239,7 @@ int32_t mnodeInitVgroups() {
   mnodeAddPeerRspHandle(TSDB_MSG_TYPE_MD_CREATE_VNODE_RSP, mnodeProcessCreateVnodeRsp);
   mnodeAddPeerRspHandle(TSDB_MSG_TYPE_MD_ALTER_VNODE_RSP, mnodeProcessAlterVnodeRsp);
   mnodeAddPeerRspHandle(TSDB_MSG_TYPE_MD_ALTER_VNODE_RSP, mnodeProcessSyncVnodeRsp);
+  mnodeAddPeerRspHandle(TSDB_MSG_TYPE_MD_COMPACT_VNODE_RSP, mnodeProcessCompactVnodeRsp);
   mnodeAddPeerRspHandle(TSDB_MSG_TYPE_MD_DROP_VNODE_RSP, mnodeProcessDropVnodeRsp);
   mnodeAddPeerMsgHandle(TSDB_MSG_TYPE_DM_CONFIG_VNODE, mnodeProcessVnodeCfgMsg);
 
@@ -977,6 +979,7 @@ static SSyncVnodeMsg *mnodeBuildSyncVnodeMsg(int32_t vgId) {
   return pSyncVnode;
 }
 
+
 static void mnodeSendSyncVnodeMsg(SVgObj *pVgroup, SRpcEpSet *epSet) {
   SSyncVnodeMsg *pSyncVnode = mnodeBuildSyncVnodeMsg(pVgroup->vgId);
   SRpcMsg rpcMsg = {
@@ -985,6 +988,18 @@ static void mnodeSendSyncVnodeMsg(SVgObj *pVgroup, SRpcEpSet *epSet) {
     .contLen = pSyncVnode ? sizeof(SSyncVnodeMsg) : 0,
     .code    = 0,
     .msgType = TSDB_MSG_TYPE_MD_SYNC_VNODE
+  };
+
+  dnodeSendMsgToDnode(epSet, &rpcMsg);
+}
+static void mnodeSendCompactVnodeMsg(SVgObj *pVgroup, SRpcEpSet *epSet) {
+  SSyncVnodeMsg *pSyncVnode = mnodeBuildSyncVnodeMsg(pVgroup->vgId);
+  SRpcMsg rpcMsg = {
+    .ahandle = NULL,
+    .pCont   = pSyncVnode,
+    .contLen = pSyncVnode ? sizeof(SCompactVnodeMsg) : 0,
+    .code    = 0,
+    .msgType = TSDB_MSG_TYPE_MD_COMPACT_VNODE
   };
 
   dnodeSendMsgToDnode(epSet, &rpcMsg);
@@ -1002,6 +1017,17 @@ void mnodeSendSyncVgroupMsg(SVgObj *pVgroup) {
   }
 }
 
+void mnodeSendCompactVgroupMsg(SVgObj *pVgroup) {
+  mDebug("vgId:%d, send compact all vnodes msg, numOfVnodes:%d db:%s", pVgroup->vgId, pVgroup->numOfVnodes, pVgroup->dbName);
+  for (int32_t i = 0; i < pVgroup->numOfVnodes; ++i) {
+    if (pVgroup->vnodeGid[i].role != TAOS_SYNC_ROLE_SLAVE) continue; //TODO(yihaoDeng): compact slave or not ? 
+    SRpcEpSet epSet = mnodeGetEpSetFromIp(pVgroup->vnodeGid[i].pDnode->dnodeEp);
+    mDebug("vgId:%d, index:%d, send compact vnode msg to dnode %s", pVgroup->vgId, i,
+           pVgroup->vnodeGid[i].pDnode->dnodeEp);
+    mnodeSendCompactVnodeMsg(pVgroup, &epSet);
+  }
+
+}
 static void mnodeSendCreateVnodeMsg(SVgObj *pVgroup, SRpcEpSet *epSet, void *ahandle) {
   SCreateVnodeMsg *pCreate = mnodeBuildVnodeMsg(pVgroup);
   SRpcMsg rpcMsg = {
@@ -1031,6 +1057,9 @@ static void mnodeProcessAlterVnodeRsp(SRpcMsg *rpcMsg) {
 
 static void mnodeProcessSyncVnodeRsp(SRpcMsg *rpcMsg) {
   mDebug("sync vnode rsp received");
+}
+static void mnodeProcessCompactVnodeRsp(SRpcMsg *rpcMsg) {
+  mDebug("compact vnode rsp received");
 }
 
 static void mnodeProcessCreateVnodeRsp(SRpcMsg *rpcMsg) {

@@ -106,6 +106,7 @@ static int32_t validateDNodeConfig(SMiscInfo* pOptions);
 static int32_t validateLocalConfig(SMiscInfo* pOptions);
 static int32_t validateColumnName(char* name);
 static int32_t setKillInfo(SSqlObj* pSql, struct SSqlInfo* pInfo, int32_t killType);
+static int32_t setCompactVnodeInfo(SSqlObj* pSql, struct SSqlInfo* pInfo);
 
 static bool validateOneTags(SSqlCmd* pCmd, TAOS_FIELD* pTagField);
 static bool hasTimestampForPointInterpQuery(SQueryInfo* pQueryInfo);
@@ -377,7 +378,7 @@ int32_t tscToSQLCmd(SSqlObj* pSql, struct SSqlInfo* pInfo) {
 
       break;
     }
-
+  
     case TSDB_SQL_CREATE_DNODE: {
       const char* msg = "invalid host name (ip address)";
 
@@ -686,7 +687,13 @@ int32_t tscToSQLCmd(SSqlObj* pSql, struct SSqlInfo* pInfo) {
       }
       break;
     }
-
+    case TSDB_SQL_COMPACT_VNODE:{ 
+      const char* msg = "invalid compact";
+      if (setCompactVnodeInfo(pSql, pInfo) != TSDB_CODE_SUCCESS) {
+        return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg);
+      }                            
+      break;                             
+    }
     default:
       return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), "not support sql expression");
   }
@@ -2789,7 +2796,13 @@ int32_t setKillInfo(SSqlObj* pSql, struct SSqlInfo* pInfo, int32_t killType) {
   
   return TSDB_CODE_SUCCESS;
 }
-
+static int32_t setCompactVnodeInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
+  SSqlCmd* pCmd = &pSql->cmd;
+  //STableMetaInfo* pTableMetaInfo = tscGetTableMetaInfoFromCmd(pCmd, pCmd->clauseIndex, 0);
+  pCmd->command = pInfo->type;
+  
+  return TSDB_CODE_SUCCESS;
+}
 bool validateIpAddress(const char* ip, size_t size) {
   char tmp[128] = {0};  // buffer to build null-terminated string
   assert(size < 128);
