@@ -312,11 +312,7 @@ static int test_sqls_in_stmt(SQLHENV env, SQLHDBC conn, SQLHSTMT stmt, const cha
     size_t len = 0;
 
     ssize_t n = 0;
-#ifdef _MSC_VER
-    n = taosGetlineImp(&line, &len, f);
-#else
-    n = getline(&line, &len, f);
-#endif
+    n = tgetline(&line, &len, f);
     if (n==-1) break;
 
     const char *p = NULL;
