@@ -1150,7 +1150,7 @@ static void fetchResult(TAOS_RES *res, threadInfo* pThreadInfo) {
 
   // fetch the records row by row
   while((row = taos_fetch_row(res))) {
-    if ((pThreadInfo->filePath) && (strlen(pThreadInfo->filePath) > 0)
+    if ((strlen(pThreadInfo->filePath) > 0)
             && (totalLen >= 100*1024*1024 - 32000)) {
         appendResultBufToFile(databuf, pThreadInfo);
         totalLen = 0;
@@ -1166,7 +1166,7 @@ static void fetchResult(TAOS_RES *res, threadInfo* pThreadInfo) {
 
   verbosePrint("%s() LN%d, databuf=%s resultFile=%s\n",
           __func__, __LINE__, databuf, pThreadInfo->filePath);
-  if ((pThreadInfo->filePath) && (strlen(pThreadInfo->filePath) > 0)) {
+  if (strlen(pThreadInfo->filePath) > 0) {
     appendResultBufToFile(databuf, pThreadInfo);
   }
   free(databuf);
@@ -2199,7 +2199,7 @@ static int postProceSql(char *host, struct sockaddr_in *pServAddr, uint16_t port
     response_buf[RESP_BUF_LEN - 1] = '\0';
     printf("Response:\n%s\n", response_buf);
 
-    if ((pThreadInfo->filePath) && (strlen(pThreadInfo->filePath) > 0)) {
+    if (strlen(pThreadInfo->filePath) > 0) {
        appendResultBufToFile(response_buf, pThreadInfo);
     }
 
