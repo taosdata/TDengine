@@ -17,7 +17,7 @@
 #define HTTP_PARSER_H
 #include "httpGzip.h"
 
-#define HTTP_MAX_URL 5  // http url stack size
+#define HTTP_MAX_URL 6  // http url stack size
 
 typedef enum HTTP_PARSER_STATE {
   HTTP_PARSER_BEGIN,
