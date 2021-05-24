@@ -391,7 +391,7 @@ typedef struct SuperQueryInfo_S {
   uint64_t     sqlCount;
   char         sql[MAX_QUERY_SQL_COUNT][MAX_QUERY_SQL_LENGTH+1];
   char         result[MAX_QUERY_SQL_COUNT][MAX_FILE_NAME_LEN+1];
-  int          resubAfterConsume[MAX_QUERY_SQL_COUNT];
+  int          resubAfterConsume;
   TAOS_SUB*    tsub[MAX_QUERY_SQL_COUNT];
 
   char*        childTblName;
@@ -1114,20 +1114,20 @@ static int queryDbExec(TAOS *taos, char *command, QUERY_TYPE type, bool quiet) {
 
 static void appendResultBufToFile(char *resultBuf, char *resultFile)
 {
-  FILE *fp = NULL;
-  if (resultFile[0] != 0) {
-    fp = fopen(resultFile, "at");
-    if (fp == NULL) {
-      errorPrint(
-              "%s() LN%d, failed to open result file: %s, result will not save to file\n",
-              __func__, __LINE__, resultFile);
-      return;
+    FILE *fp = NULL;
+    if (resultFile[0] != 0) {
+        fp = fopen(resultFile, "at");
+        if (fp == NULL) {
+            errorPrint(
+                    "%s() LN%d, failed to open result file: %s, result will not save to file\n",
+                    __func__, __LINE__, resultFile);
+            return;
+        }
+        fprintf(fp, "%s", resultBuf);
+        tmfclose(fp);
     }
-  }
-
-  fprintf(fp, "%s", resultBuf);
-  tmfclose(fp);
 }
+
 
 static void appendResultToFile(TAOS_RES *res, char* resultFile) {
   TAOS_ROW    row = NULL;
@@ -4447,6 +4447,18 @@ static bool getMetaFromQueryJsonFile(cJSON* root) {
       g_queryInfo.superQueryInfo.subscribeKeepProgress = 0;
     }
 
+    cJSON* superResubAfterConsume =
+            cJSON_GetObjectItem(superQuery, "resubAfterConsume");
+    if (superResubAfterConsume
+            && superResubAfterConsume->type == cJSON_Number) {
+        g_queryInfo.superQueryInfo.resubAfterConsume =
+            superResubAfterConsume->valueint;
+    } else if (!superResubAfterConsume) {
+        //printf("failed to read json, subscribe interval no found\n");
+        ////goto PARSE_OVER;
+        g_queryInfo.superQueryInfo.resubAfterConsume = 1;
+    }
+
     // sqls
     cJSON* subsqls = cJSON_GetObjectItem(superQuery, "sqls");
     if (!subsqls) {
@@ -4477,18 +4489,6 @@ static bool getMetaFromQueryJsonFile(cJSON* root) {
         }
         tstrncpy(g_queryInfo.superQueryInfo.sql[j], sqlStr->valuestring,
             MAX_QUERY_SQL_LENGTH);
-
-        cJSON* superResubAfterConsume =
-            cJSON_GetObjectItem(sql, "resubAfterConsume");
-        if (superResubAfterConsume
-                && superResubAfterConsume->type == cJSON_Number) {
-            g_queryInfo.superQueryInfo.resubAfterConsume[j] =
-                superResubAfterConsume->valueint;
-        } else if (!superResubAfterConsume) {
-            //printf("failed to read json, subscribe interval no found\n");
-            //goto PARSE_OVER;
-            g_queryInfo.superQueryInfo.resubAfterConsume[j] = 1;
-        }
 
         cJSON *result = cJSON_GetObjectItem(sql, "result");
         if (result != NULL && result->type == cJSON_String
@@ -6612,15 +6612,6 @@ static void *superSubscribe(void *sarg) {
       exit(-1);
   }
 
-  if (g_queryInfo.superQueryInfo.sqlCount * pThreadInfo->ntables > MAX_QUERY_SQL_COUNT) {
-      errorPrint("The number %"PRId64" of sql count(%"PRIu64") multiple the table number(%"PRId64") of the thread is more than max query sql count: %d\n",
-              g_queryInfo.superQueryInfo.sqlCount * pThreadInfo->ntables,
-              g_queryInfo.superQueryInfo.sqlCount,
-              pThreadInfo->ntables,
-              MAX_QUERY_SQL_COUNT);
-      exit(-1);
-  }
-
   if (pThreadInfo->taos == NULL) {
     TAOS * taos = NULL;
     taos = taos_connect(g_queryInfo.host,
@@ -6688,6 +6679,8 @@ static void *superSubscribe(void *sarg) {
   }
   TAOS_RES* res = NULL;
 
+  uint64_t st = 0, et = 0;
+
   while(1) {
     for (uint64_t i = pThreadInfo->start_table_from;
             i <= pThreadInfo->end_table_to; i++) {
@@ -6696,7 +6689,12 @@ static void *superSubscribe(void *sarg) {
           continue;
       }
 
+      st = taosGetTimestampMs();
+      performancePrint("st: %"PRIu64" et: %"PRIu64" st-et: %"PRIu64"\n", st, et, (st - et));
       res = taos_consume(tsub[tsubSeq]);
+      et = taosGetTimestampMs();
+      performancePrint("st: %"PRIu64" et: %"PRIu64" delta: %"PRIu64"\n", st, et, (et - st));
+
       if (res) {
           if (g_queryInfo.superQueryInfo.result[pThreadInfo->querySeq][0] != 0) {
               sprintf(pThreadInfo->fp, "%s-%d",
@@ -6714,7 +6712,7 @@ static void *superSubscribe(void *sarg) {
 
           if ((g_queryInfo.superQueryInfo.subscribeKeepProgress)
                   && (consumed[tsubSeq] >=
-                      g_queryInfo.superQueryInfo.resubAfterConsume[pThreadInfo->querySeq])) {
+                      g_queryInfo.superQueryInfo.resubAfterConsume)) {
               printf("keepProgress:%d, resub super table query: %"PRIu64"\n",
                       g_queryInfo.superQueryInfo.subscribeKeepProgress,
                       pThreadInfo->querySeq);
