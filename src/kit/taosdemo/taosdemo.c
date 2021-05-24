@@ -386,6 +386,7 @@ typedef struct SpecifiedQueryInfo_S {
   char         result[MAX_QUERY_SQL_COUNT][MAX_FILE_NAME_LEN+1];
   int          resubAfterConsume[MAX_QUERY_SQL_COUNT];
   TAOS_SUB*    tsub[MAX_QUERY_SQL_COUNT];
+  char         topic[MAX_QUERY_SQL_COUNT][32];
   uint64_t     totalQueried;
 } SpecifiedQueryInfo;
 
@@ -465,6 +466,7 @@ typedef struct SThreadInfo_S {
 
   // seq of query or subscribe
   uint64_t  querySeq;   // sequence number of sql command
+  TAOS_SUB*  tsub;
 
 } threadInfo;
 
@@ -6403,8 +6405,8 @@ static void *specifiedTableQuery(void *sarg) {
   uint64_t lastPrintTime = taosGetTimestampMs();
   uint64_t startTs = taosGetTimestampMs();
 
-  if (g_queryInfo.specifiedQueryInfo.result[pThreadInfo->querySeq][0] != 0) {
-        sprintf(pThreadInfo->fp, "%s-%d",
+  if (g_queryInfo.specifiedQueryInfo.result[pThreadInfo->querySeq] != NULL) {
+    sprintf(pThreadInfo->fp, "%s-%d",
                 g_queryInfo.specifiedQueryInfo.result[pThreadInfo->querySeq],
                 pThreadInfo->threadID);
   }
@@ -6504,7 +6506,7 @@ static void *superTableQuery(void *sarg) {
       for (int j = 0; j < g_queryInfo.superQueryInfo.sqlCount; j++) {
         memset(sqlstr,0,sizeof(sqlstr));
         replaceChildTblName(g_queryInfo.superQueryInfo.sql[j], sqlstr, i);
-        if (g_queryInfo.superQueryInfo.result[j][0] != 0) {
+        if (g_queryInfo.superQueryInfo.result[j] != NULL) {
           sprintf(pThreadInfo->fp, "%s-%d",
                   g_queryInfo.superQueryInfo.result[j],
                   pThreadInfo->threadID);
@@ -6913,7 +6915,7 @@ static void *superSubscribe(void *sarg) {
 
 static void *specifiedSubscribe(void *sarg) {
   threadInfo *pThreadInfo = (threadInfo *)sarg;
-  TAOS_SUB*  tsub = NULL;
+//  TAOS_SUB*  tsub = NULL;
 
   if (pThreadInfo->taos == NULL) {
     TAOS * taos = NULL;
@@ -6939,20 +6941,22 @@ static void *specifiedSubscribe(void *sarg) {
     return NULL;
   }
 
-  char topic[32] = {0};
-  sprintf(topic, "taosdemo-subscribe-%"PRIu64"", pThreadInfo->querySeq);
-  if (g_queryInfo.specifiedQueryInfo.result[pThreadInfo->querySeq][0] != 0) {
+  sprintf(g_queryInfo.specifiedQueryInfo.topic[pThreadInfo->querySeq],
+          "taosdemo-subscribe-%"PRIu64"-%d",
+          pThreadInfo->querySeq,
+          pThreadInfo->threadID);
+  if (g_queryInfo.specifiedQueryInfo.result[pThreadInfo->querySeq] != NULL) {
       sprintf(pThreadInfo->fp, "%s-%d",
                 g_queryInfo.specifiedQueryInfo.result[pThreadInfo->querySeq],
                 pThreadInfo->threadID);
   }
-  tsub = subscribeImpl(
+  g_queryInfo.specifiedQueryInfo.tsub[pThreadInfo->querySeq] = subscribeImpl(
                       SPECIFIED_CLASS, pThreadInfo,
           g_queryInfo.specifiedQueryInfo.sql[pThreadInfo->querySeq],
-          topic,
+          g_queryInfo.specifiedQueryInfo.topic[pThreadInfo->querySeq],
           g_queryInfo.specifiedQueryInfo.subscribeRestart,
           g_queryInfo.specifiedQueryInfo.subscribeInterval);
-  if (NULL == tsub) {
+  if (NULL == g_queryInfo.specifiedQueryInfo.tsub[pThreadInfo->querySeq]) {
       taos_close(pThreadInfo->taos);
       return NULL;
   }
@@ -6967,7 +6971,7 @@ static void *specifiedSubscribe(void *sarg) {
         continue;
       }
 
-      res = taos_consume(tsub);
+      res = taos_consume(g_queryInfo.specifiedQueryInfo.tsub[pThreadInfo->querySeq]);
       if (res) {
           if (g_queryInfo.specifiedQueryInfo.result[pThreadInfo->querySeq][0] != 0) {
               sprintf(pThreadInfo->fp, "%s-%d",
@@ -6984,16 +6988,16 @@ static void *specifiedSubscribe(void *sarg) {
                     g_queryInfo.specifiedQueryInfo.subscribeKeepProgress,
                     pThreadInfo->querySeq);
               consumed = 0;
-              taos_unsubscribe(tsub,
+              taos_unsubscribe(g_queryInfo.specifiedQueryInfo.tsub[pThreadInfo->querySeq],
                       g_queryInfo.specifiedQueryInfo.subscribeKeepProgress);
-              tsub = subscribeImpl(
+              g_queryInfo.specifiedQueryInfo.tsub[pThreadInfo->querySeq] = subscribeImpl(
                       SPECIFIED_CLASS,
                       pThreadInfo,
                       g_queryInfo.specifiedQueryInfo.sql[pThreadInfo->querySeq],
-                      topic,
+                      g_queryInfo.specifiedQueryInfo.topic[pThreadInfo->querySeq],
                       g_queryInfo.specifiedQueryInfo.subscribeRestart,
                       g_queryInfo.specifiedQueryInfo.subscribeInterval);
-              if (NULL == tsub) {
+              if (NULL == g_queryInfo.specifiedQueryInfo.tsub[pThreadInfo->querySeq]) {
                 taos_close(pThreadInfo->taos);
                 return NULL;
               }
@@ -7001,7 +7005,7 @@ static void *specifiedSubscribe(void *sarg) {
       }
   }
   taos_free_result(res);
-  taos_unsubscribe(tsub, 0);
+  taos_unsubscribe(g_queryInfo.specifiedQueryInfo.tsub[pThreadInfo->querySeq], 0);
   taos_close(pThreadInfo->taos);
 
   return NULL;
