@@ -238,6 +238,32 @@ static int32_t mnodeCreateRootAcct() {
   return sdbInsertRow(&row);
 }
 
+int32_t mnodeCompactAccts() {
+  void *pIter = NULL;
+  SAcctObj *pAcct = NULL;
+
+  mInfo("start to compact accts table...");
+
+  while (1) {
+    pIter = mnodeGetNextAcct(pIter, &pAcct);
+    if (pAcct == NULL) break;
+
+    SSdbRow row = {
+      .type   = SDB_OPER_GLOBAL,
+      .pTable = tsAcctSdb,
+      .pObj   = pAcct,
+    };
+
+    mInfo("compact accts %s", pAcct->user);
+    
+    sdbInsertCompactRow(&row);
+  }
+
+  mInfo("end to compact accts table...");
+
+  return 0;
+}
+
 #ifndef _ACCT
 
 int32_t acctInit() { return TSDB_CODE_SUCCESS; }

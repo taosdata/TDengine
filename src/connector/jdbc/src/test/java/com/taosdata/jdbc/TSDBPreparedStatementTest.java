@@ -207,9 +207,68 @@ public class TSDBPreparedStatementTest {
             while(rs.next()) {
                 rows++;
             }
-            Assert.assertEquals(numOfRows, rows);
+            Assert.assertEquals(numOfRows, rows);            
         }
     }
+
+    @Test
+    public void bindDataSelectColumnTest() throws SQLException {   
+        Statement stmt = conn.createStatement();            
+
+        int numOfRows = 1000;        
+
+        for (int loop = 0; loop < 10; loop++){
+            stmt.execute("drop table if exists weather_test");
+            stmt.execute("create table weather_test(ts timestamp, f1 nchar(4), f2 float, f3 double, f4 timestamp, f5 int, f6 bool, f7 binary(10))");            
+
+            TSDBPreparedStatement s = (TSDBPreparedStatement) conn.prepareStatement("insert into ? (ts, f1, f7) values(?, ?, ?)");
+            Random r = new Random();
+            s.setTableName("weather_test");
+            
+            ArrayList<Long> ts = new ArrayList<Long>();
+            for(int i = 0; i < numOfRows; i++) {
+                ts.add(System.currentTimeMillis() + i);
+            }        
+            s.setTimestamp(0, ts);
+
+            int random = 10 + r.nextInt(5);
+            ArrayList<String> s2 = new ArrayList<String>();        
+            for(int i = 0; i < numOfRows; i++) {
+                if(i % random == 0) {
+                    s2.add(null);
+                }else{
+                    s2.add("分支" + i % 4);
+                }
+            }        
+            s.setNString(1, s2, 4);                   
+
+            random = 10 + r.nextInt(5);
+            ArrayList<String> s5 = new ArrayList<String>();
+            for(int i = 0; i < numOfRows; i++) {
+                if(i % random == 0) {
+                    s5.add(null);
+                }else{
+                    s5.add("test" + i % 10);
+                }
+            }
+            s.setString(2, s5, 10);        
+
+            s.columnDataAddBatch();
+            s.columnDataExecuteBatch();
+            s.columnDataCloseBatch();
+
+            String sql = "select * from weather_test";
+            PreparedStatement statement = conn.prepareStatement(sql);
+            ResultSet rs = statement.executeQuery();
+            int rows = 0;
+            while(rs.next()) {
+                rows++;
+            }
+            Assert.assertEquals(numOfRows, rows);            
+        }
+    }
+
+
 
     @Test
     public void setBoolean() throws SQLException {
