@@ -1,10 +1,9 @@
 package com.taosdata.tsync.parser;
 
 import com.alibaba.fastjson.JSONObject;
-import com.taosdata.tsync.entity.Configuration;
-import com.taosdata.tsync.entity.ConfigurationType;
-import com.taosdata.tsync.entity.produceJob.MessageConfiguration;
-import com.taosdata.tsync.entity.produceJob.SchemaConfiguration;
+import com.taosdata.tsync.entity.config.Configuration;
+import com.taosdata.tsync.entity.config.ConfigurationType;
+import com.taosdata.tsync.entity.config.MessageConfiguration;
 
 public class MessageConfigurationParser implements ConfigurationParser {
     private final ConfigurationType type = ConfigurationType.MESSAGE;

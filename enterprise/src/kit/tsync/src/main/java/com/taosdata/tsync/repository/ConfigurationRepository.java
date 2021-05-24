@@ -1,7 +1,6 @@
 package com.taosdata.tsync.repository;
 
-import com.taosdata.tsync.entity.Configuration;
-import com.taosdata.tsync.entity.ConfigurationType;
+import com.taosdata.tsync.entity.config.Configuration;
 
 import java.util.ArrayList;
 import java.util.List;

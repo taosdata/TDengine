@@ -1,4 +1,4 @@
-package com.taosdata.tsync.entity;
+package com.taosdata.tsync.entity.config;
 
 import java.util.ArrayList;
 import java.util.List;

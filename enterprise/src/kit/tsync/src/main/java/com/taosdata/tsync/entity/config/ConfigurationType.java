@@ -1,4 +1,4 @@
-package com.taosdata.tsync.entity;
+package com.taosdata.tsync.entity.config;
 
 public enum ConfigurationType {
     PRODUCE_JOB,

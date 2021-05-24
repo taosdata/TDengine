@@ -1,9 +1,9 @@
 package com.taosdata.tsync.factory;
 
 import com.alibaba.fastjson.JSONObject;
-import com.taosdata.tsync.entity.Configuration;
-import com.taosdata.tsync.entity.ConfigurationType;
-import com.taosdata.tsync.entity.produceJob.*;
+import com.taosdata.tsync.entity.config.Configuration;
+import com.taosdata.tsync.entity.config.ConfigurationType;
+import com.taosdata.tsync.entity.config.*;
 import org.apache.commons.io.IOUtils;
 import org.junit.Assert;
 import org.junit.Before;

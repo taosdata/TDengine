@@ -1,7 +1,4 @@
-package com.taosdata.tsync.entity.produceJob;
-
-import com.taosdata.tsync.entity.Configuration;
-import com.taosdata.tsync.entity.ConfigurationType;
+package com.taosdata.tsync.entity.config;
 
 public class DatabaseConfiguration extends Configuration {
     private String name;

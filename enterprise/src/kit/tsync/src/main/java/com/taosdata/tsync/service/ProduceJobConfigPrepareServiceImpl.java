@@ -1,6 +1,6 @@
 package com.taosdata.tsync.service;
 
-import com.taosdata.tsync.entity.Configuration;
+import com.taosdata.tsync.entity.config.Configuration;
 
 public class ProduceJobConfigPrepareServiceImpl implements ProduceJobConfigPrepareService{
     @Override

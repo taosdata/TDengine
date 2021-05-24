@@ -1,9 +1,9 @@
 package com.taosdata.tsync.parser;
 
 import com.alibaba.fastjson.JSONObject;
-import com.taosdata.tsync.entity.Configuration;
-import com.taosdata.tsync.entity.ConfigurationType;
-import com.taosdata.tsync.entity.produceJob.TagConfiguration;
+import com.taosdata.tsync.entity.config.Configuration;
+import com.taosdata.tsync.entity.config.ConfigurationType;
+import com.taosdata.tsync.entity.config.TagConfiguration;
 
 public class TagConfigurationParser implements ConfigurationParser {
     private final ConfigurationType type = ConfigurationType.TAG;

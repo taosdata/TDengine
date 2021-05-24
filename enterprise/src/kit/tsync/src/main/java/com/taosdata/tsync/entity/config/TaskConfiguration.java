@@ -1,8 +1,5 @@
-package com.taosdata.tsync.entity.produceJob;
+package com.taosdata.tsync.entity.config;
 
-
-import com.taosdata.tsync.entity.Configuration;
-import com.taosdata.tsync.entity.ConfigurationType;
 
 public class TaskConfiguration extends Configuration {
     private int threads;

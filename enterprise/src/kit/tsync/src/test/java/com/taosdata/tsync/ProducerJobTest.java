@@ -15,17 +15,13 @@ import java.io.InputStream;
 public class ProducerJobTest {
 
     private JSONObject configJSON;
-    private ProduceJobConfigPrepareService prepareService;
-    private ProduceTaskArrangeService arrangeService;
-
-    private ProducerJob job;
 
     @Test
     public void execute() {
         // given
-        prepareService = new ProduceJobConfigPrepareServiceImpl();
-        arrangeService = new ProduceTaskArrangeServiceImpl();
-        job = new ProducerJob(configJSON, prepareService, arrangeService);
+        ProduceJobConfigPrepareService prepareService = new ProduceJobConfigPrepareServiceImpl();
+        ProduceTaskArrangeService arrangeService = new ProduceTaskArrangeServiceImpl();
+        ProducerJob job = new ProducerJob(configJSON, prepareService, arrangeService);
 
         // when
         job.execute();

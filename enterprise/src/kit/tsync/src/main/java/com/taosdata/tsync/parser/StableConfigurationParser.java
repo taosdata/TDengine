@@ -2,16 +2,13 @@ package com.taosdata.tsync.parser;
 
 import com.alibaba.fastjson.JSONArray;
 import com.alibaba.fastjson.JSONObject;
-import com.taosdata.tsync.entity.Configuration;
-import com.taosdata.tsync.entity.ConfigurationType;
-import com.taosdata.tsync.entity.produceJob.ColumnConfiguration;
-import com.taosdata.tsync.entity.produceJob.StableConfiguration;
-import com.taosdata.tsync.entity.produceJob.TagConfiguration;
+import com.taosdata.tsync.entity.config.Configuration;
+import com.taosdata.tsync.entity.config.ConfigurationType;
+import com.taosdata.tsync.entity.config.ColumnConfiguration;
+import com.taosdata.tsync.entity.config.StableConfiguration;
+import com.taosdata.tsync.entity.config.TagConfiguration;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import java.util.ArrayList;
-import java.util.List;
 
 public final class StableConfigurationParser implements ConfigurationParser {
     private static final Logger logger = LoggerFactory.getLogger(StableConfigurationParser.class);

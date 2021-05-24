@@ -1,8 +1,8 @@
 package com.taosdata.tsync;
 
 import com.alibaba.fastjson.JSONObject;
-import com.taosdata.tsync.entity.Configuration;
-import com.taosdata.tsync.entity.ConfigurationType;
+import com.taosdata.tsync.entity.config.Configuration;
+import com.taosdata.tsync.entity.config.ConfigurationType;
 import com.taosdata.tsync.factory.ConfigurationFactory;
 import com.taosdata.tsync.service.ProduceJobConfigPrepareService;
 import com.taosdata.tsync.service.ProduceTaskArrangeService;

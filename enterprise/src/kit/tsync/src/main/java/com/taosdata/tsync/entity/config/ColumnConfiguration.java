@@ -1,18 +1,16 @@
-package com.taosdata.tsync.entity.produceJob;
+package com.taosdata.tsync.entity.config;
 
-import com.taosdata.tsync.entity.Configuration;
-import com.taosdata.tsync.entity.ConfigurationType;
+public class ColumnConfiguration extends Configuration {
 
-public class TagConfiguration extends Configuration {
     private String name;
     private String type;
-    private Integer Length;
+    private Integer length;
 
-    public TagConfiguration() {
-        super(ConfigurationType.TAG);
+    public ColumnConfiguration() {
+        super(ConfigurationType.COLUMN);
     }
 
-    //getter and setter
+    // getter and setter
     public String getName() {
         return name;
     }
@@ -30,10 +28,10 @@ public class TagConfiguration extends Configuration {
     }
 
     public Integer getLength() {
-        return Length;
+        return length;
     }
 
     public void setLength(Integer length) {
-        Length = length;
+        this.length = length;
     }
 }
