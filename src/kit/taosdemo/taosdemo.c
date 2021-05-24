@@ -1147,19 +1147,18 @@ static int queryDbExec(TAOS *taos, char *command, QUERY_TYPE type, bool quiet) {
 
 static void appendResultBufToFile(char *resultBuf, char *resultFile)
 {
-  FILE *fp = NULL;
-  if (resultFile[0] != 0) {
-    fp = fopen(resultFile, "at");
-    if (fp == NULL) {
-      errorPrint(
-              "%s() LN%d, failed to open result file: %s, result will not save to file\n",
-              __func__, __LINE__, resultFile);
-      return;
+    FILE *fp = NULL;
+    if (resultFile[0] != 0) {
+        fp = fopen(resultFile, "at");
+        if (fp == NULL) {
+            errorPrint(
+                    "%s() LN%d, failed to open result file: %s, result will not save to file\n",
+                    __func__, __LINE__, resultFile);
+            return;
+        }
+        fprintf(fp, "%s", resultBuf);
+        tmfclose(fp);
     }
-  }
-
-  fprintf(fp, "%s", resultBuf);
-  tmfclose(fp);
 }
 
 static void appendResultToFile(TAOS_RES *res, char* resultFile) {
