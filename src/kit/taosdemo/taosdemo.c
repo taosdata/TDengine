@@ -7082,7 +7082,7 @@ static int subscribeTestProcess() {
 
   //==== create threads for super table query
   if (g_queryInfo.superQueryInfo.sqlCount <= 0) {
-    printf("%s() LN%d, super table query sqlCount %"PRIu64".\n",
+    debugPrint("%s() LN%d, super table query sqlCount %"PRIu64".\n",
               __func__, __LINE__,
               g_queryInfo.superQueryInfo.sqlCount);
   } else {
