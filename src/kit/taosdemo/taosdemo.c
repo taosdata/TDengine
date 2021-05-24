@@ -1114,22 +1114,20 @@ static int queryDbExec(TAOS *taos, char *command, QUERY_TYPE type, bool quiet) {
 
 static void appendResultBufToFile(char *resultBuf, char *resultFile)
 {
-    FILE *fp = NULL;
-    if (resultFile[0] != 0) {
-        fp = fopen(resultFile, "at");
-        if (fp == NULL) {
-            errorPrint(
-                    "%s() LN%d, failed to open result file: %s, result will not save to file\n",
-                    __func__, __LINE__, resultFile);
-            return;
-        }
-        fprintf(fp, "%s", resultBuf);
-        tmfclose(fp);
-    }
+  FILE *fp = NULL;
+  fp = fopen(resultFile, "at");
+  if (fp == NULL) {
+      errorPrint(
+              "%s() LN%d, failed to open result file: %s, result will not save to file\n",
+              __func__, __LINE__, resultFile);
+      return;
+  }
+
+  fprintf(fp, "%s", resultBuf);
+  tmfclose(fp);
 }
 
-
-static void appendResultToFile(TAOS_RES *res, char* resultFile) {
+static void fetchResult(TAOS_RES *res, char* resultFile) {
   TAOS_ROW    row = NULL;
   int         num_rows = 0;
   int         num_fields = taos_field_count(res);
@@ -1147,10 +1145,11 @@ static void appendResultToFile(TAOS_RES *res, char* resultFile) {
 
   // fetch the records row by row
   while((row = taos_fetch_row(res))) {
-    if (totalLen >= 100*1024*1024 - 32000) {
-      appendResultBufToFile(databuf, resultFile);
-      totalLen = 0;
-      memset(databuf, 0, 100*1024*1024);
+    if ((resultFile)
+            && (totalLen >= 100*1024*1024 - 32000)) {
+        appendResultBufToFile(databuf, resultFile);
+        totalLen = 0;
+        memset(databuf, 0, 100*1024*1024);
     }
     num_rows++;
     int len = taos_print_row(temp, row, fields, num_fields);
@@ -1162,7 +1161,9 @@ static void appendResultToFile(TAOS_RES *res, char* resultFile) {
 
   verbosePrint("%s() LN%d, databuf=%s resultFile=%s\n",
           __func__, __LINE__, databuf, resultFile);
-  appendResultBufToFile(databuf, resultFile);
+  if (resultFile) {
+    appendResultBufToFile(databuf, resultFile);
+  }
   free(databuf);
 }
 
@@ -1178,9 +1179,7 @@ static void selectAndGetResult(
         return;
     }
 
-    if ((strlen(pThreadInfo->fp))) {
-      appendResultToFile(res, pThreadInfo->fp);
-    }
+    fetchResult(res, pThreadInfo->fp);
     taos_free_result(res);
 
   } else if (0 == strncasecmp(g_queryInfo.queryMode, "rest", strlen("rest"))) {
@@ -2017,13 +2016,13 @@ static void printfQuerySystemInfo(TAOS * taos) {
 
   // show variables
   res = taos_query(taos, "show variables;");
-  //appendResultToFile(res, filename);
+  //fetchResult(res, filename);
   xDumpResultToFile(filename, res);
 
   // show dnodes
   res = taos_query(taos, "show dnodes;");
   xDumpResultToFile(filename, res);
-  //appendResultToFile(res, filename);
+  //fetchResult(res, filename);
 
   // show databases
   res = taos_query(taos, "show databases;");
@@ -6546,7 +6545,7 @@ static void stable_sub_callback(
   }
 
   if (param)
-    appendResultToFile(res, ((threadInfo *)param)->fp);
+    fetchResult(res, ((threadInfo *)param)->fp);
   // tao_unscribe() will free result.
 }
 
@@ -6559,7 +6558,7 @@ static void specified_sub_callback(
   }
 
   if (param)
-    appendResultToFile(res, ((threadInfo *)param)->fp);
+    fetchResult(res, ((threadInfo *)param)->fp);
   // tao_unscribe() will free result.
 }
 
@@ -6700,13 +6699,13 @@ static void *superSubscribe(void *sarg) {
               sprintf(pThreadInfo->fp, "%s-%d",
                       g_queryInfo.superQueryInfo.result[pThreadInfo->querySeq],
                       pThreadInfo->threadID);
-              appendResultToFile(res, pThreadInfo->fp);
+              fetchResult(res, pThreadInfo->fp);
           }
           if (g_queryInfo.superQueryInfo.result[pThreadInfo->querySeq][0] != 0) {
               sprintf(pThreadInfo->fp, "%s-%d",
                       g_queryInfo.superQueryInfo.result[pThreadInfo->querySeq],
                       pThreadInfo->threadID);
-              appendResultToFile(res, pThreadInfo->fp);
+              fetchResult(res, pThreadInfo->fp);
           }
           consumed[tsubSeq] ++;
 
@@ -6807,7 +6806,7 @@ static void *specifiedSubscribe(void *sarg) {
               sprintf(pThreadInfo->fp, "%s-%d",
                       g_queryInfo.specifiedQueryInfo.result[pThreadInfo->querySeq],
                       pThreadInfo->threadID);
-              appendResultToFile(res, pThreadInfo->fp);
+              fetchResult(res, pThreadInfo->fp);
           }
 
           consumed ++;
