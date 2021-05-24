@@ -17,7 +17,8 @@
 	  misrepresented as being the original software.
 	  3. This notice may not be removed or altered from any source distribution.
 	*/
-#ifndef _TD_ARM_
+
+#if !defined(_TD_ARM_) && !defined(_TD_MIPS_)
 #include <nmmintrin.h>
 #endif
 

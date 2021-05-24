@@ -47,8 +47,8 @@
  *
  */
 
-#include "lz4.h"
 #include "os.h"
+#include "lz4.h"
 #include "taosdef.h"
 #include "tscompression.h"
 #include "tulog.h"

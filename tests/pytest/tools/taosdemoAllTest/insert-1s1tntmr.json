@@ -55,8 +55,8 @@
             "sample_format": "csv",
             "sample_file": "./sample.csv",
             "tags_file": "",
-            "columns": [{"type": "INT"}, {"type": "DOUBLE", "count":10}, {"type": "BINARY", "len": 16, "count":3}, {"type": "BINARY", "len": 32, "count":6}],
-            "tags": [{"type": "TINYINT", "count":2}, {"type": "BINARY", "len": 16, "count":5}]
+            "columns": [{"type": "INT"}, {"type": "DOUBLE", "count":1}, {"type": "BINARY", "len": 16, "count":1}, {"type": "BINARY", "len": 32, "count":1}],
+            "tags": [{"type": "TINYINT", "count":2}, {"type": "BINARY", "len": 16, "count":1}]
         },
         {
             "name": "stb1",
@@ -81,8 +81,8 @@
             "sample_format": "csv",
             "sample_file": "./sample.csv",
             "tags_file": "",
-            "columns": [{"type": "INT"}, {"type": "DOUBLE", "count":10}, {"type": "BINARY", "len": 16, "count":3}, {"type": "BINARY", "len": 32, "count":6}],
-            "tags": [{"type": "TINYINT", "count":2}, {"type": "BINARY", "len": 16, "count":5}]
+            "columns": [{"type": "INT"}, {"type": "DOUBLE", "count":1}, {"type": "BINARY", "len": 16, "count":1}, {"type": "BINARY", "len": 32, "count":1}],
+            "tags": [{"type": "TINYINT", "count":2}, {"type": "BINARY", "len": 16, "count":1}]
         }]
     }]
 }

@@ -115,6 +115,8 @@ int64_t genQueryId(void) {
 
   uid |= sid;
 
+  qDebug("gen qid:0x%"PRIx64, uid);
+
   return uid;
 }
 

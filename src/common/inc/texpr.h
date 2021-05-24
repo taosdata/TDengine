@@ -87,10 +87,9 @@ tExprNode* exprTreeFromBinary(const void* data, size_t size);
 tExprNode* exprTreeFromTableName(const char* tbnameCond);
 tExprNode* exprdup(tExprNode* pTree);
 
-bool exprTreeApplyFilter(tExprNode *pExpr, const void *pItem, SExprTraverseSupp *param);
+void exprTreeToBinary(SBufferWriter* bw, tExprNode* pExprTree);
 
-typedef void (*_arithmetic_operator_fn_t)(void *left, int32_t numLeft, int32_t leftType, void *right, int32_t numRight,
-                                          int32_t rightType, void *output, int32_t order);
+bool exprTreeApplyFilter(tExprNode *pExpr, const void *pItem, SExprTraverseSupp *param);
 
 void arithmeticTreeTraverse(tExprNode *pExprs, int32_t numOfRows, char *pOutput, void *param, int32_t order,
                             char *(*cb)(void *, const char*, int32_t));

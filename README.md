@@ -1,4 +1,4 @@
-[![Build Status](https://travis-ci.org/taosdata/TDengine.svg?branch=master)](https://travis-ci.org/taosdata/TDengine)
+[![Build Status](https://cloud.drone.io/api/badges/taosdata/TDengine/status.svg?ref=refs/heads/master)](https://cloud.drone.io/taosdata/TDengine)
 [![Build status](https://ci.appveyor.com/api/projects/status/kf3pwh2or5afsgl9/branch/master?svg=true)](https://ci.appveyor.com/project/sangshuduo/tdengine-2n8ge/branch/master)
 [![Coverage Status](https://coveralls.io/repos/github/taosdata/TDengine/badge.svg?branch=develop)](https://coveralls.io/github/taosdata/TDengine?branch=develop)
 [![CII Best Practices](https://bestpractices.coreinfrastructure.org/projects/4201/badge)](https://bestpractices.coreinfrastructure.org/projects/4201)
@@ -110,7 +110,7 @@ mkdir debug && cd debug
 cmake .. && cmake --build .
 ```
 
-TDengine build script can detect the host machine's architecture on X86-64, X86, arm64 and arm32 platform.
+TDengine build script can detect the host machine's architecture on X86-64, X86, arm64, arm32 and mips64 platform.
 You can also specify CPUTYPE option like aarch64 or aarch32 too if the detection result is not correct:
 
 aarch64:
@@ -121,6 +121,11 @@ cmake .. -DCPUTYPE=aarch64 && cmake --build .
 aarch32:
 ```bash
 cmake .. -DCPUTYPE=aarch32 && cmake --build .
+```
+
+mips64:
+```bash
+cmake .. -DCPUTYPE=mips64 && cmake --build .
 ```
 
 ### On Windows platform

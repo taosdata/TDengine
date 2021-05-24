@@ -61,13 +61,13 @@ void syncBuildSyncFwdMsg(SSyncHead *pHead, int32_t vgId, int32_t len) {
   syncBuildHead(pHead);
 }
 
-void syncBuildSyncFwdRsp(SFwdRsp *pMsg, int32_t vgId, uint64_t version, int32_t code) {
+void syncBuildSyncFwdRsp(SFwdRsp *pMsg, int32_t vgId, uint64_t _version, int32_t code) {
   pMsg->head.type = TAOS_SMSG_SYNC_FWD_RSP;
   pMsg->head.vgId = vgId;
   pMsg->head.len = sizeof(SFwdRsp) - sizeof(SSyncHead);
   syncBuildHead(&pMsg->head);
 
-  pMsg->version = version;
+  pMsg->version = _version;
   pMsg->code = code;
 }
 
