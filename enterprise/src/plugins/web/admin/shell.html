@@ -33,6 +33,7 @@
 			<div id="navbar" class="navbar-collapse collapse">
 				<ul class="nav navbar-nav">					
 					<li><a href="dbs.html">DBs</a></li>
+					<li><a href="stables.html">Stables</a></li>
 					<li><a href="tables.html">Tables</a></li>
 					<li><a href="users.html">Users</a></li>
 					<li id="dnodeLiId" style="display:none"><a href="dnodes.html">DNodes</a></li>
@@ -195,13 +196,29 @@
 		}
 		// insert into a
 		// insert into a values()
+		// insert into t1 using stable1 tags(1) values(now,1)
 		// import   into  dc values values()
-		//  import  xx into dc value 
+		// import  xx into dc value 
 		// insert into cc dd values()
 		// insert into values values()
 		else if (sql.substring(0, 6).toLowerCase() == "insert" || sql.substring(0, 6).toLowerCase() == "import") {
 			var into = sql.toLowerCase().indexOf("into");
 			var values = sql.toLowerCase().indexOf("values");
+			var using = sql.toLowerCase().indexOf("using");
+			if (into != -1 && values != -1 && using != -1) {
+				var table = dbRemoveFirstBlank(sql.substring(into+4, using-1));
+				if (table != "") {
+					var dot = table.indexOf(".");
+					if (dot == -1) {
+						var tags = sql.toLowerCase().indexOf("tags");
+						if(tags != -1){
+							var stable = dbRemoveFirstBlank(sql.substring(using+5, tags-1));
+							console.log(sql.substring(0, into+5) + dbPrefix + table + " using " + dbPrefix + stable + sql.substring(tags-1))
+							return sql.substring(0, into+5) + dbPrefix + table + " using " + dbPrefix + stable + sql.substring(tags-1);
+						}
+					}					
+				}
+			}
 			if (into != -1 && values != -1) {
 				var table = dbRemoveFirstBlank(sql.substring(into+4, values));
 				if (table != "") {
@@ -209,8 +226,7 @@
 					var dot = table.indexOf(".");
 					if (dot == -1) {
 						return sql.substring(0, into+4) + " " + dbPrefix + table + " " + sql.substring(values);
-					}
-					
+					} 
 				}
 			}
 		}

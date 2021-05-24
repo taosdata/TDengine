@@ -1,10 +1,10 @@
 #!/bin/bash
 #
-version=2.0.16.0
+version=2.1.1.0
 versionComp=2.0.0.0
 
 ## master
-branchName=release/s114
+branchName=release/ver-2.1.1.0
 verType=stable
 dockerPass="tbase125!"
 tagVal=ver-${version}
@@ -20,5 +20,5 @@ cpuType=amd64
 
 bash generate_community.sh  $version $versionComp $branchName $verType
 bash generate_enterprise.sh $version $versionComp $branchName $verType
-bash docker_generate.sh $version $dockerPass $pkgFile $cpuType
-bash tag.sh $tagVal $branchName
+#bash docker_generate.sh $version $dockerPass $pkgFile $cpuType
+#bash tag.sh $tagVal $branchName
