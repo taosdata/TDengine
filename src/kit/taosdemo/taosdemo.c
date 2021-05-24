@@ -469,7 +469,6 @@ typedef struct SThreadInfo_S {
 
   // seq of query or subscribe
   uint64_t  querySeq;   // sequence number of sql command
-  TAOS_SUB*  tsub;
 
 } threadInfo;
 
@@ -1133,7 +1132,8 @@ static int queryDbExec(TAOS *taos, char *command, QUERY_TYPE type, bool quiet) {
   if (code != 0) {
     if (!quiet) {
       debugPrint("%s() LN%d - command: %s\n", __func__, __LINE__, command);
-      errorPrint("Failed to execute %s, reason: %s\n", command, taos_errstr(res));
+      errorPrint("Failed to execute %s, command length: %d, reason: %s\n",
+              command, (int)strlen(command), taos_errstr(res));
     }
     taos_free_result(res);
     //taos_close(taos);
