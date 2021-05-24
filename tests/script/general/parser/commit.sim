@@ -68,7 +68,7 @@ while $loop <= $loops
   while $i < 10
     sql select count(*) from $stb where t1 = $i 
     if $data00 != $rowNum then
-      print expect $rowNum, actual: $data00
+      print expect $rowNum , actual: $data00
       return -1
     endi
     $i = $i + 1

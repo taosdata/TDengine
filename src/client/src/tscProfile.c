@@ -54,14 +54,14 @@ void tscAddIntoSqlList(SSqlObj *pSql) {
   pSql->next = pObj->sqlList;
   if (pObj->sqlList) pObj->sqlList->prev = pSql;
   pObj->sqlList = pSql;
-  pSql->queryId = queryId++;
+  pSql->queryId = atomic_fetch_add_32(&queryId, 1);
 
   pthread_mutex_unlock(&pObj->mutex);
 
   pSql->stime = taosGetTimestampMs();
   pSql->listed = 1;
 
-  tscDebug("0x%"PRIx64" added into sqlList", pSql->self);
+  tscDebug("0x%"PRIx64" added into sqlList, queryId:%u", pSql->self, pSql->queryId);
 }
 
 void tscSaveSlowQueryFpCb(void *param, TAOS_RES *result, int code) {

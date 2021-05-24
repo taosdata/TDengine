@@ -1,7 +1,7 @@
 const ref = require('ref-napi');
 require('./globalfunc.js')
 const CTaosInterface = require('./cinterface')
-const errors = require ('./error')
+const errors = require('./error')
 const TaosQuery = require('./taosquery')
 const { PerformanceObserver, performance } = require('perf_hooks');
 module.exports = TDengineCursor;
@@ -22,7 +22,7 @@ module.exports = TDengineCursor;
  * @property {fields} - Array of the field objects in order from left to right of the latest data retrieved
  * @since 1.0.0
  */
-function TDengineCursor(connection=null) {
+function TDengineCursor(connection = null) {
   //All parameters are store for sync queries only.
   this._rowcount = -1;
   this._connection = null;
@@ -91,7 +91,7 @@ TDengineCursor.prototype.execute = function execute(operation, options, callback
     return null;
   }
 
-  if (typeof options == 'function')  {
+  if (typeof options == 'function') {
     callback = options;
   }
   if (typeof options != 'object') options = {}
@@ -144,10 +144,10 @@ TDengineCursor.prototype.execute = function execute(operation, options, callback
 
 }
 TDengineCursor.prototype._createAffectedResponse = function (num, time) {
-  return "Query OK, " + num  + " row(s) affected (" + (time * 0.001).toFixed(8) + "s)";
+  return "Query OK, " + num + " row(s) affected (" + (time * 0.001).toFixed(8) + "s)";
 }
 TDengineCursor.prototype._createSetResponse = function (num, time) {
-  return "Query OK, " + num  + " row(s) in set (" + (time * 0.001).toFixed(8) + "s)";
+  return "Query OK, " + num + " row(s) in set (" + (time * 0.001).toFixed(8) + "s)";
 }
 TDengineCursor.prototype.executemany = function executemany() {
 
@@ -176,27 +176,22 @@ TDengineCursor.prototype.fetchall = function fetchall(options, callback) {
     throw new errors.OperationalError("Invalid use of fetchall, either result or fields from query are null. First execute a query first");
   }
 
-  let data = [];
+  let num_of_rows = this._chandle.affectedRows(this._result);
+  let data = new Array(num_of_rows);
+
   this._rowcount = 0;
-  //let nodetime = 0;
+
   let time = 0;
   const obs = new PerformanceObserver((items) => {
     time += items.getEntries()[0].duration;
     performance.clearMarks();
   });
-  /*
-  const obs2 = new PerformanceObserver((items) => {
-    nodetime += items.getEntries()[0].duration;
-    performance.clearMarks();
-  });
-  obs2.observe({ entryTypes: ['measure'] });
-  performance.mark('nodea');
-  */
   obs.observe({ entryTypes: ['measure'] });
   performance.mark('A');
-  while(true) {
-
+  while (true) {
     let blockAndRows = this._chandle.fetchBlock(this._result, this._fields);
+    // console.log(blockAndRows);
+    // break;
     let block = blockAndRows.blocks;
     let num_of_rows = blockAndRows.num_of_rows;
     if (num_of_rows == 0) {
@@ -205,22 +200,24 @@ TDengineCursor.prototype.fetchall = function fetchall(options, callback) {
     this._rowcount += num_of_rows;
     let numoffields = this._fields.length;
     for (let i = 0; i < num_of_rows; i++) {
-      data.push([]);
-      
+      // data.push([]);
+
       let rowBlock = new Array(numoffields);
       for (let j = 0; j < numoffields; j++) {
         rowBlock[j] = block[j][i];
       }
-      data[data.length-1] = (rowBlock);
+      data[this._rowcount - num_of_rows + i] = (rowBlock);
+      // data.push(rowBlock);
     }
 
   }
+  
   performance.mark('B');
   performance.measure('query', 'A', 'B');
   let response = this._createSetResponse(this._rowcount, time)
   console.log(response);
 
- // this._connection._clearResultSet();
+  // this._connection._clearResultSet();
   let fields = this.fields;
   this._reset_result();
   this.data = data;
@@ -239,12 +236,12 @@ TDengineCursor.prototype.fetchall = function fetchall(options, callback) {
  * @return {number | Buffer} Number of affected rows or a Buffer that points to the results of the query
  * @since 1.0.0
  */
-TDengineCursor.prototype.execute_a = function execute_a (operation, options, callback, param) {
+TDengineCursor.prototype.execute_a = function execute_a(operation, options, callback, param) {
   if (operation == undefined) {
     throw new errors.ProgrammingError('No operation passed as argument');
     return null;
   }
-  if (typeof options == 'function')  {
+  if (typeof options == 'function') {
     //we expect the parameter after callback to be param
     param = callback;
     callback = options;
@@ -265,14 +262,14 @@ TDengineCursor.prototype.execute_a = function execute_a (operation, options, cal
     }
 
     if (resCode >= 0) {
-//      let fieldCount = cr._chandle.numFields(res2);
-//      if (fieldCount == 0) {
-//        //cr._chandle.freeResult(res2);
-//        return res2;
-//      } 
-//      else {
-//        return res2;
-//      }
+      //      let fieldCount = cr._chandle.numFields(res2);
+      //      if (fieldCount == 0) {
+      //        //cr._chandle.freeResult(res2);
+      //        return res2;
+      //      } 
+      //      else {
+      //        return res2;
+      //      }
       return res2;
 
     }
@@ -317,7 +314,7 @@ TDengineCursor.prototype.execute_a = function execute_a (operation, options, cal
  * })
  */
 TDengineCursor.prototype.fetchall_a = function fetchall_a(result, options, callback, param = {}) {
-  if (typeof options == 'function')  {
+  if (typeof options == 'function') {
     //we expect the parameter after callback to be param
     param = callback;
     callback = options;
@@ -360,17 +357,17 @@ TDengineCursor.prototype.fetchall_a = function fetchall_a(result, options, callb
           for (let k = 0; k < fields.length; k++) {
             rowBlock[k] = block[k][j];
           }
-          data[data.length-1] = rowBlock;
+          data[data.length - 1] = rowBlock;
         }
       }
       cr._chandle.freeResult(result2); // free result, avoid seg faults and mem leaks!
-      callback(param2, result2, numOfRows2, {data:data,fields:fields});
+      callback(param2, result2, numOfRows2, { data: data, fields: fields });
 
     }
   }
   ref.writeObject(buf, 0, param);
   param = this._chandle.fetch_rows_a(result, asyncCallbackWrapper, buf); //returned param
-  return {param:param,result:result};
+  return { param: param, result: result };
 }
 /**
  * Stop a query given the result handle.
@@ -428,7 +425,7 @@ TDengineCursor.prototype.subscribe = function subscribe(config) {
  */
 TDengineCursor.prototype.consumeData = async function consumeData(subscription, callback) {
   while (true) {
-    let { data, fields, result} = this._chandle.consume(subscription);
+    let { data, fields, result } = this._chandle.consume(subscription);
     callback(data, fields, result);
   }
 }
@@ -450,30 +447,30 @@ TDengineCursor.prototype.unsubscribe = function unsubscribe(subscription) {
  * @return {Buffer} A buffer pointing to the stream handle
  * @since 1.3.0
  */
- TDengineCursor.prototype.openStream = function openStream(sql, callback, stime = 0, stoppingCallback, param = {}) {
-   let buf = ref.alloc('Object');
-   ref.writeObject(buf, 0, param);
+TDengineCursor.prototype.openStream = function openStream(sql, callback, stime = 0, stoppingCallback, param = {}) {
+  let buf = ref.alloc('Object');
+  ref.writeObject(buf, 0, param);
 
-   let asyncCallbackWrapper = function (param2, result2, blocks, fields) {
-     let data = [];
-     let num_of_rows = blocks[0].length;
-     for (let j = 0; j < num_of_rows; j++) {
-       data.push([]);
-       let rowBlock = new Array(fields.length);
-       for (let k = 0; k < fields.length; k++) {
-         rowBlock[k] = blocks[k][j];
-       }
-       data[data.length-1] = rowBlock;
-     }
-     callback(param2, result2, blocks, fields);
-   }
-   return this._chandle.openStream(this._connection._conn, sql, asyncCallbackWrapper, stime, stoppingCallback, buf);
- }
- /**
-  * Close a stream
-  * @param {Buffer} - A buffer pointing to the handle of the stream to be closed
-  * @since 1.3.0
-  */
- TDengineCursor.prototype.closeStream = function closeStream(stream) {
-   this._chandle.closeStream(stream);
- }
+  let asyncCallbackWrapper = function (param2, result2, blocks, fields) {
+    let data = [];
+    let num_of_rows = blocks[0].length;
+    for (let j = 0; j < num_of_rows; j++) {
+      data.push([]);
+      let rowBlock = new Array(fields.length);
+      for (let k = 0; k < fields.length; k++) {
+        rowBlock[k] = blocks[k][j];
+      }
+      data[data.length - 1] = rowBlock;
+    }
+    callback(param2, result2, blocks, fields);
+  }
+  return this._chandle.openStream(this._connection._conn, sql, asyncCallbackWrapper, stime, stoppingCallback, buf);
+}
+/**
+ * Close a stream
+ * @param {Buffer} - A buffer pointing to the handle of the stream to be closed
+ * @since 1.3.0
+ */
+TDengineCursor.prototype.closeStream = function closeStream(stream) {
+  this._chandle.closeStream(stream);
+}

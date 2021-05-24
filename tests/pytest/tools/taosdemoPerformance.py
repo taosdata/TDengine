@@ -24,7 +24,7 @@ class taosdemoPerformace:
         self.host = "127.0.0.1"
         self.user = "root"
         self.password = "taosdata"
-        self.config = "/etc/taosperf"
+        self.config = "/etc/perf"
         self.conn = taos.connect(
             self.host,
             self.user,
@@ -77,7 +77,7 @@ class taosdemoPerformace:
 
         insert_data = {
             "filetype": "insert",
-            "cfgdir": "/etc/taosperf",
+            "cfgdir": "/etc/perf",
             "host": "127.0.0.1",
             "port": 6030,
             "user": "root",
@@ -104,7 +104,7 @@ class taosdemoPerformace:
         return output
 
     def insertData(self):        
-        os.system("taosdemo -f %s > taosdemoperf.txt" % self.generateJson())
+        os.system("taosdemo -f %s > taosdemoperf.txt 2>&1" % self.generateJson())
         self.createTableTime = self.getCMDOutput("grep 'Spent' taosdemoperf.txt | awk 'NR==1{print $2}'")
         self.insertRecordsTime = self.getCMDOutput("grep 'Spent' taosdemoperf.txt | awk 'NR==2{print $2}'")
         self.recordsPerSecond = self.getCMDOutput("grep 'Spent' taosdemoperf.txt | awk 'NR==2{print $16}'")
