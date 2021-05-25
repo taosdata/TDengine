@@ -7119,6 +7119,7 @@ int32_t doValidateSqlNode(SSqlObj* pSql, SQuerySqlNode* pQuerySqlNode, int32_t i
   const char* msg6 = "too many tables in from clause";
   const char* msg7 = "invalid table alias name";
   const char* msg8 = "alias name too long";
+  const char* msg9 = "only tag query not compatible with normal column filter";
 
   int32_t code = TSDB_CODE_SUCCESS;
 
@@ -7287,6 +7288,20 @@ int32_t doValidateSqlNode(SSqlObj* pSql, SQuerySqlNode* pQuerySqlNode, int32_t i
   
     if (hasUnsupportFunctionsForSTableQuery(pCmd, pQueryInfo)) {
       return TSDB_CODE_TSC_INVALID_SQL;
+    }
+
+    if(tscQueryTags(pQueryInfo)) {
+      SSqlExpr* pExpr1 = tscSqlExprGet(pQueryInfo, 0);
+
+      if (pExpr1->functionId != TSDB_FUNC_TID_TAG) {
+        int32_t numOfCols = (int32_t)taosArrayGetSize(pQueryInfo->colList);
+        for (int32_t i = 0; i < numOfCols; ++i) {
+          SColumn* pCols = taosArrayGetP(pQueryInfo->colList, i);
+          if (pCols->numOfFilters > 0) {
+            return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg9);
+          }
+        }
+      }
     }
   }
 
