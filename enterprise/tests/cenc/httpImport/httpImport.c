@@ -149,6 +149,8 @@ int main(int argc, char *argv[])
 #endif 
 
 #if !defined(HTTP_IMPORT_DEBUG)
+    memset(tid, TQ_CHAN_NUM, sizeof(pthread_t));
+
     while ((opt = getopt(argc, argv, "l:L:i:h:u:p:P:t:r:c:")) != -1) {   
         switch (opt) {
         case 'l':
@@ -447,7 +449,7 @@ failed:
     seed_net_close(&io, logout);
 
 #if !defined(HTTP_IMPORT_DEBUG)
-    for (i = 0; i < TQ_CHAN_NUM; i++) {
+    for (i = 0; i < TQ_CHAN_NUM && tid[i]; i++) {
         pthread_join(tid[i], NULL);
     }
 
