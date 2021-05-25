@@ -84,7 +84,7 @@
 				<label style="display: block; margin-top: 5px;">Udf Type:</label>
 				<div class="input-group input-group-sm" style="width:300px;padding-bottom:14px">  
 					<select class="form-control" value="0" style="border-radius: 3px;" id="udfTypeSelect" onchange="handleUSselectChange()"> 
-						<option value="0">File(so)</option>
+						<option value="0">File</option>
 						<option value="1">Script(lua)</option>
 					</select>
 				</div> 
@@ -179,29 +179,41 @@
 			if(!DbUtil.CheckName(script, "script")) {
 				return;
 			}
-			$.ajax({
-				type: "post",
-				url: "/rest/udf/" + funcName + "/" + outputtype + "/" + isAggregate + "/" + buffsize,
-				headers: {
-					'Authorization' : "Taosd " + DbSession.GetToken()
-				},
-				data: script,
-				dataType: "json",
-				success: dbCreateCb,
-				error: function(msg) { 
-					if (msg != null && msg.responseJSON != null) {
-						dbCreateCb(msg.responseJSON);
-					} else if (msg != null) {
-						DbUtil.ErrorWithMsg(DB_CODE_INVALID_FORMAT, msg);
-					} else {
-						DbUtil.ErrorWithMsg(DB_CODE_SERVER_NULL, msg);
-					}
-				}		
-			});		
+				
 			
 		}else {
-			DbUtil.ErrorDialog("Type Unsupported");
-		}
+			// 
+			var file = $('#fileInput')[0].files[0]
+			if(file){
+				var reader = new FileReader()
+				reader.readAsText(file)
+				reader.onload = function(e){
+				$.ajax({
+					type: "post",
+					url: "/rest/udf/" + funcName + "/" + outputtype + "/" + isAggregate + "/" + buffsize,
+					headers: {
+						'Authorization' : "Taosd " + DbSession.GetToken()
+					},
+					data: this.result,
+					dataType: "json",
+					success: dbCreateCb,
+					error: function(msg) { 
+						if (msg != null && msg.responseJSON != null) {
+							dbCreateCb(msg.responseJSON);
+						} else if (msg != null) {
+							DbUtil.ErrorWithMsg(DB_CODE_INVALID_FORMAT, msg);
+						} else {
+							DbUtil.ErrorWithMsg(DB_CODE_SERVER_NULL, msg);
+						}
+					}		
+			});	
+				}
+			} else {
+				DbUtil.ErrorDialog("no file");
+			}
+			
+			
+		} 
 	
 	
 	}
@@ -255,8 +267,8 @@
 
 	function setFileFrom1(){
 		$('#dbFrom2').html('');
-		var html = '<label style="display: block; margin-top: 5px;">Upload File(.so):</label>'
-		html += '<input type="file" id="InputFile">'
+		var html = '<label style="display: block; margin-top: 5px;">Upload File:</label>'
+		html += '<input type="file" id="fileInput">'
 		$('#dbFrom1').html(html);
 	}
 
