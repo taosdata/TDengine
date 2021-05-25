@@ -882,15 +882,16 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
 
       pSqlFuncExpr->colType = htons(s->type);
       pSqlFuncExpr->colBytes = htons(s->bytes);
-    } else if (pExpr->colInfo.colId == TSDB_BLOCK_DIST_COLUMN_INDEX) {
-      SSchema s = tGetBlockDistColumnSchema();
-
-      pSqlFuncExpr->colType = htons(s.type);
-      pSqlFuncExpr->colBytes = htons(s.bytes);
     } else {
-      SSchema* s = tscGetColumnSchemaById(pTableMeta, pExpr->colInfo.colId);
-      pSqlFuncExpr->colType  = htons(s->type);
-      pSqlFuncExpr->colBytes = htons(s->bytes);
+      if (pExpr->functionId == TSDB_FUNC_BLKINFO) {
+        SSchema s = {.type=TSDB_DATA_TYPE_BINARY, .bytes=TSDB_MAX_BINARY_LEN};
+        pSqlFuncExpr->colType = htons(s.type);
+        pSqlFuncExpr->colBytes = htons(s.bytes);
+      } else {
+        SSchema* s = tscGetColumnSchemaById(pTableMeta, pExpr->colInfo.colId);
+        pSqlFuncExpr->colType = htons(s->type);
+        pSqlFuncExpr->colBytes = htons(s->bytes);
+      }
     }
 
     pSqlFuncExpr->functionId  = htons(pExpr->functionId);
