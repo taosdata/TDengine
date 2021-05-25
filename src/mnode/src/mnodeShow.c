@@ -129,7 +129,7 @@ static int32_t mnodeProcessShowMsg(SMnodeMsg *pMsg) {
   SShowObj *pShow = calloc(1, showObjSize);
   pShow->type       = pShowMsg->type;
   pShow->payloadLen = htons(pShowMsg->payloadLen);
-  tstrncpy(pShow->db, pShowMsg->db, TSDB_DB_NAME_LEN);
+  tstrncpy(pShow->db, pShowMsg->db, TSDB_ACCT_ID_LEN + TSDB_DB_NAME_LEN);
   memcpy(pShow->payload, pShowMsg->payload, pShow->payloadLen);
 
   pShow = mnodePutShowObj(pShow);
@@ -253,10 +253,6 @@ static int32_t mnodeProcessHeartBeatMsg(SMnodeMsg *pMsg) {
     
   int32_t connId = htonl(pHBMsg->connId);
   SConnObj *pConn = mnodeAccquireConn(connId, connInfo.user, connInfo.clientIp, connInfo.clientPort);
-  if (pConn == NULL) {
-    pHBMsg->pid = htonl(pHBMsg->pid);
-    pConn = mnodeCreateConn(connInfo.user, connInfo.clientIp, connInfo.clientPort, pHBMsg->pid, pHBMsg->appName);
-  }
 
   if (pConn == NULL) {
     // do not close existing links, otherwise

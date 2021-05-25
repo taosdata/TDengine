@@ -177,14 +177,14 @@ void tscCreateLocalMerger(tExtMemBuffer **pMemBuffer, int32_t numOfBuffer, tOrde
   
   if (pMemBuffer == NULL) {
     tscLocalReducerEnvDestroy(pMemBuffer, pDesc, finalmodel, pFFModel, numOfBuffer);
-    tscError("%p pMemBuffer is NULL", pMemBuffer);
+    tscError("pMemBuffer:%p is NULL", pMemBuffer);
     pRes->code = TSDB_CODE_TSC_APP_ERROR;
     return;
   }
  
   if (pDesc->pColumnModel == NULL) {
     tscLocalReducerEnvDestroy(pMemBuffer, pDesc, finalmodel, pFFModel, numOfBuffer);
-    tscError("%p no local buffer or intermediate result format model", pSql);
+    tscError("0x%"PRIx64" no local buffer or intermediate result format model", pSql->self);
     pRes->code = TSDB_CODE_TSC_APP_ERROR;
     return;
   }
@@ -193,7 +193,7 @@ void tscCreateLocalMerger(tExtMemBuffer **pMemBuffer, int32_t numOfBuffer, tOrde
   for (int32_t i = 0; i < numOfBuffer; ++i) {
     int32_t len = pMemBuffer[i]->fileMeta.flushoutData.nLength;
     if (len == 0) {
-      tscDebug("%p no data retrieved from orderOfVnode:%d", pSql, i + 1);
+      tscDebug("0x%"PRIx64" no data retrieved from orderOfVnode:%d", pSql->self, i + 1);
       continue;
     }
 
@@ -203,12 +203,12 @@ void tscCreateLocalMerger(tExtMemBuffer **pMemBuffer, int32_t numOfBuffer, tOrde
   if (numOfFlush == 0 || numOfBuffer == 0) {
     tscLocalReducerEnvDestroy(pMemBuffer, pDesc, finalmodel, pFFModel, numOfBuffer);
     pCmd->command = TSDB_SQL_RETRIEVE_EMPTY_RESULT; // no result, set the result empty
-    tscDebug("%p retrieved no data", pSql);
+    tscDebug("0x%"PRIx64" retrieved no data", pSql->self);
     return;
   }
 
   if (pDesc->pColumnModel->capacity >= pMemBuffer[0]->pageSize) {
-    tscError("%p Invalid value of buffer capacity %d and page size %d ", pSql, pDesc->pColumnModel->capacity,
+    tscError("0x%"PRIx64" Invalid value of buffer capacity %d and page size %d ", pSql->self, pDesc->pColumnModel->capacity,
              pMemBuffer[0]->pageSize);
 
     tscLocalReducerEnvDestroy(pMemBuffer, pDesc, finalmodel, pFFModel, numOfBuffer);
@@ -220,7 +220,7 @@ void tscCreateLocalMerger(tExtMemBuffer **pMemBuffer, int32_t numOfBuffer, tOrde
   
   SLocalMerger *pReducer = (SLocalMerger *) calloc(1, size);
   if (pReducer == NULL) {
-    tscError("%p failed to create local merge structure, out of memory", pSql);
+    tscError("0x%"PRIx64" failed to create local merge structure, out of memory", pSql->self);
 
     tscLocalReducerEnvDestroy(pMemBuffer, pDesc, finalmodel, pFFModel, numOfBuffer);
     pRes->code = TSDB_CODE_TSC_OUT_OF_MEMORY;
@@ -235,7 +235,7 @@ void tscCreateLocalMerger(tExtMemBuffer **pMemBuffer, int32_t numOfBuffer, tOrde
   pReducer->numOfVnode = numOfBuffer;
 
   pReducer->pDesc = pDesc;
-  tscDebug("%p the number of merged leaves is: %d", pSql, pReducer->numOfBuffer);
+  tscDebug("0x%"PRIx64" the number of merged leaves is: %d", pSql->self, pReducer->numOfBuffer);
 
   int32_t idx = 0;
   for (int32_t i = 0; i < numOfBuffer; ++i) {
@@ -244,7 +244,7 @@ void tscCreateLocalMerger(tExtMemBuffer **pMemBuffer, int32_t numOfBuffer, tOrde
     for (int32_t j = 0; j < numOfFlushoutInFile; ++j) {
       SLocalDataSource *ds = (SLocalDataSource *)malloc(sizeof(SLocalDataSource) + pMemBuffer[0]->pageSize);
       if (ds == NULL) {
-        tscError("%p failed to create merge structure", pSql);
+        tscError("0x%"PRIx64" failed to create merge structure", pSql->self);
         pRes->code = TSDB_CODE_TSC_OUT_OF_MEMORY;
         tfree(pReducer);
         return;
@@ -258,7 +258,7 @@ void tscCreateLocalMerger(tExtMemBuffer **pMemBuffer, int32_t numOfBuffer, tOrde
       ds->pageId = 0;
       ds->rowIdx = 0;
 
-      tscDebug("%p load data from disk into memory, orderOfVnode:%d, total:%d", pSql, i + 1, idx + 1);
+      tscDebug("0x%"PRIx64" load data from disk into memory, orderOfVnode:%d, total:%d", pSql->self, i + 1, idx + 1);
       tExtMemBufferLoadData(pMemBuffer[i], &(ds->filePage), j, 0);
 #ifdef _DEBUG_VIEW
       printf("load data page into mem for build loser tree: %" PRIu64 " rows\n", ds->filePage.num);
@@ -272,7 +272,7 @@ void tscCreateLocalMerger(tExtMemBuffer **pMemBuffer, int32_t numOfBuffer, tOrde
 #endif
       
       if (ds->filePage.num == 0) {  // no data in this flush, the index does not increase
-        tscDebug("%p flush data is empty, ignore %d flush record", pSql, idx);
+        tscDebug("0x%"PRIx64" flush data is empty, ignore %d flush record", pSql->self, idx);
         tfree(ds);
         continue;
       }
@@ -547,10 +547,10 @@ void tscDestroyLocalMerger(SSqlObj *pSql) {
     pLocalMerge->numOfCompleted = 0;
     free(pLocalMerge);
   } else {
-    tscDebug("%p already freed or another free function is invoked", pSql);
+    tscDebug("0x%"PRIx64" already freed or another free function is invoked", pSql->self);
   }
 
-  tscDebug("%p free local reducer finished", pSql);
+  tscDebug("0x%"PRIx64" free local reducer finished", pSql->self);
 }
 
 static int32_t createOrderDescriptor(tOrderDescriptor **pOrderDesc, SSqlCmd *pCmd, SColumnModel *pModel) {
@@ -674,7 +674,7 @@ int32_t tscLocalReducerEnvCreate(SSqlObj *pSql, tExtMemBuffer ***pMemBuffer, tOr
 
   (*pMemBuffer) = (tExtMemBuffer **)malloc(POINTER_BYTES * pSql->subState.numOfSub);
   if (*pMemBuffer == NULL) {
-    tscError("%p failed to allocate memory", pSql);
+    tscError("0x%"PRIx64" failed to allocate memory", pSql->self);
     pRes->code = TSDB_CODE_TSC_OUT_OF_MEMORY;
     return pRes->code;
   }
@@ -683,7 +683,7 @@ int32_t tscLocalReducerEnvCreate(SSqlObj *pSql, tExtMemBuffer ***pMemBuffer, tOr
   
   pSchema = (SSchema *)calloc(1, sizeof(SSchema) * size);
   if (pSchema == NULL) {
-    tscError("%p failed to allocate memory", pSql);
+    tscError("0x%"PRIx64" failed to allocate memory", pSql->self);
     pRes->code = TSDB_CODE_TSC_OUT_OF_MEMORY;
     return pRes->code;
   }
@@ -1529,7 +1529,7 @@ int32_t tscDoLocalMerge(SSqlObj *pSql) {
       return pRes->code;
     }
 
-    tscError("%p local merge abort due to error occurs, code:%s", pSql, tstrerror(pRes->code));
+    tscError("0x%"PRIx64" local merge abort due to error occurs, code:%s", pSql->self, tstrerror(pRes->code));
     return pRes->code;
   }
 

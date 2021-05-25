@@ -160,6 +160,7 @@ public class TSDBResultSetTest {
     @Test
     public void getTime() throws SQLException {
         Time f1 = rs.getTime("f1");
+        Assert.assertNotNull(f1);
         Assert.assertEquals("00:00:00", f1.toString());
     }
 

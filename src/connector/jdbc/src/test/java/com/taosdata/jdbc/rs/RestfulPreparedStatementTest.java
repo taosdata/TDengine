@@ -6,7 +6,6 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import java.io.IOException;
-import java.io.Serializable;
 import java.sql.*;
 
 public class RestfulPreparedStatementTest {
@@ -49,6 +48,51 @@ public class RestfulPreparedStatementTest {
         pstmt_insert.setTimestamp(1, new Timestamp(System.currentTimeMillis()));
         pstmt_insert.setNull(2, Types.INTEGER);
         int result = pstmt_insert.executeUpdate();
+        Assert.assertEquals(1, result);
+
+        pstmt_insert.setTimestamp(1, new Timestamp(System.currentTimeMillis()));
+        pstmt_insert.setNull(3, Types.BIGINT);
+        result = pstmt_insert.executeUpdate();
+        Assert.assertEquals(1, result);
+
+        pstmt_insert.setTimestamp(1, new Timestamp(System.currentTimeMillis()));
+        pstmt_insert.setNull(4, Types.FLOAT);
+        result = pstmt_insert.executeUpdate();
+        Assert.assertEquals(1, result);
+
+        pstmt_insert.setTimestamp(1, new Timestamp(System.currentTimeMillis()));
+        pstmt_insert.setNull(5, Types.DOUBLE);
+        result = pstmt_insert.executeUpdate();
+        Assert.assertEquals(1, result);
+
+        pstmt_insert.setTimestamp(1, new Timestamp(System.currentTimeMillis()));
+        pstmt_insert.setNull(6, Types.SMALLINT);
+        result = pstmt_insert.executeUpdate();
+        Assert.assertEquals(1, result);
+
+        pstmt_insert.setTimestamp(1, new Timestamp(System.currentTimeMillis()));
+        pstmt_insert.setNull(7, Types.TINYINT);
+        result = pstmt_insert.executeUpdate();
+        Assert.assertEquals(1, result);
+
+        pstmt_insert.setTimestamp(1, new Timestamp(System.currentTimeMillis()));
+        pstmt_insert.setNull(8, Types.BOOLEAN);
+        result = pstmt_insert.executeUpdate();
+        Assert.assertEquals(1, result);
+
+        pstmt_insert.setTimestamp(1, new Timestamp(System.currentTimeMillis()));
+        pstmt_insert.setNull(9, Types.BINARY);
+        result = pstmt_insert.executeUpdate();
+        Assert.assertEquals(1, result);
+
+        pstmt_insert.setTimestamp(1, new Timestamp(System.currentTimeMillis()));
+        pstmt_insert.setNull(10, Types.NCHAR);
+        result = pstmt_insert.executeUpdate();
+        Assert.assertEquals(1, result);
+
+        pstmt_insert.setTimestamp(1, new Timestamp(System.currentTimeMillis()));
+        pstmt_insert.setNull(10, Types.OTHER);
+        result = pstmt_insert.executeUpdate();
         Assert.assertEquals(1, result);
     }
 
@@ -129,7 +173,7 @@ public class RestfulPreparedStatementTest {
         Assert.assertFalse(pstmt_insert.execute());
     }
 
-    class Person implements Serializable {
+    private class Person {
         String name;
         int age;
         boolean sex;
@@ -325,7 +369,6 @@ public class RestfulPreparedStatementTest {
     public void setSQLXML() throws SQLException {
         pstmt_insert.setSQLXML(1, null);
     }
-
 
     @BeforeClass
     public static void beforeClass() {

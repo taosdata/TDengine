@@ -100,8 +100,8 @@ class TDTestCase:
 
             print("alter table test.meters add column col10 int")
             tdSql.execute("alter table test.meters add column col10 int")
-            print("insert into test.t9 values (now, 1, 2, 3, 4, 0.1, 0.01,'test', '测试', TRUE, 1610000000000, 0)")
-            tdSql.execute("insert into test.t9 values (now, 1, 2, 3, 4, 0.1, 0.01,'test', '测试', TRUE, 1610000000000, 0)")
+            print("insert into test.t9 values (now, 1, 2, 3, 4, 0)")
+            tdSql.execute("insert into test.t9 values (now, 1, 2, 3, 4, 0)")
 
     def run(self):
         tdSql.prepare()

@@ -66,6 +66,9 @@ static bool vnodeSetClosingStatusImp(SVnodeObj* pVnode) {
 }
 
 bool vnodeSetClosingStatus(SVnodeObj* pVnode) {
+  if (pVnode->status == TAOS_VN_STATUS_CLOSING)
+    return true;
+
   while (!vnodeSetClosingStatusImp(pVnode)) {
     taosMsleep(1);
   }
