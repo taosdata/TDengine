@@ -179,9 +179,28 @@
 			if(!DbUtil.CheckName(script, "script")) {
 				return;
 			}
-				
+
+			$.ajax({	
+				type: "post",
+				url: "/rest/udf/" + funcName + "/" + outputtype + "/" + isAggregate + "/" + buffsize,
+				headers: {
+					'Authorization' : "Taosd " + DbSession.GetToken()
+				},
+				data: script,
+				dataType: "json",
+				success: dbCreateCb,
+				error: function(msg) { 
+					if (msg != null && msg.responseJSON != null) {
+						dbCreateCb(msg.responseJSON);
+					} else if (msg != null) {
+						DbUtil.ErrorWithMsg(DB_CODE_INVALID_FORMAT, msg);
+					} else {
+						DbUtil.ErrorWithMsg(DB_CODE_SERVER_NULL, msg);
+					}
+				}		
+			});	
 			
-		}else {
+		} else {
 			// 
 			var file = $('#fileInput')[0].files[0]
 			if(file){
