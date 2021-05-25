@@ -101,7 +101,7 @@ static SQueryNode* createQueryNode(int32_t type, const char* name, SQueryNode** 
 static SQueryNode* doAddTableColumnNode(SQueryInfo* pQueryInfo, STableMetaInfo* pTableMetaInfo, SQueryTableInfo* info,
                                         SArray* pExprs, SArray* tableCols) {
   if (pQueryInfo->onlyTagQuery) {
-    int32_t     num = taosArrayGetSize(pExprs);
+    int32_t     num = (int32_t) taosArrayGetSize(pExprs);
     SQueryNode* pNode = createQueryNode(QNODE_TAGSCAN, "TableTagScan", NULL, 0, pExprs->pData, num, info, NULL);
 
     if (pQueryInfo->distinctTag) {
@@ -115,11 +115,11 @@ static SQueryNode* doAddTableColumnNode(SQueryInfo* pQueryInfo, STableMetaInfo* 
   SQueryNode*  pNode = createQueryNode(QNODE_TABLESCAN, "TableScan", NULL, 0, NULL, 0,
       info, window);
   if (pQueryInfo->projectionQuery) {
-    int32_t numOfOutput = taosArrayGetSize(pExprs);
+    int32_t numOfOutput = (int32_t) taosArrayGetSize(pExprs);
     pNode = createQueryNode(QNODE_PROJECT, "Projection", &pNode, 1, pExprs->pData, numOfOutput, info, NULL);
   } else {
     // table source column projection, generate the projection expr
-    int32_t     numOfCols = taosArrayGetSize(tableCols);
+    int32_t     numOfCols = (int32_t) taosArrayGetSize(tableCols);
     SExprInfo** pExpr = calloc(numOfCols, POINTER_BYTES);
     SSchema*    pSchema = pTableMetaInfo->pTableMeta->schema;
 
@@ -148,23 +148,23 @@ static SQueryNode* doCreateQueryPlanForOneTableImpl(SQueryInfo* pQueryInfo, SQue
     SArray* pExprs) {
     // check for aggregation
     if (pQueryInfo->interval.interval > 0) {
-      int32_t numOfOutput = taosArrayGetSize(pExprs);
+      int32_t numOfOutput = (int32_t) taosArrayGetSize(pExprs);
 
       pNode = createQueryNode(QNODE_TIMEWINDOW, "TimeWindowAgg", &pNode, 1, pExprs->pData, numOfOutput, info,
                               &pQueryInfo->interval);
     } else if (pQueryInfo->groupbyColumn) {
-      int32_t numOfOutput = taosArrayGetSize(pExprs);
+      int32_t numOfOutput = (int32_t) taosArrayGetSize(pExprs);
       pNode = createQueryNode(QNODE_GROUPBY, "Groupby", &pNode, 1, pExprs->pData, numOfOutput, info,
                               &pQueryInfo->groupbyExpr);
     } else if (pQueryInfo->sessionWindow.gap > 0) {
       pNode = createQueryNode(QNODE_SESSIONWINDOW, "SessionWindowAgg", &pNode, 1, NULL, 0, info, NULL);
     } else if (pQueryInfo->simpleAgg) {
-      int32_t numOfOutput = taosArrayGetSize(pExprs);
+      int32_t numOfOutput = (int32_t) taosArrayGetSize(pExprs);
       pNode = createQueryNode(QNODE_AGGREGATE, "Aggregate", &pNode, 1, pExprs->pData, numOfOutput, info, NULL);
     }
 
     if (pQueryInfo->havingFieldNum > 0 || pQueryInfo->arithmeticOnAgg) {
-      int32_t numOfExpr = taosArrayGetSize(pQueryInfo->exprList1);
+      int32_t numOfExpr = (int32_t) taosArrayGetSize(pQueryInfo->exprList1);
       pNode =
           createQueryNode(QNODE_PROJECT, "Projection", &pNode, 1, pQueryInfo->exprList1->pData, numOfExpr, info, NULL);
     }
@@ -249,7 +249,7 @@ SArray* createQueryPlanImpl(SQueryInfo* pQueryInfo) {
 
     // 3. add the join node here
     SQueryTableInfo info = {0};
-    int32_t num = taosArrayGetSize(pQueryInfo->exprList);
+    int32_t num = (int32_t) taosArrayGetSize(pQueryInfo->exprList);
     SQueryNode* pNode = createQueryNode(QNODE_JOIN, "Join", upstream->pData, pQueryInfo->numOfTables,
         pQueryInfo->exprList->pData, num, &info, NULL);
 
@@ -287,7 +287,7 @@ static void doDestroyQueryNode(SQueryNode* pQueryNode) {
   pQueryNode->pExpr = destroyQueryFuncExpr(pQueryNode->pExpr, pQueryNode->numOfOutput);
 
   if (pQueryNode->pPrevNodes != NULL) {
-    int32_t size = taosArrayGetSize(pQueryNode->pPrevNodes);
+    int32_t size = (int32_t) taosArrayGetSize(pQueryNode->pPrevNodes);
     for(int32_t i = 0; i < size; ++i) {
       SQueryNode* p = taosArrayGetP(pQueryNode->pPrevNodes, i);
       doDestroyQueryNode(p);
