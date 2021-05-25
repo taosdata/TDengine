@@ -1770,10 +1770,10 @@ static int32_t setupQueryRuntimeEnv(SQueryRuntimeEnv *pRuntimeEnv, int32_t numOf
 
       case OP_Filter: {  // todo refactor
         int32_t numOfFilterCols = 0;
-        if (pQueryAttr->numOfFilterCols > 0) {
-          pRuntimeEnv->proot = createFilterOperatorInfo(pRuntimeEnv, pRuntimeEnv->proot, pQueryAttr->pExpr1,
-                                                        pQueryAttr->numOfOutput, pQueryAttr->tableCols, pQueryAttr->numOfFilterCols);
-        } else {
+//        if (pQueryAttr->numOfFilterCols > 0) {
+//          pRuntimeEnv->proot = createFilterOperatorInfo(pRuntimeEnv, pRuntimeEnv->proot, pQueryAttr->pExpr1,
+//                                                        pQueryAttr->numOfOutput, pQueryAttr->tableCols, pQueryAttr->numOfFilterCols);
+//        } else {
           if (pQueryAttr->stableQuery) {
             SColumnInfo* pColInfo =
                 extractColumnFilterInfo(pQueryAttr->pExpr3, pQueryAttr->numOfExpr3, &numOfFilterCols);
@@ -1787,7 +1787,7 @@ static int32_t setupQueryRuntimeEnv(SQueryRuntimeEnv *pRuntimeEnv, int32_t numOf
                                                           pQueryAttr->numOfOutput, pColInfo, numOfFilterCols);
             freeColumnInfo(pColInfo, pQueryAttr->numOfOutput);
           }
-        }
+//        }
         break;
       }
 
