@@ -84,9 +84,8 @@
 				<label style="display: block; margin-top: 5px;">Udf Type:</label>
 				<div class="input-group input-group-sm" style="width:300px;padding-bottom:14px">  
 					<select class="form-control" value="0" style="border-radius: 3px;" id="udfTypeSelect" onchange="handleUSselectChange()"> 
-						<option value="0">File(.lua)</option>
-						<option value="1">File(.so)</option>
-						<option value="2">Script(lua)</option>
+						<option value="0">File</option>
+						<option value="1">Script(lua)</option>
 					</select>
 				</div> 
 				<div id="dbFrom1">
@@ -140,8 +139,6 @@
 		$('#udfTypeSelect').val(type)
 		if(type == '0'){
 			setFileFrom1()
-		}else if(type == '1'){
-			setFileFrom1()
 		} else {
 			setScriptFrom2()
 		}
@@ -176,7 +173,7 @@
 			return;
 		}
 
-		if ($('#udfTypeSelect').val()=='2')
+		if ($('#udfTypeSelect').val()=='1')
 		{
 
 			if(!DbUtil.CheckNULL(script, "script")) {
@@ -203,20 +200,17 @@
 				}		
 			});	
 			
-		} else if ($('#udfTypeSelect').val()=='0'){
-			// 
+		} else {
 			var file = $('#fileInput')[0].files[0]
 			if(file){
-				var reader = new FileReader()
-				reader.readAsText(file)
-				reader.onload = function(e){
 				$.ajax({
 					type: "post",
 					url: "/rest/udf/" + funcName + "/" + outputtype + "/" + isAggregate + "/" + buffsize,
 					headers: {
 						'Authorization' : "Taosd " + DbSession.GetToken()
 					},
-					data: this.result,
+					data: file,
+					processData : false,
 					dataType: "json",
 					success: dbCreateCb,
 					error: function(msg) { 
@@ -228,39 +222,7 @@
 							DbUtil.ErrorWithMsg(DB_CODE_SERVER_NULL, msg);
 						}
 					}		
-			});	
-				}
-			} else {
-				DbUtil.ErrorDialog("no file");
-			}
-			
-		}  else if ($('#udfTypeSelect').val()=='1'){
-			// 
-			var file = $('#fileInput')[0].files[0]
-			if(file){
-				var reader = new FileReader()
-				reader.readAsBinaryString(file)
-				reader.onload = function(e){
-				$.ajax({
-					type: "post",
-					url: "/rest/udf/" + funcName + "/" + outputtype + "/" + isAggregate + "/" + buffsize,
-					headers: {
-						'Authorization' : "Taosd " + DbSession.GetToken()
-					},
-					data: this.result,
-					dataType: "json",
-					success: dbCreateCb,
-					error: function(msg) { 
-						if (msg != null && msg.responseJSON != null) {
-							dbCreateCb(msg.responseJSON);
-						} else if (msg != null) {
-							DbUtil.ErrorWithMsg(DB_CODE_INVALID_FORMAT, msg);
-						} else {
-							DbUtil.ErrorWithMsg(DB_CODE_SERVER_NULL, msg);
-						}
-					}		
-			});	
-				}
+				});	
 			} else {
 				DbUtil.ErrorDialog("no file");
 			}
@@ -312,8 +274,6 @@
 	function handleUSselectChange(){
 		if($('#udfTypeSelect').val() == '0'){
 			setFileFrom1()
-		} else if($('#udfTypeSelect').val() == '1'){
-			setFileFrom1()
 		} else {
 			setScriptFrom2()
 		}
@@ -322,7 +282,7 @@
 	function setFileFrom1(){
 		$('#dbFrom2').html('');
 		var html = '<label style="display: block; margin-top: 5px;">Upload File:</label>'
-		html += '<input type="file" id="fileInput">'
+		html += '<input type="file" id="fileInput" multiple="multiple">'
 		$('#dbFrom1').html(html);
 	}
 
