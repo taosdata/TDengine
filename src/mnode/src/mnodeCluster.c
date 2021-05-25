@@ -237,3 +237,27 @@ static int32_t mnodeRetrieveClusters(SShowObj *pShow, char *data, int32_t rows, 
   pShow->numOfReads += numOfRows;
   return numOfRows;
 }
+
+int32_t mnodeCompactCluster() {
+  SClusterObj *pCluster = NULL;
+  void *pIter;
+  
+  mInfo("start to compact cluster table...");
+
+  pIter = mnodeGetNextCluster(NULL, &pCluster);
+  while (pCluster) {
+    SSdbRow row = {
+      .type   = SDB_OPER_GLOBAL,
+      .pTable = tsClusterSdb,
+      .pObj   = pCluster,      
+    };
+
+    sdbInsertCompactRow(&row);
+
+    pIter = mnodeGetNextCluster(pIter, &pCluster);
+  }
+
+  mInfo("end to compact cluster table...");
+
+  return 0;
+}

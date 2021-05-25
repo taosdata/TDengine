@@ -21,8 +21,8 @@ extern "C" {
 #endif
 
 #include "taosmsg.h"
-#include "tstoken.h"
 #include "tsclient.h"
+#include "ttoken.h"
 
 /**
  * get the number of tags of this table

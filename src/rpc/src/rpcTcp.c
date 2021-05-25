@@ -576,7 +576,7 @@ static void *taosProcessTcpData(void *param) {
   }
 
   while (pThreadObj->pHead) {
-    SFdObj *pFdObj = pThreadObj->pHead;
+    pFdObj = pThreadObj->pHead;
     pThreadObj->pHead = pFdObj->next;
     taosReportBrokenLink(pFdObj);
   }

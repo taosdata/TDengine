@@ -174,7 +174,7 @@ static int normalStmtPrepare(STscStmt* stmt) {
 
   while (sql[i] != 0) {
     SStrToken token = {0};
-    token.n = tSQLGetToken(sql + i, &token.type);
+    token.n = tGetToken(sql + i, &token.type);
 
     if (token.type == TK_QUESTION) {
       sql[i] = 0;
@@ -275,6 +275,60 @@ static char* normalStmtBuildSql(STscStmt* stmt) {
 
   return taosStringBuilderGetResult(&sb, NULL);
 }
+
+static int fillColumnsNull(STableDataBlocks* pBlock, int32_t rowNum) {
+  SParsedDataColInfo* spd = &pBlock->boundColumnInfo;
+  int32_t offset = 0;
+  SSchema *schema = (SSchema*)pBlock->pTableMeta->schema;
+
+  for (int32_t i = 0; i < spd->numOfCols; ++i) {
+    if (!spd->cols[i].hasVal) {  // current column do not have any value to insert, set it to null
+      for (int32_t n = 0; n < rowNum; ++n) {          
+        char *ptr = pBlock->pData + sizeof(SSubmitBlk) + pBlock->rowSize * n + offset;
+        
+        if (schema[i].type == TSDB_DATA_TYPE_BINARY) {
+          varDataSetLen(ptr, sizeof(int8_t));
+          *(uint8_t*) varDataVal(ptr) = TSDB_DATA_BINARY_NULL;
+        } else if (schema[i].type == TSDB_DATA_TYPE_NCHAR) {
+          varDataSetLen(ptr, sizeof(int32_t));
+          *(uint32_t*) varDataVal(ptr) = TSDB_DATA_NCHAR_NULL;
+        } else {
+          setNull(ptr, schema[i].type, schema[i].bytes);
+        }
+      }
+    }
+    
+    offset += schema[i].bytes;
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+
+int32_t fillTablesColumnsNull(SSqlObj* pSql) {
+  SSqlCmd* pCmd = &pSql->cmd;
+
+  STableDataBlocks** p = taosHashIterate(pCmd->pTableBlockHashList, NULL);
+
+  STableDataBlocks* pOneTableBlock = *p;
+  while(pOneTableBlock) {
+    SSubmitBlk* pBlocks = (SSubmitBlk*) pOneTableBlock->pData;
+    if (pBlocks->numOfRows > 0 && pOneTableBlock->boundColumnInfo.numOfBound < pOneTableBlock->boundColumnInfo.numOfCols) {
+      fillColumnsNull(pOneTableBlock, pBlocks->numOfRows);
+    }
+    
+    p = taosHashIterate(pCmd->pTableBlockHashList, p);
+    if (p == NULL) {
+      break;
+    }
+
+    pOneTableBlock = *p;
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+
 
 ////////////////////////////////////////////////////////////////////////////////
 // functions for insertion statement preparation
@@ -1027,6 +1081,8 @@ static int insertStmtExecute(STscStmt* stmt) {
   pBlk->uid = pTableMeta->id.uid;
   pBlk->tid = pTableMeta->id.tid;
 
+  fillTablesColumnsNull(stmt->pSql);
+
   int code = tscMergeTableDataBlocks(stmt->pSql, false);
   if (code != TSDB_CODE_SUCCESS) {
     return code;
@@ -1120,10 +1176,15 @@ static int insertBatchStmtExecute(STscStmt* pStmt) {
   
   pStmt->pSql->retry = pStmt->pSql->maxRetry + 1;  //no retry
 
-  if (taosHashGetSize(pStmt->pSql->cmd.pTableBlockHashList) > 0) { // merge according to vgId
-    if ((code = tscMergeTableDataBlocks(pStmt->pSql, false)) != TSDB_CODE_SUCCESS) {
-      return code;
-    }
+  if (taosHashGetSize(pStmt->pSql->cmd.pTableBlockHashList) <= 0) { // merge according to vgId
+    tscError("0x%"PRIx64" no data block to insert", pStmt->pSql->self);
+    return TSDB_CODE_TSC_APP_ERROR;
+  }
+
+  fillTablesColumnsNull(pStmt->pSql);
+
+  if ((code = tscMergeTableDataBlocks(pStmt->pSql, false)) != TSDB_CODE_SUCCESS) {
+    return code;
   }
 
   code = tscHandleMultivnodeInsert(pStmt->pSql);

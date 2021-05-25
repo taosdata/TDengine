@@ -1,11 +1,11 @@
 #!/bin/bash
 #
-# Generate the deb package for ubunt, or rpm package for centos, or tar.gz package for other linux os
+# Generate the deb package for ubuntu, or rpm package for centos, or tar.gz package for other linux os
 
 set -e
 #set -x
 
-# releash.sh  -v [cluster | edge]  
+# release.sh  -v [cluster | edge]
 #             -c [aarch32 | aarch64 | x64 | x86 | mips64 ...] 
 #             -o [Linux | Kylin | Alpine | Raspberrypi | Darwin | Windows | Ningsi60 | Ningsi80 |...]
 #             -V [stable | beta]

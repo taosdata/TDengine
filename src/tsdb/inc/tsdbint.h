@@ -73,6 +73,11 @@ struct STsdbRepo {
   uint8_t state;
 
   STsdbCfg        config;
+
+  STsdbCfg        save_config;    // save apply config
+  bool            config_changed; // config changed flag
+  pthread_mutex_t save_mutex;     // protect save config
+
   STsdbAppH       appH;
   STsdbStat       stat;
   STsdbMeta*      tsdbMeta;

@@ -957,10 +957,10 @@ static int tsdbRestoreMeta(STsdbRepo *pRepo) {
         regfree(&regex);
         return -1;
       } else {
-        uint32_t version = 0;
+        uint32_t _version = 0;
         if (strcmp(bname, "meta") != 0) {
-          sscanf(bname, "meta-ver%" PRIu32, &version);
-          pfs->cstatus->meta.version = version;
+          sscanf(bname, "meta-ver%" PRIu32, &_version);
+          pfs->cstatus->meta.version = _version;
         }
 
         pfs->cstatus->pmf = &(pfs->cstatus->mf);
@@ -1103,10 +1103,10 @@ static int tsdbRestoreDFileSet(STsdbRepo *pRepo) {
       int         tvid, tfid;
       TSDB_FILE_T ttype;
       uint32_t    tversion;
-      char        bname[TSDB_FILENAME_LEN];
+      char        _bname[TSDB_FILENAME_LEN];
 
-      tfsbasename(pf, bname);
-      tsdbParseDFilename(bname, &tvid, &tfid, &ttype, &tversion);
+      tfsbasename(pf, _bname);
+      tsdbParseDFilename(_bname, &tvid, &tfid, &ttype, &tversion);
 
       ASSERT(tvid == REPO_ID(pRepo));
 

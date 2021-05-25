@@ -29,8 +29,7 @@
 #include "taosdef.h"
 
 #include "tscLog.h"
-#include "tscSubquery.h"
-#include "tstoken.h"
+#include "ttoken.h"
 
 #include "tdataformat.h"
 
@@ -464,23 +463,24 @@ int tsParseOneRow(char **str, STableDataBlocks *pDataBlocks, SSqlCmd *pCmd, int1
     // Remove quotation marks
     if (TK_STRING == sToken.type) {
       // delete escape character: \\, \', \"
-      char    delim = sToken.z[0];
+      char delim = sToken.z[0];
+
       int32_t cnt = 0;
       int32_t j = 0;
       for (uint32_t k = 1; k < sToken.n - 1; ++k) {
-        if (sToken.z[k] == delim || sToken.z[k] == '\\') {
-          if (sToken.z[k + 1] == delim) {
-            cnt++;
+        if (sToken.z[k] == '\\' || (sToken.z[k] == delim && sToken.z[k + 1] == delim)) {
             tmpTokenBuf[j] = sToken.z[k + 1];
-            j++;
-            k++;
-            continue;
-          }
+
+          cnt++;
+          j++;
+          k++;
+          continue;
         }
 
         tmpTokenBuf[j] = sToken.z[k];
         j++;
       }
+
       tmpTokenBuf[j] = 0;
       sToken.z = tmpTokenBuf;
       sToken.n -= 2 + cnt;
@@ -577,12 +577,13 @@ int32_t tsParseValues(char **str, STableDataBlocks *pDataBlock, int maxRows, SSq
 
     index = 0;
     sToken = tStrGetToken(*str, &index, false);
-    *str += index;
     if (sToken.n == 0 || sToken.type != TK_RP) {
       tscSQLSyntaxErrMsg(pCmd->payload, ") expected", *str);
       code = TSDB_CODE_TSC_SQL_SYNTAX_ERROR;
-      return -1;
+      return code;
     }
+    
+    *str += index;
 
     (*numOfRows)++;
   }
@@ -712,6 +713,9 @@ static int32_t doParseInsertStatement(SSqlCmd* pCmd, char **str, STableDataBlock
 
   int32_t numOfRows = 0;
   code = tsParseValues(str, dataBuf, maxNumOfRows, pCmd, &numOfRows, tmpTokenBuf);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
 
   for (uint32_t i = 0; i < dataBuf->numOfParams; ++i) {
     SParamInfo *param = dataBuf->params + i;
@@ -1006,7 +1010,7 @@ int validateTableName(char *tblName, int len, SStrToken* psTblToken) {
 
   psTblToken->n    = len;
   psTblToken->type = TK_ID;
-  tSQLGetToken(psTblToken->z, &psTblToken->type);
+  tGetToken(psTblToken->z, &psTblToken->type);
 
   return tscValidateName(psTblToken);
 }

@@ -114,6 +114,32 @@ int tsdbScheduleCommit(STsdbRepo *pRepo, TSDB_REQ_T req) {
   return 0;
 }
 
+static void tsdbApplyRepoConfig(STsdbRepo *pRepo) {
+  pRepo->config_changed = false;
+  STsdbCfg * pSaveCfg = &pRepo->save_config;
+
+  int32_t oldTotalBlocks = pRepo->config.totalBlocks;
+
+  pRepo->config.compression = pRepo->save_config.compression;
+  pRepo->config.keep = pRepo->save_config.keep;
+  pRepo->config.keep1 = pRepo->save_config.keep1;
+  pRepo->config.keep2 = pRepo->save_config.keep2;
+  pRepo->config.cacheLastRow = pRepo->save_config.cacheLastRow;
+  pRepo->config.totalBlocks = pRepo->save_config.totalBlocks;
+
+  tsdbInfo("vgId:%d apply new config: compression(%d), keep(%d,%d,%d), totalBlocks(%d), cacheLastRow(%d),totalBlocks(%d)",
+    REPO_ID(pRepo),
+    pSaveCfg->compression, pSaveCfg->keep,pSaveCfg->keep1, pSaveCfg->keep2,
+    pSaveCfg->totalBlocks, pSaveCfg->cacheLastRow, pSaveCfg->totalBlocks);
+
+  int err = tsdbExpendPool(pRepo, oldTotalBlocks);
+  if (!TAOS_SUCCEEDED(err)) {
+    tsdbError("vgId:%d expand pool from %d to %d fail,reason:%s",
+      REPO_ID(pRepo), oldTotalBlocks, pSaveCfg->totalBlocks, tstrerror(err));
+  }
+
+}
+
 static void *tsdbLoopCommit(void *arg) {
   SCommitQueue *pQueue = &tsCommitQueue;
   SListNode *   pNode = NULL;
@@ -141,6 +167,12 @@ static void *tsdbLoopCommit(void *arg) {
 
     req = ((SReq *)pNode->data)->req;
     pRepo = ((SReq *)pNode->data)->pRepo;
+
+    if (pRepo->config_changed) {
+      pthread_mutex_lock(&pRepo->save_mutex);       
+      tsdbApplyRepoConfig(pRepo);
+      pthread_mutex_unlock(&pRepo->save_mutex);
+    }
 
     if (req == COMMIT_REQ) {
       tsdbCommitData(pRepo);

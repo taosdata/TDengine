@@ -1,6 +1,7 @@
 package com.taosdata.jdbc;
 
 import org.junit.After;
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -19,6 +20,7 @@ public class SubscribeTest {
     String tName = "t0";
     String host = "127.0.0.1";
     String topic = "test";
+    private long ts;
 
     @Test
     public void subscribe() {
@@ -27,26 +29,40 @@ public class SubscribeTest {
             TSDBConnection conn = connection.unwrap(TSDBConnection.class);
             TSDBSubscribe subscribe = conn.subscribe(topic, rawSql, false);
 
-            int a = 0;
-            while (true) {
-                TimeUnit.MILLISECONDS.sleep(1000);
+            for (int j = 0; j < 10; j++) {
+                TimeUnit.SECONDS.sleep(1);
                 TSDBResultSet resSet = subscribe.consume();
+
+                int rowCnt = 0;
                 while (resSet.next()) {
-                    for (int i = 1; i <= resSet.getMetaData().getColumnCount(); i++) {
-                        System.out.printf(i + ": " + resSet.getString(i) + "\t");
+                    if (rowCnt == 0) {
+                        long cur_ts = resSet.getTimestamp(1).getTime();
+                        int k = resSet.getInt(2);
+                        int v = resSet.getInt(3);
+                        Assert.assertEquals(ts, cur_ts);
+                        Assert.assertEquals(100, k);
+                        Assert.assertEquals(1, v);
                     }
-                    System.out.println("\n======" + a + "==========");
+                    if (rowCnt == 1) {
+                        long cur_ts = resSet.getTimestamp(1).getTime();
+                        int k = resSet.getInt(2);
+                        int v = resSet.getInt(3);
+                        Assert.assertEquals(ts + 1, cur_ts);
+                        Assert.assertEquals(101, k);
+                        Assert.assertEquals(2, v);
+
+                    }
+                    rowCnt++;
                 }
-                a++;
-                if (a >= 2) {
-                    break;
-                }
+                if (j == 0)
+                    Assert.assertEquals(2, rowCnt);
                 resSet.close();
             }
-
             subscribe.close(true);
-        } catch (Exception e) {
-            e.printStackTrace();
+
+
+        } catch (SQLException | InterruptedException throwables) {
+            throwables.printStackTrace();
         }
     }
 
@@ -62,7 +78,7 @@ public class SubscribeTest {
         statement.execute("drop database if exists " + dbName);
         statement.execute("create database if not exists " + dbName);
         statement.execute("create table if not exists " + dbName + "." + tName + " (ts timestamp, k int, v int)");
-        long ts = System.currentTimeMillis();
+        ts = System.currentTimeMillis();
         statement.executeUpdate("insert into " + dbName + "." + tName + " values (" + ts + ", 100, 1)");
         statement.executeUpdate("insert into " + dbName + "." + tName + " values (" + (ts + 1) + ", 101, 2)");
     }
