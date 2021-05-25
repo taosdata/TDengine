@@ -336,21 +336,33 @@ static int32_t updateMetaBeforeRetryQuery(SSqlObj* pSql, STableMetaInfo* pTableM
     int32_t numOfTags = tscGetNumOfTags(pTableMetaInfo->pTableMeta);
 
     SSchema *pSchema = tscGetTableSchema(pTableMetaInfo->pTableMeta);
+    SSchema *pTagSchema = tscGetTableTagSchema(pTableMetaInfo->pTableMeta);
+
     for (int32_t i = 0; i < numOfExprs; ++i) {
       SSqlExpr *pExpr = &(tscExprGet(pQueryInfo, i)->base);
+
+      // update the table uid
       pExpr->uid = pTableMetaInfo->pTableMeta->id.uid;
 
       if (pExpr->colInfo.colIndex >= 0) {
         int32_t index = pExpr->colInfo.colIndex;
 
         if ((TSDB_COL_IS_NORMAL_COL(pExpr->colInfo.flag) && index >= numOfCols) ||
-            (TSDB_COL_IS_TAG(pExpr->colInfo.flag) && (index < numOfCols || index >= (numOfCols + numOfTags)))) {
+            (TSDB_COL_IS_TAG(pExpr->colInfo.flag) && (index < 0 || index >= numOfTags))) {
           return pSql->retryReason;
         }
 
-        if ((pSchema[pExpr->colInfo.colIndex].colId != pExpr->colInfo.colId) &&
-            strcasecmp(pExpr->colInfo.name, pSchema[pExpr->colInfo.colIndex].name) != 0) {
-          return pSql->retryReason;
+        if (TSDB_COL_IS_TAG(pExpr->colInfo.flag)) {
+          if ((pTagSchema[pExpr->colInfo.colIndex].colId != pExpr->colInfo.colId) &&
+              strcasecmp(pExpr->colInfo.name, pTagSchema[pExpr->colInfo.colIndex].name) != 0) {
+            return pSql->retryReason;
+          }
+        } else if (TSDB_COL_IS_NORMAL_COL(pExpr->colInfo.flag)) {
+          if ((pSchema[pExpr->colInfo.colIndex].colId != pExpr->colInfo.colId) &&
+              strcasecmp(pExpr->colInfo.name, pSchema[pExpr->colInfo.colIndex].name) != 0) {
+            return pSql->retryReason;
+          }
+        } else { // do nothing for udc
         }
       }
     }
@@ -388,12 +400,12 @@ void tscTableMetaCallBack(void *param, TAOS_RES *res, int code) {
 
   tscDebug("0x%"PRIx64" get %s successfully", pSql->self, msg);
   if (pSql->pStream == NULL) {
-    SQueryInfo* pQueryInfo = tscGetQueryInfo(pCmd);
+    SQueryInfo *pQueryInfo = tscGetQueryInfo(pCmd);
 
     // check if it is a sub-query of super table query first, if true, enter another routine
-    if (TSDB_QUERY_HAS_TYPE(pQueryInfo->type, (TSDB_QUERY_TYPE_STABLE_SUBQUERY|TSDB_QUERY_TYPE_SUBQUERY|TSDB_QUERY_TYPE_TAG_FILTER_QUERY))) {
-      tscDebug("0x%"PRIx64" update local table meta, continue to process sql and send the corresponding query", pSql->self);
-
+    if (TSDB_QUERY_HAS_TYPE(pQueryInfo->type, (TSDB_QUERY_TYPE_STABLE_SUBQUERY | TSDB_QUERY_TYPE_SUBQUERY |
+                                               TSDB_QUERY_TYPE_TAG_FILTER_QUERY))) {
+      tscDebug("0x%" PRIx64 " update cached table-meta, continue to process sql and send the corresponding query", pSql->self);
       STableMetaInfo *pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
 
       code = tscGetTableMeta(pSql, pTableMetaInfo);
@@ -415,42 +427,8 @@ void tscTableMetaCallBack(void *param, TAOS_RES *res, int code) {
       taosReleaseRef(tscObjRef, pSql->self);
       return;
     } else {  // continue to process normal async query
-      if (pCmd->parseFinished) {
-        tscDebug("0x%"PRIx64" update local table meta, continue to process sql and send corresponding query", pSql->self);
-
-        STableMetaInfo* pTableMetaInfo = tscGetTableMetaInfoFromCmd(pCmd, 0);
-        code = tscGetTableMeta(pSql, pTableMetaInfo);
-
-        assert(code == TSDB_CODE_TSC_ACTION_IN_PROGRESS || code == TSDB_CODE_SUCCESS);
-        if (code == TSDB_CODE_TSC_ACTION_IN_PROGRESS) {
-          taosReleaseRef(tscObjRef, pSql->self);
-          return;
-        }
-
-        assert(pCmd->command != TSDB_SQL_INSERT);
-
-        if (pCmd->command == TSDB_SQL_SELECT) {
-          tscDebug("0x%"PRIx64" redo parse sql string and proceed", pSql->self);
-          pCmd->parseFinished = false;
-          tscResetSqlCmd(pCmd, true);
-
-          code = tsParseSql(pSql, true);
-          if (code == TSDB_CODE_TSC_ACTION_IN_PROGRESS) {
-            taosReleaseRef(tscObjRef, pSql->self);
-            return;
-          } else if (code != TSDB_CODE_SUCCESS) {
-            goto _error;
-          }
-
-          tscBuildAndSendRequest(pSql, NULL);
-        } else {  // in all other cases, simple retry
-          tscBuildAndSendRequest(pSql, NULL);
-        }
-
-        taosReleaseRef(tscObjRef, pSql->self);
-        return;
-      } else {
-        tscDebug("0x%"PRIx64" continue parse sql after get table meta", pSql->self);
+      if (TSDB_QUERY_HAS_TYPE(pQueryInfo->type, TSDB_QUERY_TYPE_INSERT)) {
+        tscDebug("0x%" PRIx64 " continue parse sql after get table-meta", pSql->self);
 
         code = tsParseSql(pSql, false);
         if (code == TSDB_CODE_TSC_ACTION_IN_PROGRESS) {
@@ -460,8 +438,8 @@ void tscTableMetaCallBack(void *param, TAOS_RES *res, int code) {
           goto _error;
         }
 
-        if (TSDB_QUERY_HAS_TYPE(pQueryInfo->type, TSDB_QUERY_TYPE_STMT_INSERT)){
-          STableMetaInfo *pTableMetaInfo = tscGetTableMetaInfoFromCmd(pCmd, 0);
+        if (TSDB_QUERY_HAS_TYPE(pCmd->insertParam.insertType, TSDB_QUERY_TYPE_STMT_INSERT)) {
+          STableMetaInfo *pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
           code = tscGetTableMeta(pSql, pTableMetaInfo);
           if (code == TSDB_CODE_TSC_ACTION_IN_PROGRESS) {
             taosReleaseRef(tscObjRef, pSql->self);
@@ -471,22 +449,38 @@ void tscTableMetaCallBack(void *param, TAOS_RES *res, int code) {
           }
 
           (*pSql->fp)(pSql->param, pSql, code);
-        } else if (TSDB_QUERY_HAS_TYPE(pQueryInfo->type, TSDB_QUERY_TYPE_INSERT)) {
-          if (pCmd->dataSourceType == DATA_FROM_DATA_FILE) {
+        } else {
+          if (TSDB_QUERY_HAS_TYPE(pCmd->insertParam.insertType, TSDB_QUERY_TYPE_FILE_INSERT)) {
             tscImportDataFromFile(pSql);
           } else {
             tscHandleMultivnodeInsert(pSql);
           }
+        }
+      } else {
+        if (pSql->retryReason != TSDB_CODE_SUCCESS) {
+          tscDebug("0x%" PRIx64 " update cached table-meta, re-validate sql statement and send query again",
+                   pSql->self);
+          tscResetSqlCmd(pCmd, false);
+          pSql->retryReason = TSDB_CODE_SUCCESS;
         } else {
-          SQueryInfo* pQueryInfo1 = tscGetQueryInfo(pCmd);
-          executeQuery(pSql, pQueryInfo1);
+          tscDebug("0x%" PRIx64 " cached table-meta, continue validate sql statement and send query", pSql->self);
         }
 
-        taosReleaseRef(tscObjRef, pSql->self);
-        return;
-      }
-    }
+        code = tsParseSql(pSql, true);
+        if (code == TSDB_CODE_TSC_ACTION_IN_PROGRESS) {
+          taosReleaseRef(tscObjRef, pSql->self);
+          return;
+        } else if (code != TSDB_CODE_SUCCESS) {
+          goto _error;
+        }
 
+        SQueryInfo *pQueryInfo1 = tscGetQueryInfo(pCmd);
+        executeQuery(pSql, pQueryInfo1);
+      }
+
+      taosReleaseRef(tscObjRef, pSql->self);
+      return;
+    }
   } else {  // stream computing
     SQueryInfo* pQueryInfo = tscGetQueryInfo(pCmd);
     STableMetaInfo *pTableMetaInfo = pQueryInfo->pTableMetaInfo[0];
@@ -510,21 +504,16 @@ void tscTableMetaCallBack(void *param, TAOS_RES *res, int code) {
     }
 
     tscDebug("0x%"PRIx64" stream:%p meta is updated, start new query, command:%d", pSql->self, pSql->pStream, pSql->cmd.command);
-    if (!pSql->cmd.parseFinished) {
+    if (tscNumOfExprs(pQueryInfo) == 0) {
       tsParseSql(pSql, false);
     }
 
     (*pSql->fp)(pSql->param, pSql, code);
-    
     taosReleaseRef(tscObjRef, pSql->self);
-
     return;
   }
 
-//  tscDoQuery(pSql);
-
   taosReleaseRef(tscObjRef, pSql->self);
-  
   return;
 
   _error:

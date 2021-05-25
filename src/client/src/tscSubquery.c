@@ -3020,8 +3020,8 @@ static void multiVnodeInsertFinalize(void* param, TAOS_RES* tres, int numOfRows)
     pParentObj->res.code = pSql->res.code;
 
     // set the flag in the parent sqlObj
-    if (pSql->cmd.submitSchema) {
-      pParentObj->cmd.submitSchema = 1;
+    if (pSql->cmd.insertParam.schemaAttached) {
+      pParentObj->cmd.insertParam.schemaAttached = 1;
     }
   }
 
@@ -3069,15 +3069,15 @@ static void multiVnodeInsertFinalize(void* param, TAOS_RES* tres, int numOfRows)
     tscError("0x%"PRIx64" Async insertion completed, total inserted:%d rows, numOfFailed:%d, numOfTotal:%d", pParentObj->self,
              pParentObj->res.numOfRows, numOfFailed, numOfSub);
 
-    tscDebug("0x%"PRIx64" cleanup %d tableMeta in hashTable before reparse sql", pParentObj->self, pParentObj->cmd.numOfTables);
-    for(int32_t i = 0; i < pParentObj->cmd.numOfTables; ++i) {
+    tscDebug("0x%"PRIx64" cleanup %d tableMeta in hashTable before reparse sql", pParentObj->self, pParentObj->cmd.insertParam.numOfTables);
+    for(int32_t i = 0; i < pParentObj->cmd.insertParam.numOfTables; ++i) {
       char name[TSDB_TABLE_FNAME_LEN] = {0};
-      tNameExtractFullName(pParentObj->cmd.pTableNameList[i], name);
+      tNameExtractFullName(pParentObj->cmd.insertParam.pTableNameList[i], name);
       taosHashRemove(tscTableMetaInfo, name, strnlen(name, TSDB_TABLE_FNAME_LEN));
     }
 
     pParentObj->res.code = TSDB_CODE_SUCCESS;
-    pParentObj->cmd.parseFinished = false;
+//    pParentObj->cmd.parseFinished = false;
 
     tscResetSqlCmd(&pParentObj->cmd, false);
 
@@ -3112,7 +3112,7 @@ int32_t tscHandleInsertRetry(SSqlObj* pParent, SSqlObj* pSql) {
   SInsertSupporter* pSupporter = (SInsertSupporter*) pSql->param;
   assert(pSupporter->index < pSupporter->pSql->subState.numOfSub);
 
-  STableDataBlocks* pTableDataBlock = taosArrayGetP(pParent->cmd.pDataBlocks, pSupporter->index);
+  STableDataBlocks* pTableDataBlock = taosArrayGetP(pParent->cmd.insertParam.pDataBlocks, pSupporter->index);
   int32_t code = tscCopyDataBlockToPayload(pSql, pTableDataBlock);
 
   if ((pRes->code = code)!= TSDB_CODE_SUCCESS) {

@@ -751,8 +751,6 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql, char** boundC
 
   char *sql = *sqlstr;
 
-  pSql->cmd.autoCreated = false;
-  
   // get the token of specified table
   index = 0;
   tableToken = tStrGetToken(sql, &index, false);
@@ -1015,12 +1013,13 @@ int validateTableName(char *tblName, int len, SStrToken* psTblToken) {
   return tscValidateName(psTblToken);
 }
 
-static int32_t validateDataSource(SSqlCmd *pCmd, int8_t type, const char *sql) {
-  if (pCmd->dataSourceType != 0 && pCmd->dataSourceType != type) {
+static int32_t validateDataSource(SSqlCmd *pCmd, int32_t type, const char *sql) {
+  if (pCmd->insertParam.insertType != 0 && !TSDB_QUERY_HAS_TYPE(pCmd->insertParam.insertType, type)) {
     return tscInvalidSQLErrMsg(pCmd->payload, "keyword VALUES and FILE are not allowed to mix up", sql);
   }
 
-  pCmd->dataSourceType = type;
+
+  pCmd->insertParam.insertType = type;
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1090,7 +1089,6 @@ static int32_t parseBoundColumns(SSqlCmd* pCmd, SParsedDataColInfo* pColInfo, SS
 
   _clean:
   pCmd->curSql     = NULL;
-  pCmd->parseFinished  = 1;
   return code;
 }
 
@@ -1142,7 +1140,7 @@ int tsParseInsertSql(SSqlObj *pSql) {
        * if the data is from the data file, no data has been generated yet. So, there no data to
        * merge or submit, save the file path and parse the file in other routines.
        */
-      if (pCmd->dataSourceType == DATA_FROM_DATA_FILE) {
+      if (TSDB_QUERY_HAS_TYPE(pCmd->insertParam.insertType, TSDB_QUERY_TYPE_FILE_INSERT)) {
         goto _clean;
       }
 
@@ -1203,7 +1201,7 @@ int tsParseInsertSql(SSqlObj *pSql) {
 
     STableComInfo tinfo = tscGetTableInfo(pTableMetaInfo->pTableMeta);
     if (sToken.type == TK_FILE) {
-      if (validateDataSource(pCmd, DATA_FROM_DATA_FILE, sToken.z) != TSDB_CODE_SUCCESS) {
+      if (validateDataSource(pCmd, TSDB_QUERY_TYPE_FILE_INSERT, sToken.z) != TSDB_CODE_SUCCESS) {
         goto _clean;
       }
 
@@ -1236,7 +1234,7 @@ int tsParseInsertSql(SSqlObj *pSql) {
       if (bindedColumns == NULL) {
         STableMeta *pTableMeta = pTableMetaInfo->pTableMeta;
 
-        if (validateDataSource(pCmd, DATA_FROM_SQL_STRING, sToken.z) != TSDB_CODE_SUCCESS) {
+        if (validateDataSource(pCmd, TSDB_QUERY_TYPE_INSERT, sToken.z) != TSDB_CODE_SUCCESS) {
           goto _clean;
         }
 
@@ -1256,7 +1254,7 @@ int tsParseInsertSql(SSqlObj *pSql) {
         // insert into tablename(col1, col2,..., coln) values(v1, v2,... vn);
         STableMeta *pTableMeta = tscGetTableMetaInfoFromCmd(pCmd, 0)->pTableMeta;
 
-        if (validateDataSource(pCmd, DATA_FROM_SQL_STRING, sToken.z) != TSDB_CODE_SUCCESS) {
+        if (validateDataSource(pCmd, TSDB_QUERY_TYPE_INSERT, sToken.z) != TSDB_CODE_SUCCESS) {
           goto _clean;
         }
 
@@ -1298,7 +1296,7 @@ int tsParseInsertSql(SSqlObj *pSql) {
   }
 
   // merge according to vgId
-  if (!TSDB_QUERY_HAS_TYPE(pQueryInfo->type, TSDB_QUERY_TYPE_STMT_INSERT) && taosHashGetSize(pCmd->insertParam.pTableBlockHashList) > 0) {
+  if (!TSDB_QUERY_HAS_TYPE(pCmd->insertParam.insertType, TSDB_QUERY_TYPE_STMT_INSERT) && taosHashGetSize(pCmd->insertParam.pTableBlockHashList) > 0) {
     if ((code = tscMergeTableDataBlocks(pSql, true)) != TSDB_CODE_SUCCESS) {
       goto _clean;
     }
@@ -1309,7 +1307,6 @@ int tsParseInsertSql(SSqlObj *pSql) {
 
 _clean:
   pCmd->curSql = NULL;
-  pCmd->parseFinished  = 1;
   return code;
 }
 
@@ -1328,8 +1325,7 @@ int tsInsertInitialCheck(SSqlObj *pSql) {
   pCmd->command = TSDB_SQL_INSERT;
 
   SQueryInfo *pQueryInfo = tscGetQueryInfoS(pCmd);
-
-  TSDB_QUERY_SET_TYPE(pQueryInfo->type, TSDB_QUERY_TYPE_INSERT | TSDB_QUERY_TYPE_STMT_INSERT);
+  TSDB_QUERY_SET_TYPE(pQueryInfo->type, TSDB_QUERY_TYPE_INSERT);
 
   sToken = tStrGetToken(pSql->sqlstr, &index, false);
   if (sToken.type != TK_INTO) {
@@ -1344,11 +1340,11 @@ int tsParseSql(SSqlObj *pSql, bool initial) {
   int32_t ret = TSDB_CODE_SUCCESS;
   SSqlCmd* pCmd = &pSql->cmd;
 
-  if ((!pCmd->parseFinished) && (!initial)) {
+  if (!initial) {
     tscDebug("0x%"PRIx64" resume to parse sql: %s", pSql->self, pCmd->curSql);
   }
 
-  ret = tscAllocPayload(&pSql->cmd, TSDB_DEFAULT_PAYLOAD_SIZE);
+  ret = tscAllocPayload(pCmd, TSDB_DEFAULT_PAYLOAD_SIZE);
   if (TSDB_CODE_SUCCESS != ret) {
     return ret;
   }
@@ -1358,17 +1354,15 @@ int tsParseSql(SSqlObj *pSql, bool initial) {
       return ret;
     }
 
-    // make a backup as tsParseInsertSql may modify the string
-    char* sqlstr = strdup(pSql->sqlstr);
     ret = tsParseInsertSql(pSql);
-    if ((sqlstr == NULL) || (pSql->parseRetry >= 1) ||
-        (ret != TSDB_CODE_TSC_SQL_SYNTAX_ERROR && ret != TSDB_CODE_TSC_INVALID_SQL)) {
-      free(sqlstr);
-    } else {
+    assert(ret == TSDB_CODE_SUCCESS || ret == TSDB_CODE_TSC_ACTION_IN_PROGRESS || ret == TSDB_CODE_TSC_SQL_SYNTAX_ERROR || ret == TSDB_CODE_TSC_INVALID_SQL);
+
+    if (pSql->parseRetry < 1 && (ret == TSDB_CODE_TSC_SQL_SYNTAX_ERROR || ret == TSDB_CODE_TSC_INVALID_SQL)) {
+      tscDebug("0x%"PRIx64 " parse insert sql statement failed, code:%s, clear meta cache and retry ", pSql->self, tstrerror(ret));
+
       tscResetSqlCmd(pCmd, true);
-      free(pSql->sqlstr);
-      pSql->sqlstr = sqlstr;
       pSql->parseRetry++;
+
       if ((ret = tsInsertInitialCheck(pSql)) == TSDB_CODE_SUCCESS) {
         ret = tsParseInsertSql(pSql);
       }
@@ -1376,9 +1370,12 @@ int tsParseSql(SSqlObj *pSql, bool initial) {
   } else {
     SSqlInfo SQLInfo = qSqlParse(pSql->sqlstr);
     ret = tscToSQLCmd(pSql, &SQLInfo);
-    if (ret == TSDB_CODE_TSC_INVALID_SQL && pSql->parseRetry == 0 && SQLInfo.type == TSDB_SQL_NULL) {
+    if (ret == TSDB_CODE_TSC_INVALID_SQL && pSql->parseRetry < 1 && SQLInfo.type == TSDB_SQL_SELECT) {
+      tscDebug("0x%"PRIx64 " parse query sql statement failed, code:%s, clear meta cache and retry ", pSql->self, tstrerror(ret));
+
       tscResetSqlCmd(pCmd, true);
       pSql->parseRetry++;
+
       ret = tscToSQLCmd(pSql, &SQLInfo);
     }
 
@@ -1561,7 +1558,7 @@ void tscImportDataFromFile(SSqlObj *pSql) {
     return;
   }
 
-  assert(pCmd->dataSourceType == DATA_FROM_DATA_FILE  && strlen(pCmd->payload) != 0);
+  assert(TSDB_QUERY_HAS_TYPE(pCmd->insertParam.insertType, TSDB_QUERY_TYPE_FILE_INSERT) && strlen(pCmd->payload) != 0);
   pCmd->active = pCmd->pQueryInfo;
 
   SImportFileSupport *pSupporter = calloc(1, sizeof(SImportFileSupport));

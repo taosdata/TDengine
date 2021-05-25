@@ -1104,14 +1104,14 @@ static int insertStmtExecute(STscStmt* stmt) {
 
   // data block reset
   pCmd->batchSize = 0;
-  for(int32_t i = 0; i < pCmd->numOfTables; ++i) {
-    if (pCmd->pTableNameList && pCmd->pTableNameList[i]) {
-      tfree(pCmd->pTableNameList[i]);
+  for(int32_t i = 0; i < pCmd->insertParam.numOfTables; ++i) {
+    if (pCmd->insertParam.pTableNameList && pCmd->insertParam.pTableNameList[i]) {
+      tfree(pCmd->insertParam.pTableNameList[i]);
     }
   }
 
-  pCmd->numOfTables = 0;
-  tfree(pCmd->pTableNameList);
+  pCmd->insertParam.numOfTables = 0;
+  tfree(pCmd->insertParam.pTableNameList);
   pCmd->insertParam.pDataBlocks = tscDestroyBlockArrayList(pCmd->insertParam.pDataBlocks);
 
   return pSql->res.code;
@@ -1126,12 +1126,12 @@ static void insertBatchClean(STscStmt* pStmt) {
   pCmd->batchSize = 0;
 
   for(int32_t i = 0; i < size; ++i) {
-    if (pCmd->pTableNameList && pCmd->pTableNameList[i]) {
-      tfree(pCmd->pTableNameList[i]);
+    if (pCmd->insertParam.pTableNameList && pCmd->insertParam.pTableNameList[i]) {
+      tfree(pCmd->insertParam.pTableNameList[i]);
     }
   }
 
-  tfree(pCmd->pTableNameList);
+  tfree(pCmd->insertParam.pTableNameList);
 
 /*
   STableDataBlocks** p = taosHashIterate(pCmd->insertParam.pTableBlockHashList, NULL);
@@ -1155,7 +1155,7 @@ static void insertBatchClean(STscStmt* pStmt) {
 */
 
   pCmd->insertParam.pDataBlocks = tscDestroyBlockArrayList(pCmd->insertParam.pDataBlocks);
-  pCmd->numOfTables = 0;
+  pCmd->insertParam.numOfTables = 0;
 
   taosHashEmpty(pCmd->insertParam.pTableBlockHashList);
   tscFreeSqlResult(pSql);
@@ -1174,7 +1174,7 @@ static int insertBatchStmtExecute(STscStmt* pStmt) {
 
   pStmt->pSql->retry = pStmt->pSql->maxRetry + 1;  //no retry
 
-  if (taosHashGetSize(pStmt->pSql->cmd.pTableBlockHashList) <= 0) { // merge according to vgId
+  if (taosHashGetSize(pStmt->pSql->cmd.insertParam.pTableBlockHashList) <= 0) { // merge according to vgId
     tscError("0x%"PRIx64" no data block to insert", pStmt->pSql->self);
     return TSDB_CODE_TSC_APP_ERROR;
   }
@@ -1261,7 +1261,7 @@ int taos_stmt_prepare(TAOS_STMT* stmt, const char* sql, unsigned long length) {
   pSql->fp         = waitForQueryRsp;
   pSql->fetchFp    = waitForQueryRsp;
   
-  pCmd->insertType = TSDB_QUERY_TYPE_STMT_INSERT;
+  pCmd->insertParam.insertType = TSDB_QUERY_TYPE_STMT_INSERT;
 
   if (TSDB_CODE_SUCCESS != tscAllocPayload(pCmd, TSDB_DEFAULT_PAYLOAD_SIZE)) {
     tscError("%p failed to malloc payload buffer", pSql);
@@ -1387,7 +1387,6 @@ int taos_stmt_set_tbname(TAOS_STMT* stmt, const char* name) {
 
   tscDebug("0x%"PRIx64" SQL: %s", pSql->self, pSql->sqlstr);
 
-  pSql->cmd.parseFinished = 0;
   pSql->cmd.numOfParams = 0;
   pSql->cmd.batchSize   = 0;
 
@@ -1448,8 +1447,8 @@ int taos_stmt_close(TAOS_STMT* stmt) {
     if (pStmt->multiTbInsert) {
       taosHashCleanup(pStmt->mtb.pTableHash);
       pStmt->mtb.pTableBlockHashList = tscDestroyBlockHashTable(pStmt->mtb.pTableBlockHashList, true);
-      taosHashCleanup(pStmt->pSql->cmd.pTableBlockHashList);
-      pStmt->pSql->cmd.pTableBlockHashList = NULL;
+      taosHashCleanup(pStmt->pSql->cmd.insertParam.pTableBlockHashList);
+      pStmt->pSql->cmd.insertParam.pTableNameList = NULL;
     }
   }
 

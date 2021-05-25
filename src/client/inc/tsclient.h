@@ -42,12 +42,6 @@ extern "C" {
 struct SSqlInfo;
 struct SLocalMerger;
 
-// data source from sql string or from file
-enum {
-  DATA_FROM_SQL_STRING = 1,
-  DATA_FROM_DATA_FILE  = 2,
-};
-
 typedef void (*__async_cb_func_t)(void *param, TAOS_RES *tres, int32_t numOfRows);
 
 typedef struct STableComInfo {
@@ -253,16 +247,15 @@ typedef struct {
 
 typedef struct SInsertStatementParam {
   SName      **pTableNameList;          // all involved tableMeta list of current insert sql statement.
-  int32_t      numOfTables;
+  int32_t      numOfTables;             // number of tables in table name list
   SHashObj    *pTableBlockHashList;     // data block for each table
   SArray      *pDataBlocks;             // SArray<STableDataBlocks*>. Merged submit block for each vgroup
   int8_t       schemaAttached;          // denote if submit block is built with table schema or not
   STagData     tagData;                 // NOTE: pTagData->data is used as a variant length array
-  int32_t      dataSourceType;          // from file or from sql statement
 
   char         msg[512];                // error message
   char        *sql;                     // current sql statement position
-  uint32_t     insertType;              // TODO remove it
+  uint32_t     insertType;              // insert data from [file|sql statement| bound statement]
 } SInsertStatementParam;
 
 // TODO extract sql parser supporter
@@ -271,14 +264,11 @@ typedef struct {
   uint8_t msgType;
   SInsertStatementParam insertParam;
   char    reserve1[3];        // fix bus error on arm32
-  bool    autoCreated;        // create table if it is not existed during retrieve table meta in mnode
-
   union {
     int32_t count;
   };
 
   char *       curSql;       // current sql, resume position of sql after parsing paused
-  int8_t       parseFinished;
   char         reserve2[3];        // fix bus error on arm32
 
   int16_t      numOfCols;
@@ -289,22 +279,10 @@ typedef struct {
 
   SHashObj    *pTableMetaMap;  // local buffer to keep the queried table meta, before validating the AST
   SQueryInfo  *pQueryInfo;
-  SQueryInfo  *active;       // current active query info
-
-  int32_t      batchSize;    // for parameter ('?') binding and batch processing
+  SQueryInfo  *active;         // current active query info
+  int32_t      batchSize;      // for parameter ('?') binding and batch processing
   int32_t      numOfParams;
-
-  int8_t       dataSourceType; // load data from file or not
-  char         reserve4[3];    // fix bus error on arm32
-//  int8_t       submitSchema;   // submit block is built with table schema
-  char         reserve5[3];    // fix bus error on arm32
   STagData     tagData;        // NOTE: pTagData->data is used as a variant length array
-
-//  SName      **pTableNameList; // all involved tableMeta list of current insert sql statement.
-//  int32_t      numOfTables;
-
-//  SHashObj    *pTableBlockHashList;     // data block for each table
-//  SArray      *pDataBlocks;             // SArray<STableDataBlocks*>. Merged submit block for each vgroup
   int32_t      resColumnId;
 } SSqlCmd;
 
