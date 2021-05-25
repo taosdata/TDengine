@@ -538,6 +538,8 @@ static void createChildTables();
 static int queryDbExec(TAOS *taos, char *command, QUERY_TYPE type, bool quiet);
 static int postProceSql(char *host, struct sockaddr_in *pServAddr,
         uint16_t port, char* sqlstr, threadInfo *pThreadInfo);
+static int64_t getTSRandTail(int64_t timeStampStep, int32_t seq,
+                  int disorderRatio, int disorderRange);
 
 /* ************ Global variables ************  */
 
@@ -4877,6 +4879,14 @@ static int64_t generateDataTail(
 
   verbosePrint("%s() LN%d batch=%"PRIu64"\n", __func__, __LINE__, batch);
 
+  bool tsRand;
+  if ((superTblInfo) && (0 == strncasecmp(superTblInfo->dataSource,
+                  "rand", strlen("rand")))) {
+        tsRand = true;
+    } else {
+        tsRand = false;
+  }
+
   uint64_t k = 0;
   for (k = 0; k < batch;) {
     char data[MAX_DATA_SIZE];
@@ -4885,71 +4895,47 @@ static int64_t generateDataTail(
     int64_t retLen = 0;
 
     if (superTblInfo) {
-      if (0 == strncasecmp(superTblInfo->dataSource,
-                    "sample", strlen("sample"))) {
+        if (tsRand) {
+            retLen = generateRowData(
+                    data,
+                    startTime + getTSRandTail(
+                        superTblInfo->timeStampStep, k,
+                        superTblInfo->disorderRatio,
+                        superTblInfo->disorderRange),
+                    superTblInfo);
+        } else {
           retLen = getRowDataFromSample(
                     data,
                     remainderBufLen,
                     startTime + superTblInfo->timeStampStep * k,
                     superTblInfo,
                     pSamplePos);
-      } else if (0 == strncasecmp(superTblInfo->dataSource,
-                   "rand", strlen("rand"))) {
-
-        int64_t randTail = superTblInfo->timeStampStep * k;
-        if (superTblInfo->disorderRatio > 0) {
-          int rand_num = taosRandom() % 100;
-          if(rand_num < superTblInfo->disorderRatio) {
-            randTail = (randTail + (taosRandom() % superTblInfo->disorderRange + 1)) * (-1);
-            debugPrint("rand data generated, back %"PRId64"\n", randTail);
-          }
+        }
+        if (retLen > remainderBufLen) {
+            break;
         }
 
-        int64_t d = startTime
-                + randTail;
-        retLen = generateRowData(
-                      data,
-                      d,
-                      superTblInfo);
-      }
-
-      if (retLen > remainderBufLen) {
-        break;
-      }
-
-      pstr += snprintf(pstr , retLen + 1, "%s", data);
-      k++;
-      len += retLen;
-      remainderBufLen -= retLen;
+        pstr += snprintf(pstr , retLen + 1, "%s", data);
+        k++;
+        len += retLen;
+        remainderBufLen -= retLen;
     } else {
-      char **data_type = g_args.datatype;
-      int lenOfBinary = g_args.len_of_binary;
+        char **data_type = g_args.datatype;
+        int lenOfBinary = g_args.len_of_binary;
+        retLen = generateData(data, data_type,
+                ncols_per_record,
+                startTime + getTSRandTail(
+                    DEFAULT_TIMESTAMP_STEP, k,
+                    g_args.disorderRatio,
+                    g_args.disorderRange),
+                lenOfBinary);
+        if (len > remainderBufLen)
+            break;
 
-      int64_t randTail = DEFAULT_TIMESTAMP_STEP * k;
-
-      if (g_args.disorderRatio != 0) {
-        int rand_num = taosRandom() % 100;
-        if (rand_num < g_args.disorderRatio) {
-          randTail = (randTail + (taosRandom() % g_args.disorderRange + 1)) * (-1);
-
-          debugPrint("rand data generated, back %"PRId64"\n", randTail);
-        }
-      } else {
-        randTail = DEFAULT_TIMESTAMP_STEP * k;
-      }
-
-      retLen = generateData(data, data_type,
-                  ncols_per_record,
-                  startTime + randTail,
-                  lenOfBinary);
-
-      if (len > remainderBufLen)
-        break;
-
-      pstr += sprintf(pstr, "%s", data);
-      k++;
-      len += retLen;
-      remainderBufLen -= retLen;
+        pstr += sprintf(pstr, "%s", data);
+        k++;
+        len += retLen;
+        remainderBufLen -= retLen;
     }
 
     verbosePrint("%s() LN%d len=%"PRIu64" k=%"PRIu64" \nbuffer=%s\n",
@@ -5090,6 +5076,22 @@ static int64_t generateInterlaceDataBuffer(
   }
 
   return k;
+}
+
+static int64_t getTSRandTail(int64_t timeStampStep, int32_t seq,
+          int disorderRatio, int disorderRange)
+{
+    int64_t randTail = timeStampStep * seq;
+    if (disorderRatio > 0) {
+        int rand_num = taosRandom() % 100;
+        if(rand_num < disorderRatio) {
+            randTail = (randTail +
+                    (taosRandom() % disorderRange + 1)) * (-1);
+            debugPrint("rand data generated, back %"PRId64"\n", randTail);
+        }
+    }
+
+    return randTail;
 }
 
 static int64_t generateProgressiveDataBuffer(
