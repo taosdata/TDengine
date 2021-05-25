@@ -41,11 +41,11 @@
 
 #define TSWINDOW_IS_EQUAL(t1, t2) (((t1).skey == (t2).skey) && ((t1).ekey == (t2).ekey))
 
-// -1 is tbname column index, so here use the -3 as the initial value
-#define COLUMN_INDEX_INITIAL_VAL (-3)
+// -1 is tbname column index, so here use the -2 as the initial value
+#define COLUMN_INDEX_INITIAL_VAL (-2)
 #define COLUMN_INDEX_INITIALIZER \
   { COLUMN_INDEX_INITIAL_VAL, COLUMN_INDEX_INITIAL_VAL }
-#define COLUMN_INDEX_VALIDE(index) (((index).tableIndex >= 0) && ((index).columnIndex >= TSDB_BLOCK_DIST_COLUMN_INDEX))
+#define COLUMN_INDEX_VALIDE(index) (((index).tableIndex >= 0) && ((index).columnIndex >= TSDB_TBNAME_COLUMN_INDEX))
 #define TBNAME_LIST_SEP ","
 
 typedef struct SColumnList {  // todo refactor
@@ -1873,9 +1873,6 @@ int32_t addProjectionExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, t
     if (index.columnIndex == TSDB_TBNAME_COLUMN_INDEX) {
       SSchema* colSchema = tGetTbnameColumnSchema();
       tscAddFuncInSelectClause(pQueryInfo, startPos, TSDB_FUNC_TAGPRJ, &index, colSchema, TSDB_COL_TAG, getNewResColId(pCmd));
-    } else if (index.columnIndex == TSDB_BLOCK_DIST_COLUMN_INDEX) {
-      SSchema colSchema = tGetBlockDistColumnSchema();
-      tscAddFuncInSelectClause(pQueryInfo, startPos, TSDB_FUNC_PRJ, &index, &colSchema, TSDB_COL_TAG, getNewResColId(pCmd));
     } else {
       STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, index.tableIndex);
       STableMeta*     pTableMeta = pTableMetaInfo->pTableMeta;
@@ -2487,7 +2484,7 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
         return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg2);
       }
 
-      SColumnIndex index = {.tableIndex = 0, .columnIndex = TSDB_BLOCK_DIST_COLUMN_INDEX,};
+      SColumnIndex index = {.tableIndex = 0, .columnIndex = 0,};
       pTableMetaInfo = tscGetMetaInfo(pQueryInfo, index.tableIndex);
 
       SSchema s = {.name = "block_dist", .type = TSDB_DATA_TYPE_BINARY};
@@ -2495,10 +2492,16 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
       int16_t resType = 0;
       int16_t bytes   = 0;
       getResultDataInfo(TSDB_DATA_TYPE_INT, 4, TSDB_FUNC_BLKINFO, 0, &resType, &bytes, &inter, 0, 0);
-
       s.bytes = bytes;
       s.type = (uint8_t)resType;
-      SExprInfo* pExpr = tscAddFuncInSelectClause(pQueryInfo, 0, TSDB_FUNC_BLKINFO, &index, &s, TSDB_COL_TAG, getNewResColId(pCmd));
+
+      SExprInfo* pExpr = tscSqlExprInsert(pQueryInfo, 0, TSDB_FUNC_BLKINFO, &index, resType,
+                                         bytes, getNewResColId(pQueryInfo), bytes, 0);
+      tstrncpy(pExpr->base.aliasName, s.name, sizeof(pExpr->base.aliasName));
+
+      SColumnList ids = createColumnList(1, index.tableIndex, index.columnIndex);
+      insertResultField(pQueryInfo, 0, &ids, bytes, s.type, s.name, pExpr);
+
       pExpr->base.numOfParams = 1;
       pExpr->base.param[0].i64 = pTableMetaInfo->pTableMeta->tableInfo.rowSize;
       pExpr->base.param[0].nType = TSDB_DATA_TYPE_BIGINT;
@@ -2545,14 +2548,6 @@ static bool isTablenameToken(SStrToken* token) {
 
   return (strncasecmp(TSQL_TBNAME_L, tmpToken.z, tmpToken.n) == 0 && tmpToken.n == strlen(TSQL_TBNAME_L));
 }
-static bool isTableBlockDistToken(SStrToken* token) {
-  SStrToken tmpToken = *token;
-  SStrToken tableToken = {0};
-
-  extractTableNameFromToken(&tmpToken, &tableToken);
-
-  return (strncasecmp(TSQL_BLOCK_DIST, tmpToken.z, tmpToken.n) == 0 && tmpToken.n == strlen(TSQL_BLOCK_DIST_L));
-}
 
 static int16_t doGetColumnIndex(SQueryInfo* pQueryInfo, int32_t index, SStrToken* pToken) {
   STableMeta* pTableMeta = tscGetMetaInfo(pQueryInfo, index)->pTableMeta;
@@ -2582,8 +2577,6 @@ int32_t doGetColumnIndexByName(SSqlCmd* pCmd, SStrToken* pToken, SQueryInfo* pQu
 
   if (isTablenameToken(pToken)) {
     pIndex->columnIndex = TSDB_TBNAME_COLUMN_INDEX;
-  } else if (isTableBlockDistToken(pToken))  {
-    pIndex->columnIndex = TSDB_BLOCK_DIST_COLUMN_INDEX; 
   } else if (strncasecmp(pToken->z, DEFAULT_PRIMARY_TIMESTAMP_COL_NAME, pToken->n) == 0) {
     pIndex->columnIndex = PRIMARYKEY_TIMESTAMP_COL_INDEX;
   } else {

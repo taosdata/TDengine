@@ -4894,17 +4894,20 @@ void generateBlockDistResult(STableBlockDist *pTableBlockDist, char* result) {
   }
 
   avg = totalBlocks > 0 ? (int64_t)(totalRows/totalBlocks) : 0;
+  min = totalBlocks > 0 ? min : 0;
+  max = totalBlocks > 0 ? max : 0;
+
   taosArraySort(blockInfos, compareBlockInfo);
 
   uint64_t totalLen = pTableBlockDist->totalSize;
   int32_t rowSize = pTableBlockDist->rowSize;
-
+  double compRatio = (totalRows>0) ? ((double)(totalLen)/(rowSize*totalRows)) : 1;
   int sz = sprintf(result + VARSTR_HEADER_SIZE,
                    "summary: \n\t "
                    "5th=[%d], 10th=[%d], 20th=[%d], 30th=[%d], 40th=[%d], 50th=[%d]\n\t "
                    "60th=[%d], 70th=[%d], 80th=[%d], 90th=[%d], 95th=[%d], 99th=[%d]\n\t "
                    "Min=[%"PRId64"(Rows)] Max=[%"PRId64"(Rows)] Avg=[%"PRId64"(Rows)] Stddev=[%.2f] \n\t "
-                   "Rows=[%"PRId64"], Blocks=[%"PRId64"], Size=[%.3f(Kb)] Comp=[%.2f%%]\n\t "
+                   "Rows=[%"PRId64"], Blocks=[%"PRId64"], Size=[%.3f(Kb)] Comp=[%.2f]\n\t "
                    "RowsInMem=[%d] \n\t SeekHeaderTime=[%d(us)]",
                    doGetPercentile(blockInfos, 0.05), doGetPercentile(blockInfos, 0.10),
                    doGetPercentile(blockInfos, 0.20), doGetPercentile(blockInfos, 0.30),
@@ -4913,7 +4916,7 @@ void generateBlockDistResult(STableBlockDist *pTableBlockDist, char* result) {
                    doGetPercentile(blockInfos, 0.80), doGetPercentile(blockInfos, 0.90),
                    doGetPercentile(blockInfos, 0.95), doGetPercentile(blockInfos, 0.99),
                    min, max, avg, 0.0,
-                   totalRows, totalBlocks, totalLen/1024.0, (double)(totalLen*100.0)/(rowSize*totalRows),
+                   totalRows, totalBlocks, totalLen/1024.0, compRatio,
                    pTableBlockDist->numOfRowsInMemTable, pTableBlockDist->firstSeekTimeUs);
   varDataSetLen(result, sz);
   UNUSED(sz);
