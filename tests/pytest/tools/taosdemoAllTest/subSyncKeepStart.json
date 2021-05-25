@@ -11,29 +11,14 @@
       {
        "concurrent":2, 
        "mode":"sync", 
-       "interval":0, 
-       "restartAfterConsume":1,
+       "interval":1000, 
+       "resubAfterConsume":10,
        "restart":"no", 
        "keepProgress":"yes",
        "sqls": [
         {
           "sql": "select * from stb00_0", 
           "result": "./subscribe_res0.txt"
-        }]
-      },
-    "super_table_query": 
-      {
-       "stblname": "stb0",
-       "threads":2, 
-       "mode":"sync", 
-       "interval":10000, 
-       "restartAfterConsume":1,
-       "restart":"no", 
-       "keepProgress":"no",
-       "sqls": [
-        {
-          "sql": "select * from xxxx where ts >= '2021-02-25 10:00:01.000' ", 
-          "result": "./subscribe_res2.txt"
         }]
       }
   }
