@@ -451,7 +451,7 @@ void cenc_picker_func(MS3TraceList *mstl, callback_params_t *param)
           }
 
           np = snprintf(pos, cmd + MAX_TSQL_LEN - pos, "(%ld, now) ",
-                        (int64_t) (h->history[h->count + index] * 0.001 * 0.001));
+                        (int64_t) (h->history[h->count + index] * 0.001));
 #if 0
       ms_nstime2timestrz(h->history[h->count + index], timestr, ISOMONTHDAY, MICRO);
       fprintf(stderr, "%s\n", timestr);
@@ -459,7 +459,7 @@ void cenc_picker_func(MS3TraceList *mstl, callback_params_t *param)
         }
       } else {
         np = snprintf(pos, cmd + MAX_TSQL_LEN - pos, "(%ld, now) ",
-                      (int64_t) (samps.time[index] * 0.001 * 0.001));
+                      (int64_t) (samps.time[index] * 0.001));
 #if 0
       ms_nstime2timestrz(samps.time[index], timestr, ISOMONTHDAY, MICRO);
       fprintf(stderr, "%s\n", timestr);
@@ -685,7 +685,7 @@ void *subscribe_routine(void *arg)
   }
 
   // create databse for result
-  np = snprintf(cmd, sizeof(cmd), "create database if not exists %s;", fpicker);
+  np = snprintf(cmd, sizeof(cmd), "create database if not exists %s keep 365000 precision 'us';", fpicker);
   if (np <= 0) {
     fprintf(stderr, "sub(%d): fnprintf error cmd: %s\r\n", index, cmd);
     goto failed;

@@ -208,7 +208,7 @@ void cenc_import_detail(MS3TraceList *mstl, callback_params_t *param)
       continue;
     }
 
-    start_time = (int64_t) round(id->earliest * 0.001 * 0.001);
+    start_time = (int64_t) round(id->earliest * 0.001);
 
     memset(sid, 0, LM_SIDLEN);
     memcpy(sid, id->sid, strlen(id->sid));
@@ -248,7 +248,7 @@ void cenc_import_detail(MS3TraceList *mstl, callback_params_t *param)
       }
 
       samples = (int32_t *) seg->datasamples;
-      dtime = (int) round(1000.0 / seg->samprate);
+      dtime = (int) round(1000000.0 / seg->samprate);
 
       for (i = 0; i < seg->numsamples; i++) {
         if (i != seg->numsamples - 1) {
@@ -539,7 +539,7 @@ void *writedb_routine(void *arg)
   }
 
   // create databse for result
-  np = snprintf(cmd, sizeof(cmd), "create database if not exists %s;", result);
+  np = snprintf(cmd, sizeof(cmd), "create database if not exists %s keep 365000 precision 'us';", result);
   if (np <= 0) {
     fprintf(stderr, "wdb(%d): fnprintf error cmd: %s\r\n", index, cmd);
     goto failed;

@@ -242,9 +242,9 @@ int main(int argc, char *argv[])
 
         samples += npts;
 
-        start_time = (int64_t) round(msr->starttime * 0.001 * 0.001);
+        start_time = (int64_t) round(msr->starttime * 0.001);
         idata = (int32_t *) msr->datasamples;
-        n = (int) round(1000.0 / msr->samprate);
+        n = (int) round(1000000.0 / msr->samprate);
 
 #if 0
         gettimeofday(&sys_time, NULL);

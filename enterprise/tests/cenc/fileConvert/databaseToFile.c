@@ -311,7 +311,7 @@ int main(int argc, char *argv[])
 
     while ((row = taos_fetch_row(res))) {
         if (records == 0) {
-            msr->starttime = (*((int64_t *) row[0])) * 1000 * 1000;
+            msr->starttime = (*((int64_t *) row[0])) * 1000;
         }
 
         fields = taos_fetch_fields(res);
@@ -325,11 +325,11 @@ int main(int argc, char *argv[])
         }
 
         if (prev_time == -1) {
-            prev_time = (*((int64_t *) row[0])) * 1000 * 1000;
+            prev_time = (*((int64_t *) row[0])) * 1000;
         } else {
-            if (prev_time + delta_time != (*((int64_t *) row[0])) * 1000 * 1000) {
+            if (prev_time + delta_time != (*((int64_t *) row[0])) * 1000) {
                 fprintf(stderr, "non-successive timestamp, previous: %ld, now: %ld\r\n",
-                        prev_time, (*((int64_t *) row[0])) * 1000 * 1000);
+                        prev_time, (*((int64_t *) row[0])) * 1000);
 
                 records--;
 
@@ -346,7 +346,7 @@ int main(int argc, char *argv[])
                     first = 0;
                 }
 
-                prev_time = (*((int64_t *) row[0])) * 1000 * 1000;
+                prev_time = (*((int64_t *) row[0])) * 1000;
                 msr->starttime = prev_time;
 
                 data[0] = data[records];

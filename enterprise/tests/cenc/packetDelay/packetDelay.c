@@ -204,7 +204,7 @@ void cenc_calc_delay(MS3TraceList *mstl, callback_params_t *param)
         continue;
     }
 
-    start_time = (int64_t) round(id->earliest * 0.001 * 0.001);
+    start_time = (int64_t) round(id->earliest * 0.001);
 
     memset(sid, 0, LM_SIDLEN);
     memcpy(sid, id->sid, strlen(id->sid));
@@ -251,11 +251,11 @@ void cenc_calc_delay(MS3TraceList *mstl, callback_params_t *param)
       nTotalSamples += seg->numsamples;
       pthread_mutex_unlock(&mutex_tsamps);
 
-      end_time = (int64_t) round(seg->endtime * 0.001 * 0.001);
+      end_time = (int64_t) round(seg->endtime * 0.001);
 
       if (numsamples > 0) {
         gettimeofday(&tv, NULL);
-        now = tv.tv_sec * 1000 + tv.tv_usec / 1000;
+        now = tv.tv_sec * 1000000 + tv.tv_usec;
 
         np = snprintf(cp, cmd + SEG_TSQL_LEN - cp,
                       "(%ld, %ld, %ld, %ld, %ld, %d)",
@@ -432,7 +432,7 @@ void *subscribe_routine(void *arg)
   }
 
   // create databse for delay
-  np = snprintf(cmd, sizeof(cmd), "create database if not exists %s;", delay);
+  np = snprintf(cmd, sizeof(cmd), "create database if not exists %s keep 365000 precision 'us';", delay);
   if (np <= 0) {
     fprintf(stderr, "sub(%d): fnprintf error cmd: %s\r\n", index, cmd);
     goto failed;

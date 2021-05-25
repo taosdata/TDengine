@@ -718,9 +718,9 @@ seed_net_read(SNETIO *io, void *buffer, size_t size)
             return -1;
         }
 
-        /* libcurl/system needs time to work, sleep 100 milliseconds */
+        /* libcurl/system needs time to work, sleep 50 milliseconds */
         if (maxfd == -1) {
-            usleep(100);
+            usleep(50);
             ret = 0;
         } else {
             ret = select(maxfd + 1, &fdread, &fdwrite, NULL, &timeout);
@@ -1060,7 +1060,7 @@ void *seed_write_routine(void *arg)
         if (p->buffer.pos == p->buffer.last) {
             //fprintf(stderr, "thread(%d): buffer(%d) was empty\r\n", p->index + 1, p->index);
             //pthread_mutex_unlock(&p->buffer.mutex);
-            usleep(10);
+            usleep(5);
             continue;
         }
 
