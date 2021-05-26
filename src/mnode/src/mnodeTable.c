@@ -2854,6 +2854,7 @@ static int32_t mnodeProcessMultiTableMetaMsg(SMnodeMsg *pMsg) {
   int32_t code     = TSDB_CODE_SUCCESS;
   char*   str      = strndup(pInfo->tableNames, contLen);
   char**  nameList = strsplit(str, ",", &num);
+  SArray* pList    = taosArrayInit(4, POINTER_BYTES);
   SMultiTableMeta *pMultiMeta = NULL;
 
   if (num != pInfo->numOfTables + pInfo->numOfVgroups) {
@@ -2872,8 +2873,6 @@ static int32_t mnodeProcessMultiTableMetaMsg(SMnodeMsg *pMsg) {
 
   pMultiMeta->contLen = sizeof(SMultiTableMeta);
   pMultiMeta->numOfTables = 0;
-
-  SArray* pList = taosArrayInit(4, POINTER_BYTES);
 
   int32_t t = 0;
   for (; t < pInfo->numOfTables; ++t) {
