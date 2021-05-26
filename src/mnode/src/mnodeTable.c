@@ -1194,8 +1194,8 @@ static int32_t mnodeFindSuperTableTagIndex(SSTableObj *pStable, const char *tagN
 
 static int32_t mnodeAddSuperTableTagCb(SMnodeMsg *pMsg, int32_t code) {
   SSTableObj *pStable = (SSTableObj *)pMsg->pTable;
-  mLInfo("msg:%p, app:%p stable %s, add tag result:%s", pMsg, pMsg->rpcMsg.ahandle, pStable->info.tableId,
-          tstrerror(code));
+  mLInfo("msg:%p, app:%p stable %s, add tag result:%s, numOfTags:%d", pMsg, pMsg->rpcMsg.ahandle, pStable->info.tableId,
+          tstrerror(code), pStable->numOfTags);
 
   return code;
 }

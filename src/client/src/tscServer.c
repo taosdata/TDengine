@@ -1902,8 +1902,9 @@ int tscProcessTableMetaRsp(SSqlObj *pSql) {
   doAddTableMetaToLocalBuf(pTableMeta, pMetaMsg, true);
   doUpdateVgroupInfo(pTableMeta, &pMetaMsg->vgroup);
 
-  tscDebug("0x%"PRIx64" recv table meta, uid:%" PRIu64 ", tid:%d, name:%s", pSql->self, pTableMeta->id.uid, pTableMeta->id.tid,
-           tNameGetTableName(&pTableMetaInfo->name));
+  tscDebug("0x%"PRIx64" recv table meta, uid:%" PRIu64 ", tid:%d, name:%s, numOfCols:%d, numOfTags:%d", pSql->self,
+      pTableMeta->id.uid, pTableMeta->id.tid, tNameGetTableName(&pTableMetaInfo->name), pTableMeta->tableInfo.numOfColumns,
+      pTableMeta->tableInfo.numOfTags);
 
   free(pTableMeta);
   return TSDB_CODE_SUCCESS;
@@ -1919,13 +1920,13 @@ static SVgroupsInfo* createVgroupInfoFromMsg(char* pMsg, int32_t* size, uint64_t
   SVgroupsInfo* pVgroupInfo = calloc(1, vgroupsz);
   assert(pVgroupInfo != NULL);
 
-  pVgroupInfo->numOfVgroups = pVgroupMsg->numOfVgroups;
-  if (pVgroupInfo->numOfVgroups <= 0) {
-    tscDebug("0x%"PRIx64" empty vgroup info, no corresponding tables for stable", id);
-  } else {
-    for (int32_t j = 0; j < pVgroupInfo->numOfVgroups; ++j) {
-      // just init, no need to lock
-      SVgroupInfo *pVgroup = &pVgroupInfo->vgroups[j];
+    pInfo->vgroupList->numOfVgroups = pVgroupMsg->numOfVgroups;
+    if (pInfo->vgroupList->numOfVgroups <= 0) {
+      tscDebug("0x%" PRIx64 " empty vgroup info, no corresponding tables for stable", pSql->self);
+    } else {
+      for (int32_t j = 0; j < pInfo->vgroupList->numOfVgroups; ++j) {
+        // just init, no need to lock
+        SVgroupInfo *pVgroup = &pInfo->vgroupList->vgroups[j];
 
       SVgroupMsg *vmsg = &pVgroupMsg->vgroups[j];
       vmsg->vgId     = htonl(vmsg->vgId);
