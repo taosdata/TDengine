@@ -1010,6 +1010,11 @@ void handleDownstreamOperator(SSqlObj** pSqlObjList, int32_t numOfUpstream, SQue
 
       pSourceOperator = createJoinOperator(p, px->numOfTables, schema, num);
       tfree(p);
+    } else {
+      int32_t num = taosArrayGetSize(px->colList);
+
+      schema = calloc(num, sizeof(SSchema));
+      memcpy(schema, pSchema, numOfCol1*sizeof(SSchema));
     }
 
     SExprInfo* exprInfo = NULL;

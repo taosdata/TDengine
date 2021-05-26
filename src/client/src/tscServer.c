@@ -1614,6 +1614,7 @@ int tscProcessRetrieveLocalMergeRsp(SSqlObj *pSql) {
     taosArrayPush(group, &tableKeyInfo);
     taosArrayPush(tableGroupInfo.pGroupList, &group);
 
+    // todo remove it
     SExprInfo* list = calloc(tscNumOfExprs(pQueryInfo), sizeof(SExprInfo));
     for(int32_t i = 0; i < tscNumOfExprs(pQueryInfo); ++i) {
       SExprInfo* pExprInfo = tscExprGet(pQueryInfo, i);
@@ -1621,6 +1622,7 @@ int tscProcessRetrieveLocalMergeRsp(SSqlObj *pSql) {
     }
 
     pQueryInfo->pQInfo = createQInfoFromQueryNode(pQueryInfo, list, &tableGroupInfo, NULL, NULL, pRes->pLocalMerger, MERGE_STAGE);
+    tfree(list);
   }
 
   uint64_t localQueryId = 0;

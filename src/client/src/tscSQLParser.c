@@ -7370,7 +7370,6 @@ static int32_t doValidateSubquery(SSqlNode* pSqlNode, int32_t index, SSqlObj* pS
   SSqlNode* p = taosArrayGetP(subInfo->pSubquery, 0);
 
   SQueryInfo* pSub = calloc(1, sizeof(SQueryInfo));
-  printf("-------------queryinfo:%p\n", pSub);
   tscInitQueryInfo(pSub);
 
   int32_t code = validateSqlNode(pSql, p, pSub);
