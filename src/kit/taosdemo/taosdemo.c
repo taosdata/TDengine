@@ -5280,7 +5280,6 @@ static int32_t prepareStbStmt(SSuperTable *stbInfo,
         /* columnCount + 1 (ts) */
         for (int i = 0; i <= stbInfo->columnCount; i ++) {
             TAOS_BIND *bind = (TAOS_BIND *)bindArray + (sizeof(TAOS_BIND) * i);
-
             if (i == 0) {
                 bind->buffer_type = TSDB_DATA_TYPE_TIMESTAMP;
                 int64_t ts;
