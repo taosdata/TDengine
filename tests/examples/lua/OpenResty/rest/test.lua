@@ -51,7 +51,7 @@ else
    ngx.say("create table--- pass.")
 end
 
-res = driver.query(conn,"insert into m1 values ('2019-09-01 00:00:00.001',0,'robotspace'), ('2019-09-01 00:00:00.002',1,'Hilink'),('2019-09-01 00:00:00.003',2,'Harmony')")
+res = driver.query(conn,"insert into m1 values ('2019-09-01 00:00:00.001', 0, 'robotspace'), ('2019-09-01 00:00:00.002',1,'Hilink'),('2019-09-01 00:00:00.003',2,'Harmony')")
 if res.code ~=0 then
    ngx.say("insert records failed: "..res.error)
    return
@@ -77,7 +77,27 @@ else
     end
 
 end
+
+local flag = false
+function query_callback(res)
+   if res.code ~=0 then
+      ngx.say("async_query_callback--- failed:"..res.error)
+   else
+      if(res.affected == 3) then
+	 ngx.say("async_query_callback, insert records--- pass")
+      else
+	 ngx.say("async_query_callback, insert records---failed: expect 3 affected records, actually affected "..res.affected)
+      end
+   end
+   flag = true
+end
+
+driver.query_a(conn,"insert into m1 values ('2019-09-01 00:00:00.001', 3, 'robotspace'),('2019-09-01 00:00:00.006', 4, 'Hilink'),('2019-09-01 00:00:00.007', 6, 'Harmony')", query_callback)
+
+while not flag do
+--   ngx.say("i am here once...")
+   ngx.sleep(0.001) -- time unit is second
+end
+
 driver.close(conn)
 ngx.say("end time:"..os.time())
---ngx.log(ngx.ERR,"in test file.")
-
