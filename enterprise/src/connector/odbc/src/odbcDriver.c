@@ -4223,7 +4223,7 @@ odbcExecuteSql(STMT *s)
     odbcError("failed to query from taos:%p, code:%d, reason:%s", s->dbc->con, code, taos_errstr(s->dbc->con));
     char *sqlState = NULL;
     switch (code) {
-    case TSDB_CODE_TSC_INVALID_SQL:
+    case TSDB_CODE_TSC_INVALID_OPERATION:
       sqlState = "42000";
       break;
     case TSDB_CODE_MND_DB_NOT_SELECTED:
