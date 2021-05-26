@@ -122,7 +122,7 @@ static int32_t mnodeVgroupActionDelete(SSdbRow *pRow) {
   SVgObj *pVgroup = pRow->pObj;
 
   if (pVgroup->pDb == NULL) {
-    mError("vgId:%d, db:%s is not exist while insert into hash", pVgroup->vgId, pVgroup->dbName);
+    mError("vgId:%d, db:%s is not exist while delete from hash", pVgroup->vgId, pVgroup->dbName);
     return TSDB_CODE_MND_VGROUP_NOT_EXIST;
   }
 

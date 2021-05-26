@@ -7199,6 +7199,11 @@ int32_t validateSqlNode(SSqlObj* pSql, SSqlNode* pSqlNode, int32_t index) {
   const char* msg1 = "point interpolation query needs timestamp";
   const char* msg2 = "too many tables in from clause";
   const char* msg3 = "start(end) time of query range required or time range too large";
+  // const char* msg5 = "too many columns in selection clause";
+  // const char* msg6 = "too many tables in from clause";
+  // const char* msg7 = "invalid table alias name";
+  // const char* msg8 = "alias name too long";
+  const char* msg9 = "only tag query not compatible with normal column filter";
 
   int32_t code = TSDB_CODE_SUCCESS;
 
@@ -7335,6 +7340,20 @@ int32_t validateSqlNode(SSqlObj* pSql, SSqlNode* pSqlNode, int32_t index) {
       if (isTimeWindowQuery(pQueryInfo) &&
           (validateFunctionsInIntervalOrGroupbyQuery(pCmd, pQueryInfo) != TSDB_CODE_SUCCESS)) {
         return TSDB_CODE_TSC_INVALID_SQL;
+      }
+    }
+
+    if (tscQueryTags(pQueryInfo)) {
+      SExprInfo* pExpr1 = tscSqlExprGet(pQueryInfo, 0);
+
+      if (pExpr1->base.functionId != TSDB_FUNC_TID_TAG) {
+        int32_t numOfCols = (int32_t)taosArrayGetSize(pQueryInfo->colList);
+        for (int32_t i = 0; i < numOfCols; ++i) {
+          SColumn* pCols = taosArrayGetP(pQueryInfo->colList, i);
+          if (pCols->info.flist.numOfFilters > 0) {
+            return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg9);
+          }
+        }
       }
     }
 
