@@ -470,6 +470,7 @@ typedef struct SThreadInfo_S {
 
   // seq of query or subscribe
   uint64_t  querySeq;   // sequence number of sql command
+  TAOS_SUB*  tsub;
 
 } threadInfo;
 
