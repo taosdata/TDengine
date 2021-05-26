@@ -4699,8 +4699,8 @@ static int getRowDataFromSample(
 
 static int64_t generateStbRowData(
         SSuperTable* stbInfo,
-        char* recBuf, int64_t timestamp
-        ) {
+        char* recBuf, int64_t timestamp)
+{
   int64_t   dataLen = 0;
   char  *pstr = recBuf;
   int64_t maxLen = MAX_DATA_SIZE;
@@ -4728,23 +4728,23 @@ static int64_t generateStbRowData(
       dataLen += snprintf(pstr + dataLen, maxLen - dataLen, "\'%s\',", buf);
       tmfree(buf);
     } else if (0 == strncasecmp(stbInfo->columns[i].dataType,
-                "INT", 3)) {
+                "INT", strlen("INT"))) {
       dataLen += snprintf(pstr + dataLen, maxLen - dataLen,
               "%d,", rand_int());
     } else if (0 == strncasecmp(stbInfo->columns[i].dataType,
-                "BIGINT", 6)) {
+                "BIGINT", strlen("BIGINT"))) {
       dataLen += snprintf(pstr + dataLen, maxLen - dataLen,
               "%"PRId64",", rand_bigint());
     }  else if (0 == strncasecmp(stbInfo->columns[i].dataType,
-                "FLOAT", 5)) {
+                "FLOAT", strlen("FLOAT"))) {
       dataLen += snprintf(pstr + dataLen, maxLen - dataLen,
               "%f,", rand_float());
     }  else if (0 == strncasecmp(stbInfo->columns[i].dataType,
-                "DOUBLE", 6)) {
+                "DOUBLE", strlen("DOUBLE"))) {
       dataLen += snprintf(pstr + dataLen, maxLen - dataLen,
               "%f,", rand_double());
     }  else if (0 == strncasecmp(stbInfo->columns[i].dataType,
-                "SMALLINT", 8)) {
+                "SMALLINT", strlen("SMALLINT"))) {
       dataLen += snprintf(pstr + dataLen, maxLen - dataLen,
           "%d,", rand_smallint());
     }  else if (0 == strncasecmp(stbInfo->columns[i].dataType,
@@ -5280,6 +5280,7 @@ static int32_t prepareStbStmt(SSuperTable *stbInfo,
         /* columnCount + 1 (ts) */
         for (int i = 0; i <= stbInfo->columnCount; i ++) {
             TAOS_BIND *bind = (TAOS_BIND *)bindArray + (sizeof(TAOS_BIND) * i);
+
             if (i == 0) {
                 bind->buffer_type = TSDB_DATA_TYPE_TIMESTAMP;
                 int64_t ts;
@@ -5291,17 +5292,89 @@ static int32_t prepareStbStmt(SSuperTable *stbInfo,
                 } else {
                     ts = startTime + stbInfo->timeStampStep * k;
                 }
+                bind->buffer_length = sizeof(ts);
                 bind->buffer = &ts;
-                
+                bind->length = &bind->buffer_length;
+                bind->is_null = NULL;
             } else {
-
+                if ((0 == strncasecmp(stbInfo->columns[i].dataType,
+                            "BINARY", strlen("BINARY")))
+                    || (0 == strncasecmp(stbInfo->columns[i].dataType,
+                            "NCHAR", strlen("NCHAR")))) {
+                    if (stbInfo->columns[i].dataLen > TSDB_MAX_BINARY_LEN) {
+                        errorPrint( "binary or nchar length overflow, max size:%u\n",
+                                (uint32_t)TSDB_MAX_BINARY_LEN);
+                        return -1;
+                    }
+                    char* buf = (char*)calloc(stbInfo->columns[i].dataLen+1, 1);
+                    if (NULL == buf) {
+                        errorPrint( "calloc failed! size:%d\n",
+                                stbInfo->columns[i].dataLen);
+                        return -1;
+                    }
+/*                    rand_string(buf, stbInfo->columns[i].dataLen);
+                    dataLen += snprintf(pstr + dataLen, maxLen - dataLen, "\'%s\',", buf);
+                    tmfree(buf);
+                    */
+                } else if (0 == strncasecmp(stbInfo->columns[i].dataType,
+                            "INT", strlen("INT"))) {
+                    /*
+                    dataLen += snprintf(pstr + dataLen, maxLen - dataLen,
+                            "%d,", rand_int());
+                            */
+                } else if (0 == strncasecmp(stbInfo->columns[i].dataType,
+                            "BIGINT", strlen("BIGINT"))) {
+                    /*
+                    dataLen += snprintf(pstr + dataLen, maxLen - dataLen,
+                            "%"PRId64",", rand_bigint());
+                            */
+                }  else if (0 == strncasecmp(stbInfo->columns[i].dataType,
+                            "FLOAT", strlen("FLOAT"))) {
+                    /*
+                    dataLen += snprintf(pstr + dataLen, maxLen - dataLen,
+                            "%f,", rand_float());
+                            */
+                }  else if (0 == strncasecmp(stbInfo->columns[i].dataType,
+                            "DOUBLE", strlen("DOUBLE"))) {
+                    /*
+                    dataLen += snprintf(pstr + dataLen, maxLen - dataLen,
+                            "%f,", rand_double());
+                            */
+                }  else if (0 == strncasecmp(stbInfo->columns[i].dataType,
+                            "SMALLINT", strlen("SMALLINT"))) {
+                    /*
+                    dataLen += snprintf(pstr + dataLen, maxLen - dataLen,
+                            "%d,", rand_smallint());
+                            */
+                }  else if (0 == strncasecmp(stbInfo->columns[i].dataType,
+                            "TINYINT", strlen("TINYINT"))) {
+                    /*
+                    dataLen += snprintf(pstr + dataLen, maxLen - dataLen,
+                            "%d,", rand_tinyint());
+                            */
+                }  else if (0 == strncasecmp(stbInfo->columns[i].dataType,
+                            "BOOL", strlen("BOOL"))) {
+                    /*
+                    dataLen += snprintf(pstr + dataLen, maxLen - dataLen,
+                            "%d,", rand_bool());
+                            */
+                }  else if (0 == strncasecmp(stbInfo->columns[i].dataType,
+                            "TIMESTAMP", strlen("TIMESTAMP"))) {
+                    /*
+                    dataLen += snprintf(pstr + dataLen, maxLen - dataLen,
+                            "%"PRId64",", rand_bigint());
+                            */
+                }  else {
+                    errorPrint( "No support data type: %s\n",
+                            stbInfo->columns[i].dataType);
+                    return -1;
+                }
             }
+            taos_stmt_bind_param(stmt, bind);
         }
         // if msg > 3MB, break
+        taos_stmt_add_batch(stmt);
     }
-
-    taos_stmt_bind_param(stmt, bindArray);
-    taos_stmt_add_batch(stmt);
 
     return k;
 }
