@@ -1358,17 +1358,17 @@ int tsParseSql(SSqlObj *pSql, bool initial) {
       }
     }
   } else {
-    SSqlInfo SQLInfo = qSqlParse(pSql->sqlstr);
-    ret = tscToSQLCmd(pSql, &SQLInfo);
-    if (ret == TSDB_CODE_TSC_INVALID_SQL && pSql->parseRetry == 0/* && SQLInfo.type == TSDB_SQL_NULL*/) {
+    SSqlInfo sqlInfo = qSqlParse(pSql->sqlstr);
+    ret = tscToSQLCmd(pSql, &sqlInfo);
+    if (ret == TSDB_CODE_TSC_INVALID_SQL && pSql->parseRetry == 0/* && sqlInfo.type == TSDB_SQL_NULL*/) {
       tscDebug("0x%"PRIx64 " parse sql failed, retry again after clear local meta cache", pSql->self);
       tscResetSqlCmd(pCmd, true);
       pSql->parseRetry++;
 
-      ret = tscToSQLCmd(pSql, &SQLInfo);
+      ret = tscToSQLCmd(pSql, &sqlInfo);
     }
 
-    SqlInfoDestroy(&SQLInfo);
+    SqlInfoDestroy(&sqlInfo);
   }
 
   /*
