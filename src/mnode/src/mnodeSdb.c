@@ -719,13 +719,13 @@ static int32_t sdbProcessWrite(void *wparam, void *hparam, int32_t qtype, void *
   if (action == SDB_ACTION_INSERT) {
     return sdbPerformInsertAction(pHead, pTable);
   } else if (action == SDB_ACTION_DELETE) {
-    if (qtype == TAOS_QTYPE_FWD) {
+    //if (qtype == TAOS_QTYPE_FWD) {
       // Drop database/stable may take a long time and cause a timeout, so we confirm first then reput it into queue
-      sdbWriteFwdToQueue(1, hparam, TAOS_QTYPE_QUERY, unused);
-      return TSDB_CODE_SUCCESS;
-    } else {
+    //  sdbWriteFwdToQueue(1, hparam, TAOS_QTYPE_QUERY, unused);
+    //  return TSDB_CODE_SUCCESS;
+    //} else {
       return sdbPerformDeleteAction(pHead, pTable);
-    }
+    //}
   } else if (action == SDB_ACTION_UPDATE) {
     return sdbPerformUpdateAction(pHead, pTable);
   } else {
