@@ -114,6 +114,25 @@ mkdir -p ${install_dir}/examples
 examples_dir="${top_dir}/tests/examples"
   cp -r ${examples_dir}/c      ${install_dir}/examples
 if [[ "$pagMode" != "lite" ]] && [[ "$cpuType" != "aarch32" ]]; then
+  if [ -d ${examples_dir}/JDBC/connectionPools/target ]; then
+    rm -rf ${examples_dir}/JDBC/connectionPools/target
+  fi
+  if [ -d ${examples_dir}/JDBC/JDBCDemo/target ]; then
+    rm -rf ${examples_dir}/JDBC/JDBCDemo/target
+  fi
+  if [ -d ${examples_dir}/JDBC/mybatisplus-demo/target ]; then
+    rm -rf ${examples_dir}/JDBC/mybatisplus-demo/target
+  fi
+  if [ -d ${examples_dir}/JDBC/springbootdemo/target ]; then
+    rm -rf ${examples_dir}/JDBC/springbootdemo/target
+  fi
+  if [ -d ${examples_dir}/JDBC/SpringJdbcTemplate/target ]; then
+    rm -rf ${examples_dir}/JDBC/SpringJdbcTemplate/target
+  fi
+  if [ -d ${examples_dir}/JDBC/taosdemo/target ]; then
+    rm -rf ${examples_dir}/JDBC/taosdemo/target
+  fi
+  
   cp -r ${examples_dir}/JDBC   ${install_dir}/examples
   cp -r ${examples_dir}/matlab ${install_dir}/examples
   cp -r ${examples_dir}/python ${install_dir}/examples
@@ -131,9 +150,17 @@ connector_dir="${code_dir}/connector"
 mkdir -p ${install_dir}/connector
 if [[ "$pagMode" != "lite" ]] && [[ "$cpuType" != "aarch32" ]]; then
   cp ${build_dir}/lib/*.jar            ${install_dir}/connector ||:
-  cp -r ${connector_dir}/grafanaplugin ${install_dir}/connector/
-  cp -r ${connector_dir}/python        ${install_dir}/connector/
-  cp -r ${connector_dir}/go            ${install_dir}/connector
+  if [ -d "${connector_dir}/grafanaplugin/dist" ]; then
+    cp -r ${connector_dir}/grafanaplugin/dist ${install_dir}/connector/grafanaplugin
+  else
+    echo "WARNING: grafanaplugin bundled dir not found, please check if you want to use it!"
+  fi
+  if find ${connector_dir}/go -mindepth 1 -maxdepth 1 | read; then
+    cp -r ${connector_dir}/go ${install_dir}/connector
+  else
+    echo "WARNING: go connector not found, please check if want to use it!"
+  fi
+  cp -r ${connector_dir}/python        ${install_dir}/connector
   cp -r ${connector_dir}/nodejs        ${install_dir}/connector
 fi
 # Copy release note
