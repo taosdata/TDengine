@@ -38,8 +38,9 @@ typedef struct STable {
   SRWLatch       latch;  // TODO: implementa latch functions
 
   SDataCol      *lastCols;
-  int16_t        lastColNum;
-  int16_t        maxColumnNum;
+  int16_t        maxColNum;
+  int16_t        restoreColumnNum;
+  bool           hasRestoreLastColumn;
   int            lastColSVersion;
   T_REF_DECLARE()
 } STable;
@@ -90,6 +91,7 @@ int        tsdbInitColIdCacheWithSchema(STable* pTable, STSchema* pSchema);
 int16_t    tsdbGetLastColumnsIndexByColId(STable* pTable, int16_t colId);
 int        tsdbUpdateLastColSchema(STable *pTable, STSchema *pNewSchema);
 STSchema*  tsdbGetTableLatestSchema(STable *pTable);
+void       tsdbFreeLastColumns(STable* pTable);
 
 static FORCE_INLINE int tsdbCompareSchemaVersion(const void *key1, const void *key2) {
   if (*(int16_t *)key1 < schemaVersion(*(STSchema **)key2)) {
