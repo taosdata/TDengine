@@ -45,9 +45,6 @@ typedef struct STable {
   T_REF_DECLARE()
 } STable;
 
-#define TSDB_LATEST_COLUMN_ARRAY_SIZE     20
-#define TSDB_LATEST_COLUMN_ARRAY_ADD_SIZE 5
-
 typedef struct {
   pthread_rwlock_t rwLock;
 
