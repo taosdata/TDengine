@@ -1575,7 +1575,7 @@ int tscBuildCompactMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   for (int32_t i = 0; i < size; i++) {
     tSqlExprItem* pSub = taosArrayGet(pList, i);
     tVariant* pVar = &pSub->pNode->value;
-    if (pVar->nType >= TSDB_DATA_TYPE_TINYINT && pVar->nType <= TSDB_DATA_TYPE_INT) {
+    if (pVar->nType >= TSDB_DATA_TYPE_TINYINT && pVar->nType <= TSDB_DATA_TYPE_BIGINT) {
       result[i] = (int32_t)(pVar->i64); 
     } else { 
       free(result);
@@ -1603,7 +1603,7 @@ int tscBuildCompactMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   } else {
     tNameGetFullDbName(&pTableMetaInfo->name, pCompactMsg->db);
   } 
-
+ 
   pCompactMsg->numOfVgroup = htons(count);
   for (int32_t i = 0; i < count; i++) {
     pCompactMsg->vgid[i] = htons(result[i]);   

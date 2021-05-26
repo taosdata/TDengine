@@ -1226,25 +1226,34 @@ static int32_t mnodeSyncDb(SDbObj *pDb, SMnodeMsg *pMsg) {
 
 
 static int32_t mnodeCompact(SDbObj *pDb, SCompactMsg *pCompactMsg) {
-  int32_t count = htonl(pCompactMsg->numOfVgroup);  
-  int32_t *buf = malloc(sizeof(int32_t) * count); 
+  int32_t count = ntohs(pCompactMsg->numOfVgroup);  
+  int32_t *buf  = malloc(sizeof(int32_t) * count); 
   if (buf == NULL) {
     return  TSDB_CODE_MND_OUT_OF_MEMORY;
   }
   for (int32_t i = 0; i < count; i++) {
-    buf[i] = htonl(pCompactMsg->vgid[i]);
+    buf[i] = ntohs(pCompactMsg->vgid[i]);
   }
    
   // copy from mnodeSyncDb, so ugly
-  void *pIter = NULL;
-  SVgObj *pVgroup = NULL;
-  while (1) {
-    pIter = mnodeGetNextVgroup(pIter, &pVgroup);
-    if (pVgroup == NULL) break;
-    if (pVgroup->pDb == pDb) {
-      mnodeSendCompactVgroupMsg(pVgroup);
+  for (int32_t i = 0; i < count; i++) {
+    SVgObj *pVgroup = NULL;
+    void *pIter = NULL;
+    bool  valid = false;
+    while (1) {
+      pIter = mnodeGetNextVgroup(pIter, &pVgroup);
+      if (pVgroup == NULL) break;
+      if (pVgroup->pDb == pDb && pVgroup->vgId == buf[i]) {
+        mnodeSendCompactVgroupMsg(pVgroup);
+        mnodeDecVgroupRef(pVgroup);
+        valid = true; 
+        break;
+      }
+      mnodeDecVgroupRef(pVgroup);
     }
-    mnodeDecVgroupRef(pVgroup);
+    if (valid == false) {
+      mLError("db:%s, cannot find valid vgId: %d", pDb->name, buf[i]);
+    }
   }
   free(buf); 
 
@@ -1279,6 +1288,7 @@ static int32_t mnodeProcessCompactMsg(SMnodeMsg *pMsg) {
   mDebug("db:%s, compact is received from thandle:%p", pCompact->db, pMsg->rpcMsg.handle);
   
   if (pMsg->pDb == NULL) pMsg->pDb = mnodeGetDb(pCompact->db);
+  if (pMsg->pDb == NULL) return TSDB_CODE_MND_DB_NOT_SELECTED;
   
   if (pMsg->pDb->status != TSDB_DB_STATUS_READY) {
     mError("db:%s, status:%d, in dropping, ignore compact request", pCompact->db, pMsg->pDb->status);
