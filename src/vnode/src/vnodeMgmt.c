@@ -148,6 +148,7 @@ static void vnodeBuildVloadMsg(SVnodeObj *pVnode, SStatusMsg *pStatus) {
   pLoad->status = pVnode->status;
   pLoad->role = pVnode->role;
   pLoad->replica = pVnode->syncCfg.replica;  
+  pLoad->compact = 1;//pVnode->compact; 
 }
 
 int32_t vnodeGetVnodeList(int32_t vnodeList[], int32_t *numOfVnodes) {

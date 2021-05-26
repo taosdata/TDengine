@@ -354,6 +354,7 @@ void mnodeUpdateVgroupStatus(SVgObj *pVgroup, SDnodeObj *pDnode, SVnodeLoad *pVl
            pVgroup->pDb->dbCfgVersion, pVgroup->vgCfgVersion, pVgroup->numOfVnodes);
     mnodeSendAlterVgroupMsg(pVgroup);
   }
+  pVgroup->compact = pVload->compact; 
 }
 
 static int32_t mnodeAllocVgroupIdPool(SVgObj *pInputVgroup) {
@@ -721,6 +722,13 @@ static int32_t mnodeGetVgroupMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *p
     cols++;
   }
 
+  pShow->bytes[cols] = 4;
+  pSchema[cols].type = TSDB_DATA_TYPE_INT;
+  strcpy(pSchema[cols].name, "compacting");
+  pSchema[cols].bytes = htons(pShow->bytes[cols]);
+  cols++;
+  
+  
   pMeta->numOfColumns = htons(cols);
   pShow->numOfColumns = cols;
 
@@ -824,7 +832,11 @@ static int32_t mnodeRetrieveVgroups(SShowObj *pShow, char *data, int32_t rows, v
       STR_WITH_MAXSIZE_TO_VARSTR(pWrite, role, pShow->bytes[cols]);
       cols++;
     }
-
+      
+    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+    *(int8_t *)pWrite = pVgroup->compact; 
+    cols++;
+    
     mnodeDecVgroupRef(pVgroup);
     numOfRows++;
   }

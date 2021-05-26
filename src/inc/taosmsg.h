@@ -539,7 +539,7 @@ typedef struct {
   uint8_t  status;
   uint8_t  role;
   uint8_t  replica;
-  uint8_t  reserved;
+  uint8_t  compact;
 } SVnodeLoad;
 
 typedef struct {
