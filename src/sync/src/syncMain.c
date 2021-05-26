@@ -709,7 +709,7 @@ static void syncChooseMaster(SSyncNode *pNode) {
 }
 
 static SSyncPeer *syncCheckMaster(SSyncNode *pNode) {
-  int32_t onlineNum = 0;
+  int32_t onlineNum = 0, arbOnlineNum = 0;
   int32_t masterIndex = -1;
   int32_t replica = pNode->replica;
 
@@ -723,13 +723,15 @@ static SSyncPeer *syncCheckMaster(SSyncNode *pNode) {
   SSyncPeer *pArb = pNode->peerInfo[TAOS_SYNC_MAX_REPLICA];
   if (pArb && pArb->role != TAOS_SYNC_ROLE_OFFLINE) {
     onlineNum++;
+    ++arbOnlineNum;
     replica = pNode->replica + 1;
   }
 
   if (onlineNum <= replica * 0.5) {
     if (nodeRole != TAOS_SYNC_ROLE_UNSYNCED) {
-       if (nodeRole == TAOS_SYNC_ROLE_MASTER && onlineNum == replica * 0.5 && onlineNum >= 1) {
+      if (nodeRole == TAOS_SYNC_ROLE_MASTER && onlineNum == replica * 0.5 && ((replica > 2 && onlineNum - arbOnlineNum > 1) || pNode->replica < 3)) {
          sInfo("vgId:%d, self keep work as master, online:%d replica:%d", pNode->vgId, onlineNum, replica);
+	 masterIndex = pNode->selfIndex;
        } else {
         nodeRole = TAOS_SYNC_ROLE_UNSYNCED;
         sInfo("vgId:%d, self change to unsynced state, online:%d replica:%d", pNode->vgId, onlineNum, replica);
