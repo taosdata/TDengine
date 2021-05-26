@@ -17,13 +17,14 @@ $rowNum = 10000
 $totalNum = $tbNum * $rowNum
 
 print =============== nestquery.sim
+
 $i = 0
 $db = $dbPrefix . $i
 $mt = $mtPrefix . $i
 
-sql drop database if exists $db -x step1
-step1:
+sql drop database if exists $db
 sql create database if not exists $db
+
 sql use $db
 sql create table $mt (ts timestamp, c1 int, c2 float, c3 bigint, c4 smallint, c5 tinyint, c6 double, c7 bool, c8 binary(10), c9 nchar(9)) TAGS(t1 int)
 
@@ -62,8 +63,8 @@ sleep 100
 $i = 1
 $tb = $tbPrefix . $i
 
-print simple nest query test
-sql select count(*) from (select count(*) from nest_mt0))
+print ==============> simple nest query test
+sql select count(*) from (select count(*) from nest_mt0)
 if $rows != 1 then
  return -1
 endi
@@ -86,18 +87,55 @@ if $rows != 1 then
   return -1
 endi
 
-if $data00 != 10 then
+if $data00 != 170 then
+  return -1
+endi
+
+sql select sum(a) from (select count(*) a from nest_mt0 interval(10h) group by tbname)
+if $rows != 1 then
+  return -1
+endi
+
+if $data00 != 100000 then
   return -1
 endi
 
 print =================> alias name test
+sql select ts from (select count(*) a from nest_tb0 interval(1h))
+if $rows != 167 then
+  return -1
+endi
+
+if $data00 != @20-09-15 00:00:00.000@ then
+  return -1
+endi
+
 sql select count(a) from (select count(*) a from nest_tb0 interval(1h))
 if $rows != 1 then
   return -1
 endi
 
-if $data00 != 1 then
+if $data00 != 167 then
    return -1
 endi
+
+print ================>master query + filter
+sql select * from (select count(*) a from nest_tb0 interval(10h)) where a <= 520;
+if $rows != 2 then
+  return -1
+endi
+
+
+print ==================> nest query join
+
+
+
+print ===================> nest query interval
+
+
+
+print ===================> complex query
+
+
 
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
