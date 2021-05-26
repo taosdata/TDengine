@@ -2950,7 +2950,7 @@ static int32_t mnodeProcessMultiTableMetaMsg(SMnodeMsg *pMsg) {
     msg = serializeVgroupInfo(pTable, name, msg, pMsg, pMsg->rpcMsg.ahandle);
   }
 
-  pMultiMeta->contLen = (msg - (char*) pMultiMeta);
+  pMultiMeta->contLen = (int32_t) (msg - (char*) pMultiMeta);
 
   pMultiMeta->numOfTables = htonl(pMultiMeta->numOfTables);
   pMsg->rpcRsp.rsp = pMultiMeta;
