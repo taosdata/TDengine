@@ -2020,8 +2020,9 @@ int tscProcessTableMetaRsp(SSqlObj *pSql) {
     }
   }
 
-  tscDebug("0x%"PRIx64" recv table meta, uid:%" PRIu64 ", tid:%d, name:%s", pSql->self, pTableMeta->id.uid, pTableMeta->id.tid,
-           tNameGetTableName(&pTableMetaInfo->name));
+  tscDebug("0x%"PRIx64" recv table meta, uid:%" PRIu64 ", tid:%d, name:%s, numOfCols:%d, numOfTags:%d", pSql->self,
+      pTableMeta->id.uid, pTableMeta->id.tid, tNameGetTableName(&pTableMetaInfo->name), pTableMeta->tableInfo.numOfColumns,
+      pTableMeta->tableInfo.numOfTags);
 
   free(pTableMeta);
   return TSDB_CODE_SUCCESS;
@@ -2164,8 +2165,7 @@ int tscProcessSTableVgroupRsp(SSqlObj *pSql) {
 
     pInfo->vgroupList->numOfVgroups = pVgroupMsg->numOfVgroups;
     if (pInfo->vgroupList->numOfVgroups <= 0) {
-      //tfree(pInfo->vgroupList);
-      tscError("0x%"PRIx64" empty vgroup info", pSql->self);
+      tscDebug("0x%"PRIx64" empty vgroup info", pSql->self);
     } else {
       for (int32_t j = 0; j < pInfo->vgroupList->numOfVgroups; ++j) {
         // just init, no need to lock
