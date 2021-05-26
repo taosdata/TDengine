@@ -13,8 +13,9 @@
        "threads":4, 
        "mode":"sync", 
        "interval":0, 
-       "restart":"no", 
-       "keepProgress":"no",
+       "restart":"yes", 
+       "resubAfterConsume":0,
+       "keepProgress":"yes",
        "sqls": [
         {
           "sql": "select * from xxxx where ts >= '2021-02-25 10:00:00.000' ", 
