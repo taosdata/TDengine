@@ -20,6 +20,7 @@
 #include "tutil.h"
 #include "tref.h"
 #include "tbn.h"
+#include "tfs.h"
 #include "tqueue.h"
 #include "twal.h"
 #include "tsync.h"
@@ -450,6 +451,12 @@ int32_t sdbInit() {
   }
 
   tsSdbMgmt.status = SDB_STATUS_SERVING;
+
+  if (tsCompactMnodeWal) {
+    mnodeCompactWal();
+    exit(EXIT_SUCCESS);
+  }
+
   return TSDB_CODE_SUCCESS;
 }
 
@@ -724,6 +731,12 @@ static int32_t sdbProcessWrite(void *wparam, void *hparam, int32_t qtype, void *
   } else {
     return TSDB_CODE_MND_INVALID_MSG_TYPE;
   }
+}
+
+int32_t sdbInsertCompactRow(SSdbRow *pRow) {
+  SSdbTable *pTable = pRow->pTable;
+  if (pTable == NULL) return TSDB_CODE_MND_SDB_INVALID_TABLE_TYPE;
+  return sdbWriteRowToQueue(pRow, SDB_ACTION_INSERT);
 }
 
 int32_t sdbInsertRow(SSdbRow *pRow) {
@@ -1137,4 +1150,47 @@ static void *sdbWorkerFp(void *pWorker) {
 
 int32_t sdbGetReplicaNum() {
   return tsSdbMgmt.cfg.replica;
+}
+
+int32_t mnodeCompactWal() {
+  sdbInfo("vgId:1, start compact mnode wal...");
+
+  // close old wal
+  walFsync(tsSdbMgmt.wal, true);
+  walClose(tsSdbMgmt.wal);
+
+  // reset version,then compacted wal log can start from version 1
+  tsSdbMgmt.version = 0;
+
+  // change wal to wal_tmp dir
+  SWalCfg walCfg = {.vgId = 1, .walLevel = TAOS_WAL_FSYNC, .keep = TAOS_WAL_KEEP, .fsyncPeriod = 0};
+  char    temp[TSDB_FILENAME_LEN] = {0};
+  sprintf(temp, "%s/wal", tsMnodeTmpDir);
+  tsSdbMgmt.wal = walOpen(temp, &walCfg);
+  walRenew(tsSdbMgmt.wal);
+
+  // compact memory tables info to wal tmp dir
+  if (mnodeCompactComponents() != 0) {
+    tfsRmdir(tsMnodeTmpDir);
+    return -1;
+  }
+
+  // close wal
+  walFsync(tsSdbMgmt.wal, true);
+  walClose(tsSdbMgmt.wal);
+
+  // rename old wal to wal_bak
+  if (taosRename(tsMnodeDir, tsMnodeBakDir) != 0) {
+    return -1;
+  }
+
+  // rename wal_tmp to wal
+  if (taosRename(tsMnodeTmpDir, tsMnodeDir) != 0) {
+    return -1;
+  }
+  
+  // del wal_tmp dir
+  sdbInfo("vgId:1, compact mnode wal success");
+
+  return 0;
 }

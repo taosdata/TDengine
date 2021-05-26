@@ -417,3 +417,13 @@ void monExecuteSQL(char *sql) {
   monDebug("execute sql:%s", sql);
   taos_query_a(tsMonitor.conn, sql, monExecSqlCb, "sql");
 }
+
+void monExecuteSQLWithResultCallback(char *sql, MonExecuteSQLCbFP callback, void* param) {
+  if (tsMonitor.conn == NULL) {
+    callback(param, NULL, TSDB_CODE_MON_CONNECTION_INVALID);
+    return;
+  }
+
+  monDebug("execute sql:%s", sql);
+  taos_query_a(tsMonitor.conn, sql, callback, param);
+}

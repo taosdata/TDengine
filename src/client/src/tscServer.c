@@ -2488,12 +2488,10 @@ int32_t tscGetTableMetaImpl(SSqlObj* pSql, STableMetaInfo *pTableMetaInfo, bool 
       return TSDB_CODE_TSC_OUT_OF_MEMORY;
     }
     pTableMetaInfo->pTableMeta = (STableMeta *)tmp;
-    memset(pTableMetaInfo->pTableMeta, 0, size);
-    pTableMetaInfo->tableMetaSize = size;
-  } else {
-    memset(pTableMetaInfo->pTableMeta, 0, size);
-    pTableMetaInfo->tableMetaSize = size;
   }
+
+  memset(pTableMetaInfo->pTableMeta, 0, size);
+  pTableMetaInfo->tableMetaSize = size;
 
   pTableMetaInfo->pTableMeta->tableType = -1;
   pTableMetaInfo->pTableMeta->tableInfo.numOfColumns  = -1;
@@ -2510,8 +2508,9 @@ int32_t tscGetTableMetaImpl(SSqlObj* pSql, STableMetaInfo *pTableMetaInfo, bool 
 
   STableMeta* pMeta = pTableMetaInfo->pTableMeta;
   if (pMeta->id.uid > 0) {
+    // in case of child table, here only get the
     if (pMeta->tableType == TSDB_CHILD_TABLE) {
-      int32_t code = tscCreateTableMetaFromCChildMeta(pTableMetaInfo->pTableMeta, name, buf);
+      int32_t code = tscCreateTableMetaFromSTableMeta(pTableMetaInfo->pTableMeta, name, buf);
       if (code != TSDB_CODE_SUCCESS) {
         return getTableMetaFromMnode(pSql, pTableMetaInfo, autocreate);
       }

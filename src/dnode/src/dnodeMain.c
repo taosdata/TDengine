@@ -40,6 +40,7 @@
 #include "dnodeShell.h"
 #include "dnodeTelemetry.h"
 #include "module.h"
+#include "mnode.h"
 
 #if !defined(_MODULE) || !defined(_TD_LINUX)
 int32_t moduleStart() { return 0; }
@@ -216,6 +217,17 @@ static int32_t dnodeInitStorage() {
   sprintf(tsDnodeDir, "%s/dnode", tsDataDir);
   // sprintf(tsVnodeBakDir, "%s/vnode_bak", tsDataDir);
 
+  if (tsCompactMnodeWal == 1) {
+    sprintf(tsMnodeTmpDir, "%s/mnode_tmp", tsDataDir);
+    tfsRmdir(tsMnodeTmpDir);
+    if (dnodeCreateDir(tsMnodeTmpDir) < 0) {
+      dError("failed to create dir: %s, reason: %s", tsMnodeTmpDir, strerror(errno));
+      return -1;
+    }
+
+    sprintf(tsMnodeBakDir, "%s/mnode_bak", tsDataDir);
+    //tfsRmdir(tsMnodeBakDir);   
+  }
   //TODO(dengyihao): no need to init here 
   if (dnodeCreateDir(tsMnodeDir) < 0) {
    dError("failed to create dir: %s, reason: %s", tsMnodeDir, strerror(errno));
