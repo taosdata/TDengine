@@ -2298,7 +2298,7 @@ static int32_t validateQuoteToken(SStrToken* pToken) {
   }
 
   if (k != pToken->n || pToken->type != TK_ID) {
-    return TSDB_CODE_TSC_INVALID_SQL;
+    return TSDB_CODE_TSC_INVALID_OPERATION;
   }
   return TSDB_CODE_SUCCESS;
 }
@@ -2348,7 +2348,7 @@ void tscDequoteAndTrimToken(SStrToken* pToken) {
 
 int32_t tscValidateName(SStrToken* pToken) {
   if (pToken->type != TK_STRING && pToken->type != TK_ID) {
-    return TSDB_CODE_TSC_INVALID_SQL;
+    return TSDB_CODE_TSC_INVALID_OPERATION;
   }
 
   char* sep = strnchr(pToken->z, TS_PATH_DELIMITER[0], pToken->n, true);
@@ -2367,14 +2367,14 @@ int32_t tscValidateName(SStrToken* pToken) {
       } else {
         sep = strnchr(pToken->z, TS_PATH_DELIMITER[0], pToken->n, true);
         if (sep == NULL) {
-          return TSDB_CODE_TSC_INVALID_SQL;
+          return TSDB_CODE_TSC_INVALID_OPERATION;
         }
 
         return tscValidateName(pToken);
       }
     } else {
       if (isNumber(pToken)) {
-        return TSDB_CODE_TSC_INVALID_SQL;
+        return TSDB_CODE_TSC_INVALID_OPERATION;
       }
     }
   } else {  // two part
@@ -2387,15 +2387,15 @@ int32_t tscValidateName(SStrToken* pToken) {
 
     pToken->n = tGetToken(pToken->z, &pToken->type);
     if (pToken->z[pToken->n] != TS_PATH_DELIMITER[0]) {
-      return TSDB_CODE_TSC_INVALID_SQL;
+      return TSDB_CODE_TSC_INVALID_OPERATION;
     }
 
     if (pToken->type != TK_STRING && pToken->type != TK_ID) {
-      return TSDB_CODE_TSC_INVALID_SQL;
+      return TSDB_CODE_TSC_INVALID_OPERATION;
     }
 
     if (pToken->type == TK_STRING && validateQuoteToken(pToken) != TSDB_CODE_SUCCESS) {
-      return TSDB_CODE_TSC_INVALID_SQL;
+      return TSDB_CODE_TSC_INVALID_OPERATION;
     }
 
     int32_t firstPartLen = pToken->n;
@@ -2404,11 +2404,11 @@ int32_t tscValidateName(SStrToken* pToken) {
     pToken->n = (uint32_t)(oldLen - (sep - pStr) - 1);
     int32_t len = tGetToken(pToken->z, &pToken->type);
     if (len != pToken->n || (pToken->type != TK_STRING && pToken->type != TK_ID)) {
-      return TSDB_CODE_TSC_INVALID_SQL;
+      return TSDB_CODE_TSC_INVALID_OPERATION;
     }
 
     if (pToken->type == TK_STRING && validateQuoteToken(pToken) != TSDB_CODE_SUCCESS) {
-      return TSDB_CODE_TSC_INVALID_SQL;
+      return TSDB_CODE_TSC_INVALID_OPERATION;
     }
     
     // re-build the whole name string
@@ -3508,7 +3508,7 @@ int32_t tscInvalidSQLErrMsg(char* msg, const char* additionalInfo, const char* s
   if (sql == NULL) {
     assert(additionalInfo != NULL);
     sprintf(msg, msgFormat1, additionalInfo);
-    return TSDB_CODE_TSC_INVALID_SQL;
+    return TSDB_CODE_TSC_INVALID_OPERATION;
   }
 
   char buf[64] = {0};  // only extract part of sql string
@@ -3520,7 +3520,7 @@ int32_t tscInvalidSQLErrMsg(char* msg, const char* additionalInfo, const char* s
     sprintf(msg, msgFormat3, buf);  // no additional information for invalid sql error
   }
 
-  return TSDB_CODE_TSC_INVALID_SQL;
+  return TSDB_CODE_TSC_INVALID_OPERATION;
 }
 
 bool tscHasReachLimitation(SQueryInfo* pQueryInfo, SSqlRes* pRes) {
@@ -4072,7 +4072,7 @@ static int32_t createTagColumnInfo(SQueryAttr* pQueryAttr, SQueryInfo* pQueryInf
 
     if ((pCol->columnIndex >= numOfTagColumns || pCol->columnIndex < TSDB_TBNAME_COLUMN_INDEX) ||
         (!isValidDataType(pColSchema->type))) {
-      return TSDB_CODE_TSC_INVALID_SQL;
+      return TSDB_CODE_TSC_INVALID_OPERATION;
     }
 
     SColumnInfo* pTagCol = &pQueryAttr->tagColList[i];
@@ -4198,18 +4198,18 @@ int32_t tscCreateQueryFromQueryInfo(SQueryInfo* pQueryInfo, SQueryAttr* pQueryAt
         tscError("%p illegal value of numOfCols in query msg: %" PRIu64 ", table cols:%d", addr,
         (uint64_t)pQueryAttr->numOfCols, numOfCols);
 
-    return TSDB_CODE_TSC_INVALID_SQL;
+    return TSDB_CODE_TSC_INVALID_OPERATION;
   }
 
   if (pQueryAttr->interval.interval < 0) {
     tscError("%p illegal value of aggregation time interval in query msg: %" PRId64, addr,
              (int64_t)pQueryInfo->interval.interval);
-    return TSDB_CODE_TSC_INVALID_SQL;
+    return TSDB_CODE_TSC_INVALID_OPERATION;
   }
 
   if (pQueryAttr->pGroupbyExpr->numOfGroupCols < 0) {
     tscError("%p illegal value of numOfGroupCols in query msg: %d", addr, pQueryInfo->groupbyExpr.numOfGroupCols);
-    return TSDB_CODE_TSC_INVALID_SQL;
+    return TSDB_CODE_TSC_INVALID_OPERATION;
   }
 
   return TSDB_CODE_SUCCESS;

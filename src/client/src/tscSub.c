@@ -173,7 +173,7 @@ static SSub* tscCreateSubscription(STscObj* pObj, const char* topic, const char*
 
   if (pSql->cmd.command != TSDB_SQL_SELECT && pSql->cmd.command != TSDB_SQL_RETRIEVE_EMPTY_RESULT) {
     line = __LINE__;
-    code = TSDB_CODE_TSC_INVALID_SQL;
+    code = TSDB_CODE_TSC_INVALID_OPERATION;
     goto fail;
   }
 

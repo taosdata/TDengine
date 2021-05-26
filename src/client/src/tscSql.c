@@ -618,7 +618,7 @@ int taos_errno(TAOS_RES *tres) {
  * why the sql is invalid
  */
 static bool hasAdditionalErrorInfo(int32_t code, SSqlCmd *pCmd) {
-  if (code != TSDB_CODE_TSC_INVALID_SQL
+  if (code != TSDB_CODE_TSC_INVALID_OPERATION
       && code != TSDB_CODE_TSC_SQL_SYNTAX_ERROR) {
     return false;
   }
@@ -943,7 +943,7 @@ int taos_load_table_info(TAOS *taos, const char *tableNameList) {
   if (length > MAX_TABLE_NAME_LENGTH) {
     tscError("0x%"PRIx64" tableNameList too long, length:%d, maximum allowed:%d", pSql->self, length, MAX_TABLE_NAME_LENGTH);
     tscFreeSqlObj(pSql);
-    return TSDB_CODE_TSC_INVALID_SQL;
+    return TSDB_CODE_TSC_INVALID_OPERATION;
   }
 
   char *str = calloc(1, length + 1);

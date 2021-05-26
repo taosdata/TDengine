@@ -1300,7 +1300,7 @@ int taos_stmt_prepare(TAOS_STMT* stmt, const char* sql, unsigned long length) {
     SStrToken sToken = tStrGetToken(pCmd->curSql, &index, false);
 
     if (sToken.n == 0) {
-      return TSDB_CODE_TSC_INVALID_SQL;
+      return TSDB_CODE_TSC_INVALID_OPERATION;
     }
 
     if (sToken.n == 1 && sToken.type == TK_QUESTION) {

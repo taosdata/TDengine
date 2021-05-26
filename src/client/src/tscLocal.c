@@ -928,7 +928,7 @@ int tscProcessLocalCmd(SSqlObj *pSql) {
   } else if (pCmd->command == TSDB_SQL_SERV_STATUS) {
     pRes->code = tscProcessServStatus(pSql);
   } else {
-    pRes->code = TSDB_CODE_TSC_INVALID_SQL;
+    pRes->code = TSDB_CODE_TSC_INVALID_OPERATION;
     tscError("0x%"PRIx64" not support command:%d", pSql->self, pCmd->command);
   }
 

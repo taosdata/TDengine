@@ -107,7 +107,7 @@ int tsParseTime(SStrToken *pToken, int64_t *time, char **next, char *error, int1
     }
 
     if (parseAbsoluteDuration(valueToken.z, valueToken.n, &interval) != TSDB_CODE_SUCCESS) {
-      return TSDB_CODE_TSC_INVALID_SQL;
+      return TSDB_CODE_TSC_INVALID_OPERATION;
     }
 
     if (timePrec == TSDB_TIME_PRECISION_MILLI) {
@@ -647,7 +647,7 @@ static int32_t tsSetBlockInfo(SSubmitBlk *pBlocks, const STableMeta *pTableMeta,
   pBlocks->sversion = pTableMeta->sversion;
 
   if (pBlocks->numOfRows + numOfRows >= INT16_MAX) {
-    return TSDB_CODE_TSC_INVALID_SQL;
+    return TSDB_CODE_TSC_INVALID_OPERATION;
   } else {
     pBlocks->numOfRows += numOfRows;
     return TSDB_CODE_SUCCESS;
@@ -708,7 +708,7 @@ static int32_t doParseInsertStatement(SSqlCmd* pCmd, char **str, STableDataBlock
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
   }
 
-  code = TSDB_CODE_TSC_INVALID_SQL;
+  code = TSDB_CODE_TSC_INVALID_OPERATION;
   char tmpTokenBuf[16*1024] = {0};  // used for deleting Escape character: \\, \', \"
 
   int32_t numOfRows = 0;
@@ -784,7 +784,7 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql, char** boundC
   }
 
   if (numOfColList == 0 && (*boundColumn) != NULL) {
-    return TSDB_CODE_TSC_INVALID_SQL;
+    return TSDB_CODE_TSC_INVALID_OPERATION;
   }
   
   STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, TABLE_INDEX);
@@ -877,7 +877,7 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql, char** boundC
       if (TK_ILLEGAL == sToken.type) {
         tdDestroyKVRowBuilder(&kvRowBuilder);
         tscDestroyBoundColumnInfo(&spd);
-        return TSDB_CODE_TSC_INVALID_SQL;
+        return TSDB_CODE_TSC_INVALID_OPERATION;
       }
 
       if (sToken.n == 0 || sToken.type == TK_RP) {
@@ -959,7 +959,7 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql, char** boundC
       }
 
       if (numOfColsAfterTags == 0 && (*boundColumn) != NULL) {
-        return TSDB_CODE_TSC_INVALID_SQL;
+        return TSDB_CODE_TSC_INVALID_OPERATION;
       }
 
       sToken = tStrGetToken(sql, &index, false);
@@ -977,7 +977,7 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql, char** boundC
     }
 
     if (sql == NULL) {
-      return TSDB_CODE_TSC_INVALID_SQL;
+      return TSDB_CODE_TSC_INVALID_OPERATION;
     }
 
     code = tscGetTableMetaEx(pSql, pTableMetaInfo, true);
@@ -989,7 +989,7 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql, char** boundC
     sql = sToken.z;
 
     if (sql == NULL) {
-      return TSDB_CODE_TSC_INVALID_SQL;
+      return TSDB_CODE_TSC_INVALID_OPERATION;
     }
 
     code = tscGetTableMetaEx(pSql, pTableMetaInfo, false);
@@ -1149,7 +1149,7 @@ int tsParseInsertSql(SSqlObj *pSql) {
        * Otherwise, create the first submit block and submit to virtual node.
        */
       if (totalNum == 0) {
-        code = TSDB_CODE_TSC_INVALID_SQL;
+        code = TSDB_CODE_TSC_INVALID_OPERATION;
         goto _clean;
       } else {
         break;
@@ -1355,9 +1355,9 @@ int tsParseSql(SSqlObj *pSql, bool initial) {
     }
 
     ret = tsParseInsertSql(pSql);
-    assert(ret == TSDB_CODE_SUCCESS || ret == TSDB_CODE_TSC_ACTION_IN_PROGRESS || ret == TSDB_CODE_TSC_SQL_SYNTAX_ERROR || ret == TSDB_CODE_TSC_INVALID_SQL);
+    assert(ret == TSDB_CODE_SUCCESS || ret == TSDB_CODE_TSC_ACTION_IN_PROGRESS || ret == TSDB_CODE_TSC_SQL_SYNTAX_ERROR || ret == TSDB_CODE_TSC_INVALID_OPERATION);
 
-    if (pSql->parseRetry < 1 && (ret == TSDB_CODE_TSC_SQL_SYNTAX_ERROR || ret == TSDB_CODE_TSC_INVALID_SQL)) {
+    if (pSql->parseRetry < 1 && (ret == TSDB_CODE_TSC_SQL_SYNTAX_ERROR || ret == TSDB_CODE_TSC_INVALID_OPERATION)) {
       tscDebug("0x%"PRIx64 " parse insert sql statement failed, code:%s, clear meta cache and retry ", pSql->self, tstrerror(ret));
 
       tscResetSqlCmd(pCmd, true);
@@ -1370,7 +1370,7 @@ int tsParseSql(SSqlObj *pSql, bool initial) {
   } else {
     SSqlInfo SQLInfo = qSqlParse(pSql->sqlstr);
     ret = tscToSQLCmd(pSql, &SQLInfo);
-    if (ret == TSDB_CODE_TSC_INVALID_SQL && pSql->parseRetry < 1 && SQLInfo.type == TSDB_SQL_SELECT) {
+    if (ret == TSDB_CODE_TSC_INVALID_OPERATION && pSql->parseRetry < 1 && SQLInfo.type == TSDB_SQL_SELECT) {
       tscDebug("0x%"PRIx64 " parse query sql statement failed, code:%s, clear meta cache and retry ", pSql->self, tstrerror(ret));
 
       tscResetSqlCmd(pCmd, true);

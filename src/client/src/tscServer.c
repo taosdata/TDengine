@@ -736,7 +736,7 @@ static int32_t serializeColFilterInfo(SColumnFilterInfo* pColFilters, int16_t nu
 
     if (pColFilter->lowerRelOptr == TSDB_RELATION_INVALID && pColFilter->upperRelOptr == TSDB_RELATION_INVALID) {
       tscError("invalid filter info");
-      return TSDB_CODE_TSC_INVALID_SQL;
+      return TSDB_CODE_TSC_INVALID_OPERATION;
     }
   }
 
@@ -755,7 +755,7 @@ static int32_t serializeSqlExpr(SSqlExpr* pExpr, STableMetaInfo* pTableMetaInfo,
 
   if (validateColumn && !tscValidateColumnId(pTableMetaInfo, pExpr->colInfo.colId, pExpr->numOfParams)) {
     tscError("0x%"PRIx64" table schema is not matched with parsed sql", id);
-    return TSDB_CODE_TSC_INVALID_SQL;
+    return TSDB_CODE_TSC_INVALID_OPERATION;
   }
 
   assert(pExpr->resColId < 0);
@@ -802,7 +802,7 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
 
   if (TSDB_CODE_SUCCESS != tscAllocPayload(pCmd, size)) {
     tscError("%p failed to malloc for query msg", pSql);
-    return TSDB_CODE_TSC_INVALID_SQL;  // todo add test for this
+    return TSDB_CODE_TSC_INVALID_OPERATION;  // todo add test for this
   }
 
   SQueryInfo *pQueryInfo = tscGetQueryInfo(pCmd);
@@ -1684,7 +1684,7 @@ int tscBuildTableMetaMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
 
   int32_t code = tNameExtractFullName(&pTableMetaInfo->name, pInfoMsg->tableFname);
   if (code != TSDB_CODE_SUCCESS) {
-    return TSDB_CODE_TSC_INVALID_SQL;
+    return TSDB_CODE_TSC_INVALID_OPERATION;
   }
 
   pInfoMsg->createFlag = htons(pSql->cmd.autoCreated ? 1 : 0);
@@ -2383,7 +2383,7 @@ static int32_t getTableMetaFromMnode(SSqlObj *pSql, STableMetaInfo *pTableMetaIn
     STableInfoMsg  *pInfoMsg = (STableInfoMsg *)pNew->cmd.payload;
     int32_t code = tNameExtractFullName(&pNewTableMetaInfo->name, pInfoMsg->tableFname);
     if (code != TSDB_CODE_SUCCESS) {
-      return TSDB_CODE_TSC_INVALID_SQL;
+      return TSDB_CODE_TSC_INVALID_OPERATION;
     }
 
     pInfoMsg->createFlag = htons(autocreate? 1 : 0);
@@ -2547,7 +2547,7 @@ int tscRenewTableMeta(SSqlObj *pSql, int32_t tableIndex) {
   int32_t code = tNameExtractFullName(&pTableMetaInfo->name, name);
   if (code != TSDB_CODE_SUCCESS) {
     tscError("0x%"PRIx64" failed to generate the table full name", pSql->self);
-    return TSDB_CODE_TSC_INVALID_SQL;
+    return TSDB_CODE_TSC_INVALID_OPERATION;
   }
 
   STableMeta* pTableMeta = pTableMetaInfo->pTableMeta;
