@@ -194,7 +194,7 @@ static int32_t dnodeProcessCompactVnodeMsg(SRpcMsg *rpcMsg) {
   SCompactVnodeMsg *pCompactVnode = rpcMsg->pCont;
   pCompactVnode->vgId = htonl(pCompactVnode->vgId);
   //do nothing
-  dDebug("trige compact at vgid: %d", pCompactVnode->vgId);
+  dDebug("trigger compact at vgid: %d", pCompactVnode->vgId);
     
   return TSDB_CODE_SUCCESS;  
 }

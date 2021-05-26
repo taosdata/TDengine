@@ -993,11 +993,11 @@ static void mnodeSendSyncVnodeMsg(SVgObj *pVgroup, SRpcEpSet *epSet) {
   dnodeSendMsgToDnode(epSet, &rpcMsg);
 }
 static void mnodeSendCompactVnodeMsg(SVgObj *pVgroup, SRpcEpSet *epSet) {
-  SSyncVnodeMsg *pSyncVnode = mnodeBuildSyncVnodeMsg(pVgroup->vgId);
+  SCompactVnodeMsg *pCompactVnode = mnodeBuildSyncVnodeMsg(pVgroup->vgId);
   SRpcMsg rpcMsg = {
     .ahandle = NULL,
-    .pCont   = pSyncVnode,
-    .contLen = pSyncVnode ? sizeof(SCompactVnodeMsg) : 0,
+    .pCont   = pCompactVnode,
+    .contLen = pCompactVnode ? sizeof(SCompactVnodeMsg) : 0,
     .code    = 0,
     .msgType = TSDB_MSG_TYPE_MD_COMPACT_VNODE
   };
@@ -1020,7 +1020,7 @@ void mnodeSendSyncVgroupMsg(SVgObj *pVgroup) {
 void mnodeSendCompactVgroupMsg(SVgObj *pVgroup) {
   mDebug("vgId:%d, send compact all vnodes msg, numOfVnodes:%d db:%s", pVgroup->vgId, pVgroup->numOfVnodes, pVgroup->dbName);
   for (int32_t i = 0; i < pVgroup->numOfVnodes; ++i) {
-    if (pVgroup->vnodeGid[i].role != TAOS_SYNC_ROLE_SLAVE) continue; //TODO(yihaoDeng): compact slave or not ? 
+    //if (pVgroup->vnodeGid[i].role != TAOS_SYNC_ROLE_SLAVE) continue; //TODO(yihaoDeng): compact slave or not ? 
     SRpcEpSet epSet = mnodeGetEpSetFromIp(pVgroup->vnodeGid[i].pDnode->dnodeEp);
     mDebug("vgId:%d, index:%d, send compact vnode msg to dnode %s", pVgroup->vgId, i,
            pVgroup->vnodeGid[i].pDnode->dnodeEp);
