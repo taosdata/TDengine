@@ -133,7 +133,7 @@ void vnodeConfirmForard(int32_t vgId, void *wparam, int32_t code) {
 
   if (code == TSDB_CODE_SYN_CONFIRM_EXPIRED && pVnode->status == TAOS_VN_STATUS_CLOSING) {
     vDebug("vgId:%d, db:%s, vnode is closing while confirm forward", vgId, pVnode->db);
-    code = TSDB_CODE_VND_IS_DROPPING;
+    code = TSDB_CODE_VND_IS_CLOSING;
   }
 
   dnodeSendRpcVWriteRsp(pVnode, wparam, code);
