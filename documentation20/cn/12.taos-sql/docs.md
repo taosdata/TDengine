@@ -399,7 +399,12 @@ TDengine 缺省的时间戳是毫秒精度，但通过修改配置参数 enableM
     INSERT INTO tb1_name (tb1_field1_name, ...) [USING stb1_name TAGS (tag_value1, ...)] VALUES (field1_value1, ...) (field1_value2, ...) ...
                 tb2_name (tb2_field1_name, ...) [USING stb2_name TAGS (tag_value2, ...)] VALUES (field1_value1, ...) (field1_value2, ...) ...;
     ```
-    以自动建表的方式，同时向表tb1_name和tb2_name中按列分别插入多条记录。
+    以自动建表的方式，同时向表tb1_name和tb2_name中按列分别插入多条记录。  
+    从 2.0.20.5 版本开始，子表的列名可以不跟在子表名称后面，而是可以放在 TAGS 和 VALUES 之间，例如像下面这样写：
+    ```mysql
+    INSERT INTO tb1_name [USING stb1_name TAGS (tag_value1, ...)] (tb1_field1_name, ...) VALUES (field1_value1, ...) (field1_value2, ...) ...;
+    ```
+    注意：虽然两种写法都可以，但并不能在一条 SQL 语句中混用，否则会报语法错误。
 
 **历史记录写入**：可使用IMPORT或者INSERT命令，IMPORT的语法，功能与INSERT完全一样。
 
