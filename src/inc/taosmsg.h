@@ -294,6 +294,8 @@ typedef struct {
 
 typedef struct {
   char   name[TSDB_TABLE_FNAME_LEN];
+  // if user specify DROP STABLE, this flag will be set. And an error will be returned if it is not a super table
+  int8_t supertable;
   int8_t igNotExists;
 } SCMDropTableMsg;
 

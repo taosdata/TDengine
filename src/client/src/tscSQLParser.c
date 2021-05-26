@@ -315,7 +315,6 @@ int32_t tscToSQLCmd(SSqlObj* pSql, struct SSqlInfo* pInfo) {
     case TSDB_SQL_DROP_DB: {
       const char* msg2 = "invalid name";
       const char* msg3 = "param name too long";
-      const char* msg4 = "table is not super table";
 
       SStrToken* pzName = taosArrayGet(pInfo->pMiscInfo->a, 0);
       if ((pInfo->type != TSDB_SQL_DROP_DNODE) && (tscValidateName(pzName) != TSDB_CODE_SUCCESS)) {
@@ -338,14 +337,14 @@ int32_t tscToSQLCmd(SSqlObj* pSql, struct SSqlInfo* pInfo) {
         }
 
         if (pInfo->pMiscInfo->tableType == TSDB_SUPER_TABLE) {
-          code = tscGetTableMeta(pSql, pTableMetaInfo);
-          if (code != TSDB_CODE_SUCCESS) {
-            return code;
-          }
-
-          if (!UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo)) {
-            return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg4);
-          }
+////          code = tscGetTableMeta(pSql, pTableMetaInfo);
+////          if (code != TSDB_CODE_SUCCESS) {
+////            return code;
+////          }
+//
+//          if (!UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo)) {
+//            return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg4);
+//          }
         }
         
       } else if (pInfo->type == TSDB_SQL_DROP_DNODE) {
@@ -7219,7 +7218,7 @@ int32_t loadAllTableMeta(SSqlObj* pSql, struct SSqlInfo* pInfo) {
 
     if (pTableMeta->id.uid > 0) {
       if (pTableMeta->tableType == TSDB_CHILD_TABLE) {
-        code = tscCreateTableMetaFromCChildMeta(pTableMeta, name, buf);
+        code = tscCreateTableMetaFromSTableMeta(pTableMeta, name, buf);
 
         // create the child table meta from super table failed, try load it from mnode
         if (code != TSDB_CODE_SUCCESS) {

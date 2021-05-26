@@ -1177,6 +1177,7 @@ int32_t tscBuildDropTableMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   STableMetaInfo *pTableMetaInfo = tscGetTableMetaInfoFromCmd(pCmd,  0);
   tNameExtractFullName(&pTableMetaInfo->name, pDropTableMsg->name);
 
+  pDropTableMsg->supertable = (pInfo->pMiscInfo->tableType == TSDB_SUPER_TABLE)? 1:0;
   pDropTableMsg->igNotExists = pInfo->pMiscInfo->existsCheck ? 1 : 0;
   pCmd->msgType = TSDB_MSG_TYPE_CM_DROP_TABLE;
   return TSDB_CODE_SUCCESS;

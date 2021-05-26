@@ -966,6 +966,11 @@ static int32_t mnodeProcessDropTableMsg(SMnodeMsg *pMsg) {
           pMsg->rpcMsg.ahandle, pDrop->name, pSTable->uid, pSTable->numOfTables, taosHashGetSize(pSTable->vgHash));
     return mnodeProcessDropSuperTableMsg(pMsg);
   } else {
+    // user specify the "DROP STABLE" sql statement, but it is actually a normal table, return error msg.
+    if (pDrop->supertable) {
+      return TSDB_CODE_MND_INVALID_TABLE_TYPE;
+    }
+
     SCTableObj *pCTable = (SCTableObj *)pMsg->pTable;
     mInfo("msg:%p, app:%p table:%s, start to drop ctable, vgId:%d tid:%d uid:%" PRIu64, pMsg, pMsg->rpcMsg.ahandle,
           pDrop->name, pCTable->vgId, pCTable->tid, pCTable->uid);
