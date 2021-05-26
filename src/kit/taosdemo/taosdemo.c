@@ -538,6 +538,8 @@ static void createChildTables();
 static int queryDbExec(TAOS *taos, char *command, QUERY_TYPE type, bool quiet);
 static int postProceSql(char *host, struct sockaddr_in *pServAddr,
         uint16_t port, char* sqlstr, threadInfo *pThreadInfo);
+static int64_t getTSRandTail(int64_t timeStampStep, int32_t seq,
+                  int disorderRatio, int disorderRange);
 
 /* ************ Global variables ************  */
 
@@ -1097,9 +1099,9 @@ static int queryDbExec(TAOS *taos, char *command, QUERY_TYPE type, bool quiet) {
     }
   }
 
+  verbosePrint("%s() LN%d - command: %s\n", __func__, __LINE__, command);
   if (code != 0) {
     if (!quiet) {
-      debugPrint("%s() LN%d - command: %s\n", __func__, __LINE__, command);
       errorPrint("Failed to execute %s, reason: %s\n", command, taos_errstr(res));
     }
     taos_free_result(res);
@@ -2692,8 +2694,6 @@ static int createSuperTable(
   snprintf(command, BUFFER_SIZE,
           "create table if not exists %s.%s (ts timestamp%s) tags %s",
           dbName, superTbl->sTblName, cols, tags);
-  verbosePrint("%s() LN%d: %s\n", __func__, __LINE__, command);
-
   if (0 != queryDbExec(taos, command, NO_INSERT_TYPE, false)) {
       errorPrint( "create supertable %s failed!\n\n",
               superTbl->sTblName);
@@ -2716,7 +2716,6 @@ static int createDatabasesAndStables() {
   for (int i = 0; i < g_Dbs.dbCount; i++) {
     if (g_Dbs.db[i].drop) {
       sprintf(command, "drop database if exists %s;", g_Dbs.db[i].dbName);
-      verbosePrint("%s() %d command: %s\n", __func__, __LINE__, command);
       if (0 != queryDbExec(taos, command, NO_INSERT_TYPE, false)) {
         taos_close(taos);
         return -1;
@@ -2789,7 +2788,6 @@ static int createDatabasesAndStables() {
                 " precision \'%s\';", g_Dbs.db[i].dbCfg.precision);
       }
 
-      debugPrint("%s() %d command: %s\n", __func__, __LINE__, command);
       if (0 != queryDbExec(taos, command, NO_INSERT_TYPE, false)) {
         taos_close(taos);
         errorPrint( "\ncreate database %s failed!\n\n", g_Dbs.db[i].dbName);
@@ -2806,8 +2804,6 @@ static int createDatabasesAndStables() {
     for (int j = 0; j < g_Dbs.db[i].superTblCount; j++) {
       sprintf(command, "describe %s.%s;", g_Dbs.db[i].dbName,
               g_Dbs.db[i].superTbls[j].sTblName);
-      verbosePrint("%s() %d command: %s\n", __func__, __LINE__, command);
-
       ret = queryDbExec(taos, command, NO_INSERT_TYPE, true);
 
       if ((ret != 0) || (g_Dbs.db[i].drop)) {
@@ -2911,7 +2907,6 @@ static void* createTable(void *sarg)
     }
 
     len = 0;
-    verbosePrint("%s() LN%d %s\n", __func__, __LINE__, buffer);
     if (0 != queryDbExec(pThreadInfo->taos, buffer, NO_INSERT_TYPE, false)){
       errorPrint( "queryDbExec() failed. buffer:\n%s\n", buffer);
       free(buffer);
@@ -2927,7 +2922,6 @@ static void* createTable(void *sarg)
   }
 
   if (0 != len) {
-    verbosePrint("%s() %d buffer: %s\n", __func__, __LINE__, buffer);
     if (0 != queryDbExec(pThreadInfo->taos, buffer, NO_INSERT_TYPE, false)) {
       errorPrint( "queryDbExec() failed. buffer:\n%s\n", buffer);
     }
@@ -4877,6 +4871,14 @@ static int64_t generateDataTail(
 
   verbosePrint("%s() LN%d batch=%"PRIu64"\n", __func__, __LINE__, batch);
 
+  bool tsRand;
+  if ((superTblInfo) && (0 == strncasecmp(superTblInfo->dataSource,
+                  "rand", strlen("rand")))) {
+        tsRand = true;
+    } else {
+        tsRand = false;
+  }
+
   uint64_t k = 0;
   for (k = 0; k < batch;) {
     char data[MAX_DATA_SIZE];
@@ -4885,71 +4887,47 @@ static int64_t generateDataTail(
     int64_t retLen = 0;
 
     if (superTblInfo) {
-      if (0 == strncasecmp(superTblInfo->dataSource,
-                    "sample", strlen("sample"))) {
+        if (tsRand) {
+            retLen = generateRowData(
+                    data,
+                    startTime + getTSRandTail(
+                        superTblInfo->timeStampStep, k,
+                        superTblInfo->disorderRatio,
+                        superTblInfo->disorderRange),
+                    superTblInfo);
+        } else {
           retLen = getRowDataFromSample(
                     data,
                     remainderBufLen,
                     startTime + superTblInfo->timeStampStep * k,
                     superTblInfo,
                     pSamplePos);
-      } else if (0 == strncasecmp(superTblInfo->dataSource,
-                   "rand", strlen("rand"))) {
-
-        int64_t randTail = superTblInfo->timeStampStep * k;
-        if (superTblInfo->disorderRatio > 0) {
-          int rand_num = taosRandom() % 100;
-          if(rand_num < superTblInfo->disorderRatio) {
-            randTail = (randTail + (taosRandom() % superTblInfo->disorderRange + 1)) * (-1);
-            debugPrint("rand data generated, back %"PRId64"\n", randTail);
-          }
+        }
+        if (retLen > remainderBufLen) {
+            break;
         }
 
-        int64_t d = startTime
-                + randTail;
-        retLen = generateRowData(
-                      data,
-                      d,
-                      superTblInfo);
-      }
-
-      if (retLen > remainderBufLen) {
-        break;
-      }
-
-      pstr += snprintf(pstr , retLen + 1, "%s", data);
-      k++;
-      len += retLen;
-      remainderBufLen -= retLen;
+        pstr += snprintf(pstr , retLen + 1, "%s", data);
+        k++;
+        len += retLen;
+        remainderBufLen -= retLen;
     } else {
-      char **data_type = g_args.datatype;
-      int lenOfBinary = g_args.len_of_binary;
+        char **data_type = g_args.datatype;
+        int lenOfBinary = g_args.len_of_binary;
+        retLen = generateData(data, data_type,
+                ncols_per_record,
+                startTime + getTSRandTail(
+                    DEFAULT_TIMESTAMP_STEP, k,
+                    g_args.disorderRatio,
+                    g_args.disorderRange),
+                lenOfBinary);
+        if (len > remainderBufLen)
+            break;
 
-      int64_t randTail = DEFAULT_TIMESTAMP_STEP * k;
-
-      if (g_args.disorderRatio != 0) {
-        int rand_num = taosRandom() % 100;
-        if (rand_num < g_args.disorderRatio) {
-          randTail = (randTail + (taosRandom() % g_args.disorderRange + 1)) * (-1);
-
-          debugPrint("rand data generated, back %"PRId64"\n", randTail);
-        }
-      } else {
-        randTail = DEFAULT_TIMESTAMP_STEP * k;
-      }
-
-      retLen = generateData(data, data_type,
-                  ncols_per_record,
-                  startTime + randTail,
-                  lenOfBinary);
-
-      if (len > remainderBufLen)
-        break;
-
-      pstr += sprintf(pstr, "%s", data);
-      k++;
-      len += retLen;
-      remainderBufLen -= retLen;
+        pstr += sprintf(pstr, "%s", data);
+        k++;
+        len += retLen;
+        remainderBufLen -= retLen;
     }
 
     verbosePrint("%s() LN%d len=%"PRIu64" k=%"PRIu64" \nbuffer=%s\n",
@@ -5090,6 +5068,22 @@ static int64_t generateInterlaceDataBuffer(
   }
 
   return k;
+}
+
+static int64_t getTSRandTail(int64_t timeStampStep, int32_t seq,
+          int disorderRatio, int disorderRange)
+{
+    int64_t randTail = timeStampStep * seq;
+    if (disorderRatio > 0) {
+        int rand_num = taosRandom() % 100;
+        if(rand_num < disorderRatio) {
+            randTail = (randTail +
+                    (taosRandom() % disorderRange + 1)) * (-1);
+            debugPrint("rand data generated, back %"PRId64"\n", randTail);
+        }
+    }
+
+    return randTail;
 }
 
 static int64_t generateProgressiveDataBuffer(
@@ -6445,7 +6439,6 @@ static int queryTestProcess() {
 
                 char sqlStr[MAX_TB_NAME_SIZE*2];
                 sprintf(sqlStr, "use %s", g_queryInfo.dbName);
-                verbosePrint("%s() %d sqlStr: %s\n", __func__, __LINE__, sqlStr);
                 if (0 != queryDbExec(taos, sqlStr, NO_INSERT_TYPE, false)) {
                     taos_close(taos);
                     free(infos);
@@ -6769,7 +6762,6 @@ static void *specifiedSubscribe(void *sarg) {
 
   char sqlStr[MAX_TB_NAME_SIZE*2];
   sprintf(sqlStr, "use %s", g_queryInfo.dbName);
-  debugPrint("%s() %d sqlStr: %s\n", __func__, __LINE__, sqlStr);
   if (0 != queryDbExec(pThreadInfo->taos, sqlStr, NO_INSERT_TYPE, false)) {
     taos_close(pThreadInfo->taos);
     return NULL;
@@ -7197,7 +7189,6 @@ static void querySqlFile(TAOS* taos, char* sqlFile)
     }
 
     memcpy(cmd + cmd_len, line, read_len);
-    verbosePrint("%s() LN%d cmd: %s\n", __func__, __LINE__, cmd);
     if (0 != queryDbExec(taos, cmd, NO_INSERT_TYPE, false)) {
         errorPrint("%s() LN%d, queryDbExec %s failed!\n",
                __func__, __LINE__, cmd);
