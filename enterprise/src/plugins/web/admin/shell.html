@@ -156,12 +156,11 @@
 			dbPrefix = DbSession.GetDb() + ".";
 		}
 		
-		//show tables
-		//show stables
-		//show tables;
-		//show stables
-		// show   stables
-		// show  a.stables
+		// show tables
+		// show stables
+		// show tables;
+		// show stables
+		// show a.stables
 		if (sql.substring(0, 4).toLowerCase() == "show") {
 			var remain = dbRemoveFirstBlank(sql.substring(4));
 			if (remain.substring(0, 6).toLowerCase() == "tables" || remain.substring(0, 7).toLowerCase() == "stables" || remain.substring(0, 7).toLowerCase() == "vgroups") {
@@ -183,22 +182,32 @@
 		//select c d  from  c.d  where a
 		else if (sql.substring(0, 6).toLowerCase() == "select") {
 			var from = sql.toLowerCase().indexOf("from");
+			var where = sql.toLowerCase().indexOf("where");
 			if (from != -1) {
-				var remain = dbRemoveFirstBlank(sql.substring(from+4));
-				if (remain != "") {
-					var table = remain.split(' ')[0];
-					var dot = table.indexOf(".");
-					if (dot == -1) {
-						return sql.substring(0, from+4) + " " + dbPrefix + remain;
+				if (where != -1){
+					var tablesStr = dbRemoveFirstBlank(sql.substring(from+4, where-1))
+					var remain = dbRemoveFirstBlank(sql.substring(where));
+				} else {
+					var tablesStr = dbRemoveFirstBlank(sql.substring(from+4))
+					var remain = ""
+				}
+
+				var tables = tablesStr.split(",")
+				for (var i = 0; i < tables.length; ++i) {
+					var dot = tables[i].indexOf(".");
+					if(dot == -1){
+						tables[i] = dbPrefix + dbRemoveFirstBlank(tables[i])
 					}
 				}
+				return sql.substring(0, from+4) + " " + tables.join(",") + " " + remain;
+			
 			}
 		}
 		// insert into a
 		// insert into a values()
 		// insert into t1 using stable1 tags(1) values(now,1)
-		// import   into  dc values values()
-		// import  xx into dc value 
+		// insert into dc values values()
+		// insert  xx into dc value 
 		// insert into cc dd values()
 		// insert into values values()
 		else if (sql.substring(0, 6).toLowerCase() == "insert" || sql.substring(0, 6).toLowerCase() == "import") {
@@ -406,6 +415,7 @@
 			},
 			data: sql,
 			dataType: "json",
+			contentType:"text/html; charset=utf-8",
 			success: dbQueryCb,
 			error: function(msg) { 
 				if (msg != null && msg.responseJSON != null) {
