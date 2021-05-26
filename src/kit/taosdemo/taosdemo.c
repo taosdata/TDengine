@@ -5261,7 +5261,7 @@ static int32_t prepareStbStmt(SSuperTable *stbInfo,
         return ret;
     }
 
-    void *bindArray = malloc(sizeof(TAOS_BIND) * (stbInfo->columnCount + 1));
+    char *bindArray = malloc(sizeof(TAOS_BIND) * (stbInfo->columnCount + 1));
     if (bindArray == NULL) {
         errorPrint("Failed to allocate %d bind params\n", batch);
         return -1;
@@ -5301,7 +5301,7 @@ static int32_t prepareStbStmt(SSuperTable *stbInfo,
         ptr += bind->buffer_length;
 
         for (int i = 0; i < stbInfo->columnCount; i ++) {
-            bind = (TAOS_BIND *)(bindArray + (sizeof(TAOS_BIND) * (i + 1)));
+            bind = (TAOS_BIND *)((char *)bindArray + (sizeof(TAOS_BIND) * (i + 1)));
             if (0 == strncasecmp(stbInfo->columns[i].dataType,
                         "BINARY", strlen("BINARY"))) {
                 if (stbInfo->columns[i].dataLen > TSDB_MAX_BINARY_LEN) {
@@ -5433,7 +5433,7 @@ static int32_t prepareStbStmt(SSuperTable *stbInfo,
                     return -1;
             }
         }
-        taos_stmt_bind_param(stmt, bindArray);
+        taos_stmt_bind_param(stmt, (TAOS_BIND *)bindArray);
         // if msg > 3MB, break
         taos_stmt_add_batch(stmt);
 
