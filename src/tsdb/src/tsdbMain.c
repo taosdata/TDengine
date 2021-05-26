@@ -548,6 +548,8 @@ static STsdbRepo *tsdbNewRepo(STsdbCfg *pCfg, STsdbAppH *pAppH) {
     return NULL;
   }
   pRepo->config_changed = false;
+  atomic_store_8(&pRepo->hasCachedLastRow, 0);
+  atomic_store_8(&pRepo->hasCachedLastColumn, 0);
 
   code = tsem_init(&(pRepo->readyToCommit), 0, 1);
   if (code != 0) {
@@ -636,7 +638,7 @@ static int tsdbRestoreLastColumns(STsdbRepo *pRepo, STable *pTable, SReadH* pRea
   int err = 0;
 
   numColumns = schemaNCols(pSchema);
-  if (numColumns <= pTable->maxColumnNum) {
+  if (numColumns <= pTable->restoreColumnNum) {
     return 0;
   }
   if (pTable->lastColSVersion != schemaVersion(pSchema)) {
@@ -675,7 +677,7 @@ static int tsdbRestoreLastColumns(STsdbRepo *pRepo, STable *pTable, SReadH* pRea
   SBlockIdx *pIdx = pReadh->pBlkIdx;
   blockIdx = (int32_t)(pIdx->numOfBlocks - 1);
 
-  while (numColumns > pTable->maxColumnNum && blockIdx >= 0) {
+  while (numColumns > pTable->restoreColumnNum && blockIdx >= 0) {
     bool loadStatisData = false;
     pBlock = pReadh->pBlkInfo->blocks + blockIdx;
     blockIdx -= 1;
@@ -693,7 +695,7 @@ static int tsdbRestoreLastColumns(STsdbRepo *pRepo, STable *pTable, SReadH* pRea
       loadStatisData = true;
     }
 
-    for (int16_t i = 0; i < numColumns && numColumns > pTable->maxColumnNum; ++i) {
+    for (int16_t i = 0; i < numColumns && numColumns > pTable->restoreColumnNum; ++i) {
       STColumn *pCol = schemaColAt(pSchema, i);
       // ignore loaded columns
       if (pTable->lastCols[i].bytes != 0) {
@@ -733,9 +735,9 @@ static int tsdbRestoreLastColumns(STsdbRepo *pRepo, STable *pTable, SReadH* pRea
         tdAppendColVal(row, tdGetColDataOfRow(pDataCol, rowId), pCol->type, pCol->bytes, pCol->offset);
         pLastCol->ts = dataRowKey(row);
 
-        pTable->maxColumnNum += 1;
+        pTable->restoreColumnNum += 1;
 
-        tsdbInfo("tsdbRestoreLastColumns restore vgId:%d,table:%s cache column %d, %" PRId64, REPO_ID(pRepo), pTable->name->data, pLastCol->colId, pLastCol->ts);
+        tsdbDebug("tsdbRestoreLastColumns restore vgId:%d,table:%s cache column %d, %" PRId64, REPO_ID(pRepo), pTable->name->data, pLastCol->colId, pLastCol->ts);
         break;
       }
     }
@@ -766,7 +768,7 @@ int tsdbRestoreInfo(STsdbRepo *pRepo) {
     for (int i = 1; i < pMeta->maxTables; i++) {
       STable *pTable = pMeta->tables[i];
       if (pTable == NULL) continue;
-      pTable->maxColumnNum = 0;  
+      pTable->restoreColumnNum = 0;  
     }
   }
 
@@ -841,5 +843,165 @@ int tsdbRestoreInfo(STsdbRepo *pRepo) {
   }
 
   tsdbDestroyReadH(&readh);
+  if (CACHE_LAST_ROW(pCfg)) {
+    atomic_store_8(&pRepo->hasCachedLastRow, 1);
+  }
+  if (CACHE_LAST_NULL_COLUMN(pCfg)) {
+    atomic_store_8(&pRepo->hasCachedLastColumn, 1);
+  }
+
+  return 0;
+}
+
+int tsdbCacheLastData(STsdbRepo *pRepo, STsdbCfg* oldCfg) {
+  bool cacheLastRow = false, cacheLastCol = false;
+  SFSIter    fsiter;
+  SReadH     readh;
+  SDFileSet *pSet;
+  STsdbMeta *pMeta = pRepo->tsdbMeta;
+  //STsdbCfg * pCfg = REPO_CFG(pRepo);
+  SBlock *   pBlock;
+  int tableNum = 0;
+  int maxTableIdx = 0;
+  int cacheLastRowTableNum = 0;
+  int cacheLastColTableNum = 0;
+
+  bool need_free_last_row = CACHE_LAST_ROW(oldCfg) && !CACHE_LAST_ROW(&(pRepo->config));
+  bool need_free_last_col = CACHE_LAST_NULL_COLUMN(oldCfg) && !CACHE_LAST_NULL_COLUMN(&(pRepo->config));
+
+  if (CACHE_LAST_ROW(&(pRepo->config)) || CACHE_LAST_NULL_COLUMN(&(pRepo->config))) {    
+    tsdbInfo("tsdbCacheLastData cache last data since cacheLast option changed");
+    cacheLastRow = !CACHE_LAST_ROW(oldCfg) && CACHE_LAST_ROW(&(pRepo->config));
+    cacheLastCol = !CACHE_LAST_NULL_COLUMN(oldCfg) && CACHE_LAST_NULL_COLUMN(&(pRepo->config));
+  }
+
+  // calc max table idx and table num
+  for (int i = 1; i < pMeta->maxTables; i++) {
+    STable *pTable = pMeta->tables[i];
+    if (pTable == NULL) continue;
+    tableNum += 1;
+    maxTableIdx = i;
+    if (cacheLastCol) {
+      pTable->restoreColumnNum = 0;
+    } 
+  }
+
+  // if close last option,need to free data
+  if (need_free_last_row || need_free_last_col) {
+    if (need_free_last_row) {
+      atomic_store_8(&pRepo->hasCachedLastRow, 0);
+    }
+    if (need_free_last_col) {
+      atomic_store_8(&pRepo->hasCachedLastColumn, 0);
+    }
+    tsdbInfo("free cache last data since cacheLast option changed");    
+    for (int i = 1; i < maxTableIdx; i++) {
+      STable *pTable = pMeta->tables[i];
+      if (pTable == NULL) continue;   
+      if (need_free_last_row) {
+        taosTZfree(pTable->lastRow);
+        pTable->lastRow = NULL;
+        pTable->lastKey = TSKEY_INITIAL_VAL;
+      }
+      if (need_free_last_col) {
+        tsdbFreeLastColumns(pTable);
+      }
+    }    
+  }
+
+  if (!cacheLastRow && !cacheLastCol) {
+    return 0;
+  }
+
+  cacheLastRowTableNum = cacheLastRow ? tableNum : 0;
+  cacheLastColTableNum = cacheLastCol ? tableNum : 0;
+
+  if (tsdbInitReadH(&readh, pRepo) < 0) {
+    return -1;
+  }
+
+  tsdbFSIterInit(&fsiter, REPO_FS(pRepo), TSDB_FS_ITER_BACKWARD);
+
+  while ((pSet = tsdbFSIterNext(&fsiter)) != NULL && (cacheLastRowTableNum > 0 || cacheLastColTableNum > 0)) {
+    if (tsdbSetAndOpenReadFSet(&readh, pSet) < 0) {
+      tsdbDestroyReadH(&readh);
+      return -1;
+    }
+
+    if (tsdbLoadBlockIdx(&readh) < 0) {
+      tsdbDestroyReadH(&readh);
+      return -1;
+    }
+
+    for (int i = 1; i <= maxTableIdx; i++) {
+      STable *pTable = pMeta->tables[i];
+      if (pTable == NULL) continue;
+
+      //tsdbInfo("tsdbRestoreInfo restore vgId:%d,table:%s", REPO_ID(pRepo), pTable->name->data);
+
+      if (tsdbSetReadTable(&readh, pTable) < 0) {
+        tsdbDestroyReadH(&readh);
+        return -1;
+      }
+
+      SBlockIdx *pIdx = readh.pBlkIdx;
+
+      if (pIdx && cacheLastRowTableNum > 0 && pTable->lastRow == NULL) {                
+        pTable->lastKey = pIdx->maxKey;
+
+        if (tsdbLoadBlockInfo(&readh, NULL) < 0) {
+          tsdbDestroyReadH(&readh);
+          return -1;
+        }
+
+        pBlock = readh.pBlkInfo->blocks + pIdx->numOfBlocks - 1;
+
+        if (tsdbLoadBlockData(&readh, pBlock, NULL) < 0) {
+          tsdbDestroyReadH(&readh);
+          return -1;
+        }
+
+        // Get the data in row
+        ASSERT(pTable->lastRow == NULL);
+        STSchema *pSchema = tsdbGetTableSchema(pTable);
+        pTable->lastRow = taosTMalloc(dataRowMaxBytesFromSchema(pSchema));
+        if (pTable->lastRow == NULL) {
+          terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
+          tsdbDestroyReadH(&readh);
+          return -1;
+        }
+
+        tdInitDataRow(pTable->lastRow, pSchema);
+        for (int icol = 0; icol < schemaNCols(pSchema); icol++) {
+          STColumn *pCol = schemaColAt(pSchema, icol);
+          SDataCol *pDataCol = readh.pDCols[0]->cols + icol;
+          tdAppendColVal(pTable->lastRow, tdGetColDataOfRow(pDataCol, pBlock->numOfRows - 1), pCol->type, pCol->bytes,
+                          pCol->offset);
+        }
+        cacheLastRowTableNum -= 1;
+      }
+      
+      // restore NULL columns
+      if (pIdx && cacheLastColTableNum > 0 && !pTable->hasRestoreLastColumn) {
+        if (tsdbRestoreLastColumns(pRepo, pTable, &readh) != 0) {
+          tsdbDestroyReadH(&readh);
+          return -1;
+        }
+        if (pTable->hasRestoreLastColumn) {
+          cacheLastColTableNum -= 1;
+        }
+      }
+    }
+  }
+
+  tsdbDestroyReadH(&readh);
+
+  if (cacheLastRow) {
+    atomic_store_8(&pRepo->hasCachedLastRow, 1);
+  }
+  if (cacheLastCol) {
+    atomic_store_8(&pRepo->hasCachedLastColumn, 1);
+  }
+  
   return 0;
 }
