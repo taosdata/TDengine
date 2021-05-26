@@ -1998,7 +1998,7 @@ int tscProcessMultiTableMetaRsp(SSqlObj *pSql) {
     tNameFromString(&sn, pMetaMsg->tableFname, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
 
     const char* tableName = tNameGetTableName(&sn);
-    int32_t keyLen = strlen(tableName);
+    size_t keyLen = strlen(tableName);
 
     STableMetaVgroupInfo p = {.pTableMeta = pTableMeta,};
     taosHashPut(pParentCmd->pTableMetaMap, tableName, keyLen, &p, sizeof(STableMetaVgroupInfo));
@@ -2455,7 +2455,7 @@ int32_t getMultiTableMetaFromMnode(SSqlObj *pSql, SArray* pNameList, SArray* pVg
     start += len;
   }
 
-  pNew->cmd.payloadLen = (start - pInfo->tableNames) + sizeof(SMultiTableInfoMsg);
+  pNew->cmd.payloadLen = (int32_t) ((start - pInfo->tableNames) + sizeof(SMultiTableInfoMsg));
   pNew->cmd.msgType = TSDB_MSG_TYPE_CM_TABLES_META;
 
   registerSqlObj(pNew);
