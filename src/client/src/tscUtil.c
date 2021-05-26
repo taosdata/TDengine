@@ -909,7 +909,7 @@ SOperatorInfo* createJoinOperator(SOperatorInfo** pUpstream, int32_t numOfUpstre
 
   SRspResultInfo* pResInfo = &pInfo->resultInfo;
   pResInfo->capacity  = 4096;
-  pResInfo->threshold = 4096 * 0.8;
+  pResInfo->threshold = (int32_t) (4096 * 0.8);
 
   pInfo->pRes = calloc(1, sizeof(SSDataBlock));
   pInfo->pRes->info.numOfCols = numOfOutput;
@@ -992,7 +992,7 @@ void handleDownstreamOperator(SSqlObj** pSqlObjList, int32_t numOfUpstream, SQue
       SOperatorInfo** p = calloc(px->numOfTables, POINTER_BYTES);
       p[0] = pSourceOperator;
 
-      int32_t num = taosArrayGetSize(px->colList);
+      int32_t num = (int32_t) taosArrayGetSize(px->colList);
       schema = calloc(num, sizeof(SSchema));
       memcpy(schema, pSchema, numOfCol1*sizeof(SSchema));
 
@@ -1011,8 +1011,7 @@ void handleDownstreamOperator(SSqlObj** pSqlObjList, int32_t numOfUpstream, SQue
       pSourceOperator = createJoinOperator(p, px->numOfTables, schema, num);
       tfree(p);
     } else {
-      int32_t num = taosArrayGetSize(px->colList);
-
+      size_t num = taosArrayGetSize(px->colList);
       schema = calloc(num, sizeof(SSchema));
       memcpy(schema, pSchema, numOfCol1*sizeof(SSchema));
     }
@@ -1080,7 +1079,7 @@ void tscFreeQueryInfo(SSqlCmd* pCmd, bool removeMeta) {
   while(pQueryInfo != NULL) {
     SQueryInfo* p = pQueryInfo->sibling;
 
-    int32_t numOfUpstream = taosArrayGetSize(pQueryInfo->pUpstream);
+    size_t numOfUpstream = taosArrayGetSize(pQueryInfo->pUpstream);
     for(int32_t i = 0; i < numOfUpstream; ++i) {
       SQueryInfo* pUpQueryInfo = taosArrayGetP(pQueryInfo->pUpstream, i);
       freeQueryInfoImpl(pUpQueryInfo);
@@ -3353,7 +3352,7 @@ void executeQuery(SSqlObj* pSql, SQueryInfo* pQueryInfo) {
   }
 
   if (taosArrayGetSize(pQueryInfo->pUpstream) > 0) {  // nest query. do execute it firstly
-    pSql->subState.numOfSub = taosArrayGetSize(pQueryInfo->pUpstream);
+    pSql->subState.numOfSub = (int32_t) taosArrayGetSize(pQueryInfo->pUpstream);
 
     pSql->pSubs = calloc(pSql->subState.numOfSub, POINTER_BYTES);
     pSql->subState.states = calloc(pSql->subState.numOfSub, sizeof(int8_t));
