@@ -167,7 +167,7 @@ void taos_init_imp(void) {
   }
 
   tscTmr = taosTmrInit(tsMaxConnections * 2, 200, 60000, "TSC");
-  if(0 == tscEmbedded){
+  if(1 == tscEmbedded){
     taosTmrReset(tscCheckDiskUsage, 20 * 1000, NULL, tscTmr, &tscCheckDiskUsageTmr);      
   }
 
