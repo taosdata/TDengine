@@ -180,9 +180,10 @@
 		//select * c  from  where c;
 		//select c d  from  c  where a
 		//select c d  from  c.d  where a
-		else if (sql.substring(0, 6).toLowerCase() == "select") {
+		//select * from (select demo(i) from t1 interval(5m)) a, (select demo(i) from t2 interval(5m)) b where a.ts = b.ts;
+		else if (sql.substring(0, 6).toLowerCase() == "select" ||( sql[0]=="(" && dbRemoveFirstBlank(sql.substring(1, 7)).toLowerCase() == "select")) {
 			var from = sql.toLowerCase().indexOf("from");
-			var where = sql.toLowerCase().indexOf("where");
+			var where = sql.toLowerCase().lastIndexOf("where");
 			if (from != -1) {
 				if (where != -1){
 					var tablesStr = dbRemoveFirstBlank(sql.substring(from+4, where-1))
@@ -194,10 +195,17 @@
 
 				var tables = tablesStr.split(",")
 				for (var i = 0; i < tables.length; ++i) {
-					var dot = tables[i].indexOf(".");
-					if(dot == -1){
-						tables[i] = dbPrefix + dbRemoveFirstBlank(tables[i])
+					var select = tables[i].indexOf("select");
+					if(select == -1){
+						var dot = tables[i].indexOf(".");
+						if(dot == -1){
+							tables[i] = dbPrefix + dbRemoveFirstBlank(tables[i])
+						}
+					} else {
+						//Nested statement
+						tables[i] = dbUpdateSqlWithUseDb(tables[i])
 					}
+					
 				}
 				return sql.substring(0, from+4) + " " + tables.join(",") + " " + remain;
 			
@@ -222,7 +230,6 @@
 						var tags = sql.toLowerCase().indexOf("tags");
 						if(tags != -1){
 							var stable = dbRemoveFirstBlank(sql.substring(using+5, tags-1));
-							console.log(sql.substring(0, into+5) + dbPrefix + table + " using " + dbPrefix + stable + sql.substring(tags-1))
 							return sql.substring(0, into+5) + dbPrefix + table + " using " + dbPrefix + stable + sql.substring(tags-1);
 						}
 					}					
@@ -284,6 +291,10 @@
 		return sql;
 	}
 	
+	function statementaddUseDb(sql) {
+
+	}
+
 	function dbSetPlaceHolder(result)
 	{
 		var db = DbSession.GetDb();
