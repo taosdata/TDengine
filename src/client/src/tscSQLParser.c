@@ -361,6 +361,9 @@ int32_t tscToSQLCmd(SSqlObj* pSql, struct SSqlInfo* pInfo) {
       const char* msg2 = "name too long";
 
       SCreateDbInfo* pCreateDB = &(pInfo->pMiscInfo->dbOpt);
+      if (pCreateDB->dbname.n >= TSDB_DB_NAME_LEN) {
+        return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg2);
+      }
 
       char buf[TSDB_DB_NAME_LEN] = {0};
       SStrToken token = taosTokenDup(&pCreateDB->dbname, buf, tListLen(buf));
