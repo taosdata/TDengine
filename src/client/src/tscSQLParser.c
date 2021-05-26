@@ -7101,9 +7101,9 @@ int32_t validateHavingClause(SQueryInfo* pQueryInfo, tSqlExpr* pExpr, SSqlCmd* p
 }
 
 static int32_t getTableNameFromSqlNode(SSqlNode* pSqlNode, SArray* tableNameList, char* msgBuf, SSqlObj* pSql) {
-  const char* msg1 = "";
+  const char* msg1 = "invalid table name";
 
-  int32_t numOfTables = taosArrayGetSize(pSqlNode->from->list);
+  int32_t numOfTables = (int32_t) taosArrayGetSize(pSqlNode->from->list);
   assert(pSqlNode->from->type == SQL_NODE_FROM_TABLELIST);
 
   for(int32_t j = 0; j < numOfTables; ++j) {
@@ -7175,7 +7175,7 @@ int32_t loadAllTableMeta(SSqlObj* pSql, struct SSqlInfo* pInfo) {
   pCmd->pTableMetaMap = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);
 
   tableNameList = taosArrayInit(4, sizeof(SName));
-  int32_t size = taosArrayGetSize(pInfo->list);
+  size_t size = taosArrayGetSize(pInfo->list);
   for (int32_t i = 0; i < size; ++i) {
     SSqlNode* pSqlNode = taosArrayGetP(pInfo->list, i);
     if (pSqlNode->from == NULL) {
@@ -7199,8 +7199,6 @@ int32_t loadAllTableMeta(SSqlObj* pSql, struct SSqlInfo* pInfo) {
   uint32_t maxSize = tscGetTableMetaMaxSize();
   char     name[TSDB_TABLE_FNAME_LEN] = {0};
 
-  int32_t numOfTables = taosArrayGetSize(tableNameList);
-
   char buf[80 * 1024] = {0};
   assert(maxSize < 80 * 1024);
   pTableMeta = calloc(1, maxSize);
@@ -7208,6 +7206,7 @@ int32_t loadAllTableMeta(SSqlObj* pSql, struct SSqlInfo* pInfo) {
   plist = taosArrayInit(4, POINTER_BYTES);
   pVgroupList = taosArrayInit(4, POINTER_BYTES);
 
+  size_t numOfTables = taosArrayGetSize(tableNameList);
   for (int32_t i = 0; i < numOfTables; ++i) {
     SName* pname = taosArrayGet(tableNameList, i);
     tNameExtractFullName(pname, name);
@@ -7408,7 +7407,7 @@ static int32_t doValidateSubquery(SSqlNode* pSqlNode, int32_t index, SSqlObj* pS
 
   // all columns are added into the table column list
   STableMeta* pMeta = pTableMetaInfo1->pTableMeta;
-  int32_t startOffset = taosArrayGetSize(pQueryInfo->colList);
+  int32_t startOffset = (int32_t) taosArrayGetSize(pQueryInfo->colList);
 
   for(int32_t i = 0; i < pMeta->tableInfo.numOfColumns; ++i) {
     tscColumnListInsert(pQueryInfo->colList, i + startOffset, pMeta->id.uid, &pMeta->schema[i]);
