@@ -1,26 +1,11 @@
 local driver = require "luaconnector51"
 local cjson = require "cjson"
+local Pool = require "tdpool"
+local config = require "config"
 ngx.say("start time:"..os.time())
 
-
-local config = {
-   host = "127.0.0.1",
-   port = 6030,
-   database = "",
-   user = "root",
-   password = "taosdata",
-   max_packet_size = 1024 * 1024 
-}
-
-local conn
-local res = driver.connect(config)
-if res.code ~=0 then
-   ngx.say("connect--- failed: "..res.error)
-   return
-else
-   conn = res.conn
-   ngx.say("connect--- pass.")
-end
+local pool = Pool.new(Pool,config)
+local conn = pool:get_connection()
 
 local res = driver.query(conn,"drop database if exists nginx")
 if res.code ~=0 then
@@ -99,5 +84,7 @@ while not flag do
    ngx.sleep(0.001) -- time unit is second
 end
 
-driver.close(conn)
+ngx.say("pool water_mark:"..pool:get_water_mark())
+
+pool:release_connection(conn)
 ngx.say("end time:"..os.time())
