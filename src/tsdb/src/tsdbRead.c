@@ -138,7 +138,7 @@ typedef struct STableGroupSupporter {
 
 static STimeWindow updateLastrowForEachGroup(STableGroupInfo *groupList);
 static int32_t checkForCachedLastRow(STsdbQueryHandle* pQueryHandle, STableGroupInfo *groupList);
-static int32_t checkForCachedLast(STsdbQueryHandle* pQueryHandle, STableGroupInfo *groupList);
+static int32_t checkForCachedLast(STsdbQueryHandle* pQueryHandle);
 static int32_t tsdbGetCachedLastRow(STable* pTable, SDataRow* pRes, TSKEY* lastKey);
 
 static void    changeQueryHandleForInterpQuery(TsdbQueryHandleT pHandle);
@@ -541,7 +541,7 @@ TsdbQueryHandleT tsdbQueryLastRow(STsdbRepo *tsdb, STsdbQueryCond *pCond, STable
 
 TsdbQueryHandleT tsdbQueryCacheLast(STsdbRepo *tsdb, STsdbQueryCond *pCond, STableGroupInfo *groupList, uint64_t qId, SMemRef* pMemRef) {
   STsdbQueryHandle *pQueryHandle = (STsdbQueryHandle*) tsdbQueryTables(tsdb, pCond, groupList, qId, pMemRef);
-  int32_t code = checkForCachedLast(pQueryHandle, groupList);
+  int32_t code = checkForCachedLast(pQueryHandle);
   if (code != TSDB_CODE_SUCCESS) { // set the numOfTables to be 0
     terrno = code;
     return NULL;
@@ -2502,9 +2502,9 @@ static bool loadCachedLast(STsdbQueryHandle* pQueryHandle) {
     STable* pTable = pCheckInfo->pTableObj;  
     char* pData = NULL;
 
-    int32_t numOfCols = pTable->lastColNum;
+    int32_t numOfCols = pTable->maxColNum;
     
-    if (pTable->lastCols == NULL || pTable->lastColNum <= 0) {
+    if (pTable->lastCols == NULL || pTable->maxColNum <= 0) {
       tsdbWarn("no last cached for table, uid:%" PRIu64 ",tid:%d", pTable->tableId.uid, pTable->tableId.tid);
       continue;
     }
@@ -2912,19 +2912,12 @@ int32_t checkForCachedLastRow(STsdbQueryHandle* pQueryHandle, STableGroupInfo *g
   return code;
 }
 
-int32_t checkForCachedLast(STsdbQueryHandle* pQueryHandle, STableGroupInfo *groupList) {
-  assert(pQueryHandle != NULL && groupList != NULL);
-
-  SDataRow pRow = NULL;
-
-  SArray* group = taosArrayGetP(groupList->pGroupList, 0);
-  assert(group != NULL);
-
-  STableKeyInfo* pInfo = (STableKeyInfo*)taosArrayGet(group, 0);
+int32_t checkForCachedLast(STsdbQueryHandle* pQueryHandle) {
+  assert(pQueryHandle != NULL);
 
   int32_t code = 0;
   
-  if (((STable*)pInfo->pTable)->lastCols && ((STable*)pInfo->pTable)->lastColNum > 0){
+  if (pQueryHandle->pTsdb && atomic_load_8(&pQueryHandle->pTsdb->hasCachedLastColumn)){
     pQueryHandle->cachelastrow = 2;
   }
 
@@ -2935,7 +2928,6 @@ int32_t checkForCachedLast(STsdbQueryHandle* pQueryHandle, STableGroupInfo *grou
     pQueryHandle->activeIndex = -1;  // start from -1
   }
 
-  tfree(pRow);
   return code;
 }
 
