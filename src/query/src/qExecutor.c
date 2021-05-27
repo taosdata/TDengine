@@ -1333,7 +1333,7 @@ static void doSessionWindowAggImpl(SOperatorInfo* pOperator, SSWindowOperatorInf
       pInfo->start = j;
     } else if (tsList[j] - pInfo->prevTs <= gap) {
       pInfo->curWindow.ekey = tsList[j];
-      pInfo->prevTs = tsList[j];
+      //pInfo->prevTs = tsList[j];
       pInfo->numOfRows += 1;
       if (j == 0 && pInfo->start != 0) {
         pInfo->numOfRows = 1;
@@ -1342,6 +1342,7 @@ static void doSessionWindowAggImpl(SOperatorInfo* pOperator, SSWindowOperatorInf
     } else {  // start a new session window
       SResultRow* pResult = NULL;
 
+      pInfo->curWindow.ekey = pInfo->curWindow.skey;
       int32_t ret = setWindowOutputBufByKey(pRuntimeEnv, &pBInfo->resultRowInfo, &pInfo->curWindow, masterScan,
                                             &pResult, item->groupIndex, pBInfo->pCtx, pOperator->numOfOutput,
                                             pBInfo->rowCellInfoOffset);
@@ -1362,6 +1363,7 @@ static void doSessionWindowAggImpl(SOperatorInfo* pOperator, SSWindowOperatorInf
 
   SResultRow* pResult = NULL;
 
+  pInfo->curWindow.ekey = pInfo->curWindow.skey;
   int32_t ret = setWindowOutputBufByKey(pRuntimeEnv, &pBInfo->resultRowInfo, &pInfo->curWindow, masterScan,
                                         &pResult, item->groupIndex, pBInfo->pCtx, pOperator->numOfOutput,
                                         pBInfo->rowCellInfoOffset);
@@ -2063,6 +2065,8 @@ static bool onlyFirstQuery(SQueryAttr *pQueryAttr) { return onlyOneQueryType(pQu
 
 static bool onlyLastQuery(SQueryAttr *pQueryAttr) { return onlyOneQueryType(pQueryAttr, TSDB_FUNC_LAST, TSDB_FUNC_LAST_DST); }
 
+static bool notContainSessionOrStateWindow(SQueryAttr *pQueryAttr) { return !(pQueryAttr->sw.gap > 0 || pQueryAttr->stateWindow); }  
+
 static int32_t updateBlockLoadStatus(SQueryAttr *pQuery, int32_t status) {
   bool hasFirstLastFunc = false;
   bool hasOtherFunc = false;
@@ -2166,7 +2170,7 @@ static void changeExecuteScanOrder(SQInfo *pQInfo, SQueryTableMsg* pQueryMsg, bo
       }
 
       pQueryAttr->order.order = TSDB_ORDER_ASC;
-    } else if (onlyLastQuery(pQueryAttr)) {
+    } else if (onlyLastQuery(pQueryAttr) && notContainSessionOrStateWindow(pQueryAttr)) {
       if (QUERY_IS_ASC_QUERY(pQueryAttr)) {
         qDebug(msg, pQInfo, "only-last", pQueryAttr->order.order, TSDB_ORDER_DESC, pQueryAttr->window.skey,
                pQueryAttr->window.ekey, pQueryAttr->window.ekey, pQueryAttr->window.skey);
@@ -5194,6 +5198,7 @@ static SSDataBlock* doSessionWindowAgg(void* param, bool* newgroup) {
   SSWindowOperatorInfo* pWindowInfo = pOperator->info;
   SOptrBasicInfo* pBInfo = &pWindowInfo->binfo;
 
+
   SQueryRuntimeEnv* pRuntimeEnv = pOperator->pRuntimeEnv;
   if (pOperator->status == OP_RES_TO_RETURN) {
     toSSDataBlock(&pRuntimeEnv->groupResInfo, pRuntimeEnv, pBInfo->pRes);
@@ -5206,6 +5211,7 @@ static SSDataBlock* doSessionWindowAgg(void* param, bool* newgroup) {
   }
 
   SQueryAttr* pQueryAttr = pRuntimeEnv->pQueryAttr;
+  //pQueryAttr->order.order = TSDB_ORDER_ASC;
   int32_t order = pQueryAttr->order.order;
   STimeWindow win = pQueryAttr->window;
 

@@ -832,8 +832,8 @@ int32_t validateIntervalNode(SSqlObj* pSql, SQueryInfo* pQueryInfo, SSqlNode* pS
 static int32_t validateStateWindowNode(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SSqlNode* pSqlNode, bool isStable) {
 
   const char* msg1 = "invalid column name";
-  const char* msg3 = "not support state window on super table/tag column";
-  const char* msg4 = "not support state_window with group by ";
+  const char* msg3 = "not support state_window with group by ";
+  const char* msg4 = "function not support for super table query";
 
   SStrToken *col = &(pSqlNode->windowstateVal.col) ;
   if (col->z == NULL || col->n <= 0) {
@@ -844,13 +844,13 @@ static int32_t validateStateWindowNode(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SS
     pQueryInfo->colList = taosArrayInit(4, POINTER_BYTES);
   }
   if (pQueryInfo->groupbyExpr.numOfGroupCols > 0) {
-    return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg4);
+    return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg3);
   } 
   pQueryInfo->groupbyExpr.numOfGroupCols = 1;
 
   //TODO(dengyihao): check tag column
   if (isStable) {
-    return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg3);
+    return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg4);
   }
 
   SColumnIndex index = COLUMN_INDEX_INITIALIZER;
@@ -2938,6 +2938,9 @@ bool hasUnsupportFunctionsForSTableQuery(SSqlCmd* pCmd, SQueryInfo* pQueryInfo) 
         return true;
       }
     }
+  } else if (tscIsSessionWindowQuery(pQueryInfo)) {
+    invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg3);
+    return true; 
   }
 
   return false;
@@ -7373,6 +7376,10 @@ int32_t validateSqlNode(SSqlObj* pSql, SSqlNode* pSqlNode, int32_t index) {
      * transfer sql functions that need secondary merge into another format
      * in dealing with super table queries such as: count/first/last
      */
+    if (validateSessionNode(pCmd, pQueryInfo, pSqlNode) != TSDB_CODE_SUCCESS) {
+      return TSDB_CODE_TSC_INVALID_SQL;
+    }
+
     if (isSTable) {
       tscTansformFuncForSTableQuery(pQueryInfo);
 
@@ -7381,9 +7388,6 @@ int32_t validateSqlNode(SSqlObj* pSql, SSqlNode* pSqlNode, int32_t index) {
       }
     }
 
-    if (validateSessionNode(pCmd, pQueryInfo, pSqlNode) != TSDB_CODE_SUCCESS) {
-      return TSDB_CODE_TSC_INVALID_SQL;
-    }
 
     // no result due to invalid query time range
     if (pQueryInfo->window.skey > pQueryInfo->window.ekey) {

@@ -356,6 +356,9 @@ bool tscIsTWAQuery(SQueryInfo* pQueryInfo) {
 
   return false;
 }
+bool tscIsSessionWindowQuery(SQueryInfo* pQueryInfo) {
+  return pQueryInfo->sessionWindow.gap > 0;
+}
 
 bool tscNeedReverseScan(SQueryInfo* pQueryInfo) {
   size_t numOfExprs = tscSqlExprNumOfExprs(pQueryInfo);
