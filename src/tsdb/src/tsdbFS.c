@@ -241,7 +241,7 @@ void *tsdbFreeFS(STsdbFS *pfs) {
 static int tsdbProcessExpiredFS(STsdbRepo *pRepo) {
   tsdbStartFSTxn(pRepo, 0, 0);
   if (tsdbCreateMeta(pRepo) < 0) {
-    tsdbError("vgId:%d failed to apply rtn since %s", REPO_ID(pRepo), tstrerror(terrno));
+    tsdbError("vgId:%d failed to create meta since %s", REPO_ID(pRepo), tstrerror(terrno));
     return -1;
   }
 
@@ -309,7 +309,7 @@ int tsdbOpenFS(STsdbRepo *pRepo) {
       tsdbError("vgId:%d failed to open FS since %s", REPO_ID(pRepo), tstrerror(terrno));
       return -1;
     }
-    
+
     tsdbScanAndTryFixDFilesHeader(pRepo, &nExpired);
     if (nExpired > 0) {
       tsdbProcessExpiredFS(pRepo);
