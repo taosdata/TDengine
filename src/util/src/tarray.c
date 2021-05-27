@@ -56,7 +56,7 @@ static int32_t taosArrayResize(SArray* pArray) {
   return 0;
 }
 
-void* taosArrayPushBatch(SArray* pArray, const void* pData, int nEles) {
+void* taosArrayAddBatch(SArray* pArray, const void* pData, int nEles) {
   if (pArray == NULL || pData == NULL) {
     return NULL;
   }
@@ -80,6 +80,10 @@ void* taosArrayPushBatch(SArray* pArray, const void* pData, int nEles) {
 
   pArray->size += nEles;
   return dst;
+}
+
+void* taosArrayAddAll(SArray* pArray, const SArray* pInput) {
+  return taosArrayAddBatch(pArray, pInput->pData, (int32_t) taosArrayGetSize(pInput));
 }
 
 void* taosArrayPop(SArray* pArray) {
