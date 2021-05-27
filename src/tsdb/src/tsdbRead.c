@@ -2488,7 +2488,7 @@ static bool loadCachedLastRow(STsdbQueryHandle* pQueryHandle) {
 static bool loadCachedLast(STsdbQueryHandle* pQueryHandle) {
   // the last row is cached in buffer, return it directly.
   // here note that the pQueryHandle->window must be the TS_INITIALIZER
-  int32_t tgNumOfCols = QH_GET_NUM_OF_COLS(pQueryHandle);
+  int32_t tgNumOfCols = (int32_t)QH_GET_NUM_OF_COLS(pQueryHandle);
   size_t  numOfTables = taosArrayGetSize(pQueryHandle->pTableCheckInfo);
   int32_t numOfRows = 0;
   assert(numOfTables > 0 && tgNumOfCols > 0);
