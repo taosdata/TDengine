@@ -7546,14 +7546,14 @@ int32_t validateSqlNode(SSqlObj* pSql, SSqlNode* pSqlNode, SQueryInfo* pQueryInf
     }
 
     if (tscQueryTags(pQueryInfo)) {
-      SExprInfo* pExpr1 = tscSqlExprGet(pQueryInfo, 0);
+      SExprInfo* pExpr1 = tscExprGet(pQueryInfo, 0);
 
       if (pExpr1->base.functionId != TSDB_FUNC_TID_TAG) {
         int32_t numOfCols = (int32_t)taosArrayGetSize(pQueryInfo->colList);
         for (int32_t i = 0; i < numOfCols; ++i) {
           SColumn* pCols = taosArrayGetP(pQueryInfo->colList, i);
           if (pCols->info.flist.numOfFilters > 0) {
-            return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg9);
+            return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg9);
           }
         }
       }

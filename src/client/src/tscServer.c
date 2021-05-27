@@ -1911,25 +1911,25 @@ int tscProcessTableMetaRsp(SSqlObj *pSql) {
 }
 
 static SVgroupsInfo* createVgroupInfoFromMsg(char* pMsg, int32_t* size, uint64_t id) {
-  SVgroupsMsg *pVgroupMsg = (SVgroupsMsg *) pMsg;
+  SVgroupsMsg *pVgroupMsg = (SVgroupsMsg *)pMsg;
   pVgroupMsg->numOfVgroups = htonl(pVgroupMsg->numOfVgroups);
 
-  *size = (int32_t) (sizeof(SVgroupMsg) * pVgroupMsg->numOfVgroups + sizeof(SVgroupsMsg));
+  *size = (int32_t)(sizeof(SVgroupMsg) * pVgroupMsg->numOfVgroups + sizeof(SVgroupsMsg));
 
-  size_t vgroupsz = sizeof(SVgroupInfo) * pVgroupMsg->numOfVgroups + sizeof(SVgroupsInfo);
-  SVgroupsInfo* pVgroupInfo = calloc(1, vgroupsz);
+  size_t        vgroupsz = sizeof(SVgroupInfo) * pVgroupMsg->numOfVgroups + sizeof(SVgroupsInfo);
+  SVgroupsInfo *pVgroupInfo = calloc(1, vgroupsz);
   assert(pVgroupInfo != NULL);
 
-    pInfo->vgroupList->numOfVgroups = pVgroupMsg->numOfVgroups;
-    if (pInfo->vgroupList->numOfVgroups <= 0) {
-      tscDebug("0x%" PRIx64 " empty vgroup info, no corresponding tables for stable", pSql->self);
-    } else {
-      for (int32_t j = 0; j < pInfo->vgroupList->numOfVgroups; ++j) {
-        // just init, no need to lock
-        SVgroupInfo *pVgroup = &pInfo->vgroupList->vgroups[j];
+  pVgroupInfo->numOfVgroups = pVgroupMsg->numOfVgroups;
+  if (pVgroupInfo->numOfVgroups <= 0) {
+    tscDebug("0x%" PRIx64 " empty vgroup info, no corresponding tables for stable", id);
+  } else {
+    for (int32_t j = 0; j < pVgroupInfo->numOfVgroups; ++j) {
+      // just init, no need to lock
+      SVgroupInfo *pVgroup = &pVgroupInfo->vgroups[j];
 
       SVgroupMsg *vmsg = &pVgroupMsg->vgroups[j];
-      vmsg->vgId     = htonl(vmsg->vgId);
+      vmsg->vgId = htonl(vmsg->vgId);
       vmsg->numOfEps = vmsg->numOfEps;
       for (int32_t k = 0; k < vmsg->numOfEps; ++k) {
         vmsg->epAddr[k].port = htons(vmsg->epAddr[k].port);
@@ -1951,7 +1951,7 @@ static SVgroupsInfo* createVgroupInfoFromMsg(char* pMsg, int32_t* size, uint64_t
       if (((existVgroupInfo.inUse >= 0) && !vgroupInfoIdentical(&existVgroupInfo, vmsg)) ||
           (existVgroupInfo.inUse < 0)) {  // vgroup info exists, compare with it
         taosHashPut(tscVgroupMap, &newVi.vgId, sizeof(newVi.vgId), &newVi, sizeof(newVi));
-        tscDebug("0x%"PRIx64" add new VgroupInfo, vgId:%d, total cached:%d", id, newVi.vgId, (int32_t) taosHashGetSize(tscVgroupMap));
+        tscDebug("0x%" PRIx64 " add new VgroupInfo, vgId:%d, total cached:%d", id, newVi.vgId, (int32_t)taosHashGetSize(tscVgroupMap));
       }
     }
   }
