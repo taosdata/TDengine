@@ -6,7 +6,7 @@
 	<meta name="viewport" content="width=device-width, initial-scale=1">
 	<meta name="description" content="">
 	<meta name="author" content="">
-	<title>DBs</title>
+	<title>Udfs</title>
 	<link rel="icon" href="images/db.png">
 	<link type="text/css" href="bootstrap-3.3.7-dist/css/bootstrap.min.css" rel="stylesheet">
 	<link type="text/css" href="css/info.css" rel="stylesheet">
@@ -32,10 +32,10 @@
 			<!--/.nav-collapse -->
 			<div id="navbar" class="navbar-collapse collapse">
 				<ul class="nav navbar-nav">					
-					<li class="active"><a href="dbs.html">DBs</a></li>
+					<li><a href="dbs.html">DBs</a></li>
 					<li><a href="stables.html">Stables</a></li>
 					<li><a href="tables.html">Tables</a></li>
-					<li><a href="udfs.html">Udfs</a></li>
+					<li class="active"><a href="udfs.html">Udfs</a></li>
 					<li><a href="users.html">Users</a></li>
 					<li id="dnodeLiId" style="display:none"><a href="dnodes.html">DNodes</a></li>
 					<li id="monitorLiId" style="display:none"><a href="monitor.html">Monitor</a></li>
@@ -56,26 +56,25 @@
 	<div class="container">
 		<div class="panel panel-default dbpanel">
 			<div class="panel-heading dbhead">
-				<label class="control-label" style="font-weight:bold;padding-top:4px;height:1px">DB List</label>
-				<a id="download" style="display:none" download="db.csv" href="#">download</a>  
-				<button type="button" class="btn btn-default btn-sm" style="float:right;" onclick="dbAdd()">
+				<label id="dbDbName" class="control-label" style="font-weight:bold;padding-top:4px;height:1px">Udf List</label>
+				<a id="download" style="display:none" download="table.csv" href="#">download</a>  
+				<button type="button" class="btn btn-default btn-sm" style="float:right;  margin-left: 8px;" onclick="udfAdd(1)">
 					<span class="glyphicon glyphicon-plus-sign"></span> 
-					Add
+					Add Script
+				</button>
+				<button type="button" class="btn btn-default btn-sm" style="float:right;" onclick="udfAdd(0)">
+					<span class="glyphicon glyphicon-plus-sign"></span> 
+					Add File
 				</button>
 			</div>
 			<div class="table-responsive">
-			<table class="table table-striped table-bordered table-hover dbtable " id="dbTable" style="font-size:12px">
+			<table class="table table-striped table-bordered table-hover dbtable" id="dbTable" style="font-size:12px">
 				<thead id="dbTableHead">
 					<tr>
 						<th style="font-weight: normal">No</th>
-						<th style="font-weight: normal">DB Name</th>
+						<th style="font-weight: normal">Table Name</th>
 						<th style="font-weight: normal">created time</th>
-						<th style="font-weight: normal">vgroups</th>
-						<th style="font-weight: normal">tables</th>
-						<th style="font-weight: normal">replica</th>
-						<th style="font-weight: normal">days</th>
-						<th style="font-weight: normal">keep</th>
-						<th style="font-weight: normal">sessions</th>
+						<th style="font-weight: normal">columns</th>
 						<th style="font-weight: normal">operation</th>
 					</tr>
 				</thead>
@@ -89,7 +88,7 @@
 					Export
 				</button>
 				<div class="btn-group btn-group-sm"  style="float:right;">
-					<button class="btn btn-default" type="button" onclick="DbCache.First()">
+					<button class="btn btn-default" type="button" onclick="DbCacfhe.First()">
 						<span><<</span> 
 					</button>
 					<button class="btn btn-default" type="button" onclick="DbCache.Prev()">
@@ -128,6 +127,7 @@
 		<div class="modal-dialog" style="width: 350px;">
 			<div class="modal-content">
 				<div class="modal-header">
+					<!-- <button type="button" class="close" data-dismiss="modal" aria-hidden="true">&times;</button> -->
 					<h4 class="modal-title" id="confirmType">Confirm</h4>
 				</div>
 				<div class="modal-body">
@@ -147,18 +147,8 @@
 		DbSession.ValidSession();
 		DbCache.Clear();
 		DbCache.Init(dbFillTableHead, dbFillTableBody);
+		dbQuery()
 		
-		if (DbSession.GetCacheFlag()) {
-			if (DbSession.GetDbList()) {
-				DbCache.Refresh();
-			}
-			else {
-				dbQuery("sql");
-			}
-		}
-		else {		
-			dbQuery("sql");
-		}
 	}
 		
 	//file the head of dbTableHead
@@ -174,7 +164,6 @@
 			return;
 		}
 		
-		if (colNum > 10) colNum = 8;
 		row = rowBegin + colBegin + "No" + colEnd;
 		for (colIndex = 0; colIndex < colNum; colIndex++) {
 			row = row + colBegin + data.head[colIndex] + colEnd;
@@ -194,11 +183,14 @@
 		var colNum = d.head.length;		
 		var colBegin = "<td>";
 		var colEnd = "</td>";
-		if (colNum > 10) colNum = 8;
 		
-		var operOpenBegin = '<a class="dboper" onclick="dbOpen(\'';
-		var operOpenEnd = '\')">Open</a>&nbsp&nbsp&nbsp';
-		var operBegin = '<a class="dboper" onclick="dbDelete(\'';
+		var operInfoBegin = '<a class="dboper" onclick="goShell(\'';
+		var operInfoEnd = '\')">Execute</a>&nbsp&nbsp';
+
+		var operEditBegin = '<a class="dboper" onclick="udfEdit(\'';
+		var operEditEnd = '\')">Edit</a>&nbsp&nbsp';
+		
+		var operBegin = '<a class="dboper" onclick="udfDelete(\'';
 		var operEnd = '\')">Delete</a>';
 		
 		var rowIndex = 0;
@@ -210,9 +202,10 @@
 				row = row + colBegin + data[colIndex] + colEnd;
 			}
 			
-			var operOpen = operOpenBegin + data[0] + operOpenEnd;
+			var operInfo = operInfoBegin + data[0] + operInfoEnd;
+			var operEdit = operEditBegin + data[0] + operEditEnd;
 			var oper = operBegin + data[0] + operEnd;
-			row = row + colBegin + operOpen + oper + colEnd + rowEnd;	
+			row = row + colBegin + operInfo + operEdit + oper + colEnd + rowEnd;	
 			bodyContent += row;
 		}
 		for (; rowIndex < DbCache.RowsPerPage(); ++rowIndex) {
@@ -226,21 +219,26 @@
 		}
 		
 		$('#dbTableBody').html(bodyContent);
-	}
-	
-	function dbOpen(id)
+	}		
+
+	function dbInfo(id)
 	{
-		DbSession.SetDb(id);
-		DbSession.SetDbList();
-		DbUtil.GotoPage("tables.html");
+		dbTableName = id;
+		DbSession.SetTableList();
+		DbUtil.GotoPage("tableInfo.html?table=" + dbTableName);
 	}
 	
 	//while push delete button
-	var dbDbName = "";
-	function dbDelete(id)
+	var udfName = "";
+	function udfDelete(id)
 	{		
-		dbDbName = id;
-		DbUtil.ConfirmDialog(DB_CODE_CONFIRM, "drop database: " + dbDbName);
+		udfName = id;
+		DbUtil.ConfirmDialog(DB_CODE_CONFIRM, "drop function " + udfName);
+	}	
+
+	function udfEdit(id)
+	{
+		console.log(id)
 	}
 	
 	//while confirm delete
@@ -252,7 +250,7 @@
 			headers: {
 				'Authorization' : "Taosd " + DbSession.GetToken()
 			},
-			data: "drop database " + dbDbName,
+			data: "drop function " + udfName,
 			dataType: "json",
 			success: dbExecuteDeleteCb,
 			error: function(msg) { 
@@ -281,7 +279,7 @@
 				DbUtil.Error(DB_CODE_EXEC_ERROR);
 			}
 			else {
-				DbUtil.GotoPage("dbs.html");
+				DbUtil.GotoPage("udfs.html");
 			}
 		}	
 		else{
@@ -289,19 +287,24 @@
 		}
 	}
 			
-	function dbAdd()
+	function udfAdd(type)
 	{
-		DbUtil.GotoPage("db.html");
+		DbUtil.GotoPage("udf.html?type=" + type);
+	}
+
+	function goShell()
+	{
+		DbUtil.GotoPage("shell.html");
 	}
 	
-	function dbQuery(path) {
+	function dbQuery() {
 		$.ajax({
 			type: "post",
-			url: "admin/" + path,
+			url: "admin/sql",
 			headers: {
 				'Authorization' : "Taosd " + DbSession.GetToken()
 			},
-			data: "show databases",
+			data: "show functions",
 			dataType: "json",
 			success: dbQueryCb,
 			error: function(msg) { 
