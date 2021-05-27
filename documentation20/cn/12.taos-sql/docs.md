@@ -76,7 +76,7 @@ TDengine 缺省的时间戳是毫秒精度，但通过修改配置参数 enableM
  
     4) 一条SQL 语句的最大长度为65480个字符；
  
-    5) 数据库还有更多与存储相关的配置参数，请参见 [服务端配置](https://www.taosdata.com/cn/documentation/taos-sql#management) 章节。
+    5) 数据库还有更多与存储相关的配置参数，请参见 [服务端配置](https://www.taosdata.com/cn/documentation/administrator#config) 章节。
 
 - **显示系统当前参数**
 
