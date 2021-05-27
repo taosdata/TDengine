@@ -115,10 +115,14 @@ int tsdbScheduleCommit(STsdbRepo *pRepo, TSDB_REQ_T req) {
 }
 
 static void tsdbApplyRepoConfig(STsdbRepo *pRepo) {
+  pthread_mutex_lock(&pRepo->save_mutex);
+
   pRepo->config_changed = false;
   STsdbCfg * pSaveCfg = &pRepo->save_config;
-
+  STsdbCfg oldCfg;
   int32_t oldTotalBlocks = pRepo->config.totalBlocks;
+
+  memcpy(&oldCfg, &(pRepo->config), sizeof(STsdbCfg));
 
   pRepo->config.compression = pRepo->save_config.compression;
   pRepo->config.keep = pRepo->save_config.keep;
@@ -127,15 +131,23 @@ static void tsdbApplyRepoConfig(STsdbRepo *pRepo) {
   pRepo->config.cacheLastRow = pRepo->save_config.cacheLastRow;
   pRepo->config.totalBlocks = pRepo->save_config.totalBlocks;
 
-  tsdbInfo("vgId:%d apply new config: compression(%d), keep(%d,%d,%d), totalBlocks(%d), cacheLastRow(%d),totalBlocks(%d)",
+  pthread_mutex_unlock(&pRepo->save_mutex);
+
+  tsdbInfo("vgId:%d apply new config: compression(%d), keep(%d,%d,%d), totalBlocks(%d), cacheLastRow(%d->%d),totalBlocks(%d->%d)",
     REPO_ID(pRepo),
     pSaveCfg->compression, pSaveCfg->keep,pSaveCfg->keep1, pSaveCfg->keep2,
-    pSaveCfg->totalBlocks, pSaveCfg->cacheLastRow, pSaveCfg->totalBlocks);
+    pSaveCfg->totalBlocks, oldCfg.cacheLastRow, pSaveCfg->cacheLastRow, oldTotalBlocks, pSaveCfg->totalBlocks);
 
   int err = tsdbExpendPool(pRepo, oldTotalBlocks);
   if (!TAOS_SUCCEEDED(err)) {
     tsdbError("vgId:%d expand pool from %d to %d fail,reason:%s",
       REPO_ID(pRepo), oldTotalBlocks, pSaveCfg->totalBlocks, tstrerror(err));
+  }
+
+  if (oldCfg.cacheLastRow != pRepo->config.cacheLastRow) {
+    if (tsdbLockRepo(pRepo) < 0) return;
+    tsdbCacheLastData(pRepo, &oldCfg);
+    tsdbUnlockRepo(pRepo);
   }
 
 }
@@ -168,10 +180,9 @@ static void *tsdbLoopCommit(void *arg) {
     req = ((SReq *)pNode->data)->req;
     pRepo = ((SReq *)pNode->data)->pRepo;
 
+    // check if need to apply new config
     if (pRepo->config_changed) {
-      pthread_mutex_lock(&pRepo->save_mutex);       
       tsdbApplyRepoConfig(pRepo);
-      pthread_mutex_unlock(&pRepo->save_mutex);
     }
 
     if (req == COMMIT_REQ) {

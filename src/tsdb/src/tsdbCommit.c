@@ -88,6 +88,9 @@ static void tsdbLoadAndMergeFromCache(SDataCols *pDataCols, int *iter, SCommitIt
 static int  tsdbApplyRtn(STsdbRepo *pRepo);
 
 void *tsdbCommitData(STsdbRepo *pRepo) {
+  if (pRepo->imem == NULL) {
+    return NULL;
+  }
   tsdbStartCommit(pRepo);
 
   // Commit to update meta file
