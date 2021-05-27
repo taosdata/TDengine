@@ -274,7 +274,7 @@ void *tsdbAllocBytes(STsdbRepo *pRepo, int bytes) {
 int tsdbAsyncCommit(STsdbRepo *pRepo) {
   tsem_wait(&(pRepo->readyToCommit));
 
-  ASSERT(pRepo->imem == NULL);
+  //ASSERT(pRepo->imem == NULL);
   if (pRepo->mem == NULL) {
     tsem_post(&(pRepo->readyToCommit));
     return 0;
@@ -965,7 +965,7 @@ static void tsdbFreeRows(STsdbRepo *pRepo, void **rows, int rowCounter) {
 }
 
 static void updateTableLatestColumn(STsdbRepo *pRepo, STable *pTable, SDataRow row) {
-  tsdbInfo("vgId:%d updateTableLatestColumn, %s row version:%d", REPO_ID(pRepo), pTable->name->data, dataRowVersion(row));
+  tsdbDebug("vgId:%d updateTableLatestColumn, %s row version:%d", REPO_ID(pRepo), pTable->name->data, dataRowVersion(row));
 
   STSchema* pSchema = tsdbGetTableLatestSchema(pTable);
   if (tsdbUpdateLastColSchema(pTable, pSchema) < 0) {
@@ -988,7 +988,7 @@ static void updateTableLatestColumn(STsdbRepo *pRepo, STable *pTable, SDataRow r
     }
     
     void* value = tdGetRowDataOfCol(row, (int8_t)pTCol->type, TD_DATA_ROW_HEAD_SIZE + pSchema->columns[j].offset);
-    if (isNullN(value, pTCol->type)) {
+    if (isNull(value, pTCol->type)) {
       continue;
     }
 

@@ -114,6 +114,25 @@ mkdir -p ${install_dir}/examples
 examples_dir="${top_dir}/tests/examples"
   cp -r ${examples_dir}/c      ${install_dir}/examples
 if [[ "$pagMode" != "lite" ]] && [[ "$cpuType" != "aarch32" ]]; then
+  if [ -d ${examples_dir}/JDBC/connectionPools/target ]; then
+    rm -rf ${examples_dir}/JDBC/connectionPools/target
+  fi
+  if [ -d ${examples_dir}/JDBC/JDBCDemo/target ]; then
+    rm -rf ${examples_dir}/JDBC/JDBCDemo/target
+  fi
+  if [ -d ${examples_dir}/JDBC/mybatisplus-demo/target ]; then
+    rm -rf ${examples_dir}/JDBC/mybatisplus-demo/target
+  fi
+  if [ -d ${examples_dir}/JDBC/springbootdemo/target ]; then
+    rm -rf ${examples_dir}/JDBC/springbootdemo/target
+  fi
+  if [ -d ${examples_dir}/JDBC/SpringJdbcTemplate/target ]; then
+    rm -rf ${examples_dir}/JDBC/SpringJdbcTemplate/target
+  fi
+  if [ -d ${examples_dir}/JDBC/taosdemo/target ]; then
+    rm -rf ${examples_dir}/JDBC/taosdemo/target
+  fi
+  
   cp -r ${examples_dir}/JDBC   ${install_dir}/examples
   cp -r ${examples_dir}/matlab ${install_dir}/examples
   cp -r ${examples_dir}/python ${install_dir}/examples

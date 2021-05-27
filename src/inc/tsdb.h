@@ -69,7 +69,7 @@ typedef struct {
   int8_t  precision;
   int8_t  compression;
   int8_t  update;
-  int8_t  cacheLastRow;    // 0:no cache, 1: cache last row, 2: cache last NULL column
+  int8_t  cacheLastRow;    // 0:no cache, 1: cache last row, 2: cache last NULL column 3: 1&2
 } STsdbCfg;
 
 #define CACHE_NO_LAST(c)          ((c)->cacheLastRow == 0)
