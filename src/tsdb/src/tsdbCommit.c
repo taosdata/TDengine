@@ -90,6 +90,9 @@ static int  tsdbApplyRtn(STsdbRepo *pRepo);
 static int  tsdbApplyRtnOnFSet(STsdbRepo *pRepo, SDFileSet *pSet, SRtn *pRtn);
 
 void *tsdbCommitData(STsdbRepo *pRepo) {
+  if (pRepo->imem == NULL) {
+    return NULL;
+  }
   tsdbStartCommit(pRepo);
 
   // Commit to update meta file
