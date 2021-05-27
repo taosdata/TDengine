@@ -5245,26 +5245,18 @@ static int32_t prepareStbStmt(SSuperTable *stbInfo,
         int64_t startTime, char *buffer)
 {
     uint32_t k;
-    int      ret;
-    char *pstr = buffer;
-    pstr += sprintf(pstr, "INSERT INTO %s values(?", tableName);
-
-    for (int i = 0; i < stbInfo->columnCount; i++) {
-        pstr += sprintf(pstr, ",?");
-    }
-    pstr += sprintf(pstr, ")");
-
-    ret = taos_stmt_prepare(stmt, buffer, 0);
-    if (ret != 0){
-        errorPrint("failed to execute taos_stmt_prepare. return 0x%x. reason: %s\n",
-                ret, taos_errstr(NULL));
-        return ret;
-    }
 
     char *bindArray = malloc(sizeof(TAOS_BIND) * (stbInfo->columnCount + 1));
     if (bindArray == NULL) {
         errorPrint("Failed to allocate %d bind params\n", batch);
         return -1;
+    }
+
+    int ret = taos_stmt_set_tbname(stmt, tableName);
+    if (ret != 0) {
+        errorPrint("failed to execute taos_stmt_prepare. return 0x%x. reason: %s\n",
+                ret, taos_errstr(NULL));
+        return ret;
     }
 
     bool tsRand;
@@ -6242,6 +6234,24 @@ static void startMultiThreadInsertData(int threads, char* db_name,
             free(infos);
             exit(-1);
         }
+
+        char buffer[3000];
+        char *pstr = buffer;
+        pstr += sprintf(pstr, "INSERT INTO ? values(?");
+
+        for (int col = 0; col < superTblInfo->columnCount; col ++) {
+            pstr += sprintf(pstr, ",?");
+        }
+        pstr += sprintf(pstr, ")");
+
+        int ret = taos_stmt_prepare(pThreadInfo->stmt, buffer, 0);
+        if (ret != 0){
+            errorPrint("failed to execute taos_stmt_prepare. return 0x%x. reason: %s\n",
+                    ret, taos_errstr(NULL));
+            free(pids);
+            free(infos);
+            exit(-1);
+        }
       }
     } else {
       pThreadInfo->taos = NULL;
@@ -6562,7 +6572,7 @@ static int insertTestProcess() {
     }
   }
 
-  taosMsleep(1000);
+  // taosMsleep(1000);
   // create sub threads for inserting data
   //start = taosGetTimestampMs();
   for (int i = 0; i < g_Dbs.dbCount; i++) {
