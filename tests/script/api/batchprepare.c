@@ -1604,7 +1604,7 @@ int stmt_funcb_autoctb_e1(TAOS_STMT *stmt) {
   int code = taos_stmt_prepare(stmt, sql, 0);
   if (code != 0){
     printf("failed to execute taos_stmt_prepare. code:0x%x\n", code);
-    exit(1);
+    return -1;
   }
 
   int id = 0;
@@ -1827,7 +1827,7 @@ int stmt_funcb_autoctb_e2(TAOS_STMT *stmt) {
     code = taos_stmt_set_tbname_tags(stmt, buf, NULL);
     if (code != 0){
       printf("failed to execute taos_stmt_set_tbname_tags. code:0x%x\n", code);
-      exit(1);
+      return -1;
     }  
 
     taos_stmt_bind_param_batch(stmt, params + id * 10);
@@ -3904,7 +3904,7 @@ void* runcase(void *par) {
   stmt_funcb_autoctb_e1(stmt);
   printf("1t+10r+bm+autoctb+e1 end\n");
   printf("check result start\n");
-  check_result(taos, "m0", 1, 10);
+  check_result(taos, "m0", 1, 0);
   printf("check result end\n");
   taos_stmt_close(stmt);
 
@@ -3919,7 +3919,7 @@ void* runcase(void *par) {
   stmt_funcb_autoctb_e2(stmt);
   printf("1t+10r+bm+autoctb+e2 end\n");
   printf("check result start\n");
-  check_result(taos, "m0", 1, 10);
+  check_result(taos, "m0", 1, 0);
   printf("check result end\n");
   taos_stmt_close(stmt);
 
