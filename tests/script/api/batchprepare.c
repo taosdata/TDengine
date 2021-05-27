@@ -3562,7 +3562,7 @@ void prepare(TAOS     *taos, int bigsize, int createChildTable) {
   result = taos_query(taos, "drop database demo"); 
   taos_free_result(result);
 
-  result = taos_query(taos, "create database demo");
+  result = taos_query(taos, "create database demo keep 36500");
   code = taos_errno(result);
   if (code != 0) {
     printf("failed to create database, reason:%s\n", taos_errstr(result));
@@ -3627,7 +3627,7 @@ void preparem(TAOS     *taos, int bigsize, int idx) {
   result = taos_query(taos, sql); 
   taos_free_result(result);
 
-  sprintf(sql, "create database %s", dbname);
+  sprintf(sql, "create database %s keep 36500", dbname);
   result = taos_query(taos, sql);
   code = taos_errno(result);
   if (code != 0) {
