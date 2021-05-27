@@ -46,7 +46,7 @@ char     tsEmail[TSDB_FQDN_LEN] = {0};
 int32_t  tsDnodeId = 0;
 
 // common
-int32_t tsRpcTimer       = 1000;
+int32_t tsRpcTimer       = 300;
 int32_t tsRpcMaxTime     = 600;  // seconds;
 int32_t tsMaxShellConns  = 50000;
 int32_t tsMaxConnections = 5000;
