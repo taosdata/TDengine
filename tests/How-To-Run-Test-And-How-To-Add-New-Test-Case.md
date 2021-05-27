@@ -8,8 +8,8 @@
 
 3.  mkdir debug; cd debug; cmake ..; make ; sudo make install
 
-4.  pip install ../src/connector/python/linux/python2 ; pip3 install
-    ../src/connector/python/linux/python3
+4.  pip install ../src/connector/python ; pip3 install
+    ../src/connector/python
 
 5.  pip install numpy; pip3 install numpy (numpy is required only if you need to run querySort.py)  
 
