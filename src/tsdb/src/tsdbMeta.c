@@ -924,15 +924,7 @@ static int tsdbRemoveTableFromIndex(STsdbMeta *pMeta, STable *pTable) {
   STable *pSTable = pTable->pSuper;
   ASSERT(pSTable != NULL);
 
-  STSchema *pSchema = tsdbGetTableTagSchema(pTable);
-  STColumn *pCol = schemaColAt(pSchema, DEFAULT_TAG_INDEX_COLUMN);
-
-  char *  key = tdGetKVRowValOfCol(pTable->tagVal, pCol->colId);
-  if (key == NULL) {
-    // treat the column as NULL if we cannot find it
-    key = getNullValue(pCol->type);
-  }
-
+  char* key = getTagIndexKey(pTable);
   SArray *res = tSkipListGet(pSTable->pIndex, key);
 
   size_t size = taosArrayGetSize(res);
