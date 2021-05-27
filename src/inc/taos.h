@@ -112,6 +112,7 @@ typedef struct TAOS_MULTI_BIND {
 
 TAOS_STMT *taos_stmt_init(TAOS *taos);
 int        taos_stmt_prepare(TAOS_STMT *stmt, const char *sql, unsigned long length);
+int        taos_stmt_set_tbname_tags(TAOS_STMT* stmt, const char* name, TAOS_BIND* tags);
 int        taos_stmt_set_tbname(TAOS_STMT* stmt, const char* name);
 int        taos_stmt_is_insert(TAOS_STMT *stmt, int *insert);
 int        taos_stmt_num_params(TAOS_STMT *stmt, int *nums);

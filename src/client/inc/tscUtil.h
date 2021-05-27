@@ -99,6 +99,8 @@ static FORCE_INLINE SQueryInfo* tscGetQueryInfo(SSqlCmd* pCmd, int32_t subClause
   return pCmd->pQueryInfo[subClauseIndex];
 }
 
+int32_t converToStr(char *str, int type, void *buf, int32_t bufSize, int32_t *len);
+
 SQueryInfo* tscGetActiveQueryInfo(SSqlCmd* pCmd);
 
 int32_t tscCreateDataBlock(size_t initialSize, int32_t rowSize, int32_t startOffset, SName* name, STableMeta* pTableMeta, STableDataBlocks** dataBlocks);
