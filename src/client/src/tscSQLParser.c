@@ -921,6 +921,9 @@ int32_t validateSessionNode(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SSqlNode * pS
   if (getColumnIndexByName(pCmd, col, pQueryInfo, &index) != TSDB_CODE_SUCCESS) {
     return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg3);
   }
+  if (index.columnIndex != PRIMARYKEY_TIMESTAMP_COL_INDEX) {
+    return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg3);
+  } 
 
   pQueryInfo->sessionWindow.primaryColId = PRIMARYKEY_TIMESTAMP_COL_INDEX;
 
