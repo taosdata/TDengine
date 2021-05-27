@@ -26,10 +26,10 @@ time_t nTotalTime = 0;
 int64_t nTotalSamples = 0;
 
 
-pthread_mutex_t  mutex;
-pthread_mutex_t  mutex_trows;
-pthread_mutex_t  mutex_tsamps;
-pthread_mutex_t  mutex_ttime;
+pthread_mutex_t     mutex;
+pthread_spinlock_t  lock_trows;
+pthread_spinlock_t  lock_tsamps;
+pthread_spinlock_t  lock_ttime;
 
 
 int              run       = 1;
@@ -393,9 +393,9 @@ void cenc_picker_func(MS3TraceList *mstl, callback_params_t *param)
 
       numsamples += seg->numsamples;
 
-      pthread_mutex_lock(&mutex_tsamps);
+      pthread_spin_lock(&lock_tsamps);
       nTotalSamples += seg->numsamples;
-      pthread_mutex_unlock(&mutex_tsamps);
+      pthread_spin_unlock(&lock_tsamps);
 
       seg = seg->next;
     }
@@ -607,14 +607,14 @@ void subscribe_callback(TAOS_SUB *tsub, TAOS_RES *res, void *param, int code)
   //fprintf(stdout, "\r\ncenc_picker_func in sub(%d) ok\r\n", idx);
 
   if (nRows != 0) {
-    pthread_mutex_lock(&mutex_trows);
+    pthread_spin_lock(&lock_trows);
     nTotalRows += nRows;
-    pthread_mutex_unlock(&mutex_trows);
+    pthread_spin_unlock(&lock_trows);
 
     gettimeofday(&end_time, NULL);
-    pthread_mutex_lock(&mutex_ttime);
+    pthread_spin_lock(&lock_ttime);
     nTotalTime += (end_time.tv_sec * 1000000 + end_time.tv_usec) - (start_time.tv_sec * 1000000 + start_time.tv_usec);
-    pthread_mutex_unlock(&mutex_ttime);
+    pthread_spin_unlock(&lock_ttime);
 
     fprintf(stderr, "sub(%d): %d row(s) consumed, now: %ld\r\n", idx, nRows, end_time.tv_sec * 1000000 + end_time.tv_usec);
   }
@@ -936,9 +936,9 @@ int main(int argc, char *argv[])
   usleep(500000);
 
   pthread_mutex_init(&mutex, NULL);
-  pthread_mutex_init(&mutex_trows, NULL);
-  pthread_mutex_init(&mutex_tsamps, NULL);
-  pthread_mutex_init(&mutex_ttime, NULL);
+  pthread_spin_init(&lock_trows, PTHREAD_PROCESS_PRIVATE);
+  pthread_spin_init(&lock_tsamps, PTHREAD_PROCESS_PRIVATE);
+  pthread_spin_init(&lock_ttime, PTHREAD_PROCESS_PRIVATE);
 
   mtb = (memory_table_t **) malloc(sizeof(memory_table_t *) * MEM_TAB_MOD);
   if (mtb == NULL) {

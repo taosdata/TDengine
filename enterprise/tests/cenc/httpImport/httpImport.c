@@ -149,7 +149,7 @@ int main(int argc, char *argv[])
 #endif 
 
 #if !defined(HTTP_IMPORT_DEBUG)
-    memset(tid, TQ_CHAN_NUM, sizeof(pthread_t));
+    memset(tid, 0, TQ_CHAN_NUM * sizeof(pthread_t));
 
     while ((opt = getopt(argc, argv, "l:L:i:h:u:p:P:t:r:c:")) != -1) {   
         switch (opt) {
