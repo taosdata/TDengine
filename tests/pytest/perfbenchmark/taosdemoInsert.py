@@ -19,7 +19,9 @@ import argparse
 import subprocess
 import datetime
 import re
+import timeit
 
+import numpy as np
 
 from multiprocessing import cpu_count
 from util.log import *
@@ -66,8 +68,22 @@ class Taosdemo:
         return self.debugdir
 
     def getCfgDir(self) -> str:
-        self.config = self.getBuildPath() + "/sim/dnode1/cfg"
+        selfPath = os.path.dirname(os.path.realpath(__file__))
+
+        if ("community" in selfPath):
+            self.config = self.getBuildPath() + "/community/sim/dnode1/cfg"
+        else:
+            self.config = self.getBuildPath() + "/sim/dnode1/cfg"
         return self.config
+
+    # def connDB(self):
+    #     self.cursor = taos.connect(
+    #         self.host,
+    #         self.user,
+    #         self.password,
+    #         self.config
+    #     ).cursor()
+    #     return self.cursor
 
     # taodemo insert file config
     def dbinfocfg(self) -> dict:
@@ -197,7 +213,7 @@ class Taosdemo:
     def querysqls(self, sql: str) -> list:
         return [{"sql":sql,"result":""}]
 
-    def querycfg(self, sql: str) -> dict:
+    def querycfg(self, sql: str, query_times: int = 5) -> dict:
         return {
             "filetype": "query",
             "cfgdir": self.config,
@@ -206,7 +222,7 @@ class Taosdemo:
             "user": self.user,
             "password": self.password,
             "confirm_parameter_prompt": "yes",
-            "query_times": 10,
+            "query_times": query_times,
             "query_mode": "taosc",
             "databases": self.dbname,
             "specified_table_query": {
@@ -216,18 +232,19 @@ class Taosdemo:
             }
         }
 
-    def createqueryfile(self, sql: str):
+    def createqueryfile(self, sql: str, query_times: int = 5) -> str:
         date = datetime.datetime.now()
         file_query_table = f"/tmp/query_{date:%F-%H%M}.json"
 
         with open(file_query_table,"w") as f:
-            json.dump(self.querycfg(sql), f)
+            json.dump(self.querycfg(sql,query_times), f)
 
         return file_query_table
 
     # Execute taosdemo, and delete temporary files when finished
     def taosdemotable(self, filepath: str, resultfile="/dev/null"):
-        taosdemopath = self.getBuildPath() + "/debug/build/bin"
+        # taosdemopath = self.getBuildPath() + "/debug/build/bin"
+        taosdemopath = self.getExeToolsDir()
         with open(filepath,"r") as f:
             filetype = json.load(f)["filetype"]
             if filetype == "insert":
@@ -246,25 +263,22 @@ class Taosdemo:
         except subprocess.CalledProcessError as e:
             _ = e.output
 
-    # TODO:需要完成TD-4153的数据插入和客户端请求的性能查询。
-    def td4153insert(self):
+    def insertperf(self, dbname: str, stbname: str, prechild: str, columns: dict, tags: dict, child_t_count: int, rows: int):
 
         tdLog.printNoPrefix("========== start to create table and insert data ==========")
-        self.dbname = "td4153"
+        self.dbname = dbname
         db = self.dbinfocfg()
         stblist = []
 
-        columntype = self.schemecfg(intcount=1, ncharcount=100)
-        tagtype = self.schemecfg(intcount=1)
-        stbname = "stb1"
-        prechild = "t1"
+        stbname = stbname
+        prechild = prechild
         stable = self.stbcfg(
             stb=stbname,
             prechildtab=prechild,
-            child_tab_count=2,
-            rows=10000,
-            columns=columntype,
-            tags=tagtype
+            child_tab_count=child_t_count,
+            rows=rows,
+            columns=columns,
+            tags=tags
         )
         stblist.append(stable)
         insertfile = self.createinsertfile(db=db, stbs=stblist)
@@ -291,39 +305,51 @@ class Taosdemo:
         except BaseException as e:
             raise e
 
-    def td4153query(self):
+    def queryperf(self,sqls: dict, query_times: int = 5):
         tdLog.printNoPrefix("========== start to query operation ==========")
 
-        sqls = {
-            "select_all": "select * from stb1",
-            "select_join": "select * from t10, t11 where t10.ts=t11.ts"
-        }
+        nmon_file = f"/tmp/query_{datetime.datetime.now():%F-%H%M}.nmon"
+        cmd = f"nmon -s5 -F {nmon_file} -m /tmp/"
+        try:
+            _ = subprocess.check_output(cmd, shell=True).decode("utf-8")
+        except subprocess.CalledProcessError as e:
+            _ = e.output
+
         for type, sql in sqls.items():
             result_file = f"/tmp/queryResult_{type}.log"
-            query_file = self.createqueryfile(sql)
+            query_file = self.createqueryfile(sql, query_times)
             try:
                 self.taosdemotable(query_file, resultfile=result_file)
             except subprocess.CalledProcessError as e:
-                out_put = e.output
+                _ = e.output
             if result_file:
-                print(f"execute rows {type.split('_')[1]} sql, the sql is: {sql}")
-                max_sql_time_cmd = f'''
-                grep -o Spent.*s {result_file} |awk 'NR==1{{max=$2;next}}{{max=max>$2?max:$2}}END{{print "Max=",max,"s"}}'
-                 '''
-                max_sql_time = subprocess.check_output(max_sql_time_cmd, shell=True).decode("UTF-8")
-                print(f"{type.split('_')[1]} rows sql time : {max_sql_time}")
+                # print(f"execute rows {type.split('_')[1]} sql, the sql is: {sql}")
+                # max_sql_time_cmd = f'''
+                # grep -Eo '\<Spent.+s\>' {result_file} | grep -v 'total queries' |awk 'NR==1{{max=$2;next}}{{max=max>$2?max:$2}}END{{print "Max=",max,"s"}}'
+                # '''
+                # max_cmd = f"grep -Eo '\<Spent.+s\>'  {result_file} |grep -v 'total queries' | awk -F ' ' '{{print $2}}' "
+                # max_sql_time = subprocess.check_output(max_sql_time_cmd, shell=True).decode("UTF-8")
+                # print(f"{type.split('_')[1]} rows sql time : {max_sql_time}")
+                #
+                # min_sql_time_cmd = f'''
+                # grep -Eo '\<Spent.+s\>' {result_file} | grep -v 'total queries' |awk 'NR==1{{min=$2;next}}{{min=min<$2?min:$2}}END{{print "Min=",min,"s"}}'
+                # '''
+                # min_sql_time = subprocess.check_output(min_sql_time_cmd, shell=True).decode("UTF-8")
+                # print(f"{type.split('_')[1]} rows sql time : {min_sql_time}")
+                #
+                # avg_sql_time_cmd = f'''
+                # grep -Eo '\<Spent.+s\>' {result_file} | grep -v 'total queries' |awk '{{sum+=$2}}END{{print "Average=",sum/NR,"s"}}'
+                # '''
+                # avg_sql_time = subprocess.check_output(avg_sql_time_cmd, shell=True).decode("UTF-8")
+                # print(f"{type.split('_')[1]} rows sql time : {avg_sql_time}")
 
-                min_sql_time_cmd = f'''
-                grep -o Spent.*s {result_file} |awk 'NR==1{{min=$2;next}}{{min=min<$2?min:$2}}END{{print "Min=",min,"s"}}'
-                '''
-                min_sql_time = subprocess.check_output(min_sql_time_cmd, shell=True).decode("UTF-8")
-                print(f"{type.split('_')[1]} rows sql time : {min_sql_time}")
-
-                avg_sql_time_cmd = f'''
-                grep -o Spent.*s {result_file} |awk '{{sum+=$2}}END{{print "Average=",sum/NR,"s"}}'
-                '''
-                avg_sql_time = subprocess.check_output(avg_sql_time_cmd, shell=True).decode("UTF-8")
-                print(f"{type.split('_')[1]} rows sql time : {avg_sql_time}")
+                data_cmd = f"grep -Eo '\<Spent.+s\>' {result_file} |grep -v 'total queries' | awk '{{print $2}}' "
+                data_init = subprocess.check_output(data_cmd, shell=True).decode("utf-8")
+                data = np.array(list(map(float,np.char.splitlines(data_init).tolist())))
+                tdLog.printNoPrefix(f"{type.split('_')[1]} rows sql time : Average= {np.mean(data)} s")
+                tdLog.printNoPrefix(f"{type.split('_')[1]} rows sql time : Min= {np.min(data)} s")
+                tdLog.printNoPrefix(f"{type.split('_')[1]} rows sql time : Max= {np.max(data)} s")
+                tdLog.printNoPrefix(f"{type.split('_')[1]} rows sql time : P99= {np.percentile(data, 99)} s")
 
             self.droptmpfile(query_file)
             self.droptmpfile(result_file)
@@ -333,11 +359,170 @@ class Taosdemo:
             _ = subprocess.check_output(drop_query_tmt_file_cmd, shell=True).decode("utf-8")
         except subprocess.CalledProcessError as e:
             _ = e.output
-        pass
+
+        cmd = f"ps -ef|grep -w nmon| grep -v grep | awk '{{print $2}}'"
+        try:
+            time.sleep(10)
+            _ = subprocess.check_output(cmd,shell=True).decode("utf-8")
+        except BaseException as e:
+            raise e
+
+    def td4106insert(self):
+
+        columntype = self.schemecfg(
+            intcount=1,
+            floatcount=1,
+            bcount=1,
+            tcount=1,
+            scount=1,
+            doublecount=1,
+            binarycount=1,
+            ncharcount=1
+        )
+        tagtype = self.schemecfg(intcount=1)
+        stbname = "stb1"
+        prechild = "t1"
+        child_t_count = 2
+        rows = 10000
+
+        self.insertperf(
+            dbname=self.dbname,
+            stbname=stbname,
+            prechild=prechild,
+            columns=columntype,
+            tags=tagtype,
+            child_t_count=child_t_count,
+            rows=rows
+        )
+
+    def td4106query(self):
+
+        # cursor = self.connDB()
+        # sql_time = []
+        # cursor.execute(f"use {self.dbname}")
+        # for i in range(100):
+        #     t_start = timeit.default_timer()
+        #     cursor.execute("select * from stb1 ")
+        #     cursor.fetchall()
+        #     t_end = timeit.default_timer()
+        #     t_per_time = t_end - t_start
+        #     sql_times.append(t_per_time)
+        # print(self.dbname)
+        # print(sql_time)
+
+        sql_times = 10
+        sqls = {
+            "select_all": "select * from stb1",
+            "select_join": "select * from t10, t11 where t10.ts=t11.ts"
+        }
+        self.queryperf(sqls, query_times=sql_times)
+
+    def td4106(self):
+
+        self.dbname = "td4106"
+        self.td4106insert()
+        self.td4106query()
 
     def td4153(self):
-        self.td4153insert()
-        self.td4153query()
+
+        tdLog.printNoPrefix("========== start to create table and insert data ==========")
+        self.dbname = "td4153"
+        db = self.dbinfocfg()
+        stblist = []
+
+        columntype = self.schemecfg(1,1,1,1,1,1,1)
+        tagtype = self.schemecfg(intcount=1)
+        stbname = "stb1"
+        prechild = "t1"
+        stable = self.stbcfg(
+            stb=stbname,
+            prechildtab=prechild,
+            child_tab_count=2,
+            rows=10000,
+            columns=columntype,
+            tags=tagtype
+        )
+        stblist.append(stable)
+        insertfile = self.createinsertfile(db=db, stbs=stblist)
+
+        nmon_file = f"/tmp/insert_{datetime.datetime.now():%F-%H%M}.nmon"
+        cmd = f"nmon -s2 -F {nmon_file} -m /tmp/"
+        try:
+            _ = subprocess.check_output(cmd, shell=True).decode("utf-8")
+        except subprocess.CalledProcessError as e:
+            _ = e.output
+
+        self.taosdemotable(insertfile)
+        # self.droptmpfile(insertfile)
+        self.droptmpfile("/tmp/insert_res.txt")
+
+        cmd = f"ps -ef|grep -w nmon| grep -v grep | awk '{{print $2}}'"
+        try:
+            time.sleep(10)
+            _ = subprocess.check_output(cmd,shell=True).decode("utf-8")
+        except BaseException as e:
+            raise e
+
+        # In order to prevent too many performance files from being generated, the nmon file is deleted.
+        # and the delete statement can be cancelled during the actual test.
+        self.droptmpfile(nmon_file)
+
+    def td4382(self):
+        tdLog.printNoPrefix("========== start to create table and insert data ==========")
+        self.dbname = "td4382"
+        db = self.dbinfocfg()
+        stblist = []
+
+        columntype = self.schemecfg()
+
+        tagtype = self.schemecfg()
+        stbname = "stb1"
+        prechild = "t1"
+        child_t_count = 1
+        rows = 100
+
+        stbname = stbname
+        prechild = prechild
+        stable = self.stbcfg(
+            stb=stbname,
+            prechildtab=prechild,
+            child_tab_count=child_t_count,
+            rows=rows,
+            columns=columntype,
+            tags=tagtype
+        )
+        stblist.append(stable)
+        insertfile = self.createinsertfile(db=db, stbs=stblist)
+        self.taosdemotable(insertfile)
+        self.droptmpfile(insertfile)
+        self.droptmpfile("/tmp/insert_res.txt")
+
+        tdLog.printNoPrefix("========== start to query operation ==========")
+        sqls = {
+            "select_all": "select * from stb1"
+        }
+        query_times = 10
+        for type, sql in sqls.items():
+            result_file = f"/tmp/queryResult_{type}.log"
+            query_file = self.createqueryfile(sql, query_times)
+            try:
+                self.taosdemotable(query_file, resultfile=result_file)
+            except subprocess.CalledProcessError as e:
+                _ = e.output
+
+            self.droptmpfile(query_file)
+            self.droptmpfile(result_file)
+
+        drop_query_tmt_file_cmd = " find ./ -name 'querySystemInfo-*'  -type f -exec rm {} \; "
+        try:
+            _ = subprocess.check_output(drop_query_tmt_file_cmd, shell=True).decode("utf-8")
+        except subprocess.CalledProcessError as e:
+            _ = e.output
+
+        if os.path.isfile("./-0"):
+            tdLog.exit("error is occured")
+        else:
+            tdLog.success("error not occured")
 
 
 if __name__ == '__main__':
@@ -365,12 +550,6 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
     taosdemo = Taosdemo(args.remove_cache, args.database_name, args.keep_time)
-    # taosdemo.conn = taos.connect(
-    #     taosdemo.host,
-    #     taosdemo.user,
-    #     taosdemo.password,
-    #     taosdemo.config
-    # )
 
     debugdir = taosdemo.getExeToolsDir()
     cfgdir = taosdemo.getCfgDir()
@@ -379,9 +558,11 @@ if __name__ == '__main__':
         _ = subprocess.check_output(cmd, shell=True).decode("utf-8")
     except subprocess.CalledProcessError as e:
         _ = e.output
+    time.sleep(10)
 
     if taosdemo.clearCache:
         # must be root permission
         subprocess.check_output("echo 3 > /proc/sys/vm/drop_caches", shell=True).decode("utf-8")
 
-    taosdemo.td4153()
+    # taosdemo.td4106()
+    taosdemo.td4382()
