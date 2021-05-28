@@ -4274,7 +4274,7 @@ static int32_t doAddTableName(char* nextStr, char** str, SArray* pNameArray, SSq
 
   if (nextStr == NULL) {
     strncpy(tablename, *str, TSDB_TABLE_FNAME_LEN);
-    len = strlen(tablename);
+    len = (int32_t) strlen(tablename);
   } else {
     memcpy(tablename, *str, nextStr - (*str));
     len = (int32_t)(nextStr - (*str));
