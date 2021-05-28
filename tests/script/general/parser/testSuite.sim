@@ -59,4 +59,6 @@ run general/parser/having.sim
 run general/parser/having_child.sim
 run general/parser/slimit_alter_tags.sim
 run general/parser/binary_escapeCharacter.sim
+run general/parser/between_and.sim
+run general/parser/last_cache.sim
 
