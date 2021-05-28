@@ -74,9 +74,7 @@ class TDTestCase:
         tdSql.execute("insert into %s.%s using %s.%s tags(2) values(%d, 1)(%d, 2)(%d, 3)" % (db_name, tb_name2, db_name, stb_name, self.ts, self.ts + 1, self.ts + 2))
         
         tdSql.query("show %s.tables" % db_name)
-        tdSql.checkRows(2)
-        tdSql.checkData(0, 0, tb_name1)
-        tdSql.checkData(1, 0, tb_name2)
+        tdSql.checkRows(2)        
 
         tdSql.query("select * from %s.%s" % (db_name, stb_name))
         tdSql.checkRows(6)
