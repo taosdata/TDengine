@@ -5772,6 +5772,8 @@ static void* syncWriteInterlace(threadInfo *pThreadInfo) {
                       insertRows, i,
                       startTime,
                       pThreadInfo->buffer);
+#else
+              generated = -1;
 #endif
           } else {
               generated = generateStbInterlaceData(
@@ -5796,6 +5798,8 @@ static void* syncWriteInterlace(threadInfo *pThreadInfo) {
                       batchPerTbl,
                       insertRows, i,
                       startTime);
+#else
+              generated = -1;
 #endif
           } else {
               generated = generateInterlaceDataWithoutStb(
@@ -5984,6 +5988,8 @@ static void* syncWriteProgressive(threadInfo *pThreadInfo) {
                       tableName,
                       g_args.num_of_RPR,
                       insertRows, i, start_time, pstr);
+#else
+              generated = -1;
 #endif
           } else {
               generated = generateStbProgressiveData(
@@ -6002,6 +6008,8 @@ static void* syncWriteProgressive(threadInfo *pThreadInfo) {
                       g_args.num_of_RPR,
                       insertRows, i,
                       start_time);
+#else
+              generated = -1;
 #endif
           } else {
               generated = generateProgressiveDataWithoutStb(
