@@ -37,7 +37,7 @@ taos> DESCRIBE meters;
 - Epoch Time：时间戳也可以是一个长整数，表示从 1970-01-01 08:00:00.000 开始的毫秒数
 - 时间可以加减，比如 now-2h，表明查询时刻向前推 2 个小时（最近 2 小时）。数字后面的时间单位可以是 u(微秒)、a(毫秒)、s(秒)、m(分)、h(小时)、d(天)、w(周)。 比如 `select * from t1 where ts > now-2w and ts <= now-1w`，表示查询两周前整整一周的数据。在指定降频操作（down sampling）的时间窗口（interval）时，时间单位还可以使用 n(自然月) 和 y(自然年)。
 
-TDengine 缺省的时间戳是毫秒精度，但通过修改配置参数 precision 就可以支持微秒。
+TDengine 缺省的时间戳是毫秒精度，但通过在 CREATE DATABASE 时传递的 PRECISION 参数就可以支持微秒。
 
 在TDengine中，普通表的数据模型中可使用以下 10 种数据类型。 
 
