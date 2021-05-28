@@ -120,14 +120,10 @@ if $data00 != 167 then
 endi
 
 print ================>master query + filter
-sql select * from (select count(*) a from nest_tb0 interval(10h)) where a <= 520;
+sql select t.* from (select count(*) a from nest_tb0 interval(10h)) t where t.a <= 520;
 if $rows != 2 then
   return -1
 endi
-
-
-print ==================> nest query join
-
 
 
 print ===================> nest query interval
@@ -137,5 +133,75 @@ print ===================> nest query interval
 print ===================> complex query
 
 
+
+print ===================> group by + having
+
+
+
+
+
+print =========================> nest query join
+sql select a.ts,a.k,b.ts from (select count(*) k from nest_tb0 interval(30a)) a, (select count(*) f from nest_tb1 interval(30a)) b where a.ts = b.ts ;
+if $rows != 10000 then
+  return -1
+endi
+
+if $data00 != @20-09-15 00:00:00.000@ then
+  return -1
+endi
+
+if $data01 != 1 then
+  return -1
+endi
+
+if $data02 != @20-09-15 00:00:00.000@ then
+  return -1
+endi
+
+if $data10 != @20-09-15 00:01:00.000@ then
+  return -1
+endi
+
+if $data11 != 1 then
+  return -1
+endi
+
+if $data12 != @20-09-15 00:01:00.000@ then
+  return -1
+endi
+
+sql select sum(a.k), sum(b.f) from (select count(*) k from nest_tb0 interval(30a)) a, (select count(*) f from nest_tb1 interval(30a)) b where a.ts = b.ts ;
+if $rows != 1 then
+  return -1
+endi
+
+if $data00 != 10000 then
+  return -1
+endi
+
+if $data01 != 10000 then
+  return -1
+endi
+
+sql select a.ts,a.k,b.ts,c.ts,c.ts,c.x from (select count(*) k from nest_tb0 interval(30a)) a, (select count(*) f from nest_tb1 interval(30a)) b, (select count(*) x from nest_tb2 interval(30a)) c where a.ts = b.ts and a.ts = c.ts
+if $rows != 10000 then
+  return -1
+endi
+
+if $data00 != @20-09-15 00:00:00.000@ then
+  return -1
+endi
+
+if $data01 != 1 then
+  return -1
+endi
+
+if $data02 != @20-09-15 00:00:00.000@ then
+  return -1
+endi
+
+if $data03 != @20-09-15 00:00:00.000@ then
+  return -1
+endi
 
 system sh/exec.sh -n dnode1 -s stop -x SIGINT

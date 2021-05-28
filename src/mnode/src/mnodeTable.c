@@ -2878,6 +2878,7 @@ static int32_t mnodeProcessMultiTableMetaMsg(SMnodeMsg *pMsg) {
   for (; t < pInfo->numOfTables; ++t) {
     char *fullName = nameList[t];
 
+    pMsg->pVgroup = NULL;
     pMsg->pTable = mnodeGetTable(fullName);
     if (pMsg->pTable == NULL) {
       mError("msg:%p, app:%p table:%s, failed to get table meta, table not exist", pMsg, pMsg->rpcMsg.ahandle, fullName);

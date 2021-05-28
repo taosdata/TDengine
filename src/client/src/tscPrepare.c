@@ -1219,6 +1219,7 @@ TAOS_STMT* taos_stmt_init(TAOS* taos) {
   pStmt->taos = pObj;
 
   SSqlObj* pSql = calloc(1, sizeof(SSqlObj));
+
   if (pSql == NULL) {
     free(pStmt);
     terrno = TSDB_CODE_TSC_OUT_OF_MEMORY;
@@ -1613,9 +1614,10 @@ int taos_stmt_execute(TAOS_STMT* stmt) {
       ret = TSDB_CODE_TSC_OUT_OF_MEMORY;
     } else {
       if (pStmt->pSql != NULL) {
-        taos_free_result(pStmt->pSql);
+        tscFreeSqlObj(pStmt->pSql);
         pStmt->pSql = NULL;
       }
+
       pStmt->pSql = taos_query((TAOS*)pStmt->taos, sql);
       ret = taos_errno(pStmt->pSql);
       free(sql);
