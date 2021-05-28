@@ -400,6 +400,7 @@ TDengine 缺省的时间戳是毫秒精度，但通过在 CREATE DATABASE 时传
                 tb2_name (tb2_field1_name, ...) [USING stb2_name TAGS (tag_value2, ...)] VALUES (field1_value1, ...) (field1_value2, ...) ...;
     ```
     以自动建表的方式，同时向表tb1_name和tb2_name中按列分别插入多条记录。  
+    说明：`(tb1_field1_name, ...)`的部分可以省略掉，这样就是使用全列模式写入——也即在 VALUES 部分提供的数据，必须为数据表的每个列都显式地提供数据。全列写入速度会远快于指定列，因此建议尽可能采用全列写入方式，此时空列可以填入NULL。  
     从 2.0.20.5 版本开始，子表的列名可以不跟在子表名称后面，而是可以放在 TAGS 和 VALUES 之间，例如像下面这样写：
     ```mysql
     INSERT INTO tb1_name [USING stb1_name TAGS (tag_value1, ...)] (tb1_field1_name, ...) VALUES (field1_value1, ...) (field1_value2, ...) ...;
