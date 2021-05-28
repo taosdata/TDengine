@@ -279,7 +279,7 @@ static int32_t normalizeVarDataTypeLength(SSqlCmd* pCmd) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t tscToSQLCmd(SSqlObj* pSql, struct SSqlInfo* pInfo) {
+int32_t tscValidateSqlInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
   if (pInfo == NULL || pSql == NULL) {
     return TSDB_CODE_TSC_APP_ERROR;
   }
@@ -7152,6 +7152,7 @@ static int32_t getTableNameFromSubquery(SSqlNode* pSqlNode, SArray* tableNameLis
   return TSDB_CODE_SUCCESS;
 }
 
+void tscTableMetaCallBack(void *param, TAOS_RES *res, int code);
 static void freeElem(void* p) {
   tfree(*(char**)p);
 }
@@ -7244,7 +7245,7 @@ int32_t loadAllTableMeta(SSqlObj* pSql, struct SSqlInfo* pInfo) {
 
   // load the table meta for a given table name list
   if (taosArrayGetSize(plist) > 0 || taosArrayGetSize(pVgroupList) > 0) {
-    code = getMultiTableMetaFromMnode(pSql, plist, pVgroupList);
+    code = getMultiTableMetaFromMnode(pSql, plist, pVgroupList, tscTableMetaCallBack);
   }
 
 _end:
@@ -7253,7 +7254,7 @@ _end:
   }
 
   if (pVgroupList != NULL) {
-    taosArrayDestroy(pVgroupList);
+    taosArrayDestroyEx(pVgroupList, freeElem);
   }
 
   if (tableNameList != NULL) {
@@ -7421,10 +7422,6 @@ int32_t validateSqlNode(SSqlObj* pSql, SSqlNode* pSqlNode, SQueryInfo* pQueryInf
   const char* msg1 = "point interpolation query needs timestamp";
   const char* msg2 = "too many tables in from clause";
   const char* msg3 = "start(end) time of query range required or time range too large";
-  // const char* msg5 = "too many columns in selection clause";
-  // const char* msg6 = "too many tables in from clause";
-  // const char* msg7 = "invalid table alias name";
-  // const char* msg8 = "alias name too long";
   const char* msg9 = "only tag query not compatible with normal column filter";
 
   int32_t code = TSDB_CODE_SUCCESS;

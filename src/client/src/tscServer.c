@@ -2061,11 +2061,22 @@ int tscProcessSTableVgroupRsp(SSqlObj *pSql) {
   char *pMsg = pRes->pRsp + sizeof(SSTableVgroupRspMsg);
 
   SSqlCmd* pCmd = &parent->cmd;
-  for(int32_t i = 0; i < pStableVgroup->numOfTables; ++i) {
-    STableMetaInfo *pInfo = tscGetTableMetaInfoFromCmd(pCmd, i);
+  SQueryInfo* pQueryInfo = tscGetQueryInfo(pCmd);
 
-    SVgroupsMsg *pVgroupMsg = (SVgroupsMsg *) pMsg;
-    pVgroupMsg->numOfVgroups = htonl(pVgroupMsg->numOfVgroups);
+  for(int32_t i = 0; i < pStableVgroup->numOfTables; ++i) {
+    char* name = pMsg;
+    pMsg += TSDB_TABLE_NAME_LEN;
+
+    STableMetaInfo *pInfo = NULL;
+    for(int32_t j = 0; j < pQueryInfo->numOfTables; ++j) {
+      STableMetaInfo *pInfo1 = tscGetTableMetaInfoFromCmd(pCmd, j);
+      if (strcmp(name, tNameGetTableName(&pInfo1->name)) != 0) {
+        continue;
+      }
+
+      pInfo = pInfo1;
+      break;
+    }
 
     int32_t size = 0;
     pInfo->vgroupList = createVgroupInfoFromMsg(pMsg, &size, pSql->self);
@@ -2407,7 +2418,7 @@ static int32_t getTableMetaFromMnode(SSqlObj *pSql, STableMetaInfo *pTableMetaIn
   return code;
 }
 
-int32_t getMultiTableMetaFromMnode(SSqlObj *pSql, SArray* pNameList, SArray* pVgroupNameList) {
+int32_t getMultiTableMetaFromMnode(SSqlObj *pSql, SArray* pNameList, SArray* pVgroupNameList, __async_cb_func_t fp) {
   SSqlObj *pNew = calloc(1, sizeof(SSqlObj));
   if (NULL == pNew) {
     tscError("0x%"PRIx64" failed to allocate sqlobj to get multiple table meta", pSql->self);
@@ -2463,7 +2474,7 @@ int32_t getMultiTableMetaFromMnode(SSqlObj *pSql, SArray* pNameList, SArray* pVg
   tscDebug("0x%"PRIx64" new pSqlObj:0x%"PRIx64" to get %d tableMeta, vgroupInfo:%d, msg size:%d", pSql->self,
       pNew->self, numOfTable, numOfVgroupList, pNew->cmd.payloadLen);
 
-  pNew->fp = tscTableMetaCallBack;
+  pNew->fp = fp;
   pNew->param = (void *)pSql->self;
 
   tscDebug("0x%"PRIx64" metaRid from %" PRId64 " to %" PRId64 , pSql->self, pSql->metaRid, pNew->self);

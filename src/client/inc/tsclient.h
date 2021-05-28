@@ -492,7 +492,7 @@ char *tscGetErrorMsgPayload(SSqlCmd *pCmd);
 int32_t tscInvalidSQLErrMsg(char *msg, const char *additionalInfo, const char *sql);
 int32_t tscSQLSyntaxErrMsg(char* msg, const char* additionalInfo,  const char* sql);
 
-int32_t tscToSQLCmd(SSqlObj *pSql, struct SSqlInfo *pInfo);
+int32_t tscValidateSqlInfo(SSqlObj *pSql, struct SSqlInfo *pInfo);
 
 extern int32_t    sentinel;
 extern SHashObj  *tscVgroupMap;

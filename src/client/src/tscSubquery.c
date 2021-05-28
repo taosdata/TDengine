@@ -2289,15 +2289,20 @@ int32_t tscHandleFirstRoundStableQuery(SSqlObj *pSql) {
   SSqlObj *pNew = createSubqueryObj(pSql, 0, tscFirstRoundCallback, pSup, TSDB_SQL_SELECT, NULL);
   SSqlCmd *pCmd = &pNew->cmd;
 
-  tscClearSubqueryInfo(pCmd);
-  tscFreeSqlResult(pSql);
-
   SQueryInfo* pNewQueryInfo = tscGetQueryInfo(pCmd);
   assert(pQueryInfo->numOfTables == 1);
+
+  SArray* pColList = pNewQueryInfo->colList;
+  pNewQueryInfo->colList = NULL;
+
+  tscClearSubqueryInfo(pCmd);
+  tscFreeSqlResult(pSql);
 
   STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pNewQueryInfo, 0);
 
   tscInitQueryInfo(pNewQueryInfo);
+
+  // add the group cond
   pNewQueryInfo->groupbyExpr = pQueryInfo->groupbyExpr;
   if (pQueryInfo->groupbyExpr.columnInfo != NULL) {
     pNewQueryInfo->groupbyExpr.columnInfo = taosArrayDup(pQueryInfo->groupbyExpr.columnInfo);
@@ -2307,12 +2312,15 @@ int32_t tscHandleFirstRoundStableQuery(SSqlObj *pSql) {
     }
   }
 
+  // add the tag filter cond
   if (tscTagCondCopy(&pNewQueryInfo->tagCond, &pQueryInfo->tagCond) != 0) {
     terrno = TSDB_CODE_TSC_OUT_OF_MEMORY;
     goto _error;
   }
 
+  pNewQueryInfo->window   = pQueryInfo->window;
   pNewQueryInfo->interval = pQueryInfo->interval;
+  pNewQueryInfo->sessionWindow = pQueryInfo->sessionWindow;
 
   pCmd->command = TSDB_SQL_SELECT;
   pNew->fp = tscFirstRoundCallback;
@@ -2372,6 +2380,21 @@ int32_t tscHandleFirstRoundStableQuery(SSqlObj *pSql) {
         }
       }
     }
+  }
+
+  // add the normal column filter cond
+  if (pColList != NULL) {
+    size_t s = taosArrayGetSize(pColList);
+    for (int32_t i = 0; i < s; ++i) {
+      SColumn *pCol = taosArrayGetP(pColList, i);
+
+      if (pCol->info.flist.numOfFilters > 0) {  // copy to the pNew->cmd.colList if it is filtered.
+        SColumn *p = tscColumnClone(pCol);
+        taosArrayPush(pNewQueryInfo->colList, &p);
+      }
+    }
+
+    tscColumnListDestroy(pColList);
   }
 
   tscInsertPrimaryTsSourceColumn(pNewQueryInfo, pTableMetaInfo->pTableMeta->id.uid);

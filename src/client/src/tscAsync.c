@@ -482,28 +482,9 @@ void tscTableMetaCallBack(void *param, TAOS_RES *res, int code) {
       return;
     }
   } else {  // stream computing
+    tscDebug("0x%"PRIx64" stream:%p meta is updated, start new query, command:%d", pSql->self, pSql->pStream, pCmd->command);
+
     SQueryInfo* pQueryInfo = tscGetQueryInfo(pCmd);
-    STableMetaInfo *pTableMetaInfo = pQueryInfo->pTableMetaInfo[0];
-
-    code = tscGetTableMeta(pSql, pTableMetaInfo);
-    if (code == TSDB_CODE_TSC_ACTION_IN_PROGRESS) {
-      taosReleaseRef(tscObjRef, pSql->self);
-      return;
-    } else if (code != TSDB_CODE_SUCCESS) {
-      goto _error;
-    }
-
-    if (UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo)) {
-      code = tscGetSTableVgroupInfo(pSql, pQueryInfo);
-      if (code == TSDB_CODE_TSC_ACTION_IN_PROGRESS) {
-        taosReleaseRef(tscObjRef, pSql->self);
-        return;
-      } else if (code != TSDB_CODE_SUCCESS) {
-        goto _error;
-      }
-    }
-
-    tscDebug("0x%"PRIx64" stream:%p meta is updated, start new query, command:%d", pSql->self, pSql->pStream, pSql->cmd.command);
     if (tscNumOfExprs(pQueryInfo) == 0) {
       tsParseSql(pSql, false);
     }

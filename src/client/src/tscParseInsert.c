@@ -1014,12 +1014,16 @@ int validateTableName(char *tblName, int len, SStrToken* psTblToken) {
 }
 
 static int32_t validateDataSource(SSqlCmd *pCmd, int32_t type, const char *sql) {
-  if (pCmd->insertParam.insertType != 0 && !TSDB_QUERY_HAS_TYPE(pCmd->insertParam.insertType, type)) {
-    return tscInvalidSQLErrMsg(pCmd->payload, "keyword VALUES and FILE are not allowed to mix up", sql);
+  uint32_t *insertType = &pCmd->insertParam.insertType;
+  if (*insertType == TSDB_QUERY_TYPE_STMT_INSERT && type == TSDB_QUERY_TYPE_INSERT) {
+    return TSDB_CODE_SUCCESS;
   }
 
+  if ((*insertType) != 0 && (*insertType) != type) {
+    return tscInvalidSQLErrMsg(pCmd->payload, "keyword VALUES and FILE are not allowed to mixed up", sql);
+  }
 
-  pCmd->insertParam.insertType = type;
+  *insertType = type;
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1368,18 +1372,18 @@ int tsParseSql(SSqlObj *pSql, bool initial) {
       }
     }
   } else {
-    SSqlInfo SQLInfo = qSqlParse(pSql->sqlstr);
-    ret = tscToSQLCmd(pSql, &SQLInfo);
-    if (ret == TSDB_CODE_TSC_INVALID_OPERATION && pSql->parseRetry < 1 && SQLInfo.type == TSDB_SQL_SELECT) {
+    SSqlInfo sqlInfo = qSqlParse(pSql->sqlstr);
+    ret = tscValidateSqlInfo(pSql, &sqlInfo);
+    if (ret == TSDB_CODE_TSC_INVALID_OPERATION && pSql->parseRetry < 1 && sqlInfo.type == TSDB_SQL_SELECT) {
       tscDebug("0x%"PRIx64 " parse query sql statement failed, code:%s, clear meta cache and retry ", pSql->self, tstrerror(ret));
 
       tscResetSqlCmd(pCmd, true);
       pSql->parseRetry++;
 
-      ret = tscToSQLCmd(pSql, &SQLInfo);
+      ret = tscValidateSqlInfo(pSql, &sqlInfo);
     }
 
-    SqlInfoDestroy(&SQLInfo);
+    SqlInfoDestroy(&sqlInfo);
   }
 
   /*

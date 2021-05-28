@@ -646,8 +646,10 @@ static SColumnInfo* extractColumnInfoFromResult(SArray* pTableCols) {
 }
 
 typedef struct SDummyInputInfo {
-  SSDataBlock    *block;
-  SSqlObj        *pSql;  // refactor: remove it
+  SSDataBlock *block;
+  SSqlObj     *pSql;  // refactor: remove it
+  int32_t      numOfFilterCols;
+  SSingleColumnFilterInfo *pFilterInfo;
 } SDummyInputInfo;
 
 typedef struct SJoinStatus {
@@ -696,6 +698,18 @@ SSDataBlock* doGetDataBlock(void* param, bool* newgroup) {
   pBlock->info.rows = pRes->numOfRows;
   if (pRes->numOfRows != 0) {
     doSetupSDataBlock(pRes, pBlock);
+
+    if (pInput->numOfFilterCols > 0) {
+      doSetFilterColumnInfo(pInput->pFilterInfo, pInput->numOfFilterCols, pBlock);
+      int8_t* p = calloc(pBlock->info.rows, sizeof(int8_t));
+      bool all = doFilterDataBlock(pInput->pFilterInfo, pInput->numOfFilterCols, pBlock->info.rows, p);
+      if (!all) {
+        doCompactSDataBlock(pBlock, pBlock->info.rows, p);
+      }
+
+      tfree(p);
+    }
+
     *newgroup = false;
     return pBlock;
   }
@@ -865,11 +879,14 @@ static void destroyDummyInputOperator(void* param, int32_t numOfOutput) {
 }
 
 // todo this operator servers as the adapter for Operator tree and SqlRes result, remove it later
-SOperatorInfo* createDummyInputOperator(SSqlObj* pSql, SSchema* pSchema, int32_t numOfCols) {
+SOperatorInfo* createDummyInputOperator(SSqlObj* pSql, SSchema* pSchema, int32_t numOfCols, SSingleColumnFilterInfo* pFilterInfo, int32_t numOfFilterCols) {
   assert(numOfCols > 0);
   SDummyInputInfo* pInfo = calloc(1, sizeof(SDummyInputInfo));
 
-  pInfo->pSql  = pSql;
+  pInfo->pSql            = pSql;
+  pInfo->pFilterInfo     = pFilterInfo;
+  pInfo->numOfFilterCols = numOfFilterCols;
+
   pInfo->block = calloc(numOfCols, sizeof(SSDataBlock));
   pInfo->block->info.numOfCols = numOfCols;
 
@@ -901,7 +918,7 @@ static void destroyJoinOperator(void* param, int32_t numOfOutput) {
   pInfo->pRes = destroyOutputBuf(pInfo->pRes);
 }
 
-SOperatorInfo* createJoinOperator(SOperatorInfo** pUpstream, int32_t numOfUpstream, SSchema* pSchema, int32_t numOfOutput) {
+SOperatorInfo* createJoinOperatorInfo(SOperatorInfo** pUpstream, int32_t numOfUpstream, SSchema* pSchema, int32_t numOfOutput) {
   SJoinOperatorInfo* pInfo = calloc(1, sizeof(SJoinOperatorInfo));
 
   pInfo->numOfUpstream = numOfUpstream;
@@ -985,7 +1002,24 @@ void handleDownstreamOperator(SSqlObj** pSqlObjList, int32_t numOfUpstream, SQue
 
     // if it is a join query, create join operator here
     int32_t numOfCol1 = px->pTableMetaInfo[0]->pTableMeta->tableInfo.numOfColumns;
-    SOperatorInfo* pSourceOperator = createDummyInputOperator(pSqlObjList[0], pSchema, numOfCol1);
+
+    int32_t numOfFilterCols = 0;
+    SColumnInfo* tableCols = calloc(numOfCol1, sizeof(SColumnInfo));
+    for(int32_t i = 0; i < numOfCol1; ++i) {
+      SColumn* pCol = taosArrayGetP(px->colList, i);
+      if (pCol->info.flist.numOfFilters > 0) {
+        numOfFilterCols += 1;
+      }
+
+      tableCols[i] = pCol->info;
+    }
+
+    SSingleColumnFilterInfo* pFilterInfo = NULL;
+    if (numOfFilterCols > 0) {
+      doCreateFilterInfo(tableCols, numOfCol1, numOfFilterCols, &pFilterInfo, 0);
+    }
+
+    SOperatorInfo* pSourceOperator = createDummyInputOperator(pSqlObjList[0], pSchema, numOfCol1, pFilterInfo, numOfFilterCols);
 
     SSchema* schema = NULL;
     if (px->numOfTables > 1) {
@@ -1002,13 +1036,28 @@ void handleDownstreamOperator(SSqlObj** pSqlObjList, int32_t numOfUpstream, SQue
         SSchema* pSchema1 = tscGetTableSchema(px->pTableMetaInfo[i]->pTableMeta);
         int32_t n = px->pTableMetaInfo[i]->pTableMeta->tableInfo.numOfColumns;
 
-        p[i] = createDummyInputOperator(pSqlObjList[i], pSchema1, n);
+        int32_t numOfFilterCols1 = 0;
+        SColumnInfo* tableCols1 = calloc(numOfCol1, sizeof(SColumnInfo));
+        for(int32_t j = 0; j < numOfCol1; ++j) {
+          SColumn* pCol = taosArrayGetP(px->colList, j);
+          if (pCol->info.flist.numOfFilters > 0) {
+            numOfFilterCols += 1;
+          }
 
+          tableCols1[j] = pCol->info;
+        }
+
+        SSingleColumnFilterInfo* pFilterInfo1 = NULL;
+        if (numOfFilterCols1 > 0) {
+          doCreateFilterInfo(tableCols1, numOfCol1, numOfFilterCols1, &pFilterInfo1, 0);
+        }
+
+        p[i] = createDummyInputOperator(pSqlObjList[i], pSchema1, n, pFilterInfo1, numOfFilterCols1);
         memcpy(&schema[offset], pSchema1, n * sizeof(SSchema));
         offset += n;
       }
 
-      pSourceOperator = createJoinOperator(p, px->numOfTables, schema, num);
+      pSourceOperator = createJoinOperatorInfo(p, px->numOfTables, schema, num);
       tfree(p);
     } else {
       size_t num = taosArrayGetSize(px->colList);
@@ -2669,6 +2718,7 @@ STableMetaInfo* tscGetTableMetaInfoByUid(SQueryInfo* pQueryInfo, uint64_t uid, i
   return tscGetMetaInfo(pQueryInfo, k);
 }
 
+// todo refactor
 void tscInitQueryInfo(SQueryInfo* pQueryInfo) {
   assert(pQueryInfo->fieldsInfo.internalField == NULL);
   pQueryInfo->fieldsInfo.internalField = taosArrayInit(4, sizeof(SInternalField));
@@ -4215,11 +4265,53 @@ int32_t tscCreateQueryFromQueryInfo(SQueryInfo* pQueryInfo, SQueryAttr* pQueryAt
   return TSDB_CODE_SUCCESS;
 }
 
-int tscTransferTableNameList(SSqlObj *pSql, const char *pNameList, int32_t length) {
+static int32_t doAddTableName(char* nextStr, char** str, SArray* pNameArray, SSqlObj* pSql) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  SSqlCmd* pCmd = &pSql->cmd;
+
+  char  tablename[TSDB_TABLE_FNAME_LEN] = {0};
+  int32_t len = 0;
+
+  if (nextStr == NULL) {
+    strncpy(tablename, *str, TSDB_TABLE_FNAME_LEN);
+    len = (int32_t) strlen(tablename);
+  } else {
+    memcpy(tablename, *str, nextStr - (*str));
+    len = (int32_t)(nextStr - (*str));
+    tablename[len] = '\0';
+  }
+
+  (*str) = nextStr + 1;
+  len = (int32_t)strtrim(tablename);
+
+  SStrToken sToken = {.n = len, .type = TK_ID, .z = tablename};
+  tGetToken(tablename, &sToken.type);
+
+  // Check if the table name available or not
+  if (tscValidateName(&sToken) != TSDB_CODE_SUCCESS) {
+    code = TSDB_CODE_TSC_INVALID_TABLE_ID_LENGTH;
+    sprintf(pCmd->payload, "table name is invalid");
+    return code;
+  }
+
+  SName name = {0};
+  if ((code = tscSetTableFullName(&name, &sToken, pSql)) != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+
+  memset(tablename, 0, tListLen(tablename));
+  tNameExtractFullName(&name, tablename);
+
+  char* p = strdup(tablename);
+  taosArrayPush(pNameArray, &p);
+  return TSDB_CODE_SUCCESS;
+}
+
+int tscTransferTableNameList(SSqlObj *pSql, const char *pNameList, int32_t length, SArray* pNameArray) {
   SSqlCmd *pCmd = &pSql->cmd;
 
   pCmd->command = TSDB_SQL_MULTI_META;
-  pCmd->count = 0;
+  pCmd->msgType = TSDB_MSG_TYPE_CM_TABLES_META;
 
   int   code = TSDB_CODE_TSC_INVALID_TABLE_ID_LENGTH;
   char *str = (char *)pNameList;
@@ -4230,70 +4322,31 @@ int tscTransferTableNameList(SSqlObj *pSql, const char *pNameList, int32_t lengt
     return terrno;
   }
 
-  STableMetaInfo *pTableMetaInfo = tscAddEmptyMetaInfo(pQueryInfo);
-
-  if ((code = tscAllocPayload(pCmd, length + 16)) != TSDB_CODE_SUCCESS) {
-    return code;
-  }
-
   char *nextStr;
-  char  tblName[TSDB_TABLE_FNAME_LEN];
-  int   payloadLen = 0;
-  char *pMsg = pCmd->payload;
   while (1) {
     nextStr = strchr(str, ',');
     if (nextStr == NULL) {
+      code = doAddTableName(nextStr, &str, pNameArray, pSql);
       break;
     }
 
-    memcpy(tblName, str, nextStr - str);
-    int32_t len = (int32_t)(nextStr - str);
-    tblName[len] = '\0';
-
-    str = nextStr + 1;
-    len = (int32_t)strtrim(tblName);
-
-    SStrToken sToken = {.n = len, .type = TK_ID, .z = tblName};
-    tGetToken(tblName, &sToken.type);
-
-    // Check if the table name available or not
-    if (tscValidateName(&sToken) != TSDB_CODE_SUCCESS) {
-      code = TSDB_CODE_TSC_INVALID_TABLE_ID_LENGTH;
-      sprintf(pCmd->payload, "table name is invalid");
+    code = doAddTableName(nextStr, &str, pNameArray, pSql);
+    if (code != TSDB_CODE_SUCCESS) {
       return code;
     }
 
-    if ((code = tscSetTableFullName(&pTableMetaInfo->name, &sToken, pSql)) != TSDB_CODE_SUCCESS) {
-      return code;
-    }
-
-    if (++pCmd->count > TSDB_MULTI_TABLEMETA_MAX_NUM) {
+    if (taosArrayGetSize(pNameArray) > TSDB_MULTI_TABLEMETA_MAX_NUM) {
       code = TSDB_CODE_TSC_INVALID_TABLE_ID_LENGTH;
       sprintf(pCmd->payload, "tables over the max number");
       return code;
     }
-
-    int32_t xlen = tNameLen(&pTableMetaInfo->name);
-    if (payloadLen + xlen + 128 >= pCmd->allocSize) {
-      char *pNewMem = realloc(pCmd->payload, pCmd->allocSize + length);
-      if (pNewMem == NULL) {
-        code = TSDB_CODE_TSC_OUT_OF_MEMORY;
-        sprintf(pCmd->payload, "failed to allocate memory");
-        return code;
-      }
-
-      pCmd->payload = pNewMem;
-      pCmd->allocSize = pCmd->allocSize + length;
-      pMsg = pCmd->payload;
-    }
-
-    char n[TSDB_TABLE_FNAME_LEN] = {0};
-    tNameExtractFullName(&pTableMetaInfo->name, n);
-    payloadLen += sprintf(pMsg + payloadLen, "%s,", n);
   }
 
-  *(pMsg + payloadLen) = '\0';
-  pCmd->payloadLen = payloadLen + 1;
+  if (taosArrayGetSize(pNameArray) > TSDB_MULTI_TABLEMETA_MAX_NUM) {
+    code = TSDB_CODE_TSC_INVALID_TABLE_ID_LENGTH;
+    sprintf(pCmd->payload, "tables over the max number");
+    return code;
+  }
 
   return TSDB_CODE_SUCCESS;
 }

@@ -94,7 +94,7 @@ static void doLaunchQuery(void* param, TAOS_RES* tres, int32_t code) {
 
   code = tscGetTableMeta(pSql, pTableMetaInfo);
   if (code == 0 && UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo)) {
-    code = tscGetSTableVgroupInfo(pSql, 0);
+    code = tscGetSTableVgroupInfo(pSql, pQueryInfo);
   }
 
   if (code == TSDB_CODE_TSC_ACTION_IN_PROGRESS) {
@@ -614,16 +614,16 @@ TAOS_STREAM *taos_open_stream(TAOS *taos, const char *sqlstr, void (*fp)(void *p
     return NULL;
   }
 
-  pStream->stime = stime;
-  pStream->fp = fp;
+  pStream->stime    = stime;
+  pStream->fp       = fp;
   pStream->callback = callback;
-  pStream->param = param;
-  pStream->pSql = pSql;
-  pSql->pStream = pStream;
-  pSql->param = pStream;
-  pSql->maxRetry = TSDB_MAX_REPLICA;
+  pStream->param    = param;
+  pStream->pSql     = pSql;
 
-  pSql->sqlstr = calloc(1, strlen(sqlstr) + 1);
+  pSql->pStream  = pStream;
+  pSql->param    = pStream;
+  pSql->maxRetry = TSDB_MAX_REPLICA;
+  pSql->sqlstr   = calloc(1, strlen(sqlstr) + 1);
   if (pSql->sqlstr == NULL) {
     tscError("0x%"PRIx64" failed to malloc sql string buffer", pSql->self);
     tscFreeSqlObj(pSql);
@@ -632,14 +632,14 @@ TAOS_STREAM *taos_open_stream(TAOS *taos, const char *sqlstr, void (*fp)(void *p
   }
 
   strtolower(pSql->sqlstr, sqlstr);
+  pSql->fp      = tscCreateStream;
+  pSql->fetchFp = tscCreateStream;
+  pSql->cmd.resColumnId = TSDB_RES_COL_ID;
 
+  tsem_init(&pSql->rspSem, 0, 0);
   registerSqlObj(pSql);
 
   tscDebugL("0x%"PRIx64" SQL: %s", pSql->self, pSql->sqlstr);
-  tsem_init(&pSql->rspSem, 0, 0);
-
-  pSql->fp = tscCreateStream;
-  pSql->fetchFp = tscCreateStream;
 
   int32_t code = tsParseSql(pSql, true);
   if (code == TSDB_CODE_SUCCESS) {
