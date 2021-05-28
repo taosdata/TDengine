@@ -1338,7 +1338,7 @@ int stmtGenInsertStatement(SSqlObj* pSql, STscStmt* pStmt, const char* name, TAO
             return TSDB_CODE_TSC_APP_ERROR;
           }
 
-          ret = converToStr(str + len, tags[j].buffer_type, tags[j].buffer, tags[j].length ? *tags[j].length : -1, &l);
+          ret = converToStr(str + len, tags[j].buffer_type, tags[j].buffer, tags[j].length ? (int32_t)*tags[j].length : -1, &l);
         }
 
         ++j;
