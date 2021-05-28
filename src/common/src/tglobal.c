@@ -46,7 +46,7 @@ char     tsEmail[TSDB_FQDN_LEN] = {0};
 int32_t  tsDnodeId = 0;
 
 // common
-int32_t tsRpcTimer       = 1000;
+int32_t tsRpcTimer       = 300;
 int32_t tsRpcMaxTime     = 600;  // seconds;
 int32_t tsMaxShellConns  = 50000;
 int32_t tsMaxConnections = 5000;
@@ -139,7 +139,7 @@ int32_t tsTableIncStepPerVnode = TSDB_TABLES_STEP;
 int8_t  tsEnableBalance = 1;
 int8_t  tsAlternativeRole = 0;
 int32_t tsBalanceInterval = 300;           // seconds
-int32_t tsOfflineThreshold = 86400 * 100;  // seconds 100 days
+int32_t tsOfflineThreshold = 86400 * 10;  // seconds of 10 days
 int32_t tsMnodeEqualVnodeNum = 4;
 int8_t  tsEnableFlowCtrl = 1;
 int8_t  tsEnableSlaveQuery = 1;

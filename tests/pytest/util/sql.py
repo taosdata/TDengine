@@ -87,6 +87,7 @@ class TDSql:
                 self.queryResult = self.cursor.fetchall()
                 self.queryRows = len(self.queryResult)
                 self.queryCols = len(self.cursor.description)
+                tdLog.info("sql: %s, try to retrieve %d rows,get %d rows" % (sql, expectRows, self.queryRows))
                 if self.queryRows >= expectRows:
                     return (self.queryRows, i)
                 time.sleep(1)
@@ -135,6 +136,11 @@ class TDSql:
     def checkData(self, row, col, data):
         self.checkRowCol(row, col) 
         if self.queryResult[row][col] != data:            
+            if self.cursor.istype(col, "TIMESTAMP") and self.queryResult[row][col] == datetime.datetime.fromisoformat(data):
+                tdLog.info("sql:%s, row:%d col:%d data:%s == expect:%s" %
+                            (self.sql, row, col, self.queryResult[row][col], data))
+                return
+
             if str(self.queryResult[row][col]) == str(data):
                 tdLog.info("sql:%s, row:%d col:%d data:%s == expect:%s" %
                             (self.sql, row, col, self.queryResult[row][col], data)) 

@@ -21,19 +21,19 @@
 #endif // __APPLE__
 
 #include "os.h"
-#include "ttype.h"
-#include "texpr.h"
 #include "taos.h"
 #include "taosmsg.h"
 #include "tcompare.h"
+#include "texpr.h"
 #include "tname.h"
 #include "tscLog.h"
 #include "tscUtil.h"
 #include "tschemautil.h"
 #include "tsclient.h"
-#include "tstoken.h"
 #include "tstrbuild.h"
+#include "ttoken.h"
 #include "ttokendef.h"
+#include "ttype.h"
 #include "qUtil.h"
 
 #define DEFAULT_PRIMARY_TIMESTAMP_COL_NAME "_c0"
@@ -64,7 +64,7 @@ static char*   getAccountId(SSqlObj* pSql);
 
 static bool has(SArray* pFieldList, int32_t startIdx, const char* name);
 static char* cloneCurrentDBName(SSqlObj* pSql);
-static bool hasSpecifyDB(SStrToken* pTableName);
+static int32_t getDelimiterIndex(SStrToken* pTableName);
 static bool validateTableColumnInfo(SArray* pFieldList, SSqlCmd* pCmd);
 static bool validateTagParams(SArray* pTagsList, SArray* pFieldList, SSqlCmd* pCmd);
 
@@ -361,11 +361,18 @@ int32_t tscToSQLCmd(SSqlObj* pSql, struct SSqlInfo* pInfo) {
       const char* msg2 = "name too long";
 
       SCreateDbInfo* pCreateDB = &(pInfo->pMiscInfo->dbOpt);
-      if (tscValidateName(&pCreateDB->dbname) != TSDB_CODE_SUCCESS) {
+      if (pCreateDB->dbname.n >= TSDB_DB_NAME_LEN) {
+        return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg2);
+      }
+
+      char buf[TSDB_DB_NAME_LEN] = {0};
+      SStrToken token = taosTokenDup(&pCreateDB->dbname, buf, tListLen(buf));
+
+      if (tscValidateName(&token) != TSDB_CODE_SUCCESS) {
         return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg1);
       }
 
-      int32_t ret = tNameSetDbName(&pTableMetaInfo->name, getAccountId(pSql), &(pCreateDB->dbname));
+      int32_t ret = tNameSetDbName(&pTableMetaInfo->name, getAccountId(pSql), &token);
       if (ret != TSDB_CODE_SUCCESS) {
         return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg2);
       }
@@ -426,17 +433,11 @@ int32_t tscToSQLCmd(SSqlObj* pSql, struct SSqlInfo* pInfo) {
 
     case TSDB_SQL_DESCRIBE_TABLE: {
       const char* msg1 = "invalid table name";
-      const char* msg2 = "table name too long";
 
       SStrToken* pToken = taosArrayGet(pInfo->pMiscInfo->a, 0);
       if (tscValidateName(pToken) != TSDB_CODE_SUCCESS) {
         return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg1);
       }
-
-      if (!tscValidateTableNameLength(pToken->n)) {
-        return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg2);
-      }
-
       // additional msg has been attached already
       code = tscSetTableFullName(pTableMetaInfo, pToken, pSql);
       if (code != TSDB_CODE_SUCCESS) {
@@ -447,15 +448,10 @@ int32_t tscToSQLCmd(SSqlObj* pSql, struct SSqlInfo* pInfo) {
     }
     case TSDB_SQL_SHOW_CREATE_TABLE: {
       const char* msg1 = "invalid table name";
-      const char* msg2 = "table name is too long";
 
       SStrToken* pToken = taosArrayGet(pInfo->pMiscInfo->a, 0);
       if (tscValidateName(pToken) != TSDB_CODE_SUCCESS) {
         return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg1);
-      }
-
-      if (!tscValidateTableNameLength(pToken->n)) {
-        return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg2);
       }
 
       code = tscSetTableFullName(pTableMetaInfo, pToken, pSql);
@@ -642,14 +638,22 @@ int32_t tscToSQLCmd(SSqlObj* pSql, struct SSqlInfo* pInfo) {
       // set the command/global limit parameters from the first subclause to the sqlcmd object
       SQueryInfo* pQueryInfo1 = tscGetQueryInfoDetail(pCmd, 0);
       pCmd->command = pQueryInfo1->command;
-
+      int32_t diffSize = 0;
+      
       // if there is only one element, the limit of clause is the limit of global result.
       for (int32_t i = 1; i < pCmd->numOfClause; ++i) {
         SQueryInfo* pQueryInfo2 = tscGetQueryInfoDetail(pCmd, i);
 
-        int32_t ret = tscFieldInfoCompare(&pQueryInfo1->fieldsInfo, &pQueryInfo2->fieldsInfo);
+        int32_t ret = tscFieldInfoCompare(&pQueryInfo1->fieldsInfo, &pQueryInfo2->fieldsInfo, &diffSize);
         if (ret != 0) {
           return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg1);
+        }
+      }
+
+      if (diffSize) {
+        for (int32_t i = 1; i < pCmd->numOfClause; ++i) {
+          SQueryInfo* pQueryInfo2 = tscGetQueryInfoDetail(pCmd, i);        
+          tscFieldInfoSetSize(&pQueryInfo1->fieldsInfo, &pQueryInfo2->fieldsInfo);
         }
       }
 
@@ -979,11 +983,13 @@ int32_t tscSetTableFullName(STableMetaInfo* pTableMetaInfo, SStrToken* pTableNam
   const char* msg1 = "name too long";
   const char* msg2 = "acctId too long";
   const char* msg3 = "no acctId";
+  const char* msg4 = "db name too long";
+  const char* msg5 = "table name too long";
 
   SSqlCmd* pCmd = &pSql->cmd;
   int32_t  code = TSDB_CODE_SUCCESS;
-
-  if (hasSpecifyDB(pTableName)) { // db has been specified in sql string so we ignore current db path
+  int32_t  idx  = getDelimiterIndex(pTableName);
+  if (idx != -1) { // db has been specified in sql string so we ignore current db path
     char* acctId = getAccountId(pSql);
     if (acctId == NULL || strlen(acctId) <= 0) {
       return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg3);
@@ -993,6 +999,13 @@ int32_t tscSetTableFullName(STableMetaInfo* pTableMetaInfo, SStrToken* pTableNam
     if (code != 0) {
       return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg2);
     }
+    if (idx >= TSDB_DB_NAME_LEN) { 
+      return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg4);
+    }
+    if (pTableName->n - 1 - idx >= TSDB_TABLE_NAME_LEN) {
+      return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg5);
+    }
+    
     
     char name[TSDB_TABLE_FNAME_LEN] = {0};
     strncpy(name, pTableName->z, pTableName->n);
@@ -1337,14 +1350,13 @@ static char* cloneCurrentDBName(SSqlObj* pSql) {
 }
 
 /* length limitation, strstr cannot be applied */
-static bool hasSpecifyDB(SStrToken* pTableName) {
-  for (uint32_t i = 0; i < pTableName->n; ++i) {
-    if (pTableName->z[i] == TS_PATH_DELIMITER[0]) {
-      return true;
+static int32_t getDelimiterIndex(SStrToken* pTableName) {
+  for (uint32_t i = 0; i < pTableName->n; ++i) { 
+    if (pTableName->z[i] == TS_PATH_DELIMITER[0]) { 
+      return i;
     }
   }
-
-  return false;
+  return -1;
 }
 
 int32_t setObjFullName(char* fullName, const char* account, SStrToken* pDB, SStrToken* tableName, int32_t* xlen) {
@@ -1606,6 +1618,22 @@ bool isValidDistinctSql(SQueryInfo* pQueryInfo) {
   return false;
 }
 
+static bool hasNoneUserDefineExpr(SQueryInfo* pQueryInfo) {
+  size_t numOfExprs = taosArrayGetSize(pQueryInfo->exprList);
+  for (int32_t i = 0; i < numOfExprs; ++i) {
+    SSqlExpr* pExpr = taosArrayGetP(pQueryInfo->exprList, i);
+
+    if (TSDB_COL_IS_UD_COL(pExpr->colInfo.flag)) {
+      continue;
+    }
+
+    return true;
+  }
+
+  return false;
+}
+
+
 int32_t parseSelectClause(SSqlCmd* pCmd, int32_t clauseIndex, SArray* pSelectList, bool isSTable, bool joinQuery, bool timeWindowQuery) {
   assert(pSelectList != NULL && pCmd != NULL);
   const char* msg1 = "too many columns in selection clause";
@@ -1670,7 +1698,7 @@ int32_t parseSelectClause(SSqlCmd* pCmd, int32_t clauseIndex, SArray* pSelectLis
   
   // there is only one user-defined column in the final result field, add the timestamp column.
   size_t numOfSrcCols = taosArrayGetSize(pQueryInfo->colList);
-  if (numOfSrcCols <= 0 && !tscQueryTags(pQueryInfo) && !tscQueryBlockInfo(pQueryInfo)) {
+  if ((numOfSrcCols <= 0 || !hasNoneUserDefineExpr(pQueryInfo)) && !tscQueryTags(pQueryInfo) && !tscQueryBlockInfo(pQueryInfo)) {
     addPrimaryTsColIntoResult(pQueryInfo);
   }
 
@@ -3078,7 +3106,7 @@ static SColumnFilterInfo* addColumnFilterInfo(SColumn* pColumn) {
   return pColFilterInfo;
 }
 
-static int32_t doExtractColumnFilterInfo(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SColumnFilterInfo* pColumnFilter,
+static int32_t doExtractColumnFilterInfo(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, STableMeta* pTableMeta, SColumnFilterInfo* pColumnFilter,
                                          int16_t colType, tSqlExpr* pExpr) {
   const char* msg = "not supported filter condition";
 
@@ -3092,6 +3120,12 @@ static int32_t doExtractColumnFilterInfo(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, 
     int retVal = setColumnFilterInfoForTimestamp(pCmd, pQueryInfo, &pRight->value);
     if (TSDB_CODE_SUCCESS != retVal) {
       return retVal;
+    }
+  } else if ((colType == TSDB_DATA_TYPE_TIMESTAMP) && (TSDB_DATA_TYPE_BIGINT == pRight->value.nType)) {
+    STableComInfo tinfo = tscGetTableInfo(pTableMeta);
+
+    if ((tinfo.precision == TSDB_TIME_PRECISION_MILLI) && (pRight->flags & (1 << EXPR_FLAG_US_TIMESTAMP))) {
+      pRight->value.i64 /= 1000;
     }
   }
 
@@ -3291,7 +3325,7 @@ static int32_t extractColumnFilterInfo(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SC
 
   int16_t colType = pSchema->type;
   
-  return doExtractColumnFilterInfo(pCmd, pQueryInfo, pColFilter, colType, pExpr);
+  return doExtractColumnFilterInfo(pCmd, pQueryInfo, pTableMeta, pColFilter, colType, pExpr);
 }
 
 static int32_t getTablenameCond(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSqlExpr* pTableCond, SStringBuilder* sb) {
@@ -3916,6 +3950,10 @@ int32_t getQueryCondExpr(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSqlExpr** pExpr
 
   const char* msg1 = "query condition between different columns must use 'AND'";
 
+  if ((*pExpr)->flags & (1 << EXPR_FLAG_TS_ERROR)) {
+    return TSDB_CODE_TSC_INVALID_SQL;
+  }
+
   tSqlExpr* pLeft = (*pExpr)->pLeft;
   tSqlExpr* pRight = (*pExpr)->pRight;
 
@@ -3952,6 +3990,14 @@ int32_t getQueryCondExpr(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSqlExpr** pExpr
   }
 
   exchangeExpr(*pExpr);
+
+  if (pLeft->tokenId == TK_ID && pRight->tokenId == TK_TIMESTAMP && (pRight->flags & (1 << EXPR_FLAG_TIMESTAMP_VAR))) {
+    return TSDB_CODE_TSC_INVALID_SQL;
+  }
+
+  if ((pLeft->flags & (1 << EXPR_FLAG_TS_ERROR)) || (pRight->flags & (1 << EXPR_FLAG_TS_ERROR))) {
+    return TSDB_CODE_TSC_INVALID_SQL;
+  }
 
   return handleExprInQueryCond(pCmd, pQueryInfo, pExpr, pCondExpr, type, parentOptr);
 }
@@ -4587,7 +4633,7 @@ int32_t getTimeRange(STimeWindow* win, tSqlExpr* pRight, int32_t optr, int16_t t
       }
     } else {
       SStrToken token = {.z = pRight->value.pz, .n = pRight->value.nLen, .type = TK_ID};
-      int32_t   len = tSQLGetToken(pRight->value.pz, &token.type);
+      int32_t   len = tGetToken(pRight->value.pz, &token.type);
 
       if ((token.type != TK_INTEGER && token.type != TK_FLOAT) || len != pRight->value.nLen) {
         return TSDB_CODE_TSC_INVALID_SQL;
@@ -5169,7 +5215,7 @@ int32_t setAlterTableInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
     int32_t size = sizeof(SUpdateTableTagValMsg) + pTagsSchema->bytes + schemaLen + TSDB_EXTRA_PAYLOAD_SIZE;
 
     if (TSDB_CODE_SUCCESS != tscAllocPayload(pCmd, size)) {
-      tscError("%p failed to malloc for alter table msg", pSql);
+      tscError("0x%"PRIx64" failed to malloc for alter table msg", pSql->self);
       return TSDB_CODE_TSC_OUT_OF_MEMORY;
     }
 
@@ -5456,13 +5502,13 @@ int32_t validateLocalConfig(SMiscInfo* pOptions) {
 }
 
 int32_t validateColumnName(char* name) {
-  bool ret = isKeyWord(name, (int32_t)strlen(name));
+  bool ret = taosIsKeyWordToken(name, (int32_t)strlen(name));
   if (ret) {
     return TSDB_CODE_TSC_INVALID_SQL;
   }
 
   SStrToken token = {.z = name};
-  token.n = tSQLGetToken(name, &token.type);
+  token.n = tGetToken(name, &token.type);
 
   if (token.type != TK_STRING && token.type != TK_ID) {
     return TSDB_CODE_TSC_INVALID_SQL;
@@ -5473,7 +5519,7 @@ int32_t validateColumnName(char* name) {
     strntolower(token.z, token.z, token.n);
     token.n = (uint32_t)strtrim(token.z);
 
-    int32_t k = tSQLGetToken(token.z, &token.type);
+    int32_t k = tGetToken(token.z, &token.type);
     if (k != token.n) {
       return TSDB_CODE_TSC_INVALID_SQL;
     }
@@ -6455,7 +6501,6 @@ int32_t doCheckForCreateFromStable(SSqlObj* pSql, SSqlInfo* pInfo) {
 
     size_t valSize = taosArrayGetSize(pValList);
 
-
     // too long tag values will return invalid sql, not be truncated automatically
     SSchema  *pTagSchema = tscGetTableTagSchema(pStableMetaInfo->pTableMeta);
     STagData *pTag = &pCreateTableInfo->tagdata;
@@ -6464,7 +6509,6 @@ int32_t doCheckForCreateFromStable(SSqlObj* pSql, SSqlInfo* pInfo) {
     if (tdInitKVRowBuilder(&kvRowBuilder) < 0) {
       return TSDB_CODE_TSC_OUT_OF_MEMORY;
     }
-
 
     SArray* pNameList = NULL;
     size_t nameSize = 0;
@@ -6927,7 +6971,10 @@ static int32_t handleExprInHavingClause(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, t
     }
   }
 
-  int32_t ret = doExtractColumnFilterInfo(pCmd, pQueryInfo, pColFilter, pInfo->field.type, pExpr);
+  STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
+  STableMeta* pTableMeta = pTableMetaInfo->pTableMeta;
+
+  int32_t ret = doExtractColumnFilterInfo(pCmd, pQueryInfo, pTableMeta, pColFilter, pInfo->field.type, pExpr);
   if (ret) {
     return ret; 
   }
@@ -7077,6 +7124,7 @@ int32_t doValidateSqlNode(SSqlObj* pSql, SQuerySqlNode* pQuerySqlNode, int32_t i
   const char* msg6 = "too many tables in from clause";
   const char* msg7 = "invalid table alias name";
   const char* msg8 = "alias name too long";
+  const char* msg9 = "only tag query not compatible with normal column filter";
 
   int32_t code = TSDB_CODE_SUCCESS;
 
@@ -7245,6 +7293,20 @@ int32_t doValidateSqlNode(SSqlObj* pSql, SQuerySqlNode* pQuerySqlNode, int32_t i
   
     if (hasUnsupportFunctionsForSTableQuery(pCmd, pQueryInfo)) {
       return TSDB_CODE_TSC_INVALID_SQL;
+    }
+
+    if(tscQueryTags(pQueryInfo)) {
+      SSqlExpr* pExpr1 = tscSqlExprGet(pQueryInfo, 0);
+
+      if (pExpr1->functionId != TSDB_FUNC_TID_TAG) {
+        int32_t numOfCols = (int32_t)taosArrayGetSize(pQueryInfo->colList);
+        for (int32_t i = 0; i < numOfCols; ++i) {
+          SColumn* pCols = taosArrayGetP(pQueryInfo->colList, i);
+          if (pCols->numOfFilters > 0) {
+            return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg9);
+          }
+        }
+      }
     }
   }
 
@@ -7438,11 +7500,3 @@ bool hasNormalColumnFilter(SQueryInfo* pQueryInfo) {
 
   return false;
 }
-
-
-
-
-
-
-
-

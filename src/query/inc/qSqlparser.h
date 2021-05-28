@@ -22,8 +22,8 @@ extern "C" {
 
 #include "taos.h"
 #include "taosmsg.h"
-#include "tstoken.h"
 #include "tstrbuild.h"
+#include "ttoken.h"
 #include "tvariant.h"
 
 #define ParseTOKENTYPE SStrToken
@@ -42,6 +42,12 @@ enum SQL_NODE_TYPE {
 enum SQL_NODE_FROM_TYPE {
   SQL_NODE_FROM_SUBQUERY  = 1,
   SQL_NODE_FROM_NAMELIST  = 2,
+};
+
+enum SQL_EXPR_FLAG {
+  EXPR_FLAG_TS_ERROR = 1,
+  EXPR_FLAG_US_TIMESTAMP = 2,
+  EXPR_FLAG_TIMESTAMP_VAR = 3,
 };
 
 extern char tTokenTypeSwitcher[13];
@@ -237,7 +243,8 @@ typedef struct tSqlExpr {
   SStrToken          colInfo;     // table column info
   tVariant           value;       // the use input value
   SStrToken          token;       // original sql expr string
-
+  uint32_t           flags;
+  
   struct tSqlExpr   *pLeft;       // left child
   struct tSqlExpr   *pRight;      // right child
   struct SArray     *pParam;      // function parameters list

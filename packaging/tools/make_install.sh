@@ -243,9 +243,17 @@ function install_data() {
 }
 
 function install_connector() {
-    ${csudo} cp -rf ${source_dir}/src/connector/grafanaplugin ${install_main_dir}/connector
+    if [ -d "${source_dir}/src/connector/grafanaplugin/dist" ]; then
+        ${csudo} cp -rf ${source_dir}/src/connector/grafanaplugin/dist ${install_main_dir}/connector/grafanaplugin
+    else
+        echo "WARNING: grafanaplugin bundled dir not found, please check if want to use it!"
+    fi
+    if find ${source_dir}/src/connector/go -mindepth 1 -maxdepth 1 | read; then
+        ${csudo} cp -r ${source_dir}/src/connector/go ${install_main_dir}/connector
+    else
+        echo "WARNING: go connector not found, please check if want to use it!"
+    fi
     ${csudo} cp -rf ${source_dir}/src/connector/python ${install_main_dir}/connector
-    ${csudo} cp -rf ${source_dir}/src/connector/go ${install_main_dir}/connector
         
     ${csudo} cp ${binary_dir}/build/lib/*.jar ${install_main_dir}/connector &> /dev/null && ${csudo} chmod 777 ${install_main_dir}/connector/*.jar || echo &> /dev/null 
 }
@@ -333,6 +341,7 @@ function install_service_on_systemd() {
     ${csudo} bash -c "echo 'Type=simple'                        >> ${taosd_service_config}"
     ${csudo} bash -c "echo 'ExecStart=/usr/bin/taosd'           >> ${taosd_service_config}"
     ${csudo} bash -c "echo 'ExecStartPre=/usr/local/taos/bin/startPre.sh'           >> ${taosd_service_config}"
+    ${csudo} bash -c "echo 'TimeoutStopSec=1000000s'            >> ${taosd_service_config}"
     ${csudo} bash -c "echo 'LimitNOFILE=infinity'               >> ${taosd_service_config}"
     ${csudo} bash -c "echo 'LimitNPROC=infinity'                >> ${taosd_service_config}"
     ${csudo} bash -c "echo 'LimitCORE=infinity'                 >> ${taosd_service_config}"

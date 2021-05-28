@@ -139,6 +139,34 @@ if $data10 != 1 then
   return -1
 endi
 
+sql select 'ab' as options from union_tb1 limit 1 union all select 'dd' as options from union_tb0 limit 1;
+if $rows != 2 then
+  return -1
+endi
+
+if $data00 != @ab@ then
+  return -1
+endi
+
+if $data10 != @dd@ then
+  return -1
+endi
+
+
+sql select 'ab' as options from union_tb1 limit 1 union all select '1234567' as options from union_tb0 limit 1;
+if $rows != 2 then
+  return -1
+endi
+
+if $data00 != @ab@ then
+  return -1
+endi
+
+if $data10 != @1234567@ then
+  return -1
+endi
+
+
 # mixed order
 sql select ts, c1 from union_tb1 order by ts asc limit 10 union all select ts, c1 from union_tb0 order by ts desc limit 2 union all select ts, c1 from union_tb2 order by ts asc limit 10
 if $rows != 22 then
@@ -420,6 +448,16 @@ endi
 if $data10 != @union_db0@ then
   return -1
 endi
+
+sql select 'aaa' as option from union_tb1 where c1 < 0 limit 1 union all select 'bbb' as option from union_tb0 limit 1
+if $rows != 1 then
+  return -1
+endi
+
+if $data00 != @bbb@ then
+  return -1
+endi
+
 
 sql_error show tables union all show tables
 sql_error show stables union all show stables

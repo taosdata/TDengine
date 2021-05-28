@@ -215,7 +215,7 @@ static void tscProcessSubscriptionTimer(void *handle, void *tmrId) {
   taosTmrReset(tscProcessSubscriptionTimer, pSub->interval, pSub, tscTmr, &pSub->pTimer);
 }
 
-
+//TODO refactor: extract table list name not simply from the sql
 static SArray* getTableList( SSqlObj* pSql ) {
   const char* p = strstr( pSql->sqlstr, " from " );
   assert(p != NULL); // we are sure this is a 'select' statement
@@ -224,11 +224,11 @@ static SArray* getTableList( SSqlObj* pSql ) {
   
   SSqlObj* pNew = taos_query(pSql->pTscObj, sql);
   if (pNew == NULL) {
-    tscError("failed to retrieve table id: cannot create new sql object.");
+    tscError("0x%"PRIx64" failed to retrieve table id: cannot create new sql object.", pSql->self);
     return NULL;
 
   } else if (taos_errno(pNew) != TSDB_CODE_SUCCESS) {
-    tscError("failed to retrieve table id: %s", tstrerror(taos_errno(pNew)));
+    tscError("0x%"PRIx64" failed to retrieve table id,error: %s", pSql->self, tstrerror(taos_errno(pNew)));
     return NULL;
   }
 

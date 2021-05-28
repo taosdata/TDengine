@@ -54,14 +54,14 @@ void tscAddIntoSqlList(SSqlObj *pSql) {
   pSql->next = pObj->sqlList;
   if (pObj->sqlList) pObj->sqlList->prev = pSql;
   pObj->sqlList = pSql;
-  pSql->queryId = queryId++;
+  pSql->queryId = atomic_fetch_add_32(&queryId, 1);
 
   pthread_mutex_unlock(&pObj->mutex);
 
   pSql->stime = taosGetTimestampMs();
   pSql->listed = 1;
 
-  tscDebug("0x%"PRIx64" added into sqlList", pSql->self);
+  tscDebug("0x%"PRIx64" added into sqlList, queryId:%u", pSql->self, pSql->queryId);
 }
 
 void tscSaveSlowQueryFpCb(void *param, TAOS_RES *result, int code) {
@@ -104,7 +104,7 @@ void tscSaveSlowQuery(SSqlObj *pSql) {
   
   char *sql = malloc(sqlSize);
   if (sql == NULL) {
-    tscError("%p failed to allocate memory to sent slow query to dnode", pSql);
+    tscError("0x%"PRIx64" failed to allocate memory to sent slow query to dnode", pSql->self);
     return;
   }
   
@@ -273,7 +273,7 @@ int tscBuildQueryStreamDesc(void *pMsg, STscObj *pObj) {
     pSdesc->num = htobe64(pStream->num);
 
     pSdesc->useconds = htobe64(pStream->useconds);
-    pSdesc->stime = htobe64(pStream->stime - pStream->interval.interval);
+    pSdesc->stime = (pStream->stime == INT64_MIN) ? htobe64(pStream->stime) : htobe64(pStream->stime - pStream->interval.interval);
     pSdesc->ctime = htobe64(pStream->ctime);
 
     pSdesc->slidingTime = htobe64(pStream->interval.sliding);
