@@ -769,6 +769,10 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql, char** boundC
       index = 0;
       sToken = tStrGetToken(sql, &index, false);
 
+      if (sToken.type == TK_ILLEGAL) {
+        return tscSQLSyntaxErrMsg(pCmd->payload, "unrecognized token", sToken.z);
+      }
+      
       if (sToken.type == TK_RP) {
         break;
       }
