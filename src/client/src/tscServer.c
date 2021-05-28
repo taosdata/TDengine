@@ -2517,7 +2517,7 @@ static int32_t getTableMetaFromMnode(SSqlObj *pSql, STableMetaInfo *pTableMetaIn
   pNew->fp = tscTableMetaCallBack;
   pNew->param = (void *)pSql->self;
 
-  tscDebug("0x%"PRIx64" metaRid from %" PRId64 " to %" PRId64 , pSql->self, pSql->metaRid, pNew->self);
+  tscDebug("0x%"PRIx64" metaRid from %" PRId64 " to 0x%" PRIx64 , pSql->self, pSql->metaRid, pNew->self);
   
   pSql->metaRid = pNew->self;
 

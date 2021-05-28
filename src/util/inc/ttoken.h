@@ -185,6 +185,8 @@ static FORCE_INLINE int32_t tGetNumericStringType(const SStrToken* pToken) {
 
 void taosCleanupKeywordsTable();
 
+SStrToken taosTokenDup(SStrToken* pToken, char* buf, int32_t len);
+
 #ifdef __cplusplus
 }
 #endif

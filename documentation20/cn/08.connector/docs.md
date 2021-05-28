@@ -399,27 +399,22 @@ Python连接器的使用参见[视频教程](https://www.taosdata.com/blog/2020/
 
 #### Linux
 
-用户可以在源代码的src/connector/python（或者tar.gz的/connector/python）文件夹下找到python2和python3的connector安装包。用户可以通过pip命令安装： 
+用户可以在源代码的src/connector/python（或者tar.gz的/connector/python）文件夹下找到connector安装包。用户可以通过pip命令安装： 
 
-​		`pip install src/connector/python/linux/python2/`
+​		`pip install src/connector/python/`
 
 或
 
-​		`pip3 install src/connector/python/linux/python3/`
+​		`pip3 install src/connector/python/`
 
 #### Windows
 在已安装Windows TDengine 客户端的情况下， 将文件"C:\TDengine\driver\taos.dll" 拷贝到 "C:\windows\system32" 目录下, 然后进入Windwos <em>cmd</em> 命令行界面
 ```cmd
-cd C:\TDengine\connector\python\windows
-python -m pip install python2\
-```
-或
-```cmd
-cd C:\TDengine\connector\python\windows
-python -m pip install python3\
+cd C:\TDengine\connector\python
+python -m pip install .
 ```
 
-* 如果机器上没有pip命令，用户可将src/connector/python/python3或src/connector/python/python2下的taos文件夹拷贝到应用程序的目录使用。
+* 如果机器上没有pip命令，用户可将src/connector/python下的taos文件夹拷贝到应用程序的目录使用。
 对于windows 客户端，安装TDengine windows 客户端后，将C:\TDengine\driver\taos.dll拷贝到C:\windows\system32目录下即可。
 
 ### 使用

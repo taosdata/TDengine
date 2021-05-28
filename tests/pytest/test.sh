@@ -13,7 +13,7 @@ else
 fi
 TAOSD_DIR=`find $TAOS_DIR -name "taosd"|grep bin|head -n1`
 LIB_DIR=`echo $TAOSD_DIR|rev|cut -d '/' -f 3,4,5,6|rev`/lib
-export PYTHONPATH=$(pwd)/../../src/connector/python/linux/python3
+export PYTHONPATH=$(pwd)/../../src/connector/python
 export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$LIB_DIR
 
 if [[ "$1" == *"test.py"* ]]; then
