@@ -21,7 +21,7 @@ def pre_test(){
     cmake .. > /dev/null
     make > /dev/null
     make install > /dev/null
-    pip3 install ${WKC}/src/connector/python
+    pip3 install ${WKC}/src/connector/python/linux/python3/
     '''
     return 1
 }
@@ -37,7 +37,7 @@ pipeline {
       stage('Parallel test stage') {
       parallel {
         stage('pytest') {
-          agent{label 'slad1'}
+          agent{label 'slam1'}
           steps {
             pre_test()
             sh '''
@@ -48,7 +48,7 @@ pipeline {
           }
         }
         stage('test_b1') {
-          agent{label 'master'}
+          agent{label 'slam2'}
           steps {
             pre_test()
             
@@ -62,7 +62,7 @@ pipeline {
         }
 
         stage('test_crash_gen') {
-          agent{label "slad2"}
+          agent{label "slam3"}
           steps {
             pre_test()
             sh '''
@@ -149,7 +149,7 @@ pipeline {
         }
 
         stage('test_valgrind') {
-          agent{label "slad3"}
+          agent{label "slam4"}
 
           steps {
             pre_test()
@@ -228,11 +228,11 @@ pipeline {
     }
 
   }
-  post {  
+  post {             
         success {
             emailext (
-                subject: "PR-result: Job '${env.JOB_NAME} [${env.BUILD_NUMBER}]' SUCCESS",
-                body: """<!DOCTYPE html>
+                subject: "SUCCESSFUL: Job '${env.JOB_NAME} [${env.BUILD_NUMBER}]'",
+                body: '''<!DOCTYPE html>
                 <html>
                 <head>
                 <meta charset="UTF-8">
@@ -248,29 +248,29 @@ pipeline {
                             <td>
                                 <ul>
                                 <div style="font-size:18px">
-                                    <li>构建名称>>分支：${env.BRANCH_NAME}</li>
+                                    <li>构建名称>>分支：${PROJECT_NAME}</li>
                                     <li>构建结果：<span style="color:green"> Successful </span></li>
                                     <li>构建编号：${BUILD_NUMBER}</li>
-                                    <li>触发用户：${env.CHANGE_AUTHOR}</li>
-                                    <li>提交信息：${env.CHANGE_TITLE}</li>
+                                    <li>触发用户：${CAUSE}</li>
+                                    <li>变更概要：${CHANGES}</li>
                                     <li>构建地址：<a href=${BUILD_URL}>${BUILD_URL}</a></li>
                                     <li>构建日志：<a href=${BUILD_URL}console>${BUILD_URL}console</a></li>
-                                    
+                                    <li>变更集：${JELLY_SCRIPT}</li>
                                 </div>
                                 </ul>
                             </td>
                         </tr>
                     </table></font>
                 </body>
-                </html>""",
+                </html>''',
                 to: "yqliu@taosdata.com,pxiao@taosdata.com",
                 from: "support@taosdata.com"
             )
         }
         failure {
             emailext (
-                subject: "PR-result: Job '${env.JOB_NAME} [${env.BUILD_NUMBER}]' FAIL",
-                body: """<!DOCTYPE html>
+                subject: "FAILED: Job '${env.JOB_NAME} [${env.BUILD_NUMBER}]'",
+                body: '''<!DOCTYPE html>
                 <html>
                 <head>
                 <meta charset="UTF-8">
@@ -286,21 +286,21 @@ pipeline {
                             <td>
                                 <ul>
                                 <div style="font-size:18px">
-                                    <li>构建名称>>分支：${env.BRANCH_NAME}</li>
-                                    <li>构建结果：<span style="color:red"> Failure </span></li>
+                                    <li>构建名称>>分支：${PROJECT_NAME}</li>
+                                    <li>构建结果：<span style="color:green"> Successful </span></li>
                                     <li>构建编号：${BUILD_NUMBER}</li>
-                                    <li>触发用户：${env.CHANGE_AUTHOR}</li>
-                                    <li>提交信息：${env.CHANGE_TITLE}</li>
+                                    <li>触发用户：${CAUSE}</li>
+                                    <li>变更概要：${CHANGES}</li>
                                     <li>构建地址：<a href=${BUILD_URL}>${BUILD_URL}</a></li>
                                     <li>构建日志：<a href=${BUILD_URL}console>${BUILD_URL}console</a></li>
-                                    
+                                    <li>变更集：${JELLY_SCRIPT}</li>
                                 </div>
                                 </ul>
                             </td>
                         </tr>
                     </table></font>
                 </body>
-                </html>""",
+                </html>''',
                 to: "yqliu@taosdata.com,pxiao@taosdata.com",
                 from: "support@taosdata.com"
             )

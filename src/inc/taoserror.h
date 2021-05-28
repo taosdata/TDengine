@@ -219,6 +219,7 @@ int32_t* taosGetErrno();
 #define TSDB_CODE_VND_NO_WRITE_AUTH             TAOS_DEF_ERROR_CODE(0, 0x0512)  //"Database write operation denied")
 #define TSDB_CODE_VND_IS_SYNCING                TAOS_DEF_ERROR_CODE(0, 0x0513)  //"Database is syncing")
 #define TSDB_CODE_VND_INVALID_TSDB_STATE        TAOS_DEF_ERROR_CODE(0, 0x0514)  //"Invalid tsdb state")
+#define TSDB_CODE_VND_IS_CLOSING                TAOS_DEF_ERROR_CODE(0, 0x0515)  //"Database is closing")
 
 // tsdb
 #define TSDB_CODE_TDB_INVALID_TABLE_ID          TAOS_DEF_ERROR_CODE(0, 0x0600)  //"Invalid table ID")
@@ -426,6 +427,9 @@ int32_t* taosGetErrno();
 #define TSDB_CODE_FS_FILE_ALREADY_EXISTS        TAOS_DEF_ERROR_CODE(0, 0x2206)  //"tfs file already exists")
 #define TSDB_CODE_FS_INVLD_LEVEL                TAOS_DEF_ERROR_CODE(0, 0x2207)  //"tfs invalid level")
 #define TSDB_CODE_FS_NO_VALID_DISK              TAOS_DEF_ERROR_CODE(0, 0x2208)  //"tfs no valid disk")
+
+// monitor
+#define TSDB_CODE_MON_CONNECTION_INVALID        TAOS_DEF_ERROR_CODE(0, 0x2300)  //"monitor invalid monitor db connection")
 
 #ifdef __cplusplus
 }

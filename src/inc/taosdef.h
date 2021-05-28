@@ -33,6 +33,8 @@ extern "C" {
 #endif
 
 #define TSWINDOW_INITIALIZER ((STimeWindow) {INT64_MIN, INT64_MAX})
+#define TSWINDOW_DESC_INITIALIZER ((STimeWindow) {INT64_MAX, INT64_MIN})
+
 #define TSKEY_INITIAL_VAL    INT64_MIN
 
 // Bytes for each type.
@@ -298,7 +300,7 @@ do { \
 #define TSDB_DEFAULT_DB_UPDATE_OPTION   0
 
 #define TSDB_MIN_DB_CACHE_LAST_ROW      0
-#define TSDB_MAX_DB_CACHE_LAST_ROW      1
+#define TSDB_MAX_DB_CACHE_LAST_ROW      3
 #define TSDB_DEFAULT_CACHE_LAST_ROW     0
 
 #define TSDB_MIN_FSYNC_PERIOD           0
