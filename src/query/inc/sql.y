@@ -28,7 +28,7 @@
 #include <stdbool.h>
 #include "qSqlparser.h"
 #include "tcmdtype.h"
-#include "tstoken.h"
+#include "ttoken.h"
 #include "ttokendef.h"
 #include "tutil.h"
 #include "tvariant.h"
@@ -745,6 +745,18 @@ cmd ::= ALTER TABLE ids(X) cpxName(F) DROP COLUMN ids(A).     {
     SArray* K = tVariantListAppendToken(NULL, &A, -1);
 
     SAlterTableInfo* pAlterTable = tSetAlterTableInfo(&X, NULL, K, TSDB_ALTER_TABLE_DROP_COLUMN, -1);
+    setSqlInfo(pInfo, pAlterTable, NULL, TSDB_SQL_ALTER_TABLE);
+}
+
+cmd ::= ALTER TABLE ids(X) cpxName(F) ALTER COLUMN LENGTH ids(A) INTEGER(Z).     {
+    X.n += F.n;
+
+    toTSDBType(A.type);
+    SArray* K = tVariantListAppendToken(NULL, &A, -1);
+    toTSDBType(Z.type);
+    K = tVariantListAppendToken(K, &Z, -1);
+
+    SAlterTableInfo* pAlterTable = tSetAlterTableInfo(&X, K, NULL, TSDB_ALTER_TABLE_CHANGE_COLUMN, -1);
     setSqlInfo(pInfo, pAlterTable, NULL, TSDB_SQL_ALTER_TABLE);
 }
 

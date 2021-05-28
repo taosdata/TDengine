@@ -5074,6 +5074,8 @@ int32_t setAlterTableInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
   const char* msg18 = "primary timestamp column cannot be dropped";
   const char* msg19 = "invalid new tag name";
   const char* msg20 = "table is not super table";
+  const char* msg21 = "only binary/nchar column length could be altered";
+  const char* msg22 = "invalid column length";
 
   int32_t code = TSDB_CODE_SUCCESS;
 
@@ -5110,7 +5112,7 @@ int32_t setAlterTableInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
     }
   } else if ((pAlterSQL->type == TSDB_ALTER_TABLE_UPDATE_TAG_VAL) && (UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo))) {
     return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg4);
-  } else if ((pAlterSQL->type == TSDB_ALTER_TABLE_ADD_COLUMN || pAlterSQL->type == TSDB_ALTER_TABLE_DROP_COLUMN) &&
+  } else if ((pAlterSQL->type == TSDB_ALTER_TABLE_ADD_COLUMN || pAlterSQL->type == TSDB_ALTER_TABLE_DROP_COLUMN || pAlterSQL->type == TSDB_ALTER_TABLE_CHANGE_COLUMN) &&
              UTIL_TABLE_IS_CHILD_TABLE(pTableMetaInfo)) {
     return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg6);
   }
@@ -5325,6 +5327,34 @@ int32_t setAlterTableInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
     char name1[TSDB_COL_NAME_LEN] = {0};
     tstrncpy(name1, pItem->pVar.pz, sizeof(name1));
     TAOS_FIELD f = tscCreateField(TSDB_DATA_TYPE_INT, name1, tDataTypes[TSDB_DATA_TYPE_INT].bytes);
+    tscFieldInfoAppend(&pQueryInfo->fieldsInfo, &f);
+  } else if (pAlterSQL->type == TSDB_ALTER_TABLE_CHANGE_COLUMN) {
+    if (taosArrayGetSize(pAlterSQL->pAddColumns) != 2) {
+      return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), NULL);
+    }
+
+    tVariantListItem* pItem = taosArrayGet(pAlterSQL->pAddColumns, 0);
+    
+    SColumnIndex columnIndex = COLUMN_INDEX_INITIALIZER;
+    SStrToken    name = {.type = TK_STRING, .z = pItem->pVar.pz, .n = pItem->pVar.nLen};
+    if (getColumnIndexByName(pCmd, &name, pQueryInfo, &columnIndex) != TSDB_CODE_SUCCESS) {
+      return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg17);
+    }
+
+    SSchema* pColSchema = tscGetTableColumnSchema(pTableMetaInfo->pTableMeta, columnIndex.columnIndex);
+
+    if (pColSchema->type != TSDB_DATA_TYPE_BINARY && pColSchema->type != TSDB_DATA_TYPE_NCHAR) {
+      return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg21);
+    }
+
+    pItem = taosArrayGet(pAlterSQL->pAddColumns, 1);
+    int64_t nlen = 0;
+
+    if (tVariantDump(&pItem->pVar, (char *)&nlen, TSDB_DATA_TYPE_BIGINT, false) < 0 || nlen <= 0) {
+      return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg22);
+    }
+    
+    TAOS_FIELD f = tscCreateField(pColSchema->type, name.z, nlen);
     tscFieldInfoAppend(&pQueryInfo->fieldsInfo, &f);
   }
 
