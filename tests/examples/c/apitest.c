@@ -947,7 +947,7 @@ int main(int argc, char *argv[]) {
   printf("server info: %s\n", info);
   info = taos_get_client_info(taos);
   printf("client info: %s\n", info);
-#if 0
+
   printf("************  verify query  *************\n");
   verify_query(taos);
 
@@ -956,11 +956,9 @@ int main(int argc, char *argv[]) {
 
   printf("*********** verify subscribe ************\n");
   verify_subscribe(taos);
-#endif
 
   printf("************ verify prepare *************\n");
   verify_prepare(taos);
-
 
   printf("************ verify prepare2 *************\n");
   verify_prepare2(taos);
@@ -968,12 +966,10 @@ int main(int argc, char *argv[]) {
   printf("************ verify prepare3 *************\n");
   verify_prepare3(taos);
 
-#if 0
-
   printf("************ verify stream  *************\n");
   verify_stream(taos);
   printf("done\n");
-#endif
+
   taos_close(taos);
   taos_cleanup();
 }
