@@ -448,7 +448,7 @@ void verify_prepare2(TAOS* taos) {
       double f8[10];
       char bin[10][40];
       char blob[10][80];
-  } v = {0};
+  } v;
 
   int32_t *t8_len = malloc(sizeof(int32_t) * 10);
   int32_t *t16_len = malloc(sizeof(int32_t) * 10);
@@ -688,7 +688,7 @@ void verify_prepare3(TAOS* taos) {
       double f8[10];
       char bin[10][40];
       char blob[10][80];
-  } v = {0};
+  } v;
 
   int32_t *t8_len = malloc(sizeof(int32_t) * 10);
   int32_t *t16_len = malloc(sizeof(int32_t) * 10);
