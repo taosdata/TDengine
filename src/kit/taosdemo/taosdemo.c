@@ -3812,25 +3812,29 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
 
       // dbinfo
       cJSON *stbName = cJSON_GetObjectItem(stbInfo, "name");
-      if (!stbName || stbName->type != cJSON_String || stbName->valuestring == NULL) {
+      if (!stbName || stbName->type != cJSON_String
+              || stbName->valuestring == NULL) {
         errorPrint("%s() LN%d, failed to read json, stb name not found\n",
                 __func__, __LINE__);
         goto PARSE_OVER;
       }
-      tstrncpy(g_Dbs.db[i].superTbls[j].sTblName, stbName->valuestring, MAX_TB_NAME_SIZE);
+      tstrncpy(g_Dbs.db[i].superTbls[j].sTblName, stbName->valuestring,
+              MAX_TB_NAME_SIZE);
 
       cJSON *prefix = cJSON_GetObjectItem(stbInfo, "childtable_prefix");
       if (!prefix || prefix->type != cJSON_String || prefix->valuestring == NULL) {
         printf("ERROR: failed to read json, childtable_prefix not found\n");
         goto PARSE_OVER;
       }
-      tstrncpy(g_Dbs.db[i].superTbls[j].childTblPrefix, prefix->valuestring, MAX_DB_NAME_SIZE);
+      tstrncpy(g_Dbs.db[i].superTbls[j].childTblPrefix, prefix->valuestring,
+              MAX_DB_NAME_SIZE);
 
-      cJSON *autoCreateTbl = cJSON_GetObjectItem(stbInfo, "auto_create_table"); // yes, no, null
+      cJSON *autoCreateTbl = cJSON_GetObjectItem(stbInfo, "auto_create_table");
       if (autoCreateTbl
               && autoCreateTbl->type == cJSON_String
               && autoCreateTbl->valuestring != NULL) {
-        if (0 == strncasecmp(autoCreateTbl->valuestring, "yes", 3)) {
+        if ((0 == strncasecmp(autoCreateTbl->valuestring, "yes", 3))
+            && (TBL_ALREADY_EXISTS != g_Dbs.db[i].superTbls[j].childTblExists)) {
           g_Dbs.db[i].superTbls[j].autoCreateTable = AUTO_CREATE_SUBTBL;
         } else if (0 == strncasecmp(autoCreateTbl->valuestring, "no", 2)) {
           g_Dbs.db[i].superTbls[j].autoCreateTable = PRE_CREATE_SUBTBL;
@@ -3873,6 +3877,10 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
         errorPrint("%s() LN%d, failed to read json, child_table_exists not found\n",
                 __func__, __LINE__);
         goto PARSE_OVER;
+      }
+
+      if (TBL_ALREADY_EXISTS == g_Dbs.db[i].superTbls[j].childTblExists) {
+          g_Dbs.db[i].superTbls[j].autoCreateTable = PRE_CREATE_SUBTBL;
       }
 
       cJSON* count = cJSON_GetObjectItem(stbInfo, "childtable_count");
@@ -3932,7 +3940,8 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
       cJSON* childTbl_offset = cJSON_GetObjectItem(stbInfo, "childtable_offset");
       if ((childTbl_offset) && (g_Dbs.db[i].drop != true)
           && (g_Dbs.db[i].superTbls[j].childTblExists == TBL_ALREADY_EXISTS)) {
-        if (childTbl_offset->type != cJSON_Number || 0 > childTbl_offset->valueint) {
+        if ((childTbl_offset->type != cJSON_Number)
+                || (0 > childTbl_offset->valueint)) {
             printf("ERROR: failed to read json, childtable_offset\n");
             goto PARSE_OVER;
         }
@@ -3988,7 +3997,8 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
       }
 
       cJSON *tagsFile = cJSON_GetObjectItem(stbInfo, "tags_file");
-      if (tagsFile && tagsFile->type == cJSON_String && tagsFile->valuestring != NULL) {
+      if ((tagsFile && tagsFile->type == cJSON_String)
+              && (tagsFile->valuestring != NULL)) {
         tstrncpy(g_Dbs.db[i].superTbls[j].tagsFile,
                 tagsFile->valuestring, MAX_FILE_NAME_LEN);
         if (0 == g_Dbs.db[i].superTbls[j].tagsFile[0]) {
