@@ -383,6 +383,7 @@ static int32_t walRestoreWalFile(SWal *pWal, void *pVnode, FWalWrite writeFp, ch
       wError("vgId:%d, file:%s, wal whole cksum is messed up, hver:%" PRIu64 " len:%d offset:%" PRId64, pWal->vgId, name,
              pHead->version, pHead->len, offset);
       code = walSkipCorruptedRecord(pWal, pHead, tfd, &offset);
+      break;
       if (code != TSDB_CODE_SUCCESS) {
         walFtruncate(pWal, tfd, offset);
         break;
@@ -430,6 +431,8 @@ static int32_t walRestoreWalFile(SWal *pWal, void *pVnode, FWalWrite writeFp, ch
            pWal->vgId, fileId, pHead->version, pWal->version, pHead->len, offset);
 
     pWal->version = pHead->version;
+
+    //wInfo("writeFp: %ld", offset);
     (*writeFp)(pVnode, pHead, TAOS_QTYPE_WAL, NULL);
   }
 
