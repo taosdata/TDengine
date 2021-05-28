@@ -31,7 +31,7 @@ class TDTestCase:
         tdLog.info("2 rows inserted")
         tdSql.query('select * from m1;')
         tdSql.checkRows(2)
-        tdSql.execute('select *,tbname from m1;')
+        tdSql.query('select *,tbname from m1;')
         tdSql.execute("drop table tm0; ")
         tdSql.query('select * from m1')
         tdSql.checkRows(1)
