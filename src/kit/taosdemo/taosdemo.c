@@ -53,6 +53,8 @@
 #include "taoserror.h"
 #include "tutil.h"
 
+#define STMT_IFACE_ENABLED  1
+
 #define REQ_EXTRA_BUF_LEN   1024
 #define RESP_BUF_LEN        4096
 
@@ -5259,6 +5261,7 @@ static int64_t generateInterlaceDataWithoutStb(
   return k;
 }
 
+#if STMT_IFACE_ENABLED == 1
 static int32_t prepareStmtBindArrayByType(TAOS_BIND *bind,
         char *dataType, int32_t dataLen, char **ptr)
 {
@@ -5551,6 +5554,7 @@ static int32_t prepareStbStmt(SSuperTable *stbInfo,
 
     return k;
 }
+#endif
 
 static int32_t generateStbProgressiveData(
         SSuperTable *superTblInfo,
@@ -5738,6 +5742,7 @@ static void* syncWriteInterlace(threadInfo *pThreadInfo) {
       int32_t generated;
       if (superTblInfo) {
           if (superTblInfo->iface == STMT_IFACE) {
+#if STMT_IFACE_ENABLED == 1
               generated = prepareStbStmt(superTblInfo,
                       pThreadInfo->stmt,
                       tableName,
@@ -5745,6 +5750,7 @@ static void* syncWriteInterlace(threadInfo *pThreadInfo) {
                       insertRows, i,
                       startTime,
                       pThreadInfo->buffer);
+#endif
           } else {
               generated = generateStbInterlaceData(
                       superTblInfo,
@@ -5762,11 +5768,13 @@ static void* syncWriteInterlace(threadInfo *pThreadInfo) {
                       pThreadInfo->threadID,
                       __func__, __LINE__,
                       tableName, batchPerTbl, startTime);
+#if STMT_IFACE_ENABLED == 1
               generated = prepareStmtWithoutStb(
                       pThreadInfo->stmt, tableName,
                       batchPerTbl,
                       insertRows, i,
                       startTime);
+#endif
           } else {
               generated = generateInterlaceDataWithoutStb(
                       tableName, batchPerTbl,
@@ -5947,12 +5955,14 @@ static void* syncWriteProgressive(threadInfo *pThreadInfo) {
       int32_t generated;
       if (superTblInfo) {
           if (superTblInfo->iface == STMT_IFACE) {
+#if STMT_IFACE_ENABLED == 1
               generated = prepareStbStmt(
                       superTblInfo,
                       pThreadInfo->stmt,
                       tableName,
                       g_args.num_of_RPR,
                       insertRows, i, start_time, pstr);
+#endif
           } else {
               generated = generateStbProgressiveData(
                       superTblInfo,
@@ -5963,12 +5973,14 @@ static void* syncWriteProgressive(threadInfo *pThreadInfo) {
           }
       } else {
           if (g_args.iface == STMT_IFACE) {
+#if STMT_IFACE_ENABLED == 1
               generated = prepareStmtWithoutStb(
                       pThreadInfo->stmt,
                       tableName,
                       g_args.num_of_RPR,
                       insertRows, i,
                       start_time);
+#endif
           } else {
               generated = generateProgressiveDataWithoutStb(
                       tableName,
