@@ -171,7 +171,7 @@ int main(int argc, char *argv[])
     }
  
     // create database
-    np = snprintf(cmd, sizeof(cmd), "create database if not exists %s;", db_name);
+    np = snprintf(cmd, sizeof(cmd), "create database if not exists %s precision 'us';", db_name);
     if (np <= 0) {
         fprintf(stderr, "fnprintf error cmd: %s\r\n", cmd);
         status = 1;
