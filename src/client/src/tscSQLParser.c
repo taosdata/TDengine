@@ -2495,8 +2495,8 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
       s.bytes = bytes;
       s.type = (uint8_t)resType;
 
-      SExprInfo* pExpr = tscSqlExprInsert(pQueryInfo, 0, TSDB_FUNC_BLKINFO, &index, resType,
-                                         bytes, getNewResColId(pQueryInfo), bytes, 0);
+      SExprInfo* pExpr = tscExprInsert(pQueryInfo, 0, TSDB_FUNC_BLKINFO, &index, resType,
+                                         bytes, getNewResColId(pCmd), bytes, 0);
       tstrncpy(pExpr->base.aliasName, s.name, sizeof(pExpr->base.aliasName));
 
       SColumnList ids = createColumnList(1, index.tableIndex, index.columnIndex);

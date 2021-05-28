@@ -525,8 +525,8 @@ bool isSimpleAggregateRv(SQueryInfo* pQueryInfo) {
 }
 
 bool isBlockDistQuery(SQueryInfo* pQueryInfo) {
-  size_t numOfExprs = tscSqlExprNumOfExprs(pQueryInfo);
-  SExprInfo* pExpr = tscSqlExprGet(pQueryInfo, 0);
+  size_t numOfExprs = tscNumOfExprs(pQueryInfo);
+  SExprInfo* pExpr = tscExprGet(pQueryInfo, 0);
   return (numOfExprs == 1 && pExpr->base.functionId == TSDB_FUNC_BLKINFO);
 }
 
