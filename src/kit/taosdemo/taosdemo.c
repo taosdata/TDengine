@@ -6790,7 +6790,7 @@ static void *specifiedTableQuery(void *sarg) {
   uint64_t lastPrintTime = taosGetTimestampMs();
   uint64_t startTs = taosGetTimestampMs();
 
-  if (g_queryInfo.specifiedQueryInfo.result[pThreadInfo->querySeq] != NULL) {
+  if (g_queryInfo.specifiedQueryInfo.result[pThreadInfo->querySeq][0] != '\0') {
     sprintf(pThreadInfo->filePath, "%s-%d",
                 g_queryInfo.specifiedQueryInfo.result[pThreadInfo->querySeq],
                 pThreadInfo->threadID);
@@ -6891,7 +6891,7 @@ static void *superTableQuery(void *sarg) {
       for (int j = 0; j < g_queryInfo.superQueryInfo.sqlCount; j++) {
         memset(sqlstr,0,sizeof(sqlstr));
         replaceChildTblName(g_queryInfo.superQueryInfo.sql[j], sqlstr, i);
-        if (g_queryInfo.superQueryInfo.result[j] != NULL) {
+        if (g_queryInfo.superQueryInfo.result[j][0] != '\0') {
           sprintf(pThreadInfo->filePath, "%s-%d",
                   g_queryInfo.superQueryInfo.result[j],
                   pThreadInfo->threadID);
@@ -7322,7 +7322,7 @@ static void *specifiedSubscribe(void *sarg) {
           "taosdemo-subscribe-%"PRIu64"-%d",
           pThreadInfo->querySeq,
           pThreadInfo->threadID);
-  if (g_queryInfo.specifiedQueryInfo.result[pThreadInfo->querySeq] != NULL) {
+  if (g_queryInfo.specifiedQueryInfo.result[pThreadInfo->querySeq][0] != '\0') {
       sprintf(pThreadInfo->filePath, "%s-%d",
                 g_queryInfo.specifiedQueryInfo.result[pThreadInfo->querySeq],
                 pThreadInfo->threadID);
