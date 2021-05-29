@@ -919,8 +919,9 @@ JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_setTableNameTagsI
   }
 
   int32_t code = taos_stmt_set_tbname_tags((void*)stmt, name, tagsBind);
-  jniDebug("jobj:%p, conn:%p, set table name:%s, numOfTags:%d", jobj, tsconn, name,
-      numOfTags);
+
+  int32_t nTags = (int32_t) numOfTags;
+  jniDebug("jobj:%p, conn:%p, set table name:%s, numOfTags:%d", jobj, tsconn, name, nTags);
 
   tfree(tagsData);
   tfree(lengthArray);
