@@ -90,6 +90,9 @@ static int  tsdbApplyRtn(STsdbRepo *pRepo);
 static int  tsdbApplyRtnOnFSet(STsdbRepo *pRepo, SDFileSet *pSet, SRtn *pRtn);
 
 void *tsdbCommitData(STsdbRepo *pRepo) {
+  if (pRepo->imem == NULL) {
+    return NULL;
+  }
   tsdbStartCommit(pRepo);
 
   // Commit to update meta file
@@ -1149,7 +1152,7 @@ static int tsdbCommitAddBlock(SCommitH *pCommith, const SBlock *pSupBlock, const
     return -1;
   }
 
-  if (pSubBlocks && taosArrayPushBatch(pCommith->aSubBlk, pSubBlocks, nSubBlocks) == NULL) {
+  if (pSubBlocks && taosArrayAddBatch(pCommith->aSubBlk, pSubBlocks, nSubBlocks) == NULL) {
     terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
     return -1;
   }

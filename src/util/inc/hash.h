@@ -148,6 +148,7 @@ int32_t taosHashGetMaxOverflowLinkLength(const SHashObj *pHashObj);
 size_t taosHashGetMemSize(const SHashObj *pHashObj);
 
 void *taosHashIterate(SHashObj *pHashObj, void *p);
+
 void  taosHashCancelIterate(SHashObj *pHashObj, void *p);
 
 #ifdef __cplusplus

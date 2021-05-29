@@ -50,7 +50,15 @@ void* taosArrayInit(size_t size, size_t elemSize);
  * @param nEles
  * @return
  */
-void *taosArrayPushBatch(SArray *pArray, const void *pData, int nEles);
+void *taosArrayAddBatch(SArray *pArray, const void *pData, int nEles);
+
+/**
+ *  add all element from the source array list into the destination
+ * @param pArray
+ * @param pInput
+ * @return
+ */
+void* taosArrayAddAll(SArray* pArray, const SArray* pInput);
 
 /**
  *
@@ -59,7 +67,7 @@ void *taosArrayPushBatch(SArray *pArray, const void *pData, int nEles);
  * @return
  */
 static FORCE_INLINE void* taosArrayPush(SArray* pArray, const void* pData) {
-  return taosArrayPushBatch(pArray, pData, 1);
+  return taosArrayAddBatch(pArray, pData, 1);
 }
 
 /**
