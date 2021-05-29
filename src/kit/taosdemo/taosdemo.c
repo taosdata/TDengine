@@ -380,7 +380,7 @@ typedef struct SDbs_S {
 typedef struct SpecifiedQueryInfo_S {
   uint64_t     queryInterval;  // 0: unlimit  > 0   loop/s
   uint32_t     concurrent;
-  uint64_t     sqlCount;
+  int          sqlCount;
   uint32_t     asyncMode; // 0: sync, 1: async
   uint64_t     subscribeInterval; // ms
   uint64_t     queryTimes;
@@ -408,7 +408,7 @@ typedef struct SuperQueryInfo_S {
   uint64_t     queryTimes;
   int64_t      childTblCount;
   char         childTblPrefix[MAX_TB_NAME_SIZE];
-  uint64_t     sqlCount;
+  int          sqlCount;
   char         sql[MAX_QUERY_SQL_COUNT][MAX_QUERY_SQL_LENGTH+1];
   char         result[MAX_QUERY_SQL_COUNT][MAX_FILE_NAME_LEN+1];
   int          resubAfterConsume;
@@ -1777,7 +1777,7 @@ static void printfQueryMeta() {
 
   if ((SUBSCRIBE_TEST == g_args.test_mode) || (QUERY_TEST == g_args.test_mode)) {
     printf("specified table query info:                   \n");
-    printf("sqlCount:       \033[33m%"PRIu64"\033[0m\n",
+    printf("sqlCount:       \033[33m%d\033[0m\n",
       g_queryInfo.specifiedQueryInfo.sqlCount);
     if (g_queryInfo.specifiedQueryInfo.sqlCount > 0) {
       printf("specified tbl query times:\n");
@@ -1797,15 +1797,15 @@ static void printfQueryMeta() {
       printf("keepProgress:   \033[33m%d\033[0m\n",
         g_queryInfo.specifiedQueryInfo.subscribeKeepProgress);
 
-      for (uint64_t i = 0; i < g_queryInfo.specifiedQueryInfo.sqlCount; i++) {
-        printf("  sql[%"PRIu64"]: \033[33m%s\033[0m\n",
+      for (int i = 0; i < g_queryInfo.specifiedQueryInfo.sqlCount; i++) {
+        printf("  sql[%d]: \033[33m%s\033[0m\n",
             i, g_queryInfo.specifiedQueryInfo.sql[i]);
       }
       printf("\n");
     }
 
     printf("super table query info:\n");
-    printf("sqlCount:       \033[33m%"PRIu64"\033[0m\n",
+    printf("sqlCount:       \033[33m%d\033[0m\n",
       g_queryInfo.superQueryInfo.sqlCount);
 
     if (g_queryInfo.superQueryInfo.sqlCount > 0) {
@@ -4279,7 +4279,7 @@ static bool getMetaFromQueryJsonFile(cJSON* root) {
     if (concurrent && concurrent->type == cJSON_Number) {
       if (concurrent->valueint <= 0) {
         errorPrint(
-                "%s() LN%d, query sqlCount %"PRIu64" or concurrent %d is not correct.\n",
+                "%s() LN%d, query sqlCount %d or concurrent %d is not correct.\n",
               __func__, __LINE__,
               g_queryInfo.specifiedQueryInfo.sqlCount,
               g_queryInfo.specifiedQueryInfo.concurrent);
@@ -7488,12 +7488,12 @@ static int subscribeTestProcess() {
 
   //==== create threads for query for specified table
   if (g_queryInfo.specifiedQueryInfo.sqlCount <= 0) {
-    debugPrint("%s() LN%d, sepcified query sqlCount %"PRIu64".\n",
+    debugPrint("%s() LN%d, sepcified query sqlCount %d.\n",
               __func__, __LINE__,
               g_queryInfo.specifiedQueryInfo.sqlCount);
   } else {
     if (g_queryInfo.specifiedQueryInfo.concurrent <= 0) {
-        errorPrint("%s() LN%d, sepcified query sqlCount %"PRIu64".\n",
+        errorPrint("%s() LN%d, sepcified query sqlCount %d.\n",
               __func__, __LINE__,
               g_queryInfo.specifiedQueryInfo.sqlCount);
         exit(-1);
@@ -7526,7 +7526,7 @@ static int subscribeTestProcess() {
 
   //==== create threads for super table query
   if (g_queryInfo.superQueryInfo.sqlCount <= 0) {
-    debugPrint("%s() LN%d, super table query sqlCount %"PRIu64".\n",
+    debugPrint("%s() LN%d, super table query sqlCount %d.\n",
               __func__, __LINE__,
               g_queryInfo.superQueryInfo.sqlCount);
   } else {
