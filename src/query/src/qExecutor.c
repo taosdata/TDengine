@@ -185,7 +185,11 @@ static void destroySFillOperatorInfo(void* param, int32_t numOfOutput);
 static void destroyGroupbyOperatorInfo(void* param, int32_t numOfOutput);
 static void destroyArithOperatorInfo(void* param, int32_t numOfOutput);
 static void destroyTagScanOperatorInfo(void* param, int32_t numOfOutput);
+static void destroySWindowOperatorInfo(void* param, int32_t numOfOutput);
+static void destroyStateWindowOperatorInfo(void* param, int32_t numOfOutput);
+static void destroyAggOperatorInfo(void* param, int32_t numOfOutput);
 static void destroyOperatorInfo(SOperatorInfo* pOperator);
+
 
 static int32_t doCopyToSDataBlock(SQueryRuntimeEnv* pRuntimeEnv, SGroupResInfo* pGroupResInfo, int32_t orderType, SSDataBlock* pBlock);
 
@@ -4541,7 +4545,6 @@ static void destroyGlobalAggOperatorInfo(void* param, int32_t numOfOutput) {
   tfree(pInfo->prevRow);
   tfree(pInfo->currentGroupColData);
 }
-
 static void destroySlimitOperatorInfo(void* param, int32_t numOfOutput) {
   SSLimitOperatorInfo *pInfo = (SSLimitOperatorInfo*) param;
   taosArrayDestroy(pInfo->orderColumnList);
@@ -5099,13 +5102,14 @@ static void doStateWindowAggImpl(SOperatorInfo* pOperator, SStateWindowOperatorI
     } else if (memcmp(pInfo->prevData, val, bytes) == 0) {
       pInfo->curWindow.ekey = tsList[j];
       pInfo->numOfRows += 1;
-      pInfo->start = j;   
+      //pInfo->start = j;   
       if (j == 0 && pInfo->start != 0) {
         pInfo->numOfRows = 1;
         pInfo->start = 0;
       }
     } else {
       SResultRow* pResult = NULL;
+      pInfo->curWindow.ekey = pInfo->curWindow.skey;
       int32_t ret = setWindowOutputBufByKey(pRuntimeEnv, &pBInfo->resultRowInfo, &pInfo->curWindow, masterScan,
                                             &pResult, item->groupIndex, pBInfo->pCtx, pOperator->numOfOutput,
                                             pBInfo->rowCellInfoOffset);
@@ -5125,6 +5129,7 @@ static void doStateWindowAggImpl(SOperatorInfo* pOperator, SStateWindowOperatorI
   }
   SResultRow* pResult = NULL;
 
+  pInfo->curWindow.ekey = pInfo->curWindow.skey;
   int32_t ret = setWindowOutputBufByKey(pRuntimeEnv, &pBInfo->resultRowInfo, &pInfo->curWindow, masterScan,
                                         &pResult, item->groupIndex, pBInfo->pCtx, pOperator->numOfOutput,
                                         pBInfo->rowCellInfoOffset);
@@ -5442,7 +5447,7 @@ SOperatorInfo* createAggregateOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOpera
   pOperator->pRuntimeEnv  = pRuntimeEnv;
 
   pOperator->exec         = doAggregate;
-  pOperator->cleanup      = destroyBasicOperatorInfo;
+  pOperator->cleanup      = destroyAggOperatorInfo;
   return pOperator;
 }
 
@@ -5459,6 +5464,19 @@ static void doDestroyBasicInfo(SOptrBasicInfo* pInfo, int32_t numOfOutput) {
 static void destroyBasicOperatorInfo(void* param, int32_t numOfOutput) {
   SOptrBasicInfo* pInfo = (SOptrBasicInfo*) param;
   doDestroyBasicInfo(pInfo, numOfOutput);
+}
+static void destroyStateWindowOperatorInfo(void* param, int32_t numOfOutput) {
+  SStateWindowOperatorInfo* pInfo = (SStateWindowOperatorInfo*) param;
+  doDestroyBasicInfo(&pInfo->binfo, numOfOutput);
+  tfree(pInfo->prevData);
+}
+static void destroyAggOperatorInfo(void* param, int32_t numOfOutput) {
+  SAggOperatorInfo* pInfo = (SAggOperatorInfo*) param;
+  doDestroyBasicInfo(&pInfo->binfo, numOfOutput);
+}
+static void destroySWindowOperatorInfo(void* param, int32_t numOfOutput) {
+  SSWindowOperatorInfo* pInfo = (SSWindowOperatorInfo*) param;
+  doDestroyBasicInfo(&pInfo->binfo, numOfOutput);
 }
 
 static void destroySFillOperatorInfo(void* param, int32_t numOfOutput) {
@@ -5515,7 +5533,7 @@ SOperatorInfo* createMultiTableAggOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SO
   pOperator->pRuntimeEnv  = pRuntimeEnv;
 
   pOperator->exec         = doSTableAggregate;
-  pOperator->cleanup      = destroyBasicOperatorInfo;
+  pOperator->cleanup      = destroyAggOperatorInfo;
 
   return pOperator;
 }
@@ -5659,7 +5677,7 @@ SOperatorInfo* createStatewindowOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOpe
   pOperator->info         = pInfo;
   pOperator->pRuntimeEnv  = pRuntimeEnv;
   pOperator->exec         = doStateWindowAgg;
-  pOperator->cleanup      = destroyBasicOperatorInfo;
+  pOperator->cleanup      = destroyStateWindowOperatorInfo;
   return pOperator; 
   
 }
@@ -5683,7 +5701,7 @@ SOperatorInfo* createSWindowOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperato
   pOperator->info         = pInfo;
   pOperator->pRuntimeEnv  = pRuntimeEnv;
   pOperator->exec         = doSessionWindowAgg;
-  pOperator->cleanup      = destroyBasicOperatorInfo;
+  pOperator->cleanup      = destroySWindowOperatorInfo;
 
   return pOperator;
 }

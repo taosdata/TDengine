@@ -916,6 +916,9 @@ int32_t validateSessionNode(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SSqlNode * pS
   if (pQueryInfo->sessionWindow.gap != 0 && pQueryInfo->interval.interval != 0) {
     return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg2);
   }
+  if (pQueryInfo->sessionWindow.gap == 0) {
+    return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg4);
+  }
 
   SColumnIndex index = COLUMN_INDEX_INITIALIZER;
   if (getColumnIndexByName(pCmd, col, pQueryInfo, &index) != TSDB_CODE_SUCCESS) {
@@ -6196,7 +6199,7 @@ static int32_t doTagFunctionCheck(SQueryInfo* pQueryInfo) {
 int32_t doFunctionsCompatibleCheck(SSqlCmd* pCmd, SQueryInfo* pQueryInfo) {
   const char* msg1 = "functions/columns not allowed in group by query";
   const char* msg2 = "projection query on columns not allowed";
-  const char* msg3 = "group by not allowed on projection query";
+  const char* msg3 = "group by/session/state_window not allowed on projection query";
   const char* msg4 = "retrieve tags not compatible with group by or interval query";
   const char* msg5 = "functions can not be mixed up";
 
@@ -6211,6 +6214,9 @@ int32_t doFunctionsCompatibleCheck(SSqlCmd* pCmd, SQueryInfo* pQueryInfo) {
     } else {
       return TSDB_CODE_SUCCESS;
     }
+  }
+  if (tscIsProjectionQuery(pQueryInfo) && pQueryInfo->sessionWindow.gap > 0) {
+    return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg3);
   }
 
   if (pQueryInfo->groupbyExpr.numOfGroupCols > 0) {
