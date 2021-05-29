@@ -384,15 +384,16 @@ int main(int argc, char** argv) {
 //      TAOS_RES*  taos_query(conn, t);
 //      taos_free_result(res);
 //    }
-  executeSQL(conn, "use test", NULL);
+  executeSQL(conn, "use db", NULL);
+//  executeSQL(conn, "select count(*) from (select count(*) from nest_mt0)", NULL);
+
 //    executeSQL(conn, "select * from (select count(*) from tm0 interval(1s)) a", NULL);
 //    executeSQL(conn, "select count(*) from m1", NULL);
 //    executeSQL(conn, "select count(k) from m2 where tbname in ('t2m0', 't2m1') and ts>=1433955690790 and "
 //                     "ts<=1433955690850 interval(10a) fill(value, 911) group by tbname", NULL);
-    executeSQL(conn, "select a.ts,a.k,b.ts,c.ts,c.ts,c.x "
-                     "from (select count(*) k from t2m0 interval(30a)) a, (select count(*) f from t2m1 interval(30a)) b,"
-                     " (select count(*) x from t2m2 interval(30a)) c "
-                     "where a.ts = b.ts and a.ts = c.ts", NULL);
+   executeSQL(conn, "select stddev(col1) from test where cid = 1 and ts >=now - 1d and ts <now and col2 < 20;", NULL);
+//    executeSQL(conn, "select sum(a.k), sum(b.f) from (select count(*) k from nest_tb0 interval(30a)) a, (select count(*) f from nest_tb1 interval(30a)) b where a.ts = b.ts ;", NULL);
+//    executeSQL(conn, "select a.ts,a.k,b.ts,c.ts,c.ts,c.x from (select count(*) k from nest_tb0 interval(30a)) a, (select count(*) f from nest_tb1 interval(30a)) b, (select count(*) x from nest_tb2 interval(30a)) c where a.ts = b.ts and a.ts = c.ts", NULL);
 
 //  executeSQL(conn, "select a.ts,a.k "
 //                   "from (select count(*) k from t2m0 interval(30a)) a, (select count(*) f from t2m1 interval(30a)) b "
