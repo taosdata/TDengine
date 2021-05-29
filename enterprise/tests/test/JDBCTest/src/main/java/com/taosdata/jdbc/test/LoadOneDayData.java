@@ -1,5 +1,6 @@
 package com.taosdata.jdbc.test;
 
+import com.taosdata.jdbc.TSDBConstants;
 import com.taosdata.jdbc.TSDBDriver;
 import com.taosdata.jdbc.TSDBPreparedStatement;
 
@@ -125,14 +126,26 @@ public class LoadOneDayData {
 		try {
 			stmt = (Statement) conn.createStatement();
 
-			ResultSet rset = stmt.executeQuery("select * from test.tm1");
-			while(rset.next()) {
-				System.out.println(rset.getString(1) + ", " + rset.getString(2));
-			}
+//			ResultSet rset = stmt.executeQuery("select * from test.tm1");
+//			while(rset.next()) {
+//				System.out.println(rset.getString(1) + ", " + rset.getString(2));
+//			}
 
+			//    public void setTableName(String name, @SuppressWarnings("rawtypes") ArrayList tagsVal, ArrayList<Integer> type, ArrayList<Integer> length)
 			//ts timestamp, a1 int, a2 smallint, a3 bigint, a4 binary(12), a5 nchar(12), a6 tinyint
-			TSDBPreparedStatement s = (TSDBPreparedStatement) conn.prepareStatement("insert into ? values(?, ?, ?, ?, ?, ?, ?)");
-			s.setTableName("t5");
+			TSDBPreparedStatement s = (TSDBPreparedStatement) conn.prepareStatement("insert into ? using m1 tags(?) values(?, ?)");
+			
+			ArrayList tags = new ArrayList();
+			tags.add(911);
+			
+			ArrayList<Integer> type = new ArrayList<Integer>();
+			type.add(TSDBConstants.TSDB_DATA_TYPE_INT);
+			
+			ArrayList<Integer> length = new ArrayList<Integer>();
+			length.add(Integer.BYTES);
+			
+			s.setTableName("tm0");
+            s.setTagInt(0, 911);
 			
 			ArrayList<Long> t1 = new ArrayList<Long>();
 			t1.add(System.currentTimeMillis());
@@ -146,41 +159,11 @@ public class LoadOneDayData {
 			b2.add(null);
 			s.setInt(1, b2);
 			
-			ArrayList<Short> b3 = new ArrayList<Short>();
-			b3.add((short) 1);
-			b3.add((short) 2);
-			b3.add(null);
-			s.setShort(2, b3);
-			
-			ArrayList<Long> b4 = new ArrayList<Long>();
-			b4.add(1L);
-			b4.add(2L);
-			b4.add(null);
-			s.setLong(3, b4);
-			
-			ArrayList<String> b5 = new ArrayList<String>();
-			b5.add(new String("abc"));
-			b5.add(new String("def"));
-			b5.add(null);
-			s.setString(4, b5, 12);
-			
-			ArrayList<String> b6 = new ArrayList<String>();
-			b6.add("zzz");
-			b6.add("zzzz");
-			b6.add(null);
-			s.setNString(5, b6, 12);
-			
-			ArrayList<Byte> b7 = new ArrayList<Byte>();
-			b7.add((byte) 1);
-			b7.add((byte) 2);
-			b7.add(null);
-			s.setByte(6, b7);
-			
 			s.columnDataAddBatch();
 			s.columnDataExecuteBatch();
 			s.columnDataCloseBatch();
 			
-			rset.close();
+//			rset.close();
 			stmt.close();
 		} catch (SQLException e1) {
 			e1.printStackTrace();
