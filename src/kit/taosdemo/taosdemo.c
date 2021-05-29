@@ -5144,8 +5144,7 @@ static int generateStbSQLHead(
 
   char headBuf[HEAD_BUFF_LEN];
 
-  if ((AUTO_CREATE_SUBTBL == superTblInfo->autoCreateTable)
-          && (TBL_ALREADY_EXISTS != superTblInfo->childTblExists)) {
+  if (AUTO_CREATE_SUBTBL == superTblInfo->autoCreateTable) {
       char* tagsValBuf = NULL;
       if (0 == superTblInfo->tagSource) {
             tagsValBuf = generateTagVaulesForStb(superTblInfo, tableSeq);
