@@ -5506,6 +5506,7 @@ static int32_t prepareStmtWithoutStb(
         }
     }
 
+    free(bindArray);
     return k;
 }
 
@@ -5586,6 +5587,7 @@ static int32_t prepareStbStmt(SSuperTable *stbInfo,
         }
     }
 
+    free(bindArray);
     return k;
 }
 #endif
