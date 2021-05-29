@@ -522,13 +522,13 @@ static int32_t mnodeProcessDnodeStatusMsg(SMnodeMsg *pMsg) {
   pStatus->lastReboot   = htonl(pStatus->lastReboot);
   pStatus->numOfCores   = htons(pStatus->numOfCores);
 
-  uint32_t version = htonl(pStatus->version);
-  if (version != tsVersion) {
+  uint32_t _version = htonl(pStatus->version);
+  if (_version != tsVersion) {
     pDnode = mnodeGetDnodeByEp(pStatus->dnodeEp);
     if (pDnode != NULL && pDnode->status != TAOS_DN_STATUS_READY) {
       pDnode->offlineReason = TAOS_DN_OFF_VERSION_NOT_MATCH;
     }
-    mError("dnode:%d, status msg version:%d not equal with cluster:%d", pStatus->dnodeId, version, tsVersion);
+    mError("dnode:%d, status msg version:%d not equal with cluster:%d", pStatus->dnodeId, _version, tsVersion);
     return TSDB_CODE_MND_INVALID_MSG_VERSION;
   }
 
@@ -1270,3 +1270,30 @@ char* dnodeRoles[] = {
   "vnode",
   "any"
 };
+
+int32_t mnodeCompactDnodes() {
+  SDnodeObj *pDnode = NULL;
+  void *     pIter = NULL;
+
+  mInfo("start to compact dnodes table...");
+
+  while (1) {
+    pIter = mnodeGetNextDnode(pIter, &pDnode);
+    if (pDnode == NULL) break;
+
+    SSdbRow row = {
+      .type    = SDB_OPER_GLOBAL,
+      .pTable  = tsDnodeSdb,
+      .pObj    = pDnode,
+      .rowSize = sizeof(SDnodeObj),
+    };
+
+    mInfo("compact dnode %d", pDnode->dnodeId);
+    
+    sdbInsertCompactRow(&row);
+  }
+
+  mInfo("end to compact dnodes table...");
+
+  return 0;
+}

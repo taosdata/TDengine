@@ -1,3 +1,4 @@
+
 system sh/stop_dnodes.sh
 
 system sh/deploy.sh -n dnode1 -i 1
@@ -93,5 +94,15 @@ if $data41 != @udp005@ then
   print "[ERROR] expect: udp005, act:$data41"
 endi
 
+print ---------------------> TD-3967
+sql insert into tb values(now, '\\abc\\\\');
+sql insert into tb values(now, '\\abc\\\\');
+sql insert into tb values(now, '\\\\');
+
+print ------------->sim bug
+# sql_error insert into tb values(now, '\\\');
+sql_error insert into tb values(now, '\');
+#sql_error insert into tb values(now, '\\\n');
+sql insert into tb values(now, '\n');
 
 system sh/exec.sh -n dnode1 -s stop -x SIGINT

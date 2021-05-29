@@ -1017,7 +1017,7 @@ int taosDumpOut(struct arguments *arguments) {
       sprintf(command, "use %s", dbInfos[0]->name);
 
       result = taos_query(taos, command);
-      int32_t code = taos_errno(result);
+      code = taos_errno(result);
       if (code != 0) {
         fprintf(stderr, "invalid database %s\n", dbInfos[0]->name);
         goto _exit_failure;

@@ -166,7 +166,7 @@ int32_t getResultDataInfo(int32_t dataType, int32_t dataBytes, int32_t functionI
                           int16_t *bytes, int32_t *interBytes, int16_t extLength, bool isSuperTable) {
   if (!isValidDataType(dataType)) {
     qError("Illegal data type %d or data type length %d", dataType, dataBytes);
-    return TSDB_CODE_TSC_INVALID_SQL;
+    return TSDB_CODE_TSC_INVALID_OPERATION;
   }
   
   if (functionId == TSDB_FUNC_TS || functionId == TSDB_FUNC_TS_DUMMY || functionId == TSDB_FUNC_TAG_DUMMY ||
@@ -353,7 +353,7 @@ int32_t getResultDataInfo(int32_t dataType, int32_t dataBytes, int32_t functionI
     *interBytes = (*bytes);
 
   } else {
-    return TSDB_CODE_TSC_INVALID_SQL;
+    return TSDB_CODE_TSC_INVALID_OPERATION;
   }
   
   return TSDB_CODE_SUCCESS;
@@ -3704,7 +3704,7 @@ char *getArithColumnData(void *param, const char* name, int32_t colId) {
     }
   }
   
-  assert(index >= 0 /*&& colId >= 0*/);
+  assert(index >= 0);
   return pSupport->data[index] + pSupport->offset * pSupport->colList[index].bytes;
 }
 
@@ -4013,7 +4013,13 @@ static int32_t twa_function_impl(SQLFunctionCtx* pCtx, int32_t index, int32_t si
           continue;
         }
 
+#ifndef _TD_NINGSI_60
         SPoint1 st = {.key = tsList[i], .val = val[i]};
+#else
+        SPoint1 st;
+        st.key = tsList[i];
+        st.val = val[i];
+#endif        
         pInfo->dOutput += twa_get_area(pInfo->p, st);
         pInfo->p = st;
       }
@@ -4025,8 +4031,14 @@ static int32_t twa_function_impl(SQLFunctionCtx* pCtx, int32_t index, int32_t si
         if (pCtx->hasNull && isNull((const char*) &val[i], pCtx->inputType)) {
           continue;
         }
-
+        
+#ifndef _TD_NINGSI_60
         SPoint1 st = {.key = tsList[i], .val = val[i]};
+#else
+        SPoint1 st;
+        st.key = tsList[i];
+        st.val = val[i];
+#endif        
         pInfo->dOutput += twa_get_area(pInfo->p, st);
         pInfo->p = st;
       }
@@ -4038,8 +4050,14 @@ static int32_t twa_function_impl(SQLFunctionCtx* pCtx, int32_t index, int32_t si
         if (pCtx->hasNull && isNull((const char*) &val[i], pCtx->inputType)) {
           continue;
         }
-
+        
+#ifndef _TD_NINGSI_60
         SPoint1 st = {.key = tsList[i], .val = val[i]};
+#else
+        SPoint1 st;
+        st.key = tsList[i];
+        st.val = val[i];
+#endif        
         pInfo->dOutput += twa_get_area(pInfo->p, st);
         pInfo->p = st;
       }
@@ -4051,8 +4069,14 @@ static int32_t twa_function_impl(SQLFunctionCtx* pCtx, int32_t index, int32_t si
         if (pCtx->hasNull && isNull((const char*) &val[i], pCtx->inputType)) {
           continue;
         }
-
+        
+#ifndef _TD_NINGSI_60
         SPoint1 st = {.key = tsList[i], .val = (double) val[i]};
+#else
+        SPoint1 st;
+        st.key = tsList[i];
+        st.val = (double)val[i];
+#endif        
         pInfo->dOutput += twa_get_area(pInfo->p, st);
         pInfo->p = st;
       }
@@ -4064,8 +4088,14 @@ static int32_t twa_function_impl(SQLFunctionCtx* pCtx, int32_t index, int32_t si
         if (pCtx->hasNull && isNull((const char*) &val[i], pCtx->inputType)) {
           continue;
         }
-
+        
+#ifndef _TD_NINGSI_60
         SPoint1 st = {.key = tsList[i], .val = val[i]};
+#else
+        SPoint1 st;
+        st.key = tsList[i];
+        st.val = (double)val[i];
+#endif        
         pInfo->dOutput += twa_get_area(pInfo->p, st);
         pInfo->p = st;
       }
@@ -4077,8 +4107,14 @@ static int32_t twa_function_impl(SQLFunctionCtx* pCtx, int32_t index, int32_t si
         if (pCtx->hasNull && isNull((const char*) &val[i], pCtx->inputType)) {
           continue;
         }
-
+        
+#ifndef _TD_NINGSI_60
         SPoint1 st = {.key = tsList[i], .val = val[i]};
+#else
+        SPoint1 st;
+        st.key = tsList[i];
+        st.val = val[i];
+#endif        
         pInfo->dOutput += twa_get_area(pInfo->p, st);
         pInfo->p = st;
       }
@@ -4091,7 +4127,13 @@ static int32_t twa_function_impl(SQLFunctionCtx* pCtx, int32_t index, int32_t si
           continue;
         }
 
+#ifndef _TD_NINGSI_60
         SPoint1 st = {.key = tsList[i], .val = val[i]};
+#else
+        SPoint1 st;
+        st.key = tsList[i];
+        st.val = val[i];
+#endif        
         pInfo->dOutput += twa_get_area(pInfo->p, st);
         pInfo->p = st;
       }
@@ -4104,7 +4146,13 @@ static int32_t twa_function_impl(SQLFunctionCtx* pCtx, int32_t index, int32_t si
           continue;
         }
 
+#ifndef _TD_NINGSI_60
         SPoint1 st = {.key = tsList[i], .val = val[i]};
+#else
+        SPoint1 st;
+        st.key = tsList[i];
+        st.val = val[i];
+#endif        
         pInfo->dOutput += twa_get_area(pInfo->p, st);
         pInfo->p = st;
       }
@@ -4117,7 +4165,13 @@ static int32_t twa_function_impl(SQLFunctionCtx* pCtx, int32_t index, int32_t si
           continue;
         }
 
+#ifndef _TD_NINGSI_60
         SPoint1 st = {.key = tsList[i], .val = val[i]};
+#else
+        SPoint1 st;
+        st.key = tsList[i];
+        st.val = val[i];
+#endif        
         pInfo->dOutput += twa_get_area(pInfo->p, st);
         pInfo->p = st;
       }
@@ -4129,8 +4183,14 @@ static int32_t twa_function_impl(SQLFunctionCtx* pCtx, int32_t index, int32_t si
         if (pCtx->hasNull && isNull((const char*) &val[i], pCtx->inputType)) {
           continue;
         }
-
+        
+#ifndef _TD_NINGSI_60
         SPoint1 st = {.key = tsList[i], .val = (double) val[i]};
+#else
+        SPoint1 st;
+        st.key = tsList[i];
+        st.val = (double) val[i];
+#endif        
         pInfo->dOutput += twa_get_area(pInfo->p, st);
         pInfo->p = st;
       }
@@ -4783,7 +4843,7 @@ static void mergeTableBlockDist(STableBlockDist* pDist, const STableBlockDist* p
     pDist->dataBlockInfos = taosArrayInit(4, sizeof(SFileBlockInfo));
   }
 
-  taosArrayPushBatch(pDist->dataBlockInfos, pSrc->dataBlockInfos->pData, (int32_t) taosArrayGetSize(pSrc->dataBlockInfos));
+  taosArrayAddBatch(pDist->dataBlockInfos, pSrc->dataBlockInfos->pData, (int32_t) taosArrayGetSize(pSrc->dataBlockInfos));
 }
 
 void block_func_merge(SQLFunctionCtx* pCtx) {

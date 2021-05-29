@@ -17,7 +17,7 @@ public class RestfulDriver extends AbstractDriver {
 
     static {
         try {
-            java.sql.DriverManager.registerDriver(new RestfulDriver());
+            DriverManager.registerDriver(new RestfulDriver());
         } catch (SQLException e) {
             throw TSDBError.createRuntimeException(TSDBErrorNumbers.ERROR_URL_NOT_SET, e);
         }

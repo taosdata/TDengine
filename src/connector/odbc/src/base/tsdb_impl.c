@@ -1762,8 +1762,8 @@ static SQLRETURN tsdb_conn_prepare(stmt_t *stmt) {
       tsdb_stmt->tsdb_params     = tsdb_params;
 
       for (int i=0; i<nums; ++i) {
-        SQLRETURN r = do_fill_param(stmt, i);
-        if (r) return r;
+        SQLRETURN _r = do_fill_param(stmt, i);
+        if (_r) return _r;
       }
     }
 

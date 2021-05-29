@@ -84,7 +84,7 @@ TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CM_DROP_TABLE, "drop-table" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CM_ALTER_TABLE, "alter-table" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CM_TABLE_META, "table-meta" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CM_STABLE_VGROUP, "stable-vgroup" )
-TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CM_TABLES_META, "tables-meta" )	  
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CM_TABLES_META, "multiTable-meta" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CM_ALTER_STREAM, "alter-stream" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CM_SHOW, "show" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CM_RETRIEVE, "retrieve" )     
@@ -294,6 +294,8 @@ typedef struct {
 
 typedef struct {
   char   name[TSDB_TABLE_FNAME_LEN];
+  // if user specify DROP STABLE, this flag will be set. And an error will be returned if it is not a super table
+  int8_t supertable;
   int8_t igNotExists;
 } SCMDropTableMsg;
 
@@ -704,8 +706,9 @@ typedef struct {
 } STableInfoMsg;
 
 typedef struct {
+  int32_t numOfVgroups;
   int32_t numOfTables;
-  char    tableIds[];
+  char    tableNames[];
 } SMultiTableInfoMsg;
 
 typedef struct SSTableVgroupMsg {
@@ -754,8 +757,9 @@ typedef struct STableMetaMsg {
 
 typedef struct SMultiTableMeta {
   int32_t       numOfTables;
+  int32_t       numOfVgroup;
   int32_t       contLen;
-  char          metas[];
+  char          meta[];
 } SMultiTableMeta;
 
 typedef struct {
