@@ -693,7 +693,11 @@ static void printHelp() {
   printf("%s%s%s%s\n", indent, "-p", indent,
           "The TCP/IP port number to use for the connection. Default is 0.");
   printf("%s%s%s%s\n", indent, "-I", indent,
+#if STMT_IFACE_ENABLED == 1
           "The interface (taosc, rest, and stmt) taosdemo uses. Default is 'taosc'.");
+#else
+          "The interface (taosc, rest) taosdemo uses. Default is 'taosc'.");
+#endif
   printf("%s%s%s%s\n", indent, "-d", indent,
           "Destination database. Default is 'test'.");
   printf("%s%s%s%s\n", indent, "-a", indent,
@@ -793,8 +797,10 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
           arguments->iface = TAOSC_IFACE;
       } else if (0 == strcasecmp(argv[i], "rest")) {
           arguments->iface = REST_IFACE;
+#if STMT_IFACE_ENABLED == 1
       } else if (0 == strcasecmp(argv[i], "stmt")) {
           arguments->iface = STMT_IFACE;
+#endif
       } else {
         errorPrint("%s", "\n\t-I need a valid string following!\n");
         exit(EXIT_FAILURE);
@@ -3912,8 +3918,10 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
             g_Dbs.db[i].superTbls[j].iface= TAOSC_IFACE;
         } else if (0 == strcasecmp(stbIface->valuestring, "rest")) {
             g_Dbs.db[i].superTbls[j].iface= REST_IFACE;
+#if STMT_IFACE_ENABLED == 1
         } else if (0 == strcasecmp(stbIface->valuestring, "stmt")) {
             g_Dbs.db[i].superTbls[j].iface= STMT_IFACE;
+#endif
         } else {
             errorPrint("%s() LN%d, failed to read json, insert_mode %s not recognized\n",
                     __func__, __LINE__, stbIface->valuestring);
@@ -4933,6 +4941,7 @@ static int32_t execInsert(threadInfo *pThreadInfo, uint32_t k)
             }
             break;
 
+#if STMT_IFACE_ENABLED == 1
         case STMT_IFACE:
             debugPrint("%s() LN%d, stmt=%p", __func__, __LINE__, pThreadInfo->stmt);
             if (0 != taos_stmt_execute(pThreadInfo->stmt)) {
@@ -4942,6 +4951,7 @@ static int32_t execInsert(threadInfo *pThreadInfo, uint32_t k)
             }
             affectedRows = k;
             break;
+#endif
 
         default:
             errorPrint("%s() LN%d: unknown insert mode: %d\n",
@@ -6409,6 +6419,7 @@ static void startMultiThreadInsertData(int threads, char* db_name,
         exit(-1);
       }
 
+#if STMT_IFACE_ENABLED == 1
       if ((g_args.iface == STMT_IFACE)
           || ((superTblInfo) && (superTblInfo->iface == STMT_IFACE))) {
 
@@ -6448,6 +6459,7 @@ static void startMultiThreadInsertData(int threads, char* db_name,
             exit(-1);
         }
       }
+#endif
     } else {
       pThreadInfo->taos = NULL;
     }
@@ -6488,9 +6500,11 @@ static void startMultiThreadInsertData(int threads, char* db_name,
 
     tsem_destroy(&(pThreadInfo->lock_sem));
 
+#if STMT_IFACE_ENABLED == 1
     if (pThreadInfo->stmt) {
       taos_stmt_close(pThreadInfo->stmt);
     }
+#endif
     tsem_destroy(&(pThreadInfo->lock_sem));
     taos_close(pThreadInfo->taos);
 
