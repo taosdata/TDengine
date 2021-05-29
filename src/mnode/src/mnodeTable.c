@@ -2927,7 +2927,7 @@ static int32_t mnodeProcessMultiTableMetaMsg(SMnodeMsg *pMsg) {
       pMultiMeta->contLen += pMeta->contLen;
     } else {
       // ignore error and continue.
-      // Ttherwise the client may found that the responding message is inconsistent.
+      // Otherwise the client may found that the responding message is inconsistent.
 //      goto _end;
     }
   }
