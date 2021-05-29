@@ -2860,7 +2860,7 @@ static int32_t mnodeProcessMultiTableMetaMsg(SMnodeMsg *pMsg) {
   if (num != pInfo->numOfTables + pInfo->numOfVgroups) {
     mError("msg:%p, app:%p, failed to get multi-tableMeta, msg inconsistent", pMsg, pMsg->rpcMsg.ahandle);
     code = TSDB_CODE_MND_INVALID_TABLE_NAME;
-    goto _error;
+    goto _end;
   }
 
   // first malloc 80KB, subsequent reallocation will expand the size as twice of the original size
@@ -2868,7 +2868,7 @@ static int32_t mnodeProcessMultiTableMetaMsg(SMnodeMsg *pMsg) {
   pMultiMeta = rpcMallocCont(totalMallocLen);
   if (pMultiMeta == NULL) {
     code = TSDB_CODE_MND_OUT_OF_MEMORY;
-    goto _error;
+    goto _end;
   }
 
   pMultiMeta->contLen = sizeof(SMultiTableMeta);
@@ -2878,12 +2878,11 @@ static int32_t mnodeProcessMultiTableMetaMsg(SMnodeMsg *pMsg) {
   for (; t < pInfo->numOfTables; ++t) {
     char *fullName = nameList[t];
 
-    pMsg->pVgroup = NULL;
     pMsg->pTable = mnodeGetTable(fullName);
     if (pMsg->pTable == NULL) {
       mError("msg:%p, app:%p table:%s, failed to get table meta, table not exist", pMsg, pMsg->rpcMsg.ahandle, fullName);
       code = TSDB_CODE_MND_INVALID_TABLE_NAME;
-      goto _error;
+      goto _end;
     }
 
     if (pMsg->pDb == NULL) {
@@ -2893,7 +2892,7 @@ static int32_t mnodeProcessMultiTableMetaMsg(SMnodeMsg *pMsg) {
     if (pMsg->pDb == NULL || pMsg->pDb->status != TSDB_DB_STATUS_READY) {
       mnodeDecTableRef(pMsg->pTable);
       code = TSDB_CODE_APP_NOT_READY;
-      goto _error;
+      goto _end;
     }
 
     int remain = totalMallocLen - pMultiMeta->contLen;
@@ -2903,7 +2902,7 @@ static int32_t mnodeProcessMultiTableMetaMsg(SMnodeMsg *pMsg) {
       if (pMultiMeta == NULL) {
         mnodeDecTableRef(pMsg->pTable);
         code = TSDB_CODE_MND_OUT_OF_MEMORY;
-        goto _error;
+        goto _end;
       }
     }
 
@@ -2911,19 +2910,26 @@ static int32_t mnodeProcessMultiTableMetaMsg(SMnodeMsg *pMsg) {
 
     if (pMsg->pTable->type == TSDB_SUPER_TABLE) {
       code = mnodeDoGetSuperTableMeta(pMsg, pMeta);
-      taosArrayPush(pList, &fullName);// keep the full name for each super table for retrieve vgroup list
+      taosArrayPush(pList, &fullName);  // keep the full name for each super table for retrieve vgroup list
     } else {
-       code = mnodeDoGetChildTableMeta(pMsg, pMeta);
-    }
-
-    if (code == TSDB_CODE_SUCCESS) {
-      pMultiMeta->numOfTables ++;
-      pMultiMeta->contLen += pMeta->contLen;
+      code = mnodeDoGetChildTableMeta(pMsg, pMeta);
+      if (pMsg->pVgroup != NULL) {
+        mnodeDecVgroupRef(pMsg->pVgroup);
+        pMsg->pVgroup = NULL;
+      }
     }
 
     mnodeDecTableRef(pMsg->pTable);
-    assert(((SCTableObj*)pMsg->pTable)->refCount >= 1);
     pMsg->pTable = NULL;
+
+    if (code == TSDB_CODE_SUCCESS) {
+      pMultiMeta->numOfTables++;
+      pMultiMeta->contLen += pMeta->contLen;
+    } else {
+      // ignore error and continue.
+      // Otherwise the client may found that the responding message is inconsistent.
+//      goto _end;
+    }
   }
 
   char* msg = (char*) pMultiMeta + pMultiMeta->contLen;
@@ -2944,7 +2950,7 @@ static int32_t mnodeProcessMultiTableMetaMsg(SMnodeMsg *pMsg) {
     if (pTable == NULL) {
       mError("msg:%p, app:%p stable:%s, not exist while get stable vgroup info", pMsg, pMsg->rpcMsg.ahandle, name);
       code = TSDB_CODE_MND_INVALID_TABLE_NAME;
-      goto _error;
+      goto _end;
     }
 
     msg = serializeVgroupInfo(pTable, name, msg, pMsg, pMsg->rpcMsg.ahandle);
@@ -2955,15 +2961,18 @@ static int32_t mnodeProcessMultiTableMetaMsg(SMnodeMsg *pMsg) {
   pMultiMeta->numOfTables = htonl(pMultiMeta->numOfTables);
   pMsg->rpcRsp.rsp = pMultiMeta;
   pMsg->rpcRsp.len = pMultiMeta->contLen;
+  code = TSDB_CODE_SUCCESS;
 
-  return TSDB_CODE_SUCCESS;
-
-  _error:
+  _end:
   tfree(str);
   tfree(nameList);
-  rpcFreeCont(pMultiMeta);
   taosArrayDestroy(pList);
-  pMsg->pTable = NULL;
+  pMsg->pTable  = NULL;
+  pMsg->pVgroup = NULL;
+
+  if (code != TSDB_CODE_SUCCESS) {
+    rpcFreeCont(pMultiMeta);
+  }
 
   return code;
 }
