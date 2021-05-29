@@ -380,7 +380,7 @@ typedef struct SDbs_S {
 typedef struct SpecifiedQueryInfo_S {
   uint64_t     queryInterval;  // 0: unlimit  > 0   loop/s
   uint32_t     concurrent;
-  uint64_t     sqlCount;
+  int          sqlCount;
   uint32_t     asyncMode; // 0: sync, 1: async
   uint64_t     subscribeInterval; // ms
   uint64_t     queryTimes;
@@ -408,7 +408,7 @@ typedef struct SuperQueryInfo_S {
   uint64_t     queryTimes;
   int64_t      childTblCount;
   char         childTblPrefix[MAX_TB_NAME_SIZE];
-  uint64_t     sqlCount;
+  int          sqlCount;
   char         sql[MAX_QUERY_SQL_COUNT][MAX_QUERY_SQL_LENGTH+1];
   char         result[MAX_QUERY_SQL_COUNT][MAX_FILE_NAME_LEN+1];
   int          resubAfterConsume;
@@ -693,7 +693,11 @@ static void printHelp() {
   printf("%s%s%s%s\n", indent, "-p", indent,
           "The TCP/IP port number to use for the connection. Default is 0.");
   printf("%s%s%s%s\n", indent, "-I", indent,
+#if STMT_IFACE_ENABLED == 1
           "The interface (taosc, rest, and stmt) taosdemo uses. Default is 'taosc'.");
+#else
+          "The interface (taosc, rest) taosdemo uses. Default is 'taosc'.");
+#endif
   printf("%s%s%s%s\n", indent, "-d", indent,
           "Destination database. Default is 'test'.");
   printf("%s%s%s%s\n", indent, "-a", indent,
@@ -793,8 +797,10 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
           arguments->iface = TAOSC_IFACE;
       } else if (0 == strcasecmp(argv[i], "rest")) {
           arguments->iface = REST_IFACE;
+#if STMT_IFACE_ENABLED == 1
       } else if (0 == strcasecmp(argv[i], "stmt")) {
           arguments->iface = STMT_IFACE;
+#endif
       } else {
         errorPrint("%s", "\n\t-I need a valid string following!\n");
         exit(EXIT_FAILURE);
@@ -1777,7 +1783,7 @@ static void printfQueryMeta() {
 
   if ((SUBSCRIBE_TEST == g_args.test_mode) || (QUERY_TEST == g_args.test_mode)) {
     printf("specified table query info:                   \n");
-    printf("sqlCount:       \033[33m%"PRIu64"\033[0m\n",
+    printf("sqlCount:       \033[33m%d\033[0m\n",
       g_queryInfo.specifiedQueryInfo.sqlCount);
     if (g_queryInfo.specifiedQueryInfo.sqlCount > 0) {
       printf("specified tbl query times:\n");
@@ -1797,15 +1803,15 @@ static void printfQueryMeta() {
       printf("keepProgress:   \033[33m%d\033[0m\n",
         g_queryInfo.specifiedQueryInfo.subscribeKeepProgress);
 
-      for (uint64_t i = 0; i < g_queryInfo.specifiedQueryInfo.sqlCount; i++) {
-        printf("  sql[%"PRIu64"]: \033[33m%s\033[0m\n",
+      for (int i = 0; i < g_queryInfo.specifiedQueryInfo.sqlCount; i++) {
+        printf("  sql[%d]: \033[33m%s\033[0m\n",
             i, g_queryInfo.specifiedQueryInfo.sql[i]);
       }
       printf("\n");
     }
 
     printf("super table query info:\n");
-    printf("sqlCount:       \033[33m%"PRIu64"\033[0m\n",
+    printf("sqlCount:       \033[33m%d\033[0m\n",
       g_queryInfo.superQueryInfo.sqlCount);
 
     if (g_queryInfo.superQueryInfo.sqlCount > 0) {
@@ -3912,8 +3918,10 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
             g_Dbs.db[i].superTbls[j].iface= TAOSC_IFACE;
         } else if (0 == strcasecmp(stbIface->valuestring, "rest")) {
             g_Dbs.db[i].superTbls[j].iface= REST_IFACE;
+#if STMT_IFACE_ENABLED == 1
         } else if (0 == strcasecmp(stbIface->valuestring, "stmt")) {
             g_Dbs.db[i].superTbls[j].iface= STMT_IFACE;
+#endif
         } else {
             errorPrint("%s() LN%d, failed to read json, insert_mode %s not recognized\n",
                     __func__, __LINE__, stbIface->valuestring);
@@ -4279,7 +4287,7 @@ static bool getMetaFromQueryJsonFile(cJSON* root) {
     if (concurrent && concurrent->type == cJSON_Number) {
       if (concurrent->valueint <= 0) {
         errorPrint(
-                "%s() LN%d, query sqlCount %"PRIu64" or concurrent %d is not correct.\n",
+                "%s() LN%d, query sqlCount %d or concurrent %d is not correct.\n",
               __func__, __LINE__,
               g_queryInfo.specifiedQueryInfo.sqlCount,
               g_queryInfo.specifiedQueryInfo.concurrent);
@@ -4933,6 +4941,7 @@ static int32_t execInsert(threadInfo *pThreadInfo, uint32_t k)
             }
             break;
 
+#if STMT_IFACE_ENABLED == 1
         case STMT_IFACE:
             debugPrint("%s() LN%d, stmt=%p", __func__, __LINE__, pThreadInfo->stmt);
             if (0 != taos_stmt_execute(pThreadInfo->stmt)) {
@@ -4942,6 +4951,7 @@ static int32_t execInsert(threadInfo *pThreadInfo, uint32_t k)
             }
             affectedRows = k;
             break;
+#endif
 
         default:
             errorPrint("%s() LN%d: unknown insert mode: %d\n",
@@ -5506,6 +5516,7 @@ static int32_t prepareStmtWithoutStb(
         }
     }
 
+    free(bindArray);
     return k;
 }
 
@@ -5586,6 +5597,7 @@ static int32_t prepareStbStmt(SSuperTable *stbInfo,
         }
     }
 
+    free(bindArray);
     return k;
 }
 #endif
@@ -6407,6 +6419,7 @@ static void startMultiThreadInsertData(int threads, char* db_name,
         exit(-1);
       }
 
+#if STMT_IFACE_ENABLED == 1
       if ((g_args.iface == STMT_IFACE)
           || ((superTblInfo) && (superTblInfo->iface == STMT_IFACE))) {
 
@@ -6446,6 +6459,7 @@ static void startMultiThreadInsertData(int threads, char* db_name,
             exit(-1);
         }
       }
+#endif
     } else {
       pThreadInfo->taos = NULL;
     }
@@ -6486,9 +6500,11 @@ static void startMultiThreadInsertData(int threads, char* db_name,
 
     tsem_destroy(&(pThreadInfo->lock_sem));
 
+#if STMT_IFACE_ENABLED == 1
     if (pThreadInfo->stmt) {
       taos_stmt_close(pThreadInfo->stmt);
     }
+#endif
     tsem_destroy(&(pThreadInfo->lock_sem));
     taos_close(pThreadInfo->taos);
 
@@ -7487,12 +7503,12 @@ static int subscribeTestProcess() {
 
   //==== create threads for query for specified table
   if (g_queryInfo.specifiedQueryInfo.sqlCount <= 0) {
-    debugPrint("%s() LN%d, sepcified query sqlCount %"PRIu64".\n",
+    debugPrint("%s() LN%d, sepcified query sqlCount %d.\n",
               __func__, __LINE__,
               g_queryInfo.specifiedQueryInfo.sqlCount);
   } else {
     if (g_queryInfo.specifiedQueryInfo.concurrent <= 0) {
-        errorPrint("%s() LN%d, sepcified query sqlCount %"PRIu64".\n",
+        errorPrint("%s() LN%d, sepcified query sqlCount %d.\n",
               __func__, __LINE__,
               g_queryInfo.specifiedQueryInfo.sqlCount);
         exit(-1);
@@ -7525,7 +7541,7 @@ static int subscribeTestProcess() {
 
   //==== create threads for super table query
   if (g_queryInfo.superQueryInfo.sqlCount <= 0) {
-    debugPrint("%s() LN%d, super table query sqlCount %"PRIu64".\n",
+    debugPrint("%s() LN%d, super table query sqlCount %d.\n",
               __func__, __LINE__,
               g_queryInfo.superQueryInfo.sqlCount);
   } else {
