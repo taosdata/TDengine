@@ -33,6 +33,8 @@ extern "C" {
 #endif
 
 #define TSWINDOW_INITIALIZER ((STimeWindow) {INT64_MIN, INT64_MAX})
+#define TSWINDOW_DESC_INITIALIZER ((STimeWindow) {INT64_MAX, INT64_MIN})
+
 #define TSKEY_INITIAL_VAL    INT64_MIN
 
 // Bytes for each type.
@@ -345,6 +347,7 @@ do { \
 #define TSDB_QUERY_TYPE_TAG_FILTER_QUERY       0x400u
 #define TSDB_QUERY_TYPE_INSERT                 0x100u    // insert type
 #define TSDB_QUERY_TYPE_MULTITABLE_QUERY       0x200u
+#define TSDB_QUERY_TYPE_FILE_INSERT            0x400u    // insert data from file
 #define TSDB_QUERY_TYPE_STMT_INSERT            0x800u    // stmt insert type
 
 #define TSDB_QUERY_HAS_TYPE(x, _type)          (((x) & (_type)) != 0)
