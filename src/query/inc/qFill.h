@@ -62,7 +62,7 @@ typedef struct SFillInfo {
 
   SFillColInfo* pFillCol;         // column info for fill operations
   SFillTagColInfo* pTags;         // tags value for filling gap
-  void*     handle;               // for dubug purpose
+  void*     handle;               // for debug purpose
 } SFillInfo;
 
 typedef struct SPoint {
@@ -81,8 +81,6 @@ void* taosDestroyFillInfo(SFillInfo *pFillInfo);
 void taosFillSetStartInfo(SFillInfo* pFillInfo, int32_t numOfRows, TSKEY endKey);
 
 void taosFillSetInputDataBlock(SFillInfo* pFillInfo, const struct SSDataBlock* pInput);
-
-void taosFillCopyInputDataFromOneFilePage(SFillInfo* pFillInfo, const tFilePage* pInput);
 
 bool taosFillHasMoreResults(SFillInfo* pFillInfo);
 

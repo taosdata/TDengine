@@ -37,8 +37,6 @@ typedef struct SStrToken {
   char    *z;
 } SStrToken;
 
-extern const char escapeChar[];
-
 /**
  * check if it is a number or not
  * @param pToken
@@ -46,8 +44,6 @@ extern const char escapeChar[];
  */
 #define isNumber(tk) \
 ((tk)->type == TK_INTEGER || (tk)->type == TK_FLOAT || (tk)->type == TK_HEX || (tk)->type == TK_BIN)
-
-#define GET_ESCAPE_CHAR(c) (escapeChar[(uint8_t)(c)])
 
 /**
  * tokenizer for sql string

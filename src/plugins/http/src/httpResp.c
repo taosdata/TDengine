@@ -165,7 +165,7 @@ void httpSendTaosdInvalidSqlErrorResp(HttpContext *pContext, char *errMsg) {
     }
   }
 
-  httpSendErrorRespImp(pContext, httpCode, "Bad Request", TSDB_CODE_TSC_INVALID_SQL & 0XFFFF, temp);
+  httpSendErrorRespImp(pContext, httpCode, "Bad Request", TSDB_CODE_TSC_INVALID_OPERATION & 0XFFFF, temp);
 }
 
 void httpSendSuccResp(HttpContext *pContext, char *desc) {
