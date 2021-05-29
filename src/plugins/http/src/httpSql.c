@@ -263,7 +263,7 @@ void httpProcessSingleSqlCallBackImp(void *param, TAOS_RES *result, int32_t code
 
   if (code != TSDB_CODE_SUCCESS) {
     SSqlObj *pObj = (SSqlObj *)result;
-    if (code == TSDB_CODE_TSC_INVALID_SQL) {
+    if (code == TSDB_CODE_TSC_INVALID_OPERATION) {
       terrno = code;
       httpError("context:%p, fd:%d, user:%s, query error, code:%s, sqlObj:%p, error:%s", pContext, pContext->fd,
                 pContext->user, tstrerror(code), pObj, taos_errstr(pObj));

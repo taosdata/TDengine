@@ -809,3 +809,5 @@ endi
 if $data00 != 1 then
   return -1
 endi
+
+print ====================> TODO stddev + normal column filter
