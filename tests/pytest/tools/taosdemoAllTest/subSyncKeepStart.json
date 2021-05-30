@@ -11,10 +11,11 @@
       {
        "concurrent":2, 
        "mode":"sync", 
-       "interval":0, 
-       "keepProgress":"no",
-       "restart":"yes",
-       "resubAfterConsume":1,
+       "interval":10000, 
+       "resubAfterConsume":-1,
+       "endAfterConsume":0,
+       "keepProgress":"yes",
+       "restart":"no",
        "sqls": [
         {
           "sql": "select * from stb00_0", 
@@ -26,10 +27,11 @@
        "stblname": "stb0",
        "threads":2, 
        "mode":"sync", 
-       "interval":1000, 
+       "interval":0, 
+       "resubAfterConsume":1,
+       "endAfterConsume":-1,
        "keepProgress":"yes",
        "restart":"no",
-       "resubAfterConsume":1,
        "sqls": [
         {
           "sql": "select * from xxxx where ts >= '2021-02-25 10:00:01.000' ", 
