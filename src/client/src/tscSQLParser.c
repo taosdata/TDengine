@@ -28,7 +28,7 @@
 #include "tname.h"
 #include "tscLog.h"
 #include "tscUtil.h"
-#include "tschemautil.h"
+#include "qTableMeta.h"
 #include "tsclient.h"
 #include "tstrbuild.h"
 #include "ttoken.h"
@@ -195,7 +195,7 @@ static bool validateDebugFlag(int32_t v) {
  * is not needed in the final error message.
  */
 static int32_t invalidOperationMsg(char* dstBuffer, const char* errMsg) {
-  return tscInvalidSQLErrMsg(dstBuffer, errMsg, NULL);
+  return tscInvalidOperationMsg(dstBuffer, errMsg, NULL);
 }
 
 static int setColumnFilterInfoForTimestamp(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tVariant* pVar) {
@@ -6610,7 +6610,7 @@ int32_t doCheckForCreateFromStable(SSqlObj* pSql, SSqlInfo* pInfo) {
 
         if (!findColumnIndex) {
           tdDestroyKVRowBuilder(&kvRowBuilder);
-          return tscInvalidSQLErrMsg(pCmd->payload, "invalid tag name", sToken->z);
+          return tscInvalidOperationMsg(pCmd->payload, "invalid tag name", sToken->z);
         }
       }
     } else {
@@ -7619,6 +7619,7 @@ int32_t validateSqlNode(SSqlObj* pSql, SSqlNode* pSqlNode, SQueryInfo* pQueryInf
     pQueryInfo->groupbyColumn = tscGroupbyColumn(pQueryInfo);
 
     pQueryInfo->arithmeticOnAgg = tsIsArithmeticQueryOnAggResult(pQueryInfo);
+    pQueryInfo->orderProjectQuery = tscOrderedProjectionQueryOnSTable(pQueryInfo, 0);
 
     SExprInfo** p = NULL;
     int32_t numOfExpr = 0;

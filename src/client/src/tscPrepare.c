@@ -1081,7 +1081,7 @@ static int insertStmtExecute(STscStmt* stmt) {
 
   fillTablesColumnsNull(stmt->pSql);
 
-  int code = tscMergeTableDataBlocks(stmt->pSql, false);
+  int code = tscMergeTableDataBlocks(&stmt->pSql->cmd.insertParam, false);
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }
@@ -1181,7 +1181,7 @@ static int insertBatchStmtExecute(STscStmt* pStmt) {
 
   fillTablesColumnsNull(pStmt->pSql);
 
-  if ((code = tscMergeTableDataBlocks(pStmt->pSql, false)) != TSDB_CODE_SUCCESS) {
+  if ((code = tscMergeTableDataBlocks(&pStmt->pSql->cmd.insertParam, false)) != TSDB_CODE_SUCCESS) {
     return code;
   }
 
@@ -1286,7 +1286,7 @@ int taos_stmt_prepare(TAOS_STMT* stmt, const char* sql, unsigned long length) {
   if (tscIsInsertData(pSql->sqlstr)) {
     pStmt->isInsert = true;
 
-    pSql->cmd.numOfParams = 0;
+    pSql->cmd.insertParam.numOfParams = 0;
     pSql->cmd.batchSize   = 0;
 
     registerSqlObj(pSql);
@@ -1298,7 +1298,7 @@ int taos_stmt_prepare(TAOS_STMT* stmt, const char* sql, unsigned long length) {
     }
 
     int32_t index = 0;
-    SStrToken sToken = tStrGetToken(pCmd->curSql, &index, false);
+    SStrToken sToken = tStrGetToken(pCmd->insertParam.sql, &index, false);
 
     if (sToken.n == 0) {
       return TSDB_CODE_TSC_INVALID_OPERATION;
@@ -1388,7 +1388,7 @@ int taos_stmt_set_tbname(TAOS_STMT* stmt, const char* name) {
 
   tscDebug("0x%"PRIx64" SQL: %s", pSql->self, pSql->sqlstr);
 
-  pSql->cmd.numOfParams = 0;
+  pSql->cmd.insertParam.numOfParams = 0;
   pSql->cmd.batchSize   = 0;
 
   if (taosHashGetSize(pCmd->insertParam.pTableBlockHashList) > 0) {
@@ -1667,8 +1667,8 @@ int taos_stmt_num_params(TAOS_STMT *stmt, int *nums) {
 
   if (pStmt->isInsert) {
     SSqlObj* pSql = pStmt->pSql;
-    SSqlCmd *pCmd    = &pSql->cmd;
-    *nums = pCmd->numOfParams;
+    SSqlCmd *pCmd = &pSql->cmd;
+    *nums = pCmd->insertParam.numOfParams;
     return TSDB_CODE_SUCCESS;
   } else {
     SNormalStmt* normal = &pStmt->normal;
