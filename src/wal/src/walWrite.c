@@ -430,6 +430,8 @@ static int32_t walRestoreWalFile(SWal *pWal, void *pVnode, FWalWrite writeFp, ch
            pWal->vgId, fileId, pHead->version, pWal->version, pHead->len, offset);
 
     pWal->version = pHead->version;
+
+    //wInfo("writeFp: %ld", offset);
     (*writeFp)(pVnode, pHead, TAOS_QTYPE_WAL, NULL);
   }
 
