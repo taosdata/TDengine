@@ -419,7 +419,11 @@ void vnodeDestroy(SVnodeObj *pVnode) {
   }
 
   if (pVnode->tsdb) {
-    code = tsdbCloseRepo(pVnode->tsdb, 1);
+    // the deleted vnode does not need to commit, so as to speed up the deletion
+    int toCommit = 1;
+    if (pVnode->dropped) toCommit = 0;
+
+    code = tsdbCloseRepo(pVnode->tsdb, toCommit);
     pVnode->tsdb = NULL;
   }
 
