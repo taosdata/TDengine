@@ -576,7 +576,7 @@ static void tscCreateStream(void *param, TAOS_RES *res, int code) {
   // set stime with ltime if ltime > stime
   const char* dstTable = pStream->dstTable? pStream->dstTable: "";
   tscDebug(" CQ table=%s ltime is %"PRId64, dstTable, pStream->ltime);
-  if(pStream->ltime > 0 && pStream->ltime > pStream->stime) {
+  if(pStream->ltime != INT64_MIN && pStream->ltime > pStream->stime) {
     tscWarn(" CQ set stream %s stime=%"PRId64" replace with ltime=%"PRId64" if ltime>0  ", dstTable, pStream->stime, pStream->ltime);
     pStream->stime = pStream->ltime;
   }
@@ -678,6 +678,7 @@ TAOS_STREAM *taos_open_stream_withname(TAOS *taos, const char* dstTable, const c
     return NULL;
   }
 
+  pStream->ltime = INT64_MIN;
   pStream->stime = stime;
   pStream->fp = fp;
   pStream->callback = callback;
