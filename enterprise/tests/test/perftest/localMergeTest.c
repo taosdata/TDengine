@@ -1,11 +1,11 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <assert.h>
-#include <textbuffer.h>
 
-#include "tscLocalMerge.h"
+#include "tscGlobalmerge.h"
 #include "tscUtil.h"
 #include "tsclient.h"
+#include "textbuffer.h"
 
 const int32_t PAGE_SIZE = 4096;
 const int32_t NUM_OF_COLS = 2;
@@ -253,7 +253,7 @@ static void singleTagMergeTest(int32_t numOfVnodeSource, int32_t numOfRows) {
     printf("create loser tree!\n----------------------------------------\n");
 
     initSQLCmd(pCmd, &model);
-    tscCreateLocalMerger(pMemoryBuf, 1, &model, &reModel, pCmd, pRes);
+    tscCreateGlobalMerger(pMemoryBuf, 1, &model, &reModel, pCmd, pRes);
 
     tscLocalDoReduce(pObj);
     tColModelDisplay(&model, pRes->data, pRes->numOfRows, pRes->numOfRows);
@@ -307,7 +307,7 @@ static void multiTagMergeTest(int32_t numOfVnodeSource, int32_t numOfRows) {
     printf("create loser tree!\n----------------------------------------\n");
 
     initMultiTagSQLCmd(pCmd, model, numCols);
-    tscCreateLocalMerger(pMemoryBuf, 1, model, resModel, pCmd, pRes);
+    tscCreateGlobalMerger(pMemoryBuf, 1, model, resModel, pCmd, pRes);
 
     tscLocalDoReduce(pObj);
     tColModelDisplay(model, pRes->data, pRes->numOfRows, pRes->numOfRows);
