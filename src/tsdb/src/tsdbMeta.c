@@ -68,7 +68,7 @@ int tsdbCreateTable(STsdbRepo *repo, STableCfg *pCfg) {
                 TABLE_CHAR_NAME(pMeta->tables[tid]), TABLE_TID(pMeta->tables[tid]), TABLE_UID(pMeta->tables[tid]));
       return 0;
     } else {
-      tsdbError("vgId:%d table %s at tid %d uid %" PRIu64
+      tsdbInfo("vgId:%d table %s at tid %d uid %" PRIu64
                 " exists, replace it with new table, this can be not reasonable",
                 REPO_ID(pRepo), TABLE_CHAR_NAME(pMeta->tables[tid]), TABLE_TID(pMeta->tables[tid]),
                 TABLE_UID(pMeta->tables[tid]));
@@ -924,10 +924,7 @@ static int tsdbRemoveTableFromIndex(STsdbMeta *pMeta, STable *pTable) {
   STable *pSTable = pTable->pSuper;
   ASSERT(pSTable != NULL);
 
-  STSchema *pSchema = tsdbGetTableTagSchema(pTable);
-  STColumn *pCol = schemaColAt(pSchema, DEFAULT_TAG_INDEX_COLUMN);
-
-  char *  key = tdGetKVRowValOfCol(pTable->tagVal, pCol->colId);
+  char* key = getTagIndexKey(pTable);
   SArray *res = tSkipListGet(pSTable->pIndex, key);
 
   size_t size = taosArrayGetSize(res);
