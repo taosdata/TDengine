@@ -68,6 +68,7 @@ class TDTestCase:
         tdSql.checkData(0, 1, 1)
         tdSql.checkData(1, 1, 1)
 
+
         tdSql.query("select first(col1), last(col2) from test1 session(ts, 1s)")  
         tdSql.checkRows(2)
         tdSql.checkData(0, 1, 1)
