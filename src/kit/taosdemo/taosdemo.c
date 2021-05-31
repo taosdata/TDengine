@@ -2910,8 +2910,8 @@ static void* createTable(void *sarg)
   int buff_len;
   buff_len = BUFFER_SIZE / 8;
 
-  char *buffer = calloc(buff_len, 1);
-  if (buffer == NULL) {
+  pThreadInfo->buffer = calloc(buff_len, 1);
+  if (pThreadInfo->buffer == NULL) {
     errorPrint("%s() LN%d, Memory allocated failed!\n", __func__, __LINE__);
     exit(-1);
   }
@@ -2926,7 +2926,7 @@ static void* createTable(void *sarg)
   for (uint64_t i = pThreadInfo->start_table_from;
           i <= pThreadInfo->end_table_to; i++) {
     if (0 == g_Dbs.use_metric) {
-      snprintf(buffer, buff_len,
+      snprintf(pThreadInfo->buffer, buff_len,
               "create table if not exists %s.%s%"PRIu64" %s;",
               pThreadInfo->db_name,
               g_args.tb_prefix, i,
@@ -2935,13 +2935,13 @@ static void* createTable(void *sarg)
       if (superTblInfo == NULL) {
         errorPrint("%s() LN%d, use metric, but super table info is NULL\n",
                   __func__, __LINE__);
-        free(buffer);
+        free(pThreadInfo->buffer);
         exit(-1);
       } else {
         if (0 == len) {
           batchNum = 0;
-          memset(buffer, 0, buff_len);
-          len += snprintf(buffer + len,
+          memset(pThreadInfo->buffer, 0, buff_len);
+          len += snprintf(pThreadInfo->buffer + len,
                   buff_len - len, "create table ");
         }
         char* tagsValBuf = NULL;
@@ -2953,10 +2953,10 @@ static void* createTable(void *sarg)
                   i % superTblInfo->tagSampleCount);
         }
         if (NULL == tagsValBuf) {
-          free(buffer);
+          free(pThreadInfo->buffer);
           return NULL;
         }
-        len += snprintf(buffer + len,
+        len += snprintf(pThreadInfo->buffer + len,
                 buff_len - len,
                 "if not exists %s.%s%"PRIu64" using %s.%s tags %s ",
                 pThreadInfo->db_name, superTblInfo->childTblPrefix,
@@ -2973,9 +2973,10 @@ static void* createTable(void *sarg)
     }
 
     len = 0;
-    if (0 != queryDbExec(pThreadInfo->taos, buffer, NO_INSERT_TYPE, false)){
-      errorPrint( "queryDbExec() failed. buffer:\n%s\n", buffer);
-      free(buffer);
+    if (0 != queryDbExec(pThreadInfo->taos, pThreadInfo->buffer,
+                NO_INSERT_TYPE, false)){
+      errorPrint( "queryDbExec() failed. buffer:\n%s\n", pThreadInfo->buffer);
+      free(pThreadInfo->buffer);
       return NULL;
     }
 
@@ -2988,12 +2989,13 @@ static void* createTable(void *sarg)
   }
 
   if (0 != len) {
-    if (0 != queryDbExec(pThreadInfo->taos, buffer, NO_INSERT_TYPE, false)) {
-      errorPrint( "queryDbExec() failed. buffer:\n%s\n", buffer);
+    if (0 != queryDbExec(pThreadInfo->taos, pThreadInfo->buffer,
+                NO_INSERT_TYPE, false)) {
+      errorPrint( "queryDbExec() failed. buffer:\n%s\n", pThreadInfo->buffer);
     }
   }
 
-  free(buffer);
+  free(pThreadInfo->buffer);
   return NULL;
 }
 
@@ -4932,7 +4934,7 @@ static int32_t execInsert(threadInfo *pThreadInfo, uint32_t k)
 
         case REST_IFACE:
             if (0 != postProceSql(g_Dbs.host, &g_Dbs.serv_addr, g_Dbs.port,
-                        pThreadInfo->buffer, NULL /* not set result file */)) {
+                        pThreadInfo->buffer, pThreadInfo)) {
                 affectedRows = -1;
                 printf("========restful return fail, threadID[%d]\n",
                         pThreadInfo->threadID);
