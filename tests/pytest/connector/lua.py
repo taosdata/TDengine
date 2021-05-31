@@ -61,7 +61,7 @@ class TDTestCase:
         tdLog.info(targetPath)
         currentPath = os.getcwd()
         os.chdir(targetPath)
-
+        os.system('./build.sh')
         os.system('lua test.lua')
 
     def stop(self):
