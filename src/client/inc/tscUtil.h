@@ -94,6 +94,8 @@ typedef struct SVgroupTableInfo {
   SArray     *itemList;   // SArray<STableIdInfo>
 } SVgroupTableInfo;
 
+int32_t converToStr(char *str, int type, void *buf, int32_t bufSize, int32_t *len);
+
 int32_t tscCreateDataBlock(size_t initialSize, int32_t rowSize, int32_t startOffset, SName* name, STableMeta* pTableMeta, STableDataBlocks** dataBlocks);
 void tscDestroyDataBlock(STableDataBlocks* pDataBlock, bool removeMeta);
 void tscSortRemoveDataBlockDupRows(STableDataBlocks* dataBuf);

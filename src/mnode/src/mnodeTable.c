@@ -3375,7 +3375,7 @@ static int32_t mnodeCompactSuperTables() {
       .rowSize = sizeof(SSTableObj) + schemaSize,
     };
 
-    mInfo("compact super %" PRIu64, pTable->uid);
+    //mInfo("compact super %" PRIu64, pTable->uid);
     
     sdbInsertCompactRow(&row);
   }
@@ -3401,7 +3401,7 @@ static int32_t mnodeCompactChildTables() {
       .pTable = tsChildTableSdb,
     };
 
-    mInfo("compact child %" PRIu64 ":%d", pTable->uid, pTable->tid);
+    //mInfo("compact child %" PRIu64 ":%d", pTable->uid, pTable->tid);
     
     sdbInsertCompactRow(&row);
   }

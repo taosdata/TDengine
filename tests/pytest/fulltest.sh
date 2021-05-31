@@ -38,6 +38,8 @@ python3 ./test.py -f table/boundary.py
 python3 ./test.py -f table/create.py
 python3 ./test.py -f table/del_stable.py
 
+#stable
+python3 ./test.py -f stable/insert.py
 
 # tag
 python3 ./test.py -f tag_lite/filter.py

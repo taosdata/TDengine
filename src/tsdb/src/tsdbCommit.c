@@ -86,10 +86,12 @@ static void tsdbCloseCommitFile(SCommitH *pCommith, bool hasError);
 static bool tsdbCanAddSubBlock(SCommitH *pCommith, SBlock *pBlock, SMergeInfo *pInfo);
 static void tsdbLoadAndMergeFromCache(SDataCols *pDataCols, int *iter, SCommitIter *pCommitIter, SDataCols *pTarget,
                                       TSKEY maxKey, int maxRows, int8_t update);
-static int  tsdbApplyRtn(STsdbRepo *pRepo);
 static int  tsdbApplyRtnOnFSet(STsdbRepo *pRepo, SDFileSet *pSet, SRtn *pRtn);
 
 void *tsdbCommitData(STsdbRepo *pRepo) {
+  if (pRepo->imem == NULL) {
+    return NULL;
+  }
   tsdbStartCommit(pRepo);
 
   // Commit to update meta file
@@ -1428,7 +1430,7 @@ static bool tsdbCanAddSubBlock(SCommitH *pCommith, SBlock *pBlock, SMergeInfo *p
   return false;
 }
 
-static int tsdbApplyRtn(STsdbRepo *pRepo) {
+int tsdbApplyRtn(STsdbRepo *pRepo) {
   SRtn       rtn;
   SFSIter    fsiter;
   STsdbFS *  pfs = REPO_FS(pRepo);

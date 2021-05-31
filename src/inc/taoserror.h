@@ -74,7 +74,7 @@ int32_t* taosGetErrno();
 #define TSDB_CODE_REF_NOT_EXIST                 TAOS_DEF_ERROR_CODE(0, 0x010A)  //"Ref is not there")
 
 //client
-#define TSDB_CODE_TSC_INVALID_OPERATION               TAOS_DEF_ERROR_CODE(0, 0x0200)  //"Invalid SQL statement")
+#define TSDB_CODE_TSC_INVALID_OPERATION         TAOS_DEF_ERROR_CODE(0, 0x0200)  //"Invalid Operation")
 #define TSDB_CODE_TSC_INVALID_QHANDLE           TAOS_DEF_ERROR_CODE(0, 0x0201)  //"Invalid qhandle")
 #define TSDB_CODE_TSC_INVALID_TIME_STAMP        TAOS_DEF_ERROR_CODE(0, 0x0202)  //"Invalid combination of client/service time")
 #define TSDB_CODE_TSC_INVALID_VALUE             TAOS_DEF_ERROR_CODE(0, 0x0203)  //"Invalid value in client")

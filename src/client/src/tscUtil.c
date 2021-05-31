@@ -32,6 +32,67 @@
 
 static void freeQueryInfoImpl(SQueryInfo* pQueryInfo);
 
+int32_t converToStr(char *str, int type, void *buf, int32_t bufSize, int32_t *len) {
+  int32_t n = 0;
+  
+  switch (type) {
+    case TSDB_DATA_TYPE_NULL:
+      n = sprintf(str, "null");
+      break;
+  
+    case TSDB_DATA_TYPE_BOOL:
+      n = sprintf(str, (*(int8_t*)buf) ? "true" : "false");
+      break;
+  
+    case TSDB_DATA_TYPE_TINYINT:
+      n = sprintf(str, "%d", *(int8_t*)buf);
+      break;
+  
+    case TSDB_DATA_TYPE_SMALLINT:
+      n = sprintf(str, "%d", *(int16_t*)buf);
+      break;
+  
+    case TSDB_DATA_TYPE_INT:
+      n = sprintf(str, "%d", *(int32_t*)buf);
+      break;
+  
+    case TSDB_DATA_TYPE_BIGINT:
+    case TSDB_DATA_TYPE_TIMESTAMP:
+      n = sprintf(str, "%" PRId64, *(int64_t*)buf);
+      break;
+  
+    case TSDB_DATA_TYPE_FLOAT:
+      n = sprintf(str, "%f", GET_FLOAT_VAL(buf));
+      break;
+  
+    case TSDB_DATA_TYPE_DOUBLE:
+      n = sprintf(str, "%f", GET_DOUBLE_VAL(buf));
+      break;
+  
+    case TSDB_DATA_TYPE_BINARY:
+    case TSDB_DATA_TYPE_NCHAR:
+      if (bufSize < 0) {
+        tscError("invalid buf size");
+        return TSDB_CODE_TSC_INVALID_VALUE;
+      }
+      
+      *str = '"';
+      memcpy(str + 1, buf, bufSize);
+      *(str + bufSize + 1) = '"';
+      n = bufSize + 2;
+      break;
+  
+    default:
+      tscError("unsupported type:%d", type);
+      return TSDB_CODE_TSC_INVALID_VALUE;
+  }
+
+  *len = n;
+
+  return TSDB_CODE_SUCCESS;
+}
+
+
 static void tscStrToLower(char *str, int32_t n) {
   if (str == NULL || n <= 0) { return;}
   for (int32_t i = 0; i < n; i++) {
