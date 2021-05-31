@@ -187,8 +187,8 @@
 		var operInfoBegin = '<a class="dboper" onclick="goShell(\'';
 		var operInfoEnd = '\')">Execute</a>&nbsp&nbsp';
 
-		var operEditBegin = '<a class="dboper" onclick="udfEdit(\'';
-		var operEditEnd = '\')">Edit</a>&nbsp&nbsp';
+		// var operEditBegin = '<a class="dboper" onclick="udfEdit(\'';
+		// var operEditEnd = '\')">Edit</a>&nbsp&nbsp';
 		
 		var operBegin = '<a class="dboper" onclick="udfDelete(\'';
 		var operEnd = '\')">Delete</a>';
@@ -203,9 +203,9 @@
 			}
 			
 			var operInfo = operInfoBegin + data[0] + operInfoEnd;
-			var operEdit = operEditBegin + data[0] + operEditEnd;
+			// var operEdit = operEditBegin + data + operEditEnd;
 			var oper = operBegin + data[0] + operEnd;
-			row = row + colBegin + operInfo + operEdit + oper + colEnd + rowEnd;	
+			row = row + colBegin + operInfo + oper + colEnd + rowEnd;	
 			bodyContent += row;
 		}
 		for (; rowIndex < DbCache.RowsPerPage(); ++rowIndex) {
@@ -220,13 +220,6 @@
 		
 		$('#dbTableBody').html(bodyContent);
 	}		
-
-	function dbInfo(id)
-	{
-		dbTableName = id;
-		DbSession.SetTableList();
-		DbUtil.GotoPage("tableInfo.html?table=" + dbTableName);
-	}
 	
 	//while push delete button
 	var udfName = "";
@@ -236,10 +229,6 @@
 		DbUtil.ConfirmDialog(DB_CODE_CONFIRM, "drop function " + udfName);
 	}	
 
-	function udfEdit(id)
-	{
-		console.log(id)
-	}
 	
 	//while confirm delete
 	function dbExecuteDelete()
