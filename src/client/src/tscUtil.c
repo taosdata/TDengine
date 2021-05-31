@@ -3320,7 +3320,11 @@ void doExecuteQuery(SSqlObj* pSql, SQueryInfo* pQueryInfo) {
     tscHandleMasterSTableQuery(pSql);
     tscUnlockByThread(&pSql->squeryLock);
   } else if (TSDB_QUERY_HAS_TYPE(pQueryInfo->type, TSDB_QUERY_TYPE_INSERT)) {
-    tscHandleMultivnodeInsert(pSql);
+    if (TSDB_QUERY_HAS_TYPE(pSql->cmd.insertParam.insertType, TSDB_QUERY_TYPE_FILE_INSERT)) {
+      tscImportDataFromFile(pSql);
+    } else {
+      tscHandleMultivnodeInsert(pSql);
+    }
   } else if (pSql->cmd.command > TSDB_SQL_LOCAL) {
     tscProcessLocalCmd(pSql);
   } else { // send request to server directly
