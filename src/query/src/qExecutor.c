@@ -2809,8 +2809,6 @@ static void doSetTagValueInParam(void* pTable, int32_t tagColId, tVariant *tag, 
   if (tagColId == TSDB_TBNAME_COLUMN_INDEX) {
     val = tsdbGetTableName(pTable);
     assert(val != NULL);
-  } else if (tagColId == TSDB_BLOCK_DIST_COLUMN_INDEX) {
-    val = NULL;
   } else {
     val = tsdbGetTableTagVal(pTable, tagColId, type, bytes);
   }
