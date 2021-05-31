@@ -1046,6 +1046,7 @@ int stmt_funcb_autoctb1(TAOS_STMT *stmt) {
   free(params);
   free(is_null);
   free(no_null);
+  free(tags);
 
   return 0;
 }
@@ -1258,6 +1259,7 @@ int stmt_funcb_autoctb2(TAOS_STMT *stmt) {
   free(params);
   free(is_null);
   free(no_null);
+  free(tags);
 
   return 0;
 }
@@ -1446,6 +1448,7 @@ int stmt_funcb_autoctb3(TAOS_STMT *stmt) {
   free(params);
   free(is_null);
   free(no_null);
+  free(tags);
 
   return 0;
 }
@@ -1635,6 +1638,7 @@ int stmt_funcb_autoctb_e1(TAOS_STMT *stmt) {
   free(params);
   free(is_null);
   free(no_null);
+  free(tags);
 
   return 0;
 }
@@ -1849,6 +1853,7 @@ int stmt_funcb_autoctb_e2(TAOS_STMT *stmt) {
   free(params);
   free(is_null);
   free(no_null);
+  free(tags);
 
   return 0;
 }
