@@ -552,6 +552,8 @@ int32_t createFilterInfo(SQueryAttr* pQueryAttr, uint64_t qId);
 void freeColumnFilterInfo(SColumnFilterInfo* pFilter, int32_t numOfFilters);
 
 STableQueryInfo *createTableQueryInfo(SQueryAttr* pQueryAttr, void* pTable, bool groupbyColumn, STimeWindow win, void* buf);
+STableQueryInfo* createTmpTableQueryInfo(STimeWindow win);
+
 int32_t buildArithmeticExprFromMsg(SExprInfo *pArithExprInfo, void *pQueryMsg);
 
 bool isQueryKilled(SQInfo *pQInfo);

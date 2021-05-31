@@ -3237,6 +3237,25 @@ STableQueryInfo *createTableQueryInfo(SQueryAttr* pQueryAttr, void* pTable, bool
   return pTableQueryInfo;
 }
 
+STableQueryInfo* createTmpTableQueryInfo(STimeWindow win) {
+  STableQueryInfo* pTableQueryInfo = calloc(1, sizeof(STableQueryInfo));
+
+  pTableQueryInfo->win = win;
+  pTableQueryInfo->lastKey = win.skey;
+
+  pTableQueryInfo->pTable = NULL;
+  pTableQueryInfo->cur.vgroupIndex = -1;
+
+  // set more initial size of interval/groupby query
+  int32_t initialSize = 16;
+  int32_t code = initResultRowInfo(&pTableQueryInfo->resInfo, initialSize, TSDB_DATA_TYPE_INT);
+  if (code != TSDB_CODE_SUCCESS) {
+    return NULL;
+  }
+
+  return pTableQueryInfo;
+}
+
 void destroyTableQueryInfoImpl(STableQueryInfo *pTableQueryInfo) {
   if (pTableQueryInfo == NULL) {
     return;
