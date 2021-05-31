@@ -1286,7 +1286,7 @@ int stmtParseInsertTbTags(SSqlObj* pSql, STscStmt* pStmt) {
     }
 
     sToken = tStrGetToken(pCmd->curSql, &index, false);
-    if (sToken.n <= 0 || (sToken.type != TK_VALUES && sToken.type != TK_LP) {
+    if (sToken.n <= 0 || (sToken.type != TK_VALUES && sToken.type != TK_LP)) {
       return TSDB_CODE_TSC_INVALID_OPERATION;
     }
 
