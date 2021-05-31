@@ -22,6 +22,10 @@
 extern "C" {
 #endif
 
+#ifdef TD_JEMALLOC_ENABLED
+#include <jemalloc/jemalloc.h>
+#endif
+
 typedef enum {
   TAOS_ALLOC_MODE_DEFAULT = 0,
   TAOS_ALLOC_MODE_RANDOM_FAIL = 1,
