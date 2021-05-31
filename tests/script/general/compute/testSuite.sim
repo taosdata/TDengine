@@ -14,3 +14,4 @@ run general/compute/percentile.sim
 run general/compute/stddev.sim
 run general/compute/sum.sim
 run general/compute/top.sim
+run general/compute/block_dist.sim

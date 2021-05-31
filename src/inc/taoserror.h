@@ -74,7 +74,7 @@ int32_t* taosGetErrno();
 #define TSDB_CODE_REF_NOT_EXIST                 TAOS_DEF_ERROR_CODE(0, 0x010A)  //"Ref is not there")
 
 //client
-#define TSDB_CODE_TSC_INVALID_SQL               TAOS_DEF_ERROR_CODE(0, 0x0200)  //"Invalid SQL statement")
+#define TSDB_CODE_TSC_INVALID_OPERATION         TAOS_DEF_ERROR_CODE(0, 0x0200)  //"Invalid Operation")
 #define TSDB_CODE_TSC_INVALID_QHANDLE           TAOS_DEF_ERROR_CODE(0, 0x0201)  //"Invalid qhandle")
 #define TSDB_CODE_TSC_INVALID_TIME_STAMP        TAOS_DEF_ERROR_CODE(0, 0x0202)  //"Invalid combination of client/service time")
 #define TSDB_CODE_TSC_INVALID_VALUE             TAOS_DEF_ERROR_CODE(0, 0x0203)  //"Invalid value in client")
@@ -227,6 +227,7 @@ int32_t* taosGetErrno();
 #define TSDB_CODE_VND_NO_WRITE_AUTH             TAOS_DEF_ERROR_CODE(0, 0x0512)  //"Database write operation denied")
 #define TSDB_CODE_VND_IS_SYNCING                TAOS_DEF_ERROR_CODE(0, 0x0513)  //"Database is syncing")
 #define TSDB_CODE_VND_INVALID_TSDB_STATE        TAOS_DEF_ERROR_CODE(0, 0x0514)  //"Invalid tsdb state")
+#define TSDB_CODE_VND_IS_CLOSING                TAOS_DEF_ERROR_CODE(0, 0x0515)  //"Database is closing")
 
 // tsdb
 #define TSDB_CODE_TDB_INVALID_TABLE_ID          TAOS_DEF_ERROR_CODE(0, 0x0600)  //"Invalid table ID")
@@ -435,6 +436,9 @@ int32_t* taosGetErrno();
 #define TSDB_CODE_FS_FILE_ALREADY_EXISTS        TAOS_DEF_ERROR_CODE(0, 0x2206)  //"tfs file already exists")
 #define TSDB_CODE_FS_INVLD_LEVEL                TAOS_DEF_ERROR_CODE(0, 0x2207)  //"tfs invalid level")
 #define TSDB_CODE_FS_NO_VALID_DISK              TAOS_DEF_ERROR_CODE(0, 0x2208)  //"tfs no valid disk")
+
+// monitor
+#define TSDB_CODE_MON_CONNECTION_INVALID        TAOS_DEF_ERROR_CODE(0, 0x2300)  //"monitor invalid monitor db connection")
 
 #ifdef __cplusplus
 }

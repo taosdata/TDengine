@@ -33,6 +33,8 @@ char *    mnodeGetUserFromMsg(void *pMnodeMsg);
 int32_t   mnodeCreateUser(SAcctObj *pAcct, char *name, char *pass, void *pMsg);
 void      mnodeDropAllUsers(SAcctObj *pAcct);
 
+int32_t   mnodeCompactUsers();
+
 #ifdef __cplusplus
 }
 #endif

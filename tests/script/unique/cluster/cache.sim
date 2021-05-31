@@ -41,7 +41,7 @@ sql create dnode $hostname2
 sleep 10000
 
 sql show log.tables;
-if $rows != 5 then
+if $rows > 6 then
   return -1
 endi
 

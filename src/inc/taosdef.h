@@ -33,6 +33,8 @@ extern "C" {
 #endif
 
 #define TSWINDOW_INITIALIZER ((STimeWindow) {INT64_MIN, INT64_MAX})
+#define TSWINDOW_DESC_INITIALIZER ((STimeWindow) {INT64_MAX, INT64_MIN})
+
 #define TSKEY_INITIAL_VAL    INT64_MIN
 
 // Bytes for each type.
@@ -246,7 +248,6 @@ do { \
 #define TSDB_MAX_REPLICA          5
 
 #define TSDB_TBNAME_COLUMN_INDEX        (-1)
-#define TSDB_BLOCK_DIST_COLUMN_INDEX    (-2)
 #define TSDB_UD_COLUMN_INDEX            (-1000)
 #define TSDB_RES_COL_ID                 (-5000)
 
@@ -302,7 +303,7 @@ do { \
 #define TSDB_DEFAULT_DB_UPDATE_OPTION   0
 
 #define TSDB_MIN_DB_CACHE_LAST_ROW      0
-#define TSDB_MAX_DB_CACHE_LAST_ROW      1
+#define TSDB_MAX_DB_CACHE_LAST_ROW      3
 #define TSDB_DEFAULT_CACHE_LAST_ROW     0
 
 #define TSDB_MIN_FSYNC_PERIOD           0
@@ -353,6 +354,7 @@ do { \
 #define TSDB_QUERY_TYPE_TAG_FILTER_QUERY       0x400u
 #define TSDB_QUERY_TYPE_INSERT                 0x100u    // insert type
 #define TSDB_QUERY_TYPE_MULTITABLE_QUERY       0x200u
+#define TSDB_QUERY_TYPE_FILE_INSERT            0x400u    // insert data from file
 #define TSDB_QUERY_TYPE_STMT_INSERT            0x800u    // stmt insert type
 
 #define TSDB_QUERY_HAS_TYPE(x, _type)          (((x) & (_type)) != 0)

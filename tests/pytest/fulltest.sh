@@ -38,6 +38,8 @@ python3 ./test.py -f table/boundary.py
 python3 ./test.py -f table/create.py
 python3 ./test.py -f table/del_stable.py
 
+#stable
+python3 ./test.py -f stable/insert.py
 
 # tag
 python3 ./test.py -f tag_lite/filter.py
@@ -183,7 +185,7 @@ python3 ./test.py -f stable/query_after_reset.py
 # perfbenchmark
 python3 ./test.py -f perfbenchmark/bug3433.py
 #python3 ./test.py -f perfbenchmark/bug3589.py
-
+python3 ./test.py -f perfbenchmark/taosdemoInsert.py
 
 #query
 python3 ./test.py -f query/filter.py

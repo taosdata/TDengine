@@ -446,7 +446,7 @@ void tHistogramDestroy(SHistogramInfo** pHisto) {
 }
 
 void tHistogramPrint(SHistogramInfo* pHisto) {
-  printf("total entries: %d, elements: %d\n", pHisto->numOfEntries, pHisto->numOfElems);
+  printf("total entries: %d, elements: %"PRId64 "\n", pHisto->numOfEntries, pHisto->numOfElems);
 #if defined(USE_ARRAYLIST)
   for (int32_t i = 0; i < pHisto->numOfEntries; ++i) {
     printf("%d: (%f, %" PRId64 ")\n", i + 1, pHisto->elems[i].val, pHisto->elems[i].num);

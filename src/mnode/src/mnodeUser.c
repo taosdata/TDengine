@@ -617,3 +617,30 @@ static int32_t mnodeProcessAuthMsg(SMnodeMsg *pMsg) {
   
   return mnodeRetriveAuth(pAuthMsg->user, &pAuthRsp->spi, &pAuthRsp->encrypt, pAuthRsp->secret, pAuthRsp->ckey);
 }
+
+int32_t mnodeCompactUsers() {
+  void *pIter = NULL;
+  SUserObj *pUser = NULL;
+
+  mInfo("start to compact users table...");
+
+  while (1) {
+    pIter = mnodeGetNextUser(pIter, &pUser);
+    if (pUser == NULL) break;
+
+    SSdbRow row = {
+      .type     = SDB_OPER_GLOBAL,
+      .pTable   = tsUserSdb,
+      .pObj     = pUser,
+      .rowSize  = sizeof(SUserObj),
+    };
+
+    mInfo("compact users %s", pUser->user);
+    
+    sdbInsertCompactRow(&row);
+  }
+
+  mInfo("end to compact users table...");
+
+  return 0;
+}

@@ -16,7 +16,38 @@
 #ifndef TDENGINE_QPLAN_H
 #define TDENGINE_QPLAN_H
 
-//TODO refactor
+struct SQueryInfo;
+
+typedef struct SQueryNodeBasicInfo {
+  int32_t type;
+  char   *name;
+} SQueryNodeBasicInfo;
+
+typedef struct SQueryTableInfo {
+  char     *tableName;
+  STableId  id;
+} SQueryTableInfo;
+
+typedef struct SQueryNode {
+  SQueryNodeBasicInfo info;
+  SQueryTableInfo    tableInfo;
+  SSchema           *pSchema;      // the schema of the input SSDatablock
+  int32_t            numOfCols;    // number of input columns
+  SExprInfo         *pExpr;        // the query functions or sql aggregations
+  int32_t            numOfOutput;  // number of result columns, which is also the number of pExprs
+
+  void              *pExtInfo;     // additional information
+  // previous operator to generated result for current node to process
+  // in case of join, multiple prev nodes exist.
+  SArray            *pPrevNodes;// upstream nodes
+  struct SQueryNode *nextNode;
+} SQueryNode;
+
+SQueryNode* qCreateQueryPlan(struct SQueryInfo* pQueryInfo);
+void* qDestroyQueryPlan(SQueryNode* pQueryNode);
+
+char* queryPlanToString(SQueryNode* pQueryNode);
+
 SArray* createTableScanPlan(SQueryAttr* pQueryAttr);
 SArray* createExecOperatorPlan(SQueryAttr* pQueryAttr);
 SArray* createGlobalMergePlan(SQueryAttr* pQueryAttr);

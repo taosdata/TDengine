@@ -62,6 +62,7 @@ typedef struct SLoadCompBlockInfo {
   int32_t fileId;
 } SLoadCompBlockInfo;
 
+
 typedef struct STableCheckInfo {
   STableId      tableId;
   TSKEY         lastKey;
@@ -107,7 +108,7 @@ typedef struct STsdbQueryHandle {
   SArray*        pTableCheckInfo;  // SArray<STableCheckInfo>
   int32_t        activeIndex;
   bool           checkFiles;       // check file stage
-  bool           cachelastrow;     // check if last row cached
+  int8_t         cachelastrow;     // check if last row cached
   bool           loadExternalRow;  // load time window external data rows
   bool           currentLoadExternalRows; // current load external rows
   int32_t        loadType;         // block load type
@@ -117,7 +118,6 @@ typedef struct STsdbQueryHandle {
   SFSIter        fileIter;
   SReadH         rhelper;
   STableBlockInfo* pDataBlockInfo;
-
   SDataCols     *pDataCols;        // in order to hold current file data block
   int32_t        allocSize;        // allocated data block size
   SMemRef       *pMemRef;
@@ -138,6 +138,7 @@ typedef struct STableGroupSupporter {
 
 static STimeWindow updateLastrowForEachGroup(STableGroupInfo *groupList);
 static int32_t checkForCachedLastRow(STsdbQueryHandle* pQueryHandle, STableGroupInfo *groupList);
+static int32_t checkForCachedLast(STsdbQueryHandle* pQueryHandle);
 static int32_t tsdbGetCachedLastRow(STable* pTable, SDataRow* pRes, TSKEY* lastKey);
 
 static void    changeQueryHandleForInterpQuery(TsdbQueryHandleT pHandle);
@@ -512,6 +513,8 @@ void tsdbResetQueryHandleForNewTable(TsdbQueryHandleT queryHandle, STsdbQueryCon
   pQueryHandle->next = doFreeColumnInfoData(pQueryHandle->next);
 }
 
+
+
 TsdbQueryHandleT tsdbQueryLastRow(STsdbRepo *tsdb, STsdbQueryCond *pCond, STableGroupInfo *groupList, uint64_t qId, SMemRef* pMemRef) {
   pCond->twindow = updateLastrowForEachGroup(groupList);
 
@@ -528,9 +531,29 @@ TsdbQueryHandleT tsdbQueryLastRow(STsdbRepo *tsdb, STsdbQueryCond *pCond, STable
   }
 
   assert(pCond->order == TSDB_ORDER_ASC && pCond->twindow.skey <= pCond->twindow.ekey);
-  pQueryHandle->type = TSDB_QUERY_TYPE_LAST;
+  if (pQueryHandle->cachelastrow) {
+    pQueryHandle->type = TSDB_QUERY_TYPE_LAST;
+  }
+  
   return pQueryHandle;
 }
+
+
+TsdbQueryHandleT tsdbQueryCacheLast(STsdbRepo *tsdb, STsdbQueryCond *pCond, STableGroupInfo *groupList, uint64_t qId, SMemRef* pMemRef) {
+  STsdbQueryHandle *pQueryHandle = (STsdbQueryHandle*) tsdbQueryTables(tsdb, pCond, groupList, qId, pMemRef);
+  int32_t code = checkForCachedLast(pQueryHandle);
+  if (code != TSDB_CODE_SUCCESS) { // set the numOfTables to be 0
+    terrno = code;
+    return NULL;
+  }
+
+  if (pQueryHandle->cachelastrow) {
+    pQueryHandle->type = TSDB_QUERY_TYPE_LAST;
+  }
+  
+  return pQueryHandle;
+}
+
 
 SArray* tsdbGetQueriedTableList(TsdbQueryHandleT *pHandle) {
   assert(pHandle != NULL);
@@ -2105,6 +2128,7 @@ int32_t tsdbGetFileBlocksDistInfo(TsdbQueryHandleT* queryHandle, STableBlockDist
   STsdbQueryHandle* pQueryHandle = (STsdbQueryHandle*) queryHandle;
 
   pTableBlockInfo->totalSize = 0;
+  pTableBlockInfo->totalRows = 0;
   STsdbFS* pFileHandle = REPO_FS(pQueryHandle->pTsdb);
 
   // find the start data block in file
@@ -2178,7 +2202,12 @@ int32_t tsdbGetFileBlocksDistInfo(TsdbQueryHandleT* queryHandle, STableBlockDist
         pTableBlockInfo->totalSize += pBlock[j].len;
 
         int32_t numOfRows = pBlock[j].numOfRows;
-        taosArrayPush(pTableBlockInfo->dataBlockInfos, &numOfRows);
+        pTableBlockInfo->totalRows += numOfRows;
+        if (numOfRows > pTableBlockInfo->maxRows) pTableBlockInfo->maxRows = numOfRows;
+        if (numOfRows < pTableBlockInfo->minRows) pTableBlockInfo->minRows = numOfRows;
+        int32_t  stepIndex = (numOfRows-1)/TSDB_BLOCK_DIST_STEP_ROWS;
+        SFileBlockInfo *blockInfo = (SFileBlockInfo*)taosArrayGet(pTableBlockInfo->dataBlockInfos, stepIndex);
+        blockInfo->numBlocksOfStep++;
       }
     }
   }
@@ -2460,6 +2489,159 @@ static bool loadCachedLastRow(STsdbQueryHandle* pQueryHandle) {
   return false;
 }
 
+
+
+static bool loadCachedLast(STsdbQueryHandle* pQueryHandle) {
+  // the last row is cached in buffer, return it directly.
+  // here note that the pQueryHandle->window must be the TS_INITIALIZER
+  int32_t tgNumOfCols = (int32_t)QH_GET_NUM_OF_COLS(pQueryHandle);
+  size_t  numOfTables = taosArrayGetSize(pQueryHandle->pTableCheckInfo);
+  int32_t numOfRows = 0;
+  assert(numOfTables > 0 && tgNumOfCols > 0);
+  SQueryFilePos* cur = &pQueryHandle->cur;
+  TSKEY priKey = TSKEY_INITIAL_VAL;
+  int32_t priIdx = -1;
+  SColumnInfoData* pColInfo = NULL;
+
+  while (++pQueryHandle->activeIndex < numOfTables) {
+    STableCheckInfo* pCheckInfo = taosArrayGet(pQueryHandle->pTableCheckInfo, pQueryHandle->activeIndex);
+    STable* pTable = pCheckInfo->pTableObj;  
+    char* pData = NULL;
+
+    int32_t numOfCols = pTable->maxColNum;
+    
+    if (pTable->lastCols == NULL || pTable->maxColNum <= 0) {
+      tsdbWarn("no last cached for table, uid:%" PRIu64 ",tid:%d", pTable->tableId.uid, pTable->tableId.tid);
+      continue;
+    }
+    
+    int32_t i = 0, j = 0;
+    while(i < tgNumOfCols && j < numOfCols) {
+      pColInfo = taosArrayGet(pQueryHandle->pColumns, i);
+      if (pTable->lastCols[j].colId < pColInfo->info.colId) {
+        j++;
+        continue;
+      } else if (pTable->lastCols[j].colId > pColInfo->info.colId) {
+        i++;
+        continue;
+      }
+    
+      pData = (char*)pColInfo->pData + numOfRows * pColInfo->info.bytes;
+    
+      if (pTable->lastCols[j].bytes > 0) {        
+        void* value = pTable->lastCols[j].pData;
+        switch (pColInfo->info.type) {
+          case TSDB_DATA_TYPE_BINARY:
+          case TSDB_DATA_TYPE_NCHAR:
+            memcpy(pData, value, varDataTLen(value));
+            break;
+          case TSDB_DATA_TYPE_NULL:
+          case TSDB_DATA_TYPE_BOOL:
+          case TSDB_DATA_TYPE_TINYINT:
+          case TSDB_DATA_TYPE_UTINYINT:  
+            *(uint8_t *)pData = *(uint8_t *)value;
+            break;
+          case TSDB_DATA_TYPE_SMALLINT:
+          case TSDB_DATA_TYPE_USMALLINT:
+            *(uint16_t *)pData = *(uint16_t *)value;
+            break;
+          case TSDB_DATA_TYPE_INT:
+          case TSDB_DATA_TYPE_UINT:
+            *(uint32_t *)pData = *(uint32_t *)value;
+            break;
+          case TSDB_DATA_TYPE_BIGINT:
+          case TSDB_DATA_TYPE_UBIGINT:
+            *(uint64_t *)pData = *(uint64_t *)value;
+            break;
+          case TSDB_DATA_TYPE_FLOAT:
+            SET_FLOAT_PTR(pData, value);
+            break;
+          case TSDB_DATA_TYPE_DOUBLE:
+            SET_DOUBLE_PTR(pData, value);
+            break;
+          case TSDB_DATA_TYPE_TIMESTAMP:
+            if (pColInfo->info.colId == PRIMARYKEY_TIMESTAMP_COL_INDEX) {
+              priKey = tdGetKey(*(TKEY *)value);
+              priIdx = i;
+
+              i++;
+              j++;
+              continue;
+            } else {
+              *(TSKEY *)pData = *(TSKEY *)value;
+            }
+            break;
+          default:
+            memcpy(pData, value, pColInfo->info.bytes);
+        }
+    
+        for (int32_t n = 0; n < tgNumOfCols; ++n) {
+          if (n == i) {
+            continue;
+          }
+
+          pColInfo = taosArrayGet(pQueryHandle->pColumns, n);
+          pData = (char*)pColInfo->pData + numOfRows * pColInfo->info.bytes;;
+
+          if (pColInfo->info.colId == PRIMARYKEY_TIMESTAMP_COL_INDEX) {
+            *(TSKEY *)pData = pTable->lastCols[j].ts;
+            continue;
+          }
+          
+          if (pColInfo->info.type == TSDB_DATA_TYPE_BINARY || pColInfo->info.type == TSDB_DATA_TYPE_NCHAR) {
+            setVardataNull(pData, pColInfo->info.type);
+          } else {
+            setNull(pData, pColInfo->info.type, pColInfo->info.bytes);
+          }
+        }
+
+        numOfRows++;
+        assert(numOfRows < pQueryHandle->outputCapacity);
+      } 
+    
+      i++;
+      j++;
+    }
+
+    // leave the real ts column as the last row, because last function only (not stable) use the last row as res
+    if (priKey != TSKEY_INITIAL_VAL) {
+      pColInfo = taosArrayGet(pQueryHandle->pColumns, priIdx);
+      pData = (char*)pColInfo->pData + numOfRows * pColInfo->info.bytes;
+    
+      *(TSKEY *)pData = priKey;
+
+      for (int32_t n = 0; n < tgNumOfCols; ++n) {
+        if (n == priIdx) {
+          continue;
+        }
+      
+        pColInfo = taosArrayGet(pQueryHandle->pColumns, n);
+        pData = (char*)pColInfo->pData + numOfRows * pColInfo->info.bytes;;
+      
+        assert (pColInfo->info.colId != PRIMARYKEY_TIMESTAMP_COL_INDEX);
+        
+        if (pColInfo->info.type == TSDB_DATA_TYPE_BINARY || pColInfo->info.type == TSDB_DATA_TYPE_NCHAR) {
+          setVardataNull(pData, pColInfo->info.type);
+        } else {
+          setNull(pData, pColInfo->info.type, pColInfo->info.bytes);
+        }
+      }
+
+      numOfRows++;
+    }
+    
+    if (numOfRows > 0) {
+      cur->rows     = numOfRows;
+      cur->mixBlock = true;
+      
+      return true;
+    }    
+  }
+
+  return false;
+}
+
+
 static bool loadDataBlockFromTableSeq(STsdbQueryHandle* pQueryHandle) {
   size_t numOfTables = taosArrayGetSize(pQueryHandle->pTableCheckInfo);
   assert(numOfTables > 0);
@@ -2496,8 +2678,12 @@ bool tsdbNextDataBlock(TsdbQueryHandleT pHandle) {
   int64_t stime = taosGetTimestampUs();
   int64_t elapsedTime = stime;
 
-  if (pQueryHandle->type == TSDB_QUERY_TYPE_LAST && pQueryHandle->cachelastrow) {
-    return loadCachedLastRow(pQueryHandle);
+  if (pQueryHandle->type == TSDB_QUERY_TYPE_LAST) {
+    if (pQueryHandle->cachelastrow == 1) {
+      return loadCachedLastRow(pQueryHandle);
+    } else if (pQueryHandle->cachelastrow == 2) {
+      return loadCachedLast(pQueryHandle);
+    }
   }
 
   if (pQueryHandle->loadType == BLOCK_LOAD_TABLE_SEQ_ORDER) {
@@ -2695,6 +2881,10 @@ int32_t tsdbGetCachedLastRow(STable* pTable, SDataRow* pRes, TSKEY* lastKey) {
   return TSDB_CODE_SUCCESS;
 }
 
+bool isTsdbCacheLastRow(TsdbQueryHandleT* pQueryHandle) {
+  return ((STsdbQueryHandle *)pQueryHandle)->cachelastrow > 0;
+}
+
 int32_t checkForCachedLastRow(STsdbQueryHandle* pQueryHandle, STableGroupInfo *groupList) {
   assert(pQueryHandle != NULL && groupList != NULL);
 
@@ -2706,11 +2896,15 @@ int32_t checkForCachedLastRow(STsdbQueryHandle* pQueryHandle, STableGroupInfo *g
 
   STableKeyInfo* pInfo = (STableKeyInfo*)taosArrayGet(group, 0);
 
-  int32_t code = tsdbGetCachedLastRow(pInfo->pTable, &pRow, &key);
-  if (code != TSDB_CODE_SUCCESS) {
-    pQueryHandle->cachelastrow = false;
-  } else {
-    pQueryHandle->cachelastrow = (pRow != NULL);
+  int32_t code = 0;
+  
+  if (((STable*)pInfo->pTable)->lastRow) {
+    code = tsdbGetCachedLastRow(pInfo->pTable, &pRow, &key);
+    if (code != TSDB_CODE_SUCCESS) {
+      pQueryHandle->cachelastrow = 0;
+    } else {
+      pQueryHandle->cachelastrow = 1;
+    }
   }
 
   // update the tsdb query time range
@@ -2723,6 +2917,26 @@ int32_t checkForCachedLastRow(STsdbQueryHandle* pQueryHandle, STableGroupInfo *g
   tfree(pRow);
   return code;
 }
+
+int32_t checkForCachedLast(STsdbQueryHandle* pQueryHandle) {
+  assert(pQueryHandle != NULL);
+
+  int32_t code = 0;
+  
+  if (pQueryHandle->pTsdb && atomic_load_8(&pQueryHandle->pTsdb->hasCachedLastColumn)){
+    pQueryHandle->cachelastrow = 2;
+  }
+
+  // update the tsdb query time range
+  if (pQueryHandle->cachelastrow) {
+    pQueryHandle->window      = TSWINDOW_INITIALIZER;
+    pQueryHandle->checkFiles  = false;
+    pQueryHandle->activeIndex = -1;  // start from -1
+  }
+
+  return code;
+}
+
 
 STimeWindow updateLastrowForEachGroup(STableGroupInfo *groupList) {
   STimeWindow window = {INT64_MAX, INT64_MIN};
