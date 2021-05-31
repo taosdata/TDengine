@@ -179,7 +179,7 @@ quorum 2
     def getServiceCmdLine(self): # to start the instance
         if Config.getConfig().track_memory_leaks:
             Logging.info("Invoking VALGRIND on service...")
-            return ['exec /usr/bin/valgrind', '--leak-check=yes', self.getExecFile(), '-c', self.getCfgDir()]
+            return ['exec valgrind', '--leak-check=yes', self.getExecFile(), '-c', self.getCfgDir()]
         else:
             # TODO: move "exec -c" into Popen(), we can both "use shell" and NOT fork so ask to lose kill control
             return ["exec " + self.getExecFile(), '-c', self.getCfgDir()] # used in subproce.Popen()
@@ -310,7 +310,7 @@ class TdeSubProcess:
         # print("Starting TDengine with env: ", myEnv.items())
         print("Starting TDengine: {}".format(cmdLine))
 
-        return Popen(            
+        ret = Popen(            
             ' '.join(cmdLine), # ' '.join(cmdLine) if useShell else cmdLine,
             shell=True, # Always use shell, since we need to pass ENV vars
             stdout=PIPE,
@@ -318,6 +318,10 @@ class TdeSubProcess:
             close_fds=ON_POSIX,
             env=myEnv
             )  # had text=True, which interferred with reading EOF
+        time.sleep(0.01) # very brief wait, then let's check if sub process started successfully.
+        if ret.poll():
+            raise CrashGenError("Sub process failed to start with command line: {}".format(cmdLine))
+        return ret
 
     STOP_SIGNAL = signal.SIGINT # signal.SIGKILL/SIGINT # What signal to use (in kill) to stop a taosd process?
     SIG_KILL_RETCODE = 137 # ref: https://stackoverflow.com/questions/43268156/process-finished-with-exit-code-137-in-pycharm
@@ -614,7 +618,7 @@ class ServiceManager:
 
             # Find if there's already a taosd service, and then kill it
             for proc in psutil.process_iter():
-                if proc.name() == 'taosd':
+                if proc.name() == 'taosd' or proc.name() == 'memcheck-amd64-': # Regular or under Valgrind
                     Logging.info("Killing an existing TAOSD process in 2 seconds... press CTRL-C to interrupt")
                     time.sleep(2.0)
                     proc.kill()
