@@ -1213,7 +1213,7 @@ int stmtParseInsertTbTags(SSqlObj* pSql, STscStmt* pStmt) {
   }
 
   int32_t index = 0;
-  SStrToken sToken = tStrGetToken(pCmd->curSql, &index, false);
+  SStrToken sToken = tStrGetToken(pCmd->insertParam.sql, &index, false);
   if (sToken.n == 0) {
     return TSDB_CODE_TSC_INVALID_OPERATION;
   }
@@ -1232,7 +1232,7 @@ int stmtParseInsertTbTags(SSqlObj* pSql, STscStmt* pStmt) {
 
     pStmt->mtb.tagSet = true;
 
-    sToken = tStrGetToken(pCmd->curSql, &index, false);
+    sToken = tStrGetToken(pCmd->insertParam.sql, &index, false);
     if (sToken.n > 0 && sToken.type == TK_VALUES) {
       return TSDB_CODE_SUCCESS;
     }
@@ -1241,18 +1241,18 @@ int stmtParseInsertTbTags(SSqlObj* pSql, STscStmt* pStmt) {
       return TSDB_CODE_TSC_INVALID_OPERATION;
     }
 
-    sToken = tStrGetToken(pCmd->curSql, &index, false);
+    sToken = tStrGetToken(pCmd->insertParam.sql, &index, false);
     if (sToken.n <= 0 || ((sToken.type != TK_ID) && (sToken.type != TK_STRING))) {
       return TSDB_CODE_TSC_INVALID_OPERATION;
     }
     pStmt->mtb.stbname = sToken;
 
-    sToken = tStrGetToken(pCmd->curSql, &index, false);
+    sToken = tStrGetToken(pCmd->insertParam.sql, &index, false);
     if (sToken.n <= 0 || sToken.type != TK_TAGS) {
       return TSDB_CODE_TSC_INVALID_OPERATION;
     }
 
-    sToken = tStrGetToken(pCmd->curSql, &index, false);
+    sToken = tStrGetToken(pCmd->insertParam.sql, &index, false);
     if (sToken.n <= 0 || sToken.type != TK_LP) {
       return TSDB_CODE_TSC_INVALID_OPERATION;
     }
@@ -1262,7 +1262,7 @@ int stmtParseInsertTbTags(SSqlObj* pSql, STscStmt* pStmt) {
     int32_t loopCont = 1;
 
     while (loopCont) {
-      sToken = tStrGetToken(pCmd->curSql, &index, false);
+      sToken = tStrGetToken(pCmd->insertParam.sql, &index, false);
       if (sToken.n <= 0) {
         return TSDB_CODE_TSC_INVALID_OPERATION;
       }
@@ -1285,7 +1285,7 @@ int stmtParseInsertTbTags(SSqlObj* pSql, STscStmt* pStmt) {
       return TSDB_CODE_TSC_INVALID_OPERATION;
     }
 
-    sToken = tStrGetToken(pCmd->curSql, &index, false);
+    sToken = tStrGetToken(pCmd->insertParam.sql, &index, false);
     if (sToken.n <= 0 || sToken.type != TK_VALUES) {
       return TSDB_CODE_TSC_INVALID_OPERATION;
     }
