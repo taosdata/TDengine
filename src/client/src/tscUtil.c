@@ -527,7 +527,7 @@ bool isSimpleAggregateRv(SQueryInfo* pQueryInfo) {
 bool isBlockDistQuery(SQueryInfo* pQueryInfo) {
   size_t numOfExprs = tscNumOfExprs(pQueryInfo);
   SExprInfo* pExpr = tscExprGet(pQueryInfo, 0);
-  return (numOfExprs == 1 && pExpr->base.colInfo.colId == TSDB_BLOCK_DIST_COLUMN_INDEX);
+  return (numOfExprs == 1 && pExpr->base.functionId == TSDB_FUNC_BLKINFO);
 }
 
 void tscClearInterpInfo(SQueryInfo* pQueryInfo) {
@@ -2048,16 +2048,14 @@ SExprInfo* tscExprCreate(SQueryInfo* pQueryInfo, int16_t functionId, SColumnInde
     p->colInfo.colId = TSDB_TBNAME_COLUMN_INDEX;
     p->colBytes = s->bytes;
     p->colType  = s->type;
-  } else if (pColIndex->columnIndex == TSDB_BLOCK_DIST_COLUMN_INDEX) {
-    SSchema s = tGetBlockDistColumnSchema();
-
-    p->colInfo.colId = TSDB_BLOCK_DIST_COLUMN_INDEX;
-    p->colBytes = s.bytes;
-    p->colType  = s.type;
   } else if (pColIndex->columnIndex <= TSDB_UD_COLUMN_INDEX) {
     p->colInfo.colId = pColIndex->columnIndex;
     p->colBytes = size;
     p->colType = type;
+  } else if (functionId == TSDB_FUNC_BLKINFO) {
+    p->colInfo.colId = pColIndex->columnIndex;
+    p->colBytes = TSDB_MAX_BINARY_LEN;
+    p->colType = TSDB_DATA_TYPE_BINARY;
   } else {
     if (TSDB_COL_IS_TAG(colType)) {
       SSchema* pSchema = tscGetTableTagSchema(pTableMetaInfo->pTableMeta);
@@ -2553,7 +2551,7 @@ bool tscValidateColumnId(STableMetaInfo* pTableMetaInfo, int32_t colId, int32_t 
     return false;
   }
 
-  if (colId == TSDB_TBNAME_COLUMN_INDEX || colId == TSDB_BLOCK_DIST_COLUMN_INDEX || (colId <= TSDB_UD_COLUMN_INDEX && numOfParams == 2)) {
+  if (colId == TSDB_TBNAME_COLUMN_INDEX || (colId <= TSDB_UD_COLUMN_INDEX && numOfParams == 2)) {
     return true;
   }
 
