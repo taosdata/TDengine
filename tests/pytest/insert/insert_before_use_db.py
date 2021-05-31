@@ -24,6 +24,10 @@ class TDTestCase:
 
     def run(self):
         tdSql.error('insert into tb values (now + 10m, 10)')
+        tdSql.prepare()
+        tdSql.error('insert into tb values (now + 10m, 10)')
+        tdSql.execute('drop database db')
+        tdSql.error('insert into tb values (now + 10m, 10)')
         
 
     def stop(self):
