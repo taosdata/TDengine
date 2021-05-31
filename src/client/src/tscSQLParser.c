@@ -7463,6 +7463,7 @@ int32_t validateSqlNode(SSqlObj* pSql, SSqlNode* pSqlNode, SQueryInfo* pQueryInf
       return TSDB_CODE_TSC_INVALID_OPERATION;
     }
 
+    // validate the query filter condition info
     if (pSqlNode->pWhere != NULL) {
       if (validateWhereNode(pQueryInfo, &pSqlNode->pWhere, pSql) != TSDB_CODE_SUCCESS) {
         return TSDB_CODE_TSC_INVALID_OPERATION;
@@ -7472,6 +7473,16 @@ int32_t validateSqlNode(SSqlObj* pSql, SSqlNode* pSqlNode, SQueryInfo* pQueryInf
       if (pTableMeta->tableInfo.precision == TSDB_TIME_PRECISION_MILLI) {
         pQueryInfo->window.skey = pQueryInfo->window.skey / 1000;
         pQueryInfo->window.ekey = pQueryInfo->window.ekey / 1000;
+      }
+    }
+
+    // validate the interval info
+    if (validateIntervalNode(pSql, pQueryInfo, pSqlNode) != TSDB_CODE_SUCCESS) {
+      return TSDB_CODE_TSC_INVALID_OPERATION;
+    } else {
+      if (isTimeWindowQuery(pQueryInfo) &&
+          (validateFunctionsInIntervalOrGroupbyQuery(pCmd, pQueryInfo) != TSDB_CODE_SUCCESS)) {
+        return TSDB_CODE_TSC_INVALID_OPERATION;
       }
     }
   } else {

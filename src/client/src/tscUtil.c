@@ -668,6 +668,7 @@ typedef struct SJoinOperatorInfo {
 static void doSetupSDataBlock(SSqlRes* pRes, SSDataBlock* pBlock) {
   int32_t offset = 0;
   char* pData = pRes->data;
+
   for(int32_t i = 0; i < pBlock->info.numOfCols; ++i) {
     SColumnInfoData* pColData = taosArrayGet(pBlock->pDataBlock, i);
     if (pData != NULL) {
@@ -677,6 +678,14 @@ static void doSetupSDataBlock(SSqlRes* pRes, SSDataBlock* pBlock) {
     }
 
     offset += pColData->info.bytes;
+  }
+
+  // todo refactor: extract method
+  // set the timestamp range of current result data block
+  SColumnInfoData* pColData = taosArrayGet(pBlock->pDataBlock, 0);
+  if (pColData->info.type == TSDB_DATA_TYPE_TIMESTAMP) {
+    pBlock->info.window.skey = ((int64_t*)pColData->pData)[0];
+    pBlock->info.window.ekey = ((int64_t*)pColData->pData)[pBlock->info.rows-1];
   }
 
   pRes->numOfRows = 0;
