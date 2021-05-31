@@ -5353,9 +5353,9 @@ int32_t setAlterTableInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
     }
 
     pItem = taosArrayGet(pAlterSQL->pAddColumns, 1);
-    int64_t nlen = 0;
+    int16_t nlen = 0;
 
-    if (tVariantDump(&pItem->pVar, (char *)&nlen, TSDB_DATA_TYPE_BIGINT, false) < 0 || nlen <= 0) {
+    if (tVariantDump(&pItem->pVar, (char *)&nlen, TSDB_DATA_TYPE_SMALLINT, false) < 0 || nlen <= 0) {
       return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg22);
     }
     
