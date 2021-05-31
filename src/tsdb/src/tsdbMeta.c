@@ -68,7 +68,7 @@ int tsdbCreateTable(STsdbRepo *repo, STableCfg *pCfg) {
                 TABLE_CHAR_NAME(pMeta->tables[tid]), TABLE_TID(pMeta->tables[tid]), TABLE_UID(pMeta->tables[tid]));
       return 0;
     } else {
-      tsdbError("vgId:%d table %s at tid %d uid %" PRIu64
+      tsdbInfo("vgId:%d table %s at tid %d uid %" PRIu64
                 " exists, replace it with new table, this can be not reasonable",
                 REPO_ID(pRepo), TABLE_CHAR_NAME(pMeta->tables[tid]), TABLE_TID(pMeta->tables[tid]),
                 TABLE_UID(pMeta->tables[tid]));
