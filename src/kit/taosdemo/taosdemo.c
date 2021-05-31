@@ -4401,8 +4401,9 @@ static bool getMetaFromQueryJsonFile(cJSON* root) {
 
         cJSON* resubAfterConsume =
             cJSON_GetObjectItem(specifiedQuery, "resubAfterConsume");
-        if (resubAfterConsume
-                && resubAfterConsume->type == cJSON_Number) {
+        if ((resubAfterConsume)
+                && (resubAfterConsume->type == cJSON_Number)
+                && (resubAfterConsume->valueint >= 0)) {
             g_queryInfo.specifiedQueryInfo.resubAfterConsume[j]
                 = resubAfterConsume->valueint;
         } else if (!resubAfterConsume) {
@@ -4563,14 +4564,15 @@ static bool getMetaFromQueryJsonFile(cJSON* root) {
     }
 
     cJSON* superResubAfterConsume =
-            cJSON_GetObjectItem(superQuery, "endAfterConsume");
-    if (superResubAfterConsume
-            && superResubAfterConsume->type == cJSON_Number) {
-        g_queryInfo.superQueryInfo.endAfterConsume =
+            cJSON_GetObjectItem(superQuery, "resubAfterConsume");
+    if ((superResubAfterConsume)
+            && (superResubAfterConsume->type == cJSON_Number)
+            && (superResubAfterConsume->valueint >= 0)) {
+        g_queryInfo.superQueryInfo.resubAfterConsume =
             superResubAfterConsume->valueint;
     } else if (!superResubAfterConsume) {
         // default value is -1, which mean do not resub
-        g_queryInfo.superQueryInfo.endAfterConsume = -1;
+        g_queryInfo.superQueryInfo.resubAfterConsume = -1;
     }
 
     // supert table sqls
