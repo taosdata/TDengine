@@ -7,7 +7,6 @@
 #include <taos.h>
 #include <unistd.h>
 
-
 static void prepare_data(TAOS* taos) {
   TAOS_RES *result;
   result = taos_query(taos, "drop database if exists test;");
@@ -69,7 +68,6 @@ static void prepare_data(TAOS* taos) {
   usleep(1000000);
 }
 
-
 static int print_result(TAOS_RES* res, int blockFetch) {
   TAOS_ROW    row = NULL;
   int         num_fields = taos_num_fields(res);
@@ -99,7 +97,6 @@ static int print_result(TAOS_RES* res, int blockFetch) {
   return nRows;
 }
 
-
 static void check_row_count(int line, TAOS_RES* res, int expected) {
   int actual = print_result(res, expected % 2);
   if (actual != expected) {
@@ -108,7 +105,6 @@ static void check_row_count(int line, TAOS_RES* res, int expected) {
     printf("line %d: %d rows consumed as expected\n", line, actual);
   }
 }
-
 
 static void verify_query(TAOS* taos) {
   prepare_data(taos);
@@ -152,7 +148,6 @@ static void verify_query(TAOS* taos) {
   taos_stop_query(res);
   taos_free_result(res);
 }
-
 
 void subscribe_callback(TAOS_SUB* tsub, TAOS_RES *res, void* param, int code) {
   int rows = print_result(res, *(int*)param);
@@ -235,10 +230,10 @@ static void verify_subscribe(TAOS* taos) {
   taos_unsubscribe(tsub, 0);
 }
 
-
 void verify_prepare(TAOS* taos) {
   TAOS_RES* result = taos_query(taos, "drop database if exists test;");
   taos_free_result(result);
+
   usleep(100000);
   result = taos_query(taos, "create database test;");
 
@@ -248,6 +243,7 @@ void verify_prepare(TAOS* taos) {
     taos_free_result(result);
     return;
   }
+
   taos_free_result(result);
 
   usleep(100000);
@@ -369,6 +365,7 @@ void verify_prepare(TAOS* taos) {
     taos_stmt_add_batch(stmt);
   }
   if (taos_stmt_execute(stmt) != 0) {
+    taos_stmt_close(stmt);
     printf("\033[31mfailed to execute insert statement.\033[0m\n");
     return;
   }
@@ -381,6 +378,7 @@ void verify_prepare(TAOS* taos) {
   v.v2 = 15;
   taos_stmt_bind_param(stmt, params + 2);
   if (taos_stmt_execute(stmt) != 0) {
+    taos_stmt_close(stmt);
     printf("\033[31mfailed to execute select statement.\033[0m\n");
     return;
   }

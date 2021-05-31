@@ -690,7 +690,7 @@ static int32_t sdbProcessWrite(void *wparam, void *hparam, int32_t qtype, void *
   pthread_mutex_unlock(&tsSdbMgmt.mutex);
 
   // from app, row is created
-  if (pRow != NULL) {
+  if (pRow != NULL && tsCompactMnodeWal != 1) {
     // forward to peers
     pRow->processedCount = 0;
     int32_t syncCode = syncForwardToPeer(tsSdbMgmt.sync, pHead, pRow, TAOS_QTYPE_RPC, false);
@@ -713,19 +713,21 @@ static int32_t sdbProcessWrite(void *wparam, void *hparam, int32_t qtype, void *
            actStr[action], sdbGetKeyStr(pTable, pHead->cont), pHead->version);
 
   // even it is WAL/FWD, it shall be called to update version in sync
-  syncForwardToPeer(tsSdbMgmt.sync, pHead, pRow, TAOS_QTYPE_RPC, false);
+  if (tsCompactMnodeWal != 1) {
+    syncForwardToPeer(tsSdbMgmt.sync, pHead, pRow, TAOS_QTYPE_RPC, false);
+  }
 
   // from wal or forward msg, row not created, should add into hash
   if (action == SDB_ACTION_INSERT) {
     return sdbPerformInsertAction(pHead, pTable);
   } else if (action == SDB_ACTION_DELETE) {
-    if (qtype == TAOS_QTYPE_FWD) {
+    //if (qtype == TAOS_QTYPE_FWD) {
       // Drop database/stable may take a long time and cause a timeout, so we confirm first then reput it into queue
-      sdbWriteFwdToQueue(1, hparam, TAOS_QTYPE_QUERY, unused);
-      return TSDB_CODE_SUCCESS;
-    } else {
+    //  sdbWriteFwdToQueue(1, hparam, TAOS_QTYPE_QUERY, unused);
+    //  return TSDB_CODE_SUCCESS;
+    //} else {
       return sdbPerformDeleteAction(pHead, pTable);
-    }
+    //}
   } else if (action == SDB_ACTION_UPDATE) {
     return sdbPerformUpdateAction(pHead, pTable);
   } else {
