@@ -18,10 +18,10 @@
 #include "tulog.h"
 #include "ttimer.h"
 #include "trpc.h"
-#include "tutil.h"
 #include "tgrant.h"
 #include "tglobal.h"
 #include "tdataformat.h"
+#include "monitor.h"
 #include "machine.h"
 #include "mnode.h"
 #include "dnode.h"
@@ -29,7 +29,6 @@
 #include "mnodeDb.h"
 #include "mnodeDnode.h"
 #include "mnodeTable.h"
-#include "mnodeMnode.h"
 #include "mnodeSdb.h"
 #include "mnodeShow.h"
 #include "mnodeAcct.h"
@@ -75,6 +74,11 @@ SGrantStatus grantStatus = {
   GRANT_CPU_LIMITS
 };
 
+SGrantMonitorLogContext grantLogContext = {0};
+static void grantLogTimerCb(void *param, void* tmrId);
+static void  grantLogCreateGrantTableCb(void* param, TAOS_RES *res, int unused);
+static void  grantLogInsertGrantTableCb(void* param, TAOS_RES *res, int unused);
+
 int32_t grantInit() {
   char cfgFile[PATH_MAX] = {0};
   sprintf(cfgFile, "%s/taos.cfg", configDir);
@@ -85,14 +89,16 @@ int32_t grantInit() {
   mnodeAddPeerMsgHandle(TSDB_MSG_TYPE_DM_GRANT, grantProcessMsgInMgmt);
   dnodeAddClientRspHandle(TSDB_MSG_TYPE_DM_GRANT_RSP, grantProcessRspInDnode);
   taosTmrReset(grantSendMsgToMgmt, 500, NULL, tsMnodeTmr, &grantSendTimer);
+  taosTmrReset(grantLogTimerCb, 1000, &grantLogContext, tsMnodeTmr, &grantLogContext.logTimer);
 
   uDebug("grant data is initialized");
   return TSDB_CODE_SUCCESS;
 }
 
 void grantCleanUp() {
- taosTmrStopA(&grantCheckTimer); 
- taosTmrStopA(&grantSendTimer); 
+  taosTmrStopA(&grantLogContext.logTimer);
+  taosTmrStopA(&grantCheckTimer);
+  taosTmrStopA(&grantSendTimer);
 }
 
 void grantParseParameter() {
@@ -519,6 +525,90 @@ static void grantSendMsgToMgmt(void *p1, void *p2) {
   dnodeSendMsgToDnode(&epSet, &rpcMsg);
 }
 
+static void grantLogInsertGrantTableCb(void* param, TAOS_RES *res, int unused) {
+  SGrantMonitorLogContext *logger = (SGrantMonitorLogContext *)param;
+  int code = taos_errno(res);
+  taos_free_result(res);
+  if (code != 0) {
+    uError("failed to insert into grant table. reason:%d, sql:%s", code, logger->sqlInsertIntoTable);
+    taosTmrReset(grantLogTimerCb, 10*1000, logger, tsMnodeTmr, &logger->logTimer);
+    return;
+  }
+  logger->tableInserted = true;
+}
+
+static void grantLogCreateGrantTableCb(void* param, TAOS_RES *res, int unused) {
+  SGrantMonitorLogContext *logger = (SGrantMonitorLogContext *)param;
+  int code = taos_errno(res);
+  taos_free_result(res);
+  if (code != 0) {
+    uError("failed to create grant table. reason:%d, sql:%s", code, logger->sqlCreateTable);
+    taosTmrReset(grantLogTimerCb, 10*1000, logger, tsMnodeTmr, &logger->logTimer);
+    return;
+  }
+
+  logger->tableCreated = true;
+  monExecuteSQLWithResultCallback(logger->sqlInsertIntoTable, grantLogInsertGrantTableCb, logger);
+}
+
+static void grantLogTimerCb(void *param, void* tmrId) {
+  SGrantMonitorLogContext *logger = (SGrantMonitorLogContext *)param;
+  if (!tsEnableMonitorModule) {
+    return;
+  }
+
+  if (!logger->machineCodeGenerated) {
+    char *machineCode = grantGetMachineSerials();
+    if (machineCode == NULL) {
+      uError("grant failed to get machine serials.");
+      taosTmrReset(grantLogTimerCb, 10 * 1000, logger, tsMnodeTmr, &logger->logTimer);
+    }
+    logger->machineCode = machineCode;
+    logger->machineCodeGenerated = true;
+  }
+
+  if (!logger->sqlGenerated) {
+    int len = snprintf(grantLogContext.sqlCreateTable, 511,
+                       "create table if not exists %s.grant(ts timestamp, granted bool"
+                       ", machine_code binary(%d), grant_machine_code binary(%d), grant_active_code binary(%d)"
+                       ", offical_version bigint, expire_time_sec bigint, limit_storage bigint"
+                       ", limit_speed bigint, limit_time_series bigint, limit_query_time bigint"
+                       ", limit_dbs bigint, limit_users bigint, limit_conns bigint"
+                       ", limit_streams bigint, limit_accts bigint, limit_dnodes bigint"
+                       ", limit_cpu_cores bigint, reserved_key1 bigint, reserved_key2 bigint)",
+                       tsMonitorDbName, GRANT_MACHINE_KEY_LEN, GRANT_MACHINE_KEY_LEN, GRANT_ACTIVE_KEY_LEN);
+    logger->sqlCreateTable[len] = '\0';
+
+    len = snprintf(logger->sqlInsertIntoTable, 511,
+                       "insert into %s.grant values(now, '%s'"
+                       ", '%s' ,'%s', '%s'"
+                       ", %" PRIu32 ", %" PRIu32 ", %" PRIu32
+                       ", %" PRIu32 ", %" PRIu32 ", %" PRIu32
+                       ", %" PRIu32 ", %" PRIu32 ", %" PRIu32
+                       ", %" PRIu32 ", %" PRIu32 ", %" PRIu32
+                       ", %" PRIu32 ", %" PRIu32 ", %" PRIu32 ")",
+                       tsMonitorDbName, grantObj.granted ? "true" : "false",
+                       logger->machineCode, grantObj.machine,grantObj.active,
+                       grantObj.officialVersion, grantObj.expireTimeSec, grantObj.limitStorage,
+                       grantObj.limitSpeed, grantObj.limitTimeSeries, grantObj.limitQueryTime,
+                       grantObj.limitDbs,grantObj.limitUsers, grantObj.limitConns,
+                       grantObj.limitStreams, grantObj.limitAccts, grantObj.limitDnodes,
+                       grantObj.limitCpuCores, grantObj.reserveKey1, grantObj.reserveKey2);
+    logger->sqlInsertIntoTable[len] = '\0';
+    logger->sqlGenerated = true;
+  }
+
+  if (!logger->tableCreated) {
+    monExecuteSQLWithResultCallback(logger->sqlCreateTable, grantLogCreateGrantTableCb, logger);
+    return;
+  }
+
+  if (!logger->tableInserted) {
+    monExecuteSQLWithResultCallback(logger->sqlInsertIntoTable, grantLogInsertGrantTableCb, logger);
+    return;
+  }
+}
+
 static int32_t grantProcessMsgInMgmt(SMnodeMsg *pMsg)
 {  
   SGrantMsg  *pGrant = pMsg->rpcMsg.pCont;
@@ -628,6 +718,7 @@ static int32_t grantGetMetaData(STableMetaMsg *pMeta, SShowObj *pShow, void *pCo
   char cfgFile[PATH_MAX] = {0};
   sprintf(cfgFile, "%s/taos.cfg", configDir);
   grantActiveSystem(cfgFile);
+  taosTmrReset(grantLogTimerCb, 1000, &grantLogContext, tsMnodeTmr, &grantLogContext.logTimer);
 
   grantSendMsgToMgmt(NULL, NULL);
   taosMsleep(10);
