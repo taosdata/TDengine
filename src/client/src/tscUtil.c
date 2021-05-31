@@ -32,6 +32,67 @@
 
 static void freeQueryInfoImpl(SQueryInfo* pQueryInfo);
 
+int32_t converToStr(char *str, int type, void *buf, int32_t bufSize, int32_t *len) {
+  int32_t n = 0;
+  
+  switch (type) {
+    case TSDB_DATA_TYPE_NULL:
+      n = sprintf(str, "null");
+      break;
+  
+    case TSDB_DATA_TYPE_BOOL:
+      n = sprintf(str, (*(int8_t*)buf) ? "true" : "false");
+      break;
+  
+    case TSDB_DATA_TYPE_TINYINT:
+      n = sprintf(str, "%d", *(int8_t*)buf);
+      break;
+  
+    case TSDB_DATA_TYPE_SMALLINT:
+      n = sprintf(str, "%d", *(int16_t*)buf);
+      break;
+  
+    case TSDB_DATA_TYPE_INT:
+      n = sprintf(str, "%d", *(int32_t*)buf);
+      break;
+  
+    case TSDB_DATA_TYPE_BIGINT:
+    case TSDB_DATA_TYPE_TIMESTAMP:
+      n = sprintf(str, "%" PRId64, *(int64_t*)buf);
+      break;
+  
+    case TSDB_DATA_TYPE_FLOAT:
+      n = sprintf(str, "%f", GET_FLOAT_VAL(buf));
+      break;
+  
+    case TSDB_DATA_TYPE_DOUBLE:
+      n = sprintf(str, "%f", GET_DOUBLE_VAL(buf));
+      break;
+  
+    case TSDB_DATA_TYPE_BINARY:
+    case TSDB_DATA_TYPE_NCHAR:
+      if (bufSize < 0) {
+        tscError("invalid buf size");
+        return TSDB_CODE_TSC_INVALID_VALUE;
+      }
+      
+      *str = '"';
+      memcpy(str + 1, buf, bufSize);
+      *(str + bufSize + 1) = '"';
+      n = bufSize + 2;
+      break;
+  
+    default:
+      tscError("unsupported type:%d", type);
+      return TSDB_CODE_TSC_INVALID_VALUE;
+  }
+
+  *len = n;
+
+  return TSDB_CODE_SUCCESS;
+}
+
+
 static void tscStrToLower(char *str, int32_t n) {
   if (str == NULL || n <= 0) { return;}
   for (int32_t i = 0; i < n; i++) {
@@ -466,7 +527,7 @@ bool isSimpleAggregateRv(SQueryInfo* pQueryInfo) {
 bool isBlockDistQuery(SQueryInfo* pQueryInfo) {
   size_t numOfExprs = tscNumOfExprs(pQueryInfo);
   SExprInfo* pExpr = tscExprGet(pQueryInfo, 0);
-  return (numOfExprs == 1 && pExpr->base.colInfo.colId == TSDB_BLOCK_DIST_COLUMN_INDEX);
+  return (numOfExprs == 1 && pExpr->base.functionId == TSDB_FUNC_BLKINFO);
 }
 
 void tscClearInterpInfo(SQueryInfo* pQueryInfo) {
@@ -1987,16 +2048,14 @@ SExprInfo* tscExprCreate(SQueryInfo* pQueryInfo, int16_t functionId, SColumnInde
     p->colInfo.colId = TSDB_TBNAME_COLUMN_INDEX;
     p->colBytes = s->bytes;
     p->colType  = s->type;
-  } else if (pColIndex->columnIndex == TSDB_BLOCK_DIST_COLUMN_INDEX) {
-    SSchema s = tGetBlockDistColumnSchema();
-
-    p->colInfo.colId = TSDB_BLOCK_DIST_COLUMN_INDEX;
-    p->colBytes = s.bytes;
-    p->colType  = s.type;
   } else if (pColIndex->columnIndex <= TSDB_UD_COLUMN_INDEX) {
     p->colInfo.colId = pColIndex->columnIndex;
     p->colBytes = size;
     p->colType = type;
+  } else if (functionId == TSDB_FUNC_BLKINFO) {
+    p->colInfo.colId = pColIndex->columnIndex;
+    p->colBytes = TSDB_MAX_BINARY_LEN;
+    p->colType = TSDB_DATA_TYPE_BINARY;
   } else {
     if (TSDB_COL_IS_TAG(colType)) {
       SSchema* pSchema = tscGetTableTagSchema(pTableMetaInfo->pTableMeta);
@@ -2492,7 +2551,7 @@ bool tscValidateColumnId(STableMetaInfo* pTableMetaInfo, int32_t colId, int32_t 
     return false;
   }
 
-  if (colId == TSDB_TBNAME_COLUMN_INDEX || colId == TSDB_BLOCK_DIST_COLUMN_INDEX || (colId <= TSDB_UD_COLUMN_INDEX && numOfParams == 2)) {
+  if (colId == TSDB_TBNAME_COLUMN_INDEX || (colId <= TSDB_UD_COLUMN_INDEX && numOfParams == 2)) {
     return true;
   }
 

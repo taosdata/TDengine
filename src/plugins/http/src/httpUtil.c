@@ -237,6 +237,11 @@ void httpFreeMultiCmds(HttpContext *pContext) {
 JsonBuf *httpMallocJsonBuf(HttpContext *pContext) {
   if (pContext->jsonBuf == NULL) {
     pContext->jsonBuf = (JsonBuf *)malloc(sizeof(JsonBuf));
+    if (pContext->jsonBuf == NULL) {
+      return NULL;
+    }
+
+    memset(pContext->jsonBuf, 0, sizeof(JsonBuf));
   }
 
   if (!pContext->jsonBuf->pContext) {

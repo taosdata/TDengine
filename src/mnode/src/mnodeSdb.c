@@ -690,7 +690,7 @@ static int32_t sdbProcessWrite(void *wparam, void *hparam, int32_t qtype, void *
   pthread_mutex_unlock(&tsSdbMgmt.mutex);
 
   // from app, row is created
-  if (pRow != NULL) {
+  if (pRow != NULL && tsCompactMnodeWal != 1) {
     // forward to peers
     pRow->processedCount = 0;
     int32_t syncCode = syncForwardToPeer(tsSdbMgmt.sync, pHead, pRow, TAOS_QTYPE_RPC, false);
@@ -713,7 +713,9 @@ static int32_t sdbProcessWrite(void *wparam, void *hparam, int32_t qtype, void *
            actStr[action], sdbGetKeyStr(pTable, pHead->cont), pHead->version);
 
   // even it is WAL/FWD, it shall be called to update version in sync
-  syncForwardToPeer(tsSdbMgmt.sync, pHead, pRow, TAOS_QTYPE_RPC, false);
+  if (tsCompactMnodeWal != 1) {
+    syncForwardToPeer(tsSdbMgmt.sync, pHead, pRow, TAOS_QTYPE_RPC, false);
+  }
 
   // from wal or forward msg, row not created, should add into hash
   if (action == SDB_ACTION_INSERT) {

@@ -86,6 +86,17 @@ static SStep tsDnodeSteps[] = {
   {"dnode-telemetry", dnodeInitTelemetry,  dnodeCleanupTelemetry},
 };
 
+static SStep tsDnodeCompactSteps[] = {
+  {"dnode-tfile",     tfInit,              tfCleanup},
+  {"dnode-storage",   dnodeInitStorage,    dnodeCleanupStorage},
+  {"dnode-eps",       dnodeInitEps,        dnodeCleanupEps},
+  {"dnode-wal",       walInit,             walCleanUp},
+  {"dnode-mread",     dnodeInitMRead,      NULL},
+  {"dnode-mwrite",    dnodeInitMWrite,     NULL},
+  {"dnode-mpeer",     dnodeInitMPeer,      NULL},
+  {"dnode-modules",   dnodeInitModules,    dnodeCleanupModules},
+};
+
 static int dnodeCreateDir(const char *dir) {
   if (mkdir(dir, 0755) != 0 && errno != EEXIST) {
     return -1;
@@ -95,13 +106,23 @@ static int dnodeCreateDir(const char *dir) {
 }
 
 static void dnodeCleanupComponents() {
-  int32_t stepSize = sizeof(tsDnodeSteps) / sizeof(SStep);
-  dnodeStepCleanup(tsDnodeSteps, stepSize);
+  if (!tsCompactMnodeWal) {
+    int32_t stepSize = sizeof(tsDnodeSteps) / sizeof(SStep);
+    dnodeStepCleanup(tsDnodeSteps, stepSize);
+  } else {
+    int32_t stepSize = sizeof(tsDnodeCompactSteps) / sizeof(SStep);
+    dnodeStepCleanup(tsDnodeCompactSteps, stepSize);
+  }
 }
 
 static int32_t dnodeInitComponents() {
-  int32_t stepSize = sizeof(tsDnodeSteps) / sizeof(SStep);
-  return dnodeStepInit(tsDnodeSteps, stepSize);
+  if (!tsCompactMnodeWal) {
+    int32_t stepSize = sizeof(tsDnodeSteps) / sizeof(SStep);
+    return dnodeStepInit(tsDnodeSteps, stepSize);
+  } else {
+    int32_t stepSize = sizeof(tsDnodeCompactSteps) / sizeof(SStep);
+    return dnodeStepInit(tsDnodeCompactSteps, stepSize);
+  }
 }
 
 static int32_t dnodeInitTmr() {

@@ -693,7 +693,11 @@ static void printHelp() {
   printf("%s%s%s%s\n", indent, "-p", indent,
           "The TCP/IP port number to use for the connection. Default is 0.");
   printf("%s%s%s%s\n", indent, "-I", indent,
+#if STMT_IFACE_ENABLED == 1
           "The interface (taosc, rest, and stmt) taosdemo uses. Default is 'taosc'.");
+#else
+          "The interface (taosc, rest) taosdemo uses. Default is 'taosc'.");
+#endif
   printf("%s%s%s%s\n", indent, "-d", indent,
           "Destination database. Default is 'test'.");
   printf("%s%s%s%s\n", indent, "-a", indent,
@@ -793,8 +797,10 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
           arguments->iface = TAOSC_IFACE;
       } else if (0 == strcasecmp(argv[i], "rest")) {
           arguments->iface = REST_IFACE;
+#if STMT_IFACE_ENABLED == 1
       } else if (0 == strcasecmp(argv[i], "stmt")) {
           arguments->iface = STMT_IFACE;
+#endif
       } else {
         errorPrint("%s", "\n\t-I need a valid string following!\n");
         exit(EXIT_FAILURE);
@@ -2904,8 +2910,8 @@ static void* createTable(void *sarg)
   int buff_len;
   buff_len = BUFFER_SIZE / 8;
 
-  char *buffer = calloc(buff_len, 1);
-  if (buffer == NULL) {
+  pThreadInfo->buffer = calloc(buff_len, 1);
+  if (pThreadInfo->buffer == NULL) {
     errorPrint("%s() LN%d, Memory allocated failed!\n", __func__, __LINE__);
     exit(-1);
   }
@@ -2920,7 +2926,7 @@ static void* createTable(void *sarg)
   for (uint64_t i = pThreadInfo->start_table_from;
           i <= pThreadInfo->end_table_to; i++) {
     if (0 == g_Dbs.use_metric) {
-      snprintf(buffer, buff_len,
+      snprintf(pThreadInfo->buffer, buff_len,
               "create table if not exists %s.%s%"PRIu64" %s;",
               pThreadInfo->db_name,
               g_args.tb_prefix, i,
@@ -2929,13 +2935,13 @@ static void* createTable(void *sarg)
       if (superTblInfo == NULL) {
         errorPrint("%s() LN%d, use metric, but super table info is NULL\n",
                   __func__, __LINE__);
-        free(buffer);
+        free(pThreadInfo->buffer);
         exit(-1);
       } else {
         if (0 == len) {
           batchNum = 0;
-          memset(buffer, 0, buff_len);
-          len += snprintf(buffer + len,
+          memset(pThreadInfo->buffer, 0, buff_len);
+          len += snprintf(pThreadInfo->buffer + len,
                   buff_len - len, "create table ");
         }
         char* tagsValBuf = NULL;
@@ -2947,10 +2953,10 @@ static void* createTable(void *sarg)
                   i % superTblInfo->tagSampleCount);
         }
         if (NULL == tagsValBuf) {
-          free(buffer);
+          free(pThreadInfo->buffer);
           return NULL;
         }
-        len += snprintf(buffer + len,
+        len += snprintf(pThreadInfo->buffer + len,
                 buff_len - len,
                 "if not exists %s.%s%"PRIu64" using %s.%s tags %s ",
                 pThreadInfo->db_name, superTblInfo->childTblPrefix,
@@ -2967,9 +2973,10 @@ static void* createTable(void *sarg)
     }
 
     len = 0;
-    if (0 != queryDbExec(pThreadInfo->taos, buffer, NO_INSERT_TYPE, false)){
-      errorPrint( "queryDbExec() failed. buffer:\n%s\n", buffer);
-      free(buffer);
+    if (0 != queryDbExec(pThreadInfo->taos, pThreadInfo->buffer,
+                NO_INSERT_TYPE, false)){
+      errorPrint( "queryDbExec() failed. buffer:\n%s\n", pThreadInfo->buffer);
+      free(pThreadInfo->buffer);
       return NULL;
     }
 
@@ -2982,12 +2989,13 @@ static void* createTable(void *sarg)
   }
 
   if (0 != len) {
-    if (0 != queryDbExec(pThreadInfo->taos, buffer, NO_INSERT_TYPE, false)) {
-      errorPrint( "queryDbExec() failed. buffer:\n%s\n", buffer);
+    if (0 != queryDbExec(pThreadInfo->taos, pThreadInfo->buffer,
+                NO_INSERT_TYPE, false)) {
+      errorPrint( "queryDbExec() failed. buffer:\n%s\n", pThreadInfo->buffer);
     }
   }
 
-  free(buffer);
+  free(pThreadInfo->buffer);
   return NULL;
 }
 
@@ -3912,8 +3920,10 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
             g_Dbs.db[i].superTbls[j].iface= TAOSC_IFACE;
         } else if (0 == strcasecmp(stbIface->valuestring, "rest")) {
             g_Dbs.db[i].superTbls[j].iface= REST_IFACE;
+#if STMT_IFACE_ENABLED == 1
         } else if (0 == strcasecmp(stbIface->valuestring, "stmt")) {
             g_Dbs.db[i].superTbls[j].iface= STMT_IFACE;
+#endif
         } else {
             errorPrint("%s() LN%d, failed to read json, insert_mode %s not recognized\n",
                     __func__, __LINE__, stbIface->valuestring);
@@ -4391,8 +4401,9 @@ static bool getMetaFromQueryJsonFile(cJSON* root) {
 
         cJSON* resubAfterConsume =
             cJSON_GetObjectItem(specifiedQuery, "resubAfterConsume");
-        if (resubAfterConsume
-                && resubAfterConsume->type == cJSON_Number) {
+        if ((resubAfterConsume)
+                && (resubAfterConsume->type == cJSON_Number)
+                && (resubAfterConsume->valueint >= 0)) {
             g_queryInfo.specifiedQueryInfo.resubAfterConsume[j]
                 = resubAfterConsume->valueint;
         } else if (!resubAfterConsume) {
@@ -4553,14 +4564,15 @@ static bool getMetaFromQueryJsonFile(cJSON* root) {
     }
 
     cJSON* superResubAfterConsume =
-            cJSON_GetObjectItem(superQuery, "endAfterConsume");
-    if (superResubAfterConsume
-            && superResubAfterConsume->type == cJSON_Number) {
-        g_queryInfo.superQueryInfo.endAfterConsume =
+            cJSON_GetObjectItem(superQuery, "resubAfterConsume");
+    if ((superResubAfterConsume)
+            && (superResubAfterConsume->type == cJSON_Number)
+            && (superResubAfterConsume->valueint >= 0)) {
+        g_queryInfo.superQueryInfo.resubAfterConsume =
             superResubAfterConsume->valueint;
     } else if (!superResubAfterConsume) {
         // default value is -1, which mean do not resub
-        g_queryInfo.superQueryInfo.endAfterConsume = -1;
+        g_queryInfo.superQueryInfo.resubAfterConsume = -1;
     }
 
     // supert table sqls
@@ -4924,7 +4936,7 @@ static int32_t execInsert(threadInfo *pThreadInfo, uint32_t k)
 
         case REST_IFACE:
             if (0 != postProceSql(g_Dbs.host, &g_Dbs.serv_addr, g_Dbs.port,
-                        pThreadInfo->buffer, NULL /* not set result file */)) {
+                        pThreadInfo->buffer, pThreadInfo)) {
                 affectedRows = -1;
                 printf("========restful return fail, threadID[%d]\n",
                         pThreadInfo->threadID);
@@ -4933,6 +4945,7 @@ static int32_t execInsert(threadInfo *pThreadInfo, uint32_t k)
             }
             break;
 
+#if STMT_IFACE_ENABLED == 1
         case STMT_IFACE:
             debugPrint("%s() LN%d, stmt=%p", __func__, __LINE__, pThreadInfo->stmt);
             if (0 != taos_stmt_execute(pThreadInfo->stmt)) {
@@ -4942,6 +4955,7 @@ static int32_t execInsert(threadInfo *pThreadInfo, uint32_t k)
             }
             affectedRows = k;
             break;
+#endif
 
         default:
             errorPrint("%s() LN%d: unknown insert mode: %d\n",
@@ -5506,6 +5520,7 @@ static int32_t prepareStmtWithoutStb(
         }
     }
 
+    free(bindArray);
     return k;
 }
 
@@ -5586,6 +5601,7 @@ static int32_t prepareStbStmt(SSuperTable *stbInfo,
         }
     }
 
+    free(bindArray);
     return k;
 }
 #endif
@@ -6407,6 +6423,7 @@ static void startMultiThreadInsertData(int threads, char* db_name,
         exit(-1);
       }
 
+#if STMT_IFACE_ENABLED == 1
       if ((g_args.iface == STMT_IFACE)
           || ((superTblInfo) && (superTblInfo->iface == STMT_IFACE))) {
 
@@ -6446,6 +6463,7 @@ static void startMultiThreadInsertData(int threads, char* db_name,
             exit(-1);
         }
       }
+#endif
     } else {
       pThreadInfo->taos = NULL;
     }
@@ -6486,9 +6504,11 @@ static void startMultiThreadInsertData(int threads, char* db_name,
 
     tsem_destroy(&(pThreadInfo->lock_sem));
 
+#if STMT_IFACE_ENABLED == 1
     if (pThreadInfo->stmt) {
       taos_stmt_close(pThreadInfo->stmt);
     }
+#endif
     tsem_destroy(&(pThreadInfo->lock_sem));
     taos_close(pThreadInfo->taos);
 
