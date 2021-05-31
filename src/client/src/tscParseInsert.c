@@ -771,6 +771,10 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql, char** boundC
       index = 0;
       sToken = tStrGetToken(sql, &index, false);
 
+      if (sToken.type == TK_ILLEGAL) {
+        return tscSQLSyntaxErrMsg(pCmd->payload, "unrecognized token", sToken.z);
+      }
+      
       if (sToken.type == TK_RP) {
         break;
       }
@@ -1359,10 +1363,10 @@ int tsParseSql(SSqlObj *pSql, bool initial) {
     }
 
     ret = tsParseInsertSql(pSql);
-    assert(ret == TSDB_CODE_SUCCESS || ret == TSDB_CODE_TSC_ACTION_IN_PROGRESS || ret == TSDB_CODE_TSC_SQL_SYNTAX_ERROR || ret == TSDB_CODE_TSC_INVALID_OPERATION);
 
     if (pSql->parseRetry < 1 && (ret == TSDB_CODE_TSC_SQL_SYNTAX_ERROR || ret == TSDB_CODE_TSC_INVALID_OPERATION)) {
-      tscDebug("0x%"PRIx64 " parse insert sql statement failed, code:%s, clear meta cache and retry ", pSql->self, tstrerror(ret));
+      tscDebug("0x%" PRIx64 " parse insert sql statement failed, code:%s, clear meta cache and retry ", pSql->self,
+               tstrerror(ret));
 
       tscResetSqlCmd(pCmd, true);
       pSql->parseRetry++;
@@ -1373,9 +1377,11 @@ int tsParseSql(SSqlObj *pSql, bool initial) {
     }
   } else {
     SSqlInfo sqlInfo = qSqlParse(pSql->sqlstr);
+
     ret = tscValidateSqlInfo(pSql, &sqlInfo);
     if (ret == TSDB_CODE_TSC_INVALID_OPERATION && pSql->parseRetry < 1 && sqlInfo.type == TSDB_SQL_SELECT) {
-      tscDebug("0x%"PRIx64 " parse query sql statement failed, code:%s, clear meta cache and retry ", pSql->self, tstrerror(ret));
+      tscDebug("0x%" PRIx64 " parse query sql statement failed, code:%s, clear meta cache and retry ", pSql->self,
+               tstrerror(ret));
 
       tscResetSqlCmd(pCmd, true);
       pSql->parseRetry++;
