@@ -462,8 +462,8 @@ int tdMergeDataCols(SDataCols *target, SDataCols *source, int rowsToMerge, int *
         }
       }
       target->numOfRows++;
-      (*pOffset)++;
     }
+    (*pOffset) += rowsToMerge;
   } else {
     pTarget = tdDupDataCols(target, true);
     if (pTarget == NULL) goto _err;
