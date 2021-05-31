@@ -5335,7 +5335,7 @@ int32_t setAlterTableInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
     tscFieldInfoAppend(&pQueryInfo->fieldsInfo, &f);
   } else if (pAlterSQL->type == TSDB_ALTER_TABLE_CHANGE_COLUMN) {
     if (taosArrayGetSize(pAlterSQL->pAddColumns) != 2) {
-      return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), NULL);
+      return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), NULL);
     }
 
     tVariantListItem* pItem = taosArrayGet(pAlterSQL->pAddColumns, 0);
@@ -5343,20 +5343,20 @@ int32_t setAlterTableInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
     SColumnIndex columnIndex = COLUMN_INDEX_INITIALIZER;
     SStrToken    name = {.type = TK_STRING, .z = pItem->pVar.pz, .n = pItem->pVar.nLen};
     if (getColumnIndexByName(pCmd, &name, pQueryInfo, &columnIndex) != TSDB_CODE_SUCCESS) {
-      return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg17);
+      return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg17);
     }
 
     SSchema* pColSchema = tscGetTableColumnSchema(pTableMetaInfo->pTableMeta, columnIndex.columnIndex);
 
     if (pColSchema->type != TSDB_DATA_TYPE_BINARY && pColSchema->type != TSDB_DATA_TYPE_NCHAR) {
-      return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg21);
+      return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg21);
     }
 
     pItem = taosArrayGet(pAlterSQL->pAddColumns, 1);
     int64_t nlen = 0;
 
     if (tVariantDump(&pItem->pVar, (char *)&nlen, TSDB_DATA_TYPE_BIGINT, false) < 0 || nlen <= 0) {
-      return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg22);
+      return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg22);
     }
     
     TAOS_FIELD f = tscCreateField(pColSchema->type, name.z, nlen);

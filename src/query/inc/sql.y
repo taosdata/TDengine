@@ -824,6 +824,18 @@ cmd ::= ALTER STABLE ids(X) cpxName(F) DROP COLUMN ids(A).     {
     setSqlInfo(pInfo, pAlterTable, NULL, TSDB_SQL_ALTER_TABLE);
 }
 
+cmd ::= ALTER STABLE ids(X) cpxName(F) ALTER COLUMN LENGTH ids(A) INTEGER(Z).     {
+    X.n += F.n;
+
+    toTSDBType(A.type);
+    SArray* K = tVariantListAppendToken(NULL, &A, -1);
+    toTSDBType(Z.type);
+    K = tVariantListAppendToken(K, &Z, -1);
+
+    SAlterTableInfo* pAlterTable = tSetAlterTableInfo(&X, K, NULL, TSDB_ALTER_TABLE_CHANGE_COLUMN, TSDB_SUPER_TABLE);
+    setSqlInfo(pInfo, pAlterTable, NULL, TSDB_SQL_ALTER_TABLE);
+}
+
 //////////////////////////////////ALTER TAGS statement/////////////////////////////////////
 cmd ::= ALTER STABLE ids(X) cpxName(Y) ADD TAG columnlist(A).        {
     X.n += Y.n;
