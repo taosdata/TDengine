@@ -2578,13 +2578,14 @@ static void top_function(SQLFunctionCtx *pCtx) {
   
   for (int32_t i = 0; i < pCtx->size; ++i) {
     char *data = GET_INPUT_DATA(pCtx, i);
-    TSKEY ts = GET_TS_DATA(pCtx, i);
-
     if (pCtx->hasNull && isNull(data, pCtx->inputType)) {
       continue;
     }
     
     notNullElems++;
+
+    // NOTE: Set the default timestamp if it is missing [todo refactor]
+    TSKEY ts = (pCtx->ptsList != NULL)? GET_TS_DATA(pCtx, i):0;
     do_top_function_add(pRes, (int32_t)pCtx->param[0].i64, data, ts, pCtx->inputType, &pCtx->tagInfo, NULL, 0);
   }
   
@@ -2657,13 +2658,13 @@ static void bottom_function(SQLFunctionCtx *pCtx) {
 
   for (int32_t i = 0; i < pCtx->size; ++i) {
     char *data = GET_INPUT_DATA(pCtx, i);
-    TSKEY ts = GET_TS_DATA(pCtx, i);
-
     if (pCtx->hasNull && isNull(data, pCtx->inputType)) {
       continue;
     }
-    
+
     notNullElems++;
+    // NOTE: Set the default timestamp if it is missing [todo refactor]
+    TSKEY ts = (pCtx->ptsList != NULL)? GET_TS_DATA(pCtx, i):0;
     do_bottom_function_add(pRes, (int32_t)pCtx->param[0].i64, data, ts, pCtx->inputType, &pCtx->tagInfo, NULL, 0);
   }
   
