@@ -238,10 +238,12 @@ class TDTestCase:
         tdSql.execute("use dbtest123")
         tdSql.query("select col2 from stb0")
         tdSql.checkData(0, 0, 2147483647)
-        tdSql.query("select t1 from stb1")
-        tdSql.checkData(0, 0, -127)
-        tdSql.query("select t2 from stb1")
-        tdSql.checkData(1, 0, 126)
+        tdSql.query("select * from stb1 where t1=-127")
+        tdSql.checkRows(20)
+        tdSql.query("select * from stb1 where t2=127")
+        tdSql.checkRows(10)
+        tdSql.query("select * from stb1 where t2=126")
+        tdSql.checkRows(10)
 
         # insert: test interlace parament 
         os.system("%staosdemo -f tools/taosdemoAllTest/insert-interlace-row.json -y " % binPath)
@@ -251,6 +253,58 @@ class TDTestCase:
         tdSql.query("select count (*) from stb0")
         tdSql.checkData(0, 0, 15000)        
 
+        # insert: auto_create
+        # todo: add exception input for auto_create_table eg:123
+        os.system("%staosdemo -f tools/taosdemoAllTest/insert-drop-exist-auto-YYY.json -y " % binPath) # drop = yes, exist = yes, auto_create = yes
+        tdSql.execute('use db')
+        tdSql.query('show tables')
+        tdSql.checkRows(20)
+
+        os.system("%staosdemo -f tools/taosdemoAllTest/insert-drop-exist-auto-YYN.json -y " % binPath) # drop = yes, exist = yes, auto_create = no
+        tdSql.execute('use db')
+        tdSql.query('show tables')
+        tdSql.checkRows(20)
+
+        os.system("%staosdemo -f tools/taosdemoAllTest/insert-drop-exist-auto-YNY.json -y " % binPath) # drop = yes, exist = no, auto_create = yes
+        tdSql.execute('use db')
+        tdSql.query('show tables')
+        tdSql.checkRows(20)
+
+        os.system("%staosdemo -f tools/taosdemoAllTest/insert-drop-exist-auto-YNN.json -y " % binPath) # drop = yes, exist = no, auto_create = no
+        tdSql.execute('use db')
+        tdSql.query('show tables')
+        tdSql.checkRows(20)
+
+        tdSql.execute('drop database db')
+        tdSql.execute('create database db')
+        tdSql.execute('use db')
+        os.system("%staosdemo -f tools/taosdemoAllTest/insert-drop-exist-auto-NYY.json -y " % binPath) # drop = no, exist = yes, auto_create = yes
+        tdSql.query('show tables')
+        tdSql.checkRows(0)
+
+        tdSql.execute('drop database db')
+        tdSql.execute('create database db')
+        tdSql.execute('use db')
+        os.system("%staosdemo -f tools/taosdemoAllTest/insert-drop-exist-auto-NYN.json -y " % binPath) # drop = no, exist = yes, auto_create = no
+        tdSql.execute('use db')
+        tdSql.query('show tables')
+        tdSql.checkRows(0)
+
+        tdSql.execute('drop database db')
+        tdSql.execute('create database db')
+        tdSql.execute('use db')
+        os.system("%staosdemo -f tools/taosdemoAllTest/insert-drop-exist-auto-NNY.json -y " % binPath) # drop = no, exist = no, auto_create = yes
+        tdSql.execute('use db')
+        tdSql.query('show tables')
+        tdSql.checkRows(20)
+
+        tdSql.execute('drop database db')
+        tdSql.execute('create database db')
+        tdSql.execute('use db')
+        os.system("%staosdemo -f tools/taosdemoAllTest/insert-drop-exist-auto-NNN.json -y " % binPath) # drop = no, exist = no, auto_create = no
+        tdSql.execute('use db')
+        tdSql.query('show tables')
+        tdSql.checkRows(20)
 
         os.system("rm -rf ./insert_res.txt")
         os.system("rm -rf tools/taosdemoAllTest/taosdemoTestInsertWithJson.py.sql")        
