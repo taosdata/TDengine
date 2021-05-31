@@ -578,7 +578,7 @@ static int32_t tsdbSyncSendDFileSet(SSyncH *pSynch, SDFileSet *pSet) {
     return -1;
   }
 
-    // No file any more, no need to send file, just return
+  // No file any more, no need to send file, just return
   if (pSet == NULL) {
     return 0;
   }
