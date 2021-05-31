@@ -33,6 +33,7 @@ void  tsdbGetRtnSnap(STsdbRepo *pRepo, SRtn *pRtn);
 int   tsdbEncodeKVRecord(void **buf, SKVRecord *pRecord);
 void *tsdbDecodeKVRecord(void *buf, SKVRecord *pRecord);
 void *tsdbCommitData(STsdbRepo *pRepo);
+int   tsdbApplyRtn(STsdbRepo *pRepo);
 
 static FORCE_INLINE int tsdbGetFidLevel(int fid, SRtn *pRtn) {
   if (fid >= pRtn->maxFid) {

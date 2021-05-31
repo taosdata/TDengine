@@ -604,7 +604,6 @@ static int32_t tscLaunchRealSubqueries(SSqlObj* pSql) {
     int16_t funcId = pExpr->base.functionId;
 
     // add the invisible timestamp column
-    printf("--------read:%p\n", pExpr);
     if ((pExpr->base.colInfo.colId != PRIMARYKEY_TIMESTAMP_COL_INDEX) ||
         (funcId != TSDB_FUNC_TS && funcId != TSDB_FUNC_TS_DUMMY && funcId != TSDB_FUNC_PRJ)) {
 
