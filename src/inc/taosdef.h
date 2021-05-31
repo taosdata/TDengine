@@ -347,6 +347,7 @@ do { \
 #define TSDB_QUERY_TYPE_TAG_FILTER_QUERY       0x400u
 #define TSDB_QUERY_TYPE_INSERT                 0x100u    // insert type
 #define TSDB_QUERY_TYPE_MULTITABLE_QUERY       0x200u
+#define TSDB_QUERY_TYPE_FILE_INSERT            0x400u    // insert data from file
 #define TSDB_QUERY_TYPE_STMT_INSERT            0x800u    // stmt insert type
 
 #define TSDB_QUERY_HAS_TYPE(x, _type)          (((x) & (_type)) != 0)

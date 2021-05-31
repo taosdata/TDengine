@@ -41,6 +41,9 @@ public class TSDBPreparedStatement extends TSDBStatement implements PreparedStat
     private boolean isPrepared;
     
     private ArrayList<ColumnInfo> colData;
+    private ArrayList<TableTagInfo> tableTags;
+    private int tagValueLength;
+    
     private String tableName;
     private long nativeStmtHandle = 0;
     
@@ -63,8 +66,8 @@ public class TSDBPreparedStatement extends TSDBStatement implements PreparedStat
 
 		if (parameterCnt > 1) {
 	        // the table name is also a parameter, so ignore it.
-	        this.colData = new ArrayList<ColumnInfo>(parameterCnt - 1);
-	        this.colData.addAll(Collections.nCopies(parameterCnt - 1, null));
+	        this.colData = new ArrayList<ColumnInfo>();
+	        this.tableTags = new ArrayList<TableTagInfo>();
 		}
     }
 
@@ -562,11 +565,109 @@ public class TSDBPreparedStatement extends TSDBStatement implements PreparedStat
     	}
     };
     
+    private static class TableTagInfo {
+    	private boolean isNull;
+    	private Object  value;
+    	private int     type;    	
+    	public TableTagInfo(Object value, int type) {
+    		this.value = value;
+    		this.type  = type;
+    	}
+    	
+    	public static TableTagInfo createNullTag(int type) {
+    		TableTagInfo info = new TableTagInfo(null, type);
+    		info.isNull = true;
+    		return info;
+    	}
+    };
+    
     public void setTableName(String name) {
     	this.tableName = name;
     }
     
+    private void ensureTagCapacity(int index) {
+    	if (this.tableTags.size() < index + 1) {
+    		int delta = index + 1 - this.tableTags.size();
+    		this.tableTags.addAll(Collections.nCopies(delta, null));
+    	}
+    }
+    
+    public void setTagNull(int index, int type) {
+    	ensureTagCapacity(index);
+    	this.tableTags.set(index, TableTagInfo.createNullTag(type));
+    }
+    
+    public void setTagBoolean(int index, boolean value) {
+    	ensureTagCapacity(index);
+    	this.tableTags.set(index, new TableTagInfo(value, TSDBConstants.TSDB_DATA_TYPE_BOOL));
+    	this.tagValueLength += Byte.BYTES;
+    }
+    
+    public void setTagInt(int index, int value) {
+    	ensureTagCapacity(index);
+    	this.tableTags.set(index, new TableTagInfo(value, TSDBConstants.TSDB_DATA_TYPE_INT));
+    	this.tagValueLength += Integer.BYTES;
+    }
+    
+    public void setTagByte(int index, byte value) {
+    	ensureTagCapacity(index);
+    	this.tableTags.set(index, new TableTagInfo(value, TSDBConstants.TSDB_DATA_TYPE_TINYINT));
+    	this.tagValueLength += Byte.BYTES;
+    }
+    
+    public void setTagShort(int index, short value) {
+    	ensureTagCapacity(index);
+    	this.tableTags.set(index, new TableTagInfo(value, TSDBConstants.TSDB_DATA_TYPE_SMALLINT));
+    	this.tagValueLength += Short.BYTES;
+    }
+    
+    public void setTagLong(int index, long value) {
+    	ensureTagCapacity(index);
+    	this.tableTags.set(index, new TableTagInfo(value, TSDBConstants.TSDB_DATA_TYPE_BIGINT));
+    	this.tagValueLength += Long.BYTES;
+    }
+    
+    public void setTagTimestamp(int index, long value) {
+    	ensureTagCapacity(index);
+    	this.tableTags.set(index, new TableTagInfo(value, TSDBConstants.TSDB_DATA_TYPE_TIMESTAMP));
+    	this.tagValueLength += Long.BYTES;
+    }
+    
+    public void setTagFloat(int index, float value) {
+    	ensureTagCapacity(index);
+    	this.tableTags.set(index, new TableTagInfo(value, TSDBConstants.TSDB_DATA_TYPE_FLOAT));
+    	this.tagValueLength += Float.BYTES;
+    }
+    
+    public void setTagDouble(int index, double value) {
+    	ensureTagCapacity(index);
+    	this.tableTags.set(index, new TableTagInfo(value, TSDBConstants.TSDB_DATA_TYPE_DOUBLE));
+    	this.tagValueLength += Double.BYTES;
+    }
+    
+    public void setTagString(int index, String value) {
+    	ensureTagCapacity(index);
+    	this.tableTags.set(index, new TableTagInfo(value, TSDBConstants.TSDB_DATA_TYPE_BINARY));
+    	this.tagValueLength += value.getBytes().length;
+    }
+    
+    public void setTagNString(int index, String value) {
+    	ensureTagCapacity(index);
+    	this.tableTags.set(index, new TableTagInfo(value, TSDBConstants.TSDB_DATA_TYPE_NCHAR));
+    	
+		String charset = TaosGlobalConfig.getCharset();
+    	try {
+			this.tagValueLength += value.getBytes(charset).length;
+		} catch (UnsupportedEncodingException e) {
+			e.printStackTrace();
+		}
+    }
+    
     public <T> void setValueImpl(int columnIndex, ArrayList<T> list, int type, int bytes) throws SQLException {
+    	if (this.colData.size() == 0) {
+	        this.colData.addAll(Collections.nCopies(this.parameters.length - 1 - this.tableTags.size(), null));
+
+    	}
     	ColumnInfo col = (ColumnInfo) this.colData.get(columnIndex);
     	if (col == null) {
     		ColumnInfo p = new ColumnInfo();
@@ -641,7 +742,122 @@ public class TSDBPreparedStatement extends TSDBStatement implements PreparedStat
 		
 		TSDBJNIConnector connector = ((TSDBConnection) this.getConnection()).getConnector();
 		this.nativeStmtHandle = connector.prepareStmt(rawSql);
-		connector.setBindTableName(this.nativeStmtHandle, this.tableName);
+		
+		if (this.tableTags == null) {
+			connector.setBindTableName(this.nativeStmtHandle, this.tableName);
+		} else {
+			int num = this.tableTags.size();
+			ByteBuffer tagDataList = ByteBuffer.allocate(this.tagValueLength);
+			tagDataList.order(ByteOrder.LITTLE_ENDIAN);
+
+			ByteBuffer typeList = ByteBuffer.allocate(num);
+			typeList.order(ByteOrder.LITTLE_ENDIAN);
+
+			ByteBuffer lengthList = ByteBuffer.allocate(num * Long.BYTES);
+			lengthList.order(ByteOrder.LITTLE_ENDIAN);
+
+			ByteBuffer isNullList = ByteBuffer.allocate(num * Integer.BYTES);
+			isNullList.order(ByteOrder.LITTLE_ENDIAN);
+
+			for (int i = 0; i < num; ++i) {
+				TableTagInfo tag = this.tableTags.get(i);
+				if (tag.isNull) {
+					typeList.put((byte) tag.type);
+					isNullList.putInt(1);
+					lengthList.putLong(0);
+					continue;
+				}
+				
+				switch (tag.type) {
+				case TSDBConstants.TSDB_DATA_TYPE_INT: {
+					Integer val = (Integer) tag.value;
+					tagDataList.putInt(val);
+					lengthList.putLong(Integer.BYTES);
+					break;
+				}
+				case TSDBConstants.TSDB_DATA_TYPE_TINYINT: {
+					Byte val = (Byte) tag.value;
+					tagDataList.put(val);
+					lengthList.putLong(Byte.BYTES);
+					break;
+				}
+
+				case TSDBConstants.TSDB_DATA_TYPE_BOOL: {
+					Boolean val = (Boolean) tag.value;
+					tagDataList.put((byte) (val ? 1 : 0));
+					lengthList.putLong(Byte.BYTES);
+					break;
+				}
+
+				case TSDBConstants.TSDB_DATA_TYPE_SMALLINT: {
+					Short val = (Short) tag.value;
+					tagDataList.putShort(val);
+					lengthList.putLong(Short.BYTES);
+
+					break;
+				}
+
+				case TSDBConstants.TSDB_DATA_TYPE_TIMESTAMP:
+				case TSDBConstants.TSDB_DATA_TYPE_BIGINT: {
+					Long val = (Long) tag.value;
+					tagDataList.putLong(val == null ? 0 : val);
+					lengthList.putLong(Long.BYTES);
+
+					break;
+				}
+
+				case TSDBConstants.TSDB_DATA_TYPE_FLOAT: {
+					Float val = (Float) tag.value;
+					tagDataList.putFloat(val == null ? 0 : val);
+					lengthList.putLong(Float.BYTES);
+
+					break;
+				}
+
+				case TSDBConstants.TSDB_DATA_TYPE_DOUBLE: {
+					Double val = (Double) tag.value;
+					tagDataList.putDouble(val == null ? 0 : val);
+					lengthList.putLong(Double.BYTES);
+
+					break;
+				}
+
+				case TSDBConstants.TSDB_DATA_TYPE_NCHAR:
+				case TSDBConstants.TSDB_DATA_TYPE_BINARY: {
+					String charset = TaosGlobalConfig.getCharset();
+					String val = (String) tag.value;
+
+						byte[] b = null;
+						try {
+							if (tag.type == TSDBConstants.TSDB_DATA_TYPE_BINARY) {
+								b = val.getBytes();
+							} else {
+								b = val.getBytes(charset);
+							}
+						} catch (UnsupportedEncodingException e) {
+							e.printStackTrace();
+						}
+
+						tagDataList.put(b);
+						lengthList.putLong(b.length);
+					break;
+				}
+
+				case TSDBConstants.TSDB_DATA_TYPE_UTINYINT:
+				case TSDBConstants.TSDB_DATA_TYPE_USMALLINT:
+				case TSDBConstants.TSDB_DATA_TYPE_UINT:
+				case TSDBConstants.TSDB_DATA_TYPE_UBIGINT: {
+					throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNKNOWN, "not support data types");
+				}
+				}
+				
+				typeList.put((byte) tag.type);
+				isNullList.putInt(tag.isNull? 1 : 0);
+			}
+
+			connector.setBindTableNameAndTags(this.nativeStmtHandle, this.tableName, this.tableTags.size(), tagDataList,
+					typeList, lengthList, isNullList);
+		}
 		
 		ColumnInfo colInfo = (ColumnInfo) this.colData.get(0);
 		if (colInfo == null) {

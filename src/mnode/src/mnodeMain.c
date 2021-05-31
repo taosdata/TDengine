@@ -121,7 +121,7 @@ int32_t mnodeStartSystem() {
 
 int32_t mnodeInitSystem() {
   mnodeInitTimer();
-  if (mnodeNeedStart()) {
+  if (mnodeNeedStart() || tsCompactMnodeWal) {
     return mnodeStartSystem();
   }
   return 0;

@@ -34,10 +34,20 @@ if $rows != 0 then
   return -1
 endi
 
+
+sql create stable stb (ts timestamp, c1 int, c2 binary(10), c3 nchar(10)) tags(id int)
+sql create table tb1 using stb tags(1)
+sql insert into tb1 values (now, 1, "1", "1")
+sql alter table stb alter column length c2 20;
+if $rows != 0 then
+  return -1
+endi
+
 ##### ILLEGAL OPERATIONS
 
 # try dropping columns that are defined in metric
 sql_error alter table tb alter column length c1 10;
+sql_error alter table tb1 alter column length c2 10;
 
 
 system sh/exec.sh -n dnode1 -s stop -x SIGINT

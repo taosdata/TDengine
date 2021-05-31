@@ -47,6 +47,9 @@ void    clearResultRow(SQueryRuntimeEnv* pRuntimeEnv, SResultRow* pResultRow, in
 
 SResultRowCellInfo* getResultCell(const SResultRow* pRow, int32_t index, int32_t* offset);
 
+void* destroyQueryFuncExpr(SExprInfo* pExprInfo, int32_t numOfExpr);
+void* freeColumnInfo(SColumnInfo* pColumnInfo, int32_t numOfCols);
+
 static FORCE_INLINE SResultRow *getResultRow(SResultRowInfo *pResultRowInfo, int32_t slot) {
   assert(pResultRowInfo != NULL && slot >= 0 && slot < pResultRowInfo->size);
   return pResultRowInfo->pResult[slot];
