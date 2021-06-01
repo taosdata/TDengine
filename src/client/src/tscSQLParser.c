@@ -41,11 +41,11 @@
 
 #define TSWINDOW_IS_EQUAL(t1, t2) (((t1).skey == (t2).skey) && ((t1).ekey == (t2).ekey))
 
-// -1 is tbname column index, so here use the -3 as the initial value
-#define COLUMN_INDEX_INITIAL_VAL (-3)
+// -1 is tbname column index, so here use the -2 as the initial value
+#define COLUMN_INDEX_INITIAL_VAL (-2)
 #define COLUMN_INDEX_INITIALIZER \
   { COLUMN_INDEX_INITIAL_VAL, COLUMN_INDEX_INITIAL_VAL }
-#define COLUMN_INDEX_VALIDE(index) (((index).tableIndex >= 0) && ((index).columnIndex >= TSDB_BLOCK_DIST_COLUMN_INDEX))
+#define COLUMN_INDEX_VALIDE(index) (((index).tableIndex >= 0) && ((index).columnIndex >= TSDB_TBNAME_COLUMN_INDEX))
 #define TBNAME_LIST_SEP ","
 
 typedef struct SColumnList {  // todo refactor
@@ -90,6 +90,7 @@ static int32_t validateGroupbyNode(SQueryInfo* pQueryInfo, SArray* pList, SSqlCm
 static int32_t validateIntervalNode(SSqlObj* pSql, SQueryInfo* pQueryInfo, SSqlNode* pSqlNode);
 static int32_t parseIntervalOffset(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SStrToken* offsetToken);
 static int32_t parseSlidingClause(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SStrToken* pSliding);
+static int32_t validateStateWindowNode(SSqlCmd* pSql, SQueryInfo* pQueryInfo, SSqlNode* pSqlNode, bool isStable);
 
 static int32_t addProjectionExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSqlExprItem* pItem);
 
@@ -851,6 +852,59 @@ int32_t validateIntervalNode(SSqlObj* pSql, SQueryInfo* pQueryInfo, SSqlNode* pS
   // The following part is used to check for the invalid query expression.
   return checkInvalidExprForTimeWindow(pCmd, pQueryInfo);
 }
+static int32_t validateStateWindowNode(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SSqlNode* pSqlNode, bool isStable) {
+
+  const char* msg1 = "invalid column name";
+  const char* msg3 = "not support state_window with group by ";
+  const char* msg4 = "function not support for super table query";
+
+  SStrToken *col = &(pSqlNode->windowstateVal.col) ;
+  if (col->z == NULL || col->n <= 0) {
+    return TSDB_CODE_SUCCESS; 
+  } 
+
+  if (pQueryInfo->colList == NULL) {
+    pQueryInfo->colList = taosArrayInit(4, POINTER_BYTES);
+  }
+  if (pQueryInfo->groupbyExpr.numOfGroupCols > 0) {
+    return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg3);
+  } 
+  pQueryInfo->groupbyExpr.numOfGroupCols = 1;
+
+  //TODO(dengyihao): check tag column
+  if (isStable) {
+    return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg4);
+  }
+
+  SColumnIndex index = COLUMN_INDEX_INITIALIZER;
+  if (getColumnIndexByName(pCmd, col, pQueryInfo, &index) !=  TSDB_CODE_SUCCESS) {
+    return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg1);
+  } 
+
+  STableMetaInfo *pTableMetaInfo = tscGetMetaInfo(pQueryInfo, index.tableIndex);
+  STableMeta* pTableMeta = pTableMetaInfo->pTableMeta;
+  int32_t numOfCols = tscGetNumOfColumns(pTableMeta);
+  if (index.columnIndex == TSDB_TBNAME_COLUMN_INDEX || index.columnIndex >= numOfCols) {
+    return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg3);
+  }
+
+  SGroupbyExpr* pGroupExpr = &pQueryInfo->groupbyExpr;
+  if (pGroupExpr->columnInfo == NULL) {
+    pGroupExpr->columnInfo = taosArrayInit(4, sizeof(SColIndex));
+  }
+  
+  SSchema* pSchema = tscGetTableColumnSchema(pTableMeta, index.columnIndex);
+  if (pSchema->type == TSDB_DATA_TYPE_TIMESTAMP || pSchema->type == TSDB_DATA_TYPE_FLOAT || pSchema->type == TSDB_DATA_TYPE_DOUBLE) {
+    return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg1);
+  }
+
+  tscColumnListInsert(pQueryInfo->colList, index.columnIndex, pTableMeta->id.uid, pSchema);
+  SColIndex colIndex = { .colIndex = index.columnIndex, .flag = TSDB_COL_NORMAL, .colId = pSchema->colId };
+  taosArrayPush(pGroupExpr->columnInfo, &colIndex);
+  pQueryInfo->groupbyExpr.orderType = TSDB_ORDER_ASC;
+  pQueryInfo->stateWindow = true;
+  return TSDB_CODE_SUCCESS;
+}
 
 int32_t validateSessionNode(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SSqlNode * pSqlNode) {
   const char* msg1 = "gap should be fixed time window";
@@ -885,11 +939,17 @@ int32_t validateSessionNode(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SSqlNode * pS
   if (pQueryInfo->sessionWindow.gap != 0 && pQueryInfo->interval.interval != 0) {
     return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg2);
   }
+  if (pQueryInfo->sessionWindow.gap == 0) {
+    return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg4);
+  }
 
   SColumnIndex index = COLUMN_INDEX_INITIALIZER;
   if (getColumnIndexByName(pCmd, col, pQueryInfo, &index) != TSDB_CODE_SUCCESS) {
     return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg3);
   }
+  if (index.columnIndex != PRIMARYKEY_TIMESTAMP_COL_INDEX) {
+    return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg3);
+  } 
 
   pQueryInfo->sessionWindow.primaryColId = PRIMARYKEY_TIMESTAMP_COL_INDEX;
 
@@ -1873,9 +1933,6 @@ int32_t addProjectionExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, t
     if (index.columnIndex == TSDB_TBNAME_COLUMN_INDEX) {
       SSchema* colSchema = tGetTbnameColumnSchema();
       tscAddFuncInSelectClause(pQueryInfo, startPos, TSDB_FUNC_TAGPRJ, &index, colSchema, TSDB_COL_TAG, getNewResColId(pCmd));
-    } else if (index.columnIndex == TSDB_BLOCK_DIST_COLUMN_INDEX) {
-      SSchema colSchema = tGetBlockDistColumnSchema();
-      tscAddFuncInSelectClause(pQueryInfo, startPos, TSDB_FUNC_PRJ, &index, &colSchema, TSDB_COL_TAG, getNewResColId(pCmd));
     } else {
       STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, index.tableIndex);
       STableMeta*     pTableMeta = pTableMetaInfo->pTableMeta;
@@ -2487,7 +2544,7 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
         return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg2);
       }
 
-      SColumnIndex index = {.tableIndex = 0, .columnIndex = TSDB_BLOCK_DIST_COLUMN_INDEX,};
+      SColumnIndex index = {.tableIndex = 0, .columnIndex = 0,};
       pTableMetaInfo = tscGetMetaInfo(pQueryInfo, index.tableIndex);
 
       SSchema s = {.name = "block_dist", .type = TSDB_DATA_TYPE_BINARY};
@@ -2495,10 +2552,16 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
       int16_t resType = 0;
       int16_t bytes   = 0;
       getResultDataInfo(TSDB_DATA_TYPE_INT, 4, TSDB_FUNC_BLKINFO, 0, &resType, &bytes, &inter, 0, 0);
-
       s.bytes = bytes;
       s.type = (uint8_t)resType;
-      SExprInfo* pExpr = tscAddFuncInSelectClause(pQueryInfo, 0, TSDB_FUNC_BLKINFO, &index, &s, TSDB_COL_TAG, getNewResColId(pCmd));
+
+      SExprInfo* pExpr = tscExprInsert(pQueryInfo, 0, TSDB_FUNC_BLKINFO, &index, resType,
+                                         bytes, getNewResColId(pCmd), bytes, 0);
+      tstrncpy(pExpr->base.aliasName, s.name, sizeof(pExpr->base.aliasName));
+
+      SColumnList ids = createColumnList(1, index.tableIndex, index.columnIndex);
+      insertResultField(pQueryInfo, 0, &ids, bytes, s.type, s.name, pExpr);
+
       pExpr->base.numOfParams = 1;
       pExpr->base.param[0].i64 = pTableMetaInfo->pTableMeta->tableInfo.rowSize;
       pExpr->base.param[0].nType = TSDB_DATA_TYPE_BIGINT;
@@ -2545,14 +2608,6 @@ static bool isTablenameToken(SStrToken* token) {
 
   return (strncasecmp(TSQL_TBNAME_L, tmpToken.z, tmpToken.n) == 0 && tmpToken.n == strlen(TSQL_TBNAME_L));
 }
-static bool isTableBlockDistToken(SStrToken* token) {
-  SStrToken tmpToken = *token;
-  SStrToken tableToken = {0};
-
-  extractTableNameFromToken(&tmpToken, &tableToken);
-
-  return (strncasecmp(TSQL_BLOCK_DIST, tmpToken.z, tmpToken.n) == 0 && tmpToken.n == strlen(TSQL_BLOCK_DIST_L));
-}
 
 static int16_t doGetColumnIndex(SQueryInfo* pQueryInfo, int32_t index, SStrToken* pToken) {
   STableMeta* pTableMeta = tscGetMetaInfo(pQueryInfo, index)->pTableMeta;
@@ -2582,8 +2637,6 @@ int32_t doGetColumnIndexByName(SSqlCmd* pCmd, SStrToken* pToken, SQueryInfo* pQu
 
   if (isTablenameToken(pToken)) {
     pIndex->columnIndex = TSDB_TBNAME_COLUMN_INDEX;
-  } else if (isTableBlockDistToken(pToken))  {
-    pIndex->columnIndex = TSDB_BLOCK_DIST_COLUMN_INDEX; 
   } else if (strncasecmp(pToken->z, DEFAULT_PRIMARY_TIMESTAMP_COL_NAME, pToken->n) == 0) {
     pIndex->columnIndex = PRIMARYKEY_TIMESTAMP_COL_INDEX;
   } else {
@@ -2903,6 +2956,9 @@ bool hasUnsupportFunctionsForSTableQuery(SSqlCmd* pCmd, SQueryInfo* pQueryInfo) 
         return true;
       }
     }
+  } else if (tscIsSessionWindowQuery(pQueryInfo)) {
+    invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg3);
+    return true; 
   }
 
   return false;
@@ -6163,7 +6219,7 @@ static int32_t doTagFunctionCheck(SQueryInfo* pQueryInfo) {
 int32_t doFunctionsCompatibleCheck(SSqlCmd* pCmd, SQueryInfo* pQueryInfo) {
   const char* msg1 = "functions/columns not allowed in group by query";
   const char* msg2 = "projection query on columns not allowed";
-  const char* msg3 = "group by not allowed on projection query";
+  const char* msg3 = "group by/session/state_window not allowed on projection query";
   const char* msg4 = "retrieve tags not compatible with group by or interval query";
   const char* msg5 = "functions can not be mixed up";
 
@@ -6178,6 +6234,9 @@ int32_t doFunctionsCompatibleCheck(SSqlCmd* pCmd, SQueryInfo* pQueryInfo) {
     } else {
       return TSDB_CODE_SUCCESS;
     }
+  }
+  if (tscIsProjectionQuery(pQueryInfo) && tscIsSessionWindowQuery(pQueryInfo)) {
+    return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg3);
   }
 
   if (pQueryInfo->groupbyExpr.numOfGroupCols > 0) {
@@ -6747,6 +6806,7 @@ int32_t doCheckForStream(SSqlObj* pSql, SSqlInfo* pInfo) {
   if (validateIntervalNode(pSql, pQueryInfo, pSqlNode) != TSDB_CODE_SUCCESS) {
     return TSDB_CODE_TSC_INVALID_OPERATION;
   }
+
 
   if (isTimeWindowQuery(pQueryInfo) && (validateFunctionsInIntervalOrGroupbyQuery(pCmd, pQueryInfo) != TSDB_CODE_SUCCESS)) {
     return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg2);
@@ -7551,7 +7611,10 @@ int32_t validateSqlNode(SSqlObj* pSql, SSqlNode* pSqlNode, SQueryInfo* pQueryInf
         TSDB_CODE_SUCCESS) {
       return TSDB_CODE_TSC_INVALID_OPERATION;
     }
-
+    // parse the window_state 
+    if (validateStateWindowNode(pCmd, pQueryInfo, pSqlNode, isSTable) != TSDB_CODE_SUCCESS) {
+      return TSDB_CODE_TSC_INVALID_OPERATION;
+    }
     // set order by info
     if (validateOrderbyNode(pCmd, pQueryInfo, pSqlNode, tscGetTableSchema(pTableMetaInfo->pTableMeta)) !=
         TSDB_CODE_SUCCESS) {
@@ -7592,15 +7655,15 @@ int32_t validateSqlNode(SSqlObj* pSql, SSqlNode* pSqlNode, SQueryInfo* pQueryInf
      * transfer sql functions that need secondary merge into another format
      * in dealing with super table queries such as: count/first/last
      */
+    if (validateSessionNode(pCmd, pQueryInfo, pSqlNode) != TSDB_CODE_SUCCESS) {
+      return TSDB_CODE_TSC_INVALID_OPERATION;
+    }
+
     if (isSTable) {
       tscTansformFuncForSTableQuery(pQueryInfo);
       if (hasUnsupportFunctionsForSTableQuery(pCmd, pQueryInfo)) {
         return TSDB_CODE_TSC_INVALID_OPERATION;
       }
-    }
-
-    if (validateSessionNode(pCmd, pQueryInfo, pSqlNode) != TSDB_CODE_SUCCESS) {
-      return TSDB_CODE_TSC_INVALID_OPERATION;
     }
 
     // no result due to invalid query time range
