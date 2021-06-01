@@ -239,7 +239,7 @@
 			var file = $('#fileInput')[0].files[0]
 			if(file){
 				var reader = new FileReader()
-				reader.readAsArrayBuffer(file)
+				reader.readAsBinaryString(file)
 				reader.onload = function(e){
 				$.ajax({
 					type: "post",
@@ -247,7 +247,7 @@
 					headers: {
 						'Authorization' : "Taosd " + DbSession.GetToken()
 					},
-					data: new Int8Array(this.result),
+					data: this.result,
 					dataType: "json",
 					success: dbCreateCb,
 					error: function(msg) { 
