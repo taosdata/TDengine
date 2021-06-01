@@ -37,7 +37,11 @@ if [ ! -d  "$archiveDir/v$version" ]; then
 fi
 
 cd $archiveDir/v$version
-mkdir enterprise
+
+if [ ! -d enterprise ]; then
+    mkdir enterprise
+fi
+
 cd enterprise
 cp $communityDir/release/* ./
 
