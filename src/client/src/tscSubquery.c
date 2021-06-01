@@ -21,7 +21,7 @@
 #include "tcompare.h"
 #include "tscLog.h"
 #include "tscSubquery.h"
-#include "tschemautil.h"
+#include "qTableMeta.h"
 #include "tsclient.h"
 #include "qUtil.h"
 #include "qPlan.h"
@@ -2446,7 +2446,7 @@ int32_t tscHandleMasterSTableQuery(SSqlObj *pSql) {
 
   assert(pState->numOfSub > 0);
   
-  int32_t ret = tscLocalReducerEnvCreate(pQueryInfo, &pMemoryBuf, pSql->subState.numOfSub, &pDesc, nBufferSize, pSql->self);
+  int32_t ret = tscCreateGlobalMergerEnv(pQueryInfo, &pMemoryBuf, pSql->subState.numOfSub, &pDesc, nBufferSize, pSql->self);
   if (ret != 0) {
     pRes->code = ret;
     tscAsyncResultOnError(pSql);
@@ -2459,7 +2459,7 @@ int32_t tscHandleMasterSTableQuery(SSqlObj *pSql) {
   if (pSql->pSubs == NULL) {
     tfree(pSql->pSubs);
     pRes->code = TSDB_CODE_TSC_OUT_OF_MEMORY;
-    tscLocalReducerEnvDestroy(pMemoryBuf, pDesc,pState->numOfSub);
+    tscDestroyGlobalMergerEnv(pMemoryBuf, pDesc,pState->numOfSub);
 
     tscAsyncResultOnError(pSql);
     return ret;
@@ -2526,13 +2526,13 @@ int32_t tscHandleMasterSTableQuery(SSqlObj *pSql) {
     tscError("0x%"PRIx64" failed to prepare subquery structure and launch subqueries", pSql->self);
     pRes->code = TSDB_CODE_TSC_OUT_OF_MEMORY;
     
-    tscLocalReducerEnvDestroy(pMemoryBuf, pDesc, pState->numOfSub);
+    tscDestroyGlobalMergerEnv(pMemoryBuf, pDesc, pState->numOfSub);
     doCleanupSubqueries(pSql, i);
     return pRes->code;   // free all allocated resource
   }
   
   if (pRes->code == TSDB_CODE_TSC_QUERY_CANCELLED) {
-    tscLocalReducerEnvDestroy(pMemoryBuf, pDesc, pState->numOfSub);
+    tscDestroyGlobalMergerEnv(pMemoryBuf, pDesc, pState->numOfSub);
     doCleanupSubqueries(pSql, i);
     return pRes->code;
   }
@@ -2697,7 +2697,7 @@ void tscHandleSubqueryError(SRetrieveSupport *trsupport, SSqlObj *pSql, int numO
       tstrerror(pParentSql->res.code));
 
   // release allocated resource
-  tscLocalReducerEnvDestroy(trsupport->pExtMemBuffer, trsupport->pOrderDescriptor,
+  tscDestroyGlobalMergerEnv(trsupport->pExtMemBuffer, trsupport->pOrderDescriptor,
                             pState->numOfSub);
   
   tscFreeRetrieveSup(pSql);
@@ -2772,7 +2772,7 @@ static void tscAllDataRetrievedFromDnode(SRetrieveSupport *trsupport, SSqlObj* p
   SQueryInfo *pPQueryInfo = tscGetQueryInfo(&pParentSql->cmd);
   tscClearInterpInfo(pPQueryInfo);
   
-  code = tscCreateLocalMerger(trsupport->pExtMemBuffer, pState->numOfSub, pDesc, pPQueryInfo, &pParentSql->res.pLocalMerger, pParentSql->self);
+  code = tscCreateGlobalMerger(trsupport->pExtMemBuffer, pState->numOfSub, pDesc, pPQueryInfo, &pParentSql->res.pMerger, pParentSql->self);
   pParentSql->res.code = code;
 
   if (code == TSDB_CODE_SUCCESS && trsupport->pExtMemBuffer == NULL) {
@@ -3499,9 +3499,8 @@ static UNUSED_FUNC bool tscHasRemainDataInSubqueryResultSet(SSqlObj *pSql) {
   return hasData;
 }
 
-// todo remove pExprs
-void* createQInfoFromQueryNode(SQueryInfo* pQueryInfo, SExprInfo* pExprs, STableGroupInfo* pTableGroupInfo,
-                               SOperatorInfo* pSourceOperator, char* sql, void* merger, int32_t stage) {
+void* createQInfoFromQueryNode(SQueryInfo* pQueryInfo, STableGroupInfo* pTableGroupInfo, SOperatorInfo* pSourceOperator,
+    char* sql, void* merger, int32_t stage) {
   assert(pQueryInfo != NULL);
   SQInfo *pQInfo = (SQInfo *)calloc(1, sizeof(SQInfo));
   if (pQInfo == NULL) {

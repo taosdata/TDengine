@@ -13,7 +13,6 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <tschemautil.h>
 #include "os.h"
 #include "taosmsg.h"
 #include "tscLog.h"

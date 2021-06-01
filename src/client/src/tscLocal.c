@@ -20,7 +20,7 @@
 #include "tname.h"
 #include "tscLog.h"
 #include "tscUtil.h"
-#include "tschemautil.h"
+#include "qTableMeta.h"
 #include "tsclient.h"
 #include "taos.h"
 #include "tscSubquery.h"
@@ -71,7 +71,9 @@ static int32_t tscSetValueToResObj(SSqlObj *pSql, int32_t rowLen) {
     numOfRows = numOfRows + tscGetNumOfTags(pMeta);
   }
 
-  tscInitResObjForLocalQuery(pSql, totalNumOfRows, rowLen);
+  pSql->res.pMerger = tscInitResObjForLocalQuery(totalNumOfRows, rowLen, pSql->self);
+  tscInitResForMerge(&pSql->res);
+
   SSchema *pSchema = tscGetTableSchema(pMeta);
 
   for (int32_t i = 0; i < numOfRows; ++i) {
@@ -433,7 +435,8 @@ static int32_t tscSCreateSetValueToResObj(SSqlObj *pSql, int32_t rowLen, const c
   if (strlen(ddl) == 0) {
     
   }
-  tscInitResObjForLocalQuery(pSql, numOfRows, rowLen);
+  pSql->res.pMerger = tscInitResObjForLocalQuery(numOfRows, rowLen, pSql->self);
+  tscInitResForMerge(&pSql->res);
 
   TAOS_FIELD *pField = tscFieldInfoGetField(&pQueryInfo->fieldsInfo, 0);
   char* dst = pRes->data + tscFieldInfoGetOffset(pQueryInfo, 0) * numOfRows;
@@ -882,7 +885,8 @@ void tscSetLocalQueryResult(SSqlObj *pSql, const char *val, const char *columnNa
   TAOS_FIELD f = tscCreateField((int8_t)type, columnName, (int16_t)valueLength);
   tscFieldInfoAppend(&pQueryInfo->fieldsInfo, &f);
 
-  tscInitResObjForLocalQuery(pSql, 1, (int32_t)valueLength);
+  pSql->res.pMerger = tscInitResObjForLocalQuery(1, (int32_t)valueLength, pSql->self);
+  tscInitResForMerge(&pSql->res);
 
   SInternalField* pInfo = tscFieldInfoGetInternalField(&pQueryInfo->fieldsInfo, 0);
   pInfo->pExpr = taosArrayGetP(pQueryInfo->exprList, 0);
