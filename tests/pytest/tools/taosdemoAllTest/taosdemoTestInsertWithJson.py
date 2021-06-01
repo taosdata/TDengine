@@ -253,84 +253,41 @@ class TDTestCase:
         tdSql.query("select count (*) from stb0")
         tdSql.checkData(0, 0, 15000)        
 
-        # insert: auto_create
-        os.system("%staosdemo -f tools/taosdemoAllTest/insert-drop-exist-auto-YYY.json -y " % binPath) # drop = yes, exist = yes, auto_create = yes
-        tdSql.execute('use db')
-        tdSql.query('show tables')
-        tdSql.checkRows(20)
 
-        os.system("%staosdemo -f tools/taosdemoAllTest/insert-drop-exist-auto-YYN.json -y " % binPath) # drop = yes, exist = yes, auto_create = no
-        tdSql.execute('use db')
-        tdSql.query('show tables')
-        tdSql.checkRows(20)
+        # # insert: auto_create
 
-        os.system("%staosdemo -f tools/taosdemoAllTest/insert-drop-exist-auto-YNY.json -y " % binPath) # drop = yes, exist = no, auto_create = yes
-        tdSql.execute('use db')
-        tdSql.query('show tables')
-        tdSql.checkRows(20)
-
-        os.system("%staosdemo -f tools/taosdemoAllTest/insert-drop-exist-auto-YNN.json -y " % binPath) # drop = yes, exist = no, auto_create = no
-        tdSql.execute('use db')
-        tdSql.query('show tables')
-        tdSql.checkRows(20)
-
-        tdSql.execute('drop database db')
+        tdSql.execute('drop database if exists db')
         tdSql.execute('create database db')
         tdSql.execute('use db')
-        os.system("%staosdemo -f tools/taosdemoAllTest/insert-drop-exist-auto-NYY.json -y " % binPath) # drop = no, exist = yes, auto_create = yes
-        tdSql.query('show tables')
+        os.system("%staosdemo -y -f tools/taosdemoAllTest/insert-drop-exist-auto-N00.json " % binPath) # drop = no, child_table_exists, auto_create_table varies
+        tdSql.execute('use db')
+        tdSql.query('show tables like \'NN123%\'')  #child_table_exists = no, auto_create_table varies = 123
+        tdSql.checkRows(20)
+        tdSql.query('show tables like \'NNN%\'')    #child_table_exists = no, auto_create_table varies = no
+        tdSql.checkRows(20)
+        tdSql.query('show tables like \'NNY%\'')    #child_table_exists = no, auto_create_table varies = yes
+        tdSql.checkRows(20)
+        tdSql.query('show tables like \'NYN%\'')    #child_table_exists = yes, auto_create_table varies = no
+        tdSql.checkRows(0)
+        tdSql.query('show tables like \'NY123%\'')  #child_table_exists = yes, auto_create_table varies = 123
+        tdSql.checkRows(0)
+        tdSql.query('show tables like \'NYY%\'')    #child_table_exists = yes, auto_create_table varies = yes
         tdSql.checkRows(0)
 
-        tdSql.execute('drop database db')
-        tdSql.execute('create database db')
+        tdSql.execute('drop database if exists db')
+        os.system("%staosdemo -y -f tools/taosdemoAllTest/insert-drop-exist-auto-Y00.json " % binPath) # drop = yes, child_table_exists, auto_create_table varies
         tdSql.execute('use db')
-        os.system("%staosdemo -f tools/taosdemoAllTest/insert-drop-exist-auto-NYN.json -y " % binPath) # drop = no, exist = yes, auto_create = no
-        tdSql.execute('use db')
-        tdSql.query('show tables')
-        tdSql.checkRows(0)
-
-        tdSql.execute('drop database db')
-        tdSql.execute('create database db')
-        tdSql.execute('use db')
-        os.system("%staosdemo -f tools/taosdemoAllTest/insert-drop-exist-auto-NNY.json -y " % binPath) # drop = no, exist = no, auto_create = yes
-        tdSql.execute('use db')
-        tdSql.query('show tables')
+        tdSql.query('show tables like \'YN123%\'')  #child_table_exists = no, auto_create_table varies = 123
         tdSql.checkRows(20)
-
-        tdSql.execute('drop database db')
-        tdSql.execute('create database db')
-        tdSql.execute('use db')
-        os.system("%staosdemo -f tools/taosdemoAllTest/insert-drop-exist-auto-NNN.json -y " % binPath) # drop = no, exist = no, auto_create = no
-        tdSql.execute('use db')
-        tdSql.query('show tables')
+        tdSql.query('show tables like \'YNN%\'')    #child_table_exists = no, auto_create_table varies = no
         tdSql.checkRows(20)
-
-        #the following four test cases are for the exception cases for param auto_create_table
-
-        tdSql.execute('drop database db')
-        tdSql.execute('create database db')
-        tdSql.execute('use db')
-        os.system("%staosdemo -f tools/taosdemoAllTest/insert-drop-exist-auto-NN123.json -y " % binPath) # drop = no, exist = no, auto_create = 123
-        tdSql.execute('use db')
-        tdSql.query('show tables')
+        tdSql.query('show tables like \'YNY%\'')    #child_table_exists = no, auto_create_table varies = yes
         tdSql.checkRows(20)
-
-        tdSql.execute('drop database db')
-        tdSql.execute('create database db')
-        tdSql.execute('use db')
-        os.system("%staosdemo -f tools/taosdemoAllTest/insert-drop-exist-auto-NY123.json -y " % binPath) # drop = no, exist = yes, auto_create = 123
-        tdSql.execute('use db')
-        tdSql.query('show tables')
-        tdSql.checkRows(0)
-
-        os.system("%staosdemo -f tools/taosdemoAllTest/insert-drop-exist-auto-YN123.json -y " % binPath) # drop = yes, exist = no, auto_create = 123
-        tdSql.execute('use db')
-        tdSql.query('show tables')
+        tdSql.query('show tables like \'YYN%\'')    #child_table_exists = yes, auto_create_table varies = no
         tdSql.checkRows(20)
-
-        os.system("%staosdemo -f tools/taosdemoAllTest/insert-drop-exist-auto-YY123.json -y " % binPath) # drop = yes, exist = yes, auto_create = 123
-        tdSql.execute('use db')
-        tdSql.query('show tables')
+        tdSql.query('show tables like \'YY123%\'')  #child_table_exists = yes, auto_create_table varies = 123
+        tdSql.checkRows(20)
+        tdSql.query('show tables like \'YYY%\'')    #child_table_exists = yes, auto_create_table varies = yes
         tdSql.checkRows(20)
 
         os.system("rm -rf ./insert_res.txt")
