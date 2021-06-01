@@ -24,7 +24,7 @@ public class LoadOneDayData {
 	private String user = "root";
 	private String password = "taosdata";
 	private String jdbcUrl = "";
-	private String dbName = "test";
+	private String dbName = "t1";
 
 	private Connection conn = null;
 
@@ -49,7 +49,7 @@ public class LoadOneDayData {
 		try {
 			Class.forName(TSDB_DRIVER);
 			if (conn == null || conn.isClosed()) {
-				conn = (Connection) DriverManager.getConnection(this.jdbcUrl);
+				conn = (Connection) DriverManager.getConnection(this.jdbcUrl, info);
 			}
 		} catch (ClassNotFoundException e) {
 			e.printStackTrace();
@@ -133,10 +133,7 @@ public class LoadOneDayData {
 
 			//    public void setTableName(String name, @SuppressWarnings("rawtypes") ArrayList tagsVal, ArrayList<Integer> type, ArrayList<Integer> length)
 			//ts timestamp, a1 int, a2 smallint, a3 bigint, a4 binary(12), a5 nchar(12), a6 tinyint
-			TSDBPreparedStatement s = (TSDBPreparedStatement) conn.prepareStatement("insert into ? using m1 tags(?) values(?, ?)");
-			
-			ArrayList tags = new ArrayList();
-			tags.add(911);
+			TSDBPreparedStatement s = (TSDBPreparedStatement) conn.prepareStatement("insert into ?  values(?, ?)");
 			
 			ArrayList<Integer> type = new ArrayList<Integer>();
 			type.add(TSDBConstants.TSDB_DATA_TYPE_INT);
@@ -145,19 +142,24 @@ public class LoadOneDayData {
 			length.add(Integer.BYTES);
 			
 			s.setTableName("tm0");
-            s.setTagInt(0, 911);
+
+			Random r = new Random();
 			
+			int rows = 10;
 			ArrayList<Long> t1 = new ArrayList<Long>();
-			t1.add(System.currentTimeMillis());
-			t1.add(System.currentTimeMillis() + 1);
-			t1.add(System.currentTimeMillis() + 2);
+			for (int i = 0; i < rows; ++i) {
+				t1.add(System.currentTimeMillis() + i);
+			}
 			s.setTimestamp(0, t1);
-			
-			ArrayList<Integer> b2 = new ArrayList<Integer>();
-			b2.add(1);
-			b2.add(2);
-			b2.add(null);
-			s.setInt(1, b2);
+
+			ArrayList<Integer> t2 = new ArrayList<Integer>();
+
+			for (int i = 0; i < rows; ++i) {
+				t2.add(i);
+			}
+
+			s.setInt(1, t2);
+
 			
 			s.columnDataAddBatch();
 			s.columnDataExecuteBatch();
