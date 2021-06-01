@@ -13,14 +13,18 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "tscLocalMerge.h"
-#include "tscSubquery.h"
 #include "os.h"
 #include "texpr.h"
 #include "tlosertree.h"
+
+#include "tscGlobalmerge.h"
+#include "tscSubquery.h"
 #include "tscLog.h"
-#include "tsclient.h"
 #include "qUtil.h"
+
+#define COLMODEL_GET_VAL(data, schema, rowId, colId) \
+  (data + (schema)->pFields[colId].offset * ((schema)->capacity) + (rowId) * (schema)->pFields[colId].field.bytes)
+
 
 typedef struct SCompareParam {
   SLocalDataSource **pLocalData;
@@ -29,9 +33,18 @@ typedef struct SCompareParam {
   int32_t            groupOrderType;
 } SCompareParam;
 
-bool needToMergeRv(SSDataBlock* pBlock, SArray* columnIndex, int32_t index, char **buf);
+static bool needToMerge(SSDataBlock* pBlock, SArray* columnIndexList, int32_t index, char **buf) {
+  int32_t ret = 0;
+  size_t  size = taosArrayGetSize(columnIndexList);
+  if (size > 0) {
+    ret = compare_aRv(pBlock, columnIndexList, (int32_t) size, index, buf, TSDB_ORDER_ASC);
+  }
 
-int32_t treeComparator(const void *pLeft, const void *pRight, void *param) {
+  // if ret == 0, means the result belongs to the same group
+  return (ret == 0);
+}
+
+static int32_t treeComparator(const void *pLeft, const void *pRight, void *param) {
   int32_t pLeftIdx = *(int32_t *)pLeft;
   int32_t pRightIdx = *(int32_t *)pRight;
 
@@ -57,16 +70,16 @@ int32_t treeComparator(const void *pLeft, const void *pRight, void *param) {
   }
 }
 
-int32_t tscCreateLocalMerger(tExtMemBuffer **pMemBuffer, int32_t numOfBuffer, tOrderDescriptor *pDesc,
-                             SQueryInfo* pQueryInfo, SLocalMerger **pMerger, int64_t id) {
+int32_t tscCreateGlobalMerger(tExtMemBuffer **pMemBuffer, int32_t numOfBuffer, tOrderDescriptor *pDesc,
+                             SQueryInfo* pQueryInfo, SGlobalMerger **pMerger, int64_t id) {
   if (pMemBuffer == NULL) {
-    tscLocalReducerEnvDestroy(pMemBuffer, pDesc, numOfBuffer);
+    tscDestroyGlobalMergerEnv(pMemBuffer, pDesc, numOfBuffer);
     tscError("0x%"PRIx64" %p pMemBuffer is NULL", id, pMemBuffer);
     return TSDB_CODE_TSC_APP_ERROR;
   }
  
   if (pDesc->pColumnModel == NULL) {
-    tscLocalReducerEnvDestroy(pMemBuffer, pDesc, numOfBuffer);
+    tscDestroyGlobalMergerEnv(pMemBuffer, pDesc, numOfBuffer);
     tscError("0x%"PRIx64" no local buffer or intermediate result format model", id);
     return  TSDB_CODE_TSC_APP_ERROR;
   }
@@ -83,7 +96,7 @@ int32_t tscCreateLocalMerger(tExtMemBuffer **pMemBuffer, int32_t numOfBuffer, tO
   }
 
   if (numOfFlush == 0 || numOfBuffer == 0) {
-    tscLocalReducerEnvDestroy(pMemBuffer, pDesc, numOfBuffer);
+    tscDestroyGlobalMergerEnv(pMemBuffer, pDesc, numOfBuffer);
     tscDebug("0x%"PRIx64" no data to retrieve", id);
     return TSDB_CODE_SUCCESS;
   }
@@ -92,15 +105,15 @@ int32_t tscCreateLocalMerger(tExtMemBuffer **pMemBuffer, int32_t numOfBuffer, tO
     tscError("0x%"PRIx64" Invalid value of buffer capacity %d and page size %d ", id, pDesc->pColumnModel->capacity,
              pMemBuffer[0]->pageSize);
 
-    tscLocalReducerEnvDestroy(pMemBuffer, pDesc, numOfBuffer);
+    tscDestroyGlobalMergerEnv(pMemBuffer, pDesc, numOfBuffer);
     return TSDB_CODE_TSC_APP_ERROR;
   }
 
-  *pMerger = (SLocalMerger *) calloc(1, sizeof(SLocalMerger));
+  *pMerger = (SGlobalMerger *) calloc(1, sizeof(SGlobalMerger));
   if ((*pMerger) == NULL) {
     tscError("0x%"PRIx64" failed to create local merge structure, out of memory", id);
 
-    tscLocalReducerEnvDestroy(pMemBuffer, pDesc, numOfBuffer);
+    tscDestroyGlobalMergerEnv(pMemBuffer, pDesc, numOfBuffer);
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
   }
 
@@ -160,7 +173,7 @@ int32_t tscCreateLocalMerger(tExtMemBuffer **pMemBuffer, int32_t numOfBuffer, tO
   // no data actually, no need to merge result.
   if (idx == 0) {
     tscDebug("0x%"PRIx64" retrieved no data", id);
-    tscLocalReducerEnvDestroy(pMemBuffer, pDesc, numOfBuffer);
+    tscDestroyGlobalMergerEnv(pMemBuffer, pDesc, numOfBuffer);
     return TSDB_CODE_SUCCESS;
   }
 
@@ -198,7 +211,7 @@ int32_t tscCreateLocalMerger(tExtMemBuffer **pMemBuffer, int32_t numOfBuffer, tO
   }
 
   // restore the limitation value at the last stage
-  if (tscOrderedProjectionQueryOnSTable(pQueryInfo, 0)) {
+  if (pQueryInfo->orderProjectQuery) {
     pQueryInfo->limit.limit = pQueryInfo->clauseLimit;
     pQueryInfo->limit.offset = pQueryInfo->prjOffset;
   }
@@ -297,28 +310,28 @@ int32_t saveToBuffer(tExtMemBuffer *pMemoryBuf, tOrderDescriptor *pDesc, tFilePa
   return 0;
 }
 
-void tscDestroyLocalMerger(SLocalMerger* pLocalMerger) {
-  if (pLocalMerger == NULL) {
+void tscDestroyGlobalMerger(SGlobalMerger* pMerger) {
+  if (pMerger == NULL) {
     return;
   }
 
-  for (int32_t i = 0; i < pLocalMerger->numOfBuffer; ++i) {
-    tfree(pLocalMerger->pLocalDataSrc[i]);
+  for (int32_t i = 0; i < pMerger->numOfBuffer; ++i) {
+    tfree(pMerger->pLocalDataSrc[i]);
   }
 
-  pLocalMerger->numOfBuffer = 0;
-  tscLocalReducerEnvDestroy(pLocalMerger->pExtMemBuffer, pLocalMerger->pDesc, pLocalMerger->numOfVnode);
+  pMerger->numOfBuffer = 0;
+  tscDestroyGlobalMergerEnv(pMerger->pExtMemBuffer, pMerger->pDesc, pMerger->numOfVnode);
 
-  pLocalMerger->numOfCompleted = 0;
+  pMerger->numOfCompleted = 0;
 
-  if (pLocalMerger->pLoserTree) {
-    tfree(pLocalMerger->pLoserTree->param);
-    tfree(pLocalMerger->pLoserTree);
+  if (pMerger->pLoserTree) {
+    tfree(pMerger->pLoserTree->param);
+    tfree(pMerger->pLoserTree);
   }
 
-  tfree(pLocalMerger->buf);
-  tfree(pLocalMerger->pLocalDataSrc);
-  free(pLocalMerger);
+  tfree(pMerger->buf);
+  tfree(pMerger->pLocalDataSrc);
+  free(pMerger);
 }
 
 static int32_t createOrderDescriptor(tOrderDescriptor **pOrderDesc, SQueryInfo* pQueryInfo, SColumnModel *pModel) {
@@ -329,7 +342,7 @@ static int32_t createOrderDescriptor(tOrderDescriptor **pOrderDesc, SQueryInfo* 
   }
 
   // primary timestamp column is involved in final result
-  if (pQueryInfo->interval.interval != 0 || tscOrderedProjectionQueryOnSTable(pQueryInfo, 0)) {
+  if (pQueryInfo->interval.interval != 0 || pQueryInfo->orderProjectQuery) {
     numOfGroupByCols++;
   }
 
@@ -392,7 +405,7 @@ static int32_t createOrderDescriptor(tOrderDescriptor **pOrderDesc, SQueryInfo* 
   }
 }
 
-int32_t tscLocalReducerEnvCreate(SQueryInfo *pQueryInfo, tExtMemBuffer ***pMemBuffer, int32_t numOfSub,
+int32_t tscCreateGlobalMergerEnv(SQueryInfo *pQueryInfo, tExtMemBuffer ***pMemBuffer, int32_t numOfSub,
                                  tOrderDescriptor **pOrderDesc, uint32_t nBufferSizes, int64_t id) {
   SSchema      *pSchema = NULL;
   SColumnModel *pModel = NULL;
@@ -456,7 +469,7 @@ int32_t tscLocalReducerEnvCreate(SQueryInfo *pQueryInfo, tExtMemBuffer ***pMemBu
  * @param pDesc
  * @param numOfVnodes
  */
-void tscLocalReducerEnvDestroy(tExtMemBuffer **pMemBuffer, tOrderDescriptor *pDesc, int32_t numOfVnodes) {
+void tscDestroyGlobalMergerEnv(tExtMemBuffer **pMemBuffer, tOrderDescriptor *pDesc, int32_t numOfVnodes) {
   tOrderDescDestroy(pDesc);
   for (int32_t i = 0; i < numOfVnodes; ++i) {
     pMemBuffer[i] = destoryExtMemBuffer(pMemBuffer[i]);
@@ -467,12 +480,12 @@ void tscLocalReducerEnvDestroy(tExtMemBuffer **pMemBuffer, tOrderDescriptor *pDe
 
 /**
  *
- * @param pLocalMerge
+ * @param pMerger
  * @param pOneInterDataSrc
  * @param treeList
  * @return the number of remain input source. if ret == 0, all data has been handled
  */
-int32_t loadNewDataFromDiskFor(SLocalMerger *pLocalMerge, SLocalDataSource *pOneInterDataSrc,
+int32_t loadNewDataFromDiskFor(SGlobalMerger *pMerger, SLocalDataSource *pOneInterDataSrc,
                                bool *needAdjustLoserTree) {
   pOneInterDataSrc->rowIdx = 0;
   pOneInterDataSrc->pageId += 1;
@@ -489,17 +502,17 @@ int32_t loadNewDataFromDiskFor(SLocalMerger *pLocalMerge, SLocalDataSource *pOne
 #endif
     *needAdjustLoserTree = true;
   } else {
-    pLocalMerge->numOfCompleted += 1;
+    pMerger->numOfCompleted += 1;
 
     pOneInterDataSrc->rowIdx = -1;
     pOneInterDataSrc->pageId = -1;
     *needAdjustLoserTree = true;
   }
 
-  return pLocalMerge->numOfBuffer;
+  return pMerger->numOfBuffer;
 }
 
-void adjustLoserTreeFromNewData(SLocalMerger *pLocalMerge, SLocalDataSource *pOneInterDataSrc,
+void adjustLoserTreeFromNewData(SGlobalMerger *pMerger, SLocalDataSource *pOneInterDataSrc,
                                 SLoserTreeInfo *pTree) {
   /*
    * load a new data page into memory for intermediate dataset source,
@@ -507,7 +520,7 @@ void adjustLoserTreeFromNewData(SLocalMerger *pLocalMerge, SLocalDataSource *pOn
    */
   bool needToAdjust = true;
   if (pOneInterDataSrc->filePage.num <= pOneInterDataSrc->rowIdx) {
-    loadNewDataFromDiskFor(pLocalMerge, pOneInterDataSrc, &needToAdjust);
+    loadNewDataFromDiskFor(pMerger, pOneInterDataSrc, &needToAdjust);
   }
 
   /*
@@ -515,7 +528,7 @@ void adjustLoserTreeFromNewData(SLocalMerger *pLocalMerge, SLocalDataSource *pOn
    * if the loser tree is rebuild completed, we do not need to adjust
    */
   if (needToAdjust) {
-    int32_t leafNodeIdx = pTree->pNode[0].index + pLocalMerge->numOfBuffer;
+    int32_t leafNodeIdx = pTree->pNode[0].index + pMerger->numOfBuffer;
 
 #ifdef _DEBUG_VIEW
     printf("before adjust:\t");
@@ -567,7 +580,7 @@ static void setTagValueForMultipleRows(SQLFunctionCtx* pCtx, int32_t numOfOutput
   }
 }
 
-static void doExecuteFinalMergeRv(SOperatorInfo* pOperator, int32_t numOfExpr, SSDataBlock* pBlock) {
+static void doExecuteFinalMerge(SOperatorInfo* pOperator, int32_t numOfExpr, SSDataBlock* pBlock) {
   SMultiwayMergeInfo* pInfo = pOperator->info;
   SQLFunctionCtx* pCtx = pInfo->binfo.pCtx;
 
@@ -579,7 +592,7 @@ static void doExecuteFinalMergeRv(SOperatorInfo* pOperator, int32_t numOfExpr, S
 
   for(int32_t i = 0; i < pBlock->info.rows; ++i) {
     if (pInfo->hasPrev) {
-      if (needToMergeRv(pBlock, pInfo->orderColumnList, i, pInfo->prevRow)) {
+      if (needToMerge(pBlock, pInfo->orderColumnList, i, pInfo->prevRow)) {
         for (int32_t j = 0; j < numOfExpr; ++j) {
           pCtx[j].pInput = add[j] + pCtx[j].inputBytes * i;
         }
@@ -654,45 +667,27 @@ static void doExecuteFinalMergeRv(SOperatorInfo* pOperator, int32_t numOfExpr, S
   tfree(add);
 }
 
-bool needToMergeRv(SSDataBlock* pBlock, SArray* columnIndexList, int32_t index, char **buf) {
-  int32_t ret = 0;
-  size_t  size = taosArrayGetSize(columnIndexList);
-  if (size > 0) {
-    ret = compare_aRv(pBlock, columnIndexList, (int32_t) size, index, buf, TSDB_ORDER_ASC);
-  }
-
-  // if ret == 0, means the result belongs to the same group
-  return (ret == 0);
+static bool isAllSourcesCompleted(SGlobalMerger *pMerger) {
+  return (pMerger->numOfBuffer == pMerger->numOfCompleted);
 }
 
-static bool isAllSourcesCompleted(SLocalMerger *pLocalMerge) {
-  return (pLocalMerge->numOfBuffer == pLocalMerge->numOfCompleted);
-}
-
-void tscInitResObjForLocalQuery(SSqlObj *pSql, int32_t numOfRes, int32_t rowLen) {
-  SSqlRes *pRes = &pSql->res;
-  if (pRes->pLocalMerger != NULL) {
-    tscDestroyLocalMerger(pRes->pLocalMerger);
-    pRes->pLocalMerger = NULL;
-    tscDebug("0x%"PRIx64" free local reducer finished", pSql->self);
+SGlobalMerger* tscInitResObjForLocalQuery(int32_t numOfRes, int32_t rowLen, uint64_t id) {
+  SGlobalMerger *pMerger = calloc(1, sizeof(SGlobalMerger));
+  if (pMerger == NULL) {
+    tscDebug("0x%"PRIx64" free local reducer finished", id);
+    return NULL;
   }
-
-  pRes->qId = 1;  // hack to pass the safety check in fetch_row function
-  pRes->numOfRows = 0;
-  pRes->row = 0;
-
-  pRes->rspType = 0;  // used as a flag to denote if taos_retrieved() has been called yet
-  pRes->pLocalMerger = (SLocalMerger *)calloc(1, sizeof(SLocalMerger));
 
   /*
    * One more byte space is required, since the sprintf function needs one additional space to put '\0' at
    * the end of string
    */
   size_t size = numOfRes * rowLen + 1;
-  pRes->pLocalMerger->buf = calloc(1, size);
-  pRes->data = pRes->pLocalMerger->buf;
+  pMerger->buf = calloc(1, size);
+  return pMerger;
 }
 
+// todo remove it
 int32_t doArithmeticCalculate(SQueryInfo* pQueryInfo, tFilePage* pOutput, int32_t rowSize, int32_t finalRowSize) {
   int32_t maxRowSize = MAX(rowSize, finalRowSize);
   char* pbuf = calloc(1, (size_t)(pOutput->num * maxRowSize));
@@ -736,9 +731,6 @@ int32_t doArithmeticCalculate(SQueryInfo* pQueryInfo, tFilePage* pOutput, int32_
   return offset;
 }
 
-#define COLMODEL_GET_VAL(data, schema, rowId, colId) \
-  (data + (schema)->pFields[colId].offset * ((schema)->capacity) + (rowId) * (schema)->pFields[colId].field.bytes)
-
 static void appendOneRowToDataBlock(SSDataBlock *pBlock, char *buf, SColumnModel *pModel, int32_t rowIndex,
                                     int32_t maxRows) {
   for (int32_t i = 0; i < pBlock->info.numOfCols; ++i) {
@@ -760,7 +752,7 @@ SSDataBlock* doMultiwayMergeSort(void* param, bool* newgroup) {
 
   SMultiwayMergeInfo *pInfo = pOperator->info;
 
-  SLocalMerger   *pMerger = pInfo->pMerge;
+  SGlobalMerger   *pMerger = pInfo->pMerge;
   SLoserTreeInfo *pTree   = pMerger->pLoserTree;
 
   pInfo->binfo.pRes->info.rows = 0;
@@ -844,7 +836,7 @@ SSDataBlock* doMultiwayMergeSort(void* param, bool* newgroup) {
   return (pInfo->binfo.pRes->info.rows > 0)? pInfo->binfo.pRes:NULL;
 }
 
-static bool isSameGroupRv(SArray* orderColumnList, SSDataBlock* pBlock, char** dataCols) {
+static bool isSameGroup(SArray* orderColumnList, SSDataBlock* pBlock, char** dataCols) {
   int32_t numOfCols = (int32_t) taosArrayGetSize(orderColumnList);
   for (int32_t i = 0; i < numOfCols; ++i) {
     SColIndex *pIndex = taosArrayGet(orderColumnList, i);
@@ -892,7 +884,7 @@ SSDataBlock* doGlobalAggregate(void* param, bool* newgroup) {
         }
       }
 
-      doExecuteFinalMergeRv(pOperator, pOperator->numOfOutput, pAggInfo->pExistBlock);
+      doExecuteFinalMerge(pOperator, pOperator->numOfOutput, pAggInfo->pExistBlock);
 
       savePrevOrderColumns(pAggInfo->currentGroupColData, pAggInfo->groupColumnList, pAggInfo->pExistBlock, 0,
                            &pAggInfo->hasGroupColData);
@@ -913,7 +905,7 @@ SSDataBlock* doGlobalAggregate(void* param, bool* newgroup) {
     }
 
     if (pAggInfo->hasGroupColData) {
-      bool sameGroup = isSameGroupRv(pAggInfo->groupColumnList, pBlock, pAggInfo->currentGroupColData);
+      bool sameGroup = isSameGroup(pAggInfo->groupColumnList, pBlock, pAggInfo->currentGroupColData);
       if (!sameGroup) {
         *newgroup = true;
         pAggInfo->hasDataBlockForNewGroup = true;
@@ -927,7 +919,7 @@ SSDataBlock* doGlobalAggregate(void* param, bool* newgroup) {
     setInputDataBlock(pOperator, pAggInfo->binfo.pCtx, pBlock, TSDB_ORDER_ASC);
     updateOutputBuf(&pAggInfo->binfo, &pAggInfo->bufCapacity, pBlock->info.rows * pAggInfo->resultRowFactor);
 
-    doExecuteFinalMergeRv(pOperator, pOperator->numOfOutput, pBlock);
+    doExecuteFinalMerge(pOperator, pOperator->numOfOutput, pBlock);
     savePrevOrderColumns(pAggInfo->currentGroupColData, pAggInfo->groupColumnList, pBlock, 0, &pAggInfo->hasGroupColData);
     handleData = true;
   }
