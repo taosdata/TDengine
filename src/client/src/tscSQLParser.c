@@ -395,11 +395,18 @@ int32_t tscValidateSqlInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
       const char* msg2 = "name too long";
 
       SCreateDbInfo* pCreateDB = &(pInfo->pMiscInfo->dbOpt);
-      if (tscValidateName(&pCreateDB->dbname) != TSDB_CODE_SUCCESS) {
+      if (pCreateDB->dbname.n >= TSDB_DB_NAME_LEN) {
+        return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg2);
+      }
+
+      char buf[TSDB_DB_NAME_LEN] = {0};
+      SStrToken token = taosTokenDup(&pCreateDB->dbname, buf, tListLen(buf));
+
+      if (tscValidateName(&token) != TSDB_CODE_SUCCESS) {
         return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg1);
       }
 
-      int32_t ret = tNameSetDbName(&pTableMetaInfo->name, getAccountId(pSql), &(pCreateDB->dbname));
+      int32_t ret = tNameSetDbName(&pTableMetaInfo->name, getAccountId(pSql), &token);
       if (ret != TSDB_CODE_SUCCESS) {
         return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg2);
       }
