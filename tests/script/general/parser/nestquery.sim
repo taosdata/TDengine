@@ -9,7 +9,7 @@ sql connect
 
 print ======================== dnode1 start
 
-$dbPrefix = nest_query
+$dbPrefix = nest_db
 $tbPrefix = nest_tb
 $mtPrefix = nest_mt
 $tbNum = 10
@@ -17,7 +17,6 @@ $rowNum = 10000
 $totalNum = $tbNum * $rowNum
 
 print =============== nestquery.sim
-
 $i = 0
 $db = $dbPrefix . $i
 $mt = $mtPrefix . $i

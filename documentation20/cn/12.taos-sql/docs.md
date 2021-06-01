@@ -37,7 +37,7 @@ taos> DESCRIBE meters;
 - Epoch Time：时间戳也可以是一个长整数，表示从 1970-01-01 08:00:00.000 开始的毫秒数
 - 时间可以加减，比如 now-2h，表明查询时刻向前推 2 个小时（最近 2 小时）。数字后面的时间单位可以是 u(微秒)、a(毫秒)、s(秒)、m(分)、h(小时)、d(天)、w(周)。 比如 `select * from t1 where ts > now-2w and ts <= now-1w`，表示查询两周前整整一周的数据。在指定降频操作（down sampling）的时间窗口（interval）时，时间单位还可以使用 n(自然月) 和 y(自然年)。
 
-TDengine 缺省的时间戳是毫秒精度，但通过修改配置参数 enableMicrosecond 就可以支持微秒。
+TDengine 缺省的时间戳是毫秒精度，但通过在 CREATE DATABASE 时传递的 PRECISION 参数就可以支持微秒。
 
 在TDengine中，普通表的数据模型中可使用以下 10 种数据类型。 
 
@@ -400,6 +400,7 @@ TDengine 缺省的时间戳是毫秒精度，但通过修改配置参数 enableM
                 tb2_name (tb2_field1_name, ...) [USING stb2_name TAGS (tag_value2, ...)] VALUES (field1_value1, ...) (field1_value2, ...) ...;
     ```
     以自动建表的方式，同时向表tb1_name和tb2_name中按列分别插入多条记录。  
+    说明：`(tb1_field1_name, ...)`的部分可以省略掉，这样就是使用全列模式写入——也即在 VALUES 部分提供的数据，必须为数据表的每个列都显式地提供数据。全列写入速度会远快于指定列，因此建议尽可能采用全列写入方式，此时空列可以填入NULL。  
     从 2.0.20.5 版本开始，子表的列名可以不跟在子表名称后面，而是可以放在 TAGS 和 VALUES 之间，例如像下面这样写：
     ```mysql
     INSERT INTO tb1_name [USING stb1_name TAGS (tag_value1, ...)] (tb1_field1_name, ...) VALUES (field1_value1, ...) (field1_value2, ...) ...;
@@ -423,9 +424,9 @@ Query OK, 1 row(s) in set (0.001029s)
 taos> SHOW TABLES;
 Query OK, 0 row(s) in set (0.000946s)
 
-taos> INSERT INTO d1001 USING meters TAGS('Beijing.Chaoyang', 2);
+taos> INSERT INTO d1001 USING meters TAGS('Beijing.Chaoyang', 2) VALUES('a');
 
-DB error: invalid SQL: keyword VALUES or FILE required
+DB error: invalid SQL: 'a' (invalid timestamp) (0.039494s)
 
 taos> SHOW TABLES;
            table_name           |      created_time       | columns |          stable_name           |
