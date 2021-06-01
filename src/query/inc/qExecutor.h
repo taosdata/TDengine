@@ -189,6 +189,7 @@ typedef struct SQueryAttr {
   bool             pointInterpQuery; // point interpolation query
   bool             needReverseScan;  // need reverse scan
   bool             distinctTag;      // distinct tag query
+  bool             stateWindow;       // window State on sub/normal table
   int32_t          interBufSize;     // intermediate buffer sizse
 
   int32_t          havingNum;        // having expr number
@@ -296,6 +297,7 @@ enum OPERATOR_TYPE_E {
   OP_Filter            = 19,
   OP_Distinct          = 20,
   OP_Join              = 21,
+  OP_StateWindow       = 22,
 };
 
 typedef struct SOperatorInfo {
@@ -460,6 +462,16 @@ typedef struct SSWindowOperatorInfo {
   int32_t        start;      // start row index
 } SSWindowOperatorInfo;
 
+typedef struct SStateWindowOperatorInfo {
+  SOptrBasicInfo binfo;
+  STimeWindow    curWindow;  // current time window
+  int32_t        numOfRows;  // number of rows
+  int32_t        colIndex;      // start row index
+  int32_t        start;
+  char*          prevData;    // previous data 
+   
+} SStateWindowOperatorInfo ;
+
 typedef struct SDistinctOperatorInfo {
   SHashObj         *pSet;
   SSDataBlock      *pRes;
@@ -509,6 +521,7 @@ SOperatorInfo* createDistinctOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperat
 SOperatorInfo* createTableBlockInfoScanOperator(void* pTsdbQueryHandle, SQueryRuntimeEnv* pRuntimeEnv);
 SOperatorInfo* createMultiwaySortOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SExprInfo* pExpr, int32_t numOfOutput,
                                               int32_t numOfRows, void* merger, bool groupMix);
+SOperatorInfo* createStatewindowOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorInfo* upstream, SExprInfo* pExpr, int32_t numOfOutput);
 SOperatorInfo* createGlobalAggregateOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorInfo* upstream, SExprInfo* pExpr, int32_t numOfOutput, void* param);
 SOperatorInfo* createSLimitOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorInfo* upstream, SExprInfo* pExpr, int32_t numOfOutput, void* merger);
 SOperatorInfo* createFilterOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorInfo* upstream, SExprInfo* pExpr,
