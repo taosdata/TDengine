@@ -28,7 +28,7 @@
 #include "tname.h"
 #include "tscLog.h"
 #include "tscUtil.h"
-#include "tschemautil.h"
+#include "qTableMeta.h"
 #include "tsclient.h"
 #include "tstrbuild.h"
 #include "ttoken.h"
@@ -195,7 +195,7 @@ static bool validateDebugFlag(int32_t v) {
  * is not needed in the final error message.
  */
 static int32_t invalidOperationMsg(char* dstBuffer, const char* errMsg) {
-  return tscInvalidSQLErrMsg(dstBuffer, errMsg, NULL);
+  return tscInvalidOperationMsg(dstBuffer, errMsg, NULL);
 }
 
 static int setColumnFilterInfoForTimestamp(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tVariant* pVar) {
@@ -6611,7 +6611,7 @@ int32_t doCheckForCreateFromStable(SSqlObj* pSql, SSqlInfo* pInfo) {
 
         if (!findColumnIndex) {
           tdDestroyKVRowBuilder(&kvRowBuilder);
-          return tscInvalidSQLErrMsg(pCmd->payload, "invalid tag name", sToken->z);
+          return tscInvalidOperationMsg(pCmd->payload, "invalid tag name", sToken->z);
         }
       }
     } else {
@@ -7464,6 +7464,7 @@ int32_t validateSqlNode(SSqlObj* pSql, SSqlNode* pSqlNode, SQueryInfo* pQueryInf
       return TSDB_CODE_TSC_INVALID_OPERATION;
     }
 
+    // validate the query filter condition info
     if (pSqlNode->pWhere != NULL) {
       if (validateWhereNode(pQueryInfo, &pSqlNode->pWhere, pSql) != TSDB_CODE_SUCCESS) {
         return TSDB_CODE_TSC_INVALID_OPERATION;
@@ -7473,6 +7474,16 @@ int32_t validateSqlNode(SSqlObj* pSql, SSqlNode* pSqlNode, SQueryInfo* pQueryInf
       if (pTableMeta->tableInfo.precision == TSDB_TIME_PRECISION_MILLI) {
         pQueryInfo->window.skey = pQueryInfo->window.skey / 1000;
         pQueryInfo->window.ekey = pQueryInfo->window.ekey / 1000;
+      }
+    }
+
+    // validate the interval info
+    if (validateIntervalNode(pSql, pQueryInfo, pSqlNode) != TSDB_CODE_SUCCESS) {
+      return TSDB_CODE_TSC_INVALID_OPERATION;
+    } else {
+      if (isTimeWindowQuery(pQueryInfo) &&
+          (validateFunctionsInIntervalOrGroupbyQuery(pCmd, pQueryInfo) != TSDB_CODE_SUCCESS)) {
+        return TSDB_CODE_TSC_INVALID_OPERATION;
       }
     }
   } else {
@@ -7620,6 +7631,7 @@ int32_t validateSqlNode(SSqlObj* pSql, SSqlNode* pSqlNode, SQueryInfo* pQueryInf
     pQueryInfo->groupbyColumn = tscGroupbyColumn(pQueryInfo);
 
     pQueryInfo->arithmeticOnAgg = tsIsArithmeticQueryOnAggResult(pQueryInfo);
+    pQueryInfo->orderProjectQuery = tscOrderedProjectionQueryOnSTable(pQueryInfo, 0);
 
     SExprInfo** p = NULL;
     int32_t numOfExpr = 0;
