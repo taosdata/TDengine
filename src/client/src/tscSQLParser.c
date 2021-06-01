@@ -3199,24 +3199,13 @@ static bool functionCompatibleCheck(SQueryInfo* pQueryInfo, bool joinQuery, bool
   size_t numOfExpr = tscNumOfExprs(pQueryInfo);
   assert(numOfExpr > 0);
 
-  SExprInfo* pExpr = tscExprGet(pQueryInfo, startIdx);
-
-  // ts function can be simultaneously used with any other functions.
-  int32_t functionID = pExpr->base.functionId;
-  if (functionID == TSDB_FUNC_TS || functionID == TSDB_FUNC_TS_DUMMY) {
-    startIdx++;
-  }
-
   int32_t factor = INT32_MAX;
-  if (tscExprGet(pQueryInfo, 0)->base.functionId == TSDB_FUNC_LAST_ROW && (joinQuery || twQuery || !groupbyTagsOrNull(pQueryInfo))) {
-    return false;
-  }
 
   // diff function cannot be executed with other function
   // arithmetic function can be executed with other arithmetic functions
   size_t size = tscNumOfExprs(pQueryInfo);
   
-  for (int32_t i = startIdx + 1; i < size; ++i) {
+  for (int32_t i = startIdx; i < size; ++i) {
     SExprInfo* pExpr1 = tscExprGet(pQueryInfo, i);
 
     int16_t functionId = pExpr1->base.functionId;
