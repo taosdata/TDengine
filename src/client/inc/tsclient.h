@@ -422,6 +422,7 @@ typedef struct SSqlStream {
   int64_t ctime;     // stream created time
   int64_t stime;     // stream next executed time
   int64_t etime;     // stream end query time, when time is larger then etime, the stream will be closed
+  int64_t ltime;     // stream last row time in stream table
   SInterval interval;
   void *  pTimer;
 
