@@ -596,6 +596,14 @@ SArray* createExecOperatorPlan(SQueryAttr* pQueryAttr) {
       op = OP_Arithmetic;
       taosArrayPush(plan, &op);
     }
+  } else if (pQueryAttr->stateWindow) {
+    op =  OP_StateWindow;
+    taosArrayPush(plan, &op);
+
+    if (pQueryAttr->pExpr2 != NULL) {
+      op = OP_Arithmetic;
+      taosArrayPush(plan, &op);
+    }
   } else if (pQueryAttr->simpleAgg) {
     if (pQueryAttr->stableQuery && !pQueryAttr->tsCompQuery) {
       op = OP_MultiTableAggregate;
