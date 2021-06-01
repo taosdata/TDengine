@@ -4890,7 +4890,9 @@ static SSDataBlock* doArithmeticOperation(void* param, bool* newgroup) {
     updateOutputBuf(&pArithInfo->binfo, &pArithInfo->bufCapacity, pBlock->info.rows);
 
     arithmeticApplyFunctions(pRuntimeEnv, pInfo->pCtx, pOperator->numOfOutput);
-    updateTableIdInfo(pTableQueryInfo, pBlock, pRuntimeEnv->pTableRetrieveTsMap, order);
+    if (pTableQueryInfo != NULL) {
+      updateTableIdInfo(pTableQueryInfo, pBlock, pRuntimeEnv->pTableRetrieveTsMap, order);
+    }
 
     pRes->info.rows = getNumOfResult(pRuntimeEnv, pInfo->pCtx, pOperator->numOfOutput);
     if (pRes->info.rows >= pRuntimeEnv->resultInfo.threshold) {
@@ -4931,7 +4933,9 @@ static SSDataBlock* doArithmeticOperation(void* param, bool* newgroup) {
     updateOutputBuf(&pArithInfo->binfo, &pArithInfo->bufCapacity, pBlock->info.rows);
 
     arithmeticApplyFunctions(pRuntimeEnv, pInfo->pCtx, pOperator->numOfOutput);
-    updateTableIdInfo(pTableQueryInfo, pBlock, pRuntimeEnv->pTableRetrieveTsMap, order);
+    if (pTableQueryInfo != NULL) {
+      updateTableIdInfo(pTableQueryInfo, pBlock, pRuntimeEnv->pTableRetrieveTsMap, order);
+    }
 
     pRes->info.rows = getNumOfResult(pRuntimeEnv, pInfo->pCtx, pOperator->numOfOutput);
     if (pRes->info.rows >= 1000/*pRuntimeEnv->resultInfo.threshold*/) {
