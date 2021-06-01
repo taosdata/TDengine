@@ -271,10 +271,25 @@ void *tsdbAllocBytes(STsdbRepo *pRepo, int bytes) {
   return ptr;
 }
 
+int tsdbAsyncCommitConfig(STsdbRepo* pRepo) {
+  ASSERT(pRepo->config_changed == true);
+  tsem_wait(&(pRepo->readyToCommit));
+
+  if (pRepo->code != TSDB_CODE_SUCCESS) {
+    tsdbWarn("vgId:%d try to commit config when TSDB not in good state: %s", REPO_ID(pRepo), tstrerror(terrno));
+  }
+
+  if (tsdbLockRepo(pRepo) < 0) return -1;
+  tsdbScheduleCommit(pRepo);
+  if (tsdbUnlockRepo(pRepo) < 0) return -1;
+
+  return 0;
+}
+
 int tsdbAsyncCommit(STsdbRepo *pRepo) {
   tsem_wait(&(pRepo->readyToCommit));
 
-  //ASSERT(pRepo->imem == NULL);
+  ASSERT(pRepo->imem == NULL);
   if (pRepo->mem == NULL) {
     tsem_post(&(pRepo->readyToCommit));
     return 0;

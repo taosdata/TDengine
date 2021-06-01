@@ -154,6 +154,7 @@ static void *tsdbLoopCommit(void *arg) {
   SCommitQueue *pQueue = &tsCommitQueue;
   SListNode *   pNode = NULL;
   STsdbRepo *   pRepo = NULL;
+  bool config_changed = false;
 
   while (true) {
     pthread_mutex_lock(&(pQueue->lock));
@@ -177,11 +178,17 @@ static void *tsdbLoopCommit(void *arg) {
     pRepo = ((SCommitReq *)pNode->data)->pRepo;
 
     // check if need to apply new config
+    config_changed = pRepo->config_changed;
     if (pRepo->config_changed) {             
       tsdbApplyRepoConfig(pRepo);
     }
 
-    tsdbCommitData(pRepo);
+    if (config_changed && pRepo->imem == NULL) {
+      tsem_post(&(pRepo->readyToCommit));
+    } else {
+      tsdbCommitData(pRepo);
+    }
+
     listNodeFree(pNode);
   }
 
