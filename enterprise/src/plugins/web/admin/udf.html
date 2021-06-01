@@ -247,7 +247,7 @@
 					headers: {
 						'Authorization' : "Taosd " + DbSession.GetToken()
 					},
-					data: this.result,
+					data: new Int8Array(this.result),
 					dataType: "json",
 					success: dbCreateCb,
 					error: function(msg) { 
