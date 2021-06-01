@@ -1561,7 +1561,6 @@ int taos_stmt_set_tbname_tags(TAOS_STMT* stmt, const char* name, TAOS_BIND* tags
   }
 
   pStmt->mtb.nameSet = true;
-  pStmt->mtb.tagSet = true;
 
   tscDebug("0x%"PRIx64" SQL: %s", pSql->self, pSql->sqlstr);
 
