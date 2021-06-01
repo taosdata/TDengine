@@ -47,17 +47,19 @@ class TDTestCase:
             tdLog.info("taosd found in %s" % buildPath)
         binPath = buildPath+ "/build/bin/"  
 
-        tdSql.execute('alter database db blocks 8')
+        tdSql.execute('alter database db blocks 3')
         tdSql.query('show databases')
         tdSql.checkData(0,9,3)
 
-        os.system("%staosdemo -f tools/taosdemoAllTest/insert_5Mrows_small_cache.json" % binPath) 
+        os.system("%staosdemo -f tools/taosdemoAllTest/insert_5Mrows_noTB.json" % binPath) 
 
         input("please check memory usage for taosd. After checking, press enter")
 
         tdSql.execute('alter database db blocks 8')
+        tdSql.query('show databases')
+        tdSql.checkData(0,9,8)
 
-        os.system("%staosdemo -f tools/taosdemoAllTest/insert_5Mrows_small_cache.json" % binPath) 
+        os.system("%staosdemo -f tools/taosdemoAllTest/insert_5Mrows_hasTB.json" % binPath) 
 
         input("please check memory usage for taosd. After checking, press enter")
 
