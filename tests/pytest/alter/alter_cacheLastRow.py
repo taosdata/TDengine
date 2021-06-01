@@ -50,52 +50,55 @@ class TDTestCase:
             tdLog.info("taosd found in %s" % buildPath)
         binPath = buildPath + "/build/bin/"
 
-        os.system("%staosdemo -f tools/taosdemoAllTest/insert_100M_rows.json -y " % binPath)
-        # tdSql.query('select * from stb')
-        # tdSql.checkRows(1000*10000)
+        #write 5M rows into db, then restart to force the data move into disk.
+        #create 500 tables
+        os.system("%staosdemo -f tools/taosdemoAllTest/insert_5M_rows.json -y " % binPath)
         tdDnodes.stop(1)
         tdDnodes.start(1)
         tdSql.execute('use db')
-        # tdSql.query('select * from stb')
-        # tdSql.checkRows(1000*10000)
+
+        #prepare to query 500 tables last_row()
         tableName = []
         for i in range(500):
             tableName.append(f"stb_{i}")
-        
         tdSql.execute('use db')
         lastRow_Off_start = datetime.now()
 
-        slow = 0
-        for i in range(5):        
-            for i in range(100):
-                for i in range(500):
-                    tdSql.execute(f'SELECT LAST_ROW(*) FROM {tableName[i]}')
+        slow = 0 #count time where lastRow on is slower
+        for i in range(5): 
+            #switch lastRow to off and check
+            tdSql.execute('alter database db cachelast 0') 
+            tdSql.query('show databases')
+            tdSql.checkData(0,15,0)
+
+            #run last_row(*) query 500 times       
+            for i in range(500):
+                tdSql.execute(f'SELECT LAST_ROW(*) FROM {tableName[i]}')
             lastRow_Off_end = datetime.now()
 
             tdLog.debug(f'time used:{lastRow_Off_end-lastRow_Off_start}')
 
+            #switch lastRow to on and check
             tdSql.execute('alter database db cachelast 1')
             tdSql.query('show databases')
             tdSql.checkData(0,15,1)
-
-            # tdDnodes.stop(1)
-            # tdDnodes.start(1)
         
+            #run last_row(*) query 500 times 
             tdSql.execute('use db')
             lastRow_On_start = datetime.now()
-            for i in range(100):
-                for i in range(500):
-                    tdSql.execute(f'SELECT LAST_ROW(*) FROM {tableName[i]}')
+            for i in range(500):
+                tdSql.execute(f'SELECT LAST_ROW(*) FROM {tableName[i]}')
             lastRow_On_end = datetime.now()
                 
             tdLog.debug(f'time used:{lastRow_On_end-lastRow_On_start}')
 
+            #check which one used more time
             if (lastRow_Off_end-lastRow_Off_start > lastRow_On_end-lastRow_On_start):
                 pass
             else:
                 slow += 1
             tdLog.debug(slow)
-        if slow > 1:
+        if slow > 1: #tolerance for the first time
             tdLog.exit('lastRow hot alter failed')
     def stop(self):
         tdSql.close()
