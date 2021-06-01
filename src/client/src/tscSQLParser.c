@@ -7697,7 +7697,6 @@ static int32_t doValidateSubquery(SSqlNode* pSqlNode, int32_t index, SSqlObj* pS
   tscInitQueryInfo(pSub);
 
   int32_t code = validateSqlNode(pSql, p, pSub);
-  assert(code != TSDB_CODE_TSC_ACTION_IN_PROGRESS);
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }
