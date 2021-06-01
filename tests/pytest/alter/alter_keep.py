@@ -37,9 +37,16 @@ class TDTestCase:
         tdSql.checkData(0,7,'50,50,50')
         tdSql.error('alter database db keep !)') 
 
-        ##TODO: test the illegal alter keep input where input < days
-        # tdSql.error('alter database db keep -10')
-        # tdSql.error('alter database db keep 0')
+        tdSql.error('alter database db keep 1')
+
+        ##  the following sql will not raise error, but will not cause error either
+        #   based on Li Chuang's explaination, <= 0 will not cause keep>days error
+        tdSql.execute('alter database db keep -10')
+        tdSql.query('show databases')
+        tdSql.checkData(0,7,'50,50,50')
+        tdSql.execute('alter database db keep 0')
+        tdSql.query('show databases')
+        tdSql.checkData(0,7,'50,50,50')
 
         ##TODO: test keep keep hot alter, cannot be tested for now as test.py's output
         ##      is inconsistent with the actual output.
