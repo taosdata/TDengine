@@ -16,6 +16,8 @@
 #ifndef TDENGINE_QPLAN_H
 #define TDENGINE_QPLAN_H
 
+#include "qExecutor.h"
+
 struct SQueryInfo;
 
 typedef struct SQueryNodeBasicInfo {
