@@ -141,6 +141,7 @@ static SKeyword keywordTable[] = {
     {"VARIABLE",     TK_VARIABLE},
     {"INTERVAL",     TK_INTERVAL},
     {"SESSION",      TK_SESSION},
+    {"STATE_WINDOW", TK_STATE_WINDOW},
     {"FILL",         TK_FILL},
     {"SLIDING",      TK_SLIDING},
     {"ORDER",        TK_ORDER},
