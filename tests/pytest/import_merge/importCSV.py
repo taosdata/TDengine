@@ -82,6 +82,8 @@ class TDTestCase:
         tdSql.execute("import into tbx file \'%s\'"%(self.csvfile))
         tdSql.query('select * from tbx')
         tdSql.checkRows(self.rows)
+        #TD-4447 import the same csv twice
+        tdSql.execute("import into tbx file \'%s\'"%(self.csvfile))
 
     def stop(self):
         self.destroyCSVFile()

@@ -3299,8 +3299,12 @@ static void col_project_function(SQLFunctionCtx *pCtx) {
   if (pCtx->numOfParams == 2) {
     return;
   }
+  if (pCtx->param[0].i64 == 1) {
+    SET_VAL(pCtx, pCtx->size, 1);
+  } else {
+    INC_INIT_VAL(pCtx, pCtx->size);
+  }
 
-  INC_INIT_VAL(pCtx, pCtx->size);
 
   char *pData = GET_INPUT_DATA_LIST(pCtx);
   if (pCtx->order == TSDB_ORDER_ASC) {
