@@ -22,6 +22,7 @@
 #include "qFill.h"
 #include "qResultbuf.h"
 #include "qSqlparser.h"
+#include "qTableMeta.h"
 #include "qTsbuf.h"
 #include "query.h"
 #include "taosdef.h"
@@ -69,14 +70,6 @@ typedef struct SResultRowPool {
 
   SArray* pData;    // SArray<void*>
 } SResultRowPool;
-
-typedef struct SGroupbyExpr {
-  int16_t tableIndex;
-  SArray* columnInfo;  // SArray<SColIndex>, group by columns information
-  int16_t numOfGroupCols;  // todo remove it
-  int16_t orderIndex;  // order by column index
-  int16_t orderType;   // order by type: asc/desc
-} SGroupbyExpr;
 
 typedef struct SResultRow {
   int32_t       pageId;      // pageId & rowId is the position of current result in disk-based output buffer
@@ -217,7 +210,7 @@ typedef struct SQueryAttr {
   int32_t          intermediateResultRowSize; // intermediate result row size, in case of top-k query.
   int32_t          maxTableColumnWidth;
   int32_t          tagLen;           // tag value length of current query
-  SGroupbyExpr* pGroupbyExpr;
+  SGroupbyExpr    *pGroupbyExpr;
 
   SExprInfo*       pExpr1;
   SExprInfo*       pExpr2;
@@ -487,10 +480,10 @@ typedef struct SDistinctOperatorInfo {
   int64_t           outputCapacity;
 } SDistinctOperatorInfo;
 
-struct SLocalMerger;
+struct SGlobalMerger;
 
 typedef struct SMultiwayMergeInfo {
-  struct SLocalMerger *pMerge;
+  struct SGlobalMerger *pMerge;
   SOptrBasicInfo       binfo;
   int32_t              bufCapacity;
   int64_t              seed;
@@ -572,6 +565,8 @@ int32_t createFilterInfo(SQueryAttr* pQueryAttr, uint64_t qId);
 void freeColumnFilterInfo(SColumnFilterInfo* pFilter, int32_t numOfFilters);
 
 STableQueryInfo *createTableQueryInfo(SQueryAttr* pQueryAttr, void* pTable, bool groupbyColumn, STimeWindow win, void* buf);
+STableQueryInfo* createTmpTableQueryInfo(STimeWindow win);
+
 int32_t buildArithmeticExprFromMsg(SExprInfo *pArithExprInfo, void *pQueryMsg);
 
 bool isQueryKilled(SQInfo *pQInfo);

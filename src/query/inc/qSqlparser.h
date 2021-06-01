@@ -147,7 +147,7 @@ typedef struct SCreateTableSql {
   } colInfo;
 
   SArray            *childTableInfo;        // SArray<SCreatedTableInfo>
-  SSqlNode     *pSelect;
+  SSqlNode          *pSelect;
 } SCreateTableSql;
 
 typedef struct SAlterTableInfo {
@@ -263,7 +263,6 @@ SArray *tVariantListInsert(SArray *pList, tVariant *pVar, uint8_t sortOrder, int
 SArray *tVariantListAppendToken(SArray *pList, SStrToken *pAliasToken, uint8_t sortOrder);
 
 SRelationInfo *setTableNameList(SRelationInfo* pFromInfo, SStrToken *pName, SStrToken* pAlias);
-//SRelationInfo *setSubquery(SRelationInfo* pFromInfo, SRelElementPair* p);
 void          *destroyRelationInfo(SRelationInfo* pFromInfo);
 SRelationInfo *addSubqueryElem(SRelationInfo* pRelationInfo, SArray* pSub, SStrToken* pAlias);
 

@@ -1,5 +1,5 @@
 #include "os.h"
-#include "tschemautil.h"
+#include "qTableMeta.h"
 #include "qPlan.h"
 #include "qExecutor.h"
 #include "qUtil.h"

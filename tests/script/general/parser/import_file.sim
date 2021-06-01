@@ -19,6 +19,7 @@ sql create table tbx (ts TIMESTAMP, collect_area NCHAR(12), device_id BINARY(16)
 print ====== create tables success, starting import data
 
 sql import into tbx file '~/data.sql'
+sql import into tbx file '~/data.sql'
 
 sql select count(*) from tbx
 if $rows != 1 then
