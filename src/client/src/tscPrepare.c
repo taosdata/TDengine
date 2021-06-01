@@ -1203,7 +1203,6 @@ static int insertBatchStmtExecute(STscStmt* pStmt) {
   return pStmt->pSql->res.code;
 }
 
-
 int stmtParseInsertTbTags(SSqlObj* pSql, STscStmt* pStmt) {
   SSqlCmd *pCmd    = &pSql->cmd;
   int32_t ret = TSDB_CODE_SUCCESS;
@@ -1233,28 +1232,28 @@ int stmtParseInsertTbTags(SSqlObj* pSql, STscStmt* pStmt) {
     pStmt->mtb.tagSet = true;
 
     sToken = tStrGetToken(pCmd->insertParam.sql, &index, false);
-    if (sToken.n > 0 && sToken.type == TK_VALUES) {
+    if (sToken.n > 0 && (sToken.type == TK_VALUES || sToken.type == TK_LP)) {
       return TSDB_CODE_SUCCESS;
     }
 
     if (sToken.n <= 0 || sToken.type != TK_USING) {
-      return TSDB_CODE_TSC_INVALID_OPERATION;
+      return tscSQLSyntaxErrMsg(pCmd->payload, "keywords USING is expected", sToken.z);
     }
 
     sToken = tStrGetToken(pCmd->insertParam.sql, &index, false);
     if (sToken.n <= 0 || ((sToken.type != TK_ID) && (sToken.type != TK_STRING))) {
-      return TSDB_CODE_TSC_INVALID_OPERATION;
+      return tscSQLSyntaxErrMsg(pCmd->payload, "invalid token", sToken.z);
     }
     pStmt->mtb.stbname = sToken;
 
     sToken = tStrGetToken(pCmd->insertParam.sql, &index, false);
     if (sToken.n <= 0 || sToken.type != TK_TAGS) {
-      return TSDB_CODE_TSC_INVALID_OPERATION;
+      return tscSQLSyntaxErrMsg(pCmd->payload, "keyword TAGS expected", sToken.z);
     }
 
     sToken = tStrGetToken(pCmd->insertParam.sql, &index, false);
     if (sToken.n <= 0 || sToken.type != TK_LP) {
-      return TSDB_CODE_TSC_INVALID_OPERATION;
+      return tscSQLSyntaxErrMsg(pCmd->payload, ") expected", sToken.z);
     }
 
     pStmt->mtb.tags = taosArrayInit(4, sizeof(SStrToken));
@@ -1295,9 +1294,6 @@ int stmtParseInsertTbTags(SSqlObj* pSql, STscStmt* pStmt) {
 
   return TSDB_CODE_SUCCESS;
 }
-
-
-
 
 int stmtGenInsertStatement(SSqlObj* pSql, STscStmt* pStmt, const char* name, TAOS_BIND* tags) {
   size_t tagNum = taosArrayGetSize(pStmt->mtb.tags);
@@ -1378,8 +1374,6 @@ int stmtGenInsertStatement(SSqlObj* pSql, STscStmt* pStmt, const char* name, TAO
 
   return TSDB_CODE_SUCCESS;
 }
-
-
 
 ////////////////////////////////////////////////////////////////////////////////
 // interface functions
