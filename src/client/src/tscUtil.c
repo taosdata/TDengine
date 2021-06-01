@@ -777,7 +777,9 @@ SSDataBlock* doGetDataBlock(void* param, bool* newgroup) {
   SSqlRes* pRes = &pSql->res;
 
   SSDataBlock* pBlock = pInput->block;
-  pOperator->pRuntimeEnv->current = pInput->pTableQueryInfo;
+  if (pOperator->pRuntimeEnv != NULL) {
+    pOperator->pRuntimeEnv->current = pInput->pTableQueryInfo;
+  }
 
   pBlock->info.rows = pRes->numOfRows;
   if (pRes->numOfRows != 0) {
@@ -801,6 +803,24 @@ SSDataBlock* doGetDataBlock(void* param, bool* newgroup) {
   return pBlock;
 }
 
+static void fetchNextBlockIfCompleted(SOperatorInfo* pOperator, bool* newgroup) {
+  SJoinOperatorInfo* pJoinInfo = pOperator->info;
+
+  for (int32_t i = 0; i < pOperator->numOfUpstream; ++i) {
+    SJoinStatus* pStatus = &pJoinInfo->status[i];
+    if (pStatus->pBlock == NULL || pStatus->index >= pStatus->pBlock->info.rows) {
+      pStatus->pBlock = pOperator->upstream[i]->exec(pOperator->upstream[i], newgroup);
+      pStatus->index = 0;
+
+      if (pStatus->pBlock == NULL) {
+        pOperator->status = OP_EXEC_DONE;
+        pJoinInfo->resultInfo.total += pJoinInfo->pRes->info.rows;
+        break;
+      }
+    }
+  }
+}
+
 SSDataBlock* doDataBlockJoin(void* param, bool* newgroup) {
   SOperatorInfo *pOperator = (SOperatorInfo*) param;
   if (pOperator->status == OP_EXEC_DONE) {
@@ -813,19 +833,9 @@ SSDataBlock* doDataBlockJoin(void* param, bool* newgroup) {
   pJoinInfo->pRes->info.rows = 0;
 
   while(1) {
-    for (int32_t i = 0; i < pOperator->numOfUpstream; ++i) {
-      SJoinStatus* pStatus = &pJoinInfo->status[i];
-      if (pStatus->pBlock == NULL || pStatus->index >= pStatus->pBlock->info.rows) {
-        pStatus->pBlock = pOperator->upstream[i]->exec(pOperator->upstream[i], newgroup);
-        pStatus->index = 0;
-
-        if (pStatus->pBlock == NULL) {
-          pOperator->status = OP_EXEC_DONE;
-
-          pJoinInfo->resultInfo.total += pJoinInfo->pRes->info.rows;
-          return pJoinInfo->pRes;
-        }
-      }
+    fetchNextBlockIfCompleted(pOperator, newgroup);
+    if (pOperator->status == OP_EXEC_DONE) {
+      return pJoinInfo->pRes;
     }
 
     SJoinStatus* st0 = &pJoinInfo->status[0];
@@ -844,8 +854,12 @@ SSDataBlock* doDataBlockJoin(void* param, bool* newgroup) {
 
         if (ts[st->index] < ts0[st0->index]) {  // less than the first
           prefixEqual = false;
+
           if ((++(st->index)) >= st->pBlock->info.rows) {
-            break;
+            fetchNextBlockIfCompleted(pOperator, newgroup);
+            if (pOperator->status == OP_EXEC_DONE) {
+              return pJoinInfo->pRes;
+            }
           }
         } else if (ts[st->index] > ts0[st0->index]) {  // greater than the first;
           if (prefixEqual == true) {
@@ -853,12 +867,19 @@ SSDataBlock* doDataBlockJoin(void* param, bool* newgroup) {
             for (int32_t j = 0; j < i; ++j) {
               SJoinStatus* stx = &pJoinInfo->status[j];
               if ((++(stx->index)) >= stx->pBlock->info.rows) {
-                break;
+
+                fetchNextBlockIfCompleted(pOperator, newgroup);
+                if (pOperator->status == OP_EXEC_DONE) {
+                  return pJoinInfo->pRes;
+                }
               }
             }
           } else {
             if ((++(st0->index)) >= st0->pBlock->info.rows) {
-              break;
+              fetchNextBlockIfCompleted(pOperator, newgroup);
+              if (pOperator->status == OP_EXEC_DONE) {
+                return pJoinInfo->pRes;
+              }
             }
           }
         }
@@ -1127,6 +1148,19 @@ void handleDownstreamOperator(SSqlObj** pSqlObjList, int32_t numOfUpstream, SQue
       size_t num = taosArrayGetSize(px->colList);
       schema = calloc(num, sizeof(SSchema));
       memcpy(schema, pSchema, numOfCol1*sizeof(SSchema));
+    }
+
+    // update the exprinfo
+    int32_t numOfOutput = (int32_t)tscNumOfExprs(px);
+    for(int32_t i = 0; i < numOfOutput; ++i) {
+      SExprInfo* pex = taosArrayGetP(px->exprList, i);
+      int32_t colId = pex->base.colInfo.colId;
+      for(int32_t j = 0; j < pSourceOperator->numOfOutput; ++j) {
+        if (colId == schema[j].colId) {
+          pex->base.colInfo.colIndex = j;
+          break;
+        }
+      }
     }
 
     px->pQInfo = createQInfoFromQueryNode(px, &tableGroupInfo, pSourceOperator, NULL, NULL, MASTER_SCAN);

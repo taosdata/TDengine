@@ -7493,6 +7493,13 @@ int32_t validateSqlNode(SSqlObj* pSql, SSqlNode* pSqlNode, SQueryInfo* pQueryInf
         }
       }
     }
+
+    // set order by info
+    STableMeta* pTableMeta = tscGetMetaInfo(pQueryInfo, 0)->pTableMeta;
+    if (validateOrderbyNode(pCmd, pQueryInfo, pSqlNode, tscGetTableSchema(pTableMeta)) !=
+        TSDB_CODE_SUCCESS) {
+      return TSDB_CODE_TSC_INVALID_OPERATION;
+    }
   } else {
     pQueryInfo->command = TSDB_SQL_SELECT;
 
@@ -7642,8 +7649,8 @@ int32_t validateSqlNode(SSqlObj* pSql, SSqlNode* pSqlNode, SQueryInfo* pQueryInf
 
     SExprInfo** p = NULL;
     int32_t numOfExpr = 0;
+    pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
     code = createProjectionExpr(pQueryInfo, pTableMetaInfo, &p, &numOfExpr);
-
     if (pQueryInfo->exprList1 == NULL) {
       pQueryInfo->exprList1 = taosArrayInit(4, POINTER_BYTES);
     }
