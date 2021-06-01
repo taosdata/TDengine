@@ -187,6 +187,11 @@ steps:
   image: alpine
   commands:
   - echo 64-bit is good.
+  trigger:
+    event:
+      - promote
+    target:
+      - develop
   when:
     branch:
     - develop
