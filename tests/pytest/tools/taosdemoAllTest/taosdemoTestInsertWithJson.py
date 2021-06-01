@@ -254,7 +254,6 @@ class TDTestCase:
         tdSql.checkData(0, 0, 15000)        
 
         # insert: auto_create
-        # todo: add exception input for auto_create_table eg:123
         os.system("%staosdemo -f tools/taosdemoAllTest/insert-drop-exist-auto-YYY.json -y " % binPath) # drop = yes, exist = yes, auto_create = yes
         tdSql.execute('use db')
         tdSql.query('show tables')
@@ -302,6 +301,34 @@ class TDTestCase:
         tdSql.execute('create database db')
         tdSql.execute('use db')
         os.system("%staosdemo -f tools/taosdemoAllTest/insert-drop-exist-auto-NNN.json -y " % binPath) # drop = no, exist = no, auto_create = no
+        tdSql.execute('use db')
+        tdSql.query('show tables')
+        tdSql.checkRows(20)
+
+        #the following four test cases are for the exception cases for param auto_create_table
+
+        tdSql.execute('drop database db')
+        tdSql.execute('create database db')
+        tdSql.execute('use db')
+        os.system("%staosdemo -f tools/taosdemoAllTest/insert-drop-exist-auto-NN123.json -y " % binPath) # drop = no, exist = no, auto_create = 123
+        tdSql.execute('use db')
+        tdSql.query('show tables')
+        tdSql.checkRows(20)
+
+        tdSql.execute('drop database db')
+        tdSql.execute('create database db')
+        tdSql.execute('use db')
+        os.system("%staosdemo -f tools/taosdemoAllTest/insert-drop-exist-auto-NY123.json -y " % binPath) # drop = no, exist = yes, auto_create = 123
+        tdSql.execute('use db')
+        tdSql.query('show tables')
+        tdSql.checkRows(0)
+
+        os.system("%staosdemo -f tools/taosdemoAllTest/insert-drop-exist-auto-YN123.json -y " % binPath) # drop = yes, exist = no, auto_create = 123
+        tdSql.execute('use db')
+        tdSql.query('show tables')
+        tdSql.checkRows(20)
+
+        os.system("%staosdemo -f tools/taosdemoAllTest/insert-drop-exist-auto-YY123.json -y " % binPath) # drop = yes, exist = yes, auto_create = 123
         tdSql.execute('use db')
         tdSql.query('show tables')
         tdSql.checkRows(20)
