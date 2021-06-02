@@ -274,7 +274,7 @@ void *tsdbAllocBytes(STsdbRepo *pRepo, int bytes) {
 int tsdbAsyncCommit(STsdbRepo *pRepo) {
   tsem_wait(&(pRepo->readyToCommit));
 
-  ASSERT(pRepo->imem == NULL);
+  //ASSERT(pRepo->imem == NULL);
   if (pRepo->mem == NULL) {
     tsem_post(&(pRepo->readyToCommit));
     return 0;
@@ -288,7 +288,7 @@ int tsdbAsyncCommit(STsdbRepo *pRepo) {
   if (tsdbLockRepo(pRepo) < 0) return -1;
   pRepo->imem = pRepo->mem;
   pRepo->mem = NULL;
-  tsdbScheduleCommit(pRepo);
+  tsdbScheduleCommit(pRepo, COMMIT_REQ);
   if (tsdbUnlockRepo(pRepo) < 0) return -1;
 
   return 0;
@@ -964,6 +964,49 @@ static void tsdbFreeRows(STsdbRepo *pRepo, void **rows, int rowCounter) {
   }
 }
 
+static void updateTableLatestColumn(STsdbRepo *pRepo, STable *pTable, SDataRow row) {
+  tsdbDebug("vgId:%d updateTableLatestColumn, %s row version:%d", REPO_ID(pRepo), pTable->name->data, dataRowVersion(row));
+
+  STSchema* pSchema = tsdbGetTableLatestSchema(pTable);
+  if (tsdbUpdateLastColSchema(pTable, pSchema) < 0) {
+    return;
+  }
+
+  pSchema = tsdbGetTableSchemaByVersion(pTable, dataRowVersion(row));
+  if (pSchema == NULL) {
+    return;
+  }
+
+  SDataCol *pLatestCols = pTable->lastCols;
+
+  for (int16_t j = 0; j < schemaNCols(pSchema); j++) {
+    STColumn *pTCol = schemaColAt(pSchema, j);
+    // ignore not exist colId
+    int16_t idx = tsdbGetLastColumnsIndexByColId(pTable, pTCol->colId);
+    if (idx == -1) {
+      continue;
+    }
+    
+    void* value = tdGetRowDataOfCol(row, (int8_t)pTCol->type, TD_DATA_ROW_HEAD_SIZE + pSchema->columns[j].offset);
+    if (isNull(value, pTCol->type)) {
+      continue;
+    }
+
+    SDataCol *pDataCol = &(pLatestCols[idx]);
+    if (pDataCol->pData == NULL) {
+      pDataCol->pData = malloc(pSchema->columns[j].bytes);
+      pDataCol->bytes = pSchema->columns[j].bytes;
+    } else if (pDataCol->bytes < pSchema->columns[j].bytes) {
+      pDataCol->pData = realloc(pDataCol->pData, pSchema->columns[j].bytes);
+      pDataCol->bytes = pSchema->columns[j].bytes;
+    }
+
+    memcpy(pDataCol->pData, value, pDataCol->bytes);
+    //tsdbInfo("updateTableLatestColumn vgId:%d cache column %d for %d,%s", REPO_ID(pRepo), j, pDataCol->bytes, (char*)pDataCol->pData);
+    pDataCol->ts = dataRowKey(row);
+  }
+}
+
 static int tsdbUpdateTableLatestInfo(STsdbRepo *pRepo, STable *pTable, SDataRow row) {
   STsdbCfg *pCfg = &pRepo->config;
 
@@ -977,7 +1020,7 @@ static int tsdbUpdateTableLatestInfo(STsdbRepo *pRepo, STable *pTable, SDataRow 
   }
 
   if (tsdbGetTableLastKeyImpl(pTable) < dataRowKey(row)) {
-    if (pCfg->cacheLastRow || pTable->lastRow != NULL) {
+    if (CACHE_LAST_ROW(pCfg) || pTable->lastRow != NULL) {
       SDataRow nrow = pTable->lastRow;
       if (taosTSizeof(nrow) < dataRowLen(row)) {
         SDataRow orow = nrow;
@@ -1002,7 +1045,10 @@ static int tsdbUpdateTableLatestInfo(STsdbRepo *pRepo, STable *pTable, SDataRow 
     } else {
       pTable->lastKey = dataRowKey(row);
     }
-  }
 
+    if (CACHE_LAST_NULL_COLUMN(pCfg)) {
+      updateTableLatestColumn(pRepo, pTable, row);
+    }
+  }
   return 0;
 }
