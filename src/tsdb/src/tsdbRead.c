@@ -2128,6 +2128,7 @@ int32_t tsdbGetFileBlocksDistInfo(TsdbQueryHandleT* queryHandle, STableBlockDist
   STsdbQueryHandle* pQueryHandle = (STsdbQueryHandle*) queryHandle;
 
   pTableBlockInfo->totalSize = 0;
+  pTableBlockInfo->totalRows = 0;
   STsdbFS* pFileHandle = REPO_FS(pQueryHandle->pTsdb);
 
   // find the start data block in file
@@ -2201,7 +2202,12 @@ int32_t tsdbGetFileBlocksDistInfo(TsdbQueryHandleT* queryHandle, STableBlockDist
         pTableBlockInfo->totalSize += pBlock[j].len;
 
         int32_t numOfRows = pBlock[j].numOfRows;
-        taosArrayPush(pTableBlockInfo->dataBlockInfos, &numOfRows);
+        pTableBlockInfo->totalRows += numOfRows;
+        if (numOfRows > pTableBlockInfo->maxRows) pTableBlockInfo->maxRows = numOfRows;
+        if (numOfRows < pTableBlockInfo->minRows) pTableBlockInfo->minRows = numOfRows;
+        int32_t  stepIndex = (numOfRows-1)/TSDB_BLOCK_DIST_STEP_ROWS;
+        SFileBlockInfo *blockInfo = (SFileBlockInfo*)taosArrayGet(pTableBlockInfo->dataBlockInfos, stepIndex);
+        blockInfo->numBlocksOfStep++;
       }
     }
   }
