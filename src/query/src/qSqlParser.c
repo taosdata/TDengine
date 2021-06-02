@@ -229,7 +229,6 @@ tSqlExpr *tSqlExprCreate(tSqlExpr *pLeft, tSqlExpr *pRight, int32_t optrType) {
         pExpr->flags &= ~(1 << EXPR_FLAG_TS_ERROR);
       }
 
-
       switch (optrType) {
         case TK_PLUS: {
           pExpr->value.i64 = pLeft->value.i64 + pRight->value.i64;
@@ -325,7 +324,6 @@ static FORCE_INLINE int32_t tStrTokenCompare(SStrToken* left, SStrToken* right) 
   return (left->type == right->type && left->n == right->n && strncasecmp(left->z, right->z, left->n) == 0) ? 0 : 1;
 }
 
-
 int32_t tSqlExprCompare(tSqlExpr *left, tSqlExpr *right) {
   if ((left == NULL && right) || (left && right == NULL)) {
     return 1;
@@ -388,8 +386,6 @@ int32_t tSqlExprCompare(tSqlExpr *left, tSqlExpr *right) {
 
   return 0;
 }
-
-
 
 tSqlExpr *tSqlExprClone(tSqlExpr *pSrc) {
   tSqlExpr *pExpr = calloc(1, sizeof(tSqlExpr));
@@ -536,11 +532,11 @@ SArray *tVariantListInsert(SArray *pList, tVariant *pVar, uint8_t sortOrder, int
 SRelationInfo *setTableNameList(SRelationInfo* pRelationInfo, SStrToken *pName, SStrToken* pAlias) {
   if (pRelationInfo == NULL) {
     pRelationInfo = calloc(1, sizeof(SRelationInfo));
-    pRelationInfo->list = taosArrayInit(4, sizeof(STableNamePair));
+    pRelationInfo->list = taosArrayInit(4, sizeof(SRelElementPair));
   }
 
   pRelationInfo->type = SQL_NODE_FROM_TABLELIST;
-  STableNamePair p = {.name = *pName};
+  SRelElementPair p = {.tableName = *pName};
   if (pAlias != NULL) {
     p.aliasName = *pAlias;
   } else {
@@ -548,18 +544,6 @@ SRelationInfo *setTableNameList(SRelationInfo* pRelationInfo, SStrToken *pName, 
   }
 
   taosArrayPush(pRelationInfo->list, &p);
-  return pRelationInfo;
-}
-
-SRelationInfo* setSubquery(SRelationInfo* pRelationInfo, SArray* pList) {
-  if (pRelationInfo == NULL) {
-    pRelationInfo = calloc(1, sizeof(SRelationInfo));
-    pRelationInfo->list = taosArrayInit(4, POINTER_BYTES);
-  }
-
-  pRelationInfo->type = SQL_NODE_FROM_SUBQUERY;
-  taosArrayPush(pRelationInfo->list, &pList);
-
   return pRelationInfo;
 }
 
@@ -573,7 +557,7 @@ void* destroyRelationInfo(SRelationInfo* pRelationInfo) {
   } else {
     size_t size = taosArrayGetSize(pRelationInfo->list);
     for(int32_t i = 0; i < size; ++i) {
-      SArray* pa = taosArrayGetP(pRelationInfo->list, 0);
+      SArray* pa = taosArrayGetP(pRelationInfo->list, i);
       destroyAllSqlNode(pa);
     }
     taosArrayDestroy(pRelationInfo->list);
@@ -583,6 +567,24 @@ void* destroyRelationInfo(SRelationInfo* pRelationInfo) {
   return NULL;
 }
 
+SRelationInfo* addSubqueryElem(SRelationInfo* pRelationInfo, SArray* pSub, SStrToken* pAlias) {
+  if (pRelationInfo == NULL) {
+    pRelationInfo = calloc(1, sizeof(SRelationInfo));
+    pRelationInfo->list = taosArrayInit(4, sizeof(SRelElementPair));
+  }
+
+  pRelationInfo->type = SQL_NODE_FROM_SUBQUERY;
+
+  SRelElementPair p = {.pSubquery = pSub};
+  if (pAlias != NULL) {
+    p.aliasName = *pAlias;
+  } else {
+    TPARSER_SET_NONE_TOKEN(p.aliasName);
+  }
+
+  taosArrayPush(pRelationInfo->list, &p);
+  return pRelationInfo;
+}
 
 void tSetDbName(SStrToken *pCpxName, SStrToken *pDb) {
   pCpxName->type = pDb->type;
@@ -725,7 +727,7 @@ void tSetColumnType(TAOS_FIELD *pField, SStrToken *type) {
  */
 SSqlNode *tSetQuerySqlNode(SStrToken *pSelectToken, SArray *pSelNodeList, SRelationInfo *pFrom, tSqlExpr *pWhere,
                                 SArray *pGroupby, SArray *pSortOrder, SIntervalVal *pInterval,
-                                SSessionWindowVal *pSession, SStrToken *pSliding, SArray *pFill, SLimitVal *pLimit,
+                                SSessionWindowVal *pSession, SWindowStateVal *pWindowStateVal, SStrToken *pSliding, SArray *pFill, SLimitVal *pLimit,
                                 SLimitVal *psLimit, tSqlExpr *pHaving) {
   assert(pSelNodeList != NULL);
 
@@ -775,6 +777,12 @@ SSqlNode *tSetQuerySqlNode(SStrToken *pSelectToken, SArray *pSelNodeList, SRelat
   } else {
     TPARSER_SET_NONE_TOKEN(pSqlNode->sessionVal.gap);
     TPARSER_SET_NONE_TOKEN(pSqlNode->sessionVal.col);
+  }
+
+  if (pWindowStateVal != NULL) {
+    pSqlNode->windowstateVal = *pWindowStateVal;
+  } else {
+    TPARSER_SET_NONE_TOKEN(pSqlNode->windowstateVal.col);
   }
 
   return pSqlNode;

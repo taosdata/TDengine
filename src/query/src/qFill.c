@@ -363,10 +363,6 @@ SFillInfo* taosCreateFillInfo(int32_t order, TSKEY skey, int32_t numOfTags, int3
   pFillInfo->rowSize = setTagColumnInfo(pFillInfo, pFillInfo->numOfCols, pFillInfo->alloc);
   assert(pFillInfo->rowSize > 0);
 
-  for(int32_t i = 0; i < pFillInfo->numOfCols; ++i) {
-    pFillInfo->pData[i] = malloc(pFillInfo->pFillCol[i].col.bytes * pFillInfo->alloc);
-  }
-
   return pFillInfo;
 }
 
@@ -392,10 +388,6 @@ void* taosDestroyFillInfo(SFillInfo* pFillInfo) {
     tfree(pFillInfo->pTags[i].tagVal);
   }
 
-  for(int32_t i = 0; i < pFillInfo->numOfCols; ++i) {
-    tfree(pFillInfo->pData[i]);
-  }
-
   tfree(pFillInfo->pTags);
   
   tfree(pFillInfo->pData);
@@ -417,17 +409,6 @@ void taosFillSetStartInfo(SFillInfo* pFillInfo, int32_t numOfRows, TSKEY endKey)
 
   pFillInfo->index     = 0;
   pFillInfo->numOfRows = numOfRows;
-  
-  // ensure the space
-  if (pFillInfo->alloc < numOfRows) {
-    for(int32_t i = 0; i < pFillInfo->numOfCols; ++i) {
-      char* tmp = realloc(pFillInfo->pData[i], numOfRows*pFillInfo->pFillCol[i].col.bytes);
-      assert(tmp != NULL); // todo handle error
-      
-      memset(tmp, 0, numOfRows*pFillInfo->pFillCol[i].col.bytes);
-      pFillInfo->pData[i] = tmp;
-    }
-  }
 }
 
 void taosFillSetInputDataBlock(SFillInfo* pFillInfo, const SSDataBlock* pInput) {
@@ -435,46 +416,12 @@ void taosFillSetInputDataBlock(SFillInfo* pFillInfo, const SSDataBlock* pInput) 
     SFillColInfo* pCol = &pFillInfo->pFillCol[i];
 
     SColumnInfoData* pColData = taosArrayGet(pInput->pDataBlock, i);
-//    pFillInfo->pData[i] = pColData->pData;
-    if (pInput->info.rows > pFillInfo->alloc) {
-      char* t = realloc(pFillInfo->pData[i], pColData->info.bytes * pInput->info.rows);
-      assert(t != NULL);
-
-      pFillInfo->pData[i] = t;
-      pFillInfo->alloc = pInput->info.rows;
-    }
-
-    memcpy(pFillInfo->pData[i], pColData->pData, pColData->info.bytes * pInput->info.rows);
+    pFillInfo->pData[i] = pColData->pData;
 
     if (TSDB_COL_IS_TAG(pCol->flag)/* || IS_VAR_DATA_TYPE(pCol->col.type)*/) {  // copy the tag value to tag value buffer
       SFillTagColInfo* pTag = &pFillInfo->pTags[pCol->tagIndex];
       assert (pTag->col.colId == pCol->col.colId);
       memcpy(pTag->tagVal, pColData->pData, pCol->col.bytes);  // TODO not memcpy??
-    }
-  }
-}
-
-void taosFillCopyInputDataFromOneFilePage(SFillInfo* pFillInfo, const tFilePage* pInput) {
-  assert(pFillInfo->numOfRows == pInput->num);
-
-  for(int32_t i = 0; i < pFillInfo->numOfCols; ++i) {
-    SFillColInfo* pCol = &pFillInfo->pFillCol[i];
-
-    const char* data = pInput->data + pCol->col.offset * pInput->num;
-    if (pInput->num > pFillInfo->alloc) {
-      char* t = realloc(pFillInfo->pData[i], (size_t)(pCol->col.bytes * pInput->num));
-      assert(t != NULL);
-
-      pFillInfo->pData[i] = t;
-      pFillInfo->alloc = (int32_t)pInput->num;
-    }
-
-    memcpy(pFillInfo->pData[i], data, (size_t)(pCol->col.bytes * pInput->num));
-
-    if (TSDB_COL_IS_TAG(pCol->flag)/* || IS_VAR_DATA_TYPE(pCol->col.type)*/) {  // copy the tag value to tag value buffer
-      SFillTagColInfo* pTag = &pFillInfo->pTags[pCol->tagIndex];
-      assert (pTag->col.colId == pCol->col.colId);
-      memcpy(pTag->tagVal, data, pCol->col.bytes);  // TODO not memcpy??
     }
   }
 }

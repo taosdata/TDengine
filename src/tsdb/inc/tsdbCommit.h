@@ -40,6 +40,7 @@ int tsdbWriteBlockInfoImpl(SDFile *pHeadf, STable *pTable, SArray *pSupA, SArray
 int tsdbWriteBlockIdx(SDFile *pHeadf, SArray *pIdxA, void **ppBuf);
 int tsdbWriteBlockImpl(STsdbRepo *pRepo, STable *pTable, SDFile *pDFile, SDataCols *pDataCols, SBlock *pBlock,
                        bool isLast, bool isSuper, void **ppBuf, void **ppCBuf);
+int   tsdbApplyRtn(STsdbRepo *pRepo);
 
 static FORCE_INLINE int tsdbGetFidLevel(int fid, SRtn *pRtn) {
   if (fid >= pRtn->maxFid) {

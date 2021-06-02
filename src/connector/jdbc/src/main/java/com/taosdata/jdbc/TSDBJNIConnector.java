@@ -16,12 +16,12 @@
  */
 package com.taosdata.jdbc;
 
-import com.taosdata.jdbc.utils.TaosInfo;
-
 import java.nio.ByteBuffer;
 import java.sql.SQLException;
 import java.sql.SQLWarning;
 import java.util.List;
+
+import com.taosdata.jdbc.utils.TaosInfo;
 
 /**
  * JNI connector
@@ -276,23 +276,14 @@ public class TSDBJNIConnector {
     private native int validateCreateTableSqlImp(long connection, byte[] sqlBytes);
     
 	public long prepareStmt(String sql) throws SQLException {
-    	Long stmt = 0L;
-    	try {
-    	stmt = prepareStmtImp(sql.getBytes(), this.taos);
-    	} catch (Exception e) {
-            e.printStackTrace();
-            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_ENCODING);
-        }
-    	
-        if (stmt == TSDBConstants.JNI_CONNECTION_NULL) {
+    	Long stmt = prepareStmtImp(sql.getBytes(), this.taos);
+		if (stmt == TSDBConstants.JNI_TDENGINE_ERROR) {
+			throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_INVALID_SQL);
+		} else if (stmt == TSDBConstants.JNI_CONNECTION_NULL) {
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_JNI_CONNECTION_NULL);
-        }
-        
-        if (stmt == TSDBConstants.JNI_SQL_NULL) {
+        } else if (stmt == TSDBConstants.JNI_SQL_NULL) {
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_JNI_SQL_NULL);
-        }
-        
-        if (stmt == TSDBConstants.JNI_OUT_OF_MEMORY) {
+        } else if (stmt == TSDBConstants.JNI_OUT_OF_MEMORY) {
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_JNI_OUT_OF_MEMORY);
         }
         
@@ -309,6 +300,16 @@ public class TSDBJNIConnector {
 	}
     
     private native int setBindTableNameImp(long stmt, String name, long conn);
+    
+    public void setBindTableNameAndTags(long stmt, String tableName, int numOfTags, ByteBuffer tags, ByteBuffer typeList, ByteBuffer lengthList, ByteBuffer nullList) throws SQLException {
+    	int code = setTableNameTagsImp(stmt, tableName, numOfTags, tags.array(), typeList.array(), lengthList.array(), 
+    			nullList.array(), this.taos);
+    	if (code != TSDBConstants.JNI_SUCCESS) {
+    		throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNKNOWN, "failed to bind table name and corresponding tags");
+    	}
+    }
+    
+    private native int setTableNameTagsImp(long stmt, String name, int numOfTags, byte[] tags, byte[] typeList, byte[] lengthList, byte[] nullList, long conn);
     
     public void bindColumnDataArray(long stmt, ByteBuffer colDataList, ByteBuffer lengthList, ByteBuffer isNullList, int type, int bytes, int numOfRows,int columnIndex) throws SQLException {
     	int code = bindColDataImp(stmt, colDataList.array(), lengthList.array(), isNullList.array(), type, bytes, numOfRows, columnIndex, this.taos);

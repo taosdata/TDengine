@@ -88,6 +88,7 @@ struct STsdbRepo {
   SMemTable*      mem;
   SMemTable*      imem;
   STsdbFS*        fs;
+  SRtn            rtn;
   tsem_t          readyToCommit;
   pthread_mutex_t mutex;
   bool            repoLocked;

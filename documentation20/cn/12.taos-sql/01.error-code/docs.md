@@ -26,7 +26,7 @@
 | TSDB_CODE_COM_OUT_OF_MEMORY             |  0   |       0x0102       | "Out of memory"                              | -2147483390      |
 | TSDB_CODE_COM_INVALID_CFG_MSG           |  0   |       0x0103       | "Invalid config message"                     | -2147483389      |
 | TSDB_CODE_COM_FILE_CORRUPTED            |  0   |       0x0104       | "Data file corrupted"                        | -2147483388      |
-| TSDB_CODE_TSC_INVALID_SQL               |  0   |       0x0200       | "Invalid SQL statement"                      | -2147483136      |
+| TSDB_CODE_TSC_INVALID_OPERATION               |  0   |       0x0200       | "Invalid SQL statement"                      | -2147483136      |
 | TSDB_CODE_TSC_INVALID_QHANDLE           |  0   |       0x0201       | "Invalid qhandle"                            | -2147483135      |
 | TSDB_CODE_TSC_INVALID_TIME_STAMP        |  0   |       0x0202       | "Invalid combination of client/service time" | -2147483134      |
 | TSDB_CODE_TSC_INVALID_VALUE             |  0   |       0x0203       | "Invalid value in client"                    | -2147483133      |
