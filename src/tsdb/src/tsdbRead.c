@@ -368,40 +368,39 @@ static STsdbQueryHandle* tsdbQueryTablesImpl(STsdbRepo* tsdb, STsdbQueryCond* pC
     goto out_of_memory;
   }
 
-  assert(pCond != NULL && pCond->numOfCols > 0 && pMemRef != NULL);
+  assert(pCond != NULL && pMemRef != NULL);
   if (ASCENDING_TRAVERSE(pCond->order)) {
     assert(pQueryHandle->window.skey <= pQueryHandle->window.ekey);
   } else {
     assert(pQueryHandle->window.skey >= pQueryHandle->window.ekey);
   }
-
-  // allocate buffer in order to load data blocks from file
-  pQueryHandle->statis = calloc(pCond->numOfCols, sizeof(SDataStatis));
-  if (pQueryHandle->statis == NULL) {
-    goto out_of_memory;
-  }
-
-  pQueryHandle->pColumns = taosArrayInit(pCond->numOfCols, sizeof(SColumnInfoData));  // todo: use list instead of array?
-  if (pQueryHandle->pColumns == NULL) {
-    goto out_of_memory;
-  }
-
-  for (int32_t i = 0; i < pCond->numOfCols; ++i) {
-    SColumnInfoData  colInfo = {{0}, 0};
-
-    colInfo.info = pCond->colList[i];
-    colInfo.pData = calloc(1, EXTRA_BYTES + pQueryHandle->outputCapacity * pCond->colList[i].bytes);
-    if (colInfo.pData == NULL) {
+  if (pCond->numOfCols > 0) {
+    // allocate buffer in order to load data blocks from file
+    pQueryHandle->statis = calloc(pCond->numOfCols, sizeof(SDataStatis));
+    if (pQueryHandle->statis == NULL) {
       goto out_of_memory;
     }
-    taosArrayPush(pQueryHandle->pColumns, &colInfo);
-    pQueryHandle->statis[i].colId = colInfo.info.colId;
-  }
 
-  if (pCond->numOfCols > 0) {
+    pQueryHandle->pColumns =
+        taosArrayInit(pCond->numOfCols, sizeof(SColumnInfoData));  // todo: use list instead of array?
+    if (pQueryHandle->pColumns == NULL) {
+      goto out_of_memory;
+    }
+
+    for (int32_t i = 0; i < pCond->numOfCols; ++i) {
+      SColumnInfoData colInfo = {{0}, 0};
+
+      colInfo.info = pCond->colList[i];
+      colInfo.pData = calloc(1, EXTRA_BYTES + pQueryHandle->outputCapacity * pCond->colList[i].bytes);
+      if (colInfo.pData == NULL) {
+        goto out_of_memory;
+      }
+      taosArrayPush(pQueryHandle->pColumns, &colInfo);
+      pQueryHandle->statis[i].colId = colInfo.info.colId;
+    }
+
     pQueryHandle->defaultLoadColumn = getDefaultLoadColumns(pQueryHandle, true);
   }
-
   STsdbMeta* pMeta = tsdbGetMeta(tsdb);
   assert(pMeta != NULL);
 
@@ -2128,6 +2127,7 @@ int32_t tsdbGetFileBlocksDistInfo(TsdbQueryHandleT* queryHandle, STableBlockDist
   STsdbQueryHandle* pQueryHandle = (STsdbQueryHandle*) queryHandle;
 
   pTableBlockInfo->totalSize = 0;
+  pTableBlockInfo->totalRows = 0;
   STsdbFS* pFileHandle = REPO_FS(pQueryHandle->pTsdb);
 
   // find the start data block in file
@@ -2201,7 +2201,12 @@ int32_t tsdbGetFileBlocksDistInfo(TsdbQueryHandleT* queryHandle, STableBlockDist
         pTableBlockInfo->totalSize += pBlock[j].len;
 
         int32_t numOfRows = pBlock[j].numOfRows;
-        taosArrayPush(pTableBlockInfo->dataBlockInfos, &numOfRows);
+        pTableBlockInfo->totalRows += numOfRows;
+        if (numOfRows > pTableBlockInfo->maxRows) pTableBlockInfo->maxRows = numOfRows;
+        if (numOfRows < pTableBlockInfo->minRows) pTableBlockInfo->minRows = numOfRows;
+        int32_t  stepIndex = (numOfRows-1)/TSDB_BLOCK_DIST_STEP_ROWS;
+        SFileBlockInfo *blockInfo = (SFileBlockInfo*)taosArrayGet(pTableBlockInfo->dataBlockInfos, stepIndex);
+        blockInfo->numBlocksOfStep++;
       }
     }
   }

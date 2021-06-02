@@ -29,8 +29,8 @@ pipeline {
   agent none
   environment{
     
-      WK = '/var/lib/jenkins/workspace/TDinternal'
-      WKC= '/var/lib/jenkins/workspace/TDinternal/community'
+      WK = '/data/lib/jenkins/workspace/TDinternal'
+      WKC= '/data/lib/jenkins/workspace/TDinternal/community'
   }
 
   stages {

@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_TSCLOCALMERGE_H
-#define TDENGINE_TSCLOCALMERGE_H
+#ifndef TDENGINE_TSCGLOBALMERGE_H
+#define TDENGINE_TSCGLOBALMERGE_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -24,7 +24,7 @@ extern "C" {
 #include "qFill.h"
 #include "taosmsg.h"
 #include "tlosertree.h"
-#include "tsclient.h"
+#include "qExecutor.h"
 
 #define MAX_NUM_OF_SUBQUERY_RETRY 3
   
@@ -38,7 +38,7 @@ typedef struct SLocalDataSource {
   tFilePage      filePage;
 } SLocalDataSource;
 
-typedef struct SLocalMerger {
+typedef struct SGlobalMerger {
   SLocalDataSource     **pLocalDataSrc;
   int32_t                numOfBuffer;
   int32_t                numOfCompleted;
@@ -48,20 +48,22 @@ typedef struct SLocalMerger {
   tOrderDescriptor      *pDesc;
   tExtMemBuffer        **pExtMemBuffer;    // disk-based buffer
   char                  *buf;              // temp buffer
-} SLocalMerger;
+} SGlobalMerger;
+
+struct SSqlObj;
 
 typedef struct SRetrieveSupport {
   tExtMemBuffer **  pExtMemBuffer;     // for build loser tree
   tOrderDescriptor *pOrderDescriptor;
   int32_t           subqueryIndex;     // index of current vnode in vnode list
-  SSqlObj *         pParentSql;
+  struct SSqlObj   *pParentSql;
   tFilePage *       localBuffer;       // temp buffer, there is a buffer for each vnode to
   uint32_t          numOfRetry;        // record the number of retry times
 } SRetrieveSupport;
 
-int32_t tscLocalReducerEnvCreate(SQueryInfo* pQueryInfo, tExtMemBuffer ***pMemBuffer, int32_t numOfSub, tOrderDescriptor **pDesc, uint32_t nBufferSize, int64_t id);
+int32_t tscCreateGlobalMergerEnv(SQueryInfo* pQueryInfo, tExtMemBuffer ***pMemBuffer, int32_t numOfSub, tOrderDescriptor **pDesc, uint32_t nBufferSize, int64_t id);
 
-void tscLocalReducerEnvDestroy(tExtMemBuffer **pMemBuffer, tOrderDescriptor *pDesc, int32_t numOfVnodes);
+void tscDestroyGlobalMergerEnv(tExtMemBuffer **pMemBuffer, tOrderDescriptor *pDesc, int32_t numOfVnodes);
 
 int32_t saveToBuffer(tExtMemBuffer *pMemoryBuf, tOrderDescriptor *pDesc, tFilePage *pPage, void *data,
                      int32_t numOfRows, int32_t orderType);
@@ -71,13 +73,13 @@ int32_t tscFlushTmpBuffer(tExtMemBuffer *pMemoryBuf, tOrderDescriptor *pDesc, tF
 /*
  * create local reducer to launch the second-stage reduce process at client site
  */
-int32_t tscCreateLocalMerger(tExtMemBuffer **pMemBuffer, int32_t numOfBuffer, tOrderDescriptor *pDesc,
-                          SQueryInfo *pQueryInfo, SLocalMerger **pMerger, int64_t id);
+int32_t tscCreateGlobalMerger(tExtMemBuffer **pMemBuffer, int32_t numOfBuffer, tOrderDescriptor *pDesc,
+                          SQueryInfo *pQueryInfo, SGlobalMerger **pMerger, int64_t id);
 
-void tscDestroyLocalMerger(SLocalMerger* pLocalMerger);
+void tscDestroyGlobalMerger(SGlobalMerger* pMerger);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif  // TDENGINE_TSCLOCALMERGE_H
+#endif  // TDENGINE_TSCGLOBALMERGE_H

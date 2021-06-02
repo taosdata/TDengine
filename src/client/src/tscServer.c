@@ -15,15 +15,15 @@
 
 #include "os.h"
 #include "tcmdtype.h"
+#include "tlockfree.h"
 #include "trpc.h"
-#include "tscLocalMerge.h"
+#include "tscGlobalmerge.h"
 #include "tscLog.h"
 #include "tscProfile.h"
 #include "tscUtil.h"
-#include "tschemautil.h"
+#include "qTableMeta.h"
 #include "tsclient.h"
 #include "ttimer.h"
-#include "tlockfree.h"
 #include "qPlan.h"
 
 int (*tscBuildMsg[TSDB_SQL_MAX])(SSqlObj *pSql, SSqlInfo *pInfo) = {0};
@@ -477,7 +477,6 @@ int doBuildAndSendMsg(SSqlObj *pSql) {
       pCmd->command == TSDB_SQL_INSERT ||
       pCmd->command == TSDB_SQL_CONNECT ||
       pCmd->command == TSDB_SQL_HB ||
-//      pCmd->command == TSDB_SQL_META ||
       pCmd->command == TSDB_SQL_STABLEVGROUP) {
     pRes->code = tscBuildMsg[pCmd->command](pSql, NULL);
   }
@@ -857,6 +856,7 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   pQueryMsg->simpleAgg        = query.simpleAgg;
   pQueryMsg->pointInterpQuery = query.pointInterpQuery;
   pQueryMsg->needReverseScan  = query.needReverseScan;
+  pQueryMsg->stateWindow      = query.stateWindow;
 
   pQueryMsg->numOfTags        = htonl(numOfTags);
   pQueryMsg->sqlstrLen        = htonl(sqlLen);
@@ -1598,7 +1598,7 @@ int tscProcessRetrieveLocalMergeRsp(SSqlObj *pSql) {
     return code;
   }
 
-  if (pRes->pLocalMerger == NULL) { // no result from subquery, so abort here directly.
+  if (pRes->pMerger == NULL) { // no result from subquery, so abort here directly.
     (*pSql->fp)(pSql->param, pSql, pRes->numOfRows);
     return code;
   }
@@ -1615,15 +1615,7 @@ int tscProcessRetrieveLocalMergeRsp(SSqlObj *pSql) {
     taosArrayPush(group, &tableKeyInfo);
     taosArrayPush(tableGroupInfo.pGroupList, &group);
 
-    // todo remove it
-    SExprInfo* list = calloc(tscNumOfExprs(pQueryInfo), sizeof(SExprInfo));
-    for(int32_t i = 0; i < tscNumOfExprs(pQueryInfo); ++i) {
-      SExprInfo* pExprInfo = tscExprGet(pQueryInfo, i);
-      list[i] = *pExprInfo;
-    }
-
-    pQueryInfo->pQInfo = createQInfoFromQueryNode(pQueryInfo, list, &tableGroupInfo, NULL, NULL, pRes->pLocalMerger, MERGE_STAGE);
-    tfree(list);
+    pQueryInfo->pQInfo = createQInfoFromQueryNode(pQueryInfo, &tableGroupInfo, NULL, NULL, pRes->pMerger, MERGE_STAGE);
   }
 
   uint64_t localQueryId = 0;
@@ -2402,8 +2394,8 @@ static int32_t getTableMetaFromMnode(SSqlObj *pSql, STableMetaInfo *pTableMetaIn
     char *pMsg = (char *)pInfoMsg + sizeof(STableInfoMsg);
 
     // tag data exists
-    if (autocreate && pSql->cmd.tagData.dataLen != 0) {
-      pMsg = serializeTagData(&pSql->cmd.tagData, pMsg);
+    if (autocreate && pSql->cmd.insertParam.tagData.dataLen != 0) {
+      pMsg = serializeTagData(&pSql->cmd.insertParam.tagData, pMsg);
     }
 
     pNew->cmd.payloadLen = (int32_t)(pMsg - (char*)pInfoMsg);
@@ -2477,8 +2469,8 @@ int32_t getMultiTableMetaFromMnode(SSqlObj *pSql, SArray* pNameList, SArray* pVg
   pNew->fp = fp;
   pNew->param = (void *)pSql->self;
 
-  tscDebug("0x%"PRIx64" metaRid from %" PRId64 " to %" PRId64 , pSql->self, pSql->metaRid, pNew->self);
-
+  tscDebug("0x%"PRIx64" metaRid from 0x%" PRIx64 " to 0x%" PRIx64 , pSql->self, pSql->metaRid, pNew->self);
+  
   pSql->metaRid = pNew->self;
   int32_t code = tscBuildAndSendRequest(pNew, NULL);
   if (code == TSDB_CODE_SUCCESS) {

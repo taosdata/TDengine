@@ -141,6 +141,7 @@ static SKeyword keywordTable[] = {
     {"VARIABLE",     TK_VARIABLE},
     {"INTERVAL",     TK_INTERVAL},
     {"SESSION",      TK_SESSION},
+    {"STATE_WINDOW", TK_STATE_WINDOW},
     {"FILL",         TK_FILL},
     {"SLIDING",      TK_SLIDING},
     {"ORDER",        TK_ORDER},
@@ -672,4 +673,16 @@ void taosCleanupKeywordsTable() {
   if (m != NULL && atomic_val_compare_exchange_ptr(&keywordHashTable, m, 0) == m) {
     taosHashCleanup(m);
   }
+}
+
+SStrToken taosTokenDup(SStrToken* pToken, char* buf, int32_t len) {
+  assert(pToken != NULL && buf != NULL);
+  SStrToken token = *pToken;
+  token.z = buf;
+
+  assert(len > token.n);
+  strncpy(token.z, pToken->z, pToken->n);
+  token.z[token.n] = 0;
+
+  return token;
 }
