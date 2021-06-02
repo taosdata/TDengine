@@ -27,7 +27,7 @@ for:
 
     build_script:
       - cd build
-      - cmake -G "NMake Makefiles" ..
+      - cmake -G "NMake Makefiles" .. -DBUILD_JDBC=false
       - nmake install
   -
     matrix:
