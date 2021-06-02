@@ -54,8 +54,9 @@ class TwoClients:
         else:
             tdLog.info("taosd found in %s" % buildPath)
         binPath = buildPath+ "/build/bin/"
-
-        # query data from cluster'db
+        walFilePath = "/var/lib/taos/mnode_bak/wal/"
+        
+        # new taos client
         conn1 = taos.connect(host=self.host, user=self.user, password=self.password, config=self.config )
         print(conn1)
         cur1 = conn1.cursor()
@@ -95,13 +96,14 @@ class TwoClients:
         # stop taosd and compact wal file
         os.system("ps -ef |grep taosd |grep -v 'grep' |awk '{print $2}'|xargs kill -9")
         sleep(2)
-        os.system("nohup taosd  --compact-mnode-wal  -c /etc/taos/taos.cfg & ")
+        os.system("nohup taosd  --compact-mnode-wal  -c /etc/taos & ")
         sleep(5)
         os.system("nohup /usr/bin/taosd > /dev/null 2>&1 &")
         sleep(4)
         tdSql.execute("reset query cache")
         query_pid2 = int(subprocess.getstatusoutput('ps aux|grep taosd |grep -v "grep"|awk \'{print $2}\'')[1])
         print(query_pid2)
+        assert os.path.exists(walFilePath) , "%s is not generated " % walFilePath    
 
         # use new wal file to start up tasod 
         tdSql.execute("use db2")
