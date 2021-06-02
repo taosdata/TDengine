@@ -184,7 +184,7 @@ class TDTestCase:
             tdSql.execute("create table t%d (ts timestamp, i int)"%i)
             tdSql.execute("insert into t%d values(%d,11)(%d,12)"%(i,ts,ts+1))
         tdSql.query("select t1.ts from t0,t1 where t0.ts = t1.ts")
-        tdSql.checkData(0,0,'2018-10-03 06:38:05.000000')
+        tdSql.checkData(0,0,'2018-10-03 14:38:05.000000')
 
     def stop(self):
         tdSql.close()
