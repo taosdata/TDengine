@@ -23,7 +23,7 @@ import threading
  
 class TwoClients:
     def initConnection(self):
-        self.host = "chenhaoran01"
+        self.host = "chenhaoran02"
         self.user = "root"
         self.password = "taosdata"
         self.config = "/etc/taos/"     
@@ -61,34 +61,61 @@ class TwoClients:
         cur1 = conn1.cursor()
         tdSql.init(cur1, True)
         # tdSql.init(cur2, True)
+
+        # new db and insert data
+        os.system("rm -rf  /var/lib/taos/mnode_bak/")
+        os.system("rm -rf  /var/lib/taos/mnode_temp/")
+        tdSql.execute("drop database if exists db2")
         os.system("%staosdemo -f wal/insertDataDb1.json -y " % binPath)
         tdSql.execute("drop database if exists db1") 
         os.system("%staosdemo -f wal/insertDataDb2.json -y " % binPath)
         tdSql.execute("drop table if exists db2.stb0") 
         os.system("%staosdemo -f wal/insertDataDb2Newstab.json -y " % binPath)
+        query_pid1 = int(subprocess.getstatusoutput('ps aux|grep taosd |grep -v "grep"|awk \'{print $2}\'')[1])
+        print(query_pid1)
+        tdSql.execute("use db2")
+        tdSql.execute("drop table if exists stb1_0")
+        tdSql.execute("drop table if exists stb1_1")
+        tdSql.execute("insert into stb0_0 values(1614218412000,8637,78.861045,'R','bf3')(1614218422000,8637,98.861045,'R','bf3')")
         tdSql.execute("alter table db2.stb0 add column col4 int")
         tdSql.execute("alter table db2.stb0 drop column col2")
-        os.system("ps -ef |grep taosd |grep -v 'grep' |awk '{print $2}'|xargs kill -9")
-        os.system("nohup taosd  --compact-mnode-wal  & ")
-        sleep(5)
-        os.system("nohup  /usr/bin/taosd > /dev/null 2>&1 &")
-        sleep(10)
+        tdSql.execute("alter table db2.stb0  add tag t3 int")        
+        tdSql.execute("alter table db2.stb0 drop tag t1")
+        tdSql.execute("create table  if not exists stb2_0 (ts timestamp, col0 int, col1 float)  ")
+        tdSql.execute("insert into stb2_0 values(1614218412000,8637,78.861045)")
+        tdSql.execute("alter table stb2_0 add column col2 binary(4)")
+        tdSql.execute("alter table stb2_0 drop column col1")
+        tdSql.execute("insert into stb2_0 values(1614218422000,8638,'R')")
+        
         conn2 = taos.connect(host=self.host, user=self.user, password=self.password, config=self.config )
         print(conn2)
         cur2 = conn2.cursor()
         tdSql.init(cur2, True)
+
+        # stop taosd and compact wal file
+        os.system("ps -ef |grep taosd |grep -v 'grep' |awk '{print $2}'|xargs kill -9")
+        sleep(2)
+        os.system("nohup taosd  --compact-mnode-wal  -c /etc/taos/taos.cfg & ")
+        sleep(5)
+        os.system("nohup /usr/bin/taosd > /dev/null 2>&1 &")
+        sleep(4)
+        tdSql.execute("reset query cache")
+        query_pid2 = int(subprocess.getstatusoutput('ps aux|grep taosd |grep -v "grep"|awk \'{print $2}\'')[1])
+        print(query_pid2)
+
+        # use new wal file to start up tasod 
         tdSql.execute("use db2")
         tdSql.query("select count (tbname) from stb0")
         tdSql.checkData(0, 0, 1)
         tdSql.query("select count (tbname) from stb1")
+        tdSql.checkRows(0)
+        tdSql.query("select count(*) from stb0_0")
         tdSql.checkData(0, 0, 2)
-        tdSql.query("select count(*) from stb00_0")
-        tdSql.checkData(0, 0, 1)
         tdSql.query("select count(*) from stb0")
-        tdSql.checkData(0, 0, 1)
-        tdSql.query("select count(*) from stb1")
-        tdSql.checkData(0, 0, 20)
-       
+        tdSql.checkData(0, 0, 2)
+        tdSql.query("select count(*) from stb2_0")
+        tdSql.checkData(0, 0, 2)
+   
 clients = TwoClients()
 clients.initConnection()
 # clients.getBuildPath()

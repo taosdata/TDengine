@@ -11,6 +11,7 @@
 
 # -*- coding: utf-8 -*-
 
+from distutils.log import debug
 import sys
 import os
 import taos
@@ -18,6 +19,7 @@ from util.log import *
 from util.cases import *
 from util.sql import *
 from util.dnodes import *
+import subprocess
 
 
 class TDTestCase:
@@ -27,7 +29,7 @@ class TDTestCase:
         
     def getBuildPath(self):
         selfPath = os.path.dirname(os.path.realpath(__file__))
-
+        
         if ("community" in selfPath):
             projPath = selfPath[:selfPath.find("community")]
         else:
@@ -47,11 +49,13 @@ class TDTestCase:
             tdLog.exit("taosd not found!")
         else:
             tdLog.info("taosd found in %s" % buildPath)
-        binPath = buildPath+ "/build/bin/"
 
+        binPath = buildPath+ "/build/bin/"
+        testPath = buildPath[:buildPath.find("debug")]
+        
         #new db and insert data
-        os.system("rm -rf  /home/chr/TDengine/sim/dnode1/data/mnode_tmp/")
-        os.system("rm -rf  /home/chr/TDengine/sim/dnode1/data/mnode_bak/")
+        os.system("rm -rf  %s/sim/dnode1/data/mnode_tmp/" % testPath)
+        os.system("rm -rf  %s/sim/dnode1/data/mnode_bak/" % testPath)
         tdSql.execute("drop database if exists db2")
         os.system("%staosdemo -f wal/insertDataDb1.json -y " % binPath)
         tdSql.execute("drop database if exists db1") 
@@ -73,23 +77,19 @@ class TDTestCase:
         tdSql.execute("alter table stb2_0 add column col2 binary(4)")
         tdSql.execute("alter table stb2_0 drop column col1")
         tdSql.execute("insert into stb2_0 values(1614218422000,8638,'R')")
-
         # stop taosd and compact wal file
-        os.system("ps -ef |grep taosd |grep -v 'grep' |awk '{print $2}'|xargs kill -9")
-        sleep(2)
-        # os.system("nohup taosd  --compact-mnode-wal  -c /home/chr/TDengine/sim/dnode1/cfg/ & ")
-        sleep(5)
-        os.system("nohup /home/chr/TDengine/debug/build/bin/taosd -c /home/chr/TDengine/sim/dnode1/cfg > /dev/null 2>&1 &")
+        tdDnodes.stop(1)
+        sleep(10)
+        os.system("nohup %s/taosd  --compact-mnode-wal  -c %s/sim/dnode1/cfg/ & " %(binPath,testPath) )
+        # os.system("nohup taosd  --compact-mnode-wal  -c %s/sim/dnode1/cfg/ & " % testPath )
+        # tdDnodes.start(1)
+        os.system("nohup %s/taosd -c %s/sim/dnode1/cfg > /dev/null 2>&1 &" %(binPath,testPath) )
         sleep(4)
         tdSql.execute("reset query cache")
         query_pid2 = int(subprocess.getstatusoutput('ps aux|grep taosd |grep -v "grep"|awk \'{print $2}\'')[1])
         print(query_pid2)
 
         # use new wal file to start up tasod 
-        # conn1 = taos.connect(host="chenhaoran02", user="root", password="taosdata", config="/home/chr/TDengine/sim/dnode1/cfg/" )
-        # cur1 = conn1.cursor()
-        # tdSql.init(cur1, True)
-
         tdSql.execute("use db2")
         tdSql.query("select count (tbname) from stb0")
         tdSql.checkData(0, 0, 1)
