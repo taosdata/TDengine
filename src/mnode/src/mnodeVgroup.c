@@ -121,7 +121,7 @@ static int32_t mnodeVgroupActionDelete(SSdbRow *pRow) {
   SVgObj *pVgroup = pRow->pObj;
 
   if (pVgroup->pDb == NULL) {
-    mError("vgId:%d, db:%s is not exist while insert into hash", pVgroup->vgId, pVgroup->dbName);
+    mError("vgId:%d, db:%s is not exist while delete from hash", pVgroup->vgId, pVgroup->dbName);
     return TSDB_CODE_MND_VGROUP_NOT_EXIST;
   }
 
@@ -1301,4 +1301,31 @@ void mnodeSetVgidVer(int8_t *cver, uint64_t iver) {
   cver[0] = (int8_t)((int32_t)(iver % 1000000) / 10000);
   cver[1] = (int8_t)((int32_t)(iver % 100000) / 100);
   cver[2] = (int8_t)(iver % 100);
+}
+
+int32_t mnodeCompactVgroups() {
+  void *pIter = NULL;
+  SVgObj *pVgroup = NULL;
+
+  mInfo("start to compact vgroups table...");
+
+  while (1) {
+    pIter = mnodeGetNextVgroup(pIter, &pVgroup);
+    if (pVgroup == NULL) break;
+
+    SSdbRow row = {
+      .type     = SDB_OPER_GLOBAL,
+      .pTable   = tsVgroupSdb,
+      .pObj     = pVgroup,
+      .rowSize  = sizeof(SVgObj),
+    };
+
+    mInfo("compact vgroups %d", pVgroup->vgId);
+    
+    sdbInsertCompactRow(&row);
+  }
+
+  mInfo("end to compact vgroups table...");
+
+  return 0; 
 }

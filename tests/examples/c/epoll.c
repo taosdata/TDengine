@@ -20,7 +20,7 @@
 // monitor and compare : glances
 
 #ifdef __APPLE__
-#include "eok.h"
+#include "osEok.h"
 #else // __APPLE__
 #include <sys/epoll.h>
 #endif // __APPLE__

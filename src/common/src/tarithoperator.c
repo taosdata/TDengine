@@ -2569,6 +2569,7 @@ _arithmetic_operator_fn_t getArithmeticOperatorFn(int32_t arithmeticOptr) {
     case TSDB_BINARY_OP_REMAINDER:
       return vectorRemainder;
     default:
+      assert(0);
       return NULL;
   }
 }

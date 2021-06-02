@@ -59,6 +59,11 @@ IF (TD_LINUX_64)
   MESSAGE(STATUS "linux64 is defined")
   SET(COMMON_FLAGS "-std=gnu99 -Wall -Werror -fPIC -gdwarf-2 -msse4.2 -D_FILE_OFFSET_BITS=64 -D_LARGE_FILE")
   ADD_DEFINITIONS(-DUSE_LIBICONV)
+
+  IF (JEMALLOC_ENABLED)
+    ADD_DEFINITIONS(-DTD_JEMALLOC_ENABLED -I${CMAKE_BINARY_DIR}/build/include -L${CMAKE_BINARY_DIR}/build/lib -Wl,-rpath,${CMAKE_BINARY_DIR}/build/lib -ljemalloc)
+  ENDIF ()
+
 ENDIF ()
 
 IF (TD_LINUX_32)
@@ -157,7 +162,7 @@ IF (TD_WINDOWS)
     IF (MSVC AND (MSVC_VERSION GREATER_EQUAL 1900))
       SET(COMMON_FLAGS "${COMMON_FLAGS} /Wv:18")
     ENDIF ()
-    SET(DEBUG_FLAGS "/Zi /W3 /GL")
+    SET(DEBUG_FLAGS "/fsanitize=thread /fsanitize=leak /fsanitize=memory /fsanitize=undefined /fsanitize=hwaddress /Zi /W3 /GL")
     SET(RELEASE_FLAGS "/W0 /O3 /GL")
   ENDIF ()
 

@@ -13,6 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "os.h"
 #include "tarray.h"
 
 void* taosArrayInit(size_t size, size_t elemSize) {
@@ -55,7 +56,7 @@ static int32_t taosArrayResize(SArray* pArray) {
   return 0;
 }
 
-void* taosArrayPushBatch(SArray* pArray, const void* pData, int nEles) {
+void* taosArrayAddBatch(SArray* pArray, const void* pData, int nEles) {
   if (pArray == NULL || pData == NULL) {
     return NULL;
   }
@@ -79,6 +80,10 @@ void* taosArrayPushBatch(SArray* pArray, const void* pData, int nEles) {
 
   pArray->size += nEles;
   return dst;
+}
+
+void* taosArrayAddAll(SArray* pArray, const SArray* pInput) {
+  return taosArrayAddBatch(pArray, pInput->pData, (int32_t) taosArrayGetSize(pInput));
 }
 
 void* taosArrayPop(SArray* pArray) {
@@ -109,6 +114,11 @@ void* taosArrayGetLast(const SArray* pArray) {
 }
 
 size_t taosArrayGetSize(const SArray* pArray) { return pArray->size; }
+
+void taosArraySetSize(SArray* pArray, size_t size) {
+  assert(size <= pArray->capacity);
+  pArray->size = size;
+}
 
 void* taosArrayInsert(SArray* pArray, size_t index, void* pData) {
   if (pArray == NULL || pData == NULL) {

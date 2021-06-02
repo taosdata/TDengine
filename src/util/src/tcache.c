@@ -613,7 +613,7 @@ void doCleanupDataCache(SCacheObj *pCacheObj) {
 
   // todo memory leak if there are object with refcount greater than 0 in hash table?
   taosHashCleanup(pCacheObj->pHashTable);
-  taosTrashcanEmpty(pCacheObj, true);
+  taosTrashcanEmpty(pCacheObj, false);
 
   __cache_lock_destroy(pCacheObj);
   
@@ -661,11 +661,7 @@ void* taosCacheTimedRefresh(void *handle) {
 
   int64_t count = 0;
   while(1) {
-#if defined LINUX
-    usleep(500*1000);
-#else
     taosMsleep(500);
-#endif
 
     // check if current cache object will be deleted every 500ms.
     if (pCacheObj->deleting) {

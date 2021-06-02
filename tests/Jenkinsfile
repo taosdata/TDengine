@@ -21,6 +21,7 @@ def pre_test(){
     cmake .. > /dev/null
     make > /dev/null
     make install > /dev/null
+    pip3 install ${WKC}/src/connector/python
     '''
     return 1
 }
@@ -28,15 +29,15 @@ pipeline {
   agent none
   environment{
     
-      WK = '/var/lib/jenkins/workspace/TDinternal'
-      WKC= '/var/lib/jenkins/workspace/TDinternal/community'
+      WK = '/data/lib/jenkins/workspace/TDinternal'
+      WKC= '/data/lib/jenkins/workspace/TDinternal/community'
   }
 
   stages {
       stage('Parallel test stage') {
       parallel {
         stage('pytest') {
-          agent{label '184'}
+          agent{label 'slad1'}
           steps {
             pre_test()
             sh '''
@@ -61,7 +62,7 @@ pipeline {
         }
 
         stage('test_crash_gen') {
-          agent{label "185"}
+          agent{label "slad2"}
           steps {
             pre_test()
             sh '''
@@ -148,7 +149,7 @@ pipeline {
         }
 
         stage('test_valgrind') {
-          agent{label "186"}
+          agent{label "slad3"}
 
           steps {
             pre_test()

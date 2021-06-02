@@ -18,7 +18,6 @@ import java.text.SimpleDateFormat;
 public class RestfulResultSetTest {
 
     private static final String host = "127.0.0.1";
-
     private static Connection conn;
     private static Statement stmt;
     private static ResultSet rs;
@@ -95,7 +94,8 @@ public class RestfulResultSetTest {
     @Test
     public void getBigDecimal() throws SQLException {
         BigDecimal f1 = rs.getBigDecimal("f1");
-        Assert.assertEquals(1609430400000l, f1.longValue());
+        long actual = (f1 == null) ? 0 : f1.longValue();
+        Assert.assertEquals(1609430400000l, actual);
 
         BigDecimal f2 = rs.getBigDecimal("f2");
         Assert.assertEquals(1, f2.intValue());
@@ -119,7 +119,7 @@ public class RestfulResultSetTest {
     @Test
     public void getBytes() throws SQLException {
         byte[] f1 = rs.getBytes("f1");
-        Assert.assertEquals("2021-01-01 00:00:00.0", new String(f1));
+        Assert.assertEquals("2021-01-01 00:00:00.000", new String(f1));
 
         byte[] f2 = rs.getBytes("f2");
         Assert.assertEquals(1, Ints.fromByteArray(f2));

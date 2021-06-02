@@ -13,6 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <texpr.h>
 #include "os.h"
 
 #include "texpr.h"
@@ -465,27 +466,29 @@ tExprNode* exprTreeFromTableName(const char* tbnameCond) {
   return expr;
 }
 
-tExprNode* exprdup(tExprNode* pTree) {
-  if (pTree == NULL) {
+tExprNode* exprdup(tExprNode* pNode) {
+  if (pNode == NULL) {
     return NULL;
   }
 
-  tExprNode* pNode = calloc(1, sizeof(tExprNode));
-  if (pTree->nodeType == TSQL_NODE_EXPR) {
-    tExprNode* pLeft  = exprdup(pTree->_node.pLeft);
-    tExprNode* pRight = exprdup(pTree->_node.pRight);
+  tExprNode* pCloned = calloc(1, sizeof(tExprNode));
+  if (pNode->nodeType == TSQL_NODE_EXPR) {
+    tExprNode* pLeft  = exprdup(pNode->_node.pLeft);
+    tExprNode* pRight = exprdup(pNode->_node.pRight);
 
-    pNode->nodeType     = TSQL_NODE_EXPR;
-    pNode->_node.pLeft  = pLeft;
-    pNode->_node.pRight = pRight;
-  } else if (pTree->nodeType == TSQL_NODE_VALUE) {
-    pNode->pVal = calloc(1, sizeof(tVariant));
-    tVariantAssign(pNode->pVal, pTree->pVal);
-  } else if (pTree->nodeType == TSQL_NODE_COL) {
-    pNode->pSchema = calloc(1, sizeof(SSchema));
-    *pNode->pSchema = *pTree->pSchema;
+    pCloned->_node.pLeft  = pLeft;
+    pCloned->_node.pRight = pRight;
+    pCloned->_node.optr  = pNode->_node.optr;
+    pCloned->_node.hasPK = pNode->_node.hasPK;
+  } else if (pNode->nodeType == TSQL_NODE_VALUE) {
+    pCloned->pVal = calloc(1, sizeof(tVariant));
+    tVariantAssign(pCloned->pVal, pNode->pVal);
+  } else if (pNode->nodeType == TSQL_NODE_COL) {
+    pCloned->pSchema = calloc(1, sizeof(SSchema));
+    *pCloned->pSchema = *pNode->pSchema;
   }
 
-  return pNode;
+  pCloned->nodeType = pNode->nodeType;
+  return pCloned;
 }
 

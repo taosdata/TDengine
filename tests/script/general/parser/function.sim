@@ -24,6 +24,9 @@ sql drop database if exists $db
 sql create database $db keep 36500
 sql use $db
 
+print =====================================> td-4481
+sql create database $db
+
 print =====================================> test case for twa in single block
 
 sql create table t1 (ts timestamp, k float);
@@ -390,6 +393,19 @@ sql insert into tx values(1500000001000, 0);
 sql select sum(k) from tx interval(1d) sliding(1h);
 if $rows != 24 then
   print expect 24, actual:$rows
+  return -1
+endi
+
+print ========================> TD-3948
+sql drop table if exists meters
+sql create stable meters (ts timestamp, current float, voltage int, phase float) tags (location binary(64), groupId int);
+sql_error insert into td3948Err1(phase) using meters tags ("Beijng.Chaoyang", 2) (ts, current) values (now, 10.2);
+sql_error insert into td3948Err2(phase, voltage) using meters tags ("Beijng.Chaoyang", 2) (ts, current) values (now, 10.2);
+sql_error insert into td3948Err3(phase, current) using meters tags ("Beijng.Chaoyang", 2) (ts, current) values (now, 10.2);
+sql insert into td3948 using meters tags ("Beijng.Chaoyang", 2) (ts, current) values (now, 10.2);
+sql select count(ts) from td3948;
+if $rows != 1 then
+  print expect 1, actual:$rows
   return -1
 endi
 
@@ -796,3 +812,5 @@ endi
 if $data00 != 1 then
   return -1
 endi
+
+print ====================> TODO stddev + normal column filter

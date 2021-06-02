@@ -158,7 +158,7 @@ if $dnode4Vtatus != offline then
   sleep 2000
   goto wait_dnode4_vgroup_offline
 endi
-if $dnode3Vtatus != master then
+if $dnode3Vtatus != unsynced then
   sleep 2000
   goto wait_dnode4_vgroup_offline
 endi

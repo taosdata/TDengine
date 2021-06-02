@@ -28,7 +28,7 @@
 #include <stdbool.h>
 #include "qSqlparser.h"
 #include "tcmdtype.h"
-#include "tstoken.h"
+#include "ttoken.h"
 #include "ttokendef.h"
 #include "tutil.h"
 #include "tvariant.h"
@@ -93,6 +93,10 @@ cpxName(A) ::= DOT ids(Y).   {A = Y; A.n += 1;    }
 cmd ::= SHOW CREATE TABLE ids(X) cpxName(Y).    {
    X.n += Y.n;
    setDCLSqlElems(pInfo, TSDB_SQL_SHOW_CREATE_TABLE, 1, &X);
+}    
+cmd ::= SHOW CREATE STABLE ids(X) cpxName(Y).    {
+   X.n += Y.n;
+   setDCLSqlElems(pInfo, TSDB_SQL_SHOW_CREATE_STABLE, 1, &X);
 }    
 
 cmd ::= SHOW CREATE DATABASE ids(X). {
@@ -452,8 +456,8 @@ tagitem(A) ::= PLUS(X) FLOAT(Y).  {
 //////////////////////// The SELECT statement /////////////////////////////////
 %type select {SSqlNode*}
 %destructor select {destroySqlNode($$);}
-select(A) ::= SELECT(T) selcollist(W) from(X) where_opt(Y) interval_opt(K) session_option(H) fill_opt(F) sliding_opt(S) groupby_opt(P) orderby_opt(Z) having_opt(N) slimit_opt(G) limit_opt(L). {
-  A = tSetQuerySqlNode(&T, W, X, Y, P, Z, &K, &H, &S, F, &L, &G, N);
+select(A) ::= SELECT(T) selcollist(W) from(X) where_opt(Y) interval_opt(K) session_option(H) windowstate_option(D) fill_opt(F) sliding_opt(S) groupby_opt(P) orderby_opt(Z) having_opt(N) slimit_opt(G) limit_opt(L). {
+  A = tSetQuerySqlNode(&T, W, X, Y, P, Z, &K, &H, &D, &S, F, &L, &G, N);
 }
 
 select(A) ::= LP select(B) RP. {A = B;}
@@ -471,7 +475,7 @@ cmd ::= union(X). { setSqlInfo(pInfo, X, NULL, TSDB_SQL_SELECT); }
 // select client_version()
 // select server_state()
 select(A) ::= SELECT(T) selcollist(W). {
-  A = tSetQuerySqlNode(&T, W, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+  A = tSetQuerySqlNode(&T, W, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL);
 }
 
 // selcollist is a list of expressions that are to become the return
@@ -508,7 +512,13 @@ distinct(X) ::= .            { X.n = 0;}
 %type from {SRelationInfo*}
 %destructor from {destroyRelationInfo($$);}
 from(A) ::= FROM tablelist(X).                 {A = X;}
-from(A) ::= FROM LP union(Y) RP.               {A = setSubquery(NULL, Y);}
+from(A) ::= FROM sub(X).                       {A = X;}
+
+%type sub {SRelationInfo*}
+%destructor sub {destroyRelationInfo($$);}
+sub(A)  ::= LP union(Y) RP.                    {A = addSubqueryElem(NULL, Y, NULL);}
+sub(A)  ::= LP union(Y) RP ids(Z).             {A = addSubqueryElem(NULL, Y, &Z);}
+sub(A)  ::= sub(X) COMMA LP union(Y) RP ids(Z).{A = addSubqueryElem(X, Y, &Z);}
 
 %type tablelist {SRelationInfo*}
 %destructor tablelist {destroyRelationInfo($$);}
@@ -548,6 +558,11 @@ session_option(X) ::= SESSION LP ids(V) cpxName(Z) COMMA tmvar(Y) RP.    {
    X.col = V;
    X.gap = Y;
 }
+%type windowstate_option {SWindowStateVal}
+windowstate_option(X) ::= .                                                  {X.col.n = 0;}
+windowstate_option(X) ::= STATE_WINDOW LP ids(V) RP.                       {
+   X.col = V;
+}  
 
 %type fill_opt {SArray*}
 %destructor fill_opt {taosArrayDestroy($$);}
