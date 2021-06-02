@@ -70,31 +70,51 @@ class TDTestCase:
         binPath = buildPath+ "/build/bin/"  
 
         #comp is at 14
+        #check disk usage when comp=2
         tdSql.query('show databases')
+        tdSql.execute('alter database db blocks 3') # minimize the data in cache
         tdSql.checkData(0,14,2)
         os.system("%staosdemo -f tools/taosdemoAllTest/manual_block1_comp.json" % binPath)
-        tdDnodes.stop(1)
         print("default location is at /home/bryan/Documents/Github/TDengine/sim/dnode1/data/vnode")
+        print('comp = 2')
         input("please check disk usage for taosd. After checking, press enter")
-
+        
+        #removing all data file
         os.system(f'sudo rm -rf {dnodePath}/data/* {dnodePath}/log/*')
         #print(f'rm -rf {dnodePath}/data/* {dnodePath}/log/*') #for showing the command ran
         input("please check if the pervious data is being deleted. Then, press enter")
-        tdDnodes.start(1)
+
+        #check disk usage when comp=0
         tdSql.prepare()
         tdSql.query('show databases')
         tdSql.checkData(0,14,2)
         tdSql.execute('alter database db comp 0')
         tdSql.query('show databases')
         tdSql.checkData(0,14,0)
-        tdDnodes.stop(1)
-        tdDnodes.start(1)
         os.system("%staosdemo -f tools/taosdemoAllTest/manual_block1_comp.json" % binPath)
         print("default location is at /home/bryan/Documents/Github/TDengine/sim/dnode1/data")
+        print('comp = 0')
+        input("please check disk usage for taosd. After checking, press enter")
+
+        #removing all data file
+        os.system(f'sudo rm -rf {dnodePath}/data/* {dnodePath}/log/*')
+        #print(f'rm -rf {dnodePath}/data/* {dnodePath}/log/*') #for showing the command ran
+        input("please check if the pervious data is being deleted. Then, press enter")
+
+        #check disk usage when comp=1
+        tdSql.prepare()
+        tdSql.query('show databases')
+        tdSql.checkData(0,14,2)
+        tdSql.execute('alter database db comp 1')
+        tdSql.query('show databases')
+        tdSql.checkData(0,14,1)
+        os.system("%staosdemo -f tools/taosdemoAllTest/manual_block1_comp.json" % binPath)
+        print("default location is at /home/bryan/Documents/Github/TDengine/sim/dnode1/data")
+        print('comp = 1')
         input("please check disk usage for taosd. After checking, press enter")
 
         ##test result
-        #   2021/06/02 comp=2: file size = 6.4M   comp=0 file size=399M. Test past
+        #   2021/06/02 comp=2:13M   comp=1:57M comp=0:399M. Test past
         #       each row entered is identical       Tester - Baosheng Chang
 
     def stop(self):
