@@ -3890,7 +3890,7 @@ static int32_t handleExprInQueryCond(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSql
   }
 
   SSchema* pSchema = tscGetTableColumnSchema(pTableMeta, index.columnIndex);
-  if (pSchema->colId == PRIMARYKEY_TIMESTAMP_COL_INDEX) {  // query on time range
+  if (pSchema->type == TSDB_DATA_TYPE_TIMESTAMP && index.columnIndex == PRIMARYKEY_TIMESTAMP_COL_INDEX) {  // query on time range
     if (!validateJoinExprNode(pCmd, pQueryInfo, *pExpr, &index)) {
       return TSDB_CODE_TSC_INVALID_OPERATION;
     }
