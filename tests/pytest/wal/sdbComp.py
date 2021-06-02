@@ -82,6 +82,7 @@ class TDTestCase:
         sleep(10)
         os.system("nohup %s/taosd  --compact-mnode-wal  -c %s/sim/dnode1/cfg/ & " %(binPath,testPath) )
         # os.system("nohup taosd  --compact-mnode-wal  -c %s/sim/dnode1/cfg/ & " % testPath )
+        sleep(5)
         # tdDnodes.start(1)
         os.system("nohup %s/taosd -c %s/sim/dnode1/cfg > /dev/null 2>&1 &" %(binPath,testPath) )
         sleep(4)
