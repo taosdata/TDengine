@@ -674,3 +674,15 @@ void taosCleanupKeywordsTable() {
     taosHashCleanup(m);
   }
 }
+
+SStrToken taosTokenDup(SStrToken* pToken, char* buf, int32_t len) {
+  assert(pToken != NULL && buf != NULL);
+  SStrToken token = *pToken;
+  token.z = buf;
+
+  assert(len > token.n);
+  strncpy(token.z, pToken->z, pToken->n);
+  token.z[token.n] = 0;
+
+  return token;
+}
