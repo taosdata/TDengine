@@ -4481,7 +4481,7 @@ static void ts_comp_finalize(SQLFunctionCtx *pCtx) {
 static double do_calc_rate(const SRateInfo* pRateInfo, int64_t tickPerSec) {
   if ((INT64_MIN == pRateInfo->lastKey) || (INT64_MIN == pRateInfo->firstKey) ||
       (pRateInfo->firstKey >= pRateInfo->lastKey)) {
-    return 0;
+    return 0.0;
   }
 
   double diff = 0;
@@ -4504,7 +4504,7 @@ static double do_calc_rate(const SRateInfo* pRateInfo, int64_t tickPerSec) {
     return 0;
   }
 
-  return (duration > 0)? ((double)diff) / (duration/((double) tickPerSec)):0;
+  return (duration > 0)? ((double)diff) / (duration/((double) tickPerSec)):0.0;
 }
 
 static bool rate_function_setup(SQLFunctionCtx *pCtx) {
@@ -4545,7 +4545,7 @@ static void rate_function(SQLFunctionCtx *pCtx) {
     notNullElems++;
     
     int64_t v = 0;
-    GET_TYPED_DATA(v, int64_t, pCtx->inputType, pData);
+    GET_TYPED_DATA(v, double, pCtx->inputType, pData);
     
     if ((INT64_MIN == pRateInfo->firstValue) || (INT64_MIN == pRateInfo->firstKey)) {
       pRateInfo->firstValue = v;
@@ -4592,7 +4592,7 @@ static void rate_function_f(SQLFunctionCtx *pCtx, int32_t index) {
   TSKEY     *primaryKey = GET_TS_LIST(pCtx);
 
   int64_t v = 0;
-  GET_TYPED_DATA(v, int64_t, pCtx->inputType, pData);
+  GET_TYPED_DATA(v, double, pCtx->inputType, pData);
   
   if ((INT64_MIN == pRateInfo->firstValue) || (INT64_MIN == pRateInfo->firstKey)) {
     pRateInfo->firstValue = v;
@@ -4637,7 +4637,7 @@ static void rate_finalizer(SQLFunctionCtx *pCtx) {
     return;
   }
   
-  *(double*)pCtx->pOutput = do_calc_rate(pRateInfo, TSDB_TICK_PER_SECOND(pCtx->param[0].i64));
+  *(double*) pCtx->pOutput = do_calc_rate(pRateInfo, TSDB_TICK_PER_SECOND(pCtx->param[0].i64));
 
   // cannot set the numOfIteratedElems again since it is set during previous iteration
   pResInfo->numOfRes  = 1;
@@ -4702,7 +4702,7 @@ static void irate_function_f(SQLFunctionCtx *pCtx, int32_t index) {
   TSKEY     *primaryKey = GET_TS_LIST(pCtx);
   
   int64_t v = 0;
-  GET_TYPED_DATA(v, int64_t, pCtx->inputType, pData);
+  GET_TYPED_DATA(v, double, pCtx->inputType, pData);
 
   pRateInfo->firstKey   = pRateInfo->lastKey;
   pRateInfo->firstValue = pRateInfo->lastValue;

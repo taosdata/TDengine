@@ -1931,8 +1931,10 @@ int32_t addProjectionExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, t
     }
 
     if (index.columnIndex == TSDB_TBNAME_COLUMN_INDEX) {
-      SSchema* colSchema = tGetTbnameColumnSchema();
-      tscAddFuncInSelectClause(pQueryInfo, startPos, TSDB_FUNC_TAGPRJ, &index, colSchema, TSDB_COL_TAG, getNewResColId(pCmd));
+      SSchema colSchema = *tGetTbnameColumnSchema();
+      getColumnName(pItem, colSchema.name, colSchema.name, sizeof(colSchema.name) - 1);
+
+      /*SExprInfo* pExpr = */tscAddFuncInSelectClause(pQueryInfo, startPos, TSDB_FUNC_TAGPRJ, &index, &colSchema, TSDB_COL_TAG, getNewResColId(pCmd));
     } else {
       STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, index.tableIndex);
       STableMeta*     pTableMeta = pTableMetaInfo->pTableMeta;
@@ -3887,7 +3889,8 @@ static int32_t handleExprInQueryCond(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSql
     return code;
   }
 
-  if (index.columnIndex == PRIMARYKEY_TIMESTAMP_COL_INDEX) {  // query on time range
+  SSchema* pSchema = tscGetTableColumnSchema(pTableMeta, index.columnIndex);
+  if (pSchema->colId == PRIMARYKEY_TIMESTAMP_COL_INDEX) {  // query on time range
     if (!validateJoinExprNode(pCmd, pQueryInfo, *pExpr, &index)) {
       return TSDB_CODE_TSC_INVALID_OPERATION;
     }
@@ -6754,6 +6757,7 @@ int32_t doCheckForStream(SSqlObj* pSql, SSqlInfo* pInfo) {
   const char* msg5 = "sql too long";  // todo ADD support
   const char* msg6 = "from missing in subclause";
   const char* msg7 = "time interval is required";
+  const char* msg8 = "the first column should be primary timestamp column";
   
   SSqlCmd*    pCmd = &pSql->cmd;
   SQueryInfo* pQueryInfo = tscGetQueryInfo(pCmd);
@@ -6807,13 +6811,19 @@ int32_t doCheckForStream(SSqlObj* pSql, SSqlInfo* pInfo) {
     return TSDB_CODE_TSC_INVALID_OPERATION;
   }
 
-
   if (isTimeWindowQuery(pQueryInfo) && (validateFunctionsInIntervalOrGroupbyQuery(pCmd, pQueryInfo) != TSDB_CODE_SUCCESS)) {
     return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg2);
   }
 
-  if (!tscIsProjectionQuery(pQueryInfo) && pQueryInfo->interval.interval == 0) {
-    return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg7);
+  if (tscIsProjectionQuery(pQueryInfo)) {
+    SExprInfo* pExpr = tscExprGet(pQueryInfo, 0);
+    if (pExpr->base.colInfo.colId != PRIMARYKEY_TIMESTAMP_COL_INDEX) {
+      return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg8);
+    }
+  } else {
+    if (pQueryInfo->interval.interval == 0) {
+      return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg7);
+    }
   }
 
   // set the created table[stream] name

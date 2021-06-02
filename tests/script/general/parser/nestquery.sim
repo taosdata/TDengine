@@ -124,6 +124,12 @@ if $rows != 2 then
   return -1
 endi
 
+sql select * from (select count(*) a from nest_mt0 group by tbname) t where t.a<0
+if $rows != 0 then
+  return -1
+endi
+
+
 
 print ===================> nest query interval
 
