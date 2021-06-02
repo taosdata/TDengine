@@ -1,5 +1,5 @@
 version: 1.0.{build}
-image: 
+image:
   - Visual Studio 2015
   - macos
 environment:
@@ -11,7 +11,7 @@ matrix:
     - image: macos
       ARCH: x86
 for:
-  - 
+  -
     matrix:
       only:
         - image: Visual Studio 2015
@@ -27,7 +27,7 @@ for:
 
     build_script:
       - cd build
-      - cmake -G "NMake Makefiles" ..
+      - cmake -G "NMake Makefiles" .. -DBUILD_JDBC=false
       - nmake install
   -
     matrix:
