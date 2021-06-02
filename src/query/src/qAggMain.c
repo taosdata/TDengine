@@ -2285,13 +2285,13 @@ void heapSort(tValuePair **pList, uint16_t type, int16_t tagLen, int32_t len, bo
   int32_t  i;
 
   for (i = len / 2 - 1; i >= 0; i--) {
-    heapAdjust(pList, type, i, tagLen, len - 1, minRoot);
+    heapAdjust(pList, type, tagLen, i, len - 1, minRoot);
   }
 
 /*
   for (i = len - 1; i > 0; i--) {
     heapSwap(pList[0], pList[i], tagsLen);
-    heapAdjust(pList, type, tagsLen, i - 1, minRoot);
+    heapAdjust(pList, type, 0, tagsLen, i - 1, minRoot);
   }
 */
 }
