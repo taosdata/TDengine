@@ -1489,6 +1489,8 @@ static void joinRetrieveFinalResCallback(void* param, TAOS_RES* tres, int numOfR
 
     SSqlRes* pRes1 = &pParentSql->pSubs[i]->res;
 
+    pParentSql->res.precision = pRes1->precision;
+
     if (pRes1->row > 0 && pRes1->numOfRows > 0) {
       tscDebug("0x%"PRIx64" sub:%p index:%d numOfRows:%d total:%"PRId64 " (not retrieve)", pParentSql->self, pParentSql->pSubs[i], i,
                pRes1->numOfRows, pRes1->numOfTotal);
