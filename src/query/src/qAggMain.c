@@ -153,9 +153,9 @@ typedef struct STSCompInfo {
 
 typedef struct SRateInfo {
   int64_t CorrectionValue;
-  int64_t firstValue;
+  double  firstValue;
   TSKEY   firstKey;
-  int64_t lastValue;
+  double  lastValue;
   TSKEY   lastKey;
   int8_t  hasResult;  // flag to denote has value
   bool    isIRate;    // true for IRate functions, false for Rate functions
@@ -4484,8 +4484,7 @@ static double do_calc_rate(const SRateInfo* pRateInfo, int64_t tickPerSec) {
     return 0;
   }
 
-  int64_t diff = 0;
-  
+  double diff = 0;
   if (pRateInfo->isIRate) {
     // If the previous value of the last is greater than the last value, only keep the last point instead of the delta
     // value between two values.
@@ -4551,8 +4550,6 @@ static void rate_function(SQLFunctionCtx *pCtx) {
     if ((INT64_MIN == pRateInfo->firstValue) || (INT64_MIN == pRateInfo->firstKey)) {
       pRateInfo->firstValue = v;
       pRateInfo->firstKey = primaryKey[i];
-      
-      qDebug("firstValue:%" PRId64 " firstKey:%" PRId64, pRateInfo->firstValue, pRateInfo->firstKey);
     }
     
     if (INT64_MIN == pRateInfo->lastValue) {
@@ -4564,7 +4561,6 @@ static void rate_function(SQLFunctionCtx *pCtx) {
     
     pRateInfo->lastValue = v;
     pRateInfo->lastKey   = primaryKey[i];
-    qDebug("lastValue:%" PRId64 " lastKey:%" PRId64, pRateInfo->lastValue, pRateInfo->lastKey);
   }
   
   if (!pCtx->hasNull) {
@@ -4612,8 +4608,6 @@ static void rate_function_f(SQLFunctionCtx *pCtx, int32_t index) {
   pRateInfo->lastValue = v;
   pRateInfo->lastKey   = primaryKey[index];
   
-  qDebug("====%p rate_function_f() index:%d lastValue:%" PRId64 " lastKey:%" PRId64 " CorrectionValue:%" PRId64, pCtx, index, pRateInfo->lastValue, pRateInfo->lastKey, pRateInfo->CorrectionValue);
-  
   SET_VAL(pCtx, 1, 1);
   
   // set has result flag
@@ -4632,10 +4626,6 @@ static void rate_func_copy(SQLFunctionCtx *pCtx) {
   SResultRowCellInfo *pResInfo = GET_RES_INFO(pCtx);
   memcpy(GET_ROWCELL_INTERBUF(pResInfo), pCtx->pInput, (size_t)pCtx->inputBytes);
   pResInfo->hasResult = ((SRateInfo*)pCtx->pInput)->hasResult;
-  
-  SRateInfo* pRateInfo = (SRateInfo*)pCtx->pInput;
-  qDebug("%p rate_func_merge() firstKey:%" PRId64 " lastKey:%" PRId64 " firstValue:%" PRId64 " lastValue:%" PRId64 " CorrectionValue:%" PRId64 " hasResult:%d",
-         pCtx, pRateInfo->firstKey, pRateInfo->lastKey, pRateInfo->firstValue, pRateInfo->lastValue, pRateInfo->CorrectionValue, pRateInfo->hasResult);
 }
 
 static void rate_finalizer(SQLFunctionCtx *pCtx) {
@@ -4671,8 +4661,8 @@ static void irate_function(SQLFunctionCtx *pCtx) {
     
     notNullElems++;
     
-    int64_t v = 0;
-    GET_TYPED_DATA(v, int64_t, pCtx->inputType, pData);
+    double v = 0;
+    GET_TYPED_DATA(v, double, pCtx->inputType, pData);
 
     if ((INT64_MIN == pRateInfo->lastKey) || primaryKey[i] > pRateInfo->lastKey) {
       pRateInfo->lastValue = v;
@@ -4720,8 +4710,7 @@ static void irate_function_f(SQLFunctionCtx *pCtx, int32_t index) {
   pRateInfo->lastValue = v;
   pRateInfo->lastKey   = primaryKey[index];
   
-  qDebug("====%p irate_function_f() index:%d lastValue:%" PRId64 " lastKey:%" PRId64 " firstValue:%" PRId64 " firstKey:%" PRId64, pCtx, index, pRateInfo->lastValue, pRateInfo->lastKey, pRateInfo->firstValue , pRateInfo->firstKey);
-  
+//  qDebug("====%p irate_function_f() index:%d lastValue:%" PRId64 " lastKey:%" PRId64 " firstValue:%" PRId64 " firstKey:%" PRId64, pCtx, index, pRateInfo->lastValue, pRateInfo->lastKey, pRateInfo->firstValue , pRateInfo->firstKey);
   SET_VAL(pCtx, 1, 1);
   
   // set has result flag
@@ -4899,10 +4888,10 @@ void blockinfo_func_finalizer(SQLFunctionCtx* pCtx) {
 int32_t functionCompatList[] = {
     // count,   sum,      avg,       min,      max,    stddev,    percentile,   apercentile, first,   last
     1,          1,        1,         1,        1,      1,          1,           1,           1,      1,
-    // last_row,top,      bottom,    spread,   twa,    leastsqr,   ts,          ts_dummy, tag_dummy, ts_z
+    // last_row,top,      bottom,    spread,   twa,    leastsqr,   ts,          ts_dummy, tag_dummy, ts_comp
     4,         -1,       -1,         1,        1,      1,          1,           1,        1,     -1,
-    //  tag,    colprj,   tagprj,    arithmetic, diff, first_dist, last_dist,   interp    rate    irate
-    1,          1,        1,         1,       -1,      1,          1,           5,        1,      1,
+    //  tag,    colprj,   tagprj,    arithmetic, diff, first_dist, last_dist,   stddev_dst, interp    rate    irate
+    1,          1,        1,         1,       -1,      1,          1,           1,          5,        1,      1,
     // tid_tag, blk_info
      6,       7
 };
