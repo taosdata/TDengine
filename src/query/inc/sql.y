@@ -754,15 +754,9 @@ cmd ::= ALTER TABLE ids(X) cpxName(F) DROP COLUMN ids(A).     {
     setSqlInfo(pInfo, pAlterTable, NULL, TSDB_SQL_ALTER_TABLE);
 }
 
-cmd ::= ALTER TABLE ids(X) cpxName(F) ALTER COLUMN LENGTH ids(A) INTEGER(Z).     {
+cmd ::= ALTER TABLE ids(X) cpxName(F) MODIFY COLUMN columnlist(A).     {
     X.n += F.n;
-
-    toTSDBType(A.type);
-    SArray* K = tVariantListAppendToken(NULL, &A, -1);
-    toTSDBType(Z.type);
-    K = tVariantListAppendToken(K, &Z, -1);
-
-    SAlterTableInfo* pAlterTable = tSetAlterTableInfo(&X, K, NULL, TSDB_ALTER_TABLE_CHANGE_COLUMN, -1);
+    SAlterTableInfo* pAlterTable = tSetAlterTableInfo(&X, A, NULL, TSDB_ALTER_TABLE_CHANGE_COLUMN, -1);
     setSqlInfo(pInfo, pAlterTable, NULL, TSDB_SQL_ALTER_TABLE);
 }
 
@@ -806,6 +800,11 @@ cmd ::= ALTER TABLE ids(X) cpxName(F) SET TAG ids(Y) EQ tagitem(Z).     {
     setSqlInfo(pInfo, pAlterTable, NULL, TSDB_SQL_ALTER_TABLE);
 }
 
+cmd ::= ALTER TABLE ids(X) cpxName(F) MODIFY TAG columnlist(A).     {
+    X.n += F.n;
+    SAlterTableInfo* pAlterTable = tSetAlterTableInfo(&X, A, NULL, TSDB_ALTER_TABLE_MODIFY_TAG_COLUMN, -1);
+    setSqlInfo(pInfo, pAlterTable, NULL, TSDB_SQL_ALTER_TABLE);
+}
 
 ///////////////////////////////////ALTER STABLE statement//////////////////////////////////
 cmd ::= ALTER STABLE ids(X) cpxName(F) ADD COLUMN columnlist(A).     {
@@ -824,15 +823,9 @@ cmd ::= ALTER STABLE ids(X) cpxName(F) DROP COLUMN ids(A).     {
     setSqlInfo(pInfo, pAlterTable, NULL, TSDB_SQL_ALTER_TABLE);
 }
 
-cmd ::= ALTER STABLE ids(X) cpxName(F) ALTER COLUMN LENGTH ids(A) INTEGER(Z).     {
+cmd ::= ALTER STABLE ids(X) cpxName(F) MODIFY COLUMN columnlist(A).     {
     X.n += F.n;
-
-    toTSDBType(A.type);
-    SArray* K = tVariantListAppendToken(NULL, &A, -1);
-    toTSDBType(Z.type);
-    K = tVariantListAppendToken(K, &Z, -1);
-
-    SAlterTableInfo* pAlterTable = tSetAlterTableInfo(&X, K, NULL, TSDB_ALTER_TABLE_CHANGE_COLUMN, TSDB_SUPER_TABLE);
+    SAlterTableInfo* pAlterTable = tSetAlterTableInfo(&X, A, NULL, TSDB_ALTER_TABLE_CHANGE_COLUMN, TSDB_SUPER_TABLE);
     setSqlInfo(pInfo, pAlterTable, NULL, TSDB_SQL_ALTER_TABLE);
 }
 
@@ -862,6 +855,23 @@ cmd ::= ALTER STABLE ids(X) cpxName(F) CHANGE TAG ids(Y) ids(Z). {
     A = tVariantListAppendToken(A, &Z, -1);
 
     SAlterTableInfo* pAlterTable = tSetAlterTableInfo(&X, NULL, A, TSDB_ALTER_TABLE_CHANGE_TAG_COLUMN, TSDB_SUPER_TABLE);
+    setSqlInfo(pInfo, pAlterTable, NULL, TSDB_SQL_ALTER_TABLE);
+}
+
+cmd ::= ALTER STABLE ids(X) cpxName(F) SET TAG ids(Y) EQ tagitem(Z).     {
+    X.n += F.n;
+
+    toTSDBType(Y.type);
+    SArray* A = tVariantListAppendToken(NULL, &Y, -1);
+    A = tVariantListAppend(A, &Z, -1);
+
+    SAlterTableInfo* pAlterTable = tSetAlterTableInfo(&X, NULL, A, TSDB_ALTER_TABLE_UPDATE_TAG_VAL, TSDB_SUPER_TABLE);
+    setSqlInfo(pInfo, pAlterTable, NULL, TSDB_SQL_ALTER_TABLE);
+}
+
+cmd ::= ALTER STABLE ids(X) cpxName(F) MODIFY TAG columnlist(A).     {
+    X.n += F.n;
+    SAlterTableInfo* pAlterTable = tSetAlterTableInfo(&X, A, NULL, TSDB_ALTER_TABLE_MODIFY_TAG_COLUMN, TSDB_SUPER_TABLE);
     setSqlInfo(pInfo, pAlterTable, NULL, TSDB_SQL_ALTER_TABLE);
 }
 

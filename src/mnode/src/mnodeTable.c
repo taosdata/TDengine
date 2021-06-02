@@ -3218,6 +3218,11 @@ static int32_t mnodeProcessAlterTableMsg(SMnodeMsg *pMsg) {
       (void)mnodeChangeSuperTableColumn;
       mError("change table[%s] column[%s] length to [%d] is not processed", pAlter->tableFname, pAlter->schema[0].name, pAlter->schema[0].bytes);
       code = TSDB_CODE_SUCCESS;
+    } else if (pAlter->type == TSDB_ALTER_TABLE_MODIFY_TAG_COLUMN) {
+      //code = mnodeChangeSuperTableColumn(pMsg, pAlter->schema[0].name, pAlter->schema[1].name);
+      (void)mnodeChangeSuperTableColumn;
+      mError("change table[%s] tag[%s] length to [%d] is not processed", pAlter->tableFname, pAlter->schema[0].name, pAlter->schema[0].bytes);
+      code = TSDB_CODE_SUCCESS;
     } else {
     }
   } else {

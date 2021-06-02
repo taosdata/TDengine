@@ -25,20 +25,49 @@ sql use $db
 ##### alter table test, simeplest case
 sql create table tb (ts timestamp, c1 int, c2 binary(10), c3 nchar(10))
 sql insert into tb values (now, 1, "1", "1")
-sql alter table tb alter column length c2 20;
+sql alter table tb modify column c2 binary(20);
 if $rows != 0 then
   return -1
 endi
-sql alter table tb alter column length c3 20;
+sql alter table tb modify column c3 nchar(20);
 if $rows != 0 then
   return -1
 endi
 
 
-sql create stable stb (ts timestamp, c1 int, c2 binary(10), c3 nchar(10)) tags(id int)
-sql create table tb1 using stb tags(1)
+sql create stable stb (ts timestamp, c1 int, c2 binary(10), c3 nchar(10)) tags(id1 int, id2 binary(10), id3 nchar(10))
+sql create table tb1 using stb tags(1, "a", "b")
 sql insert into tb1 values (now, 1, "1", "1")
-sql alter stable stb alter column length c2 20;
+sql alter stable stb modify column c2 binary(20);
+if $rows != 0 then
+  return -1
+endi
+sql alter table stb modify column c2 binary(30);
+if $rows != 0 then
+  return -1
+endi
+sql alter stable stb modify column c3 nchar(20);
+if $rows != 0 then
+  return -1
+endi
+sql alter table stb modify column c3 nchar(30);
+if $rows != 0 then
+  return -1
+endi
+
+sql alter table stb modify tag id2 binary(11);
+if $rows != 0 then
+  return -1
+endi
+sql alter stable stb modify tag id2 binary(11);
+if $rows != 0 then
+  return -1
+endi
+sql alter table stb modify tag id3 nchar(11);
+if $rows != 0 then
+  return -1
+endi
+sql alter stable stb modify tag id3 nchar(11);
 if $rows != 0 then
   return -1
 endi
@@ -46,10 +75,44 @@ endi
 ##### ILLEGAL OPERATIONS
 
 # try dropping columns that are defined in metric
-sql_error alter table tb alter column length c1 10;
-sql_error alter stable tb alter column length c2 10;
-sql_error alter table tb1 alter column length c2 10;
-sql_error alter stable tb1 alter column length c2 10;
+sql_error alter table tb modify column c1 binary(10);
+sql_error alter table tb modify column c1 double;
+sql_error alter table tb modify column c2 int;
+sql_error alter table tb modify column c2 binary(10);
+sql_error alter table tb modify column c2 binary(9);
+sql_error alter table tb modify column c2 binary(-9);
+sql_error alter table tb modify column c2 binary(0);
+sql_error alter table tb modify column c2 binary(17000);
+sql_error alter table tb modify column c2 nchar(30);
+sql_error alter table tb modify column c3 double;
+sql_error alter table tb modify column c3 nchar(10);
+sql_error alter table tb modify column c3 nchar(0);
+sql_error alter table tb modify column c3 nchar(-1);
+sql_error alter table tb modify column c3 binary(80);
+sql_error alter table tb modify column c3 nchar(17000);
+sql_error alter table tb modify column c3 nchar(100), c2 binary(30);
+sql_error alter table tb modify column c1 nchar(100), c2 binary(30);
+sql_error alter stable tb modify column c2 binary(30);
+sql_error alter table tb modify tag c2 binary(30);
+sql_error alter table stb modify tag id2 binary(10);
+sql_error alter table stb modify tag id2 nchar(30);
+sql_error alter stable stb modify tag id2 binary(10);
+sql_error alter stable stb modify tag id2 nchar(30);
+sql_error alter table stb modify tag id3 nchar(10);
+sql_error alter table stb modify tag id3 binary(30);
+sql_error alter stable stb modify tag id3 nchar(10);
+sql_error alter stable stb modify tag id3 binary(30);
+sql_error alter stable stb modify tag id1 binary(30);
+sql_error alter stable stb modify tag c1 binary(30);
+
+
+sql_error alter table tb1 modify column c2 binary(30);
+sql_error alter table tb1 modify column c3 nchar(30);
+sql_error alter table tb1 modify tag id2 binary(30);
+sql_error alter table tb1 modify tag id3 nchar(30);
+sql_error alter stable tb1 modify tag id2 binary(30);
+sql_error alter stable tb1 modify tag id3 nchar(30);
+sql_error alter stable tb1 modify column c2 binary(30);
 
 
 system sh/exec.sh -n dnode1 -s stop -x SIGINT

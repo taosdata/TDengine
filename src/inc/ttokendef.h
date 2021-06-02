@@ -155,7 +155,7 @@
 #define TK_SYNCDB                         136
 #define TK_ADD                            137
 #define TK_COLUMN                         138
-#define TK_LENGTH                         139
+#define TK_MODIFY                         139
 #define TK_TAG                            140
 #define TK_CHANGE                         141
 #define TK_SET                            142
@@ -204,6 +204,9 @@
 #define TK_INSERT                         185
 #define TK_INTO                           186
 #define TK_VALUES                         187
+
+
+
 
 
 
