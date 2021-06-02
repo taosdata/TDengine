@@ -11,7 +11,7 @@
     "confirm_parameter_prompt": "no",    
     "insert_interval": 0,         
     "interlace_rows": 100,        
-    "num_of_records_per_req": 100,
+    "num_of_records_per_req": 32766,
     "databases": [{
         "dbinfo": {
             "name": "db",
@@ -40,7 +40,7 @@
             "batch_create_tbl_num": 20,   
             "data_source": "rand",       
             "insert_mode": "taosc",      
-            "insert_rows": 10000,       
+            "insert_rows": 100000,       
             "childtable_limit": 10,      
             "childtable_offset":100,     
             "interlace_rows": 0,         
@@ -48,8 +48,8 @@
             "max_sql_len": 1024000,      
             "disorder_ratio": 0,         
             "disorder_range": 1000,      
-            "timestamp_step": 10,         
-            "start_timestamp": "2020-10-01 00:00:00.000",  
+            "timestamp_step": 1,         
+            "start_timestamp": "2019-10-01 00:00:00.000",  
             "sample_format": "csv",       
             "sample_file": "./sample.csv",   
             "tags_file": "",              

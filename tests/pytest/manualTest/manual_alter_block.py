@@ -15,6 +15,7 @@ import sys
 from util.log import *
 from util.cases import *
 from util.sql import *
+from util.dnodes import tdDnodes
 
 
 class TDTestCase:
@@ -58,6 +59,8 @@ class TDTestCase:
         tdSql.execute('alter database db blocks 8')
         tdSql.query('show databases')
         tdSql.checkData(0,9,8)
+        tdDnodes.stop(1)
+        tdDnodes.start(1)
 
         os.system("%staosdemo -f tools/taosdemoAllTest/insert_5Mrows_hasTB.json" % binPath) 
 
