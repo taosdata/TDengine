@@ -11,7 +11,7 @@ set -e
 #             -V [stable | beta]
 #             -l [full | lite]
 #             -s [static | dynamic]
-#             -d [taos | power]
+#             -d [taos | power | tq ]
 #             -n [2.0.0.3]
 #             -m [2.0.0.0]
 
@@ -23,7 +23,7 @@ osType=Linux     # [Linux | Kylin | Alpine | Raspberrypi | Darwin | Windows | Ni
 pagMode=full     # [full | lite]
 soMode=dynamic   # [static | dynamic]
 allocator=glibc  # [glibc | jemalloc]
-dbName=taos      # [taos | power]
+dbName=taos      # [taos | power | tq]
 verNumber=""
 verNumberComp="2.0.0.0"
 
@@ -78,7 +78,7 @@ do
       echo "                  -l [full | lite] "
       echo "                  -a [glibc | jemalloc] "
       echo "                  -s [static | dynamic] "
-      echo "                  -d [taos | power] "
+      echo "                  -d [taos | power | tq ] "
       echo "                  -n [version number] "
       echo "                  -m [compatible version number] "
       exit 0
@@ -249,6 +249,10 @@ if [ "$osType" != "Darwin" ]; then
     ${csudo} ./makepkg.sh    ${compile_dir} ${verNumber} "${build_time}" ${cpuType} ${osType} ${verMode} ${verType} ${pagMode}
     ${csudo} ./makeclient.sh ${compile_dir} ${verNumber} "${build_time}" ${cpuType} ${osType} ${verMode} ${verType} ${pagMode}
     ${csudo} ./makearbi.sh   ${compile_dir} ${verNumber} "${build_time}" ${cpuType} ${osType} ${verMode} ${verType} ${pagMode}
+  elif [[ "$dbName" == "tq" ]]; then
+    ${csudo} ./makepkg_tq.sh    ${compile_dir} ${verNumber} "${build_time}" ${cpuType} ${osType} ${verMode} ${verType} ${pagMode} ${dbName}
+    ${csudo} ./makeclient_tq.sh ${compile_dir} ${verNumber} "${build_time}" ${cpuType} ${osType} ${verMode} ${verType} ${pagMode} ${dbName}
+    ${csudo} ./makearbi_tq.sh   ${compile_dir} ${verNumber} "${build_time}" ${cpuType} ${osType} ${verMode} ${verType} ${pagMode}
   else
     ${csudo} ./makepkg_power.sh    ${compile_dir} ${verNumber} "${build_time}" ${cpuType} ${osType} ${verMode} ${verType} ${pagMode} ${dbName}
     ${csudo} ./makeclient_power.sh ${compile_dir} ${verNumber} "${build_time}" ${cpuType} ${osType} ${verMode} ${verType} ${pagMode} ${dbName}

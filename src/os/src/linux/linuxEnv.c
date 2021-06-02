@@ -25,6 +25,13 @@ void osInit() {
   strcpy(tsDataDir, "/var/lib/power");
   strcpy(tsLogDir, "/var/log/power");
   strcpy(tsScriptDir, "/etc/power");
+#elseif _TD_POWER_Q_
+	if (configDir[0] == 0) {
+	  strcpy(configDir, "/etc/powerq");
+	}
+	strcpy(tsDataDir, "/var/lib/powerq");
+	strcpy(tsLogDir, "/var/log/powerq");
+	strcpy(tsScriptDir, "/etc/powerq");
 #else
   if (configDir[0] == 0) {
     strcpy(configDir, "/etc/taos");
