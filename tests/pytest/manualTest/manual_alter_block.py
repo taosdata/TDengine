@@ -17,7 +17,8 @@ from util.cases import *
 from util.sql import *
 from util.dnodes import tdDnodes
 
-
+##TODO: auto test version is currently unsupported, need to come up with 
+#       an auto test version in the future
 class TDTestCase:
     def init(self, conn, logSql):
         tdLog.debug("start to execute %s" % __file__)
@@ -48,27 +49,33 @@ class TDTestCase:
             tdLog.info("taosd found in %s" % buildPath)
         binPath = buildPath+ "/build/bin/"  
 
+        #alter cache block to 3, then check alter
         tdSql.execute('alter database db blocks 3')
         tdSql.query('show databases')
         tdSql.checkData(0,9,3)
 
-        os.system("%staosdemo -f tools/taosdemoAllTest/insert_5Mrows_noTB.json" % binPath) 
-
+        #run taosdemo to occupy all cache, need to manually check memory consumption
+        os.system("%staosdemo -f tools/taosdemoAllTest/manual_block1_comp.json" % binPath) 
         input("please check memory usage for taosd. After checking, press enter")
 
+        #alter cache block to 8, then check alter
         tdSql.execute('alter database db blocks 8')
         tdSql.query('show databases')
         tdSql.checkData(0,9,8)
-        tdDnodes.stop(1)
-        tdDnodes.start(1)
 
-        os.system("%staosdemo -f tools/taosdemoAllTest/insert_5Mrows_hasTB.json" % binPath) 
-
+        #run taosdemo to occupy all cache, need to manually check memory consumption
+        os.system("%staosdemo -f tools/taosdemoAllTest/manual_block2.json" % binPath) 
         input("please check memory usage for taosd. After checking, press enter")
+
+        ##expected result the peak memory consumption should increase by around 80MB = 5 blocks of cache
+
+        ##test results
+        #2021/06/02 before:2621700K     after: 2703640K memory usage increased by 80MB = 5 block
+        #           confirm with the change in block.       Baosheng Chang
 
     def stop(self):
         tdSql.close()
-        tdLog.success("%s successfully executed" % __file__)
+        tdLog.debug("%s alter block manual check finish" % __file__)
 
 
 tdCases.addWindows(__file__, TDTestCase())
