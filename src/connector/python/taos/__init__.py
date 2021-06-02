@@ -1,7 +1,10 @@
 
 from .connection import TDengineConnection
 from .cursor import TDengineCursor
-from .error import Error
+
+# For some reason, the following is needed for VS Code (through PyLance) to 
+# recognize that "error" is a valid module of the "taos" package.
+from .error import ProgrammingError
 
 # Globals
 threadsafety = 0
