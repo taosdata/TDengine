@@ -57,10 +57,10 @@ nginx_dir="${code_dir}/../../enterprise/src/plugins/web"
 #fi
 #init_files=${init_dir}/tqd
 # temp use rpm's tqd. TODO: later modify according to os type
-init_file_deb=${script_dir}/../deb/tqd
-init_file_rpm=${script_dir}/../rpm/tqd
-init_file_tarbitrator_deb=${script_dir}/../deb/tarbitratord
-init_file_tarbitrator_rpm=${script_dir}/../rpm/tarbitratord
+#init_file_deb=${script_dir}/../deb/tqd
+#init_file_rpm=${script_dir}/../rpm/tqd
+#init_file_tarbitrator_deb=${script_dir}/../deb/tarbitratord
+#init_file_tarbitrator_rpm=${script_dir}/../rpm/tarbitratord
 
 # make directories.
 mkdir -p ${install_dir}
@@ -91,10 +91,10 @@ else
 fi
 chmod a+x ${install_dir}/bin/* || :
 
-mkdir -p ${install_dir}/init.d && cp ${init_file_deb} ${install_dir}/init.d/tqd.deb
-mkdir -p ${install_dir}/init.d && cp ${init_file_rpm} ${install_dir}/init.d/tqd.rpm
-mkdir -p ${install_dir}/init.d && cp ${init_file_tarbitrator_deb} ${install_dir}/init.d/tarbitratord.deb || :
-mkdir -p ${install_dir}/init.d && cp ${init_file_tarbitrator_rpm} ${install_dir}/init.d/tarbitratord.rpm || :
+#mkdir -p ${install_dir}/init.d && cp ${init_file_deb} ${install_dir}/init.d/tqd.deb
+#mkdir -p ${install_dir}/init.d && cp ${init_file_rpm} ${install_dir}/init.d/tqd.rpm
+#mkdir -p ${install_dir}/init.d && cp ${init_file_tarbitrator_deb} ${install_dir}/init.d/tarbitratord.deb || :
+#mkdir -p ${install_dir}/init.d && cp ${init_file_tarbitrator_rpm} ${install_dir}/init.d/tarbitratord.rpm || :
 
 if [ "$verMode" == "cluster" ]; then
     sed 's/verMode=edge/verMode=cluster/g' ${install_dir}/bin/remove_tq.sh >> remove_tq_temp.sh
