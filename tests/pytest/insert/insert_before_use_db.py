@@ -23,24 +23,13 @@ class TDTestCase:
         tdSql.init(conn.cursor(), logSql)
 
     def run(self):
+        tdSql.error('insert into tb values (now + 10m, 10)')
         tdSql.prepare()
-
-        tdSql.execute('create table tb (ts timestamp, col nchar(10))')
-        tdSql.execute("insert into tb values (now, 'taosdata')")
-        tdSql.query("select * from tb")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 1, 'taosdata')
-        tdSql.execute("insert into tb values (now, '涛思数据')")
-        tdSql.query("select * from tb")
-        tdSql.checkRows(2)
-        tdSql.checkData(1, 1, '涛思数据')
-
-        tdSql.error("insert into tb values (now, 'taosdata001')")
-
-        tdSql.error("insert into tb(now, 😀)")
-        tdSql.query("select * from tb")
-        tdSql.checkRows(2)
+        tdSql.error('insert into tb values (now + 10m, 10)')
+        tdSql.execute('drop database db')
+        tdSql.error('insert into tb values (now + 10m, 10)')
         
+
     def stop(self):
         tdSql.close()
         tdLog.success("%s successfully executed" % __file__)

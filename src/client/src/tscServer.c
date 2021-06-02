@@ -477,7 +477,6 @@ int doBuildAndSendMsg(SSqlObj *pSql) {
       pCmd->command == TSDB_SQL_INSERT ||
       pCmd->command == TSDB_SQL_CONNECT ||
       pCmd->command == TSDB_SQL_HB ||
-//      pCmd->command == TSDB_SQL_META ||
       pCmd->command == TSDB_SQL_STABLEVGROUP) {
     pRes->code = tscBuildMsg[pCmd->command](pSql, NULL);
   }
@@ -857,6 +856,7 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   pQueryMsg->simpleAgg        = query.simpleAgg;
   pQueryMsg->pointInterpQuery = query.pointInterpQuery;
   pQueryMsg->needReverseScan  = query.needReverseScan;
+  pQueryMsg->stateWindow      = query.stateWindow;
 
   pQueryMsg->numOfTags        = htonl(numOfTags);
   pQueryMsg->sqlstrLen        = htonl(sqlLen);
@@ -2469,8 +2469,8 @@ int32_t getMultiTableMetaFromMnode(SSqlObj *pSql, SArray* pNameList, SArray* pVg
   pNew->fp = fp;
   pNew->param = (void *)pSql->self;
 
-  tscDebug("0x%"PRIx64" metaRid from %" PRId64 " to %" PRId64 , pSql->self, pSql->metaRid, pNew->self);
-
+  tscDebug("0x%"PRIx64" metaRid from 0x%" PRIx64 " to 0x%" PRIx64 , pSql->self, pSql->metaRid, pNew->self);
+  
   pSql->metaRid = pNew->self;
   int32_t code = tscBuildAndSendRequest(pNew, NULL);
   if (code == TSDB_CODE_SUCCESS) {

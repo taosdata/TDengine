@@ -319,7 +319,7 @@ int        tdInitDataCols(SDataCols *pCols, STSchema *pSchema);
 SDataCols *tdDupDataCols(SDataCols *pCols, bool keepData);
 SDataCols *tdFreeDataCols(SDataCols *pCols);
 void       tdAppendDataRowToDataCol(SDataRow row, STSchema *pSchema, SDataCols *pCols);
-int        tdMergeDataCols(SDataCols *target, SDataCols *src, int rowsToMerge);
+int        tdMergeDataCols(SDataCols *target, SDataCols *source, int rowsToMerge, int *pOffset);
 
 // ----------------- K-V data row structure
 /*
