@@ -1,12 +1,12 @@
 #!/bin/bash
 #
-# This file is used to install TAOS time-series database on linux systems. The operating system 
+# This file is used to install TAOS time-series database on linux systems. The operating system
 # is required to use systemd to manage services at boot
 
 set -e
 # set -x
 
-# -----------------------Variables definition---------------------
+# -----------------------Variables definition
 source_dir=$1
 binary_dir=$2
 osType=$3
@@ -71,9 +71,9 @@ if [ "$osType" != "Darwin" ]; then
         service_mod=0
     elif $(which service &> /dev/null); then
         service_mod=1
-        service_config_dir="/etc/init.d" 
+        service_config_dir="/etc/init.d"
         if $(which chkconfig &> /dev/null); then
-            initd_mod=1 
+            initd_mod=1
         elif $(which insserv &> /dev/null); then
             initd_mod=2
         elif $(which update-rc.d &> /dev/null); then
@@ -123,9 +123,9 @@ function kill_taosd() {
 function install_main_path() {
     #create install main dir and all sub dir
     ${csudo} rm -rf ${install_main_dir}    || :
-    ${csudo} mkdir -p ${install_main_dir}  
+    ${csudo} mkdir -p ${install_main_dir}
     ${csudo} mkdir -p ${install_main_dir}/cfg
-    ${csudo} mkdir -p ${install_main_dir}/bin    
+    ${csudo} mkdir -p ${install_main_dir}/bin
     ${csudo} mkdir -p ${install_main_dir}/connector
     ${csudo} mkdir -p ${install_main_dir}/driver
     ${csudo} mkdir -p ${install_main_dir}/examples
@@ -176,6 +176,49 @@ function install_bin() {
         [ -x ${install_main_dir}/bin/remove_client.sh ] && ${csudo} ln -s ${install_main_dir}/bin/remove_client.sh ${bin_link_dir}/rmtaos  || :
     fi
 }
+function install_jemalloc() {
+    if [ "$osType" != "Darwin" ]; then
+        /usr/bin/install -c -d /usr/local/bin
+
+        if [ -f ${binary_dir}/build/bin/jemalloc-config ]; then
+            /usr/bin/install -c -m 755 ${binary_dir}/build/bin/jemalloc-config /usr/local/bin
+        fi
+        if [ -f ${binary_dir}/build/bin/jemalloc.sh ]; then
+            /usr/bin/install -c -m 755 ${binary_dir}/build/bin/jemalloc.sh /usr/local/bin
+        fi
+        if [ -f ${binary_dir}/build/bin/jeprof ]; then
+            /usr/bin/install -c -m 755 ${binary_dir}/build/bin/jeprof /usr/local/bin
+        fi
+        if [ -f ${binary_dir}/build/include/jemalloc/jemalloc.h ]; then
+            /usr/bin/install -c -d /usr/local/include/jemalloc
+            /usr/bin/install -c -m 644 ${binary_dir}/build/include/jemalloc/jemalloc.h /usr/local/include/jemalloc
+        fi
+        if [ -f ${binary_dir}/build/lib/libjemalloc.so.2 ]; then
+            /usr/bin/install -c -d /usr/local/lib
+            /usr/bin/install -c -m 755 ${binary_dir}/build/lib/libjemalloc.so.2 /usr/local/lib
+            ln -sf libjemalloc.so.2 /usr/local/lib/libjemalloc.so
+            /usr/bin/install -c -d /usr/local/lib
+            if [ -f ${binary_dir}/build/lib/libjemalloc.a ]; then
+                /usr/bin/install -c -m 755 ${binary_dir}/build/lib/libjemalloc.a /usr/local/lib
+            fi
+            if [ -f ${binary_dir}/build/lib/libjemalloc_pic.a ]; then
+                /usr/bin/install -c -m 755 ${binary_dir}/build/lib/libjemalloc_pic.a /usr/local/lib
+            fi
+            if [ -f ${binary_dir}/build/lib/pkgconfig/jemalloc.pc ]; then
+                /usr/bin/install -c -d /usr/local/lib/pkgconfig
+                /usr/bin/install -c -m 644 ${binary_dir}/build/lib/pkgconfig/jemalloc.pc /usr/local/lib/pkgconfig
+            fi
+        fi
+        if [ -f ${binary_dir}/build/share/doc/jemalloc/jemalloc.html ]; then
+            /usr/bin/install -c -d /usr/local/share/doc/jemalloc
+            /usr/bin/install -c -m 644 ${binary_dir}/build/share/doc/jemalloc/jemalloc.html /usr/local/share/doc/jemalloc
+        fi
+        if [ -f ${binary_dir}/build/share/man/man3/jemalloc.3 ]; then
+            /usr/bin/install -c -d /usr/local/share/man/man3
+            /usr/bin/install -c -m 644 ${binary_dir}/build/share/man/man3/jemalloc.3 /usr/local/share/man/man3
+        fi
+    fi
+}
 
 function install_lib() {
     # Remove links
@@ -183,12 +226,12 @@ function install_lib() {
     if [ "$osType" != "Darwin" ]; then
       ${csudo} rm -f ${lib64_link_dir}/libtaos.*   || :
     fi
-    
+
     if [ "$osType" != "Darwin" ]; then
         ${csudo} cp ${binary_dir}/build/lib/libtaos.so.${verNumber} ${install_main_dir}/driver && ${csudo} chmod 777 ${install_main_dir}/driver/*
         ${csudo} ln -sf ${install_main_dir}/driver/libtaos.* ${lib_link_dir}/libtaos.so.1
         ${csudo} ln -sf ${lib_link_dir}/libtaos.so.1 ${lib_link_dir}/libtaos.so
-        
+
         if [ -d "${lib64_link_dir}" ]; then
           ${csudo} ln -sf ${install_main_dir}/driver/libtaos.* ${lib64_link_dir}/libtaos.so.1
           ${csudo} ln -sf ${lib64_link_dir}/libtaos.so.1 ${lib64_link_dir}/libtaos.so
@@ -198,7 +241,9 @@ function install_lib() {
         ${csudo} ln -sf ${install_main_dir}/driver/libtaos.1.dylib ${lib_link_dir}/libtaos.1.dylib
         ${csudo} ln -sf ${lib_link_dir}/libtaos.1.dylib ${lib_link_dir}/libtaos.dylib
     fi
-    
+
+    install_jemalloc
+
     if [ "$osType" != "Darwin" ]; then
         ${csudo} ldconfig
     fi
@@ -206,26 +251,26 @@ function install_lib() {
 
 function install_header() {
 
-    ${csudo} rm -f ${inc_link_dir}/taos.h ${inc_link_dir}/taoserror.h    || :    
-    ${csudo} cp -f ${source_dir}/src/inc/taos.h ${source_dir}/src/inc/taoserror.h ${install_main_dir}/include && ${csudo} chmod 644 ${install_main_dir}/include/*    
+    ${csudo} rm -f ${inc_link_dir}/taos.h ${inc_link_dir}/taoserror.h    || :
+    ${csudo} cp -f ${source_dir}/src/inc/taos.h ${source_dir}/src/inc/taoserror.h ${install_main_dir}/include && ${csudo} chmod 644 ${install_main_dir}/include/*
     ${csudo} ln -s ${install_main_dir}/include/taos.h ${inc_link_dir}/taos.h
     ${csudo} ln -s ${install_main_dir}/include/taoserror.h ${inc_link_dir}/taoserror.h
 }
 
 function install_config() {
     #${csudo} rm -f ${install_main_dir}/cfg/taos.cfg     || :
-    
-    if [ ! -f ${cfg_install_dir}/taos.cfg ]; then        
+
+    if [ ! -f ${cfg_install_dir}/taos.cfg ]; then
         ${csudo} mkdir -p ${cfg_install_dir}
         [ -f ${script_dir}/../cfg/taos.cfg ] && ${csudo} cp ${script_dir}/../cfg/taos.cfg ${cfg_install_dir}
         ${csudo} chmod 644 ${cfg_install_dir}/*
-    fi 
-    
+    fi
+
     ${csudo} cp -f ${script_dir}/../cfg/taos.cfg ${install_main_dir}/cfg/taos.cfg.org
-    ${csudo} ln -s ${cfg_install_dir}/taos.cfg ${install_main_dir}/cfg 
+    ${csudo} ln -s ${cfg_install_dir}/taos.cfg ${install_main_dir}/cfg
 }
 
-function install_log() {  
+function install_log() {
     ${csudo} rm -rf ${log_dir}  || :
 
     if [ "$osType" != "Darwin" ]; then
@@ -239,7 +284,7 @@ function install_log() {
 
 function install_data() {
     ${csudo} mkdir -p ${data_dir}
-    ${csudo} ln -s ${data_dir} ${install_main_dir}/data  
+    ${csudo} ln -s ${data_dir} ${install_main_dir}/data
 }
 
 function install_connector() {
@@ -254,8 +299,8 @@ function install_connector() {
         echo "WARNING: go connector not found, please check if want to use it!"
     fi
     ${csudo} cp -rf ${source_dir}/src/connector/python ${install_main_dir}/connector
-        
-    ${csudo} cp ${binary_dir}/build/lib/*.jar ${install_main_dir}/connector &> /dev/null && ${csudo} chmod 777 ${install_main_dir}/connector/*.jar || echo &> /dev/null 
+
+    ${csudo} cp ${binary_dir}/build/lib/*.jar ${install_main_dir}/connector &> /dev/null && ${csudo} chmod 777 ${install_main_dir}/connector/*.jar || echo &> /dev/null
 }
 
 function install_examples() {
@@ -264,8 +309,8 @@ function install_examples() {
 
 function clean_service_on_sysvinit() {
     #restart_config_str="taos:2345:respawn:${service_config_dir}/taosd start"
-    #${csudo} sed -i "\|${restart_config_str}|d" /etc/inittab || :    
-    
+    #${csudo} sed -i "\|${restart_config_str}|d" /etc/inittab || :
+
     if pidof taosd &> /dev/null; then
         ${csudo} service taosd stop || :
     fi
@@ -277,9 +322,9 @@ function clean_service_on_sysvinit() {
     elif ((${initd_mod}==3)); then
         ${csudo} update-rc.d -f taosd remove || :
     fi
-    
+
     ${csudo} rm -f ${service_config_dir}/taosd || :
-    
+
     if $(which init &> /dev/null); then
         ${csudo} init q || :
     fi
@@ -298,10 +343,10 @@ function install_service_on_sysvinit() {
     ${csudo} cp -f ${script_dir}/../rpm/taosd ${install_main_dir}/init.d
     ${csudo} cp    ${script_dir}/../rpm/taosd ${service_config_dir} && ${csudo} chmod a+x ${service_config_dir}/taosd
     fi
-    
+
     #restart_config_str="taos:2345:respawn:${service_config_dir}/taosd start"
     #${csudo} grep -q -F "$restart_config_str" /etc/inittab || ${csudo} bash -c "echo '${restart_config_str}' >> /etc/inittab"
-    
+
     if ((${initd_mod}==1)); then
         ${csudo} chkconfig --add taosd || :
         ${csudo} chkconfig --level 2345 taosd on || :
@@ -323,7 +368,7 @@ function clean_service_on_systemd() {
     ${csudo} systemctl disable taosd &> /dev/null || echo &> /dev/null
 
     ${csudo} rm -f ${taosd_service_config}
-}   
+}
 
 # taos:2345:respawn:/etc/init.d/taosd start
 
@@ -383,7 +428,7 @@ function update_TDengine() {
         sleep 1
       fi
     fi
-    
+
     install_main_path
 
     install_log
@@ -431,16 +476,16 @@ function install_TDengine() {
     # Start to install
     if [ "$osType" != "Darwin" ]; then
         echo -e "${GREEN}Start to install TDEngine...${NC}"
-	else
-	    echo -e "${GREEN}Start to install TDEngine Client ...${NC}"
+    else
+        echo -e "${GREEN}Start to install TDEngine Client ...${NC}"
     fi
 
-	install_main_path
+    install_main_path
 
-	if [ "$osType" != "Darwin" ]; then
+    if [ "$osType" != "Darwin" ]; then
         install_data
     fi
-    install_log 
+    install_log
     install_header
     install_lib
     install_connector
@@ -452,7 +497,7 @@ function install_TDengine() {
         install_service
     fi
 
-    install_config	
+    install_config
 
     if [ "$osType" != "Darwin" ]; then
         # Ask if to start the service

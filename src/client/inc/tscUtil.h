@@ -20,13 +20,13 @@
 extern "C" {
 #endif
 
-#include "tsched.h"
 #include "exception.h"
 #include "os.h"
 #include "qExtbuffer.h"
 #include "taosdef.h"
 #include "tbuffer.h"
-#include "tscLocalMerge.h"
+#include "tscGlobalmerge.h"
+#include "tsched.h"
 #include "tsclient.h"
 
 #define UTIL_TABLE_IS_SUPER_TABLE(metaInfo)  \
@@ -63,7 +63,7 @@ typedef struct SJoinSupporter {
   SArray*         exprList;
   SFieldInfo      fieldsInfo;
   STagCond        tagCond;
-  SGroupbyExpr groupInfo;       // group by info
+  SGroupbyExpr    groupInfo;       // group by info
   struct STSBuf*  pTSBuf;          // the TSBuf struct that holds the compressed timestamp array
   FILE*           f;               // temporary file in order to create TSBuf
   char            path[PATH_MAX];  // temporary file path, todo dynamic allocate memory
@@ -111,7 +111,7 @@ void*  tscDestroyUdfArrayList(SArray* pUdfList);
 void*   tscDestroyBlockHashTable(SHashObj* pBlockHashTable, bool removeMeta);
 
 int32_t tscCopyDataBlockToPayload(SSqlObj* pSql, STableDataBlocks* pDataBlock);
-int32_t tscMergeTableDataBlocks(SSqlObj* pSql, bool freeBlockMap);
+int32_t tscMergeTableDataBlocks(SInsertStatementParam *pInsertParam, bool freeBlockMap);
 int32_t tscGetDataBlockFromList(SHashObj* pHashList, int64_t id, int32_t size, int32_t startOffset, int32_t rowSize, SName* pName, STableMeta* pTableMeta,
                                 STableDataBlocks** dataBlocks, SArray* pBlockList);
 
@@ -124,6 +124,8 @@ int32_t tscGetDataBlockFromList(SHashObj* pHashList, int64_t id, int32_t size, i
  */
 bool tscIsPointInterpQuery(SQueryInfo* pQueryInfo);
 bool tscIsTWAQuery(SQueryInfo* pQueryInfo);
+bool tscIsSessionWindowQuery(SQueryInfo* pQueryInfo);
+bool tscIsSecondStageQuery(SQueryInfo* pQueryInfo);
 bool tsIsArithmeticQueryOnAggResult(SQueryInfo* pQueryInfo);
 bool tscGroupbyColumn(SQueryInfo* pQueryInfo);
 bool tscIsTopBotQuery(SQueryInfo* pQueryInfo);
@@ -286,6 +288,7 @@ void tscSVgroupInfoCopy(SVgroupInfo* dst, const SVgroupInfo* src);
 SSqlObj* createSimpleSubObj(SSqlObj* pSql, __async_cb_func_t fp, void* param, int32_t cmd);
 
 void registerSqlObj(SSqlObj* pSql);
+void tscInitResForMerge(SSqlRes* pRes);
 
 SSqlObj* createSubqueryObj(SSqlObj* pSql, int16_t tableIndex, __async_cb_func_t fp, void* param, int32_t cmd, SSqlObj* pPrevSql);
 void     addGroupInfoForSubquery(SSqlObj* pParentObj, SSqlObj* pSql, int32_t subClauseIndex, int32_t tableIndex);
@@ -330,11 +333,14 @@ SVgroupsInfo* tscVgroupsInfoDup(SVgroupsInfo* pVgroupsInfo);
 int32_t tscCreateQueryFromQueryInfo(SQueryInfo* pQueryInfo, SQueryAttr* pQueryAttr, void* addr);
 
 void tsCreateSQLFunctionCtx(SQueryInfo* pQueryInfo, SQLFunctionCtx* pCtx, SSchema* pSchema);
-void* createQInfoFromQueryNode(SQueryInfo* pQueryInfo, SExprInfo* pExprs, STableGroupInfo* pTableGroupInfo, SOperatorInfo* pOperator, char* sql, void* addr, int32_t stage);
+void* createQInfoFromQueryNode(SQueryInfo* pQueryInfo, STableGroupInfo* pTableGroupInfo, SOperatorInfo* pOperator, char* sql, void* addr, int32_t stage);
 
 void* malloc_throw(size_t size);
 void* calloc_throw(size_t nmemb, size_t size);
 char* strdup_throw(const char* str);
+
+bool vgroupInfoIdentical(SNewVgroupInfo *pExisted, SVgroupMsg* src);
+SNewVgroupInfo createNewVgroupInfo(SVgroupMsg *pVgroupMsg);
 
 #ifdef __cplusplus
 }

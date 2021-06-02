@@ -2518,7 +2518,6 @@ static void buildTopBotStruct(STopBotInfo *pTopBotInfo, SQLFunctionCtx *pCtx) {
   tmp += POINTER_BYTES * pCtx->param[0].i64;
 
   size_t size = sizeof(tValuePair) + pCtx->tagInfo.tagsLen;
-//  assert(pCtx->param[0].i64 > 0);
 
   for (int32_t i = 0; i < pCtx->param[0].i64; ++i) {
     pTopBotInfo->res[i] = (tValuePair*) tmp;
@@ -2526,7 +2525,6 @@ static void buildTopBotStruct(STopBotInfo *pTopBotInfo, SQLFunctionCtx *pCtx) {
     tmp += size;
   }
 }
-
 
 bool topbot_datablock_filter(SQLFunctionCtx *pCtx, const char *minval, const char *maxval) {
   SResultRowCellInfo *pResInfo = GET_RES_INFO(pCtx);
@@ -2606,13 +2604,14 @@ static void top_function(SQLFunctionCtx *pCtx) {
   
   for (int32_t i = 0; i < pCtx->size; ++i) {
     char *data = GET_INPUT_DATA(pCtx, i);
-    TSKEY ts = GET_TS_DATA(pCtx, i);
-
     if (pCtx->hasNull && isNull(data, pCtx->inputType)) {
       continue;
     }
     
     notNullElems++;
+
+    // NOTE: Set the default timestamp if it is missing [todo refactor]
+    TSKEY ts = (pCtx->ptsList != NULL)? GET_TS_DATA(pCtx, i):0;
     do_top_function_add(pRes, (int32_t)pCtx->param[0].i64, data, ts, pCtx->inputType, &pCtx->tagInfo, NULL, 0);
   }
   
@@ -2685,13 +2684,13 @@ static void bottom_function(SQLFunctionCtx *pCtx) {
 
   for (int32_t i = 0; i < pCtx->size; ++i) {
     char *data = GET_INPUT_DATA(pCtx, i);
-    TSKEY ts = GET_TS_DATA(pCtx, i);
-
     if (pCtx->hasNull && isNull(data, pCtx->inputType)) {
       continue;
     }
-    
+
     notNullElems++;
+    // NOTE: Set the default timestamp if it is missing [todo refactor]
+    TSKEY ts = (pCtx->ptsList != NULL)? GET_TS_DATA(pCtx, i):0;
     do_bottom_function_add(pRes, (int32_t)pCtx->param[0].i64, data, ts, pCtx->inputType, &pCtx->tagInfo, NULL, 0);
   }
   
@@ -2769,7 +2768,7 @@ static void top_bottom_func_finalizer(SQLFunctionCtx *pCtx) {
   if (pCtx->param[1].i64 == PRIMARYKEY_TIMESTAMP_COL_INDEX) {
     __compar_fn_t comparator = (pCtx->param[2].i64 == TSDB_ORDER_ASC) ? resAscComparFn : resDescComparFn;
     qsort(tvp, (size_t)pResInfo->numOfRes, POINTER_BYTES, comparator);
-  } else if (pCtx->param[1].i64 > PRIMARYKEY_TIMESTAMP_COL_INDEX) {
+  } else /*if (pCtx->param[1].i64 > PRIMARYKEY_TIMESTAMP_COL_INDEX)*/ {
     __compar_fn_t comparator = (pCtx->param[2].i64 == TSDB_ORDER_ASC) ? resDataAscComparFn : resDataDescComparFn;
     qsort(tvp, (size_t)pResInfo->numOfRes, POINTER_BYTES, comparator);
   }
@@ -3324,8 +3323,12 @@ static void col_project_function(SQLFunctionCtx *pCtx) {
   if (pCtx->numOfParams == 2) {
     return;
   }
+  if (pCtx->param[0].i64 == 1) {
+    SET_VAL(pCtx, pCtx->size, 1);
+  } else {
+    INC_INIT_VAL(pCtx, pCtx->size);
+  }
 
-  INC_INIT_VAL(pCtx, pCtx->size);
 
   char *pData = GET_INPUT_DATA_LIST(pCtx);
   if (pCtx->order == TSDB_ORDER_ASC) {

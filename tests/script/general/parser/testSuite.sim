@@ -64,4 +64,5 @@ run general/parser/slimit_alter_tags.sim
 run general/parser/udf.sim
 run general/parser/udf_dll.sim
 run general/parser/udf_dll_stable.sim
+run general/parser/nestquery.sim
 

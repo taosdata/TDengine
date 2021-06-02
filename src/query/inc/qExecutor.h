@@ -22,6 +22,7 @@
 #include "qFill.h"
 #include "qResultbuf.h"
 #include "qSqlparser.h"
+#include "qTableMeta.h"
 #include "qTsbuf.h"
 #include "query.h"
 #include "taosdef.h"
@@ -70,14 +71,6 @@ typedef struct SResultRowPool {
 
   SArray* pData;    // SArray<void*>
 } SResultRowPool;
-
-typedef struct SGroupbyExpr {
-  int16_t tableIndex;
-  SArray* columnInfo;  // SArray<SColIndex>, group by columns information
-  int16_t numOfGroupCols;  // todo remove it
-  int16_t orderIndex;  // order by column index
-  int16_t orderType;   // order by type: asc/desc
-} SGroupbyExpr;
 
 typedef struct SResultRow {
   int32_t       pageId;      // pageId & rowId is the position of current result in disk-based output buffer
@@ -197,6 +190,7 @@ typedef struct SQueryAttr {
   bool             pointInterpQuery; // point interpolation query
   bool             needReverseScan;  // need reverse scan
   bool             distinctTag;      // distinct tag query
+  bool             stateWindow;       // window State on sub/normal table
   int32_t          interBufSize;     // intermediate buffer sizse
 
   int32_t          havingNum;        // having expr number
@@ -217,7 +211,7 @@ typedef struct SQueryAttr {
   int32_t          intermediateResultRowSize; // intermediate result row size, in case of top-k query.
   int32_t          maxTableColumnWidth;
   int32_t          tagLen;           // tag value length of current query
-  SGroupbyExpr* pGroupbyExpr;
+  SGroupbyExpr    *pGroupbyExpr;
 
   SExprInfo*       pExpr1;
   SExprInfo*       pExpr2;
@@ -306,6 +300,7 @@ enum OPERATOR_TYPE_E {
   OP_Filter            = 19,
   OP_Distinct          = 20,
   OP_Join              = 21,
+  OP_StateWindow       = 22,
 };
 
 typedef struct SOperatorInfo {
@@ -471,6 +466,16 @@ typedef struct SSWindowOperatorInfo {
   int32_t        start;      // start row index
 } SSWindowOperatorInfo;
 
+typedef struct SStateWindowOperatorInfo {
+  SOptrBasicInfo binfo;
+  STimeWindow    curWindow;  // current time window
+  int32_t        numOfRows;  // number of rows
+  int32_t        colIndex;      // start row index
+  int32_t        start;
+  char*          prevData;    // previous data
+
+} SStateWindowOperatorInfo ;
+
 typedef struct SDistinctOperatorInfo {
   SHashObj         *pSet;
   SSDataBlock      *pRes;
@@ -479,10 +484,10 @@ typedef struct SDistinctOperatorInfo {
   int64_t           outputCapacity;
 } SDistinctOperatorInfo;
 
-struct SLocalMerger;
+struct SGlobalMerger;
 
 typedef struct SMultiwayMergeInfo {
-  struct SLocalMerger *pMerge;
+  struct SGlobalMerger *pMerge;
   SOptrBasicInfo       binfo;
   int32_t              bufCapacity;
   int64_t              seed;
@@ -522,6 +527,7 @@ SOperatorInfo* createTableBlockInfoScanOperator(void* pTsdbQueryHandle, SQueryRu
 SOperatorInfo* createMultiwaySortOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SExprInfo* pExpr, int32_t numOfOutput,
                                               int32_t numOfRows, void* merger, bool groupMix);
 SOperatorInfo* createGlobalAggregateOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorInfo* upstream, SExprInfo* pExpr, int32_t numOfOutput, void* param, SArray* pUdfInfo);
+SOperatorInfo* createStatewindowOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorInfo* upstream, SExprInfo* pExpr, int32_t numOfOutput);
 SOperatorInfo* createSLimitOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorInfo* upstream, SExprInfo* pExpr, int32_t numOfOutput, void* merger);
 SOperatorInfo* createFilterOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorInfo* upstream, SExprInfo* pExpr,
                                         int32_t numOfOutput, SColumnInfo* pCols, int32_t numOfFilter);
@@ -565,6 +571,8 @@ int32_t createFilterInfo(SQueryAttr* pQueryAttr, uint64_t qId);
 void freeColumnFilterInfo(SColumnFilterInfo* pFilter, int32_t numOfFilters);
 
 STableQueryInfo *createTableQueryInfo(SQueryAttr* pQueryAttr, void* pTable, bool groupbyColumn, STimeWindow win, void* buf);
+STableQueryInfo* createTmpTableQueryInfo(STimeWindow win);
+
 int32_t buildArithmeticExprFromMsg(SExprInfo *pArithExprInfo, void *pQueryMsg);
 
 bool isQueryKilled(SQInfo *pQInfo);

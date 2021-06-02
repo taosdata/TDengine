@@ -89,6 +89,10 @@ typedef struct SSessionWindowVal {
   SStrToken          gap;
 } SSessionWindowVal;
 
+typedef struct SWindowStateVal {
+  SStrToken          col;
+} SWindowStateVal;
+
 struct SRelationInfo;
 
 typedef struct SSqlNode {
@@ -100,6 +104,7 @@ typedef struct SSqlNode {
   SArray            *fillType;     // fill type[optional], SArray<tVariantListItem>
   SIntervalVal       interval;     // (interval, interval_offset) [optional]
   SSessionWindowVal  sessionVal;   // session window [optional]
+  SWindowStateVal    windowstateVal; // window_state(col) [optional]
   SStrToken          sliding;      // sliding window [optional]
   SLimitVal          limit;        // limit offset [optional]
   SLimitVal          slimit;       // group limit offset [optional]
@@ -142,7 +147,7 @@ typedef struct SCreateTableSql {
   } colInfo;
 
   SArray            *childTableInfo;        // SArray<SCreatedTableInfo>
-  SSqlNode     *pSelect;
+  SSqlNode          *pSelect;
 } SCreateTableSql;
 
 typedef struct SAlterTableInfo {
@@ -268,7 +273,6 @@ SArray *tVariantListInsert(SArray *pList, tVariant *pVar, uint8_t sortOrder, int
 SArray *tVariantListAppendToken(SArray *pList, SStrToken *pAliasToken, uint8_t sortOrder);
 
 SRelationInfo *setTableNameList(SRelationInfo* pFromInfo, SStrToken *pName, SStrToken* pAlias);
-//SRelationInfo *setSubquery(SRelationInfo* pFromInfo, SRelElementPair* p);
 void          *destroyRelationInfo(SRelationInfo* pFromInfo);
 SRelationInfo *addSubqueryElem(SRelationInfo* pRelationInfo, SArray* pSub, SStrToken* pAlias);
 
@@ -286,7 +290,7 @@ SArray   *tSqlExprListAppend(SArray *pList, tSqlExpr *pNode, SStrToken *pDistinc
 void      tSqlExprListDestroy(SArray *pList);
 
 SSqlNode *tSetQuerySqlNode(SStrToken *pSelectToken, SArray *pSelNodeList, SRelationInfo *pFrom, tSqlExpr *pWhere,
-                                SArray *pGroupby, SArray *pSortOrder, SIntervalVal *pInterval, SSessionWindowVal *ps,
+                                SArray *pGroupby, SArray *pSortOrder, SIntervalVal *pInterval, SSessionWindowVal *ps, SWindowStateVal *pw,
                                 SStrToken *pSliding, SArray *pFill, SLimitVal *pLimit, SLimitVal *pgLimit, tSqlExpr *pHaving);
 int32_t tSqlExprCompare(tSqlExpr *left, tSqlExpr *right);
 

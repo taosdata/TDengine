@@ -1,5 +1,5 @@
 #include "os.h"
-#include "tschemautil.h"
+#include "qTableMeta.h"
 #include "qPlan.h"
 #include "qExecutor.h"
 #include "qUtil.h"
@@ -590,6 +590,14 @@ SArray* createExecOperatorPlan(SQueryAttr* pQueryAttr) {
     }
   } else if (pQueryAttr->sw.gap > 0) {
     op = OP_SessionWindow;
+    taosArrayPush(plan, &op);
+
+    if (pQueryAttr->pExpr2 != NULL) {
+      op = OP_Arithmetic;
+      taosArrayPush(plan, &op);
+    }
+  } else if (pQueryAttr->stateWindow) {
+    op =  OP_StateWindow;
     taosArrayPush(plan, &op);
 
     if (pQueryAttr->pExpr2 != NULL) {

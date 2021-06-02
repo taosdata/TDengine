@@ -158,7 +158,7 @@ static bool restProcessUdfRequest(HttpContext* pContext) {
   }
 
   char* sql = pContext->parser->body.str;
-  int len = pContext->parser->body.size;
+  int len = pContext->parser->body.pos;
   if (sql == NULL) {
     httpSendErrorResp(pContext, TSDB_CODE_HTTP_NO_SQL_INPUT);
     return false;

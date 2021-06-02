@@ -627,7 +627,7 @@ static bool hasAdditionalErrorInfo(int32_t code, SSqlCmd *pCmd) {
 
   char *z = NULL;
   if (len > 0) {
-      z = strstr(pCmd->payload, "invalid SQL");
+      z = strstr(pCmd->payload, "invalid operation");
       if (z == NULL) {
         z = strstr(pCmd->payload, "syntax error");
       }

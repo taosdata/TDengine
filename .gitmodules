@@ -10,3 +10,6 @@
 [submodule "tests/examples/rust"]
 	path = tests/examples/rust
 	url = https://github.com/songtianyi/tdengine-rust-bindings.git
+[submodule "deps/jemalloc"]
+	path = deps/jemalloc
+	url = https://github.com/jemalloc/jemalloc

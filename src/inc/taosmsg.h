@@ -476,6 +476,7 @@ typedef struct {
   bool        simpleAgg;
   bool        pointInterpQuery; // point interpolation query
   bool        needReverseScan;  // need reverse scan
+  bool        stateWindow;       // state window flag 
 
   STimeWindow window;
   int32_t     numOfTables;
