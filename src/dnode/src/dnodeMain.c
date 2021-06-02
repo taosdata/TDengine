@@ -88,6 +88,7 @@ static SStep tsDnodeSteps[] = {
 
 static SStep tsDnodeCompactSteps[] = {
   {"dnode-tfile",     tfInit,              tfCleanup},
+  {"dnode-globalcfg", taosCheckGlobalCfg,  NULL},
   {"dnode-storage",   dnodeInitStorage,    dnodeCleanupStorage},
   {"dnode-eps",       dnodeInitEps,        dnodeCleanupEps},
   {"dnode-wal",       walInit,             walCleanUp},
