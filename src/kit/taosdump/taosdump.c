@@ -196,6 +196,8 @@ static struct argp_option options[] = {
   {"user",          'u', "USER",        0,  "User name used to connect to server. Default is root.",        0},
   #ifdef _TD_POWER_
   {"password",      'p', "PASSWORD",    0,  "User password to connect to server. Default is powerdb.",      0},
+  #elseif _TD_TQ_
+  {"password",      'p', "PASSWORD",    0,  "User password to connect to server. Default is tqueue.",      0},
   #else
   {"password",      'p', "PASSWORD",    0,  "User password to connect to server. Default is taosdata.",     0},
   #endif
@@ -208,6 +210,8 @@ static struct argp_option options[] = {
   {"resultFile",    'r', "RESULTFILE",  0,  "DumpOut/In Result file path and name.",                        1},
   #ifdef _TD_POWER_
   {"config",        'c', "CONFIG_DIR",  0,  "Configure directory. Default is /etc/power/taos.cfg.",         1},
+  #elseif _TD_TQ_
+  {"config",        'c', "CONFIG_DIR",  0,  "Configure directory. Default is /etc/tq/taos.cfg.",         1},
   #else
   {"config",        'c', "CONFIG_DIR",  0,  "Configure directory. Default is /etc/taos/taos.cfg.",          1},
   #endif
@@ -421,6 +425,8 @@ struct arguments g_args = {
   "root",
   #ifdef _TD_POWER_
   "powerdb",
+  #elseif _TD_TQ_
+  "tqueue",
   #else
   "taosdata",
   #endif
