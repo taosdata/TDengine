@@ -4544,7 +4544,7 @@ static void rate_function(SQLFunctionCtx *pCtx) {
     
     notNullElems++;
     
-    int64_t v = 0;
+    double v = 0;
     GET_TYPED_DATA(v, double, pCtx->inputType, pData);
     
     if ((INT64_MIN == pRateInfo->firstValue) || (INT64_MIN == pRateInfo->firstKey)) {
@@ -4591,7 +4591,7 @@ static void rate_function_f(SQLFunctionCtx *pCtx, int32_t index) {
   SRateInfo   *pRateInfo  = (SRateInfo *)GET_ROWCELL_INTERBUF(pResInfo);
   TSKEY     *primaryKey = GET_TS_LIST(pCtx);
 
-  int64_t v = 0;
+  double v = 0;
   GET_TYPED_DATA(v, double, pCtx->inputType, pData);
   
   if ((INT64_MIN == pRateInfo->firstValue) || (INT64_MIN == pRateInfo->firstKey)) {
