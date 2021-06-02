@@ -81,7 +81,7 @@ extern const int32_t TYPE_BYTES[15];
 #define TSDB_DEFAULT_USER               "root"
 #ifdef _TD_POWER_
 #define TSDB_DEFAULT_PASS               "powerdb"
-#elseif _TD_TQ_
+#elif (_TD_TQ_ == true)
 #define TSDB_DEFAULT_PASS               "tqueue"
 #else
 #define TSDB_DEFAULT_PASS               "taosdata"

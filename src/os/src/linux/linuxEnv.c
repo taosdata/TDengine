@@ -25,7 +25,7 @@ void osInit() {
   strcpy(tsDataDir, "/var/lib/power");
   strcpy(tsLogDir, "/var/log/power");
   strcpy(tsScriptDir, "/etc/power");
-#elseif _TD_POWER_Q_
+#elif (_TD_TQ_ == true)
 	if (configDir[0] == 0) {
 	  strcpy(configDir, "/etc/powerq");
 	}

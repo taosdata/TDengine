@@ -37,7 +37,7 @@ char      PROMPT_HEADER[] = "power> ";
 
 char      CONTINUE_PROMPT[] = "    -> ";
 int       prompt_size = 7;
-#elseif _TD_TQ_
+#elif (_TD_TQ_ == true)
 char      CLIENT_VERSION[] = "Welcome to the TQ shell from %s, Client Version:%s\n"
                              "Copyright (c) 2020 by TQ, Inc. All rights reserved.\n\n";
 char      PROMPT_HEADER[] = "tq> ";
