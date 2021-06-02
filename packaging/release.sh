@@ -25,7 +25,7 @@ soMode=dynamic   # [static | dynamic]
 allocator=glibc  # [glibc | jemalloc]
 dbName=taos      # [taos | power | tq]
 verNumber=""
-verNumberComp="2.0.0.0"
+verNumberComp="1.0.0.0"
 
 while getopts "hv:V:c:o:l:s:d:a:n:m:" arg
 do

@@ -409,7 +409,7 @@ function install_config() {
 
     # first full-qualified domain name (FQDN) for TQ cluster system
     echo
-    echo -e -n "${GREEN}Enter FQDN:port (like h1.taosdata.com:6030) of an existing TDengine cluster node to join${NC}"
+    echo -e -n "${GREEN}Enter FQDN:port (like h1.taosdata.com:6030) of an existing TQ cluster node to join${NC}"
     echo
     echo -e -n "${GREEN}OR leave it blank to build one${NC}:"
     read firstEp
