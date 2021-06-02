@@ -375,6 +375,8 @@ do { \
 
 #define TSDB_MAX_WAL_SIZE    (1024*1024*3)
 
+#define TSDB_ARB_DUMMY_TIME                    4765104000000 // 2121-01-01 00:00:00.000, :P
+
 typedef enum {
   TAOS_QTYPE_RPC   = 0,
   TAOS_QTYPE_FWD   = 1,
