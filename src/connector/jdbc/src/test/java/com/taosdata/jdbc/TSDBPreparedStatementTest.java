@@ -243,15 +243,15 @@ public class TSDBPreparedStatementTest {
             s.setNString(1, s2, 4);                   
 
             random = 10 + r.nextInt(5);
-            ArrayList<String> s5 = new ArrayList<String>();
+            ArrayList<String> s3 = new ArrayList<String>();
             for(int i = 0; i < numOfRows; i++) {
                 if(i % random == 0) {
-                    s5.add(null);
+                    s3.add(null);
                 }else{
-                    s5.add("test" + i % 10);
+                    s3.add("test" + i % 10);
                 }
             }
-            s.setString(2, s5, 10);        
+            s.setString(2, s3, 10);        
 
             s.columnDataAddBatch();
             s.columnDataExecuteBatch();
@@ -268,7 +268,126 @@ public class TSDBPreparedStatementTest {
         }
     }
 
+    @Test
+    public void bindDataWithSingleTagTest() throws SQLException { 
+        Statement stmt = conn.createStatement();                
 
+        String types[] = new String[] {"tinyint", "smallint", "int", "bigint", "bool", "float", "double", "binary(10)", "nchar(10)"};                
+
+        for (String type : types) {
+            stmt.execute("drop table if exists weather_test");
+            stmt.execute("create table weather_test(ts timestamp, f1 nchar(10), f2 binary(10)) tags (t " + type + ")");
+
+            int numOfRows = 1;
+    
+            TSDBPreparedStatement s = (TSDBPreparedStatement) conn.prepareStatement("insert into ? using weather_test tags(?) values(?, ?, ?)");
+            Random r = new Random();
+            s.setTableName("w1");
+            
+            switch(type) {
+                case "tinyint":
+                case "smallint":
+                case "int":
+                case "bigint":
+                    s.setTagInt(0, 1);
+                    break;
+                case "float":
+                    s.setTagFloat(0, 1.23f);
+                    break;
+                case "double":
+                    s.setTagDouble(0, 3.14159265);
+                    break;
+                case "bool":
+                    s.setTagBoolean(0, true);
+                    break;
+                case "binary(10)":
+                    s.setTagString(0, "test");
+                    break;
+                case "nchar(10)":
+                    s.setTagNString(0, "test");
+                    break;
+                default:
+                    break;
+            }
+            
+            
+            ArrayList<Long> ts = new ArrayList<Long>();
+            for(int i = 0; i < numOfRows; i++) {
+                ts.add(System.currentTimeMillis() + i);
+            }        
+            s.setTimestamp(0, ts);
+    
+            int random = 10 + r.nextInt(5);
+            ArrayList<String> s2 = new ArrayList<String>();        
+            for(int i = 0; i < numOfRows; i++) {            
+                s2.add("分支" + i % 4);            
+            }        
+            s.setNString(1, s2, 10);
+            
+            random = 10 + r.nextInt(5);
+            ArrayList<String> s3 = new ArrayList<String>();        
+            for(int i = 0; i < numOfRows; i++) {            
+                s3.add("test" + i % 4);            
+            }        
+            s.setString(2, s3, 10);
+    
+            s.columnDataAddBatch();
+            s.columnDataExecuteBatch();
+            s.columnDataCloseBatch();
+    
+            String sql = "select * from weather_test";
+            PreparedStatement statement = conn.prepareStatement(sql);
+            ResultSet rs = statement.executeQuery();
+            int rows = 0;
+            while(rs.next()) {
+                rows++;
+            }
+            Assert.assertEquals(numOfRows, rows);
+        }
+    }
+
+
+    @Test
+    public void bindDataWithMultipleTagsTest() throws SQLException { 
+        Statement stmt = conn.createStatement();                
+        
+        stmt.execute("drop table if exists weather_test");
+        stmt.execute("create table weather_test(ts timestamp, f1 nchar(10), f2 binary(10)) tags (t1 int, t2 binary(10))");
+
+        int numOfRows = 1;
+
+        TSDBPreparedStatement s = (TSDBPreparedStatement) conn.prepareStatement("insert into ? using weather_test tags(?,?) (ts, f2) values(?, ?)");        
+        s.setTableName("w2");  
+        s.setTagInt(0, 1);
+        s.setTagString(1, "test");
+        
+        
+        ArrayList<Long> ts = new ArrayList<Long>();
+        for(int i = 0; i < numOfRows; i++) {
+            ts.add(System.currentTimeMillis() + i);
+        }        
+        s.setTimestamp(0, ts);
+        
+        ArrayList<String> s2 = new ArrayList<String>();        
+        for(int i = 0; i < numOfRows; i++) {            
+            s2.add("test" + i % 4);
+        }
+        s.setString(1, s2, 10);
+    
+        s.columnDataAddBatch();
+        s.columnDataExecuteBatch();
+        s.columnDataCloseBatch();
+
+        String sql = "select * from weather_test";
+        PreparedStatement statement = conn.prepareStatement(sql);
+        ResultSet rs = statement.executeQuery();
+        int rows = 0;
+        while(rs.next()) {
+            rows++;
+        }
+        Assert.assertEquals(numOfRows, rows);
+        
+    }
 
     @Test
     public void setBoolean() throws SQLException {
