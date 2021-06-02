@@ -7482,6 +7482,7 @@ int32_t validateSqlNode(SSqlObj* pSql, SSqlNode* pSqlNode, SQueryInfo* pQueryInf
   const char* msg1 = "point interpolation query needs timestamp";
   const char* msg2 = "too many tables in from clause";
   const char* msg3 = "start(end) time of query range required or time range too large";
+  const char* msg4 = "interval query not supported, since the result of sub query not include valid timestamp column";
   const char* msg9 = "only tag query not compatible with normal column filter";
 
   int32_t code = TSDB_CODE_SUCCESS;
@@ -7540,10 +7541,24 @@ int32_t validateSqlNode(SSqlObj* pSql, SSqlNode* pSqlNode, SQueryInfo* pQueryInf
     if (validateIntervalNode(pSql, pQueryInfo, pSqlNode) != TSDB_CODE_SUCCESS) {
       return TSDB_CODE_TSC_INVALID_OPERATION;
     } else {
-      if (isTimeWindowQuery(pQueryInfo) &&
-          (validateFunctionsInIntervalOrGroupbyQuery(pCmd, pQueryInfo) != TSDB_CODE_SUCCESS)) {
-        return TSDB_CODE_TSC_INVALID_OPERATION;
+      if (isTimeWindowQuery(pQueryInfo)) {
+        // check if the first column of the nest query result is timestamp column
+        SColumn* pCol = taosArrayGetP(pQueryInfo->colList, 0);
+        if (pCol->info.type != TSDB_DATA_TYPE_TIMESTAMP) {
+          return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg4);
+        }
+
+        if (validateFunctionsInIntervalOrGroupbyQuery(pCmd, pQueryInfo) != TSDB_CODE_SUCCESS) {
+          return TSDB_CODE_TSC_INVALID_OPERATION;
+        }
       }
+    }
+
+    // set order by info
+    STableMeta* pTableMeta = tscGetMetaInfo(pQueryInfo, 0)->pTableMeta;
+    if (validateOrderbyNode(pCmd, pQueryInfo, pSqlNode, tscGetTableSchema(pTableMeta)) !=
+        TSDB_CODE_SUCCESS) {
+      return TSDB_CODE_TSC_INVALID_OPERATION;
     }
   } else {
     pQueryInfo->command = TSDB_SQL_SELECT;
@@ -7697,8 +7712,8 @@ int32_t validateSqlNode(SSqlObj* pSql, SSqlNode* pSqlNode, SQueryInfo* pQueryInf
 
     SExprInfo** p = NULL;
     int32_t numOfExpr = 0;
+    pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
     code = createProjectionExpr(pQueryInfo, pTableMetaInfo, &p, &numOfExpr);
-
     if (pQueryInfo->exprList1 == NULL) {
       pQueryInfo->exprList1 = taosArrayInit(4, POINTER_BYTES);
     }
