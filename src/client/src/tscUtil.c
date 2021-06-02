@@ -1170,7 +1170,8 @@ void handleDownstreamOperator(SSqlObj** pSqlObjList, int32_t numOfUpstream, SQue
         int32_t numOfFilterCols1 = 0;
         SSingleColumnFilterInfo* pFilterInfo1 = NULL;
         createInputDataFilterInfo(px, numOfCol1, &numOfFilterCols1, &pFilterInfo1);
-
+        
+        pOutput->precision = pSqlObjList[i]->res.precision;
         p[i] = createDummyInputOperator(pSqlObjList[i], pSchema1, n, pFilterInfo1, numOfFilterCols1);
         memcpy(&schema[offset], pSchema1, n * sizeof(SSchema));
         offset += n;
