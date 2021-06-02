@@ -384,8 +384,8 @@ int main(int argc, char** argv) {
 //      TAOS_RES*  taos_query(conn, t);
 //      taos_free_result(res);
 //    }
-  executeSQL(conn, "use t2", NULL);
-  executeSQL(conn, "select count(*) from (select * from t1) interval(1s)", NULL);
+  executeSQL(conn, "use t1", NULL);
+  executeSQL(conn, "select irate(k) from tm0", NULL);
 //  executeSQL(conn, "select count(t1.ts) + count(t1.ts) from t1,t2 where t1.ts =t2.ts", NULL);
 
 //    executeSQL(conn, "select * from (select count(*) from tm0 interval(1s)) a", NULL);
