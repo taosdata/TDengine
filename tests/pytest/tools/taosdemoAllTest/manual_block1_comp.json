@@ -38,7 +38,7 @@
             "childtable_prefix": "stb_", 
             "auto_create_table": "no",   
             "batch_create_tbl_num": 20,   
-            "data_source": "rand",       
+            "data_source": "sample",       
             "insert_mode": "taosc",      
             "insert_rows": 10000,       
             "childtable_limit": 10,      
@@ -51,9 +51,9 @@
             "timestamp_step": 1,         
             "start_timestamp": "2019-10-01 00:00:00.000",  
             "sample_format": "csv",       
-            "sample_file": "./sample.csv",   
-            "tags_file": "",              
-            "columns": [{"type": "INT"}, {"type": "DOUBLE", "count":10}, {"type": "BINARY", "len": 16, "count":3}, {"type": "BINARY", "len": 32, "count":6}],
+            "sample_file": "./tools/taosdemoAllTest/sample.csv",
+            "tags_file": "",
+            "columns": [{"type": "INT", "count":3}, {"type": "DOUBLE", "count":3}, {"type": "BINARY", "len": 16, "count":1}, {"type": "BINARY", "len": 32, "count":1}, {"type": "BOOL"}],
             "tags": [{"type": "TINYINT", "count":2}, {"type": "BINARY", "len": 16, "count":5}]
         }]
     }]
