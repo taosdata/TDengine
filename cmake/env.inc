@@ -14,11 +14,13 @@ MESSAGE(STATUS "Project binary files output path: " ${PROJECT_BINARY_DIR})
 MESSAGE(STATUS "Project executable files output path: " ${EXECUTABLE_OUTPUT_PATH})
 MESSAGE(STATUS "Project library files output path: " ${LIBRARY_OUTPUT_PATH})
 
-FIND_PROGRAM(TD_MVN_INSTALLED mvn)
-IF (TD_MVN_INSTALLED)
-  MESSAGE(STATUS "MVN is installed and JDBC will be compiled")
-ELSE ()
-  MESSAGE(STATUS "MVN is not installed and JDBC is not compiled")
+IF (TD_BUILD_JDBC)
+    FIND_PROGRAM(TD_MVN_INSTALLED mvn)
+    IF (TD_MVN_INSTALLED)
+        MESSAGE(STATUS "MVN is installed and JDBC will be compiled")
+    ELSE ()
+        MESSAGE(STATUS "MVN is not installed and JDBC is not compiled")
+    ENDIF ()
 ENDIF ()
 
 #
