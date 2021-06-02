@@ -7186,8 +7186,9 @@ static int32_t getTableNameFromSqlNode(SSqlNode* pSqlNode, SArray* tableNameList
     }
 
     SName name = {0};
-    if (tscSetTableFullName(&name, t, pSql) != TSDB_CODE_SUCCESS) {
-      return invalidOperationMsg(msgBuf, msg1);
+    int32_t code = tscSetTableFullName(&name, t, pSql);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
     }
 
     taosArrayPush(tableNameList, &name);
