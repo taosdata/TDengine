@@ -41,16 +41,17 @@ class TDTestCase:
 
         ##  the following sql will not raise error, but will not cause error either
         #   based on Li Chuang's explaination, <= 0 will not cause keep>days error
-        tdSql.execute('alter database db keep -10')
-        tdSql.query('show databases')
-        tdSql.checkData(0,7,'50,50,50')
-        tdSql.execute('alter database db keep 0')
+        # tdSql.error('alter database db keep -10')
+        # tdSql.query('show databases')
+        # tdSql.checkData(0,7,'50,50,50')
+        # tdSql.error('alter database db keep 0')
+        # tdSql.error('alter database db keep 0.1')
+        tdSql.error('alter database db keep 10.1')
         tdSql.query('show databases')
         tdSql.checkData(0,7,'50,50,50')
 
         ##TODO: test keep keep hot alter, cannot be tested for now as test.py's output
         ##      is inconsistent with the actual output.
-                    
         # tdSql.execute('insert into tb values (now, 10)')
         # tdSql.execute('insert into tb values (now + 10m, 10)')
         # tdSql.query('select * from tb')
