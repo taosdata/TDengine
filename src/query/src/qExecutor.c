@@ -1347,8 +1347,8 @@ static void doSessionWindowAggImpl(SOperatorInfo* pOperator, SSWindowOperatorInf
       pInfo->start = j;
     } else if (tsList[j] - pInfo->prevTs <= gap) {
       pInfo->curWindow.ekey = tsList[j];
-      //pInfo->prevTs = tsList[j];
       pInfo->numOfRows += 1;
+      pInfo->prevTs = tsList[j];
       if (j == 0 && pInfo->start != 0) {
         pInfo->numOfRows = 1;
         pInfo->start = 0;
