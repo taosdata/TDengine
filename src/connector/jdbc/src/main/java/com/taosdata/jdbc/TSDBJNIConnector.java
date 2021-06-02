@@ -16,12 +16,12 @@
  */
 package com.taosdata.jdbc;
 
-import com.taosdata.jdbc.utils.TaosInfo;
-
 import java.nio.ByteBuffer;
 import java.sql.SQLException;
 import java.sql.SQLWarning;
 import java.util.List;
+
+import com.taosdata.jdbc.utils.TaosInfo;
 
 /**
  * JNI connector
@@ -276,23 +276,14 @@ public class TSDBJNIConnector {
     private native int validateCreateTableSqlImp(long connection, byte[] sqlBytes);
     
 	public long prepareStmt(String sql) throws SQLException {
-    	Long stmt = 0L;
-    	try {
-    	stmt = prepareStmtImp(sql.getBytes(), this.taos);
-    	} catch (Exception e) {
-            e.printStackTrace();
-            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_ENCODING);
-        }
-    	
-        if (stmt == TSDBConstants.JNI_CONNECTION_NULL) {
+    	Long stmt = prepareStmtImp(sql.getBytes(), this.taos);
+		if (stmt == TSDBConstants.JNI_TDENGINE_ERROR) {
+			throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_INVALID_SQL);
+		} else if (stmt == TSDBConstants.JNI_CONNECTION_NULL) {
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_JNI_CONNECTION_NULL);
-        }
-        
-        if (stmt == TSDBConstants.JNI_SQL_NULL) {
+        } else if (stmt == TSDBConstants.JNI_SQL_NULL) {
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_JNI_SQL_NULL);
-        }
-        
-        if (stmt == TSDBConstants.JNI_OUT_OF_MEMORY) {
+        } else if (stmt == TSDBConstants.JNI_OUT_OF_MEMORY) {
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_JNI_OUT_OF_MEMORY);
         }
         

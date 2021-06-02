@@ -204,7 +204,7 @@ function install_jemalloc() {
             if [ -f ${binary_dir}/build/lib/libjemalloc_pic.a ]; then
                 /usr/bin/install -c -m 755 ${binary_dir}/build/lib/libjemalloc_pic.a /usr/local/lib
             fi
-            if [ -f ${binary_dir}/build/lib/libjemalloc_pic.a ]; then
+            if [ -f ${binary_dir}/build/lib/pkgconfig/jemalloc.pc ]; then
                 /usr/bin/install -c -d /usr/local/lib/pkgconfig
                 /usr/bin/install -c -m 644 ${binary_dir}/build/lib/pkgconfig/jemalloc.pc /usr/local/lib/pkgconfig
             fi
