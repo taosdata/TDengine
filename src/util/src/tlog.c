@@ -83,7 +83,7 @@ int64_t dbgWSize = 0;
 
 #ifdef _TD_POWER_
 char    tsLogDir[TSDB_FILENAME_LEN] = "/var/log/power";
-#elseif _TD_TQ_
+#elif (_TD_TQ_ == true)
 char    tsLogDir[TSDB_FILENAME_LEN] = "/var/log/tq";
 #else
 char    tsLogDir[TSDB_FILENAME_LEN] = "/var/log/taos";
