@@ -25,22 +25,19 @@ class TDTestCase:
     def run(self):
         tdSql.prepare()
 
-        tdSql.execute('create table tb (ts timestamp, col nchar(10))')
-        tdSql.execute("insert into tb values (now, 'taosdata')")
-        tdSql.query("select * from tb")
+        tdSql.execute('create table m1(ts timestamp, k int) tags(a binary(12), b int, c double);')
+        tdSql.execute('insert into tm0 using m1(b,c) tags(1, 99) values(now, 1);')
+        tdSql.execute('insert into tm1 using m1(b,c) tags(2, 100) values(now, 2);')
+        tdLog.info("2 rows inserted")
+        tdSql.query('select * from m1;')
+        tdSql.checkRows(2)
+        tdSql.query('select *,tbname from m1;')
+        tdSql.execute("drop table tm0; ")
+        tdSql.query('select * from m1')
         tdSql.checkRows(1)
-        tdSql.checkData(0, 1, 'taosdata')
-        tdSql.execute("insert into tb values (now, '涛思数据')")
-        tdSql.query("select * from tb")
-        tdSql.checkRows(2)
-        tdSql.checkData(1, 1, '涛思数据')
 
-        tdSql.error("insert into tb values (now, 'taosdata001')")
 
-        tdSql.error("insert into tb(now, 😀)")
-        tdSql.query("select * from tb")
-        tdSql.checkRows(2)
-        
+
     def stop(self):
         tdSql.close()
         tdLog.success("%s successfully executed" % __file__)

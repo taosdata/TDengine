@@ -183,6 +183,7 @@ void taosCleanupKeywordsTable();
 
 SStrToken tscReplaceStrToken(char **str, SStrToken *token, const char* newToken);
 
+SStrToken taosTokenDup(SStrToken* pToken, char* buf, int32_t len);
 
 #ifdef __cplusplus
 }
