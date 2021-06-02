@@ -93,7 +93,7 @@ int32_t tsMaxStreamComputDelay = 20000;
 int32_t tsStreamCompStartDelay = 10000;
 
 // the stream computing delay time after executing failed, change accordingly
-int32_t tsStreamCompRetryDelay = 10;
+int32_t tsRetryStreamCompDelay = 10*1000;
 
 // The delayed computing ration. 10% of the whole computing time window by default.
 float tsStreamComputDelayRatio = 0.1f;
@@ -710,7 +710,7 @@ static void doInitGlobalConfig(void) {
   taosInitConfigOption(cfg);
 
   cfg.option = "retryStreamCompDelay";
-  cfg.ptr = &tsStreamCompRetryDelay;
+  cfg.ptr = &tsRetryStreamCompDelay;
   cfg.valType = TAOS_CFG_VTYPE_INT32;
   cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
   cfg.minValue = 10;

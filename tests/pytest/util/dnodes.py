@@ -432,7 +432,7 @@ class TDDnodes:
         self.simDeployed = False
 
     def init(self, path):
-        psCmd = "ps -ef|grep -w taosd| grep -v grep | awk '{print $2}'"
+        psCmd = "ps -ef|grep -w taosd| grep -v grep| grep -v defunct | awk '{print $2}'"
         processID = subprocess.check_output(psCmd, shell=True).decode("utf-8")
         while(processID):
             killCmd = "kill -TERM %s > /dev/null 2>&1" % processID
@@ -545,14 +545,14 @@ class TDDnodes:
         for i in range(len(self.dnodes)):
             self.dnodes[i].stop()
 
-        psCmd = "ps -ef | grep -w taosd | grep 'root' | grep -v grep | awk '{print $2}'"
+        psCmd = "ps -ef | grep -w taosd | grep 'root' | grep -v grep| grep -v defunct | awk '{print $2}'"
         processID = subprocess.check_output(psCmd, shell=True).decode("utf-8")
         if processID:
             cmd = "sudo systemctl stop taosd"
             os.system(cmd)
         # if os.system(cmd) != 0 :
         # tdLog.exit(cmd)
-        psCmd = "ps -ef|grep -w taosd| grep -v grep | awk '{print $2}'"
+        psCmd = "ps -ef|grep -w taosd| grep -v grep| grep -v defunct | awk '{print $2}'"
         processID = subprocess.check_output(psCmd, shell=True).decode("utf-8")
         while(processID):
             killCmd = "kill -TERM %s > /dev/null 2>&1" % processID
