@@ -336,5 +336,5 @@ python3 test.py -f tools/taosdemoAllTest/taosdemoTestInsertWithJson.py
 python3 test.py -f tools/taosdemoAllTest/taosdemoTestQueryWithJson.py
 python3 ./test.py -f tag_lite/drop_auto_create.py
 python3 test.py -f insert/insert_before_use_db.py
-
+python3 test.py -f alter/alter_cacheLastRow.py
 #======================p4-end===============

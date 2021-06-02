@@ -280,7 +280,7 @@ int tsdbAsyncCommitConfig(STsdbRepo* pRepo) {
   }
 
   if (tsdbLockRepo(pRepo) < 0) return -1;
-  tsdbScheduleCommit(pRepo);
+  tsdbScheduleCommit(pRepo, COMMIT_CONFIG_REQ);
   if (tsdbUnlockRepo(pRepo) < 0) return -1;
 
   return 0;
@@ -303,7 +303,7 @@ int tsdbAsyncCommit(STsdbRepo *pRepo) {
   if (tsdbLockRepo(pRepo) < 0) return -1;
   pRepo->imem = pRepo->mem;
   pRepo->mem = NULL;
-  tsdbScheduleCommit(pRepo);
+  tsdbScheduleCommit(pRepo, COMMIT_REQ);
   if (tsdbUnlockRepo(pRepo) < 0) return -1;
 
   return 0;
