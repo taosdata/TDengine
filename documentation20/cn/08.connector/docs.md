@@ -349,7 +349,7 @@ typedef struct TAOS_BIND {
 - `int taos_stmt_bind_param_batch(TAOS_STMT* stmt, TAOS_MULTI_BIND* bind)`
 
   （2.1.1.0 版本新增）  
-  以多列的方式传递待绑定的数据，需要保证这里传递的数据列的顺序与 SQL 语句中的 VALUES 参数完全一致。如果这里传递的数据列数少于 SQL 语句的要求，可以再次调用 `taos_stmt_bind_param_batch` 函数来补充数据列，直到列数与 SQL 语句的要求一致为止。TAOS_MULTI_BIND 的具体定义如下：
+  以多列的方式传递待绑定的数据，需要保证这里传递的数据列的顺序、列的数量与 SQL 语句中的 VALUES 参数完全一致。TAOS_MULTI_BIND 的具体定义如下：
 
 ```c
 typedef struct TAOS_MULTI_BIND {
