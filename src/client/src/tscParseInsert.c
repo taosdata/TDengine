@@ -107,12 +107,8 @@ int tsParseTime(SStrToken *pToken, int64_t *time, char **next, char *error, int1
       return tscInvalidOperationMsg(error, "value expected in timestamp", sToken.z);
     }
 
-    if (parseAbsoluteDuration(valueToken.z, valueToken.n, &interval) != TSDB_CODE_SUCCESS) {
+    if (parseAbsoluteDuration(valueToken.z, valueToken.n, &interval, timePrec) != TSDB_CODE_SUCCESS) {
       return TSDB_CODE_TSC_INVALID_OPERATION;
-    }
-
-    if (timePrec == TSDB_TIME_PRECISION_MILLI) {
-      interval /= 1000;
     }
 
     if (sToken.type == TK_PLUS) {

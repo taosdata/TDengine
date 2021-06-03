@@ -130,10 +130,10 @@ static void getNextTimeWindow(SQueryAttr* pQueryAttr, STimeWindow* tw) {
     return;
   }
 
-  int64_t key = tw->skey / 1000, interval = pQueryAttr->interval.interval;
-  if (pQueryAttr->precision == TSDB_TIME_PRECISION_MICRO) {
-    key /= 1000;
-  }
+  int64_t key = tw->skey, interval = pQueryAttr->interval.interval;
+  //convert key to second
+  key = convertTimePrecision(key, pQueryAttr->precision, TSDB_TIME_PRECISION_MILLI) / 1000;
+
   if (pQueryAttr->interval.intervalUnit == 'y') {
     interval *= 12;
   }
@@ -145,17 +145,13 @@ static void getNextTimeWindow(SQueryAttr* pQueryAttr, STimeWindow* tw) {
   int mon = (int)(tm.tm_year * 12 + tm.tm_mon + interval * factor);
   tm.tm_year = mon / 12;
   tm.tm_mon = mon % 12;
-  tw->skey = mktime(&tm) * 1000L;
+  tw->skey = convertTimePrecision(mktime(&tm) * 1000L, TSDB_TIME_PRECISION_MILLI, pQueryAttr->precision);
 
   mon = (int)(mon + interval);
   tm.tm_year = mon / 12;
   tm.tm_mon = mon % 12;
-  tw->ekey = mktime(&tm) * 1000L;
+  tw->ekey = convertTimePrecision(mktime(&tm) * 1000L, TSDB_TIME_PRECISION_MILLI, pQueryAttr->precision);
 
-  if (pQueryAttr->precision == TSDB_TIME_PRECISION_MICRO) {
-    tw->skey *= 1000L;
-    tw->ekey *= 1000L;
-  }
   tw->ekey -= 1;
 }
 
