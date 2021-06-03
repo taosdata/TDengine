@@ -5829,7 +5829,7 @@ static int32_t setKeepOption(SSqlCmd* pCmd, SCreateDbMsg* pMsg, SCreateDbInfo* p
     switch (s) {
       case 1: {
         if ((int32_t)p0->pVar.i64 <= 0) {
-          return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg);
+          return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg);
         }
         pMsg->daysToKeep = htonl((int32_t)p0->pVar.i64);
       }
@@ -5837,7 +5837,7 @@ static int32_t setKeepOption(SSqlCmd* pCmd, SCreateDbMsg* pMsg, SCreateDbInfo* p
       case 2: {
         tVariantListItem* p1 = taosArrayGet(pKeep, 1);
         if ((int32_t)p0->pVar.i64 <= 0 || (int32_t)p1->pVar.i64 <= 0) {
-          return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg);
+          return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg);
         }        
         pMsg->daysToKeep = htonl((int32_t)p0->pVar.i64);
         pMsg->daysToKeep1 = htonl((int32_t)p1->pVar.i64);
@@ -5848,7 +5848,7 @@ static int32_t setKeepOption(SSqlCmd* pCmd, SCreateDbMsg* pMsg, SCreateDbInfo* p
         tVariantListItem* p2 = taosArrayGet(pKeep, 2);
 
         if ((int32_t)p0->pVar.i64 <= 0 || (int32_t)p1->pVar.i64 <= 0 || (int32_t)p2->pVar.i64 <= 0) {
-          return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg);
+          return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg);
         } 
 
         pMsg->daysToKeep = htonl((int32_t)p0->pVar.i64);
