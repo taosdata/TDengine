@@ -325,6 +325,7 @@ public class TSDBResultSetRowData {
                 return BigDecimal.valueOf(lowValue).add(BigDecimal.valueOf(Long.MAX_VALUE)).add(BigDecimal.valueOf(1)).toString();
             }
             case TSDBConstants.TSDB_DATA_TYPE_BINARY:
+                return new String((byte[]) obj);
             case TSDBConstants.TSDB_DATA_TYPE_NCHAR:
                 return (String) obj;
             default:
