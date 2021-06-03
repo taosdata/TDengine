@@ -42,8 +42,9 @@ class TDTestCase:
         # tdSql.checkRows(2)
     
     def alterKeepCommunity(self):
-        ## community accepts both 1 paramater and 3 paramaters
-        ## comunity should not accept 2 paramaters
+        ## community accepts both 1 paramater, 2 parmaters and 3 paramaters
+        ## but paramaters other than paramater 1 will be ignored 
+        ## only paramater 1 will be used
         tdSql.query('show databases')
         tdSql.checkData(0,7,'3650,3650,3650')
 
@@ -59,26 +60,30 @@ class TDTestCase:
         tdSql.query('show databases')
         tdSql.checkData(0,7,'20,20,20')
 
-        ## the order for altering keep is keep(D), keep0, keep1.
-        ## if the order is changed, please modify the following test
-        ## to make sure the the test is accurate
         tdSql.execute('alter database db keep 100, 98 ,99')
         tdSql.query('show databases')
-        tdSql.checkData(0,7,'98,99,100')
+        tdSql.checkData(0,7,'100,100,100')
 
-        tdSql.execute('alter database db keep 200, 200 ,200')
+        tdSql.execute('alter database db keep 99, 100 ,101')
+        tdSql.query('show databases')
+        tdSql.checkData(0,7,'99,99,99')
+
+        tdSql.execute('alter database db keep 200, 199 ,198')
         tdSql.query('show databases')
         tdSql.checkData(0,7,'200,200,200')
 
-        tdSql.error('alter database db keep 198, 199 ,200')
+        tdSql.execute('alter database db keep 4000,4001')
         tdSql.query('show databases')
-        tdSql.checkData(0,7,'200,200,200')
+        tdSql.checkData(0,7,'4000,4000,4000')
 
-        tdSql.execute('alter database db keep 3650,3650,3650')
-        tdSql.error('alter database db keep 4000,4000')
-        tdSql.error('alter database db keep 5000,50')
+        tdSql.execute('alter database db keep 5000,50')
         tdSql.query('show databases')
-        tdSql.checkData(0,7,'3650,3650,3650')
+        tdSql.checkData(0,7,'5000,5000,5000')
+
+        tdSql.execute('alter database db keep 50,5000')
+        tdSql.query('show databases')
+        tdSql.checkData(0,7,'50,50,50')
+
 
     def alterKeepEnterprise(self):
         ## enterprise only accept three inputs
