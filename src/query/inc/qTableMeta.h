@@ -123,6 +123,8 @@ typedef struct SQueryInfo {
   int32_t          round;         // 0/1/....
   int32_t          bufLen;
   char*            buf;
+
+  bool               udfCopy;
   SArray            *pUdfInfo;
 
   struct SQInfo     *pQInfo;      // global merge operator

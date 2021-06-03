@@ -749,6 +749,7 @@ typedef struct {
 typedef struct {
   int32_t numOfVgroups;
   int32_t numOfTables;
+  int32_t numOfUdfs;
   char    tableNames[];
 } SMultiTableInfoMsg;
 
@@ -799,6 +800,7 @@ typedef struct STableMetaMsg {
 typedef struct SMultiTableMeta {
   int32_t       numOfTables;
   int32_t       numOfVgroup;
+  int32_t       numOfUdf;
   int32_t       contLen;
   char          meta[];
 } SMultiTableMeta;

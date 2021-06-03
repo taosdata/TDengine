@@ -1265,7 +1265,7 @@ void tscFreeQueryInfo(SSqlCmd* pCmd, bool removeMeta) {
       tfree(pUpQueryInfo);
     }
 
-    if (pCmd->subCmd) {
+    if (pQueryInfo->udfCopy) {
       pQueryInfo->pUdfInfo = taosArrayDestroy(pQueryInfo->pUdfInfo);
     } else {
       pQueryInfo->pUdfInfo = tscDestroyUdfArrayList(pQueryInfo->pUdfInfo);
@@ -3045,6 +3045,14 @@ int32_t tscQueryInfoCopy(SQueryInfo* pQueryInfo, const SQueryInfo* pSrc) {
     tscAddTableMetaInfo(pQueryInfo, &p1->name, pMeta, p1->vgroupList, p1->tagColList, p1->pVgroupTables);
   }
 
+  SArray *pUdfInfo = NULL;
+  if (pSrc->pUdfInfo) {
+    pUdfInfo = taosArrayDup(pSrc->pUdfInfo);
+  }
+  
+  pQueryInfo->pUdfInfo = pUdfInfo;
+  pQueryInfo->udfCopy = true;
+
   _error:
   return code;
 }
@@ -3345,6 +3353,7 @@ SSqlObj* createSubqueryObj(SSqlObj* pSql, int16_t tableIndex, __async_cb_func_t 
 
   if (pQueryInfo->pUdfInfo) {
     pNewQueryInfo->pUdfInfo = taosArrayDup(pQueryInfo->pUdfInfo);
+    pNewQueryInfo->udfCopy = true;
   }
 
   pNewQueryInfo->command = pQueryInfo->command;

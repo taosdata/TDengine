@@ -42,6 +42,7 @@
 #include "mnodeWrite.h"
 #include "mnodeRead.h"
 #include "mnodePeer.h"
+#include "mnodeFunc.h"
 
 #define ALTER_CTABLE_RETRY_TIMES  3
 #define CREATE_CTABLE_RETRY_TIMES 10
@@ -2842,11 +2843,30 @@ static void mnodeProcessAlterTableRsp(SRpcMsg *rpcMsg) {
   }
 }
 
+static int32_t calculateMultipleVgroupMsgLength(SArray* vlist) {
+  int32_t contLen = 0;
+  int32_t numOfTable = taosArrayGetSize(vlist);
+  
+  for (int32_t i = 0; i < numOfTable; ++i) {
+    char *stableName = taosArrayGetP(vlist, i);
+    SSTableObj *pTable = mnodeGetSuperTable(stableName);
+    if (pTable != NULL && pTable->vgHash != NULL) {
+      contLen += TSDB_TABLE_NAME_LEN + (taosHashGetSize(pTable->vgHash) * sizeof(SVgroupMsg) + sizeof(SVgroupsMsg));
+    }
+
+    mnodeDecTableRef(pTable);
+  }
+
+  return contLen;
+}
+
+
 static int32_t mnodeProcessMultiTableMetaMsg(SMnodeMsg *pMsg) {
   SMultiTableInfoMsg *pInfo = pMsg->rpcMsg.pCont;
 
   pInfo->numOfTables  = htonl(pInfo->numOfTables);
   pInfo->numOfVgroups = htonl(pInfo->numOfVgroups);
+  pInfo->numOfUdfs    = htonl(pInfo->numOfUdfs);
 
   int32_t contLen = pMsg->rpcMsg.contLen - sizeof(SMultiTableInfoMsg);
 
@@ -2857,14 +2877,14 @@ static int32_t mnodeProcessMultiTableMetaMsg(SMnodeMsg *pMsg) {
   SArray* pList    = taosArrayInit(4, POINTER_BYTES);
   SMultiTableMeta *pMultiMeta = NULL;
 
-  if (num != pInfo->numOfTables + pInfo->numOfVgroups) {
+  if (num != pInfo->numOfTables + pInfo->numOfVgroups + pInfo->numOfUdfs) {
     mError("msg:%p, app:%p, failed to get multi-tableMeta, msg inconsistent", pMsg, pMsg->rpcMsg.ahandle);
     code = TSDB_CODE_MND_INVALID_TABLE_NAME;
     goto _end;
   }
 
   // first malloc 80KB, subsequent reallocation will expand the size as twice of the original size
-  int32_t totalMallocLen = sizeof(STableMetaMsg) + sizeof(SSchema) * (TSDB_MAX_TAGS + TSDB_MAX_COLUMNS + 16);
+  int32_t totalMallocLen = sizeof(STableMetaMsg) + sizeof(SSchema) * (TSDB_MAX_TAGS + TSDB_MAX_COLUMNS + 16) + (sizeof(SFunctionInfoMsg) + TSDB_FUNC_CODE_LEN) * pInfo->numOfUdfs + 16384;
   pMultiMeta = rpcMallocCont(totalMallocLen);
   if (pMultiMeta == NULL) {
     code = TSDB_CODE_MND_OUT_OF_MEMORY;
@@ -2932,10 +2952,9 @@ static int32_t mnodeProcessMultiTableMetaMsg(SMnodeMsg *pMsg) {
     }
   }
 
-  char* msg = (char*) pMultiMeta + pMultiMeta->contLen;
-
+  int32_t tableNum = pInfo->numOfTables + pInfo->numOfVgroups;
   // add the additional super table names that needs the vgroup info
-  for(;t < num; ++t) {
+  for(;t < tableNum; ++t) {
     taosArrayPush(pList, &nameList[t]);
   }
 
@@ -2943,6 +2962,22 @@ static int32_t mnodeProcessMultiTableMetaMsg(SMnodeMsg *pMsg) {
   int32_t numOfVgroupList = (int32_t) taosArrayGetSize(pList);
   pMultiMeta->numOfVgroup = htonl(numOfVgroupList);
 
+  if (numOfVgroupList > 0) {
+    int32_t remain = totalMallocLen - pMultiMeta->contLen;
+    int32_t vsize = calculateMultipleVgroupMsgLength(pList);
+    if (remain < vsize) {
+      totalMallocLen += vsize;
+      pMultiMeta = rpcReallocCont(pMultiMeta, totalMallocLen);
+      if (pMultiMeta == NULL) {
+        mnodeDecTableRef(pMsg->pTable);
+        code = TSDB_CODE_MND_OUT_OF_MEMORY;
+        goto _end;
+      }
+    }
+  }
+
+  char* msg = (char*) pMultiMeta + pMultiMeta->contLen;
+  
   for(int32_t i = 0; i < numOfVgroupList; ++i) {
     char* name = taosArrayGetP(pList, i);
 
@@ -2959,6 +2994,36 @@ static int32_t mnodeProcessMultiTableMetaMsg(SMnodeMsg *pMsg) {
   pMultiMeta->contLen = (int32_t) (msg - (char*) pMultiMeta);
 
   pMultiMeta->numOfTables = htonl(pMultiMeta->numOfTables);
+
+  for(int32_t i = 0; i < pInfo->numOfUdfs; ++i, ++t) {
+    char buf[TSDB_FUNC_NAME_LEN] = {0};
+    strcpy(buf, nameList[t]);
+
+    SFuncObj* pFuncObj = mnodeGetFunc(buf);
+    if (pFuncObj == NULL) {
+      mError("function %s does not exist", buf);
+      code = TSDB_CODE_MND_INVALID_FUNC;
+      goto _end;
+    }
+    
+    SFunctionInfoMsg* pFuncInfo = (SFunctionInfoMsg*) msg;
+
+    strcpy(pFuncInfo->name, buf);
+    pFuncInfo->len = htonl(pFuncObj->contLen);
+    memcpy(pFuncInfo->content, pFuncObj->cont, pFuncObj->contLen);
+
+    pFuncInfo->funcType = htonl(pFuncObj->funcType);
+    pFuncInfo->resType = pFuncObj->resType;
+    pFuncInfo->resBytes = htons(pFuncObj->resBytes);
+    pFuncInfo->bufSize  = htonl(pFuncObj->bufSize);
+    
+    msg += sizeof(SFunctionInfoMsg) + pFuncObj->contLen;
+  }
+
+  pMultiMeta->contLen = (int32_t) (msg - (char*) pMultiMeta);
+  
+  pMultiMeta->numOfUdf = htonl(pInfo->numOfUdfs);
+  
   pMsg->rpcRsp.rsp = pMultiMeta;
   pMsg->rpcRsp.len = pMultiMeta->contLen;
   code = TSDB_CODE_SUCCESS;

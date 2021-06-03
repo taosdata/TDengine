@@ -804,7 +804,15 @@ int32_t tscValidateSqlInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
             return code;
           }
 
+          SArray *pUdfInfo = NULL;
+          if (pQueryInfo->pUdfInfo) {
+            pUdfInfo = taosArrayDup(pQueryInfo->pUdfInfo);
+          }
+
           pQueryInfo = pCmd->active;
+          pQueryInfo->pUdfInfo = pUdfInfo;
+          pQueryInfo->udfCopy = true;
+
         }
       }
 
@@ -1865,6 +1873,7 @@ void genUdfList(SArray* pUdfInfo, tSqlExpr *pNode) {
   }
 }
 
+/*
 static int32_t checkForUdf(SSqlObj* pSql, SQueryInfo* pQueryInfo, SArray* pSelection) {
   if (pQueryInfo->pUdfInfo != NULL) {
     return TSDB_CODE_SUCCESS;
@@ -1889,6 +1898,7 @@ static int32_t checkForUdf(SSqlObj* pSql, SQueryInfo* pQueryInfo, SArray* pSelec
     return TSDB_CODE_SUCCESS;
   }
 }
+*/
 
 static SUdfInfo* isValidUdf(SArray* pUdfInfo, const char* name, int32_t len) {
   size_t t = taosArrayGetSize(pUdfInfo);
@@ -7119,11 +7129,6 @@ int32_t doCheckForStream(SSqlObj* pSql, SSqlInfo* pInfo) {
     return code;
   }
 
-  code = checkForUdf(pSql, pQueryInfo, pSqlNode->pSelNodeList);
-  if (code != TSDB_CODE_SUCCESS) {
-    return code;
-  }
-
   bool isSTable = UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo);
   if (validateSelectNodeList(&pSql->cmd, pQueryInfo, pSqlNode->pSelNodeList, isSTable, false, false) != TSDB_CODE_SUCCESS) {
     return TSDB_CODE_TSC_INVALID_OPERATION;
@@ -7564,6 +7569,7 @@ int32_t loadAllTableMeta(SSqlObj* pSql, struct SSqlInfo* pInfo) {
   SArray* pVgroupList   = NULL;
   SArray* plist         = NULL;
   STableMeta* pTableMeta = NULL;
+  SQueryInfo* pQueryInfo = tscGetQueryInfo(pCmd);
 
   pCmd->pTableMetaMap = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);
 
@@ -7636,9 +7642,44 @@ int32_t loadAllTableMeta(SSqlObj* pSql, struct SSqlInfo* pInfo) {
     }
   }
 
+  size_t funcSize = 0;
+  if (pInfo->funcs) {
+    funcSize = taosArrayGetSize(pInfo->funcs);
+  }
+
+  if (funcSize > 0) {
+    for (size_t i = 0; i < funcSize; ++i) {
+      SStrToken* t = taosArrayGet(pInfo->funcs, i);
+      if (NULL == t) {
+        continue;
+      }
+
+      if (t->n >= TSDB_FUNC_NAME_LEN) {
+        code = tscSQLSyntaxErrMsg(tscGetErrorMsgPayload(pCmd), "too long function name", t->z);
+        if (code != TSDB_CODE_SUCCESS) {
+          goto _end;
+        }        
+      }
+
+      int32_t functionId = isValidFunction(t->z, t->n);
+      if (functionId < 0) {
+        struct SUdfInfo info = {0};
+        info.name = strndup(t->z, t->n);
+        if (pQueryInfo->pUdfInfo == NULL) {
+          pQueryInfo->pUdfInfo = taosArrayInit(4, sizeof(struct SUdfInfo));
+        }
+        
+        int32_t functionId = (int32_t)taosArrayGetSize(pQueryInfo->pUdfInfo) * (-1) - 1;
+        info.functionId = functionId;
+      
+        taosArrayPush(pQueryInfo->pUdfInfo, &info);
+      }
+    }
+  }
+
   // load the table meta for a given table name list
-  if (taosArrayGetSize(plist) > 0 || taosArrayGetSize(pVgroupList) > 0) {
-    code = getMultiTableMetaFromMnode(pSql, plist, pVgroupList, tscTableMetaCallBack);
+  if (taosArrayGetSize(plist) > 0 || taosArrayGetSize(pVgroupList) > 0 || (pQueryInfo->pUdfInfo && taosArrayGetSize(pQueryInfo->pUdfInfo) > 0)) {
+    code = getMultiTableMetaFromMnode(pSql, plist, pVgroupList, pQueryInfo->pUdfInfo, tscTableMetaCallBack);
   }
 
 _end:
@@ -7762,6 +7803,14 @@ static int32_t doValidateSubquery(SSqlNode* pSqlNode, int32_t index, SSqlObj* pS
 
   SQueryInfo* pSub = calloc(1, sizeof(SQueryInfo));
   tscInitQueryInfo(pSub);
+
+  SArray *pUdfInfo = NULL;
+  if (pQueryInfo->pUdfInfo) {
+    pUdfInfo = taosArrayDup(pQueryInfo->pUdfInfo);
+  }
+  
+  pSub->pUdfInfo = pUdfInfo;
+  pSub->udfCopy = true;
 
   int32_t code = validateSqlNode(pSql, p, pSub);
   if (code != TSDB_CODE_SUCCESS) {
@@ -7910,11 +7959,6 @@ int32_t validateSqlNode(SSqlObj* pSql, SSqlNode* pSqlNode, SQueryInfo* pQueryInf
 
     int32_t type = isSTable? TSDB_QUERY_TYPE_STABLE_QUERY:TSDB_QUERY_TYPE_TABLE_QUERY;
     TSDB_QUERY_SET_TYPE(pQueryInfo->type, type);
-
-    code = checkForUdf(pSql, pQueryInfo, pSqlNode->pSelNodeList);
-    if (code != TSDB_CODE_SUCCESS) {
-      return code;
-    }
 
     // parse the group by clause in the first place
     if (validateGroupbyNode(pQueryInfo, pSqlNode->pGroupby, pCmd) != TSDB_CODE_SUCCESS) {

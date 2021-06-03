@@ -697,10 +697,10 @@ expr(A) ::= BOOL(X).             { A = tSqlExprCreateIdValue(&X, TK_BOOL);}
 expr(A) ::= NULL(X).             { A = tSqlExprCreateIdValue(&X, TK_NULL);}
 
 // ordinary functions: min(x), max(x), top(k, 20)
-expr(A) ::= ID(X) LP exprlist(Y) RP(E). { A = tSqlExprCreateFunction(Y, &X, &E, X.type); }
+expr(A) ::= ID(X) LP exprlist(Y) RP(E). { tStrTokenAppend(pInfo->funcs, &X); A = tSqlExprCreateFunction(Y, &X, &E, X.type); }
 
 // for parsing sql functions with wildcard for parameters. e.g., count(*)/first(*)/last(*) operation
-expr(A) ::= ID(X) LP STAR RP(Y).     { A = tSqlExprCreateFunction(NULL, &X, &Y, X.type); }
+expr(A) ::= ID(X) LP STAR RP(Y).     { tStrTokenAppend(pInfo->funcs, &X); A = tSqlExprCreateFunction(NULL, &X, &Y, X.type); }
 
 // is (not) null expression
 expr(A) ::= expr(X) IS NULL.           {A = tSqlExprCreate(X, NULL, TK_ISNULL);}

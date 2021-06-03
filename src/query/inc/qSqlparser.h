@@ -236,6 +236,7 @@ typedef struct SSqlInfo {
   bool               valid;
   SArray            *list;    // todo refactor
   char               msg[256];
+  SArray            *funcs;
   union {
     SCreateTableSql *pCreateTableInfo;
     SAlterTableInfo *pAlterInfo;
@@ -279,6 +280,7 @@ SRelationInfo *addSubqueryElem(SRelationInfo* pRelationInfo, SArray* pSub, SStrT
 // sql expr leaf node
 tSqlExpr *tSqlExprCreateIdValue(SStrToken *pToken, int32_t optrType);
 tSqlExpr *tSqlExprCreateFunction(SArray *pParam, SStrToken *pFuncToken, SStrToken *endToken, int32_t optType);
+SArray *tStrTokenAppend(SArray *pList, SStrToken *pToken);
 
 tSqlExpr *tSqlExprCreate(tSqlExpr *pLeft, tSqlExpr *pRight, int32_t optrType);
 tSqlExpr *tSqlExprClone(tSqlExpr *pSrc);

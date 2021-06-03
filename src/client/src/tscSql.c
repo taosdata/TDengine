@@ -981,7 +981,7 @@ int taos_load_table_info(TAOS *taos, const char *tableNameList) {
   registerSqlObj(pSql);
   tscDebug("0x%"PRIx64" load multiple table meta, tableNameList: %s pObj:%p", pSql->self, tableNameList, pObj);
 
-  code = getMultiTableMetaFromMnode(pSql, plist, vgroupList, loadMultiTableMetaCallback);
+  code = getMultiTableMetaFromMnode(pSql, plist, vgroupList, NULL, loadMultiTableMetaCallback);
   if (code == TSDB_CODE_TSC_ACTION_IN_PROGRESS) {
     code = TSDB_CODE_SUCCESS;
   }

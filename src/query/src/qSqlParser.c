@@ -28,6 +28,7 @@ SSqlInfo qSqlParse(const char *pStr) {
 
   SSqlInfo sqlInfo = {0};
   sqlInfo.valid = true;
+  sqlInfo.funcs = taosArrayInit(4, sizeof(SStrToken));
 
   int32_t i = 0;
   while (1) {
@@ -118,6 +119,19 @@ void tSqlExprListDestroy(SArray *pList) {
   }
 
   taosArrayDestroyEx(pList, freeExprElem);
+}
+
+
+SArray *tStrTokenAppend(SArray *pList, SStrToken *pToken) {
+  if (pList == NULL) {
+    pList = taosArrayInit(4, sizeof(tVariantListItem));
+  }
+
+  if (pToken) {
+    taosArrayPush(pList, pToken);
+  }
+
+  return pList;
 }
 
 tSqlExpr *tSqlExprCreateIdValue(SStrToken *pToken, int32_t optrType) {

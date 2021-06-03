@@ -2090,6 +2090,7 @@ int tscProcessMultiTableMetaRsp(SSqlObj *pSql) {
   SMultiTableMeta *pMultiMeta = (SMultiTableMeta *)rsp;
   pMultiMeta->numOfTables = htonl(pMultiMeta->numOfTables);
   pMultiMeta->numOfVgroup = htonl(pMultiMeta->numOfVgroup);
+  pMultiMeta->numOfUdf = htonl(pMultiMeta->numOfUdf);
 
   rsp += sizeof(SMultiTableMeta);
 
@@ -2158,6 +2159,37 @@ int tscProcessMultiTableMetaRsp(SSqlObj *pSql) {
     int32_t size = 0;
     p->pVgroupInfo = createVgroupInfoFromMsg(pMsg, &size, pSql->self);
     pMsg += size;
+  }
+
+  SQueryInfo* pQueryInfo = tscGetQueryInfo(pParentCmd);
+  if (pMultiMeta->numOfUdf > 0) {
+    assert(pQueryInfo->pUdfInfo != NULL);
+  }
+
+  for(int32_t i = 0; i < pMultiMeta->numOfUdf; ++i) {
+    SFunctionInfoMsg* pFunc = (SFunctionInfoMsg*) pMsg;
+
+    for(int32_t j = 0; j < pMultiMeta->numOfUdf; ++j) {
+      SUdfInfo* pUdfInfo = taosArrayGet(pQueryInfo->pUdfInfo, j);
+      if (strcmp(pUdfInfo->name, pFunc->name) != 0) {
+        continue;
+      }
+
+      if (pUdfInfo->content) {
+        continue;
+      }
+
+      pUdfInfo->resBytes = htons(pFunc->resBytes);
+      pUdfInfo->resType  = pFunc->resType;
+      pUdfInfo->funcType = htonl(pFunc->funcType);
+      pUdfInfo->contLen  = htonl(pFunc->len);
+      pUdfInfo->bufSize  = htonl(pFunc->bufSize);
+
+      pUdfInfo->content = malloc(pUdfInfo->contLen);
+      memcpy(pUdfInfo->content, pFunc->content, pUdfInfo->contLen);
+
+      pMsg += sizeof(SFunctionInfoMsg) + pUdfInfo->contLen;
+    }
   }
 
   pSql->res.code = TSDB_CODE_SUCCESS;
@@ -2543,7 +2575,7 @@ static int32_t getTableMetaFromMnode(SSqlObj *pSql, STableMetaInfo *pTableMetaIn
   return code;
 }
 
-int32_t getMultiTableMetaFromMnode(SSqlObj *pSql, SArray* pNameList, SArray* pVgroupNameList, __async_cb_func_t fp) {
+int32_t getMultiTableMetaFromMnode(SSqlObj *pSql, SArray* pNameList, SArray* pVgroupNameList, SArray* pUdfList, __async_cb_func_t fp) {
   SSqlObj *pNew = calloc(1, sizeof(SSqlObj));
   if (NULL == pNew) {
     tscError("0x%"PRIx64" failed to allocate sqlobj to get multiple table meta", pSql->self);
@@ -2556,8 +2588,9 @@ int32_t getMultiTableMetaFromMnode(SSqlObj *pSql, SArray* pNameList, SArray* pVg
 
   int32_t numOfTable      = (int32_t) taosArrayGetSize(pNameList);
   int32_t numOfVgroupList = (int32_t) taosArrayGetSize(pVgroupNameList);
+  int32_t numOfUdf        = pUdfList ? taosArrayGetSize(pUdfList) : 0;
 
-  int32_t size = (numOfTable + numOfVgroupList) * TSDB_TABLE_FNAME_LEN + sizeof(SMultiTableInfoMsg);
+  int32_t size = (numOfTable + numOfVgroupList) * TSDB_TABLE_FNAME_LEN + TSDB_FUNC_NAME_LEN * numOfUdf + sizeof(SMultiTableInfoMsg);
   if (TSDB_CODE_SUCCESS != tscAllocPayload(&pNew->cmd, size)) {
     tscError("0x%"PRIx64" malloc failed for payload to get table meta", pSql->self);
     tscFreeSqlObj(pNew);
@@ -2567,12 +2600,13 @@ int32_t getMultiTableMetaFromMnode(SSqlObj *pSql, SArray* pNameList, SArray* pVg
   SMultiTableInfoMsg* pInfo = (SMultiTableInfoMsg*) pNew->cmd.payload;
   pInfo->numOfTables  = htonl((uint32_t) taosArrayGetSize(pNameList));
   pInfo->numOfVgroups = htonl((uint32_t) taosArrayGetSize(pVgroupNameList));
+  pInfo->numOfUdfs    = htonl(numOfUdf);
 
   char* start = pInfo->tableNames;
   int32_t len = 0;
   for(int32_t i = 0; i < numOfTable; ++i) {
     char* name = taosArrayGetP(pNameList, i);
-    if (i < numOfTable - 1 || numOfVgroupList > 0) {
+    if (i < numOfTable - 1 || numOfVgroupList > 0 || numOfUdf > 0) {
       len = sprintf(start, "%s,", name);
     } else {
       len = sprintf(start, "%s", name);
@@ -2583,10 +2617,21 @@ int32_t getMultiTableMetaFromMnode(SSqlObj *pSql, SArray* pNameList, SArray* pVg
 
   for(int32_t i = 0; i < numOfVgroupList; ++i) {
     char* name = taosArrayGetP(pVgroupNameList, i);
-    if (i < numOfVgroupList - 1) {
+    if (i < numOfVgroupList - 1 || numOfUdf > 0) {
       len = sprintf(start, "%s,", name);
     } else {
       len = sprintf(start, "%s", name);
+    }
+
+    start += len;
+  }
+
+  for(int32_t i = 0; i < numOfUdf; ++i) {
+    SUdfInfo * u = taosArrayGet(pUdfList, i);
+    if (i < numOfUdf - 1) {
+      len = sprintf(start, "%s,", u->name);
+    } else {
+      len = sprintf(start, "%s", u->name);
     }
 
     start += len;
@@ -2596,8 +2641,8 @@ int32_t getMultiTableMetaFromMnode(SSqlObj *pSql, SArray* pNameList, SArray* pVg
   pNew->cmd.msgType = TSDB_MSG_TYPE_CM_TABLES_META;
 
   registerSqlObj(pNew);
-  tscDebug("0x%"PRIx64" new pSqlObj:0x%"PRIx64" to get %d tableMeta, vgroupInfo:%d, msg size:%d", pSql->self,
-      pNew->self, numOfTable, numOfVgroupList, pNew->cmd.payloadLen);
+  tscDebug("0x%"PRIx64" new pSqlObj:0x%"PRIx64" to get %d tableMeta, vgroupInfo:%d, udf:%d, msg size:%d", pSql->self,
+      pNew->self, numOfTable, numOfVgroupList, numOfUdf, pNew->cmd.payloadLen);
 
   pNew->fp = fp;
   pNew->param = (void *)pSql->self;
