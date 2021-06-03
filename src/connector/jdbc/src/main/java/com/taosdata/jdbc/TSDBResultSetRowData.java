@@ -48,8 +48,11 @@ public class TSDBResultSetRowData {
         return data.get(col - 1) == null;
     }
 
+    /**
+     * !!! this method is invoked by JNI method and the index start from 0 in C implementations
+     */
     public void setBoolean(int col, boolean value) {
-        data.set(col - 1, value);
+        data.set(col, value);
     }
 
     public boolean getBoolean(int col, int nativeType) throws SQLException {
@@ -75,16 +78,25 @@ public class TSDBResultSetRowData {
         }
     }
 
+    /**
+     * !!! this method is invoked by JNI method and the index start from 0 in C implementations
+     */
     public void setByte(int col, byte value) {
-        data.set(col - 1, value);
+        data.set(col, value);
     }
 
+    /**
+     * !!! this method is invoked by JNI method and the index start from 0 in C implementations
+     */
     public void setShort(int col, short value) {
-        data.set(col - 1, value);
+        data.set(col, value);
     }
 
+    /**
+     * !!! this method is invoked by JNI method and the index start from 0 in C implementations
+     */
     public void setInt(int col, int value) {
-        data.set(col - 1, value);
+        data.set(col, value);
     }
 
     public int getInt(int col, int nativeType) throws SQLException {
@@ -140,8 +152,11 @@ public class TSDBResultSetRowData {
         }
     }
 
+    /**
+     * !!! this method is invoked by JNI method and the index start from 0 in C implementations
+     */
     public void setLong(int col, long value) {
-        data.set(col - 1, value);
+        data.set(col, value);
     }
 
     public long getLong(int col, int nativeType) throws SQLException {
@@ -198,8 +213,11 @@ public class TSDBResultSetRowData {
         }
     }
 
+    /**
+     * !!! this method is invoked by JNI method and the index start from 0 in C implementations
+     */
     public void setFloat(int col, float value) {
-        data.set(col - 1, value);
+        data.set(col, value);
     }
 
     public float getFloat(int col, int nativeType) {
@@ -228,8 +246,11 @@ public class TSDBResultSetRowData {
         }
     }
 
+    /**
+     * !!! this method is invoked by JNI method and the index start from 0 in C implementations
+     */
     public void setDouble(int col, double value) {
-        data.set(col - 1, value);
+        data.set(col, value);
     }
 
     public double getDouble(int col, int nativeType) {
@@ -258,12 +279,18 @@ public class TSDBResultSetRowData {
         }
     }
 
+    /**
+     * !!! this method is invoked by JNI method and the index start from 0 in C implementations
+     */
     public void setString(int col, String value) {
-        data.set(col - 1, value);
+        data.set(col, value);
     }
 
+    /**
+     * !!! this method is invoked by JNI method and the index start from 0 in C implementations
+     */
     public void setByteArray(int col, byte[] value) {
-        data.set(col - 1, value);
+        data.set(col, value);
     }
 
     public String getString(int col, int nativeType) {
@@ -305,6 +332,9 @@ public class TSDBResultSetRowData {
         }
     }
 
+    /**
+     * !!! this method is invoked by JNI method and the index start from 0 in C implementations
+     */
     public void setTimestamp(int col, long ts) {
         //TODO: this implementation contains logical error
         // when precision is us the (long ts) is 16 digital number
@@ -312,12 +342,12 @@ public class TSDBResultSetRowData {
         // we need a JNI function like this:
         //      public void setTimestamp(int col, long epochSecond, long nanoAdjustment)
         if (ts < 1_0000_0000_0000_0L) {
-            data.set(col - 1, new Timestamp(ts));
+            data.set(col, new Timestamp(ts));
         } else {
             long epochSec = ts / 1000_000l;
             long nanoAdjustment = ts % 1000_000l * 1000l;
             Timestamp timestamp = Timestamp.from(Instant.ofEpochSecond(epochSec, nanoAdjustment));
-            data.set(col - 1, timestamp);
+            data.set(col, timestamp);
         }
     }
 
