@@ -4478,7 +4478,7 @@ static void ts_comp_finalize(SQLFunctionCtx *pCtx) {
 
 //////////////////////////////////////////////////////////////////////////////////////////////
 // rate functions
-static double do_calc_rate(const SRateInfo* pRateInfo, int64_t tickPerSec) {
+static double do_calc_rate(const SRateInfo* pRateInfo, double tickPerSec) {
   if ((INT64_MIN == pRateInfo->lastKey) || (INT64_MIN == pRateInfo->firstKey) ||
       (pRateInfo->firstKey >= pRateInfo->lastKey)) {
     return 0.0;
@@ -4504,7 +4504,7 @@ static double do_calc_rate(const SRateInfo* pRateInfo, int64_t tickPerSec) {
     return 0;
   }
 
-  return (duration > 0)? ((double)diff) / (duration/((double) tickPerSec)):0.0;
+  return (duration > 0)? ((double)diff) / (duration/tickPerSec):0.0;
 }
 
 static bool rate_function_setup(SQLFunctionCtx *pCtx) {
@@ -4636,7 +4636,7 @@ static void rate_finalizer(SQLFunctionCtx *pCtx) {
     return;
   }
   
-  *(double*) pCtx->pOutput = (double) do_calc_rate(pRateInfo, TSDB_TICK_PER_SECOND(pCtx->param[0].i64));
+  *(double*) pCtx->pOutput = do_calc_rate(pRateInfo, TSDB_TICK_PER_SECOND(pCtx->param[0].i64));
 
   // cannot set the numOfIteratedElems again since it is set during previous iteration
   pResInfo->numOfRes  = 1;
