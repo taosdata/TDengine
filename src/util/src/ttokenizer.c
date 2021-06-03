@@ -218,7 +218,8 @@ static SKeyword keywordTable[] = {
     {"DISTINCT",     TK_DISTINCT},
     {"PARTITIONS",   TK_PARTITIONS},
     {"TOPIC",        TK_TOPIC},
-    {"TOPICS",       TK_TOPICS}
+    {"TOPICS",       TK_TOPICS},
+    {"MODIFY",       TK_MODIFY}
 };
 
 static const char isIdChar[] = {
@@ -673,4 +674,16 @@ void taosCleanupKeywordsTable() {
   if (m != NULL && atomic_val_compare_exchange_ptr(&keywordHashTable, m, 0) == m) {
     taosHashCleanup(m);
   }
+}
+
+SStrToken taosTokenDup(SStrToken* pToken, char* buf, int32_t len) {
+  assert(pToken != NULL && buf != NULL);
+  SStrToken token = *pToken;
+  token.z = buf;
+
+  assert(len > token.n);
+  strncpy(token.z, pToken->z, pToken->n);
+  token.z[token.n] = 0;
+
+  return token;
 }

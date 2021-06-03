@@ -48,6 +48,7 @@ typedef struct SMultiTbStmt {
   bool      nameSet;
   bool      tagSet;
   uint64_t  currentUid;
+  char     *sqlstr;
   uint32_t  tbNum;
   SStrToken tbname;
   SStrToken stbname;
@@ -1290,6 +1291,7 @@ int stmtParseInsertTbTags(SSqlObj* pSql, STscStmt* pStmt) {
     }
 
     pStmt->mtb.values = sToken;
+
   }
 
   return TSDB_CODE_SUCCESS;
@@ -1369,7 +1371,12 @@ int stmtGenInsertStatement(SSqlObj* pSql, STscStmt* pStmt, const char* name, TAO
     break;
   }
 
-  free(pSql->sqlstr);
+  if (pStmt->mtb.sqlstr == NULL) {
+    pStmt->mtb.sqlstr = pSql->sqlstr;
+  } else {
+    tfree(pSql->sqlstr);
+  }
+  
   pSql->sqlstr = str;
 
   return TSDB_CODE_SUCCESS;
@@ -1555,7 +1562,6 @@ int taos_stmt_set_tbname_tags(TAOS_STMT* stmt, const char* name, TAOS_BIND* tags
   }
 
   pStmt->mtb.nameSet = true;
-  pStmt->mtb.tagSet = true;
 
   tscDebug("0x%"PRIx64" SQL: %s", pSql->self, pSql->sqlstr);
 
@@ -1628,6 +1634,7 @@ int taos_stmt_close(TAOS_STMT* stmt) {
       taosHashCleanup(pStmt->pSql->cmd.insertParam.pTableBlockHashList);
       pStmt->pSql->cmd.insertParam.pTableBlockHashList = NULL;
       taosArrayDestroy(pStmt->mtb.tags);
+      tfree(pStmt->mtb.sqlstr);
     }
   }
 
