@@ -6665,7 +6665,7 @@ int32_t doCheckForStream(SSqlObj* pSql, SSqlInfo* pInfo) {
   const char* msg6 = "from missing in subclause";
   const char* msg7 = "time interval is required";
   const char* msg8 = "query column is required";
-  const char* msg9 = "the first column should be primary timestamp column";
+  const char* msg9 = "the first column must be timestamp type";
   
   SSqlCmd*    pCmd = &pSql->cmd;
   SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, 0);
