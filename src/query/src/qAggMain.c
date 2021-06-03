@@ -19,6 +19,7 @@
 #include "texpr.h"
 #include "ttype.h"
 #include "tsdb.h"
+#include "tglobal.h"
 
 #include "qAggMain.h"
 #include "qFill.h"
@@ -166,7 +167,7 @@ int32_t getResultDataInfo(int32_t dataType, int32_t dataBytes, int32_t functionI
                           int16_t *bytes, int32_t *interBytes, int16_t extLength, bool isSuperTable) {
   if (!isValidDataType(dataType)) {
     qError("Illegal data type %d or data type length %d", dataType, dataBytes);
-    return TSDB_CODE_TSC_INVALID_SQL;
+    return TSDB_CODE_TSC_INVALID_OPERATION;
   }
   
   if (functionId == TSDB_FUNC_TS || functionId == TSDB_FUNC_TS_DUMMY || functionId == TSDB_FUNC_TAG_DUMMY ||
@@ -353,7 +354,7 @@ int32_t getResultDataInfo(int32_t dataType, int32_t dataBytes, int32_t functionI
     *interBytes = (*bytes);
 
   } else {
-    return TSDB_CODE_TSC_INVALID_SQL;
+    return TSDB_CODE_TSC_INVALID_OPERATION;
   }
   
   return TSDB_CODE_SUCCESS;
@@ -2489,7 +2490,6 @@ static void buildTopBotStruct(STopBotInfo *pTopBotInfo, SQLFunctionCtx *pCtx) {
   tmp += POINTER_BYTES * pCtx->param[0].i64;
   
   size_t size = sizeof(tValuePair) + pCtx->tagInfo.tagsLen;
-//  assert(pCtx->param[0].i64 > 0);
 
   for (int32_t i = 0; i < pCtx->param[0].i64; ++i) {
     pTopBotInfo->res[i] = (tValuePair*) tmp;
@@ -2497,7 +2497,6 @@ static void buildTopBotStruct(STopBotInfo *pTopBotInfo, SQLFunctionCtx *pCtx) {
     tmp += size;
   }
 }
-
 
 bool topbot_datablock_filter(SQLFunctionCtx *pCtx, const char *minval, const char *maxval) {
   SResultRowCellInfo *pResInfo = GET_RES_INFO(pCtx);
@@ -2578,13 +2577,14 @@ static void top_function(SQLFunctionCtx *pCtx) {
   
   for (int32_t i = 0; i < pCtx->size; ++i) {
     char *data = GET_INPUT_DATA(pCtx, i);
-    TSKEY ts = GET_TS_DATA(pCtx, i);
-
     if (pCtx->hasNull && isNull(data, pCtx->inputType)) {
       continue;
     }
     
     notNullElems++;
+
+    // NOTE: Set the default timestamp if it is missing [todo refactor]
+    TSKEY ts = (pCtx->ptsList != NULL)? GET_TS_DATA(pCtx, i):0;
     do_top_function_add(pRes, (int32_t)pCtx->param[0].i64, data, ts, pCtx->inputType, &pCtx->tagInfo, NULL, 0);
   }
   
@@ -2657,13 +2657,13 @@ static void bottom_function(SQLFunctionCtx *pCtx) {
 
   for (int32_t i = 0; i < pCtx->size; ++i) {
     char *data = GET_INPUT_DATA(pCtx, i);
-    TSKEY ts = GET_TS_DATA(pCtx, i);
-
     if (pCtx->hasNull && isNull(data, pCtx->inputType)) {
       continue;
     }
-    
+
     notNullElems++;
+    // NOTE: Set the default timestamp if it is missing [todo refactor]
+    TSKEY ts = (pCtx->ptsList != NULL)? GET_TS_DATA(pCtx, i):0;
     do_bottom_function_add(pRes, (int32_t)pCtx->param[0].i64, data, ts, pCtx->inputType, &pCtx->tagInfo, NULL, 0);
   }
   
@@ -2741,7 +2741,7 @@ static void top_bottom_func_finalizer(SQLFunctionCtx *pCtx) {
   if (pCtx->param[1].i64 == PRIMARYKEY_TIMESTAMP_COL_INDEX) {
     __compar_fn_t comparator = (pCtx->param[2].i64 == TSDB_ORDER_ASC) ? resAscComparFn : resDescComparFn;
     qsort(tvp, (size_t)pResInfo->numOfRes, POINTER_BYTES, comparator);
-  } else if (pCtx->param[1].i64 > PRIMARYKEY_TIMESTAMP_COL_INDEX) {
+  } else /*if (pCtx->param[1].i64 > PRIMARYKEY_TIMESTAMP_COL_INDEX)*/ {
     __compar_fn_t comparator = (pCtx->param[2].i64 == TSDB_ORDER_ASC) ? resDataAscComparFn : resDataDescComparFn;
     qsort(tvp, (size_t)pResInfo->numOfRes, POINTER_BYTES, comparator);
   }
@@ -3298,8 +3298,12 @@ static void col_project_function(SQLFunctionCtx *pCtx) {
   if (pCtx->numOfParams == 2) {
     return;
   }
+  if (pCtx->param[0].i64 == 1) {
+    SET_VAL(pCtx, pCtx->size, 1);
+  } else {
+    INC_INIT_VAL(pCtx, pCtx->size);
+  }
 
-  INC_INIT_VAL(pCtx, pCtx->size);
 
   char *pData = GET_INPUT_DATA_LIST(pCtx);
   if (pCtx->order == TSDB_ORDER_ASC) {
@@ -3700,7 +3704,7 @@ char *getArithColumnData(void *param, const char* name, int32_t colId) {
     }
   }
   
-  assert(index >= 0 /*&& colId >= 0*/);
+  assert(index >= 0);
   return pSupport->data[index] + pSupport->offset * pSupport->colList[index].bytes;
 }
 
@@ -4828,51 +4832,81 @@ void blockInfo_func(SQLFunctionCtx* pCtx) {
   pResInfo->hasResult = DATA_SET_FLAG;
 }
 
-static void mergeTableBlockDist(STableBlockDist* pDist, const STableBlockDist* pSrc) {
+static void mergeTableBlockDist(SResultRowCellInfo* pResInfo, const STableBlockDist* pSrc) {
+  STableBlockDist* pDist = (STableBlockDist*) GET_ROWCELL_INTERBUF(pResInfo);
   assert(pDist != NULL && pSrc != NULL);
+
   pDist->numOfTables += pSrc->numOfTables;
   pDist->numOfRowsInMemTable += pSrc->numOfRowsInMemTable;
   pDist->numOfFiles += pSrc->numOfFiles;
   pDist->totalSize += pSrc->totalSize;
+  pDist->totalRows += pSrc->totalRows;
 
-  if (pDist->dataBlockInfos == NULL) {
-    pDist->dataBlockInfos = taosArrayInit(4, sizeof(SFileBlockInfo));
+  if (pResInfo->hasResult == DATA_SET_FLAG) {
+    pDist->maxRows = MAX(pDist->maxRows, pSrc->maxRows);
+    pDist->minRows = MIN(pDist->minRows, pSrc->minRows);
+  } else {
+    pDist->maxRows = pSrc->maxRows;
+    pDist->minRows = pSrc->minRows;
+    
+    int32_t numSteps = tsMaxRowsInFileBlock/TSDB_BLOCK_DIST_STEP_ROWS;
+    pDist->dataBlockInfos = taosArrayInit(numSteps, sizeof(SFileBlockInfo));
+    taosArraySetSize(pDist->dataBlockInfos, numSteps);
   }
 
-  taosArrayPushBatch(pDist->dataBlockInfos, pSrc->dataBlockInfos->pData, (int32_t) taosArrayGetSize(pSrc->dataBlockInfos));
+  size_t steps = taosArrayGetSize(pDist->dataBlockInfos);
+  for (int32_t i = 0; i < steps; ++i) {
+    int32_t srcNumBlocks = ((SFileBlockInfo*)taosArrayGet(pSrc->dataBlockInfos, i))->numBlocksOfStep;
+    SFileBlockInfo* blockInfo = (SFileBlockInfo*)taosArrayGet(pDist->dataBlockInfos, i);
+    blockInfo->numBlocksOfStep += srcNumBlocks;
+  }
 }
 
 void block_func_merge(SQLFunctionCtx* pCtx) {
-  SResultRowCellInfo *pResInfo = GET_RES_INFO(pCtx);
-
-  STableBlockDist* pDist = (STableBlockDist*) GET_ROWCELL_INTERBUF(pResInfo);
   STableBlockDist info = {0};
-
   int32_t len = *(int32_t*) pCtx->pInput;
   blockDistInfoFromBinary(((char*)pCtx->pInput) + sizeof(int32_t), len, &info);
 
-  mergeTableBlockDist(pDist, &info);
+  SResultRowCellInfo *pResInfo = GET_RES_INFO(pCtx);
+  mergeTableBlockDist(pResInfo, &info);
+
+  pResInfo->numOfRes = 1;
+  pResInfo->hasResult = DATA_SET_FLAG;
 }
 
-static int32_t doGetPercentile(const SArray* pArray, double rate) {
-  int32_t len = (int32_t)taosArrayGetSize(pArray);
-  if (len <= 0) {
-    return 0;
+void getPercentiles(STableBlockDist *pTableBlockDist, int64_t totalBlocks, int32_t numOfPercents,
+                    double* percents, int32_t* percentiles) {
+  if (totalBlocks == 0) {
+    for (int32_t i = 0; i < numOfPercents; ++i) {
+      percentiles[i] = 0;
+    }
+    return;
   }
 
-  assert(rate >= 0 && rate <= 1.0);
-  int idx = (int32_t)((len - 1) * rate);
+  SArray *blocksInfos = pTableBlockDist->dataBlockInfos;
+  size_t  numSteps = taosArrayGetSize(blocksInfos);
+  size_t  cumulativeBlocks = 0;
 
-  return ((SFileBlockInfo *)(taosArrayGet(pArray, idx)))->numOfRows;
-}
+  int percentIndex = 0;
+  for (int32_t indexStep = 0; indexStep < numSteps; ++indexStep) {
+    int32_t numStepBlocks = ((SFileBlockInfo *)taosArrayGet(blocksInfos, indexStep))->numBlocksOfStep;
+    if (numStepBlocks == 0) continue;
+    cumulativeBlocks += numStepBlocks;
 
-static int compareBlockInfo(const void *pLeft, const void *pRight) {
-  int32_t left  = ((SFileBlockInfo *)pLeft)->numOfRows;
-  int32_t right = ((SFileBlockInfo *)pRight)->numOfRows;
+    while (percentIndex < numOfPercents) {
+      double blockRank = totalBlocks * percents[percentIndex];
+      if (blockRank <= cumulativeBlocks) {
+        percentiles[percentIndex] = indexStep;
+        ++percentIndex;
+      } else {
+        break;
+      }
+    }
+  }
 
-  if (left > right) return 1;
-  if (left < right) return -1;
-  return 0;
+  for (int32_t i = 0; i < numOfPercents; ++i) {
+    percentiles[i] = (percentiles[i]+1) * TSDB_BLOCK_DIST_STEP_ROWS - TSDB_BLOCK_DIST_STEP_ROWS/2;
+  }
 }
 
 void generateBlockDistResult(STableBlockDist *pTableBlockDist, char* result) {
@@ -4880,40 +4914,41 @@ void generateBlockDistResult(STableBlockDist *pTableBlockDist, char* result) {
     return;
   }
 
-  int64_t min = INT64_MAX, max = INT64_MIN, avg = 0;
-  SArray* blockInfos= pTableBlockDist->dataBlockInfos;
-  int64_t totalRows = 0, totalBlocks = taosArrayGetSize(blockInfos);
+  SArray* blockInfos = pTableBlockDist->dataBlockInfos;
+  uint64_t totalRows = pTableBlockDist->totalRows;
+  size_t   numSteps = taosArrayGetSize(blockInfos);
+  int64_t totalBlocks = 0;
+  int64_t min = -1, max = -1, avg = 0;
 
-  for (size_t i = 0; i < taosArrayGetSize(blockInfos); i++) {
+  for (int32_t i = 0; i < numSteps; i++) {
     SFileBlockInfo *blockInfo = taosArrayGet(blockInfos, i);
-    int64_t rows = blockInfo->numOfRows;
-
-    min = MIN(min, rows);
-    max = MAX(max, rows);
-    totalRows += rows;
+    int64_t blocks = blockInfo->numBlocksOfStep;
+    totalBlocks += blocks;
   }
 
   avg = totalBlocks > 0 ? (int64_t)(totalRows/totalBlocks) : 0;
-  taosArraySort(blockInfos, compareBlockInfo);
+  min = totalBlocks > 0 ? pTableBlockDist->minRows : 0;
+  max = totalBlocks > 0 ? pTableBlockDist->maxRows : 0;
+
+  double percents[] = {0.05, 0.10, 0.20, 0.30, 0.40, 0.50, 0.60, 0.70, 0.80, 0.90, 0.95, 0.99};
+  int32_t percentiles[] = {-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1};
+  assert(sizeof(percents)/sizeof(double) == sizeof(percentiles)/sizeof(int32_t));
+  getPercentiles(pTableBlockDist, totalBlocks, sizeof(percents)/sizeof(double), percents, percentiles);
 
   uint64_t totalLen = pTableBlockDist->totalSize;
   int32_t rowSize = pTableBlockDist->rowSize;
-
+  double compRatio = (totalRows>0) ? ((double)(totalLen)/(rowSize*totalRows)) : 1;
   int sz = sprintf(result + VARSTR_HEADER_SIZE,
                    "summary: \n\t "
                    "5th=[%d], 10th=[%d], 20th=[%d], 30th=[%d], 40th=[%d], 50th=[%d]\n\t "
                    "60th=[%d], 70th=[%d], 80th=[%d], 90th=[%d], 95th=[%d], 99th=[%d]\n\t "
                    "Min=[%"PRId64"(Rows)] Max=[%"PRId64"(Rows)] Avg=[%"PRId64"(Rows)] Stddev=[%.2f] \n\t "
-                   "Rows=[%"PRId64"], Blocks=[%"PRId64"], Size=[%.3f(Kb)] Comp=[%.2f%%]\n\t "
+                   "Rows=[%"PRIu64"], Blocks=[%"PRId64"], Size=[%.3f(Kb)] Comp=[%.2f]\n\t "
                    "RowsInMem=[%d] \n\t SeekHeaderTime=[%d(us)]",
-                   doGetPercentile(blockInfos, 0.05), doGetPercentile(blockInfos, 0.10),
-                   doGetPercentile(blockInfos, 0.20), doGetPercentile(blockInfos, 0.30),
-                   doGetPercentile(blockInfos, 0.40), doGetPercentile(blockInfos, 0.50),
-                   doGetPercentile(blockInfos, 0.60), doGetPercentile(blockInfos, 0.70),
-                   doGetPercentile(blockInfos, 0.80), doGetPercentile(blockInfos, 0.90),
-                   doGetPercentile(blockInfos, 0.95), doGetPercentile(blockInfos, 0.99),
+                   percentiles[0], percentiles[1], percentiles[2], percentiles[3], percentiles[4], percentiles[5],
+                   percentiles[6], percentiles[7], percentiles[8], percentiles[9], percentiles[10], percentiles[11],
                    min, max, avg, 0.0,
-                   totalRows, totalBlocks, totalLen/1024.0, (double)(totalLen*100.0)/(rowSize*totalRows),
+                   totalRows, totalBlocks, totalLen/1024.0, compRatio,
                    pTableBlockDist->numOfRowsInMemTable, pTableBlockDist->firstSeekTimeUs);
   varDataSetLen(result, sz);
   UNUSED(sz);

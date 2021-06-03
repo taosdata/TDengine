@@ -45,6 +45,10 @@ void taosRemoveDir(char *rootDir) {
   uInfo("dir:%s is removed", rootDir);
 }
 
+bool taosDirExist(const char* dirname) {
+  return access(dirname, F_OK) == 0;
+}
+
 int taosMkDir(const char *path, mode_t mode) {
   int code = mkdir(path, 0755);
   if (code < 0 && errno == EEXIST) code = 0;

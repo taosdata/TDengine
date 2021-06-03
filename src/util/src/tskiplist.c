@@ -50,6 +50,7 @@ SSkipList *tSkipListCreate(uint8_t maxLevel, uint8_t keyType, uint16_t keyLen, _
   pSkipList->len = keyLen;
   pSkipList->flags = flags;
   pSkipList->keyFn = fn;
+  pSkipList->seed = rand();
   if (comparFn == NULL) {
     pSkipList->comparFn = getKeyComparFunc(keyType);
   } else {
@@ -545,7 +546,12 @@ static FORCE_INLINE int32_t getSkipListNodeRandomHeight(SSkipList *pSkipList) {
   const uint32_t factor = 4;
 
   int32_t n = 1;
+
+#if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
   while ((rand() % factor) == 0 && n <= pSkipList->maxLevel) {
+#else
+  while ((rand_r(&(pSkipList->seed)) % factor) == 0 && n <= pSkipList->maxLevel) {
+#endif
     n++;
   }
 

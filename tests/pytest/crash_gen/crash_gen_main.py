@@ -1,6 +1,6 @@
 # -----!/usr/bin/python3.7
 ###################################################################
-#           Copyright (c) 2016 by TAOS Technologies, Inc.
+#           Copyright (c) 2016-2021 by TAOS Technologies, Inc.
 #                     All rights reserved.
 #
 #  This file is proprietary and confidential to TAOS Technologies.
@@ -15,7 +15,7 @@
 # https://stackoverflow.com/questions/33533148/how-do-i-specify-that-the-return-type-of-a-method-is-the-same-as-the-class-itsel
 from __future__ import annotations
 
-from typing import Set
+from typing import Any, Set, Tuple
 from typing import Dict
 from typing import List
 from typing import Optional # Type hinting, ref: https://stackoverflow.com/questions/19202633/python-3-type-hinting-for-none
@@ -24,29 +24,35 @@ import textwrap
 import time
 import datetime
 import random
-import logging
 import threading
-import copy
 import argparse
-import getopt
 
 import sys
 import os
+import io
 import signal
 import traceback
-import resource
+import requests
 # from guppy import hpy
 import gc
-
-from crash_gen.service_manager import ServiceManager, TdeInstance
-from crash_gen.misc import Logging, Status, CrashGenError, Dice, Helper, Progress
-from crash_gen.db import DbConn, MyTDSql, DbConnNative, DbManager
-import crash_gen.settings 
-
 import taos
-import requests
 
-crash_gen.settings.init()
+
+from .shared.types import TdColumns, TdTags
+
+# from crash_gen import ServiceManager, TdeInstance, TdeSubProcess
+# from crash_gen import ServiceManager, Config, DbConn, DbConnNative, Dice, DbManager, Status, Logging, Helper, \
+#     CrashGenError, Progress, MyTDSql, \
+#     TdeInstance
+
+from .service_manager import ServiceManager, TdeInstance
+
+from .shared.config import Config
+from .shared.db import DbConn, DbManager, DbConnNative, MyTDSql
+from .shared.misc import Dice, Logging, Helper, Status, CrashGenError, Progress
+from .shared.types import TdDataType
+
+# Config.init()
 
 # Require Python 3
 if sys.version_info[0] < 3:
@@ -56,8 +62,8 @@ if sys.version_info[0] < 3:
 
 # Command-line/Environment Configurations, will set a bit later
 # ConfigNameSpace = argparse.Namespace
-gConfig:    argparse.Namespace 
-gSvcMgr:    ServiceManager # TODO: refactor this hack, use dep injection
+# gConfig:    argparse.Namespace 
+gSvcMgr:    Optional[ServiceManager] # TODO: refactor this hack, use dep injection
 # logger:     logging.Logger
 gContainer: Container
 
@@ -80,20 +86,20 @@ class WorkerThread:
         self._stepGate = threading.Event()
 
         # Let us have a DB connection of our own
-        if (gConfig.per_thread_db_connection):  # type: ignore
+        if (Config.getConfig().per_thread_db_connection):  # type: ignore
             # print("connector_type = {}".format(gConfig.connector_type))
             tInst = gContainer.defTdeInstance
-            if gConfig.connector_type == 'native':                
+            if Config.getConfig().connector_type == 'native':                
                 self._dbConn = DbConn.createNative(tInst.getDbTarget()) 
-            elif gConfig.connector_type == 'rest':
+            elif Config.getConfig().connector_type == 'rest':
                 self._dbConn = DbConn.createRest(tInst.getDbTarget()) 
-            elif gConfig.connector_type == 'mixed':
+            elif Config.getConfig().connector_type == 'mixed':
                 if Dice.throw(2) == 0: # 1/2 chance
-                    self._dbConn = DbConn.createNative() 
+                    self._dbConn = DbConn.createNative(tInst.getDbTarget()) 
                 else:
-                    self._dbConn = DbConn.createRest() 
+                    self._dbConn = DbConn.createRest(tInst.getDbTarget()) 
             else:
-                raise RuntimeError("Unexpected connector type: {}".format(gConfig.connector_type))
+                raise RuntimeError("Unexpected connector type: {}".format(Config.getConfig().connector_type))
 
         # self._dbInUse = False  # if "use db" was executed already
 
@@ -122,14 +128,14 @@ class WorkerThread:
         # self.isSleeping = False
         Logging.info("Starting to run thread: {}".format(self._tid))
 
-        if (gConfig.per_thread_db_connection):  # type: ignore
+        if (Config.getConfig().per_thread_db_connection):  # type: ignore
             Logging.debug("Worker thread openning database connection")
             self._dbConn.open()
 
         self._doTaskLoop()
 
         # clean up
-        if (gConfig.per_thread_db_connection):  # type: ignore
+        if (Config.getConfig().per_thread_db_connection):  # type: ignore
             if self._dbConn.isOpen: #sometimes it is not open
                 self._dbConn.close()
             else:
@@ -155,9 +161,10 @@ class WorkerThread:
                 Logging.debug("[TRD] Thread Coordinator not running any more, worker thread now stopping...")
                 break
 
+            
             # Before we fetch the task and run it, let's ensure we properly "use" the database (not needed any more)
             try:
-                if (gConfig.per_thread_db_connection):  # most likely TRUE
+                if (Config.getConfig().per_thread_db_connection):  # most likely TRUE
                     if not self._dbConn.isOpen:  # might have been closed during server auto-restart
                         self._dbConn.open()
                 # self.useDb() # might encounter exceptions. TODO: catch
@@ -231,7 +238,7 @@ class WorkerThread:
         return self.getDbConn().getQueryResult()
 
     def getDbConn(self) -> DbConn :
-        if (gConfig.per_thread_db_connection):
+        if (Config.getConfig().per_thread_db_connection):
             return self._dbConn
         else:
             return self._tc.getDbManager().getDbConn()
@@ -253,7 +260,7 @@ class ThreadCoordinator:
         self._pool = pool
         # self._wd = wd
         self._te = None  # prepare for every new step
-        self._dbManager = dbManager
+        self._dbManager = dbManager # type: Optional[DbManager] # may be freed
         self._executedTasks: List[Task] = []  # in a given step
         self._lock = threading.RLock()  # sync access for a few things
 
@@ -265,9 +272,13 @@ class ThreadCoordinator:
         self._stepStartTime = None  # Track how long it takes to execute each step
 
     def getTaskExecutor(self):
+        if self._te is None:
+            raise CrashGenError("Unexpected empty TE")
         return self._te
 
     def getDbManager(self) -> DbManager:
+        if self._dbManager is None:
+            raise ChildProcessError("Unexpected empty _dbManager")
         return self._dbManager
 
     def crossStepBarrier(self, timeout=None):
@@ -278,7 +289,7 @@ class ThreadCoordinator:
         self._execStats.registerFailure("User Interruption")
 
     def _runShouldEnd(self, transitionFailed, hasAbortedTask, workerTimeout):
-        maxSteps = gConfig.max_steps  # type: ignore
+        maxSteps = Config.getConfig().max_steps  # type: ignore
         if self._curStep >= (maxSteps - 1): # maxStep==10, last curStep should be 9
             return True
         if self._runStatus != Status.STATUS_RUNNING:
@@ -383,7 +394,7 @@ class ThreadCoordinator:
         hasAbortedTask = False
         workerTimeout = False
         while not self._runShouldEnd(transitionFailed, hasAbortedTask, workerTimeout):
-            if not gConfig.debug: # print this only if we are not in debug mode    
+            if not Config.getConfig().debug: # print this only if we are not in debug mode    
                 Progress.emit(Progress.STEP_BOUNDARY)            
                 # print(".", end="", flush=True)
             # if (self._curStep % 2) == 0: # print memory usage once every 10 steps
@@ -468,7 +479,7 @@ class ThreadCoordinator:
         self._pool = None
         self._te = None  
         self._dbManager = None
-        self._executedTasks = None
+        self._executedTasks = []
         self._lock = None
         self._stepBarrier = None
         self._execStats = None
@@ -507,18 +518,18 @@ class ThreadCoordinator:
         ''' Initialize multiple databases, invoked at __ini__() time '''
         self._dbs = [] # type: List[Database]
         dbc = self.getDbManager().getDbConn()
-        if gConfig.max_dbs == 0:
+        if Config.getConfig().max_dbs == 0:
             self._dbs.append(Database(0, dbc))
         else:            
             baseDbNumber = int(datetime.datetime.now().timestamp( # Don't use Dice/random, as they are deterministic
-                )*333) % 888 if gConfig.dynamic_db_table_names else 0
-            for i in range(gConfig.max_dbs):
+                )*333) % 888 if Config.getConfig().dynamic_db_table_names else 0
+            for i in range(Config.getConfig().max_dbs):
                 self._dbs.append(Database(baseDbNumber + i, dbc))
 
     def pickDatabase(self):
         idxDb = 0
-        if gConfig.max_dbs != 0 :
-            idxDb = Dice.throw(gConfig.max_dbs) # 0 to N-1
+        if Config.getConfig().max_dbs != 0 :
+            idxDb = Dice.throw(Config.getConfig().max_dbs) # 0 to N-1
         db = self._dbs[idxDb] # type: Database
         return db
 
@@ -562,7 +573,7 @@ class ThreadPool:
             workerThread._thread.join()
 
     def cleanup(self):
-        self.threadList = None # maybe clean up each?
+        self.threadList = [] # maybe clean up each?
 
 # A queue of continguous POSITIVE integers, used by DbManager to generate continuous numbers
 # for new table names
@@ -672,7 +683,7 @@ class AnyState:
 
     # Each sub state tells us the "info", about itself, so we can determine
     # on things like canDropDB()
-    def getInfo(self):
+    def getInfo(self) -> List[Any]:
         raise RuntimeError("Must be overriden by child classes")
 
     def equals(self, other):
@@ -700,7 +711,7 @@ class AnyState:
     def canDropDb(self):
         # If user requests to run up to a number of DBs,
         # we'd then not do drop_db operations any more
-        if gConfig.max_dbs > 0 or gConfig.use_shadow_db : 
+        if Config.getConfig().max_dbs > 0 or Config.getConfig().use_shadow_db : 
             return False
         return self._info[self.CAN_DROP_DB]
 
@@ -708,7 +719,7 @@ class AnyState:
         return self._info[self.CAN_CREATE_FIXED_SUPER_TABLE]
 
     def canDropFixedSuperTable(self):
-        if gConfig.use_shadow_db: # duplicate writes to shaddow DB, in which case let's disable dropping s-table
+        if Config.getConfig().use_shadow_db: # duplicate writes to shaddow DB, in which case let's disable dropping s-table
             return False
         return self._info[self.CAN_DROP_FIXED_SUPER_TABLE]
 
@@ -910,7 +921,7 @@ class StateMechine:
 
     # May be slow, use cautionsly...
     def getTaskTypes(self):  # those that can run (directly/indirectly) from the current state
-        def typesToStrings(types):
+        def typesToStrings(types) -> List:
             ss = []
             for t in types:
                 ss.append(t.__name__)
@@ -1029,13 +1040,14 @@ class StateMechine:
 
     # ref:
     # https://eli.thegreenplace.net/2010/01/22/weighted-random-generation-in-python/
-    def _weighted_choice_sub(self, weights):
+    def _weighted_choice_sub(self, weights) -> int:
         # TODO: use our dice to ensure it being determinstic?
         rnd = random.random() * sum(weights)
         for i, w in enumerate(weights):
             rnd -= w
             if rnd < 0:
                 return i
+        raise CrashGenError("Unexpected no choice")
 
 class Database:
     ''' We use this to represent an actual TDengine database inside a service instance,
@@ -1047,8 +1059,8 @@ class Database:
     '''
     _clsLock = threading.Lock() # class wide lock
     _lastInt = 101  # next one is initial integer
-    _lastTick = 0
-    _lastLaggingTick = 0 # lagging tick, for out-of-sequence (oos) data insertions
+    _lastTick = None # Optional[datetime]
+    _lastLaggingTick = None # Optional[datetime] # lagging tick, for out-of-sequence (oos) data insertions
 
     def __init__(self, dbNum: int, dbc: DbConn): # TODO: remove dbc
         self._dbNum = dbNum # we assign a number to databases, for our testing purpose
@@ -1104,7 +1116,7 @@ class Database:
         t3 = datetime.datetime(2012, 1, 1)  # default "keep" is 10 years
         t4 = datetime.datetime.fromtimestamp(
             t3.timestamp() + elSec2)  # see explanation above
-        Logging.info("Setting up TICKS to start from: {}".format(t4))
+        Logging.debug("Setting up TICKS to start from: {}".format(t4))
         return t4
 
     @classmethod
@@ -1113,14 +1125,14 @@ class Database:
             Fetch a timestamp tick, with some random factor, may not be unique.
         ''' 
         with cls._clsLock:  # prevent duplicate tick
-            if cls._lastLaggingTick==0 or cls._lastTick==0 : # not initialized
+            if cls._lastLaggingTick is None or cls._lastTick is None : # not initialized
                 # 10k at 1/20 chance, should be enough to avoid overlaps
                 tick = cls.setupLastTick()
                 cls._lastTick = tick
                 cls._lastLaggingTick = tick + datetime.timedelta(0, -60*2)  # lagging behind 2 minutes, should catch up fast
                 # if : # should be quite a bit into the future
 
-            if gConfig.mix_oos_data and Dice.throw(20) == 0:  # if asked to do so, and 1 in 20 chance, return lagging tick
+            if Config.isSet('mix_oos_data') and Dice.throw(20) == 0:  # if asked to do so, and 1 in 20 chance, return lagging tick
                 cls._lastLaggingTick += datetime.timedelta(0, 1) # pick the next sequence from the lagging tick sequence
                 return cls._lastLaggingTick 
             else:  # regular
@@ -1302,10 +1314,10 @@ class Task():
             ]: 
             return True # These are the ALWAYS-ACCEPTABLE ones
         # This case handled below already.
-        # elif (errno in [ 0x0B ]) and gConfig.auto_start_service:
+        # elif (errno in [ 0x0B ]) and Settings.getConfig().auto_start_service:
         #     return True # We may get "network unavilable" when restarting service
-        elif gConfig.ignore_errors: # something is specified on command line
-            moreErrnos = [int(v, 0) for v in gConfig.ignore_errors.split(',')]
+        elif Config.getConfig().ignore_errors: # something is specified on command line
+            moreErrnos = [int(v, 0) for v in Config.getConfig().ignore_errors.split(',')]
             if errno in moreErrnos:
                 return True
         elif errno == 0x200 : # invalid SQL, we need to div in a bit more
@@ -1341,7 +1353,7 @@ class Task():
             self._executeInternal(te, wt)  # TODO: no return value?
         except taos.error.ProgrammingError as err:
             errno2 = Helper.convertErrno(err.errno)
-            if (gConfig.continue_on_exception):  # user choose to continue
+            if (Config.getConfig().continue_on_exception):  # user choose to continue
                 self.logDebug("[=] Continue after TAOS exception: errno=0x{:X}, msg: {}, SQL: {}".format(
                         errno2, err, wt.getDbConn().getLastSql()))
                 self._err = err
@@ -1352,11 +1364,14 @@ class Task():
                 Progress.emit(Progress.ACCEPTABLE_ERROR)
                 self._err = err
             else: # not an acceptable error
-                errMsg = "[=] Unexpected Taos library exception ({}): errno=0x{:X}, msg: {}, SQL: {}".format(
+                shortTid = threading.get_ident() % 10000
+                errMsg = "[=] Unexpected Taos library exception ({}): errno=0x{:X}, thread={}, msg: {}, SQL: {}".format(
                     self.__class__.__name__,
-                    errno2, err, wt.getDbConn().getLastSql())
+                    errno2, 
+                    shortTid,
+                    err, wt.getDbConn().getLastSql())
                 self.logDebug(errMsg)
-                if gConfig.debug:
+                if Config.getConfig().debug:
                     # raise # so that we see full stack
                     traceback.print_exc()
                 print(
@@ -1370,13 +1385,13 @@ class Task():
             self._err = e
             self._aborted = True
             traceback.print_exc()
-        except BaseException as e:
+        except BaseException as e2:
             self.logInfo("Python base exception encountered")
-            self._err = e
+            # self._err = e2 # Exception/BaseException incompatible!
             self._aborted = True
             traceback.print_exc()
-        except BaseException: # TODO: what is this again??!!
-            raise RuntimeError("Punt")
+        # except BaseException: # TODO: what is this again??!!
+        #     raise RuntimeError("Punt")
             # self.logDebug(
             #     "[=] Unexpected exception, SQL: {}".format(
             #         wt.getDbConn().getLastSql()))
@@ -1401,31 +1416,41 @@ class Task():
 
     def lockTable(self, ftName): # full table name
         # print(" <<" + ftName + '_', end="", flush=True)
-        with Task._lock:
-            if not ftName in Task._tableLocks:
+        with Task._lock: # SHORT lock! so we only protect lock creation
+            if not ftName in Task._tableLocks: # Create new lock and add to list, if needed
                 Task._tableLocks[ftName] = threading.Lock()
         
-        Task._tableLocks[ftName].acquire()
+        # No lock protection, anybody can do this any time
+        lock = Task._tableLocks[ftName]
+        # Logging.info("Acquiring lock: {}, {}".format(ftName, lock))
+        lock.acquire()
+        # Logging.info("Acquiring lock successful: {}".format(lock))
 
     def unlockTable(self, ftName):
         # print('_' + ftName + ">> ", end="", flush=True)
-        with Task._lock:
+        with Task._lock: 
             if not ftName in self._tableLocks:
                 raise RuntimeError("Corrupt state, no such lock")
             lock = Task._tableLocks[ftName]
             if not lock.locked():
                 raise RuntimeError("Corrupte state, already unlocked")
-        lock.release()
+
+            # Important note, we want to protect unlocking under the task level
+            # locking, because we don't want the lock to be deleted (maybe in the futur)
+            # while we unlock it
+            # Logging.info("Releasing lock: {}".format(lock))
+            lock.release()
+            # Logging.info("Releasing lock successful: {}".format(lock))
 
 
 class ExecutionStats:
     def __init__(self):
         # total/success times for a task
-        self._execTimes: Dict[str, [int, int]] = {}
+        self._execTimes: Dict[str, List[int]] = {}
         self._tasksInProgress = 0
         self._lock = threading.Lock()
-        self._firstTaskStartTime = None
-        self._execStartTime = None
+        self._firstTaskStartTime = 0.0
+        self._execStartTime = 0.0
         self._errors = {}
         self._elapsedTime = 0.0  # total elapsed time
         self._accRunTime = 0.0  # accumulated run time
@@ -1470,7 +1495,7 @@ class ExecutionStats:
             self._tasksInProgress -= 1
             if self._tasksInProgress == 0:  # all tasks have stopped
                 self._accRunTime += (time.time() - self._firstTaskStartTime)
-                self._firstTaskStartTime = None
+                self._firstTaskStartTime = 0.0
 
     def registerFailure(self, reason):
         self._failed = True
@@ -1554,7 +1579,7 @@ class StateTransitionTask(Task):
     def getRegTableName(cls, i):
         if ( StateTransitionTask._baseTableNumber is None): # Set it one time
             StateTransitionTask._baseTableNumber = Dice.throw(
-                999) if gConfig.dynamic_db_table_names else 0
+                999) if Config.getConfig().dynamic_db_table_names else 0
         return "reg_table_{}".format(StateTransitionTask._baseTableNumber + i)
 
     def execute(self, wt: WorkerThread):
@@ -1574,14 +1599,14 @@ class TaskCreateDb(StateTransitionTask):
     def _executeInternal(self, te: TaskExecutor, wt: WorkerThread):
         # was: self.execWtSql(wt, "create database db")
         repStr = ""
-        if gConfig.num_replicas != 1:
-            # numReplica = Dice.throw(gConfig.max_replicas) + 1 # 1,2 ... N
-            numReplica = gConfig.num_replicas # fixed, always
+        if Config.getConfig().num_replicas != 1:
+            # numReplica = Dice.throw(Settings.getConfig().max_replicas) + 1 # 1,2 ... N
+            numReplica = Config.getConfig().num_replicas # fixed, always
             repStr = "replica {}".format(numReplica)
-        updatePostfix = "update 1" if gConfig.verify_data else "" # allow update only when "verify data" is active
+        updatePostfix = "update 1" if Config.getConfig().verify_data else "" # allow update only when "verify data" is active
         dbName = self._db.getName()
         self.execWtSql(wt, "create database {} {} {} ".format(dbName, repStr, updatePostfix ) )
-        if dbName == "db_0" and gConfig.use_shadow_db:
+        if dbName == "db_0" and Config.getConfig().use_shadow_db:
             self.execWtSql(wt, "create database {} {} {} ".format("db_s", repStr, updatePostfix ) )
 
 class TaskDropDb(StateTransitionTask):
@@ -1614,10 +1639,11 @@ class TaskCreateSuperTable(StateTransitionTask):
         sTable = self._db.getFixedSuperTable() # type: TdSuperTable
         # wt.execSql("use db")    # should always be in place
 
-        sTable.create(wt.getDbConn(), 
-            {'ts':'TIMESTAMP', 'speed':'INT', 'color':'BINARY(16)'}, {'b':'BINARY(200)', 'f':'FLOAT'},
-            dropIfExists = True
-            )
+        sTable.create(wt.getDbConn(),
+                      {'ts': TdDataType.TIMESTAMP, 'speed': TdDataType.INT, 'color': TdDataType.BINARY16}, {
+                          'b': TdDataType.BINARY200, 'f': TdDataType.FLOAT},
+                      dropIfExists=True
+                      )
         # self.execWtSql(wt,"create table db.{} (ts timestamp, speed int) tags (b binary(200), f float) ".format(tblName))
         # No need to create the regular tables, INSERT will do that
         # automatically
@@ -1645,9 +1671,7 @@ class TdSuperTable:
         return dbc.existsSuperTable(self._stName)
 
     # TODO: odd semantic, create() method is usually static?
-    def create(self, dbc, cols: dict, tags: dict,
-        dropIfExists = False
-        ):
+    def create(self, dbc, cols: TdColumns, tags: TdTags, dropIfExists = False):
         '''Creating a super table'''
 
         dbName = self._dbName
@@ -1658,17 +1682,17 @@ class TdSuperTable:
                 dbc.execute("DROP TABLE {}".format(fullTableName))
             else: # error
                 raise CrashGenError("Cannot create super table, already exists: {}".format(self._stName))
-                 
+
         # Now let's create
         sql = "CREATE TABLE {} ({})".format(
             fullTableName,
-            ",".join(['%s %s'%(k,v) for (k,v) in cols.items()]))
-        if tags is None :
-            sql += " TAGS (dummy int) "
-        else:
+            ",".join(['%s %s'%(k,v.value) for (k,v) in cols.items()]))
+        if tags :
             sql += " TAGS ({})".format(
-                ",".join(['%s %s'%(k,v) for (k,v) in tags.items()])
-            )
+                ",".join(['%s %s'%(k,v.value) for (k,v) in tags.items()])
+            )            
+        else:
+            sql += " TAGS (dummy int) "
         dbc.execute(sql)        
 
     def getRegTables(self, dbc: DbConn):
@@ -1686,7 +1710,12 @@ class TdSuperTable:
     def hasRegTables(self, dbc: DbConn):
         return dbc.query("SELECT * FROM {}.{}".format(self._dbName, self._stName)) > 0
 
-    def ensureTable(self, task: Task, dbc: DbConn, regTableName: str):
+    def ensureRegTable(self, task: Optional[Task], dbc: DbConn, regTableName: str):
+        '''
+        Make sure a regular table exists for this super table, creating it if necessary.
+        If there is an associated "Task" that wants to do this, "lock" this table so that
+        others don't access it while we create it.
+        '''
         dbName = self._dbName
         sql = "select tbname from {}.{} where tbname in ('{}')".format(dbName, self._stName, regTableName)
         if dbc.query(sql) >= 1 : # reg table exists already
@@ -1694,18 +1723,24 @@ class TdSuperTable:
 
         # acquire a lock first, so as to be able to *verify*. More details in TD-1471
         fullTableName = dbName + '.' + regTableName      
-        if task is not None:  # optional lock
-            task.lockTable(fullTableName)
+        if task is not None:  # Somethime thie operation is requested on behalf of a "task"
+            # Logging.info("Locking table for creation: {}".format(fullTableName))
+            task.lockTable(fullTableName) # in which case we'll lock this table to ensure serialized access
+            # Logging.info("Table locked for creation".format(fullTableName))
         Progress.emit(Progress.CREATE_TABLE_ATTEMPT) # ATTEMPT to create a new table
         # print("(" + fullTableName[-3:] + ")", end="", flush=True)  
         try:
             sql = "CREATE TABLE {} USING {}.{} tags ({})".format(
                 fullTableName, dbName, self._stName, self._getTagStrForSql(dbc)
             )
+            # Logging.info("Creating regular with SQL: {}".format(sql))            
             dbc.execute(sql)
+            # Logging.info("Regular table created: {}".format(sql))
         finally:
             if task is not None:
+                # Logging.info("Unlocking table after creation: {}".format(fullTableName))
                 task.unlockTable(fullTableName) # no matter what
+                # Logging.info("Table unlocked after creation: {}".format(fullTableName))
 
     def _getTagStrForSql(self, dbc) :
         tags = self._getTags(dbc)
@@ -1886,7 +1921,7 @@ class TaskDropSuperTable(StateTransitionTask):
         if Dice.throw(2) == 0:
             # print("_7_", end="", flush=True)
             tblSeq = list(range(
-                2 + (self.LARGE_NUMBER_OF_TABLES if gConfig.larger_data else self.SMALL_NUMBER_OF_TABLES)))
+                2 + (self.LARGE_NUMBER_OF_TABLES if Config.getConfig().larger_data else self.SMALL_NUMBER_OF_TABLES)))
             random.shuffle(tblSeq)
             tickOutput = False  # if we have spitted out a "d" character for "drop regular table"
             isSuccess = True
@@ -1952,13 +1987,13 @@ class TaskRestartService(StateTransitionTask):
 
     @classmethod
     def canBeginFrom(cls, state: AnyState):
-        if gConfig.auto_start_service:
+        if Config.getConfig().auto_start_service:
             return state.canDropFixedSuperTable()  # Basicallly when we have the super table
         return False # don't run this otherwise
 
     CHANCE_TO_RESTART_SERVICE = 200
     def _executeInternal(self, te: TaskExecutor, wt: WorkerThread):
-        if not gConfig.auto_start_service: # only execute when we are in -a mode
+        if not Config.getConfig().auto_start_service: # only execute when we are in -a mode
             print("_a", end="", flush=True)
             return
 
@@ -1980,12 +2015,12 @@ class TaskAddData(StateTransitionTask):
     activeTable: Set[int] = set()
 
     # We use these two files to record operations to DB, useful for power-off tests
-    fAddLogReady = None # type: TextIOWrapper
-    fAddLogDone  = None # type: TextIOWrapper
+    fAddLogReady = None # type: Optional[io.TextIOWrapper]
+    fAddLogDone  = None # type: Optional[io.TextIOWrapper]
 
     @classmethod
     def prepToRecordOps(cls):
-        if gConfig.record_ops:
+        if Config.getConfig().record_ops:
             if (cls.fAddLogReady is None):
                 Logging.info(
                     "Recording in a file operations to be performed...")
@@ -2002,9 +2037,30 @@ class TaskAddData(StateTransitionTask):
     def canBeginFrom(cls, state: AnyState):
         return state.canAddData()
 
+    def _lockTableIfNeeded(self, fullTableName, extraMsg = ''):
+        if Config.getConfig().verify_data:
+            # Logging.info("Locking table: {}".format(fullTableName))
+            self.lockTable(fullTableName) 
+            # Logging.info("Table locked {}: {}".format(extraMsg, fullTableName))
+                # print("_w" + str(nextInt % 100), end="", flush=True) # Trace what was written
+        else:
+            # Logging.info("Skipping locking table")
+            pass
+
+    def _unlockTableIfNeeded(self, fullTableName):
+        if Config.getConfig().verify_data:
+            # Logging.info("Unlocking table: {}".format(fullTableName))
+            self.unlockTable(fullTableName) 
+            # Logging.info("Table unlocked: {}".format(fullTableName))
+        else:
+            pass
+            # Logging.info("Skipping unlocking table")
+
     def _addDataInBatch(self, db, dbc, regTableName, te: TaskExecutor): 
-        numRecords = self.LARGE_NUMBER_OF_RECORDS if gConfig.larger_data else self.SMALL_NUMBER_OF_RECORDS        
+        numRecords = self.LARGE_NUMBER_OF_RECORDS if Config.getConfig().larger_data else self.SMALL_NUMBER_OF_RECORDS        
+        
         fullTableName = db.getName() + '.' + regTableName
+        self._lockTableIfNeeded(fullTableName, 'batch')
 
         sql = "INSERT INTO {} VALUES ".format(fullTableName)
         for j in range(numRecords):  # number of records per table
@@ -2012,90 +2068,111 @@ class TaskAddData(StateTransitionTask):
             nextTick = db.getNextTick()
             nextColor = db.getNextColor()
             sql += "('{}', {}, '{}');".format(nextTick, nextInt, nextColor)
-        dbc.execute(sql)
+
+        # Logging.info("Adding data in batch: {}".format(sql))
+        try:
+            dbc.execute(sql)
+        finally:
+            # Logging.info("Data added in batch: {}".format(sql))
+            self._unlockTableIfNeeded(fullTableName)
+
+        
 
     def _addData(self, db: Database, dbc, regTableName, te: TaskExecutor): # implied: NOT in batches
-        numRecords = self.LARGE_NUMBER_OF_RECORDS if gConfig.larger_data else self.SMALL_NUMBER_OF_RECORDS        
+        numRecords = self.LARGE_NUMBER_OF_RECORDS if Config.getConfig().larger_data else self.SMALL_NUMBER_OF_RECORDS        
 
         for j in range(numRecords):  # number of records per table
-            nextInt = db.getNextInt()
+            intToWrite = db.getNextInt()
             nextTick = db.getNextTick()
             nextColor = db.getNextColor()
-            if gConfig.record_ops:
+            if Config.getConfig().record_ops:
                 self.prepToRecordOps()
-                self.fAddLogReady.write("Ready to write {} to {}\n".format(nextInt, regTableName))
+                if self.fAddLogReady is None:
+                    raise CrashGenError("Unexpected empty fAddLogReady")
+                self.fAddLogReady.write("Ready to write {} to {}\n".format(intToWrite, regTableName))
                 self.fAddLogReady.flush()
-                os.fsync(self.fAddLogReady)
+                os.fsync(self.fAddLogReady.fileno())
                 
             # TODO: too ugly trying to lock the table reliably, refactor...
             fullTableName = db.getName() + '.' + regTableName
-            if gConfig.verify_data:
-                self.lockTable(fullTableName) 
-                # print("_w" + str(nextInt % 100), end="", flush=True) # Trace what was written
-
+            self._lockTableIfNeeded(fullTableName) # so that we are verify read-back. TODO: deal with exceptions before unlock
+            
             try:
                 sql = "INSERT INTO {} VALUES ('{}', {}, '{}');".format( # removed: tags ('{}', {})
                     fullTableName,
                     # ds.getFixedSuperTableName(),
                     # ds.getNextBinary(), ds.getNextFloat(),
-                    nextTick, nextInt, nextColor)
+                    nextTick, intToWrite, nextColor)
+                # Logging.info("Adding data: {}".format(sql))
                 dbc.execute(sql)
+                # Logging.info("Data added: {}".format(sql))
+                intWrote = intToWrite
 
                 # Quick hack, attach an update statement here. TODO: create an "update" task
-                if (not gConfig.use_shadow_db) and Dice.throw(5) == 0: # 1 in N chance, plus not using shaddow DB
-                    nextInt = db.getNextInt()
+                if (not Config.getConfig().use_shadow_db) and Dice.throw(5) == 0: # 1 in N chance, plus not using shaddow DB
+                    intToUpdate = db.getNextInt() # Updated， but should not succeed
                     nextColor = db.getNextColor()
                     sql = "INSERt INTO {} VALUES ('{}', {}, '{}');".format( # "INSERt" means "update" here
                     fullTableName,
-                    nextTick, nextInt, nextColor)
+                    nextTick, intToUpdate, nextColor)
                     # sql = "UPDATE {} set speed={}, color='{}' WHERE ts='{}'".format(
                     #     fullTableName, db.getNextInt(), db.getNextColor(), nextTick)
                     dbc.execute(sql)
+                    intWrote = intToUpdate # We updated, seems TDengine non-cluster accepts this.
 
             except: # Any exception at all
-                if gConfig.verify_data:
-                    self.unlockTable(fullTableName)     
+                self._unlockTableIfNeeded(fullTableName) 
                 raise
 
             # Now read it back and verify, we might encounter an error if table is dropped
-            if gConfig.verify_data: # only if command line asks for it
+            if Config.getConfig().verify_data: # only if command line asks for it
                 try:
                     readBack = dbc.queryScalar("SELECT speed from {}.{} WHERE ts='{}'".
                         format(db.getName(), regTableName, nextTick))
-                    if readBack != nextInt :
+                    if readBack != intWrote :
                         raise taos.error.ProgrammingError(
                             "Failed to read back same data, wrote: {}, read: {}"
-                            .format(nextInt, readBack), 0x999)
+                            .format(intWrote, readBack), 0x999)
                 except taos.error.ProgrammingError as err:
                     errno = Helper.convertErrno(err.errno)
-                    if errno in [CrashGenError.INVALID_EMPTY_RESULT, CrashGenError.INVALID_MULTIPLE_RESULT]  : # not a single result
+                    if errno == CrashGenError.INVALID_EMPTY_RESULT: # empty result
                         raise taos.error.ProgrammingError(
-                            "Failed to read back same data for tick: {}, wrote: {}, read: {}"
-                            .format(nextTick, nextInt, "Empty Result" if errno == CrashGenError.INVALID_EMPTY_RESULT else "Multiple Result"),
+                            "Failed to read back same data for tick: {}, wrote: {}, read: EMPTY"
+                            .format(nextTick, intWrote),
+                            errno)
+                    elif errno == CrashGenError.INVALID_MULTIPLE_RESULT : # multiple results
+                        raise taos.error.ProgrammingError(
+                            "Failed to read back same data for tick: {}, wrote: {}, read: MULTIPLE RESULTS"
+                            .format(nextTick, intWrote),
                             errno)
                     elif errno in [0x218, 0x362]: # table doesn't exist
                         # do nothing
-                        dummy = 0
+                        pass
                     else:
                         # Re-throw otherwise
                         raise
                 finally:
-                    self.unlockTable(fullTableName) # Unlock the table no matter what
+                    self._unlockTableIfNeeded(fullTableName) # Quite ugly, refactor lock/unlock
+            # Done with read-back verification, unlock the table now
+            else:
+                self._unlockTableIfNeeded(fullTableName) 
 
             # Successfully wrote the data into the DB, let's record it somehow
-            te.recordDataMark(nextInt)
+            te.recordDataMark(intWrote)
 
-            if gConfig.record_ops:
-                self.fAddLogDone.write("Wrote {} to {}\n".format(nextInt, regTableName))
+            if Config.getConfig().record_ops:
+                if self.fAddLogDone is None:
+                    raise CrashGenError("Unexpected empty fAddLogDone")
+                self.fAddLogDone.write("Wrote {} to {}\n".format(intWrote, regTableName))
                 self.fAddLogDone.flush()
-                os.fsync(self.fAddLogDone)
+                os.fsync(self.fAddLogDone.fileno())
 
     def _executeInternal(self, te: TaskExecutor, wt: WorkerThread):
         # ds = self._dbManager # Quite DANGEROUS here, may result in multi-thread client access
         db = self._db
         dbc = wt.getDbConn()
-        numTables  = self.LARGE_NUMBER_OF_TABLES  if gConfig.larger_data else self.SMALL_NUMBER_OF_TABLES
-        numRecords = self.LARGE_NUMBER_OF_RECORDS if gConfig.larger_data else self.SMALL_NUMBER_OF_RECORDS
+        numTables  = self.LARGE_NUMBER_OF_TABLES  if Config.getConfig().larger_data else self.SMALL_NUMBER_OF_TABLES
+        numRecords = self.LARGE_NUMBER_OF_RECORDS if Config.getConfig().larger_data else self.SMALL_NUMBER_OF_RECORDS
         tblSeq = list(range(numTables ))
         random.shuffle(tblSeq) # now we have random sequence
         for i in tblSeq:
@@ -2110,7 +2187,7 @@ class TaskAddData(StateTransitionTask):
             regTableName = self.getRegTableName(i)  # "db.reg_table_{}".format(i)            
             fullTableName = dbName + '.' + regTableName
             # self._lockTable(fullTableName) # "create table" below. Stop it if the table is "locked"
-            sTable.ensureTable(self, wt.getDbConn(), regTableName)  # Ensure the table exists           
+            sTable.ensureRegTable(self, wt.getDbConn(), regTableName)  # Ensure the table exists           
             # self._unlockTable(fullTableName)
            
             if Dice.throw(1) == 0: # 1 in 2 chance
@@ -2124,13 +2201,16 @@ class TaskAddData(StateTransitionTask):
 class ThreadStacks: # stack info for all threads
     def __init__(self):
         self._allStacks = {}
-        allFrames = sys._current_frames()
-        for th in threading.enumerate():                        
-            stack = traceback.extract_stack(allFrames[th.ident])     
-            self._allStacks[th.native_id] = stack
+        allFrames = sys._current_frames() # All current stack frames
+        for th in threading.enumerate():  # For each thread
+            if th.ident is None:
+                continue          
+            stack = traceback.extract_stack(allFrames[th.ident]) # Get stack for a thread
+            shortTid = th.ident % 10000
+            self._allStacks[shortTid] = stack # Was using th.native_id
 
     def print(self, filteredEndName = None, filterInternal = False):
-        for thNid, stack in self._allStacks.items(): # for each thread, stack frames top to bottom
+        for tIdent, stack in self._allStacks.items(): # for each thread, stack frames top to bottom
             lastFrame = stack[-1]
             if filteredEndName: # we need to filter out stacks that match this name                
                 if lastFrame.name == filteredEndName : # end did not match
@@ -2142,7 +2222,7 @@ class ThreadStacks: # stack info for all threads
                     '__init__']: # the thread that extracted the stack
                     continue # ignore
             # Now print
-            print("\n<----- Thread Info for LWP/ID: {} (most recent call last) <-----".format(thNid))
+            print("\n<----- Thread Info for LWP/ID: {} (most recent call last) <-----".format(tIdent))
             stackFrame = 0
             for frame in stack: # was using: reversed(stack)
                 # print(frame)
@@ -2246,14 +2326,15 @@ class ClientManager:
 
     def run(self, svcMgr):    
         # self._printLastNumbers()
-        global gConfig
+        # global gConfig
 
         # Prepare Tde Instance
         global gContainer
         tInst = gContainer.defTdeInstance = TdeInstance() # "subdir to hold the instance"
 
-        dbManager = DbManager(gConfig.connector_type, tInst.getDbTarget())  # Regular function
-        thPool = ThreadPool(gConfig.num_threads, gConfig.max_steps)
+        cfg = Config.getConfig()
+        dbManager = DbManager(cfg.connector_type, tInst.getDbTarget())  # Regular function
+        thPool = ThreadPool(cfg.num_threads, cfg.max_steps)
         self.tc = ThreadCoordinator(thPool, dbManager)
         
         Logging.info("Starting client instance: {}".format(tInst))
@@ -2266,7 +2347,8 @@ class ClientManager:
         
 
         # Release global variables
-        gConfig = None
+        # gConfig = None
+        Config.clearConfig()
         gSvcMgr = None
         logger = None
         
@@ -2297,7 +2379,7 @@ class ClientManager:
 class MainExec:
     def __init__(self):        
         self._clientMgr = None
-        self._svcMgr = None # type: ServiceManager
+        self._svcMgr = None # type: Optional[ServiceManager]
 
         signal.signal(signal.SIGTERM, self.sigIntHandler)
         signal.signal(signal.SIGINT,  self.sigIntHandler)
@@ -2317,7 +2399,7 @@ class MainExec:
 
     def runClient(self):
         global gSvcMgr
-        if gConfig.auto_start_service:
+        if Config.getConfig().auto_start_service:
             gSvcMgr = self._svcMgr = ServiceManager(1) # hack alert
             gSvcMgr.startTaosServices() # we start, don't run
         
@@ -2326,26 +2408,18 @@ class MainExec:
         try: 
             ret = self._clientMgr.run(self._svcMgr) # stop TAOS service inside
         except requests.exceptions.ConnectionError as err:
-            Logging.warning("Failed to open REST connection to DB: {}".format(err.getMessage()))
+            Logging.warning("Failed to open REST connection to DB: {}".format(err))
             # don't raise
         return ret
 
     def runService(self):
         global gSvcMgr
-        gSvcMgr = self._svcMgr = ServiceManager(gConfig.num_dnodes) # save it in a global variable TODO: hack alert
+        gSvcMgr = self._svcMgr = ServiceManager(Config.getConfig().num_dnodes) # save it in a global variable TODO: hack alert
 
         gSvcMgr.run() # run to some end state
         gSvcMgr = self._svcMgr = None 
 
-    def init(self): # TODO: refactor
-        global gContainer
-        gContainer = Container() # micky-mouse DI
-
-        global gSvcMgr # TODO: refactor away
-        gSvcMgr = None
-
-        # Super cool Python argument library:
-        # https://docs.python.org/3/library/argparse.html
+    def _buildCmdLineParser(self):
         parser = argparse.ArgumentParser(
             formatter_class=argparse.RawDescriptionHelpFormatter,
             description=textwrap.dedent('''\
@@ -2367,7 +2441,7 @@ class MainExec:
             action='store',
             default=0,
             type=int,
-            help='Maximum number of DBs to keep, set to disable dropping DB. (default: 0)')
+            help='Number of DBs to use, set to disable dropping DB. (default: 0)')
         parser.add_argument(
             '-c',
             '--connector-type',
@@ -2466,20 +2540,29 @@ class MainExec:
             action='store_true',
             help='Continue execution after encountering unexpected/disallowed errors/exceptions (default: false)')
 
-        global gConfig
-        gConfig = parser.parse_args()
-        crash_gen.settings.gConfig = gConfig # TODO: fix this hack, consolidate this global var
+        return parser
+
+
+    def init(self): # TODO: refactor
+        global gContainer
+        gContainer = Container() # micky-mouse DI
+
+        global gSvcMgr # TODO: refactor away
+        gSvcMgr = None
+
+        parser = self._buildCmdLineParser()
+        Config.init(parser)
 
         # Sanity check for arguments
-        if gConfig.use_shadow_db and gConfig.max_dbs>1 :
+        if Config.getConfig().use_shadow_db and Config.getConfig().max_dbs>1 :
             raise CrashGenError("Cannot combine use-shadow-db with max-dbs of more than 1")
 
-        Logging.clsInit(gConfig)
+        Logging.clsInit(Config.getConfig().debug)
 
         Dice.seed(0)  # initial seeding of dice
 
     def run(self):
-        if gConfig.run_tdengine:  # run server
+        if Config.getConfig().run_tdengine:  # run server
             try:
                 self.runService()
                 return 0 # success

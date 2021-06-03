@@ -450,7 +450,7 @@ static int tsdbHeadAddBlock(SRecoverH *pRecoverH, const SBlock *pSupBlock, const
     return -1;
   }
 
-  if (pSubBlocks && taosArrayPushBatch(pRecoverH->aSubBlk, pSubBlocks, nSubBlocks) == NULL) {
+  if (pSubBlocks && taosArrayAddBatch(pRecoverH->aSubBlk, pSubBlocks, nSubBlocks) == NULL) {
     terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
     return -1;
   }

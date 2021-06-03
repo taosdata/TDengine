@@ -37,13 +37,13 @@ taos> DESCRIBE meters;
 - Epoch Time：时间戳也可以是一个长整数，表示从 1970-01-01 08:00:00.000 开始的毫秒数
 - 时间可以加减，比如 now-2h，表明查询时刻向前推 2 个小时（最近 2 小时）。数字后面的时间单位可以是 u(微秒)、a(毫秒)、s(秒)、m(分)、h(小时)、d(天)、w(周)。 比如 `select * from t1 where ts > now-2w and ts <= now-1w`，表示查询两周前整整一周的数据。在指定降频操作（down sampling）的时间窗口（interval）时，时间单位还可以使用 n(自然月) 和 y(自然年)。
 
-TDengine 缺省的时间戳是毫秒精度，但通过修改配置参数 enableMicrosecond 就可以支持微秒。
+TDengine 缺省的时间戳是毫秒精度，但通过在 CREATE DATABASE 时传递的 PRECISION 参数就可以支持微秒。
 
 在TDengine中，普通表的数据模型中可使用以下 10 种数据类型。 
 
-|      |   类型    | Bytes  | 说明                                                         |
+| #    | **类型**          | **Bytes** | **说明**                                                     |
 | ---- | :-------: | ------ | ------------------------------------------------------------ |
-| 1    | TIMESTAMP | 8      | 时间戳。缺省精度毫秒，可支持微秒。从格林威治时间 1970-01-01 00:00:00.000 (UTC/GMT) 开始，计时不能早于该时间。（从 2.0.18 版本开始，已经去除了这一时间范围限制） |
+| 1    | TIMESTAMP | 8      | 时间戳。缺省精度毫秒，可支持微秒。从格林威治时间 1970-01-01 00:00:00.000 (UTC/GMT) 开始，计时不能早于该时间。（从 2.0.18.0 版本开始，已经去除了这一时间范围限制） |
 | 2    |    INT    | 4      | 整型，范围 [-2^31+1,   2^31-1], -2^31 用作 NULL           |
 | 3    |  BIGINT   | 8      | 长整型，范围 [-2^63+1,   2^63-1], -2^63 用于 NULL                                 |
 | 4    |   FLOAT   | 4      | 浮点型，有效位数 6-7，范围 [-3.4E38, 3.4E38]                  |
@@ -53,6 +53,7 @@ TDengine 缺省的时间戳是毫秒精度，但通过修改配置参数 enableM
 | 8    |  TINYINT  | 1      | 单字节整型，范围 [-127, 127], -128 用于 NULL                                |
 | 9    |   BOOL    | 1      | 布尔型，{true, false}                                      |
 | 10   |   NCHAR   | 自定义 | 记录包含多字节字符在内的字符串，如中文字符。每个 nchar 字符占用 4 bytes 的存储空间。字符串两端使用单引号引用，字符串内的单引号需用转义字符 `\’`。nchar 使用时须指定字符串大小，类型为 nchar(10) 的列表示此列的字符串最多存储 10 个 nchar 字符，会固定占用 40 bytes 的空间。如果用户字符串长度超出声明长度，将会报错。 |
+<!-- REPLACE_OPEN_TO_ENTERPRISE__COLUMN_TYPE_ADDONS -->
 
 **Tips**:
 1. TDengine 对 SQL 语句中的英文字符不区分大小写，自动转化为小写执行。因此用户大小写敏感的字符串及密码，需要使用单引号将字符串引起来。
@@ -63,11 +64,11 @@ TDengine 缺省的时间戳是毫秒精度，但通过修改配置参数 enableM
 - **创建数据库**  
 
     ```mysql
-    CREATE DATABASE [IF NOT EXISTS] db_name [KEEP keep] [UPDATE 1];
+    CREATE DATABASE [IF NOT EXISTS] db_name [KEEP keep] [DAYS days] [UPDATE 1];
     ```
-    说明：
+    说明：<!-- 注意：上一行中的 SQL 语句在企业版文档中会被替换，因此修改此语句的话，需要修改企业版文档的替换字典键值！！ -->
  
-    1) KEEP是该数据库的数据保留多长天数，缺省是3650天(10年)，数据库会自动删除超过时限的数据；
+    1) KEEP是该数据库的数据保留多长天数，缺省是3650天(10年)，数据库会自动删除超过时限的数据；<!-- REPLACE_OPEN_TO_ENTERPRISE__KEEP_PARAM_DESCRIPTION -->
  
     2) UPDATE 标志数据库支持更新相同时间戳数据；
  
@@ -75,7 +76,7 @@ TDengine 缺省的时间戳是毫秒精度，但通过修改配置参数 enableM
  
     4) 一条SQL 语句的最大长度为65480个字符；
  
-    5) 数据库还有更多与存储相关的配置参数，请参见系统管理。
+    5) 数据库还有更多与存储相关的配置参数，请参见 [服务端配置](https://www.taosdata.com/cn/documentation/administrator#config) 章节。
 
 - **显示系统当前参数**
 
@@ -125,7 +126,7 @@ TDengine 缺省的时间戳是毫秒精度，但通过修改配置参数 enableM
     ```mysql
     ALTER DATABASE db_name CACHELAST 0;
     ```
-    CACHELAST 参数控制是否在内存中缓存数据子表的 last_row。缺省值为 0，取值范围 [0, 1]。其中 0 表示不启用、1 表示启用。（从 2.0.11 版本开始支持，修改后需要重启服务器生效。）
+    CACHELAST 参数控制是否在内存中缓存数据子表的 last_row。缺省值为 0，取值范围 [0, 1]。其中 0 表示不启用、1 表示启用。（从 2.0.11.0 版本开始支持。从 2.1.1.0 版本开始，修改此参数后无需重启服务器即可生效。）
 
     **Tips**: 以上所有参数修改后都可以用show databases来确认是否修改成功。
 
@@ -134,6 +135,14 @@ TDengine 缺省的时间戳是毫秒精度，但通过修改配置参数 enableM
     ```mysql
     SHOW DATABASES;
     ```
+
+- **显示一个数据库的创建语句**
+
+    ```mysql
+    SHOW CREATE DATABASE db_name;
+    ```
+    常用于数据库迁移。对一个已经存在的数据库，返回其创建语句；在另一个集群中执行该语句，就能得到一个设置完全相同的 Database。
+
 
 ## <a class="anchor" id="table"></a>表管理
 
@@ -159,22 +168,22 @@ TDengine 缺省的时间戳是毫秒精度，但通过修改配置参数 enableM
     ```mysql
     CREATE TABLE [IF NOT EXISTS] tb_name USING stb_name TAGS (tag_value1, ...);
     ```
-    以指定的超级表为模板，指定 tags 的值来创建数据表。
+    以指定的超级表为模板，指定 TAGS 的值来创建数据表。
 
-- **以超级表为模板创建数据表，并指定具体的 tags 列**
+- **以超级表为模板创建数据表，并指定具体的 TAGS 列**
 
     ```mysql
     CREATE TABLE [IF NOT EXISTS] tb_name USING stb_name (tag_name1, ...) TAGS (tag_value1, ...);
     ```
-    以指定的超级表为模板，指定一部分 tags 列的值来创建数据表。（没被指定的 tags 列会设为空值。）  
-    说明：从 2.0.17 版本开始支持这种方式。在之前的版本中，不允许指定 tags 列，而必须显式给出所有 tags 列的取值。
+    以指定的超级表为模板，指定一部分 TAGS 列的值来创建数据表（没被指定的 TAGS 列会设为空值）。  
+    说明：从 2.0.17.0 版本开始支持这种方式。在之前的版本中，不允许指定 TAGS 列，而必须显式给出所有 TAGS 列的取值。
 
 - **批量创建数据表**
 
     ```mysql
     CREATE TABLE [IF NOT EXISTS] tb_name1 USING stb_name TAGS (tag_value1, ...) tb_name2 USING stb_name TAGS (tag_value2, ...) ...;
     ```
-    以更快的速度批量创建大量数据表。（服务器端 2.0.14 及以上版本）
+    以更快的速度批量创建大量数据表（服务器端 2.0.14 及以上版本）。
     
     说明：
 
@@ -200,11 +209,19 @@ TDengine 缺省的时间戳是毫秒精度，但通过修改配置参数 enableM
 
     通配符匹配：1）’%’ (百分号)匹配0到任意个字符；2）’\_’下划线匹配一个字符。
 
+- **显示一个数据表的创建语句**
+
+    ```mysql
+    SHOW CREATE TABLE tb_name;
+    ```
+    常用于数据库迁移。对一个已经存在的数据表，返回其创建语句；在另一个集群中执行该语句，就能得到一个结构完全相同的数据表。
+
 - **在线修改显示字符宽度**
 
     ```mysql
     SET MAX_BINARY_DISPLAY_WIDTH <nn>;
     ```
+    如显示的内容后面以...结尾时，表示该内容已被截断，可通过本命令修改显示字符宽度以显示完整的内容。
 
 - **获取表的结构信息**
 
@@ -221,14 +238,14 @@ TDengine 缺省的时间戳是毫秒精度，但通过修改配置参数 enableM
 
     1) 列的最大个数为1024，最小个数为2；
 
-    2) 列名最大长度为64；
+    2) 列名最大长度为64。
 
 - **表删除列**
 
     ```mysql
     ALTER TABLE tb_name DROP COLUMN field_name; 
     ```
-    如果表是通过[超级表](../super-table/)创建，更改表结构的操作只能对超级表进行。同时针对超级表的结构更改对所有通过该结构创建的表生效。对于不是通过超级表创建的表，可以直接修改表结构
+    如果表是通过超级表创建，更改表结构的操作只能对超级表进行。同时针对超级表的结构更改对所有通过该结构创建的表生效。对于不是通过超级表创建的表，可以直接修改表结构。
 
 ## <a class="anchor" id="super-table"></a>超级表STable管理
 
@@ -239,7 +256,7 @@ TDengine 缺省的时间戳是毫秒精度，但通过修改配置参数 enableM
     ```mysql
     CREATE STABLE [IF NOT EXISTS] stb_name (timestamp_field_name TIMESTAMP, field1_name data_type1 [, field2_name data_type2 ...]) TAGS (tag1_name tag_type1, tag2_name tag_type2 [, tag3_name tag_type3]);
     ```
-    创建 STable，与创建表的 SQL 语法相似，但需指定 TAGS 字段的名称和类型
+    创建 STable，与创建表的 SQL 语法相似，但需要指定 TAGS 字段的名称和类型
 
     说明：
 
@@ -261,9 +278,16 @@ TDengine 缺省的时间戳是毫秒精度，但通过修改配置参数 enableM
 - **显示当前数据库下的所有超级表信息**
 
     ```mysql
-    SHOW STABLES [LIKE tb_name_wildcar];
+    SHOW STABLES [LIKE tb_name_wildcard];
     ```
     查看数据库内全部 STable，及其相关信息，包括 STable 的名称、创建时间、列数量、标签（TAG）数量、通过该 STable 建表的数量。
+
+- **显示一个超级表的创建语句**
+
+    ```mysql
+    SHOW CREATE STABLE stb_name;
+    ```
+    常用于数据库迁移。对一个已经存在的超级表，返回其创建语句；在另一个集群中执行该语句，就能得到一个结构完全相同的超级表。
 
 - **获取超级表的结构信息**
 
@@ -319,7 +343,7 @@ TDengine 缺省的时间戳是毫秒精度，但通过修改配置参数 enableM
     ```mysql
     INSERT INTO tb_name VALUES (field_value, ...);
     ```
-    向表tb_name中插入一条记录
+    向表tb_name中插入一条记录。
 
 - **插入一条记录，数据对应到指定的列**
     ```mysql
@@ -331,42 +355,57 @@ TDengine 缺省的时间戳是毫秒精度，但通过修改配置参数 enableM
     ```mysql
     INSERT INTO tb_name VALUES (field1_value1, ...) (field1_value2, ...) ...;
     ```
-    向表tb_name中插入多条记录  
+    向表tb_name中插入多条记录。  
     **注意**：在使用“插入多条记录”方式写入数据时，不能把第一列的时间戳取值都设为now，否则会导致语句中的多条记录使用相同的时间戳，于是就可能出现相互覆盖以致这些数据行无法全部被正确保存。
 
 - **按指定的列插入多条记录**
     ```mysql
     INSERT INTO tb_name (field1_name, ...) VALUES (field1_value1, ...) (field1_value2, ...) ...;
     ```
-    向表tb_name中按指定的列插入多条记录
+    向表tb_name中按指定的列插入多条记录。
 
 - **向多个表插入多条记录**
     ```mysql
     INSERT INTO tb1_name VALUES (field1_value1, ...) (field1_value2, ...) ...
                 tb2_name VALUES (field1_value1, ...) (field1_value2, ...) ...;
     ```
-    同时向表tb1_name和tb2_name中分别插入多条记录
+    同时向表tb1_name和tb2_name中分别插入多条记录。
 
 - **同时向多个表按列插入多条记录**
     ```mysql
     INSERT INTO tb1_name (tb1_field1_name, ...) VALUES (field1_value1, ...) (field1_value2, ...) ...
                 tb2_name (tb2_field1_name, ...) VALUES (field1_value1, ...) (field1_value2, ...) ...;
     ```
-    同时向表tb1_name和tb2_name中按列分别插入多条记录 
+    同时向表tb1_name和tb2_name中按列分别插入多条记录。  
 
-    注意：允许插入的最老记录的时间戳，是相对于当前服务器时间，减去配置的keep值（数据保留的天数），允许插入的最新记录的时间戳，是相对于当前服务器时间，加上配置的days值（数据文件存储数据的时间跨度，单位为天）。keep和days都是可以在创建数据库时指定的，缺省值分别是3650天和10天。
+    注意：  
+    1) 如果时间戳为now，系统将自动使用客户端当前时间作为该记录的时间戳；  
+    2) 允许插入的最老记录的时间戳，是相对于当前服务器时间，减去配置的keep值（数据保留的天数），允许插入的最新记录的时间戳，是相对于当前服务器时间，加上配置的days值（数据文件存储数据的时间跨度，单位为天）。keep和days都是可以在创建数据库时指定的，缺省值分别是3650天和10天。
 
 - <a class="anchor" id="auto_create_table"></a>**插入记录时自动建表**
     ```mysql
     INSERT INTO tb_name USING stb_name TAGS (tag_value1, ...) VALUES (field_value1, ...);
     ```
-    如果用户在写数据时并不确定某个表是否存在，此时可以在写入数据时使用自动建表语法来创建不存在的表，若该表已存在则不会建立新表。自动建表时，要求必须以超级表为模板，并写明数据表的 tags 取值。
+    如果用户在写数据时并不确定某个表是否存在，此时可以在写入数据时使用自动建表语法来创建不存在的表，若该表已存在则不会建立新表。自动建表时，要求必须以超级表为模板，并写明数据表的 TAGS 取值。
 
-- **插入记录时自动建表，并指定具体的 tags 列**
+- **插入记录时自动建表，并指定具体的 TAGS 列**
     ```mysql
     INSERT INTO tb_name USING stb_name (tag_name1, ...) TAGS (tag_value1, ...) VALUES (field_value1, ...);
     ```
-    在自动建表时，可以只是指定部分 tags 列的取值，未被指定的 tags 列将取为空值。
+    在自动建表时，可以只是指定部分 TAGS 列的取值，未被指定的 TAGS 列将取为空值。
+
+- **同时向多个表按列插入多条记录，自动建表**
+    ```mysql
+    INSERT INTO tb1_name (tb1_field1_name, ...) [USING stb1_name TAGS (tag_value1, ...)] VALUES (field1_value1, ...) (field1_value2, ...) ...
+                tb2_name (tb2_field1_name, ...) [USING stb2_name TAGS (tag_value2, ...)] VALUES (field1_value1, ...) (field1_value2, ...) ...;
+    ```
+    以自动建表的方式，同时向表tb1_name和tb2_name中按列分别插入多条记录。  
+    说明：`(tb1_field1_name, ...)`的部分可以省略掉，这样就是使用全列模式写入——也即在 VALUES 部分提供的数据，必须为数据表的每个列都显式地提供数据。全列写入速度会远快于指定列，因此建议尽可能采用全列写入方式，此时空列可以填入NULL。  
+    从 2.0.20.5 版本开始，子表的列名可以不跟在子表名称后面，而是可以放在 TAGS 和 VALUES 之间，例如像下面这样写：
+    ```mysql
+    INSERT INTO tb1_name [USING stb1_name TAGS (tag_value1, ...)] (tb1_field1_name, ...) VALUES (field1_value1, ...) (field1_value2, ...) ...;
+    ```
+    注意：虽然两种写法都可以，但并不能在一条 SQL 语句中混用，否则会报语法错误。
 
 **历史记录写入**：可使用IMPORT或者INSERT命令，IMPORT的语法，功能与INSERT完全一样。
 
@@ -385,9 +424,9 @@ Query OK, 1 row(s) in set (0.001029s)
 taos> SHOW TABLES;
 Query OK, 0 row(s) in set (0.000946s)
 
-taos> INSERT INTO d1001 USING meters TAGS('Beijing.Chaoyang', 2);
+taos> INSERT INTO d1001 USING meters TAGS('Beijing.Chaoyang', 2) VALUES('a');
 
-DB error: invalid SQL: keyword VALUES or FILE required
+DB error: invalid SQL: 'a' (invalid timestamp) (0.039494s)
 
 taos> SHOW TABLES;
            table_name           |      created_time       | columns |          stable_name           |
@@ -449,7 +488,7 @@ Query OK, 9 row(s) in set (0.002022s)
 SELECT * FROM d1001;
 SELECT d1001.* FROM d1001;
 ```
-在Join查询中，带前缀的\*和不带前缀\*返回的结果有差别， \*返回全部表的所有列数据（不包含标签），带前缀的通配符，则只返回该表的列数据。
+在JOIN查询中，带前缀的\*和不带前缀\*返回的结果有差别， \*返回全部表的所有列数据（不包含标签），带前缀的通配符，则只返回该表的列数据。
 ```mysql
 taos> SELECT * FROM d1001, d1003 WHERE d1001.ts=d1003.ts;
            ts            | current |   voltage   |    phase     |           ts            | current |   voltage   |    phase     |
@@ -465,7 +504,7 @@ taos> SELECT d1001.* FROM d1001,d1003 WHERE d1001.ts = d1003.ts;
 Query OK, 1 row(s) in set (0.020443s)
 ```
 
-在使用SQL函数来进行查询过程中，部分SQL函数支持通配符操作。其中的区别在于：
+在使用SQL函数来进行查询的过程中，部分SQL函数支持通配符操作。其中的区别在于：
 ```count(*)```函数只返回一列。```first```、```last```、```last_row```函数则是返回全部列。
 
 ```mysql
@@ -500,12 +539,12 @@ Query OK, 2 row(s) in set (0.003112s)
 
 ##### 获取标签列的去重取值
 
-从 2.0.15 版本开始，支持在超级表查询标签列时，指定 distinct 关键字，这样将返回指定标签列的所有不重复取值。
+从 2.0.15 版本开始，支持在超级表查询标签列时，指定 DISTINCT 关键字，这样将返回指定标签列的所有不重复取值。
 ```mysql
 SELECT DISTINCT tag_name FROM stb_name;
 ```
 
-注意：目前 distinct 关键字只支持对超级表的标签列进行去重，而不能用于普通列。
+注意：目前 DISTINCT 关键字只支持对超级表的标签列进行去重，而不能用于普通列。
 
 
 
@@ -540,7 +579,7 @@ SELECT * FROM d1001;
 
 #### 特殊功能
 
-部分特殊的查询功能可以不使用FROM子句执行。获取当前所在的数据库 database() 
+部分特殊的查询功能可以不使用FROM子句执行。获取当前所在的数据库 database()： 
 ```mysql
 taos> SELECT DATABASE();
            database()           |
@@ -548,7 +587,7 @@ taos> SELECT DATABASE();
  power                          |
 Query OK, 1 row(s) in set (0.000079s)
 ```
-如果登录的时候没有指定默认数据库，且没有使用```use```命令切换数据，则返回NULL。
+如果登录的时候没有指定默认数据库，且没有使用```USE```命令切换数据，则返回NULL。
 ```mysql
 taos> SELECT DATABASE();
            database()           |
@@ -556,7 +595,7 @@ taos> SELECT DATABASE();
  NULL                           |
 Query OK, 1 row(s) in set (0.000184s)
 ```
-获取服务器和客户端版本号:
+获取服务器和客户端版本号：
 ```mysql
 taos> SELECT CLIENT_VERSION();
  client_version() |
@@ -600,7 +639,7 @@ SELECT TBNAME, location FROM meters;
 ```mysql
 SELECT COUNT(TBNAME) FROM meters;
 ```
-以上两个查询均只支持在Where条件子句中添加针对标签（TAGS）的过滤条件。例如：
+以上两个查询均只支持在WHERE条件子句中添加针对标签（TAGS）的过滤条件。例如：
 ```mysql
 taos> SELECT TBNAME, location FROM meters;
              tbname             |            location            |
@@ -626,30 +665,31 @@ Query OK, 1 row(s) in set (0.001091s)
 - 参数 LIMIT 控制输出条数，OFFSET 指定从第几条开始输出。LIMIT/OFFSET 对结果集的执行顺序在 ORDER BY 之后。
   * 在有 GROUP BY 子句的情况下，LIMIT 参数控制的是每个分组中至多允许输出的条数。
 - 参数 SLIMIT 控制由 GROUP BY 指令划分的分组中，至多允许输出几个分组的数据。
-- 通过 ">>" 输出结果可以导出到指定文件。
+- 通过 “>>” 输出结果可以导出到指定文件。
 
 ### 支持的条件过滤操作
 
-| Operation   | Note                          | Applicable Data Types                 |
-| ----------- | ----------------------------- | ------------------------------------- |
-| >           | larger than                   | **`timestamp`** and all numeric types |
-| <           | smaller than                  | **`timestamp`** and all numeric types |
-| >=          | larger than or equal to       | **`timestamp`** and all numeric types |
-| <=          | smaller than or equal to      | **`timestamp`** and all numeric types |
-| =           | equal to                      | all types                             |
-| <>          | not equal to                  | all types                             |
-| between and | within a certain range        | **`timestamp`** and all numeric types |
-| %           | match with any char sequences | **`binary`** **`nchar`**              |
-| _           | match with a single char      | **`binary`** **`nchar`**              |
+| **Operation**   | **Note**                      | **Applicable Data Types**             |
+| --------------- | ----------------------------- | ------------------------------------- |
+| >               | larger than                   | **`timestamp`** and all numeric types |
+| <               | smaller than                  | **`timestamp`** and all numeric types |
+| >=              | larger than or equal to       | **`timestamp`** and all numeric types |
+| <=              | smaller than or equal to      | **`timestamp`** and all numeric types |
+| =               | equal to                      | all types                             |
+| <>              | not equal to                  | all types                             |
+| between and     | within a certain range        | **`timestamp`** and all numeric types |
+| %               | match with any char sequences | **`binary`** **`nchar`**              |
+| _               | match with a single char      | **`binary`** **`nchar`**              |
 
 1. 同时进行多个字段的范围过滤，需要使用关键词 AND 来连接不同的查询条件，暂不支持 OR 连接的不同列之间的查询过滤条件。
 2. 针对单一字段的过滤，如果是时间过滤条件，则一条语句中只支持设定一个；但针对其他的（普通）列或标签列，则可以使用 `OR` 关键字进行组合条件的查询过滤。例如：((value > 20 AND value < 30) OR (value < 12)) 。
 3. 从 2.0.17 版本开始，条件过滤开始支持 BETWEEN AND 语法，例如 `WHERE col2 BETWEEN 1.5 AND 3.25` 表示查询条件为“1.5 ≤ col2 ≤ 3.25”。
 
 <!-- 
-### <a class="anchor" id="having"></a>GROUP BY 之后的 HAVING 过滤
+<a class="anchor" id="having"></a>
+### GROUP BY 之后的 HAVING 过滤
 
-从 2.0.20 版本开始，GROUP BY 之后允许再跟一个 HAVING 子句，对成组后的各组数据再做筛选。HAVING 子句可以使用聚合函数和选择函数作为过滤条件（但暂时不支持 LEASTSQUARES、TOP、BOTTOM、LAST_ROW）。
+从 2.0.20.0 版本开始，GROUP BY 之后允许再跟一个 HAVING 子句，对成组后的各组数据再做筛选。HAVING 子句可以使用聚合函数和选择函数作为过滤条件（但暂时不支持 LEASTSQUARES、TOP、BOTTOM、LAST_ROW）。
 
 例如，如下语句只会输出 `AVG(f1) > 0` 的分组：
 ```mysql
@@ -657,7 +697,8 @@ SELECT AVG(f1), SPREAD(f1, f2, st2.f1) FROM st2 WHERE f1 > 0 GROUP BY f1 HAVING 
 ```
 -->
 
-### <a class="anchor" id="union"></a>UNION ALL 操作符
+<a class="anchor" id="union"></a>
+### UNION ALL 操作符
 
 ```mysql
 SELECT ...
@@ -669,37 +710,38 @@ TDengine 支持 UNION ALL 操作符。也就是说，如果多个 SELECT 子句�
 
 ### SQL 示例 
 
-- 对于下面的例子，表tb1用以下语句创建
+- 对于下面的例子，表tb1用以下语句创建：
 
     ```mysql
     CREATE TABLE tb1 (ts TIMESTAMP, col1 INT, col2 FLOAT, col3 BINARY(50));
     ```
 
-- 查询tb1刚过去的一个小时的所有记录
+- 查询tb1刚过去的一个小时的所有记录：
 
     ```mysql
     SELECT * FROM tb1 WHERE ts >= NOW - 1h;
     ```
 
-- 查询表tb1从2018-06-01 08:00:00.000 到2018-06-02 08:00:00.000时间范围，并且col3的字符串是'nny'结尾的记录，结果按照时间戳降序
+- 查询表tb1从2018-06-01 08:00:00.000 到2018-06-02 08:00:00.000时间范围，并且col3的字符串是'nny'结尾的记录，结果按照时间戳降序：
 
     ```mysql
     SELECT * FROM tb1 WHERE ts > '2018-06-01 08:00:00.000' AND ts <= '2018-06-02 08:00:00.000' AND col3 LIKE '%nny' ORDER BY ts DESC;
     ```
 
-- 查询col1与col2的和，并取名complex, 时间大于2018-06-01 08:00:00.000, col2大于1.2，结果输出仅仅10条记录，从第5条开始
+- 查询col1与col2的和，并取名complex, 时间大于2018-06-01 08:00:00.000, col2大于1.2，结果输出仅仅10条记录，从第5条开始：
 
     ```mysql
     SELECT (col1 + col2) AS 'complex' FROM tb1 WHERE ts > '2018-06-01 08:00:00.000' AND col2 > 1.2 LIMIT 10 OFFSET 5;
     ```
 
-- 查询过去10分钟的记录，col2的值大于3.14，并且将结果输出到文件 `/home/testoutpu.csv`.
+- 查询过去10分钟的记录，col2的值大于3.14，并且将结果输出到文件 `/home/testoutpu.csv`：
 
     ```mysql
     SELECT COUNT(*) FROM tb1 WHERE ts >= NOW - 10m AND col2 > 3.14 >> /home/testoutpu.csv;
     ```
 
-## <a class="anchor" id="functions"></a>SQL 函数
+<a class="anchor" id="functions"></a>
+## SQL 函数
 
 ### 聚合函数
 
@@ -719,7 +761,7 @@ TDengine支持针对数据的聚合查询。提供支持的聚合和选择函数
 
     说明：
 
-    1）可以使用星号\*来替代具体的字段，使用星号(\*)返回全部记录数量。
+    1）可以使用星号(\*)来替代具体的字段，使用星号(\*)返回全部记录数量。
 
     2）针对同一表的（不包含NULL值）字段查询结果均相同。
 
@@ -990,7 +1032,9 @@ TDengine支持针对数据的聚合查询。提供支持的聚合和选择函数
 
     1）*k*值取值范围1≤*k*≤100；
 
-    2）系统同时返回该记录关联的时间戳列。
+    2）系统同时返回该记录关联的时间戳列；
+
+    3）限制：TOP函数不支持FILL子句。
 
     示例：
     ```mysql
@@ -1026,7 +1070,9 @@ TDengine支持针对数据的聚合查询。提供支持的聚合和选择函数
 
     1）*k*值取值范围1≤*k*≤100；
 
-    2）系统同时返回该记录关联的时间戳列。
+    2）系统同时返回该记录关联的时间戳列；
+
+    3）限制：BOTTOM函数不支持FILL子句。
 
     示例：
     ```mysql
@@ -1102,7 +1148,9 @@ TDengine支持针对数据的聚合查询。提供支持的聚合和选择函数
 
     适用于：**表、超级表**。
 
-    说明：与last函数不同，last_row不支持时间范围限制，强制返回最后一条记录。
+    说明：与LAST函数不同，LAST_ROW不支持时间范围限制，强制返回最后一条记录。
+
+    限制：LAST_ROW()不能与INTERVAL一起使用。
 
     示例：
     ```mysql
@@ -1211,40 +1259,40 @@ SELECT function_list FROM tb_name
   [WHERE where_condition]
   INTERVAL (interval [, offset])
   [SLIDING sliding]
-  [FILL ({NONE | VALUE | PREV | NULL | LINEAR})]
+  [FILL ({NONE | VALUE | PREV | NULL | LINEAR | NEXT})]
 
 SELECT function_list FROM stb_name
   [WHERE where_condition]
   INTERVAL (interval [, offset])
   [SLIDING sliding]
-  [FILL ({ VALUE | PREV | NULL | LINEAR})]
+  [FILL ({ VALUE | PREV | NULL | LINEAR | NEXT})]
   [GROUP BY tags]
 ```
 
 - 聚合时间段的长度由关键词INTERVAL指定，最短时间间隔10毫秒（10a），并且支持偏移（偏移必须小于间隔）。聚合查询中，能够同时执行的聚合和选择函数仅限于单个输出的函数：count、avg、sum 、stddev、leastsquares、percentile、min、max、first、last，不能使用具有多行输出结果的函数（例如：top、bottom、diff以及四则运算）。
-- WHERE语句可以指定查询的起止时间和其他过滤条件
-- SLIDING语句用于指定聚合时间段的前向增量
+- WHERE语句可以指定查询的起止时间和其他过滤条件。
+- SLIDING语句用于指定聚合时间段的前向增量。
 - FILL语句指定某一时间区间数据缺失的情况下的填充模式。填充模式包括以下几种：
-  * 不进行填充：NONE(默认填充模式)。
-  * VALUE填充：固定值填充，此时需要指定填充的数值。例如：fill(value, 1.23)。
-  * NULL填充：使用NULL填充数据。例如：fill(null)。
-  * PREV填充：使用前一个非NULL值填充数据。例如：fill(prev)。
+  1. 不进行填充：NONE(默认填充模式)。
+  2. VALUE填充：固定值填充，此时需要指定填充的数值。例如：FILL(VALUE, 1.23)。
+  3. NULL填充：使用NULL填充数据。例如：FILL(NULL)。
+  4. PREV填充：使用前一个非NULL值填充数据。例如：FILL(PREV)。
+  5. NEXT填充：使用下一个非NULL值填充数据。例如：FILL(NEXT)。
 
 说明：
   1. 使用FILL语句的时候可能生成大量的填充输出，务必指定查询的时间区间。针对每次查询，系统可返回不超过1千万条具有插值的结果。
   2. 在时间维度聚合中，返回的结果中时间序列严格单调递增。
-  3. 如果查询对象是超级表，则聚合函数会作用于该超级表下满足值过滤条件的所有表的数据。如果查询中没有使用group by语句，则返回的结果按照时间序列严格单调递增；如果查询中使用了group by语句分组，则返回结果中每个group内不按照时间序列严格单调递增。
+  3. 如果查询对象是超级表，则聚合函数会作用于该超级表下满足值过滤条件的所有表的数据。如果查询中没有使用GROUP BY语句，则返回的结果按照时间序列严格单调递增；如果查询中使用了GROUP BY语句分组，则返回结果中每个GROUP内不按照时间序列严格单调递增。
 
 时间聚合也常被用于连续查询场景，可以参考文档 [连续查询(Continuous Query)](https://www.taosdata.com/cn/documentation/advanced-features#continuous-query)。
 
-**示例:** 智能电表的建表语句如下：
+**示例**： 智能电表的建表语句如下：
 
 ```mysql
 CREATE TABLE meters (ts TIMESTAMP, current FLOAT, voltage INT, phase FLOAT) TAGS (location BINARY(64), groupId INT);
 ```
 
-针对智能电表采集的数据，以10分钟为一个阶段，计算过去24小时的电流数据的平均值、最大值、电流的中位数、以及随着时间变化的电流走势拟合直线。如果没有计算值，用前一个非NULL值填充。
-使用的查询语句如下：
+针对智能电表采集的数据，以10分钟为一个阶段，计算过去24小时的电流数据的平均值、最大值、电流的中位数、以及随着时间变化的电流走势拟合直线。如果没有计算值，用前一个非NULL值填充。使用的查询语句如下：
 
 ```mysql
 SELECT AVG(current), MAX(current), LEASTSQUARES(current, start_val, step_val), PERCENTILE(current, 50) FROM meters
@@ -1265,15 +1313,15 @@ SELECT AVG(current), MAX(current), LEASTSQUARES(current, start_val, step_val), P
 
 ##  TAOS SQL其他约定
 
-**group by的限制**
+**GROUP BY的限制**
 
-TAOS  SQL支持对标签、tbname进行group by操作，也支持普通列进行group by，前提是：仅限一列且该列的唯一值小于10万个。
+TAOS  SQL支持对标签、TBNAME进行GROUP BY操作，也支持普通列进行GROUP BY，前提是：仅限一列且该列的唯一值小于10万个。
 
-**join操作的限制**
+**JOIN操作的限制**
 
 TAOS SQL支持表之间按主键时间戳来join两张表的列，暂不支持两个表之间聚合后的四则运算。
 
-**is not null与不为空的表达式适用范围**
+**IS NOT NULL与不为空的表达式适用范围**
 
-is not null支持所有类型的列。不为空的表达式为 <>""，仅对非数值类型的列适用。
+IS NOT NULL支持所有类型的列。不为空的表达式为 <>""，仅对非数值类型的列适用。
 

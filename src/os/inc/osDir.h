@@ -21,6 +21,7 @@ extern "C" {
 #endif
 
 void    taosRemoveDir(char *rootDir);
+bool    taosDirExist(const char* dirname);
 int32_t taosMkDir(const char *pathname, mode_t mode);
 int32_t taosMkDirRecur(const char *path, mode_t mode);
 void    taosRemoveOldLogFiles(char *rootDir, int32_t keepDays);

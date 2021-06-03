@@ -64,6 +64,8 @@ extern "C" {
 #include "tsdbReadImpl.h"
 // Commit
 #include "tsdbCommit.h"
+// Compact
+#include "tsdbCompact.h"
 // Commit Queue
 #include "tsdbCommitQueue.h"
 // Recover
@@ -74,6 +76,14 @@ struct STsdbRepo {
   uint8_t state;
 
   STsdbCfg        config;
+
+  STsdbCfg        save_config;    // save apply config
+  bool            config_changed; // config changed flag
+  pthread_mutex_t save_mutex;     // protect save config
+  
+  uint8_t         hasCachedLastRow;
+  uint8_t         hasCachedLastColumn;
+
   STsdbAppH       appH;
   STsdbStat       stat;
   STsdbMeta*      tsdbMeta;
@@ -81,6 +91,7 @@ struct STsdbRepo {
   SMemTable*      mem;
   SMemTable*      imem;
   STsdbFS*        fs;
+  SRtn            rtn;
   tsem_t          readyToCommit;
   pthread_mutex_t mutex;
   bool            repoLocked;
@@ -98,6 +109,7 @@ int        tsdbUnlockRepo(STsdbRepo* pRepo);
 STsdbMeta* tsdbGetMeta(STsdbRepo* pRepo);
 int        tsdbCheckCommit(STsdbRepo* pRepo);
 int        tsdbRestoreInfo(STsdbRepo* pRepo);
+int        tsdbCacheLastData(STsdbRepo *pRepo, STsdbCfg* oldCfg);
 void       tsdbGetRootDir(int repoid, char dirName[]);
 void       tsdbGetDataDir(int repoid, char dirName[]);
 

@@ -7,7 +7,6 @@ import java.sql.*;
 public class InsertSpecialCharacterRestfulTest {
 
     private static final String host = "127.0.0.1";
-    //    private static final String host = "master";
     private static Connection conn;
     private static String dbName = "spec_char_test";
     private static String tbname1 = "test";

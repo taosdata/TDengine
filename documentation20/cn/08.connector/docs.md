@@ -345,7 +345,7 @@ TDengine提供时间驱动的实时流式计算API。可以每隔一指定的时
     * taos：已经建立好的数据库连接
     * sql：SQL查询语句（仅能使用查询语句）
     * fp：用户定义的回调函数指针，每次流式计算完成后，TDengine将查询的结果（TAOS_ROW）、查询状态（TAOS_RES）、用户定义参数（PARAM）传递给回调函数，在回调函数内，用户可以使用taos_num_fields获取结果集列数，taos_fetch_fields获取结果集每列数据的类型。
-    * stime：是流式计算开始的时间，如果是0，表示从现在开始，如果不为零，表示从指定的时间开始计算（UTC时间从1970/1/1算起的毫秒数）
+    * stime：是流式计算开始的时间。如果是“64位整数最小值”，表示从现在开始；如果不为“64位整数最小值”，表示从指定的时间开始计算（UTC时间从1970/1/1算起的毫秒数）。
     * param：是应用提供的用于回调的一个参数，回调时，提供给应用
     * callback: 第二个回调函数，会在连续查询自动停止时被调用。
 
@@ -400,27 +400,22 @@ Python连接器的使用参见[视频教程](https://www.taosdata.com/blog/2020/
 
 #### Linux
 
-用户可以在源代码的src/connector/python（或者tar.gz的/connector/python）文件夹下找到python2和python3的connector安装包。用户可以通过pip命令安装： 
+用户可以在源代码的src/connector/python（或者tar.gz的/connector/python）文件夹下找到connector安装包。用户可以通过pip命令安装： 
 
-​		`pip install src/connector/python/linux/python2/`
+​		`pip install src/connector/python/`
 
 或
 
-​		`pip3 install src/connector/python/linux/python3/`
+​		`pip3 install src/connector/python/`
 
 #### Windows
 在已安装Windows TDengine 客户端的情况下， 将文件"C:\TDengine\driver\taos.dll" 拷贝到 "C:\windows\system32" 目录下, 然后进入Windwos <em>cmd</em> 命令行界面
 ```cmd
-cd C:\TDengine\connector\python\windows
-python -m pip install python2\
-```
-或
-```cmd
-cd C:\TDengine\connector\python\windows
-python -m pip install python3\
+cd C:\TDengine\connector\python
+python -m pip install .
 ```
 
-* 如果机器上没有pip命令，用户可将src/connector/python/python3或src/connector/python/python2下的taos文件夹拷贝到应用程序的目录使用。
+* 如果机器上没有pip命令，用户可将src/connector/python下的taos文件夹拷贝到应用程序的目录使用。
 对于windows 客户端，安装TDengine windows 客户端后，将C:\TDengine\driver\taos.dll拷贝到C:\windows\system32目录下即可。
 
 ### 使用
@@ -521,7 +516,7 @@ conn.close()
 - _TDengineCursor_ 类
 
   参考python中help(taos.TDengineCursor)。
-  这个类对应客户端进行的写入、查询操作。在客户端多线程的场景下，这个游标实例必须保持线程独享，不能夸线程共享使用，否则会导致返回结果出现错误。
+  这个类对应客户端进行的写入、查询操作。在客户端多线程的场景下，这个游标实例必须保持线程独享，不能跨线程共享使用，否则会导致返回结果出现错误。
 
 - _connect_ 方法
 

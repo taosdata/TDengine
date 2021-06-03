@@ -96,6 +96,7 @@ typedef struct tSkipListState {
 } tSkipListState;
 
 typedef struct SSkipList {
+  unsigned int      seed;
   __compar_fn_t     comparFn;
   __sl_key_fn_t     keyFn;
   pthread_rwlock_t *lock;
