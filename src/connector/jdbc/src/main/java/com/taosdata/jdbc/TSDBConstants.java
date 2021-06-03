@@ -41,21 +41,48 @@ public abstract class TSDBConstants {
     public static final int TSDB_DATA_TYPE_BINARY = 8;
     public static final int TSDB_DATA_TYPE_TIMESTAMP = 9;
     public static final int TSDB_DATA_TYPE_NCHAR = 10;
-    /*
-    系统增加新的无符号数据类型，分别是：
-        unsigned tinyint， 数值范围：0-254, NULL 为255
-        unsigned smallint，数值范围： 0-65534， NULL 为65535
-        unsigned int，数值范围：0-4294967294，NULL 为4294967295u
-        unsigned bigint，数值范围：0-18446744073709551614u，NULL 为18446744073709551615u。
-    example:
-        create table tb(ts timestamp, a tinyint unsigned, b smallint unsigned, c int unsigned, d bigint unsigned);
-    */
+    /**
+     * 系统增加新的无符号数据类型，分别是：
+     * unsigned tinyint， 数值范围：0-254, NULL 为255
+     * unsigned smallint，数值范围： 0-65534， NULL 为65535
+     * unsigned int，数值范围：0-4294967294，NULL 为4294967295u
+     * unsigned bigint，数值范围：0-18446744073709551614u，NULL 为18446744073709551615u。
+     * example:
+     * create table tb(ts timestamp, a tinyint unsigned, b smallint unsigned, c int unsigned, d bigint unsigned);
+     */
     public static final int TSDB_DATA_TYPE_UTINYINT = 11;       //unsigned tinyint
     public static final int TSDB_DATA_TYPE_USMALLINT = 12;      //unsigned smallint
     public static final int TSDB_DATA_TYPE_UINT = 13;           //unsigned int
     public static final int TSDB_DATA_TYPE_UBIGINT = 14;        //unsigned bigint
     // nchar column max length
     public static final int maxFieldSize = 16 * 1024;
+
+    public static int typeName2JdbcType(String type) {
+        switch (type.toUpperCase()) {
+            case "TIMESTAMP":
+                return Types.TIMESTAMP;
+            case "INT":
+                return Types.INTEGER;
+            case "BIGINT":
+                return Types.BIGINT;
+            case "FLOAT":
+                return Types.FLOAT;
+            case "DOUBLE":
+                return Types.DOUBLE;
+            case "BINARY":
+                return Types.BINARY;
+            case "SMALLINT":
+                return Types.SMALLINT;
+            case "TINYINT":
+                return Types.TINYINT;
+            case "BOOL":
+                return Types.BOOLEAN;
+            case "NCHAR":
+                return Types.NCHAR;
+            default:
+                return Types.NULL;
+        }
+    }
 
     public static int taosType2JdbcType(int taosType) throws SQLException {
         switch (taosType) {
@@ -88,7 +115,7 @@ public abstract class TSDBConstants {
     }
 
     public static String taosType2JdbcTypeName(int taosType) throws SQLException {
-        switch (taosType){
+        switch (taosType) {
             case TSDBConstants.TSDB_DATA_TYPE_BOOL:
                 return "BOOL";
             case TSDBConstants.TSDB_DATA_TYPE_UTINYINT:
@@ -119,7 +146,7 @@ public abstract class TSDBConstants {
     }
 
     public static int jdbcType2TaosType(int jdbcType) throws SQLException {
-        switch (jdbcType){
+        switch (jdbcType) {
             case Types.BOOLEAN:
                 return TSDBConstants.TSDB_DATA_TYPE_BOOL;
             case Types.TINYINT:
@@ -145,7 +172,7 @@ public abstract class TSDBConstants {
     }
 
     public static String jdbcType2TaosTypeName(int jdbcType) throws SQLException {
-        switch (jdbcType){
+        switch (jdbcType) {
             case Types.BOOLEAN:
                 return "BOOL";
             case Types.TINYINT:
