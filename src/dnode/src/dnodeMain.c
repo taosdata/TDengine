@@ -95,11 +95,17 @@ static SStep tsDnodeCompactSteps[] = {
   {"dnode-minfos",    dnodeInitMInfos,     dnodeCleanupMInfos},
   {"dnode-wal",       walInit,             walCleanUp},
   {"dnode-sync",      syncInit,            syncCleanUp},
+  {"dnode-vread",     dnodeInitVRead,      dnodeCleanupVRead},
+  {"dnode-vwrite",    dnodeInitVWrite,     dnodeCleanupVWrite},
+  {"dnode-vmgmt",     dnodeInitVMgmt,      dnodeCleanupVMgmt},
   {"dnode-mread",     dnodeInitMRead,      NULL},
   {"dnode-mwrite",    dnodeInitMWrite,     NULL},
   {"dnode-mpeer",     dnodeInitMPeer,      NULL},
   {"dnode-vnodes",    dnodeInitVnodes,     dnodeCleanupVnodes},
   {"dnode-modules",   dnodeInitModules,    dnodeCleanupModules},
+  {"dnode-mread",     NULL,                dnodeCleanupMRead},
+  {"dnode-mwrite",    NULL,                dnodeCleanupMWrite},
+  {"dnode-mpeer",     NULL,                dnodeCleanupMPeer},
 };
 
 static int dnodeCreateDir(const char *dir) {
