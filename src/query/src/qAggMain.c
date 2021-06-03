@@ -4556,7 +4556,6 @@ static void rate_function(SQLFunctionCtx *pCtx) {
       pRateInfo->lastValue = v;
     } else if (v < pRateInfo->lastValue) {
       pRateInfo->correctionValue += pRateInfo->lastValue;
-      qDebug("correctionValue:%" PRId64, pRateInfo->correctionValue);
     }
     
     pRateInfo->lastValue = v;
