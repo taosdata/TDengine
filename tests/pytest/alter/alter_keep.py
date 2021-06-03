@@ -22,35 +22,8 @@ class TDTestCase:
         tdLog.debug("start to execute %s" % __file__)
         tdSql.init(conn.cursor(), logSql)
 
-
-    def run(self):
-        tdSql.prepare()
-        tdSql.execute('create table tb (ts timestamp, speed int)')
-
-        tdSql.query('show databases')
-        tdSql.checkData(0,7,'3650,3650,3650')
-        tdSql.execute('alter database db keep 10')
-        tdSql.query('show databases')
-        tdSql.checkData(0,7,'10,10,10')
-        tdSql.execute('alter database db keep 50')
-        tdSql.query('show databases')
-        tdSql.checkData(0,7,'50,50,50')
-        tdSql.error('alter database db keep !)') 
-
-        tdSql.error('alter database db keep 1')
-
-        ##  the following sql will not raise error, but will not cause error either
-        #   based on Li Chuang's explaination, <= 0 will not cause keep>days error
-        tdSql.execute('alter database db keep -10')
-        tdSql.query('show databases')
-        tdSql.checkData(0,7,'50,50,50')
-        tdSql.execute('alter database db keep 0')
-        tdSql.query('show databases')
-        tdSql.checkData(0,7,'50,50,50')
-
         ##TODO: test keep keep hot alter, cannot be tested for now as test.py's output
         ##      is inconsistent with the actual output.
-                    
         # tdSql.execute('insert into tb values (now, 10)')
         # tdSql.execute('insert into tb values (now + 10m, 10)')
         # tdSql.query('select * from tb')
@@ -67,6 +40,95 @@ class TDTestCase:
         # os.system('systemctl restart taosd')
         # tdSql.query('select * from tb')
         # tdSql.checkRows(2)
+    
+    def alterKeepCommunity(self):
+        ## community accepts both 1 paramater, 2 parmaters and 3 paramaters
+        ## but paramaters other than paramater 1 will be ignored 
+        ## only paramater 1 will be used
+        tdSql.query('show databases')
+        tdSql.checkData(0,7,'3650,3650,3650')
+
+        tdSql.execute('alter database db keep 10')
+        tdSql.query('show databases')
+        tdSql.checkData(0,7,'10,10,10')
+
+        tdSql.execute('alter database db keep 50')
+        tdSql.query('show databases')
+        tdSql.checkData(0,7,'50,50,50')
+
+        tdSql.execute('alter database db keep 20')
+        tdSql.query('show databases')
+        tdSql.checkData(0,7,'20,20,20')
+
+        tdSql.execute('alter database db keep 100, 98 ,99')
+        tdSql.query('show databases')
+        tdSql.checkData(0,7,'100,100,100')
+
+        tdSql.execute('alter database db keep 99, 100 ,101')
+        tdSql.query('show databases')
+        tdSql.checkData(0,7,'99,99,99')
+
+        tdSql.execute('alter database db keep 200, 199 ,198')
+        tdSql.query('show databases')
+        tdSql.checkData(0,7,'200,200,200')
+
+        tdSql.execute('alter database db keep 4000,4001')
+        tdSql.query('show databases')
+        tdSql.checkData(0,7,'4000,4000,4000')
+
+        tdSql.execute('alter database db keep 5000,50')
+        tdSql.query('show databases')
+        tdSql.checkData(0,7,'5000,5000,5000')
+
+        tdSql.execute('alter database db keep 50,5000')
+        tdSql.query('show databases')
+        tdSql.checkData(0,7,'50,50,50')
+
+
+    def alterKeepEnterprise(self):
+        ## enterprise only accept three inputs
+        ## does not accept 1 paramaters nor 3 paramaters
+        tdSql.query('show databases')
+        tdSql.checkData(0,7,'3650,3650,3650')
+
+        tdSql.error('alter database db keep 10')
+        tdSql.query('show databases')
+        tdSql.checkData(0,7,'3650,3650,3650')
+
+        ## the order for altering keep is keep(D), keep0, keep1.
+        ## if the order is changed, please modify the following test
+        ## to make sure the the test is accurate
+
+        tdSql.execute('alter database db keep 100, 98 ,99')
+        tdSql.query('show databases')
+        tdSql.checkData(0,7,'98,99,100')
+
+        tdSql.execute('alter database db keep 200, 200 ,200')
+        tdSql.query('show databases')
+        tdSql.checkData(0,7,'200,200,200')
+
+        tdSql.error('alter database db keep 198, 199 ,200')
+        tdSql.query('show databases')
+        tdSql.checkData(0,7,'200,200,200')
+
+        tdSql.execute('alter database db keep 3650,3650,3650')
+        tdSql.error('alter database db keep 4000,3640')
+        tdSql.error('alter database db keep 10,10')
+        tdSql.query('show databases')
+        tdSql.checkData(0,7,'3650,3650,3650')
+
+    def run(self):
+        tdSql.prepare()
+        tdSql.execute('create table tb (ts timestamp, speed int)')
+        selfPath = os.path.dirname(os.path.realpath(__file__))
+
+        if ("community" in selfPath):
+            tdLog.debug('running enterprise test')
+            self.alterKeepEnterprise()
+        else:
+            tdLog.debug('running community test')
+            self.alterKeepCommunity()
+
 
     def stop(self):
         tdSql.close()
