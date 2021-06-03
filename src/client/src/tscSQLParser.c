@@ -63,6 +63,9 @@ static SExprInfo* doAddProjectCol(SQueryInfo* pQueryInfo, int32_t colIndex, int3
 static int32_t setShowInfo(SSqlObj* pSql, SSqlInfo* pInfo);
 static char*   getAccountId(SSqlObj* pSql);
 
+static bool serializeExprListToVariant(SArray* pList, tVariant **dest);
+static int32_t validateParamOfRelationIn(tVariant *pVar, int32_t colType);
+
 static bool has(SArray* pFieldList, int32_t startIdx, const char* name);
 static char* cloneCurrentDBName(SSqlObj* pSql);
 static int32_t getDelimiterIndex(SStrToken* pTableName);
@@ -134,12 +137,77 @@ static bool    validateDebugFlag(int32_t v);
 static int32_t checkQueryRangeForFill(SSqlCmd* pCmd, SQueryInfo* pQueryInfo);
 static int32_t loadAllTableMeta(SSqlObj* pSql, struct SSqlInfo* pInfo);
 
-static bool    isTimeWindowQuery(SQueryInfo* pQueryInfo) {
+static bool isTimeWindowQuery(SQueryInfo* pQueryInfo) {
   return pQueryInfo->interval.interval > 0 || pQueryInfo->sessionWindow.gap > 0;
 }
 
+
 int16_t getNewResColId(SSqlCmd* pCmd) {
   return pCmd->resColumnId--;
+}
+
+// serialize expr in exprlist to binary 
+// formate  "type | size | value"
+bool serializeExprListToVariant(SArray* pList, tVariant **dst) {
+  bool ret = false;
+  if (!pList || pList->size <= 0) {
+    return ret;
+  }  
+  
+  SBufferWriter bw = tbufInitWriter( NULL, false );
+  tbufEnsureCapacity(&bw, 512);
+
+  tSqlExprItem* item = (tSqlExprItem *)taosArrayGet(pList, 0); 
+  int32_t size = pList->size;
+  int32_t type = item->pNode->token.type; 
+  if (type < 0) {
+    tbufCloseWriter(&bw); 
+    return ret;
+  }
+
+  toTSDBType(item->pNode->token.type);  
+  tbufWriteUint32(&bw, item->pNode->token.type);  
+  tbufWriteInt32(&bw,  size);
+   
+  for (int32_t i = 0; i < size; i++) {
+    tSqlExpr* pSub = ((tSqlExprItem*)(taosArrayGet(pList, i)))->pNode;
+
+    // validate type in exprList
+    if (type != pSub->token.type) {
+      break;
+    }
+    tVariant var;  
+    tVariantCreate(&var, &pSub->token); 
+    if (type == TSDB_DATA_TYPE_BOOL || type == TSDB_DATA_TYPE_TINYINT || type == TSDB_DATA_TYPE_SMALLINT 
+         || type == TSDB_DATA_TYPE_BIGINT || type == TSDB_DATA_TYPE_INT) {
+      tbufWriteInt64(&bw, var.i64);        
+    } else if (type == TSDB_DATA_TYPE_DOUBLE || type == TSDB_DATA_TYPE_FLOAT) {
+      tbufWriteDouble(&bw, var.dKey);
+    } else if (type == TSDB_DATA_TYPE_BINARY || type == TSDB_DATA_TYPE_NCHAR) {
+      tbufWriteBinary(&bw, var.pz, var.nLen);
+    }
+    tVariantDestroy(&var);
+
+    if (i == size - 1) { ret = true;}
+  }
+
+  if (ret == true) {
+    if ((*dst = calloc(1, sizeof(tVariant))) != NULL) {
+      tVariantCreateFromBinary(*dst, tbufGetData(&bw, false), tbufTell(&bw), TSDB_DATA_TYPE_BINARY);    
+    } else {
+      ret = false;
+    }
+  }
+  tbufCloseWriter(&bw); 
+  return ret;
+}
+
+static int32_t validateParamOfRelationIn(tVariant *pVar, int32_t colType) {
+  if (pVar->nType != TSDB_DATA_TYPE_BINARY) {
+    return -1; 
+  }
+  SBufferReader br = tbufInitReader(pVar->pz, pVar->nLen, false); 
+  return tbufReadUint32(&br) == colType ? 0: -1;     
 }
 
 static uint8_t convertOptr(SStrToken *pToken) {
@@ -3205,7 +3273,27 @@ static int32_t doExtractColumnFilterInfo(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, 
     retVal = tVariantDump(&pRight->value, (char*)&pColumnFilter->upperBndd, colType, false);
 
   // TK_GT,TK_GE,TK_EQ,TK_NE are based on the pColumn->lowerBndd
-  } else if (colType == TSDB_DATA_TYPE_BINARY) {
+  } else if (pExpr->tokenId == TK_IN) {
+    tVariant *pVal; 
+    if (pRight->tokenId != TK_SET || !serializeExprListToVariant(pRight->pParam, &pVal)) {
+      return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg);
+    }         
+    if (validateParamOfRelationIn(pVal, colType) != TSDB_CODE_SUCCESS) {
+      tVariantDestroy(pVal); 
+      free(pVal);
+      return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg);
+    }
+    pColumnFilter->pz  = (int64_t)calloc(1, pVal->nLen + 1);
+    pColumnFilter->len = pVal->nLen;
+    pColumnFilter->filterstr = 1;
+    memcpy((char *)(pColumnFilter->pz), (char *)(pVal->pz), pVal->nLen);  
+    //retVal = tVariantDump(pVal, (char *)(pColumnFilter->pz), TSDB_DATA_TYPE_BINARY, false);
+
+    tVariantDestroy(pVal); 
+    free(pVal);
+     
+  }
+  else if (colType == TSDB_DATA_TYPE_BINARY) {
     pColumnFilter->pz = (int64_t)calloc(1, bufLen * TSDB_NCHAR_SIZE);
     pColumnFilter->len = pRight->value.nLen;
     retVal = tVariantDump(&pRight->value, (char*)pColumnFilter->pz, colType, false);
@@ -3252,6 +3340,9 @@ static int32_t doExtractColumnFilterInfo(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, 
       break;
     case TK_NOTNULL:
       pColumnFilter->lowerRelOptr = TSDB_RELATION_NOTNULL;
+      break;
+    case TK_IN:
+      pColumnFilter->lowerRelOptr = TSDB_RELATION_IN;
       break;
     default:
       return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg);
@@ -3368,7 +3459,7 @@ static int32_t extractColumnFilterInfo(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SC
       && pExpr->tokenId != TK_ISNULL
       && pExpr->tokenId != TK_NOTNULL
       && pExpr->tokenId != TK_LIKE
-      ) {
+      && pExpr->tokenId != TK_IN) {
       return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg2);
     }
   } else {
