@@ -152,7 +152,7 @@ typedef struct STSCompInfo {
 } STSCompInfo;
 
 typedef struct SRateInfo {
-  int64_t CorrectionValue;
+  double  correctionValue;
   double  firstValue;
   TSKEY   firstKey;
   double  lastValue;
@@ -4493,7 +4493,7 @@ static double do_calc_rate(const SRateInfo* pRateInfo, int64_t tickPerSec) {
       diff -= pRateInfo->firstValue;
     }
   } else {
-    diff = pRateInfo->CorrectionValue + pRateInfo->lastValue -  pRateInfo->firstValue;
+    diff = pRateInfo->correctionValue + pRateInfo->lastValue -  pRateInfo->firstValue;
     if (diff <= 0) {
       return 0;
     }
@@ -4515,7 +4515,7 @@ static bool rate_function_setup(SQLFunctionCtx *pCtx) {
   SResultRowCellInfo *pResInfo = GET_RES_INFO(pCtx);
 
   SRateInfo *pInfo = GET_ROWCELL_INTERBUF(pResInfo);
-  pInfo->CorrectionValue = 0;
+  pInfo->correctionValue = 0;
   pInfo->firstKey    = INT64_MIN;
   pInfo->lastKey     = INT64_MIN;
   pInfo->firstValue  = INT64_MIN;
@@ -4555,8 +4555,8 @@ static void rate_function(SQLFunctionCtx *pCtx) {
     if (INT64_MIN == pRateInfo->lastValue) {
       pRateInfo->lastValue = v;
     } else if (v < pRateInfo->lastValue) {
-      pRateInfo->CorrectionValue += pRateInfo->lastValue;
-      qDebug("CorrectionValue:%" PRId64, pRateInfo->CorrectionValue);
+      pRateInfo->correctionValue += pRateInfo->lastValue;
+      qDebug("correctionValue:%" PRId64, pRateInfo->correctionValue);
     }
     
     pRateInfo->lastValue = v;
@@ -4602,7 +4602,7 @@ static void rate_function_f(SQLFunctionCtx *pCtx, int32_t index) {
   if (INT64_MIN == pRateInfo->lastValue) {
     pRateInfo->lastValue = v;
   } else if (v < pRateInfo->lastValue) {
-    pRateInfo->CorrectionValue += pRateInfo->lastValue;
+    pRateInfo->correctionValue += pRateInfo->lastValue;
   }
   
   pRateInfo->lastValue = v;
@@ -4637,7 +4637,7 @@ static void rate_finalizer(SQLFunctionCtx *pCtx) {
     return;
   }
   
-  *(double*) pCtx->pOutput = do_calc_rate(pRateInfo, TSDB_TICK_PER_SECOND(pCtx->param[0].i64));
+  *(double*) pCtx->pOutput = (double) do_calc_rate(pRateInfo, TSDB_TICK_PER_SECOND(pCtx->param[0].i64));
 
   // cannot set the numOfIteratedElems again since it is set during previous iteration
   pResInfo->numOfRes  = 1;
