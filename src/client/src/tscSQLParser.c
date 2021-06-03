@@ -160,22 +160,20 @@ bool serializeExprListToVariant(SArray* pList, tVariant **dst) {
   tSqlExprItem* item = (tSqlExprItem *)taosArrayGet(pList, 0); 
   int32_t size = pList->size;
   int32_t type = item->pNode->token.type; 
-  if (type < 0) {
-    tbufCloseWriter(&bw); 
-    return ret;
-  }
 
-  toTSDBType(item->pNode->token.type);  
-  tbufWriteUint32(&bw, item->pNode->token.type);  
+  toTSDBType(type);  
+  tbufWriteUint32(&bw, type);  
   tbufWriteInt32(&bw,  size);
    
   for (int32_t i = 0; i < size; i++) {
     tSqlExpr* pSub = ((tSqlExprItem*)(taosArrayGet(pList, i)))->pNode;
 
-    // validate type in exprList
+    // type in exprList is same or not
+    toTSDBType(pSub->token.type);  
     if (type != pSub->token.type) {
       break;
     }
+
     tVariant var;  
     tVariantCreate(&var, &pSub->token); 
     if (type == TSDB_DATA_TYPE_BOOL || type == TSDB_DATA_TYPE_TINYINT || type == TSDB_DATA_TYPE_SMALLINT 
@@ -3292,8 +3290,7 @@ static int32_t doExtractColumnFilterInfo(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, 
     tVariantDestroy(pVal); 
     free(pVal);
      
-  }
-  else if (colType == TSDB_DATA_TYPE_BINARY) {
+  } else if (colType == TSDB_DATA_TYPE_BINARY) {
     pColumnFilter->pz = (int64_t)calloc(1, bufLen * TSDB_NCHAR_SIZE);
     pColumnFilter->len = pRight->value.nLen;
     retVal = tVariantDump(&pRight->value, (char*)pColumnFilter->pz, colType, false);

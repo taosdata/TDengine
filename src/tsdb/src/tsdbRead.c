@@ -3163,7 +3163,8 @@ void filterPrepare(void* expr, void* param) {
         pObj = taosHashInit(256, taosGetDefaultHashFunction(pInfo->sch.type), true, false);
         SArray *arr = (SArray *)(pCond->arr);
         for (size_t i = 0; i < taosArrayGetSize(arr); i++) {
-          taosHashPut(pObj, (char *)taosArrayGet(arr, i), arr->elemSize,  &dummy, sizeof(dummy));
+          char* p = taosArrayGetP(arr, i);
+          taosHashPut(pObj, varDataVal(p),varDataLen(p), &dummy, sizeof(dummy));
         }
      } else {
        buildFilterSetFromBinary((void **)&pObj, pCond->pz, pCond->nLen);
