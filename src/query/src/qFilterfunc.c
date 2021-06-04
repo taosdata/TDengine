@@ -269,7 +269,7 @@ bool inOperator(SColumnFilterElem *pFilter, const char* minval, const char* maxv
   } else if (type == TSDB_DATA_TYPE_BINARY) {
      return NULL != taosHashGet((SHashObj *)pFilter->q, varDataVal(minval), varDataLen(minval));        
   } else if (type == TSDB_DATA_TYPE_NCHAR){
-     return NULL != taosHashGet((SHashObj *)pFilter->q, varDataVal(minval), varDataLen(minval)/TSDB_NCHAR_SIZE);        
+     return NULL != taosHashGet((SHashObj *)pFilter->q, varDataVal(minval), varDataLen(minval));        
   }     
    
   return false;

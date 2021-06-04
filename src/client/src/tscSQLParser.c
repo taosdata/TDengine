@@ -63,7 +63,7 @@ static SExprInfo* doAddProjectCol(SQueryInfo* pQueryInfo, int32_t colIndex, int3
 static int32_t setShowInfo(SSqlObj* pSql, SSqlInfo* pInfo);
 static char*   getAccountId(SSqlObj* pSql);
 
-static bool serializeExprListToVariant(SArray* pList, tVariant **dest);
+static bool serializeExprListToVariant(SArray* pList, tVariant **dest, int8_t colType);
 static int32_t validateParamOfRelationIn(tVariant *pVar, int32_t colType);
 
 static bool has(SArray* pFieldList, int32_t startIdx, const char* name);
@@ -148,31 +148,41 @@ int16_t getNewResColId(SSqlCmd* pCmd) {
 
 // serialize expr in exprlist to binary 
 // formate  "type | size | value"
-bool serializeExprListToVariant(SArray* pList, tVariant **dst) {
+bool serializeExprListToVariant(SArray* pList, tVariant **dst, int8_t colType) {
   bool ret = false;
   if (!pList || pList->size <= 0) {
     return ret;
   }  
   
+  tSqlExprItem* item = (tSqlExprItem *)taosArrayGet(pList, 0); 
+  int32_t firstTokenType = item->pNode->token.type; 
+  int32_t type  = firstTokenType;
+
+  //nchar to binary and  
+  toTSDBType(type);  
+  if (colType >= 0) {
+    if (type != colType && (type != TSDB_DATA_TYPE_BINARY || colType != TSDB_DATA_TYPE_NCHAR)) {
+       return false;  
+    }    
+    type = colType; 
+  }
+
   SBufferWriter bw = tbufInitWriter( NULL, false );
   tbufEnsureCapacity(&bw, 512);
 
-  tSqlExprItem* item = (tSqlExprItem *)taosArrayGet(pList, 0); 
   int32_t size = pList->size;
-  int32_t type = item->pNode->token.type; 
-
-  toTSDBType(type);  
   tbufWriteUint32(&bw, type);  
   tbufWriteInt32(&bw,  size);
    
   for (int32_t i = 0; i < size; i++) {
     tSqlExpr* pSub = ((tSqlExprItem*)(taosArrayGet(pList, i)))->pNode;
 
-    // type in exprList is same or not
-    toTSDBType(pSub->token.type);  
-    if (type != pSub->token.type) {
+    // check all the token type in expr list same or not
+    if (firstTokenType != pSub->token.type) {
       break;
-    }
+    }  
+
+    toTSDBType(pSub->token.type);  
 
     tVariant var;  
     tVariantCreate(&var, &pSub->token); 
@@ -181,8 +191,17 @@ bool serializeExprListToVariant(SArray* pList, tVariant **dst) {
       tbufWriteInt64(&bw, var.i64);        
     } else if (type == TSDB_DATA_TYPE_DOUBLE || type == TSDB_DATA_TYPE_FLOAT) {
       tbufWriteDouble(&bw, var.dKey);
-    } else if (type == TSDB_DATA_TYPE_BINARY || type == TSDB_DATA_TYPE_NCHAR) {
+    } else if (type == TSDB_DATA_TYPE_BINARY){
       tbufWriteBinary(&bw, var.pz, var.nLen);
+    } else if (type == TSDB_DATA_TYPE_NCHAR) {
+      char   *buf = (char *)calloc(1, (var.nLen + 1)*TSDB_NCHAR_SIZE);       
+      if (tVariantDump(&var, buf, type, false) != TSDB_CODE_SUCCESS) {
+        free(buf);
+        tVariantDestroy(&var);
+        break;  
+      }
+      tbufWriteBinary(&bw, buf, twcslen((wchar_t *)buf) * TSDB_NCHAR_SIZE);
+      free(buf);
     }
     tVariantDestroy(&var);
 
@@ -204,9 +223,8 @@ static int32_t validateParamOfRelationIn(tVariant *pVar, int32_t colType) {
   if (pVar->nType != TSDB_DATA_TYPE_BINARY) {
     return -1; 
   }
-  return 0;
-  //SBufferReader br = tbufInitReader(pVar->pz, pVar->nLen, false); 
-  //return tbufReadUint32(&br) == colType ? 0: -1;     
+  SBufferReader br = tbufInitReader(pVar->pz, pVar->nLen, false); 
+  return colType == TSDB_DATA_TYPE_NCHAR ?  0 : (tbufReadUint32(&br) == colType ? 0: -1);     
 }
 
 static uint8_t convertOptr(SStrToken *pToken) {
@@ -229,6 +247,7 @@ static uint8_t convertOptr(SStrToken *pToken) {
       return TSDB_RELATION_EQUAL;
     case TK_PLUS:
       return TSDB_BINARY_OP_ADD;
+
     case TK_MINUS:
       return TSDB_BINARY_OP_SUBTRACT;
     case TK_STAR:
@@ -3276,7 +3295,7 @@ static int32_t doExtractColumnFilterInfo(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, 
   // TK_GT,TK_GE,TK_EQ,TK_NE are based on the pColumn->lowerBndd
   } else if (pExpr->tokenId == TK_IN) {
     tVariant *pVal; 
-    if (pRight->tokenId != TK_SET || !serializeExprListToVariant(pRight->pParam, &pVal)) {
+    if (pRight->tokenId != TK_SET || !serializeExprListToVariant(pRight->pParam, &pVal, colType) || colType == TSDB_DATA_TYPE_TIMESTAMP) {
       return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg);
     }         
     if (validateParamOfRelationIn(pVal, colType) != TSDB_CODE_SUCCESS) {
@@ -8007,7 +8026,7 @@ int32_t exprTreeFromSqlExpr(SSqlCmd* pCmd, tExprNode **pExpr, const tSqlExpr* pS
       return TSDB_CODE_SUCCESS;
     } else if (pSqlExpr->tokenId == TK_SET) {
       tVariant *pVal;
-      if (serializeExprListToVariant(pSqlExpr->pParam, &pVal) == false) {
+      if (serializeExprListToVariant(pSqlExpr->pParam, &pVal, -1) == false) {
         return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), "not support filter expression");
       }
       *pExpr = calloc(1, sizeof(tExprNode));

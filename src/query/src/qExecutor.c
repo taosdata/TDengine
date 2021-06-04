@@ -6956,6 +6956,9 @@ int32_t doCreateFilterInfo(SColumnInfo* pCols, int32_t numOfCols, int32_t numOfF
 void* doDestroyFilterInfo(SSingleColumnFilterInfo* pFilterInfo, int32_t numOfFilterCols) {
   for (int32_t i = 0; i < numOfFilterCols; ++i) {
     if (pFilterInfo[i].numOfFilters > 0) {
+      if (pFilterInfo[i].pFilters->filterInfo.lowerRelOptr == TSDB_RELATION_IN) {
+        taosHashCleanup((SHashObj *)(pFilterInfo[i].pFilters->q));
+      }
       tfree(pFilterInfo[i].pFilters);
     }
   }

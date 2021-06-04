@@ -2397,6 +2397,8 @@ static void destroyHelper(void* param) {
   tQueryInfo* pInfo = (tQueryInfo*)param;
   if (pInfo->optr != TSDB_RELATION_IN) {
     tfree(pInfo->q);
+  } else {
+    taosHashCleanup((SHashObj *)(pInfo->q));
   }
 
   free(param);
