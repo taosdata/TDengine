@@ -210,7 +210,7 @@ public class TSDBResultSet extends AbstractResultSet implements ResultSet {
 
         this.lastWasNull = this.rowData.wasNull(columnIndex);
         if (!lastWasNull) {
-            Object value = this.rowData.get(columnIndex);
+            Object value = this.rowData.getObject(columnIndex);
             if (value instanceof Timestamp) {
                 res = ((Timestamp) value).getTime();
             } else {
@@ -255,7 +255,7 @@ public class TSDBResultSet extends AbstractResultSet implements ResultSet {
     public byte[] getBytes(int columnIndex) throws SQLException {
         checkAvailability(columnIndex, this.columnMetaDataList.size());
 
-        Object value = this.rowData.get(columnIndex);
+        Object value = this.rowData.getObject(columnIndex);
         if (value == null)
             return null;
 
@@ -307,9 +307,9 @@ public class TSDBResultSet extends AbstractResultSet implements ResultSet {
         if (!lastWasNull) {
             int nativeType = this.columnMetaDataList.get(columnIndex - 1).getColType();
             if (nativeType == TSDBConstants.TSDB_DATA_TYPE_BINARY)
-                res = ((String) this.rowData.get(columnIndex)).getBytes();
+                res = ((String) this.rowData.getObject(columnIndex)).getBytes();
             else
-                res = this.rowData.get(columnIndex);
+                res = this.rowData.getObject(columnIndex);
         }
         return res;
     }
@@ -337,16 +337,16 @@ public class TSDBResultSet extends AbstractResultSet implements ResultSet {
                 case TSDBConstants.TSDB_DATA_TYPE_SMALLINT:
                 case TSDBConstants.TSDB_DATA_TYPE_INT:
                 case TSDBConstants.TSDB_DATA_TYPE_BIGINT:
-                    res = new BigDecimal(Long.valueOf(this.rowData.get(columnIndex).toString()));
+                    res = new BigDecimal(Long.valueOf(this.rowData.getObject(columnIndex).toString()));
                     break;
                 case TSDBConstants.TSDB_DATA_TYPE_FLOAT:
                 case TSDBConstants.TSDB_DATA_TYPE_DOUBLE:
-                    res = new BigDecimal(Double.valueOf(this.rowData.get(columnIndex).toString()));
+                    res = new BigDecimal(Double.valueOf(this.rowData.getObject(columnIndex).toString()));
                     break;
                 case TSDBConstants.TSDB_DATA_TYPE_TIMESTAMP:
-                    return new BigDecimal(((Timestamp) this.rowData.get(columnIndex)).getTime());
+                    return new BigDecimal(((Timestamp) this.rowData.getObject(columnIndex)).getTime());
                 default:
-                    res = new BigDecimal(this.rowData.get(columnIndex).toString());
+                    res = new BigDecimal(this.rowData.getObject(columnIndex).toString());
             }
         }
         return res;

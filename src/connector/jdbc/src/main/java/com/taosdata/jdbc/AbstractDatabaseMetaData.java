@@ -567,21 +567,21 @@ public abstract class AbstractDatabaseMetaData extends WrapperImpl implements Da
             ResultSet tables = stmt.executeQuery("show tables");
             while (tables.next()) {
                 TSDBResultSetRowData rowData = new TSDBResultSetRowData(10);
-                rowData.setString(1, catalog);                                     //TABLE_CAT
-                rowData.setString(2, null);                                 //TABLE_SCHEM
-                rowData.setString(3, tables.getString("table_name"));  //TABLE_NAME
-                rowData.setString(4, "TABLE");                              //TABLE_TYPE
-                rowData.setString(5, "");                                   //REMARKS
+                rowData.setStringValue(1, catalog);                                     //TABLE_CAT
+                rowData.setStringValue(2, null);                                 //TABLE_SCHEM
+                rowData.setStringValue(3, tables.getString("table_name"));  //TABLE_NAME
+                rowData.setStringValue(4, "TABLE");                              //TABLE_TYPE
+                rowData.setStringValue(5, "");                                   //REMARKS
                 rowDataList.add(rowData);
             }
             ResultSet stables = stmt.executeQuery("show stables");
             while (stables.next()) {
                 TSDBResultSetRowData rowData = new TSDBResultSetRowData(10);
-                rowData.setString(1, catalog);                                  //TABLE_CAT
-                rowData.setString(2, null);                              //TABLE_SCHEM
-                rowData.setString(3, stables.getString("name"));    //TABLE_NAME
-                rowData.setString(4, "TABLE");                           //TABLE_TYPE
-                rowData.setString(5, "STABLE");                          //REMARKS
+                rowData.setStringValue(1, catalog);                                  //TABLE_CAT
+                rowData.setStringValue(2, null);                              //TABLE_SCHEM
+                rowData.setStringValue(3, stables.getString("name"));    //TABLE_NAME
+                rowData.setStringValue(4, "TABLE");                           //TABLE_TYPE
+                rowData.setStringValue(5, "STABLE");                          //REMARKS
                 rowDataList.add(rowData);
             }
             resultSet.setRowDataList(rowDataList);
@@ -617,10 +617,10 @@ public abstract class AbstractDatabaseMetaData extends WrapperImpl implements Da
         // set up rowDataList
         List<TSDBResultSetRowData> rowDataList = new ArrayList<>();
         TSDBResultSetRowData rowData = new TSDBResultSetRowData(1);
-        rowData.setString(1, "TABLE");
+        rowData.setStringValue(1, "TABLE");
         rowDataList.add(rowData);
         rowData = new TSDBResultSetRowData(1);
-        rowData.setString(1, "STABLE");
+        rowData.setStringValue(1, "STABLE");
         rowDataList.add(rowData);
         resultSet.setRowDataList(rowDataList);
 
@@ -646,37 +646,37 @@ public abstract class AbstractDatabaseMetaData extends WrapperImpl implements Da
             while (rs.next()) {
                 TSDBResultSetRowData rowData = new TSDBResultSetRowData(24);
                 // set TABLE_CAT
-                rowData.setString(1, catalog);
+                rowData.setStringValue(1, catalog);
                 // set TABLE_SCHEM
-                rowData.setString(2, null);
+                rowData.setStringValue(2, null);
                 // set TABLE_NAME
-                rowData.setString(3, tableNamePattern);
+                rowData.setStringValue(3, tableNamePattern);
                 // set COLUMN_NAME
-                rowData.setString(4, rs.getString("Field"));
+                rowData.setStringValue(4, rs.getString("Field"));
                 // set DATA_TYPE
                 String typeName = rs.getString("Type");
-                rowData.setInt(5, TSDBConstants.typeName2JdbcType(typeName));
+                rowData.setIntValue(5, TSDBConstants.typeName2JdbcType(typeName));
                 // set TYPE_NAME
-                rowData.setString(6, typeName);
+                rowData.setStringValue(6, typeName);
                 // set COLUMN_SIZE
                 int length = rs.getInt("Length");
-                rowData.setInt(7, calculateColumnSize(typeName, precision, length));
+                rowData.setIntValue(7, calculateColumnSize(typeName, precision, length));
                 // set BUFFER LENGTH
-                rowData.setString(8, null);
+                rowData.setStringValue(8, null);
                 // set DECIMAL_DIGITS
                 Integer decimalDigits = calculateDecimalDigits(typeName);
                 if (decimalDigits != null) {
-                    rowData.setInt(9, decimalDigits);
+                    rowData.setIntValue(9, decimalDigits);
                 } else {
-                    rowData.setString(9, null);
+                    rowData.setStringValue(9, null);
                 }
                 // set NUM_PREC_RADIX
-                rowData.setInt(10, 10);
+                rowData.setIntValue(10, 10);
                 // set NULLABLE
-                rowData.setInt(11, isNullable(rowIndex, typeName));
+                rowData.setIntValue(11, isNullable(rowIndex, typeName));
                 // set REMARKS
                 String note = rs.getString("Note");
-                rowData.setString(12, note.trim().isEmpty() ? null : note);
+                rowData.setStringValue(12, note.trim().isEmpty() ? null : note);
                 rowDataList.add(rowData);
                 rowIndex++;
             }
@@ -1152,7 +1152,7 @@ public abstract class AbstractDatabaseMetaData extends WrapperImpl implements Da
             ResultSet rs = stmt.executeQuery("show databases");
             while (rs.next()) {
                 TSDBResultSetRowData rowData = new TSDBResultSetRowData(1);
-                rowData.setString(1, rs.getString("name"));
+                rowData.setStringValue(1, rs.getString("name"));
                 rowDataList.add(rowData);
             }
             resultSet.setRowDataList(rowDataList);
@@ -1176,13 +1176,13 @@ public abstract class AbstractDatabaseMetaData extends WrapperImpl implements Da
             ResultSet rs = stmt.executeQuery("describe " + catalog + "." + table);
             rs.next();
             TSDBResultSetRowData rowData = new TSDBResultSetRowData(6);
-            rowData.setString(1, catalog);
-            rowData.setString(2, null);
-            rowData.setString(3, table);
+            rowData.setStringValue(1, catalog);
+            rowData.setStringValue(2, null);
+            rowData.setStringValue(3, table);
             String primaryKey = rs.getString("Field");
-            rowData.setString(4, primaryKey);
-            rowData.setShort(5, (short) 1);
-            rowData.setString(6, primaryKey);
+            rowData.setStringValue(4, primaryKey);
+            rowData.setShortValue(5, (short) 1);
+            rowData.setStringValue(6, primaryKey);
             rowDataList.add(rowData);
             resultSet.setRowDataList(rowDataList);
         }
@@ -1251,10 +1251,10 @@ public abstract class AbstractDatabaseMetaData extends WrapperImpl implements Da
             List<TSDBResultSetRowData> rowDataList = new ArrayList<>();
             while (rs.next()) {
                 TSDBResultSetRowData rowData = new TSDBResultSetRowData(4);
-                rowData.setString(1, catalog);
-                rowData.setString(2, null);
-                rowData.setString(3, rs.getString("table_name"));
-                rowData.setString(4, rs.getString("stable_name"));
+                rowData.setStringValue(1, catalog);
+                rowData.setStringValue(2, null);
+                rowData.setStringValue(3, rs.getString("table_name"));
+                rowData.setStringValue(4, rs.getString("stable_name"));
                 rowDataList.add(rowData);
             }
             resultSet.setRowDataList(rowDataList);

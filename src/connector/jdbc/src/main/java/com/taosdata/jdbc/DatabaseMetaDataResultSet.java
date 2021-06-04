@@ -140,7 +140,7 @@ public class DatabaseMetaDataResultSet extends AbstractResultSet {
 
     @Override
     public Object getObject(int columnIndex) throws SQLException {
-        return rowCursor.get(columnIndex);
+        return rowCursor.getObject(columnIndex);
     }
 
     @Override

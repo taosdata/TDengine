@@ -49,6 +49,13 @@ public class TSDBResultSetRowData {
     }
 
     /**
+     * $$$ this method is invoked by databaseMetaDataResultSet and so on which use a index start from 1 in JDBC api
+     */
+    public void setBooleanValue(int col, boolean value) {
+        setBoolean(col - 1, value);
+    }
+
+    /**
      * !!! this method is invoked by JNI method and the index start from 0 in C implementations
      */
     public void setBoolean(int col, boolean value) {
@@ -79,6 +86,13 @@ public class TSDBResultSetRowData {
     }
 
     /**
+     * $$$ this method is invoked by databaseMetaDataResultSet and so on which use a index start from 1 in JDBC api
+     */
+    public void setByteValue(int colIndex, byte value) {
+        setByte(colIndex - 1, value);
+    }
+
+    /**
      * !!! this method is invoked by JNI method and the index start from 0 in C implementations
      */
     public void setByte(int col, byte value) {
@@ -86,10 +100,24 @@ public class TSDBResultSetRowData {
     }
 
     /**
+     * $$$ this method is invoked by databaseMetaDataResultSet and so on which use a index start from 1 in JDBC api
+     */
+    public void setShortValue(int colIndex, short value) {
+        setShort(colIndex - 1, value);
+    }
+
+    /**
      * !!! this method is invoked by JNI method and the index start from 0 in C implementations
      */
     public void setShort(int col, short value) {
         data.set(col, value);
+    }
+
+    /**
+     * $$$ this method is invoked by databaseMetaDataResultSet and so on which use a index start from 1 in JDBC api
+     */
+    public void setIntValue(int colIndex, int value) {
+        setInt(colIndex - 1, value);
     }
 
     /**
@@ -150,6 +178,13 @@ public class TSDBResultSetRowData {
             default:
                 return 0;
         }
+    }
+
+    /**
+     * $$$ this method is invoked by databaseMetaDataResultSet and so on which use a index start from 1 in JDBC api
+     */
+    public void setLongValue(int colIndex, long value) {
+        setLong(colIndex - 1, value);
     }
 
     /**
@@ -214,6 +249,13 @@ public class TSDBResultSetRowData {
     }
 
     /**
+     * $$$ this method is invoked by databaseMetaDataResultSet and so on which use a index start from 1 in JDBC api
+     */
+    public void setFloatValue(int colIndex, float value) {
+        setFloat(colIndex - 1, value);
+    }
+
+    /**
      * !!! this method is invoked by JNI method and the index start from 0 in C implementations
      */
     public void setFloat(int col, float value) {
@@ -244,6 +286,13 @@ public class TSDBResultSetRowData {
             default:
                 return NullType.getFloatNull();
         }
+    }
+
+    /**
+     * $$$ this method is invoked by databaseMetaDataResultSet and so on which use a index start from 1 in JDBC api
+     */
+    public void setDoubleValue(int colIndex, double value) {
+        setDouble(colIndex - 1, value);
     }
 
     /**
@@ -280,17 +329,45 @@ public class TSDBResultSetRowData {
     }
 
     /**
+     * $$$ this method is invoked by databaseMetaDataResultSet and so on which use a index start from 1 in JDBC api
+     */
+    public void setStringValue(int colIndex, String value) {
+        setString(colIndex - 1, value);
+    }
+
+    /**
      * !!! this method is invoked by JNI method and the index start from 0 in C implementations
      */
     public void setString(int col, String value) {
-        data.set(col, value);
+        // TODO:
+        //  !!!NOTE!!!
+        //  this is very confusing problem which related to JNI-method implementation,
+        //  the JNI method return a String(encoded in UTF) for BINARY value, which means the JNI method will invoke
+        //  this setString(int, String) to handle NCHAR value, we need to build a byte[] with default charsetEncoding
+        data.set(col, value == null ? null : value.getBytes());
+    }
+
+    /**
+     * $$$ this method is invoked by databaseMetaDataResultSet and so on which use a index start from 1 in JDBC api
+     */
+    public void setByteArrayValue(int colIndex, byte[] value) {
+        setByteArray(colIndex - 1, value);
     }
 
     /**
      * !!! this method is invoked by JNI method and the index start from 0 in C implementations
      */
     public void setByteArray(int col, byte[] value) {
-        data.set(col, value);
+        // TODO:
+        //  !!!NOTE!!!
+        //  this is very confusing problem which related to JNI-method implementation,
+        //  the JNI method return a byte[] for NCHAR value, which means the JNI method will invoke
+        //  this setByteArr(int, byte[]) to handle NCHAR value, we need to build a String with charsetEncoding by TaosGlobalConfig
+        try {
+            data.set(col, new String(value, TaosGlobalConfig.getCharset()));
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
     }
 
     public String getString(int col, int nativeType) {
@@ -324,7 +401,8 @@ public class TSDBResultSetRowData {
                 long lowValue = value & 0x7fffffffffffffffL;
                 return BigDecimal.valueOf(lowValue).add(BigDecimal.valueOf(Long.MAX_VALUE)).add(BigDecimal.valueOf(1)).toString();
             }
-            //TODO：this is bug in JNI methed implementation
+            //TODO：fix this implementation for nchar and binary
+
 //            case TSDBConstants.TSDB_DATA_TYPE_BINARY:
 //                return new String((byte[]) obj);
 //            case TSDBConstants.TSDB_DATA_TYPE_NCHAR:
@@ -336,6 +414,13 @@ public class TSDBResultSetRowData {
             default:
                 return String.valueOf(obj);
         }
+    }
+
+    /**
+     * $$$ this method is invoked by databaseMetaDataResultSet and so on which use a index start from 1 in JDBC api
+     */
+    public void setTimestampValue(int colIndex, long value) {
+        setTimestamp(colIndex - 1, value);
     }
 
     /**
@@ -369,7 +454,7 @@ public class TSDBResultSetRowData {
         }
     }
 
-    public Object get(int col) {
+    public Object getObject(int col) {
         return data.get(col - 1);
     }
 
