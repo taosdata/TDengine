@@ -271,7 +271,7 @@ void *tsdbAllocBytes(STsdbRepo *pRepo, int bytes) {
   return ptr;
 }
 
-int tsdbAsyncCommitConfig(STsdbRepo* pRepo) {
+int tsdbSyncCommitConfig(STsdbRepo* pRepo) {
   ASSERT(pRepo->config_changed == true);
   tsem_wait(&(pRepo->readyToCommit));
 
@@ -283,6 +283,15 @@ int tsdbAsyncCommitConfig(STsdbRepo* pRepo) {
   tsdbScheduleCommit(pRepo, COMMIT_CONFIG_REQ);
   if (tsdbUnlockRepo(pRepo) < 0) return -1;
 
+  tsem_wait(&(pRepo->readyToCommit));
+  tsem_post(&(pRepo->readyToCommit));
+
+  if (pRepo->code != TSDB_CODE_SUCCESS) {
+    terrno = pRepo->code;
+    return -1;
+  }
+
+  terrno = TSDB_CODE_SUCCESS;
   return 0;
 }
 

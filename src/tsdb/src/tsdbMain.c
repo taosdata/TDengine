@@ -270,8 +270,8 @@ int32_t tsdbConfigRepo(STsdbRepo *repo, STsdbCfg *pCfg) {
 
   pthread_mutex_unlock(&repo->save_mutex);
 
-  // schedule a commit msg then the new config will be applied immediatly
-  tsdbAsyncCommitConfig(repo);
+  // schedule a commit msg and wait for the new config applied
+  tsdbSyncCommitConfig(repo);
 
   return 0;
 #if 0
