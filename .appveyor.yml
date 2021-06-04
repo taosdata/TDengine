@@ -1,0 +1,49 @@
+version: 1.0.{build}
+image:
+  - Visual Studio 2015
+  - macos
+environment:
+  matrix:
+    - ARCH: amd64
+    - ARCH: x86
+matrix:
+  exclude:
+    - image: macos
+      ARCH: x86
+for:
+  -
+    matrix:
+      only:
+        - image: Visual Studio 2015
+    clone_folder: c:\dev\TDengine
+    clone_depth: 1
+
+    init:
+      - call "C:\Program Files (x86)\Microsoft Visual Studio 14.0\VC\vcvarsall.bat" %ARCH%
+
+    before_build:
+      - cd c:\dev\TDengine
+      - md build
+
+    build_script:
+      - cd build
+      - cmake -G "NMake Makefiles" .. -DBUILD_JDBC=false
+      - nmake install
+  -
+    matrix:
+      only:
+        - image: macos
+    clone_depth: 1
+
+    build_script:
+      - mkdir debug
+      - cd debug
+      - cmake .. > /dev/null
+      - make > /dev/null
+notifications:
+- provider: Email
+  to:
+  - sangshuduo@gmail.com
+  on_build_success: true
+  on_build_failure: true
+  on_build_status_changed: true
