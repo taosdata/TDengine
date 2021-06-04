@@ -482,7 +482,6 @@ void buildFilterSetFromBinary(void **q, const char *buf, int32_t len) {
     } else if (type == TSDB_DATA_TYPE_BINARY) {
       size_t  t = 0;
       const char *val = tbufReadBinary(&br, &t);
-      
       taosHashPut(pObj, (char *)val, t, &dummy, sizeof(dummy));
     } else if (type == TSDB_DATA_TYPE_NCHAR) {
       size_t  t = 0;

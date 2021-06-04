@@ -153,6 +153,9 @@ bool serializeExprListToVariant(SArray* pList, tVariant **dst, int8_t colType) {
   if (!pList || pList->size <= 0) {
     return ret;
   }  
+  if (colType == TSDB_DATA_TYPE_DOUBLE || colType == TSDB_DATA_TYPE_FLOAT) {
+    return ret;
+  }
   
   tSqlExprItem* item = (tSqlExprItem *)taosArrayGet(pList, 0); 
   int32_t firstTokenType = item->pNode->token.type; 
@@ -160,12 +163,11 @@ bool serializeExprListToVariant(SArray* pList, tVariant **dst, int8_t colType) {
 
   //nchar to binary and  
   toTSDBType(type);  
-  if (colType >= 0) {
-    if (type != colType && (type != TSDB_DATA_TYPE_BINARY || colType != TSDB_DATA_TYPE_NCHAR)) {
-       return false;  
-    }    
-    type = colType; 
-  }
+  if (type != colType && (type != TSDB_DATA_TYPE_BINARY || colType != TSDB_DATA_TYPE_NCHAR)) {
+    return false;  
+  }    
+  type = colType; 
+ 
 
   SBufferWriter bw = tbufInitWriter( NULL, false );
   tbufEnsureCapacity(&bw, 512);
@@ -8025,8 +8027,18 @@ int32_t exprTreeFromSqlExpr(SSqlCmd* pCmd, tExprNode **pExpr, const tSqlExpr* pS
       
       return TSDB_CODE_SUCCESS;
     } else if (pSqlExpr->tokenId == TK_SET) {
+      int32_t type = -1;
+      STableMeta* pTableMeta = tscGetMetaInfo(pQueryInfo, 0)->pTableMeta;
+      if (pCols != NULL) {
+        SColIndex* idx = taosArrayGet(pCols, 0);
+        SSchema* pSchema = tscGetTableColumnSchema(pTableMeta, idx->colIndex);
+        if (pSchema != NULL) {
+          type = pSchema->type; 
+        }
+      }
+
       tVariant *pVal;
-      if (serializeExprListToVariant(pSqlExpr->pParam, &pVal, -1) == false) {
+      if (serializeExprListToVariant(pSqlExpr->pParam, &pVal, type) == false) {
         return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), "not support filter expression");
       }
       *pExpr = calloc(1, sizeof(tExprNode));
