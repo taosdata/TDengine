@@ -3393,7 +3393,7 @@ enum {
 };
 
 static bool diff_function_setup(SQLFunctionCtx *pCtx) {
-  if (function_setup(pCtx)) {
+  if (!function_setup(pCtx)) {
     return false;
   }
   
@@ -4606,7 +4606,7 @@ static void rate_function_f(SQLFunctionCtx *pCtx, int32_t index) {
   
   pRateInfo->lastValue = v;
   pRateInfo->lastKey   = primaryKey[index];
-  
+
   SET_VAL(pCtx, 1, 1);
   
   // set has result flag
@@ -4630,7 +4630,7 @@ static void rate_func_copy(SQLFunctionCtx *pCtx) {
 static void rate_finalizer(SQLFunctionCtx *pCtx) {
   SResultRowCellInfo *pResInfo  = GET_RES_INFO(pCtx);
   SRateInfo   *pRateInfo = (SRateInfo *)GET_ROWCELL_INTERBUF(pResInfo);
-  
+
   if (pRateInfo->hasResult != DATA_SET_FLAG) {
     setNull(pCtx->pOutput, TSDB_DATA_TYPE_DOUBLE, sizeof(double));
     return;
@@ -5215,7 +5215,7 @@ SAggFunctionInfo aAggs[] = {{
                               "diff",
                               TSDB_FUNC_DIFF,
                               TSDB_FUNC_INVALID_ID,
-                              TSDB_FUNCSTATE_MO | TSDB_FUNCSTATE_NEED_TS,
+                              TSDB_FUNCSTATE_MO | TSDB_FUNCSTATE_STABLE | TSDB_FUNCSTATE_NEED_TS,
                               diff_function_setup,
                               diff_function,
                               diff_function_f,
