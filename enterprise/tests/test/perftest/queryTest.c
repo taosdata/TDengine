@@ -328,8 +328,8 @@ void generatedData(TAOS* taos) {
 }
 
 int main(int argc, char** argv) {
-  taos_options(TSDB_OPTION_CONFIGDIR, "~/first/cfg");
-//  taos_options(TSDB_OPTION_CONFIGDIR, "/home/lisa/Documents/workspace/TDinternal/sim/tsim/cfg");
+//  taos_options(TSDB_OPTION_CONFIGDIR, "~/first/cfg");
+  taos_options(TSDB_OPTION_CONFIGDIR, "/home/lisa/Documents/workspace/TDinternal/sim/tsim/cfg");
   taos_init();
   TAOS* conn = taos_connect("ubuntu", "root", "taosdata", 0, 0);
   if (conn == NULL) {
@@ -384,8 +384,8 @@ int main(int argc, char** argv) {
 //      TAOS_RES*  taos_query(conn, t);
 //      taos_free_result(res);
 //    }
-  executeSQL(conn, "use test", NULL);
-  executeSQL(conn, "select * from (select count(*) from m1)", NULL);
+  executeSQL(conn, "use ac_db", NULL);
+  executeSQL(conn, "select count(*) from ac_stb", NULL);
 //  executeSQL(conn, "select count(t1.ts) + count(t1.ts) from t1,t2 where t1.ts =t2.ts", NULL);
 
 //    executeSQL(conn, "select * from (select count(*) from tm0 interval(1s)) a", NULL);
