@@ -4275,7 +4275,7 @@ static SSDataBlock* doTableScanImpl(void* param, bool* newgroup) {
       doTableQueryInfoTimeWindowCheck(pQueryAttr, *pTableQueryInfo);
 
       if (pTableScanInfo->prevGroupId != -1 && pTableScanInfo->prevGroupId != (*pTableQueryInfo)->groupIndex) {
-        *newgroup = true;
+        *newgroup = false;
       }
 
       pTableScanInfo->prevGroupId = (*pTableQueryInfo)->groupIndex;

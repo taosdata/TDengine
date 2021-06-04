@@ -3273,6 +3273,16 @@ SSqlObj* createSubqueryObj(SSqlObj* pSql, int16_t tableIndex, __async_cb_func_t 
   pNewQueryInfo->pTableMetaInfo = NULL;
   pNewQueryInfo->bufLen = pQueryInfo->bufLen;
 
+  pNewQueryInfo->projectionQuery = pQueryInfo->projectionQuery;
+  pNewQueryInfo->hasFilter = pQueryInfo->hasFilter;
+  pNewQueryInfo->simpleAgg = pQueryInfo->simpleAgg;
+  pNewQueryInfo->onlyTagQuery = pQueryInfo->onlyTagQuery;
+  pNewQueryInfo->groupbyColumn = pQueryInfo->groupbyColumn;
+
+  pNewQueryInfo->arithmeticOnAgg = pQueryInfo->arithmeticOnAgg;
+  pNewQueryInfo->orderProjectQuery = pQueryInfo->orderProjectQuery;
+  pNewQueryInfo->diffQuery = pQueryInfo->diffQuery;
+
   pNewQueryInfo->buf = malloc(pQueryInfo->bufLen);
   if (pNewQueryInfo->buf == NULL) {
     terrno = TSDB_CODE_TSC_OUT_OF_MEMORY;
