@@ -491,7 +491,7 @@ bool isSimpleAggregateRv(SQueryInfo* pQueryInfo) {
     return false;
   }
 
-  if (tscGroupbyColumn(pQueryInfo) || isTsCompQuery(pQueryInfo) || tscIsTopBotQuery(pQueryInfo) || tscIsDiffQuery(pQueryInfo)) {
+  if (/*tscGroupbyColumn(pQueryInfo) || */isTsCompQuery(pQueryInfo) || tscIsTopBotQuery(pQueryInfo) || tscIsDiffQuery(pQueryInfo)) {
     return false;
   }
 
@@ -3272,17 +3272,6 @@ SSqlObj* createSubqueryObj(SSqlObj* pSql, int16_t tableIndex, __async_cb_func_t 
   pNewQueryInfo->numOfTables = 0;
   pNewQueryInfo->pTableMetaInfo = NULL;
   pNewQueryInfo->bufLen = pQueryInfo->bufLen;
-
-  pNewQueryInfo->projectionQuery = pQueryInfo->projectionQuery;
-  pNewQueryInfo->hasFilter = pQueryInfo->hasFilter;
-  pNewQueryInfo->simpleAgg = pQueryInfo->simpleAgg;
-  pNewQueryInfo->onlyTagQuery = pQueryInfo->onlyTagQuery;
-  pNewQueryInfo->groupbyColumn = pQueryInfo->groupbyColumn;
-
-  pNewQueryInfo->arithmeticOnAgg = pQueryInfo->arithmeticOnAgg;
-  pNewQueryInfo->orderProjectQuery = pQueryInfo->orderProjectQuery;
-  pNewQueryInfo->diffQuery = pQueryInfo->diffQuery;
-
   pNewQueryInfo->buf = malloc(pQueryInfo->bufLen);
   if (pNewQueryInfo->buf == NULL) {
     terrno = TSDB_CODE_TSC_OUT_OF_MEMORY;
@@ -4242,11 +4231,11 @@ int32_t tscCreateQueryFromQueryInfo(SQueryInfo* pQueryInfo, SQueryAttr* pQueryAt
   pQueryAttr->hasTagResults     = hasTagValOutput(pQueryInfo);
   pQueryAttr->stabledev         = isStabledev(pQueryInfo);
   pQueryAttr->tsCompQuery       = isTsCompQuery(pQueryInfo);
-  pQueryAttr->diffQuery         = pQueryInfo->diffQuery;
-  pQueryAttr->simpleAgg         = pQueryInfo->simpleAgg;
+  pQueryAttr->diffQuery         = tscIsDiffQuery(pQueryInfo);
+  pQueryAttr->simpleAgg         = isSimpleAggregateRv(pQueryInfo);
   pQueryAttr->needReverseScan   = tscNeedReverseScan(pQueryInfo);
   pQueryAttr->stableQuery       = QUERY_IS_STABLE_QUERY(pQueryInfo->type);
-  pQueryAttr->groupbyColumn     = (!pQueryInfo->stateWindow) && pQueryInfo->groupbyColumn;
+  pQueryAttr->groupbyColumn     = (!pQueryInfo->stateWindow) && tscGroupbyColumn(pQueryInfo);
   pQueryAttr->queryBlockDist    = isBlockDistQuery(pQueryInfo);
   pQueryAttr->pointInterpQuery  = tscIsPointInterpQuery(pQueryInfo);
   pQueryAttr->timeWindowInterpo = timeWindowInterpoRequired(pQueryInfo);

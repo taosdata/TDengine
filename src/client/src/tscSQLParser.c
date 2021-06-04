@@ -7812,15 +7812,15 @@ int32_t validateSqlNode(SSqlObj* pSql, SSqlNode* pSqlNode, SQueryInfo* pQueryInf
   }
 
   { // set the query info
-    pQueryInfo->projectionQuery = tscIsProjectionQuery(pQueryInfo);
-    pQueryInfo->hasFilter = tscHasColumnFilter(pQueryInfo);
-    pQueryInfo->simpleAgg = isSimpleAggregateRv(pQueryInfo);
-    pQueryInfo->onlyTagQuery = onlyTagPrjFunction(pQueryInfo);
-    pQueryInfo->groupbyColumn = tscGroupbyColumn(pQueryInfo);
+    pQueryInfo->projectionQuery   = tscIsProjectionQuery(pQueryInfo);
+    pQueryInfo->hasFilter         = tscHasColumnFilter(pQueryInfo);
+    pQueryInfo->simpleAgg         = isSimpleAggregateRv(pQueryInfo);
+    pQueryInfo->onlyTagQuery      = onlyTagPrjFunction(pQueryInfo);
+    pQueryInfo->groupbyColumn     = tscGroupbyColumn(pQueryInfo);
 
-    pQueryInfo->arithmeticOnAgg = tsIsArithmeticQueryOnAggResult(pQueryInfo);
+    pQueryInfo->arithmeticOnAgg   = tsIsArithmeticQueryOnAggResult(pQueryInfo);
     pQueryInfo->orderProjectQuery = tscOrderedProjectionQueryOnSTable(pQueryInfo, 0);
-    pQueryInfo->diffQuery = tscIsDiffQuery(pQueryInfo);
+    pQueryInfo->diffQuery         = tscIsDiffQuery(pQueryInfo);
 
     SExprInfo** p = NULL;
     int32_t numOfExpr = 0;
