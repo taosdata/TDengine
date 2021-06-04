@@ -55,4 +55,5 @@ run general/parser/sliding.sim
 run general/parser/function.sim
 run general/parser/stableOp.sim
 run general/parser/slimit_alter_tags.sim
+run general/parser/binary_escapeCharacter.sim
 

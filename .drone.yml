@@ -11,45 +11,18 @@ steps:
   image: gcc
   commands:
   - apt-get update
-  - apt-get install -y cmake build-essential git
+  - apt-get install -y cmake build-essential 
   - mkdir debug
   - cd debug
   - cmake .. 
   - make 
+  trigger:
+    event:
+      - pull_request
   when:
     branch:
     - develop
     - master
-
-- name: smoke_test
-  image: python:3.8
-  commands:
-  - pip3 install psutil
-  - pip3 install guppy3
-  - pip3 install src/connector/python/linux/python3/
-  - cd tests
-  - ./test-all.sh smoke
-  when:
-    branch:
-    - develop
-    - master
-
-
-- name: crash_gen
-  image: python:3.8
-  commands:
-  - pip3 install requests
-  - pip3 install src/connector/python/linux/python3/
-  - pip3 install psutil
-  - pip3 install guppy3
-  - cd tests/pytest 
-  - ./crash_gen.sh -a -p -t 4 -s 2000
-  when:
-    branch:
-    - develop
-    - master
-
-
 ---
 kind: pipeline
 name: test_arm64
@@ -68,6 +41,9 @@ steps:
   - cd debug
   - cmake .. -DCPUTYPE=aarch64 > /dev/null
   - make 
+  trigger:
+    event:
+      - pull_request
   when:
     branch:
     - develop
@@ -82,7 +58,7 @@ platform:
 
 steps:
 - name: build
-  image: gcc
+  image: arm32v7/ubuntu:bionic
   commands:
   - apt-get update
   - apt-get install -y cmake build-essential
@@ -90,6 +66,9 @@ steps:
   - cd debug
   - cmake .. -DCPUTYPE=aarch32 > /dev/null
   - make 
+  trigger:
+    event:
+      - pull_request
   when:
     branch:
     - develop
@@ -114,11 +93,13 @@ steps:
   - cd debug
   - cmake .. 
   - make 
+  trigger:
+    event:
+      - pull_request
   when:
     branch:
     - develop
     - master
-
 ---
 kind: pipeline
 name: build_xenial
@@ -137,6 +118,9 @@ steps:
   - cd debug
   - cmake .. 
   - make 
+  trigger:
+    event:
+      - pull_request
   when:
     branch:
     - develop
@@ -159,6 +143,32 @@ steps:
   - cd debug
   - cmake .. 
   - make 
+  trigger:
+    event:
+      - pull_request
+  when:
+    branch:
+    - develop
+    - master
+---
+kind: pipeline
+name: build_centos7
+platform:
+  os: linux
+  arch: amd64
+
+steps:
+- name: build
+  image: ansible/centos7-ansible
+  commands:
+  - yum install -y gcc gcc-c++ make cmake
+  - mkdir debug
+  - cd debug
+  - cmake .. 
+  - make 
+  trigger:
+    event:
+      - pull_request
   when:
     branch:
     - develop

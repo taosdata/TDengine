@@ -144,24 +144,23 @@ if [[ "$pagMode" != "lite" ]] && [[ "$cpuType" != "aarch32" ]]; then
   if [ "$osType" != "Darwin" ]; then
     cp ${build_dir}/lib/*.jar      ${install_dir}/connector ||:
   fi
-  cp -r ${connector_dir}/grafanaplugin ${install_dir}/connector/
-  cp -r ${connector_dir}/python  ${install_dir}/connector/
-  cp -r ${connector_dir}/go      ${install_dir}/connector 
+  if [ -d "${connector_dir}/grafanaplugin/dist" ]; then
+    cp -r ${connector_dir}/grafanaplugin/dist ${install_dir}/connector/grafanaplugin
+  else
+    echo "WARNING: grafanaplugin bunlded dir not found, please check if want to use it!"
+  fi
+  if find ${connector_dir}/go -mindepth 1 -maxdepth 1 | read; then
+    cp -r ${connector_dir}/go ${install_dir}/connector
+  else
+    echo "WARNING: go connector not found, please check if want to use it!"
+  fi
+  cp -r ${connector_dir}/python  ${install_dir}/connector
   
-  sed -i '/password/ {s/taosdata/powerdb/g}'  ${install_dir}/connector/python/linux/python2/taos/cinterface.py
-  sed -i '/password/ {s/taosdata/powerdb/g}'  ${install_dir}/connector/python/linux/python3/taos/cinterface.py
-  sed -i '/password/ {s/taosdata/powerdb/g}'  ${install_dir}/connector/python/windows/python2/taos/cinterface.py
-  sed -i '/password/ {s/taosdata/powerdb/g}'  ${install_dir}/connector/python/windows/python3/taos/cinterface.py
+  sed -i '/password/ {s/taosdata/powerdb/g}'  ${install_dir}/connector/python/taos/cinterface.py
   
-  sed -i '/password/ {s/taosdata/powerdb/g}'  ${install_dir}/connector/python/linux/python2/taos/subscription.py
-  sed -i '/password/ {s/taosdata/powerdb/g}'  ${install_dir}/connector/python/linux/python3/taos/subscription.py
-  sed -i '/password/ {s/taosdata/powerdb/g}'  ${install_dir}/connector/python/windows/python2/taos/subscription.py
-  sed -i '/password/ {s/taosdata/powerdb/g}'  ${install_dir}/connector/python/windows/python3/taos/subscription.py
+  sed -i '/password/ {s/taosdata/powerdb/g}'  ${install_dir}/connector/python/taos/subscription.py
   
-  sed -i '/self._password/ {s/taosdata/powerdb/g}'  ${install_dir}/connector/python/linux/python2/taos/connection.py
-  sed -i '/self._password/ {s/taosdata/powerdb/g}'  ${install_dir}/connector/python/linux/python3/taos/connection.py
-  sed -i '/self._password/ {s/taosdata/powerdb/g}'  ${install_dir}/connector/python/windows/python2/taos/connection.py
-  sed -i '/self._password/ {s/taosdata/powerdb/g}'  ${install_dir}/connector/python/windows/python3/taos/connection.py 
+  sed -i '/self._password/ {s/taosdata/powerdb/g}'  ${install_dir}/connector/python/taos/connection.py
 fi
 # Copy release note
 # cp ${script_dir}/release_note ${install_dir}
