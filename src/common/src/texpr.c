@@ -479,10 +479,13 @@ void buildFilterSetFromBinary(void **q, const char *buf, int32_t len) {
     } else if (type == TSDB_DATA_TYPE_DOUBLE || type == TSDB_DATA_TYPE_FLOAT) {
       double  val = tbufReadDouble(&br);
       taosHashPut(pObj, (char *)&val, sizeof(val), &dummy, sizeof(dummy));
-    } else if (type == TSDB_DATA_TYPE_BINARY || type == TSDB_DATA_TYPE_NCHAR) {
+    } else if (type == TSDB_DATA_TYPE_BINARY) {
       size_t  t = 0;
       const char *val = tbufReadBinary(&br, &t);
+      
       taosHashPut(pObj, (char *)val, t, &dummy, sizeof(dummy));
+    } else if (type == TSDB_DATA_TYPE_NCHAR) {
+      
     }
   } 
   *q = (void *)pObj;

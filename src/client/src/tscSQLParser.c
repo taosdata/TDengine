@@ -204,8 +204,9 @@ static int32_t validateParamOfRelationIn(tVariant *pVar, int32_t colType) {
   if (pVar->nType != TSDB_DATA_TYPE_BINARY) {
     return -1; 
   }
-  SBufferReader br = tbufInitReader(pVar->pz, pVar->nLen, false); 
-  return tbufReadUint32(&br) == colType ? 0: -1;     
+  return 0;
+  //SBufferReader br = tbufInitReader(pVar->pz, pVar->nLen, false); 
+  //return tbufReadUint32(&br) == colType ? 0: -1;     
 }
 
 static uint8_t convertOptr(SStrToken *pToken) {
@@ -243,6 +244,8 @@ static uint8_t convertOptr(SStrToken *pToken) {
       return TSDB_RELATION_ISNULL;
     case TK_NOTNULL:
       return TSDB_RELATION_NOTNULL;
+    case TK_IN:
+      return TSDB_RELATION_IN;
     default: { return 0; }
   }
 }
@@ -4507,7 +4510,11 @@ static int32_t validateTagCondExpr(SSqlCmd* pCmd, tExprNode *p) {
       free(tmp);
     } else {
       double tmp;
-      retVal = tVariantDump(vVariant, (char*)&tmp, schemaType, false);
+      if (p->_node.optr == TSDB_RELATION_IN) {
+        retVal = validateParamOfRelationIn(vVariant, schemaType);
+      } else {
+        retVal = tVariantDump(vVariant, (char*)&tmp, schemaType, false);
+      }
     }
     
     if (retVal != TSDB_CODE_SUCCESS) {
@@ -7998,6 +8005,14 @@ int32_t exprTreeFromSqlExpr(SSqlCmd* pCmd, tExprNode **pExpr, const tSqlExpr* pS
       }
       
       return TSDB_CODE_SUCCESS;
+    } else if (pSqlExpr->tokenId == TK_SET) {
+      tVariant *pVal;
+      if (serializeExprListToVariant(pSqlExpr->pParam, &pVal) == false) {
+        return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), "not support filter expression");
+      }
+      *pExpr = calloc(1, sizeof(tExprNode));
+      (*pExpr)->nodeType = TSQL_NODE_VALUE;
+      (*pExpr)->pVal = pVal;
     } else {
       return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), "not support filter expression");
     }
