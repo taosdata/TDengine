@@ -25,7 +25,7 @@ class TDTestCase:
 
         self.tables = 10
         self.rows = 20
-        self.columns = 50
+        self.columns = 5
         self.perfix = 't'
         self.ts = 1601481600000
     
@@ -34,7 +34,7 @@ class TDTestCase:
         sql = "create table st(ts timestamp, "
         for i in range(self.columns - 1):
             sql += "c%d int, " % (i + 1)
-        sql += "c50 int) tags(t1 int)"
+        sql += "c5 int) tags(t1 int)"
         tdSql.execute(sql)
         
         for i in range(self.tables):
