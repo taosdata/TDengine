@@ -1160,7 +1160,7 @@ void handleDownstreamOperator(SSqlObj** pSqlObjList, int32_t numOfUpstream, SQue
       }
     }
 
-    tscDebug("0x%"PRIx64" create QInfo 0x%"PRIx64" to execute the main query while all nest query is ready", pSql->self, pSql->self);
+    tscDebug("0x%"PRIx64" create QInfo 0x%"PRIx64" to execute the main query while all nest queries are ready", pSql->self, pSql->self);
     px->pQInfo = createQInfoFromQueryNode(px, &tableGroupInfo, pSourceOperator, NULL, NULL, MASTER_SCAN, pSql->self);
 
     tfree(pColumnInfo);
