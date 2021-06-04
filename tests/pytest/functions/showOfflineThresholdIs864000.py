@@ -25,7 +25,7 @@ class TDTestCase:
 
     def run(self):
         tdSql.query("show variables")
-        tdSql.checkData(51, 1, 864000)
+        tdSql.checkData(52, 1, 864000)
 
     def stop(self):
         tdSql.close()
