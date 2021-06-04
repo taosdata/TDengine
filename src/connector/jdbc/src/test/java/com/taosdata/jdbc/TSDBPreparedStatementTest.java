@@ -10,12 +10,13 @@ import java.util.Random;
 
 public class TSDBPreparedStatementTest {
 
+    private static final String host = "127.0.0.1";
     private static Connection conn;
     private static final String sql_insert = "insert into t1 values(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
-    private static PreparedStatement pstmt_insert;
     private static final String sql_select = "select * from t1 where ts >= ? and ts < ? and f1 >= ?";
-    private static PreparedStatement pstmt_select;
-    private static final String host = "127.0.0.1";
+
+    private PreparedStatement pstmt_insert;
+    private PreparedStatement pstmt_select;
 
     //create table weather(ts timestamp, f1 int, f2 bigint, f3 float, f4 double, f5 smallint, f6 tinyint, f7 bool, f8 binary(64), f9 nchar(64)) tags(loc nchar(64))
 
