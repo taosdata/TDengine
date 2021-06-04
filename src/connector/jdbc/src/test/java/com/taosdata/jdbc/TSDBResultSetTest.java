@@ -133,7 +133,7 @@ public class TSDBResultSetTest {
         Assert.assertEquals(3.1415926, Double.valueOf(new String(f5)), 0.000000f);
 
         byte[] f6 = rs.getBytes("f6");
-        Assert.assertEquals("abc", new String(f6));
+        Assert.assertEquals("abc".getBytes(), f6);
 
         byte[] f7 = rs.getBytes("f7");
         Assert.assertEquals((short) 10, Shorts.fromByteArray(f7));
@@ -177,7 +177,7 @@ public class TSDBResultSetTest {
     }
 
     @SuppressWarnings("deprecation")
-	@Test(expected = SQLFeatureNotSupportedException.class)
+    @Test(expected = SQLFeatureNotSupportedException.class)
     public void getUnicodeStream() throws SQLException {
         rs.getUnicodeStream("f1");
     }
