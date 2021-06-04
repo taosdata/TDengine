@@ -14,6 +14,7 @@ import java.math.BigDecimal;
 import java.sql.*;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
+import java.util.Arrays;
 
 public class TSDBResultSetTest {
 
@@ -133,7 +134,7 @@ public class TSDBResultSetTest {
         Assert.assertEquals(3.1415926, Double.valueOf(new String(f5)), 0.000000f);
 
         byte[] f6 = rs.getBytes("f6");
-        Assert.assertEquals("abc".getBytes(), f6);
+        Assert.assertTrue(Arrays.equals("abc".getBytes(),f6));
 
         byte[] f7 = rs.getBytes("f7");
         Assert.assertEquals((short) 10, Shorts.fromByteArray(f7));
