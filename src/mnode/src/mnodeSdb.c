@@ -1176,9 +1176,10 @@ int32_t mnodeCompactWal() {
     return -1;
   }
 
-  // close wal
-  walFsync(tsSdbMgmt.wal, true);
-  walClose(tsSdbMgmt.wal);
+  // close sdb and sync to disk
+  //walFsync(tsSdbMgmt.wal, true);
+  //walClose(tsSdbMgmt.wal);
+  sdbCleanUp();
 
   // rename old wal to wal_bak
   if (taosRename(tsMnodeDir, tsMnodeBakDir) != 0) {

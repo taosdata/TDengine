@@ -11,51 +11,30 @@
 
 # -*- coding: utf-8 -*-
 
+#TODO: after TD-4518 and TD-4510 is resolved, add the exception test case for these situations
+
 import sys
-import taos
 from util.log import *
 from util.cases import *
 from util.sql import *
-import numpy as np
-from util.dnodes import *
 
 
 class TDTestCase:
     def init(self, conn, logSql):
         tdLog.debug("start to execute %s" % __file__)
         tdSql.init(conn.cursor(), logSql)
-        
-        self.numOfRecords = 10
-        self.ts = 1537146000000    
-    
-    def restartTaosd(self):
-        tdDnodes.stop(1)
-        tdDnodes.start(1)
-        tdSql.execute("use db")
 
     def run(self):
         tdSql.prepare()
 
-        print("==============step1")
-
-        tdSql.execute(
-            "create table st (ts timestamp, speed int) tags(areaid int, loc nchar(20))")
-        tdSql.execute("create table t1 using st tags(1, 'beijing')")
-        tdSql.execute("insert into t1 values(now, 1)")
-        tdSql.query("select * from st")
-        tdSql.checkRows(1)
-
-        tdSql.execute("alter table st add column len int")
-        tdSql.execute("insert into t1 values(now, 1, 2)")
-        tdSql.query("select last(*) from st")
-        tdSql.checkData(0, 2, 2);
-
-        self.restartTaosd();
-
-        tdSql.query("select last(*) from st")
-        tdSql.checkData(0, 2, 2);
-
-
+        tdSql.error('alter database keep db 0')
+        tdSql.error('alter database keep db -10')
+        tdSql.error('alter database keep db -2147483648')
+        
+        #this is the test case problem for keep overflow
+        #the error is caught, but type is wrong.
+        #TODO: can be solved in the future, but improvement is minimal
+        tdSql.error('alter database keep db -2147483649')   
     def stop(self):
         tdSql.close()
         tdLog.success("%s successfully executed" % __file__)

@@ -161,6 +161,7 @@ enum _mgmt_table {
 #define TSDB_ALTER_TABLE_ADD_COLUMN        5
 #define TSDB_ALTER_TABLE_DROP_COLUMN       6
 #define TSDB_ALTER_TABLE_CHANGE_COLUMN     7
+#define TSDB_ALTER_TABLE_MODIFY_TAG_COLUMN 8
 
 #define TSDB_FILL_NONE             0
 #define TSDB_FILL_NULL             1
