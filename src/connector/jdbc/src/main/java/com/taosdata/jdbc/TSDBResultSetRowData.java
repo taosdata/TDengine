@@ -343,7 +343,7 @@ public class TSDBResultSetRowData {
         //  !!!NOTE!!!
         //  this is very confusing problem which related to JNI-method implementation,
         //  the JNI method return a String(encoded in UTF) for BINARY value, which means the JNI method will invoke
-        //  this setString(int, String) to handle NCHAR value, we need to build a byte[] with default charsetEncoding
+        //  this setString(int, String) to handle BINARY value, we need to build a byte[] with default charsetEncoding
         data.set(col, value == null ? null : value.getBytes());
     }
 

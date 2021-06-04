@@ -263,15 +263,20 @@ public class TSDBResultSet extends AbstractResultSet implements ResultSet {
         int nativeType = this.columnMetaDataList.get(columnIndex - 1).getColType();
         switch (nativeType) {
             case TSDBConstants.TSDB_DATA_TYPE_BIGINT:
-                return Longs.toByteArray((Long) value);
+                return Longs.toByteArray((long) value);
             case TSDBConstants.TSDB_DATA_TYPE_INT:
                 return Ints.toByteArray((int) value);
             case TSDBConstants.TSDB_DATA_TYPE_SMALLINT:
-                return Shorts.toByteArray((Short) value);
+                return Shorts.toByteArray((short) value);
             case TSDBConstants.TSDB_DATA_TYPE_TINYINT:
                 return new byte[]{(byte) value};
+            case TSDBConstants.TSDB_DATA_TYPE_BINARY:
+                return (byte[]) value;
+            case TSDBConstants.TSDB_DATA_TYPE_BOOL:
+            case TSDBConstants.TSDB_DATA_TYPE_NCHAR:
+            default:
+                return value.toString().getBytes();
         }
-        return value.toString().getBytes();
     }
 
     public Timestamp getTimestamp(int columnIndex) throws SQLException {
