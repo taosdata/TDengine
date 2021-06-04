@@ -218,7 +218,8 @@ static SKeyword keywordTable[] = {
     {"DISTINCT",     TK_DISTINCT},
     {"PARTITIONS",   TK_PARTITIONS},
     {"TOPIC",        TK_TOPIC},
-    {"TOPICS",       TK_TOPICS}
+    {"TOPICS",       TK_TOPICS},
+    {"MODIFY",       TK_MODIFY}
 };
 
 static const char isIdChar[] = {

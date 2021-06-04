@@ -233,6 +233,10 @@ totalExampleFailed=0
 
 if [ "${OS}" == "Linux" ]; then
     corepath=`grep -oP '.*(?=core_)' /proc/sys/kernel/core_pattern||grep -oP '.*(?=core-)' /proc/sys/kernel/core_pattern`
+    if [ -z "$corepath" ];then
+      echo "/coredump/core_%e_%p_%t" > /proc/sys/kernel/core_pattern || echo "Permission denied"
+      corepath="/coredump/"
+    fi
 fi
 
 if [ "$2" != "jdbc" ] && [ "$2" != "python" ] && [ "$2" != "unit" ]  && [ "$2" != "example" ]; then
