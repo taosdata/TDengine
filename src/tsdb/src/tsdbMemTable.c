@@ -1030,7 +1030,6 @@ static int tsdbUpdateTableLatestInfo(STsdbRepo *pRepo, STable *pTable, SDataRow 
     taosTZfree(pTable->lastRow);
     TSDB_WLOCK_TABLE(pTable);
     pTable->lastRow = NULL;
-    pTable->lastKey = TSKEY_INITIAL_VAL;
     TSDB_WUNLOCK_TABLE(pTable);
   }
 

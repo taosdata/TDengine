@@ -907,13 +907,12 @@ int tsdbCacheLastData(STsdbRepo *pRepo, STsdbCfg* oldCfg) {
       atomic_store_8(&pRepo->hasCachedLastColumn, 0);
     }
     tsdbInfo("free cache last data since cacheLast option changed");    
-    for (int i = 1; i < maxTableIdx; i++) {
+    for (int i = 1; i <= maxTableIdx; i++) {
       STable *pTable = pMeta->tables[i];
       if (pTable == NULL) continue;   
       if (need_free_last_row) {
         taosTZfree(pTable->lastRow);
         pTable->lastRow = NULL;
-        pTable->lastKey = TSKEY_INITIAL_VAL;
       }
       if (need_free_last_col) {
         tsdbFreeLastColumns(pTable);
