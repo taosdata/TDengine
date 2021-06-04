@@ -56,6 +56,9 @@ int32_t strdequote(char *z) {
 int32_t strRmquote(char *z, int32_t len){  
     // delete escape character: \\, \', \"
     char delim = z[0];
+    if (delim != '\'' && delim != '\"') {
+      return len;
+    }
   
     int32_t cnt = 0;
     int32_t j = 0;
