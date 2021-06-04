@@ -6674,6 +6674,8 @@ int32_t doCheckForStream(SSqlObj* pSql, SSqlInfo* pInfo) {
   const char* msg5 = "sql too long";  // todo ADD support
   const char* msg6 = "from missing in subclause";
   const char* msg7 = "time interval is required";
+  const char* msg8 = "query column is required";
+  const char* msg9 = "the first column must be timestamp type";
   
   SSqlCmd*    pCmd = &pSql->cmd;
   SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, 0);
@@ -6731,8 +6733,26 @@ int32_t doCheckForStream(SSqlObj* pSql, SSqlInfo* pInfo) {
     return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg2);
   }
 
-  if (!tscIsProjectionQuery(pQueryInfo) && pQueryInfo->interval.interval == 0) {
-    return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg7);
+  // project query primary column must be timestamp type
+  if (tscIsProjectionQuery(pQueryInfo)) {
+    size_t size = tscSqlExprNumOfExprs(pQueryInfo);
+    // check zero
+    if(size == 0) {
+      return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg8);
+    }
+
+    // check primary column is timestamp
+    SSqlExpr* pSqlExpr = tscSqlExprGet(pQueryInfo, 0);
+    if(pSqlExpr == NULL) {
+      return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg8);
+    }
+    if( pSqlExpr->colInfo.colId != PRIMARYKEY_TIMESTAMP_COL_INDEX) {
+      return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg9);
+    }
+  } else {
+    if (pQueryInfo->interval.interval == 0) {
+      return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg7);
+    }    
   }
 
   // set the created table[stream] name
