@@ -1111,6 +1111,8 @@ void handleDownstreamOperator(SSqlObj** pSqlObjList, int32_t numOfUpstream, SQue
 
     SOperatorInfo* pSourceOperator = createDummyInputOperator(pSqlObjList[0], pSchema, numOfCol1, pFilterInfo, numOfFilterCols);
 
+    pOutput->precision = pSqlObjList[0]->res.precision;
+    
     SSchema* schema = NULL;
     if (px->numOfTables > 1) {
       SOperatorInfo** p = calloc(px->numOfTables, POINTER_BYTES);

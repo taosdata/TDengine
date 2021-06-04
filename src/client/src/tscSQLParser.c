@@ -396,11 +396,18 @@ int32_t tscValidateSqlInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
       const char* msg2 = "name too long";
 
       SCreateDbInfo* pCreateDB = &(pInfo->pMiscInfo->dbOpt);
-      if (tscValidateName(&pCreateDB->dbname) != TSDB_CODE_SUCCESS) {
+      if (pCreateDB->dbname.n >= TSDB_DB_NAME_LEN) {
+        return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg2);
+      }
+
+      char buf[TSDB_DB_NAME_LEN] = {0};
+      SStrToken token = taosTokenDup(&pCreateDB->dbname, buf, tListLen(buf));
+
+      if (tscValidateName(&token) != TSDB_CODE_SUCCESS) {
         return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg1);
       }
 
-      int32_t ret = tNameSetDbName(&pTableMetaInfo->name, getAccountId(pSql), &(pCreateDB->dbname));
+      int32_t ret = tNameSetDbName(&pTableMetaInfo->name, getAccountId(pSql), &token);
       if (ret != TSDB_CODE_SUCCESS) {
         return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg2);
       }
@@ -5138,6 +5145,10 @@ int32_t setAlterTableInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
   const char* msg18 = "primary timestamp column cannot be dropped";
   const char* msg19 = "invalid new tag name";
   const char* msg20 = "table is not super table";
+  const char* msg21 = "only binary/nchar column length could be modified";
+  const char* msg22 = "new column length should be bigger than old one";
+  const char* msg23 = "only column length coulbe be modified";
+  const char* msg24 = "invalid binary/nchar column length";
 
   int32_t code = TSDB_CODE_SUCCESS;
 
@@ -5168,13 +5179,13 @@ int32_t setAlterTableInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
   }
 
   if (pAlterSQL->type == TSDB_ALTER_TABLE_ADD_TAG_COLUMN || pAlterSQL->type == TSDB_ALTER_TABLE_DROP_TAG_COLUMN ||
-      pAlterSQL->type == TSDB_ALTER_TABLE_CHANGE_TAG_COLUMN) {
-    if (UTIL_TABLE_IS_NORMAL_TABLE(pTableMetaInfo)) {
+      pAlterSQL->type == TSDB_ALTER_TABLE_CHANGE_TAG_COLUMN || pAlterSQL->type == TSDB_ALTER_TABLE_MODIFY_TAG_COLUMN) {
+    if (!UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo)) {
       return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg3);
     }
   } else if ((pAlterSQL->type == TSDB_ALTER_TABLE_UPDATE_TAG_VAL) && (UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo))) {
     return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg4);
-  } else if ((pAlterSQL->type == TSDB_ALTER_TABLE_ADD_COLUMN || pAlterSQL->type == TSDB_ALTER_TABLE_DROP_COLUMN) &&
+  } else if ((pAlterSQL->type == TSDB_ALTER_TABLE_ADD_COLUMN || pAlterSQL->type == TSDB_ALTER_TABLE_DROP_COLUMN || pAlterSQL->type == TSDB_ALTER_TABLE_CHANGE_COLUMN) &&
              UTIL_TABLE_IS_CHILD_TABLE(pTableMetaInfo)) {
     return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg6);
   }
@@ -5389,6 +5400,85 @@ int32_t setAlterTableInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
     char name1[TSDB_COL_NAME_LEN] = {0};
     tstrncpy(name1, pItem->pVar.pz, sizeof(name1));
     TAOS_FIELD f = tscCreateField(TSDB_DATA_TYPE_INT, name1, tDataTypes[TSDB_DATA_TYPE_INT].bytes);
+    tscFieldInfoAppend(&pQueryInfo->fieldsInfo, &f);
+  } else if (pAlterSQL->type == TSDB_ALTER_TABLE_CHANGE_COLUMN) {
+    if (taosArrayGetSize(pAlterSQL->pAddColumns) >= 2) {
+      return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg16);
+    }
+
+
+    TAOS_FIELD* pItem = taosArrayGet(pAlterSQL->pAddColumns, 0);
+    if (pItem->type != TSDB_DATA_TYPE_BINARY && pItem->type != TSDB_DATA_TYPE_NCHAR) {
+      return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg21);
+    }
+    
+    SColumnIndex columnIndex = COLUMN_INDEX_INITIALIZER;
+    SStrToken    name = {.type = TK_STRING, .z = pItem->name, .n = (uint32_t)strlen(pItem->name)};
+    if (getColumnIndexByName(pCmd, &name, pQueryInfo, &columnIndex) != TSDB_CODE_SUCCESS) {
+      return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg17);
+    }
+
+    SSchema* pColSchema = tscGetTableColumnSchema(pTableMetaInfo->pTableMeta, columnIndex.columnIndex);
+
+    if (pColSchema->type != TSDB_DATA_TYPE_BINARY && pColSchema->type != TSDB_DATA_TYPE_NCHAR) {
+      return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg21);
+    }
+
+    if (pItem->type != pColSchema->type) {
+      return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg23);
+    }
+
+    if ((pItem->type == TSDB_DATA_TYPE_BINARY && (pItem->bytes <= 0 || pItem->bytes > TSDB_MAX_BINARY_LEN)) ||
+        (pItem->type == TSDB_DATA_TYPE_NCHAR && (pItem->bytes <= 0 || pItem->bytes > TSDB_MAX_NCHAR_LEN))) {
+      return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg24);
+    }
+        
+    if (pItem->bytes <= pColSchema->bytes) {
+      return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg22);
+    }
+    
+    TAOS_FIELD f = tscCreateField(pColSchema->type, name.z, pItem->bytes);
+    tscFieldInfoAppend(&pQueryInfo->fieldsInfo, &f);
+  }else if (pAlterSQL->type == TSDB_ALTER_TABLE_MODIFY_TAG_COLUMN) {
+    if (taosArrayGetSize(pAlterSQL->pAddColumns) >= 2) {
+      return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg16);
+    }
+
+    TAOS_FIELD* pItem = taosArrayGet(pAlterSQL->pAddColumns, 0);
+    if (pItem->type != TSDB_DATA_TYPE_BINARY && pItem->type != TSDB_DATA_TYPE_NCHAR) {
+      return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg21);
+    }
+    
+    SColumnIndex columnIndex = COLUMN_INDEX_INITIALIZER;
+    SStrToken    name = {.type = TK_STRING, .z = pItem->name, .n = (uint32_t)strlen(pItem->name)};
+    if (getColumnIndexByName(pCmd, &name, pQueryInfo, &columnIndex) != TSDB_CODE_SUCCESS) {
+      return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg17);
+    }
+
+    SSchema* pColSchema = tscGetTableColumnSchema(pTableMetaInfo->pTableMeta, columnIndex.columnIndex);
+
+    if (columnIndex.columnIndex < tscGetNumOfColumns(pTableMetaInfo->pTableMeta)) {
+      return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg10);
+    }
+
+    if (pColSchema->type != TSDB_DATA_TYPE_BINARY && pColSchema->type != TSDB_DATA_TYPE_NCHAR) {
+      return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg21);
+    }
+
+    if (pItem->type != pColSchema->type) {
+      return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg23);
+    }
+
+    if ((pItem->type == TSDB_DATA_TYPE_BINARY && (pItem->bytes <= 0 || pItem->bytes > TSDB_MAX_BINARY_LEN)) ||
+        (pItem->type == TSDB_DATA_TYPE_NCHAR && (pItem->bytes <= 0 || pItem->bytes > TSDB_MAX_NCHAR_LEN))) {
+      return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg24);
+    }
+        
+    if (pItem->bytes <= pColSchema->bytes) {
+      return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg22);
+    }
+    
+    TAOS_FIELD f = tscCreateField(pColSchema->type, name.z, pItem->bytes);
     tscFieldInfoAppend(&pQueryInfo->fieldsInfo, &f);
   }
 
@@ -7189,8 +7279,9 @@ static int32_t getTableNameFromSqlNode(SSqlNode* pSqlNode, SArray* tableNameList
     }
 
     SName name = {0};
-    if (tscSetTableFullName(&name, t, pSql) != TSDB_CODE_SUCCESS) {
-      return invalidOperationMsg(msgBuf, msg1);
+    int32_t code = tscSetTableFullName(&name, t, pSql);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
     }
 
     taosArrayPush(tableNameList, &name);

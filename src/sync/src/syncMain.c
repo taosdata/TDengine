@@ -1150,7 +1150,12 @@ static void syncSetupPeerConnection(SSyncPeer *pPeer) {
     pPeer->peerFd = connFd;
     pPeer->role = TAOS_SYNC_ROLE_UNSYNCED;
     pPeer->pConn = syncAllocateTcpConn(tsTcpPool, pPeer->rid, connFd);
-    if (pPeer->isArb) tsArbOnline = 1;
+    if (pPeer->isArb) {
+      tsArbOnline = 1;
+      if (tsArbOnlineTimestamp == TSDB_ARB_DUMMY_TIME) {
+        tsArbOnlineTimestamp = taosGetTimestampMs();
+      }
+    }
   } else {
     sDebug("%s, failed to setup peer connection to server since %s, try later", pPeer->id, strerror(errno));
     taosCloseSocket(connFd);

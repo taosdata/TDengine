@@ -12,12 +12,17 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
+#ifndef _TD_TSDB_COMPACT_H_
+#define _TD_TSDB_COMPACT_H_
 
-#ifndef _TD_TSDB_COMMIT_QUEUE_H_
-#define _TD_TSDB_COMMIT_QUEUE_H_
+#ifdef __cplusplus
+extern "C" {
+#endif
 
-typedef enum { COMMIT_REQ, COMPACT_REQ } TSDB_REQ_T;
+void *tsdbCompactImpl(STsdbRepo *pRepo);
 
-int tsdbScheduleCommit(STsdbRepo *pRepo, TSDB_REQ_T req);
+#ifdef __cplusplus
+}
+#endif
 
-#endif /* _TD_TSDB_COMMIT_QUEUE_H_ */
+#endif /* _TD_TSDB_COMPACT_H_ */
