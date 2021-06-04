@@ -86,6 +86,28 @@ static SStep tsDnodeSteps[] = {
   {"dnode-telemetry", dnodeInitTelemetry,  dnodeCleanupTelemetry},
 };
 
+static SStep tsDnodeCompactSteps[] = {
+  {"dnode-tfile",     tfInit,              tfCleanup},
+  {"dnode-globalcfg", taosCheckGlobalCfg,  NULL},
+  {"dnode-storage",   dnodeInitStorage,    dnodeCleanupStorage},
+  {"dnode-cfg",       dnodeInitCfg,        dnodeCleanupCfg},
+  {"dnode-eps",       dnodeInitEps,        dnodeCleanupEps},
+  {"dnode-minfos",    dnodeInitMInfos,     dnodeCleanupMInfos},
+  {"dnode-wal",       walInit,             walCleanUp},
+  {"dnode-sync",      syncInit,            syncCleanUp},
+  {"dnode-vread",     dnodeInitVRead,      dnodeCleanupVRead},
+  {"dnode-vwrite",    dnodeInitVWrite,     dnodeCleanupVWrite},
+  {"dnode-vmgmt",     dnodeInitVMgmt,      dnodeCleanupVMgmt},
+  {"dnode-mread",     dnodeInitMRead,      NULL},
+  {"dnode-mwrite",    dnodeInitMWrite,     NULL},
+  {"dnode-mpeer",     dnodeInitMPeer,      NULL},
+  {"dnode-vnodes",    dnodeInitVnodes,     dnodeCleanupVnodes},
+  {"dnode-modules",   dnodeInitModules,    dnodeCleanupModules},
+  {"dnode-mread",     NULL,                dnodeCleanupMRead},
+  {"dnode-mwrite",    NULL,                dnodeCleanupMWrite},
+  {"dnode-mpeer",     NULL,                dnodeCleanupMPeer},
+};
+
 static int dnodeCreateDir(const char *dir) {
   if (mkdir(dir, 0755) != 0 && errno != EEXIST) {
     return -1;
@@ -95,13 +117,23 @@ static int dnodeCreateDir(const char *dir) {
 }
 
 static void dnodeCleanupComponents() {
-  int32_t stepSize = sizeof(tsDnodeSteps) / sizeof(SStep);
-  dnodeStepCleanup(tsDnodeSteps, stepSize);
+  if (!tsCompactMnodeWal) {
+    int32_t stepSize = sizeof(tsDnodeSteps) / sizeof(SStep);
+    dnodeStepCleanup(tsDnodeSteps, stepSize);
+  } else {
+    int32_t stepSize = sizeof(tsDnodeCompactSteps) / sizeof(SStep);
+    dnodeStepCleanup(tsDnodeCompactSteps, stepSize);
+  }
 }
 
 static int32_t dnodeInitComponents() {
-  int32_t stepSize = sizeof(tsDnodeSteps) / sizeof(SStep);
-  return dnodeStepInit(tsDnodeSteps, stepSize);
+  if (!tsCompactMnodeWal) {
+    int32_t stepSize = sizeof(tsDnodeSteps) / sizeof(SStep);
+    return dnodeStepInit(tsDnodeSteps, stepSize);
+  } else {
+    int32_t stepSize = sizeof(tsDnodeCompactSteps) / sizeof(SStep);
+    return dnodeStepInit(tsDnodeCompactSteps, stepSize);
+  }
 }
 
 static int32_t dnodeInitTmr() {
@@ -219,14 +251,20 @@ static int32_t dnodeInitStorage() {
 
   if (tsCompactMnodeWal == 1) {
     sprintf(tsMnodeTmpDir, "%s/mnode_tmp", tsDataDir);
-    tfsRmdir(tsMnodeTmpDir);
+    if (taosDirExist(tsMnodeTmpDir)) {
+      dError("mnode_tmp dir already exist in %s,quit compact job", tsMnodeTmpDir);
+      return -1;
+    }
     if (dnodeCreateDir(tsMnodeTmpDir) < 0) {
       dError("failed to create dir: %s, reason: %s", tsMnodeTmpDir, strerror(errno));
       return -1;
     }
 
     sprintf(tsMnodeBakDir, "%s/mnode_bak", tsDataDir);
-    //tfsRmdir(tsMnodeBakDir);   
+    if (taosDirExist(tsMnodeBakDir)) {
+      dError("mnode_bak dir already exist in %s,quit compact job", tsMnodeBakDir);
+      return -1;
+    }
   }
   //TODO(dengyihao): no need to init here 
   if (dnodeCreateDir(tsMnodeDir) < 0) {

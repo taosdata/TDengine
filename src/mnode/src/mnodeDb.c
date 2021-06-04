@@ -1063,6 +1063,13 @@ static SDbCfg mnodeGetAlterDbOption(SDbObj *pDb, SAlterDbMsg *pAlter) {
     newCfg.partitions = partitions;
   }
 
+// community version can only change daysToKeep
+// but enterprise version can change all daysToKeep options
+#ifndef _STORAGE
+  newCfg.daysToKeep1 = newCfg.daysToKeep;
+  newCfg.daysToKeep2 = newCfg.daysToKeep;
+#endif
+
   return newCfg;
 }
 

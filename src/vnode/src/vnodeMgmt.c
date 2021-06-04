@@ -91,18 +91,18 @@ static void vnodeIncRef(void *ptNode) {
 }
 
 void *vnodeAcquire(int32_t vgId) {
-  SVnodeObj **ppVnode = NULL;
+  SVnodeObj *pVnode = NULL;
   if (tsVnodesHash != NULL) {
-    ppVnode = taosHashGetClone(tsVnodesHash, &vgId, sizeof(int32_t), vnodeIncRef, NULL, sizeof(void *));
+    taosHashGetClone(tsVnodesHash, &vgId, sizeof(int32_t), vnodeIncRef, &pVnode, sizeof(void *));
   }
 
-  if (ppVnode == NULL || *ppVnode == NULL) {
+  if (pVnode == NULL) {
     terrno = TSDB_CODE_VND_INVALID_VGROUP_ID;
     vDebug("vgId:%d, not exist", vgId);
     return NULL;
   }
 
-  return *ppVnode;
+  return pVnode;
 }
 
 void vnodeRelease(void *vparam) {

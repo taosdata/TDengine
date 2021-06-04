@@ -19,6 +19,7 @@
 #include "texpr.h"
 #include "ttype.h"
 #include "tsdb.h"
+#include "tglobal.h"
 
 #include "qAggMain.h"
 #include "qFill.h"
@@ -151,22 +152,20 @@ typedef struct STSCompInfo {
 } STSCompInfo;
 
 typedef struct SRateInfo {
-  int64_t CorrectionValue;
-  int64_t firstValue;
+  double  correctionValue;
+  double  firstValue;
   TSKEY   firstKey;
-  int64_t lastValue;
+  double  lastValue;
   TSKEY   lastKey;
   int8_t  hasResult;  // flag to denote has value
   bool    isIRate;    // true for IRate functions, false for Rate functions
-  int64_t num;        // for sum/avg
-  double  sum;        // for sum/avg
 } SRateInfo;
 
 int32_t getResultDataInfo(int32_t dataType, int32_t dataBytes, int32_t functionId, int32_t param, int16_t *type,
                           int16_t *bytes, int32_t *interBytes, int16_t extLength, bool isSuperTable) {
   if (!isValidDataType(dataType)) {
     qError("Illegal data type %d or data type length %d", dataType, dataBytes);
-    return TSDB_CODE_TSC_INVALID_SQL;
+    return TSDB_CODE_TSC_INVALID_OPERATION;
   }
   
   if (functionId == TSDB_FUNC_TS || functionId == TSDB_FUNC_TS_DUMMY || functionId == TSDB_FUNC_TAG_DUMMY ||
@@ -237,7 +236,7 @@ int32_t getResultDataInfo(int32_t dataType, int32_t dataBytes, int32_t functionI
       *interBytes = *bytes;
       return TSDB_CODE_SUCCESS;
       
-    } else if (functionId >= TSDB_FUNC_RATE && functionId <= TSDB_FUNC_AVG_IRATE) {
+    } else if (functionId >= TSDB_FUNC_RATE && functionId <= TSDB_FUNC_IRATE) {
       *type = TSDB_DATA_TYPE_DOUBLE;
       *bytes = sizeof(SRateInfo);
       *interBytes = sizeof(SRateInfo);
@@ -303,7 +302,7 @@ int32_t getResultDataInfo(int32_t dataType, int32_t dataBytes, int32_t functionI
     *type = TSDB_DATA_TYPE_DOUBLE;
     *bytes = sizeof(double);
     *interBytes = sizeof(SAvgInfo);
-  } else if (functionId >= TSDB_FUNC_RATE && functionId <= TSDB_FUNC_AVG_IRATE) {
+  } else if (functionId >= TSDB_FUNC_RATE && functionId <= TSDB_FUNC_IRATE) {
     *type = TSDB_DATA_TYPE_DOUBLE;
     *bytes = sizeof(double);
     *interBytes = sizeof(SRateInfo);
@@ -353,7 +352,7 @@ int32_t getResultDataInfo(int32_t dataType, int32_t dataBytes, int32_t functionI
     *interBytes = (*bytes);
 
   } else {
-    return TSDB_CODE_TSC_INVALID_SQL;
+    return TSDB_CODE_TSC_INVALID_OPERATION;
   }
   
   return TSDB_CODE_SUCCESS;
@@ -2489,7 +2488,6 @@ static void buildTopBotStruct(STopBotInfo *pTopBotInfo, SQLFunctionCtx *pCtx) {
   tmp += POINTER_BYTES * pCtx->param[0].i64;
   
   size_t size = sizeof(tValuePair) + pCtx->tagInfo.tagsLen;
-//  assert(pCtx->param[0].i64 > 0);
 
   for (int32_t i = 0; i < pCtx->param[0].i64; ++i) {
     pTopBotInfo->res[i] = (tValuePair*) tmp;
@@ -2497,7 +2495,6 @@ static void buildTopBotStruct(STopBotInfo *pTopBotInfo, SQLFunctionCtx *pCtx) {
     tmp += size;
   }
 }
-
 
 bool topbot_datablock_filter(SQLFunctionCtx *pCtx, const char *minval, const char *maxval) {
   SResultRowCellInfo *pResInfo = GET_RES_INFO(pCtx);
@@ -2578,13 +2575,14 @@ static void top_function(SQLFunctionCtx *pCtx) {
   
   for (int32_t i = 0; i < pCtx->size; ++i) {
     char *data = GET_INPUT_DATA(pCtx, i);
-    TSKEY ts = GET_TS_DATA(pCtx, i);
-
     if (pCtx->hasNull && isNull(data, pCtx->inputType)) {
       continue;
     }
     
     notNullElems++;
+
+    // NOTE: Set the default timestamp if it is missing [todo refactor]
+    TSKEY ts = (pCtx->ptsList != NULL)? GET_TS_DATA(pCtx, i):0;
     do_top_function_add(pRes, (int32_t)pCtx->param[0].i64, data, ts, pCtx->inputType, &pCtx->tagInfo, NULL, 0);
   }
   
@@ -2657,13 +2655,13 @@ static void bottom_function(SQLFunctionCtx *pCtx) {
 
   for (int32_t i = 0; i < pCtx->size; ++i) {
     char *data = GET_INPUT_DATA(pCtx, i);
-    TSKEY ts = GET_TS_DATA(pCtx, i);
-
     if (pCtx->hasNull && isNull(data, pCtx->inputType)) {
       continue;
     }
-    
+
     notNullElems++;
+    // NOTE: Set the default timestamp if it is missing [todo refactor]
+    TSKEY ts = (pCtx->ptsList != NULL)? GET_TS_DATA(pCtx, i):0;
     do_bottom_function_add(pRes, (int32_t)pCtx->param[0].i64, data, ts, pCtx->inputType, &pCtx->tagInfo, NULL, 0);
   }
   
@@ -2741,7 +2739,7 @@ static void top_bottom_func_finalizer(SQLFunctionCtx *pCtx) {
   if (pCtx->param[1].i64 == PRIMARYKEY_TIMESTAMP_COL_INDEX) {
     __compar_fn_t comparator = (pCtx->param[2].i64 == TSDB_ORDER_ASC) ? resAscComparFn : resDescComparFn;
     qsort(tvp, (size_t)pResInfo->numOfRes, POINTER_BYTES, comparator);
-  } else if (pCtx->param[1].i64 > PRIMARYKEY_TIMESTAMP_COL_INDEX) {
+  } else /*if (pCtx->param[1].i64 > PRIMARYKEY_TIMESTAMP_COL_INDEX)*/ {
     __compar_fn_t comparator = (pCtx->param[2].i64 == TSDB_ORDER_ASC) ? resDataAscComparFn : resDataDescComparFn;
     qsort(tvp, (size_t)pResInfo->numOfRes, POINTER_BYTES, comparator);
   }
@@ -3298,8 +3296,12 @@ static void col_project_function(SQLFunctionCtx *pCtx) {
   if (pCtx->numOfParams == 2) {
     return;
   }
+  if (pCtx->param[0].i64 == 1) {
+    SET_VAL(pCtx, pCtx->size, 1);
+  } else {
+    INC_INIT_VAL(pCtx, pCtx->size);
+  }
 
-  INC_INIT_VAL(pCtx, pCtx->size);
 
   char *pData = GET_INPUT_DATA_LIST(pCtx);
   if (pCtx->order == TSDB_ORDER_ASC) {
@@ -3700,7 +3702,7 @@ char *getArithColumnData(void *param, const char* name, int32_t colId) {
     }
   }
   
-  assert(index >= 0 /*&& colId >= 0*/);
+  assert(index >= 0);
   return pSupport->data[index] + pSupport->offset * pSupport->colList[index].bytes;
 }
 
@@ -4475,36 +4477,34 @@ static void ts_comp_finalize(SQLFunctionCtx *pCtx) {
 }
 
 //////////////////////////////////////////////////////////////////////////////////////////////
-// RATE functions
-
-static double do_calc_rate(const SRateInfo* pRateInfo) {
-  if ((INT64_MIN == pRateInfo->lastKey) || (INT64_MIN == pRateInfo->firstKey) || (pRateInfo->firstKey >= pRateInfo->lastKey)) {
-    return 0;
+// rate functions
+static double do_calc_rate(const SRateInfo* pRateInfo, double tickPerSec) {
+  if ((INT64_MIN == pRateInfo->lastKey) || (INT64_MIN == pRateInfo->firstKey) ||
+      (pRateInfo->firstKey >= pRateInfo->lastKey)) {
+    return 0.0;
   }
-  
-  int64_t diff = 0;
-  
+
+  double diff = 0;
   if (pRateInfo->isIRate) {
+    // If the previous value of the last is greater than the last value, only keep the last point instead of the delta
+    // value between two values.
     diff = pRateInfo->lastValue;
     if (diff >= pRateInfo->firstValue) {
       diff -= pRateInfo->firstValue;
     }
   } else {
-    diff = pRateInfo->CorrectionValue + pRateInfo->lastValue -  pRateInfo->firstValue;
+    diff = pRateInfo->correctionValue + pRateInfo->lastValue -  pRateInfo->firstValue;
     if (diff <= 0) {
       return 0;
     }
   }
   
   int64_t duration = pRateInfo->lastKey - pRateInfo->firstKey;
-  duration = (duration + 500) / 1000;
-  
-  double resultVal = ((double)diff) / duration;
-  
-  qDebug("do_calc_rate() isIRate:%d firstKey:%" PRId64 " lastKey:%" PRId64 " firstValue:%" PRId64 " lastValue:%" PRId64 " CorrectionValue:%" PRId64 " resultVal:%f",
-         pRateInfo->isIRate, pRateInfo->firstKey, pRateInfo->lastKey, pRateInfo->firstValue, pRateInfo->lastValue, pRateInfo->CorrectionValue, resultVal);
-  
-  return resultVal;
+  if (duration == 0) {
+    return 0;
+  }
+
+  return (duration > 0)? ((double)diff) / (duration/tickPerSec):0.0;
 }
 
 static bool rate_function_setup(SQLFunctionCtx *pCtx) {
@@ -4512,19 +4512,17 @@ static bool rate_function_setup(SQLFunctionCtx *pCtx) {
     return false;
   }
   
-  SResultRowCellInfo *pResInfo = GET_RES_INFO(pCtx);  //->pOutput + pCtx->outputBytes;
-  SRateInfo *   pInfo = GET_ROWCELL_INTERBUF(pResInfo);
-  
-  pInfo->CorrectionValue = 0;
+  SResultRowCellInfo *pResInfo = GET_RES_INFO(pCtx);
+
+  SRateInfo *pInfo = GET_ROWCELL_INTERBUF(pResInfo);
+  pInfo->correctionValue = 0;
   pInfo->firstKey    = INT64_MIN;
   pInfo->lastKey     = INT64_MIN;
   pInfo->firstValue  = INT64_MIN;
   pInfo->lastValue   = INT64_MIN;
-  pInfo->num = 0;
-  pInfo->sum = 0;
-  
+
   pInfo->hasResult = 0;
-  pInfo->isIRate = ((pCtx->functionId == TSDB_FUNC_IRATE) || (pCtx->functionId == TSDB_FUNC_SUM_IRATE) || (pCtx->functionId == TSDB_FUNC_AVG_IRATE));
+  pInfo->isIRate = (pCtx->functionId == TSDB_FUNC_IRATE);
   return true;
 }
 
@@ -4546,26 +4544,22 @@ static void rate_function(SQLFunctionCtx *pCtx) {
     
     notNullElems++;
     
-    int64_t v = 0;
-    GET_TYPED_DATA(v, int64_t, pCtx->inputType, pData);
+    double v = 0;
+    GET_TYPED_DATA(v, double, pCtx->inputType, pData);
     
     if ((INT64_MIN == pRateInfo->firstValue) || (INT64_MIN == pRateInfo->firstKey)) {
       pRateInfo->firstValue = v;
       pRateInfo->firstKey = primaryKey[i];
-      
-      qDebug("firstValue:%" PRId64 " firstKey:%" PRId64, pRateInfo->firstValue, pRateInfo->firstKey);
     }
     
     if (INT64_MIN == pRateInfo->lastValue) {
       pRateInfo->lastValue = v;
     } else if (v < pRateInfo->lastValue) {
-      pRateInfo->CorrectionValue += pRateInfo->lastValue;
-      qDebug("CorrectionValue:%" PRId64, pRateInfo->CorrectionValue);
+      pRateInfo->correctionValue += pRateInfo->lastValue;
     }
     
     pRateInfo->lastValue = v;
     pRateInfo->lastKey   = primaryKey[i];
-    qDebug("lastValue:%" PRId64 " lastKey:%" PRId64, pRateInfo->lastValue, pRateInfo->lastKey);
   }
   
   if (!pCtx->hasNull) {
@@ -4596,8 +4590,8 @@ static void rate_function_f(SQLFunctionCtx *pCtx, int32_t index) {
   SRateInfo   *pRateInfo  = (SRateInfo *)GET_ROWCELL_INTERBUF(pResInfo);
   TSKEY     *primaryKey = GET_TS_LIST(pCtx);
 
-  int64_t v = 0;
-  GET_TYPED_DATA(v, int64_t, pCtx->inputType, pData);
+  double v = 0;
+  GET_TYPED_DATA(v, double, pCtx->inputType, pData);
   
   if ((INT64_MIN == pRateInfo->firstValue) || (INT64_MIN == pRateInfo->firstKey)) {
     pRateInfo->firstValue = v;
@@ -4607,13 +4601,11 @@ static void rate_function_f(SQLFunctionCtx *pCtx, int32_t index) {
   if (INT64_MIN == pRateInfo->lastValue) {
     pRateInfo->lastValue = v;
   } else if (v < pRateInfo->lastValue) {
-    pRateInfo->CorrectionValue += pRateInfo->lastValue;
+    pRateInfo->correctionValue += pRateInfo->lastValue;
   }
   
   pRateInfo->lastValue = v;
   pRateInfo->lastKey   = primaryKey[index];
-  
-  qDebug("====%p rate_function_f() index:%d lastValue:%" PRId64 " lastKey:%" PRId64 " CorrectionValue:%" PRId64, pCtx, index, pRateInfo->lastValue, pRateInfo->lastKey, pRateInfo->CorrectionValue);
   
   SET_VAL(pCtx, 1, 1);
   
@@ -4633,28 +4625,19 @@ static void rate_func_copy(SQLFunctionCtx *pCtx) {
   SResultRowCellInfo *pResInfo = GET_RES_INFO(pCtx);
   memcpy(GET_ROWCELL_INTERBUF(pResInfo), pCtx->pInput, (size_t)pCtx->inputBytes);
   pResInfo->hasResult = ((SRateInfo*)pCtx->pInput)->hasResult;
-  
-  SRateInfo* pRateInfo = (SRateInfo*)pCtx->pInput;
-  qDebug("%p rate_func_merge() firstKey:%" PRId64 " lastKey:%" PRId64 " firstValue:%" PRId64 " lastValue:%" PRId64 " CorrectionValue:%" PRId64 " hasResult:%d",
-         pCtx, pRateInfo->firstKey, pRateInfo->lastKey, pRateInfo->firstValue, pRateInfo->lastValue, pRateInfo->CorrectionValue, pRateInfo->hasResult);
 }
 
 static void rate_finalizer(SQLFunctionCtx *pCtx) {
   SResultRowCellInfo *pResInfo  = GET_RES_INFO(pCtx);
   SRateInfo   *pRateInfo = (SRateInfo *)GET_ROWCELL_INTERBUF(pResInfo);
   
-  qDebug("%p isIRate:%d firstKey:%" PRId64 " lastKey:%" PRId64 " firstValue:%" PRId64 " lastValue:%" PRId64 " CorrectionValue:%" PRId64 " hasResult:%d",
-         pCtx, pRateInfo->isIRate, pRateInfo->firstKey, pRateInfo->lastKey, pRateInfo->firstValue, pRateInfo->lastValue, pRateInfo->CorrectionValue, pRateInfo->hasResult);
-  
   if (pRateInfo->hasResult != DATA_SET_FLAG) {
     setNull(pCtx->pOutput, TSDB_DATA_TYPE_DOUBLE, sizeof(double));
     return;
   }
   
-  *(double*)pCtx->pOutput = do_calc_rate(pRateInfo);
-  
-  qDebug("rate_finalizer() output result:%f", *(double *)pCtx->pOutput);
-  
+  *(double*) pCtx->pOutput = do_calc_rate(pRateInfo, TSDB_TICK_PER_SECOND(pCtx->param[0].i64));
+
   // cannot set the numOfIteratedElems again since it is set during previous iteration
   pResInfo->numOfRes  = 1;
   pResInfo->hasResult = DATA_SET_FLAG;
@@ -4663,44 +4646,32 @@ static void rate_finalizer(SQLFunctionCtx *pCtx) {
 }
 
 static void irate_function(SQLFunctionCtx *pCtx) {
-  
-  int32_t       notNullElems = 0;
-  SResultRowCellInfo  *pResInfo     = GET_RES_INFO(pCtx);
-  SRateInfo   *pRateInfo    = (SRateInfo *)GET_ROWCELL_INTERBUF(pResInfo);
-  TSKEY     *primaryKey = GET_TS_LIST(pCtx);
+  SResultRowCellInfo  *pResInfo = GET_RES_INFO(pCtx);
 
-  qDebug("%p irate_function() size:%d, hasNull:%d", pCtx, pCtx->size, pCtx->hasNull);
-  
-  if (pCtx->size < 1) {
-    return;
-  }
+  int32_t    notNullElems = 0;
+  SRateInfo *pRateInfo    = (SRateInfo *)GET_ROWCELL_INTERBUF(pResInfo);
+  TSKEY     *primaryKey   = GET_TS_LIST(pCtx);
   
   for (int32_t i = pCtx->size - 1; i >= 0; --i) {
     char *pData = GET_INPUT_DATA(pCtx, i);
     if (pCtx->hasNull && isNull(pData, pCtx->inputType)) {
-      qDebug("%p irate_function() index of null data:%d", pCtx, i);
       continue;
     }
     
     notNullElems++;
     
-    int64_t v = 0;
-    GET_TYPED_DATA(v, int64_t, pCtx->inputType, pData);
-    
-    // TODO: calc once if only call this function once ????
-    if ((INT64_MIN == pRateInfo->lastKey) || (INT64_MIN == pRateInfo->lastValue)) {
+    double v = 0;
+    GET_TYPED_DATA(v, double, pCtx->inputType, pData);
+
+    if ((INT64_MIN == pRateInfo->lastKey) || primaryKey[i] > pRateInfo->lastKey) {
       pRateInfo->lastValue = v;
       pRateInfo->lastKey   = primaryKey[i];
-      
-      qDebug("%p irate_function() lastValue:%" PRId64 " lastKey:%" PRId64, pCtx, pRateInfo->lastValue, pRateInfo->lastKey);
       continue;
     }
     
-    if ((INT64_MIN == pRateInfo->firstKey) || (INT64_MIN == pRateInfo->firstValue)){
+    if ((INT64_MIN == pRateInfo->firstKey) || primaryKey[i] > pRateInfo->firstKey) {
       pRateInfo->firstValue = v;
       pRateInfo->firstKey = primaryKey[i];
-      
-      qDebug("%p irate_function() firstValue:%" PRId64 " firstKey:%" PRId64, pCtx, pRateInfo->firstValue, pRateInfo->firstKey);
       break;
     }
   }
@@ -4729,8 +4700,8 @@ static void irate_function_f(SQLFunctionCtx *pCtx, int32_t index) {
   SRateInfo *pRateInfo  = (SRateInfo *)GET_ROWCELL_INTERBUF(pResInfo);
   TSKEY     *primaryKey = GET_TS_LIST(pCtx);
   
-  int64_t v = 0;
-  GET_TYPED_DATA(v, int64_t, pCtx->inputType, pData);
+  double v = 0;
+  GET_TYPED_DATA(v, double, pCtx->inputType, pData);
 
   pRateInfo->firstKey   = pRateInfo->lastKey;
   pRateInfo->firstValue = pRateInfo->lastValue;
@@ -4738,8 +4709,7 @@ static void irate_function_f(SQLFunctionCtx *pCtx, int32_t index) {
   pRateInfo->lastValue = v;
   pRateInfo->lastKey   = primaryKey[index];
   
-  qDebug("====%p irate_function_f() index:%d lastValue:%" PRId64 " lastKey:%" PRId64 " firstValue:%" PRId64 " firstKey:%" PRId64, pCtx, index, pRateInfo->lastValue, pRateInfo->lastKey, pRateInfo->firstValue , pRateInfo->firstKey);
-  
+//  qDebug("====%p irate_function_f() index:%d lastValue:%" PRId64 " lastKey:%" PRId64 " firstValue:%" PRId64 " firstKey:%" PRId64, pCtx, index, pRateInfo->lastValue, pRateInfo->lastKey, pRateInfo->firstValue , pRateInfo->firstKey);
   SET_VAL(pCtx, 1, 1);
   
   // set has result flag
@@ -4750,68 +4720,6 @@ static void irate_function_f(SQLFunctionCtx *pCtx, int32_t index) {
   if (pCtx->stableQuery) {
     memcpy(pCtx->pOutput, GET_ROWCELL_INTERBUF(pResInfo), sizeof(SRateInfo));
   }
-}
-
-static void do_sumrate_merge(SQLFunctionCtx *pCtx) {
-  SResultRowCellInfo *pResInfo = GET_RES_INFO(pCtx);
-  assert(pCtx->stableQuery);
-  
-  SRateInfo *pRateInfo = (SRateInfo *)GET_ROWCELL_INTERBUF(pResInfo);
-  char *    input = GET_INPUT_DATA_LIST(pCtx);
-  
-  for (int32_t i = 0; i < pCtx->size; ++i, input += pCtx->inputBytes) {
-    SRateInfo *pInput = (SRateInfo *)input;
-    
-    qDebug("%p do_sumrate_merge() hasResult:%d input num:%" PRId64 " input sum:%f total num:%" PRId64 " total sum:%f", pCtx, pInput->hasResult, pInput->num, pInput->sum, pRateInfo->num, pRateInfo->sum);
-    
-    if (pInput->hasResult != DATA_SET_FLAG) {
-      continue;
-    } else if (pInput->num == 0) {
-      pRateInfo->sum += do_calc_rate(pInput);
-      pRateInfo->num++;
-    } else {
-      pRateInfo->sum += pInput->sum;
-      pRateInfo->num += pInput->num;
-    }
-    pRateInfo->hasResult = DATA_SET_FLAG;
-  }
-  
-  // if the data set hasResult is not set, the result is null
-  if (DATA_SET_FLAG == pRateInfo->hasResult) {
-    pResInfo->hasResult = DATA_SET_FLAG;
-    SET_VAL(pCtx, pRateInfo->num, 1);
-    memcpy(pCtx->pOutput, GET_ROWCELL_INTERBUF(pResInfo), sizeof(SRateInfo));
-  }
-}
-
-static void sumrate_func_merge(SQLFunctionCtx *pCtx) {
-  qDebug("%p sumrate_func_merge() process ...", pCtx);
-  do_sumrate_merge(pCtx);
-}
-
-static void sumrate_finalizer(SQLFunctionCtx *pCtx) {
-  SResultRowCellInfo *pResInfo  = GET_RES_INFO(pCtx);
-  SRateInfo   *pRateInfo = (SRateInfo *)GET_ROWCELL_INTERBUF(pResInfo);
-  
-  qDebug("%p sumrate_finalizer() superTableQ:%d num:%" PRId64 " sum:%f hasResult:%d", pCtx, pCtx->stableQuery, pRateInfo->num, pRateInfo->sum, pRateInfo->hasResult);
-  
-  if (pRateInfo->hasResult != DATA_SET_FLAG) {
-    setNull(pCtx->pOutput, TSDB_DATA_TYPE_DOUBLE, sizeof(double));
-    return;
-  }
-  
-  if (pRateInfo->num == 0) {
-    // from meter
-    *(double*)pCtx->pOutput = do_calc_rate(pRateInfo);
-  } else if (pCtx->functionId == TSDB_FUNC_SUM_RATE || pCtx->functionId == TSDB_FUNC_SUM_IRATE) {
-    *(double*)pCtx->pOutput = pRateInfo->sum;
-  } else {
-    *(double*)pCtx->pOutput = pRateInfo->sum / pRateInfo->num;
-  }
-  
-  pResInfo->numOfRes  = 1;
-  pResInfo->hasResult = DATA_SET_FLAG;
-  doFinalizer(pCtx);
 }
 
 void blockInfo_func(SQLFunctionCtx* pCtx) {
@@ -4828,51 +4736,81 @@ void blockInfo_func(SQLFunctionCtx* pCtx) {
   pResInfo->hasResult = DATA_SET_FLAG;
 }
 
-static void mergeTableBlockDist(STableBlockDist* pDist, const STableBlockDist* pSrc) {
+static void mergeTableBlockDist(SResultRowCellInfo* pResInfo, const STableBlockDist* pSrc) {
+  STableBlockDist* pDist = (STableBlockDist*) GET_ROWCELL_INTERBUF(pResInfo);
   assert(pDist != NULL && pSrc != NULL);
+
   pDist->numOfTables += pSrc->numOfTables;
   pDist->numOfRowsInMemTable += pSrc->numOfRowsInMemTable;
   pDist->numOfFiles += pSrc->numOfFiles;
   pDist->totalSize += pSrc->totalSize;
+  pDist->totalRows += pSrc->totalRows;
 
-  if (pDist->dataBlockInfos == NULL) {
-    pDist->dataBlockInfos = taosArrayInit(4, sizeof(SFileBlockInfo));
+  if (pResInfo->hasResult == DATA_SET_FLAG) {
+    pDist->maxRows = MAX(pDist->maxRows, pSrc->maxRows);
+    pDist->minRows = MIN(pDist->minRows, pSrc->minRows);
+  } else {
+    pDist->maxRows = pSrc->maxRows;
+    pDist->minRows = pSrc->minRows;
+    
+    int32_t numSteps = tsMaxRowsInFileBlock/TSDB_BLOCK_DIST_STEP_ROWS;
+    pDist->dataBlockInfos = taosArrayInit(numSteps, sizeof(SFileBlockInfo));
+    taosArraySetSize(pDist->dataBlockInfos, numSteps);
   }
 
-  taosArrayPushBatch(pDist->dataBlockInfos, pSrc->dataBlockInfos->pData, (int32_t) taosArrayGetSize(pSrc->dataBlockInfos));
+  size_t steps = taosArrayGetSize(pDist->dataBlockInfos);
+  for (int32_t i = 0; i < steps; ++i) {
+    int32_t srcNumBlocks = ((SFileBlockInfo*)taosArrayGet(pSrc->dataBlockInfos, i))->numBlocksOfStep;
+    SFileBlockInfo* blockInfo = (SFileBlockInfo*)taosArrayGet(pDist->dataBlockInfos, i);
+    blockInfo->numBlocksOfStep += srcNumBlocks;
+  }
 }
 
 void block_func_merge(SQLFunctionCtx* pCtx) {
-  SResultRowCellInfo *pResInfo = GET_RES_INFO(pCtx);
-
-  STableBlockDist* pDist = (STableBlockDist*) GET_ROWCELL_INTERBUF(pResInfo);
   STableBlockDist info = {0};
-
   int32_t len = *(int32_t*) pCtx->pInput;
   blockDistInfoFromBinary(((char*)pCtx->pInput) + sizeof(int32_t), len, &info);
 
-  mergeTableBlockDist(pDist, &info);
+  SResultRowCellInfo *pResInfo = GET_RES_INFO(pCtx);
+  mergeTableBlockDist(pResInfo, &info);
+
+  pResInfo->numOfRes = 1;
+  pResInfo->hasResult = DATA_SET_FLAG;
 }
 
-static int32_t doGetPercentile(const SArray* pArray, double rate) {
-  int32_t len = (int32_t)taosArrayGetSize(pArray);
-  if (len <= 0) {
-    return 0;
+void getPercentiles(STableBlockDist *pTableBlockDist, int64_t totalBlocks, int32_t numOfPercents,
+                    double* percents, int32_t* percentiles) {
+  if (totalBlocks == 0) {
+    for (int32_t i = 0; i < numOfPercents; ++i) {
+      percentiles[i] = 0;
+    }
+    return;
   }
 
-  assert(rate >= 0 && rate <= 1.0);
-  int idx = (int32_t)((len - 1) * rate);
+  SArray *blocksInfos = pTableBlockDist->dataBlockInfos;
+  size_t  numSteps = taosArrayGetSize(blocksInfos);
+  size_t  cumulativeBlocks = 0;
 
-  return ((SFileBlockInfo *)(taosArrayGet(pArray, idx)))->numOfRows;
-}
+  int percentIndex = 0;
+  for (int32_t indexStep = 0; indexStep < numSteps; ++indexStep) {
+    int32_t numStepBlocks = ((SFileBlockInfo *)taosArrayGet(blocksInfos, indexStep))->numBlocksOfStep;
+    if (numStepBlocks == 0) continue;
+    cumulativeBlocks += numStepBlocks;
 
-static int compareBlockInfo(const void *pLeft, const void *pRight) {
-  int32_t left  = ((SFileBlockInfo *)pLeft)->numOfRows;
-  int32_t right = ((SFileBlockInfo *)pRight)->numOfRows;
+    while (percentIndex < numOfPercents) {
+      double blockRank = totalBlocks * percents[percentIndex];
+      if (blockRank <= cumulativeBlocks) {
+        percentiles[percentIndex] = indexStep;
+        ++percentIndex;
+      } else {
+        break;
+      }
+    }
+  }
 
-  if (left > right) return 1;
-  if (left < right) return -1;
-  return 0;
+  for (int32_t i = 0; i < numOfPercents; ++i) {
+    percentiles[i] = (percentiles[i]+1) * TSDB_BLOCK_DIST_STEP_ROWS - TSDB_BLOCK_DIST_STEP_ROWS/2;
+  }
 }
 
 void generateBlockDistResult(STableBlockDist *pTableBlockDist, char* result) {
@@ -4880,40 +4818,41 @@ void generateBlockDistResult(STableBlockDist *pTableBlockDist, char* result) {
     return;
   }
 
-  int64_t min = INT64_MAX, max = INT64_MIN, avg = 0;
-  SArray* blockInfos= pTableBlockDist->dataBlockInfos;
-  int64_t totalRows = 0, totalBlocks = taosArrayGetSize(blockInfos);
+  SArray* blockInfos = pTableBlockDist->dataBlockInfos;
+  uint64_t totalRows = pTableBlockDist->totalRows;
+  size_t   numSteps = taosArrayGetSize(blockInfos);
+  int64_t totalBlocks = 0;
+  int64_t min = -1, max = -1, avg = 0;
 
-  for (size_t i = 0; i < taosArrayGetSize(blockInfos); i++) {
+  for (int32_t i = 0; i < numSteps; i++) {
     SFileBlockInfo *blockInfo = taosArrayGet(blockInfos, i);
-    int64_t rows = blockInfo->numOfRows;
-
-    min = MIN(min, rows);
-    max = MAX(max, rows);
-    totalRows += rows;
+    int64_t blocks = blockInfo->numBlocksOfStep;
+    totalBlocks += blocks;
   }
 
   avg = totalBlocks > 0 ? (int64_t)(totalRows/totalBlocks) : 0;
-  taosArraySort(blockInfos, compareBlockInfo);
+  min = totalBlocks > 0 ? pTableBlockDist->minRows : 0;
+  max = totalBlocks > 0 ? pTableBlockDist->maxRows : 0;
+
+  double percents[] = {0.05, 0.10, 0.20, 0.30, 0.40, 0.50, 0.60, 0.70, 0.80, 0.90, 0.95, 0.99};
+  int32_t percentiles[] = {-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1};
+  assert(sizeof(percents)/sizeof(double) == sizeof(percentiles)/sizeof(int32_t));
+  getPercentiles(pTableBlockDist, totalBlocks, sizeof(percents)/sizeof(double), percents, percentiles);
 
   uint64_t totalLen = pTableBlockDist->totalSize;
   int32_t rowSize = pTableBlockDist->rowSize;
-
+  double compRatio = (totalRows>0) ? ((double)(totalLen)/(rowSize*totalRows)) : 1;
   int sz = sprintf(result + VARSTR_HEADER_SIZE,
                    "summary: \n\t "
                    "5th=[%d], 10th=[%d], 20th=[%d], 30th=[%d], 40th=[%d], 50th=[%d]\n\t "
                    "60th=[%d], 70th=[%d], 80th=[%d], 90th=[%d], 95th=[%d], 99th=[%d]\n\t "
                    "Min=[%"PRId64"(Rows)] Max=[%"PRId64"(Rows)] Avg=[%"PRId64"(Rows)] Stddev=[%.2f] \n\t "
-                   "Rows=[%"PRId64"], Blocks=[%"PRId64"], Size=[%.3f(Kb)] Comp=[%.2f%%]\n\t "
+                   "Rows=[%"PRIu64"], Blocks=[%"PRId64"], Size=[%.3f(Kb)] Comp=[%.2f]\n\t "
                    "RowsInMem=[%d] \n\t SeekHeaderTime=[%d(us)]",
-                   doGetPercentile(blockInfos, 0.05), doGetPercentile(blockInfos, 0.10),
-                   doGetPercentile(blockInfos, 0.20), doGetPercentile(blockInfos, 0.30),
-                   doGetPercentile(blockInfos, 0.40), doGetPercentile(blockInfos, 0.50),
-                   doGetPercentile(blockInfos, 0.60), doGetPercentile(blockInfos, 0.70),
-                   doGetPercentile(blockInfos, 0.80), doGetPercentile(blockInfos, 0.90),
-                   doGetPercentile(blockInfos, 0.95), doGetPercentile(blockInfos, 0.99),
+                   percentiles[0], percentiles[1], percentiles[2], percentiles[3], percentiles[4], percentiles[5],
+                   percentiles[6], percentiles[7], percentiles[8], percentiles[9], percentiles[10], percentiles[11],
                    min, max, avg, 0.0,
-                   totalRows, totalBlocks, totalLen/1024.0, (double)(totalLen*100.0)/(rowSize*totalRows),
+                   totalRows, totalBlocks, totalLen/1024.0, compRatio,
                    pTableBlockDist->numOfRowsInMemTable, pTableBlockDist->firstSeekTimeUs);
   varDataSetLen(result, sz);
   UNUSED(sz);
@@ -4948,12 +4887,12 @@ void blockinfo_func_finalizer(SQLFunctionCtx* pCtx) {
 int32_t functionCompatList[] = {
     // count,   sum,      avg,       min,      max,    stddev,    percentile,   apercentile, first,   last
     1,          1,        1,         1,        1,      1,          1,           1,           1,      1,
-    // last_row,top,      bottom,    spread,   twa,    leastsqr,   ts,          ts_dummy, tag_dummy, ts_z
+    // last_row,top,      bottom,    spread,   twa,    leastsqr,   ts,          ts_dummy, tag_dummy, ts_comp
     4,         -1,       -1,         1,        1,      1,          1,           1,        1,     -1,
-    //  tag,    colprj,   tagprj,    arithmetic, diff, first_dist, last_dist,   interp    rate    irate
-    1,          1,        1,         1,       -1,      1,          1,           5,        1,      1,
-    // sum_rate, sum_irate, avg_rate, avg_irate, tid_tag, blk_info
-    1,          1,        1,         1,          6,       7
+    //  tag,    colprj,   tagprj,    arithmetic, diff, first_dist, last_dist,   stddev_dst, interp    rate    irate
+    1,          1,        1,         1,       -1,      1,          1,           1,          5,        1,      1,
+    // tid_tag, blk_info
+     6,       7
 };
 
 SAggFunctionInfo aAggs[] = {{
@@ -5365,58 +5304,6 @@ SAggFunctionInfo aAggs[] = {{
                           },
                           {
                               // 31
-                              "sum_rate",
-                              TSDB_FUNC_SUM_RATE,
-                              TSDB_FUNC_SUM_RATE,
-                              TSDB_BASE_FUNC_SO | TSDB_FUNCSTATE_NEED_TS,
-                              rate_function_setup,
-                              rate_function,
-                              rate_function_f,
-                              sumrate_finalizer,
-                              sumrate_func_merge,
-                              dataBlockRequired,
-                          },
-                          {
-                              // 32
-                              "sum_irate",
-                              TSDB_FUNC_SUM_IRATE,
-                              TSDB_FUNC_SUM_IRATE,
-                              TSDB_BASE_FUNC_SO | TSDB_FUNCSTATE_NEED_TS,
-                              rate_function_setup,
-                              irate_function,
-                              irate_function_f,
-                              sumrate_finalizer,
-                              sumrate_func_merge,
-                              dataBlockRequired,
-                          },
-                          {
-                              // 33
-                              "avg_rate",
-                              TSDB_FUNC_AVG_RATE,
-                              TSDB_FUNC_AVG_RATE,
-                              TSDB_BASE_FUNC_SO | TSDB_FUNCSTATE_NEED_TS,
-                              rate_function_setup,
-                              rate_function,
-                              rate_function_f,
-                              sumrate_finalizer,
-                              sumrate_func_merge,
-                              dataBlockRequired,
-                          },
-                          {
-                              // 34
-                              "avg_irate",
-                              TSDB_FUNC_AVG_IRATE,
-                              TSDB_FUNC_AVG_IRATE,
-                              TSDB_BASE_FUNC_SO | TSDB_FUNCSTATE_NEED_TS,
-                              rate_function_setup,
-                              irate_function,
-                              irate_function_f,
-                              sumrate_finalizer,
-                              sumrate_func_merge,
-                              dataBlockRequired,
-                          },
-                          {
-                              // 35
                               "tbid",   // return table id and the corresponding tags for join match and subscribe
                               TSDB_FUNC_TID_TAG,
                               TSDB_FUNC_TID_TAG,
@@ -5429,15 +5316,15 @@ SAggFunctionInfo aAggs[] = {{
                               dataBlockRequired,
                           },
                           {
-                                // 35
-                                "_block_dist",   // return table id and the corresponding tags for join match and subscribe
-                                TSDB_FUNC_BLKINFO,
-                                TSDB_FUNC_BLKINFO,
-                                TSDB_FUNCSTATE_SO | TSDB_FUNCSTATE_STABLE,
-                                function_setup,
-                                blockInfo_func,
-                                noop2,
-                                blockinfo_func_finalizer,
-                                block_func_merge,
-                                dataBlockRequired,
+                                // 32
+                              "_block_dist",   // return table id and the corresponding tags for join match and subscribe
+                              TSDB_FUNC_BLKINFO,
+                              TSDB_FUNC_BLKINFO,
+                              TSDB_FUNCSTATE_SO | TSDB_FUNCSTATE_STABLE,
+                              function_setup,
+                              blockInfo_func,
+                              noop2,
+                              blockinfo_func_finalizer,
+                              block_func_merge,
+                              dataBlockRequired,
                           }};

@@ -24,6 +24,9 @@ sql drop database if exists $db
 sql create database $db keep 36500
 sql use $db
 
+print =====================================> td-4481
+sql create database $db
+
 print =====================================> test case for twa in single block
 
 sql create table t1 (ts timestamp, k float);
@@ -809,3 +812,123 @@ endi
 if $data00 != 1 then
   return -1
 endi
+
+print ====================> TODO stddev + normal column filter
+
+
+print ====================> irate
+sql select irate(k) from t1
+if $rows != 1 then
+  return -1
+endi
+
+if $data00 != 0.000027778 then
+  return -1
+endi
+
+sql select irate(k) from t1 where ts>='2015-8-18 00:30:00.000'
+if $rows != 1 then
+  return -1
+endi
+
+if $data00 != 0.000000000 then
+  print expect 0.000000000, actual $data00
+  return -1
+endi
+
+sql select irate(k) from t1 where ts>='2015-8-18 00:06:00.000' and ts<='2015-8-18 00:12:000';
+if $rows != 1 then
+  return -1
+endi
+
+if $data00 != 0.005633334 then
+  return -1
+endi
+
+sql select irate(k) from t1 interval(10a)
+if $rows != 6 then
+  return -1
+endi
+
+if $data01 != 0.000000000 then
+  return -1
+endi
+
+if $data11 != 0.000000000 then
+  return -1
+endi
+
+if $data51 != 0.000000000 then
+  return -1
+endi
+
+sql select count(*),irate(k) from t1 interval(10m)
+if $rows != 4 then
+  return -1
+endi
+
+if $data00 != @15-08-18 00:00:00.000@ then
+  return -1
+endi
+
+if $data01 != 2 then
+  return -1
+endi
+
+if $data02 != 0.000144445 then
+  return -1
+endi
+
+if $data10 != @15-08-18 00:10:00.000@ then
+  return -1
+endi
+
+if $data11 != 2 then
+  return -1
+endi
+
+if $data12 != 0.000272222 then
+  return -1
+endi
+
+if $data20 != @15-08-18 00:20:00.000@ then
+  return -1
+endi
+
+if $data21 != 1 then
+  return -1
+endi
+
+if $data22 != 0.000000000 then
+  return -1
+endi
+
+if $data30 != @15-08-18 00:30:00.000@ then
+  return -1
+endi
+
+if $data31 != 1 then
+  return -1
+endi
+
+if $data32 != 0.000000000 then
+  return -1
+endi
+
+sql select count(*),irate(k) from t1 interval(10m) order by ts desc
+if $rows != 4 then
+  return -1
+endi
+
+if $data30 != @15-08-18 00:00:00.000@ then
+  return -1
+endi
+
+if $data31 != 2 then
+  return -1
+endi
+
+if $data32 != 0.000144445 then
+  return -1
+endi
+

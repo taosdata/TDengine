@@ -291,9 +291,25 @@ typedef struct taosField {
 
 TDengine的异步API均采用非阻塞调用模式。应用程序可以用多线程同时打开多张表，并可以同时对每张打开的表进行查询或者插入操作。需要指出的是，**客户端应用必须确保对同一张表的操作完全串行化**，即对同一个表的插入或查询操作未完成时（未返回时），不能够执行第二个插入或查询操作。
 
-### 参数绑定API
+<a class="anchor" id="stmt"></a>
+### 参数绑定 API
 
-除了直接调用 `taos_query` 进行查询，TDengine也提供了支持参数绑定的Prepare API，与 MySQL 一样，这些API目前也仅支持用问号`?`来代表待绑定的参数，具体如下：
+除了直接调用 `taos_query` 进行查询，TDengine 也提供了支持参数绑定的 Prepare API，与 MySQL 一样，这些 API 目前也仅支持用问号 `?` 来代表待绑定的参数。
+
+从 2.1.1.0 和 2.1.2.0 版本开始，TDengine 大幅改进了参数绑定接口对数据写入（INSERT）场景的支持。这样在通过参数绑定接口写入数据时，就避免了 SQL 语法解析的资源消耗，从而在绝大多数情况下显著提升写入性能。此时的典型操作步骤如下：
+1. 调用 `taos_stmt_init` 创建参数绑定对象；
+2. 调用 `taos_stmt_prepare` 解析 INSERT 语句；
+3. 如果 INSERT 语句中预留了表名但没有预留 TAGS，那么调用 `taos_stmt_set_tbname` 来设置表名；
+4. 如果 INSERT 语句中既预留了表名又预留了 TAGS（例如 INSERT 语句采取的是自动建表的方式），那么调用 `taos_stmt_set_tbname_tags` 来设置表名和 TAGS 的值；
+5. 调用 `taos_stmt_bind_param_batch` 以多列的方式设置 VALUES 的值；
+6. 调用 `taos_stmt_add_batch` 把当前绑定的参数加入批处理；
+7. 可以重复第 3～6 步，为批处理加入更多的数据行；
+8. 调用 `taos_stmt_execute` 执行已经准备好的批处理指令；
+9. 执行完毕，调用 `taos_stmt_close` 释放所有资源。
+
+除 C/C++ 语言外，TDengine 的 Java 语言 JNI Connector 也提供参数绑定接口支持，具体请另外参见：[参数绑定接口的 Java 用法](https://www.taosdata.com/cn/documentation/connector/java#stmt-java)。
+
+接口相关的具体函数如下（也可以参考 [apitest.c](https://github.com/taosdata/TDengine/blob/develop/tests/examples/c/apitest.c) 文件中使用对应函数的方式）：
 
 - `TAOS_STMT* taos_stmt_init(TAOS *taos)`
 
@@ -301,11 +317,12 @@ TDengine的异步API均采用非阻塞调用模式。应用程序可以用多线
 
 - `int taos_stmt_prepare(TAOS_STMT *stmt, const char *sql, unsigned long length)`
 
-  解析一条sql语句，将解析结果和参数信息绑定到stmt上，如果参数length大于0，将使用此参数作为sql语句的长度，如等于0，将自动判断sql语句的长度。
+  解析一条 SQL 语句，将解析结果和参数信息绑定到 stmt 上，如果参数 length 大于 0，将使用此参数作为 SQL 语句的长度，如等于 0，将自动判断 SQL 语句的长度。
 
 - `int taos_stmt_bind_param(TAOS_STMT *stmt, TAOS_BIND *bind)`
 
-  进行参数绑定，bind指向一个数组，需保证此数组的元素数量和顺序与sql语句中的参数完全一致。TAOS_BIND 的使用方法与 MySQL中的 MYSQL_BIND 一致，具体定义如下：
+  不如 `taos_stmt_bind_param_batch` 效率高，但可以支持非 INSERT 类型的 SQL 语句。  
+  进行参数绑定，bind 指向一个数组（代表所要绑定的一行数据），需保证此数组中的元素数量和顺序与 SQL 语句中的参数完全一致。TAOS_BIND 的使用方法与 MySQL 中的 MYSQL_BIND 一致，具体定义如下：
 
 ```c
 typedef struct TAOS_BIND {
@@ -319,9 +336,35 @@ typedef struct TAOS_BIND {
 } TAOS_BIND;
 ```
 
+- `int taos_stmt_set_tbname(TAOS_STMT* stmt, const char* name)`
+
+  （2.1.1.0 版本新增）  
+  当 SQL 语句中的表名使用了 `?` 占位时，可以使用此函数绑定一个具体的表名。
+
+- `int taos_stmt_set_tbname_tags(TAOS_STMT* stmt, const char* name, TAOS_BIND* tags)`
+
+  （2.1.2.0 版本新增）  
+  当 SQL 语句中的表名和 TAGS 都使用了 `?` 占位时，可以使用此函数绑定具体的表名和具体的 TAGS 取值。最典型的使用场景是使用了自动建表功能的 INSERT 语句（目前版本不支持指定具体的 TAGS 列）。tags 参数中的列数量需要与 SQL 语句中要求的 TAGS 数量完全一致。
+
+- `int taos_stmt_bind_param_batch(TAOS_STMT* stmt, TAOS_MULTI_BIND* bind)`
+
+  （2.1.1.0 版本新增）  
+  以多列的方式传递待绑定的数据，需要保证这里传递的数据列的顺序、列的数量与 SQL 语句中的 VALUES 参数完全一致。TAOS_MULTI_BIND 的具体定义如下：
+
+```c
+typedef struct TAOS_MULTI_BIND {
+  int          buffer_type;
+  void *       buffer;
+  uintptr_t    buffer_length;
+  int32_t *    length;
+  char *       is_null;
+  int          num;             // 列的个数，即 buffer 中的参数个数
+} TAOS_MULTI_BIND;
+```
+
 - `int taos_stmt_add_batch(TAOS_STMT *stmt)`
 
-  将当前绑定的参数加入批处理中，调用此函数后，可以再次调用`taos_stmt_bind_param`绑定新的参数。需要注意，此函数仅支持 insert/import 语句，如果是select等其他SQL语句，将返回错误。
+  将当前绑定的参数加入批处理中，调用此函数后，可以再次调用 `taos_stmt_bind_param` 或 `taos_stmt_bind_param_batch` 绑定新的参数。需要注意，此函数仅支持 INSERT/IMPORT 语句，如果是 SELECT 等其他 SQL 语句，将返回错误。
 
 - `int taos_stmt_execute(TAOS_STMT *stmt)`
 
@@ -329,7 +372,7 @@ typedef struct TAOS_BIND {
 
 - `TAOS_RES* taos_stmt_use_result(TAOS_STMT *stmt)`
 
-  获取语句的结果集。结果集的使用方式与非参数化调用时一致，使用完成后，应对此结果集调用 `taos_free_result`以释放资源。
+  获取语句的结果集。结果集的使用方式与非参数化调用时一致，使用完成后，应对此结果集调用 `taos_free_result` 以释放资源。
 
 - `int taos_stmt_close(TAOS_STMT *stmt)`
 
@@ -516,7 +559,7 @@ conn.close()
 - _TDengineCursor_ 类
 
   参考python中help(taos.TDengineCursor)。
-  这个类对应客户端进行的写入、查询操作。在客户端多线程的场景下，这个游标实例必须保持线程独享，不能夸线程共享使用，否则会导致返回结果出现错误。
+  这个类对应客户端进行的写入、查询操作。在客户端多线程的场景下，这个游标实例必须保持线程独享，不能跨线程共享使用，否则会导致返回结果出现错误。
 
 - _connect_ 方法
 
