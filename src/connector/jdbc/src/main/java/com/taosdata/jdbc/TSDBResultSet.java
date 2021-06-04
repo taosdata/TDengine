@@ -193,9 +193,10 @@ public class TSDBResultSet extends AbstractResultSet implements ResultSet {
         if (this.getBatchFetch())
             return this.blockData.getInt(columnIndex - 1);
 
+
         this.lastWasNull = this.rowData.wasNull(columnIndex);
         if (!lastWasNull) {
-            int nativeType = this.columnMetaDataList.get(columnIndex).getColType();
+            int nativeType = this.columnMetaDataList.get(columnIndex - 1).getColType();
             res = this.rowData.getInt(columnIndex, nativeType);
         }
         return res;
@@ -230,7 +231,7 @@ public class TSDBResultSet extends AbstractResultSet implements ResultSet {
 
         this.lastWasNull = this.rowData.wasNull(columnIndex);
         if (!lastWasNull) {
-            int nativeType = this.columnMetaDataList.get(columnIndex).getColType();
+            int nativeType = this.columnMetaDataList.get(columnIndex - 1).getColType();
             res = this.rowData.getFloat(columnIndex, nativeType);
         }
 
@@ -246,7 +247,7 @@ public class TSDBResultSet extends AbstractResultSet implements ResultSet {
 
         this.lastWasNull = this.rowData.wasNull(columnIndex);
         if (!lastWasNull) {
-            int nativeType = this.columnMetaDataList.get(columnIndex).getColType();
+            int nativeType = this.columnMetaDataList.get(columnIndex - 1).getColType();
             res = this.rowData.getDouble(columnIndex, nativeType);
         }
         return res;
