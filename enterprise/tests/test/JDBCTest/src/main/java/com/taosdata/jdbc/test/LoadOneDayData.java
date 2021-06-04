@@ -1,6 +1,5 @@
 package com.taosdata.jdbc.test;
 
-import com.taosdata.jdbc.TSDBConstants;
 import com.taosdata.jdbc.TSDBDriver;
 import com.taosdata.jdbc.TSDBPreparedStatement;
 
@@ -20,11 +19,11 @@ public class LoadOneDayData {
 	private static final String TSDB_DRIVER = "com.taosdata.jdbc.TSDBDriver";
 
 	private String host = "ubuntu";
-	private String configDir = "~/first/cfg";
+	private String configDir = "/home/lisa/first/cfg";
 	private String user = "root";
 	private String password = "taosdata";
 	private String jdbcUrl = "";
-	private String dbName = "t1";
+	private String dbName = "test";
 
 	private Connection conn = null;
 
@@ -119,71 +118,111 @@ public class LoadOneDayData {
 			return data;
 		}
 	}
-	
+
 	public void doQuery() {
 		Statement stmt = null;
 
 		try {
 			stmt = (Statement) conn.createStatement();
 
-//			ResultSet rset = stmt.executeQuery("select * from test.tm1");
-//			while(rset.next()) {
-//				System.out.println(rset.getString(1) + ", " + rset.getString(2));
-//			}
-
-			//    public void setTableName(String name, @SuppressWarnings("rawtypes") ArrayList tagsVal, ArrayList<Integer> type, ArrayList<Integer> length)
-			//ts timestamp, a1 int, a2 smallint, a3 bigint, a4 binary(12), a5 nchar(12), a6 tinyint
-			TSDBPreparedStatement s = (TSDBPreparedStatement) conn.prepareStatement("insert into ?  values(?, ?)");
-			
-			ArrayList<Integer> type = new ArrayList<Integer>();
-			type.add(TSDBConstants.TSDB_DATA_TYPE_INT);
-			
-			ArrayList<Integer> length = new ArrayList<Integer>();
-			length.add(Integer.BYTES);
-			
-			s.setTableName("tm0");
-
-			Random r = new Random();
-			
-			int rows = 10;
-			ArrayList<Long> t1 = new ArrayList<Long>();
-			for (int i = 0; i < rows; ++i) {
-				t1.add(System.currentTimeMillis() + i);
-			}
-			s.setTimestamp(0, t1);
-
-			ArrayList<Integer> t2 = new ArrayList<Integer>();
-
-			for (int i = 0; i < rows; ++i) {
-				t2.add(i);
+			ResultSet rset = stmt.executeQuery("select * from test.t2");
+			while (rset.next()) {
+				System.out.println(rset.getString(1) + ", " + rset.getString(2));
 			}
 
-			s.setInt(1, t2);
+			rset.close();
 
-			
+			stmt.executeUpdate("use test");
+			TSDBPreparedStatement s = (TSDBPreparedStatement) conn.prepareStatement("insert into ? values(?, ?)");
+
+			s.setTableName("t2");
+
+			ArrayList<Long> ts = new ArrayList<Long>();
+			ts.add(System.currentTimeMillis());
+			ts.add(System.currentTimeMillis() + 1);
+			ts.add(System.currentTimeMillis() + 3);
+
+			s.setTimestamp(0, ts);
+
+//            ArrayList<Integer> val = new ArrayList<Integer>();
+//            val.add(911);
+//            val.add(912);
+//            s.setInt(1, val);
+//            
+//            ArrayList<Long> sx = new ArrayList<Long>();
+//            sx.add((long) 9);
+//            s.setLong(2, sx);
+
+//			ArrayList<String> s1 = new ArrayList<String>();
+//			s1.add("aughi");
+//			s1.add("abc");
+//			s.setString(1, s1, 12);
+
+//            ArrayList<String> s2 = new ArrayList<String>();
+//            s2.add("分支");
+//            s2.add("分12支");
+//            s2.add(null);
+//            s.setNString(1, s2, 4);
+
 			s.columnDataAddBatch();
 			s.columnDataExecuteBatch();
 			s.columnDataCloseBatch();
-			
-//			rset.close();
 			stmt.close();
+
 		} catch (SQLException e1) {
 			e1.printStackTrace();
+			System.out.print(e1.getMessage());
 		}
 
 	}
 
-	public static void main(String[] args) {
-//		if (args.length < 4) {
-//			System.out.println("parameters are not sufficient");
-//			System.out.println("exe cfg_dir db_name file_dir op_type(load|insert)");
-//			System.exit(-1);
-//		}
+	public void insertData(String dir) {
+		ArrayList<String> s = this.loadTableNameList(dir + "/devid");
+		ArrayList<String> data = this.loadSampleData(dir + "/sample_data");
 
+		Random rand = new Random();
+
+		while (true) {
+			long startTime = System.currentTimeMillis();
+
+			Statement stmt = null;
+
+			try {
+				stmt = (Statement) conn.createStatement();
+
+				for (String name : s) {
+					int r = rand.nextInt(data.size());
+
+					StringBuilder sb = new StringBuilder();
+					sb.append("insert into ").append(name).append(" values( ").append(startTime).append(",")
+							.append(data.get(r)).append(")");
+
+					String sql = sb.toString();
+					stmt.executeUpdate(sql);
+				}
+
+			} catch (SQLException e1) {
+				e1.printStackTrace();
+			}
+
+			long endTime = System.currentTimeMillis();
+			System.out.println("insert data completed, elapsed time:" + (endTime - startTime) + " ms");
+
+			try {
+				Thread.sleep(27 * 1000L);
+				startTime += 27L * 1000;
+
+			} catch (InterruptedException e) {
+				e.printStackTrace();
+			}
+		}
+	}
+
+	public static void main(String[] args) {
 		LoadOneDayData loader = new LoadOneDayData();
 		loader.MakeJdbcUrl();
 		loader.connectdb();
-		
+
 		loader.doQuery();
 	}
 }

@@ -44,8 +44,9 @@ DisableDirPage=yes
 ;ArchitecturesInstallIn64BitMode=x64
 
 [Languages]
-Name: "chinesesimp"; MessagesFile: "compiler:Default.isl"
-Name: "english"; MessagesFile: "compiler:Languages\English.isl"
+Name: "english"; MessagesFile: "compiler:Default.isl"
+; Name: "chinesesimp"; MessagesFile: "compiler:Default.isl"
+; Name: "english"; MessagesFile: "compiler:Languages\English.isl"
 
 [Files]
 ;Source: {#MyAppSourceDir}{#MyAppAllFile}; DestDir: "{app}"; Flags: igNoreversion recursesubdirs createallsubdirs 

@@ -6,7 +6,7 @@
 #include "taos.h"
 #include "taosdef.h"
 #include "testCommon.h"
-#include "tstoken.h"
+#include "ttoken.h"
 #include "tutil.h"
 #include "tcache.h"
 #include "ttimer.h"

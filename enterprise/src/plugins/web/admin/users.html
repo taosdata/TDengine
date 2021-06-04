@@ -178,7 +178,11 @@
 		var colEnd = "</td>";
 		
 		var operBegin = '<a class="dboper" onclick="dbDelete(\'';
-		var operEnd = '\')">Delete</a>';
+		var operEnd = '\')">Delete</a>&nbsp&nbsp';
+		var operPassBegin = '<a class="dboper" onclick="dbChangePass(\'';
+		var operPassEnd = '\')">Password</a>&nbsp&nbsp';
+		var operPrivBegin = '<a class="dboper" onclick="dbChangePrivilege(\'';
+		var operPrivEnd = '\')">Privilege</a>';
 		
 		var rowIndex = 0;
 		var bodyContent = "";
@@ -189,7 +193,18 @@
 				row = row + colBegin + data[colIndex] + colEnd;
 			}
 			
-			var oper = operBegin + data[0] + operEnd;
+			if(data[0] == "_root" || data[0] == "monitor"){
+				var oper = operBegin + data[0] + operEnd;
+			} else if(data[0] == "root"){
+				var oper = operBegin + data[0] + operEnd
+					+ operPassBegin + data[0] + operPassEnd;
+			}else {
+				var oper = operBegin + data[0] + operEnd
+					+ operPassBegin + data[0] + operPassEnd
+					+ operPrivBegin + data[0] + operPrivEnd;
+			}
+
+			
 			row = row + colBegin + oper + colEnd + rowEnd;	
 			bodyContent += row;
 		}
@@ -212,6 +227,16 @@
 	{		
 		dbUserName = id;
 		DbUtil.ConfirmDialog(DB_CODE_CONFIRM, "drop user: " + dbUserName);
+	}
+
+	function dbChangePass(id)
+	{		
+		DbUtil.GotoPage("changePass.html?User=" + id);
+	}
+
+	function dbChangePrivilege(id)
+	{		
+		DbUtil.GotoPage("changePriv.html?User=" + id);
 	}
 	
 	//while confirm delete

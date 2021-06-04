@@ -9,7 +9,7 @@
 #include "tscJoinProcess.h"
 #include "tscUtil.h"
 #include "tsclient.h"
-#include "tstoken.h"
+#include "ttoken.h"
 #include "tutil.h"
 
 namespace {
