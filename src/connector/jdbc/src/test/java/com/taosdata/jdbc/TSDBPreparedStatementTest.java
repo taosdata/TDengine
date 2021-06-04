@@ -594,8 +594,9 @@ public class TSDBPreparedStatementTest {
     public void before() {
         try {
             Statement stmt = conn.createStatement();
-            stmt.execute("create table weather(ts timestamp, f1 int, f2 bigint, f3 float, f4 double, f5 smallint, f6 tinyint, f7 bool, f8 binary(64), f9 nchar(64)) tags(loc nchar(64))");
-            stmt.execute("create table t1 using weather tags('beijing')");
+            stmt.execute("drop table if exists weather");
+            stmt.execute("create table if not exists weather(ts timestamp, f1 int, f2 bigint, f3 float, f4 double, f5 smallint, f6 tinyint, f7 bool, f8 binary(64), f9 nchar(64)) tags(loc nchar(64))");
+            stmt.execute("create table if not exists t1 using weather tags('beijing')");
             stmt.close();
 
             pstmt_insert = conn.prepareStatement(sql_insert);
