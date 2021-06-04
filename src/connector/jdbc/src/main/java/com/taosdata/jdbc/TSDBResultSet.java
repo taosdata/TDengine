@@ -306,11 +306,7 @@ public class TSDBResultSet extends AbstractResultSet implements ResultSet {
 
         this.lastWasNull = this.rowData.wasNull(columnIndex);
         if (!lastWasNull) {
-            int nativeType = this.columnMetaDataList.get(columnIndex - 1).getColType();
-            if (nativeType == TSDBConstants.TSDB_DATA_TYPE_BINARY)
-                res = ((String) this.rowData.getObject(columnIndex)).getBytes();
-            else
-                res = this.rowData.getObject(columnIndex);
+            res = this.rowData.getObject(columnIndex);
         }
         return res;
     }
