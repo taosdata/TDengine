@@ -332,7 +332,7 @@ public class TSDBResultSetRowData {
      * $$$ this method is invoked by databaseMetaDataResultSet and so on which use a index start from 1 in JDBC api
      */
     public void setStringValue(int colIndex, String value) {
-        setString(colIndex - 1, value);
+        data.set(colIndex - 1, value);
     }
 
     /**
