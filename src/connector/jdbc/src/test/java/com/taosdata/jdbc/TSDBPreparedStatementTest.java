@@ -1,40 +1,72 @@
 package com.taosdata.jdbc;
 
-import org.junit.AfterClass;
-import org.junit.Assert;
-import org.junit.BeforeClass;
-import org.junit.Test;
+import org.junit.*;
 
 import java.io.IOException;
-import java.io.Serializable;
 import java.sql.*;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Random;
 
 public class TSDBPreparedStatementTest {
-    private static final String host = "127.0.0.1";
+
     private static Connection conn;
     private static final String sql_insert = "insert into t1 values(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
     private static PreparedStatement pstmt_insert;
-    private static final String sql_select = "select * from t1 where ts > ? and ts <= ? and f1 >= ?";
+    private static final String sql_select = "select * from t1 where ts >= ? and ts < ? and f1 >= ?";
     private static PreparedStatement pstmt_select;
+    private static final String host = "127.0.0.1";
+
+    //create table weather(ts timestamp, f1 int, f2 bigint, f3 float, f4 double, f5 smallint, f6 tinyint, f7 bool, f8 binary(64), f9 nchar(64)) tags(loc nchar(64))
 
     @Test
     public void executeQuery() throws SQLException {
-        long end = System.currentTimeMillis();
-        long start = end - 1000 * 60 * 60;
+        // given
+        long ts = System.currentTimeMillis();
+        pstmt_insert.setTimestamp(1, new Timestamp(ts));
+        pstmt_insert.setInt(2, 2);
+        pstmt_insert.setLong(3, 3l);
+        pstmt_insert.setFloat(4, 3.14f);
+        pstmt_insert.setDouble(5, 3.1415);
+        pstmt_insert.setShort(6, (short) 6);
+        pstmt_insert.setByte(7, (byte) 7);
+        pstmt_insert.setBoolean(8, true);
+        pstmt_insert.setBytes(9, "abc".getBytes());
+        pstmt_insert.setString(10, "涛思数据");
+        pstmt_insert.executeUpdate();
+        long start = ts - 1000 * 60 * 60;
+        long end = ts + 1000 * 60 * 60;
         pstmt_select.setTimestamp(1, new Timestamp(start));
         pstmt_select.setTimestamp(2, new Timestamp(end));
         pstmt_select.setInt(3, 0);
 
+        // when
         ResultSet rs = pstmt_select.executeQuery();
-        Assert.assertNotNull(rs);
         ResultSetMetaData meta = rs.getMetaData();
-        while (rs.next()) {
-            for (int i = 1; i <= meta.getColumnCount(); i++) {
-                System.out.print(meta.getColumnLabel(i) + ": " + rs.getString(i) + "\t");
-            }
-            System.out.println();
+
+        // then
+        assertResultSetMetaData(meta);
+        {
+            Assert.assertNotNull(rs);
+            Assert.assertEquals(ts, rs.getTimestamp(1).getTime());
+            Assert.assertEquals(2, rs.getInt(2));
+            Assert.assertEquals(2, rs.getInt("f1"));
+            Assert.assertEquals(3l, rs.getLong(3));
+            Assert.assertEquals(3l, rs.getLong("f2"));
+            Assert.assertEquals(3.14f, rs.getFloat(4), 0.0);
+            Assert.assertEquals(3.14f, rs.getFloat("f3"), 0.0);
+            Assert.assertEquals(3.1415, rs.getDouble(5), 0.0);
+            Assert.assertEquals(3.1415, rs.getDouble("f4"), 0.0);
+            Assert.assertEquals((short) 6, rs.getShort(6));
+            Assert.assertEquals((short) 6, rs.getShort("f5"));
+            Assert.assertEquals((byte) 7, rs.getByte(7));
+            Assert.assertEquals((byte) 7, rs.getByte("f6"));
+            Assert.assertTrue(rs.getBoolean(8));
+            Assert.assertTrue(rs.getBoolean("f7"));
+            Assert.assertTrue(Arrays.equals("abc".getBytes(), rs.getBytes(9)));
+            Assert.assertTrue(Arrays.equals("abc".getBytes(), rs.getBytes("f8")));
+            Assert.assertEquals("涛思数据", rs.getString(10));
+            Assert.assertEquals("涛思数据", rs.getString("f9"));
         }
     }
 
@@ -100,53 +132,53 @@ public class TSDBPreparedStatementTest {
     }
 
     @Test
-    public void executeTest() throws SQLException {   
-        Statement stmt = conn.createStatement();            
+    public void executeTest() throws SQLException {
+        Statement stmt = conn.createStatement();
 
-        int numOfRows = 1000;        
+        int numOfRows = 1000;
 
-        for (int loop = 0; loop < 10; loop++){
+        for (int loop = 0; loop < 10; loop++) {
             stmt.execute("drop table if exists weather_test");
-            stmt.execute("create table weather_test(ts timestamp, f1 nchar(4), f2 float, f3 double, f4 timestamp, f5 int, f6 bool, f7 binary(10))");            
+            stmt.execute("create table weather_test(ts timestamp, f1 nchar(4), f2 float, f3 double, f4 timestamp, f5 int, f6 bool, f7 binary(10))");
 
             TSDBPreparedStatement s = (TSDBPreparedStatement) conn.prepareStatement("insert into ? values(?, ?, ?, ?, ?, ?, ?, ?)");
             Random r = new Random();
             s.setTableName("weather_test");
-            
+
             ArrayList<Long> ts = new ArrayList<Long>();
-            for(int i = 0; i < numOfRows; i++) {
+            for (int i = 0; i < numOfRows; i++) {
                 ts.add(System.currentTimeMillis() + i);
-            }        
+            }
             s.setTimestamp(0, ts);
 
             int random = 10 + r.nextInt(5);
-            ArrayList<String> s2 = new ArrayList<String>();        
-            for(int i = 0; i < numOfRows; i++) {
-                if(i % random == 0) {
+            ArrayList<String> s2 = new ArrayList<String>();
+            for (int i = 0; i < numOfRows; i++) {
+                if (i % random == 0) {
                     s2.add(null);
-                }else{
+                } else {
                     s2.add("分支" + i % 4);
                 }
-            }        
-            s.setNString(1, s2, 4);      
+            }
+            s.setNString(1, s2, 4);
 
             random = 10 + r.nextInt(5);
-            ArrayList<Float> s3 = new ArrayList<Float>();        
-            for(int i = 0; i < numOfRows; i++) {
-                if(i % random == 0) {
+            ArrayList<Float> s3 = new ArrayList<Float>();
+            for (int i = 0; i < numOfRows; i++) {
+                if (i % random == 0) {
                     s3.add(null);
-                }else{
+                } else {
                     s3.add(r.nextFloat());
                 }
-            }        
+            }
             s.setFloat(2, s3);
 
             random = 10 + r.nextInt(5);
             ArrayList<Double> s4 = new ArrayList<Double>();
-            for(int i = 0; i < numOfRows; i++) {
-                if(i % random == 0) {
+            for (int i = 0; i < numOfRows; i++) {
+                if (i % random == 0) {
                     s4.add(null);
-                }else{
+                } else {
                     s4.add(r.nextDouble());
                 }
             }
@@ -154,47 +186,47 @@ public class TSDBPreparedStatementTest {
 
             random = 10 + r.nextInt(5);
             ArrayList<Long> ts2 = new ArrayList<Long>();
-            for(int i = 0; i < numOfRows; i++) {
-                if(i % random == 0) {
+            for (int i = 0; i < numOfRows; i++) {
+                if (i % random == 0) {
                     ts2.add(null);
-                }else{
+                } else {
                     ts2.add(System.currentTimeMillis() + i);
                 }
             }
             s.setTimestamp(4, ts2);
 
             random = 10 + r.nextInt(5);
-            ArrayList<Integer>  vals = new ArrayList<>();
-            for(int i = 0; i < numOfRows; i++) {
-                if(i % random == 0) {
+            ArrayList<Integer> vals = new ArrayList<>();
+            for (int i = 0; i < numOfRows; i++) {
+                if (i % random == 0) {
                     vals.add(null);
-                }else{
+                } else {
                     vals.add(r.nextInt());
-                }                
+                }
             }
             s.setInt(5, vals);
 
             random = 10 + r.nextInt(5);
             ArrayList<Boolean> sb = new ArrayList<>();
-            for(int i = 0; i < numOfRows; i++) {
-                if(i % random == 0) {
+            for (int i = 0; i < numOfRows; i++) {
+                if (i % random == 0) {
                     sb.add(null);
-                }else{
+                } else {
                     sb.add(i % 2 == 0 ? true : false);
                 }
             }
-            s.setBoolean(6, sb);        
+            s.setBoolean(6, sb);
 
             random = 10 + r.nextInt(5);
             ArrayList<String> s5 = new ArrayList<String>();
-            for(int i = 0; i < numOfRows; i++) {
-                if(i % random == 0) {
+            for (int i = 0; i < numOfRows; i++) {
+                if (i % random == 0) {
                     s5.add(null);
-                }else{
+                } else {
                     s5.add("test" + i % 10);
                 }
             }
-            s.setString(7, s5, 10);        
+            s.setString(7, s5, 10);
 
             s.columnDataAddBatch();
             s.columnDataExecuteBatch();
@@ -204,54 +236,54 @@ public class TSDBPreparedStatementTest {
             PreparedStatement statement = conn.prepareStatement(sql);
             ResultSet rs = statement.executeQuery();
             int rows = 0;
-            while(rs.next()) {
+            while (rs.next()) {
                 rows++;
             }
-            Assert.assertEquals(numOfRows, rows);            
+            Assert.assertEquals(numOfRows, rows);
         }
     }
 
     @Test
-    public void bindDataSelectColumnTest() throws SQLException {   
-        Statement stmt = conn.createStatement();            
+    public void bindDataSelectColumnTest() throws SQLException {
+        Statement stmt = conn.createStatement();
 
-        int numOfRows = 1000;        
+        int numOfRows = 1000;
 
-        for (int loop = 0; loop < 10; loop++){
+        for (int loop = 0; loop < 10; loop++) {
             stmt.execute("drop table if exists weather_test");
-            stmt.execute("create table weather_test(ts timestamp, f1 nchar(4), f2 float, f3 double, f4 timestamp, f5 int, f6 bool, f7 binary(10))");            
+            stmt.execute("create table weather_test(ts timestamp, f1 nchar(4), f2 float, f3 double, f4 timestamp, f5 int, f6 bool, f7 binary(10))");
 
             TSDBPreparedStatement s = (TSDBPreparedStatement) conn.prepareStatement("insert into ? (ts, f1, f7) values(?, ?, ?)");
             Random r = new Random();
             s.setTableName("weather_test");
-            
+
             ArrayList<Long> ts = new ArrayList<Long>();
-            for(int i = 0; i < numOfRows; i++) {
+            for (int i = 0; i < numOfRows; i++) {
                 ts.add(System.currentTimeMillis() + i);
-            }        
+            }
             s.setTimestamp(0, ts);
 
             int random = 10 + r.nextInt(5);
-            ArrayList<String> s2 = new ArrayList<String>();        
-            for(int i = 0; i < numOfRows; i++) {
-                if(i % random == 0) {
+            ArrayList<String> s2 = new ArrayList<String>();
+            for (int i = 0; i < numOfRows; i++) {
+                if (i % random == 0) {
                     s2.add(null);
-                }else{
+                } else {
                     s2.add("分支" + i % 4);
                 }
-            }        
-            s.setNString(1, s2, 4);                   
+            }
+            s.setNString(1, s2, 4);
 
             random = 10 + r.nextInt(5);
             ArrayList<String> s5 = new ArrayList<String>();
-            for(int i = 0; i < numOfRows; i++) {
-                if(i % random == 0) {
+            for (int i = 0; i < numOfRows; i++) {
+                if (i % random == 0) {
                     s5.add(null);
-                }else{
+                } else {
                     s5.add("test" + i % 10);
                 }
             }
-            s.setString(2, s5, 10);        
+            s.setString(2, s5, 10);
 
             s.columnDataAddBatch();
             s.columnDataExecuteBatch();
@@ -261,13 +293,12 @@ public class TSDBPreparedStatementTest {
             PreparedStatement statement = conn.prepareStatement(sql);
             ResultSet rs = statement.executeQuery();
             int rows = 0;
-            while(rs.next()) {
+            while (rs.next()) {
                 rows++;
             }
-            Assert.assertEquals(numOfRows, rows);            
+            Assert.assertEquals(numOfRows, rows);
         }
     }
-
 
 
     @Test
@@ -544,22 +575,58 @@ public class TSDBPreparedStatementTest {
         pstmt_insert.setSQLXML(1, null);
     }
 
+    private void assertResultSetMetaData(ResultSetMetaData meta) throws SQLException {
+        Assert.assertEquals(10, meta.getColumnCount());
+        Assert.assertEquals("ts", meta.getColumnLabel(1));
+        Assert.assertEquals("f1", meta.getColumnLabel(2));
+        Assert.assertEquals("f2", meta.getColumnLabel(3));
+        Assert.assertEquals("f3", meta.getColumnLabel(4));
+        Assert.assertEquals("f4", meta.getColumnLabel(5));
+        Assert.assertEquals("f5", meta.getColumnLabel(6));
+        Assert.assertEquals("f6", meta.getColumnLabel(7));
+        Assert.assertEquals("f7", meta.getColumnLabel(8));
+        Assert.assertEquals("f8", meta.getColumnLabel(9));
+        Assert.assertEquals("f9", meta.getColumnLabel(10));
+    }
+
+    @Before
+    public void before() {
+        try {
+            Statement stmt = conn.createStatement();
+            stmt.execute("create table weather(ts timestamp, f1 int, f2 bigint, f3 float, f4 double, f5 smallint, f6 tinyint, f7 bool, f8 binary(64), f9 nchar(64)) tags(loc nchar(64))");
+            stmt.execute("create table t1 using weather tags('beijing')");
+            stmt.close();
+
+            pstmt_insert = conn.prepareStatement(sql_insert);
+            pstmt_select = conn.prepareStatement(sql_select);
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+    }
+
+    @After
+    public void after() {
+        try {
+            if (pstmt_insert != null)
+                pstmt_insert.close();
+            if (pstmt_select != null)
+                pstmt_select.close();
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+
+    }
 
     @BeforeClass
     public static void beforeClass() {
         try {
-            Class.forName("com.taosdata.jdbc.TSDBDriver");
             conn = DriverManager.getConnection("jdbc:TAOS://" + host + ":6030/?user=root&password=taosdata");
             try (Statement stmt = conn.createStatement()) {
                 stmt.execute("drop database if exists test_pstmt_jni");
                 stmt.execute("create database if not exists test_pstmt_jni");
                 stmt.execute("use test_pstmt_jni");
-                stmt.execute("create table weather(ts timestamp, f1 int, f2 bigint, f3 float, f4 double, f5 smallint, f6 tinyint, f7 bool, f8 binary(64), f9 nchar(64)) tags(loc nchar(64))");
-                stmt.execute("create table t1 using weather tags('beijing')");
             }
-            pstmt_insert = conn.prepareStatement(sql_insert);
-            pstmt_select = conn.prepareStatement(sql_select);
-        } catch (ClassNotFoundException | SQLException e) {
+        } catch (SQLException e) {
             e.printStackTrace();
         }
     }
@@ -567,10 +634,6 @@ public class TSDBPreparedStatementTest {
     @AfterClass
     public static void afterClass() {
         try {
-            if (pstmt_insert != null)
-                pstmt_insert.close();
-            if (pstmt_select != null)
-                pstmt_select.close();
             if (conn != null)
                 conn.close();
         } catch (SQLException e) {
