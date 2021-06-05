@@ -817,6 +817,16 @@ static void doInitGlobalConfig(void) {
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosInitConfigOption(cfg);
 
+  cfg.option = "precision";
+  cfg.ptr = &tsTimePrecision;
+  cfg.valType = TAOS_CFG_VTYPE_INT8;
+  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
+  cfg.minValue = TSDB_MIN_PRECISION;
+  cfg.maxValue = TSDB_MAX_PRECISION;
+  cfg.ptrLength = 0;
+  cfg.unitType = TAOS_CFG_UTYPE_NONE;
+  taosInitConfigOption(cfg);
+
   cfg.option = "comp";
   cfg.ptr = &tsCompression;
   cfg.valType = TAOS_CFG_VTYPE_INT8;
@@ -883,6 +893,16 @@ static void doInitGlobalConfig(void) {
   cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
   cfg.minValue = TSDB_MIN_DB_UPDATE;
   cfg.maxValue = TSDB_MAX_DB_UPDATE;
+  cfg.ptrLength = 0;
+  cfg.unitType = TAOS_CFG_UTYPE_NONE;
+  taosInitConfigOption(cfg);
+
+  cfg.option = "cachelast";
+  cfg.ptr = &tsCacheLastRow;
+  cfg.valType = TAOS_CFG_VTYPE_INT8;
+  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
+  cfg.minValue = TSDB_MIN_DB_CACHE_LAST_ROW;
+  cfg.maxValue = TSDB_MAX_DB_CACHE_LAST_ROW;
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosInitConfigOption(cfg);

@@ -129,8 +129,8 @@ sql alter database db keep 20
 sql_error alter database db keep 10
 sql_error alter database db keep 9
 sql_error alter database db keep 1
-sql alter database db keep 0
-sql alter database db keep -1
+sql_error alter database db keep 0
+sql_error alter database db keep -1
 sql_error alter database db keep 365001
 
 print ============== step cache
