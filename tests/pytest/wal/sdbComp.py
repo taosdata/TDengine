@@ -108,10 +108,10 @@ class TDTestCase:
         tdSql.query("select count(*) from stb2_0")
         tdSql.checkData(0, 0, 2)
    
-
-
+        # delete useless file
+        testcaseFilename = os.path.split(__file__)[-1]
         os.system("rm -rf ./insert_res.txt")
-        os.system("rm -rf wal/sdbComp.py.sql")        
+        os.system("rm -rf wal/%s.sql" % testcaseFilename )       
         
         
         

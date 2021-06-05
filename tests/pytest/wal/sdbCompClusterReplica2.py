@@ -66,11 +66,11 @@ class TwoClients:
         os.system("rm -rf  /var/lib/taos/mnode_bak/")
         os.system("rm -rf  /var/lib/taos/mnode_temp/")
         tdSql.execute("drop database if exists db2")
-        os.system("%staosdemo -f wal/insertDataDb1.json -y " % binPath)
+        os.system("%staosdemo -f wal/insertDataDb1Replica2.json -y " % binPath)
         tdSql.execute("drop database if exists db1") 
-        os.system("%staosdemo -f wal/insertDataDb2.json -y " % binPath)
+        os.system("%staosdemo -f wal/insertDataDb2Replica2.json -y " % binPath)
         tdSql.execute("drop table if exists db2.stb0") 
-        os.system("%staosdemo -f wal/insertDataDb2Newstab.json -y " % binPath)
+        os.system("%staosdemo -f wal/insertDataDb2NewstabReplica2.json -y " % binPath)
         query_pid1 = int(subprocess.getstatusoutput('ps aux|grep taosd |grep -v "grep"|awk \'{print $2}\'')[1])
         print(query_pid1)
         tdSql.execute("use db2")
@@ -86,6 +86,7 @@ class TwoClients:
         tdSql.execute("alter table stb2_0 add column col2 binary(4)")
         tdSql.execute("alter table stb2_0 drop column col1")
         tdSql.execute("insert into stb2_0 values(1614218422000,8638,'R')")
+        
 
         # stop taosd and compact wal file
         os.system("ps -ef |grep taosd |grep -v 'grep' |awk '{print $2}'|xargs kill -2")
@@ -109,7 +110,7 @@ class TwoClients:
         tdSql.query("show databases")
         for i in range(tdSql.queryRows):
             if tdSql.queryResult[i][0]=="db2":
-                assert tdSql.queryResult[i][4]==1 , "replica is wrong"
+                assert tdSql.queryResult[i][4]==2 , "replica is wrong"
         tdSql.execute("use db2")
         tdSql.query("select count (tbname) from stb0")
         tdSql.checkData(0, 0, 1)
@@ -123,12 +124,12 @@ class TwoClients:
         tdSql.checkData(0, 0, 2)
         tdSql.query("select * from stb2_0")
         tdSql.checkData(1, 2, 'R')
-        
-        # delete useless file       
+
+        # delete useless file
         testcaseFilename = os.path.split(__file__)[-1]
         os.system("rm -rf ./insert_res.txt")
         os.system("rm -rf wal/%s.sql" % testcaseFilename )       
-
+   
 clients = TwoClients()
 clients.initConnection()
 # clients.getBuildPath()
