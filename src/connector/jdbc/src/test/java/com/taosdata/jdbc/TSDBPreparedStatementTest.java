@@ -99,6 +99,7 @@ public class TSDBPreparedStatementTest {
             ResultSet rs = stmt.executeQuery("select * from t1");
             ResultSetMetaData meta = rs.getMetaData();
             assertMetaData(meta);
+            rs.next();
             assertAllNullExceptTimestamp(rs, ts);
         }
     }
@@ -142,6 +143,7 @@ public class TSDBPreparedStatementTest {
             ResultSet rs = stmt.executeQuery("select * from t1");
             ResultSetMetaData meta = rs.getMetaData();
             assertMetaData(meta);
+            rs.next();
             assertAllNullExceptTimestamp(rs, ts);
         }
     }
@@ -162,6 +164,7 @@ public class TSDBPreparedStatementTest {
             ResultSet rs = stmt.executeQuery("select * from t1");
             ResultSetMetaData meta = rs.getMetaData();
             assertMetaData(meta);
+            rs.next();
             assertAllNullExceptTimestamp(rs, ts);
         }
     }
@@ -182,6 +185,7 @@ public class TSDBPreparedStatementTest {
             ResultSet rs = stmt.executeQuery("select * from t1");
             ResultSetMetaData meta = rs.getMetaData();
             assertMetaData(meta);
+            rs.next();
             assertAllNullExceptTimestamp(rs, ts);
         }
     }
@@ -202,6 +206,7 @@ public class TSDBPreparedStatementTest {
             ResultSet rs = stmt.executeQuery("select * from t1");
             ResultSetMetaData meta = rs.getMetaData();
             assertMetaData(meta);
+            rs.next();
             assertAllNullExceptTimestamp(rs, ts);
         }
     }
@@ -222,6 +227,7 @@ public class TSDBPreparedStatementTest {
             ResultSet rs = stmt.executeQuery("select * from t1");
             ResultSetMetaData meta = rs.getMetaData();
             assertMetaData(meta);
+            rs.next();
             assertAllNullExceptTimestamp(rs, ts);
         }
     }
@@ -242,6 +248,7 @@ public class TSDBPreparedStatementTest {
             ResultSet rs = stmt.executeQuery("select * from t1");
             ResultSetMetaData meta = rs.getMetaData();
             assertMetaData(meta);
+            rs.next();
             assertAllNullExceptTimestamp(rs, ts);
         }
     }
@@ -262,6 +269,7 @@ public class TSDBPreparedStatementTest {
             ResultSet rs = stmt.executeQuery("select * from t1");
             ResultSetMetaData meta = rs.getMetaData();
             assertMetaData(meta);
+            rs.next();
             assertAllNullExceptTimestamp(rs, ts);
         }
     }
@@ -282,6 +290,7 @@ public class TSDBPreparedStatementTest {
             ResultSet rs = stmt.executeQuery("select * from t1");
             ResultSetMetaData meta = rs.getMetaData();
             assertMetaData(meta);
+            rs.next();
             assertAllNullExceptTimestamp(rs, ts);
         }
     }
@@ -302,6 +311,7 @@ public class TSDBPreparedStatementTest {
             ResultSet rs = stmt.executeQuery("select * from t1");
             ResultSetMetaData meta = rs.getMetaData();
             assertMetaData(meta);
+            rs.next();
             {
                 Assert.assertNotNull(rs);
                 Assert.assertEquals(ts, rs.getTimestamp(1).getTime());
@@ -328,6 +338,7 @@ public class TSDBPreparedStatementTest {
             ResultSet rs = stmt.executeQuery("select * from t1");
             ResultSetMetaData meta = rs.getMetaData();
             assertMetaData(meta);
+            rs.next();
             {
                 Assert.assertNotNull(rs);
                 Assert.assertEquals(ts, rs.getTimestamp(1).getTime());
@@ -354,6 +365,7 @@ public class TSDBPreparedStatementTest {
             ResultSet rs = stmt.executeQuery("select * from t1");
             ResultSetMetaData meta = rs.getMetaData();
             assertMetaData(meta);
+            rs.next();
             {
                 Assert.assertNotNull(rs);
                 Assert.assertEquals(ts, rs.getTimestamp(1).getTime());
@@ -380,6 +392,7 @@ public class TSDBPreparedStatementTest {
             ResultSet rs = stmt.executeQuery("select * from t1");
             ResultSetMetaData meta = rs.getMetaData();
             assertMetaData(meta);
+            rs.next();
             {
                 Assert.assertNotNull(rs);
                 Assert.assertEquals(ts, rs.getTimestamp(1).getTime());
@@ -406,6 +419,7 @@ public class TSDBPreparedStatementTest {
             ResultSet rs = stmt.executeQuery("select * from t1");
             ResultSetMetaData meta = rs.getMetaData();
             assertMetaData(meta);
+            rs.next();
             {
                 Assert.assertNotNull(rs);
                 Assert.assertEquals(ts, rs.getTimestamp(1).getTime());
@@ -432,6 +446,7 @@ public class TSDBPreparedStatementTest {
             ResultSet rs = stmt.executeQuery("select * from t1");
             ResultSetMetaData meta = rs.getMetaData();
             assertMetaData(meta);
+            rs.next();
             {
                 Assert.assertNotNull(rs);
                 Assert.assertEquals(ts, rs.getTimestamp(1).getTime());
@@ -458,6 +473,7 @@ public class TSDBPreparedStatementTest {
             ResultSet rs = stmt.executeQuery("select * from t1");
             ResultSetMetaData meta = rs.getMetaData();
             assertMetaData(meta);
+            rs.next();
             {
                 Assert.assertNotNull(rs);
                 Assert.assertEquals(ts, rs.getTimestamp(1).getTime());
@@ -485,6 +501,7 @@ public class TSDBPreparedStatementTest {
             ResultSet rs = stmt.executeQuery("select * from t1");
             ResultSetMetaData meta = rs.getMetaData();
             assertMetaData(meta);
+            rs.next();
             {
                 Assert.assertNotNull(rs);
                 Assert.assertEquals(ts, rs.getTimestamp(1).getTime());
@@ -512,6 +529,7 @@ public class TSDBPreparedStatementTest {
             ResultSet rs = stmt.executeQuery("select * from t1");
             ResultSetMetaData meta = rs.getMetaData();
             assertMetaData(meta);
+            rs.next();
             {
                 Assert.assertNotNull(rs);
                 Assert.assertEquals(ts, rs.getTimestamp(1).getTime());
@@ -539,6 +557,7 @@ public class TSDBPreparedStatementTest {
             ResultSet rs = stmt.executeQuery("select * from t1");
             ResultSetMetaData meta = rs.getMetaData();
             assertMetaData(meta);
+            rs.next();
             {
                 Assert.assertNotNull(rs);
                 Assert.assertEquals(ts, rs.getTimestamp(1).getTime());
@@ -564,6 +583,7 @@ public class TSDBPreparedStatementTest {
             ResultSet rs = stmt.executeQuery("select * from t1");
             ResultSetMetaData meta = rs.getMetaData();
             assertMetaData(meta);
+            rs.next();
             {
                 Assert.assertNotNull(rs);
                 Assert.assertEquals(ts, rs.getTimestamp(1).getTime());
@@ -587,6 +607,7 @@ public class TSDBPreparedStatementTest {
             ResultSet rs = stmt.executeQuery("select * from t1");
             ResultSetMetaData meta = rs.getMetaData();
             assertMetaData(meta);
+            rs.next();
             {
                 Assert.assertNotNull(rs);
                 Assert.assertEquals(ts, rs.getTimestamp(1).getTime());
@@ -610,6 +631,7 @@ public class TSDBPreparedStatementTest {
             ResultSet rs = stmt.executeQuery("select * from t1");
             ResultSetMetaData meta = rs.getMetaData();
             assertMetaData(meta);
+            rs.next();
             {
                 Assert.assertNotNull(rs);
                 Assert.assertEquals(ts, rs.getTimestamp(1).getTime());
@@ -626,11 +648,6 @@ public class TSDBPreparedStatementTest {
     @Test(expected = SQLFeatureNotSupportedException.class)
     public void setBinaryStream() throws SQLException {
         pstmt_insert.setBinaryStream(1, null);
-    }
-
-    @Test
-    public void clearParameters() throws SQLException {
-        pstmt_insert.clearParameters();
     }
 
     @Test(expected = SQLFeatureNotSupportedException.class)
@@ -680,7 +697,6 @@ public class TSDBPreparedStatementTest {
         for (int i = 1; i <= metaData.getColumnCount(); i++) {
             System.out.println("column[" + i + "]: " + metaData.getColumnLabel(i));
         }
-
     }
 
     @Test(expected = SQLFeatureNotSupportedException.class)
@@ -727,7 +743,7 @@ public class TSDBPreparedStatementTest {
         Assert.assertEquals("DOUBLE", parameterMetaData.getParameterTypeName(5));
         Assert.assertEquals("SMALLINT", parameterMetaData.getParameterTypeName(6));
         Assert.assertEquals("TINYINT", parameterMetaData.getParameterTypeName(7));
-        Assert.assertEquals("BOOLEAN", parameterMetaData.getParameterTypeName(8));
+        Assert.assertEquals("BOOL", parameterMetaData.getParameterTypeName(8));
         Assert.assertEquals("BINARY", parameterMetaData.getParameterTypeName(9));
         Assert.assertEquals("NCHAR", parameterMetaData.getParameterTypeName(10));
     }
