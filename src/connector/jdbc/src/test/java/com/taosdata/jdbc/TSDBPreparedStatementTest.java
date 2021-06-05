@@ -686,17 +686,6 @@ public class TSDBPreparedStatementTest {
 
         // then
         Assert.assertNull(metaData);
-
-        // when
-        int result = pstmt_insert.executeUpdate();
-
-        // then
-        Assert.assertEquals(1, result);
-        metaData = pstmt_insert.getMetaData();
-        Assert.assertNotNull(metaData);
-        for (int i = 1; i <= metaData.getColumnCount(); i++) {
-            System.out.println("column[" + i + "]: " + metaData.getColumnLabel(i));
-        }
     }
 
     @Test(expected = SQLFeatureNotSupportedException.class)
