@@ -5,7 +5,6 @@ import org.junit.*;
 import java.io.IOException;
 import java.sql.*;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Random;
 
 public class TSDBPreparedStatementTest {
@@ -17,7 +16,6 @@ public class TSDBPreparedStatementTest {
 
     private PreparedStatement pstmt_insert;
     private PreparedStatement pstmt_select;
-
     //create table weather(ts timestamp, f1 int, f2 bigint, f3 float, f4 double, f5 smallint, f6 tinyint, f7 bool, f8 binary(64), f9 nchar(64)) tags(loc nchar(64))
 
     @Test
@@ -44,7 +42,7 @@ public class TSDBPreparedStatementTest {
         // when
         ResultSet rs = pstmt_select.executeQuery();
         ResultSetMetaData meta = rs.getMetaData();
-
+        rs.next();
         // then
         assertResultSetMetaData(meta);
         {
@@ -64,8 +62,8 @@ public class TSDBPreparedStatementTest {
             Assert.assertEquals((byte) 7, rs.getByte("f6"));
             Assert.assertTrue(rs.getBoolean(8));
             Assert.assertTrue(rs.getBoolean("f7"));
-            Assert.assertTrue(Arrays.equals("abc".getBytes(), rs.getBytes(9)));
-            Assert.assertTrue(Arrays.equals("abc".getBytes(), rs.getBytes("f8")));
+            Assert.assertArrayEquals("abc".getBytes(), rs.getBytes(9));
+            Assert.assertArrayEquals("abc".getBytes(), rs.getBytes("f8"));
             Assert.assertEquals("涛思数据", rs.getString(10));
             Assert.assertEquals("涛思数据", rs.getString("f9"));
         }

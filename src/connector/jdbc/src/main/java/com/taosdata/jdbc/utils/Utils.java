@@ -95,7 +95,6 @@ public class Utils {
     public static String getNativeSql(String rawSql, Object[] parameters) {
         // toLowerCase
         String preparedSql = rawSql.trim().toLowerCase();
-
         String[] clause = new String[]{"values\\s*\\(.*?\\)", "tags\\s*\\(.*?\\)", "where\\s*.*"};
         Map<Integer, Integer> placeholderPositions = new HashMap<>();
         RangeSet<Integer> clauseRangeSet = TreeRangeSet.create();
