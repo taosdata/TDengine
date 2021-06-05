@@ -6942,7 +6942,7 @@ int32_t doCreateFilterInfo(SColumnInfo* pCols, int32_t numOfCols, int32_t numOfF
         pSingleColFilter->bytes = pCols[i].bytes;
 
         if (lower == TSDB_RELATION_IN) {
-          buildFilterSetFromBinary(&pSingleColFilter->q, (char *)(pSingleColFilter->filterInfo.pz), pSingleColFilter->filterInfo.len);
+          buildFilterSetFromBinary(&pSingleColFilter->q, (char *)(pSingleColFilter->filterInfo.pz), (int32_t)(pSingleColFilter->filterInfo.len));
         }
       }
 
