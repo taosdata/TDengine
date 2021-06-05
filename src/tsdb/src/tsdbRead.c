@@ -2469,7 +2469,6 @@ static bool loadCachedLastRow(STsdbQueryHandle* pQueryHandle) {
     if (ret != TSDB_CODE_SUCCESS) {
       return false;
     }
-
     copyOneRowFromMem(pQueryHandle, pQueryHandle->outputCapacity, 0, pRow, numOfCols, pCheckInfo->pTableObj, NULL);
     tfree(pRow);
 
@@ -2860,24 +2859,27 @@ bool tsdbGetExternalRow(TsdbQueryHandleT pHandle) {
 }
 
 /*
- * 1. no data at all (pTable->lastKey = TSKEY_INITIAL_VAL), just return TSKEY_INITIAL_VAL
- * 2. has data but not loaded, just return lastKey but not set pRes
- * 3. has data and loaded, return lastKey and set pRes
+ * if lastRow == NULL, return TSDB_CODE_TDB_NO_CACHE_LAST_ROW
+ * else set pRes and return TSDB_CODE_SUCCESS
  */
 int32_t tsdbGetCachedLastRow(STable* pTable, SDataRow* pRes, TSKEY* lastKey) {
-  TSDB_RLOCK_TABLE(pTable);
-  *lastKey = pTable->lastKey;
+  int32_t code = TSDB_CODE_SUCCESS;
 
-  if ((*lastKey) != TSKEY_INITIAL_VAL && pTable->lastRow) {
-    *pRes = tdDataRowDup(pTable->lastRow);
-    if (*pRes == NULL) {
-      TSDB_RUNLOCK_TABLE(pTable);
-      return TSDB_CODE_TDB_OUT_OF_MEMORY;
-    }
+  TSDB_RLOCK_TABLE(pTable);
+
+  if (!pTable->lastRow) {
+    code = TSDB_CODE_TDB_NO_CACHE_LAST_ROW;
+    goto out;
   }
 
+  *pRes = tdDataRowDup(pTable->lastRow);
+  if (*pRes == NULL) {
+    code = TSDB_CODE_TDB_OUT_OF_MEMORY;
+  }
+
+out:
   TSDB_RUNLOCK_TABLE(pTable);
-  return TSDB_CODE_SUCCESS;
+  return code;
 }
 
 bool isTsdbCacheLastRow(TsdbQueryHandleT* pQueryHandle) {

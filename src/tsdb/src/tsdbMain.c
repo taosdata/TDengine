@@ -553,7 +553,6 @@ static STsdbRepo *tsdbNewRepo(STsdbCfg *pCfg, STsdbAppH *pAppH) {
     return NULL;
   }
   pRepo->config_changed = false;
-  atomic_store_8(&pRepo->hasCachedLastRow, 0);
   atomic_store_8(&pRepo->hasCachedLastColumn, 0);
 
   code = tsem_init(&(pRepo->readyToCommit), 0, 1);
@@ -857,9 +856,7 @@ int tsdbRestoreInfo(STsdbRepo *pRepo) {
   }
 
   tsdbDestroyReadH(&readh);
-  if (CACHE_LAST_ROW(pCfg)) {
-    atomic_store_8(&pRepo->hasCachedLastRow, 1);
-  }
+
   if (CACHE_LAST_NULL_COLUMN(pCfg)) {
     atomic_store_8(&pRepo->hasCachedLastColumn, 1);
   }
@@ -900,9 +897,6 @@ int tsdbCacheLastData(STsdbRepo *pRepo, STsdbCfg* oldCfg) {
 
   // if close last option,need to free data
   if (need_free_last_row || need_free_last_col) {
-    if (need_free_last_row) {
-      atomic_store_8(&pRepo->hasCachedLastRow, 0);
-    }
     if (need_free_last_col) {
       atomic_store_8(&pRepo->hasCachedLastColumn, 0);
     }
@@ -982,9 +976,6 @@ int tsdbCacheLastData(STsdbRepo *pRepo, STsdbCfg* oldCfg) {
 
   tsdbDestroyReadH(&readh);
 
-  if (cacheLastRow) {
-    atomic_store_8(&pRepo->hasCachedLastRow, 1);
-  }
   if (cacheLastCol) {
     atomic_store_8(&pRepo->hasCachedLastColumn, 1);
   }
