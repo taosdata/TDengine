@@ -1667,12 +1667,12 @@ int taos_stmt_bind_param(TAOS_STMT* stmt, TAOS_BIND* bind) {
     if (pStmt->multiTbInsert) {
       if (pStmt->last != STMT_SETTBNAME && pStmt->last != STMT_ADD_BATCH) {
         tscError("0x%"PRIx64" bind param status error, last:%d", pStmt->pSql->self, pStmt->last);
-        return TSDB_CODE_TSC_APP_ERROR;
+        return invalidOperationMsg(tscGetErrorMsgPayload(&pStmt->pSql->cmd), "bind param status error");
       }
     } else {
       if (pStmt->last != STMT_PREPARE && pStmt->last != STMT_ADD_BATCH && pStmt->last != STMT_EXECUTE) {
         tscError("0x%"PRIx64" bind param status error, last:%d", pStmt->pSql->self, pStmt->last);
-        return TSDB_CODE_TSC_APP_ERROR;
+        return invalidOperationMsg(tscGetErrorMsgPayload(&pStmt->pSql->cmd), "bind param status error");
       }
     }
 
@@ -1695,23 +1695,23 @@ int taos_stmt_bind_param_batch(TAOS_STMT* stmt, TAOS_MULTI_BIND* bind) {
 
   if (bind == NULL || bind->num <= 0 || bind->num > INT16_MAX) {
     tscError("0x%"PRIx64" invalid parameter", pStmt->pSql->self);
-    return TSDB_CODE_TSC_APP_ERROR;
+    return invalidOperationMsg(tscGetErrorMsgPayload(&pStmt->pSql->cmd), "invalid bind param");
   }
 
   if (!pStmt->isInsert) {
     tscError("0x%"PRIx64" not or invalid batch insert", pStmt->pSql->self);
-    return TSDB_CODE_TSC_APP_ERROR;
+    return invalidOperationMsg(tscGetErrorMsgPayload(&pStmt->pSql->cmd), "not or invalid batch insert");
   }
 
   if (pStmt->multiTbInsert) {
     if (pStmt->last != STMT_SETTBNAME && pStmt->last != STMT_ADD_BATCH) {
       tscError("0x%"PRIx64" bind param status error, last:%d", pStmt->pSql->self, pStmt->last);
-      return TSDB_CODE_TSC_APP_ERROR;
+      return invalidOperationMsg(tscGetErrorMsgPayload(&pStmt->pSql->cmd), "bind param status error");
     }
   } else {
     if (pStmt->last != STMT_PREPARE && pStmt->last != STMT_ADD_BATCH && pStmt->last != STMT_EXECUTE) {
       tscError("0x%"PRIx64" bind param status error, last:%d", pStmt->pSql->self, pStmt->last);
-      return TSDB_CODE_TSC_APP_ERROR;
+      return invalidOperationMsg(tscGetErrorMsgPayload(&pStmt->pSql->cmd), "bind param status error");
     }
   }
 
@@ -1729,23 +1729,23 @@ int taos_stmt_bind_single_param_batch(TAOS_STMT* stmt, TAOS_MULTI_BIND* bind, in
 
   if (bind == NULL || bind->num <= 0 || bind->num > INT16_MAX) {
     tscError("0x%"PRIx64" invalid parameter", pStmt->pSql->self);
-    return TSDB_CODE_TSC_APP_ERROR;
+    return invalidOperationMsg(tscGetErrorMsgPayload(&pStmt->pSql->cmd), "invalid bind param");
   }
 
   if (!pStmt->isInsert) {
     tscError("0x%"PRIx64" not or invalid batch insert", pStmt->pSql->self);
-    return TSDB_CODE_TSC_APP_ERROR;
+    return invalidOperationMsg(tscGetErrorMsgPayload(&pStmt->pSql->cmd), "not or invalid batch insert");
   }
 
   if (pStmt->multiTbInsert) {
     if (pStmt->last != STMT_SETTBNAME && pStmt->last != STMT_ADD_BATCH && pStmt->last != STMT_BIND_COL) {
       tscError("0x%"PRIx64" bind param status error, last:%d", pStmt->pSql->self, pStmt->last);
-      return TSDB_CODE_TSC_APP_ERROR;
+      return invalidOperationMsg(tscGetErrorMsgPayload(&pStmt->pSql->cmd), "bind param status error");
     }
   } else {
     if (pStmt->last != STMT_PREPARE && pStmt->last != STMT_ADD_BATCH && pStmt->last != STMT_BIND_COL && pStmt->last != STMT_EXECUTE) {
       tscError("0x%"PRIx64" bind param status error, last:%d", pStmt->pSql->self, pStmt->last);
-      return TSDB_CODE_TSC_APP_ERROR;
+      return invalidOperationMsg(tscGetErrorMsgPayload(&pStmt->pSql->cmd), "bind param status error");
     }
   }
 
@@ -1766,7 +1766,7 @@ int taos_stmt_add_batch(TAOS_STMT* stmt) {
   if (pStmt->isInsert) {
     if (pStmt->last != STMT_BIND && pStmt->last != STMT_BIND_COL) {
       tscError("0x%"PRIx64" add batch status error, last:%d", pStmt->pSql->self, pStmt->last);
-      return TSDB_CODE_TSC_APP_ERROR;
+      return invalidOperationMsg(tscGetErrorMsgPayload(&pStmt->pSql->cmd), "add batch status error");
     }
 
     pStmt->last = STMT_ADD_BATCH;
@@ -1796,7 +1796,7 @@ int taos_stmt_execute(TAOS_STMT* stmt) {
   if (pStmt->isInsert) {
     if (pStmt->last != STMT_ADD_BATCH) {
       tscError("0x%"PRIx64" exec status error, last:%d", pStmt->pSql->self, pStmt->last);
-      return TSDB_CODE_TSC_APP_ERROR;
+      return invalidOperationMsg(tscGetErrorMsgPayload(&pStmt->pSql->cmd), "exec status error");
     }
 
     pStmt->last = STMT_EXECUTE;
