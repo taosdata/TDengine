@@ -15,7 +15,6 @@ from fabric import Connection
 import random
 import time
 import logging
-import os
 
 class Node:
     def __init__(self, index, username, hostIP, hostName, password, homeDir):
