@@ -63,7 +63,7 @@ static SExprInfo* doAddProjectCol(SQueryInfo* pQueryInfo, int32_t colIndex, int3
 static int32_t setShowInfo(SSqlObj* pSql, SSqlInfo* pInfo);
 static char*   getAccountId(SSqlObj* pSql);
 
-static bool serializeExprListToVariant(SArray* pList, tVariant **dest, int8_t colType);
+static bool serializeExprListToVariant(SArray* pList, tVariant **dest, int16_t colType);
 static int32_t validateParamOfRelationIn(tVariant *pVar, int32_t colType);
 
 static bool has(SArray* pFieldList, int32_t startIdx, const char* name);
@@ -148,7 +148,7 @@ int16_t getNewResColId(SSqlCmd* pCmd) {
 
 // serialize expr in exprlist to binary 
 // formate  "type | size | value"
-bool serializeExprListToVariant(SArray* pList, tVariant **dst, int8_t colType) {
+bool serializeExprListToVariant(SArray* pList, tVariant **dst, int16_t colType) {
   bool ret = false;
   if (!pList || pList->size <= 0) {
     return ret;
