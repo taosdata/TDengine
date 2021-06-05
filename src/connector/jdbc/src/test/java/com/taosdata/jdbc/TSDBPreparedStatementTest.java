@@ -3,9 +3,9 @@ package com.taosdata.jdbc;
 import org.junit.*;
 
 import java.io.IOException;
+import java.math.BigDecimal;
 import java.sql.*;
-import java.util.ArrayList;
-import java.util.Random;
+import java.time.LocalTime;
 
 public class TSDBPreparedStatementTest {
 
@@ -44,7 +44,7 @@ public class TSDBPreparedStatementTest {
         ResultSetMetaData meta = rs.getMetaData();
         rs.next();
         // then
-        assertResultSetMetaData(meta);
+        assertMetaData(meta);
         {
             Assert.assertNotNull(rs);
             Assert.assertEquals(ts, rs.getTimestamp(1).getTime());
@@ -69,366 +69,553 @@ public class TSDBPreparedStatementTest {
         }
     }
 
-    @Test
-    public void executeUpdate() throws SQLException {
-        pstmt_insert.setTimestamp(1, new Timestamp(System.currentTimeMillis()));
-        pstmt_insert.setFloat(4, 3.14f);
-        int result = pstmt_insert.executeUpdate();
-        Assert.assertEquals(1, result);
+    private void assertMetaData(ResultSetMetaData meta) throws SQLException {
+        Assert.assertEquals(10, meta.getColumnCount());
+        Assert.assertEquals("ts", meta.getColumnLabel(1));
+        Assert.assertEquals("f1", meta.getColumnLabel(2));
+        Assert.assertEquals("f2", meta.getColumnLabel(3));
+        Assert.assertEquals("f3", meta.getColumnLabel(4));
+        Assert.assertEquals("f4", meta.getColumnLabel(5));
+        Assert.assertEquals("f5", meta.getColumnLabel(6));
+        Assert.assertEquals("f6", meta.getColumnLabel(7));
+        Assert.assertEquals("f7", meta.getColumnLabel(8));
+        Assert.assertEquals("f8", meta.getColumnLabel(9));
+        Assert.assertEquals("f9", meta.getColumnLabel(10));
     }
 
     @Test
-    public void setNull() throws SQLException {
-        pstmt_insert.setTimestamp(1, new Timestamp(System.currentTimeMillis()));
+    public void setNullForTimestamp() throws SQLException {
+        // given
+        long ts = System.currentTimeMillis();
+
+        // when
+        pstmt_insert.setTimestamp(1, new Timestamp(ts));
         pstmt_insert.setNull(2, Types.INTEGER);
         int result = pstmt_insert.executeUpdate();
-        Assert.assertEquals(1, result);
 
-        pstmt_insert.setTimestamp(1, new Timestamp(System.currentTimeMillis()));
+        // then
+        Assert.assertEquals(1, result);
+        try (Statement stmt = conn.createStatement()) {
+            ResultSet rs = stmt.executeQuery("select * from t1");
+            ResultSetMetaData meta = rs.getMetaData();
+            assertMetaData(meta);
+            assertAllNullExceptTimestamp(rs, ts);
+        }
+    }
+
+    private void assertAllNullExceptTimestamp(ResultSet rs, long ts) throws SQLException {
+        Assert.assertNotNull(rs);
+        Assert.assertEquals(ts, rs.getTimestamp(1).getTime());
+        Assert.assertEquals(0, rs.getInt(2));
+        Assert.assertEquals(0, rs.getInt("f1"));
+        Assert.assertEquals(0, rs.getLong(3));
+        Assert.assertEquals(0, rs.getLong("f2"));
+        Assert.assertEquals(0, rs.getFloat(4), 0.0);
+        Assert.assertEquals(0, rs.getFloat("f3"), 0.0);
+        Assert.assertEquals(0, rs.getDouble(5), 0.0);
+        Assert.assertEquals(0, rs.getDouble("f4"), 0.0);
+        Assert.assertEquals(0, rs.getShort(6));
+        Assert.assertEquals(0, rs.getShort("f5"));
+        Assert.assertEquals(0, rs.getByte(7));
+        Assert.assertEquals(0, rs.getByte("f6"));
+        Assert.assertFalse(rs.getBoolean(8));
+        Assert.assertFalse(rs.getBoolean("f7"));
+        Assert.assertNull(rs.getBytes(9));
+        Assert.assertNull(rs.getBytes("f8"));
+        Assert.assertNull(rs.getString(10));
+        Assert.assertNull(rs.getString("f9"));
+    }
+
+    @Test
+    public void setNullForInteger() throws SQLException {
+        // given
+        long ts = System.currentTimeMillis();
+
+        // when
+        pstmt_insert.setTimestamp(1, new Timestamp(ts));
         pstmt_insert.setNull(3, Types.BIGINT);
-        result = pstmt_insert.executeUpdate();
-        Assert.assertEquals(1, result);
+        int result = pstmt_insert.executeUpdate();
 
-        pstmt_insert.setTimestamp(1, new Timestamp(System.currentTimeMillis()));
+        // then
+        Assert.assertEquals(1, result);
+        try (Statement stmt = conn.createStatement()) {
+            ResultSet rs = stmt.executeQuery("select * from t1");
+            ResultSetMetaData meta = rs.getMetaData();
+            assertMetaData(meta);
+            assertAllNullExceptTimestamp(rs, ts);
+        }
+    }
+
+    @Test
+    public void setNullForFloat() throws SQLException {
+        // given
+        long ts = System.currentTimeMillis();
+
+        // when
+        pstmt_insert.setTimestamp(1, new Timestamp(ts));
         pstmt_insert.setNull(4, Types.FLOAT);
-        result = pstmt_insert.executeUpdate();
-        Assert.assertEquals(1, result);
+        int result = pstmt_insert.executeUpdate();
 
-        pstmt_insert.setTimestamp(1, new Timestamp(System.currentTimeMillis()));
+        // then
+        Assert.assertEquals(1, result);
+        try (Statement stmt = conn.createStatement()) {
+            ResultSet rs = stmt.executeQuery("select * from t1");
+            ResultSetMetaData meta = rs.getMetaData();
+            assertMetaData(meta);
+            assertAllNullExceptTimestamp(rs, ts);
+        }
+    }
+
+    @Test
+    public void setNullForDouble() throws SQLException {
+        // given
+        long ts = System.currentTimeMillis();
+
+        // when
+        pstmt_insert.setTimestamp(1, new Timestamp(ts));
         pstmt_insert.setNull(5, Types.DOUBLE);
-        result = pstmt_insert.executeUpdate();
-        Assert.assertEquals(1, result);
+        int result = pstmt_insert.executeUpdate();
 
-        pstmt_insert.setTimestamp(1, new Timestamp(System.currentTimeMillis()));
+        // then
+        Assert.assertEquals(1, result);
+        try (Statement stmt = conn.createStatement()) {
+            ResultSet rs = stmt.executeQuery("select * from t1");
+            ResultSetMetaData meta = rs.getMetaData();
+            assertMetaData(meta);
+            assertAllNullExceptTimestamp(rs, ts);
+        }
+    }
+
+    @Test
+    public void setNullForSmallInt() throws SQLException {
+        // given
+        long ts = System.currentTimeMillis();
+
+        // when
+        pstmt_insert.setTimestamp(1, new Timestamp(ts));
         pstmt_insert.setNull(6, Types.SMALLINT);
-        result = pstmt_insert.executeUpdate();
-        Assert.assertEquals(1, result);
+        int result = pstmt_insert.executeUpdate();
 
-        pstmt_insert.setTimestamp(1, new Timestamp(System.currentTimeMillis()));
+        // then
+        Assert.assertEquals(1, result);
+        try (Statement stmt = conn.createStatement()) {
+            ResultSet rs = stmt.executeQuery("select * from t1");
+            ResultSetMetaData meta = rs.getMetaData();
+            assertMetaData(meta);
+            assertAllNullExceptTimestamp(rs, ts);
+        }
+    }
+
+    @Test
+    public void setNullForTinyInt() throws SQLException {
+        // given
+        long ts = System.currentTimeMillis();
+
+        // when
+        pstmt_insert.setTimestamp(1, new Timestamp(ts));
         pstmt_insert.setNull(7, Types.TINYINT);
-        result = pstmt_insert.executeUpdate();
-        Assert.assertEquals(1, result);
+        int result = pstmt_insert.executeUpdate();
 
-        pstmt_insert.setTimestamp(1, new Timestamp(System.currentTimeMillis()));
+        // then
+        Assert.assertEquals(1, result);
+        try (Statement stmt = conn.createStatement()) {
+            ResultSet rs = stmt.executeQuery("select * from t1");
+            ResultSetMetaData meta = rs.getMetaData();
+            assertMetaData(meta);
+            assertAllNullExceptTimestamp(rs, ts);
+        }
+    }
+
+    @Test
+    public void setNullForBoolean() throws SQLException {
+        // given
+        long ts = System.currentTimeMillis();
+
+        // when
+        pstmt_insert.setTimestamp(1, new Timestamp(ts));
         pstmt_insert.setNull(8, Types.BOOLEAN);
-        result = pstmt_insert.executeUpdate();
-        Assert.assertEquals(1, result);
+        int result = pstmt_insert.executeUpdate();
 
-        pstmt_insert.setTimestamp(1, new Timestamp(System.currentTimeMillis()));
+        // then
+        Assert.assertEquals(1, result);
+        try (Statement stmt = conn.createStatement()) {
+            ResultSet rs = stmt.executeQuery("select * from t1");
+            ResultSetMetaData meta = rs.getMetaData();
+            assertMetaData(meta);
+            assertAllNullExceptTimestamp(rs, ts);
+        }
+    }
+
+    @Test
+    public void setNullForBinary() throws SQLException {
+        // given
+        long ts = System.currentTimeMillis();
+
+        // when
+        pstmt_insert.setTimestamp(1, new Timestamp(ts));
         pstmt_insert.setNull(9, Types.BINARY);
-        result = pstmt_insert.executeUpdate();
-        Assert.assertEquals(1, result);
+        int result = pstmt_insert.executeUpdate();
 
-        pstmt_insert.setTimestamp(1, new Timestamp(System.currentTimeMillis()));
+        // then
+        Assert.assertEquals(1, result);
+        try (Statement stmt = conn.createStatement()) {
+            ResultSet rs = stmt.executeQuery("select * from t1");
+            ResultSetMetaData meta = rs.getMetaData();
+            assertMetaData(meta);
+            assertAllNullExceptTimestamp(rs, ts);
+        }
+    }
+
+    @Test
+    public void setNullForNchar() throws SQLException {
+        // given
+        long ts = System.currentTimeMillis();
+
+        // when
+        pstmt_insert.setTimestamp(1, new Timestamp(ts));
         pstmt_insert.setNull(10, Types.NCHAR);
-        result = pstmt_insert.executeUpdate();
+        int result = pstmt_insert.executeUpdate();
+
+        // then
         Assert.assertEquals(1, result);
-
-        pstmt_insert.setTimestamp(1, new Timestamp(System.currentTimeMillis()));
-        pstmt_insert.setNull(10, Types.OTHER);
-        result = pstmt_insert.executeUpdate();
-        Assert.assertEquals(1, result);
-    }
-
-    @Test
-    public void executeTest() throws SQLException {
-        Statement stmt = conn.createStatement();
-
-        int numOfRows = 1000;
-
-        for (int loop = 0; loop < 10; loop++) {
-            stmt.execute("drop table if exists weather_test");
-            stmt.execute("create table weather_test(ts timestamp, f1 nchar(4), f2 float, f3 double, f4 timestamp, f5 int, f6 bool, f7 binary(10))");
-
-            TSDBPreparedStatement s = (TSDBPreparedStatement) conn.prepareStatement("insert into ? values(?, ?, ?, ?, ?, ?, ?, ?)");
-            Random r = new Random();
-            s.setTableName("weather_test");
-
-            ArrayList<Long> ts = new ArrayList<Long>();
-            for (int i = 0; i < numOfRows; i++) {
-                ts.add(System.currentTimeMillis() + i);
-            }
-            s.setTimestamp(0, ts);
-
-            int random = 10 + r.nextInt(5);
-            ArrayList<String> s2 = new ArrayList<String>();
-            for (int i = 0; i < numOfRows; i++) {
-                if (i % random == 0) {
-                    s2.add(null);
-                } else {
-                    s2.add("分支" + i % 4);
-                }
-            }
-            s.setNString(1, s2, 4);
-
-            random = 10 + r.nextInt(5);
-            ArrayList<Float> s3 = new ArrayList<Float>();
-            for (int i = 0; i < numOfRows; i++) {
-                if (i % random == 0) {
-                    s3.add(null);
-                } else {
-                    s3.add(r.nextFloat());
-                }
-            }
-            s.setFloat(2, s3);
-
-            random = 10 + r.nextInt(5);
-            ArrayList<Double> s4 = new ArrayList<Double>();
-            for (int i = 0; i < numOfRows; i++) {
-                if (i % random == 0) {
-                    s4.add(null);
-                } else {
-                    s4.add(r.nextDouble());
-                }
-            }
-            s.setDouble(3, s4);
-
-            random = 10 + r.nextInt(5);
-            ArrayList<Long> ts2 = new ArrayList<Long>();
-            for (int i = 0; i < numOfRows; i++) {
-                if (i % random == 0) {
-                    ts2.add(null);
-                } else {
-                    ts2.add(System.currentTimeMillis() + i);
-                }
-            }
-            s.setTimestamp(4, ts2);
-
-            random = 10 + r.nextInt(5);
-            ArrayList<Integer> vals = new ArrayList<>();
-            for (int i = 0; i < numOfRows; i++) {
-                if (i % random == 0) {
-                    vals.add(null);
-                } else {
-                    vals.add(r.nextInt());
-                }
-            }
-            s.setInt(5, vals);
-
-            random = 10 + r.nextInt(5);
-            ArrayList<Boolean> sb = new ArrayList<>();
-            for (int i = 0; i < numOfRows; i++) {
-                if (i % random == 0) {
-                    sb.add(null);
-                } else {
-                    sb.add(i % 2 == 0 ? true : false);
-                }
-            }
-            s.setBoolean(6, sb);
-
-            random = 10 + r.nextInt(5);
-            ArrayList<String> s5 = new ArrayList<String>();
-            for (int i = 0; i < numOfRows; i++) {
-                if (i % random == 0) {
-                    s5.add(null);
-                } else {
-                    s5.add("test" + i % 10);
-                }
-            }
-            s.setString(7, s5, 10);
-
-            s.columnDataAddBatch();
-            s.columnDataExecuteBatch();
-            s.columnDataCloseBatch();
-
-            String sql = "select * from weather_test";
-            PreparedStatement statement = conn.prepareStatement(sql);
-            ResultSet rs = statement.executeQuery();
-            int rows = 0;
-            while (rs.next()) {
-                rows++;
-            }
-            Assert.assertEquals(numOfRows, rows);
+        try (Statement stmt = conn.createStatement()) {
+            ResultSet rs = stmt.executeQuery("select * from t1");
+            ResultSetMetaData meta = rs.getMetaData();
+            assertMetaData(meta);
+            assertAllNullExceptTimestamp(rs, ts);
         }
     }
-
-    @Test
-    public void bindDataSelectColumnTest() throws SQLException {
-        Statement stmt = conn.createStatement();
-
-        int numOfRows = 1000;
-
-        for (int loop = 0; loop < 10; loop++) {
-            stmt.execute("drop table if exists weather_test");
-            stmt.execute("create table weather_test(ts timestamp, f1 nchar(4), f2 float, f3 double, f4 timestamp, f5 int, f6 bool, f7 binary(10))");
-
-            TSDBPreparedStatement s = (TSDBPreparedStatement) conn.prepareStatement("insert into ? (ts, f1, f7) values(?, ?, ?)");
-            Random r = new Random();
-            s.setTableName("weather_test");
-
-            ArrayList<Long> ts = new ArrayList<Long>();
-            for (int i = 0; i < numOfRows; i++) {
-                ts.add(System.currentTimeMillis() + i);
-            }
-            s.setTimestamp(0, ts);
-
-            int random = 10 + r.nextInt(5);
-            ArrayList<String> s2 = new ArrayList<String>();
-            for (int i = 0; i < numOfRows; i++) {
-                if (i % random == 0) {
-                    s2.add(null);
-                } else {
-                    s2.add("分支" + i % 4);
-                }
-            }
-            s.setNString(1, s2, 4);
-
-            random = 10 + r.nextInt(5);
-            ArrayList<String> s5 = new ArrayList<String>();
-            for (int i = 0; i < numOfRows; i++) {
-                if (i % random == 0) {
-                    s5.add(null);
-                } else {
-                    s5.add("test" + i % 10);
-                }
-            }
-            s.setString(2, s5, 10);
-
-            s.columnDataAddBatch();
-            s.columnDataExecuteBatch();
-            s.columnDataCloseBatch();
-
-            String sql = "select * from weather_test";
-            PreparedStatement statement = conn.prepareStatement(sql);
-            ResultSet rs = statement.executeQuery();
-            int rows = 0;
-            while (rs.next()) {
-                rows++;
-            }
-            Assert.assertEquals(numOfRows, rows);
-        }
-    }
-
 
     @Test
     public void setBoolean() throws SQLException {
-        pstmt_insert.setTimestamp(1, new Timestamp(System.currentTimeMillis()));
+        // given
+        long ts = System.currentTimeMillis();
+
+        // when
+        pstmt_insert.setTimestamp(1, new Timestamp(ts));
         pstmt_insert.setBoolean(8, true);
-        int ret = pstmt_insert.executeUpdate();
-        Assert.assertEquals(1, ret);
+        int result = pstmt_insert.executeUpdate();
+
+        // then
+        Assert.assertEquals(1, result);
+        try (Statement stmt = conn.createStatement()) {
+            ResultSet rs = stmt.executeQuery("select * from t1");
+            ResultSetMetaData meta = rs.getMetaData();
+            assertMetaData(meta);
+            {
+                Assert.assertNotNull(rs);
+                Assert.assertEquals(ts, rs.getTimestamp(1).getTime());
+                Assert.assertEquals(ts, rs.getTimestamp("ts").getTime());
+                Assert.assertTrue(rs.getBoolean(8));
+                Assert.assertTrue(rs.getBoolean("f7"));
+            }
+        }
     }
 
     @Test
     public void setByte() throws SQLException {
-        pstmt_insert.setTimestamp(1, new Timestamp(System.currentTimeMillis()));
+        // given
+        long ts = System.currentTimeMillis();
+
+        // when
+        pstmt_insert.setTimestamp(1, new Timestamp(ts));
         pstmt_insert.setByte(7, (byte) 0x001);
-        int ret = pstmt_insert.executeUpdate();
-        Assert.assertEquals(1, ret);
+        int result = pstmt_insert.executeUpdate();
+
+        // then
+        Assert.assertEquals(1, result);
+        try (Statement stmt = conn.createStatement()) {
+            ResultSet rs = stmt.executeQuery("select * from t1");
+            ResultSetMetaData meta = rs.getMetaData();
+            assertMetaData(meta);
+            {
+                Assert.assertNotNull(rs);
+                Assert.assertEquals(ts, rs.getTimestamp(1).getTime());
+                Assert.assertEquals(ts, rs.getTimestamp("ts").getTime());
+                Assert.assertEquals((byte) 0x001, rs.getByte(7));
+                Assert.assertEquals((byte) 0x001, rs.getByte("f6"));
+            }
+        }
     }
 
     @Test
     public void setShort() throws SQLException {
-        pstmt_insert.setTimestamp(1, new Timestamp(System.currentTimeMillis()));
+        // given
+        long ts = System.currentTimeMillis();
+
+        // when
+        pstmt_insert.setTimestamp(1, new Timestamp(ts));
         pstmt_insert.setShort(6, (short) 2);
-        int ret = pstmt_insert.executeUpdate();
-        Assert.assertEquals(1, ret);
+        int result = pstmt_insert.executeUpdate();
+
+        // then
+        Assert.assertEquals(1, result);
+        try (Statement stmt = conn.createStatement()) {
+            ResultSet rs = stmt.executeQuery("select * from t1");
+            ResultSetMetaData meta = rs.getMetaData();
+            assertMetaData(meta);
+            {
+                Assert.assertNotNull(rs);
+                Assert.assertEquals(ts, rs.getTimestamp(1).getTime());
+                Assert.assertEquals(ts, rs.getTimestamp("ts").getTime());
+                Assert.assertEquals((short) 2, rs.getByte(6));
+                Assert.assertEquals((short) 2, rs.getByte("f5"));
+            }
+        }
     }
 
     @Test
     public void setInt() throws SQLException {
-        pstmt_insert.setTimestamp(1, new Timestamp(System.currentTimeMillis()));
+        // given
+        long ts = System.currentTimeMillis();
+
+        // when
+        pstmt_insert.setTimestamp(1, new Timestamp(ts));
         pstmt_insert.setInt(2, 10086);
-        int ret = pstmt_insert.executeUpdate();
-        Assert.assertEquals(1, ret);
+        int result = pstmt_insert.executeUpdate();
+
+        // then
+        Assert.assertEquals(1, result);
+        try (Statement stmt = conn.createStatement()) {
+            ResultSet rs = stmt.executeQuery("select * from t1");
+            ResultSetMetaData meta = rs.getMetaData();
+            assertMetaData(meta);
+            {
+                Assert.assertNotNull(rs);
+                Assert.assertEquals(ts, rs.getTimestamp(1).getTime());
+                Assert.assertEquals(ts, rs.getTimestamp("ts").getTime());
+                Assert.assertEquals(10086, rs.getInt(2));
+                Assert.assertEquals(10086, rs.getInt("f1"));
+            }
+        }
     }
 
     @Test
     public void setLong() throws SQLException {
-        pstmt_insert.setTimestamp(1, new Timestamp(System.currentTimeMillis()));
+        // given
+        long ts = System.currentTimeMillis();
+
+        // when
+        pstmt_insert.setTimestamp(1, new Timestamp(ts));
         pstmt_insert.setLong(3, Long.MAX_VALUE);
-        int ret = pstmt_insert.executeUpdate();
-        Assert.assertEquals(1, ret);
+        int result = pstmt_insert.executeUpdate();
+
+        // then
+        Assert.assertEquals(1, result);
+        try (Statement stmt = conn.createStatement()) {
+            ResultSet rs = stmt.executeQuery("select * from t1");
+            ResultSetMetaData meta = rs.getMetaData();
+            assertMetaData(meta);
+            {
+                Assert.assertNotNull(rs);
+                Assert.assertEquals(ts, rs.getTimestamp(1).getTime());
+                Assert.assertEquals(ts, rs.getTimestamp("ts").getTime());
+                Assert.assertEquals(Long.MAX_VALUE, rs.getLong(3));
+                Assert.assertEquals(Long.MAX_VALUE, rs.getLong("f2"));
+            }
+        }
     }
 
     @Test
     public void setFloat() throws SQLException {
-        pstmt_insert.setTimestamp(1, new Timestamp(System.currentTimeMillis()));
+        // given
+        long ts = System.currentTimeMillis();
+
+        // when
+        pstmt_insert.setTimestamp(1, new Timestamp(ts));
         pstmt_insert.setFloat(4, 3.14f);
-        int ret = pstmt_insert.executeUpdate();
-        Assert.assertEquals(1, ret);
+        int result = pstmt_insert.executeUpdate();
+
+        // then
+        Assert.assertEquals(1, result);
+        try (Statement stmt = conn.createStatement()) {
+            ResultSet rs = stmt.executeQuery("select * from t1");
+            ResultSetMetaData meta = rs.getMetaData();
+            assertMetaData(meta);
+            {
+                Assert.assertNotNull(rs);
+                Assert.assertEquals(ts, rs.getTimestamp(1).getTime());
+                Assert.assertEquals(ts, rs.getTimestamp("ts").getTime());
+                Assert.assertEquals(3.14f, rs.getFloat(4), 0.0f);
+                Assert.assertEquals(3.14f, rs.getFloat("f3"), 0.0f);
+            }
+        }
     }
 
     @Test
     public void setDouble() throws SQLException {
-        pstmt_insert.setTimestamp(1, new Timestamp(System.currentTimeMillis()));
+        // given
+        long ts = System.currentTimeMillis();
+
+        // when
+        pstmt_insert.setTimestamp(1, new Timestamp(ts));
         pstmt_insert.setDouble(5, 3.14444);
-        int ret = pstmt_insert.executeUpdate();
-        Assert.assertEquals(1, ret);
+        int result = pstmt_insert.executeUpdate();
+
+        // then
+        Assert.assertEquals(1, result);
+        try (Statement stmt = conn.createStatement()) {
+            ResultSet rs = stmt.executeQuery("select * from t1");
+            ResultSetMetaData meta = rs.getMetaData();
+            assertMetaData(meta);
+            {
+                Assert.assertNotNull(rs);
+                Assert.assertEquals(ts, rs.getTimestamp(1).getTime());
+                Assert.assertEquals(ts, rs.getTimestamp("ts").getTime());
+                Assert.assertEquals(3.14444, rs.getDouble(5), 0.0);
+                Assert.assertEquals(3.14444, rs.getDouble("f4"), 0.0);
+            }
+        }
     }
 
-    @Test(expected = SQLFeatureNotSupportedException.class)
+    @Test
     public void setBigDecimal() throws SQLException {
-        pstmt_insert.setBigDecimal(1, null);
+        // given
+        long ts = System.currentTimeMillis();
+        BigDecimal bigDecimal = new BigDecimal(3.14444);
+
+        // when
+        pstmt_insert.setTimestamp(1, new Timestamp(ts));
+        pstmt_insert.setBigDecimal(5, bigDecimal);
+        int result = pstmt_insert.executeUpdate();
+
+        // then
+        Assert.assertEquals(1, result);
+        try (Statement stmt = conn.createStatement()) {
+            ResultSet rs = stmt.executeQuery("select * from t1");
+            ResultSetMetaData meta = rs.getMetaData();
+            assertMetaData(meta);
+            {
+                Assert.assertNotNull(rs);
+                Assert.assertEquals(ts, rs.getTimestamp(1).getTime());
+                Assert.assertEquals(ts, rs.getTimestamp("ts").getTime());
+                Assert.assertEquals(3.14444, rs.getDouble(5), 0.0);
+                Assert.assertEquals(3.14444, rs.getDouble("f4"), 0.0);
+            }
+        }
     }
 
     @Test
     public void setString() throws SQLException {
-        pstmt_insert.setTimestamp(1, new Timestamp(System.currentTimeMillis()));
-        pstmt_insert.setString(10, "aaaa");
-        boolean execute = pstmt_insert.execute();
-        Assert.assertFalse(execute);
+        // given
+        long ts = System.currentTimeMillis();
+        String f9 = "{\"name\": \"john\", \"age\": 10, \"address\": \"192.168.1.100\"}";
 
-        pstmt_insert.setTimestamp(1, new Timestamp(System.currentTimeMillis()));
-        pstmt_insert.setString(10, new Person("john", 33, true).toString());
-        Assert.assertFalse(pstmt_insert.execute());
+        // when
+        pstmt_insert.setTimestamp(1, new Timestamp(ts));
+        pstmt_insert.setString(10, f9);
+        int result = pstmt_insert.executeUpdate();
 
-        pstmt_insert.setTimestamp(1, new Timestamp(System.currentTimeMillis()));
-        pstmt_insert.setString(10, new Person("john", 33, true).toString().replaceAll("'", "\""));
-        Assert.assertFalse(pstmt_insert.execute());
-    }
-
-    class Person {
-        String name;
-        int age;
-        boolean sex;
-
-        public Person(String name, int age, boolean sex) {
-            this.name = name;
-            this.age = age;
-            this.sex = sex;
-        }
-
-        @Override
-        public String toString() {
-            return "Person{" +
-                    "name='" + name + '\'' +
-                    ", age=" + age +
-                    ", sex=" + sex +
-                    '}';
+        // then
+        Assert.assertEquals(1, result);
+        try (Statement stmt = conn.createStatement()) {
+            ResultSet rs = stmt.executeQuery("select * from t1");
+            ResultSetMetaData meta = rs.getMetaData();
+            assertMetaData(meta);
+            {
+                Assert.assertNotNull(rs);
+                Assert.assertEquals(ts, rs.getTimestamp(1).getTime());
+                Assert.assertEquals(ts, rs.getTimestamp("ts").getTime());
+                Assert.assertEquals(f9, rs.getString(10));
+                Assert.assertEquals(f9, rs.getString("f9"));
+            }
         }
     }
 
     @Test
     public void setBytes() throws SQLException, IOException {
+        // given
+        long ts = System.currentTimeMillis();
+        byte[] f8 = "{\"name\": \"john\", \"age\": 10, \"address\": \"192.168.1.100\"}".getBytes();
+
+        // when
         pstmt_insert.setTimestamp(1, new Timestamp(System.currentTimeMillis()));
+        pstmt_insert.setBytes(9, f8);
+        int result = pstmt_insert.executeUpdate();
 
-//        ByteArrayOutputStream baos = new ByteArrayOutputStream();
-//        ObjectOutputStream oos = new ObjectOutputStream(baos);
-//        oos.writeObject(new Person("john", 33, true));
-//        oos.flush();
-//        byte[] bytes = baos.toByteArray();
-//        pstmt_insert.setBytes(9, bytes);
-
-        pstmt_insert.setBytes(9, new Person("john", 33, true).toString().getBytes());
-        int ret = pstmt_insert.executeUpdate();
-        Assert.assertEquals(1, ret);
+        // then
+        Assert.assertEquals(1, result);
+        try (Statement stmt = conn.createStatement()) {
+            ResultSet rs = stmt.executeQuery("select * from t1");
+            ResultSetMetaData meta = rs.getMetaData();
+            assertMetaData(meta);
+            {
+                Assert.assertNotNull(rs);
+                Assert.assertEquals(ts, rs.getTimestamp(1).getTime());
+                Assert.assertEquals(ts, rs.getTimestamp("ts").getTime());
+                Assert.assertArrayEquals(f8, rs.getBytes(9));
+                Assert.assertArrayEquals(f8, rs.getBytes("f8"));
+            }
+        }
     }
 
-    @Test(expected = SQLFeatureNotSupportedException.class)
+    @Test
     public void setDate() throws SQLException {
-        pstmt_insert.setDate(1, new Date(System.currentTimeMillis()));
+        // given
+        long ts = new java.util.Date().getTime();
+
+        // when
+        pstmt_insert.setDate(1, new Date(ts));
+        int result = pstmt_insert.executeUpdate();
+
+        // then
+        Assert.assertEquals(1, result);
+        try (Statement stmt = conn.createStatement()) {
+            ResultSet rs = stmt.executeQuery("select * from t1");
+            ResultSetMetaData meta = rs.getMetaData();
+            assertMetaData(meta);
+            {
+                Assert.assertNotNull(rs);
+                Assert.assertEquals(ts, rs.getTimestamp(1).getTime());
+                Assert.assertEquals(ts, rs.getTimestamp("ts").getTime());
+            }
+        }
     }
 
-    @Test(expected = SQLFeatureNotSupportedException.class)
+    @Test
     public void setTime() throws SQLException {
-        pstmt_insert.setTime(1, new Time(System.currentTimeMillis()));
+        // given
+        long ts = System.currentTimeMillis();
+
+        // when
+        pstmt_insert.setTime(1, new Time(ts));
+        int result = pstmt_insert.executeUpdate();
+
+        // then
+        Assert.assertEquals(1, result);
+        try (Statement stmt = conn.createStatement()) {
+            ResultSet rs = stmt.executeQuery("select * from t1");
+            ResultSetMetaData meta = rs.getMetaData();
+            assertMetaData(meta);
+            {
+                Assert.assertNotNull(rs);
+                Assert.assertEquals(ts, rs.getTimestamp(1).getTime());
+                Assert.assertEquals(ts, rs.getTimestamp("ts").getTime());
+            }
+        }
     }
 
     @Test
     public void setTimestamp() throws SQLException {
-        pstmt_insert.setTimestamp(1, new Timestamp(System.currentTimeMillis()));
-        int ret = pstmt_insert.executeUpdate();
-        Assert.assertEquals(1, ret);
+        // given
+        long ts = System.currentTimeMillis();
+
+        // when
+        pstmt_insert.setTimestamp(1, new Timestamp(ts));
+        int result = pstmt_insert.executeUpdate();
+
+        // then
+        Assert.assertEquals(1, result);
+        try (Statement stmt = conn.createStatement()) {
+            ResultSet rs = stmt.executeQuery("select * from t1");
+            ResultSetMetaData meta = rs.getMetaData();
+            assertMetaData(meta);
+            {
+                Assert.assertNotNull(rs);
+                Assert.assertEquals(ts, rs.getTimestamp(1).getTime());
+                Assert.assertEquals(ts, rs.getTimestamp("ts").getTime());
+            }
+        }
     }
 
     @Test(expected = SQLFeatureNotSupportedException.class)
@@ -444,67 +631,6 @@ public class TSDBPreparedStatementTest {
     @Test
     public void clearParameters() throws SQLException {
         pstmt_insert.clearParameters();
-    }
-
-    @Test
-    public void setObject() throws SQLException {
-        pstmt_insert.setObject(1, new Timestamp(System.currentTimeMillis()));
-        int ret = pstmt_insert.executeUpdate();
-        Assert.assertEquals(1, ret);
-
-        pstmt_insert.setTimestamp(1, new Timestamp(System.currentTimeMillis()));
-        pstmt_insert.setObject(2, 111);
-        ret = pstmt_insert.executeUpdate();
-        Assert.assertEquals(1, ret);
-
-        pstmt_insert.setTimestamp(1, new Timestamp(System.currentTimeMillis()));
-        pstmt_insert.setObject(3, Long.MAX_VALUE);
-        ret = pstmt_insert.executeUpdate();
-        Assert.assertEquals(1, ret);
-
-        pstmt_insert.setTimestamp(1, new Timestamp(System.currentTimeMillis()));
-        pstmt_insert.setObject(4, 3.14159265354f);
-        ret = pstmt_insert.executeUpdate();
-        Assert.assertEquals(1, ret);
-
-        pstmt_insert.setTimestamp(1, new Timestamp(System.currentTimeMillis()));
-        pstmt_insert.setObject(5, Double.MAX_VALUE);
-        ret = pstmt_insert.executeUpdate();
-        Assert.assertEquals(1, ret);
-
-        pstmt_insert.setTimestamp(1, new Timestamp(System.currentTimeMillis()));
-        pstmt_insert.setObject(6, Short.MAX_VALUE);
-        ret = pstmt_insert.executeUpdate();
-        Assert.assertEquals(1, ret);
-
-        pstmt_insert.setTimestamp(1, new Timestamp(System.currentTimeMillis()));
-        pstmt_insert.setObject(7, Byte.MAX_VALUE);
-        ret = pstmt_insert.executeUpdate();
-        Assert.assertEquals(1, ret);
-
-        pstmt_insert.setTimestamp(1, new Timestamp(System.currentTimeMillis()));
-        pstmt_insert.setObject(8, true);
-        ret = pstmt_insert.executeUpdate();
-        Assert.assertEquals(1, ret);
-
-        pstmt_insert.setTimestamp(1, new Timestamp(System.currentTimeMillis()));
-        pstmt_insert.setObject(9, "hello".getBytes());
-        ret = pstmt_insert.executeUpdate();
-        Assert.assertEquals(1, ret);
-
-        pstmt_insert.setTimestamp(1, new Timestamp(System.currentTimeMillis()));
-        pstmt_insert.setObject(10, "Hello");
-        ret = pstmt_insert.executeUpdate();
-        Assert.assertEquals(1, ret);
-    }
-
-    @Test
-    public void execute() throws SQLException {
-        pstmt_insert.setTimestamp(1, new Timestamp(System.currentTimeMillis()));
-        int ret = pstmt_insert.executeUpdate();
-        Assert.assertEquals(1, ret);
-
-        executeQuery();
     }
 
     @Test(expected = SQLFeatureNotSupportedException.class)
@@ -532,9 +658,29 @@ public class TSDBPreparedStatementTest {
         pstmt_insert.setArray(1, null);
     }
 
-    @Test(expected = SQLFeatureNotSupportedException.class)
+    @Test
     public void getMetaData() throws SQLException {
-        pstmt_insert.getMetaData();
+        // given
+        long ts = System.currentTimeMillis();
+
+        // when
+        pstmt_insert.setTimestamp(1, new Timestamp(ts));
+        ResultSetMetaData metaData = pstmt_insert.getMetaData();
+
+        // then
+        Assert.assertNull(metaData);
+
+        // when
+        int result = pstmt_insert.executeUpdate();
+
+        // then
+        Assert.assertEquals(1, result);
+        metaData = pstmt_insert.getMetaData();
+        Assert.assertNotNull(metaData);
+        for (int i = 1; i <= metaData.getColumnCount(); i++) {
+            System.out.println("column[" + i + "]: " + metaData.getColumnLabel(i));
+        }
+
     }
 
     @Test(expected = SQLFeatureNotSupportedException.class)
@@ -544,9 +690,46 @@ public class TSDBPreparedStatementTest {
 
     @Test
     public void getParameterMetaData() throws SQLException {
+        // given
+        long ts = System.currentTimeMillis();
+        pstmt_insert.setTimestamp(1, new Timestamp(ts));
+        pstmt_insert.setInt(2, 2);
+        pstmt_insert.setLong(3, 3l);
+        pstmt_insert.setFloat(4, 3.14f);
+        pstmt_insert.setDouble(5, 3.1415);
+        pstmt_insert.setShort(6, (short) 6);
+        pstmt_insert.setByte(7, (byte) 7);
+        pstmt_insert.setBoolean(8, true);
+        pstmt_insert.setBytes(9, "abc".getBytes());
+        pstmt_insert.setString(10, "涛思数据");
+
+        // when
         ParameterMetaData parameterMetaData = pstmt_insert.getParameterMetaData();
+
+        // then
         Assert.assertNotNull(parameterMetaData);
-        //TODO: modify the test case
+        Assert.assertEquals(10, parameterMetaData.getParameterCount());
+        Assert.assertEquals(Types.TIMESTAMP, parameterMetaData.getParameterType(1));
+        Assert.assertEquals(Types.INTEGER, parameterMetaData.getParameterType(2));
+        Assert.assertEquals(Types.BIGINT, parameterMetaData.getParameterType(3));
+        Assert.assertEquals(Types.FLOAT, parameterMetaData.getParameterType(4));
+        Assert.assertEquals(Types.DOUBLE, parameterMetaData.getParameterType(5));
+        Assert.assertEquals(Types.SMALLINT, parameterMetaData.getParameterType(6));
+        Assert.assertEquals(Types.TINYINT, parameterMetaData.getParameterType(7));
+        Assert.assertEquals(Types.BOOLEAN, parameterMetaData.getParameterType(8));
+        Assert.assertEquals(Types.BINARY, parameterMetaData.getParameterType(9));
+        Assert.assertEquals(Types.NCHAR, parameterMetaData.getParameterType(10));
+
+        Assert.assertEquals("TIMESTAMP", parameterMetaData.getParameterTypeName(1));
+        Assert.assertEquals("INT", parameterMetaData.getParameterTypeName(2));
+        Assert.assertEquals("BIGINT", parameterMetaData.getParameterTypeName(3));
+        Assert.assertEquals("FLOAT", parameterMetaData.getParameterTypeName(4));
+        Assert.assertEquals("DOUBLE", parameterMetaData.getParameterTypeName(5));
+        Assert.assertEquals("SMALLINT", parameterMetaData.getParameterTypeName(6));
+        Assert.assertEquals("TINYINT", parameterMetaData.getParameterTypeName(7));
+        Assert.assertEquals("BOOLEAN", parameterMetaData.getParameterTypeName(8));
+        Assert.assertEquals("BINARY", parameterMetaData.getParameterTypeName(9));
+        Assert.assertEquals("NCHAR", parameterMetaData.getParameterTypeName(10));
     }
 
     @Test(expected = SQLFeatureNotSupportedException.class)
@@ -554,9 +737,9 @@ public class TSDBPreparedStatementTest {
         pstmt_insert.setRowId(1, null);
     }
 
-    @Test(expected = SQLFeatureNotSupportedException.class)
+    @Test
     public void setNString() throws SQLException {
-        pstmt_insert.setNString(1, null);
+        setString();
     }
 
     @Test(expected = SQLFeatureNotSupportedException.class)
@@ -572,20 +755,6 @@ public class TSDBPreparedStatementTest {
     @Test(expected = SQLFeatureNotSupportedException.class)
     public void setSQLXML() throws SQLException {
         pstmt_insert.setSQLXML(1, null);
-    }
-
-    private void assertResultSetMetaData(ResultSetMetaData meta) throws SQLException {
-        Assert.assertEquals(10, meta.getColumnCount());
-        Assert.assertEquals("ts", meta.getColumnLabel(1));
-        Assert.assertEquals("f1", meta.getColumnLabel(2));
-        Assert.assertEquals("f2", meta.getColumnLabel(3));
-        Assert.assertEquals("f3", meta.getColumnLabel(4));
-        Assert.assertEquals("f4", meta.getColumnLabel(5));
-        Assert.assertEquals("f5", meta.getColumnLabel(6));
-        Assert.assertEquals("f6", meta.getColumnLabel(7));
-        Assert.assertEquals("f7", meta.getColumnLabel(8));
-        Assert.assertEquals("f8", meta.getColumnLabel(9));
-        Assert.assertEquals("f9", meta.getColumnLabel(10));
     }
 
     @Before
