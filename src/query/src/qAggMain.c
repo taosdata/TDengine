@@ -4834,6 +4834,19 @@ void generateBlockDistResult(STableBlockDist *pTableBlockDist, char* result) {
   min = totalBlocks > 0 ? pTableBlockDist->minRows : 0;
   max = totalBlocks > 0 ? pTableBlockDist->maxRows : 0;
 
+  double stdDev = 0;
+  if (totalBlocks > 0) {
+    double variance = 0;
+    for (int32_t i = 0; i < numSteps; i++) {
+      SFileBlockInfo *blockInfo = taosArrayGet(blockInfos, i);
+      int64_t         blocks = blockInfo->numBlocksOfStep;
+      int32_t         rows = (i * TSDB_BLOCK_DIST_STEP_ROWS + TSDB_BLOCK_DIST_STEP_ROWS / 2);
+      variance += blocks * (rows - avg) * (rows - avg);
+    }
+    variance = variance / totalBlocks;
+    stdDev = sqrt(variance);
+  }
+
   double percents[] = {0.05, 0.10, 0.20, 0.30, 0.40, 0.50, 0.60, 0.70, 0.80, 0.90, 0.95, 0.99};
   int32_t percentiles[] = {-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1};
   assert(sizeof(percents)/sizeof(double) == sizeof(percentiles)/sizeof(int32_t));
@@ -4848,12 +4861,12 @@ void generateBlockDistResult(STableBlockDist *pTableBlockDist, char* result) {
                    "60th=[%d], 70th=[%d], 80th=[%d], 90th=[%d], 95th=[%d], 99th=[%d]\n\t "
                    "Min=[%"PRId64"(Rows)] Max=[%"PRId64"(Rows)] Avg=[%"PRId64"(Rows)] Stddev=[%.2f] \n\t "
                    "Rows=[%"PRIu64"], Blocks=[%"PRId64"], Size=[%.3f(Kb)] Comp=[%.2f]\n\t "
-                   "RowsInMem=[%d] \n\t SeekHeaderTime=[%d(us)]",
+                   "RowsInMem=[%d] \n\t",
                    percentiles[0], percentiles[1], percentiles[2], percentiles[3], percentiles[4], percentiles[5],
                    percentiles[6], percentiles[7], percentiles[8], percentiles[9], percentiles[10], percentiles[11],
-                   min, max, avg, 0.0,
+                   min, max, avg, stdDev,
                    totalRows, totalBlocks, totalLen/1024.0, compRatio,
-                   pTableBlockDist->numOfRowsInMemTable, pTableBlockDist->firstSeekTimeUs);
+                   pTableBlockDist->numOfRowsInMemTable);
   varDataSetLen(result, sz);
   UNUSED(sz);
 }
