@@ -295,22 +295,17 @@ int tscBuildQueryStreamDesc(void *pMsg, STscObj *pObj) {
 }
 
 void tscKillConnection(STscObj *pObj) {
+  // get stream header by locked
   pthread_mutex_lock(&pObj->mutex);
-
-  SSqlObj *pSql = pObj->sqlList;
-  while (pSql) {
-    pSql = pSql->next;
-  }
-  
-
   SSqlStream *pStream = pObj->streamList;
+  pthread_mutex_unlock(&pObj->mutex);
+
   while (pStream) {
     SSqlStream *tmp = pStream->next;
+    // taos_close_stream function call pObj->mutet lock , careful death-lock
     taos_close_stream(pStream);
     pStream = tmp;
   }
-
-  pthread_mutex_unlock(&pObj->mutex);
 
   tscDebug("connection:%p is killed", pObj);
   taos_close(pObj);

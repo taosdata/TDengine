@@ -141,6 +141,10 @@ static void tscProcessStreamTimer(void *handle, void *tmrId) {
 
   pStream->numOfRes = 0;  // reset the numOfRes.
   SSqlObj *pSql = pStream->pSql;
+  // pSql ==  NULL  maybe killStream already called
+  if(pSql == NULL) {
+    return ;
+  }
   SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(&pSql->cmd, 0);
   tscDebug("0x%"PRIx64" add into timer", pSql->self);
 
