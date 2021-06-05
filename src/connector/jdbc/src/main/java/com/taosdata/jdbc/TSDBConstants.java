@@ -57,6 +57,20 @@ public abstract class TSDBConstants {
     // nchar column max length
     public static final int maxFieldSize = 16 * 1024;
 
+    // precision for data types
+    public static final int BOOLEAN_PRECISION = 1;
+    public static final int TINYINT_PRECISION = 4;
+    public static final int SMALLINT_PRECISION = 6;
+    public static final int INT_PRECISION = 11;
+    public static final int BIGINT_PRECISION = 20;
+    public static final int FLOAT_PRECISION = 12;
+    public static final int DOUBLE_PRECISION = 22;
+    public static final int TIMESTAMP_MS_PRECISION = 23;
+    public static final int TIMESTAMP_US_PRECISION = 26;
+    // scale for data types
+    public static final int FLOAT_SCALE = 31;
+    public static final int DOUBLE_SCALE = 31;
+
     public static int typeName2JdbcType(String type) {
         switch (type.toUpperCase()) {
             case "TIMESTAMP":

@@ -659,8 +659,8 @@ public class TSDBPreparedStatement extends TSDBStatement implements PreparedStat
     public <T> void setValueImpl(int columnIndex, ArrayList<T> list, int type, int bytes) throws SQLException {
         if (this.colData.size() == 0) {
             this.colData.addAll(Collections.nCopies(this.parameters.length - 1 - this.tableTags.size(), null));
-
         }
+
         ColumnInfo col = (ColumnInfo) this.colData.get(columnIndex);
         if (col == null) {
             ColumnInfo p = new ColumnInfo();

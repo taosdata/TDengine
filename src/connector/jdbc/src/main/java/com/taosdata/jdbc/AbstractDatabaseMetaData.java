@@ -696,19 +696,21 @@ public abstract class AbstractDatabaseMetaData extends WrapperImpl implements Da
     private Integer calculateColumnSize(String typeName, String precisionType, int length) {
         switch (typeName) {
             case "TIMESTAMP":
-                return precisionType.equals("ms") ? 23 : 26;
+                return precisionType.equals("ms") ? TSDBConstants.TIMESTAMP_MS_PRECISION : TSDBConstants.TIMESTAMP_US_PRECISION;
+            case "BOOL":
+                return TSDBConstants.BOOLEAN_PRECISION;
             case "TINYINT":
-                return 3;
+                return TSDBConstants.TINYINT_PRECISION;
             case "SMALLINT":
-                return 5;
+                return TSDBConstants.SMALLINT_PRECISION;
             case "INT":
-                return 10;
+                return TSDBConstants.INT_PRECISION;
             case "BIGINT":
-                return 19;
+                return TSDBConstants.BIGINT_PRECISION;
             case "FLOAT":
-                return 12;
+                return TSDBConstants.FLOAT_PRECISION;
             case "DOUBLE":
-                return 22;
+                return TSDBConstants.DOUBLE_PRECISION;
             case "NCHAR":
             case "BINARY":
                 return length;
