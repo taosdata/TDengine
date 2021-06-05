@@ -9,7 +9,7 @@ sql connect
 
 print ======================== dnode1 start
 
-$dbPrefix = nest_query
+$dbPrefix = nest_db
 $tbPrefix = nest_tb
 $mtPrefix = nest_mt
 $tbNum = 10
@@ -17,7 +17,6 @@ $rowNum = 10000
 $totalNum = $tbNum * $rowNum
 
 print =============== nestquery.sim
-
 $i = 0
 $db = $dbPrefix . $i
 $mt = $mtPrefix . $i
@@ -125,6 +124,27 @@ if $rows != 2 then
   return -1
 endi
 
+sql select * from (select count(*) a, tbname f1 from nest_mt0 group by tbname) t where t.a<0 and f1 = 'nest_tb0';
+if $rows != 0 then
+  return -1
+endi
+
+sql select * from (select count(*) a, tbname f1 from nest_mt0 group by tbname) t where t.a>0 and f1 = 'nest_tb0';
+if $rows != 1 then
+  return -1
+endi
+
+if $data00 != 10000 then
+  return -1
+endi
+
+if $data01 != @nest_tb0@ then
+  return -1
+endi
+
+if $data02 != @nest_tb0@ then
+  return -1
+endi
 
 print ===================> nest query interval
 

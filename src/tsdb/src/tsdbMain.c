@@ -270,8 +270,8 @@ int32_t tsdbConfigRepo(STsdbRepo *repo, STsdbCfg *pCfg) {
 
   pthread_mutex_unlock(&repo->save_mutex);
 
-  // schedule a commit msg then the new config will be applied immediatly
-  tsdbAsyncCommit(repo);
+  // schedule a commit msg and wait for the new config applied
+  tsdbSyncCommitConfig(repo);
 
   return 0;
 #if 0
@@ -553,7 +553,6 @@ static STsdbRepo *tsdbNewRepo(STsdbCfg *pCfg, STsdbAppH *pAppH) {
     return NULL;
   }
   pRepo->config_changed = false;
-  atomic_store_8(&pRepo->hasCachedLastRow, 0);
   atomic_store_8(&pRepo->hasCachedLastColumn, 0);
 
   code = tsem_init(&(pRepo->readyToCommit), 0, 1);
@@ -857,9 +856,7 @@ int tsdbRestoreInfo(STsdbRepo *pRepo) {
   }
 
   tsdbDestroyReadH(&readh);
-  if (CACHE_LAST_ROW(pCfg)) {
-    atomic_store_8(&pRepo->hasCachedLastRow, 1);
-  }
+
   if (CACHE_LAST_NULL_COLUMN(pCfg)) {
     atomic_store_8(&pRepo->hasCachedLastColumn, 1);
   }
@@ -900,20 +897,16 @@ int tsdbCacheLastData(STsdbRepo *pRepo, STsdbCfg* oldCfg) {
 
   // if close last option,need to free data
   if (need_free_last_row || need_free_last_col) {
-    if (need_free_last_row) {
-      atomic_store_8(&pRepo->hasCachedLastRow, 0);
-    }
     if (need_free_last_col) {
       atomic_store_8(&pRepo->hasCachedLastColumn, 0);
     }
     tsdbInfo("free cache last data since cacheLast option changed");    
-    for (int i = 1; i < maxTableIdx; i++) {
+    for (int i = 1; i <= maxTableIdx; i++) {
       STable *pTable = pMeta->tables[i];
       if (pTable == NULL) continue;   
       if (need_free_last_row) {
         taosTZfree(pTable->lastRow);
         pTable->lastRow = NULL;
-        pTable->lastKey = TSKEY_INITIAL_VAL;
       }
       if (need_free_last_col) {
         tsdbFreeLastColumns(pTable);
@@ -983,9 +976,6 @@ int tsdbCacheLastData(STsdbRepo *pRepo, STsdbCfg* oldCfg) {
 
   tsdbDestroyReadH(&readh);
 
-  if (cacheLastRow) {
-    atomic_store_8(&pRepo->hasCachedLastRow, 1);
-  }
   if (cacheLastCol) {
     atomic_store_8(&pRepo->hasCachedLastColumn, 1);
   }

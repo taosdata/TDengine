@@ -215,11 +215,11 @@ int32_t* taosGetErrno();
 #define TSDB_CODE_VND_IS_FLOWCTRL               TAOS_DEF_ERROR_CODE(0, 0x050C)  //"Database memory is full for waiting commit")
 #define TSDB_CODE_VND_IS_DROPPING               TAOS_DEF_ERROR_CODE(0, 0x050D)  //"Database is dropping")
 #define TSDB_CODE_VND_IS_BALANCING              TAOS_DEF_ERROR_CODE(0, 0x050E)  //"Database is balancing")
+#define TSDB_CODE_VND_IS_CLOSING                TAOS_DEF_ERROR_CODE(0, 0x0510)  //"Database is closing")
 #define TSDB_CODE_VND_NOT_SYNCED                TAOS_DEF_ERROR_CODE(0, 0x0511)  //"Database suspended")
 #define TSDB_CODE_VND_NO_WRITE_AUTH             TAOS_DEF_ERROR_CODE(0, 0x0512)  //"Database write operation denied")
 #define TSDB_CODE_VND_IS_SYNCING                TAOS_DEF_ERROR_CODE(0, 0x0513)  //"Database is syncing")
 #define TSDB_CODE_VND_INVALID_TSDB_STATE        TAOS_DEF_ERROR_CODE(0, 0x0514)  //"Invalid tsdb state")
-#define TSDB_CODE_VND_IS_CLOSING                TAOS_DEF_ERROR_CODE(0, 0x0515)  //"Database is closing")
 
 // tsdb
 #define TSDB_CODE_TDB_INVALID_TABLE_ID          TAOS_DEF_ERROR_CODE(0, 0x0600)  //"Invalid table ID")
@@ -244,6 +244,7 @@ int32_t* taosGetErrno();
 #define TSDB_CODE_TDB_NO_AVAIL_DISK             TAOS_DEF_ERROR_CODE(0, 0x0613)  //"No available disk")
 #define TSDB_CODE_TDB_MESSED_MSG                TAOS_DEF_ERROR_CODE(0, 0x0614)  //"TSDB messed message")
 #define TSDB_CODE_TDB_IVLD_TAG_VAL              TAOS_DEF_ERROR_CODE(0, 0x0615)  //"TSDB invalid tag value")
+#define TSDB_CODE_TDB_NO_CACHE_LAST_ROW         TAOS_DEF_ERROR_CODE(0, 0x0616)  //"TSDB no cache last row data")
 
 // query
 #define TSDB_CODE_QRY_INVALID_QHANDLE           TAOS_DEF_ERROR_CODE(0, 0x0700)  //"Invalid handle")

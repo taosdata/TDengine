@@ -18,7 +18,6 @@ package com.taosdata.jdbc;
 
 import com.taosdata.jdbc.utils.TaosInfo;
 
-import java.nio.ByteBuffer;
 import java.sql.SQLException;
 import java.sql.SQLWarning;
 import java.util.List;
@@ -278,7 +277,7 @@ public class TSDBJNIConnector {
     private native int validateCreateTableSqlImp(long connection, byte[] sqlBytes);
 
     public long prepareStmt(String sql) throws SQLException {
-        Long stmt = 0L;
+        Long stmt;
         try {
             stmt = prepareStmtImp(sql.getBytes(), this.taos);
         } catch (Exception e) {

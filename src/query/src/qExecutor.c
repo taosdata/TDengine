@@ -950,7 +950,13 @@ static void doSetInputDataBlock(SOperatorInfo* pOperator, SQLFunctionCtx* pCtx, 
         uint32_t status = aAggs[pCtx[i].functionId].status;
         if ((status & (TSDB_FUNCSTATE_SELECTIVITY | TSDB_FUNCSTATE_NEED_TS)) != 0) {
           SColumnInfoData* tsInfo = taosArrayGet(pBlock->pDataBlock, 0);
-          pCtx[i].ptsList = (int64_t*) tsInfo->pData;
+          // In case of the top/bottom query again the nest query result, which has no timestamp column
+          // don't set the ptsList attribute.
+          if (tsInfo->info.type == TSDB_DATA_TYPE_TIMESTAMP) {
+            pCtx[i].ptsList = (int64_t*) tsInfo->pData;
+          } else {
+            pCtx[i].ptsList = NULL;
+          }
         }
       } else if (TSDB_COL_IS_UD_COL(pCol->flag) && (pOperator->pRuntimeEnv->scanFlag == MERGE_STAGE)) {
         SColIndex*       pColIndex = &pOperator->pExpr[i].base.colInfo;
@@ -1341,7 +1347,7 @@ static void doSessionWindowAggImpl(SOperatorInfo* pOperator, SSWindowOperatorInf
       pInfo->start = j;
     } else if (tsList[j] - pInfo->prevTs <= gap) {
       pInfo->curWindow.ekey = tsList[j];
-      //pInfo->prevTs = tsList[j];
+      pInfo->prevTs = tsList[j];
       pInfo->numOfRows += 1;
       if (j == 0 && pInfo->start != 0) {
         pInfo->numOfRows = 1;
@@ -1983,23 +1989,6 @@ void setQueryKilled(SQInfo *pQInfo) { pQInfo->code = TSDB_CODE_TSC_QUERY_CANCELL
 //
 //  return false;
 //}
-
-// TODO REFACTOR:MERGE WITH CLIENT-SIDE FUNCTION
-static UNUSED_FUNC bool isSumAvgRateQuery(SQueryAttr *pQueryAttr) {
-  for (int32_t i = 0; i < pQueryAttr->numOfOutput; ++i) {
-    int32_t functionId = pQueryAttr->pExpr1[i].base.functionId;
-    if (functionId == TSDB_FUNC_TS) {
-      continue;
-    }
-
-    if (functionId == TSDB_FUNC_SUM_RATE || functionId == TSDB_FUNC_SUM_IRATE || functionId == TSDB_FUNC_AVG_RATE ||
-        functionId == TSDB_FUNC_AVG_IRATE) {
-      return true;
-    }
-  }
-
-  return false;
-}
 
 static bool isFirstLastRowQuery(SQueryAttr *pQueryAttr) {
   for (int32_t i = 0; i < pQueryAttr->numOfOutput; ++i) {
@@ -4228,6 +4217,10 @@ static void updateTableIdInfo(STableQueryInfo* pTableQueryInfo, SSDataBlock* pBl
   int32_t step = GET_FORWARD_DIRECTION_FACTOR(order);
   pTableQueryInfo->lastKey = ((order == TSDB_ORDER_ASC)? pBlock->info.window.ekey:pBlock->info.window.skey) + step;
 
+  if (pTableQueryInfo->pTable == NULL) {
+    return;
+  }
+
   STableIdInfo tidInfo = createTableIdInfo(pTableQueryInfo);
   STableIdInfo *idinfo = taosHashGet(pTableIdInfo, &tidInfo.tid, sizeof(tidInfo.tid));
   if (idinfo != NULL) {
@@ -4905,8 +4898,7 @@ static SSDataBlock* doArithmeticOperation(void* param, bool* newgroup) {
     updateOutputBuf(&pArithInfo->binfo, &pArithInfo->bufCapacity, pBlock->info.rows);
 
     arithmeticApplyFunctions(pRuntimeEnv, pInfo->pCtx, pOperator->numOfOutput);
-
-    if (pTableQueryInfo != NULL) { // TODO refactor
+    if (pTableQueryInfo != NULL) {
       updateTableIdInfo(pTableQueryInfo, pBlock, pRuntimeEnv->pTableRetrieveTsMap, order);
     }
 
@@ -4949,8 +4941,7 @@ static SSDataBlock* doArithmeticOperation(void* param, bool* newgroup) {
     updateOutputBuf(&pArithInfo->binfo, &pArithInfo->bufCapacity, pBlock->info.rows);
 
     arithmeticApplyFunctions(pRuntimeEnv, pInfo->pCtx, pOperator->numOfOutput);
-
-    if (pTableQueryInfo != NULL) { // TODO refactor
+    if (pTableQueryInfo != NULL) {
       updateTableIdInfo(pTableQueryInfo, pBlock, pRuntimeEnv->pTableRetrieveTsMap, order);
     }
 
