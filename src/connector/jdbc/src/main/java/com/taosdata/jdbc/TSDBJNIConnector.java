@@ -18,6 +18,7 @@ package com.taosdata.jdbc;
 
 import com.taosdata.jdbc.utils.TaosInfo;
 
+import java.nio.ByteBuffer;
 import java.sql.SQLException;
 import java.sql.SQLWarning;
 import java.util.List;
