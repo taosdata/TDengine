@@ -168,11 +168,10 @@ bool serializeExprListToVariant(SArray* pList, tVariant **dst, int16_t colType) 
   }    
   type = colType; 
  
-
   SBufferWriter bw = tbufInitWriter( NULL, false );
   tbufEnsureCapacity(&bw, 512);
 
-  int32_t size = pList->size;
+  int32_t size = (int32_t)(pList->size);
   tbufWriteUint32(&bw, type);  
   tbufWriteInt32(&bw,  size);
    
