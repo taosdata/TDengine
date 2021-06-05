@@ -165,7 +165,7 @@ public class RestfulParameterMetaDataTest {
             pstmt_insert.setObject(7, Byte.MAX_VALUE);
             pstmt_insert.setObject(8, true);
             pstmt_insert.setObject(9, "hello".getBytes());
-            pstmt_insert.setObject(10, "Hello");
+            pstmt_insert.setObject(10, "涛思数据");
             parameterMetaData_insert = pstmt_insert.getParameterMetaData();
 
             pstmt_select = conn.prepareStatement(sql_select);
