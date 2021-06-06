@@ -3463,13 +3463,12 @@ static void tscSubqueryRetrieveCallback(void* param, TAOS_RES* tres, int code) {
   }
 
   pParentSql->cmd.active = pParentSql->cmd.pQueryInfo;
-
-  SSchedMsg schedMsg = {0};
-  schedMsg.fp = doRetrieveSubqueryData;
-  schedMsg.ahandle = (void *)pParentSql;
-  schedMsg.thandle = (void *)1;
-  schedMsg.msg = 0;
-  taosScheduleTask(tscQhandle, &schedMsg);
+  pParentSql->res.qId = -1;
+  if (pSql->res.code == TSDB_CODE_SUCCESS) {
+    (*pSql->fp)(pParentSql->param, pParentSql, pParentSql->res.numOfRows);
+  } else {
+    tscAsyncResultOnError(pParentSql);
+  }
 }
 
 // todo handle the failure
