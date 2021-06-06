@@ -491,7 +491,7 @@ bool isSimpleAggregateRv(SQueryInfo* pQueryInfo) {
     return false;
   }
 
-  if (/*tscGroupbyColumn(pQueryInfo) || */isTsCompQuery(pQueryInfo) || tscIsTopBotQuery(pQueryInfo) || tscIsDiffQuery(pQueryInfo)) {
+  if (tscIsDiffQuery(pQueryInfo)) {
     return false;
   }
 
@@ -507,13 +507,13 @@ bool isSimpleAggregateRv(SQueryInfo* pQueryInfo) {
       continue;
     }
 
-    if (!IS_MULTIOUTPUT(aAggs[functionId].status)) {
+    if ((!IS_MULTIOUTPUT(aAggs[functionId].status)) ||
+        (functionId == TSDB_FUNC_TOP || functionId == TSDB_FUNC_BOTTOM || functionId == TSDB_FUNC_TS_COMP)) {
       return true;
     }
   }
 
   return false;
-
 }
 
 bool isBlockDistQuery(SQueryInfo* pQueryInfo) {
@@ -1046,7 +1046,7 @@ SOperatorInfo* createJoinOperatorInfo(SOperatorInfo** pUpstream, int32_t numOfUp
   return pOperator;
 }
 
-void convertQueryResult(SSqlRes* pRes, SQueryInfo* pQueryInfo) {
+void convertQueryResult(SSqlRes* pRes, SQueryInfo* pQueryInfo, uint64_t objId) {
   // set the correct result
   SSDataBlock* p = pQueryInfo->pQInfo->runtimeEnv.outputBuf;
   pRes->numOfRows = (p != NULL)? p->info.rows: 0;
@@ -1056,6 +1056,7 @@ void convertQueryResult(SSqlRes* pRes, SQueryInfo* pQueryInfo) {
     tscSetResRawPtrRv(pRes, pQueryInfo, p);
   }
 
+  tscDebug("0x%"PRIx64" retrieve result in pRes, numOfRows:%d", objId, pRes->numOfRows);
   pRes->row = 0;
   pRes->completed = (pRes->numOfRows == 0);
 }
@@ -1172,7 +1173,7 @@ void handleDownstreamOperator(SSqlObj** pSqlObjList, int32_t numOfUpstream, SQue
 
   uint64_t qId = pSql->self;
   qTableQuery(px->pQInfo, &qId);
-  convertQueryResult(pOutput, px);
+  convertQueryResult(pOutput, px, pSql->self);
 }
 
 static void tscDestroyResPointerInfo(SSqlRes* pRes) {
@@ -2171,6 +2172,7 @@ size_t tscNumOfExprs(SQueryInfo* pQueryInfo) {
   return taosArrayGetSize(pQueryInfo->exprList);
 }
 
+// todo REFACTOR
 void tscExprAddParams(SSqlExpr* pExpr, char* argument, int32_t type, int32_t bytes) {
   assert (pExpr != NULL || argument != NULL || bytes != 0);
 

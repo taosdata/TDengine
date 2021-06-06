@@ -246,6 +246,7 @@ typedef struct SQueryRuntimeEnv {
   void*                 pQueryHandle;
 
   int32_t               prevGroupId;      // previous executed group id
+  bool                  enableGroupData;
   SDiskbasedResultBuf*  pResultBuf;       // query result buffer based on blocked-wised disk file
   SHashObj*             pResultRowHashTable; // quick locate the window object for each result
   char*                 keyBuf;           // window key buffer

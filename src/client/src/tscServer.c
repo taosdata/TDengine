@@ -1621,7 +1621,7 @@ int tscProcessRetrieveGlobalMergeRsp(SSqlObj *pSql) {
 
   uint64_t localQueryId = pSql->self;
   qTableQuery(pQueryInfo->pQInfo, &localQueryId);
-  convertQueryResult(pRes, pQueryInfo);
+  convertQueryResult(pRes, pQueryInfo, pSql->self);
 
   code = pRes->code;
   if (pRes->code == TSDB_CODE_SUCCESS) {

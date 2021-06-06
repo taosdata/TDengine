@@ -1977,9 +1977,8 @@ void tscHandleMasterJoinQuery(SSqlObj* pSql) {
   }
 
   memset(pSql->subState.states, 0, sizeof(*pSql->subState.states) * pSql->subState.numOfSub);
-  tscDebug("0x%"PRIx64" reset all sub states to 0", pSql->self);
+  tscDebug("0x%"PRIx64" reset all sub states to 0, start subquery, total:%d", pSql->self, pQueryInfo->numOfTables);
 
-  tscDebug("0x%"PRIx64" start subquery, total:%d", pSql->self, pQueryInfo->numOfTables);
   for (int32_t i = 0; i < pQueryInfo->numOfTables; ++i) {
     SJoinSupporter *pSupporter = tscCreateJoinSupporter(pSql, i);
     if (pSupporter == NULL) {  // failed to create support struct, abort current query

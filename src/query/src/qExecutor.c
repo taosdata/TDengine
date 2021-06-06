@@ -1681,6 +1681,8 @@ static int32_t setupQueryRuntimeEnv(SQueryRuntimeEnv *pRuntimeEnv, int32_t numOf
   SQueryAttr *pQueryAttr = pRuntimeEnv->pQueryAttr;
 
   pRuntimeEnv->prevGroupId = INT32_MIN;
+  pRuntimeEnv->enableGroupData = false;
+
   pRuntimeEnv->pQueryAttr = pQueryAttr;
 
   pRuntimeEnv->pResultRowHashTable = taosHashInit(numOfTables, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
@@ -3119,8 +3121,8 @@ void setDefaultOutputBuf(SQueryRuntimeEnv *pRuntimeEnv, SOptrBasicInfo *pInfo, i
     assert(pCtx[i].pOutput != NULL);
 
     // set the timestamp output buffer for top/bottom/diff query
-    int32_t functionId = pCtx[i].functionId;
-    if (functionId == TSDB_FUNC_TOP || functionId == TSDB_FUNC_BOTTOM || functionId == TSDB_FUNC_DIFF) {
+    int32_t fid = pCtx[i].functionId;
+    if (fid == TSDB_FUNC_TOP || fid == TSDB_FUNC_BOTTOM || fid == TSDB_FUNC_DIFF || fid == TSDB_FUNC_DERIVATIVE) {
       pCtx[i].ptsOutputBuf = pCtx[0].pOutput;
     }
   }
@@ -4274,8 +4276,10 @@ static SSDataBlock* doTableScanImpl(void* param, bool* newgroup) {
       pRuntimeEnv->current = *pTableQueryInfo;
       doTableQueryInfoTimeWindowCheck(pQueryAttr, *pTableQueryInfo);
 
-      if (pTableScanInfo->prevGroupId != -1 && pTableScanInfo->prevGroupId != (*pTableQueryInfo)->groupIndex) {
-        *newgroup = false;
+      if (pRuntimeEnv->enableGroupData) {
+        if(pTableScanInfo->prevGroupId != -1 && pTableScanInfo->prevGroupId != (*pTableQueryInfo)->groupIndex) {
+          *newgroup = true;
+        }
       }
 
       pTableScanInfo->prevGroupId = (*pTableQueryInfo)->groupIndex;
@@ -4449,6 +4453,7 @@ SOperatorInfo* createTableSeqScanOperator(void* pTsdbQueryHandle, SQueryRuntimeE
   pInfo->order            = pRuntimeEnv->pQueryAttr->order.order;
   pInfo->current          = 0;
   pInfo->prevGroupId      = -1;
+  pRuntimeEnv->enableGroupData = true;
 
   SOperatorInfo* pOperator = calloc(1, sizeof(SOperatorInfo));
   pOperator->name         = "TableSeqScanOperator";

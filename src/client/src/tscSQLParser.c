@@ -2157,11 +2157,14 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
     case TSDB_FUNC_MIN:
     case TSDB_FUNC_MAX:
     case TSDB_FUNC_DIFF:
+    case TSDB_FUNC_DERIVATIVE:
     case TSDB_FUNC_STDDEV:
     case TSDB_FUNC_LEASTSQR: {
       // 1. valid the number of parameters
-      if (pItem->pNode->pParam == NULL || (functionId != TSDB_FUNC_LEASTSQR && taosArrayGetSize(pItem->pNode->pParam) != 1) ||
-          (functionId == TSDB_FUNC_LEASTSQR && taosArrayGetSize(pItem->pNode->pParam) != 3)) {
+      int32_t numOfParams = taosArrayGetSize(pItem->pNode->pParam);
+      if (pItem->pNode->pParam == NULL ||
+          (functionId != TSDB_FUNC_LEASTSQR && functionId != TSDB_FUNC_DERIVATIVE && numOfParams != 1) ||
+          ((functionId == TSDB_FUNC_LEASTSQR || functionId == TSDB_FUNC_DERIVATIVE) && numOfParams != 3)) {
         /* no parameters or more than one parameter for function */
         return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg2);
       }
@@ -2182,11 +2185,13 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
 
       // 2. check if sql function can be applied on this column data type
       pTableMetaInfo = tscGetMetaInfo(pQueryInfo, index.tableIndex);
+      STableComInfo info = tscGetTableInfo(pTableMetaInfo->pTableMeta);
+
       SSchema* pSchema = tscGetTableColumnSchema(pTableMetaInfo->pTableMeta, index.columnIndex);
 
       if (!IS_NUMERIC_TYPE(pSchema->type)) {
         return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg1);
-      } else if (IS_UNSIGNED_NUMERIC_TYPE(pSchema->type) && functionId == TSDB_FUNC_DIFF) {
+      } else if (IS_UNSIGNED_NUMERIC_TYPE(pSchema->type) && (functionId == TSDB_FUNC_DIFF || functionId == TSDB_FUNC_DERIVATIVE)) {
         return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg9);
       }
 
@@ -2200,11 +2205,11 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
       }
 
       // set the first column ts for diff query
-      if (functionId == TSDB_FUNC_DIFF) {
+      if (functionId == TSDB_FUNC_DIFF || functionId == TSDB_FUNC_DERIVATIVE) {
         colIndex += 1;
         SColumnIndex indexTS = {.tableIndex = index.tableIndex, .columnIndex = 0};
-        SExprInfo* pExpr = tscExprAppend(pQueryInfo, TSDB_FUNC_TS_DUMMY, &indexTS, TSDB_DATA_TYPE_TIMESTAMP, TSDB_KEYSIZE,
-                                           getNewResColId(pCmd), TSDB_KEYSIZE, false);
+        SExprInfo*   pExpr = tscExprAppend(pQueryInfo, TSDB_FUNC_TS_DUMMY, &indexTS, TSDB_DATA_TYPE_TIMESTAMP,
+                                         TSDB_KEYSIZE, getNewResColId(pCmd), TSDB_KEYSIZE, false);
 
         SColumnList ids = createColumnList(1, 0, 0);
         insertResultField(pQueryInfo, 0, &ids, TSDB_KEYSIZE, TSDB_DATA_TYPE_TIMESTAMP, aAggs[TSDB_FUNC_TS_DUMMY].name, pExpr);
@@ -2230,12 +2235,29 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
           return TSDB_CODE_TSC_INVALID_OPERATION;
         }
 
-        tscExprAddParams(&pExpr->base, val, TSDB_DATA_TYPE_DOUBLE, sizeof(double));
+        tscExprAddParams(&pExpr->base, val, TSDB_DATA_TYPE_DOUBLE, DOUBLE_BYTES);
       } else if (functionId == TSDB_FUNC_IRATE) {
-        STableComInfo info = tscGetTableInfo(pTableMetaInfo->pTableMeta);
         int64_t prec = info.precision;
-
         tscExprAddParams(&pExpr->base, (char*)&prec, TSDB_DATA_TYPE_BIGINT, LONG_BYTES);
+      } else if (functionId == TSDB_FUNC_DERIVATIVE) {
+        char val[8] = {0};
+
+        int64_t tickPerSec = 0;
+        if (tVariantDump(&pParamElem[1].pNode->value, (char*) &tickPerSec, TSDB_DATA_TYPE_BIGINT, true) < 0) {
+          return TSDB_CODE_TSC_INVALID_OPERATION;
+        }
+
+        if (info.precision == TSDB_TIME_PRECISION_MILLI) {
+          tickPerSec /= 1000;
+        }
+
+        tscExprAddParams(&pExpr->base, (char*) &tickPerSec, TSDB_DATA_TYPE_BIGINT, LONG_BYTES);
+        memset(val, 0, tListLen(val));
+        if (tVariantDump(&pParamElem[2].pNode->value, val, TSDB_DATA_TYPE_BIGINT, true) < 0) {
+          return TSDB_CODE_TSC_INVALID_OPERATION;
+        }
+
+        tscExprAddParams(&pExpr->base, val, TSDB_DATA_TYPE_BIGINT, LONG_BYTES);
       }
 
       SColumnList ids = createColumnList(1, index.tableIndex, index.columnIndex);
