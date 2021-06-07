@@ -3730,7 +3730,7 @@ static void diff_function(SQLFunctionCtx *pCtx) {
         }
 
         if (pCtx->param[1].nType != INITIAL_VALUE_NOT_ASSIGNED) {  // initial value is not set yet
-          *pOutput = pData[i] - pCtx->param[1].dKey;  // direct previous may be null
+          *pOutput = (float)(pData[i] - pCtx->param[1].dKey);  // direct previous may be null
           *pTimestamp = tsList[i];
           pOutput    += 1;
           pTimestamp += 1;
