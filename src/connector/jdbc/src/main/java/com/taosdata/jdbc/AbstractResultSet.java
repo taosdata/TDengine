@@ -84,10 +84,12 @@ public abstract class AbstractResultSet extends WrapperImpl implements ResultSet
     }
 
     @Override
+    @Deprecated
     public InputStream getUnicodeStream(int columnIndex) throws SQLException {
-        if (isClosed())
+        if (isClosed()) {
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_RESULTSET_CLOSED);
-
+        }
+        
         throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
     }
 
@@ -171,6 +173,7 @@ public abstract class AbstractResultSet extends WrapperImpl implements ResultSet
     }
 
     @Override
+    @Deprecated
     public InputStream getUnicodeStream(String columnLabel) throws SQLException {
         return getUnicodeStream(findColumn(columnLabel));
     }
