@@ -131,10 +131,10 @@ cmake .. -DCPUTYPE=mips64 && cmake --build .
 ### On Windows platform
 
 If you use the Visual Studio 2013, please open a command window by executing "cmd.exe".
-Please specify "x86_amd64" for 64 bits Windows or specify "x86" is for 32 bits Windows when you execute vcvarsall.bat.
+Please specify "amd64" for 64 bits Windows or specify "x86" is for 32 bits Windows when you execute vcvarsall.bat.
 ```cmd
 mkdir debug && cd debug
-"C:\Program Files (x86)\Microsoft Visual Studio 12.0\VC\vcvarsall.bat" < x86_amd64 | x86 >
+"C:\Program Files (x86)\Microsoft Visual Studio 12.0\VC\vcvarsall.bat" < amd64 | x86 >
 cmake .. -G "NMake Makefiles"
 nmake
 ```
