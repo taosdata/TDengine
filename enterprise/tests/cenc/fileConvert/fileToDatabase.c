@@ -362,27 +362,27 @@ failed:
         free(file_name);
     }
 
-    if (tsdb_server != default_tsdb_server) {
+    if (tsdb_server && tsdb_server != default_tsdb_server) {
         free(tsdb_server);
     }
 
-    if (tsdb_usrname != default_tsdb_usrname) {
+    if (tsdb_usrname && tsdb_usrname != default_tsdb_usrname) {
         free(tsdb_usrname);
     }
 
-    if (tsdb_passwd != default_tsdb_passwd) {
+    if (tsdb_passwd && tsdb_passwd != default_tsdb_passwd) {
         free(tsdb_passwd);
     }
 
-    if (tsdb_port != default_tsdb_port) {
+    if (tsdb_port && tsdb_port != default_tsdb_port) {
         free(tsdb_port);
     }
 
-    if (db_name != default_db_name) {
+    if (db_name && db_name != default_db_name) {
         free(db_name);
     }
 
-    if (stable_name != default_stable_name) {
+    if (stable_name && stable_name != default_stable_name) {
         free(stable_name);
     }
  

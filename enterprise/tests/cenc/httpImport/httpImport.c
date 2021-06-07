@@ -494,23 +494,23 @@ failed:
         free(count);
     }
 
-    if (host != default_host) {
+    if (host && host != default_host) {
         free(host);
     }
 
-    if (user != default_user) {
+    if (user && user != default_user) {
         free(user);
     }
 
-    if (passwd != default_passwd) {
+    if (passwd && passwd != default_passwd) {
         free(passwd);
     }
 
-    if (port != default_port) {
+    if (port && port != default_port) {
         free(port);
     }
 
-    if (topic != default_topic) {
+    if (topic && topic != default_topic) {
         free(topic);
     }
 #else
