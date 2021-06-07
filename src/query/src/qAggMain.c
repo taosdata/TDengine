@@ -3764,6 +3764,7 @@ static void diff_function(SQLFunctionCtx *pCtx) {
       }
       break;
     }
+
     case TSDB_DATA_TYPE_TINYINT: {
       int8_t *pData = (int8_t *)data;
       int8_t *pOutput = (int8_t *)pCtx->pOutput;
