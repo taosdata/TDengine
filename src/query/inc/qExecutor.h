@@ -185,6 +185,7 @@ typedef struct SQueryAttr {
   bool             queryBlockDist;    // if query data block distribution
   bool             stabledev;        // super table stddev query
   bool             tsCompQuery;      // is tscomp query
+  bool             diffQuery;        // is diff query
   bool             simpleAgg;
   bool             pointInterpQuery; // point interpolation query
   bool             needReverseScan;  // need reverse scan
@@ -245,6 +246,7 @@ typedef struct SQueryRuntimeEnv {
   void*                 pQueryHandle;
 
   int32_t               prevGroupId;      // previous executed group id
+  bool                  enableGroupData;
   SDiskbasedResultBuf*  pResultBuf;       // query result buffer based on blocked-wised disk file
   SHashObj*             pResultRowHashTable; // quick locate the window object for each result
   char*                 keyBuf;           // window key buffer
@@ -386,6 +388,7 @@ typedef struct STableScanInfo {
   int64_t         elapsedTime;
 
   int32_t         tableIndex;
+  int32_t         prevGroupId;     // previous table group id
 } STableScanInfo;
 
 typedef struct STagScanInfo {

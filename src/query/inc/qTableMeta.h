@@ -138,6 +138,7 @@ typedef struct SQueryInfo {
   bool               hasFilter;
   bool               onlyTagQuery;
   bool               orderProjectQuery;
+  bool               diffQuery;
   bool               stateWindow;
 } SQueryInfo;
 

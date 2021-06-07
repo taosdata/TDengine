@@ -323,7 +323,7 @@ TAOS_ROW tscFetchRow(void *param) {
   // current data set are exhausted, fetch more data from node
   if (pRes->row >= pRes->numOfRows && (pRes->completed != true || hasMoreVnodesToTry(pSql) || hasMoreClauseToTry(pSql)) &&
       (pCmd->command == TSDB_SQL_RETRIEVE ||
-       pCmd->command == TSDB_SQL_RETRIEVE_LOCALMERGE ||
+       pCmd->command == TSDB_SQL_RETRIEVE_GLOBALMERGE ||
        pCmd->command == TSDB_SQL_TABLE_JOIN_RETRIEVE ||
        pCmd->command == TSDB_SQL_FETCH ||
        pCmd->command == TSDB_SQL_SHOW ||
