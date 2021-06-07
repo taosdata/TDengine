@@ -1977,9 +1977,8 @@ void tscHandleMasterJoinQuery(SSqlObj* pSql) {
   }
 
   memset(pSql->subState.states, 0, sizeof(*pSql->subState.states) * pSql->subState.numOfSub);
-  tscDebug("0x%"PRIx64" reset all sub states to 0", pSql->self);
+  tscDebug("0x%"PRIx64" reset all sub states to 0, start subquery, total:%d", pSql->self, pQueryInfo->numOfTables);
 
-  tscDebug("0x%"PRIx64" start subquery, total:%d", pSql->self, pQueryInfo->numOfTables);
   for (int32_t i = 0; i < pQueryInfo->numOfTables; ++i) {
     SJoinSupporter *pSupporter = tscCreateJoinSupporter(pSql, i);
     if (pSupporter == NULL) {  // failed to create support struct, abort current query
@@ -2424,7 +2423,7 @@ int32_t tscHandleMasterSTableQuery(SSqlObj *pSql) {
   
   // pRes->code check only serves in launching metric sub-queries
   if (pRes->code == TSDB_CODE_TSC_QUERY_CANCELLED) {
-    pCmd->command = TSDB_SQL_RETRIEVE_LOCALMERGE;  // enable the abort of kill super table function.
+    pCmd->command = TSDB_SQL_RETRIEVE_GLOBALMERGE;  // enable the abort of kill super table function.
     return pRes->code;
   }
   
@@ -2780,7 +2779,7 @@ static void tscAllDataRetrievedFromDnode(SRetrieveSupport *trsupport, SSqlObj* p
   if (code == TSDB_CODE_SUCCESS && trsupport->pExtMemBuffer == NULL) {
     pParentSql->cmd.command = TSDB_SQL_RETRIEVE_EMPTY_RESULT; // no result, set the result empty
   } else {
-    pParentSql->cmd.command = TSDB_SQL_RETRIEVE_LOCALMERGE;
+    pParentSql->cmd.command = TSDB_SQL_RETRIEVE_GLOBALMERGE;
   }
 
   tscCreateResPointerInfo(&pParentSql->res, pPQueryInfo);
@@ -3502,7 +3501,7 @@ static UNUSED_FUNC bool tscHasRemainDataInSubqueryResultSet(SSqlObj *pSql) {
 }
 
 void* createQInfoFromQueryNode(SQueryInfo* pQueryInfo, STableGroupInfo* pTableGroupInfo, SOperatorInfo* pSourceOperator,
-    char* sql, void* merger, int32_t stage) {
+                               char* sql, void* merger, int32_t stage, uint64_t qId) {
   assert(pQueryInfo != NULL);
   SQInfo *pQInfo = (SQInfo *)calloc(1, sizeof(SQInfo));
   if (pQInfo == NULL) {
@@ -3511,7 +3510,7 @@ void* createQInfoFromQueryNode(SQueryInfo* pQueryInfo, STableGroupInfo* pTableGr
 
   // to make sure third party won't overwrite this structure
   pQInfo->signature = pQInfo;
-
+  pQInfo->qId       = qId;
   SQueryRuntimeEnv *pRuntimeEnv = &pQInfo->runtimeEnv;
   SQueryAttr       *pQueryAttr  = &pQInfo->query;
 

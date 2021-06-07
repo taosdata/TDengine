@@ -17,6 +17,7 @@
 #include "ttype.h"
 #include "tcompare.h"
 #include "tarray.h"
+#include "hash.h"
 
 int32_t compareInt32Val(const void *pLeft, const void *pRight) {
   int32_t left = GET_INT32_VAL(pLeft), right = GET_INT32_VAL(pRight);
@@ -291,9 +292,12 @@ int32_t taosArrayCompareString(const void* a, const void* b) {
   return compareLenPrefixedStr(x, y);
 }
 
-static int32_t compareFindStrInArray(const void* pLeft, const void* pRight) {
-  const SArray* arr = (const SArray*) pRight;
-  return taosArraySearchString(arr, pLeft, taosArrayCompareString, TD_EQ) == NULL ? 0 : 1;
+//static int32_t compareFindStrInArray(const void* pLeft, const void* pRight) {
+//  const SArray* arr = (const SArray*) pRight;
+//  return taosArraySearchString(arr, pLeft, taosArrayCompareString, TD_EQ) == NULL ? 0 : 1;
+//}
+static int32_t compareFindItemInSet(const void *pLeft, const void* pRight)  {
+  return NULL != taosHashGet((SHashObj *)pRight, varDataVal(pLeft), varDataLen(pLeft)) ? 1 : 0;    
 }
 
 static int32_t compareWStrPatternComp(const void* pLeft, const void* pRight) {
@@ -325,7 +329,7 @@ __compar_fn_t getComparFunc(int32_t type, int32_t optr) {
       if (optr == TSDB_RELATION_LIKE) { /* wildcard query using like operator */
         comparFn = compareStrPatternComp;
       } else if (optr == TSDB_RELATION_IN) {
-        comparFn = compareFindStrInArray;
+        comparFn = compareFindItemInSet;
       } else { /* normal relational comparFn */
         comparFn = compareLenPrefixedStr;
       }
