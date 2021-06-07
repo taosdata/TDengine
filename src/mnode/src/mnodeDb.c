@@ -261,25 +261,26 @@ static int32_t mnodeCheckDbCfg(SDbCfg *pCfg) {
     return TSDB_CODE_MND_INVALID_DB_OPTION_DAYS;
   }
 
-  if (pCfg->daysToKeep < TSDB_MIN_KEEP || pCfg->daysToKeep > TSDB_MAX_KEEP) {
-    mError("invalid db option daysToKeep:%d valid range: [%d, %d]", pCfg->daysToKeep, TSDB_MIN_KEEP, TSDB_MAX_KEEP);
+  if (pCfg->daysToKeep0 < TSDB_MIN_KEEP || pCfg->daysToKeep0 > TSDB_MAX_KEEP) {
+    mError("invalid db option daysToKeep:%d valid range: [%d, %d]", pCfg->daysToKeep0, TSDB_MIN_KEEP, TSDB_MAX_KEEP);
     return TSDB_CODE_MND_INVALID_DB_OPTION_KEEP;
   }
 
-  if (pCfg->daysToKeep < pCfg->daysPerFile) {
-    mError("invalid db option daysToKeep:%d should larger than daysPerFile:%d", pCfg->daysToKeep, pCfg->daysPerFile);
+  if (pCfg->daysToKeep0 < pCfg->daysPerFile) {
+    mError("invalid db option daysToKeep:%d should larger than daysPerFile:%d", pCfg->daysToKeep0, pCfg->daysPerFile);
     return TSDB_CODE_MND_INVALID_DB_OPTION_KEEP;
   }
 
-  if (pCfg->daysToKeep2 < TSDB_MIN_KEEP || pCfg->daysToKeep2 > pCfg->daysToKeep) {
-    mError("invalid db option daysToKeep2:%d valid range: [%d, %d]", pCfg->daysToKeep2, TSDB_MIN_KEEP, pCfg->daysToKeep);
+  if (pCfg->daysToKeep1 < pCfg->daysToKeep0 || pCfg->daysToKeep1 > TSDB_MAX_KEEP) {
+    mError("invalid db option daysToKeep1:%d valid range: [%d, %d]", pCfg->daysToKeep1, pCfg->daysToKeep0, TSDB_MAX_KEEP);
     return TSDB_CODE_MND_INVALID_DB_OPTION_KEEP;
   }
 
-  if (pCfg->daysToKeep1 < TSDB_MIN_KEEP || pCfg->daysToKeep1 > pCfg->daysToKeep2) {
-    mError("invalid db option daysToKeep1:%d valid range: [%d, %d]", pCfg->daysToKeep1, TSDB_MIN_KEEP, pCfg->daysToKeep2);
+  if (pCfg->daysToKeep2 < pCfg->daysToKeep1 || pCfg->daysToKeep2 > TSDB_MAX_KEEP) {
+    mError("invalid db option daysToKeep2:%d valid range: [%d, %d]", pCfg->daysToKeep2, pCfg->daysToKeep1, TSDB_MAX_KEEP);
     return TSDB_CODE_MND_INVALID_DB_OPTION_KEEP;
   }
+
 
   if (pCfg->maxRowsPerFileBlock < TSDB_MIN_MAX_ROW_FBLOCK || pCfg->maxRowsPerFileBlock > TSDB_MAX_MAX_ROW_FBLOCK) {
     mError("invalid db option maxRowsPerFileBlock:%d valid range: [%d, %d]", pCfg->maxRowsPerFileBlock,
@@ -378,9 +379,9 @@ static void mnodeSetDefaultDbCfg(SDbCfg *pCfg) {
   if (pCfg->totalBlocks < 0) pCfg->totalBlocks = tsBlocksPerVnode;
   if (pCfg->maxTables < 0) pCfg->maxTables = tsMaxTablePerVnode;
   if (pCfg->daysPerFile < 0) pCfg->daysPerFile = tsDaysPerFile;
-  if (pCfg->daysToKeep < 0) pCfg->daysToKeep = tsDaysToKeep;
-  if (pCfg->daysToKeep1 < 0) pCfg->daysToKeep1 = pCfg->daysToKeep;
-  if (pCfg->daysToKeep2 < 0) pCfg->daysToKeep2 = pCfg->daysToKeep;
+  if (pCfg->daysToKeep2 < 0) pCfg->daysToKeep2 = tsDaysToKeep;
+  if (pCfg->daysToKeep1 < 0) pCfg->daysToKeep1 = pCfg->daysToKeep2;
+  if (pCfg->daysToKeep0 < 0) pCfg->daysToKeep0 = pCfg->daysToKeep1;
   if (pCfg->minRowsPerFileBlock < 0) pCfg->minRowsPerFileBlock = tsMinRowsInFileBlock;
   if (pCfg->maxRowsPerFileBlock < 0) pCfg->maxRowsPerFileBlock = tsMaxRowsInFileBlock;
   if (pCfg->fsyncPeriod <0) pCfg->fsyncPeriod = tsFsyncPeriod;
@@ -435,7 +436,7 @@ static int32_t mnodeCreateDb(SAcctObj *pAcct, SCreateDbMsg *pCreate, SMnodeMsg *
     .totalBlocks         = pCreate->totalBlocks,
     .maxTables           = pCreate->maxTables,
     .daysPerFile         = pCreate->daysPerFile,
-    .daysToKeep          = pCreate->daysToKeep,
+    .daysToKeep0         = pCreate->daysToKeep0,
     .daysToKeep1         = pCreate->daysToKeep1,
     .daysToKeep2         = pCreate->daysToKeep2,
     .minRowsPerFileBlock = pCreate->minRowsPerFileBlock,
@@ -777,7 +778,7 @@ static int32_t mnodeRetrieveDbs(SShowObj *pShow, char *data, int32_t rows, void 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
     
     char tmp[128] = {0};
-    sprintf(tmp, "%d,%d,%d", pDb->cfg.daysToKeep1, pDb->cfg.daysToKeep2, pDb->cfg.daysToKeep);
+    sprintf(tmp, "%d,%d,%d", pDb->cfg.daysToKeep0, pDb->cfg.daysToKeep1, pDb->cfg.daysToKeep2);
     STR_WITH_SIZE_TO_VARSTR(pWrite, tmp, strlen(tmp));
     cols++;
 
@@ -890,7 +891,7 @@ static int32_t mnodeProcessCreateDbMsg(SMnodeMsg *pMsg) {
   pCreate->cacheBlockSize  = htonl(pCreate->cacheBlockSize);
   pCreate->totalBlocks     = htonl(pCreate->totalBlocks);
   pCreate->daysPerFile     = htonl(pCreate->daysPerFile);
-  pCreate->daysToKeep      = htonl(pCreate->daysToKeep);
+  pCreate->daysToKeep0     = htonl(pCreate->daysToKeep0);
   pCreate->daysToKeep1     = htonl(pCreate->daysToKeep1);
   pCreate->daysToKeep2     = htonl(pCreate->daysToKeep2);
   pCreate->commitTime      = htonl(pCreate->commitTime);
@@ -917,7 +918,7 @@ static SDbCfg mnodeGetAlterDbOption(SDbObj *pDb, SAlterDbMsg *pAlter) {
   int32_t cacheBlockSize = htonl(pAlter->cacheBlockSize);
   int32_t totalBlocks    = htonl(pAlter->totalBlocks);
   int32_t daysPerFile    = htonl(pAlter->daysPerFile);
-  int32_t daysToKeep     = htonl(pAlter->daysToKeep);
+  int32_t daysToKeep0    = htonl(pAlter->daysToKeep0);
   int32_t daysToKeep1    = htonl(pAlter->daysToKeep1);
   int32_t daysToKeep2    = htonl(pAlter->daysToKeep2);
   int32_t minRows        = htonl(pAlter->minRowsPerFileBlock);
@@ -960,9 +961,9 @@ static SDbCfg mnodeGetAlterDbOption(SDbObj *pDb, SAlterDbMsg *pAlter) {
     terrno = TSDB_CODE_MND_INVALID_DB_OPTION;
   }
 
-  if (daysToKeep > 0 && daysToKeep != pDb->cfg.daysToKeep) {
-    mDebug("db:%s, daysToKeep:%d change to %d", pDb->name, pDb->cfg.daysToKeep, daysToKeep);
-    newCfg.daysToKeep = daysToKeep;
+  if (daysToKeep0 > 0 && daysToKeep0 != pDb->cfg.daysToKeep0) {
+    mDebug("db:%s, daysToKeep:%d change to %d", pDb->name, pDb->cfg.daysToKeep0, daysToKeep0);
+    newCfg.daysToKeep0 = daysToKeep0;
   }
 
   if (daysToKeep1 > 0 && daysToKeep1 != pDb->cfg.daysToKeep1) {
@@ -1063,8 +1064,8 @@ static SDbCfg mnodeGetAlterDbOption(SDbObj *pDb, SAlterDbMsg *pAlter) {
 // community version can only change daysToKeep
 // but enterprise version can change all daysToKeep options
 #ifndef _STORAGE
-  newCfg.daysToKeep1 = newCfg.daysToKeep;
-  newCfg.daysToKeep2 = newCfg.daysToKeep;
+  newCfg.daysToKeep1 = newCfg.daysToKeep0;
+  newCfg.daysToKeep2 = newCfg.daysToKeep0;
 #endif
 
   return newCfg;

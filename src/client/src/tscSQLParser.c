@@ -5819,9 +5819,11 @@ int32_t validateLimitNode(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SSqlNode* pSqlN
 }
 
 static int32_t setKeepOption(SSqlCmd* pCmd, SCreateDbMsg* pMsg, SCreateDbInfo* pCreateDb) {
-  const char* msg = "invalid number of options";
+  const char* msg1 = "invalid number of keep options";
+  const char* msg2 = "invalid keep value";
+  const char* msg3 = "invalid keep value, should be keep0 <= keep1 <= keep2";
 
-  pMsg->daysToKeep = htonl(-1);
+  pMsg->daysToKeep0 = htonl(-1);
   pMsg->daysToKeep1 = htonl(-1);
   pMsg->daysToKeep2 = htonl(-1);
 
@@ -5829,38 +5831,38 @@ static int32_t setKeepOption(SSqlCmd* pCmd, SCreateDbMsg* pMsg, SCreateDbInfo* p
   if (pKeep != NULL) {
     size_t s = taosArrayGetSize(pKeep);
     tVariantListItem* p0 = taosArrayGet(pKeep, 0);
-    switch (s) {
-      case 1: {
-        if ((int32_t)p0->pVar.i64 <= 0) {
-          return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg);
-        }
-        pMsg->daysToKeep = htonl((int32_t)p0->pVar.i64);
-      }
-        break;
-      case 2: {
-        tVariantListItem* p1 = taosArrayGet(pKeep, 1);
-        if ((int32_t)p0->pVar.i64 <= 0 || (int32_t)p1->pVar.i64 <= 0) {
-          return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg);
-        }        
-        pMsg->daysToKeep = htonl((int32_t)p0->pVar.i64);
-        pMsg->daysToKeep1 = htonl((int32_t)p1->pVar.i64);
-        break;
-      }
-      case 3: {
-        tVariantListItem* p1 = taosArrayGet(pKeep, 1);
-        tVariantListItem* p2 = taosArrayGet(pKeep, 2);
-
-        if ((int32_t)p0->pVar.i64 <= 0 || (int32_t)p1->pVar.i64 <= 0 || (int32_t)p2->pVar.i64 <= 0) {
-          return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg);
-        } 
-
-        pMsg->daysToKeep = htonl((int32_t)p0->pVar.i64);
-        pMsg->daysToKeep1 = htonl((int32_t)p1->pVar.i64);
-        pMsg->daysToKeep2 = htonl((int32_t)p2->pVar.i64);
-        break;
-      }
-      default: { return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg); }
+    size_t expectNum = 1;
+#ifdef _STORAGE
+    expectNum = 3;
+#endif
+    if (s != expectNum) {
+      return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg1);
     }
+
+    if ((int32_t)p0->pVar.i64 <= 0) {
+      return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg2);
+    }
+    pMsg->daysToKeep0 = htonl((int32_t)p0->pVar.i64);
+
+#ifdef _STORAGE
+    tVariantListItem* p1 = taosArrayGet(pKeep, 1);
+    tVariantListItem* p2 = taosArrayGet(pKeep, 2);
+
+    if ((int32_t)p1->pVar.i64 <= 0 || (int32_t)p2->pVar.i64 <= 0) {
+      return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg2);
+    } 
+
+    if (!(((int32_t)p0->pVar.i64 <= (int32_t)p1->pVar.i64) && ((int32_t)p1->pVar.i64 <= (int32_t)p2->pVar.i64))) {
+      return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg3);
+    }
+
+    pMsg->daysToKeep1 = htonl((int32_t)p1->pVar.i64);
+    pMsg->daysToKeep2 = htonl((int32_t)p2->pVar.i64);
+#else
+    UNUSED(msg3);
+    pMsg->daysToKeep1 = pMsg->daysToKeep0;
+    pMsg->daysToKeep2 = pMsg->daysToKeep0;
+#endif
   }
 
   return TSDB_CODE_SUCCESS;

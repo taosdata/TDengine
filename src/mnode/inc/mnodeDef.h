@@ -161,7 +161,7 @@ typedef struct {
   int32_t totalBlocks;
   int32_t maxTables;
   int32_t daysPerFile;
-  int32_t daysToKeep;
+  int32_t daysToKeep0;
   int32_t daysToKeep1;
   int32_t daysToKeep2;
   int32_t minRowsPerFileBlock;
