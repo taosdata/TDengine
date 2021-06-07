@@ -158,6 +158,9 @@ class TDTestCase:
         # tdSql.execute('alter database db keep 15,15,15')
         # tdSql.query('show databases')
         # tdSql.checkData(0,7,'15,15,15')
+
+        # the following line should generate an error, but the insert was a success
+        # the time now-15d is out of range of now -10d 
         tdSql.execute('insert into tb values (now-15d, 10)')
         tdSql.query('select * from tb')
         tdSql.checkRows(rowNum + 1)
