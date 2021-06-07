@@ -3499,7 +3499,7 @@ static void deriv_function(SQLFunctionCtx *pCtx) {
           }
         }
 
-        pDerivInfo->prevValue = pData[i];
+        pDerivInfo->prevValue = (double) pData[i];
         pDerivInfo->prevTs    = tsList[i];
         notNullElems++;
       }
@@ -3686,7 +3686,7 @@ static void diff_function(SQLFunctionCtx *pCtx) {
         }
 
         if (pCtx->param[1].nType != INITIAL_VALUE_NOT_ASSIGNED) {  // initial value is not set yet
-          *pOutput = (int32_t)(pData[i] - pCtx->param[1].i64);  // direct previous may be null
+          *pOutput = pData[i] - pCtx->param[1].i64;  // direct previous may be null
           *pTimestamp = tsList[i];
           pOutput    += 1;
           pTimestamp += 1;
@@ -3708,13 +3708,13 @@ static void diff_function(SQLFunctionCtx *pCtx) {
         }
 
         if (pCtx->param[1].nType != INITIAL_VALUE_NOT_ASSIGNED) {  // initial value is not set yet
-          *pOutput = (int32_t)(pData[i] - pCtx->param[1].i64);  // direct previous may be null
+          *pOutput = pData[i] - pCtx->param[1].d64;  // direct previous may be null
           *pTimestamp = tsList[i];
           pOutput    += 1;
           pTimestamp += 1;
         }
 
-        pCtx->param[1].i64 = pData[i];
+        pCtx->param[1].d64 = pData[i];
         pCtx->param[1].nType = pCtx->inputType;
         notNullElems++;
       }
@@ -3730,13 +3730,13 @@ static void diff_function(SQLFunctionCtx *pCtx) {
         }
 
         if (pCtx->param[1].nType != INITIAL_VALUE_NOT_ASSIGNED) {  // initial value is not set yet
-          *pOutput = (int32_t)(pData[i] - pCtx->param[1].i64);  // direct previous may be null
+          *pOutput = pData[i] - pCtx->param[1].d64;  // direct previous may be null
           *pTimestamp = tsList[i];
           pOutput    += 1;
           pTimestamp += 1;
         }
 
-        pCtx->param[1].i64 = pData[i];
+        pCtx->param[1].d64 = pData[i];
         pCtx->param[1].nType = pCtx->inputType;
         notNullElems++;
       }
@@ -3752,7 +3752,7 @@ static void diff_function(SQLFunctionCtx *pCtx) {
         }
 
         if (pCtx->param[1].nType != INITIAL_VALUE_NOT_ASSIGNED) {  // initial value is not set yet
-          *pOutput = (int32_t)(pData[i] - pCtx->param[1].i64);  // direct previous may be null
+          *pOutput = (int16_t)(pData[i] - pCtx->param[1].i64);  // direct previous may be null
           *pTimestamp = tsList[i];
           pOutput    += 1;
           pTimestamp += 1;
@@ -3774,7 +3774,7 @@ static void diff_function(SQLFunctionCtx *pCtx) {
         }
 
         if (pCtx->param[1].nType != INITIAL_VALUE_NOT_ASSIGNED) {  // initial value is not set yet
-          *pOutput = (int32_t)(pData[i] - pCtx->param[1].i64);  // direct previous may be null
+          *pOutput = (int8_t)(pData[i] - pCtx->param[1].i64);  // direct previous may be null
           *pTimestamp = tsList[i];
           pOutput    += 1;
           pTimestamp += 1;
