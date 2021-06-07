@@ -95,16 +95,7 @@ public class Utils {
     public static String getNativeSql(String rawSql, Object[] parameters) {
         // toLowerCase
         String preparedSql = rawSql.trim().toLowerCase();
-
-        String[] clause = new String[0];
-        if (SqlSyntaxValidator.isInsertSql(preparedSql)) {
-            // insert or import
-            clause = new String[]{"values\\s*\\(.*?\\)", "tags\\s*\\(.*?\\)"};
-        }
-        if (SqlSyntaxValidator.isSelectSql(preparedSql)) {
-            // select
-            clause = new String[]{"where\\s*.*"};
-        }
+        String[] clause = new String[]{"values\\s*\\(.*?\\)", "tags\\s*\\(.*?\\)", "where\\s*.*"};
         Map<Integer, Integer> placeholderPositions = new HashMap<>();
         RangeSet<Integer> clauseRangeSet = TreeRangeSet.create();
         findPlaceholderPosition(preparedSql, placeholderPositions);

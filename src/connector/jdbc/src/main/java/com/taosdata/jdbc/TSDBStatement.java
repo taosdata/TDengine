@@ -32,14 +32,15 @@ public class TSDBStatement extends AbstractStatement {
     }
 
     public ResultSet executeQuery(String sql) throws SQLException {
-        // check if closed
         if (isClosed()) {
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
         }
-        
-        //TODO: 如果在executeQuery方法中执行insert语句，那么先执行了SQL，再通过pSql来检查是否为一个insert语句，但这个insert SQL已经执行成功了
-
-        // execute query
+        //TODO:
+        // this is an unreasonable implementation, if the paratemer is a insert statement,
+        // the JNI connector will execute the sql at first and return a pointer: pSql,
+        // we use this pSql and invoke the isUpdateQuery(long pSql) method to decide .
+        // but the insert sql is already executed in database.
+        //execute query
         long pSql = this.connection.getConnector().executeQuery(sql);
         // if pSql is create/insert/update/delete/alter SQL
         if (this.connection.getConnector().isUpdateQuery(pSql)) {
