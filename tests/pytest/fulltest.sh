@@ -283,6 +283,7 @@ python3 ./test.py -f topic/topicQuery.py
 python3 ./test.py -f update/merge_commit_data-0.py
 # wal
 python3 ./test.py -f wal/addOldWalTest.py
+python3 ./test.py -f wal/sdbComp.py 
 
 # function
 python3 ./test.py -f functions/all_null_value.py
