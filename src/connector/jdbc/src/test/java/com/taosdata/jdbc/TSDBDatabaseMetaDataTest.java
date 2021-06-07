@@ -80,7 +80,7 @@ public class TSDBDatabaseMetaDataTest {
 
     @Test
     public void getDriverName() throws SQLException {
-        Assert.assertEquals("com.taosdata.jdbc.rs.RestfulDriver", metaData.getDriverName());
+        Assert.assertEquals("com.taosdata.jdbc.TSDBDriver", metaData.getDriverName());
     }
 
     @Test

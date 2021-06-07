@@ -84,7 +84,7 @@ public class RestfulDatabaseMetaDataTest {
 
     @Test
     public void getDriverName() throws SQLException {
-        Assert.assertEquals("com.taosdata.jdbc.TSDBDriver", metaData.getDriverName());
+        Assert.assertEquals("com.taosdata.jdbc.rs.RestfulDriver", metaData.getDriverName());
     }
 
     @Test
