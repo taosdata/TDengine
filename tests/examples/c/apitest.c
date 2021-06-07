@@ -784,14 +784,14 @@ void verify_prepare3(TAOS* taos) {
   sql = "insert into ? using st1 tags(?,?) values(?,?,?,?,?,?,?,?,?,?)";
   code = taos_stmt_prepare(stmt, sql, 0);
   if (code != 0){
-    printf("\033[31mfailed to execute taos_stmt_prepare. error:0x%x\033[0m\n", taos_stmt_errstr(stmt));
+    printf("\033[31mfailed to execute taos_stmt_prepare. error:%s\033[0m\n", taos_stmt_errstr(stmt));
     taos_stmt_close(stmt);
     return;    
   }
 
   code = taos_stmt_set_tbname_tags(stmt, "m1", tags);
   if (code != 0){
-    printf("\033[31mfailed to execute taos_stmt_prepare. error:0x%x\033[0m\n", taos_stmt_errstr(stmt));
+    printf("\033[31mfailed to execute taos_stmt_prepare. error:%s\033[0m\n", taos_stmt_errstr(stmt));
     taos_stmt_close(stmt);    
     return;
   }
