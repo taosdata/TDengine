@@ -7208,7 +7208,7 @@ SQInfo* createQInfoImpl(SQueryTableMsg* pQueryMsg, SGroupbyExpr* pGroupbyExpr, S
   // todo refactor
   pQInfo->query.queryBlockDist = (numOfOutput == 1 && pExprs[0].base.functionId == TSDB_FUNC_BLKINFO);
 
-  qDebug("qmsg:%p QInfo:0x%" PRIx64 "-%p created", pQueryMsg, pQInfo->qId, pQInfo);
+  qDebug("qmsg:%p vgId:%d, QInfo:0x%" PRIx64 "-%p created", pQueryMsg, pQInfo->query.vgId, pQInfo->qId, pQInfo);
   return pQInfo;
 
 _cleanup_qinfo:
