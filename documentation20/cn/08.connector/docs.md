@@ -301,7 +301,7 @@ TDengine的异步API均采用非阻塞调用模式。应用程序可以用多线
 2. 调用 `taos_stmt_prepare` 解析 INSERT 语句；
 3. 如果 INSERT 语句中预留了表名但没有预留 TAGS，那么调用 `taos_stmt_set_tbname` 来设置表名；
 4. 如果 INSERT 语句中既预留了表名又预留了 TAGS（例如 INSERT 语句采取的是自动建表的方式），那么调用 `taos_stmt_set_tbname_tags` 来设置表名和 TAGS 的值；
-5. 调用 `taos_stmt_bind_param_batch` 以多列的方式设置 VALUES 的值；
+5. 调用 `taos_stmt_bind_param_batch` 以多列的方式设置 VALUES 的值，或者调用 `taos_stmt_bind_param` 以单行的方式设置 VALUES 的值；
 6. 调用 `taos_stmt_add_batch` 把当前绑定的参数加入批处理；
 7. 可以重复第 3～6 步，为批处理加入更多的数据行；
 8. 调用 `taos_stmt_execute` 执行已经准备好的批处理指令；
@@ -338,17 +338,17 @@ typedef struct TAOS_BIND {
 
 - `int taos_stmt_set_tbname(TAOS_STMT* stmt, const char* name)`
 
-  （2.1.1.0 版本新增）  
+  （2.1.1.0 版本新增，仅支持用于替换 INSERT 语句中的参数值）  
   当 SQL 语句中的表名使用了 `?` 占位时，可以使用此函数绑定一个具体的表名。
 
 - `int taos_stmt_set_tbname_tags(TAOS_STMT* stmt, const char* name, TAOS_BIND* tags)`
 
-  （2.1.2.0 版本新增）  
+  （2.1.2.0 版本新增，仅支持用于替换 INSERT 语句中的参数值）  
   当 SQL 语句中的表名和 TAGS 都使用了 `?` 占位时，可以使用此函数绑定具体的表名和具体的 TAGS 取值。最典型的使用场景是使用了自动建表功能的 INSERT 语句（目前版本不支持指定具体的 TAGS 列）。tags 参数中的列数量需要与 SQL 语句中要求的 TAGS 数量完全一致。
 
 - `int taos_stmt_bind_param_batch(TAOS_STMT* stmt, TAOS_MULTI_BIND* bind)`
 
-  （2.1.1.0 版本新增）  
+  （2.1.1.0 版本新增，仅支持用于替换 INSERT 语句中的参数值）  
   以多列的方式传递待绑定的数据，需要保证这里传递的数据列的顺序、列的数量与 SQL 语句中的 VALUES 参数完全一致。TAOS_MULTI_BIND 的具体定义如下：
 
 ```c
