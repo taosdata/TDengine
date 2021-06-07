@@ -666,7 +666,7 @@ void cbParseSql(void* param, TAOS_RES* res, int code) {
 }
 
 TAOS_STREAM *taos_open_stream_withname(TAOS *taos, const char* dstTable, const char *sqlstr, void (*fp)(void *param, TAOS_RES *, TAOS_ROW row),
-                              int64_t stime, void *param, void (*callback)(void *)) {
+                              int64_t stime, void *param, void (*callback)(void *), void* cqhandle) {
   STscObj *pObj = (STscObj *)taos;
   if (pObj == NULL || pObj->signature != pObj) return NULL;
 
@@ -699,6 +699,7 @@ TAOS_STREAM *taos_open_stream_withname(TAOS *taos, const char* dstTable, const c
   pStream->callback = callback;
   pStream->param = param;
   pStream->pSql = pSql;
+  pStream->cqhandle = cqhandle;
   pSql->pStream = pStream;
   pSql->param = pStream;
   pSql->maxRetry = TSDB_MAX_REPLICA;
@@ -739,7 +740,7 @@ TAOS_STREAM *taos_open_stream_withname(TAOS *taos, const char* dstTable, const c
 
 TAOS_STREAM *taos_open_stream(TAOS *taos, const char *sqlstr, void (*fp)(void *param, TAOS_RES *, TAOS_ROW row),
                               int64_t stime, void *param, void (*callback)(void *)) {  
-  return taos_open_stream_withname(taos, "", sqlstr, fp, stime, param, callback);
+  return taos_open_stream_withname(taos, "", sqlstr, fp, stime, param, callback, NULL);
 }
 
 void taos_close_stream(TAOS_STREAM *handle) {

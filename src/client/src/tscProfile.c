@@ -19,6 +19,7 @@
 #include "ttimer.h"
 #include "tutil.h"
 #include "taosmsg.h"
+#include "tcq.h"
 
 #include "taos.h"
 
@@ -294,6 +295,18 @@ int tscBuildQueryStreamDesc(void *pMsg, STscObj *pObj) {
   return msgLen;
 }
 
+// cqContext->dbconn is killed then call this callback
+void cqConnKilledNotify(void* handle, void* conn) {
+  if (handle == NULL || conn == NULL){
+    return ;
+  } 
+
+  SCqContext* pContext = (SCqContext*) handle;
+  if (pContext->dbConn == conn){
+    atomic_store_ptr(&(pContext->dbConn), NULL);
+  } 
+}
+
 void tscKillConnection(STscObj *pObj) {
   // get stream header by locked
   pthread_mutex_lock(&pObj->mutex);
@@ -302,6 +315,8 @@ void tscKillConnection(STscObj *pObj) {
 
   while (pStream) {
     SSqlStream *tmp = pStream->next;
+    // set associate variant to NULL
+    cqConnKilledNotify(pStream->cqhandle, pObj);
     // taos_close_stream function call pObj->mutet lock , careful death-lock
     taos_close_stream(pStream);
     pStream = tmp;
@@ -310,3 +325,4 @@ void tscKillConnection(STscObj *pObj) {
   tscDebug("connection:%p is killed", pObj);
   taos_close(pObj);
 }
+
