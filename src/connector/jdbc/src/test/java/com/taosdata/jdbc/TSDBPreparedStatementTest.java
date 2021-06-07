@@ -295,6 +295,14 @@ public class TSDBPreparedStatementTest {
             assertAllNullExceptTimestamp(rs, ts);
         }
     }
+    
+    @Test
+    public void createTwoSameDbTest() throws SQLException {
+        Statement stmt = conn.createStatement();                
+                
+        stmt.execute("create database dbtest");
+        Assert.assertThrows(SQLException.class, () -> stmt.execute("create database dbtest"));                
+    }
 
     @Test
     public void setBoolean() throws SQLException {
