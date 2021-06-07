@@ -283,6 +283,7 @@ python3 ./test.py -f topic/topicQuery.py
 python3 ./test.py -f update/merge_commit_data-0.py
 # wal
 python3 ./test.py -f wal/addOldWalTest.py
+python3 ./test.py -f wal/sdbComp.py 
 
 # function
 python3 ./test.py -f functions/all_null_value.py
@@ -338,6 +339,7 @@ python3 test.py -f tools/taosdemoAllTest/taosdemoTestInsertWithJson.py
 python3 test.py -f tools/taosdemoAllTest/taosdemoTestQueryWithJson.py
 python3 ./test.py -f tag_lite/drop_auto_create.py
 python3 test.py -f insert/insert_before_use_db.py
+python3 test.py -f alter/alter_keep.py
 python3 test.py -f alter/alter_cacheLastRow.py
 python3 test.py -f alter/alter_keep_exception.py
 #======================p4-end===============

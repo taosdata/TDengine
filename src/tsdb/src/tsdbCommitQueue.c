@@ -180,15 +180,14 @@ static void *tsdbLoopCommit(void *arg) {
     req = ((SReq *)pNode->data)->req;
     pRepo = ((SReq *)pNode->data)->pRepo;
 
-    // check if need to apply new config
-    if (pRepo->config_changed) {
-      tsdbApplyRepoConfig(pRepo);
-    }
-
     if (req == COMMIT_REQ) {
       tsdbCommitData(pRepo);
     } else if (req == COMPACT_REQ) {
       tsdbCompactImpl(pRepo);
+    } else if (req == COMMIT_CONFIG_REQ) {        
+      ASSERT(pRepo->config_changed);
+      tsdbApplyRepoConfig(pRepo);
+      tsem_post(&(pRepo->readyToCommit));
     } else {
       ASSERT(0);
     }

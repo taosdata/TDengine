@@ -43,7 +43,7 @@
  */
 int64_t user_mktime64(const unsigned int year0, const unsigned int mon0,
 		const unsigned int day, const unsigned int hour,
-		const unsigned int min, const unsigned int sec, int64_t timezone)
+		const unsigned int min, const unsigned int sec, int64_t time_zone)
 {
   unsigned int mon = mon0, year = year0;
 
@@ -61,7 +61,7 @@ int64_t user_mktime64(const unsigned int year0, const unsigned int mon0,
   res  = res*24;
   res  = ((res + hour) * 60 + min) * 60 + sec;
 
-  return (res + timezone);
+  return (res + time_zone);
 }
 
 // ==== mktime() kernel code =================//
