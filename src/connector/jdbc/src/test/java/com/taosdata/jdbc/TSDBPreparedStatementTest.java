@@ -43,6 +43,7 @@ public class TSDBPreparedStatementTest {
         ResultSet rs = pstmt_select.executeQuery();
         ResultSetMetaData meta = rs.getMetaData();
         rs.next();
+
         // then
         assertMetaData(meta);
         {

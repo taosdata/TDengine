@@ -648,8 +648,8 @@ public class RestfulDatabaseMetaDataTest {
             Assert.assertEquals(null, rs.getString("TABLE_SCHEM"));
             // TABLE_NAME
             Assert.assertEquals("TABLE_NAME", meta.getColumnLabel(3));
-            Assert.assertEquals("acct_root", rs.getString(3));
-            Assert.assertEquals("acct_root", rs.getString("TABLE_NAME"));
+            Assert.assertNotNull(rs.getString(3));
+            Assert.assertNotNull(rs.getString("TABLE_NAME"));
             // TABLE_TYPE
             Assert.assertEquals("TABLE_TYPE", meta.getColumnLabel(4));
             Assert.assertEquals("TABLE", rs.getString(4));
@@ -658,32 +658,6 @@ public class RestfulDatabaseMetaDataTest {
             Assert.assertEquals("REMARKS", meta.getColumnLabel(5));
             Assert.assertEquals("", rs.getString(5));
             Assert.assertEquals("", rs.getString("REMARKS"));
-        }
-        rs.next();
-        rs.next();
-        rs.next();
-        rs.next();
-        {
-            // TABLE_CAT
-            Assert.assertEquals("TABLE_CAT", meta.getColumnLabel(1));
-            Assert.assertEquals("log", rs.getString(1));
-            Assert.assertEquals("log", rs.getString("TABLE_CAT"));
-            // TABLE_SCHEM
-            Assert.assertEquals("TABLE_SCHEM", meta.getColumnLabel(2));
-            Assert.assertEquals(null, rs.getString(2));
-            Assert.assertEquals(null, rs.getString("TABLE_SCHEM"));
-            // TABLE_NAME
-            Assert.assertEquals("TABLE_NAME", meta.getColumnLabel(3));
-            Assert.assertEquals("acct", rs.getString(3));
-            Assert.assertEquals("acct", rs.getString("TABLE_NAME"));
-            // TABLE_TYPE
-            Assert.assertEquals("TABLE_TYPE", meta.getColumnLabel(4));
-            Assert.assertEquals("TABLE", rs.getString(4));
-            Assert.assertEquals("TABLE", rs.getString("TABLE_TYPE"));
-            // REMARKS
-            Assert.assertEquals("REMARKS", meta.getColumnLabel(5));
-            Assert.assertEquals("STABLE", rs.getString(5));
-            Assert.assertEquals("STABLE", rs.getString("REMARKS"));
         }
     }
 
