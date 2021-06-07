@@ -26,6 +26,23 @@ class TDTestCase:
         tdLog.debug("start to execute %s" % __file__)
         tdSql.init(conn.cursor(), logSql)
 
+    def getTDenginePath(self):
+        selfPath = os.path.dirname(os.path.realpath(__file__))
+
+        if ("community" in selfPath):
+            projPath = selfPath[:selfPath.find("community")]
+        else:
+            projPath = selfPath[:selfPath.find("tests")]
+        print(projPath)
+        for root, dirs, files in os.walk(projPath):
+            if ("sim" in dirs):
+                print(root)
+                rootRealPath = os.path.realpath(root)
+                # if ("packaging" not in rootRealPath):
+                #     buildPath = root[:len(root)-len("/build/bin")]
+                    # break
+        return rootRealPath
+        
     def getBuildPath(self):
         selfPath = os.path.dirname(os.path.realpath(__file__))
 
@@ -41,15 +58,21 @@ class TDTestCase:
                     buildPath = root[:len(root)-len("/build/bin")]
                     break
         return buildPath
-        
+
     def run(self):
-        #tdSql.prepare()
+        tdSql.prepare()
         buildPath = self.getBuildPath()
         if (buildPath == ""):
             tdLog.exit("taosd not found!")
         else:
             tdLog.info("taosd found in %s" % buildPath)
         binPath = buildPath+ "/build/bin/"  
+        TDenginePath = self.getTDenginePath()
+        print('TD '+ TDenginePath)
+        if (TDenginePath == ""):
+            tdLog.exit("TDengine not found!")
+        else:
+            tdLog.info("TDengine found in %s" % TDenginePath) 
 
         ## change system time to 2020/10/20
         os.system ('timedatectl set-ntp off')
@@ -58,15 +81,26 @@ class TDTestCase:
         #run taosdemo to insert data. one row per second from 2020/10/11 to 2020/10/20
         #11 data files should be generated
         #vnode at TDinternal/community/sim/dnode1/data/vnode
-        #os.system("%staosdemo -f tools/taosdemoAllTest/manual_change_time_1_1_A.json" % binPath) 
-        #input("please the data file. After checking, press enter")
-        commandArray = ['ls', '-l', f'{binPath}sim/dnode1/data/vnode/vnode2/tsdb/data', '|grep', '\'data\'', '|wc', '-l']
+        os.system("%staosdemo -f tools/taosdemoAllTest/manual_change_time_1_1_A.json" % binPath) 
+        commandArray = ['ls', '-l', f'{TDenginePath}/sim/dnode1/data/vnode/vnode2/tsdb/data']
         result = subprocess.run(commandArray, stdout=subprocess.PIPE).stdout.decode('utf-8')
-        print(result)
-        # tdSql.query('select first(ts) from stb_0')
-        # tdSql.checkData(0,0,datetime(2020,10,11,0,0,0,0))
-        # tdSql.query('select last(ts) from stb_0')
-        # tdSql.checkData(0,0,datetime(2020,10,20,23,59,59,0))
+        print(result.count('data'))
+        if result.count('data') != 11:
+            tdLog.exit('wrong number of files')
+        else:
+            tdLog.info("data file number correct")
+        
+        os.system ('timedatectl set-time 2020-10-25')
+        os.system("%staosdemo -f tools/taosdemoAllTest/manual_change_time_1_1_B.json" % binPath) 
+        commandArray = ['ls', '-l', f'{TDenginePath}/sim/dnode1/data/vnode/vnode2/tsdb/data']
+        result = subprocess.run(commandArray, stdout=subprocess.PIPE).stdout.decode('utf-8')
+        print(result.count('data'))
+        if result.count('data') != 7:
+            tdLog.exit('wrong number of files')
+        else:
+            tdLog.info("data file number correct")
+        tdSql.query('select first(ts) from stb_0')
+        tdSql.checkData(0,0,datetime(2020,10,14,8,0,0,0))
 
     def stop(self):
         tdSql.close()

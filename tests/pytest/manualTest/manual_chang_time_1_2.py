@@ -17,6 +17,7 @@ from util.cases import *
 from util.sql import *
 from util.dnodes import tdDnodes
 from datetime import datetime
+import subprocess
 
 ##TODO: auto test version is currently unsupported, need to come up with 
 #       an auto test version in the future
@@ -40,7 +41,24 @@ class TDTestCase:
                     buildPath = root[:len(root)-len("/build/bin")]
                     break
         return buildPath
-        
+
+    def getTDenginePath(self):
+        selfPath = os.path.dirname(os.path.realpath(__file__))
+
+        if ("community" in selfPath):
+            projPath = selfPath[:selfPath.find("community")]
+        else:
+            projPath = selfPath[:selfPath.find("tests")]
+        print(projPath)
+        for root, dirs, files in os.walk(projPath):
+            if ("sim" in dirs):
+                print(root)
+                rootRealPath = os.path.realpath(root)
+                # if ("packaging" not in rootRealPath):
+                #     buildPath = root[:len(root)-len("/build/bin")]
+                    # break
+        return rootRealPath
+
     def run(self):
         tdSql.prepare()
         buildPath = self.getBuildPath()
@@ -49,6 +67,12 @@ class TDTestCase:
         else:
             tdLog.info("taosd found in %s" % buildPath)
         binPath = buildPath+ "/build/bin/"  
+        TDenginePath = self.getTDenginePath()
+        print('TD '+ TDenginePath)
+        if (TDenginePath == ""):
+            tdLog.exit("TDengine not found!")
+        else:
+            tdLog.info("TDengine found in %s" % TDenginePath) 
 
         ## change system time to 2020/10/20
         os.system ('timedatectl set-ntp off')
@@ -58,7 +82,13 @@ class TDTestCase:
         #11 data files should be generated
         #vnode at TDinternal/community/sim/dnode1/data/vnode
         os.system("%staosdemo -f tools/taosdemoAllTest/manual_change_time_1_1_A.json" % binPath) 
-        input("please the data file. After checking, press enter")
+        commandArray = ['ls', '-l', f'{TDenginePath}/sim/dnode1/data/vnode/vnode2/tsdb/data']
+        result = subprocess.run(commandArray, stdout=subprocess.PIPE).stdout.decode('utf-8')
+        print(result.count('data'))
+        if result.count('data') != 11:
+            tdLog.exit('wrong number of files')
+        else:
+            tdLog.info("data file number correct")
 
         tdSql.query('select first(ts) from stb_0') #check the last data in the database
         tdSql.checkData(0,0,datetime(2020,10,11,0,0,0,0))
@@ -73,7 +103,13 @@ class TDTestCase:
         tdDnodes.start(1)
         tdSql.query('select first(ts) from stb_0')
         tdSql.checkData(0,0,datetime(2020,10,14,8,0,0,0)) #check the last data in the database
-        input("please the data file. After checking, press enter")
+        commandArray = ['ls', '-l', f'{TDenginePath}/sim/dnode1/data/vnode/vnode2/tsdb/data']
+        result = subprocess.run(commandArray, stdout=subprocess.PIPE).stdout.decode('utf-8')
+        print(result.count('data'))
+        if result.count('data') != 7:
+            tdLog.exit('wrong number of files')
+        else:
+            tdLog.info("data file number correct")
 
 
 
