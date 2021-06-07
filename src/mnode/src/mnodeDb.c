@@ -778,7 +778,11 @@ static int32_t mnodeRetrieveDbs(SShowObj *pShow, char *data, int32_t rows, void 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
     
     char tmp[128] = {0};
-    sprintf(tmp, "%d,%d,%d", pDb->cfg.daysToKeep0, pDb->cfg.daysToKeep1, pDb->cfg.daysToKeep2);
+    if (pDb->cfg.daysToKeep0 > pDb->cfg.daysToKeep1 || pDb->cfg.daysToKeep0 > pDb->cfg.daysToKeep2) { 
+      sprintf(tmp, "%d,%d,%d", pDb->cfg.daysToKeep1, pDb->cfg.daysToKeep2, pDb->cfg.daysToKeep0);
+    } else {
+      sprintf(tmp, "%d,%d,%d", pDb->cfg.daysToKeep0, pDb->cfg.daysToKeep1, pDb->cfg.daysToKeep2);
+    }
     STR_WITH_SIZE_TO_VARSTR(pWrite, tmp, strlen(tmp));
     cols++;
 
@@ -936,6 +940,13 @@ static SDbCfg mnodeGetAlterDbOption(SDbObj *pDb, SAlterDbMsg *pAlter) {
   int16_t partitions     = htons(pAlter->partitions);
   
   terrno = TSDB_CODE_SUCCESS;
+
+  if (pDb->cfg.daysToKeep0 > pDb->cfg.daysToKeep1 || pDb->cfg.daysToKeep0 > pDb->cfg.daysToKeep2) {
+    int32_t t = pDb->cfg.daysToKeep0;
+    newCfg.daysToKeep0 = pDb->cfg.daysToKeep1;
+    newCfg.daysToKeep1 = pDb->cfg.daysToKeep2;
+    newCfg.daysToKeep2 = t;
+  }
 
   if (cacheBlockSize > 0 && cacheBlockSize != pDb->cfg.cacheBlockSize) {
     mError("db:%s, can't alter cache option", pDb->name);
