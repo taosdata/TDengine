@@ -270,6 +270,11 @@ void cenc_calc_delay(MS3TraceList *mstl, callback_params_t *param)
       seg = seg->next;
     }
 
+    if (numsamples == 0) {
+      id = id->next;
+      continue;
+    }
+
     if (strlen(cmd) > MAX_TSQL_LEN - p->offset - 1024) {
       p->cmd[p->offset++] = ';';
       p->cmd[p->offset] = '\0';

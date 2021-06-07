@@ -274,6 +274,11 @@ void cenc_import_detail(MS3TraceList *mstl, callback_params_t *param)
       seg = seg->next;
     }
 
+    if (numsamples == 0) {
+      id = id->next;
+      continue;
+    }
+
     if (strlen(cmd) > (MAX_TSQL_LEN - p->offset - 1024) || (p->rows + rows) >= MAX_DB_ROWS) {
       p->cmd[p->offset++] = ';';
       p->cmd[p->offset] = '\0';
