@@ -283,9 +283,6 @@ void cenc_import_detail(MS3TraceList *mstl, callback_params_t *param)
       p->cmd[p->offset++] = ';';
       p->cmd[p->offset] = '\0';
 
-      p->offset = 0;
-      p->rows = 0;
-
       pthread_mutex_lock(&p->mutex);
 
       p->ready = 1;
@@ -294,6 +291,9 @@ void cenc_import_detail(MS3TraceList *mstl, callback_params_t *param)
       while (p->ready) {
         pthread_cond_wait(&p->cond, &p->mutex);
       }
+
+      p->offset = 0;
+      p->rows = 0;
 
       if (memcmp(cmd, prefix, prefix_len)) {
         memcpy(p->cmd, prefix, prefix_len);
@@ -492,7 +492,6 @@ void *subscribe_routine(void *arg)
   if (pps->offset > 0) {
     pps->cmd[pps->offset++] = ';';
     pps->cmd[pps->offset] = '\0';
-    pps->offset = 0;
   }
 
   pthread_cond_signal(&pps->cond);
@@ -500,6 +499,8 @@ void *subscribe_routine(void *arg)
   while (pps->ready == 1) {
     pthread_cond_wait(&pps->cond, &pps->mutex);
   }
+
+  pps->offset = 0;
 
   pthread_mutex_unlock(&pps->mutex);
 
@@ -586,8 +587,10 @@ void *writedb_routine(void *arg)
       pthread_cond_wait(&pps->cond, &pps->mutex);
     }
 
-    res = taos_query(pps->res_taos, pps->cmd);
-    check_and_free_res(&res, pps->cmd);
+    if (pps->offset > 0) {
+      res = taos_query(pps->res_taos, pps->cmd);
+      check_and_free_res(&res, pps->cmd);
+    }
 
     pps->ready = 0;
     pthread_cond_signal(&pps->cond);
