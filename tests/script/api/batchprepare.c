@@ -1458,6 +1458,160 @@ int stmt_funcb_autoctb3(TAOS_STMT *stmt) {
 
 
 
+
+//1 tables 10 records
+int stmt_funcb_autoctb4(TAOS_STMT *stmt) {
+  struct {
+      int64_t *ts;
+      int8_t b[10];
+      int8_t v1[10];
+      int16_t v2[10];
+      int32_t v4[10];
+      int64_t v8[10];
+      float f4[10];
+      double f8[10];
+      char bin[10][40];
+  } v = {0};
+
+  v.ts = malloc(sizeof(int64_t) * 1 * 10);
+  
+  int *lb = malloc(10 * sizeof(int));
+
+  TAOS_BIND *tags = calloc(1, sizeof(TAOS_BIND) * 9 * 1);
+  TAOS_MULTI_BIND *params = calloc(1, sizeof(TAOS_MULTI_BIND) * 1*5);
+
+//  int one_null = 1;
+  int one_not_null = 0;
+  
+  char* is_null = malloc(sizeof(char) * 10);
+  char* no_null = malloc(sizeof(char) * 10);
+
+  for (int i = 0; i < 10; ++i) {
+    lb[i] = 40;
+    no_null[i] = 0;
+    is_null[i] = (i % 10 == 2) ? 1 : 0;
+    v.b[i] = (int8_t)(i % 2);
+    v.v1[i] = (int8_t)((i+1) % 2);
+    v.v2[i] = (int16_t)i;
+    v.v4[i] = (int32_t)(i+1);
+    v.v8[i] = (int64_t)(i+2);
+    v.f4[i] = (float)(i+3);
+    v.f8[i] = (double)(i+4);
+    memset(v.bin[i], '0'+i%10, 40);
+  }
+  
+  for (int i = 0; i < 5; i+=5) {
+    params[i+0].buffer_type = TSDB_DATA_TYPE_TIMESTAMP;
+    params[i+0].buffer_length = sizeof(int64_t);
+    params[i+0].buffer = &v.ts[10*i/10];
+    params[i+0].length = NULL;
+    params[i+0].is_null = no_null;
+    params[i+0].num = 10;
+    
+    params[i+1].buffer_type = TSDB_DATA_TYPE_BOOL;
+    params[i+1].buffer_length = sizeof(int8_t);
+    params[i+1].buffer = v.b;
+    params[i+1].length = NULL;
+    params[i+1].is_null = is_null;
+    params[i+1].num = 10;
+
+    params[i+2].buffer_type = TSDB_DATA_TYPE_INT;
+    params[i+2].buffer_length = sizeof(int32_t);
+    params[i+2].buffer = v.v4;
+    params[i+2].length = NULL;
+    params[i+2].is_null = is_null;
+    params[i+2].num = 10;
+
+    params[i+3].buffer_type = TSDB_DATA_TYPE_BIGINT;
+    params[i+3].buffer_length = sizeof(int64_t);
+    params[i+3].buffer = v.v8;
+    params[i+3].length = NULL;
+    params[i+3].is_null = is_null;
+    params[i+3].num = 10;
+
+    params[i+4].buffer_type = TSDB_DATA_TYPE_DOUBLE;
+    params[i+4].buffer_length = sizeof(double);
+    params[i+4].buffer = v.f8;
+    params[i+4].length = NULL;
+    params[i+4].is_null = is_null;
+    params[i+4].num = 10;
+  }
+
+  int64_t tts = 1591060628000;
+  for (int i = 0; i < 10; ++i) {
+    v.ts[i] = tts + i;
+  }
+
+
+  for (int i = 0; i < 1; ++i) {
+    tags[i+0].buffer_type = TSDB_DATA_TYPE_BOOL;
+    tags[i+0].buffer = v.b;
+    tags[i+0].is_null = &one_not_null;
+    tags[i+0].length = NULL;
+
+    tags[i+1].buffer_type = TSDB_DATA_TYPE_SMALLINT;
+    tags[i+1].buffer = v.v2;
+    tags[i+1].is_null = &one_not_null;
+    tags[i+1].length = NULL;
+
+    tags[i+2].buffer_type = TSDB_DATA_TYPE_FLOAT;
+    tags[i+2].buffer = v.f4;
+    tags[i+2].is_null = &one_not_null;
+    tags[i+2].length = NULL;
+
+    tags[i+3].buffer_type = TSDB_DATA_TYPE_BINARY;
+    tags[i+3].buffer = v.bin;
+    tags[i+3].is_null = &one_not_null;
+    tags[i+3].length = (uintptr_t *)lb;
+  }
+
+
+  unsigned long long starttime = getCurrentTime();
+
+  char *sql = "insert into ? using stb1 tags(1,?,2,?,4,?,6.0,?,'b') (ts,b,v4,v8,f8) values(?,?,?,?,?)";
+  int code = taos_stmt_prepare(stmt, sql, 0);
+  if (code != 0){
+    printf("failed to execute taos_stmt_prepare. code:0x%x\n", code);
+    exit(1);
+  }
+
+  int id = 0;
+  for (int zz = 0; zz < 1; zz++) {
+    char buf[32];
+    sprintf(buf, "m%d", zz);
+    code = taos_stmt_set_tbname_tags(stmt, buf, tags);
+    if (code != 0){
+      printf("failed to execute taos_stmt_set_tbname_tags. code:0x%x\n", code);
+    }  
+
+    taos_stmt_bind_param_batch(stmt, params + id * 5);
+    taos_stmt_add_batch(stmt);
+  }
+
+  if (taos_stmt_execute(stmt) != 0) {
+    printf("failed to execute insert statement.\n");
+    exit(1);
+  }
+
+  ++id;
+
+  unsigned long long endtime = getCurrentTime();
+  printf("insert total %d records, used %u seconds, avg:%u useconds\n", 10, (endtime-starttime)/1000000UL, (endtime-starttime)/(10));
+
+  free(v.ts);  
+  free(lb);
+  free(params);
+  free(is_null);
+  free(no_null);
+  free(tags);
+
+  return 0;
+}
+
+
+
+
+
 //1 tables 10 records
 int stmt_funcb_autoctb_e1(TAOS_STMT *stmt) {
   struct {
@@ -4351,6 +4505,7 @@ void* runcase(void *par) {
 
   (void)idx;
 
+
 #if 1
     prepare(taos, 1, 1);
   
@@ -4531,9 +4686,9 @@ void* runcase(void *par) {
 
   stmt = taos_stmt_init(taos);
 
-  printf("1t+10r+bm+autoctb start\n");
+  printf("1t+10r+bm+autoctb1 start\n");
   stmt_funcb_autoctb1(stmt);
-  printf("1t+10r+bm+autoctb end\n");
+  printf("1t+10r+bm+autoctb1 end\n");
   printf("check result start\n");
   check_result(taos, "m0", 1, 10);
   printf("check result end\n");
@@ -4546,9 +4701,9 @@ void* runcase(void *par) {
 
   stmt = taos_stmt_init(taos);
 
-  printf("1t+10r+bm+autoctb start\n");
+  printf("1t+10r+bm+autoctb2 start\n");
   stmt_funcb_autoctb2(stmt);
-  printf("1t+10r+bm+autoctb end\n");
+  printf("1t+10r+bm+autoctb2 end\n");
   printf("check result start\n");
   check_result(taos, "m0", 1, 10);
   printf("check result end\n");
@@ -4562,14 +4717,29 @@ void* runcase(void *par) {
 
   stmt = taos_stmt_init(taos);
 
-  printf("1t+10r+bm+autoctb start\n");
+  printf("1t+10r+bm+autoctb3 start\n");
   stmt_funcb_autoctb3(stmt);
-  printf("1t+10r+bm+autoctb end\n");
+  printf("1t+10r+bm+autoctb3 end\n");
   printf("check result start\n");
   check_result(taos, "m0", 1, 10);
   printf("check result end\n");
   taos_stmt_close(stmt);
 
+#endif
+
+
+#if 1  
+  prepare(taos, 1, 0);
+
+  stmt = taos_stmt_init(taos);
+
+  printf("1t+10r+bm+autoctb4 start\n");
+  stmt_funcb_autoctb4(stmt);
+  printf("1t+10r+bm+autoctb4 end\n");
+  printf("check result start\n");
+  check_result(taos, "m0", 1, 10);
+  printf("check result end\n");
+  taos_stmt_close(stmt);
 #endif
 
 
