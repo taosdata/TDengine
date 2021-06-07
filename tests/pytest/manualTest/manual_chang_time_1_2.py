@@ -17,7 +17,6 @@ from util.cases import *
 from util.sql import *
 from util.dnodes import tdDnodes
 from datetime import datetime
-import subprocess
 
 ##TODO: auto test version is currently unsupported, need to come up with 
 #       an auto test version in the future
@@ -61,26 +60,22 @@ class TDTestCase:
         os.system("%staosdemo -f tools/taosdemoAllTest/manual_change_time_1_1_A.json" % binPath) 
         input("please the data file. After checking, press enter")
 
-        tdSql.query('select first(ts) from stb_0')
+        tdSql.query('select first(ts) from stb_0') #check the last data in the database
         tdSql.checkData(0,0,datetime(2020,10,11,0,0,0,0))
-        tdSql.query('select last(ts) from stb_0')
-        tdSql.checkData(0,0,datetime(2020,10,20,23,59,59,0))
 
         os.system ('timedatectl set-time 2020-10-25')
 
-        #run taosdemo to insert data. one row per second from 2020/10/16 to 2020/10/20
+        #restart taosd
         #4 oldest data file should be removed from tsdb/data
         #vnode at TDinternal/community/sim/dnode1/data/vnode
         #7 data file should be found 
-        os.system("%staosdemo -f tools/taosdemoAllTest/manual_change_time_1_1_B.json" % binPath) 
+        tdDnodes.stop(1)
+        tdDnodes.start(1)
+        tdSql.query('select first(ts) from stb_0')
+        tdSql.checkData(0,0,datetime(2020,10,14,8,0,0,0)) #check the last data in the database
         input("please the data file. After checking, press enter")
 
-        tdSql.query('select first(ts) from stb_0')
-        tdSql.checkData(0,0,datetime(2020,10,14,8,0,0,0))
-        
-        ##test results
-        #2021/06/05 first check: 11 data files    second check: 7 data files
-        #           confirm with the assumption       Baosheng Chang
+
 
     def stop(self):
         tdSql.close()

@@ -43,7 +43,7 @@ class TDTestCase:
         return buildPath
         
     def run(self):
-        tdSql.prepare()
+        #tdSql.prepare()
         buildPath = self.getBuildPath()
         if (buildPath == ""):
             tdLog.exit("taosd not found!")
@@ -58,29 +58,15 @@ class TDTestCase:
         #run taosdemo to insert data. one row per second from 2020/10/11 to 2020/10/20
         #11 data files should be generated
         #vnode at TDinternal/community/sim/dnode1/data/vnode
-        os.system("%staosdemo -f tools/taosdemoAllTest/manual_change_time_1_1_A.json" % binPath) 
-        input("please the data file. After checking, press enter")
-
-        tdSql.query('select first(ts) from stb_0')
-        tdSql.checkData(0,0,datetime(2020,10,11,0,0,0,0))
-        tdSql.query('select last(ts) from stb_0')
-        tdSql.checkData(0,0,datetime(2020,10,20,23,59,59,0))
-
-        os.system ('timedatectl set-time 2020-10-25')
-
-        #run taosdemo to insert data. one row per second from 2020/10/16 to 2020/10/20
-        #4 oldest data file should be removed from tsdb/data
-        #vnode at TDinternal/community/sim/dnode1/data/vnode
-        #7 data file should be found 
-        os.system("%staosdemo -f tools/taosdemoAllTest/manual_change_time_1_1_B.json" % binPath) 
-        input("please the data file. After checking, press enter")
-
-        tdSql.query('select first(ts) from stb_0')
-        tdSql.checkData(0,0,datetime(2020,10,14,8,0,0,0))
-        
-        ##test results
-        #2021/06/05 first check: 11 data files    second check: 7 data files
-        #           confirm with the assumption       Baosheng Chang
+        #os.system("%staosdemo -f tools/taosdemoAllTest/manual_change_time_1_1_A.json" % binPath) 
+        #input("please the data file. After checking, press enter")
+        commandArray = ['ls', '-l', f'{binPath}sim/dnode1/data/vnode/vnode2/tsdb/data', '|grep', '\'data\'', '|wc', '-l']
+        result = subprocess.run(commandArray, stdout=subprocess.PIPE).stdout.decode('utf-8')
+        print(result)
+        # tdSql.query('select first(ts) from stb_0')
+        # tdSql.checkData(0,0,datetime(2020,10,11,0,0,0,0))
+        # tdSql.query('select last(ts) from stb_0')
+        # tdSql.checkData(0,0,datetime(2020,10,20,23,59,59,0))
 
     def stop(self):
         tdSql.close()
