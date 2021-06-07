@@ -2161,7 +2161,7 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
     case TSDB_FUNC_STDDEV:
     case TSDB_FUNC_LEASTSQR: {
       // 1. valid the number of parameters
-      int32_t numOfParams = taosArrayGetSize(pItem->pNode->pParam);
+      int32_t numOfParams = (pItem->pNode->pParam == NULL)? 0: taosArrayGetSize(pItem->pNode->pParam);
       if (pItem->pNode->pParam == NULL ||
           (functionId != TSDB_FUNC_LEASTSQR && functionId != TSDB_FUNC_DERIVATIVE && numOfParams != 1) ||
           ((functionId == TSDB_FUNC_LEASTSQR || functionId == TSDB_FUNC_DERIVATIVE) && numOfParams != 3)) {

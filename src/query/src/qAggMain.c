@@ -234,7 +234,6 @@ int32_t getResultDataInfo(int32_t dataType, int32_t dataBytes, int32_t functionI
     return TSDB_CODE_SUCCESS;
   }
 
-  //TODO twa function definit error.
   if (isSuperTable) {
     if (functionId == TSDB_FUNC_MIN || functionId == TSDB_FUNC_MAX) {
       *type = TSDB_DATA_TYPE_BINARY;
@@ -3420,18 +3419,6 @@ static bool diff_function_setup(SQLFunctionCtx *pCtx) {
   return false;
 }
 
-#define DIFF_IMPL(ctx, d, type)                                                              \
-  do {                                                                                       \
-    if ((ctx)->param[1].nType == INITIAL_VALUE_NOT_ASSIGNED) {                               \
-      (ctx)->param[1].nType = (ctx)->inputType;                                              \
-      *(type *)&(ctx)->param[1].i64 = *(type *)(d);                                       \
-    } else {                                                                                 \
-      *(type *)(ctx)->pOutput = *(type *)(d) - (*(type *)(&(ctx)->param[1].i64));      \
-      *(type *)(&(ctx)->param[1].i64) = *(type *)(d);                                     \
-      *(int64_t *)(ctx)->ptsOutputBuf = GET_TS_DATA(ctx, index);                             \
-    }                                                                                        \
-  } while (0);
-
 static bool deriv_function_setup(SQLFunctionCtx *pCtx) {
   if (!function_setup(pCtx)) {
     return false;
@@ -3480,7 +3467,6 @@ static void deriv_function(SQLFunctionCtx *pCtx) {
           if (pDerivInfo->ignoreNegative && *pOutput < 0) {
           } else {
             *pTimestamp = tsList[i];
-
             pOutput    += 1;
             pTimestamp += 1;
           }
@@ -3508,7 +3494,6 @@ static void deriv_function(SQLFunctionCtx *pCtx) {
           if (pDerivInfo->ignoreNegative && *pOutput < 0) {
           } else {
             *pTimestamp = tsList[i];
-
             pOutput    += 1;
             pTimestamp += 1;
           }
@@ -3535,7 +3520,6 @@ static void deriv_function(SQLFunctionCtx *pCtx) {
           if (pDerivInfo->ignoreNegative && *pOutput < 0) {
           } else {
             *pTimestamp = tsList[i];
-
             pOutput    += 1;
             pTimestamp += 1;
           }
@@ -3563,7 +3547,6 @@ static void deriv_function(SQLFunctionCtx *pCtx) {
           if (pDerivInfo->ignoreNegative && *pOutput < 0) {
           } else {
             *pTimestamp = tsList[i];
-
             pOutput    += 1;
             pTimestamp += 1;
           }
@@ -3590,7 +3573,6 @@ static void deriv_function(SQLFunctionCtx *pCtx) {
           if (pDerivInfo->ignoreNegative && *pOutput < 0) {
           } else {
             *pTimestamp = tsList[i];
-
             pOutput    += 1;
             pTimestamp += 1;
           }
@@ -3646,18 +3628,6 @@ static void deriv_function(SQLFunctionCtx *pCtx) {
   }
 }
 
-#define DIFF_IMPL(ctx, d, type)                                                   \
-  do {                                                                            \
-    if ((ctx)->param[1].nType == INITIAL_VALUE_NOT_ASSIGNED) {                    \
-      (ctx)->param[1].nType = (ctx)->inputType;                                   \
-      *(type *)&(ctx)->param[1].i64 = *(type *)(d);                               \
-    } else {                                                                      \
-      *(type *)(ctx)->pOutput = *(type *)(d) - (*(type *)(&(ctx)->param[1].i64)); \
-      *(type *)(&(ctx)->param[1].i64) = *(type *)(d);                             \
-      *(int64_t *)(ctx)->ptsOutputBuf = GET_TS_DATA(ctx, index);                  \
-    }                                                                             \
-  } while (0);
-
 #define DIFF_IMPL(ctx, d, type)                                                              \
   do {                                                                                       \
     if ((ctx)->param[1].nType == INITIAL_VALUE_NOT_ASSIGNED) {                               \
@@ -3693,20 +3663,10 @@ static void diff_function(SQLFunctionCtx *pCtx) {
           continue;
         }
 
-        if (pCtx->param[1].nType == INITIAL_VALUE_NOT_ASSIGNED) {  // initial value is not set yet
-          pCtx->param[1].i64 = pData[i];
-          pCtx->param[1].nType = pCtx->inputType;
-        } else if ((i == 0 && pCtx->order == TSDB_ORDER_ASC) || (i == pCtx->size - 1 && pCtx->order == TSDB_ORDER_DESC)) {
-          *pOutput = (int32_t)(pData[i] - pCtx->param[1].i64);
-          *pTimestamp = tsList[i];
-
-          pOutput += 1;
-          pTimestamp += 1;
-        } else {
+        if (pCtx->param[1].nType != INITIAL_VALUE_NOT_ASSIGNED) {  // initial value is not set yet
           *pOutput = (int32_t)(pData[i] - pCtx->param[1].i64);  // direct previous may be null
           *pTimestamp = tsList[i];
-
-          pOutput += 1;
+          pOutput    += 1;
           pTimestamp += 1;
         }
 
@@ -3725,20 +3685,10 @@ static void diff_function(SQLFunctionCtx *pCtx) {
           continue;
         }
 
-        if (pCtx->param[1].nType == INITIAL_VALUE_NOT_ASSIGNED) {  // initial value is not set yet
-          pCtx->param[1].i64 = pData[i];
-          pCtx->param[1].nType = pCtx->inputType;
-        } else if ((i == 0 && pCtx->order == TSDB_ORDER_ASC) || (i == pCtx->size - 1 && pCtx->order == TSDB_ORDER_DESC)) {
-          *pOutput = pData[i] - pCtx->param[1].i64;
+        if (pCtx->param[1].nType != INITIAL_VALUE_NOT_ASSIGNED) {  // initial value is not set yet
+          *pOutput = (int32_t)(pData[i] - pCtx->param[1].i64);  // direct previous may be null
           *pTimestamp = tsList[i];
-
-          pOutput += 1;
-          pTimestamp += 1;
-        } else {
-          *pOutput = pData[i] - pCtx->param[1].i64;
-          *pTimestamp = tsList[i];
-
-          pOutput += 1;
+          pOutput    += 1;
           pTimestamp += 1;
         }
 
@@ -3757,22 +3707,14 @@ static void diff_function(SQLFunctionCtx *pCtx) {
           continue;
         }
 
-        if (pCtx->param[1].nType == INITIAL_VALUE_NOT_ASSIGNED) {  // initial value is not set yet
-          pCtx->param[1].dKey = pData[i];
-          pCtx->param[1].nType = pCtx->inputType;
-        } else if ((i == 0 && pCtx->order == TSDB_ORDER_ASC) || (i == pCtx->size - 1 && pCtx->order == TSDB_ORDER_DESC)) {
-          *pOutput = pData[i] - pCtx->param[1].dKey;
+        if (pCtx->param[1].nType != INITIAL_VALUE_NOT_ASSIGNED) {  // initial value is not set yet
+          *pOutput = (int32_t)(pData[i] - pCtx->param[1].i64);  // direct previous may be null
           *pTimestamp = tsList[i];
-          pOutput += 1;
-          pTimestamp += 1;
-        } else {
-          *pOutput = pData[i] - pCtx->param[1].dKey;
-          *pTimestamp = tsList[i];
-          pOutput += 1;
+          pOutput    += 1;
           pTimestamp += 1;
         }
 
-        pCtx->param[1].dKey = pData[i];
+        pCtx->param[1].i64 = pData[i];
         pCtx->param[1].nType = pCtx->inputType;
         notNullElems++;
       }
@@ -3787,25 +3729,14 @@ static void diff_function(SQLFunctionCtx *pCtx) {
           continue;
         }
 
-        if (pCtx->param[1].nType == INITIAL_VALUE_NOT_ASSIGNED) {  // initial value is not set yet
-          pCtx->param[1].dKey = pData[i];
-          pCtx->param[1].nType = pCtx->inputType;
-        } else if ((i == 0 && pCtx->order == TSDB_ORDER_ASC) || (i == pCtx->size - 1 && pCtx->order == TSDB_ORDER_DESC)) {
-          *pOutput = (float)(pData[i] - pCtx->param[1].dKey);
+        if (pCtx->param[1].nType != INITIAL_VALUE_NOT_ASSIGNED) {  // initial value is not set yet
+          *pOutput = (int32_t)(pData[i] - pCtx->param[1].i64);  // direct previous may be null
           *pTimestamp = tsList[i];
-
-          pOutput += 1;
-          pTimestamp += 1;
-        } else {
-          *pOutput = (float)(pData[i] - pCtx->param[1].dKey);
-          *pTimestamp = tsList[i];
-
-          pOutput += 1;
+          pOutput    += 1;
           pTimestamp += 1;
         }
 
-        // keep the last value, the remain may be all null
-        pCtx->param[1].dKey = pData[i];
+        pCtx->param[1].i64 = pData[i];
         pCtx->param[1].nType = pCtx->inputType;
         notNullElems++;
       }
@@ -3820,19 +3751,10 @@ static void diff_function(SQLFunctionCtx *pCtx) {
           continue;
         }
 
-        if (pCtx->param[1].nType == INITIAL_VALUE_NOT_ASSIGNED) {  // initial value is not set yet
-          pCtx->param[1].i64 = pData[i];
-          pCtx->param[1].nType = pCtx->inputType;
-        } else if ((i == 0 && pCtx->order == TSDB_ORDER_ASC) || (i == pCtx->size - 1 && pCtx->order == TSDB_ORDER_DESC)) {
-          *pOutput = (int16_t)(pData[i] - pCtx->param[1].i64);
+        if (pCtx->param[1].nType != INITIAL_VALUE_NOT_ASSIGNED) {  // initial value is not set yet
+          *pOutput = (int32_t)(pData[i] - pCtx->param[1].i64);  // direct previous may be null
           *pTimestamp = tsList[i];
-          pOutput += 1;
-          pTimestamp += 1;
-        } else {
-          *pOutput = (int16_t)(pData[i] - pCtx->param[1].i64);
-          *pTimestamp = tsList[i];
-
-          pOutput += 1;
+          pOutput    += 1;
           pTimestamp += 1;
         }
 
@@ -3851,20 +3773,10 @@ static void diff_function(SQLFunctionCtx *pCtx) {
           continue;
         }
 
-        if (pCtx->param[1].nType == INITIAL_VALUE_NOT_ASSIGNED) {  // initial value is not set yet
-          pCtx->param[1].i64 = pData[i];
-          pCtx->param[1].nType = pCtx->inputType;
-        } else if ((i == 0 && pCtx->order == TSDB_ORDER_ASC) || (i == pCtx->size - 1 && pCtx->order == TSDB_ORDER_DESC)) {
-          *pOutput = (int8_t)(pData[i] - pCtx->param[1].i64);
+        if (pCtx->param[1].nType != INITIAL_VALUE_NOT_ASSIGNED) {  // initial value is not set yet
+          *pOutput = (int32_t)(pData[i] - pCtx->param[1].i64);  // direct previous may be null
           *pTimestamp = tsList[i];
-
-          pOutput += 1;
-          pTimestamp += 1;
-        } else {
-          *pOutput = (int8_t)(pData[i] - pCtx->param[1].i64);
-          *pTimestamp = tsList[i];
-
-          pOutput += 1;
+          pOutput    += 1;
           pTimestamp += 1;
         }
 
@@ -3891,18 +3803,6 @@ static void diff_function(SQLFunctionCtx *pCtx) {
     GET_RES_INFO(pCtx)->numOfRes += forwardStep;
   }
 }
-
-#define DIFF_IMPL(ctx, d, type)                                                              \
-  do {                                                                                       \
-    if ((ctx)->param[1].nType == INITIAL_VALUE_NOT_ASSIGNED) {                               \
-      (ctx)->param[1].nType = (ctx)->inputType;                                              \
-      *(type *)&(ctx)->param[1].i64 = *(type *)(d);                                       \
-    } else {                                                                                 \
-      *(type *)(ctx)->pOutput = *(type *)(d) - (*(type *)(&(ctx)->param[1].i64));      \
-      *(type *)(&(ctx)->param[1].i64) = *(type *)(d);                                     \
-      *(int64_t *)(ctx)->ptsOutputBuf = GET_TS_DATA(ctx, index);                             \
-    }                                                                                        \
-  } while (0);
 
 static void diff_function_f(SQLFunctionCtx *pCtx, int32_t index) {
   char *pData = GET_INPUT_DATA(pCtx, index);
