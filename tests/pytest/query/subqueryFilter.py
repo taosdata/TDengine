@@ -69,16 +69,16 @@ class TDTestCase:
         tdSql.checkData(0, 0, 1)
 
         tdSql.query("select count(*) from (select first(tagtype) val from st interval(30s)) a where a.val >= 20")
-        tdSql.checkRows(2)
+        tdSql.checkData(0, 0, 2)
 
         tdSql.query("select count(*) from (select first(tagtype) val from st interval(30s)) a where a.val < 20")
-        tdSql.checkRows(63)
+        tdSql.checkData(0, 0, 63)
 
         tdSql.query("select count(*) from (select first(tagtype) val from st interval(30s)) a where a.val <= 20")
-        tdSql.checkRows(64)
+        tdSql.checkData(0, 0, 64)
 
         tdSql.query("select count(*) from (select first(tagtype) val from st interval(30s)) a where a.val = 20")
-        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 1)
         
         tdSql.query("select count(*) from (select first(tagtype) val from st interval(30s)) a where a.val > 20")        
         tdSql.checkData(0, 0, 1)
