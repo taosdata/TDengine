@@ -13,6 +13,7 @@ import java.util.Properties;
 public class TwoTypeTimestampPercisionInRestfulTest {
 
     private static final String host = "127.0.0.1";
+
     private static final String ms_timestamp_db = "ms_precision_test";
     private static final String us_timestamp_db = "us_precision_test";
     private static final long timestamp1 = System.currentTimeMillis();
@@ -94,7 +95,8 @@ public class TwoTypeTimestampPercisionInRestfulTest {
         try (Statement stmt = conn3.createStatement()) {
             ResultSet rs = stmt.executeQuery("select last_row(ts) from " + ms_timestamp_db + ".weather");
             rs.next();
-            long ts = rs.getTimestamp(1).getTime();
+            Timestamp actual = rs.getTimestamp(1);
+            long ts = actual == null ? 0 : actual.getTime();
             Assert.assertEquals(timestamp1, ts);
             ts = rs.getLong(1);
             Assert.assertEquals(timestamp1, ts);
@@ -110,7 +112,7 @@ public class TwoTypeTimestampPercisionInRestfulTest {
             rs.next();
 
             Timestamp timestamp = rs.getTimestamp(1);
-            long ts = timestamp.getTime();
+            long ts = timestamp == null ? 0 : timestamp.getTime();
             Assert.assertEquals(timestamp1, ts);
             int nanos = timestamp.getNanos();
             Assert.assertEquals(timestamp2 % 1000_000l * 1000, nanos);

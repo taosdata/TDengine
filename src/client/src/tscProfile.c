@@ -19,6 +19,7 @@
 #include "ttimer.h"
 #include "tutil.h"
 #include "taosmsg.h"
+#include "tcq.h"
 
 #include "taos.h"
 
@@ -54,14 +55,14 @@ void tscAddIntoSqlList(SSqlObj *pSql) {
   pSql->next = pObj->sqlList;
   if (pObj->sqlList) pObj->sqlList->prev = pSql;
   pObj->sqlList = pSql;
-  pSql->queryId = queryId++;
+  pSql->queryId = atomic_fetch_add_32(&queryId, 1);
 
   pthread_mutex_unlock(&pObj->mutex);
 
   pSql->stime = taosGetTimestampMs();
   pSql->listed = 1;
 
-  tscDebug("0x%"PRIx64" added into sqlList", pSql->self);
+  tscDebug("0x%"PRIx64" added into sqlList, queryId:%u", pSql->self, pSql->queryId);
 }
 
 void tscSaveSlowQueryFpCb(void *param, TAOS_RES *result, int code) {
@@ -294,24 +295,34 @@ int tscBuildQueryStreamDesc(void *pMsg, STscObj *pObj) {
   return msgLen;
 }
 
+// cqContext->dbconn is killed then call this callback
+void cqConnKilledNotify(void* handle, void* conn) {
+  if (handle == NULL || conn == NULL){
+    return ;
+  } 
+
+  SCqContext* pContext = (SCqContext*) handle;
+  if (pContext->dbConn == conn){
+    atomic_store_ptr(&(pContext->dbConn), NULL);
+  } 
+}
+
 void tscKillConnection(STscObj *pObj) {
+  // get stream header by locked
   pthread_mutex_lock(&pObj->mutex);
-
-  SSqlObj *pSql = pObj->sqlList;
-  while (pSql) {
-    pSql = pSql->next;
-  }
-  
-
   SSqlStream *pStream = pObj->streamList;
+  pthread_mutex_unlock(&pObj->mutex);
+
   while (pStream) {
     SSqlStream *tmp = pStream->next;
+    // set associate variant to NULL
+    cqConnKilledNotify(pStream->cqhandle, pObj);
+    // taos_close_stream function call pObj->mutet lock , careful death-lock
     taos_close_stream(pStream);
     pStream = tmp;
   }
 
-  pthread_mutex_unlock(&pObj->mutex);
-
   tscDebug("connection:%p is killed", pObj);
   taos_close(pObj);
 }
+

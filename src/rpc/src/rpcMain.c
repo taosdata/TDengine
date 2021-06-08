@@ -1471,7 +1471,7 @@ static int32_t rpcCompressRpcMsg(char* pCont, int32_t contLen) {
    * only the compressed size is less than the value of contLen - overhead, the compression is applied
    * The first four bytes is set to 0, the second four bytes are utilized to keep the original length of message
    */
-  if (compLen < contLen - overhead) {
+  if (compLen > 0 && compLen < contLen - overhead) {
     SRpcComp *pComp = (SRpcComp *)pCont;
     pComp->reserved = 0; 
     pComp->contLen = htonl(contLen); 

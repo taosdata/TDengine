@@ -120,12 +120,14 @@ int32_t vnodeDrop(int32_t vgId) {
     vDebug("vgId:%d, failed to drop, vnode not find", vgId);
     return TSDB_CODE_VND_INVALID_VGROUP_ID;
   }
+  if (pVnode->dropped) {
+    vnodeRelease(pVnode);
+    return TSDB_CODE_SUCCESS;
+  }
 
   vInfo("vgId:%d, vnode will be dropped, refCount:%d pVnode:%p", pVnode->vgId, pVnode->refCount, pVnode);
   pVnode->dropped = 1;
 
-  // remove from hash, so new messages wont be consumed
-  vnodeRemoveFromHash(pVnode);
   vnodeRelease(pVnode);
   vnodeCleanupInMWorker(pVnode);
 
@@ -390,6 +392,10 @@ int32_t vnodeOpen(int32_t vgId) {
 int32_t vnodeClose(int32_t vgId) {
   SVnodeObj *pVnode = vnodeAcquire(vgId);
   if (pVnode == NULL) return 0;
+  if (pVnode->dropped) {
+    vnodeRelease(pVnode);
+    return 0;
+  }
 
   vDebug("vgId:%d, vnode will be closed, pVnode:%p", pVnode->vgId, pVnode);
   vnodeRemoveFromHash(pVnode);
@@ -413,7 +419,11 @@ void vnodeDestroy(SVnodeObj *pVnode) {
   }
 
   if (pVnode->tsdb) {
-    code = tsdbCloseRepo(pVnode->tsdb, 1);
+    // the deleted vnode does not need to commit, so as to speed up the deletion
+    int toCommit = 1;
+    if (pVnode->dropped) toCommit = 0;
+
+    code = tsdbCloseRepo(pVnode->tsdb, toCommit);
     pVnode->tsdb = NULL;
   }
 
@@ -474,6 +484,8 @@ void vnodeCleanUp(SVnodeObj *pVnode) {
   vDebug("vgId:%d, vnode will cleanup, refCount:%d pVnode:%p", pVnode->vgId, pVnode->refCount, pVnode);
 
   vnodeSetClosingStatus(pVnode);
+
+  vnodeRemoveFromHash(pVnode);
 
   // stop replication module
   if (pVnode->sync > 0) {

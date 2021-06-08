@@ -303,6 +303,17 @@ static int32_t vnodeWriteToWQueueImp(SVWriteMsg *pWrite) {
 }
 
 int32_t vnodeWriteToWQueue(void *vparam, void *wparam, int32_t qtype, void *rparam) {
+  SVnodeObj *pVnode = vparam;
+  if (qtype == TAOS_QTYPE_RPC) {
+   if (!vnodeInReadyStatus(pVnode)) {
+      return TSDB_CODE_APP_NOT_READY;  // it may be in deleting or closing state
+    }
+
+    if (pVnode->role != TAOS_SYNC_ROLE_MASTER) {
+      return TSDB_CODE_APP_NOT_READY;
+    }
+  }
+
   SVWriteMsg *pWrite = vnodeBuildVWriteMsg(vparam, wparam, qtype, rparam);
   if (pWrite == NULL) {
     assert(terrno != 0);
@@ -340,8 +351,11 @@ static void vnodeFlowCtrlMsgToWQueue(void *param, void *tmrId) {
   if (pWrite->processedCount >= 100) {
     vError("vgId:%d, msg:%p, failed to process since %s, retry:%d", pVnode->vgId, pWrite, tstrerror(code),
            pWrite->processedCount);
-    pWrite->processedCount = 1;
-    dnodeSendRpcVWriteRsp(pWrite->pVnode, pWrite, code);
+    void *handle = pWrite->rpcMsg.handle;
+    taosFreeQitem(pWrite);
+    vnodeRelease(pVnode);
+    SRpcMsg rpcRsp = {.handle = handle, .code = code};
+    rpcSendResponse(&rpcRsp);
   } else {
     code = vnodePerformFlowCtrl(pWrite);
     if (code == 0) {
@@ -386,4 +400,6 @@ void vnodeWaitWriteCompleted(SVnodeObj *pVnode) {
     vTrace("vgId:%d, queued wmsg num:%d", pVnode->vgId, pVnode->queuedWMsg);
     taosMsleep(10);
   }
+
+  taosMsleep(900);
 }

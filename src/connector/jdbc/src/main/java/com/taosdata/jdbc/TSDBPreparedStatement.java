@@ -18,33 +18,43 @@ import com.taosdata.jdbc.utils.Utils;
 
 import java.io.InputStream;
 import java.io.Reader;
+import java.io.UnsupportedEncodingException;
 import java.math.BigDecimal;
 import java.net.URL;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.sql.*;
 import java.util.ArrayList;
 import java.util.Calendar;
+import java.util.Collections;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /*
- * TDengine only supports a subset of the standard SQL, thus this implemetation of the
+ * TDengine only supports a subset of the standard SQL, thus this implementation of the
  * standard JDBC API contains more or less some adjustments customized for certain
  * compatibility needs.
  */
 public class TSDBPreparedStatement extends TSDBStatement implements PreparedStatement {
-
     private String rawSql;
     private Object[] parameters;
     private boolean isPrepared;
-
+    
+    private ArrayList<ColumnInfo> colData;
+    private ArrayList<TableTagInfo> tableTags;
+    private int tagValueLength;
+    
+    private String tableName;
+    private long nativeStmtHandle = 0;
+    
     private volatile TSDBParameterMetaData parameterMetaData;
 
-    TSDBPreparedStatement(TSDBConnection connection, TSDBJNIConnector connecter, String sql) {
-        super(connection, connecter);
+    TSDBPreparedStatement(TSDBConnection connection, String sql) {
+		super(connection);
         init(sql);
 
+        int parameterCnt = 0;
         if (sql.contains("?")) {
-            int parameterCnt = 0;
             for (int i = 0; i < sql.length(); i++) {
                 if ('?' == sql.charAt(i)) {
                     parameterCnt++;
@@ -53,6 +63,12 @@ public class TSDBPreparedStatement extends TSDBStatement implements PreparedStat
             parameters = new Object[parameterCnt];
             this.isPrepared = true;
         }
+
+		if (parameterCnt > 1) {
+	        // the table name is also a parameter, so ignore it.
+	        this.colData = new ArrayList<ColumnInfo>();
+	        this.tableTags = new ArrayList<TableTagInfo>();
+		}
     }
 
     private void init(String sql) {
@@ -260,10 +276,14 @@ public class TSDBPreparedStatement extends TSDBStatement implements PreparedStat
 
     @Override
     public void setObject(int parameterIndex, Object x) throws SQLException {
-        if (isClosed())
+        if (isClosed()) {
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
-        if (parameterIndex < 1 && parameterIndex >= parameters.length)
+        }
+        
+        if (parameterIndex < 1 && parameterIndex >= parameters.length) {
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_PARAMETER_INDEX_OUT_RANGE);
+        }
+        
         parameters[parameterIndex - 1] = x;
     }
 
@@ -300,9 +320,10 @@ public class TSDBPreparedStatement extends TSDBStatement implements PreparedStat
 
     @Override
     public void setRef(int parameterIndex, Ref x) throws SQLException {
-        if (isClosed())
+        if (isClosed()) {
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
-
+        }
+        
         throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
     }
 
@@ -514,5 +535,490 @@ public class TSDBPreparedStatement extends TSDBStatement implements PreparedStat
         if (isClosed())
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
         throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
+    }
+    
+    ///////////////////////////////////////////////////////////////////////
+    // NOTE: the following APIs are not JDBC compatible
+    // set the bind table name
+    private static class ColumnInfo {
+    	@SuppressWarnings("rawtypes")
+		private ArrayList data;
+    	private int       type;
+    	private int       bytes;
+    	private boolean   typeIsSet;
+    	
+    	public ColumnInfo() {
+    		this.typeIsSet = false;
+    	}
+    	
+    	public void setType(int type) throws SQLException {
+    		if (this.isTypeSet()) {
+                throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNKNOWN, "column data type has been set");
+    		}
+
+    		this.typeIsSet = true;
+    		this.type = type;
+    	}
+    	
+    	public boolean isTypeSet() {
+    		return this.typeIsSet;
+    	}
+    };
+    
+    private static class TableTagInfo {
+    	private boolean isNull;
+    	private Object  value;
+    	private int     type;    	
+    	public TableTagInfo(Object value, int type) {
+    		this.value = value;
+    		this.type  = type;
+    	}
+    	
+    	public static TableTagInfo createNullTag(int type) {
+    		TableTagInfo info = new TableTagInfo(null, type);
+    		info.isNull = true;
+    		return info;
+    	}
+    };
+    
+    public void setTableName(String name) {
+    	this.tableName = name;
+    }
+    
+    private void ensureTagCapacity(int index) {
+    	if (this.tableTags.size() < index + 1) {
+    		int delta = index + 1 - this.tableTags.size();
+    		this.tableTags.addAll(Collections.nCopies(delta, null));
+    	}
+    }
+    
+    public void setTagNull(int index, int type) {
+    	ensureTagCapacity(index);
+    	this.tableTags.set(index, TableTagInfo.createNullTag(type));
+    }
+    
+    public void setTagBoolean(int index, boolean value) {
+    	ensureTagCapacity(index);
+    	this.tableTags.set(index, new TableTagInfo(value, TSDBConstants.TSDB_DATA_TYPE_BOOL));
+    	this.tagValueLength += Byte.BYTES;
+    }
+    
+    public void setTagInt(int index, int value) {
+    	ensureTagCapacity(index);
+    	this.tableTags.set(index, new TableTagInfo(value, TSDBConstants.TSDB_DATA_TYPE_INT));
+    	this.tagValueLength += Integer.BYTES;
+    }
+    
+    public void setTagByte(int index, byte value) {
+    	ensureTagCapacity(index);
+    	this.tableTags.set(index, new TableTagInfo(value, TSDBConstants.TSDB_DATA_TYPE_TINYINT));
+    	this.tagValueLength += Byte.BYTES;
+    }
+    
+    public void setTagShort(int index, short value) {
+    	ensureTagCapacity(index);
+    	this.tableTags.set(index, new TableTagInfo(value, TSDBConstants.TSDB_DATA_TYPE_SMALLINT));
+    	this.tagValueLength += Short.BYTES;
+    }
+    
+    public void setTagLong(int index, long value) {
+    	ensureTagCapacity(index);
+    	this.tableTags.set(index, new TableTagInfo(value, TSDBConstants.TSDB_DATA_TYPE_BIGINT));
+    	this.tagValueLength += Long.BYTES;
+    }
+    
+    public void setTagTimestamp(int index, long value) {
+    	ensureTagCapacity(index);
+    	this.tableTags.set(index, new TableTagInfo(value, TSDBConstants.TSDB_DATA_TYPE_TIMESTAMP));
+    	this.tagValueLength += Long.BYTES;
+    }
+    
+    public void setTagFloat(int index, float value) {
+    	ensureTagCapacity(index);
+    	this.tableTags.set(index, new TableTagInfo(value, TSDBConstants.TSDB_DATA_TYPE_FLOAT));
+    	this.tagValueLength += Float.BYTES;
+    }
+    
+    public void setTagDouble(int index, double value) {
+    	ensureTagCapacity(index);
+    	this.tableTags.set(index, new TableTagInfo(value, TSDBConstants.TSDB_DATA_TYPE_DOUBLE));
+    	this.tagValueLength += Double.BYTES;
+    }
+    
+    public void setTagString(int index, String value) {
+    	ensureTagCapacity(index);
+    	this.tableTags.set(index, new TableTagInfo(value, TSDBConstants.TSDB_DATA_TYPE_BINARY));
+    	this.tagValueLength += value.getBytes().length;
+    }
+    
+    public void setTagNString(int index, String value) {
+    	ensureTagCapacity(index);
+    	this.tableTags.set(index, new TableTagInfo(value, TSDBConstants.TSDB_DATA_TYPE_NCHAR));
+    	
+		String charset = TaosGlobalConfig.getCharset();
+    	try {
+			this.tagValueLength += value.getBytes(charset).length;
+		} catch (UnsupportedEncodingException e) {
+			e.printStackTrace();
+		}
+    }
+    
+    public <T> void setValueImpl(int columnIndex, ArrayList<T> list, int type, int bytes) throws SQLException {
+    	if (this.colData.size() == 0) {
+	        this.colData.addAll(Collections.nCopies(this.parameters.length - 1 - this.tableTags.size(), null));
+
+    	}
+    	ColumnInfo col = (ColumnInfo) this.colData.get(columnIndex);
+    	if (col == null) {
+    		ColumnInfo p = new ColumnInfo();
+    		p.setType(type);
+    		p.bytes = bytes;
+    		p.data = (ArrayList<?>) list.clone();
+    		this.colData.set(columnIndex, p);
+    	} else {
+    		if (col.type != type) {
+                throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNKNOWN, "column data type mismatch");
+    		}
+    		col.data.addAll(list);
+    	}
+    }
+    
+    public void setInt(int columnIndex, ArrayList<Integer> list) throws SQLException {
+    	setValueImpl(columnIndex, list, TSDBConstants.TSDB_DATA_TYPE_INT, Integer.BYTES);
+    }
+    
+    public void setFloat(int columnIndex, ArrayList<Float> list) throws SQLException {
+    	setValueImpl(columnIndex, list, TSDBConstants.TSDB_DATA_TYPE_FLOAT, Float.BYTES);
+    }
+    
+    public void setTimestamp(int columnIndex, ArrayList<Long> list) throws SQLException {
+    	setValueImpl(columnIndex, list, TSDBConstants.TSDB_DATA_TYPE_TIMESTAMP, Long.BYTES);
+    }
+    
+    public void setLong(int columnIndex, ArrayList<Long> list) throws SQLException {
+    	setValueImpl(columnIndex, list, TSDBConstants.TSDB_DATA_TYPE_BIGINT, Long.BYTES);
+    }
+    
+    public void setDouble(int columnIndex, ArrayList<Double> list) throws SQLException {
+    	setValueImpl(columnIndex, list, TSDBConstants.TSDB_DATA_TYPE_DOUBLE, Double.BYTES);
+    }
+    
+    public void setBoolean(int columnIndex, ArrayList<Boolean> list) throws SQLException {
+    	setValueImpl(columnIndex, list, TSDBConstants.TSDB_DATA_TYPE_BOOL, Byte.BYTES);
+    }
+    
+    public void setByte(int columnIndex, ArrayList<Byte> list) throws SQLException {
+    	setValueImpl(columnIndex, list, TSDBConstants.TSDB_DATA_TYPE_TINYINT, Byte.BYTES);
+    }
+    
+    public void setShort(int columnIndex, ArrayList<Short> list) throws SQLException {
+    	setValueImpl(columnIndex, list, TSDBConstants.TSDB_DATA_TYPE_SMALLINT, Short.BYTES);
+    }
+    
+    public void setString(int columnIndex, ArrayList<String> list, int size) throws SQLException {
+    	setValueImpl(columnIndex, list, TSDBConstants.TSDB_DATA_TYPE_BINARY, size);
+    }
+    
+    // note: expand the required space for each NChar character
+    public void setNString(int columnIndex, ArrayList<String> list, int size) throws SQLException {
+    	setValueImpl(columnIndex, list, TSDBConstants.TSDB_DATA_TYPE_NCHAR, size * Integer.BYTES);
+    }
+    
+    public void columnDataAddBatch() throws SQLException {
+    	// pass the data block to native code
+		if (rawSql == null) {
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNKNOWN, "sql statement not set yet");
+		}
+		
+		// table name is not set yet, abort
+		if (this.tableName == null) {
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNKNOWN, "table name not set yet");
+		}
+		
+		int numOfCols = this.colData.size();
+		if (numOfCols == 0) {
+			throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNKNOWN, "column data not bind");
+		}
+		
+		TSDBJNIConnector connector = ((TSDBConnection) this.getConnection()).getConnector();
+		this.nativeStmtHandle = connector.prepareStmt(rawSql);
+		
+		if (this.tableTags == null) {
+			connector.setBindTableName(this.nativeStmtHandle, this.tableName);
+		} else {
+			int num = this.tableTags.size();
+			ByteBuffer tagDataList = ByteBuffer.allocate(this.tagValueLength);
+			tagDataList.order(ByteOrder.LITTLE_ENDIAN);
+
+			ByteBuffer typeList = ByteBuffer.allocate(num);
+			typeList.order(ByteOrder.LITTLE_ENDIAN);
+
+			ByteBuffer lengthList = ByteBuffer.allocate(num * Long.BYTES);
+			lengthList.order(ByteOrder.LITTLE_ENDIAN);
+
+			ByteBuffer isNullList = ByteBuffer.allocate(num * Integer.BYTES);
+			isNullList.order(ByteOrder.LITTLE_ENDIAN);
+
+			for (int i = 0; i < num; ++i) {
+				TableTagInfo tag = this.tableTags.get(i);
+				if (tag.isNull) {
+					typeList.put((byte) tag.type);
+					isNullList.putInt(1);
+					lengthList.putLong(0);
+					continue;
+				}
+				
+				switch (tag.type) {
+				case TSDBConstants.TSDB_DATA_TYPE_INT: {
+					Integer val = (Integer) tag.value;
+					tagDataList.putInt(val);
+					lengthList.putLong(Integer.BYTES);
+					break;
+				}
+				case TSDBConstants.TSDB_DATA_TYPE_TINYINT: {
+					Byte val = (Byte) tag.value;
+					tagDataList.put(val);
+					lengthList.putLong(Byte.BYTES);
+					break;
+				}
+
+				case TSDBConstants.TSDB_DATA_TYPE_BOOL: {
+					Boolean val = (Boolean) tag.value;
+					tagDataList.put((byte) (val ? 1 : 0));
+					lengthList.putLong(Byte.BYTES);
+					break;
+				}
+
+				case TSDBConstants.TSDB_DATA_TYPE_SMALLINT: {
+					Short val = (Short) tag.value;
+					tagDataList.putShort(val);
+					lengthList.putLong(Short.BYTES);
+
+					break;
+				}
+
+				case TSDBConstants.TSDB_DATA_TYPE_TIMESTAMP:
+				case TSDBConstants.TSDB_DATA_TYPE_BIGINT: {
+					Long val = (Long) tag.value;
+					tagDataList.putLong(val == null ? 0 : val);
+					lengthList.putLong(Long.BYTES);
+
+					break;
+				}
+
+				case TSDBConstants.TSDB_DATA_TYPE_FLOAT: {
+					Float val = (Float) tag.value;
+					tagDataList.putFloat(val == null ? 0 : val);
+					lengthList.putLong(Float.BYTES);
+
+					break;
+				}
+
+				case TSDBConstants.TSDB_DATA_TYPE_DOUBLE: {
+					Double val = (Double) tag.value;
+					tagDataList.putDouble(val == null ? 0 : val);
+					lengthList.putLong(Double.BYTES);
+
+					break;
+				}
+
+				case TSDBConstants.TSDB_DATA_TYPE_NCHAR:
+				case TSDBConstants.TSDB_DATA_TYPE_BINARY: {
+					String charset = TaosGlobalConfig.getCharset();
+					String val = (String) tag.value;
+
+						byte[] b = null;
+						try {
+							if (tag.type == TSDBConstants.TSDB_DATA_TYPE_BINARY) {
+								b = val.getBytes();
+							} else {
+								b = val.getBytes(charset);
+							}
+						} catch (UnsupportedEncodingException e) {
+							e.printStackTrace();
+						}
+
+						tagDataList.put(b);
+						lengthList.putLong(b.length);
+					break;
+				}
+
+				case TSDBConstants.TSDB_DATA_TYPE_UTINYINT:
+				case TSDBConstants.TSDB_DATA_TYPE_USMALLINT:
+				case TSDBConstants.TSDB_DATA_TYPE_UINT:
+				case TSDBConstants.TSDB_DATA_TYPE_UBIGINT: {
+					throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNKNOWN, "not support data types");
+				}
+				}
+				
+				typeList.put((byte) tag.type);
+				isNullList.putInt(tag.isNull? 1 : 0);
+			}
+
+			connector.setBindTableNameAndTags(this.nativeStmtHandle, this.tableName, this.tableTags.size(), tagDataList,
+					typeList, lengthList, isNullList);
+		}
+		
+		ColumnInfo colInfo = (ColumnInfo) this.colData.get(0);
+		if (colInfo == null) {
+			throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNKNOWN, "column data not bind");
+		}
+		
+		int rows = colInfo.data.size();
+		for (int i = 0; i < numOfCols; ++i) {
+			ColumnInfo col1 = this.colData.get(i);
+			if (col1 == null || !col1.isTypeSet()) {
+                throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNKNOWN, "column data not bind");
+			}
+			
+			if (rows != col1.data.size()) {
+                throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNKNOWN, "the rows in column data not identical");
+			}
+			
+			ByteBuffer colDataList = ByteBuffer.allocate(rows * col1.bytes);
+			colDataList.order(ByteOrder.LITTLE_ENDIAN);
+			
+            ByteBuffer lengthList = ByteBuffer.allocate(rows * Integer.BYTES);
+            lengthList.order(ByteOrder.LITTLE_ENDIAN);
+            
+            ByteBuffer isNullList = ByteBuffer.allocate(rows * Byte.BYTES);
+            isNullList.order(ByteOrder.LITTLE_ENDIAN);
+            
+			switch (col1.type) {
+				case TSDBConstants.TSDB_DATA_TYPE_INT: {
+					for (int j = 0; j < rows; ++j) {
+						Integer val = (Integer) col1.data.get(j);
+						colDataList.putInt(val == null? Integer.MIN_VALUE:val);						
+						isNullList.put((byte) (val == null? 1:0));
+					}
+					break;
+				}
+				
+				case TSDBConstants.TSDB_DATA_TYPE_TINYINT: {
+					for (int j = 0; j < rows; ++j) {
+						Byte val = (Byte) col1.data.get(j);
+						colDataList.put(val == null? 0:val);
+						isNullList.put((byte) (val == null? 1:0));
+					}
+					break;
+				}
+				
+				case TSDBConstants.TSDB_DATA_TYPE_BOOL: {
+					for (int j = 0; j < rows; ++j) {
+						Boolean val = (Boolean) col1.data.get(j);
+						if (val == null) {
+							colDataList.put((byte) 0);
+						} else {
+							colDataList.put((byte) (val? 1:0));
+						}
+						
+						isNullList.put((byte) (val == null? 1:0));
+					}
+					break;
+				}
+				
+				case TSDBConstants.TSDB_DATA_TYPE_SMALLINT: {
+					for (int j = 0; j < rows; ++j) {
+						Short val = (Short) col1.data.get(j);
+						colDataList.putShort(val == null? 0:val);
+						isNullList.put((byte) (val == null? 1:0));
+					}
+					break;
+				}
+				
+				case TSDBConstants.TSDB_DATA_TYPE_TIMESTAMP:
+				case TSDBConstants.TSDB_DATA_TYPE_BIGINT: {
+					for (int j = 0; j < rows; ++j) {
+						Long val = (Long) col1.data.get(j);
+						colDataList.putLong(val == null? 0:val);
+						isNullList.put((byte) (val == null? 1:0));
+					}
+					break;
+				}
+				
+				case TSDBConstants.TSDB_DATA_TYPE_FLOAT: {
+					for (int j = 0; j < rows; ++j) {
+						Float val = (Float) col1.data.get(j);
+						colDataList.putFloat(val == null? 0:val);
+						isNullList.put((byte) (val == null? 1:0));
+					}
+					break;
+				}
+	
+				case TSDBConstants.TSDB_DATA_TYPE_DOUBLE: {
+					for (int j = 0; j < rows; ++j) {
+						Double val = (Double) col1.data.get(j);
+						colDataList.putDouble(val == null? 0:val);
+						isNullList.put((byte) (val == null? 1:0));
+					}
+					break;
+				}
+				
+				case TSDBConstants.TSDB_DATA_TYPE_NCHAR: 
+				case TSDBConstants.TSDB_DATA_TYPE_BINARY: {
+					String charset = TaosGlobalConfig.getCharset();
+					for (int j = 0; j < rows; ++j) {
+						String val = (String) col1.data.get(j);
+
+						colDataList.position(j * col1.bytes);  // seek to the correct position
+						if (val != null) {
+							byte[] b = null;
+							try {
+								if (col1.type == TSDBConstants.TSDB_DATA_TYPE_BINARY) {
+									b = val.getBytes();
+								} else {
+									b = val.getBytes(charset);
+								}
+							} catch (UnsupportedEncodingException e) {
+								e.printStackTrace();
+							}
+							
+							if (val.length() > col1.bytes) {
+				                throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNKNOWN, "string data too long");
+							}
+							
+							colDataList.put(b);
+							lengthList.putInt(b.length);
+							isNullList.put((byte) 0);
+						} else {
+							lengthList.putInt(0);
+							isNullList.put((byte) 1);
+						}
+					}
+					break;
+				}
+				
+				case TSDBConstants.TSDB_DATA_TYPE_UTINYINT:
+				case TSDBConstants.TSDB_DATA_TYPE_USMALLINT:
+				case TSDBConstants.TSDB_DATA_TYPE_UINT:
+				case TSDBConstants.TSDB_DATA_TYPE_UBIGINT: {
+	                throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNKNOWN, "not support data types");
+				}
+			};
+			
+			connector.bindColumnDataArray(this.nativeStmtHandle, colDataList, lengthList, isNullList, col1.type, col1.bytes, rows, i);
+		}
+    }
+    
+	public void columnDataExecuteBatch() throws SQLException {
+		TSDBJNIConnector connector = ((TSDBConnection) this.getConnection()).getConnector();
+		connector.executeBatch(this.nativeStmtHandle);
+		this.columnDataClearBatch();
+	}
+    
+    public void columnDataClearBatch() {
+    	int size = this.colData.size();
+    	this.colData.clear();
+    	
+        this.colData.addAll(Collections.nCopies(size, null));
+        this.tableName = null;   // clear the table name
+    }
+    
+    public void columnDataCloseBatch() throws SQLException {
+		TSDBJNIConnector connector = ((TSDBConnection) this.getConnection()).getConnector();
+		connector.closeBatch(this.nativeStmtHandle);
+		
+		this.nativeStmtHandle = 0L;
+		this.tableName = null;
     }
 }

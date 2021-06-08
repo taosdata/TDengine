@@ -2431,15 +2431,15 @@ void tscDoQuery(SSqlObj* pSql) {
     return;
   }
   
-  if (pCmd->command == TSDB_SQL_SELECT) {
-    tscAddIntoSqlList(pSql);
-  }
-
   if (pCmd->dataSourceType == DATA_FROM_DATA_FILE) {
     tscImportDataFromFile(pSql);
   } else {
     SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
     uint16_t type = pQueryInfo->type;
+
+    if ((pCmd->command == TSDB_SQL_SELECT) && (!TSDB_QUERY_HAS_TYPE(type, TSDB_QUERY_TYPE_SUBQUERY)) && (!TSDB_QUERY_HAS_TYPE(type, TSDB_QUERY_TYPE_STABLE_SUBQUERY))) {
+      tscAddIntoSqlList(pSql);
+    }
   
     if (TSDB_QUERY_HAS_TYPE(type, TSDB_QUERY_TYPE_INSERT)) {  // multi-vnodes insertion
       tscHandleMultivnodeInsert(pSql);
@@ -2941,22 +2941,25 @@ CChildTableMeta* tscCreateChildMeta(STableMeta* pTableMeta) {
   assert(pTableMeta != NULL);
 
   CChildTableMeta* cMeta = calloc(1, sizeof(CChildTableMeta));
+
   cMeta->tableType = TSDB_CHILD_TABLE;
-  cMeta->vgId = pTableMeta->vgId;
-  cMeta->id   = pTableMeta->id;
+  cMeta->vgId      = pTableMeta->vgId;
+  cMeta->id        = pTableMeta->id;
+  cMeta->suid      = pTableMeta->suid;
   tstrncpy(cMeta->sTableName, pTableMeta->sTableName, TSDB_TABLE_FNAME_LEN);
 
   return cMeta;
 }
 
-int32_t tscCreateTableMetaFromCChildMeta(STableMeta* pChild, const char* name, void* buf) {
+int32_t tscCreateTableMetaFromSTableMeta(STableMeta* pChild, const char* name, void* buf) {
   assert(pChild != NULL && buf != NULL);
 
-//  uint32_t size = tscGetTableMetaMaxSize();
-  STableMeta* p = buf;//calloc(1, size);
-
+  STableMeta* p = buf;
   taosHashGetClone(tscTableMetaInfo, pChild->sTableName, strnlen(pChild->sTableName, TSDB_TABLE_FNAME_LEN), NULL, p, -1);
-  if (p->id.uid > 0) { // tableMeta exists, build child table meta and return
+
+  // tableMeta exists, build child table meta according to the super table meta
+  // the uid need to be checked in addition to the general name of the super table.
+  if (p->id.uid > 0 && pChild->suid == p->id.uid) {
     pChild->sversion = p->sversion;
     pChild->tversion = p->tversion;
 
@@ -2964,13 +2967,9 @@ int32_t tscCreateTableMetaFromCChildMeta(STableMeta* pChild, const char* name, v
     int32_t total = pChild->tableInfo.numOfColumns + pChild->tableInfo.numOfTags;
 
     memcpy(pChild->schema, p->schema, sizeof(SSchema) *total);
-
-//    tfree(p);
     return TSDB_CODE_SUCCESS;
   } else { // super table has been removed, current tableMeta is also expired. remove it here
     taosHashRemove(tscTableMetaInfo, name, strnlen(name, TSDB_TABLE_FNAME_LEN));
-
-//    tfree(p);
     return -1;
   }
 }

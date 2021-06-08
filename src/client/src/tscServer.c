@@ -1920,13 +1920,13 @@ int tscBuildHeartBeatMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
 int tscProcessTableMetaRsp(SSqlObj *pSql) {
   STableMetaMsg *pMetaMsg = (STableMetaMsg *)pSql->res.pRsp;
 
-  pMetaMsg->tid = htonl(pMetaMsg->tid);
-  pMetaMsg->sversion = htons(pMetaMsg->sversion);
-  pMetaMsg->tversion = htons(pMetaMsg->tversion);
+  pMetaMsg->tid         = htonl(pMetaMsg->tid);
+  pMetaMsg->sversion    = htons(pMetaMsg->sversion);
+  pMetaMsg->tversion    = htons(pMetaMsg->tversion);
   pMetaMsg->vgroup.vgId = htonl(pMetaMsg->vgroup.vgId);
-  
-  pMetaMsg->uid = htobe64(pMetaMsg->uid);
-  pMetaMsg->contLen = htons(pMetaMsg->contLen);
+  pMetaMsg->uid         = htobe64(pMetaMsg->uid);
+  pMetaMsg->suid        = pMetaMsg->suid;
+  pMetaMsg->contLen     = htons(pMetaMsg->contLen);
   pMetaMsg->numOfColumns = htons(pMetaMsg->numOfColumns);
   
   if ((pMetaMsg->tableType != TSDB_SUPER_TABLE) &&
@@ -2020,8 +2020,9 @@ int tscProcessTableMetaRsp(SSqlObj *pSql) {
     }
   }
 
-  tscDebug("0x%"PRIx64" recv table meta, uid:%" PRIu64 ", tid:%d, name:%s", pSql->self, pTableMeta->id.uid, pTableMeta->id.tid,
-           tNameGetTableName(&pTableMetaInfo->name));
+  tscDebug("0x%"PRIx64" recv table meta, uid:%" PRIu64 ", tid:%d, name:%s, numOfCols:%d, numOfTags:%d", pSql->self,
+      pTableMeta->id.uid, pTableMeta->id.tid, tNameGetTableName(&pTableMetaInfo->name), pTableMeta->tableInfo.numOfColumns,
+      pTableMeta->tableInfo.numOfTags);
 
   free(pTableMeta);
   return TSDB_CODE_SUCCESS;
@@ -2164,8 +2165,7 @@ int tscProcessSTableVgroupRsp(SSqlObj *pSql) {
 
     pInfo->vgroupList->numOfVgroups = pVgroupMsg->numOfVgroups;
     if (pInfo->vgroupList->numOfVgroups <= 0) {
-      //tfree(pInfo->vgroupList);
-      tscError("0x%"PRIx64" empty vgroup info", pSql->self);
+      tscDebug("0x%"PRIx64" empty vgroup info", pSql->self);
     } else {
       for (int32_t j = 0; j < pInfo->vgroupList->numOfVgroups; ++j) {
         // just init, no need to lock
@@ -2517,7 +2517,7 @@ static int32_t getTableMetaFromMnode(SSqlObj *pSql, STableMetaInfo *pTableMetaIn
   pNew->fp = tscTableMetaCallBack;
   pNew->param = (void *)pSql->self;
 
-  tscDebug("0x%"PRIx64" metaRid from %" PRId64 " to %" PRId64 , pSql->self, pSql->metaRid, pNew->self);
+  tscDebug("0x%"PRIx64" metaRid from %" PRId64 " to 0x%" PRIx64 , pSql->self, pSql->metaRid, pNew->self);
   
   pSql->metaRid = pNew->self;
 
@@ -2537,18 +2537,15 @@ int32_t tscGetTableMeta(SSqlObj *pSql, STableMetaInfo *pTableMetaInfo) {
     pTableMetaInfo->pTableMeta    = calloc(1, size);
     pTableMetaInfo->tableMetaSize = size;
   } else if (pTableMetaInfo->tableMetaSize < size) {
-    char *tmp = realloc(pTableMetaInfo->pTableMeta, size); 
-    if (tmp == NULL) { 
+    char *tmp = realloc(pTableMetaInfo->pTableMeta, size);
+    if (tmp == NULL) {
       return TSDB_CODE_TSC_OUT_OF_MEMORY;
     }
     pTableMetaInfo->pTableMeta = (STableMeta *)tmp;
-    memset(pTableMetaInfo->pTableMeta, 0, size);
-    pTableMetaInfo->tableMetaSize = size;
-  } else {
-    //uint32_t s = tscGetTableMetaSize(pTableMetaInfo->pTableMeta);
-    memset(pTableMetaInfo->pTableMeta, 0, size);
-    pTableMetaInfo->tableMetaSize = size;
   }
+
+  memset(pTableMetaInfo->pTableMeta, 0, size);
+  pTableMetaInfo->tableMetaSize = size;
 
   pTableMetaInfo->pTableMeta->tableType = -1;
   pTableMetaInfo->pTableMeta->tableInfo.numOfColumns  = -1;
@@ -2565,8 +2562,9 @@ int32_t tscGetTableMeta(SSqlObj *pSql, STableMetaInfo *pTableMetaInfo) {
 
   STableMeta* pMeta = pTableMetaInfo->pTableMeta;
   if (pMeta->id.uid > 0) {
+    // in case of child table, here only get the
     if (pMeta->tableType == TSDB_CHILD_TABLE) {
-      int32_t code = tscCreateTableMetaFromCChildMeta(pTableMetaInfo->pTableMeta, name, buf);
+      int32_t code = tscCreateTableMetaFromSTableMeta(pTableMetaInfo->pTableMeta, name, buf);
       if (code != TSDB_CODE_SUCCESS) {
         return getTableMetaFromMnode(pSql, pTableMetaInfo);
       }

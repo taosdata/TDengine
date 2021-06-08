@@ -16,11 +16,12 @@
  */
 package com.taosdata.jdbc;
 
-import com.taosdata.jdbc.utils.TaosInfo;
-
+import java.nio.ByteBuffer;
 import java.sql.SQLException;
 import java.sql.SQLWarning;
 import java.util.List;
+
+import com.taosdata.jdbc.utils.TaosInfo;
 
 /**
  * JNI connector
@@ -29,10 +30,13 @@ public class TSDBJNIConnector {
     private static volatile Boolean isInitialized = false;
 
     private TaosInfo taosInfo = TaosInfo.getInstance();
+    
     // Connection pointer used in C
     private long taos = TSDBConstants.JNI_NULL_POINTER;
+    
     // result set status in current connection
     private boolean isResultsetClosed;
+
     private int affectedRows = -1;
 
     static {
@@ -75,7 +79,6 @@ public class TSDBJNIConnector {
 
     public boolean connect(String host, int port, String dbName, String user, String password) throws SQLException {
         if (this.taos != TSDBConstants.JNI_NULL_POINTER) {
-//            this.closeConnectionImp(this.taos);
             closeConnection();
             this.taos = TSDBConstants.JNI_NULL_POINTER;
         }
@@ -97,12 +100,6 @@ public class TSDBJNIConnector {
      * @throws SQLException
      */
     public long executeQuery(String sql) throws SQLException {
-        // close previous result set if the user forgets to invoke the
-        // free method to close previous result set.
-//        if (!this.isResultsetClosed) {
-//            freeResultSet(taosResultSetPointer);
-//        }
-
         Long pSql = 0l;
         try {
             pSql = this.executeQueryImp(sql.getBytes(TaosGlobalConfig.getCharset()), this.taos);
@@ -170,7 +167,7 @@ public class TSDBJNIConnector {
     private native long isUpdateQueryImp(long connection, long pSql);
 
     /**
-     * Free resultset operation from C to release resultset pointer by JNI
+     * Free result set operation from C to release result set pointer by JNI
      */
     public int freeResultSet(long pSql) {
         int res = this.freeResultSetImp(this.taos, pSql);
@@ -178,19 +175,6 @@ public class TSDBJNIConnector {
         return res;
     }
 
-    /**
-     * Close the open result set which is associated to the current connection. If the result set is already
-     * closed, return 0 for success.
-     */
-//    public int freeResultSet() {
-//        int resCode = TSDBConstants.JNI_SUCCESS;
-//        if (!isResultsetClosed) {
-//            resCode = this.freeResultSetImp(this.taos, this.taosResultSetPointer);
-//            taosResultSetPointer = TSDBConstants.JNI_NULL_POINTER;
-//            isResultsetClosed = true;
-//        }
-//        return resCode;
-//    }
     private native int freeResultSetImp(long connection, long result);
 
     /**
@@ -237,6 +221,7 @@ public class TSDBJNIConnector {
      */
     public void closeConnection() throws SQLException {
         int code = this.closeConnectionImp(this.taos);
+        
         if (code < 0) {
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_JNI_CONNECTION_NULL);
         } else if (code == 0) {
@@ -244,6 +229,7 @@ public class TSDBJNIConnector {
         } else {
             throw new SQLException("Undefined error code returned by TDengine when closing a connection");
         }
+        
         // invoke closeConnectionImpl only here
         taosInfo.connect_close_increment();
     }
@@ -280,7 +266,7 @@ public class TSDBJNIConnector {
     private native void unsubscribeImp(long subscription, boolean isKeep);
 
     /**
-     * Validate if a <I>create table</I> sql statement is correct without actually creating that table
+     * Validate if a <I>create table</I> SQL statement is correct without actually creating that table
      */
     public boolean validateCreateTableSql(String sql) {
         int res = validateCreateTableSqlImp(taos, sql.getBytes());
@@ -288,4 +274,67 @@ public class TSDBJNIConnector {
     }
 
     private native int validateCreateTableSqlImp(long connection, byte[] sqlBytes);
+    
+	public long prepareStmt(String sql) throws SQLException {
+    	Long stmt = prepareStmtImp(sql.getBytes(), this.taos);
+		if (stmt == TSDBConstants.JNI_TDENGINE_ERROR) {
+			throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_INVALID_SQL);
+		} else if (stmt == TSDBConstants.JNI_CONNECTION_NULL) {
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_JNI_CONNECTION_NULL);
+        } else if (stmt == TSDBConstants.JNI_SQL_NULL) {
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_JNI_SQL_NULL);
+        } else if (stmt == TSDBConstants.JNI_OUT_OF_MEMORY) {
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_JNI_OUT_OF_MEMORY);
+        }
+        
+    	return stmt;
+    }
+    
+    private native long prepareStmtImp(byte[] sql, long con);
+    
+    public void setBindTableName(long stmt, String tableName) throws SQLException {
+		int code = setBindTableNameImp(stmt, tableName, this.taos);
+		if (code != TSDBConstants.JNI_SUCCESS) {
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNKNOWN, "failed to set table name");
+		}
+	}
+    
+    private native int setBindTableNameImp(long stmt, String name, long conn);
+    
+    public void setBindTableNameAndTags(long stmt, String tableName, int numOfTags, ByteBuffer tags, ByteBuffer typeList, ByteBuffer lengthList, ByteBuffer nullList) throws SQLException {
+    	int code = setTableNameTagsImp(stmt, tableName, numOfTags, tags.array(), typeList.array(), lengthList.array(), 
+    			nullList.array(), this.taos);
+    	if (code != TSDBConstants.JNI_SUCCESS) {
+    		throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNKNOWN, "failed to bind table name and corresponding tags");
+    	}
+    }
+    
+    private native int setTableNameTagsImp(long stmt, String name, int numOfTags, byte[] tags, byte[] typeList, byte[] lengthList, byte[] nullList, long conn);
+    
+    public void bindColumnDataArray(long stmt, ByteBuffer colDataList, ByteBuffer lengthList, ByteBuffer isNullList, int type, int bytes, int numOfRows,int columnIndex) throws SQLException {
+    	int code = bindColDataImp(stmt, colDataList.array(), lengthList.array(), isNullList.array(), type, bytes, numOfRows, columnIndex, this.taos);
+    	if (code != TSDBConstants.JNI_SUCCESS) {
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNKNOWN, "failed to bind column data");
+    	}
+	}
+    
+    private native int bindColDataImp(long stmt, byte[] colDataList, byte[] lengthList, byte[] isNullList, int type, int bytes, int numOfRows, int columnIndex, long conn);
+    
+    public void executeBatch(long stmt) throws SQLException {
+    	int code = executeBatchImp(stmt, this.taos);
+    	if (code != TSDBConstants.JNI_SUCCESS) {
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNKNOWN, "failed to execute batch bind");
+    	}
+    }
+    
+    private native int executeBatchImp(long stmt, long con);
+    
+    public void closeBatch(long stmt) throws SQLException {
+    	int code = closeStmt(stmt, this.taos);
+    	if (code != TSDBConstants.JNI_SUCCESS) {
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNKNOWN, "failed to close batch bind");
+    	}
+    }
+    
+    private native int closeStmt(long stmt, long con);
 }

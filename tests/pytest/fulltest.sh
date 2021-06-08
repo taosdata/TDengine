@@ -31,7 +31,7 @@ python3 ./test.py -f table/column_name.py
 python3 ./test.py -f table/column_num.py
 python3 ./test.py -f table/db_table.py
 python3 ./test.py -f table/create_sensitive.py
-#python3 ./test.py -f table/tablename-boundary.py
+python3 ./test.py -f table/tablename-boundary.py
 python3 ./test.py  -f table/max_table_length.py
 python3 ./test.py -f table/alter_column.py
 python3 ./test.py -f table/boundary.py
@@ -183,7 +183,7 @@ python3 ./test.py -f stable/query_after_reset.py
 # perfbenchmark
 python3 ./test.py -f perfbenchmark/bug3433.py
 #python3 ./test.py -f perfbenchmark/bug3589.py
-
+python3 ./test.py -f perfbenchmark/taosdemoInsert.py
 
 #query
 python3 ./test.py -f query/filter.py
@@ -332,5 +332,6 @@ python3 ./test.py -f tag_lite/alter_tag.py
 
 python3 test.py -f tools/taosdemoAllTest/taosdemoTestInsertWithJson.py 
 python3 test.py -f tools/taosdemoAllTest/taosdemoTestQueryWithJson.py
-
+python3 ./test.py -f tag_lite/drop_auto_create.py
+python3 test.py -f alter/alter_keep_exception.py
 #======================p4-end===============

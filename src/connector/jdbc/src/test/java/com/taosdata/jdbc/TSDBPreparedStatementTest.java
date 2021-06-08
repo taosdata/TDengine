@@ -8,6 +8,8 @@ import org.junit.Test;
 import java.io.IOException;
 import java.io.Serializable;
 import java.sql.*;
+import java.util.ArrayList;
+import java.util.Random;
 
 public class TSDBPreparedStatementTest {
     private static final String host = "127.0.0.1";
@@ -96,7 +98,7 @@ public class TSDBPreparedStatementTest {
         result = pstmt_insert.executeUpdate();
         Assert.assertEquals(1, result);
     }
-
+    
     @Test
     public void setBoolean() throws SQLException {
         pstmt_insert.setTimestamp(1, new Timestamp(System.currentTimeMillis()));
