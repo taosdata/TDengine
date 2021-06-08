@@ -790,7 +790,7 @@ static int32_t mnodeRetrieveDbs(SShowObj *pShow, char *data, int32_t rows, void 
       sprintf(tmp, "%d,%d,%d", pDb->cfg.daysToKeep0, pDb->cfg.daysToKeep1, pDb->cfg.daysToKeep2);
     }
 #else
-    sprintf(tmp, "%d", pDb->cfg.daysToKeep0);
+    sprintf(tmp, "%d", pDb->cfg.daysToKeep2);
 #endif
     STR_WITH_SIZE_TO_VARSTR(pWrite, tmp, strlen(tmp));
     cols++;
