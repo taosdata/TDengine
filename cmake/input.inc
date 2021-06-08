@@ -72,3 +72,14 @@ IF (${RANDOM_NETWORK_FAIL} MATCHES "true")
   SET(TD_RANDOM_NETWORK_FAIL TRUE)
   MESSAGE(STATUS "build with random-network-fail enabled")
 ENDIF ()
+
+IF (${JEMALLOC_ENABLED} MATCHES "true")
+  SET(TD_JEMALLOC_ENABLED TRUE)
+  MESSAGE(STATUS "build with jemalloc enabled")
+ENDIF ()
+
+SET(TD_BUILD_JDBC TRUE)
+
+IF (${BUILD_JDBC} MATCHES "false")
+  SET(TD_BUILD_JDBC FALSE)
+ENDIF ()

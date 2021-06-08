@@ -1,0 +1,227 @@
+system sh/stop_dnodes.sh
+
+system sh/deploy.sh -n dnode1 -i 1
+system sh/cfg.sh -n dnode1 -c walLevel -v 1
+system sh/exec.sh -n dnode1 -s start
+
+sleep 100
+sql connect
+
+print ======================== dnode1 start
+
+$dbPrefix = nest_db
+$tbPrefix = nest_tb
+$mtPrefix = nest_mt
+$tbNum = 10
+$rowNum = 10000
+$totalNum = $tbNum * $rowNum
+
+print =============== nestquery.sim
+$i = 0
+$db = $dbPrefix . $i
+$mt = $mtPrefix . $i
+
+sql drop database if exists $db
+sql create database if not exists $db
+
+sql use $db
+sql create table $mt (ts timestamp, c1 int, c2 float, c3 bigint, c4 smallint, c5 tinyint, c6 double, c7 bool, c8 binary(10), c9 nchar(9)) TAGS(t1 int)
+
+$half = $tbNum / 2
+
+$i = 0
+while $i < $half
+  $tb = $tbPrefix . $i
+
+  $nextSuffix = $i + $half
+  $tb1 = $tbPrefix . $nextSuffix
+
+  sql create table $tb using $mt tags( $i )
+  sql create table $tb1 using $mt tags( $nextSuffix )
+
+  $x = 0
+  while $x < $rowNum
+    $y = $x * 60000
+    $ms = 1600099200000 + $y
+    $c = $x / 100
+    $c = $c * 100
+    $c = $x - $c
+    $binary = 'binary . $c
+    $binary = $binary . '
+    $nchar = 'nchar . $c
+    $nchar = $nchar . '
+    sql insert into $tb values ($ms , $c , $c , $c , $c , $c , $c , $c , $binary , $nchar )  $tb1 values ($ms , $c , $c , $c , $c , $c , $c , $c , $binary , $nchar )
+    $x = $x + 1
+  endw
+
+  $i = $i + 1
+endw
+
+sleep 100
+
+$i = 1
+$tb = $tbPrefix . $i
+
+print ==============> simple nest query test
+sql select count(*) from (select count(*) from nest_mt0)
+if $rows != 1 then
+ return -1
+endi
+
+if $data00 != 1 then
+  return -1
+endi
+
+sql select count(*) from (select count(*) from nest_mt0 group by tbname)
+if $rows != 1 then
+  return -1
+endi
+
+if $data00 != 10 then
+  return -1
+endi
+
+sql select count(*) from (select count(*) from nest_mt0 interval(10h) group by tbname)
+if $rows != 1 then
+  return -1
+endi
+
+if $data00 != 170 then
+  return -1
+endi
+
+sql select sum(a) from (select count(*) a from nest_mt0 interval(10h) group by tbname)
+if $rows != 1 then
+  return -1
+endi
+
+if $data00 != 100000 then
+  return -1
+endi
+
+print =================> alias name test
+sql select ts from (select count(*) a from nest_tb0 interval(1h))
+if $rows != 167 then
+  return -1
+endi
+
+if $data00 != @20-09-15 00:00:00.000@ then
+  return -1
+endi
+
+sql select count(a) from (select count(*) a from nest_tb0 interval(1h))
+if $rows != 1 then
+  return -1
+endi
+
+if $data00 != 167 then
+   return -1
+endi
+
+print ================>master query + filter
+sql select t.* from (select count(*) a from nest_tb0 interval(10h)) t where t.a <= 520;
+if $rows != 2 then
+  return -1
+endi
+
+sql select * from (select count(*) a, tbname f1 from nest_mt0 group by tbname) t where t.a<0 and f1 = 'nest_tb0';
+if $rows != 0 then
+  return -1
+endi
+
+sql select * from (select count(*) a, tbname f1 from nest_mt0 group by tbname) t where t.a>0 and f1 = 'nest_tb0';
+if $rows != 1 then
+  return -1
+endi
+
+if $data00 != 10000 then
+  return -1
+endi
+
+if $data01 != @nest_tb0@ then
+  return -1
+endi
+
+if $data02 != @nest_tb0@ then
+  return -1
+endi
+
+print ===================> nest query interval
+
+
+
+print ===================> complex query
+
+
+
+print ===================> group by + having
+
+
+
+
+
+print =========================> nest query join
+sql select a.ts,a.k,b.ts from (select count(*) k from nest_tb0 interval(30a)) a, (select count(*) f from nest_tb1 interval(30a)) b where a.ts = b.ts ;
+if $rows != 10000 then
+  return -1
+endi
+
+if $data00 != @20-09-15 00:00:00.000@ then
+  return -1
+endi
+
+if $data01 != 1 then
+  return -1
+endi
+
+if $data02 != @20-09-15 00:00:00.000@ then
+  return -1
+endi
+
+if $data10 != @20-09-15 00:01:00.000@ then
+  return -1
+endi
+
+if $data11 != 1 then
+  return -1
+endi
+
+if $data12 != @20-09-15 00:01:00.000@ then
+  return -1
+endi
+
+sql select sum(a.k), sum(b.f) from (select count(*) k from nest_tb0 interval(30a)) a, (select count(*) f from nest_tb1 interval(30a)) b where a.ts = b.ts ;
+if $rows != 1 then
+  return -1
+endi
+
+if $data00 != 10000 then
+  return -1
+endi
+
+if $data01 != 10000 then
+  return -1
+endi
+
+sql select a.ts,a.k,b.ts,c.ts,c.ts,c.x from (select count(*) k from nest_tb0 interval(30a)) a, (select count(*) f from nest_tb1 interval(30a)) b, (select count(*) x from nest_tb2 interval(30a)) c where a.ts = b.ts and a.ts = c.ts
+if $rows != 10000 then
+  return -1
+endi
+
+if $data00 != @20-09-15 00:00:00.000@ then
+  return -1
+endi
+
+if $data01 != 1 then
+  return -1
+endi
+
+if $data02 != @20-09-15 00:00:00.000@ then
+  return -1
+endi
+
+if $data03 != @20-09-15 00:00:00.000@ then
+  return -1
+endi
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

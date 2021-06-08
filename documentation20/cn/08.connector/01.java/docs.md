@@ -266,7 +266,9 @@ while(resultSet.next()){
 > 查询和操作关系型数据库一致，使用下标获取返回字段内容时从 1 开始，建议使用字段名称获取。
 
 ### 处理异常
+
 在报错后，通过SQLException可以获取到错误的信息和错误码：
+
 ```java
 try (Statement statement = connection.createStatement()) {
     // executeQuery
@@ -279,10 +281,87 @@ try (Statement statement = connection.createStatement()) {
     e.printStackTrace();
 }
 ```
+
 JDBC连接器可能报错的错误码包括3种：JDBC driver本身的报错（错误码在0x2301到0x2350之间），JNI方法的报错（错误码在0x2351到0x2400之间），TDengine其他功能模块的报错。
 具体的错误码请参考：
 * https://github.com/taosdata/TDengine/blob/develop/src/connector/jdbc/src/main/java/com/taosdata/jdbc/TSDBErrorNumbers.java
 * https://github.com/taosdata/TDengine/blob/develop/src/inc/taoserror.h
+
+### <a class="anchor" id="stmt-java"></a>通过参数绑定写入数据
+
+从 2.1.2.0 版本开始，TDengine 的 **JDBC-JNI** 实现大幅改进了参数绑定方式对数据写入（INSERT）场景的支持。采用这种方式写入数据时，能避免 SQL 语法解析的资源消耗，从而在很多情况下显著提升写入性能。（注意：**JDBC-RESTful** 实现并不提供参数绑定这种使用方式。）
+
+```java
+Statement stmt = conn.createStatement();
+Random r = new Random();
+
+// INSERT 语句中，VALUES 部分允许指定具体的数据列；如果采取自动建表，则 TAGS 部分需要设定全部 TAGS 列的参数值：
+TSDBPreparedStatement s = (TSDBPreparedStatement) conn.prepareStatement("insert into ? using weather_test tags (?, ?) (ts, c1, c2) values(?, ?, ?)");
+
+// 设定数据表名：
+s.setTableName("w1");
+// 设定 TAGS 取值：
+s.setTagInt(0, r.nextInt(10));
+s.setTagString(1, "Beijing");
+
+int numOfRows = 10;
+
+// VALUES 部分以逐列的方式进行设置：
+ArrayList<Long> ts = new ArrayList<>();
+for (int i = 0; i < numOfRows; i++){
+    ts.add(System.currentTimeMillis() + i);
+}
+s.setTimestamp(0, ts);
+
+ArrayList<Integer> s1 = new ArrayList<>();
+for (int i = 0; i < numOfRows; i++){
+    s1.add(r.nextInt(100));
+}
+s.setInt(1, s1);
+
+ArrayList<String> s2 = new ArrayList<>();
+for (int i = 0; i < numOfRows; i++){
+    s2.add("test" + r.nextInt(100));
+}
+s.setString(2, s2, 10);
+
+// AddBatch 之后，可以再设定新的表名、TAGS、VALUES 取值，这样就能实现一次执行向多个数据表写入：
+s.columnDataAddBatch();
+// 执行语句：
+s.columnDataExecuteBatch();
+// 执行完毕，释放资源：
+s.columnDataCloseBatch();
+```
+
+用于设定 TAGS 取值的方法总共有：
+```java
+public void setTagNull(int index, int type)
+public void setTagBoolean(int index, boolean value)
+public void setTagInt(int index, int value)
+public void setTagByte(int index, byte value)
+public void setTagShort(int index, short value)
+public void setTagLong(int index, long value)
+public void setTagTimestamp(int index, long value)
+public void setTagFloat(int index, float value)
+public void setTagDouble(int index, double value)
+public void setTagString(int index, String value)
+public void setTagNString(int index, String value)
+```
+
+用于设定 VALUES 数据列的取值的方法总共有：
+```java
+public void setInt(int columnIndex, ArrayList<Integer> list) throws SQLException
+public void setFloat(int columnIndex, ArrayList<Float> list) throws SQLException
+public void setTimestamp(int columnIndex, ArrayList<Long> list) throws SQLException
+public void setLong(int columnIndex, ArrayList<Long> list) throws SQLException
+public void setDouble(int columnIndex, ArrayList<Double> list) throws SQLException
+public void setBoolean(int columnIndex, ArrayList<Boolean> list) throws SQLException
+public void setByte(int columnIndex, ArrayList<Byte> list) throws SQLException
+public void setShort(int columnIndex, ArrayList<Short> list) throws SQLException
+public void setString(int columnIndex, ArrayList<String> list, int size) throws SQLException
+public void setNString(int columnIndex, ArrayList<String> list, int size) throws SQLException
+```
+其中 setString 和 setNString 都要求用户在 size 参数里声明表定义中对应列的列宽。
 
 ### <a class="anchor" id="subscribe"></a>订阅
 

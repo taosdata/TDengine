@@ -42,11 +42,12 @@ int32_t  tsNumOfMnodes = 3;
 int8_t   tsEnableVnodeBak = 1;
 int8_t   tsEnableTelemetryReporting = 1;
 int8_t   tsArbOnline = 0;
+int64_t  tsArbOnlineTimestamp = TSDB_ARB_DUMMY_TIME;
 char     tsEmail[TSDB_FQDN_LEN] = {0};
 int32_t  tsDnodeId = 0;
 
 // common
-int32_t tsRpcTimer       = 1000;
+int32_t tsRpcTimer       = 300;
 int32_t tsRpcMaxTime     = 600;  // seconds;
 int32_t tsRpcForceTcp    = 0;  //disable this, means query, show command use udp protocol as default
 int32_t tsMaxShellConns  = 50000;
@@ -93,7 +94,7 @@ int32_t tsMaxStreamComputDelay = 20000;
 int32_t tsStreamCompStartDelay = 10000;
 
 // the stream computing delay time after executing failed, change accordingly
-int32_t tsStreamCompRetryDelay = 10;
+int32_t tsRetryStreamCompDelay = 10*1000;
 
 // The delayed computing ration. 10% of the whole computing time window by default.
 float tsStreamComputDelayRatio = 0.1f;
@@ -176,12 +177,15 @@ int32_t tsMonitorInterval = 30;  // seconds
 int8_t  tsEnableStream = 1;
 
 // internal
+int8_t tsCompactMnodeWal = 0;
 int8_t tsPrintAuth = 0;
 int8_t tscEmbedded = 0;
 char   configDir[TSDB_FILENAME_LEN] = {0};
 char   tsVnodeDir[TSDB_FILENAME_LEN] = {0};
 char   tsDnodeDir[TSDB_FILENAME_LEN] = {0};
 char   tsMnodeDir[TSDB_FILENAME_LEN] = {0};
+char   tsMnodeTmpDir[TSDB_FILENAME_LEN] = {0};
+char   tsMnodeBakDir[TSDB_FILENAME_LEN] = {0};
 char   tsDataDir[TSDB_FILENAME_LEN] = {0};
 char   tsScriptDir[TSDB_FILENAME_LEN] = {0};
 char   tsTempDir[TSDB_FILENAME_LEN] = "/tmp/";
@@ -707,7 +711,7 @@ static void doInitGlobalConfig(void) {
   taosInitConfigOption(cfg);
 
   cfg.option = "retryStreamCompDelay";
-  cfg.ptr = &tsStreamCompRetryDelay;
+  cfg.ptr = &tsRetryStreamCompDelay;
   cfg.valType = TAOS_CFG_VTYPE_INT32;
   cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
   cfg.minValue = 10;

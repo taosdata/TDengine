@@ -110,7 +110,7 @@ mkdir debug && cd debug
 cmake .. && cmake --build .
 ```
 
-TDengine build script can detect the host machine's architecture on X86-64, X86, arm64 and arm32 platform.
+TDengine build script can detect the host machine's architecture on X86-64, X86, arm64, arm32 and mips64 platform.
 You can also specify CPUTYPE option like aarch64 or aarch32 too if the detection result is not correct:
 
 aarch64:
@@ -123,13 +123,18 @@ aarch32:
 cmake .. -DCPUTYPE=aarch32 && cmake --build .
 ```
 
+mips64:
+```bash
+cmake .. -DCPUTYPE=mips64 && cmake --build .
+```
+
 ### On Windows platform
 
 If you use the Visual Studio 2013, please open a command window by executing "cmd.exe".
-Please specify "x86_amd64" for 64 bits Windows or specify "x86" is for 32 bits Windows when you execute vcvarsall.bat.
+Please specify "amd64" for 64 bits Windows or specify "x86" is for 32 bits Windows when you execute vcvarsall.bat.
 ```cmd
 mkdir debug && cd debug
-"C:\Program Files (x86)\Microsoft Visual Studio 12.0\VC\vcvarsall.bat" < x86_amd64 | x86 >
+"C:\Program Files (x86)\Microsoft Visual Studio 12.0\VC\vcvarsall.bat" < amd64 | x86 >
 cmake .. -G "NMake Makefiles"
 nmake
 ```

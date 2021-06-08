@@ -45,9 +45,9 @@ public class TSDBJNIConnectorTest {
             rowData = new TSDBResultSetRowData(columnSize);
             // iterate resultSet
             for (int i = 0; next(connector, pSql); i++) {
-                System.out.println("col[" + i + "] size: " + rowData.getColSize());
-                rowData.getData().stream().forEach(col -> System.out.print(col + "\t"));
-                System.out.println();
+//                System.out.println("col[" + i + "] size: " + rowData.getColSize());
+//                rowData.getData().stream().forEach(col -> System.out.print(col + "\t"));
+//                System.out.println();
             }
             // close resultSet
             code = connector.freeResultSet(pSql);
