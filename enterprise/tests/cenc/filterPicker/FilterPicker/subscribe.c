@@ -252,6 +252,7 @@ void cenc_picker_func(MS3TraceList *mstl, callback_params_t *param)
   /* array of num_picks ptrs to PickData structures/objects containing returned picks */
   PickData             **pick_list            = NULL;
   int                    num_picks            = 0;
+  int                    invalid_num_picks    = 0;
   int                    index, numsamples, hcount;
   int                    samprate;
   int                   *samples;
@@ -442,10 +443,12 @@ void cenc_picker_func(MS3TraceList *mstl, callback_params_t *param)
 
       if (index < 0) {
         if (h->first_call) {
+            invalid_num_picks++;
             fprintf(stderr, "sub(%d): no history data\r\n", idx);
             continue;
         } else {
           if (h->count + index < 0) {
+            invalid_num_picks++;
             fprintf(stderr, "sub(%d): no enough history data\r\n", idx);
             continue;
           }
@@ -507,7 +510,7 @@ void cenc_picker_func(MS3TraceList *mstl, callback_params_t *param)
       }
     }
 
-    if (num_picks) {
+    if (num_picks && invalid_num_picks < num_picks) {
       if (pos < cmd + MAX_TSQL_LEN - 1) {
         *pos++ = ';';
         *pos++ = '\0';
@@ -518,6 +521,7 @@ void cenc_picker_func(MS3TraceList *mstl, callback_params_t *param)
     }
 
     num_picks = 0;
+    invalid_num_picks = 0;
     numsamples = 0;
     if (pick_list) {
       free(pick_list);
