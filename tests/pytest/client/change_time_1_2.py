@@ -16,6 +16,7 @@ from util.log import *
 from util.cases import *
 from util.sql import *
 from util.dnodes import tdDnodes
+from util.pathFinding import *
 from datetime import datetime
 import subprocess
 
@@ -24,54 +25,12 @@ class TDTestCase:
     def init(self, conn, logSql):
         tdLog.debug("start to execute %s" % __file__)
         tdSql.init(conn.cursor(), logSql)
-
-    def getBuildPath(self):
-        selfPath = os.path.dirname(os.path.realpath(__file__))
-
-        if ("community" in selfPath):
-            projPath = selfPath[:selfPath.find("community")]
-        else:
-            projPath = selfPath[:selfPath.find("tests")]
-
-        for root, dirs, files in os.walk(projPath):
-            if ("taosd" in files):
-                rootRealPath = os.path.dirname(os.path.realpath(root))
-                if ("packaging" not in rootRealPath):
-                    buildPath = root[:len(root)-len("/build/bin")]
-                    break
-        return buildPath
-
-    def getTDenginePath(self):
-        selfPath = os.path.dirname(os.path.realpath(__file__))
-
-        if ("community" in selfPath):
-            projPath = selfPath[:selfPath.find("community")]
-        else:
-            projPath = selfPath[:selfPath.find("tests")]
-        print(projPath)
-        for root, dirs, files in os.walk(projPath):
-            if ("sim" in dirs):
-                print(root)
-                rootRealPath = os.path.realpath(root)
-                # if ("packaging" not in rootRealPath):
-                #     buildPath = root[:len(root)-len("/build/bin")]
-                    # break
-        return rootRealPath
+        tdFindPath.init(__file__)
 
     def run(self):
         tdSql.prepare()
-        buildPath = self.getBuildPath()
-        if (buildPath == ""):
-            tdLog.exit("taosd not found!")
-        else:
-            tdLog.info("taosd found in %s" % buildPath)
-        binPath = buildPath+ "/build/bin/"  
-        TDenginePath = self.getTDenginePath()
-        print('TD '+ TDenginePath)
-        if (TDenginePath == ""):
-            tdLog.exit("TDengine not found!")
-        else:
-            tdLog.info("TDengine found in %s" % TDenginePath) 
+        binPath = tdFindPath.getTaosdemoPath()
+        TDenginePath = tdFindPath.getTDenginePath()
 
         ## change system time to 2020/10/20
         os.system ('timedatectl set-ntp off')
@@ -80,14 +39,14 @@ class TDTestCase:
         #run taosdemo to insert data. one row per second from 2020/10/11 to 2020/10/20
         #11 data files should be generated
         #vnode at TDinternal/community/sim/dnode1/data/vnode
-        os.system("%staosdemo -f tools/taosdemoAllTest/manual_change_time_1_1_A.json" % binPath) 
+        os.system(f"{binPath}taosdemo -f tools/taosdemoAllTest/manual_change_time_1_1_A.json") 
         commandArray = ['ls', '-l', f'{TDenginePath}/sim/dnode1/data/vnode/vnode2/tsdb/data']
         result = subprocess.run(commandArray, stdout=subprocess.PIPE).stdout.decode('utf-8')
         print(result.count('data'))
         if result.count('data') != 11:
             tdLog.exit('wrong number of files')
         else:
-            tdLog.info("data file number correct")
+            tdLog.debug("data file number correct")
 
         tdSql.query('select first(ts) from stb_0') #check the last data in the database
         tdSql.checkData(0,0,datetime(2020,10,11,0,0,0,0))
@@ -109,13 +68,14 @@ class TDTestCase:
         if result.count('data') != 7:
             tdLog.exit('wrong number of files')
         else:
-            tdLog.info("data file number correct")
+            tdLog.debug("data file number correct")
 
 
 
     def stop(self):
+        os.system('sudo timedatectl set-ntp on')
         tdSql.close()
-        tdLog.debug("%s alter block manual check finish" % __file__)
+        tdLog.success("alter block manual check finish")
 
 
 tdCases.addWindows(__file__, TDTestCase())
