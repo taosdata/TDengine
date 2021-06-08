@@ -6,6 +6,7 @@
 #include <signal.h>
 #include <pthread.h>
 #include <sys/time.h>
+#include <errno.h>
 #include "taos.h"
 #include "libmseed.h"
 
@@ -42,6 +43,7 @@ const char         *dst_port  = "6030";
 const char         *topic     = "packet";
 const char         *delay     = "delay";
 const char         *stb_name  = "ms";
+const char         *retry     = "0";
 
 
 static signed char index_64[128] = {
@@ -56,6 +58,7 @@ static signed char index_64[128] = {
 
 typedef struct callback_params_s {
   int        index;
+  int        retry;
   TAOS      *taos;
   TAOS      *res_taos;
   TAOS_SUB  *tsub;
@@ -129,9 +132,9 @@ int check_and_free_res(TAOS_RES **res, const char *cmd) {
         fprintf(stderr, "NULL res\r\n");
         code = -1;
     } else {
-        if (taos_errno(*res) != 0) {
+        code = taos_errno(*res);
+        if (code != 0) {
             fprintf(stderr, "failed to execute: \"%s\", reason: %s\r\n", cmd, taos_errstr(*res));
-            code = -2;
         }
 
         taos_free_result(*res);
@@ -145,6 +148,7 @@ int check_and_free_res(TAOS_RES **res, const char *cmd) {
 void cenc_calc_delay(MS3TraceList *mstl, callback_params_t *param)
 {
   int                    np;
+  int                    retry;
   int                    index;
   char                  *cp;
   int64_t                start_time, end_time, now;
@@ -280,9 +284,17 @@ void cenc_calc_delay(MS3TraceList *mstl, callback_params_t *param)
       p->cmd[p->offset] = '\0';
 
       p->offset = 0;
+      retry = p->retry;
 
-      res = taos_query(p->res_taos, p->cmd);
-      check_and_free_res(&res, p->cmd);
+      do {
+        res = taos_query(p->res_taos, p->cmd);
+        if (check_and_free_res(&res, p->cmd) != 0) {
+          fprintf(stderr, "sub(%d): times left to retry: %d\r\n", index, retry);
+          retry--;
+        } else {
+          break;
+        }
+      } while (retry > 0);
 
       if (memcmp(cmd, prefix, prefix_len)) {
         memcpy(p->cmd, prefix, prefix_len);
@@ -372,10 +384,11 @@ void subscribe_callback(TAOS_SUB *tsub, TAOS_RES *res, void *param, int code)
 }
 
 
-void subscribe_routine_init(callback_params_t *params, const int index)
+void subscribe_routine_init(callback_params_t *params, const int index, const int retry)
 {
   if (params) {
     params->index = index;
+    params->retry = retry;
     params->offset = 0;
     params->taos = NULL;
     params->res_taos = NULL;
@@ -562,6 +575,7 @@ void handler(int sig) {
 int main(int argc, char *argv[])
 {
   int                 i;
+  double              lretry = 0;
   pthread_t           t[TQ_CHAN_NUM];
   callback_params_t   pp[TQ_CHAN_NUM];
   struct sigaction    act;
@@ -622,11 +636,16 @@ int main(int argc, char *argv[])
       continue;
     }
 
+    if (strncmp(argv[i], "-r=", 3) == 0) {
+      retry = argv[i] + 3;
+      continue;
+    }
+
     if (strcmp(argv[i], "-help") == 0) {
       fprintf(stderr,
               "Usage: %s [-h=src_host -u=src_user -p=src_password -H=dst_host -U=dst_user "
               "-P=dst_passwd -S=src_port -D=dst_port -t=topic -d=result_db_name -s=result_stb_name "
-              "-async -restart -nokeep -help]\r\n", argv[0]);
+              "-r=retry -async -restart -nokeep -help]\r\n", argv[0]);
 
       exit(0);
     }
@@ -652,6 +671,14 @@ int main(int argc, char *argv[])
     }
   }
 
+  if (retry[0] != '0') {
+    lretry = strtol(retry, NULL, 10);
+    if (lretry < 0 || errno == EINVAL || errno == ERANGE) {
+      fprintf(stderr, "invalid parameter for option -r\r\n");
+      exit(0);
+    }
+  }
+
   fprintf(stderr, "################################################################\r\n");
   fprintf(stderr, "# Src Server:                      %s\r\n", src_host);
   fprintf(stderr, "# Src User:                        %s\r\n", src_user);
@@ -663,6 +690,7 @@ int main(int argc, char *argv[])
   fprintf(stderr, "# Delay Database Name:             %s\r\n", delay);
   fprintf(stderr, "# Delay Super Table Name:          %s\r\n", stb_name);
   fprintf(stderr, "# Async:                           %d\r\n", async);
+  fprintf(stderr, "# Retry:                           %s\r\n", retry);
   fprintf(stderr, "# Restart:                         %d\r\n", restart);
   fprintf(stderr, "# Keep:                            %d\r\n", keep);
   fprintf(stderr, "################################################################\r\n");
@@ -680,7 +708,7 @@ int main(int argc, char *argv[])
   pthread_spin_init(&lock_ttime, PTHREAD_PROCESS_PRIVATE);
 
   for (i = 0; i < TQ_CHAN_NUM; i++) {
-    subscribe_routine_init(&pp[i], i + 1);
+    subscribe_routine_init(&pp[i], i + 1, (int) lretry);
     pthread_create(&t[i], NULL, subscribe_routine, (void *) &pp[i]);
   }
 

@@ -6,6 +6,7 @@
 #include <sys/time.h>
 #include <signal.h>
 #include <pthread.h>
+#include <errno.h>
 #include "taos.h"
 #include "libmseed.h"
 #include "sachdr.h"
@@ -49,6 +50,7 @@ const char      *topic     = "packet";
 const char      *fpicker   = "fpicker";
 const char      *stb_name  = "ms";
 const char      *channel   = NULL;
+const char      *retry     = "0";
 char             cchan     = '\0';
 
 
@@ -88,6 +90,7 @@ struct memories_table_s {
 
 typedef struct callback_params_s {
   int               index;
+  int               retry;
   TAOS             *taos;
   TAOS             *res_taos;
   TAOS_SUB         *tsub;
@@ -225,9 +228,9 @@ int check_and_free_res(TAOS_RES **res, const char *cmd) {
         fprintf(stderr, "NULL res\r\n");
         code = -1;
     } else {
-        if (taos_errno(*res) != 0) {
+        code = taos_errno(*res);
+        if (code != 0) {
             fprintf(stderr, "failed to execute: \"%s\", reason: %s\r\n", cmd, taos_errstr(*res));
-            code = -2;
         }
 
         taos_free_result(*res);
@@ -241,6 +244,7 @@ int check_and_free_res(TAOS_RES **res, const char *cmd) {
 void cenc_picker_func(MS3TraceList *mstl, callback_params_t *param)
 {
   int                    n, np;
+  int                    retry                = 0;
   BOOLEAN_INT            useMemory            = TRUE_INT;
   double                 longTermWindow       = 10.0; 
   double                 threshold1           = 8.0;
@@ -515,8 +519,16 @@ void cenc_picker_func(MS3TraceList *mstl, callback_params_t *param)
         *pos++ = ';';
         *pos++ = '\0';
 
-        res = taos_query(p->res_taos, cmd);
-        check_and_free_res(&res, cmd);
+        retry = p->retry;
+        do {
+          res = taos_query(p->res_taos, cmd);
+          if (check_and_free_res(&res, cmd) != 0) {
+            fprintf(stderr, "sub(%d): times left to retry: %d\r\n", idx, retry);
+            retry--;
+          } else {
+            break;
+          }
+        } while (retry > 0);
       }
     }
 
@@ -625,10 +637,11 @@ void subscribe_callback(TAOS_SUB *tsub, TAOS_RES *res, void *param, int code)
 }
 
 
-void subscribe_routine_init(callback_params_t *params, const int index, memory_table_t **mtb)
+void subscribe_routine_init(callback_params_t *params, const int index, memory_table_t **mtb, const int retry)
 {
   if (params) {
     params->index = index;
+    params->retry = retry;
     params->taos = NULL;
     params->res_taos = NULL;
     params->tsub = NULL;
@@ -806,6 +819,7 @@ void handler(int sig) {
 int main(int argc, char *argv[])
 {
   int                 i;
+  double              lretry = 0;
   pthread_t           t[TQ_CHAN_NUM];
   callback_params_t   pp[TQ_CHAN_NUM];
   memory_table_t    **mtb;
@@ -873,11 +887,16 @@ int main(int argc, char *argv[])
       continue;
     }
 
+    if (strncmp(argv[i], "-r=", 3) == 0) {
+      retry = argv[i] + 3;
+      continue;
+    }
+
     if (strcmp(argv[i], "-help") == 0) {
       fprintf(stderr,
               "Usage: %s [-h=src_host -u=src_user -p=src_password -H=dst_host -U=dst_user "
 	      "-P=dst_password -S=src_port -D=dst_port -t=topic -f=result_db_name -s=result_stb_name "
-              "-c=channel -async -restart -nokeep -help]\r\n", argv[0]);
+              "-c=channel -r=retry -async -restart -nokeep -help]\r\n", argv[0]);
 
       exit(0);
     }
@@ -900,6 +919,14 @@ int main(int argc, char *argv[])
     if (strcmp(argv[i], "-nokeep") == 0) {
       keep = 0;
       continue;
+    }
+  }
+
+  if (retry[0] != '0') {
+    lretry = strtol(retry, NULL, 10);
+    if (lretry < 0 || errno == EINVAL || errno == ERANGE) {
+      fprintf(stderr, "invalid parameter for option -r\r\n");
+      exit(0);
     }
   }
 
@@ -930,6 +957,7 @@ int main(int argc, char *argv[])
   fprintf(stdout, "# Restart:                         %d\r\n", restart);
   fprintf(stdout, "# Keep:                            %d\r\n", keep);
   fprintf(stdout, "# Channel:                         %s\r\n", channel);
+  fprintf(stdout, "# Retry:                           %s\r\n", retry);
   fprintf(stdout, "################################################################\r\n");
 
   act.sa_handler = handler;
@@ -953,7 +981,7 @@ int main(int argc, char *argv[])
   memset(mtb, 0, sizeof(memory_table_t *) * MEM_TAB_MOD);
 
   for (i = 0; i < TQ_CHAN_NUM; i++) {
-    subscribe_routine_init(&pp[i], i + 1, mtb);
+    subscribe_routine_init(&pp[i], i + 1, mtb, (int) lretry);
     pthread_create(&t[i], NULL, subscribe_routine, (void *) &pp[i]);
   }
 
