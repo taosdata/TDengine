@@ -961,6 +961,7 @@ void mnodeSendAlterVgroupMsg(SVgObj *pVgroup,SMnodeMsg *pMsg) {
          pVgroup->dbName);
   if (pMsg) {
     pMsg->pVgroup = pVgroup;
+    mnodeIncVgroupRef(pVgroup);
   }
   for (int32_t i = 0; i < pVgroup->numOfVnodes; ++i) {
     SRpcEpSet epSet = mnodeGetEpSetFromIp(pVgroup->vnodeGid[i].pDnode->dnodeEp);
@@ -1044,7 +1045,9 @@ static void mnodeProcessAlterVnodeRsp(SRpcMsg *rpcMsg) {
 
   if (mnodeMsg->received != mnodeMsg->expected) return;
 
-  dnodeReprocessMWriteMsg(mnodeMsg);
+  mnodeInsertAlterRow(pVgroup->pDb, mnodeMsg);
+
+  dnodeSendRpcMWriteRsp(mnodeMsg, TSDB_CODE_SUCCESS);
 }
 
 static void mnodeProcessCreateVnodeRsp(SRpcMsg *rpcMsg) {

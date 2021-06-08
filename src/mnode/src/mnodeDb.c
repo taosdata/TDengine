@@ -1102,6 +1102,17 @@ static int32_t mnodeAlterDbFp(SMnodeMsg *pMsg) {
   return TSDB_CODE_MND_ACTION_IN_PROGRESS;
 }
 
+int mnodeInsertAlterRow(SDbObj *pDb, void *pMsg) {
+  SSdbRow desc = {
+    .type    = SDB_OPER_GLOBAL,
+    .pTable  = tsDbSdb,
+    .pObj    = pDb,
+    .pMsg    = pMsg,
+  };
+
+  return sdbInsertRowToQueue(&desc);
+}
+
 static int32_t mnodeAlterDb(SDbObj *pDb, SAlterDbMsg *pAlter, void *pMsg) {
   mDebug("db:%s, type:%d do alter operation", pDb->name, pDb->cfg.dbType);
 
