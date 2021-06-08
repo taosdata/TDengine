@@ -5,7 +5,6 @@ import org.junit.*;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.sql.*;
-import java.time.LocalTime;
 
 public class TSDBPreparedStatementTest {
 
