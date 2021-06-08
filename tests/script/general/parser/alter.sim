@@ -25,12 +25,12 @@ sql use $db
 
 sql_error alter database $db keep "20"
 sql_error alter database $db keep "20","20","20"
-sql_error alter database $db keep 20
+sql_error alter database $db keep 20,19
 sql_error alter database $db keep 20.0
 sql_error alter database $db keep 20.0,20.0,20.0
 sql_error alter database $db keep 0,0,0
 sql_error alter database $db keep -1,-1,-1
-sql_error alter database $db keep 20,20
+sql_error alter database $db keep 9,20
 sql_error alter database $db keep 9,9,9
 sql_error alter database $db keep 20,20,19
 sql_error alter database $db keep 20,19,20
@@ -38,6 +38,22 @@ sql_error alter database $db keep 20,19,19
 sql_error alter database $db keep 20,19,18
 sql_error alter database $db keep 20,20,20,20
 sql_error alter database $db keep 365001,365001,365001
+sql alter database $db keep 21
+sql show databases
+if $rows != 1 then
+  return -1
+endi
+if $data07 != 21,21,21 then 
+ return -1
+endi
+sql alter database $db keep 11,12
+sql show databases
+if $rows != 1 then
+  return -1
+endi
+if $data07 != 11,12,12 then 
+ return -1
+endi
 sql alter database $db keep 20,20,20
 sql show databases
 if $rows != 1 then

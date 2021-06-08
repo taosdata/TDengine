@@ -5830,39 +5830,29 @@ static int32_t setKeepOption(SSqlCmd* pCmd, SCreateDbMsg* pMsg, SCreateDbInfo* p
   SArray* pKeep = pCreateDb->keep;
   if (pKeep != NULL) {
     size_t s = taosArrayGetSize(pKeep);
-    tVariantListItem* p0 = taosArrayGet(pKeep, 0);
-    size_t expectNum = 1;
 #ifdef _STORAGE
-    expectNum = 3;
+    if (s >= 4 ||s <= 0) {
+#else
+    if (s != 1) {
 #endif
-    if (s != expectNum) {
       return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg1);
     }
 
-    if ((int32_t)p0->pVar.i64 <= 0) {
+    tVariantListItem* p0 = taosArrayGet(pKeep, 0);
+    tVariantListItem* p1 = (s > 1) ? taosArrayGet(pKeep, 1) : p0;
+    tVariantListItem* p2 = (s > 2) ? taosArrayGet(pKeep, 2) : p1;
+    
+    if ((int32_t)p0->pVar.i64 <= 0 || (int32_t)p1->pVar.i64 <= 0 || (int32_t)p2->pVar.i64 <= 0) {
       return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg2);
     }
-    pMsg->daysToKeep0 = htonl((int32_t)p0->pVar.i64);
-
-#ifdef _STORAGE
-    tVariantListItem* p1 = taosArrayGet(pKeep, 1);
-    tVariantListItem* p2 = taosArrayGet(pKeep, 2);
-
-    if ((int32_t)p1->pVar.i64 <= 0 || (int32_t)p2->pVar.i64 <= 0) {
-      return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg2);
-    } 
-
     if (!(((int32_t)p0->pVar.i64 <= (int32_t)p1->pVar.i64) && ((int32_t)p1->pVar.i64 <= (int32_t)p2->pVar.i64))) {
       return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg3);
     }
 
+    pMsg->daysToKeep0 = htonl((int32_t)p0->pVar.i64);
     pMsg->daysToKeep1 = htonl((int32_t)p1->pVar.i64);
     pMsg->daysToKeep2 = htonl((int32_t)p2->pVar.i64);
-#else
-    UNUSED(msg3);
-    pMsg->daysToKeep1 = pMsg->daysToKeep0;
-    pMsg->daysToKeep2 = pMsg->daysToKeep0;
-#endif
+
   }
 
   return TSDB_CODE_SUCCESS;

@@ -159,8 +159,28 @@ sql_error create database $db keep "11"
 sql_error create database $db keep 13,12,11
 sql_error create database $db keep 11,12,11
 sql_error create database $db keep 12,11,12
-sql_error create database $db keep 11,11
+sql_error create database $db keep 8
+sql_error create database $db keep 12,11
 sql_error create database $db keep 365001,365001,365001
+sql create database dbk0 keep 19
+sql show databases
+if $rows != 1 then
+  return -1
+endi
+if $data07 != 19,19,19 then 
+ return -1
+endi
+sql drop database dbk0
+sql create database dbka keep 19,20
+sql show databases
+if $rows != 1 then
+  return -1
+endi
+if $data07 != 19,20,20 then 
+ return -1
+endi
+sql drop database dbka
+
 sql create database dbk1 keep 11,11,11
 sql show databases
 if $rows != 1 then
