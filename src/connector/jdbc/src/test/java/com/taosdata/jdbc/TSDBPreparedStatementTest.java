@@ -5,6 +5,8 @@ import org.junit.*;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.sql.*;
+import java.util.ArrayList;
+import java.util.Random;
 
 public class TSDBPreparedStatementTest {
 
@@ -302,7 +304,7 @@ public class TSDBPreparedStatementTest {
         stmt.execute("create database dbtest");
         Assert.assertThrows(SQLException.class, () -> stmt.execute("create database dbtest"));                
     }
-
+    
     @Test
     public void setBoolean() throws SQLException {
         // given
