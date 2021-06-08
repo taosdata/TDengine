@@ -162,7 +162,7 @@ IF (TD_WINDOWS)
     IF (MSVC AND (MSVC_VERSION GREATER_EQUAL 1900))
       SET(COMMON_FLAGS "${COMMON_FLAGS} /Wv:18")
     ENDIF ()
-    SET(DEBUG_FLAGS "/fsanitize=thread /fsanitize=leak /fsanitize=memory /fsanitize=undefined /fsanitize=hwaddress /Zi /W3 /GL")
+    SET(DEBUG_FLAGS "/fsanitize=address /Zi /W3 /GL")
     SET(RELEASE_FLAGS "/W0 /O3 /GL")
   ENDIF ()
 
