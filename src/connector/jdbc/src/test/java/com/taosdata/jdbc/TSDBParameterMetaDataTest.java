@@ -54,16 +54,17 @@ public class TSDBParameterMetaDataTest {
 
     @Test
     public void getPrecision() throws SQLException {
-        Assert.assertEquals(0, parameterMetaData_insert.getPrecision(1));
-        Assert.assertEquals(0, parameterMetaData_insert.getPrecision(2));
-        Assert.assertEquals(0, parameterMetaData_insert.getPrecision(3));
-        Assert.assertEquals(0, parameterMetaData_insert.getPrecision(4));
-        Assert.assertEquals(0, parameterMetaData_insert.getPrecision(5));
-        Assert.assertEquals(0, parameterMetaData_insert.getPrecision(6));
-        Assert.assertEquals(0, parameterMetaData_insert.getPrecision(7));
-        Assert.assertEquals(0, parameterMetaData_insert.getPrecision(8));
-        Assert.assertEquals(5, parameterMetaData_insert.getPrecision(9));
-        Assert.assertEquals(5, parameterMetaData_insert.getPrecision(10));
+        //create table weather(ts timestamp, f1 int, f2 bigint, f3 float, f4 double, f5 smallint, f6 tinyint, f7 bool, f8 binary(64), f9 nchar(64))
+        Assert.assertEquals(TSDBConstants.TIMESTAMP_MS_PRECISION, parameterMetaData_insert.getPrecision(1));
+        Assert.assertEquals(TSDBConstants.INT_PRECISION, parameterMetaData_insert.getPrecision(2));
+        Assert.assertEquals(TSDBConstants.BIGINT_PRECISION, parameterMetaData_insert.getPrecision(3));
+        Assert.assertEquals(TSDBConstants.FLOAT_PRECISION, parameterMetaData_insert.getPrecision(4));
+        Assert.assertEquals(TSDBConstants.DOUBLE_PRECISION, parameterMetaData_insert.getPrecision(5));
+        Assert.assertEquals(TSDBConstants.SMALLINT_PRECISION, parameterMetaData_insert.getPrecision(6));
+        Assert.assertEquals(TSDBConstants.TINYINT_PRECISION, parameterMetaData_insert.getPrecision(7));
+        Assert.assertEquals(TSDBConstants.BOOLEAN_PRECISION, parameterMetaData_insert.getPrecision(8));
+        Assert.assertEquals("hello".getBytes().length, parameterMetaData_insert.getPrecision(9));
+        Assert.assertEquals("涛思数据".length(), parameterMetaData_insert.getPrecision(10));
     }
 
     @Test
@@ -71,8 +72,8 @@ public class TSDBParameterMetaDataTest {
         Assert.assertEquals(0, parameterMetaData_insert.getScale(1));
         Assert.assertEquals(0, parameterMetaData_insert.getScale(2));
         Assert.assertEquals(0, parameterMetaData_insert.getScale(3));
-        Assert.assertEquals(0, parameterMetaData_insert.getScale(4));
-        Assert.assertEquals(0, parameterMetaData_insert.getScale(5));
+        Assert.assertEquals(31, parameterMetaData_insert.getScale(4));
+        Assert.assertEquals(31, parameterMetaData_insert.getScale(5));
         Assert.assertEquals(0, parameterMetaData_insert.getScale(6));
         Assert.assertEquals(0, parameterMetaData_insert.getScale(7));
         Assert.assertEquals(0, parameterMetaData_insert.getScale(8));
@@ -124,10 +125,16 @@ public class TSDBParameterMetaDataTest {
 
     @Test
     public void getParameterMode() throws SQLException {
-        for (int i = 1; i <= parameterMetaData_insert.getParameterCount(); i++) {
-            int parameterMode = parameterMetaData_insert.getParameterMode(i);
-            Assert.assertEquals(ParameterMetaData.parameterModeUnknown, parameterMode);
-        }
+        Assert.assertEquals(ParameterMetaData.parameterModeUnknown, parameterMetaData_insert.getParameterMode(1));
+        Assert.assertEquals(ParameterMetaData.parameterModeUnknown, parameterMetaData_insert.getParameterMode(2));
+        Assert.assertEquals(ParameterMetaData.parameterModeUnknown, parameterMetaData_insert.getParameterMode(3));
+        Assert.assertEquals(ParameterMetaData.parameterModeUnknown, parameterMetaData_insert.getParameterMode(4));
+        Assert.assertEquals(ParameterMetaData.parameterModeUnknown, parameterMetaData_insert.getParameterMode(5));
+        Assert.assertEquals(ParameterMetaData.parameterModeUnknown, parameterMetaData_insert.getParameterMode(6));
+        Assert.assertEquals(ParameterMetaData.parameterModeUnknown, parameterMetaData_insert.getParameterMode(7));
+        Assert.assertEquals(ParameterMetaData.parameterModeUnknown, parameterMetaData_insert.getParameterMode(8));
+        Assert.assertEquals(ParameterMetaData.parameterModeUnknown, parameterMetaData_insert.getParameterMode(9));
+        Assert.assertEquals(ParameterMetaData.parameterModeUnknown, parameterMetaData_insert.getParameterMode(10));
     }
 
     @Test
@@ -144,7 +151,6 @@ public class TSDBParameterMetaDataTest {
     @BeforeClass
     public static void beforeClass() {
         try {
-            Class.forName("com.taosdata.jdbc.TSDBDriver");
             conn = DriverManager.getConnection("jdbc:TAOS://" + host + ":6030/?user=root&password=taosdata");
             try (Statement stmt = conn.createStatement()) {
                 stmt.execute("drop database if exists test_pstmt");
@@ -164,7 +170,7 @@ public class TSDBParameterMetaDataTest {
             pstmt_insert.setObject(7, Byte.MAX_VALUE);
             pstmt_insert.setObject(8, true);
             pstmt_insert.setObject(9, "hello".getBytes());
-            pstmt_insert.setObject(10, "Hello");
+            pstmt_insert.setObject(10, "涛思数据");
             parameterMetaData_insert = pstmt_insert.getParameterMetaData();
 
             pstmt_select = conn.prepareStatement(sql_select);
@@ -173,7 +179,7 @@ public class TSDBParameterMetaDataTest {
             pstmt_select.setInt(3, 0);
             parameterMetaData_select = pstmt_select.getParameterMetaData();
 
-        } catch (ClassNotFoundException | SQLException e) {
+        } catch (SQLException e) {
             e.printStackTrace();
         }
     }

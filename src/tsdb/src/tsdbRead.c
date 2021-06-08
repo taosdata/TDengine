@@ -218,11 +218,6 @@ static void tsdbMayUnTakeMemSnapshot(STsdbQueryHandle* pQueryHandle) {
 int64_t tsdbGetNumOfRowsInMemTable(TsdbQueryHandleT* pHandle) {
   STsdbQueryHandle* pQueryHandle = (STsdbQueryHandle*) pHandle;
 
-  size_t size = taosArrayGetSize(pQueryHandle->pTableCheckInfo);
-  assert(pQueryHandle->activeIndex < size && pQueryHandle->activeIndex >= 0 && size >= 1);
-  STableCheckInfo* pCheckInfo = taosArrayGet(pQueryHandle->pTableCheckInfo, pQueryHandle->activeIndex);
-  
-
   int64_t rows = 0;
   SMemRef* pMemRef = pQueryHandle->pMemRef;
   if (pMemRef == NULL) { return rows; }
@@ -233,15 +228,19 @@ int64_t tsdbGetNumOfRowsInMemTable(TsdbQueryHandleT* pHandle) {
   SMemTable* pMemT = pMemRef->snapshot.mem;
   SMemTable* pIMemT = pMemRef->snapshot.imem;
 
-  if (pMemT && pCheckInfo->tableId.tid < pMemT->maxTables) {
-    pMem = pMemT->tData[pCheckInfo->tableId.tid];
-    rows += (pMem && pMem->uid == pCheckInfo->tableId.uid) ? pMem->numOfRows: 0; 
+  size_t size = taosArrayGetSize(pQueryHandle->pTableCheckInfo);
+  for (int32_t i = 0; i < size; ++i) {
+    STableCheckInfo* pCheckInfo = taosArrayGet(pQueryHandle->pTableCheckInfo, i);
+
+    if (pMemT && pCheckInfo->tableId.tid < pMemT->maxTables) {
+      pMem = pMemT->tData[pCheckInfo->tableId.tid];
+      rows += (pMem && pMem->uid == pCheckInfo->tableId.uid) ? pMem->numOfRows : 0;
+    }
+    if (pIMemT && pCheckInfo->tableId.tid < pIMemT->maxTables) {
+      pIMem = pIMemT->tData[pCheckInfo->tableId.tid];
+      rows += (pIMem && pIMem->uid == pCheckInfo->tableId.uid) ? pIMem->numOfRows : 0;
+    }
   }
-  if (pIMemT && pCheckInfo->tableId.tid < pIMemT->maxTables) {
-    pIMem = pIMemT->tData[pCheckInfo->tableId.tid];
-    rows += (pIMem && pIMem->uid == pCheckInfo->tableId.uid) ? pIMem->numOfRows: 0; 
-  }
-  
   return rows;
 }
 
@@ -2397,6 +2396,8 @@ static void destroyHelper(void* param) {
   tQueryInfo* pInfo = (tQueryInfo*)param;
   if (pInfo->optr != TSDB_RELATION_IN) {
     tfree(pInfo->q);
+  } else {
+    taosHashCleanup((SHashObj *)(pInfo->q));
   }
 
   free(param);
@@ -3155,11 +3156,23 @@ void filterPrepare(void* expr, void* param) {
 
   pInfo->sch      = *pSchema;
   pInfo->optr     = pExpr->_node.optr;
-  pInfo->compare  = getComparFunc(pSchema->type, pInfo->optr);
+  pInfo->compare  = getComparFunc(pInfo->sch.type, pInfo->optr);
   pInfo->indexed  = pTSSchema->columns->colId == pInfo->sch.colId;
 
   if (pInfo->optr == TSDB_RELATION_IN) {
-    pInfo->q = (char*) pCond->arr;
+     int dummy = -1;
+     SHashObj *pObj = NULL; 
+     if (pInfo->sch.colId == TSDB_TBNAME_COLUMN_INDEX) {
+        pObj = taosHashInit(256, taosGetDefaultHashFunction(pInfo->sch.type), true, false);
+        SArray *arr = (SArray *)(pCond->arr);
+        for (size_t i = 0; i < taosArrayGetSize(arr); i++) {
+          char* p = taosArrayGetP(arr, i);
+          taosHashPut(pObj, varDataVal(p),varDataLen(p), &dummy, sizeof(dummy));
+        }
+     } else {
+       buildFilterSetFromBinary((void **)&pObj, pCond->pz, pCond->nLen);
+     }
+     pInfo->q = (char *)pObj;  
   } else if (pCond != NULL) {
     uint32_t size = pCond->nLen * TSDB_NCHAR_SIZE;
     if (size < (uint32_t)pSchema->bytes) {
@@ -3330,6 +3343,20 @@ static bool tableFilterFp(const void* pNode, void* param) {
     } else if (pInfo->optr == TSDB_RELATION_NOTNULL) {
       return (val != NULL) && (!isNull(val, pInfo->sch.type));
     }
+  } else if (pInfo->optr == TSDB_RELATION_IN) {
+     int type = pInfo->sch.type;
+     if (type == TSDB_DATA_TYPE_BOOL || type == TSDB_DATA_TYPE_TINYINT || type == TSDB_DATA_TYPE_SMALLINT || type == TSDB_DATA_TYPE_BIGINT || type == TSDB_DATA_TYPE_INT) {
+       int64_t v;
+       GET_TYPED_DATA(v, int64_t, pInfo->sch.type, val);
+       return NULL != taosHashGet((SHashObj *)pInfo->q, (char *)&v, sizeof(v));     
+     } else if (type == TSDB_DATA_TYPE_DOUBLE || type == TSDB_DATA_TYPE_DOUBLE) {
+       double v;
+       GET_TYPED_DATA(v, double, pInfo->sch.type, val);
+       return NULL != taosHashGet((SHashObj *)pInfo->q, (char *)&v, sizeof(v));     
+     } else if (type == TSDB_DATA_TYPE_BINARY || type == TSDB_DATA_TYPE_NCHAR){
+       return NULL != taosHashGet((SHashObj *)pInfo->q, varDataVal(val), varDataLen(val));        
+     }     
+
   }
 
   int32_t ret = 0;
@@ -3672,14 +3699,18 @@ static int32_t setQueryCond(tQueryInfo *queryColInfo, SQueryCond* pCond) {
 
   if (optr == TSDB_RELATION_GREATER || optr == TSDB_RELATION_GREATER_EQUAL ||
       optr == TSDB_RELATION_EQUAL || optr == TSDB_RELATION_NOT_EQUAL) {
-    pCond->start = calloc(1, sizeof(SEndPoint));
+    pCond->start       = calloc(1, sizeof(SEndPoint));
     pCond->start->optr = queryColInfo->optr;
-    pCond->start->v = queryColInfo->q;
+    pCond->start->v    = queryColInfo->q;
   } else if (optr == TSDB_RELATION_LESS || optr == TSDB_RELATION_LESS_EQUAL) {
-    pCond->end = calloc(1, sizeof(SEndPoint));
+    pCond->end       = calloc(1, sizeof(SEndPoint));
     pCond->end->optr = queryColInfo->optr;
-    pCond->end->v = queryColInfo->q;
-  } else if (optr == TSDB_RELATION_IN || optr == TSDB_RELATION_LIKE) {
+    pCond->end->v    = queryColInfo->q;
+  } else if (optr == TSDB_RELATION_IN) {
+    pCond->start       = calloc(1, sizeof(SEndPoint));
+    pCond->start->optr = queryColInfo->optr;
+    pCond->start->v    = queryColInfo->q; 
+  } else if (optr == TSDB_RELATION_LIKE) {
     assert(0);
   }
 
@@ -3764,6 +3795,19 @@ static void queryIndexedColumn(SSkipList* pSkipList, tQueryInfo* pQueryInfo, SAr
         taosArrayPush(result, &info);
       }
 
+    } else if (optr == TSDB_RELATION_IN) {
+      while(tSkipListIterNext(iter)) {
+        SSkipListNode* pNode = tSkipListIterGet(iter);
+
+        int32_t ret = pQueryInfo->compare(SL_GET_NODE_KEY(pSkipList, pNode), cond.start->v);
+        if (ret != 0) {
+          break;
+        }
+
+        STableKeyInfo info = {.pTable = (void*)SL_GET_NODE_DATA(pNode), .lastKey = TSKEY_INITIAL_VAL};
+        taosArrayPush(result, &info);
+      }
+      
     } else {
       assert(0);
     }
@@ -3857,7 +3901,7 @@ void getTableListfromSkipList(tExprNode *pExpr, SSkipList *pSkipList, SArray *re
     param->setupInfoFn(pExpr, param->pExtInfo);
 
     tQueryInfo *pQueryInfo = pExpr->_node.info;
-    if (pQueryInfo->indexed && pQueryInfo->optr != TSDB_RELATION_LIKE) {
+    if (pQueryInfo->indexed && (pQueryInfo->optr != TSDB_RELATION_LIKE && pQueryInfo->optr != TSDB_RELATION_IN)) {
       queryIndexedColumn(pSkipList, pQueryInfo, result);
     } else {
       queryIndexlessColumn(pSkipList, pQueryInfo, result, param->nodeFilterFn);

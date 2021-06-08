@@ -625,6 +625,10 @@ static int64_t         g_totalChildTables = 0;
 static SQueryMetaInfo  g_queryInfo;
 static FILE *          g_fpOfInsertResult = NULL;
 
+#if _MSC_VER <= 1900
+#define __func__ __FUNCTION__
+#endif
+
 #define debugPrint(fmt, ...) \
     do { if (g_args.debug_print || g_args.verbose_print) \
       fprintf(stderr, "DEBG: "fmt, __VA_ARGS__); } while(0)

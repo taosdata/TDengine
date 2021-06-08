@@ -177,7 +177,7 @@ sql alter database db blocks 20
 sql alter database db blocks 10
 sql_error alter database db blocks 2
 sql_error alter database db blocks 1
-sql alter database db blocks 0
+sql_error alter database db blocks 0
 sql_error alter database db blocks -1
 sql_error alter database db blocks 10001
 

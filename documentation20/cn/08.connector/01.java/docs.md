@@ -325,10 +325,12 @@ for (int i = 0; i < numOfRows; i++){
 }
 s.setString(2, s2, 10);
 
-// AddBatch 之后，可以再设定新的表名、TAGS、VALUES 取值，这样就能实现一次执行向多个数据表写入：
+// AddBatch 之后，缓存并未清空。为避免混乱，并不推荐在 ExecuteBatch 之前再次绑定新一批的数据：
 s.columnDataAddBatch();
-// 执行语句：
+// 执行绑定数据后的语句：
 s.columnDataExecuteBatch();
+// 执行语句后清空缓存。在清空之后，可以复用当前的对象，绑定新的一批数据（可以是新表名、新 TAGS 值、新 VALUES 值）：
+s.columnDataClearBatch();
 // 执行完毕，释放资源：
 s.columnDataCloseBatch();
 ```
