@@ -1991,6 +1991,7 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
   const char* msg7 = "normal table can not apply this function";
   const char* msg8 = "multi-columns selection does not support alias column name";
   const char* msg9 = "diff can no be applied to unsigned numeric type";
+  const char* msg10 = "parameter is out of range [1, 100]";
 
   switch (functionId) {
     case TSDB_FUNC_COUNT: {
@@ -2378,7 +2379,7 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
 
         int64_t nTop = GET_INT32_VAL(val);
         if (nTop <= 0 || nTop > 100) {  // todo use macro
-          return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg5);
+          return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg10);
         }
 
         // todo REFACTOR
