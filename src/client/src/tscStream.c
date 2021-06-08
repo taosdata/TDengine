@@ -340,8 +340,12 @@ static void tscSetRetryTimer(SSqlStream *pStream, SSqlObj *pSql, int64_t timer) 
   if (pStream->isProject) {
     int64_t now = taosGetTimestamp(pStream->precision);
     int64_t etime = now > pStream->etime ? pStream->etime : now;
-
-    if (pStream->etime < now && now - pStream->etime > tsMaxRetentWindow) {
+    int64_t maxRetent = tsMaxRetentWindow * 1000;
+    if(pStream->precision == TSDB_TIME_PRECISION_MICRO) {
+      maxRetent *= 1000;
+    }
+         
+    if (pStream->etime < now && now - pStream->etime > maxRetent) {
       /*
        * current time window will be closed, since it too early to exceed the maxRetentWindow value
        */

@@ -6678,9 +6678,8 @@ int32_t doCheckForStream(SSqlObj* pSql, SSqlInfo* pInfo) {
   const char* msg5 = "sql too long";  // todo ADD support
   const char* msg6 = "from missing in subclause";
   const char* msg7 = "time interval is required";
-  const char* msg8 = "query column is required";
-  const char* msg9 = "the first column must be timestamp type";
-  
+  const char* msg8 = "the first column should be primary timestamp column";
+   
   SSqlCmd*    pCmd = &pSql->cmd;
   SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, 0);
   assert(pQueryInfo->numOfTables == 1);
@@ -6751,7 +6750,7 @@ int32_t doCheckForStream(SSqlObj* pSql, SSqlInfo* pInfo) {
       return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg8);
     }
     if( pSqlExpr->colInfo.colId != PRIMARYKEY_TIMESTAMP_COL_INDEX) {
-      return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg9);
+      return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg8);
     }
   } else {
     if (pQueryInfo->interval.interval == 0) {
