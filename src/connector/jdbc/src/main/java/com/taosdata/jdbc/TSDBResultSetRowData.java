@@ -14,6 +14,8 @@
  *****************************************************************************/
 package com.taosdata.jdbc;
 
+import com.taosdata.jdbc.utils.NullType;
+
 import java.math.BigDecimal;
 import java.sql.SQLException;
 import java.sql.Timestamp;
@@ -22,11 +24,13 @@ import java.util.ArrayList;
 import java.util.Collections;
 
 public class TSDBResultSetRowData {
+
     private ArrayList<Object> data;
-    private int colSize = 0;
+    private int colSize;
 
     public TSDBResultSetRowData(int colSize) {
-        this.setColSize(colSize);
+        this.colSize = colSize;
+        this.clear();
     }
 
     public void clear() {
@@ -41,68 +45,104 @@ public class TSDBResultSetRowData {
     }
 
     public boolean wasNull(int col) {
-        return data.get(col) == null;
+        return data.get(col - 1) == null;
     }
 
+    /**
+     * $$$ this method is invoked by databaseMetaDataResultSet and so on which use a index start from 1 in JDBC api
+     */
+    public void setBooleanValue(int col, boolean value) {
+        setBoolean(col - 1, value);
+    }
+
+    /**
+     * !!! this method is invoked by JNI method and the index start from 0 in C implementations
+     */
     public void setBoolean(int col, boolean value) {
         data.set(col, value);
     }
 
-    public boolean getBoolean(int col, int srcType) throws SQLException {
-        Object obj = data.get(col);
+    public boolean getBoolean(int col, int nativeType) throws SQLException {
+        Object obj = data.get(col - 1);
 
-        switch (srcType) {
+        switch (nativeType) {
             case TSDBConstants.TSDB_DATA_TYPE_BOOL:
                 return (Boolean) obj;
-            case TSDBConstants.TSDB_DATA_TYPE_FLOAT:
-                return ((Float) obj) == 1.0 ? Boolean.TRUE : Boolean.FALSE;
-            case TSDBConstants.TSDB_DATA_TYPE_DOUBLE:
-                return ((Double) obj) == 1.0 ? Boolean.TRUE : Boolean.FALSE;
             case TSDBConstants.TSDB_DATA_TYPE_TINYINT:
                 return ((Byte) obj) == 1 ? Boolean.TRUE : Boolean.FALSE;
             case TSDBConstants.TSDB_DATA_TYPE_SMALLINT:
                 return ((Short) obj) == 1 ? Boolean.TRUE : Boolean.FALSE;
             case TSDBConstants.TSDB_DATA_TYPE_INT:
                 return ((Integer) obj) == 1 ? Boolean.TRUE : Boolean.FALSE;
-            case TSDBConstants.TSDB_DATA_TYPE_TIMESTAMP:
             case TSDBConstants.TSDB_DATA_TYPE_BIGINT:
                 return ((Long) obj) == 1L ? Boolean.TRUE : Boolean.FALSE;
+            case TSDBConstants.TSDB_DATA_TYPE_BINARY:
+            case TSDBConstants.TSDB_DATA_TYPE_NCHAR: {
+                return obj.toString().contains("1");
+            }
             default:
                 return false;
         }
     }
 
+    /**
+     * $$$ this method is invoked by databaseMetaDataResultSet and so on which use a index start from 1 in JDBC api
+     */
+    public void setByteValue(int colIndex, byte value) {
+        setByte(colIndex - 1, value);
+    }
+
+    /**
+     * !!! this method is invoked by JNI method and the index start from 0 in C implementations
+     */
     public void setByte(int col, byte value) {
         data.set(col, value);
     }
 
+    /**
+     * $$$ this method is invoked by databaseMetaDataResultSet and so on which use a index start from 1 in JDBC api
+     */
+    public void setShortValue(int colIndex, short value) {
+        setShort(colIndex - 1, value);
+    }
+
+    /**
+     * !!! this method is invoked by JNI method and the index start from 0 in C implementations
+     */
     public void setShort(int col, short value) {
         data.set(col, value);
     }
 
+    /**
+     * $$$ this method is invoked by databaseMetaDataResultSet and so on which use a index start from 1 in JDBC api
+     */
+    public void setIntValue(int colIndex, int value) {
+        setInt(colIndex - 1, value);
+    }
+
+    /**
+     * !!! this method is invoked by JNI method and the index start from 0 in C implementations
+     */
     public void setInt(int col, int value) {
         data.set(col, value);
     }
 
-    @SuppressWarnings("deprecation")
-	public int getInt(int col, int srcType) throws SQLException {
-        Object obj = data.get(col);
+    public int getInt(int col, int nativeType) throws SQLException {
+        Object obj = data.get(col - 1);
+        if (obj == null)
+            return NullType.getIntNull();
 
-        switch (srcType) {
+        switch (nativeType) {
             case TSDBConstants.TSDB_DATA_TYPE_BOOL:
                 return Boolean.TRUE.equals(obj) ? 1 : 0;
-            case TSDBConstants.TSDB_DATA_TYPE_FLOAT:
-                return ((Float) obj).intValue();
-            case TSDBConstants.TSDB_DATA_TYPE_DOUBLE:
-                return ((Double) obj).intValue();
             case TSDBConstants.TSDB_DATA_TYPE_TINYINT:
                 return (Byte) obj;
             case TSDBConstants.TSDB_DATA_TYPE_SMALLINT:
                 return (Short) obj;
             case TSDBConstants.TSDB_DATA_TYPE_INT:
                 return (Integer) obj;
-            case TSDBConstants.TSDB_DATA_TYPE_TIMESTAMP:
             case TSDBConstants.TSDB_DATA_TYPE_BIGINT:
+            case TSDBConstants.TSDB_DATA_TYPE_TIMESTAMP:
                 return ((Long) obj).intValue();
             case TSDBConstants.TSDB_DATA_TYPE_NCHAR:
             case TSDBConstants.TSDB_DATA_TYPE_BINARY:
@@ -131,33 +171,46 @@ public class TSDBResultSetRowData {
                     throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_NUMERIC_VALUE_OUT_OF_RANGE);
                 return Long.valueOf(value).intValue();
             }
+            case TSDBConstants.TSDB_DATA_TYPE_FLOAT:
+                return ((Float) obj).intValue();
+            case TSDBConstants.TSDB_DATA_TYPE_DOUBLE:
+                return ((Double) obj).intValue();
+            default:
+                return 0;
         }
-
-        return 0;
     }
 
+    /**
+     * $$$ this method is invoked by databaseMetaDataResultSet and so on which use a index start from 1 in JDBC api
+     */
+    public void setLongValue(int colIndex, long value) {
+        setLong(colIndex - 1, value);
+    }
+
+    /**
+     * !!! this method is invoked by JNI method and the index start from 0 in C implementations
+     */
     public void setLong(int col, long value) {
         data.set(col, value);
     }
 
-    public long getLong(int col, int srcType) throws SQLException {
-        Object obj = data.get(col);
+    public long getLong(int col, int nativeType) throws SQLException {
+        Object obj = data.get(col - 1);
+        if (obj == null) {
+            return NullType.getBigIntNull();
+        }
 
-        switch (srcType) {
+        switch (nativeType) {
             case TSDBConstants.TSDB_DATA_TYPE_BOOL:
                 return Boolean.TRUE.equals(obj) ? 1 : 0;
-            case TSDBConstants.TSDB_DATA_TYPE_FLOAT:
-                return ((Float) obj).longValue();
-            case TSDBConstants.TSDB_DATA_TYPE_DOUBLE:
-                return ((Double) obj).longValue();
             case TSDBConstants.TSDB_DATA_TYPE_TINYINT:
                 return (Byte) obj;
             case TSDBConstants.TSDB_DATA_TYPE_SMALLINT:
                 return (Short) obj;
             case TSDBConstants.TSDB_DATA_TYPE_INT:
                 return (Integer) obj;
-            case TSDBConstants.TSDB_DATA_TYPE_TIMESTAMP:
             case TSDBConstants.TSDB_DATA_TYPE_BIGINT:
+            case TSDBConstants.TSDB_DATA_TYPE_TIMESTAMP:
                 return (Long) obj;
             case TSDBConstants.TSDB_DATA_TYPE_NCHAR:
             case TSDBConstants.TSDB_DATA_TYPE_BINARY:
@@ -186,19 +239,35 @@ public class TSDBResultSetRowData {
                     throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_NUMERIC_VALUE_OUT_OF_RANGE);
                 return value;
             }
+            case TSDBConstants.TSDB_DATA_TYPE_FLOAT:
+                return ((Float) obj).longValue();
+            case TSDBConstants.TSDB_DATA_TYPE_DOUBLE:
+                return ((Double) obj).longValue();
+            default:
+                return 0;
         }
-
-        return 0;
     }
 
+    /**
+     * $$$ this method is invoked by databaseMetaDataResultSet and so on which use a index start from 1 in JDBC api
+     */
+    public void setFloatValue(int colIndex, float value) {
+        setFloat(colIndex - 1, value);
+    }
+
+    /**
+     * !!! this method is invoked by JNI method and the index start from 0 in C implementations
+     */
     public void setFloat(int col, float value) {
         data.set(col, value);
     }
 
-    public float getFloat(int col, int srcType) {
-        Object obj = data.get(col);
+    public float getFloat(int col, int nativeType) {
+        Object obj = data.get(col - 1);
+        if (obj == null)
+            return NullType.getFloatNull();
 
-        switch (srcType) {
+        switch (nativeType) {
             case TSDBConstants.TSDB_DATA_TYPE_BOOL:
                 return Boolean.TRUE.equals(obj) ? 1 : 0;
             case TSDBConstants.TSDB_DATA_TYPE_FLOAT:
@@ -214,19 +283,31 @@ public class TSDBResultSetRowData {
             case TSDBConstants.TSDB_DATA_TYPE_TIMESTAMP:
             case TSDBConstants.TSDB_DATA_TYPE_BIGINT:
                 return (Long) obj;
+            default:
+                return NullType.getFloatNull();
         }
-
-        return 0;
     }
 
+    /**
+     * $$$ this method is invoked by databaseMetaDataResultSet and so on which use a index start from 1 in JDBC api
+     */
+    public void setDoubleValue(int colIndex, double value) {
+        setDouble(colIndex - 1, value);
+    }
+
+    /**
+     * !!! this method is invoked by JNI method and the index start from 0 in C implementations
+     */
     public void setDouble(int col, double value) {
         data.set(col, value);
     }
 
-    public double getDouble(int col, int srcType) {
-        Object obj = data.get(col);
+    public double getDouble(int col, int nativeType) {
+        Object obj = data.get(col - 1);
+        if (obj == null)
+            return NullType.getDoubleNull();
 
-        switch (srcType) {
+        switch (nativeType) {
             case TSDBConstants.TSDB_DATA_TYPE_BOOL:
                 return Boolean.TRUE.equals(obj) ? 1 : 0;
             case TSDBConstants.TSDB_DATA_TYPE_FLOAT:
@@ -242,16 +323,46 @@ public class TSDBResultSetRowData {
             case TSDBConstants.TSDB_DATA_TYPE_TIMESTAMP:
             case TSDBConstants.TSDB_DATA_TYPE_BIGINT:
                 return (Long) obj;
+            default:
+                return NullType.getDoubleNull();
         }
-
-        return 0;
     }
 
+    /**
+     * $$$ this method is invoked by databaseMetaDataResultSet and so on which use a index start from 1 in JDBC api
+     */
+    public void setStringValue(int colIndex, String value) {
+        data.set(colIndex - 1, value);
+    }
+
+    /**
+     * !!! this method is invoked by JNI method and the index start from 0 in C implementations
+     */
     public void setString(int col, String value) {
-        data.set(col, value);
+        // TODO:
+        //  !!!NOTE!!!
+        //  this is very confusing problem which related to JNI-method implementation,
+        //  the JNI method return a String(encoded in UTF) for BINARY value, which means the JNI method will invoke
+        //  this setString(int, String) to handle BINARY value, we need to build a byte[] with default charsetEncoding
+        data.set(col, value == null ? null : value.getBytes());
     }
 
+    /**
+     * $$$ this method is invoked by databaseMetaDataResultSet and so on which use a index start from 1 in JDBC api
+     */
+    public void setByteArrayValue(int colIndex, byte[] value) {
+        setByteArray(colIndex - 1, value);
+    }
+
+    /**
+     * !!! this method is invoked by JNI method and the index start from 0 in C implementations
+     */
     public void setByteArray(int col, byte[] value) {
+        // TODO:
+        //  !!!NOTE!!!
+        //  this is very confusing problem which related to JNI-method implementation,
+        //  the JNI method return a byte[] for NCHAR value, which means the JNI method will invoke
+        //  this setByteArr(int, byte[]) to handle NCHAR value, we need to build a String with charsetEncoding by TaosGlobalConfig
         try {
             data.set(col, new String(value, TaosGlobalConfig.getCharset()));
         } catch (Exception e) {
@@ -259,47 +370,56 @@ public class TSDBResultSetRowData {
         }
     }
 
-    /**
-     * The original type may not be a string type, but will be converted to by calling this method
-     *
-     * @param col column index
-     * @return
-     */
-    public String getString(int col, int srcType) {
-        switch (srcType) {
-            case TSDBConstants.TSDB_DATA_TYPE_BINARY:
-            case TSDBConstants.TSDB_DATA_TYPE_NCHAR:
-                return (String) data.get(col);
+    public String getString(int col, int nativeType) {
+        Object obj = data.get(col - 1);
+        if (obj == null)
+            return null;
+
+        switch (nativeType) {
             case TSDBConstants.TSDB_DATA_TYPE_UTINYINT: {
-                Byte value = new Byte(String.valueOf(data.get(col)));
+                Byte value = new Byte(String.valueOf(obj));
                 if (value >= 0)
                     return value.toString();
                 return Integer.toString(value & 0xff);
             }
             case TSDBConstants.TSDB_DATA_TYPE_USMALLINT: {
-                Short value = new Short(String.valueOf(data.get(col)));
+                Short value = new Short(String.valueOf(obj));
                 if (value >= 0)
                     return value.toString();
                 return Integer.toString(value & 0xffff);
             }
             case TSDBConstants.TSDB_DATA_TYPE_UINT: {
-                Integer value = new Integer(String.valueOf(data.get(col)));
+                Integer value = new Integer(String.valueOf(obj));
                 if (value >= 0)
                     return value.toString();
                 return Long.toString(value & 0xffffffffl);
             }
             case TSDBConstants.TSDB_DATA_TYPE_UBIGINT: {
-                Long value = new Long(String.valueOf(data.get(col)));
+                Long value = new Long(String.valueOf(obj));
                 if (value >= 0)
                     return value.toString();
                 long lowValue = value & 0x7fffffffffffffffL;
                 return BigDecimal.valueOf(lowValue).add(BigDecimal.valueOf(Long.MAX_VALUE)).add(BigDecimal.valueOf(1)).toString();
             }
+            case TSDBConstants.TSDB_DATA_TYPE_BINARY:
+                return new String((byte[]) obj);
+            case TSDBConstants.TSDB_DATA_TYPE_NCHAR:
+                return (String) obj;
             default:
-                return String.valueOf(data.get(col));
+                return String.valueOf(obj);
         }
     }
 
+    /**
+     * $$$ this method is invoked by databaseMetaDataResultSet and so on which use a index start from 1 in JDBC api
+     */
+    public void setTimestampValue(int colIndex, long value) {
+        setTimestamp(colIndex - 1, value);
+    }
+
+    /**
+     * !!! this method is invoked by JNI method and the index start from 0 in C implementations
+     */
     public void setTimestamp(int col, long ts) {
         //TODO: this implementation contains logical error
         // when precision is us the (long ts) is 16 digital number
@@ -316,28 +436,20 @@ public class TSDBResultSetRowData {
         }
     }
 
-    public Timestamp getTimestamp(int col) {
-        return (Timestamp) data.get(col);
+    public Timestamp getTimestamp(int col, int nativeType) {
+        Object obj = data.get(col - 1);
+        if (obj == null)
+            return null;
+        switch (nativeType) {
+            case TSDBConstants.TSDB_DATA_TYPE_BIGINT:
+                return new Timestamp((Long) obj);
+            default:
+                return (Timestamp) obj;
+        }
     }
 
-    public Object get(int col) {
-        return data.get(col);
+    public Object getObject(int col) {
+        return data.get(col - 1);
     }
 
-    public int getColSize() {
-        return colSize;
-    }
-
-    private void setColSize(int colSize) {
-        this.colSize = colSize;
-        this.clear();
-    }
-
-    public ArrayList<Object> getData() {
-        return data;
-    }
-
-    public void setData(ArrayList<Object> data) {
-        this.data = (ArrayList<Object>) data.clone();
-    }
 }
