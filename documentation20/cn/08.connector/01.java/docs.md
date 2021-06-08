@@ -361,6 +361,7 @@ public void setShort(int columnIndex, ArrayList<Short> list) throws SQLException
 public void setString(int columnIndex, ArrayList<String> list, int size) throws SQLException
 public void setNString(int columnIndex, ArrayList<String> list, int size) throws SQLException
 ```
+其中 setString 和 setNString 都要求用户在 size 参数里声明表定义中对应列的列宽。
 
 ### <a class="anchor" id="subscribe"></a>订阅
 

@@ -253,6 +253,27 @@ bool isNullOperator(SColumnFilterElem *pFilter, const char* minval, const char* 
 bool notNullOperator(SColumnFilterElem *pFilter, const char* minval, const char* maxval, int16_t type) {
   return true;
 }
+bool inOperator(SColumnFilterElem *pFilter, const char* minval, const char* maxval, int16_t type) {
+  if (type == TSDB_DATA_TYPE_BOOL || type == TSDB_DATA_TYPE_TINYINT || type == TSDB_DATA_TYPE_SMALLINT || type == TSDB_DATA_TYPE_BIGINT || type == TSDB_DATA_TYPE_INT) {
+    int64_t minv = -1, maxv = -1;
+    GET_TYPED_DATA(minv, int64_t, type, minval);
+    GET_TYPED_DATA(maxv, int64_t, type, maxval);
+    if (minv == maxv) {
+      return NULL != taosHashGet((SHashObj *)pFilter->q, (char *)&minv, sizeof(minv));     
+    }
+    return true; 
+  } else if (type == TSDB_DATA_TYPE_DOUBLE || type == TSDB_DATA_TYPE_DOUBLE) {
+    double v;
+    GET_TYPED_DATA(v, double, type, minval);
+    return NULL != taosHashGet((SHashObj *)pFilter->q, (char *)&v, sizeof(v));     
+  } else if (type == TSDB_DATA_TYPE_BINARY) {
+     return NULL != taosHashGet((SHashObj *)pFilter->q, varDataVal(minval), varDataLen(minval));        
+  } else if (type == TSDB_DATA_TYPE_NCHAR){
+     return NULL != taosHashGet((SHashObj *)pFilter->q, varDataVal(minval), varDataLen(minval));        
+  }     
+   
+  return false;
+} 
 
 ///////////////////////////////////////////////////////////////////////////////
 bool rangeFilter_ii(SColumnFilterElem *pFilter, const char *minval, const char *maxval, int16_t type) {
@@ -389,6 +410,7 @@ bool (*filterOperators[])(SColumnFilterElem *pFilter, const char* minval, const 
     likeOperator,
     isNullOperator,
     notNullOperator,
+    inOperator,
 };
 
 bool (*rangeFilterOperators[])(SColumnFilterElem *pFilter, const char* minval, const char* maxval, int16_t type) = {
@@ -397,6 +419,7 @@ bool (*rangeFilterOperators[])(SColumnFilterElem *pFilter, const char* minval, c
     rangeFilter_ie,
     rangeFilter_ei,
     rangeFilter_ii,
+
 };
 
 __filter_func_t getFilterOperator(int32_t lowerOptr, int32_t upperOptr) {

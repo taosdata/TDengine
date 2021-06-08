@@ -117,6 +117,7 @@ class TDTestCase:
         ##TODO: need to wait for TD-4445 to implement the following
         ##      tests
 
+
         ## preset the keep
         tdSql.prepare()
         tdSql.execute('create table tb (ts timestamp, speed int)')
