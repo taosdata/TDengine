@@ -195,6 +195,8 @@ STsdbRepoInfo *tsdbGetStatus(STsdbRepo *pRepo) { return NULL; }
 
 int tsdbGetState(STsdbRepo *repo) { return repo->state; }
 
+bool tsdbInCompact(STsdbRepo *repo) { return repo->inCompact; }
+
 void tsdbReportStat(void *repo, int64_t *totalPoints, int64_t *totalStorage, int64_t *compStorage) {
   ASSERT(repo != NULL);
   STsdbRepo *pRepo = repo;
