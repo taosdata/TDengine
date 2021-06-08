@@ -119,7 +119,7 @@ IF (TD_LINUX)
   ENDIF ()
 
   IF (TD_MEMORY_SANITIZER)
-    SET(DEBUG_FLAGS "-fsanitize=address -fsanitize=undefined -fno-sanitize-recover=all -fsanitize=float-divide-by-zero -fsanitize=float-cast-overflow -fno-sanitize=null -fno-sanitize=alignment -O0 -g3 -DDEBUG")
+    SET(DEBUG_FLAGS "-fsanitize=address -fsanitize=undefined -fno-sanitize-recover=all -fsanitize=float-divide-by-zero -fsanitize=float-cast-overflow -fno-sanitize=null -fno-sanitize=alignment -static-libasan -O0 -g3 -DDEBUG")
   ELSE ()
     SET(DEBUG_FLAGS "-O0 -g3 -DDEBUG")
   ENDIF ()
