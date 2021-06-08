@@ -6305,6 +6305,7 @@ static int32_t checkUpdateTagPrjFunctions(SQueryInfo* pQueryInfo, char* msg) {
       continue;
     }
 
+
     if ((aAggs[functionId].status & TSDB_FUNCSTATE_SELECTIVITY) != 0) {
       numOfSelectivity++;
     } else {
