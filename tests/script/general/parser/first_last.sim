@@ -86,7 +86,7 @@ sleep 100
 run general/parser/first_last_query.sim
 
 print =================> insert data regression test
-sql create database test keep 36500
+sql create database test keep 36500,36500,36500
 sql use test
 sql create table tm0 (ts timestamp, k int)
 

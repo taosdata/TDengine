@@ -612,7 +612,12 @@ static int32_t mnodeGetDbMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn
 
   pShow->bytes[cols] = 24 + VARSTR_HEADER_SIZE;
   pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
-  strcpy(pSchema[cols].name, "keep0,keep1,keep(D)");
+
+#ifdef _STORAGE  
+  strcpy(pSchema[cols].name, "keep0,keep1,keep2");
+#else
+  strcpy(pSchema[cols].name, "keep");
+#endif
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
   cols++;
 
@@ -778,11 +783,15 @@ static int32_t mnodeRetrieveDbs(SShowObj *pShow, char *data, int32_t rows, void 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
     
     char tmp[128] = {0};
+#ifdef _STORAGE      
     if (pDb->cfg.daysToKeep0 > pDb->cfg.daysToKeep1 || pDb->cfg.daysToKeep0 > pDb->cfg.daysToKeep2) { 
       sprintf(tmp, "%d,%d,%d", pDb->cfg.daysToKeep1, pDb->cfg.daysToKeep2, pDb->cfg.daysToKeep0);
     } else {
       sprintf(tmp, "%d,%d,%d", pDb->cfg.daysToKeep0, pDb->cfg.daysToKeep1, pDb->cfg.daysToKeep2);
     }
+#else
+    sprintf(tmp, "%d", pDb->cfg.daysToKeep0);
+#endif
     STR_WITH_SIZE_TO_VARSTR(pWrite, tmp, strlen(tmp));
     cols++;
 
@@ -941,6 +950,7 @@ static SDbCfg mnodeGetAlterDbOption(SDbObj *pDb, SAlterDbMsg *pAlter) {
   
   terrno = TSDB_CODE_SUCCESS;
 
+  //UPGRATE FROM LOW VERSION, reorder it
   if (pDb->cfg.daysToKeep0 > pDb->cfg.daysToKeep1 || pDb->cfg.daysToKeep0 > pDb->cfg.daysToKeep2) {
     int32_t t = pDb->cfg.daysToKeep0;
     newCfg.daysToKeep0 = pDb->cfg.daysToKeep1;
@@ -972,17 +982,17 @@ static SDbCfg mnodeGetAlterDbOption(SDbObj *pDb, SAlterDbMsg *pAlter) {
     terrno = TSDB_CODE_MND_INVALID_DB_OPTION;
   }
 
-  if (daysToKeep0 > 0 && daysToKeep0 != pDb->cfg.daysToKeep0) {
+  if (daysToKeep0 > 0 && (daysToKeep0 != pDb->cfg.daysToKeep0 || newCfg.daysToKeep0 != pDb->cfg.daysToKeep0)) {
     mDebug("db:%s, daysToKeep:%d change to %d", pDb->name, pDb->cfg.daysToKeep0, daysToKeep0);
     newCfg.daysToKeep0 = daysToKeep0;
   }
 
-  if (daysToKeep1 > 0 && daysToKeep1 != pDb->cfg.daysToKeep1) {
+  if (daysToKeep1 > 0 && (daysToKeep1 != pDb->cfg.daysToKeep1 || newCfg.daysToKeep1 != pDb->cfg.daysToKeep1)) {
     mDebug("db:%s, daysToKeep1:%d change to %d", pDb->name, pDb->cfg.daysToKeep1, daysToKeep1);
     newCfg.daysToKeep1 = daysToKeep1;
   }
 
-  if (daysToKeep2 > 0 && daysToKeep2 != pDb->cfg.daysToKeep2) {
+  if (daysToKeep2 > 0 && (daysToKeep2 != pDb->cfg.daysToKeep2 || newCfg.daysToKeep2 != pDb->cfg.daysToKeep2)) {
     mDebug("db:%s, daysToKeep2:%d change to %d", pDb->name, pDb->cfg.daysToKeep2, daysToKeep2);
     newCfg.daysToKeep2 = daysToKeep2;
   }
