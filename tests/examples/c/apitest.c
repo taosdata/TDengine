@@ -852,7 +852,6 @@ void verify_prepare3(TAOS* taos) {
   int         rows = 0;
   int         num_fields = taos_num_fields(result);
   TAOS_FIELD *fields = taos_fetch_fields(result);
-  char        temp[256] = {0};
 
   // fetch the records row by row
   while ((row = taos_fetch_row(result))) {
