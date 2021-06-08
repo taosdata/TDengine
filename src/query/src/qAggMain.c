@@ -4687,8 +4687,8 @@ static bool rate_function_setup(SQLFunctionCtx *pCtx) {
   pInfo->correctionValue = 0;
   pInfo->firstKey    = INT64_MIN;
   pInfo->lastKey     = INT64_MIN;
-  pInfo->firstValue  = INT64_MIN;
-  pInfo->lastValue   = INT64_MIN;
+  pInfo->firstValue  = (double) INT64_MIN;
+  pInfo->lastValue   = (double) INT64_MIN;
 
   pInfo->hasResult = 0;
   pInfo->isIRate = (pCtx->functionId == TSDB_FUNC_IRATE);
