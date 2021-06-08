@@ -4573,7 +4573,7 @@ SOperatorInfo* createDataBlocksOptScanInfo(void* pTsdbQueryHandle, SQueryRuntime
 }
 
 SArray* getOrderCheckColumns(SQueryAttr* pQuery) {
-  int32_t numOfCols = pQuery->pGroupbyExpr->numOfGroupCols;
+  int32_t numOfCols = pQuery->pGroupbyExpr == NULL? 0: pQuery->pGroupbyExpr->numOfGroupCols;
 
   SArray* pOrderColumns = NULL;
   if (numOfCols > 0) {
@@ -4612,7 +4612,7 @@ SArray* getOrderCheckColumns(SQueryAttr* pQuery) {
 }
 
 SArray* getResultGroupCheckColumns(SQueryAttr* pQuery) {
-  int32_t numOfCols = pQuery->pGroupbyExpr->numOfGroupCols;
+  int32_t numOfCols = pQuery->pGroupbyExpr == NULL? 0 : pQuery->pGroupbyExpr->numOfGroupCols;
 
   SArray* pOrderColumns = NULL;
   if (numOfCols > 0) {

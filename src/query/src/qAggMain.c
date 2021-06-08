@@ -5287,7 +5287,7 @@ SAggFunctionInfo aAggs[] = {{
                           },
                           {
                               // 17
-                              "ts_dummy",
+                              "ts",
                               TSDB_FUNC_TS_DUMMY,
                               TSDB_FUNC_TS_DUMMY,
                               TSDB_BASE_FUNC_SO | TSDB_FUNCSTATE_NEED_TS,
