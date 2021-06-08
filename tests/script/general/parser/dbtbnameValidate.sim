@@ -7,7 +7,7 @@ sleep 100
 sql connect
 
 print ========== db name and table name check in create and drop, describe
-sql create database abc keep 36500,36500,36500
+sql create database abc keep 36500
 sql create database 'abc123'
 sql create database '_ab1234'
 sql create database 'ABC123'
