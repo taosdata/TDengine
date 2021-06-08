@@ -24,12 +24,14 @@
 #include "tdataformat.h"
 #include "tp.h"
 #include "mnode.h"
+#include "dnode.h"
 #include "mnodeDef.h"
 #include "mnodeInt.h"
 #include "mnodeAcct.h"
 #include "mnodeDb.h"
 #include "mnodeDnode.h"
 #include "mnodeMnode.h"
+#include "mnodePeer.h"
 #include "mnodeProfile.h"
 #include "mnodeWrite.h"
 #include "mnodeSdb.h"
@@ -43,6 +45,8 @@ int64_t tsDbRid = -1;
 void *  tsDbSdb = NULL;
 static int32_t tsDbUpdateSize;
 
+#define ALTER_CDB_RETRY_TIMES  3
+
 static int32_t mnodeCreateDb(SAcctObj *pAcct, SCreateDbMsg *pCreate, SMnodeMsg *pMsg);
 static int32_t mnodeDropDb(SMnodeMsg *newMsg);
 static int32_t mnodeSetDbDropping(SDbObj *pDb);
@@ -51,6 +55,7 @@ static int32_t mnodeRetrieveDbs(SShowObj *pShow, char *data, int32_t rows, void 
 static int32_t mnodeProcessCreateDbMsg(SMnodeMsg *pMsg);
 static int32_t mnodeProcessDropDbMsg(SMnodeMsg *pMsg);
 static int32_t mnodeProcessSyncDbMsg(SMnodeMsg *pMsg);
+static void mnodeProcessAlterDbRsp(SRpcMsg *rpcMsg);
 int32_t mnodeProcessAlterDbMsg(SMnodeMsg *pMsg);
 
 #ifndef _TOPIC
@@ -198,6 +203,7 @@ int32_t mnodeInitDbs() {
   mnodeAddWriteMsgHandle(TSDB_MSG_TYPE_CM_ALTER_DB, mnodeProcessAlterDbMsg);
   mnodeAddWriteMsgHandle(TSDB_MSG_TYPE_CM_DROP_DB, mnodeProcessDropDbMsg);
   mnodeAddWriteMsgHandle(TSDB_MSG_TYPE_CM_SYNC_DB, mnodeProcessSyncDbMsg);
+  mnodeAddPeerRspHandle(TSDB_MSG_TYPE_CM_ALTER_DB_RSP, mnodeProcessAlterDbRsp);
   mnodeAddShowMetaHandle(TSDB_MGMT_TABLE_DB, mnodeGetDbMeta);
   mnodeAddShowRetrieveHandle(TSDB_MGMT_TABLE_DB, mnodeRetrieveDbs);
   mnodeAddShowFreeIterHandle(TSDB_MGMT_TABLE_DB, mnodeCancelGetNextDb);
@@ -1070,27 +1076,30 @@ static SDbCfg mnodeGetAlterDbOption(SDbObj *pDb, SAlterDbMsg *pAlter) {
   return newCfg;
 }
 
-static int32_t mnodeAlterDbCb(SMnodeMsg *pMsg, int32_t code) {
-  if (code != TSDB_CODE_SUCCESS) return code;
+static int32_t mnodeAlterDbFp(SMnodeMsg *pMsg) {
   SDbObj *pDb = pMsg->pDb;
 
   void *pIter = NULL;
   SVgObj *pVgroup = NULL;
-    while (1) {
+  while (1) {
     pIter = mnodeGetNextVgroup(pIter, &pVgroup);
     if (pVgroup == NULL) break;
     if (pVgroup->pDb == pDb) {
-      mnodeSendAlterVgroupMsg(pVgroup);
+      mnodeSendAlterVgroupMsg(pVgroup,pMsg);
+      pMsg->expected += 1;
     }
     mnodeDecVgroupRef(pVgroup);
   }
-
+  // in case there is no vnode(no db in vnode)
+  if (pMsg->expected == 0) {
+    return TSDB_CODE_SUCCESS;
+  }
   mDebug("db:%s, all vgroups is altered", pDb->name);
   mLInfo("db:%s, is alterd by %s", pDb->name, mnodeGetUserFromMsg(pMsg));
 
-  bnNotify();
+  //bnNotify();
 
-  return TSDB_CODE_SUCCESS;
+  return TSDB_CODE_MND_ACTION_IN_PROGRESS;
 }
 
 static int32_t mnodeAlterDb(SDbObj *pDb, SAlterDbMsg *pAlter, void *pMsg) {
@@ -1114,7 +1123,7 @@ static int32_t mnodeAlterDb(SDbObj *pDb, SAlterDbMsg *pAlter, void *pMsg) {
       .pTable  = tsDbSdb,
       .pObj    = pDb,
       .pMsg    = pMsg,
-      .fpRsp   = mnodeAlterDbCb
+      .fpReq   = mnodeAlterDbFp
     };
 
     code = sdbUpdateRow(&row);
@@ -1277,6 +1286,35 @@ void  mnodeDropAllDbs(SAcctObj *pAcct)  {
   }
 
   mInfo("acct:%s, all dbs:%d is dropped from sdb", pAcct->user, numOfDbs);
+}
+
+static void mnodeProcessAlterDbRsp(SRpcMsg *rpcMsg) {
+  if (rpcMsg->ahandle == NULL) return;
+
+  SMnodeMsg *pMsg = rpcMsg->ahandle;
+  pMsg->received++;
+
+  SDbObj *pDb = (SDbObj *)pMsg->pDb;
+  assert(pDb);
+
+  if (rpcMsg->code == TSDB_CODE_SUCCESS) {
+    mDebug("msg:%p, app:%p db:%s, altered in dnode, thandle:%p result:%s", pMsg, pMsg->rpcMsg.ahandle,
+           pDb->name, pMsg->rpcMsg.handle, tstrerror(rpcMsg->code));
+
+    dnodeSendRpcMWriteRsp(pMsg, TSDB_CODE_SUCCESS);
+  } else {
+    if (pMsg->retry++ < ALTER_CDB_RETRY_TIMES) {
+      mDebug("msg:%p, app:%p db:%s, alter table rsp received, need retry, times:%d result:%s thandle:%p",
+             pMsg->rpcMsg.ahandle, pMsg, pDb->name, pMsg->retry, tstrerror(rpcMsg->code),
+             pMsg->rpcMsg.handle);
+
+      dnodeDelayReprocessMWriteMsg(pMsg);
+    } else {
+      mError("msg:%p, app:%p db:%s, failed to alter in dnode, result:%s thandle:%p", pMsg, pMsg->rpcMsg.ahandle,
+             pDb->name, tstrerror(rpcMsg->code), pMsg->rpcMsg.handle);
+      dnodeSendRpcMWriteRsp(pMsg, rpcMsg->code);
+    }
+  }
 }
 
 int32_t mnodeCompactDbs() {
