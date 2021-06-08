@@ -3428,7 +3428,7 @@ static bool deriv_function_setup(SQLFunctionCtx *pCtx) {
   SResultRowCellInfo *pResInfo = GET_RES_INFO(pCtx);
   SDerivInfo* pDerivInfo = GET_ROWCELL_INTERBUF(pResInfo);
 
-  pDerivInfo->ignoreNegative = pCtx->param[2].i64;
+  pDerivInfo->ignoreNegative = pCtx->param[1].i64;
   pDerivInfo->prevTs   = -1;
   pDerivInfo->tsWindow = pCtx->param[0].i64;
   pDerivInfo->valueSet = false;
@@ -3440,10 +3440,8 @@ static void deriv_function(SQLFunctionCtx *pCtx) {
   SDerivInfo* pDerivInfo = GET_ROWCELL_INTERBUF(pResInfo);
 
   void *data = GET_INPUT_DATA_LIST(pCtx);
-  bool  isFirstBlock = (pDerivInfo->valueSet == false);
 
   int32_t notNullElems = 0;
-
   int32_t step = GET_FORWARD_DIRECTION_FACTOR(pCtx->order);
   int32_t i = (pCtx->order == TSDB_ORDER_ASC) ? 0 : pCtx->size - 1;
 
@@ -3469,12 +3467,12 @@ static void deriv_function(SQLFunctionCtx *pCtx) {
             *pTimestamp = tsList[i];
             pOutput    += 1;
             pTimestamp += 1;
+            notNullElems++;
           }
         }
 
         pDerivInfo->prevValue = pData[i];
         pDerivInfo->prevTs    = tsList[i];
-        notNullElems++;
       }
 
       break;
@@ -3496,12 +3494,12 @@ static void deriv_function(SQLFunctionCtx *pCtx) {
             *pTimestamp = tsList[i];
             pOutput    += 1;
             pTimestamp += 1;
+            notNullElems++;
           }
         }
 
         pDerivInfo->prevValue = (double) pData[i];
         pDerivInfo->prevTs    = tsList[i];
-        notNullElems++;
       }
       break;
     }
@@ -3522,12 +3520,12 @@ static void deriv_function(SQLFunctionCtx *pCtx) {
             *pTimestamp = tsList[i];
             pOutput    += 1;
             pTimestamp += 1;
+            notNullElems++;
           }
         }
 
         pDerivInfo->prevValue = pData[i];
         pDerivInfo->prevTs    = tsList[i];
-        notNullElems++;
       }
       break;
     }
@@ -3549,12 +3547,12 @@ static void deriv_function(SQLFunctionCtx *pCtx) {
             *pTimestamp = tsList[i];
             pOutput    += 1;
             pTimestamp += 1;
+            notNullElems++;
           }
         }
 
         pDerivInfo->prevValue = pData[i];
         pDerivInfo->prevTs    = tsList[i];
-        notNullElems++;
       }
       break;
     }
@@ -3575,12 +3573,12 @@ static void deriv_function(SQLFunctionCtx *pCtx) {
             *pTimestamp = tsList[i];
             pOutput    += 1;
             pTimestamp += 1;
+            notNullElems++;
           }
         }
 
         pDerivInfo->prevValue = pData[i];
         pDerivInfo->prevTs    = tsList[i];
-        notNullElems++;
       }
       break;
     }
@@ -3602,12 +3600,12 @@ static void deriv_function(SQLFunctionCtx *pCtx) {
 
             pOutput    += 1;
             pTimestamp += 1;
+            notNullElems++;
           }
         }
 
         pDerivInfo->prevValue = pData[i];
         pDerivInfo->prevTs    = tsList[i];
-        notNullElems++;
       }
       break;
     }
@@ -3623,8 +3621,7 @@ static void deriv_function(SQLFunctionCtx *pCtx) {
      */
     assert(pCtx->hasNull);
   } else {
-    int32_t forwardStep = (isFirstBlock) ? notNullElems - 1 : notNullElems;
-    GET_RES_INFO(pCtx)->numOfRes += forwardStep;
+    GET_RES_INFO(pCtx)->numOfRes += notNullElems;
   }
 }
 
