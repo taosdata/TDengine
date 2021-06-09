@@ -45,8 +45,6 @@ int64_t tsDbRid = -1;
 void *  tsDbSdb = NULL;
 static int32_t tsDbUpdateSize;
 
-#define ALTER_CDB_RETRY_TIMES  3
-
 static int32_t mnodeCreateDb(SAcctObj *pAcct, SCreateDbMsg *pCreate, SMnodeMsg *pMsg);
 static int32_t mnodeDropDb(SMnodeMsg *newMsg);
 static int32_t mnodeSetDbDropping(SDbObj *pDb);
@@ -1088,6 +1086,10 @@ static int32_t mnodeAlterDbFp(SMnodeMsg *pMsg) {
     }
     mnodeDecVgroupRef(pVgroup);
   }
+
+  mDebug("db:%s, all vgroups is altered", pDb->name);
+  mLInfo("db:%s, is alterd by %s", pDb->name, mnodeGetUserFromMsg(pMsg));
+
   // in case there is no vnode(no db in vnode)
   if (pMsg->expected == 0) {
     SSdbRow row = {
@@ -1099,8 +1101,6 @@ static int32_t mnodeAlterDbFp(SMnodeMsg *pMsg) {
 
     return sdbUpdateRow(&row);
   }
-  mDebug("db:%s, all vgroups is altered", pDb->name);
-  mLInfo("db:%s, is alterd by %s", pDb->name, mnodeGetUserFromMsg(pMsg));
 
   //bnNotify();
 
@@ -1146,7 +1146,7 @@ static int32_t mnodeAlterDb(SDbObj *pDb, SAlterDbMsg *pAlter, void *pMsg) {
     if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_MND_ACTION_IN_PROGRESS) {
       mError("db:%s, failed to alter, reason:%s", pDb->name, tstrerror(code));
     }
-  }
+}
 
   return code;
 }
