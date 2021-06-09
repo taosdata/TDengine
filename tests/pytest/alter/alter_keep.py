@@ -72,9 +72,9 @@ class TDTestCase:
         tdSql.query('show databases')
         tdSql.checkData(0,7,'3650,3650,3650')
 
-        tdSql.error('alter database db keep 10')
+        tdSql.execute('alter database db keep 10')
         tdSql.query('show databases')
-        tdSql.checkData(0,7,'3650,3650,3650')
+        tdSql.checkData(0,7,'10,10,10')
 
         ## the order for altering keep is keep(D), keep0, keep1.
         ## if the order is changed, please modify the following test
@@ -84,17 +84,17 @@ class TDTestCase:
         tdSql.query('show databases')
         tdSql.checkData(0,7,'10,10,10')
 
-        tdSql.execute('alter database db keep 100, 98 ,99')
+        tdSql.error('alter database db keep 100, 98 ,99')
         tdSql.query('show databases')
-        tdSql.checkData(0,7,'98,99,100')
+        tdSql.checkData(0,7,'10,10,10')
 
         tdSql.execute('alter database db keep 200, 200 ,200')
         tdSql.query('show databases')
         tdSql.checkData(0,7,'200,200,200')
 
-        tdSql.error('alter database db keep 198, 199 ,200')
+        tdSql.execute('alter database db keep 198, 199 ,200')
         tdSql.query('show databases')
-        tdSql.checkData(0,7,'200,200,200')
+        tdSql.checkData(0,7,'198,199,200')
 
         # tdSql.execute('alter database db keep 3650,3650,3650')
         # tdSql.error('alter database db keep 4000,3640')

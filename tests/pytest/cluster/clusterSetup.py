@@ -23,7 +23,8 @@ class Node:
         self.hostIP = hostIP
         self.hostName = hostName
         self.homeDir = homeDir
-        self.conn = Connection("{}@{}".format(username, hostName), connect_kwargs={"password": "{}".format(password)}) 
+        self.corePath = '/coredump'
+        self.conn = Connection("{}@{}".format(username, hostName), connect_kwargs={"password": "{}".format(password)})        
     
     def buildTaosd(self):
         try:
@@ -126,21 +127,37 @@ class Node:
         except Exception as e:
             print("remove taosd error for node %d " % self.index)
             logging.exception(e)
+    
+
+    def detectCoredumpFile(self):
+        try:
+            result = self.conn.run("find /coredump -name 'core_*' ", hide=True)
+            output = result.stdout
+            print("output: %s" % output)
+            return output
+        except Exception as e:
+            print("find coredump file error on node %d " % self.index)
+            logging.exception(e)
+        
 
 class Nodes:
     def __init__(self):
         self.tdnodes = []
-        self.tdnodes.append(Node(0, 'root', '52.143.103.7', 'node1', 'a', '/root/'))
-        self.tdnodes.append(Node(1, 'root', '52.250.48.222', 'node2', 'a', '/root/'))
-        self.tdnodes.append(Node(2, 'root', '51.141.167.23', 'node3', 'a', '/root/'))
-        self.tdnodes.append(Node(3, 'root', '52.247.207.173', 'node4', 'a', '/root/'))
-        self.tdnodes.append(Node(4, 'root', '51.141.166.100', 'node5', 'a', '/root/'))
+        self.tdnodes.append(Node(0, 'root', '192.168.17.194', 'taosdata', 'r', '/root/'))
+        # self.tdnodes.append(Node(1, 'root', '52.250.48.222', 'node2', 'a', '/root/'))
+        # self.tdnodes.append(Node(2, 'root', '51.141.167.23', 'node3', 'a', '/root/'))
+        # self.tdnodes.append(Node(3, 'root', '52.247.207.173', 'node4', 'a', '/root/'))
+        # self.tdnodes.append(Node(4, 'root', '51.141.166.100', 'node5', 'a', '/root/'))
 
     def stopOneNode(self, index):
+        self.tdnodes[index].stopTaosd()
         self.tdnodes[index].forceStopOneTaosd()
     
     def startOneNode(self, index):
         self.tdnodes[index].startOneTaosd()
+    
+    def detectCoredumpFile(self, index):
+        return self.tdnodes[index].detectCoredumpFile()
 
     def stopAllTaosd(self):
         for i in range(len(self.tdnodes)):
@@ -166,14 +183,32 @@ class Nodes:
         for i in range(len(self.tdnodes)):
             self.tdnodes[i].removeData()
 
-# kill taosd randomly every 10 mins
-nodes = Nodes()
-loop = 0
-while True:
-    loop = loop + 1    
-    index = random.randint(0, 4)
-    print("loop: %d, kill taosd on node%d" %(loop, index))
-    nodes.stopOneNode(index)
-    time.sleep(60)
-    nodes.startOneNode(index)
-    time.sleep(600)
+class Test:
+    def __init__(self):
+        self.nodes = Nodes()
+
+    # kill taosd randomly every 10 mins
+    def randomlyKillDnode(self):        
+        loop = 0
+        while True:                
+            index = random.randint(0, 4)
+            print("loop: %d, kill taosd on node%d" %(loop, index))
+            self.nodes.stopOneNode(index)
+            time.sleep(60)
+            self.nodes.startOneNode(index)
+            time.sleep(600)
+            loop = loop + 1
+    
+    def detectCoredump(self):
+        loop = 0
+        while True:
+            for i in range(len(self.nodes.tdnodes)):
+                result = self.nodes.detectCoredumpFile(i)
+                print("core file path is %s" % result)
+                if result and not result.isspace():
+                    self.nodes.stopAllTaosd()                    
+            print("sleep for 10 mins")
+            time.sleep(600)
+
+test = Test()
+test.detectCoredump()

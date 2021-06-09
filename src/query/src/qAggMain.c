@@ -3428,7 +3428,7 @@ static bool deriv_function_setup(SQLFunctionCtx *pCtx) {
   SResultRowCellInfo *pResInfo = GET_RES_INFO(pCtx);
   SDerivInfo* pDerivInfo = GET_ROWCELL_INTERBUF(pResInfo);
 
-  pDerivInfo->ignoreNegative = pCtx->param[2].i64;
+  pDerivInfo->ignoreNegative = pCtx->param[1].i64;
   pDerivInfo->prevTs   = -1;
   pDerivInfo->tsWindow = pCtx->param[0].i64;
   pDerivInfo->valueSet = false;
@@ -3440,10 +3440,8 @@ static void deriv_function(SQLFunctionCtx *pCtx) {
   SDerivInfo* pDerivInfo = GET_ROWCELL_INTERBUF(pResInfo);
 
   void *data = GET_INPUT_DATA_LIST(pCtx);
-  bool  isFirstBlock = (pDerivInfo->valueSet == false);
 
   int32_t notNullElems = 0;
-
   int32_t step = GET_FORWARD_DIRECTION_FACTOR(pCtx->order);
   int32_t i = (pCtx->order == TSDB_ORDER_ASC) ? 0 : pCtx->size - 1;
 
@@ -3469,12 +3467,12 @@ static void deriv_function(SQLFunctionCtx *pCtx) {
             *pTimestamp = tsList[i];
             pOutput    += 1;
             pTimestamp += 1;
+            notNullElems++;
           }
         }
 
         pDerivInfo->prevValue = pData[i];
         pDerivInfo->prevTs    = tsList[i];
-        notNullElems++;
       }
 
       break;
@@ -3496,12 +3494,12 @@ static void deriv_function(SQLFunctionCtx *pCtx) {
             *pTimestamp = tsList[i];
             pOutput    += 1;
             pTimestamp += 1;
+            notNullElems++;
           }
         }
 
         pDerivInfo->prevValue = (double) pData[i];
         pDerivInfo->prevTs    = tsList[i];
-        notNullElems++;
       }
       break;
     }
@@ -3522,12 +3520,12 @@ static void deriv_function(SQLFunctionCtx *pCtx) {
             *pTimestamp = tsList[i];
             pOutput    += 1;
             pTimestamp += 1;
+            notNullElems++;
           }
         }
 
         pDerivInfo->prevValue = pData[i];
         pDerivInfo->prevTs    = tsList[i];
-        notNullElems++;
       }
       break;
     }
@@ -3549,12 +3547,12 @@ static void deriv_function(SQLFunctionCtx *pCtx) {
             *pTimestamp = tsList[i];
             pOutput    += 1;
             pTimestamp += 1;
+            notNullElems++;
           }
         }
 
         pDerivInfo->prevValue = pData[i];
         pDerivInfo->prevTs    = tsList[i];
-        notNullElems++;
       }
       break;
     }
@@ -3575,12 +3573,12 @@ static void deriv_function(SQLFunctionCtx *pCtx) {
             *pTimestamp = tsList[i];
             pOutput    += 1;
             pTimestamp += 1;
+            notNullElems++;
           }
         }
 
         pDerivInfo->prevValue = pData[i];
         pDerivInfo->prevTs    = tsList[i];
-        notNullElems++;
       }
       break;
     }
@@ -3602,12 +3600,12 @@ static void deriv_function(SQLFunctionCtx *pCtx) {
 
             pOutput    += 1;
             pTimestamp += 1;
+            notNullElems++;
           }
         }
 
         pDerivInfo->prevValue = pData[i];
         pDerivInfo->prevTs    = tsList[i];
-        notNullElems++;
       }
       break;
     }
@@ -3623,8 +3621,7 @@ static void deriv_function(SQLFunctionCtx *pCtx) {
      */
     assert(pCtx->hasNull);
   } else {
-    int32_t forwardStep = (isFirstBlock) ? notNullElems - 1 : notNullElems;
-    GET_RES_INFO(pCtx)->numOfRes += forwardStep;
+    GET_RES_INFO(pCtx)->numOfRes += notNullElems;
   }
 }
 
@@ -4687,8 +4684,8 @@ static bool rate_function_setup(SQLFunctionCtx *pCtx) {
   pInfo->correctionValue = 0;
   pInfo->firstKey    = INT64_MIN;
   pInfo->lastKey     = INT64_MIN;
-  pInfo->firstValue  = INT64_MIN;
-  pInfo->lastValue   = INT64_MIN;
+  pInfo->firstValue  = (double) INT64_MIN;
+  pInfo->lastValue   = (double) INT64_MIN;
 
   pInfo->hasResult = 0;
   pInfo->isIRate = (pCtx->functionId == TSDB_FUNC_IRATE);
@@ -5003,6 +5000,19 @@ void generateBlockDistResult(STableBlockDist *pTableBlockDist, char* result) {
   min = totalBlocks > 0 ? pTableBlockDist->minRows : 0;
   max = totalBlocks > 0 ? pTableBlockDist->maxRows : 0;
 
+  double stdDev = 0;
+  if (totalBlocks > 0) {
+    double variance = 0;
+    for (int32_t i = 0; i < numSteps; i++) {
+      SFileBlockInfo *blockInfo = taosArrayGet(blockInfos, i);
+      int64_t         blocks = blockInfo->numBlocksOfStep;
+      int32_t         rows = (i * TSDB_BLOCK_DIST_STEP_ROWS + TSDB_BLOCK_DIST_STEP_ROWS / 2);
+      variance += blocks * (rows - avg) * (rows - avg);
+    }
+    variance = variance / totalBlocks;
+    stdDev = sqrt(variance);
+  }
+
   double percents[] = {0.05, 0.10, 0.20, 0.30, 0.40, 0.50, 0.60, 0.70, 0.80, 0.90, 0.95, 0.99};
   int32_t percentiles[] = {-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1};
   assert(sizeof(percents)/sizeof(double) == sizeof(percentiles)/sizeof(int32_t));
@@ -5017,12 +5027,12 @@ void generateBlockDistResult(STableBlockDist *pTableBlockDist, char* result) {
                    "60th=[%d], 70th=[%d], 80th=[%d], 90th=[%d], 95th=[%d], 99th=[%d]\n\t "
                    "Min=[%"PRId64"(Rows)] Max=[%"PRId64"(Rows)] Avg=[%"PRId64"(Rows)] Stddev=[%.2f] \n\t "
                    "Rows=[%"PRIu64"], Blocks=[%"PRId64"], Size=[%.3f(Kb)] Comp=[%.2f]\n\t "
-                   "RowsInMem=[%d] \n\t SeekHeaderTime=[%d(us)]",
+                   "RowsInMem=[%d] \n\t",
                    percentiles[0], percentiles[1], percentiles[2], percentiles[3], percentiles[4], percentiles[5],
                    percentiles[6], percentiles[7], percentiles[8], percentiles[9], percentiles[10], percentiles[11],
-                   min, max, avg, 0.0,
+                   min, max, avg, stdDev,
                    totalRows, totalBlocks, totalLen/1024.0, compRatio,
-                   pTableBlockDist->numOfRowsInMemTable, pTableBlockDist->firstSeekTimeUs);
+                   pTableBlockDist->numOfRowsInMemTable);
   varDataSetLen(result, sz);
   UNUSED(sz);
 }
@@ -5290,7 +5300,7 @@ SAggFunctionInfo aAggs[] = {{
                           },
                           {
                               // 17
-                              "ts_dummy",
+                              "ts",
                               TSDB_FUNC_TS_DUMMY,
                               TSDB_FUNC_TS_DUMMY,
                               TSDB_BASE_FUNC_SO | TSDB_FUNCSTATE_NEED_TS,
@@ -5384,7 +5394,7 @@ SAggFunctionInfo aAggs[] = {{
                               "diff",
                               TSDB_FUNC_DIFF,
                               TSDB_FUNC_INVALID_ID,
-                              TSDB_FUNCSTATE_MO | TSDB_FUNCSTATE_STABLE | TSDB_FUNCSTATE_NEED_TS,
+                              TSDB_FUNCSTATE_MO | TSDB_FUNCSTATE_STABLE | TSDB_FUNCSTATE_NEED_TS | TSDB_FUNCSTATE_SELECTIVITY,
                               diff_function_setup,
                               diff_function,
                               diff_function_f,
@@ -5488,7 +5498,7 @@ SAggFunctionInfo aAggs[] = {{
                               "derivative",   // return table id and the corresponding tags for join match and subscribe
                               TSDB_FUNC_DERIVATIVE,
                               TSDB_FUNC_INVALID_ID,
-                              TSDB_FUNCSTATE_MO | TSDB_FUNCSTATE_STABLE | TSDB_FUNCSTATE_NEED_TS,
+                              TSDB_FUNCSTATE_MO | TSDB_FUNCSTATE_STABLE | TSDB_FUNCSTATE_NEED_TS | TSDB_FUNCSTATE_SELECTIVITY,
                               deriv_function_setup,
                               deriv_function,
                               noop2,
