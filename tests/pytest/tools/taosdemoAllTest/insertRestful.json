@@ -40,7 +40,7 @@
             "auto_create_table": "no",
             "batch_create_tbl_num": 10,
             "data_source": "rand",
-            "insert_mode": "restful",
+            "insert_mode": "rest",
             "insert_rows": 10,
             "childtable_limit": 0,
             "childtable_offset":0,
