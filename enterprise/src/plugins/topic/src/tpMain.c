@@ -81,9 +81,9 @@ void tpBuildCreateDbSql(char *sql, SCreateDbMsg *pCreate) {
   if (cacheBlockSize < 0) cacheBlockSize = tsCacheBlockSize;
   if (totalBlocks < 0) totalBlocks = tsBlocksPerVnode;
   if (daysPerFile < 0) daysPerFile = tsDaysPerFile;
-  if (daysToKeep2 < 0) daysToKeep2 = tsDaysToKeep;
-  if (daysToKeep1 < 0) daysToKeep1 = daysToKeep2;
-  if (daysToKeep0 < 0) daysToKeep0 = daysToKeep1;
+  if (daysToKeep0 < 0) daysToKeep0 = tsDaysToKeep;
+  if (daysToKeep1 < 0) daysToKeep1 = daysToKeep0;
+  if (daysToKeep2 < 0) daysToKeep2 = daysToKeep1;
   if (commitTime < 0) commitTime = tsCommitTime;
   if (fsyncPeriod < 0) fsyncPeriod = tsFsyncPeriod;
   if (partitions < 0) partitions = tsPartitons;
