@@ -177,7 +177,8 @@ public class TSDBResultSetTest {
         rs.getAsciiStream("f1");
     }
 
-    @Test(expected = SQLFeatureNotSupportedException.class)
+    @SuppressWarnings("deprecation")
+	@Test(expected = SQLFeatureNotSupportedException.class)
     public void getUnicodeStream() throws SQLException {
         rs.getUnicodeStream("f1");
     }

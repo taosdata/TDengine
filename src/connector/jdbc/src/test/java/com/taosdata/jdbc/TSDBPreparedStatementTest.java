@@ -595,7 +595,7 @@ public class TSDBPreparedStatementTest {
         stmt.execute("create database dbtest");
         Assert.assertThrows(SQLException.class, () -> stmt.execute("create database dbtest"));                
     }
-
+    
     @Test
     public void setBoolean() throws SQLException {
         // given

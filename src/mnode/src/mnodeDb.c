@@ -820,8 +820,13 @@ static int32_t mnodeRetrieveDbs(SShowObj *pShow, char *data, int32_t rows, void 
 #endif
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    char *prec = (pDb->cfg.precision == TSDB_TIME_PRECISION_MILLI) ? TSDB_TIME_PRECISION_MILLI_STR
-                                                                   : TSDB_TIME_PRECISION_MICRO_STR;
+    char *prec = NULL;
+    switch (pDb->cfg.precision) {
+      case TSDB_TIME_PRECISION_MILLI: prec = TSDB_TIME_PRECISION_MILLI_STR; break;
+      case TSDB_TIME_PRECISION_MICRO: prec = TSDB_TIME_PRECISION_MICRO_STR; break;
+      case TSDB_TIME_PRECISION_NANO:  prec = TSDB_TIME_PRECISION_NANO_STR;  break;
+      default: assert(false); break;
+    }
     STR_WITH_SIZE_TO_VARSTR(pWrite, prec, 2);
     cols++;
 

@@ -559,10 +559,8 @@ session_option(X) ::= SESSION LP ids(V) cpxName(Z) COMMA tmvar(Y) RP.    {
    X.gap = Y;
 }
 %type windowstate_option {SWindowStateVal}
-windowstate_option(X) ::= .                                                  {X.col.n = 0;}
-windowstate_option(X) ::= STATE_WINDOW LP ids(V) RP.                       {
-   X.col = V;
-}  
+windowstate_option(X) ::= .                                                { X.col.n = 0; X.col.z = NULL;}
+windowstate_option(X) ::= STATE_WINDOW LP ids(V) RP.                       { X.col = V; }
 
 %type fill_opt {SArray*}
 %destructor fill_opt {taosArrayDestroy($$);}
