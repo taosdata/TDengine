@@ -238,9 +238,18 @@ acct_optr(Y) ::= pps(C) tseries(D) storage(P) streams(F) qtime(Q) dbs(E) users(K
     Y.stat    = M;
 }
 
+%type intitemlist {SArray*}
+%destructor intitemlist {taosArrayDestroy($$);}
+
+%type intitem {tVariant}
+intitemlist(A) ::= intitemlist(X) COMMA intitem(Y). { A = tVariantListAppend(X, &Y, -1);    }
+intitemlist(A) ::= intitem(X).                      { A = tVariantListAppend(NULL, &X, -1); }
+
+intitem(A) ::= INTEGER(X).      { toTSDBType(X.type); tVariantCreate(&A, &X); }
+
 %type keep {SArray*}
 %destructor keep {taosArrayDestroy($$);}
-keep(Y)    ::= KEEP tagitemlist(X).           { Y = X; }
+keep(Y)    ::= KEEP intitemlist(X).           { Y = X; }
 
 cache(Y)   ::= CACHE INTEGER(X).              { Y = X; }
 replica(Y) ::= REPLICA INTEGER(X).            { Y = X; }
