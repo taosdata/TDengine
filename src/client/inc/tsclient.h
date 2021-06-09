@@ -266,6 +266,7 @@ typedef struct SSqlObj {
 
 typedef struct SSqlStream {
   SSqlObj *pSql;
+  void *  cqhandle;  // stream belong to SCQContext handle
   const char* dstTable;
   uint32_t streamId;
   char     listed;

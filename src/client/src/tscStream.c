@@ -139,8 +139,13 @@ static void tscProcessStreamTimer(void *handle, void *tmrId) {
 
   pStream->numOfRes = 0;  // reset the numOfRes.
   SSqlObj *pSql = pStream->pSql;
+
+  // pSql ==  NULL  maybe killStream already called
+  if(pSql == NULL) {
+    return ;
+  }
   SQueryInfo* pQueryInfo = tscGetQueryInfo(&pSql->cmd);
-  tscDebug("0x%"PRIx64" timer launch query", pSql->self);
+  tscDebug("0x%"PRIx64" add into timer", pSql->self);
 
   if (pStream->isProject) {
     /*
@@ -339,8 +344,12 @@ static void tscSetRetryTimer(SSqlStream *pStream, SSqlObj *pSql, int64_t timer) 
   if (pStream->isProject) {
     int64_t now = taosGetTimestamp(pStream->precision);
     int64_t etime = now > pStream->etime ? pStream->etime : now;
-
-    if (pStream->etime < now && now - pStream->etime > tsMaxRetentWindow) {
+    int64_t maxRetent = tsMaxRetentWindow * 1000;
+    if(pStream->precision == TSDB_TIME_PRECISION_MICRO) {
+      maxRetent *= 1000;
+    }
+         
+    if (pStream->etime < now && now - pStream->etime > maxRetent) {
       /*
        * current time window will be closed, since it too early to exceed the maxRetentWindow value
        */
@@ -664,7 +673,7 @@ void cbParseSql(void* param, TAOS_RES* res, int code) {
 }
 
 TAOS_STREAM *taos_open_stream_withname(TAOS *taos, const char* dstTable, const char *sqlstr, void (*fp)(void *param, TAOS_RES *, TAOS_ROW row),
-                              int64_t stime, void *param, void (*callback)(void *)) {
+                              int64_t stime, void *param, void (*callback)(void *), void* cqhandle) {
   STscObj *pObj = (STscObj *)taos;
   if (pObj == NULL || pObj->signature != pObj) return NULL;
 
@@ -697,6 +706,7 @@ TAOS_STREAM *taos_open_stream_withname(TAOS *taos, const char* dstTable, const c
   pStream->callback = callback;
   pStream->param = param;
   pStream->pSql = pSql;
+  pStream->cqhandle = cqhandle;
   pSql->pStream = pStream;
   pSql->param = pStream;
   pSql->maxRetry = TSDB_MAX_REPLICA;
@@ -745,7 +755,7 @@ TAOS_STREAM *taos_open_stream_withname(TAOS *taos, const char* dstTable, const c
 
 TAOS_STREAM *taos_open_stream(TAOS *taos, const char *sqlstr, void (*fp)(void *param, TAOS_RES *, TAOS_ROW row),
                               int64_t stime, void *param, void (*callback)(void *)) {  
-  return taos_open_stream_withname(taos, "", sqlstr, fp, stime, param, callback);
+  return taos_open_stream_withname(taos, "", sqlstr, fp, stime, param, callback, NULL);
 }
 
 void taos_close_stream(TAOS_STREAM *handle) {
