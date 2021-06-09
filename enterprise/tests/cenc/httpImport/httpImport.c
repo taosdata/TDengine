@@ -10,12 +10,13 @@
 #if !defined(HTTP_IMPORT_DEBUG)
 #include <errno.h>
 #include "taos.h"
-#include "base64.h"
 #endif
 
 
 #define CIR_BUF_NUM   8192
 #define CIR_BUF_SIZE  1536
+#define MAX_SEED_LEN  512
+#define MAX_BATCH_NUM 2048
 
 
 typedef struct SNETIO
@@ -46,6 +47,7 @@ typedef struct recv_buf_info_s
 typedef struct circular_buf_s
 {
     char             data[CIR_BUF_NUM][CIR_BUF_SIZE];
+    int              len[CIR_BUF_NUM];
     int              pos;
     int              last;
 
@@ -65,7 +67,6 @@ typedef struct thread_arg_s
 #define TQ_CHAN_NUM                 16
 #define MAX_TSQL_LEN                ((MAXRECLEN - 100) << 3)
 #define MAX_BUFF_LEN                (MAXRECLEN - 100)
-#define MAX_DB_ROWS                 32767
 #define hash(key, c)                ((uint64_t) key * 31 + c)
 #define BUF_UNPROC_LEN(info)        (info)->readlength - (info)->readoffset
 #define BUF_TOREAD_PTR(info)        (info)->readbuffer + (info)->readoffset
@@ -140,7 +141,6 @@ int main(int argc, char *argv[])
     int              last;
     pthread_t        tid[TQ_CHAN_NUM];
     thread_arg_t    *arg     = NULL;
-    char            *base64;
     uint64_t         hash;
     struct timeval   now;
 #else
@@ -184,8 +184,8 @@ int main(int argc, char *argv[])
             count = strdup(optarg);
             break;
         default:
-	    fprintf(stderr, "Usage: %s -i url[ -l login -L logout -h host -u user -P port -t topic -r <on|off> -c count]\r\n", argv[0]);
-	    goto failed;
+            fprintf(stderr, "Usage: %s -i url[ -l login -L logout -h host -u user -P port -t topic -r <on|off> -c count]\r\n", argv[0]);
+            goto failed;
         }
     }
 
@@ -266,8 +266,8 @@ int main(int argc, char *argv[])
             ofile = strdup(optarg);
             break;
         default:
-	    fprintf(stderr, "Usage: %s -i url -o filename\r\n", argv[0]);
-	    goto failed;
+            fprintf(stderr, "Usage: %s -i url -o filename\r\n", argv[0]);
+            goto failed;
         }
     }
 
@@ -385,12 +385,6 @@ retry:
         packets++;
 
 #if !defined(HTTP_IMPORT_DEBUG)
-        base64 = base64_encode((const unsigned char *) info.readbuffer + info.readoffset - reclen, reclen);
-        if (base64 == NULL) {
-            fprintf(stderr, "base64 error\r\n");
-            continue;
-        }
-
         hash = hash_key(sid, strlen(sid));
         id = (int) (hash % TQ_CHAN_NUM);
 
@@ -404,8 +398,6 @@ retry:
             continue;
         }
 
-	reclen = strlen(base64);
-
         if (reclen > CIR_BUF_SIZE - 1) {
             fprintf(stderr, "too long(%d) packet\r\n", reclen);
             //pthread_mutex_unlock(&arg[id].buffer.mutex);
@@ -413,13 +405,12 @@ retry:
         }
 
         arg[id].buffer.data[arg[id].buffer.last][reclen] = '\0';
-        memcpy(arg[id].buffer.data[arg[id].buffer.last], base64, reclen);
+        arg[id].buffer.len[arg[id].buffer.last] = reclen;
+        memcpy(arg[id].buffer.data[arg[id].buffer.last], info.readbuffer + info.readoffset - reclen, reclen);
 
         arg[id].buffer.last = last;
 
         //pthread_mutex_unlock(&arg[id].buffer.mutex);
-
-        free(base64);
 #else
         if (running && fwrite(info.readbuffer + info.readoffset - reclen, 1, reclen, fp) != reclen) {
             fprintf(stderr, "failed to write to %s\r\n", ofile);
@@ -1023,50 +1014,82 @@ void signal_handler(int sig)
 
 void *seed_write_routine(void *arg)
 {
-    int             np, offset, cursor, rows;
-    int64_t         total_rows, prv, ts;
-    char            cmd[MAX_TSQL_LEN];
-    const char     *prefix  = "insert into";
-    const int       pfxlen  = sizeof("insert into") - 1;
-    struct timeval  now;
-    thread_arg_t   *p;
-    TAOS_RES       *res;
+    int               n;
+    int               code;
+    int               np, rows;
+    int32_t           off_len[MAX_BATCH_NUM];
+    int32_t           ts_len[MAX_BATCH_NUM];
+    int32_t           bin_len[MAX_BATCH_NUM];
+    int64_t           total_rows, prv, ts;
+    char              is_null[MAX_BATCH_NUM];
+    char              cmd[MAX_TSQL_LEN];
+    struct timeval    now;
+    thread_arg_t     *p;
+    TAOS_STMT        *stmt;
+    TAOS_MULTI_BIND   params[3];
+    struct {
+        int64_t       off[MAX_BATCH_NUM];
+        int64_t       ts[MAX_BATCH_NUM];
+        char          bin[MAX_BATCH_NUM][MAX_SEED_LEN];
+    } val;
 
     p = (thread_arg_t *) arg;
 
-    offset = 0;
     rows = 0;
+    n = 0;
     total_rows = 0;
     prv = -1;
 
     memset(cmd, 0, sizeof(cmd));
-    memcpy(cmd, prefix, pfxlen);
-    offset += pfxlen;
+    memset(is_null, 0, MAX_BATCH_NUM);
 
-    np = snprintf(cmd + offset, sizeof(cmd) - offset,
-                  " p%d using ps tags (%d) values", p->index + 1, p->index + 1);
+    np = snprintf(cmd, sizeof(cmd), "insert into p%d using ps tags (%d) values (?, ?, ?)", p->index + 1, p->index + 1);
     if (np <= 0) {
-        fprintf(stderr, "thread(%d): fprintf error cmd for preparing data prefix: %s\r\n", p->index + 1, cmd);
+        fprintf(stderr, "thread(%d): snprintf error for preparing sql\r\n", p->index + 1);
         running = 0;
         return NULL;
     }
 
-    offset += np;
-    cursor = offset;
+    stmt = taos_stmt_init(p->taos);
+    if (stmt == NULL) {
+        fprintf(stderr, "thread(%d): failed to init stmt\r\n", p->index + 1);
+        return NULL;
+    }
+
+    code = taos_stmt_prepare(stmt, cmd, 0);
+    if (code != 0) {
+        fprintf(stderr, "thread(%d): failed to stmt prepare for: %s\r\n", p->index + 1, cmd);
+        return NULL;
+    }
+
+    params[0].buffer_type = TSDB_DATA_TYPE_TIMESTAMP;
+    params[0].buffer_length = sizeof(val.off[0]);
+    params[0].buffer = val.off;
+    params[0].length = off_len;
+    params[0].is_null = is_null;
+    params[0].num = MAX_BATCH_NUM;
+
+    params[1].buffer_type = TSDB_DATA_TYPE_TIMESTAMP;
+    params[1].buffer_length = sizeof(val.ts[0]);
+    params[1].buffer = val.ts;
+    params[1].length = ts_len;
+    params[1].is_null = is_null;
+    params[1].num = MAX_BATCH_NUM;
+
+    params[2].buffer_type = TSDB_DATA_TYPE_BINARY;
+    params[2].buffer_length = sizeof(val.bin[0]);
+    params[2].buffer = val.bin;
+    params[2].length = bin_len;
+    params[2].is_null = is_null;
+    params[2].num = MAX_BATCH_NUM;
 
     while (running) {
-        //pthread_mutex_lock(&p->buffer.mutex);
-
         if (p->buffer.pos == p->buffer.last) {
-            //fprintf(stderr, "thread(%d): buffer(%d) was empty\r\n", p->index + 1, p->index);
-            //pthread_mutex_unlock(&p->buffer.mutex);
             usleep(5);
             continue;
         }
 
-        //pthread_mutex_unlock(&p->buffer.mutex);
-
-        if (offset + strlen(p->buffer.data[p->buffer.pos]) < (MAX_TSQL_LEN - 256) && rows < MAX_DB_ROWS) {
+        if (n < MAX_BATCH_NUM) {
             gettimeofday(&now, NULL);
             ts = (int64_t) (now.tv_sec * 1000000 + now.tv_usec);
 
@@ -1079,43 +1102,98 @@ void *seed_write_routine(void *arg)
 
             prv = ts;
 
-            np = snprintf(cmd + offset, sizeof(cmd) - offset, " (%ld, %ld, '%s')",
-                          ts, ts, p->buffer.data[p->buffer.pos]);
-            if (np <= 0) {
-                fprintf(stderr, "thread(%d): fprintf error cmd for preparing data: %s\r\n", p->index + 1, cmd);
-                continue;
-            }
+            val.off[n] = ts;
+            val.ts[n] = ts;
 
-            offset += np;
+            memset(val.bin[n], 0, MAX_SEED_LEN);
+            memcpy(val.bin[n], p->buffer.data[p->buffer.pos], p->buffer.len[p->buffer.pos]);
+
+            off_len[n] = sizeof(val.off[0]);
+            ts_len[n] = sizeof(val.ts[0]);
+            bin_len[n] = p->buffer.len[p->buffer.pos];
+
+            n++;
             rows++;
             total_rows++;
             p->buffer.pos++;
-	    p->buffer.pos %= CIR_BUF_NUM;
+            p->buffer.pos %= CIR_BUF_NUM;
         } else {
-            if (rows >= MAX_DB_ROWS) {
-                fprintf(stderr, "thread(%d): too many rows: %d\r\n", p->index + 1, rows);
-            } else {
-                cmd[offset] = ';';
+            taos_stmt_bind_param_batch(stmt, params);
+            taos_stmt_add_batch(stmt);
 
-                res = taos_query(p->taos, cmd);
-                if (check_and_free_res(&res, cmd) != 0) {
-                    running = 0;
-                    break;
-                }
-            }
-
-            //fprintf(stderr, "thread(%d): rows: %d\r\n", p->index + 1, rows);
-            memset(cmd + cursor, 0, sizeof(cmd) - cursor);
-            offset = cursor;
+            n = 0;
             rows = 0;
+
+            if (taos_stmt_execute(stmt) != 0) {
+                fprintf(stderr, "thread(%d): failed to execute insert statement\r\n", p->index + 1);
+                taos_stmt_close(stmt);
+                running = 0;
+                return NULL;
+            }
         }
     }
 
-    if (offset > 0 && offset > cursor) {
-        cmd[offset] = ';';
+    while (1) {
+        if (p->buffer.pos == p->buffer.last) {
+            if (n > 0) {
+                params[0].num = n;
+                params[1].num = n;
+                params[2].num = n;
 
-        res = taos_query(p->taos, cmd);
-        check_and_free_res(&res, cmd);
+                taos_stmt_bind_param_batch(stmt, params);
+                taos_stmt_add_batch(stmt);
+
+                if (taos_stmt_execute(stmt) != 0) {
+                    fprintf(stderr, "thread(%d): failed to execute the last insert statement\r\n", p->index + 1);
+                    taos_stmt_close(stmt);
+                }
+            }
+
+            break;
+        }
+
+        if (n < MAX_BATCH_NUM) {
+            gettimeofday(&now, NULL);
+            ts = (int64_t) (now.tv_sec * 1000000 + now.tv_usec);
+
+            /* so fast */
+            if (prv == ts) {
+                usleep(5);
+                gettimeofday(&now, NULL);
+                ts = (int64_t) (now.tv_sec * 1000000 + now.tv_usec);
+            }
+
+            prv = ts;
+
+            val.off[n] = ts;
+            val.ts[n] = ts;
+
+            memset(val.bin[n], 0, MAX_SEED_LEN);
+            memcpy(val.bin[n], p->buffer.data[p->buffer.pos], p->buffer.len[p->buffer.pos]);
+
+            off_len[n] = sizeof(val.off[0]);
+            ts_len[n] = sizeof(val.ts[0]);
+            bin_len[n] = p->buffer.len[p->buffer.pos];
+
+            n++;
+            rows++;
+            total_rows++;
+            p->buffer.pos++;
+            p->buffer.pos %= CIR_BUF_NUM;
+        } else {
+            taos_stmt_bind_param_batch(stmt, params);
+            taos_stmt_add_batch(stmt);
+
+            n = 0;
+            rows = 0;
+
+            if (taos_stmt_execute(stmt) != 0) {
+                fprintf(stderr, "thread(%d): failed to execute insert statement\r\n", p->index + 1);
+                taos_stmt_close(stmt);
+                running = 0;
+                return NULL;
+            }
+        }
     }
 
     //fprintf(stderr, "thread(%d): total rows: %ld\r\n", p->index + 1, total_rows);
