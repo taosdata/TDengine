@@ -398,7 +398,10 @@ static char* formatTimestamp(char* buf, int64_t val, int precision) {
 
   time_t tt;
   int32_t ms = 0;
-  if (precision == TSDB_TIME_PRECISION_MICRO) {
+  if (precision == TSDB_TIME_PRECISION_NANO) {
+    tt = (time_t)(val / 1000000000);
+    ms = val % 1000000000;
+  } else if (precision == TSDB_TIME_PRECISION_MICRO) {
     tt = (time_t)(val / 1000000);
     ms = val % 1000000;
   } else {
@@ -419,7 +422,9 @@ static char* formatTimestamp(char* buf, int64_t val, int precision) {
 #endif
   if (tt <= 0 && ms < 0) {
     tt--;
-    if (precision == TSDB_TIME_PRECISION_MICRO) {
+    if (precision == TSDB_TIME_PRECISION_NANO) {
+      ms += 1000000000;
+    } else if (precision == TSDB_TIME_PRECISION_MICRO) {
       ms += 1000000;
     } else {
       ms += 1000;
@@ -427,9 +432,11 @@ static char* formatTimestamp(char* buf, int64_t val, int precision) {
   }
 
   struct tm* ptm = localtime(&tt);
-  size_t pos = strftime(buf, 32, "%Y-%m-%d %H:%M:%S", ptm);
+  size_t pos = strftime(buf, 35, "%Y-%m-%d %H:%M:%S", ptm);
 
-  if (precision == TSDB_TIME_PRECISION_MICRO) {
+  if (precision == TSDB_TIME_PRECISION_NANO) {
+    sprintf(buf + pos, ".%09d", ms);
+  } else if (precision == TSDB_TIME_PRECISION_MICRO) {
     sprintf(buf + pos, ".%06d", ms);
   } else {
     sprintf(buf + pos, ".%03d", ms);
@@ -778,6 +785,8 @@ static int calcColWidth(TAOS_FIELD* field, int precision) {
     case TSDB_DATA_TYPE_TIMESTAMP:
       if (args.is_raw_time) {
         return MAX(14, width);
+      } if (precision == TSDB_TIME_PRECISION_NANO) {
+        return MAX(29, width);
       } else if (precision == TSDB_TIME_PRECISION_MICRO) {
         return MAX(26, width); // '2020-01-01 00:00:00.000000'
       } else {
