@@ -242,7 +242,7 @@ def _load_taos_linux():
 
 
 def _load_taos_darwin():
-    return ctypes.cDLL('libtaos.dylib')
+    return ctypes.CDLL('libtaos.dylib')
 
 
 def _load_taos_windows():

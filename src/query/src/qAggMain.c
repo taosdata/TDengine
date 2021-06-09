@@ -161,6 +161,14 @@ typedef struct SRateInfo {
   bool    isIRate;    // true for IRate functions, false for Rate functions
 } SRateInfo;
 
+typedef struct SDerivInfo {
+  double   prevValue;     // previous value
+  TSKEY    prevTs;        // previous timestamp
+  bool     ignoreNegative;// ignore the negative value
+  int64_t  tsWindow;      // time window for derivative
+  bool     valueSet;      // the value has been set already
+} SDerivInfo;
+
 int32_t getResultDataInfo(int32_t dataType, int32_t dataBytes, int32_t functionId, int32_t param, int16_t *type,
                           int16_t *bytes, int32_t *interBytes, int16_t extLength, bool isSuperTable) {
   if (!isValidDataType(dataType)) {
@@ -189,7 +197,9 @@ int32_t getResultDataInfo(int32_t dataType, int32_t dataBytes, int32_t functionI
     *bytes = (int16_t)(dataBytes + sizeof(int16_t) + sizeof(int64_t) + sizeof(int32_t) + sizeof(int32_t) + VARSTR_HEADER_SIZE);
     *interBytes = 0;
     return TSDB_CODE_SUCCESS;
-  } else if (functionId == TSDB_FUNC_BLKINFO) {
+  }
+
+  if (functionId == TSDB_FUNC_BLKINFO) {
     *type = TSDB_DATA_TYPE_BINARY;
     *bytes = 16384;
     *interBytes = 0;
@@ -216,7 +226,14 @@ int32_t getResultDataInfo(int32_t dataType, int32_t dataBytes, int32_t functionI
     *interBytes = POINTER_BYTES;
     return TSDB_CODE_SUCCESS;
   }
-  
+
+  if (functionId == TSDB_FUNC_DERIVATIVE) {
+    *type = TSDB_DATA_TYPE_DOUBLE;
+    *bytes = sizeof(double);  // this results is compressed ts data, only one byte
+    *interBytes = sizeof(SDerivInfo);
+    return TSDB_CODE_SUCCESS;
+  }
+
   if (isSuperTable) {
     if (functionId == TSDB_FUNC_MIN || functionId == TSDB_FUNC_MAX) {
       *type = TSDB_DATA_TYPE_BINARY;
@@ -3393,7 +3410,7 @@ enum {
 };
 
 static bool diff_function_setup(SQLFunctionCtx *pCtx) {
-  if (function_setup(pCtx)) {
+  if (!function_setup(pCtx)) {
     return false;
   }
   
@@ -3402,225 +3419,209 @@ static bool diff_function_setup(SQLFunctionCtx *pCtx) {
   return false;
 }
 
-// TODO difference in date column
-static void diff_function(SQLFunctionCtx *pCtx) {
+static bool deriv_function_setup(SQLFunctionCtx *pCtx) {
+  if (!function_setup(pCtx)) {
+    return false;
+  }
+
+  // diff function require the value is set to -1
+  SResultRowCellInfo *pResInfo = GET_RES_INFO(pCtx);
+  SDerivInfo* pDerivInfo = GET_ROWCELL_INTERBUF(pResInfo);
+
+  pDerivInfo->ignoreNegative = pCtx->param[1].i64;
+  pDerivInfo->prevTs   = -1;
+  pDerivInfo->tsWindow = pCtx->param[0].i64;
+  pDerivInfo->valueSet = false;
+  return false;
+}
+
+static void deriv_function(SQLFunctionCtx *pCtx) {
+  SResultRowCellInfo *pResInfo = GET_RES_INFO(pCtx);
+  SDerivInfo* pDerivInfo = GET_ROWCELL_INTERBUF(pResInfo);
+
   void *data = GET_INPUT_DATA_LIST(pCtx);
-  bool  isFirstBlock = (pCtx->param[1].nType == INITIAL_VALUE_NOT_ASSIGNED);
-  
+
   int32_t notNullElems = 0;
-  
   int32_t step = GET_FORWARD_DIRECTION_FACTOR(pCtx->order);
   int32_t i = (pCtx->order == TSDB_ORDER_ASC) ? 0 : pCtx->size - 1;
-  
-  TSKEY* pTimestamp = pCtx->ptsOutputBuf;
-  TSKEY* tsList = GET_TS_LIST(pCtx);
+
+  TSKEY *pTimestamp = pCtx->ptsOutputBuf;
+  TSKEY *tsList = GET_TS_LIST(pCtx);
+
+  double *pOutput = (double *)pCtx->pOutput;
 
   switch (pCtx->inputType) {
     case TSDB_DATA_TYPE_INT: {
       int32_t *pData = (int32_t *)data;
-      int32_t *pOutput = (int32_t *)pCtx->pOutput;
-      
       for (; i < pCtx->size && i >= 0; i += step) {
-        if (pCtx->hasNull && isNull((const char*) &pData[i], pCtx->inputType)) {
+        if (pCtx->hasNull && isNull((const char *)&pData[i], pCtx->inputType)) {
           continue;
         }
-        
-        if (pCtx->param[1].nType == INITIAL_VALUE_NOT_ASSIGNED) {  // initial value is not set yet
-          pCtx->param[1].i64 = pData[i];
-          pCtx->param[1].nType = pCtx->inputType;
-        } else if ((i == 0 && pCtx->order == TSDB_ORDER_ASC) || (i == pCtx->size - 1 && pCtx->order == TSDB_ORDER_DESC)) {
-          *pOutput = (int32_t)(pData[i] - pCtx->param[1].i64);
-          *pTimestamp = tsList[i];
-          
-          pOutput += 1;
-          pTimestamp += 1;
+
+        if (!pDerivInfo->valueSet) {  // initial value is not set yet
+          pDerivInfo->valueSet  = true;
         } else {
-          *pOutput = (int32_t)(pData[i] - pCtx->param[1].i64);  // direct previous may be null
-          *pTimestamp = tsList[i];
-          
-          pOutput += 1;
-          pTimestamp += 1;
+          *pOutput = ((pData[i] - pDerivInfo->prevValue) * pDerivInfo->tsWindow) / (tsList[i] - pDerivInfo->prevTs);
+          if (pDerivInfo->ignoreNegative && *pOutput < 0) {
+          } else {
+            *pTimestamp = tsList[i];
+            pOutput    += 1;
+            pTimestamp += 1;
+            notNullElems++;
+          }
         }
-        
-        pCtx->param[1].i64 = pData[i];
-        pCtx->param[1].nType = pCtx->inputType;
-        notNullElems++;
+
+        pDerivInfo->prevValue = pData[i];
+        pDerivInfo->prevTs    = tsList[i];
       }
+
       break;
     };
+
     case TSDB_DATA_TYPE_BIGINT: {
       int64_t *pData = (int64_t *)data;
-      int64_t *pOutput = (int64_t *)pCtx->pOutput;
-      
       for (; i < pCtx->size && i >= 0; i += step) {
-        if (pCtx->hasNull && isNull((const char*) &pData[i], pCtx->inputType)) {
+        if (pCtx->hasNull && isNull((const char *)&pData[i], pCtx->inputType)) {
           continue;
         }
-        
-        if (pCtx->param[1].nType == INITIAL_VALUE_NOT_ASSIGNED) {  // initial value is not set yet
-          pCtx->param[1].i64 = pData[i];
-          pCtx->param[1].nType = pCtx->inputType;
-        } else if ((i == 0 && pCtx->order == TSDB_ORDER_ASC) || (i == pCtx->size - 1 && pCtx->order == TSDB_ORDER_DESC)) {
-          *pOutput = pData[i] - pCtx->param[1].i64;
-          *pTimestamp = tsList[i];
-          
-          pOutput += 1;
-          pTimestamp += 1;
+
+        if (!pDerivInfo->valueSet) {  // initial value is not set yet
+          pDerivInfo->valueSet  = true;
         } else {
-          *pOutput = pData[i] - pCtx->param[1].i64;
-          *pTimestamp = tsList[i];
-          
-          pOutput += 1;
-          pTimestamp += 1;
+          *pOutput = ((pData[i] - pDerivInfo->prevValue) * pDerivInfo->tsWindow) / (tsList[i] - pDerivInfo->prevTs);
+          if (pDerivInfo->ignoreNegative && *pOutput < 0) {
+          } else {
+            *pTimestamp = tsList[i];
+            pOutput    += 1;
+            pTimestamp += 1;
+            notNullElems++;
+          }
         }
-        
-        pCtx->param[1].i64 = pData[i];
-        pCtx->param[1].nType = pCtx->inputType;
-        notNullElems++;
+
+        pDerivInfo->prevValue = (double) pData[i];
+        pDerivInfo->prevTs    = tsList[i];
       }
       break;
     }
     case TSDB_DATA_TYPE_DOUBLE: {
       double *pData = (double *)data;
-      double *pOutput = (double *)pCtx->pOutput;
-      
+
       for (; i < pCtx->size && i >= 0; i += step) {
-        if (pCtx->hasNull && isNull((const char*) &pData[i], pCtx->inputType)) {
+        if (pCtx->hasNull && isNull((const char *)&pData[i], pCtx->inputType)) {
           continue;
         }
-        
-        if (pCtx->param[1].nType == INITIAL_VALUE_NOT_ASSIGNED) {  // initial value is not set yet
-          pCtx->param[1].dKey = pData[i];
-          pCtx->param[1].nType = pCtx->inputType;
-        } else if ((i == 0 && pCtx->order == TSDB_ORDER_ASC) || (i == pCtx->size - 1 && pCtx->order == TSDB_ORDER_DESC)) {
-          *pOutput = pData[i] - pCtx->param[1].dKey;
-          *pTimestamp = tsList[i];
-          pOutput += 1;
-          pTimestamp += 1;
+
+        if (!pDerivInfo->valueSet) {  // initial value is not set yet
+          pDerivInfo->valueSet  = true;
         } else {
-          *pOutput = pData[i] - pCtx->param[1].dKey;
-          *pTimestamp = tsList[i];
-          pOutput += 1;
-          pTimestamp += 1;
+          *pOutput = ((pData[i] - pDerivInfo->prevValue) * pDerivInfo->tsWindow) / (tsList[i] - pDerivInfo->prevTs);
+          if (pDerivInfo->ignoreNegative && *pOutput < 0) {
+          } else {
+            *pTimestamp = tsList[i];
+            pOutput    += 1;
+            pTimestamp += 1;
+            notNullElems++;
+          }
         }
-        
-        pCtx->param[1].dKey = pData[i];
-        pCtx->param[1].nType = pCtx->inputType;
-        notNullElems++;
+
+        pDerivInfo->prevValue = pData[i];
+        pDerivInfo->prevTs    = tsList[i];
       }
       break;
     }
+
     case TSDB_DATA_TYPE_FLOAT: {
       float *pData = (float *)data;
-      float *pOutput = (float *)pCtx->pOutput;
-      
+
       for (; i < pCtx->size && i >= 0; i += step) {
-        if (pCtx->hasNull && isNull((const char*) &pData[i], pCtx->inputType)) {
+        if (pCtx->hasNull && isNull((const char *)&pData[i], pCtx->inputType)) {
           continue;
         }
-        
-        if (pCtx->param[1].nType == INITIAL_VALUE_NOT_ASSIGNED) {  // initial value is not set yet
-          pCtx->param[1].dKey = pData[i];
-          pCtx->param[1].nType = pCtx->inputType;
-        } else if ((i == 0 && pCtx->order == TSDB_ORDER_ASC) || (i == pCtx->size - 1 && pCtx->order == TSDB_ORDER_DESC)) {
-          *pOutput = (float)(pData[i] - pCtx->param[1].dKey);
-          *pTimestamp = tsList[i];
-          
-          pOutput += 1;
-          pTimestamp += 1;
+
+        if (!pDerivInfo->valueSet) {  // initial value is not set yet
+          pDerivInfo->valueSet  = true;
         } else {
-          *pOutput = (float)(pData[i] - pCtx->param[1].dKey);
-          *pTimestamp = tsList[i];
-          
-          pOutput += 1;
-          pTimestamp += 1;
+          *pOutput = ((pData[i] - pDerivInfo->prevValue) * pDerivInfo->tsWindow) / (tsList[i] - pDerivInfo->prevTs);
+          if (pDerivInfo->ignoreNegative && *pOutput < 0) {
+          } else {
+            *pTimestamp = tsList[i];
+            pOutput    += 1;
+            pTimestamp += 1;
+            notNullElems++;
+          }
         }
-        
-        // keep the last value, the remain may be all null
-        pCtx->param[1].dKey = pData[i];
-        pCtx->param[1].nType = pCtx->inputType;
-        notNullElems++;
+
+        pDerivInfo->prevValue = pData[i];
+        pDerivInfo->prevTs    = tsList[i];
       }
       break;
     }
+
     case TSDB_DATA_TYPE_SMALLINT: {
       int16_t *pData = (int16_t *)data;
-      int16_t *pOutput = (int16_t *)pCtx->pOutput;
-      
       for (; i < pCtx->size && i >= 0; i += step) {
-        if (pCtx->hasNull && isNull((const char*) &pData[i], pCtx->inputType)) {
+        if (pCtx->hasNull && isNull((const char *)&pData[i], pCtx->inputType)) {
           continue;
         }
-        
-        if (pCtx->param[1].nType == INITIAL_VALUE_NOT_ASSIGNED) {  // initial value is not set yet
-          pCtx->param[1].i64 = pData[i];
-          pCtx->param[1].nType = pCtx->inputType;
-        } else if ((i == 0 && pCtx->order == TSDB_ORDER_ASC) || (i == pCtx->size - 1 && pCtx->order == TSDB_ORDER_DESC)) {
-          *pOutput = (int16_t)(pData[i] - pCtx->param[1].i64);
-          *pTimestamp = tsList[i];
-          pOutput += 1;
-          pTimestamp += 1;
+
+        if (!pDerivInfo->valueSet) {  // initial value is not set yet
+          pDerivInfo->valueSet  = true;
         } else {
-          *pOutput = (int16_t)(pData[i] - pCtx->param[1].i64);
-          *pTimestamp = tsList[i];
-          
-          pOutput += 1;
-          pTimestamp += 1;
+          *pOutput = ((pData[i] - pDerivInfo->prevValue) * pDerivInfo->tsWindow) / (tsList[i] - pDerivInfo->prevTs);
+          if (pDerivInfo->ignoreNegative && *pOutput < 0) {
+          } else {
+            *pTimestamp = tsList[i];
+            pOutput    += 1;
+            pTimestamp += 1;
+            notNullElems++;
+          }
         }
-        
-        pCtx->param[1].i64 = pData[i];
-        pCtx->param[1].nType = pCtx->inputType;
-        notNullElems++;
+
+        pDerivInfo->prevValue = pData[i];
+        pDerivInfo->prevTs    = tsList[i];
       }
       break;
     }
+
     case TSDB_DATA_TYPE_TINYINT: {
       int8_t *pData = (int8_t *)data;
-      int8_t *pOutput = (int8_t *)pCtx->pOutput;
-      
       for (; i < pCtx->size && i >= 0; i += step) {
         if (pCtx->hasNull && isNull((char *)&pData[i], pCtx->inputType)) {
           continue;
         }
-        
-        if (pCtx->param[1].nType == INITIAL_VALUE_NOT_ASSIGNED) {  // initial value is not set yet
-          pCtx->param[1].i64 = pData[i];
-          pCtx->param[1].nType = pCtx->inputType;
-        } else if ((i == 0 && pCtx->order == TSDB_ORDER_ASC) || (i == pCtx->size - 1 && pCtx->order == TSDB_ORDER_DESC)) {
-          *pOutput = (int8_t)(pData[i] - pCtx->param[1].i64);
-          *pTimestamp = tsList[i];
-          
-          pOutput += 1;
-          pTimestamp += 1;
+
+        if (!pDerivInfo->valueSet) {  // initial value is not set yet
+          pDerivInfo->valueSet  = true;
         } else {
-          *pOutput = (int8_t)(pData[i] - pCtx->param[1].i64);
-          *pTimestamp = tsList[i];
-          
-          pOutput += 1;
-          pTimestamp += 1;
+          *pOutput = ((pData[i] - pDerivInfo->prevValue) * pDerivInfo->tsWindow) / (tsList[i] - pDerivInfo->prevTs);
+          if (pDerivInfo->ignoreNegative && *pOutput < 0) {
+          } else {
+            *pTimestamp = tsList[i];
+
+            pOutput    += 1;
+            pTimestamp += 1;
+            notNullElems++;
+          }
         }
-        
-        pCtx->param[1].i64 = pData[i];
-        pCtx->param[1].nType = pCtx->inputType;
-        notNullElems++;
+
+        pDerivInfo->prevValue = pData[i];
+        pDerivInfo->prevTs    = tsList[i];
       }
       break;
     }
     default:
       qError("error input type");
   }
-  
-  // initial value is not set yet
-  if (pCtx->param[1].nType == INITIAL_VALUE_NOT_ASSIGNED || notNullElems <= 0) {
+
+  // initial value is not set yet, all data block are null
+  if (!pDerivInfo->valueSet || notNullElems <= 0) {
     /*
      * 1. current block and blocks before are full of null
      * 2. current block may be null value
      */
     assert(pCtx->hasNull);
   } else {
-    int32_t forwardStep = (isFirstBlock) ? notNullElems - 1 : notNullElems;
-    
-    GET_RES_INFO(pCtx)->numOfRes += forwardStep;
+    GET_RES_INFO(pCtx)->numOfRes += notNullElems;
   }
 }
 
@@ -3636,19 +3637,184 @@ static void diff_function(SQLFunctionCtx *pCtx) {
     }                                                                                        \
   } while (0);
 
+// TODO difference in date column
+static void diff_function(SQLFunctionCtx *pCtx) {
+  void *data = GET_INPUT_DATA_LIST(pCtx);
+  bool  isFirstBlock = (pCtx->param[1].nType == INITIAL_VALUE_NOT_ASSIGNED);
+
+  int32_t notNullElems = 0;
+
+  int32_t step = GET_FORWARD_DIRECTION_FACTOR(pCtx->order);
+  int32_t i = (pCtx->order == TSDB_ORDER_ASC) ? 0 : pCtx->size - 1;
+
+  TSKEY* pTimestamp = pCtx->ptsOutputBuf;
+  TSKEY* tsList = GET_TS_LIST(pCtx);
+
+  switch (pCtx->inputType) {
+    case TSDB_DATA_TYPE_INT: {
+      int32_t *pData = (int32_t *)data;
+      int32_t *pOutput = (int32_t *)pCtx->pOutput;
+
+      for (; i < pCtx->size && i >= 0; i += step) {
+        if (pCtx->hasNull && isNull((const char*) &pData[i], pCtx->inputType)) {
+          continue;
+        }
+
+        if (pCtx->param[1].nType != INITIAL_VALUE_NOT_ASSIGNED) {  // initial value is not set yet
+          *pOutput = (int32_t)(pData[i] - pCtx->param[1].i64);  // direct previous may be null
+          *pTimestamp = tsList[i];
+          pOutput    += 1;
+          pTimestamp += 1;
+        }
+
+        pCtx->param[1].i64 = pData[i];
+        pCtx->param[1].nType = pCtx->inputType;
+        notNullElems++;
+      }
+      break;
+    };
+    case TSDB_DATA_TYPE_BIGINT: {
+      int64_t *pData = (int64_t *)data;
+      int64_t *pOutput = (int64_t *)pCtx->pOutput;
+
+      for (; i < pCtx->size && i >= 0; i += step) {
+        if (pCtx->hasNull && isNull((const char*) &pData[i], pCtx->inputType)) {
+          continue;
+        }
+
+        if (pCtx->param[1].nType != INITIAL_VALUE_NOT_ASSIGNED) {  // initial value is not set yet
+          *pOutput = pData[i] - pCtx->param[1].i64;  // direct previous may be null
+          *pTimestamp = tsList[i];
+          pOutput    += 1;
+          pTimestamp += 1;
+        }
+
+        pCtx->param[1].i64 = pData[i];
+        pCtx->param[1].nType = pCtx->inputType;
+        notNullElems++;
+      }
+      break;
+    }
+    case TSDB_DATA_TYPE_DOUBLE: {
+      double *pData = (double *)data;
+      double *pOutput = (double *)pCtx->pOutput;
+
+      for (; i < pCtx->size && i >= 0; i += step) {
+        if (pCtx->hasNull && isNull((const char*) &pData[i], pCtx->inputType)) {
+          continue;
+        }
+
+        if (pCtx->param[1].nType != INITIAL_VALUE_NOT_ASSIGNED) {  // initial value is not set yet
+          *pOutput = pData[i] - pCtx->param[1].dKey;  // direct previous may be null
+          *pTimestamp = tsList[i];
+          pOutput    += 1;
+          pTimestamp += 1;
+        }
+
+        pCtx->param[1].dKey = pData[i];
+        pCtx->param[1].nType = pCtx->inputType;
+        notNullElems++;
+      }
+      break;
+    }
+    case TSDB_DATA_TYPE_FLOAT: {
+      float *pData = (float *)data;
+      float *pOutput = (float *)pCtx->pOutput;
+
+      for (; i < pCtx->size && i >= 0; i += step) {
+        if (pCtx->hasNull && isNull((const char*) &pData[i], pCtx->inputType)) {
+          continue;
+        }
+
+        if (pCtx->param[1].nType != INITIAL_VALUE_NOT_ASSIGNED) {  // initial value is not set yet
+          *pOutput = (float)(pData[i] - pCtx->param[1].dKey);  // direct previous may be null
+          *pTimestamp = tsList[i];
+          pOutput    += 1;
+          pTimestamp += 1;
+        }
+
+        pCtx->param[1].dKey = pData[i];
+        pCtx->param[1].nType = pCtx->inputType;
+        notNullElems++;
+      }
+      break;
+    }
+    case TSDB_DATA_TYPE_SMALLINT: {
+      int16_t *pData = (int16_t *)data;
+      int16_t *pOutput = (int16_t *)pCtx->pOutput;
+
+      for (; i < pCtx->size && i >= 0; i += step) {
+        if (pCtx->hasNull && isNull((const char*) &pData[i], pCtx->inputType)) {
+          continue;
+        }
+
+        if (pCtx->param[1].nType != INITIAL_VALUE_NOT_ASSIGNED) {  // initial value is not set yet
+          *pOutput = (int16_t)(pData[i] - pCtx->param[1].i64);  // direct previous may be null
+          *pTimestamp = tsList[i];
+          pOutput    += 1;
+          pTimestamp += 1;
+        }
+
+        pCtx->param[1].i64 = pData[i];
+        pCtx->param[1].nType = pCtx->inputType;
+        notNullElems++;
+      }
+      break;
+    }
+
+    case TSDB_DATA_TYPE_TINYINT: {
+      int8_t *pData = (int8_t *)data;
+      int8_t *pOutput = (int8_t *)pCtx->pOutput;
+
+      for (; i < pCtx->size && i >= 0; i += step) {
+        if (pCtx->hasNull && isNull((char *)&pData[i], pCtx->inputType)) {
+          continue;
+        }
+
+        if (pCtx->param[1].nType != INITIAL_VALUE_NOT_ASSIGNED) {  // initial value is not set yet
+          *pOutput = (int8_t)(pData[i] - pCtx->param[1].i64);  // direct previous may be null
+          *pTimestamp = tsList[i];
+          pOutput    += 1;
+          pTimestamp += 1;
+        }
+
+        pCtx->param[1].i64 = pData[i];
+        pCtx->param[1].nType = pCtx->inputType;
+        notNullElems++;
+      }
+      break;
+    }
+    default:
+      qError("error input type");
+  }
+
+  // initial value is not set yet
+  if (pCtx->param[1].nType == INITIAL_VALUE_NOT_ASSIGNED || notNullElems <= 0) {
+    /*
+     * 1. current block and blocks before are full of null
+     * 2. current block may be null value
+     */
+    assert(pCtx->hasNull);
+  } else {
+    int32_t forwardStep = (isFirstBlock) ? notNullElems - 1 : notNullElems;
+
+    GET_RES_INFO(pCtx)->numOfRes += forwardStep;
+  }
+}
+
 static void diff_function_f(SQLFunctionCtx *pCtx, int32_t index) {
   char *pData = GET_INPUT_DATA(pCtx, index);
   if (pCtx->hasNull && isNull(pData, pCtx->inputType)) {
     return;
   }
-  
+
   // the output start from the second source element
   if (pCtx->param[1].nType != INITIAL_VALUE_NOT_ASSIGNED) {  // initial value is set
     GET_RES_INFO(pCtx)->numOfRes += 1;
   }
-  
+
   int32_t step = 1/*GET_FORWARD_DIRECTION_FACTOR(pCtx->order)*/;
-  
+
   switch (pCtx->inputType) {
     case TSDB_DATA_TYPE_INT: {
       if (pCtx->param[1].nType == INITIAL_VALUE_NOT_ASSIGNED) {  // initial value is not set yet
@@ -3684,7 +3850,7 @@ static void diff_function_f(SQLFunctionCtx *pCtx, int32_t index) {
     default:
       qError("error input type");
   }
-  
+
   if (GET_RES_INFO(pCtx)->numOfRes > 0) {
     pCtx->pOutput += pCtx->outputBytes * step;
     pCtx->ptsOutputBuf = (char *)pCtx->ptsOutputBuf + TSDB_KEYSIZE * step;
@@ -4518,8 +4684,8 @@ static bool rate_function_setup(SQLFunctionCtx *pCtx) {
   pInfo->correctionValue = 0;
   pInfo->firstKey    = INT64_MIN;
   pInfo->lastKey     = INT64_MIN;
-  pInfo->firstValue  = INT64_MIN;
-  pInfo->lastValue   = INT64_MIN;
+  pInfo->firstValue  = (double) INT64_MIN;
+  pInfo->lastValue   = (double) INT64_MIN;
 
   pInfo->hasResult = 0;
   pInfo->isIRate = (pCtx->functionId == TSDB_FUNC_IRATE);
@@ -4606,7 +4772,7 @@ static void rate_function_f(SQLFunctionCtx *pCtx, int32_t index) {
   
   pRateInfo->lastValue = v;
   pRateInfo->lastKey   = primaryKey[index];
-  
+
   SET_VAL(pCtx, 1, 1);
   
   // set has result flag
@@ -4630,7 +4796,7 @@ static void rate_func_copy(SQLFunctionCtx *pCtx) {
 static void rate_finalizer(SQLFunctionCtx *pCtx) {
   SResultRowCellInfo *pResInfo  = GET_RES_INFO(pCtx);
   SRateInfo   *pRateInfo = (SRateInfo *)GET_ROWCELL_INTERBUF(pResInfo);
-  
+
   if (pRateInfo->hasResult != DATA_SET_FLAG) {
     setNull(pCtx->pOutput, TSDB_DATA_TYPE_DOUBLE, sizeof(double));
     return;
@@ -4834,6 +5000,19 @@ void generateBlockDistResult(STableBlockDist *pTableBlockDist, char* result) {
   min = totalBlocks > 0 ? pTableBlockDist->minRows : 0;
   max = totalBlocks > 0 ? pTableBlockDist->maxRows : 0;
 
+  double stdDev = 0;
+  if (totalBlocks > 0) {
+    double variance = 0;
+    for (int32_t i = 0; i < numSteps; i++) {
+      SFileBlockInfo *blockInfo = taosArrayGet(blockInfos, i);
+      int64_t         blocks = blockInfo->numBlocksOfStep;
+      int32_t         rows = (i * TSDB_BLOCK_DIST_STEP_ROWS + TSDB_BLOCK_DIST_STEP_ROWS / 2);
+      variance += blocks * (rows - avg) * (rows - avg);
+    }
+    variance = variance / totalBlocks;
+    stdDev = sqrt(variance);
+  }
+
   double percents[] = {0.05, 0.10, 0.20, 0.30, 0.40, 0.50, 0.60, 0.70, 0.80, 0.90, 0.95, 0.99};
   int32_t percentiles[] = {-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1};
   assert(sizeof(percents)/sizeof(double) == sizeof(percentiles)/sizeof(int32_t));
@@ -4848,12 +5027,12 @@ void generateBlockDistResult(STableBlockDist *pTableBlockDist, char* result) {
                    "60th=[%d], 70th=[%d], 80th=[%d], 90th=[%d], 95th=[%d], 99th=[%d]\n\t "
                    "Min=[%"PRId64"(Rows)] Max=[%"PRId64"(Rows)] Avg=[%"PRId64"(Rows)] Stddev=[%.2f] \n\t "
                    "Rows=[%"PRIu64"], Blocks=[%"PRId64"], Size=[%.3f(Kb)] Comp=[%.2f]\n\t "
-                   "RowsInMem=[%d] \n\t SeekHeaderTime=[%d(us)]",
+                   "RowsInMem=[%d] \n\t",
                    percentiles[0], percentiles[1], percentiles[2], percentiles[3], percentiles[4], percentiles[5],
                    percentiles[6], percentiles[7], percentiles[8], percentiles[9], percentiles[10], percentiles[11],
-                   min, max, avg, 0.0,
+                   min, max, avg, stdDev,
                    totalRows, totalBlocks, totalLen/1024.0, compRatio,
-                   pTableBlockDist->numOfRowsInMemTable, pTableBlockDist->firstSeekTimeUs);
+                   pTableBlockDist->numOfRowsInMemTable);
   varDataSetLen(result, sz);
   UNUSED(sz);
 }
@@ -5121,7 +5300,7 @@ SAggFunctionInfo aAggs[] = {{
                           },
                           {
                               // 17
-                              "ts_dummy",
+                              "ts",
                               TSDB_FUNC_TS_DUMMY,
                               TSDB_FUNC_TS_DUMMY,
                               TSDB_BASE_FUNC_SO | TSDB_FUNCSTATE_NEED_TS,
@@ -5215,7 +5394,7 @@ SAggFunctionInfo aAggs[] = {{
                               "diff",
                               TSDB_FUNC_DIFF,
                               TSDB_FUNC_INVALID_ID,
-                              TSDB_FUNCSTATE_MO | TSDB_FUNCSTATE_NEED_TS,
+                              TSDB_FUNCSTATE_MO | TSDB_FUNCSTATE_STABLE | TSDB_FUNCSTATE_NEED_TS,
                               diff_function_setup,
                               diff_function,
                               diff_function_f,
@@ -5315,8 +5494,20 @@ SAggFunctionInfo aAggs[] = {{
                               noop1,
                               dataBlockRequired,
                           },
+                          {   //32
+                              "derivative",   // return table id and the corresponding tags for join match and subscribe
+                              TSDB_FUNC_DERIVATIVE,
+                              TSDB_FUNC_INVALID_ID,
+                              TSDB_FUNCSTATE_MO | TSDB_FUNCSTATE_STABLE | TSDB_FUNCSTATE_NEED_TS,
+                              deriv_function_setup,
+                              deriv_function,
+                              noop2,
+                              doFinalizer,
+                              noop1,
+                              dataBlockRequired,
+                          },
                           {
-                                // 32
+                                // 33
                               "_block_dist",   // return table id and the corresponding tags for join match and subscribe
                               TSDB_FUNC_BLKINFO,
                               TSDB_FUNC_BLKINFO,

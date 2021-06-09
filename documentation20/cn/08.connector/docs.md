@@ -307,6 +307,8 @@ TDengine的异步API均采用非阻塞调用模式。应用程序可以用多线
 8. 调用 `taos_stmt_execute` 执行已经准备好的批处理指令；
 9. 执行完毕，调用 `taos_stmt_close` 释放所有资源。
 
+说明：如果 `taos_stmt_execute` 执行成功，假如不需要改变 SQL 语句的话，那么是可以复用 `taos_stmt_prepare` 的解析结果，直接进行第 3～6 步绑定新数据的。但如果执行出错，那么并不建议继续在当前的环境上下文下继续工作，而是建议释放资源，然后从 `taos_stmt_init` 步骤重新开始。
+
 除 C/C++ 语言外，TDengine 的 Java 语言 JNI Connector 也提供参数绑定接口支持，具体请另外参见：[参数绑定接口的 Java 用法](https://www.taosdata.com/cn/documentation/connector/java#stmt-java)。
 
 接口相关的具体函数如下（也可以参考 [apitest.c](https://github.com/taosdata/TDengine/blob/develop/tests/examples/c/apitest.c) 文件中使用对应函数的方式）：
@@ -377,6 +379,11 @@ typedef struct TAOS_MULTI_BIND {
 - `int taos_stmt_close(TAOS_STMT *stmt)`
 
   执行完毕，释放所有资源。
+
+- `char * taos_stmt_errstr(TAOS_STMT *stmt)`
+
+  （2.1.3.0 版本新增）  
+  用于在其他 stmt API 返回错误（返回错误码或空指针）时获取错误信息。
 
 ### 连续查询接口
 

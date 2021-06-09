@@ -932,3 +932,125 @@ if $data32 != 0.000144445 then
   return -1
 endi
 
+print ===========================> derivative
+sql drop table t1
+sql drop table tx;
+sql drop table m1;
+sql drop table if exists tm0;
+sql drop table if exists tm1;
+sql create table tm0(ts timestamp, k double)
+sql insert into tm0 values('2015-08-18T00:00:00Z', 2.064) ('2015-08-18T00:06:00Z', 2.116) ('2015-08-18T00:12:00Z', 2.028)
+sql insert into tm0 values('2015-08-18T00:18:00Z', 2.126) ('2015-08-18T00:24:00Z', 2.041) ('2015-08-18T00:30:00Z', 2.051)
+
+sql_error select derivative(ts) from tm0;
+sql_error select derivative(k) from tm0;
+sql_error select derivative(k, 0, 0) from tm0;
+sql_error select derivative(k, 1, 911) from tm0;
+sql_error select derivative(kx, 1s, 1) from tm0;
+sql_error select derivative(k, -20s, 1) from tm0;
+sql_error select derivative(k, 20a, 0) from tm0;
+sql_error select derivative(k, 200a, 0) from tm0;
+sql_error select derivative(k, 999a, 0) from tm0;
+sql_error select derivative(k, 20s, -12) from tm0;
+
+sql select derivative(k, 1s, 0) from tm0
+if $rows != 5 then
+  return -1
+endi
+
+if $data00 != @15-08-18 08:06:00.000@ then
+  return -1
+endi
+
+if $data01 != 0.000144444 then
+  print expect 0.000144444, actual: $data01
+  return -1
+endi
+
+if $data10 != @15-08-18 08:12:00.000@ then
+  return -1
+endi
+
+if $data11 != -0.000244444 then
+  return -1
+endi
+
+if $data20 != @15-08-18 08:18:00.000@ then
+  return -1
+endi
+
+if $data21 != 0.000272222 then
+  print expect 0.000272222, actual: $data21
+  return -1
+endi
+
+if $data30 != @15-08-18 08:24:00.000@ then
+  return -1
+endi
+
+if $data31 != -0.000236111 then
+  print expect 0.000236111, actual: $data31
+  return -1
+endi
+
+sql select derivative(k, 6m, 0) from tm0;
+if $rows != 5 then
+  return -1
+endi
+
+if $data00 != @15-08-18 08:06:00.000@ then
+  return -1
+endi
+
+if $data01 != 0.052000000 then
+  print expect 0.052000000, actual: $data01
+  return -1
+endi
+
+if $data10 != @15-08-18 08:12:00.000@ then
+  return -1
+endi
+
+if $data11 != -0.088000000 then
+  return -1
+endi
+
+if $data20 != @15-08-18 08:18:00.000@ then
+  return -1
+endi
+
+if $data21 != 0.098000000 then
+  return -1
+endi
+
+if $data30 != @15-08-18 08:24:00.000@ then
+  return -1
+endi
+
+if $data31 != -0.085000000 then
+  return -1
+endi
+
+sql select derivative(k, 12m, 0) from tm0;
+if $rows != 5 then
+  return -1
+endi
+
+if $data00 != @15-08-18 08:06:00.000@ then
+  return -1
+endi
+
+if $data01 != 0.104000000 then
+  print expect 0.104000000, actual: $data01
+  return -1
+endi
+
+sql select derivative(k, 6m, 1) from tm0;
+if $rows != 3 then
+  return -1
+endi
+
+sql_error select derivative(k, 6m, 1) from tm0 interval(1s);
+sql_error select derivative(k, 6m, 1) from tm0 session(ts, 1s);
+sql_error select derivative(k, 6m, 1) from tm0 group by k;
+sql_error select derivative(k, 6m, 1) from

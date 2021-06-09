@@ -229,7 +229,7 @@ python3 ./test.py -f query/queryFilterTswithDateUnit.py
 python3 ./test.py -f query/queryTscomputWithNow.py
 python3 ./test.py -f query/computeErrorinWhere.py
 python3 ./test.py -f query/queryTsisNull.py
-
+python3 ./test.py -f query/subqueryFilter.py
 
 
 #stream
@@ -283,6 +283,7 @@ python3 ./test.py -f topic/topicQuery.py
 python3 ./test.py -f update/merge_commit_data-0.py
 # wal
 python3 ./test.py -f wal/addOldWalTest.py
+python3 ./test.py -f wal/sdbComp.py 
 
 # function
 python3 ./test.py -f functions/all_null_value.py

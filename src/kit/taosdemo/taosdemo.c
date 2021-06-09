@@ -625,6 +625,10 @@ static int64_t         g_totalChildTables = 0;
 static SQueryMetaInfo  g_queryInfo;
 static FILE *          g_fpOfInsertResult = NULL;
 
+#if _MSC_VER <= 1900
+#define __func__ __FUNCTION__
+#endif
+
 #define debugPrint(fmt, ...) \
     do { if (g_args.debug_print || g_args.verbose_print) \
       fprintf(stderr, "DEBG: "fmt, __VA_ARGS__); } while(0)
@@ -1209,7 +1213,6 @@ static void fetchResult(TAOS_RES *res, threadInfo* pThreadInfo) {
   }
 
   int   totalLen = 0;
-  char  temp[16000];
 
   // fetch the records row by row
   while((row = taos_fetch_row(res))) {
@@ -1220,6 +1223,7 @@ static void fetchResult(TAOS_RES *res, threadInfo* pThreadInfo) {
         memset(databuf, 0, 100*1024*1024);
     }
     num_rows++;
+    char temp[16000] = {0};
     int len = taos_print_row(temp, row, fields, num_fields);
     len += sprintf(temp + len, "\n");
     //printf("query result:%s\n", temp);
