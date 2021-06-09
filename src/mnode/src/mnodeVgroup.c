@@ -1044,10 +1044,15 @@ static void mnodeProcessAlterVnodeRsp(SRpcMsg *rpcMsg) {
          mnodeMsg->rpcMsg.handle, rpcMsg->ahandle);
 
   if (mnodeMsg->received != mnodeMsg->expected) return;
-
-  mnodeInsertAlterRow(pVgroup->pDb, mnodeMsg);
-
-  dnodeSendRpcMWriteRsp(mnodeMsg, TSDB_CODE_SUCCESS);
+  uint8_t msgType = mnodeMsg->rpcMsg.msgType;
+  if (msgType == TSDB_MSG_TYPE_CM_ALTER_DB || msgType == TSDB_MSG_TYPE_CM_CREATE_TP || msgType == TSDB_MSG_TYPE_CM_ALTER_TP) {
+    int32_t code = mnodeInsertAlterDbRow(pVgroup->pDb, mnodeMsg);
+    if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_MND_ACTION_IN_PROGRESS) {
+      dnodeSendRpcMWriteRsp(mnodeMsg, code);
+    }
+  } else {
+    dnodeSendRpcMWriteRsp(mnodeMsg, TSDB_CODE_SUCCESS);
+  }
 }
 
 static void mnodeProcessCreateVnodeRsp(SRpcMsg *rpcMsg) {
