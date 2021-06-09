@@ -2331,8 +2331,10 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
         }
 
         if (info.precision == TSDB_TIME_PRECISION_MILLI) {
+          tickPerSec /= 1000000;
+        } else if (info.precision == TSDB_TIME_PRECISION_MICRO) {
           tickPerSec /= 1000;
-        }
+	} 
 
         if (tickPerSec <= 0 || tickPerSec < TSDB_TICK_PER_SECOND(info.precision)) {
           return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg10);
