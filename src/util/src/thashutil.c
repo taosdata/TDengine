@@ -26,8 +26,7 @@
     (h) *= 0x85ebca6b; \
     (h) ^= (h) >> 13;  \
     (h) *= 0xc2b2ae35; \
-    (h) ^= (h) >> 16;  \
-  } while (0)
+    (h) ^= (h) >> 16; } while (0)
   
 uint32_t MurmurHash3_32(const char *key, uint32_t len) {
   const uint8_t *data = (const uint8_t *)key;
@@ -84,22 +83,24 @@ uint32_t taosFloatHash(const char *key, uint32_t UNUSED_PARAM(len)) {
   if (isnan(f)) {
     return 0x7fc00000;
   }
-  if (fabs(f - 0.0) < FLT_EPSILON) {
+   
+  if (FLT_EQUAL(f, 0.0)) {
     return 0;
-  }
-  
-  return *(uint32_t *)(key);
+  } 
+  int t = (int)round(f);
+  return (uint32_t)t;
 }
 uint32_t taosDoubleHash(const char *key, uint32_t UNUSED_PARAM(len)) {
   double f = GET_DOUBLE_VAL(key);  
   if (isnan(f)) {
     return 0x7fc00000;
   }
-  if (fabs(f - 0.0) < FLT_EPSILON) {
+
+  if (FLT_EQUAL(f, 0.0)) {
     return 0;
-  }
-  return *(uint32_t *)(key);
-  
+  } 
+  int t = (int)(round(f));
+  return (uint32_t)t;
 }
 uint32_t taosIntHash_64(const char *key, uint32_t UNUSED_PARAM(len)) {
   uint64_t val = *(uint64_t *)key;
