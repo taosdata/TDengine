@@ -962,6 +962,9 @@ static void destroyDummyInputOperator(void* param, int32_t numOfOutput) {
 
   pInfo->block = destroyOutputBuf(pInfo->block);
   pInfo->pSql = NULL;
+
+  cleanupResultRowInfo(&pInfo->pTableQueryInfo->resInfo);
+  tfree(pInfo->pTableQueryInfo);
 }
 
 // todo this operator servers as the adapter for Operator tree and SqlRes result, remove it later
@@ -4263,10 +4266,9 @@ int32_t tscCreateQueryFromQueryInfo(SQueryInfo* pQueryInfo, SQueryAttr* pQueryAt
 
   STableMetaInfo* pTableMetaInfo = pQueryInfo->pTableMetaInfo[0];
 
-  pQueryAttr->pGroupbyExpr    = calloc(1, sizeof(SGroupbyExpr));
-  *(pQueryAttr->pGroupbyExpr) = pQueryInfo->groupbyExpr;
-
   if (pQueryInfo->groupbyExpr.numOfGroupCols > 0) {
+    pQueryAttr->pGroupbyExpr    = calloc(1, sizeof(SGroupbyExpr));
+    *(pQueryAttr->pGroupbyExpr) = pQueryInfo->groupbyExpr;
     pQueryAttr->pGroupbyExpr->columnInfo = taosArrayDup(pQueryInfo->groupbyExpr.columnInfo);
   } else {
     assert(pQueryInfo->groupbyExpr.columnInfo == NULL);
@@ -4345,7 +4347,7 @@ int32_t tscCreateQueryFromQueryInfo(SQueryInfo* pQueryInfo, SQueryAttr* pQueryAt
     return TSDB_CODE_TSC_INVALID_OPERATION;
   }
 
-  if (pQueryAttr->pGroupbyExpr->numOfGroupCols < 0) {
+  if (pQueryAttr->pGroupbyExpr != NULL && pQueryAttr->pGroupbyExpr->numOfGroupCols < 0) {
     tscError("%p illegal value of numOfGroupCols in query msg: %d", addr, pQueryInfo->groupbyExpr.numOfGroupCols);
     return TSDB_CODE_TSC_INVALID_OPERATION;
   }
