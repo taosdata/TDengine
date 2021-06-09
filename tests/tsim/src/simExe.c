@@ -813,8 +813,15 @@ bool simExecuteNativeSqlCommand(SScript *script, char *rest, bool isSlow) {
               value[length[i]] = 0;
               // snprintf(value, fields[i].bytes, "%s", (char *)row[i]);
               break;
-            case TSDB_DATA_TYPE_TIMESTAMP:
-              tt = *(int64_t *)row[i] / 1000;
+            case TSDB_DATA_TYPE_TIMESTAMP: {
+              int32_t precision = taos_result_precision(pSql);
+              if (precision == TSDB_TIME_PRECISION_MILLI) {
+                tt = (*(int64_t *)row[i]) / 1000;
+              } else if (precision == TSDB_TIME_PRECISION_MICRO) {
+                tt = (*(int64_t *)row[i]) / 1000000;
+              } else {
+                tt = (*(int64_t *)row[i]) / 1000000000;
+              }
               /* comment out as it make testcases like select_with_tags.sim fail.
                 but in windows, this may cause the call to localtime crash if tt < 0,
                 need to find a better solution.
@@ -829,9 +836,16 @@ bool simExecuteNativeSqlCommand(SScript *script, char *rest, bool isSlow) {
 
               tp = localtime(&tt);
               strftime(timeStr, 64, "%y-%m-%d %H:%M:%S", tp);
-              sprintf(value, "%s.%03d", timeStr, (int32_t)(*((int64_t *)row[i]) % 1000));
+              if (precision == TSDB_TIME_PRECISION_MILLI) {
+                sprintf(value, "%s.%03d", timeStr, (int32_t)(*((int64_t *)row[i]) % 1000));
+              } else if (precision == TSDB_TIME_PRECISION_MICRO) {
+                sprintf(value, "%s.%06d", timeStr, (int32_t)(*((int64_t *)row[i]) % 1000000));
+              } else {
+                sprintf(value, "%s.%09d", timeStr, (int32_t)(*((int64_t *)row[i]) % 1000000000));                
+              }
 
               break;
+            }
             default:
               break;
           }  // end of switch
