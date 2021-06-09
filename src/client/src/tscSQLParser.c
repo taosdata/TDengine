@@ -153,9 +153,9 @@ bool serializeExprListToVariant(SArray* pList, tVariant **dst, int16_t colType) 
   if (!pList || pList->size <= 0) {
     return ret;
   }  
-  if (colType == TSDB_DATA_TYPE_DOUBLE || colType == TSDB_DATA_TYPE_FLOAT) {
-    return ret;
-  }
+  //if (colType == TSDB_DATA_TYPE_DOUBLE || colType == TSDB_DATA_TYPE_FLOAT) {
+  //  return ret;
+  //}
   
   tSqlExprItem* item = (tSqlExprItem *)taosArrayGet(pList, 0); 
   int32_t firstTokenType = item->pNode->token.type; 

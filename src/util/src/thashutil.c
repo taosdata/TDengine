@@ -16,6 +16,7 @@
 #include "os.h"
 #include "hashfunc.h"
 #include "tutil.h"
+#include "tcompare.h"
 
 #define ROTL32(x, r) ((x) << (r) | (x) >> (32u - (r)))
 
@@ -78,7 +79,28 @@ uint32_t MurmurHash3_32(const char *key, uint32_t len) {
 uint32_t taosIntHash_32(const char *key, uint32_t UNUSED_PARAM(len)) { return *(uint32_t *)key; }
 uint32_t taosIntHash_16(const char *key, uint32_t UNUSED_PARAM(len)) { return *(uint16_t *)key; }
 uint32_t taosIntHash_8(const char *key, uint32_t UNUSED_PARAM(len)) { return *(uint8_t *)key; }
-
+uint32_t taosFloatHash(const char *key, uint32_t UNUSED_PARAM(len)) {
+  float f = GET_FLOAT_VAL(key); 
+  if (isnan(f)) {
+    return 0x7fc00000;
+  }
+  if (fabs(f - 0.0) < FLT_EPSILON) {
+    return 0;
+  }
+  
+  return *(uint32_t *)(key);
+}
+uint32_t taosDoubleHash(const char *key, uint32_t UNUSED_PARAM(len)) {
+  double f = GET_DOUBLE_VAL(key);  
+  if (isnan(f)) {
+    return 0x7fc00000;
+  }
+  if (fabs(f - 0.0) < FLT_EPSILON) {
+    return 0;
+  }
+  return *(uint32_t *)(key);
+  
+}
 uint32_t taosIntHash_64(const char *key, uint32_t UNUSED_PARAM(len)) {
   uint64_t val = *(uint64_t *)key;
 
@@ -92,13 +114,35 @@ _hash_fn_t taosGetDefaultHashFunction(int32_t type) {
   _hash_fn_t fn = NULL;
   switch(type) {
     case TSDB_DATA_TYPE_TIMESTAMP:
-    case TSDB_DATA_TYPE_BIGINT: fn = taosIntHash_64;break;
-    case TSDB_DATA_TYPE_BINARY: fn = MurmurHash3_32;break;
-    case TSDB_DATA_TYPE_INT: fn = taosIntHash_32; break;
+    case TSDB_DATA_TYPE_BIGINT:   fn = taosIntHash_64;break;
+    case TSDB_DATA_TYPE_BINARY:   fn = MurmurHash3_32;break;
+    case TSDB_DATA_TYPE_NCHAR:    fn = MurmurHash3_32;break;
+    case TSDB_DATA_TYPE_INT:      fn = taosIntHash_32; break;
     case TSDB_DATA_TYPE_SMALLINT: fn = taosIntHash_16; break;
-    case TSDB_DATA_TYPE_TINYINT: fn = taosIntHash_8; break;
+    case TSDB_DATA_TYPE_TINYINT:  fn = taosIntHash_8; break;
+    case TSDB_DATA_TYPE_FLOAT:    fn = taosFloatHash; break;                             
+    case TSDB_DATA_TYPE_DOUBLE:   fn = taosDoubleHash; break;                             
     default: fn = taosIntHash_32;break;
   }
   
   return fn;
+}
+
+int32_t taosFloatEqual(const void *a, const void *b, size_t UNUSED_PARAM(sz)) {
+  return getComparFunc(TSDB_DATA_TYPE_FLOAT, -1)(a, b);  
+}
+
+int32_t taosDoubleEqual(const void *a, const void *b, size_t UNUSED_PARAM(sz)) {
+  return getComparFunc(TSDB_DATA_TYPE_DOUBLE, -1)(a, b);  
+}
+
+_equal_fn_t taosGetDefaultEqualFunction(int32_t type) {
+  _equal_fn_t fn = NULL;
+  switch (type) {
+    case TSDB_DATA_TYPE_FLOAT:  fn = taosFloatEqual;  break; 
+    case TSDB_DATA_TYPE_DOUBLE: fn = taosDoubleEqual; break;
+    default: fn = memcmp; break;
+  }
+  return fn;
+  
 }

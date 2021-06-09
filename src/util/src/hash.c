@@ -73,10 +73,10 @@ static FORCE_INLINE int32_t taosHashCapacity(int32_t length) {
   return i;
 }
 
-static FORCE_INLINE SHashNode *doSearchInEntryList(SHashEntry *pe, const void *key, size_t keyLen, uint32_t hashVal) {
+static FORCE_INLINE SHashNode *doSearchInEntryList(SHashObj *pHashObj, SHashEntry *pe, const void *key, size_t keyLen, uint32_t hashVal) {
   SHashNode *pNode = pe->next;
   while (pNode) {
-    if ((pNode->keyLen == keyLen) && (memcmp(GET_HASH_NODE_KEY(pNode), key, keyLen) == 0) && pNode->removed == 0) {
+    if ((pNode->keyLen == keyLen) && ((*(pHashObj->equalFp))(GET_HASH_NODE_KEY(pNode), key, keyLen) == 0) && pNode->removed == 0) {
       assert(pNode->hashVal == hashVal);
       break;
     }
@@ -165,8 +165,8 @@ SHashObj *taosHashInit(size_t capacity, _hash_fn_t fn, bool update, SHashLockTyp
   // the max slots is not defined by user
   pHashObj->capacity = taosHashCapacity((int32_t)capacity);
   assert((pHashObj->capacity & (pHashObj->capacity - 1)) == 0);
-
-  pHashObj->hashFp = fn;
+  pHashObj->equalFp = memcmp;
+  pHashObj->hashFp  = fn;
   pHashObj->type = type;
   pHashObj->enableUpdate = update;
 
@@ -188,6 +188,12 @@ SHashObj *taosHashInit(size_t capacity, _hash_fn_t fn, bool update, SHashLockTyp
 
   return pHashObj;
 }
+
+void taosHashSetEqualFp(SHashObj *pHashObj, _equal_fn_t fp) {
+  if (pHashObj != NULL && fp != NULL) {
+    pHashObj->equalFp = fp;
+  } 
+} 
 
 int32_t taosHashGetSize(const SHashObj *pHashObj) { return (int32_t)((pHashObj == NULL) ? 0 : pHashObj->size); }
 
@@ -223,7 +229,7 @@ int32_t taosHashPut(SHashObj *pHashObj, const void *key, size_t keyLen, void *da
 
   SHashNode* prev = NULL;
   while (pNode) {
-    if ((pNode->keyLen == keyLen) && (memcmp(GET_HASH_NODE_KEY(pNode), key, keyLen) == 0) && pNode->removed == 0) {
+    if ((pNode->keyLen == keyLen) && ((*(pHashObj->equalFp))(GET_HASH_NODE_KEY(pNode), key, keyLen) == 0) && pNode->removed == 0) {
       assert(pNode->hashVal == hashVal);
       break;
     }
@@ -306,7 +312,7 @@ void* taosHashGetClone(SHashObj *pHashObj, const void *key, size_t keyLen, void 
     assert(pe->next == NULL);
   }
 
-  SHashNode *pNode = doSearchInEntryList(pe, key, keyLen, hashVal);
+  SHashNode *pNode = doSearchInEntryList(pHashObj, pe, key, keyLen, hashVal);
   if (pNode != NULL) {
     if (fp != NULL) {
       fp(GET_HASH_NODE_DATA(pNode));
@@ -362,7 +368,7 @@ int32_t taosHashRemoveWithData(SHashObj *pHashObj, const void *key, size_t keyLe
   SHashNode *prevNode = NULL;
 
   while (pNode) {
-    if ((pNode->keyLen == keyLen) && (memcmp(GET_HASH_NODE_KEY(pNode), key, keyLen) == 0) && pNode->removed == 0) 
+    if ((pNode->keyLen == keyLen) && ((*(pHashObj->equalFp))(GET_HASH_NODE_KEY(pNode), key, keyLen) == 0) && pNode->removed == 0) 
       break;
 
     prevNode = pNode;
