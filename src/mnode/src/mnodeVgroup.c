@@ -894,9 +894,9 @@ static SCreateVnodeMsg *mnodeBuildVnodeMsg(SVgObj *pVgroup) {
   pCfg->totalBlocks         = htonl(pDb->cfg.totalBlocks);
   pCfg->maxTables           = htonl(maxTables + 1);
   pCfg->daysPerFile         = htonl(pDb->cfg.daysPerFile);
-  pCfg->daysToKeep          = htonl(pDb->cfg.daysToKeep);
-  pCfg->daysToKeep1         = htonl(pDb->cfg.daysToKeep1);
-  pCfg->daysToKeep2         = htonl(pDb->cfg.daysToKeep2);  
+  pCfg->daysToKeep          = htonl(pDb->cfg.daysToKeep2);        //FROM DB TO VNODE MAP:
+  pCfg->daysToKeep1         = htonl(pDb->cfg.daysToKeep0);        //keep0,keep1,keep2 in SQL is mapped to keep1,keep2,keep in vnode
+  pCfg->daysToKeep2         = htonl(pDb->cfg.daysToKeep1);        //user,client,mnode use keep0,keep1,keep2; vnode use keep1,keep2,keep
   pCfg->minRowsPerFileBlock = htonl(pDb->cfg.minRowsPerFileBlock);
   pCfg->maxRowsPerFileBlock = htonl(pDb->cfg.maxRowsPerFileBlock);
   pCfg->fsyncPeriod         = htonl(pDb->cfg.fsyncPeriod);
