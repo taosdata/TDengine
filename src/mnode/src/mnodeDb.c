@@ -1090,7 +1090,14 @@ static int32_t mnodeAlterDbFp(SMnodeMsg *pMsg) {
   }
   // in case there is no vnode(no db in vnode)
   if (pMsg->expected == 0) {
-    return TSDB_CODE_SUCCESS;
+    SSdbRow row = {
+      .type    = SDB_OPER_GLOBAL,
+      .pTable  = tsDbSdb,
+      .pObj    = pDb,
+      .pMsg    = pMsg,
+    };
+
+    return sdbUpdateRow(&row);
   }
   mDebug("db:%s, all vgroups is altered", pDb->name);
   mLInfo("db:%s, is alterd by %s", pDb->name, mnodeGetUserFromMsg(pMsg));
