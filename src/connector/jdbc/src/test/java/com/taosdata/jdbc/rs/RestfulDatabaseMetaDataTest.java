@@ -10,6 +10,7 @@ import java.sql.*;
 import java.util.Properties;
 
 public class RestfulDatabaseMetaDataTest {
+
     private static final String host = "127.0.0.1";
     private static final String url = "jdbc:TAOS-RS://" + host + ":6041/?user=root&password=taosdata";
     private static Connection connection;
@@ -632,17 +633,32 @@ public class RestfulDatabaseMetaDataTest {
 
     @Test
     public void getTables() throws SQLException {
-        System.out.println("****************************************************");
-        ResultSet tables = metaData.getTables("log", "", null, null);
-        ResultSetMetaData metaData = tables.getMetaData();
-        while (tables.next()) {
-            System.out.print(metaData.getColumnLabel(1) + ":" + tables.getString(1) + "\t");
-            System.out.print(metaData.getColumnLabel(3) + ":" + tables.getString(3) + "\t");
-            System.out.print(metaData.getColumnLabel(4) + ":" + tables.getString(4) + "\t");
-            System.out.print(metaData.getColumnLabel(5) + ":" + tables.getString(5) + "\n");
+        ResultSet rs = metaData.getTables("log", "", null, null);
+        ResultSetMetaData meta = rs.getMetaData();
+        Assert.assertNotNull(rs);
+        rs.next();
+        {
+            // TABLE_CAT
+            Assert.assertEquals("TABLE_CAT", meta.getColumnLabel(1));
+            Assert.assertEquals("log", rs.getString(1));
+            Assert.assertEquals("log", rs.getString("TABLE_CAT"));
+            // TABLE_SCHEM
+            Assert.assertEquals("TABLE_SCHEM", meta.getColumnLabel(2));
+            Assert.assertEquals(null, rs.getString(2));
+            Assert.assertEquals(null, rs.getString("TABLE_SCHEM"));
+            // TABLE_NAME
+            Assert.assertEquals("TABLE_NAME", meta.getColumnLabel(3));
+            Assert.assertNotNull(rs.getString(3));
+            Assert.assertNotNull(rs.getString("TABLE_NAME"));
+            // TABLE_TYPE
+            Assert.assertEquals("TABLE_TYPE", meta.getColumnLabel(4));
+            Assert.assertEquals("TABLE", rs.getString(4));
+            Assert.assertEquals("TABLE", rs.getString("TABLE_TYPE"));
+            // REMARKS
+            Assert.assertEquals("REMARKS", meta.getColumnLabel(5));
+            Assert.assertEquals("", rs.getString(5));
+            Assert.assertEquals("", rs.getString("REMARKS"));
         }
-        System.out.println();
-        Assert.assertNotNull(tables);
     }
 
     @Test
@@ -652,46 +668,130 @@ public class RestfulDatabaseMetaDataTest {
 
     @Test
     public void getCatalogs() throws SQLException {
-        System.out.println("****************************************************");
-
-        ResultSet catalogs = metaData.getCatalogs();
-        ResultSetMetaData meta = catalogs.getMetaData();
-        while (catalogs.next()) {
-            for (int i = 1; i <= meta.getColumnCount(); i++) {
-                System.out.print(meta.getColumnLabel(i) + ": " + catalogs.getString(i));
-            }
-            System.out.println();
+        ResultSet rs = metaData.getCatalogs();
+        ResultSetMetaData meta = rs.getMetaData();
+        rs.next();
+        {
+            // TABLE_CAT
+            Assert.assertEquals("TABLE_CAT", meta.getColumnLabel(1));
+            Assert.assertNotNull(rs.getString(1));
+            Assert.assertNotNull(rs.getString("TABLE_CAT"));
         }
     }
 
     @Test
     public void getTableTypes() throws SQLException {
-        System.out.println("****************************************************");
-
         ResultSet tableTypes = metaData.getTableTypes();
-        while (tableTypes.next()) {
-            System.out.println(tableTypes.getString("TABLE_TYPE"));
+        tableTypes.next();
+        // tableTypes: table
+        {
+            Assert.assertEquals("TABLE", tableTypes.getString(1));
+            Assert.assertEquals("TABLE", tableTypes.getString("TABLE_TYPE"));
         }
-        Assert.assertNotNull(metaData.getTableTypes());
+        tableTypes.next();
+        // tableTypes: stable
+        {
+            Assert.assertEquals("STABLE", tableTypes.getString(1));
+            Assert.assertEquals("STABLE", tableTypes.getString("TABLE_TYPE"));
+        }
     }
 
     @Test
     public void getColumns() throws SQLException {
-        System.out.println("****************************************************");
-
+        // when
         ResultSet columns = metaData.getColumns("log", "", "dn", "");
+        // then
         ResultSetMetaData meta = columns.getMetaData();
-        while (columns.next()) {
-            System.out.print(meta.getColumnLabel(1) + ": " + columns.getString(1) + "\t");
-            System.out.print(meta.getColumnLabel(3) + ": " + columns.getString(3) + "\t");
-            System.out.print(meta.getColumnLabel(4) + ": " + columns.getString(4) + "\t");
-            System.out.print(meta.getColumnLabel(5) + ": " + columns.getString(5) + "\t");
-            System.out.print(meta.getColumnLabel(6) + ": " + columns.getString(6) + "\t");
-            System.out.print(meta.getColumnLabel(7) + ": " + columns.getString(7) + "\t");
-            System.out.print(meta.getColumnLabel(9) + ": " + columns.getString(9) + "\t");
-            System.out.print(meta.getColumnLabel(10) + ": " + columns.getString(10) + "\t");
-            System.out.print(meta.getColumnLabel(11) + ": " + columns.getString(11) + "\n");
-            System.out.print(meta.getColumnLabel(12) + ": " + columns.getString(12) + "\n");
+        columns.next();
+        // column: 1
+        {
+            // TABLE_CAT
+            Assert.assertEquals("TABLE_CAT", meta.getColumnLabel(1));
+            Assert.assertEquals("log", columns.getString(1));
+            Assert.assertEquals("log", columns.getString("TABLE_CAT"));
+            // TABLE_NAME
+            Assert.assertEquals("TABLE_NAME", meta.getColumnLabel(3));
+            Assert.assertEquals("dn", columns.getString(3));
+            Assert.assertEquals("dn", columns.getString("TABLE_NAME"));
+            // COLUMN_NAME
+            Assert.assertEquals("COLUMN_NAME", meta.getColumnLabel(4));
+            Assert.assertEquals("ts", columns.getString(4));
+            Assert.assertEquals("ts", columns.getString("COLUMN_NAME"));
+            // DATA_TYPE
+            Assert.assertEquals("DATA_TYPE", meta.getColumnLabel(5));
+            Assert.assertEquals(Types.TIMESTAMP, columns.getInt(5));
+            Assert.assertEquals(Types.TIMESTAMP, columns.getInt("DATA_TYPE"));
+            // TYPE_NAME
+            Assert.assertEquals("TYPE_NAME", meta.getColumnLabel(6));
+            Assert.assertEquals("TIMESTAMP", columns.getString(6));
+            Assert.assertEquals("TIMESTAMP", columns.getString("TYPE_NAME"));
+            // COLUMN_SIZE
+            Assert.assertEquals("COLUMN_SIZE", meta.getColumnLabel(7));
+            Assert.assertEquals(26, columns.getInt(7));
+            Assert.assertEquals(26, columns.getInt("COLUMN_SIZE"));
+            // DECIMAL_DIGITS
+            Assert.assertEquals("DECIMAL_DIGITS", meta.getColumnLabel(9));
+            Assert.assertEquals(Integer.MIN_VALUE, columns.getInt(9));
+            Assert.assertEquals(Integer.MIN_VALUE, columns.getInt("DECIMAL_DIGITS"));
+            Assert.assertEquals(null, columns.getString(9));
+            Assert.assertEquals(null, columns.getString("DECIMAL_DIGITS"));
+            // NUM_PREC_RADIX
+            Assert.assertEquals("NUM_PREC_RADIX", meta.getColumnLabel(10));
+            Assert.assertEquals(10, columns.getInt(10));
+            Assert.assertEquals(10, columns.getInt("NUM_PREC_RADIX"));
+            // NULLABLE
+            Assert.assertEquals("NULLABLE", meta.getColumnLabel(11));
+            Assert.assertEquals(DatabaseMetaData.columnNoNulls, columns.getInt(11));
+            Assert.assertEquals(DatabaseMetaData.columnNoNulls, columns.getInt("NULLABLE"));
+            // REMARKS
+            Assert.assertEquals("REMARKS", meta.getColumnLabel(12));
+            Assert.assertEquals(null, columns.getString(12));
+            Assert.assertEquals(null, columns.getString("REMARKS"));
+        }
+        columns.next();
+        // column: 2
+        {
+            // TABLE_CAT
+            Assert.assertEquals("TABLE_CAT", meta.getColumnLabel(1));
+            Assert.assertEquals("log", columns.getString(1));
+            Assert.assertEquals("log", columns.getString("TABLE_CAT"));
+            // TABLE_NAME
+            Assert.assertEquals("TABLE_NAME", meta.getColumnLabel(3));
+            Assert.assertEquals("dn", columns.getString(3));
+            Assert.assertEquals("dn", columns.getString("TABLE_NAME"));
+            // COLUMN_NAME
+            Assert.assertEquals("COLUMN_NAME", meta.getColumnLabel(4));
+            Assert.assertEquals("cpu_taosd", columns.getString(4));
+            Assert.assertEquals("cpu_taosd", columns.getString("COLUMN_NAME"));
+            // DATA_TYPE
+            Assert.assertEquals("DATA_TYPE", meta.getColumnLabel(5));
+            Assert.assertEquals(Types.FLOAT, columns.getInt(5));
+            Assert.assertEquals(Types.FLOAT, columns.getInt("DATA_TYPE"));
+            // TYPE_NAME
+            Assert.assertEquals("TYPE_NAME", meta.getColumnLabel(6));
+            Assert.assertEquals("FLOAT", columns.getString(6));
+            Assert.assertEquals("FLOAT", columns.getString("TYPE_NAME"));
+            // COLUMN_SIZE
+            Assert.assertEquals("COLUMN_SIZE", meta.getColumnLabel(7));
+            Assert.assertEquals(12, columns.getInt(7));
+            Assert.assertEquals(12, columns.getInt("COLUMN_SIZE"));
+            // DECIMAL_DIGITS
+            Assert.assertEquals("DECIMAL_DIGITS", meta.getColumnLabel(9));
+            Assert.assertEquals(Integer.MIN_VALUE, columns.getInt(9));
+            Assert.assertEquals(Integer.MIN_VALUE, columns.getInt("DECIMAL_DIGITS"));
+            Assert.assertEquals(null, columns.getString(9));
+            Assert.assertEquals(null, columns.getString("DECIMAL_DIGITS"));
+            // NUM_PREC_RADIX
+            Assert.assertEquals("NUM_PREC_RADIX", meta.getColumnLabel(10));
+            Assert.assertEquals(10, columns.getInt(10));
+            Assert.assertEquals(10, columns.getInt("NUM_PREC_RADIX"));
+            // NULLABLE
+            Assert.assertEquals("NULLABLE", meta.getColumnLabel(11));
+            Assert.assertEquals(DatabaseMetaData.columnNullable, columns.getInt(11));
+            Assert.assertEquals(DatabaseMetaData.columnNullable, columns.getInt("NULLABLE"));
+            // REMARKS
+            Assert.assertEquals("REMARKS", meta.getColumnLabel(12));
+            Assert.assertEquals(null, columns.getString(12));
         }
     }
 
@@ -717,17 +817,35 @@ public class RestfulDatabaseMetaDataTest {
 
     @Test
     public void getPrimaryKeys() throws SQLException {
-        System.out.println("****************************************************");
-
         ResultSet rs = metaData.getPrimaryKeys("log", "", "dn1");
-        while (rs.next()) {
-            System.out.println("TABLE_NAME: " + rs.getString("TABLE_NAME"));
-            System.out.println("COLUMN_NAME: " + rs.getString("COLUMN_NAME"));
-            System.out.println("KEY_SEQ: " + rs.getString("KEY_SEQ"));
-            System.out.println("PK_NAME: " + rs.getString("PK_NAME"));
+        ResultSetMetaData meta = rs.getMetaData();
+        rs.next();
+        {
+            // TABLE_CAT
+            Assert.assertEquals("TABLE_CAT", meta.getColumnLabel(1));
+            Assert.assertEquals("log", rs.getString(1));
+            Assert.assertEquals("log", rs.getString("TABLE_CAT"));
+            // TABLE_SCHEM
+            Assert.assertEquals("TABLE_SCHEM", meta.getColumnLabel(2));
+            Assert.assertEquals(null, rs.getString(2));
+            Assert.assertEquals(null, rs.getString("TABLE_SCHEM"));
+            // TABLE_NAME
+            Assert.assertEquals("TABLE_NAME", meta.getColumnLabel(3));
+            Assert.assertEquals("dn1", rs.getString(3));
+            Assert.assertEquals("dn1", rs.getString("TABLE_NAME"));
+            // COLUMN_NAME
+            Assert.assertEquals("COLUMN_NAME", meta.getColumnLabel(4));
+            Assert.assertEquals("ts", rs.getString(4));
+            Assert.assertEquals("ts", rs.getString("COLUMN_NAME"));
+            // KEY_SEQ
+            Assert.assertEquals("KEY_SEQ", meta.getColumnLabel(5));
+            Assert.assertEquals(1, rs.getShort(5));
+            Assert.assertEquals(1, rs.getShort("KEY_SEQ"));
+            // DATA_TYPE
+            Assert.assertEquals("PK_NAME", meta.getColumnLabel(6));
+            Assert.assertEquals("ts", rs.getString(6));
+            Assert.assertEquals("ts", rs.getString("PK_NAME"));
         }
-
-        Assert.assertNotNull(rs);
     }
 
     @Test
@@ -852,14 +970,27 @@ public class RestfulDatabaseMetaDataTest {
 
     @Test
     public void getSuperTables() throws SQLException {
-        System.out.println("****************************************************");
-
         ResultSet rs = metaData.getSuperTables("log", "", "dn1");
-        while (rs.next()) {
-            System.out.println("TABLE_NAME: " + rs.getString("TABLE_NAME"));
-            System.out.println("SUPERTABLE_NAME: " + rs.getString("SUPERTABLE_NAME"));
+        ResultSetMetaData meta = rs.getMetaData();
+        rs.next();
+        {
+            // TABLE_CAT
+            Assert.assertEquals("TABLE_CAT", meta.getColumnLabel(1));
+            Assert.assertEquals("log", rs.getString(1));
+            Assert.assertEquals("log", rs.getString("TABLE_CAT"));
+            // TABLE_CAT
+            Assert.assertEquals("TABLE_SCHEM", meta.getColumnLabel(2));
+            Assert.assertEquals(null, rs.getString(2));
+            Assert.assertEquals(null, rs.getString("TABLE_SCHEM"));
+            // TABLE_CAT
+            Assert.assertEquals("TABLE_NAME", meta.getColumnLabel(3));
+            Assert.assertEquals("dn1", rs.getString(3));
+            Assert.assertEquals("dn1", rs.getString("TABLE_NAME"));
+            // TABLE_CAT
+            Assert.assertEquals("SUPERTABLE_NAME", meta.getColumnLabel(4));
+            Assert.assertEquals("dn", rs.getString(4));
+            Assert.assertEquals("dn", rs.getString("SUPERTABLE_NAME"));
         }
-        Assert.assertNotNull(rs);
     }
 
     @Test
