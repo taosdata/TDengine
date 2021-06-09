@@ -1,10 +1,10 @@
 package com.taosdata.tsync;
 
-import com.taosdata.tsync.entity.*;
-import com.taosdata.tsync.entity.producer.ProducerConfig;
+import com.taosdata.tsync.entity.RecordMetadata;
+import com.taosdata.tsync.entity.Topic;
+import com.taosdata.tsync.entity.TopicPartition;
 import com.taosdata.tsync.entity.producer.ProducerRecord;
 import com.taosdata.tsync.serializer.Serializer;
-import com.taosdata.tsync.serializer.TQueueAvroSerializer;
 import com.taosdata.tsync.serializer.TQueueStringSerializer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -25,12 +25,7 @@ public class TQueueProducer<T> extends TQueueBase {
     public TQueueProducer(Properties properties) {
         // establish connection to TQueue
         super(properties);
-        //TODO: init serializer
-        String serializerType = properties.getProperty(ProducerConfig.SERIALIZER, ProducerConfig.STRING_SERIALIZER);
-        if (ProducerConfig.AVRO_SERIALIZER.equals(serializerType))
-            this.serializer = new TQueueAvroSerializer();
-        else
-            this.serializer = new TQueueStringSerializer();
+        this.serializer = new TQueueStringSerializer();
 
         // init topic-partition offset
         for (String topic : topics.keySet()) {
@@ -43,14 +38,15 @@ public class TQueueProducer<T> extends TQueueBase {
     }
 
     /**
-     * 发送一个ProducerRecord，异步的方式
+     * 发送一个ProducerRecord，同步的方式,
      *
      * @param record
      * @return
      * @throws Exception
      */
-    public Future<RecordMetadata> send(ProducerRecord<T> record) throws Exception {
-        return send(record, null);
+    public RecordMetadata send(ProducerRecord<T> record) throws Exception {
+        Future<RecordMetadata> future = send(record, null);
+        return future.get();
     }
 
     /***

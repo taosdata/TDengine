@@ -8,9 +8,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import java.sql.*;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Properties;
+import java.util.*;
 
 public class TQueueBase {
     private static final Logger logger = LogManager.getLogger(TQueueBase.class);
@@ -38,6 +36,17 @@ public class TQueueBase {
             logger.error(e.getMessage());
             throw new RuntimeException(e.getMessage());
         }
+    }
+
+    public Topic getTopic(String topic) {
+        return topics.get(topic);
+    }
+
+    public synchronized boolean containsTopic(String topic) {
+        if (topics.containsKey(topic))
+            return true;
+        flushTopics();
+        return topics.containsKey(topic);
     }
 
     protected void flushTopics() {

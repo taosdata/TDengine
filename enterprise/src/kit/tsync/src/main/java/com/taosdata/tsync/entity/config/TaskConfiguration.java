@@ -1,6 +1,8 @@
 package com.taosdata.tsync.entity.config;
 
 
+import com.taosdata.tsync.enums.ConfigurationType;
+
 public class TaskConfiguration extends Configuration {
     private int threads;
     private String topic;

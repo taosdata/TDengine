@@ -1,5 +1,7 @@
 package com.taosdata.tsync.entity.config;
 
+import com.taosdata.tsync.enums.ConfigurationType;
+
 public class DatabaseConfiguration extends Configuration {
     private String name;
     private Integer replica;

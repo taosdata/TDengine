@@ -1,9 +1,12 @@
 package com.taosdata.tsync.entity.config;
 
+import com.taosdata.tsync.enums.ConfigurationType;
+
 public class MessageConfiguration extends Configuration {
 
     private Long total;
-    private Long batchSize;
+    private Long batchValues;
+    private Long batchTables;
 
     public MessageConfiguration() {
         super(ConfigurationType.MESSAGE);
@@ -18,11 +21,19 @@ public class MessageConfiguration extends Configuration {
         this.total = total;
     }
 
-    public Long getBatchSize() {
-        return batchSize;
+    public Long getBatchValues() {
+        return batchValues;
     }
 
-    public void setBatchSize(Long batchSize) {
-        this.batchSize = batchSize;
+    public void setBatchValues(Long batchValues) {
+        this.batchValues = batchValues;
+    }
+
+    public Long getBatchTables() {
+        return batchTables;
+    }
+
+    public void setBatchTables(Long batchTables) {
+        this.batchTables = batchTables;
     }
 }

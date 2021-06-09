@@ -1,5 +1,7 @@
 package com.taosdata.tsync.entity.config;
 
+import com.taosdata.tsync.enums.ConfigurationType;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -74,5 +76,13 @@ public class Configuration {
     public void add(Configuration configuration) {
         if (!contains(configuration))
             children.add(configuration);
+    }
+
+    @Override
+    public String toString() {
+        return "Configuration{" +
+                "id=" + id +
+                ", configurationType=" + configurationType +
+                '}';
     }
 }

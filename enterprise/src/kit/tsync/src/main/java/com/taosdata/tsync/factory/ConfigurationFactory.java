@@ -2,7 +2,7 @@ package com.taosdata.tsync.factory;
 
 import com.alibaba.fastjson.JSONObject;
 import com.taosdata.tsync.entity.config.Configuration;
-import com.taosdata.tsync.entity.config.ConfigurationType;
+import com.taosdata.tsync.enums.ConfigurationType;
 import com.taosdata.tsync.parser.*;
 
 import java.util.ArrayList;

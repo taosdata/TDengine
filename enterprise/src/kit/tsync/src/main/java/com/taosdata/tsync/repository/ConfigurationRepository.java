@@ -8,7 +8,7 @@ import java.util.UUID;
 
 public final class ConfigurationRepository {
 
-    private static List<Configuration> configurations = new ArrayList<>();
+    private List<Configuration> configurations = new ArrayList<>();
     private static volatile ConfigurationRepository instance;
     private static final int NULL = -1;
 
@@ -27,15 +27,19 @@ public final class ConfigurationRepository {
 
     public void add(Configuration configuration) {
         int index = findIndex(configuration.getId());
-        if (index != NULL)
+        if (index == NULL)
             configurations.add(configuration);
     }
 
     public void delete(UUID id) {
         int index = findIndex(id);
-        if (index != NULL) {
+        if (index != NULL)
             configurations.remove(id);
-        }
+    }
+
+    public Configuration find(UUID id) {
+        int index = findIndex(id);
+        return index == NULL ? null : configurations.get(index);
     }
 
     private int findIndex(UUID id) {
@@ -44,11 +48,6 @@ public final class ConfigurationRepository {
                 return i;
         }
         return NULL;
-    }
-
-    public Configuration find(UUID id) {
-        int index = findIndex(id);
-        return index == NULL ? null : configurations.get(index);
     }
 
 //    public Configuration findFirst(ConfigurationType type) {

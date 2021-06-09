@@ -3,7 +3,7 @@ package com.taosdata.tsync.parser;
 import com.alibaba.fastjson.JSONArray;
 import com.alibaba.fastjson.JSONObject;
 import com.taosdata.tsync.entity.config.Configuration;
-import com.taosdata.tsync.entity.config.ConfigurationType;
+import com.taosdata.tsync.enums.ConfigurationType;
 import com.taosdata.tsync.entity.config.ColumnConfiguration;
 import com.taosdata.tsync.entity.config.StableConfiguration;
 import com.taosdata.tsync.entity.config.TagConfiguration;
@@ -28,7 +28,7 @@ public final class StableConfigurationParser implements ConfigurationParser {
             configuration.setName(configJSON.getString("name"));
         }
         if (configJSON.containsKey("tables")) {
-            configuration.setTables(configJSON.getInteger("tables"));
+            configuration.setTables(configJSON.getLong("tables"));
         }
         if (configJSON.containsKey("columns")) {
             JSONArray columnArr = configJSON.getJSONArray("columns");

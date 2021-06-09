@@ -1,26 +1,21 @@
 package com.taosdata.tsync.factory;
 
 import com.alibaba.fastjson.JSONObject;
-import com.taosdata.tsync.entity.config.Configuration;
-import com.taosdata.tsync.entity.config.ConfigurationType;
 import com.taosdata.tsync.entity.config.*;
-import org.apache.commons.io.IOUtils;
+import com.taosdata.tsync.enums.ConfigurationType;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
-import java.io.IOException;
-import java.io.InputStream;
 import java.util.List;
 
 public class ConfigurationFactoryTest {
+    private String jsonStr = "{\"producer\":{\"host\":\"192.168.17.156\",\"port\":6041,\"user\":\"root\",\"password\":\"taosdata\",\"charset\":\"UTF-8\",\"locale\":\"en_US.UTF-8\",\"timezone\":\"UTC-8\",\"serializer\":\"STRING\"},\"task\":{\"threads\":10,\"topic\":\"tq_test\",\"partitions\":[1,2,3]},\"message\":{\"total\":100,\"batchTables\":10,\"batchValues\":10,\"schema\":{\"database\":{\"name\":\"test\",\"precision\":\"ms\"},\"stable\":{\"name\":\"weather\",\"tables\":10,\"columns\":[{\"name\":\"ts\",\"type\":\"timestamp\"},{\"name\":\"temperature\",\"type\":\"float\"},{\"name\":\"humidity\",\"type\":\"int\"}],\"tags\":[{\"name\":\"loc\",\"type\":\"binary\",\"length\":64},{\"name\":\"groupId\",\"type\":\"int\"}]}}}}";
     private JSONObject configJSON;
 
     @Before
-    public void before() throws IOException {
-        InputStream is = ConfigurationFactoryTest.class.getClassLoader().getResourceAsStream("producer-task.json");
-        String configStr = IOUtils.toString(is);
-        configJSON = JSONObject.parseObject(configStr);
+    public void before() {
+        configJSON = JSONObject.parseObject(jsonStr);
     }
 
     @Test
@@ -148,7 +143,8 @@ public class ConfigurationFactoryTest {
         MessageConfiguration configuration = (MessageConfiguration) ConfigurationFactory.build(ConfigurationType.MESSAGE, messageJSON);
         // then
         Assert.assertEquals(new Long(100), configuration.getTotal());
-        Assert.assertEquals(new Long(10), configuration.getBatchSize());
+        Assert.assertEquals(new Long(10), configuration.getBatchTables());
+        Assert.assertEquals(new Long(10), configuration.getBatchValues());
         List<Configuration> schemas = configuration.find(ConfigurationType.SCHEMA);
         Assert.assertEquals(1, schemas.size());
     }
