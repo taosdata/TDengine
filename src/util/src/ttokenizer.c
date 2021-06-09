@@ -265,6 +265,10 @@ static int32_t tKeywordCode(const char* z, int n) {
     }
   }
 
+  if (keywordHashTable == NULL) {
+    return TK_ILLEGAL;
+  }
+  
   SKeyword** pKey = (SKeyword**)taosHashGet(keywordHashTable, key, n);
   return (pKey != NULL)? (*pKey)->type:TK_ID;
 }
