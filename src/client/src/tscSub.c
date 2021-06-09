@@ -265,7 +265,7 @@ static int tscUpdateSubscription(STscObj* pObj, SSub* pSub) {
 
   SSqlCmd* pCmd = &pSql->cmd;
 
-  TSDB_QUERY_CLEAR_TYPE(tscGetQueryInfoDetail(pCmd, 0)->type, TSDB_QUERY_TYPE_MULTITABLE_QUERY);
+  TSDB_QUERY_CLEAR_TYPE(tscGetQueryInfo(pCmd)->type, TSDB_QUERY_TYPE_MULTITABLE_QUERY);
 
   STableMetaInfo *pTableMetaInfo = tscGetTableMetaInfoFromCmd(pCmd,  0);
   if (UTIL_TABLE_IS_NORMAL_TABLE(pTableMetaInfo)) {
