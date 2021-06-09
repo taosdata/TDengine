@@ -1213,7 +1213,6 @@ static void fetchResult(TAOS_RES *res, threadInfo* pThreadInfo) {
   }
 
   int   totalLen = 0;
-  char  temp[16000];
 
   // fetch the records row by row
   while((row = taos_fetch_row(res))) {
@@ -1224,6 +1223,7 @@ static void fetchResult(TAOS_RES *res, threadInfo* pThreadInfo) {
         memset(databuf, 0, 100*1024*1024);
     }
     num_rows++;
+    char temp[16000] = {0};
     int len = taos_print_row(temp, row, fields, num_fields);
     len += sprintf(temp + len, "\n");
     //printf("query result:%s\n", temp);
