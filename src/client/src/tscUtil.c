@@ -255,16 +255,38 @@ bool tscIsProjectionQuery(SQueryInfo* pQueryInfo) {
   size_t size = tscNumOfExprs(pQueryInfo);
 
   for (int32_t i = 0; i < size; ++i) {
-    int32_t functionId = tscExprGet(pQueryInfo, i)->base.functionId;
+    int32_t f = tscExprGet(pQueryInfo, i)->base.functionId;
+    if (f == TSDB_FUNC_TS_DUMMY) {
+      continue;
+    }
 
-    if (functionId != TSDB_FUNC_PRJ && functionId != TSDB_FUNC_TAGPRJ && functionId != TSDB_FUNC_TAG &&
-        functionId != TSDB_FUNC_TS && functionId != TSDB_FUNC_ARITHM) {
+    if (f != TSDB_FUNC_PRJ && f != TSDB_FUNC_TAGPRJ && f != TSDB_FUNC_TAG &&
+        f != TSDB_FUNC_TS && f != TSDB_FUNC_ARITHM && f != TSDB_FUNC_DIFF &&
+        f != TSDB_FUNC_DERIVATIVE) {
       return false;
     }
   }
 
   return true;
 }
+
+bool tscIsDiffDerivQuery(SQueryInfo* pQueryInfo) {
+  size_t size = tscNumOfExprs(pQueryInfo);
+
+  for (int32_t i = 0; i < size; ++i) {
+    int32_t f = tscExprGet(pQueryInfo, i)->base.functionId;
+    if (f == TSDB_FUNC_TS_DUMMY) {
+      continue;
+    }
+
+    if (f == TSDB_FUNC_DIFF || f == TSDB_FUNC_DERIVATIVE) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
 
 bool tscHasColumnFilter(SQueryInfo* pQueryInfo) {
   // filter on primary timestamp column

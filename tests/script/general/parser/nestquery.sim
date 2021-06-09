@@ -147,8 +147,57 @@ if $data02 != @nest_tb0@ then
 endi
 
 print ===================> nest query interval
+sql_error select ts, avg(c1) from (select ts, c1 from nest_tb0);
 
+sql select avg(c1) from (select * from nest_tb0) interval(3d)
+if $rows != 3 then
+  return -1
+endi
 
+if $data00 != @20-09-14 00:00:00.000@  then
+  return -1
+endi
+
+if $data01 != 49.222222222 then
+  return -1
+endi
+
+if $data10 != @20-09-17 00:00:00.000@  then
+  print expect 20-09-17 00:00:00.000, actual: $data10
+  return -1
+endi
+
+if $data11 != 49.685185185 then
+  return -1
+endi
+
+if $data20 != @20-09-20 00:00:00.000@  then
+  return -1
+endi
+
+if $data21 != 49.500000000 then
+  return -1
+endi
+
+#define TSDB_FUNC_APERCT       7
+#define TSDB_FUNC_LAST_ROW     10
+#define TSDB_FUNC_TWA          14
+#define TSDB_FUNC_LEASTSQR     15
+#define TSDB_FUNC_ARITHM       23
+#define TSDB_FUNC_DIFF         24
+#define TSDB_FUNC_INTERP       28
+#define TSDB_FUNC_RATE         29
+#define TSDB_FUNC_IRATE        30
+#define TSDB_FUNC_DERIVATIVE   32
+
+sql_error select stddev(c1) from (select c1 from nest_tb0);
+sql_error select percentile(c1, 20) from (select * from nest_tb0);
+
+sql select avg(c1),sum(c2), max(c3), min(c4), count(*), first(c7), last(c7),spread(c6) from (select * from nest_tb0) interval(1d);
+
+sql select top(x, 20) from (select c1 x from nest_tb0);
+
+sql select bottom(x, 20) from (select c1 x from nest_tb0)
 
 print ===================> complex query
 

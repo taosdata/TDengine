@@ -6306,7 +6306,7 @@ static int32_t checkUpdateTagPrjFunctions(SQueryInfo* pQueryInfo, char* msg) {
   
     int16_t functionId = pExpr->base.functionId;
     if (functionId == TSDB_FUNC_TAGPRJ || functionId == TSDB_FUNC_PRJ || functionId == TSDB_FUNC_TS ||
-        functionId == TSDB_FUNC_ARITHM) {
+        functionId == TSDB_FUNC_ARITHM || functionId == TSDB_FUNC_TS_DUMMY) {
       continue;
     }
 
@@ -6412,9 +6412,14 @@ static int32_t doAddGroupbyColumnsOnDemand(SSqlCmd* pCmd, SQueryInfo* pQueryInfo
     size_t size = tscNumOfExprs(pQueryInfo);
   
     if (TSDB_COL_IS_TAG(pColIndex->flag)) {
+
+      int32_t f = TSDB_FUNC_TAG;
+      if (tscIsDiffDerivQuery(pQueryInfo)) {
+        f = TSDB_FUNC_TAGPRJ;
+      }
+
       SColumnIndex index = {.tableIndex = pQueryInfo->groupbyExpr.tableIndex, .columnIndex = colIndex};
-      SExprInfo*   pExpr = tscExprAppend(pQueryInfo, TSDB_FUNC_TAG, &index, s->type, s->bytes,
-                                          getNewResColId(pCmd), s->bytes, true);
+      SExprInfo*   pExpr = tscExprAppend(pQueryInfo, f, &index, s->type, s->bytes, getNewResColId(pCmd), s->bytes, true);
 
       memset(pExpr->base.aliasName, 0, sizeof(pExpr->base.aliasName));
       tstrncpy(pExpr->base.aliasName, s->name, sizeof(pExpr->base.aliasName));
@@ -6550,7 +6555,7 @@ int32_t doFunctionsCompatibleCheck(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, char* 
     }
 
     // projection query on super table does not compatible with "group by" syntax
-    if (tscIsProjectionQuery(pQueryInfo)) {
+    if (tscIsProjectionQuery(pQueryInfo) && !(tscIsDiffDerivQuery(pQueryInfo))) {
       return invalidOperationMsg(msg, msg3);
     }
 
@@ -7758,7 +7763,8 @@ int32_t validateSqlNode(SSqlObj* pSql, SSqlNode* pSqlNode, SQueryInfo* pQueryInf
   const char* msg2 = "too many tables in from clause";
   const char* msg3 = "start(end) time of query range required or time range too large";
   const char* msg4 = "interval query not supported, since the result of sub query not include valid timestamp column";
-  const char* msg9 = "only tag query not compatible with normal column filter";
+  const char* msg5 = "only tag query not compatible with normal column filter";
+  const char* msg6 = "not support stddev/percentile in outer query yet";
 
   int32_t code = TSDB_CODE_SUCCESS;
 
@@ -7797,6 +7803,15 @@ int32_t validateSqlNode(SSqlObj* pSql, SSqlNode* pSqlNode, SQueryInfo* pQueryInf
 
     if (validateSelectNodeList(pCmd, pQueryInfo, pSqlNode->pSelNodeList, false, false, false) != TSDB_CODE_SUCCESS) {
       return TSDB_CODE_TSC_INVALID_OPERATION;
+    }
+
+    // todo NOT support yet
+    for(int32_t i = 0; i < tscNumOfExprs(pQueryInfo); ++i) {
+      SExprInfo* pExpr = tscExprGet(pQueryInfo, i);
+      int32_t f = pExpr->base.functionId;
+      if (f == TSDB_FUNC_STDDEV || f == TSDB_FUNC_PERCT) {
+        return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg6);
+      }
     }
 
     // validate the query filter condition info
@@ -7912,7 +7927,7 @@ int32_t validateSqlNode(SSqlObj* pSql, SSqlNode* pSqlNode, SQueryInfo* pQueryInf
         for (int32_t i = 0; i < numOfCols; ++i) {
           SColumn* pCols = taosArrayGetP(pQueryInfo->colList, i);
           if (pCols->info.flist.numOfFilters > 0) {
-            return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg9);
+            return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg5);
           }
         }
       }
