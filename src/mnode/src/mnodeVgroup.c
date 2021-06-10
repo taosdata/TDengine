@@ -60,7 +60,6 @@ static int32_t mnodeGetVgroupMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *p
 static int32_t mnodeRetrieveVgroups(SShowObj *pShow, char *data, int32_t rows, void *pConn);
 static void    mnodeProcessCreateVnodeRsp(SRpcMsg *rpcMsg);
 static void    mnodeProcessAlterVnodeRsp(SRpcMsg *rpcMsg);
-static void    mnodeProcessSyncVnodeRsp(SRpcMsg *rpcMsg);
 static void    mnodeProcessDropVnodeRsp(SRpcMsg *rpcMsg);
 static int32_t mnodeProcessVnodeCfgMsg(SMnodeMsg *pMsg) ;
 static void    mnodeSendDropVgroupMsg(SVgObj *pVgroup, void *ahandle);
@@ -237,7 +236,6 @@ int32_t mnodeInitVgroups() {
   mnodeAddShowFreeIterHandle(TSDB_MGMT_TABLE_VGROUP, mnodeCancelGetNextVgroup);
   mnodeAddPeerRspHandle(TSDB_MSG_TYPE_MD_CREATE_VNODE_RSP, mnodeProcessCreateVnodeRsp);
   mnodeAddPeerRspHandle(TSDB_MSG_TYPE_MD_ALTER_VNODE_RSP, mnodeProcessAlterVnodeRsp);
-  mnodeAddPeerRspHandle(TSDB_MSG_TYPE_MD_ALTER_VNODE_RSP, mnodeProcessSyncVnodeRsp);
   mnodeAddPeerRspHandle(TSDB_MSG_TYPE_MD_DROP_VNODE_RSP, mnodeProcessDropVnodeRsp);
   mnodeAddPeerMsgHandle(TSDB_MSG_TYPE_DM_CONFIG_VNODE, mnodeProcessVnodeCfgMsg);
 
@@ -271,7 +269,7 @@ void mnodeUpdateVgroup(SVgObj *pVgroup) {
   if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_MND_ACTION_IN_PROGRESS) {
     mError("vgId:%d, failed to update vgroup", pVgroup->vgId);
   }
-  mnodeSendAlterVgroupMsg(pVgroup);
+  mnodeSendAlterVgroupMsg(pVgroup,NULL);
 }
 
 /*
@@ -350,7 +348,7 @@ void mnodeUpdateVgroupStatus(SVgObj *pVgroup, SDnodeObj *pDnode, SVnodeLoad *pVl
     mError("dnode:%d, vgId:%d, vnode cfgVersion:%d:%d repica:%d not match with mnode cfgVersion:%d:%d replica:%d",
            pDnode->dnodeId, pVload->vgId, pVload->dbCfgVersion, pVload->vgCfgVersion, pVload->replica,
            pVgroup->pDb->dbCfgVersion, pVgroup->vgCfgVersion, pVgroup->numOfVnodes);
-    mnodeSendAlterVgroupMsg(pVgroup);
+    mnodeSendAlterVgroupMsg(pVgroup,NULL);
   }
 }
 
@@ -946,10 +944,10 @@ SRpcEpSet mnodeGetEpSetFromIp(char *ep) {
   return epSet;
 }
 
-static void mnodeSendAlterVnodeMsg(SVgObj *pVgroup, SRpcEpSet *epSet) {
+static void mnodeSendAlterVnodeMsg(SVgObj *pVgroup, SRpcEpSet *epSet, SMnodeMsg *pMsg) {
   SAlterVnodeMsg *pAlter = mnodeBuildVnodeMsg(pVgroup);
   SRpcMsg rpcMsg = {
-    .ahandle = NULL,
+    .ahandle = pMsg,
     .pCont   = pAlter,
     .contLen = pAlter ? sizeof(SAlterVnodeMsg) : 0,
     .code    = 0,
@@ -958,14 +956,18 @@ static void mnodeSendAlterVnodeMsg(SVgObj *pVgroup, SRpcEpSet *epSet) {
   dnodeSendMsgToDnode(epSet, &rpcMsg);
 }
 
-void mnodeSendAlterVgroupMsg(SVgObj *pVgroup) {
+void mnodeSendAlterVgroupMsg(SVgObj *pVgroup,SMnodeMsg *pMsg) {
   mDebug("vgId:%d, send alter all vnodes msg, numOfVnodes:%d db:%s", pVgroup->vgId, pVgroup->numOfVnodes,
          pVgroup->dbName);
+  if (pMsg) {
+    pMsg->pVgroup = pVgroup;
+    mnodeIncVgroupRef(pVgroup);
+  }
   for (int32_t i = 0; i < pVgroup->numOfVnodes; ++i) {
     SRpcEpSet epSet = mnodeGetEpSetFromIp(pVgroup->vnodeGid[i].pDnode->dnodeEp);
     mDebug("vgId:%d, index:%d, send alter vnode msg to dnode %s", pVgroup->vgId, i,
            pVgroup->vnodeGid[i].pDnode->dnodeEp);
-    mnodeSendAlterVnodeMsg(pVgroup, &epSet);
+    mnodeSendAlterVnodeMsg(pVgroup, &epSet,pMsg);
   }
 }
 
@@ -1026,11 +1028,27 @@ void mnodeSendCreateVgroupMsg(SVgObj *pVgroup, void *ahandle) {
 }
 
 static void mnodeProcessAlterVnodeRsp(SRpcMsg *rpcMsg) {
-  mDebug("alter vnode rsp received");
-}
+  mDebug("alter vnode rsp is received, handle:%p", rpcMsg->ahandle);
+  if (rpcMsg->ahandle == NULL) return;
 
-static void mnodeProcessSyncVnodeRsp(SRpcMsg *rpcMsg) {
-  mDebug("sync vnode rsp received");
+  SMnodeMsg *mnodeMsg = rpcMsg->ahandle;
+  mnodeMsg->received++;
+  if (rpcMsg->code == TSDB_CODE_SUCCESS) {
+    mnodeMsg->code = rpcMsg->code;
+    mnodeMsg->successed++;
+  }
+
+  SVgObj *pVgroup = mnodeMsg->pVgroup;
+  mDebug("vgId:%d, alter vnode rsp received, result:%s received:%d successed:%d expected:%d, thandle:%p ahandle:%p",
+         pVgroup->vgId, tstrerror(rpcMsg->code), mnodeMsg->received, mnodeMsg->successed, mnodeMsg->expected,
+         mnodeMsg->rpcMsg.handle, rpcMsg->ahandle);
+
+  if (mnodeMsg->received != mnodeMsg->expected) return;
+
+  int32_t code = mnodeInsertAlterDbRow(pVgroup->pDb, mnodeMsg);
+  if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_MND_ACTION_IN_PROGRESS) {
+    dnodeSendRpcMWriteRsp(mnodeMsg, code);
+  }
 }
 
 static void mnodeProcessCreateVnodeRsp(SRpcMsg *rpcMsg) {

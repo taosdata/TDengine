@@ -126,25 +126,64 @@ class TDTestCase:
 
         ##TODO: need to wait for TD-4445 to implement the following
         ##      tests
-        # tdSql.prepare()
-        # tdSql.execute('create table tb (ts timestamp, speed int)')
-        # tdSql.execute('alter database db keep 10,10,10')
-        # tdSql.execute('insert into tb values (now, 10)')
-        # tdSql.execute('insert into tb values (now + 10m, 10)')
-        # tdSql.query('select * from tb')
-        # tdSql.checkRows(2)
-        # tdSql.execute('alter database db keep 40,40,40')
+
+
+        ## preset the keep
+        tdSql.prepare()
+        tdSql.execute('create table tb (ts timestamp, speed int)')
+        tdSql.execute('alter database db keep 10,10,10')
+        tdSql.execute('insert into tb values (now, 10)')
+        tdSql.execute('insert into tb values (now + 10m, 10)')
+        tdSql.query('select * from tb')
+        tdSql.checkRows(2)
+
+
+        #after alter from small to large, check if the alter if functioning
+        #test if change through test.py is consistent with change from taos client
+        #test case for TD-4459 and TD-4445
+        tdSql.execute('alter database db keep 40,40,40')
+        tdSql.query('show databases')
+        tdSql.checkData(0,7,'40,40,40')
+        tdSql.error('insert into tb values (now-60d, 10)')
+        tdSql.execute('insert into tb values (now-30d, 10)')
+        tdSql.query('select * from tb')
+        tdSql.checkRows(3)
+
+        rowNum = 3
+        for i in range(30):
+            rowNum += 1
+            tdSql.execute('alter database db keep 20,20,20')
+            tdSql.execute('alter database db keep 40,40,40')
+            tdSql.query('show databases')
+            tdSql.checkData(0,7,'40,40,40')
+            tdSql.error('insert into tb values (now-60d, 10)')
+            tdSql.execute('insert into tb values (now-30d, 10)')
+            tdSql.query('select * from tb')
+            tdSql.checkRows(rowNum)
+
+        tdSql.execute('alter database db keep 10,10,10')
+        tdSql.query('show databases')
+        tdSql.checkData(0,7,'10,10,10')
+
+        # if uncomment these three lines, timestamp out of range error will appear
+        # tdSql.execute('alter database db keep 15,15,15')
         # tdSql.query('show databases')
-        # tdSql.checkData(0,7,'40,40,40')
-        # tdSql.error('insert into tb values (now-60d, 10)')
-        # tdSql.execute('insert into tb values (now-30d, 10)')
-        # tdSql.query('select * from tb')
-        # tdSql.checkRows(3)
+        # tdSql.checkData(0,7,'15,15,15')
+
+        # the following line should generate an error, but the insert was a success
+        # the time now-15d is out of range of now -10d 
+        tdSql.error('insert into tb values (now-15d, 10)')
+        tdSql.query('select * from tb')
+        tdSql.checkRows(rowNum)
+
         # tdSql.execute('alter database db keep 20,20,20')
         # tdSql.query('show databases')
         # tdSql.checkData(0,7,'20,20,20')
+        # tdSql.error('insert into tb values (now-30d, 10)')
+        # tdSql.query('show databases')
+        # tdSql.checkData(0,7,'20,20,20')
         # tdSql.query('select * from tb')
-        # tdSql.checkRows(2)
+        # tdSql.checkRows(rowNum)
 
 
     def stop(self):
