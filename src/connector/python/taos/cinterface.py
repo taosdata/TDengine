@@ -10,11 +10,11 @@ def _convert_millisecond_to_datetime(milli):
     return datetime.datetime.fromtimestamp(milli / 1000.0)
 
 
-def _convert_microsecond_to_datetime(micro):
+def _convert_microsecond_to_datetime(micro): #checkpoint
     return datetime.datetime.fromtimestamp(micro / 1000000.0)
 
 
-def _crow_timestamp_to_python(data, num_of_rows, nbytes=None, micro=False):
+def _crow_timestamp_to_python(data, num_of_rows, nbytes=None, micro=False):#checkpoint
     """Function to convert C bool row to python row
     """
     _timestamp_converter = _convert_millisecond_to_datetime
