@@ -1104,12 +1104,13 @@ static int32_t mnodeAlterDbFp(SMnodeMsg *pMsg) {
 
   void *pIter = NULL;
   SVgObj *pVgroup = NULL;
+  pMsg->expected = 0;
   while (1) {
     pIter = mnodeGetNextVgroup(pIter, &pVgroup);
     if (pVgroup == NULL) break;
     if (pVgroup->pDb == pDb) {
+      pMsg->expected += pVgroup->numOfVnodes;
       mnodeSendAlterVgroupMsg(pVgroup,pMsg);
-      pMsg->expected += 1;
     }
     mnodeDecVgroupRef(pVgroup);
   }
@@ -1117,7 +1118,7 @@ static int32_t mnodeAlterDbFp(SMnodeMsg *pMsg) {
   mDebug("db:%s, all vgroups is altered", pDb->name);
   mLInfo("db:%s, is alterd by %s", pDb->name, mnodeGetUserFromMsg(pMsg));
 
-  // in case there is no vnode(no db in vnode)
+  // in case there is no vnode for this db currently(no table in db,etc.)
   if (pMsg->expected == 0) {
     SSdbRow row = {
       .type    = SDB_OPER_GLOBAL,
