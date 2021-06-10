@@ -35,6 +35,7 @@ class TDTestCase:
         tdSql.execute('drop database db')
 
         tdSql.error('create database db keep ')
+        tdSql.error('create database db keep 0')
         tdSql.error('create database db keep 10,20')
         tdSql.error('create database db keep 10,20,30')
         tdSql.error('create database db keep 20,30,40,50')
@@ -47,9 +48,12 @@ class TDTestCase:
         tdSql.checkData(0,7,'100')
 
         tdSql.error('alter database db keep ')
+        tdSql.error('alter database db keep 0')
         tdSql.error('alter database db keep 10,20')
         tdSql.error('alter database db keep 10,20,30')
         tdSql.error('alter database db keep 20,30,40,50')
+        tdSql.query('show databases')
+        tdSql.checkData(0,7,'100')
 
     def alterKeepEnterprise(self):
         tdLog.notice('running Keep Test, Enterprise Version')
@@ -79,7 +83,7 @@ class TDTestCase:
         tdSql.error('create database db keep 100,50')
         tdSql.error('create database db keep 100,40,50')
         tdSql.error('create database db keep 20,100,50')
-        tdSql.error('create database db keep 100,100,50')
+        tdSql.error('create database db keep 50,60,20')
 
         #testing keep parameter during alter
         tdSql.execute('create database db')
@@ -102,6 +106,9 @@ class TDTestCase:
         tdSql.error('alter database db keep 100,50')
         tdSql.error('alter database db keep 100,40,50')
         tdSql.error('alter database db keep 20,100,50')
+        tdSql.error('alter database db keep 50,60,20')
+        tdSql.query('show databases')
+        tdSql.checkData(0,7,'100,200,300')
 
 
     def run(self):
