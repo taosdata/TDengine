@@ -20,6 +20,9 @@
 
 #define ROTL32(x, r) ((x) << (r) | (x) >> (32u - (r)))
 
+#define DLT (FLT_COMPAR_TOL_FACTOR * FLT_EPSILON)
+#define BASE 1000
+
 #define FMIX32(h)      \
   do {                 \
     (h) ^= (h) >> 16;  \
@@ -87,7 +90,10 @@ uint32_t taosFloatHash(const char *key, uint32_t UNUSED_PARAM(len)) {
   if (FLT_EQUAL(f, 0.0)) {
     return 0;
   } 
-  int t = (int)round(f);
+  if (f >= (FLT_MAX/BASE - DLT) || f <= (FLT_MIN/BASE - DLT)){
+    return 0x7fc00000;
+  }
+  int t = (int)round(BASE * (f + DLT));
   return (uint32_t)t;
 }
 uint32_t taosDoubleHash(const char *key, uint32_t UNUSED_PARAM(len)) {
@@ -99,7 +105,10 @@ uint32_t taosDoubleHash(const char *key, uint32_t UNUSED_PARAM(len)) {
   if (FLT_EQUAL(f, 0.0)) {
     return 0;
   } 
-  int t = (int)(round(f));
+  if (f >= (DBL_MAX/BASE - DLT) || f <= (DBL_MIN/BASE - DLT)){
+    return 0x7fc00000;
+  }
+  int t = (int)(round(BASE * (f + DLT)));
   return (uint32_t)t;
 }
 uint32_t taosIntHash_64(const char *key, uint32_t UNUSED_PARAM(len)) {
