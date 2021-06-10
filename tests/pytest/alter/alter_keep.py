@@ -23,7 +23,7 @@ class TDTestCase:
         tdSql.init(conn.cursor(), logSql)
     
     def alterKeepCommunity(self):
-        tdLog.notice('running Keep Keep Test, Community Version')
+        tdLog.notice('running Keep Test, Community Version')
         #testing keep parameter during create
         tdSql.query('show databases')
         tdSql.checkData(0,7,'3650')
@@ -36,7 +36,7 @@ class TDTestCase:
 
         tdSql.error('create database db keep ')
         tdSql.error('create database db keep 10,20')
-        tdSql.error('create database db keep 10,20')
+        tdSql.error('create database db keep 10,20,30')
         tdSql.error('create database db keep 20,30,40,50')
 
         #testing keep parameter during alter
@@ -48,11 +48,11 @@ class TDTestCase:
 
         tdSql.error('alter database db keep ')
         tdSql.error('alter database db keep 10,20')
-        tdSql.error('alter database db keep 10,20')
+        tdSql.error('alter database db keep 10,20,30')
         tdSql.error('alter database db keep 20,30,40,50')
 
     def alterKeepEnterprise(self):
-        tdLog.notice('running Keep Keep Test, Enterprise Version')
+        tdLog.notice('running Keep Test, Enterprise Version')
         #testing keep parameter during create
         tdSql.query('show databases')
         tdSql.checkData(0,7,'3650,3650,3650')
