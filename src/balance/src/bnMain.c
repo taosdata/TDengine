@@ -220,10 +220,6 @@ int32_t bnAllocVnodes(SVgObj *pVgroup) {
 }
 
 static bool bnCheckVgroupReady(SVgObj *pVgroup, SVnodeGid *pRmVnode) {
-  if (pVgroup->lbTime + 5 * tsStatusInterval > tsAccessSquence) {
-    return false;
-  }
-
   int32_t rmVnodeVer = 0;
   for (int32_t i = 0; i < pVgroup->numOfVnodes; ++i) {
     SVnodeGid *pVnode = pVgroup->vnodeGid + i;

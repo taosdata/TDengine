@@ -101,12 +101,12 @@ static void bnProcessTimer(void *handle, void *tmrId) {
   if (!sdbIsMaster()) return;
   if (tsBnThread.stop) return;
 
-  if (handle == NULL) {
-    tsBnThread.timer = NULL;
-    ++tsAccessSquence;
+  tsBnThread.timer = NULL;
+  bnStartTimer(-1);
+  bnCheckStatus();
 
-    bnStartTimer(-1);
-    bnCheckStatus();
+  if (handle == NULL) {
+    ++tsAccessSquence;
 
     if (tsAccessSquence % tsBalanceInterval == 0) {
       mDebug("balance function is scheduled by timer");
@@ -131,5 +131,5 @@ void bnStartTimer(int32_t mseconds) {
 }
 
 void bnNotify() {
-  bnStartTimer(10);
+  bnStartTimer(500);
 }
