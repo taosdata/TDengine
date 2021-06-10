@@ -12,6 +12,7 @@
 # -*- coding: utf-8 -*-
 
 import sys
+import os
 import taos
 from util.log import tdLog
 from util.cases import tdCases
@@ -84,28 +85,15 @@ class TDTestCase:
         # subquery and parent query with top and bottom
         tdSql.query("select top(avg_val,2) from(select avg(value) as avg_val,num from st where loc!='beijing0' group by num);")
         tdSql.checkData(0, 1, 115)
-        tdSql.query("select bottom(avg_val,2) from(select avg(value) as avg_val,num from st where loc!='beijing0' group by num);")
-        tdSql.checkData(1, 1, 111)
+        tdSql.query("select bottom(avg_val,3) from(select avg(value) as avg_val,num from st where loc!='beijing0' group by num);")
+        tdSql.checkData(0, 1, 125)
 
+        # 
+        tdSql.query("select top(avg_val,2) from(select avg(value) as avg_val from st where loc='beijing1' interval(8m) sliding(3m));")
 
-
-
-
-        # tdSql.query("select avg(voltage) from st interval(1n, 15d)")
-
-        # tdSql.query("select avg(voltage) from st interval(1n, 15d) group by loc")
-
-        # tdDnodes.stop(1)
-        # tdDnodes.start(1)
-        # tdSql.query("select last(*) from t interval(1s)")
-        
-
-        # tdSql.query("select first(ts),twa(c) from tb interval(14a)")
-        # tdSql.checkRows(6)
-
-        # tdSql.query("select twa(c) from tb group by c")
-        # tdSql.checkRows(4)
-
+        testcaseFilename = os.path.split(__file__)[-1]
+        os.system("rm -rf ./insert_res.txt")
+        os.system("rm -rf wal/%s.sql" % testcaseFilename )     
 
     def stop(self):
         tdSql.close()
