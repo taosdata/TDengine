@@ -4552,11 +4552,7 @@ static int32_t validateTagCondExpr(SSqlCmd* pCmd, tExprNode *p) {
       free(tmp);
     } else {
       double tmp;
-      if (p->_node.optr == TSDB_RELATION_IN) {
-        retVal = validateParamOfRelationIn(vVariant, schemaType);
-      } else {
-        retVal = tVariantDump(vVariant, (char*)&tmp, schemaType, false);
-      }
+      retVal = tVariantDump(vVariant, (char*)&tmp, schemaType, false);
     }
     
     if (retVal != TSDB_CODE_SUCCESS) {
