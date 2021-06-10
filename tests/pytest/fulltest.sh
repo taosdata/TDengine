@@ -317,7 +317,6 @@ python3 ./test.py -f query/last_row_cache.py
 python3 ./test.py -f account/account_create.py
 python3 ./test.py -f alter/alter_table.py
 python3 ./test.py -f query/queryGroupbySort.py
-python3 ./test.py -f functions/function_session.py
 python3 ./test.py -f functions/function_stateWindow.py
 
 python3 ./test.py -f insert/unsignedInt.py
@@ -344,4 +343,5 @@ python3 test.py -f insert/insert_before_use_db.py
 python3 test.py -f alter/alter_keep.py
 python3 test.py -f alter/alter_cacheLastRow.py
 python3 test.py -f alter/alter_keep_exception.py
+python3 ./test.py -f query/querySession.py 
 #======================p4-end===============

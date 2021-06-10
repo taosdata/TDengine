@@ -49,7 +49,7 @@ int32_t mnodeAddTableIntoVgroup(SVgObj *pVgroup, SCTableObj *pTable, bool needCh
 void    mnodeRemoveTableFromVgroup(SVgObj *pVgroup, SCTableObj *pTable);
 void    mnodeSendDropVnodeMsg(int32_t vgId, SRpcEpSet *epSet, void *ahandle);
 void    mnodeSendCreateVgroupMsg(SVgObj *pVgroup, void *ahandle);
-void    mnodeSendAlterVgroupMsg(SVgObj *pVgroup);
+void    mnodeSendAlterVgroupMsg(SVgObj *pVgroup,SMnodeMsg *pMsg);
 void    mnodeSendSyncVgroupMsg(SVgObj *pVgroup);
 
 SRpcEpSet mnodeGetEpSetFromVgroup(SVgObj *pVgroup);
