@@ -102,7 +102,7 @@ print create_db.sim case5: db_meta_data test
 # cfg params
 $replica = 1 # max=3
 $days = 10
-$keep = 365,365,365
+$keep = 365
 $rows_db = 1000
 $cache = 16 # 16MB
 $ablocks = 100 
@@ -125,7 +125,7 @@ endi
 if $data06 != $days then 
  return -1
 endi
-if $data07 != 365,365,365 then 
+if $data07 != 365 then 
  return -1
 endi
 print data08 = $data07
@@ -152,6 +152,7 @@ sql_error create database $db day 3651
 sql_error create database $db keep 0
 sql_error create database $db keep 0,0,0
 sql_error create database $db keep 3,3,3
+sql_error create database $db keep 3
 sql_error create database $db keep 11.0
 sql_error create database $db keep 11.0,11.0,11.0
 sql_error create database $db keep "11","11","11"
@@ -159,61 +160,44 @@ sql_error create database $db keep "11"
 sql_error create database $db keep 13,12,11
 sql_error create database $db keep 11,12,11
 sql_error create database $db keep 12,11,12
-sql_error create database $db keep 8
-sql_error create database $db keep 12,11
+sql_error create database $db keep 11,12,13
+sql_error create database $db keep 11,12,13,14
+sql_error create database $db keep 11,11
 sql_error create database $db keep 365001,365001,365001
-sql create database dbk0 keep 19
+sql_error create database $db keep 365001
+sql create database dbk1 keep 11
 sql show databases
 if $rows != 1 then
   return -1
 endi
-if $data07 != 19,19,19 then 
- return -1
-endi
-sql drop database dbk0
-sql create database dbka keep 19,20
-sql show databases
-if $rows != 1 then
-  return -1
-endi
-if $data07 != 19,20,20 then 
- return -1
-endi
-sql drop database dbka
-
-sql create database dbk1 keep 11,11,11
-sql show databases
-if $rows != 1 then
-  return -1
-endi
-if $data07 != 11,11,11 then 
+if $data07 != 11 then 
  return -1
 endi
 sql drop database dbk1
-sql create database dbk2 keep 11,12,13
+sql create database dbk2 keep 12
 sql show databases
 if $rows != 1 then
   return -1
 endi
-if $data07 != 11,12,13 then 
+if $data07 != 12 then 
  return -1
 endi
 sql drop database dbk2
-sql create database dbk3 keep 11,11,13
+sql create database dbk3 keep 11
 sql show databases
 if $rows != 1 then
   return -1
 endi
-if $data07 != 11,11,13 then 
+if $data07 != 11 then 
  return -1
 endi
 sql drop database dbk3
-sql create database dbk4 keep 11,13,13
+sql create database dbk4 keep 13
 sql show databases
 if $rows != 1 then
   return -1
 endi
-if $data07 != 11,13,13 then 
+if $data07 != 13 then 
  return -1
 endi
 sql drop database dbk4
