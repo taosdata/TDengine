@@ -23,48 +23,33 @@ class TDTestCase:
         tdSql.init(conn.cursor(), logSql)
     
     def alterKeepCommunity(self):
-        ## community accepts both 1 paramater, 2 parmaters and 3 paramaters
-        ## but paramaters other than paramater 1 will be ignored 
-        ## only paramater 1 will be used
+        tdLog.notice('running Keep Keep Test, Community Version')
+        #testing keep parameter during create
         tdSql.query('show databases')
-        tdSql.checkData(0,7,'3650,3650,3650')
+        tdSql.checkData(0,7,'3650')
+        tdSql.execute('drop database db')
 
-        tdSql.execute('alter database db keep 10')
+        tdSql.execute('create database db keep 100')
         tdSql.query('show databases')
-        tdSql.checkData(0,7,'10,10,10')
+        tdSql.checkData(0,7,'100')
+        tdSql.execute('drop database db')
 
-        tdSql.execute('alter database db keep 50')
+        tdSql.error('create database db keep ')
+        tdSql.error('create database db keep 10,20')
+        tdSql.error('create database db keep 10,20')
+        tdSql.error('create database db keep 20,30,40,50')
+
+        #testing keep parameter during alter
+        tdSql.execute('create database db')
+
+        tdSql.execute('alter database db keep 100')
         tdSql.query('show databases')
-        tdSql.checkData(0,7,'50,50,50')
+        tdSql.checkData(0,7,'100')
 
-        tdSql.execute('alter database db keep 20')
-        tdSql.query('show databases')
-        tdSql.checkData(0,7,'20,20,20')
-
-        tdSql.execute('alter database db keep 100, 98 ,99')
-        tdSql.query('show databases')
-        tdSql.checkData(0,7,'100,100,100')
-
-        tdSql.execute('alter database db keep 99, 100 ,101')
-        tdSql.query('show databases')
-        tdSql.checkData(0,7,'99,99,99')
-
-        tdSql.execute('alter database db keep 200, 199 ,198')
-        tdSql.query('show databases')
-        tdSql.checkData(0,7,'200,200,200')
-
-        tdSql.execute('alter database db keep 4000,4001')
-        tdSql.query('show databases')
-        tdSql.checkData(0,7,'4000,4000,4000')
-
-        tdSql.execute('alter database db keep 5000,50')
-        tdSql.query('show databases')
-        tdSql.checkData(0,7,'5000,5000,5000')
-
-        tdSql.execute('alter database db keep 50,5000')
-        tdSql.query('show databases')
-        tdSql.checkData(0,7,'50,50,50')
-
+        tdSql.error('alter database db keep ')
+        tdSql.error('alter database db keep 10,20')
+        tdSql.error('alter database db keep 10,20')
+        tdSql.error('alter database db keep 20,30,40,50')
 
     def alterKeepEnterprise(self):
         tdLog.notice('running Keep Keep Test, Enterprise Version')
