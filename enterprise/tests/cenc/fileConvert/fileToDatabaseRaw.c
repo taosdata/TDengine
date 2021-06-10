@@ -9,9 +9,11 @@
 #include "libmseed.h"
 
 
-#define  MAX_TSQL_LEN  1048576
+#define  MAX_TSQL_LEN  1024
 #define  TQ_CHAN_NUM   16
 #define  SEED_BUF_LEN  256
+#define  MAX_BATCH_NUM 2048
+#define  MAX_SEED_LEN  512
 #define  hash(key, c)  ((uint64_t) key * 31 + c)
 
 
@@ -47,43 +49,6 @@ int taos_check_res(TAOS_RES *res, const char *cmd) {
     }
 
     return code;
-}
-
-
-// base64 encode
-static char basis_64[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-
-char *base64_encode(const unsigned char *value, int vlen)
-{
-    unsigned char oval = 0;
-    char *        result = (char *)malloc((size_t)(vlen * 4) / 3 + 10);
-    char *        out = result;
-
-    while (vlen >= 3) {
-        *out++ = basis_64[value[0] >> 2];
-        *out++ = basis_64[((value[0] << 4) & 0x30) | (value[1] >> 4)];
-        *out++ = basis_64[((value[1] << 2) & 0x3C) | (value[2] >> 6)];
-        *out++ = basis_64[value[2] & 0x3F];
-        value += 3;
-        vlen -= 3;
-    }
-
-    if (vlen > 0) {
-        *out++ = basis_64[value[0] >> 2];
-
-        oval = (value[0] << 4) & 0x30;
-        if (vlen > 1) {
-            oval |= value[1] >> 4;
-        }
-
-        *out++ = basis_64[oval];
-        *out++ = (vlen < 2) ? '=' : basis_64[(value[1] << 2) & 0x3C];
-        *out++ = '=';
-    }
-
-    *out = '\0';
-
-    return result;
 }
 
 
@@ -211,10 +176,9 @@ char  *default_topic        = "rewrite";
 
 int main(int argc, char *argv[])
 {
-    int               opt, np;
+    int               opt, np, code;
     int               id;
-    int               begin;
-    int               offset;
+    int               n = 0;
     int               readlen;
     char             *file_name    = NULL;
     char             *tsdb_server  = NULL;
@@ -224,17 +188,27 @@ int main(int argc, char *argv[])
     char             *topic        = NULL;
     TAOS             *taos         = NULL;
     TAOS_RES         *res          = NULL;
+    TAOS_STMT        *stmt         = NULL;
+    TAOS_BIND         tags[1];
     FILE             *fp           = NULL;
+    char              tbbuf[32];
     char              buf[MAXRECLEN];
     char              cmd[MAX_TSQL_LEN];
     char              sid[LM_SIDLEN];
-    const char       *prefix  = "insert into";
-    const int         pfxlen  = sizeof("insert into") - 1;
-    char             *base64;
     uint64_t          hash;
     int64_t           prv, ts;
     struct timeval    now;
     struct sigaction  act;
+    TAOS_MULTI_BIND   params[3];
+    int32_t           off_len[MAX_BATCH_NUM];
+    int32_t           ts_len[MAX_BATCH_NUM];
+    int32_t           bin_len[MAX_BATCH_NUM];
+    char              is_null[MAX_BATCH_NUM];
+    struct {
+        int64_t       off[MAX_BATCH_NUM];
+        int64_t       ts[MAX_BATCH_NUM];
+        char          bin[MAX_BATCH_NUM][MAX_SEED_LEN];
+    } val;
 
     if (argc < 2) {
         fprintf(stderr,
@@ -347,11 +321,58 @@ int main(int argc, char *argv[])
 
     np = 0;
     prv = -1;
-    begin = 1;
-    offset = 0;
     memset(sid, 0, LM_SIDLEN);
 
     fprintf(stderr, "running file -> database(raw), please wait...\r\n");
+
+    memset(is_null, 0, MAX_BATCH_NUM);
+
+    params[0].buffer_type = TSDB_DATA_TYPE_TIMESTAMP;
+    params[0].buffer_length = sizeof(val.off[0]);
+    params[0].buffer = val.off;
+    params[0].length = off_len;
+    params[0].is_null = is_null;
+    params[0].num = MAX_BATCH_NUM;
+
+    params[1].buffer_type = TSDB_DATA_TYPE_TIMESTAMP;
+    params[1].buffer_length = sizeof(val.ts[0]);
+    params[1].buffer = val.ts;
+    params[1].length = ts_len;
+    params[1].is_null = is_null;
+    params[1].num = MAX_BATCH_NUM;
+
+    params[2].buffer_type = TSDB_DATA_TYPE_BINARY;
+    params[2].buffer_length = sizeof(val.bin[0]);
+    params[2].buffer = val.bin;
+    params[2].length = bin_len;
+    params[2].is_null = is_null;
+    params[2].num = MAX_BATCH_NUM;
+
+    tags[0].buffer_type = TSDB_DATA_TYPE_INT;
+    tags[0].buffer_length = sizeof(int);
+    tags[0].buffer = &id;
+    tags[0].length = NULL;
+    tags[0].is_null = NULL;
+
+    stmt = taos_stmt_init(taos);
+    if (stmt == NULL) {
+        fprintf(stderr, "failed to init stmt\r\n");
+        goto failed;
+    }
+
+    memset(cmd, 0, sizeof(cmd));
+    np = snprintf(cmd, sizeof(cmd) - 1, "insert into ? using ps tags (?) values (?, ?, ?)");
+
+    if (np <= 0) {
+        fprintf(stderr, "fprintf error cmd for preparing data\r\n");
+        goto failed;
+    }
+
+    code = taos_stmt_prepare(stmt, cmd, 0);
+    if (code != 0) {
+        fprintf(stderr, "failed to stmt prepare for cmd(%s), code: 0x%x\r\n", cmd, code);
+        goto failed;
+    }
 
     while (fread(buf, 1, SEED_BUF_LEN, fp) == SEED_BUF_LEN) {
         if (quit == 1) {
@@ -373,26 +394,10 @@ int main(int argc, char *argv[])
 
         total++;
 
-        base64 = base64_encode((const unsigned char *) buf, readlen);
-        if (base64 == NULL) {
-            fprintf(stderr, "base64 error\r\n");
-            break;
-        }
-
-remain_data:
-
-        /* TODO */
         hash = hash_key(sid, strlen(sid));
         id = (int) (hash % TQ_CHAN_NUM) + 1;
 
-        if (begin == 1) {
-            begin = 0;
-            memset(cmd, 0, sizeof(cmd));
-            memcpy(cmd, prefix, pfxlen);
-            offset += pfxlen;
-        }
-
-        if (offset + strlen(base64) < MAX_TSQL_LEN - 256) {
+        if (n < MAX_BATCH_NUM) {
             gettimeofday(&now, NULL);
             ts = (int64_t) (now.tv_sec * 1000000 + now.tv_usec);
 
@@ -405,48 +410,59 @@ remain_data:
 
             prv = ts;
 
-            np = snprintf(cmd + offset, sizeof(cmd) - offset, " p%d using ps tags (%d) values (%ld, %ld, '%s')", id, id, ts, ts, base64);
+            val.off[n] = ts;
+            val.ts[n] = ts;
 
-            free(base64);
+            memset(val.bin[n], 0, MAX_SEED_LEN);
+            memcpy(val.bin[n], buf, SEED_BUF_LEN);
 
-            if (np <= 0) {
-                fprintf(stderr, "fprintf error cmd for preparing data: %s\r\n", cmd);
-                continue;
+	    off_len[n] = sizeof(val.off[0]);
+            ts_len[n] = sizeof(val.ts[0]);
+            bin_len[n] = SEED_BUF_LEN;
+
+	    n++;
+
+            memset(tbbuf, 0, sizeof(tbbuf));
+            sprintf(tbbuf, "p%d", id);
+
+            code = taos_stmt_set_tbname_tags(stmt, tbbuf, tags);
+            if (code != 0) {
+                fprintf(stderr, "failed to taos_stmt_set_tbname_tags, code: 0x%x\r\n", code);
+                break;
             }
-
-            offset += np;
         } else {
-            if (offset == 0) {
-                free(base64);
+            taos_stmt_bind_param_batch(stmt, params);
+            taos_stmt_add_batch(stmt);
 
-                fprintf(stderr, "too long record length: %d\r\n", SEED_BUF_LEN);
-                goto failed;
+            n = 0;
+
+            if (taos_stmt_execute(stmt) != 0) {
+                fprintf(stderr, "failed to execute insert statement\r\n");
+                break;
             }
-
-            cmd[offset] = ';';
-
-            res = taos_query(taos, cmd);
-            if (taos_check_res(&res, cmd) != 0) {
-                goto failed;
-            }
-
-            begin = 1;
-            offset = 0;
-            goto remain_data;
         }
     }
 
-    if (offset) {
-        cmd[offset++] = ';';
-        cmd[offset] = '\0';
+    if (n > 0) {
+        params[0].num = n;
+        params[1].num = n;
+        params[2].num = n;
 
-        res = taos_query(taos, cmd);
-        taos_check_res(&res, cmd);
+        taos_stmt_bind_param_batch(stmt, params);
+        taos_stmt_add_batch(stmt);
+
+        if (taos_stmt_execute(stmt) != 0) {
+            fprintf(stderr, "failed to execute the last insert statement\r\n");
+        }
     }
 
     fprintf(stdout, "total: %ld\r\n", total);
 
 failed:
+
+    if (stmt) {
+        taos_stmt_close(stmt);
+    }
 
     if (taos) {
         taos_close(taos);
