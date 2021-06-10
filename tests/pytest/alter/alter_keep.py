@@ -67,40 +67,57 @@ class TDTestCase:
 
 
     def alterKeepEnterprise(self):
-        ## enterprise only accept three inputs
-        ## does not accept 1 paramaters nor 3 paramaters
+        tdLog.notice('running Keep Keep Test, Enterprise Version')
+        #testing keep parameter during create
         tdSql.query('show databases')
         tdSql.checkData(0,7,'3650,3650,3650')
+        tdSql.execute('drop database db')
+
+        tdSql.execute('create database db keep 100')
+        tdSql.query('show databases')
+        tdSql.checkData(0,7,'100,100,100')
+        tdSql.execute('drop database db')
+
+        tdSql.execute('create database db keep 20, 30')
+        tdSql.query('show databases')
+        tdSql.checkData(0,7,'20,30,30')
+        tdSql.execute('drop database db')
+
+        tdSql.execute('create database db keep 30,40,50')
+        tdSql.query('show databases')
+        tdSql.checkData(0,7,'30,40,50')
+        tdSql.execute('drop database db')
+
+        tdSql.error('create database db keep ')
+        tdSql.error('create database db keep 20,30,40,50')
+        tdSql.error('create database db keep 0')
+        tdSql.error('create database db keep 100,50')
+        tdSql.error('create database db keep 100,40,50')
+        tdSql.error('create database db keep 20,100,50')
+        tdSql.error('create database db keep 100,100,50')
+
+        #testing keep parameter during alter
+        tdSql.execute('create database db')
 
         tdSql.execute('alter database db keep 10')
         tdSql.query('show databases')
         tdSql.checkData(0,7,'10,10,10')
 
-        ## the order for altering keep is keep(D), keep0, keep1.
-        ## if the order is changed, please modify the following test
-        ## to make sure the the test is accurate
-
-        tdSql.execute('alter database db keep 10, 10 ,10')
+        tdSql.execute('alter database db keep 20,30')
         tdSql.query('show databases')
-        tdSql.checkData(0,7,'10,10,10')
+        tdSql.checkData(0,7,'20,30,30')
 
-        tdSql.error('alter database db keep 100, 98 ,99')
+        tdSql.execute('alter database db keep 100,200,300')
         tdSql.query('show databases')
-        tdSql.checkData(0,7,'10,10,10')
+        tdSql.checkData(0,7,'100,200,300')
 
-        tdSql.execute('alter database db keep 200, 200 ,200')
-        tdSql.query('show databases')
-        tdSql.checkData(0,7,'200,200,200')
+        tdSql.error('alter database db keep ')
+        tdSql.error('alter database db keep 20,30,40,50')
+        tdSql.error('alter database db keep 0')
+        tdSql.error('alter database db keep 100,50')
+        tdSql.error('alter database db keep 100,40,50')
+        tdSql.error('alter database db keep 20,100,50')
 
-        tdSql.execute('alter database db keep 198, 199 ,200')
-        tdSql.query('show databases')
-        tdSql.checkData(0,7,'198,199,200')
-
-        # tdSql.execute('alter database db keep 3650,3650,3650')
-        # tdSql.error('alter database db keep 4000,3640')
-        # tdSql.error('alter database db keep 10,10')
-        # tdSql.query('show databases')
-        # tdSql.checkData(0,7,'3650,3650,3650')
 
     def run(self):
         tdSql.prepare()
@@ -112,7 +129,8 @@ class TDTestCase:
         else:
             tdLog.debug('running community test')
             self.alterKeepCommunity()
-        
+
+        tdSql.prepare()
 
         ##TODO: need to wait for TD-4445 to implement the following
         ##      tests
