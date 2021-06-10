@@ -7502,10 +7502,9 @@ int32_t loadAllTableMeta(SSqlObj* pSql, struct SSqlInfo* pInfo) {
   uint32_t maxSize = tscGetTableMetaMaxSize();
   char     name[TSDB_TABLE_FNAME_LEN] = {0};
 
-  // char buf[80 * 1024] = {0};
   assert(maxSize < 80 * TSDB_MAX_COLUMNS);
   if (!pSql->pBuf) {
-    if (NULL == (pSql->pBuf = calloc(1, 80 * TSDB_MAX_COLUMNS))) {
+    if (NULL == (pSql->pBuf = tcalloc(1, 80 * TSDB_MAX_COLUMNS))) {
       return TSDB_CODE_TSC_OUT_OF_MEMORY;
     }
   }

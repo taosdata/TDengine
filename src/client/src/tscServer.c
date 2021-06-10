@@ -2509,10 +2509,9 @@ int32_t tscGetTableMetaImpl(SSqlObj* pSql, STableMetaInfo *pTableMetaInfo, bool 
   taosHashGetClone(tscTableMetaInfo, name, len, NULL, pTableMetaInfo->pTableMeta, -1);
 
   // TODO resize the tableMeta
-  // char buf[80 * TSDB_MAX_COLUMNS] = {0};
   assert(size < 80 * TSDB_MAX_COLUMNS);
   if (!pSql->pBuf) {
-    if (NULL == (pSql->pBuf = calloc(1, 80 * TSDB_MAX_COLUMNS))) {
+    if (NULL == (pSql->pBuf = tcalloc(1, 80 * TSDB_MAX_COLUMNS))) {
       return TSDB_CODE_TSC_OUT_OF_MEMORY;
     }
   }
