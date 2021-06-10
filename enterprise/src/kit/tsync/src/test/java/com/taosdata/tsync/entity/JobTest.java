@@ -5,7 +5,6 @@ import com.taosdata.tsync.entity.config.Configuration;
 import com.taosdata.tsync.enums.ConfigurationType;
 import com.taosdata.tsync.enums.JobStatus;
 import com.taosdata.tsync.factory.ProduceJobFactory;
-import com.taosdata.tsync.repository.CallableTaskRepository;
 import com.taosdata.tsync.repository.ConfigurationRepository;
 import com.taosdata.tsync.service.AffectRowsProcessService;
 import com.taosdata.tsync.service.JobService;
@@ -21,18 +20,17 @@ import java.io.InputStream;
 
 public class JobTest {
 
-    private JSONObject configJSON;
+    private JSONObject producerTaskConfigJSON;
 
     @Test
     public void runProduceJob() {
         // given
         ConfigurationRepository configurationRepository = ConfigurationRepository.getInstance();
-        CallableTaskRepository callableTaskRepository = CallableTaskRepository.getInstance();
         ResultProcessService resultProcessService = new AffectRowsProcessService();
-        JobService jobService = new ProduceJobServiceImpl(configurationRepository, callableTaskRepository, resultProcessService);
+        JobService jobService = new ProduceJobServiceImpl(resultProcessService);
 
         // when
-        Job job = ProduceJobFactory.build(configJSON, configurationRepository);
+        Job job = ProduceJobFactory.build(producerTaskConfigJSON, configurationRepository);
         // then
         Assert.assertEquals(JobStatus.INIT, job.getStatus());
 
@@ -63,9 +61,9 @@ public class JobTest {
 
     @Before
     public void before() throws IOException {
-        // read config file
+        // read producer-task.json
         InputStream is = getClass().getClassLoader().getResourceAsStream("producer-task.json");
         String configStr = IOUtils.toString(is);
-        configJSON = JSONObject.parseObject(configStr);
+        producerTaskConfigJSON = JSONObject.parseObject(configStr);
     }
 }

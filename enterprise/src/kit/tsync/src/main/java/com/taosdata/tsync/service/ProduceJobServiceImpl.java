@@ -22,13 +22,11 @@ import java.util.stream.IntStream;
 public class ProduceJobServiceImpl implements JobService {
     private static final Logger logger = LoggerFactory.getLogger(ProduceJobServiceImpl.class);
 
-    private final ConfigurationRepository configurationRepository;
-    private final CallableTaskRepository callableTaskRepository;
+    private final ConfigurationRepository configurationRepository = ConfigurationRepository.getInstance();
+    private final CallableTaskRepository callableTaskRepository = CallableTaskRepository.getInstance();
     private final ResultProcessService resultProcessService;
 
-    public ProduceJobServiceImpl(ConfigurationRepository configurationRepository, CallableTaskRepository callableTaskRepository, ResultProcessService resultProcessService) {
-        this.configurationRepository = configurationRepository;
-        this.callableTaskRepository = callableTaskRepository;
+    public ProduceJobServiceImpl(ResultProcessService resultProcessService) {
         this.resultProcessService = resultProcessService;
     }
 
@@ -59,7 +57,7 @@ public class ProduceJobServiceImpl implements JobService {
         Multimap<Integer, Integer> threadPartitionMultiMap = Utils.divideArrIntoGroups(partitions, threads);
         int actualThreads = threadPartitionMultiMap.keySet().size();
         if (threads > actualThreads) {
-            logger.warn("threads in configuration is bigger than partitions, so only " + actualThreads + " threads will be created");
+            logger.warn("Only " + actualThreads + " threads will be created");
         }
         threads = actualThreads;
 

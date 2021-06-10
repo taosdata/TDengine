@@ -4,8 +4,8 @@ import com.taosdata.tsync.entity.consumer.ConsumerRecord;
 import com.taosdata.tsync.entity.Topic;
 import com.taosdata.tsync.entity.TopicPartition;
 import com.taosdata.tsync.utils.Utils;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -15,7 +15,7 @@ import java.util.*;
 import java.util.concurrent.atomic.AtomicLong;
 
 public class TQueueConsumer extends TQueueBase {
-    private static final Logger logger = LogManager.getLogger(TQueueConsumer.class);
+    private static final Logger logger = LoggerFactory.getLogger(TQueueConsumer.class);
 
     private static final String UNSUBSCRIBE_TOPIC = null;
     private static final int UNSUBSCRIBE_PARTITION = 0;

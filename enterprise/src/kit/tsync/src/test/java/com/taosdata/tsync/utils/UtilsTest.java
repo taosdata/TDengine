@@ -10,7 +10,7 @@ import java.util.Map;
 public class UtilsTest {
 
     @Test
-    public void divide10IntoGroupsOf3() {
+    public void divide10NumberIntoGroupsOf3() {
         //when
         Map<Long, Range<Long>> map = Utils.divideIntoGroupsOfN(0l, 10l, 3);
 
@@ -62,7 +62,7 @@ public class UtilsTest {
     }
 
     @Test
-    public void divide10NumberIntoSuccessive4Groups() {
+    public void divide10NumberInto4Groups() {
         // when
         Map<Long, Range<Long>> map = Utils.divideIntoGroups(10l, 4l);
 
@@ -85,7 +85,7 @@ public class UtilsTest {
     }
 
     @Test
-    public void divide11NumberIntoSuccessive4Groups() {
+    public void divide11NumberInto4Groups() {
         // when
         Map<Integer, Range<Long>> map = Utils.divideIntoGroups(11, 4);
 
@@ -108,7 +108,7 @@ public class UtilsTest {
     }
 
     @Test
-    public void divide9NumberIntoSuccessive4Groups() {
+    public void divide9NumberInto4Groups() {
         // when
         Map<Integer, Range<Long>> map = Utils.divideIntoGroups(9, 4);
 
@@ -131,7 +131,7 @@ public class UtilsTest {
     }
 
     @Test
-    public void divide10NumberIntoSuccessive3Groups() {
+    public void divide10NumberInto3Groups() {
         // when
         Map<Integer, Range<Long>> map = Utils.divideIntoGroups(10, 3);
 
@@ -206,7 +206,7 @@ public class UtilsTest {
     }
 
     @Test
-    public void divide9NumberInto4Groups() {
+    public void divide9NumberArrInto4Groups() {
         // when
         Multimap<Integer, Integer> map = Utils.divideArrIntoGroups(new int[]{1, 2, 3, 4, 5, 6, 7, 8, 9}, 4);
 
@@ -231,6 +231,31 @@ public class UtilsTest {
         Assert.assertEquals(true, map.get(3).contains(7));
         Assert.assertEquals(true, map.get(3).contains(8));
         Assert.assertEquals(true, map.get(3).contains(9));
+    }
 
+    @Test
+    public void divide100SizeRangeInto4Groups() {
+        //given
+        long startInclude = 100l;
+        long endExclude = 200l;
+        int[] arr = new int[]{3, 4, 5, 6};
+
+        // when
+        Map<Integer, Range<Long>> arrIndex2Range = Utils.divideIntoArrGroups(startInclude, endExclude, arr);
+
+        // then
+        Assert.assertEquals(4, arrIndex2Range.size());
+        Assert.assertEquals(true, arrIndex2Range.containsKey(3));
+        Assert.assertEquals(new Long(100), arrIndex2Range.get(3).lowerEndpoint());
+        Assert.assertEquals(new Long(125), arrIndex2Range.get(3).upperEndpoint());
+        Assert.assertEquals(true, arrIndex2Range.containsKey(4));
+        Assert.assertEquals(new Long(125), arrIndex2Range.get(4).lowerEndpoint());
+        Assert.assertEquals(new Long(150), arrIndex2Range.get(4).upperEndpoint());
+        Assert.assertEquals(true, arrIndex2Range.containsKey(5));
+        Assert.assertEquals(new Long(150), arrIndex2Range.get(5).lowerEndpoint());
+        Assert.assertEquals(new Long(175), arrIndex2Range.get(5).upperEndpoint());
+        Assert.assertEquals(true, arrIndex2Range.containsKey(6));
+        Assert.assertEquals(new Long(175), arrIndex2Range.get(6).lowerEndpoint());
+        Assert.assertEquals(new Long(200), arrIndex2Range.get(6).upperEndpoint());
     }
 }

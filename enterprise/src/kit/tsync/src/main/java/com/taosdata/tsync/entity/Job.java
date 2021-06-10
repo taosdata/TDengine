@@ -32,12 +32,19 @@ public class Job {
             this.taskIds = jobExecuteService.prepare(configurationType, configurationId);
         } catch (Exception e) {
             this.status = JobStatus.EXCEPTION;
+            e.printStackTrace();
             logger.error(e.getMessage());
+            return;
         }
         this.status = JobStatus.PREPARED;
     }
 
     public void execute(JobService jobExecuteService) {
+        if (this.status != JobStatus.PREPARED) {
+            logger.error(">>> job status is not prepared");
+            return;
+        }
+
         logger.info(">>> start to execute job: " + id.toString() + "");
         this.status = JobStatus.RUNNING;
         // start all tasks and wait them to be finished
@@ -45,8 +52,8 @@ public class Job {
             jobExecuteService.startAndWait(taskIds);
         } catch (Exception e) {
             this.status = JobStatus.EXCEPTION;
-            logger.error("exception happened during execute Job: " + id.toString());
             logger.error(e.getMessage());
+            logger.error("exception happened during execute Job: " + id.toString());
         }
         this.status = JobStatus.COMPLETED;
     }

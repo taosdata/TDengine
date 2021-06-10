@@ -3,14 +3,14 @@
     "host": "192.168.17.156",
     "port": 6041,
     "user": "root",
-    "password": "taosdata",
+    "password": "tqueue",
     "charset": "UTF-8",
     "locale": "en_US.UTF-8",
     "timezone": "UTC-8",
     "serializer": "STRING"
   },
   "task": {
-    "threads": 5,
+    "threads": 1,
     "topic": "tq_test",
     "partitions": [
       1,
@@ -24,9 +24,9 @@
     ]
   },
   "message": {
-    "total": 100000000,
-    "batchTables": 100,
-    "batchValues": 1,
+    "total": 10000,
+    "batchTables": 10,
+    "batchValues": 50,
     "schema": {
       "database": {
         "name": "test",

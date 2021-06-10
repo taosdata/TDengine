@@ -4,14 +4,14 @@ import com.taosdata.jdbc.TSDBDriver;
 import com.taosdata.tsync.entity.Topic;
 import com.taosdata.tsync.entity.TopicPartition;
 import com.taosdata.tsync.utils.Utils;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.sql.*;
 import java.util.*;
 
 public class TQueueBase {
-    private static final Logger logger = LogManager.getLogger(TQueueBase.class);
+    private static final Logger logger = LoggerFactory.getLogger(TQueueBase.class);
     public static final long INVALID_OFFSET = -1;
 
     protected Connection connection;

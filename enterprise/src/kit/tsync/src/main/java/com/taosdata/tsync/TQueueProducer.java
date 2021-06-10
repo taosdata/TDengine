@@ -6,8 +6,9 @@ import com.taosdata.tsync.entity.TopicPartition;
 import com.taosdata.tsync.entity.producer.ProducerRecord;
 import com.taosdata.tsync.serializer.Serializer;
 import com.taosdata.tsync.serializer.TQueueStringSerializer;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 
 import java.util.HashMap;
 import java.util.Map;
@@ -16,7 +17,7 @@ import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicLong;
 
 public class TQueueProducer<T> extends TQueueBase {
-    private static final Logger logger = LogManager.getLogger(TQueueProducer.class);
+    private static final Logger logger = LoggerFactory.getLogger(TQueueProducer.class);
 
     private ExecutorService threadPool = Executors.newCachedThreadPool();
     private Map<Integer, AtomicLong> partitionOffsets = new HashMap<>();

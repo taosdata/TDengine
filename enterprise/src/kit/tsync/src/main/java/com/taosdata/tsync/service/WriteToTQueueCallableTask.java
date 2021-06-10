@@ -8,13 +8,13 @@ import com.taosdata.tsync.entity.config.Configuration;
 import com.taosdata.tsync.entity.config.SchemaConfiguration;
 import com.taosdata.tsync.entity.config.TagConfiguration;
 import com.taosdata.tsync.entity.producer.ProducerRecord;
-import com.taosdata.tsync.utils.SqlSyntaxUtil;
 import com.taosdata.tsync.utils.Utils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.*;
 import java.util.concurrent.Callable;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.LongStream;
@@ -39,80 +39,121 @@ public class WriteToTQueueCallableTask implements Callable {
     private TQueueProducer producer;
     private SchemaConfiguration schemaConfiguration;
 
+    private volatile AtomicLong ts;
+
+    private class OnePartitionTask {
+        private final long tableStartIndex;
+        private final long tableEndIndex;
+        private final long tableTotal;
+        private final int partitionId;
+        private final long recordsToWrite;
+
+        private OnePartitionTask(long tableStartIndex, long tableEndIndex, long tableTotal, int partitionId, long recordsToWrite, long batchValues, long batchTables) {
+            this.tableStartIndex = tableStartIndex;
+            this.tableEndIndex = tableEndIndex;
+            this.tableTotal = tableTotal;
+            this.partitionId = partitionId;
+            this.recordsToWrite = recordsToWrite;
+        }
+    }
+
     @Override
-    public Integer call() throws Exception {
-        logger.info(Thread.currentThread().getName() + " write table: " + tablesToWrite + " to partitions: " + Arrays.toString(partitionsToWrite.toArray())
-                + " with records: " + recordsToWrite + ", batch values: " + batchValues + ", batch tables: " + batchTables);
+    public Integer call() {
 
         int count = 0;
+        Map<Integer, OnePartitionTask> partitionIndexPerTask = divideTablesRecordsToEachPartition();
+        for (int partitionId : partitionIndexPerTask.keySet()) {
 
+            OnePartitionTask onePartitionTask = partitionIndexPerTask.get(partitionId);
 
-        return count;
+//            logger.info(Thread.currentThread().getName() + " write table: [" + onePartitionTask.tableStartIndex + "," + onePartitionTask.tableEndIndex + ") to partitions: " + onePartitionTask.partitionId + " with records: " + onePartitionTask.recordsToWrite + ", batch values: " + onePartitionTask.batchValues + ", batch tables: " + onePartitionTask.batchTables);
 
-        /*
-        // divide total records to each table
-        Map<Long, Range<Long>> tableRecords = Utils.divideIntoGroups(recordsToWrite, tables);
-        Map<Long, Long> tableIndex2Records = new HashMap<>();
-        for (long tableIndex = tablesToWrite.lowerEndpoint(), index = 0; index < tables && tableIndex < tablesToWrite.upperEndpoint(); index++, tableIndex++) {
-            long records = tableRecords.get(index).upperEndpoint() - tableRecords.get(index).lowerEndpoint();
-            tableIndex2Records.put(tableIndex, records);
-        }
-        // divide each tables record to batch
-        Map<Long, Map<Long, Long>> tableIndex2BatchRecords = new HashMap<>();
-        for (long tableIndex = tablesToWrite.lowerEndpoint(); tableIndex < tablesToWrite.upperEndpoint(); tableIndex++) {
-            long recordCount = tableIndex2Records.get(tableIndex);
-            Map<Long, Long> batchIndex2Records = Utils.divideIntoGroupsOfN(recordCount, batchValues);
-            tableIndex2BatchRecords.put(tableIndex, batchIndex2Records);
-        }
+            long[] tableIndexArr = LongStream.range(onePartitionTask.tableStartIndex, onePartitionTask.tableEndIndex).toArray();
+            Map<Long, Range<Long>> tableIndex2RecordRange = Utils.divideIntoArrGroups(onePartitionTask.recordsToWrite, tableIndexArr);
 
-        Map<Long, Range<Long>> batchIndex2TableRange = Utils.divideIntoGroupsOfN(tablesToWrite.lowerEndpoint(), tablesToWrite.upperEndpoint(), this.batchTables);
-        for (long tableBatchIndex = 0; tableBatchIndex < batchIndex2TableRange.size(); tableBatchIndex++) {
+            Map<Long, Range<Long>> batchIndex2TableRange = Utils.divideIntoGroupsOfN(onePartitionTask.tableStartIndex, onePartitionTask.tableEndIndex, batchTables);
 
-            long startTableIndex = batchIndex2TableRange.get(tableBatchIndex).lowerEndpoint();
-            long endTableIndex = batchIndex2TableRange.get(tableBatchIndex).upperEndpoint();
-            logger.trace(">>> " + Thread.currentThread().getName() + ", tableRange: [" + startTableIndex + "..." + endTableIndex + ") <<<");
+            for (long tableBatchIndex : batchIndex2TableRange.keySet()) {
+                long tableStartIndex = batchIndex2TableRange.get(tableBatchIndex).lowerEndpoint();
+                long tableEndIndex = batchIndex2TableRange.get(tableBatchIndex).upperEndpoint();
+                long recordsToWrite = sum(tableStartIndex, tableEndIndex, tableIndex2RecordRange);
 
-            // each table batch
-            for (long recordBatchIndex = 0; ; recordBatchIndex++) {
-                boolean hasRecords = hasNoRecordsForThisRecordBatchIndex(recordBatchIndex, tableIndex2BatchRecords, startTableIndex, endTableIndex);
-                if (!hasRecords) {
-                    break;
-                }
-                // message
-                StringBuilder message = new StringBuilder();
-                message.append("insert into");
-                for (long tableIndex = startTableIndex; tableIndex < endTableIndex; tableIndex++) {
-                    if (tableIndex2BatchRecords.get(tableIndex).containsKey(recordBatchIndex)) {
-                        Long records = tableIndex2BatchRecords.get(tableIndex).get(recordBatchIndex);
-                        String sql = createPreparedSql(columns.size(), tags.size(), records);
-                        Object[] parameters = createParameters(dbname, tableIndex, stableName, columns, tags, records);
-                        message.append(SqlSyntaxUtil.getNativeSql(sql, parameters));
-                        count += records;
-                        logger.trace("recordBatchIndex: " + recordBatchIndex + ", tableIndex: " + tableIndex + ", records: " + records);
+                logger.info(Thread.currentThread().getName() + " write table: [" + tableStartIndex + "," + tableEndIndex + ")" + " to partitions: " + partitionId + " with records: " + recordsToWrite + " batch values: " + batchValues + " batch tables: " + batchTables);
+
+                long valueCount = 0;
+                while (valueCount < recordsToWrite) {
+                    StringBuilder sb = new StringBuilder();
+                    sb.append("insert into");
+                    for (long tableIndex = tableStartIndex; tableIndex < tableEndIndex; tableIndex++) {
+                        long values;
+                        if (valueCount == recordsToWrite) {
+                            continue;
+                        } else if (valueCount + batchValues <= recordsToWrite) {
+                            values = batchValues;
+                        } else {
+                            values = recordsToWrite - valueCount;
+                        }
+
+                        String preparedSql = preparedSqlPerTable(columns.size(), tags.size(), values);
+                        Object[] parameters = preparedParametersPerTable(tableIndex, values);
+                        String sqlPerTable = com.taosdata.jdbc.utils.Utils.getNativeSql(preparedSql, parameters);
+                        sb.append(sqlPerTable);
+                        valueCount += values;
+                    }
+
+                    String message = sb.toString();
+                    System.out.println(message);
+                    logger.trace(Thread.currentThread().getName() + " send to topic: " + topic + ", partition: " + partitionId + ", message: " + message);
+                    ProducerRecord<String> record = new ProducerRecord(topic, partitionId, message);
+                    try {
+                        producer.send(record);
+                    } catch (Exception e) {
+                        e.printStackTrace();
                     }
                 }
-                // partitionId
-                int[] partitionsToWriteArr = partitionsToWrite.stream().mapToInt(i -> i.intValue()).toArray();
-                int partitionId = calculatePartitionId(tableBatchIndex, partitionsToWriteArr);
-                // record
-                ProducerRecord<String> record = new ProducerRecord<>(topic, partitionId, message.toString());
-                logger.trace("topic: " + record.getTopic() + ", partitionId: " + record.getPartition() + ", message: " + record.getMessage());
-            }
-        }
-*/
 
+                count += valueCount;
+            }
+
+        }
+
+        return count;
     }
 
-    private boolean hasNoRecordsForThisRecordBatchIndex(long batchIndex, Map<Long, Map<Long, Long>> tableIndex2BatchRecords, long startTableIndex, long endTableIndex) {
-        for (long tableIndex = startTableIndex; tableIndex < endTableIndex; tableIndex++) {
-            if (tableIndex2BatchRecords.get(tableIndex).containsKey(batchIndex)) {
-                return true;
-            }
+    /**
+     * calculate sum of map from startIndex(include) to endIndex(exclude)
+     */
+    private long sum(long startIndex, long endIndex, Map<Long, Range<Long>> map) {
+        long sum = 0;
+        for (long index = startIndex; index < endIndex; index++) {
+            sum += map.get(index).upperEndpoint() - map.get(index).lowerEndpoint();
         }
-        return false;
+        return sum;
     }
 
-    private String createPreparedSql(int columnSize, int tagSize, long records) {
+    private Map<Integer, OnePartitionTask> divideTablesRecordsToEachPartition() {
+        int[] partitionsToWriteArr = partitionsToWrite.stream().mapToInt(i -> i.intValue()).toArray();
+        Map<Integer, OnePartitionTask> partitionTaskMap = new HashMap<>();
+
+        Map<Integer, Range<Long>> partitionIndex2TableRange = Utils.divideIntoArrGroups(tablesToWrite.lowerEndpoint(), tablesToWrite.upperEndpoint(), partitionsToWriteArr);
+        Map<Integer, Range<Long>> partitionIndex2RecordRange = Utils.divideIntoArrGroups(recordsToWrite, partitionsToWriteArr);
+        for (int partitionId : partitionIndex2TableRange.keySet()) {
+            Range<Long> tablesRangeToWrite = partitionIndex2TableRange.get(partitionId);
+            Range<Long> recordRange = partitionIndex2RecordRange.get(partitionId);
+
+            long tableStartIndex = tablesRangeToWrite.lowerEndpoint();
+            long tableEndIndex = tablesRangeToWrite.upperEndpoint();
+            long tableTotal = tableEndIndex - tableStartIndex;
+            long recordsToWrite = recordRange.upperEndpoint() - recordRange.lowerEndpoint();
+
+            OnePartitionTask onePartitionTask = new OnePartitionTask(tableStartIndex, tableEndIndex, tableTotal, partitionId, recordsToWrite, batchValues, batchTables);
+            partitionTaskMap.put(partitionId, onePartitionTask);
+        }
+        return partitionTaskMap;
+    }
+
+    // ?.? using ?.? tags (?,?,?) values(?,?,?),(?,?,?)
+    private String preparedSqlPerTable(int columnSize, int tagSize, long records) {
         String columnsMark = IntStream.range(0, columnSize).mapToObj(i -> "?").collect(Collectors.joining(",", "(", ")"));
         String tagsMark = IntStream.range(0, tagSize).mapToObj(i -> "?").collect(Collectors.joining(",", "(", ")"));
 
@@ -127,14 +168,7 @@ public class WriteToTQueueCallableTask implements Callable {
         return sb.toString();
     }
 
-    private int calculatePartitionId(long batchIndex, int[] partitionsToWriteArr) {
-        // partition
-        int partitionIndex = (int) (batchIndex % partitionsToWriteArr.length);
-        int partitionId = partitionsToWriteArr[partitionIndex];
-        return partitionId;
-    }
-
-    private Object[] createParameters(String dbname, long tableInd, String stableName, List<Configuration> columns, List<Configuration> tags, long records) {
+    private Object[] preparedParametersPerTable(long tableInd, long records) {
         List<Object> parameters = new ArrayList<>();
         // sql
         String tablename = "t" + tableInd;
