@@ -223,6 +223,7 @@ bool tscIsProjectionQueryOnSTable(SQueryInfo* pQueryInfo, int32_t tableIndex) {
         functionId != TSDB_FUNC_ARITHM &&
         functionId != TSDB_FUNC_TS_COMP &&
         functionId != TSDB_FUNC_DIFF &&
+        functionId != TSDB_FUNC_DERIVATIVE &&
         functionId != TSDB_FUNC_TS_DUMMY &&
         functionId != TSDB_FUNC_TID_TAG) {
       return false;
@@ -463,11 +464,13 @@ bool tscIsDiffQuery(SQueryInfo* pQueryInfo) {
   size_t num = tscNumOfExprs(pQueryInfo);
   for(int32_t i = 0; i < num; ++i) {
     SExprInfo* pExpr = tscExprGet(pQueryInfo, i);
-    if (pExpr == NULL || pExpr->base.functionId == TSDB_FUNC_TS_DUMMY) {
+
+    int32_t f = pExpr->base.functionId;
+    if (pExpr == NULL || f == TSDB_FUNC_TS_DUMMY) {
       continue;
     }
 
-    if (pExpr->base.functionId == TSDB_FUNC_DIFF) {
+    if (f == TSDB_FUNC_DIFF || f == TSDB_FUNC_DERIVATIVE) {
       return true;
     }
   }
