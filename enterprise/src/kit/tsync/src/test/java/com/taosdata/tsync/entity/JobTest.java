@@ -6,21 +6,18 @@ import com.taosdata.tsync.enums.ConfigurationType;
 import com.taosdata.tsync.enums.JobStatus;
 import com.taosdata.tsync.factory.ProduceJobFactory;
 import com.taosdata.tsync.repository.ConfigurationRepository;
-import com.taosdata.tsync.service.AffectRowsProcessService;
-import com.taosdata.tsync.service.JobService;
-import com.taosdata.tsync.service.ProduceJobServiceImpl;
-import com.taosdata.tsync.service.ResultProcessService;
+import com.taosdata.tsync.service.*;
 import org.apache.commons.io.IOUtils;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
 import java.io.IOException;
-import java.io.InputStream;
 
 public class JobTest {
 
     private JSONObject producerTaskConfigJSON;
+    private JSONObject consumerTaskConfigJSON;
 
     @Test
     public void runProduceJob() {
@@ -53,17 +50,41 @@ public class JobTest {
     @Test
     public void runConsumeJob() {
         // given
+        ConfigurationRepository configurationRepository = ConfigurationRepository.getInstance();
+        ResultProcessService resultProcessService = new AffectRowsProcessService();
+        //TODO:
+        JobService jobService = new ConsumeJobServiceImpl();
 
         // when
-
+        Job job = ProduceJobFactory.build(consumerTaskConfigJSON, configurationRepository);
         // then
+        Assert.assertEquals(JobStatus.INIT, job.getStatus());
+
+        // when
+        Configuration configuration = job.getConfiguration(jobService);
+        // then
+        Assert.assertEquals(ConfigurationType.CONSUME_JOB, configuration.getConfigurationType());
+
+        // when
+        job.prepare(jobService);
+        // then
+        Assert.assertEquals(JobStatus.PREPARED, job.getStatus());
+
+        // when
+        job.execute(jobService);
+        // then
+        Assert.assertEquals(JobStatus.COMPLETED, job.getStatus());
     }
 
     @Before
     public void before() throws IOException {
         // read producer-task.json
-        InputStream is = getClass().getClassLoader().getResourceAsStream("producer-task.json");
-        String configStr = IOUtils.toString(is);
-        producerTaskConfigJSON = JSONObject.parseObject(configStr);
+        String producerConfigStr = IOUtils.toString(getClass().getClassLoader().getResourceAsStream("producer-task.json"));
+        producerTaskConfigJSON = JSONObject.parseObject(producerConfigStr);
+
+        // read consumer-task.json
+        String consumerConfigStr = IOUtils.toString(getClass().getClassLoader().getResourceAsStream("consumer-task.json"));
+        consumerTaskConfigJSON = JSONObject.parseObject(consumerConfigStr);
+
     }
 }

@@ -102,8 +102,8 @@ public class WriteToTQueueCallableTask implements Callable {
                     }
 
                     String message = sb.toString();
-                    System.out.println(message);
-                    logger.trace(Thread.currentThread().getName() + " send to topic: " + topic + ", partition: " + partitionId + ", message: " + message);
+                    logger.trace(message);
+                    logger.debug(Thread.currentThread().getName() + " send to topic: " + topic + ", partition: " + partitionId + ", message: " + message);
                     ProducerRecord<String> record = new ProducerRecord(topic, partitionId, message);
                     try {
                         producer.send(record);

@@ -9,5 +9,7 @@ public enum ConfigurationType {
     DATABASE,
     STABLE,
     COLUMN,
-    TAG
+    TAG,
+
+    CONSUME_JOB
 }
