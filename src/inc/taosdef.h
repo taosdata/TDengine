@@ -178,7 +178,7 @@ do { \
 // this is the length of its string representation, including the terminator zero
 #define TSDB_ACCT_ID_LEN          11
 
-#define TSDB_MAX_COLUMNS          1024
+#define TSDB_MAX_COLUMNS          4096
 #define TSDB_MIN_COLUMNS          2       //PRIMARY COLUMN(timestamp) + other columns
 
 #define TSDB_NODE_NAME_LEN        64
@@ -193,7 +193,7 @@ do { \
 
 #define TSDB_APPNAME_LEN          TSDB_UNI_LEN
 
-#define TSDB_MAX_BYTES_PER_ROW    16384
+#define TSDB_MAX_BYTES_PER_ROW    65536
 #define TSDB_MAX_TAGS_LEN         16384
 #define TSDB_MAX_TAGS             128
 #define TSDB_MAX_TAG_CONDITIONS   1024

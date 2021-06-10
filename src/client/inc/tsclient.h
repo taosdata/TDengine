@@ -242,6 +242,7 @@ typedef struct SSqlObj {
   void *           pStream;
   void *           pSubscription;
   char *           sqlstr;
+  void *           pBuf;         // tableMeta buffer
   char             parseRetry;
   char             retry;
   char             maxRetry;

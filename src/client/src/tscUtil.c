@@ -1402,6 +1402,7 @@ void tscFreeSqlObj(SSqlObj* pSql) {
   pSql->signature = NULL;
   pSql->fp = NULL;
   tfree(pSql->sqlstr);
+  tfree(pSql->pBuf);
 
   tfree(pSql->pSubs);
   pSql->subState.numOfSub = 0;
