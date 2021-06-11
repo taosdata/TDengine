@@ -879,6 +879,11 @@ int taos_stmt_prepare(TAOS_STMT* stmt, const char* sql, unsigned long length) {
     return TSDB_CODE_TSC_DISCONNECTED;
   }
 
+  if (sql == NULL) {
+    tscError("sql is NULL");
+    return TSDB_CODE_TSC_APP_ERROR;
+  }
+
   SSqlObj* pSql = pStmt->pSql;
   size_t   sqlLen = strlen(sql);
 
