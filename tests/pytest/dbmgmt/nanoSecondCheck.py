@@ -38,51 +38,126 @@ class TDTestCase:
         tdSql.execute('use db')
         tdSql.execute('create table tb (ts timestamp, speed int)')
         tdSql.execute('insert into tb values(\'2021-06-10 0:00:00.100000001\', 1)')
-        tdSql.execute('insert into tb values(1623254400223456789, 1)')
+        tdSql.execute('insert into tb values(1623254400150000000, 2)')
+        tdSql.execute('import into tb values(1623254400300000000, 3)')
+        tdSql.execute('import into tb values(1623254400299999999, 4)')
+        tdSql.execute('insert into tb values(1623254400300000001, 5)')
         os.system('sudo timedatectl set-ntp off')
         os.system('sudo timedatectl set-time 2021-06-10')
-        tdSql.execute('insert into tb values(now + 500000000b, 1)')
+        tdSql.execute('insert into tb values(now + 500000000b, 6)')
+        tdSql.execute('insert into tb values(1623254400999999999, 7)')
+
 
         ##TODO: after the connector is updated, run the following commented code
-        # tdSql.query('select count(*) from tb where ts > 1623254400000000000 and ts < 1623254400150000000')
+        ##TODO: due to the precision limit of double, spread currently cannot be tested since ns timestampe cannot be accurately represented
+
+        # tdSql.query('select count(*) from tb where ts > 1623254400000000000 and ts < 1623254400110000000')
         # tdSql.checkData(0,0,1)
-        # tdSql.query('select count(*) from tb where ts > \'2021-06-10 0:00:00.000000000\' and ts < \'2021-06-10 0:00:00.150000000\'')
+        # tdSql.query('select count(*) from tb where ts > \'2021-06-10 0:00:00.000000000\' and ts < \'2021-06-10 0:00:00.110000000\'')
         # tdSql.checkData(0,0,1)
 
-        # tdSql.query('select count(*) from tb where ts > 1623254400223456788 and ts < 1623254400223456790')
+        # tdSql.query('select count(*) from tb where ts > 1623254400100000000 and ts < 1623254400150000000')
         # tdSql.checkData(0,0,1)
-        # tdSql.query('select count(*) from tb where ts > \'2021-06-10 00:00:00.223456788\' and ts < \'2021-06-10 00:00:00.223456790\'')
+        # tdSql.query('select count(*) from tb where ts > \'2021-06-10 0:00:00.100000000\' and ts < \'2021-06-10 0:00:00.150000000\'')
         # tdSql.checkData(0,0,1)
 
         # tdSql.query('select count(*) from tb where ts > 1623254400400000000')
-        # tdSql.checkData(0,0,1)
-        # tdSql.query('select count(*) from tb where ts > \'2021-06-10 00:00:00.400000000\'')
-        # tdSql.checkData(0,0,1)
+        # tdSql.checkData(0,0,2)
+        # tdSql.query('select count(*) from tb where ts < \'2021-06-10 00:00:00.400000000\'')
+        # tdSql.checkData(0,0,5)
 
         # os.system('sudo timedatectl set-ntp off')
         # os.system('sudo timedatectl set-time 2021-06-10')
-        # tdSql.query('select count(*) from tb where ts > now')
-        # tdSql.checkData(0,0,3)
-        # os.system('sudo timedatectl set-ntp off')
-        # os.system('sudo timedatectl set-time 2021-06-10')
-        # tdSql.query('select count(*) from tb where ts > now + 300000000b')
-        # tdSql.checkData(0,0,1)
+        # tdSql.query('select count(*) from tb where ts > now + 400000000b')
+        # tdSql.checkData(0,0,2)
 
         # tdSql.query('select count(*) from tb where ts >= \'2021-06-10 0:00:00.100000001\'')
-        # tdSql.checkData(0,0,3)
+        # tdSql.checkData(0,0,7)
 
-        # tdSql.query('select count(*) from tb where ts <= \'2021-06-10 0:00:00.223456789\'')
-        # tdSql.checkData(0,0,2)
+        # tdSql.query('select count(*) from tb where ts <= 1623254400300000000')
+        # tdSql.checkData(0,0,4)
 
         # tdSql.query('select count(*) from tb where ts = \'2021-06-10 0:00:00.000000000\'')
         # tdSql.checkData(0,0,0)
 
-        # tdSql.query('select count(*) from tb where ts <> \'2021-06-10 0:00:00.223456789\'')
+        # tdSql.query('select count(*) from tb where ts between 1623254400000000000 and 1623254400400000000')
+        # tdSql.checkData(0,0,5)
+
+        # tdSql.query('select count(*) from tb where ts between \'2021-06-10 0:00:00.299999999\' and \'2021-06-10 0:00:00.300000001\'')
+        # tdSql.checkData(0,0,3)
+
+        #tdSql.query('select avg(speed) from tb interval(5000000000b)')
+        # tdSql.checkRows(1)
+
+        #tdSql.query('select avg(speed) from tb interval(100000000b)')
+        #tdSql.checkRows(5)
+
+        #tdSql.query('select avg(speed) from tb interval(100000000b) sliding (100000000b)')
+        #tdSql.checkRows(5)
+
+        #tdSql.query('select last(*) from tb')
+        #tdSql.checkData(0,0, '2021-06-10 0:00:00.999999999')
+        #tdSql.checkData(0,0, 1623254400999999999)
+
+        #tdSql.query('select first(*) from tb')
+        #tdSql.checkData(0,0, 1623254400100000001)
+        #tdSql.checkData(0,0, 2021-06-10 0:00:00.100000001)
+
+        tdSql.execute('create table tb2 (ts timestamp, speed int, ts2 timestamp)')
+        tdSql.execute('insert into tb2 values(\'2021-06-10 0:00:00.100000001\', 1, \'2021-06-11 0:00:00.100000001\')')
+        tdSql.execute('insert into tb2 values(1623254400150000000, 2, 1623340800150000000)')
+        tdSql.execute('import into tb2 values(1623254400300000000, 3, 1623340800300000000)')
+        tdSql.execute('import into tb2 values(1623254400299999999, 4, 1623340800299999999)')
+        tdSql.execute('insert into tb2 values(1623254400300000001, 5, 1623340800300000001)')
+        os.system('sudo timedatectl set-ntp off')
+        os.system('sudo timedatectl set-time 2021-06-10')
+        tdSql.execute('insert into tb2 values(now + 500000000b, 6, now +2d)')
+        tdSql.execute('insert into tb2 values(1623254400999999999, 7, 1623513600999999999)')
+
+        # tdSql.query('select count(*) from tb2 where ts2 > 1623340800000000000 and ts2 < 1623340800150000000')
+        # tdSql.checkData(0,0,1)
+        # tdSql.query('select count(*) from tb2 where ts2 > \'2021-06-11 0:00:00.100000000\' and ts2 < \'2021-06-11 0:00:00.100000002\'')
+        # tdSql.checkData(0,0,1)
+
+        # tdSql.query('select count(*) from tb2 where ts2 > 1623340800500000000')
+        # tdSql.checkData(0,0,2)
+        # tdSql.query('select count(*) from tb2 where ts2 < \'2021-06-11 0:00:00.400000000\'')
+        # tdSql.checkData(0,0,5)
+
+        # os.system('sudo timedatectl set-ntp off')
+        # os.system('sudo timedatectl set-time 2021-06-11')
+        # tdSql.query('select count(*) from tb2 where ts2 > now + 400000000b')
         # tdSql.checkData(0,0,2)
 
-        # tdSql.query('select count(*) from tb where ts between 1623254400000000000 and 1623254400950000000')
-        # tdSql.checkData(0,0,2)
 
+        # tdSql.query('select count(*) from tb2 where ts2 >= \'2021-06-11 0:00:00.100000001\'')
+        # tdSql.checkData(0,0,7)
+
+        # tdSql.query('select count(*) from tb2 where ts2 <= 1623340800400000000')
+        # tdSql.checkData(0,0,5)
+
+        # tdSql.query('select count(*) from tb2 where ts2 = \'2021-06-11 0:00:00.000000000\'')
+        # tdSql.checkData(0,0,0)
+
+        # tdSql.query('select count(*) from tb2 where ts2 between 1623340800000000000 and 1623340800450000000')
+        # tdSql.checkData(0,0,5)
+
+        # tdSql.query('select count(*) from tb2 where ts2 between \'2021-06-11 0:00:00.299999999\' and \'2021-06-11 0:00:00.300000001\'')
+        # tdSql.checkData(0,0,3)
+
+        # tdSql.query('select count(*) from tb2 where ts2 <> 1623513600999999999')
+        # tdSql.checkData(0,0,6)
+
+        # tdSql.query('select count(*) from tb2 where ts2 <> \'2021-06-11 0:00:00.100000001\'')
+        # tdSql.checkData(0,0,6)
+
+        # tdSql.query('select count(*) from tb2 where ts2 != 1623513600999999999')
+        # tdSql.checkData(0,0,6)
+
+        # tdSql.query('select count(*) from tb2 where ts2 != \'2021-06-11 0:00:00.100000001\'')
+        # tdSql.checkData(0,0,6)
+
+        os.system('sudo timedatectl set-ntp on')
 
     def stop(self):
         tdSql.close()
