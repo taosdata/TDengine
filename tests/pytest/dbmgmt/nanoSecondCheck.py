@@ -157,6 +157,17 @@ class TDTestCase:
         # tdSql.query('select count(*) from tb2 where ts2 != \'2021-06-11 0:00:00.100000001\'')
         # tdSql.checkData(0,0,6)
 
+        tdSql.execute('create table tb3 (ts timestamp, speed int)')
+
+        tdSql.error('insert into tb3 values(16232544001500000, 2)')
+        tdSql.execute('insert into tb3 values(\'2021-06-10 0:00:00.123456\', 2)')
+        # tdSql.query('select * from tb3 where ts = \'2021-06-10 0:00:00.123456000\'')
+        # tdSql.checkRows(1)
+
+        tdSql.execute('insert into tb3 values(\'2021-06-10 0:00:00.123456789000\', 2)')
+        # tdSql.query('select * from tb3 where ts = \'2021-06-10 0:00:00.123456789\'')
+        # tdSql.checkRows(1)
+
         os.system('sudo timedatectl set-ntp on')
 
     def stop(self):
