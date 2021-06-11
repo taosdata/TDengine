@@ -521,3 +521,4 @@ static int tsdbWriteBlockToRightFile(SCompactH *pComph, STable *pTable, SDataCol
 
   return 0;
 }
+ 
