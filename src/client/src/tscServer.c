@@ -1548,7 +1548,7 @@ int tscBuildCompactMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   STscObj *pObj = pSql->pTscObj;
   SSqlCmd *pCmd = &pSql->cmd;
   SArray *pList = pInfo->list;
-  int32_t size  = taosArrayGetSize(pList);
+  int32_t size  = (int32_t)taosArrayGetSize(pList);
 
   int32_t *result = malloc(sizeof(int32_t) * size);
   if (result == NULL) {
