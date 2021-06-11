@@ -220,4 +220,4 @@ Comparison matrix as following:
 
 Note: ● has been verified by official tests; ○ has been verified by unofficial tests.
 
-Please visit [Connectors](https://www.taosdata.com/cn/documentation/connector) section for more detailed information.
+Please visit [Connectors](https://www.taosdata.com/en/documentation/connector) section for more detailed information.
