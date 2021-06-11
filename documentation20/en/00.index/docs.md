@@ -71,7 +71,7 @@ TDengine is a highly efficient platform to store, query, and analyze time-series
 ## [Connector](/connector)
 
 - [C/C++ Connector](/connector#c-cpp): primary method to connect to TDengine server through libtaos client library
-- [Java Connector(JDBC)](/connector/java): driver for connecting to the server from Java applications using the JDBC API
+- [Java Connector(JDBC)]: driver for connecting to the server from Java applications using the JDBC API
 - [Python Connector](/connector#python): driver for connecting to TDengine server from Python applications
 - [RESTful Connector](/connector#restful): a simple way to interact with TDengine via HTTP
 - [Go Connector](/connector#go): driver for connecting to TDengine server from Go applications
@@ -122,7 +122,7 @@ TDengine is a highly efficient platform to store, query, and analyze time-series
 - [TDengine performance comparison test tools](https://www.taosdata.com/blog/2020/01/18/1166.html)
 - [Use TDengine visually through IDEA Database Management Tool](https://www.taosdata.com/blog/2020/08/27/1767.html)
 
-## [Performance: TDengine vs Others
+## Performance: TDengine vs Others
 
 - [Performance: TDengine vs InfluxDB with InfluxDB’s open-source performance testing tool](https://www.taosdata.com/blog/2020/01/13/1105.html)
 - [Performance: TDengine vs OpenTSDB](https://www.taosdata.com/blog/2019/08/21/621.html)
