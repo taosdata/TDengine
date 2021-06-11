@@ -1528,12 +1528,13 @@ int taos_stmt_prepare(TAOS_STMT* stmt, const char* sql, unsigned long length) {
 
 int taos_stmt_set_tbname_tags(TAOS_STMT* stmt, const char* name, TAOS_BIND* tags) {
   STscStmt* pStmt = (STscStmt*)stmt;
-  SSqlObj* pSql = pStmt->pSql;
-  SSqlCmd* pCmd = &pSql->cmd;
 
   if (stmt == NULL || pStmt->pSql == NULL || pStmt->taos == NULL) {
     STMT_RET(TSDB_CODE_TSC_DISCONNECTED);
   }
+
+  SSqlObj* pSql = pStmt->pSql;
+  SSqlCmd* pCmd = &pSql->cmd;
 
   if (name == NULL) {
     tscError("0x%"PRIx64" name is NULL", pSql->self);
