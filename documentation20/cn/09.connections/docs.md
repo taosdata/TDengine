@@ -81,16 +81,16 @@ MatLab可以通过安装包内提供的JDBC Driver直接连接到TDengine获取�
 
 ### MatLab的JDBC接口适配
 
-MatLab的适配有下面几个步骤，下面以Windows10上适配MatLab2017a为例：
+MatLab的适配有下面几个步骤，下面以Windows10上适配MatLab2021a为例：
 
-- 将TDengine安装包内的驱动程序JDBCDriver-1.0.0-dist.jar拷贝到${matlab_root}\MATLAB\R2017a\java\jar\toolbox
-- 将TDengine安装包内的taos.lib文件拷贝至${matlab_ root _dir}\MATLAB\R2017a\lib\win64
-- 将新添加的驱动jar包加入MatLab的classpath。在${matlab_ root _dir}\MATLAB\R2017a\toolbox\local\classpath.txt文件中添加下面一行
+- 将TDengine客户端安装路径下的\TDengine\connector\jdbc的驱动程序taos-jdbcdriver-2.0.25-dist.jar拷贝到${matlab_root}\MATLAB\R2021a\java\jar\toolbox
+- 将TDengine安装包内的taos.lib文件拷贝至${matlab_ root _dir}\MATLAB\R2021a\lib\win64
+- 将新添加的驱动jar包加入MatLab的classpath。在${matlab_ root _dir}\MATLAB\R2021a\toolbox\local\classpath.txt文件中添加下面一行
 ​
 ```
-$matlabroot/java/jar/toolbox/JDBCDriver-1.0.0-dist.jar
+$matlabroot/java/jar/toolbox/taos-jdbcdriver-2.0.25-dist.jar
 ```
-- 在${user_home}\AppData\Roaming\MathWorks\MATLAB\R2017a\下添加一个文件javalibrarypath.txt, 并在该文件中添加taos.dll的路径，比如您的taos.dll是在安装时拷贝到了C:\Windows\System32下，那么就应该在javalibrarypath.txt中添加如下一行：
+- 在${user_home}\AppData\Roaming\MathWorks\MATLAB\R2021a\下添加一个文件javalibrarypath.txt, 并在该文件中添加taos.dll的路径，比如您的taos.dll是在安装时拷贝到了C:\Windows\System32下，那么就应该在javalibrarypath.txt中添加如下一行：
 ​
 ```
 C:\Windows\System32
@@ -103,18 +103,18 @@ C:\Windows\System32
 - 创建一个连接：
 
 ```matlab
-conn = database(‘db’, ‘root’, ‘taosdata’, ‘com.taosdata.jdbc.TSDBDriver’, ‘jdbc:TSDB://127.0.0.1:0/’)
+conn =  database( 'log','root','taosdata','com.taosdata.jdbc.TSDBDriver','jdbc:TAOS://127.0.0.1:0/’)
 ```
 - 执行一次查询：
 
 ```matlab
-sql0 = [‘select * from tb’]
+sql0 = ‘select * from dn1’
 data = select(conn, sql0);
 ```
 - 插入一条记录:
 
 ```matlab
-sql1 = [‘insert into tb values (now, 1)’]
+sql1 = ‘insert into dn1 values (now, 1)’
 exec(conn, sql1)
 ```
 
