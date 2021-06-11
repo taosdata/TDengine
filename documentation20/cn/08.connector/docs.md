@@ -2,7 +2,7 @@
 
 TDengine提供了丰富的应用程序开发接口，其中包括C/C++、Java、Python、Go、Node.js、C# 、RESTful 等，便于用户快速开发应用。
 
-![image-connecotr](page://images/connector.png)
+![image-connecotr](../images/connector.png)
 
 目前TDengine的连接器可支持的平台广泛，包括：X64/X86/ARM64/ARM32/MIPS/Alpha等硬件平台，以及Linux/Win64/Win32等开发环境。对照矩阵如下：
 
@@ -802,7 +802,7 @@ C#连接器支持的系统有：Linux 64/Windows x64/Windows x86
 ### 安装准备
 
 * 应用驱动安装请参考[安装连接器驱动步骤](https://www.taosdata.com/cn/documentation/connector#driver)。
-* .NET接口文件﻿TDengineDrivercs.cs和参考程序示例TDengineTest.cs均位于Windows客户端install_directory/examples/C#目录下。
+* .NET接口文件TDengineDrivercs.cs和参考程序示例TDengineTest.cs均位于Windows客户端install_directory/examples/C#目录下。
 * 在Windows系统上，C#应用程序可以使用TDengine的原生C接口来执行所有数据库操作，后续版本将提供ORM（dapper）框架驱动。
 
 ### 安装验证
@@ -819,8 +819,8 @@ C#Checker.exe -h <fqdn>
 
 在Windows系统上，.NET应用程序可以使用TDengine的.NET接口来执行所有数据库的操作。使用.NET接口的步骤如下所示：
 
-1. 将.NET接口文件﻿TDengineDrivercs.cs加入到应用程序所在.NET项目中。
-2. 用户可以参考﻿TDengineTest.cs来定义数据库连接参数，以及如何执行数据插入、查询等操作；
+1. 将.NET接口文件TDengineDrivercs.cs加入到应用程序所在.NET项目中。
+2. 用户可以参考TDengineTest.cs来定义数据库连接参数，以及如何执行数据插入、查询等操作；
 
 此.NET接口需要用到taos.dll文件，所以在执行应用程序前，拷贝Windows客户端install_directory/driver目录中的taos.dll文件到.NET项目最后生成.exe可执行文件所在文件夹。之后运行exe文件，即可访问TDengine数据库并做插入、查询等操作。
 

@@ -1,118 +1,118 @@
 # TDengine文档
 
-TDengine是一个高效的存储、查询、分析时序大数据的平台，专为物联网、车联网、工业互联网、运维监测等优化而设计。您可以像使用关系型数据库MySQL一样来使用它，但建议您在使用前仔细阅读一遍下面的文档，特别是 [数据模型](/architecture) 与 [数据建模](/model)。除本文档之外，欢迎 [下载产品白皮书](https://www.taosdata.com/downloads/TDengine%20White%20Paper.pdf)。如需查阅TDengine 1.6 文档，请点击 [这里](https://www.taosdata.com/cn/documentation16/) 访问。
+TDengine是一个高效的存储、查询、分析时序大数据的平台，专为物联网、车联网、工业互联网、运维监测等优化而设计。您可以像使用关系型数据库MySQL一样来使用它，但建议您在使用前仔细阅读一遍下面的文档，特别是 [数据模型](../03.architecture/docs.md) 与 [数据建模](../04.model/docs.md)。除本文档之外，欢迎 [下载产品白皮书](https://www.taosdata.com/downloads/TDengine%20White%20Paper.pdf)。如需查阅TDengine 1.6 文档，请点击 [这里](https://www.taosdata.com/cn/documentation16/) 访问。
 
-## [TDengine介绍](/evaluation)
+## [TDengine介绍](../01.evaluation/docs.md)
 
-* [TDengine 简介及特色](/evaluation#intro)
-* [TDengine 适用场景](/evaluation#scenes)
-* [TDengine 性能指标介绍和验证方法](/evaluation#)
+* [TDengine 简介及特色](../01.evaluation/docs.md#intro)
+* [TDengine 适用场景](../01.evaluation/docs.md#scenes)
+* [TDengine 性能指标介绍和验证方法](../01.evaluation/docs.md#)
 
-## [立即开始](/getting-started)
+## [立即开始](../02.getting-started/docs.md)
 
-* [快捷安装](/getting-started#install)：可通过源码、安装包或docker安装，三秒钟搞定
-* [轻松启动](/getting-started#start)：使用systemctl 启停TDengine
-* [命令行程序TAOS](/getting-started#console)：访问TDengine的简便方式
-* [极速体验](/getting-started#demo)：运行示例程序，快速体验高效的数据插入、查询
-* [支持平台列表](/getting-started#platforms)：TDengine服务器和客户端支持的平台列表
+* [快捷安装](../02.getting-started/docs.md#install)：可通过源码、安装包或docker安装，三秒钟搞定
+* [轻松启动](../02.getting-started/docs.md#start)：使用systemctl 启停TDengine
+* [命令行程序TAOS](../02.getting-started/docs.md#console)：访问TDengine的简便方式
+* [极速体验](../02.getting-started/docs.md#demo)：运行示例程序，快速体验高效的数据插入、查询
+* [支持平台列表](../02.getting-started/docs.md#platforms)：TDengine服务器和客户端支持的平台列表
 * [Kubernetes部署](https://taosdata.github.io/TDengine-Operator/zh/index.html)：TDengine在Kubernetes环境进行部署的详细说明
 
-## [整体架构](/architecture)
+## [整体架构](../03.architecture/docs.md)
 
-* [数据模型](/architecture#model)：关系型数据库模型，但要求每个采集点单独建表
-* [集群与基本逻辑单元](/architecture#cluster)：吸取NoSQL优点，支持水平扩展，支持高可靠
-* [存储模型与数据分区、分片](/architecture#sharding)：标签数据与时序数据完全分离，按vnode和时间两个维度对数据切分
-* [数据写入与复制流程](/architecture#replication)：先写入WAL、之后写入缓存，再给应用确认，支持多副本
-* [缓存与持久化](/architecture#persistence)：最新数据缓存在内存中，但落盘时采用列式存储、超高压缩比
-* [数据查询](/architecture#query)：支持各种函数、时间轴聚合、插值、多表聚合
+* [数据模型](../03.architecture/docs.md#model)：关系型数据库模型，但要求每个采集点单独建表
+* [集群与基本逻辑单元](../03.architecture/docs.mdcluster)：吸取NoSQL优点，支持水平扩展，支持高可靠
+* [存储模型与数据分区、分片](../03.architecture/docs.md#sharding)：标签数据与时序数据完全分离，按vnode和时间两个维度对数据切分
+* [数据写入与复制流程](../03.architecture/docs.md#replication)：先写入WAL、之后写入缓存，再给应用确认，支持多副本
+* [缓存与持久化](../03.architecture/docs.md#persistence)：最新数据缓存在内存中，但落盘时采用列式存储、超高压缩比
+* [数据查询](../03.architecture/docs.md#query)：支持各种函数、时间轴聚合、插值、多表聚合
 
-## [数据建模](/model)
+## [数据建模](../04.model/docs.md)
 
-* [创建库](/model#create-db)：为具有相似数据特征的数据采集点创建一个库
-* [创建超级表](/model#create-stable)：为同一类型的数据采集点创建一个超级表
-* [创建表](/model#create-table)：使用超级表做模板，为每一个具体的数据采集点单独建表
+* [创建库](../04.model/docs.md#create-db)：为具有相似数据特征的数据采集点创建一个库
+* [创建超级表](../04.model/docs.md#create-stable)：为同一类型的数据采集点创建一个超级表
+* [创建表](../04.model/docs.md#create-table)：使用超级表做模板，为每一个具体的数据采集点单独建表
 
-## [TAOS SQL](/taos-sql)
+## [TAOS SQL](../12.taos-sql/docs.md)
 
-* [支持的数据类型](/taos-sql#data-type)：支持时间戳、整型、浮点型、布尔型、字符型等多种数据类型
-* [数据库管理](/taos-sql#management)：添加、删除、查看数据库
-* [表管理](/taos-sql#table)：添加、删除、查看、修改表
-* [超级表管理](/taos-sql#super-table)：添加、删除、查看、修改超级表
-* [标签管理](/taos-sql#tags)：增加、删除、修改标签
-* [数据写入](/taos-sql#insert)：支持单表单条、多条、多表多条写入，支持历史数据写入
-* [数据查询](/taos-sql#select)：支持时间段、值过滤、排序、查询结果手动分页等
-* [SQL函数](/taos-sql#functions)：支持各种聚合函数、选择函数、计算函数，如avg, min, diff等
-* [时间维度聚合](/taos-sql#aggregation)：将表中数据按照时间段进行切割后聚合，降维处理
-* [边界限制](/taos-sql#limitation)：库、表、SQL等边界限制条件
-* [错误码](/taos-sql/error-code)：TDengine 2.0 错误码以及对应的十进制码
+* [支持的数据类型](../12.taos-sql/docs.md#data-type)：支持时间戳、整型、浮点型、布尔型、字符型等多种数据类型
+* [数据库管理](../12.taos-sql/docs.md#management)：添加、删除、查看数据库
+* [表管理](../12.taos-sql/docs.md#table)：添加、删除、查看、修改表
+* [超级表管理](../12.taos-sql/docs.md#super-table)：添加、删除、查看、修改超级表
+* [标签管理](../12.taos-sql/docs.md#tags)：增加、删除、修改标签
+* [数据写入](../12.taos-sql/docs.md#insert)：支持单表单条、多条、多表多条写入，支持历史数据写入
+* [数据查询](../12.taos-sql/docs.md#select)：支持时间段、值过滤、排序、查询结果手动分页等
+* [SQL函数](../12.taos-sql/docs.md#functions)：支持各种聚合函数、选择函数、计算函数，如avg, min, diff等
+* [时间维度聚合](../12.taos-sql/docs.md#aggregation)：将表中数据按照时间段进行切割后聚合，降维处理
+* [边界限制](../12.taos-sql/docs.md#limitation)：库、表、SQL等边界限制条件
+* [错误码](../12.taos-sql/docs.md/error-code)：TDengine 2.0 错误码以及对应的十进制码
 
-## [高效写入数据](/insert)
+## [高效写入数据](../05.insert/docs.md)
 
-* [SQL写入](/insert#sql)：使用SQL insert命令向一张或多张表写入单条或多条记录
-* [Prometheus写入](/insert#prometheus)：配置Prometheus, 不用任何代码，将数据直接写入
-* [Telegraf写入](/insert#telegraf)：配置Telegraf, 不用任何代码，将采集数据直接写入
-* [EMQ X Broker](/insert#emq)：配置EMQ X，不用任何代码，就可将MQTT数据直接写入
-* [HiveMQ Broker](/insert#hivemq)：配置HiveMQ，不用任何代码，就可将MQTT数据直接写入
+* [SQL写入](../05.insert/docs.md#sql)：使用SQL insert命令向一张或多张表写入单条或多条记录
+* [Prometheus写入](../05.insert/docs.md#prometheus)：配置Prometheus, 不用任何代码，将数据直接写入
+* [Telegraf写入](../05.insert/docs.md#telegraf)：配置Telegraf, 不用任何代码，将采集数据直接写入
+* [EMQ X Broker](../05.insert/docs.md#emq)：配置EMQ X，不用任何代码，就可将MQTT数据直接写入
+* [HiveMQ Broker](../05.insert/docs.md#hivemq)：配置HiveMQ，不用任何代码，就可将MQTT数据直接写入
 
-## [高效查询数据](/queries)
+## [高效查询数据](../06.queries/docs.md)
 
-* [主要查询功能](/queries#queries)：支持各种标准函数，设置过滤条件，时间段查询
-* [多表聚合查询](/queries#aggregation)：使用超级表，设置标签过滤条件，进行高效聚合查询
-* [降采样查询值](/queries#sampling)：按时间段分段聚合，支持插值
+* [主要查询功能](../06.queries/docs.md#queries)：支持各种标准函数，设置过滤条件，时间段查询
+* [多表聚合查询](../06.queries/docs.md#aggregation)：使用超级表，设置标签过滤条件，进行高效聚合查询
+* [降采样查询值](../06.queries/docs.md#sampling)：按时间段分段聚合，支持插值
 
-## [高级功能](/advanced-features)
+## [高级功能](../07.advanced-features/docs.md)
 
-* [连续查询(Continuous Query)](/advanced-features#continuous-query)：基于滑动窗口，定时自动的对数据流进行查询计算
-* [数据订阅(Publisher/Subscriber)](/advanced-features#subscribe)：象典型的消息队列，应用可订阅接收到的最新数据
-* [缓存(Cache)](/advanced-features#cache)：每个设备最新的数据都会缓存在内存中，可快速获取
-* [报警监测](/advanced-features#alert)：根据配置规则，自动监测超限行为数据，并主动推送
+* [连续查询(Continuous Query)](../07.advanced-features/docs.md#continuous-query)：基于滑动窗口，定时自动的对数据流进行查询计算
+* [数据订阅(Publisher/Subscriber)](../07.advanced-features/docs.md#subscribe)：象典型的消息队列，应用可订阅接收到的最新数据
+* [缓存(Cache)](../07.advanced-features/docs.md#cache)：每个设备最新的数据都会缓存在内存中，可快速获取
+* [报警监测](../07.advanced-features/docs.md#alert)：根据配置规则，自动监测超限行为数据，并主动推送
 
-## [连接器](/connector)
+## [连接器](../08.connector/docs.md)
 
-* [C/C++ Connector](/connector#c-cpp)：通过libtaos客户端的库，连接TDengine服务器的主要方法
-* [Java Connector(JDBC)](/connector/java)：通过标准的JDBC API，给Java应用提供到TDengine的连接
-* [Python Connector](/connector#python)：给Python应用提供一个连接TDengine服务器的驱动
-* [RESTful Connector](/connector#restful)：提供一最简单的连接TDengine服务器的方式
-* [Go Connector](/connector#go)：给Go应用提供一个连接TDengine服务器的驱动
-* [Node.js Connector](/connector#nodejs)：给node应用提供一个连接TDengine服务器的驱动
-* [C# Connector](/connector#csharp)：给C#应用提供一个连接TDengine服务器的驱动
+* [C/C++ Connector](../08.connector/docs.md#c-cpp)：通过libtaos客户端的库，连接TDengine服务器的主要方法
+* [Java Connector(JDBC)](../08.connector/01.java/docs.md)：通过标准的JDBC API，给Java应用提供到TDengine的连接
+* [Python Connector](../08.connector/docs.md#python)：给Python应用提供一个连接TDengine服务器的驱动
+* [RESTful Connector](../08.connector/docs.md#restful)：提供一最简单的连接TDengine服务器的方式
+* [Go Connector](../08.connector/docs.md#go)：给Go应用提供一个连接TDengine服务器的驱动
+* [Node.js Connector](../08.connector/docs.md#nodejs)：给node应用提供一个连接TDengine服务器的驱动
+* [C# Connector](../08.connector/docs.md#csharp)：给C#应用提供一个连接TDengine服务器的驱动
 * [Windows客户端](https://www.taosdata.com/blog/2019/07/26/514.html)：自行编译windows客户端，Windows环境的各种连接器都需要它
 
-## [与其他工具的连接](/connections)
+## [与其他工具的连接](../09.connections/docs.md)
 
 * [Grafana](/connections#grafana)：获取并可视化保存在TDengine的数据
 * [Matlab](/connections#matlab)：通过配置Matlab的JDBC数据源访问保存在TDengine的数据
 * [R](/connections#r)：通过配置R的JDBC数据源访问保存在TDengine的数据
 * [IDEA Database](https://www.taosdata.com/blog/2020/08/27/1767.html)：通过IDEA 数据库管理工具可视化使用 TDengine
 
-## [TDengine集群的安装、管理](/cluster)
+## [TDengine集群的安装、管理](../10.cluster/docs.md)
 
-* [准备工作](/cluster#prepare)：部署环境前的几点注意事项
-* [创建第一个节点](/cluster#node-one)：与快捷安装完全一样，非常简单
-* [创建后续节点](/cluster#node-other)：配置新节点的taos.cfg, 在现有集群添加新的节点
-* [节点管理](/cluster#management)：增加、删除、查看集群的节点
-* [Vnode 的高可用性](/cluster#high-availability)：通过多副本的机制来提供 Vnode 的高可用性
-* [Mnode 的管理](/cluster#mnode)：系统自动创建、无需任何人工干预
-* [负载均衡](/cluster#load-balancing)：一旦节点个数或负载有变化，自动进行
-* [节点离线处理](/cluster#offline)：节点离线超过一定时长，将从集群中剔除
-* [Arbitrator](/cluster#arbitrator)：对于偶数个副本的情形，使用它可以防止split brain
+* [准备工作](../10.cluster/docs.md#prepare)：部署环境前的几点注意事项
+* [创建第一个节点](../10.cluster/docs.md#node-one)：与快捷安装完全一样，非常简单
+* [创建后续节点](../10.cluster/docs.md#node-other)：配置新节点的taos.cfg, 在现有集群添加新的节点
+* [节点管理](../10.cluster/docs.md#management)：增加、删除、查看集群的节点
+* [Vnode 的高可用性](../10.cluster/docs.md#high-availability)：通过多副本的机制来提供 Vnode 的高可用性
+* [Mnode 的管理](../10.cluster/docs.md#mnode)：系统自动创建、无需任何人工干预
+* [负载均衡](../10.cluster/docs.md#load-balancing)：一旦节点个数或负载有变化，自动进行
+* [节点离线处理](../10.cluster/docs.md#offline)：节点离线超过一定时长，将从集群中剔除
+* [Arbitrator](../10.cluster/docs.md#arbitrator)：对于偶数个副本的情形，使用它可以防止split brain
 
-## [TDengine的运营和维护](/administrator)
+## [TDengine的运营和维护](../11.administrator/docs.md)
 
-* [容量规划](/administrator#planning)：根据场景，估算硬件资源
-* [容错和灾备](/administrator#tolerance)：设置正确的WAL和数据副本数
-* [系统配置](/administrator#config)：端口，缓存大小，文件块大小和其他系统配置
-* [用户管理](/administrator#user)：添加、删除TDengine用户，修改用户密码
-* [数据导入](/administrator#import)：可按脚本文件导入，也可按数据文件导入
-* [数据导出](/administrator#export)：从shell按表导出，也可用taosdump工具做各种导出
-* [系统监控](/administrator#status)：检查系统现有的连接、查询、流式计算，日志和事件等
-* [文件目录结构](/administrator#directories)：TDengine数据文件、配置文件等所在目录
-* [参数限制与保留关键字](/administrator#keywords)：TDengine的参数限制与保留关键字列表
+* [容量规划](../11.administrator/docs.md#planning)：根据场景，估算硬件资源
+* [容错和灾备](../11.administrator/docs.md#tolerance)：设置正确的WAL和数据副本数
+* [系统配置](../11.administrator/docs.md#config)：端口，缓存大小，文件块大小和其他系统配置
+* [用户管理](../11.administrator/docs.md#user)：添加、删除TDengine用户，修改用户密码
+* [数据导入](../11.administrator/docs.md#import)：可按脚本文件导入，也可按数据文件导入
+* [数据导出](../11.administrator/docs.md#export)：从shell按表导出，也可用taosdump工具做各种导出
+* [系统监控](../11.administrator/docs.md#status)：检查系统现有的连接、查询、流式计算，日志和事件等
+* [文件目录结构](../11.administrator/docs.md#directories)：TDengine数据文件、配置文件等所在目录
+* [参数限制与保留关键字](../11.administrator/docs.md#keywords)：TDengine的参数限制与保留关键字列表
 
 ## TDengine的技术设计
 
-* [系统模块](/architecture/taosd)：taosd的功能和模块划分
-* [数据复制](/architecture/replica)：支持实时同步、异步复制，保证系统的High Availibility
+* [系统模块](../03.architecture/01.taosd/docs.md)：taosd的功能和模块划分
+* [数据复制](../03.architecture/02.replica/docs.md)：支持实时同步、异步复制，保证系统的High Availibility
 * [技术博客](https://www.taosdata.com/cn/blog/?categories=3)：更多的技术分析和架构设计文章
 
 ## 常用工具
