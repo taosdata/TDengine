@@ -16,6 +16,7 @@ TDengine is a highly efficient platform to store, query, and analyze time-series
 - [Command-line](/getting-started#console) : an easy way to access TDengine server
 - [Experience Lightning Speed](/getting-started#demo): running a demo, inserting/querying data to experience faster speed
 - [List of Supported Platforms](/getting-started#platforms): a list of platforms supported by TDengine server and client
+- [Deploy to Kubernetes](https://taosdata.github.io/TDengine-Operator/en/index.html)：a detailed guide for TDengine deployment in Kubernetes environment
 
 ## [Overall Architecture](/architecture)
 
