@@ -1,5 +1,5 @@
 {
-  "producer": {
+  "consumer": {
     "host": "192.168.17.156",
     "port": 6041,
     "user": "root",
@@ -10,7 +10,6 @@
     "serializer": "STRING"
   },
   "task": {
-    "threads": 1,
     "topic": "tq_test",
     "partitions": [
       1,
@@ -22,5 +21,16 @@
       7,
       8
     ]
+  },
+  "destination": {
+    "taosd": {
+      "host": "192.168.17.82",
+      "port": 6041,
+      "user": "root",
+      "password": "taosdata",
+      "charset": "UTF-8",
+      "locale": "en_US.UTF-8",
+      "timezone": "UTC-8"
+    }
   }
 }

@@ -54,7 +54,7 @@ public class TQueueConsumer extends TQueueBase {
         if (!partitions.containsKey(hashCode)) {
             flushTopicPartitions();
             if (!partitions.containsKey(hashCode)) {
-                String message = "topic-partition: " + topic + "-" + partition + " not exists!";
+                String message = "topic: " + topic + ", partition: " + partition + " not exists!";
                 logger.error(message);
                 throw new IllegalArgumentException(message);
             }

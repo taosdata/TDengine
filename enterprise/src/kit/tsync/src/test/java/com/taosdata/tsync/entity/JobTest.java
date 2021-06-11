@@ -4,6 +4,7 @@ import com.alibaba.fastjson.JSONObject;
 import com.taosdata.tsync.entity.config.Configuration;
 import com.taosdata.tsync.enums.ConfigurationType;
 import com.taosdata.tsync.enums.JobStatus;
+import com.taosdata.tsync.factory.ConsumeJobFactory;
 import com.taosdata.tsync.factory.ProduceJobFactory;
 import com.taosdata.tsync.repository.ConfigurationRepository;
 import com.taosdata.tsync.service.*;
@@ -51,12 +52,10 @@ public class JobTest {
     public void runConsumeJob() {
         // given
         ConfigurationRepository configurationRepository = ConfigurationRepository.getInstance();
-        ResultProcessService resultProcessService = new AffectRowsProcessService();
-        //TODO:
         JobService jobService = new ConsumeJobServiceImpl();
 
         // when
-        Job job = ProduceJobFactory.build(consumerTaskConfigJSON, configurationRepository);
+        Job job = ConsumeJobFactory.build(consumerTaskConfigJSON, configurationRepository);
         // then
         Assert.assertEquals(JobStatus.INIT, job.getStatus());
 
@@ -78,12 +77,12 @@ public class JobTest {
 
     @Before
     public void before() throws IOException {
-        // read producer-task.json
-        String producerConfigStr = IOUtils.toString(getClass().getClassLoader().getResourceAsStream("producer-task.json"));
+        // read producer-job.json
+        String producerConfigStr = IOUtils.toString(getClass().getClassLoader().getResourceAsStream("producer-job.json"));
         producerTaskConfigJSON = JSONObject.parseObject(producerConfigStr);
 
-        // read consumer-task.json
-        String consumerConfigStr = IOUtils.toString(getClass().getClassLoader().getResourceAsStream("consumer-task.json"));
+        // read consumer-job.json
+        String consumerConfigStr = IOUtils.toString(getClass().getClassLoader().getResourceAsStream("consumer-job.json"));
         consumerTaskConfigJSON = JSONObject.parseObject(consumerConfigStr);
 
     }

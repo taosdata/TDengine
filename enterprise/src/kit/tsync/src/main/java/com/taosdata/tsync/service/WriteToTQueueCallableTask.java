@@ -19,7 +19,7 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.LongStream;
 
-public class WriteToTQueueCallableTask implements Callable {
+public class WriteToTQueueCallableTask implements Callable<Integer> {
     private static final Logger logger = LoggerFactory.getLogger(WriteToTQueueCallableTask.class);
 
     private Collection<Integer> partitionsToWrite;
@@ -63,14 +63,9 @@ public class WriteToTQueueCallableTask implements Callable {
         int count = 0;
         Map<Integer, OnePartitionTask> partitionIndexPerTask = divideTablesRecordsToEachPartition();
         for (int partitionId : partitionIndexPerTask.keySet()) {
-
             OnePartitionTask onePartitionTask = partitionIndexPerTask.get(partitionId);
-
-//            logger.info(Thread.currentThread().getName() + " write table: [" + onePartitionTask.tableStartIndex + "," + onePartitionTask.tableEndIndex + ") to partitions: " + onePartitionTask.partitionId + " with records: " + onePartitionTask.recordsToWrite + ", batch values: " + onePartitionTask.batchValues + ", batch tables: " + onePartitionTask.batchTables);
-
             long[] tableIndexArr = LongStream.range(onePartitionTask.tableStartIndex, onePartitionTask.tableEndIndex).toArray();
             Map<Long, Range<Long>> tableIndex2RecordRange = Utils.divideIntoArrGroups(onePartitionTask.recordsToWrite, tableIndexArr);
-
             Map<Long, Range<Long>> batchIndex2TableRange = Utils.divideIntoGroupsOfN(onePartitionTask.tableStartIndex, onePartitionTask.tableEndIndex, batchTables);
 
             for (long tableBatchIndex : batchIndex2TableRange.keySet()) {
@@ -103,7 +98,6 @@ public class WriteToTQueueCallableTask implements Callable {
 
                     String message = sb.toString();
                     logger.trace(message);
-                    logger.debug(Thread.currentThread().getName() + " send to topic: " + topic + ", partition: " + partitionId + ", message: " + message);
                     ProducerRecord<String> record = new ProducerRecord(topic, partitionId, message);
                     try {
                         producer.send(record);

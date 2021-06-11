@@ -7,32 +7,39 @@ import com.taosdata.tsync.serializer.SerializeIgnore;
 import java.time.Duration;
 import java.util.List;
 import java.util.Properties;
+import java.util.stream.IntStream;
 
 public class TQueueConsumerTest {
 
     public static void main(String[] args) throws Exception {
         Properties props = new Properties();
-        props.setProperty(ConsumerConfig.HOST_CONFIG, "master");
+        props.setProperty(ConsumerConfig.HOST_CONFIG, "192.168.17.156");
         props.setProperty(ConsumerConfig.PORT_CONFIG, "6041");
         props.setProperty(ConsumerConfig.USER_CONFIG, "root");
-        props.setProperty(ConsumerConfig.PASSWORD_CONFIG, "taosdata");
+        props.setProperty(ConsumerConfig.PASSWORD_CONFIG, "tqueue");
 
         TQueueConsumer consumer = new TQueueConsumer(props);
-        consumer.assign("tq_test", 1);
+//        consumer.assign("tq_test", 1);
 
-        long count = 0;
-
-        while (true) {
-            List<ConsumerRecord> records = consumer.poll(Duration.ofMillis(100));
-            for (ConsumerRecord record : records) {
-                String topic = record.topic();
-                int partition = record.partition();
-                long offset = record.offset();
-                String value = new String(record.value(), "UTF-8");
-                System.out.printf("topic: %s, partition: %d, offset: %d, value = %s%n", topic, partition, offset, value);
-                count++;
+        for (int i = 0; i < 100; i++) {
+            for (int partitionId = 1; partitionId <= 10; partitionId++) {
+                consumer.assign("tq_test", partitionId);
             }
         }
+
+
+//        long count = 0;
+//        while (true) {
+//            List<ConsumerRecord> records = consumer.poll(Duration.ofMillis(100));
+//            for (ConsumerRecord record : records) {
+//                String topic = record.topic();
+//                int partition = record.partition();
+//                long offset = record.offset();
+//                String value = new String(record.value(), "UTF-8");
+//                System.out.printf("topic: %s, partition: %d, offset: %d, value = %s%n", topic, partition, offset, value);
+//                count++;
+//            }
+//        }
     }
 
     class Person {

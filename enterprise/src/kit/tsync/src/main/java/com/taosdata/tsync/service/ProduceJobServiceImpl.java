@@ -19,7 +19,7 @@ import java.util.concurrent.FutureTask;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-public class ProduceJobServiceImpl implements JobService {
+public class ProduceJobServiceImpl extends AbstractJobService {
     private static final Logger logger = LoggerFactory.getLogger(ProduceJobServiceImpl.class);
 
     private final ConfigurationRepository configurationRepository = ConfigurationRepository.getInstance();
@@ -27,6 +27,7 @@ public class ProduceJobServiceImpl implements JobService {
     private final ResultProcessService resultProcessService;
 
     public ProduceJobServiceImpl(ResultProcessService resultProcessService) {
+        super();
         this.resultProcessService = resultProcessService;
     }
 
@@ -106,27 +107,6 @@ public class ProduceJobServiceImpl implements JobService {
         return taskIds;
     }
 
-    private void checkTopicAndPartitions(TaskConfiguration taskConfiguration, TQueueProducer producer) throws Exception {
-        String topic = taskConfiguration.getTopic();
-        // check topic
-        if (!producer.containsTopic(topic)) {
-            throw new Exception("topic[" + topic + "] does not exist");
-        }
-        // check partitions
-        int[] partitions = taskConfiguration.getPartitions();
-        if (partitions != null && !isLegal(partitions, producer.getTopic(topic).partitions())) {
-            throw new Exception("partition:" + Arrays.toString(partitions) + " out of partitions range");
-        }
-    }
-
-    private boolean isLegal(int[] partitions, int max) {
-        for (int i = 0; i < partitions.length; i++) {
-            if (partitions[i] < 1 || partitions[i] > max)
-                return false;
-        }
-        return true;
-    }
-
     @Override
     public void startAndWait(List<Integer> taskIds) throws Exception {
         List<FutureTask> futureTasks = new ArrayList<>();
@@ -153,9 +133,5 @@ public class ProduceJobServiceImpl implements JobService {
         logger.info("get result: " + result.toString());
     }
 
-    @Override
-    public Configuration getConfiguration(ConfigurationType configurationType, UUID configurationId) {
-        return configurationRepository.find(configurationId);
-    }
 
 }

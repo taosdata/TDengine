@@ -1,21 +1,19 @@
 package com.taosdata.tsync.entity;
 
-import java.util.UUID;
-
 public class RunnableTask {
-    private final UUID id;
+    private final int id;
     private final Runnable runnable;
 
-    public RunnableTask(Runnable runnable) {
-        this.id = UUID.randomUUID();
+    public RunnableTask(int id, Runnable runnable) {
+        this.id = id;
         this.runnable = runnable;
     }
 
-    public UUID getId() {
-        return id;
+    public int getId() {
+        return this.id;
     }
 
     public Runnable getRunnable() {
-        return runnable;
+        return this.runnable;
     }
 }

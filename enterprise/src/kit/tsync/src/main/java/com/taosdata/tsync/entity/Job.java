@@ -56,6 +56,7 @@ public class Job {
             logger.error("exception happened during execute Job: " + id.toString());
         }
         this.status = JobStatus.COMPLETED;
+        logger.info(">>> job: " + id.toString() + "is done.");
     }
 
     public Configuration getConfiguration(JobService jobService) {

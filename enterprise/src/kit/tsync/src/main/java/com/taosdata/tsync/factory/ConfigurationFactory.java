@@ -12,6 +12,7 @@ public class ConfigurationFactory {
     private static List<ConfigurationParser> parserList = new ArrayList<>();
 
     static {
+        // producer-job
         parserList.add(new ProducerConfigurationParser());
         parserList.add(new TaskConfigurationParser());
         parserList.add(new ColumnConfigurationParser());
@@ -21,6 +22,10 @@ public class ConfigurationFactory {
         parserList.add(new SchemaConfigurationParser());
         parserList.add(new MessageConfigurationParser());
         parserList.add(new ProduceJobConfigurationParser());
+        // consumer-job
+        parserList.add(new ConsumeJobConfigurationParser());
+        parserList.add(new DestinationConfigurationParser());
+        parserList.add(new TaosdConfigurationParser());
     }
 
     public static Configuration build(ConfigurationType type, JSONObject configJSON) {

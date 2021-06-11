@@ -10,6 +10,9 @@ public enum ConfigurationType {
     STABLE,
     COLUMN,
     TAG,
-
-    CONSUME_JOB
+    /******/
+    CONSUME_JOB,
+    CONSUMER,
+    DESTINATION,
+    TAOSD
 }
