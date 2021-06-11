@@ -51,7 +51,8 @@ class TDTestCase:
         #move 5 days ahead to 2020/10/25. 4 oldest files should be removed during the new write
         #leaving 7 data files.
         os.system ('timedatectl set-time 2020-10-25')
-        os.system(f"{binPath}taosdemo -f tools/taosdemoAllTest/manual_change_time_1_1_B.json") 
+        os.system(f"{binPath}taosdemo -f tools/taosdemoAllTest/manual_change_time_1_1_B.json")
+        os.system('sudo timedatectl set-ntp on') 
         commandArray = ['ls', '-l', f'{TDenginePath}/sim/dnode1/data/vnode/vnode2/tsdb/data']
         result = subprocess.run(commandArray, stdout=subprocess.PIPE).stdout.decode('utf-8')
         print(result.count('data'))
@@ -61,6 +62,7 @@ class TDTestCase:
             tdLog.debug("data file number correct")
         tdSql.query('select first(ts) from stb_0')
         tdSql.checkData(0,0,datetime(2020,10,14,8,0,0,0)) #check the last data in the database
+        os.system('sudo timedatectl set-ntp on')
 
     def stop(self):
         os.system('sudo timedatectl set-ntp on')

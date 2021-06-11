@@ -62,6 +62,7 @@ class TDTestCase:
         tdDnodes.start(1)
         tdSql.query('select first(ts) from stb_0')
         tdSql.checkData(0,0,datetime(2020,10,14,8,0,0,0)) #check the last data in the database
+        os.system('sudo timedatectl set-ntp on')
         commandArray = ['ls', '-l', f'{TDenginePath}/sim/dnode1/data/vnode/vnode2/tsdb/data']
         result = subprocess.run(commandArray, stdout=subprocess.PIPE).stdout.decode('utf-8')
         print(result.count('data'))
@@ -69,8 +70,7 @@ class TDTestCase:
             tdLog.exit('wrong number of files')
         else:
             tdLog.debug("data file number correct")
-
-
+        os.system('sudo timedatectl set-ntp on')
 
     def stop(self):
         os.system('sudo timedatectl set-ntp on')
