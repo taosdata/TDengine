@@ -17,16 +17,18 @@ public class RestfulConnection extends AbstractConnection {
     private final int port;
     private final String url;
     private volatile String database;
+    private final String token;
     /******************************************************/
     private boolean isClosed;
     private final DatabaseMetaData metadata;
 
-    public RestfulConnection(String host, String port, Properties props, String database, String url) {
+    public RestfulConnection(String host, String port, Properties props, String database, String url, String token) {
         super(props);
         this.host = host;
         this.port = Integer.parseInt(port);
         this.database = database;
         this.url = url;
+        this.token = token;
         this.metadata = new RestfulDatabaseMetaData(url, props.getProperty(TSDBDriver.PROPERTY_KEY_USER), this);
     }
 
@@ -66,6 +68,7 @@ public class RestfulConnection extends AbstractConnection {
         return this.metadata;
     }
 
+    // getters
     public String getHost() {
         return host;
     }
@@ -80,5 +83,9 @@ public class RestfulConnection extends AbstractConnection {
 
     public String getUrl() {
         return url;
+    }
+
+    public String getToken() {
+        return token;
     }
 }
