@@ -899,7 +899,7 @@ go env -w GOPROXY=https://goproxy.io,direct
 
 Node.js连接器支持的系统有：
 
-| **CPU类型**  | x64（64bit） |          |          | aarch64  | aarch32  |
+|**CPU类型**  | x64（64bit） |          |          | aarch64  | aarch32  |
 | ------------ | ------------ | -------- | -------- | -------- | -------- |
 | **OS类型**   | Linux        | Win64    | Win32    | Linux    | Linux    |
 | **支持与否** | **支持**     | **支持** | **支持** | **支持** | **支持** |
