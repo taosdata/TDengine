@@ -36,6 +36,7 @@
 #include "ttype.h"
 #include "qUtil.h"
 #include "qPlan.h"
+#include "qFilter.h"
 
 #define DEFAULT_PRIMARY_TIMESTAMP_COL_NAME "_c0"
 
@@ -4594,6 +4595,10 @@ static int32_t getTagQueryCondExpr(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SCondE
   
     SArray* colList = taosArrayInit(10, sizeof(SColIndex));
     ret = exprTreeFromSqlExpr(pCmd, &p, p1, pQueryInfo, colList, NULL);
+    if (ret == TSDB_CODE_SUCCESS) {
+      ret = filterInitFromTree(p, &pQueryInfo->colFilter, (int32_t)taosArrayGetSize(colList));
+    }
+    
     SBufferWriter bw = tbufInitWriter(NULL, false);
 
     TRY(0) {
@@ -4627,7 +4632,7 @@ static int32_t getTagQueryCondExpr(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SCondE
     }
 
     tSqlExprDestroy(p1);
-    tExprTreeDestroy(p, NULL);
+    //tExprTreeDestroy(p, NULL); TODO
     
     taosArrayDestroy(colList);
     if (pQueryInfo->tagCond.pCond != NULL && taosArrayGetSize(pQueryInfo->tagCond.pCond) > 0 && !UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo)) {

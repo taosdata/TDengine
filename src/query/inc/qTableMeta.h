@@ -3,6 +3,7 @@
 
 #include "tsdb.h"  //todo tsdb should not be here
 #include "qSqlparser.h"
+#include "qFilter.h"
 
 typedef struct SFieldInfo {
   int16_t      numOfOutput;   // number of column in result
@@ -104,6 +105,8 @@ typedef struct SQueryInfo {
   SLimitVal        limit;
   SLimitVal        slimit;
   STagCond         tagCond;
+
+  SFilterInfo      colFilter;
 
   SOrderVal        order;
   int16_t          fillType;      // final result fill type
