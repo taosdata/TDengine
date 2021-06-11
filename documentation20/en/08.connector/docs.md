@@ -868,7 +868,7 @@ This API is used to open DB and return an object of type \* DB. Generally, DRIVE
 
 The Node.js connector supports the following systems:
 
-| **CPU Type**         | **x64****（****64bit****）** |         |         | **aarch64** | **aarch32** |
+| **CPU Type**         | x64(64bit）                  |         |         |   aarch64   |   aarch32   |
 | -------------------- | ---------------------------- | ------- | ------- | ----------- | ----------- |
 | **OS Type**          | Linux                        | Win64   | Win32   | Linux       | Linux       |
 | **Supported or Not** | **Yes**                      | **Yes** | **Yes** | **Yes**     | **Yes**     |
