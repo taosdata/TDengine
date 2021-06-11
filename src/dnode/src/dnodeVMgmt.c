@@ -154,7 +154,6 @@ static SCreateVnodeMsg* dnodeParseVnodeMsg(SRpcMsg *rpcMsg) {
 
 static int32_t dnodeProcessCreateVnodeMsg(SRpcMsg *rpcMsg) {
   SCreateVnodeMsg *pCreate = dnodeParseVnodeMsg(rpcMsg);
-
   void *pVnode = vnodeAcquire(pCreate->cfg.vgId);
   if (pVnode != NULL) {
     dDebug("vgId:%d, already exist, return success", pCreate->cfg.vgId);

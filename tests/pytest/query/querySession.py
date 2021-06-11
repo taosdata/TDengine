@@ -82,7 +82,7 @@ class TDTestCase:
         tdSql.checkData(0, 1, 15)
 
         # session with where 
-        tdSql.query("select count(*),first(tagtype),last(tagtype),avg(tagtype),sum(tagtype),min(tagtype),max(tagtype),leastsquares(tagtype, 1, 1),spread(tagtype)  from dev_001 where ts <'2020-05-20 0:0:0' session(ts,1d)")
+        tdSql.query("select count(*),first(tagtype),last(tagtype),avg(tagtype),sum(tagtype),min(tagtype),max(tagtype),leastsquares(tagtype, 1, 1),spread(tagtype),stddev(tagtype),percentile(tagtype,0)  from dev_001 where ts <'2020-05-20 0:0:0' session(ts,1d)")
         tdSql.checkRows(2)
         tdSql.checkData(0, 1, 13)
         tdSql.checkData(0, 2, 1)
@@ -93,6 +93,9 @@ class TDTestCase:
         tdSql.checkData(0, 7, 13)
         tdSql.checkData(0, 8, '{slop:1.000000, intercept:0.000000}')
         tdSql.checkData(0, 9, 12)
+        tdSql.checkData(0, 10, 3.741657387)
+        tdSql.checkData(0, 11, 1)
+        tdSql.checkData(1, 11, 14)
 
         # tdsql err
         tdSql.error("select * from dev_001 session(ts,1w)")
@@ -115,7 +118,9 @@ class TDTestCase:
         tdSql.checkRows(2)
         tdSql.checkData(0, 1, 3)
         tdSql.error("select count(*) from dev_001 session(i,1s)")
-        
+        # test second timestamp fileds
+        tdSql.execute("create table secondts(ts timestamp,t2 timestamp,i int)")
+        tdSql.error("select count(*) from secondts session(t2,2s)")
 
     def stop(self):
         tdSql.close()

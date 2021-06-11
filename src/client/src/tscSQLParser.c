@@ -2331,8 +2331,10 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
         }
 
         if (info.precision == TSDB_TIME_PRECISION_MILLI) {
+          tickPerSec /= 1000000;
+        } else if (info.precision == TSDB_TIME_PRECISION_MICRO) {
           tickPerSec /= 1000;
-        }
+	} 
 
         if (tickPerSec <= 0 || tickPerSec < TSDB_TICK_PER_SECOND(info.precision)) {
           return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg10);
@@ -5937,48 +5939,40 @@ int32_t validateLimitNode(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SSqlNode* pSqlN
 }
 
 static int32_t setKeepOption(SSqlCmd* pCmd, SCreateDbMsg* pMsg, SCreateDbInfo* pCreateDb) {
-  const char* msg = "invalid number of options";
+  const char* msg1 = "invalid number of keep options";
+  const char* msg2 = "invalid keep value";
+  const char* msg3 = "invalid keep value, should be keep0 <= keep1 <= keep2";
 
-  pMsg->daysToKeep = htonl(-1);
+  pMsg->daysToKeep0 = htonl(-1);
   pMsg->daysToKeep1 = htonl(-1);
   pMsg->daysToKeep2 = htonl(-1);
 
   SArray* pKeep = pCreateDb->keep;
   if (pKeep != NULL) {
     size_t s = taosArrayGetSize(pKeep);
-    tVariantListItem* p0 = taosArrayGet(pKeep, 0);
-    switch (s) {
-      case 1: {
-        if ((int32_t)p0->pVar.i64 <= 0) {
-          return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg);
-        }
-        pMsg->daysToKeep = htonl((int32_t)p0->pVar.i64);
-      }
-        break;
-      case 2: {
-        tVariantListItem* p1 = taosArrayGet(pKeep, 1);
-        if ((int32_t)p0->pVar.i64 <= 0 || (int32_t)p1->pVar.i64 <= 0) {
-          return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg);
-        }        
-        pMsg->daysToKeep = htonl((int32_t)p0->pVar.i64);
-        pMsg->daysToKeep1 = htonl((int32_t)p1->pVar.i64);
-        break;
-      }
-      case 3: {
-        tVariantListItem* p1 = taosArrayGet(pKeep, 1);
-        tVariantListItem* p2 = taosArrayGet(pKeep, 2);
-
-        if ((int32_t)p0->pVar.i64 <= 0 || (int32_t)p1->pVar.i64 <= 0 || (int32_t)p2->pVar.i64 <= 0) {
-          return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg);
-        } 
-
-        pMsg->daysToKeep = htonl((int32_t)p0->pVar.i64);
-        pMsg->daysToKeep1 = htonl((int32_t)p1->pVar.i64);
-        pMsg->daysToKeep2 = htonl((int32_t)p2->pVar.i64);
-        break;
-      }
-      default: { return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg); }
+#ifdef _STORAGE
+    if (s >= 4 ||s <= 0) {
+#else
+    if (s != 1) {
+#endif
+      return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg1);
     }
+
+    tVariantListItem* p0 = taosArrayGet(pKeep, 0);
+    tVariantListItem* p1 = (s > 1) ? taosArrayGet(pKeep, 1) : p0;
+    tVariantListItem* p2 = (s > 2) ? taosArrayGet(pKeep, 2) : p1;
+    
+    if ((int32_t)p0->pVar.i64 <= 0 || (int32_t)p1->pVar.i64 <= 0 || (int32_t)p2->pVar.i64 <= 0) {
+      return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg2);
+    }
+    if (!(((int32_t)p0->pVar.i64 <= (int32_t)p1->pVar.i64) && ((int32_t)p1->pVar.i64 <= (int32_t)p2->pVar.i64))) {
+      return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg3);
+    }
+
+    pMsg->daysToKeep0 = htonl((int32_t)p0->pVar.i64);
+    pMsg->daysToKeep1 = htonl((int32_t)p1->pVar.i64);
+    pMsg->daysToKeep2 = htonl((int32_t)p2->pVar.i64);
+
   }
 
   return TSDB_CODE_SUCCESS;
@@ -6483,13 +6477,13 @@ int32_t doFunctionsCompatibleCheck(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, char* 
     size_t size = tscNumOfExprs(pQueryInfo);
     for (int32_t i = 0; i < size; ++i) {
       SExprInfo* pExpr = tscExprGet(pQueryInfo, i);
-      int32_t   functId = pExpr->base.functionId;
+      int32_t   f = pExpr->base.functionId;
 
       /*
        * group by normal columns.
        * Check if the column projection is identical to the group by column or not
        */
-      if (functId == TSDB_FUNC_PRJ && pExpr->base.colInfo.colId != PRIMARYKEY_TIMESTAMP_COL_INDEX) {
+      if (f == TSDB_FUNC_PRJ && pExpr->base.colInfo.colId != PRIMARYKEY_TIMESTAMP_COL_INDEX) {
         bool qualified = false;
         for (int32_t j = 0; j < pQueryInfo->groupbyExpr.numOfGroupCols; ++j) {
           SColIndex* pColIndex = taosArrayGet(pQueryInfo->groupbyExpr.columnInfo, j);
@@ -6504,12 +6498,12 @@ int32_t doFunctionsCompatibleCheck(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, char* 
         }
       }
 
-      if (IS_MULTIOUTPUT(aAggs[functId].status) && functId != TSDB_FUNC_TOP && functId != TSDB_FUNC_BOTTOM &&
-          functId != TSDB_FUNC_DIFF && functId != TSDB_FUNC_TAGPRJ && functId != TSDB_FUNC_PRJ) {
+      if (IS_MULTIOUTPUT(aAggs[f].status) && f != TSDB_FUNC_TOP && f != TSDB_FUNC_BOTTOM &&
+          f != TSDB_FUNC_DIFF && f != TSDB_FUNC_DERIVATIVE && f != TSDB_FUNC_TAGPRJ && f != TSDB_FUNC_PRJ) {
         return invalidOperationMsg(msg, msg1);
       }
 
-      if (functId == TSDB_FUNC_COUNT && pExpr->base.colInfo.colIndex == TSDB_TBNAME_COLUMN_INDEX) {
+      if (f == TSDB_FUNC_COUNT && pExpr->base.colInfo.colIndex == TSDB_TBNAME_COLUMN_INDEX) {
         return invalidOperationMsg(msg, msg1);
       }
     }
@@ -7959,7 +7953,7 @@ int32_t validateSqlNode(SSqlObj* pSql, SSqlNode* pSqlNode, SQueryInfo* pQueryInf
 
     pQueryInfo->arithmeticOnAgg   = tsIsArithmeticQueryOnAggResult(pQueryInfo);
     pQueryInfo->orderProjectQuery = tscOrderedProjectionQueryOnSTable(pQueryInfo, 0);
-    pQueryInfo->diffQuery         = tscIsDiffQuery(pQueryInfo);
+//    pQueryInfo->diffQuery         = tscIsDiffQuery(pQueryInfo);
 
     SExprInfo** p = NULL;
     int32_t numOfExpr = 0;
