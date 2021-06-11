@@ -951,7 +951,10 @@ static int insertStmtBindParamBatch(STscStmt* stmt, TAOS_MULTI_BIND* bind, int c
     }
   }
 
-  assert(colIdx == -1 || (colIdx >= 0 && colIdx < pBlock->numOfParams));
+  if (!(colIdx == -1 || (colIdx >= 0 && colIdx < pBlock->numOfParams))) {
+    tscError("0x%"PRIx64" invalid colIdx:%d", pStmt->pSql->self, colIdx);
+    return invalidOperationMsg(tscGetErrorMsgPayload(&stmt->pSql->cmd), "invalid param colIdx");
+  }
 
   uint32_t totalDataSize = sizeof(SSubmitBlk) + (pCmd->batchSize + rowNum) * pBlock->rowSize;
   if (totalDataSize > pBlock->nAllocSize) {
@@ -1735,7 +1738,7 @@ int taos_stmt_bind_single_param_batch(TAOS_STMT* stmt, TAOS_MULTI_BIND* bind, in
     STMT_RET(TSDB_CODE_TSC_DISCONNECTED);
   }
 
-  if (bind == NULL || bind->num <= 0 || bind->num > INT16_MAX) {
+  if (bind == NULL || bind->num <= 0 || bind->num > INT16_MAX || colIdx < 0) {
     tscError("0x%"PRIx64" invalid parameter", pStmt->pSql->self);
     STMT_RET(invalidOperationMsg(tscGetErrorMsgPayload(&pStmt->pSql->cmd), "invalid bind param"));
   }
