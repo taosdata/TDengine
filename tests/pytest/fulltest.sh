@@ -317,6 +317,7 @@ python3 ./test.py -f alter/alter_table.py
 python3 ./test.py -f query/queryGroupbySort.py
 python3 ./test.py -f functions/function_session.py
 python3 ./test.py -f functions/function_stateWindow.py
+python3 ./test.py -f functions/function_derivative.py
 
 python3 ./test.py -f insert/unsignedInt.py
 python3 ./test.py -f insert/unsignedBigint.py
