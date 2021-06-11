@@ -51,7 +51,7 @@ class TDTestCase:
                 tdSql.execute(
                     "insert into tb%d values (now - %dm, %d, %d)" %
                     (i, 1440 - j, j, j))
-        time.sleep(0.1)
+        time.sleep(1)
 
         self.createFuncStream("count(*)", "c1", rowNum)
         self.createFuncStream("count(tbcol)", "c2", rowNum)

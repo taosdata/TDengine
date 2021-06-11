@@ -24,6 +24,7 @@ class TDTestCase:
     
     def alterKeepCommunity(self):
         tdLog.notice('running Keep Test, Community Version')
+        tdLog.notice('running parameter test for keep during create')
         #testing keep parameter during create
         tdSql.query('show databases')
         tdSql.checkData(0,7,'3650')
@@ -42,6 +43,7 @@ class TDTestCase:
 
         #testing keep parameter during alter
         tdSql.execute('create database db')
+        tdLog.notice('running parameter test for keep during alter')
 
         tdSql.execute('alter database db keep 100')
         tdSql.query('show databases')
@@ -58,6 +60,8 @@ class TDTestCase:
     def alterKeepEnterprise(self):
         tdLog.notice('running Keep Test, Enterprise Version')
         #testing keep parameter during create
+        tdLog.notice('running parameter test for keep during create')
+
         tdSql.query('show databases')
         tdSql.checkData(0,7,'3650,3650,3650')
         tdSql.execute('drop database db')
@@ -87,6 +91,7 @@ class TDTestCase:
 
         #testing keep parameter during alter
         tdSql.execute('create database db')
+        tdLog.notice('running parameter test for keep during alter')
 
         tdSql.execute('alter database db keep 10')
         tdSql.query('show databases')
@@ -126,25 +131,66 @@ class TDTestCase:
 
         ##TODO: need to wait for TD-4445 to implement the following
         ##      tests
-        # tdSql.prepare()
-        # tdSql.execute('create table tb (ts timestamp, speed int)')
-        # tdSql.execute('alter database db keep 10,10,10')
-        # tdSql.execute('insert into tb values (now, 10)')
-        # tdSql.execute('insert into tb values (now + 10m, 10)')
-        # tdSql.query('select * from tb')
-        # tdSql.checkRows(2)
-        # tdSql.execute('alter database db keep 40,40,40')
-        # tdSql.query('show databases')
-        # tdSql.checkData(0,7,'40,40,40')
-        # tdSql.error('insert into tb values (now-60d, 10)')
-        # tdSql.execute('insert into tb values (now-30d, 10)')
-        # tdSql.query('select * from tb')
-        # tdSql.checkRows(3)
-        # tdSql.execute('alter database db keep 20,20,20')
-        # tdSql.query('show databases')
-        # tdSql.checkData(0,7,'20,20,20')
-        # tdSql.query('select * from tb')
-        # tdSql.checkRows(2)
+
+
+        ## preset the keep
+        tdSql.prepare()
+
+        tdLog.notice('testing if alter will cause any error')
+        tdSql.execute('create table tb (ts timestamp, speed int)')
+        tdSql.execute('alter database db keep 10,10,10')
+        tdSql.execute('insert into tb values (now, 10)')
+        tdSql.execute('insert into tb values (now + 10m, 10)')
+        tdSql.query('select * from tb')
+        tdSql.checkRows(2)
+
+
+        #after alter from small to large, check if the alter if functioning
+        #test if change through test.py is consistent with change from taos client
+        #test case for TD-4459 and TD-4445
+        tdLog.notice('testing keep will be altered changing from small to big')
+        tdSql.execute('alter database db keep 40,40,40')
+        tdSql.query('show databases')
+        tdSql.checkData(0,7,'40,40,40')
+        tdSql.error('insert into tb values (now-60d, 10)')
+        tdSql.execute('insert into tb values (now-30d, 10)')
+        tdSql.query('select * from tb')
+        tdSql.checkRows(3)
+
+        rowNum = 3
+        for i in range(30):
+            rowNum += 1
+            tdSql.execute('alter database db keep 20,20,20')
+            tdSql.execute('alter database db keep 40,40,40')
+            tdSql.query('show databases')
+            tdSql.checkData(0,7,'40,40,40')
+            tdSql.error('insert into tb values (now-60d, 10)')
+            tdSql.execute('insert into tb values (now-30d, 10)')
+            tdSql.query('select * from tb')
+            tdSql.checkRows(rowNum)
+
+        tdLog.notice('testing keep will be altered changing from big to small')
+        tdSql.execute('alter database db keep 10,10,10')
+        tdSql.query('show databases')
+        tdSql.checkData(0,7,'10,10,10')
+        tdSql.error('insert into tb values (now-15d, 10)')
+        tdSql.query('select * from tb')
+        tdSql.checkRows(rowNum)
+
+        tdLog.notice('testing keep will be altered if sudden change from small to big')
+        tdSql.execute('alter database db keep 14,14,14')
+        tdSql.execute('alter database db keep 15,15,15')
+        tdSql.execute('insert into tb values (now-15d, 10)')
+        tdSql.query('select * from tb')
+        tdSql.checkRows(rowNum + 1)
+
+        tdLog.notice('testing keep will be altered if sudden change from big to small')
+        tdSql.execute('alter database db keep 16,16,16')
+        tdSql.execute('alter database db keep 14,14,14')
+        tdSql.error('insert into tb values (now-15d, 10)')
+        tdSql.query('select * from tb')
+        tdSql.checkRows(rowNum + 1)
+
 
 
     def stop(self):

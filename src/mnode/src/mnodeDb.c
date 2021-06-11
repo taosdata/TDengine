@@ -24,12 +24,14 @@
 #include "tdataformat.h"
 #include "tp.h"
 #include "mnode.h"
+#include "dnode.h"
 #include "mnodeDef.h"
 #include "mnodeInt.h"
 #include "mnodeAcct.h"
 #include "mnodeDb.h"
 #include "mnodeDnode.h"
 #include "mnodeMnode.h"
+#include "mnodePeer.h"
 #include "mnodeProfile.h"
 #include "mnodeWrite.h"
 #include "mnodeSdb.h"
@@ -1097,17 +1099,18 @@ static SDbCfg mnodeGetAlterDbOption(SDbObj *pDb, SAlterDbMsg *pAlter) {
   return newCfg;
 }
 
-static int32_t mnodeAlterDbCb(SMnodeMsg *pMsg, int32_t code) {
-  if (code != TSDB_CODE_SUCCESS) return code;
+static int32_t mnodeAlterDbFp(SMnodeMsg *pMsg) {
   SDbObj *pDb = pMsg->pDb;
 
   void *pIter = NULL;
   SVgObj *pVgroup = NULL;
-    while (1) {
+  pMsg->expected = 0;
+  while (1) {
     pIter = mnodeGetNextVgroup(pIter, &pVgroup);
     if (pVgroup == NULL) break;
     if (pVgroup->pDb == pDb) {
-      mnodeSendAlterVgroupMsg(pVgroup);
+      pMsg->expected += pVgroup->numOfVnodes;
+      mnodeSendAlterVgroupMsg(pVgroup,pMsg);
     }
     mnodeDecVgroupRef(pVgroup);
   }
@@ -1115,9 +1118,32 @@ static int32_t mnodeAlterDbCb(SMnodeMsg *pMsg, int32_t code) {
   mDebug("db:%s, all vgroups is altered", pDb->name);
   mLInfo("db:%s, is alterd by %s", pDb->name, mnodeGetUserFromMsg(pMsg));
 
-  bnNotify();
+  // in case there is no vnode for this db currently(no table in db,etc.)
+  if (pMsg->expected == 0) {
+    SSdbRow row = {
+      .type    = SDB_OPER_GLOBAL,
+      .pTable  = tsDbSdb,
+      .pObj    = pDb,
+      .pMsg    = pMsg,
+    };
 
-  return TSDB_CODE_SUCCESS;
+    return sdbUpdateRow(&row);
+  }
+
+  //bnNotify();
+
+  return TSDB_CODE_MND_ACTION_IN_PROGRESS;
+}
+
+int mnodeInsertAlterDbRow(SDbObj *pDb, void *pMsg) {
+  SSdbRow desc = {
+    .type    = SDB_OPER_GLOBAL,
+    .pTable  = tsDbSdb,
+    .pObj    = pDb,
+    .pMsg    = pMsg,
+  };
+
+  return sdbUpdateRow(&desc);
 }
 
 static int32_t mnodeAlterDb(SDbObj *pDb, SAlterDbMsg *pAlter, void *pMsg) {
@@ -1141,14 +1167,14 @@ static int32_t mnodeAlterDb(SDbObj *pDb, SAlterDbMsg *pAlter, void *pMsg) {
       .pTable  = tsDbSdb,
       .pObj    = pDb,
       .pMsg    = pMsg,
-      .fpRsp   = mnodeAlterDbCb
+      .fpReq   = mnodeAlterDbFp
     };
 
     code = sdbUpdateRow(&row);
     if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_MND_ACTION_IN_PROGRESS) {
       mError("db:%s, failed to alter, reason:%s", pDb->name, tstrerror(code));
     }
-  }
+}
 
   return code;
 }
