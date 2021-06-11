@@ -1,38 +1,106 @@
 # Data Model and Architecture
 
-## ## <a class="anchor" id="model"></a> Data Model
+## <a class="anchor" id="model"></a> Data Model
 
-### ### A Typical IoT Scenario
+### A Typical IoT Scenario
 
 In typical IoT, Internet of Vehicles and Operation Monitoring scenarios, there are often many different types of data collecting devices that collect one or more different physical metrics. However, for the collection devices of the same type, there are often many specific collection devices distributed in places. BigData processing system aims to collect all kinds of data, and then calculate and analyze them. For the same kind of devices, the data collected are very regular. Taking smart meters as an example, assuming that each smart meter collects three metrics of current, voltage and phase, the collected data are similar to the following table:
 
-|               |                |             |             |           |                  |             |
-| ------------- | -------------- | ----------- | ----------- | --------- | ---------------- | ----------- |
-| **Device ID** | **Time Stamp** | **current** | **voltage** | **phase** | **location**     | **groupId** |
-| d1001         | 1538548685000  | 10.3        | 219         | 0.31      | Beijing.Chaoyang | 2           |
-| d1002         | 1538548684000  | 10.2        | 220         | 0.23      | Beijing.Chaoyang | 3           |
-| d1003         | 1538548686500  | 11.5        | 221         | 0.35      | Beijing.Haidian  | 3           |
-| d1004         | 1538548685500  | 13.4        | 223         | 0.29      | Beijing.Haidian  | 2           |
-| d1001         | 1538548695000  | 12.6        | 218         | 0.33      | Beijing.Chaoyang | 2           |
-| d1004         | 1538548696600  | 11.8        | 221         | 0.28      | Beijing.Haidian  | 2           |
-| d1002         | 1538548696650  | 10.3        | 218         | 0.25      | Beijing.Chaoyang | 3           |
-| d1001         | 1538548696800  | 12.3        | 221         | 0.31      | Beijing.Chaoyang | 2           |
+<figure><table>
+<thead><tr>
+    <th style="text-align:center;">Device ID</th>
+    <th style="text-align:center;">Time Stamp</th>
+    <th style="text-align:center;" colspan="3">Collected Metrics</th>
+    <th style="text-align:center;" colspan="2">Tags</th>
+    </tr>
 
+<tr>
+<th style="text-align:center;">Device ID</th>
+<th style="text-align:center;">Time Stamp</th>
+<th style="text-align:center;">current</th>
+<th style="text-align:center;">voltage</th>
+<th style="text-align:center;">phase</th>
+<th style="text-align:center;">location</th>
+<th style="text-align:center;">groupId</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:center;">d1001</td>
+<td style="text-align:center;">1538548685000</td>
+<td style="text-align:center;">10.3</td>
+<td style="text-align:center;">219</td>
+<td style="text-align:center;">0.31</td>
+<td style="text-align:center;">Beijing.Chaoyang</td>
+<td style="text-align:center;">2</td>
+</tr>
+<tr>
+<td style="text-align:center;">d1002</td>
+<td style="text-align:center;">1538548684000</td>
+<td style="text-align:center;">10.2</td>
+<td style="text-align:center;">220</td>
+<td style="text-align:center;">0.23</td>
+<td style="text-align:center;">Beijing.Chaoyang</td>
+<td style="text-align:center;">3</td>
+</tr>
+<tr>
+<td style="text-align:center;">d1003</td>
+<td style="text-align:center;">1538548686500</td>
+<td style="text-align:center;">11.5</td>
+<td style="text-align:center;">221</td>
+<td style="text-align:center;">0.35</td>
+<td style="text-align:center;">Beijing.Haidian</td>
+<td style="text-align:center;">3</td>
+</tr>
+<tr>
+<td style="text-align:center;">d1004</td>
+<td style="text-align:center;">1538548685500</td>
+<td style="text-align:center;">13.4</td>
+<td style="text-align:center;">223</td>
+<td style="text-align:center;">0.29</td>
+<td style="text-align:center;">Beijing.Haidian</td>
+<td style="text-align:center;">2</td>
+</tr>
+<tr>
+<td style="text-align:center;">d1001</td>
+<td style="text-align:center;">1538548695000</td>
+<td style="text-align:center;">12.6</td>
+<td style="text-align:center;">218</td>
+<td style="text-align:center;">0.33</td>
+<td style="text-align:center;">Beijing.Chaoyang</td>
+<td style="text-align:center;">2</td>
+</tr>
+<tr>
+<td style="text-align:center;">d1004</td>
+<td style="text-align:center;">1538548696600</td>
+<td style="text-align:center;">11.8</td>
+<td style="text-align:center;">221</td>
+<td style="text-align:center;">0.28</td>
+<td style="text-align:center;">Beijing.Haidian</td>
+<td style="text-align:center;">2</td>
+</tr>
+<tr>
+<td style="text-align:center;">d1002</td>
+<td style="text-align:center;">1538548696650</td>
+<td style="text-align:center;">10.3</td>
+<td style="text-align:center;">218</td>
+<td style="text-align:center;">0.25</td>
+<td style="text-align:center;">Beijing.Chaoyang</td>
+<td style="text-align:center;">3</td>
+</tr>
+<tr>
+<td style="text-align:center;">d1001</td>
+<td style="text-align:center;">1538548696800</td>
+<td style="text-align:center;">12.3</td>
+<td style="text-align:center;">221</td>
+<td style="text-align:center;">0.31</td>
+<td style="text-align:center;">Beijing.Chaoyang</td>
+<td style="text-align:center;">2</td>
+</tr>
+</tbody>
+</table></figure>
 
-
-| **Device ID** | **Time Stamp** | **Collected Metrics** | **Tags**    |           |                  |             |
-| ------------- | -------------- | --------------------- | ----------- | --------- | ---------------- | ----------- |
-| **Device ID** | **Time Stamp** | **current**           | **voltage** | **phase** | **location**     | **groupId** |
-| d1001         | 1538548685000  | 10.3                  | 219         | 0.31      | Beijing.Chaoyang | 2           |
-| d1002         | 1538548684000  | 10.2                  | 220         | 0.23      | Beijing.Chaoyang | 3           |
-| d1003         | 1538548686500  | 11.5                  | 221         | 0.35      | Beijing.Haidian  | 3           |
-| d1004         | 1538548685500  | 13.4                  | 223         | 0.29      | Beijing.Haidian  | 2           |
-| d1001         | 1538548695000  | 12.6                  | 218         | 0.33      | Beijing.Chaoyang | 2           |
-| d1004         | 1538548696600  | 11.8                  | 221         | 0.28      | Beijing.Haidian  | 2           |
-| d1002         | 1538548696650  | 10.3                  | 218         | 0.25      | Beijing.Chaoyang | 3           |
-| d1001         | 1538548696800  | 12.3                  | 221         | 0.31      | Beijing.Chaoyang | 2           |
-
-Table 1: Smart meter example data 
+<center> Table 1: Smart meter example data </center>
 
 Each data record contains the device ID, timestamp, collected metrics (current, voltage, phase as above), and static tags (Location and groupId in Table 1) associated with the devices. Each device generates a data record in a pre-defined timer or triggered by an external event. It is a sequence of data points like a stream.
 
@@ -87,7 +155,10 @@ The design of TDengine is based on the assumption that one single hardware or so
 
 Logical structure diagram of TDengine distributed architecture as following:
 
-Figure 1: TDengine architecture diagram
+![TDengine architecture diagram](page://images/architecture/structure.png)
+<center> Picture 1: TDengine architecture diagram  </center>
+
+
 
 A complete TDengine system runs on one or more physical nodes. Logically, it includes data node (dnode), TDEngine application driver (taosc) and application (app). There are one or more data nodes in the system, which form a cluster. The application interacts with the TDengine cluster through taosc's API. The following is a brief introduction to each logical unit.
 
@@ -125,7 +196,8 @@ A complete TDengine system runs on one or more physical nodes. Logically, it inc
 
 To explain the relationship between vnode, mnode, taosc and application and their respective roles, the following is an analysis of a typical data writing process.
 
-Figure 2: A typical process of TDengine
+![ typical process of TDengine](page://images/architecture/message.png)
+<center> Picture 2  typical process of TDengine </center>
 
 1. Application initiates a request to insert data through JDBC, ODBC, or other APIs.
 2. Cache be checked by taosc that if meta data existing for the table. If so, go straight to Step 4. If not, taosc sends a get meta-data request to mnode.
@@ -206,7 +278,8 @@ Figure 3: TDengine Master writing process
 
 For a slave vnode, the write process as follows:
 
-Fiture 4: TDengine Slave Writing Process
+![TDengine Slave Writing Process](page://images/architecture/write_master.png)
+<center> Picture 3 TDengine Slave Writing Process  </center>
 
 1. Slave vnode receives a data insertion request forwarded by Master vnode.
 2. If the system configuration parameter “walLevel” is greater than 0, vnode will write the original request packet into database log file WAL. If walLevel is set to 2 and fsync is set to 0, TDengine will make WAL data written immediately to ensure that even system goes down, all data can be recovered from database log file;
@@ -284,8 +357,9 @@ By default, TDengine saves all data in /var/lib/taos directory, and the data fil
 
 
 dataDir format is as follows:
-
-1. dataDir data_path [tier_level]
+```
+dataDir data_path [tier_level]
+```
 
 Where data_path is the folder path of mount point and tier_level is the media storage-tier. The higher the media storage-tier, means the older the data file. Multiple hard disks can be mounted at the same storage-tier, and data files on the same storage-tier are distributed on all hard disks within the tier. TDengine supports up to 3 tiers of storage, so tier_level values are 0, 1, and 2. When configuring dataDir, there must be only one mount path without specifying tier_level, which is called special mount disk (path). The mount path defaults to level 0 storage media and contains special file links, which cannot be removed, otherwise it will have a devastating impact on the written data.
 
@@ -293,19 +367,16 @@ Where data_path is the folder path of mount point and tier_level is the media st
 
 Suppose a physical node with six mountable hard disks/mnt/disk1,/mnt/disk2, …,/mnt/disk6, where disk1 and disk2 need to be designated as level 0 storage media, disk3 and disk4 are level 1 storage media, and disk5 and disk6 are level 2 storage media. Disk1 is a special mount disk, you can configure it in/etc/taos/taos.cfg as follows:
 
-
-
-1. dataDir /mnt/disk1/taos
-2. dataDir /mnt/disk2/taos 0
-3. dataDir /mnt/disk3/taos 1
-4. dataDir /mnt/disk4/taos 1
-5. dataDir /mnt/disk5/taos 2
-6. dataDir /mnt/disk6/taos 2
-
-
+```
+dataDir /mnt/disk1/taos
+dataDir /mnt/disk2/taos 0
+dataDir /mnt/disk3/taos 1
+dataDir /mnt/disk4/taos 1
+dataDir /mnt/disk5/taos 2
+dataDir /mnt/disk6/taos 2
+```
 
 Mounted disks can also be a non-local network disk, as long as the system can access it.
-
 
 
 Note: Tiered Storage is only supported in Enterprise Edition
@@ -328,11 +399,9 @@ The remarkable feature that time-series data is different from ordinary data is 
 
 The keyword “interval” is introduced into TDengine to split fixed length time windows on time axis, and the data are aggregated according to time windows, and the data within window range are aggregated as needed. For example:
 
-
-
-1. select count(*) from d1001 interval(1h);
-
-
+```mysql
+select count(*) from d1001 interval(1h);
+```
 
 According to the data collected by device D1001, the number of records stored per hour is returned by a 1-hour time window.
 
@@ -340,11 +409,9 @@ According to the data collected by device D1001, the number of records stored pe
 
 In application scenarios where query results need to be obtained continuously, if there is data missing in a given time interval, the data results in this interval will also be lost. TDengine provides a strategy to interpolate the results of timeline aggregation calculation. The results of time axis aggregation can be interpolated by using keyword Fill. For example:
 
-
-
-1. select count(*) from d1001 interval(1h) fill(prev);
-
-
+```mysql
+select count(*) from d1001 interval(1h) fill(prev);
+```
 
 According to the data collected by device D1001, the number of records per hour is counted. If there is no data in a certain hour, statistical data of the previous hour is returned. TDengine provides forward interpolation (prev), linear interpolation (linear), NULL value populating (NULL), and specific value populating (value).
 
@@ -352,9 +419,8 @@ According to the data collected by device D1001, the number of records per hour 
 
 TDengine creates a separate table for each data collection point, but in practical applications, it is often necessary to aggregate data from different collection points. In order to perform aggregation operations efficiently, TDengine introduces the concept of STable. STable is used to represent a specific type of data collection point. It is a table set containing multiple tables. The schema of each table in the set is completely consistent, but each table has its own static tag. The tags can be multiple and be added, deleted and modified at any time. Applications can aggregate or statistically operate all or a subset of tables under a STABLE by specifying tag filters, thus greatly simplifying the development of applications. The process is shown in the following figure:
 
-
-
-Figure 5: Diagram of multi-table aggregation query
+![Diagram of multi-table aggregation query](page://images/architecture/multi_tables.png)
+<center> Picture 4 Diagram of multi-table aggregation query  </center>
 
 1. Application sends a query condition to system;
 2. taosc sends the STable name to Meta Node(management node);
