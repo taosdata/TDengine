@@ -218,11 +218,6 @@ static void tsdbMayUnTakeMemSnapshot(STsdbQueryHandle* pQueryHandle) {
 int64_t tsdbGetNumOfRowsInMemTable(TsdbQueryHandleT* pHandle) {
   STsdbQueryHandle* pQueryHandle = (STsdbQueryHandle*) pHandle;
 
-  size_t size = taosArrayGetSize(pQueryHandle->pTableCheckInfo);
-  assert(pQueryHandle->activeIndex < size && pQueryHandle->activeIndex >= 0 && size >= 1);
-  STableCheckInfo* pCheckInfo = taosArrayGet(pQueryHandle->pTableCheckInfo, pQueryHandle->activeIndex);
-  
-
   int64_t rows = 0;
   SMemRef* pMemRef = pQueryHandle->pMemRef;
   if (pMemRef == NULL) { return rows; }
@@ -233,15 +228,19 @@ int64_t tsdbGetNumOfRowsInMemTable(TsdbQueryHandleT* pHandle) {
   SMemTable* pMemT = pMemRef->snapshot.mem;
   SMemTable* pIMemT = pMemRef->snapshot.imem;
 
-  if (pMemT && pCheckInfo->tableId.tid < pMemT->maxTables) {
-    pMem = pMemT->tData[pCheckInfo->tableId.tid];
-    rows += (pMem && pMem->uid == pCheckInfo->tableId.uid) ? pMem->numOfRows: 0; 
+  size_t size = taosArrayGetSize(pQueryHandle->pTableCheckInfo);
+  for (int32_t i = 0; i < size; ++i) {
+    STableCheckInfo* pCheckInfo = taosArrayGet(pQueryHandle->pTableCheckInfo, i);
+
+    if (pMemT && pCheckInfo->tableId.tid < pMemT->maxTables) {
+      pMem = pMemT->tData[pCheckInfo->tableId.tid];
+      rows += (pMem && pMem->uid == pCheckInfo->tableId.uid) ? pMem->numOfRows : 0;
+    }
+    if (pIMemT && pCheckInfo->tableId.tid < pIMemT->maxTables) {
+      pIMem = pIMemT->tData[pCheckInfo->tableId.tid];
+      rows += (pIMem && pIMem->uid == pCheckInfo->tableId.uid) ? pIMem->numOfRows : 0;
+    }
   }
-  if (pIMemT && pCheckInfo->tableId.tid < pIMemT->maxTables) {
-    pIMem = pIMemT->tData[pCheckInfo->tableId.tid];
-    rows += (pIMem && pIMem->uid == pCheckInfo->tableId.uid) ? pIMem->numOfRows: 0; 
-  }
-  
   return rows;
 }
 
@@ -1088,7 +1087,11 @@ static int32_t handleDataMergeIfNeeded(STsdbQueryHandle* pQueryHandle, SBlock* p
   assert(cur->pos >= 0 && cur->pos <= binfo.rows);
 
   TSKEY key = (row != NULL)? dataRowKey(row):TSKEY_INITIAL_VAL;
-  tsdbDebug("%p key in mem:%"PRId64", 0x%"PRIx64, pQueryHandle, key, pQueryHandle->qId);
+  if (key != TSKEY_INITIAL_VAL) {
+    tsdbDebug("%p key in mem:%"PRId64", 0x%"PRIx64, pQueryHandle, key, pQueryHandle->qId);
+  } else {
+    tsdbDebug("%p no data in mem, 0x%"PRIx64, pQueryHandle, pQueryHandle->qId);
+  }
 
   if ((ASCENDING_TRAVERSE(pQueryHandle->order) && (key != TSKEY_INITIAL_VAL && key <= binfo.window.ekey)) ||
       (!ASCENDING_TRAVERSE(pQueryHandle->order) && (key != TSKEY_INITIAL_VAL && key >= binfo.window.skey))) {
@@ -1152,8 +1155,14 @@ static int32_t handleDataMergeIfNeeded(STsdbQueryHandle* pQueryHandle, SBlock* p
     }
 
     assert(cur->blockCompleted);
-    tsdbDebug("create data block from remain file block, brange:%"PRId64"-%"PRId64", rows:%d, lastKey:%"PRId64", %p",
-        cur->win.skey, cur->win.ekey, cur->rows, cur->lastKey, pQueryHandle);
+    if (cur->rows == binfo.rows) {
+      tsdbDebug("%p whole file block qualified, brange:%"PRId64"-%"PRId64", rows:%d, lastKey:%"PRId64", %"PRIx64,
+                pQueryHandle, cur->win.skey, cur->win.ekey, cur->rows, cur->lastKey, pQueryHandle->qId);
+    } else {
+      tsdbDebug("%p create data block from remain file block, brange:%"PRId64"-%"PRId64", rows:%d, total:%d, lastKey:%"PRId64", %"PRIx64,
+                pQueryHandle, cur->win.skey, cur->win.ekey, cur->rows, binfo.rows, cur->lastKey, pQueryHandle->qId);
+    }
+
   }
 
   return code;
@@ -3563,6 +3572,9 @@ int32_t tsdbGetTableGroupFromIdList(STsdbRepo* tsdb, SArray* pTableIdList, STabl
     if (pTable->type == TSDB_SUPER_TABLE) {
       tsdbError("direct query on super tale is not allowed, table uid:%"PRIu64", tid:%d", id->uid, id->tid);
       terrno = TSDB_CODE_QRY_INVALID_MSG;
+      tsdbUnlockRepoMeta(tsdb);
+      taosArrayDestroy(group);
+      return terrno;
     }
 
     tsdbRefTable(pTable);

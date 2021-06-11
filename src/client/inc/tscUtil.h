@@ -138,6 +138,7 @@ bool isSimpleAggregateRv(SQueryInfo* pQueryInfo);
 
 bool tscNonOrderedProjectionQueryOnSTable(SQueryInfo *pQueryInfo, int32_t tableIndex);
 bool tscOrderedProjectionQueryOnSTable(SQueryInfo* pQueryInfo, int32_t tableIndex);
+bool tscIsDiffDerivQuery(SQueryInfo* pQueryInfo);
 bool tscIsProjectionQueryOnSTable(SQueryInfo* pQueryInfo, int32_t tableIndex);
 
 bool tscIsProjectionQuery(SQueryInfo* pQueryInfo);

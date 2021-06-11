@@ -74,7 +74,7 @@ void tVariantCreate(tVariant *pVar, SStrToken *token) {
 
     case TSDB_DATA_TYPE_BINARY: {
       pVar->pz = strndup(token->z, token->n);
-      pVar->nLen = strdequote(pVar->pz);
+      pVar->nLen = strRmquote(pVar->pz, token->n);
       break;
     }
     
