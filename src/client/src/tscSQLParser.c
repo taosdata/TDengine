@@ -4888,7 +4888,10 @@ int32_t getTimeRange(STimeWindow* win, tSqlExpr* pRight, int32_t optr, int16_t t
     win->skey = val;
   } else if (optr == TK_EQ) {
     win->ekey = win->skey = val;
+  } else if (optr == TK_NE) {
+    return TSDB_CODE_TSC_INVALID_OPERATION;
   }
+
   return TSDB_CODE_SUCCESS;
 }
 
