@@ -193,7 +193,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_MND_DB_IN_DROPPING,           "Database not availabl
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_VGROUP_NOT_READY,         "Database unsynced")
 
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_DB_OPTION_DAYS,   "Invalid database option: days out of range")
-TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_DB_OPTION_KEEP,   "Invalid database option: keep >= keep1 >= keep0 >= days")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_DB_OPTION_KEEP,   "Invalid database option: keep2 >= keep1 >= keep0 >= days")
 
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_TOPIC,            "Invalid topic name")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_TOPIC_OPTION,     "Invalid topic option")

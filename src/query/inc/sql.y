@@ -242,9 +242,18 @@ acct_optr(Y) ::= pps(C) tseries(D) storage(P) streams(F) qtime(Q) dbs(E) users(K
     Y.stat    = M;
 }
 
+%type intitemlist {SArray*}
+%destructor intitemlist {taosArrayDestroy($$);}
+
+%type intitem {tVariant}
+intitemlist(A) ::= intitemlist(X) COMMA intitem(Y). { A = tVariantListAppend(X, &Y, -1);    }
+intitemlist(A) ::= intitem(X).                      { A = tVariantListAppend(NULL, &X, -1); }
+
+intitem(A) ::= INTEGER(X).      { toTSDBType(X.type); tVariantCreate(&A, &X); }
+
 %type keep {SArray*}
 %destructor keep {taosArrayDestroy($$);}
-keep(Y)    ::= KEEP tagitemlist(X).           { Y = X; }
+keep(Y)    ::= KEEP intitemlist(X).           { Y = X; }
 
 cache(Y)   ::= CACHE INTEGER(X).              { Y = X; }
 replica(Y) ::= REPLICA INTEGER(X).            { Y = X; }
@@ -563,10 +572,8 @@ session_option(X) ::= SESSION LP ids(V) cpxName(Z) COMMA tmvar(Y) RP.    {
    X.gap = Y;
 }
 %type windowstate_option {SWindowStateVal}
-windowstate_option(X) ::= .                                                  {X.col.n = 0;}
-windowstate_option(X) ::= STATE_WINDOW LP ids(V) RP.                       {
-   X.col = V;
-}  
+windowstate_option(X) ::= .                                                { X.col.n = 0; X.col.z = NULL;}
+windowstate_option(X) ::= STATE_WINDOW LP ids(V) RP.                       { X.col = V; }
 
 %type fill_opt {SArray*}
 %destructor fill_opt {taosArrayDestroy($$);}

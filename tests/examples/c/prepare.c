@@ -184,10 +184,10 @@ int main(int argc, char *argv[])
   int         rows = 0;
   int         num_fields = taos_num_fields(result);
   TAOS_FIELD *fields = taos_fetch_fields(result);
-  char        temp[256];
 
   // fetch the records row by row
   while ((row = taos_fetch_row(result))) {
+    char temp[256] = {0};
     rows++;
     taos_print_row(temp, row, fields, num_fields);
     printf("%s\n", temp);

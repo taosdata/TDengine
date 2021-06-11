@@ -531,7 +531,7 @@ SArray* createTableScanPlan(SQueryAttr* pQueryAttr) {
   } else {
     if (pQueryAttr->queryBlockDist) {
       op = OP_TableBlockInfoScan;
-    } else if (pQueryAttr->tsCompQuery || pQueryAttr->pointInterpQuery) {
+    } else if (pQueryAttr->tsCompQuery || pQueryAttr->pointInterpQuery || pQueryAttr->diffQuery) {
       op = OP_TableSeqScan;
     } else if (pQueryAttr->needReverseScan) {
       op = OP_DataBlocksOptScan;
@@ -605,7 +605,7 @@ SArray* createExecOperatorPlan(SQueryAttr* pQueryAttr) {
       taosArrayPush(plan, &op);
     }
   } else if (pQueryAttr->simpleAgg) {
-    if (pQueryAttr->stableQuery && !pQueryAttr->tsCompQuery) {
+    if (pQueryAttr->stableQuery && !pQueryAttr->tsCompQuery && !pQueryAttr->diffQuery) {
       op = OP_MultiTableAggregate;
     } else {
       op = OP_Aggregate;

@@ -21,7 +21,7 @@ def pre_test(){
     cmake .. > /dev/null
     make > /dev/null
     make install > /dev/null
-    pip3 install ${WKC}/src/connector/python/linux/python3/
+    pip3 install ${WKC}/src/connector/python/ || echo 0
     '''
     return 1
 }

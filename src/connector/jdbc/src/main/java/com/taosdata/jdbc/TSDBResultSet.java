@@ -133,9 +133,10 @@ public class TSDBResultSet extends AbstractResultSet implements ResultSet {
         if (this.getBatchFetch())
             return this.blockData.getString(columnIndex - 1);
 
-        this.lastWasNull = this.rowData.wasNull(columnIndex - 1);
+        this.lastWasNull = this.rowData.wasNull(columnIndex);
         if (!lastWasNull) {
-            res = this.rowData.getString(columnIndex - 1, this.columnMetaDataList.get(columnIndex - 1).getColType());
+            int nativeType = this.columnMetaDataList.get(columnIndex - 1).getColType();
+            res = this.rowData.getString(columnIndex, nativeType);
         }
         return res;
     }
@@ -147,9 +148,10 @@ public class TSDBResultSet extends AbstractResultSet implements ResultSet {
         if (this.getBatchFetch())
             return this.blockData.getBoolean(columnIndex - 1);
 
-        this.lastWasNull = this.rowData.wasNull(columnIndex - 1);
+        this.lastWasNull = this.rowData.wasNull(columnIndex);
         if (!lastWasNull) {
-            res = this.rowData.getBoolean(columnIndex - 1, this.columnMetaDataList.get(columnIndex - 1).getColType());
+            int nativeType = this.columnMetaDataList.get(columnIndex - 1).getColType();
+            res = this.rowData.getBoolean(columnIndex, nativeType);
         }
         return res;
     }
@@ -161,9 +163,10 @@ public class TSDBResultSet extends AbstractResultSet implements ResultSet {
         if (this.getBatchFetch())
             return (byte) this.blockData.getInt(columnIndex - 1);
 
-        this.lastWasNull = this.rowData.wasNull(columnIndex - 1);
+        this.lastWasNull = this.rowData.wasNull(columnIndex);
         if (!lastWasNull) {
-            res = (byte) this.rowData.getInt(columnIndex - 1, this.columnMetaDataList.get(columnIndex - 1).getColType());
+            int nativeType = this.columnMetaDataList.get(columnIndex - 1).getColType();
+            res = (byte) this.rowData.getInt(columnIndex, nativeType);
         }
         return res;
     }
@@ -175,9 +178,10 @@ public class TSDBResultSet extends AbstractResultSet implements ResultSet {
         if (this.getBatchFetch())
             return (short) this.blockData.getInt(columnIndex - 1);
 
-        this.lastWasNull = this.rowData.wasNull(columnIndex - 1);
+        this.lastWasNull = this.rowData.wasNull(columnIndex);
         if (!lastWasNull) {
-            res = (short) this.rowData.getInt(columnIndex - 1, this.columnMetaDataList.get(columnIndex - 1).getColType());
+            int nativeType = this.columnMetaDataList.get(columnIndex - 1).getColType();
+            res = (short) this.rowData.getInt(columnIndex, nativeType);
         }
         return res;
     }
@@ -189,9 +193,11 @@ public class TSDBResultSet extends AbstractResultSet implements ResultSet {
         if (this.getBatchFetch())
             return this.blockData.getInt(columnIndex - 1);
 
-        this.lastWasNull = this.rowData.wasNull(columnIndex - 1);
+
+        this.lastWasNull = this.rowData.wasNull(columnIndex);
         if (!lastWasNull) {
-            res = this.rowData.getInt(columnIndex - 1, this.columnMetaDataList.get(columnIndex - 1).getColType());
+            int nativeType = this.columnMetaDataList.get(columnIndex - 1).getColType();
+            res = this.rowData.getInt(columnIndex, nativeType);
         }
         return res;
     }
@@ -203,13 +209,15 @@ public class TSDBResultSet extends AbstractResultSet implements ResultSet {
         if (this.getBatchFetch())
             return this.blockData.getLong(columnIndex - 1);
 
-        this.lastWasNull = this.rowData.wasNull(columnIndex - 1);
+        this.lastWasNull = this.rowData.wasNull(columnIndex);
         if (!lastWasNull) {
-            Object value = this.rowData.get(columnIndex - 1);
-            if (value instanceof Timestamp)
+            Object value = this.rowData.getObject(columnIndex);
+            if (value instanceof Timestamp) {
                 res = ((Timestamp) value).getTime();
-            else
-                res = this.rowData.getLong(columnIndex - 1, this.columnMetaDataList.get(columnIndex - 1).getColType());
+            } else {
+                int nativeType = this.columnMetaDataList.get(columnIndex - 1).getColType();
+                res = this.rowData.getLong(columnIndex, nativeType);
+            }
         }
         return res;
     }
@@ -221,9 +229,11 @@ public class TSDBResultSet extends AbstractResultSet implements ResultSet {
         if (this.getBatchFetch())
             return (float) this.blockData.getDouble(columnIndex - 1);
 
-        this.lastWasNull = this.rowData.wasNull(columnIndex - 1);
-        if (!lastWasNull)
-            res = this.rowData.getFloat(columnIndex - 1, this.columnMetaDataList.get(columnIndex - 1).getColType());
+        this.lastWasNull = this.rowData.wasNull(columnIndex);
+        if (!lastWasNull) {
+            int nativeType = this.columnMetaDataList.get(columnIndex - 1).getColType();
+            res = this.rowData.getFloat(columnIndex, nativeType);
+        }
 
         return res;
     }
@@ -235,9 +245,10 @@ public class TSDBResultSet extends AbstractResultSet implements ResultSet {
         if (this.getBatchFetch())
             return this.blockData.getDouble(columnIndex - 1);
 
-        this.lastWasNull = this.rowData.wasNull(columnIndex - 1);
+        this.lastWasNull = this.rowData.wasNull(columnIndex);
         if (!lastWasNull) {
-            res = this.rowData.getDouble(columnIndex - 1, this.columnMetaDataList.get(columnIndex - 1).getColType());
+            int nativeType = this.columnMetaDataList.get(columnIndex - 1).getColType();
+            res = this.rowData.getDouble(columnIndex, nativeType);
         }
         return res;
     }
@@ -245,34 +256,27 @@ public class TSDBResultSet extends AbstractResultSet implements ResultSet {
     public byte[] getBytes(int columnIndex) throws SQLException {
         checkAvailability(columnIndex, this.columnMetaDataList.size());
 
-        Object value = this.rowData.get(columnIndex - 1);
+        Object value = this.rowData.getObject(columnIndex);
         if (value == null)
             return null;
 
-        int colType = this.columnMetaDataList.get(columnIndex - 1).getColType();
-        switch (colType) {
+        int nativeType = this.columnMetaDataList.get(columnIndex - 1).getColType();
+        switch (nativeType) {
             case TSDBConstants.TSDB_DATA_TYPE_BIGINT:
-                return Longs.toByteArray((Long) value);
+                return Longs.toByteArray((long) value);
             case TSDBConstants.TSDB_DATA_TYPE_INT:
                 return Ints.toByteArray((int) value);
             case TSDBConstants.TSDB_DATA_TYPE_SMALLINT:
-                return Shorts.toByteArray((Short) value);
+                return Shorts.toByteArray((short) value);
             case TSDBConstants.TSDB_DATA_TYPE_TINYINT:
                 return new byte[]{(byte) value};
+            case TSDBConstants.TSDB_DATA_TYPE_BINARY:
+                return (byte[]) value;
+            case TSDBConstants.TSDB_DATA_TYPE_BOOL:
+            case TSDBConstants.TSDB_DATA_TYPE_NCHAR:
+            default:
+                return value.toString().getBytes();
         }
-        return value.toString().getBytes();
-    }
-
-    @Override
-    public Date getDate(int columnIndex) throws SQLException {
-        Timestamp timestamp = getTimestamp(columnIndex);
-        return timestamp == null ? null : new Date(timestamp.getTime());
-    }
-
-    @Override
-    public Time getTime(int columnIndex) throws SQLException {
-        Timestamp timestamp = getTimestamp(columnIndex);
-        return timestamp == null ? null : new Time(timestamp.getTime());
     }
 
     public Timestamp getTimestamp(int columnIndex) throws SQLException {
@@ -282,9 +286,10 @@ public class TSDBResultSet extends AbstractResultSet implements ResultSet {
         if (this.getBatchFetch())
             return this.blockData.getTimestamp(columnIndex - 1);
 
-        this.lastWasNull = this.rowData.wasNull(columnIndex - 1);
+        this.lastWasNull = this.rowData.wasNull(columnIndex);
         if (!lastWasNull) {
-            res = this.rowData.getTimestamp(columnIndex - 1);
+            int nativeType = this.columnMetaDataList.get(columnIndex - 1).getColType();
+            res = this.rowData.getTimestamp(columnIndex, nativeType);
         }
         return res;
     }
@@ -304,13 +309,9 @@ public class TSDBResultSet extends AbstractResultSet implements ResultSet {
         if (this.getBatchFetch())
             return this.blockData.get(columnIndex - 1);
 
-        this.lastWasNull = this.rowData.wasNull(columnIndex - 1);
+        this.lastWasNull = this.rowData.wasNull(columnIndex);
         if (!lastWasNull) {
-            int colType = this.columnMetaDataList.get(columnIndex - 1).getColType();
-            if (colType == TSDBConstants.TSDB_DATA_TYPE_BINARY)
-                res = ((String) this.rowData.get(columnIndex - 1)).getBytes();
-            else
-                res = this.rowData.get(columnIndex - 1);
+            res = this.rowData.getObject(columnIndex);
         }
         return res;
     }
@@ -318,7 +319,7 @@ public class TSDBResultSet extends AbstractResultSet implements ResultSet {
     public int findColumn(String columnLabel) throws SQLException {
         for (ColumnMetaData colMetaData : this.columnMetaDataList) {
             if (colMetaData.getColName() != null && colMetaData.getColName().equalsIgnoreCase(columnLabel)) {
-                return colMetaData.getColIndex() + 1;
+                return colMetaData.getColIndex();
             }
         }
         throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_INVALID_VARIABLE);
@@ -329,25 +330,25 @@ public class TSDBResultSet extends AbstractResultSet implements ResultSet {
         if (this.getBatchFetch())
             return new BigDecimal(this.blockData.getLong(columnIndex - 1));
 
-        this.lastWasNull = this.rowData.wasNull(columnIndex - 1);
+        this.lastWasNull = this.rowData.wasNull(columnIndex);
         BigDecimal res = null;
         if (!lastWasNull) {
-            int colType = this.columnMetaDataList.get(columnIndex - 1).getColType();
-            switch (colType) {
+            int nativeType = this.columnMetaDataList.get(columnIndex - 1).getColType();
+            switch (nativeType) {
                 case TSDBConstants.TSDB_DATA_TYPE_TINYINT:
                 case TSDBConstants.TSDB_DATA_TYPE_SMALLINT:
                 case TSDBConstants.TSDB_DATA_TYPE_INT:
                 case TSDBConstants.TSDB_DATA_TYPE_BIGINT:
-                    res = new BigDecimal(Long.valueOf(this.rowData.get(columnIndex - 1).toString()));
+                    res = new BigDecimal(Long.valueOf(this.rowData.getObject(columnIndex).toString()));
                     break;
                 case TSDBConstants.TSDB_DATA_TYPE_FLOAT:
                 case TSDBConstants.TSDB_DATA_TYPE_DOUBLE:
-                    res = new BigDecimal(Double.valueOf(this.rowData.get(columnIndex - 1).toString()));
+                    res = new BigDecimal(Double.valueOf(this.rowData.getObject(columnIndex).toString()));
                     break;
                 case TSDBConstants.TSDB_DATA_TYPE_TIMESTAMP:
-                    return new BigDecimal(((Timestamp) this.rowData.get(columnIndex - 1)).getTime());
+                    return new BigDecimal(((Timestamp) this.rowData.getObject(columnIndex)).getTime());
                 default:
-                    res = new BigDecimal(this.rowData.get(columnIndex - 1).toString());
+                    res = new BigDecimal(this.rowData.getObject(columnIndex).toString());
             }
         }
         return res;
