@@ -112,8 +112,8 @@ TDengine is a highly efficient platform to store, query, and analyze time-series
 
 ## TDengine Technical Design
 
-- [System Module](/architecture/taosd): taosd functions and modules partitioning
-- [Data Replication](/architecture/replica): support real-time synchronous/asynchronous replication, to ensure high-availability of the system
+- [System Module]: taosd functions and modules partitioning
+- [Data Replication]: support real-time synchronous/asynchronous replication, to ensure high-availability of the system
 - [Technical Blog](https://www.taosdata.com/cn/blog/?categories=3): More technical analysis and architecture design articles
 
 ## Common Tools
