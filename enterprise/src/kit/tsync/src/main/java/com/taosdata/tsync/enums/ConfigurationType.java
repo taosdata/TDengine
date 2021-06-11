@@ -14,5 +14,6 @@ public enum ConfigurationType {
     CONSUME_JOB,
     CONSUMER,
     DESTINATION,
-    TAOSD
+    TAOSD,
+    STRATEGY
 }

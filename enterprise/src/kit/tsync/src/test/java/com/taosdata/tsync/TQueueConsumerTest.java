@@ -1,13 +1,9 @@
 package com.taosdata.tsync;
 
 import com.taosdata.tsync.entity.consumer.ConsumerConfig;
-import com.taosdata.tsync.entity.consumer.ConsumerRecord;
 import com.taosdata.tsync.serializer.SerializeIgnore;
 
-import java.time.Duration;
-import java.util.List;
 import java.util.Properties;
-import java.util.stream.IntStream;
 
 public class TQueueConsumerTest {
 

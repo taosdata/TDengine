@@ -31,6 +31,45 @@
       "charset": "UTF-8",
       "locale": "en_US.UTF-8",
       "timezone": "UTC-8"
+    },
+    "strategy": {
+      "pollingInterval": 1000,
+      "schemaMissing": "CREATE"
+    },
+    "schema": {
+      "database": {
+        "name": "test",
+        "precision": "ms"
+      },
+      "stable": {
+        "name": "weather",
+        "tables": 10000,
+        "columns": [
+          {
+            "name": "ts",
+            "type": "timestamp"
+          },
+          {
+            "name": "temperature",
+            "type": "float"
+          },
+          {
+            "name": "humidity",
+            "type": "int"
+          }
+        ],
+        "tags": [
+          {
+            "name": "loc",
+            "type": "binary",
+            "length": 5
+          },
+          {
+            "name": "groupId",
+            "type": "int"
+          }
+        ]
+      }
     }
   }
 }

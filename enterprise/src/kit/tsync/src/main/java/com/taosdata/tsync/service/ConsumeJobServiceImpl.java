@@ -62,12 +62,17 @@ public class ConsumeJobServiceImpl extends AbstractJobService {
         }
         threads = actualThreads;
 
-        // 4. destination Configuration ==> tdengine
+        // 4. destination Configuration ==> taosd
         TaosdConfiguration taosdConfiguration = (TaosdConfiguration) configuration.findFirst(ConfigurationType.TAOSD);
         if (taosdConfiguration == null) {
             throw new Exception("cannot find taosd in configurations");
         }
 
+        // 5. destination Configuration ==> strategy, schema
+        StrategyConfiguration strategyConfiguration = (StrategyConfiguration) configuration.findFirst(ConfigurationType.STRATEGY);
+        SchemaConfiguration schemaConfiguration = (SchemaConfiguration) configuration.findFirst(ConfigurationType.SCHEMA);
+
+        // 6. create threads
         List<Integer> taskIds = new ArrayList<>();
         for (int i = 0; i < threads; i++) {
             // callable task
@@ -77,6 +82,9 @@ public class ConsumeJobServiceImpl extends AbstractJobService {
                     .setTopic(topic)
                     .setConsumer(consumerConfiguration)
                     .setTaosdConfiguration(taosdConfiguration)
+                    .setPollingInterval(strategyConfiguration)
+                    .setSchemaMissing(strategyConfiguration)
+                    .setSchemaConfiguration(schemaConfiguration)
                     .build();
 
             RunnableTask runnableTask = new RunnableTask(i, runnable);

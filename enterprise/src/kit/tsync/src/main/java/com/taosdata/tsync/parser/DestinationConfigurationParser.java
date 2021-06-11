@@ -5,10 +5,12 @@ import com.taosdata.tsync.entity.config.Configuration;
 import com.taosdata.tsync.entity.config.DestinationConfiguration;
 import com.taosdata.tsync.enums.ConfigurationType;
 
-public class DestinationConfigurationParser implements ConfigurationParser {
+public class DestinationConfigurationParser extends AbstractConfigurationParser {
     private final ConfigurationType type = ConfigurationType.DESTINATION;
 
-    private TaosdConfigurationParser taosdParser = new TaosdConfigurationParser();
+    private final TaosdConfigurationParser taosdParser = new TaosdConfigurationParser();
+    private final StrategyConfigurationParser strategyParser = new StrategyConfigurationParser();
+    private final SchemaConfigurationParser schemaParser = new SchemaConfigurationParser();
 
     @Override
     public boolean canParse(ConfigurationType type, JSONObject configJSON) {
@@ -19,13 +21,17 @@ public class DestinationConfigurationParser implements ConfigurationParser {
     public Configuration parse(ConfigurationType type, JSONObject configJSON) {
         DestinationConfiguration configuration = new DestinationConfiguration();
 
-        if (configJSON.containsKey("taosd")) {
-            JSONObject taosdJSON = configJSON.getJSONObject("taosd");
-            if (taosdParser.canParse(ConfigurationType.TAOSD, taosdJSON)) {
-                Configuration taosd = taosdParser.parse(ConfigurationType.TAOSD, taosdJSON);
-                configuration.add(taosd);
-            }
-        }
+        Configuration taosd = parseConfiguration(configJSON, "taosd", ConfigurationType.TAOSD, taosdParser);
+        if (taosd != null)
+            configuration.add(taosd);
+
+        Configuration strategy = parseConfiguration(configJSON, "strategy", ConfigurationType.STRATEGY, strategyParser);
+        if (strategy != null)
+            configuration.add(strategy);
+
+        Configuration schema = parseConfiguration(configJSON, "schema", ConfigurationType.SCHEMA, schemaParser);
+        if (schema != null)
+            configuration.add(schema);
 
         return configuration;
     }

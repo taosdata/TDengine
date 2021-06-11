@@ -2,6 +2,8 @@ package com.taosdata.tsync.factory;
 
 import com.taosdata.tsync.TQueueConsumer;
 import com.taosdata.tsync.entity.config.ConsumerConfiguration;
+import com.taosdata.tsync.entity.config.SchemaConfiguration;
+import com.taosdata.tsync.entity.config.StrategyConfiguration;
 import com.taosdata.tsync.entity.config.TaosdConfiguration;
 import com.taosdata.tsync.service.WriteToTDengineRunnableTask;
 
@@ -36,10 +38,24 @@ public class WriteToTDengineTaskFactory {
         return this;
     }
 
+    public WriteToTDengineTaskFactory setPollingInterval(StrategyConfiguration strategyConfiguration) {
+        instance.setPollingInterval(strategyConfiguration.getPollingInterval());
+        return this;
+    }
+
+    public WriteToTDengineTaskFactory setSchemaMissing(StrategyConfiguration strategyConfiguration) {
+        instance.setSchemaMissing(strategyConfiguration.getSchemaMissing());
+        return this;
+    }
 
     public WriteToTDengineTaskFactory setTaosdConfiguration(TaosdConfiguration taosdConfiguration) {
         Connection connection = TaosdConnectionFactory.build(taosdConfiguration);
         instance.setTaosdConnection(connection);
+        return this;
+    }
+
+    public WriteToTDengineTaskFactory setSchemaConfiguration(SchemaConfiguration schemaConfiguration) {
+        instance.setSchemaConfiguration(schemaConfiguration);
         return this;
     }
 }
