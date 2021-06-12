@@ -1145,7 +1145,6 @@ void *seed_write_routine(void *arg)
 
                 if (taos_stmt_execute(stmt) != 0) {
                     fprintf(stderr, "thread(%d): failed to execute the last insert statement\r\n", p->index + 1);
-                    taos_stmt_close(stmt);
                 }
             }
 
@@ -1189,13 +1188,13 @@ void *seed_write_routine(void *arg)
 
             if (taos_stmt_execute(stmt) != 0) {
                 fprintf(stderr, "thread(%d): failed to execute insert statement\r\n", p->index + 1);
-                taos_stmt_close(stmt);
                 running = 0;
-                return NULL;
+                break;
             }
         }
     }
 
+    taos_stmt_close(stmt);
     //fprintf(stderr, "thread(%d): total rows: %ld\r\n", p->index + 1, total_rows);
 
     return NULL;
