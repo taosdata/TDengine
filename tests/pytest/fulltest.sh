@@ -21,6 +21,7 @@ python3 insert/retentionpolicy.py
 python3 ./test.py -f insert/alterTableAndInsert.py
 python3 ./test.py -f insert/insertIntoTwoTables.py
 python3 ./test.py -f insert/before_1970.py
+python3 ./test.py -f insert/special_character_show.py
 python3 bug2265.py
 python3 ./test.py -f insert/bug3654.py
 python3 ./test.py -f insert/insertDynamicColBeforeVal.py
@@ -318,6 +319,7 @@ python3 ./test.py -f account/account_create.py
 python3 ./test.py -f alter/alter_table.py
 python3 ./test.py -f query/queryGroupbySort.py
 python3 ./test.py -f functions/function_stateWindow.py
+python3 ./test.py -f functions/function_derivative.py
 
 python3 ./test.py -f insert/unsignedInt.py
 python3 ./test.py -f insert/unsignedBigint.py
