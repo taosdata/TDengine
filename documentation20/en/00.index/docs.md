@@ -44,7 +44,7 @@ TDengine is a highly efficient platform to store, query, and analyze time-series
 - [SQL Function](../12.taos-sql/docs.md#functions): support various aggregation functions, selection functions, and calculation functions, such as avg, min, diff, etc
 - [Time Dimensions Aggregation](../12.taos-sql/docs.md#aggregation): aggregate and reduce the dimension after cutting table data by time segment
 - [Boundary Restrictions](../12.taos-sql/docs.md#limitation): restrictions for the library, table, SQL, and others
-- [Error Code](../12.taos-sql/docs.md/error-code): TDengine 2.0 error codes and corresponding decimal codes
+- [Error Code](../12.taos-sql/01.error-code/docs.md): TDengine 2.0 error codes and corresponding decimal codes
 
 ## [Efficient Data Ingestion](../05.insert/docs.md)
 
@@ -138,4 +138,4 @@ TDengine is a highly efficient platform to store, query, and analyze time-series
 
 ## FAQ
 
-- [FAQ: Common questions and answers](/faq)
+- [FAQ: Common questions and answers](../13.faq/docs.md)

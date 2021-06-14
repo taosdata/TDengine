@@ -20,7 +20,7 @@ TDengine是一个高效的存储、查询、分析时序大数据的平台，专
 ## [整体架构](../03.architecture/docs.md)
 
 * [数据模型](../03.architecture/docs.md#model)：关系型数据库模型，但要求每个采集点单独建表
-* [集群与基本逻辑单元](../03.architecture/docs.mdcluster)：吸取NoSQL优点，支持水平扩展，支持高可靠
+* [集群与基本逻辑单元](../03.architecture/docs.md#cluster)：吸取NoSQL优点，支持水平扩展，支持高可靠
 * [存储模型与数据分区、分片](../03.architecture/docs.md#sharding)：标签数据与时序数据完全分离，按vnode和时间两个维度对数据切分
 * [数据写入与复制流程](../03.architecture/docs.md#replication)：先写入WAL、之后写入缓存，再给应用确认，支持多副本
 * [缓存与持久化](../03.architecture/docs.md#persistence)：最新数据缓存在内存中，但落盘时采用列式存储、超高压缩比
@@ -44,7 +44,7 @@ TDengine是一个高效的存储、查询、分析时序大数据的平台，专
 * [SQL函数](../12.taos-sql/docs.md#functions)：支持各种聚合函数、选择函数、计算函数，如avg, min, diff等
 * [时间维度聚合](../12.taos-sql/docs.md#aggregation)：将表中数据按照时间段进行切割后聚合，降维处理
 * [边界限制](../12.taos-sql/docs.md#limitation)：库、表、SQL等边界限制条件
-* [错误码](../12.taos-sql/docs.md/error-code)：TDengine 2.0 错误码以及对应的十进制码
+* [错误码](../12.taos-sql/01.error-code/docs.md)：TDengine 2.0 错误码以及对应的十进制码
 
 ## [高效写入数据](../05.insert/docs.md)
 
@@ -80,9 +80,9 @@ TDengine是一个高效的存储、查询、分析时序大数据的平台，专
 
 ## [与其他工具的连接](../09.connections/docs.md)
 
-* [Grafana](/connections#grafana)：获取并可视化保存在TDengine的数据
-* [Matlab](/connections#matlab)：通过配置Matlab的JDBC数据源访问保存在TDengine的数据
-* [R](/connections#r)：通过配置R的JDBC数据源访问保存在TDengine的数据
+* [Grafana](../09.connections/docs.md#grafana)：获取并可视化保存在TDengine的数据
+* [Matlab](../09.connections/docs.md#matlab)：通过配置Matlab的JDBC数据源访问保存在TDengine的数据
+* [R](../09.connections/docs.md#r)：通过配置R的JDBC数据源访问保存在TDengine的数据
 * [IDEA Database](https://www.taosdata.com/blog/2020/08/27/1767.html)：通过IDEA 数据库管理工具可视化使用 TDengine
 
 ## [TDengine集群的安装、管理](../10.cluster/docs.md)
@@ -140,7 +140,7 @@ TDengine是一个高效的存储、查询、分析时序大数据的平台，专
 
 ## 培训和FAQ
 
-* [FAQ：常见问题与答案](/faq)
+* [FAQ：常见问题与答案](../13.faq/docs.md)
 * [技术公开课：开源、高效的物联网大数据平台，TDengine内核技术剖析](https://www.taosdata.com/blog/2020/12/25/2126.html)
 * [TDengine视频教程-快速上手](https://www.taosdata.com/blog/2020/11/11/1941.html)
 * [TDengine视频教程-数据建模](https://www.taosdata.com/blog/2020/11/11/1945.html)
