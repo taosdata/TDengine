@@ -1800,7 +1800,6 @@ int32_t validateSelectNodeList(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SArray* pS
   assert(pSelNodeList != NULL && pCmd != NULL);
 
   const char* msg1 = "too many items in selection clause";
-
   const char* msg2 = "functions or others can not be mixed up";
   const char* msg3 = "not support query expression";
   const char* msg4 = "only support distinct one tag";
@@ -2726,6 +2725,8 @@ void getColumnName(tSqlExprItem* pItem, char* resultFieldName, char* rawName, in
   strncpy(rawName, pItem->pNode->token.z, len);
 
   if (pItem->aliasName != NULL) {
+    int32_t aliasNameLen = (int32_t) strlen(pItem->aliasName);
+    len = (aliasNameLen < nameLength)? aliasNameLen:nameLength;
     strncpy(resultFieldName, pItem->aliasName, len);
   } else {
     strncpy(resultFieldName, rawName, len);
@@ -7752,6 +7753,7 @@ int32_t validateSqlNode(SSqlObj* pSql, SSqlNode* pSqlNode, SQueryInfo* pQueryInf
   const char* msg4 = "interval query not supported, since the result of sub query not include valid timestamp column";
   const char* msg5 = "only tag query not compatible with normal column filter";
   const char* msg6 = "not support stddev/percentile in outer query yet";
+  const char* msg7 = "drivative requires timestamp column exists in subquery";
 
   int32_t code = TSDB_CODE_SUCCESS;
 
@@ -7801,13 +7803,23 @@ int32_t validateSqlNode(SSqlObj* pSql, SSqlNode* pSqlNode, SQueryInfo* pQueryInf
       }
     }
 
+    // todo derivate funtion requires ts column exists in subquery
+    STableMeta* pTableMeta = tscGetMetaInfo(pQueryInfo, 0)->pTableMeta;
+    SSchema* pSchema = tscGetTableColumnSchema(pTableMeta, 0);
+
+    if (tscNumOfExprs(pQueryInfo) > 1) {
+      SExprInfo* pExpr = tscExprGet(pQueryInfo, 1);
+      if (pExpr->base.functionId == TSDB_FUNC_DERIVATIVE && pSchema->type != TSDB_DATA_TYPE_TIMESTAMP) {
+        return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg7);
+      }
+    }
+
     // validate the query filter condition info
     if (pSqlNode->pWhere != NULL) {
       if (validateWhereNode(pQueryInfo, &pSqlNode->pWhere, pSql) != TSDB_CODE_SUCCESS) {
         return TSDB_CODE_TSC_INVALID_OPERATION;
       }
 
-      STableMeta* pTableMeta = tscGetMetaInfo(pQueryInfo, 0)->pTableMeta;
       if (pTableMeta->tableInfo.precision == TSDB_TIME_PRECISION_MILLI) {
         pQueryInfo->window.skey = pQueryInfo->window.skey / 1000;
         pQueryInfo->window.ekey = pQueryInfo->window.ekey / 1000;
@@ -7832,7 +7844,6 @@ int32_t validateSqlNode(SSqlObj* pSql, SSqlNode* pSqlNode, SQueryInfo* pQueryInf
     }
 
     // set order by info
-    STableMeta* pTableMeta = tscGetMetaInfo(pQueryInfo, 0)->pTableMeta;
     if (validateOrderbyNode(pCmd, pQueryInfo, pSqlNode, tscGetTableSchema(pTableMeta)) != TSDB_CODE_SUCCESS) {
       return TSDB_CODE_TSC_INVALID_OPERATION;
     }

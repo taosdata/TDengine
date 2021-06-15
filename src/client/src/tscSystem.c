@@ -290,8 +290,9 @@ static int taos_options_imp(TSDB_OPTION option, const char *pStr) {
           char* defaultLocale = setlocale(LC_CTYPE, "");
 
           // The locale of the current OS does not be set correctly, so the default locale cannot be acquired.
+          // The launch of current system will abort soon.
           if (defaultLocale == NULL) {
-            uError("failed to get default locale, please set the correct locale in current OS");
+            tscError("failed to get default locale, please set the correct locale in current OS");
             return -1;
           }
 
