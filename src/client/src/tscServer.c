@@ -1544,7 +1544,6 @@ int tscBuildCompactMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   if (pInfo->list == NULL || taosArrayGetSize(pInfo->list) <= 0) {
     return TSDB_CODE_TSC_INVALID_OPERATION;
   }
-  //const char *msg = "invalid compact param"; 
   STscObj *pObj = pSql->pTscObj;
   SSqlCmd *pCmd = &pSql->cmd;
   SArray *pList = pInfo->list;
