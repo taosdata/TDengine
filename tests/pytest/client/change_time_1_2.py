@@ -62,9 +62,6 @@ class TDTestCase:
             os.system('sudo timedatectl set-ntp on')
             tdLog.sleep(10) 
 
-
-        os.system ('timedatectl set-time 2020-10-25')
-
         #moves 5 days ahead to 2020/10/25 and restart taosd
         #4 oldest data file should be removed from tsdb/data
         #7 data file should be found 
