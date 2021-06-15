@@ -19,6 +19,7 @@ from util.pathFinding import *
 from util.dnodes import tdDnodes
 from datetime import datetime
 import subprocess
+import time
 
 ##TODO: this is now automatic, but not sure if this will run through jenkins
 class TDTestCase:
@@ -63,6 +64,7 @@ class TDTestCase:
         tdSql.query('select first(ts) from stb_0')
         tdSql.checkData(0,0,datetime(2020,10,14,8,0,0,0)) #check the last data in the database
         os.system('sudo timedatectl set-ntp on')
+        time.sleep(5)
 
     def stop(self):
         os.system('sudo timedatectl set-ntp on')

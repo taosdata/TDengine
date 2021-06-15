@@ -71,6 +71,7 @@ class TDTestCase:
         else:
             tdLog.debug("data file number correct")
         os.system('sudo timedatectl set-ntp on')
+        time.sleep(5)
 
     def stop(self):
         os.system('sudo timedatectl set-ntp on')

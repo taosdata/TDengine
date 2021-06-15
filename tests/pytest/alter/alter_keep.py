@@ -15,6 +15,7 @@ import sys
 from util.log import *
 from util.cases import *
 from util.sql import *
+import time
 
 
 class TDTestCase:
@@ -129,9 +130,6 @@ class TDTestCase:
 
         tdSql.prepare()
 
-        ##TODO: need to wait for TD-4445 to implement the following
-        ##      tests
-
 
         ## preset the keep
         tdSql.prepare()
@@ -176,20 +174,22 @@ class TDTestCase:
         tdSql.error('insert into tb values (now-15d, 10)')
         tdSql.query('select * from tb')
         tdSql.checkRows(rowNum)
-
+        
         tdLog.notice('testing keep will be altered if sudden change from small to big')
-        tdSql.execute('alter database db keep 14,14,14')
-        tdSql.execute('alter database db keep 15,15,15')
-        tdSql.execute('insert into tb values (now-15d, 10)')
-        tdSql.query('select * from tb')
-        tdSql.checkRows(rowNum + 1)
+        for i in range(30):
+            tdSql.execute('alter database db keep 14,14,14')
+            tdSql.execute('alter database db keep 16,16,16')
+            tdSql.execute('insert into tb values (now-15d, 10)')
+            tdSql.query('select * from tb')
+            rowNum += 1
+            tdSql.checkRows(rowNum )
 
         tdLog.notice('testing keep will be altered if sudden change from big to small')
         tdSql.execute('alter database db keep 16,16,16')
         tdSql.execute('alter database db keep 14,14,14')
         tdSql.error('insert into tb values (now-15d, 10)')
         tdSql.query('select * from tb')
-        tdSql.checkRows(rowNum + 1)
+        tdSql.checkRows(rowNum)
 
 
 
