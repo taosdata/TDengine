@@ -346,6 +346,6 @@ python3 test.py -f alter/alter_keep.py
 python3 test.py -f alter/alter_cacheLastRow.py
 python3 ./test.py -f query/querySession.py 
 python3 test.py -f  alter/alter_create_exception.py
-# python3 test.py -f client/change_time_1_1.py
-# python3 test.py -f client/change_time_1_2.py
+python3 test.py -f client/change_time_1_1.py
+python3 test.py -f client/change_time_1_2.py
 #======================p4-end===============
