@@ -92,7 +92,7 @@ class TDTestCase:
         tdSql.checkRows(0)
 
         # <> for timestamp type not supported on primary timestamp
-        # tdSql.query("select * from db.st where ts <> '2020-05-13 10:00:00.002'")
+        tdSql.error("select * from db.st where ts <> '2020-05-13 10:00:00.002'")
         # tdSql.checkRows(4)
 
         # <> for numeric type
