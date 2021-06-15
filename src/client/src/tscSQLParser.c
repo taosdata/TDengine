@@ -8007,28 +8007,21 @@ int32_t exprTreeFromSqlExpr(SSqlCmd* pCmd, tExprNode **pExpr, const tSqlExpr* pS
     assert(pSqlExpr->pRight == NULL);
 
     if (pSqlExpr->type == SQL_NODE_VALUE) {
+      int32_t ret = TSDB_CODE_SUCCESS;  
       *pExpr = calloc(1, sizeof(tExprNode));
       (*pExpr)->nodeType = TSQL_NODE_VALUE;
       (*pExpr)->pVal = calloc(1, sizeof(tVariant));
       tVariantAssign((*pExpr)->pVal, &pSqlExpr->value);
 
-      int32_t type = -1;
       STableMeta* pTableMeta = tscGetMetaInfo(pQueryInfo, 0)->pTableMeta;
       if (pCols != NULL) {
         SColIndex* idx = taosArrayGet(pCols, 0);
         SSchema* pSchema = tscGetTableColumnSchema(pTableMeta, idx->colIndex);
-        if (pSchema != NULL) {
-          type = pSchema->type; 
+        if (pSchema != NULL && pSchema->type == TSDB_DATA_TYPE_TIMESTAMP) {
+          ret = setColumnFilterInfoForTimestamp(pCmd, pQueryInfo, (*pExpr)->pVal);
         }
       }
-      if (type == TSDB_DATA_TYPE_TIMESTAMP) {
-        int32_t ret = setColumnFilterInfoForTimestamp(pCmd, pQueryInfo, (*pExpr)->pVal);
-        if (ret != TSDB_CODE_SUCCESS) {
-          return ret;
-        }
-      }
-      
-      return TSDB_CODE_SUCCESS;
+      return ret;  
     } else if (pSqlExpr->type == SQL_NODE_SQLFUNCTION) {
       // arithmetic expression on the results of aggregation functions
       *pExpr = calloc(1, sizeof(tExprNode));
