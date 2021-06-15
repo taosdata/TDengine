@@ -2819,7 +2819,7 @@ static void doSetTagValueInParam(void* pTable, int32_t tagColId, tVariant *tag, 
     val = tsdbGetTableName(pTable);
     assert(val != NULL);
   } else {
-    val = tsdbGetTableTagVal(pTable, tagColId, type, bytes);
+    val = tsdbGetTableTagVal(pTable, tagColId, type, &bytes);
   }
 
   if (val == NULL || isNull(val, type)) {
@@ -6011,7 +6011,7 @@ static SSDataBlock* doTagScan(void* param, bool* newgroup) {
       if (pExprInfo->base.colInfo.colId == TSDB_TBNAME_COLUMN_INDEX) {
         data = tsdbGetTableName(item->pTable);
       } else {
-        data = tsdbGetTableTagVal(item->pTable, pExprInfo->base.colInfo.colId, type, bytes);
+        data = tsdbGetTableTagVal(item->pTable, pExprInfo->base.colInfo.colId, type, &bytes);
       }
 
       doSetTagValueToResultBuf(output, data, type, bytes);
@@ -6050,7 +6050,7 @@ static SSDataBlock* doTagScan(void* param, bool* newgroup) {
         if (pExprInfo[j].base.colInfo.colId == TSDB_TBNAME_COLUMN_INDEX) {
           data = tsdbGetTableName(item->pTable);
         } else {
-          data = tsdbGetTableTagVal(item->pTable, pExprInfo[j].base.colInfo.colId, type, bytes);
+          data = tsdbGetTableTagVal(item->pTable, pExprInfo[j].base.colInfo.colId, type, &bytes);
         }
 
         dst  = pColInfo->pData + count * pExprInfo[j].base.resBytes;
