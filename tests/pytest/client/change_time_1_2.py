@@ -34,6 +34,7 @@ class TDTestCase:
 
         ## change system time to 2020/10/20
         os.system ('timedatectl set-ntp off')
+        tdLog.sleep(10)
         os.system ('timedatectl set-time 2020-10-20')
 
         #run taosdemo to insert data. one row per second from 2020/10/11 to 2020/10/20
