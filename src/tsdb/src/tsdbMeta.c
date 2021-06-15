@@ -148,7 +148,7 @@ int tsdbCreateTable(STsdbRepo *repo, STableCfg *pCfg) {
   return 0;
 
 _err:
-  tsdbFreeTable(super);
+  //tsdbFreeTable(super);
   tsdbFreeTable(table);
   return -1;
 }
@@ -201,7 +201,7 @@ _err:
   return -1;
 }
 
-void *tsdbGetTableTagVal(const void* pTable, int32_t colId, int16_t type, int16_t* bytes) {
+void *tsdbGetTableTagVal(const void* pTable, int32_t colId, int16_t type, int16_t bytes) {
   // TODO: this function should be changed also
 
   STSchema *pSchema = tsdbGetTableTagSchema((STable*) pTable);
@@ -211,16 +211,8 @@ void *tsdbGetTableTagVal(const void* pTable, int32_t colId, int16_t type, int16_
   }
 
   char *val = tdGetKVRowValOfCol(((STable*)pTable)->tagVal, colId);
-  assert(type == pCol->type &&
-         // if var data type,bytes may >= col bytes,in case of tag width has beed modified
-        ((IS_VAR_DATA_TYPE(type) && *bytes >= pCol->bytes) ||
-        // otherwise, bytes must be equal to colomn bytes
-        (!IS_VAR_DATA_TYPE(type) && *bytes == pCol->bytes)));
+  assert(type == pCol->type && bytes == pCol->bytes);
 
-  // in case tag width has been modified bigger but vnode has not been notified
-  if (val != NULL && IS_VAR_DATA_TYPE(type) && *bytes > pCol->bytes) {
-    *bytes = pCol->bytes;
-  }
   // if (val != NULL && IS_VAR_DATA_TYPE(type)) {
   //   assert(varDataLen(val) < pCol->bytes);
   // }

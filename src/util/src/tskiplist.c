@@ -85,7 +85,7 @@ SSkipList *tSkipListCreate(uint8_t maxLevel, uint8_t keyType, uint16_t keyLen, _
 }
 
 void tSkipListDestroy(SSkipList *pSkipList) {
-  if (pSkipList == NULL) return;
+  if (pSkipList == NULL || pSkipList->pHead == NULL) return;
 
   tSkipListWLock(pSkipList);
 
