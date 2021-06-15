@@ -6791,7 +6791,7 @@ int32_t doCheckForCreateFromStable(SSqlObj* pSql, SSqlInfo* pInfo) {
   const int32_t STABLE_INDEX = 1;
 
   STableMetaInfo* pStableMetaInfo = tscGetMetaInfo(pQueryInfo, STABLE_INDEX);
-
+  
   // super table name, create table by using dst
   int32_t numOfTables = (int32_t) taosArrayGetSize(pCreateTable->childTableInfo);
   for(int32_t j = 0; j < numOfTables; ++j) {
@@ -6820,6 +6820,7 @@ int32_t doCheckForCreateFromStable(SSqlObj* pSql, SSqlInfo* pInfo) {
 
     // too long tag values will return invalid sql, not be truncated automatically
     SSchema  *pTagSchema = tscGetTableTagSchema(pStableMetaInfo->pTableMeta);
+    STableComInfo tinfo = tscGetTableInfo(pStableMetaInfo->pTableMeta);
     STagData *pTag = &pCreateTableInfo->tagdata;
 
     SKVRowBuilder kvRowBuilder = {0};
@@ -6869,7 +6870,11 @@ int32_t doCheckForCreateFromStable(SSqlObj* pSql, SSqlInfo* pInfo) {
                 tdDestroyKVRowBuilder(&kvRowBuilder);
                 return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg3);
               }
+            } else if (pSchema->type == TSDB_DATA_TYPE_TIMESTAMP) {
+              pItem->pVar.i64 = 
+                  convertTimePrecision(pItem->pVar.i64, TSDB_TIME_PRECISION_NANO, tinfo.precision);  
             }
+
 
             ret = tVariantDump(&(pItem->pVar), tagVal, pSchema->type, true);
 
@@ -6915,7 +6920,11 @@ int32_t doCheckForCreateFromStable(SSqlObj* pSql, SSqlInfo* pInfo) {
             tdDestroyKVRowBuilder(&kvRowBuilder);
             return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg3);
           }
+        } else if (pSchema->type == TSDB_DATA_TYPE_TIMESTAMP) {
+          pItem->pVar.i64 = 
+            convertTimePrecision(pItem->pVar.i64, TSDB_TIME_PRECISION_NANO, tinfo.precision);  
         }
+        
 
         ret = tVariantDump(&(pItem->pVar), tagVal, pSchema->type, true);
 
