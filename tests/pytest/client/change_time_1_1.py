@@ -56,8 +56,8 @@ class TDTestCase:
         
         #move 5 days ahead to 2020/10/25. 4 oldest files should be removed during the new write
         #leaving 7 data files.
-        os.system ('timedatectl set-time 2020-10-25')
         try:
+            os.system ('timedatectl set-time 2020-10-25')
             os.system(f"{binPath}taosdemo -f tools/taosdemoAllTest/manual_change_time_1_1_B.json")
         except BaseException:
             os.system('sudo timedatectl set-ntp on')
@@ -78,6 +78,7 @@ class TDTestCase:
 
     def stop(self):
         os.system('sudo timedatectl set-ntp on')
+        tdLog.sleep(10)
         tdSql.close()
         tdLog.success("alter block manual check finish")
 

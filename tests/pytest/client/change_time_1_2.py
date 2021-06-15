@@ -54,8 +54,14 @@ class TDTestCase:
         else:
             tdLog.debug("data file number correct")
 
-        tdSql.query('select first(ts) from stb_0') #check the last data in the database
-        tdSql.checkData(0,0,datetime(2020,10,11,0,0,0,0))
+
+        try:
+            tdSql.query('select first(ts) from stb_0') #check the last data in the database
+            tdSql.checkData(0,0,datetime(2020,10,11,0,0,0,0))
+        except BaseException:
+            os.system('sudo timedatectl set-ntp on')
+            tdLog.sleep(10) 
+
 
         os.system ('timedatectl set-time 2020-10-25')
 
@@ -63,11 +69,17 @@ class TDTestCase:
         #4 oldest data file should be removed from tsdb/data
         #7 data file should be found 
         #vnode at TDinternal/community/sim/dnode1/data/vnode
-        os.system ('timedatectl set-time 2020-10-25')
-        tdDnodes.stop(1)
-        tdDnodes.start(1)
-        tdSql.query('select first(ts) from stb_0')
-        tdSql.checkData(0,0,datetime(2020,10,14,8,0,0,0)) #check the last data in the database
+
+        try:
+            os.system ('timedatectl set-time 2020-10-25')
+            tdDnodes.stop(1)
+            tdDnodes.start(1)
+            tdSql.query('select first(ts) from stb_0')
+            tdSql.checkData(0,0,datetime(2020,10,14,8,0,0,0)) #check the last data in the database
+        except BaseException:
+            os.system('sudo timedatectl set-ntp on')
+            tdLog.sleep(10) 
+
         os.system('sudo timedatectl set-ntp on')
         tdLog.sleep(10)
         commandArray = ['ls', '-l', f'{TDenginePath}/sim/dnode1/data/vnode/vnode2/tsdb/data']
