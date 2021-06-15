@@ -1501,7 +1501,7 @@ static int32_t mnodeChangeSuperTableTag(SMnodeMsg *pMsg) {
   }
 
   // update
-  SSchema *schema = (SSchema *) (pStable->schema + col);
+  SSchema *schema = (SSchema *) (pStable->schema + col + pStable->numOfColumns);
   ASSERT(schema->type == TSDB_DATA_TYPE_BINARY || schema->type == TSDB_DATA_TYPE_NCHAR);
   schema->bytes = pAlter->schema[0].bytes;
   mInfo("msg:%p, app:%p stable %s, start to modify tag len %s to %d", pMsg, pMsg->rpcMsg.ahandle, pStable->info.tableId,

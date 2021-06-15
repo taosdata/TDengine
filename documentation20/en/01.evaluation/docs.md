@@ -43,26 +43,23 @@ From the perspective of data sources, designers can analyze the applicability of
 
 ### System Function Requirements
 
-|                                                       |                    |                      |                     |                                                              |
-| ----------------------------------------------------- | ------------------ | -------------------- | ------------------- | ------------------------------------------------------------ |
-| **System Function Requirements**                      | **Not Applicable** | **Might Applicable** | **Very Applicable** | **Description**                                              |
+| **System Architecture Requirements**              | **Not Applicable** | **Might Be Applicable** | **Very Applicable** | **Description**                                              |
+| ------------------------------------------------- | ------------------ | ----------------------- | ------------------- | ------------------------------------------------------------ |
 | Require completed data processing algorithms built-in |                    | √                    |                     | TDengine implements various general data processing algorithms, but has not properly handled all requirements of different industries, so special types of processing shall be processed at the application level. |
 | Require a huge amount of crosstab queries             |                    | √                    |                     | This type of processing should be handled more by relational database systems, or TDengine and relational database systems should fit together to implement system functions. |
 
 ### System Performance Requirements
 
-|                                              |                    |                      |                     |                                                              |
-| -------------------------------------------- | ------------------ | -------------------- | ------------------- | ------------------------------------------------------------ |
-| **System Performance Requirements**          | **Not Applicable** | **Might Applicable** | **Very Applicable** | **Description**                                              |
+| **System Architecture Requirements**              | **Not Applicable** | **Might Be Applicable** | **Very Applicable** | **Description**                                              |
+| ------------------------------------------------- | ------------------ | ----------------------- | ------------------- | ------------------------------------------------------------ |
 | Require larger total processing capacity     |                    |                      | √                   | TDengine’s cluster functions can easily improve processing capacity via multi-server-cooperating. |
 | Require high-speed data processing           |                    |                      | √                   | TDengine’s storage and data processing are designed to be optimized for IoT, can generally improve the processing speed by multiple times than other similar products. |
 | Require fast processing of fine-grained data |                    |                      | √                   | TDengine has achieved the same level of performance with relational and NoSQL data processing systems. |
 
 ### System Maintenance Requirements
 
-|                                              |                    |                      |                     |                                                              |
-| -------------------------------------------- | ------------------ | -------------------- | ------------------- | ------------------------------------------------------------ |
-| **System Maintenance Requirements**          | **Not Applicable** | **Might Applicable** | **Very Applicable** | **Description**                                              |
+| **System Architecture Requirements**              | **Not Applicable** | **Might Be Applicable** | **Very Applicable** | **Description**                                              |
+| ------------------------------------------------- | ------------------ | ----------------------- | ------------------- | ------------------------------------------------------------ |
 | Require system with high-reliability         |                    |                      | √                   | TDengine has a very robust and reliable system architecture to implement simple and convenient daily operation with streamlined experiences for operators, thus human errors and accidents are eliminated to the greatest extent. |
 | Require controllable operation learning cost |                    |                      | √                   | As above.                                                    |
 | Require abundant talent supply               | √                  |                      |                     | As a new-generation product, it’s still difficult to find talents with TDengine experiences from market. However, the learning cost is low. As the vendor, we also provide extensive operation training and counselling services. |
