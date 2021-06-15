@@ -48,9 +48,8 @@ typedef struct SDnodeObj {
   int32_t    dnodeId;
   int32_t    openVnodes;
   int64_t    createdTime;
-  int32_t    resever0;         // from dnode status msg, config information
+  int64_t    lastAccess;
   int32_t    customScore;      // config by user
-  uint32_t   lastAccess;
   uint16_t   numOfCores;       // from dnode status msg
   uint16_t   dnodePort;
   char       dnodeFqdn[TSDB_FQDN_LEN];

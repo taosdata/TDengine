@@ -174,93 +174,78 @@ Client configuration parameters:
 - firstEp: end point of the first taosd instance in the actively connected cluster when taos is started, the default value is localhost: 6030.
 - secondEp: when taos starts, if not impossible to connect to firstEp, it will try to connect to secondEp.
 - locale
-
-Default value: obtained dynamically from the system. If the automatic acquisition fails, user needs to set it in the configuration file or through API
-
-TDengine provides a special field type nchar for storing non-ASCII encoded wide characters such as Chinese, Japanese and Korean. The data written to the nchar field will be uniformly encoded in UCS4-LE format and sent to the server. It should be noted that the correctness of coding is guaranteed by the client. Therefore, if users want to normally use nchar fields to store non-ASCII characters such as Chinese, Japanese, Korean, etc., it’s needed to set the encoding format of the client correctly.
-
-The characters inputted by the client are all in the current default coding format of the operating system, mostly UTF-8 on Linux systems, and some Chinese system codes may be GB18030 or GBK, etc. The default encoding in the docker environment is POSIX. In the Chinese versions of Windows system, the code is CP936. The client needs to ensure that the character set it uses is correctly set, that is, the current encoded character set of the operating system running by the client, in order to ensure that the data in nchar is correctly converted into UCS4-LE encoding format.
-
-The naming rules of locale in Linux are: < language > _ < region >. < character set coding >, such as: zh_CN.UTF-8, zh stands for Chinese, CN stands for mainland region, and UTF-8 stands for character set. Character set encoding provides a description of encoding transformations for clients to correctly parse local strings. Linux system and Mac OSX system can determine the character encoding of the system by setting locale. Because the locale used by Windows is not the POSIX standard locale format, another configuration parameter charset is needed to specify the character encoding under Windows. You can also use charset to specify character encoding in Linux systems.
+    Default value: obtained dynamically from the system. If the automatic acquisition fails, user needs to set it in the configuration file or through API
+    
+    TDengine provides a special field type nchar for storing non-ASCII encoded wide characters such as Chinese, Japanese and Korean. The data written to the nchar field will be uniformly encoded in UCS4-LE format and sent to the server. It should be noted that the correctness of coding is guaranteed by the client. Therefore, if users want to normally use nchar fields to store non-ASCII characters such as Chinese, Japanese, Korean, etc., it’s needed to set the encoding format of the client correctly.
+    
+    The characters inputted by the client are all in the current default coding format of the operating system, mostly UTF-8 on Linux systems, and some Chinese system codes may be GB18030 or GBK, etc. The default encoding in the docker environment is POSIX. In the Chinese versions of Windows system, the code is CP936. The client needs to ensure that the character set it uses is correctly set, that is, the current encoded character set of the operating system running by the client, in order to ensure that the data in nchar is correctly converted into UCS4-LE encoding format.
+    
+    The naming rules of locale in Linux are: < language > _ < region >. < character set coding >, such as: zh_CN.UTF-8, zh stands for Chinese, CN stands for mainland region, and UTF-8 stands for character set. Character set encoding provides a description of encoding transformations for clients to correctly parse local strings. Linux system and Mac OSX system can determine the character encoding of the system by setting locale. Because the locale used by Windows is not the POSIX standard locale format, another configuration parameter charset is needed to specify the character encoding under Windows. You can also use charset to specify character encoding in Linux systems.
 
 - charset
 
-Default value: obtained dynamically from the system. If the automatic acquisition fails, user needs to set it in the configuration file or through API
-
-If charset is not set in the configuration file, in Linux system, when taos starts up, it automatically reads the current locale information of the system, and parses and extracts the charset encoding format from the locale information. If the automatic reading of locale information fails, an attempt is made to read the charset configuration, and if the reading of the charset configuration also fails, the startup process is interrupted.
-
-In Linux system, locale information contains character encoding information, so it is unnecessary to set charset separately after setting locale of Linux system correctly. For example:
-
- ```
+    Default value: obtained dynamically from the system. If the automatic acquisition fails, user needs to set it in the configuration file or through API
+    
+    If charset is not set in the configuration file, in Linux system, when taos starts up, it automatically reads the current locale information of the system, and parses and extracts the charset encoding format from the locale information. If the automatic reading of locale information fails, an attempt is made to read the charset configuration, and if the reading of the charset configuration also fails, the startup process is interrupted.
+    
+    In Linux system, locale information contains character encoding information, so it is unnecessary to set charset separately after setting locale of Linux system correctly. For example:
+    
+    ```
     locale zh_CN.UTF-8
- ```
-
-- On Windows systems, the current system encoding cannot be obtained from locale. If string encoding information cannot be read from the configuration file, taos defaults to CP936. It is equivalent to adding the following to the configuration file:
-
- ```
+    ```
+    On Windows systems, the current system encoding cannot be obtained from locale. If string encoding information cannot be read from the configuration file, taos defaults to CP936. It is equivalent to adding the following to the configuration file:
+    ```
     charset CP936
- ```
-
-- If you need to adjust the character encoding, check the encoding used by the current operating system and set it correctly in the configuration file.
-
-In Linux systems, if user sets both locale and charset encoding charset, and the locale and charset are inconsistent, the value set later will override the value set earlier.
-
-```
+    ```
+    If you need to adjust the character encoding, check the encoding used by the current operating system and set it correctly in the configuration file.
+    
+    In Linux systems, if user sets both locale and charset encoding charset, and the locale and charset are inconsistent, the value set later will override the value set earlier.
+    ```
     locale zh_CN.UTF-8
     charset GBK
-```
-
-- The valid value for charset is GBK.
-
-And the valid value for charset is UTF-8.
-
-The configuration parameters of log are exactly the same as those of server.
+    ```
+    The valid value for charset is GBK.
+    
+    And the valid value for charset is UTF-8.
+    
+    The configuration parameters of log are exactly the same as those of server.
 
 - timezone
 
-Default value: get the current time zone option dynamically from the system
+    Default value: get the current time zone option dynamically from the system
 
-The time zone in which the client runs the system. In order to deal with the problem of data writing and query in multiple time zones, TDengine uses Unix Timestamp to record and store timestamps. The characteristics of UNIX timestamps determine that the generated timestamps are consistent at any time regardless of any time zone. It should be noted that UNIX timestamps are converted and recorded on the client side. In order to ensure that other forms of time on the client are converted into the correct Unix timestamp, the correct time zone needs to be set.
+    The time zone in which the client runs the system. In order to deal with the problem of data writing and query in multiple time zones, TDengine uses Unix Timestamp to record and store timestamps. The characteristics of UNIX timestamps determine that the generated timestamps are consistent at any time regardless of any time zone. It should be noted that UNIX timestamps are converted and recorded on the client side. In order to ensure that other forms of time on the client are converted into the correct Unix timestamp, the correct time zone needs to be set.
 
-In Linux system, the client will automatically read the time zone information set by the system. Users can also set time zones in profiles in a number of ways. For example:
-
- ```
+    In Linux system, the client will automatically read the time zone information set by the system. Users can also set time zones in profiles in a number of ways. For example:
+    ```
     timezone UTC-8
     timezone GMT-8
     timezone Asia/Shanghai
- ```
+    ```
+    
+    All above are legal to set the format of the East Eight Zone.
+    
+    The setting of time zone affects the content of non-Unix timestamp (timestamp string, parsing of keyword now) in query and writing SQL statements. For example:
 
-- All above are legal to set the format of the East Eight Zone.
-
-The setting of time zone affects the content of non-Unix timestamp (timestamp string, parsing of keyword now) in query and writing SQL statements. For example:
-
- ```sql
+    ```sql
     SELECT count(*) FROM table_name WHERE TS<'2019-04-11 12:01:08';
- ```
-
-- In East Eight Zone, the SQL statement is equivalent to
-
-  ```sql
+    ```
+    
+    In East Eight Zone, the SQL statement is equivalent to
+    ```sql
     SELECT count(*) FROM table_name WHERE TS<1554955268000;
-  ```
-
-- 
-
-In the UTC time zone, the SQL statement is equivalent to
-
- ```sql
+    ```
+    
+    In the UTC time zone, the SQL statement is equivalent to
+    ```sql
     SELECT count(*) FROM table_name WHERE TS<1554984068000;
- ```
-
-- 
-
-In order to avoid the uncertainty caused by using string time format, Unix timestamp can also be used directly. In addition, timestamp strings with time zones can also be used in SQL statements, such as: timestamp strings in RFC3339 format, 2013-04-12T15: 52: 01.123 +08:00, or ISO-8601 format timestamp strings 2013-04-12T15: 52: 01.123 +0800. The conversion of the above two strings into Unix timestamps is not affected by the time zone in which the system is located.
-
-When starting taos, you can also specify an end point for an instance of taosd from the command line, otherwise read from taos.cfg.
+    ```
+    In order to avoid the uncertainty caused by using string time format, Unix timestamp can also be used directly. In addition, timestamp strings with time zones can also be used in SQL statements, such as: timestamp strings in RFC3339 format, 2013-04-12T15: 52: 01.123 +08:00, or ISO-8601 format timestamp strings 2013-04-12T15: 52: 01.123 +0800. The conversion of the above two strings into Unix timestamps is not affected by the time zone in which the system is located.
+    
+    When starting taos, you can also specify an end point for an instance of taosd from the command line, otherwise read from taos.cfg.
 
 - maxBinaryDisplayWidth
-
-The upper limit of the display width of binary and nchar fields in a shell, beyond which parts will be hidden. Default: 30. You can modify this option dynamically in the shell with the command set max_binary_display_width nn.
+    The upper limit of the display width of binary and nchar fields in a shell, beyond which parts will be hidden. Default: 30. You can modify this option dynamically in the shell with the command set max_binary_display_width nn.
 
 ## <a class="anchor" id="user"></a>User Management
 

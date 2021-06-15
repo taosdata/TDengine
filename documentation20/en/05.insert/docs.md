@@ -7,31 +7,19 @@ TDengine supports multiple interfaces to write data, including SQL, Prometheus, 
 Applications insert data by executing SQL insert statements through C/C + +, JDBC, GO, or Python Connector, and users can manually enter SQL insert statements to insert data through TAOS Shell. For example, the following insert writes a record to table d1001:
 
 ```mysql
-```
-
 INSERT INTO d1001 VALUES (1538548685000, 10.3, 219, 0.31);
-
-```
 ```
 
 TDengine supports writing multiple records at a time. For example, the following command writes two records to table d1001:
 
 ```mysql
-```
-
 INSERT INTO d1001 VALUES (1538548684000, 10.2, 220, 0.23) (1538548696650, 10.3, 218, 0.25);
-
-```
 ```
 
 TDengine also supports writing data to multiple tables at a time. For example, the following command writes two records to d1001 and one record to d1002:
 
 ```mysql
-```
-
 INSERT INTO d1001 VALUES (1538548685000, 10.3, 219, 0.31) (1538548695000, 12.6, 218, 0.33) d1002 VALUES (1538548696800, 12.3, 221, 0.31);
-
-```
 ```
 
 For the SQL INSERT Grammar, please refer to  [Taos SQL insert](https://www.taosdata.com/en/documentation/taos-sql#insert)。
@@ -58,13 +46,9 @@ Users need to download the source code of [Bailongma](https://github.com/taosdat
 Bailongma project has a folder, blm_prometheus, which holds the prometheus writing API. The compiling process is as follows:
 
 ```bash
-```
-
 cd blm_prometheus
 
 go build
-
-```
 ```
 
 If everything goes well, an executable of blm_prometheus will be generated in the corresponding directory.
@@ -134,8 +118,6 @@ remote_write:
 The format of generated data by Prometheus is as follows:
 
 ```json
-
-
 {
   Timestamp: 1576466279341,
   Value: 37.000000, 

@@ -25,21 +25,13 @@ For more about installation process, please refer [TDengine Installation Package
 After installation, you can start the TDengine service by the `systemctl` command.
 
 ```bash
-```
-
 $ systemctl start taosd
-
-```
 ```
 
 Then check if the service is working now.
 
 ```bash
-```
-
 $ systemctl status taosd
-
-```
 ```
 
 If the service is running successfully, you can play around through TDengine shell `taos`.
@@ -50,12 +42,10 @@ If the service is running successfully, you can play around through TDengine she
 - To get better product feedback and improve our solution, TDegnine will collect basic usage information, but you can modify the configuration parameter **telemetryReporting** in the system configuration file taos.cfg, and set it to 0 to turn it off.
 - TDegnine uses FQDN (usually hostname) as the node ID. In order to ensure normal operation, you need to set hostname for the server running taosd, and configure DNS service or hosts file for the machine running client application, to ensure the FQDN can be resolved.
 - TDengine supports installation on Linux systems with[ systemd ](https://en.wikipedia.org/wiki/Systemd)as the process service management, and uses `which systemctl` command to detect whether `systemd` packages exist in the system:
-- ```bash
+  
+  ```bash
+  $ which systemctl
   ```
-
-- $ which systemctl
-
-- ```
 
 If `systemd` is not supported in the system, TDengine service can also be launched via `/usr/local/taos/bin/taosd` manually.
 
@@ -64,28 +54,18 @@ If `systemd` is not supported in the system, TDengine service can also be launch
 To launch TDengine shell, the command line interface, in a Linux terminal, type:
 
 ```bash
-```
-
 $ taos
-
-```
 ```
 
 The welcome message is printed if the shell connects to TDengine server successfully, otherwise, an error message will be printed (refer to our [FAQ](https://www.taosdata.com/en/faq) page for troubleshooting the connection error). The TDengine shell prompt is:
 
 ```cmd
-```
-
 taos>
-
-```
 ```
 
 In the TDengine shell, you can create databases, create tables and insert/query data with SQL. Each query command ends with a semicolon. It works like MySQL, for example:
 
 ```mysql
-```
-
 create database demo;
 
 use demo;
@@ -107,8 +87,6 @@ ts     |  speed  |
 19-07-15 01:00:00.000|     20|
 
 Query OK, 2 row(s) in set (0.001700s)
-
-```
 ```
 
 Besides the SQL commands, the system administrator can check system status, add or delete accounts, and manage the servers.
@@ -127,11 +105,7 @@ You can configure command parameters to change how TDengine shell executes. Some
 Examples:
 
 ```bash
-```
-
 $ taos -h 192.168.0.1 -s "use db; show tables;"
-
-```
 ```
 
 ### Run SQL Command Scripts
@@ -139,11 +113,7 @@ $ taos -h 192.168.0.1 -s "use db; show tables;"
 Inside TDengine shell, you can run SQL scripts in a file with source command.
 
 ```mysql
-```
-
 taos> source <filename>;
-
-```
 ```
 
 ### Shell Tips
@@ -158,11 +128,7 @@ taos> source <filename>;
 After starting the TDengine server, you can execute the command `taosdemo` in the Linux terminal.
 
 ```bash 
-```
-
 $ taosdemo
-
-```
 ```
 
 Using this command, a STable named `meters` will be created in the database `test` There are 10k tables under this stable, named from `t0` to `t9999`. In each table there are 100k rows of records, each row with columns （`f1`, `f2` and `f3`. The timestamp is from "2017-07-14 10:40:00 000" to "2017-07-14 10:41:39 999". Each table also has tags `areaid` and `loc`: `areaid` is set from 1 to 10, `loc` is set to "beijing" or "shanghai".
@@ -174,51 +140,31 @@ In the TDengine client, enter sql query commands and then experience our lightni
 - query total rows of records：
 
 ```mysql
-```
-
 taos> select count(*) from test.meters;
-
-```
 ```
 
 - query average, max and min of the total 1 billion records：
 
 ```mysql
-```
-
 taos> select avg(f1), max(f2), min(f3) from test.meters;
-
-```
 ```
 
 - query the number of records where loc="beijing":
 
 ```mysql
-```
-
 taos> select count(*) from test.meters where loc="beijing";
-
-```
 ```
 
 - query the average, max and min of total records where areaid=10：
 
 ```mysql
-```
-
 taos> select avg(f1), max(f2), min(f3) from test.meters where areaid=10;
-
-```
 ```
 
 - query the average, max, min from table t10 when aggregating over every 10s:
 
 ```mysql
-```
-
 taos> select avg(f1), max(f2), min(f3) from test.t10 interval(10s);
-
-```
 ```
 
 **Note**: you can run command `taosdemo` with many options, like number of tables, rows of records and so on. To know more about these options, you can execute `taosdemo --help` and then take a try using different options.
@@ -274,4 +220,4 @@ Comparison matrix as following:
 
 Note: ● has been verified by official tests; ○ has been verified by unofficial tests.
 
-Please visit [Connectors](https://www.taosdata.com/cn/documentation/connector) section for more detailed information.
+Please visit [Connectors](https://www.taosdata.com/en/documentation/connector) section for more detailed information.

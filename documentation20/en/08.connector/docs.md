@@ -2,6 +2,8 @@
 
 TDengine provides many connectors for development, including C/C++, JAVA, Python, RESTful, Go, Node.JS, etc.
 
+![image-connector](page://images/connector.png)
+
 At present, TDengine connectors support a wide range of platforms, including hardware platforms such as X64/X86/ARM64/ARM32/MIPS/Alpha, and development environments such as Linux/Win64/Win32. The comparison matrix is as follows:
 
 | **CPU**     | **X64 64bit** | **X64 64bit** | **X64 64bit** | **X86 32bit** | **ARM64** | **ARM32** | **MIPS Godson** | **Alpha Whenwei** | **X64 TimecomTech** |
@@ -30,11 +32,11 @@ The server should already have the TDengine server package installed. The connec
 
 **Linux**
 
-**1.  Download from TAOS Data website(https://www.taosdata.com/cn/all-downloads/)**
+**1. Download from TAOS Data website(https://www.taosdata.com/cn/all-downloads/)**
 
-- X64 hardware environment: TDengine-client-2.x.x.x-Linux-x64.tar.gz
-- ARM64 hardware environment: TDengine-client-2.x.x.x-Linux-aarch64.tar.gz
-- ARM32 hardware environment: TDengine-client-2.x.x.x-Linux-aarch32.tar.gz
+* X64 hardware environment: TDengine-client-2.x.x.x-Linux-x64.tar.gz
+* ARM64 hardware environment: TDengine-client-2.x.x.x-Linux-aarch64.tar.gz
+* ARM32 hardware environment: TDengine-client-2.x.x.x-Linux-aarch32.tar.gz
 
 **2. Unzip the package**
 
@@ -68,10 +70,10 @@ Edit the taos.cfg file (default path/etc/taos/taos.cfg) and change firstEP to En
 
 **Windows x64/x86**
 
-- **1. Download from TAOS Data website(https://www.taosdata.com/cn/all-downloads/)**
+**1. Download from TAOS Data website(https://www.taosdata.com/cn/all-downloads/)**
 
-- X64 hardware environment: TDengine-client-2.X.X.X-Windows-x64.exe
-- X86 hardware environment: TDengine-client-2.X.X.X-Windows-x86.exe
+* X64 hardware environment: TDengine-client-2.X.X.X-Windows-x64.exe
+* X86 hardware environment: TDengine-client-2.X.X.X-Windows-x86.exe
 
 **2. Execute installation, select default vales as prompted to complete**
 
@@ -187,11 +189,11 @@ Get version information of the client.
 
 Create a database connection and initialize the connection context. The parameters that need to be provided by user include:
 
-- - host: FQDN used by TDengine to manage the master node
-  - user: User name
-  - pass: Password
-  - db: Database name. If user does not provide it, it can be connected normally, means user can create a new database through this connection. If user provides a database name, means the user has created the database and the database is used by default
-  - port: Port number
+* host: FQDN used by TDengine to manage the master node
+* user: User name
+* pass: Password
+* db: Database name. If user does not provide it, it can be connected normally, means user can create a new database through this connection. If user provides a database name, means the user has created the database and the database is used by default
+* port: Port number
 
 A null return value indicates a failure. The application needs to save the returned parameters for subsequent API calls.
 
@@ -278,20 +280,18 @@ Asynchronous APIs all need applications to provide corresponding callback functi
 Asynchronous APIs have relatively high requirements for users, who can selectively use them according to specific application scenarios. Here are three important asynchronous APIs:
 
 - `void taos_query_a(TAOS *taos, const char *sql, void (*fp)(void *param, TAOS_RES *, int code), void *param);`
+   Execute SQL statement asynchronously.
 
-Execute SQL statement asynchronously.
-
-- - taos: The database connection returned by calling `taos_connect`
-  - sql: The SQL statement needed to execute
-  - fp: User-defined callback function, whose third parameter `code` is used to indicate whether the operation is successful, `0` for success, and negative number for failure (call `taos_errstr` to get the reason for failure). When defining the callback function, it mainly handles the second parameter `TAOS_RES *`, which is the result set returned by the query
-  - param：the parameter for the callback
+   * taos: The database connection returned by calling `taos_connect`
+   * sql: The SQL statement needed to execute
+   * fp: User-defined callback function, whose third parameter `code` is used to indicate whether the operation is successful, `0` for success, and negative number for failure (call `taos_errstr` to get the reason for failure). When defining the callback function, it mainly handles the second parameter `TAOS_RES *`, which is the result set returned by the query
+  * param：the parameter for the callback
 
 - `void taos_fetch_rows_a(TAOS_RES *res, void (*fp)(void *param, TAOS_RES *, int numOfRows), void *param);`
+  Get the result set of asynchronous queries in batch, which can only be used with `taos_query_a`. Within:
 
-Get the result set of asynchronous queries in batch, which can only be used with `taos_query_a`. Within:
-
-- - res: The result set returned when backcall `taos_query_a`
-  - fp: Callback function. Its parameter `param` is a user-definable parameter construct passed to the callback function; `numOfRows` is the number of rows of data obtained (not a function of the entire query result set). In the callback function, applications can get each row of the batch records by calling `taos_fetch_rows` forward iteration. After reading all the records in a block, the application needs to continue calling `taos_fetch_rows_a` in the callback function to obtain the next batch of records for processing until the number of records returned (`numOfRows`) is zero (the result is returned) or the number of records is negative (the query fails).
+  * res: The result set returned when backcall `taos_query_a`
+  * fp: Callback function. Its parameter `param` is a user-definable parameter construct passed to the callback function; `numOfRows` is the number of rows of data obtained (not a function of the entire query result set). In the callback function, applications can get each row of the batch records by calling `taos_fetch_rows` forward iteration. After reading all the records in a block, the application needs to continue calling `taos_fetch_rows_a` in the callback function to obtain the next batch of records for processing until the number of records returned (`numOfRows`) is zero (the result is returned) or the number of records is negative (the query fails).
 
 The asynchronous APIs of TDengine all use non-blocking calling mode. Applications can use multithreading to open multiple tables at the same time, and can query or insert to each open table at the same time. It should be pointed out that the **application client must ensure that the operation on the same table is completely serialized**, that is, when the insertion or query operation on the same table is not completed (when no result returned), the second insertion or query operation cannot be performed.
 
@@ -349,12 +349,12 @@ TDengine provides time-driven real-time stream computing APIs. You can perform v
 
 This API is used to create data streams where:
 
-- - taos: Database connection established
-  - sql: SQL query statement (query statement only)
-  - fp: user-defined callback function pointer. After each stream computing is completed, TDengine passes the query result (TAOS_ROW), query status (TAOS_RES), and user-defined parameters (PARAM) to the callback function. In the callback function, the user can use taos_num_fields to obtain the number of columns in the result set, and taos_fetch_fields to obtain the type of data in each column of the result set.
-  - stime: The time when stream computing starts. If it is 0, it means starting from now. If it is not zero, it means starting from the specified time (the number of milliseconds from 1970/1/1 UTC time).
-  - param: It is a parameter provided by the application for callback. During callback, the parameter is provided to the application
-  - callback: The second callback function is called when the continuous query stop automatically.
+  * taos: Database connection established
+  * sql: SQL query statement (query statement only)
+  * fp: user-defined callback function pointer. After each stream computing is completed, TDengine passes the query result (TAOS_ROW), query status (TAOS_RES), and user-defined parameters (PARAM) to the callback function. In the callback function, the user can use taos_num_fields to obtain the number of columns in the result set, and taos_fetch_fields to obtain the type of data in each column of the result set.
+  * stime: The time when stream computing starts. If it is 0, it means starting from now. If it is not zero, it means starting from the specified time (the number of milliseconds from 1970/1/1 UTC time).
+  * param: It is a parameter provided by the application for callback. During callback, the parameter is provided to the application
+  * callback: The second callback function is called when the continuous query stop automatically.
 
 The return value is NULL, indicating creation failed; the return value is not NULL, indicating creation successful.
 
@@ -370,22 +370,22 @@ The subscription API currently supports subscribing to one or more tables and co
 
 This function is for starting the subscription service, returning the subscription object in case of success, and NULL in case of failure. Its parameters are:
 
-- - taos: Database connection established
-  - Restart: If the subscription already exists, do you want to start over or continue with the previous subscription
-  - Topic: Subject (that is, name) of the subscription. This parameter is the unique identification of the subscription
-  - sql: The query statement subscribed. This statement can only be a select statement. It should only query the original data, and can only query the data in positive time sequence
-  - fp: The callback function when the query result is received (the function prototype will be introduced later). It is only used when calling asynchronously, and this parameter should be passed to NULL when calling synchronously
-  - param: The additional parameter when calling the callback function, which is passed to the callback function as it is by the system API without any processing
-  - interval: Polling period in milliseconds. During asynchronous call, the callback function will be called periodically according to this parameter; In order to avoid affecting system performance, it is not recommended to set this parameter too small; When calling synchronously, if the interval between two calls to taos_consume is less than this period, the API will block until the interval exceeds this period.
+  * taos: Database connection established
+  * Restart: If the subscription already exists, do you want to start over or continue with the previous subscription
+  * Topic: Subject (that is, name) of the subscription. This parameter is the unique identification of the subscription
+  * sql: The query statement subscribed. This statement can only be a select statement. It should only query the original data, and can only query the data in positive time sequence
+  * fp: The callback function when the query result is received (the function prototype will be introduced later). It is only used when calling asynchronously, and this parameter should be passed to NULL when calling synchronously
+  * param: The additional parameter when calling the callback function, which is passed to the callback function as it is by the system API without any processing
+  * interval: Polling period in milliseconds. During asynchronous call, the callback function will be called periodically according to this parameter; In order to avoid affecting system performance, it is not recommended to set this parameter too small; When calling synchronously, if the interval between two calls to taos_consume is less than this period, the API will block until the interval exceeds this period.
 
 - `typedef void (*TAOS_SUBSCRIBE_CALLBACK)(TAOS_SUB* tsub, TAOS_RES *res, void* param, int code)`
 
 In asynchronous mode, the prototype of the callback function has the following parameters:
 
-- - tsub: Subscription object
-  - res: Query the result set. Note that there may be no records in the result set
-  - param: Additional parameters supplied by the client when  `taos_subscribe` is called
-  - code: Error code
+  * tsub: Subscription object
+  * res: Query the result set. Note that there may be no records in the result set
+  * param: Additional parameters supplied by the client when  `taos_subscribe` is called
+  * code: Error code
 
 - `TAOS_RES *taos_consume(TAOS_SUB *tsub)`
 
@@ -621,16 +621,16 @@ Description:
 
 Column types in column_meta:
 
-- 1：BOOL
-- 2：TINYINT
-- 3：SMALLINT
-- 4：INT
-- 5：BIGINT
-- 6：FLOAT
-- 7：DOUBLE
-- 8：BINARY
-- 9：TIMESTAMP
-- 10：NCHAR
+* 1：BOOL
+* 2：TINYINT
+* 3：SMALLINT
+* 4：INT
+* 5：BIGINT
+* 6：FLOAT
+* 7：DOUBLE
+* 8：BINARY
+* 9：TIMESTAMP
+* 10：NCHAR
 
 ### Custom authorization code
 
@@ -868,7 +868,7 @@ This API is used to open DB and return an object of type \* DB. Generally, DRIVE
 
 The Node.js connector supports the following systems:
 
-| **CPU Type**         | **x64****（****64bit****）** |         |         | **aarch64** | **aarch32** |
+| **CPU Type**         | x64(64bit）                  |         |         |   aarch64   |   aarch32   |
 | -------------------- | ---------------------------- | ------- | ------- | ----------- | ----------- |
 | **OS Type**          | Linux                        | Win64   | Win32   | Linux       | Linux       |
 | **Supported or Not** | **Yes**                      | **Yes** | **Yes** | **Yes**     | **Yes**     |

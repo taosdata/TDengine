@@ -1,4 +1,4 @@
-# Installation and Management of TDengine Cluster
+# TDengine Cluster Management
 
 Multiple TDengine servers, that is, multiple running instances of taosd, can form a cluster to ensure the highly reliable operation of TDengine and provide scale-out features. To understand cluster management in TDengine 2.0, it is necessary to understand the basic concepts of clustering. Please refer to the chapter "Overall Architecture of TDengine 2.0". And before installing the cluster, please follow the chapter ["Getting started"](https://www.taosdata.com/en/documentation/getting-started/) to install and experience the single node function.
 

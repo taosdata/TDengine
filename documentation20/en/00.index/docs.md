@@ -16,6 +16,7 @@ TDengine is a highly efficient platform to store, query, and analyze time-series
 - [Command-line](/getting-started#console) : an easy way to access TDengine server
 - [Experience Lightning Speed](/getting-started#demo): running a demo, inserting/querying data to experience faster speed
 - [List of Supported Platforms](/getting-started#platforms): a list of platforms supported by TDengine server and client
+- [Deploy to Kubernetes](https://taosdata.github.io/TDengine-Operator/en/index.html)：a detailed guide for TDengine deployment in Kubernetes environment
 
 ## [Overall Architecture](/architecture)
 
@@ -28,7 +29,7 @@ TDengine is a highly efficient platform to store, query, and analyze time-series
 
 ## [Data Modeling](/model)
 
-- [Create a Library](/model#create-db): create a library for all data collection points with similar features
+- [Create a Database](/model#create-db): create a database for all data collection points with similar features
 - [Create a Super Table(STable)](/model#create-stable): create a STable for all data collection points with the same type
 - [Create a Table](/model#create-table): use STable as the template, to create a table for each data collecting point
 
@@ -70,7 +71,7 @@ TDengine is a highly efficient platform to store, query, and analyze time-series
 ## [Connector](/connector)
 
 - [C/C++ Connector](/connector#c-cpp): primary method to connect to TDengine server through libtaos client library
-- [Java Connector(JDBC)](/connector/java): driver for connecting to the server from Java applications using the JDBC API
+- [Java Connector(JDBC)]: driver for connecting to the server from Java applications using the JDBC API
 - [Python Connector](/connector#python): driver for connecting to TDengine server from Python applications
 - [RESTful Connector](/connector#restful): a simple way to interact with TDengine via HTTP
 - [Go Connector](/connector#go): driver for connecting to TDengine server from Go applications
@@ -111,8 +112,8 @@ TDengine is a highly efficient platform to store, query, and analyze time-series
 
 ## TDengine Technical Design
 
-- [System Module](/architecture/taosd): taosd functions and modules partitioning
-- [Data Replication](/architecture/replica): support real-time synchronous/asynchronous replication, to ensure high-availability of the system
+- [System Module]: taosd functions and modules partitioning
+- [Data Replication]: support real-time synchronous/asynchronous replication, to ensure high-availability of the system
 - [Technical Blog](https://www.taosdata.com/cn/blog/?categories=3): More technical analysis and architecture design articles
 
 ## Common Tools
@@ -121,7 +122,7 @@ TDengine is a highly efficient platform to store, query, and analyze time-series
 - [TDengine performance comparison test tools](https://www.taosdata.com/blog/2020/01/18/1166.html)
 - [Use TDengine visually through IDEA Database Management Tool](https://www.taosdata.com/blog/2020/08/27/1767.html)
 
-## [Performance: TDengine vs Others
+## Performance: TDengine vs Others
 
 - [Performance: TDengine vs InfluxDB with InfluxDB’s open-source performance testing tool](https://www.taosdata.com/blog/2020/01/13/1105.html)
 - [Performance: TDengine vs OpenTSDB](https://www.taosdata.com/blog/2019/08/21/621.html)
