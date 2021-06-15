@@ -1,141 +1,64 @@
 package com.taosdata.tsync;
 
 import com.taosdata.tsync.entity.consumer.ConsumerConfig;
-import com.taosdata.tsync.serializer.SerializeIgnore;
+import com.taosdata.tsync.entity.consumer.ConsumerRecord;
+import org.junit.Before;
+import org.junit.Test;
 
+import java.time.Duration;
+import java.util.List;
 import java.util.Properties;
+import java.util.concurrent.TimeUnit;
 
 public class TQueueConsumerTest {
 
-    public static void main(String[] args) throws Exception {
+    private static final String host = "192.168.17.156";
+    private TQueueConsumer consumer;
+
+    @Test
+    public void assign() {
+        for (int partitionId = 1; partitionId <= 10; partitionId++) {
+            consumer.assign("tq_test", partitionId);
+        }
+    }
+
+    @Test
+    public void poll() {
+        try {
+            long count = 0;
+            while (true) {
+                doPoll();
+                TimeUnit.MILLISECONDS.sleep(1000);
+                count++;
+            }
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+    }
+
+    private void doPoll() {
+        try {
+            List<ConsumerRecord> records = consumer.poll(Duration.ofMillis(100));
+            for (ConsumerRecord record : records) {
+                String topic = record.topic();
+                int partition = record.partition();
+                long offset = record.offset();
+                String value = new String(record.value(), "UTF-8");
+                System.out.printf("topic: %s, partition: %d, offset: %d, value = %s%n", topic, partition, offset, value);
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    @Before
+    public void before() {
         Properties props = new Properties();
-        props.setProperty(ConsumerConfig.HOST_CONFIG, "192.168.17.156");
+        props.setProperty(ConsumerConfig.HOST_CONFIG, host);
         props.setProperty(ConsumerConfig.PORT_CONFIG, "6041");
         props.setProperty(ConsumerConfig.USER_CONFIG, "root");
         props.setProperty(ConsumerConfig.PASSWORD_CONFIG, "tqueue");
-
-        TQueueConsumer consumer = new TQueueConsumer(props);
-//        consumer.assign("tq_test", 1);
-
-        for (int i = 0; i < 100; i++) {
-            for (int partitionId = 1; partitionId <= 10; partitionId++) {
-                consumer.assign("tq_test", partitionId);
-            }
-        }
-
-
-//        long count = 0;
-//        while (true) {
-//            List<ConsumerRecord> records = consumer.poll(Duration.ofMillis(100));
-//            for (ConsumerRecord record : records) {
-//                String topic = record.topic();
-//                int partition = record.partition();
-//                long offset = record.offset();
-//                String value = new String(record.value(), "UTF-8");
-//                System.out.printf("topic: %s, partition: %d, offset: %d, value = %s%n", topic, partition, offset, value);
-//                count++;
-//            }
-//        }
-    }
-
-    class Person {
-        private String name;
-        private int age;
-        private Long height;
-        private float salary;
-        private Double weight;
-        private boolean gender;
-        private byte[] comment;
-        private String introduction;
-        @SerializeIgnore
-        private boolean sex;
-
-        public Person(String name, Integer age, boolean sex) {
-            this.name = name;
-            this.age = age;
-            this.sex = sex;
-        }
-
-        @Override
-        public String toString() {
-            return "Person{" +
-                    "name='" + name + '\'' +
-                    ", age=" + age +
-                    ", sex=" + sex +
-                    '}';
-        }
-
-        public Long getHeight() {
-            return height;
-        }
-
-        public void setHeight(Long height) {
-            this.height = height;
-        }
-
-        public String getName() {
-            return name;
-        }
-
-        public void setName(String name) {
-            this.name = name;
-        }
-
-        public Integer getAge() {
-            return age;
-        }
-
-        public void setAge(Integer age) {
-            this.age = age;
-        }
-
-        public Float getSalary() {
-            return salary;
-        }
-
-        public void setSalary(Float salary) {
-            this.salary = salary;
-        }
-
-        public Double getWeight() {
-            return weight;
-        }
-
-        public void setWeight(Double weight) {
-            this.weight = weight;
-        }
-
-        public boolean isGender() {
-            return gender;
-        }
-
-        public void setGender(boolean gender) {
-            this.gender = gender;
-        }
-
-        public byte[] getComment() {
-            return comment;
-        }
-
-        public void setComment(byte[] comment) {
-            this.comment = comment;
-        }
-
-        public String getIntroduction() {
-            return introduction;
-        }
-
-        public void setIntroduction(String introduction) {
-            this.introduction = introduction;
-        }
-
-        public boolean isSex() {
-            return sex;
-        }
-
-        public void setSex(boolean sex) {
-            this.sex = sex;
-        }
+        consumer = new TQueueConsumer(props);
     }
 
 }

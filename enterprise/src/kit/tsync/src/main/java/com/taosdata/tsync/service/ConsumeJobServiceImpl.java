@@ -6,7 +6,6 @@ import com.taosdata.tsync.entity.RunnableTask;
 import com.taosdata.tsync.entity.config.*;
 import com.taosdata.tsync.enums.ConfigurationType;
 import com.taosdata.tsync.factory.TQueueConsumerFactory;
-import com.taosdata.tsync.factory.TaosdConnectionFactory;
 import com.taosdata.tsync.factory.WriteToTDengineTaskFactory;
 import com.taosdata.tsync.repository.ConfigurationRepository;
 import com.taosdata.tsync.repository.RunnableTaskRepository;
@@ -14,7 +13,6 @@ import com.taosdata.tsync.utils.Utils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.sql.Connection;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;

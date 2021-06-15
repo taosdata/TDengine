@@ -22,7 +22,7 @@ public class TQueueConsumer extends TQueueBase {
 
     private String topic = UNSUBSCRIBE_TOPIC;
     private int partition = UNSUBSCRIBE_PARTITION;
-    private Map<Integer, AtomicLong> partitionOffsets = new HashMap<>();
+    private final Map<Integer, AtomicLong> partitionOffsets = new HashMap<>();
     private final Object LOCK = new Object();
     private int cur_topic_partition_hash;
 

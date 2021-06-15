@@ -8,7 +8,7 @@ import com.taosdata.tsync.entity.config.TaosdConfiguration;
 import com.taosdata.tsync.service.WriteToTDengineRunnableTask;
 
 import java.sql.Connection;
-import java.util.Collection;
+import java.util.List;
 
 public class WriteToTDengineTaskFactory {
 
@@ -22,7 +22,7 @@ public class WriteToTDengineTaskFactory {
         instance = new WriteToTDengineRunnableTask();
     }
 
-    public WriteToTDengineTaskFactory setPartitionsToWrite(Collection<Integer> partitionsToWrite) {
+    public WriteToTDengineTaskFactory setPartitionsToWrite(List<Integer> partitionsToWrite) {
         instance.setPartitionsToWrite(partitionsToWrite);
         return this;
     }

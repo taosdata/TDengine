@@ -1,8 +1,9 @@
 package com.taosdata.tsync.service;
 
 import com.taosdata.tsync.TQueueConsumer;
-import com.taosdata.tsync.entity.config.SchemaConfiguration;
+import com.taosdata.tsync.entity.config.*;
 import com.taosdata.tsync.entity.consumer.ConsumerRecord;
+import com.taosdata.tsync.enums.ConfigurationType;
 import com.taosdata.tsync.enums.SchemaMissingStrategy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -12,15 +13,16 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 public class WriteToTDengineRunnableTask implements Runnable {
     private static final Logger logger = LoggerFactory.getLogger(WriteToTDengineRunnableTask.class);
 
-    private Collection<Integer> partitionsToWrite;
+    private List<Integer> partitionsToWrite;
     private String topic;
     private TQueueConsumer consumer;
     private Connection taosdConnection;
@@ -46,36 +48,127 @@ public class WriteToTDengineRunnableTask implements Runnable {
     }
 
     private void doSchemaMissingStrategy() {
-        try (Statement stmt = taosdConnection.createStatement()) {
-            ResultSet rs = stmt.executeQuery("show databases");
+        if (schemaMissing == SchemaMissingStrategy.CREATE) {
+            DatabaseConfiguration databaseConfiguration = (DatabaseConfiguration) schemaConfiguration.findFirst(ConfigurationType.DATABASE);
+            String dbname = databaseConfiguration.getName();
+            if (isDatabaseMissing(dbname)) {
+                doCreateDatabase(dbname);
+            }
 
+            StableConfiguration stableConfiguration = (StableConfiguration) schemaConfiguration.findFirst(ConfigurationType.STABLE);
+            String stableName = stableConfiguration.getName();
+            if (isStableMissing(dbname, stableName)) {
+                doCreateSuperTable(stableConfiguration);
+            }
+        }
+    }
+
+    private void doCreateDatabase(String dbname) {
+        try (Statement stmt = taosdConnection.createStatement()) {
+            stmt.execute("create database if not exists " + dbname);
         } catch (SQLException e) {
             e.printStackTrace();
         }
     }
 
+    private boolean isDatabaseMissing(String dbname) {
+        return !showDatabases().contains(dbname);
+    }
+
+    private boolean isStableMissing(String dbname, String stableName) {
+        return !showStables(dbname).contains(stableName);
+    }
+
+    // create table xxx (xx xx, xx xx, xx xx) tags(xx xx, xx xx)
+    private void doCreateSuperTable(StableConfiguration stableConfiguration) {
+        // table name
+        String stableName = stableConfiguration.getName();
+        // columns
+        List<Configuration> columns = stableConfiguration.find(ConfigurationType.COLUMN);
+        String columnsStr = columns.stream().map(configuration -> {
+            ColumnConfiguration column = (ColumnConfiguration) configuration;
+            String name = column.getName();
+            String type = column.getType();
+            Integer length = column.getLength();
+            if ("nchar".equalsIgnoreCase(type) || "binary".equalsIgnoreCase(type)) {
+                return name + " " + type + "(" + length + ")";
+            }
+            return name + " " + type;
+        }).collect(Collectors.joining(",", "(", ")"));
+        // tags
+        List<Configuration> tags = stableConfiguration.find(ConfigurationType.TAG);
+        String tagStr = tags.stream().map(configuration -> {
+            TagConfiguration tag = (TagConfiguration) configuration;
+            String name = tag.getName();
+            String type = tag.getType();
+            Integer length = tag.getLength();
+            if ("nchar".equalsIgnoreCase(type) || "binary".equalsIgnoreCase(type)) {
+                return name + " " + type + "(" + length + ")";
+            }
+            return name + " " + type;
+        }).collect(Collectors.joining(",", "(", ")"));
+
+        StringBuilder sb = new StringBuilder();
+        sb.append("create table ").append(stableName).append(" ").append(columnsStr).append(" tags").append(tagStr);
+
+        try (Statement stmt = taosdConnection.createStatement()) {
+            stmt.execute(sb.toString());
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+    }
+
+    private List<String> showDatabases() {
+        List<String> databases = new ArrayList<>();
+        try (Statement stmt = taosdConnection.createStatement()) {
+            ResultSet rs = stmt.executeQuery("show databases");
+            while (rs.next()) {
+                String dbname = rs.getString("name");
+                databases.add(dbname);
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return databases;
+    }
+
+    private List<String> showStables(String database) {
+        List<String> stables = new ArrayList<>();
+        try (Statement stmt = taosdConnection.createStatement()) {
+            stmt.execute("use " + database);
+            ResultSet rs = stmt.executeQuery("show stables");
+            while (rs.next()) {
+                String dbname = rs.getString("name");
+                stables.add(dbname);
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return stables;
+    }
+
+
     private void doWriteToTDengine() throws Exception {
-
-
         while (true) {
             for (int partitionId : partitionsToWrite) {
                 consumer.assign(topic, partitionId);
                 List<ConsumerRecord> records = consumer.poll(Duration.ofMillis(100));
                 for (ConsumerRecord record : records) {
-                    String topic = record.topic();
-                    int partition = record.partition();
-                    long offset = record.offset();
+                    final String topic = record.topic();
+                    final int partition = record.partition();
+                    final long offset = record.offset();
                     String message = new String(record.value(), "UTF-8");
                     logger.trace(String.format("topic: %s, partition: %d, offset: %d, value = %s%n", topic, partition, offset, message));
                     tryExecuteSQL(message);
                 }
             }
-            TimeUnit.SECONDS.sleep(pollingInterval);
+            TimeUnit.MILLISECONDS.sleep(pollingInterval);
         }
     }
 
     public void tryExecuteSQL(String sql) {
         try {
+            logger.trace("execute sql >>> " + sql);
             statement.execute(sql);
         } catch (SQLException e) {
             e.printStackTrace();
@@ -83,7 +176,7 @@ public class WriteToTDengineRunnableTask implements Runnable {
     }
 
     //setter
-    public void setPartitionsToWrite(Collection<Integer> partitionsToWrite) {
+    public void setPartitionsToWrite(List<Integer> partitionsToWrite) {
         this.partitionsToWrite = partitionsToWrite;
     }
 
