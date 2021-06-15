@@ -1276,7 +1276,7 @@ static bool validateTagParams(SArray* pTagsList, SArray* pFieldList, SSqlCmd* pC
   const char* msg1 = "invalid number of tag columns";
   const char* msg2 = "tag length too long";
   const char* msg3 = "duplicated column names";
-  const char* msg4 = "timestamp not allowed in tags";
+  //const char* msg4 = "timestamp not allowed in tags";
   const char* msg5 = "invalid data type in tags";
   const char* msg6 = "invalid tag name";
   const char* msg7 = "invalid binary/nchar tag length";
@@ -1292,10 +1292,10 @@ static bool validateTagParams(SArray* pTagsList, SArray* pFieldList, SSqlCmd* pC
   for (int32_t i = 0; i < numOfTags; ++i) {
     TAOS_FIELD* p = taosArrayGet(pTagsList, i);
 
-    if (p->type == TSDB_DATA_TYPE_TIMESTAMP) {
-      invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg4);
-      return false;
-    }
+    //if (p->type == TSDB_DATA_TYPE_TIMESTAMP) {
+    //  invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg4);
+    //  return false;
+    //}
 
     if (!isValidDataType(p->type)) {
       invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg5);
@@ -1353,7 +1353,7 @@ static bool validateTagParams(SArray* pTagsList, SArray* pFieldList, SSqlCmd* pC
  * tags name /column name is truncated in sql.y
  */
 bool validateOneTags(SSqlCmd* pCmd, TAOS_FIELD* pTagField) {
-  const char* msg1 = "timestamp not allowed in tags";
+  //const char* msg1 = "timestamp not allowed in tags";
   const char* msg2 = "duplicated column names";
   const char* msg3 = "tag length too long";
   const char* msg4 = "invalid tag name";
@@ -1376,10 +1376,10 @@ bool validateOneTags(SSqlCmd* pCmd, TAOS_FIELD* pTagField) {
   }
 
   // no timestamp allowable
-  if (pTagField->type == TSDB_DATA_TYPE_TIMESTAMP) {
-    invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg1);
-    return false;
-  }
+  //if (pTagField->type == TSDB_DATA_TYPE_TIMESTAMP) {
+  //  invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg1);
+  //  return false;
+  //}
 
   if ((pTagField->type < TSDB_DATA_TYPE_BOOL) || (pTagField->type > TSDB_DATA_TYPE_UBIGINT)) {
     invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg6);
@@ -8001,8 +8001,24 @@ int32_t exprTreeFromSqlExpr(SSqlCmd* pCmd, tExprNode **pExpr, const tSqlExpr* pS
       *pExpr = calloc(1, sizeof(tExprNode));
       (*pExpr)->nodeType = TSQL_NODE_VALUE;
       (*pExpr)->pVal = calloc(1, sizeof(tVariant));
-      
       tVariantAssign((*pExpr)->pVal, &pSqlExpr->value);
+
+      int32_t type = -1;
+      STableMeta* pTableMeta = tscGetMetaInfo(pQueryInfo, 0)->pTableMeta;
+      if (pCols != NULL) {
+        SColIndex* idx = taosArrayGet(pCols, 0);
+        SSchema* pSchema = tscGetTableColumnSchema(pTableMeta, idx->colIndex);
+        if (pSchema != NULL) {
+          type = pSchema->type; 
+        }
+      }
+      if (type == TSDB_DATA_TYPE_TIMESTAMP) {
+        int32_t ret = setColumnFilterInfoForTimestamp(pCmd, pQueryInfo, (*pExpr)->pVal);
+        if (ret != TSDB_CODE_SUCCESS) {
+          return ret;
+        }
+      }
+      
       return TSDB_CODE_SUCCESS;
     } else if (pSqlExpr->type == SQL_NODE_SQLFUNCTION) {
       // arithmetic expression on the results of aggregation functions
