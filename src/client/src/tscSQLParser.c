@@ -150,12 +150,9 @@ int16_t getNewResColId(SSqlCmd* pCmd) {
 // formate  "type | size | value"
 bool serializeExprListToVariant(SArray* pList, tVariant **dst, int16_t colType) {
   bool ret = false;
-  if (!pList || pList->size <= 0) {
+  if (!pList || pList->size <= 0 || colType < 0) {
     return ret;
   }  
-  if (colType == TSDB_DATA_TYPE_DOUBLE || colType == TSDB_DATA_TYPE_FLOAT) {
-    return ret;
-  }
   
   tSqlExprItem* item = (tSqlExprItem *)taosArrayGet(pList, 0); 
   int32_t firstTokenType = item->pNode->token.type; 
@@ -4562,11 +4559,7 @@ static int32_t validateTagCondExpr(SSqlCmd* pCmd, tExprNode *p) {
       free(tmp);
     } else {
       double tmp;
-      if (p->_node.optr == TSDB_RELATION_IN) {
-        retVal = validateParamOfRelationIn(vVariant, schemaType);
-      } else {
-        retVal = tVariantDump(vVariant, (char*)&tmp, schemaType, false);
-      }
+      retVal = tVariantDump(vVariant, (char*)&tmp, schemaType, false);
     }
     
     if (retVal != TSDB_CODE_SUCCESS) {
@@ -8065,18 +8058,23 @@ int32_t exprTreeFromSqlExpr(SSqlCmd* pCmd, tExprNode **pExpr, const tSqlExpr* pS
       
       return TSDB_CODE_SUCCESS;
     } else if (pSqlExpr->tokenId == TK_SET) {
-      int32_t type = -1;
+      int32_t colType = -1;
       STableMeta* pTableMeta = tscGetMetaInfo(pQueryInfo, 0)->pTableMeta;
       if (pCols != NULL) {
         SColIndex* idx = taosArrayGet(pCols, 0);
         SSchema* pSchema = tscGetTableColumnSchema(pTableMeta, idx->colIndex);
         if (pSchema != NULL) {
-          type = pSchema->type; 
+          colType = pSchema->type; 
         }
       }
 
       tVariant *pVal;
-      if (serializeExprListToVariant(pSqlExpr->pParam, &pVal, type) == false) {
+      if (colType >= TSDB_DATA_TYPE_TINYINT && colType <= TSDB_DATA_TYPE_BIGINT) {
+        colType = TSDB_DATA_TYPE_BIGINT;
+      } else if (colType == TSDB_DATA_TYPE_FLOAT || colType == TSDB_DATA_TYPE_DOUBLE) {
+        colType = TSDB_DATA_TYPE_DOUBLE;
+      }
+      if (serializeExprListToVariant(pSqlExpr->pParam, &pVal, colType) == false) {
         return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), "not support filter expression");
       }
       *pExpr = calloc(1, sizeof(tExprNode));

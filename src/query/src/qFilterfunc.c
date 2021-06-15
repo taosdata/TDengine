@@ -262,7 +262,7 @@ bool inOperator(SColumnFilterElem *pFilter, const char* minval, const char* maxv
       return NULL != taosHashGet((SHashObj *)pFilter->q, (char *)&minv, sizeof(minv));     
     }
     return true; 
-  } else if (type == TSDB_DATA_TYPE_DOUBLE || type == TSDB_DATA_TYPE_DOUBLE) {
+  } else if (type == TSDB_DATA_TYPE_DOUBLE || type == TSDB_DATA_TYPE_FLOAT) {
     double v;
     GET_TYPED_DATA(v, double, type, minval);
     return NULL != taosHashGet((SHashObj *)pFilter->q, (char *)&v, sizeof(v));     
