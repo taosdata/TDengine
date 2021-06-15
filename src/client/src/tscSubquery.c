@@ -3152,6 +3152,13 @@ int32_t tscHandleMultivnodeInsert(SSqlObj *pSql) {
 
   // it is the failure retry insert
   if (pSql->pSubs != NULL) {
+    int32_t blockNum = (int32_t)taosArrayGetSize(pCmd->insertParam.pDataBlocks);
+    if (pSql->subState.numOfSub != blockNum) {
+      tscError("0x%"PRIx64" sub num:%d is not same with data block num:%d", pSql->self, pSql->subState.numOfSub, blockNum);
+      pRes->code = TSDB_CODE_TSC_APP_ERROR;
+      return pRes->code;
+    }
+    
     for(int32_t i = 0; i < pSql->subState.numOfSub; ++i) {
       SSqlObj* pSub = pSql->pSubs[i];
       SInsertSupporter* pSup = calloc(1, sizeof(SInsertSupporter));
