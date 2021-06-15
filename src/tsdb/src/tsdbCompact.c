@@ -14,8 +14,6 @@
  */
 #include "tsdbint.h"
 
-#ifndef _TSDB_PLUGINS
-
 typedef struct {
   STable *    pTable;
   SBlockIdx * pBlkIdx;
@@ -523,5 +521,3 @@ static int tsdbWriteBlockToRightFile(SCompactH *pComph, STable *pTable, SDataCol
 
   return 0;
 }
-
-#endif
