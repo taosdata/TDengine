@@ -1213,7 +1213,6 @@ static void fetchResult(TAOS_RES *res, threadInfo* pThreadInfo) {
   }
 
   int   totalLen = 0;
-  char  temp[16000];
 
   // fetch the records row by row
   while((row = taos_fetch_row(res))) {
@@ -1224,6 +1223,7 @@ static void fetchResult(TAOS_RES *res, threadInfo* pThreadInfo) {
         memset(databuf, 0, 100*1024*1024);
     }
     num_rows++;
+    char temp[16000] = {0};
     int len = taos_print_row(temp, row, fields, num_fields);
     len += sprintf(temp + len, "\n");
     //printf("query result:%s\n", temp);
@@ -1852,7 +1852,9 @@ static void printfQueryMeta() {
 
 static char* formatTimestamp(char* buf, int64_t val, int precision) {
   time_t tt;
-  if (precision == TSDB_TIME_PRECISION_MICRO) {
+  if (precision == TSDB_TIME_PRECISION_NANO) {
+    tt = (time_t)(val / 1000000000);
+  } else if (precision == TSDB_TIME_PRECISION_MICRO) {
     tt = (time_t)(val / 1000000);
   } else {
     tt = (time_t)(val / 1000);
@@ -1873,7 +1875,9 @@ static char* formatTimestamp(char* buf, int64_t val, int precision) {
   struct tm* ptm = localtime(&tt);
   size_t pos = strftime(buf, 32, "%Y-%m-%d %H:%M:%S", ptm);
 
-  if (precision == TSDB_TIME_PRECISION_MICRO) {
+  if (precision == TSDB_TIME_PRECISION_NANO) {
+    sprintf(buf + pos, ".%09d", (int)(val % 1000000000));
+  } else if (precision == TSDB_TIME_PRECISION_MICRO) {
     sprintf(buf + pos, ".%06d", (int)(val % 1000000));
   } else {
     sprintf(buf + pos, ".%03d", (int)(val % 1000));
@@ -6253,9 +6257,11 @@ static void startMultiThreadInsertData(int threads, char* db_name,
   if (0 != precision[0]) {
     if (0 == strncasecmp(precision, "ms", 2)) {
       timePrec = TSDB_TIME_PRECISION_MILLI;
-    }  else if (0 == strncasecmp(precision, "us", 2)) {
+    } else if (0 == strncasecmp(precision, "us", 2)) {
       timePrec = TSDB_TIME_PRECISION_MICRO;
-    }  else {
+    } else if (0 == strncasecmp(precision, "ns", 2)) {
+      timePrec = TSDB_TIME_PRECISION_NANO;
+    } else {
       errorPrint("Not support precision: %s\n", precision);
       exit(-1);
     }

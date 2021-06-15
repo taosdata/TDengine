@@ -223,6 +223,7 @@ bool tscIsProjectionQueryOnSTable(SQueryInfo* pQueryInfo, int32_t tableIndex) {
         functionId != TSDB_FUNC_ARITHM &&
         functionId != TSDB_FUNC_TS_COMP &&
         functionId != TSDB_FUNC_DIFF &&
+        functionId != TSDB_FUNC_DERIVATIVE &&
         functionId != TSDB_FUNC_TS_DUMMY &&
         functionId != TSDB_FUNC_TID_TAG) {
       return false;
@@ -255,16 +256,38 @@ bool tscIsProjectionQuery(SQueryInfo* pQueryInfo) {
   size_t size = tscNumOfExprs(pQueryInfo);
 
   for (int32_t i = 0; i < size; ++i) {
-    int32_t functionId = tscExprGet(pQueryInfo, i)->base.functionId;
+    int32_t f = tscExprGet(pQueryInfo, i)->base.functionId;
+    if (f == TSDB_FUNC_TS_DUMMY) {
+      continue;
+    }
 
-    if (functionId != TSDB_FUNC_PRJ && functionId != TSDB_FUNC_TAGPRJ && functionId != TSDB_FUNC_TAG &&
-        functionId != TSDB_FUNC_TS && functionId != TSDB_FUNC_ARITHM) {
+    if (f != TSDB_FUNC_PRJ && f != TSDB_FUNC_TAGPRJ && f != TSDB_FUNC_TAG &&
+        f != TSDB_FUNC_TS && f != TSDB_FUNC_ARITHM && f != TSDB_FUNC_DIFF &&
+        f != TSDB_FUNC_DERIVATIVE) {
       return false;
     }
   }
 
   return true;
 }
+
+bool tscIsDiffDerivQuery(SQueryInfo* pQueryInfo) {
+  size_t size = tscNumOfExprs(pQueryInfo);
+
+  for (int32_t i = 0; i < size; ++i) {
+    int32_t f = tscExprGet(pQueryInfo, i)->base.functionId;
+    if (f == TSDB_FUNC_TS_DUMMY) {
+      continue;
+    }
+
+    if (f == TSDB_FUNC_DIFF || f == TSDB_FUNC_DERIVATIVE) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
 
 bool tscHasColumnFilter(SQueryInfo* pQueryInfo) {
   // filter on primary timestamp column
@@ -441,11 +464,13 @@ bool tscIsDiffQuery(SQueryInfo* pQueryInfo) {
   size_t num = tscNumOfExprs(pQueryInfo);
   for(int32_t i = 0; i < num; ++i) {
     SExprInfo* pExpr = tscExprGet(pQueryInfo, i);
-    if (pExpr == NULL || pExpr->base.functionId == TSDB_FUNC_TS_DUMMY) {
+
+    int32_t f = pExpr->base.functionId;
+    if (pExpr == NULL || f == TSDB_FUNC_TS_DUMMY) {
       continue;
     }
 
-    if (pExpr->base.functionId == TSDB_FUNC_DIFF) {
+    if (f == TSDB_FUNC_DIFF || f == TSDB_FUNC_DERIVATIVE) {
       return true;
     }
   }
@@ -962,6 +987,9 @@ static void destroyDummyInputOperator(void* param, int32_t numOfOutput) {
 
   pInfo->block = destroyOutputBuf(pInfo->block);
   pInfo->pSql = NULL;
+
+  cleanupResultRowInfo(&pInfo->pTableQueryInfo->resInfo);
+  tfree(pInfo->pTableQueryInfo);
 }
 
 // todo this operator servers as the adapter for Operator tree and SqlRes result, remove it later
@@ -4263,10 +4291,9 @@ int32_t tscCreateQueryFromQueryInfo(SQueryInfo* pQueryInfo, SQueryAttr* pQueryAt
 
   STableMetaInfo* pTableMetaInfo = pQueryInfo->pTableMetaInfo[0];
 
-  pQueryAttr->pGroupbyExpr    = calloc(1, sizeof(SGroupbyExpr));
-  *(pQueryAttr->pGroupbyExpr) = pQueryInfo->groupbyExpr;
-
   if (pQueryInfo->groupbyExpr.numOfGroupCols > 0) {
+    pQueryAttr->pGroupbyExpr    = calloc(1, sizeof(SGroupbyExpr));
+    *(pQueryAttr->pGroupbyExpr) = pQueryInfo->groupbyExpr;
     pQueryAttr->pGroupbyExpr->columnInfo = taosArrayDup(pQueryInfo->groupbyExpr.columnInfo);
   } else {
     assert(pQueryInfo->groupbyExpr.columnInfo == NULL);
@@ -4345,7 +4372,7 @@ int32_t tscCreateQueryFromQueryInfo(SQueryInfo* pQueryInfo, SQueryAttr* pQueryAt
     return TSDB_CODE_TSC_INVALID_OPERATION;
   }
 
-  if (pQueryAttr->pGroupbyExpr->numOfGroupCols < 0) {
+  if (pQueryAttr->pGroupbyExpr != NULL && pQueryAttr->pGroupbyExpr->numOfGroupCols < 0) {
     tscError("%p illegal value of numOfGroupCols in query msg: %d", addr, pQueryInfo->groupbyExpr.numOfGroupCols);
     return TSDB_CODE_TSC_INVALID_OPERATION;
   }

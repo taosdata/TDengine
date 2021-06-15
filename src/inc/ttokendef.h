@@ -104,28 +104,28 @@
 #define TK_QTIME                           85
 #define TK_CONNS                           86
 #define TK_STATE                           87
-#define TK_KEEP                            88
-#define TK_CACHE                           89
-#define TK_REPLICA                         90
-#define TK_QUORUM                          91
-#define TK_DAYS                            92
-#define TK_MINROWS                         93
-#define TK_MAXROWS                         94
-#define TK_BLOCKS                          95
-#define TK_CTIME                           96
-#define TK_WAL                             97
-#define TK_FSYNC                           98
-#define TK_COMP                            99
-#define TK_PRECISION                      100
-#define TK_UPDATE                         101
-#define TK_CACHELAST                      102
-#define TK_PARTITIONS                     103
-#define TK_LP                             104
-#define TK_RP                             105
-#define TK_UNSIGNED                       106
-#define TK_TAGS                           107
-#define TK_USING                          108
-#define TK_COMMA                          109
+#define TK_COMMA                           88
+#define TK_KEEP                            89
+#define TK_CACHE                           90
+#define TK_REPLICA                         91
+#define TK_QUORUM                          92
+#define TK_DAYS                            93
+#define TK_MINROWS                         94
+#define TK_MAXROWS                         95
+#define TK_BLOCKS                          96
+#define TK_CTIME                           97
+#define TK_WAL                             98
+#define TK_FSYNC                           99
+#define TK_COMP                           100
+#define TK_PRECISION                      101
+#define TK_UPDATE                         102
+#define TK_CACHELAST                      103
+#define TK_PARTITIONS                     104
+#define TK_LP                             105
+#define TK_RP                             106
+#define TK_UNSIGNED                       107
+#define TK_TAGS                           108
+#define TK_USING                          109
 #define TK_AS                             110
 #define TK_NULL                           111
 #define TK_SELECT                         112
@@ -205,7 +205,6 @@
 #define TK_INSERT                         186
 #define TK_INTO                           187
 #define TK_VALUES                         188
-
 
 
 

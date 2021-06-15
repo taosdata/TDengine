@@ -139,19 +139,20 @@ tSqlExpr *tSqlExprCreateIdValue(SStrToken *pToken, int32_t optrType) {
     pSqlExpr->tokenId = optrType;
     pSqlExpr->type    = SQL_NODE_VALUE;
   } else if (optrType == TK_NOW) {
-    // use microsecond by default
-    pSqlExpr->value.i64 = taosGetTimestamp(TSDB_TIME_PRECISION_MICRO);
+    // use nanosecond by default TODO set value after getting database precision
+    pSqlExpr->value.i64 = taosGetTimestamp(TSDB_TIME_PRECISION_NANO);
     pSqlExpr->value.nType = TSDB_DATA_TYPE_BIGINT;
     pSqlExpr->tokenId = TK_TIMESTAMP;  // TK_TIMESTAMP used to denote the time value is in microsecond
     pSqlExpr->type    = SQL_NODE_VALUE;
-    pSqlExpr->flags  |= 1 << EXPR_FLAG_US_TIMESTAMP;
+    pSqlExpr->flags  |= 1 << EXPR_FLAG_NS_TIMESTAMP;
   } else if (optrType == TK_VARIABLE) {
-    int32_t ret = parseAbsoluteDuration(pToken->z, pToken->n, &pSqlExpr->value.i64);
+    // use nanosecond by default TODO set value after getting database precision
+    int32_t ret = parseAbsoluteDuration(pToken->z, pToken->n, &pSqlExpr->value.i64, TSDB_TIME_PRECISION_NANO);
     if (ret != TSDB_CODE_SUCCESS) {
       terrno = TSDB_CODE_TSC_SQL_SYNTAX_ERROR;
     }
 
-    pSqlExpr->flags  |= 1 << EXPR_FLAG_US_TIMESTAMP;
+    pSqlExpr->flags  |= 1 << EXPR_FLAG_NS_TIMESTAMP;
     pSqlExpr->flags  |= 1 << EXPR_FLAG_TIMESTAMP_VAR;
     pSqlExpr->value.nType = TSDB_DATA_TYPE_BIGINT;
     pSqlExpr->tokenId = TK_TIMESTAMP;

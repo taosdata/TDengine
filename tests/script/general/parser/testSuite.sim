@@ -62,4 +62,5 @@ run general/parser/binary_escapeCharacter.sim
 run general/parser/between_and.sim
 run general/parser/last_cache.sim
 run general/parser/nestquery.sim
+run general/parser/precision_ns.sim
 
