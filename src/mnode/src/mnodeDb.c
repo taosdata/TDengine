@@ -53,6 +53,7 @@ static int32_t mnodeRetrieveDbs(SShowObj *pShow, char *data, int32_t rows, void 
 static int32_t mnodeProcessCreateDbMsg(SMnodeMsg *pMsg);
 static int32_t mnodeProcessDropDbMsg(SMnodeMsg *pMsg);
 static int32_t mnodeProcessSyncDbMsg(SMnodeMsg *pMsg);
+static int32_t mnodeProcessCompactMsg(SMnodeMsg *pMsg);
 int32_t mnodeProcessAlterDbMsg(SMnodeMsg *pMsg);
 
 #ifndef _TOPIC
@@ -200,9 +201,11 @@ int32_t mnodeInitDbs() {
   mnodeAddWriteMsgHandle(TSDB_MSG_TYPE_CM_ALTER_DB, mnodeProcessAlterDbMsg);
   mnodeAddWriteMsgHandle(TSDB_MSG_TYPE_CM_DROP_DB, mnodeProcessDropDbMsg);
   mnodeAddWriteMsgHandle(TSDB_MSG_TYPE_CM_SYNC_DB, mnodeProcessSyncDbMsg);
+  mnodeAddWriteMsgHandle(TSDB_MSG_TYPE_CM_COMPACT_VNODE, mnodeProcessCompactMsg);
   mnodeAddShowMetaHandle(TSDB_MGMT_TABLE_DB, mnodeGetDbMeta);
   mnodeAddShowRetrieveHandle(TSDB_MGMT_TABLE_DB, mnodeRetrieveDbs);
   mnodeAddShowFreeIterHandle(TSDB_MGMT_TABLE_DB, mnodeCancelGetNextDb);
+  
   
   mDebug("table:dbs table is created");
   return tpInit();
@@ -1267,7 +1270,7 @@ static int32_t mnodeProcessDropDbMsg(SMnodeMsg *pMsg) {
 static int32_t mnodeSyncDb(SDbObj *pDb, SMnodeMsg *pMsg) {
   void *pIter = NULL;
   SVgObj *pVgroup = NULL;
-    while (1) {
+  while (1) {
     pIter = mnodeGetNextVgroup(pIter, &pVgroup);
     if (pVgroup == NULL) break;
     if (pVgroup->pDb == pDb) {
@@ -1278,6 +1281,43 @@ static int32_t mnodeSyncDb(SDbObj *pDb, SMnodeMsg *pMsg) {
 
   mLInfo("db:%s, is synced by %s", pDb->name, mnodeGetUserFromMsg(pMsg));
 
+  return TSDB_CODE_SUCCESS;
+}
+
+
+static int32_t mnodeCompact(SDbObj *pDb, SCompactMsg *pCompactMsg) {
+  int32_t count = ntohs(pCompactMsg->numOfVgroup);  
+  int32_t *buf  = malloc(sizeof(int32_t) * count); 
+  if (buf == NULL) {
+    return  TSDB_CODE_MND_OUT_OF_MEMORY;
+  }
+  for (int32_t i = 0; i < count; i++) {
+    buf[i] = ntohs(pCompactMsg->vgid[i]);
+  }
+   
+  // copy from mnodeSyncDb, so ugly
+  for (int32_t i = 0; i < count; i++) {
+    SVgObj *pVgroup = NULL;
+    void *pIter = NULL;
+    bool  valid = false;
+    while (1) {
+      pIter = mnodeGetNextVgroup(pIter, &pVgroup);
+      if (pVgroup == NULL) break;
+      if (pVgroup->pDb == pDb && pVgroup->vgId == buf[i]) {
+        mnodeSendCompactVgroupMsg(pVgroup);
+        mnodeDecVgroupRef(pVgroup);
+        valid = true; 
+        break;
+      }
+      mnodeDecVgroupRef(pVgroup);
+    }
+    if (valid == false) {
+      mLError("db:%s, cannot find valid vgId: %d", pDb->name, buf[i]);
+    }
+  }
+  free(buf); 
+
+  mLInfo("db:%s, trigger compact", pDb->name);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1302,6 +1342,20 @@ static int32_t mnodeProcessSyncDbMsg(SMnodeMsg *pMsg) {
   }
 
   return mnodeSyncDb(pMsg->pDb, pMsg);
+}
+static int32_t mnodeProcessCompactMsg(SMnodeMsg *pMsg) {
+  SCompactMsg *pCompact = pMsg->rpcMsg.pCont;
+  mDebug("db:%s, compact is received from thandle:%p", pCompact->db, pMsg->rpcMsg.handle);
+  
+  if (pMsg->pDb == NULL) pMsg->pDb = mnodeGetDb(pCompact->db);
+  if (pMsg->pDb == NULL) return TSDB_CODE_MND_DB_NOT_SELECTED;
+  
+  if (pMsg->pDb->status != TSDB_DB_STATUS_READY) {
+    mError("db:%s, status:%d, in dropping, ignore compact request", pCompact->db, pMsg->pDb->status);
+    return TSDB_CODE_MND_DB_IN_DROPPING;
+  } 
+
+  return mnodeCompact(pMsg->pDb, pCompact);
 }
 
 void  mnodeDropAllDbs(SAcctObj *pAcct)  {
