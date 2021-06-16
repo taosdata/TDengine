@@ -956,8 +956,10 @@ int32_t validateIntervalNode(SSqlObj* pSql, SQueryInfo* pQueryInfo, SSqlNode* pS
 static int32_t validateStateWindowNode(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SSqlNode* pSqlNode, bool isStable) {
 
   const char* msg1 = "invalid column name";
+  const char* msg2 = "invalid column type";
   const char* msg3 = "not support state_window with group by ";
   const char* msg4 = "function not support for super table query";
+  const char* msg5 = "not support state_window on tag column";
 
   SStrToken *col = &(pSqlNode->windowstateVal.col) ;
   if (col->z == NULL || col->n <= 0) {
@@ -985,8 +987,10 @@ static int32_t validateStateWindowNode(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SS
   STableMetaInfo *pTableMetaInfo = tscGetMetaInfo(pQueryInfo, index.tableIndex);
   STableMeta* pTableMeta = pTableMetaInfo->pTableMeta;
   int32_t numOfCols = tscGetNumOfColumns(pTableMeta);
-  if (index.columnIndex == TSDB_TBNAME_COLUMN_INDEX || index.columnIndex >= numOfCols) {
+  if (index.columnIndex == TSDB_TBNAME_COLUMN_INDEX) {
     return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg3);
+  } else if (index.columnIndex >= numOfCols) {
+    return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg5);
   }
 
   SGroupbyExpr* pGroupExpr = &pQueryInfo->groupbyExpr;
@@ -995,8 +999,10 @@ static int32_t validateStateWindowNode(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SS
   }
   
   SSchema* pSchema = tscGetTableColumnSchema(pTableMeta, index.columnIndex);
-  if (pSchema->type == TSDB_DATA_TYPE_TIMESTAMP || pSchema->type == TSDB_DATA_TYPE_FLOAT || pSchema->type == TSDB_DATA_TYPE_DOUBLE) {
-    return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg1);
+  if (pSchema->type == TSDB_DATA_TYPE_TIMESTAMP || pSchema->type == TSDB_DATA_TYPE_FLOAT 
+      || pSchema->type == TSDB_DATA_TYPE_DOUBLE || pSchema->type == TSDB_DATA_TYPE_NCHAR
+      || pSchema->type == TSDB_DATA_TYPE_BINARY) {
+    return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg2);
   }
 
   tscColumnListInsert(pQueryInfo->colList, index.columnIndex, pTableMeta->id.uid, pSchema);
