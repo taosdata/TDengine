@@ -7,7 +7,12 @@ FIND_LIBRARY(LIB_GTEST_STATIC_DIR libgtest.a /usr/lib/ /usr/local/lib)
 IF (HEADER_GTEST_INCLUDE_DIR AND LIB_GTEST_STATIC_DIR)
     MESSAGE(STATUS "gTest library found, build unit test")
 
-    INCLUDE_DIRECTORIES(${HEADER_GTEST_INCLUDE_DIR})
+    # GoogleTest requires at least C++11
+    SET(CMAKE_CXX_STANDARD 11)
+
+    INCLUDE_DIRECTORIES(/usr/include /usr/local/include)
+    LINK_DIRECTORIES(/usr/lib /usr/local/lib)
+
     AUX_SOURCE_DIRECTORY(${CMAKE_CURRENT_SOURCE_DIR} SOURCE_LIST)
 
     ADD_EXECUTABLE(cliTest ${SOURCE_LIST})
