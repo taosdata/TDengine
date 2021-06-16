@@ -174,6 +174,10 @@ cmd ::= ALTER TOPIC ids(X) alter_topic_optr(Y). { SStrToken t = {0};  setCreateD
 cmd ::= ALTER ACCOUNT ids(X) acct_optr(Z).      { setCreateAcctSql(pInfo, TSDB_SQL_ALTER_ACCT, &X, NULL, &Z);}
 cmd ::= ALTER ACCOUNT ids(X) PASS ids(Y) acct_optr(Z).      { setCreateAcctSql(pInfo, TSDB_SQL_ALTER_ACCT, &X, &Y, &Z);}
 
+////////////////////////////// COMPACT STATEMENT //////////////////////////////////////////////
+
+cmd ::= COMPACT VNODES IN LP exprlist(Y) RP.    { setCompactVnodeSql(pInfo, TSDB_SQL_COMPACT_VNODE, Y);}  
+
 // An IDENTIFIER can be a generic identifier, or one of several keywords.
 // Any non-standard keyword can also be an identifier.
 // And "ids" is an identifer-or-string.

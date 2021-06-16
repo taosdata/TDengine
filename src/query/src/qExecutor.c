@@ -2282,7 +2282,7 @@ static bool doFilterByBlockStatistics(SQueryRuntimeEnv* pRuntimeEnv, SDataStatis
   if (pDataStatis == NULL || pQueryAttr->numOfFilterCols == 0) {
     return true;
   }
-
+  bool ret = true;
   for (int32_t k = 0; k < pQueryAttr->numOfFilterCols; ++k) {
     SSingleColumnFilterInfo *pFilterInfo = &pQueryAttr->pFilterInfo[k];
 
@@ -2319,26 +2319,34 @@ static bool doFilterByBlockStatistics(SQueryRuntimeEnv* pRuntimeEnv, SDataStatis
     }
 
     SDataStatis* pDataBlockst = &pDataStatis[index];
-
+    
     if (pFilterInfo->info.type == TSDB_DATA_TYPE_FLOAT) {
       float minval = (float)(*(double *)(&pDataBlockst->min));
       float maxval = (float)(*(double *)(&pDataBlockst->max));
-
+       
       for (int32_t i = 0; i < pFilterInfo->numOfFilters; ++i) {
-        if (pFilterInfo->pFilters[i].fp(&pFilterInfo->pFilters[i], (char *)&minval, (char *)&maxval, TSDB_DATA_TYPE_FLOAT)) {
-          return true;
+        if (pFilterInfo->pFilters[i].filterInfo.lowerRelOptr == TSDB_RELATION_IN) {
+           continue;   
+        }
+        ret &= pFilterInfo->pFilters[i].fp(&pFilterInfo->pFilters[i], (char *)&minval, (char *)&maxval, TSDB_DATA_TYPE_FLOAT);
+        if (ret == false) {
+          return false;
         }
       }
     } else {
       for (int32_t i = 0; i < pFilterInfo->numOfFilters; ++i) {
-        if (pFilterInfo->pFilters[i].fp(&pFilterInfo->pFilters[i], (char *)&pDataBlockst->min, (char *)&pDataBlockst->max, pFilterInfo->info.type)) {
-          return true;
+        if (pFilterInfo->pFilters[i].filterInfo.lowerRelOptr == TSDB_RELATION_IN) {
+           continue; 
+        }
+        ret &= pFilterInfo->pFilters[i].fp(&pFilterInfo->pFilters[i], (char *)&pDataBlockst->min, (char *)&pDataBlockst->max, pFilterInfo->info.type); 
+        if (ret == false) {
+          return false;
         }
       }
     }
   }
 
-  return false;
+  return ret;
 }
 
 static bool overlapWithTimeWindow(SQueryAttr* pQueryAttr, SDataBlockInfo* pBlockInfo) {
@@ -3157,7 +3165,7 @@ void updateOutputBuf(SOptrBasicInfo* pBInfo, int32_t *bufCapacity, int32_t numOf
 
     // re-estabilish output buffer pointer.
     int32_t functionId = pBInfo->pCtx[i].functionId;
-    if (functionId == TSDB_FUNC_TOP || functionId == TSDB_FUNC_BOTTOM || functionId == TSDB_FUNC_DIFF) {
+    if (functionId == TSDB_FUNC_TOP || functionId == TSDB_FUNC_BOTTOM || functionId == TSDB_FUNC_DIFF || functionId == TSDB_FUNC_DERIVATIVE) {
       pBInfo->pCtx[i].ptsOutputBuf = pBInfo->pCtx[0].pOutput;
     }
   }

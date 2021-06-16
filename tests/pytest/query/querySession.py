@@ -118,7 +118,9 @@ class TDTestCase:
         tdSql.checkRows(2)
         tdSql.checkData(0, 1, 3)
         tdSql.error("select count(*) from dev_001 session(i,1s)")
-        
+        # test second timestamp fileds
+        tdSql.execute("create table secondts(ts timestamp,t2 timestamp,i int)")
+        tdSql.error("select count(*) from secondts session(t2,2s)")
 
     def stop(self):
         tdSql.close()

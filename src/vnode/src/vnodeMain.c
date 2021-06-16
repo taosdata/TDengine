@@ -114,6 +114,7 @@ int32_t vnodeSync(int32_t vgId) {
   return TSDB_CODE_SUCCESS;
 }
 
+
 int32_t vnodeDrop(int32_t vgId) {
   SVnodeObj *pVnode = vnodeAcquire(vgId);
   if (pVnode == NULL) {
@@ -132,6 +133,19 @@ int32_t vnodeDrop(int32_t vgId) {
   vnodeCleanupInMWorker(pVnode);
 
   return TSDB_CODE_SUCCESS;
+}
+int32_t vnodeCompact(int32_t vgId) {
+  void *pVnode = vnodeAcquire(vgId);
+  if (pVnode != NULL) {
+    vDebug("vgId:%d, compact vnode msg is received", vgId);
+    //not care success or not
+    tsdbCompact(((SVnodeObj*)pVnode)->tsdb);  
+    vnodeRelease(pVnode);
+  } else {
+    vInfo("vgId:%d, vnode not exist, can't compact it", vgId);
+    return TSDB_CODE_VND_INVALID_VGROUP_ID;
+  }
+  return TSDB_CODE_SUCCESS;  
 }
 
 static int32_t vnodeAlterImp(SVnodeObj *pVnode, SCreateVnodeMsg *pVnodeCfg) {

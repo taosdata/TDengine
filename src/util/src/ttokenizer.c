@@ -219,6 +219,7 @@ static SKeyword keywordTable[] = {
     {"PARTITIONS",   TK_PARTITIONS},
     {"TOPIC",        TK_TOPIC},
     {"TOPICS",       TK_TOPICS},
+    {"COMPACT",       TK_COMPACT},
     {"MODIFY",       TK_MODIFY}
 };
 

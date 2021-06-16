@@ -220,10 +220,6 @@ int32_t bnAllocVnodes(SVgObj *pVgroup) {
 }
 
 static bool bnCheckVgroupReady(SVgObj *pVgroup, SVnodeGid *pRmVnode) {
-  if (pVgroup->lbTime + 5 * tsStatusInterval > tsAccessSquence) {
-    return false;
-  }
-
   int32_t rmVnodeVer = 0;
   for (int32_t i = 0; i < pVgroup->numOfVnodes; ++i) {
     SVnodeGid *pVnode = pVgroup->vnodeGid + i;
@@ -405,7 +401,7 @@ void bnReset() {
     if (pDnode == NULL) break;
 
     // while master change, should reset dnode to offline
-    mInfo("dnode:%d set access:%d to 0", pDnode->dnodeId, pDnode->lastAccess);
+    mInfo("dnode:%d set access:%" PRId64 " to 0", pDnode->dnodeId, pDnode->lastAccess);
     pDnode->lastAccess = 0;
     if (pDnode->status != TAOS_DN_STATUS_DROPPING) {
       pDnode->status = TAOS_DN_STATUS_OFFLINE;
@@ -499,7 +495,7 @@ static bool bnMontiorDropping() {
       if (dnodeIsMasterEp(pDnode->dnodeEp)) continue; 
       if (mnodeGetDnodesNum() <= 1) continue;
 
-      mLInfo("dnode:%d, set to removing state for it offline:%d seconds", pDnode->dnodeId,
+      mLInfo("dnode:%d, set to removing state for it offline:%" PRId64 " seconds", pDnode->dnodeId,
               tsAccessSquence - pDnode->lastAccess);
 
       pDnode->status = TAOS_DN_STATUS_DROPPING;
@@ -574,8 +570,8 @@ void bnCheckStatus() {
       if (pDnode->status != TAOS_DN_STATUS_DROPPING && pDnode->status != TAOS_DN_STATUS_OFFLINE) {
         pDnode->status = TAOS_DN_STATUS_OFFLINE;
         pDnode->offlineReason = TAOS_DN_OFF_STATUS_MSG_TIMEOUT;
-        mInfo("dnode:%d, set to offline state, access seq:%d last seq:%d laststat:%d", pDnode->dnodeId, tsAccessSquence,
-              pDnode->lastAccess, pDnode->status);
+        mInfo("dnode:%d, set to offline state, access seq:%" PRId64 " last seq:%" PRId64 " laststat:%d", pDnode->dnodeId,
+              tsAccessSquence, pDnode->lastAccess, pDnode->status);
         bnSetVgroupOffline(pDnode);
         bnStartTimer(3000);
       }

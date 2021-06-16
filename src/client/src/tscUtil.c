@@ -223,6 +223,7 @@ bool tscIsProjectionQueryOnSTable(SQueryInfo* pQueryInfo, int32_t tableIndex) {
         functionId != TSDB_FUNC_ARITHM &&
         functionId != TSDB_FUNC_TS_COMP &&
         functionId != TSDB_FUNC_DIFF &&
+        functionId != TSDB_FUNC_DERIVATIVE &&
         functionId != TSDB_FUNC_TS_DUMMY &&
         functionId != TSDB_FUNC_TID_TAG) {
       return false;
@@ -459,22 +460,6 @@ bool tscIsTWAQuery(SQueryInfo* pQueryInfo) {
   return false;
 }
 
-bool tscIsDiffQuery(SQueryInfo* pQueryInfo) {
-  size_t num = tscNumOfExprs(pQueryInfo);
-  for(int32_t i = 0; i < num; ++i) {
-    SExprInfo* pExpr = tscExprGet(pQueryInfo, i);
-    if (pExpr == NULL || pExpr->base.functionId == TSDB_FUNC_TS_DUMMY) {
-      continue;
-    }
-
-    if (pExpr->base.functionId == TSDB_FUNC_DIFF) {
-      return true;
-    }
-  }
-
-  return false;
-}
-
 bool tscIsSessionWindowQuery(SQueryInfo* pQueryInfo) {
   return pQueryInfo->sessionWindow.gap > 0;
 }
@@ -513,7 +498,7 @@ bool isSimpleAggregateRv(SQueryInfo* pQueryInfo) {
     return false;
   }
 
-  if (tscIsDiffQuery(pQueryInfo)) {
+  if (tscIsDiffDerivQuery(pQueryInfo)) {
     return false;
   }
 
@@ -4257,7 +4242,7 @@ int32_t tscCreateQueryFromQueryInfo(SQueryInfo* pQueryInfo, SQueryAttr* pQueryAt
   pQueryAttr->hasTagResults     = hasTagValOutput(pQueryInfo);
   pQueryAttr->stabledev         = isStabledev(pQueryInfo);
   pQueryAttr->tsCompQuery       = isTsCompQuery(pQueryInfo);
-  pQueryAttr->diffQuery         = tscIsDiffQuery(pQueryInfo);
+  pQueryAttr->diffQuery         = tscIsDiffDerivQuery(pQueryInfo);
   pQueryAttr->simpleAgg         = isSimpleAggregateRv(pQueryInfo);
   pQueryAttr->needReverseScan   = tscNeedReverseScan(pQueryInfo);
   pQueryAttr->stableQuery       = QUERY_IS_STABLE_QUERY(pQueryInfo->type);

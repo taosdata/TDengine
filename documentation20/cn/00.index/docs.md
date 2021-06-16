@@ -15,7 +15,7 @@ TDengine是一个高效的存储、查询、分析时序大数据的平台，专
 * [命令行程序TAOS](/getting-started#console)：访问TDengine的简便方式
 * [极速体验](/getting-started#demo)：运行示例程序，快速体验高效的数据插入、查询
 * [支持平台列表](/getting-started#platforms)：TDengine服务器和客户端支持的平台列表
-* [Kubenetes部署](https://taosdata.github.io/TDengine-Operator/zh/index.html)：TDengine在Kubenetes环境进行部署的详细说明
+* [Kubernetes部署](https://taosdata.github.io/TDengine-Operator/zh/index.html)：TDengine在Kubernetes环境进行部署的详细说明
 
 ## [整体架构](/architecture)
 
@@ -81,7 +81,7 @@ TDengine是一个高效的存储、查询、分析时序大数据的平台，专
 ## [与其他工具的连接](/connections)
 
 * [Grafana](/connections#grafana)：获取并可视化保存在TDengine的数据
-* [Matlab](/connections#matlab)：通过配置Matlab的JDBC数据源访问保存在TDengine的数据
+* [MATLAB](/connections#matlab)：通过配置MATLAB的JDBC数据源访问保存在TDengine的数据
 * [R](/connections#r)：通过配置R的JDBC数据源访问保存在TDengine的数据
 * [IDEA Database](https://www.taosdata.com/blog/2020/08/27/1767.html)：通过IDEA 数据库管理工具可视化使用 TDengine
 
