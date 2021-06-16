@@ -286,29 +286,33 @@ static int32_t invalidOperationMsg(char* dstBuffer, const char* errMsg) {
   return tscInvalidOperationMsg(dstBuffer, errMsg, NULL);
 }
 
-static int setColumnFilterInfoForTimestamp(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tVariant* pVar) {
+static int convertTimestampStrToInt64(tVariant *pVar, int32_t precision) {
   int64_t     time = 0;
-  const char* msg = "invalid timestamp";
-
   strdequote(pVar->pz);
-  char*           seg = strnchr(pVar->pz, '-', pVar->nLen, false);
-  STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
 
-  STableComInfo tinfo = tscGetTableInfo(pTableMetaInfo->pTableMeta);
-  
+  char*           seg = strnchr(pVar->pz, '-', pVar->nLen, false);
   if (seg != NULL) {
-    if (taosParseTime(pVar->pz, &time, pVar->nLen, tinfo.precision, tsDaylight) != TSDB_CODE_SUCCESS) {
-      return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg);
+    if (taosParseTime(pVar->pz, &time, pVar->nLen, precision, tsDaylight) != TSDB_CODE_SUCCESS) {
+      return -1;
     }
   } else {
     if (tVariantDump(pVar, (char*)&time, TSDB_DATA_TYPE_BIGINT, true)) {
-      return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg);
+      return -1;
     }
   }
-
   tVariantDestroy(pVar);
   tVariantCreateFromBinary(pVar, (char*)&time, 0, TSDB_DATA_TYPE_BIGINT);
+  return 0;
+}
+static int setColumnFilterInfoForTimestamp(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tVariant* pVar) {
+  const char* msg = "invalid timestamp";
 
+  STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
+
+  STableComInfo tinfo = tscGetTableInfo(pTableMetaInfo->pTableMeta);
+  if (convertTimestampStrToInt64(pVar, tinfo.precision) < -1) {
+   return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg);
+  }  
   return TSDB_CODE_SUCCESS;
 }
 
@@ -6886,10 +6890,15 @@ int32_t doCheckForCreateFromStable(SSqlObj* pSql, SSqlInfo* pInfo) {
                 return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg3);
               }
             } else if (pSchema->type == TSDB_DATA_TYPE_TIMESTAMP) {
-              pItem->pVar.i64 = 
-                  convertTimePrecision(pItem->pVar.i64, TSDB_TIME_PRECISION_NANO, tinfo.precision);  
+              if (pItem->pVar.nType == TSDB_DATA_TYPE_BINARY) {
+                ret = convertTimestampStrToInt64(&(pItem->pVar), tinfo.precision);
+                if (ret != TSDB_CODE_SUCCESS) {
+                  return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg4);
+                }
+              } else if (pItem->pVar.nType == TSDB_DATA_TYPE_TIMESTAMP) {
+                pItem->pVar.i64 = convertTimePrecision(pItem->pVar.i64, TSDB_TIME_PRECISION_NANO, tinfo.precision);  
+              }
             }
-
 
             ret = tVariantDump(&(pItem->pVar), tagVal, pSchema->type, true);
 
@@ -6936,8 +6945,14 @@ int32_t doCheckForCreateFromStable(SSqlObj* pSql, SSqlInfo* pInfo) {
             return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg3);
           }
         } else if (pSchema->type == TSDB_DATA_TYPE_TIMESTAMP) {
-          pItem->pVar.i64 = 
-            convertTimePrecision(pItem->pVar.i64, TSDB_TIME_PRECISION_NANO, tinfo.precision);  
+          if (pItem->pVar.nType == TSDB_DATA_TYPE_BINARY) {
+            ret = convertTimestampStrToInt64(&(pItem->pVar), tinfo.precision);
+            if (ret != TSDB_CODE_SUCCESS) {
+              return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg4);
+            }
+          } else if (pItem->pVar.nType == TSDB_DATA_TYPE_TIMESTAMP) {
+            pItem->pVar.i64 = convertTimePrecision(pItem->pVar.i64, TSDB_TIME_PRECISION_NANO, tinfo.precision);  
+          }
         }
         
 
