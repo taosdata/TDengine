@@ -148,7 +148,9 @@ int tsdbCreateTable(STsdbRepo *repo, STableCfg *pCfg) {
   return 0;
 
 _err:
-  //tsdbFreeTable(super);
+  if (newSuper) {
+    tsdbFreeTable(super);
+  }
   tsdbFreeTable(table);
   return -1;
 }
