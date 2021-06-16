@@ -799,6 +799,7 @@ static STable *tsdbNewTable() {
 
   pTable->lastCols = NULL;
   pTable->restoreColumnNum = 0;
+  pTable->cacheLastConfigVersion = 0;
   pTable->maxColNum = 0;
   pTable->lastColSVersion = -1;
   return pTable;
