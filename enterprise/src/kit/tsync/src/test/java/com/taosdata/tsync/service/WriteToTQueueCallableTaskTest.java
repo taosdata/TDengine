@@ -61,7 +61,7 @@ public class WriteToTQueueCallableTaskTest {
         // then
         long countFromTQueue = queryCountFromTQueue();
         Assert.assertEquals(1000L, affectRows);
-        Assert.assertEquals(11L, countFromTQueue);
+        Assert.assertEquals(10L, countFromTQueue);
     }
 
     private long queryCountFromTQueue() {

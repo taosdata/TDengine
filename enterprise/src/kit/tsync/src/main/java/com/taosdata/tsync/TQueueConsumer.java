@@ -2,6 +2,7 @@ package com.taosdata.tsync;
 
 import com.taosdata.tsync.entity.TopicPartition;
 import com.taosdata.tsync.entity.consumer.ConsumerRecord;
+import com.taosdata.tsync.enums.TQueueConstants;
 import com.taosdata.tsync.utils.Utils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -16,8 +17,7 @@ import java.util.concurrent.atomic.AtomicLong;
 public class TQueueConsumer extends TQueueBase {
     private static final Logger logger = LoggerFactory.getLogger(TQueueConsumer.class);
     private static final long STARTED_OFFSET = 0;
-    private static final String DEFAULT_OFFSET_TABLE_NAME = "partition_offset";
-    private static final String DEFAULT_OFFSET_DATABASE_NAME = "topic_info";
+
 
     private final Object LOCK = new Object();
     private String topic;
@@ -32,7 +32,7 @@ public class TQueueConsumer extends TQueueBase {
         }
         if (!isOffsetTableExist()) {
             createOffsetTable();
-            logger.warn("table[" + DEFAULT_OFFSET_DATABASE_NAME + "." + DEFAULT_OFFSET_TABLE_NAME + "] is not exists, and all partitions' offset in topic:" + DEFAULT_OFFSET_DATABASE_NAME + " will be set to 0");
+            logger.warn("table[" + TQueueConstants.DEFAULT_OFFSET_DATABASE_NAME + "." + TQueueConstants.DEFAULT_OFFSET_TABLE_NAME + "] is not exists, and all partitions' offset in topic:" + TQueueConstants.DEFAULT_OFFSET_DATABASE_NAME + " will be set to 0");
         }
     }
 
@@ -85,7 +85,7 @@ public class TQueueConsumer extends TQueueBase {
             ResultSet rs = stmt.executeQuery("show databases");
             while (rs.next()) {
                 String dbname = rs.getString("name");
-                if (DEFAULT_OFFSET_DATABASE_NAME.equals(dbname)) {
+                if (TQueueConstants.DEFAULT_OFFSET_DATABASE_NAME.equals(dbname)) {
                     isExist = true;
                     break;
                 }
@@ -98,7 +98,7 @@ public class TQueueConsumer extends TQueueBase {
 
     private void createOffsetDatabase() {
         try (Statement stmt = connection.createStatement()) {
-            stmt.execute("create database if not exists " + DEFAULT_OFFSET_DATABASE_NAME);
+            stmt.execute("create database if not exists " + TQueueConstants.DEFAULT_OFFSET_DATABASE_NAME);
         } catch (SQLException e) {
             e.printStackTrace();
         }
@@ -107,11 +107,11 @@ public class TQueueConsumer extends TQueueBase {
     private boolean isOffsetTableExist() {
         boolean isExist = false;
         try (Statement stmt = connection.createStatement()) {
-            stmt.execute("use " + DEFAULT_OFFSET_DATABASE_NAME);
-            ResultSet rs = stmt.executeQuery("show tables like '" + DEFAULT_OFFSET_TABLE_NAME + "'");
+            stmt.execute("use " + TQueueConstants.DEFAULT_OFFSET_DATABASE_NAME);
+            ResultSet rs = stmt.executeQuery("show tables like '" + TQueueConstants.DEFAULT_OFFSET_TABLE_NAME + "'");
             while (rs.next()) {
                 String table_name = rs.getString("table_name");
-                if (DEFAULT_OFFSET_TABLE_NAME.equals(table_name)) {
+                if (TQueueConstants.DEFAULT_OFFSET_TABLE_NAME.equals(table_name)) {
                     isExist = true;
                     break;
                 }
@@ -124,7 +124,7 @@ public class TQueueConsumer extends TQueueBase {
 
     private void createOffsetTable() {
         try (Statement stmt = connection.createStatement()) {
-            stmt.execute("create table if not exists " + DEFAULT_OFFSET_DATABASE_NAME + "." + DEFAULT_OFFSET_TABLE_NAME + " (ts timestamp, _topic nchar(192), _partition int, _offset bigint)");
+            stmt.execute("create table if not exists " + TQueueConstants.DEFAULT_OFFSET_DATABASE_NAME + "." + TQueueConstants.DEFAULT_OFFSET_TABLE_NAME + " (ts timestamp, _topic nchar(192), _partition int, _offset bigint)");
         } catch (SQLException e) {
             e.printStackTrace();
         }
@@ -133,7 +133,7 @@ public class TQueueConsumer extends TQueueBase {
     private long queryCurrentOffset(String topic, int partition) {
         long offset = STARTED_OFFSET;
         try (Statement stmt = connection.createStatement()) {
-            ResultSet rs = stmt.executeQuery("select last_row(_offset) from " + DEFAULT_OFFSET_DATABASE_NAME + "." + DEFAULT_OFFSET_TABLE_NAME + " where _topic = '" + topic + "' and _partition = " + partition);
+            ResultSet rs = stmt.executeQuery("select last_row(_offset) from " + TQueueConstants.DEFAULT_OFFSET_DATABASE_NAME + "." + TQueueConstants.DEFAULT_OFFSET_TABLE_NAME + " where _topic = '" + topic + "' and _partition = " + partition);
             while (rs.next()) {
                 offset = rs.getLong("last_row(_offset)");
             }
@@ -146,7 +146,7 @@ public class TQueueConsumer extends TQueueBase {
 
     private void writeOffset(String topic, int partition, long offset) {
         try (Statement stmt = connection.createStatement()) {
-            stmt.execute("insert into " + DEFAULT_OFFSET_DATABASE_NAME + "." + DEFAULT_OFFSET_TABLE_NAME + " values(now, '" + topic + "', " + partition + ", " + offset + ")");
+            stmt.execute("insert into " + TQueueConstants.DEFAULT_OFFSET_DATABASE_NAME + "." + TQueueConstants.DEFAULT_OFFSET_TABLE_NAME + " values(now, '" + topic + "', " + partition + ", " + offset + ")");
         } catch (SQLException e) {
             e.printStackTrace();
         }

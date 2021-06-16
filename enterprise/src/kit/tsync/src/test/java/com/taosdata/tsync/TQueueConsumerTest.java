@@ -3,6 +3,7 @@ package com.taosdata.tsync;
 import com.taosdata.tsync.entity.consumer.ConsumerConfig;
 import com.taosdata.tsync.entity.consumer.ConsumerRecord;
 import com.taosdata.tsync.entity.producer.ProducerRecord;
+import com.taosdata.tsync.enums.TQueueConstants;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
@@ -115,7 +116,7 @@ public class TQueueConsumerTest {
         try {
             Connection conn = DriverManager.getConnection("jdbc:TAOS-RS://" + host + ":6041/?user=root&password=tqueue");
             Statement stmt = conn.createStatement();
-            ResultSet rs = stmt.executeQuery("select last_row(_offset) from " + topic + ".partition_offset where _topic = '" + topic + "' and _partition = " + partition);
+            ResultSet rs = stmt.executeQuery("select last_row(_offset) from " + TQueueConstants.DEFAULT_OFFSET_DATABASE_NAME + "." + TQueueConstants.DEFAULT_OFFSET_TABLE_NAME + " where _topic = '" + topic + "' and _partition = " + partition);
             rs.next();
             offset = rs.getLong("last_row(_offset)");
             stmt.close();
@@ -132,6 +133,7 @@ public class TQueueConsumerTest {
             Statement stmt = conn.createStatement();
             stmt.execute("drop topic if exists " + topic);
             stmt.execute("create topic if not exists " + topic + " partitions 10");
+            stmt.execute("drop database if exists " + TQueueConstants.DEFAULT_OFFSET_DATABASE_NAME);
             stmt.close();
         } catch (SQLException e) {
             e.printStackTrace();
