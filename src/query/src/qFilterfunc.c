@@ -254,7 +254,7 @@ bool notNullOperator(SColumnFilterElem *pFilter, const char* minval, const char*
   return true;
 }
 bool inOperator(SColumnFilterElem *pFilter, const char* minval, const char* maxval, int16_t type) {
-  if (type == TSDB_DATA_TYPE_BOOL || type == TSDB_DATA_TYPE_TINYINT || type == TSDB_DATA_TYPE_SMALLINT || type == TSDB_DATA_TYPE_BIGINT || type == TSDB_DATA_TYPE_INT) {
+  if (type == TSDB_DATA_TYPE_BOOL || IS_SIGNED_NUMERIC_TYPE(type) || IS_UNSIGNED_NUMERIC_TYPE(type) || type == TSDB_DATA_TYPE_TIMESTAMP) {
     int64_t minv = -1, maxv = -1;
     GET_TYPED_DATA(minv, int64_t, type, minval);
     GET_TYPED_DATA(maxv, int64_t, type, maxval);
