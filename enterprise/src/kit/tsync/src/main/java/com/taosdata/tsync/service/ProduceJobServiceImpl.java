@@ -26,9 +26,37 @@ public class ProduceJobServiceImpl extends AbstractJobService {
     private final CallableTaskRepository callableTaskRepository = CallableTaskRepository.getInstance();
     private final ResultProcessService resultProcessService;
 
+    private String topic;
+    private int[] partitions;
+    private int threadSize;
+    private Multimap<Integer, Integer> threadIndex2PartitionList;
+    private Map<Integer, Range<Long>> threadIndex2TableRange;
+    private Map<Integer, Range<Long>> threadRecordMap;
+    private long batchTables;
+    private long batchValues;
+    private SchemaConfiguration schemaConfiguration;
+
     public ProduceJobServiceImpl(ResultProcessService resultProcessService) {
         super();
         this.resultProcessService = resultProcessService;
+    }
+
+    private void arrangeTablesToEachThread(ProduceJobConfiguration configuration) {
+        StableConfiguration stableConfiguration = (StableConfiguration) configuration.findFirst(ConfigurationType.STABLE);
+        long tables = stableConfiguration.getTables();
+        threadIndex2TableRange = Utils.divideIntoGroups(tables, threadSize);
+    }
+
+    private void arrangeRecordToEachThread(ProduceJobConfiguration configuration) {
+        MessageConfiguration messageConfiguration = (MessageConfiguration) configuration.findFirst(ConfigurationType.MESSAGE);
+        long total = messageConfiguration.getTotal();
+        threadRecordMap = Utils.divideIntoGroups(total, threadSize);
+        batchTables = messageConfiguration.getBatchTables();
+        batchValues = messageConfiguration.getBatchValues();
+    }
+
+    private void prepareSchema(ProduceJobConfiguration configuration) {
+        schemaConfiguration = (SchemaConfiguration) configuration.findFirst(ConfigurationType.SCHEMA);
     }
 
     @Override
@@ -39,63 +67,36 @@ public class ProduceJobServiceImpl extends AbstractJobService {
             throw new Exception("cannot find Configuration of id:[" + configurationId + "]");
         }
 
-        // 1. Producer Configuration ==> producer
-        ProducerConfiguration producerConfiguration = (ProducerConfiguration) configuration.findFirst(ConfigurationType.PRODUCER);
-        TQueueProducer producer = TQueueProducerFactory.build(producerConfiguration);
-
-        // 2. Task Configuration ==> topic, partitions, threads
-        TaskConfiguration taskConfiguration = (TaskConfiguration) configuration.findFirst(ConfigurationType.TASK);
-        // check topic and partitions
-        checkTopicAndPartitions(taskConfiguration, producer);
-        // use all partitions if partitions not set
-        String topic = taskConfiguration.getTopic();
-        int[] partitions = taskConfiguration.getPartitions();
-        if (partitions == null || partitions.length == 0) {
-            partitions = IntStream.range(1, producer.getTopic(topic).partitions() + 1).toArray();
-        }
-        int threads = taskConfiguration.getThreads();
-        // arrange threads and partitions
-        Multimap<Integer, Integer> threadPartitionMultiMap = Utils.divideArrIntoGroups(partitions, threads);
-        int actualThreads = threadPartitionMultiMap.keySet().size();
-        if (threads > actualThreads) {
-            logger.warn("Only " + actualThreads + " threads will be created");
-        }
-        threads = actualThreads;
-
-        // 3. StableConfiguration ==> tables
-        StableConfiguration stableConfiguration = (StableConfiguration) configuration.findFirst(ConfigurationType.STABLE);
-        long tables = stableConfiguration.getTables();
-        Map<Integer, Range<Long>> threadTableMap = Utils.divideIntoGroups(tables, threads);
-
-        // 4. messageConfiguration ==> total record
-        MessageConfiguration messageConfiguration = (MessageConfiguration) configuration.findFirst(ConfigurationType.MESSAGE);
-        long total = messageConfiguration.getTotal();
-        Map<Integer, Range<Long>> threadRecordMap = Utils.divideIntoGroups(total, threads);
-
-        // 5. messageConfiguration ==> batchTables, batchValues
-        long batchTables = messageConfiguration.getBatchTables();
-        long batchValues = messageConfiguration.getBatchValues();
-
+        // 1. do partition missing strategy
+        doPartitionMissingStrategy(configuration);
+        // 2. StableConfiguration ==> tables
+        arrangeTablesToEachThread(configuration);
+        // 3. messageConfiguration ==> total record
+        arrangeRecordToEachThread(configuration);
         // 6. SchemaConfiguration ==> schema
-        SchemaConfiguration schemaConfiguration = (SchemaConfiguration) configuration.findFirst(ConfigurationType.SCHEMA);
+        prepareSchema(configuration);
+
+        ProducerConfiguration producerConfiguration = (ProducerConfiguration) configuration.findFirst(ConfigurationType.PRODUCER);
 
         // 7. create threads
         List<Integer> taskIds = new ArrayList<>();
-        for (int i = 0; i < threads; i++) {
+        for (int i = 0; i < threadSize; i++) {
             // callable task
-            Collection<Integer> partitionsToWrite = threadPartitionMultiMap.get(i);
-            Range<Long> tablesToWrite = threadTableMap.get(i);
+            List<Integer> partitionsToWrite = new ArrayList<>(threadIndex2PartitionList.get(i));
+            Range<Long> tablesToWrite = threadIndex2TableRange.get(i);
             Range<Long> recordsToWrite = threadRecordMap.get(i);
             long records = recordsToWrite.upperEndpoint() - recordsToWrite.lowerEndpoint();
+            TQueueProducer producer = TQueueProducerFactory.build(producerConfiguration);
+
             //TODO: 优化这里的代码结构
             WriteToTQueueCallableTask callable = new WriteToTQueueTaskFactory()
+                    .setProducer(producer)
+                    .setTopic(topic)
                     .setPartitionsToWrite(partitionsToWrite)
                     .setTablesToWrite(tablesToWrite)
                     .setRecordsToWrite(records)
                     .setBatchTables(batchTables)
                     .setBatchValues(batchValues)
-                    .setTopic(topic)
-                    .setProducer(producer)
                     .setSchemaConfiguration(schemaConfiguration)
                     .build();
 
@@ -105,6 +106,28 @@ public class ProduceJobServiceImpl extends AbstractJobService {
         }
 
         return taskIds;
+    }
+
+    private void doPartitionMissingStrategy(ProduceJobConfiguration configuration) throws Exception {
+        ProducerConfiguration producerConfiguration = (ProducerConfiguration) configuration.findFirst(ConfigurationType.PRODUCER);
+        TaskConfiguration taskConfiguration = (TaskConfiguration) configuration.findFirst(ConfigurationType.TASK);
+        TQueueProducer producer = TQueueProducerFactory.build(producerConfiguration);
+        // check topic and partitions
+        checkTopicAndPartitions(taskConfiguration, producer);
+        // use all partitions if partitions not set
+        topic = taskConfiguration.getTopic();
+        partitions = taskConfiguration.getPartitions();
+        if (partitions == null || partitions.length == 0) {
+            partitions = IntStream.range(1, producer.getTopic(topic).partitions() + 1).toArray();
+        }
+        threadSize = taskConfiguration.getThreads();
+        // arrange threads and partitions
+        threadIndex2PartitionList = Utils.divideArrIntoGroups(partitions, threadSize);
+        int actualThreads = threadIndex2PartitionList.keySet().size();
+        if (threadSize > actualThreads) {
+            logger.warn("Only " + actualThreads + " threads will be created");
+        }
+        threadSize = actualThreads;
     }
 
     @Override

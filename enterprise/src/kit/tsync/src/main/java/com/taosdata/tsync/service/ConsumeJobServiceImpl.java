@@ -5,7 +5,9 @@ import com.taosdata.tsync.TQueueConsumer;
 import com.taosdata.tsync.entity.RunnableTask;
 import com.taosdata.tsync.entity.config.*;
 import com.taosdata.tsync.enums.ConfigurationType;
+import com.taosdata.tsync.enums.SchemaMissingStrategy;
 import com.taosdata.tsync.factory.TQueueConsumerFactory;
+import com.taosdata.tsync.factory.TaosdConnectionFactory;
 import com.taosdata.tsync.factory.WriteToTDengineTaskFactory;
 import com.taosdata.tsync.repository.ConfigurationRepository;
 import com.taosdata.tsync.repository.RunnableTaskRepository;
@@ -13,8 +15,8 @@ import com.taosdata.tsync.utils.Utils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.sql.Connection;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -26,6 +28,11 @@ public class ConsumeJobServiceImpl extends AbstractJobService {
     private final ConfigurationRepository configurationRepository = ConfigurationRepository.getInstance();
     private final RunnableTaskRepository runnableTaskRepository = RunnableTaskRepository.getInstance();
 
+    private String topic;
+    private int[] partitions;
+    private int threadSize;
+    private Multimap<Integer, Integer> threadIndex2PartitionList;
+
     public ConsumeJobServiceImpl() {
         super();
     }
@@ -36,29 +43,15 @@ public class ConsumeJobServiceImpl extends AbstractJobService {
         if (configuration == null) {
             throw new Exception("cannot find Configuration of id:[" + configurationId + "]");
         }
-        // 1. Consumer Configuration ==> consumer
+
+        // Consumer Configuration ==> consumer, Task Configuration ==> topic, partitions, threads
         ConsumerConfiguration consumerConfiguration = (ConsumerConfiguration) configuration.findFirst(ConfigurationType.CONSUMER);
-        TQueueConsumer consumer = TQueueConsumerFactory.build(consumerConfiguration);
-
-        // 2. Task Configuration ==> topic, partitions, threads
         TaskConfiguration taskConfiguration = (TaskConfiguration) configuration.findFirst(ConfigurationType.TASK);
-        // check topic and partitions
-        checkTopicAndPartitions(taskConfiguration, consumer);
-        // use all partitions if partitions not set
-        String topic = taskConfiguration.getTopic();
-        int[] partitions = taskConfiguration.getPartitions();
-        if (partitions == null || partitions.length == 0) {
-            partitions = IntStream.range(1, consumer.getTopic(topic).partitions() + 1).toArray();
-        }
-        int threads = taskConfiguration.getThreads();
+        // 1. use all partitions in tqueue if partitions is missing in configuration
+        doPartitionsMissingStrategy(taskConfiguration, consumerConfiguration);
 
-        // 3. arrange threads and partitions
-        Multimap<Integer, Integer> threadPartitionMultiMap = Utils.divideArrIntoGroups(partitions, threads);
-        int actualThreads = threadPartitionMultiMap.keySet().size();
-        if (threads > actualThreads) {
-            logger.warn("Only " + actualThreads + " threads will be created");
-        }
-        threads = actualThreads;
+        // 2. arrange threads to partitions
+        arrangeThreads();
 
         // 4. destination Configuration ==> taosd
         TaosdConfiguration taosdConfiguration = (TaosdConfiguration) configuration.findFirst(ConfigurationType.TAOSD);
@@ -72,16 +65,22 @@ public class ConsumeJobServiceImpl extends AbstractJobService {
 
         // 6. create threads
         List<Integer> taskIds = new ArrayList<>();
-        for (int i = 0; i < threads; i++) {
+        for (int i = 0; i < threadSize; i++) {
+
+            TQueueConsumer consumer = TQueueConsumerFactory.build(consumerConfiguration);
+            List<Integer> partitionsToWrite = new ArrayList<>(threadIndex2PartitionList.get(i));
+            Connection connection = TaosdConnectionFactory.build(taosdConfiguration);
+            int pollingInterval = strategyConfiguration.getPollingInterval();
+            SchemaMissingStrategy schemaMissing = strategyConfiguration.getSchemaMissing();
+
             // callable task
-            Collection<Integer> partitionsToWrite = threadPartitionMultiMap.get(i);
             WriteToTDengineRunnableTask runnable = new WriteToTDengineTaskFactory()
                     .setPartitionsToWrite(partitionsToWrite)
                     .setTopic(topic)
-                    .setConsumer(consumerConfiguration)
-                    .setTaosdConfiguration(taosdConfiguration)
-                    .setPollingInterval(strategyConfiguration)
-                    .setSchemaMissing(strategyConfiguration)
+                    .setConsumer(consumer)
+                    .setTaosdConnection(connection)
+                    .setPollingInterval(pollingInterval)
+                    .setSchemaMissingStrategy(schemaMissing)
                     .setSchemaConfiguration(schemaConfiguration)
                     .build();
 
@@ -90,6 +89,28 @@ public class ConsumeJobServiceImpl extends AbstractJobService {
             taskIds.add(runnableTask.getId());
         }
         return taskIds;
+    }
+
+    private void doPartitionsMissingStrategy(TaskConfiguration taskConfiguration, ConsumerConfiguration consumerConfiguration) throws Exception {
+        TQueueConsumer consumer = TQueueConsumerFactory.build(consumerConfiguration);
+        // check topic and partitions
+        checkTopicAndPartitions(taskConfiguration, consumer);
+        // use all partitions if partitions not set
+        topic = taskConfiguration.getTopic();
+        partitions = taskConfiguration.getPartitions();
+        if (partitions == null || partitions.length == 0) {
+            partitions = IntStream.range(1, consumer.getTopic(topic).partitions() + 1).toArray();
+        }
+        threadSize = taskConfiguration.getThreads();
+    }
+
+    private void arrangeThreads() {
+        threadIndex2PartitionList = Utils.divideArrIntoGroups(partitions, threadSize);
+        int actualThreads = threadIndex2PartitionList.keySet().size();
+        if (threadSize > actualThreads) {
+            logger.warn("Only " + actualThreads + " threads will be created");
+        }
+        threadSize = actualThreads;
     }
 
     @Override

@@ -19,12 +19,11 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.LongStream;
 
-public class WriteToTQueueCallableTask implements Callable<Integer> {
+public class WriteToTQueueCallableTask implements Callable<Long> {
     private static final Logger logger = LoggerFactory.getLogger(WriteToTQueueCallableTask.class);
 
-    private Collection<Integer> partitionsToWrite;
+    private List<Integer> partitionsToWrite;
     private Range<Long> tablesToWrite;
-    private long tables;
 
     private long recordsToWrite;
     private long batchTables;
@@ -37,7 +36,6 @@ public class WriteToTQueueCallableTask implements Callable<Integer> {
 
     private String topic;
     private TQueueProducer producer;
-    private SchemaConfiguration schemaConfiguration;
 
     private volatile AtomicLong ts;
 
@@ -58,9 +56,9 @@ public class WriteToTQueueCallableTask implements Callable<Integer> {
     }
 
     @Override
-    public Integer call() {
+    public Long call() {
+        long count = 0;
 
-        int count = 0;
         Map<Integer, OnePartitionTask> partitionIndexPerTask = divideTablesRecordsToEachPartition();
         for (int partitionId : partitionIndexPerTask.keySet()) {
             OnePartitionTask onePartitionTask = partitionIndexPerTask.get(partitionId);
@@ -189,7 +187,7 @@ public class WriteToTQueueCallableTask implements Callable<Integer> {
     }
 
     // setters
-    public void setPartitionsToWrite(Collection<Integer> partitionsToWrite) {
+    public void setPartitionsToWrite(List<Integer> partitionsToWrite) {
         this.partitionsToWrite = partitionsToWrite;
     }
 
@@ -198,7 +196,6 @@ public class WriteToTQueueCallableTask implements Callable<Integer> {
     }
 
     public void setTables(long tables) {
-        this.tables = tables;
     }
 
     public void setRecordsToWrite(long recordsToWrite) {
@@ -238,6 +235,5 @@ public class WriteToTQueueCallableTask implements Callable<Integer> {
     }
 
     public void setSchemaConfiguration(SchemaConfiguration schemaConfiguration) {
-        this.schemaConfiguration = schemaConfiguration;
     }
 }

@@ -12,7 +12,6 @@ import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
-import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -20,6 +19,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 public class WriteToTDengineRunnableTask implements Runnable {
+
     private static final Logger logger = LoggerFactory.getLogger(WriteToTDengineRunnableTask.class);
 
     private List<Integer> partitionsToWrite;
@@ -35,15 +35,20 @@ public class WriteToTDengineRunnableTask implements Runnable {
     public void run() {
         logger.info("consume topic:" + topic + ", partitions: " + Arrays.toString(partitionsToWrite.stream().toArray()));
 
-        try {
-            doSchemaMissingStrategy();
-            statement = taosdConnection.createStatement();
-            doWriteToTDengine();
-        } catch (SQLException e) {
-            logger.error("failed to create statement");
-            e.printStackTrace();
-        } catch (Exception e) {
-            e.printStackTrace();
+        while (!Thread.currentThread().isInterrupted()) {
+            try {
+                doSchemaMissingStrategy();
+                statement = taosdConnection.createStatement();
+                doWriteToTDengine();
+            } catch (SQLException e) {
+                logger.error("failed to create statement");
+                e.printStackTrace();
+            } catch (InterruptedException e) {
+                logger.warn(Thread.currentThread().getName() + " is interrupted.");
+                break;
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
         }
     }
 
@@ -152,7 +157,7 @@ public class WriteToTDengineRunnableTask implements Runnable {
         while (true) {
             for (int partitionId : partitionsToWrite) {
                 consumer.assign(topic, partitionId);
-                List<ConsumerRecord> records = consumer.poll(Duration.ofMillis(100));
+                List<ConsumerRecord> records = consumer.poll();
                 for (ConsumerRecord record : records) {
                     final String topic = record.topic();
                     final int partition = record.partition();

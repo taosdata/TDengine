@@ -84,6 +84,6 @@ public class JobTest {
         // read consumer-job.json
         String consumerConfigStr = IOUtils.toString(getClass().getClassLoader().getResourceAsStream("consumer-job.json"));
         consumerTaskConfigJSON = JSONObject.parseObject(consumerConfigStr);
-
     }
+
 }

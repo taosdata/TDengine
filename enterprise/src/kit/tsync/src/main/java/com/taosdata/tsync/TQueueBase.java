@@ -3,16 +3,18 @@ package com.taosdata.tsync;
 import com.taosdata.jdbc.TSDBDriver;
 import com.taosdata.tsync.entity.Topic;
 import com.taosdata.tsync.entity.TopicPartition;
-import com.taosdata.tsync.utils.Utils;
+import com.taosdata.tsync.enums.TQueueConstants;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.sql.*;
-import java.util.*;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Properties;
 
 public class TQueueBase {
     private static final Logger logger = LoggerFactory.getLogger(TQueueBase.class);
-    public static final long INVALID_OFFSET = -1;
+//    public static final long INVALID_OFFSET = -1;
 
     protected Connection connection;
     protected Map<String, Topic> topics = new HashMap<>();
@@ -20,13 +22,12 @@ public class TQueueBase {
 
     public TQueueBase(Properties properties) {
         String host = properties.getProperty(TSDBDriver.PROPERTY_KEY_HOST);
-        if (host == null || host.isEmpty() || host.replaceAll("\\s", "").isEmpty())
-            throw new RuntimeException("host is null");
-        String port = properties.getProperty(TSDBDriver.PROPERTY_KEY_PORT, "6041");
-        String user = properties.getProperty(TSDBDriver.PROPERTY_KEY_USER, "root");
-        String password = properties.getProperty(TSDBDriver.PROPERTY_KEY_PASSWORD, "taosdata");
-//        if (!properties.containsKey(ConsumerConfig.TIMESTAMP_FORMAT))
-//            properties.setProperty(ConsumerConfig.CHARSET_CONFIG, "UTF-8");
+        if (host == null || host.isEmpty() || host.replaceAll("\\s", "").isEmpty()) {
+            throw new RuntimeException("TQueue error: host is null");
+        }
+        String port = properties.getProperty(TSDBDriver.PROPERTY_KEY_PORT, String.valueOf(TQueueConstants.DEFAULT_PORT));
+        String user = properties.getProperty(TSDBDriver.PROPERTY_KEY_USER, TQueueConstants.DEFAULT_USER);
+        String password = properties.getProperty(TSDBDriver.PROPERTY_KEY_PASSWORD, TQueueConstants.DEFAULT_PASSWORD);
 
         final String url = "jdbc:TAOS-RS://" + host + ":" + port + "/?user=" + user + "&password=" + password;
         try {
@@ -91,23 +92,5 @@ public class TQueueBase {
         }
     }
 
-    protected long currentOffset(String topic, int partition) {
-        long offset = INVALID_OFFSET;
-        try (Statement stmt = connection.createStatement()) {
-            ResultSet rs = stmt.executeQuery("select last_row(off) from " + topic + ".p" + partition);
-            while (rs.next()) {
-                offset = Utils.toMicroSecond(rs.getTimestamp(1));
-            }
-            if (offset == INVALID_OFFSET) {
-                // TODO: should change to "select count(off) from topic.p1"
-                ResultSet rss = stmt.executeQuery("select * from " + topic + ".p" + partition);
-                if (rss.wasNull())
-                    offset = 0;
-            }
-        } catch (SQLException e) {
-            logger.error(e.getMessage());
-            e.printStackTrace();
-        }
-        return offset;
-    }
+
 }

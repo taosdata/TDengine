@@ -2,56 +2,94 @@ package com.taosdata.tsync;
 
 import com.taosdata.tsync.entity.producer.ProducerConfig;
 import com.taosdata.tsync.entity.producer.ProducerRecord;
-import com.taosdata.tsync.serializer.SerializeIgnore;
+import org.junit.Assert;
+import org.junit.Before;
 import org.junit.Test;
 
+import java.sql.*;
 import java.util.List;
 import java.util.Properties;
-import java.util.Random;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 public class TQueueProducerTest {
 
-    private static final String TOPIC = "tq_test";
-    private static final Random random = new Random(System.currentTimeMillis());
+    private static final String host = "192.168.17.156";
+    private static final String topic = "tq_test";
+    private static final int partitionSize = 10;
 
     @Test
-    public void test() {
+    public void produceToOnePartition() {
+        // given
         Properties props = new Properties();
-        props.setProperty(ProducerConfig.HOST_CONFIG, "master");
-        props.setProperty(ProducerConfig.PORT_CONFIG, "6041");
-        props.setProperty(ProducerConfig.USER_CONFIG, "root");
-        props.setProperty(ProducerConfig.PASSWORD_CONFIG, "taosdata");
-        props.setProperty(ProducerConfig.CHARSET_CONFIG, "UTF-8");
-        props.setProperty(ProducerConfig.LOCALE_CONFIG, "en_US.UTF-8");
-        props.setProperty(ProducerConfig.TIMEZONE_CONFIG, "UTC-8");
-        props.setProperty(ProducerConfig.SERIALIZER, ProducerConfig.STRING_SERIALIZER);
-
+        props.setProperty(ProducerConfig.HOST_CONFIG, host);
         TQueueProducer producer = new TQueueProducer(props);
+        final long recordSize = 1000;
 
-        List<Thread> threads = IntStream.range(1, 11).mapToObj(partition -> new Thread(() -> {
+        // when
+        try {
+            for (int i = 0; i < recordSize; i++) {
+                ProducerRecord<String> record = new ProducerRecord(topic, 1, "hello~~~");
+                producer.send(record);
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
+        // then
+        Assert.assertEquals(recordSize, count());
+    }
+
+    @Test
+    public void produceToMultiPartitions() {
+        // given
+        Properties props = new Properties();
+        props.setProperty(ProducerConfig.HOST_CONFIG, host);
+        TQueueProducer producer = new TQueueProducer(props);
+        final long recordSize = 1000;
+        final int[] partitions = new int[]{1, 2, 3, 4, 5, 6, 7, 8, 9, 10};
+
+        // when
+        IntStream.of(partitions).forEach(partitionIndex -> {
             try {
-                for (int i = 0; i < 1000; i++) {
-                    ProducerRecord<Person> record = new ProducerRecord(
-                            TOPIC,
-                            partition,
-                            new Person("name_" + i, random.nextInt(), random.nextBoolean())
-                    );
+                for (int i = 0; i < recordSize; i++) {
+                    ProducerRecord<String> record = new ProducerRecord(topic, partitionIndex, "hello~~~");
+                    producer.send(record);
+                }
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        });
+
+        // then
+        Assert.assertEquals(recordSize * partitions.length, count());
+    }
+
+    @Test
+    public void produceToMultiPartitionsMultiThreads() {
+        // given
+        Properties props = new Properties();
+        props.setProperty(ProducerConfig.HOST_CONFIG, host);
+        TQueueProducer producer = new TQueueProducer(props);
+        final long recordSize = 1000;
+        final int[] partitions = new int[]{1, 2, 3, 4, 5, 6, 7, 8, 9, 10};
+
+        // when
+        List<Thread> threads = IntStream.of(partitions).mapToObj(pIndex -> new Thread(() -> {
+            try {
+                for (int i = 0; i < recordSize; i++) {
+                    ProducerRecord<String> record = new ProducerRecord(topic, pIndex, "hello~~~");
                     producer.send(record, (metadata, e) -> {
                         if (e != null)
                             e.printStackTrace();
-                        System.out.println(metadata);
                     });
                 }
             } catch (Exception e) {
                 e.printStackTrace();
             }
         })).collect(Collectors.toList());
-
         // start threads
         threads.forEach(Thread::start);
-
         // wait threads
         for (Thread t : threads) {
             try {
@@ -60,108 +98,81 @@ public class TQueueProducerTest {
                 e.printStackTrace();
             }
         }
-
+        // close producer
         producer.close();
+
+        // then
+        Assert.assertEquals(recordSize * partitions.length, count());
     }
 
-    class Person {
-        private String name;
-        private int age;
-        private Long height;
-        private float salary;
-        private Double weight;
-        private boolean gender;
-        private byte[] comment;
-        private String introduction;
-        @SerializeIgnore
-        private boolean sex;
+    @Test
+    public void multiThreadSendToOnePartition() {
+        // given
+        Properties props = new Properties();
+        props.setProperty(ProducerConfig.HOST_CONFIG, host);
+        TQueueProducer producer = new TQueueProducer(props);
+        final long recordSize = 1000;
+        final int threadSize = 20;
 
-        public Person(String name, Integer age, boolean sex) {
-            this.name = name;
-            this.age = age;
-            this.sex = sex;
+        // when
+        List<Thread> threads = IntStream.range(0, threadSize).mapToObj(threadIndex -> new Thread(() -> {
+            try {
+                for (int i = 0; i < recordSize; i++) {
+                    ProducerRecord<String> record = new ProducerRecord(topic, 1, "hello~~~");
+                    producer.send(record, (metadata, e) -> {
+                        if (e != null)
+                            e.printStackTrace();
+                    });
+                }
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }, "thread-" + threadIndex)).collect(Collectors.toList());
+        // start threads
+        threads.forEach(Thread::start);
+        // wait threads
+        for (Thread t : threads) {
+            try {
+                t.join();
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
         }
+        // close producer
+        producer.close();
 
-        @Override
-        public String toString() {
-            return "Person{" +
-                    "name='" + name + '\'' +
-                    ", age=" + age +
-                    ", sex=" + sex +
-                    '}';
-        }
+        // then
+        Assert.assertEquals(recordSize * threadSize, count());
+    }
 
-        public Long getHeight() {
-            return height;
-        }
 
-        public void setHeight(Long height) {
-            this.height = height;
-        }
-
-        public String getName() {
-            return name;
-        }
-
-        public void setName(String name) {
-            this.name = name;
-        }
-
-        public Integer getAge() {
-            return age;
-        }
-
-        public void setAge(Integer age) {
-            this.age = age;
-        }
-
-        public Float getSalary() {
-            return salary;
-        }
-
-        public void setSalary(Float salary) {
-            this.salary = salary;
-        }
-
-        public Double getWeight() {
-            return weight;
-        }
-
-        public void setWeight(Double weight) {
-            this.weight = weight;
-        }
-
-        public boolean isGender() {
-            return gender;
-        }
-
-        public void setGender(boolean gender) {
-            this.gender = gender;
-        }
-
-        public byte[] getComment() {
-            return comment;
-        }
-
-        public void setComment(byte[] comment) {
-            this.comment = comment;
-        }
-
-        public String getIntroduction() {
-            return introduction;
-        }
-
-        public void setIntroduction(String introduction) {
-            this.introduction = introduction;
-        }
-
-        public boolean isSex() {
-            return sex;
-        }
-
-        public void setSex(boolean sex) {
-            this.sex = sex;
+    @Before
+    public void before() {
+        try {
+            Connection conn = DriverManager.getConnection("jdbc:TAOS-RS://" + host + ":6041/?user=root&password=tqueue");
+            Statement stmt = conn.createStatement();
+            stmt.execute("drop topic if exists " + topic);
+            stmt.execute("create topic if not exists " + topic + " partitions " + partitionSize);
+            stmt.close();
+        } catch (SQLException e) {
+            e.printStackTrace();
         }
     }
+
+    private long count() {
+        long count = 0;
+        try {
+            Connection conn = DriverManager.getConnection("jdbc:TAOS-RS://" + host + ":6041/?user=root&password=tqueue");
+            Statement stmt = conn.createStatement();
+            ResultSet rs = stmt.executeQuery("select count(*) from " + topic + ".ps");
+            rs.next();
+            count = rs.getLong("count(*)");
+            stmt.close();
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return count;
+    }
+
 
 }

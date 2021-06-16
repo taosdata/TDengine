@@ -1,10 +1,8 @@
 package com.taosdata.tsync.factory;
 
 import com.taosdata.tsync.TQueueConsumer;
-import com.taosdata.tsync.entity.config.ConsumerConfiguration;
 import com.taosdata.tsync.entity.config.SchemaConfiguration;
-import com.taosdata.tsync.entity.config.StrategyConfiguration;
-import com.taosdata.tsync.entity.config.TaosdConfiguration;
+import com.taosdata.tsync.enums.SchemaMissingStrategy;
 import com.taosdata.tsync.service.WriteToTDengineRunnableTask;
 
 import java.sql.Connection;
@@ -12,7 +10,7 @@ import java.util.List;
 
 public class WriteToTDengineTaskFactory {
 
-    private WriteToTDengineRunnableTask instance;
+    private final WriteToTDengineRunnableTask instance;
 
     public WriteToTDengineRunnableTask build() {
         return instance;
@@ -22,8 +20,8 @@ public class WriteToTDengineTaskFactory {
         instance = new WriteToTDengineRunnableTask();
     }
 
-    public WriteToTDengineTaskFactory setPartitionsToWrite(List<Integer> partitionsToWrite) {
-        instance.setPartitionsToWrite(partitionsToWrite);
+    public WriteToTDengineTaskFactory setConsumer(TQueueConsumer consumer) {
+        instance.setConsumer(consumer);
         return this;
     }
 
@@ -32,25 +30,23 @@ public class WriteToTDengineTaskFactory {
         return this;
     }
 
-    public WriteToTDengineTaskFactory setConsumer(ConsumerConfiguration consumerConfiguration) {
-        TQueueConsumer consumer = TQueueConsumerFactory.build(consumerConfiguration);
-        instance.setConsumer(consumer);
+    public WriteToTDengineTaskFactory setPartitionsToWrite(List<Integer> partitionsToWrite) {
+        instance.setPartitionsToWrite(partitionsToWrite);
         return this;
     }
 
-    public WriteToTDengineTaskFactory setPollingInterval(StrategyConfiguration strategyConfiguration) {
-        instance.setPollingInterval(strategyConfiguration.getPollingInterval());
+    public WriteToTDengineTaskFactory setTaosdConnection(Connection taosdConnection) {
+        instance.setTaosdConnection(taosdConnection);
         return this;
     }
 
-    public WriteToTDengineTaskFactory setSchemaMissing(StrategyConfiguration strategyConfiguration) {
-        instance.setSchemaMissing(strategyConfiguration.getSchemaMissing());
+    public WriteToTDengineTaskFactory setPollingInterval(int pollingInterval) {
+        instance.setPollingInterval(pollingInterval);
         return this;
     }
 
-    public WriteToTDengineTaskFactory setTaosdConfiguration(TaosdConfiguration taosdConfiguration) {
-        Connection connection = TaosdConnectionFactory.build(taosdConfiguration);
-        instance.setTaosdConnection(connection);
+    public WriteToTDengineTaskFactory setSchemaMissingStrategy(SchemaMissingStrategy schemaMissingStrategy) {
+        instance.setSchemaMissing(schemaMissingStrategy);
         return this;
     }
 

@@ -89,7 +89,7 @@ public class ConfigurationFactoryTest {
         StableConfiguration configuration = (StableConfiguration) ConfigurationFactory.build(ConfigurationType.STABLE, stableJSON);
         // then
         Assert.assertEquals("weather", configuration.getName());
-        Assert.assertEquals(new Integer(10), configuration.getTables());
+        Assert.assertEquals(new Long(10), configuration.getTables());
         List<Configuration> columns = configuration.find(ConfigurationType.COLUMN);
         Assert.assertEquals(3, columns.size());
         ColumnConfiguration column = (ColumnConfiguration) columns.get(2);
@@ -126,7 +126,7 @@ public class ConfigurationFactoryTest {
         Assert.assertEquals(1, stables.size());
         StableConfiguration stable = (StableConfiguration) stables.get(0);
         Assert.assertEquals("weather", stable.getName());
-        Assert.assertEquals(new Integer(10), stable.getTables());
+        Assert.assertEquals(new Long(10), stable.getTables());
         // assert tags
         List<Configuration> tags = stable.find(ConfigurationType.TAG);
         Assert.assertEquals(2, tags.size());

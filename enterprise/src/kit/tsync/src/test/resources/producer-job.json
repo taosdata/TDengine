@@ -24,7 +24,7 @@
     "threads": 5
   },
   "message": {
-    "total": 1000000,
+    "total": 10000,
     "batchTables": 10,
     "batchValues": 50,
     "schema": {
@@ -34,7 +34,7 @@
       },
       "stable": {
         "name": "weather",
-        "tables": 10000,
+        "tables": 100,
         "columns": [
           {
             "name": "ts",

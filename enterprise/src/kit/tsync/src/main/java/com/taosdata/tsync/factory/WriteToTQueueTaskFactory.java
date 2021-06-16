@@ -24,7 +24,7 @@ public class WriteToTQueueTaskFactory {
         return instance;
     }
 
-    public WriteToTQueueTaskFactory setPartitionsToWrite(Collection<Integer> partitionsToWrite) {
+    public WriteToTQueueTaskFactory setPartitionsToWrite(List<Integer> partitionsToWrite) {
         instance.setPartitionsToWrite(partitionsToWrite);
         return this;
     }
