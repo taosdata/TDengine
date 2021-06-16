@@ -160,16 +160,16 @@ bool serializeExprListToVariant(SArray* pList, tVariant **dst, int16_t colType, 
   int32_t firstTokenType = item->pNode->token.type; 
   int32_t type  = firstTokenType;
 
-  //nchar to binary and  
+  //nchar to binary and other xxint to bigint  
   toTSDBType(type);  
-  if (colType != TSDB_DATA_TYPE_TIMESTAMP) {
+  if (colType != TSDB_DATA_TYPE_TIMESTAMP && !IS_UNSIGNED_NUMERIC_TYPE(colType)) {
     if (type != colType && (type != TSDB_DATA_TYPE_BINARY || colType != TSDB_DATA_TYPE_NCHAR)) {
       return false;  
     }    
   } 
   type = colType; 
  
-  SBufferWriter bw = tbufInitWriter( NULL, false );
+  SBufferWriter bw = tbufInitWriter( NULL, false);
   tbufEnsureCapacity(&bw, 512);
 
   int32_t size = (int32_t)(pList->size);
@@ -183,14 +183,22 @@ bool serializeExprListToVariant(SArray* pList, tVariant **dst, int16_t colType, 
     if (firstTokenType != pSub->token.type) {
       break;
     }  
-
     toTSDBType(pSub->token.type);  
 
     tVariant var;  
     tVariantCreate(&var, &pSub->token); 
-    if (type == TSDB_DATA_TYPE_BOOL || IS_SIGNED_NUMERIC_TYPE(type) || IS_UNSIGNED_NUMERIC_TYPE(type)) {
+    if (type == TSDB_DATA_TYPE_BOOL || IS_SIGNED_NUMERIC_TYPE(type)) {
       tbufWriteInt64(&bw, var.i64);        
-    } else if (type == TSDB_DATA_TYPE_DOUBLE || type == TSDB_DATA_TYPE_FLOAT) {
+    } else if (IS_UNSIGNED_NUMERIC_TYPE(type)) {
+      // ugly code, refactor later
+      if (IS_UNSIGNED_NUMERIC_TYPE(pSub->token.type) || IS_SIGNED_NUMERIC_TYPE(pSub->token.type)) {
+        tbufWriteUint64(&bw, var.i64);        
+      } else {
+        tVariantDestroy(&var);
+        break;
+      }
+    }
+    else if (type == TSDB_DATA_TYPE_DOUBLE || type == TSDB_DATA_TYPE_FLOAT) {
       tbufWriteDouble(&bw, var.dKey);
     } else if (type == TSDB_DATA_TYPE_BINARY){
       tbufWriteBinary(&bw, var.pz, var.nLen);
