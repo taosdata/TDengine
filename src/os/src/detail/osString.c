@@ -59,6 +59,9 @@ bool taosMbsToUcs4(char *mbs, size_t mbsLength, char *ucs4, int32_t ucs4_max_len
   iconv_close(cd);
   if (len != NULL) {
     *len = (int32_t)(ucs4_max_len - outLeft);
+    if (*len < 0) {
+      return false;
+    }
   }
 
   return true;

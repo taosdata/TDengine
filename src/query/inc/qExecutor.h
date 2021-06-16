@@ -464,6 +464,7 @@ typedef struct SSWindowOperatorInfo {
   TSKEY          prevTs;     // previous timestamp
   int32_t        numOfRows;  // number of rows
   int32_t        start;      // start row index
+  bool           reptScan;    // next round scan
 } SSWindowOperatorInfo;
 
 typedef struct SStateWindowOperatorInfo {
@@ -473,7 +474,7 @@ typedef struct SStateWindowOperatorInfo {
   int32_t        colIndex;      // start row index
   int32_t        start;
   char*          prevData;    // previous data 
-   
+  bool           reptScan;
 } SStateWindowOperatorInfo ;
 
 typedef struct SDistinctOperatorInfo {

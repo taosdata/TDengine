@@ -265,7 +265,7 @@ static int tscUpdateSubscription(STscObj* pObj, SSub* pSub) {
 
   SSqlCmd* pCmd = &pSql->cmd;
 
-  pSub->lastSyncTime = taosGetTimestampMs();
+  TSDB_QUERY_CLEAR_TYPE(tscGetQueryInfo(pCmd)->type, TSDB_QUERY_TYPE_MULTITABLE_QUERY);
 
   STableMetaInfo *pTableMetaInfo = tscGetTableMetaInfoFromCmd(pCmd,  0);
   if (UTIL_TABLE_IS_NORMAL_TABLE(pTableMetaInfo)) {
@@ -276,6 +276,8 @@ static int tscUpdateSubscription(STscObj* pObj, SSub* pSub) {
       taosArrayClear(pSub->progress);
       taosArrayPush(pSub->progress, &target);
     }
+    
+    pSub->lastSyncTime = taosGetTimestampMs();
     return 1;
   }
 
@@ -305,7 +307,11 @@ static int tscUpdateSubscription(STscObj* pObj, SSub* pSub) {
   }
   taosArrayDestroy(tables);
 
-  TSDB_QUERY_SET_TYPE(tscGetQueryInfo(pCmd)->type, TSDB_QUERY_TYPE_MULTITABLE_QUERY);
+  if (pTableMetaInfo->pVgroupTables && taosArrayGetSize(pTableMetaInfo->pVgroupTables) > 0) {
+    TSDB_QUERY_SET_TYPE(tscGetQueryInfo(pCmd)->type, TSDB_QUERY_TYPE_MULTITABLE_QUERY);
+  }
+
+  pSub->lastSyncTime = taosGetTimestampMs();
   return 1;
 }
 

@@ -86,7 +86,7 @@ static int print_result(TAOS_RES* res, int blockFetch) {
     }
   } else {
     while ((row = taos_fetch_row(res))) {
-      char temp[256];
+      char temp[256] = {0};
       taos_print_row(temp, row, fields, num_fields);
       puts(temp);
       nRows++;
@@ -391,10 +391,10 @@ void verify_prepare(TAOS* taos) {
   int         rows = 0;
   int         num_fields = taos_num_fields(result);
   TAOS_FIELD *fields = taos_fetch_fields(result);
-  char        temp[256];
 
   // fetch the records row by row
   while ((row = taos_fetch_row(result))) {
+    char temp[256] = {0};
     rows++;
     taos_print_row(temp, row, fields, num_fields);
     printf("%s\n", temp);
@@ -614,10 +614,10 @@ void verify_prepare2(TAOS* taos) {
   int         rows = 0;
   int         num_fields = taos_num_fields(result);
   TAOS_FIELD *fields = taos_fetch_fields(result);
-  char        temp[256];
 
   // fetch the records row by row
   while ((row = taos_fetch_row(result))) {
+    char temp[256] = {0};
     rows++;
     taos_print_row(temp, row, fields, num_fields);
     printf("%s\n", temp);
@@ -866,12 +866,10 @@ void verify_prepare3(TAOS* taos) {
   int         rows = 0;
   int         num_fields = taos_num_fields(result);
   TAOS_FIELD *fields = taos_fetch_fields(result);
-  char        temp[256] = {0};
 
   // fetch the records row by row
   while ((row = taos_fetch_row(result))) {
-    memset(temp, 0, sizeof(temp)/sizeof(temp[0]));
-
+    char temp[256] = {0};
     rows++;
     taos_print_row(temp, row, fields, num_fields);
     printf("%s\n", temp);

@@ -218,11 +218,6 @@ static void tsdbMayUnTakeMemSnapshot(STsdbQueryHandle* pQueryHandle) {
 int64_t tsdbGetNumOfRowsInMemTable(TsdbQueryHandleT* pHandle) {
   STsdbQueryHandle* pQueryHandle = (STsdbQueryHandle*) pHandle;
 
-  size_t size = taosArrayGetSize(pQueryHandle->pTableCheckInfo);
-  assert(pQueryHandle->activeIndex < size && pQueryHandle->activeIndex >= 0 && size >= 1);
-  STableCheckInfo* pCheckInfo = taosArrayGet(pQueryHandle->pTableCheckInfo, pQueryHandle->activeIndex);
-  
-
   int64_t rows = 0;
   SMemRef* pMemRef = pQueryHandle->pMemRef;
   if (pMemRef == NULL) { return rows; }
@@ -233,15 +228,19 @@ int64_t tsdbGetNumOfRowsInMemTable(TsdbQueryHandleT* pHandle) {
   SMemTable* pMemT = pMemRef->snapshot.mem;
   SMemTable* pIMemT = pMemRef->snapshot.imem;
 
-  if (pMemT && pCheckInfo->tableId.tid < pMemT->maxTables) {
-    pMem = pMemT->tData[pCheckInfo->tableId.tid];
-    rows += (pMem && pMem->uid == pCheckInfo->tableId.uid) ? pMem->numOfRows: 0; 
+  size_t size = taosArrayGetSize(pQueryHandle->pTableCheckInfo);
+  for (int32_t i = 0; i < size; ++i) {
+    STableCheckInfo* pCheckInfo = taosArrayGet(pQueryHandle->pTableCheckInfo, i);
+
+    if (pMemT && pCheckInfo->tableId.tid < pMemT->maxTables) {
+      pMem = pMemT->tData[pCheckInfo->tableId.tid];
+      rows += (pMem && pMem->uid == pCheckInfo->tableId.uid) ? pMem->numOfRows : 0;
+    }
+    if (pIMemT && pCheckInfo->tableId.tid < pIMemT->maxTables) {
+      pIMem = pIMemT->tData[pCheckInfo->tableId.tid];
+      rows += (pIMem && pIMem->uid == pCheckInfo->tableId.uid) ? pIMem->numOfRows : 0;
+    }
   }
-  if (pIMemT && pCheckInfo->tableId.tid < pIMemT->maxTables) {
-    pIMem = pIMemT->tData[pCheckInfo->tableId.tid];
-    rows += (pIMem && pIMem->uid == pCheckInfo->tableId.uid) ? pIMem->numOfRows: 0; 
-  }
-  
   return rows;
 }
 
@@ -3573,6 +3572,9 @@ int32_t tsdbGetTableGroupFromIdList(STsdbRepo* tsdb, SArray* pTableIdList, STabl
     if (pTable->type == TSDB_SUPER_TABLE) {
       tsdbError("direct query on super tale is not allowed, table uid:%"PRIu64", tid:%d", id->uid, id->tid);
       terrno = TSDB_CODE_QRY_INVALID_MSG;
+      tsdbUnlockRepoMeta(tsdb);
+      taosArrayDestroy(group);
+      return terrno;
     }
 
     tsdbRefTable(pTable);
