@@ -142,11 +142,13 @@ public class WriteToTDengineRunnableTaskTest {
             taosdConnection = DriverManager.getConnection("jdbc:TAOS-RS://" + host_td + ":6041/?user=root&password=taosdata");
             Statement stmt1 = taosdConnection.createStatement();
             stmt1.execute("drop database if exists " + dbname);
+            stmt1.close();
 
             Connection tqueueConnection = DriverManager.getConnection("jdbc:TAOS-RS://" + host_tq + ":6041/?user=root&password=tqueue");
             Statement stmt2 = tqueueConnection.createStatement();
             stmt2.execute("drop topic if exists " + topic);
             stmt2.execute("create topic if not exists " + topic + " partitions 10");
+            stmt2.close();
         } catch (SQLException e) {
             e.printStackTrace();
         }

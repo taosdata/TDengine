@@ -26,7 +26,6 @@ public class WriteToTDengineRunnableTask implements Runnable {
     private String topic;
     private TQueueConsumer consumer;
     private Connection taosdConnection;
-    private Statement statement;
     private int pollingInterval;
     private SchemaMissingStrategy schemaMissing;
     private SchemaConfiguration schemaConfiguration;
@@ -38,7 +37,6 @@ public class WriteToTDengineRunnableTask implements Runnable {
         while (!Thread.currentThread().isInterrupted()) {
             try {
                 doSchemaMissingStrategy();
-                statement = taosdConnection.createStatement();
                 doWriteToTDengine();
             } catch (SQLException e) {
                 logger.error("failed to create statement");
@@ -174,7 +172,9 @@ public class WriteToTDengineRunnableTask implements Runnable {
     public void tryExecuteSQL(String sql) {
         try {
             logger.trace("execute sql >>> " + sql);
-            statement.execute(sql);
+            try (Statement statement = taosdConnection.createStatement()) {
+                statement.execute(sql);
+            }
         } catch (SQLException e) {
             e.printStackTrace();
         }

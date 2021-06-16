@@ -1,7 +1,5 @@
 package com.taosdata.taosdemo.utils;
 
-import com.taosdata.tsync.entity.config.TagConfiguration;
-
 import java.util.Random;
 
 public class DataGenerator {

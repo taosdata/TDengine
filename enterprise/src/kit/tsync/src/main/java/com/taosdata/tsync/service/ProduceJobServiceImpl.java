@@ -156,5 +156,4 @@ public class ProduceJobServiceImpl extends AbstractJobService {
         logger.info("get result: " + result.toString());
     }
 
-
 }
