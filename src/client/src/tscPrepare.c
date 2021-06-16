@@ -1465,6 +1465,11 @@ int taos_stmt_prepare(TAOS_STMT* stmt, const char* sql, unsigned long length) {
     STMT_RET(TSDB_CODE_TSC_DISCONNECTED);
   }
 
+  if (sql == NULL) {
+    tscError("sql is NULL");
+    STMT_RET(invalidOperationMsg(tscGetErrorMsgPayload(&pStmt->pSql->cmd), "sql is NULL"));
+  }
+  
   if (pStmt->last != STMT_INIT) {
     tscError("prepare status error, last:%d", pStmt->last);
     STMT_RET(invalidOperationMsg(tscGetErrorMsgPayload(&pStmt->pSql->cmd), "prepare status error"));
