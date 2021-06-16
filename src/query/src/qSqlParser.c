@@ -1067,6 +1067,10 @@ void setCreateAcctSql(SSqlInfo *pInfo, int32_t type, SStrToken *pName, SStrToken
     pInfo->pMiscInfo->user.passwd = *pPwd;
   }
 }
+void setCompactVnodeSql(SSqlInfo *pInfo, int32_t type, SArray *pParam) {
+ pInfo->type = type;  
+ pInfo->list = pParam; 
+}
 
 void setCreateUserSql(SSqlInfo *pInfo, SStrToken *pName, SStrToken *pPasswd) {
   pInfo->type = TSDB_SQL_CREATE_USER;

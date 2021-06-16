@@ -31,6 +31,7 @@ static void *  dnodeProcessMgmtQueue(void *param);
 static int32_t dnodeProcessCreateVnodeMsg(SRpcMsg *pMsg);
 static int32_t dnodeProcessAlterVnodeMsg(SRpcMsg *pMsg);
 static int32_t dnodeProcessSyncVnodeMsg(SRpcMsg *pMsg);
+static int32_t dnodeProcessCompactVnodeMsg(SRpcMsg *pMsg);
 static int32_t dnodeProcessDropVnodeMsg(SRpcMsg *pMsg);
 static int32_t dnodeProcessAlterStreamMsg(SRpcMsg *pMsg);
 static int32_t dnodeProcessConfigDnodeMsg(SRpcMsg *pMsg);
@@ -40,7 +41,8 @@ static int32_t (*dnodeProcessMgmtMsgFp[TSDB_MSG_TYPE_MAX])(SRpcMsg *pMsg);
 int32_t dnodeInitVMgmt() {
   dnodeProcessMgmtMsgFp[TSDB_MSG_TYPE_MD_CREATE_VNODE] = dnodeProcessCreateVnodeMsg;
   dnodeProcessMgmtMsgFp[TSDB_MSG_TYPE_MD_ALTER_VNODE]  = dnodeProcessAlterVnodeMsg;
-  dnodeProcessMgmtMsgFp[TSDB_MSG_TYPE_MD_SYNC_VNODE]  = dnodeProcessSyncVnodeMsg;
+  dnodeProcessMgmtMsgFp[TSDB_MSG_TYPE_MD_SYNC_VNODE]   = dnodeProcessSyncVnodeMsg;
+  dnodeProcessMgmtMsgFp[TSDB_MSG_TYPE_MD_COMPACT_VNODE]= dnodeProcessCompactVnodeMsg;
   dnodeProcessMgmtMsgFp[TSDB_MSG_TYPE_MD_DROP_VNODE]   = dnodeProcessDropVnodeMsg;
   dnodeProcessMgmtMsgFp[TSDB_MSG_TYPE_MD_ALTER_STREAM] = dnodeProcessAlterStreamMsg;
   dnodeProcessMgmtMsgFp[TSDB_MSG_TYPE_MD_CONFIG_DNODE] = dnodeProcessConfigDnodeMsg;
@@ -185,6 +187,12 @@ static int32_t dnodeProcessSyncVnodeMsg(SRpcMsg *rpcMsg) {
   pSyncVnode->vgId = htonl(pSyncVnode->vgId);
 
   return vnodeSync(pSyncVnode->vgId);
+}
+
+static int32_t dnodeProcessCompactVnodeMsg(SRpcMsg *rpcMsg) {
+  SCompactVnodeMsg *pCompactVnode = rpcMsg->pCont;
+  pCompactVnode->vgId = htonl(pCompactVnode->vgId);
+  return vnodeCompact(pCompactVnode->vgId);
 }
 
 static int32_t dnodeProcessDropVnodeMsg(SRpcMsg *rpcMsg) {

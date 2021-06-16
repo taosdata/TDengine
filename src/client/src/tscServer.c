@@ -47,6 +47,31 @@ static int32_t getWaitingTimeInterval(int32_t count) {
   return initial * ((2u)<<(count - 2));
 }
 
+static int32_t vgIdCompare(const void *lhs, const void *rhs) {
+  int32_t left = *(int32_t *)lhs;
+  int32_t right = *(int32_t *)rhs;
+
+  if (left == right) {
+    return 0;
+  } else {
+    return left > right ? 1 : -1;
+  }
+}
+static int32_t removeDupVgid(int32_t *src, int32_t sz) {
+  if (src == NULL || sz <= 0) {
+    return 0;
+  } 
+  qsort(src, sz, sizeof(src[0]), vgIdCompare);
+
+  int32_t ret = 1;
+  for (int i = 1; i < sz; i++) {
+    if (src[i] != src[i - 1]) {
+      src[ret++] = src[i];
+    }
+  }
+  return ret;
+}
+
 static void tscSetDnodeEpSet(SRpcEpSet* pEpSet, SVgroupInfo* pVgroupInfo) {
   assert(pEpSet != NULL && pVgroupInfo != NULL && pVgroupInfo->numOfEps > 0);
 
@@ -1515,6 +1540,60 @@ int tscAlterDbMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
 
   return TSDB_CODE_SUCCESS;
 }
+int tscBuildCompactMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
+  if (pInfo->list == NULL || taosArrayGetSize(pInfo->list) <= 0) {
+    return TSDB_CODE_TSC_INVALID_OPERATION;
+  }
+  STscObj *pObj = pSql->pTscObj;
+  SSqlCmd *pCmd = &pSql->cmd;
+  SArray *pList = pInfo->list;
+  int32_t size  = (int32_t)taosArrayGetSize(pList);
+
+  int32_t *result = malloc(sizeof(int32_t) * size);
+  if (result == NULL) {
+    return TSDB_CODE_TSC_OUT_OF_MEMORY;
+  }
+  
+  for (int32_t i = 0; i < size; i++) {
+    tSqlExprItem* pSub = taosArrayGet(pList, i);
+    tVariant* pVar = &pSub->pNode->value;
+    if (pVar->nType >= TSDB_DATA_TYPE_TINYINT && pVar->nType <= TSDB_DATA_TYPE_BIGINT) {
+      result[i] = (int32_t)(pVar->i64); 
+    } else { 
+      free(result);
+      return TSDB_CODE_TSC_INVALID_OPERATION;
+    }
+  }
+
+  int count = removeDupVgid(result, size);
+  pCmd->payloadLen = sizeof(SCompactMsg) + count * sizeof(int32_t);
+  pCmd->msgType = TSDB_MSG_TYPE_CM_COMPACT_VNODE;  
+
+  if (TSDB_CODE_SUCCESS != tscAllocPayload(pCmd, pCmd->payloadLen)) {
+    tscError("0x%"PRIx64" failed to malloc for query msg", pSql->self);
+    free(result);
+    return TSDB_CODE_TSC_OUT_OF_MEMORY;
+  }
+  SCompactMsg *pCompactMsg = (SCompactMsg *)pCmd->payload;
+
+  STableMetaInfo *pTableMetaInfo = tscGetTableMetaInfoFromCmd(pCmd, 0);
+  
+  if (tNameIsEmpty(&pTableMetaInfo->name)) {    
+    pthread_mutex_lock(&pObj->mutex);
+    tstrncpy(pCompactMsg->db, pObj->db, sizeof(pCompactMsg->db));  
+    pthread_mutex_unlock(&pObj->mutex);
+  } else {
+    tNameGetFullDbName(&pTableMetaInfo->name, pCompactMsg->db);
+  } 
+ 
+  pCompactMsg->numOfVgroup = htons(count);
+  for (int32_t i = 0; i < count; i++) {
+    pCompactMsg->vgid[i] = htons(result[i]);   
+  } 
+  free(result);
+
+  return TSDB_CODE_SUCCESS;
+}
 
 int tscBuildRetrieveFromMgmtMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   SSqlCmd *pCmd = &pSql->cmd;
@@ -2268,6 +2347,10 @@ int tscProcessAlterDbMsgRsp(SSqlObj *pSql) {
   UNUSED(pSql);
   return 0;
 }
+int tscProcessCompactRsp(SSqlObj *pSql) {
+  UNUSED(pSql);
+  return TSDB_CODE_SUCCESS; 
+}
 
 int tscProcessShowCreateRsp(SSqlObj *pSql) {
   return tscLocalResultCommonBuilder(pSql, 1);
@@ -2654,6 +2737,7 @@ void tscInitMsgsFp() {
   tscBuildMsg[TSDB_SQL_ALTER_TABLE] = tscBuildAlterTableMsg;
   tscBuildMsg[TSDB_SQL_UPDATE_TAGS_VAL] = tscBuildUpdateTagMsg;
   tscBuildMsg[TSDB_SQL_ALTER_DB] = tscAlterDbMsg;
+  tscBuildMsg[TSDB_SQL_COMPACT_VNODE] = tscBuildCompactMsg;  
 
   tscBuildMsg[TSDB_SQL_CONNECT] = tscBuildConnectMsg;
   tscBuildMsg[TSDB_SQL_USE_DB] = tscBuildUseDbMsg;
@@ -2694,6 +2778,7 @@ void tscInitMsgsFp() {
 
   tscProcessMsgRsp[TSDB_SQL_ALTER_TABLE] = tscProcessAlterTableMsgRsp;
   tscProcessMsgRsp[TSDB_SQL_ALTER_DB] = tscProcessAlterDbMsgRsp;
+  tscProcessMsgRsp[TSDB_SQL_COMPACT_VNODE] = tscProcessCompactRsp; 
 
   tscProcessMsgRsp[TSDB_SQL_SHOW_CREATE_TABLE] = tscProcessShowCreateRsp;
   tscProcessMsgRsp[TSDB_SQL_SHOW_CREATE_STABLE] = tscProcessShowCreateRsp;
