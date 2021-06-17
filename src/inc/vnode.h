@@ -62,6 +62,7 @@ int32_t vnodeOpen(int32_t vgId);
 int32_t vnodeAlter(void *pVnode, SCreateVnodeMsg *pVnodeCfg);
 int32_t vnodeSync(int32_t vgId);
 int32_t vnodeClose(int32_t vgId);
+int32_t vnodeCompact(int32_t vgId); 
 
 // vnodeMgmt
 int32_t vnodeInitMgmt();

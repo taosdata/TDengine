@@ -90,13 +90,10 @@ int32_t compareFloatVal(const void *pLeft, const void *pRight) {
   if (isnan(p2)) {
     return 1;
   }
-
-  float ret = p1 - p2;
-  if (fabs(ret) < FLT_EPSILON) {
+  if (FLT_EQUAL(p1, p2)) {
     return 0;
-  } else {
-    return ret > 0? 1 : -1;
-  }
+  } 
+  return FLT_GREATER(p1, p2) ? 1: -1; 
 }
 
 int32_t compareDoubleVal(const void *pLeft, const void *pRight) {
@@ -114,13 +111,10 @@ int32_t compareDoubleVal(const void *pLeft, const void *pRight) {
   if (isnan(p2)) {
     return 1;
   }
-
-  double ret = p1 - p2;
-  if (fabs(ret) < FLT_EPSILON) {
+  if (FLT_EQUAL(p1, p2)) {
     return 0;
-  } else {
-    return ret > 0? 1 : -1;
-  }
+  } 
+  return FLT_GREATER(p1, p2) ? 1: -1; 
 }
 
 int32_t compareLenPrefixedStr(const void *pLeft, const void *pRight) {

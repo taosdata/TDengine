@@ -74,17 +74,17 @@ You can see as follows after Dashboard imported.
 
 ![img](page://images/connections/import_dashboard2.jpg)
 
-## <a class="anchor" id="matlab"></a> Matlab
+## <a class="anchor" id="matlab"></a> MATLAB
 
-MatLab can access data to the local workspace by connecting directly to the TDengine via the JDBC Driver provided in the installation package.
+MATLAB can access data to the local workspace by connecting directly to the TDengine via the JDBC Driver provided in the installation package.
 
-### JDBC Interface Adaptation of MatLab
+### JDBC Interface Adaptation of MATLAB
 
-Several steps are required to adapt Matlab to TDengine. Taking adapting Matlab2017a on Windows10 as an example:
+Several steps are required to adapt MATLAB to TDengine. Taking adapting MATLAB2017a on Windows10 as an example:
 
 - Copy the file JDBCDriver-1.0.0-dist.ja*r* in TDengine package to the directory ${matlab_root}\MATLAB\R2017a\java\jar\toolbox
 - Copy the file taos.lib in TDengine package to ${matlab root dir}\MATLAB\R2017a\lib\win64
-- Add the .jar package just copied to the Matlab classpath. Append the line below as the end of the file of ${matlab root dir}\MATLAB\R2017a\toolbox\local\classpath.txt
+- Add the .jar package just copied to the MATLAB classpath. Append the line below as the end of the file of ${matlab root dir}\MATLAB\R2017a\toolbox\local\classpath.txt
 - ```
   $matlabroot/java/jar/toolbox/JDBCDriver-1.0.0-dist.jar
   ```
@@ -94,9 +94,9 @@ Several steps are required to adapt Matlab to TDengine. Taking adapting Matlab20
   C:\Windows\System32
   ```
 
-- ### Connect to TDengine in MatLab to get data
+- ### Connect to TDengine in MATLAB to get data
 
-After the above configured successfully, open MatLab.
+After the above configured successfully, open MATLAB.
 
 - Create a connection:
 

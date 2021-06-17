@@ -20,39 +20,29 @@ import java.nio.charset.Charset;
 
 
 public class HttpClientPoolUtil {
-    public static PoolingHttpClientConnectionManager cm = null;
-    public static CloseableHttpClient httpClient = null;
-    public static String token = "cm9vdDp0YW9zZGF0YQ==";
-    /**
-     * 默认content 类型
-     */
-    private static final String DEFAULT_CONTENT_TYPE = "application/json";
-    /**
-     * 默认请求超时时间30s
-     */
-    private static final int DEFAULT_TIME_OUT = 15000;
-    private static final int count = 32;
-    private static final int totalCount = 1000;
-    private static final int Http_Default_Keep_Time = 15000;
 
-    /**
-     * 初始化连接池
-     */
+    private static final String DEFAULT_CONTENT_TYPE = "application/json";
+    private static final String DEFAULT_TOKEN = "cm9vdDp0YW9zZGF0YQ==";
+    private static final int DEFAULT_TIME_OUT = 15000;
+    private static final int DEFAULT_MAX_PER_ROUTE = 32;
+    private static final int DEFAULT_MAX_TOTAL = 1000;
+    private static final int DEFAULT_HTTP_KEEP_TIME = 15000;
+
+    private static PoolingHttpClientConnectionManager connectionManager;
+    private static CloseableHttpClient httpClient;
+
     private static synchronized void initPools() {
         if (httpClient == null) {
-            cm = new PoolingHttpClientConnectionManager();
-            cm.setDefaultMaxPerRoute(count);
-            cm.setMaxTotal(totalCount);
-            httpClient = HttpClients.custom().setKeepAliveStrategy(defaultStrategy).setConnectionManager(cm).build();
+            connectionManager = new PoolingHttpClientConnectionManager();
+            connectionManager.setDefaultMaxPerRoute(DEFAULT_MAX_PER_ROUTE);
+            connectionManager.setMaxTotal(DEFAULT_MAX_TOTAL);
+            httpClient = HttpClients.custom().setKeepAliveStrategy(DEFAULT_KEEP_ALIVE_STRATEGY).setConnectionManager(connectionManager).build();
         }
     }
 
-    /**
-     * Http connection keepAlive 设置
-     */
-    private static ConnectionKeepAliveStrategy defaultStrategy = (response, context) -> {
+    private static ConnectionKeepAliveStrategy DEFAULT_KEEP_ALIVE_STRATEGY = (response, context) -> {
         HeaderElementIterator it = new BasicHeaderElementIterator(response.headerIterator(HTTP.CONN_KEEP_ALIVE));
-        int keepTime = Http_Default_Keep_Time * 1000;
+        int keepTime = DEFAULT_HTTP_KEEP_TIME * 1000;
         while (it.hasNext()) {
             HeaderElement headerElement = it.nextElement();
             String param = headerElement.getName();
@@ -76,7 +66,7 @@ public class HttpClientPoolUtil {
      * @param data 请求数据
      * @return responseBody
      */
-    public static String execute(String uri, String data) {
+    public static String execute(String uri, String data, String token) {
         long startTime = System.currentTimeMillis();
         HttpEntity httpEntity = null;
         HttpEntityEnclosingRequestBase method = null;

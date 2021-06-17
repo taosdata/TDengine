@@ -39,8 +39,8 @@
 #include "mnodePeer.h"
 #include "mnodeCluster.h"
 
-int32_t tsAccessSquence = 0;
-int64_t         tsDnodeRid = -1;
+int64_t        tsAccessSquence = 0;
+int64_t        tsDnodeRid = -1;
 static void *  tsDnodeSdb = NULL;
 static int32_t tsDnodeUpdateSize = 0;
 extern void *  tsMnodeSdb;
@@ -567,7 +567,7 @@ static int32_t mnodeProcessDnodeStatusMsg(SMnodeMsg *pMsg) {
              mnodeGetClusterId());
       return TSDB_CODE_MND_INVALID_CLUSTER_ID;
     } else {
-      mTrace("dnode:%d, status received, access times %d openVnodes:%d:%d", pDnode->dnodeId, pDnode->lastAccess,
+      mTrace("dnode:%d, status received, access times %" PRId64 " openVnodes:%d:%d", pDnode->dnodeId, pDnode->lastAccess,
              htons(pStatus->openVnodes), pDnode->openVnodes);
     }
   }
@@ -629,9 +629,9 @@ static int32_t mnodeProcessDnodeStatusMsg(SMnodeMsg *pMsg) {
     bnNotify();
   }
 
-  if (!tsEnableBalance) {
-    int32_t numOfMnodes = mnodeGetMnodesNum();
-    if (numOfMnodes < tsNumOfMnodes) bnNotify();
+  int32_t numOfMnodes = mnodeGetMnodesNum();
+  if (numOfMnodes < tsNumOfMnodes && numOfMnodes < mnodeGetOnlineDnodesNum() && !pDnode->isMgmt) {
+    bnNotify();
   }
 
   if (openVnodes != pDnode->openVnodes) {

@@ -2282,7 +2282,7 @@ static bool doFilterByBlockStatistics(SQueryRuntimeEnv* pRuntimeEnv, SDataStatis
   if (pDataStatis == NULL || pQueryAttr->numOfFilterCols == 0) {
     return true;
   }
-
+  bool ret = true;
   for (int32_t k = 0; k < pQueryAttr->numOfFilterCols; ++k) {
     SSingleColumnFilterInfo *pFilterInfo = &pQueryAttr->pFilterInfo[k];
 
@@ -2319,26 +2319,34 @@ static bool doFilterByBlockStatistics(SQueryRuntimeEnv* pRuntimeEnv, SDataStatis
     }
 
     SDataStatis* pDataBlockst = &pDataStatis[index];
-
+    
     if (pFilterInfo->info.type == TSDB_DATA_TYPE_FLOAT) {
       float minval = (float)(*(double *)(&pDataBlockst->min));
       float maxval = (float)(*(double *)(&pDataBlockst->max));
-
+       
       for (int32_t i = 0; i < pFilterInfo->numOfFilters; ++i) {
-        if (pFilterInfo->pFilters[i].fp(&pFilterInfo->pFilters[i], (char *)&minval, (char *)&maxval, TSDB_DATA_TYPE_FLOAT)) {
-          return true;
+        if (pFilterInfo->pFilters[i].filterInfo.lowerRelOptr == TSDB_RELATION_IN) {
+           continue;   
+        }
+        ret &= pFilterInfo->pFilters[i].fp(&pFilterInfo->pFilters[i], (char *)&minval, (char *)&maxval, TSDB_DATA_TYPE_FLOAT);
+        if (ret == false) {
+          return false;
         }
       }
     } else {
       for (int32_t i = 0; i < pFilterInfo->numOfFilters; ++i) {
-        if (pFilterInfo->pFilters[i].fp(&pFilterInfo->pFilters[i], (char *)&pDataBlockst->min, (char *)&pDataBlockst->max, pFilterInfo->info.type)) {
-          return true;
+        if (pFilterInfo->pFilters[i].filterInfo.lowerRelOptr == TSDB_RELATION_IN) {
+           continue; 
+        }
+        ret &= pFilterInfo->pFilters[i].fp(&pFilterInfo->pFilters[i], (char *)&pDataBlockst->min, (char *)&pDataBlockst->max, pFilterInfo->info.type); 
+        if (ret == false) {
+          return false;
         }
       }
     }
   }
 
-  return false;
+  return ret;
 }
 
 static bool overlapWithTimeWindow(SQueryAttr* pQueryAttr, SDataBlockInfo* pBlockInfo) {
@@ -7519,7 +7527,8 @@ static void doSetTagValueToResultBuf(char* output, const char* val, int16_t type
   if (IS_VAR_DATA_TYPE(type)) {
     // Binary data overflows for sort of unknown reasons. Let trim the overflow data
     if (varDataTLen(val) > bytes) {
-      int32_t len = bytes - VARSTR_HEADER_SIZE;   // remain available space
+      int32_t maxLen = bytes - VARSTR_HEADER_SIZE;
+      int32_t len = (varDataLen(val) > maxLen)? maxLen:varDataLen(val);
       memcpy(varDataVal(output), varDataVal(val), len);
       varDataSetLen(output, len);
     } else {

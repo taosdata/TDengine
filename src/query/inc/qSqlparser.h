@@ -312,6 +312,8 @@ void setCreateUserSql(SSqlInfo *pInfo, SStrToken *pName, SStrToken *pPasswd);
 void setKillSql(SSqlInfo *pInfo, int32_t type, SStrToken *ip);
 void setAlterUserSql(SSqlInfo *pInfo, int16_t type, SStrToken *pName, SStrToken* pPwd, SStrToken *pPrivilege);
 
+void setCompactVnodeSql(SSqlInfo *pInfo, int32_t type, SArray *pParam);
+
 void setDefaultCreateDbOption(SCreateDbInfo *pDBInfo);
 void setDefaultCreateTopicOption(SCreateDbInfo *pDBInfo);
 

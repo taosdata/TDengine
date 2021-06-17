@@ -28,9 +28,7 @@ public class BatchInsertTest {
     @Before
     public void before() {
         try {
-            Class.forName("com.taosdata.jdbc.TSDBDriver");
             Properties properties = new Properties();
-            properties.setProperty(TSDBDriver.PROPERTY_KEY_HOST, host);
             properties.setProperty(TSDBDriver.PROPERTY_KEY_CHARSET, "UTF-8");
             properties.setProperty(TSDBDriver.PROPERTY_KEY_LOCALE, "en_US.UTF-8");
             properties.setProperty(TSDBDriver.PROPERTY_KEY_TIME_ZONE, "UTC-8");
@@ -44,7 +42,7 @@ public class BatchInsertTest {
             String createTableSql = "create table " + stbName + "(ts timestamp, f1 int, f2 int, f3 int) tags(areaid int, loc binary(20))";
             statement.executeUpdate(createTableSql);
             // create tables
-            for(int i = 0; i < numOfTables; i++) {
+            for (int i = 0; i < numOfTables; i++) {
                 String loc = i % 2 == 0 ? "beijing" : "shanghai";
                 String createSubTalbesSql = "create table " + tablePrefix + i + " using " + stbName + " tags(" + i + ", '" + loc + "')";
                 statement.executeUpdate(createSubTalbesSql);

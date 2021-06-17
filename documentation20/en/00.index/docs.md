@@ -29,7 +29,7 @@ TDengine is a highly efficient platform to store, query, and analyze time-series
 
 ## [Data Modeling](/model)
 
-- [Create a Library](/model#create-db): create a library for all data collection points with similar features
+- [Create a Database](/model#create-db): create a database for all data collection points with similar features
 - [Create a Super Table(STable)](/model#create-stable): create a STable for all data collection points with the same type
 - [Create a Table](/model#create-table): use STable as the template, to create a table for each data collecting point
 
@@ -82,7 +82,7 @@ TDengine is a highly efficient platform to store, query, and analyze time-series
 ## [Connections with Other Tools](/connections)
 
 - [Grafana](/connections#grafana): query the data saved in TDengine and provide visualization
-- [Matlab](/connections#matlab): access data stored in TDengine server via JDBC configured within Matlab
+- [MATLAB](/connections#matlab): access data stored in TDengine server via JDBC configured within MATLAB
 - [R](/connections#r): access data stored in TDengine server via JDBC configured within R
 - [IDEA Database](https://www.taosdata.com/blog/2020/08/27/1767.html): use TDengine visually through IDEA Database Management Tool
 
