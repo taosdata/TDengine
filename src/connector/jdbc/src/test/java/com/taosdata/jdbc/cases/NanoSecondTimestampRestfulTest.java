@@ -121,8 +121,9 @@ public class NanoSecondTimestampRestfulTest {
     @Test
     public void selectUsingTimestampValue() throws SQLException {
         // given
-        long epochSec = System.currentTimeMillis() / 1000;
-        long nanoAdjustment = random.nextInt(1000_000_000);
+        long timeMillis = System.currentTimeMillis();
+        long epochSec = timeMillis / 1000;
+        long nanoAdjustment = (timeMillis % 1000) * 1000_000L + random.nextInt(1000_000);
         Timestamp ts = Timestamp.from(Instant.ofEpochSecond(epochSec, nanoAdjustment));
 
         // insert one row
@@ -150,6 +151,8 @@ public class NanoSecondTimestampRestfulTest {
         Assert.assertEquals(ts, actual);
         actual = rs.getTimestamp("ts");
         Assert.assertEquals(ts, actual);
+        Assert.assertEquals(timeMillis, actual.getTime());
+        Assert.assertEquals(nanoAdjustment, actual.getNanos());
     }
 
     @Before
