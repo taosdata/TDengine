@@ -5,7 +5,6 @@ import org.junit.*;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.sql.*;
-import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.Random;
 
@@ -15,6 +14,7 @@ public class TSDBPreparedStatementTest {
     private static Connection conn;
     private static final String sql_insert = "insert into t1 values(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
     private static final String sql_select = "select * from t1 where ts >= ? and ts < ? and f1 >= ?";
+    private static final String dbname = "test_pstmt_jni";
 
     private PreparedStatement pstmt_insert;
     private PreparedStatement pstmt_select;
@@ -589,6 +589,7 @@ public class TSDBPreparedStatementTest {
 
     @Test(expected = SQLException.class)
     public void createTwoSameDbTest() throws SQLException {
+        // when
         Statement stmt = conn.createStatement();
         stmt.execute("create database dbtest");
         stmt.execute("create database dbtest");
@@ -1095,9 +1096,9 @@ public class TSDBPreparedStatementTest {
         try {
             conn = DriverManager.getConnection("jdbc:TAOS://" + host + ":6030/?user=root&password=taosdata");
             try (Statement stmt = conn.createStatement()) {
-                stmt.execute("drop database if exists test_pstmt_jni");
-                stmt.execute("create database if not exists test_pstmt_jni");
-                stmt.execute("use test_pstmt_jni");
+                stmt.execute("drop database if exists " + dbname);
+                stmt.execute("create database if not exists " + dbname);
+                stmt.execute("use " + dbname);
             }
         } catch (SQLException e) {
             e.printStackTrace();
@@ -1107,6 +1108,9 @@ public class TSDBPreparedStatementTest {
     @AfterClass
     public static void afterClass() {
         try {
+            Statement statement = conn.createStatement();
+            statement.execute("drop database if exists " + dbname);
+            statement.close();
             if (conn != null)
                 conn.close();
         } catch (SQLException e) {

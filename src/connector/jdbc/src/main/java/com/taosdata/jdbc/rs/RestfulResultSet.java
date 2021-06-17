@@ -167,7 +167,8 @@ public class RestfulResultSet extends AbstractResultSet implements ResultSet {
     private Timestamp parseTimestampColumnData(JSONArray row, int colIndex) throws SQLException {
         if (row.get(colIndex) == null)
             return null;
-        TimestampFormat timestampFormat = TimestampFormat.valueOf(this.statement.getConnection().getClientInfo(TSDBDriver.PROPERTY_KEY_TIMESTAMP_FORMAT));
+        String tsFormatUpperCase = this.statement.getConnection().getClientInfo(TSDBDriver.PROPERTY_KEY_TIMESTAMP_FORMAT).toUpperCase();
+        TimestampFormat timestampFormat = TimestampFormat.valueOf(tsFormatUpperCase);
         switch (timestampFormat) {
             case TIMESTAMP: {
                 Long value = row.getLong(colIndex);
