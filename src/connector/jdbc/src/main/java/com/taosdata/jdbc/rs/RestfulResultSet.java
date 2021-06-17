@@ -49,6 +49,7 @@ public class RestfulResultSet extends AbstractResultSet implements ResultSet {
             columnNames.clear();
             columns.clear();
             this.resultSet.clear();
+            this.metaData = new RestfulResultSetMetaData(this.database, null, this);
             return;
         }
         // get head
@@ -133,7 +134,6 @@ public class RestfulResultSet extends AbstractResultSet implements ResultSet {
             columns.add(new Field(col_name, col_type, col_length, "", taos_type));
         }
     }
-
 
     private Object parseColumnData(JSONArray row, int colIndex, int taosType) throws SQLException {
         switch (taosType) {
@@ -222,7 +222,7 @@ public class RestfulResultSet extends AbstractResultSet implements ResultSet {
         }
     }
 
-    public class Field {
+    public static class Field {
         String name;
         int type;
         int length;
