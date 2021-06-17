@@ -10,7 +10,7 @@ import org.junit.Test;
 import java.sql.*;
 import java.util.Properties;
 
-public class TwoTypeTimestampPercisionInRestfulTest {
+public class MicroTimestampPrecisionInRestfulTest {
 
     private static final String host = "127.0.0.1";
 
