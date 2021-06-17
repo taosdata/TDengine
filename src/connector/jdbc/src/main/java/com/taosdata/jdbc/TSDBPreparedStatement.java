@@ -128,24 +128,15 @@ public class TSDBPreparedStatement extends TSDBStatement implements PreparedStat
         /***** for inner queries *****/
     }
 
-    /**
-     * Populate parameters into prepared sql statements
-     *
-     * @return a string of the native sql statement for TSDB
-     */
-    private String getNativeSql(String rawSql) throws SQLException {
-        return Utils.getNativeSql(rawSql, this.parameters);
-    }
-
     @Override
     public ResultSet executeQuery() throws SQLException {
-        final String sql = getNativeSql(this.rawSql);
+        final String sql = Utils.getNativeSql(this.rawSql, this.parameters);
         return executeQuery(sql);
     }
 
     @Override
     public int executeUpdate() throws SQLException {
-        String sql = getNativeSql(this.rawSql);
+        String sql = Utils.getNativeSql(this.rawSql, this.parameters);
         return executeUpdate(sql);
     }
 
@@ -268,13 +259,13 @@ public class TSDBPreparedStatement extends TSDBStatement implements PreparedStat
 
     @Override
     public boolean execute() throws SQLException {
-        final String sql = getNativeSql(this.rawSql);
+        final String sql = Utils.getNativeSql(this.rawSql, this.parameters);
         return execute(sql);
     }
 
     @Override
     public void addBatch() throws SQLException {
-        String sql = this.getConnection().nativeSQL(this.rawSql);
+        String sql = Utils.getNativeSql(this.rawSql, this.parameters);
         addBatch(sql);
     }
 
