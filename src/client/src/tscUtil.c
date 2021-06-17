@@ -3477,6 +3477,7 @@ static void tscSubqueryRetrieveCallback(void* param, TAOS_RES* tres, int code) {
   if (pSql->res.code == TSDB_CODE_SUCCESS) {
     (*pSql->fp)(pParentSql->param, pParentSql, pParentSql->res.numOfRows);
   } else {
+    pParentSql->res.code = pSql->res.code;
     tscAsyncResultOnError(pParentSql);
   }
 }
