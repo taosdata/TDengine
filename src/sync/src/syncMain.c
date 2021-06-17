@@ -876,7 +876,6 @@ static void syncRestartPeer(SSyncPeer *pPeer) {
 }
 
 void syncRestartConnection(SSyncPeer *pPeer) {
-  //if (pPeer->ip == 0) return;
   if (pPeer->fqdn[0] == '\0') return;
 
   if (syncAcquirePeer(pPeer->rid) == NULL) return;
@@ -891,7 +890,6 @@ static void syncProcessSyncRequest(char *msg, SSyncPeer *pPeer) {
   SSyncNode *pNode = pPeer->pSyncNode;
   sInfo("%s, sync-req is received", pPeer->id);
 
-  //if (pPeer->ip == 0) return;
   if (pPeer->fqdn[0] == '\0') return;
 
   if (nodeRole != TAOS_SYNC_ROLE_MASTER) {
