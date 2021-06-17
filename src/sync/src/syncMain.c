@@ -892,7 +892,7 @@ static void syncProcessSyncRequest(char *msg, SSyncPeer *pPeer) {
   sInfo("%s, sync-req is received", pPeer->id);
 
   //if (pPeer->ip == 0) return;
-  if (!syncResolvePeerFqdn(pPeer)) return;
+  if (pPeer->fqdn[0] == '\0') return;
 
   if (nodeRole != TAOS_SYNC_ROLE_MASTER) {
     sError("%s, I am not master anymore", pPeer->id);
@@ -1104,7 +1104,7 @@ static int32_t syncProcessPeerMsg(int64_t rid, void *buffer) {
 }
 
 static int32_t syncSendPeersStatusMsgToPeer(SSyncPeer *pPeer, char ack, int8_t type, uint16_t tranId) {
-  if (pPeer->peerFd < 0/* || pPeer->ip == 0*/) {
+  if (pPeer->peerFd < 0 || pPeer->fqdn[0] == '\0') {
     sDebug("%s, failed to send status msg, restart fd:%d", pPeer->id, pPeer->peerFd);
     syncRestartConnection(pPeer);
     return -1;
@@ -1150,7 +1150,10 @@ static void syncSetupPeerConnection(SSyncPeer *pPeer) {
   }
 
   uint32_t ip = syncResolvePeerFqdn(pPeer);
-  if (!ip) return;
+  if (!ip) {
+    taosTmrReset(syncCheckPeerConnection, SYNC_CHECK_INTERVAL, (void *)pPeer->rid, tsSyncTmrCtrl, &pPeer->timer);
+    return;
+  }
 
   SOCKET connFd = taosOpenTcpClientSocket(ip, pPeer->port, 0);
   if (connFd <= 0) {
