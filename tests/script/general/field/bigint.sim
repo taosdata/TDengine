@@ -32,6 +32,9 @@ while $i < 5
     $ms = $x . m 
     sql insert into $tb values (now + $ms , 0 ) 
     $x = $x + 1
+    sql_error insert into $tb values (now + $ms , -10) 
+    sql_error insert into $tb values (now + $ms ,        -1000) 
+    sql_error insert into $tb values (now + $ms ,        -10000000) 
   endw  
   $i = $i + 1
 endw 
