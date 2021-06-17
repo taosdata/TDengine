@@ -28,7 +28,7 @@
 #include <stdbool.h>
 #include "qSqlparser.h"
 #include "tcmdtype.h"
-#include "tstoken.h"
+#include "ttoken.h"
 #include "ttokendef.h"
 #include "tutil.h"
 #include "tvariant.h"
@@ -507,7 +507,6 @@ distinct(X) ::= .            { X.n = 0;}
 // A complete FROM clause.
 %type from {SFromInfo*}
 from(A) ::= FROM tablelist(X).                 {A = X;}
-from(A) ::= FROM LP union(Y) RP.               {A = Y;}
 
 %type tablelist {SArray*}
 tablelist(A) ::= ids(X) cpxName(Y).                     {

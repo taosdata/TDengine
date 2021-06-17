@@ -282,6 +282,7 @@ static int tscUpdateSubscription(STscObj* pObj, SSub* pSub) {
 
   SArray* tables = getTableList(pSql);
   if (tables == NULL) {
+    pSub->lastSyncTime = 0;   //force to get table list next time
     return 0;
   }
   size_t numOfTables = taosArrayGetSize(tables);
@@ -488,7 +489,15 @@ TAOS_RES *taos_consume(TAOS_SUB *tsub) {
   SSub *pSub = (SSub *)tsub;
   if (pSub == NULL) return NULL;
 
-  if (pSub->pSql->cmd.command == TSDB_SQL_RETRIEVE_EMPTY_RESULT) {
+  if (pSub->pTimer == NULL) {
+    int64_t duration = taosGetTimestampMs() - pSub->lastConsumeTime;
+    if (duration < (int64_t)(pSub->interval)) {
+      tscDebug("subscription consume too frequently, blocking...");
+      taosMsleep(pSub->interval - (int32_t)duration);
+    }
+  }
+
+  if (pSub->pSql->cmd.command == TSDB_SQL_RETRIEVE_EMPTY_RESULT) {  //may reach here when retireve stable vgroup failed
     SSqlObj* pSql = recreateSqlObj(pSub);
     if (pSql == NULL) {
       return NULL;
@@ -500,6 +509,11 @@ TAOS_RES *taos_consume(TAOS_SUB *tsub) {
     }
     pSub->pSql = pSql;
     pSql->pSubscription = pSub;
+
+    // no table list now, force to update it
+    tscDebug("begin table synchronization");
+    if (!tscUpdateSubscription(pSub->taos, pSub)) return NULL;
+    tscDebug("table synchronization completed");    
   }
 
   tscSaveSubscriptionProgress(pSub);
@@ -522,14 +536,6 @@ TAOS_RES *taos_consume(TAOS_SUB *tsub) {
 
     pQueryInfo->window.skey = s;
     tscDebug("subscribe:%s set next round subscribe skey:%"PRId64, pSub->topic, pQueryInfo->window.skey);
-  }
-
-  if (pSub->pTimer == NULL) {
-    int64_t duration = taosGetTimestampMs() - pSub->lastConsumeTime;
-    if (duration < (int64_t)(pSub->interval)) {
-      tscDebug("subscription consume too frequently, blocking...");
-      taosMsleep(pSub->interval - (int32_t)duration);
-    }
   }
 
   size_t size = taosArrayGetSize(pSub->progress) * sizeof(STableIdInfo);
