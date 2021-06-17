@@ -105,6 +105,8 @@ public class Utils {
     }
 
     public static String getNativeSql(String rawSql, Object[] parameters) {
+        if (parameters == null || !rawSql.contains("?"))
+            return rawSql;
         // toLowerCase
         String preparedSql = rawSql.trim().toLowerCase();
         String[] clause = new String[]{"values\\s*\\(.*?\\)", "tags\\s*\\(.*?\\)", "where\\s*.*"};

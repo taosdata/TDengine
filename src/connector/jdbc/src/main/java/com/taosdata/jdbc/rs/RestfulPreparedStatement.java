@@ -230,9 +230,6 @@ public class RestfulPreparedStatement extends RestfulStatement implements Prepar
 
     @Override
     public void addBatch() throws SQLException {
-        if (isClosed())
-            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
-
         final String sql = getNativeSql(this.rawSql);
         addBatch(sql);
     }

@@ -38,7 +38,6 @@ import java.util.regex.Pattern;
 public class TSDBPreparedStatement extends TSDBStatement implements PreparedStatement {
     private String rawSql;
     private Object[] parameters;
-    private boolean isPrepared;
 
     private ArrayList<ColumnInfo> colData;
     private ArrayList<TableTagInfo> tableTags;
@@ -46,8 +45,6 @@ public class TSDBPreparedStatement extends TSDBStatement implements PreparedStat
 
     private String tableName;
     private long nativeStmtHandle = 0;
-
-    private volatile TSDBParameterMetaData parameterMetaData;
 
     TSDBPreparedStatement(TSDBConnection connection, String sql) {
         super(connection);
@@ -61,7 +58,6 @@ public class TSDBPreparedStatement extends TSDBStatement implements PreparedStat
                 }
             }
             parameters = new Object[parameterCnt];
-            this.isPrepared = true;
         }
 
         if (parameterCnt > 1) {
@@ -74,11 +70,6 @@ public class TSDBPreparedStatement extends TSDBStatement implements PreparedStat
     private void init(String sql) {
         this.rawSql = sql;
         preprocessSql();
-    }
-
-    @Override
-    public int[] executeBatch() throws SQLException {
-        return super.executeBatch();
     }
 
     /*
@@ -148,17 +139,12 @@ public class TSDBPreparedStatement extends TSDBStatement implements PreparedStat
 
     @Override
     public ResultSet executeQuery() throws SQLException {
-        if (!isPrepared)
-            return executeQuery(this.rawSql);
-
         final String sql = getNativeSql(this.rawSql);
         return executeQuery(sql);
     }
 
     @Override
     public int executeUpdate() throws SQLException {
-        if (!isPrepared)
-            return executeUpdate(this.rawSql);
         String sql = getNativeSql(this.rawSql);
         return executeUpdate(sql);
     }
@@ -282,25 +268,14 @@ public class TSDBPreparedStatement extends TSDBStatement implements PreparedStat
 
     @Override
     public boolean execute() throws SQLException {
-        if (!isPrepared)
-            return execute(this.rawSql);
-
         final String sql = getNativeSql(this.rawSql);
         return execute(sql);
     }
 
     @Override
     public void addBatch() throws SQLException {
-        if (this.batchedArgs == null) {
-            batchedArgs = new ArrayList<>();
-        }
-
-        if (!isPrepared) {
-            addBatch(this.rawSql);
-        } else {
-            String sql = this.getConnection().nativeSQL(this.rawSql);
-            addBatch(sql);
-        }
+        String sql = this.getConnection().nativeSQL(this.rawSql);
+        addBatch(sql);
     }
 
     @Override
