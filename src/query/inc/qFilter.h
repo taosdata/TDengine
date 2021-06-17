@@ -93,8 +93,10 @@ typedef struct SFilterInfo {
 #define CHK_LRET(c, r,...) do { if (c) { qError(__VA_ARGS__); return r; } } while (0)
 
 #define FILTER_GET_FIELD(i, id) (&((i)->fields[(id).type].fields[(id).idx]))
+#define FILTER_GET_COL_FIELD_TYPE(fi) (((SSchema *)((fi)->desc))->type)
 #define FILTER_GET_COL_FIELD_DATA(fi, ri) ((fi)->data + ((SSchema *)((fi)->desc))->bytes * (ri))
-#define FILTER_GET_VAL_FIELD_DATA(fi) (&((tVariant *)((fi)->desc))->i64)
+#define FILTER_GET_VAL_FIELD_TYPE(fi) (((tVariant *)((fi)->desc))->nType)
+#define FILTER_GET_VAL_FIELD_DATA(fi) ((fi)->data)
 
 
 
@@ -109,7 +111,7 @@ typedef int32_t(*filter_desc_compare_func)(const void *, const void *);
 
 extern int32_t filterInitFromTree(tExprNode* tree, SFilterInfo **pinfo);
 extern bool filterExecute(SFilterInfo *info, int32_t numOfRows, int8_t* p);
-extern int32_t filterSetColData(SFilterInfo *info, int16_t colId, void *data);
+extern int32_t filterSetColFieldData(SFilterInfo *info, int16_t colId, void *data);
 
 #ifdef __cplusplus
 }

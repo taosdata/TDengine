@@ -2645,7 +2645,7 @@ void doSetFilterColInfo(SFilterInfo     * pFilters, SSDataBlock* pBlock) {
   for (int32_t j = 0; j < pBlock->info.numOfCols; ++j) {
     SColumnInfoData* pColInfo = taosArrayGet(pBlock->pDataBlock, j);
 
-    filterSetColData(pFilters, pColInfo->info.colId, pColInfo->pData);
+    filterSetColFieldData(pFilters, pColInfo->info.colId, pColInfo->pData);
   }
 }
 

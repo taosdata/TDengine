@@ -109,6 +109,62 @@ endi
 #sql select * from stb1 where c1 > 0 or (c1 > 3 or c1 < 1) or c1 > 4
 
 sql select * from stb1 where (c1 > 40 or c1 < 20) and (c2 < 53 or c2 >= 63) and c3 > 1 and c3 < 5
+if $rows != 3 then
+  return -1
+endi
+if $data00 != @21-05-05 18:19:01.000@ then
+  return -1
+endi
+if $data01 != 2 then
+  return -1
+endi
+if $data10 != @21-05-05 18:19:02.000@ then
+  return -1
+endi
+if $data11 != 3 then
+  return -1
+endi
+if $data20 != @21-05-05 18:19:03.000@ then
+  return -1
+endi
+if $data21 != 4 then
+  return -1
+endi
+
+sql select * from stb1 where (c1 > 52 or c1 < 10) and (c2 > 1 and c2 < 61)
+if $rows != 5 then
+  return -1
+endi
+if $data00 != @21-05-05 18:19:01.000@ then
+  return -1
+endi
+if $data01 != 2 then
+  return -1
+endi
+if $data10 != @21-05-05 18:19:02.000@ then
+  return -1
+endi
+if $data11 != 3 then
+  return -1
+endi
+if $data20 != @21-05-05 18:19:03.000@ then
+  return -1
+endi
+if $data21 != 4 then
+  return -1
+endi
+if $data30 != @21-05-05 18:19:22.000@ then
+  return -1
+endi
+if $data31 != 53 then
+  return -1
+endi
+if $data40 != @21-05-05 18:19:23.000@ then
+  return -1
+endi
+if $data41 != 54 then
+  return -1
+endi
 
 
 print "ts test"

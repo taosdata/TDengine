@@ -122,7 +122,7 @@ int32_t filterAddField(SFilterInfo *info, tExprNode *node, SFilterFieldId *fid) 
 
   num = &info->fields[type].num;
 
-  if (*num > 0) {
+  if (*num > 0 && type != F_FIELD_VALUE) {
     idx = filterGetFiled(&info->fields[type], type, v);
   }
   
@@ -231,7 +231,7 @@ int32_t filterInitUnitFunc(SFilterInfo *info) {
     SFilterUnit* unit = &info->units[i];
     SFilterField *left = FILTER_GET_FIELD(info, unit->left);
   
-    unit->compare.pCompareFunc = getComparFunc(left->type, unit->compare.optr);
+    unit->compare.pCompareFunc = getComparFunc(FILTER_GET_COL_FIELD_TYPE(left), unit->compare.optr);
   }
 
   return TSDB_CODE_SUCCESS;
@@ -279,68 +279,13 @@ void filterDumpInfoToString(SFilterInfo *info) {
   }
 }
 
-int32_t filterInitFromTree(tExprNode* tree, SFilterInfo **pinfo) {
-  int32_t code = TSDB_CODE_SUCCESS;
-  SFilterInfo *info = NULL;
-  
-  CHK_LRET(tree == NULL || pinfo == NULL, TSDB_CODE_QRY_APP_ERROR, "invalid param");
-
-  if (*pinfo == NULL) {
-    *pinfo = calloc(1, sizeof(SFilterInfo));
-  }
-
-  info = *pinfo;
-
-  SArray* group = taosArrayInit(4, sizeof(SFilterGroup));
-
-  info->unitSize = FILTER_DEFAULT_UNIT_SIZE;
-  info->units = calloc(info->unitSize, sizeof(SFilterUnit));
-  
-  info->fields[F_FIELD_COLUMN].num = 0;
-  info->fields[F_FIELD_COLUMN].size = FILTER_DEFAULT_FIELD_SIZE;
-  info->fields[F_FIELD_COLUMN].fields = calloc(info->fields[F_FIELD_COLUMN].size, sizeof(SFilterField));
-  info->fields[F_FIELD_VALUE].num = 0;
-  info->fields[F_FIELD_VALUE].size = FILTER_DEFAULT_FIELD_SIZE;
-  info->fields[F_FIELD_VALUE].fields = calloc(info->fields[F_FIELD_VALUE].size, sizeof(SFilterField));
-
-  code = filterTreeToGroup(tree, info, group);
-
-  ERR_JRET(code);
-
-  size_t groupSize = taosArrayGetSize(group);
-
-  info->groupNum = (uint16_t)groupSize;
-
-  if (info->groupNum > 0) {
-    info->groups = calloc(info->groupNum, sizeof(*info->groups));
-  }
-
-  for (size_t i = 0; i < groupSize; ++i) {
-    SFilterGroup *pg = taosArrayGet(group, i);
-    info->groups[i] = *pg;
-  }
-
-  ERR_JRET(filterInitUnitFunc(info));
-
-  info->unitRes = malloc(info->unitNum * sizeof(*info->unitRes));
-  info->unitFlags = malloc(info->unitNum * sizeof(*info->unitFlags));
-
-  filterDumpInfoToString(info);
-
-_err_return:
-  
-  taosArrayDestroy(group);
-
-  return code;
-}
-
 void filterFreeInfo(SFilterInfo *info) {
   CHK_RETV(info == NULL);
 
   //TODO
 }
 
-int32_t filterSetColData(SFilterInfo *info, int16_t colId, void *data) {
+int32_t filterSetColFieldData(SFilterInfo *info, int16_t colId, void *data) {
   CHK_LRET(info == NULL, TSDB_CODE_QRY_APP_ERROR, "info NULL");
   CHK_LRET(info->fields[F_FIELD_COLUMN].num <= 0, TSDB_CODE_QRY_APP_ERROR, "no column fileds");
 
@@ -355,6 +300,46 @@ int32_t filterSetColData(SFilterInfo *info, int16_t colId, void *data) {
 
   return TSDB_CODE_SUCCESS;
 }
+
+int32_t filterInitValFieldData(SFilterInfo *info) {
+  for (uint16_t i = 0; i < info->unitNum; ++i) {
+    SFilterUnit* unit = &info->units[i];
+    SFilterField* left = FILTER_GET_FIELD(info, unit->left);
+    SFilterField* right = FILTER_GET_FIELD(info, unit->right);
+
+    if (left->type != F_FIELD_VALUE && right->type != F_FIELD_VALUE) {
+      continue;
+    }
+
+    uint32_t type = 0;
+    SFilterField* fi = NULL;
+    if (left->type == F_FIELD_COLUMN) {
+      type = FILTER_GET_COL_FIELD_TYPE(left);
+      fi = right;
+    } else if (right->type == F_FIELD_COLUMN) {
+      type = FILTER_GET_COL_FIELD_TYPE(right);
+      fi = left;
+    } else {
+      type = FILTER_GET_VAL_FIELD_TYPE(left);
+      fi = right;
+    }
+    
+    tVariant* var = fi->desc;
+
+    if (type == TSDB_DATA_TYPE_BINARY) {
+      fi->data = calloc(1, (var->nLen + 1) * TSDB_NCHAR_SIZE);
+    } else if (type == TSDB_DATA_TYPE_NCHAR) {
+      fi->data = calloc(1, (var->nLen + 1) * TSDB_NCHAR_SIZE);
+    } else {
+      fi->data = calloc(1, sizeof(int64_t));
+    }
+
+    ERR_LRET(tVariantDump(var, (char*)fi->data, type, false), "dump type[%d] failed", type);
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
 
 
 bool filterDoCompare(SFilterUnit *unit, void *left, void *right) {
@@ -441,6 +426,65 @@ bool filterExecute(SFilterInfo *info, int32_t numOfRows, int8_t* p) {
   }
 
   return all;
+}
+
+
+
+int32_t filterInitFromTree(tExprNode* tree, SFilterInfo **pinfo) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  SFilterInfo *info = NULL;
+  
+  CHK_LRET(tree == NULL || pinfo == NULL, TSDB_CODE_QRY_APP_ERROR, "invalid param");
+
+  if (*pinfo == NULL) {
+    *pinfo = calloc(1, sizeof(SFilterInfo));
+  }
+
+  info = *pinfo;
+
+  SArray* group = taosArrayInit(4, sizeof(SFilterGroup));
+
+  info->unitSize = FILTER_DEFAULT_UNIT_SIZE;
+  info->units = calloc(info->unitSize, sizeof(SFilterUnit));
+  
+  info->fields[F_FIELD_COLUMN].num = 0;
+  info->fields[F_FIELD_COLUMN].size = FILTER_DEFAULT_FIELD_SIZE;
+  info->fields[F_FIELD_COLUMN].fields = calloc(info->fields[F_FIELD_COLUMN].size, sizeof(SFilterField));
+  info->fields[F_FIELD_VALUE].num = 0;
+  info->fields[F_FIELD_VALUE].size = FILTER_DEFAULT_FIELD_SIZE;
+  info->fields[F_FIELD_VALUE].fields = calloc(info->fields[F_FIELD_VALUE].size, sizeof(SFilterField));
+
+  code = filterTreeToGroup(tree, info, group);
+
+  ERR_JRET(code);
+
+  size_t groupSize = taosArrayGetSize(group);
+
+  info->groupNum = (uint16_t)groupSize;
+
+  if (info->groupNum > 0) {
+    info->groups = calloc(info->groupNum, sizeof(*info->groups));
+  }
+
+  for (size_t i = 0; i < groupSize; ++i) {
+    SFilterGroup *pg = taosArrayGet(group, i);
+    info->groups[i] = *pg;
+  }
+
+  ERR_JRET(filterInitUnitFunc(info));
+
+  ERR_JRET(filterInitValFieldData(info));
+
+  info->unitRes = malloc(info->unitNum * sizeof(*info->unitRes));
+  info->unitFlags = malloc(info->unitNum * sizeof(*info->unitFlags));
+
+  filterDumpInfoToString(info);
+
+_err_return:
+  
+  taosArrayDestroy(group);
+
+  return code;
 }
 
 
