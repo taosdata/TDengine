@@ -103,6 +103,12 @@ int32_t qCreateQueryInfo(void* tsdb, int32_t vgId, SQueryTableMsg* pQueryMsg, qi
     }
   }
 
+  if (param.colCond != NULL) {
+    if ((code = createQueryFilter(param.colCond, pQueryMsg->colCondLen, &param.pFilters)) != TSDB_CODE_SUCCESS) {
+      goto _over;
+    }
+  }
+
   param.pGroupbyExpr = createGroupbyExprFromMsg(pQueryMsg, param.pGroupColIndex, &code);
   if ((param.pGroupbyExpr == NULL && pQueryMsg->numOfGroupCols != 0) || code != TSDB_CODE_SUCCESS) {
     goto _over;
@@ -162,7 +168,7 @@ int32_t qCreateQueryInfo(void* tsdb, int32_t vgId, SQueryTableMsg* pQueryMsg, qi
 
   assert(pQueryMsg->stableQuery == isSTableQuery);
   (*pQInfo) = createQInfoImpl(pQueryMsg, param.pGroupbyExpr, param.pExprs, param.pSecExprs, &tableGroupInfo,
-                              param.pTagColumnInfo, vgId, param.sql, qId);
+                              param.pTagColumnInfo, param.pFilters, vgId, param.sql, qId);
 
   param.sql    = NULL;
   param.pExprs = NULL;

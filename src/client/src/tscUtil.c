@@ -118,6 +118,24 @@ SCond* tsGetSTableQueryCond(STagCond* pTagCond, uint64_t uid) {
   return NULL;
 }
 
+SCond* tsGetTableFilter(SArray* filters, uint64_t uid) {
+  if (filters == NULL) {
+    return NULL;
+  }
+  
+  size_t size = taosArrayGetSize(filters);
+  for (int32_t i = 0; i < size; ++i) {
+    SCond* cond = taosArrayGet(filters, i);
+    
+    if (uid == cond->uid) {
+      return cond;
+    }
+  }
+
+  return NULL;
+}
+
+
 void tsSetSTableQueryCond(STagCond* pTagCond, uint64_t uid, SBufferWriter* bw) {
   if (tbufTell(bw) == 0) {
     return;

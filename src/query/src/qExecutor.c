@@ -2557,6 +2557,49 @@ void filterRowsInDataBlock(SQueryRuntimeEnv* pRuntimeEnv, SSingleColumnFilterInf
   tfree(p);
 }
 
+void filterColRowsInDataBlock(SQueryRuntimeEnv* pRuntimeEnv, SSDataBlock* pBlock, bool ascQuery) {
+ int32_t numOfRows = pBlock->info.rows;
+
+ int8_t *p = calloc(numOfRows, sizeof(int8_t));
+ bool    all = true;
+
+ if (pRuntimeEnv->pTsBuf != NULL) {
+   SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, 0);
+
+   TSKEY* k = (TSKEY*) pColInfoData->pData;
+   for (int32_t i = 0; i < numOfRows; ++i) {
+     int32_t offset = ascQuery? i:(numOfRows - i - 1);
+     int32_t ret = doTSJoinFilter(pRuntimeEnv, k[offset], ascQuery);
+     if (ret == TS_JOIN_TAG_NOT_EQUALS) {
+       break;
+     } else if (ret == TS_JOIN_TS_NOT_EQUALS) {
+       all = false;
+       continue;
+     } else {
+       assert(ret == TS_JOIN_TS_EQUAL);
+       p[offset] = true;
+     }
+
+     if (!tsBufNextPos(pRuntimeEnv->pTsBuf)) {
+       break;
+     }
+   }
+
+   // save the cursor status
+   pRuntimeEnv->current->cur = tsBufGetCursor(pRuntimeEnv->pTsBuf);
+ } else {
+   all = filterExecute(pRuntimeEnv->pQueryAttr->pFilters, numOfRows, p);
+ }
+
+ if (!all) {
+   doCompactSDataBlock(pBlock, numOfRows, p);
+ }
+
+ tfree(p);
+}
+
+                           
+
 static SColumnInfo* doGetTagColumnInfoById(SColumnInfo* pTagColList, int32_t numOfTags, int16_t colId);
 static void doSetTagValueInParam(void* pTable, int32_t tagColId, tVariant *tag, int16_t type, int16_t bytes);
 
@@ -2594,6 +2637,15 @@ void doSetFilterColumnInfo(SSingleColumnFilterInfo* pFilterInfo, int32_t numOfFi
         break;
       }
     }
+  }
+}
+
+
+void doSetFilterColInfo(SFilterInfo     * pFilters, SSDataBlock* pBlock) {
+  for (int32_t j = 0; j < pBlock->info.numOfCols; ++j) {
+    SColumnInfoData* pColInfo = taosArrayGet(pBlock->pDataBlock, j);
+
+    filterSetColData(pFilters, pColInfo->info.colId, pColInfo->pData);
   }
 }
 
@@ -2735,9 +2787,9 @@ int32_t loadDataBlockOnDemand(SQueryRuntimeEnv* pRuntimeEnv, STableScanInfo* pTa
       return terrno;
     }
 
-    doSetFilterColumnInfo(pQueryAttr->pFilterInfo, pQueryAttr->numOfFilterCols, pBlock);
-    if (pQueryAttr->numOfFilterCols > 0 || pRuntimeEnv->pTsBuf != NULL) {
-      filterRowsInDataBlock(pRuntimeEnv, pQueryAttr->pFilterInfo, pQueryAttr->numOfFilterCols, pBlock, ascQuery);
+    doSetFilterColInfo(pQueryAttr->pFilters, pBlock);
+    if (pQueryAttr->pFilters != NULL || pRuntimeEnv->pTsBuf != NULL) {
+      filterColRowsInDataBlock(pRuntimeEnv, pBlock, ascQuery);
     }
   }
 
@@ -6365,6 +6417,7 @@ int32_t convertQueryMsg(SQueryTableMsg *pQueryMsg, SQueryParam* param) {
   pQueryMsg->numOfOutput = htons(pQueryMsg->numOfOutput);
   pQueryMsg->numOfGroupCols = htons(pQueryMsg->numOfGroupCols);
   pQueryMsg->tagCondLen = htons(pQueryMsg->tagCondLen);
+  pQueryMsg->colCondLen = htons(pQueryMsg->colCondLen);  
   pQueryMsg->tsBuf.tsOffset = htonl(pQueryMsg->tsBuf.tsOffset);
   pQueryMsg->tsBuf.tsLen = htonl(pQueryMsg->tsBuf.tsLen);
   pQueryMsg->tsBuf.tsNumOfBlocks = htonl(pQueryMsg->tsBuf.tsNumOfBlocks);
@@ -6414,6 +6467,18 @@ int32_t convertQueryMsg(SQueryTableMsg *pQueryMsg, SQueryParam* param) {
       goto _cleanup;
     }
   }
+
+  if (pQueryMsg->colCondLen > 0) {
+    param->colCond = calloc(1, pQueryMsg->colCondLen);
+    if (param->colCond == NULL) {
+      code = TSDB_CODE_QRY_OUT_OF_MEMORY;
+      goto _cleanup;
+    }
+
+    memcpy(param->colCond, pMsg, pQueryMsg->colCondLen);
+    pMsg += pQueryMsg->colCondLen;
+  }
+
 
   param->tableScanOperator = pQueryMsg->tableScanOperator;
   param->pExpr = calloc(pQueryMsg->numOfOutput, POINTER_BYTES);
@@ -6831,6 +6896,25 @@ int32_t createQueryFunc(SQueriedTableInfo* pTableInfo, int32_t numOfOutput, SExp
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t createQueryFilter(char *data, uint16_t len, SFilterInfo** pFilters) {
+  tExprNode* expr = NULL;
+  
+  TRY(TSDB_MAX_TAG_CONDITIONS) {
+    expr = exprTreeFromBinary(data, len);
+  } CATCH( code ) {
+    CLEANUP_EXECUTE();
+    return code;
+  } END_TRY
+
+  if (expr == NULL) {
+    qError("failed to create expr tree");
+    return TSDB_CODE_QRY_APP_ERROR;
+  }
+
+  return filterInitFromTree(expr, pFilters);
+}
+
+
 // todo refactor
 int32_t createIndirectQueryFuncExprFromMsg(SQueryTableMsg* pQueryMsg, int32_t numOfOutput, SExprInfo** pExprInfo,
                                            SSqlExpr** pExpr, SExprInfo* prevExpr) {
@@ -7061,7 +7145,7 @@ FORCE_INLINE bool checkQIdEqual(void *qHandle, uint64_t qId) {
 }
 
 SQInfo* createQInfoImpl(SQueryTableMsg* pQueryMsg, SGroupbyExpr* pGroupbyExpr, SExprInfo* pExprs,
-                        SExprInfo* pSecExprs, STableGroupInfo* pTableGroupInfo, SColumnInfo* pTagCols, int32_t vgId,
+                        SExprInfo* pSecExprs, STableGroupInfo* pTableGroupInfo, SColumnInfo* pTagCols, SFilterInfo* pFilters, int32_t vgId,
                         char* sql, uint64_t *qId) {
   int16_t numOfCols = pQueryMsg->numOfCols;
   int16_t numOfOutput = pQueryMsg->numOfOutput;
@@ -7110,7 +7194,8 @@ SQInfo* createQInfoImpl(SQueryTableMsg* pQueryMsg, SGroupbyExpr* pGroupbyExpr, S
   pQueryAttr->needReverseScan  = pQueryMsg->needReverseScan;
   pQueryAttr->stateWindow      = pQueryMsg->stateWindow;
   pQueryAttr->vgId            = vgId;
-
+  pQueryAttr->pFilters        = pFilters;
+  
   pQueryAttr->tableCols = calloc(numOfCols, sizeof(SSingleColumnFilterInfo));
   if (pQueryAttr->tableCols == NULL) {
     goto _cleanup;

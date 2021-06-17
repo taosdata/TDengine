@@ -888,6 +888,16 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
     serializeColFilterInfo(pCol->flist.filterInfo, pCol->flist.numOfFilters, &pMsg);
   }
 
+  if (pQueryInfo->colCond && taosArrayGetSize(pQueryInfo->colCond) > 0) {
+    SCond *pCond = tsGetTableFilter(pQueryInfo->colCond, pTableMeta->id.uid);
+    if (pCond != NULL && pCond->cond != NULL) {
+      pQueryMsg->colCondLen = htons(pCond->len);
+      memcpy(pMsg, pCond->cond, pCond->len);
+
+      pMsg += pCond->len;
+    }
+  }
+
   for (int32_t i = 0; i < query.numOfOutput; ++i) {
     code = serializeSqlExpr(&query.pExpr1[i].base, pTableMetaInfo, &pMsg, pSql->self, true);
     if (code != TSDB_CODE_SUCCESS) {

@@ -89,6 +89,11 @@ typedef struct STableMetaInfo {
 struct   SQInfo;      // global merge operator
 struct   SQueryAttr;     // query object
 
+typedef struct STableFilter {
+  uint64_t uid;
+  SFilterInfo info;
+} STableFilter;
+
 typedef struct SQueryInfo {
   int16_t          command;       // the command may be different for each subclause, so keep it seperately.
   uint32_t         type;          // query/insert type
@@ -106,7 +111,7 @@ typedef struct SQueryInfo {
   SLimitVal        slimit;
   STagCond         tagCond;
 
-  SFilterInfo      colFilter;
+  SArray *         colCond;
 
   SOrderVal        order;
   int16_t          fillType;      // final result fill type

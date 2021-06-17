@@ -338,6 +338,7 @@ char* strdup_throw(const char* str);
 
 bool vgroupInfoIdentical(SNewVgroupInfo *pExisted, SVgroupMsg* src);
 SNewVgroupInfo createNewVgroupInfo(SVgroupMsg *pVgroupMsg);
+SCond* tsGetTableFilter(SArray* filters, uint64_t uid);
 
 #ifdef __cplusplus
 }

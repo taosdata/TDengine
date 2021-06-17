@@ -22,6 +22,10 @@ extern "C" {
 
 #include "texpr.h"
 
+#define FILTER_DEFAULT_UNIT_SIZE 4
+#define FILTER_DEFAULT_FIELD_SIZE 4
+#define FILTER_DEFAULT_GROUP_UNIT_SIZE 2
+
 enum {
   F_FIELD_COLUMN = 0,
   F_FIELD_VALUE,
@@ -41,9 +45,15 @@ typedef struct SFilterField {
 } SFilterField;
 
 typedef struct SFilterFields {
+  uint16_t size;
   uint16_t num;
   SFilterField *fields;
 } SFilterFields;
+
+typedef struct SFilterFieldId {
+  uint16_t type;
+  uint16_t idx;
+} SFilterFieldId;
 
 typedef struct SFilterGroup {
   uint16_t  unitNum;
@@ -57,15 +67,16 @@ typedef struct SFilterCompare {
 } SFilterCompare;
 
 typedef struct SFilterUnit {
-  SFilterCompare compare;
-  SFilterField  *left;
-  SFilterField  *right;
+  SFilterCompare  compare;
+  SFilterFieldId  left;
+  SFilterFieldId  right;
 } SFilterUnit;
 
 typedef struct SFilterInfo {
+  uint16_t      unitSize;
   uint16_t      unitNum;
   uint16_t      groupNum;
-  SFilterFields fileds[F_FIELD_MAX];
+  SFilterFields fields[F_FIELD_MAX];
   SFilterGroup *groups;
   SFilterUnit  *units;
   uint8_t      *unitRes;    // result
@@ -81,11 +92,24 @@ typedef struct SFilterInfo {
 #define CHK_LRETV(c,...) do { if (c) { qError(__VA_ARGS__); return; } } while (0)
 #define CHK_LRET(c, r,...) do { if (c) { qError(__VA_ARGS__); return r; } } while (0)
 
+#define FILTER_GET_FIELD(i, id) (&((i)->fields[(id).type].fields[(id).idx]))
+#define FILTER_GET_COL_FIELD_DATA(fi, ri) ((fi)->data + ((SSchema *)((fi)->desc))->bytes * (ri))
+#define FILTER_GET_VAL_FIELD_DATA(fi) (&((tVariant *)((fi)->desc))->i64)
+
+
+
+#define FILTER_UNIT_CLR_F(i) memset((i)->unitFlags, 0, (i)->unitNum * sizeof(*info->unitFlags)) 
+#define FILTER_UNIT_SET_F(i, idx) (i)->unitFlags[idx] = 1
+#define FILTER_UNIT_GET_F(i, idx) ((i)->unitFlags[idx])
+#define FILTER_UNIT_GET_R(i, idx) ((i)->unitRes[idx])
+#define FILTER_UNIT_SET_R(i, idx, v) (i)->unitRes[idx] = (v)
+
 typedef int32_t(*filter_desc_compare_func)(const void *, const void *);
 
 
-extern int32_t filterInitFromTree(tExprNode* tree, SFilterInfo *info, int32_t colSize);
-
+extern int32_t filterInitFromTree(tExprNode* tree, SFilterInfo **pinfo);
+extern bool filterExecute(SFilterInfo *info, int32_t numOfRows, int8_t* p);
+extern int32_t filterSetColData(SFilterInfo *info, int16_t colId, void *data);
 
 #ifdef __cplusplus
 }
