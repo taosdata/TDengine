@@ -21,7 +21,6 @@ public class ResultSetMetaShouldNotBeNullRestfulTest {
         int columnCount = -1;
 
         // when
-        ResultSet rs_executeQuery;
         try {
             Statement statement = connection.createStatement();
             metaData = statement.executeQuery("select * from weather").getMetaData();

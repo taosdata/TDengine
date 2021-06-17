@@ -518,7 +518,6 @@ public abstract class AbstractConnection extends WrapperImpl implements Connecti
     public void abort(Executor executor) throws SQLException {
         if (isClosed())
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_CONNECTION_CLOSED);
-
         // do nothing
     }
 
