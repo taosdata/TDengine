@@ -1,17 +1,17 @@
-###################################################################
+# #################################################################
 #           Copyright (c) 2016 by TAOS Technologies, Inc.
 #                     All rights reserved.
-#
+
 #  This file is proprietary and confidential to TAOS Technologies.
 #  No part of this file may be reproduced, stored, transmitted,
 #  disclosed or used in any form or by any means other than as
 #  expressly provided by the written permission from Jianhui Tao
-#
-###################################################################
+
+# #################################################################
 
 # -*- coding: utf-8 -*-
 
-#TODO: after TD-4518 and TD-4510 is resolved, add the exception test case for these situations
+# TODO: after TD-4518 and TD-4510 is resolved, add the exception test case for these situations
 
 import sys
 from util.log import *
@@ -42,14 +42,20 @@ class TDTestCase:
         tdSql.execute('import into tb values(1623254400300000000, 3);')
         tdSql.execute('import into tb values(1623254400299999999, 4);')
         tdSql.execute('insert into tb values(1623254400300000001, 5);')
-        # # os.system('sudo timedatectl set-ntp off')
-        # # os.system('sudo timedatectl set-time 2021-06-10')
+        # os.system('sudo timedatectl set-ntp off')
+        # os.system('sudo timedatectl set-time 2021-06-10')
         tdSql.execute('insert into tb values(1623254400999999999, 7);')
 
 
-        ##TODO: after the connector is updated, run the following commented code
-        ##TODO: due to the precision limit of double, spread currently cannot be tested since ns timestampe cannot be accurately represented
+        #TODO: after the connector is updated, run the following commented code
+        #TODO: due to the precision limit of double, spread currently cannot be tested since ns timestampe cannot be accurately represented
         # tdSql.query('select * from tb;')
+        # tdSql.checkData(0,0,'2021-06-10 0:00:00.100000001')
+        # tdSql.checkData(1,0,'2021-06-10 0:00:00.150000000')
+        # tdSql.checkData(2,0,'2021-06-10 0:00:00.299999999')
+        # tdSql.checkData(3,1,3)
+        # tdSql.checkData(4,1,5)
+        # tdSql.checkData(5,1,7)
         # tdSql.checkRows(6)
         # tdSql.query('select count(*) from tb where ts > 1623254400100000000 and ts < 1623254400100000002;')
         # tdSql.checkData(0,0,1)
@@ -92,24 +98,24 @@ class TDTestCase:
         # tdSql.query('select count(*) from tb where ts between \'2021-06-10 0:00:00.299999999\' and \'2021-06-10 0:00:00.300000001\';')
         # tdSql.checkData(0,0,3)
 
-        #tdSql.query('select avg(speed) from tb interval(5000000000b);')
+        # tdSql.query('select avg(speed) from tb interval(5000000000b);')
         # tdSql.checkRows(1)
 
-        #tdSql.query('select avg(speed) from tb interval(100000000b)')
-        #tdSql.checkRows(4)
+        # tdSql.query('select avg(speed) from tb interval(100000000b)')
+        # tdSql.checkRows(4)
 
-        #tdSql.query('select avg(speed) from tb interval(100000000b) sliding (100000000b);')
-        #tdSql.checkRows(4)
+        # tdSql.query('select avg(speed) from tb interval(100000000b) sliding (100000000b);')
+        # tdSql.checkRows(4)
 
-        #tdSql.query('select last(*) from tb')
-        #tdSql.checkData(0,0, '2021-06-10 0:00:00.999999999')
-        #tdSql.checkData(0,0, 1623254400999999999)
+        # tdSql.query('select last(*) from tb')
+        # tdSql.checkData(0,0, '2021-06-10 0:00:00.999999999')
+        # tdSql.checkData(0,0, 1623254400999999999)
 
-        #tdSql.query('select first(*) from tb')
-        #tdSql.checkData(0,0, 1623254400100000001)
-        #tdSql.checkData(0,0, 2021-06-10 0:00:00.100000001)
+        # tdSql.query('select first(*) from tb')
+        # tdSql.checkData(0,0, 1623254400100000001)
+        # tdSql.checkData(0,0, '2021-06-10 0:00:00.100000001')
 
-        #tdSql.execute('insert into tb values(now + 500000000b, 6);')
+        # tdSql.execute('insert into tb values(now + 500000000b, 6);')
         # tdSql.query('select * from tb;')
         # tdSql.checkRows(7)
 
@@ -119,12 +125,17 @@ class TDTestCase:
         tdSql.execute('import into tb2 values(1623254400300000000, 3, 1623340800300000000);')
         tdSql.execute('import into tb2 values(1623254400299999999, 4, 1623340800299999999);')
         tdSql.execute('insert into tb2 values(1623254400300000001, 5, 1623340800300000001);')
-        # # os.system('sudo timedatectl set-ntp off')
-        # # os.system('sudo timedatectl set-time 2021-06-10')
-        #tdSql.execute('insert into tb2 values(now + 500000000b, 6, now +2d)')
+        # os.system('sudo timedatectl set-ntp off')
+        # os.system('sudo timedatectl set-time 2021-06-10')
         tdSql.execute('insert into tb2 values(1623254400999999999, 7, 1623513600999999999);')
 
         # tdSql.query('select * from tb2;')
+        # tdSql.checkData(0,0,'2021-06-10 0:00:00.100000001')
+        # tdSql.checkData(1,0,'2021-06-10 0:00:00.150000000')
+        # tdSql.checkData(2,1,4)
+        # tdSql.checkData(3,1,3)
+        # tdSql.checkData(4,2,'2021-06-11 00:00:00.300000001')
+        # tdSql.checkData(5,2,'2021-06-13 00:00:00.999999999')
         # tdSql.checkRows(6)
         # tdSql.query('select count(*) from tb2 where ts2 > 1623340800000000000 and ts2 < 1623340800150000000;')
         # tdSql.checkData(0,0,1)
@@ -155,7 +166,7 @@ class TDTestCase:
         # tdSql.checkData(0,0,1)
 
         # tdSql.query('select count(*) from tb2 where ts2 = 1623340800300000001;')
-        # tdSql.checkData(0,0,0)
+        # tdSql.checkData(0,0,1)
 
         # tdSql.query('select count(*) from tb2 where ts2 between 1623340800000000000 and 1623340800450000000;')
         # tdSql.checkData(0,0,5)
@@ -179,14 +190,14 @@ class TDTestCase:
         # tdSql.query('select * from tb2;')
         # tdSql.checkRows(7)
 
-        tdSql.execute('create table tb3 (ts timestamp, speed int);')
+        # tdSql.execute('create table tb3 (ts timestamp, speed int);')
 
-        tdSql.error('insert into tb3 values(16232544001500000, 2);')
-        tdSql.execute('insert into tb3 values(\'2021-06-10 0:00:00.123456\', 2);')
+        # tdSql.error('insert into tb3 values(16232544001500000, 2);')
+        # tdSql.execute('insert into tb3 values(\'2021-06-10 0:00:00.123456\', 2);')
         # tdSql.query('select * from tb3 where ts = \'2021-06-10 0:00:00.123456000\';')
         # tdSql.checkRows(1)
 
-        tdSql.execute('insert into tb3 values(\'2021-06-10 0:00:00.123456789000\', 2);')
+        # tdSql.execute('insert into tb3 values(\'2021-06-10 0:00:00.123456789000\', 2);')
         # tdSql.query('select * from tb3 where ts = \'2021-06-10 0:00:00.123456789\';')
         # tdSql.checkRows(1)
 
