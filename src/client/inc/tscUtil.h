@@ -123,6 +123,8 @@ int32_t tscGetDataBlockFromList(SHashObj* pHashList, int64_t id, int32_t size, i
  */
 bool tscIsPointInterpQuery(SQueryInfo* pQueryInfo);
 bool tscIsTWAQuery(SQueryInfo* pQueryInfo);
+bool tscIsIrateQuery(SQueryInfo* pQueryInfo);
+
 bool tscIsSessionWindowQuery(SQueryInfo* pQueryInfo);
 bool tscIsSecondStageQuery(SQueryInfo* pQueryInfo);
 bool tsIsArithmeticQueryOnAggResult(SQueryInfo* pQueryInfo);

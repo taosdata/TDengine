@@ -2022,8 +2022,10 @@ int32_t addProjectionExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, t
 
     if (index.columnIndex == TSDB_TBNAME_COLUMN_INDEX) {
       SSchema colSchema = *tGetTbnameColumnSchema();
-      getColumnName(pItem, colSchema.name, colSchema.name, sizeof(colSchema.name) - 1);
+      char name[TSDB_COL_NAME_LEN] = {0};
+      getColumnName(pItem, name, colSchema.name, sizeof(colSchema.name) - 1);
 
+      tstrncpy(colSchema.name, name, TSDB_COL_NAME_LEN);
       /*SExprInfo* pExpr = */tscAddFuncInSelectClause(pQueryInfo, startPos, TSDB_FUNC_TAGPRJ, &index, &colSchema, TSDB_COL_TAG, getNewResColId(pCmd));
     } else {
       STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, index.tableIndex);
@@ -3062,8 +3064,8 @@ void tscRestoreFuncForSTableQuery(SQueryInfo* pQueryInfo) {
 }
 
 bool hasUnsupportFunctionsForSTableQuery(SSqlCmd* pCmd, SQueryInfo* pQueryInfo) {
-  const char* msg1 = "TWA/Diff not allowed to apply to super table directly";
-  const char* msg2 = "TWA/Diff only support group by tbname for super table query";
+  const char* msg1 = "TWA/Diff/Derivative/Irate not allowed to apply to super table directly";
+  const char* msg2 = "TWA/Diff/Derivative/Irate only support group by tbname for super table query";
   const char* msg3 = "function not support for super table query";
 
   // filter sql function not supported by metric query yet.
@@ -3076,7 +3078,7 @@ bool hasUnsupportFunctionsForSTableQuery(SSqlCmd* pCmd, SQueryInfo* pQueryInfo) 
     }
   }
 
-  if (tscIsTWAQuery(pQueryInfo) || tscIsDiffDerivQuery(pQueryInfo)) {
+  if (tscIsTWAQuery(pQueryInfo) || tscIsDiffDerivQuery(pQueryInfo) || tscIsIrateQuery(pQueryInfo)) {
     if (pQueryInfo->groupbyExpr.numOfGroupCols == 0) {
       invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg1);
       return true;

@@ -460,6 +460,22 @@ bool tscIsTWAQuery(SQueryInfo* pQueryInfo) {
   return false;
 }
 
+bool tscIsIrateQuery(SQueryInfo* pQueryInfo) {
+  size_t numOfExprs = tscNumOfExprs(pQueryInfo);
+  for (int32_t i = 0; i < numOfExprs; ++i) {
+    SExprInfo* pExpr = tscExprGet(pQueryInfo, i);
+    if (pExpr == NULL) {
+      continue;
+    }
+
+    if (pExpr->base.functionId == TSDB_FUNC_IRATE) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
 bool tscIsSessionWindowQuery(SQueryInfo* pQueryInfo) {
   return pQueryInfo->sessionWindow.gap > 0;
 }

@@ -817,6 +817,9 @@ print ====================> TODO stddev + normal column filter
 
 
 print ====================> irate
+sql_error select irate(f1) from st1;
+sql select irate(f1) from  st1 group by tbname;
+
 sql select irate(k) from t1
 if $rows != 1 then
   return -1
