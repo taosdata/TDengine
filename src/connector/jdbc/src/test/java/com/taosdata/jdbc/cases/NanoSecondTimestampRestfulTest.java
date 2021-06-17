@@ -4,16 +4,14 @@ import org.junit.Assert;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
-import sun.security.krb5.internal.APRep;
 
 import java.sql.*;
 import java.time.Instant;
 import java.util.Random;
 
-public class NanoSecondTimestampJdbcRestfulTest {
+public class NanoSecondTimestampRestfulTest {
 
-    //    private static final String host = "127.0.0.1";
-    private static final String host = "192.168.17.156";
+    private static final String host = "127.0.0.1";
     private static final String dbname = "nano_sec_test";
     private static final Random random = new Random(System.currentTimeMillis());
     private static Connection conn;
