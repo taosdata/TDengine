@@ -46,6 +46,21 @@ public class UtilsTest {
     }
 
     @Test
+    public void getNativeSqlReplaceQuestionMarks2() {
+        // given
+        String nativeSql = "INSERT INTO ? (TS,CURRENT,VOLTAGE,PHASE) USING METERS TAGS (?)  VALUES (?,?,?,?)";
+        Object[] parameters = Stream.of("d1", 1, 123, 3.14, 220, 4).toArray();
+
+        // when
+        String actual = Utils.getNativeSql(nativeSql, parameters);
+
+        // then
+        String expected = "INSERT INTO d1 (TS,CURRENT,VOLTAGE,PHASE) USING METERS TAGS (1)  VALUES (123,3.14,220,4)";
+        Assert.assertEquals(expected, actual);
+    }
+
+
+    @Test
     public void getNativeSqlReplaceNothing() {
         // given
         String nativeSql = "insert into test.t1 (ts, temperature, humidity) using test.weather tags('beijing',1) values(now, 12.2, 4)";
