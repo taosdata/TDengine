@@ -1,4 +1,4 @@
-package com.taosdata.taosdemo.utils;
+package com.taosdata.tsync.utils;
 
 import java.util.Random;
 
