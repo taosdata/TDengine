@@ -2,7 +2,7 @@ package com.taosdata.tsync.service;
 
 import com.google.common.collect.Multimap;
 import com.google.common.collect.Range;
-import com.taosdata.tsync.TQueueProducer;
+import com.taosdata.tsync.tqueue.TQueueProducer;
 import com.taosdata.tsync.entity.CallableTask;
 import com.taosdata.tsync.entity.config.*;
 import com.taosdata.tsync.enums.ConfigurationType;

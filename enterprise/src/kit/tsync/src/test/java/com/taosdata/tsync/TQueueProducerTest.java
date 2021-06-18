@@ -2,6 +2,7 @@ package com.taosdata.tsync;
 
 import com.taosdata.tsync.entity.producer.ProducerConfig;
 import com.taosdata.tsync.entity.producer.ProducerRecord;
+import com.taosdata.tsync.tqueue.TQueueProducer;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;

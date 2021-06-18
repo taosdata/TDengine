@@ -4,12 +4,13 @@ import com.taosdata.tsync.entity.consumer.ConsumerConfig;
 import com.taosdata.tsync.entity.consumer.ConsumerRecord;
 import com.taosdata.tsync.entity.producer.ProducerRecord;
 import com.taosdata.tsync.enums.TQueueConstants;
+import com.taosdata.tsync.tqueue.TQueueConsumer;
+import com.taosdata.tsync.tqueue.TQueueProducer;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
 import java.sql.*;
-import java.time.Duration;
 import java.util.List;
 import java.util.Properties;
 import java.util.concurrent.TimeUnit;

@@ -1,7 +1,7 @@
 package com.taosdata.tsync.factory;
 
 import com.google.common.collect.Range;
-import com.taosdata.tsync.TQueueProducer;
+import com.taosdata.tsync.tqueue.TQueueProducer;
 import com.taosdata.tsync.entity.config.Configuration;
 import com.taosdata.tsync.entity.config.DatabaseConfiguration;
 import com.taosdata.tsync.entity.config.SchemaConfiguration;
@@ -9,7 +9,6 @@ import com.taosdata.tsync.entity.config.StableConfiguration;
 import com.taosdata.tsync.enums.ConfigurationType;
 import com.taosdata.tsync.service.WriteToTQueueCallableTask;
 
-import java.util.Collection;
 import java.util.List;
 
 public class WriteToTQueueTaskFactory {

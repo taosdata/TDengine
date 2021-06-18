@@ -2,7 +2,7 @@ package com.taosdata.tsync.service;
 
 import com.alibaba.fastjson.JSONObject;
 import com.google.common.collect.Range;
-import com.taosdata.tsync.TQueueProducer;
+import com.taosdata.tsync.tqueue.TQueueProducer;
 import com.taosdata.tsync.entity.config.SchemaConfiguration;
 import com.taosdata.tsync.entity.producer.ProducerConfig;
 import com.taosdata.tsync.enums.ConfigurationType;

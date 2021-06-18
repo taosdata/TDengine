@@ -1,6 +1,6 @@
 package com.taosdata.tsync.factory;
 
-import com.taosdata.tsync.TQueueConsumer;
+import com.taosdata.tsync.tqueue.TQueueConsumer;
 import com.taosdata.tsync.entity.config.SchemaConfiguration;
 import com.taosdata.tsync.enums.SchemaMissingStrategy;
 import com.taosdata.tsync.service.WriteToTDengineRunnableTask;

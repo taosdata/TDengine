@@ -2,7 +2,7 @@ package com.taosdata.tsync.service;
 
 import com.google.common.collect.Range;
 import com.taosdata.tsync.utils.DataGenerator;
-import com.taosdata.tsync.TQueueProducer;
+import com.taosdata.tsync.tqueue.TQueueProducer;
 import com.taosdata.tsync.entity.config.ColumnConfiguration;
 import com.taosdata.tsync.entity.config.Configuration;
 import com.taosdata.tsync.entity.config.SchemaConfiguration;

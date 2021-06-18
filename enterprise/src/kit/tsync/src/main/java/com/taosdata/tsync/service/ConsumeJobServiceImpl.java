@@ -1,7 +1,7 @@
 package com.taosdata.tsync.service;
 
 import com.google.common.collect.Multimap;
-import com.taosdata.tsync.TQueueConsumer;
+import com.taosdata.tsync.tqueue.TQueueConsumer;
 import com.taosdata.tsync.entity.RunnableTask;
 import com.taosdata.tsync.entity.config.*;
 import com.taosdata.tsync.enums.ConfigurationType;

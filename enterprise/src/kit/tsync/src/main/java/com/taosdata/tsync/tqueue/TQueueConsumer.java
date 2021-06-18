@@ -1,4 +1,4 @@
-package com.taosdata.tsync;
+package com.taosdata.tsync.tqueue;
 
 import com.taosdata.tsync.entity.TopicPartition;
 import com.taosdata.tsync.entity.consumer.ConsumerRecord;

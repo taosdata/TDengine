@@ -2,14 +2,13 @@ package com.taosdata.tsync.service;
 
 import com.alibaba.fastjson.JSONObject;
 import com.google.common.collect.Range;
-import com.taosdata.tsync.TQueueConsumer;
-import com.taosdata.tsync.TQueueProducer;
+import com.taosdata.tsync.tqueue.TQueueConsumer;
+import com.taosdata.tsync.tqueue.TQueueProducer;
 import com.taosdata.tsync.entity.config.DatabaseConfiguration;
 import com.taosdata.tsync.entity.config.SchemaConfiguration;
 import com.taosdata.tsync.entity.config.StableConfiguration;
 import com.taosdata.tsync.entity.consumer.ConsumerConfig;
 import com.taosdata.tsync.entity.producer.ProducerConfig;
-import com.taosdata.tsync.entity.producer.ProducerRecord;
 import com.taosdata.tsync.enums.ConfigurationType;
 import com.taosdata.tsync.enums.SchemaMissingStrategy;
 import com.taosdata.tsync.factory.ConfigurationFactory;

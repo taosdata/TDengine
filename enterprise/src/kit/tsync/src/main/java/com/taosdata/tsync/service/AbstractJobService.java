@@ -1,6 +1,6 @@
 package com.taosdata.tsync.service;
 
-import com.taosdata.tsync.TQueueBase;
+import com.taosdata.tsync.tqueue.TQueueBase;
 import com.taosdata.tsync.entity.config.Configuration;
 import com.taosdata.tsync.entity.config.TaskConfiguration;
 import com.taosdata.tsync.enums.ConfigurationType;

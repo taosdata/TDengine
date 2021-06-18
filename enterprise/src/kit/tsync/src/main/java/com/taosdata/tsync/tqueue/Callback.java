@@ -1,4 +1,4 @@
-package com.taosdata.tsync;
+package com.taosdata.tsync.tqueue;
 
 import com.taosdata.tsync.entity.RecordMetadata;
 

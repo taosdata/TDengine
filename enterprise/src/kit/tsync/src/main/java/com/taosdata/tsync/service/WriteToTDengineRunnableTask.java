@@ -1,6 +1,6 @@
 package com.taosdata.tsync.service;
 
-import com.taosdata.tsync.TQueueConsumer;
+import com.taosdata.tsync.tqueue.TQueueConsumer;
 import com.taosdata.tsync.entity.config.*;
 import com.taosdata.tsync.entity.consumer.ConsumerRecord;
 import com.taosdata.tsync.enums.ConfigurationType;
