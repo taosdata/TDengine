@@ -1080,6 +1080,8 @@ sql insert into t1 values('2020-1-1 1:1:10', 20000);
 
 sql_error select derivative(k, 1s, 0) from m1;
 sql_error select derivative(k, 1s, 0) from m1 group by a;
+sql_error select derivative(f1, 1s, 0) from (select k from t1);
+
 sql select derivative(k, 1s, 0) from m1 group by tbname
 if $rows != 12 then
   return -1
@@ -1120,3 +1122,5 @@ endi
 if $data92 != t1 then
   return -1
 endi
+
+sql select derivative(test_column_alias_name, 1s, 0) from (select avg(k) test_column_alias_name from t1 interval(1s));

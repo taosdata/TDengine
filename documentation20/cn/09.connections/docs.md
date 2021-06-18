@@ -75,17 +75,17 @@ sudo cp -rf /usr/local/taos/connector/grafanaplugin /var/lib/grafana/plugins/tde
 ![img](page://images/connections/import_dashboard2.jpg)
 
 
-## <a class="anchor" id="matlab"></a>Matlab
+## <a class="anchor" id="matlab"></a>MATLAB
 
-MatLab可以通过安装包内提供的JDBC Driver直接连接到TDengine获取数据到本地工作空间。
+MATLAB可以通过安装包内提供的JDBC Driver直接连接到TDengine获取数据到本地工作空间。
 
-### MatLab的JDBC接口适配
+### MATLAB的JDBC接口适配
 
-MatLab的适配有下面几个步骤，下面以Windows10上适配MatLab2017a为例：
+MATLAB的适配有下面几个步骤，下面以Windows10上适配MATLAB2017a为例：
 
 - 将TDengine安装包内的驱动程序JDBCDriver-1.0.0-dist.jar拷贝到${matlab_root}\MATLAB\R2017a\java\jar\toolbox
 - 将TDengine安装包内的taos.lib文件拷贝至${matlab_ root _dir}\MATLAB\R2017a\lib\win64
-- 将新添加的驱动jar包加入MatLab的classpath。在${matlab_ root _dir}\MATLAB\R2017a\toolbox\local\classpath.txt文件中添加下面一行
+- 将新添加的驱动jar包加入MATLAB的classpath。在${matlab_ root _dir}\MATLAB\R2017a\toolbox\local\classpath.txt文件中添加下面一行
 ​
 ```
 $matlabroot/java/jar/toolbox/JDBCDriver-1.0.0-dist.jar
@@ -96,9 +96,9 @@ $matlabroot/java/jar/toolbox/JDBCDriver-1.0.0-dist.jar
 C:\Windows\System32
 ```
 
-### 在MatLab中连接TDengine获取数据
+### 在MATLAB中连接TDengine获取数据
 
-在成功进行了上述配置后，打开MatLab。
+在成功进行了上述配置后，打开MATLAB。
 
 - 创建一个连接：
 

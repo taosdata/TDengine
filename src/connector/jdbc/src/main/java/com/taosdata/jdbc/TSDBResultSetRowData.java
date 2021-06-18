@@ -414,26 +414,40 @@ public class TSDBResultSetRowData {
      * $$$ this method is invoked by databaseMetaDataResultSet and so on which use a index start from 1 in JDBC api
      */
     public void setTimestampValue(int colIndex, long value) {
-        setTimestamp(colIndex - 1, value);
+        setTimestamp(colIndex - 1, value, 0);
     }
 
     /**
      * !!! this method is invoked by JNI method and the index start from 0 in C implementations
+     * @param precision 0 : ms, 1 : us, 2 : ns
      */
-    public void setTimestamp(int col, long ts) {
-        //TODO: this implementation contains logical error
-        // when precision is us the (long ts) is 16 digital number
-        // when precision is ms, the (long ts) is 13 digital number
-        // we need a JNI function like this:
-        //      public void setTimestamp(int col, long epochSecond, long nanoAdjustment)
-        if (ts < 1_0000_0000_0000_0L) {
-            data.set(col, new Timestamp(ts));
-        } else {
-            long epochSec = ts / 1000_000l;
-            long nanoAdjustment = ts % 1000_000l * 1000l;
-            Timestamp timestamp = Timestamp.from(Instant.ofEpochSecond(epochSec, nanoAdjustment));
-            data.set(col, timestamp);
+    public void setTimestamp(int col, long ts, int precision) {
+        long milliseconds = 0;
+        int fracNanoseconds = 0;
+        switch (precision) {
+            case 0: {
+                milliseconds = ts;
+                fracNanoseconds = (int)(ts*1_000_000%1_000_000_000);
+                break;
+            }
+            case 1: {
+                milliseconds = ts/1_000;
+                fracNanoseconds = (int)(ts*1_000%1_000_000_000);
+                break;
+            }
+            case 2: {
+                milliseconds = ts/1_000_000;
+                fracNanoseconds = (int)(ts%1_000_000_000);
+                break;
+            }
+            default: {
+                throw new IllegalArgumentException("precision is not valid. precision: " + precision);
+            }
         }
+
+        Timestamp tsObj = new Timestamp(milliseconds);
+        tsObj.setNanos(fracNanoseconds);
+        data.set(col, tsObj);
     }
 
     public Timestamp getTimestamp(int col, int nativeType) {
