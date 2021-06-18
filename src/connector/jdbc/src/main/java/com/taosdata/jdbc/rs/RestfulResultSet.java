@@ -9,7 +9,6 @@ import com.taosdata.jdbc.*;
 import com.taosdata.jdbc.enums.TimestampPrecision;
 import com.taosdata.jdbc.rs.enums.TimestampFormat;
 import com.taosdata.jdbc.utils.Utils;
-import org.omg.CORBA.TIMEOUT;
 
 import java.math.BigDecimal;
 import java.sql.*;
