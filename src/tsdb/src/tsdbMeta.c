@@ -1043,6 +1043,8 @@ static void tsdbRemoveTableFromMeta(STsdbRepo *pRepo, STable *pTable, bool rmFro
         maxRowBytes = MAX(maxRowBytes, schemaTLen(pSchema));
       }
     }
+    pMeta->maxCols = maxCols;
+    pMeta->maxRowBytes = maxRowBytes;
   }
 
   if (lock) tsdbUnlockRepoMeta(pRepo);
