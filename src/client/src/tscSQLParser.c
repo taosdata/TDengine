@@ -423,18 +423,6 @@ int32_t tscValidateSqlInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
         if(code != TSDB_CODE_SUCCESS) {
           return code; 
         }
-
-        if (pInfo->pMiscInfo->tableType == TSDB_SUPER_TABLE) {
-////          code = tscGetTableMeta(pSql, pTableMetaInfo);
-////          if (code != TSDB_CODE_SUCCESS) {
-////            return code;
-////          }
-//
-//          if (!UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo)) {
-//            return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg4);
-//          }
-        }
-        
       } else if (pInfo->type == TSDB_SQL_DROP_DNODE) {
         if (pzName->type == TK_STRING) {
           pzName->n = strdequote(pzName->z);
@@ -772,6 +760,7 @@ int32_t tscValidateSqlInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
       pCmd->active = pCmd->pQueryInfo;
       pCmd->command = pCmd->pQueryInfo->command;
 
+      STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pCmd->active, 0);
       if (pTableMetaInfo->pTableMeta != NULL) {
         pSql->res.precision = tscGetTableInfo(pTableMetaInfo->pTableMeta).precision;
       }
@@ -7793,7 +7782,7 @@ int32_t validateSqlNode(SSqlObj* pSql, SSqlNode* pSqlNode, SQueryInfo* pQueryInf
       }
     }
 
-    // todo derivate funtion requires ts column exists in subquery
+    // todo derivative function requires ts column exists in subquery
     STableMeta* pTableMeta = tscGetMetaInfo(pQueryInfo, 0)->pTableMeta;
     SSchema* pSchema = tscGetTableColumnSchema(pTableMeta, 0);
 
