@@ -66,6 +66,25 @@
                             <goal>single</goal>
                         </goals>
                     </execution>
+
+                    <execution>
+                        <id>SubscribeDemo</id>
+                        <configuration>
+                            <finalName>SubscribeDemo</finalName>
+                            <archive>
+                                <manifest>
+                                    <mainClass>com.taosdata.example.SubscribeDemo</mainClass>
+                                </manifest>
+                            </archive>
+                            <descriptorRefs>
+                                <descriptorRef>jar-with-dependencies</descriptorRef>
+                            </descriptorRefs>
+                        </configuration>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>single</goal>
+                        </goals>
+                    </execution>
                 </executions>
             </plugin>
 
