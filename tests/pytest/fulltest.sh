@@ -25,6 +25,8 @@ python3 ./test.py -f insert/special_character_show.py
 python3 bug2265.py
 python3 ./test.py -f insert/bug3654.py
 python3 ./test.py -f insert/insertDynamicColBeforeVal.py
+python3 ./test.py -f insert/in_function.py
+python3 ./test.py -f insert/modify_column.py
 
 #table
 python3 ./test.py -f table/alter_wal0.py
