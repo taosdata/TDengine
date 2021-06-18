@@ -6,7 +6,7 @@ import org.junit.Test;
 
 import java.sql.*;
 
-public class NullValueInResultSetForJdbcJniTest {
+public class NullValueInResultSetJNITest {
 
     private static final String host = "127.0.0.1";
     Connection conn;
