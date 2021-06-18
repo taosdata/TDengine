@@ -3613,16 +3613,7 @@ static void deriv_function(SQLFunctionCtx *pCtx) {
       qError("error input type");
   }
 
-  // initial value is not set yet, all data block are null
-  if (!pDerivInfo->valueSet || notNullElems <= 0) {
-    /*
-     * 1. current block and blocks before are full of null
-     * 2. current block may be null value
-     */
-    assert(pCtx->hasNull);
-  } else {
-    GET_RES_INFO(pCtx)->numOfRes += notNullElems;
-  }
+  GET_RES_INFO(pCtx)->numOfRes += notNullElems;
 }
 
 #define DIFF_IMPL(ctx, d, type)                                                              \

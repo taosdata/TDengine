@@ -1312,6 +1312,8 @@ static void doHashGroupbyAgg(SOperatorInfo* pOperator, SGroupbyOperatorInfo *pIn
       }
     }
 
+
+    // todo opt perf
     for (int32_t k = 0; k < pOperator->numOfOutput; ++k) {
       pInfo->binfo.pCtx[k].size = 1;
       int32_t functionId = pInfo->binfo.pCtx[k].functionId;

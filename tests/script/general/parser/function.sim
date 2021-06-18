@@ -817,6 +817,9 @@ print ====================> TODO stddev + normal column filter
 
 
 print ====================> irate
+sql_error select irate(f1) from st1;
+sql select irate(f1) from  st1 group by tbname;
+
 sql select irate(k) from t1
 if $rows != 1 then
   return -1
@@ -1073,6 +1076,12 @@ sql insert into t0 values('2020-1-1 1:3:9', 9);
 sql insert into t0 values('2020-1-1 1:4:10', 10);
 
 sql insert into t1 values('2020-1-1 1:1:2', 2);
+print ===========================>td-4739
+sql select diff(val) from (select derivative(k, 1s, 0) val from t1);
+if $rows != 0 then
+  return -1
+endi
+
 sql insert into t1 values('2020-1-1 1:1:4', 20);
 sql insert into t1 values('2020-1-1 1:1:6', 200);
 sql insert into t1 values('2020-1-1 1:1:8', 2000);
