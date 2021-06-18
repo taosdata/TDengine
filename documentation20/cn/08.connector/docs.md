@@ -56,7 +56,7 @@ TDengine提供了丰富的应用程序开发接口，其中包括C/C++、Java、
 ​    *taos.tar.gz*：应用驱动安装包
 ​    *driver*：TDengine应用驱动driver
 ​    *connector*: 各种编程语言连接器（go/grafanaplugin/nodejs/python/JDBC）
-​    *examples*: 各种编程语言的示例程序(c/C#/go/JDBC/matlab/python/R)
+​    *examples*: 各种编程语言的示例程序(c/C#/go/JDBC/MATLAB/python/R)
 
 运行install_client.sh进行安装
 

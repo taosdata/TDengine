@@ -25,70 +25,70 @@
 static void httpOnData(ehttp_gzip_t *gzip, void *arg, const char *buf, int32_t len);
 
 static HttpStatus httpStatusCodes[] = {
-  {100, "Continue"},
-  {101, "Switching Protocol"},
-  {102, "Processing (WebDAV)"},
-  {103, "Early Hints"},
-  {200, "OK"},
-  {201, "Created"},
-  {202, "Accepted"},
-  {203, "Non-Authoritative Information"},
-  {204, "No Content"},
-  {205, "Reset Content"},
-  {206, "Partial Content"},
-  {207, "Multi-Status (WebDAV)"},
-  {208, "Already Reported (WebDAV)"},
-  {226, "IM Used (HTTP Delta encoding)"},
-  {300, "Multiple Choice"},
-  {301, "Moved Permanently"},
-  {302, "Found"},
-  {303, "See Other"},
-  {304, "Not Modified"},
-  {305, "Use Proxy"},
-  {306, "unused"},
-  {307, "Temporary Redirect"},
-  {308, "Permanent Redirect"},
-  {400, "Bad Request"},
-  {401, "Unauthorized"},
-  {402, "Payment Required"},
-  {403, "Forbidden"},
-  {404, "Not Found"},
-  {405, "Method Not Allowed"},
-  {406, "Not Acceptable"},
-  {407, "Proxy Authentication Required"},
-  {408, "Request Timeout"},
-  {409, "Conflict"},
-  {410, "Gone"},
-  {411, "Length Required"},
-  {412, "Precondition Failed"},
-  {413, "Payload Too Large"},
-  {414, "URI Too Long"},
-  {415, "Unsupported Media Type"},
-  {416, "Range Not Satisfiable"},
-  {417, "Expectation Failed"},
-  {418, "I'm a teapot"},
-  {421, "Misdirected Request"},
-  {422, "Unprocessable Entity (WebDAV)"},
-  {423, "Locked (WebDAV)"},
-  {424, "Failed Dependency (WebDAV)"},
-  {425, "Too Early"},
-  {426, "Upgrade Required"},
-  {428, "Precondition Required"},
-  {429, "Too Many Requests"},
-  {431, "Request Header Fields Too Large"},
-  {451, "Unavailable For Legal Reasons"},
-  {500, "Internal Server Error"},
-  {501, "Not Implemented"},
-  {502, "Bad Gateway"},
-  {503, "Service Unavailable"},
-  {504, "Gateway Timeout"},
-  {505, "HTTP Version Not Supported"},
-  {506, "Variant Also Negotiates"},
-  {507, "Insufficient Storage"},
-  {508, "Loop Detected (WebDAV)"},
-  {510, "Not Extended"},
-  {511, "Network Authentication Required"},
-  {0,   NULL}
+  {HTTP_CODE_CONTINUE,                "Continue"},
+  {HTTP_CODE_SWITCHING_PROTOCOL,      "Switching Protocol"},
+  {HTTP_CODE_PROCESSING,              "Processing (WebDAV)"},
+  {HTTP_CODE_EARLY_HINTS,             "Early Hints"},
+  {HTTP_CODE_OK,                      "OK"},
+  {HTTP_CODE_CREATED,                 "Created"},
+  {HTTP_CODE_ACCEPTED,                "Accepted"},
+  {HTTP_CODE_NON_AUTHORITATIVE_INFO,  "Non-Authoritative Information"},
+  {HTTP_CODE_NO_CONTENT,              "No Content"},
+  {HTTP_CODE_RESET_CONTENT,           "Reset Content"},
+  {HTTP_CODE_PARTIAL_CONTENT,         "Partial Content"},
+  {HTTP_CODE_MULTI_STATUS,            "Multi-Status (WebDAV)"},
+  {HTTP_CODE_ALREADY_REPORTED,        "Already Reported (WebDAV)"},
+  {HTTP_CODE_IM_USED,                 "IM Used (HTTP Delta encoding)"},
+  {HTTP_CODE_MULTIPLE_CHOICE,         "Multiple Choice"},
+  {HTTP_CODE_MOVED_PERMANENTLY,       "Moved Permanently"},
+  {HTTP_CODE_FOUND,                   "Found"},
+  {HTTP_CODE_SEE_OTHER,               "See Other"},
+  {HTTP_CODE_NOT_MODIFIED,            "Not Modified"},
+  {HTTP_CODE_USE_PROXY,               "Use Proxy"},
+  {HTTP_CODE_UNUSED,                  "unused"},
+  {HTTP_CODE_TEMPORARY_REDIRECT,      "Temporary Redirect"},
+  {HTTP_CODE_PERMANENT_REDIRECT,      "Permanent Redirect"},
+  {HTTP_CODE_BAD_REQUEST,             "Bad Request"},
+  {HTTP_CODE_UNAUTHORIZED,            "Unauthorized"},
+  {HTTP_CODE_PAYMENT_REQUIRED,        "Payment Required"},
+  {HTTP_CODE_FORBIDDEN,               "Forbidden"},
+  {HTTP_CODE_NOT_FOUND,               "Not Found"},
+  {HTTP_CODE_METHOD_NOT_ALLOWED,      "Method Not Allowed"},
+  {HTTP_CODE_NOT_ACCEPTABLE,          "Not Acceptable"},
+  {HTTP_CODE_PROXY_AUTH_REQUIRED,     "Proxy Authentication Required"},
+  {HTTP_CODE_REQUEST_TIMEOUT,         "Request Timeout"},
+  {HTTP_CODE_CONFLICT,                "Conflict"},
+  {HTTP_CODE_GONE,                    "Gone"},
+  {HTTP_CODE_LENGTH_REQUIRED,         "Length Required"},
+  {HTTP_CODE_PRECONDITION_FAILED,     "Precondition Failed"},
+  {HTTP_CODE_PAYLOAD_TOO_LARGE,       "Payload Too Large"},
+  {HTTP_CODE_URI_TOO_LARGE,           "URI Too Long"},
+  {HTTP_CODE_UNSUPPORTED_MEDIA_TYPE,  "Unsupported Media Type"},
+  {HTTP_CODE_RANGE_NOT_SATISFIABLE,   "Range Not Satisfiable"},
+  {HTTP_CODE_EXPECTATION_FAILED,      "Expectation Failed"},
+  {HTTP_CODE_IM_A_TEAPOT,             "I'm a teapot"},
+  {HTTP_CODE_MISDIRECTED_REQUEST,     "Misdirected Request"},
+  {HTTP_CODE_UNPROCESSABLE_ENTITY,    "Unprocessable Entity (WebDAV)"},
+  {HTTP_CODE_LOCKED,                  "Locked (WebDAV)"},
+  {HTTP_CODE_FAILED_DEPENDENCY,       "Failed Dependency (WebDAV)"},
+  {HTTP_CODE_TOO_EARLY,               "Too Early"},
+  {HTTP_CODE_UPGRADE_REQUIRED,        "Upgrade Required"},
+  {HTTP_CODE_PRECONDITION_REQUIRED,   "Precondition Required"},
+  {HTTP_CODE_TOO_MANY_REQUESTS,       "Too Many Requests"},
+  {HTTP_CODE_REQ_HDR_FIELDS_TOO_LARGE,"Request Header Fields Too Large"},
+  {HTTP_CODE_UNAVAIL_4_LEGAL_REASONS, "Unavailable For Legal Reasons"},
+  {HTTP_CODE_INTERNAL_SERVER_ERROR,   "Internal Server Error"},
+  {HTTP_CODE_NOT_IMPLEMENTED,         "Not Implemented"},
+  {HTTP_CODE_BAD_GATEWAY,             "Bad Gateway"},
+  {HTTP_CODE_SERVICE_UNAVAILABLE,     "Service Unavailable"},
+  {HTTP_CODE_GATEWAY_TIMEOUT,         "Gateway Timeout"},
+  {HTTP_CODE_HTTP_VER_NOT_SUPPORTED,  "HTTP Version Not Supported"},
+  {HTTP_CODE_VARIANT_ALSO_NEGOTIATES, "Variant Also Negotiates"},
+  {HTTP_CODE_INSUFFICIENT_STORAGE,    "Insufficient Storage"},
+  {HTTP_CODE_LOOP_DETECTED,           "Loop Detected (WebDAV)"},
+  {HTTP_CODE_NOT_EXTENDED,            "Not Extended"},
+  {HTTP_CODE_NETWORK_AUTH_REQUIRED,   "Network Authentication Required"},
+  {0,                                 NULL}
 };
 
 char *httpGetStatusDesc(int32_t statusCode) {
@@ -552,7 +552,7 @@ static int32_t httpParserOnBegin(HttpParser *parser, HTTP_PARSER_STATE state, co
       if (httpAppendString(&parser->str, &c, 1)) {
         httpError("context:%p, fd:%d, parser state:%d, char:[%c]%02x, oom", pContext, pContext->fd, state, c, c);
         ok = -1;
-        httpOnError(parser, 507, TSDB_CODE_HTTP_PARSE_METHOD_FAILED);
+        httpOnError(parser, HTTP_CODE_INSUFFICIENT_STORAGE, TSDB_CODE_HTTP_PARSE_METHOD_FAILED);
         break;
       }
       httpPopStack(parser);
@@ -561,7 +561,7 @@ static int32_t httpParserOnBegin(HttpParser *parser, HTTP_PARSER_STATE state, co
     }
     httpError("context:%p, fd:%d, parser state:%d, unexpected char:[%c]%02x", pContext, pContext->fd, state, c, c);
     ok = -1;
-    httpOnError(parser, 400, TSDB_CODE_HTTP_PARSE_METHOD_FAILED);
+    httpOnError(parser, HTTP_CODE_BAD_REQUEST, TSDB_CODE_HTTP_PARSE_METHOD_FAILED);
   } while (0);
   return ok;
 }
@@ -599,7 +599,7 @@ static int32_t httpParserOnRquestOrResponse(HttpParser *parser, HTTP_PARSER_STAT
 
     httpError("context:%p, fd:%d, parser state:%d, unexpected char:[%c]%02x", pContext, pContext->fd, state, c, c);
     ok = -1;
-    httpOnError(parser, 400, TSDB_CODE_HTTP_PARSE_METHOD_FAILED);
+    httpOnError(parser, HTTP_CODE_BAD_REQUEST, TSDB_CODE_HTTP_PARSE_METHOD_FAILED);
   } while (0);
   return ok;
 }
@@ -612,7 +612,7 @@ static int32_t httpParserOnMethod(HttpParser *parser, HTTP_PARSER_STATE state, c
       if (httpAppendString(&parser->str, &c, 1)) {
         httpError("context:%p, fd:%d, parser state:%d, char:[%c]%02x, oom", pContext, pContext->fd, state, c, c);
         ok = -1;
-        httpOnError(parser, 507, TSDB_CODE_HTTP_PARSE_METHOD_FAILED);
+        httpOnError(parser, HTTP_CODE_INSUFFICIENT_STORAGE, TSDB_CODE_HTTP_PARSE_METHOD_FAILED);
         break;
       }
       break;
@@ -621,7 +621,7 @@ static int32_t httpParserOnMethod(HttpParser *parser, HTTP_PARSER_STATE state, c
     if (!parser->method) {
       httpError("context:%p, fd:%d, parser state:%d, char:[%c]%02x, oom", pContext, pContext->fd, state, c, c);
       ok = -1;
-      httpOnError(parser, 507, TSDB_CODE_HTTP_PARSE_METHOD_FAILED);
+      httpOnError(parser, HTTP_CODE_INSUFFICIENT_STORAGE, TSDB_CODE_HTTP_PARSE_METHOD_FAILED);
       break;
     } else {
       httpTrace("context:%p, fd:%d, httpMethod:%s", pContext, pContext->fd, parser->method);
@@ -641,7 +641,7 @@ static int32_t httpParserOnTarget(HttpParser *parser, HTTP_PARSER_STATE state, c
       if (httpAppendString(&parser->str, &c, 1)) {
         httpError("context:%p, fd:%d, parser state:%d, char:[%c]%02x, oom", pContext, pContext->fd, state, c, c);
         ok = -1;
-        httpOnError(parser, 507, TSDB_CODE_HTTP_PARSE_TARGET_FAILED);
+        httpOnError(parser, HTTP_CODE_INSUFFICIENT_STORAGE, TSDB_CODE_HTTP_PARSE_TARGET_FAILED);
         break;
       }
       break;
@@ -650,7 +650,7 @@ static int32_t httpParserOnTarget(HttpParser *parser, HTTP_PARSER_STATE state, c
     if (!parser->target) {
       httpError("context:%p, fd:%d, parser state:%d, char:[%c]%02x, oom", pContext, pContext->fd, state, c, c);
       ok = -1;
-      httpOnError(parser, 507, TSDB_CODE_HTTP_PARSE_TARGET_FAILED);
+      httpOnError(parser, HTTP_CODE_INSUFFICIENT_STORAGE, TSDB_CODE_HTTP_PARSE_TARGET_FAILED);
       break;
     }
     httpClearString(&parser->str);
@@ -670,13 +670,13 @@ static int32_t httpParserOnVersion(HttpParser *parser, HTTP_PARSER_STATE state, 
       if (prefix[parser->str.pos] != c) {
         httpError("context:%p, fd:%d, parser state:%d, unexpected char:[%c]%02x", pContext, pContext->fd, state, c, c);
         ok = -1;
-        httpOnError(parser, 400, TSDB_CODE_HTTP_PARSE_VERSION_FAILED);
+        httpOnError(parser, HTTP_CODE_BAD_REQUEST, TSDB_CODE_HTTP_PARSE_VERSION_FAILED);
         break;
       }
       if (httpAppendString(&parser->str, &c, 1)) {
         httpError("context:%p, fd:%d, parser state:%d, char:[%c]%02x, oom", pContext, pContext->fd, state, c, c);
         ok = -1;
-        httpOnError(parser, 507, TSDB_CODE_HTTP_PARSE_VERSION_FAILED);
+        httpOnError(parser, HTTP_CODE_INSUFFICIENT_STORAGE, TSDB_CODE_HTTP_PARSE_VERSION_FAILED);
         break;
       }
       break;
@@ -685,14 +685,14 @@ static int32_t httpParserOnVersion(HttpParser *parser, HTTP_PARSER_STATE state, 
     if (c != '0' && c != '1' && c != '2') {
       httpError("context:%p, fd:%d, parser state:%d, unexpected char:[%c]%02x", pContext, pContext->fd, state, c, c);
       ok = -1;
-      httpOnError(parser, 400, TSDB_CODE_HTTP_PARSE_VERSION_FAILED);
+      httpOnError(parser, HTTP_CODE_BAD_REQUEST, TSDB_CODE_HTTP_PARSE_VERSION_FAILED);
       break;
     }
 
     if (httpAppendString(&parser->str, &c, 1)) {
       httpError("context:%p, fd:%d, parser state:%d, char:[%c]%02x, oom", pContext, pContext->fd, state, c, c);
       ok = -1;
-      httpOnError(parser, 507, TSDB_CODE_HTTP_PARSE_VERSION_FAILED);
+      httpOnError(parser, HTTP_CODE_INSUFFICIENT_STORAGE, TSDB_CODE_HTTP_PARSE_VERSION_FAILED);
       break;
     }
 
@@ -709,7 +709,7 @@ static int32_t httpParserOnVersion(HttpParser *parser, HTTP_PARSER_STATE state, 
     if (!parser->version) {
       httpError("context:%p, fd:%d, parser state:%d, char:[%c]%02x, oom", pContext, pContext->fd, state, c, c);
       ok = -1;
-      httpOnError(parser, 507, TSDB_CODE_HTTP_PARSE_VERSION_FAILED);
+      httpOnError(parser, HTTP_CODE_INSUFFICIENT_STORAGE, TSDB_CODE_HTTP_PARSE_VERSION_FAILED);
       break;
     }
 
@@ -739,7 +739,7 @@ static int32_t httpParserOnSp(HttpParser *parser, HTTP_PARSER_STATE state, const
     }
     httpError("context:%p, fd:%d, parser state:%d, char:[%c]%02x, oom", pContext, pContext->fd, state, c, c);
     ok = -1;
-    httpOnError(parser, 507, TSDB_CODE_HTTP_PARSE_SP_FAILED);
+    httpOnError(parser, HTTP_CODE_INSUFFICIENT_STORAGE, TSDB_CODE_HTTP_PARSE_SP_FAILED);
   } while (0);
   return ok;
 }
@@ -752,7 +752,7 @@ static int32_t httpParserOnStatusCode(HttpParser *parser, HTTP_PARSER_STATE stat
       if (httpAppendString(&parser->str, &c, 1)) {
         httpError("context:%p, fd:%d, parser state:%d, char:[%c]%02x, oom", pContext, pContext->fd, state, c, c);
         ok = -1;
-        httpOnError(parser, 507, TSDB_CODE_HTTP_PARSE_STATUS_FAILED);
+        httpOnError(parser, HTTP_CODE_INSUFFICIENT_STORAGE, TSDB_CODE_HTTP_PARSE_STATUS_FAILED);
         break;
       }
       if (parser->str.pos < 3) break;
@@ -764,7 +764,7 @@ static int32_t httpParserOnStatusCode(HttpParser *parser, HTTP_PARSER_STATE stat
     }
     httpError("context:%p, fd:%d, parser state:%d, unexpected char:[%c]%02x", pContext, pContext->fd, state, c, c);
     ok = -1;
-    httpOnError(parser, 400, TSDB_CODE_HTTP_PARSE_STATUS_FAILED);
+    httpOnError(parser, HTTP_CODE_BAD_REQUEST, TSDB_CODE_HTTP_PARSE_STATUS_FAILED);
   } while (0);
   return ok;
 }
@@ -778,7 +778,7 @@ static int32_t httpParserOnReasonPhrase(HttpParser *parser, HTTP_PARSER_STATE st
       if (!parser->reasonPhrase) {
         httpError("context:%p, fd:%d, parser state:%d, char:[%c]%02x, oom", pContext, pContext->fd, state, c, c);
         ok = -1;
-        httpOnError(parser, 507, TSDB_CODE_HTTP_PARSE_PHRASE_FAILED);
+        httpOnError(parser, HTTP_CODE_INSUFFICIENT_STORAGE, TSDB_CODE_HTTP_PARSE_PHRASE_FAILED);
         break;
       }
       ok = httpOnStatusLine(parser, parser->statusCode, parser->reasonPhrase);
@@ -790,7 +790,7 @@ static int32_t httpParserOnReasonPhrase(HttpParser *parser, HTTP_PARSER_STATE st
     if (httpAppendString(&parser->str, &c, 1)) {
       httpError("context:%p, fd:%d, parser state:%d, char:[%c]%02x, oom", pContext, pContext->fd, state, c, c);
       ok = -1;
-      httpOnError(parser, 507, TSDB_CODE_HTTP_PARSE_PHRASE_FAILED);
+      httpOnError(parser, HTTP_CODE_INSUFFICIENT_STORAGE, TSDB_CODE_HTTP_PARSE_PHRASE_FAILED);
       break;
     }
   } while (0);
@@ -802,7 +802,7 @@ static int32_t httpParserPostProcess(HttpParser *parser) {
   if (parser->gzip) {
     if (ehttp_gzip_finish(parser->gzip)) {
       httpError("context:%p, fd:%d, gzip failed", pContext, pContext->fd);
-      httpOnError(parser, 507, TSDB_CODE_HTTP_FINISH_GZIP_FAILED);
+      httpOnError(parser, HTTP_CODE_INSUFFICIENT_STORAGE, TSDB_CODE_HTTP_FINISH_GZIP_FAILED);
       return -1;
     }
   }
@@ -819,13 +819,13 @@ static int32_t httpParserOnCrlf(HttpParser *parser, HTTP_PARSER_STATE state, con
     if (s[parser->str.pos] != c) {
       httpError("context:%p, fd:%d, parser state:%d, unexpected char:[%c]%02x", pContext, pContext->fd, state, c, c);
       ok = -1;
-      httpOnError(parser, 400, TSDB_CODE_HTTP_PARSE_CRLF_FAILED);
+      httpOnError(parser, HTTP_CODE_BAD_REQUEST, TSDB_CODE_HTTP_PARSE_CRLF_FAILED);
       break;
     }
     if (httpAppendString(&parser->str, &c, 1)) {
       httpError("context:%p, fd:%d, parser state:%d, char:[%c]%02x, oom", pContext, pContext->fd, state, c, c);
       ok = -1;
-      httpOnError(parser, 507, TSDB_CODE_HTTP_PARSE_CRLF_FAILED);
+      httpOnError(parser, HTTP_CODE_INSUFFICIENT_STORAGE, TSDB_CODE_HTTP_PARSE_CRLF_FAILED);
       break;
     }
     if (parser->str.pos == len) {
@@ -862,7 +862,7 @@ static int32_t httpParserOnHeader(HttpParser *parser, HTTP_PARSER_STATE state, c
       if (httpAppendString(&parser->str, &c, 1)) {
         httpError("context:%p, fd:%d, parser state:%d, char:[%c]%02x, oom", pContext, pContext->fd, state, c, c);
         ok = -1;
-        httpOnError(parser, 507, TSDB_CODE_HTTP_PARSE_HEADER_FAILED);
+        httpOnError(parser, HTTP_CODE_INSUFFICIENT_STORAGE, TSDB_CODE_HTTP_PARSE_HEADER_FAILED);
         break;
       }
       httpPushStack(parser, HTTP_PARSER_CRLF);
@@ -873,7 +873,7 @@ static int32_t httpParserOnHeader(HttpParser *parser, HTTP_PARSER_STATE state, c
     }
     httpError("context:%p, fd:%d, parser state:%d, unexpected char:[%c]%02x", pContext, pContext->fd, state, c, c);
     ok = -1;
-    httpOnError(parser, 400, TSDB_CODE_HTTP_PARSE_HEADER_FAILED);
+    httpOnError(parser, HTTP_CODE_BAD_REQUEST, TSDB_CODE_HTTP_PARSE_HEADER_FAILED);
   } while (0);
   return ok;
 }
@@ -886,7 +886,7 @@ static int32_t httpParserOnHeaderKey(HttpParser *parser, HTTP_PARSER_STATE state
       if (httpAppendString(&parser->str, &c, 1)) {
         httpError("context:%p, fd:%d, parser state:%d, char:[%c]%02x, oom", pContext, pContext->fd, state, c, c);
         ok = -1;
-        httpOnError(parser, 507, TSDB_CODE_HTTP_PARSE_HEADER_KEY_FAILED);
+        httpOnError(parser, HTTP_CODE_INSUFFICIENT_STORAGE, TSDB_CODE_HTTP_PARSE_HEADER_KEY_FAILED);
         break;
       }
       break;
@@ -896,7 +896,7 @@ static int32_t httpParserOnHeaderKey(HttpParser *parser, HTTP_PARSER_STATE state
       if (!parser->key) {
         httpError("context:%p, fd:%d, parser state:%d, char:[%c]%02x, oom", pContext, pContext->fd, state, c, c);
         ok = -1;
-        httpOnError(parser, 507, TSDB_CODE_HTTP_PARSE_HEADER_KEY_FAILED);
+        httpOnError(parser, HTTP_CODE_INSUFFICIENT_STORAGE, TSDB_CODE_HTTP_PARSE_HEADER_KEY_FAILED);
         break;
       }
       httpClearString(&parser->str);
@@ -905,7 +905,7 @@ static int32_t httpParserOnHeaderKey(HttpParser *parser, HTTP_PARSER_STATE state
     }
     httpError("context:%p, fd:%d, parser state:%d, unexpected char:[%c]%02x", pContext, pContext->fd, state, c, c);
     ok = -1;
-    httpOnError(parser, 400, TSDB_CODE_HTTP_PARSE_HEADER_KEY_FAILED);
+    httpOnError(parser, HTTP_CODE_BAD_REQUEST, TSDB_CODE_HTTP_PARSE_HEADER_KEY_FAILED);
   } while (0);
   return ok;
 }
@@ -919,7 +919,7 @@ static int32_t httpParserOnHeaderVal(HttpParser *parser, HTTP_PARSER_STATE state
         httpError("context:%p, fd:%d, parser state:%d, char:[%c]%02x, oom", pContext, pContext->fd, state, c, c);
         ok = -1;
         parser->parseCode = TSDB_CODE_HTTP_PARSE_HEADER_VAL_FAILED;
-        httpOnError(parser, 507, TSDB_CODE_HTTP_PARSE_HEADER_VAL_FAILED);
+        httpOnError(parser, HTTP_CODE_INSUFFICIENT_STORAGE, TSDB_CODE_HTTP_PARSE_HEADER_VAL_FAILED);
         break;
       }
       break;
@@ -948,7 +948,7 @@ static int32_t httpParserOnChunkSize(HttpParser *parser, HTTP_PARSER_STATE state
       if (httpAppendString(&parser->str, &c, 1)) {
         httpError("context:%p, fd:%d, parser state:%d, char:[%c]%02x, oom", pContext, pContext->fd, state, c, c);
         ok = -1;
-        httpOnError(parser, 507, TSDB_CODE_HTTP_PARSE_CHUNK_SIZE_FAILED);
+        httpOnError(parser, HTTP_CODE_INSUFFICIENT_STORAGE, TSDB_CODE_HTTP_PARSE_CHUNK_SIZE_FAILED);
         break;
       }
       break;
@@ -982,7 +982,7 @@ static int32_t httpParserOnChunkSize(HttpParser *parser, HTTP_PARSER_STATE state
     }
     httpError("context:%p, fd:%d, parser state:%d, unexpected char:[%c]%02x", pContext, pContext->fd, state, c, c);
     ok = -1;
-    httpOnError(parser, 400, TSDB_CODE_HTTP_PARSE_CHUNK_SIZE_FAILED);
+    httpOnError(parser, HTTP_CODE_BAD_REQUEST, TSDB_CODE_HTTP_PARSE_CHUNK_SIZE_FAILED);
   } while (0);
   return ok;
 }
@@ -994,7 +994,7 @@ static int32_t httpParserOnChunk(HttpParser *parser, HTTP_PARSER_STATE state, co
     if (httpAppendString(&parser->str, &c, 1)) {
       httpError("context:%p, fd:%d, parser state:%d, char:[%c]%02x, oom", pContext, pContext->fd, state, c, c);
       ok = -1;
-      httpOnError(parser, 507, TSDB_CODE_HTTP_PARSE_CHUNK_FAILED);
+      httpOnError(parser, HTTP_CODE_INSUFFICIENT_STORAGE, TSDB_CODE_HTTP_PARSE_CHUNK_FAILED);
       break;
     }
     ++parser->receivedSize;
@@ -1005,7 +1005,7 @@ static int32_t httpParserOnChunk(HttpParser *parser, HTTP_PARSER_STATE state, co
       if (ehttp_gzip_write(parser->gzip, parser->str.str, parser->str.pos)) {
         httpError("context:%p, fd:%d, gzip failed", pContext, pContext->fd);
         ok = -1;
-        httpOnError(parser, 507, TSDB_CODE_HTTP_PARSE_CHUNK_FAILED);
+        httpOnError(parser, HTTP_CODE_INSUFFICIENT_STORAGE, TSDB_CODE_HTTP_PARSE_CHUNK_FAILED);
         break;
       }
     } else {
@@ -1027,7 +1027,7 @@ static int32_t httpParserOnEnd(HttpParser *parser, HTTP_PARSER_STATE state, cons
   do {
     ok = -1;
     httpError("context:%p, fd:%d, parser state:%d, unexpected char:[%c]%02x", pContext, pContext->fd, state, c, c);
-    httpOnError(parser, 507, TSDB_CODE_HTTP_PARSE_END_FAILED);
+    httpOnError(parser, HTTP_CODE_INSUFFICIENT_STORAGE, TSDB_CODE_HTTP_PARSE_END_FAILED);
   } while (0);
   return ok;
 }
@@ -1104,7 +1104,7 @@ static int32_t httpParseChar(HttpParser *parser, const char c, int32_t *again) {
 
     ok = -1;
     httpError("context:%p, fd:%d, unknown parse state:%d", pContext, pContext->fd, state);
-    httpOnError(parser, 500, TSDB_CODE_HTTP_PARSE_INVALID_STATE);
+    httpOnError(parser, HTTP_CODE_INTERNAL_SERVER_ERROR, TSDB_CODE_HTTP_PARSE_INVALID_STATE);
   } while (0);
 
   if (ok == -1) {
@@ -1115,7 +1115,7 @@ static int32_t httpParseChar(HttpParser *parser, const char c, int32_t *again) {
   if (ok == -2) {
     ok = -1;
     httpError("context:%p, fd:%d, failed to parse, invalid state", pContext, pContext->fd);
-    httpOnError(parser, 500, TSDB_CODE_HTTP_PARSE_ERROR_STATE);
+    httpOnError(parser, HTTP_CODE_INTERNAL_SERVER_ERROR, TSDB_CODE_HTTP_PARSE_ERROR_STATE);
   }
 
   return ok;

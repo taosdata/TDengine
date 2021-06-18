@@ -6,6 +6,8 @@ import com.google.common.primitives.Ints;
 import com.google.common.primitives.Longs;
 import com.google.common.primitives.Shorts;
 import com.taosdata.jdbc.*;
+import com.taosdata.jdbc.enums.TimestampPrecision;
+import com.taosdata.jdbc.rs.enums.TimestampFormat;
 import com.taosdata.jdbc.utils.Utils;
 
 import java.math.BigDecimal;
@@ -46,6 +48,7 @@ public class RestfulResultSet extends AbstractResultSet implements ResultSet {
             columnNames.clear();
             columns.clear();
             this.resultSet.clear();
+            this.metaData = new RestfulResultSetMetaData(this.database, null, this);
             return;
         }
         // get head
@@ -131,7 +134,6 @@ public class RestfulResultSet extends AbstractResultSet implements ResultSet {
         }
     }
 
-
     private Object parseColumnData(JSONArray row, int colIndex, int taosType) throws SQLException {
         switch (taosType) {
             case TSDBConstants.TSDB_DATA_TYPE_NULL:
@@ -150,44 +152,8 @@ public class RestfulResultSet extends AbstractResultSet implements ResultSet {
                 return row.getFloat(colIndex);
             case TSDBConstants.TSDB_DATA_TYPE_DOUBLE:
                 return row.getDouble(colIndex);
-            case TSDBConstants.TSDB_DATA_TYPE_TIMESTAMP: {
-                if (row.get(colIndex) == null)
-                    return null;
-                String timestampFormat = this.statement.getConnection().getClientInfo(TSDBDriver.PROPERTY_KEY_TIMESTAMP_FORMAT);
-                if ("TIMESTAMP".equalsIgnoreCase(timestampFormat)) {
-                    Long value = row.getLong(colIndex);
-                    //TODO: this implementation has bug if the timestamp bigger than 9999_9999_9999_9
-                    if (value < 1_0000_0000_0000_0L)
-                        return new Timestamp(value);
-                    long epochSec = value / 1000_000l;
-                    long nanoAdjustment = value % 1000_000l * 1000l;
-                    return Timestamp.from(Instant.ofEpochSecond(epochSec, nanoAdjustment));
-                }
-                if ("UTC".equalsIgnoreCase(timestampFormat)) {
-                    String value = row.getString(colIndex);
-                    long epochSec = Timestamp.valueOf(value.substring(0, 19).replace("T", " ")).getTime() / 1000;
-                    int fractionalSec = Integer.parseInt(value.substring(20, value.length() - 5));
-                    long nanoAdjustment = 0;
-                    if (value.length() > 28) {
-                        // ms timestamp: yyyy-MM-ddTHH:mm:ss.SSSSSS+0x00
-                        nanoAdjustment = fractionalSec * 1000l;
-                    } else {
-                        // ms timestamp: yyyy-MM-ddTHH:mm:ss.SSS+0x00
-                        nanoAdjustment = fractionalSec * 1000_000l;
-                    }
-                    ZoneOffset zoneOffset = ZoneOffset.of(value.substring(value.length() - 5));
-                    Instant instant = Instant.ofEpochSecond(epochSec, nanoAdjustment).atOffset(zoneOffset).toInstant();
-                    return Timestamp.from(instant);
-                }
-                String value = row.getString(colIndex);
-                if (value.length() <= 23)    // ms timestamp: yyyy-MM-dd HH:mm:ss.SSS
-                    return row.getTimestamp(colIndex);
-                // us timestamp: yyyy-MM-dd HH:mm:ss.SSSSSS
-                long epochSec = Timestamp.valueOf(value.substring(0, 19)).getTime() / 1000;
-                long nanoAdjustment = Integer.parseInt(value.substring(20)) * 1000l;
-                Timestamp timestamp = Timestamp.from(Instant.ofEpochSecond(epochSec, nanoAdjustment));
-                return timestamp;
-            }
+            case TSDBConstants.TSDB_DATA_TYPE_TIMESTAMP:
+                return parseTimestampColumnData(row, colIndex);
             case TSDBConstants.TSDB_DATA_TYPE_BINARY:
                 return row.getString(colIndex) == null ? null : row.getString(colIndex).getBytes();
             case TSDBConstants.TSDB_DATA_TYPE_NCHAR:
@@ -197,7 +163,66 @@ public class RestfulResultSet extends AbstractResultSet implements ResultSet {
         }
     }
 
-    public class Field {
+    private Timestamp parseTimestampColumnData(JSONArray row, int colIndex) throws SQLException {
+        if (row.get(colIndex) == null)
+            return null;
+        String tsFormatUpperCase = this.statement.getConnection().getClientInfo(TSDBDriver.PROPERTY_KEY_TIMESTAMP_FORMAT).toUpperCase();
+        TimestampFormat timestampFormat = TimestampFormat.valueOf(tsFormatUpperCase);
+        switch (timestampFormat) {
+            case TIMESTAMP: {
+                Long value = row.getLong(colIndex);
+                //TODO: this implementation has bug if the timestamp bigger than 9999_9999_9999_9
+                if (value < 1_0000_0000_0000_0L)
+                    return new Timestamp(value);
+                long epochSec = value / 1000_000l;
+                long nanoAdjustment = value % 1000_000l * 1000l;
+                return Timestamp.from(Instant.ofEpochSecond(epochSec, nanoAdjustment));
+            }
+            case UTC: {
+                String value = row.getString(colIndex);
+                long epochSec = Timestamp.valueOf(value.substring(0, 19).replace("T", " ")).getTime() / 1000;
+                int fractionalSec = Integer.parseInt(value.substring(20, value.length() - 5));
+                long nanoAdjustment;
+                if (value.length() > 31) {
+                    // ns timestamp: yyyy-MM-ddTHH:mm:ss.SSSSSSSSS+0x00
+                    nanoAdjustment = fractionalSec;
+                } else if (value.length() > 28) {
+                    // ms timestamp: yyyy-MM-ddTHH:mm:ss.SSSSSS+0x00
+                    nanoAdjustment = fractionalSec * 1000L;
+                } else {
+                    // ms timestamp: yyyy-MM-ddTHH:mm:ss.SSS+0x00
+                    nanoAdjustment = fractionalSec * 1000_000L;
+                }
+                ZoneOffset zoneOffset = ZoneOffset.of(value.substring(value.length() - 5));
+                Instant instant = Instant.ofEpochSecond(epochSec, nanoAdjustment).atOffset(zoneOffset).toInstant();
+                return Timestamp.from(instant);
+            }
+            case STRING:
+            default: {
+                String value = row.getString(colIndex);
+                TimestampPrecision precision = Utils.guessTimestampPrecision(value);
+                if (precision == TimestampPrecision.MS) {
+                    // ms timestamp: yyyy-MM-dd HH:mm:ss.SSS
+                    return row.getTimestamp(colIndex);
+                }
+                if (precision == TimestampPrecision.US) {
+                    // us timestamp: yyyy-MM-dd HH:mm:ss.SSSSSS
+                    long epochSec = Timestamp.valueOf(value.substring(0, 19)).getTime() / 1000;
+                    long nanoAdjustment = Integer.parseInt(value.substring(20)) * 1000L;
+                    return Timestamp.from(Instant.ofEpochSecond(epochSec, nanoAdjustment));
+                }
+                if (precision == TimestampPrecision.NS) {
+                    // ms timestamp: yyyy-MM-dd HH:mm:ss.SSSSSSSSS
+                    long epochSec = Timestamp.valueOf(value.substring(0, 19)).getTime() / 1000;
+                    long nanoAdjustment = Integer.parseInt(value.substring(20));
+                    return Timestamp.from(Instant.ofEpochSecond(epochSec, nanoAdjustment));
+                }
+                throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNKNOWN_TIMESTAMP_PERCISION);
+            }
+        }
+    }
+
+    public static class Field {
         String name;
         int type;
         int length;
@@ -211,6 +236,7 @@ public class RestfulResultSet extends AbstractResultSet implements ResultSet {
             this.note = note;
             this.taos_type = taos_type;
         }
+
     }
 
     @Override
@@ -334,6 +360,7 @@ public class RestfulResultSet extends AbstractResultSet implements ResultSet {
             wasNull = true;
             return 0;
         }
+
         wasNull = false;
         if (value instanceof Timestamp) {
             return ((Timestamp) value).getTime();

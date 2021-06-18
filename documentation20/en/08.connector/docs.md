@@ -58,7 +58,7 @@ After extracting the package, you will see the following files (directories) in 
 
 *connector*: Connectors for various programming languages (go/grafanaplugin/nodejs/python/JDBC) 
 
-*Examples*: Sample programs for various programming languages (C/C #/go/JDBC/matlab/python/R)
+*Examples*: Sample programs for various programming languages (C/C #/go/JDBC/MATLAB/python/R)
 
 Run install_client.sh to install.
 

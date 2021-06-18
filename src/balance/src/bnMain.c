@@ -367,6 +367,7 @@ static bool bnMonitorBalance() {
         for (int32_t dest = 0; dest < src; dest++) {
           SDnodeObj *pDestDnode = tsBnDnodes.list[dest];
           if (bnCheckDnodeInVgroup(pDestDnode, pVgroup)) continue;
+          if (taosGetTimestampMs() - pDestDnode->createdTime < 2000) continue;
 
           float destScore = bnTryCalcDnodeScore(pDestDnode, 1);
           if (srcScore + 0.0001 < destScore) continue;

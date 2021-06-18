@@ -81,7 +81,7 @@ TDengine是一个高效的存储、查询、分析时序大数据的平台，专
 ## [与其他工具的连接](/connections)
 
 * [Grafana](/connections#grafana)：获取并可视化保存在TDengine的数据
-* [Matlab](/connections#matlab)：通过配置Matlab的JDBC数据源访问保存在TDengine的数据
+* [MATLAB](/connections#matlab)：通过配置MATLAB的JDBC数据源访问保存在TDengine的数据
 * [R](/connections#r)：通过配置R的JDBC数据源访问保存在TDengine的数据
 * [IDEA Database](https://www.taosdata.com/blog/2020/08/27/1767.html)：通过IDEA 数据库管理工具可视化使用 TDengine
 
