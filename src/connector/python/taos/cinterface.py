@@ -14,12 +14,22 @@ def _convert_microsecond_to_datetime(micro):
     return datetime.datetime.fromtimestamp(micro / 1000000.0)
 
 
-def _crow_timestamp_to_python(data, num_of_rows, nbytes=None, micro=False):
+def _convert_nanosecond_to_datetime(nanosec):
+    return datetime.datetime.fromtimestamp(nanosec / 1000000000.0)
+
+
+def _crow_timestamp_to_python(data, num_of_rows, nbytes=None, precision=FieldType.C_TIMESTAMP_UNKNOWN):
     """Function to convert C bool row to python row
     """
     _timestamp_converter = _convert_millisecond_to_datetime
-    if micro:
+    if precision == FieldType.C_TIMESTAMP_MILLI:
+        _timestamp_converter = _convert_millisecond_to_datetime
+    elif precision == FieldType.C_TIMESTAMP_MICRO:
         _timestamp_converter = _convert_microsecond_to_datetime
+    elif precision == FieldType.C_TIMESTAMP_NANO:
+        _timestamp_converter = _convert_nanosecond_to_datetime
+    else:
+        raise DatabaseError("Unknown precision returned from database")
 
     return [
         None if ele == FieldType.C_BIGINT_NULL else _timestamp_converter(ele) for ele in ctypes.cast(
@@ -28,7 +38,7 @@ def _crow_timestamp_to_python(data, num_of_rows, nbytes=None, micro=False):
             :abs(num_of_rows)]]
 
 
-def _crow_bool_to_python(data, num_of_rows, nbytes=None, micro=False):
+def _crow_bool_to_python(data, num_of_rows, nbytes=None, precision=FieldType.C_TIMESTAMP_UNKNOWN):
     """Function to convert C bool row to python row
     """
     return [
@@ -38,7 +48,7 @@ def _crow_bool_to_python(data, num_of_rows, nbytes=None, micro=False):
             :abs(num_of_rows)]]
 
 
-def _crow_tinyint_to_python(data, num_of_rows, nbytes=None, micro=False):
+def _crow_tinyint_to_python(data, num_of_rows, nbytes=None, precision=FieldType.C_TIMESTAMP_UNKNOWN):
     """Function to convert C tinyint row to python row
     """
     return [None if ele == FieldType.C_TINYINT_NULL else ele for ele in ctypes.cast(
@@ -49,7 +59,7 @@ def _crow_tinyint_unsigned_to_python(
         data,
         num_of_rows,
         nbytes=None,
-        micro=False):
+        precision=FieldType.C_TIMESTAMP_UNKNOWN):
     """Function to convert C tinyint row to python row
     """
     return [
@@ -59,7 +69,7 @@ def _crow_tinyint_unsigned_to_python(
             :abs(num_of_rows)]]
 
 
-def _crow_smallint_to_python(data, num_of_rows, nbytes=None, micro=False):
+def _crow_smallint_to_python(data, num_of_rows, nbytes=None, precision=FieldType.C_TIMESTAMP_UNKNOWN):
     """Function to convert C smallint row to python row
     """
     return [
@@ -70,7 +80,7 @@ def _crow_smallint_to_python(data, num_of_rows, nbytes=None, micro=False):
 
 
 def _crow_smallint_unsigned_to_python(
-        data, num_of_rows, nbytes=None, micro=False):
+        data, num_of_rows, nbytes=None, precision=FieldType.C_TIMESTAMP_UNKNOWN):
     """Function to convert C smallint row to python row
     """
     return [
@@ -80,14 +90,14 @@ def _crow_smallint_unsigned_to_python(
             :abs(num_of_rows)]]
 
 
-def _crow_int_to_python(data, num_of_rows, nbytes=None, micro=False):
+def _crow_int_to_python(data, num_of_rows, nbytes=None, precision=FieldType.C_TIMESTAMP_UNKNOWN):
     """Function to convert C int row to python row
     """
     return [None if ele == FieldType.C_INT_NULL else ele for ele in ctypes.cast(
         data, ctypes.POINTER(ctypes.c_int))[:abs(num_of_rows)]]
 
 
-def _crow_int_unsigned_to_python(data, num_of_rows, nbytes=None, micro=False):
+def _crow_int_unsigned_to_python(data, num_of_rows, nbytes=None, precision=FieldType.C_TIMESTAMP_UNKNOWN):
     """Function to convert C int row to python row
     """
     return [
@@ -97,7 +107,7 @@ def _crow_int_unsigned_to_python(data, num_of_rows, nbytes=None, micro=False):
             :abs(num_of_rows)]]
 
 
-def _crow_bigint_to_python(data, num_of_rows, nbytes=None, micro=False):
+def _crow_bigint_to_python(data, num_of_rows, nbytes=None, precision=FieldType.C_TIMESTAMP_UNKNOWN):
     """Function to convert C bigint row to python row
     """
     return [None if ele == FieldType.C_BIGINT_NULL else ele for ele in ctypes.cast(
@@ -108,7 +118,7 @@ def _crow_bigint_unsigned_to_python(
         data,
         num_of_rows,
         nbytes=None,
-        micro=False):
+        precision=FieldType.C_TIMESTAMP_UNKNOWN):
     """Function to convert C bigint row to python row
     """
     return [
@@ -118,21 +128,21 @@ def _crow_bigint_unsigned_to_python(
             :abs(num_of_rows)]]
 
 
-def _crow_float_to_python(data, num_of_rows, nbytes=None, micro=False):
+def _crow_float_to_python(data, num_of_rows, nbytes=None, precision=FieldType.C_TIMESTAMP_UNKNOWN):
     """Function to convert C float row to python row
     """
     return [None if math.isnan(ele) else ele for ele in ctypes.cast(
         data, ctypes.POINTER(ctypes.c_float))[:abs(num_of_rows)]]
 
 
-def _crow_double_to_python(data, num_of_rows, nbytes=None, micro=False):
+def _crow_double_to_python(data, num_of_rows, nbytes=None, precision=FieldType.C_TIMESTAMP_UNKNOWN):
     """Function to convert C double row to python row
     """
     return [None if math.isnan(ele) else ele for ele in ctypes.cast(
         data, ctypes.POINTER(ctypes.c_double))[:abs(num_of_rows)]]
 
 
-def _crow_binary_to_python(data, num_of_rows, nbytes=None, micro=False):
+def _crow_binary_to_python(data, num_of_rows, nbytes=None, precision=FieldType.C_TIMESTAMP_UNKNOWN):
     """Function to convert C binary row to python row
     """
     assert(nbytes is not None)
@@ -140,7 +150,7 @@ def _crow_binary_to_python(data, num_of_rows, nbytes=None, micro=False):
         'utf-8') for ele in (ctypes.cast(data, ctypes.POINTER(ctypes.c_char * nbytes)))[:abs(num_of_rows)]]
 
 
-def _crow_nchar_to_python(data, num_of_rows, nbytes=None, micro=False):
+def _crow_nchar_to_python(data, num_of_rows, nbytes=None, precision=FieldType.C_TIMESTAMP_UNKNOWN):
     """Function to convert C nchar row to python row
     """
     assert(nbytes is not None)
@@ -159,7 +169,7 @@ def _crow_nchar_to_python(data, num_of_rows, nbytes=None, micro=False):
     return res
 
 
-def _crow_binary_to_python_block(data, num_of_rows, nbytes=None, micro=False):
+def _crow_binary_to_python_block(data, num_of_rows, nbytes=None, precision=FieldType.C_TIMESTAMP_UNKNOWN):
     """Function to convert C binary row to python row
     """
     assert(nbytes is not None)
@@ -178,7 +188,7 @@ def _crow_binary_to_python_block(data, num_of_rows, nbytes=None, micro=False):
     return res
 
 
-def _crow_nchar_to_python_block(data, num_of_rows, nbytes=None, micro=False):
+def _crow_nchar_to_python_block(data, num_of_rows, nbytes=None, precision=FieldType.C_TIMESTAMP_UNKNOWN):
     """Function to convert C nchar row to python row
     """
     assert(nbytes is not None)
@@ -448,8 +458,7 @@ class CTaosInterface(object):
             result, ctypes.byref(pblock))
         if num_of_rows == 0:
             return None, 0
-        isMicro = (CTaosInterface.libtaos.taos_result_precision(
-            result) == FieldType.C_TIMESTAMP_MICRO)
+        precision = CTaosInterface.libtaos.taos_result_precision(result)
         blocks = [None] * len(fields)
         fieldL = CTaosInterface.libtaos.taos_fetch_lengths(result)
         fieldLen = [
@@ -462,7 +471,7 @@ class CTaosInterface(object):
             if fields[i]['type'] not in _CONVERT_FUNC_BLOCK:
                 raise DatabaseError("Invalid data type returned from database")
             blocks[i] = _CONVERT_FUNC_BLOCK[fields[i]['type']](
-                data, num_of_rows, fieldLen[i], isMicro)
+                data, num_of_rows, fieldLen[i], precision)
 
         return blocks, abs(num_of_rows)
 
@@ -472,8 +481,7 @@ class CTaosInterface(object):
         pblock = CTaosInterface.libtaos.taos_fetch_row(result)
         if pblock:
             num_of_rows = 1
-            isMicro = (CTaosInterface.libtaos.taos_result_precision(
-                result) == FieldType.C_TIMESTAMP_MICRO)
+            precision = CTaosInterface.libtaos.taos_result_precision(result)
             blocks = [None] * len(fields)
             fieldL = CTaosInterface.libtaos.taos_fetch_lengths(result)
             fieldLen = [
@@ -490,7 +498,7 @@ class CTaosInterface(object):
                     blocks[i] = [None]
                 else:
                     blocks[i] = _CONVERT_FUNC[fields[i]['type']](
-                        data, num_of_rows, fieldLen[i], isMicro)
+                        data, num_of_rows, fieldLen[i], precision)
         else:
             return None, 0
         return blocks, abs(num_of_rows)

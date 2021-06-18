@@ -113,7 +113,7 @@ static void jniGetGlobalMethod(JNIEnv *env) {
   g_rowdataSetFloatFp = (*env)->GetMethodID(env, g_rowdataClass, "setFloat", "(IF)V");
   g_rowdataSetDoubleFp = (*env)->GetMethodID(env, g_rowdataClass, "setDouble", "(ID)V");
   g_rowdataSetStringFp = (*env)->GetMethodID(env, g_rowdataClass, "setString", "(ILjava/lang/String;)V");
-  g_rowdataSetTimestampFp = (*env)->GetMethodID(env, g_rowdataClass, "setTimestamp", "(IJ)V");
+  g_rowdataSetTimestampFp = (*env)->GetMethodID(env, g_rowdataClass, "setTimestamp", "(IJI)V");
   g_rowdataSetByteArrayFp = (*env)->GetMethodID(env, g_rowdataClass, "setByteArray", "(I[B)V");
   (*env)->DeleteLocalRef(env, rowdataClass);
 
@@ -519,9 +519,11 @@ JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_fetchRowImp(JNIEn
                                jniFromNCharToByteArray(env, (char *)row[i], length[i]));
         break;
       }
-      case TSDB_DATA_TYPE_TIMESTAMP:
-        (*env)->CallVoidMethod(env, rowobj, g_rowdataSetTimestampFp, i, (jlong) * ((int64_t *)row[i]));
+      case TSDB_DATA_TYPE_TIMESTAMP: {
+        int precision = taos_result_precision(result);
+        (*env)->CallVoidMethod(env, rowobj, g_rowdataSetTimestampFp, i, (jlong) * ((int64_t *)row[i]), precision);
         break;
+      }
       default:
         break;
     }
@@ -672,7 +674,15 @@ JNIEXPORT jstring JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_getTsCharset(J
   return (*env)->NewStringUTF(env, (const char *)tsCharset);
 }
 
-JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_TDDBJNIConnector_getResultTimePrecision(JNIEnv *env, jobject jobj, jlong con,
+/**
+ * Get Result Time Precision
+ * @param env           vm
+ * @param jobj          the TSDBJNIConnector java object
+ * @param con           the c connection pointer
+ * @param res           the TAOS_RES object, i.e. the SSqlObject
+ * @return precision    0:ms 1:us 2:ns
+ */
+JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_getResultTimePrecisionImp(JNIEnv *env, jobject jobj, jlong con,
                                                                                       jlong res) {
   TAOS *tscon = (TAOS *)con;
   if (tscon == NULL) {

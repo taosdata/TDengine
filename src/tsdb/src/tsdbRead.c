@@ -2520,7 +2520,7 @@ static bool loadCachedLast(STsdbQueryHandle* pQueryHandle) {
     int32_t numOfCols = pTable->maxColNum;
     
     if (pTable->lastCols == NULL || pTable->maxColNum <= 0) {
-      tsdbWarn("no last cached for table, uid:%" PRIu64 ",tid:%d", pTable->tableId.uid, pTable->tableId.tid);
+      tsdbWarn("no last cached for table %s, uid:%" PRIu64 ",tid:%d", pTable->name->data, pTable->tableId.uid, pTable->tableId.tid);
       continue;
     }
     
