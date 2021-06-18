@@ -263,6 +263,14 @@ TDengine 缺省的时间戳是毫秒精度，但通过在 CREATE DATABASE 时传
     ```
     如果表是通过超级表创建，更改表结构的操作只能对超级表进行。同时针对超级表的结构更改对所有通过该结构创建的表生效。对于不是通过超级表创建的表，可以直接修改表结构。
 
+- **表修改列宽**
+
+    ```mysql
+    ALTER TABLE tb_name MODIFY COLUMN field_name data_type(length); 
+    ```
+    如果数据列的类型是可变长格式（BINARY 或 NCHAR），那么可以使用此指令修改其宽度（只能改大，不能改小）。（2.1.3.0 版本新增）  
+    如果表是通过超级表创建，更改表结构的操作只能对超级表进行。同时针对超级表的结构更改对所有通过该结构创建的表生效。对于不是通过超级表创建的表，可以直接修改表结构。
+
 ## <a class="anchor" id="super-table"></a>超级表STable管理
 
 注意：在 2.0.15.0 及以后的版本中，开始支持 STABLE 保留字。也即，在本节后文的指令说明中，CREATE、DROP、ALTER 三个指令在老版本中保留字需写作 TABLE 而不是 STABLE。
@@ -323,6 +331,13 @@ TDengine 缺省的时间戳是毫秒精度，但通过在 CREATE DATABASE 时传
     ALTER STABLE stb_name DROP COLUMN field_name; 
     ```
 
+- **超级表修改列宽**
+
+    ```mysql
+    ALTER STABLE stb_name MODIFY COLUMN field_name data_type(length); 
+    ```
+    如果数据列的类型是可变长格式（BINARY 或 NCHAR），那么可以使用此指令修改其宽度（只能改大，不能改小）。（2.1.3.0 版本新增）
+
 ## <a class="anchor" id="tags"></a>超级表 STable 中 TAG 管理
 
 - **添加标签**
@@ -345,6 +360,13 @@ TDengine 缺省的时间戳是毫秒精度，但通过在 CREATE DATABASE 时传
     ALTER STABLE stb_name CHANGE TAG old_tag_name new_tag_name;
     ```
     修改超级表的标签名，从超级表修改某个标签名后，该超级表下的所有子表也会自动更新该标签名。
+
+- **修改标签列宽度**
+
+    ```mysql
+    ALTER STABLE stb_name MODIFY TAG tag_name data_type(length); 
+    ```
+    如果标签的类型是可变长格式（BINARY 或 NCHAR），那么可以使用此指令修改其宽度（只能改大，不能改小）。（2.1.3.0 版本新增）
 
 - **修改子表标签值**
 
