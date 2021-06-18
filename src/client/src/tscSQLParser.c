@@ -760,9 +760,9 @@ int32_t tscValidateSqlInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
       pCmd->active = pCmd->pQueryInfo;
       pCmd->command = pCmd->pQueryInfo->command;
 
-      STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pCmd->active, 0);
-      if (pTableMetaInfo->pTableMeta != NULL) {
-        pSql->res.precision = tscGetTableInfo(pTableMetaInfo->pTableMeta).precision;
+      STableMetaInfo* pTableMetaInfo1 = tscGetMetaInfo(pCmd->active, 0);
+      if (pTableMetaInfo1->pTableMeta != NULL) {
+        pSql->res.precision = tscGetTableInfo(pTableMetaInfo1->pTableMeta).precision;
       }
 
       return TSDB_CODE_SUCCESS;  // do not build query message here
