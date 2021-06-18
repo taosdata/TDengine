@@ -217,6 +217,16 @@ public class TSDBJNIConnector {
     private native int fetchBlockImp(long connection, long resultSet, TSDBResultSetBlockData blockData);
 
     /**
+     * Get Result Time Precision.
+     * @return 0: ms, 1: us, 2: ns
+    */
+    public int getResultTimePrecision(long sqlObj) {
+        return this.getResultTimePrecisionImp(this.taos, sqlObj);
+    }
+
+    private native int getResultTimePrecisionImp(long connection, long result);
+
+    /**
      * Execute close operation from C to release connection pointer by JNI
      *
      * @throws SQLException

@@ -122,7 +122,6 @@
                         <exclude>**/FailOverTest.java</exclude>
                         <exclude>**/InvalidResultSetPointerTest.java</exclude>
                         <exclude>**/RestfulConnectionTest.java</exclude>
-                        <exclude>**/TD4144Test.java</exclude>
                         <exclude>**/ConnectMultiTaosdByRestfulWithDifferentTokenTest.java</exclude>
                     </excludes>
                     <testFailureIgnore>true</testFailureIgnore>
