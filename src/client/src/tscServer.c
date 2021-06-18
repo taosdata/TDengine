@@ -882,10 +882,11 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
     pQueryMsg->tableCols[i].colId = htons(pCol->colId);
     pQueryMsg->tableCols[i].bytes = htons(pCol->bytes);
     pQueryMsg->tableCols[i].type  = htons(pCol->type);
-    pQueryMsg->tableCols[i].flist.numOfFilters = htons(pCol->flist.numOfFilters);
+    //pQueryMsg->tableCols[i].flist.numOfFilters = htons(pCol->flist.numOfFilters);
+    pQueryMsg->tableCols[i].flist.numOfFilters = 0;
 
     // append the filter information after the basic column information
-    serializeColFilterInfo(pCol->flist.filterInfo, pCol->flist.numOfFilters, &pMsg);
+    //serializeColFilterInfo(pCol->flist.filterInfo, pCol->flist.numOfFilters, &pMsg);
   }
 
   if (pQueryInfo->colCond && taosArrayGetSize(pQueryInfo->colCond) > 0) {

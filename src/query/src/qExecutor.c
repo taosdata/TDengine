@@ -6445,7 +6445,7 @@ int32_t convertQueryMsg(SQueryTableMsg *pQueryMsg, SQueryParam* param) {
     pColInfo->colId = htons(pColInfo->colId);
     pColInfo->type = htons(pColInfo->type);
     pColInfo->bytes = htons(pColInfo->bytes);
-    pColInfo->flist.numOfFilters = htons(pColInfo->flist.numOfFilters);
+    pColInfo->flist.numOfFilters = 0;
 
     if (!isValidDataType(pColInfo->type)) {
       qDebug("qmsg:%p, invalid data type in source column, index:%d, type:%d", pQueryMsg, col, pColInfo->type);
@@ -6453,6 +6453,7 @@ int32_t convertQueryMsg(SQueryTableMsg *pQueryMsg, SQueryParam* param) {
       goto _cleanup;
     }
 
+/*
     int32_t numOfFilters = pColInfo->flist.numOfFilters;
     if (numOfFilters > 0) {
       pColInfo->flist.filterInfo = calloc(numOfFilters, sizeof(SColumnFilterInfo));
@@ -6466,6 +6467,7 @@ int32_t convertQueryMsg(SQueryTableMsg *pQueryMsg, SQueryParam* param) {
     if (code != TSDB_CODE_SUCCESS) {
       goto _cleanup;
     }
+*/    
   }
 
   if (pQueryMsg->colCondLen > 0) {

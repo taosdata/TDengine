@@ -334,7 +334,7 @@ int32_t filterInitValFieldData(SFilterInfo *info) {
       fi->data = calloc(1, sizeof(int64_t));
     }
 
-    ERR_LRET(tVariantDump(var, (char*)fi->data, type, false), "dump type[%d] failed", type);
+    ERR_LRET(tVariantDump(var, (char*)fi->data, type, true), "dump type[%d] failed", type);
   }
 
   return TSDB_CODE_SUCCESS;
@@ -402,8 +402,18 @@ bool filterExecute(SFilterInfo *info, int32_t numOfRows, int8_t* p) {
           SFilterField *left = FILTER_GET_FIELD(info, unit->left);
           SFilterField *right = FILTER_GET_FIELD(info, unit->right);
 
-          ures = filterDoCompare(unit, FILTER_GET_COL_FIELD_DATA(left, i), FILTER_GET_VAL_FIELD_DATA(right));
-
+          if (isNull(FILTER_GET_COL_FIELD_DATA(left, i), FILTER_GET_COL_FIELD_TYPE(left))) {
+            ures = unit->compare.optr == TSDB_RELATION_ISNULL ? true : false;
+          } else {
+            if (unit->compare.optr == TSDB_RELATION_NOTNULL) {
+              ures = true;
+            } else if (unit->compare.optr == TSDB_RELATION_ISNULL) {
+              ures = false;
+            } else {
+              ures = filterDoCompare(unit, FILTER_GET_COL_FIELD_DATA(left, i), FILTER_GET_VAL_FIELD_DATA(right));
+            }
+          }
+          
           FILTER_UNIT_SET_R(info, uidx, ures);
           FILTER_UNIT_SET_F(info, uidx);
         }
