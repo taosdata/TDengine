@@ -12,8 +12,8 @@ import com.taosdata.tsync.entity.producer.ProducerConfig;
 import com.taosdata.tsync.enums.ConfigurationType;
 import com.taosdata.tsync.enums.SchemaMissingStrategy;
 import com.taosdata.tsync.factory.ConfigurationFactory;
-import com.taosdata.tsync.factory.WriteToTDengineTaskFactory;
-import com.taosdata.tsync.factory.WriteToTQueueTaskFactory;
+import com.taosdata.tsync.factory.ConsumeToTDengineRunnableTaskFactory;
+import com.taosdata.tsync.factory.ProduceToTQueueCallableTaskFactory;
 import org.apache.commons.io.IOUtils;
 import org.junit.Assert;
 import org.junit.Before;
@@ -30,7 +30,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-public class WriteToTDengineRunnableTaskTest {
+public class ConsumeToTDengineRunnableTaskTest {
 
     private String host_tq = "192.168.17.156";
     private String host_td = "192.168.17.82";
@@ -49,7 +49,7 @@ public class WriteToTDengineRunnableTaskTest {
         final int pollingInterval = 1000;
         final long recordSize = 1000L;
 
-        WriteToTDengineRunnableTask runnable = new WriteToTDengineTaskFactory()
+        ConsumeToTDengineRunnableTask runnable = new ConsumeToTDengineRunnableTaskFactory()
                 .setConsumer(consumer)
                 .setTopic(topic)
                 .setPartitionsToWrite(partitionsToWrite)
@@ -105,7 +105,7 @@ public class WriteToTDengineRunnableTaskTest {
         props.setProperty(ProducerConfig.HOST_CONFIG, host_tq);
         TQueueProducer producer = new TQueueProducer<>(props);
 
-        WriteToTQueueCallableTask callable = new WriteToTQueueTaskFactory()
+        ProduceToTQueueCallableTask callable = new ProduceToTQueueCallableTaskFactory()
                 .setProducer(producer)
                 .setTopic(topic)
                 .setPartitionsToWrite(partitionsToWrite)

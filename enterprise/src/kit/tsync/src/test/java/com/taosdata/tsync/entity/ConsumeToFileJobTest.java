@@ -27,7 +27,7 @@ public class ConsumeToFileJobTest {
         ConfigurationRepository configurationRepository = ConfigurationRepository.getInstance();
         JobService jobService = new ConsumeToFileJobServiceImpl();
 
-        // when
+        // when build
         Job job = JobFactory.build(ConfigurationType.CONSUME_TO_FILE, consumerTaskConfigJSON, configurationRepository);
         // then
         Assert.assertEquals(JobStatus.INIT, job.getStatus());
@@ -37,7 +37,7 @@ public class ConsumeToFileJobTest {
         // then
         Assert.assertEquals(ConfigurationType.CONSUME_TO_FILE, configuration.getConfigurationType());
 
-        // when
+        // when prepare
         job.prepare(jobService);
         // then
         Assert.assertEquals(JobStatus.PREPARED, job.getStatus());

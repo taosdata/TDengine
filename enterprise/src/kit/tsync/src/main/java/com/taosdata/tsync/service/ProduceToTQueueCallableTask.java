@@ -19,8 +19,8 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.LongStream;
 
-public class WriteToTQueueCallableTask implements Callable<Long> {
-    private static final Logger logger = LoggerFactory.getLogger(WriteToTQueueCallableTask.class);
+public class ProduceToTQueueCallableTask implements Callable<Long> {
+    private static final Logger logger = LoggerFactory.getLogger(ProduceToTQueueCallableTask.class);
 
     private List<Integer> partitionsToWrite;
     private Range<Long> tablesToWrite;
@@ -39,18 +39,14 @@ public class WriteToTQueueCallableTask implements Callable<Long> {
 
     private volatile AtomicLong ts;
 
-    private class OnePartitionTask {
+    private static class OnePartitionTask {
         private final long tableStartIndex;
         private final long tableEndIndex;
-        private final long tableTotal;
-        private final int partitionId;
         private final long recordsToWrite;
 
-        private OnePartitionTask(long tableStartIndex, long tableEndIndex, long tableTotal, int partitionId, long recordsToWrite, long batchValues, long batchTables) {
+        private OnePartitionTask(long tableStartIndex, long tableEndIndex, long recordsToWrite) {
             this.tableStartIndex = tableStartIndex;
             this.tableEndIndex = tableEndIndex;
-            this.tableTotal = tableTotal;
-            this.partitionId = partitionId;
             this.recordsToWrite = recordsToWrite;
         }
     }
@@ -96,7 +92,7 @@ public class WriteToTQueueCallableTask implements Callable<Long> {
 
                     String message = sb.toString();
                     logger.trace(message);
-                    ProducerRecord<String> record = new ProducerRecord(topic, partitionId, message);
+                    ProducerRecord record = new ProducerRecord(topic, partitionId, message);
                     try {
                         producer.send(record);
                     } catch (Exception e) {
@@ -138,7 +134,7 @@ public class WriteToTQueueCallableTask implements Callable<Long> {
             long tableTotal = tableEndIndex - tableStartIndex;
             long recordsToWrite = recordRange.upperEndpoint() - recordRange.lowerEndpoint();
 
-            OnePartitionTask onePartitionTask = new OnePartitionTask(tableStartIndex, tableEndIndex, tableTotal, partitionId, recordsToWrite, batchValues, batchTables);
+            OnePartitionTask onePartitionTask = new OnePartitionTask(tableStartIndex, tableEndIndex, recordsToWrite);
             partitionTaskMap.put(partitionId, onePartitionTask);
         }
         return partitionTaskMap;
@@ -193,9 +189,6 @@ public class WriteToTQueueCallableTask implements Callable<Long> {
 
     public void setTablesToWrite(Range<Long> tablesToWrite) {
         this.tablesToWrite = tablesToWrite;
-    }
-
-    public void setTables(long tables) {
     }
 
     public void setRecordsToWrite(long recordsToWrite) {

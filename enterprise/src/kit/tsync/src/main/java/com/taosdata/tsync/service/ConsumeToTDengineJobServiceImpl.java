@@ -8,7 +8,7 @@ import com.taosdata.tsync.enums.ConfigurationType;
 import com.taosdata.tsync.enums.SchemaMissingStrategy;
 import com.taosdata.tsync.factory.TQueueConsumerFactory;
 import com.taosdata.tsync.factory.TaosdConnectionFactory;
-import com.taosdata.tsync.factory.WriteToTDengineTaskFactory;
+import com.taosdata.tsync.factory.ConsumeToTDengineRunnableTaskFactory;
 import com.taosdata.tsync.repository.ConfigurationRepository;
 import com.taosdata.tsync.repository.RunnableTaskRepository;
 import com.taosdata.tsync.utils.Utils;
@@ -74,7 +74,7 @@ public class ConsumeToTDengineJobServiceImpl extends AbstractJobService {
             SchemaMissingStrategy schemaMissing = strategyConfiguration.getSchemaMissing();
 
             // callable task
-            WriteToTDengineRunnableTask runnable = new WriteToTDengineTaskFactory()
+            ConsumeToTDengineRunnableTask runnable = new ConsumeToTDengineRunnableTaskFactory()
                     .setPartitionsToWrite(partitionsToWrite)
                     .setTopic(topic)
                     .setConsumer(consumer)

@@ -18,9 +18,8 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
-public class WriteToTDengineRunnableTask implements Runnable {
-
-    private static final Logger logger = LoggerFactory.getLogger(WriteToTDengineRunnableTask.class);
+public class ConsumeToTDengineRunnableTask implements Runnable {
+    private static final Logger logger = LoggerFactory.getLogger(ConsumeToTDengineRunnableTask.class);
 
     private List<Integer> partitionsToWrite;
     private String topic;

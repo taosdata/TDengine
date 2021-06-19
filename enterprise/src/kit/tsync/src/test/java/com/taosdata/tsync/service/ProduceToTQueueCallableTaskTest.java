@@ -7,7 +7,7 @@ import com.taosdata.tsync.entity.config.SchemaConfiguration;
 import com.taosdata.tsync.entity.producer.ProducerConfig;
 import com.taosdata.tsync.enums.ConfigurationType;
 import com.taosdata.tsync.factory.ConfigurationFactory;
-import com.taosdata.tsync.factory.WriteToTQueueTaskFactory;
+import com.taosdata.tsync.factory.ProduceToTQueueCallableTaskFactory;
 import org.apache.commons.io.IOUtils;
 import org.junit.Assert;
 import org.junit.Before;
@@ -23,7 +23,7 @@ import java.util.concurrent.FutureTask;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-public class WriteToTQueueCallableTaskTest {
+public class ProduceToTQueueCallableTaskTest {
 
     private static final String host_tq = "192.168.17.156";
     private TQueueProducer producer;
@@ -41,7 +41,7 @@ public class WriteToTQueueCallableTaskTest {
         final SchemaConfiguration schemaConfiguration = (SchemaConfiguration) ConfigurationFactory.build(ConfigurationType.SCHEMA, schemaJSON);
 
         // when
-        WriteToTQueueCallableTask callable = new WriteToTQueueTaskFactory()
+        ProduceToTQueueCallableTask callable = new ProduceToTQueueCallableTaskFactory()
                 .setProducer(producer)
                 .setTopic(topic)
                 .setPartitionsToWrite(partitionsToWrite)

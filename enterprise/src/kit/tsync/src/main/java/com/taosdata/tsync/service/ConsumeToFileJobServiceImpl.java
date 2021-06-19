@@ -4,10 +4,8 @@ import com.google.common.collect.Multimap;
 import com.taosdata.tsync.entity.RunnableTask;
 import com.taosdata.tsync.entity.config.*;
 import com.taosdata.tsync.enums.ConfigurationType;
-import com.taosdata.tsync.enums.SchemaMissingStrategy;
+import com.taosdata.tsync.factory.ConsumeToFileRunnableTaskFactory;
 import com.taosdata.tsync.factory.TQueueConsumerFactory;
-import com.taosdata.tsync.factory.TaosdConnectionFactory;
-import com.taosdata.tsync.factory.WriteToTDengineTaskFactory;
 import com.taosdata.tsync.repository.ConfigurationRepository;
 import com.taosdata.tsync.repository.RunnableTaskRepository;
 import com.taosdata.tsync.tqueue.TQueueConsumer;
@@ -15,7 +13,7 @@ import com.taosdata.tsync.utils.Utils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.sql.Connection;
+import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -55,38 +53,38 @@ public class ConsumeToFileJobServiceImpl extends AbstractJobService {
         // 2. arrange threads to partitions
         arrangeThreads();
 
-        // 3. destination Configuration ==> taosd
+        // 3. destination Configuration ==> file
         FileConfiguration fileConfiguration = (FileConfiguration) configuration.findFirst(ConfigurationType.FILE);
         if (fileConfiguration == null) {
             throw new Exception("cannot find file in configurations");
         }
+        File directory = new File(fileConfiguration.getDirectory());
+        if (!directory.exists() || !directory.isDirectory()) {
+            throw new Exception("file's directory is invalid");
+        }
 
-        // 4. destination Configuration ==> strategy, schema
+        // 4. destination Configuration ==> strategy ==> polling interval
         StrategyConfiguration strategyConfiguration = (StrategyConfiguration) configuration.findFirst(ConfigurationType.STRATEGY);
+        int pollingInterval = strategyConfiguration.getPollingInterval();
 
         // 5. create threads
         List<Integer> taskIds = new ArrayList<>();
         for (int i = 0; i < threadSize; i++) {
-//            TQueueConsumer consumer = TQueueConsumerFactory.build(consumerConfiguration);
-//            List<Integer> partitionsToWrite = new ArrayList<>(threadIndex2PartitionList.get(i));
-//            Connection connection = TaosdConnectionFactory.build(taosdConfiguration);
-//            int pollingInterval = strategyConfiguration.getPollingInterval();
-//            SchemaMissingStrategy schemaMissing = strategyConfiguration.getSchemaMissing();
-//
-//            // callable task
-//            WriteToTDengineRunnableTask runnable = new WriteToTDengineTaskFactory()
-//                    .setPartitionsToWrite(partitionsToWrite)
-//                    .setTopic(topic)
-//                    .setConsumer(consumer)
-//                    .setTaosdConnection(connection)
-//                    .setPollingInterval(pollingInterval)
-//                    .setSchemaMissingStrategy(schemaMissing)
-//                    .setSchemaConfiguration(schemaConfiguration)
-//                    .build();
-//
-//            RunnableTask runnableTask = new RunnableTask(i, runnable);
-//            runnableTaskRepository.add(runnableTask);
-//            taskIds.add(runnableTask.getId());
+            TQueueConsumer consumer = TQueueConsumerFactory.build(consumerConfiguration);
+            List<Integer> partitionsToWrite = new ArrayList<>(threadIndex2PartitionList.get(i));
+
+            // callable task
+            ConsumeToFileRunnableTask runnable = new ConsumeToFileRunnableTaskFactory()
+                    .setConsumer(consumer)
+                    .setTopic(topic)
+                    .setPartitionsToWrite(partitionsToWrite)
+                    .setPollingInterval(pollingInterval)
+                    .setDirectory(directory)
+                    .build();
+
+            RunnableTask runnableTask = new RunnableTask(i, runnable);
+            runnableTaskRepository.add(runnableTask);
+            taskIds.add(runnableTask.getId());
         }
         return taskIds;
     }

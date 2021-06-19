@@ -7,7 +7,7 @@ import com.taosdata.tsync.entity.CallableTask;
 import com.taosdata.tsync.entity.config.*;
 import com.taosdata.tsync.enums.ConfigurationType;
 import com.taosdata.tsync.factory.TQueueProducerFactory;
-import com.taosdata.tsync.factory.WriteToTQueueTaskFactory;
+import com.taosdata.tsync.factory.ProduceToTQueueCallableTaskFactory;
 import com.taosdata.tsync.repository.CallableTaskRepository;
 import com.taosdata.tsync.repository.ConfigurationRepository;
 import com.taosdata.tsync.utils.Utils;
@@ -88,7 +88,7 @@ public class ProduceToTQueueJobServiceImpl extends AbstractJobService {
             TQueueProducer producer = TQueueProducerFactory.build(producerConfiguration);
 
             //TODO: 优化这里的代码结构
-            WriteToTQueueCallableTask callable = new WriteToTQueueTaskFactory()
+            ProduceToTQueueCallableTask callable = new ProduceToTQueueCallableTaskFactory()
                     .setProducer(producer)
                     .setTopic(topic)
                     .setPartitionsToWrite(partitionsToWrite)
