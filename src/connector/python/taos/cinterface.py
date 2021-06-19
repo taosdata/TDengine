@@ -10,7 +10,7 @@ def _convert_millisecond_to_datetime(milli):
     return datetime.datetime.fromtimestamp(milli / 1000.0)
 
 
-def _convert_microsecond_to_datetime(micro): #checkpoint
+def _convert_microsecond_to_datetime(micro):
     return datetime.datetime.fromtimestamp(micro / 1000000.0)
 
 
