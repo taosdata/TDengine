@@ -10,12 +10,6 @@ import org.slf4j.LoggerFactory;
 public class TaosdConfigurationParser implements ConfigurationParser {
 
     private static final Logger logger = LoggerFactory.getLogger(TaosdConfigurationParser.class);
-    private static final Integer PORT_DEFAULT = 6041;
-    private static final String USER_DEFAULT = "root";
-    private static final String PASSWORD_DEFAULT = "taosdata";
-    private static final String CHARSET_DEFAULT = "UTF-8";
-    private static final String LOCALE_DEFAULT = "en_US.UTF-8";
-    private static final String TIMEZONE_DEFAULT = "UTC-8";
 
     private final ConfigurationType type = ConfigurationType.TAOSD;
 
@@ -39,37 +33,43 @@ public class TaosdConfigurationParser implements ConfigurationParser {
         if (configJSON.containsKey("port")) {
             config.setPort(configJSON.getInteger("port"));
         } else {
-            config.setPort(PORT_DEFAULT);
+            logger.warn("use default port: " + TaosdConfiguration.PORT_DEFAULT);
+            config.setPort(TaosdConfiguration.PORT_DEFAULT);
         }
         // user
         if (configJSON.containsKey("user")) {
             config.setUser(configJSON.getString("user"));
         } else {
-            config.setUser(USER_DEFAULT);
+            logger.warn("use default user: " + TaosdConfiguration.USER_DEFAULT);
+            config.setUser(TaosdConfiguration.USER_DEFAULT);
         }
         // password
         if (configJSON.containsKey("password")) {
             config.setPassword(configJSON.getString("password"));
         } else {
-            config.setPassword(PASSWORD_DEFAULT);
+            logger.warn("use default password: ******");
+            config.setPassword(TaosdConfiguration.PASSWORD_DEFAULT);
         }
         // charset
         if (configJSON.containsKey("charset")) {
             config.setCharset(configJSON.getString("charset"));
         } else {
-            config.setCharset(CHARSET_DEFAULT);
+            logger.warn("use default charset: " + TaosdConfiguration.CHARSET_DEFAULT);
+            config.setCharset(TaosdConfiguration.CHARSET_DEFAULT);
         }
         // locale
         if (configJSON.containsKey("locale")) {
             config.setLocale(configJSON.getString("locale"));
         } else {
-            config.setLocale(LOCALE_DEFAULT);
+            logger.warn("use default locale: " + TaosdConfiguration.LOCALE_DEFAULT);
+            config.setLocale(TaosdConfiguration.LOCALE_DEFAULT);
         }
         // timezone
         if (configJSON.containsKey("timezone")) {
             config.setTimezone(configJSON.getString("timezone"));
         } else {
-            config.setTimezone(TIMEZONE_DEFAULT);
+            logger.warn("use default timezone: " + TaosdConfiguration.TIMEZONE_DEFAULT);
+            config.setTimezone(TaosdConfiguration.TIMEZONE_DEFAULT);
         }
 
         return config;

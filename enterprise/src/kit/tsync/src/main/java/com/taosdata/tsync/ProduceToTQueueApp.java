@@ -2,7 +2,8 @@ package com.taosdata.tsync;
 
 import com.alibaba.fastjson.JSONObject;
 import com.taosdata.tsync.entity.Job;
-import com.taosdata.tsync.factory.ProduceJobFactory;
+import com.taosdata.tsync.enums.ConfigurationType;
+import com.taosdata.tsync.factory.JobFactory;
 import com.taosdata.tsync.repository.ConfigurationRepository;
 import com.taosdata.tsync.service.AffectRowsProcessService;
 import com.taosdata.tsync.service.JobService;
@@ -42,7 +43,7 @@ public class ProduceToTQueueApp {
         JSONObject producerTaskConfigJSON = JSONObject.parseObject(producerConfigStr);
 
         // build job
-        Job job = ProduceJobFactory.build(producerTaskConfigJSON, configurationRepository);
+        Job job = JobFactory.build(ConfigurationType.PRODUCE_TO_TQUEUE, producerTaskConfigJSON, configurationRepository);
 
         // prepare
         JobService jobService = new ProduceJobServiceImpl(new AffectRowsProcessService());
@@ -53,6 +54,6 @@ public class ProduceToTQueueApp {
     }
 
     private static void printHelp() {
-        System.out.println("Usage: java -jar JDBCDemo.jar --config <config file path>");
+        System.out.println("Usage: java -jar ProduceToTQueue.jar --config <config file path>");
     }
 }

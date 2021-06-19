@@ -11,6 +11,7 @@ public class DestinationConfigurationParser extends AbstractConfigurationParser 
     private final TaosdConfigurationParser taosdParser = new TaosdConfigurationParser();
     private final StrategyConfigurationParser strategyParser = new StrategyConfigurationParser();
     private final SchemaConfigurationParser schemaParser = new SchemaConfigurationParser();
+    private final FileConfigurationParser fileParser = new FileConfigurationParser();
 
     @Override
     public boolean canParse(ConfigurationType type, JSONObject configJSON) {
@@ -24,6 +25,10 @@ public class DestinationConfigurationParser extends AbstractConfigurationParser 
         Configuration taosd = parseConfiguration(configJSON, "taosd", ConfigurationType.TAOSD, taosdParser);
         if (taosd != null)
             configuration.add(taosd);
+
+        Configuration file = parseConfiguration(configJSON, "file", ConfigurationType.FILE, fileParser);
+        if (file != null)
+            configuration.add(file);
 
         Configuration strategy = parseConfiguration(configJSON, "strategy", ConfigurationType.STRATEGY, strategyParser);
         if (strategy != null)

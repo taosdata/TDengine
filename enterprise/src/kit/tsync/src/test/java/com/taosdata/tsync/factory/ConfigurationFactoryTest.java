@@ -152,7 +152,7 @@ public class ConfigurationFactoryTest {
     @Test
     public void parseProduceJobConfiguration() {
         // when
-        ProduceJobConfiguration configuration = (ProduceJobConfiguration) ConfigurationFactory.build(ConfigurationType.PRODUCE_JOB, configJSON);
+        ProduceToTQueueConfiguration configuration = (ProduceToTQueueConfiguration) ConfigurationFactory.build(ConfigurationType.PRODUCE_TO_TQUEUE, configJSON);
         // then
         List<Configuration> producers = configuration.find(ConfigurationType.PRODUCER);
         Assert.assertEquals(1, producers.size());

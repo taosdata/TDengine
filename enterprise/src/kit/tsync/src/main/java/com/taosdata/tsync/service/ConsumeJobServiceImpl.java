@@ -39,7 +39,7 @@ public class ConsumeJobServiceImpl extends AbstractJobService {
 
     @Override
     public List<Integer> prepare(ConfigurationType configurationType, UUID configurationId) throws Exception {
-        ConsumeJobConfiguration configuration = (ConsumeJobConfiguration) configurationRepository.find(configurationId);
+        ConsumeToTDengineConfiguration configuration = (ConsumeToTDengineConfiguration) configurationRepository.find(configurationId);
         if (configuration == null) {
             throw new Exception("cannot find Configuration of id:[" + configurationId + "]");
         }

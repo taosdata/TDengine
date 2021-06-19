@@ -41,13 +41,13 @@ public class ProduceJobServiceImpl extends AbstractJobService {
         this.resultProcessService = resultProcessService;
     }
 
-    private void arrangeTablesToEachThread(ProduceJobConfiguration configuration) {
+    private void arrangeTablesToEachThread(ProduceToTQueueConfiguration configuration) {
         StableConfiguration stableConfiguration = (StableConfiguration) configuration.findFirst(ConfigurationType.STABLE);
         long tables = stableConfiguration.getTables();
         threadIndex2TableRange = Utils.divideIntoGroups(tables, threadSize);
     }
 
-    private void arrangeRecordToEachThread(ProduceJobConfiguration configuration) {
+    private void arrangeRecordToEachThread(ProduceToTQueueConfiguration configuration) {
         MessageConfiguration messageConfiguration = (MessageConfiguration) configuration.findFirst(ConfigurationType.MESSAGE);
         long total = messageConfiguration.getTotal();
         threadRecordMap = Utils.divideIntoGroups(total, threadSize);
@@ -55,14 +55,14 @@ public class ProduceJobServiceImpl extends AbstractJobService {
         batchValues = messageConfiguration.getBatchValues();
     }
 
-    private void prepareSchema(ProduceJobConfiguration configuration) {
+    private void prepareSchema(ProduceToTQueueConfiguration configuration) {
         schemaConfiguration = (SchemaConfiguration) configuration.findFirst(ConfigurationType.SCHEMA);
     }
 
     @Override
     public List<Integer> prepare(ConfigurationType configurationType, UUID configurationId) throws Exception {
         // find configuration
-        ProduceJobConfiguration configuration = (ProduceJobConfiguration) configurationRepository.find(configurationId);
+        ProduceToTQueueConfiguration configuration = (ProduceToTQueueConfiguration) configurationRepository.find(configurationId);
         if (configuration == null) {
             throw new Exception("cannot find Configuration of id:[" + configurationId + "]");
         }
@@ -108,7 +108,7 @@ public class ProduceJobServiceImpl extends AbstractJobService {
         return taskIds;
     }
 
-    private void doPartitionMissingStrategy(ProduceJobConfiguration configuration) throws Exception {
+    private void doPartitionMissingStrategy(ProduceToTQueueConfiguration configuration) throws Exception {
         ProducerConfiguration producerConfiguration = (ProducerConfiguration) configuration.findFirst(ConfigurationType.PRODUCER);
         TaskConfiguration taskConfiguration = (TaskConfiguration) configuration.findFirst(ConfigurationType.TASK);
         TQueueProducer producer = TQueueProducerFactory.build(producerConfiguration);

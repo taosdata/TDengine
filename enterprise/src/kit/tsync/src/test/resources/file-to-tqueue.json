@@ -1,0 +1,35 @@
+{
+  "producer": {
+    "host": "192.168.17.156",
+    "port": 6041,
+    "user": "root",
+    "password": "tqueue",
+    "charset": "UTF-8",
+    "locale": "en_US.UTF-8",
+    "timezone": "UTC-8",
+    "serializer": "STRING"
+  },
+  "task": {
+    "topic": "tq_test",
+    "partitions": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8
+    ],
+    "threads": 5
+  },
+  "source": {
+    "file": {
+      "directory": "/Users/yangzy/IdeaProjects/TDinternal/enterprise/src/kit/tsync/tmp",
+      "prefix": ""
+    },
+    "strategy": {
+      "pollingInterval": 1000
+    }
+  }
+}

@@ -1,7 +1,7 @@
 package com.taosdata.tsync.enums;
 
 public enum ConfigurationType {
-    PRODUCE_JOB,
+    PRODUCE_TO_TQUEUE,
     PRODUCER,
     TASK,
     MESSAGE,
@@ -11,9 +11,12 @@ public enum ConfigurationType {
     COLUMN,
     TAG,
     /******/
-    CONSUME_JOB,
+    CONSUME_TO_TDENGINE,
     CONSUMER,
     DESTINATION,
     TAOSD,
-    STRATEGY
+    STRATEGY,
+    /******/
+    CONSUME_TO_FILE,
+    FILE
 }

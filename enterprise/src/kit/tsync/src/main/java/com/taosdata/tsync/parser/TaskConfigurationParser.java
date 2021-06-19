@@ -38,8 +38,6 @@ public class TaskConfigurationParser implements ConfigurationParser {
                 partitions[i] = arr.getInteger(i);
             }
             config.setPartitions(partitions);
-        } else {
-            //TODO: get partitions from tqueue
         }
 
         // threads

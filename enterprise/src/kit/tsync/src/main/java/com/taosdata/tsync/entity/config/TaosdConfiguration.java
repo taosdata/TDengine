@@ -3,6 +3,13 @@ package com.taosdata.tsync.entity.config;
 import com.taosdata.tsync.enums.ConfigurationType;
 
 public class TaosdConfiguration extends Configuration {
+    public static final Integer PORT_DEFAULT = 6041;
+    public static final String USER_DEFAULT = "root";
+    public static final String PASSWORD_DEFAULT = "taosdata";
+    public static final String CHARSET_DEFAULT = "UTF-8";
+    public static final String LOCALE_DEFAULT = "en_US.UTF-8";
+    public static final String TIMEZONE_DEFAULT = "UTC-8";
+
     private String host;
     private Integer port;
     private String user;

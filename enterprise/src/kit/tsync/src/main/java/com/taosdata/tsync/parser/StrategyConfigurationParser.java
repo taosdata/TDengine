@@ -5,8 +5,11 @@ import com.taosdata.tsync.entity.config.Configuration;
 import com.taosdata.tsync.entity.config.StrategyConfiguration;
 import com.taosdata.tsync.enums.ConfigurationType;
 import com.taosdata.tsync.enums.SchemaMissingStrategy;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class StrategyConfigurationParser implements ConfigurationParser {
+    private static final Logger logger = LoggerFactory.getLogger(StrategyConfigurationParser.class);
     private final ConfigurationType type = ConfigurationType.STRATEGY;
 
     @Override
@@ -20,7 +23,11 @@ public class StrategyConfigurationParser implements ConfigurationParser {
 
         if (configJSON.containsKey("pollingInterval")) {
             configuration.setPollingInterval(configJSON.getInteger("pollingInterval"));
+        } else {
+            logger.warn("use default polling interval: " + StrategyConfiguration.DEFAULT_POLLING_INTERVAL);
+            configuration.setPollingInterval(StrategyConfiguration.DEFAULT_POLLING_INTERVAL);
         }
+
         if (configJSON.containsKey("schemaMissing")) {
             String schemaMissing = configJSON.getString("schemaMissing");
             if (schemaMissing.equalsIgnoreCase("CREATE")) {
