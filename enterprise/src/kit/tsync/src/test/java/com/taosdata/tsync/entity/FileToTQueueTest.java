@@ -8,7 +8,7 @@ import com.taosdata.tsync.factory.JobFactory;
 import com.taosdata.tsync.repository.ConfigurationRepository;
 import com.taosdata.tsync.service.AffectRowsProcessService;
 import com.taosdata.tsync.service.JobService;
-import com.taosdata.tsync.service.ProduceJobServiceImpl;
+import com.taosdata.tsync.service.ProduceToTQueueJobServiceImpl;
 import com.taosdata.tsync.service.ResultProcessService;
 import org.apache.commons.io.IOUtils;
 import org.junit.Assert;
@@ -27,7 +27,7 @@ public class FileToTQueueTest {
         // given
         ConfigurationRepository configurationRepository = ConfigurationRepository.getInstance();
         ResultProcessService resultProcessService = new AffectRowsProcessService();
-        JobService jobService = new ProduceJobServiceImpl(resultProcessService);
+        JobService jobService = new ProduceToTQueueJobServiceImpl(resultProcessService);
 
         // when
         Job job = JobFactory.build(ConfigurationType.PRODUCE_TO_TQUEUE, producerTaskConfigJSON, configurationRepository);

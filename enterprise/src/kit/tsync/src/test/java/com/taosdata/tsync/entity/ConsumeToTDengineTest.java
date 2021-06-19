@@ -7,7 +7,7 @@ import com.taosdata.tsync.enums.JobStatus;
 import com.taosdata.tsync.factory.ConfigurationFactory;
 import com.taosdata.tsync.factory.JobFactory;
 import com.taosdata.tsync.repository.ConfigurationRepository;
-import com.taosdata.tsync.service.ConsumeJobServiceImpl;
+import com.taosdata.tsync.service.ConsumeToTDengineJobServiceImpl;
 import com.taosdata.tsync.service.JobService;
 import org.apache.commons.io.IOUtils;
 import org.junit.Assert;
@@ -29,7 +29,7 @@ public class ConsumeToTDengineTest {
     public void runConsumeJob() {
         // given
         ConfigurationRepository configurationRepository = ConfigurationRepository.getInstance();
-        JobService jobService = new ConsumeJobServiceImpl();
+        JobService jobService = new ConsumeToTDengineJobServiceImpl();
 
         // when
         Job job = JobFactory.build(ConfigurationType.CONSUME_TO_TDENGINE, consumerTaskConfigJSON, configurationRepository);

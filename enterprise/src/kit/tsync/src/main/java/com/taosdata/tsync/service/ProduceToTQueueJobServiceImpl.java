@@ -19,15 +19,14 @@ import java.util.concurrent.FutureTask;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-public class ProduceJobServiceImpl extends AbstractJobService {
-    private static final Logger logger = LoggerFactory.getLogger(ProduceJobServiceImpl.class);
+public class ProduceToTQueueJobServiceImpl extends AbstractJobService {
+    private static final Logger logger = LoggerFactory.getLogger(ProduceToTQueueJobServiceImpl.class);
 
     private final ConfigurationRepository configurationRepository = ConfigurationRepository.getInstance();
     private final CallableTaskRepository callableTaskRepository = CallableTaskRepository.getInstance();
     private final ResultProcessService resultProcessService;
 
     private String topic;
-    private int[] partitions;
     private int threadSize;
     private Multimap<Integer, Integer> threadIndex2PartitionList;
     private Map<Integer, Range<Long>> threadIndex2TableRange;
@@ -36,7 +35,7 @@ public class ProduceJobServiceImpl extends AbstractJobService {
     private long batchValues;
     private SchemaConfiguration schemaConfiguration;
 
-    public ProduceJobServiceImpl(ResultProcessService resultProcessService) {
+    public ProduceToTQueueJobServiceImpl(ResultProcessService resultProcessService) {
         super();
         this.resultProcessService = resultProcessService;
     }
@@ -116,7 +115,7 @@ public class ProduceJobServiceImpl extends AbstractJobService {
         checkTopicAndPartitions(taskConfiguration, producer);
         // use all partitions if partitions not set
         topic = taskConfiguration.getTopic();
-        partitions = taskConfiguration.getPartitions();
+        int[] partitions = taskConfiguration.getPartitions();
         if (partitions == null || partitions.length == 0) {
             partitions = IntStream.range(1, producer.getTopic(topic).partitions() + 1).toArray();
         }

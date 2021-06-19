@@ -6,7 +6,8 @@ import com.taosdata.tsync.enums.ConfigurationType;
 import com.taosdata.tsync.enums.JobStatus;
 import com.taosdata.tsync.factory.JobFactory;
 import com.taosdata.tsync.repository.ConfigurationRepository;
-import com.taosdata.tsync.service.ConsumeJobServiceImpl;
+import com.taosdata.tsync.service.ConsumeToFileJobServiceImpl;
+import com.taosdata.tsync.service.ConsumeToTDengineJobServiceImpl;
 import com.taosdata.tsync.service.JobService;
 import org.apache.commons.io.IOUtils;
 import org.junit.Assert;
@@ -24,7 +25,7 @@ public class ConsumeToFileJobTest {
     public void testConsumeToFile() {
         // given
         ConfigurationRepository configurationRepository = ConfigurationRepository.getInstance();
-        JobService jobService = new ConsumeJobServiceImpl();
+        JobService jobService = new ConsumeToFileJobServiceImpl();
 
         // when
         Job job = JobFactory.build(ConfigurationType.CONSUME_TO_FILE, consumerTaskConfigJSON, configurationRepository);

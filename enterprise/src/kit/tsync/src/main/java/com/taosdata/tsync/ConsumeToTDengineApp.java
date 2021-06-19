@@ -5,7 +5,7 @@ import com.taosdata.tsync.entity.Job;
 import com.taosdata.tsync.enums.ConfigurationType;
 import com.taosdata.tsync.factory.JobFactory;
 import com.taosdata.tsync.repository.ConfigurationRepository;
-import com.taosdata.tsync.service.ConsumeJobServiceImpl;
+import com.taosdata.tsync.service.ConsumeToTDengineJobServiceImpl;
 import com.taosdata.tsync.service.JobService;
 import org.apache.commons.io.IOUtils;
 import org.slf4j.Logger;
@@ -43,7 +43,7 @@ public class ConsumeToTDengineApp {
         Job job = JobFactory.build(ConfigurationType.CONSUME_TO_TDENGINE, consumerTaskConfigJSON, configurationRepository);
 
         // when
-        JobService jobService = new ConsumeJobServiceImpl();
+        JobService jobService = new ConsumeToTDengineJobServiceImpl();
         job.prepare(jobService);
 
         // when

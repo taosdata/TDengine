@@ -7,7 +7,7 @@ import com.taosdata.tsync.factory.JobFactory;
 import com.taosdata.tsync.repository.ConfigurationRepository;
 import com.taosdata.tsync.service.AffectRowsProcessService;
 import com.taosdata.tsync.service.JobService;
-import com.taosdata.tsync.service.ProduceJobServiceImpl;
+import com.taosdata.tsync.service.ProduceToTQueueJobServiceImpl;
 import org.apache.commons.io.IOUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -46,7 +46,7 @@ public class ProduceToTQueueApp {
         Job job = JobFactory.build(ConfigurationType.PRODUCE_TO_TQUEUE, producerTaskConfigJSON, configurationRepository);
 
         // prepare
-        JobService jobService = new ProduceJobServiceImpl(new AffectRowsProcessService());
+        JobService jobService = new ProduceToTQueueJobServiceImpl(new AffectRowsProcessService());
         job.prepare(jobService);
 
         // execute

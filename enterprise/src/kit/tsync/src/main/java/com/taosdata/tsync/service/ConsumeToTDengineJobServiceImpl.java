@@ -22,9 +22,9 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-public class ConsumeJobServiceImpl extends AbstractJobService {
+public class ConsumeToTDengineJobServiceImpl extends AbstractJobService {
 
-    private static final Logger logger = LoggerFactory.getLogger(ConsumeJobServiceImpl.class);
+    private static final Logger logger = LoggerFactory.getLogger(ConsumeToTDengineJobServiceImpl.class);
     private final ConfigurationRepository configurationRepository = ConfigurationRepository.getInstance();
     private final RunnableTaskRepository runnableTaskRepository = RunnableTaskRepository.getInstance();
 
@@ -33,7 +33,7 @@ public class ConsumeJobServiceImpl extends AbstractJobService {
     private int threadSize;
     private Multimap<Integer, Integer> threadIndex2PartitionList;
 
-    public ConsumeJobServiceImpl() {
+    public ConsumeToTDengineJobServiceImpl() {
         super();
     }
 
