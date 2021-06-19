@@ -920,7 +920,7 @@ int tsdbWriteBlockImpl(STsdbRepo *pRepo, STable *pTable, SDFile *pDFile, SDataCo
     SDataCol * pDataCol = pDataCols->cols + ncol;
     SBlockCol *pBlockCol = pBlockData->cols + nColsNotAllNull;
 
-    if (isNEleNull(pDataCol, rowsToWrite)) {  // all data to commit are NULL, just ignore it
+    if (isAllNull(pDataCol)) {  // all data to commit are NULL, just ignore it
       continue;
     }
 

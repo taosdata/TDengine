@@ -18,6 +18,21 @@
 #include "tcoding.h"
 #include "wchar.h"
 
+const uint8_t      BoolNull = TSDB_DATA_BOOL_NULL;
+const uint8_t      TinyintNull = TSDB_DATA_TINYINT_NULL;
+const uint16_t     SmallintNull = TSDB_DATA_SMALLINT_NULL;
+const uint32_t     IntNull = TSDB_DATA_INT_NULL;
+const uint64_t     BigintNull = TSDB_DATA_BIGINT_NULL;
+const uint64_t     TimestampNull = TSDB_DATA_BIGINT_NULL;
+const uint8_t      UTinyintNull = TSDB_DATA_UTINYINT_NULL;
+const uint16_t     USmallintNull = TSDB_DATA_USMALLINT_NULL;
+const uint32_t     UIntNull = TSDB_DATA_UINT_NULL;
+const uint64_t     UBigintNull = TSDB_DATA_UBIGINT_NULL;
+const uint32_t     FloatNull = TSDB_DATA_FLOAT_NULL;
+const uint64_t     DoubleNull = TSDB_DATA_DOUBLE_NULL;
+const SBinaryNullT BinaryNull = {1, TSDB_DATA_BINARY_NULL};
+const SNCharNullT  NcharNull = {4, TSDB_DATA_NCHAR_NULL};
+
 static void tdMergeTwoDataCols(SDataCols *target, SDataCols *src1, int *iter1, int limit1, SDataCols *src2, int *iter2,
                                int limit2, int tRows);
 
@@ -219,8 +234,20 @@ void dataColInit(SDataCol *pDataCol, STColumn *pCol, void **pBuf, int maxPoints)
 }
 
 // value from timestamp should be TKEY here instead of TSKEY
-void dataColAppendVal(SDataCol *pCol, void *value, int numOfRows, int maxPoints) {
+void dataColAppendVal(SDataCol *pCol, const void *value, int numOfRows, int maxPoints) {
   ASSERT(pCol != NULL && value != NULL);
+
+  if (pCol->len == 0) {
+    if (isNull(value, pCol->type)) {
+      // all null value yet, just return
+      return;
+    }
+
+    if (numOfRows > 0) {
+      // Find the first not null value, fill all previouse values as NULL
+      dataColSetNEleNull(pCol, numOfRows, maxPoints);
+    }
+  }
 
   if (IS_VAR_DATA_TYPE(pCol->type)) {
     // set offset
@@ -419,7 +446,7 @@ void tdAppendDataRowToDataCol(SDataRow row, STSchema *pSchema, SDataCols *pCols)
     while (dcol < pCols->numOfCols) {
       SDataCol *pDataCol = &(pCols->cols[dcol]);
       if (rcol >= schemaNCols(pSchema)) {
-        dataColSetNullAt(pDataCol, pCols->numOfRows);
+        dataColAppendVal(pDataCol, tdGetNullVal(pDataCol->type), pCols->numOfRows, pCols->maxPoints);
         dcol++;
         continue;
       }
@@ -433,7 +460,7 @@ void tdAppendDataRowToDataCol(SDataRow row, STSchema *pSchema, SDataCols *pCols)
       } else if (pRowCol->colId < pDataCol->colId) {
         rcol++;
       } else {
-        dataColSetNullAt(pDataCol, pCols->numOfRows);
+        dataColAppendVal(pDataCol, tdGetNullVal(pDataCol->type), pCols->numOfRows, pCols->maxPoints);
         dcol++;
       }
     }

@@ -24,6 +24,31 @@
 extern "C" {
 #endif
 
+typedef struct {
+  VarDataLenT len;
+  uint8_t     data;
+} SBinaryNullT;
+
+typedef struct {
+  VarDataLenT len;
+  uint32_t    data;
+} SNCharNullT;
+
+extern const uint8_t  BoolNull;
+extern const uint8_t  TinyintNull;
+extern const uint16_t SmallintNull;
+extern const uint32_t IntNull;
+extern const uint64_t BigintNull;
+extern const uint64_t TimestampNull;
+extern const uint8_t  UTinyintNull;
+extern const uint16_t USmallintNull;
+extern const uint32_t UIntNull;
+extern const uint64_t UBigintNull;
+extern const uint32_t FloatNull;
+extern const uint64_t DoubleNull;
+extern const SBinaryNullT BinaryNull;
+extern const SNCharNullT  NcharNull;
+
 #define STR_TO_VARSTR(x, str)                     \
   do {                                            \
     VarDataLenT __len = (VarDataLenT)strlen(str); \
@@ -193,7 +218,7 @@ void     tdInitDataRow(SDataRow row, STSchema *pSchema);
 SDataRow tdDataRowDup(SDataRow row);
 
 // offset here not include dataRow header length
-static FORCE_INLINE int tdAppendColVal(SDataRow row, void *value, int8_t type, int32_t bytes, int32_t offset) {
+static FORCE_INLINE int tdAppendColVal(SDataRow row, const void *value, int8_t type, int32_t bytes, int32_t offset) {
   ASSERT(value != NULL);
   int32_t toffset = offset + TD_DATA_ROW_HEAD_SIZE;
   char *  ptr = (char *)POINTER_SHIFT(row, dataRowLen(row));
@@ -237,17 +262,57 @@ typedef struct SDataCol {
   TSKEY           ts;         // only used in last NULL column
 } SDataCol;
 
+#define isAllNull(pCol) ((pCol)->len == 0)
 static FORCE_INLINE void dataColReset(SDataCol *pDataCol) { pDataCol->len = 0; }
 
 void dataColInit(SDataCol *pDataCol, STColumn *pCol, void **pBuf, int maxPoints);
-void dataColAppendVal(SDataCol *pCol, void *value, int numOfRows, int maxPoints);
+void dataColAppendVal(SDataCol *pCol, const void *value, int numOfRows, int maxPoints);
 void dataColSetOffset(SDataCol *pCol, int nEle);
 
 bool isNEleNull(SDataCol *pCol, int nEle);
 void dataColSetNEleNull(SDataCol *pCol, int nEle, int maxPoints);
 
+static const void *tdGetNullVal(int8_t type) {
+  switch (type) {
+    case TSDB_DATA_TYPE_BOOL:
+      return &BoolNull;
+    case TSDB_DATA_TYPE_TINYINT:
+      return &TinyintNull;
+    case TSDB_DATA_TYPE_SMALLINT:
+      return &SmallintNull;
+    case TSDB_DATA_TYPE_INT:
+      return &IntNull;
+    case TSDB_DATA_TYPE_BIGINT:
+      return &BigintNull;
+    case TSDB_DATA_TYPE_FLOAT:
+      return &FloatNull;
+    case TSDB_DATA_TYPE_DOUBLE:
+      return &DoubleNull;
+    case TSDB_DATA_TYPE_BINARY:
+      return &BinaryNull;
+    case TSDB_DATA_TYPE_TIMESTAMP:
+      return &TimestampNull;
+    case TSDB_DATA_TYPE_NCHAR:
+      return &NcharNull;
+    case TSDB_DATA_TYPE_UTINYINT:
+      return &UTinyintNull;
+    case TSDB_DATA_TYPE_USMALLINT:
+      return &USmallintNull;
+    case TSDB_DATA_TYPE_UINT:
+      return &UIntNull;
+    case TSDB_DATA_TYPE_UBIGINT:
+      return &UBigintNull;
+    default:
+      ASSERT(0);
+  }
+}
+
 // Get the data pointer from a column-wised data
-static FORCE_INLINE void *tdGetColDataOfRow(SDataCol *pCol, int row) {
+static FORCE_INLINE const void *tdGetColDataOfRow(SDataCol *pCol, int row) {
+  if (isAllNull(pCol)) {
+    return tdGetNullVal(pCol->type);
+  }
+
   if (IS_VAR_DATA_TYPE(pCol->type)) {
     return POINTER_SHIFT(pCol->pData, pCol->dataOff[row]);
   } else {
