@@ -460,17 +460,15 @@ bool tscIsTWAQuery(SQueryInfo* pQueryInfo) {
   return false;
 }
 
-bool tscIsDiffQuery(SQueryInfo* pQueryInfo) {
-  size_t num = tscNumOfExprs(pQueryInfo);
-  for(int32_t i = 0; i < num; ++i) {
+bool tscIsIrateQuery(SQueryInfo* pQueryInfo) {
+  size_t numOfExprs = tscNumOfExprs(pQueryInfo);
+  for (int32_t i = 0; i < numOfExprs; ++i) {
     SExprInfo* pExpr = tscExprGet(pQueryInfo, i);
-
-    int32_t f = pExpr->base.functionId;
-    if (pExpr == NULL || f == TSDB_FUNC_TS_DUMMY) {
+    if (pExpr == NULL) {
       continue;
     }
 
-    if (f == TSDB_FUNC_DIFF || f == TSDB_FUNC_DERIVATIVE) {
+    if (pExpr->base.functionId == TSDB_FUNC_IRATE) {
       return true;
     }
   }
@@ -516,7 +514,7 @@ bool isSimpleAggregateRv(SQueryInfo* pQueryInfo) {
     return false;
   }
 
-  if (tscIsDiffQuery(pQueryInfo)) {
+  if (tscIsDiffDerivQuery(pQueryInfo)) {
     return false;
   }
 
@@ -3495,6 +3493,7 @@ static void tscSubqueryRetrieveCallback(void* param, TAOS_RES* tres, int code) {
   if (pSql->res.code == TSDB_CODE_SUCCESS) {
     (*pSql->fp)(pParentSql->param, pParentSql, pParentSql->res.numOfRows);
   } else {
+    pParentSql->res.code = pSql->res.code;
     tscAsyncResultOnError(pParentSql);
   }
 }
@@ -4260,7 +4259,7 @@ int32_t tscCreateQueryFromQueryInfo(SQueryInfo* pQueryInfo, SQueryAttr* pQueryAt
   pQueryAttr->hasTagResults     = hasTagValOutput(pQueryInfo);
   pQueryAttr->stabledev         = isStabledev(pQueryInfo);
   pQueryAttr->tsCompQuery       = isTsCompQuery(pQueryInfo);
-  pQueryAttr->diffQuery         = tscIsDiffQuery(pQueryInfo);
+  pQueryAttr->diffQuery         = tscIsDiffDerivQuery(pQueryInfo);
   pQueryAttr->simpleAgg         = isSimpleAggregateRv(pQueryInfo);
   pQueryAttr->needReverseScan   = tscNeedReverseScan(pQueryInfo);
   pQueryAttr->stableQuery       = QUERY_IS_STABLE_QUERY(pQueryInfo->type);

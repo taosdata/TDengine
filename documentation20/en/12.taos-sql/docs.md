@@ -63,7 +63,7 @@ In TDengine, the following 10 data types can be used in data model of an ordinar
 
 ## <a class="anchor" id="management"></a>Database Management
 
-- Create a Database
+- **Create a Database**
 
    ```mysql
       CREATE DATABASE [IF NOT EXISTS] db_name [KEEP keep] [DAYS days] [UPDATE 1];
@@ -77,65 +77,64 @@ Note:
 4. Maximum length of a SQL statement is 65480 characters;
 5.  Database has more storage-related configuration parameters, see System Management.
 
-- Show current system parameters
+- **Show current system parameters**
 
-- ```mysql
-      SHOW VARIABLES;
-  ```
+    ```mysql
+    SHOW VARIABLES;
+    ```
 
-- Use a database
+- **Use a database**
 
-Use/switch database
+    ```mysql
+    USE db_name;
+    ```
+    Use/switch database
 
-- Drop a database
+- **Drop a database**
+    ```mysql
+    DROP DATABASE [IF EXISTS] db_name;
+    ```
+    Delete a database, all data tables included will be deleted. Please use with caution.
 
-Delete a database, all data tables included will be deleted. Please use with caution.
+- **Modify database parameters**
 
-- Modify database parameters
+    ```mysql
+    ALTER DATABASE db_name COMP 2;
+    ```
+    COMP parameter modifies the database file compression flag bit, with the default value of 2 and the value range is [0, 2]. 0 means no compression, 1 means one-stage compression, and 2 means two-stage compression.
 
--     ```mysql
-      ALTER DATABASE db_name COMP 2;
-      ```
-
-COMP parameter modifies the database file compression flag bit, with the default value of 2 and the value range is [0, 2]. 0 means no compression, 1 means one-stage compression, and 2 means two-stage compression.
-
- ```mysql
+    ```mysql
     ALTER DATABASE db_name REPLICA 2;
- ```
+    ```
+    REPLICA parameter refers to the number of replicas of the modified database, and the value range is [1, 3]. For use in a cluster, the number of replicas must be less than or equal to the number of DNODE.
 
-- REPLICA parameter refers to the number of replicas of the modified database, and the value range is [1, 3]. For use in a cluster, the number of replicas must be less than or equal to the number of DNODE.
+    ```mysql
+    ALTER DATABASE db_name KEEP 365;
+    ```
+    The KEEP parameter refers to the number of days to save a modified data file. The default value is 3650, and the value range is [days, 365000]. It must be greater than or equal to the days parameter value.
 
    ```mysql
-    ALTER DATABASE db_name KEEP 365;
+   ALTER DATABASE db_name QUORUM 2;
    ```
+   QUORUM parameter refers to the number of confirmations required for successful data writing, and the value range is [1, 3]. For asynchronous replication, quorum is set to 1, and the virtual node with master role can confirm it by itself. For synchronous replication, it needs to be at least 2 or greater. In principle, Quorum > = 1 and Quorum < = replica number, which is required when starting a synchronization module instance.
 
-- The KEEP parameter refers to the number of days to save a modified data file. The default value is 3650, and the value range is [days, 365000]. It must be greater than or equal to the days parameter value.
-
-```mysql
-    ALTER DATABASE db_name QUORUM 2;
-```
-
-- 
-
-QUORUM parameter refers to the number of confirmations required for successful data writing, and the value range is [1, 3]. For asynchronous replication, quorum is set to 1, and the virtual node with master role can confirm it by itself. For synchronous replication, it needs to be at least 2 or greater. In principle, Quorum > = 1 and Quorum < = replica number, which is required when starting a synchronization module instance.
-
- ```mysql
+    ```mysql
     ALTER DATABASE db_name BLOCKS 100;
- ```
+    ```
+   BLOCKS parameter is the number of cache-sized memory blocks in each VNODE (TSDB), so the memory size used for a VNODE equals roughly (cache * blocks). Value range is [3,1000].
 
-- BLOCKS parameter is the number of cache-sized memory blocks in each VNODE (TSDB), so the memory size used for a VNODE equals roughly (cache * blocks). Value range is [3,1000].
-
- ```mysql
+    ```mysql
     ALTER DATABASE db_name CACHELAST 0;
- ```
+    ```
+    CACHELAST parameter controls whether last_row of the data subtable is cached in memory. The default value is 0, and the value range is [0, 1]. Where 0 means not enabled and 1 means enabled. (supported from version 2.0. 11)
+    
+    **Tips**: After all the above parameters are modified, show databases can be used to confirm whether the modification is successful.
 
-- CACHELAST parameter controls whether last_row of the data subtable is cached in memory. The default value is 0, and the value range is [0, 1]. Where 0 means not enabled and 1 means enabled. (supported from version 2.0. 11)
+- **Show all databases in system**
 
-Tips: After all the above parameters are modified, show databases can be used to confirm whether the modification is successful.
-
-- Show all databases in system
-
-
+    ```mysql
+    SHOW DATABASES;
+    ```
 
 ## <a class="anchor" id="table"></a> Table Management
 
@@ -146,206 +145,217 @@ Note:
 2. The max length of table name is 192;
 3. The length of each row of the table cannot exceed 16k characters;
 4. Sub-table names can only consist of letters, numbers, and underscores, and cannot begin with numbers
-5. ​	10)If the data type binary or nchar is used, the maximum number of bytes should be specified, such as binary (20), which means 20 bytes;
+5. If the data type binary or nchar is used, the maximum number of bytes should be specified, such as binary (20), which means 20 bytes;
 
-- Create a table via STable
+- **Create a table via STable**
 
-- ```mysql
-      CREATE TABLE [IF NOT EXISTS] tb_name USING stb_name TAGS (tag_value1, ...);
-  ```
-
-Use a STable as template and assign tag values to create a data table.
+    ```mysql
+    CREATE TABLE [IF NOT EXISTS] tb_name USING stb_name TAGS (tag_value1, ...);
+    ```
+    Use a STable as template and assign tag values to create a data table.
 
 - **Create a data table using STable as a template and specify a specific tags column**
 
-- ```mysql
-      CREATE TABLE [IF NOT EXISTS] tb_name USING stb_name (tag_name1, ...) TAGS (tag_value1, ...);
-  ```
+   ```mysql
+   CREATE TABLE [IF NOT EXISTS] tb_name USING stb_name (tag_name1, ...) TAGS (tag_value1, ...);
+   ```
+   Using the specified STable as a template, specify the values of some tags columns to create a data table. (Unspecified tags columns are set to null values.)
+   Note: This method has been supported since version 2.0. 17. In previous versions, tags columns were not allowed to be specified, but the values of all tags columns must be explicitly given.
 
-Using the specified STable as a template, specify the values of some tags columns to create a data table. (Unspecified tags columns are set to null values.)
+- **Create tables in batches**
 
-Note: This method has been supported since version 2.0. 17. In previous versions, tags columns were not allowed to be specified, but the values of all tags columns must be explicitly given.
+   ```mysql
+   CREATE TABLE [IF NOT EXISTS] tb_name1 USING stb_name TAGS (tag_value1, ...) tb_name2 USING stb_name TAGS (tag_value2, ...) ...;
+   ```
+   Create a large number of data tables in batches faster. (Server side 2.0. 14 and above)
+   
+   Note:
+   1. The method of batch creating tables requires that the data table must use STable as a template.
+   2. On the premise of not exceeding the length limit of SQL statements, it is suggested that the number of tables in a single statement should be controlled between 1000 and 3000, which will obtain an ideal speed of table building.
 
-- Create tables in batches
+- **Drop a table**
+    
+    ```mysql
+    DROP TABLE [IF EXISTS] tb_name;
+    ```
 
-- ```mysql
-      CREATE TABLE [IF NOT EXISTS] tb_name1 USING stb_name TAGS (tag_value1, ...) tb_name2 USING stb_name TAGS (tag_value2, ...) ...;
-  ```
+- **Show all data table information under the current database**
 
-Create a large number of data tables in batches faster. (Server side 2.0. 14 and above)
+    ```mysql
+    SHOW TABLES [LIKE tb_name_wildcar];
+    ```
+    Show all data table information under the current database.
+    Note: Wildcard characters can be used to match names in like. The maximum length of this wildcard character string cannot exceed 24 bytes.
+    Wildcard matching: 1) '%' (percent sign) matches 0 to any number of characters; 2) '_' underscore matches one character.
 
-Note:
+- **Modify display character width online**
 
-1. The method of batch creating tables requires that the data table must use STable as a template.
-2. On the premise of not exceeding the length limit of SQL statements, it is suggested that the number of tables in a single statement should be controlled between 1000 and 3000, which will obtain an ideal speed of table building.
+    ```mysql
+    SET MAX_BINARY_DISPLAY_WIDTH <nn>;
+    ```
 
-- Drop a table
+- **Get schema information of a table**
+  
+    ```mysql
+    DESCRIBE tb_name;
+    ```
 
-- Show all data table information under the current database
+- **Add a column to table**
 
-Show all data table information under the current database.
+   ```mysql
+   ALTER TABLE tb_name ADD COLUMN field_name data_type;
+   ```
+   Note:
+   1. The maximum number of columns is 1024 and the minimum number is 2;
+   2. The maximum length of a column name is 64; 
 
-Note: Wildcard characters can be used to match names in like. The maximum length of this wildcard character string cannot exceed 24 bytes.
+- **Drop a column in table**
 
-Wildcard matching: 1) '%' (percent sign) matches 0 to any number of characters; 2) '_' underscore matches one character.
-
-- Modify display character width online
-
-- Get schema information of a table
-
-- Add a column to table
-
-- ```mysql
-      ALTER TABLE tb_name ADD COLUMN field_name data_type;
-  ```
-
-Note:
-
-1. The maximum number of columns is 1024 and the minimum number is 2;
-2. The maximum length of a column name is 64; 
-
-- Drop a column in table
-
-- ```mysql
-      ALTER TABLE tb_name DROP COLUMN field_name; 
-  ```
-
-If the table is created through a STable, the operation of table schema changing can only be carried out on the STable. Moreover, the schema changes for the STable take effect for all tables created through the schema. For tables that are not created through STables, you can modify the table schema directly.
+   ```mysql
+   ALTER TABLE tb_name DROP COLUMN field_name; 
+   ```
+   If the table is created through a STable, the operation of table schema changing can only be carried out on the STable. Moreover, the schema changes for the STable take effect for all tables created through the schema. For tables that are not created through STables, you can modify the table schema directly.
 
 ## <a class="anchor" id="super-table"></a> STable Management
 
 Note: In 2.0. 15.0 and later versions, STABLE reserved words are supported. That is, in the instruction description later in this section, the three instructions of CREATE, DROP and ALTER need to write TABLE instead of STABLE in the old version as the reserved word.
 
-- Create a STable
-Similiar to a standard table creation SQL, but you need to specify name and type of TAGS field.
+- **Create a STable**
 
-Note:
+    ```mysql
+    CREATE STABLE [IF NOT EXISTS] stb_name (timestamp_field_name TIMESTAMP, field1_name data_type1 [, field2_name data_type2 ...]) TAGS (tag1_name tag_type1, tag2_name tag_type2 [, tag3_name tag_type3]);
+    ```
+    Similiar to a standard table creation SQL, but you need to specify name and type of TAGS field.
+    
+    Note:
+    
+    1. Data types of TAGS column cannot be timestamp;
+    2. No duplicated TAGS column names;
+    3. Reversed word cannot be used as a TAGS column name;
+    4. The maximum number of TAGS is 128, and at least 1 TAG allowed, with a total length of no more than 16k characters.
 
-1. Data types of TAGS column cannot be timestamp;
-2. No duplicated TAGS column names;
-3. Reversed word cannot be used as a TAGS column name;
-4. The maximum number of TAGS is 128, and at least 1 TAG allowed, with a total length of no more than 16k characters.
+- **Drop a STable**
 
-- Drop a STable
+    ```mysql
+    DROP STABLE [IF EXISTS] stb_name;
+    ```
+    Drop a STable automatically deletes all sub-tables created through the STable.
 
-- ```mysql
-      DROP STABLE [IF EXISTS] stb_name;
-  ```
+- **Show all STable information under the current database**
 
-Drop a STable automatically deletes all sub-tables created through the STable.
+    ```mysql
+    SHOW STABLES [LIKE tb_name_wildcard];
+    ```
+    View all STables under the current database and relevant information, including name, creation time, column number, tag number, number of tables created through the STable, etc.
 
-- Show all STable information under the current database
+- **Obtain schema information of a STable**
 
-- ```mysql
-      SHOW STABLES [LIKE tb_name_wildcard];
-  ```
+    ```mysql
+    DESCRIBE stb_name;
+    ```
 
-View all STables under the current database and relevant information, including name, creation time, column number, tag number, number of tables created through the STable, etc.
+- **Add column to STable**
 
-- Obtain schema information of a STable
+    ```mysql
+    ALTER STABLE stb_name ADD COLUMN field_name data_type;
+    ```
 
-- ```mysql
-      DESCRIBE stb_name;
-  ```
+- **Drop column in STable**
 
-- Add column to STable
-
-- Drop column in STable
-
-- ```mysql
-      ALTER STABLE stb_name DROP COLUMN field_name; 
-  ```
+    ```mysql
+    ALTER STABLE stb_name DROP COLUMN field_name; 
+    ```
 
 ## <a class="anchor" id="tags"></a> TAG Management in STable
 
-- Add a tag
-Add a new tag to the STable and specify a type of the new tag. The total number of tags cannot exceed 128 and the total length does not exceed 16K characters.
+- **Add a tag**
 
-- Drop a tag
+    ```mysql
+    ALTER STABLE stb_name ADD TAG new_tag_name tag_type;
+    ```
+    Add a new tag to the STable and specify a type of the new tag. The total number of tags cannot exceed 128 and the total length does not exceed 16K characters.
 
-- ```mysql
-      ALTER STABLE stb_name DROP TAG tag_name;
-  ```
+- **Drop a tag**
 
-Delete a tag of STable. After deleting the tag, all sub-tables under the STable will also automatically delete the same tag.
+    ```mysql
+    ALTER STABLE stb_name DROP TAG tag_name;
+    ```
+    Delete a tag of STable. After deleting the tag, all sub-tables under the STable will also automatically delete the same tag.
 
-- Modify a tag name
+- **Modify a tag name**
 
-- ```mysql
-      ALTER STABLE stb_name CHANGE TAG old_tag_name new_tag_name;
-  ```
+    ```mysql
+    ALTER STABLE stb_name CHANGE TAG old_tag_name new_tag_name;
+    ```
+    Modify a tag name of STable. After modifying, all sub-tables under the STable will automatically update the new tag name.
 
-Modify a tag name of STable. After modifying, all sub-tables under the STable will automatically update the new tag name.
-
-- Modify a tag value of sub-table
-
-- ```mysql
-      ALTER TABLE tb_name SET TAG tag_name=new_tag_value;
-  ```
-
-Note: Except that the operation of tag value updating is carried out for sub-tables, all other tag operations (adding tags, deleting tags, etc.) can only be applied to STable, and cannot be operated on a single sub-table. After adding a tag to a STable, all tables established based on that will automatically add a new tag, and the default value is NULL.
+- **Modify a tag value of sub-table**
+    
+    ```mysql
+    ALTER TABLE tb_name SET TAG tag_name=new_tag_value;
+    ```
+    Note: Except that the operation of tag value updating is carried out for sub-tables, all other tag operations (adding tags, deleting tags, etc.) can only be applied to STable, and cannot be operated on a single sub-table. After adding a tag to a STable, all tables established based on that will automatically add a new tag, and the default value is NULL.
 
 ## <a class="anchor" id="insert"></a> Data Writing
 
-- Insert a record
+- **Insert a record**
 
   ```mysql
-      INSERT INTO tb_name VALUES (field_value, ...);
+  INSERT INTO tb_name VALUES (field_value, ...);
   ```
+  Insert a record into table tb_name.
 
-Insert a record into table tb_name
+- **Insert a record with data corresponding to a given column**
+   
+    ```mysql
+    INSERT INTO tb_name (field1_name, ...) VALUES (field1_value1, ...);
+    ```
+    Insert a record into table tb_name, and the data corresponds to a given column. For columns that do not appear in the SQL statement, database will automatically populate them with NULL. Primary key (timestamp) cannot be NULL.
 
-- Insert a record with data corresponding to a given column
+- **Insert multiple records**
 
-Insert a record into table tb_name, and the data corresponds to a given column. For columns that do not appear in the SQL statement, database will automatically populate them with NULL. Primary key (timestamp) cannot be NULL.
+    ```mysql
+    INSERT INTO tb_name VALUES (field1_value1, ...) (field1_value2, ...) ...;
+    ```
+    Insert multiple records into table tb_name.
 
-- Insert multiple records
+- **Insert multiple records into a given column**
+    
+    ```mysql
+    INSERT INTO tb_name (field1_name, ...) VALUES (field1_value1, ...) (field1_value2, ...) ...;
+    ```
+    Insert multiple records into a given column of table tb_name.
 
-- ```mysql
-      INSERT INTO tb_name VALUES (field1_value1, ...) (field1_value2, ...) ...;
-  ```
+- **Insert multiple records into multiple tables**
+    
+    ```mysql
+    INSERT INTO tb1_name VALUES (field1_value1, ...) (field1_value2, ...) ...
+                tb2_name VALUES (field1_value1, ...) (field1_value2, ...) ...;
+    ```
+    Insert multiple records into tables tb1_name and tb2_name at the same time.
 
-- Insert multiple records into table tb_name
+- **Insert multiple records per column into multiple tables**
 
-- Insert multiple records into a given column
-
-- ```mysql
-      INSERT INTO tb_name (field1_name, ...) VALUES (field1_value1, ...) (field1_value2, ...) ...;
-  ```
-
-Insert multiple records into a given column of table tb_name
-
-- Insert multiple records into multiple tables
-
-- ```mysql
-      INSERT INTO tb1_name VALUES (field1_value1, ...) (field1_value2, ...) ...
-                  tb2_name VALUES (field1_value1, ...) (field1_value2, ...) ...;
-  ```
-
-Insert multiple records into tables tb1_name and tb2_name at the same time
-
-- Insert multiple records per column into multiple tables
-
-- ```mysql
-      INSERT INTO tb1_name (tb1_field1_name, ...) VALUES (field1_value1, ...) (field1_value2, ...) ...
-                  tb2_name (tb2_field1_name, ...) VALUES (field1_value1, ...) (field1_value2, ...) ...;
-  ```
-
-Insert multiple records per column into tables tb1_name and tb2_name at the same time
-
-Note: The timestamp of the oldest record allowed to be inserted is relative to the current server time, minus the configured keep value (days of data retention), and the timestamp of the latest record allowed to be inserted is relative to the current server time, plus the configured days value (interval of data storage in the data file, in days). Both keep and days can be specified when the database is created, and the default values are 3650 days and 10 days, respectively.
+    ```mysql
+    INSERT INTO tb1_name (tb1_field1_name, ...) VALUES (field1_value1, ...) (field1_value2, ...) ...
+                tb2_name (tb2_field1_name, ...) VALUES (field1_value1, ...) (field1_value2, ...) ...;
+    ```
+    Insert multiple records per column into tables tb1_name and tb2_name at the same time.
+    Note: The timestamp of the oldest record allowed to be inserted is relative to the current server time, minus the configured keep value (days of data retention), and the timestamp of the latest record allowed to be inserted is relative to the current server time, plus the configured days value (interval of data storage in the data file, in days). Both keep and days can be specified when the database is created, and the default values are 3650 days and 10 days, respectively.
 
 - <a class="anchor" id="auto_create_table"></a> Automatically create a table when inserting
 
-- ```mysql
-      INSERT INTO tb_name USING stb_name TAGS (tag_value1, ...) VALUES (field_value1, ...);
-  ```
+    ```mysql
+    INSERT INTO tb_name USING stb_name TAGS (tag_value1, ...) VALUES (field_value1, ...);
+    ```
+    If user is not sure whether a table exists when writing data, the automatic table building syntax can be used to create a non-existent table when writing. If the table already exists, no new table will be created. When automatically creating a table, it is required to use the STable as a template and specify tags value for the data table.
 
-If user is not sure whether a table exists when writing data, the automatic table building syntax can be used to create a non-existent table when writing. If the table already exists, no new table will be created. When automatically creating a table, it is required to use the STable as a template and specify tags value for the data table.
-
-- Automatically create a table when inserting, and specify a given tags column
-
-During automatic table creation, only the values of some tags columns can be specified, and the unspecified tags columns will be null.
+- **Automatically create a table when inserting, and specify a given tags column**
+  
+    ```mysql
+    INSERT INTO tb_name USING stb_name (tag_name1, ...) TAGS (tag_value1, ...) VALUES (field_value1, ...);
+    ```
+    During automatic table creation, only the values of some tags columns can be specified, and the unspecified tags columns will be null.
 
 **History writing**: The IMPORT or INSERT command can be used. The syntax and function of IMPORT are exactly the same as those of INSERT.
 
@@ -427,7 +437,6 @@ taos> SELECT * FROM meters;
  2018-10-03 14:38:15.000 |             12.60000 |         218 |              0.33000 | Beijing.Chaoyang               |           2 |
  2018-10-03 14:38:16.800 |             12.30000 |         221 |              0.31000 | Beijing.Chaoyang               |           2 |
 Query OK, 9 row(s) in set (0.002022s)
-​```
 ```
 
 Wildcards support table name prefixes, the two following SQL statements will return all columns:
@@ -650,29 +659,34 @@ Query OK, 1 row(s) in set (0.001091s)
 ### SQL Example
 
 - For example, table tb1 is created with the following statement
-- ```mysql
-      CREATE TABLE tb1 (ts TIMESTAMP, col1 INT, col2 FLOAT, col3 BINARY(50));
-  ```
+  
+    ```mysql
+    CREATE TABLE tb1 (ts TIMESTAMP, col1 INT, col2 FLOAT, col3 BINARY(50));
+    ```
 
 - Query all records of the last hour of tb1
 
+    ```mysql
+    SELECT * FROM tb1 WHERE ts >= NOW - 1h;
+    ```
+
 - Look up table tb1 from 2018-06-01 08:00:00. 000 to 2018-06-02 08:00:00. 000, and col3 string is a record ending in'nny ', and the result is in descending order of timestamp:
 
-- ```mysql
-      SELECT * FROM tb1 WHERE ts > '2018-06-01 08:00:00.000' AND ts <= '2018-06-02 08:00:00.000' AND col3 LIKE '%nny' ORDER BY ts DESC;
-  ```
+    ```mysql
+    SELECT * FROM tb1 WHERE ts > '2018-06-01 08:00:00.000' AND ts <= '2018-06-02 08:00:00.000' AND col3 LIKE '%nny' ORDER BY ts DESC;
+    ```
 
 - Query the sum of col1 and col2, and name it complex. The time is greater than 2018-06-01 08:00:00. 000, and col2 is greater than 1.2. As a result, only 10 records are outputted, starting from item 5
 
-- ```mysql
-      SELECT (col1 + col2) AS 'complex' FROM tb1 WHERE ts > '2018-06-01 08:00:00.000' AND col2 > 1.2 LIMIT 10 OFFSET 5;
-  ```
+    ```mysql
+    SELECT (col1 + col2) AS 'complex' FROM tb1 WHERE ts > '2018-06-01 08:00:00.000' AND col2 > 1.2 LIMIT 10 OFFSET 5;
+    ```
 
 - Query the records of past 10 minutes, the value of col2 is greater than 3.14, and output the result to the file /home/testoutpu.csv.
 
-- ```mysql
-      SELECT COUNT(*) FROM tb1 WHERE ts >= NOW - 10m AND col2 > 3.14 >> /home/testoutpu.csv;
-  ```
+    ```mysql
+    SELECT COUNT(*) FROM tb1 WHERE ts >= NOW - 10m AND col2 > 3.14 >> /home/testoutpu.csv;
+    ```
 
 <a class="anchor" id="functions"></a>
 
@@ -681,150 +695,172 @@ Query OK, 1 row(s) in set (0.001091s)
 TDengine supports aggregations over data, they are listed below:
 
 - **COUNT**
-Function: record the number of rows or non-null values in a column of statistics/STable.
 
-Returned result data type: long integer INT64.
-
-Applicable Fields: Applied to all fields.
-
-Applied to: **table, STable**.
-
-Note:
-
-1. 1. You can use \* instead of specific fields, and use *() to return the total number of records.
-   2. The query results for fields of the same table (excluding NULL values) are the same.
-   3. If the statistic object is a specific column, return the number of records with non-NULL values in that column.
-
-Example:
-
--   ```mysql
-      taos> SELECT COUNT(*), COUNT(voltage) FROM meters;
-          count(*)        |    count(voltage)     |
-      ================================================
-                          9 |                     9 |
-      Query OK, 1 row(s) in set (0.004475s)
+    ```mysql
+    SELECT COUNT([*|field_name]) FROM tb_name [WHERE clause];
+    ```
+    Function: record the number of rows or non-null values in a column of statistics/STable.
+    
+    Returned result data type: long integer INT64.
+    
+    Applicable Fields: Applied to all fields.
+    
+    Applied to: **table, STable**.
+    
+    Note:
+    1. You can use \* instead of specific fields, and use *() to return the total number of records.
+    2. The query results for fields of the same table (excluding NULL values) are the same.
+    3. If the statistic object is a specific column, return the number of records with non-NULL values in that column.
+    
+    Example:
+    
+    ```mysql
+    taos> SELECT COUNT(*), COUNT(voltage) FROM meters;
+        count(*)        |    count(voltage)     |
+    ================================================
+                        9 |                     9 |
+    Query OK, 1 row(s) in set (0.004475s)
   
-      taos> SELECT COUNT(*), COUNT(voltage) FROM d1001;
-          count(*)        |    count(voltage)     |
-      ================================================
-                          3 |                     3 |
-      Query OK, 1 row(s) in set (0.001075s)
+    taos> SELECT COUNT(*), COUNT(voltage) FROM d1001;
+        count(*)        |    count(voltage)     |
+    ================================================
+                        3 |                     3 |
+    Query OK, 1 row(s) in set (0.001075s)
     ```
 
 - **AVG**
 
-- ```mysql
-      SELECT AVG(field_name) FROM tb_name [WHERE clause];
+  ```mysql
+  SELECT AVG(field_name) FROM tb_name [WHERE clause];
   ```
-
-Function: return the average value of a column in statistics/STable.
-
-Return Data Type: double.
-
-Applicable Fields: all types except timestamp, binary, nchar, bool.
-
-Applied to: **table,STable**.
-
-Example:
-
--   ```mysql
-      taos> SELECT AVG(current), AVG(voltage), AVG(phase) FROM meters;
-          avg(current)        |       avg(voltage)        |        avg(phase)         |
-      ====================================================================================
-                  11.466666751 |             220.444444444 |               0.293333333 |
-      Query OK, 1 row(s) in set (0.004135s)
+  Function: return the average value of a column in statistics/STable.
   
-      taos> SELECT AVG(current), AVG(voltage), AVG(phase) FROM d1001;
-          avg(current)        |       avg(voltage)        |        avg(phase)         |
-      ====================================================================================
-                  11.733333588 |             219.333333333 |               0.316666673 |
-      Query OK, 1 row(s) in set (0.000943s)
-    ```
+  Return Data Type: double.
+  
+  Applicable Fields: all types except timestamp, binary, nchar, bool.
+  
+  Applied to: **table,STable**.
+  
+  Example:
+  
+  ```mysql
+  taos> SELECT AVG(current), AVG(voltage), AVG(phase) FROM meters;
+      avg(current)        |       avg(voltage)        |        avg(phase)         |
+  ====================================================================================
+              11.466666751 |             220.444444444 |               0.293333333 |
+  Query OK, 1 row(s) in set (0.004135s)
+  
+  taos> SELECT AVG(current), AVG(voltage), AVG(phase) FROM d1001;
+      avg(current)        |       avg(voltage)        |        avg(phase)         |
+  ====================================================================================
+              11.733333588 |             219.333333333 |               0.316666673 |
+  Query OK, 1 row(s) in set (0.000943s)
+  ```
 
 - **TWA**
-
-- ```mysql
-      SELECT TWA(field_name) FROM tb_name WHERE clause;
+   
+  ```mysql
+  SELECT TWA(field_name) FROM tb_name WHERE clause;
   ```
-
-Function: Time weighted average function. The time-weighted average of a column in a statistical table over a period of time.
-
-Return Data Type: double.
-
-Applicable Fields: all types except timestamp, binary, nchar, bool.
-
-Applied to: **table**.
+  
+  Function: Time weighted average function. The time-weighted average of a column in a statistical table over a period of time.
+  
+  Return Data Type: double.
+  
+  Applicable Fields: all types except timestamp, binary, nchar, bool.
+  
+  Applied to: **table**.
 
 - **SUM**
 
-- ```mysql
-      SELECT SUM(field_name) FROM tb_name [WHERE clause];
+  ```mysql
+  SELECT SUM(field_name) FROM tb_name [WHERE clause];
   ```
-
-Function: return the sum of a statistics/STable.
-
-Return Data Type: long integer INMT64 and Double.
-
-Applicable Fields: All types except timestamp, binary, nchar, bool.
-
-Applied to:  **table,STable**.
-
-Example:
-
--  ```mysql
-      taos> SELECT SUM(current), SUM(voltage), SUM(phase) FROM meters;
-          sum(current)        |     sum(voltage)      |        sum(phase)         |
-      ================================================================================
-                  103.200000763 |                  1984 |               2.640000001 |
-      Query OK, 1 row(s) in set (0.001702s)
   
-      taos> SELECT SUM(current), SUM(voltage), SUM(phase) FROM d1001;
-          sum(current)        |     sum(voltage)      |        sum(phase)         |
-      ================================================================================
-                  35.200000763 |                   658 |               0.950000018 |
-      Query OK, 1 row(s) in set (0.000980s)
+  Function: return the sum of a statistics/STable.
+  
+  Return Data Type: long integer INMT64 and Double.
+  
+  Applicable Fields: All types except timestamp, binary, nchar, bool.
+  
+  Applied to:  **table,STable**.
+  
+  Example:
+
+  ```mysql
+  taos> SELECT SUM(current), SUM(voltage), SUM(phase) FROM meters;
+      sum(current)        |     sum(voltage)      |        sum(phase)         |
+  ================================================================================
+              103.200000763 |                  1984 |               2.640000001 |
+  Query OK, 1 row(s) in set (0.001702s)
+  
+  taos> SELECT SUM(current), SUM(voltage), SUM(phase) FROM d1001;
+      sum(current)        |     sum(voltage)      |        sum(phase)         |
+  ================================================================================
+              35.200000763 |                   658 |               0.950000018 |
+  Query OK, 1 row(s) in set (0.000980s)
    ```
 
 - **STDDEV**
-
-- ```mysql
-      SELECT STDDEV(field_name) FROM tb_name [WHERE clause];
+  
+  ```mysql
+  SELECT STDDEV(field_name) FROM tb_name [WHERE clause];
+  ```
+  
+  Function: Mean square deviation of a column in statistics table.
+  
+  Return Data Type: Double.
+  
+  Applicable Fields: All types except timestamp, binary, nchar, bool.
+  
+  Applied to: **table**. (also support **STable** since version 2.0.15.1)
+  
+  Example:
+  
+  ```mysql
+  taos> SELECT STDDEV(current) FROM d1001;
+      stddev(current)      |
+  ============================
+              1.020892909 |
+  Query OK, 1 row(s) in set (0.000915s)
   ```
 
-Function: Mean square deviation of a column in statistics table.
-
-Return Data Type: Double.
-
-Applicable Fields: All types except timestamp, binary, nchar, bool.
-
-Applied to: **table**. (also support **STable** since version 2.0.15.1)
-
-Example:
-
 - **LEASTSQUARES**
-
-Function: Value of a column in statistical table is a fitting straight equation of primary key (timestamp). Start_val is the initial value of independent variable, and step_val is the step size value of independent variable.
-
-Return Data Type: String expression (slope, intercept).
-
-Applicable Fields: All types except timestamp, binary, nchar, bool.
-
-Note: Independent variable is the timestamp, and dependent variable is the value of the column.
-
-Applied to: **table**.
-
-Example:
+    ```mysql
+    SELECT LEASTSQUARES(field_name, start_val, step_val) FROM tb_name [WHERE clause];
+    ```
+    Function: Value of a column in statistical table is a fitting straight equation of primary key (timestamp). Start_val is the initial value of independent variable, and step_val is the step size value of independent variable.
+    
+    Return Data Type: String expression (slope, intercept).
+    
+    Applicable Fields: All types except timestamp, binary, nchar, bool.
+    
+    Note: Independent variable is the timestamp, and dependent variable is the value of the column.
+    
+    Applied to: **table**.
+    
+    Example:
+    ```mysql
+    taos> SELECT LEASTSQUARES(current, 1, 1) FROM d1001;
+                leastsquares(current, 1, 1)             |
+    =====================================================
+    {slop:1.000000, intercept:9.733334}                 |
+    Query OK, 1 row(s) in set (0.000921s)
+    ```
 
 ### Selector Functions
 
 - **MIN**
-Function: return the minimum value of a specific column in statistics/STable.
-
-Return Data Type: Same as applicable fields.
-
-Applicable Fields: All types except timestamp, binary, nchar, bool.
-
-Example:
+    ```mysql
+    SELECT MIN(field_name) FROM {tb_name | stb_name} [WHERE clause];
+    ```
+    Function: return the minimum value of a specific column in statistics/STable.
+    
+    Return Data Type: Same as applicable fields.
+    
+    Applicable Fields: All types except timestamp, binary, nchar, bool.
+    
+    Example:
 
     ```mysql
     taos> SELECT MIN(current), MIN(voltage) FROM meters;
@@ -842,86 +878,84 @@ Example:
 
 - **MAX**
 
-- ```mysql
-      SELECT MAX(field_name) FROM { tb_name | stb_name } [WHERE clause];
-  ```
+   ```mysql
+   SELECT MAX(field_name) FROM { tb_name | stb_name } [WHERE clause];
+   ```
+   
+   Function: return the maximum value of a specific column in statistics/STable.
+   
+   Return Data Type: Same as applicable fields.
+   
+   Applicable Fields: All types except timestamp, binary, nchar, bool.
+   
+   Example:
 
-Function: return the maximum value of a specific column in statistics/STable.
-
-Return Data Type: Same as applicable fields.
-
-Applicable Fields: All types except timestamp, binary, nchar, bool.
-
-Example:
-
--    ```mysql
-      taos> SELECT MAX(current), MAX(voltage) FROM meters;
-          max(current)     | max(voltage) |
-      ======================================
-                  13.40000 |          223 |
-      Query OK, 1 row(s) in set (0.001123s)
+   ```mysql
+   taos> SELECT MAX(current), MAX(voltage) FROM meters;
+       max(current)     | max(voltage) |
+   ======================================
+               13.40000 |          223 |
+   Query OK, 1 row(s) in set (0.001123s)
   
-      taos> SELECT MAX(current), MAX(voltage) FROM d1001;
-          max(current)     | max(voltage) |
-      ======================================
-                  12.60000 |          221 |
-      Query OK, 1 row(s) in set (0.000987s)
-     ```
+   taos> SELECT MAX(current), MAX(voltage) FROM d1001;
+       max(current)     | max(voltage) |
+   ======================================
+               12.60000 |          221 |
+   Query OK, 1 row(s) in set (0.000987s)
+   ```
 
 - **FIRST**
 
-- ```mysql
-      SELECT FIRST(field_name) FROM { tb_name | stb_name } [WHERE clause];
-  ```
-
-Function: The first non-NULL value written into a column in statistics/STable.
-
-Return Data Type: Same as applicable fields.
-
-Applicable Fields: All types.
-
-Note:
-
-1. 1. To return the first (minimum timestamp) non-NULL value of each column, use FIRST (\*);
+   ```mysql
+   SELECT FIRST(field_name) FROM { tb_name | stb_name } [WHERE clause];
+   ```
+   
+   Function: The first non-NULL value written into a column in statistics/STable.
+   
+   Return Data Type: Same as applicable fields.
+   
+   Applicable Fields: All types.
+   
+   Note:
+   1. To return the first (minimum timestamp) non-NULL value of each column, use FIRST (\*);
    2. if all columns in the result set are NULL values, the return result of the column is also NULL;
    3. If all columns in the result set are NULL values, no result is returned.
-
-Example:
+   
+   Example:
 
    ```mysql
-    taos> SELECT FIRST(*) FROM meters;
-            first(ts)        |    first(current)    | first(voltage) |     first(phase)     |
-    =========================================================================================
-    2018-10-03 14:38:04.000 |             10.20000 |            220 |              0.23000 |
-    Query OK, 1 row(s) in set (0.004767s)
+   taos> SELECT FIRST(*) FROM meters;
+          first(ts)        |    first(current)    | first(voltage) |     first(phase)     |
+   =========================================================================================
+   2018-10-03 14:38:04.000 |             10.20000 |            220 |              0.23000 |
+   Query OK, 1 row(s) in set (0.004767s)
 
-    taos> SELECT FIRST(current) FROM d1002;
-        first(current)    |
-    =======================
+   taos> SELECT FIRST(current) FROM d1002;
+         first(current)    |
+   =======================
                 10.20000 |
-    Query OK, 1 row(s) in set (0.001023s)
+   Query OK, 1 row(s) in set (0.001023s)
    ```
 
 - 
 
 - **LAST**
 
-- ```mysql
-      SELECT LAST(field_name) FROM { tb_name | stb_name } [WHERE clause];
-  ```
-
-Function: The last non-NULL value written by the value of a column in statistics/STable.
-
-Return Data Type: Same as applicable fields.
-
-Applicable Fields: All types.
-
-Note:
-
-1. 1. To return the last (maximum timestamp) non-NULL value of each column, use LAST (\*);
+   ```mysql
+   SELECT LAST(field_name) FROM { tb_name | stb_name } [WHERE clause];
+   ```
+   
+   Function: The last non-NULL value written by the value of a column in statistics/STable.
+   
+   Return Data Type: Same as applicable fields.
+   
+   Applicable Fields: All types.
+   
+   Note:
+   1. To return the last (maximum timestamp) non-NULL value of each column, use LAST (\*);
    2. If a column in the result set has a NULL value, the returned result of the column is also NULL; if all columns in the result set have NULL values, no result is returned.
-
-Example:
+   
+   Example:
 
    ```mysql
     taos> SELECT LAST(*) FROM meters;
@@ -937,195 +971,204 @@ Example:
     Query OK, 1 row(s) in set (0.000843s)
    ```
 
-- 
-
 - **TOP**
+   
+    ```mysql
+    SELECT TOP(field_name, K) FROM { tb_name | stb_name } [WHERE clause];
+    ```
+    Function: The top k non-NULL values of a column in statistics/STable. If there are more than k column values tied for the largest, the one with smaller timestamp is returned.
+    
+    Return Data Type: Same as applicable fields.
+    
+    Applicable Fields: All types except timestamp, binary, nchar, bool.
+    
+    Note:
+    1. The range of *k* value is 1≤*k*≤100;
+    2. System also returns the timestamp column associated with the record.
+    
+    Example:
 
-Function: The top k non-NULL values of a column in statistics/STable. If there are more than k column values tied for the largest, the one with smaller timestamp is returned.
-
-Return Data Type: Same as applicable fields.
-
-Applicable Fields: All types except timestamp, binary, nchar, bool.
-
-Note:
-
-1. *The range of k value is* 1≤*k*≤100;
-2. System also returns the timestamp column associated with the record.
-
-Example:
-
--     ```mysql
-      taos> SELECT TOP(current, 3) FROM meters;
-              ts            |   top(current, 3)    |
-      =================================================
-      2018-10-03 14:38:15.000 |             12.60000 |
-      2018-10-03 14:38:16.600 |             13.40000 |
-      2018-10-03 14:38:16.800 |             12.30000 |
-      Query OK, 3 row(s) in set (0.001548s)
+    ```mysql
+    taos> SELECT TOP(current, 3) FROM meters;
+            ts            |   top(current, 3)    |
+    =================================================
+    2018-10-03 14:38:15.000 |             12.60000 |
+    2018-10-03 14:38:16.600 |             13.40000 |
+    2018-10-03 14:38:16.800 |             12.30000 |
+    Query OK, 3 row(s) in set (0.001548s)
       
-      taos> SELECT TOP(current, 2) FROM d1001;
-              ts            |   top(current, 2)    |
-      =================================================
-      2018-10-03 14:38:15.000 |             12.60000 |
-      2018-10-03 14:38:16.800 |             12.30000 |
-      Query OK, 2 row(s) in set (0.000810s)
-      ```
+    taos> SELECT TOP(current, 2) FROM d1001;
+            ts            |   top(current, 2)    |
+    =================================================
+    2018-10-03 14:38:15.000 |             12.60000 |
+    2018-10-03 14:38:16.800 |             12.30000 |
+    Query OK, 2 row(s) in set (0.000810s)
+    ```
 
 - **BOTTOM**
 
-Function: The last k non-NULL values of a column in statistics/STable. If there are more than k column values tied for the smallest, the one with smaller timestamp is returned.
+    ```mysql
+    SELECT BOTTOM(field_name, K) FROM { tb_name | stb_name } [WHERE clause];
+    ```
+    Function: The last k non-NULL values of a column in statistics/STable. If there are more than k column values tied for the smallest, the one with smaller timestamp is returned.
+    
+    Return Data Type: Same as applicable fields.
+    
+    Applicable Fields: All types except timestamp, binary, nchar, bool.
 
-Return Data Type: Same as applicable fields.
+    Note:
+    1. The range of *k* value is 1≤*k*≤100;
+    2. System also returns the timestamp column associated with the record.
 
-Applicable Fields: All types except timestamp, binary, nchar, bool.
+    Example:
 
-Note:
-
-1. *The range of k value is* 1≤*k*≤100;
-2. System also returns the timestamp column associated with the record.
-
-Example:
-
--   ```mysql
-      taos> SELECT BOTTOM(voltage, 2) FROM meters;
-              ts            | bottom(voltage, 2) |
-      ===============================================
-      2018-10-03 14:38:15.000 |                218 |
-      2018-10-03 14:38:16.650 |                218 |
-      Query OK, 2 row(s) in set (0.001332s)
+    ```mysql
+    taos> SELECT BOTTOM(voltage, 2) FROM meters;
+            ts            | bottom(voltage, 2) |
+    ===============================================
+    2018-10-03 14:38:15.000 |                218 |
+    2018-10-03 14:38:16.650 |                218 |
+    Query OK, 2 row(s) in set (0.001332s)
   
-      taos> SELECT BOTTOM(current, 2) FROM d1001;
-              ts            |  bottom(current, 2)  |
-      =================================================
-      2018-10-03 14:38:05.000 |             10.30000 |
-      2018-10-03 14:38:16.800 |             12.30000 |
-      Query OK, 2 row(s) in set (0.000793s)
+    taos> SELECT BOTTOM(current, 2) FROM d1001;
+            ts            |  bottom(current, 2)  |
+    =================================================
+    2018-10-03 14:38:05.000 |             10.30000 |
+    2018-10-03 14:38:16.800 |             12.30000 |
+    Query OK, 2 row(s) in set (0.000793s)
     ```
 
 - **PERCENTILE**
+    ```mysql
+    SELECT PERCENTILE(field_name, P) FROM { tb_name } [WHERE clause];
+    ```
+    Function: Percentile of the value of a column in statistical table.
+    
+    Return Data Type: Double.
+    
+    Applicable Fields: All types except timestamp, binary, nchar, bool.
+    
+    Note: The range of P value is 0 ≤ P ≤ 100. P equals to MIN when, and equals MAX when it’s 100.
+    
+    Example:
 
-Function: Percentile of the value of a column in statistical table.
-
-Return Data Type: Double.
-
-Applicable Fields: All types except timestamp, binary, nchar, bool.
-
-Note: The range of P value is 0 ≤ P ≤ 100. P equals to MIN when, and equals MAX when it’s 100.
-
-Example:
-
-   ```mysql
+    ```mysql
     taos> SELECT PERCENTILE(current, 20) FROM d1001;
     percentile(current, 20)  |
     ============================
                 11.100000191 |
     Query OK, 1 row(s) in set (0.000787s)
-   ```
-
-- 
-
-- **APERCENTILE**
-
-Function: The value percentile of a column in statistical table is similar to the PERCENTILE function, but returns approximate results.
-
-Return Data Type: Double.
-
-Applicable Fields: All types except timestamp, binary, nchar, bool.
-
-Note: The range of P value is 0 ≤ P ≤ 100. P equals to MIN when, and equals MAX when it’s 100. APERCENTILE function is recommended, which performs far better than PERCENTILE function.
-
-- **LAST_ROW**
-
-Function: Return the last record of a table (STtable).
-
-Return Data Type: Double.
-
-Applicable Fields: All types.
-
-Note: Unlike last function, last_row does not support time range restriction and forces the last record to be returned.
-
-Example:
-
--   ```mysql
-      taos> SELECT LAST_ROW(current) FROM meters;
-      last_row(current)   |
-      =======================
-                  12.30000 |
-      Query OK, 1 row(s) in set (0.001238s)
-  
-      taos> SELECT LAST_ROW(current) FROM d1002;
-      last_row(current)   |
-      =======================
-                  10.30000 |
-      Query OK, 1 row(s) in set (0.001042s)
     ```
 
+- **APERCENTILE**
+    ```mysql
+    SELECT APERCENTILE(field_name, P) FROM { tb_name | stb_name } [WHERE clause];
+    ```
+    Function: The value percentile of a column in statistical table is similar to the PERCENTILE function, but returns approximate results.
+    
+    Return Data Type: Double.
+    
+    Applicable Fields: All types except timestamp, binary, nchar, bool.
+    
+    Note: The range of *P* value is 0 ≤ *P* ≤ 100. *P* equals to MIN when, and equals MAX when it’s 100. APERCENTILE function is recommended, which performs far better than PERCENTILE function.
 
+- **LAST_ROW**
+    ```mysql
+    SELECT LAST_ROW(field_name) FROM { tb_name | stb_name };
+    ```
+    Function: Return the last record of a table (STtable).
+    
+    Return Data Type: Double.
+    
+    Applicable Fields: All types.
+    
+    Note: Unlike last function, last_row does not support time range restriction and forces the last record to be returned.
+    
+    Example:
+
+    ```mysql
+    taos> SELECT LAST_ROW(current) FROM meters;
+    last_row(current)   |
+    =======================
+                12.30000 |
+    Query OK, 1 row(s) in set (0.001238s)
+  
+    taos> SELECT LAST_ROW(current) FROM d1002;
+    last_row(current)   |
+    =======================
+                10.30000 |
+      Query OK, 1 row(s) in set (0.001042s)
+    ```
 
 ### Computing Functions
 
 - **DIFF**
-Function: Return the value difference between a column and the previous column.
+    ```mysql
+    SELECT DIFF(field_name) FROM tb_name [WHERE clause];
+    ```
+    Function: Return the value difference between a column and the previous column.
+    
+    Return Data Type: Same as applicable fields.
+    
+    Applicable Fields: All types except timestamp, binary, nchar, bool.
+    
+    Note: The number of output result lines is the total number of lines in the range minus one, and there is no result output in the first line.
+    
+    Example:
 
-Return Data Type: Same as applicable fields.
-
-Applicable Fields: All types except timestamp, binary, nchar, bool.
-
-Note: The number of output result lines is the total number of lines in the range minus one, and there is no result output in the first line.
-
-Example:
-
--     ```mysql
-      taos> SELECT DIFF(current) FROM d1001;
-              ts            |    diff(current)     |
-      =================================================
-      2018-10-03 14:38:15.000 |              2.30000 |
-      2018-10-03 14:38:16.800 |             -0.30000 |
-      Query OK, 2 row(s) in set (0.001162s)
-      ```
+    ```mysql
+    taos> SELECT DIFF(current) FROM d1001;
+            ts            |    diff(current)     |
+    =================================================
+    2018-10-03 14:38:15.000 |              2.30000 |
+    2018-10-03 14:38:16.800 |             -0.30000 |
+    Query OK, 2 row(s) in set (0.001162s)
+    ```
 
 - **SPREAD**
 
-- ```mysql
-      SELECT SPREAD(field_name) FROM { tb_name | stb_name } [WHERE clause];
-  ```
+    ```mysql
+    SELECT SPREAD(field_name) FROM { tb_name | stb_name } [WHERE clause];
+    ```
+    Function: Return the difference between the max value and the min value of a column in statistics /STable.
+    
+    Return Data Type: Same as applicable fields.
+    
+    Applicable Fields: All types except binary, nchar, bool.
+    
+    Note: Applicable for TIMESTAMP field, which indicates the time range of a record.
+    
+    Example:
 
-Function: Return the difference between the max value and the min value of a column in statistics /STable.
-
-Return Data Type: Same as applicable fields.
-
-Applicable Fields: All types except binary, nchar, bool.
-
-Note: Applicable for TIMESTAMP field, which indicates the time range of a record.
-
-Example:
-
--    ```mysql
-      taos> SELECT SPREAD(voltage) FROM meters;
-          spread(voltage)      |
-      ============================
-                  5.000000000 |
-      Query OK, 1 row(s) in set (0.001792s)
+    ```mysql
+    taos> SELECT SPREAD(voltage) FROM meters;
+        spread(voltage)      |
+    ============================
+                5.000000000 |
+    Query OK, 1 row(s) in set (0.001792s)
   
-      taos> SELECT SPREAD(voltage) FROM d1001;
-          spread(voltage)      |
-      ============================
-                  3.000000000 |
-      Query OK, 1 row(s) in set (0.000836s)
-     ```
+    taos> SELECT SPREAD(voltage) FROM d1001;
+        spread(voltage)      |
+    ============================
+                3.000000000 |
+    Query OK, 1 row(s) in set (0.000836s)
+    ```
 
-- Four Operations
+- **Four Operations**
 
-Function: Calculation results of addition, subtraction, multiplication, division and remainder of values in a column or among multiple columns in statistics/STable.
-
-Returned Data Type: Double.
-
-Applicable Fields: All types except timestamp, binary, nchar, bool.
-
-Note: 
-
-1. Calculation between two or more columns is supported, and the calculation priorities can be controlled by parentheses();
-2. The NULL field does not participate in the calculation. If a row involved in calculation contains NULL, the calculation result of the row is NULL.
+    ```mysql
+    SELECT field_name [+|-|*|/|%][Value|field_name] FROM { tb_name | stb_name }  [WHERE clause];
+    ```
+    Function: Calculation results of addition, subtraction, multiplication, division and remainder of values in a column or among multiple columns in statistics/STable.
+    
+    Returned Data Type: Double.
+    
+    Applicable Fields: All types except timestamp, binary, nchar, bool.
+    
+    Note: 
+    
+    1. Calculation between two or more columns is supported, and the calculation priorities can be controlled by parentheses();
+    2. The NULL field does not participate in the calculation. If a row involved in calculation contains NULL, the calculation result of the row is NULL.
 
 ## <a class="anchor" id="aggregation"></a> Time-dimension Aggregation
 
@@ -1151,18 +1194,18 @@ SELECT function_list FROM stb_name
 - WHERE statement specifies the start and end time of a query and other filters
 
 - FILL statement specifies a filling mode when data missed in a certain interval. Applicable filling modes include the following:
-
-- - Do not fill: NONE (default filingl mode).
-  - VALUE filling: Fixed value filling, where the filled value needs to be specified. For example: fill (VALUE, 1.23).
-  - NULL filling: Fill the data with NULL. For example: fill (NULL).
-  - PREV filling: Filling data with the previous non-NULL value. For example: fill (PREV).
-  - NEXT filling: Filling data with the next non-NULL value. For example: fill (NEXT).
+  
+  1. Do not fill: NONE (default filingl mode).
+  2. VALUE filling: Fixed value filling, where the filled value needs to be specified. For example: fill (VALUE, 1.23).
+  3. NULL filling: Fill the data with NULL. For example: fill (NULL).
+  4. PREV filling: Filling data with the previous non-NULL value. For example: fill (PREV).
+  5. NEXT filling: Filling data with the next non-NULL value. For example: fill (NEXT).
 
 Note:
 
-1. When using a FILL statement, a large number of filling outputs may be generated. Be sure to specify the time interval for the query. For each query, system can return no more than 10 million results with interpolation.
-2. In a time-dimension aggregation, the time-series in returned results increases strictly monotonously.
-3. If the query object is a STable, the aggregator function will act on the data of all tables under the STable that meet the value filters. If group by statement is not used in the query, the returned result increases strictly monotonously according to time-series; If group by statement is used to group in the query, each group in the returned result does not increase strictly monotonously according to time-series.
+  1. When using a FILL statement, a large number of filling outputs may be generated. Be sure to specify the time interval for the query. For each query, system can return no more than 10 million results with interpolation.
+  2. In a time-dimension aggregation, the time-series in returned results increases strictly monotonously.
+  3. If the query object is a STable, the aggregator function will act on the data of all tables under the STable that meet the value filters. If group by statement is not used in the query, the returned result increases strictly monotonously according to time-series; If group by statement is used to group in the query, each group in the returned result does not increase strictly monotonously according to time-series.
 
 Example: The statement for building a database for smart meter is as follows:
 

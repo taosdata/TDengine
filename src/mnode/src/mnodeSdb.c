@@ -670,10 +670,17 @@ static int32_t sdbProcessWrite(void *wparam, void *hparam, int32_t qtype, void *
                pTable->name, actStr[action], sdbGetKeyStr(pTable, pHead->cont), qtype, pHead->version, tsSdbMgmt.version);
       return TSDB_CODE_SUCCESS;
     } else if (pHead->version != tsSdbMgmt.version + 1) {
-      pthread_mutex_unlock(&tsSdbMgmt.mutex);
-      sdbError("vgId:1, sdb:%s, failed to restore %s key:%s from source(%d), hver:%" PRIu64 " too large, mver:%" PRIu64,
-               pTable->name, actStr[action], sdbGetKeyStr(pTable, pHead->cont), qtype, pHead->version, tsSdbMgmt.version);
-      return TSDB_CODE_SYN_INVALID_VERSION;
+      if (qtype != TAOS_QTYPE_WAL) {
+        pthread_mutex_unlock(&tsSdbMgmt.mutex);
+        sdbError(
+            "vgId:1, sdb:%s, failed to restore %s key:%s from source(%d), hver:%" PRIu64 " too large, mver:%" PRIu64,
+            pTable->name, actStr[action], sdbGetKeyStr(pTable, pHead->cont), qtype, pHead->version, tsSdbMgmt.version);
+        return TSDB_CODE_SYN_INVALID_VERSION;
+      } else {
+        // If cksum is wrong when recovering wal, use this code
+        tsSdbMgmt.version = pHead->version;
+      }
+
     } else {
       tsSdbMgmt.version = pHead->version;
     }

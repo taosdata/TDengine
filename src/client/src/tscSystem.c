@@ -288,16 +288,24 @@ static int taos_options_imp(TSDB_OPTION option, const char *pStr) {
 
         if (strlen(tsLocale) == 0) { // locale does not set yet
           char* defaultLocale = setlocale(LC_CTYPE, "");
+
+          // The locale of the current OS does not be set correctly, so the default locale cannot be acquired.
+          // The launch of current system will abort soon.
+          if (defaultLocale == NULL) {
+            tscError("failed to get default locale, please set the correct locale in current OS");
+            return -1;
+          }
+
           tstrncpy(tsLocale, defaultLocale, TSDB_LOCALE_LEN);
         }
 
         // set the user specified locale
         char *locale = setlocale(LC_CTYPE, pStr);
 
-        if (locale != NULL) {
+        if (locale != NULL) { // failed to set the user specified locale
           tscInfo("locale set, prev locale:%s, new locale:%s", tsLocale, locale);
           cfg->cfgStatus = TAOS_CFG_CSTATUS_OPTION;
-        } else { // set the user-specified localed failed, use default LC_CTYPE as current locale
+        } else { // set the user specified locale failed, use default LC_CTYPE as current locale
           locale = setlocale(LC_CTYPE, tsLocale);
           tscInfo("failed to set locale:%s, current locale:%s", pStr, tsLocale);
         }

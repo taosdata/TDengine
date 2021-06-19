@@ -10,10 +10,9 @@ import org.junit.Test;
 import java.sql.*;
 import java.util.Properties;
 
-public class TwoTypeTimestampPercisionInRestfulTest {
+public class MicroSecondPrecisionRestfulTest {
 
     private static final String host = "127.0.0.1";
-
     private static final String ms_timestamp_db = "ms_precision_test";
     private static final String us_timestamp_db = "us_precision_test";
     private static final long timestamp1 = System.currentTimeMillis();

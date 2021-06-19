@@ -1475,6 +1475,7 @@ static int32_t mnodeChangeSuperTableColumn(SMnodeMsg *pMsg) {
   SSchema *schema = (SSchema *) (pStable->schema + col);
   ASSERT(schema->type == TSDB_DATA_TYPE_BINARY || schema->type == TSDB_DATA_TYPE_NCHAR);
   schema->bytes = pAlter->schema[0].bytes;
+  pStable->sversion++;
   mInfo("msg:%p, app:%p stable %s, start to modify column %s len to %d", pMsg, pMsg->rpcMsg.ahandle, pStable->info.tableId,
          name, schema->bytes);
 
@@ -1501,9 +1502,10 @@ static int32_t mnodeChangeSuperTableTag(SMnodeMsg *pMsg) {
   }
 
   // update
-  SSchema *schema = (SSchema *) (pStable->schema + col);
+  SSchema *schema = (SSchema *) (pStable->schema + col + pStable->numOfColumns);
   ASSERT(schema->type == TSDB_DATA_TYPE_BINARY || schema->type == TSDB_DATA_TYPE_NCHAR);
   schema->bytes = pAlter->schema[0].bytes;
+  pStable->tversion++;
   mInfo("msg:%p, app:%p stable %s, start to modify tag len %s to %d", pMsg, pMsg->rpcMsg.ahandle, pStable->info.tableId,
          name, schema->bytes);
 

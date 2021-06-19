@@ -38,15 +38,11 @@ public class RestfulDriver extends AbstractDriver {
         String port = props.getProperty(TSDBDriver.PROPERTY_KEY_PORT, "6041");
         String database = props.containsKey(TSDBDriver.PROPERTY_KEY_DBNAME) ? props.getProperty(TSDBDriver.PROPERTY_KEY_DBNAME) : null;
 
-        String loginUrl = "http://" + props.getProperty(TSDBDriver.PROPERTY_KEY_HOST) + ":"
-                + props.getProperty(TSDBDriver.PROPERTY_KEY_PORT) + "/rest/login/"
-                + props.getProperty(TSDBDriver.PROPERTY_KEY_USER) + "/"
-                + props.getProperty(TSDBDriver.PROPERTY_KEY_PASSWORD) + "";
+        String loginUrl = "http://" + host + ":" + port + "/rest/login/" + props.getProperty(TSDBDriver.PROPERTY_KEY_USER) + "/" + props.getProperty(TSDBDriver.PROPERTY_KEY_PASSWORD) + "";
         try {
             String user = URLEncoder.encode(props.getProperty(TSDBDriver.PROPERTY_KEY_USER), "UTF-8");
             String password = URLEncoder.encode(props.getProperty(TSDBDriver.PROPERTY_KEY_PASSWORD), "UTF-8");
-            loginUrl = "http://" + props.getProperty(TSDBDriver.PROPERTY_KEY_HOST) + ":"
-                    + props.getProperty(TSDBDriver.PROPERTY_KEY_PORT) + "/rest/login/" + user + "/" + password + "";
+            loginUrl = "http://" + props.getProperty(TSDBDriver.PROPERTY_KEY_HOST) + ":" + props.getProperty(TSDBDriver.PROPERTY_KEY_PORT) + "/rest/login/" + user + "/" + password + "";
         } catch (UnsupportedEncodingException e) {
             e.printStackTrace();
         }
@@ -55,12 +51,12 @@ public class RestfulDriver extends AbstractDriver {
         JSONObject jsonResult = JSON.parseObject(result);
         String status = jsonResult.getString("status");
         String token = jsonResult.getString("desc");
-        HttpClientPoolUtil.token = token;
+
         if (!status.equals("succ")) {
             throw new SQLException(jsonResult.getString("desc"));
         }
 
-        RestfulConnection conn = new RestfulConnection(host, port, props, database, url);
+        RestfulConnection conn = new RestfulConnection(host, port, props, database, url, token);
         if (database != null && !database.trim().replaceAll("\\s", "").isEmpty()) {
             Statement stmt = conn.createStatement();
             stmt.execute("use " + database);
