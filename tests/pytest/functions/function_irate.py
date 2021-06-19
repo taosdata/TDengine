@@ -33,8 +33,8 @@ class TDTestCase:
         # db precison ms
         tdSql.prepare()
         tdSql.execute('''create table test(ts timestamp, col1 tinyint, col2 smallint, col3 int, col4 bigint, col5 float, col6 double, 
-                    col7 bool, col8 binary(20), col9 nchar(20), col11 tinyint unsigned, col12 smallint unsigned, col13 int unsigned, col14 bigint unsigned) tags(loc nchar(20))''')
-        tdSql.execute("create table test1 using test tags('beijing')")
+                    col7 bool, col8 binary(20), col9 nchar(20), col11 tinyint unsigned, col12 smallint unsigned, col13 int unsigned, col14 bigint unsigned) tags(loc nchar(20), tag1 int)''')
+        tdSql.execute("create table test1 using test tags('beijing', 10)")
         tdSql.execute("create table gtest1 (ts timestamp, col1 float)")
         tdSql.execute("create table gtest2 (ts timestamp, col1 tinyint)")
         tdSql.execute("create table gtest3 (ts timestamp, col1 tinyint)")
@@ -129,6 +129,7 @@ class TDTestCase:
         tdSql.error("select irate(col8) from test1")
         tdSql.error("select irate(col9) from test1")
         tdSql.error("select irate(loc) from test1")
+        tdSql.error("select irate(tag1) from test1")
 
         # use db1 precision us
         tdSql.execute("create database db1 precision 'us' keep 3650 UPDATE 1")        
@@ -208,11 +209,14 @@ class TDTestCase:
         tdSql.checkData(0, 0, 1000000)
 
         #error 
-        # tdSql.error("select irate(col1) from test")
+        tdSql.error("select irate(col1) from test")
         tdSql.error("select irate(ts) from test1")
         tdSql.error("select irate(col7) from test1")        
         tdSql.error("select irate(col8) from test1")
         tdSql.error("select irate(col9) from test1")
+        tdSql.error("select irate(loc) from test1")
+        tdSql.error("select irate(tag1) from test1")
+
 
 
 
