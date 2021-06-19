@@ -43,8 +43,6 @@ class TDTestCase:
         tdSql.execute('import into tb values(1623254400300000000, 3);')
         tdSql.execute('import into tb values(1623254400299999999, 4);')
         tdSql.execute('insert into tb values(1623254400300000001, 5);')
-        # os.system('sudo timedatectl set-ntp off')
-        # os.system('sudo timedatectl set-time 2021-06-10')
         tdSql.execute('insert into tb values(1623254400999999999, 7);')
 
 
@@ -71,8 +69,6 @@ class TDTestCase:
         tdSql.query('select count(*) from tb where ts < \'2021-06-10 00:00:00.400000000\';')
         tdSql.checkData(0,0,5)
 
-        # os.system('sudo timedatectl set-ntp off')
-        # os.system('sudo timedatectl set-time 2021-06-10')
         tdSql.query('select count(*) from tb where ts > now + 400000000b;')
         tdSql.checkRows(0)
 
@@ -125,8 +121,6 @@ class TDTestCase:
         tdSql.execute('import into tb2 values(1623254400300000000, 3, 1623340800300000000);')
         tdSql.execute('import into tb2 values(1623254400299999999, 4, 1623340800299999999);')
         tdSql.execute('insert into tb2 values(1623254400300000001, 5, 1623340800300000001);')
-        # # os.system('sudo timedatectl set-ntp off')
-        # # os.system('sudo timedatectl set-time 2021-06-10')
         tdSql.execute('insert into tb2 values(1623254400999999999, 7, 1623513600999999999);')
 
         tdSql.query('select * from tb2;')
@@ -147,11 +141,8 @@ class TDTestCase:
         tdSql.query('select count(*) from tb2 where ts2 < \'2021-06-11 0:00:00.400000000\';')
         tdSql.checkData(0,0,5)
 
-        # os.system('sudo timedatectl set-ntp off')
-        # os.system('sudo timedatectl set-time 2021-06-11')
         tdSql.query('select count(*) from tb2 where ts2 > now + 400000000b;')
         tdSql.checkRows(0)
-
 
         tdSql.query('select count(*) from tb2 where ts2 >= \'2021-06-11 0:00:00.100000001\';')
         tdSql.checkData(0,0,6)
@@ -180,11 +171,17 @@ class TDTestCase:
         tdSql.query('select count(*) from tb2 where ts2 <> \'2021-06-11 0:00:00.100000001\';')
         tdSql.checkData(0,0,5)
 
+        tdSql.query('select count(*) from tb2 where ts2 <> \'2021-06-11 0:00:00.100000000\';')
+        tdSql.checkData(0,0,6)
+
         tdSql.query('select count(*) from tb2 where ts2 != 1623513600999999999;')
         tdSql.checkData(0,0,5)
 
         tdSql.query('select count(*) from tb2 where ts2 != \'2021-06-11 0:00:00.100000001\';')
         tdSql.checkData(0,0,5)
+
+        tdSql.query('select count(*) from tb2 where ts2 != \'2021-06-11 0:00:00.100000000\';')
+        tdSql.checkData(0,0,6)
 
         tdSql.execute('insert into tb2 values(now + 500000000b, 6, now +2d);')
         tdSql.query('select * from tb2;')
