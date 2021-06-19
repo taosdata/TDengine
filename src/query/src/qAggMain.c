@@ -2201,99 +2201,35 @@ static void valuePairAssign(tValuePair *dst, int16_t type, const char *val, int6
     memcpy((dst)->pTags, (src)->pTags, (size_t)(__l)); \
   } while (0)
 
-static void heapSwap(tValuePair *a, tValuePair *b, const int16_t tagLen) {
-  char        tag[32768];
-  tValuePair  temp;
+static int32_t topBotComparFn(const void *p1, const void *p2, const void *param)
+{
+  uint16_t     type = *(uint16_t *) param;
+  tValuePair  *val1 = *(tValuePair **) p1;
+  tValuePair  *val2 = *(tValuePair **) p2;
+
+  if (IS_SIGNED_NUMERIC_TYPE(type)) {
+    return val1->v.i64 - val2->v.i64;
+  } else if (IS_UNSIGNED_NUMERIC_TYPE(type)) {
+    return val1->v.u64 - val2->v.u64;
+  }
+
+  return val1->v.dKey - val2->v.dKey;
+}
+
+static void topBotSwapFn(void *dst, void *src, const void *param)
+{
+  char         tag[32768];
+  tValuePair   temp;
+  uint16_t     tagLen = *(uint16_t *) param;
+  tValuePair  *vdst = *(tValuePair **) dst;
+  tValuePair  *vsrc = *(tValuePair **) src;
 
   memset(tag, 0, sizeof(tag));
   temp.pTags = tag;
 
-  VALUEPAIRASSIGN(&temp, a, tagLen);
-  VALUEPAIRASSIGN(a, b, tagLen);
-  VALUEPAIRASSIGN(b, &temp, tagLen);
-}
-
-static void heapAdjust(tValuePair **pList, uint16_t type, int16_t tagLen, int32_t start, int32_t end, bool minRoot) {
-  int32_t     parent = start;
-  int32_t     child = 2 * parent + 1;
-
-  while (child <= end) {
-    if (IS_SIGNED_NUMERIC_TYPE(type)) {
-      if (minRoot) {
-        if (child + 1 <= end && pList[child]->v.i64 < pList[child + 1]->v.i64) {
-          child++;
-        }
-
-        if (pList[parent]->v.i64 > pList[child]->v.i64) {
-          break;
-        }
-      } else {
-        if (child + 1 <= end && pList[child]->v.i64 >= pList[child + 1]->v.i64) {
-          child++;
-        }
-
-        if (pList[parent]->v.i64 <= pList[child]->v.i64) {
-          break;
-        }
-      }
-    } else if (IS_UNSIGNED_NUMERIC_TYPE(type)) {
-      if (minRoot) {
-        if (child + 1 <= end && pList[child]->v.u64 < pList[child + 1]->v.u64) {
-          child++;
-        }
-
-        if (pList[parent]->v.u64 > pList[child]->v.u64) {
-          break;
-        }
-      } else {
-        if (child + 1 <= end && pList[child]->v.u64 >= pList[child + 1]->v.u64) {
-          child++;
-        }
-
-        if (pList[parent]->v.u64 <= pList[child]->v.u64) {
-          break;
-        }
-      }
-    } else {
-      if (minRoot) {
-        if (child + 1 <= end && pList[child]->v.dKey < pList[child + 1]->v.dKey) {
-          child++;
-        }
-
-        if (pList[parent]->v.dKey > pList[child]->v.dKey) {
-          break;
-        }
-      } else {
-        if (child + 1 <= end && pList[child]->v.dKey >= pList[child + 1]->v.dKey) {
-          child++;
-        }
-
-        if (pList[parent]->v.dKey <= pList[child]->v.dKey) {
-          break;
-        }
-      }
-    }
-
-    heapSwap(pList[parent], pList[child], tagLen);
-
-    parent = child;
-    child = parent * 2 + 1;
-  }
-}
-
-void heapSort(tValuePair **pList, uint16_t type, int16_t tagLen, int32_t len, bool minRoot) {
-  int32_t  i;
-
-  for (i = len / 2 - 1; i >= 0; i--) {
-    heapAdjust(pList, type, tagLen, i, len - 1, minRoot);
-  }
-
-/*
-  for (i = len - 1; i > 0; i--) {
-    heapSwap(pList[0], pList[i], tagsLen);
-    heapAdjust(pList, type, 0, tagsLen, i - 1, minRoot);
-  }
-*/
+  VALUEPAIRASSIGN(&temp, vdst, tagLen);
+  VALUEPAIRASSIGN(vdst, vsrc, tagLen);
+  VALUEPAIRASSIGN(vsrc, &temp, tagLen);
 }
 
 static void do_top_function_add(STopBotInfo *pInfo, int32_t maxLen, void *pData, int64_t ts, uint16_t type,
@@ -2303,11 +2239,11 @@ static void do_top_function_add(STopBotInfo *pInfo, int32_t maxLen, void *pData,
   
   tValuePair **pList = pInfo->res;
   assert(pList != NULL);
-  
+
   if (pInfo->num < maxLen) {
     valuePairAssign(pList[pInfo->num], type, (const char *)&val.i64, ts, pTags, pTagInfo, stage);
 
-    heapSort(pList, type, pTagInfo->tagsLen, pInfo->num + 1, 0);
+    taosheapsort((void *) pList, sizeof(tValuePair **), pInfo->num + 1, (const void *) &type, topBotComparFn, (const void *) &pTagInfo->tagsLen, topBotSwapFn, 0);
  
     pInfo->num++;
   } else {
@@ -2315,7 +2251,7 @@ static void do_top_function_add(STopBotInfo *pInfo, int32_t maxLen, void *pData,
         (IS_UNSIGNED_NUMERIC_TYPE(type) && val.u64 > pList[0]->v.u64) ||
         (IS_FLOAT_TYPE(type) && val.dKey > pList[0]->v.dKey)) {
       valuePairAssign(pList[0], type, (const char *)&val.i64, ts, pTags, pTagInfo, stage);
-      heapAdjust(pList, type, pTagInfo->tagsLen, 0, maxLen - 1, 0);
+      taosheapadjust((void *) pList, sizeof(tValuePair **), 0, maxLen - 1, (const void *) &type, topBotComparFn, (const void *) &pTagInfo->tagsLen, topBotSwapFn, 0);
     }
   }
 }
@@ -2331,7 +2267,7 @@ static void do_bottom_function_add(STopBotInfo *pInfo, int32_t maxLen, void *pDa
   if (pInfo->num < maxLen) {
     valuePairAssign(pList[pInfo->num], type, (const char *)&val.i64, ts, pTags, pTagInfo, stage);
 
-    heapSort(pList, type, pTagInfo->tagsLen, pInfo->num + 1, 1);
+    taosheapsort((void *) pList, sizeof(tValuePair **), pInfo->num + 1, (const void *) &type, topBotComparFn, (const void *) &pTagInfo->tagsLen, topBotSwapFn, 1);
 
     pInfo->num++;
   } else {
@@ -2339,7 +2275,7 @@ static void do_bottom_function_add(STopBotInfo *pInfo, int32_t maxLen, void *pDa
         (IS_UNSIGNED_NUMERIC_TYPE(type) && val.u64 < pList[0]->v.u64) ||
         (IS_FLOAT_TYPE(type) && val.dKey < pList[0]->v.dKey)) {
       valuePairAssign(pList[0], type, (const char *)&val.i64, ts, pTags, pTagInfo, stage);
-      heapAdjust(pList, type, pTagInfo->tagsLen, 0, maxLen - 1, 1);
+      taosheapadjust((void *) pList, sizeof(tValuePair **), 0, maxLen - 1, (const void *) &type, topBotComparFn, (const void *) &pTagInfo->tagsLen, topBotSwapFn, 1);
     }
   }
 }
