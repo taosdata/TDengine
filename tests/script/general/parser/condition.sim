@@ -1261,26 +1261,53 @@ print "column&tbname test"
 
 
 print "column&tag test"
-#sql_error select * from stb1 where t1 > 0 or c1 > 0
-#sql_error select * from stb1 where c1 > 0 or t1 > 0
-#sql_error select * from stb1 where t1 > 0 or c1 > 0 or t1 > 1
-#sql_error select * from stb1 where c1 > 0 or t1 > 0 or c1 > 1
-#sql_error select * from stb1 where t1 > 0 and c1 > 0 or t1 > 1
-#sql_error select * from stb1 where c1 > 0 or t1 > 0 and c1 > 1
-#sql_error select * from stb1 where c1 > 0 or t1 > 0 and c1 > 1
-#sql_error select * from stb1 where t1 > 0 or t1 > 0 and c1 > 1
-#sql_error select * from stb1 where (c1 > 0 and t1 > 0 ) or (t1 > 1 and c1 > 3)
-#sql_error select * from stb1 where (c1 > 0 and t1 > 0 ) or t1 > 1
-#
-#
-#sql select * from stb1 where c1 > 0 and t1 > 0
-#sql select * from stb1 where t1 > 0 and c1 > 0
-#sql select * from stb1 where t1 > 0 and t1 > 3 and c1 > 1
-#sql select * from stb1 where t1 > 0 and c1 > 0 and t1 > 1
-#sql select * from stb1 where c1 > 0 and t1 > 0 and c1 > 1
-#sql select * from stb1 where c1 > 0 and (t1 > 0 or t1 > 1)
-#sql select * from stb1 where (t1 > 0 or t1 > 2 ) and (c1 > 1 or c1 > 3)
-#sql select * from stb1 where c1 > 0 and (t1 > 0 or t1 > 1)
+sql_error select * from stb1 where t1 > 0 or c1 > 0
+sql_error select * from stb1 where c1 > 0 or t1 > 0
+sql_error select * from stb1 where t1 > 0 or c1 > 0 or t1 > 1
+sql_error select * from stb1 where c1 > 0 or t1 > 0 or c1 > 1
+sql_error select * from stb1 where t1 > 0 and c1 > 0 or t1 > 1
+sql_error select * from stb1 where c1 > 0 or t1 > 0 and c1 > 1
+sql_error select * from stb1 where c1 > 0 or t1 > 0 and c1 > 1
+sql_error select * from stb1 where t1 > 0 or t1 > 0 and c1 > 1
+sql_error select * from stb1 where (c1 > 0 and t1 > 0 ) or (t1 > 1 and c1 > 3)
+sql_error select * from stb1 where (c1 > 0 and t1 > 0 ) or t1 > 1
+
+
+sql select * from stb1 where c1 < 63 and t1 > 5
+if $rows != 2 then
+  return -1
+endi
+if $data00 != @21-05-05 18:19:24.000@ then
+  return -1
+endi
+if $data10 != @21-05-05 18:19:25.000@ then
+  return -1
+endi
+sql select * from stb1 where t1 > 3 and t1 < 5 and c1 != 42 and c1 != 44;
+if $rows != 2 then
+  return -1
+endi
+if $data00 != @21-05-05 18:19:16.000@ then
+  return -1
+endi
+if $data10 != @21-05-05 18:19:18.000@ then
+  return -1
+endi
+sql select * from stb1 where t1 > 1 and c1 > 21 and t1 < 3 and c1 < 24 and t1 != 3 and c1 != 23;
+if $rows != 1 then
+  return -1
+endi
+if $data00 != @21-05-05 18:19:09.000@ then
+  return -1
+endi
+sql select * from stb1 where c1 > 1 and (t1 > 3 or t1 < 2) and (c2 > 2 and c2 < 62 and t1 != 4) and (t1 > 2 and t1 < 6) and c7 = true and c8 like '%2';
+if $rows != 1 then
+  return -1
+endi
+if $data00 != @21-05-05 18:19:21.000@ then
+  return -1
+endi
+
 
 print "column&join test"
 
@@ -1303,7 +1330,20 @@ print "tag&join test"
 print "column&ts&tbname test"
 
 print "column&ts&tag test"
-
+sql select * from stb1 where (t1 > 0 or t1 > 2 ) and ts > '2021-05-05 18:19:10.000' and (c1 > 1 or c1 > 3) and (c6 > 40 or c6 < 30) and (c8 like '%3' or c8 like '_4') and (c9 like '1%' or c9 like '6%' or (c9 like '%3' and c9 != '23')) and ts > '2021-05-05 18:19:22.000' and ts <= '2021-05-05 18:19:26.000';
+if $rows != 1 then
+  return -1
+endi
+if $data00 != @21-05-05 18:19:26.000@ then
+  return -1
+endi
+sql select * from stb1 where ts > '2021-05-05 18:19:00.000' and c1 > 2 and t1 != 1 and c2 >= 23 and t2 >= 3 and c3 < 63 and c7 = false and t3 > 3 and t3 < 6 and c8 like '4%' and ts < '2021-05-05 18:19:19.000' and c2 > 40 and c3 != 42;
+if $rows != 1 then
+  return -1
+endi
+if $data00 != @21-05-05 18:19:18.000@ then
+  return -1
+endi
 print "column&ts&join test"
 
 print "column&tbname&tag test"
@@ -1319,6 +1359,9 @@ print "tbname&tag&join test"
 
 
 print "column&ts&tbname&tag test"
+select * from stb1 where (tbname like 'tb%' or ts > '2021-05-05 18:19:01.000') and (t1 > 5 or t1 < 4) and c1 > 0; !!!!!
+
+
 print "column&ts&tbname&join test"
 print "column&ts&tag&join test"
 print "column&tbname&tag&join test"
