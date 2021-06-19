@@ -4798,6 +4798,12 @@ int32_t validateWhereNode(SQueryInfo* pQueryInfo, tSqlExpr** pExpr, SSqlObj* pSq
   if ((ret = getColumnQueryCondInfo(&pSql->cmd, pQueryInfo, condExpr.pColumnCond, TK_AND)) != TSDB_CODE_SUCCESS) {
     goto PARSE_WHERE_EXIT;
   }
+  
+  if (taosArrayGetSize(pQueryInfo->pUpstream) > 0 ) {
+    if ((ret = getColumnQueryCondInfo(&pSql->cmd, pQueryInfo, condExpr.pTimewindow, TK_AND)) != TSDB_CODE_SUCCESS) {
+      goto PARSE_WHERE_EXIT;
+    }
+  }
 
   // 6. join condition
   if ((ret = getJoinCondInfo(&pSql->cmd, pQueryInfo, condExpr.pJoinExpr)) != TSDB_CODE_SUCCESS) {
@@ -7803,11 +7809,6 @@ int32_t validateSqlNode(SSqlObj* pSql, SSqlNode* pSqlNode, SQueryInfo* pQueryInf
     if (pSqlNode->pWhere != NULL) {
       if (validateWhereNode(pQueryInfo, &pSqlNode->pWhere, pSql) != TSDB_CODE_SUCCESS) {
         return TSDB_CODE_TSC_INVALID_OPERATION;
-      }
-
-      if (pTableMeta->tableInfo.precision == TSDB_TIME_PRECISION_MILLI) {
-        pQueryInfo->window.skey = pQueryInfo->window.skey / 1000;
-        pQueryInfo->window.ekey = pQueryInfo->window.ekey / 1000;
       }
     }
 
