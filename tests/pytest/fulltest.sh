@@ -25,6 +25,8 @@ python3 ./test.py -f insert/special_character_show.py
 python3 bug2265.py
 python3 ./test.py -f insert/bug3654.py
 python3 ./test.py -f insert/insertDynamicColBeforeVal.py
+python3 ./test.py -f insert/in_function.py
+python3 ./test.py -f insert/modify_column.py
 
 #table
 python3 ./test.py -f table/alter_wal0.py
@@ -73,6 +75,7 @@ python3 ./test.py -f tag_lite/smallint.py
 python3 ./test.py -f tag_lite/tinyint.py
 
 #python3 ./test.py -f dbmgmt/database-name-boundary.py
+python3 test.py -f dbmgmt/nanoSecondCheck.py
 
 python3 ./test.py -f import_merge/importBlock1HO.py
 python3 ./test.py -f import_merge/importBlock1HPO.py

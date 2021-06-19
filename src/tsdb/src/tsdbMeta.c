@@ -609,6 +609,7 @@ void tsdbFreeLastColumns(STable* pTable) {
   pTable->maxColNum = 0;
   pTable->lastColSVersion = -1;
   pTable->restoreColumnNum = 0;
+  pTable->hasRestoreLastColumn = false;
 }
 
 int16_t tsdbGetLastColumnsIndexByColId(STable* pTable, int16_t colId) {
@@ -645,6 +646,7 @@ int tsdbInitColIdCacheWithSchema(STable* pTable, STSchema* pSchema) {
   pTable->lastColSVersion = schemaVersion(pSchema);
   pTable->maxColNum = numOfColumn;
   pTable->restoreColumnNum = 0;
+  pTable->hasRestoreLastColumn = false;
   return 0;
 }
 
@@ -657,7 +659,7 @@ int tsdbUpdateLastColSchema(STable *pTable, STSchema *pNewSchema) {
     return 0;
   }
   
-  tsdbInfo("tsdbUpdateLastColSchema:%s,%d->%d", pTable->name->data, pTable->lastColSVersion, schemaVersion(pNewSchema));
+  tsdbDebug("tsdbUpdateLastColSchema:%s,%d->%d", pTable->name->data, pTable->lastColSVersion, schemaVersion(pNewSchema));
   
   int16_t numOfCols = pNewSchema->numOfCols;
   SDataCol *lastCols = (SDataCol*)malloc(numOfCols * sizeof(SDataCol));
@@ -802,6 +804,7 @@ static STable *tsdbNewTable() {
   pTable->lastCols = NULL;
   pTable->restoreColumnNum = 0;
   pTable->maxColNum = 0;
+  pTable->hasRestoreLastColumn = false;
   pTable->lastColSVersion = -1;
   return pTable;
 }

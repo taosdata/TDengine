@@ -29,13 +29,14 @@ class TDTestCase:
 
     def run(self):
         tdSql.prepare()
-
         tdSql.execute('reset query cache')
         tdSql.execute('drop database if exists db')
         tdSql.execute('create database db precision "ns";')
         tdSql.query('show databases;')
         tdSql.checkData(0,16,'ns')
         tdSql.execute('use db')
+
+        tdLog.debug('testing nanosecond support in 1st timestamp')
         tdSql.execute('create table tb (ts timestamp, speed int)')
         tdSql.execute('insert into tb values(\'2021-06-10 0:00:00.100000001\', 1);')
         tdSql.execute('insert into tb values(1623254400150000000, 2);')
@@ -47,8 +48,6 @@ class TDTestCase:
         tdSql.execute('insert into tb values(1623254400999999999, 7);')
 
 
-        #TODO: after the connector is updated, run the following commented code
-        #TODO: due to the precision limit of double, spread currently cannot be tested since ns timestampe cannot be accurately represented
         tdSql.query('select * from tb;')
         tdSql.checkData(0,0,'2021-06-10 0:00:00.100000001')
         tdSql.checkData(1,0,'2021-06-10 0:00:00.150000000')
@@ -75,7 +74,7 @@ class TDTestCase:
         # os.system('sudo timedatectl set-ntp off')
         # os.system('sudo timedatectl set-time 2021-06-10')
         tdSql.query('select count(*) from tb where ts > now + 400000000b;')
-        tdSql.checkData(0,0,0)
+        tdSql.checkRows(0)
 
         tdSql.query('select count(*) from tb where ts >= \'2021-06-10 0:00:00.100000001\';')
         tdSql.checkData(0,0,6)
@@ -84,7 +83,7 @@ class TDTestCase:
         tdSql.checkData(0,0,4)
 
         tdSql.query('select count(*) from tb where ts = \'2021-06-10 0:00:00.000000000\';')
-        tdSql.checkData(0,0,0)
+        tdSql.checkRows(0)
 
         tdSql.query('select count(*) from tb where ts = 1623254400150000000;')
         tdSql.checkData(0,0,1)
@@ -119,6 +118,7 @@ class TDTestCase:
         tdSql.query('select * from tb;')
         tdSql.checkRows(7)
 
+        tdLog.debug('testing nanosecond support in other timestamps')
         tdSql.execute('create table tb2 (ts timestamp, speed int, ts2 timestamp);')
         tdSql.execute('insert into tb2 values(\'2021-06-10 0:00:00.100000001\', 1, \'2021-06-11 0:00:00.100000001\');')
         tdSql.execute('insert into tb2 values(1623254400150000000, 2, 1623340800150000000);')
@@ -150,7 +150,7 @@ class TDTestCase:
         # os.system('sudo timedatectl set-ntp off')
         # os.system('sudo timedatectl set-time 2021-06-11')
         tdSql.query('select count(*) from tb2 where ts2 > now + 400000000b;')
-        tdSql.checkData(0,0,0)
+        tdSql.checkRows(0)
 
 
         tdSql.query('select count(*) from tb2 where ts2 >= \'2021-06-11 0:00:00.100000001\';')
@@ -160,7 +160,7 @@ class TDTestCase:
         tdSql.checkData(0,0,5)
 
         tdSql.query('select count(*) from tb2 where ts2 = \'2021-06-11 0:00:00.000000000\';')
-        tdSql.checkData(0,0,0)
+        tdSql.checkRows(0)
 
         tdSql.query('select count(*) from tb2 where ts2 = \'2021-06-11 0:00:00.300000001\';')
         tdSql.checkData(0,0,1)
@@ -190,6 +190,7 @@ class TDTestCase:
         tdSql.query('select * from tb2;')
         tdSql.checkRows(7)
 
+        tdLog.debug('testing ill nanosecond format handling')
         tdSql.execute('create table tb3 (ts timestamp, speed int);')
 
         tdSql.error('insert into tb3 values(16232544001500000, 2);')
