@@ -304,6 +304,7 @@ static const void *tdGetNullVal(int8_t type) {
       return &UBigintNull;
     default:
       ASSERT(0);
+      return NULL;
   }
 }
 
