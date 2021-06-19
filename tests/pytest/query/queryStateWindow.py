@@ -87,7 +87,10 @@ class TDTestCase:
         tdSql.checkData(0, 9, 4.6)         
         tdSql.checkData(0, 10, 'True')         
 
-        tdSql.query("select count(*),sum(t1),avg(t1),twa(t1),stddev(t15),leastsquares(t15,1,1),first(t10),spread(t15),t9 from dev_001 state_window(t9);")
+        # with where
+        tdSql.query("select avg(t15),t9 from dev_001 where  t9='true' state_window(t9);")
+        tdSql.checkData(0, 0, 7)  
+        tdSql.checkData(0, 1, 'True')  
 
         # error      
         tdSql.error("select count(*) from dev_001 state_window(t2)")
