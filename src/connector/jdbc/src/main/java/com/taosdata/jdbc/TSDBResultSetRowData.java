@@ -147,30 +147,14 @@ public class TSDBResultSetRowData {
             case TSDBConstants.TSDB_DATA_TYPE_NCHAR:
             case TSDBConstants.TSDB_DATA_TYPE_BINARY:
                 return Integer.parseInt((String) obj);
-            case TSDBConstants.TSDB_DATA_TYPE_UTINYINT: {
-                Byte value = (byte) obj;
-                if (value < 0)
-                    throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_NUMERIC_VALUE_OUT_OF_RANGE);
-                return value;
-            }
-            case TSDBConstants.TSDB_DATA_TYPE_USMALLINT: {
-                short value = (short) obj;
-                if (value < 0)
-                    throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_NUMERIC_VALUE_OUT_OF_RANGE);
-                return value;
-            }
-            case TSDBConstants.TSDB_DATA_TYPE_UINT: {
-                int value = (int) obj;
-                if (value < 0)
-                    throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_NUMERIC_VALUE_OUT_OF_RANGE);
-                return value;
-            }
-            case TSDBConstants.TSDB_DATA_TYPE_UBIGINT: {
-                long value = (long) obj;
-                if (value < 0)
-                    throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_NUMERIC_VALUE_OUT_OF_RANGE);
-                return Long.valueOf(value).intValue();
-            }
+            case TSDBConstants.TSDB_DATA_TYPE_UTINYINT:
+                return parseUnsignedTinyIntToInt(obj);
+            case TSDBConstants.TSDB_DATA_TYPE_USMALLINT:
+                return parseUnsignedSmallIntToInt(obj);
+            case TSDBConstants.TSDB_DATA_TYPE_UINT:
+                return parseUnsignedIntegerToInt(obj);
+            case TSDBConstants.TSDB_DATA_TYPE_UBIGINT:
+                return parseUnsignedBigIntToInt(obj);
             case TSDBConstants.TSDB_DATA_TYPE_FLOAT:
                 return ((Float) obj).intValue();
             case TSDBConstants.TSDB_DATA_TYPE_DOUBLE:
@@ -179,6 +163,35 @@ public class TSDBResultSetRowData {
                 return 0;
         }
     }
+
+    private byte parseUnsignedTinyIntToInt(Object obj) throws SQLException {
+        byte value = (byte) obj;
+        if (value < 0)
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_NUMERIC_VALUE_OUT_OF_RANGE);
+        return value;
+    }
+
+    private short parseUnsignedSmallIntToInt(Object obj) throws SQLException {
+        short value = (short) obj;
+        if (value < 0)
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_NUMERIC_VALUE_OUT_OF_RANGE);
+        return value;
+    }
+
+    private int parseUnsignedIntegerToInt(Object obj) throws SQLException {
+        int value = (int) obj;
+        if (value < 0)
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_NUMERIC_VALUE_OUT_OF_RANGE);
+        return value;
+    }
+
+    private int parseUnsignedBigIntToInt(Object obj) throws SQLException {
+        long value = (long) obj;
+        if (value < 0)
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_NUMERIC_VALUE_OUT_OF_RANGE);
+        return Long.valueOf(value).intValue();
+    }
+
 
     /**
      * $$$ this method is invoked by databaseMetaDataResultSet and so on which use a index start from 1 in JDBC api
@@ -216,7 +229,7 @@ public class TSDBResultSetRowData {
             case TSDBConstants.TSDB_DATA_TYPE_BINARY:
                 return Long.parseLong((String) obj);
             case TSDBConstants.TSDB_DATA_TYPE_UTINYINT: {
-                Byte value = (byte) obj;
+                byte value = (byte) obj;
                 if (value < 0)
                     throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_NUMERIC_VALUE_OUT_OF_RANGE);
                 return value;
