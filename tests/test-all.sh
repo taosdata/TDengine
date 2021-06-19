@@ -423,6 +423,8 @@ fi
 
 if [ "$2" != "sim" ] && [ "$2" != "python" ] && [ "$2" != "jdbc" ]  && [ "$2" != "example" ]  && [ "$1" == "full" ]; then
   echo "### run Unit tests ###"  
+  totalUnitTests=0
+  totalUnitSuccess=0
 
   stopTaosd
   cd $tests_dir
@@ -438,19 +440,25 @@ if [ "$2" != "sim" ] && [ "$2" != "python" ] && [ "$2" != "jdbc" ]  && [ "$2" !=
   rm -rf /var/lib/taos/*
   nohup ./taosd -c /etc/taos/ > /dev/null 2>&1 &
   sleep 30
-  
-  pwd
-  ./queryTest > unittest-out.log 2>&1
-  tail -n 20 unittest-out.log
 
-  totalUnitTests=`grep "Running" unittest-out.log | awk '{print $3}'`  
-  totalUnitSuccess=`grep 'PASSED' unittest-out.log | awk '{print $4}'`
+  pwd
+  for test in queryTest osTest; do
+    echo "### start unit-test ${test} ###"
+    ./${test} > unittest-out-${test}.log 2>&1
+    tail -n 20 unittest-out-${test}.log
+    numTests=`grep "Running" unittest-out-${test}.log | awk '{print $3}'`
+    numSuccess=`grep 'PASSED' unittest-out-${test}.log | awk '{print $4}'`
+    totalUnitTests=$((totalUnitTests+numTests))
+    totalUnitSuccess=$((totalUnitSuccess+numSuccess))
+    echo "### complete unit-test ${test} ###"
+  done
+
   totalUnitFailed=`expr $totalUnitTests - $totalUnitSuccess`
 
   if [ "$totalUnitSuccess" -gt "0" ]; then
     echo -e "\n${GREEN} ### Total $totalUnitSuccess Unit test succeed! ### ${NC}"
   fi
-  
+
   if [ "$totalUnitFailed" -ne "0" ]; then
     echo -e "\n${RED} ### Total $totalUnitFailed Unit test failed! ### ${NC}"
   fi
