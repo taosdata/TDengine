@@ -7792,6 +7792,12 @@ int32_t validateSqlNode(SSqlObj* pSql, SSqlNode* pSqlNode, SQueryInfo* pQueryInf
       int32_t f = pExpr->base.functionId;
       if (f == TSDB_FUNC_STDDEV || f == TSDB_FUNC_PERCT) {
         return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg6);
+      } 
+
+      if ((timeWindowQuery || pQueryInfo->stateWindow) && f == TSDB_FUNC_LAST) {
+        pExpr->base.numOfParams = 1;
+        pExpr->base.param[0].i64 = TSDB_ORDER_ASC;
+        pExpr->base.param[0].nType = TSDB_DATA_TYPE_INT;
       }
     }
 
@@ -7825,7 +7831,7 @@ int32_t validateSqlNode(SSqlObj* pSql, SSqlNode* pSqlNode, SQueryInfo* pQueryInf
       if (validateSessionNode(pCmd, pQueryInfo, pSqlNode) != TSDB_CODE_SUCCESS) {
         return TSDB_CODE_TSC_INVALID_OPERATION;
       }
-      if (isTimeWindowQuery(pQueryInfo) || pQueryInfo->sessionWindow.gap > 0) {
+      if (isTimeWindowQuery(pQueryInfo)) {
         // check if the first column of the nest query result is timestamp column
         SColumn* pCol = taosArrayGetP(pQueryInfo->colList, 0);
         if (pCol->info.type != TSDB_DATA_TYPE_TIMESTAMP) {
@@ -7934,8 +7940,7 @@ int32_t validateSqlNode(SSqlObj* pSql, SSqlNode* pSqlNode, SQueryInfo* pQueryInf
       return TSDB_CODE_TSC_INVALID_OPERATION;
     }
 
-    if ((isTimeWindowQuery(pQueryInfo) || pQueryInfo->sessionWindow.gap > 0) &&
-        (validateFunctionsInIntervalOrGroupbyQuery(pCmd, pQueryInfo) != TSDB_CODE_SUCCESS)) {
+    if (isTimeWindowQuery(pQueryInfo) && (validateFunctionsInIntervalOrGroupbyQuery(pCmd, pQueryInfo) != TSDB_CODE_SUCCESS)) {
       return TSDB_CODE_TSC_INVALID_OPERATION;
     }
 
