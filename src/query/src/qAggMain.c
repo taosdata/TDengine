@@ -4166,8 +4166,7 @@ void blockinfo_func_finalizer(SQLFunctionCtx* pCtx) {
  * function compatible list.
  * tag and ts are not involved in the compatibility check
  *
- * 1. functions that are not simultaneously present with any other functions. e.g.,
- * diff/ts_z/top/bottom
+ * 1. functions that are not simultaneously present with any other functions. e.g., diff/ts_z/top/bottom
  * 2. functions that are only allowed to be present only with same functions. e.g., last_row, interp
  * 3. functions that are allowed to be present with other functions.
  *    e.g., count/sum/avg/min/max/stddev/percentile/apercentile/first/last...
