@@ -113,7 +113,7 @@ int64_t taosReadFileRandomFail(int32_t fd, void *buf, int32_t count, const char 
     }
   }
 
-  return taosReadImp(fd, buf, count);
+  return taosRead(fd, buf, count);
 }
 
 int64_t taosWriteFileRandomFail(int32_t fd, void *buf, int32_t count, const char *file, uint32_t line) {
@@ -124,7 +124,7 @@ int64_t taosWriteFileRandomFail(int32_t fd, void *buf, int32_t count, const char
     }
   }
 
-  return taosWriteImp(fd, buf, count);
+  return taosWrite(fd, buf, count);
 }
 
 int64_t taosLSeekRandomFail(int32_t fd, int64_t offset, int32_t whence, const char *file, uint32_t line) {
@@ -135,7 +135,7 @@ int64_t taosLSeekRandomFail(int32_t fd, int64_t offset, int32_t whence, const ch
     }
   }
 
-  return taosLSeekImp(fd, offset, whence);
+  return taosLSeek(fd, offset, whence);
 }
 
 #endif //TAOS_RANDOM_FILE_FAIL

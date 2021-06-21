@@ -15,7 +15,7 @@ def _convert_microsecond_to_datetime(micro):
 
 
 def _convert_nanosecond_to_datetime(nanosec):
-    return datetime.datetime.fromtimestamp(nanosec / 1000000000.0)
+    return nanosec
 
 
 def _crow_timestamp_to_python(data, num_of_rows, nbytes=None, precision=FieldType.C_TIMESTAMP_UNKNOWN):

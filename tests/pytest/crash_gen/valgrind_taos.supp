@@ -17518,3 +17518,208 @@
    fun:taosCheckGlobalCfg
    fun:taos_init_imp
 }
+{
+   <insert_a_suppression_name_here>
+   Memcheck:Leak
+   match-leak-kinds: definite
+   fun:malloc
+   obj:/usr/bin/python3.8
+   fun:PyTuple_Pack
+   fun:__pyx_pymod_exec_mtrand
+   fun:PyModule_ExecDef
+   obj:/usr/bin/python3.8
+   obj:/usr/bin/python3.8
+   fun:PyVectorcall_Call
+   fun:_PyEval_EvalFrameDefault
+   fun:_PyEval_EvalCodeWithName
+   fun:_PyFunction_Vectorcall
+   fun:_PyEval_EvalFrameDefault
+}
+{
+   <insert_a_suppression_name_here>
+   Memcheck:Leak
+   match-leak-kinds: definite
+   fun:malloc
+   fun:PyCode_NewWithPosOnlyArgs
+   fun:PyCode_New
+   fun:__Pyx_InitCachedConstants
+   fun:__pyx_pymod_exec__generator
+   fun:PyModule_ExecDef
+   obj:/usr/bin/python3.8
+   obj:/usr/bin/python3.8
+   fun:PyVectorcall_Call
+   fun:_PyEval_EvalFrameDefault
+   fun:_PyEval_EvalCodeWithName
+   fun:_PyFunction_Vectorcall
+}
+{
+   <insert_a_suppression_name_here>
+   Memcheck:Leak
+   match-leak-kinds: definite
+   fun:malloc
+   obj:/usr/bin/python3.8
+   fun:PyTuple_Pack
+   fun:__pyx_pymod_exec_bit_generator
+   fun:PyModule_ExecDef
+   obj:/usr/bin/python3.8
+   obj:/usr/bin/python3.8
+   fun:PyVectorcall_Call
+   fun:_PyEval_EvalFrameDefault
+   fun:_PyEval_EvalCodeWithName
+   fun:_PyFunction_Vectorcall
+   fun:_PyEval_EvalFrameDefault
+}
+{
+   <insert_a_suppression_name_here>
+   Memcheck:Leak
+   match-leak-kinds: definite
+   fun:malloc
+   obj:/usr/bin/python3.8
+   fun:PyTuple_Pack
+   fun:__pyx_pymod_exec__common
+   fun:PyModule_ExecDef
+   obj:/usr/bin/python3.8
+   obj:/usr/bin/python3.8
+   fun:PyVectorcall_Call
+   fun:_PyEval_EvalFrameDefault
+   fun:_PyEval_EvalCodeWithName
+   fun:_PyFunction_Vectorcall
+   fun:_PyEval_EvalFrameDefault
+}
+{
+   <insert_a_suppression_name_here>
+   Memcheck:Leak
+   match-leak-kinds: definite
+   fun:malloc
+   obj:/usr/bin/python3.8
+   fun:PyTuple_Pack
+   fun:__pyx_pymod_exec__bounded_integers
+   fun:PyModule_ExecDef
+   obj:/usr/bin/python3.8
+   obj:/usr/bin/python3.8
+   fun:PyVectorcall_Call
+   fun:_PyEval_EvalFrameDefault
+   fun:_PyEval_EvalCodeWithName
+   fun:_PyFunction_Vectorcall
+   fun:_PyEval_EvalFrameDefault
+}
+{
+   <insert_a_suppression_name_here>
+   Memcheck:Leak
+   match-leak-kinds: definite
+   fun:malloc
+   obj:/usr/bin/python3.8
+   fun:PyTuple_Pack
+   fun:__pyx_pymod_exec__mt19937
+   fun:PyModule_ExecDef
+   obj:/usr/bin/python3.8
+   obj:/usr/bin/python3.8
+   fun:PyVectorcall_Call
+   fun:_PyEval_EvalFrameDefault
+   fun:_PyEval_EvalCodeWithName
+   fun:_PyFunction_Vectorcall
+   fun:_PyEval_EvalFrameDefault
+}
+{
+   <insert_a_suppression_name_here>
+   Memcheck:Leak
+   match-leak-kinds: definite
+   fun:malloc
+   obj:/usr/bin/python3.8
+   fun:PyTuple_Pack
+   fun:__pyx_pymod_exec__philox
+   fun:PyModule_ExecDef
+   obj:/usr/bin/python3.8
+   obj:/usr/bin/python3.8
+   fun:PyVectorcall_Call
+   fun:_PyEval_EvalFrameDefault
+   fun:_PyEval_EvalCodeWithName
+   fun:_PyFunction_Vectorcall
+   fun:_PyEval_EvalFrameDefault
+}
+{
+   <insert_a_suppression_name_here>
+   Memcheck:Leak
+   match-leak-kinds: definite
+   fun:malloc
+   obj:/usr/bin/python3.8
+   fun:PyTuple_Pack
+   fun:__pyx_pymod_exec__pcg64
+   fun:PyModule_ExecDef
+   obj:/usr/bin/python3.8
+   obj:/usr/bin/python3.8
+   fun:PyVectorcall_Call
+   fun:_PyEval_EvalFrameDefault
+   fun:_PyEval_EvalCodeWithName
+   fun:_PyFunction_Vectorcall
+   fun:_PyEval_EvalFrameDefault
+}
+{
+   <insert_a_suppression_name_here>
+   Memcheck:Leak
+   match-leak-kinds: definite
+   fun:malloc
+   obj:/usr/bin/python3.8
+   fun:PyTuple_Pack
+   fun:__pyx_pymod_exec__sfc64
+   fun:PyModule_ExecDef
+   obj:/usr/bin/python3.8
+   obj:/usr/bin/python3.8
+   fun:PyVectorcall_Call
+   fun:_PyEval_EvalFrameDefault
+   fun:_PyEval_EvalCodeWithName
+   fun:_PyFunction_Vectorcall
+   fun:_PyEval_EvalFrameDefault
+}
+{
+   <insert_a_suppression_name_here>
+   Memcheck:Leak
+   match-leak-kinds: definite
+   fun:malloc
+   obj:/usr/bin/python3.8
+   fun:PyTuple_Pack
+   fun:__Pyx_InitCachedConstants
+   fun:__pyx_pymod_exec__generator
+   fun:PyModule_ExecDef
+   obj:/usr/bin/python3.8
+   obj:/usr/bin/python3.8
+   fun:PyVectorcall_Call
+   fun:_PyEval_EvalFrameDefault
+   fun:_PyEval_EvalCodeWithName
+   fun:_PyFunction_Vectorcall
+   fun:_PyEval_EvalFrameDefault
+}
+{
+   <insert_a_suppression_name_here>
+   Memcheck:Leak
+   match-leak-kinds: definite
+   fun:malloc
+   fun:PyCode_NewWithPosOnlyArgs
+   fun:PyCode_New
+   fun:__pyx_pymod_exec_mtrand
+   fun:PyModule_ExecDef
+   obj:/usr/bin/python3.8
+   obj:/usr/bin/python3.8
+   fun:PyVectorcall_Call
+   fun:_PyEval_EvalFrameDefault
+   fun:_PyEval_EvalCodeWithName
+   fun:_PyFunction_Vectorcall
+   fun:_PyEval_EvalFrameDefault
+}
+{
+   <insert_a_suppression_name_here>
+   Memcheck:Leak
+   match-leak-kinds: definite
+   fun:malloc
+   fun:PyCode_NewWithPosOnlyArgs
+   fun:PyCode_New
+   fun:__pyx_pymod_exec_bit_generator
+   fun:PyModule_ExecDef
+   obj:/usr/bin/python3.8
+   obj:/usr/bin/python3.8
+   fun:PyVectorcall_Call
+   fun:_PyEval_EvalFrameDefault
+   fun:_PyEval_EvalCodeWithName
+   fun:_PyFunction_Vectorcall
+   fun:_PyEval_EvalFrameDefault
+}
