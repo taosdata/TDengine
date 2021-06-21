@@ -19,6 +19,22 @@
 #include "tarray.h"
 #include "hash.h"
 
+int32_t setCompareBytes1(const void *pLeft, const void *pRight) {
+  return NULL != taosHashGet((SHashObj *)pRight, pLeft, 1) ? 1 : 0;    
+}
+
+int32_t setCompareBytes2(const void *pLeft, const void *pRight) {
+  return NULL != taosHashGet((SHashObj *)pRight, pLeft, 2) ? 1 : 0;    
+}
+
+int32_t setCompareBytes4(const void *pLeft, const void *pRight) {
+  return NULL != taosHashGet((SHashObj *)pRight, pLeft, 4) ? 1 : 0;    
+}
+
+int32_t setCompareBytes8(const void *pLeft, const void *pRight) {
+  return NULL != taosHashGet((SHashObj *)pRight, pLeft, 8) ? 1 : 0;    
+}
+
 int32_t compareInt32Val(const void *pLeft, const void *pRight) {
   int32_t left = GET_INT32_VAL(pLeft), right = GET_INT32_VAL(pRight);
   if (left > right) return 1;
@@ -309,6 +325,29 @@ static int32_t compareWStrPatternComp(const void* pLeft, const void* pRight) {
 
 __compar_fn_t getComparFunc(int32_t type, int32_t optr) {
   __compar_fn_t comparFn = NULL;
+
+  if (optr == TSDB_RELATION_IN && (type != TSDB_DATA_TYPE_BINARY && type != TSDB_DATA_TYPE_NCHAR)) {
+    switch (type) {
+      case TSDB_DATA_TYPE_BOOL:
+      case TSDB_DATA_TYPE_TINYINT:  
+      case TSDB_DATA_TYPE_UTINYINT:  
+        return setCompareBytes1;
+      case TSDB_DATA_TYPE_SMALLINT:
+      case TSDB_DATA_TYPE_USMALLINT:
+        return setCompareBytes2;
+      case TSDB_DATA_TYPE_INT:
+      case TSDB_DATA_TYPE_UINT:
+      case TSDB_DATA_TYPE_FLOAT:        
+        return setCompareBytes4;
+      case TSDB_DATA_TYPE_BIGINT:        
+      case TSDB_DATA_TYPE_UBIGINT:        
+      case TSDB_DATA_TYPE_DOUBLE:        
+      case TSDB_DATA_TYPE_TIMESTAMP:        
+        return setCompareBytes8;
+      default:
+        assert(0);
+    }
+  }
   
   switch (type) {
     case TSDB_DATA_TYPE_BOOL:
@@ -334,6 +373,8 @@ __compar_fn_t getComparFunc(int32_t type, int32_t optr) {
     case TSDB_DATA_TYPE_NCHAR: {
       if (optr == TSDB_RELATION_LIKE) {
         comparFn = compareWStrPatternComp;
+      } else if (optr == TSDB_RELATION_IN) {
+        comparFn = compareFindItemInSet;
       } else {
         comparFn = compareLenPrefixedWStr;
       }

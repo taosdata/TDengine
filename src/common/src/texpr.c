@@ -495,6 +495,177 @@ void buildFilterSetFromBinary(void **q, const char *buf, int32_t len) {
   *q = (void *)pObj;
 }
 
+void convertFilterSetFromBinary(void **q, const char *buf, int32_t len, uint32_t tType) {
+  SBufferReader br = tbufInitReader(buf, len, false); 
+  uint32_t sType  = tbufReadUint32(&br);     
+  SHashObj *pObj = taosHashInit(256, taosGetDefaultHashFunction(tType), true, false);
+  
+  taosHashSetEqualFp(pObj, taosGetDefaultEqualFunction(tType)); 
+  
+  int dummy = -1;
+  tVariant tmpVar = {0};  
+  size_t  t = 0;
+  int32_t sz = tbufReadInt32(&br);
+  void *pvar = NULL;
+  int32_t bufLen = 0;
+  if (IS_NUMERIC_TYPE(sType)) {
+    bufLen = 60;  // The maximum length of string that a number is converted to.
+  } else {
+    bufLen = 128;
+  }
+
+  char *tmp = calloc(1, bufLen * TSDB_NCHAR_SIZE);
+    
+  for (int32_t i = 0; i < sz; i++) {
+    switch (sType) {
+    case TSDB_DATA_TYPE_BOOL:
+    case TSDB_DATA_TYPE_TINYINT: {
+      int8_t val = tbufReadInt64(&br); 
+      t = sizeof(val);
+      pvar = &val;
+      break;
+    }
+    case TSDB_DATA_TYPE_SMALLINT: {
+      int16_t val = tbufReadInt64(&br); 
+      t = sizeof(val);
+      pvar = &val;
+      break;
+    }
+    case TSDB_DATA_TYPE_INT: {
+      int32_t val = tbufReadInt64(&br); 
+      t = sizeof(val);
+      pvar = &val;
+      break;
+    }
+    case TSDB_DATA_TYPE_BIGINT: {
+      int64_t val = tbufReadInt64(&br); 
+      t = sizeof(val);
+      pvar = &val;
+      break;
+    }
+    case TSDB_DATA_TYPE_DOUBLE: {
+      double  val = tbufReadDouble(&br);
+      t = sizeof(val);
+      pvar = &val;
+      break;
+    }
+    case TSDB_DATA_TYPE_FLOAT: {
+      float  val = tbufReadDouble(&br);
+      t = sizeof(val);
+      pvar = &val;
+      break;
+    }
+    case TSDB_DATA_TYPE_BINARY: {
+      char *val = (char *)tbufReadBinary(&br, &t);
+      pvar = val;
+      break;
+    }
+    case TSDB_DATA_TYPE_NCHAR: {
+      char *val = (char *)tbufReadBinary(&br, &t);      
+      pvar = val;
+      break;
+    }
+    default:
+      taosHashCleanup(pObj);
+      *q = NULL;
+      return;
+    }
+    
+    tVariantCreateFromBinary(&tmpVar, (char *)pvar, t, sType);
+
+    if (bufLen < t) {
+      tmp = realloc(tmp, t * TSDB_NCHAR_SIZE);
+      bufLen = t;
+    }
+
+    switch (tType) {
+      case TSDB_DATA_TYPE_BOOL:
+      case TSDB_DATA_TYPE_TINYINT: {
+        int8_t val = 0; 
+        if (tVariantDump(&tmpVar, (char *)&val, tType, false)) {
+          goto err_ret;
+        }
+        pvar = &val;
+        t = sizeof(val);
+        break;
+      }
+      case TSDB_DATA_TYPE_SMALLINT: {
+        int16_t val = 0; 
+        if (tVariantDump(&tmpVar, (char *)&val, tType, false)) {
+          goto err_ret;
+        }
+        pvar = &val;
+        t = sizeof(val);
+        break;
+      }
+      case TSDB_DATA_TYPE_INT: {
+        int32_t val = 0; 
+        if (tVariantDump(&tmpVar, (char *)&val, tType, false)) {
+          goto err_ret;
+        }
+        pvar = &val;
+        t = sizeof(val);
+        break;
+      }
+      case TSDB_DATA_TYPE_BIGINT: {
+        int64_t val = 0; 
+        if (tVariantDump(&tmpVar, (char *)&val, tType, false)) {
+          goto err_ret;
+        }
+        pvar = &val;
+        t = sizeof(val);
+        break;
+      }
+      case TSDB_DATA_TYPE_DOUBLE: {
+        double  val = 0;
+        if (tVariantDump(&tmpVar, (char *)&val, tType, false)) {
+          goto err_ret;
+        }
+        pvar = &val;
+        t = sizeof(val);
+        break;
+      }
+      case TSDB_DATA_TYPE_FLOAT: {
+        float  val = 0;
+        if (tVariantDump(&tmpVar, (char *)&val, tType, false)) {
+          goto err_ret;
+        }
+        pvar = &val;
+        t = sizeof(val);
+        break;
+      }
+      case TSDB_DATA_TYPE_BINARY: {
+        if (tVariantDump(&tmpVar, tmp, tType, true)) {
+          goto err_ret;
+        }
+        t = varDataLen(tmp);
+        pvar = varDataVal(tmp);
+        break;
+      }
+      case TSDB_DATA_TYPE_NCHAR: {
+        if (tVariantDump(&tmpVar, tmp, tType, true)) {
+          goto err_ret;
+        }
+        t = varDataLen(tmp);
+        pvar = varDataVal(tmp);        
+        break;
+      }
+      default:
+        goto err_ret;
+    }
+    
+    taosHashPut(pObj, (char *)pvar, t,  &dummy, sizeof(dummy));
+  } 
+
+  *q = (void *)pObj;
+  pObj = NULL;
+  
+err_ret:  
+  taosHashCleanup(pObj);
+  tfree(tmp);
+}
+
+
 tExprNode* exprdup(tExprNode* pNode) {
   if (pNode == NULL) {
     return NULL;

@@ -326,6 +326,13 @@ int32_t filterInitValFieldData(SFilterInfo *info) {
     
     tVariant* var = fi->desc;
 
+    if (unit->compare.optr == TSDB_RELATION_IN) {
+      convertFilterSetFromBinary((void **)&fi->data, var->pz, var->nLen, type);
+      CHK_LRET(fi->data == NULL, TSDB_CODE_QRY_APP_ERROR, "failed to convert in param");
+    
+      continue;
+    }
+
     if (type == TSDB_DATA_TYPE_BINARY) {
       fi->data = calloc(1, (var->nLen + 1) * TSDB_NCHAR_SIZE);
     } else if (type == TSDB_DATA_TYPE_NCHAR) {

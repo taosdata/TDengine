@@ -131,6 +131,7 @@ _hash_fn_t taosGetDefaultHashFunction(int32_t type) {
     case TSDB_DATA_TYPE_NCHAR:    fn = MurmurHash3_32;break;
     case TSDB_DATA_TYPE_INT:      fn = taosIntHash_32; break;
     case TSDB_DATA_TYPE_SMALLINT: fn = taosIntHash_16; break;
+    case TSDB_DATA_TYPE_BOOL:     fn = taosIntHash_8; break;
     case TSDB_DATA_TYPE_TINYINT:  fn = taosIntHash_8; break;
     case TSDB_DATA_TYPE_FLOAT:    fn = taosFloatHash; break;                             
     case TSDB_DATA_TYPE_DOUBLE:   fn = taosDoubleHash; break;                             
