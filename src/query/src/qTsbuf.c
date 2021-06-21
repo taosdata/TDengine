@@ -637,9 +637,10 @@ int32_t STSBufUpdateHeader(STSBuf* pTSBuf, STSBufFileHeader* pHeader) {
     qError("fseek failed, errno:%d", errno);
     return -1;
   }
-  
-  if (fwrite(pHeader, sizeof(STSBufFileHeader), 1, pTSBuf->f) != sizeof(STSBufFileHeader)) {    
-    qError("fwrite failed, errno:%d", errno);
+
+  size_t ws = fwrite(pHeader, sizeof(STSBufFileHeader), 1, pTSBuf->f);
+  if (ws != sizeof(STSBufFileHeader)) {    
+    qError("ts update header fwrite failed, size:%d, expected size:%d", (int32_t)ws, (int32_t)sizeof(STSBufFileHeader));
     return -1;
   }
   return 0;
@@ -868,7 +869,7 @@ STSBuf* tsBufCreateFromCompBlocks(const char* pData, int32_t numOfBlocks, int32_
   }
   size_t sz = fwrite((void*)pData, 1, len, pTSBuf->f);
   if (sz != len) {
-    qError("fwrite failed, errno:%d", errno);
+    qError("ts data fwrite failed, write size:%d, expected size:%d", (int32_t)sz, len);
     tsBufDestroy(pTSBuf);
     return NULL;
   }
