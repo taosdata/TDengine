@@ -3355,11 +3355,16 @@ static bool tableFilterFp(const void* pNode, void* param) {
     }
   } else if (pInfo->optr == TSDB_RELATION_IN) {
      int type = pInfo->sch.type;
-     if (type == TSDB_DATA_TYPE_BOOL || type == TSDB_DATA_TYPE_TINYINT || type == TSDB_DATA_TYPE_SMALLINT || type == TSDB_DATA_TYPE_BIGINT || type == TSDB_DATA_TYPE_INT) {
+     if (type == TSDB_DATA_TYPE_BOOL || IS_SIGNED_NUMERIC_TYPE(type) || type == TSDB_DATA_TYPE_TIMESTAMP) {
        int64_t v;
        GET_TYPED_DATA(v, int64_t, pInfo->sch.type, val);
        return NULL != taosHashGet((SHashObj *)pInfo->q, (char *)&v, sizeof(v));     
-     } else if (type == TSDB_DATA_TYPE_DOUBLE || type == TSDB_DATA_TYPE_DOUBLE) {
+     } else if (IS_UNSIGNED_NUMERIC_TYPE(type)) {
+       uint64_t v;
+       GET_TYPED_DATA(v, uint64_t, pInfo->sch.type, val);
+       return NULL != taosHashGet((SHashObj *)pInfo->q, (char *)&v, sizeof(v));     
+     }
+     else if (type == TSDB_DATA_TYPE_DOUBLE || type == TSDB_DATA_TYPE_DOUBLE) {
        double v;
        GET_TYPED_DATA(v, double, pInfo->sch.type, val);
        return NULL != taosHashGet((SHashObj *)pInfo->q, (char *)&v, sizeof(v));     
