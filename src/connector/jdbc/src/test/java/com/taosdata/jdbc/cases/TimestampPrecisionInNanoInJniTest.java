@@ -70,6 +70,9 @@ public class TimestampPrecisionInNanoInJniTest {
     }
 
     private void checkCount(long count, ResultSet rs) throws SQLException {
+        if (count == 0) {
+            Assert(0);
+        }
         rs.next();
         long test_count = rs.getLong(1);
         Assert.assertEquals(count, test_count);
@@ -154,9 +157,6 @@ public class TimestampPrecisionInNanoInJniTest {
     public void canSelectLastRowFromWeatherForFirstCol() {
         try (Statement stmt = conn.createStatement()) {
             ResultSet rs = stmt.executeQuery("select last(ts) from " + ns_timestamp_db + ".weather");
-            // int nanos = rs.getTimestamp(1).getNanos();
-            // Assert.assertEquals(timestamp3 % 1000_000l * 1000, nanos);
-            // java.lang.AssertionError: expected:<123456000> but was:<468123456>
             checkTime(timestamp3, rs);
         } catch (SQLException e) {
             e.printStackTrace();
@@ -417,18 +417,6 @@ public class TimestampPrecisionInNanoInJniTest {
         }
     }
 
-    // @Test
-    // public void canQueryNotEqualToInDateTypeForFirstCol() {
-    //     try (Statement stmt = conn.createStatement()) {
-    //         ResultSet rs = stmt.executeQuery("select count(*) from " + ns_timestamp_db + ".weather where ts <> '" + date3 + "'");
-    //         checkCount(1l, rs);
-    //         rs = stmt.executeQuery("select ts from " + ns_timestamp_db + ".weather where ts <> '" + date3 + "'");
-    //         checkTime(timestamp2, rs);
-    //     } catch (SQLException e) {
-    //         e.printStackTrace();
-    //     }
-    // }
-
     @Test
     public void canQueryNotEqualToInDateTypeForSecondCol() {
         try (Statement stmt = conn.createStatement()) {
@@ -440,18 +428,6 @@ public class TimestampPrecisionInNanoInJniTest {
             e.printStackTrace();
         }
     }
-
-    // @Test
-    // public void canQueryNotEqualToInNumberTypeForFirstCol() {
-    //     try (Statement stmt = conn.createStatement()) {
-    //         ResultSet rs = stmt.executeQuery("select count(*) from " + ns_timestamp_db + ".weather where ts <> '" + timestamp3 + "'");
-    //         checkCount(1l, rs);
-    //         rs = stmt.executeQuery("select ts from " + ns_timestamp_db + ".weather where ts <> '" + timestamp3 + "'");
-    //         checkTime(timestamp2, rs);
-    //     } catch (SQLException e) {
-    //         e.printStackTrace();
-    //     }
-    // }
 
     @Test
     public void canQueryNotEqualToInNumberTypeForSecondCol() {
@@ -465,18 +441,6 @@ public class TimestampPrecisionInNanoInJniTest {
         }
     }
 
-    // @Test
-    // public void canQueryNotEqualInDateTypeForFirstCol() {
-    //     try (Statement stmt = conn.createStatement()) {
-    //         ResultSet rs = stmt.executeQuery("select count(*) from " + ns_timestamp_db + ".weather where ts != '" + date3 + "'");
-    //         checkCount(1l, rs);
-    //         rs = stmt.executeQuery("select ts from " + ns_timestamp_db + ".weather where ts != '" + date3 + "'");
-    //         checkTime(timestamp2, rs);
-    //     } catch (SQLException e) {
-    //         e.printStackTrace();
-    //     }
-    // }
-
     @Test
     public void canQueryNotEqualInDateTypeForSecondCol() {
         try (Statement stmt = conn.createStatement()) {
@@ -488,18 +452,6 @@ public class TimestampPrecisionInNanoInJniTest {
             e.printStackTrace();
         }
     }
-
-    // @Test
-    // public void canQueryNotEqualInNumberTypeForFirstCol() {
-    //     try (Statement stmt = conn.createStatement()) {
-    //         ResultSet rs = stmt.executeQuery("select count(*) from " + ns_timestamp_db + ".weather where ts != '" + timestamp3 + "'");
-    //         checkCount(1l, rs);
-    //         rs = stmt.executeQuery("select ts from " + ns_timestamp_db + ".weather where ts != '" + timestamp3 + "'");
-    //         checkTime(timestamp2, rs);
-    //     } catch (SQLException e) {
-    //         e.printStackTrace();
-    //     }
-    // }
 
     @Test
     public void canQueryNotEqualInNumberTypeForSecondCol() {
