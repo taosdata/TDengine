@@ -71,7 +71,7 @@ public class TimestampPrecisionInNanoInJniTest {
 
     private void checkCount(long count, ResultSet rs) throws SQLException {
         if (count == 0) {
-            Assert(0);
+            Assert.fail();
         }
         rs.next();
         long test_count = rs.getLong(1);
