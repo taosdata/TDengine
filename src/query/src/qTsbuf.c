@@ -639,7 +639,7 @@ int32_t STSBufUpdateHeader(STSBuf* pTSBuf, STSBufFileHeader* pHeader) {
   }
 
   size_t ws = fwrite(pHeader, sizeof(STSBufFileHeader), 1, pTSBuf->f);
-  if (ws != sizeof(STSBufFileHeader)) {    
+  if (ws != 1) {    
     qError("ts update header fwrite failed, size:%d, expected size:%d", (int32_t)ws, (int32_t)sizeof(STSBufFileHeader));
     return -1;
   }
