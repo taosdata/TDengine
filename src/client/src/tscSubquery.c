@@ -103,13 +103,6 @@ bool subAndCheckDone(SSqlObj *pSql, SSqlObj *pParentSql, int idx) {
 
   pthread_mutex_lock(&subState->mutex);
 
-//  bool done = allSubqueryDone(pParentSql);
-//  if (done) {
-//    tscDebug("0x%"PRIx64" subquery:0x%"PRIx64",%d all subs already done", pParentSql->self, pSql->self, idx);
-//    pthread_mutex_unlock(&subState->mutex);
-//    return false;
-//  }
-
   tscDebug("0x%"PRIx64" subquery:0x%"PRIx64", index:%d state set to 1", pParentSql->self, pSql->self, idx);
   subState->states[idx] = 1;
 
@@ -2389,8 +2382,14 @@ int32_t tscHandleFirstRoundStableQuery(SSqlObj *pSql) {
       SColumn *pCol = taosArrayGetP(pColList, i);
 
       if (pCol->info.flist.numOfFilters > 0) {  // copy to the pNew->cmd.colList if it is filtered.
-        SColumn *p = tscColumnClone(pCol);
-        taosArrayPush(pNewQueryInfo->colList, &p);
+        int32_t index1 = tscColumnExists(pNewQueryInfo->colList, pCol->columnIndex, pCol->tableUid);
+        if (index1 >= 0) {
+          SColumn* x = taosArrayGetP(pNewQueryInfo->colList, index1);
+          tscColumnCopy(x, pCol);
+        } else {
+          SColumn *p = tscColumnClone(pCol);
+          taosArrayPush(pNewQueryInfo->colList, &p);
+        }
       }
     }
 

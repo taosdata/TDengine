@@ -259,15 +259,15 @@ static const YYACTIONTYPE yy_action[] = {
  /*   500 */  1019,  999,  265, 1036,  146,  150,  981,  274, 1035,  163,
  /*   510 */   142,  269,  164,  157,  979,  733,  165,  224,  789,  263,
  /*   520 */   166,  153,  894,  283,  290,   43,  191,  271,   39,  299,
- /*   530 */   890,  306,   73,  278, 1113,  996,   70,   47,  104,  154,
+ /*   530 */   890,  306,   73,  278, 1113,  996,   70,  154,  104,   47,
  /*   540 */   155, 1112,  281, 1109,  170,  313, 1105,  110,  279,  156,
  /*   550 */  1104,  277,  158,  275,  273, 1101,  159,  171,  270,  912,
  /*   560 */    40,   37,   44,  192,  878,  120,  876,  122,  123,  874,
  /*   570 */   873,  250,  182,  871,  870,  869,  868,  867,  866,  185,
  /*   580 */   187,  863,  861,  859,  857,  189,  854,  190,   46,   79,
  /*   590 */    84,  272,  331, 1037,  115,  323,  324,  325,  326,  327,
- /*   600 */   328,  329,  214,  341,  234,  289,  831,  252,  251,  830,
- /*   610 */   211,  212,  254,   98,   99,  255,  829,  812,  811,  259,
+ /*   600 */   328,  329,  214,  234,  289,  341,  831,  252,  251,  830,
+ /*   610 */   211,  212,  254,   98,   99,  255,  829,  259,  812,  811,
  /*   620 */    10,  264,  872,  284,  133,  710,  174,  134,  173,  913,
  /*   630 */   172,  175,  177,  176,  135,  178,  865,  914,  864,    2,
  /*   640 */   136,  950,  856,  855,   82,   30,    4,  266,  160,  161,
@@ -335,15 +335,15 @@ static const YYCODETYPE yy_lookahead[] = {
  /*   500 */   194,  240,  240,  267,  194,  194,  240,  194,  267,  244,
  /*   510 */    60,  263,  194,  250,  194,  118,  194,  263,  112,  195,
  /*   520 */   194,  254,  194,  124,  194,  194,  194,  263,  194,  194,
- /*   530 */   194,  194,  130,  263,  194,  255,  132,  129,  194,  253,
+ /*   530 */   194,  194,  130,  263,  194,  255,  132,  253,  194,  129,
  /*   540 */   252,  194,  128,  194,  194,  194,  194,  194,  123,  251,
  /*   550 */   194,  122,  249,  121,  120,  194,  248,  194,  119,  194,
  /*   560 */   194,  194,  194,  194,  194,  194,  194,  194,  194,  194,
  /*   570 */   194,  194,  194,  194,  194,  194,  194,  194,  194,  194,
  /*   580 */   194,  194,  194,  194,  194,  194,  194,  194,  134,  195,
  /*   590 */   195,  195,  107,  195,   90,   89,   50,   86,   88,   54,
- /*   600 */    87,   85,  195,   82,  195,  195,    5,    5,  148,    5,
- /*   610 */   195,  195,  148,  201,  201,    5,    5,   94,   93,  137,
+ /*   600 */    87,   85,  195,  195,  195,   82,    5,    5,  148,    5,
+ /*   610 */   195,  195,  148,  201,  201,    5,    5,  137,   94,   93,
  /*   620 */    80,  114,  195,  109,  196,   81,  206,  196,  210,  212,
  /*   630 */   211,  209,  208,  207,  196,  205,  195,  214,  195,  202,
  /*   640 */   196,  230,  195,  195,  115,   80,  197,   91,  247,  246,
@@ -395,18 +395,18 @@ static const unsigned short int yy_shift_ofst[] = {
  /*   120 */     9,    9,    9,    9,    9,    9,    9,    9,    9,    9,
  /*   130 */     9,    9,    9,    9,    9,    9,    9,    9,    9,    9,
  /*   140 */     9,    9,    9,    9,  450,  450,  450,  397,  397,  397,
- /*   150 */   450,  397,  450,  402,  404,  408,  399,  414,  425,  429,
+ /*   150 */   450,  397,  450,  402,  404,  399,  410,  414,  425,  429,
  /*   160 */   432,  434,  439,  454,  450,  450,  450,  485,   47,   47,
  /*   170 */   450,  450,  504,  506,  546,  511,  510,  545,  513,  516,
- /*   180 */   485,  143,  450,  521,  521,  450,  521,  450,  521,  450,
+ /*   180 */   485,  143,  450,  523,  523,  450,  523,  450,  523,  450,
  /*   190 */   450,  734,  734,   27,   99,   99,  126,   99,   53,  180,
  /*   200 */   283,  283,  283,  283,  193,  269,  273,  327,  327,  327,
  /*   210 */   327,  230,  251,  250,  238,  172,  172,  234,  307,  342,
  /*   220 */   348,  210,  317,  323,  338,  339,  341,  309,  297,  343,
  /*   230 */   354,  355,  357,  358,  346,  359,  360,   70,  171,  406,
  /*   240 */   362,  312,  316,  319,  455,  459,  325,  329,  364,  333,
- /*   250 */   400,  601,  460,  602,  604,  464,  610,  611,  523,  525,
- /*   260 */   482,  507,  514,  540,  529,  544,  565,  556,  561,  572,
+ /*   250 */   400,  601,  460,  602,  604,  464,  610,  611,  524,  526,
+ /*   260 */   480,  507,  514,  540,  529,  544,  565,  556,  561,  572,
  /*   270 */   574,  575,  564,  577,  578,  580,  657,  581,  582,  584,
  /*   280 */   571,  541,  576,  543,  585,  514,  589,  562,  590,  563,
  /*   290 */   596,  665,  670,  671,  672,  673,  674,  597,  666,  606,
@@ -435,8 +435,8 @@ static const short yy_reduce_ofst[] = {
  /*   120 */   370,  371,  372,  373,  374,  375,  376,  377,  378,  379,
  /*   130 */   380,  381,  382,  383,  384,  385,  386,  387,  388,  389,
  /*   140 */   390,  391,  392,  393,  324,  394,  395,  248,  254,  264,
- /*   150 */   396,  270,  398,  280,  267,  286,  288,  298,  263,  303,
- /*   160 */   308,  401,  403,  405,  407,  409,  410,  411,  412,  413,
+ /*   150 */   396,  270,  398,  280,  267,  284,  288,  298,  263,  303,
+ /*   160 */   308,  401,  403,  405,  407,  408,  409,  411,  412,  413,
  /*   170 */   415,  416,  417,  419,  418,  420,  422,  426,  424,  430,
  /*   180 */   421,  423,  427,  428,  431,  441,  438,  443,  444,  447,
  /*   190 */   448,  437,  449,
@@ -457,7 +457,7 @@ static const YYACTIONTYPE yy_default[] = {
  /*   120 */   877,  832,  875,  832,  832,  832,  832,  832,  832,  832,
  /*   130 */   832,  832,  832,  832,  832,  832,  832,  862,  832,  832,
  /*   140 */   832,  832,  832,  832,  853,  853,  853,  832,  832,  832,
- /*   150 */   853,  832,  853, 1047, 1051, 1045, 1033, 1041, 1032, 1028,
+ /*   150 */   853,  832,  853, 1047, 1051, 1033, 1045, 1041, 1032, 1028,
  /*   160 */  1026, 1024, 1023, 1055,  853,  853,  853,  893,  889,  889,
  /*   170 */   853,  853,  911,  909,  907,  899,  905,  901,  903,  897,
  /*   180 */   880,  832,  853,  887,  887,  853,  887,  853,  887,  853,
@@ -1024,8 +1024,8 @@ static const char *const yyTokenName[] = {
   /*  249 */ "fill_opt",
   /*  250 */ "sliding_opt",
   /*  251 */ "groupby_opt",
-  /*  252 */ "orderby_opt",
-  /*  253 */ "having_opt",
+  /*  252 */ "having_opt",
+  /*  253 */ "orderby_opt",
   /*  254 */ "slimit_opt",
   /*  255 */ "limit_opt",
   /*  256 */ "union",
@@ -1210,7 +1210,7 @@ static const char *const yyRuleName[] = {
  /* 158 */ "tagitem ::= MINUS FLOAT",
  /* 159 */ "tagitem ::= PLUS INTEGER",
  /* 160 */ "tagitem ::= PLUS FLOAT",
- /* 161 */ "select ::= SELECT selcollist from where_opt interval_opt session_option windowstate_option fill_opt sliding_opt groupby_opt orderby_opt having_opt slimit_opt limit_opt",
+ /* 161 */ "select ::= SELECT selcollist from where_opt interval_opt session_option windowstate_option fill_opt sliding_opt groupby_opt having_opt orderby_opt slimit_opt limit_opt",
  /* 162 */ "select ::= LP select RP",
  /* 163 */ "union ::= select",
  /* 164 */ "union ::= union UNION ALL select",
@@ -1467,7 +1467,7 @@ tSqlExprListDestroy((yypminor->yy441));
     case 239: /* tagNamelist */
     case 249: /* fill_opt */
     case 251: /* groupby_opt */
-    case 252: /* orderby_opt */
+    case 253: /* orderby_opt */
     case 264: /* sortlist */
     case 268: /* grouplist */
 {
@@ -1492,7 +1492,7 @@ destroyRelationInfo((yypminor->yy244));
 }
       break;
     case 245: /* where_opt */
-    case 253: /* having_opt */
+    case 252: /* having_opt */
     case 259: /* expr */
     case 269: /* expritem */
 {
@@ -1961,7 +1961,7 @@ static const struct {
   {  242,   -2 }, /* (158) tagitem ::= MINUS FLOAT */
   {  242,   -2 }, /* (159) tagitem ::= PLUS INTEGER */
   {  242,   -2 }, /* (160) tagitem ::= PLUS FLOAT */
-  {  240,  -14 }, /* (161) select ::= SELECT selcollist from where_opt interval_opt session_option windowstate_option fill_opt sliding_opt groupby_opt orderby_opt having_opt slimit_opt limit_opt */
+  {  240,  -14 }, /* (161) select ::= SELECT selcollist from where_opt interval_opt session_option windowstate_option fill_opt sliding_opt groupby_opt having_opt orderby_opt slimit_opt limit_opt */
   {  240,   -3 }, /* (162) select ::= LP select RP */
   {  256,   -1 }, /* (163) union ::= select */
   {  256,   -4 }, /* (164) union ::= union UNION ALL select */
@@ -1998,8 +1998,8 @@ static const struct {
   {  249,   -4 }, /* (195) fill_opt ::= FILL LP ID RP */
   {  250,   -4 }, /* (196) sliding_opt ::= SLIDING LP tmvar RP */
   {  250,    0 }, /* (197) sliding_opt ::= */
-  {  252,    0 }, /* (198) orderby_opt ::= */
-  {  252,   -3 }, /* (199) orderby_opt ::= ORDER BY sortlist */
+  {  253,    0 }, /* (198) orderby_opt ::= */
+  {  253,   -3 }, /* (199) orderby_opt ::= ORDER BY sortlist */
   {  264,   -4 }, /* (200) sortlist ::= sortlist COMMA item sortorder */
   {  264,   -2 }, /* (201) sortlist ::= item sortorder */
   {  266,   -2 }, /* (202) item ::= ids cpxName */
@@ -2010,8 +2010,8 @@ static const struct {
   {  251,   -3 }, /* (207) groupby_opt ::= GROUP BY grouplist */
   {  268,   -3 }, /* (208) grouplist ::= grouplist COMMA item */
   {  268,   -1 }, /* (209) grouplist ::= item */
-  {  253,    0 }, /* (210) having_opt ::= */
-  {  253,   -2 }, /* (211) having_opt ::= HAVING expr */
+  {  252,    0 }, /* (210) having_opt ::= */
+  {  252,   -2 }, /* (211) having_opt ::= HAVING expr */
   {  255,    0 }, /* (212) limit_opt ::= */
   {  255,   -2 }, /* (213) limit_opt ::= LIMIT signed */
   {  255,   -4 }, /* (214) limit_opt ::= LIMIT signed OFFSET signed */
@@ -2677,9 +2677,9 @@ static void yy_reduce(
 }
   yymsp[-1].minor.yy506 = yylhsminor.yy506;
         break;
-      case 161: /* select ::= SELECT selcollist from where_opt interval_opt session_option windowstate_option fill_opt sliding_opt groupby_opt orderby_opt having_opt slimit_opt limit_opt */
+      case 161: /* select ::= SELECT selcollist from where_opt interval_opt session_option windowstate_option fill_opt sliding_opt groupby_opt having_opt orderby_opt slimit_opt limit_opt */
 {
-  yylhsminor.yy236 = tSetQuerySqlNode(&yymsp[-13].minor.yy0, yymsp[-12].minor.yy441, yymsp[-11].minor.yy244, yymsp[-10].minor.yy166, yymsp[-4].minor.yy441, yymsp[-3].minor.yy441, &yymsp[-9].minor.yy340, &yymsp[-8].minor.yy259, &yymsp[-7].minor.yy348, &yymsp[-5].minor.yy0, yymsp[-6].minor.yy441, &yymsp[0].minor.yy414, &yymsp[-1].minor.yy414, yymsp[-2].minor.yy166);
+  yylhsminor.yy236 = tSetQuerySqlNode(&yymsp[-13].minor.yy0, yymsp[-12].minor.yy441, yymsp[-11].minor.yy244, yymsp[-10].minor.yy166, yymsp[-4].minor.yy441, yymsp[-2].minor.yy441, &yymsp[-9].minor.yy340, &yymsp[-8].minor.yy259, &yymsp[-7].minor.yy348, &yymsp[-5].minor.yy0, yymsp[-6].minor.yy441, &yymsp[0].minor.yy414, &yymsp[-1].minor.yy414, yymsp[-3].minor.yy166);
 }
   yymsp[-13].minor.yy236 = yylhsminor.yy236;
         break;
