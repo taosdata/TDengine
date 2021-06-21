@@ -3945,7 +3945,7 @@ static void rate_finalizer(SQLFunctionCtx *pCtx) {
     return;
   }
   
-  *(double*) pCtx->pOutput = do_calc_rate(pRateInfo, TSDB_TICK_PER_SECOND(pCtx->param[0].i64));
+  *(double*) pCtx->pOutput = do_calc_rate(pRateInfo, (double) TSDB_TICK_PER_SECOND(pCtx->param[0].i64));
 
   // cannot set the numOfIteratedElems again since it is set during previous iteration
   pResInfo->numOfRes  = 1;
