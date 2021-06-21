@@ -49,6 +49,7 @@ TDengine 的 JDBC 驱动实现尽可能与关系型数据库驱动保持一致�
 </tr>
 </table>
 
+注意：与 JNI 方式不同，RESTful 接口是无状态的，因此 `USE db_name` 指令没有效果，RESTful 下所有对表名、超级表名的引用都需要指定数据库名前缀。
 
 ## 如何获取 taos-jdbcdriver
 
@@ -551,7 +552,7 @@ TDengine 目前支持时间戳、数字、字符、布尔类型，与 Java 对�
 | BIGINT            | java.lang.Long     |
 | FLOAT             | java.lang.Float    |
 | DOUBLE            | java.lang.Double   |
-| SMALLINT	    | java.lang.Short    |
+| SMALLINT          | java.lang.Short    |
 | TINYINT           | java.lang.Byte     |
 | BOOL              | java.lang.Boolean  |
 | BINARY            | byte array         |
