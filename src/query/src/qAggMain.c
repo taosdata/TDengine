@@ -2670,10 +2670,6 @@ static void date_col_output_function(SQLFunctionCtx *pCtx) {
   *(int64_t *)(pCtx->pOutput) = pCtx->startTs;
 }
 
-static FORCE_INLINE void date_col_output_function_f(SQLFunctionCtx *pCtx, int32_t index) {
-  date_col_output_function(pCtx);
-}
-
 static void col_project_function(SQLFunctionCtx *pCtx) {
   // the number of output rows should not affect the final number of rows, so set it to be 0
   if (pCtx->numOfParams == 2) {
