@@ -21,9 +21,9 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.Objects;
 
-public class ConsumeToTDengineTest {
+public class ConsumeToTDengineJobTest {
 
-    private JSONObject consumerTaskConfigJSON;
+    private JSONObject configJson;
 
     @Test
     public void runConsumeJob() {
@@ -32,7 +32,7 @@ public class ConsumeToTDengineTest {
         JobService jobService = new ConsumeToTDengineJobServiceImpl();
 
         // when
-        Job job = JobFactory.build(ConfigurationType.CONSUME_TO_TDENGINE, consumerTaskConfigJSON, configurationRepository);
+        Job job = JobFactory.build(ConfigurationType.CONSUME_TO_TDENGINE, configJson, configurationRepository);
         // then
         Assert.assertEquals(JobStatus.INIT, job.getStatus());
 
@@ -54,15 +54,13 @@ public class ConsumeToTDengineTest {
 
     @Before
     public void before() throws IOException {
-        // read consume-to-tdengine.json
         String consumerConfigStr = IOUtils.toString(Objects.requireNonNull(getClass().getClassLoader().getResourceAsStream("consume-to-tdengine.json")));
-        consumerTaskConfigJSON = JSONObject.parseObject(consumerConfigStr);
-
+        configJson = JSONObject.parseObject(consumerConfigStr);
         cleanTaosdAndTqueue();
     }
 
     private void cleanTaosdAndTqueue() {
-        ConsumeToTDengineConfiguration consumeToTDengineConfiguration = (ConsumeToTDengineConfiguration) ConfigurationFactory.build(ConfigurationType.CONSUME_TO_TDENGINE, consumerTaskConfigJSON);
+        ConsumeToTDengineConfiguration consumeToTDengineConfiguration = (ConsumeToTDengineConfiguration) ConfigurationFactory.build(ConfigurationType.CONSUME_TO_TDENGINE, configJson);
         ConsumerConfiguration consumerConfiguration = (ConsumerConfiguration) consumeToTDengineConfiguration.findFirst(ConfigurationType.CONSUMER);
         String host_tq = consumerConfiguration.getHost();
         TaskConfiguration taskConfiguration = (TaskConfiguration) consumeToTDengineConfiguration.findFirst(ConfigurationType.TASK);

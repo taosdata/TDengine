@@ -1,5 +1,6 @@
 package com.taosdata.tsync.service;
 
+import com.taosdata.tsync.exceptions.TsyncException;
 import com.taosdata.tsync.tqueue.TQueueBase;
 import com.taosdata.tsync.entity.config.Configuration;
 import com.taosdata.tsync.entity.config.TaskConfiguration;
@@ -16,33 +17,33 @@ public abstract class AbstractJobService implements JobService {
 
     private static final Logger logger = LoggerFactory.getLogger(AbstractJobService.class);
 
-    private final ConfigurationRepository configurationRepository = ConfigurationRepository.getInstance();
+    protected final ConfigurationRepository configurationRepository = ConfigurationRepository.getInstance();
 
     @Override
-    public abstract List<Integer> prepare(ConfigurationType configurationType, UUID jobConfigurationId) throws Exception;
+    public abstract List<UUID> prepare(ConfigurationType configurationType, UUID jobConfigurationId) throws TsyncException;
 
     @Override
-    public abstract void startAndWait(List<Integer> taskIds) throws Exception;
+    public abstract void startAndWait(List<UUID> taskIds) throws TsyncException;
 
     @Override
     public Configuration getConfiguration(ConfigurationType configurationType, UUID configurationId) {
         return configurationRepository.find(configurationId);
     }
 
-    protected void checkTopicAndPartitions(TaskConfiguration taskConfiguration, TQueueBase tqueueBase) throws Exception {
+    protected void checkTopicAndPartitions(TaskConfiguration taskConfiguration, TQueueBase tqueueBase) throws TsyncException {
         String topic = taskConfiguration.getTopic();
         // check topic
         if (!tqueueBase.containsTopic(topic)) {
             String errMsg = "topic[" + topic + "] does not exist";
             logger.error(errMsg);
-            throw new Exception(errMsg);
+            throw new TsyncException(errMsg);
         }
         // check partitions
         int[] partitions = taskConfiguration.getPartitions();
         if (partitions != null && !isLegal(partitions, tqueueBase.getTopic(topic).partitions())) {
             String errMsg = "partition:" + Arrays.toString(partitions) + " out of partitions range";
             logger.error(errMsg);
-            throw new Exception(errMsg);
+            throw new TsyncException(errMsg);
         }
     }
 

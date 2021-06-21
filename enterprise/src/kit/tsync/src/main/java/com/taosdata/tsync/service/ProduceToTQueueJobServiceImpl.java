@@ -2,29 +2,25 @@ package com.taosdata.tsync.service;
 
 import com.google.common.collect.Multimap;
 import com.google.common.collect.Range;
-import com.taosdata.tsync.tqueue.TQueueProducer;
 import com.taosdata.tsync.entity.CallableTask;
 import com.taosdata.tsync.entity.config.*;
 import com.taosdata.tsync.enums.ConfigurationType;
-import com.taosdata.tsync.factory.TQueueProducerFactory;
+import com.taosdata.tsync.exceptions.TsyncException;
 import com.taosdata.tsync.factory.ProduceToTQueueCallableTaskFactory;
-import com.taosdata.tsync.repository.CallableTaskRepository;
-import com.taosdata.tsync.repository.ConfigurationRepository;
+import com.taosdata.tsync.factory.TQueueProducerFactory;
+import com.taosdata.tsync.tqueue.TQueueProducer;
 import com.taosdata.tsync.utils.Utils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.*;
-import java.util.concurrent.FutureTask;
-import java.util.stream.Collectors;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 import java.util.stream.IntStream;
 
-public class ProduceToTQueueJobServiceImpl extends AbstractJobService {
+public class ProduceToTQueueJobServiceImpl extends AbstractCallableJobService {
     private static final Logger logger = LoggerFactory.getLogger(ProduceToTQueueJobServiceImpl.class);
-
-    private final ConfigurationRepository configurationRepository = ConfigurationRepository.getInstance();
-    private final CallableTaskRepository callableTaskRepository = CallableTaskRepository.getInstance();
-    private final ResultProcessService resultProcessService;
 
     private String topic;
     private int threadSize;
@@ -35,9 +31,8 @@ public class ProduceToTQueueJobServiceImpl extends AbstractJobService {
     private long batchValues;
     private SchemaConfiguration schemaConfiguration;
 
-    public ProduceToTQueueJobServiceImpl(ResultProcessService resultProcessService) {
-        super();
-        this.resultProcessService = resultProcessService;
+    public ProduceToTQueueJobServiceImpl() {
+        super(new AffectRowsProcessService());
     }
 
     private void arrangeTablesToEachThread(ProduceToTQueueConfiguration configuration) {
@@ -59,11 +54,13 @@ public class ProduceToTQueueJobServiceImpl extends AbstractJobService {
     }
 
     @Override
-    public List<Integer> prepare(ConfigurationType configurationType, UUID configurationId) throws Exception {
+    public List<UUID> prepare(ConfigurationType configurationType, UUID configurationId) throws TsyncException {
         // find configuration
         ProduceToTQueueConfiguration configuration = (ProduceToTQueueConfiguration) configurationRepository.find(configurationId);
         if (configuration == null) {
-            throw new Exception("cannot find Configuration of id:[" + configurationId + "]");
+            String errorMsg = "cannot find Configuration of id:[" + configurationId + "]";
+            logger.error(errorMsg);
+            throw new TsyncException(errorMsg);
         }
 
         // 1. do partition missing strategy
@@ -78,7 +75,7 @@ public class ProduceToTQueueJobServiceImpl extends AbstractJobService {
         ProducerConfiguration producerConfiguration = (ProducerConfiguration) configuration.findFirst(ConfigurationType.PRODUCER);
 
         // 7. create threads
-        List<Integer> taskIds = new ArrayList<>();
+        List<UUID> taskIds = new ArrayList<>();
         for (int i = 0; i < threadSize; i++) {
             // callable task
             List<Integer> partitionsToWrite = new ArrayList<>(threadIndex2PartitionList.get(i));
@@ -99,7 +96,7 @@ public class ProduceToTQueueJobServiceImpl extends AbstractJobService {
                     .setSchemaConfiguration(schemaConfiguration)
                     .build();
 
-            CallableTask<Integer> runnableTask = new CallableTask(i, callable);
+            CallableTask<Integer> runnableTask = new CallableTask(callable);
             callableTaskRepository.add(runnableTask);
             taskIds.add(runnableTask.getId());
         }
@@ -107,7 +104,7 @@ public class ProduceToTQueueJobServiceImpl extends AbstractJobService {
         return taskIds;
     }
 
-    private void doPartitionMissingStrategy(ProduceToTQueueConfiguration configuration) throws Exception {
+    private void doPartitionMissingStrategy(ProduceToTQueueConfiguration configuration) throws TsyncException {
         ProducerConfiguration producerConfiguration = (ProducerConfiguration) configuration.findFirst(ConfigurationType.PRODUCER);
         TaskConfiguration taskConfiguration = (TaskConfiguration) configuration.findFirst(ConfigurationType.TASK);
         TQueueProducer producer = TQueueProducerFactory.build(producerConfiguration);
@@ -127,32 +124,6 @@ public class ProduceToTQueueJobServiceImpl extends AbstractJobService {
             logger.warn("Only " + actualThreads + " threads will be created");
         }
         threadSize = actualThreads;
-    }
-
-    @Override
-    public void startAndWait(List<Integer> taskIds) throws Exception {
-        List<FutureTask> futureTasks = new ArrayList<>();
-        List<Thread> threads = IntStream.range(0, taskIds.size()).mapToObj(i -> {
-            // each task create a thread
-            int taskId = taskIds.get(i);
-            CallableTask task = callableTaskRepository.find(taskId);
-            FutureTask futureTask = new FutureTask<>(task.getCallable());
-            futureTasks.add(futureTask);
-            return new Thread(futureTask, "task-" + taskId);
-        }).collect(Collectors.toList());
-        // start
-        threads.stream().forEach(Thread::start);
-        // wait
-        for (Thread thread : threads) {
-            thread.join();
-        }
-        // get result
-        for (FutureTask task : futureTasks) {
-            Object result = task.get();
-            resultProcessService.process(result);
-        }
-        Object result = resultProcessService.getResult();
-        logger.info("get result: " + result.toString());
     }
 
 }

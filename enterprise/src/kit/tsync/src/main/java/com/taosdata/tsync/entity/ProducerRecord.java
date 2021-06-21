@@ -1,4 +1,4 @@
-package com.taosdata.tsync.entity.producer;
+package com.taosdata.tsync.entity;
 
 public class ProducerRecord<T> {
     private final String topic;

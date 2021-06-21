@@ -18,5 +18,13 @@ public enum ConfigurationType {
     STRATEGY,
     /******/
     CONSUME_TO_FILE,
-    FILE
+    FILE,
+    /******/
+    CONSUME_TO_NET,
+    NET,
+    /******/
+    NET_TO_TQUEUE,
+    SOURCE,
+    /******/
+    FILE_TO_TQUEUE
 }

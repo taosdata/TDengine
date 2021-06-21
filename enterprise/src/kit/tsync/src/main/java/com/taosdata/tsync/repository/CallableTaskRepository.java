@@ -1,7 +1,6 @@
 package com.taosdata.tsync.repository;
 
 import com.taosdata.tsync.entity.CallableTask;
-import com.taosdata.tsync.entity.RunnableTask;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -9,7 +8,7 @@ import java.util.UUID;
 
 public final class CallableTaskRepository {
 
-    private List<CallableTask> taskList = new ArrayList<>();
+    private final List<CallableTask> taskList = new ArrayList<>();
     private static volatile CallableTaskRepository instance;
     private static final int NULL = -1;
 
@@ -26,9 +25,9 @@ public final class CallableTaskRepository {
         return instance;
     }
 
-    public CallableTask find(int taskId) {
+    public CallableTask find(UUID taskId) {
         for (CallableTask task : taskList) {
-            if (taskId == task.getId()) {
+            if (taskId.equals(task.getId())) {
                 return task;
             }
         }
@@ -41,15 +40,15 @@ public final class CallableTaskRepository {
             taskList.add(runnableTask);
     }
 
-    public void delete(int taskId) {
+    public void delete(UUID taskId) {
         int index = findIndex(taskId);
         if (index != NULL)
             taskList.remove(index);
     }
 
-    private int findIndex(int id) {
+    private int findIndex(UUID id) {
         for (int i = 0; i < taskList.size(); i++) {
-            if (id == taskList.get(i).getId())
+            if (id.equals(taskList.get(i).getId()))
                 return i;
         }
         return NULL;

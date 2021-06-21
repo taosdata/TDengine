@@ -28,6 +28,7 @@ public class StrategyConfigurationParser implements ConfigurationParser {
             configuration.setPollingInterval(StrategyConfiguration.DEFAULT_POLLING_INTERVAL);
         }
 
+        //TODO: schemaMissing is unnecessary
         if (configJSON.containsKey("schemaMissing")) {
             String schemaMissing = configJSON.getString("schemaMissing");
             if (schemaMissing.equalsIgnoreCase("CREATE")) {

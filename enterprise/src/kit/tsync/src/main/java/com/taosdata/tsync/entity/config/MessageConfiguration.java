@@ -4,6 +4,9 @@ import com.taosdata.tsync.enums.ConfigurationType;
 
 public class MessageConfiguration extends Configuration {
 
+    public static final Long DEFAULT_BATCH_VALUES = 1L;
+    public static final Long DEFAULT_BATCH_TABLES = 1L;
+
     private Long total;
     private Long batchValues;
     private Long batchTables;

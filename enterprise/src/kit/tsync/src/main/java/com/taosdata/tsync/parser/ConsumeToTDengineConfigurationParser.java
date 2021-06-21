@@ -4,6 +4,7 @@ import com.alibaba.fastjson.JSONObject;
 import com.taosdata.tsync.entity.config.Configuration;
 import com.taosdata.tsync.entity.config.ConsumeToTDengineConfiguration;
 import com.taosdata.tsync.enums.ConfigurationType;
+import com.taosdata.tsync.exceptions.TsyncException;
 
 public class ConsumeToTDengineConfigurationParser extends AbstractConfigurationParser {
 
@@ -19,7 +20,7 @@ public class ConsumeToTDengineConfigurationParser extends AbstractConfigurationP
     }
 
     @Override
-    public Configuration parse(ConfigurationType type, JSONObject configJSON) {
+    public Configuration parse(ConfigurationType type, JSONObject configJSON) throws TsyncException {
         ConsumeToTDengineConfiguration config = new ConsumeToTDengineConfiguration();
 
         Configuration consumer = parseConfiguration(configJSON, "consumer", ConfigurationType.CONSUMER, consumerParser);

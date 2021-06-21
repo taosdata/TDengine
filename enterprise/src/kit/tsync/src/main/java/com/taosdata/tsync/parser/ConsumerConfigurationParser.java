@@ -4,19 +4,13 @@ import com.alibaba.fastjson.JSONObject;
 import com.taosdata.tsync.entity.config.Configuration;
 import com.taosdata.tsync.entity.config.ConsumerConfiguration;
 import com.taosdata.tsync.enums.ConfigurationType;
+import com.taosdata.tsync.exceptions.TsyncException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 public class ConsumerConfigurationParser implements ConfigurationParser {
 
     private static final Logger logger = LoggerFactory.getLogger(ConsumerConfigurationParser.class);
-    private static final Integer PORT_DEFAULT = 6041;
-    private static final String USER_DEFAULT = "root";
-    private static final String PASSWORD_DEFAULT = "tqueue";
-    private static final String CHARSET_DEFAULT = "UTF-8";
-    private static final String LOCALE_DEFAULT = "en_US.UTF-8";
-    private static final String TIMEZONE_DEFAULT = "UTC-8";
-    private static final String SERIALIZER_DEFAULT = "STRING";
 
     private final ConfigurationType type = ConfigurationType.CONSUMER;
 
@@ -26,57 +20,64 @@ public class ConsumerConfigurationParser implements ConfigurationParser {
     }
 
     @Override
-    public Configuration parse(ConfigurationType type, JSONObject jsonObject) {
+    public Configuration parse(ConfigurationType type, JSONObject jsonObject) throws TsyncException {
         ConsumerConfiguration config = new ConsumerConfiguration();
         // host
         if (jsonObject.containsKey("host")) {
             config.setHost(jsonObject.getString("host"));
         } else {
-            String exceptionMsg = "configuration item[host] missing";
+            String exceptionMsg = "host is necessary in Consumer Configuration";
             logger.error(exceptionMsg);
-            throw new RuntimeException(exceptionMsg);
+            throw new TsyncException(exceptionMsg);
         }
         // port
         if (jsonObject.containsKey("port")) {
             config.setPort(jsonObject.getInteger("port"));
         } else {
-            config.setPort(PORT_DEFAULT);
+            logger.warn("use default port: " + ConsumerConfiguration.PORT_DEFAULT);
+            config.setPort(ConsumerConfiguration.PORT_DEFAULT);
         }
         // user
         if (jsonObject.containsKey("user")) {
             config.setUser(jsonObject.getString("user"));
         } else {
-            config.setUser(USER_DEFAULT);
+            logger.warn("use default user: " + ConsumerConfiguration.USER_DEFAULT);
+            config.setUser(ConsumerConfiguration.USER_DEFAULT);
         }
         // password
         if (jsonObject.containsKey("password")) {
             config.setPassword(jsonObject.getString("password"));
         } else {
-            config.setPassword(PASSWORD_DEFAULT);
+            logger.warn("use default password: " + ConsumerConfiguration.PASSWORD_DEFAULT);
+            config.setPassword(ConsumerConfiguration.PASSWORD_DEFAULT);
         }
         // charset
         if (jsonObject.containsKey("charset")) {
             config.setCharset(jsonObject.getString("charset"));
         } else {
-            config.setCharset(CHARSET_DEFAULT);
+            logger.warn("use default charset: " + ConsumerConfiguration.CHARSET_DEFAULT);
+            config.setCharset(ConsumerConfiguration.CHARSET_DEFAULT);
         }
         // locale
         if (jsonObject.containsKey("locale")) {
             config.setLocale(jsonObject.getString("locale"));
         } else {
-            config.setLocale(LOCALE_DEFAULT);
+            logger.warn("use default locale: " + ConsumerConfiguration.LOCALE_DEFAULT);
+            config.setLocale(ConsumerConfiguration.LOCALE_DEFAULT);
         }
         // timezone
         if (jsonObject.containsKey("timezone")) {
             config.setTimezone(jsonObject.getString("timezone"));
         } else {
-            config.setTimezone(TIMEZONE_DEFAULT);
+            logger.warn("use default timezone: " + ConsumerConfiguration.TIMEZONE_DEFAULT);
+            config.setTimezone(ConsumerConfiguration.TIMEZONE_DEFAULT);
         }
         // serializer
         if (jsonObject.containsKey("serializer")) {
             config.setSerializer(jsonObject.getString("serializer"));
         } else {
-            config.setSerializer(SERIALIZER_DEFAULT);
+            logger.warn("use default serializer: " + ConsumerConfiguration.SERIALIZER_DEFAULT);
+            config.setSerializer(ConsumerConfiguration.SERIALIZER_DEFAULT);
         }
         return config;
     }

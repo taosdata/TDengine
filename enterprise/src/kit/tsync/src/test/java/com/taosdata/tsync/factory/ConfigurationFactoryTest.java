@@ -3,6 +3,7 @@ package com.taosdata.tsync.factory;
 import com.alibaba.fastjson.JSONObject;
 import com.taosdata.tsync.entity.config.*;
 import com.taosdata.tsync.enums.ConfigurationType;
+import com.taosdata.tsync.exceptions.TsyncException;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
@@ -19,7 +20,7 @@ public class ConfigurationFactoryTest {
     }
 
     @Test
-    public void parseProducerConfiguration() {
+    public void parseProducerConfiguration() throws TsyncException {
         // given
         JSONObject producerJSON = configJSON.getJSONObject("producer");
         // when
@@ -36,7 +37,7 @@ public class ConfigurationFactoryTest {
     }
 
     @Test
-    public void parseTaskConfiguration() {
+    public void parseTaskConfiguration() throws TsyncException {
         // given
         JSONObject taskJSON = configJSON.getJSONObject("task");
         // when
@@ -52,7 +53,7 @@ public class ConfigurationFactoryTest {
     }
 
     @Test
-    public void parseColumnConfiguration() {
+    public void parseColumnConfiguration() throws TsyncException {
         // given
         JSONObject jsonObject = new JSONObject();
         jsonObject.put("name", "ts");
@@ -67,7 +68,7 @@ public class ConfigurationFactoryTest {
     }
 
     @Test
-    public void parseTagConfiguration() {
+    public void parseTagConfiguration() throws TsyncException {
         // given
         JSONObject jsonObject = new JSONObject();
         jsonObject.put("name", "loc");
@@ -82,7 +83,7 @@ public class ConfigurationFactoryTest {
     }
 
     @Test
-    public void parseStableConfiguration() {
+    public void parseStableConfiguration() throws TsyncException {
         // given
         JSONObject stableJSON = configJSON.getJSONObject("message").getJSONObject("schema").getJSONObject("stable");
         // when
@@ -98,7 +99,7 @@ public class ConfigurationFactoryTest {
     }
 
     @Test
-    public void parseDatabaseConfiguration() {
+    public void parseDatabaseConfiguration() throws TsyncException {
         // given
         JSONObject databaseJSON = configJSON.getJSONObject("message").getJSONObject("schema").getJSONObject("database");
         // when

@@ -4,6 +4,7 @@ import com.alibaba.fastjson.JSONObject;
 import com.taosdata.tsync.entity.config.Configuration;
 import com.taosdata.tsync.entity.config.TaosdConfiguration;
 import com.taosdata.tsync.enums.ConfigurationType;
+import com.taosdata.tsync.exceptions.TsyncException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -19,15 +20,15 @@ public class TaosdConfigurationParser implements ConfigurationParser {
     }
 
     @Override
-    public Configuration parse(ConfigurationType type, JSONObject configJSON) {
+    public Configuration parse(ConfigurationType type, JSONObject configJSON) throws TsyncException {
         TaosdConfiguration config = new TaosdConfiguration();
         // host
         if (configJSON.containsKey("host")) {
             config.setHost(configJSON.getString("host"));
         } else {
-            String exceptionMsg = "configuration item[host] missing";
-            logger.error(exceptionMsg);
-            throw new RuntimeException(exceptionMsg);
+            String errorMsg = "host is necessary in Taosd Configuration";
+            logger.error(errorMsg);
+            throw new TsyncException(errorMsg);
         }
         // port
         if (configJSON.containsKey("port")) {

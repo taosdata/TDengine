@@ -4,6 +4,7 @@ import com.alibaba.fastjson.JSONObject;
 import com.taosdata.tsync.entity.config.Configuration;
 import com.taosdata.tsync.entity.config.DestinationConfiguration;
 import com.taosdata.tsync.enums.ConfigurationType;
+import com.taosdata.tsync.exceptions.TsyncException;
 
 public class DestinationConfigurationParser extends AbstractConfigurationParser {
     private final ConfigurationType type = ConfigurationType.DESTINATION;
@@ -12,6 +13,7 @@ public class DestinationConfigurationParser extends AbstractConfigurationParser 
     private final StrategyConfigurationParser strategyParser = new StrategyConfigurationParser();
     private final SchemaConfigurationParser schemaParser = new SchemaConfigurationParser();
     private final FileConfigurationParser fileParser = new FileConfigurationParser();
+    private final NetConfigurationParser netParser = new NetConfigurationParser();
 
     @Override
     public boolean canParse(ConfigurationType type, JSONObject configJSON) {
@@ -19,7 +21,7 @@ public class DestinationConfigurationParser extends AbstractConfigurationParser 
     }
 
     @Override
-    public Configuration parse(ConfigurationType type, JSONObject configJSON) {
+    public Configuration parse(ConfigurationType type, JSONObject configJSON) throws TsyncException {
         DestinationConfiguration configuration = new DestinationConfiguration();
 
         Configuration taosd = parseConfiguration(configJSON, "taosd", ConfigurationType.TAOSD, taosdParser);
@@ -29,6 +31,10 @@ public class DestinationConfigurationParser extends AbstractConfigurationParser 
         Configuration file = parseConfiguration(configJSON, "file", ConfigurationType.FILE, fileParser);
         if (file != null)
             configuration.add(file);
+
+        Configuration net = parseConfiguration(configJSON, "net", ConfigurationType.NET, netParser);
+        if (net != null)
+            configuration.add(net);
 
         Configuration strategy = parseConfiguration(configJSON, "strategy", ConfigurationType.STRATEGY, strategyParser);
         if (strategy != null)

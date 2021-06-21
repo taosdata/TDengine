@@ -1,0 +1,17 @@
+{
+  "source": {
+    "net": {
+      "port": 8899
+    }
+  },
+  "producer": {
+    "host": "192.168.17.82",
+    "port": 6041,
+    "user": "root",
+    "password": "tqueue",
+    "charset": "UTF-8",
+    "locale": "en_US.UTF-8",
+    "timezone": "UTC-8",
+    "serializer": "STRING"
+  }
+}

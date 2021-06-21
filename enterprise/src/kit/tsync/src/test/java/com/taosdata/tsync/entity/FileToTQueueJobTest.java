@@ -18,19 +18,18 @@ import org.junit.Test;
 import java.io.IOException;
 import java.util.Objects;
 
-public class FileToTQueueTest {
+public class FileToTQueueJobTest {
 
-    private JSONObject producerTaskConfigJSON;
+    private JSONObject fileToTQueueConfigJSON;
 
     @Test
     public void runProduceJob() {
         // given
         ConfigurationRepository configurationRepository = ConfigurationRepository.getInstance();
-        ResultProcessService resultProcessService = new AffectRowsProcessService();
-        JobService jobService = new ProduceToTQueueJobServiceImpl(resultProcessService);
+        JobService jobService = new ProduceToTQueueJobServiceImpl();
 
         // when
-        Job job = JobFactory.build(ConfigurationType.PRODUCE_TO_TQUEUE, producerTaskConfigJSON, configurationRepository);
+        Job job = JobFactory.build(ConfigurationType.PRODUCE_TO_TQUEUE, fileToTQueueConfigJSON, configurationRepository);
         // then
         Assert.assertEquals(JobStatus.INIT, job.getStatus());
 
@@ -53,7 +52,7 @@ public class FileToTQueueTest {
     @Before
     public void before() throws IOException {
         // read produce-to-tqueue.json
-        String producerConfigStr = IOUtils.toString(Objects.requireNonNull(getClass().getClassLoader().getResourceAsStream("file-to-tqueue.json")));
-        producerTaskConfigJSON = JSONObject.parseObject(producerConfigStr);
+        String produceConfigStr = IOUtils.toString(Objects.requireNonNull(getClass().getClassLoader().getResourceAsStream("file-to-tqueue.json")));
+        fileToTQueueConfigJSON = JSONObject.parseObject(produceConfigStr);
     }
 }

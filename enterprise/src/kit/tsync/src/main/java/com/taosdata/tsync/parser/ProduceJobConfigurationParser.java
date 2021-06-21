@@ -4,6 +4,7 @@ import com.alibaba.fastjson.JSONObject;
 import com.taosdata.tsync.entity.config.Configuration;
 import com.taosdata.tsync.entity.config.ProduceToTQueueConfiguration;
 import com.taosdata.tsync.enums.ConfigurationType;
+import com.taosdata.tsync.exceptions.TsyncException;
 
 public class ProduceJobConfigurationParser extends AbstractConfigurationParser {
     private final ConfigurationType type = ConfigurationType.PRODUCE_TO_TQUEUE;
@@ -17,7 +18,7 @@ public class ProduceJobConfigurationParser extends AbstractConfigurationParser {
     }
 
     @Override
-    public Configuration parse(ConfigurationType type, JSONObject configJSON) {
+    public Configuration parse(ConfigurationType type, JSONObject configJSON) throws TsyncException {
         ProduceToTQueueConfiguration config = new ProduceToTQueueConfiguration();
 
         Configuration producer = parseConfiguration(configJSON, "producer", ConfigurationType.PRODUCER, producerParser);

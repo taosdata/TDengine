@@ -13,7 +13,7 @@ import java.util.List;
 
 public class ProduceToTQueueCallableTaskFactory {
 
-    private static ProduceToTQueueCallableTask instance;
+    private final ProduceToTQueueCallableTask instance;
 
     public ProduceToTQueueCallableTaskFactory() {
         instance = new ProduceToTQueueCallableTask();

@@ -3,12 +3,12 @@ package com.taosdata.tsync.tqueue;
 import com.taosdata.tsync.entity.RecordMetadata;
 import com.taosdata.tsync.entity.Topic;
 import com.taosdata.tsync.entity.TopicPartition;
-import com.taosdata.tsync.entity.producer.ProducerRecord;
+import com.taosdata.tsync.entity.ProducerRecord;
+import com.taosdata.tsync.exceptions.TQueueException;
 import com.taosdata.tsync.serializer.Serializer;
 import com.taosdata.tsync.serializer.TQueueStringSerializer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
 
 import java.util.HashMap;
 import java.util.Map;
@@ -45,7 +45,7 @@ public class TQueueProducer<T> extends TQueueBase {
      * @return
      * @throws Exception
      */
-    public RecordMetadata send(ProducerRecord<T> record) throws Exception {
+    public RecordMetadata send(ProducerRecord<T> record) throws TQueueException, ExecutionException, InterruptedException {
         Future<RecordMetadata> future = send(record, null);
         return future.get();
     }
@@ -55,7 +55,7 @@ public class TQueueProducer<T> extends TQueueBase {
      * @param record
      * @param callback
      */
-    public Future<RecordMetadata> send(ProducerRecord<T> record, Callback callback) throws Exception {
+    public Future<RecordMetadata> send(ProducerRecord<T> record, Callback callback) throws TQueueException {
         // check topic
         String topic = record.getTopic();
         if (!topics.containsKey(topic)) {
@@ -63,7 +63,7 @@ public class TQueueProducer<T> extends TQueueBase {
             if (!topics.containsKey(topic)) {
                 String message = "topic[ " + topic + " ] not exists";
                 logger.error(message);
-                throw new Exception(message);
+                throw new TQueueException(message);
             }
         }
         // checkout partition
@@ -72,7 +72,7 @@ public class TQueueProducer<T> extends TQueueBase {
         if (!partitionOffsets.containsKey(hashCode)) {
             String message = "topic-partition: " + topic + "-" + partition + " not exist";
             logger.error(message);
-            throw new Exception(message);
+            throw new TQueueException(message);
         }
 
         long offset = partitionOffsets.get(hashCode).getAndIncrement();

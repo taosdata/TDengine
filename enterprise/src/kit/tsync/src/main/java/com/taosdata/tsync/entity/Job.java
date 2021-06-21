@@ -18,7 +18,7 @@ public class Job {
     private final ConfigurationType configurationType;
     private final UUID configurationId;
     private JobStatus status;
-    private List<Integer> taskIds = new ArrayList<>();
+    private List<UUID> taskIds = new ArrayList<>();
 
     public Job(ConfigurationType configurationType, UUID configurationId) {
         this.id = UUID.randomUUID();

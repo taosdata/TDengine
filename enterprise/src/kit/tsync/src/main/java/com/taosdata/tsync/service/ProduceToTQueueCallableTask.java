@@ -7,7 +7,7 @@ import com.taosdata.tsync.entity.config.ColumnConfiguration;
 import com.taosdata.tsync.entity.config.Configuration;
 import com.taosdata.tsync.entity.config.SchemaConfiguration;
 import com.taosdata.tsync.entity.config.TagConfiguration;
-import com.taosdata.tsync.entity.producer.ProducerRecord;
+import com.taosdata.tsync.entity.ProducerRecord;
 import com.taosdata.tsync.utils.Utils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

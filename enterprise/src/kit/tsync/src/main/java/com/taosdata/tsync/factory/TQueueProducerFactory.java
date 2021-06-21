@@ -2,7 +2,7 @@ package com.taosdata.tsync.factory;
 
 import com.taosdata.tsync.tqueue.TQueueProducer;
 import com.taosdata.tsync.entity.config.ProducerConfiguration;
-import com.taosdata.tsync.entity.producer.ProducerConfig;
+import com.taosdata.tsync.entity.ProducerConfig;
 
 import java.util.Properties;
 

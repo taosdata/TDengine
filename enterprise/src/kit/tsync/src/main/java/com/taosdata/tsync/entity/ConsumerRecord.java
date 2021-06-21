@@ -1,4 +1,4 @@
-package com.taosdata.tsync.entity.consumer;
+package com.taosdata.tsync.entity;
 
 public class ConsumerRecord {
 

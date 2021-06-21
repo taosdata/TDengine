@@ -6,10 +6,8 @@ import com.taosdata.tsync.enums.ConfigurationType;
 import com.taosdata.tsync.enums.JobStatus;
 import com.taosdata.tsync.factory.JobFactory;
 import com.taosdata.tsync.repository.ConfigurationRepository;
-import com.taosdata.tsync.service.AffectRowsProcessService;
 import com.taosdata.tsync.service.JobService;
 import com.taosdata.tsync.service.ProduceToTQueueJobServiceImpl;
-import com.taosdata.tsync.service.ResultProcessService;
 import org.apache.commons.io.IOUtils;
 import org.junit.Assert;
 import org.junit.Before;
@@ -26,8 +24,7 @@ public class ProduceToTQueueTest {
     public void runProduceJob() {
         // given
         ConfigurationRepository configurationRepository = ConfigurationRepository.getInstance();
-        ResultProcessService resultProcessService = new AffectRowsProcessService();
-        JobService jobService = new ProduceToTQueueJobServiceImpl(resultProcessService);
+        JobService jobService = new ProduceToTQueueJobServiceImpl();
 
         // when
         Job job = JobFactory.build(ConfigurationType.PRODUCE_TO_TQUEUE, producerTaskConfigJSON, configurationRepository);

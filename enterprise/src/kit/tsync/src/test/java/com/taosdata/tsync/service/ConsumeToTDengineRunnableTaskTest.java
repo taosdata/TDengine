@@ -7,8 +7,8 @@ import com.taosdata.tsync.tqueue.TQueueProducer;
 import com.taosdata.tsync.entity.config.DatabaseConfiguration;
 import com.taosdata.tsync.entity.config.SchemaConfiguration;
 import com.taosdata.tsync.entity.config.StableConfiguration;
-import com.taosdata.tsync.entity.consumer.ConsumerConfig;
-import com.taosdata.tsync.entity.producer.ProducerConfig;
+import com.taosdata.tsync.entity.ConsumerConfig;
+import com.taosdata.tsync.entity.ProducerConfig;
 import com.taosdata.tsync.enums.ConfigurationType;
 import com.taosdata.tsync.enums.SchemaMissingStrategy;
 import com.taosdata.tsync.factory.ConfigurationFactory;
@@ -55,8 +55,6 @@ public class ConsumeToTDengineRunnableTaskTest {
                 .setPartitionsToWrite(partitionsToWrite)
                 .setTaosdConnection(taosdConnection)
                 .setPollingInterval(pollingInterval)
-                .setSchemaMissingStrategy(schemaMissingStrategy)
-                .setSchemaConfiguration(schemaConfiguration)
                 .build();
 
         // when

@@ -7,7 +7,6 @@ import com.taosdata.tsync.enums.JobStatus;
 import com.taosdata.tsync.factory.JobFactory;
 import com.taosdata.tsync.repository.ConfigurationRepository;
 import com.taosdata.tsync.service.ConsumeToFileJobServiceImpl;
-import com.taosdata.tsync.service.ConsumeToTDengineJobServiceImpl;
 import com.taosdata.tsync.service.JobService;
 import org.apache.commons.io.IOUtils;
 import org.junit.Assert;
@@ -19,7 +18,7 @@ import java.util.Objects;
 
 public class ConsumeToFileJobTest {
 
-    private JSONObject consumerTaskConfigJSON;
+    private JSONObject consumeToFileConfigJSON;
 
     @Test
     public void testConsumeToFile() {
@@ -28,7 +27,7 @@ public class ConsumeToFileJobTest {
         JobService jobService = new ConsumeToFileJobServiceImpl();
 
         // when build
-        Job job = JobFactory.build(ConfigurationType.CONSUME_TO_FILE, consumerTaskConfigJSON, configurationRepository);
+        Job job = JobFactory.build(ConfigurationType.CONSUME_TO_FILE, consumeToFileConfigJSON, configurationRepository);
         // then
         Assert.assertEquals(JobStatus.INIT, job.getStatus());
 
@@ -50,8 +49,8 @@ public class ConsumeToFileJobTest {
 
     @Before
     public void before() throws IOException {
-        // read consume-to-tdengine.json
-        String consumerConfigStr = IOUtils.toString(Objects.requireNonNull(getClass().getClassLoader().getResourceAsStream("consume-to-file.json")));
-        consumerTaskConfigJSON = JSONObject.parseObject(consumerConfigStr);
+        // read consume-to-file.json
+        String consumeConfigStr = IOUtils.toString(Objects.requireNonNull(getClass().getClassLoader().getResourceAsStream("consume-to-file.json")));
+        consumeToFileConfigJSON = JSONObject.parseObject(consumeConfigStr);
     }
 }

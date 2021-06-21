@@ -2,9 +2,10 @@ package com.taosdata.tsync.service;
 
 import com.alibaba.fastjson.JSONObject;
 import com.google.common.collect.Range;
+import com.taosdata.tsync.exceptions.TsyncException;
 import com.taosdata.tsync.tqueue.TQueueProducer;
 import com.taosdata.tsync.entity.config.SchemaConfiguration;
-import com.taosdata.tsync.entity.producer.ProducerConfig;
+import com.taosdata.tsync.entity.ProducerConfig;
 import com.taosdata.tsync.enums.ConfigurationType;
 import com.taosdata.tsync.factory.ConfigurationFactory;
 import com.taosdata.tsync.factory.ProduceToTQueueCallableTaskFactory;
@@ -31,7 +32,7 @@ public class ProduceToTQueueCallableTaskTest {
     private JSONObject schemaJSON;
 
     @Test
-    public void run() throws ExecutionException, InterruptedException {
+    public void run() throws ExecutionException, InterruptedException, TsyncException {
         // given
         List<Integer> partitionsToWrite = IntStream.of(1).boxed().collect(Collectors.toList());
         Range<Long> tablesToWrite = Range.openClosed(1L, 101L);

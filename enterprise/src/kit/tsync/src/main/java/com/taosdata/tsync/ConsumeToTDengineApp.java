@@ -15,30 +15,17 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 
-public class ConsumeToTDengineApp {
+public class ConsumeToTDengineApp extends AbstractApp {
     private static final Logger logger = LoggerFactory.getLogger(ConsumeToTDengineApp.class);
+    private static final String helpLine = "Usage: java -jar consume-to-tdengine.jar --config <config file path>";
 
     public static void main(String[] args) throws IOException {
-        String configFilepath = null;
-        for (int i = 0; i < args.length; i++) {
-            if ("--config".equalsIgnoreCase(args[i]) && i < args.length - 1)
-                configFilepath = args[++i];
-        }
-        if (configFilepath == null) {
-            printHelp();
-            System.exit(0);
-        }
+        File configFile = readCommandLine(args, helpLine);
 
-        // read config file
-        File file = new File(configFilepath);
-        if (!file.exists()) {
-            logger.error("cannot find config file: " + configFilepath);
-            System.exit(-1);
-        }
-
+        logger.info("ConsumeToTDengineApp started.");
         // given
         ConfigurationRepository configurationRepository = ConfigurationRepository.getInstance();
-        JSONObject consumerTaskConfigJSON = JSONObject.parseObject(IOUtils.toString(new FileInputStream(file)));
+        JSONObject consumerTaskConfigJSON = JSONObject.parseObject(IOUtils.toString(new FileInputStream(configFile)));
         // when
         Job job = JobFactory.build(ConfigurationType.CONSUME_TO_TDENGINE, consumerTaskConfigJSON, configurationRepository);
 
@@ -48,12 +35,6 @@ public class ConsumeToTDengineApp {
 
         // when
         job.execute(jobService);
-
-
+        logger.info("ConsumeToTDengineApp stopped.");
     }
-
-    private static void printHelp() {
-        System.out.println("Usage: java -jar ConsumeToTDengine.jar --config <config file path>");
-    }
-
 }

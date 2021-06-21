@@ -1,9 +1,7 @@
 package com.taosdata.tsync.factory;
 
-import com.taosdata.tsync.tqueue.TQueueConsumer;
-import com.taosdata.tsync.entity.config.SchemaConfiguration;
-import com.taosdata.tsync.enums.SchemaMissingStrategy;
 import com.taosdata.tsync.service.ConsumeToTDengineRunnableTask;
+import com.taosdata.tsync.tqueue.TQueueConsumer;
 
 import java.sql.Connection;
 import java.util.List;
@@ -45,13 +43,4 @@ public class ConsumeToTDengineRunnableTaskFactory {
         return this;
     }
 
-    public ConsumeToTDengineRunnableTaskFactory setSchemaMissingStrategy(SchemaMissingStrategy schemaMissingStrategy) {
-        instance.setSchemaMissing(schemaMissingStrategy);
-        return this;
-    }
-
-    public ConsumeToTDengineRunnableTaskFactory setSchemaConfiguration(SchemaConfiguration schemaConfiguration) {
-        instance.setSchemaConfiguration(schemaConfiguration);
-        return this;
-    }
 }

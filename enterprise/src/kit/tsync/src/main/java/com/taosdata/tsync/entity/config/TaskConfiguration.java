@@ -4,6 +4,8 @@ package com.taosdata.tsync.entity.config;
 import com.taosdata.tsync.enums.ConfigurationType;
 
 public class TaskConfiguration extends Configuration {
+    public static final int DEFAULT_THREADS = 1;
+
     private int threads;
     private String topic;
     private int[] partitions;

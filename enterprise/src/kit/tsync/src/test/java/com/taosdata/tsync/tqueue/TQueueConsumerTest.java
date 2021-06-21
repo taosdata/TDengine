@@ -1,11 +1,9 @@
-package com.taosdata.tsync;
+package com.taosdata.tsync.tqueue;
 
-import com.taosdata.tsync.entity.consumer.ConsumerConfig;
-import com.taosdata.tsync.entity.consumer.ConsumerRecord;
-import com.taosdata.tsync.entity.producer.ProducerRecord;
+import com.taosdata.tsync.entity.ConsumerConfig;
+import com.taosdata.tsync.entity.ConsumerRecord;
+import com.taosdata.tsync.entity.ProducerRecord;
 import com.taosdata.tsync.enums.TQueueConstants;
-import com.taosdata.tsync.tqueue.TQueueConsumer;
-import com.taosdata.tsync.tqueue.TQueueProducer;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;

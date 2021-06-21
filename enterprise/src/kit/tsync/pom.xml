@@ -121,7 +121,7 @@
                             <goal>single</goal>
                         </goals>
                         <configuration>
-                            <finalName>produceToTQueue</finalName>
+                            <finalName>produce-to-tqueue</finalName>
                             <archive>
                                 <manifest>
                                     <mainClass>com.taosdata.tsync.ProduceToTQueueApp</mainClass>
@@ -140,7 +140,7 @@
                             <goal>single</goal>
                         </goals>
                         <configuration>
-                            <finalName>consumeToTDengine</finalName>
+                            <finalName>consume-to-tdengine</finalName>
                             <archive>
                                 <manifest>
                                     <mainClass>com.taosdata.tsync.ConsumeToTDengineApp</mainClass>
@@ -151,6 +151,46 @@
                             </descriptorRefs>
                         </configuration>
                     </execution>
+                    <!-- consumeToNet -->
+                    <execution>
+                        <id>consumeToNet</id>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>single</goal>
+                        </goals>
+                        <configuration>
+                            <finalName>consume-to-net</finalName>
+                            <archive>
+                                <manifest>
+                                    <mainClass>com.taosdata.tsync.ConsumeToNetApp</mainClass>
+                                </manifest>
+                            </archive>
+                            <descriptorRefs>
+                                <descriptorRef>jar-with-dependencies</descriptorRef>
+                            </descriptorRefs>
+                        </configuration>
+                    </execution>
+                    <!-- net-to-tqueue -->
+                    <execution>
+                        <id>netToTQueue</id>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>single</goal>
+                        </goals>
+                        <configuration>
+                            <finalName>net-to-tqueue</finalName>
+                            <archive>
+                                <manifest>
+                                    <mainClass>com.taosdata.tsync.NetToTQueueApp</mainClass>
+                                </manifest>
+                            </archive>
+                            <descriptorRefs>
+                                <descriptorRef>jar-with-dependencies</descriptorRef>
+                            </descriptorRefs>
+                        </configuration>
+                    </execution>
+
+
                 </executions>
             </plugin>
         </plugins>

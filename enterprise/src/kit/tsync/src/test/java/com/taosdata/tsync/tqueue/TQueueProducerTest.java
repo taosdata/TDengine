@@ -1,8 +1,7 @@
-package com.taosdata.tsync;
+package com.taosdata.tsync.tqueue;
 
-import com.taosdata.tsync.entity.producer.ProducerConfig;
-import com.taosdata.tsync.entity.producer.ProducerRecord;
-import com.taosdata.tsync.tqueue.TQueueProducer;
+import com.taosdata.tsync.entity.ProducerConfig;
+import com.taosdata.tsync.entity.ProducerRecord;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;

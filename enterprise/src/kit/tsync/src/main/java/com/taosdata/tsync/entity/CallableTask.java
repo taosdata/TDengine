@@ -1,17 +1,18 @@
 package com.taosdata.tsync.entity;
 
+import java.util.UUID;
 import java.util.concurrent.Callable;
 
 public class CallableTask<T> {
-    private final int id;
+    private final UUID id;
     private final Callable<T> callable;
 
-    public CallableTask(int id, Callable<T> runnable) {
-        this.id = id;
+    public CallableTask(Callable<T> runnable) {
+        this.id = UUID.randomUUID();
         this.callable = runnable;
     }
 
-    public int getId() {
+    public UUID getId() {
         return id;
     }
 

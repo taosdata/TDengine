@@ -4,6 +4,7 @@ import com.taosdata.tsync.entity.RunnableTask;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 
 public final class RunnableTaskRepository {
 
@@ -24,9 +25,9 @@ public final class RunnableTaskRepository {
         return instance;
     }
 
-    public RunnableTask find(int taskId) {
+    public RunnableTask find(UUID taskId) {
         for (RunnableTask task : taskList) {
-            if (taskId == task.getId()) {
+            if (taskId.equals(task.getId())) {
                 return task;
             }
         }
@@ -39,15 +40,15 @@ public final class RunnableTaskRepository {
             taskList.add(runnableTask);
     }
 
-    public void delete(int taskId) {
+    public void delete(UUID taskId) {
         int index = findIndex(taskId);
         if (index != NULL)
             taskList.remove(index);
     }
 
-    private int findIndex(int id) {
+    private int findIndex(UUID id) {
         for (int index = 0; index < taskList.size(); index++) {
-            if (id == taskList.get(index).getId())
+            if (id.equals(taskList.get(index).getId()))
                 return index;
         }
         return NULL;

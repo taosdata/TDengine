@@ -16,44 +16,30 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 
-public class ProduceToTQueueApp {
+public class ProduceToTQueueApp extends AbstractApp{
+
     private final static Logger logger = LoggerFactory.getLogger(ProduceToTQueueApp.class);
+    private final static String helpLine = "Usage: java -jar produce-to-tqueue.jar --config <config file path>";
 
     public static void main(String[] args) throws IOException {
-        String configFilepath = null;
-        for (int i = 0; i < args.length; i++) {
-            if ("--config".equalsIgnoreCase(args[i]) && i < args.length - 1)
-                configFilepath = args[++i];
-        }
-        if (configFilepath == null) {
-            printHelp();
-            System.exit(0);
-        }
+        File configFile = readCommandLine(args, helpLine);
 
-        // read config file
-        File file = new File(configFilepath);
-        if (!file.exists()) {
-            logger.error("cannot find config file: " + configFilepath);
-            System.exit(-1);
-        }
-
+        logger.info("ProduceToTQueueApp started.");
         // init the configuration repository
         ConfigurationRepository configurationRepository = ConfigurationRepository.getInstance();
-        String producerConfigStr = IOUtils.toString(new FileInputStream(file));
+        String producerConfigStr = IOUtils.toString(new FileInputStream(configFile));
         JSONObject producerTaskConfigJSON = JSONObject.parseObject(producerConfigStr);
 
         // build job
         Job job = JobFactory.build(ConfigurationType.PRODUCE_TO_TQUEUE, producerTaskConfigJSON, configurationRepository);
 
         // prepare
-        JobService jobService = new ProduceToTQueueJobServiceImpl(new AffectRowsProcessService());
+        JobService jobService = new ProduceToTQueueJobServiceImpl();
         job.prepare(jobService);
 
         // execute
         job.execute(jobService);
+        logger.info("ProduceToTQueueApp stopped.");
     }
 
-    private static void printHelp() {
-        System.out.println("Usage: java -jar ProduceToTQueue.jar --config <config file path>");
-    }
 }

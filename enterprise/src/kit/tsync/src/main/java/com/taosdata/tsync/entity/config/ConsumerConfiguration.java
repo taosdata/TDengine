@@ -3,6 +3,16 @@ package com.taosdata.tsync.entity.config;
 import com.taosdata.tsync.enums.ConfigurationType;
 
 public class ConsumerConfiguration extends Configuration {
+
+    public static final Integer PORT_DEFAULT = 6041;
+    public static final String USER_DEFAULT = "root";
+    public static final String PASSWORD_DEFAULT = "tqueue";
+    public static final String CHARSET_DEFAULT = "UTF-8";
+    public static final String LOCALE_DEFAULT = "en_US.UTF-8";
+    public static final String TIMEZONE_DEFAULT = "UTC-8";
+    public static final String SERIALIZER_DEFAULT = "STRING";
+
+
     private String host;
     private Integer port;
     private String user;

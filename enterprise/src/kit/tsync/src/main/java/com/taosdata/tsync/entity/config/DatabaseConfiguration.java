@@ -3,6 +3,8 @@ package com.taosdata.tsync.entity.config;
 import com.taosdata.tsync.enums.ConfigurationType;
 
 public class DatabaseConfiguration extends Configuration {
+    public static final String DEFAULT_PRECISION = "ms";
+
     private String name;
     private Integer replica;
     private Integer quorum;
