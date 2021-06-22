@@ -453,8 +453,8 @@ static int tsdbDropMetaRecord(STsdbFS *pfs, SMFile *pMFile, uint64_t uid) {
 }
 
 static int tsdbCompactMetaFile(STsdbRepo *pRepo, STsdbFS *pfs, SMFile *pMFile) {
-  float delPercent = pMFile->info.nDels * 1.0 / pMFile->info.nRecords;
-  float tombPercent = pMFile->info.tombSize * 1.0 / pMFile->info.size;
+  float delPercent = (float)(pMFile->info.nDels) / (float)(pMFile->info.nRecords);
+  float tombPercent = (float)(pMFile->info.tombSize) / (float)(pMFile->info.size);
 
   if (delPercent < 0.33 && tombPercent < 0.33) {
     return 0;
@@ -540,6 +540,7 @@ _err:
 
   ASSERT(mf.info.nDels == 0);
   ASSERT(mf.info.tombSize == 0);
+
   tsdbInfo("end compact tsdb meta file,code:%d,nRecords:%" PRId64 ",size:%" PRId64,
     code,mf.info.nRecords,mf.info.size);
   return code;
