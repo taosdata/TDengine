@@ -4990,7 +4990,7 @@ static void getTableName(char *pTblName,
             }
         } else {
             snprintf(pTblName, TSDB_TABLE_NAME_LEN, "%s%"PRIu64"",
-                    superTblInfo->childTblName, tableSeq);
+                    superTblInfo->childTblPrefix, tableSeq);
         }
     } else {
         snprintf(pTblName, TSDB_TABLE_NAME_LEN, "%s%"PRIu64"",
