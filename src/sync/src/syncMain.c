@@ -869,7 +869,7 @@ static void syncRestartPeer(SSyncPeer *pPeer) {
   sDebug("%s, peer conn is restart and set sstatus:%s", pPeer->id, syncStatus[pPeer->sstatus]);
 
   int32_t ret = strcmp(pPeer->fqdn, tsNodeFqdn);
-  if (ret > 0 || (ret == 0 && pPeer->port > tsSyncPort)) {
+  if (pPeer->nodeId == 0 || ret > 0 || (ret == 0 && pPeer->port > tsSyncPort)) {
     sDebug("%s, check peer connection in 1000 ms", pPeer->id);
     taosTmrReset(syncCheckPeerConnection, SYNC_CHECK_INTERVAL, (void *)pPeer->rid, tsSyncTmrCtrl, &pPeer->timer);
   }
