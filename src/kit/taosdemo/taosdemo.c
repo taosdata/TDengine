@@ -6000,6 +6000,12 @@ static void* syncWriteProgressive(threadInfo *pThreadInfo) {
       verbosePrint("%s() LN%d: tid=%d seq=%"PRId64" tableName=%s\n",
              __func__, __LINE__,
              pThreadInfo->threadID, tableSeq, tableName);
+      if (0 == strlen(tableName)) {
+        errorPrint("[%d] %s() LN%d, getTableName return null\n",
+            pThreadInfo->threadID, __func__, __LINE__);
+        free(pThreadInfo->buffer);
+        return NULL;
+      }
 
       int64_t remainderBufLen = maxSqlLen;
       char *pstr = pThreadInfo->buffer;
