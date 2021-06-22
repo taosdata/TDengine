@@ -64,7 +64,8 @@ static SExprInfo* doAddProjectCol(SQueryInfo* pQueryInfo, int32_t colIndex, int3
 static int32_t setShowInfo(SSqlObj* pSql, SSqlInfo* pInfo);
 static char*   getAccountId(SSqlObj* pSql);
 
-static bool serializeExprListToVariant(SArray* pList, tVariant **dest, int16_t colType);
+static int convertTimestampStrToInt64(tVariant *pVar, int32_t precision);
+static bool serializeExprListToVariant(SArray* pList, tVariant **dest, int16_t colType, uint8_t precision);
 static int32_t validateParamOfRelationIn(tVariant *pVar, int32_t colType);
 
 static bool has(SArray* pFieldList, int32_t startIdx, const char* name);
@@ -151,7 +152,7 @@ int16_t getNewResColId(SSqlCmd* pCmd) {
 
 // serialize expr in exprlist to binary
 // formate  "type | size | value"
-bool serializeExprListToVariant(SArray* pList, tVariant **dst, int16_t colType) {
+bool serializeExprListToVariant(SArray* pList, tVariant **dst, int16_t colType, uint8_t precision) {
   bool ret = false;
   if (!pList || pList->size <= 0 || colType < 0) {
     return ret;
@@ -161,14 +162,17 @@ bool serializeExprListToVariant(SArray* pList, tVariant **dst, int16_t colType) 
   int32_t firstTokenType = item->pNode->token.type;
   int32_t type  = firstTokenType;
 
-  //nchar to binary and
-  toTSDBType(type);
-  if (type != colType && (type != TSDB_DATA_TYPE_BINARY || colType != TSDB_DATA_TYPE_NCHAR)) {
-    return false;
-  }
-  type = colType;
+  //nchar to binary and other xxint to bigint  
+  toTSDBType(type);  
+  if (colType != TSDB_DATA_TYPE_TIMESTAMP && !IS_UNSIGNED_NUMERIC_TYPE(colType)) {
+    if (type != colType && (type != TSDB_DATA_TYPE_BINARY || colType != TSDB_DATA_TYPE_NCHAR)) {
+      return false;  
+    }    
+  } 
+  type = colType; 
+ 
+  SBufferWriter bw = tbufInitWriter( NULL, false);
 
-  SBufferWriter bw = tbufInitWriter( NULL, false );
   tbufEnsureCapacity(&bw, 512);
 
   int32_t size = (int32_t)(pList->size);
@@ -181,7 +185,7 @@ bool serializeExprListToVariant(SArray* pList, tVariant **dst, int16_t colType) 
     // check all the token type in expr list same or not
     if (firstTokenType != pSub->token.type) {
       break;
-    }
+    }  
 
     uint32_t tType = pSub->token.type;
     toTSDBType(pSub->token.type);  
@@ -189,9 +193,16 @@ bool serializeExprListToVariant(SArray* pList, tVariant **dst, int16_t colType) 
     tVariant var;  
     tVariantCreate(&var, &pSub->token); 
     pSub->token.type = tType;
-    if (type == TSDB_DATA_TYPE_BOOL || type == TSDB_DATA_TYPE_TINYINT || type == TSDB_DATA_TYPE_SMALLINT 
-         || type == TSDB_DATA_TYPE_BIGINT || type == TSDB_DATA_TYPE_INT) {
-      tbufWriteInt64(&bw, var.i64);
+    if (type == TSDB_DATA_TYPE_BOOL || IS_SIGNED_NUMERIC_TYPE(type)) {
+      tbufWriteInt64(&bw, var.i64);        
+    } else if (IS_UNSIGNED_NUMERIC_TYPE(type)) {
+      // ugly code, refactor later
+      if (IS_UNSIGNED_NUMERIC_TYPE(pSub->token.type) || IS_SIGNED_NUMERIC_TYPE(pSub->token.type)) {
+        tbufWriteUint64(&bw, var.i64);        
+      } else {
+        tVariantDestroy(&var);
+        break;
+      }
     } else if (type == TSDB_DATA_TYPE_DOUBLE || type == TSDB_DATA_TYPE_FLOAT) {
       tbufWriteDouble(&bw, var.dKey);
     } else if (type == TSDB_DATA_TYPE_BINARY){
@@ -205,6 +216,16 @@ bool serializeExprListToVariant(SArray* pList, tVariant **dst, int16_t colType) 
       }
       tbufWriteBinary(&bw, buf, twcslen((wchar_t *)buf) * TSDB_NCHAR_SIZE);
       free(buf);
+    } else if (type == TSDB_DATA_TYPE_TIMESTAMP) {
+       if (var.nType == TSDB_DATA_TYPE_BINARY) {
+         if (convertTimestampStrToInt64(&var, precision) < 0) {
+           tVariantDestroy(&var);
+           break; 
+         } 
+         tbufWriteInt64(&bw, var.i64);        
+       } else if (var.nType == TSDB_DATA_TYPE_BIGINT) {
+         tbufWriteInt64(&bw, var.i64);        
+       }      
     }
     tVariantDestroy(&var);
 
@@ -290,29 +311,33 @@ static int32_t invalidOperationMsg(char* dstBuffer, const char* errMsg) {
   return tscInvalidOperationMsg(dstBuffer, errMsg, NULL);
 }
 
-static int setColumnFilterInfoForTimestamp(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tVariant* pVar) {
+static int convertTimestampStrToInt64(tVariant *pVar, int32_t precision) {
   int64_t     time = 0;
-  const char* msg = "invalid timestamp";
-
   strdequote(pVar->pz);
-  char*           seg = strnchr(pVar->pz, '-', pVar->nLen, false);
-  STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
 
-  STableComInfo tinfo = tscGetTableInfo(pTableMetaInfo->pTableMeta);
-  
+  char*           seg = strnchr(pVar->pz, '-', pVar->nLen, false);
   if (seg != NULL) {
-    if (taosParseTime(pVar->pz, &time, pVar->nLen, tinfo.precision, tsDaylight) != TSDB_CODE_SUCCESS) {
-      return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg);
+    if (taosParseTime(pVar->pz, &time, pVar->nLen, precision, tsDaylight) != TSDB_CODE_SUCCESS) {
+      return -1;
     }
   } else {
     if (tVariantDump(pVar, (char*)&time, TSDB_DATA_TYPE_BIGINT, true)) {
-      return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg);
+      return -1;
     }
   }
-
   tVariantDestroy(pVar);
   tVariantCreateFromBinary(pVar, (char*)&time, 0, TSDB_DATA_TYPE_BIGINT);
+  return 0;
+}
+static int setColumnFilterInfoForTimestamp(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tVariant* pVar) {
+  const char* msg = "invalid timestamp";
 
+  STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
+
+  STableComInfo tinfo = tscGetTableInfo(pTableMetaInfo->pTableMeta);
+  if (convertTimestampStrToInt64(pVar, tinfo.precision) < -1) {
+   return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg);
+  }  
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1286,7 +1311,7 @@ static bool validateTagParams(SArray* pTagsList, SArray* pFieldList, SSqlCmd* pC
   const char* msg1 = "invalid number of tag columns";
   const char* msg2 = "tag length too long";
   const char* msg3 = "duplicated column names";
-  const char* msg4 = "timestamp not allowed in tags";
+  //const char* msg4 = "timestamp not allowed in tags";
   const char* msg5 = "invalid data type in tags";
   const char* msg6 = "invalid tag name";
   const char* msg7 = "invalid binary/nchar tag length";
@@ -1302,10 +1327,10 @@ static bool validateTagParams(SArray* pTagsList, SArray* pFieldList, SSqlCmd* pC
   for (int32_t i = 0; i < numOfTags; ++i) {
     TAOS_FIELD* p = taosArrayGet(pTagsList, i);
 
-    if (p->type == TSDB_DATA_TYPE_TIMESTAMP) {
-      invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg4);
-      return false;
-    }
+    //if (p->type == TSDB_DATA_TYPE_TIMESTAMP) {
+    //  invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg4);
+    //  return false;
+    //}
 
     if (!isValidDataType(p->type)) {
       invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg5);
@@ -1363,7 +1388,7 @@ static bool validateTagParams(SArray* pTagsList, SArray* pFieldList, SSqlCmd* pC
  * tags name /column name is truncated in sql.y
  */
 bool validateOneTags(SSqlCmd* pCmd, TAOS_FIELD* pTagField) {
-  const char* msg1 = "timestamp not allowed in tags";
+  //const char* msg1 = "timestamp not allowed in tags";
   const char* msg2 = "duplicated column names";
   const char* msg3 = "tag length too long";
   const char* msg4 = "invalid tag name";
@@ -1386,10 +1411,10 @@ bool validateOneTags(SSqlCmd* pCmd, TAOS_FIELD* pTagField) {
   }
 
   // no timestamp allowable
-  if (pTagField->type == TSDB_DATA_TYPE_TIMESTAMP) {
-    invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg1);
-    return false;
-  }
+  //if (pTagField->type == TSDB_DATA_TYPE_TIMESTAMP) {
+  //  invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg1);
+  //  return false;
+  //}
 
   if ((pTagField->type < TSDB_DATA_TYPE_BOOL) || (pTagField->type > TSDB_DATA_TYPE_UBIGINT)) {
     invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg6);
@@ -3341,8 +3366,8 @@ static int32_t doExtractColumnFilterInfo(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, 
 
   // TK_GT,TK_GE,TK_EQ,TK_NE are based on the pColumn->lowerBndd
   } else if (pExpr->tokenId == TK_IN) {
-    tVariant *pVal;
-    if (pRight->tokenId != TK_SET || !serializeExprListToVariant(pRight->pParam, &pVal, colType) || colType == TSDB_DATA_TYPE_TIMESTAMP) {
+    tVariant *pVal; 
+    if (pRight->tokenId != TK_SET || !serializeExprListToVariant(pRight->pParam, &pVal, colType, timePrecision)) {
       return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg);
     }
     if (validateParamOfRelationIn(pVal, colType) != TSDB_CODE_SUCCESS) {
@@ -3353,8 +3378,7 @@ static int32_t doExtractColumnFilterInfo(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, 
     pColumnFilter->pz  = (int64_t)calloc(1, pVal->nLen + 1);
     pColumnFilter->len = pVal->nLen;
     pColumnFilter->filterstr = 1;
-    memcpy((char *)(pColumnFilter->pz), (char *)(pVal->pz), pVal->nLen);
-    //retVal = tVariantDump(pVal, (char *)(pColumnFilter->pz), TSDB_DATA_TYPE_BINARY, false);
+    memcpy((char *)(pColumnFilter->pz), (char *)(pVal->pz), pVal->nLen);  
 
     tVariantDestroy(pVal);
     free(pVal);
@@ -3487,6 +3511,7 @@ static int32_t checkColumnFilterInfo(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SCol
   const char* msg1 = "non binary column not support like operator";
   const char* msg2 = "binary column not support this operator";  
   const char* msg3 = "bool column not support this operator";
+  const char* msg4 = "primary key not support this operator";
 
   SColumn* pColumn = tscColumnListInsert(pQueryInfo->colList, pIndex->columnIndex, pTableMeta->id.uid, pSchema);
 
@@ -3530,6 +3555,9 @@ static int32_t checkColumnFilterInfo(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SCol
 
   pColumn->columnIndex = pIndex->columnIndex;
   pColumn->tableUid = pTableMeta->id.uid;
+  if (pColumn->columnIndex == PRIMARYKEY_TIMESTAMP_COL_INDEX && pExpr->tokenId == TK_IN) {
+     return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg4);
+  }
 
   STableComInfo tinfo = tscGetTableInfo(pTableMeta);
   ret = doExtractColumnFilterInfo(pCmd, pQueryInfo, tinfo.precision, pColFilter, pSchema->type, pExpr);
@@ -6880,7 +6908,7 @@ int32_t doCheckForCreateFromStable(SSqlObj* pSql, SSqlInfo* pInfo) {
   const int32_t STABLE_INDEX = 1;
 
   STableMetaInfo* pStableMetaInfo = tscGetMetaInfo(pQueryInfo, STABLE_INDEX);
-
+  
   // super table name, create table by using dst
   int32_t numOfTables = (int32_t) taosArrayGetSize(pCreateTable->childTableInfo);
   for(int32_t j = 0; j < numOfTables; ++j) {
@@ -6909,6 +6937,7 @@ int32_t doCheckForCreateFromStable(SSqlObj* pSql, SSqlInfo* pInfo) {
 
     // too long tag values will return invalid sql, not be truncated automatically
     SSchema  *pTagSchema = tscGetTableTagSchema(pStableMetaInfo->pTableMeta);
+    STableComInfo tinfo = tscGetTableInfo(pStableMetaInfo->pTableMeta);
     STagData *pTag = &pCreateTableInfo->tagdata;
 
     SKVRowBuilder kvRowBuilder = {0};
@@ -6958,6 +6987,15 @@ int32_t doCheckForCreateFromStable(SSqlObj* pSql, SSqlInfo* pInfo) {
                 tdDestroyKVRowBuilder(&kvRowBuilder);
                 return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg3);
               }
+            } else if (pSchema->type == TSDB_DATA_TYPE_TIMESTAMP) {
+              if (pItem->pVar.nType == TSDB_DATA_TYPE_BINARY) {
+                ret = convertTimestampStrToInt64(&(pItem->pVar), tinfo.precision);
+                if (ret != TSDB_CODE_SUCCESS) {
+                  return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg4);
+                }
+              } else if (pItem->pVar.nType == TSDB_DATA_TYPE_TIMESTAMP) {
+                pItem->pVar.i64 = convertTimePrecision(pItem->pVar.i64, TSDB_TIME_PRECISION_NANO, tinfo.precision);  
+              }
             }
 
             ret = tVariantDump(&(pItem->pVar), tagVal, pSchema->type, true);
@@ -7004,7 +7042,17 @@ int32_t doCheckForCreateFromStable(SSqlObj* pSql, SSqlInfo* pInfo) {
             tdDestroyKVRowBuilder(&kvRowBuilder);
             return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg3);
           }
+        } else if (pSchema->type == TSDB_DATA_TYPE_TIMESTAMP) {
+          if (pItem->pVar.nType == TSDB_DATA_TYPE_BINARY) {
+            ret = convertTimestampStrToInt64(&(pItem->pVar), tinfo.precision);
+            if (ret != TSDB_CODE_SUCCESS) {
+              return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg4);
+            }
+          } else if (pItem->pVar.nType == TSDB_DATA_TYPE_TIMESTAMP) {
+            pItem->pVar.i64 = convertTimePrecision(pItem->pVar.i64, TSDB_TIME_PRECISION_NANO, tinfo.precision);  
+          }
         }
+        
 
         ret = tVariantDump(&(pItem->pVar), tagVal, pSchema->type, true);
 
@@ -8102,12 +8150,22 @@ int32_t exprTreeFromSqlExpr(SSqlCmd* pCmd, tExprNode **pExpr, const tSqlExpr* pS
     assert(pSqlExpr->pRight == NULL);
 
     if (pSqlExpr->type == SQL_NODE_VALUE) {
+      int32_t ret = TSDB_CODE_SUCCESS;  
       *pExpr = calloc(1, sizeof(tExprNode));
       (*pExpr)->nodeType = TSQL_NODE_VALUE;
       (*pExpr)->pVal = calloc(1, sizeof(tVariant));
-      
       tVariantAssign((*pExpr)->pVal, &pSqlExpr->value);
-      return TSDB_CODE_SUCCESS;
+
+      STableMeta* pTableMeta = tscGetMetaInfo(pQueryInfo, 0)->pTableMeta;
+      if (pCols != NULL && taosArrayGetSize(pCols) > 0) {
+        SColIndex* idx = taosArrayGet(pCols, 0);
+        SSchema* pSchema = tscGetTableColumnSchema(pTableMeta, idx->colIndex);
+        // convert time by precision 
+        if (pSchema != NULL && TSDB_DATA_TYPE_TIMESTAMP == pSchema->type && TSDB_DATA_TYPE_BINARY == (*pExpr)->pVal->nType) {
+          ret = setColumnFilterInfoForTimestamp(pCmd, pQueryInfo, (*pExpr)->pVal);
+        }
+      }
+      return ret;  
     } else if (pSqlExpr->type == SQL_NODE_SQLFUNCTION) {
       // arithmetic expression on the results of aggregation functions
       *pExpr = calloc(1, sizeof(tExprNode));
@@ -8164,21 +8222,22 @@ int32_t exprTreeFromSqlExpr(SSqlCmd* pCmd, tExprNode **pExpr, const tSqlExpr* pS
     } else if (pSqlExpr->tokenId == TK_SET) {
       int32_t colType = -1;
       STableMeta* pTableMeta = tscGetMetaInfo(pQueryInfo, 0)->pTableMeta;
-      if (pCols != NULL) {
+      if (pCols != NULL && taosArrayGetSize(pCols) > 0) {
         SColIndex* idx = taosArrayGet(pCols, 0);
         SSchema* pSchema = tscGetTableColumnSchema(pTableMeta, idx->colIndex);
         if (pSchema != NULL) {
           colType = pSchema->type;
         }
       }
-
       tVariant *pVal;
       if (colType >= TSDB_DATA_TYPE_TINYINT && colType <= TSDB_DATA_TYPE_BIGINT) {
         colType = TSDB_DATA_TYPE_BIGINT;
       } else if (colType == TSDB_DATA_TYPE_FLOAT || colType == TSDB_DATA_TYPE_DOUBLE) {
         colType = TSDB_DATA_TYPE_DOUBLE;
       }
-      if (serializeExprListToVariant(pSqlExpr->pParam, &pVal, colType) == false) {
+      STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
+      STableComInfo tinfo = tscGetTableInfo(pTableMetaInfo->pTableMeta);
+      if (serializeExprListToVariant(pSqlExpr->pParam, &pVal, colType, tinfo.precision) == false) {
         return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), "not support filter expression");
       }
       *pExpr = calloc(1, sizeof(tExprNode));
@@ -8236,3 +8295,4 @@ bool hasNormalColumnFilter(SQueryInfo* pQueryInfo) {
 
   return false;
 }
+                                          
