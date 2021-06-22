@@ -21,6 +21,7 @@
 
 #include "os.h"
 #include "tscompression.h"
+#include "tdataformat.h"
 
 #define FT_CNT  8
 
@@ -188,7 +189,19 @@ int memTest();
 //  main
 //
 int main(int argc, char *argv[]) {
-  printf("welcome to use taospack tools v1.1. \n");
+  printf("welcome to use taospack tools v1.1. sizeof(STColumn) = %lu\n", sizeof(STColumn));
+  
+  FILE* fp = fopen("./a.out", "w+");
+  STColumn* pcol = malloc(sizeof(STColumn));
+  pcol->type = 1;
+  pcol->colId = 2;
+  pcol->bytes = 3;
+  pcol->offset = 4;
+  fwrite(pcol, 1, sizeof(STColumn), fp);
+  fwrite("aaa", 1, 3, fp);
+  fclose(fp);
+  printf(" write a.out ok.\n");
+  return 0;
 
   if(argc == 3){
     char algo = 0;
