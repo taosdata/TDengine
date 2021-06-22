@@ -16,11 +16,12 @@
 #include "tsdbint.h"
 
 static const char *TSDB_FNAME_SUFFIX[] = {
-    "head",  // TSDB_FILE_HEAD
-    "data",  // TSDB_FILE_DATA
-    "last",  // TSDB_FILE_LAST
-    "",      // TSDB_FILE_MAX
-    "meta"   // TSDB_FILE_META
+    "head",     // TSDB_FILE_HEAD
+    "data",     // TSDB_FILE_DATA
+    "last",     // TSDB_FILE_LAST
+    "",         // TSDB_FILE_MAX
+    "meta"      // TSDB_FILE_META
+    "meta.tmp"  // TSDB_FILE_META_TMP
 };
 
 static void  tsdbGetFilename(int vid, int fid, uint32_t ver, TSDB_FILE_T ftype, char *fname);
@@ -30,7 +31,7 @@ static void *tsdbDecodeDFInfo(void *buf, SDFInfo *pInfo);
 static int   tsdbRollBackDFile(SDFile *pDFile);
 
 // ============== SMFile
-void tsdbInitMFile(SMFile *pMFile, SDiskID did, int vid, uint32_t ver) {
+void tsdbInitMFile(SMFile *pMFile, SDiskID did, int vid, uint32_t ver, bool tmp) {
   char fname[TSDB_FILENAME_LEN];
 
   TSDB_FILE_SET_STATE(pMFile, TSDB_FILE_STATE_OK);
@@ -38,8 +39,24 @@ void tsdbInitMFile(SMFile *pMFile, SDiskID did, int vid, uint32_t ver) {
   memset(&(pMFile->info), 0, sizeof(pMFile->info));
   pMFile->info.magic = TSDB_FILE_INIT_MAGIC;
 
-  tsdbGetFilename(vid, 0, ver, TSDB_FILE_META, fname);
+  tsdbGetFilename(vid, 0, ver, tmp ? TSDB_FILE_META_TMP : TSDB_FILE_META, fname);
   tfsInitFile(TSDB_FILE_F(pMFile), did.level, did.id, fname);
+}
+
+void tsdbRenameOrDeleleTempMetaFile(SMFile* pMFile, SDiskID did, int vid, uint32_t ver, int code) {
+  char mfname[TSDB_FILENAME_LEN] = {'\0'};
+  char tfname[TSDB_FILENAME_LEN] = {'\0'};
+
+  tsdbGetFilename(vid, 0, ver, TSDB_FILE_META_TMP, tfname);
+
+  if (code != 0) {
+    remove(tfname);
+    return;
+  }
+
+  tsdbGetFilename(vid, 0, ver, TSDB_FILE_META, mfname);
+
+  (void)taosRename(tfname, mfname);
 }
 
 void tsdbInitMFileEx(SMFile *pMFile, const SMFile *pOMFile) {

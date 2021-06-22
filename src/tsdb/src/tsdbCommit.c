@@ -55,8 +55,9 @@ typedef struct {
 #define TSDB_COMMIT_TXN_VERSION(ch) FS_TXN_VERSION(REPO_FS(TSDB_COMMIT_REPO(ch)))
 
 static int  tsdbCommitMeta(STsdbRepo *pRepo);
-static int  tsdbUpdateMetaRecord(STsdbFS *pfs, SMFile *pMFile, uint64_t uid, void *cont, int contLen);
+static int  tsdbUpdateMetaRecord(STsdbFS *pfs, SMFile *pMFile, uint64_t uid, void *cont, int contLen, bool updateMeta);
 static int  tsdbDropMetaRecord(STsdbFS *pfs, SMFile *pMFile, uint64_t uid);
+static int  tsdbCompactMetaFile(STsdbRepo *pRepo, STsdbFS *pfs, SMFile *pMFile);
 static int  tsdbCommitTSData(STsdbRepo *pRepo);
 static void tsdbStartCommit(STsdbRepo *pRepo);
 static void tsdbEndCommit(STsdbRepo *pRepo, int eno);
@@ -283,7 +284,7 @@ static int tsdbCommitMeta(STsdbRepo *pRepo) {
       // Create a new meta file
       did.level = TFS_PRIMARY_LEVEL;
       did.id = TFS_PRIMARY_ID;
-      tsdbInitMFile(&mf, did, REPO_ID(pRepo), FS_TXN_VERSION(REPO_FS(pRepo)));
+      tsdbInitMFile(&mf, did, REPO_ID(pRepo), FS_TXN_VERSION(REPO_FS(pRepo)), false);
 
       if (tsdbCreateMFile(&mf, true) < 0) {
         tsdbError("vgId:%d failed to create META file since %s", REPO_ID(pRepo), tstrerror(terrno));
@@ -305,7 +306,7 @@ static int tsdbCommitMeta(STsdbRepo *pRepo) {
     pAct = (SActObj *)pNode->data;
     if (pAct->act == TSDB_UPDATE_META) {
       pCont = (SActCont *)POINTER_SHIFT(pAct, sizeof(SActObj));
-      if (tsdbUpdateMetaRecord(pfs, &mf, pAct->uid, (void *)(pCont->cont), pCont->len) < 0) {
+      if (tsdbUpdateMetaRecord(pfs, &mf, pAct->uid, (void *)(pCont->cont), pCont->len, true) < 0) {
         tsdbError("vgId:%d failed to update META record, uid %" PRIu64 " since %s", REPO_ID(pRepo), pAct->uid,
                   tstrerror(terrno));
         tsdbCloseMFile(&mf);
@@ -337,6 +338,10 @@ static int tsdbCommitMeta(STsdbRepo *pRepo) {
   TSDB_FILE_FSYNC(&mf);
   tsdbCloseMFile(&mf);
   tsdbUpdateMFile(pfs, &mf);
+
+  if (tsdbCompactMetaFile(pRepo, pfs, &mf) < 0) {
+    tsdbError("compact meta file error");
+  }
 
   return 0;
 }
@@ -375,7 +380,7 @@ void tsdbGetRtnSnap(STsdbRepo *pRepo, SRtn *pRtn) {
             pRtn->minFid, pRtn->midFid, pRtn->maxFid);
 }
 
-static int tsdbUpdateMetaRecord(STsdbFS *pfs, SMFile *pMFile, uint64_t uid, void *cont, int contLen) {
+static int tsdbUpdateMetaRecord(STsdbFS *pfs, SMFile *pMFile, uint64_t uid, void *cont, int contLen, bool updateMeta) {
   char      buf[64] = "\0";
   void *    pBuf = buf;
   SKVRecord rInfo;
@@ -401,6 +406,11 @@ static int tsdbUpdateMetaRecord(STsdbFS *pfs, SMFile *pMFile, uint64_t uid, void
   }
 
   tsdbUpdateMFileMagic(pMFile, POINTER_SHIFT(cont, contLen - sizeof(TSCKSUM)));
+  if (!updateMeta) {
+    pMFile->info.nRecords++;
+    return 0;
+  }
+
   SKVRecord *pRecord = taosHashGet(pfs->metaCache, (void *)&uid, sizeof(uid));
   if (pRecord != NULL) {
     pMFile->info.tombSize += (pRecord->size + sizeof(SKVRecord));
@@ -440,6 +450,95 @@ static int tsdbDropMetaRecord(STsdbFS *pfs, SMFile *pMFile, uint64_t uid) {
 
   taosHashRemove(pfs->metaCache, (void *)(&uid), sizeof(uid));
   return 0;
+}
+
+static int tsdbCompactMetaFile(STsdbRepo *pRepo, STsdbFS *pfs, SMFile *pMFile) {
+  float delPercent = pMFile->info.nDels * 1.0 / pMFile->info.nRecords;
+  float tombPercent = pMFile->info.tombSize * 1.0 / pMFile->info.size;
+
+  if (delPercent < 0.33 && tombPercent < 0.33) {
+    return 0;
+  }
+
+  tsdbInfo("begin compact tsdb meta file, nDels:%" PRId64 ",nRecords:%" PRId64 ",tombSize:%" PRId64 ",size:%" PRId64,
+    pMFile->info.nDels,pMFile->info.nRecords,pMFile->info.tombSize,pMFile->info.size);
+
+  SMFile mf;
+  SDiskID did;
+
+  // first create tmp meta file
+  did.level = TFS_PRIMARY_LEVEL;
+  did.id = TFS_PRIMARY_ID;
+  tsdbInitMFile(&mf, did, REPO_ID(pRepo), FS_TXN_VERSION(REPO_FS(pRepo)), true);
+
+  if (tsdbCreateMFile(&mf, true) < 0) {
+    tsdbError("vgId:%d failed to create META file since %s", REPO_ID(pRepo), tstrerror(terrno));
+    return -1;
+  }
+
+  tsdbInfo("vgId:%d meta file %s is created to compact meta data", REPO_ID(pRepo), TSDB_FILE_FULL_NAME(&mf));
+
+  // second iterator metaCache
+  int code = -1;
+  int64_t maxBufSize = 1024;
+  SKVRecord *pRecord;
+  void *pBuf = NULL;
+
+  pBuf = malloc((size_t)maxBufSize);
+  if (pBuf == NULL) {
+    goto _err;
+  }
+
+  pRecord = taosHashIterate(pfs->metaCache, NULL);
+  while (pRecord) {
+    if (tsdbSeekMFile(pMFile, pRecord->offset + sizeof(SKVRecord), SEEK_SET) < 0) {
+      tsdbError("vgId:%d failed to seek file %s since %s", REPO_ID(pRepo), TSDB_FILE_FULL_NAME(pMFile),
+                tstrerror(terrno));
+      break;
+    }
+    if (pRecord->size > maxBufSize) {
+      maxBufSize = pRecord->size;
+      void* tmp = realloc(pBuf, maxBufSize);
+      if (tmp == NULL) {
+        break;
+      }
+      pBuf = tmp;
+    }
+    int nread = (int)tsdbReadMFile(pMFile, pBuf, pRecord->size);
+    if (nread < 0) {
+      tsdbError("vgId:%d failed to read file %s since %s", REPO_ID(pRepo), TSDB_FILE_FULL_NAME(pMFile),
+        tstrerror(terrno));
+      break;
+    }
+
+    if (nread < pRecord->size) {
+      tsdbError("vgId:%d failed to read file %s since file corrupted, expected read:%" PRId64 " actual read:%d",
+                REPO_ID(pRepo), TSDB_FILE_FULL_NAME(pMFile), pRecord->size, nread);
+      break;
+    }
+
+    if (tsdbUpdateMetaRecord(pfs, &mf, pRecord->uid, pBuf, pRecord->size, false) < 0) {
+      tsdbError("vgId:%d failed to update META record, uid %" PRIu64 " since %s", REPO_ID(pRepo), pRecord->uid,
+                tstrerror(terrno));
+      break;
+    }
+
+    pRecord = taosHashIterate(pfs->metaCache, pRecord);
+  }
+  code = 0;
+
+_err:
+  TSDB_FILE_FSYNC(&mf);
+  tsdbCloseMFile(&mf);
+
+  tsdbRenameOrDeleleTempMetaFile(&mf, did, REPO_ID(pRepo), FS_TXN_VERSION(REPO_FS(pRepo)), code);
+  if (code == 0) {
+    tsdbUpdateMFile(pfs, &mf);
+  }
+
+  tfree(pBuf);
+  tsdbInfo("end compact tsdb meta file, code:%d", code);
+  return code;
 }
 
 // =================== Commit Time-Series Data
