@@ -1774,7 +1774,10 @@ static int32_t setupQueryRuntimeEnv(SQueryRuntimeEnv *pRuntimeEnv, int32_t numOf
       case OP_SessionWindow: {
         pRuntimeEnv->proot =
             createSWindowOperatorInfo(pRuntimeEnv, pRuntimeEnv->proot, pQueryAttr->pExpr1, pQueryAttr->numOfOutput);
-        setTableScanFilterOperatorInfo(pRuntimeEnv->proot->upstream[0]->info, pRuntimeEnv->proot);
+        int32_t opType = pRuntimeEnv->proot->upstream[0]->operatorType;
+        if (opType != OP_DummyInput) {
+          setTableScanFilterOperatorInfo(pRuntimeEnv->proot->upstream[0]->info, pRuntimeEnv->proot);
+        }
         break;
       }
       case OP_MultiTableAggregate: {
@@ -1810,7 +1813,10 @@ static int32_t setupQueryRuntimeEnv(SQueryRuntimeEnv *pRuntimeEnv, int32_t numOf
       }
       case OP_StateWindow: {
         pRuntimeEnv->proot = createStatewindowOperatorInfo(pRuntimeEnv, pRuntimeEnv->proot, pQueryAttr->pExpr1, pQueryAttr->numOfOutput); 
-        setTableScanFilterOperatorInfo(pRuntimeEnv->proot->upstream[0]->info, pRuntimeEnv->proot);
+        int32_t opType = pRuntimeEnv->proot->upstream[0]->operatorType;
+        if (opType != OP_DummyInput) {
+          setTableScanFilterOperatorInfo(pRuntimeEnv->proot->upstream[0]->info, pRuntimeEnv->proot);
+        }
         break;
       }
 
