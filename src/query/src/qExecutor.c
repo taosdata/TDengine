@@ -1311,7 +1311,7 @@ static void doHashGroupbyAgg(SOperatorInfo* pOperator, SGroupbyOperatorInfo *pIn
         continue;
       }
     } else {
-      if (memcmp(pInfo->prevData, val, bytes)) {
+      if (memcmp(pInfo->prevData, val, bytes) == 0) {
         num++;
         continue;
       }
