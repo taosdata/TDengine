@@ -538,8 +538,10 @@ _err:
 
   tfree(pBuf);
 
-  tsdbInfo("end compact tsdb meta file, code:%d, nDels:%" PRId64 ",nRecords:%" PRId64 ",tombSize:%" PRId64 ",size:%" PRId64,
-    code, mf.info.nDels,mf.info.nRecords,mf.info.tombSize,mf.info.size);
+  ASSERT(mf.info.nDels == 0);
+  ASSERT(mf.info.tombSize == 0);
+  tsdbInfo("end compact tsdb meta file,code:%d,nRecords:%" PRId64 ",size:%" PRId64,
+    code,mf.info.nRecords,mf.info.size);
   return code;
 }
 
