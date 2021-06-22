@@ -14,7 +14,13 @@
  */
 
 #define _BSD_SOURCE
+
+#ifdef DARWIN
 #define _XOPEN_SOURCE
+#else
+#define _XOPEN_SOURCE 500
+#endif
+
 #define _DEFAULT_SOURCE
 
 #include "os.h"
@@ -119,8 +125,9 @@ int64_t parseFraction(char* str, char** end, int32_t timePrec) {
 
   const int32_t MILLI_SEC_FRACTION_LEN = 3;
   const int32_t MICRO_SEC_FRACTION_LEN = 6;
+  const int32_t NANO_SEC_FRACTION_LEN = 9;
 
-  int32_t factor[6] = {1, 10, 100, 1000, 10000, 100000};
+  int32_t factor[9] = {1, 10, 100, 1000, 10000, 100000, 1000000, 10000000, 100000000};
   int32_t times = 1;
 
   while (str[i] >= '0' && str[i] <= '9') {
@@ -140,12 +147,17 @@ int64_t parseFraction(char* str, char** end, int32_t timePrec) {
     }
 
     times = MILLI_SEC_FRACTION_LEN - i;
-  } else {
-    assert(timePrec == TSDB_TIME_PRECISION_MICRO);
+  } else if (timePrec == TSDB_TIME_PRECISION_MICRO) {
     if (i >= MICRO_SEC_FRACTION_LEN) {
       i = MICRO_SEC_FRACTION_LEN;
     }
     times = MICRO_SEC_FRACTION_LEN - i;
+  } else {
+    assert(timePrec == TSDB_TIME_PRECISION_NANO);
+    if (i >= NANO_SEC_FRACTION_LEN) {
+      i = NANO_SEC_FRACTION_LEN;
+    }
+    times = NANO_SEC_FRACTION_LEN - i;
   }
 
   fraction = strnatoi(str, i) * factor[times];
@@ -202,7 +214,9 @@ int32_t parseTimezone(char* str, int64_t* tzOffset) {
  * 2013-04-12T15:52:01.123+0800
  */
 int32_t parseTimeWithTz(char* timestr, int64_t* time, int32_t timePrec) {
-  int64_t factor = (timePrec == TSDB_TIME_PRECISION_MILLI) ? 1000 : 1000000;
+
+  int64_t factor = (timePrec == TSDB_TIME_PRECISION_MILLI) ? 1000 :
+                             (timePrec == TSDB_TIME_PRECISION_MICRO ? 1000000 : 1000000000);
   int64_t tzOffset = 0;
 
   struct tm tm = {0};
@@ -287,7 +301,8 @@ int32_t parseLocaltime(char* timestr, int64_t* time, int32_t timePrec) {
     }
   }
 
-  int64_t factor = (timePrec == TSDB_TIME_PRECISION_MILLI) ? 1000 : 1000000;
+  int64_t factor = (timePrec == TSDB_TIME_PRECISION_MILLI) ? 1000 :
+                   (timePrec == TSDB_TIME_PRECISION_MICRO ? 1000000 : 1000000000);
   *time = factor * seconds + fraction;
 
   return 0;
@@ -315,37 +330,50 @@ int32_t parseLocaltimeWithDst(char* timestr, int64_t* time, int32_t timePrec) {
     }
   }
 
-  int64_t factor = (timePrec == TSDB_TIME_PRECISION_MILLI) ? 1000 : 1000000;
+  int64_t factor = (timePrec == TSDB_TIME_PRECISION_MILLI) ? 1000 :
+                   (timePrec == TSDB_TIME_PRECISION_MICRO ? 1000000 : 1000000000);
   *time = factor * seconds + fraction;
   return 0;
 }
 
-
-static int32_t getDurationInUs(int64_t val, char unit, int64_t* result) {
-  *result = val;
-
-  int64_t factor = 1000L;
+int64_t convertTimePrecision(int64_t time, int32_t fromPrecision, int32_t toPrecision) {
+  assert(fromPrecision == TSDB_TIME_PRECISION_MILLI ||
+         fromPrecision == TSDB_TIME_PRECISION_MICRO ||
+         fromPrecision == TSDB_TIME_PRECISION_NANO);
+  assert(toPrecision == TSDB_TIME_PRECISION_MILLI ||
+         toPrecision == TSDB_TIME_PRECISION_MICRO ||
+         toPrecision == TSDB_TIME_PRECISION_NANO);
+  static double factors[3][3] = { {1.,            1000.,            1000000.},
+                                  {1.0 / 1000,    1.,               1000.},
+                                  {1.0 / 1000000, 1.0 / 1000,       1.} };
+  return (int64_t)((double)time * factors[fromPrecision][toPrecision]);
+}
+static int32_t getDuration(int64_t val, char unit, int64_t* result, int32_t timePrecision) {
 
   switch (unit) {
     case 's':
-      (*result) *= MILLISECOND_PER_SECOND*factor;
+      (*result) = convertTimePrecision(val * MILLISECOND_PER_SECOND, TSDB_TIME_PRECISION_MILLI, timePrecision);
       break;
     case 'm':
-      (*result) *= MILLISECOND_PER_MINUTE*factor;
+      (*result) = convertTimePrecision(val * MILLISECOND_PER_MINUTE, TSDB_TIME_PRECISION_MILLI, timePrecision);
       break;
     case 'h':
-      (*result) *= MILLISECOND_PER_HOUR*factor;
+      (*result) = convertTimePrecision(val * MILLISECOND_PER_HOUR, TSDB_TIME_PRECISION_MILLI, timePrecision);
       break;
     case 'd':
-      (*result) *= MILLISECOND_PER_DAY*factor;
+      (*result) = convertTimePrecision(val * MILLISECOND_PER_DAY, TSDB_TIME_PRECISION_MILLI, timePrecision);
       break;
     case 'w':
-      (*result) *= MILLISECOND_PER_WEEK*factor;
+      (*result) = convertTimePrecision(val * MILLISECOND_PER_WEEK, TSDB_TIME_PRECISION_MILLI, timePrecision);
       break;
     case 'a':
-      (*result) *= factor;
+      (*result) = convertTimePrecision(val, TSDB_TIME_PRECISION_MILLI, timePrecision);
       break;
     case 'u':
+      (*result) = convertTimePrecision(val, TSDB_TIME_PRECISION_MICRO, timePrecision);
+      break;
+    case 'b':
+      (*result) = convertTimePrecision(val, TSDB_TIME_PRECISION_NANO, timePrecision);
       break;
     default: {
       return -1;
@@ -357,6 +385,8 @@ static int32_t getDurationInUs(int64_t val, char unit, int64_t* result) {
 }
 
 /*
+ * b - nanoseconds;
+ * u - microseconds;
  * a - Millionseconds
  * s - Seconds
  * m - Minutes
@@ -366,7 +396,7 @@ static int32_t getDurationInUs(int64_t val, char unit, int64_t* result) {
  * n - Months (30 days)
  * y - Years (365 days)
  */
-int32_t parseAbsoluteDuration(char* token, int32_t tokenlen, int64_t* duration) {
+int32_t parseAbsoluteDuration(char* token, int32_t tokenlen, int64_t* duration, int32_t timePrecision) {
   errno = 0;
   char* endPtr = NULL;
 
@@ -382,10 +412,10 @@ int32_t parseAbsoluteDuration(char* token, int32_t tokenlen, int64_t* duration) 
     return -1;
   }
 
-  return getDurationInUs(timestamp, unit, duration);
+  return getDuration(timestamp, unit, duration, timePrecision);
 }
 
-int32_t parseNatualDuration(const char* token, int32_t tokenLen, int64_t* duration, char* unit) {
+int32_t parseNatualDuration(const char* token, int32_t tokenLen, int64_t* duration, char* unit, int32_t timePrecision) {
   errno = 0;
 
   /* get the basic numeric value */
@@ -399,7 +429,7 @@ int32_t parseNatualDuration(const char* token, int32_t tokenLen, int64_t* durati
     return 0;
   }
 
-  return getDurationInUs(*duration, *unit, duration);
+  return getDuration(*duration, *unit, duration, timePrecision);
 }
 
 int64_t taosTimeAdd(int64_t t, int64_t duration, char unit, int32_t precision) {

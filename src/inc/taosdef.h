@@ -22,7 +22,6 @@ extern "C" {
 
 #include <stdint.h>
 #include <stdbool.h>
-#include "osDef.h"
 #include "taos.h"
 
 #define TSDB__packed
@@ -34,6 +33,8 @@ extern "C" {
 #endif
 
 #define TSWINDOW_INITIALIZER ((STimeWindow) {INT64_MIN, INT64_MAX})
+#define TSWINDOW_DESC_INITIALIZER ((STimeWindow) {INT64_MAX, INT64_MIN})
+
 #define TSKEY_INITIAL_VAL    INT64_MIN
 
 // Bytes for each type.
@@ -165,7 +166,7 @@ do { \
 #define TSDB_BINARY_OP_REMAINDER  34
 
 
-#define IS_RELATION_OPTR(op) (((op) >= TSDB_RELATION_LESS) && ((op) <= TSDB_RELATION_IN))
+#define IS_RELATION_OPTR(op) (((op) >= TSDB_RELATION_LESS) && ((op) < TSDB_RELATION_IN))
 #define IS_ARITHMETIC_OPTR(op) (((op) >= TSDB_BINARY_OP_ADD) && ((op) <= TSDB_BINARY_OP_REMAINDER))
 
 #define TS_PATH_DELIMITER_LEN     1
@@ -243,8 +244,8 @@ do { \
 #define TSDB_MAX_REPLICA          5
 
 #define TSDB_TBNAME_COLUMN_INDEX        (-1)
-#define TSDB_BLOCK_DIST_COLUMN_INDEX     (-2)
-#define TSDB_UD_COLUMN_INDEX            (-100)
+#define TSDB_UD_COLUMN_INDEX            (-1000)
+#define TSDB_RES_COL_ID                 (-5000)
 
 #define TSDB_MULTI_TABLEMETA_MAX_NUM    100000  // maximum batch size allowed to load table meta
 
@@ -298,7 +299,7 @@ do { \
 #define TSDB_DEFAULT_DB_UPDATE_OPTION   0
 
 #define TSDB_MIN_DB_CACHE_LAST_ROW      0
-#define TSDB_MAX_DB_CACHE_LAST_ROW      1
+#define TSDB_MAX_DB_CACHE_LAST_ROW      3
 #define TSDB_DEFAULT_CACHE_LAST_ROW     0
 
 #define TSDB_MIN_FSYNC_PERIOD           0
@@ -345,6 +346,7 @@ do { \
 #define TSDB_QUERY_TYPE_TAG_FILTER_QUERY       0x400u
 #define TSDB_QUERY_TYPE_INSERT                 0x100u    // insert type
 #define TSDB_QUERY_TYPE_MULTITABLE_QUERY       0x200u
+#define TSDB_QUERY_TYPE_FILE_INSERT            0x400u    // insert data from file
 #define TSDB_QUERY_TYPE_STMT_INSERT            0x800u    // stmt insert type
 
 #define TSDB_QUERY_HAS_TYPE(x, _type)          (((x) & (_type)) != 0)
@@ -390,9 +392,10 @@ typedef enum {
 typedef enum {
   TSDB_SUPER_TABLE  = 0,   // super table
   TSDB_CHILD_TABLE  = 1,   // table created from super table
-  TSDB_NORMAL_TABLE = 2,  // ordinary table
-  TSDB_STREAM_TABLE = 3,  // table created from stream computing
-  TSDB_TABLE_MAX    = 4
+  TSDB_NORMAL_TABLE = 2,   // ordinary table
+  TSDB_STREAM_TABLE = 3,   // table created from stream computing
+  TSDB_TEMP_TABLE   = 4,   // temp table created by nest query
+  TSDB_TABLE_MAX    = 5
 } ETableType;
 
 typedef enum {

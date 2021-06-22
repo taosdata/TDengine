@@ -97,7 +97,7 @@ go build -o bin/taosimport app/main.go
 
     是否保存统计信息到 tdengine 的 statistic 表中，1 是，0 否， 默认 0。
 
-* -savetb int
+* -savetb string
 
     当 save 为 1 时保存统计信息的表名， 默认 statistic。
 

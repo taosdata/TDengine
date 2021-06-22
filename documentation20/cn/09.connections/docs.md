@@ -16,7 +16,7 @@ TDengine的Grafana插件在安装包的/usr/local/taos/connector/grafanaplugin�
 以CentOS 7.2操作系统为例，将grafanaplugin目录拷贝到/var/lib/grafana/plugins目录下，重新启动grafana即可。
 
 ```bash
-sudo cp -rf /usr/local/taos/connector/grafanaplugin /var/lib/grafana/tdengine
+sudo cp -rf /usr/local/taos/connector/grafanaplugin /var/lib/grafana/plugins/tdengine
 ```
 
 ### 使用 Grafana
@@ -75,50 +75,45 @@ sudo cp -rf /usr/local/taos/connector/grafanaplugin /var/lib/grafana/tdengine
 ![img](page://images/connections/import_dashboard2.jpg)
 
 
-## <a class="anchor" id="matlab"></a>Matlab
+## <a class="anchor" id="matlab"></a>MATLAB
 
-MatLab可以通过安装包内提供的JDBC Driver直接连接到TDengine获取数据到本地工作空间。
+MATLAB 可以通过安装包内提供的 JDBC Driver 直接连接到 TDengine 获取数据到本地工作空间。
 
-### MatLab的JDBC接口适配
+### MATLAB 的 JDBC 接口适配
 
-MatLab的适配有下面几个步骤，下面以Windows10上适配MatLab2017a为例：
+MATLAB 的适配有下面几个步骤，下面以 Windows 10 上适配 MATLAB2021a 为例：
 
-- 将TDengine安装包内的驱动程序JDBCDriver-1.0.0-dist.jar拷贝到${matlab_root}\MATLAB\R2017a\java\jar\toolbox
-- 将TDengine安装包内的taos.lib文件拷贝至${matlab_ root _dir}\MATLAB\R2017a\lib\win64
-- 将新添加的驱动jar包加入MatLab的classpath。在${matlab_ root _dir}\MATLAB\R2017a\toolbox\local\classpath.txt文件中添加下面一行
-​
+- 将 TDengine 客户端安装路径下的 `\TDengine\connector\jdbc的驱动程序taos-jdbcdriver-2.0.25-dist.jar` 拷贝到 `${matlab_root}\MATLAB\R2021a\java\jar\toolbox`。
+- 将 TDengine 安装包内的 `taos.lib` 文件拷贝至 `${matlab_root_dir}\MATLAB\R2021\lib\win64`。
+- 将新添加的驱动 jar 包加入 MATLAB 的 classpath。在 `${matlab_root_dir}\MATLAB\R2021a\toolbox\local\classpath.txt` 文件中添加下面一行：
 ```
-$matlabroot/java/jar/toolbox/JDBCDriver-1.0.0-dist.jar
+$matlabroot/java/jar/toolbox/taos-jdbcdriver-2.0.25-dist.jar
 ```
-- 在${user_home}\AppData\Roaming\MathWorks\MATLAB\R2017a\下添加一个文件javalibrarypath.txt, 并在该文件中添加taos.dll的路径，比如您的taos.dll是在安装时拷贝到了C:\Windows\System32下，那么就应该在javalibrarypath.txt中添加如下一行：
-​
+- 在 `${user_home}\AppData\Roaming\MathWorks\MATLAB\R2021a\` 下添加一个文件 `javalibrarypath.txt`，并在该文件中添加 taos.dll 的路径，比如您的 taos.dll 是在安装时拷贝到了 `C:\Windows\System32` 下，那么就应该在 `javalibrarypath.txt` 中添加如下一行：
 ```
 C:\Windows\System32
 ```
 
-### 在MatLab中连接TDengine获取数据
+### 在 MATLAB 中连接 TDengine 获取数据
 
-在成功进行了上述配置后，打开MatLab。
+在成功进行了上述配置后，打开 MATLAB。
 
 - 创建一个连接：
-
 ```matlab
-conn = database(‘db’, ‘root’, ‘taosdata’, ‘com.taosdata.jdbc.TSDBDriver’, ‘jdbc:TSDB://127.0.0.1:0/’)
+conn = database(‘test’, ‘root’, ‘taosdata’, ‘com.taosdata.jdbc.TSDBDriver’, ‘jdbc:TSDB://192.168.1.94:6030/’)
 ```
 - 执行一次查询：
-
 ```matlab
 sql0 = [‘select * from tb’]
 data = select(conn, sql0);
 ```
 - 插入一条记录:
-
 ```matlab
 sql1 = [‘insert into tb values (now, 1)’]
 exec(conn, sql1)
 ```
 
-更多例子细节请参考安装包内examples\Matlab\TDengineDemo.m文件。
+更多例子细节请参考安装包内 `examples\Matlab\TDengineDemo.m` 文件。
 
 ## <a class="anchor" id="r"></a>R 
 

@@ -40,9 +40,8 @@ void osInit() {
   strcpy(tsOsName, "Linux");
 }
 
-char cmdline[1024];
-
 char* taosGetCmdlineByPID(int pid) {
+  static char cmdline[1024];
   sprintf(cmdline, "/proc/%d/cmdline", pid);
   FILE* f = fopen(cmdline, "r");
   if (f) {

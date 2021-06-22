@@ -62,7 +62,7 @@ static void* taosRandomRealloc(void* ptr, size_t size, const char* file, uint32_
 
 static char* taosRandomStrdup(const char* str, const char* file, uint32_t line) {
   size_t len = strlen(str);
-  return taosRandomAllocFail(len + 1, file, line) ? NULL : taosStrdupImp(str);
+  return taosRandomAllocFail(len + 1, file, line) ? NULL : tstrdup(str);
 }
 
 static char* taosRandomStrndup(const char* str, size_t size, const char* file, uint32_t line) {
@@ -70,11 +70,11 @@ static char* taosRandomStrndup(const char* str, size_t size, const char* file, u
   if (len > size) {
     len = size;
   }
-  return taosRandomAllocFail(len + 1, file, line) ? NULL : taosStrndupImp(str, len);
+  return taosRandomAllocFail(len + 1, file, line) ? NULL : tstrndup(str, len);
 }
 
 static ssize_t taosRandomGetline(char **lineptr, size_t *n, FILE *stream, const char* file, uint32_t line) {
-  return taosRandomAllocFail(*n, file, line) ? -1 : taosGetlineImp(lineptr, n, stream);
+  return taosRandomAllocFail(*n, file, line) ? -1 : tgetline(lineptr, n, stream);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -242,7 +242,7 @@ static char* taosStrndupDetectLeak(const char* str, size_t size, const char* fil
 static ssize_t taosGetlineDetectLeak(char **lineptr, size_t *n, FILE *stream, const char* file, uint32_t line) {
   char* buf = NULL;
   size_t bufSize = 0;
-  ssize_t size = taosGetlineImp(&buf, &bufSize, stream);
+  ssize_t size = tgetline(&buf, &bufSize, stream);
   if (size != -1) {
     if (*n < size + 1) {
       void* p = taosReallocDetectLeak(*lineptr, size + 1, file, line);
@@ -372,7 +372,7 @@ void  taosFreeMem(void* ptr, const char* file, uint32_t line) {
 char* taosStrdupMem(const char* str, const char* file, uint32_t line) {
   switch (allocMode) {
     case TAOS_ALLOC_MODE_DEFAULT:
-      return taosStrdupImp(str);
+      return tstrdup(str);
 
     case TAOS_ALLOC_MODE_RANDOM_FAIL:
       return taosRandomStrdup(str, file, line);
@@ -380,13 +380,13 @@ char* taosStrdupMem(const char* str, const char* file, uint32_t line) {
     case TAOS_ALLOC_MODE_DETECT_LEAK:
       return taosStrdupDetectLeak(str, file, line);
   }
-  return taosStrdupImp(str);
+  return tstrdup(str);
 }
 
 char* taosStrndupMem(const char* str, size_t size, const char* file, uint32_t line) {
   switch (allocMode) {
     case TAOS_ALLOC_MODE_DEFAULT:
-      return taosStrndupImp(str, size);
+      return tstrndup(str, size);
 
     case TAOS_ALLOC_MODE_RANDOM_FAIL:
       return taosRandomStrndup(str, size, file, line);
@@ -394,13 +394,13 @@ char* taosStrndupMem(const char* str, size_t size, const char* file, uint32_t li
     case TAOS_ALLOC_MODE_DETECT_LEAK:
       return taosStrndupDetectLeak(str, size, file, line);
   }
-  return taosStrndupImp(str, size);
+  return tstrndup(str, size);
 }
 
 ssize_t taosGetlineMem(char **lineptr, size_t *n, FILE *stream, const char* file, uint32_t line) {
   switch (allocMode) {
     case TAOS_ALLOC_MODE_DEFAULT:
-      return taosGetlineImp(lineptr, n, stream);
+      return tgetline(lineptr, n, stream);
 
     case TAOS_ALLOC_MODE_RANDOM_FAIL:
       return taosRandomGetline(lineptr, n, stream, file, line);
@@ -408,7 +408,7 @@ ssize_t taosGetlineMem(char **lineptr, size_t *n, FILE *stream, const char* file
     case TAOS_ALLOC_MODE_DETECT_LEAK:
       return taosGetlineDetectLeak(lineptr, n, stream, file, line);
   }
-  return taosGetlineImp(lineptr, n, stream);
+  return tgetline(lineptr, n, stream);
 }
 
 static void taosCloseAllocLog() {

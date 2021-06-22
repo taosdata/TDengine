@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020 TAOS Data, Inc. <jhtao@taosdata.com>
+ * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
@@ -13,10 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <stdint.h>
-#include <pthread.h>
-#include <stdlib.h>
-#include <string.h>
+#include "os.h"
 
 #define TAOS_ERROR_C
  
@@ -86,7 +83,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_REF_ALREADY_EXIST,            "Ref is already there"
 TAOS_DEFINE_ERROR(TSDB_CODE_REF_NOT_EXIST,                "Ref is not there")
 
 //client
-TAOS_DEFINE_ERROR(TSDB_CODE_TSC_INVALID_SQL,              "Invalid SQL statement")
+TAOS_DEFINE_ERROR(TSDB_CODE_TSC_INVALID_OPERATION,        "Invalid operation")
 TAOS_DEFINE_ERROR(TSDB_CODE_TSC_INVALID_QHANDLE,          "Invalid qhandle")
 TAOS_DEFINE_ERROR(TSDB_CODE_TSC_INVALID_TIME_STAMP,       "Invalid combination of client/service time")
 TAOS_DEFINE_ERROR(TSDB_CODE_TSC_INVALID_VALUE,            "Invalid value in client")
@@ -196,7 +193,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_MND_DB_IN_DROPPING,           "Database not availabl
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_VGROUP_NOT_READY,         "Database unsynced")
 
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_DB_OPTION_DAYS,   "Invalid database option: days out of range")
-TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_DB_OPTION_KEEP,   "Invalid database option: keep >= keep1 >= keep0 >= days")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_DB_OPTION_KEEP,   "Invalid database option: keep2 >= keep1 >= keep0 >= days")
 
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_TOPIC,            "Invalid topic name")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_TOPIC_OPTION,     "Invalid topic option")

@@ -33,15 +33,6 @@ size_t tableIdPrefix(const char* name, char* prefix, int32_t len) {
   return strlen(prefix);
 }
 
-SSchema tGetBlockDistColumnSchema() {
-  SSchema s = {0};
-  s.bytes = TSDB_MAX_BINARY_LEN;;
-  s.type  = TSDB_DATA_TYPE_BINARY;
-  s.colId = TSDB_BLOCK_DIST_COLUMN_INDEX;
-  tstrncpy(s.name, TSQL_BLOCK_DIST_L, TSDB_COL_NAME_LEN);
-  return s;
-}
-
 SSchema tGetUserSpecifiedColumnSchema(tVariant* pVal, SStrToken* exprStr, const char* name) {
   SSchema s = {0};
 
@@ -68,6 +59,7 @@ bool tscValidateTableNameLength(size_t len) {
   return len < TSDB_TABLE_NAME_LEN;
 }
 
+// TODO refactor
 SColumnFilterInfo* tFilterInfoDup(const SColumnFilterInfo* src, int32_t numOfFilters) {
   if (numOfFilters == 0) {
     assert(src == NULL);

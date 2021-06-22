@@ -235,7 +235,7 @@ static int32_t vnodeProcessQueryMsg(SVnodeObj *pVnode, SVReadMsg *pRead) {
 
     SQueryTableRsp *pRsp = (SQueryTableRsp *)rpcMallocCont(sizeof(SQueryTableRsp));
     pRsp->code = code;
-    pRsp->qhandle = 0;
+    pRsp->qId  = 0;
 
     pRet->len = sizeof(SQueryTableRsp);
     pRet->rsp = pRsp;
@@ -253,7 +253,7 @@ static int32_t vnodeProcessQueryMsg(SVnodeObj *pVnode, SVReadMsg *pRead) {
         return pRsp->code;
       } else {
         assert(*handle == pQInfo);
-        pRsp->qhandle = htobe64(qId);
+        pRsp->qId = htobe64(qId);
       }
 
       if (handle != NULL &&
@@ -327,8 +327,8 @@ static int32_t vnodeProcessQueryMsg(SVnodeObj *pVnode, SVReadMsg *pRead) {
 }
 
 static int32_t vnodeProcessFetchMsg(SVnodeObj *pVnode, SVReadMsg *pRead) {
-  void *   pCont = pRead->pCont;
-  SRspRet *pRet = &pRead->rspRet;
+  void    *pCont = pRead->pCont;
+  SRspRet *pRet  = &pRead->rspRet;
 
   SRetrieveTableMsg *pRetrieve = pCont;
   pRetrieve->free = htons(pRetrieve->free);
@@ -357,7 +357,7 @@ static int32_t vnodeProcessFetchMsg(SVnodeObj *pVnode, SVReadMsg *pRead) {
 
   // kill current query and free corresponding resources.
   if (pRetrieve->free == 1) {
-    vWarn("vgId:%d, QInfo:%"PRIu64 "-%p, retrieve msg received to kill query and free qhandle", pVnode->vgId, pRetrieve->qId, *handle);
+    vWarn("vgId:%d, QInfo:%"PRIx64 "-%p, retrieve msg received to kill query and free qhandle", pVnode->vgId, pRetrieve->qId, *handle);
     qKillQuery(*handle);
     qReleaseQInfo(pVnode->qMgmt, (void **)&handle, true);
 
@@ -386,7 +386,7 @@ static int32_t vnodeProcessFetchMsg(SVnodeObj *pVnode, SVReadMsg *pRead) {
     memset(pRet->rsp, 0, sizeof(SRetrieveTableRsp));
     freeHandle = true;
   } else {  // result is not ready, return immediately
-    // Only effects in the non-blocking model
+    // Only affects the non-blocking model
     if (!tsRetrieveBlockingModel) {
       if (!buildRes) {
         assert(pRead->rpcHandle != NULL);

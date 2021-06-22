@@ -20,7 +20,14 @@
 extern "C" {
 #endif
 
-#ifndef TAOS_OS_FUNC_SOCKET_OP
+#if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
+  #define taosSend(sockfd, buf, len, flags) send((SOCKET)sockfd, buf, len, flags)
+  #define taosSendto(sockfd, buf, len, flags, dest_addr, addrlen) sendto((SOCKET)sockfd, buf, len, flags, dest_addr, addrlen)
+  #define taosWriteSocket(fd, buf, len) send((SOCKET)fd, buf, len, 0)
+  #define taosReadSocket(fd, buf, len) recv((SOCKET)fd, buf, len, 0)
+  #define taosCloseSocketNoCheck(fd) closesocket((SOCKET)fd)
+  #define taosCloseSocket(fd) closesocket((SOCKET)fd)
+#else
   #define taosSend(sockfd, buf, len, flags) send(sockfd, buf, len, flags)
   #define taosSendto(sockfd, buf, len, flags, dest_addr, addrlen) sendto(sockfd, buf, len, flags, dest_addr, addrlen)
   #define taosReadSocket(fd, buf, len) read(fd, buf, len)
@@ -35,7 +42,21 @@ extern "C" {
     }
 #endif
 
-#ifndef TAOS_OS_DEF_EPOLL
+#if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
+  #define TAOS_EPOLL_WAIT_TIME 100
+  typedef SOCKET eventfd_t; 
+  #define eventfd(a, b) -1
+  typedef SOCKET EpollFd; 
+  #define EpollClose(pollFd) epoll_close(pollFd) 
+  #ifndef EPOLLWAKEUP
+    #define EPOLLWAKEUP (1u << 29)
+  #endif
+#elif defined(_TD_DARWIN_64)
+  #define TAOS_EPOLL_WAIT_TIME 500
+  typedef int32_t SOCKET;
+  typedef SOCKET EpollFd;
+  #define EpollClose(pollFd) epoll_close(pollFd)
+#else
   #define TAOS_EPOLL_WAIT_TIME 500 
   typedef int32_t SOCKET;
   typedef SOCKET EpollFd;
@@ -59,20 +80,26 @@ extern "C" {
   #endif  
 #endif
 
-// TAOS_OS_FUNC_SOCKET
 int32_t taosSetNonblocking(SOCKET sock, int32_t on);
 void    taosIgnSIGPIPE();
 void    taosBlockSIGPIPE();
 void    taosSetMaskSIGPIPE();
-
-// TAOS_OS_FUNC_SOCKET_SETSOCKETOPT
 int32_t taosSetSockOpt(SOCKET socketfd, int32_t level, int32_t optname, void *optval, int32_t optlen);
-
 int32_t taosGetSockOpt(SOCKET socketfd, int32_t level, int32_t optname, void *optval, int32_t* optlen);
 
-// TAOS_OS_FUNC_SOCKET_INET
 uint32_t    taosInetAddr(char *ipAddr);
 const char *taosInetNtoa(struct in_addr ipInt);
+
+#if (defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)) 
+  #define htobe64 htonll
+  #if defined(_TD_GO_DLL_)
+    uint64_t htonll(uint64_t val);
+  #endif
+#endif
+
+#if defined(_TD_DARWIN_64)
+  #define htobe64 htonll
+#endif
 
 #ifdef __cplusplus
 }

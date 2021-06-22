@@ -99,47 +99,47 @@ TEST(testCase, db_table_name) {
   EXPECT_EQ(testValidateName(t4), TSDB_CODE_SUCCESS);
 
   char t5[] = "table.'def'";
-  EXPECT_EQ(testValidateName(t5), TSDB_CODE_TSC_INVALID_SQL);
+  EXPECT_EQ(testValidateName(t5), TSDB_CODE_TSC_INVALID_OPERATION);
 
   char t6[] = "'table'.'def'";
-  EXPECT_EQ(testValidateName(t6), TSDB_CODE_TSC_INVALID_SQL);
+  EXPECT_EQ(testValidateName(t6), TSDB_CODE_TSC_INVALID_OPERATION);
 
   char t7[] = "'_ab1234'.'def'";
   EXPECT_EQ(testValidateName(t7), TSDB_CODE_SUCCESS);
   printf("%s\n", t7);
 
   char t8[] = "'_ab&^%1234'.'def'";
-  EXPECT_EQ(testValidateName(t8), TSDB_CODE_TSC_INVALID_SQL);
+  EXPECT_EQ(testValidateName(t8), TSDB_CODE_TSC_INVALID_OPERATION);
 
   char t9[] = "'_123'.'gtest中文'";
-  EXPECT_EQ(testValidateName(t9), TSDB_CODE_TSC_INVALID_SQL);
+  EXPECT_EQ(testValidateName(t9), TSDB_CODE_TSC_INVALID_OPERATION);
 
   char t10[] = "abc.'gtest中文'";
-  EXPECT_EQ(testValidateName(t10), TSDB_CODE_TSC_INVALID_SQL);
+  EXPECT_EQ(testValidateName(t10), TSDB_CODE_TSC_INVALID_OPERATION);
 
   char t10_1[] = "abc.'中文gtest'";
-  EXPECT_EQ(testValidateName(t10_1), TSDB_CODE_TSC_INVALID_SQL);
+  EXPECT_EQ(testValidateName(t10_1), TSDB_CODE_TSC_INVALID_OPERATION);
   
   char t11[] = "'192.168.0.1'.abc";
-  EXPECT_EQ(testValidateName(t11), TSDB_CODE_TSC_INVALID_SQL);
+  EXPECT_EQ(testValidateName(t11), TSDB_CODE_TSC_INVALID_OPERATION);
 
   char t12[] = "192.168.0.1.abc";
-  EXPECT_EQ(testValidateName(t12), TSDB_CODE_TSC_INVALID_SQL);
+  EXPECT_EQ(testValidateName(t12), TSDB_CODE_TSC_INVALID_OPERATION);
 
   char t13[] = "abc.";
-  EXPECT_EQ(testValidateName(t13), TSDB_CODE_TSC_INVALID_SQL);
+  EXPECT_EQ(testValidateName(t13), TSDB_CODE_TSC_INVALID_OPERATION);
 
   char t14[] = ".abc";
-  EXPECT_EQ(testValidateName(t14), TSDB_CODE_TSC_INVALID_SQL);
+  EXPECT_EQ(testValidateName(t14), TSDB_CODE_TSC_INVALID_OPERATION);
 
   char t15[] = ".'abc'";
-  EXPECT_EQ(testValidateName(t15), TSDB_CODE_TSC_INVALID_SQL);
+  EXPECT_EQ(testValidateName(t15), TSDB_CODE_TSC_INVALID_OPERATION);
 
   char t16[] = ".abc'";
-  EXPECT_EQ(testValidateName(t16), TSDB_CODE_TSC_INVALID_SQL);
+  EXPECT_EQ(testValidateName(t16), TSDB_CODE_TSC_INVALID_OPERATION);
 
   char t17[] = "123a.\"abc\"";
-  EXPECT_EQ(testValidateName(t17), TSDB_CODE_TSC_INVALID_SQL);
+  EXPECT_EQ(testValidateName(t17), TSDB_CODE_TSC_INVALID_OPERATION);
   printf("%s\n", t17);
 
   char t18[] = "a.\"abc\"";
@@ -147,13 +147,13 @@ TEST(testCase, db_table_name) {
   printf("%s\n", t18);
 
   char t19[] = "'_ab1234'.'def'.'ab123'";
-  EXPECT_EQ(testValidateName(t19), TSDB_CODE_TSC_INVALID_SQL);
+  EXPECT_EQ(testValidateName(t19), TSDB_CODE_TSC_INVALID_OPERATION);
 
   char t20[] = "'_ab1234*&^'";
-  EXPECT_EQ(testValidateName(t20), TSDB_CODE_TSC_INVALID_SQL);
+  EXPECT_EQ(testValidateName(t20), TSDB_CODE_TSC_INVALID_OPERATION);
 
   char t21[] = "'1234_abc'";
-  EXPECT_EQ(testValidateName(t21), TSDB_CODE_TSC_INVALID_SQL);
+  EXPECT_EQ(testValidateName(t21), TSDB_CODE_TSC_INVALID_OPERATION);
 
 
   // =======Containing capital letters=================
@@ -167,10 +167,10 @@ TEST(testCase, db_table_name) {
   EXPECT_EQ(testValidateName(t32), TSDB_CODE_SUCCESS);
 
   char t33[] = "'ABC.def";
-  EXPECT_EQ(testValidateName(t33), TSDB_CODE_TSC_INVALID_SQL);
+  EXPECT_EQ(testValidateName(t33), TSDB_CODE_TSC_INVALID_OPERATION);
 
   char t33_0[] = "abc.DEF'";
-  EXPECT_EQ(testValidateName(t33_0), TSDB_CODE_TSC_INVALID_SQL);
+  EXPECT_EQ(testValidateName(t33_0), TSDB_CODE_TSC_INVALID_OPERATION);
   
   char t34[] = "'ABC.def'";
   //int32_t tmp0 = testValidateName(t34);
@@ -193,136 +193,136 @@ TEST(testCase, db_table_name) {
 
   // do not use key words 
   char t39[] = "table.'DEF'";
-  EXPECT_EQ(testValidateName(t39), TSDB_CODE_TSC_INVALID_SQL);
+  EXPECT_EQ(testValidateName(t39), TSDB_CODE_TSC_INVALID_OPERATION);
 
   char t40[] = "'table'.'DEF'";
-  EXPECT_EQ(testValidateName(t40), TSDB_CODE_TSC_INVALID_SQL);
+  EXPECT_EQ(testValidateName(t40), TSDB_CODE_TSC_INVALID_OPERATION);
 
   char t41[] = "'_abXYZ1234'.'deFF'";
   EXPECT_EQ(testValidateName(t41), TSDB_CODE_SUCCESS);
 
   char t42[] = "'_abDEF&^%1234'.'DIef'";
-  EXPECT_EQ(testValidateName(t42), TSDB_CODE_TSC_INVALID_SQL);
+  EXPECT_EQ(testValidateName(t42), TSDB_CODE_TSC_INVALID_OPERATION);
 
   char t43[] = "'_123'.'Gtest中文'";
-  EXPECT_EQ(testValidateName(t43), TSDB_CODE_TSC_INVALID_SQL);
+  EXPECT_EQ(testValidateName(t43), TSDB_CODE_TSC_INVALID_OPERATION);
 
   char t44[] = "'aABC'.'Gtest中文'";
-  EXPECT_EQ(testValidateName(t44), TSDB_CODE_TSC_INVALID_SQL);
+  EXPECT_EQ(testValidateName(t44), TSDB_CODE_TSC_INVALID_OPERATION);
   
   char t45[] = "'ABC'.";
-  EXPECT_EQ(testValidateName(t45), TSDB_CODE_TSC_INVALID_SQL);
+  EXPECT_EQ(testValidateName(t45), TSDB_CODE_TSC_INVALID_OPERATION);
 
   char t46[] = ".'ABC'";
-  EXPECT_EQ(testValidateName(t46), TSDB_CODE_TSC_INVALID_SQL);
+  EXPECT_EQ(testValidateName(t46), TSDB_CODE_TSC_INVALID_OPERATION);
 
   char t47[] = "a.\"aTWc\"";
   EXPECT_EQ(testValidateName(t47), TSDB_CODE_SUCCESS);
 
  // ================has space =================
   char t60[] = " ABC ";
-  EXPECT_EQ(testValidateName(t60), TSDB_CODE_TSC_INVALID_SQL);
+  EXPECT_EQ(testValidateName(t60), TSDB_CODE_TSC_INVALID_OPERATION);
 
   char t60_1[] = "   ABC ";
-  EXPECT_EQ(testValidateName(t60_1), TSDB_CODE_TSC_INVALID_SQL);
+  EXPECT_EQ(testValidateName(t60_1), TSDB_CODE_TSC_INVALID_OPERATION);
 
   char t61[] = "' ABC '";
-  EXPECT_EQ(testValidateName(t61), TSDB_CODE_TSC_INVALID_SQL);
+  EXPECT_EQ(testValidateName(t61), TSDB_CODE_TSC_INVALID_OPERATION);
 
   char t61_1[] = "'  ABC '";
-  EXPECT_EQ(testValidateName(t61_1), TSDB_CODE_TSC_INVALID_SQL);
+  EXPECT_EQ(testValidateName(t61_1), TSDB_CODE_TSC_INVALID_OPERATION);
 
   char t62[] = " ABC . def ";
-  EXPECT_EQ(testValidateName(t62), TSDB_CODE_TSC_INVALID_SQL);
+  EXPECT_EQ(testValidateName(t62), TSDB_CODE_TSC_INVALID_OPERATION);
 
   char t63[] = "' ABC . def ";
-  EXPECT_EQ(testValidateName(t63), TSDB_CODE_TSC_INVALID_SQL);
+  EXPECT_EQ(testValidateName(t63), TSDB_CODE_TSC_INVALID_OPERATION);
 
   char t63_0[] = "  abc . DEF ' ";
-  EXPECT_EQ(testValidateName(t63_0), TSDB_CODE_TSC_INVALID_SQL);
+  EXPECT_EQ(testValidateName(t63_0), TSDB_CODE_TSC_INVALID_OPERATION);
   
   char t64[] = " '  ABC .  def ' ";
   //int32_t tmp1 = testValidateName(t64);
-  EXPECT_EQ(testValidateName(t64), TSDB_CODE_TSC_INVALID_SQL);
+  EXPECT_EQ(testValidateName(t64), TSDB_CODE_TSC_INVALID_OPERATION);
 
   char t65[] = " ' ABC  '. def ";
-  EXPECT_EQ(testValidateName(t65), TSDB_CODE_TSC_INVALID_SQL);
+  EXPECT_EQ(testValidateName(t65), TSDB_CODE_TSC_INVALID_OPERATION);
 
   char t66[] = "' ABC '.'  DEF '";
-  EXPECT_EQ(testValidateName(t66), TSDB_CODE_TSC_INVALID_SQL);
+  EXPECT_EQ(testValidateName(t66), TSDB_CODE_TSC_INVALID_OPERATION);
 
   char t67[] = "abc . '  DEF  '";
-  EXPECT_EQ(testValidateName(t67), TSDB_CODE_TSC_INVALID_SQL);
+  EXPECT_EQ(testValidateName(t67), TSDB_CODE_TSC_INVALID_OPERATION);
 
   char t68[] = "'  abc '.'   DEF '";
-  EXPECT_EQ(testValidateName(t68), TSDB_CODE_TSC_INVALID_SQL);
+  EXPECT_EQ(testValidateName(t68), TSDB_CODE_TSC_INVALID_OPERATION);
 
   // do not use key words 
   char t69[] = "table.'DEF'";
-  EXPECT_EQ(testValidateName(t69), TSDB_CODE_TSC_INVALID_SQL);
+  EXPECT_EQ(testValidateName(t69), TSDB_CODE_TSC_INVALID_OPERATION);
 
   char t70[] = "'table'.'DEF'";
-  EXPECT_EQ(testValidateName(t70), TSDB_CODE_TSC_INVALID_SQL);
+  EXPECT_EQ(testValidateName(t70), TSDB_CODE_TSC_INVALID_OPERATION);
 
   char t71[] = "'_abXYZ1234  '.' deFF  '";
-  EXPECT_EQ(testValidateName(t71), TSDB_CODE_TSC_INVALID_SQL);
+  EXPECT_EQ(testValidateName(t71), TSDB_CODE_TSC_INVALID_OPERATION);
 
   char t72[] = "'_abDEF&^%1234'.'  DIef'";
-  EXPECT_EQ(testValidateName(t72), TSDB_CODE_TSC_INVALID_SQL);
+  EXPECT_EQ(testValidateName(t72), TSDB_CODE_TSC_INVALID_OPERATION);
 
   char t73[] = "'_123'.'  Gtest中文'";
-  EXPECT_EQ(testValidateName(t73), TSDB_CODE_TSC_INVALID_SQL);
+  EXPECT_EQ(testValidateName(t73), TSDB_CODE_TSC_INVALID_OPERATION);
 
   char t74[] = "' aABC'.'Gtest中文'";
-  EXPECT_EQ(testValidateName(t74), TSDB_CODE_TSC_INVALID_SQL);
+  EXPECT_EQ(testValidateName(t74), TSDB_CODE_TSC_INVALID_OPERATION);
   
   char t75[] = "' ABC '.";
-  EXPECT_EQ(testValidateName(t75), TSDB_CODE_TSC_INVALID_SQL);
+  EXPECT_EQ(testValidateName(t75), TSDB_CODE_TSC_INVALID_OPERATION);
 
   char t76[] = ".' ABC'";
-  EXPECT_EQ(testValidateName(t76), TSDB_CODE_TSC_INVALID_SQL);
+  EXPECT_EQ(testValidateName(t76), TSDB_CODE_TSC_INVALID_OPERATION);
 
   char t77[] = " a . \"aTWc\" ";
-  EXPECT_EQ(testValidateName(t77), TSDB_CODE_TSC_INVALID_SQL);
+  EXPECT_EQ(testValidateName(t77), TSDB_CODE_TSC_INVALID_OPERATION);
 
   char t78[] = "  a.\"aTWc  \"";
-  EXPECT_EQ(testValidateName(t78), TSDB_CODE_TSC_INVALID_SQL);
+  EXPECT_EQ(testValidateName(t78), TSDB_CODE_TSC_INVALID_OPERATION);
 
 
   // ===============muti string by space ===================
   // There's no such case.
   //char t160[] = "A BC";
-  //EXPECT_EQ(testValidateName(t160), TSDB_CODE_TSC_INVALID_SQL);
+  //EXPECT_EQ(testValidateName(t160), TSDB_CODE_TSC_INVALID_OPERATION);
   //printf("end:%s\n", t160);
 
   // There's no such case.
   //char t161[] = "' A BC '";
-  //EXPECT_EQ(testValidateName(t161), TSDB_CODE_TSC_INVALID_SQL);
+  //EXPECT_EQ(testValidateName(t161), TSDB_CODE_TSC_INVALID_OPERATION);
 
   char t162[] = " AB C . de f ";
-  EXPECT_EQ(testValidateName(t162), TSDB_CODE_TSC_INVALID_SQL);
+  EXPECT_EQ(testValidateName(t162), TSDB_CODE_TSC_INVALID_OPERATION);
 
   char t163[] = "' AB C . de f ";
-  EXPECT_EQ(testValidateName(t163), TSDB_CODE_TSC_INVALID_SQL);
+  EXPECT_EQ(testValidateName(t163), TSDB_CODE_TSC_INVALID_OPERATION);
 
   char t163_0[] = "  ab c . DE F ' ";
-  EXPECT_EQ(testValidateName(t163_0), TSDB_CODE_TSC_INVALID_SQL);
+  EXPECT_EQ(testValidateName(t163_0), TSDB_CODE_TSC_INVALID_OPERATION);
   
   char t164[] = " '  AB C .  de f ' ";
   //int32_t tmp2 = testValidateName(t164);
-  EXPECT_EQ(testValidateName(t164), TSDB_CODE_TSC_INVALID_SQL);
+  EXPECT_EQ(testValidateName(t164), TSDB_CODE_TSC_INVALID_OPERATION);
 
   char t165[] = " ' A BC  '. de f ";
-  EXPECT_EQ(testValidateName(t165), TSDB_CODE_TSC_INVALID_SQL);
+  EXPECT_EQ(testValidateName(t165), TSDB_CODE_TSC_INVALID_OPERATION);
 
   char t166[] = "' AB C '.'  DE  F '";
-  EXPECT_EQ(testValidateName(t166), TSDB_CODE_TSC_INVALID_SQL);
+  EXPECT_EQ(testValidateName(t166), TSDB_CODE_TSC_INVALID_OPERATION);
 
   char t167[] = "ab  c . '  D  EF  '";
-  EXPECT_EQ(testValidateName(t167), TSDB_CODE_TSC_INVALID_SQL);
+  EXPECT_EQ(testValidateName(t167), TSDB_CODE_TSC_INVALID_OPERATION);
 
   char t168[] = "'  a bc '.'   DE  F '";
-  EXPECT_EQ(testValidateName(t168), TSDB_CODE_TSC_INVALID_SQL);
+  EXPECT_EQ(testValidateName(t168), TSDB_CODE_TSC_INVALID_OPERATION);
   
 }
 

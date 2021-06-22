@@ -144,6 +144,7 @@ typedef struct SVgObj {
   int8_t         reserved0[4];
   SVnodeGid      vnodeGid[TSDB_MAX_REPLICA];
   int32_t        vgCfgVersion;
+  int8_t         compact;
   int8_t         reserved1[8];
   int8_t         updateEnd[4];
   int32_t        refCount;
@@ -160,7 +161,7 @@ typedef struct {
   int32_t totalBlocks;
   int32_t maxTables;
   int32_t daysPerFile;
-  int32_t daysToKeep;
+  int32_t daysToKeep0;
   int32_t daysToKeep1;
   int32_t daysToKeep2;
   int32_t minRowsPerFileBlock;

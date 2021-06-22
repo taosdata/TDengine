@@ -15,10 +15,7 @@
 #ifndef _TD_DATA_FORMAT_H_
 #define _TD_DATA_FORMAT_H_
 
-#include <stdint.h>
-#include <stdlib.h>
-#include <string.h>
-
+#include "os.h"
 #include "talgo.h"
 #include "ttype.h"
 #include "tutil.h"
@@ -237,6 +234,7 @@ typedef struct SDataCol {
   int             len;        // column data length
   VarDataOffsetT *dataOff;    // For binary and nchar data, the offset in the data column
   void *          pData;      // Actual data pointer
+  TSKEY           ts;         // only used in last NULL column
 } SDataCol;
 
 static FORCE_INLINE void dataColReset(SDataCol *pDataCol) { pDataCol->len = 0; }
@@ -321,7 +319,7 @@ int        tdInitDataCols(SDataCols *pCols, STSchema *pSchema);
 SDataCols *tdDupDataCols(SDataCols *pCols, bool keepData);
 SDataCols *tdFreeDataCols(SDataCols *pCols);
 void       tdAppendDataRowToDataCol(SDataRow row, STSchema *pSchema, SDataCols *pCols);
-int        tdMergeDataCols(SDataCols *target, SDataCols *src, int rowsToMerge);
+int        tdMergeDataCols(SDataCols *target, SDataCols *source, int rowsToMerge, int *pOffset);
 
 // ----------------- K-V data row structure
 /*

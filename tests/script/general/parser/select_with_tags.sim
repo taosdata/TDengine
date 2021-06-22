@@ -26,7 +26,7 @@ sql drop database if exists $db -x step1
 step1:
 sql create database if not exists $db keep 36500
 sql use $db
-sql create table $mt (ts timestamp, c1 int, c2 float, c3 bigint, c4 smallint, c5 tinyint, c6 double, c7 bool, c8 binary(10), c9 nchar(9)) TAGS(t1 int, t2 binary(12))
+sql create table $mt (ts timestamp, c1 int, c2 float, c3 bigint, c4 smallint, c5 tinyint, c6 double, c7 bool, c8 binary(10), c9 nchar(9)) TAGS(t1 int, t2 binary(12), t3 int)
 
 $i = 0
 $j = 1
@@ -36,7 +36,7 @@ while $i < $tbNum
   $tg2 = ' . abc
   $tg2 = $tg2 . $i
   $tg2 = $tg2 . '
-  sql create table $tb using $mt tags( $i , $tg2 )
+  sql create table $tb using $mt tags( $i , $tg2 , 123 )
 
   $x = 0
   while $x < $rowNum
@@ -85,6 +85,7 @@ if $data00 != @70-01-01 08:01:40.000@ then
 endi
 
 if $data01 != @select_tags_tb0@ then
+   print expect: select_tags_tb0, actual: $data01
    return -1
 endi
 
@@ -813,7 +814,46 @@ if $row != 1 then
    return -1
 endi
 
-print ======= selectivity + tags+ group by + tags + filter + interval + join===========
+print TODO ======= selectivity + tags+ group by + tags + filter + interval + join===========
+
+print ==========================mix tag columns and group by columns======================
+sql select top(c1, 100), tbname from select_tags_mt0 where tbname in ('select_tags_tb0', 'select_tags_tb1') group by t3
+if $rows != 100 then
+  return -1
+endi
+
+if $data00 != @70-01-01 08:01:40.094@ then
+  print expect: 70-01-01 08:01:40.094, actual: $data00
+  return -1
+endi
+
+if $data01 != 94 then
+  return -1
+endi
+
+if $data02 != @select_tags_tb0@ then
+  return -1
+endi
+
+if $data03 != 123 then
+  return -1
+endi
+
+if $data10 != @70-01-01 08:01:40.095@ then
+  return -1
+endi
+
+if $data11 != 95 then
+  return -1
+endi
+
+if $data12 != @select_tags_tb0@ then
+  return -1
+endi
+
+if $data13 != 123 then
+  return -1
+endi
 
 
 print ======error sql=============================================

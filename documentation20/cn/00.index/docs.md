@@ -15,6 +15,7 @@ TDengine是一个高效的存储、查询、分析时序大数据的平台，专
 * [命令行程序TAOS](/getting-started#console)：访问TDengine的简便方式
 * [极速体验](/getting-started#demo)：运行示例程序，快速体验高效的数据插入、查询
 * [支持平台列表](/getting-started#platforms)：TDengine服务器和客户端支持的平台列表
+* [Kubernetes部署](https://taosdata.github.io/TDengine-Operator/zh/index.html)：TDengine在Kubernetes环境进行部署的详细说明
 
 ## [整体架构](/architecture)
 
@@ -80,7 +81,7 @@ TDengine是一个高效的存储、查询、分析时序大数据的平台，专
 ## [与其他工具的连接](/connections)
 
 * [Grafana](/connections#grafana)：获取并可视化保存在TDengine的数据
-* [Matlab](/connections#matlab)：通过配置Matlab的JDBC数据源访问保存在TDengine的数据
+* [MATLAB](/connections#matlab)：通过配置MATLAB的JDBC数据源访问保存在TDengine的数据
 * [R](/connections#r)：通过配置R的JDBC数据源访问保存在TDengine的数据
 * [IDEA Database](https://www.taosdata.com/blog/2020/08/27/1767.html)：通过IDEA 数据库管理工具可视化使用 TDengine
 
@@ -117,9 +118,9 @@ TDengine是一个高效的存储、查询、分析时序大数据的平台，专
 ## 常用工具
 
 * [TDengine样例导入工具](https://www.taosdata.com/blog/2020/01/18/1166.html)
-* [TDengine性能对比测试工具](https://www.taosdata.com/blog/2020/01/18/1166.html)
+* [TDengine写入性能测试工具](https://www.taosdata.com/blog/2020/01/18/1166.html)
 * [IDEA数据库管理工具可视化使用TDengine](https://www.taosdata.com/blog/2020/08/27/1767.html)
-* [基于eletron开发的跨平台TDengine图形化管理工具](https://github.com/skye0207/TDengineGUI)
+* [基于Electron开发的跨平台TDengine图形化管理工具](https://github.com/skye0207/TDengineGUI)
 * [DataX，支持TDengine的离线数据采集/同步工具](https://github.com/wgzhao/DataX)（文档：[读取插件](https://github.com/wgzhao/DataX/blob/master/docs/src/main/sphinx/reader/tdenginereader.md)、[写入插件](https://github.com/wgzhao/DataX/blob/master/docs/src/main/sphinx/writer/tdenginewriter.md)）
 
 ## TDengine与其他数据库的对比测试

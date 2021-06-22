@@ -17,17 +17,17 @@
 #include "os.h"
 #include "tglobal.h"
 
-#ifndef TAOS_OS_FUNC_STRING_STR2INT64
-int64_t tsosStr2int64(char *str) {
+int64_t taosStr2int64(char *str) {
   char *endptr = NULL;
   return strtoll(str, &endptr, 10);
 }
-#endif
 
-#ifndef TAOS_OS_FUNC_STRING_WCHAR
-int tasoUcs4Compare(void *f1_ucs4, void *f2_ucs4, int bytes) {
+#if !(defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32))
+
+int32_t tasoUcs4Compare(void *f1_ucs4, void *f2_ucs4, int32_t bytes) {
   return wcsncmp((wchar_t *)f1_ucs4, (wchar_t *)f2_ucs4, bytes / TSDB_NCHAR_SIZE);
 }
+
 #endif
 
 #ifdef USE_LIBICONV
@@ -59,6 +59,9 @@ bool taosMbsToUcs4(char *mbs, size_t mbsLength, char *ucs4, int32_t ucs4_max_len
   iconv_close(cd);
   if (len != NULL) {
     *len = (int32_t)(ucs4_max_len - outLeft);
+    if (*len < 0) {
+      return false;
+    }
   }
 
   return true;

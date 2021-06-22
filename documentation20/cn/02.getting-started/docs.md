@@ -10,7 +10,9 @@ TDengine软件分为服务器、客户端和报警模块三部分，目前2.0版
 
 ### 通过Docker容器运行
 
-请参考[TDengine官方Docker镜像的发布、下载和使用](https://www.taosdata.com/blog/2020/05/13/1509.html)
+暂时不建议生产环境采用 Docker 来部署 TDengine 的客户端或服务端，但在开发环境下或初次尝试时，使用 Docker 方式部署是十分方便的。特别是，利用 Docker，可以方便地在 Mac OSX 和 Windows 环境下尝试 TDengine。
+
+详细操作方法请参照 [通过Docker快速体验TDengine](https://www.taosdata.com/cn/documentation/getting-started/docker)。
 
 ### <a class="anchor" id="package-install"></a>通过安装包安装
 
@@ -22,7 +24,7 @@ TDengine的安装非常简单，从下载到安装成功仅仅只要几秒钟。
 
 ## <a class="anchor" id="start"></a>轻松启动
 
-安装成功后，用户可使用`systemctl`命令来启动TDengine的服务进程。
+安装成功后，用户可使用 `systemctl` 命令来启动 TDengine 的服务进程。
 
 ```bash
 $ systemctl start taosd
@@ -33,21 +35,22 @@ $ systemctl start taosd
 $ systemctl status taosd
 ```
 
-如果TDengine服务正常工作，那么您可以通过TDengine的命令行程序`taos`来访问并体验TDengine。  
+如果 TDengine 服务正常工作，那么您可以通过 TDengine 的命令行程序 `taos` 来访问并体验 TDengine。  
 
 **注意：**  
 
-- systemctl命令需要 _root_ 权限来运行，如果您非 _root_ 用户，请在命令前添加 sudo
-- 为更好的获得产品反馈，改善产品，TDengine会采集基本的使用信息，但您可以修改系统配置文件taos.cfg里的配置参数telemetryReporting, 将其设为0，就可将其关闭。
-- TDengine采用FQDN(一般就是hostname)作为节点的ID，为保证正常运行，需要给运行taosd的服务器配置好hostname，在客户端应用运行的机器配置好DNS服务或hosts文件，保证FQDN能够解析。
+- systemctl 命令需要 _root_ 权限来运行，如果您非 _root_ 用户，请在命令前添加 sudo 。
+- 为更好的获得产品反馈，改善产品，TDengine 会采集基本的使用信息，但您可以修改系统配置文件 taos.cfg 里的配置参数 telemetryReporting, 将其设为 0，就可将其关闭。
+- TDengine 采用 FQDN (一般就是 hostname )作为节点的 ID，为保证正常运行，需要给运行 taosd 的服务器配置好 hostname，在客户端应用运行的机器配置好 DNS 服务或 hosts 文件，保证 FQDN 能够解析。
+- `systemctl stop taosd` 指令在执行后并不会马上停止 TDengine 服务，而是会等待系统中必要的落盘工作正常完成。在数据量很大的情况下，这可能会消耗较长时间。
 
-* TDengine 支持在使用[`systemd`](https://en.wikipedia.org/wiki/Systemd)做进程服务管理的linux系统上安装，用`which systemctl`命令来检测系统中是否存在`systemd`包:
+* TDengine 支持在使用 [`systemd`](https://en.wikipedia.org/wiki/Systemd) 做进程服务管理的 linux 系统上安装，用 `which systemctl` 命令来检测系统中是否存在 `systemd` 包:
 
   ```bash
   $ which systemctl
   ```
 
-  如果系统中不支持systemd，也可以用手动运行 /usr/local/taos/bin/taosd 方式启动 TDengine 服务。
+  如果系统中不支持 systemd，也可以用手动运行 /usr/local/taos/bin/taosd 方式启动 TDengine 服务。
 
   
 ## <a class="anchor" id="console"></a>TDengine命令行程序

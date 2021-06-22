@@ -345,7 +345,7 @@ static int32_t mnodeGetQueryMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pC
 
   pShow->bytes[cols] = 24;
   pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
-  strcpy(pSchema[cols].name, "qhandle");
+  strcpy(pSchema[cols].name, "qid");
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
   cols++;
 
@@ -421,7 +421,7 @@ static int32_t mnodeRetrieveQueries(SShowObj *pShow, char *data, int32_t rows, v
       cols++;
 
       char handleBuf[24] = {0};
-      snprintf(handleBuf, tListLen(handleBuf), "%p", (void*)htobe64(pDesc->qHandle));
+      snprintf(handleBuf, tListLen(handleBuf), "%"PRIu64, htobe64(pDesc->qId));
       pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
 
       STR_WITH_MAXSIZE_TO_VARSTR(pWrite, handleBuf, pShow->bytes[cols]);

@@ -1,0 +1,238 @@
+system sh/stop_dnodes.sh
+
+
+system sh/deploy.sh -n dnode1 -i 1
+system sh/cfg.sh -n dnode1 -c walLevel -v 1
+system sh/exec.sh -n dnode1 -s start
+
+sleep 100
+sql connect
+print ======================== dnode1 start
+
+$dbPrefix = fi_in_db
+$tbPrefix = fi_in_tb
+$mtPrefix = fi_in_mt
+$tbNum = 10
+$rowNum = 20
+$totalNum = 200
+
+print excuting test script create_db.sim
+print =============== set up
+$i = 0
+$db = $dbPrefix . $i
+$mt = $mtPrefix . $i
+
+sql_error createdatabase $db
+sql create database $db
+sql use $db
+sql show databases
+
+if $rows != 1 then 
+  return -1
+endi
+if $data00 != $db then 
+  return -1
+endi
+sql drop database $db
+
+# case1: case_insensitivity test
+print =========== create_db.sim case1: case insensitivity test
+sql_error CREATEDATABASE $db
+sql CREATE DATABASE $db
+sql use $db
+sql show databases
+
+if $rows != 1 then
+  return -1
+endi
+if $data00 != $db then 
+  return -1
+endi
+sql drop database $db
+print case_insensitivity test passed
+
+# case2: illegal_db_name test
+print =========== create_db.sim case2: illegal_db_name test
+$illegal_db1 = 1db
+$illegal_db2 = d@b
+
+sql_error create database $illegal_db1
+sql_error create database $illegal_db2
+print illegal_db_name test passed
+
+# case3: chinese_char_in_db_name test
+print ========== create_db.sim case3: chinese_char_in_db_name test
+$CN_db1 = 数据库
+$CN_db2 = 数据库1
+$CN_db3 = db数据库1
+sql_error create database $CN_db1
+sql_error create database $CN_db2
+sql_error create database $CN_db3
+#sql show databases
+#if $rows != 3 then
+#  return -1
+#endi
+#if $data00 != $CN_db1 then
+#  return -1
+#endi
+#if $data10 != $CN_db2 then
+#  return -1
+#endi
+#if $data20 != $CN_db3 then
+#  return -1
+#endi
+#sql drop database $CN_db1
+#sql drop database $CN_db2
+#sql drop database $CN_db3
+print case_chinese_char_in_db_name test passed
+
+# case4: db_already_exists
+print create_db.sim case4: db_already_exists
+sql create database db0
+sql create database db0
+sql show databases
+if $rows != 1 then
+  return -1
+endi
+sql drop database db0
+print db_already_exists test passed
+
+# case5: db_meta_data
+print create_db.sim case5: db_meta_data test
+# cfg params
+$replica = 1 # max=3
+$days = 10
+$keep = 365
+$rows_db = 1000
+$cache = 16 # 16MB
+$ablocks = 100 
+$tblocks = 32 # max=512, automatically trimmed when exceeding
+$ctime = 36000 # 10 hours
+$wal = 1 # valid value is 1, 2
+$comp = 1 # max=32, automatically trimmed when exceeding
+
+sql create database $db replica $replica days $days keep $keep maxrows $rows_db cache $cache blocks 4 ctime $ctime wal $wal comp $comp
+sql show databases
+if $rows != 1 then
+  return -1
+endi
+if $data00 != $db then 
+ return -1
+endi
+if $data04 != $replica then 
+ return -1
+endi
+if $data06 != $days then 
+ return -1
+endi
+if $data07 != 365 then 
+ return -1
+endi
+print data08 = $data07
+if $data08 != $cache then
+ print expect $cache, actual:$data08
+ return -1
+endi
+if $data09 != 4 then
+ return -1
+endi
+
+sql drop database $db
+
+## param range tests
+# replica [1,3]
+#sql_error create database $db replica 0
+sql_error create database $db replica 4
+
+# day [1, 3650]
+sql_error create database $db day 0
+sql_error create database $db day 3651 
+
+# keep [1, infinity]
+sql_error create database $db keep 0
+sql_error create database $db keep 0,0,0
+sql_error create database $db keep 3,3,3
+sql_error create database $db keep 3
+sql_error create database $db keep 11.0
+sql_error create database $db keep 11.0,11.0,11.0
+sql_error create database $db keep "11","11","11"
+sql_error create database $db keep "11"
+sql_error create database $db keep 13,12,11
+sql_error create database $db keep 11,12,11
+sql_error create database $db keep 12,11,12
+sql_error create database $db keep 11,12,13
+sql_error create database $db keep 11,12,13,14
+sql_error create database $db keep 11,11
+sql_error create database $db keep 365001,365001,365001
+sql_error create database $db keep 365001
+sql create database dbk1 keep 11
+sql show databases
+if $rows != 1 then
+  return -1
+endi
+if $data07 != 11 then 
+ return -1
+endi
+sql drop database dbk1
+sql create database dbk2 keep 12
+sql show databases
+if $rows != 1 then
+  return -1
+endi
+if $data07 != 12 then 
+ return -1
+endi
+sql drop database dbk2
+sql create database dbk3 keep 11
+sql show databases
+if $rows != 1 then
+  return -1
+endi
+if $data07 != 11 then 
+ return -1
+endi
+sql drop database dbk3
+sql create database dbk4 keep 13
+sql show databases
+if $rows != 1 then
+  return -1
+endi
+if $data07 != 13 then 
+ return -1
+endi
+sql drop database dbk4
+#sql_error create database $db keep 3651
+
+# rows [200, 10000]
+sql_error create database $db maxrows 199
+#sql_error create database $db maxrows 10001
+
+# cache [100, 10485760]
+sql_error create database $db cache 0
+#sql_error create database $db cache 10485761
+
+
+# blocks [32, 4096 overwriten by 4096 if exceeds, Note added:2018-10-24]
+#sql_error create database $db tblocks 31
+#sql_error create database $db tblocks 4097
+
+# ctime [30, 40960]
+sql_error create database $db ctime 29
+sql_error create database $db ctime 40961
+
+# wal {0, 2}
+#sql_error create database $db wal 0
+sql_error create database $db wal -1
+sql_error create database $db wal 3
+
+# comp {0, 1, 2}
+sql_error create database $db comp -1
+sql_error create database $db comp 3
+
+sql_error drop database $db
+sql show databases
+if $rows != 0 then 
+  return -1
+endi
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

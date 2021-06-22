@@ -37,7 +37,7 @@ static struct argp_option options[] = {
   {"password",   'p', "PASSWORD",   OPTION_ARG_OPTIONAL, "The password to use when connecting to the server."},
   {"port",       'P', "PORT",       0,                   "The TCP/IP port number to use for the connection."},
   {"user",       'u', "USER",       0,                   "The user name to use when connecting to the server."},
-  {"user",       'A', "Auth",       0,                   "The user auth to use when connecting to the server."},
+  {"auth",       'A', "Auth",       0,                   "The auth string to use when connecting to the server."},
   {"config-dir", 'c', "CONFIG_DIR", 0,                   "Configuration directory."},
   {"dump-config", 'C', 0,           0,                   "Dump configuration."},
   {"commands",   's', "COMMANDS",   0,                   "Commands to run without enter the shell."},
@@ -415,7 +415,7 @@ void set_terminal_mode() {
   }
 }
 
-void get_history_path(char *history) { snprintf(history, TSDB_FILENAME_LEN, "%s/%s", getenv("HOME"), HISTORY_FILE); }
+void get_history_path(char *_history) { snprintf(_history, TSDB_FILENAME_LEN, "%s/%s", getenv("HOME"), HISTORY_FILE); }
 
 void clearScreen(int ecmd_pos, int cursor_pos) {
   struct winsize w;

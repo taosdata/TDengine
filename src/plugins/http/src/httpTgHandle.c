@@ -209,7 +209,7 @@ void tgParseSchemaMetric(cJSON *metric) {
         parsedOk = false;
         goto ParseEnd;
       }
-      int32_t nameLen = (int32_t)strlen(field->valuestring);
+      nameLen = (int32_t)strlen(field->valuestring);
       if (nameLen == 0 || nameLen >= TSDB_TABLE_NAME_LEN) {
         parsedOk = false;
         goto ParseEnd;

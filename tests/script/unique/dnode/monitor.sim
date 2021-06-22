@@ -56,7 +56,7 @@ print $data30
 print $data40
 print $data50
 
-if $rows != 5 then
+if $rows > 6 then
 	return -1
 endi
 
