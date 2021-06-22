@@ -517,7 +517,7 @@ static int tsdbCompactMetaFile(STsdbRepo *pRepo, STsdbFS *pfs, SMFile *pMFile) {
       break;
     }
 
-    if (tsdbUpdateMetaRecord(pfs, &mf, pRecord->uid, pBuf, pRecord->size, false) < 0) {
+    if (tsdbUpdateMetaRecord(pfs, &mf, pRecord->uid, pBuf, (int)pRecord->size, false) < 0) {
       tsdbError("vgId:%d failed to update META record, uid %" PRIu64 " since %s", REPO_ID(pRepo), pRecord->uid,
                 tstrerror(terrno));
       break;
