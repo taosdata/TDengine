@@ -83,14 +83,16 @@ class TDTestCase:
         tdSql.checkData(29, 0, "2020-07-01 05:10:00.000")
 
         # subquery and parent query with top and bottom
-        tdSql.query("select top(avg_val,2) from(select avg(value) as avg_val,num from st where loc!='beijing0' group by num);")
-        tdSql.checkData(0, 1, 115)
-        tdSql.query("select bottom(avg_val,3) from(select avg(value) as avg_val,num from st where loc!='beijing0' group by num);")
-        tdSql.checkData(0, 1, 125)
+        tdSql.query("select top(avg_val,2) from(select avg(value) as avg_val,num from st where loc!='beijing0' group by num) order by avg_val desc;")
+        tdSql.checkData(0, 1, 117)
+        tdSql.query("select bottom(avg_val,3) from(select avg(value) as avg_val,num from st where loc!='beijing0' group by num) order by avg_val asc;")
+        tdSql.checkData(0, 1, 111)
 
         # 
         tdSql.query("select top(avg_val,2) from(select avg(value) as avg_val from st where loc='beijing1' interval(8m) sliding(3m));")
+        tdSql.checkData(0, 1, 120)
 
+        # clear env
         testcaseFilename = os.path.split(__file__)[-1]
         os.system("rm -rf ./insert_res.txt")
         os.system("rm -rf wal/%s.sql" % testcaseFilename )     
