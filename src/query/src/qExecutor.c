@@ -1306,7 +1306,7 @@ static void doHashGroupbyAgg(SOperatorInfo* pOperator, SGroupbyOperatorInfo *pIn
     }
 
     if (IS_VAR_DATA_TYPE(type)) {
-      if(varDataLen(val) == varDataLen(pInfo->prevData) && memcmp(pInfo->prevData, val, varDataLen(val)) == 0) {
+      if(varDataLen(val) == varDataLen(pInfo->prevData) && memcmp(varDataVal(pInfo->prevData), varDataVal(val), varDataLen(val)) == 0) {
         num++;
         continue;
       }
