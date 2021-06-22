@@ -498,7 +498,7 @@ static int tsdbCompactMetaFile(STsdbRepo *pRepo, STsdbFS *pfs, SMFile *pMFile) {
     }
     if (pRecord->size > maxBufSize) {
       maxBufSize = pRecord->size;
-      void* tmp = realloc(pBuf, maxBufSize);
+      void* tmp = realloc(pBuf, (size_t)maxBufSize);
       if (tmp == NULL) {
         break;
       }
