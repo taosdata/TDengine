@@ -3,7 +3,7 @@ package com.taosdata.example;
 import java.sql.*;
 import java.util.Properties;
 
-public class JDBCDemo {
+public class JdbcDemo {
     private static String host;
     private static final String dbName = "test";
     private static final String tbName = "weather";
@@ -17,7 +17,7 @@ public class JDBCDemo {
         if (host == null) {
             printHelp();
         }
-        JDBCDemo demo = new JDBCDemo();
+        JdbcDemo demo = new JdbcDemo();
         demo.init();
         demo.createDatabase();
         demo.useDatabase();
