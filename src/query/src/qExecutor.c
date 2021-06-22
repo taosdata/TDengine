@@ -1305,9 +1305,16 @@ static void doHashGroupbyAgg(SOperatorInfo* pOperator, SGroupbyOperatorInfo *pIn
       continue;
     }
 
-    if (memcmp(pInfo->prevData, val, bytes) == 0) {
-      num++;
-      continue;
+    if (IS_VAR_DATA_TYPE(type)) {
+      if(varDataLen(val) == varDataLen(pInfo->prevData) && memcmp(pInfo->prevData, val, varDataLen(val)) == 0) {
+        num++;
+        continue;
+      }
+    } else {
+      if (memcmp(pInfo->prevData, val, bytes)) {
+        num++;
+        continue;
+      }
     }
 
     if (pQueryAttr->stableQuery && pQueryAttr->stabledev && (pRuntimeEnv->prevResult != NULL)) {
@@ -1416,9 +1423,7 @@ static void doSessionWindowAggImpl(SOperatorInfo* pOperator, SSWindowOperatorInf
 }
 
 static void setResultRowKey(SResultRow* pResultRow, char* pData, int16_t type) {
-  int64_t v = -1;
-  GET_TYPED_DATA(v, int64_t, type, pData);
-  if (type == TSDB_DATA_TYPE_BINARY || type == TSDB_DATA_TYPE_NCHAR) {
+  if (IS_VAR_DATA_TYPE(type)) {
     if (pResultRow->key == NULL) {
       pResultRow->key = malloc(varDataTLen(pData));
       varDataCopy(pResultRow->key, pData);
@@ -1426,6 +1431,9 @@ static void setResultRowKey(SResultRow* pResultRow, char* pData, int16_t type) {
       assert(memcmp(pResultRow->key, pData, varDataTLen(pData)) == 0);
     }
   } else {
+    int64_t v = -1;
+    GET_TYPED_DATA(v, int64_t, type, pData);
+
     pResultRow->win.skey = v;
     pResultRow->win.ekey = v;
   }
