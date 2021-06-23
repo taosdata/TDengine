@@ -986,7 +986,7 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
       arguments->len_of_binary = atoi(argv[++i]);
     } else if (strcmp(argv[i], "-m") == 0) {
       if ((argc == i+1) ||
-        (!isStringNumber(argv[i+1]))) {
+        (isStringNumber(argv[i+1]))) {
         printHelp();
         errorPrint("%s", "\n\t-m need a number following!\n");
         exit(EXIT_FAILURE);
