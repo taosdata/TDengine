@@ -237,7 +237,6 @@ class ConcurrentInquiry:
         for i in sel_con:
             sel_con_list.append(i(tlist,col_list,tag_list))                                  #获取对应的条件函数
         sql+=' '.join(sel_con_list)                                       # condition
-        #print(sql)
         return sql
 
     def gen_query_join(self):                        #生成join查询语句
