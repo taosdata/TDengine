@@ -10,7 +10,7 @@ topDir=$scriptDir/../..         # TDinternal
 communityDir=$topDir/community
 enterpriseDir=$topDir/enterprise
 archiveDir=$scriptDir/../release
-allocator=glibc                 # glibc  or  jemalloc
+allocator=jemalloc              # glibc  or  jemalloc, default is jemalloc
 
 if [ ! -d $archiveDir ]; then
   mkdir -p $archiveDir
