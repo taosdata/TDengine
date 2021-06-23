@@ -5,6 +5,8 @@
 
 #include "taos.h"
 #include "qHistogram.h"
+
+#pragma GCC diagnostic ignored "-Werror=unused-function"
 namespace {
 void doHistogramAddTest() {
   SHistogramInfo* pHisto = NULL;

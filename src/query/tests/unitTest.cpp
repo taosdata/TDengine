@@ -13,7 +13,7 @@
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wwrite-strings"
-
+#pragma GCC diagnostic ignored "-Werror=unused-function"
 namespace {
 int32_t testValidateName(char* name) {
   SStrToken token = {0};

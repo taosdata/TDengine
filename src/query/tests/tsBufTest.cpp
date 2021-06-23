@@ -9,6 +9,8 @@
 #include "ttoken.h"
 #include "tutil.h"
 
+#pragma GCC diagnostic ignored "-Werror=unused-function"
+
 namespace {
 /**
  *

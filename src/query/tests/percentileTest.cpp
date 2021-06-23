@@ -7,6 +7,8 @@
 
 #include "qPercentile.h"
 
+#pragma GCC diagnostic ignored "-Werror=unused-function"
+
 namespace {
 tMemBucket *createBigIntDataBucket(int32_t start, int32_t end) {
   tMemBucket *pBucket = tMemBucketCreate(sizeof(int64_t), TSDB_DATA_TYPE_BIGINT, start, end);

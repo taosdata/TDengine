@@ -6,6 +6,8 @@
 #include "taos.h"
 #include "tsdb.h"
 
+#pragma GCC diagnostic ignored "-Werror=unused-function"
+
 namespace {
 // simple test
 void simpleTest() {
