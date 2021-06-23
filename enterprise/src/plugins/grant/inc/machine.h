@@ -114,6 +114,20 @@ typedef struct {
   uint32_t reserveKey2;
 } SGrantMsg;
 
+typedef struct {
+  void*   logTimer;
+
+  char*   machineCode; //TODO free it
+  bool    machineCodeGenerated;
+
+  char    sqlCreateTable[512];
+  char    sqlInsertIntoTable[512];
+  bool    sqlGenerated;
+
+  bool    tableCreated;
+  bool    tableInserted;
+} SGrantMonitorLogContext;
+
 char* grantGetMachineSerials();
 bool  grantGenActiveCode(SGrantObj *grant);
 bool  grantParseActiveCode(SGrantObj *grant);

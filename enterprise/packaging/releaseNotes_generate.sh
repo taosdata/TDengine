@@ -16,7 +16,7 @@ fi
 echo "generate release notes>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>"
 cd $communityDir/
 #git log origin/$fromBranch..origin/$toBranch --pretty=format:'%b' > ./releaseNotes.tmp
-git log origin/$fromBranch..origin/$toBranch --pretty=format:'%s' >> ./releaseNotes.tmp
+git log origin/$fromBranch..origin/$toBranch --pretty=format:'%s' | sort -k2n | uniq >> ./releaseNotes.tmp
 
 # fix
 echo "Release Notes" > ReleaseNotes

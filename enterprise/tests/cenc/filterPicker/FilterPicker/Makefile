@@ -78,7 +78,7 @@ all: $(TARGET)
 $(TARGET):  $(OBJECTS)  
 	$(LINK) -o $(TARGET) $(OBJECTS) $(LFLAGS) 
 
-clean:compiler_clean 
+clean:
 	-$(DEL_FILE) $(TARGET) $(OBJECTS)
 	-$(DEL_FILE) *~ core *.core
 
@@ -89,37 +89,7 @@ distclean: clean
 	-$(DEL_FILE) $(TARGET) 
 
 
-compiler_rcc_make_all:
-compiler_rcc_clean:
-compiler_uic_make_all:
-compiler_uic_clean:
-compiler_image_collection_make_all: qmake_image_collection.cpp
-compiler_image_collection_clean:
-	-$(DEL_FILE) qmake_image_collection.cpp
-compiler_yacc_decl_make_all:
-compiler_yacc_decl_clean:
-compiler_yacc_impl_make_all:
-compiler_yacc_impl_clean:
-compiler_lex_make_all:
-compiler_lex_clean:
-compiler_clean: 
-
 ####### Compile
-
-PickData.o: PickData.c ew_bridge.h \
-		PickData.h
-	$(CC) -c $(CFLAGS) $(INCPATH) -o PickData.o PickData.c
-
-FilterPicker5.o: FilterPicker5.c ew_bridge.h \
-		PickData.h \
-		FilterPicker5_Memory.h \
-		FilterPicker5.h
-	$(CC) -c $(CFLAGS) $(INCPATH) -o FilterPicker5.o FilterPicker5.c
-
-FilterPicker5_Memory.o: FilterPicker5_Memory.c ew_bridge.h \
-		PickData.h \
-		FilterPicker5_Memory.h
-	$(CC) -c $(CFLAGS) $(INCPATH) -o FilterPicker5_Memory.o FilterPicker5_Memory.c
 
 FilterPicker5.o: FilterPicker5.c ew_bridge.h \
 		PickData.h \

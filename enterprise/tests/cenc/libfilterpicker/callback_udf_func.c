@@ -1,3 +1,4 @@
+#include "taos.h"
 #include "callback_udf_func.h"
 #if 0
 #include "libmseed.h"
@@ -5,7 +6,7 @@
 
 
 void
-callback_udf_func(char *data, char type, int numOfRows, long long *ts, char *dataOutput, char *tsOutput, int *numOfOutput, SUdfInit *buf)
+callback_udf_func(char *data, short itype, short ibytes, int numOfRows, long long *ts, char *dataOutput, char *tsOutput, int *numOfOutput, short otype, short obytes, SUdfInit *buf)
 {
     BOOLEAN_INT            useMemory        = TRUE_INT;
     double                 longTermWindow   = 10.0; 
@@ -26,6 +27,7 @@ callback_udf_func(char *data, char type, int numOfRows, long long *ts, char *dat
     char                  *cp;
     short                 *sp;
     long long             *llp;
+    int                   *ip;
     float                 *fp;
     float                 *amps             = NULL;
     FilterPicker5_Memory  *mem              = NULL;
@@ -59,22 +61,29 @@ callback_udf_func(char *data, char type, int numOfRows, long long *ts, char *dat
     valid = 0;
     memset(amps, 0, numOfRows * sizeof(float));
 
-    switch (type) {
-    case 1:
+    switch (itype) {
+    case TSDB_DATA_TYPE_BOOL:
+    case TSDB_DATA_TYPE_TINYINT:
         for (n = 0; n < numOfRows; n++) {
             amps[n] = (float) data[n];
         }
         break;
-    case 2:
+    case TSDB_DATA_TYPE_SMALLINT:
         sp = (short *) data;
         for (n = 0; n < numOfRows; n++) {
             amps[n] = (float) sp[n];
         }
         break;
-    case 4:
+    case TSDB_DATA_TYPE_INT:
+        ip = (int *) data;
+        for (n = 0; n < numOfRows; n++) {
+            amps[n] = (float) ip[n];
+        }
+        break;
+    case TSDB_DATA_TYPE_FLOAT:
         fp = (float *) data;
         for (n = 0; n < numOfRows; n++) {
-            amps[n] = (float) fp[n];
+            amps[n] = fp[n];
         }
         break;
     default:
@@ -82,9 +91,9 @@ callback_udf_func(char *data, char type, int numOfRows, long long *ts, char *dat
     }
 
     /* applications always pass in buf */
-    //if (buf) {
-    //    mem = (FilterPicker5_Memory *) buf->ptr;
-    //}
+    if (buf) {
+        mem = (FilterPicker5_Memory *) buf->ptr;
+    }
 
     Pick(0.01,
          amps,
@@ -110,21 +119,29 @@ callback_udf_func(char *data, char type, int numOfRows, long long *ts, char *dat
         }
 
         if (dataOutput) {
-            switch(type) {
-            case 1:
+            switch(otype) {
+            case TSDB_DATA_TYPE_BOOL:
+            case TSDB_DATA_TYPE_TINYINT:
                 cp = &dataOutput[valid++];
                 *cp = (char) amps[index];
                 break;
-            case 2:
+            case TSDB_DATA_TYPE_SMALLINT:
                 sp = (short *) &dataOutput[valid];
                 valid += 2;
                 *sp = (short) amps[index];
                 break;
-            case 4:
-                fp = (float *) &dataOutput[valid];
+            case TSDB_DATA_TYPE_INT:
+                ip = (int *) &dataOutput[valid];
                 valid += 4;
-                *fp = (float) amps[index];
+                *ip = (int) amps[index];
                 break;
+            case TSDB_DATA_TYPE_TIMESTAMP:
+                llp = (long long *) &dataOutput[valid];
+                valid += 8;
+                *llp = (long long) ts[index];
+                break;
+            default:
+                return;
             }
         }
 
@@ -133,7 +150,6 @@ callback_udf_func(char *data, char type, int numOfRows, long long *ts, char *dat
             llp[valid++] = ts[index];
         }
 
-
 #if 0
         ms_nstime2timestrz(ts[index], timestr, ISOMONTHDAY, MICRO);
         fprintf(stderr, "%s %f\n", timestr, (float) amps[index]);
@@ -141,11 +157,11 @@ callback_udf_func(char *data, char type, int numOfRows, long long *ts, char *dat
     }
 
     /* applications always pass in buf */
-    //if (buf) {
-    //    buf->ptr = (char *) mem;
-    //} else {
+    if (buf) {
+        buf->ptr = (char *) mem;
+    } else {
         free_FilterPicker5_Memory(&mem);
-    //}
+    }
 
     if (numOfOutput) {
         *numOfOutput = num_picks;
@@ -156,4 +172,32 @@ callback_udf_func(char *data, char type, int numOfRows, long long *ts, char *dat
     if (pick_list) {
         free(pick_list);
     }
+}
+
+
+int
+callback_udf_func_init(SUdfInit *buf)
+{
+    if (buf == NULL) {
+        return 0;
+    }
+
+    buf->ptr = NULL;
+
+    return 0;
+}
+
+
+void
+callback_udf_func_destroy(SUdfInit *buf)
+{
+    FilterPicker5_Memory *mem;
+
+    if (buf == NULL) {
+        return;
+    }
+
+    mem = (FilterPicker5_Memory *) buf->ptr;
+    free_FilterPicker5_Memory(&mem);
+    buf->ptr = NULL;
 }
