@@ -2580,7 +2580,7 @@ int32_t tscGetTableMetaImpl(SSqlObj* pSql, STableMetaInfo *pTableMetaInfo, bool 
 
   uint32_t size = tscGetTableMetaMaxSize();
   if (pTableMetaInfo->pTableMeta == NULL) {
-    pTableMetaInfo->pTableMeta    = calloc(1, size);
+    pTableMetaInfo->pTableMeta    = malloc(size);
     pTableMetaInfo->tableMetaSize = size;
   } else if (pTableMetaInfo->tableMetaSize < size) {
     char *tmp = realloc(pTableMetaInfo->pTableMeta, size);

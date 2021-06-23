@@ -3502,6 +3502,8 @@ enum {
   TSQL_EXPR_TBNAME = 8,
 };
 
+#define GET_MIXED_TYPE(t) ((t) > TSQL_EXPR_COLUMN || (t) == (TSQL_EXPR_TS|TSQL_EXPR_TAG))
+
 static int32_t checkColumnFilterInfo(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SColumnIndex* pIndex, tSqlExpr* pExpr, int32_t sqlOptr) {
   STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, pIndex->tableIndex);
 
@@ -4103,10 +4105,9 @@ static int32_t validateLikeExpr(tSqlExpr* pExpr, STableMeta* pTableMeta, int32_t
 }
 
 static int32_t handleExprInQueryCond(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSqlExpr** pExpr, SCondExpr* pCondExpr,
-                                     int32_t* type, int32_t parentOptr, tSqlExpr** columnExpr) {
+                                     int32_t* type, int32_t parentOptr, tSqlExpr** columnExpr, tSqlExpr** tsExpr) {
   const char* msg1 = "table query cannot use tags filter";
   const char* msg2 = "illegal column name";
-  const char* msg3 = "only one query time range allowed";
   const char* msg4 = "too many join tables";
   const char* msg5 = "not support ordinary column join";
   const char* msg6 = "only one query condition on tbname allowed";
@@ -4196,11 +4197,11 @@ static int32_t handleExprInQueryCond(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSql
        */
       tSqlExprDestroy(*pExpr);
     } else {
-      ret = setExprToCond(&pCondExpr->pTimewindow, *pExpr, msg3, parentOptr, pQueryInfo->msg);
+      ret = setNormalExprToCond(tsExpr, *pExpr, parentOptr);
     }
 
     *pExpr = NULL;  // remove this expression
-    *type |= TSQL_EXPR_TAG;
+    *type |= TSQL_EXPR_TS;
   } else if (index.columnIndex >= tscGetNumOfColumns(pTableMeta) || index.columnIndex == TSDB_TBNAME_COLUMN_INDEX) {
     // query on tags, check for tag query condition
     if (UTIL_TABLE_IS_NORMAL_TABLE(pTableMetaInfo)) {
@@ -4260,16 +4261,19 @@ static int32_t handleExprInQueryCond(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSql
 }
 
 int32_t getQueryCondExpr(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSqlExpr** pExpr, SCondExpr* pCondExpr,
-                        int32_t* type, int32_t parentOptr, tSqlExpr** columnExpr) {
+                        int32_t* type, int32_t parentOptr, tSqlExpr** columnExpr, tSqlExpr** tsExpr) {
   if (pExpr == NULL) {
     return TSDB_CODE_SUCCESS;
   }
 
   tSqlExpr *columnLeft = NULL;
   tSqlExpr *columnRight = NULL;
+  tSqlExpr *tsLeft = NULL;
+  tSqlExpr *tsRight = NULL;
+
   int32_t ret = 0;
 
-  const char* msg1 = "query condition between columns and tags/timestamp must use 'AND'";
+  const char* msg1 = "query condition between columns and tags and timestamp must use 'AND'";
 
   if ((*pExpr)->flags & (1 << EXPR_FLAG_TS_ERROR)) {
     return TSDB_CODE_TSC_INVALID_OPERATION;
@@ -4286,12 +4290,12 @@ int32_t getQueryCondExpr(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSqlExpr** pExpr
   int32_t rightType = 0;
 
   if (!tSqlExprIsParentOfLeaf(*pExpr)) {
-    ret = getQueryCondExpr(pCmd, pQueryInfo, &(*pExpr)->pLeft, pCondExpr, &leftType, (*pExpr)->tokenId, &columnLeft);
+    ret = getQueryCondExpr(pCmd, pQueryInfo, &(*pExpr)->pLeft, pCondExpr, &leftType, (*pExpr)->tokenId, &columnLeft, &tsLeft);
     if (ret != TSDB_CODE_SUCCESS) {
       goto err_ret;
     }
 
-    ret = getQueryCondExpr(pCmd, pQueryInfo, &(*pExpr)->pRight, pCondExpr, &rightType, (*pExpr)->tokenId, &columnRight);
+    ret = getQueryCondExpr(pCmd, pQueryInfo, &(*pExpr)->pRight, pCondExpr, &rightType, (*pExpr)->tokenId, &columnRight, &tsRight);
     if (ret != TSDB_CODE_SUCCESS) {
       goto err_ret;
     }
@@ -4300,7 +4304,7 @@ int32_t getQueryCondExpr(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSqlExpr** pExpr
      *  if left child and right child do not belong to the same group, the sub
      *  expression is not valid for parent node, it must be TK_AND operator.
      */
-    if (((leftType != rightType) || (leftType == (TSQL_EXPR_COLUMN|TSQL_EXPR_TAG ))) && (*pExpr)->tokenId == TK_OR) {
+    if (((leftType != rightType) || GET_MIXED_TYPE(leftType)) && ((*pExpr)->tokenId == TK_OR)) {
       ret = invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg1);
       goto err_ret;
     }
@@ -4311,6 +4315,14 @@ int32_t getQueryCondExpr(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSqlExpr** pExpr
       *columnExpr = columnLeft;
     } else {
       *columnExpr = columnLeft ? columnLeft : columnRight;
+    }
+
+    if (tsLeft && tsRight) {
+      setNormalExprToCond(&tsLeft, tsRight, (*pExpr)->tokenId);
+      
+      *tsExpr = tsLeft;
+    } else {
+      *tsExpr = tsLeft ? tsLeft : tsRight;
     }
 
     *type = leftType|rightType;
@@ -4330,7 +4342,7 @@ int32_t getQueryCondExpr(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSqlExpr** pExpr
     goto err_ret;
   }
 
-  ret = handleExprInQueryCond(pCmd, pQueryInfo, pExpr, pCondExpr, type, parentOptr, columnExpr);
+  ret = handleExprInQueryCond(pCmd, pQueryInfo, pExpr, pCondExpr, type, parentOptr, columnExpr, tsExpr);
   if (ret) {
     goto err_ret;
   }
@@ -4466,11 +4478,59 @@ static int32_t setTableCondForSTableQuery(SSqlCmd* pCmd, SQueryInfo* pQueryInfo,
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t mergeTimeRange(SSqlCmd* pCmd, STimeWindow* res, STimeWindow* win, int32_t optr) {
+  const char* msg0 = "only one time stamp window allowed";
 
-static int32_t getTimeRangeFromExpr(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSqlExpr* pExpr) {
+#define SET_EMPTY_RANGE(w) do { (w)->skey = INT64_MAX; (w)->ekey = INT64_MIN; } while (0)
+#define IS_EMPTY_RANGE(w) ((w)->skey == INT64_MAX && (w)->ekey == INT64_MIN)
+  
+  if (optr == TSDB_RELATION_AND) {
+    if (res->skey > win->ekey || win->skey > res->ekey) {
+      SET_EMPTY_RANGE(res);
+      return TSDB_CODE_SUCCESS;
+    }
+    
+    if (res->skey < win->skey) {
+      res->skey = win->skey;
+    }
+    
+    if (res->ekey > win->ekey) {
+      res->ekey = win->ekey;
+    }
+
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (res->skey > win->ekey || win->skey > res->ekey) {
+    if (IS_EMPTY_RANGE(res)) {
+      res->skey = win->skey;
+      res->ekey = win->ekey;
+      return TSDB_CODE_SUCCESS;
+    }
+
+    if (IS_EMPTY_RANGE(win)) {
+      return TSDB_CODE_SUCCESS;
+    }
+
+    return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg0);
+  }
+
+  if (res->skey > win->skey) {
+    res->skey = win->skey;
+  }
+  
+  if (res->ekey < win->ekey) {
+    res->ekey = win->ekey;
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+
+static int32_t getTimeRangeFromExpr(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSqlExpr* pExpr, STimeWindow* win) {
   const char* msg0 = "invalid timestamp or operator for timestamp";
-  const char* msg1 = "only one time stamp window allowed";
   int32_t code = 0;
+  STimeWindow win2 = {.skey = INT64_MIN, .ekey = INT64_MAX};
 
   if (pExpr == NULL) {
     return TSDB_CODE_SUCCESS;
@@ -4478,15 +4538,25 @@ static int32_t getTimeRangeFromExpr(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSqlE
 
   if (!tSqlExprIsParentOfLeaf(pExpr)) {
     if (pExpr->tokenId == TK_OR) {
-      return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg1);
+      code = getTimeRangeFromExpr(pCmd, pQueryInfo, pExpr->pLeft, win);
+      if (code) {
+        return code;
+      }
+
+      code = getTimeRangeFromExpr(pCmd, pQueryInfo, pExpr->pRight, &win2);
+      if (code) {
+        return code;
+      }
+
+      return mergeTimeRange(pCmd, win, &win2, TSDB_RELATION_OR);
     }
 
-    code = getTimeRangeFromExpr(pCmd, pQueryInfo, pExpr->pLeft);
+    code = getTimeRangeFromExpr(pCmd, pQueryInfo, pExpr->pLeft, win);
     if (code) {
       return code;
     }
 
-    return getTimeRangeFromExpr(pCmd, pQueryInfo, pExpr->pRight);
+    return getTimeRangeFromExpr(pCmd, pQueryInfo, pExpr->pRight, win);
   } else {
     SColumnIndex index = COLUMN_INDEX_INITIALIZER;
     if (getColumnIndexByName(pCmd, &pExpr->pLeft->colInfo, pQueryInfo, &index) != TSDB_CODE_SUCCESS) {
@@ -4498,19 +4568,11 @@ static int32_t getTimeRangeFromExpr(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSqlE
     
     tSqlExpr* pRight = pExpr->pRight;
 
-    STimeWindow win = {.skey = INT64_MIN, .ekey = INT64_MAX};
-    if (getTimeRange(&win, pRight, pExpr->tokenId, tinfo.precision) != TSDB_CODE_SUCCESS) {
+    if (getTimeRange(&win2, pRight, pExpr->tokenId, tinfo.precision) != TSDB_CODE_SUCCESS) {
       return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg0);
     }
 
-    // update the timestamp query range
-    if (pQueryInfo->window.skey < win.skey) {
-      pQueryInfo->window.skey = win.skey;
-    }
-
-    if (pQueryInfo->window.ekey > win.ekey) {
-      pQueryInfo->window.ekey = win.ekey;
-    }
+    return mergeTimeRange(pCmd, win, &win2, TSDB_RELATION_AND);
   }
 
   return TSDB_CODE_SUCCESS;
@@ -4859,12 +4921,11 @@ int32_t validateWhereNode(SQueryInfo* pQueryInfo, tSqlExpr** pExpr, SSqlObj* pSq
   }
 
   int32_t type = 0;
-  if ((ret = getQueryCondExpr(&pSql->cmd, pQueryInfo, pExpr, &condExpr, &type, (*pExpr)->tokenId, &condExpr.pColumnCond)) != TSDB_CODE_SUCCESS) {
+  if ((ret = getQueryCondExpr(&pSql->cmd, pQueryInfo, pExpr, &condExpr, &type, (*pExpr)->tokenId, &condExpr.pColumnCond, &condExpr.pTimewindow)) != TSDB_CODE_SUCCESS) {
     return ret;
   }
 
   tSqlExprCompact(pExpr);
-  tSqlExprCompact(&condExpr.pColumnCond);
 
   // after expression compact, the expression tree is only include tag query condition
   condExpr.pTagCond = (*pExpr);
@@ -4875,7 +4936,12 @@ int32_t validateWhereNode(SQueryInfo* pQueryInfo, tSqlExpr** pExpr, SSqlObj* pSq
   }
 
   // 2. get the query time range
-  if ((ret = getTimeRangeFromExpr(&pSql->cmd, pQueryInfo, condExpr.pTimewindow)) != TSDB_CODE_SUCCESS) {
+  STimeWindow win = {.skey = INT64_MIN, .ekey = INT64_MAX};  
+  if ((ret = getTimeRangeFromExpr(&pSql->cmd, pQueryInfo, condExpr.pTimewindow, &win)) != TSDB_CODE_SUCCESS) {
+    return ret;
+  }
+
+  if ((ret = mergeTimeRange(&pSql->cmd, &pQueryInfo->window,&win, TSDB_RELATION_AND)) != TSDB_CODE_SUCCESS) {
     return ret;
   }
 
