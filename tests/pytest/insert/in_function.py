@@ -621,65 +621,65 @@ class TDTestCase:
         tdLog.info(cmd1)
         tdSql.execute(cmd1)         
         
-        #cmd2 = 'select * from in_stable_4 where in_float in (\'888\');'
-        #tdLog.info(cmd2)
-        #tdSql.error(cmd2)
-        #try:
-        #    tdSql.execute(cmd2)
-        #    tdLog.exit("invalid operation: not supported filter condition")
-        #except Exception as e:
-        #    tdLog.info(repr(e))
-        #    tdLog.info("invalid operation: not supported filter condition") 
+        cmd2 = 'select * from in_stable_4 where in_float in (\'888\');'
+        tdLog.info(cmd2)
+        tdSql.error(cmd2)
+        try:
+            tdSql.execute(cmd2)
+            tdLog.exit("invalid operation: not supported filter condition")
+        except Exception as e:
+            tdLog.info(repr(e))
+            tdLog.info("invalid operation: not supported filter condition") 
         
-        #cmd3 = 'select * from in_stable_4 where in_double in (\'66666\');'
-        #tdLog.info(cmd3)
-        #tdSql.error(cmd3)
-        #try:
-        #    tdSql.execute(cmd3)
-        #    tdLog.exit("invalid operation: not supported filter condition")
-        #except Exception as e:
-        #    tdLog.info(repr(e))
-        #    tdLog.info("invalid operation: not supported filter condition") 
+        cmd3 = 'select * from in_stable_4 where in_double in (\'66666\');'
+        tdLog.info(cmd3)
+        tdSql.error(cmd3)
+        try:
+            tdSql.execute(cmd3)
+            tdLog.exit("invalid operation: not supported filter condition")
+        except Exception as e:
+            tdLog.info(repr(e))
+            tdLog.info("invalid operation: not supported filter condition") 
 
-        #cmd4 = 'select * from in_stable_4 where tin_float in (\'666\');'
-        #tdLog.info(cmd4)
-        #tdSql.error(cmd4)
-        #try:
-        #    tdSql.execute(cmd4)
-        #    tdLog.exit("invalid operation: not supported filter condition")
-        #except Exception as e:
-        #    tdLog.info(repr(e))
-        #    tdLog.info("invalid operation: not supported filter condition") 
+        cmd4 = 'select * from in_stable_4 where tin_float in (\'666\');'
+        tdLog.info(cmd4)
+        tdSql.error(cmd4)
+        try:
+            tdSql.execute(cmd4)
+            tdLog.exit("invalid operation: not supported filter condition")
+        except Exception as e:
+            tdLog.info(repr(e))
+            tdLog.info("invalid operation: not supported filter condition") 
         
-        #cmd5 = 'select * from in_stable_4 where tin_double in (\'88888\');'
-        #tdLog.info(cmd5)
-        #tdSql.error(cmd5)
-        #try:
-        #    tdSql.execute(cmd5)
-        #    tdLog.exit("invalid operation: not supported filter condition")
-        #except Exception as e:
-        #    tdLog.info(repr(e))
-        #    tdLog.info("invalid operation: not supported filter condition") 
+        cmd5 = 'select * from in_stable_4 where tin_double in (\'88888\');'
+        tdLog.info(cmd5)
+        tdSql.error(cmd5)
+        try:
+            tdSql.execute(cmd5)
+            tdLog.exit("invalid operation: not supported filter condition")
+        except Exception as e:
+            tdLog.info(repr(e))
+            tdLog.info("invalid operation: not supported filter condition") 
 
-        #cmd6 = 'select * from in_float_double_1 where in_float in (\'888\');'
-        #tdLog.info(cmd6)
-        #tdSql.error(cmd6)
-        #try:
-        #    tdSql.execute(cmd6)
-        #    tdLog.exit("invalid operation: not supported filter condition")
-        #except Exception as e:
-        #    tdLog.info(repr(e))
-        #    tdLog.info("invalid operation: not supported filter condition") 
-        #
-        #cmd7 = 'select * from in_float_double_1 where in_double in (\'66666\');'
-        #tdLog.info(cmd7)
-        #tdSql.error(cmd7)
-        #try:
-        #    tdSql.execute(cmd7)
-        #    tdLog.exit("invalid operation: not supported filter condition")
-        #except Exception as e:
-        #    tdLog.info(repr(e))
-        #    tdLog.info("invalid operation: not supported filter condition") 
+        cmd6 = 'select * from in_float_double_1 where in_float in (\'888\');'
+        tdLog.info(cmd6)
+        tdSql.error(cmd6)
+        try:
+            tdSql.execute(cmd6)
+            tdLog.exit("invalid operation: not supported filter condition")
+        except Exception as e:
+            tdLog.info(repr(e))
+            tdLog.info("invalid operation: not supported filter condition") 
+        
+        cmd7 = 'select * from in_float_double_1 where in_double in (\'66666\');'
+        tdLog.info(cmd7)
+        tdSql.error(cmd7)
+        try:
+            tdSql.execute(cmd7)
+            tdLog.exit("invalid operation: not supported filter condition")
+        except Exception as e:
+            tdLog.info(repr(e))
+            tdLog.info("invalid operation: not supported filter condition") 
 
               
 

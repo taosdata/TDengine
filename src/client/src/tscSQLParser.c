@@ -176,18 +176,32 @@ bool serializeExprListToVariant(SArray* pList, tVariant **dst, int16_t colType, 
       break;
     }  
     if ((colType == TSDB_DATA_TYPE_BOOL || IS_SIGNED_NUMERIC_TYPE(colType))) {
+      if (var->nType != TSDB_DATA_TYPE_BOOL && !IS_SIGNED_NUMERIC_TYPE(var->nType)) {
+        break;
+      }  
       tbufWriteInt64(&bw, var->i64);        
     } else if (IS_UNSIGNED_NUMERIC_TYPE(colType)) {
+      if (IS_SIGNED_NUMERIC_TYPE(var->nType) && IS_UNSIGNED_NUMERIC_TYPE(var->nType)) {
+        break;
+      } 
       tbufWriteUint64(&bw, var->u64);        
     } else if (colType == TSDB_DATA_TYPE_DOUBLE || colType == TSDB_DATA_TYPE_FLOAT) {
       if (IS_SIGNED_NUMERIC_TYPE(var->nType) || IS_UNSIGNED_NUMERIC_TYPE(var->nType)) {
         tbufWriteDouble(&bw, (double)(var->i64));
-      } else {
+      } else if (var->nType == TSDB_DATA_TYPE_DOUBLE || var->nType == TSDB_DATA_TYPE_FLOAT){
         tbufWriteDouble(&bw, var->dKey);
+      } else {
+        break;
       }
     } else if (colType == TSDB_DATA_TYPE_BINARY) {
+      if (var->nType != TSDB_DATA_TYPE_BINARY) {
+        break;
+      }
       tbufWriteBinary(&bw, var->pz, var->nLen);
     } else if (colType == TSDB_DATA_TYPE_NCHAR) {
+      if (var->nType != TSDB_DATA_TYPE_BINARY) {
+        break;
+      }
       char   *buf = (char *)calloc(1, (var->nLen + 1)*TSDB_NCHAR_SIZE);
       if (tVariantDump(var, buf, colType, false) != TSDB_CODE_SUCCESS) {
         free(buf);
@@ -203,6 +217,8 @@ bool serializeExprListToVariant(SArray* pList, tVariant **dst, int16_t colType, 
          tbufWriteInt64(&bw, var->i64);        
        } else if (var->nType == TSDB_DATA_TYPE_BIGINT) {
          tbufWriteInt64(&bw, var->i64);        
+       } else {
+         break;
        }      
     } else {
       break; 
