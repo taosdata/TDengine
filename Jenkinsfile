@@ -92,15 +92,43 @@ def pre_test(){
     cd debug
     cmake .. > /dev/null
     make > /dev/null
-    '''
-    return 1
-}
-def install(){
-    sh'''
     cd ${WK}/debug
     make install > /dev/null
     cd ${WKC}/tests
     pip3 install ${WKC}/src/connector/python
+    '''
+    return 1
+}
+def build_community(){
+  sh'''
+    cd ${WKC}
+    git reset --hard HEAD~10 >/dev/null
+    '''
+    script {
+      if (env.CHANGE_TARGET == 'master') {
+        sh '''
+        cd ${WKC}
+        git checkout master
+        '''
+        }
+      else {
+        sh '''
+        cd ${WKC}
+        git checkout develop
+        '''
+      } 
+    }
+    sh'''
+    cd ${WKC}
+    git pull >/dev/null
+    git fetch origin +refs/pull/${CHANGE_ID}/merge
+    git checkout -qf FETCH_HEAD
+    git clean -dfx
+    date
+    mkdir debug
+    cd debug
+    cmake .. > /dev/null
+    make > /dev/null
     '''
 }
 
@@ -113,65 +141,66 @@ pipeline {
   }
   
   stages {
-      stage('pre_build'){
-        parallel {
-          stage('pre_build'){
-            agent{label 'master'}
-            when {
-                changeRequest()
-            }
-            steps {
-              script{
-                abort_previous()
-                abortPreviousBuilds()
-              }
-            sh'''
-            cp -r ${WORKSPACE} ${WORKSPACE}.tes
-            cd ${WORKSPACE}.tes
-            git checkout develop
-            git pull
-            git fetch origin +refs/pull/${CHANGE_ID}/merge
-            git checkout -qf FETCH_HEAD
-            '''     
-            
-            script{
-              env.skipstage=sh(script:"cd ${WORKSPACE}.tes && git --no-pager diff --name-only FETCH_HEAD develop|grep -v -E '.*md|//src//connector|Jenkinsfile|test-all.sh' || echo 0 ",returnStdout:true) 
-            }
-            println env.skipstage
-            sh'''
-            rm -rf ${WORKSPACE}.tes
-            '''
-            }
+    stage('pre_build'){
+        agent{label 'master'}
+        when {
+            changeRequest()
+        }
+        steps {
+          script{
+            abort_previous()
+            abortPreviousBuilds()
           }
+        sh'''
+        cp -r ${WORKSPACE} ${WORKSPACE}.tes
+        cd ${WORKSPACE}.tes
+        git checkout develop
+        git pull
+        git fetch origin +refs/pull/${CHANGE_ID}/merge
+        git checkout -qf FETCH_HEAD
+        '''     
+        
+        script{
+          env.skipstage=sh(script:"cd ${WORKSPACE}.tes && git --no-pager diff --name-only FETCH_HEAD develop|grep -v -E '.*md|//src//connector|Jenkinsfile|test-all.sh' || echo 0 ",returnStdout:true) 
+        }
+        println env.skipstage
+        sh'''
+        rm -rf ${WORKSPACE}.tes
+        '''
+        }
+      }
+      stage('build'){
+        parallel {
+          
           stage('build_on_xenial') {
             agent{label 'xenial'}
               steps {         
-                pre_test()
+                build_community()
               }
           }  
           stage('build_on_bionic') {
             agent{label 'bionic'}
               steps {         
-                pre_test()
+                build_community()
               }
           } 
           stage('build_on_trusty') {
             agent{label 'trusty'}
               steps {         
-                pre_test()
+                build_community()
               }
           } 
-          stage('build_on_centos7') {
+          stage('build_on_cenots7') {
             agent{label 'centos7'}
               steps {         
-                pre_test()
+                build_community()
               }
           }  
           
         }
       }
     
-      stage('Parallel test stage') {
+      stage('test') {
         //only build pr
         when {
               changeRequest()
@@ -185,7 +214,6 @@ pipeline {
           steps {
             
             pre_test()
-            install()
             timeout(time: 45, unit: 'MINUTES'){
               sh '''
               date
@@ -201,7 +229,6 @@ pipeline {
           steps {
             
             pre_test()
-            install()
             timeout(time: 45, unit: 'MINUTES'){
                 sh '''
                 date
@@ -214,8 +241,7 @@ pipeline {
         stage('python_3_s6') {
           agent{label 'p3'}
           steps { 
-            pre_test()
-            install()    
+            pre_test()    
             timeout(time: 45, unit: 'MINUTES'){       
               
               sh '''
@@ -229,8 +255,7 @@ pipeline {
         stage('test_b1_s2') {
           agent{label 'b1'}
           steps {  
-            pre_test()
-            install()   
+            pre_test()   
             timeout(time: 45, unit: 'MINUTES'){       
               
               sh '''
@@ -309,7 +334,6 @@ pipeline {
           agent{label 'b4'}
           steps {     
             pre_test()
-            install()
             timeout(time: 45, unit: 'MINUTES'){       
               sh '''
               date
@@ -328,8 +352,7 @@ pipeline {
         stage('test_b5_s8') {
           agent{label 'b5'}
           steps {   
-            pre_test()
-            install()  
+            pre_test()  
             timeout(time: 45, unit: 'MINUTES'){       
               sh '''
               date
@@ -342,8 +365,7 @@ pipeline {
         stage('test_b6_s9') {
           agent{label 'b6'}
           steps {  
-            pre_test()
-            install()   
+            pre_test()   
             timeout(time: 45, unit: 'MINUTES'){       
               sh '''
               date
@@ -356,8 +378,7 @@ pipeline {
         stage('test_b7_s10') {
           agent{label 'b7'}
           steps {    
-            pre_test()
-            install() 
+            pre_test() 
             timeout(time: 45, unit: 'MINUTES'){       
               sh '''
               date
@@ -370,13 +391,13 @@ pipeline {
         stage('test_on_arm') {
           agent{label 'arm32'}
           steps {
-            pre_test()            
+            build_community()            
           }
         }
         stage('test_on_arm64') {
           agent{label 'arm64'}
           steps {         
-            pre_test()
+            build_community()
           }
         }         
     }
