@@ -320,7 +320,19 @@ pipeline {
               date'''              
             }
           }
-        }        
+        }
+        stage('test_on_arm') {
+          agent{label 'arm32'}
+          steps {
+            pre_test()            
+          }
+        }
+        stage('test_on_arm64') {
+          agent{label 'arm64'}
+          steps {         
+            pre_test()
+          }
+        }         
     }
   }
   }
