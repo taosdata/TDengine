@@ -17,6 +17,5 @@ typedef struct SUdfInit{
     int       const_item; /* 0 if result is independent of arguments */
 } SUdfInit;
 
-int callback_udf_func_init(SUdfInit *buf);
-void callback_udf_func_destroy(SUdfInit *buf);
-void callback_udf_func(char *data, short itype, short ibytes, int numOfRows, long long *ts, char *dataOutput, char *tsOutput, int *numOfOutput, short otype, short obytes, SUdfInit *buf);
+
+void callback_udf_func(char *data, char type, int numOfRows, long long *ts, char *dataOutput, char *tsOutput, int *numOfOutput, SUdfInit *buf);
