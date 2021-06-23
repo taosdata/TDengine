@@ -277,7 +277,6 @@ pipeline {
           
           steps {
             pre_test()
-              install()
             catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
                 sh '''
                 cd ${WKC}/tests/pytest
@@ -314,7 +313,6 @@ pipeline {
 
           steps {
             pre_test()
-              install()
             catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
                 sh '''
                 cd ${WKC}/tests/pytest
