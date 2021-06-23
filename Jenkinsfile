@@ -170,6 +170,12 @@ pipeline {
         }
       }
       stage('build'){
+        when {
+              changeRequest()
+               expression {
+                    env.skipstage != 0
+              }
+        }
         parallel {
           
           stage('build_on_xenial') {
