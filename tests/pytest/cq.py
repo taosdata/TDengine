@@ -16,7 +16,7 @@ import sys
 import json
 import time
 import random
-# query sql
+# query sql list
 query_sql = [
 # first supertable
 "select count(*) from test.meters ;",
