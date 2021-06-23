@@ -547,6 +547,7 @@ void convertFilterSetFromBinary(void **q, const char *buf, int32_t len, uint32_t
       pvar = &val;
       break;
     }
+    case TSDB_DATA_TYPE_TIMESTAMP:
     case TSDB_DATA_TYPE_UBIGINT:
     case TSDB_DATA_TYPE_BIGINT: {
       uint64_t val = (uint64_t)tbufReadInt64(&br); 
@@ -621,6 +622,7 @@ void convertFilterSetFromBinary(void **q, const char *buf, int32_t len, uint32_t
         t = sizeof(val);
         break;
       }
+      case TSDB_DATA_TYPE_TIMESTAMP:
       case TSDB_DATA_TYPE_UBIGINT:
       case TSDB_DATA_TYPE_BIGINT: {
         int64_t val = 0; 

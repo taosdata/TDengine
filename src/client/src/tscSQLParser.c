@@ -8222,8 +8222,9 @@ int32_t exprTreeFromSqlExpr(SSqlCmd* pCmd, tExprNode **pExpr, const tSqlExpr* pS
     } else if (pSqlExpr->tokenId == TK_SET) {
       int32_t colType = -1;
       STableMeta* pTableMeta = tscGetMetaInfo(pQueryInfo, 0)->pTableMeta;
-      if (pCols != NULL && taosArrayGetSize(pCols) > 0) {
-        SColIndex* idx = taosArrayGet(pCols, 0);
+      size_t colSize = taosArrayGetSize(pCols);
+      if (pCols != NULL && colSize > 0) {
+        SColIndex* idx = taosArrayGet(pCols, colSize - 1);
         SSchema* pSchema = tscGetTableColumnSchema(pTableMeta, idx->colIndex);
         if (pSchema != NULL) {
           colType = pSchema->type;
@@ -8295,4 +8296,6 @@ bool hasNormalColumnFilter(SQueryInfo* pQueryInfo) {
 
   return false;
 }
-                                          
+
+
+

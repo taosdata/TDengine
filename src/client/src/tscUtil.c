@@ -2703,6 +2703,54 @@ int32_t tscTagCondCopy(STagCond* dest, const STagCond* src) {
   return 0;
 }
 
+int32_t tscColCondCopy(SArray** dest, const SArray* src) {
+  if (src == NULL) {
+    return 0;
+  }
+  
+  size_t s = taosArrayGetSize(src);
+  *dest = taosArrayInit(s, sizeof(SCond));
+  
+  for (int32_t i = 0; i < s; ++i) {
+    SCond* pCond = taosArrayGet(src, i);
+    
+    SCond c = {0};
+    c.len = pCond->len;
+    c.uid = pCond->uid;
+    
+    if (pCond->len > 0) {
+      assert(pCond->cond != NULL);
+      c.cond = malloc(c.len);
+      if (c.cond == NULL) {
+        return -1;
+      }
+
+      memcpy(c.cond, pCond->cond, c.len);
+    }
+    
+    taosArrayPush(*dest, &c);
+  }
+
+  return 0;
+}
+
+void tscColCondRelease(SArray** pCond) {
+  if (*pCond == NULL) {
+    return;
+  }
+  
+  size_t s = taosArrayGetSize(*pCond);
+  for (int32_t i = 0; i < s; ++i) {
+    SCond* p = taosArrayGet(*pCond, i);
+    tfree(p->cond);
+  }
+
+  taosArrayDestroy(*pCond);
+
+  *pCond = NULL;
+}
+
+
 void tscTagCondRelease(STagCond* pTagCond) {
   free(pTagCond->tbnameCond.cond);
   
@@ -2894,6 +2942,7 @@ int32_t tscAddQueryInfo(SSqlCmd* pCmd) {
 
 static void freeQueryInfoImpl(SQueryInfo* pQueryInfo) {
   tscTagCondRelease(&pQueryInfo->tagCond);
+  tscColCondRelease(&pQueryInfo->colCond);
   tscFieldInfoClear(&pQueryInfo->fieldsInfo);
 
   tscExprDestroy(pQueryInfo->exprList);
@@ -2974,6 +3023,11 @@ int32_t tscQueryInfoCopy(SQueryInfo* pQueryInfo, const SQueryInfo* pSrc) {
   }
 
   if (tscTagCondCopy(&pQueryInfo->tagCond, &pSrc->tagCond) != 0) {
+    code = TSDB_CODE_TSC_OUT_OF_MEMORY;
+    goto _error;
+  }
+
+  if (tscColCondCopy(&pQueryInfo->colCond, pSrc->colCond) != 0) {
     code = TSDB_CODE_TSC_OUT_OF_MEMORY;
     goto _error;
   }
@@ -3338,6 +3392,11 @@ SSqlObj* createSubqueryObj(SSqlObj* pSql, int16_t tableIndex, __async_cb_func_t 
   }
   
   if (tscTagCondCopy(&pNewQueryInfo->tagCond, &pQueryInfo->tagCond) != 0) {
+    terrno = TSDB_CODE_TSC_OUT_OF_MEMORY;
+    goto _error;
+  }
+
+  if (tscColCondCopy(&pNewQueryInfo->colCond, pQueryInfo->colCond) != 0) {
     terrno = TSDB_CODE_TSC_OUT_OF_MEMORY;
     goto _error;
   }
