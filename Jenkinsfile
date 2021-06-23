@@ -92,11 +92,44 @@ def pre_test(){
     cd debug
     cmake .. > /dev/null
     make > /dev/null
+    cd ${WK}/debug
     make install > /dev/null
     cd ${WKC}/tests
-    pip3 install ${WKC}/src/connector/python/
+    pip3 install ${WKC}/src/connector/python
     '''
     return 1
+}
+def build_community(){
+  sh'''
+    cd ${WKC}
+    git reset --hard HEAD~10 >/dev/null
+    '''
+    script {
+      if (env.CHANGE_TARGET == 'master') {
+        sh '''
+        cd ${WKC}
+        git checkout master
+        '''
+        }
+      else {
+        sh '''
+        cd ${WKC}
+        git checkout develop
+        '''
+      } 
+    }
+    sh'''
+    cd ${WKC}
+    git pull >/dev/null
+    git fetch origin +refs/pull/${CHANGE_ID}/merge
+    git checkout -qf FETCH_HEAD
+    git clean -dfx
+    date
+    mkdir debug
+    cd debug
+    cmake .. > /dev/null
+    make > /dev/null
+    '''
 }
 
 pipeline {
@@ -108,36 +141,66 @@ pipeline {
   }
   
   stages {
-      stage('pre_build'){
-          agent{label 'master'}
-          when {
-              changeRequest()
-          }
-          steps {
-            script{
-              abort_previous()
-              abortPreviousBuilds()
-            }
-          sh'''
-          cp -r ${WORKSPACE} ${WORKSPACE}.tes
-          cd ${WORKSPACE}.tes
-          git checkout develop
-          git pull
-          git fetch origin +refs/pull/${CHANGE_ID}/merge
-          git checkout -qf FETCH_HEAD
-          '''     
-          
+    stage('pre_build'){
+        agent{label 'master'}
+        when {
+            changeRequest()
+        }
+        steps {
           script{
-            env.skipstage=sh(script:"cd ${WORKSPACE}.tes && git --no-pager diff --name-only FETCH_HEAD develop|grep -v -E '.*md|//src//connector|Jenkinsfile|test-all.sh' || echo 0 ",returnStdout:true) 
+            abort_previous()
+            abortPreviousBuilds()
           }
-          println env.skipstage
-          sh'''
-          rm -rf ${WORKSPACE}.tes
-          '''
-          }
+        sh'''
+        cp -r ${WORKSPACE} ${WORKSPACE}.tes
+        cd ${WORKSPACE}.tes
+        git checkout develop
+        git pull
+        git fetch origin +refs/pull/${CHANGE_ID}/merge
+        git checkout -qf FETCH_HEAD
+        '''     
+        
+        script{
+          env.skipstage=sh(script:"cd ${WORKSPACE}.tes && git --no-pager diff --name-only FETCH_HEAD develop|grep -v -E '.*md|//src//connector|Jenkinsfile|test-all.sh' || echo 0 ",returnStdout:true) 
+        }
+        println env.skipstage
+        sh'''
+        rm -rf ${WORKSPACE}.tes
+        '''
+        }
+      }
+      stage('build'){
+        parallel {
+          
+          stage('build_on_xenial') {
+            agent{label 'xenial'}
+              steps {         
+                build_community()
+              }
+          }  
+          stage('build_on_bionic') {
+            agent{label 'bionic'}
+              steps {         
+                build_community()
+              }
+          } 
+          stage('build_on_trusty') {
+            agent{label 'trusty'}
+              steps {         
+                build_community()
+              }
+          } 
+          stage('build_on_cenots7') {
+            agent{label 'centos7'}
+              steps {         
+                build_community()
+              }
+          }  
+          
+        }
       }
     
-      stage('Parallel test stage') {
+      stage('test') {
         //only build pr
         when {
               changeRequest()
@@ -177,9 +240,10 @@ pipeline {
         }
         stage('python_3_s6') {
           agent{label 'p3'}
-          steps {     
+          steps { 
+            pre_test()    
             timeout(time: 45, unit: 'MINUTES'){       
-              pre_test()
+              
               sh '''
               date
               cd ${WKC}/tests
@@ -190,9 +254,10 @@ pipeline {
         }
         stage('test_b1_s2') {
           agent{label 'b1'}
-          steps {     
+          steps {  
+            pre_test()   
             timeout(time: 45, unit: 'MINUTES'){       
-              pre_test()
+              
               sh '''
               cd ${WKC}/tests
               ./test-all.sh b1fq
@@ -206,6 +271,7 @@ pipeline {
           
           steps {
             pre_test()
+              install()
             catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
                 sh '''
                 cd ${WKC}/tests/pytest
@@ -242,6 +308,7 @@ pipeline {
 
           steps {
             pre_test()
+              install()
             catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
                 sh '''
                 cd ${WKC}/tests/pytest
@@ -266,8 +333,8 @@ pipeline {
         stage('test_b4_s7') {
           agent{label 'b4'}
           steps {     
+            pre_test()
             timeout(time: 45, unit: 'MINUTES'){       
-              pre_test()
               sh '''
               date
               cd ${WKC}/tests
@@ -284,9 +351,9 @@ pipeline {
         }
         stage('test_b5_s8') {
           agent{label 'b5'}
-          steps {     
+          steps {   
+            pre_test()  
             timeout(time: 45, unit: 'MINUTES'){       
-              pre_test()
               sh '''
               date
               cd ${WKC}/tests
@@ -297,9 +364,9 @@ pipeline {
         }
         stage('test_b6_s9') {
           agent{label 'b6'}
-          steps {     
+          steps {  
+            pre_test()   
             timeout(time: 45, unit: 'MINUTES'){       
-              pre_test()
               sh '''
               date
               cd ${WKC}/tests
@@ -310,9 +377,9 @@ pipeline {
         }
         stage('test_b7_s10') {
           agent{label 'b7'}
-          steps {     
+          steps {    
+            pre_test() 
             timeout(time: 45, unit: 'MINUTES'){       
-              pre_test()
               sh '''
               date
               cd ${WKC}/tests
@@ -320,7 +387,19 @@ pipeline {
               date'''              
             }
           }
-        }        
+        }
+        stage('test_on_arm') {
+          agent{label 'arm32'}
+          steps {
+            build_community()            
+          }
+        }
+        stage('test_on_arm64') {
+          agent{label 'arm64'}
+          steps {         
+            build_community()
+          }
+        }         
     }
   }
   }
