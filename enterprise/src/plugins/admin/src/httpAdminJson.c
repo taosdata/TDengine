@@ -134,7 +134,7 @@ bool adminBuildSqlJson(HttpContext *pContext, HttpSqlCmd *cmd, TAOS_RES *result,
           httpJsonStringForTransMean(jsonBuf, row[i], length[i]);
           break;
         case TSDB_DATA_TYPE_TIMESTAMP:
-          httpJsonTimestamp(jsonBuf, *((int64_t *)row[i]), taos_result_precision(result) == TSDB_TIME_PRECISION_MICRO);
+          httpJsonTimestamp(jsonBuf, *((int64_t *)row[i]), taos_result_precision(result));
           break;
         default:
           break;
@@ -209,7 +209,7 @@ bool adminBuildSqlAllJson(HttpContext *pContext, HttpSqlCmd *cmd, TAOS_RES *resu
           httpJsonStringForTransMean(jsonBuf, row[i], fields[i].bytes);
           break;
         case TSDB_DATA_TYPE_TIMESTAMP:
-          httpJsonTimestamp(jsonBuf, *((int64_t *)row[i]), taos_result_precision(result) == TSDB_TIME_PRECISION_MICRO);
+          httpJsonTimestamp(jsonBuf, *((int64_t *)row[i]), taos_result_precision(result));
           break;
         default:
           break;

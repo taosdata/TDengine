@@ -61,7 +61,7 @@ void tpBuildCreateDbSql(char *sql, SCreateDbMsg *pCreate) {
   int32_t cacheBlockSize = htonl(pCreate->cacheBlockSize);
   int32_t totalBlocks = htonl(pCreate->totalBlocks);
   int32_t daysPerFile = htonl(pCreate->daysPerFile);
-  int32_t daysToKeep = htonl(pCreate->daysToKeep);
+  int32_t daysToKeep0 = htonl(pCreate->daysToKeep0);
   int32_t daysToKeep1 = htonl(pCreate->daysToKeep1);
   int32_t daysToKeep2 = htonl(pCreate->daysToKeep2);
   int32_t commitTime = htonl(pCreate->commitTime);
@@ -81,9 +81,9 @@ void tpBuildCreateDbSql(char *sql, SCreateDbMsg *pCreate) {
   if (cacheBlockSize < 0) cacheBlockSize = tsCacheBlockSize;
   if (totalBlocks < 0) totalBlocks = tsBlocksPerVnode;
   if (daysPerFile < 0) daysPerFile = tsDaysPerFile;
-  if (daysToKeep < 0) daysToKeep = tsDaysToKeep;
-  if (daysToKeep1 < 0) daysToKeep1 = daysToKeep;
-  if (daysToKeep2 < 0) daysToKeep2 = daysToKeep;
+  if (daysToKeep0 < 0) daysToKeep0 = tsDaysToKeep;
+  if (daysToKeep1 < 0) daysToKeep1 = daysToKeep0;
+  if (daysToKeep2 < 0) daysToKeep2 = daysToKeep1;
   if (commitTime < 0) commitTime = tsCommitTime;
   if (fsyncPeriod < 0) fsyncPeriod = tsFsyncPeriod;
   if (partitions < 0) partitions = tsPartitons;
@@ -98,10 +98,10 @@ void tpBuildCreateDbSql(char *sql, SCreateDbMsg *pCreate) {
   if (cacheLastRow < 0) cacheLastRow = tsCacheLastRow;
 
   snprintf(sql, TP_SCHEMA_SQL_LEN,
-           "create database if not exists %s replica %d days %d keep %d minrows %d maxrows %d cache %d blocks %d "
+           "create database if not exists %s replica %d days %d keep %d,%d,%d minrows %d maxrows %d cache %d blocks %d "
            "ctime %d wal %d "
            "fsync %d comp %d quorum %d cachelast %d precision 'us' update 0",
-           mnodeGetDbStr(pCreate->db), replications, daysPerFile, daysToKeep, minRowsPerFileBlock, maxRowsPerFileBlock,
+           mnodeGetDbStr(pCreate->db), replications, daysPerFile, daysToKeep0, daysToKeep1, daysToKeep2, minRowsPerFileBlock, maxRowsPerFileBlock,
            cacheBlockSize, totalBlocks, commitTime, walLevel, fsyncPeriod, compression, quorum, cacheLastRow);
 }
 
