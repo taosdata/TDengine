@@ -10,5 +10,5 @@ public abstract class AbstractBaseConfig {
     public static final String CHARSET_CONFIG = TSDBDriver.PROPERTY_KEY_CHARSET;
     public static final String LOCALE_CONFIG = TSDBDriver.PROPERTY_KEY_LOCALE;
     public static final String TIMEZONE_CONFIG = TSDBDriver.PROPERTY_KEY_TIME_ZONE;
-    public static final String TIMESTAMP_FORMAT = TSDBDriver.PROPERTY_KEY_TIMESTAMP_FORMAT;
+    public static final String SERIALIZER = "serializer";
 }

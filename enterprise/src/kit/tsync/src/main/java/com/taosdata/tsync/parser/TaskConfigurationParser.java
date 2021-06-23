@@ -3,13 +3,13 @@ package com.taosdata.tsync.parser;
 import com.alibaba.fastjson.JSONArray;
 import com.alibaba.fastjson.JSONObject;
 import com.taosdata.tsync.entity.config.Configuration;
-import com.taosdata.tsync.entity.config.ConfigurationType;
+import com.taosdata.tsync.enums.ConfigurationType;
 import com.taosdata.tsync.entity.config.TaskConfiguration;
+import com.taosdata.tsync.exceptions.TsyncException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 public class TaskConfigurationParser implements ConfigurationParser {
-    private static final int DEFAULT_THREADS = 1;
     private static final Logger logger = LoggerFactory.getLogger(TaskConfigurationParser.class);
 
     private final ConfigurationType type = ConfigurationType.TASK;
@@ -20,17 +20,19 @@ public class TaskConfigurationParser implements ConfigurationParser {
     }
 
     @Override
-    public Configuration parse(ConfigurationType type, JSONObject configJSON) {
+    public Configuration parse(ConfigurationType type, JSONObject configJSON) throws TsyncException {
         TaskConfiguration config = new TaskConfiguration();
         // topic
         if (configJSON.containsKey("topic")) {
             String topic = configJSON.getString("topic");
             config.setTopic(topic);
         } else {
-            logger.error("configuration item[topic] missing.");
+            String errorMsg = "topic is necessary in Task Configuration";
+            logger.error(errorMsg);
+            throw new TsyncException(errorMsg);
         }
 
-        // partitions
+        //TODO: partitions is not necessary
         if (configJSON.containsKey("partitions")) {
             JSONArray arr = configJSON.getJSONArray("partitions");
             int[] partitions = new int[arr.size()];
@@ -38,16 +40,12 @@ public class TaskConfigurationParser implements ConfigurationParser {
                 partitions[i] = arr.getInteger(i);
             }
             config.setPartitions(partitions);
-        } else {
-            //TODO: get partitions from tqueue
         }
 
-        // threads
+        // TODO: threads is not necessary
         if (configJSON.containsKey("threads")) {
             Integer threads = configJSON.getInteger("threads");
             config.setThreads(threads);
-        } else {
-            config.setThreads(DEFAULT_THREADS);
         }
         return config;
     }

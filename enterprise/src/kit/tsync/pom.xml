@@ -4,39 +4,29 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
+    <parent>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-parent</artifactId>
+        <version>2.2.13.RELEASE</version>
+    </parent>
+
     <groupId>com.taosdata</groupId>
     <artifactId>tsync</artifactId>
     <version>1.0-SNAPSHOT</version>
 
     <dependencies>
-        <!-- -->
+        <!-- commons -->
         <dependency>
             <groupId>org.apache.commons</groupId>
             <artifactId>commons-io</artifactId>
             <version>1.3.2</version>
         </dependency>
-        <!-- logging -->
         <dependency>
-            <groupId>org.apache.logging.log4j</groupId>
-            <artifactId>log4j-api</artifactId>
-            <version>2.13.3</version>
+            <groupId>commons-logging</groupId>
+            <artifactId>commons-logging</artifactId>
+            <version>1.2</version>
         </dependency>
-        <dependency>
-            <groupId>org.apache.logging.log4j</groupId>
-            <artifactId>log4j-core</artifactId>
-            <version>2.12.1</version>
-        </dependency>
-        <!-- slf4j -->
-        <dependency>
-            <groupId>org.apache.logging.log4j</groupId>
-            <artifactId>log4j-slf4j-impl</artifactId>
-            <version>2.13.3</version>
-        </dependency>
-        <dependency>
-            <groupId>org.slf4j</groupId>
-            <artifactId>slf4j-api</artifactId>
-            <version>1.7.30</version>
-        </dependency>
+
         <!-- test -->
         <dependency>
             <groupId>junit</groupId>
@@ -44,42 +34,28 @@
             <version>4.13</version>
             <scope>test</scope>
         </dependency>
+
         <!-- tdengine -->
         <dependency>
             <groupId>com.taosdata.jdbc</groupId>
             <artifactId>taos-jdbcdriver</artifactId>
-            <version>2.0.28</version>
-            <!--            <scope>system</scope>-->
-            <!--            <systemPath>${project.basedir}/src/main/resources/taos-jdbcdriver-2.0.28-dist.jar</systemPath>-->
+            <version>2.0.31</version>
         </dependency>
-        <!-- avro -->
+
         <dependency>
-            <groupId>org.apache.avro</groupId>
-            <artifactId>avro</artifactId>
-            <version>1.10.2</version>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-api</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-log4j12</artifactId>
         </dependency>
 
     </dependencies>
 
     <build>
         <plugins>
-            <plugin>
-                <groupId>org.apache.avro</groupId>
-                <artifactId>avro-maven-plugin</artifactId>
-                <version>1.10.2</version>
-                <executions>
-                    <execution>
-                        <phase>generate-sources</phase>
-                        <goals>
-                            <goal>schema</goal>
-                        </goals>
-                        <configuration>
-                            <sourceDirectory>${project.basedir}/src/main/avro/</sourceDirectory>
-                            <outputDirectory>${project.basedir}/src/main/java/</outputDirectory>
-                        </configuration>
-                    </execution>
-                </executions>
-            </plugin>
+            <!-- compile -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
@@ -89,6 +65,134 @@
                 </configuration>
             </plugin>
 
+            <!-- test -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <version>2.12.4</version>
+                <configuration>
+                    <forkMode>pertest</forkMode>
+                    <includes>
+                        <include>**/*Test.java</include>
+                    </includes>
+                    <excludes>
+                        <exclude>**/ConsumeToFileJobTest.java</exclude>
+                        <exclude>**/ConsumeToTDengineJobTest.java</exclude>
+                        <exclude>**/ProduceToTQueueJobTest.java</exclude>
+                    </excludes>
+                    <testFailureIgnore>true</testFailureIgnore>
+                </configuration>
+            </plugin>
+
+            <!-- 提取配置文件到指定路径 -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-resources-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <id>copy-configfiles</id>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>copy-resources</goal>
+                        </goals>
+                        <configuration>
+                            <encoding>UTF-8</encoding>
+                            <outputDirectory>${project.basedir}/config</outputDirectory>
+                            <resources>
+                                <resource>
+                                    <directory>src/test/resources/</directory>
+                                </resource>
+                            </resources>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+            <!-- package multi packages -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-assembly-plugin</artifactId>
+                <version>3.3.0</version>
+                <executions>
+                    <!-- produceToTQueue -->
+                    <execution>
+                        <id>produceToTQueue</id>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>single</goal>
+                        </goals>
+                        <configuration>
+                            <finalName>produce-to-tqueue</finalName>
+                            <archive>
+                                <manifest>
+                                    <mainClass>com.taosdata.tsync.ProduceToTQueueApp</mainClass>
+                                </manifest>
+                            </archive>
+                            <descriptorRefs>
+                                <descriptorRef>jar-with-dependencies</descriptorRef>
+                            </descriptorRefs>
+                        </configuration>
+                    </execution>
+                    <!-- consumeToTDengine -->
+                    <execution>
+                        <id>consumeToTDengine</id>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>single</goal>
+                        </goals>
+                        <configuration>
+                            <finalName>consume-to-tdengine</finalName>
+                            <archive>
+                                <manifest>
+                                    <mainClass>com.taosdata.tsync.ConsumeToTDengineApp</mainClass>
+                                </manifest>
+                            </archive>
+                            <descriptorRefs>
+                                <descriptorRef>jar-with-dependencies</descriptorRef>
+                            </descriptorRefs>
+                        </configuration>
+                    </execution>
+                    <!-- consumeToNet -->
+                    <execution>
+                        <id>consumeToNet</id>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>single</goal>
+                        </goals>
+                        <configuration>
+                            <finalName>consume-to-net</finalName>
+                            <archive>
+                                <manifest>
+                                    <mainClass>com.taosdata.tsync.ConsumeToNetApp</mainClass>
+                                </manifest>
+                            </archive>
+                            <descriptorRefs>
+                                <descriptorRef>jar-with-dependencies</descriptorRef>
+                            </descriptorRefs>
+                        </configuration>
+                    </execution>
+                    <!-- net-to-tqueue -->
+                    <execution>
+                        <id>netToTQueue</id>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>single</goal>
+                        </goals>
+                        <configuration>
+                            <finalName>net-to-tqueue</finalName>
+                            <archive>
+                                <manifest>
+                                    <mainClass>com.taosdata.tsync.NetToTQueueApp</mainClass>
+                                </manifest>
+                            </archive>
+                            <descriptorRefs>
+                                <descriptorRef>jar-with-dependencies</descriptorRef>
+                            </descriptorRefs>
+                        </configuration>
+                    </execution>
+
+
+                </executions>
+            </plugin>
         </plugins>
     </build>
 

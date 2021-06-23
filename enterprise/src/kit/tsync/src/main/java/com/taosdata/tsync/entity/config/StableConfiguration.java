@@ -1,8 +1,10 @@
 package com.taosdata.tsync.entity.config;
 
+import com.taosdata.tsync.enums.ConfigurationType;
+
 public class StableConfiguration extends Configuration {
     private String name;
-    private Integer tables;
+    private Long tables;
 
     public StableConfiguration() {
         super(ConfigurationType.STABLE);
@@ -17,11 +19,11 @@ public class StableConfiguration extends Configuration {
         this.name = name;
     }
 
-    public Integer getTables() {
+    public Long getTables() {
         return tables;
     }
 
-    public void setTables(Integer tables) {
+    public void setTables(Long tables) {
         this.tables = tables;
     }
 

@@ -2,12 +2,11 @@ package com.taosdata.tsync.parser;
 
 import com.alibaba.fastjson.JSONObject;
 import com.taosdata.tsync.entity.config.Configuration;
-import com.taosdata.tsync.entity.config.ConfigurationType;
-import com.taosdata.tsync.entity.config.DatabaseConfiguration;
 import com.taosdata.tsync.entity.config.SchemaConfiguration;
-import com.taosdata.tsync.entity.config.StableConfiguration;
+import com.taosdata.tsync.enums.ConfigurationType;
+import com.taosdata.tsync.exceptions.TsyncException;
 
-public class SchemaConfigurationParser implements ConfigurationParser {
+public class SchemaConfigurationParser extends AbstractConfigurationParser {
     private final ConfigurationType type = ConfigurationType.SCHEMA;
     private final DatabaseConfigurationParser databaseParser = new DatabaseConfigurationParser();
     private final StableConfigurationParser stableParser = new StableConfigurationParser();
@@ -18,23 +17,16 @@ public class SchemaConfigurationParser implements ConfigurationParser {
     }
 
     @Override
-    public Configuration parse(ConfigurationType type, JSONObject configJSON) {
+    public Configuration parse(ConfigurationType type, JSONObject configJSON) throws TsyncException {
         SchemaConfiguration configuration = new SchemaConfiguration();
-        if (configJSON.containsKey("database")) {
-            JSONObject databaseJSON = configJSON.getJSONObject("database");
-            if (databaseParser.canParse(ConfigurationType.DATABASE, databaseJSON)) {
-                DatabaseConfiguration database = (DatabaseConfiguration) databaseParser.parse(ConfigurationType.DATABASE, databaseJSON);
-                configuration.add(database);
-            }
-        }
 
-        if (configJSON.containsKey("stable")) {
-            JSONObject stableJSON = configJSON.getJSONObject("stable");
-            if (stableParser.canParse(ConfigurationType.STABLE, stableJSON)) {
-                StableConfiguration stable = (StableConfiguration) stableParser.parse(ConfigurationType.STABLE, stableJSON);
-                configuration.add(stable);
-            }
-        }
+        Configuration database = parseConfiguration(configJSON, "database", ConfigurationType.DATABASE, databaseParser);
+        if (database != null)
+            configuration.add(database);
+
+        Configuration stable = parseConfiguration(configJSON, "stable", ConfigurationType.STABLE, stableParser);
+        if (stable != null)
+            configuration.add(stable);
 
         return configuration;
     }

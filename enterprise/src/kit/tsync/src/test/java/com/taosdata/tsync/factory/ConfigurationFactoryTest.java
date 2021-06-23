@@ -1,30 +1,26 @@
 package com.taosdata.tsync.factory;
 
 import com.alibaba.fastjson.JSONObject;
-import com.taosdata.tsync.entity.config.Configuration;
-import com.taosdata.tsync.entity.config.ConfigurationType;
 import com.taosdata.tsync.entity.config.*;
-import org.apache.commons.io.IOUtils;
+import com.taosdata.tsync.enums.ConfigurationType;
+import com.taosdata.tsync.exceptions.TsyncException;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
-import java.io.IOException;
-import java.io.InputStream;
 import java.util.List;
 
 public class ConfigurationFactoryTest {
+    private String jsonStr = "{\"producer\":{\"host\":\"192.168.17.156\",\"port\":6041,\"user\":\"root\",\"password\":\"taosdata\",\"charset\":\"UTF-8\",\"locale\":\"en_US.UTF-8\",\"timezone\":\"UTC-8\",\"serializer\":\"STRING\"},\"task\":{\"threads\":10,\"topic\":\"tq_test\",\"partitions\":[1,2,3]},\"message\":{\"total\":100,\"batchTables\":10,\"batchValues\":10,\"schema\":{\"database\":{\"name\":\"test\",\"precision\":\"ms\"},\"stable\":{\"name\":\"weather\",\"tables\":10,\"columns\":[{\"name\":\"ts\",\"type\":\"timestamp\"},{\"name\":\"temperature\",\"type\":\"float\"},{\"name\":\"humidity\",\"type\":\"int\"}],\"tags\":[{\"name\":\"loc\",\"type\":\"binary\",\"length\":64},{\"name\":\"groupId\",\"type\":\"int\"}]}}}}";
     private JSONObject configJSON;
 
     @Before
-    public void before() throws IOException {
-        InputStream is = ConfigurationFactoryTest.class.getClassLoader().getResourceAsStream("producer-task.json");
-        String configStr = IOUtils.toString(is);
-        configJSON = JSONObject.parseObject(configStr);
+    public void before() {
+        configJSON = JSONObject.parseObject(jsonStr);
     }
 
     @Test
-    public void parseProducerConfiguration() {
+    public void parseProducerConfiguration() throws TsyncException {
         // given
         JSONObject producerJSON = configJSON.getJSONObject("producer");
         // when
@@ -41,7 +37,7 @@ public class ConfigurationFactoryTest {
     }
 
     @Test
-    public void parseTaskConfiguration() {
+    public void parseTaskConfiguration() throws TsyncException {
         // given
         JSONObject taskJSON = configJSON.getJSONObject("task");
         // when
@@ -57,7 +53,7 @@ public class ConfigurationFactoryTest {
     }
 
     @Test
-    public void parseColumnConfiguration() {
+    public void parseColumnConfiguration() throws TsyncException {
         // given
         JSONObject jsonObject = new JSONObject();
         jsonObject.put("name", "ts");
@@ -72,7 +68,7 @@ public class ConfigurationFactoryTest {
     }
 
     @Test
-    public void parseTagConfiguration() {
+    public void parseTagConfiguration() throws TsyncException {
         // given
         JSONObject jsonObject = new JSONObject();
         jsonObject.put("name", "loc");
@@ -87,14 +83,14 @@ public class ConfigurationFactoryTest {
     }
 
     @Test
-    public void parseStableConfiguration() {
+    public void parseStableConfiguration() throws TsyncException {
         // given
         JSONObject stableJSON = configJSON.getJSONObject("message").getJSONObject("schema").getJSONObject("stable");
         // when
         StableConfiguration configuration = (StableConfiguration) ConfigurationFactory.build(ConfigurationType.STABLE, stableJSON);
         // then
         Assert.assertEquals("weather", configuration.getName());
-        Assert.assertEquals(new Integer(10), configuration.getTables());
+        Assert.assertEquals(new Long(10), configuration.getTables());
         List<Configuration> columns = configuration.find(ConfigurationType.COLUMN);
         Assert.assertEquals(3, columns.size());
         ColumnConfiguration column = (ColumnConfiguration) columns.get(2);
@@ -103,7 +99,7 @@ public class ConfigurationFactoryTest {
     }
 
     @Test
-    public void parseDatabaseConfiguration() {
+    public void parseDatabaseConfiguration() throws TsyncException {
         // given
         JSONObject databaseJSON = configJSON.getJSONObject("message").getJSONObject("schema").getJSONObject("database");
         // when
@@ -131,7 +127,7 @@ public class ConfigurationFactoryTest {
         Assert.assertEquals(1, stables.size());
         StableConfiguration stable = (StableConfiguration) stables.get(0);
         Assert.assertEquals("weather", stable.getName());
-        Assert.assertEquals(new Integer(10), stable.getTables());
+        Assert.assertEquals(new Long(10), stable.getTables());
         // assert tags
         List<Configuration> tags = stable.find(ConfigurationType.TAG);
         Assert.assertEquals(2, tags.size());
@@ -148,7 +144,8 @@ public class ConfigurationFactoryTest {
         MessageConfiguration configuration = (MessageConfiguration) ConfigurationFactory.build(ConfigurationType.MESSAGE, messageJSON);
         // then
         Assert.assertEquals(new Long(100), configuration.getTotal());
-        Assert.assertEquals(new Long(10), configuration.getBatchSize());
+        Assert.assertEquals(new Long(10), configuration.getBatchTables());
+        Assert.assertEquals(new Long(10), configuration.getBatchValues());
         List<Configuration> schemas = configuration.find(ConfigurationType.SCHEMA);
         Assert.assertEquals(1, schemas.size());
     }
@@ -156,7 +153,7 @@ public class ConfigurationFactoryTest {
     @Test
     public void parseProduceJobConfiguration() {
         // when
-        ProduceJobConfiguration configuration = (ProduceJobConfiguration) ConfigurationFactory.build(ConfigurationType.PRODUCE_JOB, configJSON);
+        ProduceToTQueueConfiguration configuration = (ProduceToTQueueConfiguration) ConfigurationFactory.build(ConfigurationType.PRODUCE_TO_TQUEUE, configJSON);
         // then
         List<Configuration> producers = configuration.find(ConfigurationType.PRODUCER);
         Assert.assertEquals(1, producers.size());
