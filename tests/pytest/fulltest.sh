@@ -322,6 +322,7 @@ python3 ./test.py -f query/last_row_cache.py
 python3 ./test.py -f account/account_create.py
 python3 ./test.py -f alter/alter_table.py
 python3 ./test.py -f query/queryGroupbySort.py
+python3 ./test.py -f functions/queryTestCases.py
 python3 ./test.py -f functions/function_stateWindow.py
 python3 ./test.py -f functions/function_derivative.py
 
