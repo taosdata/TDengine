@@ -9,6 +9,7 @@ scriptDir=`pwd`
 topDir=$scriptDir/../..         # TDinternal
 communityDir=$topDir/community
 archiveDir=$scriptDir/../release
+allocator=glibc                 # glibc  or  jemalloc
 
 if [ ! -d $archiveDir ]; then
   mkdir -p $archiveDir
@@ -22,7 +23,7 @@ cd $communityDir
 rm -rf release/*
 rm -rf debs/*
 rm -rf rpms/*
-./packaging/release.sh -n $version -m $versionComp -V $verType
+./packaging/release.sh -a $allocator -n $version -m $versionComp -V $verType
 cd $archiveDir
 rm -rf v$version
 mkdir v$version
