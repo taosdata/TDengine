@@ -2493,6 +2493,13 @@ static int getChildNameOfSuperTableWithLimitAndOffset(TAOS * taos,
   char* pTblName = childTblName;
   while((row = taos_fetch_row(res)) != NULL) {
     int32_t* len = taos_fetch_lengths(res);
+
+    if (0 == strlen((char *)row[0])) {
+        errorPrint("%s() LN%d, No.%"PRId64" table return empty name\n",
+            __func__, __LINE__, count);
+        exit(-1);
+    }
+
     tstrncpy(pTblName, (char *)row[0], len[0]+1);
     //printf("==== sub table name: %s\n", pTblName);
     count++;
@@ -6282,16 +6289,6 @@ static void startMultiThreadInsertData(int threads, char* db_name,
   }
 
   int64_t start = taosGetTimestampMs();
-
-  // read sample data from file first
-  if ((superTblInfo) && (0 == strncasecmp(superTblInfo->dataSource,
-              "sample", strlen("sample")))) {
-    if (0 != prepareSampleDataForSTable(superTblInfo)) {
-      errorPrint("%s() LN%d, prepare sample data for stable failed!\n",
-              __func__, __LINE__);
-      exit(-1);
-    }
-  }
 
   // read sample data from file first
   if ((superTblInfo) && (0 == strncasecmp(superTblInfo->dataSource,
