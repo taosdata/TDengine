@@ -65,7 +65,6 @@ static char*   getAccountId(SSqlObj* pSql);
 
 static int convertTimestampStrToInt64(tVariant *pVar, int32_t precision);
 static bool serializeExprListToVariant(SArray* pList, tVariant **dest, int16_t colType, uint8_t precision);
-static int32_t validateParamOfRelationIn(tVariant *pVar, int32_t colType);
 
 static bool has(SArray* pFieldList, int32_t startIdx, const char* name);
 static char* cloneCurrentDBName(SSqlObj* pSql);
@@ -156,78 +155,76 @@ bool serializeExprListToVariant(SArray* pList, tVariant **dst, int16_t colType, 
     return ret;
   }
 
-  tSqlExprItem* item = (tSqlExprItem *)taosArrayGet(pList, 0);
-  int32_t firstTokenType = item->pNode->token.type;
-  int32_t type  = firstTokenType;
+  tSqlExpr* item = ((tSqlExprItem*)(taosArrayGet(pList, 0)))->pNode;
+  int32_t firstVarType = item->value.nType;
 
-  //nchar to binary and other xxint to bigint  
-  toTSDBType(type);  
-  if (colType != TSDB_DATA_TYPE_TIMESTAMP && !IS_UNSIGNED_NUMERIC_TYPE(colType)) {
-    if (type != colType && (type != TSDB_DATA_TYPE_BINARY || colType != TSDB_DATA_TYPE_NCHAR)) {
-      return false;  
-    }    
-  } 
-  type = colType; 
- 
   SBufferWriter bw = tbufInitWriter( NULL, false);
-
   tbufEnsureCapacity(&bw, 512);
+  if (colType == TSDB_DATA_TYPE_TIMESTAMP) {
+    tbufWriteUint32(&bw, TSDB_DATA_TYPE_BIGINT);
+  } else {
+    tbufWriteUint32(&bw, colType);
+  }
+  tbufWriteInt32(&bw, (int32_t)(pList->size));
 
-  int32_t size = (int32_t)(pList->size);
-  tbufWriteUint32(&bw, type);
-  tbufWriteInt32(&bw,  size);
-
-  for (int32_t i = 0; i < size; i++) {
+  for (int32_t i = 0; i < (int32_t)pList->size; i++) {
     tSqlExpr* pSub = ((tSqlExprItem*)(taosArrayGet(pList, i)))->pNode;
+    tVariant* var  = &pSub->value;
 
     // check all the token type in expr list same or not
-    if (firstTokenType != pSub->token.type) {
+    if (firstVarType != var->nType) {
       break;
     }  
-    toTSDBType(pSub->token.type);  
-
-    tVariant var;  
-    tVariantCreate(&var, &pSub->token); 
-    if (type == TSDB_DATA_TYPE_BOOL || IS_SIGNED_NUMERIC_TYPE(type)) {
-      tbufWriteInt64(&bw, var.i64);        
-    } else if (IS_UNSIGNED_NUMERIC_TYPE(type)) {
-      // ugly code, refactor later
-      if (IS_UNSIGNED_NUMERIC_TYPE(pSub->token.type) || IS_SIGNED_NUMERIC_TYPE(pSub->token.type)) {
-        tbufWriteUint64(&bw, var.i64);        
+    if ((colType == TSDB_DATA_TYPE_BOOL || IS_SIGNED_NUMERIC_TYPE(colType))) {
+      if (var->nType != TSDB_DATA_TYPE_BOOL && !IS_SIGNED_NUMERIC_TYPE(var->nType)) {
+        break;
+      }  
+      tbufWriteInt64(&bw, var->i64);        
+    } else if (IS_UNSIGNED_NUMERIC_TYPE(colType)) {
+      if (IS_SIGNED_NUMERIC_TYPE(var->nType) && IS_UNSIGNED_NUMERIC_TYPE(var->nType)) {
+        break;
+      } 
+      tbufWriteUint64(&bw, var->u64);        
+    } else if (colType == TSDB_DATA_TYPE_DOUBLE || colType == TSDB_DATA_TYPE_FLOAT) {
+      if (IS_SIGNED_NUMERIC_TYPE(var->nType) || IS_UNSIGNED_NUMERIC_TYPE(var->nType)) {
+        tbufWriteDouble(&bw, (double)(var->i64));
+      } else if (var->nType == TSDB_DATA_TYPE_DOUBLE || var->nType == TSDB_DATA_TYPE_FLOAT){
+        tbufWriteDouble(&bw, var->dKey);
       } else {
-        tVariantDestroy(&var);
         break;
       }
-    }
-    else if (type == TSDB_DATA_TYPE_DOUBLE || type == TSDB_DATA_TYPE_FLOAT) {
-      tbufWriteDouble(&bw, var.dKey);
-    } else if (type == TSDB_DATA_TYPE_BINARY){
-      tbufWriteBinary(&bw, var.pz, var.nLen);
-    } else if (type == TSDB_DATA_TYPE_NCHAR) {
-      char   *buf = (char *)calloc(1, (var.nLen + 1)*TSDB_NCHAR_SIZE);
-      if (tVariantDump(&var, buf, type, false) != TSDB_CODE_SUCCESS) {
+    } else if (colType == TSDB_DATA_TYPE_BINARY) {
+      if (var->nType != TSDB_DATA_TYPE_BINARY) {
+        break;
+      }
+      tbufWriteBinary(&bw, var->pz, var->nLen);
+    } else if (colType == TSDB_DATA_TYPE_NCHAR) {
+      if (var->nType != TSDB_DATA_TYPE_BINARY) {
+        break;
+      }
+      char   *buf = (char *)calloc(1, (var->nLen + 1)*TSDB_NCHAR_SIZE);
+      if (tVariantDump(var, buf, colType, false) != TSDB_CODE_SUCCESS) {
         free(buf);
-        tVariantDestroy(&var);
         break;
       }
       tbufWriteBinary(&bw, buf, twcslen((wchar_t *)buf) * TSDB_NCHAR_SIZE);
       free(buf);
-    } else if (type == TSDB_DATA_TYPE_TIMESTAMP) {
-       if (var.nType == TSDB_DATA_TYPE_BINARY) {
-         if (convertTimestampStrToInt64(&var, precision) < 0) {
-           tVariantDestroy(&var);
+    } else if (colType == TSDB_DATA_TYPE_TIMESTAMP) {
+      if (var->nType == TSDB_DATA_TYPE_BINARY) {
+         if (convertTimestampStrToInt64(var, precision) < 0) {
            break; 
          } 
-         tbufWriteInt64(&bw, var.i64);        
-       } else if (var.nType == TSDB_DATA_TYPE_BIGINT) {
-         tbufWriteInt64(&bw, var.i64);        
+         tbufWriteInt64(&bw, var->i64);        
+       } else if (var->nType == TSDB_DATA_TYPE_BIGINT) {
+         tbufWriteInt64(&bw, var->i64);        
+       } else {
+         break;
        }      
+    } else {
+      break; 
     }
-    tVariantDestroy(&var);
-
-    if (i == size - 1) { ret = true;}
-  }
-
+    if (i == (int32_t)(pList->size - 1)) { ret = true;}
+  }   
   if (ret == true) {
     if ((*dst = calloc(1, sizeof(tVariant))) != NULL) {
       tVariantCreateFromBinary(*dst, tbufGetData(&bw, false), tbufTell(&bw), TSDB_DATA_TYPE_BINARY);
@@ -239,13 +236,6 @@ bool serializeExprListToVariant(SArray* pList, tVariant **dst, int16_t colType, 
   return ret;
 }
 
-static int32_t validateParamOfRelationIn(tVariant *pVar, int32_t colType) {
-  if (pVar->nType != TSDB_DATA_TYPE_BINARY) {
-    return -1;
-  }
-  SBufferReader br = tbufInitReader(pVar->pz, pVar->nLen, false);
-  return colType == TSDB_DATA_TYPE_NCHAR ?  0 : (tbufReadUint32(&br) == colType ? 0: -1);
-}
 
 static uint8_t convertOptr(SStrToken *pToken) {
   switch (pToken->type) {
@@ -3372,11 +3362,6 @@ static int32_t doExtractColumnFilterInfo(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, 
   } else if (pExpr->tokenId == TK_IN) {
     tVariant *pVal; 
     if (pRight->tokenId != TK_SET || !serializeExprListToVariant(pRight->pParam, &pVal, colType, timePrecision)) {
-      return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg);
-    }
-    if (validateParamOfRelationIn(pVal, colType) != TSDB_CODE_SUCCESS) {
-      tVariantDestroy(pVal);
-      free(pVal);
       return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg);
     }
     pColumnFilter->pz  = (int64_t)calloc(1, pVal->nLen + 1);
