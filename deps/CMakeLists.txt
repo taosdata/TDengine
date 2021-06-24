@@ -18,3 +18,16 @@ ENDIF ()
 IF (TD_DARWIN AND TD_MQTT)
   ADD_SUBDIRECTORY(MQTT-C)
 ENDIF ()
+
+IF (TD_LINUX_64 AND JEMALLOC_ENABLED)
+  MESSAGE("setup dpes/jemalloc, current source dir:" ${CMAKE_CURRENT_SOURCE_DIR})
+  MESSAGE("binary dir:" ${CMAKE_BINARY_DIR})
+  include(ExternalProject)
+  ExternalProject_Add(jemalloc
+    PREFIX        "jemalloc"
+    SOURCE_DIR    ${CMAKE_CURRENT_SOURCE_DIR}/jemalloc
+    BUILD_IN_SOURCE     1
+    CONFIGURE_COMMAND   ./autogen.sh COMMAND ./configure --prefix=${CMAKE_BINARY_DIR}/build/
+    BUILD_COMMAND       ${MAKE}
+  )
+ENDIF ()
