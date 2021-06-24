@@ -66,10 +66,16 @@ public abstract class AbstractResultSet extends WrapperImpl implements ResultSet
     public abstract byte[] getBytes(int columnIndex) throws SQLException;
 
     @Override
-    public abstract Date getDate(int columnIndex) throws SQLException;
+    public Date getDate(int columnIndex) throws SQLException {
+        Timestamp timestamp = getTimestamp(columnIndex);
+        return timestamp == null ? null : new Date(timestamp.getTime());
+    }
 
     @Override
-    public abstract Time getTime(int columnIndex) throws SQLException;
+    public Time getTime(int columnIndex) throws SQLException {
+        Timestamp timestamp = getTimestamp(columnIndex);
+        return timestamp == null ? null : new Time(timestamp.getTime());
+    }
 
     @Override
     public abstract Timestamp getTimestamp(int columnIndex) throws SQLException;

@@ -21,9 +21,12 @@ python3 insert/retentionpolicy.py
 python3 ./test.py -f insert/alterTableAndInsert.py
 python3 ./test.py -f insert/insertIntoTwoTables.py
 python3 ./test.py -f insert/before_1970.py
+python3 ./test.py -f insert/special_character_show.py
 python3 bug2265.py
 python3 ./test.py -f insert/bug3654.py
 python3 ./test.py -f insert/insertDynamicColBeforeVal.py
+python3 ./test.py -f insert/in_function.py
+python3 ./test.py -f insert/modify_column.py
 
 #table
 python3 ./test.py -f table/alter_wal0.py
@@ -70,8 +73,10 @@ python3 ./test.py -f tag_lite/int.py
 python3 ./test.py -f tag_lite/set.py
 python3 ./test.py -f tag_lite/smallint.py
 python3 ./test.py -f tag_lite/tinyint.py
+python3 ./test.py -f tag_lite/timestamp.py
 
 #python3 ./test.py -f dbmgmt/database-name-boundary.py
+python3 test.py -f dbmgmt/nanoSecondCheck.py
 
 python3 ./test.py -f import_merge/importBlock1HO.py
 python3 ./test.py -f import_merge/importBlock1HPO.py
@@ -229,7 +234,7 @@ python3 ./test.py -f query/queryFilterTswithDateUnit.py
 python3 ./test.py -f query/queryTscomputWithNow.py
 python3 ./test.py -f query/computeErrorinWhere.py
 python3 ./test.py -f query/queryTsisNull.py
-
+python3 ./test.py -f query/subqueryFilter.py
 
 
 #stream
@@ -256,6 +261,8 @@ python3 ./test.py -f client/client.py
 python3 ./test.py -f client/version.py
 python3 ./test.py -f client/alterDatabase.py
 python3 ./test.py -f client/noConnectionErrorTest.py
+# python3 test.py -f client/change_time_1_1.py
+# python3 test.py -f client/change_time_1_2.py
 
 # Misc
 python3 testCompress.py
@@ -283,6 +290,7 @@ python3 ./test.py -f topic/topicQuery.py
 python3 ./test.py -f update/merge_commit_data-0.py
 # wal
 python3 ./test.py -f wal/addOldWalTest.py
+python3 ./test.py -f wal/sdbComp.py 
 
 # function
 python3 ./test.py -f functions/all_null_value.py
@@ -314,8 +322,9 @@ python3 ./test.py -f query/last_row_cache.py
 python3 ./test.py -f account/account_create.py
 python3 ./test.py -f alter/alter_table.py
 python3 ./test.py -f query/queryGroupbySort.py
-python3 ./test.py -f functions/function_session.py
+python3 ./test.py -f functions/queryTestCases.py
 python3 ./test.py -f functions/function_stateWindow.py
+python3 ./test.py -f functions/function_derivative.py
 
 python3 ./test.py -f insert/unsignedInt.py
 python3 ./test.py -f insert/unsignedBigint.py
@@ -338,6 +347,8 @@ python3 test.py -f tools/taosdemoAllTest/taosdemoTestInsertWithJson.py
 python3 test.py -f tools/taosdemoAllTest/taosdemoTestQueryWithJson.py
 python3 ./test.py -f tag_lite/drop_auto_create.py
 python3 test.py -f insert/insert_before_use_db.py
+python3 test.py -f alter/alter_keep.py
 python3 test.py -f alter/alter_cacheLastRow.py
-python3 test.py -f alter/alter_keep_exception.py
+python3 ./test.py -f query/querySession.py 
+python3 test.py -f  alter/alter_create_exception.py
 #======================p4-end===============

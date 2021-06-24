@@ -9,8 +9,6 @@ public abstract class AbstractStatement extends WrapperImpl implements Statement
     protected List<String> batchedArgs;
     private int fetchSize;
 
-
-
     @Override
     public abstract ResultSet executeQuery(String sql) throws SQLException;
 

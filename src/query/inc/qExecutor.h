@@ -113,6 +113,7 @@ typedef struct SColumnFilterElem {
   int16_t           bytes;  // column length
   __filter_func_t   fp;
   SColumnFilterInfo filterInfo;
+  void              *q;
 } SColumnFilterElem;
 
 typedef struct SSingleColumnFilterInfo {
@@ -185,6 +186,7 @@ typedef struct SQueryAttr {
   bool             queryBlockDist;    // if query data block distribution
   bool             stabledev;        // super table stddev query
   bool             tsCompQuery;      // is tscomp query
+  bool             diffQuery;        // is diff query
   bool             simpleAgg;
   bool             pointInterpQuery; // point interpolation query
   bool             needReverseScan;  // need reverse scan
@@ -245,6 +247,7 @@ typedef struct SQueryRuntimeEnv {
   void*                 pQueryHandle;
 
   int32_t               prevGroupId;      // previous executed group id
+  bool                  enableGroupData;
   SDiskbasedResultBuf*  pResultBuf;       // query result buffer based on blocked-wised disk file
   SHashObj*             pResultRowHashTable; // quick locate the window object for each result
   char*                 keyBuf;           // window key buffer
@@ -292,7 +295,7 @@ enum OPERATOR_TYPE_E {
   OP_MultiTableAggregate     = 14,
   OP_MultiTableTimeInterval  = 15,
   OP_DummyInput        = 16,   //TODO remove it after fully refactor.
-  OP_MultiwayMergeSort      = 17,   // multi-way data merge into one input stream.
+  OP_MultiwayMergeSort = 17,   // multi-way data merge into one input stream.
   OP_GlobalAggregate   = 18,   // global merge for the multi-way data sources.
   OP_Filter            = 19,
   OP_Distinct          = 20,
@@ -386,6 +389,7 @@ typedef struct STableScanInfo {
   int64_t         elapsedTime;
 
   int32_t         tableIndex;
+  int32_t         prevGroupId;     // previous table group id
 } STableScanInfo;
 
 typedef struct STagScanInfo {
@@ -460,6 +464,7 @@ typedef struct SSWindowOperatorInfo {
   TSKEY          prevTs;     // previous timestamp
   int32_t        numOfRows;  // number of rows
   int32_t        start;      // start row index
+  bool           reptScan;    // next round scan
 } SSWindowOperatorInfo;
 
 typedef struct SStateWindowOperatorInfo {
@@ -469,7 +474,7 @@ typedef struct SStateWindowOperatorInfo {
   int32_t        colIndex;      // start row index
   int32_t        start;
   char*          prevData;    // previous data 
-   
+  bool           reptScan;
 } SStateWindowOperatorInfo ;
 
 typedef struct SDistinctOperatorInfo {

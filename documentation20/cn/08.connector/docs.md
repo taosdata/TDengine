@@ -56,7 +56,7 @@ TDengine提供了丰富的应用程序开发接口，其中包括C/C++、Java、
 ​    *taos.tar.gz*：应用驱动安装包
 ​    *driver*：TDengine应用驱动driver
 ​    *connector*: 各种编程语言连接器（go/grafanaplugin/nodejs/python/JDBC）
-​    *examples*: 各种编程语言的示例程序(c/C#/go/JDBC/matlab/python/R)
+​    *examples*: 各种编程语言的示例程序(c/C#/go/JDBC/MATLAB/python/R)
 
 运行install_client.sh进行安装
 
@@ -301,11 +301,13 @@ TDengine的异步API均采用非阻塞调用模式。应用程序可以用多线
 2. 调用 `taos_stmt_prepare` 解析 INSERT 语句；
 3. 如果 INSERT 语句中预留了表名但没有预留 TAGS，那么调用 `taos_stmt_set_tbname` 来设置表名；
 4. 如果 INSERT 语句中既预留了表名又预留了 TAGS（例如 INSERT 语句采取的是自动建表的方式），那么调用 `taos_stmt_set_tbname_tags` 来设置表名和 TAGS 的值；
-5. 调用 `taos_stmt_bind_param_batch` 以多列的方式设置 VALUES 的值；
+5. 调用 `taos_stmt_bind_param_batch` 以多列的方式设置 VALUES 的值，或者调用 `taos_stmt_bind_param` 以单行的方式设置 VALUES 的值；
 6. 调用 `taos_stmt_add_batch` 把当前绑定的参数加入批处理；
 7. 可以重复第 3～6 步，为批处理加入更多的数据行；
 8. 调用 `taos_stmt_execute` 执行已经准备好的批处理指令；
 9. 执行完毕，调用 `taos_stmt_close` 释放所有资源。
+
+说明：如果 `taos_stmt_execute` 执行成功，假如不需要改变 SQL 语句的话，那么是可以复用 `taos_stmt_prepare` 的解析结果，直接进行第 3～6 步绑定新数据的。但如果执行出错，那么并不建议继续在当前的环境上下文下继续工作，而是建议释放资源，然后从 `taos_stmt_init` 步骤重新开始。
 
 除 C/C++ 语言外，TDengine 的 Java 语言 JNI Connector 也提供参数绑定接口支持，具体请另外参见：[参数绑定接口的 Java 用法](https://www.taosdata.com/cn/documentation/connector/java#stmt-java)。
 
@@ -338,17 +340,17 @@ typedef struct TAOS_BIND {
 
 - `int taos_stmt_set_tbname(TAOS_STMT* stmt, const char* name)`
 
-  （2.1.1.0 版本新增）  
+  （2.1.1.0 版本新增，仅支持用于替换 INSERT 语句中的参数值）  
   当 SQL 语句中的表名使用了 `?` 占位时，可以使用此函数绑定一个具体的表名。
 
 - `int taos_stmt_set_tbname_tags(TAOS_STMT* stmt, const char* name, TAOS_BIND* tags)`
 
-  （2.1.2.0 版本新增）  
+  （2.1.2.0 版本新增，仅支持用于替换 INSERT 语句中的参数值）  
   当 SQL 语句中的表名和 TAGS 都使用了 `?` 占位时，可以使用此函数绑定具体的表名和具体的 TAGS 取值。最典型的使用场景是使用了自动建表功能的 INSERT 语句（目前版本不支持指定具体的 TAGS 列）。tags 参数中的列数量需要与 SQL 语句中要求的 TAGS 数量完全一致。
 
 - `int taos_stmt_bind_param_batch(TAOS_STMT* stmt, TAOS_MULTI_BIND* bind)`
 
-  （2.1.1.0 版本新增）  
+  （2.1.1.0 版本新增，仅支持用于替换 INSERT 语句中的参数值）  
   以多列的方式传递待绑定的数据，需要保证这里传递的数据列的顺序、列的数量与 SQL 语句中的 VALUES 参数完全一致。TAOS_MULTI_BIND 的具体定义如下：
 
 ```c
@@ -377,6 +379,11 @@ typedef struct TAOS_MULTI_BIND {
 - `int taos_stmt_close(TAOS_STMT *stmt)`
 
   执行完毕，释放所有资源。
+
+- `char * taos_stmt_errstr(TAOS_STMT *stmt)`
+
+  （2.1.3.0 版本新增）  
+  用于在其他 stmt API 返回错误（返回错误码或空指针）时获取错误信息。
 
 ### 连续查询接口
 
@@ -578,7 +585,9 @@ conn.close()
 
 ## <a class="anchor" id="restful"></a>RESTful Connector
 
-为支持各种不同类型平台的开发，TDengine提供符合REST设计标准的API，即RESTful API。为最大程度降低学习成本，不同于其他数据库RESTful API的设计方法，TDengine直接通过HTTP POST 请求BODY中包含的SQL语句来操作数据库，仅需要一个URL。RESTful连接器的使用参见[视频教程](https://www.taosdata.com/blog/2020/11/11/1965.html)。
+为支持各种不同类型平台的开发，TDengine 提供符合 REST 设计标准的 API，即 RESTful API。为最大程度降低学习成本，不同于其他数据库 RESTful API 的设计方法，TDengine 直接通过 HTTP POST 请求 BODY 中包含的 SQL 语句来操作数据库，仅需要一个 URL。RESTful 连接器的使用参见[视频教程](https://www.taosdata.com/blog/2020/11/11/1965.html)。
+
+注意：与标准连接器的一个区别是，RESTful 接口是无状态的，因此 `USE db_name` 指令没有效果，所有对表名、超级表名的引用都需要指定数据库名前缀。
 
 ### HTTP请求格式 
 
@@ -796,7 +805,7 @@ C#连接器支持的系统有：Linux 64/Windows x64/Windows x86
 
 * 应用驱动安装请参考[安装连接器驱动步骤](https://www.taosdata.com/cn/documentation/connector#driver)。
 * .NET接口文件﻿TDengineDrivercs.cs和参考程序示例TDengineTest.cs均位于Windows客户端install_directory/examples/C#目录下。
-* 在Windows系统上，C#应用程序可以使用TDengine的原生C接口来执行所有数据库操作，后续版本将提供ORM（dapper）框架驱动。
+* 在Windows系统上，C#应用程序可以使用TDengine的原生C接口来执行所有数据库操作，后续版本将提供ORM（Dapper）框架驱动。
 
 ### 安装验证
 
@@ -892,7 +901,7 @@ go env -w GOPROXY=https://goproxy.io,direct
 
 Node.js连接器支持的系统有：
 
-| **CPU类型**  | x64（64bit） |          |          | aarch64  | aarch32  |
+|**CPU类型**  | x64（64bit） |          |          | aarch64  | aarch32  |
 | ------------ | ------------ | -------- | -------- | -------- | -------- |
 | **OS类型**   | Linux        | Win64    | Win32    | Linux    | Linux    |
 | **支持与否** | **支持**     | **支持** | **支持** | **支持** | **支持** |

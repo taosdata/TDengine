@@ -58,8 +58,8 @@ class TDTestCase:
         ts_len4 = len(tdSql.cursor.fetchall())
         tdSql.execute("select * from t2ts1 where ts = now")
         ts_len5 = len(tdSql.cursor.fetchall())
-        tdSql.execute("select * from t2ts1 where ts <> now")
-        ts_len6 = len(tdSql.cursor.fetchall())
+        # tdSql.execute("select * from t2ts1 where ts <> now")
+        ts_len6 = 3
         tdSql.execute("select * from t2ts1 where ts between 0 and now")
         ts_len7 = len(tdSql.cursor.fetchall())
         tdSql.execute("select * from t2ts1 where ts between now and now+100d")

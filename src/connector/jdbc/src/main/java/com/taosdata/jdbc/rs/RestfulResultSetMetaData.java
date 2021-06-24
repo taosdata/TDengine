@@ -8,20 +8,22 @@ import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.sql.Types;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 
 public class RestfulResultSetMetaData extends WrapperImpl implements ResultSetMetaData {
 
     private final String database;
-    private ArrayList<RestfulResultSet.Field> fields;
+    private List<RestfulResultSet.Field> fields;
     private final RestfulResultSet resultSet;
 
     public RestfulResultSetMetaData(String database, ArrayList<RestfulResultSet.Field> fields, RestfulResultSet resultSet) {
         this.database = database;
-        this.fields = fields;
+        this.fields = fields == null ? Collections.emptyList() : fields;
         this.resultSet = resultSet;
     }
 
-    public ArrayList<RestfulResultSet.Field> getFields() {
+    public List<RestfulResultSet.Field> getFields() {
         return fields;
     }
 

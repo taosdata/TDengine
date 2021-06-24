@@ -103,13 +103,6 @@ bool subAndCheckDone(SSqlObj *pSql, SSqlObj *pParentSql, int idx) {
 
   pthread_mutex_lock(&subState->mutex);
 
-//  bool done = allSubqueryDone(pParentSql);
-//  if (done) {
-//    tscDebug("0x%"PRIx64" subquery:0x%"PRIx64",%d all subs already done", pParentSql->self, pSql->self, idx);
-//    pthread_mutex_unlock(&subState->mutex);
-//    return false;
-//  }
-  
   tscDebug("0x%"PRIx64" subquery:0x%"PRIx64", index:%d state set to 1", pParentSql->self, pSql->self, idx);
   subState->states[idx] = 1;
 
@@ -622,7 +615,7 @@ static int32_t tscLaunchRealSubqueries(SSqlObj* pSql) {
       int16_t colId = tscGetJoinTagColIdByUid(&pQueryInfo->tagCond, pTableMetaInfo->pTableMeta->id.uid);
 
       // set the tag column id for executor to extract correct tag value
-#ifndef _TD_NINGSI_60      
+#ifndef _TD_NINGSI_60
       pExpr->base.param[0] = (tVariant) {.i64 = colId, .nType = TSDB_DATA_TYPE_BIGINT, .nLen = sizeof(int64_t)};
 #else
       pExpr->base.param[0].i64 = colId;
@@ -1843,7 +1836,7 @@ int32_t tscCreateJoinSubquery(SSqlObj *pSql, int16_t tableIndex, SJoinSupporter 
     // refactor as one method
     SQueryInfo *pNewQueryInfo = tscGetQueryInfo(&pNew->cmd);
     assert(pNewQueryInfo != NULL);
-    
+
     pSupporter->colList = pNewQueryInfo->colList;
     pNewQueryInfo->colList = NULL;
     
@@ -1977,9 +1970,8 @@ void tscHandleMasterJoinQuery(SSqlObj* pSql) {
   }
 
   memset(pSql->subState.states, 0, sizeof(*pSql->subState.states) * pSql->subState.numOfSub);
-  tscDebug("0x%"PRIx64" reset all sub states to 0", pSql->self);
+  tscDebug("0x%"PRIx64" reset all sub states to 0, start subquery, total:%d", pSql->self, pQueryInfo->numOfTables);
 
-  tscDebug("0x%"PRIx64" start subquery, total:%d", pSql->self, pQueryInfo->numOfTables);
   for (int32_t i = 0; i < pQueryInfo->numOfTables; ++i) {
     SJoinSupporter *pSupporter = tscCreateJoinSupporter(pSql, i);
     if (pSupporter == NULL) {  // failed to create support struct, abort current query
@@ -2390,8 +2382,14 @@ int32_t tscHandleFirstRoundStableQuery(SSqlObj *pSql) {
       SColumn *pCol = taosArrayGetP(pColList, i);
 
       if (pCol->info.flist.numOfFilters > 0) {  // copy to the pNew->cmd.colList if it is filtered.
-        SColumn *p = tscColumnClone(pCol);
-        taosArrayPush(pNewQueryInfo->colList, &p);
+        int32_t index1 = tscColumnExists(pNewQueryInfo->colList, pCol->columnIndex, pCol->tableUid);
+        if (index1 >= 0) {
+          SColumn* x = taosArrayGetP(pNewQueryInfo->colList, index1);
+          tscColumnCopy(x, pCol);
+        } else {
+          SColumn *p = tscColumnClone(pCol);
+          taosArrayPush(pNewQueryInfo->colList, &p);
+        }
       }
     }
 
@@ -2424,7 +2422,7 @@ int32_t tscHandleMasterSTableQuery(SSqlObj *pSql) {
   
   // pRes->code check only serves in launching metric sub-queries
   if (pRes->code == TSDB_CODE_TSC_QUERY_CANCELLED) {
-    pCmd->command = TSDB_SQL_RETRIEVE_LOCALMERGE;  // enable the abort of kill super table function.
+    pCmd->command = TSDB_SQL_RETRIEVE_GLOBALMERGE;  // enable the abort of kill super table function.
     return pRes->code;
   }
   
@@ -2780,7 +2778,7 @@ static void tscAllDataRetrievedFromDnode(SRetrieveSupport *trsupport, SSqlObj* p
   if (code == TSDB_CODE_SUCCESS && trsupport->pExtMemBuffer == NULL) {
     pParentSql->cmd.command = TSDB_SQL_RETRIEVE_EMPTY_RESULT; // no result, set the result empty
   } else {
-    pParentSql->cmd.command = TSDB_SQL_RETRIEVE_LOCALMERGE;
+    pParentSql->cmd.command = TSDB_SQL_RETRIEVE_GLOBALMERGE;
   }
 
   tscCreateResPointerInfo(&pParentSql->res, pPQueryInfo);
@@ -3153,6 +3151,13 @@ int32_t tscHandleMultivnodeInsert(SSqlObj *pSql) {
 
   // it is the failure retry insert
   if (pSql->pSubs != NULL) {
+    int32_t blockNum = (int32_t)taosArrayGetSize(pCmd->insertParam.pDataBlocks);
+    if (pSql->subState.numOfSub != blockNum) {
+      tscError("0x%"PRIx64" sub num:%d is not same with data block num:%d", pSql->self, pSql->subState.numOfSub, blockNum);
+      pRes->code = TSDB_CODE_TSC_APP_ERROR;
+      return pRes->code;
+    }
+
     for(int32_t i = 0; i < pSql->subState.numOfSub; ++i) {
       SSqlObj* pSub = pSql->pSubs[i];
       SInsertSupporter* pSup = calloc(1, sizeof(SInsertSupporter));
@@ -3502,7 +3507,7 @@ static UNUSED_FUNC bool tscHasRemainDataInSubqueryResultSet(SSqlObj *pSql) {
 }
 
 void* createQInfoFromQueryNode(SQueryInfo* pQueryInfo, STableGroupInfo* pTableGroupInfo, SOperatorInfo* pSourceOperator,
-    char* sql, void* merger, int32_t stage) {
+                               char* sql, void* merger, int32_t stage, uint64_t qId) {
   assert(pQueryInfo != NULL);
   SQInfo *pQInfo = (SQInfo *)calloc(1, sizeof(SQInfo));
   if (pQInfo == NULL) {
@@ -3511,7 +3516,7 @@ void* createQInfoFromQueryNode(SQueryInfo* pQueryInfo, STableGroupInfo* pTableGr
 
   // to make sure third party won't overwrite this structure
   pQInfo->signature = pQInfo;
-
+  pQInfo->qId       = qId;
   SQueryRuntimeEnv *pRuntimeEnv = &pQInfo->runtimeEnv;
   SQueryAttr       *pQueryAttr  = &pQInfo->query;
 

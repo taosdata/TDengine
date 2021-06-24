@@ -49,6 +49,7 @@ TDengine 的 JDBC 驱动实现尽可能与关系型数据库驱动保持一致�
 </tr>
 </table>
 
+注意：与 JNI 方式不同，RESTful 接口是无状态的，因此 `USE db_name` 指令没有效果，RESTful 下所有对表名、超级表名的引用都需要指定数据库名前缀。
 
 ## 如何获取 taos-jdbcdriver
 
@@ -325,10 +326,12 @@ for (int i = 0; i < numOfRows; i++){
 }
 s.setString(2, s2, 10);
 
-// AddBatch 之后，可以再设定新的表名、TAGS、VALUES 取值，这样就能实现一次执行向多个数据表写入：
+// AddBatch 之后，缓存并未清空。为避免混乱，并不推荐在 ExecuteBatch 之前再次绑定新一批的数据：
 s.columnDataAddBatch();
-// 执行语句：
+// 执行绑定数据后的语句：
 s.columnDataExecuteBatch();
+// 执行语句后清空缓存。在清空之后，可以复用当前的对象，绑定新的一批数据（可以是新表名、新 TAGS 值、新 VALUES 值）：
+s.columnDataClearBatch();
 // 执行完毕，释放资源：
 s.columnDataCloseBatch();
 ```
@@ -361,6 +364,7 @@ public void setShort(int columnIndex, ArrayList<Short> list) throws SQLException
 public void setString(int columnIndex, ArrayList<String> list, int size) throws SQLException
 public void setNString(int columnIndex, ArrayList<String> list, int size) throws SQLException
 ```
+其中 setString 和 setNString 都要求用户在 size 参数里声明表定义中对应列的列宽。
 
 ### <a class="anchor" id="subscribe"></a>订阅
 
@@ -548,7 +552,7 @@ TDengine 目前支持时间戳、数字、字符、布尔类型，与 Java 对�
 | BIGINT            | java.lang.Long     |
 | FLOAT             | java.lang.Float    |
 | DOUBLE            | java.lang.Double   |
-| SMALLINT	    | java.lang.Short    |
+| SMALLINT          | java.lang.Short    |
 | TINYINT           | java.lang.Byte     |
 | BOOL              | java.lang.Boolean  |
 | BINARY            | byte array         |

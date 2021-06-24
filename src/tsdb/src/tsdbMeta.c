@@ -148,7 +148,9 @@ int tsdbCreateTable(STsdbRepo *repo, STableCfg *pCfg) {
   return 0;
 
 _err:
-  tsdbFreeTable(super);
+  if (newSuper) {
+    tsdbFreeTable(super);
+  }
   tsdbFreeTable(table);
   return -1;
 }
@@ -211,7 +213,7 @@ void *tsdbGetTableTagVal(const void* pTable, int32_t colId, int16_t type, int16_
   }
 
   char *val = tdGetKVRowValOfCol(((STable*)pTable)->tagVal, colId);
-  assert(type == pCol->type && bytes == pCol->bytes);
+  assert(type == pCol->type && bytes >= pCol->bytes);
 
   // if (val != NULL && IS_VAR_DATA_TYPE(type)) {
   //   assert(varDataLen(val) < pCol->bytes);
@@ -607,6 +609,7 @@ void tsdbFreeLastColumns(STable* pTable) {
   pTable->maxColNum = 0;
   pTable->lastColSVersion = -1;
   pTable->restoreColumnNum = 0;
+  pTable->hasRestoreLastColumn = false;
 }
 
 int16_t tsdbGetLastColumnsIndexByColId(STable* pTable, int16_t colId) {
@@ -643,6 +646,7 @@ int tsdbInitColIdCacheWithSchema(STable* pTable, STSchema* pSchema) {
   pTable->lastColSVersion = schemaVersion(pSchema);
   pTable->maxColNum = numOfColumn;
   pTable->restoreColumnNum = 0;
+  pTable->hasRestoreLastColumn = false;
   return 0;
 }
 
@@ -655,7 +659,7 @@ int tsdbUpdateLastColSchema(STable *pTable, STSchema *pNewSchema) {
     return 0;
   }
   
-  tsdbInfo("tsdbUpdateLastColSchema:%s,%d->%d", pTable->name->data, pTable->lastColSVersion, schemaVersion(pNewSchema));
+  tsdbDebug("tsdbUpdateLastColSchema:%s,%d->%d", pTable->name->data, pTable->lastColSVersion, schemaVersion(pNewSchema));
   
   int16_t numOfCols = pNewSchema->numOfCols;
   SDataCol *lastCols = (SDataCol*)malloc(numOfCols * sizeof(SDataCol));
@@ -800,6 +804,7 @@ static STable *tsdbNewTable() {
   pTable->lastCols = NULL;
   pTable->restoreColumnNum = 0;
   pTable->maxColNum = 0;
+  pTable->hasRestoreLastColumn = false;
   pTable->lastColSVersion = -1;
   return pTable;
 }
