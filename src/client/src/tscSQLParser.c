@@ -4071,12 +4071,33 @@ static int32_t setNormalExprToCond(tSqlExpr** parent, tSqlExpr* pExpr, int32_t p
 }
 
 
-static int32_t validateNullExpr(tSqlExpr* pExpr, char* msgBuf) {
+static int32_t validateNullExpr(tSqlExpr* pExpr, STableMeta* pTableMeta, int32_t index, char* msgBuf) {
   const char* msg = "only support is [not] null";
 
   tSqlExpr* pRight = pExpr->pRight;
   if (pRight->tokenId == TK_NULL && (!(pExpr->tokenId == TK_ISNULL || pExpr->tokenId == TK_NOTNULL))) {
     return invalidOperationMsg(msgBuf, msg);
+  }
+
+  if (pRight->tokenId == TK_STRING) {
+    SSchema* pSchema = tscGetTableSchema(pTableMeta);
+    if (IS_VAR_DATA_TYPE(pSchema[index].type)) {
+      return TSDB_CODE_SUCCESS;
+    }
+    
+    char *v = strndup(pRight->token.z, pRight->token.n);
+    int32_t len = strRmquote(v, pRight->token.n);
+    if (len > 0) {
+      uint32_t type = 0;
+      tGetToken(v, &type);
+
+      if (type == TK_NULL) {        
+        free(v);
+        return invalidOperationMsg(msgBuf, msg);
+      }
+    }
+
+    free(v);
   }
 
   return TSDB_CODE_SUCCESS;
@@ -4129,7 +4150,7 @@ static int32_t handleExprInQueryCond(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSql
   STableMeta*     pTableMeta = pTableMetaInfo->pTableMeta;
 
   // validate the null expression
-  int32_t code = validateNullExpr(*pExpr, tscGetErrorMsgPayload(pCmd));
+  int32_t code = validateNullExpr(*pExpr, pTableMeta, index.columnIndex, tscGetErrorMsgPayload(pCmd));
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }
@@ -8086,12 +8107,8 @@ int32_t validateSqlNode(SSqlObj* pSql, SSqlNode* pSqlNode, SQueryInfo* pQueryInf
       SExprInfo* pExpr1 = tscExprGet(pQueryInfo, 0);
 
       if (pExpr1->base.functionId != TSDB_FUNC_TID_TAG) {
-        int32_t numOfCols = (int32_t)taosArrayGetSize(pQueryInfo->colList);
-        for (int32_t i = 0; i < numOfCols; ++i) {
-          SColumn* pCols = taosArrayGetP(pQueryInfo->colList, i);
-          if (pCols->info.flist.numOfFilters > 0) {
-            return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg5);
-          }
+        if ((pQueryInfo->colCond && taosArrayGetSize(pQueryInfo->colCond) > 0) || IS_TSWINDOW_SPECIFIED(pQueryInfo->window))  {
+          return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg5);
         }
       }
     }

@@ -65,7 +65,14 @@ $tb = $tbPrefix . $i
 sql_error select * from $tb where c7
 
 # TBASE-654 : invalid filter expression cause server crashed
-sql_error select count(*) from $tb where c1<10 and c1<>2
+sql select count(*) from $tb where c1<10 and c1<>2
+if $rows != 1 then
+  return -1
+endi
+if $data00 != 900 then
+  return -1
+endi
+
 
 sql select * from $tb where c7 = false
 $val = $rowNum / 100
@@ -253,30 +260,11 @@ sql insert into tb_where_NULL values ('2019-01-01 09:00:02.000', 2, 'val2')
 sql_error select * from tb_where_NULL where c1 = NULL
 sql_error select * from tb_where_NULL where c1 <> NULL
 sql_error select * from tb_where_NULL where c1 < NULL
-sql select * from tb_where_NULL where c1 = "NULL"
-if $rows != 0 then
-  return -1
-endi
-
-sql select * from tb_where_NULL where c1 <> "NULL"
-if $rows != 2 then
-  return -1
-endi
-sql select * from tb_where_NULL where c1 <> "nulL"
-if $rows != 2 then
-  return -1
-endi
-
-sql select * from tb_where_NULL where c1 > "NULL"
-if $rows != 0 then
-  return -1
-endi
-
-sql select * from tb_where_NULL where c1 >= "NULL"
-if $rows != 0 then
-  return -1
-endi
-
+sql_error select * from tb_where_NULL where c1 = "NULL"
+sql_error select * from tb_where_NULL where c1 <> "NULL"
+sql_error select * from tb_where_NULL where c1 <> "nulL"
+sql_error select * from tb_where_NULL where c1 > "NULL"
+sql_error select * from tb_where_NULL where c1 >= "NULL"
 sql select * from tb_where_NULL where c2 = "NULL"
 if $rows != 0 then
   return -1
