@@ -151,7 +151,7 @@ static bool taosReadDirectoryConfig(SGlobalCfg *cfg, char *input_value) {
 
       wordfree(&full_path);
 
-      char tmp[1025] = {0};
+      char tmp[PATH_MAX] = {0};
       if (realpath(option, tmp) != NULL) {
         strcpy(option, tmp);
       }

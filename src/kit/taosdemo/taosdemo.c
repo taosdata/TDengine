@@ -5103,7 +5103,7 @@ static int32_t generateStbDataTail(
     } else {
         retLen = getRowDataFromSample(
                   data,
-                  remainderBufLen,
+                  remainderBufLen < MAX_DATA_SIZE ? remainderBufLen : MAX_DATA_SIZE,
                   startTime + superTblInfo->timeStampStep * k,
                   superTblInfo,
                   pSamplePos);
