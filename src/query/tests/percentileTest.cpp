@@ -7,7 +7,8 @@
 
 #include "qPercentile.h"
 
-#pragma GCC diagnostic ignored "-Werror=unused-function"
+#pragma GCC diagnostic ignored "-Wunused-function"
+#pragma GCC diagnostic ignored "-Wunused-variable"
 
 namespace {
 tMemBucket *createBigIntDataBucket(int32_t start, int32_t end) {

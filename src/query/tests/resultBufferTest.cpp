@@ -6,7 +6,8 @@
 #include "taos.h"
 #include "tsdb.h"
 
-#pragma GCC diagnostic ignored "-Werror=unused-function"
+#pragma GCC diagnostic ignored "-Wunused-function"
+#pragma GCC diagnostic ignored "-Wunused-variable"
 
 namespace {
 // simple test
