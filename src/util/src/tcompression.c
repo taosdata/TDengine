@@ -886,3 +886,57 @@ int tsDecompressFloatImp(const char *const input, const int nelements, char *con
 
   return nelements * FLOAT_BYTES;
 }
+
+//
+// ----------- global init and exit resource ------
+//
+int SZ_Init(const char *configFilePath);
+
+
+bool tsCompressInit() {
+  int i = 7*9;
+  i %= 10;
+  if (i > 10000) {
+  tsCompressFloatLossy(NULL, 0, 0, NULL, 0, 0, NULL, 0);
+  tsDecompressFloatLossy(NULL, 0, 0, NULL, 0, 0, NULL, 0);
+  tsCompressDoubleLossy(NULL, 0, 0, NULL, 0, 0, NULL, 0);
+  tsDecompressDoubleLossy(NULL, 0, 0, NULL, 0, 0, NULL, 0); 
+  tsCompressExit();
+ 
+  }
+
+  SZ_Init("./sz.config");
+  return true;
+}
+
+void tsCompressExit(){
+  tsCompressInit();
+}
+
+//
+//   ----------  float double lossy  -----------
+//
+
+/*
+static int  tsCompressFloatLossy(const char *const input, int inputSize, const int nelements, char *const output, int outputSize,
+                    char algorithm, char *const buffer, int bufferSize) {
+
+    return -1;
+}
+
+static int tsDecompressFloatLossy(const char *const input, int compressedSize, const int nelements, char *const output,
+                      int outputSize, char algorithm, char *const buffer, int bufferSize) {
+
+    return -1;
+}
+
+static int tsCompressDoubleLossy(const char *const input, int inputSize, const int nelements, char *const output, int outputSize,
+                     char algorithm, char *const buffer, int bufferSize) {
+    return -1;
+}
+
+static int tsDecompressDoubleLossy(const char *const input, int compressedSize, const int nelements, char *const output,
+                       int outputSize, char algorithm, char *const buffer, int bufferSize) {
+    return -1;
+}
+*/

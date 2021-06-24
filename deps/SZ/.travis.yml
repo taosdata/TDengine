@@ -1,0 +1,45 @@
+sudo: false
+
+language: c
+
+before_install:
+- cd test/travis-ci && ./getData.sh && cd -
+
+matrix:
+  include:
+    - dist: xenial
+      os: linux
+      addons:
+        apt:
+          sources:
+            - ubuntu-toolchain-r-test     # For gcc 4.9, 5 and 7
+          packages:
+            - gcc-7
+            - gfortran-7
+            - zstd
+            - libzstd1-dev
+            - exuberant-ctags
+            - libcunit1-dev 
+            - libnetcdf-dev 
+    - osx_image: xcode11
+      os: osx
+      env: PATH=/usr/local/bin:$PATH
+install:
+    - mkdir build
+    - cd build
+    - |
+      if [[ "${TRAVIS_OS_NAME}" != "linux" ]]; then
+        brew install ctags
+        brew install cunit
+        brew upgrade pkg-config
+      fi
+    - cmake -DCMAKE_INSTALL_PREFIX=$HOME -DBUILD_TESTS=ON -DBUILD_INTEGRATION_TESTS=ON ..
+    - make 
+    - make install
+    - make test
+
+script:
+- cd ..
+- ./configure && make
+- cd example && ./test.sh && cd -
+- cd test/travis-ci && ./test.sh && cd -

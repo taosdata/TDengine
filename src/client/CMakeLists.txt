@@ -5,13 +5,14 @@ INCLUDE_DIRECTORIES(inc)
 INCLUDE_DIRECTORIES(jni)
 INCLUDE_DIRECTORIES(${TD_COMMUNITY_DIR}/src/query/inc)
 AUX_SOURCE_DIRECTORY(src SRC)
+link_directories(/share/lib)
 
 IF (TD_LINUX)
   INCLUDE_DIRECTORIES(${TD_COMMUNITY_DIR}/deps/jni/linux)
 
   # set the static lib name
   ADD_LIBRARY(taos_static STATIC ${SRC})
-  TARGET_LINK_LIBRARIES(taos_static common query trpc tutil pthread m rt)
+  TARGET_LINK_LIBRARIES(taos_static common query trpc tutil pthread m rt SZ)
   SET_TARGET_PROPERTIES(taos_static PROPERTIES OUTPUT_NAME "taos_static")
   SET_TARGET_PROPERTIES(taos_static PROPERTIES CLEAN_DIRECT_OUTPUT 1)
 

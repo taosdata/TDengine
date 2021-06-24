@@ -47,6 +47,9 @@ extern int tsDecompressDoubleImp(const char *const input, const int nelements, c
 extern int tsCompressFloatImp(const char *const input, const int nelements, char *const output);
 extern int tsDecompressFloatImp(const char *const input, const int nelements, char *const output);
 
+bool tsCompressInit();
+void tsCompressExit();
+
 static FORCE_INLINE int tsCompressTinyint(const char *const input, int inputSize, const int nelements, char *const output, int outputSize, char algorithm,
                       char *const buffer, int bufferSize) {
   if (algorithm == ONE_STAGE_COMP) {
@@ -238,6 +241,27 @@ static FORCE_INLINE int tsDecompressDouble(const char *const input, int compress
     return -1;
   }
 }
+
+static FORCE_INLINE int tsCompressFloatLossy(const char *const input, int inputSize, const int nelements, char *const output, int outputSize,
+                    char algorithm, char *const buffer, int bufferSize) {
+                      return -1;
+                    }
+
+static FORCE_INLINE int tsDecompressFloatLossy(const char *const input, int compressedSize, const int nelements, char *const output,
+                      int outputSize, char algorithm, char *const buffer, int bufferSize){
+                        return -1;
+                      }
+
+static FORCE_INLINE int tsCompressDoubleLossy(const char *const input, int inputSize, const int nelements, char *const output, int outputSize,
+                     char algorithm, char *const buffer, int bufferSize){
+                       return -1;
+                     }
+
+static FORCE_INLINE int tsDecompressDoubleLossy(const char *const input, int compressedSize, const int nelements, char *const output,
+                       int outputSize, char algorithm, char *const buffer, int bufferSize){
+                         return -1;
+                       }
+
 
 static FORCE_INLINE int tsCompressTimestamp(const char *const input, int inputSize, const int nelements, char *const output, int outputSize,
                         char algorithm, char *const buffer, int bufferSize) {

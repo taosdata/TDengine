@@ -15,6 +15,7 @@
 
 // no test file errors here
 #include "tsdbint.h"
+#include "tscompression.h"
 
 #define IS_VALID_PRECISION(precision) \
   (((precision) >= TSDB_TIME_PRECISION_MILLI) && ((precision) <= TSDB_TIME_PRECISION_NANO))
@@ -65,6 +66,9 @@ STsdbRepo *tsdbOpenRepo(STsdbCfg *pCfg, STsdbAppH *pAppH) {
   STsdbCfg   config = *pCfg;
 
   terrno = TSDB_CODE_SUCCESS;
+
+  // Compress Init
+  tsCompressInit();
 
   // Check and set default configurations
   if (tsdbCheckAndSetDefaultCfg(&config) < 0) {
@@ -138,6 +142,9 @@ int tsdbCloseRepo(STsdbRepo *repo, int toCommit) {
   tsdbCloseMeta(pRepo);
   tsdbFreeRepo(pRepo);
   tsdbDebug("vgId:%d repository is closed", vgId);
+
+  // compress exit
+  tsCompressExit();
 
   if (terrno != TSDB_CODE_SUCCESS) {
     return -1;
