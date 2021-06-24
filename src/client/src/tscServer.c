@@ -795,6 +795,7 @@ static int32_t serializeSqlExpr(SSqlExpr* pExpr, STableMetaInfo* pTableMetaInfo,
   pSqlExpr->colBytes    = htons(pExpr->colBytes);
   pSqlExpr->resType     = htons(pExpr->resType);
   pSqlExpr->resBytes    = htons(pExpr->resBytes);
+  pSqlExpr->interBytes  = htonl(pExpr->interBytes);
   pSqlExpr->functionId  = htons(pExpr->functionId);
   pSqlExpr->numOfParams = htons(pExpr->numOfParams);
   pSqlExpr->resColId    = htons(pExpr->resColId);

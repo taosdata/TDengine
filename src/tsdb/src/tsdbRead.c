@@ -3364,7 +3364,7 @@ static bool tableFilterFp(const void* pNode, void* param) {
        GET_TYPED_DATA(v, uint64_t, pInfo->sch.type, val);
        return NULL != taosHashGet((SHashObj *)pInfo->q, (char *)&v, sizeof(v));     
      }
-     else if (type == TSDB_DATA_TYPE_DOUBLE || type == TSDB_DATA_TYPE_DOUBLE) {
+     else if (type == TSDB_DATA_TYPE_DOUBLE || type == TSDB_DATA_TYPE_FLOAT) {
        double v;
        GET_TYPED_DATA(v, double, pInfo->sch.type, val);
        return NULL != taosHashGet((SHashObj *)pInfo->q, (char *)&v, sizeof(v));     

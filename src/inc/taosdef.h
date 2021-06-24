@@ -100,7 +100,7 @@ extern const int32_t TYPE_BYTES[15];
 #define TSDB_TIME_PRECISION_MICRO_STR "us"
 #define TSDB_TIME_PRECISION_NANO_STR  "ns"
 
-#define TSDB_TICK_PER_SECOND(precision) ((precision)==TSDB_TIME_PRECISION_MILLI ? 1e3L : ((precision)==TSDB_TIME_PRECISION_MICRO ? 1e6L : 1e9L))
+#define TSDB_TICK_PER_SECOND(precision) ((int64_t)((precision)==TSDB_TIME_PRECISION_MILLI ? 1e3L : ((precision)==TSDB_TIME_PRECISION_MICRO ? 1e6L : 1e9L)))
 
 #define T_MEMBER_SIZE(type, member) sizeof(((type *)0)->member)
 #define T_APPEND_MEMBER(dst, ptr, type, member) \
