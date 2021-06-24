@@ -204,7 +204,7 @@ typedef struct SAggFunctionInfo {
   bool (*init)(SQLFunctionCtx *pCtx);  // setup the execute environment
 
   void (*xFunction)(SQLFunctionCtx *pCtx);                     // blocks version function
-  void (*xFunctionF)(SQLFunctionCtx *pCtx, int32_t position);  // single-row function version, todo merge with blockwise function
+//  void (*xFunctionF)(SQLFunctionCtx *pCtx, int32_t position);  // single-row function version, todo merge with blockwise function
 
   // finalizer must be called after all xFunction has been executed to generated final result.
   void (*xFinalize)(SQLFunctionCtx *pCtx);
