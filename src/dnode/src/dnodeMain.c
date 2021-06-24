@@ -303,6 +303,8 @@ static int32_t dnodeInitStorage() {
 
   dnodeCheckDataDirOpenned(tsDnodeDir);
 
+  taosGetDisk();
+  taosPrintDiskInfo();
   dInfo("dnode storage is initialized at %s", tsDnodeDir);
   return 0;
 }
