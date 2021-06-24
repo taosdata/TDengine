@@ -2,7 +2,7 @@
 
 ## <a class="anchor" id="install"></a>Quick Install
 
-TDegnine software consists of 3 parts: server, client, and alarm module. At the moment, TDengine server only runs on Linux (Windows, mac OS and more OS supports will come soon), but client can run on either Windows or Linux. TDengine client can be installed and run on Windows or Linux. Applications based-on any OSes can all connect to server taosd via a RESTful interface. About CPU, TDegnine supports X64/ARM64/MIPS64/Alpha64, and ARM32、RISC-V, other more CPU architectures will be supported soon. You can set up and install TDengine server either from the [source code](https://www.taosdata.com/en/getting-started/#Install-from-Source) or the [packages](https://www.taosdata.com/en/getting-started/#Install-from-Package).
+TDengine software consists of 3 parts: server, client, and alarm module. At the moment, TDengine server only runs on Linux (Windows, mac OS and more OS supports will come soon), but client can run on either Windows or Linux. TDengine client can be installed and run on Windows or Linux. Applications based-on any OSes can all connect to server taosd via a RESTful interface. About CPU, TDengine supports X64/ARM64/MIPS64/Alpha64, and ARM32、RISC-V, other more CPU architectures will be supported soon. You can set up and install TDengine server either from the [source code](https://www.taosdata.com/en/getting-started/#Install-from-Source) or the [packages](https://www.taosdata.com/en/getting-started/#Install-from-Package).
 
 ### <a class="anchor" id="source-install"></a>Install from Source
 
@@ -14,7 +14,7 @@ Please visit our [TDengine Official Docker Image: Distribution, Downloading, and
 
 ### <a class="anchor" id="package-install"></a>Install from Package
 
-It’s extremely easy to install for TDegnine, which takes only a few seconds from downloaded to successful installed. The server installation package includes clients and connectors. We provide 3 installation packages, which you can choose according to actual needs:
+It’s extremely easy to install for TDengine, which takes only a few seconds from downloaded to successful installed. The server installation package includes clients and connectors. We provide 3 installation packages, which you can choose according to actual needs:
 
 Click [here](https://www.taosdata.com/cn/getting-started/#%E9%80%9A%E8%BF%87%E5%AE%89%E8%A3%85%E5%8C%85%E5%AE%89%E8%A3%85) to download the install package.
 
@@ -39,8 +39,8 @@ If the service is running successfully, you can play around through TDengine she
 **Note:**
 
 - The `systemctl` command needs the **root** privilege. Use **sudo** if you are not the **root** user.
-- To get better product feedback and improve our solution, TDegnine will collect basic usage information, but you can modify the configuration parameter **telemetryReporting** in the system configuration file taos.cfg, and set it to 0 to turn it off.
-- TDegnine uses FQDN (usually hostname) as the node ID. In order to ensure normal operation, you need to set hostname for the server running taosd, and configure DNS service or hosts file for the machine running client application, to ensure the FQDN can be resolved.
+- To get better product feedback and improve our solution, TDengine will collect basic usage information, but you can modify the configuration parameter **telemetryReporting** in the system configuration file taos.cfg, and set it to 0 to turn it off.
+- TDengine uses FQDN (usually hostname) as the node ID. In order to ensure normal operation, you need to set hostname for the server running taosd, and configure DNS service or hosts file for the machine running client application, to ensure the FQDN can be resolved.
 - TDengine supports installation on Linux systems with[ systemd ](https://en.wikipedia.org/wiki/Systemd)as the process service management, and uses `which systemctl` command to detect whether `systemd` packages exist in the system:
   
   ```bash

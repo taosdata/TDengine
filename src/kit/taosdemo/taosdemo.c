@@ -90,7 +90,7 @@ enum TEST_MODE {
 #define OPT_ABORT          1 /* –abort */
 #define STRING_LEN         60000
 #define MAX_PREPARED_RAND  1000000
-#define MAX_FILE_NAME_LEN  256
+#define MAX_FILE_NAME_LEN  128
 
 #define   MAX_SAMPLES_ONCE_FROM_FILE   10000
 #define   MAX_NUM_DATATYPE 10

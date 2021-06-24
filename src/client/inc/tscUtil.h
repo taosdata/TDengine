@@ -210,7 +210,8 @@ int32_t createProjectionExpr(SQueryInfo* pQueryInfo, STableMetaInfo* pTableMetaI
 void clearAllTableMetaInfo(SQueryInfo* pQueryInfo, bool removeMeta);
 
 SColumn* tscColumnClone(const SColumn* src);
-bool tscColumnExists(SArray* pColumnList, int32_t columnIndex, uint64_t uid);
+void tscColumnCopy(SColumn* pDest, const SColumn* pSrc);
+int32_t tscColumnExists(SArray* pColumnList, int32_t columnId, uint64_t uid);
 SColumn* tscColumnListInsert(SArray* pColumnList, int32_t columnIndex, uint64_t uid, SSchema* pSchema);
 void tscColumnListDestroy(SArray* pColList);
 void tscColumnListCopy(SArray* dst, const SArray* src, uint64_t tableUid);

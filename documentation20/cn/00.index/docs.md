@@ -42,7 +42,7 @@ TDengine是一个高效的存储、查询、分析时序大数据的平台，专
 * [数据写入](/taos-sql#insert)：支持单表单条、多条、多表多条写入，支持历史数据写入
 * [数据查询](/taos-sql#select)：支持时间段、值过滤、排序、查询结果手动分页等
 * [SQL函数](/taos-sql#functions)：支持各种聚合函数、选择函数、计算函数，如avg, min, diff等
-* [时间维度聚合](/taos-sql#aggregation)：将表中数据按照时间段进行切割后聚合，降维处理
+* [窗口切分聚合](/taos-sql#aggregation)：将表中数据按照时间段等方式进行切割后聚合，降维处理
 * [边界限制](/taos-sql#limitation)：库、表、SQL等边界限制条件
 * [错误码](/taos-sql/error-code)：TDengine 2.0 错误码以及对应的十进制码
 

@@ -6,7 +6,7 @@ TDengine provides many connectors for development, including C/C++, JAVA, Python
 
 At present, TDengine connectors support a wide range of platforms, including hardware platforms such as X64/X86/ARM64/ARM32/MIPS/Alpha, and development environments such as Linux/Win64/Win32. The comparison matrix is as follows:
 
-| **CPU**     | **X64 64bit** | **X64 64bit** | **X64 64bit** | **X86 32bit** | **ARM64** | **ARM32** | **MIPS Godson** | **Alpha Whenwei** | **X64 TimecomTech** |
+| **CPU**     | **X64 64bit** | **X64 64bit** | **X64 64bit** | **X86 32bit** | **ARM64** | **ARM32** | **MIPS Godson** | **Alpha Sunway** | **X64 TimecomTech** |
 | ----------- | ------------- | ------------- | ------------- | ------------- | --------- | --------- | --------------- | ----------------- | ------------------- |
 | **OS**      | **Linux**     | **Win64**     | **Win32**     | **Win32**     | **Linux** | **Linux** | **Linux**       | **Linux**         | **Linux**           |
 | **C/C++**   | ●             | ●             | ●             | ○             | ●         | ●         | ○               | ○                 | ○                   |
@@ -75,9 +75,9 @@ Edit the taos.cfg file (default path/etc/taos/taos.cfg) and change firstEP to En
 * X64 hardware environment: TDengine-client-2.X.X.X-Windows-x64.exe
 * X86 hardware environment: TDengine-client-2.X.X.X-Windows-x86.exe
 
-**2. Execute installation, select default vales as prompted to complete**
+**2. Execute installation, select default values as prompted to complete**
 
-**3. Installatino path**
+**3. Installation path**
 
 Default installation path is: C:\TDengine, with following files(directories):
 
@@ -327,7 +327,7 @@ typedef struct TAOS_BIND {
 } TAOS_BIND;
 ```
 
-Add the curren bound parameters to the batch. After calling this function, you can call `taos_stmt_bind_param` again to bind the new parameters. It should be noted that this function only supports insert/import statements, and if it is other SQL statements such as select, it will return errors.
+Add the current bound parameters to the batch. After calling this function, you can call `taos_stmt_bind_param` again to bind the new parameters. It should be noted that this function only supports insert/import statements, and if it is other SQL statements such as select, it will return errors.
 
 - `int taos_stmt_execute(TAOS_STMT *stmt)`
 
@@ -523,7 +523,7 @@ Users can directly view the usage information of the module through Python's hel
 
 Refer to help (taos.TDEngineConnection) in python. This class corresponds to a connection between the client and TDengine. In the scenario of client multithreading, it is recommended that each thread apply for an independent connection instance, but not recommended that multiple threads share a connection.
 
-- *TDegnineCursor* class
+- *TDengineCursor* class
 
 Refer to help (taos.TDengineCursor) in python. This class corresponds to the write and query operations performed by the client. In the scenario of client multithreading, this cursor instance must be kept exclusive to threads and cannot be used by threads, otherwise errors will occur in the returned results.
 
@@ -685,7 +685,7 @@ Return value:
 }
 ```
 
-- Craete a database demo:
+- Create a database demo:
 
 ```bash
 curl -H 'Authorization: Basic cm9vdDp0YW9zZGF0YQ==' -d 'create database demo' 192.168.0.1:6041/rest/sql
@@ -771,7 +771,7 @@ The C # connector supports: Linux 64/Windows x64/Windows x86.
 
 - For application driver installation, please refer to the[ steps of installing connector driver](https://www.taosdata.com/en/documentation/connector#driver).
 - . NET interface file TDengineDrivercs.cs and reference sample TDengineTest.cs are both located in the Windows client install_directory/examples/C# directory.
-- On Windows, C # applications can use the native C interface of TDengine to perform all database operations, and future versions will provide the ORM (dapper) framework driver.
+- On Windows, C # applications can use the native C interface of TDengine to perform all database operations, and future versions will provide the ORM (Dapper) framework driver.
 
 ### Installation verification
 
@@ -908,7 +908,7 @@ Use Microsoft [windows-build-tools](https://github.com/felixrieseberg/windows-bu
 
 #### Solution 2
 
-Mannually install the following tools:
+Manually install the following tools:
 
 - Install Visual Studio related tools: [Visual Studio Build Tools](https://visualstudio.microsoft.com/thank-you-downloading-visual-studio/?sku=BuildTools) or [Visual Studio 2017 Community](https://visualstudio.microsoft.com/pl/thank-you-downloading-visual-studio/?sku=Community)
 - Install [Python](https://www.python.org/downloads/) 2.7 (not supported in v3.x.x) and execute npm config set python python2.7

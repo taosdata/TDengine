@@ -698,24 +698,24 @@ class TDTestCase:
         tdSql.execute(cmd1)   
 
         cmd2 = 'select * from normal_in_float_double_1 where in_float in (\'888\');'
-        tdLog.info(cmd2)
-        tdSql.error(cmd2)
-        try:
-            tdSql.execute(cmd2)
-            tdLog.exit("invalid operation: not supported filter condition")
-        except Exception as e:
-            tdLog.info(repr(e))
-            tdLog.info("invalid operation: not supported filter condition") 
-        
-        cmd3 = 'select * from normal_in_float_double_1 where in_double in (\'66666\');'
-        tdLog.info(cmd3)
-        tdSql.error(cmd3)
-        try:
-            tdSql.execute(cmd3)
-            tdLog.exit("invalid operation: not supported filter condition")
-        except Exception as e:
-            tdLog.info(repr(e))
-            tdLog.info("invalid operation: not supported filter condition") 
+        #tdLog.info(cmd2)
+        #tdSql.error(cmd2)
+        #try:
+        #    tdSql.execute(cmd2)
+        #    tdLog.exit("invalid operation: not supported filter condition")
+        #except Exception as e:
+        #    tdLog.info(repr(e))
+        #    tdLog.info("invalid operation: not supported filter condition") 
+        #
+        #cmd3 = 'select * from normal_in_float_double_1 where in_double in (\'66666\');'
+        #tdLog.info(cmd3)
+        #tdSql.error(cmd3)
+        #try:
+        #    tdSql.execute(cmd3)
+        #    tdLog.exit("invalid operation: not supported filter condition")
+        #except Exception as e:
+        #    tdLog.info(repr(e))
+        #    tdLog.info("invalid operation: not supported filter condition") 
 
     def stop(self):
         tdSql.close()
