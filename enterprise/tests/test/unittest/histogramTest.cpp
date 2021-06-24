@@ -7,7 +7,7 @@
 #include "taosdef.h"
 
 #include "testCommon.h"
-#include "ttoken.h"
+#include "tstoken.h"
 #include "tutil.h"
 
 #include "thistogram.h"

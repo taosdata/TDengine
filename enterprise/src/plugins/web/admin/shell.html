@@ -156,11 +156,12 @@
 			dbPrefix = DbSession.GetDb() + ".";
 		}
 		
-		// show tables
-		// show stables
-		// show tables;
-		// show stables
-		// show a.stables
+		//show tables
+		//show stables
+		//show tables;
+		//show stables
+		// show   stables
+		// show  a.stables
 		if (sql.substring(0, 4).toLowerCase() == "show") {
 			var remain = dbRemoveFirstBlank(sql.substring(4));
 			if (remain.substring(0, 6).toLowerCase() == "tables" || remain.substring(0, 7).toLowerCase() == "stables" || remain.substring(0, 7).toLowerCase() == "vgroups") {
@@ -180,61 +181,28 @@
 		//select * c  from  where c;
 		//select c d  from  c  where a
 		//select c d  from  c.d  where a
-		//select * from (select demo(i) from t1 interval(5m)) a, (select demo(i) from t2 interval(5m)) b where a.ts = b.ts;
-		else if (sql.substring(0, 6).toLowerCase() == "select" ||( sql[0]=="(" && dbRemoveFirstBlank(sql.substring(1, 7)).toLowerCase() == "select")) {
+		else if (sql.substring(0, 6).toLowerCase() == "select") {
 			var from = sql.toLowerCase().indexOf("from");
-			var where = sql.toLowerCase().lastIndexOf("where");
 			if (from != -1) {
-				if (where != -1){
-					var tablesStr = dbRemoveFirstBlank(sql.substring(from+4, where-1))
-					var remain = dbRemoveFirstBlank(sql.substring(where));
-				} else {
-					var tablesStr = dbRemoveFirstBlank(sql.substring(from+4))
-					var remain = ""
-				}
-
-				var tables = tablesStr.split(",")
-				for (var i = 0; i < tables.length; ++i) {
-					var select = tables[i].indexOf("select");
-					if(select == -1){
-						var dot = tables[i].indexOf(".");
-						if(dot == -1){
-							tables[i] = dbPrefix + dbRemoveFirstBlank(tables[i])
-						}
-					} else {
-						//Nested statement
-						tables[i] = dbUpdateSqlWithUseDb(tables[i])
+				var remain = dbRemoveFirstBlank(sql.substring(from+4));
+				if (remain != "") {
+					var table = remain.split(' ')[0];
+					var dot = table.indexOf(".");
+					if (dot == -1) {
+						return sql.substring(0, from+4) + " " + dbPrefix + remain;
 					}
-					
 				}
-				return sql.substring(0, from+4) + " " + tables.join(",") + " " + remain;
-			
 			}
 		}
 		// insert into a
 		// insert into a values()
-		// insert into t1 using stable1 tags(1) values(now,1)
-		// insert into dc values values()
-		// insert  xx into dc value 
+		// import   into  dc values values()
+		//  import  xx into dc value 
 		// insert into cc dd values()
 		// insert into values values()
 		else if (sql.substring(0, 6).toLowerCase() == "insert" || sql.substring(0, 6).toLowerCase() == "import") {
 			var into = sql.toLowerCase().indexOf("into");
 			var values = sql.toLowerCase().indexOf("values");
-			var using = sql.toLowerCase().indexOf("using");
-			if (into != -1 && values != -1 && using != -1) {
-				var table = dbRemoveFirstBlank(sql.substring(into+4, using-1));
-				if (table != "") {
-					var dot = table.indexOf(".");
-					if (dot == -1) {
-						var tags = sql.toLowerCase().indexOf("tags");
-						if(tags != -1){
-							var stable = dbRemoveFirstBlank(sql.substring(using+5, tags-1));
-							return sql.substring(0, into+5) + dbPrefix + table + " using " + dbPrefix + stable + sql.substring(tags-1);
-						}
-					}					
-				}
-			}
 			if (into != -1 && values != -1) {
 				var table = dbRemoveFirstBlank(sql.substring(into+4, values));
 				if (table != "") {
@@ -242,7 +210,8 @@
 					var dot = table.indexOf(".");
 					if (dot == -1) {
 						return sql.substring(0, into+4) + " " + dbPrefix + table + " " + sql.substring(values);
-					} 
+					}
+					
 				}
 			}
 		}
@@ -291,10 +260,6 @@
 		return sql;
 	}
 	
-	function statementaddUseDb(sql) {
-
-	}
-
 	function dbSetPlaceHolder(result)
 	{
 		var db = DbSession.GetDb();
@@ -426,7 +391,6 @@
 			},
 			data: sql,
 			dataType: "json",
-			contentType:"text/html; charset=utf-8",
 			success: dbQueryCb,
 			error: function(msg) { 
 				if (msg != null && msg.responseJSON != null) {
