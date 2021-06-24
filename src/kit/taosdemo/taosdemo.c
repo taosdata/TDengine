@@ -390,7 +390,7 @@ typedef struct SpecifiedQueryInfo_S {
 } SpecifiedQueryInfo;
 
 typedef struct SuperQueryInfo_S {
-  char         sTblName[MAX_TB_NAME_SIZE+1];
+  char         sTblName[TSDB_TABLE_NAME_LEN];
   uint64_t     queryInterval;  // 0: unlimit  > 0   loop/s
   uint32_t     threadCnt;
   uint32_t     asyncMode; // 0: sync, 1: async
