@@ -101,6 +101,8 @@ static int32_t mnodeDnodeActionInsert(SSdbRow *pRow) {
     pDnode->offlineReason = TAOS_DN_OFF_STATUS_NOT_RECEIVED;
   }
 
+  pDnode->customScore = 0;
+
   dnodeUpdateEp(pDnode->dnodeId, pDnode->dnodeEp, pDnode->dnodeFqdn, &pDnode->dnodePort);
   mnodeUpdateDnodeEps();
 
