@@ -79,7 +79,7 @@ enum TEST_MODE {
 
 #define MAX_SQL_SIZE       65536
 #define BUFFER_SIZE        (65536*2)
-#define COND_BUF_LEN        BUFFER_SIZE - 30
+#define COND_BUF_LEN       (BUFFER_SIZE - 30)
 #define MAX_USERNAME_SIZE  64
 #define MAX_PASSWORD_SIZE  64
 #define MAX_HOSTNAME_SIZE  64
@@ -600,7 +600,7 @@ SArguments g_args = {
                      1,               // query_times
                      0,               // interlace_rows;
                      30000,           // num_of_RPR
-                     (1024*1024),         // max_sql_len
+                     (1024*1024),     // max_sql_len
                      10000,           // num_of_tables
                      10000,           // num_of_DPT
                      0,               // abort
