@@ -61,7 +61,7 @@ void tpBuildCreateDbSql(char *sql, SCreateDbMsg *pCreate) {
   int32_t cacheBlockSize = htonl(pCreate->cacheBlockSize);
   int32_t totalBlocks = htonl(pCreate->totalBlocks);
   int32_t daysPerFile = htonl(pCreate->daysPerFile);
-  int32_t daysToKeep = htonl(pCreate->daysToKeep);
+  int32_t daysToKeep = htonl(pCreate->daysToKeep0);
   int32_t daysToKeep1 = htonl(pCreate->daysToKeep1);
   int32_t daysToKeep2 = htonl(pCreate->daysToKeep2);
   int32_t commitTime = htonl(pCreate->commitTime);
