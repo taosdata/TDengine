@@ -248,7 +248,7 @@ typedef struct SColumn_S {
 typedef struct SSuperTable_S {
   char         sTblName[TSDB_TABLE_NAME_LEN];
   char         dataSource[MAX_TB_NAME_SIZE];  // rand_gen or sample
-  char         childTblPrefix[TSDB_TABLE_NAME_LEN];
+  char         childTblPrefix[TSDB_TABLE_NAME_LEN - 20]; // 20 characters reserved for seq
   char         insertMode[MAX_TB_NAME_SIZE];    // taosc, rest
   uint16_t     childTblExists;
   int64_t      childTblCount;
@@ -399,7 +399,7 @@ typedef struct SuperQueryInfo_S {
   int          subscribeKeepProgress;
   uint64_t     queryTimes;
   int64_t      childTblCount;
-  char         childTblPrefix[MAX_TB_NAME_SIZE];
+  char         childTblPrefix[TSDB_TABLE_NAME_LEN - 20];    // 20 characters reserved for seq
   int          sqlCount;
   char         sql[MAX_QUERY_SQL_COUNT][MAX_QUERY_SQL_LENGTH+1];
   char         result[MAX_QUERY_SQL_COUNT][MAX_FILE_NAME_LEN];
@@ -3838,7 +3838,7 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
         goto PARSE_OVER;
       }
       tstrncpy(g_Dbs.db[i].superTbls[j].childTblPrefix, prefix->valuestring,
-              TSDB_TABLE_NAME_LEN);
+              TSDB_TABLE_NAME_LEN - 20);
 
       cJSON *autoCreateTbl = cJSON_GetObjectItem(stbInfo, "auto_create_table");
       if (autoCreateTbl
@@ -7700,7 +7700,7 @@ static void setParaFromArg(){
     g_Dbs.db[0].superTbls[0].disorderRange = g_args.disorderRange;
     g_Dbs.db[0].superTbls[0].disorderRatio = g_args.disorderRatio;
     tstrncpy(g_Dbs.db[0].superTbls[0].childTblPrefix,
-            g_args.tb_prefix, TSDB_TABLE_NAME_LEN);
+            g_args.tb_prefix, TSDB_TABLE_NAME_LEN - 20);
     tstrncpy(g_Dbs.db[0].superTbls[0].dataSource, "rand", MAX_TB_NAME_SIZE);
     g_Dbs.db[0].superTbls[0].iface = g_args.iface;
     tstrncpy(g_Dbs.db[0].superTbls[0].startTimestamp,
@@ -7875,7 +7875,7 @@ static void queryResult() {
     pThreadInfo->end_table_to = g_Dbs.db[0].superTbls[0].childTblCount - 1;
     pThreadInfo->superTblInfo = &g_Dbs.db[0].superTbls[0];
     tstrncpy(pThreadInfo->tb_prefix,
-          g_Dbs.db[0].superTbls[0].childTblPrefix, TSDB_TABLE_NAME_LEN);
+          g_Dbs.db[0].superTbls[0].childTblPrefix, TSDB_TABLE_NAME_LEN - 20);
   } else {
     pThreadInfo->ntables = g_args.num_of_tables;
     pThreadInfo->end_table_to = g_args.num_of_tables -1;
