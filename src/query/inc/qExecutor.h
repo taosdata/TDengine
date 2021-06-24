@@ -192,6 +192,7 @@ typedef struct SQueryAttr {
   bool             needReverseScan;  // need reverse scan
   bool             distinctTag;      // distinct tag query
   bool             stateWindow;       // window State on sub/normal table
+  bool             createFilterOperator; // if filter operator is needed
   int32_t          interBufSize;     // intermediate buffer sizse
 
   int32_t          havingNum;        // having expr number

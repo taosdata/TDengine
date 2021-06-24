@@ -7045,6 +7045,8 @@ int32_t createFilterInfo(SQueryAttr* pQueryAttr, uint64_t qId) {
   doCreateFilterInfo(pQueryAttr->tableCols, pQueryAttr->numOfCols, pQueryAttr->numOfFilterCols,
                      &pQueryAttr->pFilterInfo, qId);
 
+  pQueryAttr->createFilterOperator = true;
+
   return TSDB_CODE_SUCCESS;
 }
 
