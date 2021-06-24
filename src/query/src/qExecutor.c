@@ -7330,11 +7330,16 @@ int32_t initQInfo(STsBufInfo* pTsBufInfo, void* tsdb, void* sourceOptr, SQInfo* 
   SQueryAttr *pQueryAttr = pRuntimeEnv->pQueryAttr;
 
   STSBuf *pTsBuf = NULL;
-  if (pTsBufInfo->tsLen > 0) { // open new file to save the result
-    char *tsBlock = start + pTsBufInfo->tsOffset;
-    pTsBuf = tsBufCreateFromCompBlocks(tsBlock, pTsBufInfo->tsNumOfBlocks, pTsBufInfo->tsLen, pTsBufInfo->tsOrder,
-        pQueryAttr->vgId);
 
+  if (pTsBufInfo->tsLen > 0) {  // open new file to save the result
+    char* tsBlock = start + pTsBufInfo->tsOffset;
+    pTsBuf = tsBufCreateFromCompBlocks(tsBlock, pTsBufInfo->tsNumOfBlocks, pTsBufInfo->tsLen, pTsBufInfo->tsOrder,
+                                       pQueryAttr->vgId);
+
+    if (pTsBuf == NULL) {
+      code = TSDB_CODE_QRY_NO_DISKSPACE;
+      goto _error;
+    }
     tsBufResetPos(pTsBuf);
     bool ret = tsBufNextPos(pTsBuf);
     UNUSED(ret);

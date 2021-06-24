@@ -1496,7 +1496,9 @@ int tscBuildAlterTableMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
 
   pMsg = (char *)pSchema;
   pAlterTableMsg->tagValLen = htonl(pAlterInfo->tagData.dataLen);
-  memcpy(pMsg, pAlterInfo->tagData.data, pAlterInfo->tagData.dataLen);
+  if (pAlterInfo->tagData.dataLen > 0) {
+ 	 memcpy(pMsg, pAlterInfo->tagData.data, pAlterInfo->tagData.dataLen);
+  }
   pMsg += pAlterInfo->tagData.dataLen;
 
   msgLen = (int32_t)(pMsg - (char*)pAlterTableMsg);
