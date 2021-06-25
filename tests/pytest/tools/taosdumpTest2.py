@@ -24,31 +24,28 @@ class TDTestCase:
         tdLog.debug("start to execute %s" % __file__)
         tdSql.init(conn.cursor(), logSql)
         
-        self.ts = 1538548685000
-        self.numberOfTables = 10000
-        self.numberOfRecords = 100
+        self.ts = 1601481600000
+        self.numberOfTables = 1
+        self.numberOfRecords = 15000
     
     def run(self):
         tdSql.prepare()
 
-        tdSql.execute("create table st(ts timestamp, c1 int, c2 nchar(10)) tags(t1 int, t2 binary(10))")
-        tdSql.execute("create table t1 using st tags(1, 'beijing')")        
-        sql = "insert into t1 values"
+        tdSql.execute("create table st(ts timestamp, c1 timestamp, c2 int, c3 bigint, c4 float, c5 double, c6 binary(8), c7 smallint, c8 tinyint, c9 bool, c10 nchar(8)) tags(t1 int)")
+        tdSql.execute("create table t1 using st tags(0)")
         currts = self.ts
-        for i in range(100):
-            sql += "(%d, %d, 'nchar%d')" % (currts + i, i % 100, i % 100)
-        tdSql.execute(sql)
-
-        tdSql.execute("create table t2 using st tags(2, 'shanghai')")        
-        sql = "insert into t2 values"
-        currts = self.ts
-        for i in range(100):
-            sql += "(%d, %d, 'nchar%d')" % (currts + i, i % 100, i % 100)
-        tdSql.execute(sql)
-        
+        finish = 0
+        while(finish < self.numberOfRecords):
+            sql = "insert into t1 values"
+            for i in range(finish, self.numberOfRecords):
+                sql += "(%d, 1019774612, 29931, 1442173978, 165092.468750, 1128.643179, 'MOCq1pTu', 18405, 82, 0, 'g0A6S0Fu')" % (currts + i)
+                finish = i + 1
+                if (1048576 - len(sql)) < 16384:
+                 break
+            tdSql.execute(sql)
 
         os.system("rm /tmp/*.sql")
-        os.system("taosdump --databases db -o /tmp")
+        os.system("taosdump --databases db -o /tmp -B 32766 -L 1048576")
         
         tdSql.execute("drop database db")
         tdSql.query("show databases")
@@ -65,22 +62,8 @@ class TDTestCase:
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 'st')
 
-        tdSql.query("show tables")
-        tdSql.checkRows(2)
-        tdSql.checkData(0, 0, 't2')
-        tdSql.checkData(1, 0, 't1')
-
-        tdSql.query("select * from t1")
-        tdSql.checkRows(100)
-        for i in range(100):
-            tdSql.checkData(i, 1, i)
-            tdSql.checkData(i, 2, "nchar%d" % i)
-
-        tdSql.query("select * from t2")
-        tdSql.checkRows(100)
-        for i in range(100):
-            tdSql.checkData(i, 1, i)
-            tdSql.checkData(i, 2, "nchar%d" % i)
+        tdSql.query("select count(*) from t1")
+        tdSql.checkData(0, 0, self.numberOfRecords)
 
     def stop(self):
         tdSql.close()
