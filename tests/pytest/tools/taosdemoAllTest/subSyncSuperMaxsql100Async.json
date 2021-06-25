@@ -11,7 +11,7 @@
       {
        "stblname": "stb1",
        "threads":4, 
-       "mode":"sync", 
+       "mode":"async", 
        "interval":0, 
        "restart":"no", 
        "resubAfterConsume":-1,

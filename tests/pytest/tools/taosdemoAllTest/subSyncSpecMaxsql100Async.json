@@ -10,7 +10,7 @@
     "specified_table_query":
       {
        "concurrent":1, 
-       "mode":"sync", 
+       "mode":"async", 
        "interval":0, 
        "restart":"no", 
        "keepProgress":"no",

@@ -106,8 +106,9 @@ class TDTestCase:
         os.system("kill -9 %d" % query_pid)
   
         # # query times less than or equal to 100
-        # os.system("%staosdemo -f tools/taosdemoAllTest/QuerySpeciMutisql100.json" % binPath)
-        # os.system("%staosdemo -f tools/taosdemoAllTest/QuerySuperMutisql100.json" % binPath)
+        os.system("%staosdemo -f tools/taosdemoAllTest/subInsertdataMaxsql100.json" % binPath)
+        assert os.system("%staosdemo -f tools/taosdemoAllTest/subSyncSpecMaxsql100.json" % binPath) != 0
+        assert os.system("%staosdemo -f tools/taosdemoAllTest/subSyncSuperMaxsql100.json" % binPath) != 0
         
         # delete useless files
         os.system("rm -rf ./insert_res.txt")
