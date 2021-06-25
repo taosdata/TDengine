@@ -165,6 +165,7 @@ bool serializeExprListToVariant(SArray* pList, tVariant **dst, int16_t colType, 
   } else {
     tbufWriteUint32(&bw, colType);
   }
+
   tbufWriteInt32(&bw, (int32_t)(pList->size));
 
   for (int32_t i = 0; i < (int32_t)pList->size; i++) {
@@ -181,10 +182,11 @@ bool serializeExprListToVariant(SArray* pList, tVariant **dst, int16_t colType, 
       }  
       tbufWriteInt64(&bw, var->i64);        
     } else if (IS_UNSIGNED_NUMERIC_TYPE(colType)) {
-      if (IS_SIGNED_NUMERIC_TYPE(var->nType) && IS_UNSIGNED_NUMERIC_TYPE(var->nType)) {
+      if (IS_SIGNED_NUMERIC_TYPE(var->nType) || IS_UNSIGNED_NUMERIC_TYPE(var->nType)) {
+        tbufWriteUint64(&bw, var->u64);        
+      } else {
         break;
-      } 
-      tbufWriteUint64(&bw, var->u64);        
+      }
     } else if (colType == TSDB_DATA_TYPE_DOUBLE || colType == TSDB_DATA_TYPE_FLOAT) {
       if (IS_SIGNED_NUMERIC_TYPE(var->nType) || IS_UNSIGNED_NUMERIC_TYPE(var->nType)) {
         tbufWriteDouble(&bw, (double)(var->i64));
