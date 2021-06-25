@@ -116,9 +116,17 @@ class TDTestCase:
         assert os.system("%staosdemo -f tools/taosdemoAllTest/subSyncSpecMaxsql100.json" % binPath) != 0
         assert os.system("%staosdemo -f tools/taosdemoAllTest/subSyncSuperMaxsql100.json" % binPath) != 0
 
+        # # result files is null
+        # os.system("%staosdemo -f tools/taosdemoAllTest/subInsertdataMaxsql100.json" % binPath)
+        # os.system("%staosdemo -f tools/taosdemoAllTest/subSyncResFileNull.json" % binPath)
+        # # assert os.system("%staosdemo -f tools/taosdemoAllTest/subSyncResFileNull.json" % binPath) != 0
+
+
+
+
         # resubAfterConsume= -1 endAfter=-1 ;
         os.system('kill -9 `ps aux|grep "subSyncResubACMinus1.json" |grep -v "grep"|awk \'{print $2}\'` ')
-        os.system("nohup %staosdemo -f tools/taosdemoAllTest/subResubjson/subSyncResubACMinus1.json & " % binPath)
+        os.system("nohup %staosdemo -f tools/taosdemoAllTest/Resubjson/subSyncResubACMinus1.json & " % binPath)
         sleep(2)
         query_pid1 = int(subprocess.getstatusoutput('ps aux|grep "subSyncResubACMinus1.json" |grep -v "grep"|awk \'{print $2}\'')[1])
         print("get sub1 process'pid")
@@ -138,7 +146,7 @@ class TDTestCase:
         # # resubAfterConsume= -1 endAfter=0 ;
         # os.system("%staosdemo -f tools/taosdemoAllTest/subInsertdataMaxsql100.json" % binPath)
         # os.system('kill -9 `ps aux|grep "subSyncResubACMinus1endAfter0.json" |grep -v "grep"|awk \'{print $2}\'` ')
-        # os.system("nohup %staosdemo -f tools/taosdemoAllTest/subResubjson/subSyncResubACMinus1endAfter0.json & " % binPath)
+        # os.system("nohup %staosdemo -f tools/taosdemoAllTest/Resubjson/subSyncResubACMinus1endAfter0.json & " % binPath)
         # sleep(2)
         # query_pid1 = int(subprocess.getstatusoutput('ps aux|grep "subSyncResubACMinus1endAfter0.json" |grep -v "grep"|awk \'{print $2}\'')[1])
         # print("get sub2 process'pid")
