@@ -38,7 +38,7 @@ typedef struct {
   int32_t  num;      // number of continuous streams
   char     user[TSDB_USER_LEN];
   char     pass[TSDB_KEY_LEN];
-  char     db[TSDB_ACCT_ID_LEN + TSDB_DB_NAME_LEN];
+  char     db[TSDB_DB_NAME_LEN];
   FCqWrite cqWrite;
   struct SCqObj *pHead;
   void    *dbConn;
