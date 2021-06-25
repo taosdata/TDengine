@@ -133,6 +133,28 @@ typedef struct STableQueryInfo {
   SResultRowInfo resInfo;
 } STableQueryInfo;
 
+typedef enum {
+  QUERY_PROF_BEFORE_OPERATOR_EXEC = 0,
+  QUERY_PROF_AFTER_OPERATOR_EXEC,
+  QUERY_PROF_QUERY_ABORT
+} EQueryProfEventType;
+
+typedef struct {
+  EQueryProfEventType eventType;
+  int64_t eventTime;
+
+  union {
+    uint8_t operatorType; //for operator event
+    int32_t abortCode; //for query abort event
+  };
+} SQueryProfEvent;
+
+typedef struct {
+  uint8_t operatorType;
+  int64_t sumSelfTime;
+  int64_t sumRunTimes;
+} SOperatorProfResult;
+
 typedef struct SQueryCostInfo {
   uint64_t loadStatisTime;
   uint64_t loadFileBlockTime;
@@ -154,6 +176,9 @@ typedef struct SQueryCostInfo {
   uint64_t tableInfoSize;
   uint64_t hashSize;
   uint64_t numOfTimeWindows;
+
+  SArray*   queryProfEvents;  //SArray<SQueryProfEvent>
+  SHashObj* operatorProfResults; //map<operator_type, SQueryProfEvent>
 } SQueryCostInfo;
 
 typedef struct {
@@ -586,7 +611,12 @@ int32_t doDumpQueryResult(SQInfo *pQInfo, char *data);
 
 size_t getResultSize(SQInfo *pQInfo, int64_t *numOfRows);
 void setQueryKilled(SQInfo *pQInfo);
+
+void publishOperatorProfEvent(SOperatorInfo* operatorInfo, EQueryProfEventType eventType);
+void publishQueryAbortEvent(SQInfo* pQInfo, int32_t code);
+void calculateOperatorProfResults(SQInfo* pQInfo);
 void queryCostStatis(SQInfo *pQInfo);
+
 void freeQInfo(SQInfo *pQInfo);
 void freeQueryAttr(SQueryAttr *pQuery);
 

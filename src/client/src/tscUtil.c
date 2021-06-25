@@ -825,7 +825,10 @@ static void fetchNextBlockIfCompleted(SOperatorInfo* pOperator, bool* newgroup) 
     SJoinStatus* pStatus = &pJoinInfo->status[i];
     if (pStatus->pBlock == NULL || pStatus->index >= pStatus->pBlock->info.rows) {
       tscDebug("Retrieve nest query result, index:%d, total:%d", i, pOperator->numOfUpstream);
+
+      publishOperatorProfEvent(pOperator->upstream[0], QUERY_PROF_BEFORE_OPERATOR_EXEC);
       pStatus->pBlock = pOperator->upstream[i]->exec(pOperator->upstream[i], newgroup);
+      publishOperatorProfEvent(pOperator->upstream[0], QUERY_PROF_AFTER_OPERATOR_EXEC);
       pStatus->index = 0;
 
       if (pStatus->pBlock == NULL) {
