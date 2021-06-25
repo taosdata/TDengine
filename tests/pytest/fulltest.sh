@@ -150,6 +150,7 @@ python3 ./test.py -f import_merge/importCSV.py
 #======================p2-start===============
 # tools
 python3 test.py -f tools/taosdumpTest.py
+python3 test.py -f tools/taosdumpTest2.py
 
 python3 test.py -f tools/taosdemoTest.py
 python3 test.py -f tools/taosdemoTestWithoutMetric.py
