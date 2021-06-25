@@ -25,6 +25,21 @@ from multiprocessing import cpu_count
 
 # TODO: fully test the function. Handle exceptions.
 #       Handle json format not accepted by taosdemo
+
+### How to use TaosdemoCfg:
+#   Before you start: 
+#       Make sure you understand how is taosdemo's JSON file structured. Because the python used does
+#       not support directory in directory for self objects, the config is being tear to different parts.
+#       Please make sure you understand which directory represent which part of which type of the file 
+#       This module will reassemble the parts when creating the JSON file.
+#
+#   Basic use example
+#   step 1:use self.append_sql_stb() to append the insert/query/subscribe directory into the module
+#       you can append many insert/query/subscribe directory, but pay attention about taosdemo's limit
+#   step 2:use alter function to alter the specific config 
+#   step 3:use the generation function to generate the files
+#
+#   step 1 and step 2 can be replaced with using import functions
 class TDTaosdemoCfg:
     def __init__(self):
         self.insert_cfg = {
@@ -264,7 +279,7 @@ class TDTaosdemoCfg:
         elif key == "super_table_query":
             self.query_cfg["super_table_query"] = self.stable_query
         else:
-            self.table_query[key] = value
+            self.query_cfg[key] = value
 
     def alter_sub_cfg(self, key, value):
         if key == "specified_table_query":
@@ -272,7 +287,7 @@ class TDTaosdemoCfg:
         elif key == "super_table_query":
             self.sub_cfg["super_table_query"] = self.stable_sub
         else:
-            self.table_query[key] = value
+            self.sub_cfg[key] = value
 
     def alter_sub_stb(self, key, value):
         if key == "sqls":
