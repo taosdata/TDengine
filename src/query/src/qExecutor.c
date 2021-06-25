@@ -1282,11 +1282,8 @@ static void doHashGroupbyAgg(SOperatorInfo* pOperator, SGroupbyOperatorInfo *pIn
     return;
   }
 
-  int64_t* tsList = NULL;
   SColumnInfoData* pFirstColData = taosArrayGet(pSDataBlock->pDataBlock, 0);
-  if (pFirstColData->info.type == TSDB_DATA_TYPE_TIMESTAMP) {
-    tsList = (int64_t*) pFirstColData->pData;
-  }
+  int64_t* tsList = (pFirstColData->info.type == TSDB_DATA_TYPE_TIMESTAMP)? (int64_t*) pFirstColData->pData:NULL;
 
   STimeWindow w = TSWINDOW_INITIALIZER;
 
@@ -1319,12 +1316,10 @@ static void doHashGroupbyAgg(SOperatorInfo* pOperator, SGroupbyOperatorInfo *pIn
     }
 
     if (pQueryAttr->stableQuery && pQueryAttr->stabledev && (pRuntimeEnv->prevResult != NULL)) {
-      setParamForStableStddevByColData(pRuntimeEnv, pInfo->binfo.pCtx, pOperator->numOfOutput, pOperator->pExpr, pInfo->prevData,
-                                       bytes);
+      setParamForStableStddevByColData(pRuntimeEnv, pInfo->binfo.pCtx, pOperator->numOfOutput, pOperator->pExpr, pInfo->prevData, bytes);
     }
 
-    int32_t ret = setGroupResultOutputBuf(pRuntimeEnv, &(pInfo->binfo), pOperator->numOfOutput, pInfo->prevData, type, bytes,
-                                          item->groupIndex);
+    int32_t ret = setGroupResultOutputBuf(pRuntimeEnv, &(pInfo->binfo), pOperator->numOfOutput, pInfo->prevData, type, bytes, item->groupIndex);
     if (ret != TSDB_CODE_SUCCESS) {  // null data, too many state code
       longjmp(pRuntimeEnv->env, TSDB_CODE_QRY_APP_ERROR);
     }
@@ -1340,17 +1335,16 @@ static void doHashGroupbyAgg(SOperatorInfo* pOperator, SGroupbyOperatorInfo *pIn
     memcpy(pInfo->prevData, val, bytes);
 
     if (pQueryAttr->stableQuery && pQueryAttr->stabledev && (pRuntimeEnv->prevResult != NULL)) {
-      setParamForStableStddevByColData(pRuntimeEnv, pInfo->binfo.pCtx, pOperator->numOfOutput, pOperator->pExpr, val,
-                                       bytes);
+      setParamForStableStddevByColData(pRuntimeEnv, pInfo->binfo.pCtx, pOperator->numOfOutput, pOperator->pExpr, val, bytes);
     }
 
-    int32_t ret = setGroupResultOutputBuf(pRuntimeEnv, &(pInfo->binfo), pOperator->numOfOutput, val, type, bytes,
-                                          item->groupIndex);
+    int32_t ret = setGroupResultOutputBuf(pRuntimeEnv, &(pInfo->binfo), pOperator->numOfOutput, val, type, bytes, item->groupIndex);
     if (ret != TSDB_CODE_SUCCESS) {  // null data, too many state code
       longjmp(pRuntimeEnv->env, TSDB_CODE_QRY_APP_ERROR);
     }
 
     doApplyFunctions(pRuntimeEnv, pInfo->binfo.pCtx, &w, pSDataBlock->info.rows - num, num, tsList, pSDataBlock->info.rows, pOperator->numOfOutput);
+    tfree(pInfo->prevData);
   }
 }
 
