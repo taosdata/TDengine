@@ -6,13 +6,16 @@
 #include "taos.h"
 #include "tsdb.h"
 
+#pragma GCC diagnostic ignored "-Wwrite-strings"
+#pragma GCC diagnostic ignored "-Wunused-function"
+#pragma GCC diagnostic ignored "-Wunused-variable"
+#pragma GCC diagnostic ignored "-Wunused-but-set-variable"
+#pragma GCC diagnostic ignored "-Wsign-compare"
+
 #include "../../client/inc/tscUtil.h"
 #include "tutil.h"
 #include "tvariant.h"
 #include "ttokendef.h"
-
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wwrite-strings"
 
 namespace {
 int32_t testValidateName(char* name) {

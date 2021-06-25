@@ -6720,7 +6720,11 @@ int32_t initQInfo(SQueryTableMsg *pQueryMsg, void *tsdb, int32_t vgId, SQInfo *p
   if (pQueryMsg->tsLen > 0) { // open new file to save the result
     char *tsBlock = (char *) pQueryMsg + pQueryMsg->tsOffset;
     pTsBuf = tsBufCreateFromCompBlocks(tsBlock, pQueryMsg->tsNumOfBlocks, pQueryMsg->tsLen, pQueryMsg->tsOrder, vgId);
-
+    if (pTsBuf == NULL) {
+      code = TSDB_CODE_QRY_NO_DISKSPACE;
+      goto _error;
+    }
+    
     tsBufResetPos(pTsBuf);
     bool ret = tsBufNextPos(pTsBuf);
 
