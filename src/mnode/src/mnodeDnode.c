@@ -16,7 +16,6 @@
 #define _DEFAULT_SOURCE
 #include "os.h"
 #include "tgrant.h"
-#include "tbn.h"
 #include "tglobal.h"
 #include "tconfig.h"
 #include "tutil.h"
@@ -632,7 +631,8 @@ static int32_t mnodeProcessDnodeStatusMsg(SMnodeMsg *pMsg) {
   }
 
   int32_t numOfMnodes = mnodeGetMnodesNum();
-  if (numOfMnodes < tsNumOfMnodes && numOfMnodes < mnodeGetOnlineDnodesNum() && !pDnode->isMgmt) {
+  if (numOfMnodes < tsNumOfMnodes && numOfMnodes < mnodeGetOnlineDnodesNum()
+      && bnDnodeCanCreateMnode(pDnode)) {
     bnNotify();
   }
 
