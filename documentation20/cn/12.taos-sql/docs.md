@@ -854,7 +854,23 @@ TDengine支持针对数据的聚合查询。提供支持的聚合和选择函数
 
     应用字段：不能应用在timestamp、binary、nchar、bool类型字段。
 
-    适用于：**表**。
+    适用于：**表、（超级表）**。
+
+    说明：从 2.1.3.0 版本开始，TWA 函数可以在由 GROUP BY 划分出单独时间线的情况下用于超级表（也即 GROUP BY tbname）。
+
+- **IRATE**
+    ```mysql
+    SELECT IRATE(field_name) FROM tb_name WHERE clause;
+    ```
+    功能说明：计算瞬时增长率。使用时间区间中最后两个样本数据来计算瞬时增长速率；如果这两个值呈递减关系，那么只取最后一个数用于计算，而不是使用二者差值。
+
+    返回结果数据类型：双精度浮点数Double。
+
+    应用字段：不能应用在timestamp、binary、nchar、bool类型字段。
+
+    适用于：**表、（超级表）**。
+
+    说明：从 2.1.3.0 版本开始新增此函数。IRATE 可以在由 GROUP BY 划分出单独时间线的情况下用于超级表（也即 GROUP BY tbname）。
 
 - **SUM**
     ```mysql
