@@ -7849,7 +7849,7 @@ int32_t validateSqlNode(SSqlObj* pSql, SSqlNode* pSqlNode, SQueryInfo* pQueryInf
     STableMeta* pTableMeta = tscGetMetaInfo(pQueryInfo, 0)->pTableMeta;
     SSchema* pSchema = tscGetTableColumnSchema(pTableMeta, 0);
 
-    int32_t numOfExprs = tscNumOfExprs(pQueryInfo);
+    int32_t numOfExprs = (int32_t) tscNumOfExprs(pQueryInfo);
     if (numOfExprs == 1) {
       SExprInfo* pExpr = tscExprGet(pQueryInfo, 0);
       int32_t f = pExpr->base.functionId;
