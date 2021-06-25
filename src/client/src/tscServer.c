@@ -914,7 +914,7 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
     //serializeColFilterInfo(pCol->flist.filterInfo, pCol->flist.numOfFilters, &pMsg);
   }
 
-  if (pQueryInfo->colCond && taosArrayGetSize(pQueryInfo->colCond) > 0) {
+  if (pQueryInfo->colCond && taosArrayGetSize(pQueryInfo->colCond) > 0 && !onlyQueryTags(&query) ) {
     SCond *pCond = tsGetTableFilter(pQueryInfo->colCond, pTableMeta->id.uid);
     if (pCond != NULL && pCond->cond != NULL) {
       pQueryMsg->colCondLen = htons(pCond->len);

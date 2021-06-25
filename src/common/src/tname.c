@@ -61,7 +61,7 @@ bool tscValidateTableNameLength(size_t len) {
 
 // TODO refactor
 SColumnFilterInfo* tFilterInfoDup(const SColumnFilterInfo* src, int32_t numOfFilters) {
-  if (numOfFilters == 0) {
+  if (numOfFilters == 0 || src == NULL) {
     assert(src == NULL);
     return NULL;
   }

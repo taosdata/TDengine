@@ -808,6 +808,7 @@ static void issueTsCompQuery(SSqlObj* pSql, SJoinSupporter* pSupporter, SSqlObj*
   STimeWindow window = pQueryInfo->window;
   tscInitQueryInfo(pQueryInfo);
 
+  pQueryInfo->colCond = pSupporter->colCond;
   pQueryInfo->window = window;
   TSDB_QUERY_CLEAR_TYPE(pQueryInfo->type, TSDB_QUERY_TYPE_TAG_FILTER_QUERY);
   TSDB_QUERY_SET_TYPE(pQueryInfo->type, TSDB_QUERY_TYPE_MULTITABLE_QUERY);
@@ -1882,6 +1883,9 @@ int32_t tscCreateJoinSubquery(SSqlObj *pSql, int16_t tableIndex, SJoinSupporter 
     
     if (UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo)) { // return the tableId & tag
       SColumnIndex colIndex = {0};
+
+      pSupporter->colCond = pNewQueryInfo->colCond;
+      pNewQueryInfo->colCond = NULL;
 
       STagCond* pTagCond = &pSupporter->tagCond;
       assert(pTagCond->joinInfo.hasJoin);

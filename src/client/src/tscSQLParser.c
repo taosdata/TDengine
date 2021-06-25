@@ -3517,6 +3517,8 @@ static int32_t checkColumnFilterInfo(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SCol
 
   SColumn* pColumn = tscColumnListInsert(pQueryInfo->colList, pIndex->columnIndex, pTableMeta->id.uid, pSchema);
 
+  pColumn->info.flist.numOfFilters++;
+  
   /*
    * in case of TK_AND filter condition, we first find the corresponding column and build the query condition together
    * the already existed condition.

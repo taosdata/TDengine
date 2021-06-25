@@ -2011,6 +2011,11 @@ int32_t tscGetResRowLength(SArray* pExprList) {
 }
 
 static void destroyFilterInfo(SColumnFilterList* pFilterList) {
+  if (pFilterList->filterInfo == NULL) {
+    pFilterList->numOfFilters = 0;
+    return;
+  }
+  
   for(int32_t i = 0; i < pFilterList->numOfFilters; ++i) {
     if (pFilterList->filterInfo[i].filterstr) {
       tfree(pFilterList->filterInfo[i].pz);

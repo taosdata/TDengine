@@ -61,6 +61,7 @@ typedef struct SJoinSupporter {
   uint64_t        uid;            // query table uid
   SArray*         colList;        // previous query information, no need to use this attribute, and the corresponding attribution
   SArray*         exprList;
+  SArray*         colCond;
   SFieldInfo      fieldsInfo;
   STagCond        tagCond;
   SGroupbyExpr    groupInfo;       // group by info

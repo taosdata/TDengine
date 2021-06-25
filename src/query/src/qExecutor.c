@@ -7078,7 +7078,7 @@ void* doDestroyFilterInfo(SSingleColumnFilterInfo* pFilterInfo, int32_t numOfFil
 
 int32_t createFilterInfo(SQueryAttr* pQueryAttr, uint64_t qId) {
   for (int32_t i = 0; i < pQueryAttr->numOfCols; ++i) {
-    if (pQueryAttr->tableCols[i].flist.numOfFilters > 0) {
+    if (pQueryAttr->tableCols[i].flist.numOfFilters > 0 && pQueryAttr->tableCols[i].flist.filterInfo != NULL) {
       pQueryAttr->numOfFilterCols++;
     }
   }
