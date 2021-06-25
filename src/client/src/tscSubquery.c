@@ -3604,10 +3604,10 @@ void* createQInfoFromQueryNode(SQueryInfo* pQueryInfo, STableGroupInfo* pTableGr
 
   // todo refactor: filter should not be applied here.
   createFilterInfo(pQueryAttr, 0);
-  pQueryAttr->numOfFilterCols = 0;
 
   SArray* pa = NULL;
   if (stage == MASTER_SCAN) {
+    pQueryAttr->createFilterOperator = false;  // no need for parent query
     pa = createExecOperatorPlan(pQueryAttr);
   } else {
     pa = createGlobalMergePlan(pQueryAttr);
