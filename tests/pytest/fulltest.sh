@@ -235,6 +235,8 @@ python3 ./test.py -f query/queryTscomputWithNow.py
 python3 ./test.py -f query/computeErrorinWhere.py
 python3 ./test.py -f query/queryTsisNull.py
 python3 ./test.py -f query/subqueryFilter.py
+# python3 ./test.py -f query/nestedQuery/queryInterval.py
+python3 ./test.py -f query/queryStateWindow.py
 
 
 #stream
@@ -325,6 +327,7 @@ python3 ./test.py -f query/queryGroupbySort.py
 python3 ./test.py -f functions/queryTestCases.py
 python3 ./test.py -f functions/function_stateWindow.py
 python3 ./test.py -f functions/function_derivative.py
+python3 ./test.py  -f functions/function_irate.py
 
 python3 ./test.py -f insert/unsignedInt.py
 python3 ./test.py -f insert/unsignedBigint.py
