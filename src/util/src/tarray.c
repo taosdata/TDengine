@@ -279,13 +279,13 @@ static void taosArrayQuicksortHelper(SArray *pArray, int low, int high, __ext_co
 }
 
 static void taosArrayQuickSort(SArray* pArray, __ext_compar_fn_t fn, const void *param) {
-  if (pArray->size <= 0) {
+  if (pArray->size <= 1) {
     return;
   } 
-  taosArrayQuicksortHelper(pArray, 0, taosArrayGetSize(pArray) - 1,  fn, param); 
+  taosArrayQuicksortHelper(pArray, 0, (int)(taosArrayGetSize(pArray) - 1),  fn, param); 
 }
 static void taosArrayInsertSort(SArray* pArray, __ext_compar_fn_t fn, const void *param) {
-  if (pArray->size <= 0) {
+  if (pArray->size <= 1) {
     return;
   } 
   for (int i = 1; i <= pArray->size - 1; ++i) {
@@ -303,9 +303,9 @@ static void taosArrayInsertSort(SArray* pArray, __ext_compar_fn_t fn, const void
   return;
    
 } 
-// order array<void *type>  
+// order array<type *>  
 void taosArraySortPWithExt(SArray* pArray, __ext_compar_fn_t fn, const void *param) {
   taosArrayGetSize(pArray) > 8 ? 
     taosArrayQuickSort(pArray, fn, param) : taosArrayInsertSort(pArray, fn, param);
 }
-//TODO(yihaoDeng) order array<type> 
+//TODO(yihaoDeng) add order array<type> 
