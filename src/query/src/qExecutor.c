@@ -16,6 +16,7 @@
 #include "qFill.h"
 #include "taosmsg.h"
 #include "tglobal.h"
+#include "talgo.h"
 
 #include "exception.h"
 #include "hash.h"
@@ -26,6 +27,7 @@
 #include "queryLog.h"
 #include "tlosertree.h"
 #include "ttype.h"
+#include "tcompare.h"
 #include "tscompression.h"
 
 #define IS_MASTER_SCAN(runtime)        ((runtime)->scanFlag == MASTER_SCAN)
@@ -207,7 +209,65 @@ static void doSetTableGroupOutputBuf(SQueryRuntimeEnv* pRuntimeEnv, SResultRowIn
                                      SQLFunctionCtx* pCtx, int32_t* rowCellInfoOffset, int32_t numOfOutput,
                                      int32_t groupIndex);
 
-// setup the output buffer for each operator
+SArray* getOrderCheckColumns(SQueryAttr* pQuery);
+
+
+typedef struct SRowCompSupporter {
+  SQueryRuntimeEnv *pRuntimeEnv; 
+  int16_t           dataOffset;
+  __compar_fn_t     comFunc; 
+} SRowCompSupporter;
+
+static int compareRowData(const void *a, const void *b, const void *userData) {
+  const SResultRow *pRow1 = (const SResultRow *)a; 
+  const SResultRow *pRow2 = (const SResultRow *)b;
+
+  SRowCompSupporter *supporter  = (SRowCompSupporter *)userData; 
+  SQueryRuntimeEnv* pRuntimeEnv =  supporter->pRuntimeEnv;   
+  
+  tFilePage *page1 = getResBufPage(pRuntimeEnv->pResultBuf, pRow1->pageId);
+  tFilePage *page2 = getResBufPage(pRuntimeEnv->pResultBuf, pRow2->pageId);
+
+  int16_t offset = supporter->dataOffset; 
+  char *in1  = getPosInResultPage(pRuntimeEnv->pQueryAttr, page1, pRow1->offset, offset);
+  char *in2  = getPosInResultPage(pRuntimeEnv->pQueryAttr, page2, pRow2->offset, offset);   
+
+  return (in1 != NULL && in2 != NULL) ? supporter->comFunc(in1, in2) : 0;
+}
+
+static void sortGroupResByOrderList(SGroupResInfo *pGroupResInfo, SQueryRuntimeEnv *pRuntimeEnv, SSDataBlock* pDataBlock) {
+  SArray *columnOrderList = getOrderCheckColumns(pRuntimeEnv->pQueryAttr);
+  if (taosArrayGetSize(columnOrderList) <= 0) {
+    return;
+  }
+  int32_t orderId = pRuntimeEnv->pQueryAttr->order.orderColId;
+  if (orderId <= 0) {
+    return;
+  } 
+  bool found = false;
+  int16_t dataOffset = 0;
+   
+  //SColIndex *index = taosArrayGet(columnOrderList, 0);
+  for (int32_t j = 0; j < pDataBlock->info.numOfCols; ++j) {
+    SColumnInfoData* pColInfoData = (SColumnInfoData *)taosArrayGet(pDataBlock->pDataBlock, j);
+    if (orderId == j) {
+      found = true;
+      break;
+    }
+    dataOffset += pColInfoData->info.bytes;
+  }  
+
+  if (found == false) {
+    return;
+  }
+  int16_t type = pRuntimeEnv->pQueryAttr->pExpr1[orderId].base.resType;
+   
+  SRowCompSupporter support = {.pRuntimeEnv = pRuntimeEnv, .dataOffset = dataOffset, .comFunc = getComparFunc(type, 0)};  
+   
+  return taosArraySortPWithExt(pGroupResInfo->pRows, compareRowData, &support);
+  
+}
+//setup the output buffer for each operator
 SSDataBlock* createOutputBuf(SExprInfo* pExpr, int32_t numOfOutput, int32_t numOfRows) {
   const static int32_t minSize = 8;
 
@@ -5416,8 +5476,11 @@ static SSDataBlock* hashGroupbyAggregate(void* param, bool* newgroup) {
   }
 
   initGroupResInfo(&pRuntimeEnv->groupResInfo, &pInfo->binfo.resultRowInfo);
+  if (!pRuntimeEnv->pQueryAttr->stableQuery) {
+    sortGroupResByOrderList(&pRuntimeEnv->groupResInfo, pRuntimeEnv, pInfo->binfo.pRes);
+  }
   toSSDataBlock(&pRuntimeEnv->groupResInfo, pRuntimeEnv, pInfo->binfo.pRes);
-
+  
   if (pInfo->binfo.pRes->info.rows == 0 || !hasRemainDataInCurrentGroup(&pRuntimeEnv->groupResInfo)) {
     pOperator->status = OP_EXEC_DONE;
   }
