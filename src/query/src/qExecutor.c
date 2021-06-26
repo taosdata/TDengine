@@ -184,7 +184,7 @@ static int32_t getNumOfScanTimes(SQueryAttr* pQueryAttr);
 static void destroyBasicOperatorInfo(void* param, int32_t numOfOutput);
 static void destroySFillOperatorInfo(void* param, int32_t numOfOutput);
 static void destroyGroupbyOperatorInfo(void* param, int32_t numOfOutput);
-static void destroyArithOperatorInfo(void* param, int32_t numOfOutput);
+static void destroyProjectOperatorInfo(void* param, int32_t numOfOutput);
 static void destroyTagScanOperatorInfo(void* param, int32_t numOfOutput);
 static void destroySWindowOperatorInfo(void* param, int32_t numOfOutput);
 static void destroyStateWindowOperatorInfo(void* param, int32_t numOfOutput);
@@ -912,7 +912,7 @@ void setInputDataBlock(SOperatorInfo* pOperator, SQLFunctionCtx* pCtx, SSDataBlo
       doSetInputDataBlockInfo(pOperator, pCtx, pBlock, order);
     }
   } else {
-    if (/*pCtx[0].pInput == NULL && */pBlock->pDataBlock != NULL) {
+    if (pBlock->pDataBlock != NULL) {
       doSetInputDataBlock(pOperator, pCtx, pBlock, order);
     } else {
       doSetInputDataBlockInfo(pOperator, pCtx, pBlock, order);
@@ -978,7 +978,7 @@ static void doAggregateImpl(SOperatorInfo* pOperator, TSKEY startTs, SQLFunction
   }
 }
 
-static void arithmeticApplyFunctions(SQueryRuntimeEnv *pRuntimeEnv, SQLFunctionCtx *pCtx, int32_t numOfOutput) {
+static void projectApplyFunctions(SQueryRuntimeEnv *pRuntimeEnv, SQLFunctionCtx *pCtx, int32_t numOfOutput) {
   SQueryAttr *pQueryAttr = pRuntimeEnv->pQueryAttr;
 
   for (int32_t k = 0; k < numOfOutput; ++k) {
@@ -1282,11 +1282,8 @@ static void doHashGroupbyAgg(SOperatorInfo* pOperator, SGroupbyOperatorInfo *pIn
     return;
   }
 
-  int64_t* tsList = NULL;
   SColumnInfoData* pFirstColData = taosArrayGet(pSDataBlock->pDataBlock, 0);
-  if (pFirstColData->info.type == TSDB_DATA_TYPE_TIMESTAMP) {
-    tsList = (int64_t*) pFirstColData->pData;
-  }
+  int64_t* tsList = (pFirstColData->info.type == TSDB_DATA_TYPE_TIMESTAMP)? (int64_t*) pFirstColData->pData:NULL;
 
   STimeWindow w = TSWINDOW_INITIALIZER;
 
@@ -1319,12 +1316,10 @@ static void doHashGroupbyAgg(SOperatorInfo* pOperator, SGroupbyOperatorInfo *pIn
     }
 
     if (pQueryAttr->stableQuery && pQueryAttr->stabledev && (pRuntimeEnv->prevResult != NULL)) {
-      setParamForStableStddevByColData(pRuntimeEnv, pInfo->binfo.pCtx, pOperator->numOfOutput, pOperator->pExpr, pInfo->prevData,
-                                       bytes);
+      setParamForStableStddevByColData(pRuntimeEnv, pInfo->binfo.pCtx, pOperator->numOfOutput, pOperator->pExpr, pInfo->prevData, bytes);
     }
 
-    int32_t ret = setGroupResultOutputBuf(pRuntimeEnv, &(pInfo->binfo), pOperator->numOfOutput, pInfo->prevData, type, bytes,
-                                          item->groupIndex);
+    int32_t ret = setGroupResultOutputBuf(pRuntimeEnv, &(pInfo->binfo), pOperator->numOfOutput, pInfo->prevData, type, bytes, item->groupIndex);
     if (ret != TSDB_CODE_SUCCESS) {  // null data, too many state code
       longjmp(pRuntimeEnv->env, TSDB_CODE_QRY_APP_ERROR);
     }
@@ -1340,17 +1335,16 @@ static void doHashGroupbyAgg(SOperatorInfo* pOperator, SGroupbyOperatorInfo *pIn
     memcpy(pInfo->prevData, val, bytes);
 
     if (pQueryAttr->stableQuery && pQueryAttr->stabledev && (pRuntimeEnv->prevResult != NULL)) {
-      setParamForStableStddevByColData(pRuntimeEnv, pInfo->binfo.pCtx, pOperator->numOfOutput, pOperator->pExpr, val,
-                                       bytes);
+      setParamForStableStddevByColData(pRuntimeEnv, pInfo->binfo.pCtx, pOperator->numOfOutput, pOperator->pExpr, val, bytes);
     }
 
-    int32_t ret = setGroupResultOutputBuf(pRuntimeEnv, &(pInfo->binfo), pOperator->numOfOutput, val, type, bytes,
-                                          item->groupIndex);
+    int32_t ret = setGroupResultOutputBuf(pRuntimeEnv, &(pInfo->binfo), pOperator->numOfOutput, val, type, bytes, item->groupIndex);
     if (ret != TSDB_CODE_SUCCESS) {  // null data, too many state code
       longjmp(pRuntimeEnv->env, TSDB_CODE_QRY_APP_ERROR);
     }
 
     doApplyFunctions(pRuntimeEnv, pInfo->binfo.pCtx, &w, pSDataBlock->info.rows - num, num, tsList, pSDataBlock->info.rows, pOperator->numOfOutput);
+    tfree(pInfo->prevData);
   }
 }
 
@@ -1806,17 +1800,17 @@ static int32_t setupQueryRuntimeEnv(SQueryRuntimeEnv *pRuntimeEnv, int32_t numOf
         break;
       }
 
-      case OP_Arithmetic: {  // TODO refactor to remove arith operator.
+      case OP_Project: {  // TODO refactor to remove arith operator.
         SOperatorInfo* prev = pRuntimeEnv->proot;
         if (i == 0) {
-          pRuntimeEnv->proot = createArithOperatorInfo(pRuntimeEnv, prev, pQueryAttr->pExpr1, pQueryAttr->numOfOutput);
+          pRuntimeEnv->proot = createProjectOperatorInfo(pRuntimeEnv, prev, pQueryAttr->pExpr1, pQueryAttr->numOfOutput);
           if (pRuntimeEnv->proot != NULL && prev->operatorType != OP_DummyInput && prev->operatorType != OP_Join) {  // TODO refactor
             setTableScanFilterOperatorInfo(prev->info, pRuntimeEnv->proot);
           }
         } else {
           prev = pRuntimeEnv->proot;
           assert(pQueryAttr->pExpr2 != NULL);
-          pRuntimeEnv->proot = createArithOperatorInfo(pRuntimeEnv, prev, pQueryAttr->pExpr2, pQueryAttr->numOfExpr2);
+          pRuntimeEnv->proot = createProjectOperatorInfo(pRuntimeEnv, prev, pQueryAttr->pExpr2, pQueryAttr->numOfExpr2);
         }
         break;
       }
@@ -4578,8 +4572,8 @@ void setTableScanFilterOperatorInfo(STableScanInfo* pTableScanInfo, SOperatorInf
     pTableScanInfo->pResultRowInfo = &pInfo->resultRowInfo;
     pTableScanInfo->rowCellInfoOffset = pInfo->rowCellInfoOffset;
 
-  } else if (pDownstream->operatorType == OP_Arithmetic) {
-    SArithOperatorInfo *pInfo = pDownstream->info;
+  } else if (pDownstream->operatorType == OP_Project) {
+    SProjectOperatorInfo *pInfo = pDownstream->info;
 
     pTableScanInfo->pCtx = pInfo->binfo.pCtx;
     pTableScanInfo->pResultRowInfo = &pInfo->binfo.resultRowInfo;
@@ -4934,23 +4928,23 @@ static SSDataBlock* doSTableAggregate(void* param, bool* newgroup) {
   return pInfo->pRes;
 }
 
-static SSDataBlock* doArithmeticOperation(void* param, bool* newgroup) {
+static SSDataBlock* doProjectOperation(void* param, bool* newgroup) {
   SOperatorInfo* pOperator = (SOperatorInfo*) param;
 
-  SArithOperatorInfo* pArithInfo = pOperator->info;
+  SProjectOperatorInfo* pProjectInfo = pOperator->info;
   SQueryRuntimeEnv* pRuntimeEnv = pOperator->pRuntimeEnv;
-  SOptrBasicInfo *pInfo = &pArithInfo->binfo;
+  SOptrBasicInfo *pInfo = &pProjectInfo->binfo;
 
   SSDataBlock* pRes = pInfo->pRes;
   int32_t order = pRuntimeEnv->pQueryAttr->order.order;
 
   pRes->info.rows = 0;
 
-  if (pArithInfo->existDataBlock) {  // TODO refactor
+  if (pProjectInfo->existDataBlock) {  // TODO refactor
     STableQueryInfo* pTableQueryInfo = pRuntimeEnv->current;
 
-    SSDataBlock* pBlock = pArithInfo->existDataBlock;
-    pArithInfo->existDataBlock = NULL;
+    SSDataBlock* pBlock = pProjectInfo->existDataBlock;
+    pProjectInfo->existDataBlock = NULL;
     *newgroup = true;
 
     // todo dynamic set tags
@@ -4960,9 +4954,9 @@ static SSDataBlock* doArithmeticOperation(void* param, bool* newgroup) {
 
     // the pDataBlock are always the same one, no need to call this again
     setInputDataBlock(pOperator, pInfo->pCtx, pBlock, order);
-    updateOutputBuf(&pArithInfo->binfo, &pArithInfo->bufCapacity, pBlock->info.rows);
+    updateOutputBuf(&pProjectInfo->binfo, &pProjectInfo->bufCapacity, pBlock->info.rows);
 
-    arithmeticApplyFunctions(pRuntimeEnv, pInfo->pCtx, pOperator->numOfOutput);
+    projectApplyFunctions(pRuntimeEnv, pInfo->pCtx, pOperator->numOfOutput);
     if (pTableQueryInfo != NULL) {
       updateTableIdInfo(pTableQueryInfo, pBlock, pRuntimeEnv->pTableRetrieveTsMap, order);
     }
@@ -4990,7 +4984,7 @@ static SSDataBlock* doArithmeticOperation(void* param, bool* newgroup) {
     // Return result of the previous group in the firstly.
     if (*newgroup) {
       if (pRes->info.rows > 0) {
-        pArithInfo->existDataBlock = pBlock;
+        pProjectInfo->existDataBlock = pBlock;
         clearNumOfRes(pInfo->pCtx, pOperator->numOfOutput);
         return pInfo->pRes;
       } else { // init output buffer for a new group data
@@ -5010,9 +5004,9 @@ static SSDataBlock* doArithmeticOperation(void* param, bool* newgroup) {
 
     // the pDataBlock are always the same one, no need to call this again
     setInputDataBlock(pOperator, pInfo->pCtx, pBlock, order);
-    updateOutputBuf(&pArithInfo->binfo, &pArithInfo->bufCapacity, pBlock->info.rows);
+    updateOutputBuf(&pProjectInfo->binfo, &pProjectInfo->bufCapacity, pBlock->info.rows);
 
-    arithmeticApplyFunctions(pRuntimeEnv, pInfo->pCtx, pOperator->numOfOutput);
+    projectApplyFunctions(pRuntimeEnv, pInfo->pCtx, pOperator->numOfOutput);
     if (pTableQueryInfo != NULL) {
       updateTableIdInfo(pTableQueryInfo, pBlock, pRuntimeEnv->pTableRetrieveTsMap, order);
     }
@@ -5649,8 +5643,8 @@ static void destroyGroupbyOperatorInfo(void* param, int32_t numOfOutput) {
   tfree(pInfo->prevData);
 }
 
-static void destroyArithOperatorInfo(void* param, int32_t numOfOutput) {
-  SArithOperatorInfo* pInfo = (SArithOperatorInfo*) param;
+static void destroyProjectOperatorInfo(void* param, int32_t numOfOutput) {
+  SProjectOperatorInfo* pInfo = (SProjectOperatorInfo*) param;
   doDestroyBasicInfo(&pInfo->binfo, numOfOutput);
 }
 
@@ -5696,8 +5690,8 @@ SOperatorInfo* createMultiTableAggOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SO
   return pOperator;
 }
 
-SOperatorInfo* createArithOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorInfo* upstream, SExprInfo* pExpr, int32_t numOfOutput) {
-  SArithOperatorInfo* pInfo = calloc(1, sizeof(SArithOperatorInfo));
+SOperatorInfo* createProjectOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorInfo* upstream, SExprInfo* pExpr, int32_t numOfOutput) {
+  SProjectOperatorInfo* pInfo = calloc(1, sizeof(SProjectOperatorInfo));
 
   pInfo->seed = rand();
   pInfo->bufCapacity = pRuntimeEnv->resultInfo.capacity;
@@ -5710,8 +5704,8 @@ SOperatorInfo* createArithOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorI
   setDefaultOutputBuf(pRuntimeEnv, pBInfo, pInfo->seed, MASTER_SCAN);
 
   SOperatorInfo* pOperator = calloc(1, sizeof(SOperatorInfo));
-  pOperator->name         = "ArithmeticOperator";
-  pOperator->operatorType = OP_Arithmetic;
+  pOperator->name         = "ProjectOperator";
+  pOperator->operatorType = OP_Project;
   pOperator->blockingOptr = false;
   pOperator->status       = OP_IN_EXECUTING;
   pOperator->info         = pInfo;
@@ -5719,8 +5713,8 @@ SOperatorInfo* createArithOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorI
   pOperator->numOfOutput  = numOfOutput;
   pOperator->pRuntimeEnv  = pRuntimeEnv;
 
-  pOperator->exec         = doArithmeticOperation;
-  pOperator->cleanup      = destroyArithOperatorInfo;
+  pOperator->exec         = doProjectOperation;
+  pOperator->cleanup      = destroyProjectOperatorInfo;
   appendUpstream(pOperator, upstream);
 
   return pOperator;

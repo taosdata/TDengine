@@ -286,7 +286,7 @@ enum OPERATOR_TYPE_E {
   OP_TagScan           = 4,
   OP_TableBlockInfoScan= 5,
   OP_Aggregate         = 6,
-  OP_Arithmetic        = 7,
+  OP_Project           = 7,
   OP_Groupby           = 8,
   OP_Limit             = 9,
   OP_SLimit            = 10,
@@ -414,13 +414,13 @@ typedef struct SAggOperatorInfo {
   uint32_t       seed;
 } SAggOperatorInfo;
 
-typedef struct SArithOperatorInfo {
+typedef struct SProjectOperatorInfo {
   SOptrBasicInfo binfo;
   int32_t        bufCapacity;
   uint32_t       seed;
 
   SSDataBlock   *existDataBlock;
-} SArithOperatorInfo;
+} SProjectOperatorInfo;
 
 typedef struct SLimitOperatorInfo {
   int64_t   limit;
@@ -514,7 +514,7 @@ SOperatorInfo* createTableScanOperator(void* pTsdbQueryHandle, SQueryRuntimeEnv*
 SOperatorInfo* createTableSeqScanOperator(void* pTsdbQueryHandle, SQueryRuntimeEnv* pRuntimeEnv);
 
 SOperatorInfo* createAggregateOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorInfo* upstream, SExprInfo* pExpr, int32_t numOfOutput);
-SOperatorInfo* createArithOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorInfo* upstream, SExprInfo* pExpr, int32_t numOfOutput);
+SOperatorInfo* createProjectOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorInfo* upstream, SExprInfo* pExpr, int32_t numOfOutput);
 SOperatorInfo* createLimitOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorInfo* upstream);
 SOperatorInfo* createTimeIntervalOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorInfo* upstream, SExprInfo* pExpr, int32_t numOfOutput);
 SOperatorInfo* createSWindowOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorInfo* upstream, SExprInfo* pExpr, int32_t numOfOutput);
