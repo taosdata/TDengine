@@ -264,7 +264,8 @@ static void sortGroupResByOrderList(SGroupResInfo *pGroupResInfo, SQueryRuntimeE
    
   SRowCompSupporter support = {.pRuntimeEnv = pRuntimeEnv, .dataOffset = dataOffset, .comFunc = getComparFunc(type, 0)};  
    
-  return taosArraySortPWithExt(pGroupResInfo->pRows, compareRowData, &support);
+  taosArraySortPWithExt(pGroupResInfo->pRows, compareRowData, &support);
+  return;
   
 }
 //setup the output buffer for each operator
