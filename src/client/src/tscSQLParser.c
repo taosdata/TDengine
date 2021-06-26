@@ -2104,7 +2104,7 @@ static int32_t setExprInfoForFunctions(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SS
   // if it is not in the final result, do not add it
   SColumnList ids = createColumnList(1, pColIndex->tableIndex, pColIndex->columnIndex);
   if (finalResult) {
-    insertResultField(pQueryInfo, resColIdx, &ids, pSchema->bytes, (int8_t)pSchema->type, pExpr->base.aliasName, pExpr);
+    insertResultField(pQueryInfo, resColIdx, &ids, resBytes, (int8_t)resType, pExpr->base.aliasName, pExpr);
   } else {
     tscColumnListInsert(pQueryInfo->colList, ids.ids[0].columnIndex, pExpr->base.uid, pSchema);
   }
