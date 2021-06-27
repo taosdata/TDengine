@@ -3842,12 +3842,12 @@ static void doOperatorExecProfOnce(SOperatorStackItem* item, SQueryProfEvent* ev
 
 void calculateOperatorProfResults(SQInfo* pQInfo) {
   if (pQInfo->summary.queryProfEvents == NULL) {
-    qDebug("query prof events array is null");
+    qDebug("QInfo:0x%"PRIx64" query prof events array is null", pQInfo->qId);
     return;
   }
 
   if (pQInfo->summary.operatorProfResults == NULL) {
-    qDebug("operator prof results hash is null");
+    qDebug("QInfo:0x%"PRIx64" operator prof results hash is null", pQInfo->qId);
     return;
   }
   
@@ -4323,12 +4323,12 @@ int32_t doInitQInfo(SQInfo* pQInfo, STSBuf* pTsBuf, void* tsdb, void* sourceOptr
   pQInfo->summary.tableInfoSize += (numOfTables * sizeof(STableQueryInfo));
   pQInfo->summary.queryProfEvents = taosArrayInit(512, sizeof(SQueryProfEvent));
   if (pQInfo->summary.queryProfEvents == NULL) {
-    qDebug("failed to allocate query prof events array");
+    qDebug("QInfo:0x%"PRIx64" failed to allocate query prof events array", pQInfo->qId);
   }
   pQInfo->summary.operatorProfResults =
       taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_TINYINT), true, HASH_NO_LOCK);
   if (pQInfo->summary.operatorProfResults == NULL) {
-    qDebug("failed to allocate operator prof results hash");
+    qDebug("QInfo:0x%"PRIx64" failed to allocate operator prof results hash", pQInfo->qId);
   }
 
   code = setupQueryRuntimeEnv(pRuntimeEnv, (int32_t) pQueryAttr->tableGroupInfo.numOfTables, pOperator, param);
