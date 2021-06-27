@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_OS_SEMPHONE_H
-#define TDENGINE_OS_SEMPHONE_H
+#ifndef TDENGINE_OS_SEMAPHORE_H
+#define TDENGINE_OS_SEMAPHORE_H
 
 #ifdef __cplusplus
 extern "C" {
