@@ -4,13 +4,23 @@ import java.sql.*;
 import java.util.Enumeration;
 import java.util.Map;
 import java.util.Properties;
+import java.util.Set;
 import java.util.concurrent.*;
 
 public abstract class AbstractConnection extends WrapperImpl implements Connection {
 
     protected volatile boolean isClosed;
     protected volatile String catalog;
-    protected volatile Properties clientInfoProps = new Properties();
+    protected final Properties clientInfoProps = new Properties();
+
+    protected AbstractConnection(Properties properties) {
+        Set<String> propNames = properties.stringPropertyNames();
+        for (String propName : propNames) {
+            clientInfoProps.setProperty(propName, properties.getProperty(propName));
+        }
+        String timestampFormat = properties.getProperty(TSDBDriver.PROPERTY_KEY_TIMESTAMP_FORMAT, "STRING");
+        clientInfoProps.setProperty(TSDBDriver.PROPERTY_KEY_TIMESTAMP_FORMAT, timestampFormat);
+    }
 
     @Override
     public abstract Statement createStatement() throws SQLException;
@@ -33,7 +43,6 @@ public abstract class AbstractConnection extends WrapperImpl implements Connecti
 
         return sql;
     }
-
 
 
     @Override
@@ -441,9 +450,8 @@ public abstract class AbstractConnection extends WrapperImpl implements Connecti
         if (isClosed)
             throw (SQLClientInfoException) TSDBError.createSQLException(TSDBErrorNumbers.ERROR_SQLCLIENT_EXCEPTION_ON_CONNECTION_CLOSED);
 
-        if (clientInfoProps == null)
-            clientInfoProps = new Properties();
-        clientInfoProps.setProperty(name, value);
+        if (clientInfoProps != null)
+            clientInfoProps.setProperty(name, value);
     }
 
     @Override

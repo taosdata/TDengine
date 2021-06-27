@@ -10,6 +10,7 @@ import java.util.Map;
 
 public abstract class AbstractResultSet extends WrapperImpl implements ResultSet {
     private int fetchSize;
+    protected boolean wasNull;
 
     protected void checkAvailability(int columnIndex, int bounds) throws SQLException {
         if (isClosed())
@@ -28,7 +29,7 @@ public abstract class AbstractResultSet extends WrapperImpl implements ResultSet
 
     @Override
     public boolean wasNull() throws SQLException {
-        return false;
+        return wasNull;
     }
 
     @Override
@@ -65,10 +66,16 @@ public abstract class AbstractResultSet extends WrapperImpl implements ResultSet
     public abstract byte[] getBytes(int columnIndex) throws SQLException;
 
     @Override
-    public abstract Date getDate(int columnIndex) throws SQLException;
+    public Date getDate(int columnIndex) throws SQLException {
+        Timestamp timestamp = getTimestamp(columnIndex);
+        return timestamp == null ? null : new Date(timestamp.getTime());
+    }
 
     @Override
-    public abstract Time getTime(int columnIndex) throws SQLException;
+    public Time getTime(int columnIndex) throws SQLException {
+        Timestamp timestamp = getTimestamp(columnIndex);
+        return timestamp == null ? null : new Time(timestamp.getTime());
+    }
 
     @Override
     public abstract Timestamp getTimestamp(int columnIndex) throws SQLException;
@@ -83,10 +90,12 @@ public abstract class AbstractResultSet extends WrapperImpl implements ResultSet
     }
 
     @Override
+    @Deprecated
     public InputStream getUnicodeStream(int columnIndex) throws SQLException {
-        if (isClosed())
+        if (isClosed()) {
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_RESULTSET_CLOSED);
-
+        }
+        
         throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
     }
 
@@ -170,6 +179,7 @@ public abstract class AbstractResultSet extends WrapperImpl implements ResultSet
     }
 
     @Override
+    @Deprecated
     public InputStream getUnicodeStream(String columnLabel) throws SQLException {
         return getUnicodeStream(findColumn(columnLabel));
     }

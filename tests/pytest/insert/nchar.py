@@ -36,6 +36,10 @@ class TDTestCase:
         tdSql.checkData(1, 1, '涛思数据')
 
         tdSql.error("insert into tb values (now, 'taosdata001')")
+
+        tdSql.error("insert into tb(now, 😀)")
+        tdSql.query("select * from tb")
+        tdSql.checkRows(2)
         
     def stop(self):
         tdSql.close()

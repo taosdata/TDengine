@@ -160,7 +160,7 @@ if $data03 != @abc15@ then
 endi
 
 sql select top(c6, 3) from select_tags_mt0 interval(10a)
-sql select top(c3,10) from select_tags_mt0 interval(10a) group by tbname
+sql select top(c3,10) from select_tags_mt0 interval(10a) group by tbname,t1,t2
 sql select top(c6, 3) from select_tags_mt0 interval(10a) group by tbname;
 
 sql select top(c6, 10) from select_tags_mt0 interval(10a);
@@ -847,10 +847,16 @@ sql_error select tbname, t1 from select_tags_mt0 interval(1y);
 #valid sql: select first(c1), last(c2), count(*) from select_tags_mt0 group by tbname, t1;
 #valid sql: select first(c1), tbname, t1 from select_tags_mt0 group by t2;
 
+print ==================================>TD-4231
+sql_error select t1,tbname from select_tags_mt0 where c1<0
+sql_error select t1,tbname from select_tags_mt0 where c1<0 and tbname in ('select_tags_tb12')
+
+sql select tbname from select_tags_mt0 where tbname in ('select_tags_tb12');
+
 sql_error select first(c1), last(c2), t1 from select_tags_mt0 group by tbname;
 sql_error select first(c1), last(c2), tbname, t2 from select_tags_mt0 group by tbname;
 sql_error select first(c1), count(*), t2, t1, tbname from select_tags_mt0 group by tbname;
-# this sql is valid: select first(c1), t2 from select_tags_mt0 group by tbname;
+#valid sql: select first(c1), t2 from select_tags_mt0 group by tbname;
 
 #sql select first(ts), tbname from select_tags_mt0 group by tbname;
 #sql select count(c1) from select_tags_mt0 where c1=99 group by tbname;

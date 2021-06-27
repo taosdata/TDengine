@@ -64,18 +64,25 @@ function runQueryPerfTest {
 	[ -f $PERFORMANCE_TEST_REPORT ] && rm $PERFORMANCE_TEST_REPORT
 	nohup $WORK_DIR/TDengine/debug/build/bin/taosd -c /etc/taosperf/ > /dev/null 2>&1 &
 	echoInfo "Wait TDengine to start"
-	sleep 120
+	sleep 60
 	echoInfo "Run Performance Test"	
 	cd $WORK_DIR/TDengine/tests/pytest
 	
 	python3 query/queryPerformance.py -c $LOCAL_COMMIT | tee -a $PERFORMANCE_TEST_REPORT
 
+	mkdir -p /var/lib/perf/
+	mkdir -p /var/log/perf/
+	rm -rf /var/lib/perf/*
+	rm -rf /var/log/perf/*
+	nohup $WORK_DIR/TDengine/debug/build/bin/taosd -c /etc/perf/ > /dev/null 2>&1 &	
+	echoInfo "Wait TDengine to start"
+	sleep 10
+	echoInfo "Run Performance Test"	
+	cd $WORK_DIR/TDengine/tests/pytest
+
 	python3 insert/insertFromCSVPerformance.py -c $LOCAL_COMMIT | tee -a $PERFORMANCE_TEST_REPORT
 	
 	python3 tools/taosdemoPerformance.py -c $LOCAL_COMMIT | tee -a $PERFORMANCE_TEST_REPORT
-
-	python3 perfbenchmark/joinPerformance.py  | tee -a $PERFORMANCE_TEST_REPORT
-	
 }
 
 

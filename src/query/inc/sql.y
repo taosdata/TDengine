@@ -28,7 +28,7 @@
 #include <stdbool.h>
 #include "qSqlparser.h"
 #include "tcmdtype.h"
-#include "tstoken.h"
+#include "ttoken.h"
 #include "ttokendef.h"
 #include "tutil.h"
 #include "tvariant.h"
@@ -507,7 +507,6 @@ distinct(X) ::= .            { X.n = 0;}
 // A complete FROM clause.
 %type from {SFromInfo*}
 from(A) ::= FROM tablelist(X).                 {A = X;}
-from(A) ::= FROM LP union(Y) RP.               {A = Y;}
 
 %type tablelist {SArray*}
 tablelist(A) ::= ids(X) cpxName(Y).                     {
@@ -674,6 +673,8 @@ expr(A) ::= PLUS(X) FLOAT(Y).    { X.n += Y.n; X.type = TK_FLOAT; A = tSqlExprCr
 expr(A) ::= STRING(X).           { A = tSqlExprCreateIdValue(&X, TK_STRING);}
 expr(A) ::= NOW(X).              { A = tSqlExprCreateIdValue(&X, TK_NOW); }
 expr(A) ::= VARIABLE(X).         { A = tSqlExprCreateIdValue(&X, TK_VARIABLE);}
+expr(A) ::= PLUS(X) VARIABLE(Y).   { X.n += Y.n; X.type = TK_VARIABLE; A = tSqlExprCreateIdValue(&X, TK_VARIABLE);}
+expr(A) ::= MINUS(X) VARIABLE(Y).  { X.n += Y.n; X.type = TK_VARIABLE; A = tSqlExprCreateIdValue(&X, TK_VARIABLE);}
 expr(A) ::= BOOL(X).             { A = tSqlExprCreateIdValue(&X, TK_BOOL);}
 expr(A) ::= NULL(X).             { A = tSqlExprCreateIdValue(&X, TK_NULL);}
 

@@ -137,9 +137,6 @@ void taosPrintOsInfo() {
   // uInfo(" os openMax:             %" PRId64, tsOpenMax);
   // uInfo(" os streamMax:           %" PRId64, tsStreamMax);
   uInfo(" os numOfCores:          %d", tsNumOfCores);
-  uInfo(" os totalDisk:           %f(GB)", tsTotalDataDirGB);
-  uInfo(" os usedDisk:            %f(GB)", tsUsedDataDirGB);
-  uInfo(" os availDisk:           %f(GB)", tsAvailDataDirGB);
   uInfo(" os totalMemory:         %d(MB)", tsTotalMemoryMB);
 
   struct utsname buf;
@@ -152,6 +149,14 @@ void taosPrintOsInfo() {
   uInfo(" os release:             %s", buf.release);
   uInfo(" os version:             %s", buf.version);
   uInfo(" os machine:             %s", buf.machine);
+  uInfo("==================================");
+}
+
+void taosPrintDiskInfo() {
+  uInfo("==================================");
+  uInfo(" os totalDisk:           %f(GB)", tsTotalDataDirGB);
+  uInfo(" os usedDisk:            %f(GB)", tsUsedDataDirGB);
+  uInfo(" os availDisk:           %f(GB)", tsAvailDataDirGB);
   uInfo("==================================");
 }
 
@@ -217,7 +222,7 @@ void taosSetCoreDump() {}
 
 int32_t taosGetDiskSize(char *dataDir, SysDiskSize *diskSize) {
   struct statvfs info;
-  if (statvfs(tsDataDir, &info)) {
+  if (statvfs(dataDir, &info)) {
     uError("failed to get disk size, dataDir:%s errno:%s", tsDataDir, strerror(errno));
     terrno = TAOS_SYSTEM_ERROR(errno);
     return -1;

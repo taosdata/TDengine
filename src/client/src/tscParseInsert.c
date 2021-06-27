@@ -29,8 +29,7 @@
 #include "taosdef.h"
 
 #include "tscLog.h"
-#include "tscSubquery.h"
-#include "tstoken.h"
+#include "ttoken.h"
 
 #include "tdataformat.h"
 
@@ -463,23 +462,28 @@ int tsParseOneRow(char **str, STableDataBlocks *pDataBlocks, SSqlCmd *pCmd, int1
     // Remove quotation marks
     if (TK_STRING == sToken.type) {
       // delete escape character: \\, \', \"
-      char    delim = sToken.z[0];
+      char delim = sToken.z[0];
+
       int32_t cnt = 0;
       int32_t j = 0;
+      if (sToken.n >= TSDB_MAX_BYTES_PER_ROW) {
+        return tscSQLSyntaxErrMsg(pCmd->payload, "too long string", sToken.z);
+      }
+      
       for (uint32_t k = 1; k < sToken.n - 1; ++k) {
-        if (sToken.z[k] == delim || sToken.z[k] == '\\') {
-          if (sToken.z[k + 1] == delim) {
-            cnt++;
+        if (sToken.z[k] == '\\' || (sToken.z[k] == delim && sToken.z[k + 1] == delim)) {
             tmpTokenBuf[j] = sToken.z[k + 1];
-            j++;
-            k++;
-            continue;
-          }
+
+          cnt++;
+          j++;
+          k++;
+          continue;
         }
 
         tmpTokenBuf[j] = sToken.z[k];
         j++;
       }
+
       tmpTokenBuf[j] = 0;
       sToken.z = tmpTokenBuf;
       sToken.n -= 2 + cnt;
@@ -705,15 +709,10 @@ static int32_t doParseInsertStatement(SSqlCmd* pCmd, char **str, STableDataBlock
   }
 
   code = TSDB_CODE_TSC_INVALID_SQL;
-  char  *tmpTokenBuf = calloc(1, 16*1024);  // used for deleting Escape character: \\, \', \"
-  if (NULL == tmpTokenBuf) {
-    return TSDB_CODE_TSC_OUT_OF_MEMORY;
-  }
+  char tmpTokenBuf[TSDB_MAX_BYTES_PER_ROW] = {0};  // used for deleting Escape character: \\, \', \"
 
   int32_t numOfRows = 0;
   code = tsParseValues(str, dataBuf, maxNumOfRows, pCmd, &numOfRows, tmpTokenBuf);
-
-  free(tmpTokenBuf);
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }
@@ -774,6 +773,10 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql, char** boundC
       index = 0;
       sToken = tStrGetToken(sql, &index, false);
 
+      if (sToken.type == TK_ILLEGAL) {
+        return tscSQLSyntaxErrMsg(pCmd->payload, "unrecognized token", sToken.z);
+      }
+      
       if (sToken.type == TK_RP) {
         break;
       }
@@ -928,6 +931,42 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql, char** boundC
       return tscSQLSyntaxErrMsg(pCmd->payload, ") expected", sToken.z);
     }
 
+    /* parse columns after super table tags values.
+     * insert into table_name using super_table(tag_name1, tag_name2) tags(tag_val1, tag_val2)
+     * (normal_col1, normal_col2) values(normal_col1_val, normal_col2_val);
+     * */
+    index = 0;
+    sToken = tStrGetToken(sql, &index, false);
+    sql += index;
+    int numOfColsAfterTags = 0;
+    if (sToken.type == TK_LP) {
+      if (*boundColumn != NULL) {
+        return tscSQLSyntaxErrMsg(pCmd->payload, "bind columns again", sToken.z);
+      } else {
+        *boundColumn = &sToken.z[0];
+      }
+
+      while (1) {
+        index = 0;
+        sToken = tStrGetToken(sql, &index, false);
+
+        if (sToken.type == TK_RP) {
+          break;
+        }
+
+        sql += index;
+        ++numOfColsAfterTags;
+      }
+
+      if (numOfColsAfterTags == 0 && (*boundColumn) != NULL) {
+        return TSDB_CODE_TSC_INVALID_SQL;
+      }
+
+      sToken = tStrGetToken(sql, &index, false);
+    }
+
+    sql = sToken.z;
+
     if (tscValidateName(&tableToken) != TSDB_CODE_SUCCESS) {
       return tscInvalidSQLErrMsg(pCmd->payload, "invalid table name", *sqlstr);
     }
@@ -969,7 +1008,7 @@ int validateTableName(char *tblName, int len, SStrToken* psTblToken) {
 
   psTblToken->n    = len;
   psTblToken->type = TK_ID;
-  tSQLGetToken(psTblToken->z, &psTblToken->type);
+  tGetToken(psTblToken->z, &psTblToken->type);
 
   return tscValidateName(psTblToken);
 }
@@ -1089,7 +1128,7 @@ int tsParseInsertSql(SSqlObj *pSql) {
     str = pCmd->curSql;
   }
   
-  tscDebug("%p create data block list hashList:%p", pSql, pCmd->pTableBlockHashList);
+  tscDebug("0x%"PRIx64" create data block list hashList:%p", pSql->self, pCmd->pTableBlockHashList);
 
   while (1) {
     int32_t   index = 0;
@@ -1141,7 +1180,7 @@ int tsParseInsertSql(SSqlObj *pSql) {
         return code;
       }
 
-      tscError("%p async insert parse error, code:%s", pSql, tstrerror(code));
+      tscError("0x%"PRIx64" async insert parse error, code:%s", pSql->self, tstrerror(code));
       pCmd->curSql = NULL;
       goto _clean;
     }
@@ -1303,7 +1342,7 @@ int tsParseSql(SSqlObj *pSql, bool initial) {
   SSqlCmd* pCmd = &pSql->cmd;
 
   if ((!pCmd->parseFinished) && (!initial)) {
-    tscDebug("%p resume to parse sql: %s", pSql, pCmd->curSql);
+    tscDebug("0x%"PRIx64" resume to parse sql: %s", pSql->self, pCmd->curSql);
   }
 
   ret = tscAllocPayload(&pSql->cmd, TSDB_DEFAULT_PAYLOAD_SIZE);
@@ -1317,30 +1356,27 @@ int tsParseSql(SSqlObj *pSql, bool initial) {
     }
 
     // make a backup as tsParseInsertSql may modify the string
-    char* sqlstr = strdup(pSql->sqlstr);
     ret = tsParseInsertSql(pSql);
-    if ((sqlstr == NULL) || (pSql->parseRetry >= 1) ||
-        (ret != TSDB_CODE_TSC_SQL_SYNTAX_ERROR && ret != TSDB_CODE_TSC_INVALID_SQL)) {
-      free(sqlstr);
+    if ((pSql->parseRetry >= 1) || (ret != TSDB_CODE_TSC_SQL_SYNTAX_ERROR && ret != TSDB_CODE_TSC_INVALID_SQL)) {
     } else {
       tscResetSqlCmd(pCmd, true);
-      free(pSql->sqlstr);
-      pSql->sqlstr = sqlstr;
       pSql->parseRetry++;
       if ((ret = tsInsertInitialCheck(pSql)) == TSDB_CODE_SUCCESS) {
         ret = tsParseInsertSql(pSql);
       }
     }
   } else {
-    SSqlInfo SQLInfo = qSqlParse(pSql->sqlstr);
-    ret = tscToSQLCmd(pSql, &SQLInfo);
-    if (ret == TSDB_CODE_TSC_INVALID_SQL && pSql->parseRetry == 0 && SQLInfo.type == TSDB_SQL_NULL) {
+    SSqlInfo sqlInfo = qSqlParse(pSql->sqlstr);
+    ret = tscToSQLCmd(pSql, &sqlInfo);
+    if (ret == TSDB_CODE_TSC_INVALID_SQL && pSql->parseRetry == 0/* && sqlInfo.type == TSDB_SQL_NULL*/) {
+      tscDebug("0x%"PRIx64 " parse sql failed, retry again after clear local meta cache", pSql->self);
       tscResetSqlCmd(pCmd, true);
       pSql->parseRetry++;
-      ret = tscToSQLCmd(pSql, &SQLInfo);
+
+      ret = tscToSQLCmd(pSql, &sqlInfo);
     }
 
-    SqlInfoDestroy(&SQLInfo);
+    SqlInfoDestroy(&sqlInfo);
   }
 
   /*
@@ -1409,7 +1445,7 @@ static void parseFileSendDataBlock(void *param, TAOS_RES *tres, int32_t numOfRow
     assert(pSql->res.numOfRows == 0);
     int32_t ret = fseek(fp, 0, SEEK_SET);
     if (ret < 0) {
-      tscError("%p failed to seek SEEK_SET since:%s", pSql, tstrerror(errno));
+      tscError("0x%"PRIx64" failed to seek SEEK_SET since:%s", pSql->self, tstrerror(errno));
       code = TAOS_SYSTEM_ERROR(errno);
       goto _error;
     }
@@ -1529,7 +1565,7 @@ void tscImportDataFromFile(SSqlObj *pSql) {
   FILE *fp = fopen(pCmd->payload, "rb");
   if (fp == NULL) {
     pSql->res.code = TAOS_SYSTEM_ERROR(errno);
-    tscError("%p failed to open file %s to load data from file, code:%s", pSql, pCmd->payload, tstrerror(pSql->res.code));
+    tscError("0x%"PRIx64" failed to open file %s to load data from file, code:%s", pSql->self, pCmd->payload, tstrerror(pSql->res.code));
 
     tfree(pSupporter);
     taos_free_result(pNew);

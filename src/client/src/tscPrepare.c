@@ -151,7 +151,7 @@ static int normalStmtPrepare(STscStmt* stmt) {
 
   while (sql[i] != 0) {
     SStrToken token = {0};
-    token.n = tSQLGetToken(sql + i, &token.type);
+    token.n = tGetToken(sql + i, &token.type);
 
     if (token.type == TK_QUESTION) {
       sql[i] = 0;
@@ -877,6 +877,11 @@ int taos_stmt_prepare(TAOS_STMT* stmt, const char* sql, unsigned long length) {
   if (stmt == NULL || pStmt->taos == NULL || pStmt->pSql == NULL) {
     terrno = TSDB_CODE_TSC_DISCONNECTED;
     return TSDB_CODE_TSC_DISCONNECTED;
+  }
+
+  if (sql == NULL) {
+    tscError("sql is NULL");
+    return TSDB_CODE_TSC_APP_ERROR;
   }
 
   SSqlObj* pSql = pStmt->pSql;

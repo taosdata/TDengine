@@ -67,14 +67,16 @@ typedef struct CChildTableMeta {
   int32_t        vgId;
   STableId       id;
   uint8_t        tableType;
-  char           sTableName[TSDB_TABLE_FNAME_LEN];  //super table name, not full name
+  char           sTableName[TSDB_TABLE_FNAME_LEN];  // TODO: refactor super table name, not full name
+  uint64_t       suid;                              // super table id
 } CChildTableMeta;
 
 typedef struct STableMeta {
   int32_t        vgId;
   STableId       id;
   uint8_t        tableType;
-  char           sTableName[TSDB_TABLE_FNAME_LEN];
+  char           sTableName[TSDB_TABLE_FNAME_LEN];  // super table name
+  uint64_t       suid;       // super table id
   int16_t        sversion;
   int16_t        tversion;
   STableComInfo  tableInfo;
@@ -83,6 +85,7 @@ typedef struct STableMeta {
 
 typedef struct STableMetaInfo {
   STableMeta   *pTableMeta;      // table meta, cached in client side and acquired by name
+  uint32_t       tableMetaSize;
   SVgroupsInfo *vgroupList;
   SArray       *pVgroupTables;   // SArray<SVgroupTableInfo>
   
@@ -402,6 +405,7 @@ typedef struct SSqlObj {
 
 typedef struct SSqlStream {
   SSqlObj *pSql;
+  void *  cqhandle;  // stream belong to SCQContext handle
   const char* dstTable;
   uint32_t streamId;
   char     listed;
@@ -419,6 +423,7 @@ typedef struct SSqlStream {
   int64_t ctime;     // stream created time
   int64_t stime;     // stream next executed time
   int64_t etime;     // stream end query time, when time is larger then etime, the stream will be closed
+  int64_t ltime;     // stream last row time in stream table
   SInterval interval;
   void *  pTimer;
 

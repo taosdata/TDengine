@@ -6,13 +6,16 @@
 #include "taos.h"
 #include "tsdb.h"
 
+#pragma GCC diagnostic ignored "-Wwrite-strings"
+#pragma GCC diagnostic ignored "-Wunused-function"
+#pragma GCC diagnostic ignored "-Wunused-variable"
+#pragma GCC diagnostic ignored "-Wunused-but-set-variable"
+#pragma GCC diagnostic ignored "-Wsign-compare"
+
 #include "../../client/inc/tscUtil.h"
 #include "tutil.h"
 #include "tvariant.h"
 #include "ttokendef.h"
-
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wwrite-strings"
 
 namespace {
 int32_t testValidateName(char* name) {
@@ -21,7 +24,7 @@ int32_t testValidateName(char* name) {
   token.n = strlen(name);
   token.type = 0;
 
-  tSQLGetToken(name, &token.type);
+  tGetToken(name, &token.type);
   return tscValidateName(&token);
 }
 }
@@ -691,32 +694,32 @@ TEST(testCase, tGetToken_Test) {
   char* s = ".123 ";
   uint32_t type = 0;
 
-  int32_t len = tSQLGetToken(s, &type);
+  int32_t len = tGetToken(s, &type);
   EXPECT_EQ(type, TK_FLOAT);
   EXPECT_EQ(len, strlen(s) - 1);
 
   char s1[] = "1.123e10 ";
-  len = tSQLGetToken(s1, &type);
+  len = tGetToken(s1, &type);
   EXPECT_EQ(type, TK_FLOAT);
   EXPECT_EQ(len, strlen(s1) - 1);
 
   char s4[] = "0xff ";
-  len = tSQLGetToken(s4, &type);
+  len = tGetToken(s4, &type);
   EXPECT_EQ(type, TK_HEX);
   EXPECT_EQ(len, strlen(s4) - 1);
 
   // invalid data type
   char s2[] = "e10 ";
-  len = tSQLGetToken(s2, &type);
+  len = tGetToken(s2, &type);
   EXPECT_FALSE(type == TK_FLOAT);
 
   char s3[] = "1.1.1.1";
-  len = tSQLGetToken(s3, &type);
+  len = tGetToken(s3, &type);
   EXPECT_EQ(type, TK_IPTOKEN);
   EXPECT_EQ(len, strlen(s3));
 
   char s5[] = "0x ";
-  len = tSQLGetToken(s5, &type);
+  len = tGetToken(s5, &type);
   EXPECT_FALSE(type == TK_HEX);
 }
 

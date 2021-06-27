@@ -28,6 +28,7 @@ public class TSDBConnection extends AbstractConnection {
     }
 
     public TSDBConnection(Properties info, TSDBDatabaseMetaData meta) throws SQLException {
+        super(info);
         this.databaseMetaData = meta;
         connect(info.getProperty(TSDBDriver.PROPERTY_KEY_HOST),
                 Integer.parseInt(info.getProperty(TSDBDriver.PROPERTY_KEY_PORT, "0")),
@@ -48,7 +49,7 @@ public class TSDBConnection extends AbstractConnection {
         this.databaseMetaData.setConnection(this);
     }
 
-    public TSDBJNIConnector getConnection() {
+    public TSDBJNIConnector getConnector() {
         return this.connector;
     }
 
@@ -57,7 +58,7 @@ public class TSDBConnection extends AbstractConnection {
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_CONNECTION_CLOSED);
         }
 
-        return new TSDBStatement(this, this.connector);
+        return new TSDBStatement(this);
     }
 
     public TSDBSubscribe subscribe(String topic, String sql, boolean restart) throws SQLException {
@@ -73,14 +74,18 @@ public class TSDBConnection extends AbstractConnection {
     }
 
     public PreparedStatement prepareStatement(String sql) throws SQLException {
-        if (isClosed())
+        if (isClosed()) {
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_CONNECTION_CLOSED);
-        return new TSDBPreparedStatement(this, this.connector, sql);
+        }
+        
+        return new TSDBPreparedStatement(this, sql);
     }
 
     public void close() throws SQLException {
-        if (isClosed)
+        if (isClosed) {
             return;
+        }
+        
         this.connector.closeConnection();
         this.isClosed = true;
     }

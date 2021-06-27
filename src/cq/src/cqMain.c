@@ -38,21 +38,6 @@
 #define cDebug(...) { if (cqDebugFlag & DEBUG_DEBUG) { taosPrintLog("CQ  ", cqDebugFlag, __VA_ARGS__); }}
 #define cTrace(...) { if (cqDebugFlag & DEBUG_TRACE) { taosPrintLog("CQ  ", cqDebugFlag, __VA_ARGS__); }}
 
-typedef struct {
-  int32_t  vgId;
-  int32_t  master;
-  int32_t  num;      // number of continuous streams
-  char     user[TSDB_USER_LEN];
-  char     pass[TSDB_KEY_LEN];
-  char     db[TSDB_DB_NAME_LEN];
-  FCqWrite cqWrite;
-  struct SCqObj *pHead;
-  void    *dbConn;
-  void    *tmrCtrl;
-  pthread_mutex_t mutex;
-  int32_t delete;
-  int32_t cqObjNum;
-} SCqContext;
 
 typedef struct SCqObj {
   tmr_h          tmrId;
@@ -437,6 +422,10 @@ static void cqProcessCreateTimer(void *param, void *tmrId) {
   taosReleaseRef(cqObjRef, (int64_t)param);
 }
 
+// inner implement in tscStream.c
+TAOS_STREAM *taos_open_stream_withname(TAOS *taos, const char* desName, const char *sqlstr, void (*fp)(void *param, TAOS_RES *, TAOS_ROW row),
+                              int64_t stime, void *param, void (*callback)(void *), void* cqhandle);
+
 static void cqCreateStream(SCqContext *pContext, SCqObj *pObj) {
   pObj->pContext = pContext;
 
@@ -449,11 +438,11 @@ static void cqCreateStream(SCqContext *pContext, SCqObj *pObj) {
   pObj->tmrId = 0;
 
   if (pObj->pStream == NULL) {
-    pObj->pStream = taos_open_stream(pContext->dbConn, pObj->sqlStr, cqProcessStreamRes, 0, (void *)pObj->rid, NULL);
+    pObj->pStream = taos_open_stream_withname(pContext->dbConn, pObj->dstTable, pObj->sqlStr, cqProcessStreamRes, \
+                                               INT64_MIN, (void *)pObj->rid, NULL, pContext);
 
     // TODO the pObj->pStream may be released if error happens
     if (pObj->pStream) {
-      tscSetStreamDestTable(pObj->pStream, pObj->dstTable);
       pContext->num++;
       cDebug("vgId:%d, id:%d CQ:%s is opened", pContext->vgId, pObj->tid, pObj->sqlStr);
     } else {

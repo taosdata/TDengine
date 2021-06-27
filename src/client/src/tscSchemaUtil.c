@@ -94,6 +94,7 @@ STableMeta* tscCreateTableMetaFromMsg(STableMetaMsg* pTableMetaMsg) {
 
   pTableMeta->tableType = pTableMetaMsg->tableType;
   pTableMeta->vgId      = pTableMetaMsg->vgroup.vgId;
+  pTableMeta->suid      = pTableMetaMsg->suid;
 
   pTableMeta->tableInfo = (STableComInfo) {
     .numOfTags    = pTableMetaMsg->numOfTags,
