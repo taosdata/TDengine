@@ -94,7 +94,7 @@ def pre_test(){
     make > /dev/null
     make install > /dev/null
     cd ${WKC}/tests
-    pip3 install ${WKC}/src/connector/python/
+    pip3 install ${WKC}/src/connector/python
     '''
     return 1
 }
@@ -121,7 +121,23 @@ pipeline {
           sh'''
           cp -r ${WORKSPACE} ${WORKSPACE}.tes
           cd ${WORKSPACE}.tes
-          git checkout develop
+          git fetch
+          '''
+          script {
+            if (env.CHANGE_TARGET == 'master') {
+              sh '''
+              cd ${WKC}
+              git checkout master
+              '''
+              }
+            else {
+              sh '''
+              cd ${WKC}
+              git checkout develop
+              '''
+            } 
+          }
+          sh'''
           git pull
           git fetch origin +refs/pull/${CHANGE_ID}/merge
           git checkout -qf FETCH_HEAD
