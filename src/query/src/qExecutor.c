@@ -184,7 +184,7 @@ static int32_t getNumOfScanTimes(SQueryAttr* pQueryAttr);
 static void destroyBasicOperatorInfo(void* param, int32_t numOfOutput);
 static void destroySFillOperatorInfo(void* param, int32_t numOfOutput);
 static void destroyGroupbyOperatorInfo(void* param, int32_t numOfOutput);
-static void destroyArithOperatorInfo(void* param, int32_t numOfOutput);
+static void destroyProjectOperatorInfo(void* param, int32_t numOfOutput);
 static void destroyTagScanOperatorInfo(void* param, int32_t numOfOutput);
 static void destroySWindowOperatorInfo(void* param, int32_t numOfOutput);
 static void destroyStateWindowOperatorInfo(void* param, int32_t numOfOutput);
@@ -912,7 +912,7 @@ void setInputDataBlock(SOperatorInfo* pOperator, SQLFunctionCtx* pCtx, SSDataBlo
       doSetInputDataBlockInfo(pOperator, pCtx, pBlock, order);
     }
   } else {
-    if (/*pCtx[0].pInput == NULL && */pBlock->pDataBlock != NULL) {
+    if (pBlock->pDataBlock != NULL) {
       doSetInputDataBlock(pOperator, pCtx, pBlock, order);
     } else {
       doSetInputDataBlockInfo(pOperator, pCtx, pBlock, order);
@@ -978,7 +978,7 @@ static void doAggregateImpl(SOperatorInfo* pOperator, TSKEY startTs, SQLFunction
   }
 }
 
-static void arithmeticApplyFunctions(SQueryRuntimeEnv *pRuntimeEnv, SQLFunctionCtx *pCtx, int32_t numOfOutput) {
+static void projectApplyFunctions(SQueryRuntimeEnv *pRuntimeEnv, SQLFunctionCtx *pCtx, int32_t numOfOutput) {
   SQueryAttr *pQueryAttr = pRuntimeEnv->pQueryAttr;
 
   for (int32_t k = 0; k < numOfOutput; ++k) {
@@ -1282,11 +1282,8 @@ static void doHashGroupbyAgg(SOperatorInfo* pOperator, SGroupbyOperatorInfo *pIn
     return;
   }
 
-  int64_t* tsList = NULL;
   SColumnInfoData* pFirstColData = taosArrayGet(pSDataBlock->pDataBlock, 0);
-  if (pFirstColData->info.type == TSDB_DATA_TYPE_TIMESTAMP) {
-    tsList = (int64_t*) pFirstColData->pData;
-  }
+  int64_t* tsList = (pFirstColData->info.type == TSDB_DATA_TYPE_TIMESTAMP)? (int64_t*) pFirstColData->pData:NULL;
 
   STimeWindow w = TSWINDOW_INITIALIZER;
 
@@ -1319,12 +1316,10 @@ static void doHashGroupbyAgg(SOperatorInfo* pOperator, SGroupbyOperatorInfo *pIn
     }
 
     if (pQueryAttr->stableQuery && pQueryAttr->stabledev && (pRuntimeEnv->prevResult != NULL)) {
-      setParamForStableStddevByColData(pRuntimeEnv, pInfo->binfo.pCtx, pOperator->numOfOutput, pOperator->pExpr, pInfo->prevData,
-                                       bytes);
+      setParamForStableStddevByColData(pRuntimeEnv, pInfo->binfo.pCtx, pOperator->numOfOutput, pOperator->pExpr, pInfo->prevData, bytes);
     }
 
-    int32_t ret = setGroupResultOutputBuf(pRuntimeEnv, &(pInfo->binfo), pOperator->numOfOutput, pInfo->prevData, type, bytes,
-                                          item->groupIndex);
+    int32_t ret = setGroupResultOutputBuf(pRuntimeEnv, &(pInfo->binfo), pOperator->numOfOutput, pInfo->prevData, type, bytes, item->groupIndex);
     if (ret != TSDB_CODE_SUCCESS) {  // null data, too many state code
       longjmp(pRuntimeEnv->env, TSDB_CODE_QRY_APP_ERROR);
     }
@@ -1340,17 +1335,16 @@ static void doHashGroupbyAgg(SOperatorInfo* pOperator, SGroupbyOperatorInfo *pIn
     memcpy(pInfo->prevData, val, bytes);
 
     if (pQueryAttr->stableQuery && pQueryAttr->stabledev && (pRuntimeEnv->prevResult != NULL)) {
-      setParamForStableStddevByColData(pRuntimeEnv, pInfo->binfo.pCtx, pOperator->numOfOutput, pOperator->pExpr, val,
-                                       bytes);
+      setParamForStableStddevByColData(pRuntimeEnv, pInfo->binfo.pCtx, pOperator->numOfOutput, pOperator->pExpr, val, bytes);
     }
 
-    int32_t ret = setGroupResultOutputBuf(pRuntimeEnv, &(pInfo->binfo), pOperator->numOfOutput, val, type, bytes,
-                                          item->groupIndex);
+    int32_t ret = setGroupResultOutputBuf(pRuntimeEnv, &(pInfo->binfo), pOperator->numOfOutput, val, type, bytes, item->groupIndex);
     if (ret != TSDB_CODE_SUCCESS) {  // null data, too many state code
       longjmp(pRuntimeEnv->env, TSDB_CODE_QRY_APP_ERROR);
     }
 
     doApplyFunctions(pRuntimeEnv, pInfo->binfo.pCtx, &w, pSDataBlock->info.rows - num, num, tsList, pSDataBlock->info.rows, pOperator->numOfOutput);
+    tfree(pInfo->prevData);
   }
 }
 
@@ -1806,17 +1800,17 @@ static int32_t setupQueryRuntimeEnv(SQueryRuntimeEnv *pRuntimeEnv, int32_t numOf
         break;
       }
 
-      case OP_Arithmetic: {  // TODO refactor to remove arith operator.
+      case OP_Project: {  // TODO refactor to remove arith operator.
         SOperatorInfo* prev = pRuntimeEnv->proot;
         if (i == 0) {
-          pRuntimeEnv->proot = createArithOperatorInfo(pRuntimeEnv, prev, pQueryAttr->pExpr1, pQueryAttr->numOfOutput);
+          pRuntimeEnv->proot = createProjectOperatorInfo(pRuntimeEnv, prev, pQueryAttr->pExpr1, pQueryAttr->numOfOutput);
           if (pRuntimeEnv->proot != NULL && prev->operatorType != OP_DummyInput && prev->operatorType != OP_Join) {  // TODO refactor
             setTableScanFilterOperatorInfo(prev->info, pRuntimeEnv->proot);
           }
         } else {
           prev = pRuntimeEnv->proot;
           assert(pQueryAttr->pExpr2 != NULL);
-          pRuntimeEnv->proot = createArithOperatorInfo(pRuntimeEnv, prev, pQueryAttr->pExpr2, pQueryAttr->numOfExpr2);
+          pRuntimeEnv->proot = createProjectOperatorInfo(pRuntimeEnv, prev, pQueryAttr->pExpr2, pQueryAttr->numOfExpr2);
         }
         break;
       }
@@ -3791,6 +3785,103 @@ int32_t doFillTimeIntervalGapsInResults(SFillInfo* pFillInfo, SSDataBlock *pOutp
   return pOutput->info.rows;
 }
 
+void publishOperatorProfEvent(SOperatorInfo* operatorInfo, EQueryProfEventType eventType) {
+  SQueryProfEvent event;
+  event.eventType = eventType;
+  event.eventTime = taosGetTimestampUs();
+  event.operatorType = operatorInfo->operatorType;
+
+  SQInfo* qInfo = operatorInfo->pRuntimeEnv->qinfo;
+  if (qInfo->summary.queryProfEvents) {
+    taosArrayPush(qInfo->summary.queryProfEvents, &event);
+  }
+}
+
+void publishQueryAbortEvent(SQInfo* pQInfo, int32_t code) {
+  SQueryProfEvent event;
+  event.eventType = QUERY_PROF_QUERY_ABORT;
+  event.eventTime = taosGetTimestampUs();
+  event.abortCode = code;
+
+  if (pQInfo->summary.queryProfEvents) {
+    taosArrayPush(pQInfo->summary.queryProfEvents, &event);
+  }
+}
+
+typedef struct  {
+  uint8_t operatorType;
+  int64_t beginTime;
+  int64_t endTime;
+  int64_t selfTime;
+  int64_t descendantsTime;
+} SOperatorStackItem;
+
+static void doOperatorExecProfOnce(SOperatorStackItem* item, SQueryProfEvent* event, SArray* opStack, SHashObj* profResults) {
+  item->endTime = event->eventTime;
+  item->selfTime = (item->endTime - item->beginTime) - (item->descendantsTime);
+
+  for (int32_t j = 0; j < taosArrayGetSize(opStack); ++j) {
+    SOperatorStackItem* ancestor = taosArrayGet(opStack, j);
+    ancestor->descendantsTime += item->selfTime;
+  }
+
+  uint8_t operatorType = item->operatorType;
+  SOperatorProfResult* result = taosHashGet(profResults, &operatorType, sizeof(operatorType));
+  if (result != NULL) {
+    result->sumRunTimes++;
+    result->sumSelfTime += item->selfTime;
+  } else {
+    SOperatorProfResult opResult;
+    opResult.operatorType = operatorType;
+    opResult.sumSelfTime = item->selfTime;
+    opResult.sumRunTimes = 1;
+    taosHashPut(profResults, &(operatorType), sizeof(operatorType),
+                &opResult, sizeof(opResult));
+  }
+}
+
+void calculateOperatorProfResults(SQInfo* pQInfo) {
+  if (pQInfo->summary.queryProfEvents == NULL) {
+    qDebug("query prof events array is null");
+    return;
+  }
+
+  if (pQInfo->summary.operatorProfResults == NULL) {
+    qDebug("operator prof results hash is null");
+    return;
+  }
+  
+  SArray* opStack = taosArrayInit(32, sizeof(SOperatorStackItem));
+  if (opStack == NULL) {
+    return;
+  }
+
+  size_t size = taosArrayGetSize(pQInfo->summary.queryProfEvents);
+  SHashObj* profResults = pQInfo->summary.operatorProfResults;
+
+  for (int i = 0; i < size; ++i) {
+    SQueryProfEvent* event = taosArrayGet(pQInfo->summary.queryProfEvents, i);
+    if (event->eventType == QUERY_PROF_BEFORE_OPERATOR_EXEC) {
+      SOperatorStackItem opItem;
+      opItem.operatorType = event->operatorType;
+      opItem.beginTime = event->eventTime;
+      opItem.descendantsTime = 0;
+      taosArrayPush(opStack, &opItem);
+    } else if (event->eventType == QUERY_PROF_AFTER_OPERATOR_EXEC) {
+      SOperatorStackItem* item = taosArrayPop(opStack);
+      assert(item->operatorType == event->operatorType);
+      doOperatorExecProfOnce(item, event, opStack, profResults);
+    } else if (event->eventType == QUERY_PROF_QUERY_ABORT) {
+      SOperatorStackItem* item;
+      while ((item = taosArrayPop(opStack)) != NULL) {
+        doOperatorExecProfOnce(item, event, opStack, profResults);
+      }
+    }
+  }
+
+  taosArrayDestroy(opStack);
+}
+
 void queryCostStatis(SQInfo *pQInfo) {
   SQueryRuntimeEnv *pRuntimeEnv = &pQInfo->runtimeEnv;
   SQueryCostInfo *pSummary = &pQInfo->summary;
@@ -3811,6 +3902,8 @@ void queryCostStatis(SQInfo *pQInfo) {
     pSummary->numOfTimeWindows = 0;
   }
 
+  calculateOperatorProfResults(pQInfo);
+
   qDebug("QInfo:0x%"PRIx64" :cost summary: elapsed time:%"PRId64" us, first merge:%"PRId64" us, total blocks:%d, "
          "load block statis:%d, load data block:%d, total rows:%"PRId64 ", check rows:%"PRId64,
          pQInfo->qId, pSummary->elapsedTime, pSummary->firstStageMergeTime, pSummary->totalBlocks, pSummary->loadBlockStatis,
@@ -3818,6 +3911,15 @@ void queryCostStatis(SQInfo *pQInfo) {
 
   qDebug("QInfo:0x%"PRIx64" :cost summary: winResPool size:%.2f Kb, numOfWin:%"PRId64", tableInfoSize:%.2f Kb, hashTable:%.2f Kb", pQInfo->qId, pSummary->winInfoSize/1024.0,
       pSummary->numOfTimeWindows, pSummary->tableInfoSize/1024.0, pSummary->hashSize/1024.0);
+
+  if (pSummary->operatorProfResults) {
+    SOperatorProfResult* opRes = taosHashIterate(pSummary->operatorProfResults, NULL);
+    while (opRes != NULL) {
+      qDebug("QInfo:0x%" PRIx64 " :cost summary: operator : %d, exec times: %" PRId64 ", self time: %" PRId64,
+             pQInfo->qId, opRes->operatorType, opRes->sumRunTimes, opRes->sumSelfTime);
+      opRes = taosHashIterate(pSummary->operatorProfResults, opRes);
+    }
+  }
 }
 
 //static void updateOffsetVal(SQueryRuntimeEnv *pRuntimeEnv, SDataBlockInfo *pBlockInfo) {
@@ -4219,6 +4321,15 @@ int32_t doInitQInfo(SQInfo* pQInfo, STSBuf* pTsBuf, void* tsdb, void* sourceOptr
   // create runtime environment
   int32_t numOfTables = (int32_t)pQueryAttr->tableGroupInfo.numOfTables;
   pQInfo->summary.tableInfoSize += (numOfTables * sizeof(STableQueryInfo));
+  pQInfo->summary.queryProfEvents = taosArrayInit(512, sizeof(SQueryProfEvent));
+  if (pQInfo->summary.queryProfEvents == NULL) {
+    qDebug("failed to allocate query prof events array");
+  }
+  pQInfo->summary.operatorProfResults =
+      taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_TINYINT), true, HASH_NO_LOCK);
+  if (pQInfo->summary.operatorProfResults == NULL) {
+    qDebug("failed to allocate operator prof results hash");
+  }
 
   code = setupQueryRuntimeEnv(pRuntimeEnv, (int32_t) pQueryAttr->tableGroupInfo.numOfTables, pOperator, param);
   if (code != TSDB_CODE_SUCCESS) {
@@ -4578,8 +4689,8 @@ void setTableScanFilterOperatorInfo(STableScanInfo* pTableScanInfo, SOperatorInf
     pTableScanInfo->pResultRowInfo = &pInfo->resultRowInfo;
     pTableScanInfo->rowCellInfoOffset = pInfo->rowCellInfoOffset;
 
-  } else if (pDownstream->operatorType == OP_Arithmetic) {
-    SArithOperatorInfo *pInfo = pDownstream->info;
+  } else if (pDownstream->operatorType == OP_Project) {
+    SProjectOperatorInfo *pInfo = pDownstream->info;
 
     pTableScanInfo->pCtx = pInfo->binfo.pCtx;
     pTableScanInfo->pResultRowInfo = &pInfo->binfo.resultRowInfo;
@@ -4843,7 +4954,10 @@ static SSDataBlock* doAggregate(void* param, bool* newgroup) {
   SOperatorInfo* upstream = pOperator->upstream[0];
 
   while(1) {
+    publishOperatorProfEvent(upstream, QUERY_PROF_BEFORE_OPERATOR_EXEC);
     SSDataBlock* pBlock = upstream->exec(upstream, newgroup);
+    publishOperatorProfEvent(upstream, QUERY_PROF_AFTER_OPERATOR_EXEC);
+
     if (pBlock == NULL) {
       break;
     }
@@ -4898,7 +5012,10 @@ static SSDataBlock* doSTableAggregate(void* param, bool* newgroup) {
   SOperatorInfo* upstream = pOperator->upstream[0];
 
   while(1) {
+    publishOperatorProfEvent(upstream, QUERY_PROF_BEFORE_OPERATOR_EXEC);
     SSDataBlock* pBlock = upstream->exec(upstream, newgroup);
+    publishOperatorProfEvent(upstream, QUERY_PROF_AFTER_OPERATOR_EXEC);
+
     if (pBlock == NULL) {
       break;
     }
@@ -4934,23 +5051,23 @@ static SSDataBlock* doSTableAggregate(void* param, bool* newgroup) {
   return pInfo->pRes;
 }
 
-static SSDataBlock* doArithmeticOperation(void* param, bool* newgroup) {
+static SSDataBlock* doProjectOperation(void* param, bool* newgroup) {
   SOperatorInfo* pOperator = (SOperatorInfo*) param;
 
-  SArithOperatorInfo* pArithInfo = pOperator->info;
+  SProjectOperatorInfo* pProjectInfo = pOperator->info;
   SQueryRuntimeEnv* pRuntimeEnv = pOperator->pRuntimeEnv;
-  SOptrBasicInfo *pInfo = &pArithInfo->binfo;
+  SOptrBasicInfo *pInfo = &pProjectInfo->binfo;
 
   SSDataBlock* pRes = pInfo->pRes;
   int32_t order = pRuntimeEnv->pQueryAttr->order.order;
 
   pRes->info.rows = 0;
 
-  if (pArithInfo->existDataBlock) {  // TODO refactor
+  if (pProjectInfo->existDataBlock) {  // TODO refactor
     STableQueryInfo* pTableQueryInfo = pRuntimeEnv->current;
 
-    SSDataBlock* pBlock = pArithInfo->existDataBlock;
-    pArithInfo->existDataBlock = NULL;
+    SSDataBlock* pBlock = pProjectInfo->existDataBlock;
+    pProjectInfo->existDataBlock = NULL;
     *newgroup = true;
 
     // todo dynamic set tags
@@ -4960,9 +5077,9 @@ static SSDataBlock* doArithmeticOperation(void* param, bool* newgroup) {
 
     // the pDataBlock are always the same one, no need to call this again
     setInputDataBlock(pOperator, pInfo->pCtx, pBlock, order);
-    updateOutputBuf(&pArithInfo->binfo, &pArithInfo->bufCapacity, pBlock->info.rows);
+    updateOutputBuf(&pProjectInfo->binfo, &pProjectInfo->bufCapacity, pBlock->info.rows);
 
-    arithmeticApplyFunctions(pRuntimeEnv, pInfo->pCtx, pOperator->numOfOutput);
+    projectApplyFunctions(pRuntimeEnv, pInfo->pCtx, pOperator->numOfOutput);
     if (pTableQueryInfo != NULL) {
       updateTableIdInfo(pTableQueryInfo, pBlock, pRuntimeEnv->pTableRetrieveTsMap, order);
     }
@@ -4978,7 +5095,10 @@ static SSDataBlock* doArithmeticOperation(void* param, bool* newgroup) {
     bool prevVal = *newgroup;
 
     // The upstream exec may change the value of the newgroup, so use a local variable instead.
+    publishOperatorProfEvent(pOperator->upstream[0], QUERY_PROF_BEFORE_OPERATOR_EXEC);
     SSDataBlock* pBlock = pOperator->upstream[0]->exec(pOperator->upstream[0], newgroup);
+    publishOperatorProfEvent(pOperator->upstream[0], QUERY_PROF_AFTER_OPERATOR_EXEC);
+
     if (pBlock == NULL) {
       assert(*newgroup == false);
 
@@ -4990,7 +5110,7 @@ static SSDataBlock* doArithmeticOperation(void* param, bool* newgroup) {
     // Return result of the previous group in the firstly.
     if (*newgroup) {
       if (pRes->info.rows > 0) {
-        pArithInfo->existDataBlock = pBlock;
+        pProjectInfo->existDataBlock = pBlock;
         clearNumOfRes(pInfo->pCtx, pOperator->numOfOutput);
         return pInfo->pRes;
       } else { // init output buffer for a new group data
@@ -5010,9 +5130,9 @@ static SSDataBlock* doArithmeticOperation(void* param, bool* newgroup) {
 
     // the pDataBlock are always the same one, no need to call this again
     setInputDataBlock(pOperator, pInfo->pCtx, pBlock, order);
-    updateOutputBuf(&pArithInfo->binfo, &pArithInfo->bufCapacity, pBlock->info.rows);
+    updateOutputBuf(&pProjectInfo->binfo, &pProjectInfo->bufCapacity, pBlock->info.rows);
 
-    arithmeticApplyFunctions(pRuntimeEnv, pInfo->pCtx, pOperator->numOfOutput);
+    projectApplyFunctions(pRuntimeEnv, pInfo->pCtx, pOperator->numOfOutput);
     if (pTableQueryInfo != NULL) {
       updateTableIdInfo(pTableQueryInfo, pBlock, pRuntimeEnv->pTableRetrieveTsMap, order);
     }
@@ -5038,7 +5158,10 @@ static SSDataBlock* doLimit(void* param, bool* newgroup) {
 
   SSDataBlock* pBlock = NULL;
   while (1) {
+    publishOperatorProfEvent(pOperator->upstream[0], QUERY_PROF_BEFORE_OPERATOR_EXEC);
     pBlock = pOperator->upstream[0]->exec(pOperator->upstream[0], newgroup);
+    publishOperatorProfEvent(pOperator->upstream[0], QUERY_PROF_AFTER_OPERATOR_EXEC);
+
     if (pBlock == NULL) {
       setQueryStatus(pOperator->pRuntimeEnv, QUERY_COMPLETED);
       pOperator->status = OP_EXEC_DONE;
@@ -5088,7 +5211,10 @@ static SSDataBlock* doFilter(void* param, bool* newgroup) {
   SQueryRuntimeEnv* pRuntimeEnv = pOperator->pRuntimeEnv;
 
   while (1) {
+    publishOperatorProfEvent(pOperator->upstream[0], QUERY_PROF_BEFORE_OPERATOR_EXEC);
     SSDataBlock *pBlock = pOperator->upstream[0]->exec(pOperator->upstream[0], newgroup);
+    publishOperatorProfEvent(pOperator->upstream[0], QUERY_PROF_AFTER_OPERATOR_EXEC);
+
     if (pBlock == NULL) {
       break;
     }
@@ -5133,7 +5259,10 @@ static SSDataBlock* doIntervalAgg(void* param, bool* newgroup) {
   SOperatorInfo* upstream = pOperator->upstream[0];
 
   while(1) {
+    publishOperatorProfEvent(upstream, QUERY_PROF_BEFORE_OPERATOR_EXEC);
     SSDataBlock* pBlock = upstream->exec(upstream, newgroup);
+    publishOperatorProfEvent(upstream, QUERY_PROF_AFTER_OPERATOR_EXEC);
+
     if (pBlock == NULL) {
       break;
     }
@@ -5186,7 +5315,10 @@ static SSDataBlock* doSTableIntervalAgg(void* param, bool* newgroup) {
   SOperatorInfo* upstream = pOperator->upstream[0];
 
   while(1) {
+    publishOperatorProfEvent(upstream, QUERY_PROF_BEFORE_OPERATOR_EXEC);
     SSDataBlock* pBlock = upstream->exec(upstream, newgroup);
+    publishOperatorProfEvent(upstream, QUERY_PROF_AFTER_OPERATOR_EXEC);
+
     if (pBlock == NULL) {
       break;
     }
@@ -5314,7 +5446,10 @@ static SSDataBlock* doStateWindowAgg(void *param, bool* newgroup) {
   STimeWindow win = pQueryAttr->window;
   SOperatorInfo* upstream = pOperator->upstream[0];
   while (1) {
+    publishOperatorProfEvent(upstream, QUERY_PROF_BEFORE_OPERATOR_EXEC);
     SSDataBlock* pBlock = upstream->exec(upstream, newgroup);
+    publishOperatorProfEvent(upstream, QUERY_PROF_AFTER_OPERATOR_EXEC);
+
     if (pBlock == NULL) {
       break;
     }
@@ -5372,7 +5507,9 @@ static SSDataBlock* doSessionWindowAgg(void* param, bool* newgroup) {
   SOperatorInfo* upstream = pOperator->upstream[0];
 
   while(1) {
+    publishOperatorProfEvent(upstream, QUERY_PROF_BEFORE_OPERATOR_EXEC);
     SSDataBlock* pBlock = upstream->exec(upstream, newgroup);
+    publishOperatorProfEvent(upstream, QUERY_PROF_AFTER_OPERATOR_EXEC);
     if (pBlock == NULL) {
       break;
     }
@@ -5423,7 +5560,9 @@ static SSDataBlock* hashGroupbyAggregate(void* param, bool* newgroup) {
   SOperatorInfo* upstream = pOperator->upstream[0];
 
   while(1) {
+    publishOperatorProfEvent(upstream, QUERY_PROF_BEFORE_OPERATOR_EXEC);
     SSDataBlock* pBlock = upstream->exec(upstream, newgroup);
+    publishOperatorProfEvent(upstream, QUERY_PROF_AFTER_OPERATOR_EXEC);
     if (pBlock == NULL) {
       break;
     }
@@ -5489,7 +5628,10 @@ static SSDataBlock* doFill(void* param, bool* newgroup) {
   }
 
   while(1) {
+    publishOperatorProfEvent(pOperator->upstream[0], QUERY_PROF_BEFORE_OPERATOR_EXEC);
     SSDataBlock* pBlock = pOperator->upstream[0]->exec(pOperator->upstream[0], newgroup);
+    publishOperatorProfEvent(pOperator->upstream[0], QUERY_PROF_AFTER_OPERATOR_EXEC);
+
     if (*newgroup) {
       assert(pBlock != NULL);
     }
@@ -5649,8 +5791,8 @@ static void destroyGroupbyOperatorInfo(void* param, int32_t numOfOutput) {
   tfree(pInfo->prevData);
 }
 
-static void destroyArithOperatorInfo(void* param, int32_t numOfOutput) {
-  SArithOperatorInfo* pInfo = (SArithOperatorInfo*) param;
+static void destroyProjectOperatorInfo(void* param, int32_t numOfOutput) {
+  SProjectOperatorInfo* pInfo = (SProjectOperatorInfo*) param;
   doDestroyBasicInfo(&pInfo->binfo, numOfOutput);
 }
 
@@ -5696,8 +5838,8 @@ SOperatorInfo* createMultiTableAggOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SO
   return pOperator;
 }
 
-SOperatorInfo* createArithOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorInfo* upstream, SExprInfo* pExpr, int32_t numOfOutput) {
-  SArithOperatorInfo* pInfo = calloc(1, sizeof(SArithOperatorInfo));
+SOperatorInfo* createProjectOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorInfo* upstream, SExprInfo* pExpr, int32_t numOfOutput) {
+  SProjectOperatorInfo* pInfo = calloc(1, sizeof(SProjectOperatorInfo));
 
   pInfo->seed = rand();
   pInfo->bufCapacity = pRuntimeEnv->resultInfo.capacity;
@@ -5710,8 +5852,8 @@ SOperatorInfo* createArithOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorI
   setDefaultOutputBuf(pRuntimeEnv, pBInfo, pInfo->seed, MASTER_SCAN);
 
   SOperatorInfo* pOperator = calloc(1, sizeof(SOperatorInfo));
-  pOperator->name         = "ArithmeticOperator";
-  pOperator->operatorType = OP_Arithmetic;
+  pOperator->name         = "ProjectOperator";
+  pOperator->operatorType = OP_Project;
   pOperator->blockingOptr = false;
   pOperator->status       = OP_IN_EXECUTING;
   pOperator->info         = pInfo;
@@ -5719,8 +5861,8 @@ SOperatorInfo* createArithOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorI
   pOperator->numOfOutput  = numOfOutput;
   pOperator->pRuntimeEnv  = pRuntimeEnv;
 
-  pOperator->exec         = doArithmeticOperation;
-  pOperator->cleanup      = destroyArithOperatorInfo;
+  pOperator->exec         = doProjectOperation;
+  pOperator->cleanup      = destroyProjectOperatorInfo;
   appendUpstream(pOperator, upstream);
 
   return pOperator;
@@ -6159,7 +6301,10 @@ static SSDataBlock* hashDistinct(void* param, bool* newgroup) {
   pRes->info.rows = 0;
   SSDataBlock* pBlock = NULL;
   while(1) {
+    publishOperatorProfEvent(pOperator->upstream[0], QUERY_PROF_BEFORE_OPERATOR_EXEC);
     pBlock = pOperator->upstream[0]->exec(pOperator->upstream[0], newgroup);
+    publishOperatorProfEvent(pOperator->upstream[0], QUERY_PROF_AFTER_OPERATOR_EXEC);
+
     if (pBlock == NULL) {
       setQueryStatus(pOperator->pRuntimeEnv, QUERY_COMPLETED);
       pOperator->status = OP_EXEC_DONE;
@@ -7045,6 +7190,8 @@ int32_t createFilterInfo(SQueryAttr* pQueryAttr, uint64_t qId) {
   doCreateFilterInfo(pQueryAttr->tableCols, pQueryAttr->numOfCols, pQueryAttr->numOfFilterCols,
                      &pQueryAttr->pFilterInfo, qId);
 
+  pQueryAttr->createFilterOperator = true;
+
   return TSDB_CODE_SUCCESS;
 }
 
@@ -7482,6 +7629,9 @@ void freeQInfo(SQInfo *pQInfo) {
 
   tfree(pQInfo->pBuf);
   tfree(pQInfo->sql);
+
+  taosArrayDestroy(pQInfo->summary.queryProfEvents);
+  taosHashCleanup(pQInfo->summary.operatorProfResults);
 
   taosArrayDestroy(pRuntimeEnv->groupResInfo.pRows);
   pQInfo->signature = 0;
