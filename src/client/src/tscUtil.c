@@ -1307,7 +1307,7 @@ void tscResetSqlCmd(SSqlCmd* pCmd, bool clearCachedMeta) {
   if (pCmd->pTableMetaMap != NULL) {
     STableMetaVgroupInfo* p = taosHashIterate(pCmd->pTableMetaMap, NULL);
     while (p) {
-      tfree(p->pVgroupInfo);
+      tscVgroupInfoClear(p->pVgroupInfo);
       tfree(p->pTableMeta);
       p = taosHashIterate(pCmd->pTableMetaMap, p);
     }
@@ -4082,7 +4082,10 @@ SVgroupsInfo* tscVgroupsInfoDup(SVgroupsInfo* pVgroupsInfo) {
 
   size_t size = sizeof(SVgroupInfo) * pVgroupsInfo->numOfVgroups + sizeof(SVgroupsInfo);
   SVgroupsInfo* pInfo = calloc(1, size);
-  memcpy(pInfo, pVgroupsInfo, size);
+  pInfo->numOfVgroups = pVgroupsInfo->numOfVgroups;
+  for (int32_t m = 0; m < pVgroupsInfo->numOfVgroups; ++m) {
+    tscSVgroupInfoCopy(&pInfo->vgroups[m], &pVgroupsInfo->vgroups[m]);
+  }
   return pInfo;
 }
 
