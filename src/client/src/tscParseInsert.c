@@ -1580,7 +1580,6 @@ void tscImportDataFromFile(SSqlObj *pSql) {
 
   SImportFileSupport *pSupporter = calloc(1, sizeof(SImportFileSupport));
   SSqlObj *pNew = createSubqueryObj(pSql, 0, parseFileSendDataBlock, pSupporter, TSDB_SQL_INSERT, NULL);
-  pCmd->count = 1;
 
   FILE *fp = fopen(pCmd->payload, "rb");
   if (fp == NULL) {
