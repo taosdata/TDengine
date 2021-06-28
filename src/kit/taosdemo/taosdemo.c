@@ -982,9 +982,9 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
       arguments->len_of_binary = atoi(argv[++i]);
     } else if (strcmp(argv[i], "-m") == 0) {
       if ((argc == i+1) ||
-        (!isStringNumber(argv[i+1]))) {
+        (isStringNumber(argv[i+1]))) {
         printHelp();
-        errorPrint("%s", "\n\t-m need a number following!\n");
+        errorPrint("%s", "\n\t-m need a letter-initial string following!\n");
         exit(EXIT_FAILURE);
       }
       arguments->tb_prefix = argv[++i];
@@ -1204,23 +1204,24 @@ static void fetchResult(TAOS_RES *res, threadInfo* pThreadInfo) {
     return ;
   }
 
-  int   totalLen = 0;
-  char  temp[16000];
+  int64_t   totalLen = 0;
 
   // fetch the records row by row
   while((row = taos_fetch_row(res))) {
-    if ((strlen(pThreadInfo->filePath) > 0)
-            && (totalLen >= 100*1024*1024 - 32000)) {
-        appendResultBufToFile(databuf, pThreadInfo);
+    if (totalLen >= 100*1024*1024 - 32000) {
+        if (strlen(pThreadInfo->filePath) > 0)
+            appendResultBufToFile(databuf, pThreadInfo);
         totalLen = 0;
         memset(databuf, 0, 100*1024*1024);
     }
     num_rows++;
+    char  temp[16000] = {0};
     int len = taos_print_row(temp, row, fields, num_fields);
     len += sprintf(temp + len, "\n");
     //printf("query result:%s\n", temp);
     memcpy(databuf + totalLen, temp, len);
     totalLen += len;
+    debugPrint("totalLen: %"PRId64"\n", totalLen);
   }
 
   verbosePrint("%s() LN%d, databuf=%s resultFile=%s\n",
@@ -5097,7 +5098,7 @@ static int32_t generateStbDataTail(
     } else {
         retLen = getRowDataFromSample(
                   data,
-                  remainderBufLen,
+                  remainderBufLen < MAX_DATA_SIZE ? remainderBufLen : MAX_DATA_SIZE,
                   startTime + superTblInfo->timeStampStep * k,
                   superTblInfo,
                   pSamplePos);
