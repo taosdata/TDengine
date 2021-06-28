@@ -1068,7 +1068,9 @@ static int32_t mnodeProcessCreateSuperTableMsg(SMnodeMsg *pMsg) {
   pStable->info.tableId = strdup(pCreate->tableName);
   pStable->info.type    = TSDB_SUPER_TABLE;
   pStable->createdTime  = taosGetTimestampMs();
-  pStable->uid          = (us << 24) + ((sdbGetVersion() & ((1ul << 16) - 1ul)) << 8) + (taosRand() & ((1ul << 8) - 1ul));
+  uint64_t x = (us&0x000000FFFFFFFFFF);
+  x = x<<24;
+  pStable->uid          = x + ((sdbGetVersion() & ((1ul << 16) - 1ul)) << 8) + (taosRand() & ((1ul << 8) - 1ul));
   pStable->sversion     = 0;
   pStable->tversion     = 0;
   pStable->numOfColumns = numOfColumns;
@@ -1740,16 +1742,22 @@ static int32_t mnodeGetSuperTableMeta(SMnodeMsg *pMsg) {
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t calculateVgroupMsgLength(SSTableVgroupMsg* pInfo, int32_t numOfTable) {
+static int32_t doGetVgroupInfoLength(char* name) {
+  SSTableObj *pTable = mnodeGetSuperTable(name);
+  int32_t len = 0;
+  if (pTable != NULL && pTable->vgHash != NULL) {
+    len = (taosHashGetSize(pTable->vgHash) * sizeof(SVgroupMsg) + sizeof(SVgroupsMsg));
+  }
+
+  mnodeDecTableRef(pTable);
+  return len;
+}
+
+static int32_t getVgroupInfoLength(SSTableVgroupMsg* pInfo, int32_t numOfTable) {
   int32_t contLen = sizeof(SSTableVgroupRspMsg) + 32 * sizeof(SVgroupMsg) + sizeof(SVgroupsMsg);
   for (int32_t i = 0; i < numOfTable; ++i) {
     char *stableName = (char *)pInfo + sizeof(SSTableVgroupMsg) + (TSDB_TABLE_FNAME_LEN)*i;
-    SSTableObj *pTable = mnodeGetSuperTable(stableName);
-    if (pTable != NULL && pTable->vgHash != NULL) {
-      contLen += (taosHashGetSize(pTable->vgHash) * sizeof(SVgroupMsg) + sizeof(SVgroupsMsg));
-    }
-
-    mnodeDecTableRef(pTable);
+    contLen += doGetVgroupInfoLength(stableName);
   }
 
   return contLen;
@@ -1820,7 +1828,7 @@ static int32_t mnodeProcessSuperTableVgroupMsg(SMnodeMsg *pMsg) {
   int32_t numOfTable = htonl(pInfo->numOfTables);
 
   // calculate the required space.
-  int32_t contLen = calculateVgroupMsgLength(pInfo, numOfTable);
+  int32_t contLen = getVgroupInfoLength(pInfo, numOfTable);
   SSTableVgroupRspMsg *pRsp = rpcMallocCont(contLen);
   if (pRsp == NULL) {
     return TSDB_CODE_MND_OUT_OF_MEMORY;
@@ -2860,6 +2868,27 @@ static void mnodeProcessAlterTableRsp(SRpcMsg *rpcMsg) {
   }
 }
 
+static SMultiTableMeta* ensureMsgBufferSpace(SMultiTableMeta *pMultiMeta, SArray* pList, int32_t* totalMallocLen, int32_t numOfVgroupList) {
+  int32_t len = 0;
+  for (int32_t i = 0; i < numOfVgroupList; ++i) {
+    char *name = taosArrayGetP(pList, i);
+    len += doGetVgroupInfoLength(name);
+  }
+
+  if (len + pMultiMeta->contLen > (*totalMallocLen)) {
+    while (len + pMultiMeta->contLen > (*totalMallocLen)) {
+      (*totalMallocLen) *= 2;
+    }
+
+    pMultiMeta = rpcReallocCont(pMultiMeta, *totalMallocLen);
+    if (pMultiMeta == NULL) {
+      return NULL;
+    }
+  }
+
+  return pMultiMeta;
+}
+
 static int32_t mnodeProcessMultiTableMetaMsg(SMnodeMsg *pMsg) {
   SMultiTableInfoMsg *pInfo = pMsg->rpcMsg.pCont;
 
@@ -2950,8 +2979,6 @@ static int32_t mnodeProcessMultiTableMetaMsg(SMnodeMsg *pMsg) {
     }
   }
 
-  char* msg = (char*) pMultiMeta + pMultiMeta->contLen;
-
   // add the additional super table names that needs the vgroup info
   for(;t < num; ++t) {
     taosArrayPush(pList, &nameList[t]);
@@ -2961,6 +2988,13 @@ static int32_t mnodeProcessMultiTableMetaMsg(SMnodeMsg *pMsg) {
   int32_t numOfVgroupList = (int32_t) taosArrayGetSize(pList);
   pMultiMeta->numOfVgroup = htonl(numOfVgroupList);
 
+  pMultiMeta = ensureMsgBufferSpace(pMultiMeta, pList, &totalMallocLen, numOfVgroupList);
+  if (pMultiMeta == NULL) {
+    code = TSDB_CODE_MND_OUT_OF_MEMORY;
+    goto _end;
+  }
+
+  char* msg = (char*) pMultiMeta + pMultiMeta->contLen;
   for(int32_t i = 0; i < numOfVgroupList; ++i) {
     char* name = taosArrayGetP(pList, i);
 

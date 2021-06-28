@@ -18,7 +18,6 @@ from util.log import *
 from util.cases import *
 from util.sql import *
 
-
 class TDTestCase:
     def init(self, conn, logSql):
         tdLog.debug("start to execute %s" % __file__)
@@ -27,6 +26,7 @@ class TDTestCase:
     def run(self):
         tdSql.prepare()
         # test case for https://jira.taosdata.com:18080/browse/TD-4568
+        # test case for https://jira.taosdata.com:18080/browse/TD-4824
 
         tdLog.info("=============== step1,check bool and tinyint data type")    
 
@@ -137,8 +137,28 @@ class TDTestCase:
         tdSql.checkData(0,1,'True') 
         tdSql.checkData(0,2,'0')
 
+        tdLog.info("=============== step1.3,multiple column and multiple tag check in function") 
+        cmd1 = '''select * from in_stable_1 
+                where in_bool in (true,false) and in_tinyint in (0,127,-127)
+                and tin_bool in (true,false) and tin_tinyint in (0,127,-127)
+                order by ts desc ;'''
+        tdLog.info(cmd1)        
+        tdSql.query(cmd1)
+        tdSql.checkData(0,1,'True') 
+        tdSql.checkData(0,2,'0')
+        tdSql.checkData(0,3,'False') 
+        tdSql.checkData(0,4,'0')  
+        tdSql.checkData(1,1,'False') 
+        tdSql.checkData(1,2,'127')
+        tdSql.checkData(1,3,'False') 
+        tdSql.checkData(1,4,'-127') 
+        tdSql.checkData(2,1,'True') 
+        tdSql.checkData(2,2,'-127')
+        tdSql.checkData(2,3,'True') 
+        tdSql.checkData(2,4,'127')  
 
-        tdLog.info("=============== step1.3,drop normal table && create table") 
+
+        tdLog.info("=============== step1.4,drop normal table && create table") 
         cmd1 = 'drop table if exists normal_in_bool_tinyint_1 ;'
         cmd2 = 'create table normal_in_bool_tinyint_1 (ts timestamp,in_bool bool,in_tinyint tinyint) ; '
         tdLog.info(cmd1)
@@ -147,7 +167,7 @@ class TDTestCase:
         tdSql.execute(cmd2)
       
 
-        tdLog.info("=============== step1.4,insert normal table right data and check in function") 
+        tdLog.info("=============== step1.5,insert normal table right data and check in function") 
         cmd1 = 'insert into normal_in_bool_tinyint_1 values(now,\'true\',\'-127\') ;'
         tdLog.info(cmd1)
         tdSql.execute(cmd1)         
@@ -175,6 +195,17 @@ class TDTestCase:
         tdSql.checkData(0,1,'True') 
         tdSql.checkData(0,2,'0')
 
+        cmd4 = '''select * from normal_in_bool_tinyint_1 
+                where in_bool in (true,false) and in_tinyint in (0,127,-127) 
+                order by ts desc ;'''
+        tdLog.info(cmd4)         
+        tdSql.query(cmd4)
+        tdSql.checkData(0,1,'True') 
+        tdSql.checkData(0,2,'0')
+        tdSql.checkData(1,1,'False') 
+        tdSql.checkData(1,2,'127')
+        tdSql.checkData(2,1,'True') 
+        tdSql.checkData(2,2,'-127')
 
  
         tdLog.info("=============== step2,check int、smallint and bigint data type")  
@@ -378,10 +409,39 @@ class TDTestCase:
         tdSql.query('select * from in_int_smallint_bigint_3 where in_big in (-9223372036854775807) order by ts desc')
         tdSql.checkData(0,1,'0') 
         tdSql.checkData(0,2,'32767')
-        tdSql.checkData(0,3,'-9223372036854775807')       
+        tdSql.checkData(0,3,'-9223372036854775807') 
 
 
-        tdLog.info("=============== step2.3,drop normal table && create table") 
+        tdLog.info("=============== step2.3,multiple column and multiple tag check in function") 
+        cmd1 = '''select * from in_stable_2 
+                where in_int in (0,2147483647,-2147483647) and in_small in (0,32767,-32767) 
+                and in_big in (0,9223372036854775807,-9223372036854775807)
+                and tin_int in (0,2147483647,-2147483647) and tin_small in (0,32767,-32767) 
+                and tin_big in (0,9223372036854775807,-9223372036854775807)
+                order by ts desc ;'''
+        tdLog.info(cmd1)        
+        tdSql.query(cmd1)
+        tdSql.checkData(0,1,'0') 
+        tdSql.checkData(0,2,'32767')
+        tdSql.checkData(0,3,'-9223372036854775807') 
+        tdSql.checkData(0,4,'0')  
+        tdSql.checkData(0,5,'32767')
+        tdSql.checkData(0,6,'-9223372036854775807') 
+        tdSql.checkData(1,1,'-2147483647') 
+        tdSql.checkData(1,2,'0')
+        tdSql.checkData(1,3,'9223372036854775807') 
+        tdSql.checkData(1,4,'-2147483647')  
+        tdSql.checkData(1,5,'0')
+        tdSql.checkData(1,6,'9223372036854775807')  
+        tdSql.checkData(2,1,'2147483647') 
+        tdSql.checkData(2,2,'-32767')
+        tdSql.checkData(2,3,'0') 
+        tdSql.checkData(2,4,'2147483647')  
+        tdSql.checkData(2,5,'-32767')
+        tdSql.checkData(2,6,'0')        
+
+
+        tdLog.info("=============== step2.4,drop normal table && create table") 
         cmd1 = 'drop table if exists normal_int_smallint_bigint_1 ;'
         cmd2 = 'create table normal_int_smallint_bigint_1 (ts timestamp,in_int int,in_small smallint , in_big bigint) ; '
         tdLog.info(cmd1)
@@ -390,7 +450,7 @@ class TDTestCase:
         tdSql.execute(cmd2)
       
 
-        tdLog.info("=============== step2.4,insert normal table right data and check in function") 
+        tdLog.info("=============== step2.5,insert normal table right data and check in function") 
         cmd1 = 'insert into normal_int_smallint_bigint_1 values(now,\'2147483647\',\'-32767\',\'0\') ;'
         tdLog.info(cmd1)
         tdSql.execute(cmd1)         
@@ -437,7 +497,23 @@ class TDTestCase:
         tdSql.query('select * from normal_int_smallint_bigint_1 where in_big in (-9223372036854775807) order by ts desc')
         tdSql.checkData(0,1,'0') 
         tdSql.checkData(0,2,'32767')
-        tdSql.checkData(0,3,'-9223372036854775807')   
+        tdSql.checkData(0,3,'-9223372036854775807') 
+
+        cmd4 = '''select * from normal_int_smallint_bigint_1 
+                where  in_int in (0,2147483647,-2147483647) and in_small in (0,32767,-32767) 
+                and in_big in (0,9223372036854775807,-9223372036854775807) 
+                order by ts desc ;'''
+        tdLog.info(cmd4)         
+        tdSql.query(cmd4)
+        tdSql.checkData(0,1,'0') 
+        tdSql.checkData(0,2,'32767')
+        tdSql.checkData(0,3,'-9223372036854775807') 
+        tdSql.checkData(1,1,'-2147483647') 
+        tdSql.checkData(1,2,'0')
+        tdSql.checkData(1,3,'9223372036854775807')
+        tdSql.checkData(2,1,'2147483647') 
+        tdSql.checkData(2,2,'-32767')
+        tdSql.checkData(2,3,'0')    
 
          
         tdLog.info("=============== step3,check binary and nchar data type")    
@@ -560,7 +636,30 @@ class TDTestCase:
         tdSql.checkData(0,2,'北京涛思数据科技有限公司') 
 
 
-        tdLog.info("=============== step3.3,drop normal table && create table") 
+        tdLog.info("=============== step3.3,multiple column and multiple tag check in function") 
+        cmd1 = '''select * from in_stable_3 
+                where in_binary in (\'0\',\'TDengine\',\'TAOS\') 
+                and in_nchar in (\'0\',\'北京涛思数据科技有限公司\',\'涛思数据TAOSdata\')
+                and tin_binary in (\'0\',\'TDengine\',\'taosdataTDengine\') 
+                and tin_nchar in (\'0\',\'北京涛思数据科技有限公司\',\'北京涛思数据科技有限公司TDengine\')
+                order by ts desc ;'''
+        tdLog.info(cmd1)        
+        tdSql.query(cmd1)
+        tdSql.checkData(0,1,'TDengine') 
+        tdSql.checkData(0,2,'北京涛思数据科技有限公司')
+        tdSql.checkData(0,3,'taosdataTDengine') 
+        tdSql.checkData(0,4,'北京涛思数据科技有限公司TDengine') 
+        tdSql.checkData(1,1,'TAOS') 
+        tdSql.checkData(1,2,'涛思数据TAOSdata')
+        tdSql.checkData(1,3,'TDengine') 
+        tdSql.checkData(1,4,'北京涛思数据科技有限公司') 
+        tdSql.checkData(2,1,'0') 
+        tdSql.checkData(2,2,'0')
+        tdSql.checkData(2,3,'0') 
+        tdSql.checkData(2,4,'0')
+
+
+        tdLog.info("=============== step3.4,drop normal table && create table") 
         cmd1 = 'drop table if exists normal_in_binary_nchar_1 ;'
         cmd2 = 'create table normal_in_binary_nchar_1 (ts timestamp,in_binary binary(8),in_nchar nchar(12)) ; '
         tdLog.info(cmd1)
@@ -569,7 +668,7 @@ class TDTestCase:
         tdSql.execute(cmd2)
       
 
-        tdLog.info("=============== step3.4,insert normal table right data and check in function") 
+        tdLog.info("=============== step3.5,insert normal table right data and check in function") 
         cmd1 = 'insert into normal_in_binary_nchar_1 values(now,\'0\',\'0\') ;'
         tdLog.info(cmd1)
         tdSql.execute(cmd1)         
@@ -598,124 +697,413 @@ class TDTestCase:
         tdSql.checkData(0,2,'北京涛思数据科技有限公司')         
         tdSql.query('select * from normal_in_binary_nchar_1 where in_nchar in (\'北京涛思数据科技有限公司\') order by ts desc')
         tdSql.checkData(0,1,'TDengine') 
-        tdSql.checkData(0,2,'北京涛思数据科技有限公司')   
+        tdSql.checkData(0,2,'北京涛思数据科技有限公司')  
 
-        tdLog.info("=============== step4,check float and double data type,not support")    
+        cmd4 = '''select * from normal_in_binary_nchar_1 
+                where  in_binary in (\'0\',\'TDengine\',\'TAOS\') 
+                and in_nchar in (\'0\',\'北京涛思数据科技有限公司\',\'涛思数据TAOSdata\') 
+                order by ts desc ;'''
+        tdLog.info(cmd4)         
+        tdSql.query(cmd4)
+        tdSql.checkData(0,1,'TDengine') 
+        tdSql.checkData(0,2,'北京涛思数据科技有限公司')  
+        tdSql.checkData(1,1,'TAOS') 
+        tdSql.checkData(1,2,'涛思数据TAOSdata') 
+        tdSql.checkData(2,1,'0') 
+        tdSql.checkData(2,2,'0')      
+
+
+        tdLog.info("=============== step4,check float and double data type")    
 
         tdLog.info("=============== step4.1,drop table && create table")    
-        cmd1 = 'drop table if exists in_float_double_1 ;'
+        cmd1 = 'drop table if exists in_ts_float_double_1 ;'
+        cmd2 = 'drop table if exists in_ts_float_double_2 ;'
+        cmd3 = 'drop table if exists in_ts_float_double_3 ;'
         cmd10 = 'drop table if exists in_stable_4 ;'
-        cmd11 = 'create stable in_stable_4(ts timestamp,in_float float,in_double double) tags (tin_float float,tin_double double) ;'
-        cmd12 = 'create table in_float_double_1 using in_stable_4 tags(\'666\',\'88888\') ; '
+        cmd11 = 'create stable in_stable_4(ts timestamp,in_ts timestamp,in_float float,in_double double) tags (tin_ts timestamp,tin_float float,tin_double double) ;'
+        cmd12 = 'create table in_ts_float_double_1 using in_stable_4 tags(\'0\',\'0\',\'0\') ; '
+        cmd13 = 'create table in_ts_float_double_2 using in_stable_4 tags(\'2020-01-01 08:00:00.001\',\'666\',\'-88888\') ; '
+        cmd14 = 'create table in_ts_float_double_3 using in_stable_4 tags(\'2021-01-01 08:00:00.001\',\'-888.00000\',\'66666.000000000\') ; '
         tdLog.info(cmd1)
         tdSql.execute(cmd1)
+        tdLog.info(cmd2)
+        tdSql.execute(cmd2)
+        tdLog.info(cmd3)
+        tdSql.execute(cmd3)
         tdLog.info(cmd10)
         tdSql.execute(cmd10)        
         tdLog.info(cmd11)
         tdSql.execute(cmd11)
         tdLog.info(cmd12)
         tdSql.execute(cmd12)    
+        tdLog.info(cmd13)
+        tdSql.execute(cmd13) 
+        tdLog.info(cmd14)
+        tdSql.execute(cmd14) 
 
         tdLog.info("=============== step4.2,insert stable right data and check in function") 
-        cmd1 = 'insert into in_float_double_1 values(now,\'888\',\'66666\') ;'
+        cmd1 = 'insert into in_ts_float_double_1 values(now,\'0\',\'0\',\'0\') ;'
         tdLog.info(cmd1)
-        tdSql.execute(cmd1)         
+        tdSql.execute(cmd1)
+
+        tdSql.query('select * from in_stable_4 where in_ts in (\'0\') order by ts desc')
+        tdSql.checkData(0,1,'1970-01-01 08:00:00.000') 
+        tdSql.checkData(0,2,0.00000)
+        tdSql.checkData(0,3,0.000000000) 
+        tdSql.checkData(0,4,'1970-01-01 08:00:00.000')  
+        tdSql.checkData(0,5,0.00000) 
+        tdSql.checkData(0,6,0.000000000)   
+        tdSql.query('select * from in_stable_4 where in_ts in (\'1970-01-01 08:00:00.000\') order by ts desc')
+        tdSql.checkData(0,1,'1970-01-01 08:00:00.000') 
+        tdSql.checkData(0,2,0.00000)
+        tdSql.checkData(0,3,0.000000000) 
+        tdSql.checkData(0,4,'1970-01-01 08:00:00.000')  
+        tdSql.checkData(0,5,0.00000) 
+        tdSql.checkData(0,6,0.000000000)    
+        tdSql.query('select * from in_stable_4 where in_float in (0.00000) order by ts desc')
+        tdSql.checkData(0,1,'1970-01-01 08:00:00.000') 
+        tdSql.checkData(0,2,0.00000)
+        tdSql.checkData(0,3,0.000000000) 
+        tdSql.checkData(0,4,'1970-01-01 08:00:00.000')  
+        tdSql.checkData(0,5,0.00000) 
+        tdSql.checkData(0,6,0.000000000)       
+        tdSql.query('select * from in_stable_4 where in_double in (0.000000000) order by ts desc')
+        tdSql.checkData(0,1,'1970-01-01 08:00:00.000') 
+        tdSql.checkData(0,2,0.00000)
+        tdSql.checkData(0,3,0.000000000) 
+        tdSql.checkData(0,4,'1970-01-01 08:00:00.000')  
+        tdSql.checkData(0,5,0.00000) 
+        tdSql.checkData(0,6,0.000000000) 
+
+        tdSql.query('select * from in_stable_4 where tin_ts in (\'0\') order by ts desc')
+        tdSql.checkData(0,1,'1970-01-01 08:00:00.000') 
+        tdSql.checkData(0,2,0.00000)
+        tdSql.checkData(0,3,0.000000000) 
+        tdSql.checkData(0,4,'1970-01-01 08:00:00.000')  
+        tdSql.checkData(0,5,0.00000) 
+        tdSql.checkData(0,6,0.000000000)  
+        tdSql.query('select * from in_stable_4 where tin_ts in (\'1970-01-01 08:00:00.000\') order by ts desc')
+        tdSql.checkData(0,1,'1970-01-01 08:00:00.000') 
+        tdSql.checkData(0,2,0.00000)
+        tdSql.checkData(0,3,0.000000000) 
+        tdSql.checkData(0,4,'1970-01-01 08:00:00.000')  
+        tdSql.checkData(0,5,0.00000) 
+        tdSql.checkData(0,6,0.000000000)      
+        tdSql.query('select * from in_stable_4 where tin_float in (0.00000) order by ts desc')
+        tdSql.checkData(0,1,'1970-01-01 08:00:00.000') 
+        tdSql.checkData(0,2,0.00000)
+        tdSql.checkData(0,3,0.000000000) 
+        tdSql.checkData(0,4,'1970-01-01 08:00:00.000')  
+        tdSql.checkData(0,5,0.00000) 
+        tdSql.checkData(0,6,0.000000000)       
+        tdSql.query('select * from in_stable_4 where tin_double in (0.000000000) order by ts desc')
+        tdSql.checkData(0,1,'1970-01-01 08:00:00.000') 
+        tdSql.checkData(0,2,0.00000)
+        tdSql.checkData(0,3,0.000000000) 
+        tdSql.checkData(0,4,'1970-01-01 08:00:00.000')  
+        tdSql.checkData(0,5,0.00000) 
+        tdSql.checkData(0,6,0.000000000)  
+
+        tdSql.query('select * from in_ts_float_double_1 where in_ts in (\'0\') order by ts desc')
+        tdSql.checkData(0,1,'1970-01-01 08:00:00.000') 
+        tdSql.checkData(0,2,0.00000)
+        tdSql.checkData(0,3,0.000000000)  
+        tdSql.query('select * from in_ts_float_double_1 where in_ts in (\'1970-01-01 08:00:00.000\') order by ts desc')
+        tdSql.checkData(0,1,'1970-01-01 08:00:00.000') 
+        tdSql.checkData(0,2,0.00000)
+        tdSql.checkData(0,3,0.000000000)  
+        tdSql.query('select * from in_ts_float_double_1 where in_float in (0.00000) order by ts desc')
+        tdSql.checkData(0,1,'1970-01-01 08:00:00.000') 
+        tdSql.checkData(0,2,0.00000)
+        tdSql.checkData(0,3,0.000000000)     
+        tdSql.query('select * from in_ts_float_double_1 where in_double in (0.000000000) order by ts desc')
+        tdSql.checkData(0,1,'1970-01-01 08:00:00.000') 
+        tdSql.checkData(0,2,0.00000)
+        tdSql.checkData(0,3,0.000000000)    
         
-        cmd2 = 'select * from in_stable_4 where in_float in (\'888\');'
+        cmd2 = 'insert into in_ts_float_double_2 values(now,\'2020-01-01 08:00:00.001\',\'666\',\'-88888\') ;'
         tdLog.info(cmd2)
-        tdSql.error(cmd2)
-        try:
-            tdSql.execute(cmd2)
-            tdLog.exit("invalid operation: not supported filter condition")
-        except Exception as e:
-            tdLog.info(repr(e))
-            tdLog.info("invalid operation: not supported filter condition") 
+        tdSql.execute(cmd2)
+
+        tdSql.query('select * from in_stable_4 where in_ts in (\'2020-01-01 08:00:00.001\') order by ts desc')
+        tdSql.checkData(0,1,'2020-01-01 08:00:00.001000') 
+        tdSql.checkData(0,2,666.00000)
+        tdSql.checkData(0,3,-88888.000000000) 
+        tdSql.checkData(0,4,'2020-01-01 08:00:00.001')  
+        tdSql.checkData(0,5,666.00000)
+        tdSql.checkData(0,6,-88888.000000000)     
+        tdSql.query('select * from in_stable_4 where in_ts in (\'1577836800001\') order by ts desc')
+        tdSql.checkData(0,1,'2020-01-01 08:00:00.001000') 
+        tdSql.checkData(0,2,666.00000)
+        tdSql.checkData(0,3,-88888.000000000) 
+        tdSql.checkData(0,4,'2020-01-01 08:00:00.001')  
+        tdSql.checkData(0,5,666.00000)
+        tdSql.checkData(0,6,-88888.000000000)  
+        tdSql.query('select * from in_stable_4 where in_float in (666.00000) order by ts desc')
+        tdSql.checkData(0,1,'2020-01-01 08:00:00.001000') 
+        tdSql.checkData(0,2,666.00000)
+        tdSql.checkData(0,3,-88888.000000000) 
+        tdSql.checkData(0,4,'2020-01-01 08:00:00.001')  
+        tdSql.checkData(0,5,666.00000)
+        tdSql.checkData(0,6,-88888.000000000)       
+        tdSql.query('select * from in_stable_4 where in_double in (-88888.000000000) order by ts desc')
+        tdSql.checkData(0,1,'2020-01-01 08:00:00.001000') 
+        tdSql.checkData(0,2,666.00000)
+        tdSql.checkData(0,3,-88888.000000000) 
+        tdSql.checkData(0,4,'2020-01-01 08:00:00.001')  
+        tdSql.checkData(0,5,666.00000)
+        tdSql.checkData(0,6,-88888.000000000) 
+
+        tdSql.query('select * from in_stable_4 where tin_ts in (\'2020-01-01 08:00:00.001000\') order by ts desc')
+        tdSql.checkData(0,1,'2020-01-01 08:00:00.001000') 
+        tdSql.checkData(0,2,666.00000)
+        tdSql.checkData(0,3,-88888.000000000) 
+        tdSql.checkData(0,4,'2020-01-01 08:00:00.001')  
+        tdSql.checkData(0,5,666.00000)
+        tdSql.checkData(0,6,-88888.000000000)  
+        tdSql.query('select * from in_stable_4 where tin_ts in (\'1577836800001\') order by ts desc')
+        tdSql.checkData(0,1,'2020-01-01 08:00:00.001000') 
+        tdSql.checkData(0,2,666.00000)
+        tdSql.checkData(0,3,-88888.000000000) 
+        tdSql.checkData(0,4,'2020-01-01 08:00:00.001')  
+        tdSql.checkData(0,5,666.00000)
+        tdSql.checkData(0,6,-88888.000000000)      
+        tdSql.query('select * from in_stable_4 where tin_float in (666.00000) order by ts desc')
+        tdSql.checkData(0,1,'2020-01-01 08:00:00.001000') 
+        tdSql.checkData(0,2,666.00000)
+        tdSql.checkData(0,3,-88888.000000000) 
+        tdSql.checkData(0,4,'2020-01-01 08:00:00.001')  
+        tdSql.checkData(0,5,666.00000)
+        tdSql.checkData(0,6,-88888.000000000)       
+        tdSql.query('select * from in_stable_4 where tin_double in (-88888.000000000) order by ts desc')
+        tdSql.checkData(0,1,'2020-01-01 08:00:00.001000') 
+        tdSql.checkData(0,2,666.00000)
+        tdSql.checkData(0,3,-88888.000000000) 
+        tdSql.checkData(0,4,'2020-01-01 08:00:00.001')  
+        tdSql.checkData(0,5,666.00000)
+        tdSql.checkData(0,6,-88888.000000000)  
+
+        tdSql.query('select * from in_ts_float_double_2 where in_ts in (\'1577836800001\') order by ts desc')
+        tdSql.checkData(0,1,'2020-01-01 08:00:00.001') 
+        tdSql.checkData(0,2,666.00000)
+        tdSql.checkData(0,3,-88888.000000000)    
+        tdSql.query('select * from in_ts_float_double_2 where in_ts in (\'2020-01-01 08:00:00.001\') order by ts desc')
+        tdSql.checkData(0,1,'2020-01-01 08:00:00.001') 
+        tdSql.checkData(0,2,666.00000)
+        tdSql.checkData(0,3,-88888.000000000)  
+        tdSql.query('select * from in_ts_float_double_2 where in_float in (666.00000) order by ts desc')
+        tdSql.checkData(0,1,'2020-01-01 08:00:00.001') 
+        tdSql.checkData(0,2,666.00000)
+        tdSql.checkData(0,3,-88888.000000000)      
+        tdSql.query('select * from in_ts_float_double_2 where in_double in (-88888.000000000) order by ts desc')
+        tdSql.checkData(0,1,'2020-01-01 08:00:00.001') 
+        tdSql.checkData(0,2,666.00000)
+        tdSql.checkData(0,3,-88888.000000000)        
         
-        cmd3 = 'select * from in_stable_4 where in_double in (\'66666\');'
+        cmd3 = 'insert into in_ts_float_double_3 values(now,\'2021-01-01 08:00:00.001\',\'-888.00000\',\'66666.000000000\') ;'
         tdLog.info(cmd3)
-        tdSql.error(cmd3)
-        try:
-            tdSql.execute(cmd3)
-            tdLog.exit("invalid operation: not supported filter condition")
-        except Exception as e:
-            tdLog.info(repr(e))
-            tdLog.info("invalid operation: not supported filter condition") 
+        tdSql.execute(cmd3)
 
-        cmd4 = 'select * from in_stable_4 where tin_float in (\'666\');'
-        tdLog.info(cmd4)
-        tdSql.error(cmd4)
-        try:
-            tdSql.execute(cmd4)
-            tdLog.exit("invalid operation: not supported filter condition")
-        except Exception as e:
-            tdLog.info(repr(e))
-            tdLog.info("invalid operation: not supported filter condition") 
+        tdSql.query('select * from in_stable_4 where in_ts in (\'2021-01-01 08:00:00.001\') order by ts desc')
+        tdSql.checkData(0,1,'2021-01-01 08:00:00.001000') 
+        tdSql.checkData(0,2,-888.00000)
+        tdSql.checkData(0,3,66666.000000000) 
+        tdSql.checkData(0,4,'2021-01-01 08:00:00.001')  
+        tdSql.checkData(0,5,-888.00000)
+        tdSql.checkData(0,6,66666.000000000) 
+        tdSql.query('select * from in_stable_4 where in_ts in (\'1609459200001\') order by ts desc')
+        tdSql.checkData(0,1,'2021-01-01 08:00:00.001000') 
+        tdSql.checkData(0,2,-888.00000)
+        tdSql.checkData(0,3,66666.000000000) 
+        tdSql.checkData(0,4,'2021-01-01 08:00:00.001')  
+        tdSql.checkData(0,5,-888.00000)
+        tdSql.checkData(0,6,66666.000000000)     
+        tdSql.query('select * from in_stable_4 where in_float in (-888.00000) order by ts desc')
+        tdSql.checkData(0,1,'2021-01-01 08:00:00.001000') 
+        tdSql.checkData(0,2,-888.00000)
+        tdSql.checkData(0,3,66666.000000000) 
+        tdSql.checkData(0,4,'2021-01-01 08:00:00.001')  
+        tdSql.checkData(0,5,-888.00000)
+        tdSql.checkData(0,6,66666.000000000)        
+        tdSql.query('select * from in_stable_4 where in_double in (66666.000000000) order by ts desc')
+        tdSql.checkData(0,1,'2021-01-01 08:00:00.001000') 
+        tdSql.checkData(0,2,-888.00000)
+        tdSql.checkData(0,3,66666.000000000) 
+        tdSql.checkData(0,4,'2021-01-01 08:00:00.001')  
+        tdSql.checkData(0,5,-888.00000)
+        tdSql.checkData(0,6,66666.000000000) 
+
+        tdSql.query('select * from in_stable_4 where tin_ts in (\'2021-01-01 08:00:00.001000\') order by ts desc')
+        tdSql.checkData(0,1,'2021-01-01 08:00:00.001000') 
+        tdSql.checkData(0,2,-888.00000)
+        tdSql.checkData(0,3,66666.000000000) 
+        tdSql.checkData(0,4,'2021-01-01 08:00:00.001')  
+        tdSql.checkData(0,5,-888.00000)
+        tdSql.checkData(0,6,66666.000000000) 
+        tdSql.query('select * from in_stable_4 where tin_ts in (\'1609459200001\') order by ts desc')
+        tdSql.checkData(0,1,'2021-01-01 08:00:00.001000') 
+        tdSql.checkData(0,2,-888.00000)
+        tdSql.checkData(0,3,66666.000000000) 
+        tdSql.checkData(0,4,'2021-01-01 08:00:00.001')  
+        tdSql.checkData(0,5,-888.00000)
+        tdSql.checkData(0,6,66666.000000000)      
+        tdSql.query('select * from in_stable_4 where tin_float in (-888.00000) order by ts desc')
+        tdSql.checkData(0,1,'2021-01-01 08:00:00.001000') 
+        tdSql.checkData(0,2,-888.00000)
+        tdSql.checkData(0,3,66666.000000000) 
+        tdSql.checkData(0,4,'2021-01-01 08:00:00.001')  
+        tdSql.checkData(0,5,-888.00000)
+        tdSql.checkData(0,6,66666.000000000)       
+        tdSql.query('select * from in_stable_4 where tin_double in (66666.000000000) order by ts desc')
+        tdSql.checkData(0,1,'2021-01-01 08:00:00.001000') 
+        tdSql.checkData(0,2,-888.00000)
+        tdSql.checkData(0,3,66666.000000000) 
+        tdSql.checkData(0,4,'2021-01-01 08:00:00.001')  
+        tdSql.checkData(0,5,-888.00000)
+        tdSql.checkData(0,6,66666.000000000)   
+
+        tdSql.query('select * from in_ts_float_double_3 where in_ts in (\'1609459200001\') order by ts desc')
+        tdSql.checkData(0,1,'2021-01-01 08:00:00.001') 
+        tdSql.checkData(0,2,-888.00000)
+        tdSql.checkData(0,3,66666.000000000)     
+        tdSql.query('select * from in_ts_float_double_3 where in_ts in (\'2021-01-01 08:00:00.001\') order by ts desc')
+        tdSql.checkData(0,1,'2021-01-01 08:00:00.001') 
+        tdSql.checkData(0,2,-888.00000)
+        tdSql.checkData(0,3,66666.000000000)  
+        tdSql.query('select * from in_ts_float_double_3 where in_float in (-888.00000) order by ts desc')
+        tdSql.checkData(0,1,'2021-01-01 08:00:00.001') 
+        tdSql.checkData(0,2,-888.00000)
+        tdSql.checkData(0,3,66666.000000000)        
+        tdSql.query('select * from in_ts_float_double_3 where in_double in (66666.000000000) order by ts desc')
+        tdSql.checkData(0,1,'2021-01-01 08:00:00.001') 
+        tdSql.checkData(0,2,-888.00000)
+        tdSql.checkData(0,3,66666.000000000)    
+
+
+        tdLog.info("=============== step4.3,multiple column and multiple tag check in function") 
+        cmd1 = '''select * from in_stable_4 
+                where in_ts in (\'1609459200001\',\'2021-01-01 08:00:00.001\',\'1577836800001\',\'2020-01-01 08:00:00.001000\',\'0\',\'1970-01-01 08:00:00.000\') 
+                and in_float in (0.00000,666.00000,-888.00000) 
+                and in_double in (0.000000000,66666.000000000,-88888.000000000)
+                and tin_ts in (\'1609459200001\',\'2021-01-01 08:00:00.001\',\'1577836800001\',\'2020-01-01 08:00:00.001000\',\'0\',\'1970-01-01 08:00:00.000\') 
+                and tin_float in (0.00000,666.00000,-888.00000) 
+                and tin_double in (0.000000000,66666.000000000,-88888.000000000)
+                order by ts desc ;''' 
+        tdLog.info(cmd1)        
+        tdSql.query(cmd1)
+        tdSql.checkData(0,1,'2021-01-01 08:00:00.001000') 
+        tdSql.checkData(0,2,-888.00000)
+        tdSql.checkData(0,3,66666.000000000) 
+        tdSql.checkData(0,4,'2021-01-01 08:00:00.001')  
+        tdSql.checkData(0,5,-888.00000)
+        tdSql.checkData(0,6,66666.000000000) 
+        tdSql.checkData(1,1,'2020-01-01 08:00:00.001000') 
+        tdSql.checkData(1,2,666.00000)
+        tdSql.checkData(1,3,-88888.000000000) 
+        tdSql.checkData(1,4,'2020-01-01 08:00:00.001')  
+        tdSql.checkData(1,5,666.00000)
+        tdSql.checkData(1,6,-88888.000000000)  
+        tdSql.checkData(2,1,'1970-01-01 08:00:00.000') 
+        tdSql.checkData(2,2,0.00000)
+        tdSql.checkData(2,3,0.000000000) 
+        tdSql.checkData(2,4,'1970-01-01 08:00:00.000')  
+        tdSql.checkData(2,5,0.00000) 
+        tdSql.checkData(2,6,0.000000000)         
+    
         
-        cmd5 = 'select * from in_stable_4 where tin_double in (\'88888\');'
-        tdLog.info(cmd5)
-        tdSql.error(cmd5)
-        try:
-            tdSql.execute(cmd5)
-            tdLog.exit("invalid operation: not supported filter condition")
-        except Exception as e:
-            tdLog.info(repr(e))
-            tdLog.info("invalid operation: not supported filter condition") 
-
-        cmd6 = 'select * from in_float_double_1 where in_float in (\'888\');'
-        tdLog.info(cmd6)
-        tdSql.error(cmd6)
-        try:
-            tdSql.execute(cmd6)
-            tdLog.exit("invalid operation: not supported filter condition")
-        except Exception as e:
-            tdLog.info(repr(e))
-            tdLog.info("invalid operation: not supported filter condition") 
-        
-        cmd7 = 'select * from in_float_double_1 where in_double in (\'66666\');'
-        tdLog.info(cmd7)
-        tdSql.error(cmd7)
-        try:
-            tdSql.execute(cmd7)
-            tdLog.exit("invalid operation: not supported filter condition")
-        except Exception as e:
-            tdLog.info(repr(e))
-            tdLog.info("invalid operation: not supported filter condition") 
-
               
 
-        tdLog.info("=============== step4.3,drop normal table && create table") 
-        cmd1 = 'drop table if exists normal_in_float_double_1 ;'
-        cmd2 = 'create table normal_in_float_double_1 (ts timestamp,in_float float,in_double double) ; '
+        tdLog.info("=============== step4.4,drop normal table && create table") 
+        cmd1 = 'drop table if exists normal_in_ts_float_double_1 ;'
+        cmd2 = 'create table normal_in_ts_float_double_1 (ts timestamp,in_ts timestamp,in_float float,in_double double) ; '
         tdLog.info(cmd1)
         tdSql.execute(cmd1)
         tdLog.info(cmd2)
         tdSql.execute(cmd2)
       
 
-        tdLog.info("=============== step4.4,insert normal table right data and check in function") 
-        cmd1 = 'insert into normal_in_float_double_1 values(now,\'888\',\'666666\') ;'
+        tdLog.info("=============== step4.5,insert normal table right data and check in function") 
+        cmd1 = 'insert into normal_in_ts_float_double_1 values(now,\'0\',\'0\',\'0\') ;'
         tdLog.info(cmd1)
-        tdSql.execute(cmd1)   
+        tdSql.execute(cmd1)  
 
-        cmd2 = 'select * from normal_in_float_double_1 where in_float in (\'888\');'
+        tdSql.query('select * from normal_in_ts_float_double_1 where in_ts in (\'0\') order by ts desc')
+        tdSql.checkData(0,1,'1970-01-01 08:00:00.000') 
+        tdSql.checkData(0,2,0.00000)
+        tdSql.checkData(0,3,0.000000000) 
+        tdSql.query('select * from normal_in_ts_float_double_1 where in_ts in (\'1970-01-01 08:00:00.000\') order by ts desc')
+        tdSql.checkData(0,1,'1970-01-01 08:00:00.000') 
+        tdSql.checkData(0,2,0.00000)
+        tdSql.checkData(0,3,0.000000000) 
+        tdSql.query('select * from normal_in_ts_float_double_1 where in_float in (0.00000) order by ts desc')
+        tdSql.checkData(0,1,'1970-01-01 08:00:00.000') 
+        tdSql.checkData(0,2,0.00000)
+        tdSql.checkData(0,3,0.000000000)  
+        tdSql.query('select * from normal_in_ts_float_double_1 where in_double in (0.000000000) order by ts desc')
+        tdSql.checkData(0,1,'1970-01-01 08:00:00.000') 
+        tdSql.checkData(0,2,0.00000)
+        tdSql.checkData(0,3,0.000000000) 
+
+        cmd2 = 'insert into normal_in_ts_float_double_1 values(now,\'2020-01-01 08:00:00.001\',\'666\',\'-88888\') ;'
         tdLog.info(cmd2)
-        tdSql.error(cmd2)
-        try:
-            tdSql.execute(cmd2)
-            tdLog.exit("invalid operation: not supported filter condition")
-        except Exception as e:
-            tdLog.info(repr(e))
-            tdLog.info("invalid operation: not supported filter condition") 
-        
-        cmd3 = 'select * from normal_in_float_double_1 where in_double in (\'66666\');'
+        tdSql.execute(cmd2)  
+
+        tdSql.query('select * from normal_in_ts_float_double_1 where in_ts in (\'1577836800001\') order by ts desc')
+        tdSql.checkData(0,1,'2020-01-01 08:00:00.001') 
+        tdSql.checkData(0,2,666.00000)
+        tdSql.checkData(0,3,-88888.000000000) 
+        tdSql.query('select * from normal_in_ts_float_double_1 where in_ts in (\'2020-01-01 08:00:00.001\') order by ts desc')
+        tdSql.checkData(0,1,'2020-01-01 08:00:00.001') 
+        tdSql.checkData(0,2,666.00000)
+        tdSql.checkData(0,3,-88888.000000000) 
+        tdSql.query('select * from normal_in_ts_float_double_1 where in_float in (666.00000) order by ts desc')
+        tdSql.checkData(0,1,'2020-01-01 08:00:00.001') 
+        tdSql.checkData(0,2,666.00000)
+        tdSql.checkData(0,3,-88888.000000000)  
+        tdSql.query('select * from normal_in_ts_float_double_1 where in_double in (-88888.000000000) order by ts desc')
+        tdSql.checkData(0,1,'2020-01-01 08:00:00.001') 
+        tdSql.checkData(0,2,666.00000)
+        tdSql.checkData(0,3,-88888.000000000) 
+
+        cmd3 = 'insert into normal_in_ts_float_double_1 values(now,\'2021-01-01 08:00:00.001\',\'-888.00000\',\'66666.000000000\') ;'
         tdLog.info(cmd3)
-        tdSql.error(cmd3)
-        try:
-            tdSql.execute(cmd3)
-            tdLog.exit("invalid operation: not supported filter condition")
-        except Exception as e:
-            tdLog.info(repr(e))
-            tdLog.info("invalid operation: not supported filter condition") 
+        tdSql.execute(cmd3)  
+
+        tdSql.query('select * from normal_in_ts_float_double_1 where in_ts in (\'1609459200001\') order by ts desc')
+        tdSql.checkData(0,1,'2021-01-01 08:00:00.001') 
+        tdSql.checkData(0,2,-888.00000)
+        tdSql.checkData(0,3,66666.000000000) 
+        tdSql.query('select * from normal_in_ts_float_double_1 where in_ts in (\'2021-01-01 08:00:00.001\') order by ts desc')
+        tdSql.checkData(0,1,'2021-01-01 08:00:00.001') 
+        tdSql.checkData(0,2,-888.00000)
+        tdSql.checkData(0,3,66666.000000000) 
+        tdSql.query('select * from normal_in_ts_float_double_1 where in_float in (-888.00000) order by ts desc')
+        tdSql.checkData(0,1,'2021-01-01 08:00:00.001') 
+        tdSql.checkData(0,2,-888.00000)
+        tdSql.checkData(0,3,66666.000000000) 
+        tdSql.query('select * from normal_in_ts_float_double_1 where in_double in (66666.000000000) order by ts desc')
+        tdSql.checkData(0,1,'2021-01-01 08:00:00.001') 
+        tdSql.checkData(0,2,-888.00000)
+        tdSql.checkData(0,3,66666.000000000) 
+
+        cmd4 = '''select * from normal_in_ts_float_double_1 
+                where  in_ts in (\'1609459200001\',\'2021-01-01 08:00:00.001\',\'1577836800001\',\'2020-01-01 08:00:00.001000\',\'0\',\'1970-01-01 08:00:00.000\') 
+                and in_double in (0.000000000,66666.000000000,-88888.000000000)
+                and in_float in (0.00000,666.00000,-888.00000)
+                order by ts desc ;'''
+        tdLog.info(cmd4)         
+        tdSql.query(cmd4)
+        tdSql.checkData(0,1,'2021-01-01 08:00:00.001') 
+        tdSql.checkData(0,2,-888.00000)
+        tdSql.checkData(0,3,66666.000000000) 
+        tdSql.checkData(1,1,'2020-01-01 08:00:00.001') 
+        tdSql.checkData(1,2,666.00000)
+        tdSql.checkData(1,3,-88888.000000000)
+        tdSql.checkData(2,1,'1970-01-01 08:00:00.000') 
+        tdSql.checkData(2,2,0.00000)
+        tdSql.checkData(2,3,0.000000000) 
+        
+    
 
     def stop(self):
         tdSql.close()

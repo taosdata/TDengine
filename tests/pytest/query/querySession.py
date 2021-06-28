@@ -51,13 +51,27 @@ class TDTestCase:
         tdSql.checkRows(15)
         tdSql.checkData(0, 1, 2)
 
+        # session(ts,5a) main query
+        tdSql.query("select count(*) from (select * from dev_001) session(ts,5a)")
+        tdSql.checkRows(15)
+        tdSql.checkData(0, 1, 2)
+
 
         # session(ts,1s)
         tdSql.query("select count(*) from dev_001 session(ts,1s)")
         tdSql.checkRows(12)
         tdSql.checkData(0, 1, 5)
 
+        # session(ts,1s) main query
+        tdSql.query("select count(*) from (select * from dev_001) session(ts,1s)")
+        tdSql.checkRows(12)
+        tdSql.checkData(0, 1, 5)
+
         tdSql.query("select count(*) from dev_001 session(ts,1000a)")
+        tdSql.checkRows(12)
+        tdSql.checkData(0, 1, 5)
+
+        tdSql.query("select count(*) from  (select * from dev_001) session(ts,1000a)")
         tdSql.checkRows(12)
         tdSql.checkData(0, 1, 5)
 
@@ -66,8 +80,18 @@ class TDTestCase:
         tdSql.checkRows(9)
         tdSql.checkData(0, 1, 8)
 
+        # session(ts,1m)
+        tdSql.query("select count(*) from (select * from dev_001) session(ts,1m)")
+        tdSql.checkRows(9)
+        tdSql.checkData(0, 1, 8)
+
         # session(ts,1h)
         tdSql.query("select count(*) from dev_001 session(ts,1h)")
+        tdSql.checkRows(6)
+        tdSql.checkData(0, 1, 11)
+
+        # session(ts,1h)
+        tdSql.query("select count(*) from (select * from dev_001) session(ts,1h)")
         tdSql.checkRows(6)
         tdSql.checkData(0, 1, 11)
 
@@ -76,13 +100,24 @@ class TDTestCase:
         tdSql.checkRows(4)
         tdSql.checkData(0, 1, 13)
 
+        # session(ts,1d)
+        tdSql.query("select count(*) from (select * from dev_001) session(ts,1d)")
+        tdSql.checkRows(4)
+        tdSql.checkData(0, 1, 13)
+
         # session(ts,1w)
         tdSql.query("select count(*) from dev_001 session(ts,1w)")
         tdSql.checkRows(2)
         tdSql.checkData(0, 1, 15)
 
+        # session(ts,1w)
+        tdSql.query("select count(*) from (select * from dev_001) session(ts,1w)")
+        tdSql.checkRows(2)
+        tdSql.checkData(0, 1, 15)
+
         # session with where 
         tdSql.query("select count(*),first(tagtype),last(tagtype),avg(tagtype),sum(tagtype),min(tagtype),max(tagtype),leastsquares(tagtype, 1, 1),spread(tagtype),stddev(tagtype),percentile(tagtype,0)  from dev_001 where ts <'2020-05-20 0:0:0' session(ts,1d)")
+
         tdSql.checkRows(2)
         tdSql.checkData(0, 1, 13)
         tdSql.checkData(0, 2, 1)
@@ -96,6 +131,20 @@ class TDTestCase:
         tdSql.checkData(0, 10, 3.741657387)
         tdSql.checkData(0, 11, 1)
         tdSql.checkData(1, 11, 14)
+
+        # session with where main
+
+        tdSql.query("select count(*),first(tagtype),last(tagtype),avg(tagtype),sum(tagtype),min(tagtype),max(tagtype),leastsquares(tagtype, 1, 1) from (select * from dev_001 where ts <'2020-05-20 0:0:0') session(ts,1d)")
+
+        tdSql.checkRows(2)
+        tdSql.checkData(0, 1, 13)
+        tdSql.checkData(0, 2, 1)
+        tdSql.checkData(0, 3, 13)
+        tdSql.checkData(0, 4, 7)
+        tdSql.checkData(0, 5, 91)
+        tdSql.checkData(0, 6, 1)
+        tdSql.checkData(0, 7, 13)
+        tdSql.checkData(0, 8, '{slop:1.000000, intercept:0.000000}')
 
         # tdsql err
         tdSql.error("select * from dev_001 session(ts,1w)")

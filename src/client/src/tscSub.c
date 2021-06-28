@@ -512,6 +512,7 @@ TAOS_RES *taos_consume(TAOS_SUB *tsub) {
 
     pSub->pSql = pSql;
     pSql->pSubscription = pSub;
+    pSub->lastSyncTime = 0;
 
     // no table list now, force to update it
     tscDebug("begin table synchronization");

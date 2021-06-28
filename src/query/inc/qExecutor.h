@@ -133,6 +133,28 @@ typedef struct STableQueryInfo {
   SResultRowInfo resInfo;
 } STableQueryInfo;
 
+typedef enum {
+  QUERY_PROF_BEFORE_OPERATOR_EXEC = 0,
+  QUERY_PROF_AFTER_OPERATOR_EXEC,
+  QUERY_PROF_QUERY_ABORT
+} EQueryProfEventType;
+
+typedef struct {
+  EQueryProfEventType eventType;
+  int64_t eventTime;
+
+  union {
+    uint8_t operatorType; //for operator event
+    int32_t abortCode; //for query abort event
+  };
+} SQueryProfEvent;
+
+typedef struct {
+  uint8_t operatorType;
+  int64_t sumSelfTime;
+  int64_t sumRunTimes;
+} SOperatorProfResult;
+
 typedef struct SQueryCostInfo {
   uint64_t loadStatisTime;
   uint64_t loadFileBlockTime;
@@ -154,6 +176,9 @@ typedef struct SQueryCostInfo {
   uint64_t tableInfoSize;
   uint64_t hashSize;
   uint64_t numOfTimeWindows;
+
+  SArray*   queryProfEvents;  //SArray<SQueryProfEvent>
+  SHashObj* operatorProfResults; //map<operator_type, SQueryProfEvent>
 } SQueryCostInfo;
 
 typedef struct {
@@ -192,6 +217,7 @@ typedef struct SQueryAttr {
   bool             needReverseScan;  // need reverse scan
   bool             distinctTag;      // distinct tag query
   bool             stateWindow;       // window State on sub/normal table
+  bool             createFilterOperator; // if filter operator is needed
   int32_t          interBufSize;     // intermediate buffer sizse
 
   int32_t          havingNum;        // having expr number
@@ -285,7 +311,7 @@ enum OPERATOR_TYPE_E {
   OP_TagScan           = 4,
   OP_TableBlockInfoScan= 5,
   OP_Aggregate         = 6,
-  OP_Arithmetic        = 7,
+  OP_Project           = 7,
   OP_Groupby           = 8,
   OP_Limit             = 9,
   OP_SLimit            = 10,
@@ -295,7 +321,7 @@ enum OPERATOR_TYPE_E {
   OP_MultiTableAggregate     = 14,
   OP_MultiTableTimeInterval  = 15,
   OP_DummyInput        = 16,   //TODO remove it after fully refactor.
-  OP_MultiwayMergeSort      = 17,   // multi-way data merge into one input stream.
+  OP_MultiwayMergeSort = 17,   // multi-way data merge into one input stream.
   OP_GlobalAggregate   = 18,   // global merge for the multi-way data sources.
   OP_Filter            = 19,
   OP_Distinct          = 20,
@@ -413,13 +439,13 @@ typedef struct SAggOperatorInfo {
   uint32_t       seed;
 } SAggOperatorInfo;
 
-typedef struct SArithOperatorInfo {
+typedef struct SProjectOperatorInfo {
   SOptrBasicInfo binfo;
   int32_t        bufCapacity;
   uint32_t       seed;
 
   SSDataBlock   *existDataBlock;
-} SArithOperatorInfo;
+} SProjectOperatorInfo;
 
 typedef struct SLimitOperatorInfo {
   int64_t   limit;
@@ -513,7 +539,7 @@ SOperatorInfo* createTableScanOperator(void* pTsdbQueryHandle, SQueryRuntimeEnv*
 SOperatorInfo* createTableSeqScanOperator(void* pTsdbQueryHandle, SQueryRuntimeEnv* pRuntimeEnv);
 
 SOperatorInfo* createAggregateOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorInfo* upstream, SExprInfo* pExpr, int32_t numOfOutput);
-SOperatorInfo* createArithOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorInfo* upstream, SExprInfo* pExpr, int32_t numOfOutput);
+SOperatorInfo* createProjectOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorInfo* upstream, SExprInfo* pExpr, int32_t numOfOutput);
 SOperatorInfo* createLimitOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorInfo* upstream);
 SOperatorInfo* createTimeIntervalOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorInfo* upstream, SExprInfo* pExpr, int32_t numOfOutput);
 SOperatorInfo* createSWindowOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorInfo* upstream, SExprInfo* pExpr, int32_t numOfOutput);
@@ -586,7 +612,12 @@ int32_t doDumpQueryResult(SQInfo *pQInfo, char *data);
 
 size_t getResultSize(SQInfo *pQInfo, int64_t *numOfRows);
 void setQueryKilled(SQInfo *pQInfo);
+
+void publishOperatorProfEvent(SOperatorInfo* operatorInfo, EQueryProfEventType eventType);
+void publishQueryAbortEvent(SQInfo* pQInfo, int32_t code);
+void calculateOperatorProfResults(SQInfo* pQInfo);
 void queryCostStatis(SQInfo *pQInfo);
+
 void freeQInfo(SQInfo *pQInfo);
 void freeQueryAttr(SQueryAttr *pQuery);
 
