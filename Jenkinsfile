@@ -126,13 +126,11 @@ pipeline {
           script {
             if (env.CHANGE_TARGET == 'master') {
               sh '''
-              cd ${WKC}
               git checkout master
               '''
               }
             else {
               sh '''
-              cd ${WKC}
               git checkout develop
               '''
             } 
