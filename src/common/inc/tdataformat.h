@@ -289,6 +289,11 @@ static FORCE_INLINE TKEY dataColsTKeyFirst(SDataCols *pCols) {
   }
 }
 
+static FORCE_INLINE TSKEY dataColsKeyAtRow(SDataCols *pCols, int row) {
+  ASSERT(row < pCols->numOfRows);
+  return dataColsKeyAt(pCols, row);
+}
+
 static FORCE_INLINE TSKEY dataColsKeyFirst(SDataCols *pCols) {
   if (pCols->numOfRows) {
     return dataColsKeyAt(pCols, 0);

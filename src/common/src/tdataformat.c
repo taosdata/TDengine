@@ -452,7 +452,7 @@ int tdMergeDataCols(SDataCols *target, SDataCols *source, int rowsToMerge, int *
 
   SDataCols *pTarget = NULL;
 
-  if ((target->numOfRows == 0) || (dataColsKeyLast(target) < dataColsKeyFirst(source))) {  // No overlap
+  if ((target->numOfRows == 0) || (dataColsKeyLast(target) < dataColsKeyAtRow(source, *pOffset))) {  // No overlap
     ASSERT(target->numOfRows + rowsToMerge <= target->maxPoints);
     for (int i = 0; i < rowsToMerge; i++) {
       for (int j = 0; j < source->numOfCols; j++) {
