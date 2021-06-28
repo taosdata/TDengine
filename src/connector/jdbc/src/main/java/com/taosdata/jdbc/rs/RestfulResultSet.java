@@ -20,8 +20,6 @@ import java.util.Calendar;
 import java.util.List;
 
 public class RestfulResultSet extends AbstractResultSet implements ResultSet {
-    private volatile boolean isClosed;
-    private int pos = -1;
 
     private final Statement statement;
     // data
@@ -31,6 +29,9 @@ public class RestfulResultSet extends AbstractResultSet implements ResultSet {
     private final List<Field> columns = new ArrayList<>();
     private final RestfulResultSetMetaData metaData;
 
+    private volatile boolean isClosed;
+    private int pos = -1;
+
     /**
      * 由一个result的Json构造结果集，对应执行show databases, show tables等这些语句，返回结果集，但无法获取结果集对应的meta，统一当成String处理
      *
@@ -39,21 +40,15 @@ public class RestfulResultSet extends AbstractResultSet implements ResultSet {
     public RestfulResultSet(String database, Statement statement, JSONObject resultJson) throws SQLException {
         this.statement = statement;
 
+        // get head
+        JSONArray head = resultJson.getJSONArray("head");
         // get column metadata
         JSONArray columnMeta = resultJson.getJSONArray("column_meta");
         // get row data
         JSONArray data = resultJson.getJSONArray("data");
-        if (data == null || data.isEmpty()) {
-            columnNames.clear();
-            columns.clear();
-            this.resultSet.clear();
-            this.metaData = new RestfulResultSetMetaData(database, null, this);
-            return;
-        }
-        // get head
-        JSONArray head = resultJson.getJSONArray("head");
         // get rows
         Integer rows = resultJson.getInteger("rows");
+
         // parse column_meta
         if (columnMeta != null) {
             parseColumnMeta_new(columnMeta);
@@ -61,8 +56,10 @@ public class RestfulResultSet extends AbstractResultSet implements ResultSet {
             parseColumnMeta_old(head, data, rows);
         }
         this.metaData = new RestfulResultSetMetaData(database, columns, this);
+
+        if (data == null || data.isEmpty())
+            return;
         // parse row data
-        resultSet.clear();
         for (int rowIndex = 0; rowIndex < data.size(); rowIndex++) {
             List<Object> row = new ArrayList();
             JSONArray jsonRow = data.getJSONArray(rowIndex);
@@ -252,13 +249,6 @@ public class RestfulResultSet extends AbstractResultSet implements ResultSet {
             this.isClosed = true;
         }
     }
-
-//    @Override
-//    public boolean wasNull() throws SQLException {
-//        if (isClosed())
-//            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_RESULTSET_CLOSED);
-//        return resultSet.isEmpty();
-//    }
 
     @Override
     public String getString(int columnIndex) throws SQLException {

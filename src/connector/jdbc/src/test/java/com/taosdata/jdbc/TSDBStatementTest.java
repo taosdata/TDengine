@@ -155,10 +155,6 @@ public class TSDBStatementTest {
             Assert.assertEquals(3, meta.getColumnCount());
             int count = 0;
             while (rs.next()) {
-                for (int i = 1; i <= meta.getColumnCount(); i++) {
-                    System.out.print(meta.getColumnLabel(i) + ": " + rs.getString(i) + "\t");
-                }
-                System.out.println();
                 count++;
             }
             Assert.assertEquals(1, count);
