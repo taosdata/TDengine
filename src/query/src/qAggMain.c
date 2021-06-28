@@ -2208,12 +2208,24 @@ static int32_t topBotComparFn(const void *p1, const void *p2, const void *param)
   tValuePair  *val2 = *(tValuePair **) p2;
 
   if (IS_SIGNED_NUMERIC_TYPE(type)) {
-    return val1->v.i64 - val2->v.i64;
-  } else if (IS_UNSIGNED_NUMERIC_TYPE(type)) {
-    return val1->v.u64 - val2->v.u64;
+    if (val1->v.i64 == val2->v.i64) {
+      return 0;
+    }
+
+    return (val1->v.i64 > val2->v.i64) ? 1 : -1;
+   } else if (IS_UNSIGNED_NUMERIC_TYPE(type)) {
+     if (val1->v.u64 == val2->v.u64) {
+       return 0;
+     }
+
+     return (val1->v.u64 > val2->v.u64) ? 1 : -1;
   }
 
-  return val1->v.dKey - val2->v.dKey;
+  if (val1->v.dKey == val2->v.dKey) {
+    return 0;
+  }
+
+  return (val1->v.dKey > val2->v.dKey) ? 1 : -1;
 }
 
 static void topBotSwapFn(void *dst, void *src, const void *param)
