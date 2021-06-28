@@ -1,6 +1,6 @@
 package com.taosdata.jdbc;
 
-import com.taosdata.jdbc.rs.enums.TimestampFormat;
+import com.taosdata.jdbc.enums.TimestampFormat;
 
 import java.sql.*;
 import java.util.Enumeration;
@@ -425,7 +425,7 @@ public abstract class AbstractConnection extends WrapperImpl implements Connecti
                 status = resultSet.getInt("server_status()");
                 resultSet.close();
             }
-            return status == 1 ? true : false;
+            return status == 1;
         });
 
         boolean status = false;
@@ -434,9 +434,7 @@ public abstract class AbstractConnection extends WrapperImpl implements Connecti
                 status = future.get();
             else
                 status = future.get(timeout, TimeUnit.SECONDS);
-        } catch (InterruptedException e) {
-            e.printStackTrace();
-        } catch (ExecutionException e) {
+        } catch (InterruptedException | ExecutionException e) {
             e.printStackTrace();
         } catch (TimeoutException e) {
             future.cancel(true);
@@ -452,8 +450,7 @@ public abstract class AbstractConnection extends WrapperImpl implements Connecti
         if (isClosed)
             throw (SQLClientInfoException) TSDBError.createSQLException(TSDBErrorNumbers.ERROR_SQLCLIENT_EXCEPTION_ON_CONNECTION_CLOSED);
 
-        if (clientInfoProps != null)
-            clientInfoProps.setProperty(name, value);
+        clientInfoProps.setProperty(name, value);
     }
 
     @Override
@@ -461,8 +458,8 @@ public abstract class AbstractConnection extends WrapperImpl implements Connecti
         if (isClosed)
             throw (SQLClientInfoException) TSDBError.createSQLException(TSDBErrorNumbers.ERROR_SQLCLIENT_EXCEPTION_ON_CONNECTION_CLOSED);
 
-        for (Enumeration<Object> enumer = properties.keys(); enumer.hasMoreElements(); ) {
-            String name = (String) enumer.nextElement();
+        for (Enumeration<Object> enumeration = properties.keys(); enumeration.hasMoreElements(); ) {
+            String name = (String) enumeration.nextElement();
             clientInfoProps.put(name, properties.getProperty(name));
         }
     }

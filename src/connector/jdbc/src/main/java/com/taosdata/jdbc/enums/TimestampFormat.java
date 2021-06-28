@@ -1,4 +1,4 @@
-package com.taosdata.jdbc.rs.enums;
+package com.taosdata.jdbc.enums;
 
 public enum TimestampFormat {
     STRING,
