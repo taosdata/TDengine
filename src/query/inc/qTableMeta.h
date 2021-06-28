@@ -17,6 +17,14 @@ typedef struct SCond {
   char *   cond;
 } SCond;
 
+typedef struct STblCond {
+  uint64_t uid;
+  int16_t  idx;  //table index
+  int32_t  len;  // length of tag query condition data
+  char *   cond;
+} STblCond;
+
+
 typedef struct SJoinNode {
   uint64_t uid;
   int16_t  tagColId;
@@ -116,6 +124,7 @@ typedef struct SQueryInfo {
   SOrderVal        order;
   int16_t          fillType;      // final result fill type
   int16_t          numOfTables;
+  int16_t          curTableIdx;
   STableMetaInfo **pTableMetaInfo;
   struct STSBuf   *tsBuf;
   int64_t *        fillVal;       // default value for fill

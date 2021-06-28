@@ -297,7 +297,7 @@ enum OPERATOR_TYPE_E {
   OP_MultiTableAggregate     = 14,
   OP_MultiTableTimeInterval  = 15,
   OP_DummyInput        = 16,   //TODO remove it after fully refactor.
-  OP_MultiwayMergeSort      = 17,   // multi-way data merge into one input stream.
+  OP_MultiwayMergeSort = 17,   // multi-way data merge into one input stream.
   OP_GlobalAggregate   = 18,   // global merge for the multi-way data sources.
   OP_Filter            = 19,
   OP_Distinct          = 20,
