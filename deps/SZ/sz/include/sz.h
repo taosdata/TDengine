@@ -14,6 +14,7 @@
 #include <stdint.h>
 #include <sys/time.h>      /* For gettimeofday(), in microseconds */
 #include <time.h>          /* For time(), in seconds */
+#include "pub.h"
 #include "CompressElement.h"
 #include "DynamicByteArray.h"
 #include "DynamicIntArray.h"
@@ -158,42 +159,6 @@ typedef union lfloat
     unsigned char byte[4];
 } lfloat;
 
-/* array meta data and compression parameters for SZ_Init_Params() */
-typedef struct sz_params
-{
-	int dataType;
-	unsigned int max_quant_intervals; //max number of quantization intervals for quantization
-	unsigned int quantization_intervals; 
-	unsigned int maxRangeRadius;
-	int sol_ID;// it's SZ or SZ_Transpose, unless the setting is PASTRI compression mode (./configure --enable-pastri)
-	int losslessCompressor;
-	int sampleDistance; //2 bytes
-	float predThreshold;  // 2 bytes
-	int szMode; //* 0 (best speed) or 1 (better compression with Zstd/Gzip) or 3 temporal-dimension based compression
-	int gzipMode; //* four options: Z_NO_COMPRESSION, or Z_BEST_SPEED, Z_BEST_COMPRESSION, Z_DEFAULT_COMPRESSION
-	int  errorBoundMode; //4bits (0.5byte), //ABS, REL, ABS_AND_REL, or ABS_OR_REL, PSNR, or PW_REL, PSNR
-	double absErrBound; //absolute error bound
-	double relBoundRatio; //value range based relative error bound ratio
-	double psnr; //PSNR
-	double normErr;
-	double pw_relBoundRatio; //point-wise relative error bound
-	int segment_size; //only used for 2D/3D data compression with pw_relBoundRatio (deprecated)
-	int pwr_type; //only used for 2D/3D data compression with pw_relBoundRatio
-	
-	int protectValueRange; //0 or 1
-	float fmin, fmax;
-	double dmin, dmax;
-	
-	int snapshotCmprStep; //perform single-snapshot-based compression if time_step == snapshotCmprStep
-	int predictionMode;
-
-	int accelerate_pw_rel_compression;
-	int plus_bits;
-	
-	int randomAccess;
-	int withRegression;
-	
-} sz_params;
 
 typedef struct sz_metadata
 {
@@ -206,13 +171,6 @@ typedef struct sz_metadata
 	struct sz_params* conf_params; //configuration parameters
 } sz_metadata;
 
-typedef struct sz_exedata
-{
-	char optQuantMode;	//opt Quantization (0: fixed ; 1: optimized)	
-	int intvCapacity; // the number of intervals for the linear-scaling quantization
-	int intvRadius;  // the number of intervals for the radius of the quantization range (intvRadius=intvCapacity/2)
-	unsigned int SZ_SIZE_TYPE; //the length (# bytes) of the size_t in the system at runtime //4 or 8: sizeof(size_t) 
-} sz_exedata;
 
 /*We use a linked list to maintain time-step meta info for time-step based compression*/
 typedef struct sz_tsc_metainfo
@@ -296,7 +254,7 @@ void SZ_Create_ParamsExe(sz_params** conf_params, sz_exedata** exe_params);
 void *SZ_decompress(int dataType, unsigned char *bytes, size_t byteLength, size_t r5, size_t r4, size_t r3, size_t r2, size_t r1);
 size_t SZ_decompress_args(int dataType, unsigned char *bytes, size_t byteLength, void* decompressed_array, size_t r5, size_t r4, size_t r3, size_t r2, size_t r1);
 
-sz_metadata* SZ_getMetadata(unsigned char* bytes);
+sz_metadata* SZ_getMetadata(unsigned char* bytes, sz_exedata* pde_exe);
 void SZ_printMetadata(sz_metadata* metadata);
 
 
@@ -320,7 +278,7 @@ void SZ_decompress_ts(unsigned char *bytes, size_t byteLength);
 void SZ_Finalize();
 
 void convertSZParamsToBytes(sz_params* params, unsigned char* result);
-void convertBytesToSZParams(unsigned char* bytes, sz_params* params);
+void convertBytesToSZParams(unsigned char* bytes, sz_params* params, sz_exedata* pde_exe);
 
 unsigned char* SZ_compress_customize(const char* appName, void* userPara, int dataType, void* data, size_t r5, size_t r4, size_t r3, size_t r2, size_t r1, size_t *outSize, int *status);
 

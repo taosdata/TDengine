@@ -52,7 +52,7 @@ void new_TightDataPointStorageD_Empty(TightDataPointStorageD **this)
 
 }
 
-int new_TightDataPointStorageD_fromFlatBytes(TightDataPointStorageD **this, unsigned char* flatBytes, size_t flatBytesLength)
+int new_TightDataPointStorageD_fromFlatBytes(TightDataPointStorageD **this, unsigned char* flatBytes, size_t flatBytesLength, sz_exedata* pde_exe, sz_params* pde_params)
 {
 	new_TightDataPointStorageD_Empty(this);
 	size_t i, index = 0;
@@ -92,7 +92,7 @@ int new_TightDataPointStorageD_fromFlatBytes(TightDataPointStorageD **this, unsi
 		confparams_dec = (sz_params*)malloc(sizeof(sz_params));
 		memset(confparams_dec, 0, sizeof(sz_params));
 	}	
-	convertBytesToSZParams(&(flatBytes[index]), confparams_dec);
+	convertBytesToSZParams(&(flatBytes[index]), confparams_dec, pde_exe);
 
 	index += MetaDataByteLength_double;
 

@@ -19,7 +19,7 @@
 #include "utility.h"
 
 int SZ_decompress_args_double(double** newData, size_t r5, size_t r4, size_t r3, size_t r2, size_t r1, unsigned char* cmpBytes, 
-size_t cmpSize, int compressionType, double* hist_data)
+size_t cmpSize, int compressionType, double* hist_data, sz_exedata* pde_exe, sz_params* pde_params)
 {
 	int status = SZ_SCES;
 	size_t dataLength = computeDataLength(r5,r4,r3,r2,r1);
@@ -66,7 +66,7 @@ size_t cmpSize, int compressionType, double* hist_data)
 	confparams_dec->sol_ID = szTmpBytes[4+14]; //szTmpBytes: version(3bytes), samebyte(1byte), [14]:sol_ID=SZ or SZ_Transpose		
 	//TODO: convert szTmpBytes to double array.
 	TightDataPointStorageD* tdps;
-	int errBoundMode = new_TightDataPointStorageD_fromFlatBytes(&tdps, szTmpBytes, tmpSize);
+	int errBoundMode = new_TightDataPointStorageD_fromFlatBytes(&tdps, szTmpBytes, tmpSize, pde_exe, pde_params);
 
 	int dim = computeDimension(r5,r4,r3,r2,r1);
 	int doubleSize = sizeof(double);
@@ -86,14 +86,14 @@ size_t cmpSize, int compressionType, double* hist_data)
 	}
 	else if(confparams_dec->sol_ID==SZ_Transpose)
 	{
-		getSnapshotData_double_1D(newData,dataLength,tdps, errBoundMode, 0, hist_data);		
+		getSnapshotData_double_1D(newData,dataLength,tdps, errBoundMode, 0, hist_data, pde_params);		
 	}
 	else //confparams_dec->sol_ID==SZ
 	{
 		if(tdps->raBytes_size > 0) //v2.0
 		{
 			if (dim == 1)
-				getSnapshotData_double_1D(newData,r1,tdps, errBoundMode, 0, hist_data);
+				getSnapshotData_double_1D(newData,r1,tdps, errBoundMode, 0, hist_data, pde_params);
 			else if(dim == 2)
 				decompressDataSeries_double_2D_nonblocked_with_blocked_regression(newData, r2, r1, tdps->raBytes, hist_data);
 			else if(dim == 3)
@@ -109,7 +109,7 @@ size_t cmpSize, int compressionType, double* hist_data)
 		else //1.4.13 or time-based compression
 		{
 			if (dim == 1)
-				getSnapshotData_double_1D(newData,r1,tdps, errBoundMode, compressionType, hist_data);
+				getSnapshotData_double_1D(newData,r1,tdps, errBoundMode, compressionType, hist_data, pde_params);
 			else
 			if (dim == 2)
 				getSnapshotData_double_2D(newData,r2,r1,tdps, errBoundMode, compressionType, hist_data);
@@ -2659,7 +2659,7 @@ void decompressDataSeries_double_3D_MSST19(double** data, size_t r1, size_t r2, 
 	return;
 }
 
-void getSnapshotData_double_1D(double** data, size_t dataSeriesLength, TightDataPointStorageD* tdps, int errBoundMode, int compressionType, double* hist_data) 
+void getSnapshotData_double_1D(double** data, size_t dataSeriesLength, TightDataPointStorageD* tdps, int errBoundMode, int compressionType, double* hist_data, sz_params* pde_params) 
 {
 	size_t i;
 	if (tdps->allSameData) {

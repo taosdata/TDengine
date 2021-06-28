@@ -195,54 +195,6 @@ double relBoundRatio, double pwrBoundRatio, size_t r5, size_t r4, size_t r3, siz
 		
 		return newByteData;
 	}
-	else if(dataType==SZ_INT64)
-	{
-		unsigned char *newByteData;
-		SZ_compress_args_int64(&newByteData, data, r5, r4, r3, r2, r1, outSize, errBoundMode, absErrBound, relBoundRatio);
-		return newByteData;
-	}		
-	else if(dataType==SZ_INT32) //int type
-	{
-		unsigned char *newByteData;
-		SZ_compress_args_int32(&newByteData, data, r5, r4, r3, r2, r1, outSize, errBoundMode, absErrBound, relBoundRatio);
-		return newByteData;
-	}
-	else if(dataType==SZ_INT16)
-	{
-		unsigned char *newByteData;
-		SZ_compress_args_int16(&newByteData, data, r5, r4, r3, r2, r1, outSize, errBoundMode, absErrBound, relBoundRatio);
-		return newByteData;		
-	}
-	else if(dataType==SZ_INT8)
-	{
-		unsigned char *newByteData;
-		SZ_compress_args_int8(&newByteData, data, r5, r4, r3, r2, r1, outSize, errBoundMode, absErrBound, relBoundRatio);
-		return newByteData;
-	}
-	else if(dataType==SZ_UINT64)
-	{
-		unsigned char *newByteData;
-		SZ_compress_args_uint64(&newByteData, data, r5, r4, r3, r2, r1, outSize, errBoundMode, absErrBound, relBoundRatio);
-		return newByteData;
-	}		
-	else if(dataType==SZ_UINT32) //int type
-	{
-		unsigned char *newByteData;
-		SZ_compress_args_uint32(&newByteData, data, r5, r4, r3, r2, r1, outSize, errBoundMode, absErrBound, relBoundRatio);
-		return newByteData;
-	}
-	else if(dataType==SZ_UINT16)
-	{
-		unsigned char *newByteData;
-		SZ_compress_args_uint16(&newByteData, data, r5, r4, r3, r2, r1, outSize, errBoundMode, absErrBound, relBoundRatio);
-		return newByteData;		
-	}
-	else if(dataType==SZ_UINT8)
-	{
-		unsigned char *newByteData;
-		SZ_compress_args_uint8(&newByteData, data, r5, r4, r3, r2, r1, outSize, errBoundMode, absErrBound, relBoundRatio);
-		return newByteData;
-	} 	
 	else
 	{
 		printf("Error: dataType can only be SZ_FLOAT, SZ_DOUBLE, SZ_INT8/16/32/64 or SZ_UINT8/16/32/64.\n");
@@ -345,13 +297,13 @@ unsigned char *SZ_compress_rev(int dataType, void *data, void *reservedValue, si
 
 void *SZ_decompress(int dataType, unsigned char *bytes, size_t byteLength, size_t r5, size_t r4, size_t r3, size_t r2, size_t r1)
 {
-	if(confparams_dec==NULL)
-		confparams_dec = (sz_params*)malloc(sizeof(sz_params));
-	memset(confparams_dec, 0, sizeof(sz_params));
-	if(exe_params==NULL)
-		exe_params = (sz_exedata*)malloc(sizeof(sz_exedata));
-	memset(exe_params, 0, sizeof(sz_exedata));
-	exe_params->SZ_SIZE_TYPE = 8;
+	sz_exedata de_exe;
+	memset(&de_exe, 0, sizeof(sz_exedata));
+	de_exe.SZ_SIZE_TYPE = 8;
+
+	sz_params  de_params;
+	memset(&de_params, 0, sizeof(sz_params));
+	
 	
 	int x = 1;
 	char *y = (char*)&x;
@@ -363,62 +315,14 @@ void *SZ_decompress(int dataType, unsigned char *bytes, size_t byteLength, size_
 	if(dataType == SZ_FLOAT)
 	{
 		float *newFloatData;
-		SZ_decompress_args_float(&newFloatData, r5, r4, r3, r2, r1, bytes, byteLength, 0, NULL);
+		SZ_decompress_args_float(&newFloatData, r5, r4, r3, r2, r1, bytes, byteLength, 0, NULL, &de_exe, &de_params);
 		return newFloatData;	
 	}
 	else if(dataType == SZ_DOUBLE)
 	{
 		double *newDoubleData;
-		SZ_decompress_args_double(&newDoubleData, r5, r4, r3, r2, r1, bytes, byteLength, 0, NULL);
+		SZ_decompress_args_double(&newDoubleData, r5, r4, r3, r2, r1, bytes, byteLength, 0, NULL, &de_exe, &de_params);
 		return newDoubleData;	
-	}
-	else if(dataType == SZ_INT8)
-	{
-		int8_t *newInt8Data;
-		SZ_decompress_args_int8(&newInt8Data, r5, r4, r3, r2, r1, bytes, byteLength);
-		return newInt8Data;
-	}
-	else if(dataType == SZ_INT16)
-	{
-		int16_t *newInt16Data;
-		SZ_decompress_args_int16(&newInt16Data, r5, r4, r3, r2, r1, bytes, byteLength);
-		return newInt16Data;
-	}
-	else if(dataType == SZ_INT32)
-	{
-		int32_t *newInt32Data;
-		SZ_decompress_args_int32(&newInt32Data, r5, r4, r3, r2, r1, bytes, byteLength);
-		return newInt32Data;
-	}
-	else if(dataType == SZ_INT64)
-	{
-		int64_t *newInt64Data;
-		SZ_decompress_args_int64(&newInt64Data, r5, r4, r3, r2, r1, bytes, byteLength);
-		return newInt64Data;
-	}
-	else if(dataType == SZ_UINT8)
-	{
-		uint8_t *newUInt8Data;
-		SZ_decompress_args_uint8(&newUInt8Data, r5, r4, r3, r2, r1, bytes, byteLength);
-		return newUInt8Data;
-	}
-	else if(dataType == SZ_UINT16)
-	{
-		uint16_t *newUInt16Data;
-		SZ_decompress_args_uint16(&newUInt16Data, r5, r4, r3, r2, r1, bytes, byteLength);
-		return newUInt16Data;
-	}
-	else if(dataType == SZ_UINT32)
-	{
-		uint32_t *newUInt32Data;
-		SZ_decompress_args_uint32(&newUInt32Data, r5, r4, r3, r2, r1, bytes, byteLength);
-		return newUInt32Data;
-	}
-	else if(dataType == SZ_UINT64)
-	{
-		uint64_t *newUInt64Data;
-		SZ_decompress_args_uint64(&newUInt64Data, r5, r4, r3, r2, r1, bytes, byteLength);
-		return newUInt64Data;
 	}
 	else 
 	{
@@ -521,7 +425,7 @@ size_t SZ_decompress_args(int dataType, unsigned char *bytes, size_t byteLength,
 }
 
 
-sz_metadata* SZ_getMetadata(unsigned char* bytes)
+sz_metadata* SZ_getMetadata(unsigned char* bytes, sz_exedata* pde_exe)
 {
 	int index = 0, i, isConstant, isLossless;
 	size_t dataSeriesLength = 0;
@@ -535,12 +439,8 @@ sz_metadata* SZ_getMetadata(unsigned char* bytes)
 	
 	int isRegressionBased = (sameRByte >> 7) & 0x01;
 	
-	if(exe_params==NULL)
-	{
-		exe_params = (sz_exedata *)malloc(sizeof(struct sz_exedata));
-		memset(exe_params, 0, sizeof(struct sz_exedata));
-	}
-	exe_params->SZ_SIZE_TYPE = ((sameRByte & 0x40)>>6)==1?8:4;
+
+	pde_exe->SZ_SIZE_TYPE = ((sameRByte & 0x40)>>6)==1?8:4;
 	
 	if(confparams_dec==NULL)
 	{
@@ -548,7 +448,7 @@ sz_metadata* SZ_getMetadata(unsigned char* bytes)
 		memset(confparams_dec, 0, sizeof(sz_params));
 	}	
 	
-	convertBytesToSZParams(&(bytes[index]), confparams_dec);
+	convertBytesToSZParams(&(bytes[index]), confparams_dec, pde_exe);
 	/*sz_params* params = convertBytesToSZParams(&(bytes[index]));
 	if(confparams_dec!=NULL)
 		free(confparams_dec);
@@ -983,15 +883,14 @@ int SZ_compress_ts(int cmprType, unsigned char** newByteData, size_t *outSize)
 
 void SZ_decompress_ts(unsigned char *bytes, size_t bytesLength)
 {
-	if(confparams_dec==NULL)
-		confparams_dec = (sz_params*)malloc(sizeof(sz_params));
-	memset(confparams_dec, 0, sizeof(sz_params));
-	confparams_dec->szMode = SZ_TEMPORAL_COMPRESSION;
-	confparams_dec->predictionMode = SZ_PREVIOUS_VALUE_ESTIMATE;
-	
-	if(exe_params==NULL)
-		exe_params = (sz_exedata*)malloc(sizeof(sz_exedata));
-	memset(exe_params, 0, sizeof(sz_exedata));
+	sz_params  de_params;
+	memset(&de_params, 0, sizeof(sz_params));
+	de_params.szMode = SZ_TEMPORAL_COMPRESSION;
+	de_params.predictionMode = SZ_PREVIOUS_VALUE_ESTIMATE;
+
+	sz_exedata de_exe;
+	memset(&de_exe, 0, sizeof(sz_exedata));
+
 	
 	int x = 1;
 	char *y = (char*)&x;
@@ -1037,12 +936,12 @@ void SZ_decompress_ts(unsigned char *bytes, size_t bytesLength)
 			switch(dataType)
 			{
 			case SZ_FLOAT:
-					SZ_decompress_args_float(&newFloatData, r5, r4, r3, r2, r1, cmpBytes, cmpSize, multisteps->compressionType, multisteps->hist_data);
+					SZ_decompress_args_float(&newFloatData, r5, r4, r3, r2, r1, cmpBytes, cmpSize, multisteps->compressionType, multisteps->hist_data, &de_exe, &de_params);
 					memcpy(p->data, newFloatData, dataLen*sizeof(float));
 					free(newFloatData);
 					break;
 			case SZ_DOUBLE:
-					SZ_decompress_args_double(&newDoubleData, r5, r4, r3, r2, r1, cmpBytes, cmpSize, multisteps->compressionType, multisteps->hist_data);
+					SZ_decompress_args_double(&newDoubleData, r5, r4, r3, r2, r1, cmpBytes, cmpSize, multisteps->compressionType, multisteps->hist_data, &de_exe, &de_params);
 					memcpy(p->data, newDoubleData, dataLen*sizeof(double));
 					free(newDoubleData);
 					break;
@@ -1058,15 +957,13 @@ void SZ_decompress_ts(unsigned char *bytes, size_t bytesLength)
 
 void SZ_decompress_ts_select_var(unsigned char* var_ids, unsigned char var_count, unsigned char *bytes, size_t bytesLength)
 {
-	if(confparams_dec==NULL)
-		confparams_dec = (sz_params*)malloc(sizeof(sz_params));
-	memset(confparams_dec, 0, sizeof(sz_params));
-	confparams_dec->szMode = SZ_TEMPORAL_COMPRESSION;
-	confparams_dec->predictionMode = SZ_PREVIOUS_VALUE_ESTIMATE;
+	sz_params  de_params;
+	memset(&de_params, 0, sizeof(sz_params));
+	de_params.szMode = SZ_TEMPORAL_COMPRESSION;
+	de_params.predictionMode = SZ_PREVIOUS_VALUE_ESTIMATE;
 	
-	if(exe_params==NULL)
-		exe_params = (sz_exedata*)malloc(sizeof(sz_exedata));
-	memset(exe_params, 0, sizeof(sz_exedata));
+	sz_exedata de_exe;
+	memset(&de_exe, 0, sizeof(sz_exedata));
 	
 	int x = 1;
 	char *y = (char*)&x;
@@ -1113,12 +1010,12 @@ void SZ_decompress_ts_select_var(unsigned char* var_ids, unsigned char var_count
 			switch(dataType)
 			{
 			case SZ_FLOAT:
-					SZ_decompress_args_float(&newFloatData, r5, r4, r3, r2, r1, cmpBytes, cmpSize, multisteps->compressionType, multisteps->hist_data);
+					SZ_decompress_args_float(&newFloatData, r5, r4, r3, r2, r1, cmpBytes, cmpSize, multisteps->compressionType, multisteps->hist_data, &de_exe, &de_params);
 					memcpy(p->data, newFloatData, dataLen*sizeof(float));
 					free(newFloatData);
 					break;
 			case SZ_DOUBLE:
-					SZ_decompress_args_double(&newDoubleData, r5, r4, r3, r2, r1, cmpBytes, cmpSize, multisteps->compressionType, multisteps->hist_data);
+					SZ_decompress_args_double(&newDoubleData, r5, r4, r3, r2, r1, cmpBytes, cmpSize, multisteps->compressionType, multisteps->hist_data, &de_exe, &de_params);
 					memcpy(p->data, newDoubleData, dataLen*sizeof(double));
 					free(newDoubleData);
 					break;

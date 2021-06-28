@@ -134,7 +134,7 @@ int new_TightDataPointStorageI_fromFlatBytes(TightDataPointStorageI **this, unsi
 		confparams_dec = (sz_params*)malloc(sizeof(sz_params));
 		memset(confparams_dec, 0, sizeof(sz_params));
 	}	
-	convertBytesToSZParams(&(flatBytes[index]), confparams_dec);
+	convertBytesToSZParams(&(flatBytes[index]), confparams_dec, exe_params);
 	/*sz_params* params = convertBytesToSZParams(&(flatBytes[index]));
 	int mode = confparams_dec->szMode;
 	int losslessCompressor = confparams_dec->losslessCompressor;

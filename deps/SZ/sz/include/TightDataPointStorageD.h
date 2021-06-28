@@ -10,6 +10,8 @@
 #ifndef _TightDataPointStorageD_H
 #define _TightDataPointStorageD_H
 
+#include "pub.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -64,7 +66,7 @@ typedef struct TightDataPointStorageD
 } TightDataPointStorageD;
 
 void new_TightDataPointStorageD_Empty(TightDataPointStorageD **self);
-int new_TightDataPointStorageD_fromFlatBytes(TightDataPointStorageD **self, unsigned char* flatBytes, size_t flatBytesLength);
+int new_TightDataPointStorageD_fromFlatBytes(TightDataPointStorageD **self, unsigned char* flatBytes, size_t flatBytesLength, sz_exedata* pde_exe, sz_params* pde_params);
 
 void new_TightDataPointStorageD(TightDataPointStorageD **self, 
 		size_t dataSeriesLength, size_t exactDataNum, 

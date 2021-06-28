@@ -15,6 +15,7 @@ extern "C" {
 #endif
 
 #include <stdio.h> 
+#include "pub.h"
 
 typedef struct TightDataPointStorageF
 {
@@ -66,7 +67,7 @@ typedef struct TightDataPointStorageF
 } TightDataPointStorageF;
 
 void new_TightDataPointStorageF_Empty(TightDataPointStorageF **self);
-int new_TightDataPointStorageF_fromFlatBytes(TightDataPointStorageF **self, unsigned char* flatBytes, size_t flatBytesLength);
+int new_TightDataPointStorageF_fromFlatBytes(TightDataPointStorageF **self, unsigned char* flatBytes, size_t flatBytesLength, sz_exedata* pde_exe, sz_params* pde_params);
 
 void new_TightDataPointStorageF(TightDataPointStorageF **self,
 		size_t dataSeriesLength, size_t exactDataNum,

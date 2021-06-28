@@ -971,10 +971,10 @@ void convertSZParamsToBytes(sz_params* params, unsigned char* result)
 
 }
 
-void convertBytesToSZParams(unsigned char* bytes, sz_params* params)
+void convertBytesToSZParams(unsigned char* bytes, sz_params* params, sz_exedata* pde_exe)
 {
 	unsigned char flag1 = bytes[0];
-	exe_params->optQuantMode = (flag1 & 0x40) >> 6;
+	pde_exe->optQuantMode = (flag1 & 0x40) >> 6;
 	dataEndianType = (flag1 & 0x20) >> 5;
 	//sysEndianType = (flag1 & 0x10) >> 4;
 	
@@ -1038,7 +1038,7 @@ void convertBytesToSZParams(unsigned char* bytes, sz_params* params)
     //params->segment_size = bytesToInt16_bigEndian(&bytes[14]);	
     params->sol_ID = (int)(bytes[14]);
     
-    if(exe_params->optQuantMode==1)
+    if(pde_exe->optQuantMode==1)
     {
 		params->max_quant_intervals = bytesToInt32_bigEndian(&bytes[16]);
 		params->quantization_intervals = 0;

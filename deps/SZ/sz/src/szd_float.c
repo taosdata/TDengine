@@ -48,7 +48,7 @@ void cost_end_()
  * @return status SUCCESSFUL (SZ_SCES) or not (other error codes) f
  * */
 int SZ_decompress_args_float(float** newData, size_t r5, size_t r4, size_t r3, size_t r2, size_t r1, unsigned char* cmpBytes, 
-size_t cmpSize, int compressionType, float* hist_data)
+size_t cmpSize, int compressionType, float* hist_data, sz_exedata* pde_exe, sz_params* pde_params)
 {
 	int status = SZ_SCES;
 	size_t dataLength = computeDataLength(r5,r4,r3,r2,r1);
@@ -56,37 +56,37 @@ size_t cmpSize, int compressionType, float* hist_data)
 	//unsigned char* tmpBytes;
 	size_t targetUncompressSize = dataLength <<2; //i.e., *4
 	//tmpSize must be "much" smaller than dataLength
-	size_t i, tmpSize = 8+MetaDataByteLength+exe_params->SZ_SIZE_TYPE;
+	size_t i, tmpSize = 8+MetaDataByteLength+pde_exe->SZ_SIZE_TYPE;
 	unsigned char* szTmpBytes;	
 	
 	if(cmpSize!=8+4+MetaDataByteLength && cmpSize!=8+8+MetaDataByteLength) //4,8 means two posibilities of SZ_SIZE_TYPE
 	{
-		confparams_dec->losslessCompressor = is_lossless_compressed_data(cmpBytes, cmpSize);
-		if(confparams_dec->szMode!=SZ_TEMPORAL_COMPRESSION)
+		pde_params->losslessCompressor = is_lossless_compressed_data(cmpBytes, cmpSize);
+		if(pde_params->szMode!=SZ_TEMPORAL_COMPRESSION)
 		{
-			if(confparams_dec->losslessCompressor!=-1)
-				confparams_dec->szMode = SZ_BEST_COMPRESSION;
+			if(pde_params->losslessCompressor!=-1)
+				pde_params->szMode = SZ_BEST_COMPRESSION;
 			else
-				confparams_dec->szMode = SZ_BEST_SPEED;			
+				pde_params->szMode = SZ_BEST_SPEED;			
 		}
 		
-		if(confparams_dec->szMode==SZ_BEST_SPEED)
+		if(pde_params->szMode==SZ_BEST_SPEED)
 		{
 			tmpSize = cmpSize;
 			szTmpBytes = cmpBytes;	
 		}
-		else if(confparams_dec->szMode==SZ_BEST_COMPRESSION || confparams_dec->szMode==SZ_DEFAULT_COMPRESSION || confparams_dec->szMode==SZ_TEMPORAL_COMPRESSION)
+		else if(pde_params->szMode==SZ_BEST_COMPRESSION || pde_params->szMode==SZ_DEFAULT_COMPRESSION || pde_params->szMode==SZ_TEMPORAL_COMPRESSION)
 		{
 			if(targetUncompressSize<MIN_ZLIB_DEC_ALLOMEM_BYTES) //Considering the minimum size
 				targetUncompressSize = MIN_ZLIB_DEC_ALLOMEM_BYTES; 
-			tmpSize = sz_lossless_decompress(confparams_dec->losslessCompressor, cmpBytes, (unsigned long)cmpSize, &szTmpBytes, (unsigned long)targetUncompressSize+4+MetaDataByteLength+exe_params->SZ_SIZE_TYPE);//		(unsigned long)targetUncompressSize+8: consider the total length under lossless compression mode is actually 3+4+1+targetUncompressSize
+			tmpSize = sz_lossless_decompress(pde_params->losslessCompressor, cmpBytes, (unsigned long)cmpSize, &szTmpBytes, (unsigned long)targetUncompressSize+4+MetaDataByteLength+exe_params->SZ_SIZE_TYPE);//		(unsigned long)targetUncompressSize+8: consider the total length under lossless compression mode is actually 3+4+1+targetUncompressSize
 			//szTmpBytes = (unsigned char*)malloc(sizeof(unsigned char)*tmpSize);
 			//memcpy(szTmpBytes, tmpBytes, tmpSize);
 			//free(tmpBytes); //release useless memory		
 		}
 		else
 		{
-			printf("Wrong value of confparams_dec->szMode in the double compressed bytes.\n");
+			printf("Wrong value of pde_params->szMode in the double compressed bytes.\n");
 			status = SZ_MERR;
 			return status;
 		}	
@@ -94,11 +94,11 @@ size_t cmpSize, int compressionType, float* hist_data)
 	else
 		szTmpBytes = cmpBytes;	
 		
-	confparams_dec->sol_ID = szTmpBytes[4+14]; //szTmpBytes: version(3bytes), samebyte(1byte), [14]:sol_ID=SZ or SZ_Transpose
+	pde_params->sol_ID = szTmpBytes[4+14]; //szTmpBytes: version(3bytes), samebyte(1byte), [14]:sol_ID=SZ or SZ_Transpose
 		
 	//TODO: convert szTmpBytes to data array.
 	TightDataPointStorageF* tdps;
-	int errBoundMode = new_TightDataPointStorageF_fromFlatBytes(&tdps, szTmpBytes, tmpSize);
+	int errBoundMode = new_TightDataPointStorageF_fromFlatBytes(&tdps, szTmpBytes, tmpSize, pde_exe, pde_params);
 	
 	//writeByteData(tdps->typeArray, tdps->typeArray_size, "decompress-typebytes.tbt");
 	int dim = computeDimension(r5,r4,r3,r2,r1);	
@@ -117,16 +117,16 @@ size_t cmpSize, int compressionType, float* hist_data)
 				(*newData)[i] = bytesToFloat(p);
 		}		
 	}
-	else if(confparams_dec->sol_ID==SZ_Transpose)
+	else if(pde_params->sol_ID==SZ_Transpose)
 	{
-		getSnapshotData_float_1D(newData,dataLength,tdps, errBoundMode, 0, hist_data);		
+		getSnapshotData_float_1D(newData,dataLength,tdps, errBoundMode, 0, hist_data, pde_params);		
 	}
-	else //confparams_dec->sol_ID==SZ
+	else //pde_params->sol_ID==SZ
 	{
 		if(tdps->raBytes_size > 0) //v2.0
 		{
 			if (dim == 1)
-				getSnapshotData_float_1D(newData,r1,tdps, errBoundMode, 0, hist_data);
+				getSnapshotData_float_1D(newData,r1,tdps, errBoundMode, 0, hist_data, pde_params);
 			else if(dim == 2)
 				decompressDataSeries_float_2D_nonblocked_with_blocked_regression(newData, r2, r1, tdps->raBytes, hist_data);
 			else if(dim == 3)
@@ -142,7 +142,7 @@ size_t cmpSize, int compressionType, float* hist_data)
 		else //1.4.13 or time-based compression
 		{
 			if (dim == 1)
-				getSnapshotData_float_1D(newData,r1,tdps, errBoundMode, compressionType, hist_data);
+				getSnapshotData_float_1D(newData,r1,tdps, errBoundMode, compressionType, hist_data, pde_params);
 			else if (dim == 2)
 				getSnapshotData_float_2D(newData,r2,r1,tdps, errBoundMode, compressionType, hist_data);
 			else if (dim == 3)
@@ -158,11 +158,11 @@ size_t cmpSize, int compressionType, float* hist_data)
 	}
 
 	//cost_start_();	
-	if(confparams_dec->protectValueRange)
+	if(pde_params->protectValueRange)
 	{
 		float* nd = *newData;
-		float min = confparams_dec->fmin;
-		float max = confparams_dec->fmax;		
+		float min = pde_params->fmin;
+		float max = pde_params->fmax;		
 		for(i=0;i<dataLength;i++)
 		{
 			float v = nd[i];
@@ -177,7 +177,7 @@ size_t cmpSize, int compressionType, float* hist_data)
 	//cost_end_();
 	//printf("totalCost_=%f\n", totalCost_);
 	free_TightDataPointStorageF2(tdps);
-	if(confparams_dec->szMode!=SZ_BEST_SPEED && cmpSize!=8+MetaDataByteLength+exe_params->SZ_SIZE_TYPE)
+	if(pde_params->szMode!=SZ_BEST_SPEED && cmpSize!=8+MetaDataByteLength+exe_params->SZ_SIZE_TYPE)
 		free(szTmpBytes);
 	return status;
 }
@@ -272,7 +272,7 @@ void decompressDataSeries_float_1D(float** data, size_t dataSeriesLength, float*
 	}
 	
 #ifdef HAVE_TIMECMPR	
-	if(confparams_dec->szMode == SZ_TEMPORAL_COMPRESSION)
+	if(pde_params->szMode == SZ_TEMPORAL_COMPRESSION)
 		memcpy(hist_data, (*data), dataSeriesLength*sizeof(float));
 #endif	
 	
@@ -2683,7 +2683,7 @@ void decompressDataSeries_float_3D_MSST19(float** data, size_t r1, size_t r2, si
 	return;
 }
 
-void getSnapshotData_float_1D(float** data, size_t dataSeriesLength, TightDataPointStorageF* tdps, int errBoundMode, int compressionType, float* hist_data)
+void getSnapshotData_float_1D(float** data, size_t dataSeriesLength, TightDataPointStorageF* tdps, int errBoundMode, int compressionType, float* hist_data, sz_params* pde_params)
 {	
 	size_t i;
 
@@ -2697,7 +2697,7 @@ void getSnapshotData_float_1D(float** data, size_t dataSeriesLength, TightDataPo
 			if(errBoundMode < PW_REL)
 			{
 #ifdef HAVE_TIMECMPR				
-				if(confparams_dec->szMode == SZ_TEMPORAL_COMPRESSION)
+				if(pde_params->szMode == SZ_TEMPORAL_COMPRESSION)
 				{
 					if(compressionType == 0) //snapshot
 						decompressDataSeries_float_1D(data, dataSeriesLength, hist_data, tdps);
@@ -2710,7 +2710,7 @@ void getSnapshotData_float_1D(float** data, size_t dataSeriesLength, TightDataPo
 			}
 			else 
 			{
-				if(confparams_dec->accelerate_pw_rel_compression)
+				if(pde_params->accelerate_pw_rel_compression)
 					decompressDataSeries_float_1D_pwr_pre_log_MSST19(data, dataSeriesLength, tdps);
 				else
 					decompressDataSeries_float_1D_pwr_pre_log(data, dataSeriesLength, tdps);

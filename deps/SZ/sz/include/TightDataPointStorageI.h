@@ -15,6 +15,7 @@ extern "C" {
 #endif
 
 #include <stdio.h> 
+#include "pub.h"
 
 typedef struct TightDataPointStorageI
 {
