@@ -119,16 +119,32 @@ pipeline {
               abortPreviousBuilds()
             }
           sh'''
+          rm -rf ${WORKSPACE}.tes
           cp -r ${WORKSPACE} ${WORKSPACE}.tes
           cd ${WORKSPACE}.tes
-          git checkout develop
-          git pull
+          
+          '''
+          script {
+            if (env.CHANGE_TARGET == 'master') {
+              sh '''
+              git checkout master
+              git pull origin master
+              '''
+              }
+            else {
+              sh '''
+              git checkout develop
+              git pull origin develop
+              '''
+            } 
+          }
+          sh'''
           git fetch origin +refs/pull/${CHANGE_ID}/merge
           git checkout -qf FETCH_HEAD
           '''     
           
           script{
-            env.skipstage=sh(script:"cd ${WORKSPACE}.tes && git --no-pager diff --name-only FETCH_HEAD develop|grep -v -E '.*md|//src//connector|Jenkinsfile|test-all.sh' || echo 0 ",returnStdout:true) 
+            env.skipstage=sh(script:"cd ${WORKSPACE}.tes && git --no-pager diff --name-only FETCH_HEAD ${env.CHANGE_TARGET}|grep -v -E '.*md|//src//connector|Jenkinsfile|test-all.sh' || echo 0 ",returnStdout:true) 
           }
           println env.skipstage
           sh'''
