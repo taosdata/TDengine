@@ -94,7 +94,7 @@ int SZ_ReadConf(const char* sz_cfgFile) {
     
     confparams_cpr->plus_bits = 3;
     
-    if(sz_cfgFile == NULL)
+    if(sz_cfgFile == NULL || access(sz_cfgFile, F_OK) != 0)
     {
 		dataEndianType = LITTLE_ENDIAN_DATA;
 		confparams_cpr->sol_ID = SZ;
@@ -116,10 +116,10 @@ int SZ_ReadConf(const char* sz_cfgFile) {
 		else
 			confparams_cpr->gzipMode = 1; //high speed mode
 		
-		confparams_cpr->errorBoundMode = PSNR;
+		confparams_cpr->errorBoundMode = ABS;
 		confparams_cpr->psnr = 90;
-		confparams_cpr->absErrBound = 1E-4;
-		confparams_cpr->relBoundRatio = 1E-4;
+		confparams_cpr->absErrBound = 1E-10;
+		confparams_cpr->relBoundRatio = 1E-10;
 		confparams_cpr->accelerate_pw_rel_compression = 1;
 		
 		confparams_cpr->pw_relBoundRatio = 1E-3;
