@@ -5179,7 +5179,7 @@ int32_t validateOrderbyNode(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SSqlNode* pSq
     SArray *columnInfo = pQueryInfo->groupbyExpr.columnInfo;
     if (columnInfo != NULL && taosArrayGetSize(columnInfo) > 0) {
       SColIndex* pColIndex = taosArrayGet(columnInfo, 0);
-      if (pColIndex->colIndex == index.columnIndex) {
+      if (PRIMARYKEY_TIMESTAMP_COL_INDEX != index.columnIndex && pColIndex->colIndex == index.columnIndex) {
         orderByGroupbyCol = true; 
       }
     } 
