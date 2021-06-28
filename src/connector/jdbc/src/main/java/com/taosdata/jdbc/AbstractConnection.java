@@ -306,9 +306,6 @@ public abstract class AbstractConnection extends WrapperImpl implements Connecti
 
     @Override
     public Statement createStatement(int resultSetType, int resultSetConcurrency, int resultSetHoldability) throws SQLException {
-        if (isClosed())
-            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_CONNECTION_CLOSED);
-
         switch (resultSetHoldability) {
             case ResultSet.HOLD_CURSORS_OVER_COMMIT:
                 break;
@@ -322,11 +319,7 @@ public abstract class AbstractConnection extends WrapperImpl implements Connecti
     }
 
     @Override
-    public PreparedStatement prepareStatement(String sql, int resultSetType, int resultSetConcurrency, int resultSetHoldability)
-            throws SQLException {
-        if (isClosed())
-            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_CONNECTION_CLOSED);
-
+    public PreparedStatement prepareStatement(String sql, int resultSetType, int resultSetConcurrency, int resultSetHoldability) throws SQLException {
         switch (resultSetHoldability) {
             case ResultSet.HOLD_CURSORS_OVER_COMMIT:
                 break;
@@ -525,14 +518,13 @@ public abstract class AbstractConnection extends WrapperImpl implements Connecti
         if (milliseconds < 0)
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_INVALID_VARIABLE);
 
-        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
+        // do nothing
     }
 
     @Override
     public int getNetworkTimeout() throws SQLException {
         if (isClosed())
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_CONNECTION_CLOSED);
-
-        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
+        return 0;
     }
 }

@@ -11,6 +11,7 @@ import java.sql.*;
 
 @FixMethodOrder(MethodSorters.NAME_ASCENDING)
 public class SQLTest {
+
     private static final String host = "127.0.0.1";
     private static Connection connection;
 
