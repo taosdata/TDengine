@@ -71,14 +71,11 @@ int new_TightDataPointStorageD_fromFlatBytes(TightDataPointStorageD **this, unsi
 	}
 
 	int same = sameRByte & 0x01;
-	//confparams_dec->szMode = (sameRByte & 0x06)>>1;
 	(*this)->isLossless = (sameRByte & 0x10)>>4;
 	int isPW_REL = (sameRByte & 0x20)>>5;
 	exe_params->SZ_SIZE_TYPE = ((sameRByte & 0x40)>>6)==1?8:4;
-	//confparams_dec->randomAccess = (sameRByte & 0x02) >> 1;
-	//confparams_dec->szMode = (sameRByte & 0x06) >> 1;						//this 0000,0110	are not used for szMode any more
-	confparams_dec->protectValueRange = (sameRByte & 0x04)>>2;
-	confparams_dec->accelerate_pw_rel_compression = (sameRByte & 0x08) >> 3;
+	pde_params->protectValueRange = (sameRByte & 0x04)>>2;
+	pde_params->accelerate_pw_rel_compression = (sameRByte & 0x08) >> 3;
 	int errorBoundMode = ABS;
 	if(isPW_REL)
 	{
@@ -87,12 +84,7 @@ int new_TightDataPointStorageD_fromFlatBytes(TightDataPointStorageD **this, unsi
 		pwrErrBoundBytesL = 4;
 	}
 	
-	if(confparams_dec==NULL)
-	{
-		confparams_dec = (sz_params*)malloc(sizeof(sz_params));
-		memset(confparams_dec, 0, sizeof(sz_params));
-	}	
-	convertBytesToSZParams(&(flatBytes[index]), confparams_dec, pde_exe);
+	convertBytesToSZParams(&(flatBytes[index]), pde_params, pde_exe);
 
 	index += MetaDataByteLength_double;
 
@@ -102,8 +94,6 @@ int new_TightDataPointStorageD_fromFlatBytes(TightDataPointStorageD **this, unsi
 	for (i = 0; i < exe_params->SZ_SIZE_TYPE; i++)
 		dsLengthBytes[i] = flatBytes[index++];
 	(*this)->dataSeriesLength = bytesToSize(dsLengthBytes);
-
-	//printf("confparams_dec->szMode=%d\n",confparams_dec->szMode);
 
 	if((*this)->isLossless==1)
 	{
@@ -135,7 +125,7 @@ int new_TightDataPointStorageD_fromFlatBytes(TightDataPointStorageD **this, unsi
 		byteBuf[i] = flatBytes[index++];
 	int max_quant_intervals = bytesToInt_bigEndian(byteBuf);// 4	
 
-	confparams_dec->maxRangeRadius = max_quant_intervals/2;
+	pde_params->maxRangeRadius = max_quant_intervals/2;
 
 	if(errorBoundMode>=PW_REL)
 	{
@@ -143,7 +133,7 @@ int new_TightDataPointStorageD_fromFlatBytes(TightDataPointStorageD **this, unsi
 		radExpoL = 1;
 		for (i = 0; i < exe_params->SZ_SIZE_TYPE; i++)
 			byteBuf[i] = flatBytes[index++];
-		confparams_dec->segment_size = (*this)->segment_size = bytesToSize(byteBuf);// exe_params->SZ_SIZE_TYPE	
+		pde_params->segment_size = (*this)->segment_size = bytesToSize(byteBuf);// exe_params->SZ_SIZE_TYPE	
 
 		for (i = 0; i < 4; i++)
 			byteBuf[i] = flatBytes[index++];
@@ -165,7 +155,7 @@ int new_TightDataPointStorageD_fromFlatBytes(TightDataPointStorageD **this, unsi
 
 	(*this)->reqLength = flatBytes[index++]; //1
 	
-	if(isPW_REL && confparams_dec->accelerate_pw_rel_compression)
+	if(isPW_REL && pde_params->accelerate_pw_rel_compression)
 	{
 		(*this)->plus_bits = flatBytes[index++];
 		(*this)->max_bits = flatBytes[index++];
