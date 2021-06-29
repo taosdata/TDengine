@@ -88,6 +88,33 @@ typedef struct SBufferWriter {
   void* (*allocator)( void*, size_t );
 } SBufferWriter;
 
+typedef union Un4B {
+  uint32_t ui;
+   int32_t  i;
+  uint16_t us[2];
+   int16_t  s[2];
+  uint8_t  uc[4];
+   int8_t   c[4];
+  float     f;
+} Un4B;
+static_assert(sizeof(Un4B) == 4, "sizeof(Un4B) must be 4 bytes");
+static_assert(sizeof(float) == 4, "sizeof(float) must be 4 bytes");
+
+typedef union Un8B {
+  uint64_t ull;
+   int64_t  ll;
+  uint32_t ui[2];
+   int32_t  i[2];
+  uint16_t us[4];
+   int16_t  s[4];
+  uint8_t  uc[8];
+   int8_t   c[8];
+  double    d;
+  float     f[2];
+} Un8B;
+static_assert(sizeof(Un8B) == 8, "sizeof(Un8B) must be 8 bytes");
+static_assert(sizeof(double) == 8, "sizeof(double) must be 8 bytes");
+
 ////////////////////////////////////////////////////////////////////////////////
 // common functions & macros for both reader & writer
 

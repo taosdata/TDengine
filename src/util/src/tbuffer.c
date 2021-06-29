@@ -42,6 +42,9 @@ void tbufReadToBuffer( SBufferReader* buf, void* dst, size_t size ) {
   memcpy( dst, tbufRead(buf, size), size );
 }
 
+// need not memcpy, just get the value directly
+#define DIRECT_READ(_buf, _type)  *((_type*)(tbufRead(_buf, sizeof(_type))))
+
 static size_t tbufReadLength( SBufferReader* buf ) {
   // maximum length is 65535, if larger length is required
   // this function and the corresponding write function need to be
@@ -97,92 +100,79 @@ size_t tbufReadToBinary( SBufferReader* buf, void* dst, size_t size ) {
 }
 
 bool tbufReadBool( SBufferReader* buf ) {
-  bool ret;
-  tbufReadToBuffer( buf, &ret, sizeof(ret) );
-  return ret;
+  return DIRECT_READ(buf, bool);
 }
 
 char tbufReadChar( SBufferReader* buf ) {
-  char ret;
-  tbufReadToBuffer( buf, &ret, sizeof(ret) );
-  return ret;
+  return DIRECT_READ(buf, char);
 }
 
 int8_t tbufReadInt8( SBufferReader* buf ) {
-  int8_t ret;
-  tbufReadToBuffer( buf, &ret, sizeof(ret) );
-  return ret;
+  return DIRECT_READ(buf, int8_t);
 }
 
 uint8_t tbufReadUint8( SBufferReader* buf ) {
-  uint8_t ret;
-  tbufReadToBuffer( buf, &ret, sizeof(ret) );
-  return ret;
+  return DIRECT_READ(buf, uint8_t);
 }
 
 int16_t tbufReadInt16( SBufferReader* buf ) {
-  int16_t ret;
-  tbufReadToBuffer( buf, &ret, sizeof(ret) );
-  if( buf->endian ) {
-    return (int16_t)ntohs( ret );
+  if (buf->endian)
+  {
+    return ((int16_t)(ntohs(DIRECT_READ(buf, uint16_t))));
   }
-  return ret;
+  else
+  {
+    return DIRECT_READ(buf, int16_t);
+  }
 }
 
 uint16_t tbufReadUint16( SBufferReader* buf ) {
-  uint16_t ret;
-  tbufReadToBuffer( buf, &ret, sizeof(ret) );
-  if( buf->endian ) {
-    return ntohs( ret );
-  }
-  return ret;
+  return (buf->endian) ? ntohs(DIRECT_READ(buf, uint16_t)) : DIRECT_READ(buf, uint16_t);
 }
 
 int32_t tbufReadInt32( SBufferReader* buf ) {
-  int32_t ret;
-  tbufReadToBuffer( buf, &ret, sizeof(ret) );
-  if( buf->endian ) {
-    return (int32_t)ntohl( ret );
-  }
-  return ret;
+  return (buf->endian) ? ((int32_t)(ntohl(DIRECT_READ(buf, uint32_t)))) : DIRECT_READ(buf, int32_t);
 }
 
 uint32_t tbufReadUint32( SBufferReader* buf ) {
-  uint32_t ret;
-  tbufReadToBuffer( buf, &ret, sizeof(ret) );
-  if( buf->endian ) {
-    return ntohl( ret );
-  }
-  return ret;
+  return (buf->endian) ? ntohl(DIRECT_READ(buf, uint32_t)) : DIRECT_READ(buf, uint32_t);
 }
 
 int64_t tbufReadInt64( SBufferReader* buf ) {
-  int64_t ret;
-  tbufReadToBuffer( buf, &ret, sizeof(ret) );
-  if( buf->endian ) {
-    return (int64_t)htobe64( ret ); // TODO: ntohll
-  }
-  return ret;
+  return (buf->endian) ? ((int64_t)(htobe64(DIRECT_READ(buf, uint64_t)))) : DIRECT_READ(buf, int64_t);
 }
 
 uint64_t tbufReadUint64( SBufferReader* buf ) {
-  uint64_t ret;
-  tbufReadToBuffer( buf, &ret, sizeof(ret) );
-  if( buf->endian ) {
-    return htobe64( ret ); // TODO: ntohll
-  }
-  return ret;
+  return (buf->endian) ? htobe64(DIRECT_READ(buf, uint64_t)) : DIRECT_READ(buf, uint64_t);
 }
 
 float tbufReadFloat( SBufferReader* buf ) {
-  uint32_t ret = tbufReadUint32( buf );
-  return *(float*)( &ret );
+  if (buf->endian)
+  {
+    Un4B _4b;
+    _4b.ui = ntohl(DIRECT_READ(buf, uint32_t));
+    return _4b.f;
+  }
+  else
+  {
+    return DIRECT_READ(buf, float);
+  }
 }
 
 double tbufReadDouble(SBufferReader* buf) {
-  uint64_t ret = tbufReadUint64( buf );
-  return *(double*)( &ret );
+  if (buf->endian)
+  {
+    Un8B _8b;
+    _8b.ull = htobe64(DIRECT_READ(buf, uint64_t));
+    return _8b.d;
+  }
+  else
+  {
+    return DIRECT_READ(buf, double);
+  }
 }
+
+#undef DIRECT_READ
 
 ////////////////////////////////////////////////////////////////////////////////
 // writer functions
@@ -241,6 +231,35 @@ void tbufWriteAt( SBufferWriter* buf, size_t pos, const void* data, size_t size 
   memcpy( buf->data + pos, data, size );
 }
 
+// need not memcpy, just write the value directly
+#if defined(__GNUC__)
+
+#define WRITE_WITHOUT_COPY(_buf, _data, _type)  *((typeof(_data)*)(_buf)) = (_data)
+
+#define DIRECT_WRITE(_buf, _data, _type)  \
+  tbufEnsureCapacity((_buf), sizeof(_data));  \
+  WRITE_WITHOUT_COPY((_buf)->data + (_buf)->pos, _data, _type);  \
+  (_buf)->pos += sizeof(_data);
+
+#define DIRECT_WRITE_AT(_buf, _pos, _data, _type)  \
+  assert(((_pos) + sizeof(_data)) <= (_buf)->pos);  \
+  WRITE_WITHOUT_COPY((_buf)->data + (_pos), _data, _type);
+
+#else
+
+#define WRITE_WITHOUT_COPY(_buf, _data, _type)  *((_type*)(_buf)) = (_data)
+
+#define DIRECT_WRITE(_buf, _data, _type)  \
+  tbufEnsureCapacity((_buf), sizeof(_data));  \
+  WRITE_WITHOUT_COPY((_buf)->data + (_buf)->pos, _data, _type);  \
+  (_buf)->pos += sizeof(_data);
+
+#define DIRECT_WRITE_AT(_buf, _pos, _data, _type)  \
+  assert(((_pos) + sizeof(_data)) <= (_buf)->pos);  \
+  WRITE_WITHOUT_COPY((_buf)->data + (_pos), _data, _type);
+
+#endif
+
 static void tbufWriteLength( SBufferWriter* buf, size_t len ) {
   // maximum length is 65535, if larger length is required
   // this function and the corresponding read function need to be
@@ -265,133 +284,129 @@ void tbufWriteBinary( SBufferWriter* buf, const void* data, size_t len ) {
 }
 
 void tbufWriteBool( SBufferWriter* buf, bool data ) {
-  tbufWrite( buf, &data, sizeof(data) );
+  DIRECT_WRITE(buf, data, bool)
 }
 
 void tbufWriteBoolAt( SBufferWriter* buf, size_t pos, bool data ) {
-  tbufWriteAt( buf, pos, &data, sizeof(data) );
+  DIRECT_WRITE_AT(buf, pos, data, bool)
 }
 
 void tbufWriteChar( SBufferWriter* buf, char data ) {
-  tbufWrite( buf, &data, sizeof(data) );
+  DIRECT_WRITE(buf, data, char)
 }
 
 void tbufWriteCharAt( SBufferWriter* buf, size_t pos, char data ) {
-  tbufWriteAt( buf, pos, &data, sizeof(data) );
+  DIRECT_WRITE_AT(buf, pos, data, char)
 }
 
 void tbufWriteInt8( SBufferWriter* buf, int8_t data ) {
-  tbufWrite( buf, &data, sizeof(data) );
+  DIRECT_WRITE(buf, data, int8_t)
 }
 
 void tbufWriteInt8At( SBufferWriter* buf, size_t pos, int8_t data ) {
-  tbufWriteAt( buf, pos, &data, sizeof(data) );
+  DIRECT_WRITE_AT(buf, pos, data, int8_t)
 }
 
 void tbufWriteUint8( SBufferWriter* buf, uint8_t data ) {
-  tbufWrite( buf, &data, sizeof(data) );
+  DIRECT_WRITE(buf, data, uint8_t)
 }
 
 void tbufWriteUint8At( SBufferWriter* buf, size_t pos, uint8_t data ) {
-  tbufWriteAt( buf, pos, &data, sizeof(data) );
+  DIRECT_WRITE_AT(buf, pos, data, uint8_t)
 }
 
 void tbufWriteInt16( SBufferWriter* buf, int16_t data ) {
-  if( buf->endian ) {
-    data = (int16_t)htons( data );
-  }
-  tbufWrite( buf, &data, sizeof(data) );
+  DIRECT_WRITE(buf, (buf->endian) ? ((int16_t)(ntohs(data))) : data, int16_t)
 }
 
 void tbufWriteInt16At( SBufferWriter* buf, size_t pos, int16_t data ) {
-  if( buf->endian ) {
-    data = (int16_t)htons( data );
-  }
-  tbufWriteAt( buf, pos, &data, sizeof(data) );
+  DIRECT_WRITE_AT(buf, pos, (buf->endian) ? ((int16_t)(ntohs(data))) : data, int16_t)
 }
 
 void tbufWriteUint16( SBufferWriter* buf, uint16_t data ) {
-  if( buf->endian ) {
-    data = htons( data );
-  }
-  tbufWrite( buf, &data, sizeof(data) );
+  DIRECT_WRITE(buf, (buf->endian) ? ntohs(data) : data, uint16_t)
 }
 
 void tbufWriteUint16At( SBufferWriter* buf, size_t pos, uint16_t data ) {
-  if( buf->endian ) {
-    data = htons( data );
-  }
-  tbufWriteAt( buf, pos, &data, sizeof(data) );
+  DIRECT_WRITE_AT(buf, pos, (buf->endian) ? ntohs(data) : data, uint16_t)
 }
 
 void tbufWriteInt32( SBufferWriter* buf, int32_t data ) {
-  if( buf->endian ) {
-    data = (int32_t)htonl( data );
-  }
-  tbufWrite( buf, &data, sizeof(data) );
+  DIRECT_WRITE(buf, (buf->endian) ? ((int32_t)(ntohl(data))) : data, int32_t)
 }
 
 void tbufWriteInt32At( SBufferWriter* buf, size_t pos, int32_t data ) {
-  if( buf->endian ) {
-    data = (int32_t)htonl( data );
-  }
-  tbufWriteAt( buf, pos, &data, sizeof(data) );
+  DIRECT_WRITE_AT(buf, pos, (buf->endian) ? ((int32_t)(ntohl(data))) : data, int32_t)
 }
 
 void tbufWriteUint32( SBufferWriter* buf, uint32_t data ) {
-  if( buf->endian ) {
-    data = htonl( data );
-  }
-  tbufWrite( buf, &data, sizeof(data) );
+  DIRECT_WRITE(buf, (buf->endian) ? ntohl(data) : data, uint32_t)
 }
 
 void tbufWriteUint32At( SBufferWriter* buf, size_t pos, uint32_t data ) {
-  if( buf->endian ) {
-    data = htonl( data );
-  }
-  tbufWriteAt( buf, pos, &data, sizeof(data) );
+  DIRECT_WRITE_AT(buf, pos, (buf->endian) ? ntohl(data) : data, uint32_t)
 }
 
 void tbufWriteInt64( SBufferWriter* buf, int64_t data ) {
-  if( buf->endian ) {
-    data = (int64_t)htobe64( data );
-  }
-  tbufWrite( buf, &data, sizeof(data) );
+  DIRECT_WRITE(buf, (buf->endian) ? ((int64_t)(htobe64(data))) : data, int64_t)
 }
 
 void tbufWriteInt64At( SBufferWriter* buf, size_t pos, int64_t data ) {
-  if( buf->endian ) {
-    data = (int64_t)htobe64( data );
-  }
-  tbufWriteAt( buf, pos, &data, sizeof(data) );
+  DIRECT_WRITE_AT(buf, pos, (buf->endian) ? ((int64_t)(htobe64(data))) : data, int64_t)
 }
 
 void tbufWriteUint64( SBufferWriter* buf, uint64_t data ) {
-  if( buf->endian ) {
-    data = htobe64( data );
-  }
-  tbufWrite( buf, &data, sizeof(data) );
+  DIRECT_WRITE(buf, (buf->endian) ? htobe64(data) : data, uint64_t)
 }
 
 void tbufWriteUint64At( SBufferWriter* buf, size_t pos, uint64_t data ) {
-  if( buf->endian ) {
-    data = htobe64( data );
-  }
-  tbufWriteAt( buf, pos, &data, sizeof(data) );
+  DIRECT_WRITE_AT(buf, pos, (buf->endian) ? htobe64(data) : data, uint64_t)
 }
 
 void tbufWriteFloat( SBufferWriter* buf, float data ) {
-  tbufWriteUint32( buf, *(uint32_t*)(&data) );
+  if (buf->endian)
+  {
+    DIRECT_WRITE(buf, ntohl(((Un4B*)(&data))->ui), uint32_t)
+  }
+  else
+  {
+    DIRECT_WRITE(buf, data, float)
+  }
 }
 
 void tbufWriteFloatAt( SBufferWriter* buf, size_t pos, float data ) {
-  tbufWriteUint32At( buf, pos, *(uint32_t*)(&data) );
+  if (buf->endian)
+  {
+    DIRECT_WRITE_AT(buf, pos, ntohl(((Un4B*)(&data))->ui), uint32_t)
+  }
+  else
+  {
+    DIRECT_WRITE_AT(buf, pos, data, float)
+  }
 }
 
 void tbufWriteDouble( SBufferWriter* buf, double data ) {
-  tbufWriteUint64( buf, *(uint64_t*)(&data) );
+  if (buf->endian)
+  {
+    DIRECT_WRITE(buf, htobe64(((Un8B*)(&data))->ull), uint64_t)
+  }
+  else
+  {
+    DIRECT_WRITE(buf, data, double )
+  }
 }
 
 void tbufWriteDoubleAt( SBufferWriter* buf, size_t pos, double data ) {
-  tbufWriteUint64At( buf, pos, *(uint64_t*)(&data) );
+  if (buf->endian)
+  {
+    DIRECT_WRITE_AT(buf, pos, htobe64(((Un8B*)(&data))->ull), uint64_t)
+  }
+  else
+  {
+    DIRECT_WRITE_AT(buf, pos, data, double)
+  }
 }
+
+#undef DIRECT_WRITE_AT
+#undef DIRECT_WRITE
+#undef WRITE_WITHOUT_COPY

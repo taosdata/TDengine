@@ -427,13 +427,11 @@ char *taosIpStr(uint32_t ipInt) {
 }
 
 FORCE_INLINE float taos_align_get_float(const char* pBuf) {
-  float fv = 0; 
-  *(int32_t*)(&fv) = *(int32_t*)pBuf;
-  return fv; 
+  assert(sizeof(float) == 4);
+  return *((const float*)(pBuf));
 }
 
 FORCE_INLINE double taos_align_get_double(const char* pBuf) {
-  double dv = 0; 
-  *(int64_t*)(&dv) = *(int64_t*)pBuf;
-  return dv; 
+  assert(sizeof(double) == 8);
+  return *((const double*)(pBuf));
 }

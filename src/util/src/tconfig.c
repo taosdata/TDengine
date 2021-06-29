@@ -327,7 +327,8 @@ void taosReadGlobalLogCfg() {
     printf("\nconfig file:%s not found, all variables are set to default\n", fileName);
     return;
   }
-  
+
+  ssize_t _bytes = 0;
   size_t len = 1024;
   line = calloc(1, len);
   
@@ -337,7 +338,12 @@ void taosReadGlobalLogCfg() {
     option = value = NULL;
     olen = vlen = 0;
 
-    tgetline(&line, &len, fp);
+    _bytes = tgetline(&line, &len, fp);
+    if (_bytes < 0)
+    {
+      break;
+    }
+
     line[len - 1] = 0;
 
     paGetToken(line, &option, &olen);
@@ -373,7 +379,8 @@ bool taosReadGlobalCfg() {
       return false;
     }
   }
-  
+
+  ssize_t _bytes = 0;
   size_t len = 1024;
   line = calloc(1, len);
   
@@ -383,7 +390,12 @@ bool taosReadGlobalCfg() {
     option = value = value2 = value3 = NULL;
     olen = vlen = vlen2 = vlen3 = 0;
 
-    tgetline(&line, &len, fp);
+    _bytes = tgetline(&line, &len, fp);
+    if (_bytes < 0)
+    {
+      break;
+    }
+
     line[len - 1] = 0;
     
     paGetToken(line, &option, &olen);
