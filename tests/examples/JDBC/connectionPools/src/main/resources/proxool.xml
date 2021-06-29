@@ -3,7 +3,7 @@
     <proxool>
         <alias>ds</alias>
         <!--数据源的别名-->
-        <driver-url>jdbc:TAOS-RS://192.168.17.156:6041/log</driver-url>
+        <driver-url>jdbc:TAOS-RS://127.0.0.1:6041/log</driver-url>
         <!--url连接串-->
         <driver-class>com.taosdata.jdbc.rs.RestfulDriver</driver-class>
         <!--驱动类-->
