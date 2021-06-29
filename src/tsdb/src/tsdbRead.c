@@ -280,9 +280,17 @@ static SArray* createCheckInfoFromTableGroup(STsdbQueryHandle* pQueryHandle, STa
       info.tableId.uid = info.pTableObj->tableId.uid;
 
       if (ASCENDING_TRAVERSE(pQueryHandle->order)) {
-        assert(info.lastKey >= pQueryHandle->window.skey);
+        if (info.lastKey == INT64_MIN) {
+          info.lastKey = pQueryHandle->window.skey;
+        }
+
+        assert(info.lastKey >= pQueryHandle->window.skey && info.lastKey <= pQueryHandle->window.ekey);
       } else {
-        assert(info.lastKey <= pQueryHandle->window.skey);
+        if (info.lastKey == INT64_MIN) {
+          info.lastKey = pQueryHandle->window.ekey;
+        }
+
+        assert(info.lastKey >= pQueryHandle->window.ekey && info.lastKey <= pQueryHandle->window.skey);
       }
 
       taosArrayPush(pTableCheckInfo, &info);
@@ -339,14 +347,44 @@ static SArray* createCheckInfoFromCheckInfo(STableCheckInfo* pCheckInfo, TSKEY s
   return pNew;
 }
 
+// Update the query time window according to the data time to live(TTL) information, in order to avoid to return
+// the expired data to client, even it is queried already.
+static int64_t getEarliestValidTimestamp(STsdbRepo* pTsdb) {
+  STsdbCfg* pCfg = &pTsdb->config;
+
+  int64_t now = taosGetTimestamp(pCfg->precision);
+  return now - (tsTickPerDay[pCfg->precision] * pCfg->keep);
+}
+
+static void setQueryTimewindow(STsdbQueryHandle* pQueryHandle, STsdbQueryCond* pCond) {
+  pQueryHandle->window = pCond->twindow;
+
+  int64_t startTs = getEarliestValidTimestamp(pQueryHandle->pTsdb);
+  if (ASCENDING_TRAVERSE(pQueryHandle->order)) {
+    if (startTs > pQueryHandle->window.skey) {
+      pQueryHandle->window.skey = startTs;
+    }
+
+    assert(pQueryHandle->window.skey <= pQueryHandle->window.ekey);
+  } else {
+    if (startTs > pQueryHandle->window.ekey) {
+      pQueryHandle->window.ekey = startTs;
+    }
+
+    assert(pQueryHandle->window.skey >= pQueryHandle->window.ekey);
+  }
+
+  tsdbDebug("%p update the query time window, old:%"PRId64" - %"PRId64", new:%"PRId64" - %"PRId64 ", 0x%"PRIx64,
+      pQueryHandle, pCond->twindow.skey, pCond->twindow.ekey, pQueryHandle->window.skey, pQueryHandle->window.ekey, pQueryHandle->qId);
+}
+
 static STsdbQueryHandle* tsdbQueryTablesImpl(STsdbRepo* tsdb, STsdbQueryCond* pCond, uint64_t qId, SMemRef* pMemRef) {
   STsdbQueryHandle* pQueryHandle = calloc(1, sizeof(STsdbQueryHandle));
   if (pQueryHandle == NULL) {
-    goto out_of_memory;
+    goto _end;
   }
 
   pQueryHandle->order       = pCond->order;
-  pQueryHandle->window      = pCond->twindow;
   pQueryHandle->pTsdb       = tsdb;
   pQueryHandle->type        = TSDB_QUERY_TYPE_ALL;
   pQueryHandle->cur.fid     = INT32_MIN;
@@ -354,36 +392,33 @@ static STsdbQueryHandle* tsdbQueryTablesImpl(STsdbRepo* tsdb, STsdbQueryCond* pC
   pQueryHandle->checkFiles  = true;
   pQueryHandle->activeIndex = 0;   // current active table index
   pQueryHandle->qId         = qId;
-  pQueryHandle->outputCapacity = ((STsdbRepo*)tsdb)->config.maxRowsPerFileBlock;
   pQueryHandle->allocSize   = 0;
   pQueryHandle->locateStart = false;
   pQueryHandle->pMemRef     = pMemRef;
+  pQueryHandle->loadType    = pCond->type;
+
+  pQueryHandle->outputCapacity  = ((STsdbRepo*)tsdb)->config.maxRowsPerFileBlock;
   pQueryHandle->loadExternalRow = pCond->loadExternalRows;
   pQueryHandle->currentLoadExternalRows = pCond->loadExternalRows;
 
-  pQueryHandle->loadType    = pCond->type;
-
   if (tsdbInitReadH(&pQueryHandle->rhelper, (STsdbRepo*)tsdb) != 0) {
-    goto out_of_memory;
+    goto _end;
   }
 
   assert(pCond != NULL && pMemRef != NULL);
-  if (ASCENDING_TRAVERSE(pCond->order)) {
-    assert(pQueryHandle->window.skey <= pQueryHandle->window.ekey);
-  } else {
-    assert(pQueryHandle->window.skey >= pQueryHandle->window.ekey);
-  }
+  setQueryTimewindow(pQueryHandle, pCond);
+
   if (pCond->numOfCols > 0) {
     // allocate buffer in order to load data blocks from file
     pQueryHandle->statis = calloc(pCond->numOfCols, sizeof(SDataStatis));
     if (pQueryHandle->statis == NULL) {
-      goto out_of_memory;
+      goto _end;
     }
 
-    pQueryHandle->pColumns =
-        taosArrayInit(pCond->numOfCols, sizeof(SColumnInfoData));  // todo: use list instead of array?
+    // todo: use list instead of array?
+    pQueryHandle->pColumns = taosArrayInit(pCond->numOfCols, sizeof(SColumnInfoData));
     if (pQueryHandle->pColumns == NULL) {
-      goto out_of_memory;
+      goto _end;
     }
 
     for (int32_t i = 0; i < pCond->numOfCols; ++i) {
@@ -392,14 +427,16 @@ static STsdbQueryHandle* tsdbQueryTablesImpl(STsdbRepo* tsdb, STsdbQueryCond* pC
       colInfo.info = pCond->colList[i];
       colInfo.pData = calloc(1, EXTRA_BYTES + pQueryHandle->outputCapacity * pCond->colList[i].bytes);
       if (colInfo.pData == NULL) {
-        goto out_of_memory;
+        goto _end;
       }
+
       taosArrayPush(pQueryHandle->pColumns, &colInfo);
       pQueryHandle->statis[i].colId = colInfo.info.colId;
     }
 
     pQueryHandle->defaultLoadColumn = getDefaultLoadColumns(pQueryHandle, true);
   }
+
   STsdbMeta* pMeta = tsdbGetMeta(tsdb);
   assert(pMeta != NULL);
 
@@ -407,7 +444,7 @@ static STsdbQueryHandle* tsdbQueryTablesImpl(STsdbRepo* tsdb, STsdbQueryCond* pC
   if (pQueryHandle->pDataCols == NULL) {
     tsdbError("%p failed to malloc buf for pDataCols, %"PRIu64, pQueryHandle, pQueryHandle->qId);
     terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
-    goto out_of_memory;
+    goto _end;
   }
 
   tsdbInitDataBlockLoadInfo(&pQueryHandle->dataBlockLoadInfo);
@@ -415,7 +452,7 @@ static STsdbQueryHandle* tsdbQueryTablesImpl(STsdbRepo* tsdb, STsdbQueryCond* pC
 
   return (TsdbQueryHandleT) pQueryHandle;
 
-  out_of_memory:
+  _end:
   tsdbCleanupQueryHandle(pQueryHandle);
   terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
   return NULL;
@@ -864,10 +901,10 @@ static int32_t getFileIdFromKey(TSKEY key, int32_t daysPerFile, int32_t precisio
   }
 
   if (key < 0) {
-    key -= (daysPerFile * tsMsPerDay[precision]);
+    key -= (daysPerFile * tsTickPerDay[precision]);
   }
   
-  int64_t fid = (int64_t)(key / (daysPerFile * tsMsPerDay[precision]));  // set the starting fileId
+  int64_t fid = (int64_t)(key / (daysPerFile * tsTickPerDay[precision]));  // set the starting fileId
   if (fid < 0L && llabs(fid) > INT32_MAX) { // data value overflow for INT32
     fid = INT32_MIN;
   }
@@ -3548,7 +3585,6 @@ int32_t tsdbGetOneTableGroup(STsdbRepo* tsdb, uint64_t uid, TSKEY startKey, STab
   taosArrayPush(group, &info);
 
   taosArrayPush(pGroupInfo->pGroupList, &group);
-
   return TSDB_CODE_SUCCESS;
 
   _error:
