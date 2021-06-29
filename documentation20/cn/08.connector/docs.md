@@ -557,7 +557,7 @@ c1.close()
 conn.close()
 ```
 
-#### 关于纳秒 (nanosecon) 在 Python 连接器中的说明
+#### 关于纳秒 (nanosecond) 在 Python 连接器中的说明
 
 由于目前 Python 对 nanosecond 支持的不完善(参见链接 1. 2. )，目前的实现方式是在 nanosecond 精度时返回整数，而不是 ms 和 us 返回的 datetime 类型，应用开发者需要自行处理，建议使用 pandas 的 to_datetime()。未来如果 Python 正式完整支持了纳秒，涛思数据可能会修改相关接口。
 
