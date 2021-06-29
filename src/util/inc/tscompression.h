@@ -54,8 +54,9 @@ int tsCompressDoubleLossyImp(const char * input, const int nelements, const char
 int tsDecompressDoubleLossyImp(const char * input, int compressedSize, const int nelements, const char * output);
 
 // init
-bool tsCompressInit();
-void tsCompressExit();
+bool tsLossyInit();
+
+
 
 static FORCE_INLINE int tsCompressTinyint(const char *const input, int inputSize, const int nelements, char *const output, int outputSize, char algorithm,
                       char *const buffer, int bufferSize) {

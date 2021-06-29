@@ -68,7 +68,8 @@ STsdbRepo *tsdbOpenRepo(STsdbCfg *pCfg, STsdbAppH *pAppH) {
   terrno = TSDB_CODE_SUCCESS;
 
   // Compress Init
-  tsCompressInit();
+  //if(pCfg->compressLossy)
+  tsLossyInit();
 
   // Check and set default configurations
   if (tsdbCheckAndSetDefaultCfg(&config) < 0) {
@@ -142,9 +143,6 @@ int tsdbCloseRepo(STsdbRepo *repo, int toCommit) {
   tsdbCloseMeta(pRepo);
   tsdbFreeRepo(pRepo);
   tsdbDebug("vgId:%d repository is closed", vgId);
-
-  // compress exit
-  tsCompressExit();
 
   if (terrno != TSDB_CODE_SUCCESS) {
     return -1;

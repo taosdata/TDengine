@@ -144,7 +144,12 @@ bool testFile(const char* inFile, char algorithm){
   printf(" file %s have count=%d \n", inFile, cnt);
 
   cost_start();
-  int ret_len = tsCompressFloatLossy(input, input_len, cnt, output, output_len, algorithm, buff, buff_len);
+  int ret_len = 0;
+  if(algorithm == 2) 
+     ret_len = tsCompressFloat(input, input_len, cnt, output, output_len, algorithm, buff, buff_len);
+  else
+     ret_len = tsCompressFloatLossy(input, input_len, cnt, output, output_len, algorithm, buff, buff_len);
+
   if(ret_len == -1) {
     printf(" compress error.\n");
     return 0;
@@ -160,14 +165,21 @@ bool testFile(const char* inFile, char algorithm){
   //
   float* ft2 = (float*)malloc(input_len); 
   cost_start();
-  int code = tsDecompressFloatLossy(output, ret_len, cnt, (char*)ft2, input_len, algorithm, buff, buff_len);
+  int code = 0;
+
+  if(algorithm == 2) 
+     code = tsDecompressFloat(output, ret_len, cnt, (char*)ft2, input_len, algorithm, buff, buff_len);
+  else
+     code = tsDecompressFloatLossy(output, ret_len, cnt, (char*)ft2, input_len, algorithm, buff, buff_len);
+   
+
   double use_ms2 = cost_end("Decompress");
   printf(" Decompress return length=%d \n", code);
 
   // compare same
   float same_rate = check_same(floats, ft2, cnt);
 
-  printf("\n ------------------  count:%d TD <%s> ---------------- \n", cnt, algorithm == ONE_STAGE_COMP?"ONE":"TWO");
+  printf("\n ------------------  count:%d TD <%s> ---------------- \n", cnt, algorithm == 2?"TD":"SZ");
   printf("    Compress Rate ......... [%.0f%%] \n", rate);
   double speed1 = (cnt*sizeof(float)*1000/1024/1024)/use_ms1;
   printf("    Compress Time ......... [%.4fms] speed=%.1f MB/s\n", use_ms1, speed1);
@@ -184,61 +196,6 @@ bool testFile(const char* inFile, char algorithm){
 
   return true;
 }
-
-int memTest();
-int memTestDouble();
-void test_threadsafe(int thread_count);
-void test_threadsafe_double(int thread_count);
-
-//
-//  main
-//
-int main(int argc, char *argv[]) {
-  printf("welcome to use taospack tools v1.1. sizeof(STColumn) = %lu\n", sizeof(STColumn));
- 
-  tsCompressInit();
-  //
-  //tsCompressExit();
-  //return 1; 
-
-  if(argc == 3){
-    char algo = 0;
-    // t
-    if(strcmp(argv[1], "-tone") == 0 || strcmp(argv[1], "-t") == 0 ) {
-        algo = ONE_STAGE_COMP;
-    }
-    if(strcmp(argv[1], "-ttwo") == 0) {
-        algo = TWO_STAGE_COMP;
-    }
-
-    if(strcmp(argv[1], "-sf") == 0) {
-        test_threadsafe(atoi(argv[2]));
-        return 0;
-    }
-
-    if(strcmp(argv[1], "-sd") == 0) {
-        test_threadsafe_double(atoi(argv[2]));
-        return 0;
-    }
-    if(algo == 0){
-      printf(" no param -tone -ttwo \n");
-      return 0;
-    }
-     
-    bool ret = testFile(argv[2], algo);
-    printf(" test file %s. \n", ret ? "ok" : "err");
-    return 1;
-
-  } else if( argc == 2) {
-    if(strcmp(argv[1], "-mem") == 0) {
-      memTest();
-    } 
-  }
-
-  //memTest();
-  return 0;
-}
-
 //
 //  txt to binary file
 //
@@ -490,7 +447,11 @@ int memTest() {
 void* memTestThread(void* lparam) {
   //memTest();
   printf(" enter thread ....\n");
-  memTest();
+  for(int i=0; i< 1000000; i++)
+  {
+      memTest();
+      printf(" start i=%d .... \n", i);
+  }
   return NULL;
 }
 
@@ -519,7 +480,11 @@ void test_threadsafe(int thread_count){
 void* memTestThreadDouble(void* lparam) {
   //memTest();
   printf(" enter thread ....\n");
-  memTestDouble();
+  for(int i=0; i< 50000; i++)
+  {
+      memTest();
+      printf(" double start i=%d .... \n", i);
+  }
   return NULL;
 }
 
@@ -543,3 +508,58 @@ void test_threadsafe_double(int thread_count){
   printf("\n  ---- double test thread safe end. not same count=%d-----\n", notsame_cnt);
   
 }
+
+
+
+
+
+
+//
+//   -----------------  main ----------------------
+//
+int main(int argc, char *argv[]) {
+  printf("welcome to use taospack tools v1.1. sizeof(STColumn) = %lu\n", sizeof(STColumn));
+ 
+  tsLossyInit();
+  //
+  //tsCompressExit();
+  //return 1; 
+
+  if(argc == 3){
+    char algo = 0;
+    // t
+    if(strcmp(argv[1], "-tone") == 0 || strcmp(argv[1], "-t") == 0 ) {
+        algo = ONE_STAGE_COMP;
+    }
+    if(strcmp(argv[1], "-ttwo") == 0) {
+        algo = TWO_STAGE_COMP;
+    }
+
+    if(strcmp(argv[1], "-sf") == 0) {
+        test_threadsafe(atoi(argv[2]));
+        return 0;
+    }
+
+    if(strcmp(argv[1], "-sd") == 0) {
+        test_threadsafe_double(atoi(argv[2]));
+        return 0;
+    }
+    if(algo == 0){
+      printf(" no param -tone -ttwo \n");
+      return 0;
+    }
+     
+    bool ret = testFile(argv[2], algo);
+    printf(" test file %s. \n", ret ? "ok" : "err");
+    return 1;
+
+  } else if( argc == 2) {
+    if(strcmp(argv[1], "-mem") == 0) {
+      memTest();
+    } 
+  }
+
+  //memTest();
+  return 0;
+}
+

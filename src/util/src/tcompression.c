@@ -891,16 +891,16 @@ int tsDecompressFloatImp(const char *const input, const int nelements, char *con
 //
 // ----------- global init and exit resource ------
 //
-int SZ_Init(const char *configFilePath);
+int SZ_Init(const char *configFilePath);  //declare deps/sz/include/sz.h
 
-
-bool tsCompressInit() {
-  SZ_Init("./sz.config");
+bool gLossyInited = false;
+bool tsLossyInit() {
+  // init compress init
+  if(!gLossyInited){
+    gLossyInited = true;
+    SZ_Init("./sz.config");
+  }
   return true;
-}
-
-void tsCompressExit(){
-  
 }
 
 //
