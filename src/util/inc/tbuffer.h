@@ -97,8 +97,10 @@ typedef union Un4B {
    int8_t   c[4];
   float     f;
 } Un4B;
+#if __STDC_VERSION__ >= 201112L
 static_assert(sizeof(Un4B) == 4, "sizeof(Un4B) must be 4 bytes");
 static_assert(sizeof(float) == 4, "sizeof(float) must be 4 bytes");
+#endif
 
 typedef union Un8B {
   uint64_t ull;
@@ -112,8 +114,10 @@ typedef union Un8B {
   double    d;
   float     f[2];
 } Un8B;
+#if __STDC_VERSION__ >= 201112L
 static_assert(sizeof(Un8B) == 8, "sizeof(Un8B) must be 8 bytes");
 static_assert(sizeof(double) == 8, "sizeof(double) must be 8 bytes");
+#endif
 
 ////////////////////////////////////////////////////////////////////////////////
 // common functions & macros for both reader & writer
