@@ -14,7 +14,7 @@
  */
 
 #include "tscUtil.h"
-#include "hash.h"
+#include "hash.h" 
 #include "os.h"
 #include "taosmsg.h"
 #include "texpr.h"
@@ -1636,6 +1636,136 @@ int32_t tscGetDataBlockFromList(SHashObj* pHashList, int64_t id, int32_t size, i
   return TSDB_CODE_SUCCESS;
 }
 
+int tdInitMemRowBuilder(SMemRowBuilder* pBuilder) {
+  pBuilder->pSchema = NULL;
+  pBuilder->sversion = 0;
+  pBuilder->tCols = 128;
+  pBuilder->nCols = 0;
+  pBuilder->pColIdx = (SColIdx*)malloc(sizeof(SColIdx) * pBuilder->tCols);
+  if (pBuilder->pColIdx == NULL) return -1;
+  pBuilder->alloc = 1024;
+  pBuilder->size = 0;
+  pBuilder->buf = malloc(pBuilder->alloc);
+  if (pBuilder->buf == NULL) {
+    free(pBuilder->pColIdx);
+    return -1;
+  }
+  return 0;
+}
+
+void tdDestroyMemRowBuilder(SMemRowBuilder* pBuilder) {
+  tfree(pBuilder->pColIdx);
+  tfree(pBuilder->buf);
+}
+
+void tdResetMemRowBuilder(SMemRowBuilder* pBuilder) {
+  pBuilder->nCols = 0;
+  pBuilder->size = 0;
+}
+
+#define KvRowNullColRatio 0.75  // If nullable column ratio larger than 0.75, utilize SKVRow, otherwise SDataRow.
+#define KvRowNColsThresh 4096   // default value: 32
+
+static FORCE_INLINE uint8_t tdRowTypeJudger(SSchema* pSchema, void* pData, int32_t nCols, int32_t flen,
+                                            uint16_t* nColsNotNull) {
+  ASSERT(pData != NULL);
+  if (nCols < KvRowNColsThresh) {
+    return SMEM_ROW_DATA;
+  }
+  int32_t dataRowLen = flen;
+  int32_t kvRowLen = 0;
+
+  uint16_t nColsNull = 0;
+  char*   p = (char*)pData;
+  for (int i = 0; i < nCols; ++i) {
+    if (IS_VAR_DATA_TYPE(pSchema[i].type)) {
+      dataRowLen += varDataTLen(p);
+      if (!isNull(p, pSchema[i].type)) {
+        kvRowLen += sizeof(SColIdx) + varDataTLen(p);
+      } else {
+        ++nColsNull;
+      }
+    } else {
+      if (!isNull(p, pSchema[i].type)) {
+        kvRowLen += sizeof(SColIdx) + varDataTLen(p);
+      } else {
+        ++nColsNull;
+      }
+    }
+
+    // next column
+    p += pSchema[i].bytes;
+  }
+
+  tscDebug("prop:nColsNull %d, nCols: %d, kvRowLen: %d, dataRowLen: %d", nColsNull, nCols, kvRowLen, dataRowLen);
+
+  if (kvRowLen < dataRowLen) {
+    if (nColsNotNull) {
+      *nColsNotNull = nCols - nColsNull;
+    }
+    return SMEM_ROW_KV;
+  }
+
+  return SMEM_ROW_DATA;
+}
+
+SMemRow tdGetMemRowFromBuilder(SMemRowBuilder* pBuilder) {
+  SSchema* pSchema = pBuilder->pSchema;
+  char*    p = (char*)pBuilder->buf;
+
+  uint16_t nColsNotNull = 0;
+  uint8_t memRowType = tdRowTypeJudger(pSchema, p, pBuilder->nCols, pBuilder->flen, &nColsNotNull);
+  tscDebug("prop:memType is %d", memRowType);
+
+  memRowType = SMEM_ROW_DATA;
+  SMemRow* memRow = (SMemRow)pBuilder->pDataBlock;
+  memRowSetType(memRow, memRowType);
+
+  if (memRowType == SMEM_ROW_DATA) {
+    int      toffset = 0;
+    SDataRow trow = (SDataRow)memRowBody(memRow);
+    dataRowSetLen(trow, (uint16_t)(TD_DATA_ROW_HEAD_SIZE + pBuilder->flen));
+    dataRowSetVersion(trow, pBuilder->sversion);
+
+    p = (char*)pBuilder->buf;
+    for (int32_t j = 0; j < pBuilder->nCols; ++j) {
+      tdAppendColVal(trow, p, pSchema[j].type, pSchema[j].bytes, toffset);
+      toffset += TYPE_BYTES[pSchema[j].type];
+      p += pSchema[j].bytes;
+    }
+    pBuilder->buf = p;
+  } else {
+    uint16_t tlen = TD_KV_ROW_HEAD_SIZE + sizeof(SColIdx) * nColsNotNull + pBuilder->size;
+    SKVRow row = (SKVRow)pBuilder->pDataBlock;
+
+    kvRowSetNCols(row, nColsNotNull);
+    kvRowSetLen(row, tlen);
+
+    memcpy(kvRowColIdx(row), pBuilder->pColIdx, sizeof(SColIdx) * pBuilder->nCols);
+    memcpy(kvRowValues(row), pBuilder->buf, pBuilder->size);
+  }
+
+  pBuilder->pDataBlock = (char*)pBuilder->pDataBlock + memRowTLen(memRow);  // next row
+  pBuilder->pSubmitBlk->dataLen += memRowTLen(memRow);
+
+  // int tlen = sizeof(SColIdx) * pBuilder->nCols + pBuilder->size;
+  // if (tlen == 0) return NULL;
+
+  // tlen += TD_KV_ROW_HEAD_SIZE;
+
+  // SKVRow row = malloc(tlen);
+  // if (row == NULL) return NULL;
+
+  // kvRowSetNCols(row, pBuilder->nCols);
+  // kvRowSetLen(row, tlen);
+
+  // memcpy(kvRowColIdx(row), pBuilder->pColIdx, sizeof(SColIdx) * pBuilder->nCols);
+  // memcpy(kvRowValues(row), pBuilder->buf, pBuilder->size);
+
+  return NULL;
+}
+
+// Erase the empty space reserved for binary data
 static int trimDataBlock(void* pDataBlock, STableDataBlocks* pTableDataBlock, bool includeSchema) {
   // TODO: optimize this function, handle the case while binary is not presented
   STableMeta*   pTableMeta = pTableDataBlock->pTableMeta;
@@ -1675,12 +1805,24 @@ static int trimDataBlock(void* pDataBlock, STableDataBlocks* pTableDataBlock, bo
   char* p = pTableDataBlock->pData + sizeof(SSubmitBlk);
   pBlock->dataLen = 0;
   int32_t numOfRows = htons(pBlock->numOfRows);
-  
+
+  SMemRowBuilder mRowBuilder;
+  mRowBuilder.pSchema = pSchema;
+  mRowBuilder.sversion = pTableMeta->sversion;
+  mRowBuilder.flen = flen;
+  mRowBuilder.nCols = tinfo.numOfColumns;
+  mRowBuilder.pDataBlock = pDataBlock;
+  mRowBuilder.pSubmitBlk = pBlock;
+  mRowBuilder.buf = p;
+  mRowBuilder.size = 0;
+
   for (int32_t i = 0; i < numOfRows; ++i) {
-    SDataRow trow = (SDataRow) pDataBlock;
+#if 0
+    SDataRow trow = (SDataRow)pDataBlock;  // generate each SDataRow one by one
     dataRowSetLen(trow, (uint16_t)(TD_DATA_ROW_HEAD_SIZE + flen));
     dataRowSetVersion(trow, pTableMeta->sversion);
 
+    // scan each column data and generate the data row
     int toffset = 0;
     for (int32_t j = 0; j < tinfo.numOfColumns; j++) {
       tdAppendColVal(trow, p, pSchema[j].type, pSchema[j].bytes, toffset);
@@ -1688,8 +1830,10 @@ static int trimDataBlock(void* pDataBlock, STableDataBlocks* pTableDataBlock, bo
       p += pSchema[j].bytes;
     }
 
-    pDataBlock = (char*)pDataBlock + dataRowLen(trow);
-    pBlock->dataLen += dataRowLen(trow);
+    pDataBlock = (char*)pDataBlock + dataRowLen(trow);  // next SDataRow
+    pBlock->dataLen += dataRowLen(trow);                // SSubmitBlk data length
+#endif
+    tdGetMemRowFromBuilder(&mRowBuilder);
   }
 
   int32_t len = pBlock->dataLen + pBlock->schemaLen;
@@ -1701,13 +1845,14 @@ static int trimDataBlock(void* pDataBlock, STableDataBlocks* pTableDataBlock, bo
 
 static int32_t getRowExpandSize(STableMeta* pTableMeta) {
   int32_t result = TD_DATA_ROW_HEAD_SIZE;
-  int32_t columns = tscGetNumOfColumns(pTableMeta);
+  int32_t  columns = tscGetNumOfColumns(pTableMeta);
   SSchema* pSchema = tscGetTableSchema(pTableMeta);
   for(int32_t i = 0; i < columns; i++) {
     if (IS_VAR_DATA_TYPE((pSchema + i)->type)) {
       result += TYPE_BYTES[TSDB_DATA_TYPE_BINARY];
     }
   }
+  result += TD_MEM_ROW_TYPE_SIZE;  // add len of SMemRow flag
   return result;
 }
 
