@@ -13,7 +13,7 @@ import java.util.Calendar;
 
 public class RestfulPreparedStatement extends RestfulStatement implements PreparedStatement {
 
-    private ParameterMetaData parameterMetaData;
+    private final ParameterMetaData parameterMetaData;
     private final String rawSql;
     private Object[] parameters;
     private boolean isPrepared;

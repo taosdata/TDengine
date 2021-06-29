@@ -41,10 +41,7 @@ public class TSDBResultSetMetaData extends WrapperImpl implements ResultSetMetaD
     }
 
     public boolean isSearchable(int column) throws SQLException {
-        if (column == 1) {
-            return true;
-        }
-        return false;
+        return column == 1;
     }
 
     public boolean isCurrency(int column) throws SQLException {
