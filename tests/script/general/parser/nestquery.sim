@@ -180,20 +180,82 @@ if $data21 != 49.500000000 then
 endi
 
 #define TSDB_FUNC_APERCT       7
-#define TSDB_FUNC_LAST_ROW     10
 #define TSDB_FUNC_TWA          14
 #define TSDB_FUNC_LEASTSQR     15
-#define TSDB_FUNC_ARITHM       23
 #define TSDB_FUNC_DIFF         24
 #define TSDB_FUNC_INTERP       28
-#define TSDB_FUNC_RATE         29
 #define TSDB_FUNC_IRATE        30
 #define TSDB_FUNC_DERIVATIVE   32
 
 sql_error select stddev(c1) from (select c1 from nest_tb0);
 sql_error select percentile(c1, 20) from (select * from nest_tb0);
+sql_error select interp(c1) from (select * from nest_tb0);
+sql_error select derivative(val, 1s, 0) from (select c1 val from nest_tb0);
+sql_error select twa(c1) from (select c1 from nest_tb0);
+sql_error select irate(c1) from (select c1 from nest_tb0);
+sql_error select diff(c1), twa(c1) from (select * from nest_tb0);
+sql_error select irate(c1), interp(c1), twa(c1) from (select * from nest_tb0);
+
+sql select apercentile(c1, 50) from (select * from nest_tb0) interval(1d)
+sql select twa(c1) from (select * from nest_tb0);
+sql select leastsquares(c1, 1, 1) from (select * from nest_tb0);
+sql select irate(c1) from (select * from nest_tb0);
 
 sql select avg(c1),sum(c2), max(c3), min(c4), count(*), first(c7), last(c7),spread(c6) from (select * from nest_tb0) interval(1d);
+if $rows != 7 then
+  return -1
+endi
+
+if $data00 != @20-09-15 00:00:00.000@ then
+  return -1
+endi
+
+if $data01 != 48.666666667 then
+  print expect 48.666666667, actual: $data01
+  return -1
+endi
+
+if $data02 != 70080.000000000 then
+  return -1
+endi
+
+if $data03 != 99 then
+  return -1
+endi
+
+if $data04 != 0 then
+  return -1
+endi
+
+if $data05 != 1440 then
+  return -1
+endi
+
+if $data06 != 0 then
+  print $data06
+  return -1
+endi
+
+if $data07 != 1 then
+  return -1
+endi
+
+if $data08 != 99.000000000 then
+  print expect 99.000000000, actual: $data08
+  return -1
+endi
+
+if $data10 != @20-09-16 00:00:00.000@ then
+  return -1
+endi
+
+if $data11 != 49.777777778 then
+  return -1
+endi
+
+if $data12 != 71680.000000000 then
+  return -1
+endi
 
 sql select top(x, 20) from (select c1 x from nest_tb0);
 
@@ -205,6 +267,9 @@ print ===================> complex query
 
 print ===================> group by + having
 
+
+
+print =========================> ascending order/descending order
 
 
 
@@ -273,7 +338,6 @@ if $data03 != @20-09-15 00:00:00.000@ then
   return -1
 endi
 
-sql_error select derivative(val, 1s, 0) from (select c1 val from nest_tb0);
 sql select diff(val) from (select c1 val from nest_tb0);
 if $rows != 9999 then
   return -1
