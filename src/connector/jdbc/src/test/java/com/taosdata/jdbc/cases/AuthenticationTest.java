@@ -1,4 +1,4 @@
-package com.taosdata.jdbc.rs;
+package com.taosdata.jdbc.cases;
 
 import org.junit.Before;
 import org.junit.Test;

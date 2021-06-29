@@ -89,13 +89,13 @@ TDengine 缺省的时间戳是毫秒精度，但通过在 CREATE DATABASE 时传
     ```mysql
     USE db_name;
     ```
-    使用/切换数据库
+    使用/切换数据库（在 RESTful 连接方式下无效）。
 
 - **删除数据库**
     ```mysql
     DROP DATABASE [IF EXISTS] db_name;
     ```
-    删除数据库。所包含的全部数据表将被删除，谨慎使用
+    删除数据库。指定 Database 所包含的全部数据表将被删除，谨慎使用！
 
 - **修改数据库参数**
     ```mysql
@@ -703,22 +703,24 @@ Query OK, 1 row(s) in set (0.001091s)
 
 ### 支持的条件过滤操作
 
-| **Operation**   | **Note**                      | **Applicable Data Types**             |
-| --------------- | ----------------------------- | ------------------------------------- |
-| >               | larger than                   | **`timestamp`** and all numeric types |
-| <               | smaller than                  | **`timestamp`** and all numeric types |
-| >=              | larger than or equal to       | **`timestamp`** and all numeric types |
-| <=              | smaller than or equal to      | **`timestamp`** and all numeric types |
-| =               | equal to                      | all types                             |
-| <>              | not equal to                  | all types                             |
-| between and     | within a certain range        | **`timestamp`** and all numeric types |
-| %               | match with any char sequences | **`binary`** **`nchar`**              |
-| _               | match with a single char      | **`binary`** **`nchar`**              |
+| **Operation**   | **Note**                      | **Applicable Data Types**                 |
+| --------------- | ----------------------------- | ----------------------------------------- |
+| >               | larger than                   | **`timestamp`** and all numeric types     |
+| <               | smaller than                  | **`timestamp`** and all numeric types     |
+| >=              | larger than or equal to       | **`timestamp`** and all numeric types     |
+| <=              | smaller than or equal to      | **`timestamp`** and all numeric types     |
+| =               | equal to                      | all types                                 |
+| <>              | not equal to                  | all types                                 |
+| between and     | within a certain range        | **`timestamp`** and all numeric types     |
+| in              | matches any value in a set    | all types except first column `timestamp` |
+| %               | match with any char sequences | **`binary`** **`nchar`**                  |
+| _               | match with a single char      | **`binary`** **`nchar`**                  |
 
 1. <> 算子也可以写为 != ，请注意，这个算子不能用于数据表第一列的 timestamp 字段。
 2. 同时进行多个字段的范围过滤，需要使用关键词 AND 来连接不同的查询条件，暂不支持 OR 连接的不同列之间的查询过滤条件。
-3. 针对单一字段的过滤，如果是时间过滤条件，则一条语句中只支持设定一个；但针对其他的（普通）列或标签列，则可以使用 `OR` 关键字进行组合条件的查询过滤。例如：((value > 20 AND value < 30) OR (value < 12)) 。
-4. 从 2.0.17 版本开始，条件过滤开始支持 BETWEEN AND 语法，例如 `WHERE col2 BETWEEN 1.5 AND 3.25` 表示查询条件为“1.5 ≤ col2 ≤ 3.25”。
+3. 针对单一字段的过滤，如果是时间过滤条件，则一条语句中只支持设定一个；但针对其他的（普通）列或标签列，则可以使用 `OR` 关键字进行组合条件的查询过滤。例如： `((value > 20 AND value < 30) OR (value < 12))`。
+4. 从 2.0.17.0 版本开始，条件过滤开始支持 BETWEEN AND 语法，例如 `WHERE col2 BETWEEN 1.5 AND 3.25` 表示查询条件为“1.5 ≤ col2 ≤ 3.25”。
+5. 从 2.1.4.0 版本开始，条件过滤开始支持 IN 算子，例如 `WHERE city IN ('Beijing', 'Shanghai')`。说明：BOOL 类型写作 `{true, false}` 或 `{0, 1}` 均可，但不能写作 0、1 之外的整数；FLOAT 和 DOUBLE 类型会受到浮点数精度影响，集合内的值在精度范围内认为和数据行的值完全相等才能匹配成功。<!-- REPLACE_OPEN_TO_ENTERPRISE__IN_OPERATOR_AND_UNSIGNED_INTEGER -->
 
 <!-- 
 <a class="anchor" id="having"></a>

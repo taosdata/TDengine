@@ -14,10 +14,6 @@
  *****************************************************************************/
 package com.taosdata.jdbc.utils;
 
-import com.taosdata.jdbc.TSDBConnection;
-
-import java.sql.Connection;
-
 public class SqlSyntaxValidator {
 
     private static final String[] SQL = {"select", "insert", "import", "create", "use", "alter", "drop", "set", "show", "describe"};
@@ -25,12 +21,6 @@ public class SqlSyntaxValidator {
     private static final String[] querySQL = {"select", "show", "describe"};
 
     private static final String[] databaseUnspecifiedShow = {"databases", "dnodes", "mnodes", "variables"};
-
-    private TSDBConnection tsdbConnection;
-
-    public SqlSyntaxValidator(Connection connection) {
-        this.tsdbConnection = (TSDBConnection) connection;
-    }
 
     public static boolean isValidForExecuteUpdate(String sql) {
         for (String prefix : updateSQL) {
