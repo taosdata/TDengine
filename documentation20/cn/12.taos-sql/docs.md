@@ -89,13 +89,13 @@ TDengine 缺省的时间戳是毫秒精度，但通过在 CREATE DATABASE 时传
     ```mysql
     USE db_name;
     ```
-    使用/切换数据库
+    使用/切换数据库（在 RESTful 连接方式下无效）。
 
 - **删除数据库**
     ```mysql
     DROP DATABASE [IF EXISTS] db_name;
     ```
-    删除数据库。所包含的全部数据表将被删除，谨慎使用
+    删除数据库。指定 Database 所包含的全部数据表将被删除，谨慎使用！
 
 - **修改数据库参数**
     ```mysql
