@@ -1221,7 +1221,7 @@ static void fetchResult(TAOS_RES *res, threadInfo* pThreadInfo) {
     //printf("query result:%s\n", temp);
     memcpy(databuf + totalLen, temp, len);
     totalLen += len;
-    debugPrint("totalLen: %"PRId64"\n", totalLen);
+    verbosePrint("%s() LN%d, totalLen: %"PRId64"\n", __func__, __LINE__, totalLen);
   }
 
   verbosePrint("%s() LN%d, databuf=%s resultFile=%s\n",
@@ -7280,7 +7280,7 @@ static void *superSubscribe(void *sarg) {
                     pThreadInfo->threadID);
         }
 
-        debugPrint("%s() LN%d, [%d] subSqlstr: %s\n",
+        verbosePrint("%s() LN%d, [%d] subSqlstr: %s\n",
                 __func__, __LINE__, pThreadInfo->threadID, subSqlstr);
         tsub[tsubSeq] = subscribeImpl(
                 STABLE_CLASS,
