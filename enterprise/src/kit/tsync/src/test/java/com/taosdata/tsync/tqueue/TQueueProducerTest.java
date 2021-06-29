@@ -29,7 +29,7 @@ public class TQueueProducerTest {
         // when
         try {
             for (int i = 0; i < recordSize; i++) {
-                ProducerRecord<String> record = new ProducerRecord(topic, 1, "hello~~~");
+                ProducerRecord record = new ProducerRecord(topic, 1, "hello~~~");
                 producer.send(record);
             }
         } catch (Exception e) {
@@ -53,7 +53,7 @@ public class TQueueProducerTest {
         IntStream.of(partitions).forEach(partitionIndex -> {
             try {
                 for (int i = 0; i < recordSize; i++) {
-                    ProducerRecord<String> record = new ProducerRecord(topic, partitionIndex, "hello~~~");
+                    ProducerRecord record = new ProducerRecord(topic, partitionIndex, "hello~~~");
                     producer.send(record);
                 }
             } catch (Exception e) {
@@ -78,7 +78,7 @@ public class TQueueProducerTest {
         List<Thread> threads = IntStream.of(partitions).mapToObj(pIndex -> new Thread(() -> {
             try {
                 for (int i = 0; i < recordSize; i++) {
-                    ProducerRecord<String> record = new ProducerRecord(topic, pIndex, "hello~~~");
+                    ProducerRecord record = new ProducerRecord(topic, pIndex, "hello~~~");
                     producer.send(record, (metadata, e) -> {
                         if (e != null)
                             e.printStackTrace();
@@ -118,7 +118,7 @@ public class TQueueProducerTest {
         List<Thread> threads = IntStream.range(0, threadSize).mapToObj(threadIndex -> new Thread(() -> {
             try {
                 for (int i = 0; i < recordSize; i++) {
-                    ProducerRecord<String> record = new ProducerRecord(topic, 1, "hello~~~");
+                    ProducerRecord record = new ProducerRecord(topic, 1, "hello~~~");
                     producer.send(record, (metadata, e) -> {
                         if (e != null)
                             e.printStackTrace();
@@ -173,6 +173,4 @@ public class TQueueProducerTest {
         }
         return count;
     }
-
-
 }

@@ -7,81 +7,83 @@ import org.junit.Test;
 
 import java.util.Map;
 
+import static org.junit.Assert.*;
+
 public class UtilsTest {
 
     @Test
     public void divide10NumberIntoGroupsOf3() {
         //when
-        Map<Long, Range<Long>> map = Utils.divideIntoGroupsOfN(0l, 10l, 3);
+        Map<Long, Range<Long>> map = Utils.divideIntoGroupsOfN(0L, 10L, 3);
 
         // then
-        Assert.assertEquals(4, map.size());
+        assertEquals(4, map.size());
 
-        Assert.assertEquals(true, map.containsKey(0l));
-        Assert.assertEquals(new Long(0), map.get(0l).lowerEndpoint());
-        Assert.assertEquals(new Long(3), map.get(0l).upperEndpoint());
+        Assert.assertTrue(map.containsKey(0L));
+        assertEquals(new Long(0), map.get(0L).lowerEndpoint());
+        assertEquals(new Long(3), map.get(0L).upperEndpoint());
 
-        Assert.assertEquals(true, map.containsKey(1l));
-        Assert.assertEquals(new Long(3), map.get(1l).lowerEndpoint());
-        Assert.assertEquals(new Long(6), map.get(1l).upperEndpoint());
+        assertTrue(map.containsKey(1L));
+        assertEquals(new Long(3), map.get(1L).lowerEndpoint());
+        assertEquals(new Long(6), map.get(1L).upperEndpoint());
 
-        Assert.assertEquals(true, map.containsKey(2l));
-        Assert.assertEquals(new Long(6), map.get(2l).lowerEndpoint());
-        Assert.assertEquals(new Long(9), map.get(2l).upperEndpoint());
+        assertTrue(map.containsKey(2L));
+        assertEquals(new Long(6), map.get(2L).lowerEndpoint());
+        assertEquals(new Long(9), map.get(2L).upperEndpoint());
 
-        Assert.assertEquals(true, map.containsKey(3l));
-        Assert.assertEquals(new Long(9), map.get(3l).lowerEndpoint());
-        Assert.assertEquals(new Long(10), map.get(3l).upperEndpoint());
+        assertTrue(map.containsKey(3L));
+        assertEquals(new Long(9), map.get(3L).lowerEndpoint());
+        assertEquals(new Long(10), map.get(3L).upperEndpoint());
     }
 
     @Test
     public void divide3NumberInto5Groups() {
         // when
-        Map<Long, Range<Long>> map = Utils.divideIntoGroups(3l, 5l);
+        Map<Long, Range<Long>> map = Utils.divideIntoGroups(3L, 5L);
 
         // then
-        Assert.assertEquals(false, map.get(0l).isEmpty());
-        Assert.assertEquals(new Long(0), map.get(0l).lowerEndpoint());
-        Assert.assertEquals(new Long(1), map.get(0l).upperEndpoint());
+        assertFalse(map.get(0L).isEmpty());
+        assertEquals(new Long(0), map.get(0L).lowerEndpoint());
+        assertEquals(new Long(1), map.get(0L).upperEndpoint());
 
-        Assert.assertEquals(false, map.get(1l).isEmpty());
-        Assert.assertEquals(new Long(1), map.get(1l).lowerEndpoint());
-        Assert.assertEquals(new Long(2), map.get(1l).upperEndpoint());
+        assertFalse(map.get(1L).isEmpty());
+        assertEquals(new Long(1), map.get(1L).lowerEndpoint());
+        assertEquals(new Long(2), map.get(1L).upperEndpoint());
 
-        Assert.assertEquals(false, map.get(2l).isEmpty());
-        Assert.assertEquals(new Long(2), map.get(2l).lowerEndpoint());
-        Assert.assertEquals(new Long(3), map.get(2l).upperEndpoint());
+        assertFalse(map.get(2L).isEmpty());
+        assertEquals(new Long(2), map.get(2L).lowerEndpoint());
+        assertEquals(new Long(3), map.get(2L).upperEndpoint());
 
-        Assert.assertEquals(true, map.get(3l).isEmpty());
-        Assert.assertEquals(new Long(3), map.get(3l).lowerEndpoint());
-        Assert.assertEquals(new Long(3), map.get(3l).upperEndpoint());
+        assertTrue(map.get(3L).isEmpty());
+        assertEquals(new Long(3), map.get(3L).lowerEndpoint());
+        assertEquals(new Long(3), map.get(3L).upperEndpoint());
 
-        Assert.assertEquals(true, map.get(4l).isEmpty());
-        Assert.assertEquals(new Long(3), map.get(4l).lowerEndpoint());
-        Assert.assertEquals(new Long(3), map.get(4l).upperEndpoint());
+        assertTrue(map.get(4L).isEmpty());
+        assertEquals(new Long(3), map.get(4L).lowerEndpoint());
+        assertEquals(new Long(3), map.get(4L).upperEndpoint());
     }
 
     @Test
     public void divide10NumberInto4Groups() {
         // when
-        Map<Long, Range<Long>> map = Utils.divideIntoGroups(10l, 4l);
+        Map<Long, Range<Long>> map = Utils.divideIntoGroups(10L, 4L);
 
         // then
-        Assert.assertEquals(false, map.get(0l).isEmpty());
-        Assert.assertEquals(new Long(0), map.get(0l).lowerEndpoint());
-        Assert.assertEquals(new Long(3), map.get(0l).upperEndpoint());
+        assertFalse(map.get(0L).isEmpty());
+        assertEquals(new Long(0), map.get(0L).lowerEndpoint());
+        assertEquals(new Long(3), map.get(0L).upperEndpoint());
 
-        Assert.assertEquals(false, map.get(1l).isEmpty());
-        Assert.assertEquals(new Long(3), map.get(1l).lowerEndpoint());
-        Assert.assertEquals(new Long(6), map.get(1l).upperEndpoint());
+        assertFalse(map.get(1L).isEmpty());
+        assertEquals(new Long(3), map.get(1L).lowerEndpoint());
+        assertEquals(new Long(6), map.get(1L).upperEndpoint());
 
-        Assert.assertEquals(false, map.get(2l).isEmpty());
-        Assert.assertEquals(new Long(6), map.get(2l).lowerEndpoint());
-        Assert.assertEquals(new Long(9), map.get(2l).upperEndpoint());
+        assertFalse(map.get(2L).isEmpty());
+        assertEquals(new Long(6), map.get(2L).lowerEndpoint());
+        assertEquals(new Long(9), map.get(2L).upperEndpoint());
 
-        Assert.assertEquals(false, map.get(3l).isEmpty());
-        Assert.assertEquals(new Long(9), map.get(3l).lowerEndpoint());
-        Assert.assertEquals(new Long(10), map.get(3l).upperEndpoint());
+        assertFalse(map.get(3L).isEmpty());
+        assertEquals(new Long(9), map.get(3L).lowerEndpoint());
+        assertEquals(new Long(10), map.get(3L).upperEndpoint());
     }
 
     @Test
@@ -90,21 +92,21 @@ public class UtilsTest {
         Map<Integer, Range<Long>> map = Utils.divideIntoGroups(11, 4);
 
         // then
-        Assert.assertEquals(false, map.get(0).isEmpty());
-        Assert.assertEquals(new Long(0), map.get(0).lowerEndpoint());
-        Assert.assertEquals(new Long(3), map.get(0).upperEndpoint());
+        assertFalse(map.get(0).isEmpty());
+        assertEquals(new Long(0), map.get(0).lowerEndpoint());
+        assertEquals(new Long(3), map.get(0).upperEndpoint());
 
-        Assert.assertEquals(false, map.get(1).isEmpty());
-        Assert.assertEquals(new Long(3), map.get(1).lowerEndpoint());
-        Assert.assertEquals(new Long(6), map.get(1).upperEndpoint());
+        assertFalse(map.get(1).isEmpty());
+        assertEquals(new Long(3), map.get(1).lowerEndpoint());
+        assertEquals(new Long(6), map.get(1).upperEndpoint());
 
-        Assert.assertEquals(false, map.get(2).isEmpty());
-        Assert.assertEquals(new Long(6), map.get(2).lowerEndpoint());
-        Assert.assertEquals(new Long(9), map.get(2).upperEndpoint());
+        assertFalse(map.get(2).isEmpty());
+        assertEquals(new Long(6), map.get(2).lowerEndpoint());
+        assertEquals(new Long(9), map.get(2).upperEndpoint());
 
-        Assert.assertEquals(false, map.get(3).isEmpty());
-        Assert.assertEquals(new Long(9), map.get(3).lowerEndpoint());
-        Assert.assertEquals(new Long(11), map.get(3).upperEndpoint());
+        assertFalse(map.get(3).isEmpty());
+        assertEquals(new Long(9), map.get(3).lowerEndpoint());
+        assertEquals(new Long(11), map.get(3).upperEndpoint());
     }
 
     @Test
@@ -113,21 +115,21 @@ public class UtilsTest {
         Map<Integer, Range<Long>> map = Utils.divideIntoGroups(9, 4);
 
         // then
-        Assert.assertEquals(false, map.get(0).isEmpty());
-        Assert.assertEquals(new Long(0), map.get(0).lowerEndpoint());
-        Assert.assertEquals(new Long(2), map.get(0).upperEndpoint());
+        assertFalse(map.get(0).isEmpty());
+        assertEquals(new Long(0), map.get(0).lowerEndpoint());
+        assertEquals(new Long(2), map.get(0).upperEndpoint());
 
-        Assert.assertEquals(false, map.get(1).isEmpty());
-        Assert.assertEquals(new Long(2), map.get(1).lowerEndpoint());
-        Assert.assertEquals(new Long(4), map.get(1).upperEndpoint());
+        assertFalse(map.get(1).isEmpty());
+        assertEquals(new Long(2), map.get(1).lowerEndpoint());
+        assertEquals(new Long(4), map.get(1).upperEndpoint());
 
-        Assert.assertEquals(false, map.get(2).isEmpty());
-        Assert.assertEquals(new Long(4), map.get(2).lowerEndpoint());
-        Assert.assertEquals(new Long(6), map.get(2).upperEndpoint());
+        assertFalse(map.get(2).isEmpty());
+        assertEquals(new Long(4), map.get(2).lowerEndpoint());
+        assertEquals(new Long(6), map.get(2).upperEndpoint());
 
-        Assert.assertEquals(false, map.get(3).isEmpty());
-        Assert.assertEquals(new Long(6), map.get(3).lowerEndpoint());
-        Assert.assertEquals(new Long(9), map.get(3).upperEndpoint());
+        assertFalse(map.get(3).isEmpty());
+        assertEquals(new Long(6), map.get(3).lowerEndpoint());
+        assertEquals(new Long(9), map.get(3).upperEndpoint());
     }
 
     @Test
@@ -136,17 +138,17 @@ public class UtilsTest {
         Map<Integer, Range<Long>> map = Utils.divideIntoGroups(10, 3);
 
         // then
-        Assert.assertEquals(false, map.get(0).isEmpty());
-        Assert.assertEquals(new Long(0), map.get(0).lowerEndpoint());
-        Assert.assertEquals(new Long(3), map.get(0).upperEndpoint());
+        assertFalse(map.get(0).isEmpty());
+        assertEquals(new Long(0), map.get(0).lowerEndpoint());
+        assertEquals(new Long(3), map.get(0).upperEndpoint());
 
-        Assert.assertEquals(false, map.get(1).isEmpty());
-        Assert.assertEquals(new Long(3), map.get(1).lowerEndpoint());
-        Assert.assertEquals(new Long(6), map.get(1).upperEndpoint());
+        assertFalse(map.get(1).isEmpty());
+        assertEquals(new Long(3), map.get(1).lowerEndpoint());
+        assertEquals(new Long(6), map.get(1).upperEndpoint());
 
-        Assert.assertEquals(false, map.get(2).isEmpty());
-        Assert.assertEquals(new Long(6), map.get(2).lowerEndpoint());
-        Assert.assertEquals(new Long(10), map.get(2).upperEndpoint());
+        assertFalse(map.get(2).isEmpty());
+        assertEquals(new Long(6), map.get(2).lowerEndpoint());
+        assertEquals(new Long(10), map.get(2).upperEndpoint());
     }
 
     @Test
@@ -155,23 +157,23 @@ public class UtilsTest {
         Multimap<Integer, Integer> map = Utils.divideArrIntoGroups(new int[]{1, 2, 3, 4}, 5);
 
         // then
-        Assert.assertEquals(true, map.containsKey(0));
-        Assert.assertEquals(1, map.get(0).size());
-        Assert.assertEquals(true, map.get(0).contains(1));
+        assertTrue(map.containsKey(0));
+        assertEquals(1, map.get(0).size());
+        assertTrue(map.get(0).contains(1));
 
-        Assert.assertEquals(true, map.containsKey(1));
-        Assert.assertEquals(1, map.get(1).size());
-        Assert.assertEquals(true, map.get(1).contains(2));
+        assertTrue(map.containsKey(1));
+        assertEquals(1, map.get(1).size());
+        assertTrue(map.get(1).contains(2));
 
-        Assert.assertEquals(true, map.containsKey(2));
-        Assert.assertEquals(1, map.get(2).size());
-        Assert.assertEquals(true, map.get(2).contains(3));
+        assertTrue(map.containsKey(2));
+        assertEquals(1, map.get(2).size());
+        assertTrue(map.get(2).contains(3));
 
-        Assert.assertEquals(true, map.containsKey(3));
-        Assert.assertEquals(1, map.get(3).size());
-        Assert.assertEquals(true, map.get(3).contains(4));
+        assertTrue(map.containsKey(3));
+        assertEquals(1, map.get(3).size());
+        assertTrue(map.get(3).contains(4));
 
-        Assert.assertEquals(false, map.containsKey(4));
+        assertFalse(map.containsKey(4));
     }
 
     @Test
@@ -180,29 +182,27 @@ public class UtilsTest {
         Multimap<Integer, Integer> map = Utils.divideArrIntoGroups(new int[]{1, 2, 3, 4, 5, 6, 7, 8}, 5);
 
         // then
-        Assert.assertEquals(true, map.containsKey(0));
-        Assert.assertEquals(2, map.get(0).size());
-        Assert.assertEquals(true, map.get(0).contains(1));
-        Assert.assertEquals(true, map.get(0).contains(2));
+        assertTrue(map.containsKey(0));
+        assertEquals(2, map.get(0).size());
+        assertTrue(map.get(0).contains(1));
+        assertTrue(map.get(0).contains(2));
 
-        Assert.assertEquals(true, map.containsKey(1));
-        Assert.assertEquals(2, map.get(1).size());
-        Assert.assertEquals(true, map.get(1).contains(3));
-        Assert.assertEquals(true, map.get(1).contains(4));
+        assertTrue(map.containsKey(1));
+        assertEquals(2, map.get(1).size());
+        assertTrue(map.get(1).contains(3));
+        assertTrue(map.get(1).contains(4));
 
-        Assert.assertEquals(true, map.containsKey(2));
-        Assert.assertEquals(2, map.get(2).size());
-        Assert.assertEquals(true, map.get(2).contains(5));
-        Assert.assertEquals(true, map.get(2).contains(6));
+        assertTrue(map.containsKey(2));
+        assertEquals(2, map.get(2).size());
+        assertTrue(map.get(2).contains(5));
+        assertTrue(map.get(2).contains(6));
 
-        Assert.assertEquals(true, map.containsKey(3));
-        Assert.assertEquals(2, map.get(3).size());
-        Assert.assertEquals(true, map.get(3).contains(7));
-        Assert.assertEquals(true, map.get(3).contains(8));
+        assertTrue(map.containsKey(3));
+        assertEquals(2, map.get(3).size());
+        assertTrue(map.get(3).contains(7));
+        assertTrue(map.get(3).contains(8));
 
-        Assert.assertEquals(false, map.containsKey(4));
-
-//        Assert.assertEquals(true, map.get(4).contains(5));
+        assertFalse(map.containsKey(4));
     }
 
     @Test
@@ -211,51 +211,51 @@ public class UtilsTest {
         Multimap<Integer, Integer> map = Utils.divideArrIntoGroups(new int[]{1, 2, 3, 4, 5, 6, 7, 8, 9}, 4);
 
         // then
-        Assert.assertEquals(true, map.containsKey(0));
-        Assert.assertEquals(2, map.get(0).size());
-        Assert.assertEquals(true, map.get(0).contains(1));
-        Assert.assertEquals(true, map.get(0).contains(2));
+        assertTrue(map.containsKey(0));
+        assertEquals(2, map.get(0).size());
+        assertTrue(map.get(0).contains(1));
+        assertTrue(map.get(0).contains(2));
 
-        Assert.assertEquals(true, map.containsKey(1));
-        Assert.assertEquals(2, map.get(1).size());
-        Assert.assertEquals(true, map.get(1).contains(3));
-        Assert.assertEquals(true, map.get(1).contains(4));
+        assertTrue(map.containsKey(1));
+        assertEquals(2, map.get(1).size());
+        assertTrue(map.get(1).contains(3));
+        assertTrue(map.get(1).contains(4));
 
-        Assert.assertEquals(true, map.containsKey(2));
-        Assert.assertEquals(2, map.get(2).size());
-        Assert.assertEquals(true, map.get(2).contains(5));
-        Assert.assertEquals(true, map.get(2).contains(6));
+        assertTrue(map.containsKey(2));
+        assertEquals(2, map.get(2).size());
+        assertTrue(map.get(2).contains(5));
+        assertTrue(map.get(2).contains(6));
 
-        Assert.assertEquals(true, map.containsKey(3));
-        Assert.assertEquals(3, map.get(3).size());
-        Assert.assertEquals(true, map.get(3).contains(7));
-        Assert.assertEquals(true, map.get(3).contains(8));
-        Assert.assertEquals(true, map.get(3).contains(9));
+        assertTrue(map.containsKey(3));
+        assertEquals(3, map.get(3).size());
+        assertTrue(map.get(3).contains(7));
+        assertTrue(map.get(3).contains(8));
+        assertTrue(map.get(3).contains(9));
     }
 
     @Test
     public void divide100SizeRangeInto4Groups() {
         //given
-        long startInclude = 100l;
-        long endExclude = 200l;
+        long startInclude = 100L;
+        long endExclude = 200L;
         int[] arr = new int[]{3, 4, 5, 6};
 
         // when
         Map<Integer, Range<Long>> arrIndex2Range = Utils.divideIntoArrGroups(startInclude, endExclude, arr);
 
         // then
-        Assert.assertEquals(4, arrIndex2Range.size());
-        Assert.assertEquals(true, arrIndex2Range.containsKey(3));
-        Assert.assertEquals(new Long(100), arrIndex2Range.get(3).lowerEndpoint());
-        Assert.assertEquals(new Long(125), arrIndex2Range.get(3).upperEndpoint());
-        Assert.assertEquals(true, arrIndex2Range.containsKey(4));
-        Assert.assertEquals(new Long(125), arrIndex2Range.get(4).lowerEndpoint());
-        Assert.assertEquals(new Long(150), arrIndex2Range.get(4).upperEndpoint());
-        Assert.assertEquals(true, arrIndex2Range.containsKey(5));
-        Assert.assertEquals(new Long(150), arrIndex2Range.get(5).lowerEndpoint());
-        Assert.assertEquals(new Long(175), arrIndex2Range.get(5).upperEndpoint());
-        Assert.assertEquals(true, arrIndex2Range.containsKey(6));
-        Assert.assertEquals(new Long(175), arrIndex2Range.get(6).lowerEndpoint());
-        Assert.assertEquals(new Long(200), arrIndex2Range.get(6).upperEndpoint());
+        assertEquals(4, arrIndex2Range.size());
+        assertTrue(arrIndex2Range.containsKey(3));
+        assertEquals(new Long(100), arrIndex2Range.get(3).lowerEndpoint());
+        assertEquals(new Long(125), arrIndex2Range.get(3).upperEndpoint());
+        assertTrue(arrIndex2Range.containsKey(4));
+        assertEquals(new Long(125), arrIndex2Range.get(4).lowerEndpoint());
+        assertEquals(new Long(150), arrIndex2Range.get(4).upperEndpoint());
+        assertTrue(arrIndex2Range.containsKey(5));
+        assertEquals(new Long(150), arrIndex2Range.get(5).lowerEndpoint());
+        assertEquals(new Long(175), arrIndex2Range.get(5).upperEndpoint());
+        assertTrue(arrIndex2Range.containsKey(6));
+        assertEquals(new Long(175), arrIndex2Range.get(6).lowerEndpoint());
+        assertEquals(new Long(200), arrIndex2Range.get(6).upperEndpoint());
     }
 }

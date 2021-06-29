@@ -20,24 +20,7 @@ public class ConfigurationFactoryTest {
     }
 
     @Test
-    public void parseProducerConfiguration() throws TsyncException {
-        // given
-        JSONObject producerJSON = configJSON.getJSONObject("producer");
-        // when
-        ProducerConfiguration configuration = (ProducerConfiguration) ConfigurationFactory.build(ConfigurationType.PRODUCER, producerJSON);
-        // then
-        Assert.assertEquals("192.168.17.156", configuration.getHost());
-        Assert.assertEquals(new Integer(6041), configuration.getPort());
-        Assert.assertEquals("root", configuration.getUser());
-        Assert.assertEquals("taosdata", configuration.getPassword());
-        Assert.assertEquals("UTF-8", configuration.getCharset());
-        Assert.assertEquals("en_US.UTF-8", configuration.getLocale());
-        Assert.assertEquals("UTC-8", configuration.getTimezone());
-        Assert.assertEquals("STRING", configuration.getSerializer());
-    }
-
-    @Test
-    public void parseTaskConfiguration() throws TsyncException {
+    public void parseTaskConfiguration() {
         // given
         JSONObject taskJSON = configJSON.getJSONObject("task");
         // when
@@ -53,22 +36,7 @@ public class ConfigurationFactoryTest {
     }
 
     @Test
-    public void parseTagConfiguration() throws TsyncException {
-        // given
-        JSONObject jsonObject = new JSONObject();
-        jsonObject.put("name", "loc");
-        jsonObject.put("type", "binary");
-        jsonObject.put("length", 64);
-        // when
-        TagConfiguration tagConfiguration = (TagConfiguration) ConfigurationFactory.build(ConfigurationType.TAG, jsonObject);
-        // then
-        Assert.assertEquals("loc", tagConfiguration.getName());
-        Assert.assertEquals("binary", tagConfiguration.getType());
-        Assert.assertEquals(new Integer(64), tagConfiguration.getLength());
-    }
-
-    @Test
-    public void parseStableConfiguration() throws TsyncException {
+    public void parseStableConfiguration() {
         // given
         JSONObject stableJSON = configJSON.getJSONObject("message").getJSONObject("schema").getJSONObject("stable");
         // when
@@ -81,17 +49,6 @@ public class ConfigurationFactoryTest {
         ColumnConfiguration column = (ColumnConfiguration) columns.get(2);
         Assert.assertEquals("humidity", column.getName());
         Assert.assertEquals("int", column.getType());
-    }
-
-    @Test
-    public void parseDatabaseConfiguration() throws TsyncException {
-        // given
-        JSONObject databaseJSON = configJSON.getJSONObject("message").getJSONObject("schema").getJSONObject("database");
-        // when
-        DatabaseConfiguration configuration = (DatabaseConfiguration) ConfigurationFactory.build(ConfigurationType.DATABASE, databaseJSON);
-        // then
-        Assert.assertEquals("test", configuration.getName());
-        Assert.assertEquals("ms", configuration.getPrecision());
     }
 
     @Test
