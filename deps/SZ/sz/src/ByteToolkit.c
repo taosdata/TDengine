@@ -915,7 +915,7 @@ void convertSZParamsToBytes(sz_params* params, unsigned char* result)
     //result[9]: rel_bound_ratio or pwr_err_bound//4 bytes 
     switch(params->errorBoundMode)
     {
-	case ABS:
+	case SZ_ABS:
 		floatToBytes(&result[6], (float)(params->absErrBound)); //big_endian
 		memset(&result[10], 0, 4);
 		break;
@@ -1006,7 +1006,7 @@ void convertBytesToSZParams(unsigned char* bytes, sz_params* params, sz_exedata*
 
     switch(params->errorBoundMode)
     {
-	case ABS:
+	case SZ_ABS:
 		params->absErrBound = bytesToFloat(&bytes[6]);
 		break;
 	case REL:

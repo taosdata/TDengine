@@ -80,7 +80,7 @@ int new_TightDataPointStorageF_fromFlatBytes(TightDataPointStorageF **this, unsi
 	
 	pde_params->accelerate_pw_rel_compression = (sameRByte & 0x08) >> 3;//0000,1000
 
-	int errorBoundMode = ABS;
+	int errorBoundMode = SZ_ABS;
 	if(isPW_REL)
 	{
 		errorBoundMode = PW_REL;

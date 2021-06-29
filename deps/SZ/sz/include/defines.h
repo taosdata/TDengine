@@ -26,7 +26,7 @@
 
 #define MIN_NUM_OF_ELEMENTS 0 //if the # elements <= 20, skip the compression
 
-#define ABS 0
+#define SZ_ABS 0
 #define REL 1
 #define VR_REL 1  //alternative name to REL
 #define ABS_AND_REL 2
@@ -87,7 +87,7 @@
 #define SZ_TERR -3 //wrong data type (should be only float or double)
 #define SZ_DERR -4 //dimension error
 #define SZ_MERR -5 //sz_mode error
-#define SZ_BERR -6 //bound-mode error (should be only ABS, REL, ABS_AND_REL, ABS_OR_REL, or PW_REL)
+#define SZ_BERR -6 //bound-mode error (should be only SZ_ABS, REL, ABS_AND_REL, ABS_OR_REL, or PW_REL)
 
 #define SZ_MAINTAIN_VAR_DATA 0
 #define SZ_DESTROY_WHOLE_VARSET 1

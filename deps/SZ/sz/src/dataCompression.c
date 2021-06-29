@@ -286,7 +286,7 @@ double getRealPrecision_double(double valueRangeSize, int errBoundMode, double a
 {
 	int state = SZ_SCES;
 	double precision = 0;
-	if(errBoundMode==ABS||errBoundMode==ABS_OR_PW_REL||errBoundMode==ABS_AND_PW_REL)
+	if(errBoundMode==SZ_ABS||errBoundMode==ABS_OR_PW_REL||errBoundMode==ABS_AND_PW_REL)
 		precision = absErrBound; 
 	else if(errBoundMode==REL||errBoundMode==REL_OR_PW_REL||errBoundMode==REL_AND_PW_REL)
 		precision = relBoundRatio*valueRangeSize;
@@ -309,7 +309,7 @@ double getRealPrecision_float(float valueRangeSize, int errBoundMode, double abs
 {
 	int state = SZ_SCES;
 	double precision = 0;
-	if(errBoundMode==ABS||errBoundMode==ABS_OR_PW_REL||errBoundMode==ABS_AND_PW_REL)
+	if(errBoundMode==SZ_ABS||errBoundMode==ABS_OR_PW_REL||errBoundMode==ABS_AND_PW_REL)
 		precision = absErrBound; 
 	else if(errBoundMode==REL||errBoundMode==REL_OR_PW_REL||errBoundMode==REL_AND_PW_REL)
 		precision = relBoundRatio*valueRangeSize;
@@ -332,7 +332,7 @@ double getRealPrecision_int(long valueRangeSize, int errBoundMode, double absErr
 {
 	int state = SZ_SCES;
 	double precision = 0;
-	if(errBoundMode==ABS||errBoundMode==ABS_OR_PW_REL||errBoundMode==ABS_AND_PW_REL)
+	if(errBoundMode==SZ_ABS||errBoundMode==ABS_OR_PW_REL||errBoundMode==ABS_AND_PW_REL)
 		precision = absErrBound; 
 	else if(errBoundMode==REL||errBoundMode==REL_OR_PW_REL||errBoundMode==REL_AND_PW_REL)
 		precision = relBoundRatio*valueRangeSize;

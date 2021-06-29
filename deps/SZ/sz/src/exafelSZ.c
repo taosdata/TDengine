@@ -246,15 +246,15 @@ unsigned char * exafelSZ_Compress(void* _pr,
   switch(pr->szDim){
     case 1:
       // szComp=sz_compress_3D(binnedData, 0, 0, nEvents * panels * pr->binnedRows * pr->binnedCols, pr->tolerance, szCompressedSize); //1D
-      szComp=SZ_compress_args(SZ_FLOAT, binnedData, &szCompressedSize, ABS, pr->tolerance, 0, 0, 0, 0,0,0, nEvents * panels * pr->binnedRows * pr->binnedCols);
+      szComp=SZ_compress_args(SZ_FLOAT, binnedData, &szCompressedSize, SZ_ABS, pr->tolerance, 0, 0, 0, 0,0,0, nEvents * panels * pr->binnedRows * pr->binnedCols);
       break;
     case 2:
       // szComp=sz_compress_3D(binnedData, 0, nEvents * panels * pr->binnedRows, pr->binnedCols, pr->tolerance, szCompressedSize); //2D
-      szComp=SZ_compress_args(SZ_FLOAT, binnedData, &szCompressedSize, ABS, pr->tolerance, 0, 0, 0, 0,0, nEvents * panels * pr->binnedRows, pr->binnedCols);
+      szComp=SZ_compress_args(SZ_FLOAT, binnedData, &szCompressedSize, SZ_ABS, pr->tolerance, 0, 0, 0, 0,0, nEvents * panels * pr->binnedRows, pr->binnedCols);
       break;
     case 3:
       // szComp=sz_compress_3D(binnedData, nEvents * panels, pr->binnedRows, pr->binnedCols, pr->tolerance, szCompressedSize); //3D
-      szComp=SZ_compress_args(SZ_FLOAT, binnedData, &szCompressedSize, ABS, pr->tolerance, 0, 0, 0, 0, nEvents * panels, pr->binnedRows, pr->binnedCols);
+      szComp=SZ_compress_args(SZ_FLOAT, binnedData, &szCompressedSize, SZ_ABS, pr->tolerance, 0, 0, 0, 0, nEvents * panels, pr->binnedRows, pr->binnedCols);
       break;
     default:
       printf("ERROR: Wrong szDim : %d It must be 1,2 or 3.\n",(int)pr->szDim);

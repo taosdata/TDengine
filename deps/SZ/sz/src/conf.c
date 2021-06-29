@@ -116,7 +116,7 @@ int SZ_ReadConf(const char* sz_cfgFile) {
 		else
 			confparams_cpr->gzipMode = 1; //high speed mode
 		
-		confparams_cpr->errorBoundMode = ABS;
+		confparams_cpr->errorBoundMode = SZ_ABS;
 		confparams_cpr->psnr = 90;
 		confparams_cpr->absErrBound = 1E-10;
 		confparams_cpr->relBoundRatio = 1E-10;
@@ -316,7 +316,7 @@ int SZ_ReadConf(const char* sz_cfgFile) {
 			return SZ_NSCS;				
 		}
 		else if(strcmp(errBoundMode,"ABS")==0||strcmp(errBoundMode,"abs")==0)
-			confparams_cpr->errorBoundMode=ABS;
+			confparams_cpr->errorBoundMode=SZ_ABS;
 		else if(strcmp(errBoundMode, "REL")==0||strcmp(errBoundMode,"rel")==0)
 			confparams_cpr->errorBoundMode=REL;
 		else if(strcmp(errBoundMode, "VR_REL")==0||strcmp(errBoundMode, "vr_rel")==0)

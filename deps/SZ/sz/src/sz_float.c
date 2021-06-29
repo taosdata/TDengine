@@ -847,13 +847,13 @@ int errBoundMode, double absErr_Bound, double relBoundRatio, double pwRelBoundRa
 	
 	if(confparams_cpr->errorBoundMode==PSNR)
 	{
-		confparams_cpr->errorBoundMode = ABS;
+		confparams_cpr->errorBoundMode = SZ_ABS;
 		realPrecision = confparams_cpr->absErrBound = computeABSErrBoundFromPSNR(confparams_cpr->psnr, (double)confparams_cpr->predThreshold, (double)valueRangeSize);
 		//printf("realPrecision=%lf\n", realPrecision);
 	}
 	else if(confparams_cpr->errorBoundMode==NORM) //norm error = sqrt(sum((xi-xi_)^2))
 	{
-		confparams_cpr->errorBoundMode = ABS;
+		confparams_cpr->errorBoundMode = SZ_ABS;
 		realPrecision = confparams_cpr->absErrBound = computeABSErrBoundFromNORM_ERR(confparams_cpr->normErr, dataLength);
 		//printf("realPrecision=%lf\n", realPrecision);				
 	}
@@ -1916,7 +1916,7 @@ unsigned char * SZ_compress_float_1D_MDQ_decompression_random_access_with_blocke
 	result_pos += sizeof(size_t);
 	// record blockwise unpred data
 	size_t compressed_blockwise_unpred_count_size;
-	unsigned char * compressed_bw_unpred_count = SZ_compress_args(SZ_INT32, blockwise_unpred_count, &compressed_blockwise_unpred_count_size, ABS, 0.5, 0, 0, 0, 0, 0, 0, num_blocks);
+	unsigned char * compressed_bw_unpred_count = SZ_compress_args(SZ_INT32, blockwise_unpred_count, &compressed_blockwise_unpred_count_size, SZ_ABS, 0.5, 0, 0, 0, 0, 0, 0, num_blocks);
 	memcpy(result_pos, &compressed_blockwise_unpred_count_size, sizeof(size_t));
 	result_pos += sizeof(size_t);
 	memcpy(result_pos, compressed_bw_unpred_count, compressed_blockwise_unpred_count_size);
@@ -1947,7 +1947,7 @@ unsigned char * SZ_compress_float_1D_MDQ_decompression_random_access_with_blocke
 		type_array_block_size_pos ++;
 	}
 	size_t compressed_type_array_block_size;
-	unsigned char * compressed_type_array_block = SZ_compress_args(SZ_UINT16, type_array_block_size, &compressed_type_array_block_size, ABS, 0.5, 0, 0, 0, 0, 0, 0, num_blocks);
+	unsigned char * compressed_type_array_block = SZ_compress_args(SZ_UINT16, type_array_block_size, &compressed_type_array_block_size, SZ_ABS, 0.5, 0, 0, 0, 0, 0, 0, num_blocks);
 	memcpy(result_pos, &compressed_type_array_block_size, sizeof(size_t));
 	result_pos += sizeof(size_t);
 	memcpy(result_pos, compressed_type_array_block, compressed_type_array_block_size);

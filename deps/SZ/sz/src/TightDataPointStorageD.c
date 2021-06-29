@@ -76,7 +76,7 @@ int new_TightDataPointStorageD_fromFlatBytes(TightDataPointStorageD **this, unsi
 	exe_params->SZ_SIZE_TYPE = ((sameRByte & 0x40)>>6)==1?8:4;
 	pde_params->protectValueRange = (sameRByte & 0x04)>>2;
 	pde_params->accelerate_pw_rel_compression = (sameRByte & 0x08) >> 3;
-	int errorBoundMode = ABS;
+	int errorBoundMode = SZ_ABS;
 	if(isPW_REL)
 	{
 		errorBoundMode = PW_REL;
