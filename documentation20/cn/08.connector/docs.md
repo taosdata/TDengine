@@ -907,6 +907,10 @@ go env -w GOPROXY=https://goproxy.io,direct
 
   sql.Open内置的方法，Close closes the statement.	
 
+### 其他代码示例
+
+[Consume Messages from Kafka](https://github.com/taosdata/go-demo-kafka) 是一个通过 Go 语言实现消费 Kafka 队列写入 TDengine 的示例程序，也可以作为通过 Go 连接 TDengine 的写法参考。
+
 ## <a class="anchor" id="nodejs"></a>Node.js Connector
 
 Node.js连接器支持的系统有：
