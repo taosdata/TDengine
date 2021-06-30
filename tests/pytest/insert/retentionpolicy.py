@@ -115,7 +115,7 @@ class TDTestRetetion:
         cmd = 'select * from test'
         self.queryRows=tdSql.query(cmd)
         self.checkRows(4,cmd)
-        while datetime.datetime.now() < (ttime + datetime.timedelta(hours=72)):
+        while datetime.datetime.now() <= (ttime + datetime.timedelta(hours=72)):
             time.sleep(0.001)
         cmd = 'select * from test'
         self.queryRows=tdSql.query(cmd)
