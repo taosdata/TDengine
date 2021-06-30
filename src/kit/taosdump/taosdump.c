@@ -29,6 +29,9 @@
 #define COMMAND_SIZE 65536
 //#define DEFAULT_DUMP_FILE "taosdump.sql"
 
+// for strncpy buffer overflow
+#define min(a, b) (((a) < (b)) ? (a) : (b))
+
 int  converStringToReadable(char *str, int size, char *buf, int bufsize);
 int  convertNCharToReadable(char *str, int size, char *buf, int bufsize);
 void taosDumpCharset(FILE *fp);
@@ -1119,12 +1122,11 @@ int taosGetTableDes(
   TAOS_FIELD *fields = taos_fetch_fields(res);
 
   tstrncpy(tableDes->name, table, TSDB_TABLE_NAME_LEN);
-
   while ((row = taos_fetch_row(res)) != NULL) {
     strncpy(tableDes->cols[count].field, (char *)row[TSDB_DESCRIBE_METRIC_FIELD_INDEX],
             fields[TSDB_DESCRIBE_METRIC_FIELD_INDEX].bytes);
     strncpy(tableDes->cols[count].type, (char *)row[TSDB_DESCRIBE_METRIC_TYPE_INDEX],
-            fields[TSDB_DESCRIBE_METRIC_TYPE_INDEX].bytes);
+            min(15, fields[TSDB_DESCRIBE_METRIC_TYPE_INDEX].bytes));
     tableDes->cols[count].length = *((int *)row[TSDB_DESCRIBE_METRIC_LENGTH_INDEX]);
     strncpy(tableDes->cols[count].note, (char *)row[TSDB_DESCRIBE_METRIC_NOTE_INDEX],
             fields[TSDB_DESCRIBE_METRIC_NOTE_INDEX].bytes);
@@ -1575,7 +1577,7 @@ int taosDumpDb(SDbInfo *dbInfo, struct arguments *arguments, FILE *fp, TAOS *tao
     tstrncpy(tableRecord.name, (char *)row[TSDB_SHOW_TABLES_NAME_INDEX],
             fields[TSDB_SHOW_TABLES_NAME_INDEX].bytes);
     tstrncpy(tableRecord.metric, (char *)row[TSDB_SHOW_TABLES_METRIC_INDEX],
-            fields[TSDB_SHOW_TABLES_METRIC_INDEX].bytes);
+            min(TSDB_TABLE_NAME_LEN, fields[TSDB_SHOW_TABLES_METRIC_INDEX].bytes));
 
     taosWrite(fd, &tableRecord, sizeof(STableRecord));
 
@@ -1858,13 +1860,13 @@ int taosDumpTableData(FILE *fp, char *tbname, struct arguments *arguments, TAOS*
           converStringToReadable((char *)row[col], length[col], tbuf, COMMAND_SIZE);
           //pstr = stpcpy(pstr, tbuf);
           //*(pstr++) = '\'';
-          pstr += sprintf(pstr + curr_sqlstr_len, "\'%s\'", tbuf);
+          curr_sqlstr_len += sprintf(pstr + curr_sqlstr_len, "\'%s\'", tbuf);
           break;
         }
         case TSDB_DATA_TYPE_NCHAR: {
           char tbuf[COMMAND_SIZE] = {0};
           convertNCharToReadable((char *)row[col], length[col], tbuf, COMMAND_SIZE);
-          pstr += sprintf(pstr + curr_sqlstr_len, "\'%s\'", tbuf);
+          curr_sqlstr_len += sprintf(pstr + curr_sqlstr_len, "\'%s\'", tbuf);
           break;
         }
         case TSDB_DATA_TYPE_TIMESTAMP:
@@ -1897,13 +1899,16 @@ int taosDumpTableData(FILE *fp, char *tbname, struct arguments *arguments, TAOS*
 
     total_sqlstr_len += curr_sqlstr_len;
 
-    if ((count >= arguments->data_batch) || (sql_buf_len - total_sqlstr_len < TSDB_MAX_BYTES_PER_ROW)) {
+    if ((count >= arguments->data_batch)
+            || (sql_buf_len - total_sqlstr_len < TSDB_MAX_BYTES_PER_ROW)) {
       fprintf(fp, ";\n");
       count = 0;
     } //else {
       //fprintf(fp, "\\\n");
     //}
   }
+
+  printf("total_sqlstr_len: %d\n", total_sqlstr_len);
 
   fprintf(fp, "\n");
   atomic_add_fetch_64(&totalDumpOutRows, totalRows);

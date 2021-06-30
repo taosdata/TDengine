@@ -35,10 +35,6 @@ public class RestfulStatement extends AbstractStatement {
         if (!SqlSyntaxValidator.isValidForExecuteQuery(sql))
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_INVALID_FOR_EXECUTE_QUERY, "not a valid sql for executeQuery: " + sql);
 
-        if (SqlSyntaxValidator.isDatabaseUnspecifiedQuery(sql)) {
-            return executeOneQuery(sql);
-        }
-
         return executeOneQuery(sql);
     }
 
@@ -50,9 +46,6 @@ public class RestfulStatement extends AbstractStatement {
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_INVALID_FOR_EXECUTE_UPDATE, "not a valid sql for executeUpdate: " + sql);
 
         final String url = "http://" + conn.getHost() + ":" + conn.getPort() + "/rest/sql";
-        if (SqlSyntaxValidator.isDatabaseUnspecifiedUpdate(sql)) {
-            return executeOneUpdate(url, sql);
-        }
 
         return executeOneUpdate(url, sql);
     }
@@ -83,7 +76,7 @@ public class RestfulStatement extends AbstractStatement {
         }
 
         if (SqlSyntaxValidator.isUseSql(sql)) {
-            HttpClientPoolUtil.execute(url, sql);
+            HttpClientPoolUtil.execute(url, sql, this.conn.getToken());
             this.database = sql.trim().replace("use", "").trim();
             this.conn.setCatalog(this.database);
             result = false;
@@ -116,7 +109,7 @@ public class RestfulStatement extends AbstractStatement {
         if ("UTC".equalsIgnoreCase(timestampFormat))
             url = "http://" + conn.getHost() + ":" + conn.getPort() + "/rest/sqlutc";
 
-        String result = HttpClientPoolUtil.execute(url, sql);
+        String result = HttpClientPoolUtil.execute(url, sql, this.conn.getToken());
         JSONObject resultJson = JSON.parseObject(result);
         if (resultJson.getString("status").equals("error")) {
             throw TSDBError.createSQLException(resultJson.getInteger("code"), resultJson.getString("desc"));
@@ -130,7 +123,7 @@ public class RestfulStatement extends AbstractStatement {
         if (!SqlSyntaxValidator.isValidForExecuteUpdate(sql))
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_INVALID_FOR_EXECUTE_UPDATE, "not a valid sql for executeUpdate: " + sql);
 
-        String result = HttpClientPoolUtil.execute(url, sql);
+        String result = HttpClientPoolUtil.execute(url, sql, this.conn.getToken());
         JSONObject jsonObject = JSON.parseObject(result);
         if (jsonObject.getString("status").equals("error")) {
             throw TSDBError.createSQLException(jsonObject.getInteger("code"), jsonObject.getString("desc"));

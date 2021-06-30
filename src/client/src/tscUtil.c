@@ -460,17 +460,15 @@ bool tscIsTWAQuery(SQueryInfo* pQueryInfo) {
   return false;
 }
 
-bool tscIsDiffQuery(SQueryInfo* pQueryInfo) {
-  size_t num = tscNumOfExprs(pQueryInfo);
-  for(int32_t i = 0; i < num; ++i) {
+bool tscIsIrateQuery(SQueryInfo* pQueryInfo) {
+  size_t numOfExprs = tscNumOfExprs(pQueryInfo);
+  for (int32_t i = 0; i < numOfExprs; ++i) {
     SExprInfo* pExpr = tscExprGet(pQueryInfo, i);
-
-    int32_t f = pExpr->base.functionId;
-    if (pExpr == NULL || f == TSDB_FUNC_TS_DUMMY) {
+    if (pExpr == NULL) {
       continue;
     }
 
-    if (f == TSDB_FUNC_DIFF || f == TSDB_FUNC_DERIVATIVE) {
+    if (pExpr->base.functionId == TSDB_FUNC_IRATE) {
       return true;
     }
   }
@@ -516,7 +514,7 @@ bool isSimpleAggregateRv(SQueryInfo* pQueryInfo) {
     return false;
   }
 
-  if (tscIsDiffQuery(pQueryInfo)) {
+  if (tscIsDiffDerivQuery(pQueryInfo)) {
     return false;
   }
 
@@ -827,7 +825,10 @@ static void fetchNextBlockIfCompleted(SOperatorInfo* pOperator, bool* newgroup) 
     SJoinStatus* pStatus = &pJoinInfo->status[i];
     if (pStatus->pBlock == NULL || pStatus->index >= pStatus->pBlock->info.rows) {
       tscDebug("Retrieve nest query result, index:%d, total:%d", i, pOperator->numOfUpstream);
+
+      publishOperatorProfEvent(pOperator->upstream[0], QUERY_PROF_BEFORE_OPERATOR_EXEC);
       pStatus->pBlock = pOperator->upstream[i]->exec(pOperator->upstream[i], newgroup);
+      publishOperatorProfEvent(pOperator->upstream[0], QUERY_PROF_AFTER_OPERATOR_EXEC);
       pStatus->index = 0;
 
       if (pStatus->pBlock == NULL) {
@@ -1306,7 +1307,7 @@ void tscResetSqlCmd(SSqlCmd* pCmd, bool clearCachedMeta) {
   if (pCmd->pTableMetaMap != NULL) {
     STableMetaVgroupInfo* p = taosHashIterate(pCmd->pTableMetaMap, NULL);
     while (p) {
-      tfree(p->pVgroupInfo);
+      tscVgroupInfoClear(p->pVgroupInfo);
       tfree(p->pTableMeta);
       p = taosHashIterate(pCmd->pTableMetaMap, p);
     }
@@ -1334,7 +1335,7 @@ void tscFreeSubobj(SSqlObj* pSql) {
   tscDebug("0x%"PRIx64" start to free sub SqlObj, numOfSub:%d", pSql->self, pSql->subState.numOfSub);
 
   for(int32_t i = 0; i < pSql->subState.numOfSub; ++i) {
-    tscDebug("0x%"PRIx64" free sub SqlObj:%p, index:%d", pSql->self, pSql->pSubs[i], i);
+    tscDebug("0x%"PRIx64" free sub SqlObj:0x%"PRIx64", index:%d", pSql->self, pSql->pSubs[i]->self, i);
     taos_free_result(pSql->pSubs[i]);
     pSql->pSubs[i] = NULL;
   }
@@ -1639,6 +1640,139 @@ int32_t tscGetDataBlockFromList(SHashObj* pHashList, int64_t id, int32_t size, i
   return TSDB_CODE_SUCCESS;
 }
 
+// int tdInitMemRowBuilder(SMemRowBuilder* pBuilder) {
+//   pBuilder->pSchema = NULL;
+//   pBuilder->sversion = 0;
+//   pBuilder->tCols = 128;
+//   pBuilder->nCols = 0;
+//   pBuilder->pColIdx = (SColIdx*)malloc(sizeof(SColIdx) * pBuilder->tCols);
+//   if (pBuilder->pColIdx == NULL) return -1;
+//   pBuilder->alloc = 1024;
+//   pBuilder->size = 0;
+//   pBuilder->buf = malloc(pBuilder->alloc);
+//   if (pBuilder->buf == NULL) {
+//     free(pBuilder->pColIdx);
+//     return -1;
+//   }
+//   return 0;
+// }
+
+// void tdDestroyMemRowBuilder(SMemRowBuilder* pBuilder) {
+//   tfree(pBuilder->pColIdx);
+//   tfree(pBuilder->buf);
+// }
+
+// void tdResetMemRowBuilder(SMemRowBuilder* pBuilder) {
+//   pBuilder->nCols = 0;
+//   pBuilder->size = 0;
+// }
+
+#define KvRowNColsThresh 1  // default value: 32       TODO: for test, restore to 32 after test finished
+
+static FORCE_INLINE uint8_t tdRowTypeJudger(SSchema* pSchema, void* pData, int32_t nCols, int32_t flen,
+                                            uint16_t* nColsNotNull) {
+  ASSERT(pData != NULL);
+  if (nCols < KvRowNColsThresh) {
+    return SMEM_ROW_DATA;
+  }
+  int32_t dataRowLength = flen;
+  int32_t kvRowLength = 0;
+
+  uint16_t nColsNull = 0;
+  char*   p = (char*)pData;
+  for (int i = 0; i < nCols; ++i) {
+    if (IS_VAR_DATA_TYPE(pSchema[i].type)) {
+      dataRowLength += varDataTLen(p);
+      if (!isNull(p, pSchema[i].type)) {
+        kvRowLength += (sizeof(SColIdx) + varDataTLen(p));
+      } else {
+        ++nColsNull;
+      }
+    } else {
+      if (!isNull(p, pSchema[i].type)) {
+        kvRowLength += (sizeof(SColIdx) + TYPE_BYTES[pSchema[i].type]);
+      } else {
+        ++nColsNull;
+      }
+    }
+
+    // next column
+    p += pSchema[i].bytes;
+  }
+
+  tscDebug("prop:nColsNull %d, nCols: %d, kvRowLen: %d, dataRowLen: %d", (int32_t)nColsNull, nCols, kvRowLength,
+           dataRowLength);
+
+  if (kvRowLength < dataRowLength) {
+    if (nColsNotNull) {
+      *nColsNotNull = nCols - nColsNull;
+    }
+    return SMEM_ROW_KV;
+  }
+
+  return SMEM_ROW_DATA;
+}
+
+SMemRow tdGenMemRowFromBuilder(SMemRowBuilder* pBuilder) {
+  SSchema* pSchema = pBuilder->pSchema;
+  char*    p = (char*)pBuilder->buf;
+
+  if(pBuilder->nCols <= 0){
+    return NULL;
+  }
+
+  uint16_t nColsNotNull = 0;
+  uint8_t memRowType = tdRowTypeJudger(pSchema, p, pBuilder->nCols, pBuilder->flen, &nColsNotNull);
+  tscDebug("prop:memType is %d", memRowType);
+  memRowType = SMEM_ROW_DATA;
+
+  SMemRow* memRow = (SMemRow)pBuilder->pDataBlock;
+  memRowSetType(memRow, memRowType);
+
+  if (memRowType == SMEM_ROW_DATA) {
+    SDataRow trow = (SDataRow)memRowBody(memRow);
+    dataRowSetLen(trow, (uint16_t)(TD_DATA_ROW_HEAD_SIZE + pBuilder->flen));
+    dataRowSetVersion(trow, pBuilder->sversion);
+
+    int toffset = 0;
+    p = (char*)pBuilder->buf;
+    for (int32_t j = 0; j < pBuilder->nCols; ++j) {
+      tdAppendColVal(trow, p, pSchema[j].type, pSchema[j].bytes, toffset);
+      toffset += TYPE_BYTES[pSchema[j].type];
+      p += pSchema[j].bytes;
+    }
+    pBuilder->buf = p;
+  } else if (memRowType == SMEM_ROW_KV)  {
+    ASSERT(nColsNotNull < pBuilder->nCols);
+
+    uint16_t tlen = TD_KV_ROW_HEAD_SIZE + sizeof(SColIdx) * nColsNotNull + pBuilder->size;
+    SKVRow   kvRow = (SKVRow)memRowBody(memRow);
+
+    kvRowSetNCols(kvRow, nColsNotNull);
+    kvRowSetLen(kvRow, tlen);
+
+    int toffset = 0;
+    p = (char*)pBuilder->buf;
+    for (int32_t j = 0; j < pBuilder->nCols; ++j) {
+      if(!isNull(p, pSchema[j].type)) {
+        tdAppendKvColVal(kvRow, p, pSchema[j].colId, pSchema[j].type, toffset);
+        toffset += sizeof(SColIdx);
+      }
+      p += pSchema[j].bytes;
+    }
+    pBuilder->buf = p;
+
+  } else {
+    ASSERT(0);
+  }
+
+  pBuilder->pDataBlock = (char*)pBuilder->pDataBlock + memRowTLen(memRow);  // next row
+  pBuilder->pSubmitBlk->dataLen += memRowTLen(memRow);
+
+  return memRow;
+}
+
+// Erase the empty space reserved for binary data
 static int trimDataBlock(void* pDataBlock, STableDataBlocks* pTableDataBlock, bool includeSchema) {
   // TODO: optimize this function, handle the case while binary is not presented
   STableMeta*   pTableMeta = pTableDataBlock->pTableMeta;
@@ -1678,12 +1812,24 @@ static int trimDataBlock(void* pDataBlock, STableDataBlocks* pTableDataBlock, bo
   char* p = pTableDataBlock->pData + sizeof(SSubmitBlk);
   pBlock->dataLen = 0;
   int32_t numOfRows = htons(pBlock->numOfRows);
-  
+
+  SMemRowBuilder mRowBuilder;
+  mRowBuilder.pSchema = pSchema;
+  mRowBuilder.sversion = pTableMeta->sversion;
+  mRowBuilder.flen = flen;
+  mRowBuilder.nCols = tinfo.numOfColumns;
+  mRowBuilder.pDataBlock = pDataBlock;
+  mRowBuilder.pSubmitBlk = pBlock;
+  mRowBuilder.buf = p;
+  mRowBuilder.size = 0;
+
   for (int32_t i = 0; i < numOfRows; ++i) {
-    SDataRow trow = (SDataRow) pDataBlock;
+#if 0
+    SDataRow trow = (SDataRow)pDataBlock;  // generate each SDataRow one by one
     dataRowSetLen(trow, (uint16_t)(TD_DATA_ROW_HEAD_SIZE + flen));
     dataRowSetVersion(trow, pTableMeta->sversion);
 
+    // scan each column data and generate the data row
     int toffset = 0;
     for (int32_t j = 0; j < tinfo.numOfColumns; j++) {
       tdAppendColVal(trow, p, pSchema[j].type, pSchema[j].bytes, toffset);
@@ -1691,8 +1837,10 @@ static int trimDataBlock(void* pDataBlock, STableDataBlocks* pTableDataBlock, bo
       p += pSchema[j].bytes;
     }
 
-    pDataBlock = (char*)pDataBlock + dataRowLen(trow);
-    pBlock->dataLen += dataRowLen(trow);
+    pDataBlock = (char*)pDataBlock + dataRowLen(trow);  // next SDataRow
+    pBlock->dataLen += dataRowLen(trow);                // SSubmitBlk data length
+#endif
+    tdGenMemRowFromBuilder(&mRowBuilder);
   }
 
   int32_t len = pBlock->dataLen + pBlock->schemaLen;
@@ -1704,13 +1852,14 @@ static int trimDataBlock(void* pDataBlock, STableDataBlocks* pTableDataBlock, bo
 
 static int32_t getRowExpandSize(STableMeta* pTableMeta) {
   int32_t result = TD_DATA_ROW_HEAD_SIZE;
-  int32_t columns = tscGetNumOfColumns(pTableMeta);
+  int32_t  columns = tscGetNumOfColumns(pTableMeta);
   SSchema* pSchema = tscGetTableSchema(pTableMeta);
   for(int32_t i = 0; i < columns; i++) {
     if (IS_VAR_DATA_TYPE((pSchema + i)->type)) {
       result += TYPE_BYTES[TSDB_DATA_TYPE_BINARY];
     }
   }
+  result += TD_MEM_ROW_TYPE_SIZE;  // add len of SMemRow flag
   return result;
 }
 
@@ -1787,7 +1936,7 @@ int32_t tscMergeTableDataBlocks(SInsertStatementParam *pInsertParam, bool freeBl
       tscSortRemoveDataBlockDupRows(pOneTableBlock);
       char* ekey = (char*)pBlocks->data + pOneTableBlock->rowSize*(pBlocks->numOfRows-1);
 
-      tscDebug("0x%"PRIx64" name:%s, name:%d rows:%d sversion:%d skey:%" PRId64 ", ekey:%" PRId64, pInsertParam->objectId, tNameGetTableName(&pOneTableBlock->tableName),
+      tscDebug("0x%"PRIx64" name:%s, tid:%d rows:%d sversion:%d skey:%" PRId64 ", ekey:%" PRId64, pInsertParam->objectId, tNameGetTableName(&pOneTableBlock->tableName),
           pBlocks->tid, pBlocks->numOfRows, pBlocks->sversion, GET_INT64_VAL(pBlocks->data), GET_INT64_VAL(ekey));
 
       int32_t len = pBlocks->numOfRows * (pOneTableBlock->rowSize + expandSize) + sizeof(STColumn) * tscGetNumOfColumns(pOneTableBlock->pTableMeta);
@@ -2273,18 +2422,14 @@ int32_t tscExprCopyAll(SArray* dst, const SArray* src, bool deepcopy) {
   return 0;
 }
 
-bool tscColumnExists(SArray* pColumnList, int32_t columnIndex, uint64_t uid) {
-  // ignore the tbname columnIndex to be inserted into source list
-  if (columnIndex < 0) {
-    return false;
-  }
-
+// ignore the tbname columnIndex to be inserted into source list
+int32_t tscColumnExists(SArray* pColumnList, int32_t columnId, uint64_t uid) {
   size_t numOfCols = taosArrayGetSize(pColumnList);
 
   int32_t i = 0;
   while (i < numOfCols) {
     SColumn* pCol = taosArrayGetP(pColumnList, i);
-    if ((pCol->columnIndex != columnIndex) || (pCol->tableUid != uid)) {
+    if ((pCol->info.colId != columnId) || (pCol->tableUid != uid)) {
       ++i;
       continue;
     } else {
@@ -2293,10 +2438,10 @@ bool tscColumnExists(SArray* pColumnList, int32_t columnIndex, uint64_t uid) {
   }
 
   if (i >= numOfCols || numOfCols == 0) {
-    return false;
+    return -1;
   }
 
-  return true;
+  return i;
 }
 
 void tscExprAssign(SExprInfo* dst, const SExprInfo* src) {
@@ -2382,19 +2527,25 @@ SColumn* tscColumnClone(const SColumn* src) {
     return NULL;
   }
 
-  dst->columnIndex       = src->columnIndex;
-  dst->tableUid          = src->tableUid;
-  dst->info.flist.numOfFilters = src->info.flist.numOfFilters;
-  dst->info.flist.filterInfo   = tFilterInfoDup(src->info.flist.filterInfo, src->info.flist.numOfFilters);
-  dst->info.type         = src->info.type;
-  dst->info.colId        = src->info.colId;
-  dst->info.bytes        = src->info.bytes;
+  tscColumnCopy(dst, src);
   return dst;
 }
 
 static void tscColumnDestroy(SColumn* pCol) {
   destroyFilterInfo(&pCol->info.flist);
   free(pCol);
+}
+
+void tscColumnCopy(SColumn* pDest, const SColumn* pSrc) {
+  destroyFilterInfo(&pDest->info.flist);
+
+  pDest->columnIndex       = pSrc->columnIndex;
+  pDest->tableUid          = pSrc->tableUid;
+  pDest->info.flist.numOfFilters = pSrc->info.flist.numOfFilters;
+  pDest->info.flist.filterInfo   = tFilterInfoDup(pSrc->info.flist.filterInfo, pSrc->info.flist.numOfFilters);
+  pDest->info.type        = pSrc->info.type;
+  pDest->info.colId        = pSrc->info.colId;
+  pDest->info.bytes      = pSrc->info.bytes;
 }
 
 void tscColumnListCopy(SArray* dst, const SArray* src, uint64_t tableUid) {
@@ -3279,6 +3430,8 @@ SSqlObj* createSubqueryObj(SSqlObj* pSql, int16_t tableIndex, __async_cb_func_t 
   pnCmd->insertParam.pTableNameList = NULL;
   pnCmd->insertParam.pTableBlockHashList = NULL;
 
+  memset(&pnCmd->insertParam.tagData, 0, sizeof(STagData));
+
   if (tscAddQueryInfo(pnCmd) != TSDB_CODE_SUCCESS) {
     terrno = TSDB_CODE_TSC_OUT_OF_MEMORY;
     goto _error;
@@ -3496,6 +3649,7 @@ static void tscSubqueryRetrieveCallback(void* param, TAOS_RES* tres, int code) {
   if (pSql->res.code == TSDB_CODE_SUCCESS) {
     (*pSql->fp)(pParentSql->param, pParentSql, pParentSql->res.numOfRows);
   } else {
+    pParentSql->res.code = pSql->res.code;
     tscAsyncResultOnError(pParentSql);
   }
 }
@@ -4077,7 +4231,10 @@ SVgroupsInfo* tscVgroupsInfoDup(SVgroupsInfo* pVgroupsInfo) {
 
   size_t size = sizeof(SVgroupInfo) * pVgroupsInfo->numOfVgroups + sizeof(SVgroupsInfo);
   SVgroupsInfo* pInfo = calloc(1, size);
-  memcpy(pInfo, pVgroupsInfo, size);
+  pInfo->numOfVgroups = pVgroupsInfo->numOfVgroups;
+  for (int32_t m = 0; m < pVgroupsInfo->numOfVgroups; ++m) {
+    tscSVgroupInfoCopy(&pInfo->vgroups[m], &pVgroupsInfo->vgroups[m]);
+  }
   return pInfo;
 }
 
@@ -4261,7 +4418,7 @@ int32_t tscCreateQueryFromQueryInfo(SQueryInfo* pQueryInfo, SQueryAttr* pQueryAt
   pQueryAttr->hasTagResults     = hasTagValOutput(pQueryInfo);
   pQueryAttr->stabledev         = isStabledev(pQueryInfo);
   pQueryAttr->tsCompQuery       = isTsCompQuery(pQueryInfo);
-  pQueryAttr->diffQuery         = tscIsDiffQuery(pQueryInfo);
+  pQueryAttr->diffQuery         = tscIsDiffDerivQuery(pQueryInfo);
   pQueryAttr->simpleAgg         = isSimpleAggregateRv(pQueryInfo);
   pQueryAttr->needReverseScan   = tscNeedReverseScan(pQueryInfo);
   pQueryAttr->stableQuery       = QUERY_IS_STABLE_QUERY(pQueryInfo->type);

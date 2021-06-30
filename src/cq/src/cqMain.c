@@ -483,8 +483,8 @@ static void cqProcessStreamRes(void *param, TAOS_RES *tres, TAOS_ROW row) {
   SSubmitMsg *pMsg = (SSubmitMsg *) (buffer + sizeof(SWalHead));
   SSubmitBlk *pBlk = (SSubmitBlk *) (buffer + sizeof(SWalHead) + sizeof(SSubmitMsg));
 
-  SDataRow trow = (SDataRow)pBlk->data;
-  tdInitDataRow(trow, pSchema);
+  SMemRow trow = (SMemRow)pBlk->data;
+  tdInitDataRow(POINTER_SHIFT(trow, TD_MEM_ROW_TYPE_SIZE), pSchema);
 
   for (int32_t i = 0; i < pSchema->numOfCols; i++) {
     STColumn *c = pSchema->columns + i;
@@ -500,9 +500,9 @@ static void cqProcessStreamRes(void *param, TAOS_RES *tres, TAOS_ROW row) {
       memcpy((char *)val + sizeof(VarDataLenT), buf, len);
       varDataLen(val) = len;
     }
-    tdAppendColVal(trow, val, c->type, c->bytes, c->offset);
+    tdAppendColVal(POINTER_SHIFT(trow, TD_MEM_ROW_TYPE_SIZE), val, c->type, c->bytes, c->offset);
   }
-  pBlk->dataLen = htonl(dataRowLen(trow));
+  pBlk->dataLen = htonl(memRowTLen(trow));
   pBlk->schemaLen = 0;
 
   pBlk->uid = htobe64(pObj->uid);
@@ -511,7 +511,7 @@ static void cqProcessStreamRes(void *param, TAOS_RES *tres, TAOS_ROW row) {
   pBlk->sversion = htonl(pSchema->version);
   pBlk->padding = 0;
 
-  pHead->len = sizeof(SSubmitMsg) + sizeof(SSubmitBlk) + dataRowLen(trow);
+  pHead->len = sizeof(SSubmitMsg) + sizeof(SSubmitBlk) + memRowTLen(trow);
 
   pMsg->header.vgId = htonl(pContext->vgId);
   pMsg->header.contLen = htonl(pHead->len);

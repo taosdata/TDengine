@@ -21,7 +21,6 @@ public class QueryDataTest {
     @Before
     public void createDatabase() {
         try {
-            Class.forName("com.taosdata.jdbc.TSDBDriver");
             Properties properties = new Properties();
             properties.setProperty(TSDBDriver.PROPERTY_KEY_CHARSET, "UTF-8");
             properties.setProperty(TSDBDriver.PROPERTY_KEY_LOCALE, "en_US.UTF-8");
@@ -36,7 +35,7 @@ public class QueryDataTest {
             String createTableSql = "create table " + stbName + "(ts timestamp, name binary(64))";
             statement.executeUpdate(createTableSql);
 
-        } catch (ClassNotFoundException | SQLException e) {
+        } catch (SQLException e) {
             return;
         }
     }
@@ -44,7 +43,6 @@ public class QueryDataTest {
     @Test
     public void testQueryBinaryData() throws SQLException {
         String insertSql = "insert into " + stbName + " values(now, 'taosdata')";
-        System.out.println(insertSql);
         statement.executeUpdate(insertSql);
 
         String querySql = "select * from " + stbName;
@@ -52,7 +50,6 @@ public class QueryDataTest {
 
         while (rs.next()) {
             String name = rs.getString(2);
-            System.out.println("name = " + name);
             assertEquals("taosdata", name);
         }
         rs.close();

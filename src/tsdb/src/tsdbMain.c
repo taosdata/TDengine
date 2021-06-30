@@ -639,7 +639,7 @@ static int tsdbRestoreLastColumns(STsdbRepo *pRepo, STable *pTable, SReadH* pRea
   int numColumns;
   int32_t blockIdx;
   SDataStatis* pBlockStatis = NULL;
-  SDataRow row = NULL;
+  SMemRow      row = NULL;
   // restore last column data with last schema
   
   int err = 0;
@@ -655,13 +655,13 @@ static int tsdbRestoreLastColumns(STsdbRepo *pRepo, STable *pTable, SReadH* pRea
     }
   }
 
-  row = taosTMalloc(dataRowMaxBytesFromSchema(pSchema));
+  row = taosTMalloc(memRowMaxBytesFromSchema(pSchema));
   if (row == NULL) {
     terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
     err = -1;
     goto out;
   }
-  tdInitDataRow(row, pSchema);
+  tdInitDataRow(POINTER_SHIFT(row, TD_MEM_ROW_TYPE_SIZE), pSchema);
 
   // first load block index info
   if (tsdbLoadBlockInfo(pReadh, NULL) < 0) {
@@ -718,9 +718,10 @@ static int tsdbRestoreLastColumns(STsdbRepo *pRepo, STable *pTable, SReadH* pRea
       // OK,let's load row from backward to get not-null column
       for (int32_t rowId = pBlock->numOfRows - 1; rowId >= 0; rowId--) {
         SDataCol *pDataCol = pReadh->pDCols[0]->cols + i;
-        tdAppendColVal(row, tdGetColDataOfRow(pDataCol, rowId), pCol->type, pCol->bytes, pCol->offset);
+        tdAppendColVal(POINTER_SHIFT(row, TD_MEM_ROW_TYPE_SIZE), tdGetColDataOfRow(pDataCol, rowId), pCol->type,
+                       pCol->bytes, pCol->offset);
         //SDataCol *pDataCol = readh.pDCols[0]->cols + j;
-        void* value = tdGetRowDataOfCol(row, (int8_t)pCol->type, TD_DATA_ROW_HEAD_SIZE + pCol->offset);
+        void *value = tdGetMemRowDataOfCol(row, (int8_t)pCol->type, TD_MEM_ROW_HEAD_SIZE + pCol->offset);
         if (isNull(value, pCol->type)) {
           continue;
         }
@@ -740,8 +741,9 @@ static int tsdbRestoreLastColumns(STsdbRepo *pRepo, STable *pTable, SReadH* pRea
         // save row ts(in column 0)
         pDataCol = pReadh->pDCols[0]->cols + 0;
         pCol = schemaColAt(pSchema, 0);
-        tdAppendColVal(row, tdGetColDataOfRow(pDataCol, rowId), pCol->type, pCol->bytes, pCol->offset);
-        pLastCol->ts = dataRowKey(row);
+        tdAppendColVal(POINTER_SHIFT(row, TD_MEM_ROW_TYPE_SIZE), tdGetColDataOfRow(pDataCol, rowId), pCol->type,
+                       pCol->bytes, pCol->offset);
+        pLastCol->ts = memRowKey(row);
 
         pTable->restoreColumnNum += 1;
 
@@ -812,6 +814,7 @@ int tsdbRestoreInfo(STsdbRepo *pRepo) {
       STable *pTable = pMeta->tables[i];
       if (pTable == NULL) continue;
       pTable->restoreColumnNum = 0;  
+      pTable->hasRestoreLastColumn = false;
     }
   }
 
@@ -895,6 +898,7 @@ int tsdbCacheLastData(STsdbRepo *pRepo, STsdbCfg* oldCfg) {
     maxTableIdx = i;
     if (cacheLastCol) {
       pTable->restoreColumnNum = 0;
+      pTable->hasRestoreLastColumn = false;
     } 
   }
 
@@ -913,6 +917,7 @@ int tsdbCacheLastData(STsdbRepo *pRepo, STsdbCfg* oldCfg) {
       }
       if (need_free_last_col) {
         tsdbFreeLastColumns(pTable);
+        pTable->hasRestoreLastColumn = false;
       }
     }    
   }

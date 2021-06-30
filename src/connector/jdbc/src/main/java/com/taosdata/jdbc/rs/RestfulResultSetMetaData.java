@@ -7,21 +7,20 @@ import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.sql.Types;
-import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 
 public class RestfulResultSetMetaData extends WrapperImpl implements ResultSetMetaData {
 
     private final String database;
-    private ArrayList<RestfulResultSet.Field> fields;
-    private final RestfulResultSet resultSet;
+    private final List<RestfulResultSet.Field> fields;
 
-    public RestfulResultSetMetaData(String database, ArrayList<RestfulResultSet.Field> fields, RestfulResultSet resultSet) {
+    public RestfulResultSetMetaData(String database, List<RestfulResultSet.Field> fields, RestfulResultSet resultSet) {
         this.database = database;
-        this.fields = fields;
-        this.resultSet = resultSet;
+        this.fields = fields == null ? Collections.emptyList() : fields;
     }
 
-    public ArrayList<RestfulResultSet.Field> getFields() {
+    public List<RestfulResultSet.Field> getFields() {
         return fields;
     }
 
@@ -139,8 +138,8 @@ public class RestfulResultSetMetaData extends WrapperImpl implements ResultSetMe
 
     @Override
     public String getColumnTypeName(int column) throws SQLException {
-        int taos_type = fields.get(column - 1).taos_type;
-        return TSDBConstants.taosType2JdbcTypeName(taos_type);
+        int taosType = fields.get(column - 1).taos_type;
+        return TSDBConstants.taosType2JdbcTypeName(taosType);
     }
 
     @Override

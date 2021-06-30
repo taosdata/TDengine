@@ -51,10 +51,10 @@ JNIEXPORT jstring JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_getTsCharset
 
 /*
  * Class:     com_taosdata_jdbc_TSDBJNIConnector
- * Method:    getResultTimePrecision
- * Signature: (J)J
+ * Method:    getResultTimePrecisionImp
+ * Signature: (JJ)I
  */
-JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_TDDBJNIConnector_getResultTimePrecision
+JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_TDDBJNIConnector_getResultTimePrecisionImp
         (JNIEnv *, jobject, jlong, jlong);
 
 /*

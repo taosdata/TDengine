@@ -23,7 +23,7 @@ TDengine是涛思数据专为物联网、车联网、工业互联网、IT运维�
 
 TDengine是一个高效的存储、查询、分析时序大数据的平台，专为物联网、车联网、工业互联网、运维监测等优化而设计。您可以像使用关系型数据库MySQL一样来使用它，但建议您在使用前仔细阅读一遍下面的文档，特别是 [数据模型](https://www.taosdata.com/cn/documentation/architecture) 与 [数据建模](https://www.taosdata.com/cn/documentation/model)。除本文档之外，欢迎 [下载产品白皮书](https://www.taosdata.com/downloads/TDengine%20White%20Paper.pdf)。
 
-# 生成
+# 构建
 
 TDengine目前2.0版服务器仅能在Linux系统上安装和运行，后续会支持Windows、macOS等系统。客户端可以在Windows或Linux上安装和运行。任何OS的应用也可以选择RESTful接口连接服务器taosd。CPU支持X64/ARM64/MIPS64/Alpha64，后续会支持ARM32、RISC-V等CPU架构。用户可根据需求选择通过[源码](https://www.taosdata.com/cn/getting-started/#通过源码安装)或者[安装包](https://www.taosdata.com/cn/getting-started/#通过安装包安装)来安装。本快速指南仅适用于通过源码安装。
 
@@ -107,13 +107,19 @@ Go 连接器和 Grafana 插件在其他独立仓库，如果安装它们的话�
 git submodule update --init --recursive
 ```
 
-## 生成 TDengine
+## 构建 TDengine
 
 ### Linux 系统
 
 ```bash
 mkdir debug && cd debug
 cmake .. && cmake --build .
+```
+
+您可以选择使用 Jemalloc 作为内存分配器，替代默认的 glibc：
+```bash
+apt install autoconf
+cmake .. -DJEMALLOC_ENABLED=true
 ```
 
 在X86-64、X86、arm64、arm32 和 mips64 平台上，TDengine 生成脚本可以自动检测机器架构。也可以手动配置 CPUTYPE 参数来指定 CPU 类型，如 aarch64 或 aarch32 等。

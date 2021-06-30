@@ -422,6 +422,12 @@ void *syncRetrieveData(void *param) {
     return NULL;
   }
 
+  uint32_t ip = syncResolvePeerFqdn(pPeer);
+  if (!ip) {
+      syncReleasePeer(pPeer);
+      return NULL;
+  }
+
   SSyncNode *pNode = pPeer->pSyncNode;
 
   taosBlockSIGPIPE();
@@ -430,7 +436,7 @@ void *syncRetrieveData(void *param) {
 
   if (pNode->notifyFlowCtrlFp) (*pNode->notifyFlowCtrlFp)(pNode->vgId, pPeer->numOfRetrieves);
 
-  pPeer->syncFd = taosOpenTcpClientSocket(pPeer->ip, pPeer->port, 0);
+  pPeer->syncFd = taosOpenTcpClientSocket(ip, pPeer->port, 0);
   if (pPeer->syncFd < 0) {
     sError("%s, failed to open socket to sync", pPeer->id);
   } else {

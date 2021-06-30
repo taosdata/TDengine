@@ -123,7 +123,8 @@ int32_t tscGetDataBlockFromList(SHashObj* pHashList, int64_t id, int32_t size, i
  */
 bool tscIsPointInterpQuery(SQueryInfo* pQueryInfo);
 bool tscIsTWAQuery(SQueryInfo* pQueryInfo);
-bool tscIsDiffQuery(SQueryInfo* pQueryInfo);
+bool tscIsIrateQuery(SQueryInfo* pQueryInfo);
+
 bool tscIsSessionWindowQuery(SQueryInfo* pQueryInfo);
 bool tscIsSecondStageQuery(SQueryInfo* pQueryInfo);
 bool tsIsArithmeticQueryOnAggResult(SQueryInfo* pQueryInfo);
@@ -209,7 +210,8 @@ int32_t createProjectionExpr(SQueryInfo* pQueryInfo, STableMetaInfo* pTableMetaI
 void clearAllTableMetaInfo(SQueryInfo* pQueryInfo, bool removeMeta);
 
 SColumn* tscColumnClone(const SColumn* src);
-bool tscColumnExists(SArray* pColumnList, int32_t columnIndex, uint64_t uid);
+void tscColumnCopy(SColumn* pDest, const SColumn* pSrc);
+int32_t tscColumnExists(SArray* pColumnList, int32_t columnId, uint64_t uid);
 SColumn* tscColumnListInsert(SArray* pColumnList, int32_t columnIndex, uint64_t uid, SSchema* pSchema);
 void tscColumnListDestroy(SArray* pColList);
 void tscColumnListCopy(SArray* dst, const SArray* src, uint64_t tableUid);
@@ -338,6 +340,58 @@ char* strdup_throw(const char* str);
 
 bool vgroupInfoIdentical(SNewVgroupInfo *pExisted, SVgroupMsg* src);
 SNewVgroupInfo createNewVgroupInfo(SVgroupMsg *pVgroupMsg);
+
+typedef struct {
+  // for SDataRow
+  STSchema* pTSchema;
+  SSchema*  pSchema;
+  int16_t   sversion;
+  int32_t   flen;
+  // for  SKVRow
+  uint16_t    tCols;
+  uint16_t    nCols;
+  SColIdx*    pColIdx;
+  uint16_t    alloc;
+  uint16_t    size;
+  void*       buf;
+  
+  void*       pDataBlock;
+  SSubmitBlk* pSubmitBlk;
+} SMemRowBuilder;
+
+// int     tdInitMemRowBuilder(SMemRowBuilder* pBuilder);
+// void    tdDestroyMemRowBuilder(SMemRowBuilder* pBuilder);
+// void    tdResetMemRowBuilder(SMemRowBuilder* pBuilder);
+SMemRow tdGenMemRowFromBuilder(SMemRowBuilder* pBuilder);
+
+// static FORCE_INLINE int tdAddColToMemRow(SMemRowBuilder* pBuilder, int16_t colId, int8_t type, void* value) {
+//   // TODO
+
+//   if (pBuilder->nCols >= pBuilder->tCols) {
+//     pBuilder->tCols *= 2;
+//     pBuilder->pColIdx = (SColIdx*)realloc((void*)(pBuilder->pColIdx), sizeof(SColIdx) * pBuilder->tCols);
+//     if (pBuilder->pColIdx == NULL) return -1;
+//   }
+
+//   pBuilder->pColIdx[pBuilder->nCols].colId = colId;
+//   pBuilder->pColIdx[pBuilder->nCols].offset = pBuilder->size;
+
+//   pBuilder->nCols++;
+
+//   int tlen = IS_VAR_DATA_TYPE(type) ? varDataTLen(value) : TYPE_BYTES[type];
+//   if (tlen > pBuilder->alloc - pBuilder->size) {
+//     while (tlen > pBuilder->alloc - pBuilder->size) {
+//       pBuilder->alloc *= 2;
+//     }
+//     pBuilder->buf = realloc(pBuilder->buf, pBuilder->alloc);
+//     if (pBuilder->buf == NULL) return -1;
+//   }
+
+//   memcpy(POINTER_SHIFT(pBuilder->buf, pBuilder->size), value, tlen);
+//   pBuilder->size += tlen;
+
+//   return 0;
+// }
 
 #ifdef __cplusplus
 }
