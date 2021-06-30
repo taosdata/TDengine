@@ -173,8 +173,9 @@ class TDTestCase:
         tdSql.checkData(0,7,'10,10,10')
         tdSql.error('insert into tb values (now-15d, 10)')
         tdSql.query('select * from tb')
-        tdSql.checkRows(rowNum)
+        tdSql.checkRows(2)
         
+        rowNum = 2
         tdLog.notice('testing keep will be altered if sudden change from small to big')
         for i in range(30):
             tdSql.execute('alter database db keep 14,14,14')
@@ -182,14 +183,19 @@ class TDTestCase:
             tdSql.execute('insert into tb values (now-15d, 10)')
             tdSql.query('select * from tb')
             rowNum += 1
-            tdSql.checkRows(rowNum )
+            tdSql.checkRows(rowNum)
 
         tdLog.notice('testing keep will be altered if sudden change from big to small')
         tdSql.execute('alter database db keep 16,16,16')
         tdSql.execute('alter database db keep 14,14,14')
         tdSql.error('insert into tb values (now-15d, 10)')
         tdSql.query('select * from tb')
-        tdSql.checkRows(rowNum)
+        tdSql.checkRows(2)
+
+        tdLog.notice('testing data will show up again when keep is being changed to large value')
+        tdSql.execute('alter database db keep 40,40,40')
+        tdSql.query('select * from tb')
+        tdSql.checkRows(63)
 
 
 
