@@ -280,16 +280,12 @@ static SArray* createCheckInfoFromTableGroup(STsdbQueryHandle* pQueryHandle, STa
       info.tableId.uid = info.pTableObj->tableId.uid;
 
       if (ASCENDING_TRAVERSE(pQueryHandle->order)) {
-        if (info.lastKey == INT64_MIN) {
+        if (info.lastKey == INT64_MIN || info.lastKey < pQueryHandle->window.skey) {
           info.lastKey = pQueryHandle->window.skey;
         }
 
         assert(info.lastKey >= pQueryHandle->window.skey && info.lastKey <= pQueryHandle->window.ekey);
       } else {
-        if (info.lastKey == INT64_MIN) {
-          info.lastKey = pQueryHandle->window.ekey;
-        }
-
         assert(info.lastKey >= pQueryHandle->window.ekey && info.lastKey <= pQueryHandle->window.skey);
       }
 
