@@ -214,7 +214,7 @@ typedef void *SMemRow;
 #define TD_DATA_ROW_HEAD_SIZE (sizeof(uint16_t) + sizeof(int16_t))
 
 #define dataRowLen(r) (*(uint16_t *)(r))
-#define dataRowVersion(r) *(int16_t *)POINTER_SHIFT(r, sizeof(int16_t))
+#define dataRowVersion(r) (*(int16_t *)POINTER_SHIFT(r, sizeof(int16_t)))
 #define dataRowTuple(r) POINTER_SHIFT(r, TD_DATA_ROW_HEAD_SIZE)
 #define dataRowTKey(r) (*(TKEY *)(dataRowTuple(r)))
 #define dataRowKey(r) tdGetKey(dataRowTKey(r))
@@ -425,7 +425,7 @@ typedef struct {
 #define kvRowNCols(r) (*(int16_t *)POINTER_SHIFT(r, sizeof(uint16_t)))
 #define kvRowSetLen(r, len) kvRowLen(r) = (len)
 #define kvRowSetNCols(r, n) kvRowNCols(r) = (n)
-#define kvRowColIdx(r) (SColIdx *)POINTER_SHIFT(r, TD_KV_ROW_HEAD_SIZE)
+#define kvRowColIdx(r) ((SColIdx *)POINTER_SHIFT(r, TD_KV_ROW_HEAD_SIZE))
 #define kvRowValues(r) POINTER_SHIFT(r, TD_KV_ROW_HEAD_SIZE + sizeof(SColIdx) * kvRowNCols(r))
 #define kvRowCpy(dst, r) memcpy((dst), (r), kvRowLen(r))
 #define kvRowColVal(r, colIdx) POINTER_SHIFT(kvRowValues(r), (colIdx)->offset)
@@ -468,7 +468,7 @@ static FORCE_INLINE int tdAppendKvColVal(SKVRow row, const void *value, int16_t 
   char *   ptr = (char *)POINTER_SHIFT(row, kvRowLen(row));
 
   pColIdx->colId = colId;
-  pColIdx->offset = kvRowLen(row);
+  pColIdx->offset = kvRowLen(row);  // offset of pColIdx including the TD_KV_ROW_HEAD_SIZE
 
   if (IS_VAR_DATA_TYPE(type)) {
     memcpy(ptr, value, varDataTLen(value));

@@ -1550,7 +1550,8 @@ static void copyOneRowFromMem(STsdbQueryHandle* pQueryHandle, int32_t capacity, 
       if (pColIdx->colId == pColInfo->info.colId) {
         STColumn* pSTColumn = tdGetColOfID(pSchema, pColIdx->colId);
         if (pSTColumn != NULL) {
-          void* value = tdGetKvRowDataOfCol(row, pSTColumn->type, TD_MEM_ROW_HEAD_SIZE + pColIdx->offset);
+          // offset of pColIdx including the TD_KV_ROW_HEAD_SIZE
+          void* value = tdGetKvRowDataOfCol(kvRow, pSTColumn->type, pColIdx->offset);
           switch (pColInfo->info.type) {
             case TSDB_DATA_TYPE_BINARY:
             case TSDB_DATA_TYPE_NCHAR:
