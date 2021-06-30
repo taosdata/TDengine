@@ -60,6 +60,7 @@ static int32_t mnodeGetVgroupMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *p
 static int32_t mnodeRetrieveVgroups(SShowObj *pShow, char *data, int32_t rows, void *pConn);
 static void    mnodeProcessCreateVnodeRsp(SRpcMsg *rpcMsg);
 static void    mnodeProcessAlterVnodeRsp(SRpcMsg *rpcMsg);
+static void    mnodeProcessCompactVnodeRsp(SRpcMsg *rpcMsg);
 static void    mnodeProcessDropVnodeRsp(SRpcMsg *rpcMsg);
 static int32_t mnodeProcessVnodeCfgMsg(SMnodeMsg *pMsg) ;
 static void    mnodeSendDropVgroupMsg(SVgObj *pVgroup, void *ahandle);
@@ -236,6 +237,7 @@ int32_t mnodeInitVgroups() {
   mnodeAddShowFreeIterHandle(TSDB_MGMT_TABLE_VGROUP, mnodeCancelGetNextVgroup);
   mnodeAddPeerRspHandle(TSDB_MSG_TYPE_MD_CREATE_VNODE_RSP, mnodeProcessCreateVnodeRsp);
   mnodeAddPeerRspHandle(TSDB_MSG_TYPE_MD_ALTER_VNODE_RSP, mnodeProcessAlterVnodeRsp);
+  mnodeAddPeerRspHandle(TSDB_MSG_TYPE_MD_COMPACT_VNODE_RSP, mnodeProcessCompactVnodeRsp);
   mnodeAddPeerRspHandle(TSDB_MSG_TYPE_MD_DROP_VNODE_RSP, mnodeProcessDropVnodeRsp);
   mnodeAddPeerMsgHandle(TSDB_MSG_TYPE_DM_CONFIG_VNODE, mnodeProcessVnodeCfgMsg);
 
@@ -350,6 +352,7 @@ void mnodeUpdateVgroupStatus(SVgObj *pVgroup, SDnodeObj *pDnode, SVnodeLoad *pVl
            pVgroup->pDb->dbCfgVersion, pVgroup->vgCfgVersion, pVgroup->numOfVnodes);
     mnodeSendAlterVgroupMsg(pVgroup,NULL);
   }
+  pVgroup->compact = pVload->compact; 
 }
 
 static int32_t mnodeAllocVgroupIdPool(SVgObj *pInputVgroup) {
@@ -717,6 +720,13 @@ static int32_t mnodeGetVgroupMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *p
     cols++;
   }
 
+  pShow->bytes[cols] = 4;
+  pSchema[cols].type = TSDB_DATA_TYPE_INT;
+  strcpy(pSchema[cols].name, "compacting");
+  pSchema[cols].bytes = htons(pShow->bytes[cols]);
+  cols++;
+  
+  
   pMeta->numOfColumns = htons(cols);
   pShow->numOfColumns = cols;
 
@@ -820,7 +830,11 @@ static int32_t mnodeRetrieveVgroups(SShowObj *pShow, char *data, int32_t rows, v
       STR_WITH_MAXSIZE_TO_VARSTR(pWrite, role, pShow->bytes[cols]);
       cols++;
     }
-
+      
+    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+    *(int8_t *)pWrite = pVgroup->compact; 
+    cols++;
+    
     mnodeDecVgroupRef(pVgroup);
     numOfRows++;
   }
@@ -979,6 +993,7 @@ static SSyncVnodeMsg *mnodeBuildSyncVnodeMsg(int32_t vgId) {
   return pSyncVnode;
 }
 
+
 static void mnodeSendSyncVnodeMsg(SVgObj *pVgroup, SRpcEpSet *epSet) {
   SSyncVnodeMsg *pSyncVnode = mnodeBuildSyncVnodeMsg(pVgroup->vgId);
   SRpcMsg rpcMsg = {
@@ -987,6 +1002,18 @@ static void mnodeSendSyncVnodeMsg(SVgObj *pVgroup, SRpcEpSet *epSet) {
     .contLen = pSyncVnode ? sizeof(SSyncVnodeMsg) : 0,
     .code    = 0,
     .msgType = TSDB_MSG_TYPE_MD_SYNC_VNODE
+  };
+
+  dnodeSendMsgToDnode(epSet, &rpcMsg);
+}
+static void mnodeSendCompactVnodeMsg(SVgObj *pVgroup, SRpcEpSet *epSet) {
+  SCompactVnodeMsg *pCompactVnode = mnodeBuildSyncVnodeMsg(pVgroup->vgId);
+  SRpcMsg rpcMsg = {
+    .ahandle = NULL,
+    .pCont   = pCompactVnode,
+    .contLen = pCompactVnode ? sizeof(SCompactVnodeMsg) : 0,
+    .code    = 0,
+    .msgType = TSDB_MSG_TYPE_MD_COMPACT_VNODE
   };
 
   dnodeSendMsgToDnode(epSet, &rpcMsg);
@@ -1004,6 +1031,17 @@ void mnodeSendSyncVgroupMsg(SVgObj *pVgroup) {
   }
 }
 
+void mnodeSendCompactVgroupMsg(SVgObj *pVgroup) {
+  mDebug("vgId:%d, send compact all vnodes msg, numOfVnodes:%d db:%s", pVgroup->vgId, pVgroup->numOfVnodes, pVgroup->dbName);
+  for (int32_t i = 0; i < pVgroup->numOfVnodes; ++i) {
+    //if (pVgroup->vnodeGid[i].role != TAOS_SYNC_ROLE_SLAVE) continue; //TODO(yihaoDeng): compact slave or not ? 
+    SRpcEpSet epSet = mnodeGetEpSetFromIp(pVgroup->vnodeGid[i].pDnode->dnodeEp);
+    mDebug("vgId:%d, index:%d, send compact vnode msg to dnode %s", pVgroup->vgId, i,
+           pVgroup->vnodeGid[i].pDnode->dnodeEp);
+    mnodeSendCompactVnodeMsg(pVgroup, &epSet);
+  }
+
+}
 static void mnodeSendCreateVnodeMsg(SVgObj *pVgroup, SRpcEpSet *epSet, void *ahandle) {
   SCreateVnodeMsg *pCreate = mnodeBuildVnodeMsg(pVgroup);
   SRpcMsg rpcMsg = {
@@ -1049,6 +1087,9 @@ static void mnodeProcessAlterVnodeRsp(SRpcMsg *rpcMsg) {
   if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_MND_ACTION_IN_PROGRESS) {
     dnodeSendRpcMWriteRsp(mnodeMsg, code);
   }
+}
+static void mnodeProcessCompactVnodeRsp(SRpcMsg *rpcMsg) {
+  mDebug("compact vnode rsp received");
 }
 
 static void mnodeProcessCreateVnodeRsp(SRpcMsg *rpcMsg) {

@@ -123,7 +123,8 @@ int32_t tscGetDataBlockFromList(SHashObj* pHashList, int64_t id, int32_t size, i
  */
 bool tscIsPointInterpQuery(SQueryInfo* pQueryInfo);
 bool tscIsTWAQuery(SQueryInfo* pQueryInfo);
-bool tscIsDiffQuery(SQueryInfo* pQueryInfo);
+bool tscIsIrateQuery(SQueryInfo* pQueryInfo);
+
 bool tscIsSessionWindowQuery(SQueryInfo* pQueryInfo);
 bool tscIsSecondStageQuery(SQueryInfo* pQueryInfo);
 bool tsIsArithmeticQueryOnAggResult(SQueryInfo* pQueryInfo);
@@ -209,7 +210,8 @@ int32_t createProjectionExpr(SQueryInfo* pQueryInfo, STableMetaInfo* pTableMetaI
 void clearAllTableMetaInfo(SQueryInfo* pQueryInfo, bool removeMeta);
 
 SColumn* tscColumnClone(const SColumn* src);
-bool tscColumnExists(SArray* pColumnList, int32_t columnIndex, uint64_t uid);
+void tscColumnCopy(SColumn* pDest, const SColumn* pSrc);
+int32_t tscColumnExists(SArray* pColumnList, int32_t columnId, uint64_t uid);
 SColumn* tscColumnListInsert(SArray* pColumnList, int32_t columnIndex, uint64_t uid, SSchema* pSchema);
 void tscColumnListDestroy(SArray* pColList);
 void tscColumnListCopy(SArray* dst, const SArray* src, uint64_t tableUid);

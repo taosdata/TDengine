@@ -205,10 +205,15 @@ void taosGetSystemInfo() {
 
 void taosPrintOsInfo() {
   uInfo(" os numOfCores:          %d", tsNumOfCores);
+  uInfo(" os totalMemory:         %d(MB)", tsTotalMemoryMB);
+  uInfo("==================================");
+}
+
+void taosPrintDiskInfo() {
+  uInfo("==================================");
   uInfo(" os totalDisk:           %f(GB)", tsTotalDataDirGB);
   uInfo(" os usedDisk:            %f(GB)", tsUsedDataDirGB);
   uInfo(" os availDisk:           %f(GB)", tsAvailDataDirGB);
-  uInfo(" os totalMemory:         %d(MB)", tsTotalMemoryMB);
   uInfo("==================================");
 }
 

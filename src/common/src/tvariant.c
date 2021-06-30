@@ -77,6 +77,10 @@ void tVariantCreate(tVariant *pVar, SStrToken *token) {
       pVar->nLen = strRmquote(pVar->pz, token->n);
       break;
     }
+    case TSDB_DATA_TYPE_TIMESTAMP: {
+      pVar->i64 = taosGetTimestamp(TSDB_TIME_PRECISION_NANO);                           
+      break;                             
+    }                            
     
     default: {  // nType == 0 means the null value
       type = TSDB_DATA_TYPE_NULL;

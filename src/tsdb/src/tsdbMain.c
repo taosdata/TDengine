@@ -814,6 +814,7 @@ int tsdbRestoreInfo(STsdbRepo *pRepo) {
       STable *pTable = pMeta->tables[i];
       if (pTable == NULL) continue;
       pTable->restoreColumnNum = 0;  
+      pTable->hasRestoreLastColumn = false;
     }
   }
 
@@ -897,6 +898,7 @@ int tsdbCacheLastData(STsdbRepo *pRepo, STsdbCfg* oldCfg) {
     maxTableIdx = i;
     if (cacheLastCol) {
       pTable->restoreColumnNum = 0;
+      pTable->hasRestoreLastColumn = false;
     } 
   }
 
@@ -915,6 +917,7 @@ int tsdbCacheLastData(STsdbRepo *pRepo, STsdbCfg* oldCfg) {
       }
       if (need_free_last_col) {
         tsdbFreeLastColumns(pTable);
+        pTable->hasRestoreLastColumn = false;
       }
     }    
   }

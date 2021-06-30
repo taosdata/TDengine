@@ -4,7 +4,7 @@ import java.sql.*;
 import java.util.Properties;
 
 public class JdbcRestfulDemo {
-    private static final String host = "master";
+    private static final String host = "127.0.0.1";
 
     public static void main(String[] args) {
         try {

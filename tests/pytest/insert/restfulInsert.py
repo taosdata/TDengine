@@ -40,12 +40,13 @@ class RestfulInsert:
             if tableID + i >= self.numOfTables : break
             name = 'beijing' if (tableID + i) % 2 == 0 else 'shanghai'
             data = "create table if not exists %s.%s%d using %s.meters tags(%d, '%s')" % (self.dbname, self.tableNamePerfix, tableID + i, self.dbname, tableID + i, name)
-            response = requests.post(self.url, data, headers = self.header)
-            if response.status_code != 200:
-                    print(response.content)
+            try:
+                response = requests.post(self.url, data, headers = self.header)
+                if response.status_code != 200:
+                    print(response.content)                
+            except Exception as e:
+                print(e)
 
-
-   
     def insertData(self, threadID):        
         print("thread %d started" % threadID)
         tablesPerThread = int (self.numOfTables / self.numOfThreads)   
@@ -90,10 +91,16 @@ class RestfulInsert:
                     if len(data) > 1024*1024 : 
                         print ('batch size is larger than 1M')
                         exit(-1)
-                    response = requests.post(self.url, data, headers = self.header)
-                    if response.status_code != 200:
-                        print(response.content)
-
+                    try:
+                        startTime = time.time()
+                        response = requests.post(self.url, data, headers = self.header)
+                        endTime = time.time()
+                        if response.status_code != 200:
+                            print(response.content)
+                        else:
+                            print("inserted %d records, %d seconds" % (bloop, endTime - startTime))
+                    except Exception as e:
+                        print(e)
 
     def insertUnlimitedData(self, threadID):        
         print("thread %d started" % threadID)
@@ -119,10 +126,17 @@ class RestfulInsert:
                 else:
                     random.shuffle(values)
                     for k in range(len(values)):            
-                        data += values[k]                
-                response = requests.post(self.url, data, headers = self.header)
-                if response.status_code != 200:
-                    print(response.content)
+                        data += values[k]    
+                try:     
+                    startTime = time.time()
+                    response = requests.post(self.url, data, headers = self.header)
+                    endTime = time.time()
+                    if response.status_code != 200:
+                        print(response.content)
+                    else:
+                        print("inserted %d records, %d seconds" % (self.batchSize, endTime - startTime))
+                except Exception as e:
+                    print(e)                    
 
     def run(self):            
         data = "create database if not exists %s" % self.dbname

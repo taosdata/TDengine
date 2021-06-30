@@ -110,6 +110,12 @@ mkdir debug && cd debug
 cmake .. && cmake --build .
 ```
 
+You can use Jemalloc as memory allocator instead of glibc:
+```
+apt install autoconf
+cmake .. -DJEMALLOC_ENABLED=true
+```
+
 TDengine build script can detect the host machine's architecture on X86-64, X86, arm64, arm32 and mips64 platform.
 You can also specify CPUTYPE option like aarch64 or aarch32 too if the detection result is not correct:
 
