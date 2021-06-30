@@ -3526,6 +3526,7 @@ void executeQuery(SSqlObj* pSql, SQueryInfo* pQueryInfo) {
 
     pSql->pSubs = calloc(pSql->subState.numOfSub, POINTER_BYTES);
     pSql->subState.states = calloc(pSql->subState.numOfSub, sizeof(int8_t));
+    pthread_mutex_init(&pSql->subState.mutex, NULL);
 
     for(int32_t i = 0; i < pSql->subState.numOfSub; ++i) {
       SQueryInfo* pSub = taosArrayGetP(pQueryInfo->pUpstream, i);
