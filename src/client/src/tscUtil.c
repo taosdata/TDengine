@@ -1667,7 +1667,7 @@ int32_t tscGetDataBlockFromList(SHashObj* pHashList, int64_t id, int32_t size, i
 //   pBuilder->size = 0;
 // }
 
-#define KvRowNColsThresh 1  // default value: 32       TODO: for test, restore to 32 after test finished
+#define KvRowNColsThresh 1  // default value: 128       TODO: for test, restore to default value after test finished
 
 static FORCE_INLINE uint8_t tdRowTypeJudger(SSchema* pSchema, void* pData, int32_t nCols, int32_t flen,
                                             uint16_t* nColsNotNull) {
@@ -1724,7 +1724,6 @@ SMemRow tdGenMemRowFromBuilder(SMemRowBuilder* pBuilder) {
   uint16_t nColsNotNull = 0;
   uint8_t memRowType = tdRowTypeJudger(pSchema, p, pBuilder->nCols, pBuilder->flen, &nColsNotNull);
   tscDebug("prop:memType is %d", memRowType);
-  memRowType = SMEM_ROW_DATA;
 
   SMemRow* memRow = (SMemRow)pBuilder->pDataBlock;
   memRowSetType(memRow, memRowType);
@@ -1744,12 +1743,10 @@ SMemRow tdGenMemRowFromBuilder(SMemRowBuilder* pBuilder) {
     pBuilder->buf = p;
   } else if (memRowType == SMEM_ROW_KV)  {
     ASSERT(nColsNotNull < pBuilder->nCols);
-
-    uint16_t tlen = TD_KV_ROW_HEAD_SIZE + sizeof(SColIdx) * nColsNotNull + pBuilder->size;
     SKVRow   kvRow = (SKVRow)memRowBody(memRow);
-
-    kvRowSetNCols(kvRow, nColsNotNull);
+    uint16_t tlen = TD_KV_ROW_HEAD_SIZE + sizeof(SColIdx) * nColsNotNull;
     kvRowSetLen(kvRow, tlen);
+    kvRowSetNCols(kvRow, nColsNotNull);
 
     int toffset = 0;
     p = (char*)pBuilder->buf;
