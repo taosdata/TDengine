@@ -3289,7 +3289,7 @@ int32_t validateGroupbyNode(SQueryInfo* pQueryInfo, SArray* pList, SSqlCmd* pCmd
 
   // 1. only one normal column allowed in the group by clause
   // 2. the normal column in the group by clause can only located in the end position
-  if (numOfGroupCols) {
+  if (numOfGroupCols > 1) {
     return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg7);
   }
 
@@ -6283,7 +6283,7 @@ static void updateTagPrjFunction(SQueryInfo* pQueryInfo) {
  */
 static int32_t checkUpdateTagPrjFunctions(SQueryInfo* pQueryInfo, char* msg) {
   const char* msg1 = "only one selectivity function allowed in presence of tags function";
-  const char* msg3 = "aggregation function should not be mixed up with projection";
+  const char* msg2 = "aggregation function should not be mixed up with projection";
 
   bool    tagTsColExists = false;
   int16_t numOfSelectivity = 0;
@@ -6362,7 +6362,7 @@ static int32_t checkUpdateTagPrjFunctions(SQueryInfo* pQueryInfo, char* msg) {
   } else {
     if ((pQueryInfo->type & TSDB_QUERY_TYPE_PROJECTION_QUERY) != 0) {
       if (numOfAggregation > 0 && pQueryInfo->groupbyExpr.numOfGroupCols == 0) {
-        return invalidOperationMsg(msg, msg3);
+        return invalidOperationMsg(msg, msg2);
       }
 
       if (numOfAggregation > 0 || numOfSelectivity > 0) {
