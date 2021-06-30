@@ -37,7 +37,7 @@ int writeToQueue(void *pVnode, void *data, int type, void *pMsg) {
 }
 
 int main(int argc, char *argv[]) {
-  char path[128] = {0};
+  char path[128] = "/tmp/wal";
   int  level = 2;
   int  total = 5;
   int  rows = 10000;
