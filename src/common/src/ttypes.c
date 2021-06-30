@@ -560,6 +560,68 @@ void assignVal(char *val, const char *src, int32_t len, int32_t type) {
   }
 }
 
+int8_t getInt8Val(void *s) {
+  return (int8_t)GET_INT8_VAL(s);
+}
+uint8_t getUint8Val(void *s) {
+  return (uint8_t)GET_INT8_VAL(s);
+}
+int16_t getInt16Val(void *s) {
+  return (int16_t)GET_INT16_VAL(s);
+}
+uint16_t getUint16Val(void *s) {
+  return (uint16_t)GET_INT16_VAL(s);
+}
+int32_t getInt32Val(void *s) {
+  return (int32_t)GET_INT32_VAL(s);
+}
+uint32_t getUint32Val(void *s) {
+  return (uint32_t)GET_INT32_VAL(s);
+}
+int64_t getInt64Val(void *s) {
+  return (int64_t)GET_INT64_VAL(s);
+}
+uint64_t getUint64Val(void *s) {
+  return (uint64_t)GET_INT64_VAL(s);
+}
+float getFloatVal(void *s) {
+  return GET_FLOAT_VAL(s);
+}
+double getDoubleVal(void *s) {
+  return GET_DOUBLE_VAL(s);
+}
+void setInt8Val(void *d, void *s) {
+  *((int8_t *)d) = (int8_t)GET_INT8_VAL(s);
+}
+void setUint8Val(void *d, void *s) {
+  *((uint8_t *)d) = GET_INT8_VAL(s);
+}
+void setInt16Val(void *d, void *s) {
+  *((int16_t *)d) = (int16_t)GET_INT16_VAL(s);
+}
+void setUint16Val(void *d, void *s) {
+  *((uint16_t *)d) = GET_INT16_VAL(s);
+}
+void setInt32Val(void *d, void *s) {
+  *((int32_t *)d) = GET_INT32_VAL(s);
+}
+void setUint32Val(void *d, void *s) {
+  *((uint32_t *)d) = GET_INT32_VAL(s);
+}
+void setInt64Val(void *d, void *s) {
+  *((int64_t *)d) = GET_INT64_VAL(s);
+}
+void setUint64Val(void *d, void *s) {
+  *((uint64_t *)d) = GET_INT64_VAL(s);
+}
+void setFloatVal(void *d, void *s) {
+  SET_FLOAT_VAL(d, GET_FLOAT_VAL(s));
+}
+void setDoubleVal(void *d, void *s) {
+  SET_DOUBLE_VAL(d, GET_DOUBLE_VAL(s));
+}
+
+
 void tsDataSwap(void *pLeft, void *pRight, int32_t type, int32_t size, void* buf) {
   switch (type) {
     case TSDB_DATA_TYPE_INT:

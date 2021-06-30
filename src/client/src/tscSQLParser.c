@@ -3494,9 +3494,10 @@ enum {
   TSQL_EXPR_TAG = 2,
   TSQL_EXPR_COLUMN = 4,
   TSQL_EXPR_TBNAME = 8,
+  TSQL_EXPR_JOIN = 16,  
 };
 
-#define GET_MIXED_TYPE(t) ((t) > TSQL_EXPR_COLUMN || (t) == (TSQL_EXPR_TS|TSQL_EXPR_TAG))
+#define GET_MIXED_TYPE(t) (((t) >= TSQL_EXPR_JOIN) || ((t) > TSQL_EXPR_COLUMN && (t) < TSQL_EXPR_TBNAME) || ((t) == (TSQL_EXPR_TS|TSQL_EXPR_TAG)))
 
 static int32_t checkColumnFilterInfo(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SColumnIndex* pIndex, tSqlExpr* pExpr, int32_t sqlOptr) {
   STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, pIndex->tableIndex);
@@ -4216,12 +4217,17 @@ static int32_t handleExprInQueryCond(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSql
        * since this expression is used to set the join query type
        */
       tSqlExprDestroy(*pExpr);
+      if (type) {
+        *type |= TSQL_EXPR_JOIN;
+      }
     } else {
       ret = setNormalExprToCond(tsExpr, *pExpr, parentOptr);
+      if (type) {
+        *type |= TSQL_EXPR_TS;
+      }
     }
 
     *pExpr = NULL;  // remove this expression
-    *type |= TSQL_EXPR_TS;
   } else if (index.columnIndex >= tscGetNumOfColumns(pTableMeta) || index.columnIndex == TSDB_TBNAME_COLUMN_INDEX) {
     // query on tags, check for tag query condition
     if (UTIL_TABLE_IS_NORMAL_TABLE(pTableMetaInfo)) {
@@ -4246,7 +4252,9 @@ static int32_t handleExprInQueryCond(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSql
         return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg6);
       }
 
-      *type |= TSQL_EXPR_TAG;
+      if (type) {
+        *type |= TSQL_EXPR_TAG;
+      }
       *pExpr = NULL;
     } else {
       if (pRight != NULL && pRight->tokenId == TK_ID) {  // join on tag columns for stable query
@@ -4257,18 +4265,23 @@ static int32_t handleExprInQueryCond(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSql
         pQueryInfo->type |= TSDB_QUERY_TYPE_JOIN_QUERY;
         ret = setExprToCond(&pCondExpr->pJoinExpr, *pExpr, NULL, parentOptr, pQueryInfo->msg);
         *pExpr = NULL;
+        if (type) {
+          *type |= TSQL_EXPR_JOIN;
+        }        
       } else {
         // do nothing
         //                ret = setExprToCond(pCmd, &pCondExpr->pTagCond,
         //                *pExpr, NULL, parentOptr);
+        if (type) {
+          *type |= TSQL_EXPR_TAG;
+        }
       }
-
-      *type |= TSQL_EXPR_TAG;
     }
-
   } else {  // query on other columns
-    *type |= TSQL_EXPR_COLUMN;
-
+    if (type) {
+      *type |= TSQL_EXPR_COLUMN;
+    }
+    
     if (pRight->tokenId == TK_ID) {  // other column cannot be served as the join column
       return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg5);
     }
@@ -4293,7 +4306,7 @@ int32_t getQueryCondExpr(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSqlExpr** pExpr
 
   int32_t ret = 0;
 
-  const char* msg1 = "query condition between columns and tags and timestamp must use 'AND'";
+  const char* msg1 = "query condition between columns/tags/timestamp/join fields must use 'AND'";
   const char* msg2 = "query condition between tables must use 'AND'";
 
   if ((*pExpr)->flags & (1 << EXPR_FLAG_TS_ERROR)) {
@@ -4313,12 +4326,12 @@ int32_t getQueryCondExpr(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSqlExpr** pExpr
   int32_t rightTbIdx = 0;
 
   if (!tSqlExprIsParentOfLeaf(*pExpr)) {
-    ret = getQueryCondExpr(pCmd, pQueryInfo, &(*pExpr)->pLeft, pCondExpr, &leftType, &leftTbIdx, (*pExpr)->tokenId, &columnLeft, &tsLeft);
+    ret = getQueryCondExpr(pCmd, pQueryInfo, &(*pExpr)->pLeft, pCondExpr, type ? &leftType : NULL, &leftTbIdx, (*pExpr)->tokenId, &columnLeft, &tsLeft);
     if (ret != TSDB_CODE_SUCCESS) {
       goto err_ret;
     }
 
-    ret = getQueryCondExpr(pCmd, pQueryInfo, &(*pExpr)->pRight, pCondExpr, &rightType, &rightTbIdx, (*pExpr)->tokenId, &columnRight, &tsRight);
+    ret = getQueryCondExpr(pCmd, pQueryInfo, &(*pExpr)->pRight, pCondExpr, type ? &rightType : NULL, &rightTbIdx, (*pExpr)->tokenId, &columnRight, &tsRight);
     if (ret != TSDB_CODE_SUCCESS) {
       goto err_ret;
     }
@@ -4327,7 +4340,7 @@ int32_t getQueryCondExpr(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSqlExpr** pExpr
      *  if left child and right child do not belong to the same group, the sub
      *  expression is not valid for parent node, it must be TK_AND operator.
      */
-    if (((leftType != rightType) || GET_MIXED_TYPE(leftType)) && ((*pExpr)->tokenId == TK_OR)) {
+    if (type != NULL && ((leftType != rightType) || GET_MIXED_TYPE(leftType)) && ((*pExpr)->tokenId == TK_OR)) {
       ret = invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg1);
       goto err_ret;
     }
@@ -4353,7 +4366,9 @@ int32_t getQueryCondExpr(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSqlExpr** pExpr
       *tsExpr = tsLeft ? tsLeft : tsRight;
     }
 
-    *type = leftType|rightType;
+    if (type) {
+      *type = leftType|rightType;
+    }
     *tbIdx = (leftTbIdx == rightTbIdx) ? leftTbIdx : -1;
     
     return TSDB_CODE_SUCCESS;
@@ -4956,8 +4971,22 @@ int32_t validateWhereNode(SQueryInfo* pQueryInfo, tSqlExpr** pExpr, SSqlObj* pSq
 
   int32_t type = 0;
   int32_t tbIdx = 0;
-  if ((ret = getQueryCondExpr(&pSql->cmd, pQueryInfo, pExpr, &condExpr, &type, &tbIdx, (*pExpr)->tokenId, &condExpr.pColumnCond, &condExpr.pTimewindow)) != TSDB_CODE_SUCCESS) {
+  int32_t *etype = &type;
+
+#if 0
+  //DISABLE PARENT CONDITION GROUP TYPE CHECK
+  if (taosArrayGetSize(pQueryInfo->pUpstream) > 0) {
+    etype = NULL;
+  }
+#endif
+
+  if ((ret = getQueryCondExpr(&pSql->cmd, pQueryInfo, pExpr, &condExpr, etype, &tbIdx, (*pExpr)->tokenId, &condExpr.pColumnCond, &condExpr.pTimewindow)) != TSDB_CODE_SUCCESS) {
     return ret;
+  }
+
+  if (taosArrayGetSize(pQueryInfo->pUpstream) > 0 && condExpr.pTimewindow != NULL) {
+    setNormalExprToCond(&condExpr.pColumnCond, condExpr.pTimewindow, TK_AND);
+    condExpr.pTimewindow = NULL;
   }
 
   tSqlExprCompact(pExpr);

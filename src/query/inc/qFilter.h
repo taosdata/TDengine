@@ -32,11 +32,34 @@ enum {
   F_FIELD_MAX
 };
 
+enum {
+  MR_ST_START = 1,
+  MR_ST_FIN = 2,
+};
+
+enum {
+  MR_OPT_TS = 1,
+};
+
 typedef struct OptrStr {
   uint16_t optr;
   char    *str;
 } OptrStr;
 
+typedef struct SFilterRange {
+  struct SFilterRange*   prev;
+  struct SFilterRange*   next;
+  int64_t s;
+  int64_t e;
+} SFilterRange;
+
+typedef struct SFilterRMCtx {
+  int32_t type;
+  int32_t options;
+  int8_t  status;
+  __compar_fn_t pCompareFunc;
+  SFilterRange *rs;
+} SFilterRMCtx ;
 
 typedef struct SFilterField {
   uint16_t type;
@@ -83,6 +106,15 @@ typedef struct SFilterInfo {
   uint8_t      *unitFlags;  // got result
 } SFilterInfo;
 
+#define MR_GET_FLAG(st, f) (st & f)
+#define MR_SET_FLAG(st, f) st |= (f)
+
+#define GEN_RANGE(r, t, s, e) do { r = calloc(1, sizeof(SFilterRange)); assignVal((char*)&(r)->s, s, 0, t); assignVal((char*)&(r)->e, e, 0, t); } while (0)
+#define FREE_RANGE(rs, r) do { if (r->prev) { r->prev->next = r->next; } else { rs = r->next;} if (r->next) { r->next->prev = r->prev; } free(r); } while (0)
+#define FREE_FROM_RANGE(rs, r) do { if (r->prev) { r->prev->next = NULL; } else { rs = NULL;} while (r) {SFilterRange *n = r->next; free(r); r = n; } } while (0)
+#define INSERT_RANGE(rs, r, t, s, e) do { SFilterRange *n = calloc(1, sizeof(SFilterRange)); assignVal((char*)&n->s, s, 0, t); assignVal((char*)&n->e, e, 0, t); n->prev = r->prev; r->prev = n; if (r->prev) { r->prev->next = n; } else { rs->next = n; } n->next = r; } while (0)
+#define APPEND_RANGE(r, t, s, e) do { SFilterRange *n = calloc(1, sizeof(SFilterRange)); assignVal((char*)&n->s, s, 0, t); assignVal((char*)&n->e, e, 0, t); n->prev = r; r->next = n; } while (0)
+
 #define ERR_RET(c) do { int32_t _code = c; if (_code != TSDB_CODE_SUCCESS) { return _code; } } while (0)
 #define ERR_LRET(c,...) do { int32_t _code = c; if (_code != TSDB_CODE_SUCCESS) { qError(__VA_ARGS__); return _code; } } while (0)
 #define ERR_JRET(c) do { code = c; if (code != TSDB_CODE_SUCCESS) { goto _err_return; } } while (0)
@@ -112,6 +144,11 @@ typedef int32_t(*filter_desc_compare_func)(const void *, const void *);
 extern int32_t filterInitFromTree(tExprNode* tree, SFilterInfo **pinfo);
 extern bool filterExecute(SFilterInfo *info, int32_t numOfRows, int8_t* p);
 extern int32_t filterSetColFieldData(SFilterInfo *info, int16_t colId, void *data);
+extern void* filterInitMergeRange(int32_t type, int32_t options);
+extern int32_t filterAddMergeRange(void* h, void* s, void* e, int32_t optr);
+extern int32_t filterGetMergeRangeNum(void* h, int32_t* num);
+extern int32_t filterGetMergeRangeRes(void* h, void *s, void* e);
+extern int32_t filterFreeMergeRange(void* h);
 
 #ifdef __cplusplus
 }

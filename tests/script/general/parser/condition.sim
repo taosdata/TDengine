@@ -103,6 +103,8 @@ sql_error select * from stb1 where c7 < 'nuLl';
 sql_error select * from stb1 where c8 < 'nuLl';
 sql_error select * from stb1 where c9 > 'nuLl';
 sql_error select * from (select * from stb1 where c7=true) a, (select * from stb1 where c1 > 30) b;
+sql_error select a.ts,a.c1,a.c8 from (select * from stb1 where c7=true) a, (select * from stb1 where c1 > 30) b where a.ts=b.ts and a.c1 > 50 or b.c1 < 60;
+sql_error select a.ts,a.c1,a.c8 from (select * from stb1 where c7=true) a, (select * from stb1 where c1 > 30) b where a.ts=b.ts and ((a.c1 > 50 and a.c1 < 60) or (b.c2 > 60));
 
 sql select * from stb1 where c2 > 3.0 or c2 < 60;
 if $rows != 28 then
@@ -1487,10 +1489,37 @@ if $data10 != @21-05-05 18:19:21.000@ then
   return -1
 endi
 
-sql_error select a.ts,a.c1,a.c8 from (select * from stb1 where c7=true) a, (select * from stb1 where c1 > 30) b where a.ts=b.ts and a.c1 > 50 or b.c1 < 60;
-sql_error select a.ts,a.c1,a.c8 from (select * from stb1 where c7=true) a, (select * from stb1 where c1 > 30) b where a.ts=b.ts and ((a.c1 > 50 and a.c1 < 60) or (b.c2 > 60));
+sql select a.ts,b.ts,a.c1,b.u1,b.u2 from (select * from stb1) a, (select * from stb2) b where a.ts=b.ts and (a.c1 < 10 or a.c1 > 30) and (b.u1 < 5 or b.u1 > 5);
+if $rows != 4 then
+  return -1
+endi
+if $data00 != @21-05-05 18:19:00.000@ then
+  return -1
+endi
+if $data10 != @21-05-05 18:19:02.000@ then
+  return -1
+endi
+if $data20 != @21-05-05 18:19:12.000@ then
+  return -1
+endi
+if $data30 != @21-05-05 18:19:14.000@ then
+  return -1
+endi
 
-#!!!!!!!!!!!select a.* from (select * from tb1) a, (select * from tb2) b where a.ts = b.ts and a.f1 > 0 and b.f1 > 0;
+sql select a.ts,b.ts,a.c1,b.u1,b.u2 from (select * from stb1) a, (select * from stb2) b where a.ts=b.ts and a.c1 < 30 and b.u1 > 1 and a.c1 > 10 and b.u1 < 8 and b.u1<>5;
+if $rows != 3 then
+  return -1
+endi
+if $data00 != @21-05-05 18:19:04.000@ then
+  return -1
+endi
+if $data10 != @21-05-05 18:19:06.000@ then
+  return -1
+endi
+if $data20 != @21-05-05 18:19:10.000@ then
+  return -1
+endi
+
 
 
 print "ts test"
@@ -1639,7 +1668,84 @@ if $data10 != @21-05-05 18:19:03.000@ then
   return -1
 endi
 
+sql select a.ts,b.ts,a.c1,b.u1,b.u2 from (select * from stb1) a, (select * from stb2) b where a.ts=b.ts and (a.ts < '2021-05-05 18:19:03.000' or a.ts >= '2021-05-05 18:19:13.000') and (b.ts >= '2021-05-05 18:19:01.000' and b.ts <= '2021-05-05 18:19:14.000');
+if $rows != 4 then
+  return -1
+endi
+if $data00 != @21-05-05 18:19:01.000@ then
+  return -1
+endi
+if $data10 != @21-05-05 18:19:02.000@ then
+  return -1
+endi
+if $data20 != @21-05-05 18:19:13.000@ then
+  return -1
+endi
+if $data30 != @21-05-05 18:19:14.000@ then
+  return -1
+endi
+
+sql select a.ts,c.ts,b.c1,c.u1,c.u2 from (select * from stb1) a, (select * from stb1) b, (select * from stb2) c where a.ts=b.ts and b.ts=c.ts and a.ts <= '2021-05-05 18:19:12.000' and b.ts >= '2021-05-05 18:19:06.000' and c.ts >= '2021-05-05 18:19:08.000' and c.ts <= '2021-05-05 18:19:11.000' and a.ts != '2021-05-05 18:19:10.000';
+if $rows != 3 then
+  return -1
+endi
+if $data00 != @21-05-05 18:19:08.000@ then
+  return -1
+endi
+if $data10 != @21-05-05 18:19:09.000@ then
+  return -1
+endi
+if $data20 != @21-05-05 18:19:11.000@ then
+  return -1
+endi
+
+sql select ts,c1,c2,c8 from (select * from stb1) where (ts <= '2021-05-05 18:19:06.000' or ts >= '2021-05-05 18:19:13.000') and (ts >= '2021-05-05 18:19:02.000' and ts <= '2021-05-05 18:19:14.000') and ts != '2021-05-05 18:19:04.000';
+if $rows != 6 then
+  return -1
+endi
+if $data00 != @21-05-05 18:19:02.000@ then
+  return -1
+endi
+if $data10 != @21-05-05 18:19:03.000@ then
+  return -1
+endi
+if $data20 != @21-05-05 18:19:05.000@ then
+  return -1
+endi
+if $data30 != @21-05-05 18:19:06.000@ then
+  return -1
+endi
+if $data40 != @21-05-05 18:19:13.000@ then
+  return -1
+endi
+if $data50 != @21-05-05 18:19:14.000@ then
+  return -1
+endi
+
 print "tbname test"
+sql_error select * from stb1 where tbname like '%3' and tbname like '%4';
+
+sql select * from stb1 where tbname like 'tb%';
+if $rows != 29 then
+  return -1
+endi
+
+sql select * from stb1 where tbname like '%2';
+if $rows != 4 then
+  return -1
+endi
+if $data00 != @21-05-05 18:19:08.000@ then
+  return -1
+endi
+if $data10 != @21-05-05 18:19:09.000@ then
+  return -1
+endi
+if $data20 != @21-05-05 18:19:10.000@ then
+  return -1
+endi
+if $data30 != @21-05-05 18:19:11.000@ then
+  return -1
+endi
 
 print "tag test"
 sql select * from stb1 where t1 in (1,2) and t1 in (2,3);
@@ -1665,16 +1771,44 @@ if $rows != 0 then
 endi
 
 print "join test"
-
-
+sql_error select * from tb1, tb2_1 where tb1.ts=tb2_1.ts or tb1.ts =tb2_1.ts;
+sql select tb1.ts from tb1, tb2_1 where tb1.ts=tb2_1.ts and tb1.ts > '2021-05-05 18:19:03.000' and tb2_1.ts < '2021-05-05 18:19:06.000';
+if $rows != 2 then
+  return -1
+endi
+if $data00 != @21-05-05 18:19:04.000@ then
+  return -1
+endi
+if $data10 != @21-05-05 18:19:05.000@ then
+  return -1
+endi
 
 
 print "column&ts test"
 sql_error select count(*) from stb1 where ts > 0 or c1 > 0;
+sql select * from stb1 where ts > '2021-05-05 18:19:03.000' and ts < '2021-05-05 18:19:20.000' and (c1 > 23 or c1 < 14) and c7 in (true) and c8 like '%2';
+if $rows != 3 then
+  return -1
+endi
+if $data00 != @21-05-05 18:19:05.000@ then
+  return -1
+endi
+if $data10 != @21-05-05 18:19:13.000@ then
+  return -1
+endi
+if $data20 != @21-05-05 18:19:17.000@ then
+  return -1
+endi
 
 print "column&tbname test"
 sql_error select count(*) from stb1 where tbname like 'tb%' or c1 > 0;
-
+sql select * from stb1 where tbname like '%3' and c6 < 34 and c5 != 33 and c4 > 31;
+if $rows != 1 then
+  return -1
+endi
+if $data00 != @21-05-05 18:19:13.000@ then
+  return -1
+endi
 
 print "column&tag test"
 sql_error select * from stb1 where t1 > 0 or c1 > 0
@@ -1687,7 +1821,7 @@ sql_error select * from stb1 where c1 > 0 or t1 > 0 and c1 > 1
 sql_error select * from stb1 where t1 > 0 or t1 > 0 and c1 > 1
 sql_error select * from stb1 where (c1 > 0 and t1 > 0 ) or (t1 > 1 and c1 > 3)
 sql_error select * from stb1 where (c1 > 0 and t1 > 0 ) or t1 > 1
-
+sql_error select a.ts,b.ts,a.c1,b.u1,b.u2 from (select * from stb1) a, (select * from stb2) b where a.ts=b.ts and a.t1=b.t1;
 
 sql select * from stb1 where c1 < 63 and t1 > 5
 if $rows != 2 then
@@ -1726,6 +1860,8 @@ endi
 
 
 print "column&join test"
+sql_error select tb1.ts,tb1.c1,tb2_1.u1 from tb1, tb2_1 where tb1.ts=tb2_1.ts or tb1.c1 > 0;
+
 
 print "ts&tbname test"
 sql_error select count(*) from stb1 where ts > 0 or tbname like 'tb%';
@@ -1743,9 +1879,29 @@ endi
 if $data10 != @21-05-05 18:19:12.000@ then
   return -1
 endi
+
 print "ts&join test"
+sql_error select tb1.ts,tb1.c1,tb2_1.u1 from tb1, tb2_1 where tb1.ts=tb2_1.ts or tb1.ts > 0;
+sql select tb1.ts,tb1.c1,tb2_1.u1 from tb1, tb2_1 where tb1.ts=tb2_1.ts and (tb1.ts > '2021-05-05 18:19:05.000' or tb1.ts < '2021-05-05 18:19:03.000' or tb1.ts > 0);
+
 
 print "tbname&tag test"
+sql select * from stb1 where tbname like 'tb%' and (t1=1 or t2=2 or t3=3) and t1 > 2;
+if $rows != 4 then
+  return -1
+endi
+if $data00 != @21-05-05 18:19:12.000@ then
+  return -1
+endi
+if $data10 != @21-05-05 18:19:13.000@ then
+  return -1
+endi
+if $data20 != @21-05-05 18:19:14.000@ then
+  return -1
+endi
+if $data30 != @21-05-05 18:19:15.000@ then
+  return -1
+endi
 
 print "tbname&join test"
 

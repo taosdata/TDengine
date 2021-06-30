@@ -54,6 +54,199 @@ filter_desc_compare_func gDescCompare [F_FIELD_MAX] = {
   filterFieldValDescCompare
 };
 
+void* filterInitMergeRange(int32_t type, int32_t options) {
+  if (type > TSDB_DATA_TYPE_UBIGINT || type < TSDB_DATA_TYPE_BOOL || type == TSDB_DATA_TYPE_BINARY || type == TSDB_DATA_TYPE_NCHAR) {
+    qError("not supported range type:%d", type);
+    return NULL;
+  }
+  
+  SFilterRMCtx *ctx = calloc(1, sizeof(SFilterRMCtx));
+
+  ctx->type = type;
+  ctx->pCompareFunc = getComparFunc(type, 0);
+
+  return ctx;
+}
+
+int32_t filterAddMergeRange(void* h, void* s, void* e, int32_t optr) {
+  SFilterRMCtx *ctx = (SFilterRMCtx *)h;
+
+  if (ctx->rs == NULL) {
+    if (MR_GET_FLAG(ctx->status, MR_ST_START) == 0 || optr == TSDB_RELATION_OR) {
+      GEN_RANGE(ctx->rs, ctx->type, s, e);
+      MR_SET_FLAG(ctx->status, MR_ST_START);
+    }
+
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SFilterRange *r = ctx->rs;
+  SFilterRange *rn = NULL;
+
+  if (optr == TSDB_RELATION_AND) {
+    while (r != NULL) {
+      if (ctx->pCompareFunc(&r->s, e) > 0) {
+        FREE_FROM_RANGE(ctx->rs, r);
+        break;
+      }
+
+      if (ctx->pCompareFunc(s, &r->e) > 0) {
+        rn = r->next;
+        FREE_RANGE(ctx->rs, r);
+        r = rn;
+        continue;
+      }
+
+      if (ctx->pCompareFunc(s, &r->s) > 0) {
+        assignVal((char *)&r->s, s, 0, ctx->type);
+      }
+
+      if (ctx->pCompareFunc(&r->e, e) > 0) {
+        assignVal((char *)&r->e, e, 0, ctx->type);
+        break;
+      }
+
+      r = r->next;
+    }
+
+    return TSDB_CODE_SUCCESS;
+  }
+
+
+  //TSDB_RELATION_OR
+  bool smerged = false;
+  bool emerged = false;
+
+  while (r != NULL) {
+    if (ctx->pCompareFunc(&r->s, e) > 0) {
+      if (emerged == false) {
+        INSERT_RANGE(ctx->rs, r, ctx->type, s, e);
+      }
+      
+      break;
+    }
+
+    if (ctx->pCompareFunc(s, &r->e) > 0) {
+      if (r->next) {
+        r= r->next;
+        continue;
+      }
+
+      APPEND_RANGE(r, ctx->type, s, e);
+      break;
+    }
+
+    if (smerged == false) {
+      if (ctx->pCompareFunc(&r->s, s) > 0) {
+        assignVal((char *)&r->s, s, 0, ctx->type);
+      }
+
+      smerged = true;
+    }
+    
+    if (emerged == false) {
+      if (ctx->pCompareFunc(e, &r->e) > 0) {
+        assignVal((char *)&r->e, e, 0, ctx->type);
+        emerged = true;
+        e = &r->e;
+        r = r->next;
+        continue;
+      }
+
+      break;
+    }
+
+    if (ctx->pCompareFunc(e, &r->e) > 0) {
+      rn = r->next;
+      FREE_RANGE(ctx->rs, r);
+      r = rn;
+
+      continue;
+    } else {
+      assignVal(e, (char *)&r->e, 0, ctx->type);
+      FREE_RANGE(ctx->rs, r);
+      
+      break;
+    }
+  }
+
+  return TSDB_CODE_SUCCESS;  
+}
+
+int32_t filterFinMergeRange(void* h) {
+  SFilterRMCtx *ctx = (SFilterRMCtx *)h;
+
+  if (MR_GET_FLAG(ctx->status, MR_ST_FIN)) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (MR_GET_FLAG(ctx->options, MR_OPT_TS)) {
+
+  }
+
+  MR_SET_FLAG(ctx->status, MR_ST_FIN);
+
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t filterGetMergeRangeNum(void* h, int32_t* num) {
+  filterFinMergeRange(h);
+  
+  SFilterRMCtx *ctx = (SFilterRMCtx *)h;
+
+  *num = 0;
+
+  SFilterRange *r = ctx->rs;
+  
+  while (r) {
+    ++(*num);
+    r = r->next;
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+
+int32_t filterGetMergeRangeRes(void* h, void *s, void* e) {
+  filterFinMergeRange(h);
+
+  SFilterRMCtx *ctx = (SFilterRMCtx *)h;
+  uint32_t num = 0;
+  SFilterRange* r = ctx->rs;
+  
+  while (r) {
+    assignVal(s + num * tDataTypes[ctx->type].bytes, (char *)&r->s, 0, ctx->type);
+    assignVal(e + num * tDataTypes[ctx->type].bytes, (char *)&r->e, 0, ctx->type);
+
+    ++num;
+    r = r->next;
+  }
+
+  if (num == 0) {
+    qError("no range result");
+    return TSDB_CODE_QRY_APP_ERROR;
+  }
+  
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t filterFreeMergeRange(void* h) {
+  SFilterRMCtx *ctx = (SFilterRMCtx *)h;
+  SFilterRange *r = ctx->rs;
+  SFilterRange *rn = NULL;
+  
+  while (r) {
+    rn = r->next;
+    free(r);
+    r = rn;
+  }
+
+  free(ctx);
+
+  return TSDB_CODE_SUCCESS;
+}
+
+
 int32_t filterMergeGroup(SFilterGroup *gp1, SFilterGroup *gp2, SArray* group) {
   SFilterGroup gp = {0};
 
@@ -503,7 +696,5 @@ _err_return:
 
   return code;
 }
-
-
 
 
