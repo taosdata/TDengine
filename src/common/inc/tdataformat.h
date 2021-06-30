@@ -404,10 +404,10 @@ typedef struct {
   uint16_t offset;
 } SColIdx;
 
-#define TD_KV_ROW_HEAD_SIZE (2 * sizeof(int16_t))
+#define TD_KV_ROW_HEAD_SIZE (sizeof(uint16_t) + sizeof(int16_t))
 
 #define kvRowLen(r) (*(uint16_t *)(r))
-#define kvRowNCols(r) (*(int16_t *)POINTER_SHIFT(r, sizeof(int16_t)))
+#define kvRowNCols(r) (*(int16_t *)POINTER_SHIFT(r, sizeof(uint16_t)))
 #define kvRowSetLen(r, len) kvRowLen(r) = (len)
 #define kvRowSetNCols(r, n) kvRowNCols(r) = (n)
 #define kvRowColIdx(r) (SColIdx *)POINTER_SHIFT(r, TD_KV_ROW_HEAD_SIZE)
@@ -443,6 +443,33 @@ static FORCE_INLINE void *tdGetKVRowValOfCol(SKVRow row, int16_t colId) {
   void *ret = taosbsearch(&colId, kvRowColIdx(row), kvRowNCols(row), sizeof(SColIdx), comparTagId, TD_EQ);
   if (ret == NULL) return NULL;
   return kvRowColVal(row, (SColIdx *)ret);
+}
+
+// offset here not include kvRow header length
+static FORCE_INLINE int tdAppendKvColVal(SKVRow row, const void *value, int16_t colId, int8_t type, int32_t offset) {
+  ASSERT(value != NULL);
+  int32_t  toffset = offset + TD_KV_ROW_HEAD_SIZE;
+  SColIdx *pColIdx = (SColIdx *)POINTER_SHIFT(row, toffset);
+  char *   ptr = (char *)POINTER_SHIFT(row, kvRowLen(row));
+
+  pColIdx->colId = colId;
+  pColIdx->offset = kvRowLen(row);
+
+  if (IS_VAR_DATA_TYPE(type)) {
+    memcpy(ptr, value, varDataTLen(value));
+    kvRowLen(row) += varDataTLen(value);
+  } else {
+    if (offset == 0) {
+      ASSERT(type == TSDB_DATA_TYPE_TIMESTAMP);
+      TKEY tvalue = tdGetTKEY(*(TSKEY *)value);
+      memcpy(ptr, (void *)(&tvalue), TYPE_BYTES[type]);
+    } else {
+      memcpy(ptr, value, TYPE_BYTES[type]);
+    }
+    kvRowLen(row) += TYPE_BYTES[type];
+  }
+
+  return 0;
 }
 
 // ----------------- K-V data row builder
@@ -540,10 +567,10 @@ static FORCE_INLINE int tdAddColToKVRow(SKVRowBuilder *pBuilder, int16_t colId, 
 #define memRowMaxBytesFromSchema(s) (schemaTLen(s) + TD_MEM_ROW_HEAD_SIZE)
 #define memRowDeleted(r) TKEY_IS_DELETED(memRowTKey(r))
 
-#define memRowNCols(r) (*(int16_t *)POINTER_SHIFT(r, TD_MEM_ROW_TYPE_SIZE + sizeof(int16_t)))      // for SKVRow
-#define memRowSetNCols(r, n) memRowNCols(r) = (n)                                                  // for SKVRow
-#define memRowColIdx(r) (SColIdx *)POINTER_SHIFT(r, TD_MEM_ROW_HEAD_SIZE)                          // for SKVRow
-#define memRowValues(r) POINTER_SHIFT(r, TD_MEM_ROW_HEAD_SIZE + sizeof(SColIdx) * memRowNCols(r))  // for SKVRow
+// #define memRowNCols(r) (*(int16_t *)POINTER_SHIFT(r, TD_MEM_ROW_TYPE_SIZE + sizeof(int16_t)))      // for SKVRow
+// #define memRowSetNCols(r, n) memRowNCols(r) = (n)                                                  // for SKVRow
+// #define memRowColIdx(r) (SColIdx *)POINTER_SHIFT(r, TD_MEM_ROW_HEAD_SIZE)                          // for SKVRow
+// #define memRowValues(r) POINTER_SHIFT(r, TD_MEM_ROW_HEAD_SIZE + sizeof(SColIdx) * memRowNCols(r))  // for SKVRow
 
 // NOTE: offset here including the header size
 static FORCE_INLINE void *tdGetRowDataOfCol(void *row, int8_t type, int32_t offset) {

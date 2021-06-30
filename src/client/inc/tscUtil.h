@@ -346,8 +346,8 @@ typedef struct {
   int16_t   sversion;
   int32_t   flen;
   // for  SKVRow
-  int16_t     tCols;
-  int16_t     nCols;
+  uint16_t    tCols;
+  uint16_t    nCols;
   SColIdx*    pColIdx;
   uint16_t    alloc;
   uint16_t    size;

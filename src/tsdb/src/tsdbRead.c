@@ -1377,12 +1377,12 @@ int32_t doCopyRowsFromFileBlock(STsdbQueryHandle* pQueryHandle, int32_t capacity
 
   return numOfRows + num;
 }
-
+#if 0
 static void copyOneRowFromMem(STsdbQueryHandle* pQueryHandle, int32_t capacity, int32_t numOfRows, SMemRow row,
                               int32_t numOfCols, STable* pTable, STSchema* pSchema) {
   char* pData = NULL;
 
-  // the schema version info is embeded in SDataRow
+  // the schema version info is embedded in SDataRow, and use latest schema version for SKVRow
   int32_t numOfRowCols = 0;
   if (pSchema == NULL) {
     pSchema = tsdbGetTableSchemaByVersion(pTable, memRowVersion(row));
@@ -1477,7 +1477,190 @@ static void copyOneRowFromMem(STsdbQueryHandle* pQueryHandle, int32_t capacity, 
     i++;
   }
 }
+#endif
 
+static void copyOneRowFromMem(STsdbQueryHandle* pQueryHandle, int32_t capacity, int32_t numOfRows, SMemRow row,
+                              int32_t numOfCols, STable* pTable, STSchema* pSchema) {
+  char* pData = NULL;
+
+  // the schema version info is embedded in SDataRow, and use latest schema version for SKVRow
+  int32_t numOfRowCols = 0;
+  if (pSchema == NULL) {
+    pSchema = tsdbGetTableSchemaByVersion(pTable, memRowVersion(row));
+    numOfRowCols = schemaNCols(pSchema);
+  } else {
+    numOfRowCols = schemaNCols(pSchema);
+  }
+
+  int32_t i = 0;
+
+  if (isDataRow(row)) {
+    int32_t j = 0;
+    while (i < numOfCols && j < numOfRowCols) {
+      SColumnInfoData* pColInfo = taosArrayGet(pQueryHandle->pColumns, i);
+      if (pSchema->columns[j].colId < pColInfo->info.colId) {
+        j++;
+        continue;
+      }
+
+      if (ASCENDING_TRAVERSE(pQueryHandle->order)) {
+        pData = (char*)pColInfo->pData + numOfRows * pColInfo->info.bytes;
+      } else {
+        pData = (char*)pColInfo->pData + (capacity - numOfRows - 1) * pColInfo->info.bytes;
+      }
+
+      if (pSchema->columns[j].colId == pColInfo->info.colId) {
+        void* value =
+            tdGetRowDataOfCol(row, (int8_t)pColInfo->info.type, TD_MEM_ROW_HEAD_SIZE + pSchema->columns[j].offset);
+        switch (pColInfo->info.type) {
+          case TSDB_DATA_TYPE_BINARY:
+          case TSDB_DATA_TYPE_NCHAR:
+            memcpy(pData, value, varDataTLen(value));
+            break;
+          case TSDB_DATA_TYPE_NULL:
+          case TSDB_DATA_TYPE_BOOL:
+          case TSDB_DATA_TYPE_TINYINT:
+          case TSDB_DATA_TYPE_UTINYINT:
+            *(uint8_t*)pData = *(uint8_t*)value;
+            break;
+          case TSDB_DATA_TYPE_SMALLINT:
+          case TSDB_DATA_TYPE_USMALLINT:
+            *(uint16_t*)pData = *(uint16_t*)value;
+            break;
+          case TSDB_DATA_TYPE_INT:
+          case TSDB_DATA_TYPE_UINT:
+            *(uint32_t*)pData = *(uint32_t*)value;
+            break;
+          case TSDB_DATA_TYPE_BIGINT:
+          case TSDB_DATA_TYPE_UBIGINT:
+            *(uint64_t*)pData = *(uint64_t*)value;
+            break;
+          case TSDB_DATA_TYPE_FLOAT:
+            SET_FLOAT_PTR(pData, value);
+            break;
+          case TSDB_DATA_TYPE_DOUBLE:
+            SET_DOUBLE_PTR(pData, value);
+            break;
+          case TSDB_DATA_TYPE_TIMESTAMP:
+            if (pColInfo->info.colId == PRIMARYKEY_TIMESTAMP_COL_INDEX) {
+              *(TSKEY*)pData = tdGetKey(*(TKEY*)value);
+            } else {
+              *(TSKEY*)pData = *(TSKEY*)value;
+            }
+            break;
+          default:
+            memcpy(pData, value, pColInfo->info.bytes);
+        }
+
+        j++;
+        i++;
+      } else {  // pColInfo->info.colId < pSchema->columns[j].colId, it is a NULL data
+        if (pColInfo->info.type == TSDB_DATA_TYPE_BINARY || pColInfo->info.type == TSDB_DATA_TYPE_NCHAR) {
+          setVardataNull(pData, pColInfo->info.type);
+        } else {
+          setNull(pData, pColInfo->info.type, pColInfo->info.bytes);
+        }
+        i++;
+      }
+    }
+  } else if (isKvRow(row)) {
+    SKVRow  kvRow = memRowBody(row);
+    int32_t k = 0;
+    int32_t nKvRowCols = kvRowNCols(kvRow);
+
+    while (i < numOfCols && k < nKvRowCols) {
+      SColumnInfoData* pColInfo = taosArrayGet(pQueryHandle->pColumns, i);
+      SColIdx*         pColIdx = kvRowColIdxAt(kvRow, k);
+
+      if (pColIdx->colId < pColInfo->info.colId) {
+        ++k;
+        continue;
+      }
+
+      if (ASCENDING_TRAVERSE(pQueryHandle->order)) {
+        pData = (char*)pColInfo->pData + numOfRows * pColInfo->info.bytes;
+      } else {
+        pData = (char*)pColInfo->pData + (capacity - numOfRows - 1) * pColInfo->info.bytes;
+      }
+
+      if (pColIdx->colId == pColInfo->info.colId) {
+        STColumn* pSTColumn = tdGetColOfID(pSchema, pColIdx->colId);
+        if (pSTColumn != NULL) {
+          void* value = tdGetKvRowDataOfCol(row, pSTColumn->type, TD_MEM_ROW_HEAD_SIZE + pColIdx->offset);
+          switch (pColInfo->info.type) {
+            case TSDB_DATA_TYPE_BINARY:
+            case TSDB_DATA_TYPE_NCHAR:
+              memcpy(pData, value, varDataTLen(value));
+              break;
+            case TSDB_DATA_TYPE_NULL:
+            case TSDB_DATA_TYPE_BOOL:
+            case TSDB_DATA_TYPE_TINYINT:
+            case TSDB_DATA_TYPE_UTINYINT:
+              *(uint8_t*)pData = *(uint8_t*)value;
+              break;
+            case TSDB_DATA_TYPE_SMALLINT:
+            case TSDB_DATA_TYPE_USMALLINT:
+              *(uint16_t*)pData = *(uint16_t*)value;
+              break;
+            case TSDB_DATA_TYPE_INT:
+            case TSDB_DATA_TYPE_UINT:
+              *(uint32_t*)pData = *(uint32_t*)value;
+              break;
+            case TSDB_DATA_TYPE_BIGINT:
+            case TSDB_DATA_TYPE_UBIGINT:
+              *(uint64_t*)pData = *(uint64_t*)value;
+              break;
+            case TSDB_DATA_TYPE_FLOAT:
+              SET_FLOAT_PTR(pData, value);
+              break;
+            case TSDB_DATA_TYPE_DOUBLE:
+              SET_DOUBLE_PTR(pData, value);
+              break;
+            case TSDB_DATA_TYPE_TIMESTAMP:
+              if (pColInfo->info.colId == PRIMARYKEY_TIMESTAMP_COL_INDEX) {
+                *(TSKEY*)pData = tdGetKey(*(TKEY*)value);
+              } else {
+                *(TSKEY*)pData = *(TSKEY*)value;
+              }
+              break;
+            default:
+              memcpy(pData, value, pColInfo->info.bytes);
+          }
+          ++k;
+          ++i;
+          continue;
+        }
+        ++k;  // pSTColumn is NULL
+      }
+      // If (pColInfo->info.colId < pColIdx->colId) or pSTColumn is NULL, it is a NULL data
+      if (pColInfo->info.type == TSDB_DATA_TYPE_BINARY || pColInfo->info.type == TSDB_DATA_TYPE_NCHAR) {
+        setVardataNull(pData, pColInfo->info.type);
+      } else {
+        setNull(pData, pColInfo->info.type, pColInfo->info.bytes);
+      }
+      ++i;
+    }
+  } else {
+    ASSERT(0);
+  }
+
+  while (i < numOfCols) {  // the remain columns are all null data
+    SColumnInfoData* pColInfo = taosArrayGet(pQueryHandle->pColumns, i);
+    if (ASCENDING_TRAVERSE(pQueryHandle->order)) {
+      pData = (char*)pColInfo->pData + numOfRows * pColInfo->info.bytes;
+    } else {
+      pData = (char*)pColInfo->pData + (capacity - numOfRows - 1) * pColInfo->info.bytes;
+    }
+
+    if (pColInfo->info.type == TSDB_DATA_TYPE_BINARY || pColInfo->info.type == TSDB_DATA_TYPE_NCHAR) {
+      setVardataNull(pData, pColInfo->info.type);
+    } else {
+      setNull(pData, pColInfo->info.type, pColInfo->info.bytes);
+    }
+
+    i++;
+  }
+}
 static void moveDataToFront(STsdbQueryHandle* pQueryHandle, int32_t numOfRows, int32_t numOfCols) {
   if (numOfRows == 0 || ASCENDING_TRAVERSE(pQueryHandle->order)) {
     return;

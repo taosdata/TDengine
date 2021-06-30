@@ -1664,7 +1664,7 @@ void tdResetMemRowBuilder(SMemRowBuilder* pBuilder) {
 }
 
 #define KvRowNullColRatio 0.75  // If nullable column ratio larger than 0.75, utilize SKVRow, otherwise SDataRow.
-#define KvRowNColsThresh 4096   // default value: 32
+#define KvRowNColsThresh 1   // default value: 32
 
 static FORCE_INLINE uint8_t tdRowTypeJudger(SSchema* pSchema, void* pData, int32_t nCols, int32_t flen,
                                             uint16_t* nColsNotNull) {
@@ -1672,22 +1672,22 @@ static FORCE_INLINE uint8_t tdRowTypeJudger(SSchema* pSchema, void* pData, int32
   if (nCols < KvRowNColsThresh) {
     return SMEM_ROW_DATA;
   }
-  int32_t dataRowLen = flen;
-  int32_t kvRowLen = 0;
+  int32_t dataRowLength = flen;
+  int32_t kvRowLength = 0;
 
   uint16_t nColsNull = 0;
   char*   p = (char*)pData;
   for (int i = 0; i < nCols; ++i) {
     if (IS_VAR_DATA_TYPE(pSchema[i].type)) {
-      dataRowLen += varDataTLen(p);
+      dataRowLength += varDataTLen(p);
       if (!isNull(p, pSchema[i].type)) {
-        kvRowLen += sizeof(SColIdx) + varDataTLen(p);
+        kvRowLength += (sizeof(SColIdx) + varDataTLen(p));
       } else {
         ++nColsNull;
       }
     } else {
       if (!isNull(p, pSchema[i].type)) {
-        kvRowLen += sizeof(SColIdx) + varDataTLen(p);
+        kvRowLength += (sizeof(SColIdx) + TYPE_BYTES[pSchema[i].type]);
       } else {
         ++nColsNull;
       }
@@ -1697,9 +1697,9 @@ static FORCE_INLINE uint8_t tdRowTypeJudger(SSchema* pSchema, void* pData, int32
     p += pSchema[i].bytes;
   }
 
-  tscDebug("prop:nColsNull %d, nCols: %d, kvRowLen: %d, dataRowLen: %d", nColsNull, nCols, kvRowLen, dataRowLen);
+  tscInfo("prop:nColsNull %d, nCols: %d, kvRowLen: %d, dataRowLen: %d", nColsNull, nCols, kvRowLength, dataRowLength);
 
-  if (kvRowLen < dataRowLen) {
+  if (kvRowLength < dataRowLength) {
     if (nColsNotNull) {
       *nColsNotNull = nCols - nColsNull;
     }
@@ -1713,20 +1713,24 @@ SMemRow tdGetMemRowFromBuilder(SMemRowBuilder* pBuilder) {
   SSchema* pSchema = pBuilder->pSchema;
   char*    p = (char*)pBuilder->buf;
 
+  if(pBuilder->nCols <= 0){
+    return NULL;
+  }
+
   uint16_t nColsNotNull = 0;
   uint8_t memRowType = tdRowTypeJudger(pSchema, p, pBuilder->nCols, pBuilder->flen, &nColsNotNull);
   tscDebug("prop:memType is %d", memRowType);
-
   memRowType = SMEM_ROW_DATA;
+
   SMemRow* memRow = (SMemRow)pBuilder->pDataBlock;
   memRowSetType(memRow, memRowType);
 
   if (memRowType == SMEM_ROW_DATA) {
-    int      toffset = 0;
     SDataRow trow = (SDataRow)memRowBody(memRow);
     dataRowSetLen(trow, (uint16_t)(TD_DATA_ROW_HEAD_SIZE + pBuilder->flen));
     dataRowSetVersion(trow, pBuilder->sversion);
 
+    int toffset = 0;
     p = (char*)pBuilder->buf;
     for (int32_t j = 0; j < pBuilder->nCols; ++j) {
       tdAppendColVal(trow, p, pSchema[j].type, pSchema[j].bytes, toffset);
@@ -1734,35 +1738,34 @@ SMemRow tdGetMemRowFromBuilder(SMemRowBuilder* pBuilder) {
       p += pSchema[j].bytes;
     }
     pBuilder->buf = p;
-  } else {
+  } else if (memRowType == SMEM_ROW_KV)  {
+    ASSERT(nColsNotNull < pBuilder->nCols);
+
     uint16_t tlen = TD_KV_ROW_HEAD_SIZE + sizeof(SColIdx) * nColsNotNull + pBuilder->size;
-    SKVRow row = (SKVRow)pBuilder->pDataBlock;
+    SKVRow   kvRow = (SKVRow)memRowBody(memRow);
 
-    kvRowSetNCols(row, nColsNotNull);
-    kvRowSetLen(row, tlen);
+    kvRowSetNCols(kvRow, nColsNotNull);
+    kvRowSetLen(kvRow, tlen);
 
-    memcpy(kvRowColIdx(row), pBuilder->pColIdx, sizeof(SColIdx) * pBuilder->nCols);
-    memcpy(kvRowValues(row), pBuilder->buf, pBuilder->size);
+    int toffset = 0;
+    p = (char*)pBuilder->buf;
+    for (int32_t j = 0; j < pBuilder->nCols; ++j) {
+      if(!isNull(p, pSchema[j].type)) {
+        tdAppendKvColVal(kvRow, p, pSchema[j].colId, pSchema[j].type, toffset);
+        toffset += sizeof(SColIdx);
+      }
+      p += pSchema[j].bytes;
+    }
+    pBuilder->buf = p;
+
+  } else {
+    ASSERT(0);
   }
 
   pBuilder->pDataBlock = (char*)pBuilder->pDataBlock + memRowTLen(memRow);  // next row
   pBuilder->pSubmitBlk->dataLen += memRowTLen(memRow);
 
-  // int tlen = sizeof(SColIdx) * pBuilder->nCols + pBuilder->size;
-  // if (tlen == 0) return NULL;
-
-  // tlen += TD_KV_ROW_HEAD_SIZE;
-
-  // SKVRow row = malloc(tlen);
-  // if (row == NULL) return NULL;
-
-  // kvRowSetNCols(row, pBuilder->nCols);
-  // kvRowSetLen(row, tlen);
-
-  // memcpy(kvRowColIdx(row), pBuilder->pColIdx, sizeof(SColIdx) * pBuilder->nCols);
-  // memcpy(kvRowValues(row), pBuilder->buf, pBuilder->size);
-
-  return NULL;
+  return memRow;
 }
 
 // Erase the empty space reserved for binary data
