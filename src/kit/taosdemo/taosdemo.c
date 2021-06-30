@@ -7469,7 +7469,6 @@ static void *specifiedSubscribe(void *sarg) {
       }
   }
   taos_free_result(g_queryInfo.specifiedQueryInfo.res[pThreadInfo->threadID]);
-  taos_unsubscribe(g_queryInfo.specifiedQueryInfo.tsub[pThreadInfo->querySeq], 0);
   taos_close(pThreadInfo->taos);
 
   return NULL;
