@@ -348,6 +348,7 @@ int64_t convertTimePrecision(int64_t time, int32_t fromPrecision, int32_t toPrec
                                   {1.0 / 1000000, 1.0 / 1000,       1.} };
   return (int64_t)((double)time * factors[fromPrecision][toPrecision]);
 }
+
 static int32_t getDuration(int64_t val, char unit, int64_t* result, int32_t timePrecision) {
 
   switch (unit) {
