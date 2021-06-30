@@ -3187,34 +3187,42 @@ int32_t validateGroupbyNode(SQueryInfo* pQueryInfo, SArray* pList, SSqlCmd* pCmd
   const char* msg2 = "invalid column name in group by clause";
   const char* msg3 = "columns from one table allowed as group by columns";
   const char* msg4 = "join query does not support group by";
+  const char* msg5 = "not allowed column type for group by";
+  const char* msg6 = "tags not allowed for table query";
   const char* msg7 = "not support group by expression";
-  const char* msg8 = "not allowed column type for group by";
-  const char* msg9 = "tags not allowed for table query";
+  const char* msg8 = "normal column can only locate at the end of group by clause";
 
   // todo : handle two tables situation
   STableMetaInfo* pTableMetaInfo = NULL;
-
   if (pList == NULL) {
     return TSDB_CODE_SUCCESS;
-  }
-
-  if (pQueryInfo->colList == NULL) {
-    pQueryInfo->colList = taosArrayInit(4, POINTER_BYTES);
-  }
-  
-  pQueryInfo->groupbyExpr.numOfGroupCols = (int16_t)taosArrayGetSize(pList);
-  if (pQueryInfo->groupbyExpr.numOfGroupCols > TSDB_MAX_TAGS) {
-    return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg1);
   }
 
   if (pQueryInfo->numOfTables > 1) {
     return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg4);
   }
 
-  STableMeta* pTableMeta = NULL;
-  SSchema*    pSchema = NULL;
+  SGroupbyExpr* pGroupExpr = &pQueryInfo->groupbyExpr;
+  if (pGroupExpr->columnInfo == NULL) {
+    pGroupExpr->columnInfo = taosArrayInit(4, sizeof(SColIndex));
+  }
 
-  int32_t tableIndex = COLUMN_INDEX_INITIAL_VAL;
+  if (pQueryInfo->colList == NULL) {
+    pQueryInfo->colList = taosArrayInit(4, POINTER_BYTES);
+  }
+
+  if (pGroupExpr->columnInfo == NULL || pQueryInfo->colList == NULL) {
+    return TSDB_CODE_TSC_OUT_OF_MEMORY;
+  }
+
+  pGroupExpr->numOfGroupCols = (int16_t)taosArrayGetSize(pList);
+  if (pGroupExpr->numOfGroupCols > TSDB_MAX_TAGS) {
+    return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg1);
+  }
+
+  SSchema *pSchema       = NULL;
+  int32_t tableIndex     = COLUMN_INDEX_INITIAL_VAL;
+  int32_t numOfGroupCols = 0;
 
   size_t num = taosArrayGetSize(pList);
   for (int32_t i = 0; i < num; ++i) {
@@ -3235,28 +3243,20 @@ int32_t validateGroupbyNode(SQueryInfo* pQueryInfo, SArray* pList, SSqlCmd* pCmd
     }
 
     pTableMetaInfo = tscGetMetaInfo(pQueryInfo, index.tableIndex);
-    pTableMeta = pTableMetaInfo->pTableMeta;
+    STableMeta* pTableMeta = pTableMetaInfo->pTableMeta;
   
-    int32_t numOfCols = tscGetNumOfColumns(pTableMeta);
     if (index.columnIndex == TSDB_TBNAME_COLUMN_INDEX) {
       pSchema = tGetTbnameColumnSchema();
     } else {
       pSchema = tscGetTableColumnSchema(pTableMeta, index.columnIndex);
     }
 
-    bool groupTag = false;
-    if (index.columnIndex == TSDB_TBNAME_COLUMN_INDEX || index.columnIndex >= numOfCols) {
-      groupTag = true;
-    }
+    int32_t numOfCols = tscGetNumOfColumns(pTableMeta);
+    bool groupTag = (index.columnIndex == TSDB_TBNAME_COLUMN_INDEX || index.columnIndex >= numOfCols);
   
-    SGroupbyExpr* pGroupExpr = &pQueryInfo->groupbyExpr;
-    if (pGroupExpr->columnInfo == NULL) {
-      pGroupExpr->columnInfo = taosArrayInit(4, sizeof(SColIndex));
-    }
-    
     if (groupTag) {
       if (!UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo)) {
-        return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg9);
+        return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg6);
       }
 
       int32_t relIndex = index.columnIndex;
@@ -3273,7 +3273,7 @@ int32_t validateGroupbyNode(SQueryInfo* pQueryInfo, SArray* pList, SSqlCmd* pCmd
     } else {
       // check if the column type is valid, here only support the bool/tinyint/smallint/bigint group by
       if (pSchema->type == TSDB_DATA_TYPE_TIMESTAMP || pSchema->type == TSDB_DATA_TYPE_FLOAT || pSchema->type == TSDB_DATA_TYPE_DOUBLE) {
-        return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg8);
+        return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg5);
       }
 
       tscColumnListInsert(pQueryInfo->colList, index.columnIndex, pTableMeta->id.uid, pSchema);
@@ -3283,10 +3283,20 @@ int32_t validateGroupbyNode(SQueryInfo* pQueryInfo, SArray* pList, SSqlCmd* pCmd
 
       taosArrayPush(pGroupExpr->columnInfo, &colIndex);
       pQueryInfo->groupbyExpr.orderType = TSDB_ORDER_ASC;
+      numOfGroupCols++;
+    }
+  }
 
-      if (i == 0 && num > 1) {
-        return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg7);
-      }
+  // 1. only one normal column allowed in the group by clause
+  // 2. the normal column in the group by clause can only located in the end position
+  if (numOfGroupCols) {
+    return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg7);
+  }
+
+  for(int32_t i = 0; i < num; ++i) {
+    SColIndex* pIndex = taosArrayGet(pGroupExpr->columnInfo, i);
+    if (TSDB_COL_IS_NORMAL_COL(pIndex->flag) && i != num - 1) {
+     return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg8);
     }
   }
 
