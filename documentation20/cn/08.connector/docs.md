@@ -259,7 +259,7 @@ typedef struct taosField {
 
   获取最近一次API调用失败的原因,返回值为字符串。
 
-- `char *taos_errno(TAOS_RES *res)`
+- `int taos_errno(TAOS_RES *res)`
 
   获取最近一次API调用失败的原因，返回值为错误代码。
 
