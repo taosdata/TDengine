@@ -636,6 +636,9 @@ static FILE *          g_fpOfInsertResult = NULL;
 #define errorPrint(fmt, ...) \
     do { fprintf(stderr, "ERROR: "fmt, __VA_ARGS__); } while(0)
 
+// for strncpy buffer overflow
+#define min(a, b) (((a) < (b)) ? (a) : (b))
+
 
 ///////////////////////////////////////////////////
 
@@ -2570,7 +2573,7 @@ static int getSuperTableFromServer(TAOS * taos, char* dbName,
               fields[TSDB_DESCRIBE_METRIC_FIELD_INDEX].bytes);
       tstrncpy(superTbls->tags[tagIndex].dataType,
               (char *)row[TSDB_DESCRIBE_METRIC_TYPE_INDEX],
-              fields[TSDB_DESCRIBE_METRIC_TYPE_INDEX].bytes);
+              min(15, fields[TSDB_DESCRIBE_METRIC_TYPE_INDEX].bytes));
       superTbls->tags[tagIndex].dataLen =
           *((int *)row[TSDB_DESCRIBE_METRIC_LENGTH_INDEX]);
       tstrncpy(superTbls->tags[tagIndex].note,
@@ -2583,7 +2586,7 @@ static int getSuperTableFromServer(TAOS * taos, char* dbName,
               fields[TSDB_DESCRIBE_METRIC_FIELD_INDEX].bytes);
       tstrncpy(superTbls->columns[columnIndex].dataType,
               (char *)row[TSDB_DESCRIBE_METRIC_TYPE_INDEX],
-              fields[TSDB_DESCRIBE_METRIC_TYPE_INDEX].bytes);
+              min(15, fields[TSDB_DESCRIBE_METRIC_TYPE_INDEX].bytes));
       superTbls->columns[columnIndex].dataLen =
           *((int *)row[TSDB_DESCRIBE_METRIC_LENGTH_INDEX]);
       tstrncpy(superTbls->columns[columnIndex].note,
