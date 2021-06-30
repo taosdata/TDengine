@@ -14,7 +14,7 @@
  */
 
 #include "tscUtil.h"
-#include "hash.h" 
+#include "hash.h"
 #include "os.h"
 #include "taosmsg.h"
 #include "texpr.h"
@@ -1640,35 +1640,34 @@ int32_t tscGetDataBlockFromList(SHashObj* pHashList, int64_t id, int32_t size, i
   return TSDB_CODE_SUCCESS;
 }
 
-int tdInitMemRowBuilder(SMemRowBuilder* pBuilder) {
-  pBuilder->pSchema = NULL;
-  pBuilder->sversion = 0;
-  pBuilder->tCols = 128;
-  pBuilder->nCols = 0;
-  pBuilder->pColIdx = (SColIdx*)malloc(sizeof(SColIdx) * pBuilder->tCols);
-  if (pBuilder->pColIdx == NULL) return -1;
-  pBuilder->alloc = 1024;
-  pBuilder->size = 0;
-  pBuilder->buf = malloc(pBuilder->alloc);
-  if (pBuilder->buf == NULL) {
-    free(pBuilder->pColIdx);
-    return -1;
-  }
-  return 0;
-}
+// int tdInitMemRowBuilder(SMemRowBuilder* pBuilder) {
+//   pBuilder->pSchema = NULL;
+//   pBuilder->sversion = 0;
+//   pBuilder->tCols = 128;
+//   pBuilder->nCols = 0;
+//   pBuilder->pColIdx = (SColIdx*)malloc(sizeof(SColIdx) * pBuilder->tCols);
+//   if (pBuilder->pColIdx == NULL) return -1;
+//   pBuilder->alloc = 1024;
+//   pBuilder->size = 0;
+//   pBuilder->buf = malloc(pBuilder->alloc);
+//   if (pBuilder->buf == NULL) {
+//     free(pBuilder->pColIdx);
+//     return -1;
+//   }
+//   return 0;
+// }
 
-void tdDestroyMemRowBuilder(SMemRowBuilder* pBuilder) {
-  tfree(pBuilder->pColIdx);
-  tfree(pBuilder->buf);
-}
+// void tdDestroyMemRowBuilder(SMemRowBuilder* pBuilder) {
+//   tfree(pBuilder->pColIdx);
+//   tfree(pBuilder->buf);
+// }
 
-void tdResetMemRowBuilder(SMemRowBuilder* pBuilder) {
-  pBuilder->nCols = 0;
-  pBuilder->size = 0;
-}
+// void tdResetMemRowBuilder(SMemRowBuilder* pBuilder) {
+//   pBuilder->nCols = 0;
+//   pBuilder->size = 0;
+// }
 
-#define KvRowNullColRatio 0.75  // If nullable column ratio larger than 0.75, utilize SKVRow, otherwise SDataRow.
-#define KvRowNColsThresh 1   // default value: 32
+#define KvRowNColsThresh 1  // default value: 32       TODO: for test, restore to 32 after test finished
 
 static FORCE_INLINE uint8_t tdRowTypeJudger(SSchema* pSchema, void* pData, int32_t nCols, int32_t flen,
                                             uint16_t* nColsNotNull) {
@@ -1701,7 +1700,8 @@ static FORCE_INLINE uint8_t tdRowTypeJudger(SSchema* pSchema, void* pData, int32
     p += pSchema[i].bytes;
   }
 
-  tscInfo("prop:nColsNull %d, nCols: %d, kvRowLen: %d, dataRowLen: %d", nColsNull, nCols, kvRowLength, dataRowLength);
+  tscDebug("prop:nColsNull %d, nCols: %d, kvRowLen: %d, dataRowLen: %d", (int32_t)nColsNull, nCols, kvRowLength,
+           dataRowLength);
 
   if (kvRowLength < dataRowLength) {
     if (nColsNotNull) {
@@ -1713,7 +1713,7 @@ static FORCE_INLINE uint8_t tdRowTypeJudger(SSchema* pSchema, void* pData, int32
   return SMEM_ROW_DATA;
 }
 
-SMemRow tdGetMemRowFromBuilder(SMemRowBuilder* pBuilder) {
+SMemRow tdGenMemRowFromBuilder(SMemRowBuilder* pBuilder) {
   SSchema* pSchema = pBuilder->pSchema;
   char*    p = (char*)pBuilder->buf;
 
@@ -1840,7 +1840,7 @@ static int trimDataBlock(void* pDataBlock, STableDataBlocks* pTableDataBlock, bo
     pDataBlock = (char*)pDataBlock + dataRowLen(trow);  // next SDataRow
     pBlock->dataLen += dataRowLen(trow);                // SSubmitBlk data length
 #endif
-    tdGetMemRowFromBuilder(&mRowBuilder);
+    tdGenMemRowFromBuilder(&mRowBuilder);
   }
 
   int32_t len = pBlock->dataLen + pBlock->schemaLen;

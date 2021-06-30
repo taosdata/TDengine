@@ -224,10 +224,10 @@ typedef void *SMemRow;
 #define dataRowMaxBytesFromSchema(s) (schemaTLen(s) + TD_DATA_ROW_HEAD_SIZE)
 #define dataRowDeleted(r) TKEY_IS_DELETED(dataRowTKey(r))
 
-// SDataRow tdNewDataRowFromSchema(STSchema *pSchema);
-// void     tdFreeDataRow(SDataRow row);
+SDataRow tdNewDataRowFromSchema(STSchema *pSchema);
+void     tdFreeDataRow(SDataRow row);
 void     tdInitDataRow(SDataRow row, STSchema *pSchema);
-// SDataRow tdDataRowDup(SDataRow row);
+SDataRow tdDataRowDup(SDataRow row);
 SMemRow tdMemRowDup(SMemRow row);
 
 // offset here not include dataRow header length
@@ -251,6 +251,16 @@ static FORCE_INLINE int tdAppendColVal(SDataRow row, const void *value, int8_t t
   }
 
   return 0;
+}
+
+// NOTE: offset here including the header size
+static FORCE_INLINE void *tdGetRowDataOfCol(void *row, int8_t type, int32_t offset) {
+  if (IS_VAR_DATA_TYPE(type)) {
+    return POINTER_SHIFT(row, *(VarDataOffsetT *)POINTER_SHIFT(row, offset));
+  } else {
+    return POINTER_SHIFT(row, offset);
+  }
+  return NULL;
 }
 
 // ----------------- Data column structure
@@ -519,27 +529,26 @@ static FORCE_INLINE int tdAddColToKVRow(SKVRowBuilder *pBuilder, int16_t colId, 
   return 0;
 }
 
-// ----------------- Data row structure
-
 // ----------------- Sequential Data row structure
-/* A sequential data row, the format is like below:
- * |<--------------------+--------------------------- len ---------------------------------->|
- * |<--     Head      -->|<---------   flen -------------->|                                 |
- * +---------------------+---------------------------------+---------------------------------+
- * | uint16_t |  int16_t |                                 |                                 |
- * +----------+----------+---------------------------------+---------------------------------+
- * |   len    | sversion |           First part            |             Second part         |
- * +----------+----------+---------------------------------+---------------------------------+
+/*
+ * |-------------------------------+--------------------------- len ---------------------------------->|
+ * |<--------     Head      ------>|<---------   flen -------------->|                                 |
+ * |---------+---------------------+---------------------------------+---------------------------------+
+ * | uint8_t | uint16_t |  int16_t |                                 |                                 |
+ * |---------+----------+----------+---------------------------------+---------------------------------+
+ * |  flag   |   len    | sversion |           First part            |             Second part         |
+ * +---------+----------+----------+---------------------------------+---------------------------------+
  *
  * NOTE: timestamp in this row structure is TKEY instead of TSKEY
  */
+
 // ----------------- K-V data row structure
 /*
- * +----------+----------+---------------------------------+---------------------------------+
- * |  int16_t |  int16_t |                                 |                                 |
- * +----------+----------+---------------------------------+---------------------------------+
- * |    len   |   ncols  |           cols index            |             data part           |
- * +----------+----------+---------------------------------+---------------------------------+
+ * |--------------------+----------+---------------------------------+---------------------------------+
+ * | uint8_t | uint16_t |  int16_t |                                 |                                 |
+ * |---------+----------+----------+---------------------------------+---------------------------------+
+ * |   flag  |    len   |   ncols  |           cols index            |             data part           |
+ * |---------+----------+----------+---------------------------------+---------------------------------+
  */
 
 #define TD_MEM_ROW_TYPE_SIZE sizeof(uint8_t)
@@ -572,24 +581,11 @@ static FORCE_INLINE int tdAddColToKVRow(SKVRowBuilder *pBuilder, int16_t colId, 
 #define memRowMaxBytesFromSchema(s) (schemaTLen(s) + TD_MEM_ROW_HEAD_SIZE)
 #define memRowDeleted(r) TKEY_IS_DELETED(memRowTKey(r))
 
-// #define memRowNCols(r) (*(int16_t *)POINTER_SHIFT(r, TD_MEM_ROW_TYPE_SIZE + sizeof(int16_t)))      // for SKVRow
-// #define memRowSetNCols(r, n) memRowNCols(r) = (n)                                                  // for SKVRow
-// #define memRowColIdx(r) (SColIdx *)POINTER_SHIFT(r, TD_MEM_ROW_HEAD_SIZE)                          // for SKVRow
-// #define memRowValues(r) POINTER_SHIFT(r, TD_MEM_ROW_HEAD_SIZE + sizeof(SColIdx) * memRowNCols(r))  // for SKVRow
-
 // NOTE: offset here including the header size
-static FORCE_INLINE void *tdGetRowDataOfCol(void *row, int8_t type, int32_t offset) {
-  if (IS_VAR_DATA_TYPE(type)) {
-    return POINTER_SHIFT(row, *(VarDataOffsetT *)POINTER_SHIFT(row, offset));
-  } else {
-    return POINTER_SHIFT(row, offset);
-  }
-  return NULL;
-}
 static FORCE_INLINE void *tdGetKvRowDataOfCol(void *row, int8_t type, int32_t offset) {
   return POINTER_SHIFT(row, offset);
 }
-
+// NOTE: offset here including the header size
 static FORCE_INLINE void *tdGetMemRowDataOfCol(void *row, int8_t type, int32_t offset) {
   if (isDataRow(row)) {
     return tdGetRowDataOfCol(row, type, offset);
@@ -600,12 +596,6 @@ static FORCE_INLINE void *tdGetMemRowDataOfCol(void *row, int8_t type, int32_t o
   }
   return NULL;
 }
-
-// #define kvRowCpy(dst, r) memcpy((dst), (r), kvRowLen(r))
-// #define kvRowColVal(r, colIdx) POINTER_SHIFT(kvRowValues(r), (colIdx)->offset)
-// #define kvRowColIdxAt(r, i) (kvRowColIdx(r) + (i))
-// #define kvRowFree(r) tfree(r)
-// #define kvRowEnd(r) POINTER_SHIFT(r, kvRowLen(r))
 
 #ifdef __cplusplus
 }

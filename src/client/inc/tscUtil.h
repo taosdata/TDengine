@@ -359,39 +359,39 @@ typedef struct {
   SSubmitBlk* pSubmitBlk;
 } SMemRowBuilder;
 
-int     tdInitMemRowBuilder(SMemRowBuilder* pBuilder);
-void    tdDestroyMemRowBuilder(SMemRowBuilder* pBuilder);
-void    tdResetMemRowBuilder(SMemRowBuilder* pBuilder);
-SMemRow tdGetMemRowFromBuilder(SMemRowBuilder* pBuilder);
+// int     tdInitMemRowBuilder(SMemRowBuilder* pBuilder);
+// void    tdDestroyMemRowBuilder(SMemRowBuilder* pBuilder);
+// void    tdResetMemRowBuilder(SMemRowBuilder* pBuilder);
+SMemRow tdGenMemRowFromBuilder(SMemRowBuilder* pBuilder);
 
-static FORCE_INLINE int tdAddColToMemRow(SMemRowBuilder* pBuilder, int16_t colId, int8_t type, void* value) {
-  // TODO
+// static FORCE_INLINE int tdAddColToMemRow(SMemRowBuilder* pBuilder, int16_t colId, int8_t type, void* value) {
+//   // TODO
 
-  if (pBuilder->nCols >= pBuilder->tCols) {
-    pBuilder->tCols *= 2;
-    pBuilder->pColIdx = (SColIdx*)realloc((void*)(pBuilder->pColIdx), sizeof(SColIdx) * pBuilder->tCols);
-    if (pBuilder->pColIdx == NULL) return -1;
-  }
+//   if (pBuilder->nCols >= pBuilder->tCols) {
+//     pBuilder->tCols *= 2;
+//     pBuilder->pColIdx = (SColIdx*)realloc((void*)(pBuilder->pColIdx), sizeof(SColIdx) * pBuilder->tCols);
+//     if (pBuilder->pColIdx == NULL) return -1;
+//   }
 
-  pBuilder->pColIdx[pBuilder->nCols].colId = colId;
-  pBuilder->pColIdx[pBuilder->nCols].offset = pBuilder->size;
+//   pBuilder->pColIdx[pBuilder->nCols].colId = colId;
+//   pBuilder->pColIdx[pBuilder->nCols].offset = pBuilder->size;
 
-  pBuilder->nCols++;
+//   pBuilder->nCols++;
 
-  int tlen = IS_VAR_DATA_TYPE(type) ? varDataTLen(value) : TYPE_BYTES[type];
-  if (tlen > pBuilder->alloc - pBuilder->size) {
-    while (tlen > pBuilder->alloc - pBuilder->size) {
-      pBuilder->alloc *= 2;
-    }
-    pBuilder->buf = realloc(pBuilder->buf, pBuilder->alloc);
-    if (pBuilder->buf == NULL) return -1;
-  }
+//   int tlen = IS_VAR_DATA_TYPE(type) ? varDataTLen(value) : TYPE_BYTES[type];
+//   if (tlen > pBuilder->alloc - pBuilder->size) {
+//     while (tlen > pBuilder->alloc - pBuilder->size) {
+//       pBuilder->alloc *= 2;
+//     }
+//     pBuilder->buf = realloc(pBuilder->buf, pBuilder->alloc);
+//     if (pBuilder->buf == NULL) return -1;
+//   }
 
-  memcpy(POINTER_SHIFT(pBuilder->buf, pBuilder->size), value, tlen);
-  pBuilder->size += tlen;
+//   memcpy(POINTER_SHIFT(pBuilder->buf, pBuilder->size), value, tlen);
+//   pBuilder->size += tlen;
 
-  return 0;
-}
+//   return 0;
+// }
 
 #ifdef __cplusplus
 }

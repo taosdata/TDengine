@@ -188,30 +188,30 @@ void tdInitDataRow(SDataRow row, STSchema *pSchema) {
   dataRowSetVersion(row, schemaVersion(pSchema));
 }
 
-// SDataRow tdNewDataRowFromSchema(STSchema *pSchema) {
-//   int32_t size = dataRowMaxBytesFromSchema(pSchema);
+SDataRow tdNewDataRowFromSchema(STSchema *pSchema) {
+  int32_t size = dataRowMaxBytesFromSchema(pSchema);
 
-//   SDataRow row = malloc(size);
-//   if (row == NULL) return NULL;
+  SDataRow row = malloc(size);
+  if (row == NULL) return NULL;
 
-//   tdInitDataRow(row, pSchema);
-//   return row;
-// }
+  tdInitDataRow(row, pSchema);
+  return row;
+}
 
 /**
  * Free the SDataRow object
  */
-// void tdFreeDataRow(SDataRow row) {
-//   if (row) free(row);
-// }
+void tdFreeDataRow(SDataRow row) {
+  if (row) free(row);
+}
 
-// SDataRow tdDataRowDup(SDataRow row) {
-//   SDataRow trow = malloc(dataRowLen(row));
-//   if (trow == NULL) return NULL;
+SDataRow tdDataRowDup(SDataRow row) {
+  SDataRow trow = malloc(dataRowLen(row));
+  if (trow == NULL) return NULL;
 
-//   dataRowCpy(trow, row);
-//   return trow;
-// }
+  dataRowCpy(trow, row);
+  return trow;
+}
 
 SMemRow tdMemRowDup(SMemRow row) {
   SMemRow trow = malloc(memRowTLen(row));
@@ -220,6 +220,7 @@ SMemRow tdMemRowDup(SMemRow row) {
   memRowCpy(trow, row);
   return trow;
 }
+
 void dataColInit(SDataCol *pDataCol, STColumn *pCol, void **pBuf, int maxPoints) {
   pDataCol->type = colType(pCol);
   pDataCol->colId = colColId(pCol);
@@ -436,7 +437,7 @@ void tdResetDataCols(SDataCols *pCols) {
 static void tdAppendDataRowToDataCol(SDataRow row, STSchema *pSchema, SDataCols *pCols) {
   ASSERT(pCols->numOfRows == 0 || dataColsKeyLast(pCols) < dataRowKey(row));
 
-  int rcol = 0;  // rowCol
+  int rcol = 0;
   int dcol = 0;
 
   if (dataRowDeleted(row)) {
