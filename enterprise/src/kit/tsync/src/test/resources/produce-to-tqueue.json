@@ -23,10 +23,10 @@
       9,
       10
     ],
-    "threads": 5
+    "threads": 10
   },
   "message": {
-    "total": 100000,
+    "total": 100,
     "batchTables": 1,
     "batchValues": 1,
     "schema": {

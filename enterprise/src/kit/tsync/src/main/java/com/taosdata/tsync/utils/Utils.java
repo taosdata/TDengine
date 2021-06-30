@@ -56,8 +56,6 @@ public final class Utils {
         return batchMap;
     }
 
-    /****************************************************************************************************************/
-
     /***
      * 把一个数平均的分成n组
      * @param many 被分的数
@@ -70,7 +68,7 @@ public final class Utils {
         final long gap = Math.round((0.0d + many) / groups);
         IntStream.range(0, groups).forEach(index -> {
             long startInd = index * gap;
-            long endInd = Math.min(((index + 1) * gap), (int) many);
+            long endInd = Math.min(((index + 1) * gap), many);
             if (startInd >= many) {
                 map.put(index, Range.closedOpen(many, many));
             } else if (index == groups - 1) {
@@ -88,7 +86,7 @@ public final class Utils {
         final long gap = (int) Math.round((0.0d + many) / groups);
         LongStream.range(0, groups).forEach(index -> {
             long startInd = index * gap;
-            long endInd = Math.min(((index + 1) * gap), (int) many);
+            long endInd = Math.min(((index + 1) * gap), many);
             if (startInd >= many) {
                 map.put(index, Range.closedOpen(many, many));
             } else if (index == groups - 1) {
@@ -107,7 +105,7 @@ public final class Utils {
         IntStream.range(0, groups.length).forEach(index -> {
 
             long startInd = index * gap;
-            long endInd = Math.min(((index + 1) * gap), (int) many);
+            long endInd = Math.min(((index + 1) * gap), many);
 
             if (startInd >= many) {
                 map.put(groups[index], Range.closedOpen(many, many));
@@ -127,7 +125,7 @@ public final class Utils {
         IntStream.range(0, groups.length).forEach(index -> {
 
             long startInd = index * gap;
-            long endInd = Math.min(((index + 1) * gap), (int) many);
+            long endInd = Math.min(((index + 1) * gap), many);
 
             if (startInd >= many) {
                 map.put(groups[index], Range.closedOpen(many, many));
@@ -147,7 +145,7 @@ public final class Utils {
         final long gap = Math.round((0.0d + manySize) / groups.length);
         IntStream.range(0, groups.length).forEach(index -> {
             long startInd = startInclude + index * gap;
-            long endInd = Math.min(startInclude + (index + 1) * gap, (int) endExclude);
+            long endInd = Math.min(startInclude + (index + 1) * gap, endExclude);
             if (startInd >= endExclude) {
                 map.put(groups[index], Range.closedOpen(manySize, endExclude));
             } else if (index == groups.length - 1) {
@@ -158,8 +156,6 @@ public final class Utils {
         });
         return map;
     }
-
-    /****************************************************************************************************************/
 
     public static Multimap<Integer, Integer> divideArrIntoGroups(int[] arr, int groups) {
         Multimap<Integer, Integer> multimap = HashMultimap.create();

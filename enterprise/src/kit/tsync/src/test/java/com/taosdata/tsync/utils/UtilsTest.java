@@ -258,4 +258,34 @@ public class UtilsTest {
         assertEquals(new Long(175), arrIndex2Range.get(6).lowerEndpoint());
         assertEquals(new Long(200), arrIndex2Range.get(6).upperEndpoint());
     }
+
+    @Test
+    public void divide1BillionInto5Groups() {
+        // given
+        long many = 100_0000_0000L;
+        int few = 5;
+        // when
+        Map<Integer, Range<Long>> map = Utils.divideIntoGroups(many, few);
+        // then
+        assertTrue(map.containsKey(0));
+        assertEquals(new Long(0L), map.get(0).lowerEndpoint());
+        assertEquals(new Long(20_0000_0000L), map.get(0).upperEndpoint());
+
+        assertTrue(map.containsKey(1));
+        assertEquals(new Long(20_0000_0000L), map.get(1).lowerEndpoint());
+        assertEquals(new Long(40_0000_0000L), map.get(1).upperEndpoint());
+
+        assertTrue(map.containsKey(2));
+        assertEquals(new Long(40_0000_0000L), map.get(2).lowerEndpoint());
+        assertEquals(new Long(60_0000_0000L), map.get(2).upperEndpoint());
+
+        assertTrue(map.containsKey(3));
+        assertEquals(new Long(60_0000_0000L), map.get(3).lowerEndpoint());
+        assertEquals(new Long(80_0000_0000L), map.get(3).upperEndpoint());
+
+        assertTrue(map.containsKey(4));
+        assertEquals(new Long(80_0000_0000L), map.get(4).lowerEndpoint());
+        assertEquals(new Long(100_0000_0000L), map.get(4).upperEndpoint());
+    }
+
 }

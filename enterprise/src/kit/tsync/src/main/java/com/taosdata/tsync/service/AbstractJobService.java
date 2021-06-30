@@ -47,7 +47,7 @@ public abstract class AbstractJobService implements JobService {
         }
     }
 
-    protected boolean isLegal(int[] partitions, int max) {
+    private boolean isLegal(int[] partitions, int max) {
         for (int i = 0; i < partitions.length; i++) {
             if (partitions[i] < 1 || partitions[i] > max)
                 return false;

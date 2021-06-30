@@ -22,9 +22,6 @@ public abstract class AbstractCallableJobService extends AbstractJobService {
     protected final CallableTaskRepository callableTaskRepository = CallableTaskRepository.getInstance();
     private final ResultProcessService resultProcessService;
 
-    protected String topic;
-    protected int[] partitions;
-
     protected AbstractCallableJobService(ResultProcessService resultProcessService) {
         this.resultProcessService = resultProcessService;
     }

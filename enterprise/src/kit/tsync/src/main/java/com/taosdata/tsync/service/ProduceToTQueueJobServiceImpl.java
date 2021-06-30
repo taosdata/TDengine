@@ -35,24 +35,6 @@ public class ProduceToTQueueJobServiceImpl extends AbstractCallableJobService {
         super(new AffectRowsProcessService());
     }
 
-    private void arrangeTablesToEachThread(ProduceToTQueueConfiguration configuration) {
-        StableConfiguration stableConfiguration = (StableConfiguration) configuration.findFirst(ConfigurationType.STABLE);
-        long tables = stableConfiguration.getTables();
-        threadIndex2TableRange = Utils.divideIntoGroups(tables, threadSize);
-    }
-
-    private void arrangeRecordToEachThread(ProduceToTQueueConfiguration configuration) {
-        MessageConfiguration messageConfiguration = (MessageConfiguration) configuration.findFirst(ConfigurationType.MESSAGE);
-        long total = messageConfiguration.getTotal();
-        threadRecordMap = Utils.divideIntoGroups(total, threadSize);
-        batchTables = messageConfiguration.getBatchTables();
-        batchValues = messageConfiguration.getBatchValues();
-    }
-
-    private void prepareSchema(ProduceToTQueueConfiguration configuration) {
-        schemaConfiguration = (SchemaConfiguration) configuration.findFirst(ConfigurationType.SCHEMA);
-    }
-
     @Override
     public List<UUID> prepare(ConfigurationType configurationType, UUID configurationId) throws TsyncException {
         // find configuration
@@ -64,15 +46,39 @@ public class ProduceToTQueueJobServiceImpl extends AbstractCallableJobService {
         }
 
         // 1. do partition missing strategy
-        doPartitionMissingStrategy(configuration);
-        // 2. StableConfiguration ==> tables
-        arrangeTablesToEachThread(configuration);
-        // 3. messageConfiguration ==> total record
-        arrangeRecordToEachThread(configuration);
-        // 6. SchemaConfiguration ==> schema
-        prepareSchema(configuration);
-
         ProducerConfiguration producerConfiguration = (ProducerConfiguration) configuration.findFirst(ConfigurationType.PRODUCER);
+        TaskConfiguration taskConfiguration = (TaskConfiguration) configuration.findFirst(ConfigurationType.TASK);
+        TQueueProducer producer_one = TQueueProducerFactory.build(producerConfiguration);
+        // check topic and partitions
+        checkTopicAndPartitions(taskConfiguration, producer_one);
+        // use all partitions if partitions not set
+        topic = taskConfiguration.getTopic();
+        int[] partitions = taskConfiguration.getPartitions();
+        if (partitions == null || partitions.length == 0) {
+            partitions = IntStream.range(1, producer_one.getTopic(topic).partitions() + 1).toArray();
+        }
+        threadSize = taskConfiguration.getThreads();
+        // arrange threads and partitions
+        threadIndex2PartitionList = Utils.divideArrIntoGroups(partitions, threadSize);
+        int actualThreads = threadIndex2PartitionList.keySet().size();
+        if (threadSize > actualThreads) {
+            logger.warn("Only " + actualThreads + " threads will be created");
+        }
+        threadSize = actualThreads;
+
+        // 2. StableConfiguration ==> tables
+        StableConfiguration stableConfiguration = (StableConfiguration) configuration.findFirst(ConfigurationType.STABLE);
+        long tables = stableConfiguration.getTables();
+        threadIndex2TableRange = Utils.divideIntoGroups(tables, threadSize);
+
+        // 3. messageConfiguration ==> total record
+        MessageConfiguration messageConfiguration = (MessageConfiguration) configuration.findFirst(ConfigurationType.MESSAGE);
+        long total = messageConfiguration.getTotal();
+        threadRecordMap = Utils.divideIntoGroups(total, threadSize);
+        batchTables = messageConfiguration.getBatchTables();
+        batchValues = messageConfiguration.getBatchValues();
+        // 6. SchemaConfiguration ==> schema
+        schemaConfiguration = (SchemaConfiguration) configuration.findFirst(ConfigurationType.SCHEMA);
 
         // 7. create threads
         List<UUID> taskIds = new ArrayList<>();
@@ -84,7 +90,6 @@ public class ProduceToTQueueJobServiceImpl extends AbstractCallableJobService {
             long records = recordsToWrite.upperEndpoint() - recordsToWrite.lowerEndpoint();
             TQueueProducer producer = TQueueProducerFactory.build(producerConfiguration);
 
-            //TODO: 优化这里的代码结构
             ProduceToTQueueCallableTask callable = new ProduceToTQueueCallableTaskFactory()
                     .setProducer(producer)
                     .setTopic(topic)
@@ -102,28 +107,6 @@ public class ProduceToTQueueJobServiceImpl extends AbstractCallableJobService {
         }
 
         return taskIds;
-    }
-
-    private void doPartitionMissingStrategy(ProduceToTQueueConfiguration configuration) throws TsyncException {
-        ProducerConfiguration producerConfiguration = (ProducerConfiguration) configuration.findFirst(ConfigurationType.PRODUCER);
-        TaskConfiguration taskConfiguration = (TaskConfiguration) configuration.findFirst(ConfigurationType.TASK);
-        TQueueProducer producer = TQueueProducerFactory.build(producerConfiguration);
-        // check topic and partitions
-        checkTopicAndPartitions(taskConfiguration, producer);
-        // use all partitions if partitions not set
-        topic = taskConfiguration.getTopic();
-        int[] partitions = taskConfiguration.getPartitions();
-        if (partitions == null || partitions.length == 0) {
-            partitions = IntStream.range(1, producer.getTopic(topic).partitions() + 1).toArray();
-        }
-        threadSize = taskConfiguration.getThreads();
-        // arrange threads and partitions
-        threadIndex2PartitionList = Utils.divideArrIntoGroups(partitions, threadSize);
-        int actualThreads = threadIndex2PartitionList.keySet().size();
-        if (threadSize > actualThreads) {
-            logger.warn("Only " + actualThreads + " threads will be created");
-        }
-        threadSize = actualThreads;
     }
 
 }
