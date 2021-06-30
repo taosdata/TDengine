@@ -1,8 +1,10 @@
-#include "os.h"
+
 #include <gtest/gtest.h>
 #include <cassert>
 #include <iostream>
+#include <inttypes.h>
 
+#include "os.h"
 #include "taos.h"
 #include "ttoken.h"
 #include "tutil.h"
@@ -15,10 +17,10 @@ int main(int argc, char** argv) {
 extern void deltaToUtcInitOnce();
 /* test parse time function */
 TEST(testCase, parse_time) {
-  
+
   taos_options(TSDB_OPTION_TIMEZONE, "GMT-8");
   deltaToUtcInitOnce();
-  
+
   char t1[] = "2018-1-1 1:1:1.952798";
   char t13[] = "1970-1-1 0:0:0";
 
@@ -77,15 +79,15 @@ TEST(testCase, parse_time) {
   taosParseTime(t12, &time1, strlen(t12), TSDB_TIME_PRECISION_MILLI, 0);
   EXPECT_EQ(time, time1);
 
-  taos_options(TSDB_OPTION_TIMEZONE, "UTC");  
+  taos_options(TSDB_OPTION_TIMEZONE, "UTC");
   deltaToUtcInitOnce();
-  
+
   taosParseTime(t13, &time, strlen(t13), TSDB_TIME_PRECISION_MILLI, 0);
   EXPECT_EQ(time, 0);
 
   taos_options(TSDB_OPTION_TIMEZONE, "Asia/Shanghai");
   deltaToUtcInitOnce();
-  
+
   char t14[] = "1970-1-1T0:0:0Z";
   taosParseTime(t14, &time, strlen(t14), TSDB_TIME_PRECISION_MILLI, 0);
   EXPECT_EQ(time, 0);
@@ -135,7 +137,7 @@ TEST(testCase, parse_time) {
 
 
   //======================== add some case ============================//
-  
+
   char b1[] = "9999-12-31 23:59:59.999";
   taosParseTime(b1, &time, strlen(b1), TSDB_TIME_PRECISION_MILLI,0);
   EXPECT_EQ(time, 253402271999999);
@@ -145,27 +147,27 @@ TEST(testCase, parse_time) {
   taosParseTime(b2, &time, strlen(b2), TSDB_TIME_PRECISION_MILLI, 0);
   EXPECT_EQ(time, 1577811661321);
 
-  taos_options(TSDB_OPTION_TIMEZONE, "America/New_York");  
+  taos_options(TSDB_OPTION_TIMEZONE, "America/New_York");
   deltaToUtcInitOnce();
-  
+
   taosParseTime(t13, &time, strlen(t13), TSDB_TIME_PRECISION_MILLI, 0);
   EXPECT_EQ(time, 18000 * MILLISECOND_PER_SECOND);
 
-  taos_options(TSDB_OPTION_TIMEZONE, "Asia/Tokyo");  
+  taos_options(TSDB_OPTION_TIMEZONE, "Asia/Tokyo");
   deltaToUtcInitOnce();
-  
+
   taosParseTime(t13, &time, strlen(t13), TSDB_TIME_PRECISION_MILLI, 0);
   EXPECT_EQ(time, -32400 * MILLISECOND_PER_SECOND);
 
   taos_options(TSDB_OPTION_TIMEZONE, "Asia/Shanghai");
   deltaToUtcInitOnce();
-  
+
   taosParseTime(t13, &time, strlen(t13), TSDB_TIME_PRECISION_MILLI, 0);
   EXPECT_EQ(time, -28800 * MILLISECOND_PER_SECOND);
 
   char t[] = "2021-01-08T02:11:40.000+00:00";
   taosParseTime(t, &time, strlen(t), TSDB_TIME_PRECISION_MILLI, 0);
-  printf("%ld\n", time);
+  printf("%" PRId64 "\n", time);
 }
 
 

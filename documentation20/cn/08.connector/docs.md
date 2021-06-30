@@ -557,6 +557,13 @@ c1.close()
 conn.close()
 ```
 
+#### 关于纳秒 (nanosecond) 在 Python 连接器中的说明
+
+由于目前 Python 对 nanosecond 支持的不完善(参见链接 1. 2. )，目前的实现方式是在 nanosecond 精度时返回整数，而不是 ms 和 us 返回的 datetime 类型，应用开发者需要自行处理，建议使用 pandas 的 to_datetime()。未来如果 Python 正式完整支持了纳秒，涛思数据可能会修改相关接口。
+
+1. https://stackoverflow.com/questions/10611328/parsing-datetime-strings-containing-nanoseconds
+2. https://www.python.org/dev/peps/pep-0564/
+
 #### 帮助信息
 
 用户可通过python的帮助信息直接查看模块的使用信息，或者参考tests/examples/python中的示例程序。以下为部分常用类和方法：
@@ -899,6 +906,10 @@ go env -w GOPROXY=https://goproxy.io,direct
 - `func (s *Stmt) Close() error`
 
   sql.Open内置的方法，Close closes the statement.	
+
+### 其他代码示例
+
+[Consume Messages from Kafka](https://github.com/taosdata/go-demo-kafka) 是一个通过 Go 语言实现消费 Kafka 队列写入 TDengine 的示例程序，也可以作为通过 Go 连接 TDengine 的写法参考。
 
 ## <a class="anchor" id="nodejs"></a>Node.js Connector
 
