@@ -25,6 +25,7 @@
 #include "tsclient.h"
 #include "tsdb.h"
 #include "tutil.h"
+#include <avro.h>
 #include <taos.h>
 
 #define COMMAND_SIZE 65536
@@ -222,6 +223,7 @@ static struct argp_option options[] = {
   // dump format options
   {"schemaonly",    's', 0,             0,  "Only dump schema.",                                            3},
   {"without-property", 'N', 0,          0,  "Dump schema without properties.",                              3},
+  {"avro",          'V', 0,             0,  "Dump apache avro format data file. By default, dump sql command sequence."},
   {"start-time",    'S', "START_TIME",  0,  "Start time to dump. Either Epoch or ISO8601/RFC3339 format is acceptable. Epoch precision millisecond. ISO8601 format example: 2017-10-01T18:00:00.000+0800 or 2017-10-0100:00:00.000+0800 or '2017-10-01 00:00:00.000+0800'",  3},
   {"end-time",      'E', "END_TIME",    0,  "End time to dump. Either Epoch or ISO8601/RFC3339 format is acceptable. Epoch precision millisecond. ISO8601 format example: 2017-10-01T18:00:00.000+0800 or 2017-10-0100:00:00.000+0800 or '2017-10-01 00:00:00.000+0800'",  3},
   {"data-batch",    'B', "DATA_BATCH",  0,  "Number of data point per insert statement. Default is 1.",     3},
@@ -254,6 +256,7 @@ typedef struct arguments {
   // dump format option
   bool     schemaonly;
   bool     with_property;
+  bool     avro;
   int64_t  start_time;
   int64_t  end_time;
   int32_t  data_batch;
@@ -355,6 +358,9 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
     case 'N':
       arguments->with_property = false;
       break;
+    case 'V':
+      arguments->avro = true;
+      break;
     case 'S':
       // parse time here.
       arguments->start_time = atol(arg);
@@ -442,6 +448,7 @@ struct arguments g_args = {
   // dump format option
   false,    // schemeonly
   true,     // with_property
+  false,    // avro format
   0,
   INT64_MAX,
   1,
@@ -609,6 +616,7 @@ int main(int argc, char *argv[]) {
     fprintf(g_fpOfResult, "databases: %d\n", g_args.databases);
     fprintf(g_fpOfResult, "schemaonly: %s\n", g_args.schemaonly?"true":"false");
     fprintf(g_fpOfResult, "with_property: %s\n", g_args.with_property?"true":"false");
+    fprintf(g_fpOfResult, "avro format: %s\n", g_args.avro?"true":"false");
     fprintf(g_fpOfResult, "start_time: %" PRId64 "\n", g_args.start_time);
     fprintf(g_fpOfResult, "end_time: %" PRId64 "\n", g_args.end_time);
     fprintf(g_fpOfResult, "data_batch: %d\n", g_args.data_batch);
@@ -949,10 +957,11 @@ static int taosDumpOut(struct arguments *arguments) {
 
   while ((row = taos_fetch_row(result)) != NULL) {
     // sys database name : 'log', but subsequent version changed to 'log'
-    if (strncasecmp(row[TSDB_SHOW_DB_NAME_INDEX], "log",
-                (fields[TSDB_SHOW_DB_NAME_INDEX].bytes) == 0)
-            && (!arguments->allow_sys))
-      continue;
+      if ((strncasecmp(row[TSDB_SHOW_DB_NAME_INDEX], "log",
+                      fields[TSDB_SHOW_DB_NAME_INDEX].bytes) == 0)
+              && (!arguments->allow_sys)) {
+          continue;
+      }
 
     if (arguments->databases) {  // input multi dbs
       for (int i = 0; arguments->arg_list[i]; i++) {
