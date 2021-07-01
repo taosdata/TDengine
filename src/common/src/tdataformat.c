@@ -780,7 +780,7 @@ void tdResetKVRowBuilder(SKVRowBuilder *pBuilder) {
 }
 
 SKVRow tdGetKVRowFromBuilder(SKVRowBuilder *pBuilder) {
-  uint16_t tlen = sizeof(SColIdx) * pBuilder->nCols + pBuilder->size;
+  int tlen = sizeof(SColIdx) * pBuilder->nCols + pBuilder->size;
   if (tlen == 0) return NULL;
 
   tlen += TD_KV_ROW_HEAD_SIZE;
