@@ -384,8 +384,9 @@ int main(int argc, char** argv) {
 //      TAOS_RES*  taos_query(conn, t);
 //      taos_free_result(res);
 //    }
-  executeSQL(conn, "use ac_db", NULL);
-  executeSQL(conn, "select count(*) from ac_stb", NULL);
+  executeSQL(conn, "use test", NULL);
+  executeSQL(conn, "select * from (select * from m1 order by ts asc limit 1)", NULL);
+//  executeSQL(conn, "select * from m1 order by ts asc limit 1", NULL);
 //  executeSQL(conn, "select count(t1.ts) + count(t1.ts) from t1,t2 where t1.ts =t2.ts", NULL);
 
 //    executeSQL(conn, "select * from (select count(*) from tm0 interval(1s)) a", NULL);
