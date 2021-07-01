@@ -2938,6 +2938,7 @@ int32_t tscQueryInfoCopy(SQueryInfo* pQueryInfo, const SQueryInfo* pSrc) {
   pQueryInfo->pTableMetaInfo = NULL;
 
   pQueryInfo->bufLen         = pSrc->bufLen;
+  pQueryInfo->orderProjectQuery = pSrc->orderProjectQuery;
   pQueryInfo->buf            = malloc(pSrc->bufLen);
   if (pQueryInfo->buf == NULL) {
     code = TSDB_CODE_TSC_OUT_OF_MEMORY;

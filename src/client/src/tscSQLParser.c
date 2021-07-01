@@ -5953,8 +5953,8 @@ int32_t validateLimitNode(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SSqlNode* pSqlN
 
     if (tscOrderedProjectionQueryOnSTable(pQueryInfo, 0)) {
       /*
-       * the offset value should be removed during retrieve data from virtual node, since the
-       * global order are done in client side, so the offset is applied at the client side
+       * The offset value should be removed during retrieve data from virtual node, since the
+       * global order are done at the client side, so the offset is applied at the client side.
        * However, note that the maximum allowed number of result for each table should be less
        * than or equal to the value of limit.
        */
