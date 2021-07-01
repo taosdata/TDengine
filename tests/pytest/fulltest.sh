@@ -150,6 +150,7 @@ python3 ./test.py -f import_merge/importCSV.py
 #======================p2-start===============
 # tools
 python3 test.py -f tools/taosdumpTest.py
+python3 test.py -f tools/taosdumpTest2.py
 
 python3 test.py -f tools/taosdemoTest.py
 python3 test.py -f tools/taosdemoTestWithoutMetric.py
@@ -333,6 +334,7 @@ python3 ./test.py -f insert/unsignedInt.py
 python3 ./test.py -f insert/unsignedBigint.py
 python3 ./test.py -f insert/unsignedSmallint.py
 python3 ./test.py -f insert/unsignedTinyint.py
+python3 ./test.py -f insert/insertFromCSV.py
 python3 ./test.py -f query/filterAllUnsignedIntTypes.py
 
 python3 ./test.py -f tag_lite/unsignedInt.py
