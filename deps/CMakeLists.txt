@@ -29,7 +29,7 @@ ExternalProject_Add(
 )
 
 IF (TD_LINUX_64 AND JEMALLOC_ENABLED)
-  MESSAGE("setup dpes/jemalloc, current source dir:" ${CMAKE_CURRENT_SOURCE_DIR})
+  MESSAGE("setup deps/jemalloc, current source dir:" ${CMAKE_CURRENT_SOURCE_DIR})
   MESSAGE("binary dir:" ${CMAKE_BINARY_DIR})
   ExternalProject_Add(jemalloc
     PREFIX        "jemalloc"
