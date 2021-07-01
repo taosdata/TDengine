@@ -12,9 +12,6 @@
 # -*- coding: utf-8 -*-
 
 from basic import *
-from util.sql import tdSql
-
-
 
 class TDTestCase:
 
@@ -35,5 +32,7 @@ class TDTestCase:
 td = TDTestCase()
 td.init()
 
+
+## usage:  python3 OneMnodeMultipleVnodesTest.py 
 
 
