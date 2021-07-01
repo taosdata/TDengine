@@ -10,6 +10,7 @@ topDir=$scriptDir/../..         # TDinternal
 communityDir=$topDir/community
 enterpriseDir=$topDir/enterprise
 archiveDir=$scriptDir/../release
+allocator=jemalloc              # glibc  or  jemalloc, default is jemalloc
 
 if [ ! -d $archiveDir ]; then
   mkdir -p $archiveDir
@@ -29,14 +30,18 @@ cd $enterpriseDir
 # git pull
 
 cd $communityDir
-./packaging/release.sh -v cluster -n $version -m $versionComp -V $verType
+./packaging/release.sh -v cluster -a $allocator -n $version -m $versionComp -V $verType
 
 if [ ! -d  "$archiveDir/v$version" ]; then
   mkdir -p "$archiveDir/v$version"
 fi
 
 cd $archiveDir/v$version
-mkdir enterprise
+
+if [ ! -d enterprise ]; then
+    mkdir enterprise
+fi
+
 cd enterprise
 cp $communityDir/release/* ./
 
