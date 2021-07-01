@@ -28,16 +28,15 @@ class TDTestCase:
         tdLog.debug("start to execute %s" % __file__)
         tdSql.init(conn.cursor(), logSql)
 
-        self.ts = 1500074556514                  
+        self.ts = 1500074556514
+        self.csvfile = "/tmp/csvfile.csv"
+        self.rows = 100000
     
     def writeCSV(self):
-        with open('test3.csv','w', encoding='utf-8', newline='') as csvFile:
+        with open(self.csvfile, 'w', encoding='utf-8', newline='') as csvFile:
             writer = csv.writer(csvFile, dialect='excel')
-            for i in range(1000000):
-                newTimestamp = self.ts + random.randint(10000000, 10000000000) + random.randint(1000, 10000000) + random.randint(1, 1000)
-                d = datetime.datetime.fromtimestamp(newTimestamp / 1000)
-                dt = str(d.strftime("%Y-%m-%d %H:%M:%S.%f"))
-                writer.writerow(["'%s'" % dt, random.randint(1, 100), random.uniform(1, 100), random.randint(1, 100), random.randint(1, 100)])
+            for i in range(self.rows):                
+                writer.writerow([self.ts + i, random.randint(1, 100), random.uniform(1, 100), random.randint(1, 100), random.randint(1, 100)])
     
     def removCSVHeader(self):
         data = pd.read_csv("ordered.csv")
@@ -45,23 +44,25 @@ class TDTestCase:
         data.to_csv("ordered.csv", header = False, index = False)
 
     def run(self):
+        self.writeCSV()
+
         tdSql.prepare()
-        
         tdSql.execute("create table t1(ts timestamp, c1 int, c2 float, c3 int, c4 int)")
         startTime = time.time()
-        tdSql.execute("insert into t1 file 'outoforder.csv'")
+        tdSql.execute("insert into t1 file '%s'" % self.csvfile) 
         duration = time.time() - startTime
-        print("Out of Order - Insert time: %d" % duration)
-        tdSql.query("select count(*) from t1")
-        rows = tdSql.getData(0, 0)
+        print("Insert time: %d" % duration)
+        tdSql.query("select * from t1")
+        tdSql.checkRows(self.rows)
         
-        tdSql.execute("create table t2(ts timestamp, c1 int, c2 float, c3 int, c4 int)")
-        startTime = time.time()
-        tdSql.execute("insert into t2 file 'ordered.csv'")
-        duration = time.time() - startTime
-        print("Ordered - Insert time: %d" % duration)
-        tdSql.query("select count(*) from t2")
-        tdSql.checkData(0,0, rows)
+        tdSql.execute("create table stb(ts timestamp, c1 int, c2 float, c3 int, c4 int) tags(t1 int, t2 binary(20))")
+        tdSql.execute("insert into t2 using stb(t1) tags(1) file '%s'" % self.csvfile)
+        tdSql.query("select * from stb")
+        tdSql.checkRows(self.rows)
+
+        tdSql.execute("insert into t3 using stb tags(1, 'test') file '%s'" % self.csvfile)
+        tdSql.query("select * from stb")
+        tdSql.checkRows(self.rows * 2)
 
     def stop(self):
         tdSql.close()
