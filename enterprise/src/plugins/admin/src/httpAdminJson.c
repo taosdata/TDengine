@@ -179,7 +179,7 @@ bool adminBuildSqlAllJson(HttpContext *pContext, HttpSqlCmd *cmd, TAOS_RES *resu
 
     for (int32_t j = 0; j < num_fields; j++) {
       httpJsonItemToken(jsonBuf);
-      if (row[i] == NULL) {
+      if (row[j] == NULL) {
         httpJsonString(jsonBuf, "NULL", 4);
         continue;
       }
