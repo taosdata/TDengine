@@ -475,37 +475,37 @@ static void tdAppendDataRowToDataCol(SDataRow row, STSchema *pSchema, SDataCols 
   pCols->numOfRows++;
 }
 
-static void tdGetKVRowColInfo(const STSchema *pSchema, SColIdx *pColIdx, int nRowCols, STColumn *pSTColumn,
-                              int *nColMatched) {
-  int             nSchema = schemaNCols(pSchema);
-  int             iCol = 0;
-  int             iSchema = 0;
-  int             nColMatch = 0;
-  SColIdx *       pIdx = pColIdx;
-  const STColumn *pColumn = NULL;
+// static void tdGetKVRowColInfo(const STSchema *pSchema, SColIdx *pColIdx, int nRowCols, STColumn *pSTColumn,
+//                               int *nColMatched) {
+//   int             nSchema = schemaNCols(pSchema);
+//   int             iCol = 0;
+//   int             iSchema = 0;
+//   int             nColMatch = 0;
+//   SColIdx *       pIdx = pColIdx;
+//   const STColumn *pColumn = NULL;
 
-  while (iCol < nRowCols && iSchema < nSchema) {
-    pColumn = &pSchema->columns[iSchema];
-    if (pIdx->colId == pColumn->colId) {
-      pSTColumn[nColMatch].colId = pIdx->colId;
-      pSTColumn[nColMatch].type = pColumn->type;
-      pSTColumn[nColMatch].bytes = pColumn->bytes;
-      pSTColumn[nColMatch].offset = pIdx->offset;
+//   while (iCol < nRowCols && iSchema < nSchema) {
+//     pColumn = &pSchema->columns[iSchema];
+//     if (pIdx->colId == pColumn->colId) {
+//       pSTColumn[nColMatch].colId = pIdx->colId;
+//       pSTColumn[nColMatch].type = pColumn->type;
+//       pSTColumn[nColMatch].bytes = pColumn->bytes;
+//       pSTColumn[nColMatch].offset = pIdx->offset;
 
-      pIdx += sizeof(SColIdx);
+//       pIdx += sizeof(SColIdx);
 
-      ++iCol;
-      ++iSchema;
-      ++nColMatch;
-    } else if (pIdx->colId > pColumn->colId) {
-      ++iSchema;
-    } else {
-      pIdx += sizeof(SColIdx);
-      ++iCol;
-    }
-  }
-  *nColMatched = nColMatch;
-}
+//       ++iCol;
+//       ++iSchema;
+//       ++nColMatch;
+//     } else if (pIdx->colId > pColumn->colId) {
+//       ++iSchema;
+//     } else {
+//       pIdx += sizeof(SColIdx);
+//       ++iCol;
+//     }
+//   }
+//   *nColMatched = nColMatch;
+// }
 
 static void tdAppendKvRowToDataCol(SKVRow row, STSchema *pSchema, SDataCols *pCols) {
   ASSERT(pCols->numOfRows == 0 || dataColsKeyLast(pCols) < kvRowKey(row));
@@ -524,15 +524,15 @@ static void tdAppendKvRowToDataCol(SKVRow row, STSchema *pSchema, SDataCols *pCo
     }
   } else {
     int      nRowCols = kvRowNCols(row);
-    int      nRowColsMatched = 0;
-    STColumn stColumn[nRowCols];
-    tdGetKVRowColInfo(pSchema, kvRowColIdx(row), nRowCols, stColumn, &nRowColsMatched);
-    uDebug("prop:kvRow: nRowCols=%d, nRowColsMatched=%d, nSchemaCols=%d", nRowCols, nRowColsMatched,
-           schemaNCols(pSchema));
+    // int      nRowColsMatched = 0;
+    // STColumn stColumn[nRowCols];
+    // tdGetKVRowColInfo(pSchema, kvRowColIdx(row), nRowCols, stColumn, &nRowColsMatched);
+    // uInfo("prop:kvRow: nRowCols=%d, nRowColsMatched=%d, nSchemaCols=%d", nRowCols, nRowColsMatched,
+    //       schemaNCols(pSchema));
 
     while (dcol < pCols->numOfCols) {
       SDataCol *pDataCol = &(pCols->cols[dcol]);
-      if (rcol >= nRowColsMatched || rcol >= schemaNCols(pSchema)) {
+      if (rcol >= nRowCols || rcol >= schemaNCols(pSchema)) {
         dataColAppendVal(pDataCol, tdGetNullVal(pDataCol->type), pCols->numOfRows, pCols->maxPoints);
         dcol++;
         continue;
@@ -541,9 +541,7 @@ static void tdAppendKvRowToDataCol(SKVRow row, STSchema *pSchema, SDataCols *pCo
       SColIdx *colIdx = kvRowColIdxAt(row, rcol);
 
       if (colIdx->colId == pDataCol->colId) {
-        ASSERT(pDataCol->type == stColumn[rcol].type);
-
-        void *value = tdGetKvRowDataOfCol(row, pDataCol->type, stColumn[rcol].offset + TD_KV_ROW_HEAD_SIZE);
+        void *value = tdGetKvRowDataOfCol(row, pDataCol->type, colIdx->offset);
         dataColAppendVal(pDataCol, value, pCols->numOfRows, pCols->maxPoints);
         dcol++;
         rcol++;
