@@ -16,7 +16,7 @@ public class RestfulConnection extends AbstractConnection {
     private final String host;
     private final int port;
     private final String url;
-    private volatile String database;
+    private final String database;
     private final String token;
     /******************************************************/
     private boolean isClosed;

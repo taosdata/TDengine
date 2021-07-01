@@ -15,6 +15,7 @@
 
 #include "os.h"
 #include "tarray.h"
+#include "talgo.h"
 
 void* taosArrayInit(size_t size, size_t elemSize) {
   assert(elemSize > 0);
@@ -250,3 +251,61 @@ char* taosArraySearchString(const SArray* pArray, const char* key, __compar_fn_t
   }
   return *(char**)p;
 }
+
+static int taosArrayPartition(SArray *pArray, int i, int j, __ext_compar_fn_t fn, const void *userData) {
+  void* key = taosArrayGetP(pArray, i);  
+  while (i < j) {
+    while (i < j && fn(taosArrayGetP(pArray, j), key, userData) >= 0) { j--; }
+    if (i < j) { 
+      void *a = taosArrayGetP(pArray, j); 
+      taosArraySet(pArray, i, &a);
+    }
+    while (i < j && fn(taosArrayGetP(pArray, i), key, userData) <= 0) { i++;} 
+    if (i < j) {
+      void *a = taosArrayGetP(pArray, i);
+      taosArraySet(pArray, j, &a);
+    }
+  }
+  taosArraySet(pArray, i, &key); 
+  return i;
+}
+
+static void taosArrayQuicksortHelper(SArray *pArray, int low, int high, __ext_compar_fn_t fn, const void *param) {
+  if (low < high) {
+    int idx = taosArrayPartition(pArray, low, high, fn, param);
+    taosArrayQuicksortHelper(pArray, low, idx - 1, fn, param);
+    taosArrayQuicksortHelper(pArray, idx + 1, high, fn, param);
+  } 
+}
+
+static void taosArrayQuickSort(SArray* pArray, __ext_compar_fn_t fn, const void *param) {
+  if (pArray->size <= 1) {
+    return;
+  } 
+  taosArrayQuicksortHelper(pArray, 0, (int)(taosArrayGetSize(pArray) - 1),  fn, param); 
+}
+static void taosArrayInsertSort(SArray* pArray, __ext_compar_fn_t fn, const void *param) {
+  if (pArray->size <= 1) {
+    return;
+  } 
+  for (int i = 1; i <= pArray->size - 1; ++i) {
+    for (int j = i; j > 0; --j) {
+      if (fn(taosArrayGetP(pArray, j), taosArrayGetP(pArray, j - 1), param) == -1) {
+        void *a = taosArrayGetP(pArray, j);  
+        void *b = taosArrayGetP(pArray, j - 1);
+        taosArraySet(pArray, j - 1, &a);
+        taosArraySet(pArray, j, &b);
+      } else {
+        break;
+      }
+    }
+  }
+  return;
+   
+} 
+// order array<type *>  
+void taosArraySortPWithExt(SArray* pArray, __ext_compar_fn_t fn, const void *param) {
+  taosArrayGetSize(pArray) > 8 ? 
+    taosArrayQuickSort(pArray, fn, param) : taosArrayInsertSort(pArray, fn, param);
+}
+//TODO(yihaoDeng) add order array<type> 

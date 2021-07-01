@@ -19,14 +19,13 @@ import com.taosdata.jdbc.utils.NullType;
 import java.math.BigDecimal;
 import java.sql.SQLException;
 import java.sql.Timestamp;
-import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
 
 public class TSDBResultSetRowData {
 
     private ArrayList<Object> data;
-    private int colSize;
+    private final int colSize;
 
     public TSDBResultSetRowData(int colSize) {
         this.colSize = colSize;
@@ -390,27 +389,27 @@ public class TSDBResultSetRowData {
 
         switch (nativeType) {
             case TSDBConstants.TSDB_DATA_TYPE_UTINYINT: {
-                Byte value = new Byte(String.valueOf(obj));
+                byte value = new Byte(String.valueOf(obj));
                 if (value >= 0)
-                    return value.toString();
+                    return Byte.toString(value);
                 return Integer.toString(value & 0xff);
             }
             case TSDBConstants.TSDB_DATA_TYPE_USMALLINT: {
-                Short value = new Short(String.valueOf(obj));
+                short value = new Short(String.valueOf(obj));
                 if (value >= 0)
-                    return value.toString();
+                    return Short.toString(value);
                 return Integer.toString(value & 0xffff);
             }
             case TSDBConstants.TSDB_DATA_TYPE_UINT: {
-                Integer value = new Integer(String.valueOf(obj));
+                int value = new Integer(String.valueOf(obj));
                 if (value >= 0)
-                    return value.toString();
-                return Long.toString(value & 0xffffffffl);
+                    return Integer.toString(value);
+                return Long.toString(value & 0xffffffffL);
             }
             case TSDBConstants.TSDB_DATA_TYPE_UBIGINT: {
-                Long value = new Long(String.valueOf(obj));
+                long value = new Long(String.valueOf(obj));
                 if (value >= 0)
-                    return value.toString();
+                    return Long.toString(value);
                 long lowValue = value & 0x7fffffffffffffffL;
                 return BigDecimal.valueOf(lowValue).add(BigDecimal.valueOf(Long.MAX_VALUE)).add(BigDecimal.valueOf(1)).toString();
             }
@@ -432,25 +431,26 @@ public class TSDBResultSetRowData {
 
     /**
      * !!! this method is invoked by JNI method and the index start from 0 in C implementations
+     *
      * @param precision 0 : ms, 1 : us, 2 : ns
      */
     public void setTimestamp(int col, long ts, int precision) {
-        long milliseconds = 0;
-        int fracNanoseconds = 0;
+        long milliseconds;
+        int fracNanoseconds;
         switch (precision) {
             case 0: {
                 milliseconds = ts;
-                fracNanoseconds = (int)(ts*1_000_000%1_000_000_000);
+                fracNanoseconds = (int) (ts * 1_000_000 % 1_000_000_000);
                 break;
             }
             case 1: {
-                milliseconds = ts/1_000;
-                fracNanoseconds = (int)(ts*1_000%1_000_000_000);
+                milliseconds = ts / 1_000;
+                fracNanoseconds = (int) (ts * 1_000 % 1_000_000_000);
                 break;
             }
             case 2: {
-                milliseconds = ts/1_000_000;
-                fracNanoseconds = (int)(ts%1_000_000_000);
+                milliseconds = ts / 1_000_000;
+                fracNanoseconds = (int) (ts % 1_000_000_000);
                 break;
             }
             default: {
@@ -467,12 +467,10 @@ public class TSDBResultSetRowData {
         Object obj = data.get(col - 1);
         if (obj == null)
             return null;
-        switch (nativeType) {
-            case TSDBConstants.TSDB_DATA_TYPE_BIGINT:
-                return new Timestamp((Long) obj);
-            default:
-                return (Timestamp) obj;
+        if (nativeType == TSDBConstants.TSDB_DATA_TYPE_BIGINT) {
+            return new Timestamp((Long) obj);
         }
+        return (Timestamp) obj;
     }
 
     public Object getObject(int col) {

@@ -623,7 +623,7 @@ SArray* createExecOperatorPlan(SQueryAttr* pQueryAttr) {
       taosArrayPush(plan, &op);
     }
   } else {  // diff/add/multiply/subtract/division
-    if (pQueryAttr->numOfFilterCols > 0 && pQueryAttr->vgId == 0) { // todo refactor
+    if (pQueryAttr->numOfFilterCols > 0 && pQueryAttr->createFilterOperator && pQueryAttr->vgId == 0) { // todo refactor
       op = OP_Filter;
       taosArrayPush(plan, &op);
     } else {

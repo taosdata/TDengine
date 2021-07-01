@@ -165,6 +165,7 @@ bool serializeExprListToVariant(SArray* pList, tVariant **dst, int16_t colType, 
   } else {
     tbufWriteUint32(&bw, colType);
   }
+
   tbufWriteInt32(&bw, (int32_t)(pList->size));
 
   for (int32_t i = 0; i < (int32_t)pList->size; i++) {
@@ -181,10 +182,11 @@ bool serializeExprListToVariant(SArray* pList, tVariant **dst, int16_t colType, 
       }  
       tbufWriteInt64(&bw, var->i64);        
     } else if (IS_UNSIGNED_NUMERIC_TYPE(colType)) {
-      if (IS_SIGNED_NUMERIC_TYPE(var->nType) && IS_UNSIGNED_NUMERIC_TYPE(var->nType)) {
+      if (IS_SIGNED_NUMERIC_TYPE(var->nType) || IS_UNSIGNED_NUMERIC_TYPE(var->nType)) {
+        tbufWriteUint64(&bw, var->u64);        
+      } else {
         break;
-      } 
-      tbufWriteUint64(&bw, var->u64);        
+      }
     } else if (colType == TSDB_DATA_TYPE_DOUBLE || colType == TSDB_DATA_TYPE_FLOAT) {
       if (IS_SIGNED_NUMERIC_TYPE(var->nType) || IS_UNSIGNED_NUMERIC_TYPE(var->nType)) {
         tbufWriteDouble(&bw, (double)(var->i64));
@@ -3342,6 +3344,7 @@ static int32_t doExtractColumnFilterInfo(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, 
     if (pRight->flags & (1 << EXPR_FLAG_NS_TIMESTAMP)) {
       pRight->value.i64 =
           convertTimePrecision(pRight->value.i64, TSDB_TIME_PRECISION_NANO, timePrecision);
+      pRight->flags &= ~(1 << EXPR_FLAG_NS_TIMESTAMP);
     }
   }
 
@@ -4906,6 +4909,7 @@ int32_t getTimeRange(STimeWindow* win, tSqlExpr* pRight, int32_t optr, int16_t t
      */
     if (pRight->flags & (1 << EXPR_FLAG_NS_TIMESTAMP)) {
       pRight->value.i64 = convertTimePrecision(pRight->value.i64, TSDB_TIME_PRECISION_NANO, timePrecision);
+      pRight->flags &= ~(1 << EXPR_FLAG_NS_TIMESTAMP);
     }
 
     tVariantDump(&pRight->value, (char*)&val, TSDB_DATA_TYPE_BIGINT, true);
@@ -5103,7 +5107,7 @@ static void setDefaultOrderInfo(SQueryInfo* pQueryInfo) {
 int32_t validateOrderbyNode(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SSqlNode* pSqlNode, SSchema* pSchema) {
   const char* msg0 = "only support order by primary timestamp";
   const char* msg1 = "invalid column name";
-  const char* msg2 = "order by primary timestamp or first tag in groupby clause allowed";
+  const char* msg2 = "order by primary timestamp, first tag or groupby column in groupby clause allowed";
   const char* msg3 = "invalid column in order by clause, only primary timestamp or first tag in groupby clause allowed";
 
   setDefaultOrderInfo(pQueryInfo);
@@ -5156,6 +5160,7 @@ int32_t validateOrderbyNode(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SSqlNode* pSq
 
     bool orderByTags = false;
     bool orderByTS = false;
+    bool orderByGroupbyCol = false;
 
     if (index.columnIndex >= tscGetNumOfColumns(pTableMetaInfo->pTableMeta)) {
       int32_t relTagIndex = index.columnIndex - tscGetNumOfColumns(pTableMetaInfo->pTableMeta);
@@ -5175,11 +5180,18 @@ int32_t validateOrderbyNode(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SSqlNode* pSq
     if (PRIMARYKEY_TIMESTAMP_COL_INDEX == index.columnIndex) {
       orderByTS = true;
     }
-
-    if (!(orderByTags || orderByTS) && !isTopBottomQuery(pQueryInfo)) {
+    
+    SArray *columnInfo = pQueryInfo->groupbyExpr.columnInfo;
+    if (columnInfo != NULL && taosArrayGetSize(columnInfo) > 0) {
+      SColIndex* pColIndex = taosArrayGet(columnInfo, 0);
+      if (PRIMARYKEY_TIMESTAMP_COL_INDEX != index.columnIndex && pColIndex->colIndex == index.columnIndex) {
+        orderByGroupbyCol = true; 
+      }
+    } 
+    if (!(orderByTags || orderByTS || orderByGroupbyCol) && !isTopBottomQuery(pQueryInfo)) {
       return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg3);
     } else {  // order by top/bottom result value column is not supported in case of interval query.
-      assert(!(orderByTags && orderByTS));
+      assert(!(orderByTags && orderByTS && orderByGroupbyCol));
     }
 
     size_t s = taosArrayGetSize(pSortorder);
@@ -5189,6 +5201,11 @@ int32_t validateOrderbyNode(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SSqlNode* pSq
 
         tVariantListItem* p1 = taosArrayGet(pSqlNode->pSortOrder, 0);
         pQueryInfo->groupbyExpr.orderType = p1->sortOrder;
+      } else if (orderByGroupbyCol) {
+        tVariantListItem* p1 = taosArrayGet(pSqlNode->pSortOrder, 0);
+
+        pQueryInfo->groupbyExpr.orderType = p1->sortOrder;
+        pQueryInfo->order.orderColId = pSchema[index.columnIndex].colId;
       } else if (isTopBottomQuery(pQueryInfo)) {
         /* order of top/bottom query in interval is not valid  */
         SExprInfo* pExpr = tscExprGet(pQueryInfo, 0);
@@ -5221,6 +5238,9 @@ int32_t validateOrderbyNode(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SSqlNode* pSq
       if (orderByTags) {
         pQueryInfo->groupbyExpr.orderIndex = index.columnIndex - tscGetNumOfColumns(pTableMetaInfo->pTableMeta);
         pQueryInfo->groupbyExpr.orderType = pItem->sortOrder;
+      } else if (orderByGroupbyCol){
+        pQueryInfo->order.order = pItem->sortOrder;
+        pQueryInfo->order.orderColId = index.columnIndex;
       } else {
         pQueryInfo->order.order = pItem->sortOrder;
         pQueryInfo->order.orderColId = PRIMARYKEY_TIMESTAMP_COL_INDEX;
@@ -5246,9 +5266,20 @@ int32_t validateOrderbyNode(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SSqlNode* pSq
     if (getColumnIndexByName(pCmd, &columnName, pQueryInfo, &index) != TSDB_CODE_SUCCESS) {
       return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg1);
     }
-
     if (index.columnIndex != PRIMARYKEY_TIMESTAMP_COL_INDEX && !isTopBottomQuery(pQueryInfo)) {
-      return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg2);
+      bool validOrder = false;
+      SArray *columnInfo = pQueryInfo->groupbyExpr.columnInfo;
+      if (columnInfo != NULL && taosArrayGetSize(columnInfo) > 0) {
+        SColIndex* pColIndex = taosArrayGet(columnInfo, 0);
+        validOrder = (pColIndex->colIndex == index.columnIndex); 
+      }  
+      if (!validOrder) {
+        return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg2);
+      }     
+      tVariantListItem* p1 = taosArrayGet(pSqlNode->pSortOrder, 0);
+      pQueryInfo->groupbyExpr.orderIndex = pSchema[index.columnIndex].colId; 
+      pQueryInfo->groupbyExpr.orderType = p1->sortOrder; 
+      
     }
 
     if (isTopBottomQuery(pQueryInfo)) {
@@ -5269,6 +5300,7 @@ int32_t validateOrderbyNode(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SSqlNode* pSq
 
     tVariantListItem* pItem = taosArrayGet(pSqlNode->pSortOrder, 0);
     pQueryInfo->order.order = pItem->sortOrder;
+    pQueryInfo->order.orderColId = pSchema[index.columnIndex].colId;
   }
 
   return TSDB_CODE_SUCCESS;
@@ -7785,6 +7817,7 @@ int32_t validateSqlNode(SSqlObj* pSql, SSqlNode* pSqlNode, SQueryInfo* pQueryInf
   const char* msg5 = "only tag query not compatible with normal column filter";
   const char* msg6 = "not support stddev/percentile/interp in the outer query yet";
   const char* msg7 = "derivative/twa/irate requires timestamp column exists in subquery";
+  const char* msg8 = "condition missing for join query";
 
   int32_t code = TSDB_CODE_SUCCESS;
 
@@ -7869,6 +7902,10 @@ int32_t validateSqlNode(SSqlObj* pSql, SSqlNode* pSqlNode, SQueryInfo* pQueryInf
     if (pSqlNode->pWhere != NULL) {
       if (validateWhereNode(pQueryInfo, &pSqlNode->pWhere, pSql) != TSDB_CODE_SUCCESS) {
         return TSDB_CODE_TSC_INVALID_OPERATION;
+      }
+    } else {
+      if (pQueryInfo->numOfTables > 1) {
+        return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg8);
       }
     }
 

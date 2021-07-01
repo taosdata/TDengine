@@ -87,6 +87,7 @@
 
 TDengine还没有一组专用的validation queries。然而建议你使用系统监测的数据库”log"来做。
 
+<a class="anchor" id="update"></a>
 ## 9. 我可以删除或更新一条记录吗？
 
 TDengine 目前尚不支持删除功能，未来根据用户需求可能会支持。
