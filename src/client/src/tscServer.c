@@ -484,8 +484,8 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcEpSet *pEpSet) {
   }
 
   if (shouldFree) { // in case of table-meta/vgrouplist query, automatically free it
-    taosRemoveRef(tscObjRef, handle);
     tscDebug("0x%"PRIx64" sqlObj is automatically freed", pSql->self);
+    taosRemoveRef(tscObjRef, handle);
   }
 
   taosReleaseRef(tscObjRef, handle);
@@ -795,6 +795,7 @@ static int32_t serializeSqlExpr(SSqlExpr* pExpr, STableMetaInfo* pTableMetaInfo,
   pSqlExpr->colBytes    = htons(pExpr->colBytes);
   pSqlExpr->resType     = htons(pExpr->resType);
   pSqlExpr->resBytes    = htons(pExpr->resBytes);
+  pSqlExpr->interBytes  = htonl(pExpr->interBytes);
   pSqlExpr->functionId  = htons(pExpr->functionId);
   pSqlExpr->numOfParams = htons(pExpr->numOfParams);
   pSqlExpr->resColId    = htons(pExpr->resColId);
@@ -1495,7 +1496,9 @@ int tscBuildAlterTableMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
 
   pMsg = (char *)pSchema;
   pAlterTableMsg->tagValLen = htonl(pAlterInfo->tagData.dataLen);
-  memcpy(pMsg, pAlterInfo->tagData.data, pAlterInfo->tagData.dataLen);
+  if (pAlterInfo->tagData.dataLen > 0) {
+ 	 memcpy(pMsg, pAlterInfo->tagData.data, pAlterInfo->tagData.dataLen);
+  }
   pMsg += pAlterInfo->tagData.dataLen;
 
   msgLen = (int32_t)(pMsg - (char*)pAlterTableMsg);
@@ -1700,7 +1703,7 @@ int tscProcessRetrieveGlobalMergeRsp(SSqlObj *pSql) {
 
   uint64_t localQueryId = pSql->self;
   qTableQuery(pQueryInfo->pQInfo, &localQueryId);
-  convertQueryResult(pRes, pQueryInfo, pSql->self);
+  convertQueryResult(pRes, pQueryInfo, pSql->self, true);
 
   code = pRes->code;
   if (pRes->code == TSDB_CODE_SUCCESS) {

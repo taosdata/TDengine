@@ -132,10 +132,9 @@ extern "C" {
 #define ASSERT(x)
 #endif
 
-#ifdef UNUSED
-#undefine UNUSED
-#endif
+#ifndef UNUSED
 #define UNUSED(x) ((void)(x))
+#endif
 
 #ifdef UNUSED_FUNC
 #undefine UNUSED_FUNC

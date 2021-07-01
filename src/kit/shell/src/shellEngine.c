@@ -248,7 +248,7 @@ int32_t shellRunCommand(TAOS* con, char* command) {
 
     if (quote == c) {
       quote = 0;
-    } else if (c == '\'' || c == '"') {
+    } else if (quote == 0 && (c == '\'' || c == '"')) {
       quote = c;
     }
 

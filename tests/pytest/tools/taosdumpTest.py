@@ -45,7 +45,9 @@ class TDTestCase:
         for i in range(100):
             sql += "(%d, %d, 'nchar%d')" % (currts + i, i % 100, i % 100)
         tdSql.execute(sql)
+        
 
+        os.system("rm /tmp/*.sql")
         os.system("taosdump --databases db -o /tmp")
         
         tdSql.execute("drop database db")

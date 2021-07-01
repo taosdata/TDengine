@@ -84,8 +84,8 @@ int32_t tsMaxNumOfOrderedResults = 100000;
 // 10 ms for sliding time, the value will changed in case of time precision changed
 int32_t tsMinSlidingTime = 10;
 
-// 10 ms for interval time range, changed accordingly
-int32_t tsMinIntervalTime = 10;
+// 1 us for interval time range, changed accordingly
+int32_t tsMinIntervalTime = 1;
 
 // 20sec, the maximum value of stream computing delay, changed accordingly
 int32_t tsMaxStreamComputDelay = 20000;
@@ -204,7 +204,7 @@ SDiskCfg tsDiskCfg[TSDB_MAX_DISKS];
  *     TSDB_TIME_PRECISION_MICRO: 86400000000L
  *     TSDB_TIME_PRECISION_NANO:  86400000000000L
  */
-int64_t tsMsPerDay[] = {86400000L, 86400000000L, 86400000000000L};
+int64_t tsTickPerDay[] = {86400000L, 86400000000L, 86400000000000L};
 
 // system info
 char    tsOsName[10] = "Linux";

@@ -7,7 +7,7 @@ import org.junit.Test;
 import java.sql.*;
 import java.util.concurrent.TimeUnit;
 
-public class MultiThreadsWithSameStatmentTest {
+public class MultiThreadsWithSameStatementTest {
 
 
     private class Service {
@@ -16,12 +16,11 @@ public class MultiThreadsWithSameStatmentTest {
 
         public Service() {
             try {
-                Class.forName("com.taosdata.jdbc.TSDBDriver");
                 conn = DriverManager.getConnection("jdbc:TAOS://localhost:6030/?user=root&password=taosdata");
                 stmt = conn.createStatement();
                 stmt.execute("create database if not exists jdbctest");
                 stmt.executeUpdate("create table if not exists jdbctest.weather (ts timestamp, f1 int)");
-            } catch (ClassNotFoundException | SQLException e) {
+            } catch (SQLException e) {
                 e.printStackTrace();
             }
         }
@@ -48,10 +47,6 @@ public class MultiThreadsWithSameStatmentTest {
                 ResultSet resultSet = service.stmt.executeQuery("select * from jdbctest.weather");
                 while (resultSet.next()) {
                     ResultSetMetaData metaData = resultSet.getMetaData();
-                    for (int i = 1; i <= metaData.getColumnCount(); i++) {
-                        System.out.print(metaData.getColumnLabel(i) + ": " + resultSet.getString(i));
-                    }
-                    System.out.println();
                 }
                 resultSet.close();
                 service.release();

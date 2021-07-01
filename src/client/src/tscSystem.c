@@ -45,6 +45,7 @@ int32_t    tscNumOfObj = 0;         // number of sqlObj in current process.
 static void  *tscCheckDiskUsageTmr;
 void      *tscRpcCache;            // cache to keep rpc obj
 int32_t   tscNumOfThreads = 1;     // num of rpc threads  
+char      tscLogFileName[12] = "taoslog";
 static    pthread_mutex_t rpcObjMutex; // mutex to protect open the rpc obj concurrently 
 static pthread_once_t tscinit = PTHREAD_ONCE_INIT;
 static volatile int tscInitRes = 0;
@@ -132,7 +133,7 @@ void taos_init_imp(void) {
       printf("failed to create log dir:%s\n", tsLogDir);
     }
 
-    sprintf(temp, "%s/taoslog", tsLogDir);
+    sprintf(temp, "%s/%s", tsLogDir, tscLogFileName);
     if (taosInitLog(temp, tsNumOfLogLines, 10) < 0) {
       printf("failed to open log file in directory:%s\n", tsLogDir);
     }

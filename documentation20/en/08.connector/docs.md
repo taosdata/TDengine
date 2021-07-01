@@ -515,6 +515,13 @@ c1.close()
 conn.close()
 ```
 
+#### Using nanosecond in Python connector
+
+So far Python still does not completely support nanosecond type. Please refer to the link 1 and 2. The implementation of the python connector is to return an integer number for nanosecond value rather than datatime type as what ms and us do. The developer needs to handle it themselves. We recommend using pandas to_datetime() function. If Python officially support nanosecond in the future, TAOS Data might be possible to change the interface accordingly, which mean the application need change too.
+
+1. https://stackoverflow.com/questions/10611328/parsing-datetime-strings-containing-nanoseconds
+2. https://www.python.org/dev/peps/pep-0564/
+
 #### Helper
 
 Users can directly view the usage information of the module through Python's helper, or refer to the sample program in tests/examples/Python. The following are some common classes and methods:

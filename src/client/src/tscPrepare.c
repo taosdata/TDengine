@@ -745,19 +745,23 @@ static int doBindParam(STableDataBlocks* pBlock, char* data, SParamInfo* param, 
   switch(param->type) {
     case TSDB_DATA_TYPE_BOOL:
     case TSDB_DATA_TYPE_TINYINT:
+    case TSDB_DATA_TYPE_UTINYINT:
       size = 1;
       break;
 
     case TSDB_DATA_TYPE_SMALLINT:
+    case TSDB_DATA_TYPE_USMALLINT:
       size = 2;
       break;
 
     case TSDB_DATA_TYPE_INT:
+    case TSDB_DATA_TYPE_UINT:
     case TSDB_DATA_TYPE_FLOAT:
       size = 4;
       break;
 
     case TSDB_DATA_TYPE_BIGINT:
+    case TSDB_DATA_TYPE_UBIGINT:
     case TSDB_DATA_TYPE_DOUBLE:
     case TSDB_DATA_TYPE_TIMESTAMP:
       size = 8;
@@ -1156,27 +1160,6 @@ static void insertBatchClean(STscStmt* pStmt) {
 
   tfree(pCmd->insertParam.pTableNameList);
 
-/*
-  STableDataBlocks** p = taosHashIterate(pCmd->insertParam.pTableBlockHashList, NULL);
-
-  STableDataBlocks* pOneTableBlock = *p;
-
-  while (1) {
-    SSubmitBlk* pBlocks = (SSubmitBlk*) pOneTableBlock->pData;
-
-    pOneTableBlock->size = sizeof(SSubmitBlk);
-
-    pBlocks->numOfRows = 0;
-
-    p = taosHashIterate(pCmd->insertParam.pTableBlockHashList, p);
-    if (p == NULL) {
-      break;
-    }
-
-    pOneTableBlock = *p;
-  }
-*/
-
   pCmd->insertParam.pDataBlocks = tscDestroyBlockArrayList(pCmd->insertParam.pDataBlocks);
   pCmd->insertParam.numOfTables = 0;
 
@@ -1499,7 +1482,7 @@ int taos_stmt_prepare(TAOS_STMT* stmt, const char* sql, unsigned long length) {
   pRes->numOfRows = 1;
 
   strtolower(pSql->sqlstr, sql);
-  tscDebugL("%p SQL: %s", pSql, pSql->sqlstr);
+  tscDebugL("0x%"PRIx64" SQL: %s", pSql->self, pSql->sqlstr);
 
   if (tscIsInsertData(pSql->sqlstr)) {
     pStmt->isInsert = true;
@@ -1604,7 +1587,7 @@ int taos_stmt_set_tbname_tags(TAOS_STMT* stmt, const char* name, TAOS_BIND* tags
   if (taosHashGetSize(pCmd->insertParam.pTableBlockHashList) > 0) {
     SHashObj* hashList = pCmd->insertParam.pTableBlockHashList;
     pCmd->insertParam.pTableBlockHashList = NULL;
-    tscResetSqlCmd(pCmd, true);
+    tscResetSqlCmd(pCmd, false);
     pCmd->insertParam.pTableBlockHashList = hashList;
   }
 
@@ -1663,7 +1646,7 @@ int taos_stmt_close(TAOS_STMT* stmt) {
   } else {
     if (pStmt->multiTbInsert) {
       taosHashCleanup(pStmt->mtb.pTableHash);
-      pStmt->mtb.pTableBlockHashList = tscDestroyBlockHashTable(pStmt->mtb.pTableBlockHashList, true);
+      pStmt->mtb.pTableBlockHashList = tscDestroyBlockHashTable(pStmt->mtb.pTableBlockHashList, false);
       taosHashCleanup(pStmt->pSql->cmd.insertParam.pTableBlockHashList);
       pStmt->pSql->cmd.insertParam.pTableBlockHashList = NULL;
       taosArrayDestroy(pStmt->mtb.tags);
