@@ -266,6 +266,7 @@ typedef struct SSqlObj {
 
 typedef struct SSqlStream {
   SSqlObj *pSql;
+  void *  cqhandle;  // stream belong to SCQContext handle
   const char* dstTable;
   uint32_t streamId;
   char     listed;
@@ -283,6 +284,7 @@ typedef struct SSqlStream {
   int64_t ctime;     // stream created time
   int64_t stime;     // stream next executed time
   int64_t etime;     // stream end query time, when time is larger then etime, the stream will be closed
+  int64_t ltime;     // stream last row time in stream table
   SInterval interval;
   void *  pTimer;
 
@@ -317,9 +319,9 @@ void    tscRestoreFuncForSTableQuery(SQueryInfo *pQueryInfo);
 
 int32_t tscCreateResPointerInfo(SSqlRes *pRes, SQueryInfo *pQueryInfo);
 void tscSetResRawPtr(SSqlRes* pRes, SQueryInfo* pQueryInfo);
-void tscSetResRawPtrRv(SSqlRes* pRes, SQueryInfo* pQueryInfo, SSDataBlock* pBlock);
+void tscSetResRawPtrRv(SSqlRes* pRes, SQueryInfo* pQueryInfo, SSDataBlock* pBlock, bool convertNchar);
 
-void handleDownstreamOperator(SSqlObj** pSqlList, int32_t numOfUpstream, SQueryInfo* px, SSqlRes* pOutput);
+void handleDownstreamOperator(SSqlObj** pSqlList, int32_t numOfUpstream, SQueryInfo* px, SSqlObj* pParent);
 void destroyTableNameList(SInsertStatementParam* pInsertParam);
 
 void tscResetSqlCmd(SSqlCmd *pCmd, bool removeMeta);

@@ -466,6 +466,42 @@ tExprNode* exprTreeFromTableName(const char* tbnameCond) {
   return expr;
 }
 
+void buildFilterSetFromBinary(void **q, const char *buf, int32_t len) {
+  SBufferReader br = tbufInitReader(buf, len, false); 
+  uint32_t type  = tbufReadUint32(&br);     
+  SHashObj *pObj = taosHashInit(256, taosGetDefaultHashFunction(type), true, false);
+  
+  taosHashSetEqualFp(pObj, taosGetDefaultEqualFunction(type)); 
+  
+  int dummy = -1;
+  int32_t sz = tbufReadInt32(&br);
+  for (int32_t i = 0; i < sz; i++) {
+    if (type == TSDB_DATA_TYPE_BOOL || IS_SIGNED_NUMERIC_TYPE(type)) {
+      int64_t val = tbufReadInt64(&br); 
+      taosHashPut(pObj, (char *)&val, sizeof(val),  &dummy, sizeof(dummy));
+    } else if (IS_UNSIGNED_NUMERIC_TYPE(type)) {
+      uint64_t val = tbufReadUint64(&br); 
+      taosHashPut(pObj, (char *)&val, sizeof(val),  &dummy, sizeof(dummy));
+    }
+    else if (type == TSDB_DATA_TYPE_TIMESTAMP) {
+      int64_t val = tbufReadInt64(&br); 
+      taosHashPut(pObj, (char *)&val, sizeof(val),  &dummy, sizeof(dummy));
+    } else if (type == TSDB_DATA_TYPE_DOUBLE || type == TSDB_DATA_TYPE_FLOAT) {
+      double  val = tbufReadDouble(&br);
+      taosHashPut(pObj, (char *)&val, sizeof(val), &dummy, sizeof(dummy));
+    } else if (type == TSDB_DATA_TYPE_BINARY) {
+      size_t  t = 0;
+      const char *val = tbufReadBinary(&br, &t);
+      taosHashPut(pObj, (char *)val, t, &dummy, sizeof(dummy));
+    } else if (type == TSDB_DATA_TYPE_NCHAR) {
+      size_t  t = 0;
+      const char *val = tbufReadBinary(&br, &t);      
+      taosHashPut(pObj, (char *)val, t, &dummy, sizeof(dummy));
+    }
+  } 
+  *q = (void *)pObj;
+}
+
 tExprNode* exprdup(tExprNode* pNode) {
   if (pNode == NULL) {
     return NULL;

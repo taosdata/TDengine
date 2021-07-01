@@ -42,11 +42,12 @@ int32_t  tsNumOfMnodes = 3;
 int8_t   tsEnableVnodeBak = 1;
 int8_t   tsEnableTelemetryReporting = 1;
 int8_t   tsArbOnline = 0;
+int64_t  tsArbOnlineTimestamp = TSDB_ARB_DUMMY_TIME;
 char     tsEmail[TSDB_FQDN_LEN] = {0};
 int32_t  tsDnodeId = 0;
 
 // common
-int32_t tsRpcTimer       = 1000;
+int32_t tsRpcTimer       = 300;
 int32_t tsRpcMaxTime     = 600;  // seconds;
 int32_t tsRpcForceTcp    = 0;  //disable this, means query, show command use udp protocol as default
 int32_t tsMaxShellConns  = 50000;
@@ -83,8 +84,8 @@ int32_t tsMaxNumOfOrderedResults = 100000;
 // 10 ms for sliding time, the value will changed in case of time precision changed
 int32_t tsMinSlidingTime = 10;
 
-// 10 ms for interval time range, changed accordingly
-int32_t tsMinIntervalTime = 10;
+// 1 us for interval time range, changed accordingly
+int32_t tsMinIntervalTime = 1;
 
 // 20sec, the maximum value of stream computing delay, changed accordingly
 int32_t tsMaxStreamComputDelay = 20000;
@@ -93,7 +94,7 @@ int32_t tsMaxStreamComputDelay = 20000;
 int32_t tsStreamCompStartDelay = 10000;
 
 // the stream computing delay time after executing failed, change accordingly
-int32_t tsStreamCompRetryDelay = 10;
+int32_t tsRetryStreamCompDelay = 10*1000;
 
 // The delayed computing ration. 10% of the whole computing time window by default.
 float tsStreamComputDelayRatio = 0.1f;
@@ -203,7 +204,7 @@ SDiskCfg tsDiskCfg[TSDB_MAX_DISKS];
  *     TSDB_TIME_PRECISION_MICRO: 86400000000L
  *     TSDB_TIME_PRECISION_NANO:  86400000000000L
  */
-int64_t tsMsPerDay[] = {86400000L, 86400000000L, 86400000000000L};
+int64_t tsTickPerDay[] = {86400000L, 86400000000L, 86400000000000L};
 
 // system info
 char    tsOsName[10] = "Linux";
@@ -710,7 +711,7 @@ static void doInitGlobalConfig(void) {
   taosInitConfigOption(cfg);
 
   cfg.option = "retryStreamCompDelay";
-  cfg.ptr = &tsStreamCompRetryDelay;
+  cfg.ptr = &tsRetryStreamCompDelay;
   cfg.valType = TAOS_CFG_VTYPE_INT32;
   cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
   cfg.minValue = 10;
@@ -830,6 +831,16 @@ static void doInitGlobalConfig(void) {
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosInitConfigOption(cfg);
 
+  cfg.option = "precision";
+  cfg.ptr = &tsTimePrecision;
+  cfg.valType = TAOS_CFG_VTYPE_INT8;
+  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
+  cfg.minValue = TSDB_MIN_PRECISION;
+  cfg.maxValue = TSDB_MAX_PRECISION;
+  cfg.ptrLength = 0;
+  cfg.unitType = TAOS_CFG_UTYPE_NONE;
+  taosInitConfigOption(cfg);
+
   cfg.option = "comp";
   cfg.ptr = &tsCompression;
   cfg.valType = TAOS_CFG_VTYPE_INT8;
@@ -896,6 +907,16 @@ static void doInitGlobalConfig(void) {
   cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
   cfg.minValue = TSDB_MIN_DB_UPDATE;
   cfg.maxValue = TSDB_MAX_DB_UPDATE;
+  cfg.ptrLength = 0;
+  cfg.unitType = TAOS_CFG_UTYPE_NONE;
+  taosInitConfigOption(cfg);
+
+  cfg.option = "cachelast";
+  cfg.ptr = &tsCacheLastRow;
+  cfg.valType = TAOS_CFG_VTYPE_INT8;
+  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
+  cfg.minValue = TSDB_MIN_DB_CACHE_LAST_ROW;
+  cfg.maxValue = TSDB_MAX_DB_CACHE_LAST_ROW;
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosInitConfigOption(cfg);

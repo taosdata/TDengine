@@ -632,7 +632,15 @@ int32_t tStrToInteger(const char* z, int16_t type, int32_t n, int64_t* value, bo
   }
 
   // the string may be overflow according to errno
-  *value = issigned? strtoll(z, &endPtr, radix):strtoull(z, &endPtr, radix);
+  if (!issigned) {
+    const char *p = z;
+    while(*p != 0 && *p == ' ') p++;   
+    if (*p != 0 && *p == '-') { return -1;}
+
+    *value = strtoull(z, &endPtr, radix);
+  } else {
+    *value = strtoll(z, &endPtr, radix);
+  }
 
   // not a valid integer number, return error
   if (endPtr - z != n || errno == ERANGE) {

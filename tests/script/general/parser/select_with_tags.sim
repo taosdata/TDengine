@@ -68,6 +68,27 @@ endw
 
 sleep 100
 
+
+#======================= only check first table tag, TD-4827
+sql select count(*) from $mt where t1 in (0)  
+if $rows != 1 then 
+  return -1
+endi
+if $data00 != $rowNum then  
+  return -1;
+endi
+
+$secTag = ' . abc  
+$secTag = $secTag . 0
+$secTag = $secTag . '
+sql select count(*) from $mt where t2 =$secTag  and t1 in (0)   
+if $rows != 1 then 
+  return -1
+endi
+if $data00 != $rowNum then  
+  return -1;
+endi
+
 #================================
 sql select ts from select_tags_mt0
 print $rows

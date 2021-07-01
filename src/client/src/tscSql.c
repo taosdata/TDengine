@@ -456,7 +456,7 @@ static bool needToFetchNewBlock(SSqlObj* pSql) {
 
   return (pRes->completed != true || hasMoreVnodesToTry(pSql) || hasMoreClauseToTry(pSql)) &&
          (pCmd->command == TSDB_SQL_RETRIEVE ||
-          pCmd->command == TSDB_SQL_RETRIEVE_LOCALMERGE ||
+          pCmd->command == TSDB_SQL_RETRIEVE_GLOBALMERGE ||
           pCmd->command == TSDB_SQL_TABLE_JOIN_RETRIEVE ||
           pCmd->command == TSDB_SQL_FETCH ||
           pCmd->command == TSDB_SQL_SHOW ||
@@ -627,7 +627,7 @@ static bool hasAdditionalErrorInfo(int32_t code, SSqlCmd *pCmd) {
 
   char *z = NULL;
   if (len > 0) {
-      z = strstr(pCmd->payload, "invalid SQL");
+      z = strstr(pCmd->payload, "invalid operation");
       if (z == NULL) {
         z = strstr(pCmd->payload, "syntax error");
       }

@@ -1,11 +1,16 @@
 package com.taosdata.jdbc;
 
 import org.junit.Test;
+import static org.junit.Assert.*;
 
 import java.sql.SQLException;
 import java.sql.SQLWarning;
 import java.util.ArrayList;
 import java.util.List;
+
+import java.lang.management.ManagementFactory;
+import java.lang.management.RuntimeMXBean;
+import java.lang.management.ThreadMXBean;
 
 public class TSDBJNIConnectorTest {
 
@@ -14,17 +19,68 @@ public class TSDBJNIConnectorTest {
     @Test
     public void test() {
         try {
+
+            try {
+                //change sleepSeconds when debugging with attach to process to find PID
+                int sleepSeconds = -1;
+                if (sleepSeconds>0) {
+                    RuntimeMXBean runtimeBean = ManagementFactory.getRuntimeMXBean();
+                    String jvmName = runtimeBean.getName();
+                    long pid = Long.valueOf(jvmName.split("@")[0]);
+                    System.out.println("JVM PID  = " + pid);
+
+                    Thread.sleep(sleepSeconds*1000);
+                }
+            }
+            catch (Exception e) {
+                e.printStackTrace();
+            }
+
             // init
-            TSDBJNIConnector.init("/etc/taos/taos.cfg", null, null, null);
+            TSDBJNIConnector.init("/etc/taos", null, null, null);
+
             // connect
             TSDBJNIConnector connector = new TSDBJNIConnector();
-            connector.connect("127.0.0.1", 6030, "unsign_jni", "root", "taosdata");
+            connector.connect("127.0.0.1", 6030, null, "root", "taosdata");
+
+            // setup
+            String setupSqlStrs[] = {"create database if not exists d precision \"us\"",
+                                      "create table if not exists d.t(ts timestamp, f int)",
+                                      "create database if not exists d2",
+                                      "create table if not exists d2.t2(ts timestamp, f int)",
+                                      "insert into d.t values(now+100s, 100)",
+                                      "insert into d2.t2 values(now+200s, 200)"
+                                      };
+            for (String setupSqlStr : setupSqlStrs) {
+                long setupSql = connector.executeQuery(setupSqlStr);
+
+                assertEquals(0, connector.getResultTimePrecision(setupSql));
+                if (connector.isUpdateQuery(setupSql)) {
+                    connector.freeResultSet(setupSql);
+                }
+            }
+
+            {
+                long sqlObj1 = connector.executeQuery("select * from d2.t2");
+                assertEquals(0, connector.getResultTimePrecision(sqlObj1));
+                List<ColumnMetaData> columnMetaDataList = new ArrayList<>();
+                int code = connector.getSchemaMetaData(sqlObj1, columnMetaDataList);
+                rowData = new TSDBResultSetRowData(columnMetaDataList.size());
+                assertTrue(next(connector, sqlObj1));
+                assertEquals(0, connector.getResultTimePrecision(sqlObj1));
+                connector.freeResultSet(sqlObj1);
+            }
+
             // executeQuery
-            long pSql = connector.executeQuery("select * from unsign_jni.us_table");
+            long pSql = connector.executeQuery("select * from d.t");
+
             if (connector.isUpdateQuery(pSql)) {
                 connector.freeResultSet(pSql);
                 throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_INVALID_WITH_EXECUTEQUERY);
             }
+
+            assertEquals(1, connector.getResultTimePrecision(pSql));
+
             // get schema
             List<ColumnMetaData> columnMetaDataList = new ArrayList<>();
             int code = connector.getSchemaMetaData(pSql, columnMetaDataList);
@@ -37,6 +93,8 @@ public class TSDBJNIConnectorTest {
             if (code == TSDBConstants.JNI_NUM_OF_FIELDS_0) {
                 throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_JNI_NUM_OF_FIELDS_0);
             }
+
+            assertEquals(1, connector.getResultTimePrecision(pSql));
             int columnSize = columnMetaDataList.size();
             // print metadata
             for (int i = 0; i < columnSize; i++) {
@@ -45,8 +103,7 @@ public class TSDBJNIConnectorTest {
             rowData = new TSDBResultSetRowData(columnSize);
             // iterate resultSet
             for (int i = 0; next(connector, pSql); i++) {
-                System.out.println("col[" + i + "] size: " + rowData.getColSize());
-                rowData.getData().stream().forEach(col -> System.out.print(col + "\t"));
+                assertEquals(1, connector.getResultTimePrecision(pSql));
                 System.out.println();
             }
             // close resultSet

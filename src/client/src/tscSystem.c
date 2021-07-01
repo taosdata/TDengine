@@ -45,6 +45,7 @@ int32_t    tscNumOfObj = 0;         // number of sqlObj in current process.
 static void  *tscCheckDiskUsageTmr;
 void      *tscRpcCache;            // cache to keep rpc obj
 int32_t   tscNumOfThreads = 1;     // num of rpc threads  
+char      tscLogFileName[12] = "taoslog";
 static    pthread_mutex_t rpcObjMutex; // mutex to protect open the rpc obj concurrently 
 static pthread_once_t tscinit = PTHREAD_ONCE_INIT;
 static volatile int tscInitRes = 0;
@@ -132,7 +133,7 @@ void taos_init_imp(void) {
       printf("failed to create log dir:%s\n", tsLogDir);
     }
 
-    sprintf(temp, "%s/taoslog", tsLogDir);
+    sprintf(temp, "%s/%s", tsLogDir, tscLogFileName);
     if (taosInitLog(temp, tsNumOfLogLines, 10) < 0) {
       printf("failed to open log file in directory:%s\n", tsLogDir);
     }
@@ -288,16 +289,24 @@ static int taos_options_imp(TSDB_OPTION option, const char *pStr) {
 
         if (strlen(tsLocale) == 0) { // locale does not set yet
           char* defaultLocale = setlocale(LC_CTYPE, "");
+
+          // The locale of the current OS does not be set correctly, so the default locale cannot be acquired.
+          // The launch of current system will abort soon.
+          if (defaultLocale == NULL) {
+            tscError("failed to get default locale, please set the correct locale in current OS");
+            return -1;
+          }
+
           tstrncpy(tsLocale, defaultLocale, TSDB_LOCALE_LEN);
         }
 
         // set the user specified locale
         char *locale = setlocale(LC_CTYPE, pStr);
 
-        if (locale != NULL) {
+        if (locale != NULL) { // failed to set the user specified locale
           tscInfo("locale set, prev locale:%s, new locale:%s", tsLocale, locale);
           cfg->cfgStatus = TAOS_CFG_CSTATUS_OPTION;
-        } else { // set the user-specified localed failed, use default LC_CTYPE as current locale
+        } else { // set the user specified locale failed, use default LC_CTYPE as current locale
           locale = setlocale(LC_CTYPE, tsLocale);
           tscInfo("failed to set locale:%s, current locale:%s", pStr, tsLocale);
         }
