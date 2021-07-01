@@ -110,8 +110,8 @@ pipeline {
             catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
                 sh '''
                 cd ${WKC}/tests/examples/JDBC/JDBCDemo/
-                mvn clean package assembly:single -DskipTests >/dev/null 
-                java -jar target/JDBCDemo-SNAPSHOT-jar-with-dependencies.jar -host 127.0.0.1
+                mvn clean package >/dev/null 
+                java -jar target/JdbcRestfulDemo-jar-with-dependencies.jar
                 '''
             }
             catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {

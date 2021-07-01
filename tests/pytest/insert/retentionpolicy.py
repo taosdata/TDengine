@@ -119,6 +119,7 @@ class TDTestRetetion:
             time.sleep(0.001)
         cmd = 'select * from test'
         self.queryRows=tdSql.query(cmd)
+        print(tdSql.queryResult)
         self.checkRows(3,cmd)
 
     def stop(self):
