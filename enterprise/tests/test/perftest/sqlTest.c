@@ -81,8 +81,7 @@ void streamCallBack(void *param, TAOS_RES *res, TAOS_ROW row) {
     int32_t fieldCount = taos_field_count(res);
     printf("-----------------------------field count is:%d\n", fieldCount);
     TAOS_FIELD *pFields = taos_fetch_fields(res);
-    char tmp[512] = {0};
-    displayData(res, fieldCount, pFields, tmp, NULL);
+    displayData(res, fieldCount, pFields);
 }
 
 void queryImpl(void *param) {
