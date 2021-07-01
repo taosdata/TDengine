@@ -1759,7 +1759,6 @@ static int32_t setupQueryRuntimeEnv(SQueryRuntimeEnv *pRuntimeEnv, int32_t numOf
   pRuntimeEnv->pool    = initResultRowPool(getResultRowSize(pRuntimeEnv));
   pRuntimeEnv->prevRow = malloc(POINTER_BYTES * pQuery->numOfCols + pQuery->srcRowSize);
   pRuntimeEnv->tagVal  = malloc(pQuery->tagLen);
-  pRuntimeEnv->currentOffset = pQuery->limit.offset;
 
   // NOTE: pTableCheckInfo need to update the query time range and the lastKey info
   pRuntimeEnv->pTableRetrieveTsMap = taosHashInit(numOfTables, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false, HASH_NO_LOCK);
@@ -6737,6 +6736,8 @@ int32_t initQInfo(SQueryTableMsg *pQueryMsg, void *tsdb, int32_t vgId, SQInfo *p
     
     pRuntimeEnv->prevResult = prevResult;    
   }
+
+  pRuntimeEnv->currentOffset = pQuery->limit.offset;
 
   pQuery->precision = tsdbGetCfg(tsdb)->precision;
 
