@@ -34,6 +34,7 @@ print ===============  step1 - login
 system_content curl 127.0.0.1:7111/admin/
 print 1-> $system_content
 if $system_content != @{"status":"error","code":4357,"desc":"no auth info input"}@ then
+  print actual: $system_content
   return -1
 endi
 
@@ -149,6 +150,8 @@ endi
 system_content curl -H 'Authorization: Taosd /KfeAzX/f9na8qdtNZmtONryp201ma04bEl8LcvLUd7a8qdtNZmtONryp201ma04' -d 'select * from d1.table_admin' 127.0.0.1:7111/admin/all
 print curl 127.0.0.1:7111/admin/all -----> $system_content
 if $system_content != @{"status":"succ","head":["ts","i"],"data":[["2017-12-25 21:28:41.022",1],["2017-12-25 21:28:42.022",2],["2017-12-25 21:28:43.022",3],["2017-12-25 21:28:44.022",4],["2017-12-25 21:28:45.022",5],["2017-12-25 21:28:46.022",6],["2017-12-25 21:28:47.022",7],["2017-12-25 21:28:48.022",8],["2017-12-25 21:28:49.022",9],["2017-12-25 21:28:50.022",10],["2017-12-25 21:28:51.022",11]],"rows":11}@ then
+  print actual: $system_content
+  print expect =======> {"status":"succ","head":["ts","i"],"data":[["2017-12-25 21:28:41.022",1],["2017-12-25 21:28:42.022",2],["2017-12-25 21:28:43.022",3],["2017-12-25 21:28:44.022",4],["2017-12-25 21:28:45.022",5],["2017-12-25 21:28:46.022",6],["2017-12-25 21:28:47.022",7],["2017-12-25 21:28:48.022",8],["2017-12-25 21:28:49.022",9],["2017-12-25 21:28:50.022",10],["2017-12-25 21:28:51.022",11]],"rows":11}
   return -1
 endi
 
