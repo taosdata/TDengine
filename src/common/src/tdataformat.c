@@ -225,7 +225,7 @@ void dataColInit(SDataCol *pDataCol, STColumn *pCol, void **pBuf, int maxPoints)
   pDataCol->type = colType(pCol);
   pDataCol->colId = colColId(pCol);
   pDataCol->bytes = colBytes(pCol);
-  pDataCol->offset = colOffset(pCol) + TD_MEM_ROW_HEAD_SIZE;
+  pDataCol->offset = colOffset(pCol) + TD_DATA_ROW_HEAD_SIZE;
 
   pDataCol->len = 0;
   if (IS_VAR_DATA_TYPE(pDataCol->type)) {
@@ -240,7 +240,6 @@ void dataColInit(SDataCol *pDataCol, STColumn *pCol, void **pBuf, int maxPoints)
     *pBuf = POINTER_SHIFT(*pBuf, pDataCol->spaceSize);
   }
 }
-#if 0
 // value from timestamp should be TKEY here instead of TSKEY
 void dataColAppendVal(SDataCol *pCol, const void *value, int numOfRows, int maxPoints) {
   ASSERT(pCol != NULL && value != NULL);
@@ -270,7 +269,6 @@ void dataColAppendVal(SDataCol *pCol, const void *value, int numOfRows, int maxP
     pCol->len += pCol->bytes;
   }
 }
-#endif
 
 bool isNEleNull(SDataCol *pCol, int nEle) {
   for (int i = 0; i < nEle; i++) {
@@ -648,7 +646,7 @@ int tdSetKVRowDataOfCol(SKVRow *orow, int16_t colId, int8_t type, void *value) {
   void *   ptr = taosbsearch(&colId, kvRowColIdx(row), kvRowNCols(row), sizeof(SColIdx), comparTagId, TD_GE);
 
   if (ptr == NULL || ((SColIdx *)ptr)->colId > colId) { // need to add a column value to the row
-    uint16_t diff = IS_VAR_DATA_TYPE(type) ? varDataTLen(value) : TYPE_BYTES[type];
+    int diff = IS_VAR_DATA_TYPE(type) ? varDataTLen(value) : TYPE_BYTES[type];
     nrow = malloc(kvRowLen(row) + sizeof(SColIdx) + diff);
     if (nrow == NULL) return -1;
 

@@ -1640,33 +1640,6 @@ int32_t tscGetDataBlockFromList(SHashObj* pHashList, int64_t id, int32_t size, i
   return TSDB_CODE_SUCCESS;
 }
 
-// int tdInitMemRowBuilder(SMemRowBuilder* pBuilder) {
-//   pBuilder->pSchema = NULL;
-//   pBuilder->sversion = 0;
-//   pBuilder->tCols = 128;
-//   pBuilder->nCols = 0;
-//   pBuilder->pColIdx = (SColIdx*)malloc(sizeof(SColIdx) * pBuilder->tCols);
-//   if (pBuilder->pColIdx == NULL) return -1;
-//   pBuilder->alloc = 1024;
-//   pBuilder->size = 0;
-//   pBuilder->buf = malloc(pBuilder->alloc);
-//   if (pBuilder->buf == NULL) {
-//     free(pBuilder->pColIdx);
-//     return -1;
-//   }
-//   return 0;
-// }
-
-// void tdDestroyMemRowBuilder(SMemRowBuilder* pBuilder) {
-//   tfree(pBuilder->pColIdx);
-//   tfree(pBuilder->buf);
-// }
-
-// void tdResetMemRowBuilder(SMemRowBuilder* pBuilder) {
-//   pBuilder->nCols = 0;
-//   pBuilder->size = 0;
-// }
-
 #define KvRowNColsThresh 1  // default value: 1200       TODO: for test, restore to default value after test finished
 
 static FORCE_INLINE uint8_t tdRowTypeJudger(SSchema* pSchema, void* pData, int32_t nCols, int32_t flen,
@@ -1700,7 +1673,7 @@ static FORCE_INLINE uint8_t tdRowTypeJudger(SSchema* pSchema, void* pData, int32
     p += pSchema[i].bytes;
   }
 
-  tscDebug("prop:nColsNull %d, nCols: %d, kvRowLen: %d, dataRowLen: %d", (int32_t)nColsNull, nCols, kvRowLength,
+  tscDebug("nColsNull %d, nCols: %d, kvRowLen: %d, dataRowLen: %d", (int32_t)nColsNull, nCols, kvRowLength,
            dataRowLength);
 
   if (kvRowLength < dataRowLength) {
