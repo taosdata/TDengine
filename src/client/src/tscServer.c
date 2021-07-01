@@ -484,8 +484,8 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcEpSet *pEpSet) {
   }
 
   if (shouldFree) { // in case of table-meta/vgrouplist query, automatically free it
-    taosRemoveRef(tscObjRef, handle);
     tscDebug("0x%"PRIx64" sqlObj is automatically freed", pSql->self);
+    taosRemoveRef(tscObjRef, handle);
   }
 
   taosReleaseRef(tscObjRef, handle);
@@ -1703,7 +1703,7 @@ int tscProcessRetrieveGlobalMergeRsp(SSqlObj *pSql) {
 
   uint64_t localQueryId = pSql->self;
   qTableQuery(pQueryInfo->pQInfo, &localQueryId);
-  convertQueryResult(pRes, pQueryInfo, pSql->self);
+  convertQueryResult(pRes, pQueryInfo, pSql->self, true);
 
   code = pRes->code;
   if (pRes->code == TSDB_CODE_SUCCESS) {
