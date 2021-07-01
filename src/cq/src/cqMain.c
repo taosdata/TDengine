@@ -476,7 +476,7 @@ static void cqProcessStreamRes(void *param, TAOS_RES *tres, TAOS_ROW row) {
   
   cDebug("vgId:%d, id:%d CQ:%s stream result is ready", pContext->vgId, pObj->tid, pObj->sqlStr);
 
-  int32_t size = sizeof(SWalHead) + sizeof(SSubmitMsg) + sizeof(SSubmitBlk) + TD_DATA_ROW_HEAD_SIZE + pObj->rowSize;
+  int32_t size = sizeof(SWalHead) + sizeof(SSubmitMsg) + sizeof(SSubmitBlk) + TD_MEM_ROW_HEAD_SIZE + pObj->rowSize;
   char *buffer = calloc(size, 1);
 
   SWalHead   *pHead = (SWalHead *)buffer;
@@ -484,7 +484,9 @@ static void cqProcessStreamRes(void *param, TAOS_RES *tres, TAOS_ROW row) {
   SSubmitBlk *pBlk = (SSubmitBlk *) (buffer + sizeof(SWalHead) + sizeof(SSubmitMsg));
 
   SMemRow trow = (SMemRow)pBlk->data;
-  tdInitDataRow(POINTER_SHIFT(trow, TD_MEM_ROW_TYPE_SIZE), pSchema);
+  SDataRow dataRow = (SDataRow)memRowBody(trow);
+  memRowSetType(trow, SMEM_ROW_DATA);
+  tdInitDataRow(dataRow, pSchema);
 
   for (int32_t i = 0; i < pSchema->numOfCols; i++) {
     STColumn *c = pSchema->columns + i;
@@ -500,7 +502,7 @@ static void cqProcessStreamRes(void *param, TAOS_RES *tres, TAOS_ROW row) {
       memcpy((char *)val + sizeof(VarDataLenT), buf, len);
       varDataLen(val) = len;
     }
-    tdAppendColVal(POINTER_SHIFT(trow, TD_MEM_ROW_TYPE_SIZE), val, c->type, c->bytes, c->offset);
+    tdAppendColVal(dataRow, val, c->type, c->bytes, c->offset);
   }
   pBlk->dataLen = htonl(memRowTLen(trow));
   pBlk->schemaLen = 0;

@@ -73,7 +73,7 @@ typedef struct {
   int8_t   type;    // Column type
   int16_t  colId;   // column ID
   uint16_t bytes;   // column bytes
-  uint16_t offset;  // point offset in SDataRow/SKVRow after the header part.
+  uint16_t offset;  // point offset in SDataRow after the header part.
 } STColumn;
 
 #define colType(col) ((col)->type)
@@ -184,20 +184,6 @@ static FORCE_INLINE int tkeyComparFn(const void *tkey1, const void *tkey2) {
     return 0;
   }
 }
-// ----------------- Sequential Data row structure
-
-/* A sequential data row, the format is like below:
- * |<--------------------+--------------------------- len ---------------------------------->|
- * |<--     Head      -->|<---------   flen -------------->|                                 |
- * +---------------------+---------------------------------+---------------------------------+
- * | uint16_t |  int16_t |                                 |                                 |
- * +----------+----------+---------------------------------+---------------------------------+
- * |   len    | sversion |           First part            |             Second part         |
- * +----------+----------+---------------------------------+---------------------------------+
- *
- * NOTE: timestamp in this row structure is TKEY instead of TSKEY
- */
-typedef void *SDataRow;
 /* A memory data row, the format is like below:
  *|---------+---------------------+--------------------------- len ---------------------------------->|
  *|<- type->|<--     Head      -->|<---------   flen -------------->|                                 |
@@ -211,10 +197,25 @@ typedef void *SDataRow;
  */
 typedef void *SMemRow;
 
+// ----------------- Data row structure
+
+/* A data row, the format is like below:
+ * |<--------------------+--------------------------- len ---------------------------------->|
+ * |<--     Head      -->|<---------   flen -------------->|                                 |
+ * +---------------------+---------------------------------+---------------------------------+
+ * | uint16_t |  int16_t |                                 |                                 |
+ * +----------+----------+---------------------------------+---------------------------------+
+ * |   len    | sversion |           First part            |             Second part         |
+ * +----------+----------+---------------------------------+---------------------------------+
+ *
+ * NOTE: timestamp in this row structure is TKEY instead of TSKEY
+ */
+typedef void *SDataRow;
+
 #define TD_DATA_ROW_HEAD_SIZE (sizeof(uint16_t) + sizeof(int16_t))
 
 #define dataRowLen(r) (*(uint16_t *)(r))
-#define dataRowVersion(r) (*(int16_t *)POINTER_SHIFT(r, sizeof(int16_t)))
+#define dataRowVersion(r) *(int16_t *)POINTER_SHIFT(r, sizeof(int16_t))
 #define dataRowTuple(r) POINTER_SHIFT(r, TD_DATA_ROW_HEAD_SIZE)
 #define dataRowTKey(r) (*(TKEY *)(dataRowTuple(r)))
 #define dataRowKey(r) tdGetKey(dataRowTKey(r))
@@ -254,7 +255,7 @@ static FORCE_INLINE int tdAppendColVal(SDataRow row, const void *value, int8_t t
 }
 
 // NOTE: offset here including the header size
-static FORCE_INLINE void *tdGetRowDataOfCol(void *row, int8_t type, int32_t offset) {
+static FORCE_INLINE void *tdGetRowDataOfCol(SDataRow *row, int8_t type, int32_t offset) {
   if (IS_VAR_DATA_TYPE(type)) {
     return POINTER_SHIFT(row, *(VarDataOffsetT *)POINTER_SHIFT(row, offset));
   } else {

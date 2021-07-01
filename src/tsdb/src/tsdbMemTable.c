@@ -1021,10 +1021,9 @@ static void updateTableLatestColumn(STsdbRepo *pRepo, STable *pTable, SMemRow ro
     } else {
       // SKVRow
       SColIdx *pColIdx = tdGetKVRowIdxOfCol(rowBody, pTCol->colId);
-      if(pColIdx) {
-value = tdGetKvRowDataOfCol(rowBody, pColIdx->offset);
+      if (pColIdx) {
+        value = tdGetKvRowDataOfCol(rowBody, pColIdx->offset);
       }
-      
     }
 
     if ((value == NULL) || isNull(value, pTCol->type)) {

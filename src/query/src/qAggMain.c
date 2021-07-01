@@ -4002,7 +4002,7 @@ void blockInfo_func(SQLFunctionCtx* pCtx) {
 
   int32_t len = *(int32_t*) pCtx->pInput;
   blockDistInfoFromBinary((char*)pCtx->pInput + sizeof(int32_t), len, pDist);
-  pDist->rowSize = (int16_t) pCtx->param[0].i64;
+  pDist->rowSize = (uint16_t)pCtx->param[0].i64;
 
   memcpy(pCtx->pOutput, pCtx->pInput, sizeof(int32_t) + len);
 
@@ -4149,7 +4149,7 @@ void blockinfo_func_finalizer(SQLFunctionCtx* pCtx) {
   SResultRowCellInfo *pResInfo = GET_RES_INFO(pCtx);
   STableBlockDist* pDist = (STableBlockDist*) GET_ROWCELL_INTERBUF(pResInfo);
 
-  pDist->rowSize = (int16_t)pCtx->param[0].i64;
+  pDist->rowSize = (uint16_t)pCtx->param[0].i64;
   generateBlockDistResult(pDist, pCtx->pOutput);
 
   // cannot set the numOfIteratedElems again since it is set during previous iteration

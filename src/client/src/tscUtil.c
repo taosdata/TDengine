@@ -1716,6 +1716,7 @@ static FORCE_INLINE uint8_t tdRowTypeJudger(SSchema* pSchema, void* pData, int32
 SMemRow tdGenMemRowFromBuilder(SMemRowBuilder* pBuilder) {
   SSchema* pSchema = pBuilder->pSchema;
   char*    p = (char*)pBuilder->buf;
+  int      toffset = 0;
 
   if(pBuilder->nCols <= 0){
     return NULL;
@@ -1723,7 +1724,6 @@ SMemRow tdGenMemRowFromBuilder(SMemRowBuilder* pBuilder) {
 
   uint16_t nColsNotNull = 0;
   uint8_t memRowType = tdRowTypeJudger(pSchema, p, pBuilder->nCols, pBuilder->flen, &nColsNotNull);
-  tscDebug("prop:memType is %d", memRowType);
 
   SMemRow* memRow = (SMemRow)pBuilder->pDataBlock;
   memRowSetType(memRow, memRowType);
@@ -1733,7 +1733,6 @@ SMemRow tdGenMemRowFromBuilder(SMemRowBuilder* pBuilder) {
     dataRowSetLen(trow, (uint16_t)(TD_DATA_ROW_HEAD_SIZE + pBuilder->flen));
     dataRowSetVersion(trow, pBuilder->sversion);
 
-    int toffset = 0;
     p = (char*)pBuilder->buf;
     for (int32_t j = 0; j < pBuilder->nCols; ++j) {
       tdAppendColVal(trow, p, pSchema[j].type, pSchema[j].bytes, toffset);
@@ -1748,7 +1747,6 @@ SMemRow tdGenMemRowFromBuilder(SMemRowBuilder* pBuilder) {
     kvRowSetLen(kvRow, tlen);
     kvRowSetNCols(kvRow, nColsNotNull);
 
-    int toffset = 0;
     p = (char*)pBuilder->buf;
     for (int32_t j = 0; j < pBuilder->nCols; ++j) {
       if(!isNull(p, pSchema[j].type)) {
@@ -1821,22 +1819,6 @@ static int trimDataBlock(void* pDataBlock, STableDataBlocks* pTableDataBlock, bo
   mRowBuilder.size = 0;
 
   for (int32_t i = 0; i < numOfRows; ++i) {
-#if 0
-    SDataRow trow = (SDataRow)pDataBlock;  // generate each SDataRow one by one
-    dataRowSetLen(trow, (uint16_t)(TD_DATA_ROW_HEAD_SIZE + flen));
-    dataRowSetVersion(trow, pTableMeta->sversion);
-
-    // scan each column data and generate the data row
-    int toffset = 0;
-    for (int32_t j = 0; j < tinfo.numOfColumns; j++) {
-      tdAppendColVal(trow, p, pSchema[j].type, pSchema[j].bytes, toffset);
-      toffset += TYPE_BYTES[pSchema[j].type];
-      p += pSchema[j].bytes;
-    }
-
-    pDataBlock = (char*)pDataBlock + dataRowLen(trow);  // next SDataRow
-    pBlock->dataLen += dataRowLen(trow);                // SSubmitBlk data length
-#endif
     tdGenMemRowFromBuilder(&mRowBuilder);
   }
 
@@ -1849,7 +1831,7 @@ static int trimDataBlock(void* pDataBlock, STableDataBlocks* pTableDataBlock, bo
 
 static int32_t getRowExpandSize(STableMeta* pTableMeta) {
   int32_t result = TD_DATA_ROW_HEAD_SIZE;
-  int32_t  columns = tscGetNumOfColumns(pTableMeta);
+  int32_t columns = tscGetNumOfColumns(pTableMeta);
   SSchema* pSchema = tscGetTableSchema(pTableMeta);
   for(int32_t i = 0; i < columns; i++) {
     if (IS_VAR_DATA_TYPE((pSchema + i)->type)) {
