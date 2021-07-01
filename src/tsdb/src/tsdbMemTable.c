@@ -933,12 +933,12 @@ static int tsdbInsertDataToTableImpl(STsdbRepo *pRepo, STable *pTable, void **ro
   tSkipListPutBatch(pTableData->pData, rows, rowCounter);
   int64_t dsize = SL_SIZE(pTableData->pData) - osize;
 
-  if (pMemTable->keyFirst > dataRowKey(rows[0])) pMemTable->keyFirst = dataRowKey(rows[0]);
-  if (pMemTable->keyLast < dataRowKey(rows[rowCounter - 1])) pMemTable->keyLast = dataRowKey(rows[rowCounter - 1]);
+  if (pMemTable->keyFirst > memRowKey(rows[0])) pMemTable->keyFirst = memRowKey(rows[0]);
+  if (pMemTable->keyLast < memRowKey(rows[rowCounter - 1])) pMemTable->keyLast = memRowKey(rows[rowCounter - 1]);
   pMemTable->numOfRows += dsize;
 
-  if (pTableData->keyFirst > dataRowKey(rows[0])) pTableData->keyFirst = dataRowKey(rows[0]);
-  if (pTableData->keyLast < dataRowKey(rows[rowCounter - 1])) pTableData->keyLast = dataRowKey(rows[rowCounter - 1]);
+  if (pTableData->keyFirst > memRowKey(rows[0])) pTableData->keyFirst = memRowKey(rows[0]);
+  if (pTableData->keyLast < memRowKey(rows[rowCounter - 1])) pTableData->keyLast = memRowKey(rows[rowCounter - 1]);
   pTableData->numOfRows += dsize;
 
   // update table latest info
@@ -1004,6 +1004,8 @@ static void updateTableLatestColumn(STsdbRepo *pRepo, STable *pTable, SMemRow ro
 
   SDataCol *pLatestCols = pTable->lastCols;
 
+  bool  isDataRow = isDataRow(row);
+  void *rowBody = memRowBody(row);
   for (int16_t j = 0; j < schemaNCols(pSchema); j++) {
     STColumn *pTCol = schemaColAt(pSchema, j);
     // ignore not exist colId
@@ -1012,8 +1014,20 @@ static void updateTableLatestColumn(STsdbRepo *pRepo, STable *pTable, SMemRow ro
       continue;
     }
 
-    void *value = tdGetMemRowDataOfCol(row, (int8_t)pTCol->type, TD_MEM_ROW_HEAD_SIZE + pSchema->columns[j].offset);
-    if (isNull(value, pTCol->type)) {
+    void *value = NULL;
+
+    if (isDataRow) {
+      value = tdGetRowDataOfCol(rowBody, (int8_t)pTCol->type, TD_DATA_ROW_HEAD_SIZE + pSchema->columns[j].offset);
+    } else {
+      // SKVRow
+      SColIdx *pColIdx = tdGetKVRowIdxOfCol(rowBody, pTCol->colId);
+      if(pColIdx) {
+value = tdGetKvRowDataOfCol(rowBody, pColIdx->offset);
+      }
+      
+    }
+
+    if ((value == NULL) || isNull(value, pTCol->type)) {
       continue;
     }
 

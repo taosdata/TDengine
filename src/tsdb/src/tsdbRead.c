@@ -1548,56 +1548,52 @@ static void copyOneRowFromMem(STsdbQueryHandle* pQueryHandle, int32_t capacity, 
       }
 
       if (pColIdx->colId == pColInfo->info.colId) {
-        STColumn* pSTColumn = tdGetColOfID(pSchema, pColIdx->colId);
-        if (pSTColumn != NULL) {
-          // offset of pColIdx including the TD_KV_ROW_HEAD_SIZE
-          void* value = tdGetKvRowDataOfCol(kvRow, pSTColumn->type, pColIdx->offset);
-          switch (pColInfo->info.type) {
-            case TSDB_DATA_TYPE_BINARY:
-            case TSDB_DATA_TYPE_NCHAR:
-              memcpy(pData, value, varDataTLen(value));
-              break;
-            case TSDB_DATA_TYPE_NULL:
-            case TSDB_DATA_TYPE_BOOL:
-            case TSDB_DATA_TYPE_TINYINT:
-            case TSDB_DATA_TYPE_UTINYINT:
-              *(uint8_t*)pData = *(uint8_t*)value;
-              break;
-            case TSDB_DATA_TYPE_SMALLINT:
-            case TSDB_DATA_TYPE_USMALLINT:
-              *(uint16_t*)pData = *(uint16_t*)value;
-              break;
-            case TSDB_DATA_TYPE_INT:
-            case TSDB_DATA_TYPE_UINT:
-              *(uint32_t*)pData = *(uint32_t*)value;
-              break;
-            case TSDB_DATA_TYPE_BIGINT:
-            case TSDB_DATA_TYPE_UBIGINT:
-              *(uint64_t*)pData = *(uint64_t*)value;
-              break;
-            case TSDB_DATA_TYPE_FLOAT:
-              SET_FLOAT_PTR(pData, value);
-              break;
-            case TSDB_DATA_TYPE_DOUBLE:
-              SET_DOUBLE_PTR(pData, value);
-              break;
-            case TSDB_DATA_TYPE_TIMESTAMP:
-              if (pColInfo->info.colId == PRIMARYKEY_TIMESTAMP_COL_INDEX) {
-                *(TSKEY*)pData = tdGetKey(*(TKEY*)value);
-              } else {
-                *(TSKEY*)pData = *(TSKEY*)value;
-              }
-              break;
-            default:
-              memcpy(pData, value, pColInfo->info.bytes);
-          }
-          ++k;
-          ++i;
-          continue;
+        // offset of pColIdx for SKVRow including the TD_KV_ROW_HEAD_SIZE
+        void* value = tdGetKvRowDataOfCol(kvRow, pColIdx->offset);
+        switch (pColInfo->info.type) {
+          case TSDB_DATA_TYPE_BINARY:
+          case TSDB_DATA_TYPE_NCHAR:
+            memcpy(pData, value, varDataTLen(value));
+            break;
+          case TSDB_DATA_TYPE_NULL:
+          case TSDB_DATA_TYPE_BOOL:
+          case TSDB_DATA_TYPE_TINYINT:
+          case TSDB_DATA_TYPE_UTINYINT:
+            *(uint8_t*)pData = *(uint8_t*)value;
+            break;
+          case TSDB_DATA_TYPE_SMALLINT:
+          case TSDB_DATA_TYPE_USMALLINT:
+            *(uint16_t*)pData = *(uint16_t*)value;
+            break;
+          case TSDB_DATA_TYPE_INT:
+          case TSDB_DATA_TYPE_UINT:
+            *(uint32_t*)pData = *(uint32_t*)value;
+            break;
+          case TSDB_DATA_TYPE_BIGINT:
+          case TSDB_DATA_TYPE_UBIGINT:
+            *(uint64_t*)pData = *(uint64_t*)value;
+            break;
+          case TSDB_DATA_TYPE_FLOAT:
+            SET_FLOAT_PTR(pData, value);
+            break;
+          case TSDB_DATA_TYPE_DOUBLE:
+            SET_DOUBLE_PTR(pData, value);
+            break;
+          case TSDB_DATA_TYPE_TIMESTAMP:
+            if (pColInfo->info.colId == PRIMARYKEY_TIMESTAMP_COL_INDEX) {
+              *(TSKEY*)pData = tdGetKey(*(TKEY*)value);
+            } else {
+              *(TSKEY*)pData = *(TSKEY*)value;
+            }
+            break;
+          default:
+            memcpy(pData, value, pColInfo->info.bytes);
         }
-        ++k;  // pSTColumn is NULL
+        ++k;
+        ++i;
+        continue;
       }
-      // If (pColInfo->info.colId < pColIdx->colId) or pSTColumn is NULL, it is a NULL data
+      // If (pColInfo->info.colId < pColIdx->colId), it is NULL data
       if (pColInfo->info.type == TSDB_DATA_TYPE_BINARY || pColInfo->info.type == TSDB_DATA_TYPE_NCHAR) {
         setVardataNull(pData, pColInfo->info.type);
       } else {

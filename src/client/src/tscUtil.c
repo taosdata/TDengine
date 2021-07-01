@@ -1667,7 +1667,7 @@ int32_t tscGetDataBlockFromList(SHashObj* pHashList, int64_t id, int32_t size, i
 //   pBuilder->size = 0;
 // }
 
-#define KvRowNColsThresh 1  // default value: 128       TODO: for test, restore to default value after test finished
+#define KvRowNColsThresh 1  // default value: 1200       TODO: for test, restore to default value after test finished
 
 static FORCE_INLINE uint8_t tdRowTypeJudger(SSchema* pSchema, void* pData, int32_t nCols, int32_t flen,
                                             uint16_t* nColsNotNull) {

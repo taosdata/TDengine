@@ -280,13 +280,43 @@ typedef struct SDataCol {
 static FORCE_INLINE void dataColReset(SDataCol *pDataCol) { pDataCol->len = 0; }
 
 void dataColInit(SDataCol *pDataCol, STColumn *pCol, void **pBuf, int maxPoints);
-void dataColAppendVal(SDataCol *pCol, const void *value, int numOfRows, int maxPoints);
 void dataColSetOffset(SDataCol *pCol, int nEle);
 
 bool isNEleNull(SDataCol *pCol, int nEle);
 void dataColSetNEleNull(SDataCol *pCol, int nEle, int maxPoints);
 
-static const void *tdGetNullVal(int8_t type) {
+FORCE_INLINE void dataColAppendVal(SDataCol *pCol, const void *value, int numOfRows, int maxPoints);
+// value from timestamp should be TKEY here instead of TSKEY
+FORCE_INLINE void dataColAppendVal(SDataCol *pCol, const void *value, int numOfRows, int maxPoints) {
+  ASSERT(pCol != NULL && value != NULL);
+
+  if (pCol->len == 0) {
+    if (isNull(value, pCol->type)) {
+      // all null value yet, just return
+      return;
+    }
+
+    if (numOfRows > 0) {
+      // Find the first not null value, fill all previous values as NULL
+      dataColSetNEleNull(pCol, numOfRows, maxPoints);
+    }
+  }
+
+  if (IS_VAR_DATA_TYPE(pCol->type)) {
+    // set offset
+    pCol->dataOff[numOfRows] = pCol->len;
+    // Copy data
+    memcpy(POINTER_SHIFT(pCol->pData, pCol->len), value, varDataTLen(value));
+    // Update the length
+    pCol->len += varDataTLen(value);
+  } else {
+    ASSERT(pCol->len == TYPE_BYTES[pCol->type] * numOfRows);
+    memcpy(POINTER_SHIFT(pCol->pData, pCol->len), value, pCol->bytes);
+    pCol->len += pCol->bytes;
+  }
+}
+
+static FORCE_INLINE const void *tdGetNullVal(int8_t type) {
   switch (type) {
     case TSDB_DATA_TYPE_BOOL:
       return &BoolNull;
@@ -460,6 +490,10 @@ static FORCE_INLINE void *tdGetKVRowValOfCol(SKVRow row, int16_t colId) {
   return kvRowColVal(row, (SColIdx *)ret);
 }
 
+static FORCE_INLINE void *tdGetKVRowIdxOfCol(SKVRow row, int16_t colId) {
+  return taosbsearch(&colId, kvRowColIdx(row), kvRowNCols(row), sizeof(SColIdx), comparTagId, TD_EQ);
+}
+
 // offset here not include kvRow header length
 static FORCE_INLINE int tdAppendKvColVal(SKVRow row, const void *value, int16_t colId, int8_t type, int32_t offset) {
   ASSERT(value != NULL);
@@ -582,15 +616,13 @@ static FORCE_INLINE int tdAddColToKVRow(SKVRowBuilder *pBuilder, int16_t colId, 
 #define memRowDeleted(r) TKEY_IS_DELETED(memRowTKey(r))
 
 // NOTE: offset here including the header size
-static FORCE_INLINE void *tdGetKvRowDataOfCol(void *row, int8_t type, int32_t offset) {
-  return POINTER_SHIFT(row, offset);
-}
+static FORCE_INLINE void *tdGetKvRowDataOfCol(void *row, int32_t offset) { return POINTER_SHIFT(row, offset); }
 // NOTE: offset here including the header size
 static FORCE_INLINE void *tdGetMemRowDataOfCol(void *row, int8_t type, int32_t offset) {
   if (isDataRow(row)) {
     return tdGetRowDataOfCol(row, type, offset);
   } else if (isKvRow(row)) {
-    return tdGetKvRowDataOfCol(row, type, offset);
+    return tdGetKvRowDataOfCol(row, offset);
   } else {
     ASSERT(0);
   }
