@@ -3344,6 +3344,7 @@ static int32_t doExtractColumnFilterInfo(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, 
     if (pRight->flags & (1 << EXPR_FLAG_NS_TIMESTAMP)) {
       pRight->value.i64 =
           convertTimePrecision(pRight->value.i64, TSDB_TIME_PRECISION_NANO, timePrecision);
+      pRight->flags &= ~(1 << EXPR_FLAG_NS_TIMESTAMP);
     }
   }
 
@@ -4908,6 +4909,7 @@ int32_t getTimeRange(STimeWindow* win, tSqlExpr* pRight, int32_t optr, int16_t t
      */
     if (pRight->flags & (1 << EXPR_FLAG_NS_TIMESTAMP)) {
       pRight->value.i64 = convertTimePrecision(pRight->value.i64, TSDB_TIME_PRECISION_NANO, timePrecision);
+      pRight->flags &= ~(1 << EXPR_FLAG_NS_TIMESTAMP);
     }
 
     tVariantDump(&pRight->value, (char*)&val, TSDB_DATA_TYPE_BIGINT, true);
