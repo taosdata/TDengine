@@ -4706,14 +4706,18 @@ PARSE_OVER:
   return ret;
 }
 
-static void prepareSampleData() {
+static int prepareSampleData() {
   for (int i = 0; i < g_Dbs.dbCount; i++) {
     for (int j = 0; j < g_Dbs.db[i].superTblCount; j++) {
       if (g_Dbs.db[i].superTbls[j].tagsFile[0] != 0) {
-        (void)readTagFromCsvFileToMem(&g_Dbs.db[i].superTbls[j]);
+        if (readTagFromCsvFileToMem(&g_Dbs.db[i].superTbls[j]) != 0) {
+          return -1;
+        }
       }
     }
   }
+
+  return 0;
 }
 
 static void postFreeResource() {
@@ -6777,7 +6781,11 @@ static int insertTestProcess() {
   }
 
   // pretreatement
-  prepareSampleData();
+  if (prepareSampleData() != 0) {
+    if (g_fpOfInsertResult)
+      fclose(g_fpOfInsertResult);
+    return -1;
+  }
 
   double start;
   double end;
