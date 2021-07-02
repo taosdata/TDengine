@@ -1487,34 +1487,33 @@ static void taosStartDumpOutWorkThreads(void* taosCon, struct arguments* args,
   free(threadObj);
 }
 
+static int32_t taosDumpStable(char *table, FILE *fp,
+        TAOS* taosCon, char* dbName) {
+    int count = 0;
 
-
-static int32_t taosDumpStable(char *table, FILE *fp, TAOS* taosCon, char* dbName) {
-  int count = 0;
-
-  STableDef *tableDes = (STableDef *)calloc(1,
-          sizeof(STableDef) + sizeof(SColDes) * TSDB_MAX_COLUMNS);
-  if (NULL == tableDes) {
-    errorPrint("%s() LN%d, failed to allocate %"PRIu64" memory\n",
-            __func__, __LINE__,
+    STableDef *tableDes = (STableDef *)calloc(1,
             sizeof(STableDef) + sizeof(SColDes) * TSDB_MAX_COLUMNS);
-    exit(-1);
-  }
+    if (NULL == tableDes) {
+        errorPrint("%s() LN%d, failed to allocate %"PRIu64" memory\n",
+                __func__, __LINE__,
+                (uint64_t)(sizeof(STableDef)
+                    + sizeof(SColDes) * TSDB_MAX_COLUMNS));
+        exit(-1);
+    }
 
-  count = taosGetTableDes(dbName, table, tableDes, taosCon, true);
+    count = taosGetTableDes(dbName, table, tableDes, taosCon, true);
 
-  if (count < 0) {
+    if (count < 0) {
+        free(tableDes);
+        errorPrint("failed to get stable[%s] schema\n", table);
+        exit(-1);
+    }
+
+    taosDumpCreateTableClause(tableDes, count, fp, dbName);
+
     free(tableDes);
-    errorPrint("failed to get stable[%s] schema\n", table);
-    exit(-1);
-  }
-
-  taosDumpCreateTableClause(tableDes, count, fp, dbName);
-
-  free(tableDes);
-  return 0;
+    return 0;
 }
-
 
 static int32_t taosDumpCreateSuperTableClause(TAOS* taosCon, char* dbName, FILE *fp)
 {
