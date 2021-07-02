@@ -1674,7 +1674,7 @@ static FORCE_INLINE uint8_t tdRowTypeJudger(SSchema* pSchema, void* pData, int32
   }
 
   tscDebug("nColsNull %d, nCols: %d, kvRowLen: %d, dataRowLen: %d", (int32_t)nColsNull, nCols, kvRowLength,
-           dataRowLength);
+          dataRowLength);
 
   if (kvRowLength < dataRowLength) {
     if (nColsNotNull) {
@@ -1696,7 +1696,7 @@ SMemRow tdGenMemRowFromBuilder(SMemRowBuilder* pBuilder) {
   }
 
   uint16_t nColsNotNull = 0;
-  uint8_t memRowType = tdRowTypeJudger(pSchema, p, pBuilder->nCols, pBuilder->flen, &nColsNotNull);
+  uint8_t  memRowType = tdRowTypeJudger(pSchema, p, pBuilder->nCols, pBuilder->flen, &nColsNotNull);
 
   SMemRow* memRow = (SMemRow)pBuilder->pDataBlock;
   memRowSetType(memRow, memRowType);
@@ -1714,7 +1714,7 @@ SMemRow tdGenMemRowFromBuilder(SMemRowBuilder* pBuilder) {
     }
     pBuilder->buf = p;
   } else if (memRowType == SMEM_ROW_KV)  {
-    ASSERT(nColsNotNull < pBuilder->nCols);
+    ASSERT(nColsNotNull <= pBuilder->nCols);
     SKVRow   kvRow = (SKVRow)memRowBody(memRow);
     uint16_t tlen = TD_KV_ROW_HEAD_SIZE + sizeof(SColIdx) * nColsNotNull;
     kvRowSetLen(kvRow, tlen);
@@ -1810,6 +1810,7 @@ static int32_t getRowExpandSize(STableMeta* pTableMeta) {
     if (IS_VAR_DATA_TYPE((pSchema + i)->type)) {
       result += TYPE_BYTES[TSDB_DATA_TYPE_BINARY];
     }
+    result += sizeof(SColIdx);
   }
   result += TD_MEM_ROW_TYPE_SIZE;  // add len of SMemRow flag
   return result;

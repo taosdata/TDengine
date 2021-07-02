@@ -1459,6 +1459,7 @@ static void copyOneRowFromMem(STsdbQueryHandle* pQueryHandle, int32_t capacity, 
   int32_t i = 0;
 
   if (isDataRow(row)) {
+    SDataRow dataRow = memRowBody(row);
     int32_t j = 0;
     while (i < numOfCols && j < numOfRowCols) {
       SColumnInfoData* pColInfo = taosArrayGet(pQueryHandle->pColumns, i);
@@ -1475,7 +1476,7 @@ static void copyOneRowFromMem(STsdbQueryHandle* pQueryHandle, int32_t capacity, 
 
       if (pSchema->columns[j].colId == pColInfo->info.colId) {
         void* value =
-            tdGetRowDataOfCol(row, (int8_t)pColInfo->info.type, TD_MEM_ROW_HEAD_SIZE + pSchema->columns[j].offset);
+            tdGetRowDataOfCol(dataRow, (int8_t)pColInfo->info.type, TD_DATA_ROW_HEAD_SIZE + pSchema->columns[j].offset);
         switch (pColInfo->info.type) {
           case TSDB_DATA_TYPE_BINARY:
           case TSDB_DATA_TYPE_NCHAR:

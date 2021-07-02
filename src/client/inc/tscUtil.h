@@ -343,7 +343,6 @@ SNewVgroupInfo createNewVgroupInfo(SVgroupMsg *pVgroupMsg);
 
 typedef struct {
   // for SDataRow
-  STSchema* pTSchema;
   SSchema*  pSchema;
   int16_t   sversion;
   int32_t   flen;
