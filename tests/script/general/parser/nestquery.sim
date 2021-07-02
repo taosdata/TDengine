@@ -424,4 +424,6 @@ if $data01 != 1 then
   return -1
 endi
 
+sql_error select last_row(*) from (select * from nest_tb0) having c1 > 0
+
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
