@@ -2067,17 +2067,23 @@ void tscFieldInfoCopy(SFieldInfo* pFieldInfo, const SFieldInfo* pSrc, const SArr
 
       SInternalField p = {.visible = pfield->visible, .field = pfield->field};
 
+      bool found = false;
       int32_t resColId = pfield->pExpr->base.resColId;
       for(int32_t j = 0; j < numOfExpr; ++j) {
         SExprInfo* pExpr = taosArrayGetP(pExprList, j);
         if (pExpr->base.resColId == resColId) {
           p.pExpr = pExpr;
+          found = true;
           break;
         }
       }
-//      p.pExpr = calloc(1, sizeof(SExprInfo));
 
-//      tscExprAssign(p.pExpr, pfield->pExpr);
+      if (!found) {
+        assert(pfield->pExpr->pExpr != NULL);
+        p.pExpr = calloc(1, sizeof(SExprInfo));
+        tscExprAssign(p.pExpr, pfield->pExpr);
+      }    
+
       taosArrayPush(pFieldInfo->internalField, &p);
     }
   }
@@ -2942,6 +2948,7 @@ int32_t tscQueryInfoCopy(SQueryInfo* pQueryInfo, const SQueryInfo* pSrc) {
 
   pQueryInfo->bufLen         = pSrc->bufLen;
   pQueryInfo->orderProjectQuery = pSrc->orderProjectQuery;
+  pQueryInfo->arithmeticOnAgg   = pSrc->arithmeticOnAgg;
   pQueryInfo->buf            = malloc(pSrc->bufLen);
   if (pQueryInfo->buf == NULL) {
     code = TSDB_CODE_TSC_OUT_OF_MEMORY;
@@ -2979,6 +2986,14 @@ int32_t tscQueryInfoCopy(SQueryInfo* pQueryInfo, const SQueryInfo* pSrc) {
   if (tscExprCopyAll(pQueryInfo->exprList, pSrc->exprList, true) != 0) {
     code = TSDB_CODE_TSC_OUT_OF_MEMORY;
     goto _error;
+  }
+
+  if (pQueryInfo->arithmeticOnAgg) {
+    pQueryInfo->exprList1 = taosArrayInit(4, POINTER_BYTES);
+    if (tscExprCopyAll(pQueryInfo->exprList1, pSrc->exprList1, true) != 0) {
+      code = TSDB_CODE_TSC_OUT_OF_MEMORY;
+      goto _error;
+    }
   }
 
   tscColumnListCopyAll(pQueryInfo->colList, pSrc->colList);
