@@ -7304,7 +7304,6 @@ static void *superSubscribe(void *sarg) {
     TAOS_RES* res = NULL;
 
     uint64_t st = 0, et = 0;
-
     while ((g_queryInfo.superQueryInfo.endAfterConsume == -1)
             || (g_queryInfo.superQueryInfo.endAfterConsume >
                 consumed[pThreadInfo->end_table_to
