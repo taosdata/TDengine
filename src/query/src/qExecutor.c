@@ -3847,14 +3847,17 @@ int32_t doFillTimeIntervalGapsInResults(SFillInfo* pFillInfo, SSDataBlock *pOutp
 }
 
 void publishOperatorProfEvent(SOperatorInfo* operatorInfo, EQueryProfEventType eventType) {
-  SQueryProfEvent event;
-  event.eventType = eventType;
-  event.eventTime = taosGetTimestampUs();
+  SQueryProfEvent event = {0};
+
+  event.eventType    = eventType;
+  event.eventTime    = taosGetTimestampUs();
   event.operatorType = operatorInfo->operatorType;
 
-  SQInfo* qInfo = operatorInfo->pRuntimeEnv->qinfo;
-  if (qInfo->summary.queryProfEvents) {
-    taosArrayPush(qInfo->summary.queryProfEvents, &event);
+  if (operatorInfo->pRuntimeEnv) {
+    SQInfo* pQInfo = operatorInfo->pRuntimeEnv->qinfo;
+    if (pQInfo->summary.queryProfEvents) {
+      taosArrayPush(pQInfo->summary.queryProfEvents, &event);
+    }
   }
 }
 
