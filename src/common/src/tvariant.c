@@ -184,12 +184,15 @@ void tVariantDestroy(tVariant *pVar) {
   }
 
   // NOTE: this is only for string array
-  if (pVar->nType == TSDB_DATA_TYPE_ARRAY) {
+  if (pVar->nType == TSDB_DATA_TYPE_POINTER_ARRAY) {
     size_t num = taosArrayGetSize(pVar->arr);
     for(size_t i = 0; i < num; i++) {
       void* p = taosArrayGetP(pVar->arr, i);
       free(p);
     }
+    taosArrayDestroy(pVar->arr);
+    pVar->arr = NULL;
+  } else if (pVar->nType == TSDB_DATA_TYPE_VALUE_ARRAY) {
     taosArrayDestroy(pVar->arr);
     pVar->arr = NULL;
   }
@@ -220,7 +223,7 @@ void tVariantAssign(tVariant *pDst, const tVariant *pSrc) {
 
   if (IS_NUMERIC_TYPE(pSrc->nType) || (pSrc->nType == TSDB_DATA_TYPE_BOOL)) {
     pDst->i64 = pSrc->i64;
-  } else if (pSrc->nType == TSDB_DATA_TYPE_ARRAY) {  // this is only for string array
+  } else if (pSrc->nType == TSDB_DATA_TYPE_POINTER_ARRAY) {  // this is only for string array
     size_t num = taosArrayGetSize(pSrc->arr);
     pDst->arr = taosArrayInit(num, sizeof(char*));
     for(size_t i = 0; i < num; i++) {
@@ -228,9 +231,18 @@ void tVariantAssign(tVariant *pDst, const tVariant *pSrc) {
       char* n = strdup(p);
       taosArrayPush(pDst->arr, &n);
     }
+  } else if (pSrc->nType == TSDB_DATA_TYPE_VALUE_ARRAY) {
+      size_t num = taosArrayGetSize(pSrc->arr);
+      pDst->arr = taosArrayInit(num, sizeof(int64_t));
+      pDst->nLen = pSrc->nLen;
+      assert(pSrc->nLen == num);
+      for(size_t i = 0; i < num; i++) {
+        int64_t *p = taosArrayGet(pSrc->arr, i);
+        taosArrayPush(pDst->arr, p);
+      }
   }
 
-  if (pDst->nType != TSDB_DATA_TYPE_ARRAY) {
+  if (pDst->nType != TSDB_DATA_TYPE_POINTER_ARRAY && pDst->nType != TSDB_DATA_TYPE_VALUE_ARRAY) {
     pDst->nLen = tDataTypes[pDst->nType].bytes;
   }
 }

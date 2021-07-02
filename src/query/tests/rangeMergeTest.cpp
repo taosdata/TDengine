@@ -14,81 +14,100 @@ namespace {
 
 void intDataTest() {
   printf("running %s\n", __FUNCTION__);
-  int32_t s0[3] = {-100, 1, 3};
-  int32_t e0[3] = {0   , 2, 4};
+  int32_t asize = 0;
+  int64_t *s =NULL;
+  int64_t *e =NULL;
+  int64_t s0[3] = {-100, 1, 3};
+  int64_t e0[3] = {0   , 2, 4};
   int64_t s1[3] = {INT64_MIN, 0 , 3};
   int64_t e1[3] = {100      , 50, 4};
   int64_t s2[5] = {1 , 3  , 10,30,70};
   int64_t e2[5] = {10, 100, 20,50,120};
   int64_t s3[3] = {1 , 20 , 5};
   int64_t e3[3] = {10, 100, 25};
+  int64_t s4[2] = {10, 0};
+  int64_t e4[2] = {20, 5};
+  int64_t s5[3] = {0, 6 ,7};
+  int64_t e5[5] = {4, 10,20};
 
-  int32_t rs0[3];
-  int32_t re0[3];
-  int64_t rs1[3];
-  int64_t re1[3];
-  int64_t rs2[5];
-  int64_t re2[5];
-  int64_t rs3[5];
-  int64_t re3[5];
+  int64_t rs[10];
+  int64_t re[10];
 
   int32_t num = 0;
-  
-  void *h = filterInitMergeRange(TSDB_DATA_TYPE_INT, 0);
-  for (int32_t i = 0; i < sizeof(s0)/sizeof(s0[0]); ++i) {
-    filterAddMergeRange(h, s0 + i, e0 + i, TSDB_RELATION_AND);
+
+  s = s0;
+  e = e0;
+  asize = sizeof(s0)/sizeof(s[0]);
+  void *h = filterInitMergeRange(TSDB_DATA_TYPE_BIGINT, 0);
+  for (int32_t i = 0; i < asize; ++i) {
+    filterAddMergeRange(h, s + i, e + i, TSDB_RELATION_AND);
   }
   filterGetMergeRangeNum(h, &num);
   ASSERT_EQ(num, 0);
   filterFreeMergeRange(h);
 
 
-
-  h = filterInitMergeRange(TSDB_DATA_TYPE_INT, 0);
-  for (int32_t i = 0; i < sizeof(s0)/sizeof(s0[0]); ++i) {
-    filterAddMergeRange(h, s0 + i, e0 + i, TSDB_RELATION_OR);
+  h = filterInitMergeRange(TSDB_DATA_TYPE_BIGINT, 0);
+  for (int32_t i = 0; i < asize; ++i) {
+    filterAddMergeRange(h, s + i, e + i, TSDB_RELATION_OR);
   }
   filterGetMergeRangeNum(h, &num);
   ASSERT_EQ(num, 3);
-  filterGetMergeRangeRes(h, rs0, re0);
-  ASSERT_EQ(rs0[0], -100);
-  ASSERT_EQ(re0[0], 0);
-  ASSERT_EQ(rs0[1], 1);
-  ASSERT_EQ(re0[1], 2);
-  ASSERT_EQ(rs0[2], 3);
-  ASSERT_EQ(re0[2], 4);  
+  filterGetMergeRangeRes(h, rs, re);
+  ASSERT_EQ(rs[0], -100);
+  ASSERT_EQ(re[0], 0);
+  ASSERT_EQ(rs[1], 1);
+  ASSERT_EQ(re[1], 2);
+  ASSERT_EQ(rs[2], 3);
+  ASSERT_EQ(re[2], 4);  
   filterFreeMergeRange(h);
 
 
-
-  h = filterInitMergeRange(TSDB_DATA_TYPE_BIGINT, 0);
-  for (int32_t i = 0; i < sizeof(s1)/sizeof(s1[0]); ++i) {
-    filterAddMergeRange(h, s1 + i, e1 + i, TSDB_RELATION_AND);
+  h = filterInitMergeRange(TSDB_DATA_TYPE_BIGINT, MR_OPT_TS);
+  for (int32_t i = 0; i < asize; ++i) {
+    filterAddMergeRange(h, s + i, e + i, TSDB_RELATION_OR);
   }
   filterGetMergeRangeNum(h, &num);
   ASSERT_EQ(num, 1);
-  filterGetMergeRangeRes(h, rs1, re1);
-  ASSERT_EQ(rs1[0], 3);
-  ASSERT_EQ(re1[0], 4);
+  filterGetMergeRangeRes(h, rs, re);
+  ASSERT_EQ(rs[0], -100);
+  ASSERT_EQ(re[0], 4);
   filterFreeMergeRange(h);
 
 
+  s = s1;
+  e = e1;
+  asize = sizeof(s1)/sizeof(s[0]);
   h = filterInitMergeRange(TSDB_DATA_TYPE_BIGINT, 0);
-  for (int32_t i = 0; i < sizeof(s1)/sizeof(s1[0]); ++i) {
-    filterAddMergeRange(h, s1 + i, e1 + i, TSDB_RELATION_OR);
+  for (int32_t i = 0; i < asize; ++i) {
+    filterAddMergeRange(h, s + i, e + i, TSDB_RELATION_AND);
   }
   filterGetMergeRangeNum(h, &num);
   ASSERT_EQ(num, 1);
-  filterGetMergeRangeRes(h, rs1, re1);
-  ASSERT_EQ(rs1[0], INT64_MIN);
-  ASSERT_EQ(re1[0], 100);
+  filterGetMergeRangeRes(h, rs, re);
+  ASSERT_EQ(rs[0], 3);
+  ASSERT_EQ(re[0], 4);
   filterFreeMergeRange(h);
 
 
-
   h = filterInitMergeRange(TSDB_DATA_TYPE_BIGINT, 0);
-  for (int32_t i = 0; i < sizeof(s2)/sizeof(s2[0]); ++i) {
-    filterAddMergeRange(h, s2 + i, e2 + i, TSDB_RELATION_AND);
+  for (int32_t i = 0; i < asize; ++i) {
+    filterAddMergeRange(h, s + i, e + i, TSDB_RELATION_OR);
+  }
+  filterGetMergeRangeNum(h, &num);
+  ASSERT_EQ(num, 1);
+  filterGetMergeRangeRes(h, rs, re);
+  ASSERT_EQ(rs[0], INT64_MIN);
+  ASSERT_EQ(re[0], 100);
+  filterFreeMergeRange(h);
+
+
+  s = s2;
+  e = e2;
+  asize = sizeof(s2)/sizeof(s[0]);
+  h = filterInitMergeRange(TSDB_DATA_TYPE_BIGINT, 0);
+  for (int32_t i = 0; i < asize; ++i) {
+    filterAddMergeRange(h, s + i, e + i, TSDB_RELATION_AND);
   }
   filterGetMergeRangeNum(h, &num);
   ASSERT_EQ(num, 0);
@@ -96,21 +115,21 @@ void intDataTest() {
 
 
   h = filterInitMergeRange(TSDB_DATA_TYPE_BIGINT, 0);
-  for (int32_t i = 0; i < sizeof(s2)/sizeof(s2[0]); ++i) {
-    filterAddMergeRange(h, s2 + i, e2 + i, TSDB_RELATION_OR);
+  for (int32_t i = 0; i < asize; ++i) {
+    filterAddMergeRange(h, s + i, e + i, TSDB_RELATION_OR);
   }
   filterGetMergeRangeNum(h, &num);
   ASSERT_EQ(num, 1);
-  filterGetMergeRangeRes(h, rs2, re2);
-  ASSERT_EQ(rs2[0], 1);
-  ASSERT_EQ(re2[0], 120);
+  filterGetMergeRangeRes(h, rs, re);
+  ASSERT_EQ(rs[0], 1);
+  ASSERT_EQ(re[0], 120);
   filterFreeMergeRange(h);
 
 
 
   h = filterInitMergeRange(TSDB_DATA_TYPE_BIGINT, 0);
-  for (int32_t i = 0; i < sizeof(s2)/sizeof(s2[0]); ++i) {
-    filterAddMergeRange(h, s2 + i, e2 + i, i % 2 ? TSDB_RELATION_OR : TSDB_RELATION_AND);
+  for (int32_t i = 0; i < asize; ++i) {
+    filterAddMergeRange(h, s + i, e + i, i % 2 ? TSDB_RELATION_OR : TSDB_RELATION_AND);
   }
   filterGetMergeRangeNum(h, &num);
   ASSERT_EQ(num, 0);
@@ -118,21 +137,23 @@ void intDataTest() {
 
 
   h = filterInitMergeRange(TSDB_DATA_TYPE_BIGINT, 0);
-  for (int32_t i = 0; i < sizeof(s2)/sizeof(s2[0]); ++i) {
-    filterAddMergeRange(h, s2 + i, e2 + i, i % 2 ? TSDB_RELATION_AND : TSDB_RELATION_OR);
+  for (int32_t i = 0; i < asize; ++i) {
+    filterAddMergeRange(h, s + i, e + i, i % 2 ? TSDB_RELATION_AND : TSDB_RELATION_OR);
   }
   filterGetMergeRangeNum(h, &num);
   ASSERT_EQ(num, 1);
-  filterGetMergeRangeRes(h, rs2, re2);
-  ASSERT_EQ(rs2[0], 70);
-  ASSERT_EQ(re2[0], 120);  
+  filterGetMergeRangeRes(h, rs, re);
+  ASSERT_EQ(rs[0], 70);
+  ASSERT_EQ(re[0], 120);  
   filterFreeMergeRange(h);
 
 
-
+  s = s3;
+  e = e3;
+  asize = sizeof(s3)/sizeof(s[0]);
   h = filterInitMergeRange(TSDB_DATA_TYPE_BIGINT, 0);
-  for (int32_t i = 0; i < sizeof(s3)/sizeof(s3[0]); ++i) {
-    filterAddMergeRange(h, s3 + i, e3 + i, TSDB_RELATION_AND);
+  for (int32_t i = 0; i < asize; ++i) {
+    filterAddMergeRange(h, s + i, e + i, TSDB_RELATION_AND);
   }
   filterGetMergeRangeNum(h, &num);
   ASSERT_EQ(num, 0);
@@ -140,16 +161,81 @@ void intDataTest() {
 
 
   h = filterInitMergeRange(TSDB_DATA_TYPE_BIGINT, 0);
-  for (int32_t i = 0; i < sizeof(s3)/sizeof(s3[0]); ++i) {
-    filterAddMergeRange(h, s3 + i, e3 + i, TSDB_RELATION_OR);
+  for (int32_t i = 0; i < asize; ++i) {
+    filterAddMergeRange(h, s + i, e + i, TSDB_RELATION_OR);
   }
   filterGetMergeRangeNum(h, &num);
   ASSERT_EQ(num, 1);
-  filterGetMergeRangeRes(h, rs3, re3);
-  ASSERT_EQ(rs3[0], 1);
-  ASSERT_EQ(re3[0], 100);
+  filterGetMergeRangeRes(h, rs, re);
+  ASSERT_EQ(rs[0], 1);
+  ASSERT_EQ(re[0], 100);
   filterFreeMergeRange(h);
 
+
+
+
+  s = s4;
+  e = e4;
+  asize = sizeof(s4)/sizeof(s[0]);
+  h = filterInitMergeRange(TSDB_DATA_TYPE_BIGINT, 0);
+  for (int32_t i = 0; i < asize; ++i) {
+    filterAddMergeRange(h, s + i, e + i, TSDB_RELATION_AND);
+  }
+  filterGetMergeRangeNum(h, &num);
+  ASSERT_EQ(num, 0);
+  filterFreeMergeRange(h);
+
+
+  h = filterInitMergeRange(TSDB_DATA_TYPE_BIGINT, 0);
+  for (int32_t i = 0; i < asize; ++i) {
+    filterAddMergeRange(h, s + i, e + i, TSDB_RELATION_OR);
+  }
+  filterGetMergeRangeNum(h, &num);
+  ASSERT_EQ(num, 2);
+  filterGetMergeRangeRes(h, rs, re);
+  ASSERT_EQ(rs[0], 0);
+  ASSERT_EQ(re[0], 5);
+  ASSERT_EQ(rs[1], 10);
+  ASSERT_EQ(re[1], 20);
+  filterFreeMergeRange(h);
+
+
+  s = s5;
+  e = e5;
+  asize = sizeof(s5)/sizeof(s[0]);
+  h = filterInitMergeRange(TSDB_DATA_TYPE_BIGINT, 0);
+  for (int32_t i = 0; i < asize; ++i) {
+    filterAddMergeRange(h, s + i, e + i, TSDB_RELATION_AND);
+  }
+  filterGetMergeRangeNum(h, &num);
+  ASSERT_EQ(num, 0);
+  filterFreeMergeRange(h);
+
+
+  h = filterInitMergeRange(TSDB_DATA_TYPE_BIGINT, 0);
+  for (int32_t i = 0; i < asize; ++i) {
+    filterAddMergeRange(h, s + i, e + i, TSDB_RELATION_OR);
+  }
+  filterGetMergeRangeNum(h, &num);
+  ASSERT_EQ(num, 2);
+  filterGetMergeRangeRes(h, rs, re);
+  ASSERT_EQ(rs[0], 0);
+  ASSERT_EQ(re[0], 4);
+  ASSERT_EQ(rs[1], 6);
+  ASSERT_EQ(re[1], 20);
+  filterFreeMergeRange(h);
+
+
+  h = filterInitMergeRange(TSDB_DATA_TYPE_BIGINT, 0);
+  for (int32_t i = 0; i < asize; ++i) {
+    filterAddMergeRange(h, s + i, e + i, (i == (asize -1)) ? TSDB_RELATION_AND : TSDB_RELATION_OR);
+  }
+  filterGetMergeRangeNum(h, &num);
+  ASSERT_EQ(num, 1);
+  filterGetMergeRangeRes(h, rs, re);
+  ASSERT_EQ(rs[0], 7);
+  ASSERT_EQ(re[0], 10);
+  filterFreeMergeRange(h);
 
 
 }

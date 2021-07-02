@@ -401,6 +401,9 @@ tSqlExpr *tSqlExprClone(tSqlExpr *pSrc) {
     pExpr->pRight = tSqlExprClone(pSrc->pRight);
   }
 
+  memset(&pExpr->value, 0, sizeof(pExpr->value));
+  tVariantAssign(&pExpr->value, &pSrc->value);
+
   //we don't clone pParam now because clone is only used for between/and
   assert(pSrc->pParam == NULL);
   return pExpr;

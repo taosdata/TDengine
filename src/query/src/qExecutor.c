@@ -6966,7 +6966,10 @@ int32_t createQueryFilter(char *data, uint16_t len, SFilterInfo** pFilters) {
     return TSDB_CODE_QRY_APP_ERROR;
   }
 
-  return filterInitFromTree(expr, pFilters);
+  int32_t ret = filterInitFromTree(expr, pFilters);
+  tExprTreeDestroy(expr, NULL);
+
+  return ret;
 }
 
 
@@ -7284,10 +7287,6 @@ SQInfo* createQInfoImpl(SQueryTableMsg* pQueryMsg, SGroupbyExpr* pGroupbyExpr, S
   }
 
   doUpdateExprColumnIndex(pQueryAttr);
-  int32_t ret = createFilterInfo(pQueryAttr, pQInfo->qId);
-  if (ret != TSDB_CODE_SUCCESS) {
-    goto _cleanup;
-  }
 
   if (pQueryAttr->fillType != TSDB_FILL_NONE) {
     pQueryAttr->fillVal = malloc(sizeof(int64_t) * pQueryAttr->numOfOutput);

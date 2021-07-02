@@ -4123,6 +4123,19 @@ static int32_t validateLikeExpr(tSqlExpr* pExpr, STableMeta* pTableMeta, int32_t
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t handleNeOptr(tSqlExpr** rexpr, tSqlExpr* expr) {
+  tSqlExpr* left = tSqlExprClone(expr);
+  tSqlExpr* right = expr;
+
+  left->tokenId = TK_LT;
+  right->tokenId = TK_GT;
+
+  *rexpr = tSqlExprCreate(left, right, TK_OR);
+
+  return TSDB_CODE_SUCCESS;
+}
+
+
 static int32_t handleExprInQueryCond(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSqlExpr** pExpr, SCondExpr* pCondExpr,
                                      int32_t* type, int32_t* tbIdx, int32_t parentOptr, tSqlExpr** columnExpr, tSqlExpr** tsExpr) {
   const char* msg1 = "table query cannot use tags filter";
@@ -4221,7 +4234,14 @@ static int32_t handleExprInQueryCond(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSql
         *type |= TSQL_EXPR_JOIN;
       }
     } else {
-      ret = setNormalExprToCond(tsExpr, *pExpr, parentOptr);
+      tSqlExpr *rexpr = NULL;
+      if ((*pExpr)->tokenId == TK_NE) {
+        handleNeOptr(&rexpr, *pExpr);
+      } else {
+        rexpr = *pExpr;
+      }
+      
+      ret = setNormalExprToCond(tsExpr, rexpr, parentOptr);
       if (type) {
         *type |= TSQL_EXPR_TS;
       }
@@ -4272,6 +4292,12 @@ static int32_t handleExprInQueryCond(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSql
         // do nothing
         //                ret = setExprToCond(pCmd, &pCondExpr->pTagCond,
         //                *pExpr, NULL, parentOptr);
+        tSqlExpr *rexpr = NULL;
+        if ((*pExpr)->tokenId == TK_NE && (pSchema->type != TSDB_DATA_TYPE_BINARY && pSchema->type != TSDB_DATA_TYPE_NCHAR && pSchema->type != TSDB_DATA_TYPE_BOOL)) {
+          handleNeOptr(&rexpr, *pExpr);
+          *pExpr = rexpr;
+        }
+        
         if (type) {
           *type |= TSQL_EXPR_TAG;
         }
@@ -4286,7 +4312,14 @@ static int32_t handleExprInQueryCond(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSql
       return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg5);
     }
 
-    ret = setNormalExprToCond(columnExpr, *pExpr, parentOptr);
+    tSqlExpr *rexpr = NULL;
+    if ((*pExpr)->tokenId == TK_NE && (pSchema->type != TSDB_DATA_TYPE_BINARY && pSchema->type != TSDB_DATA_TYPE_NCHAR && pSchema->type != TSDB_DATA_TYPE_BOOL)) {
+      handleNeOptr(&rexpr, *pExpr);
+    } else {
+      rexpr = *pExpr;
+    }
+
+    ret = setNormalExprToCond(columnExpr, rexpr, parentOptr);
     *pExpr = NULL;  // remove it from expr tree
   }
 
@@ -4575,37 +4608,40 @@ int32_t mergeTimeRange(SSqlCmd* pCmd, STimeWindow* res, STimeWindow* win, int32_
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t createTimeRangeExpr(tSqlExpr** pExpr, STimeWindow* win, uint32_t tokenId) {
+  *pExpr = calloc(1, sizeof(tSqlExpr));
+  
+  (*pExpr)->type = SQL_NODE_VALUE;
+  (*pExpr)->tokenId = tokenId;
+  (*pExpr)->value.nType = TSDB_DATA_TYPE_VALUE_ARRAY;
+  (*pExpr)->value.nLen = 2;
+  (*pExpr)->value.arr = taosArrayInit(2, sizeof(int64_t));
 
-static int32_t getTimeRangeFromExpr(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSqlExpr* pExpr, STimeWindow* win) {
+  taosArrayPush((*pExpr)->value.arr, &win->skey);
+  taosArrayPush((*pExpr)->value.arr, &win->ekey);
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t convertTimeRangeFromExpr(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSqlExpr* pExpr) {
   const char* msg0 = "invalid timestamp or operator for timestamp";
   int32_t code = 0;
-  STimeWindow win2 = {.skey = INT64_MIN, .ekey = INT64_MAX};
+  STimeWindow win = {.skey = INT64_MIN, .ekey = INT64_MAX};
 
   if (pExpr == NULL) {
     return TSDB_CODE_SUCCESS;
   }
 
   if (!tSqlExprIsParentOfLeaf(pExpr)) {
-    if (pExpr->tokenId == TK_OR) {
-      code = getTimeRangeFromExpr(pCmd, pQueryInfo, pExpr->pLeft, win);
+      code = convertTimeRangeFromExpr(pCmd, pQueryInfo, pExpr->pLeft);
       if (code) {
         return code;
       }
 
-      code = getTimeRangeFromExpr(pCmd, pQueryInfo, pExpr->pRight, &win2);
+      code = convertTimeRangeFromExpr(pCmd, pQueryInfo, pExpr->pRight);
       if (code) {
         return code;
       }
-
-      return mergeTimeRange(pCmd, win, &win2, TSDB_RELATION_OR);
-    }
-
-    code = getTimeRangeFromExpr(pCmd, pQueryInfo, pExpr->pLeft, win);
-    if (code) {
-      return code;
-    }
-
-    return getTimeRangeFromExpr(pCmd, pQueryInfo, pExpr->pRight, win);
   } else {
     SColumnIndex index = COLUMN_INDEX_INITIALIZER;
     if (getColumnIndexByName(pCmd, &pExpr->pLeft->colInfo, pQueryInfo, &index) != TSDB_CODE_SUCCESS) {
@@ -4617,11 +4653,13 @@ static int32_t getTimeRangeFromExpr(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSqlE
     
     tSqlExpr* pRight = pExpr->pRight;
 
-    if (getTimeRange(&win2, pRight, pExpr->tokenId, tinfo.precision) != TSDB_CODE_SUCCESS) {
+    if (getTimeRange(&win, pRight, pExpr->tokenId, tinfo.precision) != TSDB_CODE_SUCCESS) {
       return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg0);
     }
 
-    return mergeTimeRange(pCmd, win, &win2, TSDB_RELATION_AND);
+    createTimeRangeExpr(&pExpr->pRight, &win, pRight->tokenId);
+
+    tSqlExprDestroy(pRight);
   }
 
   return TSDB_CODE_SUCCESS;
@@ -4950,6 +4988,42 @@ int32_t mergeJoinNodes(SQueryInfo* pQueryInfo, SSqlObj* pSql) {
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t getQueryTimeRange(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSqlExpr** pExpr) {
+  int32_t ret = TSDB_CODE_SUCCESS;
+
+  if (*pExpr == NULL) {
+    return ret;
+  }
+  
+  //multiple tables's query time range mixed together
+  
+  tExprNode* p = NULL;
+  SFilterInfo *filter = NULL;
+
+  SArray* colList = taosArrayInit(10, sizeof(SColIndex));
+  ret = exprTreeFromSqlExpr(pCmd, &p, *pExpr, pQueryInfo, colList, NULL);
+  if (ret != TSDB_CODE_SUCCESS) {
+    goto _ret;
+  }
+
+  ret = filterInitFromTree(p, &filter);
+  if (ret != TSDB_CODE_SUCCESS) {
+    goto _ret;
+  }
+
+  ret = filterGetTimeRange(filter, &pQueryInfo->window);
+
+_ret:
+  tExprTreeDestroy(p, NULL);
+
+  if (ret) {
+    return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), tstrerror(ret));
+  }
+
+  return ret;
+}
+
+
 
 int32_t validateWhereNode(SQueryInfo* pQueryInfo, tSqlExpr** pExpr, SSqlObj* pSql) {
   if (pExpr == NULL) {
@@ -5000,12 +5074,11 @@ int32_t validateWhereNode(SQueryInfo* pQueryInfo, tSqlExpr** pExpr, SSqlObj* pSq
   }
 
   // 2. get the query time range
-  STimeWindow win = {.skey = INT64_MIN, .ekey = INT64_MAX};  
-  if ((ret = getTimeRangeFromExpr(&pSql->cmd, pQueryInfo, condExpr.pTimewindow, &win)) != TSDB_CODE_SUCCESS) {
+  if ((ret = convertTimeRangeFromExpr(&pSql->cmd, pQueryInfo, condExpr.pTimewindow)) != TSDB_CODE_SUCCESS) {
     return ret;
   }
 
-  if ((ret = mergeTimeRange(&pSql->cmd, &pQueryInfo->window,&win, TSDB_RELATION_AND)) != TSDB_CODE_SUCCESS) {
+  if ((ret = getQueryTimeRange(&pSql->cmd, pQueryInfo, &condExpr.pTimewindow)) != TSDB_CODE_SUCCESS) {
     return ret;
   }
 
@@ -5023,14 +5096,6 @@ int32_t validateWhereNode(SQueryInfo* pQueryInfo, tSqlExpr** pExpr, SSqlObj* pSq
   if ((ret = checkColumnQueryCondInfo(&pSql->cmd, pQueryInfo, condExpr.pColumnCond, TK_AND)) != TSDB_CODE_SUCCESS) {
     goto PARSE_WHERE_EXIT;
   }
-
-/*  
-  if (taosArrayGetSize(pQueryInfo->pUpstream) > 0 ) {
-    if ((ret = getColumnQueryCondInfo(&pSql->cmd, pQueryInfo, condExpr.pTimewindow, TK_AND)) != TSDB_CODE_SUCCESS) {
-      goto PARSE_WHERE_EXIT;
-    }
-  }
-*/
 
   if ((ret = getColQueryCondExpr(&pSql->cmd, pQueryInfo, &condExpr.pColumnCond)) != TSDB_CODE_SUCCESS) {
     goto PARSE_WHERE_EXIT;

@@ -118,7 +118,7 @@ void tExprTreeDestroy(tExprNode *pNode, void (*fp)(void *)) {
   } else if (pNode->nodeType == TSQL_NODE_VALUE) {
     tVariantDestroy(pNode->pVal);
   } else if (pNode->nodeType == TSQL_NODE_COL) {
-    free(pNode->pSchema);
+    tfree(pNode->pSchema);
   }
 
   free(pNode);
@@ -435,7 +435,7 @@ tExprNode* exprTreeFromTableName(const char* tbnameCond) {
     expr->_node.optr = TSDB_RELATION_IN;
     tVariant* pVal = exception_calloc(1, sizeof(tVariant));
     right->pVal = pVal;
-    pVal->nType = TSDB_DATA_TYPE_ARRAY;
+    pVal->nType = TSDB_DATA_TYPE_POINTER_ARRAY;
     pVal->arr = taosArrayInit(2, POINTER_BYTES);
 
     const char* cond = tbnameCond + QUERY_COND_REL_PREFIX_IN_LEN;

@@ -188,6 +188,8 @@ int32_t qCreateQueryInfo(void* tsdb, int32_t vgId, SQueryTableMsg* pQueryMsg, qi
     taosArrayDestroy(param.pGroupbyExpr->columnInfo);
   }
 
+  tfree(param.colCond);
+  
   taosArrayDestroy(param.pTableIdList);
   param.pTableIdList = NULL;
 
