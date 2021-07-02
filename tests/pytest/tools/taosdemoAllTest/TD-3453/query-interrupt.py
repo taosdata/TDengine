@@ -78,7 +78,7 @@ class TDTestCase:
         tdSql.checkData(0, 0, "%d" % suc_kill)
         os.system("rm -rf querySystemInfo*")
         os.system("rm -rf insert_res.txt")
-        os.system("rm -rf insert_res.txt")
+        os.system("rm -rf query_res.txt")
 
     def stop(self):
         tdSql.close()

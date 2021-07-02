@@ -60,7 +60,7 @@ class TDTestCase:
         tdSql.checkData(0, 0, 1000000) 
 
         os.system("rm -rf ./insert_res.txt")
-        os.system("rm -rf tools/taosdemoAllTest/taosdemoTestWithJson-1.py.sql")        
+        os.system("rm -rf tools/taosdemoAllTest/moredemo-insert-offset.py.sql")        
         
     
     def stop(self):
