@@ -962,13 +962,13 @@ static int taosDumpOut(struct arguments *arguments) {
         continue;
     }
 
-  _dump_db_point:
+_dump_db_point:
 
     dbInfos[count] = (SDbInfo *)calloc(1, sizeof(SDbInfo));
     if (dbInfos[count] == NULL) {
-      errorPrint("%s() LN%d, failed to allocate %"PRIu64" memory\n",
-             __func__, __LINE__, sizeof(SDbInfo));
-      goto _exit_failure;
+        errorPrint("%s() LN%d, failed to allocate %"PRIu64" memory\n",
+                __func__, __LINE__, (uint64_t)(sizeof(SDbInfo)));
+        goto _exit_failure;
     }
 
     strncpy(dbInfos[count]->name, (char *)row[TSDB_SHOW_DB_NAME_INDEX],
@@ -1468,33 +1468,31 @@ static void taosStartDumpOutWorkThreads(void* taosCon, struct arguments* args,
   free(threadObj);
 }
 
+static int32_t taosDumpStable(char *table, FILE *fp,
+        TAOS* taosCon, char* dbName) {
 
+    uint64_t sizeOfTableDes = (uint64_t)(sizeof(STableDef) + sizeof(SColDes) * TSDB_MAX_COLUMNS);
+    STableDef *tableDes = (STableDef *)calloc(1, sizeOfTableDes);
+    if (NULL == tableDes) {
+        errorPrint("%s() LN%d, failed to allocate %"PRIu64" memory\n",
+                __func__, __LINE__, sizeOfTableDes);
+        exit(-1);
+    }
 
-static int32_t taosDumpStable(char *table, FILE *fp, TAOS* taosCon, char* dbName) {
-  int count = 0;
+    int count = taosGetTableDes(dbName, table, tableDes, taosCon, true);
 
-  STableDef *tableDes = (STableDef *)calloc(1, sizeof(STableDef) + sizeof(SColDes) * TSDB_MAX_COLUMNS);
-  if (NULL == tableDes) {
-    errorPrint("%s() LN%d, failed to allocate %"PRIu64" memory\n",
-            __func__, __LINE__,
-            sizeof(STableDef) + sizeof(SColDes) * TSDB_MAX_COLUMNS);
-    exit(-1);
-  }
+    if (count < 0) {
+        free(tableDes);
+        errorPrint("%s() LN%d, failed to get stable[%s] schema\n",
+               __func__, __LINE__, table);
+        exit(-1);
+    }
 
-  count = taosGetTableDes(dbName, table, tableDes, taosCon, true);
+    taosDumpCreateTableClause(tableDes, count, fp, dbName);
 
-  if (count < 0) {
     free(tableDes);
-    fprintf(stderr, "failed to get stable[%s] schema\n", table);
-    exit(-1);
-  }
-
-  taosDumpCreateTableClause(tableDes, count, fp, dbName);
-
-  free(tableDes);
-  return 0;
+    return 0;
 }
-
 
 static int32_t taosDumpCreateSuperTableClause(TAOS* taosCon, char* dbName, FILE *fp)
 {
