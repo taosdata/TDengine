@@ -4398,26 +4398,30 @@ static bool getMetaFromQueryJsonFile(cJSON* root) {
         tstrncpy(g_queryInfo.specifiedQueryInfo.sql[j],
                 sqlStr->valuestring, MAX_QUERY_SQL_LENGTH);
 
+        // default value is -1, which mean infinite loop
+        g_queryInfo.specifiedQueryInfo.endAfterConsume[j] = -1;
         cJSON* endAfterConsume =
             cJSON_GetObjectItem(specifiedQuery, "endAfterConsume");
         if (endAfterConsume
                 && endAfterConsume->type == cJSON_Number) {
             g_queryInfo.specifiedQueryInfo.endAfterConsume[j]
                 = endAfterConsume->valueint;
-        } else if (!endAfterConsume) {
-            // default value is -1, which mean infinite loop
-            g_queryInfo.specifiedQueryInfo.endAfterConsume[j] = -1;
         }
+        if (g_queryInfo.specifiedQueryInfo.endAfterConsume[j] < -1)
+            g_queryInfo.specifiedQueryInfo.endAfterConsume[j] = -1;
 
+        g_queryInfo.specifiedQueryInfo.resubAfterConsume[j] = -1;
         cJSON* resubAfterConsume =
             cJSON_GetObjectItem(specifiedQuery, "resubAfterConsume");
-        g_queryInfo.specifiedQueryInfo.resubAfterConsume[j] = -1;
         if ((resubAfterConsume)
                 && (resubAfterConsume->type == cJSON_Number)
                 && (resubAfterConsume->valueint >= 0)) {
             g_queryInfo.specifiedQueryInfo.resubAfterConsume[j]
                 = resubAfterConsume->valueint;
         }
+
+        if (g_queryInfo.specifiedQueryInfo.resubAfterConsume[j] < -1)
+            g_queryInfo.specifiedQueryInfo.resubAfterConsume[j] = -1;
 
         cJSON *result = cJSON_GetObjectItem(sql, "result");
         if ((NULL != result) && (result->type == cJSON_String)
@@ -4560,26 +4564,30 @@ static bool getMetaFromQueryJsonFile(cJSON* root) {
       g_queryInfo.superQueryInfo.subscribeKeepProgress = 0;
     }
 
+    // default value is -1, which mean do not resub
+    g_queryInfo.superQueryInfo.endAfterConsume = -1;
     cJSON* superEndAfterConsume =
             cJSON_GetObjectItem(superQuery, "endAfterConsume");
     if (superEndAfterConsume
             && superEndAfterConsume->type == cJSON_Number) {
         g_queryInfo.superQueryInfo.endAfterConsume =
             superEndAfterConsume->valueint;
-    } else if (!superEndAfterConsume) {
-        // default value is -1, which mean do not resub
-        g_queryInfo.superQueryInfo.endAfterConsume = -1;
     }
+    if (g_queryInfo.superQueryInfo.endAfterConsume < -1)
+        g_queryInfo.superQueryInfo.endAfterConsume = -1;
 
+    // default value is -1, which mean do not resub
+    g_queryInfo.superQueryInfo.resubAfterConsume = -1;
     cJSON* superResubAfterConsume =
             cJSON_GetObjectItem(superQuery, "resubAfterConsume");
-    g_queryInfo.superQueryInfo.resubAfterConsume = -1;
     if ((superResubAfterConsume)
             && (superResubAfterConsume->type == cJSON_Number)
             && (superResubAfterConsume->valueint >= 0)) {
         g_queryInfo.superQueryInfo.resubAfterConsume =
             superResubAfterConsume->valueint;
     }
+    if (g_queryInfo.superQueryInfo.resubAfterConsume < -1)
+        g_queryInfo.superQueryInfo.resubAfterConsume = -1;
 
     // supert table sqls
     cJSON* superSqls = cJSON_GetObjectItem(superQuery, "sqls");
