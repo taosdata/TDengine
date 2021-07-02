@@ -119,7 +119,7 @@ typedef struct tstr {
 #define IS_VALID_UTINYINT(_t)   ((_t) >= 0 && (_t) < UINT8_MAX)
 #define IS_VALID_USMALLINT(_t)  ((_t) >= 0 && (_t) < UINT16_MAX)
 #define IS_VALID_UINT(_t)       ((_t) >= 0 && (_t) < UINT32_MAX)
-#define IS_VALID_UBIGINT(_t)    ((_t) >= 0 && (_t) < UINT64_MAX)
+#define IS_VALID_UBIGINT(_t)    ((_t) >= 0 /*&& (_t) < UINT64_MAX*/)
 
 static FORCE_INLINE bool isNull(const char *val, int32_t type) {
   switch (type) {

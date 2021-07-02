@@ -1197,16 +1197,17 @@ int32_t tscSetTableFullName(SName* pName, SStrToken* pTableName, SSqlObj* pSql) 
   } else {  // get current DB name first, and then set it into path
     char* t = cloneCurrentDBName(pSql);
     if (strlen(t) == 0) {
+      tfree(t);
       return TSDB_CODE_TSC_DB_NOT_SELECTED;
     }
 
     code = tNameFromString(pName, t, T_NAME_ACCT | T_NAME_DB);
     if (code != 0) {
-      free(t);
+      tfree(t);
       return TSDB_CODE_TSC_DB_NOT_SELECTED;
     }
 
-    free(t);
+    tfree(t);
 
     if (pTableName->n >= TSDB_TABLE_NAME_LEN) {
       return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg1);
@@ -6943,7 +6944,7 @@ int32_t doCheckForCreateFromStable(SSqlObj* pSql, SSqlInfo* pInfo) {
           if (strncmp(sToken->z, pTagSchema[t].name, sToken->n) == 0 && strlen(pTagSchema[t].name) == sToken->n) {
             SSchema*          pSchema = &pTagSchema[t];
 
-            char tagVal[TSDB_MAX_TAGS_LEN];
+            char tagVal[TSDB_MAX_TAGS_LEN] = {0};
             if (pSchema->type == TSDB_DATA_TYPE_BINARY || pSchema->type == TSDB_DATA_TYPE_NCHAR) {
               if (pItem->pVar.nLen > pSchema->bytes) {
                 tdDestroyKVRowBuilder(&kvRowBuilder);

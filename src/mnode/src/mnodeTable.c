@@ -1058,7 +1058,7 @@ static int32_t mnodeProcessCreateSuperTableMsg(SMnodeMsg *pMsg) {
     return TSDB_CODE_MND_TOO_MANY_COLUMNS;
   }
 
-  SSTableObj *   pStable = calloc(1, sizeof(SSTableObj));
+  SSTableObj *pStable = calloc(1, sizeof(SSTableObj));
   if (pStable == NULL) {
     mError("msg:%p, app:%p table:%s, failed to create, no enough memory", pMsg, pMsg->rpcMsg.ahandle, pCreate->tableName);
     return TSDB_CODE_MND_OUT_OF_MEMORY;
@@ -1068,8 +1068,10 @@ static int32_t mnodeProcessCreateSuperTableMsg(SMnodeMsg *pMsg) {
   pStable->info.tableId = strdup(pCreate->tableName);
   pStable->info.type    = TSDB_SUPER_TABLE;
   pStable->createdTime  = taosGetTimestampMs();
-  uint64_t x = (us&0x000000FFFFFFFFFF);
-  x = x<<24;
+
+  uint64_t x = (us & ((1ul<<40) - 1));  // todo refactor
+  x = x << 24;
+
   pStable->uid          = x + ((sdbGetVersion() & ((1ul << 16) - 1ul)) << 8) + (taosRand() & ((1ul << 8) - 1ul));
   pStable->sversion     = 0;
   pStable->tversion     = 0;
@@ -1079,7 +1081,8 @@ static int32_t mnodeProcessCreateSuperTableMsg(SMnodeMsg *pMsg) {
   int32_t schemaSize = numOfCols * sizeof(SSchema);
   pStable->schema = (SSchema *)calloc(1, schemaSize);
   if (pStable->schema == NULL) {
-    free(pStable);
+    tfree(pStable->info.tableId);
+    tfree(pStable);
     mError("msg:%p, app:%p table:%s, failed to create, no schema input", pMsg, pMsg->rpcMsg.ahandle, pCreate->tableName);
     return TSDB_CODE_MND_INVALID_TABLE_NAME;
   }
@@ -1096,6 +1099,9 @@ static int32_t mnodeProcessCreateSuperTableMsg(SMnodeMsg *pMsg) {
 
   if (!tIsValidSchema(pStable->schema, pStable->numOfColumns, pStable->numOfTags)) {
     mError("msg:%p, app:%p table:%s, failed to create table, invalid schema", pMsg, pMsg->rpcMsg.ahandle, pCreate->tableName);
+    tfree(pStable->info.tableId);
+    tfree(pStable->schema);
+    tfree(pStable);
     return TSDB_CODE_MND_INVALID_CREATE_TABLE_MSG;
   }
 
