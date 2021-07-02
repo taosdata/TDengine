@@ -62,6 +62,8 @@ static const int TEST_NUMBER = 1;
 #define ZIGZAG_ENCODE(T, v) ((u##T)((v) >> (sizeof(T) * 8 - 1))) ^ (((u##T)(v)) << 1)  // zigzag encode
 #define ZIGZAG_DECODE(T, v) ((v) >> 1) ^ -((T)((v)&1))                                 // zigzag decode
 
+bool  gOpenLossy = true;
+
 /*
  * Compress Integer (Simple8B).
  */
@@ -411,6 +413,7 @@ int tsCompressStringImp(const char *const input, int inputSize, char *const outp
 
 int tsDecompressStringImp(const char *const input, int compressedSize, char *const output, int outputSize) {
   // compressedSize is the size of data after compression.
+  
   if (input[0] == 1) {
     /* It is compressed by LZ4 algorithm */
     const int decompressed_size = LZ4_decompress_safe(input + 1, output, compressedSize - 1, outputSize);
@@ -906,18 +909,66 @@ bool tsLossyInit() {
 //
 //   ----------  float double lossy  -----------
 //
-int tsCompressFloatLossyImp(const char * input, const int nelements, const char * output){
-  return tdszCompress(SZ_FLOAT, input, nelements, output);
+int tsCompressFloatLossyImp(const char * input, const int nelements, char *const output){
+  // compress with sz 
+  int compressedSize = tdszCompress(SZ_FLOAT, input, nelements, output + 1);
+  unsigned char algo = ALGO_SZ_LOSSY << 1;
+  if (compressedSize == 0 || compressedSize >= nelements*sizeof(float)){
+    // compressed error or large than original
+    output[0] = MODE_NOCOMPRESS | algo;
+    memcpy(output + 1, input, nelements * sizeof(float));
+    compressedSize = 1 + nelements * sizeof(float);
+  } else {
+    // compressed successfully
+    output[0] = MODE_COMPRESS | algo;
+    compressedSize += 1;
+  }
+
+  return compressedSize;
 }
 
-int tsDecompressFloatLossyImp(const char * input, int compressedSize, const int nelements, const char * output){
-  return tdszDecompress(SZ_FLOAT, input, compressedSize, nelements, output);
+int tsDecompressFloatLossyImp(const char * input, int compressedSize, const int nelements, char *const output){
+  int decompressedSize  = 0;
+  if( HEAD_MODE(input[0]) == MODE_NOCOMPRESS){
+    // orginal so memcpy directly
+    decompressedSize = nelements * sizeof(float);
+    memcpy(output, input + 1, decompressedSize);
+
+    return decompressedSize;
+  } 
+
+  // decompressed with sz
+  return tdszDecompress(SZ_FLOAT, input + 1, compressedSize - 1, nelements, output);
 }
 
-int tsCompressDoubleLossyImp(const char * input, const int nelements, const char * output){
-  return tdszCompress(SZ_DOUBLE, input, nelements, output);
+int tsCompressDoubleLossyImp(const char * input, const int nelements, char *const output){
+   // compress with sz 
+  int compressedSize = tdszCompress(SZ_DOUBLE, input, nelements, output + 1);
+  unsigned char algo = ALGO_SZ_LOSSY << 1;
+  if (compressedSize == 0 || compressedSize >= nelements*sizeof(double)) {
+    // compressed error or large than original
+    output[0] = MODE_NOCOMPRESS | algo;
+    memcpy(output + 1, input, nelements * sizeof(double));
+    compressedSize = 1 + nelements * sizeof(double);
+  } else {
+    // compressed successfully
+    output[0] = MODE_COMPRESS | algo;
+    compressedSize += 1;
+  }
+
+  return compressedSize; 
 }
 
-int tsDecompressDoubleLossyImp(const char * input, int compressedSize, const int nelements, const char * output){
-  return tdszDecompress(SZ_DOUBLE, input, compressedSize, nelements, output);
+int tsDecompressDoubleLossyImp(const char * input, int compressedSize, const int nelements, char *const output){
+  int decompressedSize  = 0;
+  if( HEAD_MODE(input[0]) == MODE_NOCOMPRESS){
+    // orginal so memcpy directly
+    decompressedSize = nelements * sizeof(double);
+    memcpy(output, input + 1, decompressedSize);
+
+    return decompressedSize;
+  } 
+
+  // decompressed with sz
+  return tdszDecompress(SZ_DOUBLE, input + 1, compressedSize - 1, nelements, output);
 }

@@ -26,9 +26,6 @@
 #include "zstd_opt.h"
 #include "zstd_ldm.h"
 
-void showme(){
-    printf(" hello show me.");
-}
 
 /*-*************************************
 *  Helper functions

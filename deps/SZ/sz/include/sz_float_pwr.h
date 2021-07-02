@@ -19,7 +19,7 @@ extern "C" {
 
 void compute_segment_precisions_float_1D(float *oriData, size_t dataLength, float* pwrErrBound, unsigned char* pwrErrBoundBytes, double globalPrecision);
 unsigned int optimize_intervals_float_1D_pwr(float *oriData, size_t dataLength, float* pwrErrBound);
-void SZ_compress_args_float_NoCkRngeNoGzip_1D_pwr(unsigned char** newByteData, float *oriData, double globalPrecision, size_t dataLength, size_t *outSize, float min, float max);
+void SZ_compress_args_float_NoCkRngeNoGzip_1D_pwr(unsigned char* newByteData, float *oriData, double globalPrecision, size_t dataLength, size_t *outSize, float min, float max);
 
 
 void createRangeGroups_float(float** posGroups, float** negGroups, int** posFlags, int** negFlags);
@@ -28,11 +28,11 @@ int* generateGroupLowerBounds();
 TightDataPointStorageF* SZ_compress_float_1D_MDQ_pwrGroup(float* oriData, size_t dataLength, int errBoundMode, 
 double absErrBound, double relBoundRatio, double pwrErrRatio, float valueRangeSize, float medianValue_f);
 
-void SZ_compress_args_float_NoCkRngeNoGzip_1D_pwrgroup(unsigned char** newByteData, float *oriData,
+void SZ_compress_args_float_NoCkRngeNoGzip_1D_pwrgroup(unsigned char* newByteData, float *oriData,
 size_t dataLength, double absErrBound, double relBoundRatio, double pwrErrRatio, float valueRangeSize, float medianValue_f, size_t *outSize);
 
-void SZ_compress_args_float_NoCkRngeNoGzip_1D_pwr_pre_log(unsigned char** newByteData, float *oriData, double pwrErrRatio, size_t dataLength, size_t *outSize, float min, float max);
-void SZ_compress_args_float_NoCkRngeNoGzip_1D_pwr_pre_log_MSST19(unsigned char** newByteData, float *oriData, double pwrErrRatio, size_t dataLength, size_t *outSize, float valueRangeSize, float medianValue_f,
+void SZ_compress_args_float_NoCkRngeNoGzip_1D_pwr_pre_log(unsigned char* newByteData, float *oriData, double pwrErrRatio, size_t dataLength, size_t *outSize, float min, float max);
+void SZ_compress_args_float_NoCkRngeNoGzip_1D_pwr_pre_log_MSST19(unsigned char* newByteData, float *oriData, double pwrErrRatio, size_t dataLength, size_t *outSize, float valueRangeSize, float medianValue_f,
 																unsigned char* signs, bool* positive, float min, float max, float nearZero);
 
 #ifdef __cplusplus

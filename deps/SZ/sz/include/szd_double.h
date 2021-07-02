@@ -16,13 +16,13 @@ extern "C" {
 
 #include "TightDataPointStorageD.h"
 
-void decompressDataSeries_double_1D(double** data, size_t dataSeriesLength, double* hist_data, TightDataPointStorageD* tdps);
+void decompressDataSeries_double_1D(double* data, size_t dataSeriesLength, double* hist_data, TightDataPointStorageD* tdps);
 
-void decompressDataSeries_double_1D_MSST19(double** data, size_t dataSeriesLength, TightDataPointStorageD* tdps);
+void decompressDataSeries_double_1D_MSST19(double* data, size_t dataSeriesLength, TightDataPointStorageD* tdps);
 
-void getSnapshotData_double_1D(double** data, size_t dataSeriesLength, TightDataPointStorageD* tdps, int errBoundMode, int compressionType, double* hist_data, sz_params* pde_params);
+void getSnapshotData_double_1D(double* data, size_t dataSeriesLength, TightDataPointStorageD* tdps, int errBoundMode, int compressionType, double* hist_data, sz_params* pde_params);
 
-int SZ_decompress_args_double(double** newData, size_t r5, size_t r4, size_t r3, size_t r2, size_t r1, unsigned char* cmpBytes, size_t cmpSize, int compressionType, double* hist_data, sz_exedata* pde_exe, sz_params* pde_params);
+int SZ_decompress_args_double(double* newData, size_t r1, unsigned char* cmpBytes, size_t cmpSize, int compressionType, double* hist_data, sz_exedata* pde_exe, sz_params* pde_params);
 
 #ifdef __cplusplus
 }

@@ -24,7 +24,7 @@
 //prediction mode of temporal dimension based compression
 #define SZ_PREVIOUS_VALUE_ESTIMATE 0
 
-#define MIN_NUM_OF_ELEMENTS 0 //if the # elements <= 20, skip the compression
+#define MIN_NUM_OF_ELEMENTS 50 //if the # elements <= 20, skip the compression
 
 #define SZ_ABS 0
 #define REL 1
@@ -81,13 +81,14 @@
 #define SZ_PERIO_TEMPORAL_COMPRESSION 2
 
 //SUCCESS returning status
-#define SZ_SCES 0  //successful
-#define SZ_NSCS -1 //Not successful
+#define SZ_SUCCESS 0  //successful
+#define SZ_FAILED -1 //Not successful
 #define SZ_FERR -2 //Failed to open input file
 #define SZ_TERR -3 //wrong data type (should be only float or double)
 #define SZ_DERR -4 //dimension error
 #define SZ_MERR -5 //sz_mode error
 #define SZ_BERR -6 //bound-mode error (should be only SZ_ABS, REL, ABS_AND_REL, ABS_OR_REL, or PW_REL)
+#define SZ_LITTER_ELEMENT -7 
 
 #define SZ_MAINTAIN_VAR_DATA 0
 #define SZ_DESTROY_WHOLE_VARSET 1

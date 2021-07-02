@@ -119,7 +119,7 @@ int SZ_batchDelVar(char* varName)
 
 int SZ_batchDelVar_ID_vset(SZ_VarSet* vset, int var_id)
 {
-	int delSuccess = SZ_NSCS;
+	int delSuccess = SZ_FAILED;
 	SZ_Variable* p = vset->header;
 	SZ_Variable* q = p->next;
 	while(q != NULL)
@@ -130,7 +130,7 @@ int SZ_batchDelVar_ID_vset(SZ_VarSet* vset, int var_id)
 			//free_Variable_all(q);
 			free_Variable_keepOriginalData(q);
 			vset->count --;
-			delSuccess = SZ_SCES;
+			delSuccess = SZ_SUCCESS;
 			if(q->next==NULL) //means that q is the last variable
 				vset->lastVar = p;			
 			break;
@@ -145,7 +145,7 @@ int SZ_batchDelVar_ID_vset(SZ_VarSet* vset, int var_id)
 
 int SZ_batchDelVar_vset(SZ_VarSet* vset, char* varName)
 {
-	int delSuccess = SZ_NSCS;
+	int delSuccess = SZ_FAILED;
 	SZ_Variable* p = vset->header;
 	SZ_Variable* q = p->next;
 	while(q != NULL)
@@ -157,7 +157,7 @@ int SZ_batchDelVar_vset(SZ_VarSet* vset, char* varName)
 			//free_Variable_all(q);
 			free_Variable_keepOriginalData(q);
 			vset->count --;
-			delSuccess = SZ_SCES;
+			delSuccess = SZ_SUCCESS;
 			break;
 		}
 		p = p->next;

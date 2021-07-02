@@ -125,7 +125,7 @@ size_t checkFileSize(char *srcFilePath, int *status)
 	fseek(pFile, 0, SEEK_END);
     filesize = ftell(pFile);
     fclose(pFile);
-    *status = SZ_SCES;
+    *status = SZ_SUCCESS;
     return filesize;
 }
 
@@ -153,13 +153,13 @@ unsigned char *readByteData(char *srcFilePath, size_t *byteLength, int *status)
     }
     fread(byteBuf, 1, *byteLength, pFile);
     fclose(pFile);
-    *status = SZ_SCES;
+    *status = SZ_SUCCESS;
     return byteBuf;
 }
 
 double *readDoubleData(char *srcFilePath, size_t *nbEle, int *status)
 {
-	int state = SZ_SCES;
+	int state = SZ_SUCCESS;
 	if(dataEndianType==sysEndianType)
 	{
 		double *daBuf = readDoubleData_systemEndian(srcFilePath, nbEle,&state);
@@ -196,7 +196,7 @@ double *readDoubleData(char *srcFilePath, size_t *nbEle, int *status)
 
 int8_t *readInt8Data(char *srcFilePath, size_t *nbEle, int *status)
 {
-	int state = SZ_SCES;
+	int state = SZ_SUCCESS;
 	int8_t *daBuf = readInt8Data_systemEndian(srcFilePath, nbEle, &state);
 	*status = state;
 	return daBuf;
@@ -204,7 +204,7 @@ int8_t *readInt8Data(char *srcFilePath, size_t *nbEle, int *status)
 
 int16_t *readInt16Data(char *srcFilePath, size_t *nbEle, int *status)
 {
-	int state = SZ_SCES;
+	int state = SZ_SUCCESS;
 	if(dataEndianType==sysEndianType)
 	{
 		int16_t *daBuf = readInt16Data_systemEndian(srcFilePath, nbEle, &state);
@@ -240,7 +240,7 @@ int16_t *readInt16Data(char *srcFilePath, size_t *nbEle, int *status)
 
 uint16_t *readUInt16Data(char *srcFilePath, size_t *nbEle, int *status)
 {
-	int state = SZ_SCES;
+	int state = SZ_SUCCESS;
 	if(dataEndianType==sysEndianType)
 	{
 		uint16_t *daBuf = readUInt16Data_systemEndian(srcFilePath, nbEle, &state);
@@ -276,7 +276,7 @@ uint16_t *readUInt16Data(char *srcFilePath, size_t *nbEle, int *status)
 
 int32_t *readInt32Data(char *srcFilePath, size_t *nbEle, int *status)
 {
-	int state = SZ_SCES;
+	int state = SZ_SUCCESS;
 	if(dataEndianType==sysEndianType)
 	{
 		int32_t *daBuf = readInt32Data_systemEndian(srcFilePath, nbEle, &state);
@@ -312,7 +312,7 @@ int32_t *readInt32Data(char *srcFilePath, size_t *nbEle, int *status)
 
 uint32_t *readUInt32Data(char *srcFilePath, size_t *nbEle, int *status)
 {
-	int state = SZ_SCES;
+	int state = SZ_SUCCESS;
 	if(dataEndianType==sysEndianType)
 	{
 		uint32_t *daBuf = readUInt32Data_systemEndian(srcFilePath, nbEle, &state);
@@ -348,7 +348,7 @@ uint32_t *readUInt32Data(char *srcFilePath, size_t *nbEle, int *status)
 
 int64_t *readInt64Data(char *srcFilePath, size_t *nbEle, int *status)
 {
-	int state = SZ_SCES;
+	int state = SZ_SUCCESS;
 	if(dataEndianType==sysEndianType)
 	{
 		int64_t *daBuf = readInt64Data_systemEndian(srcFilePath, nbEle, &state);
@@ -384,7 +384,7 @@ int64_t *readInt64Data(char *srcFilePath, size_t *nbEle, int *status)
 
 uint64_t *readUInt64Data(char *srcFilePath, size_t *nbEle, int *status)
 {
-	int state = SZ_SCES;
+	int state = SZ_SUCCESS;
 	if(dataEndianType==sysEndianType)
 	{
 		uint64_t *daBuf = readUInt64Data_systemEndian(srcFilePath, nbEle, &state);
@@ -421,7 +421,7 @@ uint64_t *readUInt64Data(char *srcFilePath, size_t *nbEle, int *status)
 
 float *readFloatData(char *srcFilePath, size_t *nbEle, int *status)
 {
-	int state = SZ_SCES;
+	int state = SZ_SUCCESS;
 	if(dataEndianType==sysEndianType)
 	{
 		float *daBuf = readFloatData_systemEndian(srcFilePath, nbEle, &state);
@@ -481,7 +481,7 @@ double *readDoubleData_systemEndian(char *srcFilePath, size_t *nbEle, int *statu
     }
     fread(daBuf, 8, *nbEle, pFile);
     fclose(pFile);
-    *status = SZ_SCES;
+    *status = SZ_SUCCESS;
     return daBuf;
 }
 
@@ -518,7 +518,7 @@ int8_t *readInt8Data_systemEndian(char *srcFilePath, size_t *nbEle, int *status)
 	}
 	fread(daBuf, 1, *nbEle, pFile);
 	fclose(pFile);
-	*status = SZ_SCES;
+	*status = SZ_SUCCESS;
 	return daBuf;
 }
 
@@ -555,7 +555,7 @@ int16_t *readInt16Data_systemEndian(char *srcFilePath, size_t *nbEle, int *statu
 	}
 	fread(daBuf, 2, *nbEle, pFile);
 	fclose(pFile);
-	*status = SZ_SCES;
+	*status = SZ_SUCCESS;
 	return daBuf;	
 }
 
@@ -591,7 +591,7 @@ uint16_t *readUInt16Data_systemEndian(char *srcFilePath, size_t *nbEle, int *sta
 	}
 	fread(daBuf, 2, *nbEle, pFile);
 	fclose(pFile);
-	*status = SZ_SCES;
+	*status = SZ_SUCCESS;
 	return daBuf;	
 }
 
@@ -627,7 +627,7 @@ int32_t *readInt32Data_systemEndian(char *srcFilePath, size_t *nbEle, int *statu
 	}
 	fread(daBuf, 4, *nbEle, pFile);
 	fclose(pFile);
-	*status = SZ_SCES;
+	*status = SZ_SUCCESS;
 	return daBuf;	
 }
 
@@ -663,7 +663,7 @@ uint32_t *readUInt32Data_systemEndian(char *srcFilePath, size_t *nbEle, int *sta
 	}
 	fread(daBuf, 4, *nbEle, pFile);
 	fclose(pFile);
-	*status = SZ_SCES;
+	*status = SZ_SUCCESS;
 	return daBuf;	
 }
 
@@ -699,7 +699,7 @@ int64_t *readInt64Data_systemEndian(char *srcFilePath, size_t *nbEle, int *statu
 	}
 	fread(daBuf, 8, *nbEle, pFile);
 	fclose(pFile);
-	*status = SZ_SCES;
+	*status = SZ_SUCCESS;
 	return daBuf;
 }
 
@@ -735,7 +735,7 @@ uint64_t *readUInt64Data_systemEndian(char *srcFilePath, size_t *nbEle, int *sta
 	}
 	fread(daBuf, 8, *nbEle, pFile);
 	fclose(pFile);
-	*status = SZ_SCES;
+	*status = SZ_SUCCESS;
 	return daBuf;
 }
 
@@ -771,7 +771,7 @@ float *readFloatData_systemEndian(char *srcFilePath, size_t *nbEle, int *status)
     }
     fread(daBuf, 4, *nbEle, pFile);
     fclose(pFile);
-    *status = SZ_SCES;
+    *status = SZ_SUCCESS;
     return daBuf;
 }
 
@@ -787,7 +787,7 @@ void writeByteData(unsigned char *bytes, size_t byteLength, char *tgtFilePath, i
     
     fwrite(bytes, 1, byteLength, pFile); //write outSize bytes
     fclose(pFile);
-    *status = SZ_SCES;
+    *status = SZ_SUCCESS;
 }
 
 void writeDoubleData(double *data, size_t nbEle, char *tgtFilePath, int *status)
@@ -809,7 +809,7 @@ void writeDoubleData(double *data, size_t nbEle, char *tgtFilePath, int *status)
 	}
     
     fclose(pFile);
-    *status = SZ_SCES;
+    *status = SZ_SUCCESS;
 }
 
 void writeFloatData(float *data, size_t nbEle, char *tgtFilePath, int *status)
@@ -833,12 +833,12 @@ void writeFloatData(float *data, size_t nbEle, char *tgtFilePath, int *status)
 	}
     
     fclose(pFile);
-    *status = SZ_SCES;
+    *status = SZ_SUCCESS;
 }
 
 void writeDataSZ(void *data, int dataType, size_t nbEle, char *tgtFilePath, int *status)
 {
-	int state = SZ_SCES;
+	int state = SZ_SUCCESS;
 	if(dataType == SZ_FLOAT)
 	{
 		float* dataArray = (float *)data;
@@ -861,7 +861,7 @@ void writeDataSZ(void *data, int dataType, size_t nbEle, char *tgtFilePath, int 
 void writeFloatData_inBytes(float *data, size_t nbEle, char* tgtFilePath, int *status)
 {
 	size_t i = 0; 
-	int state = SZ_SCES;
+	int state = SZ_SUCCESS;
 	lfloat buf;
 	unsigned char* bytes = (unsigned char*)malloc(nbEle*sizeof(float));
 	for(i=0;i<nbEle;i++)
@@ -882,7 +882,7 @@ void writeFloatData_inBytes(float *data, size_t nbEle, char* tgtFilePath, int *s
 void writeDoubleData_inBytes(double *data, size_t nbEle, char* tgtFilePath, int *status)
 {
 	size_t i = 0, index = 0; 
-	int state = SZ_SCES;
+	int state = SZ_SUCCESS;
 	ldouble buf;
 	unsigned char* bytes = (unsigned char*)malloc(nbEle*sizeof(double));
 	for(i=0;i<nbEle;i++)
@@ -907,7 +907,7 @@ void writeDoubleData_inBytes(double *data, size_t nbEle, char* tgtFilePath, int 
 
 void writeShortData_inBytes(short *states, size_t stateLength, char *tgtFilePath, int *status)
 {
-	int state = SZ_SCES;
+	int state = SZ_SUCCESS;
 	size_t byteLength = stateLength*2;
 	unsigned char* bytes = (unsigned char*)malloc(byteLength*sizeof(char));
 	convertShortArrayToBytes(states, stateLength, bytes);
@@ -918,7 +918,7 @@ void writeShortData_inBytes(short *states, size_t stateLength, char *tgtFilePath
 
 void writeUShortData_inBytes(unsigned short *states, size_t stateLength, char *tgtFilePath, int *status)
 {
-	int state = SZ_SCES;
+	int state = SZ_SUCCESS;
 	size_t byteLength = stateLength*2;
 	unsigned char* bytes = (unsigned char*)malloc(byteLength*sizeof(char));
 	convertUShortArrayToBytes(states, stateLength, bytes);
@@ -929,7 +929,7 @@ void writeUShortData_inBytes(unsigned short *states, size_t stateLength, char *t
 
 void writeIntData_inBytes(int *states, size_t stateLength, char *tgtFilePath, int *status)
 {
-	int state = SZ_SCES;
+	int state = SZ_SUCCESS;
 	size_t byteLength = stateLength*4;
 	unsigned char* bytes = (unsigned char*)malloc(byteLength*sizeof(char));
 	convertIntArrayToBytes(states, stateLength, bytes);
@@ -940,7 +940,7 @@ void writeIntData_inBytes(int *states, size_t stateLength, char *tgtFilePath, in
 
 void writeUIntData_inBytes(unsigned int *states, size_t stateLength, char *tgtFilePath, int *status)
 {
-	int state = SZ_SCES;
+	int state = SZ_SUCCESS;
 	size_t byteLength = stateLength*4;
 	unsigned char* bytes = (unsigned char*)malloc(byteLength*sizeof(char));
 	convertUIntArrayToBytes(states, stateLength, bytes);
@@ -951,7 +951,7 @@ void writeUIntData_inBytes(unsigned int *states, size_t stateLength, char *tgtFi
 
 void writeLongData_inBytes(int64_t *states, size_t stateLength, char *tgtFilePath, int *status)
 {
-	int state = SZ_SCES;
+	int state = SZ_SUCCESS;
 	size_t byteLength = stateLength*8;
 	unsigned char* bytes = (unsigned char*)malloc(byteLength*sizeof(char));
 	convertLongArrayToBytes(states, stateLength, bytes);
@@ -962,7 +962,7 @@ void writeLongData_inBytes(int64_t *states, size_t stateLength, char *tgtFilePat
 
 void writeULongData_inBytes(uint64_t *states, size_t stateLength, char *tgtFilePath, int *status)
 {
-	int state = SZ_SCES;
+	int state = SZ_SUCCESS;
 	size_t byteLength = stateLength*8;
 	unsigned char* bytes = (unsigned char*)malloc(byteLength*sizeof(char));
 	convertULongArrayToBytes(states, stateLength, bytes);
@@ -974,7 +974,7 @@ void writeULongData_inBytes(uint64_t *states, size_t stateLength, char *tgtFileP
 unsigned short* readShortData(char *srcFilePath, size_t *dataLength, int *status)
 {
 	size_t byteLength = 0; 
-	int state = SZ_SCES;
+	int state = SZ_SUCCESS;
 	unsigned char * bytes = readByteData(srcFilePath, &byteLength, &state);
 	*dataLength = byteLength/2;
 	unsigned short* states = convertByteDataToUShortArray(bytes, byteLength);
@@ -1002,69 +1002,5 @@ void writeStrings(int nbStr, char *str[], char *tgtFilePath, int *status)
 	}
 
 	fclose(pFile);
-	*status = SZ_SCES;
+	*status = SZ_SUCCESS;
 }
-
-/*
-//@deprecated
-//binToPFM_float is to convert the floating-point data to PFM supported by Jpeg XT
-//But wrong version!
-//In order to do the conversion, we need to use https://github.com/thorfdbg/difftest_ng according to Thomas Richter.
-
-
-void convertToPFM_float(float *data, size_t r5, size_t r4, size_t r3, size_t r2, size_t r1, int endianType, char *tgtFilePath, int *status)
-{
-	size_t i, nbEle = computeDataLength(r5, r4, r3, r2, r1);
-	int dim = computeDimension(r5, r4, r3, r2, r1);
-	
-	FILE *pFile = fopen(tgtFilePath, "wb");
-	if (pFile == NULL)
-	{
-		printf("Failed to open input file. 3\n");
-		*status = SZ_NSCS;
-		return;
-	}	
-	fputs("PF\n", pFile);
-	char strBuf[256];
-	switch(dim)
-	{
-	case 1: 
-		sprintf(strBuf, "%zu\n", r1);
-		break;
-	case 2:
-		sprintf(strBuf, "%zu %zu\n", r1, r2);
-		break;
-	case 3:
-		sprintf(strBuf, "%zu %zu %zu\n", r1, r2, r3);
-		break;
-	case 4:
-		sprintf(strBuf, "%zu %zu %zu %zu\n", r1, r2, r3, r4);
-		break;
-	case 5:
-		sprintf(strBuf, "%zu %zu %zu %zu %zu\n", r1, r2, r3, r4, r5);
-		break;
-	}
-	fputs(strBuf, pFile);
-	if(endianType==LITTLE_ENDIAN)
-		fputs("-1.0\n", pFile);
-	else
-		fputs("1.0\n", pFile);
-
-	size_t byteLength = nbEle*sizeof(float);	
-	lfloat buf;	
-	unsigned char* bytes = (unsigned char*)malloc(byteLength);
-	for(i=0;i<nbEle;i++)
-	{
-		buf.value = data[i];
-		bytes[i*4+0] = buf.byte[0];
-		bytes[i*4+1] = buf.byte[1];
-		bytes[i*4+2] = buf.byte[2];
-		bytes[i*4+3] = buf.byte[3];
-	}
-	
-	fwrite(bytes, 1, byteLength, pFile); //write outSize bytes
-	fclose(pFile);
-	
-	free(bytes);
-	*status = SZ_SCES;
-}*/

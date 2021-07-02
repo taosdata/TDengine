@@ -284,7 +284,7 @@ float max_f(float a, float b)
 
 double getRealPrecision_double(double valueRangeSize, int errBoundMode, double absErrBound, double relBoundRatio, int *status)
 {
-	int state = SZ_SCES;
+	int state = SZ_SUCCESS;
 	double precision = 0;
 	if(errBoundMode==SZ_ABS||errBoundMode==ABS_OR_PW_REL||errBoundMode==ABS_AND_PW_REL)
 		precision = absErrBound; 
@@ -307,7 +307,7 @@ double getRealPrecision_double(double valueRangeSize, int errBoundMode, double a
 
 double getRealPrecision_float(float valueRangeSize, int errBoundMode, double absErrBound, double relBoundRatio, int *status)
 {
-	int state = SZ_SCES;
+	int state = SZ_SUCCESS;
 	double precision = 0;
 	if(errBoundMode==SZ_ABS||errBoundMode==ABS_OR_PW_REL||errBoundMode==ABS_AND_PW_REL)
 		precision = absErrBound; 
@@ -330,7 +330,7 @@ double getRealPrecision_float(float valueRangeSize, int errBoundMode, double abs
 
 double getRealPrecision_int(long valueRangeSize, int errBoundMode, double absErrBound, double relBoundRatio, int *status)
 {
-	int state = SZ_SCES;
+	int state = SZ_SUCCESS;
 	double precision = 0;
 	if(errBoundMode==SZ_ABS||errBoundMode==ABS_OR_PW_REL||errBoundMode==ABS_AND_PW_REL)
 		precision = absErrBound; 
@@ -651,7 +651,7 @@ int getPredictionCoefficients(int layers, int dimension, int **coeff_array, int 
 			printf("Error: dimension must be no greater than 3 in the current version.\n");
 			*status = SZ_DERR;
 	}
-	*status = SZ_SCES;
+	*status = SZ_SUCCESS;
 	return size;
 }
 

@@ -572,7 +572,7 @@ void convertTDPStoBytes_double_reserve(TightDataPointStorageD* tdps, unsigned ch
 }
 
 //Convert TightDataPointStorageD to bytes...
-void convertTDPStoFlatBytes_double(TightDataPointStorageD *tdps, unsigned char** bytes, size_t *size) 
+void convertTDPStoFlatBytes_double(TightDataPointStorageD *tdps, unsigned char* bytes, size_t *size) 
 {
 	size_t i, k = 0; 
 	unsigned char dsLengthBytes[8];
@@ -596,20 +596,20 @@ void convertTDPStoFlatBytes_double(TightDataPointStorageD *tdps, unsigned char**
 	if(tdps->allSameData==1)
 	{
 		size_t totalByteLength = 3 + 1 + MetaDataByteLength_double + exe_params->SZ_SIZE_TYPE + tdps->exactMidBytes_size;
-		*bytes = (unsigned char *)malloc(sizeof(unsigned char)*totalByteLength);
+		//bytes = (unsigned char *)malloc(sizeof(unsigned char)*totalByteLength); // comment by tickduan
 	
 		for (i = 0; i < 3; i++)//3
-			(*bytes)[k++] = versionNumber[i];
-		(*bytes)[k++] = sameByte;
+			bytes[k++] = versionNumber[i];
+		bytes[k++] = sameByte;
 
-		convertSZParamsToBytes(confparams_cpr, &((*bytes)[k]));
+		convertSZParamsToBytes(confparams_cpr, &(bytes[k]));
 		k = k + MetaDataByteLength_double;
 
 		for (i = 0; i < exe_params->SZ_SIZE_TYPE; i++)
-			(*bytes)[k++] = dsLengthBytes[i];
+			bytes[k++] = dsLengthBytes[i];
 		
 		for (i = 0; i < tdps->exactMidBytes_size; i++)
-			(*bytes)[k++] = tdps->exactMidBytes[i];
+			bytes[k++] = tdps->exactMidBytes[i];
 		
 		*size = totalByteLength;
 	}
@@ -635,9 +635,9 @@ void convertTDPStoFlatBytes_double(TightDataPointStorageD *tdps, unsigned char**
 		if(confparams_cpr->errorBoundMode == PW_REL && confparams_cpr->accelerate_pw_rel_compression)
 			totalByteLength += (1+1); // for MSST19
 			
-		*bytes = (unsigned char *)malloc(sizeof(unsigned char)*totalByteLength);
+		//*bytes = (unsigned char *)malloc(sizeof(unsigned char)*totalByteLength);  comment by tickduan
 
-		convertTDPStoBytes_double(tdps, *bytes, dsLengthBytes, sameByte);
+		convertTDPStoBytes_double(tdps, bytes, dsLengthBytes, sameByte);
 		
 		*size = totalByteLength;
 	}

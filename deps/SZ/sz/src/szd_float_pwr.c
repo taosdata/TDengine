@@ -23,7 +23,7 @@
 #pragma GCC diagnostic ignored "-Wchar-subscripts"
 
 
-void decompressDataSeries_float_1D_pwr(float** data, size_t dataSeriesLength, TightDataPointStorageF* tdps) 
+void decompressDataSeries_float_1D_pwr(float* data, size_t dataSeriesLength, TightDataPointStorageF* tdps) 
 {
 	updateQuantizationInfo(tdps->intervals);
 	unsigned char tmpPrecBytes[4] = {0}; //used when needing to convert bytes to float values
@@ -37,7 +37,7 @@ void decompressDataSeries_float_1D_pwr(float** data, size_t dataSeriesLength, Ti
 	
 	convertByteArray2IntArray_fast_2b(tdps->exactDataNum, tdps->leadNumArray, tdps->leadNumArray_size, &leadNum);
 
-	*data = (float*)malloc(sizeof(float)*dataSeriesLength);
+	//*data = (float*)malloc(sizeof(float)*dataSeriesLength); // comment by tickduan
 
 	int* type = (int*)malloc(dataSeriesLength*sizeof(int));
 
@@ -122,16 +122,16 @@ void decompressDataSeries_float_1D_pwr(float** data, size_t dataSeriesLength, Ti
 			}
 			
 			exactData = bytesToFloat(curBytes);
-			(*data)[i] = exactData + medianValue;
+			data[i] = exactData + medianValue;
 			memcpy(preBytes,curBytes,4);
 			break;
 		default:
-			//predValue = 2 * (*data)[i-1] - (*data)[i-2];
-			predValue = (*data)[i-1];
-			(*data)[i] = predValue + (type_-exe_params->intvRadius)*interval;
+			//predValue = 2 * data[i-1] - data[i-2];
+			predValue = data[i-1];
+			data[i] = predValue + (type_-exe_params->intvRadius)*interval;
 			break;
 		}
-		//printf("%.30G\n",(*data)[i]);
+		//printf("%.30G\n",data[i]);
 	}
 	free(leadNum);
 	free(type);
@@ -139,7 +139,7 @@ void decompressDataSeries_float_1D_pwr(float** data, size_t dataSeriesLength, Ti
 }
 
 
-void decompressDataSeries_float_1D_pwrgroup(float** data, size_t dataSeriesLength, TightDataPointStorageF* tdps) 
+void decompressDataSeries_float_1D_pwrgroup(float* data, size_t dataSeriesLength, TightDataPointStorageF* tdps) 
 {
 	float *posGroups, *negGroups, *groups;
 	float pos_01_group, neg_01_group;
@@ -152,7 +152,7 @@ void decompressDataSeries_float_1D_pwrgroup(float** data, size_t dataSeriesLengt
 	
 	convertByteArray2IntArray_fast_2b(tdps->exactDataNum, tdps->leadNumArray, tdps->leadNumArray_size, &leadNum);
 
-	*data = (float*)malloc(sizeof(float)*dataSeriesLength);
+	//*data = (float*)malloc(sizeof(float)*dataSeriesLength);  // comment by tickduan
 
 	int* type = (int*)malloc(dataSeriesLength*sizeof(int));
 
@@ -268,7 +268,7 @@ void decompressDataSeries_float_1D_pwrgroup(float** data, size_t dataSeriesLengt
 			
 			exactData = bytesToFloat(curBytes);
 			exactData = exactData + medianValue;
-			(*data)[i] = exactData;
+			data[i] = exactData;
 			memcpy(preBytes,curBytes,4);
 			
 			groups[indexGrpID] = exactData;
@@ -294,7 +294,7 @@ void decompressDataSeries_float_1D_pwrgroup(float** data, size_t dataSeriesLengt
 			//		curValue = rawGrpID>0?pow(2,groupNum):-pow(2,groupNum);				
 			//}	
 				
-			(*data)[i] = curValue;
+			data[i] = curValue;
 			groups[indexGrpID] = curValue;
 			break;		
 		}
@@ -311,7 +311,7 @@ void decompressDataSeries_float_1D_pwrgroup(float** data, size_t dataSeriesLengt
 	free(groupID);
 }
 
-void decompressDataSeries_float_1D_pwr_pre_log(float** data, size_t dataSeriesLength, TightDataPointStorageF* tdps) {
+void decompressDataSeries_float_1D_pwr_pre_log(float* data, size_t dataSeriesLength, TightDataPointStorageF* tdps) {
 
 	decompressDataSeries_float_1D(data, dataSeriesLength, NULL, tdps);
 	float threshold = tdps->minLogValue;
@@ -319,22 +319,22 @@ void decompressDataSeries_float_1D_pwr_pre_log(float** data, size_t dataSeriesLe
 		unsigned char * signs;
 		sz_lossless_decompress(ZSTD_COMPRESSOR, tdps->pwrErrBoundBytes, tdps->pwrErrBoundBytes_size, &signs, dataSeriesLength);
 		for(size_t i=0; i<dataSeriesLength; i++){
-			if((*data)[i] < threshold) (*data)[i] = 0;
-			else (*data)[i] = exp2((*data)[i]);
-			if(signs[i]) (*data)[i] = -((*data)[i]);
+			if(data[i] < threshold) data[i] = 0;
+			else data[i] = exp2(data[i]);
+			if(signs[i]) data[i] = -(data[i]);
 		}
 		free(signs);
 	}
 	else{
 		for(size_t i=0; i<dataSeriesLength; i++){
-			if((*data)[i] < threshold) (*data)[i] = 0;
-			else (*data)[i] = exp2((*data)[i]);
+			if(data[i] < threshold) data[i] = 0;
+			else data[i] = exp2(data[i]);
 		}
 	}
 
 }
 
-void decompressDataSeries_float_1D_pwr_pre_log_MSST19(float** data, size_t dataSeriesLength, TightDataPointStorageF* tdps) 
+void decompressDataSeries_float_1D_pwr_pre_log_MSST19(float* data, size_t dataSeriesLength, TightDataPointStorageF* tdps) 
 {
 	decompressDataSeries_float_1D_MSST19(data, dataSeriesLength, tdps);
 	float threshold = tdps->minLogValue;
@@ -350,12 +350,12 @@ void decompressDataSeries_float_1D_pwr_pre_log_MSST19(float** data, size_t dataS
 		else
 			sz_lossless_decompress(ZSTD_COMPRESSOR, tdps->pwrErrBoundBytes, tdps->pwrErrBoundBytes_size, &signs, dataSeriesLength);
 		for(size_t i=0; i<dataSeriesLength; i++){
-			if((*data)[i] < threshold && (*data)[i] >= 0){
-				(*data)[i] = 0;
+			if(data[i] < threshold && data[i] >= 0){
+				data[i] = 0;
 				continue;
 			}
 			if(signs[i]){
-			    ptr = (uint32_t*)(*data) + i;
+			    ptr = (uint32_t*)data + i;
 				*ptr |= 0x80000000;
 			}
 		}
@@ -363,7 +363,7 @@ void decompressDataSeries_float_1D_pwr_pre_log_MSST19(float** data, size_t dataS
 	}
 	else{
 		for(size_t i=0; i<dataSeriesLength; i++){
-			if((*data)[i] < threshold) (*data)[i] = 0;
+			if(data[i] < threshold) data[i] = 0;
 		}
 	}
 }

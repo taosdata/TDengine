@@ -18,11 +18,11 @@
 #include "szd_double_ts.h"
 #include "utility.h"
 
-int SZ_decompress_args_double(double** newData, size_t r5, size_t r4, size_t r3, size_t r2, size_t r1, unsigned char* cmpBytes, 
-size_t cmpSize, int compressionType, double* hist_data, sz_exedata* pde_exe, sz_params* pde_params)
+int SZ_decompress_args_double(double* newData, size_t r1, unsigned char* cmpBytes, 
+				size_t cmpSize, int compressionType, double* hist_data, sz_exedata* pde_exe, sz_params* pde_params)
 {
-	int status = SZ_SCES;
-	size_t dataLength = computeDataLength(r5,r4,r3,r2,r1);
+	int status = SZ_SUCCESS;
+	size_t dataLength = r1;
 	
 	//unsigned char* tmpBytes;
 	size_t targetUncompressSize = dataLength <<3; //i.e., *8
@@ -39,6 +39,8 @@ size_t cmpSize, int compressionType, double* hist_data, sz_exedata* pde_exe, sz_
 			else
 				pde_params->szMode = SZ_BEST_SPEED;			
 		}
+
+
 		if(pde_params->szMode==SZ_BEST_SPEED)
 		{
 			tmpSize = cmpSize;
@@ -68,20 +70,20 @@ size_t cmpSize, int compressionType, double* hist_data, sz_exedata* pde_exe, sz_
 	TightDataPointStorageD* tdps;
 	int errBoundMode = new_TightDataPointStorageD_fromFlatBytes(&tdps, szTmpBytes, tmpSize, pde_exe, pde_params);
 
-	int dim = computeDimension(r5,r4,r3,r2,r1);
+	int dim = r1;
 	int doubleSize = sizeof(double);
 	if(tdps->isLossless)
 	{
-		*newData = (double*)malloc(doubleSize*dataLength);
+		// *newData = (double*)malloc(doubleSize*dataLength); comment by tickduan
 		if(sysEndianType==BIG_ENDIAN_SYSTEM)
 		{
-			memcpy(*newData, szTmpBytes+4+MetaDataByteLength_double+exe_params->SZ_SIZE_TYPE, dataLength*doubleSize);
+			memcpy(newData, szTmpBytes+4+MetaDataByteLength_double+exe_params->SZ_SIZE_TYPE, dataLength*doubleSize);
 		}
 		else
 		{
 			unsigned char* p = szTmpBytes+4+MetaDataByteLength_double+exe_params->SZ_SIZE_TYPE;
 			for(i=0;i<dataLength;i++,p+=doubleSize)
-				(*newData)[i] = bytesToDouble(p);
+				newData[i] = bytesToDouble(p);
 		}		
 	}
 	else if(pde_params->sol_ID==SZ_Transpose)
@@ -92,29 +94,17 @@ size_t cmpSize, int compressionType, double* hist_data, sz_exedata* pde_exe, sz_
 	{
 		if(tdps->raBytes_size > 0) //v2.0
 		{
-			if (dim == 1)
-				getSnapshotData_double_1D(newData,r1,tdps, errBoundMode, 0, hist_data, pde_params);
-			else
-			{
-				printf("Error: currently support only at most 4 dimensions!\n");
-				status = SZ_DERR;
-			}	
+			getSnapshotData_double_1D(newData,r1,tdps, errBoundMode, 0, hist_data, pde_params);
 		}
 		else //1.4.13 or time-based compression
 		{
-			if (dim == 1)
-				getSnapshotData_double_1D(newData,r1,tdps, errBoundMode, compressionType, hist_data, pde_params);
-			else
-			{
-				printf("Error: currently support only at most 4 dimensions!\n");
-				status = SZ_DERR;
-			}			
+			getSnapshotData_double_1D(newData,r1,tdps, errBoundMode, compressionType, hist_data, pde_params);
 		}
 	}	
 
 	if(pde_params->protectValueRange)
 	{
-		double* nd = *newData;
+		double* nd = newData;
 		double min = pde_params->dmin;
 		double max = pde_params->dmax;		
 		for(i=0;i<dataLength;i++)
@@ -135,7 +125,7 @@ size_t cmpSize, int compressionType, double* hist_data, sz_exedata* pde_exe, sz_
 	return status;
 }
 
-void decompressDataSeries_double_1D(double** data, size_t dataSeriesLength, double* hist_data, TightDataPointStorageD* tdps) 
+void decompressDataSeries_double_1D(double* data, size_t dataSeriesLength, double* hist_data, TightDataPointStorageD* tdps) 
 {
 	//updateQuantizationInfo(tdps->intervals);
 	int intvRadius = tdps->intervals/2;
@@ -147,7 +137,7 @@ void decompressDataSeries_double_1D(double** data, size_t dataSeriesLength, doub
 	double interval = tdps->realPrecision*2;
 	
 	convertByteArray2IntArray_fast_2b(tdps->exactDataNum, tdps->leadNumArray, tdps->leadNumArray_size, &leadNum);
-	*data = (double*)malloc(sizeof(double)*dataSeriesLength);
+	//*data = (double*)malloc(sizeof(double)*dataSeriesLength); comment by tickduan
 
 	int* type = (int*)malloc(dataSeriesLength*sizeof(int));
 
@@ -212,22 +202,17 @@ void decompressDataSeries_double_1D(double** data, size_t dataSeriesLength, doub
 			}
 			
 			exactData = bytesToDouble(curBytes);
-			(*data)[i] = exactData + medianValue;
+			data[i] = exactData + medianValue;
 			memcpy(preBytes,curBytes,8);
 			break;
 		default:
-			//predValue = 2 * (*data)[i-1] - (*data)[i-2];
-			predValue = (*data)[i-1];
-			(*data)[i] = predValue + (type_-intvRadius)*interval;
+			//predValue = 2 * data[i-1] - data[i-2];
+			predValue = data[i-1];
+			data[i] = predValue + (type_-intvRadius)*interval;
 			break;
 		}
-		//printf("%.30G\n",(*data)[i]);
+		//printf("%.30G\n",data[i]);
 	}
-	
-#ifdef HAVE_TIMECMPR	
-	if(confparams_dec->szMode == SZ_TEMPORAL_COMPRESSION)
-		memcpy(hist_data, (*data), dataSeriesLength*sizeof(double));
-#endif	
 	
 	free(leadNum);
 	free(type);
@@ -235,7 +220,7 @@ void decompressDataSeries_double_1D(double** data, size_t dataSeriesLength, doub
 }
 
 /*MSST19*/
-void decompressDataSeries_double_1D_MSST19(double** data, size_t dataSeriesLength, TightDataPointStorageD* tdps) 
+void decompressDataSeries_double_1D_MSST19(double* data, size_t dataSeriesLength, TightDataPointStorageD* tdps) 
 {
 	//updateQuantizationInfo(tdps->intervals);
 	int intvRadius = tdps->intervals/2;
@@ -248,7 +233,7 @@ void decompressDataSeries_double_1D_MSST19(double** data, size_t dataSeriesLengt
 	//double interval = tdps->realPrecision*2;
 	
 	convertByteArray2IntArray_fast_2b(tdps->exactDataNum, tdps->leadNumArray, tdps->leadNumArray_size, &leadNum);
-	*data = (double*)malloc(sizeof(double)*dataSeriesLength);
+	//*data = (double*)malloc(sizeof(double)*dataSeriesLength); comment by tickduan
 
 	int* type = (int*)malloc(dataSeriesLength*sizeof(int));
 	
@@ -318,52 +303,39 @@ void decompressDataSeries_double_1D_MSST19(double** data, size_t dataSeriesLengt
 			}
 			
 			exactData = bytesToDouble(curBytes);
-			(*data)[i] = exactData;
+			data[i] = exactData;
 			memcpy(preBytes,curBytes,8);
-			predValue = (*data)[i];
+			predValue = data[i];
 			break;
 		default:
-			//predValue = 2 * (*data)[i-1] - (*data)[i-2];
-			//predValue = (*data)[i-1];
+			//predValue = 2 * data[i-1] - data[i-2];
+			//predValue = data[i-1];
 			predValue = fabs(predValue) * precisionTable[type_];
-			(*data)[i] = predValue;
+			data[i] = predValue;
 			break;
 		}
 	}
 	
-#ifdef HAVE_TIMECMPR	
-	if(confparams_dec->szMode == SZ_TEMPORAL_COMPRESSION)
-		memcpy(multisteps->hist_data, (*data), dataSeriesLength*sizeof(double));
-#endif	
 	free(precisionTable);
 	free(leadNum);
 	free(type);
 	return;
 }
 
-void getSnapshotData_double_1D(double** data, size_t dataSeriesLength, TightDataPointStorageD* tdps, int errBoundMode, int compressionType, double* hist_data, sz_params* pde_params) 
+void getSnapshotData_double_1D(double* data, size_t dataSeriesLength, TightDataPointStorageD* tdps, int errBoundMode, int compressionType, double* hist_data, sz_params* pde_params) 
 {
 	size_t i;
 	if (tdps->allSameData) {
 		double value = bytesToDouble(tdps->exactMidBytes);
-		*data = (double*)malloc(sizeof(double)*dataSeriesLength);
+
+		//*data = (double*)malloc(sizeof(double)*dataSeriesLength); comment by tickduan
 		for (i = 0; i < dataSeriesLength; i++)
-			(*data)[i] = value;
+			data[i] = value;
 	} else {
 		if (tdps->rtypeArray == NULL) {
 			if(errBoundMode < PW_REL)
 			{
-#ifdef HAVE_TIMECMPR				
-				if(confparams_dec->szMode == SZ_TEMPORAL_COMPRESSION)
-				{
-					if(multisteps->compressionType == 0) //snapshot
-						decompressDataSeries_double_1D(data, dataSeriesLength, hist_data, tdps);
-					else
-						decompressDataSeries_double_1D_ts(data, dataSeriesLength, hist_data, tdps);					
-				}
-				else
-#endif
-					decompressDataSeries_double_1D(data, dataSeriesLength, hist_data, tdps);
+				decompressDataSeries_double_1D(data, dataSeriesLength, hist_data, tdps);
 			}
 			else 
 			{

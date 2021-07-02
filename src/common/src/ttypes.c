@@ -368,22 +368,21 @@ static void getStatics_nchr(const void *pData, int32_t numOfRow, int64_t *min, i
 }
 
 tDataTypeDescriptor tDataTypes[15] = {
-  {TSDB_DATA_TYPE_NULL,      6,1,        "NOTYPE",   NULL,     NULL,      NULL},
+  {TSDB_DATA_TYPE_NULL,      6,  1,            "NOTYPE",             NULL,                NULL,                  NULL},
   {TSDB_DATA_TYPE_BOOL,      4,  CHAR_BYTES,   "BOOL",               tsCompressBool,      tsDecompressBool,      getStatics_bool},
   {TSDB_DATA_TYPE_TINYINT,   7,  CHAR_BYTES,   "TINYINT",            tsCompressTinyint,   tsDecompressTinyint,   getStatics_i8},
   {TSDB_DATA_TYPE_SMALLINT,  8,  SHORT_BYTES,  "SMALLINT",           tsCompressSmallint,  tsDecompressSmallint,  getStatics_i16},
   {TSDB_DATA_TYPE_INT,       3,  INT_BYTES,    "INT",                tsCompressInt,       tsDecompressInt,       getStatics_i32},
   {TSDB_DATA_TYPE_BIGINT,    6,  LONG_BYTES,   "BIGINT",             tsCompressBigint,    tsDecompressBigint,    getStatics_i64},
-  {TSDB_DATA_TYPE_FLOAT,     5,  FLOAT_BYTES,  "FLOAT",              tsCompressFloatLossy,  tsDecompressFloatLossy,     getStatics_f},
-  {TSDB_DATA_TYPE_DOUBLE,    6,  DOUBLE_BYTES, "DOUBLE",             tsCompressDoubleLossy, tsDecompressDoubleLossy,    getStatics_d},
-  {TSDB_DATA_TYPE_BINARY,    6,  0,      "BINARY",             tsCompressString,    tsDecompressString,    getStatics_bin},
+  {TSDB_DATA_TYPE_FLOAT,     5,  FLOAT_BYTES,  "FLOAT",              tsCompressFloat,     tsDecompressFloat,     getStatics_f},
+  {TSDB_DATA_TYPE_DOUBLE,    6,  DOUBLE_BYTES, "DOUBLE",             tsCompressDouble,    tsDecompressDouble,    getStatics_d},
+  {TSDB_DATA_TYPE_BINARY,    6,  0,            "BINARY",             tsCompressString,    tsDecompressString,    getStatics_bin},
   {TSDB_DATA_TYPE_TIMESTAMP, 9,  LONG_BYTES,   "TIMESTAMP",          tsCompressTimestamp, tsDecompressTimestamp, getStatics_i64},
-  {TSDB_DATA_TYPE_NCHAR,     5,  8,      "NCHAR",              tsCompressString,    tsDecompressString,    getStatics_nchr},
+  {TSDB_DATA_TYPE_NCHAR,     5,  8,            "NCHAR",              tsCompressString,    tsDecompressString,    getStatics_nchr},
   {TSDB_DATA_TYPE_UTINYINT,  16, CHAR_BYTES,   "TINYINT UNSIGNED",   tsCompressTinyint,   tsDecompressTinyint,   getStatics_u8},
   {TSDB_DATA_TYPE_USMALLINT, 17, SHORT_BYTES,  "SMALLINT UNSIGNED",  tsCompressSmallint,  tsDecompressSmallint,  getStatics_u16},
   {TSDB_DATA_TYPE_UINT,      12, INT_BYTES,    "INT UNSIGNED",       tsCompressInt,       tsDecompressInt,       getStatics_u32},
   {TSDB_DATA_TYPE_UBIGINT,   15, LONG_BYTES,   "BIGINT UNSIGNED",    tsCompressBigint,    tsDecompressBigint,    getStatics_u64},
-
 };
 
 char tTokenTypeSwitcher[13] = {

@@ -22,29 +22,12 @@
 #include "Huffman.h"
 #include "TightDataPointStorageD.h"
 #include "TightDataPointStorageF.h"
-#include "TightDataPointStorageI.h"
 #include "conf.h"
 #include "dataCompression.h"
 #include "ByteToolkit.h"
 #include "TypeManager.h"
-#include "sz_int8.h"
-#include "sz_int16.h"
-#include "sz_int32.h"
-#include "sz_int64.h"
-#include "sz_uint8.h"
-#include "sz_uint16.h"
-#include "sz_uint32.h"
-#include "sz_uint64.h"
 #include "sz_float.h"
 #include "sz_double.h"
-#include "szd_int8.h"
-#include "szd_int16.h"
-#include "szd_int32.h"
-#include "szd_int64.h"
-#include "szd_uint8.h"
-#include "szd_uint16.h"
-#include "szd_uint32.h"
-#include "szd_uint64.h"
 #include "szd_float.h"
 #include "szd_double.h"
 #include "sz_float_pwr.h"
@@ -53,13 +36,10 @@
 #include "callZlib.h"
 #include "rw.h"
 #include "pastri.h"
-#include "sz_float_ts.h"
-#include "szd_float_ts.h"
 #include "utility.h"
 #include "CacheTable.h"
 #include "MultiLevelCacheTable.h"
 #include "MultiLevelCacheTableWideInterval.h"
-#include "exafelSZ.h"
 #include "sz_stats.h"
 
 #ifdef _WIN32
@@ -208,85 +188,25 @@ extern pastri_params pastri_par;
 //sz.h
 HuffmanTree* SZ_Reset();
 
-int SZ_Init(const char *configFilePath);
-
-int SZ_Init_Params(sz_params *params);
-
-size_t computeDataLength(size_t r5, size_t r4, size_t r3, size_t r2, size_t r1);
-
-int computeDimension(size_t r5, size_t r4, size_t r3, size_t r2, size_t r1);
-
-int SZ_compress_args_float_subblock(unsigned char* compressedBytes, float *oriData,
-size_t r5, size_t r4, size_t r3, size_t r2, size_t r1,
-size_t s5, size_t s4, size_t s3, size_t s2, size_t s1,
-size_t e5, size_t e4, size_t e3, size_t e2, size_t e1,
-size_t *outSize, int errBoundMode, double absErr_Bound, double relBoundRatio);
-
-int SZ_compress_args_double_subblock(unsigned char* compressedBytes, double *oriData,
-size_t r5, size_t r4, size_t r3, size_t r2, size_t r1,
-size_t s5, size_t s4, size_t s3, size_t s2, size_t s1,
-size_t e5, size_t e4, size_t e3, size_t e2, size_t e1,
-size_t *outSize, int errBoundMode, double absErr_Bound, double relBoundRatio);
-
-unsigned char *SZ_compress(int dataType, void *data, size_t *outSize, size_t r5, size_t r4, size_t r3, size_t r2, size_t r1);
-
-unsigned char* SZ_compress_args(int dataType, void *data, size_t *outSize, int errBoundMode, double absErrBound, 
-double relBoundRatio, double pwrBoundRatio, size_t r5, size_t r4, size_t r3, size_t r2, size_t r1);
-
-int SZ_compress_args2(int dataType, void *data, unsigned char* compressed_bytes, size_t *outSize, 
-int errBoundMode, double absErrBound, double relBoundRatio, double pwrBoundRatio, 
-size_t r5, size_t r4, size_t r3, size_t r2, size_t r1);
-
-int SZ_compress_args3(int dataType, void *data, unsigned char* compressed_bytes, size_t *outSize, int errBoundMode, double absErrBound, double relBoundRatio, 
-size_t r5, size_t r4, size_t r3, size_t r2, size_t r1,
-size_t s5, size_t s4, size_t s3, size_t s2, size_t s1,
-size_t e5, size_t e4, size_t e3, size_t e2, size_t e1);
-
-unsigned char *SZ_compress_rev_args(int dataType, void *data, void *reservedValue, size_t *outSize, int errBoundMode, double absErrBound, double relBoundRatio, 
-size_t r5, size_t r4, size_t r3, size_t r2, size_t r1);
-
-int SZ_compress_rev_args2(int dataType, void *data, void *reservedValue, unsigned char* compressed_bytes, size_t *outSize, int errBoundMode, double absErrBound, double relBoundRatio, 
-size_t r5, size_t r4, size_t r3, size_t r2, size_t r1);
-unsigned char *SZ_compress_rev(int dataType, void *data, void *reservedValue, size_t *outSize, size_t r5, size_t r4, size_t r3, size_t r2, size_t r1);
-
-void SZ_Create_ParamsExe(sz_params** conf_params, sz_exedata** exe_params);
-
-void *SZ_decompress(int dataType, unsigned char *bytes, size_t byteLength, size_t r5, size_t r4, size_t r3, size_t r2, size_t r1);
-size_t SZ_decompress_args(int dataType, unsigned char *bytes, size_t byteLength, void* decompressed_array, size_t r5, size_t r4, size_t r3, size_t r2, size_t r1);
-
-sz_metadata* SZ_getMetadata(unsigned char* bytes, sz_exedata* pde_exe);
-void SZ_printMetadata(sz_metadata* metadata);
-
-
-void filloutDimArray(size_t* dim, size_t r5, size_t r4, size_t r3, size_t r2, size_t r1);
-
-size_t compute_total_batch_size();
-
-void SZ_registerVar(int var_id, char* varName, int dataType, void* data, 
-			int errBoundMode, double absErrBound, double relBoundRatio, double pwRelBoundRatio, 
-			size_t r5, size_t r4, size_t r3, size_t r2, size_t r1);
-
-int SZ_deregisterVar_ID(int var_id);
-int SZ_deregisterVar(char* varName);
-int SZ_deregisterAllVars();
-
-int SZ_compress_ts_select_var(int cmprType, unsigned char* var_ids, unsigned char var_count, unsigned char** newByteData, size_t *outSize);
-int SZ_compress_ts(int cmprType, unsigned char** newByteData, size_t *outSize);
-void SZ_decompress_ts_select_var(unsigned char* var_ids, unsigned char var_count, unsigned char *bytes, size_t bytesLength);
-void SZ_decompress_ts(unsigned char *bytes, size_t byteLength);
 
 void SZ_Finalize();
+int SZ_Init(const char *configFilePath);
+int SZ_Init_Params(sz_params *params);
+
+//
+//  compress output data to outData and return outSize
+//
+size_t SZ_compress_args(int dataType, void *data, size_t r1, unsigned char* outData, sz_params* params);
+
+
+//
+// decompress output data to outData and return outSize
+//
+size_t SZ_decompress(int dataType, unsigned char *bytes, size_t byteLength, size_t r1, unsigned char* outData);
+
 
 void convertSZParamsToBytes(sz_params* params, unsigned char* result);
 void convertBytesToSZParams(unsigned char* bytes, sz_params* params, sz_exedata* pde_exe);
-
-unsigned char* SZ_compress_customize(const char* appName, void* userPara, int dataType, void* data, size_t r5, size_t r4, size_t r3, size_t r2, size_t r1, size_t *outSize, int *status);
-
-unsigned char* SZ_compress_customize_threadsafe(const char* cmprName, void* userPara, int dataType, void* data, size_t r5, size_t r4, size_t r3, size_t r2, size_t r1, size_t *outSize, int *status);
-
-void* SZ_decompress_customize(const char* appName, void* userPara, int dataType, unsigned char* bytes, size_t byteLength, size_t r5, size_t r4, size_t r3, size_t r2, size_t r1, int* status);
-
-void* SZ_decompress_customize_threadsafe(const char* cmprName, void* userPara, int dataType, unsigned char* bytes, size_t byteLength, size_t r5, size_t r4, size_t r3, size_t r2, size_t r1, int *status);
 
 #ifdef __cplusplus
 }

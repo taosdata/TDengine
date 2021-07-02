@@ -135,13 +135,13 @@ int SZ_ReadConf(const char* sz_cfgFile) {
 	
 		confparams_cpr->protectValueRange = 0;
 	
-		return SZ_SCES;
+		return SZ_SUCCESS;
 	}
     
     if (access(sz_cfgFile, F_OK) != 0)
     {
         printf("[SZ] Configuration file NOT accessible.\n");
-        return SZ_NSCS;
+        return SZ_FAILED;
     }
     
     //printf("[SZ] Reading SZ configuration file (%s) ...\n", sz_cfgFile);    
@@ -149,7 +149,7 @@ int SZ_ReadConf(const char* sz_cfgFile) {
     if (ini == NULL)
     {
         printf("[SZ] Iniparser failed to parse the conf. file.\n");
-        return SZ_NSCS;
+        return SZ_FAILED;
     }
 
 	endianTypeString = iniparser_getstring(ini, "ENV:dataEndianType", "LITTLE_ENDIAN_DATA");
@@ -161,7 +161,7 @@ int SZ_ReadConf(const char* sz_cfgFile) {
 	{
 		printf("Error: Wrong dataEndianType: please set it correctly in sz.config.\n");
 		iniparser_freedict(ini);
-		return SZ_NSCS;
+		return SZ_FAILED;
 	}
 
 	// Reading/setting detection parameters
@@ -178,7 +178,7 @@ int SZ_ReadConf(const char* sz_cfgFile) {
 	else{
 		printf("[SZ] Error: wrong solution name (please check sz.config file), sol=%s\n", sol_name);
 		iniparser_freedict(ini);
-		return SZ_NSCS;
+		return SZ_FAILED;
 	}
 	
 	if(confparams_cpr->sol_ID==SZ || confparams_cpr->sol_ID==SZ_Transpose)
@@ -208,7 +208,7 @@ int SZ_ReadConf(const char* sz_cfgFile) {
 		{
 			printf("Error: quantization_intervals must be an even number!\n");
 			iniparser_freedict(ini);
-			return SZ_NSCS;
+			return SZ_FAILED;
 		}
 		
 		confparams_cpr->predThreshold = (float)iniparser_getdouble(ini, "PARAMETER:predThreshold", 0);
@@ -219,7 +219,7 @@ int SZ_ReadConf(const char* sz_cfgFile) {
 		{
 			printf("[SZ] Error: Null szMode setting (please check sz.config file)\n");
 			iniparser_freedict(ini);
-			return SZ_NSCS;					
+			return SZ_FAILED;					
 		}
 		else if(strcmp(modeBuf, "SZ_BEST_SPEED")==0)
 			confparams_cpr->szMode = SZ_BEST_SPEED;
@@ -231,7 +231,7 @@ int SZ_ReadConf(const char* sz_cfgFile) {
 		{
 			printf("[SZ] Error: Wrong szMode setting (please check sz.config file)\n");
 			iniparser_freedict(ini);
-			return SZ_NSCS;	
+			return SZ_FAILED;	
 		}
 		
 		modeBuf = iniparser_getstring(ini, "PARAMETER:losslessCompressor", "ZSTD_COMPRESSOR");
@@ -244,7 +244,7 @@ int SZ_ReadConf(const char* sz_cfgFile) {
 			printf("[SZ] Error: Wrong losslessCompressor setting (please check sz.config file)\n");\
 			printf("No Such a lossless compressor: %s\n", modeBuf);
 			iniparser_freedict(ini);
-			return SZ_NSCS;	
+			return SZ_FAILED;	
 		}		
 		
 		modeBuf = iniparser_getstring(ini, "PARAMETER:withLinearRegression", "YES");
@@ -258,7 +258,7 @@ int SZ_ReadConf(const char* sz_cfgFile) {
 		{
 			printf("[SZ] Error: Null Gzip mode setting (please check sz.config file)\n");
 			iniparser_freedict(ini);
-			return SZ_NSCS;					
+			return SZ_FAILED;					
 		}		
 		else if(strcmp(modeBuf, "Gzip_NO_COMPRESSION")==0)
 			confparams_cpr->gzipMode = 0;
@@ -271,7 +271,7 @@ int SZ_ReadConf(const char* sz_cfgFile) {
 		else
 		{
 			printf("[SZ] Error: Wrong gzip Mode (please check sz.config file)\n");
-			return SZ_NSCS;
+			return SZ_FAILED;
 		}
 		
 		modeBuf = iniparser_getstring(ini, "PARAMETER:zstdMode", "Zstd_HIGH_SPEED");		
@@ -279,7 +279,7 @@ int SZ_ReadConf(const char* sz_cfgFile) {
 		{
 			printf("[SZ] Error: Null Zstd mode setting (please check sz.config file)\n");
 			iniparser_freedict(ini);
-			return SZ_NSCS;					
+			return SZ_FAILED;					
 		}		
 		else if(strcmp(modeBuf, "Zstd_BEST_SPEED")==0)
 			confparams_cpr->gzipMode = 1;
@@ -294,7 +294,7 @@ int SZ_ReadConf(const char* sz_cfgFile) {
 		else
 		{
 			printf("[SZ] Error: Wrong zstd Mode (please check sz.config file)\n");
-			return SZ_NSCS;
+			return SZ_FAILED;
 		}		
 		
 		modeBuf = iniparser_getstring(ini, "PARAMETER:protectValueRange", "YES");
@@ -313,7 +313,7 @@ int SZ_ReadConf(const char* sz_cfgFile) {
 		{
 			printf("[SZ] Error: Null error bound setting (please check sz.config file)\n");
 			iniparser_freedict(ini);
-			return SZ_NSCS;				
+			return SZ_FAILED;				
 		}
 		else if(strcmp(errBoundMode,"ABS")==0||strcmp(errBoundMode,"abs")==0)
 			confparams_cpr->errorBoundMode=SZ_ABS;
@@ -343,7 +343,7 @@ int SZ_ReadConf(const char* sz_cfgFile) {
 		{
 			printf("[SZ] Error: Wrong error bound mode (please check sz.config file)\n");
 			iniparser_freedict(ini);
-			return SZ_NSCS;
+			return SZ_FAILED;
 		}
 		
 		confparams_cpr->absErrBound = (double)iniparser_getdouble(ini, "PARAMETER:absErrBound", 0);
@@ -366,7 +366,7 @@ int SZ_ReadConf(const char* sz_cfgFile) {
 		{
 			printf("[SZ] Error: Wrong pwr_type setting (please check sz.config file).\n");
 			iniparser_freedict(ini);
-			return SZ_NSCS;	
+			return SZ_FAILED;	
 		}
 		else //by default
 			confparams_cpr->pwr_type = SZ_PWR_AVG_TYPE;
@@ -385,7 +385,7 @@ int SZ_ReadConf(const char* sz_cfgFile) {
 	}
 	
     iniparser_freedict(ini);
-    return SZ_SCES;
+    return SZ_SUCCESS;
 }
 
 /*-------------------------------------------------------------------------*/
@@ -400,12 +400,12 @@ int SZ_ReadConf(const char* sz_cfgFile) {
 /*-------------------------------------------------------------------------*/
 int SZ_LoadConf(const char* sz_cfgFile) {
     int res = SZ_ReadConf(sz_cfgFile);
-    if (res != SZ_SCES)
+    if (res != SZ_SUCCESS)
     {
         printf("[SZ] ERROR: Impossible to read configuration.\n");
-        return SZ_NSCS;
+        return SZ_FAILED;
     }
-    return SZ_SCES;
+    return SZ_SUCCESS;
 }
 
 int checkVersion(char* version)

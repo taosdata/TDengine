@@ -3,7 +3,6 @@
 #define _TD_SZ_H
 #include "defines.h"
 
-
 #ifdef __cplusplus
 extern "C" {
 #endif

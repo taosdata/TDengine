@@ -23,7 +23,7 @@
 #define CHECK_ERR(err, msg) { \
     if (err != Z_OK && err != Z_STREAM_END) { \
         fprintf(stderr, "%s error: %d\n", msg, err); \
-        return SZ_NSCS; \
+        return SZ_FAILED; \
     } \
 }
 
@@ -202,7 +202,7 @@ unsigned long zlib_compress4(unsigned char* data, unsigned long dataLength, unsi
     return c_stream.total_out;	
 }
 
-unsigned long zlib_compress5(unsigned char* data, unsigned long dataLength, unsigned char** compressBytes, int level)
+unsigned long zlib_compress5(unsigned char* data, unsigned long dataLength, unsigned char* compressBytes, int level)
 {
 	int ret, flush;
 	unsigned have;
@@ -222,7 +222,7 @@ unsigned long zlib_compress5(unsigned char* data, unsigned long dataLength, unsi
 
 	size_t p_size = 0, av_in = 0;
     uLong estCmpLen = deflateBound(&strm, dataLength);
-   	*compressBytes = (unsigned char*)malloc(sizeof(unsigned char)*estCmpLen);	
+   	//*compressBytes = (unsigned char*)malloc(sizeof(unsigned char)*estCmpLen);	 // comment by tickduan no need malloc
 	unsigned char* out = *compressBytes; 
 
 	/* compress until end of file */
@@ -296,7 +296,7 @@ unsigned long zlib_uncompress2 (unsigned char* compressBytes, unsigned long cmpS
     {
 		printf("Error: zlib_uncompress2: stream.avail_in != cmpSize");
 		//exit(1);
-		return SZ_NSCS; //-1
+		return SZ_FAILED; //-1
 	}
 
     stream.next_out = *oriData;
@@ -309,7 +309,7 @@ unsigned long zlib_uncompress2 (unsigned char* compressBytes, unsigned long cmpS
     if (err != Z_OK)
     {
 		printf("Error: zlib_uncompress2: err != Z_OK\n");
-		return SZ_NSCS;
+		return SZ_FAILED;
 	}
 
     err = inflate(&stream, Z_FINISH);

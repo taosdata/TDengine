@@ -17,7 +17,6 @@
 #include "sz.h"
 #include "CompressElement.h"
 #include "DynamicByteArray.h"
-#include "DynamicIntArray.h"
 #include "TightDataPointStorageD.h"
 #include "sz_double.h"
 #include "sz_double_pwr.h"
@@ -149,7 +148,7 @@ unsigned int optimize_intervals_double_1D_pwr(double *oriData, size_t dataLength
 }
 
 
-void SZ_compress_args_double_NoCkRngeNoGzip_1D_pwr(unsigned char** newByteData, double *oriData, double globalPrecision, 
+void SZ_compress_args_double_NoCkRngeNoGzip_1D_pwr(unsigned char* newByteData, double *oriData, double globalPrecision, 
 size_t dataLength, size_t *outSize, double min, double max)
 {
 	size_t pwrLength = dataLength%confparams_cpr->segment_size==0?dataLength/confparams_cpr->segment_size:dataLength/confparams_cpr->segment_size+1;
@@ -327,25 +326,25 @@ size_t dataLength, size_t *outSize, double min, double max)
 		unsigned char dsLengthBytes[exe_params->SZ_SIZE_TYPE];
 		intToBytes_bigEndian(dsLengthBytes, dataLength);//4
 		for (i = 0; i < 3; i++)//3
-			(*newByteData)[k++] = versionNumber[i];
+			newByteData[k++] = versionNumber[i];
 		
 		if(exe_params->SZ_SIZE_TYPE==4)
 		{
-			(*newByteData)[k++] = 16;	//=00010000	
+			newByteData[k++] = 16;	//=00010000	
 		}
 		else 
 		{
-			(*newByteData)[k++] = 80;
+			newByteData[k++] = 80;
 		}
 		for (i = 0; i < exe_params->SZ_SIZE_TYPE; i++)//4 or 8
-			(*newByteData)[k++] = dsLengthBytes[i];
+			newByteData[k++] = dsLengthBytes[i];
 
 		
 		if(sysEndianType==BIG_ENDIAN_SYSTEM)
-			memcpy((*newByteData)+4+exe_params->SZ_SIZE_TYPE, oriData, dataLength*doubleSize);
+			memcpy(newByteData+4+exe_params->SZ_SIZE_TYPE, oriData, dataLength*doubleSize);
 		else
 		{
-			unsigned char* p = (*newByteData)+4+exe_params->SZ_SIZE_TYPE;
+			unsigned char* p = newByteData+4+exe_params->SZ_SIZE_TYPE;
 			for(i=0;i<dataLength;i++,p+=doubleSize)
 				doubleToBytes(p, oriData[i]);
 		}
@@ -404,7 +403,7 @@ void compressGroupIDArray_double(char* groupID, TightDataPointStorageD* tdps)
 }
 
 TightDataPointStorageD* SZ_compress_double_1D_MDQ_pwrGroup(double* oriData, size_t dataLength, int errBoundMode, 
-double absErrBound, double relBoundRatio, double pwrErrRatio, double valueRangeSize, double medianValue_f)
+                           double absErrBound, double relBoundRatio, double pwrErrRatio, double valueRangeSize, double medianValue_f)
 {
 	size_t i;
 	double *posGroups, *negGroups, *groups;
@@ -642,7 +641,7 @@ double absErrBound, double relBoundRatio, double pwrErrRatio, double valueRangeS
 	return tdps;
 }
 
-void SZ_compress_args_double_NoCkRngeNoGzip_1D_pwrgroup(unsigned char** newByteData, double *oriData,
+void SZ_compress_args_double_NoCkRngeNoGzip_1D_pwrgroup(unsigned char* newByteData, double *oriData,
 size_t dataLength, double absErrBound, double relBoundRatio, double pwrErrRatio, double valueRangeSize, double medianValue_f, size_t *outSize)
 {
         TightDataPointStorageD* tdps = SZ_compress_double_1D_MDQ_pwrGroup(oriData, dataLength, confparams_cpr->errorBoundMode, 
@@ -659,7 +658,7 @@ size_t dataLength, double absErrBound, double relBoundRatio, double pwrErrRatio,
 
 #include <stdbool.h>
 
-void SZ_compress_args_double_NoCkRngeNoGzip_1D_pwr_pre_log(unsigned char** newByteData, double *oriData, double pwrErrRatio, size_t dataLength, size_t *outSize, double min, double max){
+void SZ_compress_args_double_NoCkRngeNoGzip_1D_pwr_pre_log(unsigned char* newByteData, double *oriData, double pwrErrRatio, size_t dataLength, size_t *outSize, double min, double max){
 
 	double * log_data = (double *) malloc(dataLength * sizeof(double));
 
@@ -719,7 +718,7 @@ void SZ_compress_args_double_NoCkRngeNoGzip_1D_pwr_pre_log(unsigned char** newBy
     free_TightDataPointStorageD(tdps);
 }
 
-void SZ_compress_args_double_NoCkRngeNoGzip_1D_pwr_pre_log_MSST19(unsigned char** newByteData, double *oriData, double pwrErrRatio, size_t dataLength, size_t *outSize, double valueRangeSize, double medianValue_f,
+void SZ_compress_args_double_NoCkRngeNoGzip_1D_pwr_pre_log_MSST19(unsigned char* newByteData, double *oriData, double pwrErrRatio, size_t dataLength, size_t *outSize, double valueRangeSize, double medianValue_f,
 																unsigned char* signs, bool* positive, double min, double max, double nearZero){
 	double multiplier = pow((1+pwrErrRatio), -3.0001);
 	for(int i=0; i<dataLength; i++){

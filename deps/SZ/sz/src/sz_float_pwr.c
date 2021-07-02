@@ -150,7 +150,7 @@ unsigned int optimize_intervals_float_1D_pwr(float *oriData, size_t dataLength, 
 	return powerOf2;
 }
 
-void SZ_compress_args_float_NoCkRngeNoGzip_1D_pwr(unsigned char** newByteData, float *oriData, double globalPrecision, 
+void SZ_compress_args_float_NoCkRngeNoGzip_1D_pwr(unsigned char* newByteData, float *oriData, double globalPrecision, 
 size_t dataLength, size_t *outSize, float min, float max)
 {
 	size_t pwrLength = dataLength%confparams_cpr->segment_size==0?dataLength/confparams_cpr->segment_size:dataLength/confparams_cpr->segment_size+1;
@@ -284,8 +284,6 @@ size_t dataLength, size_t *outSize, float min, float max)
 		listAdd_float(last3CmprsData, vce->data);	
 	}//end of for
 		
-//	char* expSegmentsInBytes;
-//	int expSegmentsInBytes_size = convertESCToBytes(esc, &expSegmentsInBytes);
 	int exactDataNum = exactLeadNumArray->size;
 	
 	TightDataPointStorageF* tdps;
@@ -297,17 +295,6 @@ size_t dataLength, size_t *outSize, float min, float max)
 			resiBitLengthArray->array, resiBitLengthArray->size, 
 			realPrecision, medianValue, (char)reqLength, quantization_intervals, pwrErrBoundBytes, pwrErrBoundBytes_size, radExpo);
 
-//sdi:Debug
-/*	int sum =0;
-	for(i=0;i<dataLength;i++)
-		if(type[i]==0) sum++;
-	printf("opt_quantizations=%d, exactDataNum=%d, sum=%d\n",quantization_intervals, exactDataNum, sum);
-*/
-//	writeUShortData(type, dataLength, "compressStateBytes.sb");
-//	unsigned short type_[dataLength];
-//	SZ_Reset();
-//	decode_withTree(tdps->typeArray, tdps->typeArray_size, type_);	
-//	printf("tdps->typeArray_size=%d\n", tdps->typeArray_size);
 	
 	//free memory
 	free_DBA(resiBitLengthArray);
@@ -328,25 +315,25 @@ size_t dataLength, size_t *outSize, float min, float max)
 		unsigned char dsLengthBytes[exe_params->SZ_SIZE_TYPE];
 		intToBytes_bigEndian(dsLengthBytes, dataLength);//4
 		for (i = 0; i < 3; i++)//3
-			(*newByteData)[k++] = versionNumber[i];
+			newByteData[k++] = versionNumber[i];
 		
 		if(exe_params->SZ_SIZE_TYPE==4)
 		{
-			(*newByteData)[k++] = 16;	//=00010000	
+			newByteData[k++] = 16;	//=00010000	
 		}
 		else 
 		{
-			(*newByteData)[k++] = 80;
+			newByteData[k++] = 80;
 		}
 		for (i = 0; i < exe_params->SZ_SIZE_TYPE; i++)//4 or 8
-			(*newByteData)[k++] = dsLengthBytes[i];
+			newByteData[k++] = dsLengthBytes[i];
 
 		
 		if(sysEndianType==BIG_ENDIAN_SYSTEM)
-			memcpy((*newByteData)+4+exe_params->SZ_SIZE_TYPE, oriData, dataLength*floatSize);
+			memcpy(newByteData+4+exe_params->SZ_SIZE_TYPE, oriData, dataLength*floatSize);
 		else
 		{
-			unsigned char* p = (*newByteData)+4+exe_params->SZ_SIZE_TYPE;
+			unsigned char* p = newByteData+4+exe_params->SZ_SIZE_TYPE;
 			for(i=0;i<dataLength;i++,p+=floatSize)
 				floatToBytes(p, oriData[i]);
 		}
@@ -643,7 +630,7 @@ double absErrBound, double relBoundRatio, double pwrErrRatio, float valueRangeSi
 	return tdps;
 }
 
-void SZ_compress_args_float_NoCkRngeNoGzip_1D_pwrgroup(unsigned char** newByteData, float *oriData,
+void SZ_compress_args_float_NoCkRngeNoGzip_1D_pwrgroup(unsigned char* newByteData, float *oriData,
 size_t dataLength, double absErrBound, double relBoundRatio, double pwrErrRatio, float valueRangeSize, float medianValue_f, size_t *outSize)
 {
         TightDataPointStorageF* tdps = SZ_compress_float_1D_MDQ_pwrGroup(oriData, dataLength, confparams_cpr->errorBoundMode, 
@@ -660,7 +647,7 @@ size_t dataLength, double absErrBound, double relBoundRatio, double pwrErrRatio,
 
 #include <stdbool.h>
 
-void SZ_compress_args_float_NoCkRngeNoGzip_1D_pwr_pre_log(unsigned char** newByteData, float *oriData, double pwrErrRatio, size_t dataLength, size_t *outSize, float min, float max){
+void SZ_compress_args_float_NoCkRngeNoGzip_1D_pwr_pre_log(unsigned char* newByteData, float *oriData, double pwrErrRatio, size_t dataLength, size_t *outSize, float min, float max){
 
 	float * log_data = (float *) malloc(dataLength * sizeof(float));
 
@@ -722,7 +709,7 @@ void SZ_compress_args_float_NoCkRngeNoGzip_1D_pwr_pre_log(unsigned char** newByt
 }
 
 
-void SZ_compress_args_float_NoCkRngeNoGzip_1D_pwr_pre_log_MSST19(unsigned char** newByteData, float *oriData, double pwrErrRatio, size_t dataLength, size_t *outSize, float valueRangeSize, float medianValue_f,
+void SZ_compress_args_float_NoCkRngeNoGzip_1D_pwr_pre_log_MSST19(unsigned char* newByteData, float *oriData, double pwrErrRatio, size_t dataLength, size_t *outSize, float valueRangeSize, float medianValue_f,
 																unsigned char* signs, bool* positive, float min, float max, float nearZero){
 	float multiplier = pow((1+pwrErrRatio), -3.0001);
 	for(int i=0; i<dataLength; i++){

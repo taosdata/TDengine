@@ -20,7 +20,7 @@ extern "C" {
    * sz_opencl_* function.
    *
    * \param[out] state the sz opencl state
-   * \return SZ_SCES for success or SZ_NCES on error
+   * \return SZ_SUCCESS for success or SZ_NCES on error
    */
   int sz_opencl_init(struct sz_opencl_state** state);
 
@@ -28,7 +28,7 @@ extern "C" {
 	 * deinitializes an opencl state
 	 *
 	 * \param[in] state the sz opencl state
-	 * \return SZ_SCES
+	 * \return SZ_SUCCESS
 	 */
   int sz_opencl_release(struct sz_opencl_state** state);
 
@@ -53,7 +53,7 @@ extern "C" {
 	 * confirms that the sz opencl state is ready to use by performing a vector addition
 	 *
 	 * \param[in] state the sz opencl state
-	 * \return SZ_SCES if the opencl implementation is functioning
+	 * \return SZ_SUCCESS if the opencl implementation is functioning
 	 */
 	int sz_opencl_check(struct sz_opencl_state*);
 

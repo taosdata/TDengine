@@ -58,6 +58,7 @@ float toFloat(char* buf){
   return (float)atoll(buf);
 }
 
+
 //
 //  read float 
 //
@@ -120,6 +121,7 @@ float check_same(float* ft1, float* ft2, int count){
 //
 // test compress and decompress
 //
+extern bool gOpenLossy;
 bool testFile(const char* inFile, char algorithm){
   // check valid
   if(inFile == NULL || inFile[0] == 0 ){
@@ -405,7 +407,7 @@ int memTest() {
   cost_end(" tscompress");
 
   printf(" compress return len=%d input len=%d\n", ret_len, input_len);
-  printf(" compress rate=%.1f an-rate=%.0f%%\n", (float)input_len/(float)ret_len, 100*(float)ret_len/(float)input_len);
+  printf(" compress sz rate=%.1f an-rate=%.2f%%\n", (float)input_len/(float)ret_len, 100*(float)ret_len/(float)input_len);
   
   //   
   // decompress
@@ -447,7 +449,7 @@ int memTest() {
 void* memTestThread(void* lparam) {
   //memTest();
   printf(" enter thread ....\n");
-  for(int i=0; i< 1000000; i++)
+  for(int i=0; i< 5; i++)
   {
       memTest();
       printf(" start i=%d .... \n", i);
@@ -480,7 +482,7 @@ void test_threadsafe(int thread_count){
 void* memTestThreadDouble(void* lparam) {
   //memTest();
   printf(" enter thread ....\n");
-  for(int i=0; i< 50000; i++)
+  for(int i=0; i< 10; i++)
   {
       memTest();
       printf(" double start i=%d .... \n", i);
@@ -510,7 +512,68 @@ void test_threadsafe_double(int thread_count){
 }
 
 
+void unitTestFloat() {
 
+  float ft1 [] = {1.11, 2.22, 3.333};
+  int cnt = sizeof(ft1)/sizeof(float);
+  float* floats = ft1;
+  int algorithm = 2;
+
+  // compress
+  const char* input = (const char*)floats;
+  int input_len = cnt * sizeof(float);
+  int output_len = input_len + 1024;
+  char* output = (char*) malloc(output_len);
+  char* buff = (char*) malloc(input_len);
+  int buff_len = input_len;
+
+  printf(" ft1 have count=%d \n", cnt);
+  strcpy(output, "abcde");
+
+  cost_start();
+  int ret_len = 0;
+  ret_len = tsCompressFloatLossy(input, input_len, cnt, output, output_len, algorithm, buff, buff_len);
+
+  if(ret_len == 0) {
+    printf(" compress error.\n");
+    return ;
+  }
+  double use_ms1 = cost_end("compress");
+
+  printf(" compress len=%d input len=%d\n", ret_len, input_len);
+  float rate=100*(float)ret_len/(float)input_len;
+  printf(" compress rate=%.1f an-rate=%.4f%%\n", (float)input_len/(float)ret_len, rate);
+  
+  //   
+  // decompress
+  //
+  float* ft2 = (float*)malloc(input_len); 
+  cost_start();
+  int code = 0;
+  code = tsDecompressFloatLossy(output, ret_len, cnt, (char*)ft2, input_len, algorithm, buff, buff_len);
+   
+
+  double use_ms2 = cost_end("Decompress");
+  printf(" Decompress return length=%d \n", code);
+
+  // compare same
+  float same_rate = check_same(floats, ft2, cnt);
+
+  printf("\n ------------------  count:%d TD <SZ> ---------------- \n", cnt);
+  printf("    Compress Rate ......... [%.0f%%] \n", rate);
+  double speed1 = (cnt*sizeof(float)*1000/1024/1024)/use_ms1;
+  printf("    Compress Time ......... [%.4fms] speed=%.1f MB/s\n", use_ms1, speed1);
+  double speed2 = (cnt*sizeof(float)*1000/1024/1024)/use_ms2;
+  printf("    Decompress Time........ [%.4fms] speed=%.1f MB/s\n", use_ms2, speed2);
+  printf("    Same Rate ............. [%.0f%%] \n\n", same_rate);
+
+
+  // free
+  free(ft2);
+  free(buff);
+  free(output); 
+ 
+}
 
 
 
@@ -518,8 +581,9 @@ void test_threadsafe_double(int thread_count){
 //   -----------------  main ----------------------
 //
 int main(int argc, char *argv[]) {
-  printf("welcome to use taospack tools v1.1. sizeof(STColumn) = %lu\n", sizeof(STColumn));
+  printf("welcome to use taospack tools v1.2 \n");
  
+  gOpenLossy = false;
   tsLossyInit();
   //
   //tsCompressExit();
@@ -530,9 +594,11 @@ int main(int argc, char *argv[]) {
     // t
     if(strcmp(argv[1], "-tone") == 0 || strcmp(argv[1], "-t") == 0 ) {
         algo = ONE_STAGE_COMP;
+        gOpenLossy = true;
     }
     if(strcmp(argv[1], "-ttwo") == 0) {
         algo = TWO_STAGE_COMP;
+        gOpenLossy = false;
     }
 
     if(strcmp(argv[1], "-sf") == 0) {
@@ -557,6 +623,9 @@ int main(int argc, char *argv[]) {
     if(strcmp(argv[1], "-mem") == 0) {
       memTest();
     } 
+  }
+  else{
+    unitTestFloat();
   }
 
   //memTest();

@@ -35,6 +35,25 @@ extern "C" {
 #define ONE_STAGE_COMP 1
 #define TWO_STAGE_COMP 2
 
+//
+// compressed data first byte foramt
+//   ------ 7 bit ---- | ---- 1 bit ----
+//        algorithm           mode
+//
+
+// compression data mode save first byte lower 1 bit
+#define MODE_NOCOMPRESS  0  // original data
+#define MODE_COMPRESS    1  // compatible old compress
+
+// compression algorithm save first byte higher 7 bit
+#define ALGO_SZ_LOSSY     1 // SZ compress 
+
+#define HEAD_MODE(x)  x%2
+#define HEAD_ALGO(x)  x/2
+
+
+extern bool gOpenLossy;
+
 extern int tsCompressINTImp(const char *const input, const int nelements, char *const output, const char type);
 extern int tsDecompressINTImp(const char *const input, const int nelements, char *const output, const char type);
 extern int tsCompressBoolImp(const char *const input, const int nelements, char *const output);
@@ -48,13 +67,14 @@ extern int tsDecompressDoubleImp(const char *const input, const int nelements, c
 extern int tsCompressFloatImp(const char *const input, const int nelements, char *const output);
 extern int tsDecompressFloatImp(const char *const input, const int nelements, char *const output);
 // lossy
-int tsCompressFloatLossyImp(const char * input, const int nelements, const char * output);
-int tsDecompressFloatLossyImp(const char * input, int compressedSize, const int nelements, const char * output);
-int tsCompressDoubleLossyImp(const char * input, const int nelements, const char * output);
-int tsDecompressDoubleLossyImp(const char * input, int compressedSize, const int nelements, const char * output);
+int tsCompressFloatLossyImp(const char * input, const int nelements, char *const output);
+int tsDecompressFloatLossyImp(const char * input, int compressedSize, const int nelements, char *const output);
+int tsCompressDoubleLossyImp(const char * input, const int nelements, char *const output);
+int tsDecompressDoubleLossyImp(const char * input, int compressedSize, const int nelements, char *const output);
 
 // init
 bool tsLossyInit();
+
 
 
 
@@ -200,53 +220,78 @@ static FORCE_INLINE int tsDecompressString(const char *const input, int compress
 
 static FORCE_INLINE int tsCompressFloat(const char *const input, int inputSize, const int nelements, char *const output, int outputSize,
                     char algorithm, char *const buffer, int bufferSize) {
-  if (algorithm == ONE_STAGE_COMP) {
-    return tsCompressFloatImp(input, nelements, output);
-  } else if (algorithm == TWO_STAGE_COMP) {
-    int len = tsCompressFloatImp(input, nelements, buffer);
-    return tsCompressStringImp(buffer, len, output, outputSize);
+  // lossy mode
+  if(gOpenLossy) {
+    return tsCompressFloatLossyImp(input, nelements, output);
+  // lossless mode  
   } else {
-    assert(0);
-    return -1;
+    if (algorithm == ONE_STAGE_COMP) {
+      return tsCompressFloatImp(input, nelements, output);
+    } else if (algorithm == TWO_STAGE_COMP) {
+      int len = tsCompressFloatImp(input, nelements, buffer);
+      return tsCompressStringImp(buffer, len, output, outputSize);
+    } else {
+      assert(0);
+      return -1;
+    }    
   }
 }
 
 static FORCE_INLINE int tsDecompressFloat(const char *const input, int compressedSize, const int nelements, char *const output,
                       int outputSize, char algorithm, char *const buffer, int bufferSize) {
-  if (algorithm == ONE_STAGE_COMP) {
-    return tsDecompressFloatImp(input, nelements, output);
-  } else if (algorithm == TWO_STAGE_COMP) {
-    if (tsDecompressStringImp(input, compressedSize, buffer, bufferSize) < 0) return -1;
-    return tsDecompressFloatImp(buffer, nelements, output);
+  
+  if(HEAD_ALGO(input[0]) == ALGO_SZ_LOSSY){
+    // decompress lossy
+    return tsDecompressFloatLossyImp(input, compressedSize, nelements, output);
   } else {
-    assert(0);
-    return -1;
+    // decompress lossless
+    if (algorithm == ONE_STAGE_COMP) {
+      return tsDecompressFloatImp(input, nelements, output);
+    } else if (algorithm == TWO_STAGE_COMP) {
+      if (tsDecompressStringImp(input, compressedSize, buffer, bufferSize) < 0) return -1;
+      return tsDecompressFloatImp(buffer, nelements, output);
+    } else {
+      assert(0);
+      return -1;
+    }
   }
 }
 
 static FORCE_INLINE int tsCompressDouble(const char *const input, int inputSize, const int nelements, char *const output, int outputSize,
                      char algorithm, char *const buffer, int bufferSize) {
-  if (algorithm == ONE_STAGE_COMP) {
-    return tsCompressDoubleImp(input, nelements, output);
-  } else if (algorithm == TWO_STAGE_COMP) {
-    int len = tsCompressDoubleImp(input, nelements, buffer);
-    return tsCompressStringImp(buffer, len, output, outputSize);
+  if(gOpenLossy){
+    // lossy mode
+    return tsCompressDoubleLossyImp(input, nelements, output);
   } else {
-    assert(0);
-    return -1;
+    // lossless mode
+    if (algorithm == ONE_STAGE_COMP) {
+      return tsCompressDoubleImp(input, nelements, output);
+    } else if (algorithm == TWO_STAGE_COMP) {
+      int len = tsCompressDoubleImp(input, nelements, buffer);
+      return tsCompressStringImp(buffer, len, output, outputSize);
+    } else {
+      assert(0);
+      return -1;
+    }
   }
 }
 
 static FORCE_INLINE int tsDecompressDouble(const char *const input, int compressedSize, const int nelements, char *const output,
                        int outputSize, char algorithm, char *const buffer, int bufferSize) {
-  if (algorithm == ONE_STAGE_COMP) {
-    return tsDecompressDoubleImp(input, nelements, output);
-  } else if (algorithm == TWO_STAGE_COMP) {
-    if (tsDecompressStringImp(input, compressedSize, buffer, bufferSize) < 0) return -1;
-    return tsDecompressDoubleImp(buffer, nelements, output);
+  if(HEAD_ALGO(input[0]) == ALGO_SZ_LOSSY){
+    // decompress lossy
+    return tsDecompressDoubleLossyImp(input, compressedSize, nelements, output);
   } else {
-    assert(0);
-    return -1;
+    // decompress lossless
+    if (algorithm == ONE_STAGE_COMP) {
+      return tsDecompressDoubleImp(input, nelements, output);
+    } else if (algorithm == TWO_STAGE_COMP) {
+      if (tsDecompressStringImp(input, compressedSize, buffer, bufferSize) < 0) return -1;
+      return tsDecompressDoubleImp(buffer, nelements, output);
+    } else {
+      assert(0);
+      return -1;
+    }
   }
 }
 

@@ -14,13 +14,13 @@
 extern "C" {
 #endif
 
-void decompressDataSeries_float_1D_pwr(float** data, size_t dataSeriesLength, TightDataPointStorageF* tdps);
+void decompressDataSeries_float_1D_pwr(float* data, size_t dataSeriesLength, TightDataPointStorageF* tdps);
 
 char* decompressGroupIDArray(unsigned char* bytes, size_t dataLength);
-void decompressDataSeries_float_1D_pwrgroup(float** data, size_t dataSeriesLength, TightDataPointStorageF* tdps);
-void decompressDataSeries_float_1D_pwr_pre_log(float** data, size_t dataSeriesLength, TightDataPointStorageF* tdps);
+void decompressDataSeries_float_1D_pwrgroup(float* data, size_t dataSeriesLength, TightDataPointStorageF* tdps);
+void decompressDataSeries_float_1D_pwr_pre_log(float* data, size_t dataSeriesLength, TightDataPointStorageF* tdps);
 
-void decompressDataSeries_float_1D_pwr_pre_log_MSST19(float** data, size_t dataSeriesLength, TightDataPointStorageF* tdps);
+void decompressDataSeries_float_1D_pwr_pre_log_MSST19(float* data, size_t dataSeriesLength, TightDataPointStorageF* tdps);
 
 #ifdef __cplusplus
 }
