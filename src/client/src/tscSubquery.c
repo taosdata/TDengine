@@ -1489,6 +1489,8 @@ static void joinRetrieveFinalResCallback(void* param, TAOS_RES* tres, int numOfR
 
     SSqlRes* pRes1 = &pParentSql->pSubs[i]->res;
 
+    pParentSql->res.precision = pRes1->precision;
+
     if (pRes1->row > 0 && pRes1->numOfRows > 0) {
       tscDebug("0x%"PRIx64" sub:%p index:%d numOfRows:%d total:%"PRId64 " (not retrieve)", pParentSql->self, pParentSql->pSubs[i], i,
                pRes1->numOfRows, pRes1->numOfTotal);
@@ -2865,7 +2867,7 @@ static void tscRetrieveFromDnodeCallBack(void *param, TAOS_RES *tres, int numOfR
     tscDebug("0x%"PRIx64" sub:%p retrieve numOfRows:%d totalNumOfRows:%" PRIu64 " from ep:%s, orderOfSub:%d",
         pParentSql->self, pSql, pRes->numOfRows, pState->numOfRetrievedRows, pSql->epSet.fqdn[pSql->epSet.inUse], idx);
 
-    if (num > tsMaxNumOfOrderedResults && tscIsProjectionQueryOnSTable(pQueryInfo, 0)) {
+    if (num > tsMaxNumOfOrderedResults && tscIsProjectionQueryOnSTable(pQueryInfo, 0) && !(tscGetQueryInfoDetail(&pParentSql->cmd, 0)->distinctTag)) {
       tscError("0x%"PRIx64" sub:0x%"PRIx64" num of OrderedRes is too many, max allowed:%" PRId32 " , current:%" PRId64,
                pParentSql->self, pSql->self, tsMaxNumOfOrderedResults, num);
       tscAbortFurtherRetryRetrieval(trsupport, tres, TSDB_CODE_TSC_SORTED_RES_TOO_MANY);
@@ -3152,6 +3154,13 @@ int32_t tscHandleMultivnodeInsert(SSqlObj *pSql) {
 
   // it is the failure retry insert
   if (pSql->pSubs != NULL) {
+    int32_t blockNum = (int32_t)taosArrayGetSize(pCmd->pDataBlocks);
+    if (pSql->subState.numOfSub != blockNum) {
+      tscError("0x%"PRIx64" sub num:%d is not same with data block num:%d", pSql->self, pSql->subState.numOfSub, blockNum);
+      pRes->code = TSDB_CODE_TSC_APP_ERROR;
+      return pRes->code;
+    }
+    
     for(int32_t i = 0; i < pSql->subState.numOfSub; ++i) {
       SSqlObj* pSub = pSql->pSubs[i];
       SInsertSupporter* pSup = calloc(1, sizeof(SInsertSupporter));

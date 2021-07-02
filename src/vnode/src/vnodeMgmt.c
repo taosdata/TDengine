@@ -91,18 +91,18 @@ static void vnodeIncRef(void *ptNode) {
 }
 
 void *vnodeAcquire(int32_t vgId) {
-  SVnodeObj **ppVnode = NULL;
+  SVnodeObj *pVnode = NULL;
   if (tsVnodesHash != NULL) {
-    ppVnode = taosHashGetClone(tsVnodesHash, &vgId, sizeof(int32_t), vnodeIncRef, NULL, sizeof(void *));
+    taosHashGetClone(tsVnodesHash, &vgId, sizeof(int32_t), vnodeIncRef, &pVnode, sizeof(void *));
   }
 
-  if (ppVnode == NULL || *ppVnode == NULL) {
+  if (pVnode == NULL) {
     terrno = TSDB_CODE_VND_INVALID_VGROUP_ID;
     vDebug("vgId:%d, not exist", vgId);
     return NULL;
   }
 
-  return *ppVnode;
+  return pVnode;
 }
 
 void vnodeRelease(void *vparam) {
@@ -123,6 +123,18 @@ void vnodeRelease(void *vparam) {
     int32_t count = taosHashGetSize(tsVnodesHash);
     vDebug("vgId:%d, vnode is destroyed, vnodes:%d", pVnode->vgId, count);
   }
+}
+
+void *vnodeAcquireNotClose(int32_t vgId) {
+  SVnodeObj *pVnode = vnodeAcquire(vgId);
+  if (pVnode != NULL  && pVnode->preClose == 1) {
+    vnodeRelease(pVnode);
+    terrno = TSDB_CODE_VND_INVALID_VGROUP_ID;
+    vDebug("vgId:%d, not exist, pre closing", vgId);
+    return NULL;
+  }
+
+  return pVnode;
 }
 
 static void vnodeBuildVloadMsg(SVnodeObj *pVnode, SStatusMsg *pStatus) {
@@ -187,7 +199,7 @@ void vnodeBuildStatusMsg(void *param) {
 void vnodeSetAccess(SVgroupAccess *pAccess, int32_t numOfVnodes) {
   for (int32_t i = 0; i < numOfVnodes; ++i) {
     pAccess[i].vgId = htonl(pAccess[i].vgId);
-    SVnodeObj *pVnode = vnodeAcquire(pAccess[i].vgId);
+    SVnodeObj *pVnode = vnodeAcquireNotClose(pAccess[i].vgId);
     if (pVnode != NULL) {
       pVnode->accessState = pAccess[i].accessState;
       if (pVnode->accessState != TSDB_VN_ALL_ACCCESS) {

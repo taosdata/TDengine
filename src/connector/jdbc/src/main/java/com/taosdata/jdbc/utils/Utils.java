@@ -5,7 +5,15 @@ import com.google.common.collect.RangeSet;
 import com.google.common.collect.TreeRangeSet;
 
 import java.nio.charset.Charset;
+import java.sql.Date;
+import java.sql.Time;
 import java.sql.Timestamp;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeFormatterBuilder;
+import java.time.format.DateTimeParseException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.regex.Matcher;
@@ -16,6 +24,41 @@ import java.util.stream.IntStream;
 public class Utils {
 
     private static Pattern ptn = Pattern.compile(".*?'");
+
+    private static final DateTimeFormatter formatter = new DateTimeFormatterBuilder()
+            .appendPattern("yyyy-MM-dd HH:mm:ss.SSS").toFormatter();
+    private static final DateTimeFormatter formatter2 = new DateTimeFormatterBuilder()
+            .appendPattern("yyyy-MM-dd HH:mm:ss.SSSSSS").toFormatter();
+
+    public static Time parseTime(String timestampStr) throws DateTimeParseException {
+        LocalTime time;
+        try {
+            time = LocalTime.parse(timestampStr, formatter);
+        } catch (DateTimeParseException e) {
+            time = LocalTime.parse(timestampStr, formatter2);
+        }
+        return Time.valueOf(time);
+    }
+
+    public static Date parseDate(String timestampStr) throws DateTimeParseException {
+        LocalDate date;
+        try {
+            date = LocalDate.parse(timestampStr, formatter);
+        } catch (DateTimeParseException e) {
+            date = LocalDate.parse(timestampStr, formatter2);
+        }
+        return Date.valueOf(date);
+    }
+
+    public static Timestamp parseTimestamp(String timeStampStr) {
+        LocalDateTime dateTime;
+        try {
+            dateTime = LocalDateTime.parse(timeStampStr, formatter);
+        } catch (DateTimeParseException e) {
+            dateTime = LocalDateTime.parse(timeStampStr, formatter2);
+        }
+        return Timestamp.valueOf(dateTime);
+    }
 
     public static String escapeSingleQuota(String origin) {
         Matcher m = ptn.matcher(origin);
@@ -52,16 +95,7 @@ public class Utils {
     public static String getNativeSql(String rawSql, Object[] parameters) {
         // toLowerCase
         String preparedSql = rawSql.trim().toLowerCase();
-
-        String[] clause = new String[0];
-        if (SqlSyntaxValidator.isInsertSql(preparedSql)) {
-            // insert or import
-            clause = new String[]{"values\\s*\\(.*?\\)", "tags\\s*\\(.*?\\)"};
-        }
-        if (SqlSyntaxValidator.isSelectSql(preparedSql)) {
-            // select
-            clause = new String[]{"where\\s*.*"};
-        }
+        String[] clause = new String[]{"values\\s*\\(.*?\\)", "tags\\s*\\(.*?\\)", "where\\s*.*"};
         Map<Integer, Integer> placeholderPositions = new HashMap<>();
         RangeSet<Integer> clauseRangeSet = TreeRangeSet.create();
         findPlaceholderPosition(preparedSql, placeholderPositions);
@@ -103,6 +137,7 @@ public class Utils {
      */
     private static String transformSql(String rawSql, Object[] paramArr, Map<Integer, Integer> placeholderPosition, RangeSet<Integer> clauseRangeSet) {
         String[] sqlArr = rawSql.split("\\?");
+
         return IntStream.range(0, sqlArr.length).mapToObj(index -> {
             if (index == paramArr.length)
                 return sqlArr[index];
@@ -131,5 +166,14 @@ public class Utils {
             return sqlArr[index] + paraStr;
         }).collect(Collectors.joining());
     }
+
+
+    public static String formatTimestamp(Timestamp timestamp) {
+        int nanos = timestamp.getNanos();
+        if (nanos % 1000000l != 0)
+            return timestamp.toLocalDateTime().format(formatter2);
+        return timestamp.toLocalDateTime().format(formatter);
+    }
+
 
 }

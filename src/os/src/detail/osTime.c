@@ -43,7 +43,7 @@
  */
 int64_t user_mktime64(const unsigned int year0, const unsigned int mon0,
 		const unsigned int day, const unsigned int hour,
-		const unsigned int min, const unsigned int sec, int64_t timezone)
+		const unsigned int min, const unsigned int sec, int64_t time_zone)
 {
   unsigned int mon = mon0, year = year0;
 
@@ -61,7 +61,7 @@ int64_t user_mktime64(const unsigned int year0, const unsigned int mon0,
   res  = res*24;
   res  = ((res + hour) * 60 + min) * 60 + sec;
 
-  return (res + timezone);
+  return (res + time_zone);
 }
 
 // ==== mktime() kernel code =================//
@@ -87,12 +87,12 @@ static int32_t (*parseLocaltimeFp[]) (char* timestr, int64_t* time, int32_t time
 
 int32_t taosGetTimestampSec() { return (int32_t)time(NULL); }
 
-int32_t taosParseTime(char* timestr, int64_t* time, int32_t len, int32_t timePrec, int8_t daylight) {
+int32_t taosParseTime(char* timestr, int64_t* time, int32_t len, int32_t timePrec, int8_t day_light) {
   /* parse datatime string in with tz */
   if (strnchr(timestr, 'T', len, false) != NULL) {
     return parseTimeWithTz(timestr, time, timePrec);
   } else {
-    return (*parseLocaltimeFp[daylight])(timestr, time, timePrec);
+    return (*parseLocaltimeFp[day_light])(timestr, time, timePrec);
   }
 }
 

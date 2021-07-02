@@ -126,6 +126,8 @@ int tsdbCloseRepo(STsdbRepo *repo, int toCommit) {
     tsdbSyncCommit(repo);
   }
 
+  tsem_wait(&(pRepo->readyToCommit));
+
   tsdbUnRefMemTable(pRepo, pRepo->mem);
   tsdbUnRefMemTable(pRepo, pRepo->imem);
   pRepo->mem = NULL;

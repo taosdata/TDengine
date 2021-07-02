@@ -42,11 +42,12 @@ int32_t  tsNumOfMnodes = 3;
 int8_t   tsEnableVnodeBak = 1;
 int8_t   tsEnableTelemetryReporting = 1;
 int8_t   tsArbOnline = 0;
+int64_t  tsArbOnlineTimestamp = TSDB_ARB_DUMMY_TIME;
 char     tsEmail[TSDB_FQDN_LEN] = {0};
 int32_t  tsDnodeId = 0;
 
 // common
-int32_t tsRpcTimer       = 1000;
+int32_t tsRpcTimer       = 300;
 int32_t tsRpcMaxTime     = 600;  // seconds;
 int32_t tsMaxShellConns  = 50000;
 int32_t tsMaxConnections = 5000;
@@ -92,7 +93,7 @@ int32_t tsMaxStreamComputDelay = 20000;
 int32_t tsStreamCompStartDelay = 10000;
 
 // the stream computing delay time after executing failed, change accordingly
-int32_t tsStreamCompRetryDelay = 10;
+int32_t tsRetryStreamCompDelay = 10*1000;
 
 // The delayed computing ration. 10% of the whole computing time window by default.
 float tsStreamComputDelayRatio = 0.1f;
@@ -696,7 +697,7 @@ static void doInitGlobalConfig(void) {
   taosInitConfigOption(cfg);
 
   cfg.option = "retryStreamCompDelay";
-  cfg.ptr = &tsStreamCompRetryDelay;
+  cfg.ptr = &tsRetryStreamCompDelay;
   cfg.valType = TAOS_CFG_VTYPE_INT32;
   cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
   cfg.minValue = 10;
@@ -816,6 +817,16 @@ static void doInitGlobalConfig(void) {
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosInitConfigOption(cfg);
 
+  cfg.option = "precision";
+  cfg.ptr = &tsTimePrecision;
+  cfg.valType = TAOS_CFG_VTYPE_INT8;
+  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
+  cfg.minValue = TSDB_MIN_PRECISION;
+  cfg.maxValue = TSDB_MAX_PRECISION;
+  cfg.ptrLength = 0;
+  cfg.unitType = TAOS_CFG_UTYPE_NONE;
+  taosInitConfigOption(cfg);
+
   cfg.option = "comp";
   cfg.ptr = &tsCompression;
   cfg.valType = TAOS_CFG_VTYPE_INT8;
@@ -882,6 +893,16 @@ static void doInitGlobalConfig(void) {
   cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
   cfg.minValue = TSDB_MIN_DB_UPDATE;
   cfg.maxValue = TSDB_MAX_DB_UPDATE;
+  cfg.ptrLength = 0;
+  cfg.unitType = TAOS_CFG_UTYPE_NONE;
+  taosInitConfigOption(cfg);
+
+  cfg.option = "cachelast";
+  cfg.ptr = &tsCacheLastRow;
+  cfg.valType = TAOS_CFG_VTYPE_INT8;
+  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
+  cfg.minValue = TSDB_MIN_DB_CACHE_LAST_ROW;
+  cfg.maxValue = TSDB_MAX_DB_CACHE_LAST_ROW;
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosInitConfigOption(cfg);

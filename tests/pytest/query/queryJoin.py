@@ -176,7 +176,15 @@ class TDTestCase:
         tdSql.error("select count(join_mt0.c1), first(join_mt0.c1), first(join_mt1.c9) from join_mt0, join_mt1 where join_mt0.t1=join_mt1.t1 and join_mt0.ts=join_mt1.ts interval(10a) group by join_mt0.t1, join_mt0.t2 order by join_mt0.t1 desc slimit 3")
         tdSql.error("select count(join_mt0.c1), first(join_mt0.c1) from join_mt0, join_mt1 where join_mt0.t1=join_mt1.t1 and join_mt0.ts=join_mt1.ts interval(10a) group by join_mt0.t1, join_mt0.t2, join_mt1.t1 order by join_mt0.ts desc, join_mt1.ts asc limit 10;")
         tdSql.error("select join_mt1.c1,join_mt0.c1 from join_mt1,join_mt0 where join_mt1.ts = join_mt0.ts and join_mt1.t1 = join_mt0.t1 order by t")
-
+        #TD-4458 join on database which using precision us 
+        tdSql.execute("create database test_join_us precision 'us'")
+        tdSql.execute("use test_join_us")
+        ts = 1538548685000000
+        for i in range(2):
+            tdSql.execute("create table t%d (ts timestamp, i int)"%i)
+            tdSql.execute("insert into t%d values(%d,11)(%d,12)"%(i,ts,ts+1))
+        tdSql.query("select t1.ts from t0,t1 where t0.ts = t1.ts")
+        tdSql.checkData(0,0,'2018-10-03 14:38:05.000000')
 
     def stop(self):
         tdSql.close()

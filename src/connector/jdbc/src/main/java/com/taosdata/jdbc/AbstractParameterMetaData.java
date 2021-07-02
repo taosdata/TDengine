@@ -1,5 +1,7 @@
 package com.taosdata.jdbc;
 
+import com.sun.org.apache.xpath.internal.operations.Bool;
+
 import java.sql.ParameterMetaData;
 import java.sql.SQLException;
 import java.sql.Timestamp;
@@ -49,6 +51,22 @@ public abstract class AbstractParameterMetaData extends WrapperImpl implements P
         if (param < 1 && param >= parameters.length)
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_PARAMETER_INDEX_OUT_RANGE);
 
+        if (parameters[param - 1] instanceof Boolean)
+            return TSDBConstants.BOOLEAN_PRECISION;
+        if (parameters[param - 1] instanceof Byte)
+            return TSDBConstants.TINYINT_PRECISION;
+        if (parameters[param - 1] instanceof Short)
+            return TSDBConstants.SMALLINT_PRECISION;
+        if (parameters[param - 1] instanceof Integer)
+            return TSDBConstants.INT_PRECISION;
+        if (parameters[param - 1] instanceof Long)
+            return TSDBConstants.BIGINT_PRECISION;
+        if (parameters[param - 1] instanceof Timestamp)
+            return TSDBConstants.TIMESTAMP_MS_PRECISION;
+        if (parameters[param - 1] instanceof Float)
+            return TSDBConstants.FLOAT_PRECISION;
+        if (parameters[param - 1] instanceof Double)
+            return TSDBConstants.DOUBLE_PRECISION;
         if (parameters[param - 1] instanceof String)
             return ((String) parameters[param - 1]).length();
         if (parameters[param - 1] instanceof byte[])
@@ -60,6 +78,11 @@ public abstract class AbstractParameterMetaData extends WrapperImpl implements P
     public int getScale(int param) throws SQLException {
         if (param < 1 && param >= parameters.length)
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_PARAMETER_INDEX_OUT_RANGE);
+
+        if (parameters[param - 1] instanceof Float)
+            return TSDBConstants.FLOAT_SCALE;
+        if (parameters[param - 1] instanceof Double)
+            return TSDBConstants.DOUBLE_SCALE;
         return 0;
     }
 

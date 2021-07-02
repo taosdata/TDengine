@@ -124,6 +124,8 @@ int64_t genQueryId(void) {
 
   uid |= sid;
 
+  qDebug("gen qid:0x%"PRIx64, uid);
+
   return uid;
 }
 
@@ -1757,7 +1759,6 @@ static int32_t setupQueryRuntimeEnv(SQueryRuntimeEnv *pRuntimeEnv, int32_t numOf
   pRuntimeEnv->pool    = initResultRowPool(getResultRowSize(pRuntimeEnv));
   pRuntimeEnv->prevRow = malloc(POINTER_BYTES * pQuery->numOfCols + pQuery->srcRowSize);
   pRuntimeEnv->tagVal  = malloc(pQuery->tagLen);
-  pRuntimeEnv->currentOffset = pQuery->limit.offset;
 
   // NOTE: pTableCheckInfo need to update the query time range and the lastKey info
   pRuntimeEnv->pTableRetrieveTsMap = taosHashInit(numOfTables, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false, HASH_NO_LOCK);
@@ -2843,6 +2844,8 @@ static void doSetTagValueInParam(void* pTable, int32_t tagColId, tVariant *tag, 
   if (tagColId == TSDB_TBNAME_COLUMN_INDEX) {
     val = tsdbGetTableName(pTable);
     assert(val != NULL);
+  } else if (tagColId == TSDB_BLOCK_DIST_COLUMN_INDEX) {
+    val = NULL;
   } else {
     val = tsdbGetTableTagVal(pTable, tagColId, type, bytes);
   }
@@ -6716,7 +6719,11 @@ int32_t initQInfo(SQueryTableMsg *pQueryMsg, void *tsdb, int32_t vgId, SQInfo *p
   if (pQueryMsg->tsLen > 0) { // open new file to save the result
     char *tsBlock = (char *) pQueryMsg + pQueryMsg->tsOffset;
     pTsBuf = tsBufCreateFromCompBlocks(tsBlock, pQueryMsg->tsNumOfBlocks, pQueryMsg->tsLen, pQueryMsg->tsOrder, vgId);
-
+    if (pTsBuf == NULL) {
+      code = TSDB_CODE_QRY_NO_DISKSPACE;
+      goto _error;
+    }
+    
     tsBufResetPos(pTsBuf);
     bool ret = tsBufNextPos(pTsBuf);
 
@@ -6729,6 +6736,8 @@ int32_t initQInfo(SQueryTableMsg *pQueryMsg, void *tsdb, int32_t vgId, SQInfo *p
     
     pRuntimeEnv->prevResult = prevResult;    
   }
+
+  pRuntimeEnv->currentOffset = pQuery->limit.offset;
 
   pQuery->precision = tsdbGetCfg(tsdb)->precision;
 
