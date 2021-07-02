@@ -28,6 +28,13 @@ class TDTestCase:
         self.numberOfTables = 10000
         self.numberOfRecords = 100
 
+    def checkCommunity(self):
+        selfPath = os.path.dirname(os.path.realpath(__file__))
+        if ("community" in selfPath):
+            return False
+        else:
+            return True
+
     def getBuildPath(self):
         selfPath = os.path.dirname(os.path.realpath(__file__))
 
@@ -45,7 +52,17 @@ class TDTestCase:
         return buildPath
 
     def run(self):
-        tdSql.prepare()
+        if not os.path.exists("./taosdumptest/tmp1"):
+            os.makedirs("./taosdumptest/tmp1")
+        else:
+            print("目录存在")
+
+        if not os.path.exists("./taosdumptest/tmp2"):
+            os.makedirs("./taosdumptest/tmp2")
+        tdSql.execute("drop database if exists db")
+        tdSql.execute("create database db  days 11 keep 3649 blocks 8 ")
+        tdSql.execute("create database db1  days 12 keep 3640 blocks 7 ")
+        tdSql.execute("use db")
 
         tdSql.execute(
             "create table st(ts timestamp, c1 int, c2 nchar(10)) tags(t1 int, t2 binary(10))")
@@ -55,7 +72,6 @@ class TDTestCase:
         for i in range(100):
             sql += "(%d, %d, 'nchar%d')" % (currts + i, i % 100, i % 100)
         tdSql.execute(sql)
-
         tdSql.execute("create table t2 using st tags(2, 'shanghai')")
         sql = "insert into t2 values"
         currts = self.ts
@@ -70,20 +86,47 @@ class TDTestCase:
             tdLog.info("taosdump found in %s" % buildPath)
         binPath = buildPath + "/build/bin/"
 
-        os.system("rm /tmp/*.sql")
-        os.system("%staosdump --databases db -o /tmp" % binPath)
+        os.system("rm ./taosdumptest/tmp1/*.sql")
+        os.system("%staosdump --databases db -o ./taosdumptest/tmp1" % binPath)
+        os.system("%staosdump --databases db1 -o ./taosdumptest/tmp2" % binPath)
 
         tdSql.execute("drop database db")
+        tdSql.execute("drop database db1")
         tdSql.query("show databases")
         tdSql.checkRows(0)
 
-        os.system("%staosdump -i /tmp" % binPath)
-
-        tdSql.query("show databases")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, 'db')
+        os.system("%staosdump -i ./taosdumptest/tmp1" % binPath)
+        os.system("%staosdump -i ./taosdumptest/tmp2" % binPath)
 
         tdSql.execute("use db")
+        tdSql.query("show databases")
+        tdSql.checkRows(2)
+        dbresult = tdSql.queryResult
+        # 6--days,7--keep0,keep1,keep, 12--block,
+
+        isCommunity = self.checkCommunity()
+
+        print("iscommunity: %d" % isCommunity)
+        for i in range(len(dbresult)):
+            if dbresult[i][0] == 'db':
+                print(dbresult[i])
+                print(type(dbresult[i][6]))
+                print(type(dbresult[i][7]))
+                print(type(dbresult[i][9]))
+                assert dbresult[i][6] == 11
+                if isCommunity:
+                    assert dbresult[i][7] == "3649"
+                else:
+                    assert dbresult[i][7] == "3649,3649,3649"
+                assert dbresult[i][9] == 8
+            if dbresult[i][0] == 'db1':
+                assert dbresult[i][6] == 12
+                if isCommunity:
+                    assert dbresult[i][7] == "3640"
+                else:
+                    assert dbresult[i][7] == "3640,3640,3640"
+                assert dbresult[i][9] == 7
+
         tdSql.query("show stables")
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 'st')
@@ -104,6 +147,38 @@ class TDTestCase:
         for i in range(100):
             tdSql.checkData(i, 1, i)
             tdSql.checkData(i, 2, "nchar%d" % i)
+
+        # drop all databases，boundary value testing.
+        # length(databasename)<=32;length(tablesname)<=192
+        tdSql.execute("drop database db")
+        tdSql.execute("drop database db1")
+        os.system("rm -rf ./taosdumptest/tmp1")
+        os.system("rm -rf ./taosdumptest/tmp2")
+        os.makedirs("./taosdumptest/tmp1")
+        tdSql.execute("create database db12312313231231321312312312_323")
+        tdSql.error("create database db12312313231231321312312312_3231")
+        tdSql.execute("use db12312313231231321312312312_323")
+        tdSql.execute("create stable st12345678912345678912345678912345678912345678912345678912345678912345678912345678912345678912345678912345678912345678912345678912345678912345678912345678912345678912345678912345678912345678_9(ts timestamp, c1 int, c2 nchar(10)) tags(t1 int, t2 binary(10))")
+        tdSql.error("create stable st_12345678912345678912345678912345678912345678912345678912345678912345678912345678912345678912345678912345678912345678912345678912345678912345678912345678912345678912345678912345678912345678_9(ts timestamp, c1 int, c2 nchar(10)) tags(t1 int, t2 binary(10))")
+        tdSql.execute(
+            "create stable st(ts timestamp, c1 int, c2 nchar(10)) tags(t1 int, t2 binary(10))")
+        tdSql.error("create stable st1(ts timestamp, c1 int, col2_012345678901234567890123456789012345678901234567890123456789 nchar(10)) tags(t1 int, t2 binary(10))")
+
+        tdSql.execute("select * from db12312313231231321312312312_323.st12345678912345678912345678912345678912345678912345678912345678912345678912345678912345678912345678912345678912345678912345678912345678912345678912345678912345678912345678912345678912345678_9")
+        tdSql.error("create table t0_12345678912345678912345678912345678912345678912345678912345678912345678912345678912345678912345678912345678912345678912345678912345678912345678912345678912345678912345678912345678912345678_9 using st tags(1, 'beijing')")
+        tdSql.query("show stables")
+        tdSql.checkRows(2)
+        os.system(
+            "%staosdump --databases db12312313231231321312312312_323 -o ./taosdumptest/tmp1" % binPath)
+        tdSql.execute("drop database db12312313231231321312312312_323")
+        os.system("%staosdump -i ./taosdumptest/tmp1" % binPath)
+        tdSql.execute("use db12312313231231321312312312_323")
+        tdSql.query("show stables")
+        tdSql.checkRows(2)
+        os.system("rm -rf ./taosdumptest/tmp1")
+        os.system("rm -rf ./taosdumptest/tmp2")
+        os.system("rm -rf ./dump_result.txt")
+        os.system("rm -rf ./db.csv")
 
     def stop(self):
         tdSql.close()
