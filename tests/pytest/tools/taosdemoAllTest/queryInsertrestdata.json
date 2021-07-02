@@ -35,13 +35,13 @@
         "super_tables": [{
             "name": "stb0",
             "child_table_exists":"no",
-            "childtable_count": 100,
+            "childtable_count": 2,
             "childtable_prefix": "stb00_",
             "auto_create_table": "no",
             "batch_create_tbl_num": 10,
             "data_source": "rand",
             "insert_mode": "taosc",
-            "insert_rows": 100,
+            "insert_rows": 10,
             "childtable_limit": 0,
             "childtable_offset": 0,
             "interlace_rows": 0,
@@ -54,19 +54,19 @@
             "sample_format": "csv",
             "sample_file": "./sample.csv",
             "tags_file": "",
-            "columns": [{"type": "BINARY", "len": 16, "count":1}, {"type": "BINARY", "len": 32, "count":1}, {"type": "INT"}, {"type": "DOUBLE", "count":1}],
+            "columns": [{"type": "BINARY", "len": 1, "count":1}, {"type": "BINARY", "len": 3, "count":1}, {"type": "INT"}, {"type": "DOUBLE", "count":1}],
             "tags": [{"type": "TINYINT", "count":2}, {"type": "BINARY", "len": 16, "count":5}]
         },
         {
             "name": "stb1",
             "child_table_exists":"no",
-            "childtable_count": 100,
+            "childtable_count": 2,
             "childtable_prefix": "stb01_",
             "auto_create_table": "no",
             "batch_create_tbl_num": 10,
             "data_source": "rand",
             "insert_mode": "taosc",
-            "insert_rows": 200,
+            "insert_rows": 5,
             "childtable_limit": 0,
             "childtable_offset": 0,
             "interlace_rows": 0 ,
@@ -79,7 +79,7 @@
             "sample_format": "csv",
             "sample_file": "./sample.csv",
             "tags_file": "",
-            "columns": [{"type": "INT"}, {"type": "DOUBLE", "count":6}, {"type": "BINARY", "len": 16, "count":3}, {"type": "BINARY", "len": 32, "count":6}],
+            "columns": [{"type": "INT"}, {"type": "DOUBLE", "count":6}, {"type": "BINARY", "len": 1, "count":3}, {"type": "BINARY", "len": 2, "count":6}],
             "tags": [{"type": "TINYINT", "count":2}, {"type": "BINARY", "len": 16, "count":5}]
         }]
     }]

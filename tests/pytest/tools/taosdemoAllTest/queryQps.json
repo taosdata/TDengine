@@ -9,8 +9,8 @@
     "databases": "db",
     "query_times": 1,
     "specified_table_query": {
-        "query_interval": 0,
-        "concurrent": 1,
+        "query_interval": 10000,
+        "concurrent": 4,
         "sqls": [
           {    
               "sql": "select last_row(*) from stb00_0",
@@ -24,8 +24,8 @@
       },
       "super_table_query": {
           "stblname": "stb1",
-          "query_interval":0,
-          "threads": 1,
+          "query_interval":20000,
+          "threads": 4,
           "sqls": [
             {
               "sql": "select last_row(ts) from xxxx",

@@ -1777,9 +1777,9 @@ static int32_t setupQueryRuntimeEnv(SQueryRuntimeEnv *pRuntimeEnv, int32_t numOf
   pRuntimeEnv->pResultRowHashTable = taosHashInit(numOfTables, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
   pRuntimeEnv->keyBuf  = malloc(pQueryAttr->maxTableColumnWidth + sizeof(int64_t));
   pRuntimeEnv->pool    = initResultRowPool(getResultRowSize(pRuntimeEnv));
+
   pRuntimeEnv->prevRow = malloc(POINTER_BYTES * pQueryAttr->numOfCols + pQueryAttr->srcRowSize);
   pRuntimeEnv->tagVal  = malloc(pQueryAttr->tagLen);
-  pRuntimeEnv->currentOffset = pQueryAttr->limit.offset;
 
   // NOTE: pTableCheckInfo need to update the query time range and the lastKey info
   pRuntimeEnv->pTableRetrieveTsMap = taosHashInit(numOfTables, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false, HASH_NO_LOCK);
@@ -3847,14 +3847,17 @@ int32_t doFillTimeIntervalGapsInResults(SFillInfo* pFillInfo, SSDataBlock *pOutp
 }
 
 void publishOperatorProfEvent(SOperatorInfo* operatorInfo, EQueryProfEventType eventType) {
-  SQueryProfEvent event;
-  event.eventType = eventType;
-  event.eventTime = taosGetTimestampUs();
+  SQueryProfEvent event = {0};
+
+  event.eventType    = eventType;
+  event.eventTime    = taosGetTimestampUs();
   event.operatorType = operatorInfo->operatorType;
 
-  SQInfo* qInfo = operatorInfo->pRuntimeEnv->qinfo;
-  if (qInfo->summary.queryProfEvents) {
-    taosArrayPush(qInfo->summary.queryProfEvents, &event);
+  if (operatorInfo->pRuntimeEnv) {
+    SQInfo* pQInfo = operatorInfo->pRuntimeEnv->qinfo;
+    if (pQInfo->summary.queryProfEvents) {
+      taosArrayPush(pQInfo->summary.queryProfEvents, &event);
+    }
   }
 }
 
@@ -7563,6 +7566,7 @@ int32_t initQInfo(STsBufInfo* pTsBufInfo, void* tsdb, void* sourceOptr, SQInfo* 
     pRuntimeEnv->prevResult = prevResult;
   }
 
+  pRuntimeEnv->currentOffset = pQueryAttr->limit.offset;
   if (tsdb != NULL) {
     pQueryAttr->precision = tsdbGetCfg(tsdb)->precision;
   }

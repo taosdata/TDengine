@@ -11,6 +11,10 @@ ADD_SUBDIRECTORY(wepoll)
 ADD_SUBDIRECTORY(MsvcLibX)
 ADD_SUBDIRECTORY(rmonotonic)
 
+IF (TD_LINUX_64)
+  ADD_SUBDIRECTORY(lua)
+ENDIF ()
+
 IF (TD_LINUX AND TD_MQTT)
   ADD_SUBDIRECTORY(MQTT-C)
 ENDIF ()
@@ -20,7 +24,7 @@ IF (TD_DARWIN AND TD_MQTT)
 ENDIF ()
 
 IF (TD_LINUX_64 AND JEMALLOC_ENABLED)
-  MESSAGE("setup dpes/jemalloc, current source dir:" ${CMAKE_CURRENT_SOURCE_DIR})
+  MESSAGE("setup deps/jemalloc, current source dir:" ${CMAKE_CURRENT_SOURCE_DIR})
   MESSAGE("binary dir:" ${CMAKE_BINARY_DIR})
   include(ExternalProject)
   ExternalProject_Add(jemalloc

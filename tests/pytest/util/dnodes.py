@@ -127,6 +127,7 @@ class TDDnode:
             "anyIp":"0",
             "tsEnableTelemetryReporting":"0",
             "dDebugFlag":"135",
+            "tsdbDebugFlag":"135",
             "mDebugFlag":"135",
             "sdbDebugFlag":"135",
             "rpcDebugFlag":"135",
