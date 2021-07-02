@@ -3795,6 +3795,7 @@ static int32_t validateSQLExpr(SSqlCmd* pCmd, tSqlExpr* pExpr, SQueryInfo* pQuer
     uint64_t id = -1;
     for(int32_t i = 0; i < inc; ++i) {
       SExprInfo* p1 = tscExprGet(pQueryInfo, i + outputIndex);
+
       int16_t t = p1->base.resType;
       if (t == TSDB_DATA_TYPE_BINARY || t == TSDB_DATA_TYPE_NCHAR || t == TSDB_DATA_TYPE_BOOL || t == TSDB_DATA_TYPE_TIMESTAMP) {
         return TSDB_CODE_TSC_INVALID_OPERATION;
@@ -3802,7 +3803,10 @@ static int32_t validateSQLExpr(SSqlCmd* pCmd, tSqlExpr* pExpr, SQueryInfo* pQuer
 
       if (i == 0) {
         id = p1->base.uid;
-      } else if (id != p1->base.uid) {
+        continue;
+      }
+
+      if (id != p1->base.uid) {
         return TSDB_CODE_TSC_INVALID_OPERATION;
       }
     }
