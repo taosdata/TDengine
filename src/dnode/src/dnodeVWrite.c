@@ -85,7 +85,7 @@ void dnodeDispatchToVWriteQueue(SRpcMsg *pRpcMsg) {
   pMsg->vgId = htonl(pMsg->vgId);
   pMsg->contLen = htonl(pMsg->contLen);
 
-  void *pVnode = vnodeAcquire(pMsg->vgId);
+  void *pVnode = vnodeAcquireNotClose(pMsg->vgId);
   if (pVnode == NULL) {
     code = TSDB_CODE_VND_INVALID_VGROUP_ID;
   } else {
