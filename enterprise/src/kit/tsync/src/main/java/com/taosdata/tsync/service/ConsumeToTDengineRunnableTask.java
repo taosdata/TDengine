@@ -50,13 +50,10 @@ public class ConsumeToTDengineRunnableTask implements Runnable {
     private void doWriteToTDengine() throws Exception {
         for (int partitionId : partitionsToWrite) {
             consumer.assign(topic, partitionId);
-            List<ConsumerRecord> records = consumer.pollAndMark();
+            List<ConsumerRecord> records = consumer.poll();
             for (ConsumerRecord record : records) {
-                final String topic = record.topic();
-                final int partition = record.partition();
-                final long offset = record.offset();
                 String message = new String(record.value(), StandardCharsets.UTF_8);
-                logger.trace(String.format("topic: %s, partition: %d, offset: %d, value = %s", topic, partition, offset, message));
+//                logger.trace(String.format("topic: %s, partition: %d, offset: %d, value = %s", record.topic(), record.partition(), record.offset(), message));
                 tryExecuteSQL(message);
             }
         }

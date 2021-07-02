@@ -3,6 +3,7 @@ package com.taosdata.tsync.service;
 import com.alibaba.fastjson.JSONObject;
 import com.taosdata.tsync.entity.ConsumerRecord;
 import com.taosdata.tsync.exceptions.TQueueException;
+import com.taosdata.tsync.exceptions.TsyncException;
 import com.taosdata.tsync.tqueue.TQueueConsumer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -28,10 +29,6 @@ public class ConsumeToNetRunnableTask implements Runnable {
 
     private volatile boolean isClosed;
 
-    public void close() {
-        this.isClosed = true;
-    }
-
     public void shutdown() {
         this.isClosed = true;
     }
@@ -42,51 +39,50 @@ public class ConsumeToNetRunnableTask implements Runnable {
         try {
             Socket socket = new Socket(host, port);
             while (!isClosed && !Thread.currentThread().isInterrupted()) {
-                try {
-                    pollAndSendToNet(socket);
-                } catch (InterruptedException e) {
-                    logger.warn(Thread.currentThread().getName() + " is interrupted.");
-                    break;
-                } catch (Exception e) {
-                    logger.error(e.getMessage());
-                    e.printStackTrace();
-                }
+                pollAndSendToNet(socket);
             }
             socket.close();
         } catch (IOException e) {
             e.printStackTrace();
         }
-
     }
 
-    private void pollAndSendToNet(Socket socket) throws InterruptedException, IOException, TQueueException {
-        for (int partitionId : partitionsToWrite) {
-            consumer.assign(topic, partitionId);
-            List<ConsumerRecord> records = consumer.poll();
-            for (ConsumerRecord record : records) {
-                final String topic = record.topic();
-                final int partition = record.partition();
-                final long offset = record.offset();
-                String message = new String(record.value(), StandardCharsets.UTF_8);
+    private void pollAndSendToNet(Socket socket) {
+        try {
+            for (int partitionId : partitionsToWrite) {
+                consumer.assign(topic, partitionId);
+                List<ConsumerRecord> records = consumer.poll();
+                for (ConsumerRecord record : records) {
+                    final String topic = record.topic();
+                    final int partition = record.partition();
+                    final long offset = record.offset();
+                    String message = new String(record.value(), StandardCharsets.UTF_8);
 
-                JSONObject obj = new JSONObject();
-                obj.put("topic", topic);
-                obj.put("partition", partition);
-                obj.put("message", message);
+                    JSONObject obj = new JSONObject();
+                    obj.put("topic", topic);
+                    obj.put("partition", partition);
+                    obj.put("message", message);
 
-                logger.trace(String.format("topic: %s, partition: %d, offset: %d, value = %s", topic, partition, offset, message));
-                trySendToNet(socket, obj.toJSONString());
+                    logger.trace(String.format("topic: %s, partition: %d, offset: %d, value = %s", topic, partition, offset, message));
+                    trySendToNet(socket, obj.toJSONString());
+                }
             }
+            TimeUnit.MILLISECONDS.sleep(pollingInterval);
+        } catch (TQueueException e) {
+            e.printStackTrace();
+        } catch (InterruptedException e) {
+            logger.debug(Thread.currentThread().getName() + " interrupted");
+            shutdown();
+        } catch (IOException e) {
+            logger.error(Thread.currentThread().getName() + ": IOException happened");
+            e.printStackTrace();
         }
-        TimeUnit.MILLISECONDS.sleep(pollingInterval);
     }
 
     private void trySendToNet(Socket socket, String message) throws IOException {
         PrintWriter out = new PrintWriter(new BufferedWriter(new OutputStreamWriter(new BufferedOutputStream(socket.getOutputStream()))));
-        for (int i = 0; i < 10; i++) {
-            out.println(message);
-            out.flush();
-        }
+        out.println(message);
+        out.flush();
     }
 
     //setters

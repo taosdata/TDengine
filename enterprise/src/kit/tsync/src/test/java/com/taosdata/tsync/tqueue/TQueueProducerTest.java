@@ -2,58 +2,67 @@ package com.taosdata.tsync.tqueue;
 
 import com.taosdata.tsync.entity.ProducerConfig;
 import com.taosdata.tsync.entity.ProducerRecord;
+import com.taosdata.tsync.exceptions.TQueueException;
+import com.taosdata.tsync.utils.SqlUtil;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
-import java.sql.*;
+import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.util.List;
 import java.util.Properties;
+import java.util.concurrent.ExecutionException;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 public class TQueueProducerTest {
 
-    private static final String host = "192.168.17.156";
-    private static final String topic = "tq_test";
-    private static final int partitionSize = 10;
+    private String host = "192.168.17.156";
+    private String topic = "tq_test";
 
-    @Test
-    public void produceToOnePartition() {
-        // given
-        Properties props = new Properties();
-        props.setProperty(ProducerConfig.HOST_CONFIG, host);
-        TQueueProducer producer = new TQueueProducer(props);
-        final long recordSize = 1000;
-
-        // when
-        try {
-            for (int i = 0; i < recordSize; i++) {
-                ProducerRecord record = new ProducerRecord(topic, 1, "hello~~~");
-                producer.send(record);
-            }
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-
-        // then
-        Assert.assertEquals(recordSize, count());
+    @Before
+    public void before() {
+        SqlUtil.execute(host, topic, "root", "tqueue", "drop topic if exists tq_test");
+        SqlUtil.execute(host, topic, "root", "tqueue", "create topic if not exists tq_test partitions 10");
     }
 
     @Test
-    public void produceToMultiPartitions() {
+    public void produceToOnePartition() throws SQLException, InterruptedException, TQueueException, ExecutionException {
         // given
+        final long recordSize = 10000;
+
+        // when
         Properties props = new Properties();
         props.setProperty(ProducerConfig.HOST_CONFIG, host);
-        TQueueProducer producer = new TQueueProducer(props);
+        TQueueProducer<String> producer = new TQueueProducer<>(props);
+        for (int i = 0; i < recordSize; i++) {
+            ProducerRecord<String> record = new ProducerRecord<>(topic, 1, "hello~~~");
+            producer.send(record);
+        }
+
+        // then
+        ResultSet rs = SqlUtil.executeQuery(host, topic, "root", "tqueue", "select count(*) from tq_test.ps");
+        rs.next();
+        int actual = rs.getInt("count(*)");
+        Assert.assertEquals(recordSize, actual);
+    }
+
+    @Test
+    public void produceToMultiPartitions() throws SQLException {
+        // given
         final long recordSize = 1000;
         final int[] partitions = new int[]{1, 2, 3, 4, 5, 6, 7, 8, 9, 10};
 
         // when
+        Properties props = new Properties();
+        props.setProperty(ProducerConfig.HOST_CONFIG, "192.168.17.156");
+        TQueueProducer<String> producer = new TQueueProducer<>(props);
+
         IntStream.of(partitions).forEach(partitionIndex -> {
             try {
                 for (int i = 0; i < recordSize; i++) {
-                    ProducerRecord record = new ProducerRecord(topic, partitionIndex, "hello~~~");
+                    ProducerRecord<String> record = new ProducerRecord<>("tq_test", partitionIndex, "hello~~~");
                     producer.send(record);
                 }
             } catch (Exception e) {
@@ -62,23 +71,26 @@ public class TQueueProducerTest {
         });
 
         // then
-        Assert.assertEquals(recordSize * partitions.length, count());
+        ResultSet rs = SqlUtil.executeQuery(host, topic, "root", "tqueue", "select count(*) from tq_test.ps");
+        rs.next();
+        int actual = rs.getInt("count(*)");
+        Assert.assertEquals(recordSize * partitions.length, actual);
     }
 
     @Test
-    public void produceToMultiPartitionsMultiThreads() {
+    public void produceToMultiPartitionsMultiThreads() throws SQLException {
         // given
-        Properties props = new Properties();
-        props.setProperty(ProducerConfig.HOST_CONFIG, host);
-        TQueueProducer producer = new TQueueProducer(props);
         final long recordSize = 1000;
         final int[] partitions = new int[]{1, 2, 3, 4, 5, 6, 7, 8, 9, 10};
 
         // when
+        Properties props = new Properties();
+        props.setProperty(ProducerConfig.HOST_CONFIG, host);
+        TQueueProducer<String> producer = new TQueueProducer<>(props);
         List<Thread> threads = IntStream.of(partitions).mapToObj(pIndex -> new Thread(() -> {
             try {
                 for (int i = 0; i < recordSize; i++) {
-                    ProducerRecord record = new ProducerRecord(topic, pIndex, "hello~~~");
+                    ProducerRecord<String> record = new ProducerRecord<>(topic, pIndex, "hello~~~");
                     producer.send(record, (metadata, e) -> {
                         if (e != null)
                             e.printStackTrace();
@@ -88,9 +100,7 @@ public class TQueueProducerTest {
                 e.printStackTrace();
             }
         })).collect(Collectors.toList());
-        // start threads
         threads.forEach(Thread::start);
-        // wait threads
         for (Thread t : threads) {
             try {
                 t.join();
@@ -98,27 +108,29 @@ public class TQueueProducerTest {
                 e.printStackTrace();
             }
         }
-        // close producer
         producer.close();
 
         // then
-        Assert.assertEquals(recordSize * partitions.length, count());
+        ResultSet rs = SqlUtil.executeQuery(host, topic, "root", "tqueue", "select count(*) from tq_test.ps");
+        rs.next();
+        int actual = rs.getInt("count(*)");
+        Assert.assertEquals(recordSize * partitions.length, actual);
     }
 
     @Test
-    public void multiThreadSendToOnePartition() {
+    public void multiThreadSendToOnePartition() throws SQLException {
         // given
-        Properties props = new Properties();
-        props.setProperty(ProducerConfig.HOST_CONFIG, host);
-        TQueueProducer producer = new TQueueProducer(props);
         final long recordSize = 1000;
         final int threadSize = 20;
 
         // when
+        Properties props = new Properties();
+        props.setProperty(ProducerConfig.HOST_CONFIG, host);
+        TQueueProducer<String> producer = new TQueueProducer<>(props);
         List<Thread> threads = IntStream.range(0, threadSize).mapToObj(threadIndex -> new Thread(() -> {
             try {
                 for (int i = 0; i < recordSize; i++) {
-                    ProducerRecord record = new ProducerRecord(topic, 1, "hello~~~");
+                    ProducerRecord<String> record = new ProducerRecord<>("tq_test", 1, "hello~~~");
                     producer.send(record, (metadata, e) -> {
                         if (e != null)
                             e.printStackTrace();
@@ -128,9 +140,7 @@ public class TQueueProducerTest {
                 e.printStackTrace();
             }
         }, "thread-" + threadIndex)).collect(Collectors.toList());
-        // start threads
         threads.forEach(Thread::start);
-        // wait threads
         for (Thread t : threads) {
             try {
                 t.join();
@@ -138,39 +148,13 @@ public class TQueueProducerTest {
                 e.printStackTrace();
             }
         }
-        // close producer
         producer.close();
 
         // then
-        Assert.assertEquals(recordSize * threadSize, count());
+        ResultSet rs = SqlUtil.executeQuery(host, topic, "root", "tqueue", "select count(*) from tq_test.ps");
+        rs.next();
+        int actual = rs.getInt("count(*)");
+        Assert.assertEquals(recordSize * threadSize, actual);
     }
 
-
-    @Before
-    public void before() {
-        try {
-            Connection conn = DriverManager.getConnection("jdbc:TAOS-RS://" + host + ":6041/?user=root&password=tqueue");
-            Statement stmt = conn.createStatement();
-            stmt.execute("drop topic if exists " + topic);
-            stmt.execute("create topic if not exists " + topic + " partitions " + partitionSize);
-            stmt.close();
-        } catch (SQLException e) {
-            e.printStackTrace();
-        }
-    }
-
-    private long count() {
-        long count = 0;
-        try {
-            Connection conn = DriverManager.getConnection("jdbc:TAOS-RS://" + host + ":6041/?user=root&password=tqueue");
-            Statement stmt = conn.createStatement();
-            ResultSet rs = stmt.executeQuery("select count(*) from " + topic + ".ps");
-            rs.next();
-            count = rs.getLong("count(*)");
-            stmt.close();
-        } catch (SQLException e) {
-            e.printStackTrace();
-        }
-        return count;
-    }
 }

@@ -36,7 +36,7 @@
       },
       "stable": {
         "name": "weather",
-        "tables": 100,
+        "tables": 10,
         "columns": [
           {
             "name": "ts",

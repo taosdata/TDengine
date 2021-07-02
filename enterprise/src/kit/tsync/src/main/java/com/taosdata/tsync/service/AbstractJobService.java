@@ -15,8 +15,6 @@ import java.util.UUID;
 
 public abstract class AbstractJobService implements JobService {
 
-    private static final Logger logger = LoggerFactory.getLogger(AbstractJobService.class);
-
     protected final ConfigurationRepository configurationRepository = ConfigurationRepository.getInstance();
 
     @Override
@@ -30,28 +28,5 @@ public abstract class AbstractJobService implements JobService {
         return configurationRepository.find(configurationId);
     }
 
-    protected void checkTopicAndPartitions(TaskConfiguration taskConfiguration, TQueueBase tqueueBase) throws TsyncException {
-        String topic = taskConfiguration.getTopic();
-        // check topic
-        if (!tqueueBase.containsTopic(topic)) {
-            String errMsg = "topic[" + topic + "] does not exist";
-            logger.error(errMsg);
-            throw new TsyncException(errMsg);
-        }
-        // check partitions
-        int[] partitions = taskConfiguration.getPartitions();
-        if (partitions != null && !isLegal(partitions, tqueueBase.getTopic(topic).partitions())) {
-            String errMsg = "partition:" + Arrays.toString(partitions) + " out of partitions range";
-            logger.error(errMsg);
-            throw new TsyncException(errMsg);
-        }
-    }
 
-    private boolean isLegal(int[] partitions, int max) {
-        for (int i = 0; i < partitions.length; i++) {
-            if (partitions[i] < 1 || partitions[i] > max)
-                return false;
-        }
-        return true;
-    }
 }

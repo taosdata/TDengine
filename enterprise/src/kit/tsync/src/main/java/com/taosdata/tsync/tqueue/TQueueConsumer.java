@@ -1,7 +1,7 @@
 package com.taosdata.tsync.tqueue;
 
-import com.taosdata.tsync.entity.TopicPartition;
 import com.taosdata.tsync.entity.ConsumerRecord;
+import com.taosdata.tsync.entity.TopicPartition;
 import com.taosdata.tsync.enums.TQueueConstants;
 import com.taosdata.tsync.exceptions.TQueueException;
 import com.taosdata.tsync.utils.Utils;
@@ -18,6 +18,7 @@ import java.util.concurrent.atomic.AtomicLong;
 public class TQueueConsumer extends TQueueBase {
     private static final Logger logger = LoggerFactory.getLogger(TQueueConsumer.class);
     private static final long STARTED_OFFSET = 0;
+    private static final long INVALID_OFFSET = -1;
 
     private final Object LOCK = new Object();
     private String topic;
@@ -34,58 +35,6 @@ public class TQueueConsumer extends TQueueBase {
             createOffsetTable();
             logger.warn("table[" + TQueueConstants.DEFAULT_OFFSET_DATABASE_NAME + "." + TQueueConstants.DEFAULT_OFFSET_TABLE_NAME + "] is not exists, and all partitions' offset in topic:" + TQueueConstants.DEFAULT_OFFSET_DATABASE_NAME + " will be set to 0");
         }
-    }
-
-    /**
-     * 为Consumer指定要消费的主题和分区，每次调用这个方法会覆盖当前consumer正在消费的主题和分区
-     *
-     * @param topic
-     * @param partition
-     * @return
-     */
-    public long assign(String topic, int partition) throws TQueueException {
-        // use current offset from tqueue: topic_info.partition_offset
-        long offset = queryCurrentOffset(topic, partition);
-        if (offset == STARTED_OFFSET)
-            writeOffset(topic, partition, offset);
-        return assign(topic, partition, offset);
-    }
-
-    /**
-     * 为Consumer指定要消费的主题和分区，每次调用这个方法会覆盖当前consumer正在消费的主题、分区、offset
-     * @param topic
-     * @param partition
-     * @param offset
-     * @return
-     * @throws TQueueException
-     */
-    public long assign(String topic, int partition, long offset) throws TQueueException {
-        int hashCode = TopicPartition.hashCode(topic, partition);
-        // return current offset if topicPartition already assigned
-        if (hashCode == TopicPartition.hashCode(this.topic, this.partition))
-            return partitionOffsets.get(hashCode).get();
-
-        if (offset < 0) {
-            String errorMsg = "offset is less than 0";
-            logger.error(errorMsg);
-            throw new TQueueException(errorMsg);
-        }
-
-        // assign a new topicPartition for consumer
-        if (!partitions.containsKey(hashCode)) {
-            flushTopicPartitions();
-            if (!partitions.containsKey(hashCode)) {
-                String message = "topic: " + topic + ", partition: " + partition + " not exists!";
-                logger.error(message);
-                throw new TQueueException(message);
-            }
-        }
-
-        this.topic = topic;
-        this.partition = partition;
-        this.cur_topic_partition_hash = hashCode;
-        this.partitionOffsets.put(hashCode, new AtomicLong(offset));
-        return offset;
     }
 
     private boolean isOffsetDatabaseExist() {
@@ -139,8 +88,78 @@ public class TQueueConsumer extends TQueueBase {
         }
     }
 
-    private long queryCurrentOffset(String topic, int partition) {
-        long offset = STARTED_OFFSET;
+    /**
+     * 为Consumer指定要消费的主题和分区，每次调用这个方法会覆盖当前consumer正在消费的主题和分区
+     *
+     * @param topic
+     * @param partition
+     * @return
+     */
+    public long assign(String topic, int partition) throws TQueueException {
+        int hashCode = TopicPartition.hashCode(topic, partition);
+        // return current offset if topicPartition already assigned
+        if (hashCode == TopicPartition.hashCode(this.topic, this.partition))
+            return partitionOffsets.get(hashCode).get();
+
+        long currentOffset;
+        if (!partitionOffsets.containsKey(hashCode)) {
+            // use current offset from tqueue: topic_info.partition_offset
+            currentOffset = queryCurrentOffsetFromTQueue(topic, partition);
+            if (currentOffset == INVALID_OFFSET) {
+                writeOffset(topic, partition, STARTED_OFFSET);
+                currentOffset = STARTED_OFFSET;
+            }
+            partitionOffsets.put(hashCode, new AtomicLong(currentOffset));
+        } else {
+            currentOffset = partitionOffsets.get(hashCode).get();
+        }
+
+        this.topic = topic;
+        this.partition = partition;
+        this.cur_topic_partition_hash = hashCode;
+        return currentOffset;
+    }
+
+    /**
+     * 为Consumer指定要消费的主题和分区，每次调用这个方法会覆盖当前consumer正在消费的主题、分区、offset
+     *
+     * @param topic
+     * @param partition
+     * @param offset
+     * @return
+     * @throws TQueueException
+     */
+    private long assign(String topic, int partition, long offset) throws TQueueException {
+        int hashCode = TopicPartition.hashCode(topic, partition);
+        // return current offset if topicPartition already assigned
+        if (hashCode == TopicPartition.hashCode(this.topic, this.partition))
+            return partitionOffsets.get(hashCode).get();
+
+        if (offset < 0) {
+            String errorMsg = "offset is less than 0";
+            logger.error(errorMsg);
+            throw new TQueueException(errorMsg);
+        }
+
+        // assign a new topicPartition for consumer
+        if (!partitions.containsKey(hashCode)) {
+            flushTopicPartitions();
+            if (!partitions.containsKey(hashCode)) {
+                String message = "topic: " + topic + ", partition: " + partition + " not exists!";
+                logger.error(message);
+                throw new TQueueException(message);
+            }
+        }
+
+        this.topic = topic;
+        this.partition = partition;
+        this.cur_topic_partition_hash = hashCode;
+        this.partitionOffsets.put(hashCode, new AtomicLong(offset));
+        return offset;
+    }
+
+    private long queryCurrentOffsetFromTQueue(String topic, int partition) {
+        long offset = INVALID_OFFSET;
         try (Statement stmt = connection.createStatement()) {
             ResultSet rs = stmt.executeQuery("select last_row(_offset) from " + TQueueConstants.DEFAULT_OFFSET_DATABASE_NAME + "." + TQueueConstants.DEFAULT_OFFSET_TABLE_NAME + " where _topic = '" + topic + "' and _partition = " + partition);
             while (rs.next()) {
@@ -171,31 +190,12 @@ public class TQueueConsumer extends TQueueBase {
         List<ConsumerRecord> records;
         synchronized (LOCK) {
             records = fetchRows();
-            if (records.isEmpty())
-                return records;
-            long currentOffset = records.get(records.size() - 1).offset();
-            this.partitionOffsets.get(cur_topic_partition_hash).getAndSet(currentOffset);
+            if (!records.isEmpty()) {
+                long currentOffset = records.get(records.size() - 1).offset();
+                this.partitionOffsets.get(cur_topic_partition_hash).getAndSet(currentOffset);
+            }
         }
 
-        return records;
-    }
-
-    public List<ConsumerRecord> pollAndMark() throws TQueueException {
-        if (topic == null || partition == 0) {
-            String message = "topic: " + topic + ", partition: " + partition + " is invalid";
-            logger.error(message);
-            throw new TQueueException(message);
-        }
-
-        List<ConsumerRecord> records;
-        synchronized (LOCK) {
-            records = fetchRows();
-            if (records.isEmpty())
-                return records;
-            long currentOffset = records.get(records.size() - 1).offset();
-            writeOffset(topic, partition, currentOffset);
-            this.partitionOffsets.get(cur_topic_partition_hash).getAndSet(currentOffset);
-        }
         return records;
     }
 
@@ -220,6 +220,26 @@ public class TQueueConsumer extends TQueueBase {
         }
         return records;
     }
+
+
+//    public List<ConsumerRecord> pollAndMark() throws TQueueException {
+//        if (topic == null || partition == 0) {
+//            String message = "topic: " + topic + ", partition: " + partition + " is invalid";
+//            logger.error(message);
+//            throw new TQueueException(message);
+//        }
+//
+//        List<ConsumerRecord> records;
+//        synchronized (LOCK) {
+//            records = fetchRows();
+//            if (records.isEmpty())
+//                return records;
+//            long currentOffset = records.get(records.size() - 1).offset();
+//            writeOffset(topic, partition, currentOffset);
+//            this.partitionOffsets.get(cur_topic_partition_hash).getAndSet(currentOffset);
+//        }
+//        return records;
+//    }
 
 
 }

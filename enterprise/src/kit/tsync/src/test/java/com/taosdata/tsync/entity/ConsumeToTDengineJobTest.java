@@ -78,6 +78,7 @@ public class ConsumeToTDengineJobTest {
 
             Connection tqueueConnection = DriverManager.getConnection("jdbc:TAOS-RS://" + host_tq + ":6041/?user=root&password=tqueue");
             Statement stmt2 = tqueueConnection.createStatement();
+            stmt2.execute("drop database if exists topic_info");
             stmt2.execute("drop topic if exists " + topic);
             stmt2.execute("create topic if not exists " + topic + " partitions 10");
             stmt2.close();

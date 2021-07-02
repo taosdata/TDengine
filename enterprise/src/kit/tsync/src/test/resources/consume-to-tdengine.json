@@ -19,9 +19,11 @@
       5,
       6,
       7,
-      8
+      8,
+      9,
+      10
     ],
-    "threads": 5
+    "threads": 10
   },
   "destination": {
     "taosd": {

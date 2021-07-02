@@ -22,14 +22,12 @@ public class TQueueBase {
 
     public TQueueBase(Properties properties) {
         String host = properties.getProperty(TSDBDriver.PROPERTY_KEY_HOST);
-        if (host == null || host.isEmpty() || host.replaceAll("\\s", "").isEmpty()) {
+        if (host == null || host.isEmpty() || host.replaceAll("\\s", "").isEmpty())
             throw new RuntimeException("TQueue error: host is null");
-        }
         String port = properties.getProperty(TSDBDriver.PROPERTY_KEY_PORT, String.valueOf(TQueueConstants.DEFAULT_PORT));
         String user = properties.getProperty(TSDBDriver.PROPERTY_KEY_USER, TQueueConstants.DEFAULT_USER);
         String password = properties.getProperty(TSDBDriver.PROPERTY_KEY_PASSWORD, TQueueConstants.DEFAULT_PASSWORD);
-
-        final String url = "jdbc:TAOS-RS://" + host + ":" + port + "/?user=" + user + "&password=" + password;
+        String url = "jdbc:TAOS-RS://" + host + ":" + port + "/?user=" + user + "&password=" + password;
         try {
             this.connection = DriverManager.getConnection(url, properties);
             flushTopics();

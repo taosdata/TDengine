@@ -59,7 +59,6 @@ public class ProduceToTQueueCallableTaskFactory {
     }
 
     public ProduceToTQueueCallableTaskFactory setSchemaConfiguration(SchemaConfiguration schemaConfiguration) {
-        instance.setSchemaConfiguration(schemaConfiguration);
         // dbname
         DatabaseConfiguration databaseConfiguration = (DatabaseConfiguration) schemaConfiguration.findFirst(ConfigurationType.DATABASE);
         String dbname = databaseConfiguration.getName();

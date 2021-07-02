@@ -1,18 +1,22 @@
 package com.taosdata.tsync.service;
 
 import com.google.common.collect.Range;
-import com.taosdata.tsync.utils.DataGenerator;
-import com.taosdata.tsync.tqueue.TQueueProducer;
+import com.taosdata.tsync.entity.ProducerRecord;
 import com.taosdata.tsync.entity.config.ColumnConfiguration;
 import com.taosdata.tsync.entity.config.Configuration;
-import com.taosdata.tsync.entity.config.SchemaConfiguration;
 import com.taosdata.tsync.entity.config.TagConfiguration;
-import com.taosdata.tsync.entity.ProducerRecord;
+import com.taosdata.tsync.tqueue.TQueueProducer;
+import com.taosdata.tsync.utils.DataGenerator;
 import com.taosdata.tsync.utils.Utils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.*;
+import java.sql.Time;
+import java.sql.Timestamp;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.Callable;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
@@ -24,35 +28,24 @@ public class ProduceToTQueueCallableTask implements Callable<Long> {
 
     private List<Integer> partitionsToWrite;
     private Range<Long> tablesToWrite;
-
     private long recordsToWrite;
     private long batchTables;
     private long batchValues;
 
+    // schema
+    private AtomicLong ts = new AtomicLong(System.currentTimeMillis());
     private String dbname;
     private String stableName;
     private List<Configuration> columns;
     private List<Configuration> tags;
 
-    private String topic;
     private TQueueProducer producer;
-
-    private volatile AtomicLong ts;
-
-    private static class OnePartitionTask {
-        private final long tableStartIndex;
-        private final long tableEndIndex;
-        private final long recordsToWrite;
-
-        private OnePartitionTask(long tableStartIndex, long tableEndIndex, long recordsToWrite) {
-            this.tableStartIndex = tableStartIndex;
-            this.tableEndIndex = tableEndIndex;
-            this.recordsToWrite = recordsToWrite;
-        }
-    }
+    private String topic;
 
     @Override
     public Long call() {
+        logger.info(Thread.currentThread().getName() + " write table: " + tablesToWrite + " to partitions: " + partitionsToWrite + " with records: " + recordsToWrite + ", batch values: " + batchValues + ", batch tables: " + batchTables);
+
         long count = 0;
 
         Map<Integer, OnePartitionTask> partitionIndexPerTask = divideTablesRecordsToEachPartition();
@@ -66,9 +59,6 @@ public class ProduceToTQueueCallableTask implements Callable<Long> {
                 long tableStartIndex = batchIndex2TableRange.get(tableBatchIndex).lowerEndpoint();
                 long tableEndIndex = batchIndex2TableRange.get(tableBatchIndex).upperEndpoint();
                 long recordsToWrite = sum(tableStartIndex, tableEndIndex, tableIndex2RecordRange);
-
-                logger.info(Thread.currentThread().getName() + " write table: [" + tableStartIndex + "," + tableEndIndex + ")" + " to partitions: " + partitionId + " with records: " + recordsToWrite + " batch values: " + batchValues + " batch tables: " + batchTables);
-
                 long valueCount = 0;
                 while (valueCount < recordsToWrite) {
                     StringBuilder sb = new StringBuilder();
@@ -102,21 +92,9 @@ public class ProduceToTQueueCallableTask implements Callable<Long> {
 
                 count += valueCount;
             }
-
         }
 
         return count;
-    }
-
-    /**
-     * calculate sum of map from startIndex(include) to endIndex(exclude)
-     */
-    private long sum(long startIndex, long endIndex, Map<Long, Range<Long>> map) {
-        long sum = 0;
-        for (long index = startIndex; index < endIndex; index++) {
-            sum += map.get(index).upperEndpoint() - map.get(index).lowerEndpoint();
-        }
-        return sum;
     }
 
     private Map<Integer, OnePartitionTask> divideTablesRecordsToEachPartition() {
@@ -138,6 +116,29 @@ public class ProduceToTQueueCallableTask implements Callable<Long> {
             partitionTaskMap.put(partitionId, onePartitionTask);
         }
         return partitionTaskMap;
+    }
+
+    private static class OnePartitionTask {
+        private final long tableStartIndex;
+        private final long tableEndIndex;
+        private final long recordsToWrite;
+
+        private OnePartitionTask(long tableStartIndex, long tableEndIndex, long recordsToWrite) {
+            this.tableStartIndex = tableStartIndex;
+            this.tableEndIndex = tableEndIndex;
+            this.recordsToWrite = recordsToWrite;
+        }
+    }
+
+    /**
+     * calculate sum of map from startIndex(include) to endIndex(exclude)
+     */
+    private long sum(long startIndex, long endIndex, Map<Long, Range<Long>> map) {
+        long sum = 0;
+        for (long index = startIndex; index < endIndex; index++) {
+            sum += map.get(index).upperEndpoint() - map.get(index).lowerEndpoint();
+        }
+        return sum;
     }
 
     // ?.? using ?.? tags (?,?,?) values(?,?,?),(?,?,?)
@@ -176,7 +177,11 @@ public class ProduceToTQueueCallableTask implements Callable<Long> {
         for (long i = 0; i < records; i++) {
             for (int j = 0; j < columns.size(); j++) {
                 ColumnConfiguration column = (ColumnConfiguration) columns.get(j);
-                parameters.add(DataGenerator.random(column.getType(), column.getLength()));
+                if (column.getType().equalsIgnoreCase("timestamp")) {
+                    parameters.add(ts.getAndIncrement());
+                } else {
+                    parameters.add(DataGenerator.random(column.getType(), column.getLength()));
+                }
             }
         }
         return parameters.toArray();
@@ -227,6 +232,4 @@ public class ProduceToTQueueCallableTask implements Callable<Long> {
         this.producer = producer;
     }
 
-    public void setSchemaConfiguration(SchemaConfiguration schemaConfiguration) {
-    }
 }

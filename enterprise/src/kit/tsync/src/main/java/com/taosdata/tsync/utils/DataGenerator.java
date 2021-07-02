@@ -3,7 +3,7 @@ package com.taosdata.tsync.utils;
 import java.util.Random;
 
 public class DataGenerator {
-    private static Random random = new Random(System.currentTimeMillis());
+    private static final Random random = new Random(System.currentTimeMillis());
     private static final String alphabet = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890";
 
     // "timestamp", "int", "bigint", "float", "double", "binary(64)", "smallint", "tinyint", "bool", "nchar(64)",

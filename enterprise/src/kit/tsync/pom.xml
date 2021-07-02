@@ -74,9 +74,9 @@
                         <include>**/*Test.java</include>
                     </includes>
                     <excludes>
-                        <exclude>**/ConsumeToFileJobTest.java</exclude>
-                        <exclude>**/ConsumeToTDengineJobTest.java</exclude>
-                        <exclude>**/ProduceToTQueueJobTest.java</exclude>
+                        <exclude>**/tqueue/*.java</exclude>
+                        <exclude>**/entity/*.java</exclude>
+                        <exclude>**/service/*.java</exclude>
                     </excludes>
                     <testFailureIgnore>true</testFailureIgnore>
                 </configuration>

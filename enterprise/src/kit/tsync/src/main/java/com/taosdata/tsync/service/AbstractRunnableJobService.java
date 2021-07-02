@@ -35,7 +35,7 @@ public abstract class AbstractRunnableJobService extends AbstractJobService {
         }).collect(Collectors.toList());
 
         // start
-        threads.stream().forEach(Thread::start);
+        threads.forEach(Thread::start);
 
         // wait
         for (Thread thread : threads) {

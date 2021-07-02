@@ -1,16 +1,17 @@
-package com.taosdata.tsync.factory;
+package com.taosdata.tsync.parser;
 
 import com.alibaba.fastjson.JSONObject;
 import com.taosdata.tsync.entity.config.Configuration;
 import com.taosdata.tsync.entity.config.ProduceToTQueueConfiguration;
 import com.taosdata.tsync.enums.ConfigurationType;
+import com.taosdata.tsync.factory.ConfigurationFactory;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
 import java.util.List;
 
-public class ConfigurationFactoryTest {
+public class ProduceToTQueueConfigurationParserTest {
     private String jsonStr = "{\"producer\":{\"host\":\"192.168.17.156\",\"port\":6041,\"user\":\"root\",\"password\":\"taosdata\",\"charset\":\"UTF-8\",\"locale\":\"en_US.UTF-8\",\"timezone\":\"UTC-8\",\"serializer\":\"STRING\"},\"task\":{\"threads\":10,\"topic\":\"tq_test\",\"partitions\":[1,2,3]},\"message\":{\"total\":100,\"batchTables\":10,\"batchValues\":10,\"schema\":{\"database\":{\"name\":\"test\",\"precision\":\"ms\"},\"stable\":{\"name\":\"weather\",\"tables\":10,\"columns\":[{\"name\":\"ts\",\"type\":\"timestamp\"},{\"name\":\"temperature\",\"type\":\"float\"},{\"name\":\"humidity\",\"type\":\"int\"}],\"tags\":[{\"name\":\"loc\",\"type\":\"binary\",\"length\":64},{\"name\":\"groupId\",\"type\":\"int\"}]}}}}";
     private JSONObject configJSON;
 

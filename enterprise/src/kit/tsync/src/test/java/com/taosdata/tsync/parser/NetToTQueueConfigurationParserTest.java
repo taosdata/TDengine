@@ -28,7 +28,7 @@ public class NetToTQueueConfigurationParserTest {
         ProducerConfiguration producer = (ProducerConfiguration) netToTQueueConfiguration.findFirst(ConfigurationType.PRODUCER);
 
         // then
-        Assert.assertEquals("192.168.17.156", producer.getHost());
+        Assert.assertEquals("192.168.17.82", producer.getHost());
         Assert.assertEquals(new Integer(6041), producer.getPort());
         Assert.assertEquals("root", producer.getUser());
         Assert.assertEquals("tqueue", producer.getPassword());
@@ -40,7 +40,6 @@ public class NetToTQueueConfigurationParserTest {
         // when
         NetConfiguration net = (NetConfiguration) netToTQueueConfiguration.findFirst(ConfigurationType.NET);
         // then
-        Assert.assertEquals("192.168.17.82", net.getHost());
         Assert.assertEquals(8899, net.getPort());
     }
 

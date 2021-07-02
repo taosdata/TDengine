@@ -18,7 +18,7 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-public class ConsumeToFileJobServiceImpl extends AbstractConsumeRunnableJobService {
+public class ConsumeToFileJobServiceImpl extends AbstractRunnableJobService {
 
     private static final Logger logger = LoggerFactory.getLogger(ConsumeToFileJobServiceImpl.class);
 
@@ -40,10 +40,13 @@ public class ConsumeToFileJobServiceImpl extends AbstractConsumeRunnableJobServi
 
         // Consumer Configuration ==> consumer, Task Configuration ==> topic, partitions, threads
         ConsumerConfiguration consumerConfiguration = (ConsumerConfiguration) configuration.findFirst(ConfigurationType.CONSUMER);
-        TaskConfiguration taskConfiguration = (TaskConfiguration) configuration.findFirst(ConfigurationType.TASK);
         TQueueConsumer consumer = TQueueConsumerFactory.build(consumerConfiguration);
-        // 1. use all partitions in tqueue if partitions is missing in configuration
-        doPartitionsMissingStrategy(taskConfiguration, consumer);
+
+        TaskConfiguration taskConfiguration = (TaskConfiguration) configuration.findFirst(ConfigurationType.TASK);
+        final String topic = taskConfiguration.getTopic();
+        //TODO: check topic
+        final int[] partitions = taskConfiguration.getPartitions();
+        //TODO: check partitions
 
         // 2. partitions to write
         List<Integer> partitionsToWrite = IntStream.of(partitions).boxed().collect(Collectors.toList());

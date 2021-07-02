@@ -64,4 +64,6 @@ public abstract class AbstractCallableJobService extends AbstractJobService {
         Object result = resultProcessService.getResult();
         logger.info("get result: " + result.toString());
     }
+
+
 }

@@ -24,7 +24,7 @@ import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
-public class ConsumeToTDengineJobServiceImpl extends AbstractConsumeRunnableJobService {
+public class ConsumeToTDengineJobServiceImpl extends AbstractRunnableJobService {
 
     private static final Logger logger = LoggerFactory.getLogger(ConsumeToTDengineJobServiceImpl.class);
 
@@ -53,19 +53,49 @@ public class ConsumeToTDengineJobServiceImpl extends AbstractConsumeRunnableJobS
             throw new TsyncException(errorMsg);
         }
 
-        // 1. consumer
-        prepareConsumer(configuration);
+        // consumer
+        consumerConfiguration = (ConsumerConfiguration) configuration.findFirst(ConfigurationType.CONSUMER);
+        consumer = TQueueConsumerFactory.build(consumerConfiguration);
 
-        // 2. topic, partitions, threads
-        prepareTask(configuration);
+        // topic, partitions
+        taskConfiguration = (TaskConfiguration) configuration.findFirst(ConfigurationType.TASK);
+        String topic = taskConfiguration.getTopic();
+        if (topic == null || !consumer.containsTopic(topic)) {
+            String errMsg = "topic[" + topic + "] does not exist";
+            logger.error(errMsg);
+            throw new TsyncException(errMsg);
+        }
+        int[] partitions = taskConfiguration.getPartitions();
+        // TODO: check partitions
 
-        // 3. destination - taosd
-        prepareTaosd(configuration);
+        // arrange threads to partitions
+        int threadSize = taskConfiguration.getThreads();
+        threadIndex2PartitionList = Utils.divideArrIntoGroups(partitions, threadSize);
+        int actualThreads = threadIndex2PartitionList.keySet().size();
+        if (threadSize > actualThreads) {
+            logger.warn("Only " + actualThreads + " threads will be created");
+        }
+        threadSize = actualThreads;
 
-        // 4. destination - strategy
-        prepareStrategy(configuration);
+        // destination - taosd
+        taosdConfiguration = (TaosdConfiguration) configuration.findFirst(ConfigurationType.TAOSD);
+        if (taosdConfiguration == null) {
+            String errorMsg = "cannot find taosd in configurations";
+            logger.error(errorMsg);
+            throw new TsyncException(errorMsg);
+        }
 
-        // 5. create runnable tasks
+        // destination - strategy
+        StrategyConfiguration strategyConfiguration = (StrategyConfiguration) configuration.findFirst(ConfigurationType.STRATEGY);
+        pollingInterval = strategyConfiguration.getPollingInterval();
+        schemaMissing = strategyConfiguration.getSchemaMissing();
+
+        if (schemaMissing == SchemaMissingStrategy.CREATE) {
+            schemaConfiguration = (SchemaConfiguration) configuration.findFirst(ConfigurationType.SCHEMA);
+            doCreateSchema();
+        }
+
+        // create runnable tasks
         List<UUID> taskIds = new ArrayList<>();
         for (int i = 0; i < threadSize; i++) {
             TQueueConsumer consumer = TQueueConsumerFactory.build(consumerConfiguration);
@@ -86,52 +116,6 @@ public class ConsumeToTDengineJobServiceImpl extends AbstractConsumeRunnableJobS
             taskIds.add(runnableTask.getId());
         }
         return taskIds;
-    }
-
-    private void prepareConsumer(ConsumeToTDengineConfiguration configuration) {
-        consumerConfiguration = (ConsumerConfiguration) configuration.findFirst(ConfigurationType.CONSUMER);
-        consumer = TQueueConsumerFactory.build(consumerConfiguration);
-    }
-
-    private void prepareTask(ConsumeToTDengineConfiguration configuration) throws TsyncException {
-        taskConfiguration = (TaskConfiguration) configuration.findFirst(ConfigurationType.TASK);
-        // use all partitions in tqueue if partitions is missing in configuration
-        super.doPartitionsMissingStrategy(taskConfiguration, consumer);
-        // arrange threads to partitions
-        arrangeThreads();
-    }
-
-    private void arrangeThreads() {
-        threadIndex2PartitionList = Utils.divideArrIntoGroups(partitions, threadSize);
-        int actualThreads = threadIndex2PartitionList.keySet().size();
-        if (threadSize > actualThreads) {
-            logger.warn("Only " + actualThreads + " threads will be created");
-        }
-        threadSize = actualThreads;
-    }
-
-    private void prepareTaosd(ConsumeToTDengineConfiguration configuration) throws TsyncException {
-        taosdConfiguration = (TaosdConfiguration) configuration.findFirst(ConfigurationType.TAOSD);
-        if (taosdConfiguration == null) {
-            String errorMsg = "cannot find taosd in configurations";
-            logger.error(errorMsg);
-            throw new TsyncException(errorMsg);
-        }
-    }
-
-    private void prepareStrategy(ConsumeToTDengineConfiguration configuration) {
-        StrategyConfiguration strategyConfiguration = (StrategyConfiguration) configuration.findFirst(ConfigurationType.STRATEGY);
-        pollingInterval = strategyConfiguration.getPollingInterval();
-        schemaMissing = strategyConfiguration.getSchemaMissing();
-
-        if (schemaMissing == SchemaMissingStrategy.CREATE) {
-            prepareSchema(configuration);
-            doCreateSchema();
-        }
-    }
-
-    private void prepareSchema(ConsumeToTDengineConfiguration configuration) {
-        schemaConfiguration = (SchemaConfiguration) configuration.findFirst(ConfigurationType.SCHEMA);
     }
 
     private void doCreateSchema() {

@@ -17,19 +17,9 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import java.util.stream.IntStream;
 
 public class ProduceToTQueueJobServiceImpl extends AbstractCallableJobService {
     private static final Logger logger = LoggerFactory.getLogger(ProduceToTQueueJobServiceImpl.class);
-
-    private String topic;
-    private int threadSize;
-    private Multimap<Integer, Integer> threadIndex2PartitionList;
-    private Map<Integer, Range<Long>> threadIndex2TableRange;
-    private Map<Integer, Range<Long>> threadRecordMap;
-    private long batchTables;
-    private long batchValues;
-    private SchemaConfiguration schemaConfiguration;
 
     public ProduceToTQueueJobServiceImpl() {
         super(new AffectRowsProcessService());
@@ -37,7 +27,7 @@ public class ProduceToTQueueJobServiceImpl extends AbstractCallableJobService {
 
     @Override
     public List<UUID> prepare(ConfigurationType configurationType, UUID configurationId) throws TsyncException {
-        // find configuration
+        // throw exception if configuration cannot be found
         ProduceToTQueueConfiguration configuration = (ProduceToTQueueConfiguration) configurationRepository.find(configurationId);
         if (configuration == null) {
             String errorMsg = "cannot find Configuration of id:[" + configurationId + "]";
@@ -45,40 +35,52 @@ public class ProduceToTQueueJobServiceImpl extends AbstractCallableJobService {
             throw new TsyncException(errorMsg);
         }
 
-        // 1. do partition missing strategy
         ProducerConfiguration producerConfiguration = (ProducerConfiguration) configuration.findFirst(ConfigurationType.PRODUCER);
+        TQueueProducer producer = TQueueProducerFactory.build(producerConfiguration);
         TaskConfiguration taskConfiguration = (TaskConfiguration) configuration.findFirst(ConfigurationType.TASK);
-        TQueueProducer producer_one = TQueueProducerFactory.build(producerConfiguration);
-        // check topic and partitions
-        checkTopicAndPartitions(taskConfiguration, producer_one);
-        // use all partitions if partitions not set
-        topic = taskConfiguration.getTopic();
+        // throw exception if topic not exist
+        String topic = taskConfiguration.getTopic();
+        if (!producer.containsTopic(topic)) {
+            String errMsg = "topic[" + topic + "] does not exist";
+            logger.error(errMsg);
+            throw new TsyncException(errMsg);
+        }
+
+        // throw exception if partitions is null or partitions contains invalid partition index
         int[] partitions = taskConfiguration.getPartitions();
         if (partitions == null || partitions.length == 0) {
-            partitions = IntStream.range(1, producer_one.getTopic(topic).partitions() + 1).toArray();
+            String errorMsg = "partition is null or partition.length is 0";
+            logger.error(errorMsg);
+            throw new TsyncException(errorMsg);
         }
-        threadSize = taskConfiguration.getThreads();
-        // arrange threads and partitions
-        threadIndex2PartitionList = Utils.divideArrIntoGroups(partitions, threadSize);
+        if (containsInvalidPartitionIndex(partitions, producer.getTopic(topic).partitions())) {
+            String errorMsg = "partitions contains invalid partition index";
+            logger.error(errorMsg);
+            throw new TsyncException(errorMsg);
+        }
+
+        // arrange threads ==> partitions
+        int threadSize = taskConfiguration.getThreads();
+        Multimap<Integer, Integer> threadIndex2PartitionList = Utils.divideArrIntoGroups(partitions, threadSize);
         int actualThreads = threadIndex2PartitionList.keySet().size();
         if (threadSize > actualThreads) {
             logger.warn("Only " + actualThreads + " threads will be created");
         }
         threadSize = actualThreads;
 
-        // 2. StableConfiguration ==> tables
+        // arrange tables ==> threads
         StableConfiguration stableConfiguration = (StableConfiguration) configuration.findFirst(ConfigurationType.STABLE);
         long tables = stableConfiguration.getTables();
-        threadIndex2TableRange = Utils.divideIntoGroups(tables, threadSize);
+        Map<Integer, Range<Long>> threadIndex2TableRange = Utils.divideIntoGroups(tables, threadSize);
 
         // 3. messageConfiguration ==> total record
         MessageConfiguration messageConfiguration = (MessageConfiguration) configuration.findFirst(ConfigurationType.MESSAGE);
         long total = messageConfiguration.getTotal();
-        threadRecordMap = Utils.divideIntoGroups(total, threadSize);
-        batchTables = messageConfiguration.getBatchTables();
-        batchValues = messageConfiguration.getBatchValues();
+        Map<Integer, Range<Long>> threadRecordMap = Utils.divideIntoGroups(total, threadSize);
+        long batchTables = messageConfiguration.getBatchTables();
+        long batchValues = messageConfiguration.getBatchValues();
         // 6. SchemaConfiguration ==> schema
-        schemaConfiguration = (SchemaConfiguration) configuration.findFirst(ConfigurationType.SCHEMA);
+        SchemaConfiguration schemaConfiguration = (SchemaConfiguration) configuration.findFirst(ConfigurationType.SCHEMA);
 
         // 7. create threads
         List<UUID> taskIds = new ArrayList<>();
@@ -88,7 +90,6 @@ public class ProduceToTQueueJobServiceImpl extends AbstractCallableJobService {
             Range<Long> tablesToWrite = threadIndex2TableRange.get(i);
             Range<Long> recordsToWrite = threadRecordMap.get(i);
             long records = recordsToWrite.upperEndpoint() - recordsToWrite.lowerEndpoint();
-            TQueueProducer producer = TQueueProducerFactory.build(producerConfiguration);
 
             ProduceToTQueueCallableTask callable = new ProduceToTQueueCallableTaskFactory()
                     .setProducer(producer)
@@ -108,5 +109,14 @@ public class ProduceToTQueueJobServiceImpl extends AbstractCallableJobService {
 
         return taskIds;
     }
+
+    private boolean containsInvalidPartitionIndex(int[] partitions, int bound) {
+        for (int partitionIndex : partitions) {
+            if (partitionIndex < 1 || partitionIndex > bound)
+                return true;
+        }
+        return false;
+    }
+
 
 }
