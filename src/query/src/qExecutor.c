@@ -1328,53 +1328,103 @@ static void hashIntervalAgg(SOperatorInfo* pOperatorInfo, SResultRowInfo* pResul
   updateResultRowInfoActiveIndex(pResultRowInfo, pQueryAttr, pRuntimeEnv->current->lastKey);
 }
 
+static bool buildGroupbyInfo(const SSDataBlock *pSDataBlock, const SGroupbyExpr *pGroupbyExpr, SGroupbyOperatorInfo *pInfo) {
+  // check inited or not
+  if (pInfo->prevData != NULL) {
+    return true;
+  }
+  pInfo->pGroupbyDataInfo = taosArrayInit(pGroupbyExpr->numOfGroupCols, sizeof(SGroupbyDataInfo)); 
+
+  for (int32_t k = 0; k < pGroupbyExpr->numOfGroupCols; ++k) {
+    SColIndex* pColIndex = taosArrayGet(pGroupbyExpr->columnInfo, k);
+    for (int32_t i = 0; i < pDataBlock->info.numOfCols; ++i) {
+      SColumnInfoData* pColInfo = taosArrayGet(pDataBlock->pDataBlock, i);
+      if (pColInfo->info.colId == pColIndex->colId) {
+        int32_t type = pColInfo->info.type;
+        if (type == TSDB_DATA_TYPE_FLOAT || type == TSDB_DATA_TYPE_DOUBLE) {
+          return false;
+        }
+        pInfo->totalBytes += pColInfo->info.bytes;  
+
+        SGroupbyDataInfo info =  {.index = i, .type = pColInfo->info.type, .bytes = pColInfo->info.bytes};
+        taosArrayInsert(pInfo->pGroupbyDataInfo, k, &info);   
+        break;
+      }
+      if (i == pDataBlock->info.numOfCols - 1) {
+        // not found groupby col in dataBlock, error 
+        return false;
+      }
+    }
+  }
+  return true;
+}
+static void createGroupbyKeyBuf(const SSDataBlock *pSDataBlock, SGroupbyOperatorInfo *pInfo, int32_t rowId, char **buf) {
+  char *p = calloc(1, pInfo->totalBytes);
+  if (p == NULL) { *buf = NULL; return; } 
+
+  *buf = p;
+  for (int32_t i = 0; i < taosArrayGetSize(pInfo->pGroupbyDataInfo); i++) {
+    SGroupbyDataInfo *pDataInfo = taosArrayGet(pInfo->pGroupbyDataInfo, i); 
+
+    SColumnInfoData* pColData = taosArrayGet(pSDataBlock->pDataBlock, pDataInfo->index);
+    char *val = ((char *)pColData->pData) + pDataInfo->bytes * rowId; 
+    if (isNull(val, pDataInfo->type)) {
+      p += pDataInfo->bytes;
+      continue;
+    }
+
+    memcpy(p, val, pDataInfo->bytes);
+    p += pDataInfo->bytes;
+  }  
+}
+static bool isGroupbyKeyEqual(void *a, void *b, void *ext) {
+  SGroupbyOperatorInfo *pInfo = (SGroupbyOperatorInfo *)ext;
+
+  int32_t offset = 0; 
+  for (i = 0; i < taosArrayGetSize(pInfo->pGroupbyDataInfo); i++) {
+    SGroupbyDataInfo *pDataInfo = taosArrayGet(pInfo->pGroupbyDataInfo, i); 
+    char *k1 = (char *)a + offset;
+    char *k2 = (char *)b + offset;     
+    if (getComparFunc(pDataInfo->type, 0)(k1, k2) != 0) {
+       return false;  
+    }
+    offset += pDataInfo->bytes; 
+  }
+  return true;
+}
 static void doHashGroupbyAgg(SOperatorInfo* pOperator, SGroupbyOperatorInfo *pInfo, SSDataBlock *pSDataBlock) {
   SQueryRuntimeEnv* pRuntimeEnv = pOperator->pRuntimeEnv;
   STableQueryInfo*  item = pRuntimeEnv->current;
 
-  SColumnInfoData* pColInfoData = taosArrayGet(pSDataBlock->pDataBlock, pInfo->colIndex);
-
   SQueryAttr* pQueryAttr = pRuntimeEnv->pQueryAttr;
-  int16_t     bytes = pColInfoData->info.bytes;
-  int16_t     type = pColInfoData->info.type;
 
-  if (type == TSDB_DATA_TYPE_FLOAT || type == TSDB_DATA_TYPE_DOUBLE) {
+  if (buildGroupbyInfo(pSDataBlock, pRuntimeEnv->pQueryAttr->pGroupbyExpr, pInfo)) {
     qError("QInfo:0x%"PRIx64" group by not supported on double/float columns, abort", GET_QID(pRuntimeEnv));
     return;
   }
+   
 
   SColumnInfoData* pFirstColData = taosArrayGet(pSDataBlock->pDataBlock, 0);
   int64_t* tsList = (pFirstColData->info.type == TSDB_DATA_TYPE_TIMESTAMP)? (int64_t*) pFirstColData->pData:NULL;
 
   STimeWindow w = TSWINDOW_INITIALIZER;
 
+  char *key = NULL;
   int32_t num = 0;
   for (int32_t j = 0; j < pSDataBlock->info.rows; ++j) {
-    char* val = ((char*)pColInfoData->pData) + bytes * j;
-    if (isNull(val, type)) {
-      continue;
-    }
+    createGroupbyKeyBuf(pSDataBlock, pInfo, j, &key);
+    if (key == NULL) {}
 
-    // Compare with the previous row of this column, and do not set the output buffer again if they are identical.
     if (pInfo->prevData == NULL) {
-      pInfo->prevData = malloc(bytes);
-      memcpy(pInfo->prevData, val, bytes);
+      // first row of  
+      pInfo->prevData = key;  
       num++;
       continue;
-    }
-
-    if (IS_VAR_DATA_TYPE(type)) {
-      int32_t len = varDataLen(val);
-      if(len == varDataLen(pInfo->prevData) && memcmp(varDataVal(pInfo->prevData), varDataVal(val), len) == 0) {
-        num++;
-        continue;
-      }
-    } else {
-      if (memcmp(pInfo->prevData, val, bytes) == 0) {
-        num++;
-        continue;
-      }
-    }
+    } else if (isGroupbyKeyEqual(pInfo->prevData, key, pInfo)) {
+      num++;  
+      tfree(key);
+      continue;
+    }  
 
     if (pQueryAttr->stableQuery && pQueryAttr->stabledev && (pRuntimeEnv->prevResult != NULL)) {
       setParamForStableStddevByColData(pRuntimeEnv, pInfo->binfo.pCtx, pOperator->numOfOutput, pOperator->pExpr, pInfo->prevData, bytes);
@@ -1388,7 +1438,8 @@ static void doHashGroupbyAgg(SOperatorInfo* pOperator, SGroupbyOperatorInfo *pIn
     doApplyFunctions(pRuntimeEnv, pInfo->binfo.pCtx, &w, j - num, num, tsList, pSDataBlock->info.rows, pOperator->numOfOutput);
 
     num = 1;
-    memcpy(pInfo->prevData, val, bytes);
+    tfree(pInfo->prevData);
+    pInfo->prevData = key;
   }
 
   if (num > 0) {
@@ -1399,7 +1450,7 @@ static void doHashGroupbyAgg(SOperatorInfo* pOperator, SGroupbyOperatorInfo *pIn
       setParamForStableStddevByColData(pRuntimeEnv, pInfo->binfo.pCtx, pOperator->numOfOutput, pOperator->pExpr, val, bytes);
     }
 
-    int32_t ret = setGroupResultOutputBuf(pRuntimeEnv, &(pInfo->binfo), pOperator->numOfOutput, val, type, bytes, item->groupIndex);
+    int32_t ret = setGroupResultOutputBuf(pRuntimeEnv, &(pInfo->binfo), pOperator->numOfOutput, pInfo->prevData, type, bytes, item->groupIndex);
     if (ret != TSDB_CODE_SUCCESS) {  // null data, too many state code
       longjmp(pRuntimeEnv->env, TSDB_CODE_QRY_APP_ERROR);
     }
@@ -5631,10 +5682,6 @@ static SSDataBlock* hashGroupbyAggregate(void* param, bool* newgroup) {
     // the pDataBlock are always the same one, no need to call this again
     setInputDataBlock(pOperator, pInfo->binfo.pCtx, pBlock, pRuntimeEnv->pQueryAttr->order.order);
     setTagValue(pOperator, pRuntimeEnv->current->pTable, pInfo->binfo.pCtx, pOperator->numOfOutput);
-    if (pInfo->colIndex == -1) {
-      pInfo->colIndex = getGroupbyColumnIndex(pRuntimeEnv->pQueryAttr->pGroupbyExpr, pBlock);
-    }
-
     doHashGroupbyAgg(pOperator, pInfo, pBlock);
   }
 
@@ -5852,6 +5899,7 @@ static void destroySFillOperatorInfo(void* param, int32_t numOfOutput) {
 static void destroyGroupbyOperatorInfo(void* param, int32_t numOfOutput) {
   SGroupbyOperatorInfo* pInfo = (SGroupbyOperatorInfo*) param;
   doDestroyBasicInfo(&pInfo->binfo, numOfOutput);
+  taosArrayDestroy(pInfo->pGroupbyDataInfo); 
   tfree(pInfo->prevData);
 }
 

@@ -3191,8 +3191,8 @@ int32_t validateGroupbyNode(SQueryInfo* pQueryInfo, SArray* pList, SSqlCmd* pCmd
   const char* msg4 = "join query does not support group by";
   const char* msg5 = "not allowed column type for group by";
   const char* msg6 = "tags not allowed for table query";
-  const char* msg7 = "not support group by expression";
-  const char* msg8 = "normal column can only locate at the end of group by clause";
+  //const char* msg7 = "not support group by expression";
+  //const char* msg8 = "normal column can only locate at the end of group by clause";
 
   // todo : handle two tables situation
   STableMetaInfo* pTableMetaInfo = NULL;
@@ -3291,14 +3291,14 @@ int32_t validateGroupbyNode(SQueryInfo* pQueryInfo, SArray* pList, SSqlCmd* pCmd
 
   // 1. only one normal column allowed in the group by clause
   // 2. the normal column in the group by clause can only located in the end position
-  if (numOfGroupCols > 1) {
-    return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg7);
-  }
+  //if (numOfGroupCols > 1) {
+  //  return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg7);
+  //}
 
   for(int32_t i = 0; i < num; ++i) {
     SColIndex* pIndex = taosArrayGet(pGroupExpr->columnInfo, i);
-    if (TSDB_COL_IS_NORMAL_COL(pIndex->flag) && i != num - 1) {
-     return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg8);
+    if (!TSDB_COL_IS_NORMAL_COL(pIndex->flag)) {
+     //return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg8);
     }
   }
 
