@@ -170,7 +170,7 @@ static int32_t dnodeProcessCreateVnodeMsg(SRpcMsg *rpcMsg) {
 static int32_t dnodeProcessAlterVnodeMsg(SRpcMsg *rpcMsg) {
   SAlterVnodeMsg *pAlter = dnodeParseVnodeMsg(rpcMsg);
 
-  void *pVnode = vnodeAcquire(pAlter->cfg.vgId);
+  void *pVnode = vnodeAcquireNotClose(pAlter->cfg.vgId);
   if (pVnode != NULL) {
     dDebug("vgId:%d, alter vnode msg is received", pAlter->cfg.vgId);
     int32_t code = vnodeAlter(pVnode, pAlter);
