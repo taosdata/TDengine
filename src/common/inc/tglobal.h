@@ -39,6 +39,7 @@ extern int8_t   tsEnableTelemetryReporting;
 extern char     tsEmail[];
 extern char     tsArbitrator[];
 extern int8_t   tsArbOnline;
+extern int64_t  tsArbOnlineTimestamp;
 extern int32_t  tsDnodeId;
 
 // common
@@ -75,7 +76,7 @@ extern int32_t tsMinSlidingTime;
 extern int32_t tsMinIntervalTime;
 extern int32_t tsMaxStreamComputDelay;
 extern int32_t tsStreamCompStartDelay;
-extern int32_t tsStreamCompRetryDelay;
+extern int32_t tsRetryStreamCompDelay;
 extern float   tsStreamComputDelayRatio;  // the delayed computing ration of the whole time window
 extern int32_t tsProjectExecInterval;
 extern int64_t tsMaxRetentWindow;
@@ -154,7 +155,7 @@ extern char    tsMnodeTmpDir[];
 extern char    tsDataDir[];
 extern char    tsLogDir[];
 extern char    tsScriptDir[];
-extern int64_t tsMsPerDay[3];
+extern int64_t tsTickPerDay[3];
 
 // system info
 extern char    tsOsName[];

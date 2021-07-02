@@ -93,7 +93,7 @@ int32_t vnodeCreate(SCreateVnodeMsg *pVnodeCfg) {
 }
 
 int32_t vnodeSync(int32_t vgId) {
-  SVnodeObj *pVnode = vnodeAcquire(vgId);
+  SVnodeObj *pVnode = vnodeAcquireNotClose(vgId);
   if (pVnode == NULL) {
     vDebug("vgId:%d, failed to sync, vnode not find", vgId);
     return TSDB_CODE_VND_INVALID_VGROUP_ID;
@@ -114,8 +114,9 @@ int32_t vnodeSync(int32_t vgId) {
   return TSDB_CODE_SUCCESS;
 }
 
+
 int32_t vnodeDrop(int32_t vgId) {
-  SVnodeObj *pVnode = vnodeAcquire(vgId);
+  SVnodeObj *pVnode = vnodeAcquireNotClose(vgId);
   if (pVnode == NULL) {
     vDebug("vgId:%d, failed to drop, vnode not find", vgId);
     return TSDB_CODE_VND_INVALID_VGROUP_ID;
@@ -132,6 +133,19 @@ int32_t vnodeDrop(int32_t vgId) {
   vnodeCleanupInMWorker(pVnode);
 
   return TSDB_CODE_SUCCESS;
+}
+int32_t vnodeCompact(int32_t vgId) {
+  void *pVnode = vnodeAcquire(vgId);
+  if (pVnode != NULL) {
+    vDebug("vgId:%d, compact vnode msg is received", vgId);
+    //not care success or not
+    tsdbCompact(((SVnodeObj*)pVnode)->tsdb);  
+    vnodeRelease(pVnode);
+  } else {
+    vInfo("vgId:%d, vnode not exist, can't compact it", vgId);
+    return TSDB_CODE_VND_INVALID_VGROUP_ID;
+  }
+  return TSDB_CODE_SUCCESS;  
 }
 
 static int32_t vnodeAlterImp(SVnodeObj *pVnode, SCreateVnodeMsg *pVnodeCfg) {
@@ -425,15 +439,16 @@ int32_t vnodeOpen(int32_t vgId) {
 }
 
 int32_t vnodeClose(int32_t vgId) {
-  SVnodeObj *pVnode = vnodeAcquire(vgId);
+  SVnodeObj *pVnode = vnodeAcquireNotClose(vgId);
   if (pVnode == NULL) return 0;
   if (pVnode->dropped) {
     vnodeRelease(pVnode);
     return 0;
   }
 
+  pVnode->preClose = 1;
+
   vDebug("vgId:%d, vnode will be closed, pVnode:%p", pVnode->vgId, pVnode);
-  vnodeRemoveFromHash(pVnode);
   vnodeRelease(pVnode);
   vnodeCleanUp(pVnode);
 
@@ -454,7 +469,11 @@ void vnodeDestroy(SVnodeObj *pVnode) {
   }
 
   if (pVnode->tsdb) {
-    code = tsdbCloseRepo(pVnode->tsdb, 1);
+    // the deleted vnode does not need to commit, so as to speed up the deletion
+    int toCommit = 1;
+    if (pVnode->dropped) toCommit = 0;
+
+    code = tsdbCloseRepo(pVnode->tsdb, toCommit);
     pVnode->tsdb = NULL;
   }
 

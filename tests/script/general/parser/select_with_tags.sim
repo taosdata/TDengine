@@ -68,6 +68,27 @@ endw
 
 sleep 100
 
+
+#======================= only check first table tag, TD-4827
+sql select count(*) from $mt where t1 in (0)  
+if $rows != 1 then 
+  return -1
+endi
+if $data00 != $rowNum then  
+  return -1;
+endi
+
+$secTag = ' . abc  
+$secTag = $secTag . 0
+$secTag = $secTag . '
+sql select count(*) from $mt where t2 =$secTag  and t1 in (0)   
+if $rows != 1 then 
+  return -1
+endi
+if $data00 != $rowNum then  
+  return -1;
+endi
+
 #================================
 sql select ts from select_tags_mt0
 print $rows
@@ -887,10 +908,16 @@ sql_error select tbname, t1 from select_tags_mt0 interval(1y);
 #valid sql: select first(c1), last(c2), count(*) from select_tags_mt0 group by tbname, t1;
 #valid sql: select first(c1), tbname, t1 from select_tags_mt0 group by t2;
 
+print ==================================>TD-4231
+sql_error select t1,tbname from select_tags_mt0 where c1<0
+sql_error select t1,tbname from select_tags_mt0 where c1<0 and tbname in ('select_tags_tb12')
+
+sql select tbname from select_tags_mt0 where tbname in ('select_tags_tb12');
+
 sql_error select first(c1), last(c2), t1 from select_tags_mt0 group by tbname;
 sql_error select first(c1), last(c2), tbname, t2 from select_tags_mt0 group by tbname;
 sql_error select first(c1), count(*), t2, t1, tbname from select_tags_mt0 group by tbname;
-# this sql is valid: select first(c1), t2 from select_tags_mt0 group by tbname;
+#valid sql: select first(c1), t2 from select_tags_mt0 group by tbname;
 
 #sql select first(ts), tbname from select_tags_mt0 group by tbname;
 #sql select count(c1) from select_tags_mt0 where c1=99 group by tbname;

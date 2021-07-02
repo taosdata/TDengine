@@ -22,7 +22,7 @@
 #include "tscSubquery.h"
 #include "tscUtil.h"
 #include "tsched.h"
-#include "tschemautil.h"
+#include "qTableMeta.h"
 #include "tsclient.h"
 
 static void tscAsyncQueryRowsForNextVnode(void *param, TAOS_RES *tres, int numOfRows);
@@ -58,7 +58,7 @@ void doAsyncQuery(STscObj* pObj, SSqlObj* pSql, __async_cb_func_t fp, void* para
   strntolower(pSql->sqlstr, sqlstr, (int32_t)sqlLen);
 
   tscDebugL("0x%"PRIx64" SQL: %s", pSql->self, pSql->sqlstr);
-  pCmd->curSql = pSql->sqlstr;
+  pCmd->resColumnId = TSDB_RES_COL_ID;
 
   int32_t code = tsParseSql(pSql, true);
   if (code == TSDB_CODE_TSC_ACTION_IN_PROGRESS) return;
@@ -69,7 +69,7 @@ void doAsyncQuery(STscObj* pObj, SSqlObj* pSql, __async_cb_func_t fp, void* para
     return;
   }
 
-  SQueryInfo* pQueryInfo = tscGetQueryInfo(pCmd, pCmd->clauseIndex);
+  SQueryInfo* pQueryInfo = tscGetQueryInfo(pCmd);
   executeQuery(pSql, pQueryInfo);
 }
 
@@ -127,7 +127,8 @@ static void tscAsyncFetchRowsProxy(void *param, TAOS_RES *tres, int numOfRows) {
        * all available virtual node has been checked already, now we need to check
        * for the next subclause queries
        */
-      if (pCmd->clauseIndex < pCmd->numOfClause - 1) {
+      if (pCmd->active->sibling != NULL) {
+        pCmd->active = pCmd->active->sibling;
         tscTryQueryNextClause(pSql, tscAsyncQueryRowsForNextVnode);
         return;
       }
@@ -143,7 +144,7 @@ static void tscAsyncFetchRowsProxy(void *param, TAOS_RES *tres, int numOfRows) {
   }
   
   // local merge has handle this situation during super table non-projection query.
-  if (pCmd->command != TSDB_SQL_RETRIEVE_LOCALMERGE) {
+  if (pCmd->command != TSDB_SQL_RETRIEVE_GLOBALMERGE) {
     pRes->numOfClauseTotal += pRes->numOfRows;
   }
 
@@ -173,7 +174,7 @@ static void tscProcessAsyncRetrieveImpl(void *param, TAOS_RES *tres, int numOfRo
   }
 
   pSql->fp = fp;
-  if (pCmd->command != TSDB_SQL_RETRIEVE_LOCALMERGE && pCmd->command < TSDB_SQL_LOCAL) {
+  if (pCmd->command != TSDB_SQL_RETRIEVE_GLOBALMERGE && pCmd->command < TSDB_SQL_LOCAL) {
     pCmd->command = (pCmd->command > TSDB_SQL_MGMT) ? TSDB_SQL_RETRIEVE : TSDB_SQL_FETCH;
   }
 
@@ -219,7 +220,18 @@ void taos_fetch_rows_a(TAOS_RES *tres, __async_cb_func_t fp, void *param) {
 
   tscResetForNextRetrieve(pRes);
   
-  // handle the sub queries of join query
+  // handle outer query based on the already retrieved nest query results.
+  SQueryInfo* pQueryInfo = tscGetQueryInfo(pCmd);
+  if (pQueryInfo->pUpstream != NULL && taosArrayGetSize(pQueryInfo->pUpstream) > 0) {
+    SSchedMsg schedMsg = {0};
+    schedMsg.fp = doRetrieveSubqueryData;
+    schedMsg.ahandle = (void *)pSql;
+    schedMsg.thandle = (void *)1;
+    schedMsg.msg = 0;
+    taosScheduleTask(tscQhandle, &schedMsg);
+    return;
+  }
+
   if (pCmd->command == TSDB_SQL_TABLE_JOIN_RETRIEVE) {
     tscFetchDatablockForSubquery(pSql);
   } else if (pRes->completed) {
@@ -231,7 +243,8 @@ void taos_fetch_rows_a(TAOS_RES *tres, __async_cb_func_t fp, void *param) {
          * all available virtual nodes in current clause has been checked already, now try the
          * next one in the following union subclause
          */
-        if (pCmd->clauseIndex < pCmd->numOfClause - 1) {
+        if (pCmd->active->sibling != NULL) {
+          pCmd->active = pCmd->active->sibling;  // todo refactor
           tscTryQueryNextClause(pSql, tscAsyncQueryRowsForNextVnode);
           return;
         }
@@ -244,18 +257,18 @@ void taos_fetch_rows_a(TAOS_RES *tres, __async_cb_func_t fp, void *param) {
       }
 
       return;
-    } else if (pCmd->command == TSDB_SQL_RETRIEVE || pCmd->command == TSDB_SQL_RETRIEVE_LOCALMERGE) {
+    } else if (pCmd->command == TSDB_SQL_RETRIEVE || pCmd->command == TSDB_SQL_RETRIEVE_GLOBALMERGE) {
       // in case of show command, return no data
       (*pSql->fetchFp)(param, pSql, 0);
     } else {
       assert(0);
     }
   } else { // current query is not completed, continue retrieve from node
-    if (pCmd->command != TSDB_SQL_RETRIEVE_LOCALMERGE && pCmd->command < TSDB_SQL_LOCAL) {
+    if (pCmd->command != TSDB_SQL_RETRIEVE_GLOBALMERGE && pCmd->command < TSDB_SQL_LOCAL) {
       pCmd->command = (pCmd->command > TSDB_SQL_MGMT) ? TSDB_SQL_RETRIEVE : TSDB_SQL_FETCH;
     }
 
-    SQueryInfo* pQueryInfo1 = tscGetActiveQueryInfo(&pSql->cmd);
+    SQueryInfo* pQueryInfo1 = tscGetQueryInfo(&pSql->cmd);
     tscBuildAndSendRequest(pSql, pQueryInfo1);
   }
 }
@@ -317,26 +330,38 @@ static int32_t updateMetaBeforeRetryQuery(SSqlObj* pSql, STableMetaInfo* pTableM
   // update the pExpr info, colList info, number of table columns
   // TODO Re-parse this sql and issue the corresponding subquery as an alternative for this case.
   if (pSql->retryReason == TSDB_CODE_TDB_INVALID_TABLE_ID) {
-    int32_t numOfExprs = (int32_t) tscSqlExprNumOfExprs(pQueryInfo);
+    int32_t numOfExprs = (int32_t) tscNumOfExprs(pQueryInfo);
     int32_t numOfCols = tscGetNumOfColumns(pTableMetaInfo->pTableMeta);
     int32_t numOfTags = tscGetNumOfTags(pTableMetaInfo->pTableMeta);
 
     SSchema *pSchema = tscGetTableSchema(pTableMetaInfo->pTableMeta);
+    SSchema *pTagSchema = tscGetTableTagSchema(pTableMetaInfo->pTableMeta);
+
     for (int32_t i = 0; i < numOfExprs; ++i) {
-      SSqlExpr *pExpr = &(tscSqlExprGet(pQueryInfo, i)->base);
+      SSqlExpr *pExpr = &(tscExprGet(pQueryInfo, i)->base);
+
+      // update the table uid
       pExpr->uid = pTableMetaInfo->pTableMeta->id.uid;
 
       if (pExpr->colInfo.colIndex >= 0) {
         int32_t index = pExpr->colInfo.colIndex;
 
         if ((TSDB_COL_IS_NORMAL_COL(pExpr->colInfo.flag) && index >= numOfCols) ||
-            (TSDB_COL_IS_TAG(pExpr->colInfo.flag) && (index < numOfCols || index >= (numOfCols + numOfTags)))) {
+            (TSDB_COL_IS_TAG(pExpr->colInfo.flag) && (index < 0 || index >= numOfTags))) {
           return pSql->retryReason;
         }
 
-        if ((pSchema[pExpr->colInfo.colIndex].colId != pExpr->colInfo.colId) &&
-            strcasecmp(pExpr->colInfo.name, pSchema[pExpr->colInfo.colIndex].name) != 0) {
-          return pSql->retryReason;
+        if (TSDB_COL_IS_TAG(pExpr->colInfo.flag)) {
+          if ((pTagSchema[pExpr->colInfo.colIndex].colId != pExpr->colInfo.colId) &&
+              strcasecmp(pExpr->colInfo.name, pTagSchema[pExpr->colInfo.colIndex].name) != 0) {
+            return pSql->retryReason;
+          }
+        } else if (TSDB_COL_IS_NORMAL_COL(pExpr->colInfo.flag)) {
+          if ((pSchema[pExpr->colInfo.colIndex].colId != pExpr->colInfo.colId) &&
+              strcasecmp(pExpr->colInfo.name, pSchema[pExpr->colInfo.colIndex].name) != 0) {
+            return pSql->retryReason;
+          }
+        } else { // do nothing for udc
         }
       }
     }
@@ -374,12 +399,12 @@ void tscTableMetaCallBack(void *param, TAOS_RES *res, int code) {
 
   tscDebug("0x%"PRIx64" get %s successfully", pSql->self, msg);
   if (pSql->pStream == NULL) {
-    SQueryInfo* pQueryInfo = tscGetQueryInfo(pCmd, pCmd->clauseIndex);
+    SQueryInfo *pQueryInfo = tscGetQueryInfo(pCmd);
 
     // check if it is a sub-query of super table query first, if true, enter another routine
-    if (TSDB_QUERY_HAS_TYPE(pQueryInfo->type, (TSDB_QUERY_TYPE_STABLE_SUBQUERY|TSDB_QUERY_TYPE_SUBQUERY|TSDB_QUERY_TYPE_TAG_FILTER_QUERY))) {
-      tscDebug("0x%"PRIx64" update local table meta, continue to process sql and send the corresponding query", pSql->self);
-
+    if (TSDB_QUERY_HAS_TYPE(pQueryInfo->type, (TSDB_QUERY_TYPE_STABLE_SUBQUERY | TSDB_QUERY_TYPE_SUBQUERY |
+                                               TSDB_QUERY_TYPE_TAG_FILTER_QUERY))) {
+      tscDebug("0x%" PRIx64 " update cached table-meta, continue to process sql and send the corresponding query", pSql->self);
       STableMetaInfo *pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
 
       code = tscGetTableMeta(pSql, pTableMetaInfo);
@@ -401,42 +426,8 @@ void tscTableMetaCallBack(void *param, TAOS_RES *res, int code) {
       taosReleaseRef(tscObjRef, pSql->self);
       return;
     } else {  // continue to process normal async query
-      if (pCmd->parseFinished) {
-        tscDebug("0x%"PRIx64" update local table meta, continue to process sql and send corresponding query", pSql->self);
-
-        STableMetaInfo* pTableMetaInfo = tscGetTableMetaInfoFromCmd(pCmd, pCmd->clauseIndex, 0);
-        code = tscGetTableMeta(pSql, pTableMetaInfo);
-
-        assert(code == TSDB_CODE_TSC_ACTION_IN_PROGRESS || code == TSDB_CODE_SUCCESS);
-        if (code == TSDB_CODE_TSC_ACTION_IN_PROGRESS) {
-          taosReleaseRef(tscObjRef, pSql->self);
-          return;
-        }
-
-        assert(pCmd->command != TSDB_SQL_INSERT);
-
-        if (pCmd->command == TSDB_SQL_SELECT) {
-          tscDebug("0x%"PRIx64" redo parse sql string and proceed", pSql->self);
-          pCmd->parseFinished = false;
-          tscResetSqlCmd(pCmd, true);
-
-          code = tsParseSql(pSql, true);
-          if (code == TSDB_CODE_TSC_ACTION_IN_PROGRESS) {
-            taosReleaseRef(tscObjRef, pSql->self);
-            return;
-          } else if (code != TSDB_CODE_SUCCESS) {
-            goto _error;
-          }
-
-          tscBuildAndSendRequest(pSql, NULL);
-        } else {  // in all other cases, simple retry
-          tscBuildAndSendRequest(pSql, NULL);
-        }
-
-        taosReleaseRef(tscObjRef, pSql->self);
-        return;
-      } else {
-        tscDebug("0x%"PRIx64" continue parse sql after get table meta", pSql->self);
+      if (TSDB_QUERY_HAS_TYPE(pQueryInfo->type, TSDB_QUERY_TYPE_INSERT)) {
+        tscDebug("0x%" PRIx64 " continue parse sql after get table-meta", pSql->self);
 
         code = tsParseSql(pSql, false);
         if (code == TSDB_CODE_TSC_ACTION_IN_PROGRESS) {
@@ -446,8 +437,8 @@ void tscTableMetaCallBack(void *param, TAOS_RES *res, int code) {
           goto _error;
         }
 
-        if (pCmd->insertType == TSDB_QUERY_TYPE_STMT_INSERT) {
-          STableMetaInfo *pTableMetaInfo = tscGetTableMetaInfoFromCmd(pCmd, pCmd->clauseIndex, 0);
+        if (TSDB_QUERY_HAS_TYPE(pCmd->insertParam.insertType, TSDB_QUERY_TYPE_STMT_INSERT)) {
+          STableMetaInfo *pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
           code = tscGetTableMeta(pSql, pTableMetaInfo);
           if (code == TSDB_CODE_TSC_ACTION_IN_PROGRESS) {
             taosReleaseRef(tscObjRef, pSql->self);
@@ -457,59 +448,52 @@ void tscTableMetaCallBack(void *param, TAOS_RES *res, int code) {
           }
 
           (*pSql->fp)(pSql->param, pSql, code);
-        } else if (TSDB_QUERY_HAS_TYPE(pQueryInfo->type, TSDB_QUERY_TYPE_INSERT)) {
-          if (pCmd->dataSourceType == DATA_FROM_DATA_FILE) {
+        } else {
+          if (TSDB_QUERY_HAS_TYPE(pCmd->insertParam.insertType, TSDB_QUERY_TYPE_FILE_INSERT)) {
             tscImportDataFromFile(pSql);
           } else {
             tscHandleMultivnodeInsert(pSql);
           }
+        }
+      } else {
+        if (pSql->retryReason != TSDB_CODE_SUCCESS) {
+          tscDebug("0x%" PRIx64 " update cached table-meta, re-validate sql statement and send query again",
+                   pSql->self);
+          tscResetSqlCmd(pCmd, false);
+          pSql->retryReason = TSDB_CODE_SUCCESS;
         } else {
-          SQueryInfo* pQueryInfo1 = tscGetQueryInfo(pCmd, pCmd->clauseIndex);
-          executeQuery(pSql, pQueryInfo1);
+          tscDebug("0x%" PRIx64 " cached table-meta, continue validate sql statement and send query", pSql->self);
         }
 
-        taosReleaseRef(tscObjRef, pSql->self);
-        return;
+        code = tsParseSql(pSql, true);
+        if (code == TSDB_CODE_TSC_ACTION_IN_PROGRESS) {
+          taosReleaseRef(tscObjRef, pSql->self);
+          return;
+        } else if (code != TSDB_CODE_SUCCESS) {
+          goto _error;
+        }
+
+        SQueryInfo *pQueryInfo1 = tscGetQueryInfo(pCmd);
+        executeQuery(pSql, pQueryInfo1);
       }
-    }
 
-  } else {  // stream computing
-    STableMetaInfo *pTableMetaInfo = tscGetTableMetaInfoFromCmd(pCmd, pCmd->clauseIndex, 0);
-
-    code = tscGetTableMeta(pSql, pTableMetaInfo);
-    if (code == TSDB_CODE_TSC_ACTION_IN_PROGRESS) {
       taosReleaseRef(tscObjRef, pSql->self);
       return;
-    } else if (code != TSDB_CODE_SUCCESS) {
-      goto _error;
     }
+  } else {  // stream computing
+    tscDebug("0x%"PRIx64" stream:%p meta is updated, start new query, command:%d", pSql->self, pSql->pStream, pCmd->command);
 
-    if (UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo)) {
-      code = tscGetSTableVgroupInfo(pSql, pCmd->clauseIndex);
-      if (code == TSDB_CODE_TSC_ACTION_IN_PROGRESS) {
-        taosReleaseRef(tscObjRef, pSql->self);
-        return;
-      } else if (code != TSDB_CODE_SUCCESS) {
-        goto _error;
-      }
-    }
-
-    tscDebug("0x%"PRIx64" stream:%p meta is updated, start new query, command:%d", pSql->self, pSql->pStream, pSql->cmd.command);
-    if (!pSql->cmd.parseFinished) {
+    SQueryInfo* pQueryInfo = tscGetQueryInfo(pCmd);
+    if (tscNumOfExprs(pQueryInfo) == 0) {
       tsParseSql(pSql, false);
     }
 
     (*pSql->fp)(pSql->param, pSql, code);
-    
     taosReleaseRef(tscObjRef, pSql->self);
-
     return;
   }
 
-//  tscDoQuery(pSql);
-
   taosReleaseRef(tscObjRef, pSql->self);
-  
   return;
 
   _error:

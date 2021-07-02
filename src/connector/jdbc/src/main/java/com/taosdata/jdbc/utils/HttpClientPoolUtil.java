@@ -16,43 +16,31 @@ import org.apache.http.protocol.HTTP;
 import org.apache.http.protocol.HttpContext;
 import org.apache.http.util.EntityUtils;
 
-import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 
 
 public class HttpClientPoolUtil {
-    public static PoolingHttpClientConnectionManager cm = null;
-    public static CloseableHttpClient httpClient = null;
-    public static String token = "cm9vdDp0YW9zZGF0YQ==";
-    /**
-     * 默认content 类型
-     */
-    private static final String DEFAULT_CONTENT_TYPE = "application/json";
-    /**
-     * 默认请求超时时间30s
-     */
-    private static final int DEFAULT_TIME_OUT = 15000;
-    private static final int count = 32;
-    private static final int totalCount = 1000;
-    private static final int Http_Default_Keep_Time = 15000;
 
-    /**
-     * 初始化连接池
-     */
+    private static final String DEFAULT_CONTENT_TYPE = "application/json";
+    private static final int DEFAULT_TIME_OUT = 15000;
+    private static final int DEFAULT_MAX_PER_ROUTE = 32;
+    private static final int DEFAULT_MAX_TOTAL = 1000;
+    private static final int DEFAULT_HTTP_KEEP_TIME = 15000;
+
+    private static CloseableHttpClient httpClient;
+
     private static synchronized void initPools() {
         if (httpClient == null) {
-            cm = new PoolingHttpClientConnectionManager();
-            cm.setDefaultMaxPerRoute(count);
-            cm.setMaxTotal(totalCount);
-            httpClient = HttpClients.custom().setKeepAliveStrategy(defaultStrategy).setConnectionManager(cm).build();
+            PoolingHttpClientConnectionManager connectionManager = new PoolingHttpClientConnectionManager();
+            connectionManager.setDefaultMaxPerRoute(DEFAULT_MAX_PER_ROUTE);
+            connectionManager.setMaxTotal(DEFAULT_MAX_TOTAL);
+            httpClient = HttpClients.custom().setKeepAliveStrategy(DEFAULT_KEEP_ALIVE_STRATEGY).setConnectionManager(connectionManager).build();
         }
     }
 
-    /**
-     * Http connection keepAlive 设置
-     */
-    private static ConnectionKeepAliveStrategy defaultStrategy = (response, context) -> {
+    private static final ConnectionKeepAliveStrategy DEFAULT_KEEP_ALIVE_STRATEGY = (response, context) -> {
         HeaderElementIterator it = new BasicHeaderElementIterator(response.headerIterator(HTTP.CONN_KEEP_ALIVE));
-        int keepTime = Http_Default_Keep_Time * 1000;
+        int keepTime = DEFAULT_HTTP_KEEP_TIME * 1000;
         while (it.hasNext()) {
             HeaderElement headerElement = it.nextElement();
             String param = headerElement.getName();
@@ -76,7 +64,7 @@ public class HttpClientPoolUtil {
      * @param data 请求数据
      * @return responseBody
      */
-    public static String execute(String uri, String data) {
+    public static String execute(String uri, String data, String token) {
         long startTime = System.currentTimeMillis();
         HttpEntity httpEntity = null;
         HttpEntityEnclosingRequestBase method = null;
@@ -90,7 +78,7 @@ public class HttpClientPoolUtil {
             method.setHeader("Connection", "keep-alive");
             method.setHeader("Authorization", "Taosd " + token);
 
-            method.setEntity(new StringEntity(data, Charset.forName("UTF-8")));
+            method.setEntity(new StringEntity(data, StandardCharsets.UTF_8));
             HttpContext context = HttpClientContext.create();
             CloseableHttpResponse httpResponse = httpClient.execute(method, context);
             httpEntity = httpResponse.getEntity();
@@ -175,28 +163,18 @@ public class HttpClientPoolUtil {
             httpEntity = httpResponse.getEntity();
             if (httpEntity != null) {
                 responseBody = EntityUtils.toString(httpEntity, "UTF-8");
-//                logger.info("请求URL: " + uri + "+ 返回状态码：" + httpResponse.getStatusLine().getStatusCode());
             }
         } catch (Exception e) {
             if (method != null) {
                 method.abort();
             }
             e.printStackTrace();
-//            logger.error("execute get request exception, url:" + uri + ", exception:" + e.toString() + ",cost time(ms):"
-//                    + (System.currentTimeMillis() - startTime));
-            System.out.println("log:调用 HttpClientPoolUtil execute get request exception, url:" + uri + ", exception:" + e.toString() + ",cost time(ms):"
-                    + (System.currentTimeMillis() - startTime));
         } finally {
             if (httpEntity != null) {
                 try {
                     EntityUtils.consumeQuietly(httpEntity);
                 } catch (Exception e) {
-//                    e.printStackTrace();
-//                    logger.error("close response exception, url:" + uri + ", exception:" + e.toString()
-//                            + ",cost time(ms):" + (System.currentTimeMillis() - startTime));
-                    new Exception("close response exception, url:" + uri + ", exception:" + e.toString()
-                            + ",cost time(ms):" + (System.currentTimeMillis() - startTime))
-                            .printStackTrace();
+                    new Exception("close response exception, url:" + uri + ", exception:" + e.toString() + ",cost time(ms):" + (System.currentTimeMillis() - startTime)).printStackTrace();
                 }
             }
         }

@@ -44,8 +44,8 @@ typedef struct SResPair {
 // the structure for sql function in select clause
 typedef struct SSqlExpr {
   char      aliasName[TSDB_COL_NAME_LEN];  // as aliasName
+  char      token[TSDB_COL_NAME_LEN];      // original token
   SColIndex colInfo;
-
   uint64_t  uid;            // refactor use the pointer
 
   int16_t   functionId;     // function id in aAgg array
@@ -91,10 +91,6 @@ char* extractDBName(const char *tableId, char *name);
 size_t tableIdPrefix(const char* name, char* prefix, int32_t len);
 
 void extractTableNameFromToken(SStrToken *pToken, SStrToken* pTable);
-
-//SSchema tGetTbnameColumnSchema();
-
-SSchema tGetBlockDistColumnSchema();
 
 SSchema tGetUserSpecifiedColumnSchema(tVariant* pVal, SStrToken* exprStr, const char* name);
 

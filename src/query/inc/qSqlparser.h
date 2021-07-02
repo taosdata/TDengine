@@ -46,7 +46,7 @@ enum SQL_NODE_FROM_TYPE {
 
 enum SQL_EXPR_FLAG {
   EXPR_FLAG_TS_ERROR = 1,
-  EXPR_FLAG_US_TIMESTAMP = 2,
+  EXPR_FLAG_NS_TIMESTAMP = 2,
   EXPR_FLAG_TIMESTAMP_VAR = 3,
 };
 
@@ -89,6 +89,10 @@ typedef struct SSessionWindowVal {
   SStrToken          gap;
 } SSessionWindowVal;
 
+typedef struct SWindowStateVal {
+  SStrToken          col;
+} SWindowStateVal;
+
 struct SRelationInfo;
 
 typedef struct SSqlNode {
@@ -100,6 +104,7 @@ typedef struct SSqlNode {
   SArray            *fillType;     // fill type[optional], SArray<tVariantListItem>
   SIntervalVal       interval;     // (interval, interval_offset) [optional]
   SSessionWindowVal  sessionVal;   // session window [optional]
+  SWindowStateVal    windowstateVal; // window_state(col) [optional]
   SStrToken          sliding;      // sliding window [optional]
   SLimitVal          limit;        // limit offset [optional]
   SLimitVal          slimit;       // group limit offset [optional]
@@ -107,14 +112,18 @@ typedef struct SSqlNode {
   struct tSqlExpr   *pHaving;      // having clause [optional]
 } SSqlNode;
 
-typedef struct STableNamePair {
-  SStrToken name;
+typedef struct SRelElementPair {
+  union {
+    SStrToken  tableName;
+    SArray    *pSubquery;
+  };
+
   SStrToken aliasName;
-} STableNamePair;
+} SRelElementPair;
 
 typedef struct SRelationInfo {
   int32_t       type;        // nested query|table name list
-  SArray       *list;        // SArray<STableNamePair>|SArray<SSqlNode*>
+  SArray       *list;        // SArray<SRelElementPair>
 } SRelationInfo;
 
 typedef struct SCreatedTableInfo {
@@ -138,7 +147,7 @@ typedef struct SCreateTableSql {
   } colInfo;
 
   SArray            *childTableInfo;        // SArray<SCreatedTableInfo>
-  SSqlNode     *pSelect;
+  SSqlNode          *pSelect;
 } SCreateTableSql;
 
 typedef struct SAlterTableInfo {
@@ -254,8 +263,8 @@ SArray *tVariantListInsert(SArray *pList, tVariant *pVar, uint8_t sortOrder, int
 SArray *tVariantListAppendToken(SArray *pList, SStrToken *pAliasToken, uint8_t sortOrder);
 
 SRelationInfo *setTableNameList(SRelationInfo* pFromInfo, SStrToken *pName, SStrToken* pAlias);
-SRelationInfo *setSubquery(SRelationInfo* pFromInfo, SArray* pSqlNode);
 void          *destroyRelationInfo(SRelationInfo* pFromInfo);
+SRelationInfo *addSubqueryElem(SRelationInfo* pRelationInfo, SArray* pSub, SStrToken* pAlias);
 
 // sql expr leaf node
 tSqlExpr *tSqlExprCreateIdValue(SStrToken *pToken, int32_t optrType);
@@ -271,7 +280,7 @@ SArray   *tSqlExprListAppend(SArray *pList, tSqlExpr *pNode, SStrToken *pDistinc
 void      tSqlExprListDestroy(SArray *pList);
 
 SSqlNode *tSetQuerySqlNode(SStrToken *pSelectToken, SArray *pSelNodeList, SRelationInfo *pFrom, tSqlExpr *pWhere,
-                                SArray *pGroupby, SArray *pSortOrder, SIntervalVal *pInterval, SSessionWindowVal *ps,
+                                SArray *pGroupby, SArray *pSortOrder, SIntervalVal *pInterval, SSessionWindowVal *ps, SWindowStateVal *pw,
                                 SStrToken *pSliding, SArray *pFill, SLimitVal *pLimit, SLimitVal *pgLimit, tSqlExpr *pHaving);
 int32_t tSqlExprCompare(tSqlExpr *left, tSqlExpr *right);
 
@@ -302,6 +311,8 @@ void setCreateAcctSql(SSqlInfo *pInfo, int32_t type, SStrToken *pName, SStrToken
 void setCreateUserSql(SSqlInfo *pInfo, SStrToken *pName, SStrToken *pPasswd);
 void setKillSql(SSqlInfo *pInfo, int32_t type, SStrToken *ip);
 void setAlterUserSql(SSqlInfo *pInfo, int16_t type, SStrToken *pName, SStrToken* pPwd, SStrToken *pPrivilege);
+
+void setCompactVnodeSql(SSqlInfo *pInfo, int32_t type, SArray *pParam);
 
 void setDefaultCreateDbOption(SCreateDbInfo *pDBInfo);
 void setDefaultCreateTopicOption(SCreateDbInfo *pDBInfo);

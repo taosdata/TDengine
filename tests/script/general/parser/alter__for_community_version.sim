@@ -1,0 +1,316 @@
+system sh/stop_dnodes.sh
+
+system sh/deploy.sh -n dnode1 -i 1
+system sh/cfg.sh -n dnode1 -c walLevel -v 1
+system sh/exec.sh -n dnode1 -s start
+sleep 100
+sql connect
+
+$dbPrefix = m_alt_db
+$tbPrefix = m_alt_tb
+$mtPrefix = m_alt_mt
+$tbNum = 10
+$rowNum = 5
+$totalNum = $tbNum * $rowNum
+$ts0 = 1537146000000
+$delta = 600000
+print ========== alter.sim
+$i = 0
+$db = $dbPrefix . $i
+$mt = $mtPrefix . $i
+
+sql drop database if exists $db
+sql create database $db days 10 keep 20
+sql use $db
+sql show databases
+if $rows != 1 then
+  return -1
+endi
+if $data07 != 20 then 
+ return -1
+endi
+
+sql_error alter database $db keep "20"
+sql_error alter database $db keep "20","20","20"
+sql_error alter database $db keep 0
+sql_error alter database $db keep 20.0
+sql_error alter database $db keep 20.0,20.0,20.0
+sql_error alter database $db keep 0,0,0
+sql_error alter database $db keep 3
+sql_error alter database $db keep -1,-1,-1
+sql_error alter database $db keep 20,20
+sql_error alter database $db keep 9,9,9
+sql_error alter database $db keep 20,20,19
+sql_error alter database $db keep 20,19,20
+sql_error alter database $db keep 20,19,19
+sql_error alter database $db keep 20,19,18
+sql_error alter database $db keep 20,20,20,20
+sql_error alter database $db keep 365001,365001,365001
+sql_error alter database $db keep 365001
+sql alter database $db keep 20
+sql show databases
+if $rows != 1 then
+  return -1
+endi
+if $data07 != 20 then 
+ return -1
+endi
+sql alter database $db keep 10
+sql show databases
+if $rows != 1 then
+  return -1
+endi
+if $data07 != 10 then 
+ return -1
+endi
+sql alter database $db keep 11
+sql show databases
+if $rows != 1 then
+  return -1
+endi
+if $data07 != 11 then 
+ return -1
+endi
+sql alter database $db keep 13
+sql show databases
+if $rows != 1 then
+  return -1
+endi
+if $data07 != 13 then 
+ return -1
+endi
+sql alter database $db keep 365000
+sql show databases
+if $rows != 1 then
+  return -1
+endi
+if $data07 != 365000 then 
+ return -1
+endi
+
+
+##### alter table test, simeplest case
+sql create table tb (ts timestamp, c1 int, c2 int, c3 int)
+sql insert into tb values (now, 1, 1, 1)
+sql select * from tb order by ts desc
+if $rows != 1 then
+  return -1
+endi
+sql alter table tb drop column c3
+sql select * from tb order by ts desc 
+if $data01 != 1 then
+  return -1
+endi
+if $data02 != 1 then 
+  return -1
+endi
+if $data03 != null then
+  return -1
+endi
+sql alter table tb add column c3 nchar(4)
+sql select * from tb order by ts desc
+if $rows != 1 then
+  return -1
+endi
+if $data03 != NULL then
+  return -1
+endi
+sql insert into tb values (now, 2, 2, 'taos')
+sql select * from tb order by ts desc
+if $rows != 2 then
+  return -1
+endi
+print data03 = $data03
+if $data03 != taos then
+  print expect taos, actual: $data03
+  return -1
+endi
+sql drop table tb
+
+##### alter metric test, simplest case
+sql create table mt (ts timestamp, c1 int, c2 int, c3 int) tags (t1 int)
+sql create table tb using mt tags(1)
+sql insert into tb values (now, 1, 1, 1)
+sql alter table mt drop column c3
+sql select * from tb order by ts desc
+if $data01 != 1 then 
+  return -1
+endi
+if $data02 != 1 then 
+  return -1
+endi
+if $data03 != null then
+  return -1
+endi
+
+sql alter table mt add column c3 nchar(4)
+sql select * from tb order by ts desc
+if $data03 != NULL then
+  return -1
+endi
+sql insert into tb values (now, 2, 2, 'taos')
+sql select * from tb order by ts desc
+if $rows != 2 then
+  return -1
+endi
+if $data03 != taos then
+  return -1
+endi
+if $data13 != NULL then
+  return -1
+endi
+sql drop table tb
+sql drop table mt
+
+## [TBASE272]
+sql create table tb (ts timestamp, c1 int, c2 int, c3 int)
+sql insert into tb values (now, 1, 1, 1)
+sql alter table tb drop column c3
+sql alter table tb add column c3 nchar(5)
+sql insert into tb values(now, 2, 2, 'taos')
+sql drop table tb
+sql create table mt (ts timestamp, c1 int, c2 int, c3 int) tags (t1 int)
+sql create table tb using mt tags(1)
+sql insert into tb values (now, 1, 1, 1)
+sql alter table mt drop column c3
+sql select * from tb order by ts desc
+if $rows != 1 then
+  return -1
+endi
+sql drop table tb
+sql drop table mt
+
+sleep 100
+### ALTER TABLE WHILE STREAMING [TBASE271]
+#sql create table tb1 (ts timestamp, c1 int, c2 nchar(5), c3 int)
+#sql create table strm as select count(*), avg(c1), first(c2), sum(c3) from tb1 interval(2s)
+#sql select * from strm
+#if $rows != 0 then
+#  return -1
+#endi
+##sleep 12000
+#sql insert into tb1 values (now, 1, 'taos', 1)
+#sleep 20000
+#sql select * from strm
+#print rows = $rows
+#if $rows != 1 then
+#  return -1
+#endi
+#if $data04 != 1 then
+#  return -1
+#endi
+#sql alter table tb1 drop column c3
+#sleep 500
+#sql insert into tb1 values (now, 2, 'taos')
+#sleep 30000
+#sql select * from strm
+#if $rows != 2 then
+#   return -1
+#endi
+#if $data04 != 1 then
+#  return -1
+#endi
+#sql alter table tb1 add column c3 int
+#sleep 500
+#sql insert into tb1 values (now, 3, 'taos', 3);
+#sleep 100
+#sql select * from strm
+#if $rows != 3 then
+#   return -1
+#endi
+#if $data04 != 1 then
+#  return -1
+#endi
+
+## ALTER TABLE AND INSERT BY COLUMNS
+sql create table mt (ts timestamp, c1 int, c2 int) tags(t1 int)
+sql create table tb using mt tags(0)
+sql insert into tb values (now-1m, 1, 1)
+sql alter table mt drop column c2
+sql_error insert into tb (ts, c1, c2) values (now, 2, 2)
+sql insert into tb (ts, c1) values (now, 2)
+sql select * from tb order by ts desc
+if $rows != 2 then
+  return -1
+endi
+if $data01 != 2 then
+  return -1
+endi
+if $data02 != null then
+  return -1
+endi
+sql alter table mt add column c2 int
+sql insert into tb (ts, c2) values (now, 3)
+sql select * from tb order by ts desc 
+if $data02 != 3 then
+  return -1
+endi
+
+## ALTER TABLE AND IMPORT
+sql drop database $db
+sql create database $db
+sql use $db
+sql create table mt (ts timestamp, c1 int, c2 nchar(7), c3 int) tags (t1 int)
+sql create table tb using mt tags(1)
+sleep 100
+sql insert into tb values ('2018-11-01 16:30:00.000', 1, 'insert', 1)
+sql alter table mt drop column c3
+
+sql insert into tb values ('2018-11-01 16:29:59.000', 1, 'insert')
+sql import into tb values ('2018-11-01 16:29:59.000', 1, 'import')
+sql select * from tb order by ts desc
+if $data01 != 1 then
+  return -1
+endi
+if $data02 != insert then
+  return -1
+endi
+sql alter table mt add column c3 nchar(4)
+sql select * from tb order by ts desc 
+if $data03 != NULL then
+  return -1
+endi
+
+print ============================>TD-3366 TD-3486
+sql insert into td_3366(ts, c3, c1) using mt(t1) tags(911) values('2018-1-1 11:11:11', 'new1', 12);
+sql insert into td_3486(ts, c3, c1) using mt(t1) tags(-12) values('2018-1-1 11:11:11', 'new1', 12);
+sql insert into ttxu(ts, c3, c1) using mt(t1) tags('-121') values('2018-1-1 11:11:11', 'new1', 12);
+
+sql insert into tb(ts, c1, c3) using mt(t1) tags(123) values('2018-11-01 16:29:58.000', 2, 'port')
+
+sql insert into tb values ('2018-11-01 16:29:58.000', 2, 'import', 3)
+sql import into tb values ('2018-11-01 16:29:58.000', 2, 'import', 3)
+sql import into tb values ('2018-11-01 16:39:58.000', 2, 'import', 3)
+sql select * from tb order by ts desc 
+if $rows != 4 then
+  return -1
+endi
+
+if $data03 != 3 then
+  return -1
+endi
+
+##### ILLEGAL OPERATIONS
+
+# try dropping columns that are defined in metric
+sql_error alter table tb drop column c1;
+
+# try dropping primary key
+sql_error alter table mt drop column ts;
+
+# try modifying two columns in a single statement
+sql_error alter table mt add column c5 nchar(3) c6 nchar(4)
+
+# duplicate columns
+sql_error alter table mt add column c1 int
+
+# drop non-existing columns
+sql_error alter table mt drop column c9
+
+#sql drop database $db
+#sql show databases
+#if $rows != 0 then
+#  return -1
+#endi
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

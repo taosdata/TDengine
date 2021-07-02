@@ -12,7 +12,7 @@ run general/parser/create_tb.sim
 run general/parser/dbtbnameValidate.sim
 run general/parser/fill.sim
 run general/parser/fill_stb.sim
-#run general/parser/fill_us.sim               #
+run general/parser/fill_us.sim
 run general/parser/first_last.sim
 run general/parser/import_commit1.sim
 run general/parser/import_commit2.sim
@@ -39,6 +39,7 @@ run general/parser/slimit1.sim
 run general/parser/slimit_alter_tags.sim
 run general/parser/tbnameIn.sim
 run general/parser/join.sim
+#run general/parser/join_multitables.sim
 run general/parser/join_multivnode.sim
 run general/parser/join_manyblocks.sim
 run general/parser/projection_limit_offset.sim
@@ -54,9 +55,11 @@ run general/parser/timestamp.sim
 run general/parser/sliding.sim
 run general/parser/function.sim
 run general/parser/stableOp.sim
-
 run general/parser/having.sim
 run general/parser/having_child.sim
 run general/parser/slimit_alter_tags.sim
 run general/parser/binary_escapeCharacter.sim
-
+run general/parser/between_and.sim
+run general/parser/last_cache.sim
+run general/parser/nestquery.sim
+run general/parser/precision_ns.sim

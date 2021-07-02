@@ -51,10 +51,10 @@ JNIEXPORT jstring JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_getTsCharset
 
 /*
  * Class:     com_taosdata_jdbc_TSDBJNIConnector
- * Method:    getResultTimePrecision
- * Signature: (J)J
+ * Method:    getResultTimePrecisionImp
+ * Signature: (JJ)I
  */
-JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_TDDBJNIConnector_getResultTimePrecision
+JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_TDDBJNIConnector_getResultTimePrecisionImp
         (JNIEnv *, jobject, jlong, jlong);
 
 /*
@@ -218,10 +218,18 @@ JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_executeBatchImp(J
 
 /*
  * Class:     com_taosdata_jdbc_TSDBJNIConnector
- * Method:    executeBatchImp
+ * Method:    closeStmt
  * Signature: (JJ)I
  */
 JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_closeStmt(JNIEnv *env, jobject jobj, jlong stmt, jlong con);
+
+/**
+ * Class:     com_taosdata_jdbc_TSDBJNIConnector
+ * Method:    setTableNameTagsImp
+ * Signature: (JLjava/lang/String;I[B[B[B[BJ)I
+ */
+JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_setTableNameTagsImp
+    (JNIEnv *, jobject, jlong, jstring, jint, jbyteArray, jbyteArray, jbyteArray, jbyteArray, jlong);
 
 #ifdef __cplusplus
 }

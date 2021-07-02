@@ -3,14 +3,14 @@ package com.taosdata.jdbc.utils;
 import com.google.common.collect.Range;
 import com.google.common.collect.RangeSet;
 import com.google.common.collect.TreeRangeSet;
+import com.taosdata.jdbc.enums.TimestampPrecision;
 
 import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.sql.Date;
 import java.sql.Time;
 import java.sql.Timestamp;
-import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeFormatterBuilder;
 import java.time.format.DateTimeParseException;
@@ -25,39 +25,52 @@ public class Utils {
 
     private static Pattern ptn = Pattern.compile(".*?'");
 
-    private static final DateTimeFormatter formatter = new DateTimeFormatterBuilder()
-            .appendPattern("yyyy-MM-dd HH:mm:ss.SSS").toFormatter();
-    private static final DateTimeFormatter formatter2 = new DateTimeFormatterBuilder()
-            .appendPattern("yyyy-MM-dd HH:mm:ss.SSSSSS").toFormatter();
+    private static final DateTimeFormatter milliSecFormatter = new DateTimeFormatterBuilder().appendPattern("yyyy-MM-dd HH:mm:ss.SSS").toFormatter();
+    private static final DateTimeFormatter microSecFormatter = new DateTimeFormatterBuilder().appendPattern("yyyy-MM-dd HH:mm:ss.SSSSSS").toFormatter();
+    private static final DateTimeFormatter nanoSecFormatter = new DateTimeFormatterBuilder().appendPattern("yyyy-MM-dd HH:mm:ss.SSSSSSSSS").toFormatter();
 
     public static Time parseTime(String timestampStr) throws DateTimeParseException {
-        LocalTime time;
-        try {
-            time = LocalTime.parse(timestampStr, formatter);
-        } catch (DateTimeParseException e) {
-            time = LocalTime.parse(timestampStr, formatter2);
-        }
-        return Time.valueOf(time);
+        LocalDateTime dateTime = parseLocalDateTime(timestampStr);
+        return dateTime != null ? Time.valueOf(dateTime.toLocalTime()) : null;
     }
 
-    public static Date parseDate(String timestampStr) throws DateTimeParseException {
-        LocalDate date;
-        try {
-            date = LocalDate.parse(timestampStr, formatter);
-        } catch (DateTimeParseException e) {
-            date = LocalDate.parse(timestampStr, formatter2);
-        }
-        return Date.valueOf(date);
+    public static Date parseDate(String timestampStr) {
+        LocalDateTime dateTime = parseLocalDateTime(timestampStr);
+        return dateTime != null ? Date.valueOf(String.valueOf(dateTime)) : null;
     }
 
     public static Timestamp parseTimestamp(String timeStampStr) {
-        LocalDateTime dateTime;
+        LocalDateTime dateTime = parseLocalDateTime(timeStampStr);
+        return dateTime != null ? Timestamp.valueOf(dateTime) : null;
+    }
+
+    private static LocalDateTime parseLocalDateTime(String timeStampStr) {
         try {
-            dateTime = LocalDateTime.parse(timeStampStr, formatter);
+            return parseMilliSecTimestamp(timeStampStr);
         } catch (DateTimeParseException e) {
-            dateTime = LocalDateTime.parse(timeStampStr, formatter2);
+            try {
+                return parseMicroSecTimestamp(timeStampStr);
+            } catch (DateTimeParseException ee) {
+                try {
+                    return parseNanoSecTimestamp(timeStampStr);
+                } catch (DateTimeParseException eee) {
+                    eee.printStackTrace();
+                }
+            }
         }
-        return Timestamp.valueOf(dateTime);
+        return null;
+    }
+
+    private static LocalDateTime parseMilliSecTimestamp(String timeStampStr) throws DateTimeParseException {
+        return LocalDateTime.parse(timeStampStr, milliSecFormatter);
+    }
+
+    private static LocalDateTime parseMicroSecTimestamp(String timeStampStr) throws DateTimeParseException {
+        return LocalDateTime.parse(timeStampStr, microSecFormatter);
+    }
+
+    private static LocalDateTime parseNanoSecTimestamp(String timeStampStr) throws DateTimeParseException {
+        return LocalDateTime.parse(timeStampStr, nanoSecFormatter);
     }
 
     public static String escapeSingleQuota(String origin) {
@@ -93,18 +106,11 @@ public class Utils {
     }
 
     public static String getNativeSql(String rawSql, Object[] parameters) {
+        if (parameters == null || !rawSql.contains("?"))
+            return rawSql;
         // toLowerCase
         String preparedSql = rawSql.trim().toLowerCase();
-
-        String[] clause = new String[0];
-        if (SqlSyntaxValidator.isInsertSql(preparedSql)) {
-            // insert or import
-            clause = new String[]{"values\\s*\\(.*?\\)", "tags\\s*\\(.*?\\)"};
-        }
-        if (SqlSyntaxValidator.isSelectSql(preparedSql)) {
-            // select
-            clause = new String[]{"where\\s*.*"};
-        }
+        String[] clause = new String[]{"values\\s*\\(.*?\\)", "tags\\s*\\(.*?\\)", "where\\s*.*"};
         Map<Integer, Integer> placeholderPositions = new HashMap<>();
         RangeSet<Integer> clauseRangeSet = TreeRangeSet.create();
         findPlaceholderPosition(preparedSql, placeholderPositions);
@@ -155,7 +161,7 @@ public class Utils {
             String paraStr;
             if (para != null) {
                 if (para instanceof byte[]) {
-                    paraStr = new String((byte[]) para, Charset.forName("UTF-8"));
+                    paraStr = new String((byte[]) para, StandardCharsets.UTF_8);
                 } else {
                     paraStr = para.toString();
                 }
@@ -176,13 +182,47 @@ public class Utils {
         }).collect(Collectors.joining());
     }
 
-
     public static String formatTimestamp(Timestamp timestamp) {
         int nanos = timestamp.getNanos();
         if (nanos % 1000000l != 0)
-            return timestamp.toLocalDateTime().format(formatter2);
-        return timestamp.toLocalDateTime().format(formatter);
+            return timestamp.toLocalDateTime().format(microSecFormatter);
+        return timestamp.toLocalDateTime().format(milliSecFormatter);
     }
 
+    public static TimestampPrecision guessTimestampPrecision(String value) {
+        if (isMilliSecFormat(value))
+            return TimestampPrecision.MS;
+        if (isMicroSecFormat(value))
+            return TimestampPrecision.US;
+        if (isNanoSecFormat(value))
+            return TimestampPrecision.NS;
+        return TimestampPrecision.UNKNOWN;
+    }
 
+    private static boolean isMilliSecFormat(String timestampStr) {
+        try {
+            milliSecFormatter.parse(timestampStr);
+        } catch (DateTimeParseException e) {
+            return false;
+        }
+        return true;
+    }
+
+    private static boolean isMicroSecFormat(String timestampStr) {
+        try {
+            microSecFormatter.parse(timestampStr);
+        } catch (DateTimeParseException e) {
+            return false;
+        }
+        return true;
+    }
+
+    private static boolean isNanoSecFormat(String timestampStr) {
+        try {
+            nanoSecFormatter.parse(timestampStr);
+        } catch (DateTimeParseException e) {
+            return false;
+        }
+        return true;
+    }
 }

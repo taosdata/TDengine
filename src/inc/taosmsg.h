@@ -61,8 +61,10 @@ TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_MD_CONFIG_DNODE, "config-dnode" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_MD_ALTER_VNODE, "alter-vnode" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_MD_SYNC_VNODE, "sync-vnode" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_MD_CREATE_MNODE, "create-mnode" )
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_MD_COMPACT_VNODE, "compact-vnode" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_DUMMY6, "dummy6" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_DUMMY7, "dummy7" )
+
 
 // message from client to mnode
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CM_CONNECT, "connect" )	 
@@ -84,7 +86,8 @@ TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CM_DROP_TABLE, "drop-table" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CM_ALTER_TABLE, "alter-table" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CM_TABLE_META, "table-meta" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CM_STABLE_VGROUP, "stable-vgroup" )
-TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CM_TABLES_META, "tables-meta" )	  
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CM_COMPACT_VNODE, "compact-vnode" )
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CM_TABLES_META, "multiTable-meta" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CM_ALTER_STREAM, "alter-stream" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CM_SHOW, "show" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CM_RETRIEVE, "retrieve" )     
@@ -161,6 +164,7 @@ enum _mgmt_table {
 #define TSDB_ALTER_TABLE_ADD_COLUMN        5
 #define TSDB_ALTER_TABLE_DROP_COLUMN       6
 #define TSDB_ALTER_TABLE_CHANGE_COLUMN     7
+#define TSDB_ALTER_TABLE_MODIFY_TAG_COLUMN 8
 
 #define TSDB_FILL_NONE             0
 #define TSDB_FILL_NULL             1
@@ -294,6 +298,8 @@ typedef struct {
 
 typedef struct {
   char   name[TSDB_TABLE_FNAME_LEN];
+  // if user specify DROP STABLE, this flag will be set. And an error will be returned if it is not a super table
+  int8_t supertable;
   int8_t igNotExists;
 } SCMDropTableMsg;
 
@@ -390,7 +396,7 @@ typedef struct {
 
 typedef struct {
   int32_t vgId;
-} SDropVnodeMsg, SSyncVnodeMsg;
+} SDropVnodeMsg, SSyncVnodeMsg, SCompactVnodeMsg;
 
 typedef struct SColIndex {
   int16_t  colId;      // column id
@@ -471,6 +477,7 @@ typedef struct {
   bool        simpleAgg;
   bool        pointInterpQuery; // point interpolation query
   bool        needReverseScan;  // need reverse scan
+  bool        stateWindow;       // state window flag 
 
   STimeWindow window;
   int32_t     numOfTables;
@@ -535,7 +542,7 @@ typedef struct {
   uint8_t  status;
   uint8_t  role;
   uint8_t  replica;
-  uint8_t  reserved;
+  uint8_t  compact;
 } SVnodeLoad;
 
 typedef struct {
@@ -544,7 +551,7 @@ typedef struct {
   int32_t  totalBlocks;
   int32_t  maxTables;
   int32_t  daysPerFile;
-  int32_t  daysToKeep;
+  int32_t  daysToKeep0;
   int32_t  daysToKeep1;
   int32_t  daysToKeep2;
   int32_t  minRowsPerFileBlock;
@@ -703,8 +710,9 @@ typedef struct {
 } STableInfoMsg;
 
 typedef struct {
+  int32_t numOfVgroups;
   int32_t numOfTables;
-  char    tableIds[];
+  char    tableNames[];
 } SMultiTableInfoMsg;
 
 typedef struct SSTableVgroupMsg {
@@ -753,8 +761,9 @@ typedef struct STableMetaMsg {
 
 typedef struct SMultiTableMeta {
   int32_t       numOfTables;
+  int32_t       numOfVgroup;
   int32_t       contLen;
-  char          metas[];
+  char          meta[];
 } SMultiTableMeta;
 
 typedef struct {
@@ -774,6 +783,12 @@ typedef struct {
   uint16_t payloadLen;
   char     payload[];
 } SShowMsg;
+
+typedef struct {
+  char db[TSDB_ACCT_ID_LEN + TSDB_DB_NAME_LEN];
+  int32_t numOfVgroup;
+  int32_t vgid[];
+} SCompactMsg;
 
 typedef struct SShowRsp {
   uint64_t      qhandle;

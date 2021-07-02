@@ -13,6 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <texpr.h>
 #include "os.h"
 
 #include "texpr.h"
@@ -465,27 +466,65 @@ tExprNode* exprTreeFromTableName(const char* tbnameCond) {
   return expr;
 }
 
-tExprNode* exprdup(tExprNode* pTree) {
-  if (pTree == NULL) {
+void buildFilterSetFromBinary(void **q, const char *buf, int32_t len) {
+  SBufferReader br = tbufInitReader(buf, len, false); 
+  uint32_t type  = tbufReadUint32(&br);     
+  SHashObj *pObj = taosHashInit(256, taosGetDefaultHashFunction(type), true, false);
+  
+  taosHashSetEqualFp(pObj, taosGetDefaultEqualFunction(type)); 
+  
+  int dummy = -1;
+  int32_t sz = tbufReadInt32(&br);
+  for (int32_t i = 0; i < sz; i++) {
+    if (type == TSDB_DATA_TYPE_BOOL || IS_SIGNED_NUMERIC_TYPE(type)) {
+      int64_t val = tbufReadInt64(&br); 
+      taosHashPut(pObj, (char *)&val, sizeof(val),  &dummy, sizeof(dummy));
+    } else if (IS_UNSIGNED_NUMERIC_TYPE(type)) {
+      uint64_t val = tbufReadUint64(&br); 
+      taosHashPut(pObj, (char *)&val, sizeof(val),  &dummy, sizeof(dummy));
+    }
+    else if (type == TSDB_DATA_TYPE_TIMESTAMP) {
+      int64_t val = tbufReadInt64(&br); 
+      taosHashPut(pObj, (char *)&val, sizeof(val),  &dummy, sizeof(dummy));
+    } else if (type == TSDB_DATA_TYPE_DOUBLE || type == TSDB_DATA_TYPE_FLOAT) {
+      double  val = tbufReadDouble(&br);
+      taosHashPut(pObj, (char *)&val, sizeof(val), &dummy, sizeof(dummy));
+    } else if (type == TSDB_DATA_TYPE_BINARY) {
+      size_t  t = 0;
+      const char *val = tbufReadBinary(&br, &t);
+      taosHashPut(pObj, (char *)val, t, &dummy, sizeof(dummy));
+    } else if (type == TSDB_DATA_TYPE_NCHAR) {
+      size_t  t = 0;
+      const char *val = tbufReadBinary(&br, &t);      
+      taosHashPut(pObj, (char *)val, t, &dummy, sizeof(dummy));
+    }
+  } 
+  *q = (void *)pObj;
+}
+
+tExprNode* exprdup(tExprNode* pNode) {
+  if (pNode == NULL) {
     return NULL;
   }
 
-  tExprNode* pNode = calloc(1, sizeof(tExprNode));
-  if (pTree->nodeType == TSQL_NODE_EXPR) {
-    tExprNode* pLeft  = exprdup(pTree->_node.pLeft);
-    tExprNode* pRight = exprdup(pTree->_node.pRight);
+  tExprNode* pCloned = calloc(1, sizeof(tExprNode));
+  if (pNode->nodeType == TSQL_NODE_EXPR) {
+    tExprNode* pLeft  = exprdup(pNode->_node.pLeft);
+    tExprNode* pRight = exprdup(pNode->_node.pRight);
 
-    pNode->nodeType     = TSQL_NODE_EXPR;
-    pNode->_node.pLeft  = pLeft;
-    pNode->_node.pRight = pRight;
-  } else if (pTree->nodeType == TSQL_NODE_VALUE) {
-    pNode->pVal = calloc(1, sizeof(tVariant));
-    tVariantAssign(pNode->pVal, pTree->pVal);
-  } else if (pTree->nodeType == TSQL_NODE_COL) {
-    pNode->pSchema = calloc(1, sizeof(SSchema));
-    *pNode->pSchema = *pTree->pSchema;
+    pCloned->_node.pLeft  = pLeft;
+    pCloned->_node.pRight = pRight;
+    pCloned->_node.optr  = pNode->_node.optr;
+    pCloned->_node.hasPK = pNode->_node.hasPK;
+  } else if (pNode->nodeType == TSQL_NODE_VALUE) {
+    pCloned->pVal = calloc(1, sizeof(tVariant));
+    tVariantAssign(pCloned->pVal, pNode->pVal);
+  } else if (pNode->nodeType == TSQL_NODE_COL) {
+    pCloned->pSchema = calloc(1, sizeof(SSchema));
+    *pCloned->pSchema = *pNode->pSchema;
   }
 
-  return pNode;
+  pCloned->nodeType = pNode->nodeType;
+  return pCloned;
 }
 

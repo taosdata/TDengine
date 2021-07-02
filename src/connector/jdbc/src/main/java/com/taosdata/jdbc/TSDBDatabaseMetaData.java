@@ -20,8 +20,8 @@ import java.sql.SQLException;
 
 public class TSDBDatabaseMetaData extends AbstractDatabaseMetaData {
 
-    private String url;
-    private String userName;
+    private final String url;
+    private final String userName;
     private Connection conn;
 
     public TSDBDatabaseMetaData(String url, String userName) {

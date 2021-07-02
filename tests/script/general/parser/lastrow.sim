@@ -70,4 +70,21 @@ sleep 100
 
 run general/parser/lastrow_query.sim
 
+print =================== last_row + nested query
+sql use $db
+sql create table lr_nested(ts timestamp, f int)
+sql insert into lr_nested values(now, 1)
+sql insert into lr_nested values(now+1s, null)
+sql select last_row(*) from (select * from lr_nested)
+if $rows != 1 then
+  return -1
+endi
+if $data01 != NULL then
+  return -1
+endi
+sql select last_row(*) from (select f from lr_nested)
+if $rows != 1 then
+  return -1
+endi
+
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
