@@ -1392,7 +1392,7 @@ int32_t doCopyRowsFromFileBlock(STsdbQueryHandle* pQueryHandle, int32_t capacity
 
         // todo refactor, only copy one-by-one
         for (int32_t k = start; k < num + start; ++k) {
-          const char* p = tdGetColDataOfRow(src, k);
+          char* p = tdGetColDataOfRow(src, k);
           memcpy(dst, p, varDataTLen(p));
           dst += bytes;
         }
@@ -1459,7 +1459,7 @@ static void copyOneRowFromMem(STsdbQueryHandle* pQueryHandle, int32_t capacity, 
   int32_t i = 0;
 
   if (isDataRow(row)) {
-    SDataRow dataRow = memRowBody(row);
+    SDataRow dataRow = memRowDataBody(row);
     int32_t j = 0;
     while (i < numOfCols && j < numOfRowCols) {
       SColumnInfoData* pColInfo = taosArrayGet(pQueryHandle->pColumns, i);
@@ -1529,7 +1529,7 @@ static void copyOneRowFromMem(STsdbQueryHandle* pQueryHandle, int32_t capacity, 
       }
     }
   } else if (isKvRow(row)) {
-    SKVRow  kvRow = memRowBody(row);
+    SKVRow  kvRow = memRowKvBody(row);
     int32_t k = 0;
     int32_t nKvRowCols = kvRowNCols(kvRow);
 

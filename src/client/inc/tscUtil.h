@@ -40,6 +40,8 @@ extern "C" {
 #define UTIL_TABLE_IS_TMP_TABLE(metaInfo)  \
   (((metaInfo)->pTableMeta != NULL) && ((metaInfo)->pTableMeta->tableType == TSDB_TEMP_TABLE))
 
+#define KvRowNColsThresh 1  // default 1200. TODO: only for test, restore to default value after test finished
+
 #pragma pack(push,1)
 // this struct is transfered as binary, padding two bytes to avoid
 // an 'uid' whose low bytes is 0xff being recoginized as NULL,

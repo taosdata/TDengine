@@ -932,13 +932,15 @@ static int tsdbInsertDataToTableImpl(STsdbRepo *pRepo, STable *pTable, void **ro
   int64_t osize = SL_SIZE(pTableData->pData);
   tSkipListPutBatch(pTableData->pData, rows, rowCounter);
   int64_t dsize = SL_SIZE(pTableData->pData) - osize;
+  TSKEY   keyFirstRow = memRowKey(rows[0]);
+  TSKEY   keyLastRow = memRowKey(rows[rowCounter - 1]);
 
-  if (pMemTable->keyFirst > memRowKey(rows[0])) pMemTable->keyFirst = memRowKey(rows[0]);
-  if (pMemTable->keyLast < memRowKey(rows[rowCounter - 1])) pMemTable->keyLast = memRowKey(rows[rowCounter - 1]);
+  if (pMemTable->keyFirst > keyFirstRow) pMemTable->keyFirst = keyFirstRow;
+  if (pMemTable->keyLast < keyLastRow) pMemTable->keyLast = keyLastRow;
   pMemTable->numOfRows += dsize;
 
-  if (pTableData->keyFirst > memRowKey(rows[0])) pTableData->keyFirst = memRowKey(rows[0]);
-  if (pTableData->keyLast < memRowKey(rows[rowCounter - 1])) pTableData->keyLast = memRowKey(rows[rowCounter - 1]);
+  if (pTableData->keyFirst > keyFirstRow) pTableData->keyFirst = keyFirstRow;
+  if (pTableData->keyLast < keyLastRow) pTableData->keyLast = keyLastRow;
   pTableData->numOfRows += dsize;
 
   // update table latest info
@@ -1004,8 +1006,7 @@ static void updateTableLatestColumn(STsdbRepo *pRepo, STable *pTable, SMemRow ro
 
   SDataCol *pLatestCols = pTable->lastCols;
 
-  bool  isDataRow = isDataRow(row);
-  void *rowBody = memRowBody(row);
+  bool isDataRow = isDataRow(row);
   for (int16_t j = 0; j < schemaNCols(pSchema); j++) {
     STColumn *pTCol = schemaColAt(pSchema, j);
     // ignore not exist colId
@@ -1017,12 +1018,13 @@ static void updateTableLatestColumn(STsdbRepo *pRepo, STable *pTable, SMemRow ro
     void *value = NULL;
 
     if (isDataRow) {
-      value = tdGetRowDataOfCol(rowBody, (int8_t)pTCol->type, TD_DATA_ROW_HEAD_SIZE + pSchema->columns[j].offset);
+      value = tdGetRowDataOfCol(memRowDataBody(row), (int8_t)pTCol->type,
+                                TD_DATA_ROW_HEAD_SIZE + pSchema->columns[j].offset);
     } else {
       // SKVRow
-      SColIdx *pColIdx = tdGetKVRowIdxOfCol(rowBody, pTCol->colId);
+      SColIdx *pColIdx = tdGetKVRowIdxOfCol(memRowKvBody(row), pTCol->colId);
       if (pColIdx) {
-        value = tdGetKvRowDataOfCol(rowBody, pColIdx->offset);
+        value = tdGetKvRowDataOfCol(memRowKvBody(row), pColIdx->offset);
       }
     }
 
