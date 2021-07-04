@@ -1159,7 +1159,7 @@ static void insertBatchClean(STscStmt* pStmt) {
   pCmd->insertParam.pDataBlocks = tscDestroyBlockArrayList(pCmd->insertParam.pDataBlocks);
   pCmd->insertParam.numOfTables = 0;
 
-  taosHashEmpty(pCmd->insertParam.pTableBlockHashList);
+  taosHashClear(pCmd->insertParam.pTableBlockHashList);
   tscFreeSqlResult(pSql);
   tscFreeSubobj(pSql);
   tfree(pSql->pSubs);
