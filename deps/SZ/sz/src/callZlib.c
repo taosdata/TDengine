@@ -223,7 +223,7 @@ unsigned long zlib_compress5(unsigned char* data, unsigned long dataLength, unsi
 	size_t p_size = 0, av_in = 0;
     uLong estCmpLen = deflateBound(&strm, dataLength);
    	//*compressBytes = (unsigned char*)malloc(sizeof(unsigned char)*estCmpLen);	 // comment by tickduan no need malloc
-	unsigned char* out = *compressBytes; 
+	unsigned char* out = compressBytes; 
 
 	/* compress until end of file */
 	do {		

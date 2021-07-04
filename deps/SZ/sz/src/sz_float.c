@@ -40,10 +40,10 @@ unsigned char* SZ_skip_compress_float(float* data, size_t dataLength, size_t* ou
 	return out;
 }
 
-void computeReqLength_float(double realPrecision, short radExpo, int* reqLength, float* medianValue)
+void computeReqLength_float(double realPrecision, short rangeExpo, int* reqLength, float* medianValue)
 {
-	short reqExpo = getPrecisionReqLength_double(realPrecision);
-	*reqLength = 9+radExpo - reqExpo+1; //radExpo-reqExpo == reqMantiLength
+	short realPrecExpo = getPrecisionReqLength_double(realPrecision);
+	*reqLength = 9 + rangeExpo - realPrecExpo + 1; //radExpo-reqExpo == reqMantiLength
 	if(*reqLength<9)
 		*reqLength = 9;
 	if(*reqLength>32)
@@ -111,31 +111,39 @@ size_t dataLength, float realPrecision, float valueRangeSize, float medianValue_
 	else
 		quantization_intervals = exe_params->intvCapacity;
 	//updateQuantizationInfo(quantization_intervals);	
-	int intvRadius = quantization_intervals/2;
+	int half_interval = quantization_intervals/2;
 
+    //
+	// calc reqlength and need set medianValue to zero. 
+	// 
 	size_t i;
-	int reqLength;
+	int reqLength; // need save bits length for one float .  value ragne 9~32 
 	float medianValue = medianValue_f;
-	short radExpo = getExponent_float(valueRangeSize/2);
+	short rangeExpo = getExponent_float(valueRangeSize/2);
 	
-	computeReqLength_float(realPrecision, radExpo, &reqLength, &medianValue);	
+	computeReqLength_float(realPrecision, rangeExpo, &reqLength, &medianValue);	
 
-	int* type = (int*) malloc(dataLength*sizeof(int));
-		
-	float* spaceFillingValue = oriData; //
+	//
+	//  malloc all 
+	//
 	
+	// 1 type 
+	int* type = (int*) malloc(dataLength*sizeof(int));	
+	float* spaceFillingValue = oriData; //
+	// 2 lead
 	DynamicIntArray *exactLeadNumArray;
 	new_DIA(&exactLeadNumArray, DynArrayInitLen);
-	
+	// 3 mid
 	DynamicByteArray *exactMidByteArray;
 	new_DBA(&exactMidByteArray, DynArrayInitLen);
-	
+	// 4 residual bit
 	DynamicIntArray *resiBitArray;
 	new_DIA(&resiBitArray, DynArrayInitLen);
 	
-	unsigned char preDataBytes[4];
-	intToBytes_bigEndian(preDataBytes, 0);
+	unsigned char preDiffBytes[4];
+	intToBytes_bigEndian(preDiffBytes, 0);
 	
+	// calc save byte length and bit lengths with reqLength
 	int reqBytesLength = reqLength/8;
 	int resiBitsLength = reqLength%8;
 	float last3CmprsData[3] = {0};
@@ -146,56 +154,57 @@ size_t dataLength, float realPrecision, float valueRangeSize, float medianValue_
 	//add the first data	
 	type[0] = 0;
 	compressSingleFloatValue(vce, spaceFillingValue[0], realPrecision, medianValue, reqLength, reqBytesLength, resiBitsLength);
-	updateLossyCompElement_Float(vce->curBytes, preDataBytes, reqBytesLength, resiBitsLength, lce);
-	memcpy(preDataBytes,vce->curBytes,4);
+	// set lce
+	updateLossyCompElement_Float(vce->curBytes, preDiffBytes, reqBytesLength, resiBitsLength, lce);
+	memcpy(preDiffBytes, vce->curBytes, 4);
+	// lce to arrays
 	addExactData(exactMidByteArray, exactLeadNumArray, resiBitArray, lce);
 	listAdd_float(last3CmprsData, vce->data);
 		
 	//add the second data
 	type[1] = 0;
 	compressSingleFloatValue(vce, spaceFillingValue[1], realPrecision, medianValue, reqLength, reqBytesLength, resiBitsLength);
-	updateLossyCompElement_Float(vce->curBytes, preDataBytes, reqBytesLength, resiBitsLength, lce);
-	memcpy(preDataBytes,vce->curBytes,4);
+	updateLossyCompElement_Float(vce->curBytes, preDiffBytes, reqBytesLength, resiBitsLength, lce);
+	memcpy(preDiffBytes, vce->curBytes, 4);
 	addExactData(exactMidByteArray, exactLeadNumArray, resiBitArray, lce);
 	listAdd_float(last3CmprsData, vce->data);
 
 	int state;
 	float checkRadius;
-	float curData;
+	float oriFloat;
 	float pred = last3CmprsData[0];
-	float predAbsErr;
+	float diff;
 	checkRadius = (quantization_intervals-1)*realPrecision;
-	float interval = 2*realPrecision;
-	
+	float double_realpreci = 2*realPrecision;
 	float recip_precision = 1/realPrecision;
 	
-	for(i=2;i<dataLength;i++)
+	for(i=2; i < dataLength; i++)
 	{	
-		curData = spaceFillingValue[i];
+		oriFloat = spaceFillingValue[i];
 		//pred = 2*last3CmprsData[0] - last3CmprsData[1];
 		//pred = last3CmprsData[0];
-		predAbsErr = fabsf(curData - pred);	
-		if(predAbsErr<checkRadius)
+		diff = fabsf(oriFloat - pred);	
+		if(diff < checkRadius)
 		{
-			state = ((int)(predAbsErr*recip_precision+1))>>1;
-			if(curData>=pred)
+			state = ((int)( diff * recip_precision + 1))>>1;
+			if(oriFloat >= pred)
 			{
-				type[i] = intvRadius+state;
-				pred = pred + state*interval;
+				type[i] = half_interval + state;
+				pred = pred + state * double_realpreci;
 			}
 			else //curData<pred
 			{
-				type[i] = intvRadius-state;
-				pred = pred - state*interval;
+				type[i] = half_interval - state;
+				pred = pred - state * double_realpreci;
 			}
 				
 			//double-check the prediction error in case of machine-epsilon impact	
-			if(fabs(curData-pred)>realPrecision)
+			if(fabs(oriFloat - pred) > realPrecision)
 			{	
 				type[i] = 0;				
-				compressSingleFloatValue(vce, curData, realPrecision, medianValue, reqLength, reqBytesLength, resiBitsLength);
-				updateLossyCompElement_Float(vce->curBytes, preDataBytes, reqBytesLength, resiBitsLength, lce);
-				memcpy(preDataBytes,vce->curBytes,4);
+				compressSingleFloatValue(vce, oriFloat, realPrecision, medianValue, reqLength, reqBytesLength, resiBitsLength);
+				updateLossyCompElement_Float(vce->curBytes, preDiffBytes, reqBytesLength, resiBitsLength, lce);
+				memcpy(preDiffBytes, vce->curBytes, 4);
 				addExactData(exactMidByteArray, exactLeadNumArray, resiBitArray, lce);		
 				
 				//listAdd_float(last3CmprsData, vce->data);	
@@ -205,14 +214,15 @@ size_t dataLength, float realPrecision, float valueRangeSize, float medianValue_
 			{
 				//listAdd_float(last3CmprsData, pred);	
 			}	
+			// go next
 			continue;
 		}
 		
 		//unpredictable data processing		
 		type[i] = 0;		
-		compressSingleFloatValue(vce, curData, realPrecision, medianValue, reqLength, reqBytesLength, resiBitsLength);
-		updateLossyCompElement_Float(vce->curBytes, preDataBytes, reqBytesLength, resiBitsLength, lce);
-		memcpy(preDataBytes,vce->curBytes,4);
+		compressSingleFloatValue(vce, oriFloat, realPrecision, medianValue, reqLength, reqBytesLength, resiBitsLength);
+		updateLossyCompElement_Float(vce->curBytes, preDiffBytes, reqBytesLength, resiBitsLength, lce);
+		memcpy(preDiffBytes, vce->curBytes, 4);
 		addExactData(exactMidByteArray, exactLeadNumArray, resiBitArray, lce);
 
 		//listAdd_float(last3CmprsData, vce->data);
@@ -224,8 +234,7 @@ size_t dataLength, float realPrecision, float valueRangeSize, float medianValue_
 //	int expSegmentsInBytes_size = convertESCToBytes(esc, &expSegmentsInBytes);
 	size_t exactDataNum = exactLeadNumArray->size;
 	
-	TightDataPointStorageF* tdps;
-			
+	TightDataPointStorageF* tdps = NULL;			
 	new_TightDataPointStorageF(&tdps, dataLength, exactDataNum, 
 			type, exactMidByteArray->array, exactMidByteArray->size,  
 			exactLeadNumArray->array,  
@@ -285,20 +294,32 @@ void SZ_compress_args_float_StoreOriData(float* oriData, size_t dataLength, unsi
 	*outSize = totalByteLength;
 }
 
-char SZ_compress_args_float_NoCkRngeNoGzip_1D( unsigned char* newByteData, float *oriData, 
-size_t dataLength, double realPrecision, size_t *outSize, float valueRangeSize, float medianValue_f)
+// compress core algorithm  if success return true else return false
+bool SZ_compress_args_float_NoCkRngeNoGzip_1D( unsigned char* newByteData, float *oriData, 
+                   size_t dataLength, double realPrecision, size_t *outSize, float valueRangeSize, float medianValue_f)
 {		
-	char compressionType = 0;	
+	// get tdps
 	TightDataPointStorageF* tdps = NULL;	
-
 	tdps = SZ_compress_float_1D_MDQ(oriData, dataLength, realPrecision, valueRangeSize, medianValue_f);	
-	convertTDPStoFlatBytes_float(tdps, newByteData, outSize);
-	
+	if(tdps == NULL)
+	  return false;
+
+    // serialize 
+	if(!convertTDPStoFlatBytes_float(tdps, newByteData, outSize))
+	{
+		free_TightDataPointStorageF(tdps);
+		return false;
+	}
+	  
+	// check compressed size large than original
 	if(*outSize > 3 + MetaDataByteLength + exe_params->SZ_SIZE_TYPE + 1 + sizeof(float)*dataLength)
-		SZ_compress_args_float_StoreOriData(oriData, dataLength, newByteData, outSize);
+	{
+		//SZ_compress_args_float_StoreOriData(oriData, dataLength, newByteData, outSize);
+		return false;
+	}	
 	
 	free_TightDataPointStorageF(tdps);
-	return compressionType;
+	return true;
 }
 
 /*MSST19*/
@@ -486,11 +507,16 @@ void SZ_compress_args_float_withinRange(unsigned char* newByteData, float *oriDa
 	free_TightDataPointStorageF(tdps);	
 }
 
+void cost_start();
+double cost_end(const char* tag);
+void show_rate( int in_len, int out_len);
+
 int SZ_compress_args_float(float *oriData, size_t r1, unsigned char* newByteData, size_t *outSize, sz_params* params)
 {
 	int status = SZ_SUCCESS;
 	size_t dataLength = r1;
 	
+	//cost_start();
 	// check at least elements count  
 	if(dataLength <= MIN_NUM_OF_ELEMENTS)
 	{
@@ -502,7 +528,6 @@ int SZ_compress_args_float(float *oriData, size_t r1, unsigned char* newByteData
 		params->accelerate_pw_rel_compression = 0;	
 	
 	float valueRangeSize = 0, medianValue = 0;
-	
 	unsigned char * signs = NULL;
 	bool positive = true;
 	float nearZero = 0.0;
@@ -525,8 +550,8 @@ int SZ_compress_args_float(float *oriData, size_t r1, unsigned char* newByteData
 	params->fmin = min;
 	params->fmax = max;
 	
+	// calc precision
 	double realPrecision = 0; 
-	
 	if(params->errorBoundMode==PSNR)
 	{
 		params->errorBoundMode = SZ_ABS;
@@ -545,51 +570,69 @@ int SZ_compress_args_float(float *oriData, size_t r1, unsigned char* newByteData
 		params->absErrBound = realPrecision;
 	}	
 
-	// range
+	//cost_end(" sz_pre_calc");
+
+    //
+	// do compress 
+	//
 	if(valueRangeSize <= realPrecision)
 	{		
+		// special deal with same data
 		SZ_compress_args_float_withinRange(newByteData, oriData, dataLength, outSize);
+		return SZ_SUCCESS;
+	}
+
+	//
+	// first compress with sz
+	//		
+	size_t tmpOutSize = 0;
+	unsigned char* tmpByteData  =  newByteData;
+	bool twoStage =  params->szMode != SZ_BEST_SPEED;
+	if(twoStage)
+	{
+		tmpByteData = (unsigned char*)malloc(r1*sizeof(float) + 1024);
+	}
+
+	if(params->errorBoundMode>=PW_REL)
+	{
+		if(params->accelerate_pw_rel_compression && params->maxRangeRadius <= 32768)
+			SZ_compress_args_float_NoCkRngeNoGzip_1D_pwr_pre_log_MSST19(tmpByteData, oriData, params->pw_relBoundRatio, r1, &tmpOutSize, valueRangeSize, medianValue, signs, &positive, min, max, nearZero);
+		else
+			SZ_compress_args_float_NoCkRngeNoGzip_1D_pwr_pre_log(tmpByteData, oriData, params->pw_relBoundRatio, r1, &tmpOutSize, min, max);
+	}
+	else	
+	{	
+		// compress core algorithm
+		if(!SZ_compress_args_float_NoCkRngeNoGzip_1D(tmpByteData, oriData, r1, realPrecision, &tmpOutSize, valueRangeSize, medianValue))
+		{
+			*outSize = 0;
+			if(twoStage)
+			   free(tmpByteData);
+			return SZ_ALGORITHM_ERR;
+		}
+		//if(tmpOutSize >= dataLength*sizeof(float) + 3 + MetaDataByteLength + exe_params->SZ_SIZE_TYPE + 1)
+		//	SZ_compress_args_float_StoreOriData(oriData, dataLength, tmpByteData, &tmpOutSize);						
+	}
+
+    //cost_end(" sz_first_compress");
+	//show_rate(r1*sizeof(float), *outSize);
+	//
+	//  second compress with Call Zstd or Gzip 
+	//
+	//cost_start();
+	if(!twoStage)
+	{
+		*outSize = tmpOutSize;
 	}
 	else
 	{
-		size_t tmpOutSize = 0;
-		unsigned char* tmpByteData  =  newByteData;
-		bool twoStage =  params->szMode != SZ_BEST_SPEED;
-		if(twoStage)
-		{
-			tmpByteData = (unsigned char*)malloc(r1*sizeof(float) + 1024);
-		}
-
-		if(params->errorBoundMode>=PW_REL)
-		{
-			if(params->accelerate_pw_rel_compression && params->maxRangeRadius <= 32768)
-				SZ_compress_args_float_NoCkRngeNoGzip_1D_pwr_pre_log_MSST19(tmpByteData, oriData, params->pw_relBoundRatio, r1, &tmpOutSize, valueRangeSize, medianValue, signs, &positive, min, max, nearZero);
-			else
-				SZ_compress_args_float_NoCkRngeNoGzip_1D_pwr_pre_log(tmpByteData, oriData, params->pw_relBoundRatio, r1, &tmpOutSize, min, max);
-		}
-		else		
-		{					
-			SZ_compress_args_float_NoCkRngeNoGzip_1D( tmpByteData, oriData, r1, realPrecision, &tmpOutSize, valueRangeSize, medianValue);
-			if(tmpOutSize >= dataLength*sizeof(float) + 3 + MetaDataByteLength + exe_params->SZ_SIZE_TYPE + 1)
-				SZ_compress_args_float_StoreOriData(oriData, dataLength, tmpByteData, &tmpOutSize);						
-		}
-
-		//
-		//Call Zstd or Gzip to do the further compression.
-		//
-		if(!twoStage)
-		{
-			*outSize = tmpOutSize;
-			//*newByteData = tmpByteData;
-		}
-		else
-		{
-			*outSize = sz_lossless_compress(params->losslessCompressor, params->gzipMode, tmpByteData, tmpOutSize, newByteData);
-			free(tmpByteData);
-		}
+		*outSize = sz_lossless_compress(params->losslessCompressor, params->gzipMode, tmpByteData, tmpOutSize, newByteData);
+		free(tmpByteData);	
 	}
-	
-	return status;
+
+	//cost_end(" sz_second_compress");
+	//show_rate(r1*sizeof(float), *outSize);
+	return SZ_SUCCESS;
 }
 
 

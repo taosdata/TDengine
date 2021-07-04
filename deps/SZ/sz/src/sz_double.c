@@ -264,20 +264,24 @@ void SZ_compress_args_double_StoreOriData(double* oriData, size_t dataLength, un
 }
 
 
-char SZ_compress_args_double_NoCkRngeNoGzip_1D(unsigned char* newByteData, double *oriData, 
+bool SZ_compress_args_double_NoCkRngeNoGzip_1D(unsigned char* newByteData, double *oriData, 
 size_t dataLength, double realPrecision, size_t *outSize, double valueRangeSize, double medianValue_d)
 {
 	char compressionType = 0;	
 	TightDataPointStorageD* tdps = NULL; 	
 	tdps = SZ_compress_double_1D_MDQ(oriData, dataLength, realPrecision, valueRangeSize, medianValue_d);			
 	
-	convertTDPStoFlatBytes_double(tdps, newByteData, outSize);
+	if(!convertTDPStoFlatBytes_double(tdps, newByteData, outSize))
+	{
+		free_TightDataPointStorageD(tdps);	
+		return false;
+	} 
 	
-	if(*outSize>3 + MetaDataByteLength_double + exe_params->SZ_SIZE_TYPE + 1 + sizeof(double)*dataLength)
-		SZ_compress_args_double_StoreOriData(oriData, dataLength, newByteData, outSize);
+	//if(*outSize>3 + MetaDataByteLength_double + exe_params->SZ_SIZE_TYPE + 1 + sizeof(double)*dataLength)
+	//	SZ_compress_args_double_StoreOriData(oriData, dataLength, newByteData, outSize);
 	
 	free_TightDataPointStorageD(tdps);	
-	return compressionType;
+	return true;
 }
 
 /*MSST19*/
@@ -482,7 +486,6 @@ int SZ_compress_args_double(double *oriData, size_t r1, unsigned char* newByteDa
 		printf("error, double input elements count=%d less than %d, so need not do compress.\n", dataLength, MIN_NUM_OF_ELEMENTS);
 		return SZ_LITTER_ELEMENT;
 	}
-
 		
 	if(params->errorBoundMode == PW_REL && params->accelerate_pw_rel_compression == 1)
 	{
@@ -524,7 +527,8 @@ int SZ_compress_args_double(double *oriData, size_t r1, unsigned char* newByteDa
 	{
 		size_t tmpOutSize = 0;
 		unsigned char* tmpByteData = newByteData;
-		if(params->szMode != SZ_BEST_SPEED)
+		bool twoStage = params->szMode != SZ_BEST_SPEED;
+		if(twoStage)
 		{
 			tmpByteData = (unsigned char*)malloc(r1*sizeof(double)*1.2);
 		}
@@ -538,28 +542,28 @@ int SZ_compress_args_double(double *oriData, size_t r1, unsigned char* newByteDa
 		}
 		else
 		{
-			SZ_compress_args_double_NoCkRngeNoGzip_1D(tmpByteData, oriData, r1, realPrecision, &tmpOutSize, valueRangeSize, medianValue);
-			if(tmpOutSize>=dataLength*sizeof(double) + 3 + MetaDataByteLength_double + exe_params->SZ_SIZE_TYPE + 1)
-				SZ_compress_args_double_StoreOriData(oriData, dataLength, tmpByteData, &tmpOutSize);
+			if(!SZ_compress_args_double_NoCkRngeNoGzip_1D(tmpByteData, oriData, r1, realPrecision, &tmpOutSize, valueRangeSize, medianValue))
+			{
+				if(twoStage)
+				   free(tmpByteData);
+
+				return SZ_ALGORITHM_ERR;
+			}
+			//if(tmpOutSize>=dataLength*sizeof(double) + 3 + MetaDataByteLength_double + exe_params->SZ_SIZE_TYPE + 1)
+			//	SZ_compress_args_double_StoreOriData(oriData, dataLength, tmpByteData, &tmpOutSize);
 		}
 					
 		//		
 		//Call Gzip to do the further compression.
 		//
-		if(params->szMode==SZ_BEST_SPEED)
-		{
-			*outSize = tmpOutSize;
-			//*newByteData = tmpByteData;			
-		}
-		else if(params->szMode==SZ_BEST_COMPRESSION || params->szMode==SZ_DEFAULT_COMPRESSION || params->szMode==SZ_TEMPORAL_COMPRESSION)
+		if(twoStage)
 		{
 			*outSize = sz_lossless_compress(params->losslessCompressor, params->gzipMode, tmpByteData, tmpOutSize, newByteData);
 			free(tmpByteData);
 		}
 		else
 		{
-			printf("Error: Wrong setting of params->szMode in the double compression.\n");
-			status = SZ_MERR;	
+			*outSize = tmpOutSize;
 		}
 	}
 

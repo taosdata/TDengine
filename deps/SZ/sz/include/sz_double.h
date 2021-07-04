@@ -15,6 +15,8 @@ extern "C" {
 #endif
 
 #include <stdio.h>
+#include <stdbool.h>
+
 unsigned char* SZ_skip_compress_double(double* data, size_t dataLength, size_t* outSize);
 
 void computeReqLength_double(double realPrecision, short radExpo, int* reqLength, double* medianValue);
@@ -30,7 +32,7 @@ TightDataPointStorageD* SZ_compress_double_1D_MDQ(double *oriData,
 size_t dataLength, double realPrecision, double valueRangeSize, double medianValue_d);
 void SZ_compress_args_double_StoreOriData(double* oriData, size_t dataLength, unsigned char* newByteData, size_t *outSize);
 
-char SZ_compress_args_double_NoCkRngeNoGzip_1D( unsigned char* newByteData, double *oriData, size_t dataLength, double realPrecision, size_t *outSize, double valueRangeSize, double medianValue_d);
+bool SZ_compress_args_double_NoCkRngeNoGzip_1D( unsigned char* newByteData, double *oriData, size_t dataLength, double realPrecision, size_t *outSize, double valueRangeSize, double medianValue_d);
 
 TightDataPointStorageD* SZ_compress_double_1D_MDQ_MSST19(double *oriData, size_t dataLength, double realPrecision, double valueRangeSize, double medianValue_f);
 

@@ -94,12 +94,14 @@ int SZ_ReadConf(const char* sz_cfgFile) {
     
     confparams_cpr->plus_bits = 3;
     
+	// default option
     if(sz_cfgFile == NULL || access(sz_cfgFile, F_OK) != 0)
     {
 		dataEndianType = LITTLE_ENDIAN_DATA;
 		confparams_cpr->sol_ID = SZ;
-		confparams_cpr->max_quant_intervals = 65536;
+		confparams_cpr->max_quant_intervals = 500;
 		confparams_cpr->maxRangeRadius = confparams_cpr->max_quant_intervals/2;
+		confparams_cpr->quantization_intervals = 5000;
 				
 		exe_params->intvCapacity = confparams_cpr->maxRangeRadius*2;
 		exe_params->intvRadius = confparams_cpr->maxRangeRadius;
@@ -118,8 +120,8 @@ int SZ_ReadConf(const char* sz_cfgFile) {
 		
 		confparams_cpr->errorBoundMode = SZ_ABS;
 		confparams_cpr->psnr = 90;
-		confparams_cpr->absErrBound = 1E-10;
-		confparams_cpr->relBoundRatio = 1E-10;
+		confparams_cpr->absErrBound = 1E-20;
+		confparams_cpr->relBoundRatio = 1E-8;
 		confparams_cpr->accelerate_pw_rel_compression = 1;
 		
 		confparams_cpr->pw_relBoundRatio = 1E-3;

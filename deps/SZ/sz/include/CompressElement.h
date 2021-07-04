@@ -27,9 +27,9 @@ typedef struct DoubleValueCompressElement
 
 typedef struct FloatValueCompressElement
 {
-	float data;
-	int curValue;
-	unsigned char curBytes[4]; //big_endian
+	float data;  // diffValue + medianValue
+	int curValue; // diff int value
+	unsigned char curBytes[4]; // dif bytes value diffValue->iValue big_endian
 	int reqBytesLength;
 	int resiBitsLength;
 } FloatValueCompressElement;

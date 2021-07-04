@@ -26,7 +26,7 @@
 //#include "CurveFillingCompressStorage.h"
 
 int versionNumber[4] = {SZ_VER_MAJOR,SZ_VER_MINOR,SZ_VER_BUILD,SZ_VER_REVISION};
-//int SZ_SIZE_TYPE = 8;
+int SZ_SIZE_TYPE_DEFUALT = 4;
 
 int dataEndianType = LITTLE_ENDIAN_DATA; //*endian type of the data read from disk
 int sysEndianType  = LITTLE_ENDIAN_SYSTEM ; //*sysEndianType is actually set automatically.
@@ -67,8 +67,7 @@ int SZ_Init(const char *configFilePath)
 	if(loadFileResult==SZ_FAILED)
 		return SZ_FAILED;
 	
-	exe_params->SZ_SIZE_TYPE = sizeof(size_t);
-	
+	exe_params->SZ_SIZE_TYPE = SZ_SIZE_TYPE_DEFUALT;
 	if(confparams_cpr->szMode == SZ_TEMPORAL_COMPRESSION)
 	{
 		initSZ_TSC();
@@ -115,13 +114,14 @@ int SZ_Init_Params(sz_params *params)
 size_t SZ_compress_args(int dataType, void *data, size_t r1, unsigned char* outData, sz_params* params)
 {
 	size_t outSize = 0;
+	int status;
 	if(dataType==SZ_FLOAT)
 	{
-		SZ_compress_args_float((float *)data, r1, outData,  &outSize, params);		
+		status = SZ_compress_args_float((float *)data, r1, outData,  &outSize, params);		
 	}
 	else if(dataType==SZ_DOUBLE)
 	{
-		SZ_compress_args_double((double *)data, r1, outData,  &outSize, params);
+		status = SZ_compress_args_double((double *)data, r1, outData,  &outSize, params);
 	}
 	else
 	{
@@ -139,7 +139,6 @@ size_t SZ_decompress(int dataType, unsigned char *bytes, size_t byteLength, size
 {
 	sz_exedata de_exe;
 	memset(&de_exe, 0, sizeof(sz_exedata));
-	de_exe.SZ_SIZE_TYPE = 8;
 
 	sz_params  de_params;
 	memset(&de_params, 0, sizeof(sz_params));
@@ -192,3 +191,35 @@ void SZ_Finalize()
 	}
 }
 
+
+
+
+struct timeval startTime;
+struct timeval endTime;  /* Start and end times */
+struct timeval costStart; /*only used for recording the cost*/
+double totalCost = 0;
+
+
+void cost_start()
+{
+	totalCost = 0;
+    gettimeofday(&costStart, NULL);
+}
+
+double cost_end(const char* tag)
+{
+    double elapsed;
+    struct timeval costEnd;
+    gettimeofday(&costEnd, NULL);
+    elapsed = ((costEnd.tv_sec*1000000+costEnd.tv_usec)-(costStart.tv_sec*1000000+costStart.tv_usec))/1000000.0;
+    totalCost += elapsed;
+    double use_ms = totalCost*1000;
+    printf(" timecost %s : %.3f ms\n", tag, use_ms);
+    return use_ms; 
+}
+
+void show_rate(int in_len, int out_len)
+{
+  float rate=100*(float)out_len/(float)in_len;
+  printf(" in_len=%d out_len=%d compress rate=%.4f%%\n", in_len, out_len, rate);
+}

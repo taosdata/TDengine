@@ -7,6 +7,8 @@
 extern "C" {
 #endif
 
+void cost_start();
+double cost_end(const char* tag);
 //
 // compress interface to tdengine return value is count of output with bytes
 //

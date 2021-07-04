@@ -28,13 +28,14 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-
-struct timeval startTime;
-struct timeval endTime;  /* Start and end times */
-struct timeval costStart; /*only used for recording the cost*/
-double totalCost = 0;
+void cost_start();
+double cost_end(const char* tag);
 int notsame_cnt  = 0;
-
+/*
+struct timeval startTime;
+struct timeval endTime; 
+struct timeval costStart; 
+double totalCost = 0;
 
 void cost_start()
 {
@@ -53,6 +54,7 @@ double cost_end(const char* tag)
     printf(" timecost %s : %.3f ms\n", tag, use_ms);
     return use_ms; 
 }
+*/
 
 float toFloat(char* buf){
   return (float)atoll(buf);
@@ -107,9 +109,9 @@ float check_same(float* ft1, float* ft2, int count){
        same_cnt ++;
     }
 
-    if(i < 20){
-      printf(" i=%d ft1=%.50f diff=%.50f \n", i, ft1[i], ft1[i] - ft2[i]);
-      printf(" i=%d ft2=%.50f \n", i, ft2[i]);
+    if(i < 5){
+      printf(" i=%d ft1=%.40f diff=%.40f \n", i, ft1[i], ft1[i] - ft2[i]);
+      printf(" i=%d ft2=%.40f \n", i, ft2[i]);
     }
       
   }
@@ -181,8 +183,8 @@ bool testFile(const char* inFile, char algorithm){
   // compare same
   float same_rate = check_same(floats, ft2, cnt);
 
-  printf("\n ------------------  count:%d TD <%s> ---------------- \n", cnt, algorithm == 2?"TD":"SZ");
-  printf("    Compress Rate ......... [%.0f%%] \n", rate);
+  printf("\n ------------------  count:%d  <%s> ---------------- \n", cnt, algorithm == 2?"TD":"SZ");
+  printf("    Compress Rate ......... [%.2f%%] \n", rate);
   double speed1 = (cnt*sizeof(float)*1000/1024/1024)/use_ms1;
   printf("    Compress Time ......... [%.4fms] speed=%.1f MB/s\n", use_ms1, speed1);
   double speed2 = (cnt*sizeof(float)*1000/1024/1024)/use_ms2;
@@ -581,7 +583,7 @@ void unitTestFloat() {
 //   -----------------  main ----------------------
 //
 int main(int argc, char *argv[]) {
-  printf("welcome to use taospack tools v1.2 \n");
+  printf("welcome to use taospack tools v1.2 SZ_SIZE_TYPE=%ld\n", sizeof(size_t));
  
   gOpenLossy = false;
   tsLossyInit();

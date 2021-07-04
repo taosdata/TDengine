@@ -14,7 +14,8 @@
 extern "C" {
 #endif
 
-#include <stdio.h> 
+#include <stdio.h>
+#include <stdbool.h> 
 #include "pub.h"
 
 typedef struct TightDataPointStorageF
@@ -92,7 +93,7 @@ void new_TightDataPointStorageF2(TightDataPointStorageF **self,
 		unsigned char* pwrErrBoundBytes, size_t pwrErrBoundBytes_size, unsigned char radExpo);
 
 void convertTDPStoBytes_float(TightDataPointStorageF* tdps, unsigned char* bytes, unsigned char* dsLengthBytes, unsigned char sameByte);
-void convertTDPStoFlatBytes_float(TightDataPointStorageF *tdps, unsigned char* bytes, size_t *size);
+bool convertTDPStoFlatBytes_float(TightDataPointStorageF *tdps, unsigned char* bytes, size_t *size);
 void convertTDPStoFlatBytes_float_args(TightDataPointStorageF *tdps, unsigned char* bytes, size_t *size);
 
 void free_TightDataPointStorageF(TightDataPointStorageF *tdps);

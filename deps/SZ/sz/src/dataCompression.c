@@ -448,27 +448,26 @@ inline void compressUInt64Value(uint64_t tgtValue, uint64_t minValue, int byteSi
 	memcpy(bytes, tmpBytes + 8 - byteSize, byteSize);
 }
 
-inline void compressSingleFloatValue(FloatValueCompressElement *vce, float tgtValue, float precision, float medianValue, 
+inline void compressSingleFloatValue(FloatValueCompressElement *vce, float oriValue, float precision, float medianValue, 
 		int reqLength, int reqBytesLength, int resiBitsLength)
 {		
-	float normValue = tgtValue - medianValue;
+	lfloat diffVal;
+	diffVal.value = oriValue - medianValue;
 
-	lfloat lfBuf;
-	lfBuf.value = normValue;
-			
-	int ignBytesLength = 32 - reqLength;
-	if(ignBytesLength<0)
-		ignBytesLength = 0;
+	// calc ignore bit count		
+	int ignBitCount = 32 - reqLength;
+	if(ignBitCount<0)
+		ignBitCount = 0;
 	
-	int tmp_int = lfBuf.ivalue;
-	intToBytes_bigEndian(vce->curBytes, tmp_int);
-		
-	lfBuf.ivalue = (lfBuf.ivalue >> ignBytesLength) << ignBytesLength;
+	int tmp_int = diffVal.ivalue;
+	intToBytes_bigEndian(vce->curBytes, diffVal.ivalue);
 	
-	//float tmpValue = lfBuf.value;
+	// truncate diff value tail bit with ignBitCount	
+	diffVal.ivalue = (diffVal.ivalue >> ignBitCount) << ignBitCount;
 	
-	vce->data = lfBuf.value+medianValue;
-	vce->curValue = tmp_int;
+	// save to vce
+	vce->data           = diffVal.value + medianValue;
+	vce->curValue       = diffVal.ivalue;
 	vce->reqBytesLength = reqBytesLength;
 	vce->resiBitsLength = resiBitsLength;
 }

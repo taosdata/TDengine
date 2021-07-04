@@ -227,25 +227,28 @@ void updateLossyCompElement_Double(unsigned char* curBytes, unsigned char* preBy
 	lce->residualMidBits = resiBits;
 }
 
-inline void updateLossyCompElement_Float(unsigned char* curBytes, unsigned char* preBytes, 
+inline void updateLossyCompElement_Float(unsigned char* diffBytes, unsigned char* preDiffBytes, 
 		int reqBytesLength, int resiBitsLength,  LossyCompressionElement *lce)
 {
 	int resiIndex, intMidBytes_Length = 0;
-	int leadingNum = compIdenticalLeadingBytesCount_float(preBytes, curBytes); //in fact, float is enough for both single-precision and double-precisiond ata.
+	int leadingNum = compIdenticalLeadingBytesCount_float(preDiffBytes, diffBytes); //in fact, float is enough for both single-precision and double-precisiond ata.
 	int fromByteIndex = leadingNum;
 	int toByteIndex = reqBytesLength; //later on: should use "< toByteIndex" to tarverse....
 	if(fromByteIndex < toByteIndex)
 	{
 		intMidBytes_Length = reqBytesLength - leadingNum;
-		memcpy(lce->integerMidBytes, &(curBytes[fromByteIndex]), intMidBytes_Length);
+		// set lce mid data
+		memcpy(lce->integerMidBytes, &(diffBytes[fromByteIndex]), intMidBytes_Length);
 	}
 	int resiBits = 0;
 	if(resiBitsLength!=0)
 	{
 		resiIndex = reqBytesLength;
 		if(resiIndex < 8)
-			resiBits = (curBytes[resiIndex] & 0xFF) >> (8-resiBitsLength);
+			resiBits = (diffBytes[resiIndex] & 0xFF) >> (8-resiBitsLength);
 	}
+
+	// set lce
 	lce->leadingZeroBytes = leadingNum;
 	lce->integerMidBytes_Length = intMidBytes_Length;
 	lce->resMidBitsLength = resiBitsLength;

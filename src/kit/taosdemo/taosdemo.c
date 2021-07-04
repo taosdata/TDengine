@@ -636,6 +636,9 @@ static FILE *          g_fpOfInsertResult = NULL;
 #define errorPrint(fmt, ...) \
     do { fprintf(stderr, "ERROR: "fmt, __VA_ARGS__); } while(0)
 
+// for strncpy buffer overflow
+#define min(a, b) (((a) < (b)) ? (a) : (b))
+
 
 ///////////////////////////////////////////////////
 
@@ -1221,7 +1224,7 @@ static void fetchResult(TAOS_RES *res, threadInfo* pThreadInfo) {
     //printf("query result:%s\n", temp);
     memcpy(databuf + totalLen, temp, len);
     totalLen += len;
-    debugPrint("totalLen: %"PRId64"\n", totalLen);
+    verbosePrint("%s() LN%d, totalLen: %"PRId64"\n", __func__, __LINE__, totalLen);
   }
 
   verbosePrint("%s() LN%d, databuf=%s resultFile=%s\n",
@@ -2574,7 +2577,7 @@ static int getSuperTableFromServer(TAOS * taos, char* dbName,
               fields[TSDB_DESCRIBE_METRIC_FIELD_INDEX].bytes);
       tstrncpy(superTbls->tags[tagIndex].dataType,
               (char *)row[TSDB_DESCRIBE_METRIC_TYPE_INDEX],
-              fields[TSDB_DESCRIBE_METRIC_TYPE_INDEX].bytes);
+              min(15, fields[TSDB_DESCRIBE_METRIC_TYPE_INDEX].bytes));
       superTbls->tags[tagIndex].dataLen =
           *((int *)row[TSDB_DESCRIBE_METRIC_LENGTH_INDEX]);
       tstrncpy(superTbls->tags[tagIndex].note,
@@ -2587,7 +2590,7 @@ static int getSuperTableFromServer(TAOS * taos, char* dbName,
               fields[TSDB_DESCRIBE_METRIC_FIELD_INDEX].bytes);
       tstrncpy(superTbls->columns[columnIndex].dataType,
               (char *)row[TSDB_DESCRIBE_METRIC_TYPE_INDEX],
-              fields[TSDB_DESCRIBE_METRIC_TYPE_INDEX].bytes);
+              min(15, fields[TSDB_DESCRIBE_METRIC_TYPE_INDEX].bytes));
       superTbls->columns[columnIndex].dataLen =
           *((int *)row[TSDB_DESCRIBE_METRIC_LENGTH_INDEX]);
       tstrncpy(superTbls->columns[columnIndex].note,
@@ -7280,7 +7283,7 @@ static void *superSubscribe(void *sarg) {
                     pThreadInfo->threadID);
         }
 
-        debugPrint("%s() LN%d, [%d] subSqlstr: %s\n",
+        verbosePrint("%s() LN%d, [%d] subSqlstr: %s\n",
                 __func__, __LINE__, pThreadInfo->threadID, subSqlstr);
         tsub[tsubSeq] = subscribeImpl(
                 STABLE_CLASS,
@@ -7472,7 +7475,6 @@ static void *specifiedSubscribe(void *sarg) {
       }
   }
   taos_free_result(g_queryInfo.specifiedQueryInfo.res[pThreadInfo->threadID]);
-  taos_unsubscribe(g_queryInfo.specifiedQueryInfo.tsub[pThreadInfo->querySeq], 0);
   taos_close(pThreadInfo->taos);
 
   return NULL;

@@ -31,7 +31,7 @@ size_t dataLength, float realPrecision, float valueRangeSize, float medianValue_
 
 void SZ_compress_args_float_StoreOriData(float* oriData, size_t dataLength, unsigned char* newByteData, size_t *outSize);
 
-char SZ_compress_args_float_NoCkRngeNoGzip_1D( unsigned char* newByteData, float *oriData, 
+bool SZ_compress_args_float_NoCkRngeNoGzip_1D( unsigned char* newByteData, float *oriData, 
 size_t dataLength, double realPrecision, size_t *outSize, float valueRangeSize, float medianValue_f);
 
 size_t SZ_compress_float_1D_MDQ_RA_block(float * block_ori_data, float * mean, size_t dim_0, size_t block_dim_0, double realPrecision, int * type, float * unpredictable_data);

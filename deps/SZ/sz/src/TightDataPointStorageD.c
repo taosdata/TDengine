@@ -572,7 +572,7 @@ void convertTDPStoBytes_double_reserve(TightDataPointStorageD* tdps, unsigned ch
 }
 
 //Convert TightDataPointStorageD to bytes...
-void convertTDPStoFlatBytes_double(TightDataPointStorageD *tdps, unsigned char* bytes, size_t *size) 
+bool convertTDPStoFlatBytes_double(TightDataPointStorageD *tdps, unsigned char* bytes, size_t *size) 
 {
 	size_t i, k = 0; 
 	unsigned char dsLengthBytes[8];
@@ -597,6 +597,10 @@ void convertTDPStoFlatBytes_double(TightDataPointStorageD *tdps, unsigned char* 
 	{
 		size_t totalByteLength = 3 + 1 + MetaDataByteLength_double + exe_params->SZ_SIZE_TYPE + tdps->exactMidBytes_size;
 		//bytes = (unsigned char *)malloc(sizeof(unsigned char)*totalByteLength); // comment by tickduan
+		if(totalByteLength >= tdps->dataSeriesLength * sizeof(double))
+		{
+			return false;
+		}
 	
 		for (i = 0; i < 3; i++)//3
 			bytes[k++] = versionNumber[i];
@@ -636,15 +640,21 @@ void convertTDPStoFlatBytes_double(TightDataPointStorageD *tdps, unsigned char* 
 			totalByteLength += (1+1); // for MSST19
 			
 		//*bytes = (unsigned char *)malloc(sizeof(unsigned char)*totalByteLength);  comment by tickduan
+		if(totalByteLength >= tdps->dataSeriesLength * sizeof(double))
+		{
+			return false;
+		}
 
 		convertTDPStoBytes_double(tdps, bytes, dsLengthBytes, sameByte);
-		
 		*size = totalByteLength;
 	}
 	else //the case with reserved value
 	{
 		//TODO
+		return false;
 	}
+
+	return true;
 }
 
 void convertTDPStoFlatBytes_double_args(TightDataPointStorageD *tdps, unsigned char* bytes, size_t *size) 
