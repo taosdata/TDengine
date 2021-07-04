@@ -36,7 +36,7 @@ class TDTestCase:
             projPath = selfPath[:selfPath.find("tests")]
 
         for root, dirs, files in os.walk(projPath):
-            if ("taosd" in files):
+            if ("taosdemo" in files):
                 rootRealPath = os.path.dirname(os.path.realpath(root))
                 if ("packaging" not in rootRealPath):
                     buildPath = root[:len(root) - len("/build/bin")]
@@ -47,9 +47,9 @@ class TDTestCase:
         tdSql.prepare()
         buildPath = self.getBuildPath()
         if (buildPath == ""):
-            tdLog.exit("taosd not found!")
+            tdLog.exit("taosdemo not found!")
         else:
-            tdLog.info("taosd found in %s" % buildPath)
+            tdLog.info("taosdemo found in %s" % buildPath)
         binPath = buildPath + "/build/bin/"
         os.system("%staosdemo -y -t %d -n %d" %
                   (binPath, self.numberOfTables, self.numberOfRecords))
