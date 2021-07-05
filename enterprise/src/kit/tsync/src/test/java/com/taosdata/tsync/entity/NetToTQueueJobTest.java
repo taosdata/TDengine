@@ -48,7 +48,7 @@ public class NetToTQueueJobTest {
 
     @Before
     public void before() throws IOException {
-        String producerConfigStr = IOUtils.toString(Objects.requireNonNull(getClass().getClassLoader().getResourceAsStream("net-to-tqueue.json")));
+        String producerConfigStr = IOUtils.toString(Objects.requireNonNull(getClass().getClassLoader().getResourceAsStream("net-to-tq.json")));
         netToTQueueConfigJSON = JSONObject.parseObject(producerConfigStr);
     }
 }

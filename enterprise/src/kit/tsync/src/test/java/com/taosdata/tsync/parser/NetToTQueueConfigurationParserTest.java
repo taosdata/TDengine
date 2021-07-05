@@ -46,7 +46,7 @@ public class NetToTQueueConfigurationParserTest {
     @Before
     public void before() throws IOException {
         // read consume-to-net.json
-        String configStr = IOUtils.toString(Objects.requireNonNull(getClass().getClassLoader().getResourceAsStream("net-to-tqueue.json")));
+        String configStr = IOUtils.toString(Objects.requireNonNull(getClass().getClassLoader().getResourceAsStream("net-to-tq.json")));
         netToTQueueConfigurationJSON = JSONObject.parseObject(configStr);
     }
 

@@ -120,7 +120,7 @@
                             <goal>single</goal>
                         </goals>
                         <configuration>
-                            <finalName>produce-to-tqueue</finalName>
+                            <finalName>produce-to-tq</finalName>
                             <archive>
                                 <manifest>
                                     <mainClass>com.taosdata.tsync.ProduceToTQueueApp</mainClass>
@@ -177,7 +177,7 @@
                             <goal>single</goal>
                         </goals>
                         <configuration>
-                            <finalName>net-to-tqueue</finalName>
+                            <finalName>net-to-tq</finalName>
                             <archive>
                                 <manifest>
                                     <mainClass>com.taosdata.tsync.NetToTQueueApp</mainClass>

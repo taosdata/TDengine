@@ -49,8 +49,8 @@ public class ProduceToTQueueTest {
 
     @Before
     public void before() throws IOException {
-        // read produce-to-tqueue.json
-        String producerConfigStr = IOUtils.toString(Objects.requireNonNull(getClass().getClassLoader().getResourceAsStream("produce-to-tqueue.json")));
+        // read produce-to-tq.json
+        String producerConfigStr = IOUtils.toString(Objects.requireNonNull(getClass().getClassLoader().getResourceAsStream("produce-to-tq.json")));
         producerTaskConfigJSON = JSONObject.parseObject(producerConfigStr);
     }
 

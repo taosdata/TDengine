@@ -6,10 +6,8 @@ import com.taosdata.tsync.enums.ConfigurationType;
 import com.taosdata.tsync.enums.JobStatus;
 import com.taosdata.tsync.factory.JobFactory;
 import com.taosdata.tsync.repository.ConfigurationRepository;
-import com.taosdata.tsync.service.AffectRowsProcessService;
 import com.taosdata.tsync.service.JobService;
 import com.taosdata.tsync.service.ProduceToTQueueJobServiceImpl;
-import com.taosdata.tsync.service.ResultProcessService;
 import org.apache.commons.io.IOUtils;
 import org.junit.Assert;
 import org.junit.Before;
@@ -51,8 +49,8 @@ public class FileToTQueueJobTest {
 
     @Before
     public void before() throws IOException {
-        // read produce-to-tqueue.json
-        String produceConfigStr = IOUtils.toString(Objects.requireNonNull(getClass().getClassLoader().getResourceAsStream("file-to-tqueue.json")));
+        // read produce-to-tq.json
+        String produceConfigStr = IOUtils.toString(Objects.requireNonNull(getClass().getClassLoader().getResourceAsStream("file-to-tq.json")));
         fileToTQueueConfigJSON = JSONObject.parseObject(produceConfigStr);
     }
 }
