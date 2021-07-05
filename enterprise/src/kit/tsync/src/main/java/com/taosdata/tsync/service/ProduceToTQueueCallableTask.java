@@ -33,7 +33,7 @@ public class ProduceToTQueueCallableTask implements Callable<Long> {
     private long batchValues;
 
     // schema
-    private AtomicLong ts = new AtomicLong(System.currentTimeMillis());
+    private AtomicLong ts;
     private String dbname;
     private String stableName;
     private List<Configuration> columns;
@@ -177,7 +177,7 @@ public class ProduceToTQueueCallableTask implements Callable<Long> {
         for (long i = 0; i < records; i++) {
             for (int j = 0; j < columns.size(); j++) {
                 ColumnConfiguration column = (ColumnConfiguration) columns.get(j);
-                if (column.getType().equalsIgnoreCase("timestamp")) {
+                if (j == 0 && column.getType().equalsIgnoreCase("timestamp")) {
                     parameters.add(ts.getAndIncrement());
                 } else {
                     parameters.add(DataGenerator.random(column.getType(), column.getLength()));
@@ -232,4 +232,7 @@ public class ProduceToTQueueCallableTask implements Callable<Long> {
         this.producer = producer;
     }
 
+    public void setTs(AtomicLong ts) {
+        this.ts = ts;
+    }
 }

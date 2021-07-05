@@ -4,6 +4,7 @@ import com.google.common.collect.Multimap;
 import com.taosdata.tsync.entity.RunnableTask;
 import com.taosdata.tsync.entity.config.*;
 import com.taosdata.tsync.enums.ConfigurationType;
+import com.taosdata.tsync.enums.DatabasePrecision;
 import com.taosdata.tsync.enums.SchemaMissingStrategy;
 import com.taosdata.tsync.exceptions.TsyncException;
 import com.taosdata.tsync.factory.ConsumeToTDengineRunnableTaskFactory;
@@ -121,9 +122,10 @@ public class ConsumeToTDengineJobServiceImpl extends AbstractRunnableJobService 
     private void doCreateSchema() {
         DatabaseConfiguration databaseConfiguration = (DatabaseConfiguration) schemaConfiguration.findFirst(ConfigurationType.DATABASE);
         String dbname = databaseConfiguration.getName();
+        DatabasePrecision precision = databaseConfiguration.getPrecision();
         Connection taosdConnection = TaosdConnectionFactory.build(taosdConfiguration);
         if (isDatabaseMissing(taosdConnection, dbname)) {
-            doCreateDatabase(taosdConnection, dbname);
+            doCreateDatabase(taosdConnection, dbname, precision);
         }
 
         StableConfiguration stableConfiguration = (StableConfiguration) schemaConfiguration.findFirst(ConfigurationType.STABLE);
@@ -133,9 +135,9 @@ public class ConsumeToTDengineJobServiceImpl extends AbstractRunnableJobService 
         }
     }
 
-    private void doCreateDatabase(Connection taosdConnection, String dbname) {
+    private void doCreateDatabase(Connection taosdConnection, String dbname, DatabasePrecision precision) {
         try (Statement stmt = taosdConnection.createStatement()) {
-            stmt.execute("create database if not exists " + dbname);
+            stmt.execute("create database if not exists " + dbname + " precision '" + precision.toString().toLowerCase() + "'");
         } catch (SQLException e) {
             e.printStackTrace();
         }

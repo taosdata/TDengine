@@ -4,6 +4,7 @@ import com.alibaba.fastjson.JSONObject;
 import com.taosdata.tsync.entity.config.Configuration;
 import com.taosdata.tsync.enums.ConfigurationType;
 import com.taosdata.tsync.entity.config.DatabaseConfiguration;
+import com.taosdata.tsync.enums.DatabasePrecision;
 import com.taosdata.tsync.exceptions.TsyncException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -30,12 +31,25 @@ public class DatabaseConfigurationParser implements ConfigurationParser {
         }
         // precision
         if (configJSON.containsKey("precision")) {
-            configuration.setPrecision(configJSON.getString("precision"));
+            String precision = configJSON.getString("precision");
+            configuration.setPrecision(parsePrecision(precision));
         } else {
             logger.warn("use default precision: " + DatabaseConfiguration.DEFAULT_PRECISION);
             configuration.setPrecision(DatabaseConfiguration.DEFAULT_PRECISION);
         }
-        // TODO: other database options
+
         return configuration;
+    }
+
+    private DatabasePrecision parsePrecision(String precision) {
+        switch (precision.toLowerCase()) {
+            case "ns":
+                return DatabasePrecision.NS;
+            case "us":
+                return DatabasePrecision.US;
+            case "ms":
+            default:
+                return DatabasePrecision.MS;
+        }
     }
 }

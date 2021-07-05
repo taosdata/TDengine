@@ -1,6 +1,7 @@
 package com.taosdata.tsync.factory;
 
 import com.google.common.collect.Range;
+import com.taosdata.tsync.enums.DatabasePrecision;
 import com.taosdata.tsync.tqueue.TQueueProducer;
 import com.taosdata.tsync.entity.config.Configuration;
 import com.taosdata.tsync.entity.config.DatabaseConfiguration;
@@ -10,6 +11,7 @@ import com.taosdata.tsync.enums.ConfigurationType;
 import com.taosdata.tsync.service.ProduceToTQueueCallableTask;
 
 import java.util.List;
+import java.util.concurrent.atomic.AtomicLong;
 
 public class ProduceToTQueueCallableTaskFactory {
 
@@ -63,6 +65,25 @@ public class ProduceToTQueueCallableTaskFactory {
         DatabaseConfiguration databaseConfiguration = (DatabaseConfiguration) schemaConfiguration.findFirst(ConfigurationType.DATABASE);
         String dbname = databaseConfiguration.getName();
         instance.setDbname(dbname);
+
+        // precision
+        DatabasePrecision precision = databaseConfiguration.getPrecision();
+        switch (precision) {
+            case NS: {
+                instance.setTs(new AtomicLong(System.currentTimeMillis() * 1000_000));
+                break;
+            }
+            case US: {
+                instance.setTs(new AtomicLong(System.currentTimeMillis() * 1000));
+                break;
+            }
+            case MS:
+            default: {
+                instance.setTs(new AtomicLong(System.currentTimeMillis()));
+                break;
+            }
+        }
+
         // stable
         StableConfiguration stableConfiguration = (StableConfiguration) schemaConfiguration.findFirst(ConfigurationType.STABLE);
         String stableName = stableConfiguration.getName();
