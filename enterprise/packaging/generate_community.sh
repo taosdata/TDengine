@@ -8,7 +8,7 @@ verType=$4
 scriptDir=`pwd`
 topDir=$scriptDir/../..         # TDinternal
 communityDir=$topDir/community
-archiveDir=$scriptDir/../release
+archiveDir=/nas/TDengine/v$version/community # version’package directory
 allocator=glibc                 # glibc  or  jemalloc
 
 if [ ! -d $archiveDir ]; then
@@ -24,15 +24,17 @@ rm -rf release/*
 rm -rf debs/*
 rm -rf rpms/*
 ./packaging/release.sh -a $allocator -n $version -m $versionComp -V $verType
+
+# generate alert version 
+./alert/release.sh  -n $version  -V $verType 
+
 cd $archiveDir
-rm -rf v$version
-mkdir v$version
-cd v$version
-mkdir community
-cd community
-cp $communityDir/release/* ./
-cp $communityDir/debs/* ./
-cp $communityDir/rpms/* ./
+# rm -rf v$version
+# mkdir v$version
+# cd v$version
+cp -f $communityDir/release/* ./
+cp -f $communityDir/debs/* ./
+cp -f $communityDir/rpms/* ./
 
 #echo "build new version branch >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>"
 #cd $communityDir
