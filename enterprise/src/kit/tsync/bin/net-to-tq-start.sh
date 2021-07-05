@@ -1,0 +1,16 @@
+#!/bin/sh
+
+#指定JDK目录&AppName
+APP_NAME=net-to-tq
+
+#nohup命令后台启动jar包并写入日志
+nohup java -jar $APP_NAME.jar --config config/$APP_NAME.json >>logs/$APP_NAME.log 2>>logs/$APP_NAME.error &
+
+#sleep等待5秒后，判断包含AppName的线程是否存在
+sleep 5
+
+if test $(pgrep -f $APP_NAME | wc -l) -eq 0; then
+  echo "Start Failed"
+else
+  echo "Start $APP_NAME Successed"
+fi
