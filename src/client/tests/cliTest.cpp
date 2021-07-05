@@ -1,5 +1,6 @@
 #include <gtest/gtest.h>
 #include <iostream>
+#include <inttypes.h>
 
 #include "taos.h"
 #include "tglobal.h"
@@ -132,7 +133,7 @@ void validateResultFields() {
   taos_free_result(res);
 
   char sql[512] = {0};
-  sprintf(sql, "insert into t1 values(%ld, 99, 'abc', 'test')", start_ts);
+  sprintf(sql, "insert into t1 values(%" PRId64 ", 99, 'abc', 'test')", start_ts);
 
   res = taos_query(conn, sql);
   ASSERT_EQ(taos_errno(res), 0);

@@ -84,8 +84,8 @@ int32_t tsMaxNumOfOrderedResults = 100000;
 // 10 ms for sliding time, the value will changed in case of time precision changed
 int32_t tsMinSlidingTime = 10;
 
-// 10 ms for interval time range, changed accordingly
-int32_t tsMinIntervalTime = 10;
+// 1 us for interval time range, changed accordingly
+int32_t tsMinIntervalTime = 1;
 
 // 20sec, the maximum value of stream computing delay, changed accordingly
 int32_t tsMaxStreamComputDelay = 20000;
@@ -204,7 +204,7 @@ SDiskCfg tsDiskCfg[TSDB_MAX_DISKS];
  *     TSDB_TIME_PRECISION_MICRO: 86400000000L
  *     TSDB_TIME_PRECISION_NANO:  86400000000000L
  */
-int64_t tsMsPerDay[] = {86400000L, 86400000000L, 86400000000000L};
+int64_t tsTickPerDay[] = {86400000L, 86400000000L, 86400000000000L};
 
 // system info
 char    tsOsName[10] = "Linux";
@@ -831,6 +831,16 @@ static void doInitGlobalConfig(void) {
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosInitConfigOption(cfg);
 
+  cfg.option = "precision";
+  cfg.ptr = &tsTimePrecision;
+  cfg.valType = TAOS_CFG_VTYPE_INT8;
+  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
+  cfg.minValue = TSDB_MIN_PRECISION;
+  cfg.maxValue = TSDB_MAX_PRECISION;
+  cfg.ptrLength = 0;
+  cfg.unitType = TAOS_CFG_UTYPE_NONE;
+  taosInitConfigOption(cfg);
+
   cfg.option = "comp";
   cfg.ptr = &tsCompression;
   cfg.valType = TAOS_CFG_VTYPE_INT8;
@@ -897,6 +907,16 @@ static void doInitGlobalConfig(void) {
   cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
   cfg.minValue = TSDB_MIN_DB_UPDATE;
   cfg.maxValue = TSDB_MAX_DB_UPDATE;
+  cfg.ptrLength = 0;
+  cfg.unitType = TAOS_CFG_UTYPE_NONE;
+  taosInitConfigOption(cfg);
+
+  cfg.option = "cachelast";
+  cfg.ptr = &tsCacheLastRow;
+  cfg.valType = TAOS_CFG_VTYPE_INT8;
+  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
+  cfg.minValue = TSDB_MIN_DB_CACHE_LAST_ROW;
+  cfg.maxValue = TSDB_MAX_DB_CACHE_LAST_ROW;
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosInitConfigOption(cfg);

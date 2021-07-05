@@ -2,6 +2,7 @@
 #include "taoserror.h"
 #include "tscompression.h"
 #include "tutil.h"
+#include "queryLog.h"
 
 static int32_t getDataStartOffset();
 static void TSBufUpdateGroupInfo(STSBuf* pTSBuf, int32_t index, STSGroupBlockInfo* pBlockInfo);
@@ -633,10 +634,15 @@ int32_t STSBufUpdateHeader(STSBuf* pTSBuf, STSBufFileHeader* pHeader) {
 
   int32_t r = fseek(pTSBuf->f, 0, SEEK_SET);
   if (r != 0) {
+    qError("fseek failed, errno:%d", errno);
     return -1;
   }
-  
-  fwrite(pHeader, sizeof(STSBufFileHeader), 1, pTSBuf->f);
+
+  size_t ws = fwrite(pHeader, sizeof(STSBufFileHeader), 1, pTSBuf->f);
+  if (ws != 1) {    
+    qError("ts update header fwrite failed, size:%d, expected size:%d", (int32_t)ws, (int32_t)sizeof(STSBufFileHeader));
+    return -1;
+  }
   return 0;
 }
 
@@ -812,34 +818,31 @@ int32_t tsBufMerge(STSBuf* pDestBuf, const STSBuf* pSrcBuf) {
   
   int64_t offset = getDataStartOffset();
   int32_t size = (int32_t)pSrcBuf->fileSize - (int32_t)offset;
-
-  int64_t rc = taosFSendFile(pDestBuf->f, pSrcBuf->f, &offset, size);
+  int64_t written = taosFSendFile(pDestBuf->f, pSrcBuf->f, &offset, size);
   
-  if (rc == -1) {
-//    tscError("failed to merge tsBuf from:%s to %s, reason:%s\n", pSrcBuf->path, pDestBuf->path, strerror(errno));
-    return -1;
-  }
-  
-  if (rc != size) {
-//    tscError("failed to merge tsBuf from:%s to %s, reason:%s\n", pSrcBuf->path, pDestBuf->path, strerror(errno));
+  if (written == -1 || written != size) {
     return -1;
   }
   
   pDestBuf->numOfTotal += pSrcBuf->numOfTotal;
-  
+
   int32_t oldSize = pDestBuf->fileSize;
-  
+
+  // file meta data may be cached, close and reopen the file for accurate file size.
+  fclose(pDestBuf->f);
+  pDestBuf->f = fopen(pDestBuf->path, "rb+");
+  if (pDestBuf->f == NULL) {
+    return -1;
+  }
+
   struct stat fileStat;
   if (fstat(fileno(pDestBuf->f), &fileStat) != 0) {
     return -1;  
   }
   pDestBuf->fileSize = (uint32_t)fileStat.st_size;
-  
+
   assert(pDestBuf->fileSize == oldSize + size);
-  
-//  tscDebug("tsBuf merge success, %p, path:%s, fd:%d, file size:%d, numOfGroups:%d, autoDelete:%d", pDestBuf,
-//           pDestBuf->path, fileno(pDestBuf->f), pDestBuf->fileSize, pDestBuf->numOfGroups, pDestBuf->autoDelete);
-  
+
   return 0;
 }
 
@@ -856,9 +859,17 @@ STSBuf* tsBufCreateFromCompBlocks(const char* pData, int32_t numOfBlocks, int32_
   TSBufUpdateGroupInfo(pTSBuf, pTSBuf->numOfGroups - 1, pBlockInfo);
   
   int32_t ret = fseek(pTSBuf->f, pBlockInfo->offset, SEEK_SET);
-  UNUSED(ret);
+  if (ret == -1) {
+    qError("fseek failed, errno:%d", errno);
+    tsBufDestroy(pTSBuf);
+    return NULL;
+  }
   size_t sz = fwrite((void*)pData, 1, len, pTSBuf->f);
-  UNUSED(sz);
+  if (sz != len) {
+    qError("ts data fwrite failed, write size:%d, expected size:%d", (int32_t)sz, len);
+    tsBufDestroy(pTSBuf);
+    return NULL;
+  }
   pTSBuf->fileSize += len;
   
   pTSBuf->tsOrder = order;
@@ -866,9 +877,16 @@ STSBuf* tsBufCreateFromCompBlocks(const char* pData, int32_t numOfBlocks, int32_
   
   STSBufFileHeader header = {
       .magic = TS_COMP_FILE_MAGIC, .numOfGroup = pTSBuf->numOfGroups, .tsOrder = pTSBuf->tsOrder};
-  STSBufUpdateHeader(pTSBuf, &header);
+  if (STSBufUpdateHeader(pTSBuf, &header) < 0) {
+    tsBufDestroy(pTSBuf);
+    return NULL;
+  }
   
-  taosFsync(fileno(pTSBuf->f));
+  if (taosFsync(fileno(pTSBuf->f)) == -1) {
+    qError("fsync failed, errno:%d", errno);
+    tsBufDestroy(pTSBuf);
+    return NULL;
+  }
   
   return pTSBuf;
 }

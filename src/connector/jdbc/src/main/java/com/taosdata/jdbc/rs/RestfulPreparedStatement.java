@@ -13,7 +13,7 @@ import java.util.Calendar;
 
 public class RestfulPreparedStatement extends RestfulStatement implements PreparedStatement {
 
-    private ParameterMetaData parameterMetaData;
+    private final ParameterMetaData parameterMetaData;
     private final String rawSql;
     private Object[] parameters;
     private boolean isPrepared;
@@ -44,7 +44,7 @@ public class RestfulPreparedStatement extends RestfulStatement implements Prepar
         if (!isPrepared)
             return executeQuery(this.rawSql);
 
-        final String sql = getNativeSql(this.rawSql);
+        final String sql = Utils.getNativeSql(this.rawSql, this.parameters);
         return executeQuery(sql);
     }
 
@@ -55,18 +55,8 @@ public class RestfulPreparedStatement extends RestfulStatement implements Prepar
         if (!isPrepared)
             return executeUpdate(this.rawSql);
 
-        final String sql = getNativeSql(this.rawSql);
+        final String sql = Utils.getNativeSql(rawSql, this.parameters);
         return executeUpdate(sql);
-    }
-
-    /****
-     * 将rawSql转换成一条可执行的sql语句，使用属性parameters中的变脸进行替换
-     * 对于insert into ?.? (?,?,?) using ?.? (?,?,?) tags(?, ?, ?) values(?, ?, ?)
-     * @param rawSql，可能是insert、select或其他，使用?做占位符
-     * @return
-     */
-    private String getNativeSql(String rawSql) {
-        return Utils.getNativeSql(rawSql, this.parameters);
     }
 
     @Override
@@ -224,16 +214,13 @@ public class RestfulPreparedStatement extends RestfulStatement implements Prepar
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
         if (!isPrepared)
             return execute(this.rawSql);
-        final String sql = getNativeSql(rawSql);
+        final String sql = Utils.getNativeSql(rawSql, this.parameters);
         return execute(sql);
     }
 
     @Override
     public void addBatch() throws SQLException {
-        if (isClosed())
-            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
-
-        final String sql = getNativeSql(this.rawSql);
+        final String sql = Utils.getNativeSql(rawSql, this.parameters);
         addBatch(sql);
     }
 

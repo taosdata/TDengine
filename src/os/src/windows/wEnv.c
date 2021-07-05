@@ -55,9 +55,10 @@ void osInit() {
   strcpy(tsOsName, "Windows");
 
   const char *tmpDir = getenv("tmp");
-  if (tmpDir != NULL) {
+  if (tmpDir == NULL) {
     tmpDir = getenv("temp");
   }
+
   if (tmpDir != NULL) {
     strcpy(tsTempDir, tmpDir);
   } else {

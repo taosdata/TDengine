@@ -35,7 +35,7 @@ int32_t main(int32_t argc, char *argv[]) {
 
   for (int32_t i = 1; i < argc; ++i) {
     if (strcmp(argv[i], "-c") == 0 && i < argc - 1) {
-      tstrncpy(configDir, argv[++i], MAX_FILE_NAME_LEN);
+      tstrncpy(configDir, argv[++i], 128);
     } else if (strcmp(argv[i], "-f") == 0 && i < argc - 1) {
       strcpy(scriptFile, argv[++i]);
     } else if (strcmp(argv[i], "-a") == 0) {

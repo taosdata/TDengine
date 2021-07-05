@@ -12,6 +12,7 @@ import java.util.UUID;
 
 public class RestfulStatementTest {
     private static final String host = "127.0.0.1";
+
     private static Connection conn;
     private static Statement stmt;
 
@@ -21,11 +22,11 @@ public class RestfulStatementTest {
             ResultSet rs = stmt.executeQuery("show databases");
             Assert.assertNotNull(rs);
             ResultSetMetaData meta = rs.getMetaData();
+            int columnCount = meta.getColumnCount();
+            Assert.assertTrue(columnCount > 1);
             while (rs.next()) {
-                for (int i = 1; i <= meta.getColumnCount(); i++) {
-                    System.out.print(meta.getColumnLabel(i) + ": " + rs.getString(i) + "\t");
-                }
-                System.out.println();
+                Assert.assertEquals("name", meta.getColumnLabel(1));
+                Assert.assertNotNull(rs.getString("name"));
             }
             rs.close();
         } catch (SQLException e) {
@@ -174,10 +175,10 @@ public class RestfulStatementTest {
             Assert.assertEquals(3, meta.getColumnCount());
             int count = 0;
             while (rs.next()) {
-                for (int i = 1; i <= meta.getColumnCount(); i++) {
-                    System.out.print(meta.getColumnLabel(i) + ": " + rs.getString(i) + "\t");
-                }
-                System.out.println();
+                Assert.assertEquals("ts", meta.getColumnLabel(1));
+                Assert.assertNotNull(rs.getTimestamp(1));
+                Assert.assertEquals("temperature", meta.getColumnLabel(2));
+                Assert.assertEquals(22.33, rs.getFloat(2), 0.001f);
                 count++;
             }
             Assert.assertEquals(1, count);
@@ -388,15 +389,12 @@ public class RestfulStatementTest {
     @BeforeClass
     public static void beforeClass() {
         try {
-            Class.forName("com.taosdata.jdbc.rs.RestfulDriver");
             Properties properties = new Properties();
             properties.setProperty(TSDBDriver.PROPERTY_KEY_CHARSET, "UTF-8");
             properties.setProperty(TSDBDriver.PROPERTY_KEY_LOCALE, "en_US.UTF-8");
             properties.setProperty(TSDBDriver.PROPERTY_KEY_TIME_ZONE, "UTC-8");
             conn = DriverManager.getConnection("jdbc:TAOS-RS://" + host + ":6041/?user=root&password=taosdata", properties);
             stmt = conn.createStatement();
-        } catch (ClassNotFoundException e) {
-            e.printStackTrace();
         } catch (SQLException e) {
             e.printStackTrace();
         }

@@ -18,6 +18,7 @@ import datetime
 import inspect
 import psutil
 import shutil
+import pandas as pd
 from util.log import *
 
 
@@ -134,25 +135,32 @@ class TDSql:
         return self.cursor.istype(col, dataType)
 
     def checkData(self, row, col, data):
-        self.checkRowCol(row, col) 
-        if self.queryResult[row][col] != data:            
-            if self.cursor.istype(col, "TIMESTAMP") and self.queryResult[row][col] == datetime.datetime.fromisoformat(data):
-                tdLog.info("sql:%s, row:%d col:%d data:%s == expect:%s" %
+        self.checkRowCol(row, col)
+        if self.queryResult[row][col] != data:
+            if self.cursor.istype(col, "TIMESTAMP"):
+                # suppose user want to check nanosecond timestamp if a longer data passed
+                if (len(data) >= 28):
+                    if pd.to_datetime(self.queryResult[row][col]) == pd.to_datetime(data):
+                        tdLog.info("sql:%s, row:%d col:%d data:%d == expect:%s" %
+                            (self.sql, row, col, self.queryResult[row][col], data))
+                else:
+                    if self.queryResult[row][col] == datetime.datetime.fromisoformat(data):
+                        tdLog.info("sql:%s, row:%d col:%d data:%s == expect:%s" %
                             (self.sql, row, col, self.queryResult[row][col], data))
                 return
 
             if str(self.queryResult[row][col]) == str(data):
                 tdLog.info("sql:%s, row:%d col:%d data:%s == expect:%s" %
-                            (self.sql, row, col, self.queryResult[row][col], data)) 
+                            (self.sql, row, col, self.queryResult[row][col], data))
                 return
-            elif isinstance(data, float) and abs(self.queryResult[row][col] - data) <= 0.000001:                
+            elif isinstance(data, float) and abs(self.queryResult[row][col] - data) <= 0.000001:
                 tdLog.info("sql:%s, row:%d col:%d data:%f == expect:%f" %
-                            (self.sql, row, col, self.queryResult[row][col], data)) 
+                            (self.sql, row, col, self.queryResult[row][col], data))
                 return
             else:
                 caller = inspect.getframeinfo(inspect.stack()[1][0])
                 args = (caller.filename, caller.lineno, self.sql, row, col, self.queryResult[row][col], data)
-                tdLog.exit("%s(%d) failed: sql:%s row:%d col:%d data:%s != expect:%s" % args)        
+                tdLog.exit("%s(%d) failed: sql:%s row:%d col:%d data:%s != expect:%s" % args)
 
         if data is None:
             tdLog.info("sql:%s, row:%d col:%d data:%s == expect:%s" %
@@ -162,11 +170,11 @@ class TDSql:
                        (self.sql, row, col, self.queryResult[row][col], data))
         elif isinstance(data, datetime.date):
             tdLog.info("sql:%s, row:%d col:%d data:%s == expect:%s" %
-                       (self.sql, row, col, self.queryResult[row][col], data))        
+                       (self.sql, row, col, self.queryResult[row][col], data))
         elif isinstance(data, float):
             tdLog.info("sql:%s, row:%d col:%d data:%s == expect:%s" %
                        (self.sql, row, col, self.queryResult[row][col], data))
-        else:            
+        else:
             tdLog.info("sql:%s, row:%d col:%d data:%s == expect:%d" %
                        (self.sql, row, col, self.queryResult[row][col], data))
 
@@ -200,7 +208,7 @@ class TDSql:
             tdLog.exit("%s(%d) failed: sql:%s, affectedRows:%d != expect:%d" % args)
 
         tdLog.info("sql:%s, affectedRows:%d == expect:%d" % (self.sql, self.affectedRows, expectAffectedRows))
-    
+
     def taosdStatus(self, state):
         tdLog.sleep(5)
         pstate = 0
@@ -221,7 +229,7 @@ class TDSql:
                 continue
             pstate = 0
             break
-            
+
         args=(pstate,state)
         if pstate == state:
             tdLog.info("taosd state is %d == expect:%d" %args)
@@ -236,11 +244,11 @@ class TDSql:
                     tdLog.exit("dir: %s is empty, expect: not empty" %dir)
                 else:
                     tdLog.info("dir: %s is empty, expect: empty" %dir)
-            else:  
+            else:
                 if state :
                     tdLog.info("dir: %s is not empty, expect: not empty" %dir)
                 else:
-                    tdLog.exit("dir: %s is not empty, expect: empty" %dir)  
+                    tdLog.exit("dir: %s is not empty, expect: empty" %dir)
         else:
             tdLog.exit("dir: %s doesn't exist" %dir)
     def createDir(self, dir):
@@ -250,5 +258,5 @@ class TDSql:
         os.makedirs( dir, 755 )
         tdLog.info("dir: %s is created" %dir)
         pass
-        
+
 tdSql = TDSql()

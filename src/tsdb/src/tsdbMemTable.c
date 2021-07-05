@@ -271,10 +271,34 @@ void *tsdbAllocBytes(STsdbRepo *pRepo, int bytes) {
   return ptr;
 }
 
+int tsdbSyncCommitConfig(STsdbRepo* pRepo) {
+  ASSERT(pRepo->config_changed == true);
+  tsem_wait(&(pRepo->readyToCommit));
+
+  if (pRepo->code != TSDB_CODE_SUCCESS) {
+    tsdbWarn("vgId:%d try to commit config when TSDB not in good state: %s", REPO_ID(pRepo), tstrerror(terrno));
+  }
+
+  if (tsdbLockRepo(pRepo) < 0) return -1;
+  tsdbScheduleCommit(pRepo, COMMIT_CONFIG_REQ);
+  if (tsdbUnlockRepo(pRepo) < 0) return -1;
+
+  tsem_wait(&(pRepo->readyToCommit));
+  tsem_post(&(pRepo->readyToCommit));
+
+  if (pRepo->code != TSDB_CODE_SUCCESS) {
+    terrno = pRepo->code;
+    return -1;
+  }
+
+  terrno = TSDB_CODE_SUCCESS;
+  return 0;
+}
+
 int tsdbAsyncCommit(STsdbRepo *pRepo) {
   tsem_wait(&(pRepo->readyToCommit));
 
-  //ASSERT(pRepo->imem == NULL);
+  ASSERT(pRepo->imem == NULL);
   if (pRepo->mem == NULL) {
     tsem_post(&(pRepo->readyToCommit));
     return 0;
@@ -608,8 +632,8 @@ static int tsdbScanAndConvertSubmitMsg(STsdbRepo *pRepo, SSubmitMsg *pMsg) {
   SSubmitBlkIter blkIter = {0};
   SDataRow       row = NULL;
   TSKEY          now = taosGetTimestamp(pRepo->config.precision);
-  TSKEY          minKey = now - tsMsPerDay[pRepo->config.precision] * pRepo->config.keep;
-  TSKEY          maxKey = now + tsMsPerDay[pRepo->config.precision] * pRepo->config.daysPerFile;
+  TSKEY          minKey = now - tsTickPerDay[pRepo->config.precision] * pRepo->config.keep;
+  TSKEY          maxKey = now + tsTickPerDay[pRepo->config.precision] * pRepo->config.daysPerFile;
 
   terrno = TSDB_CODE_SUCCESS;
   pMsg->length = htonl(pMsg->length);
@@ -1015,7 +1039,6 @@ static int tsdbUpdateTableLatestInfo(STsdbRepo *pRepo, STable *pTable, SDataRow 
     taosTZfree(pTable->lastRow);
     TSDB_WLOCK_TABLE(pTable);
     pTable->lastRow = NULL;
-    pTable->lastKey = TSKEY_INITIAL_VAL;
     TSDB_WUNLOCK_TABLE(pTable);
   }
 

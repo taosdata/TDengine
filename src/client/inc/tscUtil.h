@@ -123,6 +123,8 @@ int32_t tscGetDataBlockFromList(SHashObj* pHashList, int64_t id, int32_t size, i
  */
 bool tscIsPointInterpQuery(SQueryInfo* pQueryInfo);
 bool tscIsTWAQuery(SQueryInfo* pQueryInfo);
+bool tscIsIrateQuery(SQueryInfo* pQueryInfo);
+
 bool tscIsSessionWindowQuery(SQueryInfo* pQueryInfo);
 bool tscIsSecondStageQuery(SQueryInfo* pQueryInfo);
 bool tsIsArithmeticQueryOnAggResult(SQueryInfo* pQueryInfo);
@@ -132,12 +134,12 @@ bool hasTagValOutput(SQueryInfo* pQueryInfo);
 bool timeWindowInterpoRequired(SQueryInfo *pQueryInfo);
 bool isStabledev(SQueryInfo* pQueryInfo);
 bool isTsCompQuery(SQueryInfo* pQueryInfo);
-bool isSimpleAggregate(SQueryInfo* pQueryInfo);
 bool isBlockDistQuery(SQueryInfo* pQueryInfo);
 bool isSimpleAggregateRv(SQueryInfo* pQueryInfo);
 
 bool tscNonOrderedProjectionQueryOnSTable(SQueryInfo *pQueryInfo, int32_t tableIndex);
 bool tscOrderedProjectionQueryOnSTable(SQueryInfo* pQueryInfo, int32_t tableIndex);
+bool tscIsDiffDerivQuery(SQueryInfo* pQueryInfo);
 bool tscIsProjectionQueryOnSTable(SQueryInfo* pQueryInfo, int32_t tableIndex);
 
 bool tscIsProjectionQuery(SQueryInfo* pQueryInfo);
@@ -208,13 +210,14 @@ int32_t createProjectionExpr(SQueryInfo* pQueryInfo, STableMetaInfo* pTableMetaI
 void clearAllTableMetaInfo(SQueryInfo* pQueryInfo, bool removeMeta);
 
 SColumn* tscColumnClone(const SColumn* src);
-bool tscColumnExists(SArray* pColumnList, int32_t columnIndex, uint64_t uid);
+void tscColumnCopy(SColumn* pDest, const SColumn* pSrc);
+int32_t tscColumnExists(SArray* pColumnList, int32_t columnId, uint64_t uid);
 SColumn* tscColumnListInsert(SArray* pColumnList, int32_t columnIndex, uint64_t uid, SSchema* pSchema);
 void tscColumnListDestroy(SArray* pColList);
 void tscColumnListCopy(SArray* dst, const SArray* src, uint64_t tableUid);
 void tscColumnListCopyAll(SArray* dst, const SArray* src);
 
-void convertQueryResult(SSqlRes* pRes, SQueryInfo* pQueryInfo);
+void convertQueryResult(SSqlRes* pRes, SQueryInfo* pQueryInfo, uint64_t objId, bool convertNchar);
 
 void tscDequoteAndTrimToken(SStrToken* pToken);
 int32_t tscValidateName(SStrToken* pToken);
@@ -329,9 +332,7 @@ STableMeta* tscTableMetaDup(STableMeta* pTableMeta);
 SVgroupsInfo* tscVgroupsInfoDup(SVgroupsInfo* pVgroupsInfo);
 
 int32_t tscCreateQueryFromQueryInfo(SQueryInfo* pQueryInfo, SQueryAttr* pQueryAttr, void* addr);
-
-void tsCreateSQLFunctionCtx(SQueryInfo* pQueryInfo, SQLFunctionCtx* pCtx, SSchema* pSchema);
-void* createQInfoFromQueryNode(SQueryInfo* pQueryInfo, STableGroupInfo* pTableGroupInfo, SOperatorInfo* pOperator, char* sql, void* addr, int32_t stage);
+void* createQInfoFromQueryNode(SQueryInfo* pQueryInfo, STableGroupInfo* pTableGroupInfo, SOperatorInfo* pOperator, char* sql, void* addr, int32_t stage, uint64_t qId);
 
 void* malloc_throw(size_t size);
 void* calloc_throw(size_t nmemb, size_t size);

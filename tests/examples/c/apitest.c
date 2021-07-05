@@ -86,7 +86,7 @@ static int print_result(TAOS_RES* res, int blockFetch) {
     }
   } else {
     while ((row = taos_fetch_row(res))) {
-      char temp[256];
+      char temp[256] = {0};
       taos_print_row(temp, row, fields, num_fields);
       puts(temp);
       nRows++;
@@ -342,7 +342,9 @@ void verify_prepare(TAOS* taos) {
   sql = "insert into m1 values(?,?,?,?,?,?,?,?,?,?)";
   code = taos_stmt_prepare(stmt, sql, 0);
   if (code != 0){
-    printf("\033[31mfailed to execute taos_stmt_prepare. code:0x%x\033[0m\n", code);
+    printf("\033[31mfailed to execute taos_stmt_prepare. error:%s\033[0m\n", taos_stmt_errstr(stmt));
+    taos_stmt_close(stmt);
+    return;
   }
   v.ts = 1591060628000;
   for (int i = 0; i < 10; ++i) {
@@ -365,8 +367,8 @@ void verify_prepare(TAOS* taos) {
     taos_stmt_add_batch(stmt);
   }
   if (taos_stmt_execute(stmt) != 0) {
+    printf("\033[31mfailed to execute insert statement.error:%s\033[0m\n", taos_stmt_errstr(stmt));
     taos_stmt_close(stmt);
-    printf("\033[31mfailed to execute insert statement.\033[0m\n");
     return;
   }
   taos_stmt_close(stmt);
@@ -378,8 +380,8 @@ void verify_prepare(TAOS* taos) {
   v.v2 = 15;
   taos_stmt_bind_param(stmt, params + 2);
   if (taos_stmt_execute(stmt) != 0) {
+    printf("\033[31mfailed to execute select statement.error:%s\033[0m\n", taos_stmt_errstr(stmt));
     taos_stmt_close(stmt);
-    printf("\033[31mfailed to execute select statement.\033[0m\n");
     return;
   }
 
@@ -389,10 +391,10 @@ void verify_prepare(TAOS* taos) {
   int         rows = 0;
   int         num_fields = taos_num_fields(result);
   TAOS_FIELD *fields = taos_fetch_fields(result);
-  char        temp[256];
 
   // fetch the records row by row
   while ((row = taos_fetch_row(result))) {
+    char temp[256] = {0};
     rows++;
     taos_print_row(temp, row, fields, num_fields);
     printf("%s\n", temp);
@@ -401,10 +403,6 @@ void verify_prepare(TAOS* taos) {
   taos_free_result(result);
   taos_stmt_close(stmt);
 }
-
-
-
-
 
 void verify_prepare2(TAOS* taos) {
   TAOS_RES* result = taos_query(taos, "drop database if exists test;");
@@ -531,16 +529,19 @@ void verify_prepare2(TAOS* taos) {
   params[9].is_null = is_null;
   params[9].num = 10;
 
-
-  sql = "insert into ? values(?,?,?,?,?,?,?,?,?,?)";
+  sql = "insert into ? (ts, b, v1, v2, v4, v8, f4, f8, bin, blob) values(?,?,?,?,?,?,?,?,?,?)";
   code = taos_stmt_prepare(stmt, sql, 0);
-  if (code != 0){
-    printf("\033[31mfailed to execute taos_stmt_prepare. code:0x%x\033[0m\n", code);
+  if (code != 0) {
+    printf("\033[31mfailed to execute taos_stmt_prepare. error:%s\033[0m\n", taos_stmt_errstr(stmt));
+    taos_stmt_close(stmt);
+    return;
   }
 
   code = taos_stmt_set_tbname(stmt, "m1");
   if (code != 0){
-    printf("\033[31mfailed to execute taos_stmt_prepare. code:0x%x\033[0m\n", code);
+    printf("\033[31mfailed to execute taos_stmt_prepare. error:%s\033[0m\n", taos_stmt_errstr(stmt));
+    taos_stmt_close(stmt);
+    return;
   }
   
   int64_t ts = 1591060628000;
@@ -574,12 +575,12 @@ void verify_prepare2(TAOS* taos) {
   taos_stmt_add_batch(stmt);
   
   if (taos_stmt_execute(stmt) != 0) {
-    printf("\033[31mfailed to execute insert statement.\033[0m\n");
+    printf("\033[31mfailed to execute insert statement.error:%s\033[0m\n", taos_stmt_errstr(stmt));
+    taos_stmt_close(stmt);
     return;
   }
+
   taos_stmt_close(stmt);
-
-
 
   // query the records
   stmt = taos_stmt_init(taos);
@@ -602,7 +603,8 @@ void verify_prepare2(TAOS* taos) {
 
   taos_stmt_bind_param(stmt, qparams);
   if (taos_stmt_execute(stmt) != 0) {
-    printf("\033[31mfailed to execute select statement.\033[0m\n");
+    printf("\033[31mfailed to execute select statement.error:%s\033[0m\n", taos_stmt_errstr(stmt));
+    taos_stmt_close(stmt);    
     return;
   }
 
@@ -612,10 +614,10 @@ void verify_prepare2(TAOS* taos) {
   int         rows = 0;
   int         num_fields = taos_num_fields(result);
   TAOS_FIELD *fields = taos_fetch_fields(result);
-  char        temp[256];
 
   // fetch the records row by row
   while ((row = taos_fetch_row(result))) {
+    char temp[256] = {0};
     rows++;
     taos_print_row(temp, row, fields, num_fields);
     printf("%s\n", temp);
@@ -623,9 +625,16 @@ void verify_prepare2(TAOS* taos) {
 
   taos_free_result(result);
   taos_stmt_close(stmt);
+
+  free(t8_len);
+  free(t16_len);
+  free(t32_len);
+  free(t64_len);
+  free(float_len);
+  free(double_len);
+  free(bin_len);
+  free(blob_len);
 }
-
-
 
 void verify_prepare3(TAOS* taos) {
   TAOS_RES* result = taos_query(taos, "drop database if exists test;");
@@ -775,12 +784,16 @@ void verify_prepare3(TAOS* taos) {
   sql = "insert into ? using st1 tags(?,?) values(?,?,?,?,?,?,?,?,?,?)";
   code = taos_stmt_prepare(stmt, sql, 0);
   if (code != 0){
-    printf("\033[31mfailed to execute taos_stmt_prepare. code:0x%x\033[0m\n", code);
+    printf("\033[31mfailed to execute taos_stmt_prepare. error:%s\033[0m\n", taos_stmt_errstr(stmt));
+    taos_stmt_close(stmt);
+    return;    
   }
 
   code = taos_stmt_set_tbname_tags(stmt, "m1", tags);
   if (code != 0){
-    printf("\033[31mfailed to execute taos_stmt_prepare. code:0x%x\033[0m\n", code);
+    printf("\033[31mfailed to execute taos_stmt_prepare. error:%s\033[0m\n", taos_stmt_errstr(stmt));
+    taos_stmt_close(stmt);    
+    return;
   }
   
   int64_t ts = 1591060628000;
@@ -810,12 +823,12 @@ void verify_prepare3(TAOS* taos) {
     blob_len[i] = (int32_t)strlen(v.blob[i]);
   }
 
-
   taos_stmt_bind_param_batch(stmt, params);
   taos_stmt_add_batch(stmt);
   
   if (taos_stmt_execute(stmt) != 0) {
-    printf("\033[31mfailed to execute insert statement.\033[0m\n");
+    printf("\033[31mfailed to execute insert statement.error:%s\033[0m\n", taos_stmt_errstr(stmt));
+    taos_stmt_close(stmt);    
     return;
   }
   taos_stmt_close(stmt);
@@ -842,7 +855,8 @@ void verify_prepare3(TAOS* taos) {
 
   taos_stmt_bind_param(stmt, qparams);
   if (taos_stmt_execute(stmt) != 0) {
-    printf("\033[31mfailed to execute select statement.\033[0m\n");
+    printf("\033[31mfailed to execute select statement.error:%s\033[0m\n", taos_stmt_errstr(stmt));
+    taos_stmt_close(stmt);    
     return;
   }
 
@@ -852,10 +866,10 @@ void verify_prepare3(TAOS* taos) {
   int         rows = 0;
   int         num_fields = taos_num_fields(result);
   TAOS_FIELD *fields = taos_fetch_fields(result);
-  char        temp[256];
 
   // fetch the records row by row
   while ((row = taos_fetch_row(result))) {
+    char temp[256] = {0};
     rows++;
     taos_print_row(temp, row, fields, num_fields);
     printf("%s\n", temp);
@@ -863,9 +877,16 @@ void verify_prepare3(TAOS* taos) {
 
   taos_free_result(result);
   taos_stmt_close(stmt);
+
+  free(t8_len);
+  free(t16_len);
+  free(t32_len);
+  free(t64_len);
+  free(float_len);
+  free(double_len);
+  free(bin_len);
+  free(blob_len);
 }
-
-
 
 void retrieve_callback(void *param, TAOS_RES *tres, int numOfRows)
 {
