@@ -4830,7 +4830,7 @@ static int64_t generateStbRowData(
       dataLen += snprintf(pstr + dataLen, maxLen - dataLen,
           "%"PRId64",", rand_bigint());
     }  else {
-      errorPrint( "No support data type: %s\n", stbInfo->columns[i].dataType);
+      errorPrint( "Not support data type: %s\n", stbInfo->columns[i].dataType);
       return -1;
     }
   }
@@ -4838,6 +4838,7 @@ static int64_t generateStbRowData(
   dataLen -= 1;
   dataLen += snprintf(pstr + dataLen, maxLen - dataLen, ")");
 
+  verbosePrint("%s() LN%d, dataLen:%"PRId64"\n", __func__, __LINE__, dataLen);
   verbosePrint("%s() LN%d, recBuf:\n\t%s\n", __func__, __LINE__, recBuf);
 
   return strlen(recBuf);
@@ -5090,24 +5091,25 @@ static int32_t generateStbDataTail(
   } else {
       tsRand = false;
   }
-  verbosePrint("%s() LN%d batch=%u\n", __func__, __LINE__, batch);
+  verbosePrint("%s() LN%d batch=%u buflen=%"PRId64"\n",
+          __func__, __LINE__, batch, remainderBufLen);
 
   int32_t k = 0;
   for (k = 0; k < batch;) {
     char data[MAX_DATA_SIZE];
     memset(data, 0, MAX_DATA_SIZE);
 
-    int64_t retLen = 0;
+    int64_t lenOfRow = 0;
 
     if (tsRand) {
-        retLen = generateStbRowData(superTblInfo, data,
+        lenOfRow = generateStbRowData(superTblInfo, data,
                 startTime + getTSRandTail(
                     superTblInfo->timeStampStep, k,
                     superTblInfo->disorderRatio,
                     superTblInfo->disorderRange)
                 );
     } else {
-        retLen = getRowDataFromSample(
+        lenOfRow = getRowDataFromSample(
                   data,
                   remainderBufLen < MAX_DATA_SIZE ? remainderBufLen : MAX_DATA_SIZE,
                   startTime + superTblInfo->timeStampStep * k,
@@ -5115,14 +5117,14 @@ static int32_t generateStbDataTail(
                   pSamplePos);
     }
 
-    if (retLen > remainderBufLen) {
+    if (lenOfRow > remainderBufLen) {
         break;
     }
 
-    pstr += snprintf(pstr , retLen + 1, "%s", data);
+    pstr += snprintf(pstr , lenOfRow + 1, "%s", data);
     k++;
-    len += retLen;
-    remainderBufLen -= retLen;
+    len += lenOfRow;
+    remainderBufLen -= lenOfRow;
 
     verbosePrint("%s() LN%d len=%"PRIu64" k=%u \nbuffer=%s\n",
             __func__, __LINE__, len, k, buffer);
@@ -5911,11 +5913,14 @@ static void* syncWriteInterlace(threadInfo *pThreadInfo) {
     startTs = taosGetTimestampMs();
 
     if (recOfBatch == 0) {
-      errorPrint("[%d] %s() LN%d try inserting records of batch is %d\n",
-              pThreadInfo->threadID, __func__, __LINE__,
-              recOfBatch);
-      errorPrint("%s\n", "\tPlease check if the batch or the buffer length is proper value!\n");
-      goto free_of_interlace;
+        errorPrint("[%d] %s() LN%d Failed to insert records of batch %d\n",
+                pThreadInfo->threadID, __func__, __LINE__,
+                batchPerTbl);
+        errorPrint("\tIf the batch is %d, the length of the SQL to insert a row must be less then %"PRId64"\n",
+                batchPerTbl, maxSqlLen / batchPerTbl);
+        errorPrint("\tPlease check if the buffer length(%"PRId64") or batch(%d) is set with proper value!\n",
+                maxSqlLen, batchPerTbl);
+        goto free_of_interlace;
     }
     int64_t affectedRows = execInsert(pThreadInfo, recOfBatch);
 
