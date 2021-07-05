@@ -151,7 +151,7 @@ unsigned int optimize_intervals_float_1D_pwr(float *oriData, size_t dataLength, 
 }
 
 void SZ_compress_args_float_NoCkRngeNoGzip_1D_pwr(unsigned char* newByteData, float *oriData, double globalPrecision, 
-size_t dataLength, size_t *outSize, float min, float max)
+       size_t dataLength, size_t *outSize, float min, float max)
 {
 	size_t pwrLength = dataLength%confparams_cpr->segment_size==0?dataLength/confparams_cpr->segment_size:dataLength/confparams_cpr->segment_size+1;
 	float* pwrErrBound = (float*)malloc(sizeof(float)*pwrLength);
@@ -309,13 +309,13 @@ size_t dataLength, size_t *outSize, float min, float max)
 	{
 		size_t k = 0, i;
 		tdps->isLossless = 1;
-		size_t totalByteLength = 3 + exe_params->SZ_SIZE_TYPE + 1 + floatSize*dataLength;
-		*newByteData = (unsigned char*)malloc(totalByteLength);
+		size_t totalByteLength = 1 + exe_params->SZ_SIZE_TYPE + 1 + floatSize*dataLength;
+		//*newByteData = (unsigned char*)malloc(totalByteLength);  comment by tickduan
 		
 		unsigned char dsLengthBytes[exe_params->SZ_SIZE_TYPE];
 		intToBytes_bigEndian(dsLengthBytes, dataLength);//4
-		for (i = 0; i < 3; i++)//3
-			newByteData[k++] = versionNumber[i];
+		
+		newByteData[k++] = versionNumber;
 		
 		if(exe_params->SZ_SIZE_TYPE==4)
 		{
@@ -328,7 +328,6 @@ size_t dataLength, size_t *outSize, float min, float max)
 		for (i = 0; i < exe_params->SZ_SIZE_TYPE; i++)//4 or 8
 			newByteData[k++] = dsLengthBytes[i];
 
-		
 		if(sysEndianType==BIG_ENDIAN_SYSTEM)
 			memcpy(newByteData+4+exe_params->SZ_SIZE_TYPE, oriData, dataLength*floatSize);
 		else
@@ -639,9 +638,6 @@ size_t dataLength, double absErrBound, double relBoundRatio, double pwrErrRatio,
 
         convertTDPStoFlatBytes_float(tdps, newByteData, outSize);
 
-        if(*outSize>3 + MetaDataByteLength + exe_params->SZ_SIZE_TYPE + 1 + sizeof(float)*dataLength)
-                SZ_compress_args_float_StoreOriData(oriData, dataLength, newByteData, outSize);
-
         free_TightDataPointStorageF(tdps);
 }
 
@@ -702,9 +698,7 @@ void SZ_compress_args_float_NoCkRngeNoGzip_1D_pwr_pre_log(unsigned char* newByte
 	free(signs);
 
     convertTDPStoFlatBytes_float(tdps, newByteData, outSize);
-    if(*outSize>3 + MetaDataByteLength + exe_params->SZ_SIZE_TYPE + 1 + sizeof(float)*dataLength)
-            SZ_compress_args_float_StoreOriData(oriData, dataLength, newByteData, outSize);
-
+  
     free_TightDataPointStorageF(tdps);
 }
 
@@ -737,8 +731,6 @@ void SZ_compress_args_float_NoCkRngeNoGzip_1D_pwr_pre_log_MSST19(unsigned char* 
 	free(signs);
 
 	convertTDPStoFlatBytes_float(tdps, newByteData, outSize);
-	if(*outSize>3 + MetaDataByteLength + exe_params->SZ_SIZE_TYPE + 1 + sizeof(float)*dataLength)
-		SZ_compress_args_float_StoreOriData(oriData, dataLength, newByteData, outSize);
 
 	free_TightDataPointStorageF(tdps);
 }

@@ -11,10 +11,8 @@
 #define _SZ_DEFINES_H
 
 #define SZ_VERNUM 0x0200
-#define SZ_VER_MAJOR 2
-#define SZ_VER_MINOR 1
-#define SZ_VER_BUILD 12
-#define SZ_VER_REVISION 0
+#define SZ_VER_MAJOR 1  // curretn version
+
 
 #define PASTRI 103
 #define HZ 102 //deprecated
@@ -95,9 +93,10 @@
 #define SZ_DESTROY_WHOLE_VARSET 1
 
 #define GROUP_COUNT 16 //2^{16}=65536
-	
-#define MetaDataByteLength 28
-#define MetaDataByteLength_double 36 //meta data length for double type
+
+// metaData remove some by tickduan                   
+#define MetaDataByteLength 2  // original is 28 bytes
+#define MetaDataByteLength_double 2 // original is 36 bytes
 	
 #define numOfBufferedSteps 1 //the number of time steps in the buffer	
 

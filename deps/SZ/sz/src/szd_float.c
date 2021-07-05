@@ -91,7 +91,8 @@ int SZ_decompress_args_float(float* newData, size_t r1, unsigned char* cmpBytes,
 	else
 		szTmpBytes = cmpBytes;	
 		
-	pde_params->sol_ID = szTmpBytes[4+14]; //szTmpBytes: version(3bytes), samebyte(1byte), [14]:sol_ID=SZ or SZ_Transpose
+	// calc sol_ID
+	//pde_params->sol_ID = szTmpBytes[1+3-2+14-4]; //szTmpBytes: version(1bytes), samebyte(1byte), [14-4]:sol_ID=SZ or SZ_Transpose
 		
 	//TODO: convert szTmpBytes to data array.
 	TightDataPointStorageF* tdps;
@@ -113,10 +114,6 @@ int SZ_decompress_args_float(float* newData, size_t r1, unsigned char* cmpBytes,
 				newData[i] = bytesToFloat(p);
 		}		
 	}
-	else if(pde_params->sol_ID==SZ_Transpose)
-	{
-		getSnapshotData_float_1D(newData,dataLength,tdps, errBoundMode, 0, hist_data, pde_params);		
-	}
 	else //pde_params->sol_ID==SZ
 	{
 		if(tdps->raBytes_size > 0) //v2.0
@@ -130,22 +127,6 @@ int SZ_decompress_args_float(float* newData, size_t r1, unsigned char* cmpBytes,
 	}
 
 	//cost_start_();	
-	if(pde_params->protectValueRange)
-	{
-		float* nd = newData;
-		float min = pde_params->fmin;
-		float max = pde_params->fmax;		
-		for(i=0;i<dataLength;i++)
-		{
-			float v = nd[i];
-			if(v <= max && v >= min)
-				continue;
-			if(v < min)
-				nd[i] = min;
-			else if(v > max)
-				nd[i] = max;
-		}
-	}
 	//cost_end_();
 	//printf("totalCost_=%f\n", totalCost_);
 	free_TightDataPointStorageF2(tdps);

@@ -20,7 +20,7 @@ extern "C" {
 void updateQuantizationInfo(int quant_intervals);
 int SZ_ReadConf(const char* sz_cfgFile);
 int SZ_LoadConf(const char* sz_cfgFile);
-int checkVersion(char* version);
+int checkVersion(unsigned char version);
 int computeVersion(int major, int minor, int revision);
 int checkVersion2(char* version);
 

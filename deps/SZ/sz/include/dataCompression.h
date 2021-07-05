@@ -82,7 +82,6 @@ int getPredictionCoefficients(int layers, int dimension, int **coeff_array, int 
 
 int computeBlockEdgeSize_3D(int segmentSize);
 int computeBlockEdgeSize_2D(int segmentSize);
-int initRandomAccessBytes(unsigned char* raBytes);
 
 int generateLossyCoefficients_float(float* oriData, double precision, size_t nbEle, int* reqBytesLength, int* resiBitsLength, float* medianValue, float* decData);
 int compressExactDataArray_float(float* oriData, double precision, size_t nbEle, unsigned char** leadArray, unsigned char** midArray, unsigned char** resiArray, 

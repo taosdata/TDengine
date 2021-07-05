@@ -64,8 +64,9 @@ int SZ_decompress_args_double(double* newData, size_t r1, unsigned char* cmpByte
 	}
 	else
 		szTmpBytes = cmpBytes;
-		
-	pde_params->sol_ID = szTmpBytes[4+14]; //szTmpBytes: version(3bytes), samebyte(1byte), [14]:sol_ID=SZ or SZ_Transpose		
+	
+	// calc postion 
+	//pde_params->sol_ID = szTmpBytes[1+3-2+14-4]; //szTmpBytes: version(3bytes), samebyte(1byte), [14]:sol_ID=SZ or SZ_Transpose		
 	//TODO: convert szTmpBytes to double array.
 	TightDataPointStorageD* tdps;
 	int errBoundMode = new_TightDataPointStorageD_fromFlatBytes(&tdps, szTmpBytes, tmpSize, pde_exe, pde_params);
@@ -101,23 +102,6 @@ int SZ_decompress_args_double(double* newData, size_t r1, unsigned char* cmpByte
 			getSnapshotData_double_1D(newData,r1,tdps, errBoundMode, compressionType, hist_data, pde_params);
 		}
 	}	
-
-	if(pde_params->protectValueRange)
-	{
-		double* nd = newData;
-		double min = pde_params->dmin;
-		double max = pde_params->dmax;		
-		for(i=0;i<dataLength;i++)
-		{
-			double v = nd[i];
-			if(v <= max && v >= min)
-				continue;
-			if(v < min)
-				nd[i] = min;
-			else if(v > max)
-				nd[i] = max;
-		}
-	}
 
 	free_TightDataPointStorageD2(tdps);
 	if(pde_params->szMode!=SZ_BEST_SPEED && cmpSize!=12+MetaDataByteLength_double+exe_params->SZ_SIZE_TYPE)

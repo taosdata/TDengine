@@ -25,7 +25,7 @@
 
 //#include "CurveFillingCompressStorage.h"
 
-int versionNumber[4] = {SZ_VER_MAJOR,SZ_VER_MINOR,SZ_VER_BUILD,SZ_VER_REVISION};
+unsigned char versionNumber = SZ_VER_MAJOR;
 int SZ_SIZE_TYPE_DEFUALT = 4;
 
 int dataEndianType = LITTLE_ENDIAN_DATA; //*endian type of the data read from disk

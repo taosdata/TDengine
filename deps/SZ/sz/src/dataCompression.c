@@ -678,32 +678,6 @@ int computeBlockEdgeSize_3D(int segmentSize)
 	//return (int)(pow(segmentSize, 1.0/3)+1);
 }
 
-//convert random-access version based bytes to output bytes
-int initRandomAccessBytes(unsigned char* raBytes)
-{
-	int k = 0, i = 0;
-	for (i = 0; i < 3; i++)//3
-		raBytes[k++] = versionNumber[i];
-	int sameByte = 0x80; //indicating this is regression-based compression mode
-	if(exe_params->SZ_SIZE_TYPE==8)
-		sameByte = (unsigned char) (sameByte | 0x40); // 01000000, the 6th bit
-	if(confparams_cpr->randomAccess)
-		sameByte = (unsigned char) (sameByte | 0x02); // 00000010, random access
-	//sameByte = sameByte | (confparams_cpr->szMode << 1);
-	if(confparams_cpr->protectValueRange)
-		sameByte = (unsigned char) (sameByte | 0x04); //00000100, protect value range
-
-	raBytes[k++] = sameByte;
-
-	convertSZParamsToBytes(confparams_cpr, &(raBytes[k]));
-	if(confparams_cpr->dataType==SZ_FLOAT)
-		k = k + MetaDataByteLength;
-	else if(confparams_cpr->dataType==SZ_DOUBLE)
-		k = k + MetaDataByteLength_double;
-
-	return k;
-}
-
 //The following functions are float-precision version of dealing with the unpredictable data points 
 int generateLossyCoefficients_float(float* oriData, double precision, size_t nbEle, int* reqBytesLength, int* resiBitsLength, float* medianValue, float* decData)
 {

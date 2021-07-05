@@ -320,13 +320,12 @@ size_t dataLength, size_t *outSize, double min, double max)
 	{
 		size_t k = 0, i;
 		tdps->isLossless = 1;
-		size_t totalByteLength = 3 + exe_params->SZ_SIZE_TYPE + 1 + doubleSize*dataLength;
-		*newByteData = (unsigned char*)malloc(totalByteLength);
+		size_t totalByteLength = 1 + exe_params->SZ_SIZE_TYPE + 1 + doubleSize*dataLength;
+		//*newByteData = (unsigned char*)malloc(totalByteLength); comment by tickduan
 		
 		unsigned char dsLengthBytes[exe_params->SZ_SIZE_TYPE];
 		intToBytes_bigEndian(dsLengthBytes, dataLength);//4
-		for (i = 0; i < 3; i++)//3
-			newByteData[k++] = versionNumber[i];
+		newByteData[k++] = versionNumber;
 		
 		if(exe_params->SZ_SIZE_TYPE==4)
 		{
@@ -650,7 +649,7 @@ size_t dataLength, double absErrBound, double relBoundRatio, double pwrErrRatio,
 
         convertTDPStoFlatBytes_double(tdps, newByteData, outSize);
 
-        if(*outSize>3 + MetaDataByteLength + exe_params->SZ_SIZE_TYPE + 1 + sizeof(double)*dataLength)
+        if(*outSize > 1 + MetaDataByteLength + exe_params->SZ_SIZE_TYPE + 1 + sizeof(double)*dataLength)
                 SZ_compress_args_double_StoreOriData(oriData, dataLength, newByteData, outSize);
 
         free_TightDataPointStorageD(tdps);
@@ -712,7 +711,7 @@ void SZ_compress_args_double_NoCkRngeNoGzip_1D_pwr_pre_log(unsigned char* newByt
 	free(signs);
 
     convertTDPStoFlatBytes_double(tdps, newByteData, outSize);
-    if(*outSize>3 + MetaDataByteLength + exe_params->SZ_SIZE_TYPE + 1 + sizeof(double)*dataLength)
+    if(*outSize>1 + MetaDataByteLength + exe_params->SZ_SIZE_TYPE + 1 + sizeof(double)*dataLength)
             SZ_compress_args_double_StoreOriData(oriData, dataLength, newByteData, outSize);
 
     free_TightDataPointStorageD(tdps);
@@ -746,7 +745,7 @@ void SZ_compress_args_double_NoCkRngeNoGzip_1D_pwr_pre_log_MSST19(unsigned char*
 	free(signs);
 
 	convertTDPStoFlatBytes_double(tdps, newByteData, outSize);
-	if(*outSize>3 + MetaDataByteLength + exe_params->SZ_SIZE_TYPE + 1 + sizeof(double)*dataLength)
+	if(*outSize > 1 + MetaDataByteLength + exe_params->SZ_SIZE_TYPE + 1 + sizeof(double)*dataLength)
 		SZ_compress_args_double_StoreOriData(oriData, dataLength, newByteData, outSize);
 
 	free_TightDataPointStorageD(tdps);

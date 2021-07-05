@@ -232,13 +232,12 @@ void SZ_compress_args_double_StoreOriData(double* oriData, size_t dataLength, un
 {	
 	int doubleSize = sizeof(double);
 	size_t k = 0, i;
-	size_t totalByteLength = 3 + MetaDataByteLength_double + exe_params->SZ_SIZE_TYPE + 1 + doubleSize*dataLength;
+	size_t totalByteLength = 1 + MetaDataByteLength_double + exe_params->SZ_SIZE_TYPE + 1 + doubleSize*dataLength;
 	/*No need to malloc because newByteData should always already be allocated with no less totalByteLength.*/
 	//*newByteData = (unsigned char*)malloc(totalByteLength);
 	
 	unsigned char dsLengthBytes[8];
-	for (i = 0; i < 3; i++)//3
-		newByteData[k++] = versionNumber[i];
+	newByteData[k++] = versionNumber;
 	
 	if(exe_params->SZ_SIZE_TYPE==4)//1
 		newByteData[k++] = 16; //00010000

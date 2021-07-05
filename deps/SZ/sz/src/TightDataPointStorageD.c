@@ -57,24 +57,20 @@ int new_TightDataPointStorageD_fromFlatBytes(TightDataPointStorageD **this, unsi
 	new_TightDataPointStorageD_Empty(this);
 	size_t i, index = 0;
 	size_t pwrErrBoundBytes_size = 0, segmentL = 0, radExpoL = 0, pwrErrBoundBytesL = 0;
-	char version[3];
-	for (i = 0; i < 3; i++)
-		version[i] = flatBytes[index++]; //3
+	unsigned char version = flatBytes[index++]; //3
 	unsigned char sameRByte = flatBytes[index++]; //1
-	if(checkVersion2(version)!=1)
+	if(checkVersion(version)!=1)
 	{
 		//wrong version
-		printf("Wrong version: \nCompressed-data version (%d.%d.%d)\n",version[0], version[1], version[2]);
-		printf("Current sz version: (%d.%d.%d)\n", versionNumber[0], versionNumber[1], versionNumber[2]);
-		printf("Please double-check if the compressed data (or file) is correct.\n");
-		exit(0);
+		printf("Wrong version: \nCompressed-data %s . program version=%d\n", version, versionNumber);
+		return 0;
 	}
 
 	int same = sameRByte & 0x01;
 	(*this)->isLossless = (sameRByte & 0x10)>>4;
 	int isPW_REL = (sameRByte & 0x20)>>5;
 	exe_params->SZ_SIZE_TYPE = ((sameRByte & 0x40)>>6)==1?8:4;
-	pde_params->protectValueRange = (sameRByte & 0x04)>>2;
+	//pde_params->protectValueRange = (sameRByte & 0x04)>>2;
 	pde_params->accelerate_pw_rel_compression = (sameRByte & 0x08) >> 3;
 	int errorBoundMode = SZ_ABS;
 	if(isPW_REL)
@@ -213,7 +209,8 @@ int new_TightDataPointStorageD_fromFlatBytes(TightDataPointStorageD **this, unsi
 
 	if ((*this)->rtypeArray != NULL) 
 	{
-		(*this)->residualMidBits_size = flatBytesLength - 3 - 1 - MetaDataByteLength_double - exe_params->SZ_SIZE_TYPE - 4 - radExpoL - segmentL - pwrErrBoundBytesL - 4 - 8 - 1 - 8 
+		// -3 -2 modify to -1 -1 
+		(*this)->residualMidBits_size = flatBytesLength - 1 - 1 - MetaDataByteLength_double - exe_params->SZ_SIZE_TYPE - 4 - radExpoL - segmentL - pwrErrBoundBytesL - 4 - 8 - 1 - 8 
 				- exe_params->SZ_SIZE_TYPE - exe_params->SZ_SIZE_TYPE - exe_params->SZ_SIZE_TYPE - minLogValueSize - exe_params->SZ_SIZE_TYPE - 8 - (*this)->rtypeArray_size 
 				- minLogValueSize - (*this)->typeArray_size - (*this)->leadNumArray_size
 				- (*this)->exactMidBytes_size - pwrErrBoundBytes_size - 1 - 1;
@@ -222,7 +219,7 @@ int new_TightDataPointStorageD_fromFlatBytes(TightDataPointStorageD **this, unsi
 	}
 	else
 	{
-		(*this)->residualMidBits_size = flatBytesLength - 3 - 1 - MetaDataByteLength_double - exe_params->SZ_SIZE_TYPE - 4 - radExpoL - segmentL - pwrErrBoundBytesL - 4 - 8 - 1 - 8
+		(*this)->residualMidBits_size = flatBytesLength - 1 - 1 - MetaDataByteLength_double - exe_params->SZ_SIZE_TYPE - 4 - radExpoL - segmentL - pwrErrBoundBytesL - 4 - 8 - 1 - 8
 				- exe_params->SZ_SIZE_TYPE - exe_params->SZ_SIZE_TYPE - exe_params->SZ_SIZE_TYPE - minLogValueSize - (*this)->typeArray_size
 				- (*this)->leadNumArray_size - (*this)->exactMidBytes_size - pwrErrBoundBytes_size - 1 - 1;
 	}	
@@ -381,8 +378,7 @@ void convertTDPStoBytes_double(TightDataPointStorageD* tdps, unsigned char* byte
 	unsigned char pwrErrBoundBytes_sizeBytes[4];
 	unsigned char max_quant_intervals_Bytes[4];
 	
-	for(i = 0;i<3;i++)//3 bytes
-		bytes[k++] = versionNumber[i];
+	bytes[k++] = versionNumber;
 	bytes[k++] = sameByte;	//1	byte	
 	
 	convertSZParamsToBytes(confparams_cpr, &(bytes[k]));
@@ -483,8 +479,7 @@ void convertTDPStoBytes_double_reserve(TightDataPointStorageD* tdps, unsigned ch
 	unsigned char pwrErrBoundBytes_sizeBytes[4];
 	unsigned char max_quant_intervals_Bytes[4];	
 	
-	for(i = 0;i<3;i++)//3
-		bytes[k++] = versionNumber[i];		
+	bytes[k++] = versionNumber;		
 	bytes[k++] = sameByte;			//1
 
 	convertSZParamsToBytes(confparams_cpr, &(bytes[k]));
@@ -595,15 +590,14 @@ bool convertTDPStoFlatBytes_double(TightDataPointStorageD *tdps, unsigned char* 
 	
 	if(tdps->allSameData==1)
 	{
-		size_t totalByteLength = 3 + 1 + MetaDataByteLength_double + exe_params->SZ_SIZE_TYPE + tdps->exactMidBytes_size;
+		size_t totalByteLength = 1 + 1 + MetaDataByteLength_double + exe_params->SZ_SIZE_TYPE + tdps->exactMidBytes_size;
 		//bytes = (unsigned char *)malloc(sizeof(unsigned char)*totalByteLength); // comment by tickduan
 		if(totalByteLength >= tdps->dataSeriesLength * sizeof(double))
 		{
 			return false;
 		}
 	
-		for (i = 0; i < 3; i++)//3
-			bytes[k++] = versionNumber[i];
+		bytes[k++] = versionNumber;
 		bytes[k++] = sameByte;
 
 		convertSZParamsToBytes(confparams_cpr, &(bytes[k]));
@@ -677,14 +671,13 @@ void convertTDPStoFlatBytes_double_args(TightDataPointStorageD *tdps, unsigned c
 		sameByte = (unsigned char) (sameByte | 0x40); //0100,0000, the 6th bit
 	if(confparams_cpr->errorBoundMode == PW_REL && confparams_cpr->accelerate_pw_rel_compression)
 		sameByte = (unsigned char) (sameByte | 0x08); //0000,1000, the 7th bit 	
-	if(confparams_cpr->protectValueRange)
-		sameByte = (unsigned char) (sameByte | 0x04); //0000,0100
+	//if(confparams_cpr->protectValueRange)
+	//	sameByte = (unsigned char) (sameByte | 0x04); //0000,0100
 	if(tdps->allSameData==1)
 	{
-		size_t totalByteLength = 3 + 1 + MetaDataByteLength_double + exe_params->SZ_SIZE_TYPE + tdps->exactMidBytes_size;
+		size_t totalByteLength = 1 + 1 + MetaDataByteLength_double + exe_params->SZ_SIZE_TYPE + tdps->exactMidBytes_size;
 	
-		for (i = 0; i < 3; i++)//3
-			bytes[k++] = versionNumber[i];
+		bytes[k++] = versionNumber;
 		bytes[k++] = sameByte;
 		
 		convertSZParamsToBytes(confparams_cpr, &(bytes[k]));

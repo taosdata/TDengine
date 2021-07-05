@@ -103,7 +103,7 @@ unsigned int optimize_intervals_float_1D(float *oriData, size_t dataLength, doub
 }
 
 TightDataPointStorageF* SZ_compress_float_1D_MDQ(float *oriData, 
-size_t dataLength, float realPrecision, float valueRangeSize, float medianValue_f)
+				size_t dataLength, float realPrecision, float valueRangeSize, float medianValue_f)
 {
 	unsigned int quantization_intervals;
 	if(exe_params->optQuantMode==1)
@@ -259,41 +259,6 @@ size_t dataLength, float realPrecision, float valueRangeSize, float medianValue_
 	return tdps;
 }
 
-void SZ_compress_args_float_StoreOriData(float* oriData, size_t dataLength, unsigned char* newByteData, size_t *outSize)
-{	
-	int floatSize=sizeof(float);	
-	size_t k = 0, i;
-	size_t totalByteLength = 3 + MetaDataByteLength + exe_params->SZ_SIZE_TYPE + 1 + floatSize*dataLength;
-	/*No need to malloc because newByteData should always already be allocated with no less totalByteLength.*/
-	//*newByteData = (unsigned char*)malloc(totalByteLength);
-	
-	unsigned char dsLengthBytes[8];
-	for (i = 0; i < 3; i++)//3
-		newByteData[k++] = versionNumber[i];
-
-	if(exe_params->SZ_SIZE_TYPE==4)//1
-		newByteData[k++] = 16; //00010000
-	else
-		newByteData[k++] = 80;	//01010000: 01000000 indicates the SZ_SIZE_TYPE=8
-	
-	convertSZParamsToBytes(confparams_cpr, &(newByteData[k]));
-	k = k + MetaDataByteLength;	
-	
-	sizeToBytes(dsLengthBytes,dataLength); //SZ_SIZE_TYPE: 4 or 8	
-	for (i = 0; i < exe_params->SZ_SIZE_TYPE; i++)
-		newByteData[k++] = dsLengthBytes[i];
-		
-	if(sysEndianType==BIG_ENDIAN_SYSTEM)
-		memcpy(newByteData+4+MetaDataByteLength+exe_params->SZ_SIZE_TYPE, oriData, dataLength*floatSize);
-	else
-	{
-		unsigned char* p = newByteData+4+MetaDataByteLength+exe_params->SZ_SIZE_TYPE;
-		for(i=0;i<dataLength;i++,p+=floatSize)
-			floatToBytes(p, oriData[i]);
-	}	
-	*outSize = totalByteLength;
-}
-
 // compress core algorithm  if success return true else return false
 bool SZ_compress_args_float_NoCkRngeNoGzip_1D( unsigned char* newByteData, float *oriData, 
                    size_t dataLength, double realPrecision, size_t *outSize, float valueRangeSize, float medianValue_f)
@@ -312,9 +277,8 @@ bool SZ_compress_args_float_NoCkRngeNoGzip_1D( unsigned char* newByteData, float
 	}
 	  
 	// check compressed size large than original
-	if(*outSize > 3 + MetaDataByteLength + exe_params->SZ_SIZE_TYPE + 1 + sizeof(float)*dataLength)
+	if(*outSize > 1 + MetaDataByteLength + exe_params->SZ_SIZE_TYPE + 1 + sizeof(float)*dataLength)
 	{
-		//SZ_compress_args_float_StoreOriData(oriData, dataLength, newByteData, outSize);
 		return false;
 	}	
 	
@@ -610,8 +574,6 @@ int SZ_compress_args_float(float *oriData, size_t r1, unsigned char* newByteData
 			   free(tmpByteData);
 			return SZ_ALGORITHM_ERR;
 		}
-		//if(tmpOutSize >= dataLength*sizeof(float) + 3 + MetaDataByteLength + exe_params->SZ_SIZE_TYPE + 1)
-		//	SZ_compress_args_float_StoreOriData(oriData, dataLength, tmpByteData, &tmpOutSize);						
 	}
 
     //cost_end(" sz_first_compress");

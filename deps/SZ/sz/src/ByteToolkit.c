@@ -898,65 +898,66 @@ void convertSZParamsToBytes(sz_params* params, unsigned char* result)
 	//buf = (buf << 2) |  params->pwr_type; //deprecated
 	result[0] = buf;
 	
-    //sampleDistance; //2 bytes
-    int16ToBytes_bigEndian(&result[1], params->sampleDistance);
+    //sampleDistance; //2 bytes 
+    //int16ToBytes_bigEndian(&result[1], params->sampleDistance);
     
     //conf_params->predThreshold;  // 2 bytes
-    short tmp2 = params->predThreshold * 10000;
-    int16ToBytes_bigEndian(&result[3], tmp2);
+    //short tmp2 = params->predThreshold * 10000;
+    //int16ToBytes_bigEndian(&result[3], tmp2);
      
     //errorBoundMode; //4bits(0.5 byte)
-    result[5] = params->errorBoundMode;
+    result[1] = params->errorBoundMode;
     
     //data type (float, double, int8, int16, ....) //10 choices, so 4 bits
-    result[5] = (result[5] << 4) | (params->dataType & 0x17);
+    result[1] = (result[1] << 4) | (params->dataType & 0x17);
      
     //result[5]: abs_err_bound or psnr //4 bytes
     //result[9]: rel_bound_ratio or pwr_err_bound//4 bytes 
+	/*
     switch(params->errorBoundMode)
     {
 	case SZ_ABS:
-		floatToBytes(&result[6], (float)(params->absErrBound)); //big_endian
-		memset(&result[10], 0, 4);
+		floatToBytes(&result[6-4], (float)(params->absErrBound)); //big_endian
+		memset(&result[10-4], 0, 4);
 		break;
 	case REL:
-		memset(&result[6], 0, 4);
-		floatToBytes(&result[10], (float)(params->relBoundRatio)); //big_endian
+		memset(&result[6-4], 0, 4);
+		floatToBytes(&result[10-4], (float)(params->relBoundRatio)); //big_endian
 		break;
 	case ABS_AND_REL:
 	case ABS_OR_REL:
-		floatToBytes(&result[6], (float)(params->absErrBound));
-		floatToBytes(&result[10], (float)(params->relBoundRatio)); //big_endian
+		floatToBytes(&result[6-4], (float)(params->absErrBound));
+		floatToBytes(&result[10-4], (float)(params->relBoundRatio)); //big_endian
 		break;
 	case PSNR:
-		floatToBytes(&result[6], (float)(params->psnr));
-		memset(&result[9], 0, 4);
+		floatToBytes(&result[6-4], (float)(params->psnr));
+		memset(&result[9-4], 0, 4);
 		break;
 	case ABS_AND_PW_REL:
 	case ABS_OR_PW_REL:
-		floatToBytes(&result[6], (float)(params->absErrBound));
-		floatToBytes(&result[10], (float)(params->pw_relBoundRatio)); //big_endian	
+		floatToBytes(&result[6-4], (float)(params->absErrBound));
+		floatToBytes(&result[10-4], (float)(params->pw_relBoundRatio)); //big_endian	
 		break;
 	case REL_AND_PW_REL:
 	case REL_OR_PW_REL:
-		floatToBytes(&result[6], (float)(params->relBoundRatio));
-		floatToBytes(&result[10], (float)(params->pw_relBoundRatio)); //big_endian	
+		floatToBytes(&result[6-4], (float)(params->relBoundRatio));
+		floatToBytes(&result[10-4], (float)(params->pw_relBoundRatio)); //big_endian	
 		break;
 	case PW_REL:
-		memset(&result[6], 0, 4);
-		floatToBytes(&result[10], (float)(params->pw_relBoundRatio)); //big_endian
+		memset(&result[6-4], 0, 4);
+		floatToBytes(&result[10-4], (float)(params->pw_relBoundRatio)); //big_endian
 		break;		
 	}
+	*/
    
     //compressor
-    result[14] = (unsigned char)params->sol_ID;
-    
-    //int16ToBytes_bigEndian(&result[14], (short)(params->segment_size));
-    
+    //result[14-4] = (unsigned char)params->sol_ID;
+      
+	/* remove fmin fmax  intervals
     if(exe_params->optQuantMode==1)
 		int32ToBytes_bigEndian(&result[16], params->max_quant_intervals);
 	else
-		int32ToBytes_bigEndian(&result[16], params->quantization_intervals);
+		int32ToBytes_bigEndian(&result[16], params->quantization_intervals);	
 	
 	if(params->dataType==SZ_FLOAT)
 	{
@@ -968,6 +969,7 @@ void convertSZParamsToBytes(sz_params* params, unsigned char* result)
 		doubleToBytes(&result[20], params->dmin);
 		doubleToBytes(&result[28], params->dmax);		
 	}
+	*/
 
 }
 
@@ -996,48 +998,45 @@ void convertBytesToSZParams(unsigned char* bytes, sz_params* params, sz_exedata*
 	
 	//params->pwr_type = (flag1 & 0x03) >> 0;
 
-	params->sampleDistance = bytesToInt16_bigEndian(&bytes[1]);
-	
-	params->predThreshold = 1.0*bytesToInt16_bigEndian(&bytes[3])/10000.0;
+	//params->sampleDistance = bytesToInt16_bigEndian(&bytes[1]);
+	//params->predThreshold = 1.0*bytesToInt16_bigEndian(&bytes[3])/10000.0;
     
-    params->dataType = bytes[5] & 0x07;
+    params->dataType = bytes[1] & 0x07;
+    params->errorBoundMode = (bytes[1] & 0xf0) >> 4;
 
-	params->errorBoundMode = (bytes[5] & 0xf0) >> 4;
-
+    /*
     switch(params->errorBoundMode)
     {
 	case SZ_ABS:
-		params->absErrBound = bytesToFloat(&bytes[6]);
+		params->absErrBound = bytesToFloat(&bytes[6-4]);
 		break;
 	case REL:
-		params->relBoundRatio = bytesToFloat(&bytes[10]);
+		params->relBoundRatio = bytesToFloat(&bytes[10-4]);
 		break;
 	case ABS_AND_REL:
 	case ABS_OR_REL:
-		params->absErrBound = bytesToFloat(&bytes[6]);
-		params->relBoundRatio = bytesToFloat(&bytes[10]);
+		params->absErrBound = bytesToFloat(&bytes[6-4]);
+		params->relBoundRatio = bytesToFloat(&bytes[10-4]);
 		break;
 	case PSNR:
-		params->psnr = bytesToFloat(&bytes[6]);
+		params->psnr = bytesToFloat(&bytes[6-4]);
 		break;
 	case ABS_AND_PW_REL:
 	case ABS_OR_PW_REL:
-		params->absErrBound = bytesToFloat(&bytes[6]);
-		params->pw_relBoundRatio = bytesToFloat(&bytes[10]);	
+		params->absErrBound = bytesToFloat(&bytes[6-4]);
+		params->pw_relBoundRatio = bytesToFloat(&bytes[10-4]);	
 		break;
 	case REL_AND_PW_REL:
 	case REL_OR_PW_REL:
-		params->relBoundRatio = bytesToFloat(&bytes[6]);
-		params->pw_relBoundRatio = bytesToFloat(&bytes[10]);	
+		params->relBoundRatio = bytesToFloat(&bytes[6-4]);
+		params->pw_relBoundRatio = bytesToFloat(&bytes[10-4]);	
 		break;
 	case PW_REL:
-		params->pw_relBoundRatio = bytesToFloat(&bytes[10]);		
+		params->pw_relBoundRatio = bytesToFloat(&bytes[10-4]);		
 	}
 	
-    //segment_size  // 2 bytes
-    //params->segment_size = bytesToInt16_bigEndian(&bytes[14]);	
-    params->sol_ID = (int)(bytes[14]);
-    
+    params->sol_ID = (int)(bytes[14-4]);
+  
     if(pde_exe->optQuantMode==1)
     {
 		params->max_quant_intervals = bytesToInt32_bigEndian(&bytes[16]);
@@ -1059,5 +1058,6 @@ void convertBytesToSZParams(unsigned char* bytes, sz_params* params, sz_exedata*
 		params->dmin = bytesToDouble(&bytes[20]);
 		params->dmax = bytesToDouble(&bytes[28]);				
 	}
+	*/
 
 }

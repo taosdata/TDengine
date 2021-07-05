@@ -142,7 +142,7 @@ typedef union lfloat
 
 typedef struct sz_metadata
 {
-	int versionNumber[3]; //only used for checking the version by calling SZ_GetMetaData()
+	unsigned char ver; //only used for checking the version by calling SZ_GetMetaData()
 	int isConstant; //only used for checking if the data are constant values by calling SZ_GetMetaData()
 	int isLossless; //only used for checking if the data compression was lossless, used only by calling SZ_GetMetaData()
 	int sizeType; //only used for checking whether the size type is "int" or "long" in the compression, used only by calling SZ_GetMetaData()
@@ -165,7 +165,7 @@ typedef struct sz_tsc_metainfo
 
 } sz_tsc_metadata;
 
-extern int versionNumber[4];
+extern unsigned char versionNumber;
 
 //-------------------key global variables--------------
 extern int dataEndianType; //*endian type of the data read from disk

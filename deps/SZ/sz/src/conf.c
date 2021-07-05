@@ -120,7 +120,7 @@ int SZ_ReadConf(const char* sz_cfgFile) {
 		
 		confparams_cpr->errorBoundMode = SZ_ABS;
 		confparams_cpr->psnr = 90;
-		confparams_cpr->absErrBound = 1E-20;
+		confparams_cpr->absErrBound = 1E-8;
 		confparams_cpr->relBoundRatio = 1E-8;
 		confparams_cpr->accelerate_pw_rel_compression = 1;
 		
@@ -410,33 +410,11 @@ int SZ_LoadConf(const char* sz_cfgFile) {
     return SZ_SUCCESS;
 }
 
-int checkVersion(char* version)
+int checkVersion(unsigned char version)
 {
-	int i = 0;
-	for(;i<3;i++)
-		if(version[i]!=versionNumber[i])
-			return 0;
-	return 1;
+	return version <= versionNumber;
 }
 
-inline int computeVersion(int major, int minor, int revision)
-{
-	return major*10000+minor*100+revision;
-}
-
-int checkVersion2(char* version)
-{
-	int major = version[0];
-	int minor = version[1];
-	int revision = version[2];
-	
-	int preVersion = 20108;
-	int givenVersion = computeVersion(major, minor, revision);
-	//int currentVersion = computeVersion(SZ_VER_MAJOR, SZ_VER_MINOR, SZ_VER_REVISION);
-	if(givenVersion < preVersion) //only for old version (older than 2.1.8), we will check whether version is consistent exactly.
-		return checkVersion(version);
-	return 1;
-}
 
 void initSZ_TSC()
 {
