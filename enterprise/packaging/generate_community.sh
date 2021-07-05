@@ -4,11 +4,12 @@ version=$1
 versionComp=$2
 branchName=$3
 verType=$4
+cpuType=$5
 
 scriptDir=`pwd`
 topDir=$scriptDir/../..         # TDinternal
 communityDir=$topDir/community
-archiveDir=$scriptDir/../release
+archiveDir=/nas/TDengine/v$version/community # version’package directory
 allocator=glibc                 # glibc  or  jemalloc
 
 if [ ! -d $archiveDir ]; then
@@ -23,16 +24,20 @@ cd $communityDir
 rm -rf release/*
 rm -rf debs/*
 rm -rf rpms/*
-./packaging/release.sh -a $allocator -n $version -m $versionComp -V $verType
+./packaging/release.sh -a $allocator -n $version -m $versionComp -V $verType -c $cpuType
+
+# generate alert version on x64-linux
+if [ "$cpuType" == "x64" ]; then
+  ./alert/release.sh  -n $version  -V $verType 
+fi
+
 cd $archiveDir
-rm -rf v$version
-mkdir v$version
-cd v$version
-mkdir community
-cd community
-cp $communityDir/release/* ./
-cp $communityDir/debs/* ./
-cp $communityDir/rpms/* ./
+# rm -rf v$version
+# mkdir v$version
+# cd v$version
+cp -f $communityDir/release/* ./
+cp -f $communityDir/debs/* ./
+cp -f $communityDir/rpms/* ./
 
 #echo "build new version branch >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>"
 #cd $communityDir
@@ -40,3 +45,4 @@ cp $communityDir/rpms/* ./
 #git checkout -b release/v$version
 #git merge master
 #git push origin release/v$version
+
