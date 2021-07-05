@@ -242,9 +242,6 @@ static void sortGroupResByOrderList(SGroupResInfo *pGroupResInfo, SQueryRuntimeE
   if (size <= 0) {
     return;
   }
-
-  taosArrayDestroy(columnOrderList);
-
   int32_t orderId = pRuntimeEnv->pQueryAttr->order.orderColId;
   if (orderId <= 0) {
     return;
