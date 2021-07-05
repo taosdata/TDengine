@@ -2005,7 +2005,6 @@ static SVgroupsInfo* createVgroupInfoFromMsg(char* pMsg, int32_t* size, uint64_t
 
       SVgroupMsg *vmsg = &pVgroupMsg->vgroups[j];
       vmsg->vgId = htonl(vmsg->vgId);
-      vmsg->numOfEps = vmsg->numOfEps;
       for (int32_t k = 0; k < vmsg->numOfEps; ++k) {
         vmsg->epAddr[k].port = htons(vmsg->epAddr[k].port);
       }
