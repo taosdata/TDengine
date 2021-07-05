@@ -4398,26 +4398,30 @@ static bool getMetaFromQueryJsonFile(cJSON* root) {
         tstrncpy(g_queryInfo.specifiedQueryInfo.sql[j],
                 sqlStr->valuestring, MAX_QUERY_SQL_LENGTH);
 
+        // default value is -1, which mean infinite loop
+        g_queryInfo.specifiedQueryInfo.endAfterConsume[j] = -1;
         cJSON* endAfterConsume =
             cJSON_GetObjectItem(specifiedQuery, "endAfterConsume");
         if (endAfterConsume
                 && endAfterConsume->type == cJSON_Number) {
             g_queryInfo.specifiedQueryInfo.endAfterConsume[j]
                 = endAfterConsume->valueint;
-        } else if (!endAfterConsume) {
-            // default value is -1, which mean infinite loop
-            g_queryInfo.specifiedQueryInfo.endAfterConsume[j] = -1;
         }
+        if (g_queryInfo.specifiedQueryInfo.endAfterConsume[j] < -1)
+            g_queryInfo.specifiedQueryInfo.endAfterConsume[j] = -1;
 
+        g_queryInfo.specifiedQueryInfo.resubAfterConsume[j] = -1;
         cJSON* resubAfterConsume =
             cJSON_GetObjectItem(specifiedQuery, "resubAfterConsume");
-        g_queryInfo.specifiedQueryInfo.resubAfterConsume[j] = -1;
         if ((resubAfterConsume)
                 && (resubAfterConsume->type == cJSON_Number)
                 && (resubAfterConsume->valueint >= 0)) {
             g_queryInfo.specifiedQueryInfo.resubAfterConsume[j]
                 = resubAfterConsume->valueint;
         }
+
+        if (g_queryInfo.specifiedQueryInfo.resubAfterConsume[j] < -1)
+            g_queryInfo.specifiedQueryInfo.resubAfterConsume[j] = -1;
 
         cJSON *result = cJSON_GetObjectItem(sql, "result");
         if ((NULL != result) && (result->type == cJSON_String)
@@ -4560,26 +4564,30 @@ static bool getMetaFromQueryJsonFile(cJSON* root) {
       g_queryInfo.superQueryInfo.subscribeKeepProgress = 0;
     }
 
+    // default value is -1, which mean do not resub
+    g_queryInfo.superQueryInfo.endAfterConsume = -1;
     cJSON* superEndAfterConsume =
             cJSON_GetObjectItem(superQuery, "endAfterConsume");
     if (superEndAfterConsume
             && superEndAfterConsume->type == cJSON_Number) {
         g_queryInfo.superQueryInfo.endAfterConsume =
             superEndAfterConsume->valueint;
-    } else if (!superEndAfterConsume) {
-        // default value is -1, which mean do not resub
-        g_queryInfo.superQueryInfo.endAfterConsume = -1;
     }
+    if (g_queryInfo.superQueryInfo.endAfterConsume < -1)
+        g_queryInfo.superQueryInfo.endAfterConsume = -1;
 
+    // default value is -1, which mean do not resub
+    g_queryInfo.superQueryInfo.resubAfterConsume = -1;
     cJSON* superResubAfterConsume =
             cJSON_GetObjectItem(superQuery, "resubAfterConsume");
-    g_queryInfo.superQueryInfo.resubAfterConsume = -1;
     if ((superResubAfterConsume)
             && (superResubAfterConsume->type == cJSON_Number)
             && (superResubAfterConsume->valueint >= 0)) {
         g_queryInfo.superQueryInfo.resubAfterConsume =
             superResubAfterConsume->valueint;
     }
+    if (g_queryInfo.superQueryInfo.resubAfterConsume < -1)
+        g_queryInfo.superQueryInfo.resubAfterConsume = -1;
 
     // supert table sqls
     cJSON* superSqls = cJSON_GetObjectItem(superQuery, "sqls");
@@ -4698,14 +4706,18 @@ PARSE_OVER:
   return ret;
 }
 
-static void prepareSampleData() {
+static int prepareSampleData() {
   for (int i = 0; i < g_Dbs.dbCount; i++) {
     for (int j = 0; j < g_Dbs.db[i].superTblCount; j++) {
       if (g_Dbs.db[i].superTbls[j].tagsFile[0] != 0) {
-        (void)readTagFromCsvFileToMem(&g_Dbs.db[i].superTbls[j]);
+        if (readTagFromCsvFileToMem(&g_Dbs.db[i].superTbls[j]) != 0) {
+          return -1;
+        }
       }
     }
   }
+
+  return 0;
 }
 
 static void postFreeResource() {
@@ -4822,7 +4834,7 @@ static int64_t generateStbRowData(
       dataLen += snprintf(pstr + dataLen, maxLen - dataLen,
           "%"PRId64",", rand_bigint());
     }  else {
-      errorPrint( "No support data type: %s\n", stbInfo->columns[i].dataType);
+      errorPrint( "Not support data type: %s\n", stbInfo->columns[i].dataType);
       return -1;
     }
   }
@@ -4830,6 +4842,7 @@ static int64_t generateStbRowData(
   dataLen -= 1;
   dataLen += snprintf(pstr + dataLen, maxLen - dataLen, ")");
 
+  verbosePrint("%s() LN%d, dataLen:%"PRId64"\n", __func__, __LINE__, dataLen);
   verbosePrint("%s() LN%d, recBuf:\n\t%s\n", __func__, __LINE__, recBuf);
 
   return strlen(recBuf);
@@ -5082,24 +5095,25 @@ static int32_t generateStbDataTail(
   } else {
       tsRand = false;
   }
-  verbosePrint("%s() LN%d batch=%u\n", __func__, __LINE__, batch);
+  verbosePrint("%s() LN%d batch=%u buflen=%"PRId64"\n",
+          __func__, __LINE__, batch, remainderBufLen);
 
   int32_t k = 0;
   for (k = 0; k < batch;) {
     char data[MAX_DATA_SIZE];
     memset(data, 0, MAX_DATA_SIZE);
 
-    int64_t retLen = 0;
+    int64_t lenOfRow = 0;
 
     if (tsRand) {
-        retLen = generateStbRowData(superTblInfo, data,
+        lenOfRow = generateStbRowData(superTblInfo, data,
                 startTime + getTSRandTail(
                     superTblInfo->timeStampStep, k,
                     superTblInfo->disorderRatio,
                     superTblInfo->disorderRange)
                 );
     } else {
-        retLen = getRowDataFromSample(
+        lenOfRow = getRowDataFromSample(
                   data,
                   remainderBufLen < MAX_DATA_SIZE ? remainderBufLen : MAX_DATA_SIZE,
                   startTime + superTblInfo->timeStampStep * k,
@@ -5107,14 +5121,14 @@ static int32_t generateStbDataTail(
                   pSamplePos);
     }
 
-    if (retLen > remainderBufLen) {
+    if (lenOfRow > remainderBufLen) {
         break;
     }
 
-    pstr += snprintf(pstr , retLen + 1, "%s", data);
+    pstr += snprintf(pstr , lenOfRow + 1, "%s", data);
     k++;
-    len += retLen;
-    remainderBufLen -= retLen;
+    len += lenOfRow;
+    remainderBufLen -= lenOfRow;
 
     verbosePrint("%s() LN%d len=%"PRIu64" k=%u \nbuffer=%s\n",
             __func__, __LINE__, len, k, buffer);
@@ -5903,11 +5917,14 @@ static void* syncWriteInterlace(threadInfo *pThreadInfo) {
     startTs = taosGetTimestampMs();
 
     if (recOfBatch == 0) {
-      errorPrint("[%d] %s() LN%d try inserting records of batch is %d\n",
-              pThreadInfo->threadID, __func__, __LINE__,
-              recOfBatch);
-      errorPrint("%s\n", "\tPlease check if the batch or the buffer length is proper value!\n");
-      goto free_of_interlace;
+        errorPrint("[%d] %s() LN%d Failed to insert records of batch %d\n",
+                pThreadInfo->threadID, __func__, __LINE__,
+                batchPerTbl);
+        errorPrint("\tIf the batch is %d, the length of the SQL to insert a row must be less then %"PRId64"\n",
+                batchPerTbl, maxSqlLen / batchPerTbl);
+        errorPrint("\tPlease check if the buffer length(%"PRId64") or batch(%d) is set with proper value!\n",
+                maxSqlLen, batchPerTbl);
+        goto free_of_interlace;
     }
     int64_t affectedRows = execInsert(pThreadInfo, recOfBatch);
 
@@ -6769,7 +6786,11 @@ static int insertTestProcess() {
   }
 
   // pretreatement
-  prepareSampleData();
+  if (prepareSampleData() != 0) {
+    if (g_fpOfInsertResult)
+      fclose(g_fpOfInsertResult);
+    return -1;
+  }
 
   double start;
   double end;
@@ -7304,7 +7325,6 @@ static void *superSubscribe(void *sarg) {
     TAOS_RES* res = NULL;
 
     uint64_t st = 0, et = 0;
-
     while ((g_queryInfo.superQueryInfo.endAfterConsume == -1)
             || (g_queryInfo.superQueryInfo.endAfterConsume >
                 consumed[pThreadInfo->end_table_to

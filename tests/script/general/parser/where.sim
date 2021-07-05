@@ -352,18 +352,24 @@ if $rows != 0 then
  return -1
 endi
 
-print ==========================> td-4783
+print ==========================> td-4783,td-4792
 sql create table where_ts(ts timestamp, f int)
 sql insert into where_ts values('2021-06-19 16:22:00', 1);
 sql insert into where_ts values('2021-06-19 16:23:00', 2);
 sql insert into where_ts values('2021-06-19 16:24:00', 3);
 sql insert into where_ts values('2021-06-19 16:25:00', 1);
 sql select * from (select * from where_ts) where ts<'2021-06-19 16:25:00' and ts>'2021-06-19 16:22:00'
-if $row != 2 then
+if $rows != 2 then
   return -1
 endi
 print $data00, $data01
 if $data01 != 2 then
+  return -1
+endi
+sql insert into where_ts values(now, 5);
+sleep 10
+sql select * from (select * from where_ts) where ts<now;
+if $rows != 5 then
   return -1
 endi
 system sh/exec.sh -n dnode1 -s stop -x SIGINT

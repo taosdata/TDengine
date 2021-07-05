@@ -117,7 +117,14 @@ static void dnodeProcessMsgFromShell(SRpcMsg *pMsg, SRpcEpSet *pEpSet) {
 
   if (pMsg->pCont == NULL) return;
 
-  if (dnodeGetRunStatus() != TSDB_RUN_STATUS_RUNING) {
+  SRunStatus dnodeStatus = dnodeGetRunStatus();
+  if (dnodeStatus == TSDB_RUN_STATUS_STOPPED) {
+    dError("RPC %p, shell msg:%s is ignored since dnode exiting", pMsg->handle, taosMsg[pMsg->msgType]);
+    rpcMsg.code = TSDB_CODE_DND_EXITING;
+    rpcSendResponse(&rpcMsg);
+    rpcFreeCont(pMsg->pCont);
+    return;
+  } else if (dnodeStatus != TSDB_RUN_STATUS_RUNING) {
     dError("RPC %p, shell msg:%s is ignored since dnode not running", pMsg->handle, taosMsg[pMsg->msgType]);
     rpcMsg.code = TSDB_CODE_APP_NOT_READY;
     rpcSendResponse(&rpcMsg);
