@@ -16,7 +16,8 @@ import pandas as pd
 import argparse
 import os.path
 import json
-
+from util.log import tdLog
+from util.sql import tdSql
 
 class taosdemoPerformace:
     def __init__(self, commitID, dbName):
@@ -121,7 +122,6 @@ class taosdemoPerformace:
         return buildPath
 
     def insertData(self):
-        tdSql.prepare()
         buildPath = self.getBuildPath()
         if (buildPath == ""):
             tdLog.exit("taosdemo not found!")
