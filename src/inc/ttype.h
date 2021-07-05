@@ -184,6 +184,8 @@ void *getNullValue(int32_t type);
 void assignVal(char *val, const char *src, int32_t len, int32_t type);
 void tsDataSwap(void *pLeft, void *pRight, int32_t type, int32_t size, void* buf);
 void operateVal(void *dst, void *s1, void *s2, int32_t optr, int32_t type);
+void* getDataMin(int32_t type);
+void* getDataMax(int32_t type);
 
 int32_t tStrToInteger(const char* z, int16_t type, int32_t n, int64_t* value, bool issigned);
 

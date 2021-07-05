@@ -401,6 +401,32 @@ char tTokenTypeSwitcher[13] = {
     TSDB_DATA_TYPE_NCHAR,   // TK_NCHAR
 };
 
+float floatMin = -FLT_MAX, floatMax = FLT_MAX;
+double doubleMin = -DBL_MAX, doubleMax = DBL_MAX;
+
+FORCE_INLINE void* getDataMin(int32_t type) {
+  switch (type) {
+    case TSDB_DATA_TYPE_FLOAT:
+      return &floatMin;
+    case TSDB_DATA_TYPE_DOUBLE:
+      return &doubleMin;
+    default:
+      return &tDataTypes[type].minValue;
+  }
+}
+
+FORCE_INLINE void* getDataMax(int32_t type) {
+  switch (type) {
+    case TSDB_DATA_TYPE_FLOAT:
+      return &floatMax;
+    case TSDB_DATA_TYPE_DOUBLE:
+      return &doubleMax;
+    default:
+      return &tDataTypes[type].maxValue;
+  }
+}
+
+
 bool isValidDataType(int32_t type) {
   return type >= TSDB_DATA_TYPE_NULL && type <= TSDB_DATA_TYPE_UBIGINT;
 }

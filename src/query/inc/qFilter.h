@@ -181,7 +181,6 @@ extern int32_t filterInitFromTree(tExprNode* tree, SFilterInfo **pinfo);
 extern bool filterExecute(SFilterInfo *info, int32_t numOfRows, int8_t* p);
 extern int32_t filterSetColFieldData(SFilterInfo *info, int16_t colId, void *data);
 extern void* filterInitMergeRange(int32_t type, int32_t options);
-extern int32_t filterAddMergeRange(void* h, void* s, void* e, int32_t optr);
 extern int32_t filterGetMergeRangeNum(void* h, int32_t* num);
 extern int32_t filterGetMergeRangeRes(void* h, void *s, void* e);
 extern int32_t filterFreeMergeRange(void* h);

@@ -66,8 +66,8 @@ static FORCE_INLINE SFilterRangeNode* filterNewRange(SFilterRMCtx *ctx, int32_t 
     r = calloc(1, sizeof(SFilterRangeNode)); 
   }
   
-  SIMPLE_COPY_VALUES((char*)&r->s, s); 
-  SIMPLE_COPY_VALUES((char*)&r->e, e); 
+  SIMPLE_COPY_VALUES((char*)&r->ra.s, s); 
+  SIMPLE_COPY_VALUES((char*)&r->ra.e, e); 
 
   return r;
 }
@@ -87,23 +87,6 @@ void* filterInitMergeRange(int32_t type, int32_t options) {
   return ctx;
 }
 
-int32_t filterAddMergeRangeCtx(void *dst, void *src, int32_t optr) {
-  SFilterRMCtx *dctx = (SFilterRMCtx *)dst;
-  SFilterRMCtx *sctx = (SFilterRMCtx *)src;
-
-  if (sctx->rs == NULL) {
-    return TSDB_CODE_SUCCESS;
-  }
-
-  SFilterRangeNode *r = sctx->rs;
-  
-  while (r) {
-    filterAddMergeRange(dctx, &r->s, &r->e, optr);
-    r = r->next;
-  }
-
-  return TSDB_CODE_SUCCESS;
-}
 
 int32_t filterResetMergeRangeCtx(SFilterRMCtx *ctx) {
   ctx->status = 0;
@@ -154,24 +137,24 @@ int32_t filterAddMergeRangeImpl(void* h, void* s, void* e, char sflag, char efla
 
   if (optr == TSDB_RELATION_AND) {
     while (r != NULL) {
-      if (ctx->pCompareFunc(&r->s, e) > 0) {
+      if (ctx->pCompareFunc(&r->ra.s, e) > 0) {
         FREE_FROM_RANGE(ctx, r);
         break;
       }
 
-      if (ctx->pCompareFunc(s, &r->e) > 0) {
+      if (ctx->pCompareFunc(s, &r->ra.e) > 0) {
         rn = r->next;
         FREE_RANGE(ctx, r);
         r = rn;
         continue;
       }
 
-      if (ctx->pCompareFunc(s, &r->s) > 0) {
-        SIMPLE_COPY_VALUES((char *)&r->s, s);
+      if (ctx->pCompareFunc(s, &r->ra.s) > 0) {
+        SIMPLE_COPY_VALUES((char *)&r->ra.s, s);
       }
 
-      if (ctx->pCompareFunc(&r->e, e) > 0) {
-        SIMPLE_COPY_VALUES((char *)&r->e, e);
+      if (ctx->pCompareFunc(&r->ra.e, e) > 0) {
+        SIMPLE_COPY_VALUES((char *)&r->ra.e, e);
         break;
       }
 
@@ -187,7 +170,7 @@ int32_t filterAddMergeRangeImpl(void* h, void* s, void* e, char sflag, char efla
   bool emerged = false;
 
   while (r != NULL) {
-    if (ctx->pCompareFunc(&r->s, e) > 0) {
+    if (ctx->pCompareFunc(&r->ra.s, e) > 0) {
       if (emerged == false) {
         INSERT_RANGE(ctx, r, ctx->type, s, e);
       }
@@ -195,7 +178,7 @@ int32_t filterAddMergeRangeImpl(void* h, void* s, void* e, char sflag, char efla
       break;
     }
 
-    if (ctx->pCompareFunc(s, &r->e) > 0) {
+    if (ctx->pCompareFunc(s, &r->ra.e) > 0) {
       if (r->next) {
         r= r->next;
         continue;
@@ -206,18 +189,18 @@ int32_t filterAddMergeRangeImpl(void* h, void* s, void* e, char sflag, char efla
     }
 
     if (smerged == false) {
-      if (ctx->pCompareFunc(&r->s, s) > 0) {
-        SIMPLE_COPY_VALUES((char *)&r->s, s);
+      if (ctx->pCompareFunc(&r->ra.s, s) > 0) {
+        SIMPLE_COPY_VALUES((char *)&r->ra.s, s);
       }
 
       smerged = true;
     }
     
     if (emerged == false) {
-      if (ctx->pCompareFunc(e, &r->e) > 0) {
-        SIMPLE_COPY_VALUES((char *)&r->e, e);
+      if (ctx->pCompareFunc(e, &r->ra.e) > 0) {
+        SIMPLE_COPY_VALUES((char *)&r->ra.e, e);
         emerged = true;
-        e = &r->e;
+        e = &r->ra.e;
         r = r->next;
         continue;
       }
@@ -225,14 +208,14 @@ int32_t filterAddMergeRangeImpl(void* h, void* s, void* e, char sflag, char efla
       break;
     }
 
-    if (ctx->pCompareFunc(e, &r->e) > 0) {
+    if (ctx->pCompareFunc(e, &r->ra.e) > 0) {
       rn = r->next;
       FREE_RANGE(ctx, r);
       r = rn;
 
       continue;
     } else {
-      SIMPLE_COPY_VALUES(e, (char *)&r->e);
+      SIMPLE_COPY_VALUES(e, (char *)&r->ra.e);
       FREE_RANGE(ctx, r);
       
       break;
@@ -246,24 +229,42 @@ int32_t filterAddMergeRange(void* h, SFilterRange* ra, int32_t optr) {
   SFilterRMCtx *ctx = (SFilterRMCtx *)h;
   int64_t sv, ev;
   void *s, *e;
-  char sflag = 0, eflag = 0;
   
   if (MR_GET_FLAG(ra->sflag, RA_NULL)) {
-    SIMPLE_COPY_VALUES(&sv, &tDataTypes[ctx->type].minValue);
+    SIMPLE_COPY_VALUES(&sv, getDataMin(ctx->type));
     s = &sv;
   } else {
-    s = &ra.s;
+    s = &ra->s;
   }
 
   if (MR_GET_FLAG(ra->eflag, RA_NULL)) {
-    SIMPLE_COPY_VALUES(&ev, &tDataTypes[ctx->type].maxValue);
+    SIMPLE_COPY_VALUES(&ev, getDataMax(ctx->type));
     e = &ev;
   } else {
-    e = &ra.e;
+    e = &ra->e;
   }
 
-  return filterAddMergeRangeImpl(h, s, e, ra.sflag, ra.eflag, optr);
+  return filterAddMergeRangeImpl(h, s, e, ra->sflag, ra->eflag, optr);
 }
+
+int32_t filterAddMergeRangeCtx(void *dst, void *src, int32_t optr) {
+  SFilterRMCtx *dctx = (SFilterRMCtx *)dst;
+  SFilterRMCtx *sctx = (SFilterRMCtx *)src;
+
+  if (sctx->rs == NULL) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SFilterRangeNode *r = sctx->rs;
+  
+  while (r) {
+    filterAddMergeRange(dctx, &r->ra, optr);
+    r = r->next;
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
 
 int32_t filterFinMergeRange(void* h) {
   SFilterRMCtx *ctx = (SFilterRMCtx *)h;
@@ -278,10 +279,10 @@ int32_t filterFinMergeRange(void* h) {
     
     while (r && r->next) {
       int64_t tmp = 1;
-      operateVal(&tmp, &r->e, &tmp, TSDB_BINARY_OP_ADD, ctx->type);
-      if (ctx->pCompareFunc(&tmp, &r->next->s) == 0) {
+      operateVal(&tmp, &r->ra.e, &tmp, TSDB_BINARY_OP_ADD, ctx->type);
+      if (ctx->pCompareFunc(&tmp, &r->next->ra.s) == 0) {
         rn = r->next;
-        SIMPLE_COPY_VALUES((char *)&r->next->s, (char *)&r->s);
+        SIMPLE_COPY_VALUES((char *)&r->next->ra.s, (char *)&r->ra.s);
         FREE_RANGE(ctx, r);
         r = rn;
       
@@ -323,8 +324,8 @@ int32_t filterGetMergeRangeRes(void* h, void *s, void* e) {
   SFilterRangeNode* r = ctx->rs;
   
   while (r) {
-    assignVal(s + num * tDataTypes[ctx->type].bytes, (char *)&r->s, 0, ctx->type);
-    assignVal(e + num * tDataTypes[ctx->type].bytes, (char *)&r->e, 0, ctx->type);
+    assignVal(s + num * tDataTypes[ctx->type].bytes, (char *)&r->ra.s, 0, ctx->type);
+    assignVal(e + num * tDataTypes[ctx->type].bytes, (char *)&r->ra.e, 0, ctx->type);
 
     ++num;
     r = r->next;
@@ -567,7 +568,7 @@ void filterDumpInfoToString(SFilterInfo *info, const char *msg) {
   qDebug("Unit  Num:%u", info->unitNum);
   for (uint16_t i = 0; i < info->unitNum; ++i) {
     SFilterUnit *unit = &info->units[i];
-    SFilterField *left = FILTER_UNIT_LEFT_FIELD(info);
+    SFilterField *left = FILTER_UNIT_LEFT_FIELD(info, unit);
     SFilterField *right = FILTER_UNIT_RIGHT_FIELD(info, unit);
 
     SSchema *sch = left->desc;
@@ -900,7 +901,7 @@ bool filterExecute(SFilterInfo *info, int32_t numOfRows, int8_t* p) {
           ures = FILTER_UNIT_GET_R(info, uidx);
         } else {
           SFilterUnit *unit = &info->units[uidx];
-          SFilterField *left = FILTER_UNIT_LEFT_FIELD(info);
+          SFilterField *left = FILTER_UNIT_LEFT_FIELD(info, unit);
           SFilterField *right = FILTER_UNIT_RIGHT_FIELD(info, unit);
 
           if (isNull(FILTER_GET_COL_FIELD_DATA(left, i), FILTER_GET_COL_FIELD_TYPE(left))) {
