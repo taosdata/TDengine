@@ -44,9 +44,9 @@ INCLUDE(community/cmake/env.inc)
 INCLUDE(community/cmake/version.inc)
 INCLUDE(community/cmake/install.inc)
 
-ADD_SUBDIRECTORY(enterprise)
 ADD_SUBDIRECTORY(community/deps)
 ADD_SUBDIRECTORY(community/src)
 ADD_SUBDIRECTORY(community/tests)
+ADD_SUBDIRECTORY(enterprise)
 
 INCLUDE(CPack)
