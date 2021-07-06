@@ -5292,17 +5292,30 @@ int32_t validateOrderbyNode(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SSqlNode* pSq
     }
 
     if (isTopBottomQuery(pQueryInfo)) {
-      /* order of top/bottom query in interval is not valid  */
-      SExprInfo* pExpr = tscExprGet(pQueryInfo, 0);
-      assert(pExpr->base.functionId == TSDB_FUNC_TS);
+      bool validOrder = false;
+      SArray *columnInfo = pQueryInfo->groupbyExpr.columnInfo;
+      if (columnInfo != NULL && taosArrayGetSize(columnInfo) > 0) {
+        SColIndex* pColIndex = taosArrayGet(columnInfo, 0);
+        validOrder = (pColIndex->colIndex == index.columnIndex); 
+      } else {
+        /* order of top/bottom query in interval is not valid  */
+        SExprInfo* pExpr = tscExprGet(pQueryInfo, 0);
+        assert(pExpr->base.functionId == TSDB_FUNC_TS);
 
-      pExpr = tscExprGet(pQueryInfo, 1);
-      if (pExpr->base.colInfo.colIndex != index.columnIndex && index.columnIndex != PRIMARYKEY_TIMESTAMP_COL_INDEX) {
+        pExpr = tscExprGet(pQueryInfo, 1);
+        if (pExpr->base.colInfo.colIndex != index.columnIndex && index.columnIndex != PRIMARYKEY_TIMESTAMP_COL_INDEX) {
+          return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg2);
+        }
+        validOrder = true; 
+      }       
+
+      if (!validOrder) {
         return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg2);
-      }
+      }     
 
       tVariantListItem* pItem = taosArrayGet(pSqlNode->pSortOrder, 0);
       pQueryInfo->order.order = pItem->sortOrder;
+      
       pQueryInfo->order.orderColId = pSchema[index.columnIndex].colId;
       return TSDB_CODE_SUCCESS;
     }
@@ -6525,6 +6538,7 @@ int32_t doFunctionsCompatibleCheck(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, char* 
   const char* msg3 = "group by/session/state_window not allowed on projection query";
   const char* msg4 = "retrieve tags not compatible with group by or interval query";
   const char* msg5 = "functions can not be mixed up";
+  const char* msg6 = "TWA/Diff/Derivative/Irate only support group by tbname";
 
   // only retrieve tags, group by is not supportted
   if (tscQueryTags(pQueryInfo)) {
@@ -6573,6 +6587,19 @@ int32_t doFunctionsCompatibleCheck(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, char* 
 
         if (!qualified) {
           return invalidOperationMsg(msg, msg2);
+        }
+      }
+
+      if ((!pQueryInfo->stateWindow) && (f == TSDB_FUNC_DIFF || f == TSDB_FUNC_DERIVATIVE || f == TSDB_FUNC_TWA || f == TSDB_FUNC_IRATE)) {
+        for (int32_t j = 0; j < pQueryInfo->groupbyExpr.numOfGroupCols; ++j) {
+          SColIndex* pColIndex = taosArrayGet(pQueryInfo->groupbyExpr.columnInfo, j);
+          if (j == 0) {
+            if (pColIndex->colIndex != TSDB_TBNAME_COLUMN_INDEX) {
+              return invalidOperationMsg(msg, msg6);
+            }
+          } else if (!TSDB_COL_IS_TAG(pColIndex->flag)) {
+              return invalidOperationMsg(msg, msg6);
+          }
         }
       }
 
