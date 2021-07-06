@@ -1332,7 +1332,7 @@ static void hashIntervalAgg(SOperatorInfo* pOperatorInfo, SResultRowInfo* pResul
 }
 
 static bool buildGroupbyInfo(const SSDataBlock *pSDataBlock, const SGroupbyExpr *pGroupbyExpr, SGroupbyOperatorInfo *pInfo) {
-  if (pInfo->prevData != NULL) {
+  if (pInfo->pGroupbyDataInfo != NULL) {
     // no need build group-by info   
     return true;
   }
@@ -1361,11 +1361,12 @@ static bool buildGroupbyInfo(const SSDataBlock *pSDataBlock, const SGroupbyExpr 
   }
   return true;
 }
-static void buildGroupbyKeyBuf(const SSDataBlock *pSDataBlock, SGroupbyOperatorInfo *pInfo, int32_t rowId, char **buf) {
+static void buildGroupbyKeyBuf(const SSDataBlock *pSDataBlock, SGroupbyOperatorInfo *pInfo, int32_t rowId, char **buf, bool *isNullKey) {
   char *p = calloc(1, pInfo->totalBytes);
   if (p == NULL) { *buf = NULL; return; } 
 
-  *buf = p;
+  *buf  = p;
+  *isNullKey = true;
   for (int32_t i = 0; i < taosArrayGetSize(pInfo->pGroupbyDataInfo); i++) {
     SGroupbyDataInfo *pDataInfo = taosArrayGet(pInfo->pGroupbyDataInfo, i); 
 
@@ -1376,6 +1377,7 @@ static void buildGroupbyKeyBuf(const SSDataBlock *pSDataBlock, SGroupbyOperatorI
       p += pDataInfo->bytes;
       continue;
     }
+    *isNullKey = false; 
     memcpy(p, val, pDataInfo->bytes);
     p += pDataInfo->bytes;
   }  
@@ -1415,9 +1417,10 @@ static void doHashGroupbyAgg(SOperatorInfo* pOperator, SGroupbyOperatorInfo *pIn
   char *key = NULL;
   int16_t num = 0;
   int32_t type = 0;
+  bool isNullKey = false;
   for (int32_t j = 0; j < pSDataBlock->info.rows; ++j) {
-    buildGroupbyKeyBuf(pSDataBlock, pInfo, j, &key);
-
+    buildGroupbyKeyBuf(pSDataBlock, pInfo, j, &key, &isNullKey);
+    if (isNullKey)  { continue;}
     if (key == NULL) { /* handle malloc failure*/}
     if (pInfo->prevData == NULL) {
       // first row of  
@@ -1448,6 +1451,10 @@ static void doHashGroupbyAgg(SOperatorInfo* pOperator, SGroupbyOperatorInfo *pIn
   }
 
   if (num > 0) {
+    buildGroupbyKeyBuf(pSDataBlock, pInfo, pSDataBlock->info.rows - num, &key, &isNullKey);
+    tfree(pInfo->prevData);
+    pInfo->prevData = key;
+     
     if (pQueryAttr->stableQuery && pQueryAttr->stabledev && (pRuntimeEnv->prevResult != NULL)) {
       setParamForStableStddevByColData(pRuntimeEnv, pInfo->binfo.pCtx, pOperator->numOfOutput, pOperator->pExpr, pInfo);
     }
@@ -1459,6 +1466,7 @@ static void doHashGroupbyAgg(SOperatorInfo* pOperator, SGroupbyOperatorInfo *pIn
 
     doApplyFunctions(pRuntimeEnv, pInfo->binfo.pCtx, &w, pSDataBlock->info.rows - num, num, tsList, pSDataBlock->info.rows, pOperator->numOfOutput);
   }
+  tfree(pInfo->prevData);
 }
 
 static void doSessionWindowAggImpl(SOperatorInfo* pOperator, SSWindowOperatorInfo *pInfo, SSDataBlock *pSDataBlock) {
