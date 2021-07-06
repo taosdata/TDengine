@@ -242,7 +242,6 @@ static void sortGroupResByOrderList(SGroupResInfo *pGroupResInfo, SQueryRuntimeE
   if (size <= 0) {
     return;
   }
-
   int32_t orderId = pRuntimeEnv->pQueryAttr->order.orderColId;
   if (orderId <= 0) {
     return;
@@ -1743,8 +1742,7 @@ static SQLFunctionCtx* createSQLFunctionCtx(SQueryRuntimeEnv* pRuntimeEnv, SExpr
   }
 
   for(int32_t i = 1; i < numOfOutput; ++i) {
-    (*rowCellInfoOffset)[i] = (int32_t)((*rowCellInfoOffset)[i - 1] + sizeof(SResultRowCellInfo) +
-        pExpr[i - 1].base.interBytes * GET_ROW_PARAM_FOR_MULTIOUTPUT(pQueryAttr, pQueryAttr->topBotQuery, pQueryAttr->stableQuery));
+    (*rowCellInfoOffset)[i] = (int32_t)((*rowCellInfoOffset)[i - 1] + sizeof(SResultRowCellInfo) + pExpr[i - 1].base.interBytes);
   }
 
   setCtxTagColumnInfo(pFuncCtx, numOfOutput);
@@ -3718,6 +3716,9 @@ static int32_t doCopyToSDataBlock(SQueryRuntimeEnv* pRuntimeEnv, SGroupResInfo* 
     }
 
     int32_t numOfRowsToCopy = pRow->numOfRows;
+    if (numOfResult + numOfRowsToCopy  >= pRuntimeEnv->resultInfo.capacity) { 
+      break; 
+    }
 
     pGroupResInfo->index += 1;
 
@@ -6108,7 +6109,14 @@ SOperatorInfo* createGroupbyOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperato
   SGroupbyOperatorInfo* pInfo = calloc(1, sizeof(SGroupbyOperatorInfo));
   pInfo->colIndex = -1;  // group by column index
 
+   
   pInfo->binfo.pCtx = createSQLFunctionCtx(pRuntimeEnv, pExpr, numOfOutput, &pInfo->binfo.rowCellInfoOffset);
+
+  SQueryAttr *pQueryAttr = pRuntimeEnv->pQueryAttr;
+
+  pQueryAttr->resultRowSize = (pQueryAttr->resultRowSize *
+      (int32_t)(GET_ROW_PARAM_FOR_MULTIOUTPUT(pQueryAttr, pQueryAttr->topBotQuery, pQueryAttr->stableQuery)));
+
   pInfo->binfo.pRes = createOutputBuf(pExpr, numOfOutput, pRuntimeEnv->resultInfo.capacity);
   initResultRowInfo(&pInfo->binfo.resultRowInfo, 8, TSDB_DATA_TYPE_INT);
 
