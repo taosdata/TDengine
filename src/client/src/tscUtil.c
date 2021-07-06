@@ -3030,6 +3030,7 @@ int32_t tscQueryInfoCopy(SQueryInfo* pQueryInfo, const SQueryInfo* pSrc) {
   pQueryInfo->numOfTables    = 0;
   pQueryInfo->window         = pSrc->window;
   pQueryInfo->sessionWindow  = pSrc->sessionWindow;
+  pQueryInfo->globalMerge    = pSrc->globalMerge;
   pQueryInfo->pTableMetaInfo = NULL;
 
   pQueryInfo->bufLen         = pSrc->bufLen;
