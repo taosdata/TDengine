@@ -13,30 +13,8 @@
 #include "szd_float.h"
 #include "TightDataPointStorageF.h"
 #include "sz.h"
-#include "Huffman.h"
-#include "szd_float_pwr.h"
 #include "utility.h"
-
-
-//struct timeval startTime_;
-//struct timeval endTime_;  /* Start and end times */
-//struct timeval costStart_; /*only used for recording the cost*/
-//double totalCost_ = 0;
-
-/*void cost_start_()
-{
-	totalCost_ = 0;
-	gettimeofday(&costStart_, NULL);
-}
-
-void cost_end_()
-{
-	double elapsed;
-	struct timeval costEnd;
-	gettimeofday(&costEnd, NULL);
-	elapsed = ((costEnd.tv_sec*1000000+costEnd.tv_usec)-(costStart_.tv_sec*1000000+costStart_.tv_usec))/1000000.0;
-	totalCost_ += elapsed;
-}*/
+#include "Huffman.h"
 
 
 /**
@@ -95,10 +73,13 @@ int SZ_decompress_args_float(float* newData, size_t r1, unsigned char* cmpBytes,
 	//pde_params->sol_ID = szTmpBytes[1+3-2+14-4]; //szTmpBytes: version(1bytes), samebyte(1byte), [14-4]:sol_ID=SZ or SZ_Transpose
 		
 	//TODO: convert szTmpBytes to data array.
-	TightDataPointStorageF* tdps;
+	TightDataPointStorageF* tdps = NULL;
 	int errBoundMode = new_TightDataPointStorageF_fromFlatBytes(&tdps, szTmpBytes, tmpSize, pde_exe, pde_params);
+	if(tdps == NULL)
+	{
+		return SZ_FORMAT_ERR;
+	}
 	
-	//writeByteData(tdps->typeArray, tdps->typeArray_size, "decompress-typebytes.tbt");
 	int floatSize = sizeof(float);
 	if(tdps->isLossless)
 	{
@@ -145,14 +126,14 @@ void decompressDataSeries_float_1D(float* data, size_t dataSeriesLength, float* 
 								// leadNum
 	unsigned char* leadNum;
 	float interval = tdps->realPrecision*2;
-	
+    	
 	convertByteArray2IntArray_fast_2b(tdps->exactDataNum, tdps->leadNumArray, tdps->leadNumArray_size, &leadNum);
 	//data = (float*)malloc(sizeof(float)*dataSeriesLength); // comment by tickduan 
-
-	int* type = (int*)malloc(dataSeriesLength*sizeof(int));
 	
+	// type tree
+	int* types = (int*)malloc(dataSeriesLength*sizeof(int));
 	HuffmanTree* huffmanTree = createHuffmanTree(tdps->stateNum);
-	decode_withTree(huffmanTree, tdps->typeArray, dataSeriesLength, type);
+	decode_withTree(huffmanTree, tdps->typeArray, dataSeriesLength, types);
 	SZ_ReleaseHuffman(huffmanTree);	
 
 	unsigned char preBytes[4];
@@ -167,12 +148,15 @@ void decompressDataSeries_float_1D(float* data, size_t dataSeriesLength, float* 
 	
 	reqBytesLength = tdps->reqLength/8;
 	resiBitsLength = tdps->reqLength%8;
-	medianValue = tdps->medianValue;
+	medianValue = tdps->medianValue;	
 	
-	int type_;
-	for (i = 0; i < dataSeriesLength; i++) {	
-		type_ = type[i];
-		switch (type_) {
+	// decompress core
+    int type;
+	for (i = 0; i < dataSeriesLength; i++) 
+	{	
+		type = types[i];
+		switch (type) 
+		{
 		case 0:
 			// compute resiBits
 			resiBits = 0;
@@ -218,147 +202,30 @@ void decompressDataSeries_float_1D(float* data, size_t dataSeriesLength, float* 
 		default:
 			//predValue = 2 * data[i-1] - data[i-2];
 			predValue = data[i-1];
-			data[i] = predValue + (float)(type_-intvRadius)*interval;
+			data[i] = predValue + (float)(type - intvRadius) * interval;
 			break;
 		}
 		//printf("%.30G\n",data[i]);
 	}
 	
 	free(leadNum);
-	free(type);
+	free(types);
 	return;
 }
-
-/*MSST19*/
-void decompressDataSeries_float_1D_MSST19(float* data, size_t dataSeriesLength, TightDataPointStorageF* tdps) 
-{
-	//updateQuantizationInfo(tdps->intervals);
-	int intvRadius = tdps->intervals/2;
-	int intvCapacity = tdps->intervals;
-	size_t i, j, k = 0, p = 0, l = 0; // k is to track the location of residual_bit
-								// in resiMidBits, p is to track the
-								// byte_index of resiMidBits, l is for
-								// leadNum
-	unsigned char* leadNum;
-	//double interval = tdps->realPrecision*2;
-	
-	convertByteArray2IntArray_fast_2b(tdps->exactDataNum, tdps->leadNumArray, tdps->leadNumArray_size, &leadNum);
-	//  *data = (float*)malloc(sizeof(float)*dataSeriesLength); comment by tickduan
-
-	int* type = (int*)malloc(dataSeriesLength*sizeof(int));
-	
-	HuffmanTree* huffmanTree = createHuffmanTree(tdps->stateNum);
-	decode_withTree_MSST19(huffmanTree, tdps->typeArray, dataSeriesLength, type, tdps->max_bits);
-	SZ_ReleaseHuffman(huffmanTree);	
-	unsigned char preBytes[4];
-	unsigned char curBytes[4];
-	
-	memset(preBytes, 0, 4);
-
-	size_t curByteIndex = 0;
-	int reqBytesLength, resiBitsLength, resiBits; 
-	unsigned char leadingNum;	
-	float exactData, predValue = 0;
-	reqBytesLength = tdps->reqLength/8;
-	resiBitsLength = tdps->reqLength%8;
-	//float threshold = tdps->minLogValue;
-	double* precisionTable = (double*)malloc(sizeof(double) * intvCapacity);
-	double inv = 2.0-pow(2, -(tdps->plus_bits));
-	for(int i=0; i<intvCapacity; i++){
-		double test = pow((1+tdps->realPrecision), inv*(i - intvRadius));
-		precisionTable[i] = test;
-	}
-
-	int type_;
-	for (i = 0; i < dataSeriesLength; i++) {
-		type_ = type[i];
-		switch (type_) {
-		case 0:
-			// compute resiBits
-			resiBits = 0;
-			if (resiBitsLength != 0) {
-				int kMod8 = k % 8;
-				int rightMovSteps = getRightMovingSteps(kMod8, resiBitsLength);
-				if (rightMovSteps > 0) {
-					int code = getRightMovingCode(kMod8, resiBitsLength);
-					resiBits = (tdps->residualMidBits[p] & code) >> rightMovSteps;
-				} else if (rightMovSteps < 0) {
-					int code1 = getLeftMovingCode(kMod8);
-					int code2 = getRightMovingCode(kMod8, resiBitsLength);
-					int leftMovSteps = -rightMovSteps;
-					rightMovSteps = 8 - leftMovSteps;
-					resiBits = (tdps->residualMidBits[p] & code1) << leftMovSteps;
-					p++;
-					resiBits = resiBits
-							| ((tdps->residualMidBits[p] & code2) >> rightMovSteps);
-				} else // rightMovSteps == 0
-				{
-					int code = getRightMovingCode(kMod8, resiBitsLength);
-					resiBits = (tdps->residualMidBits[p] & code);
-					p++;
-				}
-				k += resiBitsLength;
-			}
-
-			// recover the exact data	
-			memset(curBytes, 0, 4);
-			leadingNum = leadNum[l++];
-			memcpy(curBytes, preBytes, leadingNum);
-			for (j = leadingNum; j < reqBytesLength; j++)
-				curBytes[j] = tdps->exactMidBytes[curByteIndex++];
-			if (resiBitsLength != 0) {
-				unsigned char resiByte = (unsigned char) (resiBits << (8 - resiBitsLength));
-				curBytes[reqBytesLength] = resiByte;
-			}
-			
-			exactData = bytesToFloat(curBytes);
-			data[i] = exactData;
-			memcpy(preBytes,curBytes,4);
-			predValue = data[i];
-			break;
-		default:
-			//predValue = 2 * data[i-1] - data[i-2];
-			//predValue = data[i-1];
-			predValue = fabs(predValue) * precisionTable[type_];			
-			data[i] = predValue;
-			break;
-		}
-		//printf("%.30G\n",data[i]);
-	}
-	
-	free(precisionTable);
-	free(leadNum);
-	free(type);
-	return;
-}
-
 
 void getSnapshotData_float_1D(float* data, size_t dataSeriesLength, TightDataPointStorageF* tdps, int errBoundMode, int compressionType, float* hist_data, sz_params* pde_params)
 {	
 	size_t i;
 
-	if (tdps->allSameData) {
+	if (tdps->allSameData) 
+	{
 		float value = bytesToFloat(tdps->exactMidBytes);
 		//*data = (float*)malloc(sizeof(float)*dataSeriesLength); commnet by tickduan
 		for (i = 0; i < dataSeriesLength; i++)
 			data[i] = value;
-	} else {
-		if (tdps->rtypeArray == NULL) {
-			if(errBoundMode < PW_REL)
-			{			
-				decompressDataSeries_float_1D(data, dataSeriesLength, hist_data, tdps);
-			}
-			else 
-			{
-				if(pde_params->accelerate_pw_rel_compression)
-					decompressDataSeries_float_1D_pwr_pre_log_MSST19(data, dataSeriesLength, tdps);
-				else
-					decompressDataSeries_float_1D_pwr_pre_log(data, dataSeriesLength, tdps);
-				//decompressDataSeries_float_1D_pwrgroup(data, dataSeriesLength, tdps);
-			}
-			return;
-		} else { //the special version supporting one value to reserve
-			//TODO
-		}
+	} 
+	else 
+	{
+	   decompressDataSeries_float_1D(data, dataSeriesLength, hist_data, tdps);
 	}
 }

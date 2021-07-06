@@ -18,83 +18,7 @@
 #include "CompressElement.h"
 #include "dataCompression.h"
 
-int computeByteSizePerIntValue(long valueRangeSize)
-{
-	if(valueRangeSize<=256)
-		return 1;
-	else if(valueRangeSize<=65536)
-		return 2;
-	else if(valueRangeSize<=4294967296) //2^32
-		return 4;
-	else
-		return 8;
-}
 
-long computeRangeSize_int(void* oriData, int dataType, size_t size, int64_t* valueRangeSize)
-{
-	size_t i = 0;
-	long max = 0, min = 0;
-
-	if(dataType==SZ_UINT8)
-	{
-		unsigned char* data = (unsigned char*)oriData;
-		unsigned char data_; 
-		min = data[0], max = min;
-		computeMinMax(data);
-	}
-	else if(dataType == SZ_INT8)
-	{
-		char* data = (char*)oriData;
-		char data_;
-		min = data[0], max = min;
-		computeMinMax(data);
-	}
-	else if(dataType == SZ_UINT16)
-	{
-		unsigned short* data = (unsigned short*)oriData;
-		unsigned short data_; 
-		min = data[0], max = min;
-		computeMinMax(data);
-	}
-	else if(dataType == SZ_INT16)
-	{ 
-		short* data = (short*)oriData;
-		short data_; 
-		min = data[0], max = min;
-		computeMinMax(data);
-	}
-	else if(dataType == SZ_UINT32)
-	{
-		unsigned int* data = (unsigned int*)oriData;
-		unsigned int data_; 
-		min = data[0], max = min;
-		computeMinMax(data);
-	}
-	else if(dataType == SZ_INT32)
-	{
-		int* data = (int*)oriData;
-		int data_; 
-		min = data[0], max = min;
-		computeMinMax(data);
-	}
-	else if(dataType == SZ_UINT64)
-	{
-		unsigned long* data = (unsigned long*)oriData;
-		unsigned long data_; 
-		min = data[0], max = min;
-		computeMinMax(data);
-	}
-	else if(dataType == SZ_INT64)
-	{
-		long* data = (long *)oriData;
-		long data_; 
-		min = data[0], max = min;
-		computeMinMax(data);
-	}
-
-	*valueRangeSize = max - min;
-	return min;	
-}
 
 float computeRangeSize_float(float* oriData, size_t size, float* valueRangeSize, float* medianValue)
 {
@@ -115,34 +39,6 @@ float computeRangeSize_float(float* oriData, size_t size, float* valueRangeSize,
 	return min;
 }
 
-float computeRangeSize_float_MSST19(float* oriData, size_t size, float* valueRangeSize, float* medianValue, unsigned char * signs, bool* positive, float* nearZero)
-{
-    size_t i = 0;
-    float min = oriData[0];
-    float max = min;
-    *nearZero = min;
-
-    for(i=1;i<size;i++)
-    {
-        float data = oriData[i];
-        if(data <0){
-            signs[i] = 1;
-            *positive = false;
-        }
-        if(oriData[i] != 0 && fabsf(oriData[i]) < fabsf(*nearZero)){
-            *nearZero = oriData[i];
-        }
-        if(min>data)
-            min = data;
-        else if(max<data)
-            max = data;
-    }
-
-    *valueRangeSize = max - min;
-    *medianValue = min + *valueRangeSize/2;
-    return min;
-}
-
 double computeRangeSize_double(double* oriData, size_t size, double* valueRangeSize, double* medianValue)
 {
 	size_t i = 0;
@@ -161,94 +57,6 @@ double computeRangeSize_double(double* oriData, size_t size, double* valueRangeS
 	*medianValue = min + *valueRangeSize/2;
 	return min;
 }
-
-double computeRangeSize_double_MSST19(double* oriData, size_t size, double* valueRangeSize, double* medianValue, unsigned char * signs, bool* positive, double* nearZero)
-{
-    size_t i = 0;
-    double min = oriData[0];
-    double max = min;
-    *nearZero = min;
-
-    for(i=1;i<size;i++)
-    {
-        double data = oriData[i];
-        if(data <0){
-            signs[i] = 1;
-            *positive = false;
-        }
-        if(oriData[i] != 0 && fabs(oriData[i]) < fabs(*nearZero)){
-            *nearZero = oriData[i];
-        }
-        if(min>data)
-            min = data;
-        else if(max<data)
-            max = data;
-    }
-
-    *valueRangeSize = max - min;
-    *medianValue = min + *valueRangeSize/2;
-    return min;
-}
-
-float computeRangeSize_float_subblock(float* oriData, float* valueRangeSize, float* medianValue,
-size_t r5, size_t r4, size_t r3, size_t r2, size_t r1,
-size_t s5, size_t s4, size_t s3, size_t s2, size_t s1,
-size_t e5, size_t e4, size_t e3, size_t e2, size_t e1)
-{
-	size_t i1, i2, i3, i4, i5;
-	size_t index_start = s5*(r4*r3*r2*r1) + s4*(r3*r2*r1) + s3*(r2*r1) + s2*r1 + s1;
-	float min = oriData[index_start];
-	float max = min;
-
-	for (i5 = s5; i5 <= e5; i5++)
-	for (i4 = s4; i4 <= e4; i4++)
-	for (i3 = s3; i3 <= e3; i3++)
-	for (i2 = s2; i2 <= e2; i2++)
-	for (i1 = s1; i1 <= e1; i1++)
-	{
-		size_t index = i5*(r4*r3*r2*r1) + i4*(r3*r2*r1) + i3*(r2*r1) + i2*r1 + i1;
-		float data = oriData[index];
-		if (min>data)
-			min = data;
-		else if(max<data)
-			max = data;
-	}
-
-	*valueRangeSize = max - min;
-	*medianValue = min + *valueRangeSize/2;
-	return min;
-}
-
-
-double computeRangeSize_double_subblock(double* oriData, double* valueRangeSize, double* medianValue,
-size_t r5, size_t r4, size_t r3, size_t r2, size_t r1,
-size_t s5, size_t s4, size_t s3, size_t s2, size_t s1,
-size_t e5, size_t e4, size_t e3, size_t e2, size_t e1)
-{
-	size_t i1, i2, i3, i4, i5;
-	size_t index_start = s5*(r4*r3*r2*r1) + s4*(r3*r2*r1) + s3*(r2*r1) + s2*r1 + s1;
-	double min = oriData[index_start];
-	double max = min;
-
-	for (i5 = s5; i5 <= e5; i5++)
-	for (i4 = s4; i4 <= e4; i4++)
-	for (i3 = s3; i3 <= e3; i3++)
-	for (i2 = s2; i2 <= e2; i2++)
-	for (i1 = s1; i1 <= e1; i1++)
-	{
-		size_t index = i5*(r4*r3*r2*r1) + i4*(r3*r2*r1) + i3*(r2*r1) + i2*r1 + i1;
-		double data = oriData[index];
-		if (min>data)
-			min = data;
-		else if(max<data)
-			max = data;
-	}
-
-	*valueRangeSize = max - min;
-	*medianValue = min + *valueRangeSize/2;
-	return min;
-}
-
 
 double min_d(double a, double b)
 {
@@ -388,66 +196,6 @@ inline void symTransform_4bytes(unsigned char data[4])
 	data[2] = tmp;
 }
 
-inline void compressInt8Value(int8_t tgtValue, int8_t minValue, int byteSize, unsigned char* bytes)
-{
-	uint8_t data = tgtValue - minValue;
-	memcpy(bytes, &data, byteSize); //byteSize==1
-}
-
-inline void compressInt16Value(int16_t tgtValue, int16_t minValue, int byteSize, unsigned char* bytes)
-{
-	uint16_t data = tgtValue - minValue;
-	unsigned char tmpBytes[2];
-	int16ToBytes_bigEndian(tmpBytes, data);
-	memcpy(bytes, tmpBytes + 2 - byteSize, byteSize);
-}
-
-inline void compressInt32Value(int32_t tgtValue, int32_t minValue, int byteSize, unsigned char* bytes)
-{
-	uint32_t data = tgtValue - minValue;
-	unsigned char tmpBytes[4];
-	int32ToBytes_bigEndian(tmpBytes, data);
-	memcpy(bytes, tmpBytes + 4 - byteSize, byteSize);
-}
-
-inline void compressInt64Value(int64_t tgtValue, int64_t minValue, int byteSize, unsigned char* bytes)
-{
-	uint64_t data = tgtValue - minValue;
-	unsigned char tmpBytes[8];
-	int64ToBytes_bigEndian(tmpBytes, data);
-	memcpy(bytes, tmpBytes + 8 - byteSize, byteSize);
-}
-
-inline void compressUInt8Value(uint8_t tgtValue, uint8_t minValue, int byteSize, unsigned char* bytes)
-{
-	uint8_t data = tgtValue - minValue;
-	memcpy(bytes, &data, byteSize); //byteSize==1
-}
-
-inline void compressUInt16Value(uint16_t tgtValue, uint16_t minValue, int byteSize, unsigned char* bytes)
-{
-	uint16_t data = tgtValue - minValue;
-	unsigned char tmpBytes[2];
-	int16ToBytes_bigEndian(tmpBytes, data);
-	memcpy(bytes, tmpBytes + 2 - byteSize, byteSize);
-}
-
-inline void compressUInt32Value(uint32_t tgtValue, uint32_t minValue, int byteSize, unsigned char* bytes)
-{
-	uint32_t data = tgtValue - minValue;
-	unsigned char tmpBytes[4];
-	int32ToBytes_bigEndian(tmpBytes, data);
-	memcpy(bytes, tmpBytes + 4 - byteSize, byteSize);
-}
-
-inline void compressUInt64Value(uint64_t tgtValue, uint64_t minValue, int byteSize, unsigned char* bytes)
-{
-	uint64_t data = tgtValue - minValue;
-	unsigned char tmpBytes[8];
-	int64ToBytes_bigEndian(tmpBytes, data);
-	memcpy(bytes, tmpBytes + 8 - byteSize, byteSize);
-}
-
 inline void compressSingleFloatValue(FloatValueCompressElement *vce, float oriValue, float precision, float medianValue, 
 		int reqLength, int reqBytesLength, int resiBitsLength)
 {		
@@ -470,52 +218,6 @@ inline void compressSingleFloatValue(FloatValueCompressElement *vce, float oriVa
 	vce->curValue       = diffVal.ivalue;
 	vce->reqBytesLength = reqBytesLength;
 	vce->resiBitsLength = resiBitsLength;
-}
-
-void compressSingleFloatValue_MSST19(FloatValueCompressElement *vce, float tgtValue, float precision, int reqLength, int reqBytesLength, int resiBitsLength)
-{
-    float normValue = tgtValue;
-
-    lfloat lfBuf;
-    lfBuf.value = normValue;
-
-    int ignBytesLength = 32 - reqLength;
-    if(ignBytesLength<0)
-        ignBytesLength = 0;
-
-    int tmp_int = lfBuf.ivalue;
-    intToBytes_bigEndian(vce->curBytes, tmp_int);
-
-    lfBuf.ivalue = (lfBuf.ivalue >> ignBytesLength) << ignBytesLength;
-
-    //float tmpValue = lfBuf.value;
-
-    vce->data = lfBuf.value;
-    vce->curValue = tmp_int;
-    vce->reqBytesLength = reqBytesLength;
-    vce->resiBitsLength = resiBitsLength;
-}
-
-void compressSingleDoubleValue_MSST19(DoubleValueCompressElement *vce, double tgtValue, double precision, int reqLength, int reqBytesLength, int resiBitsLength)
-{
-    ldouble lfBuf;
-    lfBuf.value = tgtValue;
-
-    int ignBytesLength = 64 - reqLength;
-    if(ignBytesLength<0)
-        ignBytesLength = 0;
-
-    long tmp_long = lfBuf.lvalue;
-    longToBytes_bigEndian(vce->curBytes, tmp_long);
-
-    lfBuf.lvalue = (lfBuf.lvalue >> ignBytesLength) << ignBytesLength;
-
-    //float tmpValue = lfBuf.value;
-
-    vce->data = lfBuf.value;
-    vce->curValue = tmp_long;
-    vce->reqBytesLength = reqBytesLength;
-    vce->resiBitsLength = resiBitsLength;
 }
 
 void compressSingleDoubleValue(DoubleValueCompressElement *vce, double tgtValue, double precision, double medianValue, 

@@ -12,8 +12,8 @@
 #include <string.h>
 #include "TightDataPointStorageF.h"
 #include "sz.h"
+#include "defines.h"
 #include "Huffman.h"
-//#include "rw.h"
 
 void new_TightDataPointStorageF_Empty(TightDataPointStorageF **this)
 {
@@ -24,12 +24,6 @@ void new_TightDataPointStorageF_Empty(TightDataPointStorageF **this)
 	(*this)->reservedValue = 0;
 	(*this)->reqLength = 0;
 	(*this)->radExpo = 0;
-
-	(*this)->rtypeArray = NULL;
-	(*this)->rtypeArray_size = 0;
-
-	(*this)->typeArray = NULL; //its size is dataSeriesLength/4 (or xxx/4+1) 
-	(*this)->typeArray_size = 0;
 
 	(*this)->leadNumArray = NULL; //its size is exactDataNum/4 (or exactDataNum/4+1)
 	(*this)->leadNumArray_size = 0;
@@ -44,8 +38,6 @@ void new_TightDataPointStorageF_Empty(TightDataPointStorageF **this)
 	(*this)->isLossless = 0;
 	
 	(*this)->segment_size = 0;
-	(*this)->pwrErrBoundBytes = NULL;
-	(*this)->pwrErrBoundBytes_size = 0;	
 	
 	(*this)->raBytes = NULL;
 	(*this)->raBytes_size = 0;
@@ -55,47 +47,38 @@ int new_TightDataPointStorageF_fromFlatBytes(TightDataPointStorageF **this, unsi
 {
 	new_TightDataPointStorageF_Empty(this);
 	size_t i, index = 0;
-	size_t pwrErrBoundBytes_size = 0, segmentL = 0, radExpoL = 0, pwrErrBoundBytesL = 0;
+
+	//
+	// parse tdps
+	//
+
+	// 1 version(1)
 	unsigned char version = flatBytes[index++]; //1
 	unsigned char sameRByte = flatBytes[index++]; //1
-	if(checkVersion(version) != 1)
+
+    // parse data format
+	switch (version)
 	{
-		//wrong version
-		printf("Wrong version: \nCompressed-data version =%d , program version=%d \n", version, versionNumber);
-		return 0;
-	}
-															      //note that 1000,0000 is reserved for regression tag.
+	case DATA_FROMAT_VER1:
+		break;
+	default:
+	    printf(" error, float compressed data format can not be recognised. ver=%d\n ", version);
+		return SZ_ABS;
+	}	
+	
+	// 2 same(1)														      //note that 1000,0000 is reserved for regression tag.
 	int same = sameRByte & 0x01; 											//0000,0001
-	(*this)->isLossless = (sameRByte & 0x10)>>4; 							//0001,0000
-	int isPW_REL = (sameRByte & 0x20)>>5; 									//0010,0000
-	exe_params->SZ_SIZE_TYPE = ((sameRByte & 0x40)>>6)==1?8:4; 				//0100,0000
-	//pde_params->randomAccess = (sameRByte & 0x02) >> 1;
-	//pde_params->szMode = (sameRByte & 0x06) >> 1;			//0000,0110 (in fact, this szMode could be removed because convertSZParamsToBytes will overwrite it)
-	
-	//pde_params->protectValueRange = (sameRByte & 0x04)>>2;
-	
-	pde_params->accelerate_pw_rel_compression = (sameRByte & 0x08) >> 3;//0000,1000
-
+	(*this)->isLossless = (sameRByte & 0x10)>>4; 							//0001,0000								//0010,0000
+	exe_params->SZ_SIZE_TYPE = ((sameRByte & 0x40)>>6)==1?8:4; 				//0100,0000	
 	int errorBoundMode = SZ_ABS;
-	if(isPW_REL)
-	{
-		errorBoundMode = PW_REL;
-		segmentL = exe_params->SZ_SIZE_TYPE;
-		pwrErrBoundBytesL = 4;
-	}
-	
-
+    // 3 meta(2)   
 	convertBytesToSZParams(&(flatBytes[index]), pde_params, pde_exe);
-	
 	index += MetaDataByteLength;
-
-	int isRegression = (sameRByte >> 7) & 0x01;
-	
+    // 4 element count(4)
 	unsigned char dsLengthBytes[8];
 	for (i = 0; i < exe_params->SZ_SIZE_TYPE; i++)
 		dsLengthBytes[i] = flatBytes[index++];
-	(*this)->dataSeriesLength = bytesToSize(dsLengthBytes);// 4 or 8	
-	
+	(*this)->dataSeriesLength = bytesToSize(dsLengthBytes);// 4 or 8		
 	if((*this)->isLossless==1)
 	{
 		//(*this)->exactMidBytes = flatBytes+8;
@@ -110,90 +93,48 @@ int new_TightDataPointStorageF_fromFlatBytes(TightDataPointStorageF **this, unsi
 	}
 	else
 		(*this)->allSameData = 0;
+    // regression  
+    int isRegression = (sameRByte >> 7) & 0x01;
 	if(isRegression == 1)
 	{
 		(*this)->raBytes_size = flatBytesLength - 1 - 1 - MetaDataByteLength - exe_params->SZ_SIZE_TYPE;
 		(*this)->raBytes = &(flatBytes[index]);
 		return errorBoundMode;
 	}			
-
-	int rtype_ = 0;//sameRByte & 0x08;		//=00001000
+    // 5 quant intervals(4)   
 	unsigned char byteBuf[8];
-
 	for (i = 0; i < 4; i++)
 		byteBuf[i] = flatBytes[index++];
 	int max_quant_intervals = bytesToInt_bigEndian(byteBuf);// 4	
-
 	pde_params->maxRangeRadius = max_quant_intervals/2;
-
-	if(errorBoundMode>=PW_REL)
-	{
-		(*this)->radExpo = flatBytes[index++];//1
-		radExpoL = 1;
-		for (i = 0; i < exe_params->SZ_SIZE_TYPE; i++)
-			byteBuf[i] = flatBytes[index++];
-		pde_params->segment_size = (*this)->segment_size = bytesToSize(byteBuf);// exe_params->SZ_SIZE_TYPE	
-
-		for (i = 0; i < 4; i++)
-			byteBuf[i] = flatBytes[index++];
-		pwrErrBoundBytes_size = (*this)->pwrErrBoundBytes_size = bytesToInt_bigEndian(byteBuf);// 4		
-	}
-	else
-	{
-		pwrErrBoundBytes_size = 0;
-		(*this)->pwrErrBoundBytes = NULL;
-	}
+    // 6 intervals
 	for (i = 0; i < 4; i++)
 		byteBuf[i] = flatBytes[index++];
 	(*this)->intervals = bytesToInt_bigEndian(byteBuf);// 4	
-
+    // 7 median
 	for (i = 0; i < 4; i++)
 		byteBuf[i] = flatBytes[index++];
 	(*this)->medianValue = bytesToFloat(byteBuf); //4
-	
+	// 8 reqLength
 	(*this)->reqLength = flatBytes[index++]; //1
-	
-	if(isPW_REL && pde_params->accelerate_pw_rel_compression)
-	{
-		(*this)->plus_bits = flatBytes[index++];
-		(*this)->max_bits = flatBytes[index++];
-	}
-	
+	// 9 realPrecision(8)
 	for (i = 0; i < 8; i++)
 		byteBuf[i] = flatBytes[index++];
 	(*this)->realPrecision = bytesToDouble(byteBuf);//8
-
+	// 10 typeArray_size
 	for (i = 0; i < exe_params->SZ_SIZE_TYPE; i++)
 		byteBuf[i] = flatBytes[index++];
 	(*this)->typeArray_size = bytesToSize(byteBuf);// 4		
-	if(rtype_!=0)
-	{
-		for(i = 0;i<exe_params->SZ_SIZE_TYPE;i++) 
-			byteBuf[i] = flatBytes[index++];
-		(*this)->rtypeArray_size = bytesToSize(byteBuf);//(ST)
-	}
-	else
-		(*this)->rtypeArray_size = 0;
-
+    // 11 exactNum
 	for (i = 0; i < exe_params->SZ_SIZE_TYPE; i++)
-		byteBuf[i] = flatBytes[index++];
+		byteBuf[i] = flatBytes[index++];    
 	(*this)->exactDataNum = bytesToSize(byteBuf);// ST
-
+    // 12 mid size
 	for (i = 0; i < exe_params->SZ_SIZE_TYPE; i++)
 		byteBuf[i] = flatBytes[index++];
 	(*this)->exactMidBytes_size = bytesToSize(byteBuf);// ST
-
-	if (rtype_ != 0) {
-		if((*this)->rtypeArray_size>0)
-			(*this)->rtypeArray = (unsigned char*)malloc(sizeof(unsigned char)*(*this)->rtypeArray_size);
-		else
-			(*this)->rtypeArray = NULL;
-
-		for (i = 0; i < 4; i++)
-			byteBuf[i] = flatBytes[index++];
-		(*this)->reservedValue = bytesToFloat(byteBuf);//4
-	}
-    // leadNum size calc from exactDataNum
+    
+	// calc leadNumArray_size
 	size_t logicLeadNumBitsNum = (*this)->exactDataNum * 2;
 	if (logicLeadNumBitsNum % 8 == 0)
 	{
@@ -202,57 +143,29 @@ int new_TightDataPointStorageF_fromFlatBytes(TightDataPointStorageF **this, unsi
 	else
 	{
 		(*this)->leadNumArray_size = (logicLeadNumBitsNum >> 3) + 1;
-	}
+	}	
 
-	int minLogValueSize = 0;
-	if(errorBoundMode>=PW_REL)
-		minLogValueSize = 4;
-
-	if ((*this)->rtypeArray != NULL) 
-	{
-		 // modify from -3 -1 to -1 -1  tickduan
-		(*this)->residualMidBits_size = flatBytesLength - 1 - 1 - MetaDataByteLength - exe_params->SZ_SIZE_TYPE - 4 - radExpoL - segmentL - pwrErrBoundBytesL - 4 - 4 - 1 - 8 
-				- exe_params->SZ_SIZE_TYPE - exe_params->SZ_SIZE_TYPE - exe_params->SZ_SIZE_TYPE - minLogValueSize - exe_params->SZ_SIZE_TYPE - 4 - (*this)->rtypeArray_size
-				- minLogValueSize - (*this)->typeArray_size - (*this)->leadNumArray_size
-				- (*this)->exactMidBytes_size - pwrErrBoundBytes_size - 1 - 1;
-		for (i = 0; i < (*this)->rtypeArray_size; i++)
-			(*this)->rtypeArray[i] = flatBytes[index++];
-	}
-	else
-	{
-		(*this)->residualMidBits_size = flatBytesLength - 1 - 1 - MetaDataByteLength - exe_params->SZ_SIZE_TYPE - 4 - radExpoL - segmentL - pwrErrBoundBytesL - 4 - 4 - 1 - 8 
-				- exe_params->SZ_SIZE_TYPE - exe_params->SZ_SIZE_TYPE - exe_params->SZ_SIZE_TYPE - minLogValueSize - (*this)->typeArray_size
-				- (*this)->leadNumArray_size - (*this)->exactMidBytes_size - pwrErrBoundBytes_size - 1 - 1;
-	}
-
-	if(errorBoundMode>=PW_REL)
-	{
-		(*this)->minLogValue = bytesToFloat(&flatBytes[index]);
-		index+=4;
-	}
-
+    // 13 typeArray
 	(*this)->typeArray = &flatBytes[index]; 
 	//retrieve the number of states (i.e., stateNum)
 	(*this)->allNodes = bytesToInt_bigEndian((*this)->typeArray); //the first 4 bytes store the stateNum
 	(*this)->stateNum = ((*this)->allNodes+1)/2;	
-
 	index+=(*this)->typeArray_size;
-	
-	(*this)->pwrErrBoundBytes = &flatBytes[index];
-	
-	index+=pwrErrBoundBytes_size;
-	
+
+    // 14 leadNumArray
 	(*this)->leadNumArray = &flatBytes[index];
-	
-	index+=(*this)->leadNumArray_size;
-	
+	index += (*this)->leadNumArray_size;
+	// 15 exactMidBytes
 	(*this)->exactMidBytes = &flatBytes[index];
-	
 	index+=(*this)->exactMidBytes_size;
-	
+	// 16 residualMidBits
 	(*this)->residualMidBits = &flatBytes[index];
+
+    // calc residualMidBits_size
+	(*this)->residualMidBits_size = flatBytesLength - 1 - 1 - MetaDataByteLength - exe_params->SZ_SIZE_TYPE - 4 - 4 - 4 - 1 - 8 
+			- exe_params->SZ_SIZE_TYPE - exe_params->SZ_SIZE_TYPE - exe_params->SZ_SIZE_TYPE
+			- (*this)->leadNumArray_size - (*this)->exactMidBytes_size - (*this)->typeArray_size;	
 	
-	//index+=(*this)->residualMidBits_size;
 	
 	return errorBoundMode;
 }
@@ -272,7 +185,7 @@ void new_TightDataPointStorageF(TightDataPointStorageF **this,
 		unsigned char* resiMidBits, size_t resiMidBits_size,
 		unsigned char resiBitLength, 
 		double realPrecision, float medianValue, char reqLength, unsigned int intervals, 
-		unsigned char* pwrErrBoundBytes, size_t pwrErrBoundBytes_size, unsigned char radExpo) {
+		unsigned char radExpo) {
 	
 	*this = (TightDataPointStorageF *)malloc(sizeof(TightDataPointStorageF));
 	(*this)->allSameData = 0;
@@ -283,9 +196,7 @@ void new_TightDataPointStorageF(TightDataPointStorageF **this,
 	(*this)->dataSeriesLength = dataSeriesLength;
 	(*this)->exactDataNum = exactDataNum;
 
-	(*this)->rtypeArray = NULL;
-	(*this)->rtypeArray_size = 0;
-
+    // encode type with huffMan
 	int stateNum = 2*intervals;
 	HuffmanTree* huffmanTree = createHuffmanTree(stateNum);
 	if(confparams_cpr->errorBoundMode == PW_REL && confparams_cpr->accelerate_pw_rel_compression)
@@ -293,7 +204,7 @@ void new_TightDataPointStorageF(TightDataPointStorageF **this,
 	else
 		encode_withTree(huffmanTree, type, dataSeriesLength, &(*this)->typeArray, &(*this)->typeArray_size);
 	SZ_ReleaseHuffman(huffmanTree);
-		
+
 	(*this)->exactMidBytes = exactMidBytes;
 	(*this)->exactMidBytes_size = exactMidBytes_size;
 
@@ -305,64 +216,7 @@ void new_TightDataPointStorageF(TightDataPointStorageF **this,
 	
 	(*this)->isLossless = 0;
 	
-	if(confparams_cpr->errorBoundMode>=PW_REL)
-		(*this)->pwrErrBoundBytes = pwrErrBoundBytes;
-	else
-		(*this)->pwrErrBoundBytes = NULL;
-		
 	(*this)->radExpo = radExpo;
-	
-	(*this)->pwrErrBoundBytes_size = pwrErrBoundBytes_size;
-}
-
-void new_TightDataPointStorageF2(TightDataPointStorageF **this,
-		size_t dataSeriesLength, size_t exactDataNum, 
-		int* type, unsigned char* exactMidBytes, size_t exactMidBytes_size,
-		unsigned char* leadNumIntArray,  //leadNumIntArray contains readable numbers....
-		unsigned char* resiMidBits, size_t resiMidBits_size,
-		unsigned char* resiBitLength, size_t resiBitLengthSize, 
-		double realPrecision, float medianValue, char reqLength, unsigned int intervals, 
-		unsigned char* pwrErrBoundBytes, size_t pwrErrBoundBytes_size, unsigned char radExpo) {
-	//int i = 0;
-	*this = (TightDataPointStorageF *)malloc(sizeof(TightDataPointStorageF));
-	(*this)->allSameData = 0;
-	(*this)->realPrecision = realPrecision;
-	(*this)->medianValue = medianValue;
-	(*this)->reqLength = reqLength;
-
-	(*this)->dataSeriesLength = dataSeriesLength;
-	(*this)->exactDataNum = exactDataNum;
-
-	(*this)->rtypeArray = NULL;
-	(*this)->rtypeArray_size = 0;
-
-	int stateNum = 2*intervals;
-	HuffmanTree* huffmanTree = createHuffmanTree(stateNum);
-	encode_withTree(huffmanTree, type, dataSeriesLength, &(*this)->typeArray, &(*this)->typeArray_size);
-	SZ_ReleaseHuffman(huffmanTree);
-	
-	(*this)->exactMidBytes = exactMidBytes;
-	(*this)->exactMidBytes_size = exactMidBytes_size;
-
-	(*this)->leadNumArray_size = convertIntArray2ByteArray_fast_2b(leadNumIntArray, exactDataNum, &((*this)->leadNumArray));
-
-	//(*this)->residualMidBits = resiMidBits;
-	//(*this)->residualMidBits_size = resiMidBits_size;
-
-	(*this)->residualMidBits_size = convertIntArray2ByteArray_fast_dynamic2(resiMidBits, resiBitLength, resiBitLengthSize, &((*this)->residualMidBits));
-	
-	(*this)->intervals = intervals;
-	
-	(*this)->isLossless = 0;
-	
-	if(confparams_cpr->errorBoundMode>=PW_REL)
-		(*this)->pwrErrBoundBytes = pwrErrBoundBytes;
-	else
-		(*this)->pwrErrBoundBytes = NULL;
-		
-	(*this)->radExpo = radExpo;
-	
-	(*this)->pwrErrBoundBytes_size = pwrErrBoundBytes_size;
 }
 
 void convertTDPStoBytes_float(TightDataPointStorageF* tdps, unsigned char* bytes, unsigned char* dsLengthBytes, unsigned char sameByte)
@@ -377,7 +231,6 @@ void convertTDPStoBytes_float(TightDataPointStorageF* tdps, unsigned char* bytes
 	unsigned char medianValueBytes[4];
 	
 	unsigned char segment_sizeBytes[8];
-	unsigned char pwrErrBoundBytes_sizeBytes[4];
 	unsigned char max_quant_intervals_Bytes[4];
 	
 	// 1 version
@@ -393,76 +246,43 @@ void convertTDPStoBytes_float(TightDataPointStorageF* tdps, unsigned char* bytes
 	intToBytes_bigEndian(max_quant_intervals_Bytes, confparams_cpr->max_quant_intervals);
 	// 5 max_quant_intervals length
 	for(i = 0;i<4;i++)//4
-		bytes[k++] = max_quant_intervals_Bytes[i];		
-	
-	if(confparams_cpr->errorBoundMode>=PW_REL)
-	{
-		// 6 range exponent
-		bytes[k++] = tdps->radExpo; //1 byte			
-		// 7 segmetn size
-		sizeToBytes(segment_sizeBytes, confparams_cpr->segment_size);
-		for(i = 0;i<exe_params->SZ_SIZE_TYPE;i++)//ST
-			bytes[k++] = segment_sizeBytes[i];				
-		// 8 pwrErrBoundBytes_size	
-		intToBytes_bigEndian(pwrErrBoundBytes_sizeBytes, tdps->pwrErrBoundBytes_size);
-		for(i = 0;i<4;i++)//4
-			bytes[k++] = pwrErrBoundBytes_sizeBytes[i];					
-	}
-	
-	// 9 intervals
+		bytes[k++] = max_quant_intervals_Bytes[i];			
+	// 6 intervals
 	intToBytes_bigEndian(intervalsBytes, tdps->intervals);
 	for(i = 0;i<4;i++)//4
-		bytes[k++] = intervalsBytes[i];			
-	
-	// 10 median
+		bytes[k++] = intervalsBytes[i];				
+	// 7 median
 	floatToBytes(medianValueBytes, tdps->medianValue);
 	for (i = 0; i < 4; i++)// 4
 		bytes[k++] = medianValueBytes[i];		
-    // 11 reqLength
+    // 8 reqLength
 	bytes[k++] = tdps->reqLength; //1 byte
-    // 12 plus max
-	if(confparams_cpr->errorBoundMode == PW_REL && confparams_cpr->accelerate_pw_rel_compression)
-	{
-		bytes[k++] = tdps->plus_bits;
-		bytes[k++] = tdps->max_bits;
-	}
-    // 13 realPrecision
+    // 9 realPrecision
 	doubleToBytes(realPrecisionBytes, tdps->realPrecision);
 	for (i = 0; i < 8; i++)// 8
-		bytes[k++] = realPrecisionBytes[i];			
-    // 14 typeArray size
+		bytes[k++] = realPrecisionBytes[i];		
+   // 10 typeArray size
 	sizeToBytes(typeArrayLengthBytes, tdps->typeArray_size);
 	for(i = 0;i<exe_params->SZ_SIZE_TYPE;i++)//ST
-		bytes[k++] = typeArrayLengthBytes[i];
-    // 15 exactDataNum  leadNum calc by this , so not save leadNum
+		bytes[k++] = typeArrayLengthBytes[i];			
+    // 11 exactDataNum  leadNum calc by this , so not save leadNum
 	sizeToBytes(exactLengthBytes, tdps->exactDataNum);
 	for(i = 0;i<exe_params->SZ_SIZE_TYPE;i++)//ST
 		bytes[k++] = exactLengthBytes[i];
-    // 16 Mid Length
+    // 12 Mid size
 	sizeToBytes(exactMidBytesLength, tdps->exactMidBytes_size);
 	for(i = 0;i<exe_params->SZ_SIZE_TYPE;i++)//ST
 		bytes[k++] = exactMidBytesLength[i];
-	if(confparams_cpr->errorBoundMode>=PW_REL)
-	{
-		floatToBytes(exactMidBytesLength, tdps->minLogValue);
-		for(i=0;i<4;i++)
-			bytes[k++] = exactMidBytesLength[i];
-	}
-    // 17 type data
+	// 13 typeArray	
 	memcpy(&(bytes[k]), tdps->typeArray, tdps->typeArray_size);
-	k += tdps->typeArray_size;
-	if(confparams_cpr->errorBoundMode>=PW_REL)
-	{
-		memcpy(&(bytes[k]), tdps->pwrErrBoundBytes, tdps->pwrErrBoundBytes_size);
-		k += tdps->pwrErrBoundBytes_size;
-	}
-    //18 leadNum data
+	k += tdps->typeArray_size;		
+    // 14 leadNumArray_size
 	memcpy(&(bytes[k]), tdps->leadNumArray, tdps->leadNumArray_size);
 	k += tdps->leadNumArray_size;
-	// 19 mid data
+	// 15 mid data
 	memcpy(&(bytes[k]), tdps->exactMidBytes, tdps->exactMidBytes_size);
-	k += tdps->exactMidBytes_size;
-    // 20 residual 
+	k += tdps->exactMidBytes_size;	
+    // 16 residualMidBits 
 	if(tdps->residualMidBits!=NULL)
 	{
 		memcpy(&(bytes[k]), tdps->residualMidBits, tdps->residualMidBits_size);
@@ -524,29 +344,20 @@ bool convertTDPStoFlatBytes_float(TightDataPointStorageF *tdps, unsigned char* b
 
 		*size = totalByteLength;
 	}
-	else if (tdps->rtypeArray == NULL)
+	else
 	{
 		//
 		// not same format
 		//
 		size_t residualMidBitsLength = tdps->residualMidBits == NULL ? 0 : tdps->residualMidBits_size;
-		size_t segmentL = 0, radExpoL = 0, pwrBoundArrayL = 0;
-		int minLogValueSize = 0;
-		if(confparams_cpr->errorBoundMode>=PW_REL)
-		{			
-			segmentL = exe_params->SZ_SIZE_TYPE;
-			radExpoL = 1;
-			pwrBoundArrayL = 4;
-			minLogValueSize = 4;
-		}
 
         // version(1) + samebyte(1) 
-		size_t totalByteLength = 1 + 1 + MetaDataByteLength + exe_params->SZ_SIZE_TYPE + 4 + radExpoL + segmentL + pwrBoundArrayL + 4 + 4 + 1 + 8 
-				+ exe_params->SZ_SIZE_TYPE + exe_params->SZ_SIZE_TYPE + exe_params->SZ_SIZE_TYPE + minLogValueSize
-				+ tdps->typeArray_size + tdps->leadNumArray_size 
-				+ tdps->exactMidBytes_size + residualMidBitsLength + tdps->pwrErrBoundBytes_size;
-		if(confparams_cpr->errorBoundMode == PW_REL && confparams_cpr->accelerate_pw_rel_compression)
-			totalByteLength += (1+1); // for MSST19
+		size_t totalByteLength = 1 + 1 + MetaDataByteLength + exe_params->SZ_SIZE_TYPE + 4 + 4 + 4 + 1 + 8 
+				+ exe_params->SZ_SIZE_TYPE + exe_params->SZ_SIZE_TYPE + exe_params->SZ_SIZE_TYPE
+			    + tdps->typeArray_size
+				+ tdps->leadNumArray_size 
+				+ tdps->exactMidBytes_size 
+				+ residualMidBitsLength;		
 
 		//*bytes = (unsigned char *)malloc(sizeof(unsigned char)*totalByteLength);  // comment by tickduan
 		if(totalByteLength >= tdps->dataSeriesLength * sizeof(float))
@@ -559,80 +370,8 @@ bool convertTDPStoFlatBytes_float(TightDataPointStorageF *tdps, unsigned char* b
 		*size = totalByteLength;
 		return true;
 	}
-	else //the case with reserved value
-	{
-		//TODO
-		*size = 0;
-		return false;
-	}
 
 	return true;
-}
-
-void convertTDPStoFlatBytes_float_args(TightDataPointStorageF *tdps, unsigned char* bytes, size_t *size)
-{
-	size_t i, k = 0; 
-	unsigned char dsLengthBytes[8];
-	
-	if(exe_params->SZ_SIZE_TYPE==4)
-		intToBytes_bigEndian(dsLengthBytes, tdps->dataSeriesLength);//4
-	else
-		longToBytes_bigEndian(dsLengthBytes, tdps->dataSeriesLength);//8
-		
-	unsigned char sameByte = tdps->allSameData==1?(unsigned char)1:(unsigned char)0;
-	sameByte = sameByte | (confparams_cpr->szMode << 1);
-	if(tdps->isLossless)
-		sameByte = (unsigned char) (sameByte | 0x10);
-	if(confparams_cpr->errorBoundMode>=PW_REL)
-		sameByte = (unsigned char) (sameByte | 0x20); // 00100000, the 5th bit
-	if(exe_params->SZ_SIZE_TYPE==8)
-		sameByte = (unsigned char) (sameByte | 0x40); // 01000000, the 6th bit
-	if(confparams_cpr->errorBoundMode == PW_REL && confparams_cpr->accelerate_pw_rel_compression)
-		sameByte = (unsigned char) (sameByte | 0x08); 	
-				
-	if(tdps->allSameData==1)
-	{
-		size_t totalByteLength = 1 + 1 + MetaDataByteLength + exe_params->SZ_SIZE_TYPE + tdps->exactMidBytes_size;
-		//*bytes = (unsigned char *)malloc(sizeof(unsigned char)*totalByteLength);
-
-		bytes[k++] = versionNumber;
-		bytes[k++] = sameByte;
-
-		convertSZParamsToBytes(confparams_cpr, &(bytes[k]));
-		k = k + MetaDataByteLength;
-
-		for (i = 0; i < exe_params->SZ_SIZE_TYPE; i++)
-			bytes[k++] = dsLengthBytes[i];		
-		for (i = 0; i < tdps->exactMidBytes_size; i++)
-			bytes[k++] = tdps->exactMidBytes[i];
-
-		*size = totalByteLength;
-	}
-	else if (tdps->rtypeArray == NULL)
-	{
-		size_t residualMidBitsLength = tdps->residualMidBits == NULL ? 0 : tdps->residualMidBits_size;
-		size_t segmentL = 0, radExpoL = 0, pwrBoundArrayL = 0;
-		if(confparams_cpr->errorBoundMode>=PW_REL)
-		{			
-			segmentL = exe_params->SZ_SIZE_TYPE;
-			radExpoL = 1;
-			pwrBoundArrayL = 4;
-		}
-
-		size_t totalByteLength = 1 + 1 + MetaDataByteLength + exe_params->SZ_SIZE_TYPE + 4 + radExpoL + segmentL + pwrBoundArrayL + 4 + 4 + 1 + 8 
-				+ exe_params->SZ_SIZE_TYPE + exe_params->SZ_SIZE_TYPE + exe_params->SZ_SIZE_TYPE  
-				+ tdps->typeArray_size + tdps->leadNumArray_size 
-				+ tdps->exactMidBytes_size + residualMidBitsLength + tdps->pwrErrBoundBytes_size;
-		if(confparams_cpr->errorBoundMode == PW_REL && confparams_cpr->accelerate_pw_rel_compression)
-			totalByteLength += (1+1); // for MSST19
-		convertTDPStoBytes_float(tdps, bytes, dsLengthBytes, sameByte);
-		
-		*size = totalByteLength;
-	}
-	else //the case with reserved value
-	{
-		//TODO
-	}
 }
 
 /**
@@ -640,18 +379,12 @@ void convertTDPStoFlatBytes_float_args(TightDataPointStorageF *tdps, unsigned ch
  * */
 void free_TightDataPointStorageF(TightDataPointStorageF *tdps)
 {
-	if(tdps->rtypeArray!=NULL)
-		free(tdps->rtypeArray);
-	if(tdps->typeArray!=NULL)
-		free(tdps->typeArray);
 	if(tdps->leadNumArray!=NULL)
 		free(tdps->leadNumArray);
 	if(tdps->exactMidBytes!=NULL)
 		free(tdps->exactMidBytes);
 	if(tdps->residualMidBits!=NULL)
 		free(tdps->residualMidBits);
-	if(tdps->pwrErrBoundBytes!=NULL)
-		free(tdps->pwrErrBoundBytes);
 	free(tdps);
 }
 

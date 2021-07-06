@@ -906,10 +906,10 @@ void convertSZParamsToBytes(sz_params* params, unsigned char* result)
     //int16ToBytes_bigEndian(&result[3], tmp2);
      
     //errorBoundMode; //4bits(0.5 byte)
-    result[1] = params->errorBoundMode;
+    //result[1] = params->errorBoundMode;
     
     //data type (float, double, int8, int16, ....) //10 choices, so 4 bits
-    result[1] = (result[1] << 4) | (params->dataType & 0x17);
+    //result[1] = (result[1] << 4) | (params->dataType & 0x17);
      
     //result[5]: abs_err_bound or psnr //4 bytes
     //result[9]: rel_bound_ratio or pwr_err_bound//4 bytes 
@@ -1001,10 +1001,10 @@ void convertBytesToSZParams(unsigned char* bytes, sz_params* params, sz_exedata*
 	//params->sampleDistance = bytesToInt16_bigEndian(&bytes[1]);
 	//params->predThreshold = 1.0*bytesToInt16_bigEndian(&bytes[3])/10000.0;
     
+	/*
     params->dataType = bytes[1] & 0x07;
     params->errorBoundMode = (bytes[1] & 0xf0) >> 4;
 
-    /*
     switch(params->errorBoundMode)
     {
 	case SZ_ABS:

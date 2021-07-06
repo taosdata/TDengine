@@ -451,7 +451,7 @@ int memTest() {
 void* memTestThread(void* lparam) {
   //memTest();
   printf(" enter thread ....\n");
-  for(int i=0; i< 5; i++)
+  for(int i=0; i<1; i++)
   {
       memTest();
       printf(" start i=%d .... \n", i);
@@ -484,7 +484,7 @@ void test_threadsafe(int thread_count){
 void* memTestThreadDouble(void* lparam) {
   //memTest();
   printf(" enter thread ....\n");
-  for(int i=0; i< 10; i++)
+  for(int i=0; i< 1; i++)
   {
       memTest();
       printf(" double start i=%d .... \n", i);
@@ -577,19 +577,32 @@ void unitTestFloat() {
  
 }
 
-
+void modulePath(char *buf, int size)
+{
+  char path[1024];
+  sprintf(path, "/proc/%d/exe", getpid());  
+  readlink(path, buf, size);
+  char* pos = strrchr(buf, '/');
+  if(pos)
+    pos[1]=0;
+}
 
 //
 //   -----------------  main ----------------------
 //
 int main(int argc, char *argv[]) {
-  printf("welcome to use taospack tools v1.2 SZ_SIZE_TYPE=%ld\n", sizeof(size_t));
+  printf("welcome to use taospack tools v1.3\n");
+
+  char szbuf[512];
+  modulePath(szbuf, 512);
+  printf(szbuf);
  
   gOpenLossy = false;
   tsLossyInit();
   //
   //tsCompressExit();
   //return 1; 
+  //printf(" SZ_SIZE_TYPE=%d", )
 
   if(argc == 3){
     char algo = 0;
@@ -598,7 +611,7 @@ int main(int argc, char *argv[]) {
         algo = ONE_STAGE_COMP;
         gOpenLossy = true;
     }
-    if(strcmp(argv[1], "-ttwo") == 0) {
+    if(strcmp(argv[1], "-tw") == 0) {
         algo = TWO_STAGE_COMP;
         gOpenLossy = false;
     }
@@ -612,8 +625,9 @@ int main(int argc, char *argv[]) {
         test_threadsafe_double(atoi(argv[2]));
         return 0;
     }
+
     if(algo == 0){
-      printf(" no param -tone -ttwo \n");
+      printf(" no param -tone -tw \n");
       return 0;
     }
      

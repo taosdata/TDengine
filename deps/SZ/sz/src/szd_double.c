@@ -13,10 +13,8 @@
 #include "szd_double.h"
 #include "TightDataPointStorageD.h"
 #include "sz.h"
-#include "Huffman.h"
-#include "szd_double_pwr.h"
-#include "szd_double_ts.h"
 #include "utility.h"
+#include "Huffman.h"
 
 int SZ_decompress_args_double(double* newData, size_t r1, unsigned char* cmpBytes, 
 				size_t cmpSize, int compressionType, double* hist_data, sz_exedata* pde_exe, sz_params* pde_params)
@@ -68,8 +66,12 @@ int SZ_decompress_args_double(double* newData, size_t r1, unsigned char* cmpByte
 	// calc postion 
 	//pde_params->sol_ID = szTmpBytes[1+3-2+14-4]; //szTmpBytes: version(3bytes), samebyte(1byte), [14]:sol_ID=SZ or SZ_Transpose		
 	//TODO: convert szTmpBytes to double array.
-	TightDataPointStorageD* tdps;
+	TightDataPointStorageD* tdps = NULL;
 	int errBoundMode = new_TightDataPointStorageD_fromFlatBytes(&tdps, szTmpBytes, tmpSize, pde_exe, pde_params);
+	if(tdps == NULL)
+	{
+		return SZ_FORMAT_ERR;
+	}
 
 	int dim = r1;
 	int doubleSize = sizeof(double);
@@ -124,7 +126,6 @@ void decompressDataSeries_double_1D(double* data, size_t dataSeriesLength, doubl
 	//*data = (double*)malloc(sizeof(double)*dataSeriesLength); comment by tickduan
 
 	int* type = (int*)malloc(dataSeriesLength*sizeof(int));
-
 	HuffmanTree* huffmanTree = createHuffmanTree(tdps->stateNum);
 	decode_withTree(huffmanTree, tdps->typeArray, dataSeriesLength, type);
 	SZ_ReleaseHuffman(huffmanTree);	
@@ -143,8 +144,10 @@ void decompressDataSeries_double_1D(double* data, size_t dataSeriesLength, doubl
 	resiBitsLength = tdps->reqLength%8;
 	medianValue = tdps->medianValue;
 	
+
 	int type_;
-	for (i = 0; i < dataSeriesLength; i++) {
+	for (i = 0; i < dataSeriesLength; i++) 
+	{
 		type_ = type[i];
 		switch (type_) {
 		case 0:
@@ -203,108 +206,6 @@ void decompressDataSeries_double_1D(double* data, size_t dataSeriesLength, doubl
 	return;
 }
 
-/*MSST19*/
-void decompressDataSeries_double_1D_MSST19(double* data, size_t dataSeriesLength, TightDataPointStorageD* tdps) 
-{
-	//updateQuantizationInfo(tdps->intervals);
-	int intvRadius = tdps->intervals/2;
-	int intvCapacity = tdps->intervals;
-	size_t i, j, k = 0, p = 0, l = 0; // k is to track the location of residual_bit
-								// in resiMidBits, p is to track the
-								// byte_index of resiMidBits, l is for
-								// leadNum
-	unsigned char* leadNum;
-	//double interval = tdps->realPrecision*2;
-	
-	convertByteArray2IntArray_fast_2b(tdps->exactDataNum, tdps->leadNumArray, tdps->leadNumArray_size, &leadNum);
-	//*data = (double*)malloc(sizeof(double)*dataSeriesLength); comment by tickduan
-
-	int* type = (int*)malloc(dataSeriesLength*sizeof(int));
-	
-	HuffmanTree* huffmanTree = createHuffmanTree(tdps->stateNum);
-	decode_withTree_MSST19(huffmanTree, tdps->typeArray, dataSeriesLength, type, tdps->max_bits);
-	//decode_withTree(huffmanTree, tdps->typeArray, dataSeriesLength, type);
-	SZ_ReleaseHuffman(huffmanTree);	
-	unsigned char preBytes[8];
-	unsigned char curBytes[8];
-	
-	memset(preBytes, 0, 8);
-
-	size_t curByteIndex = 0;
-	int reqBytesLength, resiBitsLength, resiBits; 
-	unsigned char leadingNum;	
-	double exactData, predValue = 0;
-	reqBytesLength = tdps->reqLength/8;
-	resiBitsLength = tdps->reqLength%8;
-	//float threshold = tdps->minLogValue;
-	double* precisionTable = (double*)malloc(sizeof(double) * intvCapacity);
-	double inv = 2.0-pow(2, -(tdps->plus_bits));
-	for(int i=0; i<intvCapacity; i++){
-		double test = pow((1+tdps->realPrecision), inv*(i - intvRadius));
-		precisionTable[i] = test;
-	}
-
-	int type_;
-	for (i = 0; i < dataSeriesLength; i++) {
-		type_ = type[i];
-		switch (type_) {
-		case 0:
-			// compute resiBits
-			resiBits = 0;
-			if (resiBitsLength != 0) {
-				int kMod8 = k % 8;
-				int rightMovSteps = getRightMovingSteps(kMod8, resiBitsLength);
-				if (rightMovSteps > 0) {
-					int code = getRightMovingCode(kMod8, resiBitsLength);
-					resiBits = (tdps->residualMidBits[p] & code) >> rightMovSteps;
-				} else if (rightMovSteps < 0) {
-					int code1 = getLeftMovingCode(kMod8);
-					int code2 = getRightMovingCode(kMod8, resiBitsLength);
-					int leftMovSteps = -rightMovSteps;
-					rightMovSteps = 8 - leftMovSteps;
-					resiBits = (tdps->residualMidBits[p] & code1) << leftMovSteps;
-					p++;
-					resiBits = resiBits
-							| ((tdps->residualMidBits[p] & code2) >> rightMovSteps);
-				} else // rightMovSteps == 0
-				{
-					int code = getRightMovingCode(kMod8, resiBitsLength);
-					resiBits = (tdps->residualMidBits[p] & code);
-					p++;
-				}
-				k += resiBitsLength;
-			}
-
-			// recover the exact data	
-			memset(curBytes, 0, 8);
-			leadingNum = leadNum[l++];
-			memcpy(curBytes, preBytes, leadingNum);
-			for (j = leadingNum; j < reqBytesLength; j++)
-				curBytes[j] = tdps->exactMidBytes[curByteIndex++];
-			if (resiBitsLength != 0) {
-				unsigned char resiByte = (unsigned char) (resiBits << (8 - resiBitsLength));
-				curBytes[reqBytesLength] = resiByte;
-			}
-			
-			exactData = bytesToDouble(curBytes);
-			data[i] = exactData;
-			memcpy(preBytes,curBytes,8);
-			predValue = data[i];
-			break;
-		default:
-			//predValue = 2 * data[i-1] - data[i-2];
-			//predValue = data[i-1];
-			predValue = fabs(predValue) * precisionTable[type_];
-			data[i] = predValue;
-			break;
-		}
-	}
-	
-	free(precisionTable);
-	free(leadNum);
-	free(type);
-	return;
-}
 
 void getSnapshotData_double_1D(double* data, size_t dataSeriesLength, TightDataPointStorageD* tdps, int errBoundMode, int compressionType, double* hist_data, sz_params* pde_params) 
 {
@@ -315,24 +216,10 @@ void getSnapshotData_double_1D(double* data, size_t dataSeriesLength, TightDataP
 		//*data = (double*)malloc(sizeof(double)*dataSeriesLength); comment by tickduan
 		for (i = 0; i < dataSeriesLength; i++)
 			data[i] = value;
-	} else {
-		if (tdps->rtypeArray == NULL) {
-			if(errBoundMode < PW_REL)
-			{
-				decompressDataSeries_double_1D(data, dataSeriesLength, hist_data, tdps);
-			}
-			else 
-			{
-				if(confparams_dec->accelerate_pw_rel_compression)
-					decompressDataSeries_double_1D_pwr_pre_log_MSST19(data, dataSeriesLength, tdps);
-				else
-					decompressDataSeries_double_1D_pwr_pre_log(data, dataSeriesLength, tdps);
-				//decompressDataSeries_double_1D_pwrgroup(data, dataSeriesLength, tdps);
-			}
-			return;
-		} else {
-			//TODO
-		}
+	} 
+	else 
+	{
+		decompressDataSeries_double_1D(data, dataSeriesLength, hist_data, tdps);
 	}
 }
 

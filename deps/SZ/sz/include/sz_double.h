@@ -20,21 +20,17 @@ extern "C" {
 unsigned char* SZ_skip_compress_double(double* data, size_t dataLength, size_t* outSize);
 
 void computeReqLength_double(double realPrecision, short radExpo, int* reqLength, double* medianValue);
-short computeReqLength_double_MSST19(double realPrecision);
 
 unsigned int optimize_intervals_double_1D(double *oriData, size_t dataLength, double realPrecision);
 
 unsigned int optimize_intervals_double_1D_opt(double *oriData, size_t dataLength, double realPrecision);
 
 
-unsigned int optimize_intervals_double_1D_opt_MSST19(double *oriData, size_t dataLength, double realPrecision);
 TightDataPointStorageD* SZ_compress_double_1D_MDQ(double *oriData, 
 size_t dataLength, double realPrecision, double valueRangeSize, double medianValue_d);
 void SZ_compress_args_double_StoreOriData(double* oriData, size_t dataLength, unsigned char* newByteData, size_t *outSize);
 
 bool SZ_compress_args_double_NoCkRngeNoGzip_1D( unsigned char* newByteData, double *oriData, size_t dataLength, double realPrecision, size_t *outSize, double valueRangeSize, double medianValue_d);
-
-TightDataPointStorageD* SZ_compress_double_1D_MDQ_MSST19(double *oriData, size_t dataLength, double realPrecision, double valueRangeSize, double medianValue_f);
 
 void SZ_compress_args_double_withinRange(unsigned char* newByteData, double *oriData, size_t dataLength, size_t *outSize);
 

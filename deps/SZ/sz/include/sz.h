@@ -19,7 +19,6 @@
 #include "DynamicByteArray.h"
 #include "DynamicIntArray.h"
 #include "VarSet.h"
-#include "Huffman.h"
 #include "TightDataPointStorageD.h"
 #include "TightDataPointStorageF.h"
 #include "conf.h"
@@ -30,8 +29,6 @@
 #include "sz_double.h"
 #include "szd_float.h"
 #include "szd_double.h"
-#include "sz_float_pwr.h"
-#include "sz_double_pwr.h"
 #include "sz_opencl.h"
 #include "callZlib.h"
 #include "rw.h"
@@ -184,9 +181,6 @@ extern sz_tsc_metadata *sz_tsc;
 #ifdef PASTRI
 extern pastri_params pastri_par; 
 #endif
-
-//sz.h
-HuffmanTree* SZ_Reset();
 
 
 void SZ_Finalize();

@@ -17,14 +17,11 @@ extern "C" {
 unsigned char* SZ_skip_compress_float(float* data, size_t dataLength, size_t* outSize);
 
 void computeReqLength_float(double realPrecision, short radExpo, int* reqLength, float* medianValue);
-short computeReqLength_float_MSST19(double realPrecision);
 
 unsigned int optimize_intervals_float_1D(float *oriData, size_t dataLength, double realPrecision);
 
 unsigned int optimize_intervals_and_compute_dense_position_float_1D(float *oriData, size_t dataLength, double realPrecision, float * dense_pos);
 unsigned int optimize_intervals_float_1D_opt(float *oriData, size_t dataLength, double realPrecision);
-
-unsigned int optimize_intervals_float_1D_opt_MSST19(float *oriData, size_t dataLength, double realPrecision);
 
 TightDataPointStorageF* SZ_compress_float_1D_MDQ(float *oriData, 
 size_t dataLength, float realPrecision, float valueRangeSize, float medianValue_f);
@@ -39,9 +36,6 @@ void SZ_blocked_regression(float * block_ori_data, size_t dim_0, size_t dim_1, s
 
 unsigned char * SZ_compress_float_1D_MDQ_RA(float *oriData, size_t r1, double realPrecision, size_t * comp_size);
 
-
-TightDataPointStorageF* SZ_compress_float_1D_MDQ_MSST19(float *oriData, 
-size_t dataLength, double realPrecision, float valueRangeSize, float medianValue_f);
 
 void SZ_compress_args_float_withinRange(unsigned char* newByteData, float *oriData, size_t dataLength, size_t *outSize);
 

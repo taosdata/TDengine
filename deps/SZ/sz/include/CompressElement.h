@@ -45,7 +45,6 @@ typedef struct LossyCompressionElement
 	int residualMidBits;
 } LossyCompressionElement;
 
-char* decompressGroupIDArray(unsigned char* bytes, size_t dataLength);
 
 short computeGroupNum_float(float value);
 short computeGroupNum_double(double value);

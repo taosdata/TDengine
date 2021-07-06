@@ -10,8 +10,8 @@
 #ifndef _SZ_DEFINES_H
 #define _SZ_DEFINES_H
 
-#define SZ_VERNUM 0x0200
-#define SZ_VER_MAJOR 1  // curretn version
+// define data format version
+#define DATA_FROMAT_VER1 1  // curretn version
 
 
 #define PASTRI 103
@@ -88,6 +88,7 @@
 #define SZ_BERR -6 //bound-mode error (should be only SZ_ABS, REL, ABS_AND_REL, ABS_OR_REL, or PW_REL)
 #define SZ_LITTER_ELEMENT -7 
 #define SZ_ALGORITHM_ERR  -8
+#define SZ_FORMAT_ERR     -9
 
 #define SZ_MAINTAIN_VAR_DATA 0
 #define SZ_DESTROY_WHOLE_VARSET 1

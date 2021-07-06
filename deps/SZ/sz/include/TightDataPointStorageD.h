@@ -33,10 +33,7 @@ typedef struct TightDataPointStorageD
 
 	size_t exactDataNum;
 	double reservedValue;
-	
-	unsigned char* rtypeArray;
-	size_t rtypeArray_size;
-	
+
 	unsigned char* typeArray; //its size is dataSeriesLength/4 (or xxx/4+1) 
 	size_t typeArray_size;
 	
@@ -54,9 +51,6 @@ typedef struct TightDataPointStorageD
 	unsigned char isLossless; //a mark to denote whether it's lossless compression (1 is yes, 0 is no)
 	
 	size_t segment_size;
-	
-	unsigned char* pwrErrBoundBytes;
-	int pwrErrBoundBytes_size;
 		
 	unsigned char* raBytes;
 	size_t raBytes_size;
@@ -75,22 +69,11 @@ void new_TightDataPointStorageD(TightDataPointStorageD **self,
 		unsigned char* leadNumIntArray,  //leadNumIntArray contains readable numbers....
 		unsigned char* resiMidBits, size_t resiMidBits_size,
 		unsigned char resiBitLength, 
-		double realPrecision, double medianValue, char reqLength, unsigned int intervals, 
-		unsigned char* pwrErrBoundBytes, size_t pwrErrBoundBytes_size, unsigned char radExpo);
-
-void new_TightDataPointStorageD2(TightDataPointStorageD **self, 
-		size_t dataSeriesLength, size_t exactDataNum, 
-		int* type, unsigned char* exactMidBytes, size_t exactMidBytes_size,
-		unsigned char* leadNumIntArray,  //leadNumIntArray contains readable numbers....
-		unsigned char* resiMidBits, size_t resiMidBits_size,
-		unsigned char* resiBitLength, size_t resiBitLengthSize,
-		double realPrecision, double medianValue, char reqLength, unsigned int intervals,
-		unsigned char* pwrErrBoundBytes, size_t pwrErrBoundBytes_size, unsigned char radExpo);
+		double realPrecision, double medianValue, char reqLength, 
+		unsigned int intervals, unsigned char radExpo);
 
 void convertTDPStoBytes_double(TightDataPointStorageD* tdps, unsigned char* bytes, unsigned char* dsLengthBytes, unsigned char sameByte);
-void convertTDPStoBytes_double_reserve(TightDataPointStorageD* tdps, unsigned char* bytes, unsigned char* dsLengthBytes, unsigned char sameByte);
 bool convertTDPStoFlatBytes_double(TightDataPointStorageD *tdps, unsigned char* bytes, size_t *size);
-void convertTDPStoFlatBytes_double_args(TightDataPointStorageD *tdps, unsigned char* bytes, size_t *size);
 
 void free_TightDataPointStorageD(TightDataPointStorageD *tdps);
 void free_TightDataPointStorageD2(TightDataPointStorageD *tdps);

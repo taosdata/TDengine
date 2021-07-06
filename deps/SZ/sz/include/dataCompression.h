@@ -30,21 +30,9 @@ extern "C" {
 
 
 //dataCompression.c
-int computeByteSizePerIntValue(long valueRangeSize);
-long computeRangeSize_int(void* oriData, int dataType, size_t size, int64_t* valueRangeSize);
 double computeRangeSize_double(double* oriData, size_t size, double* valueRangeSize, double* medianValue);
 float computeRangeSize_float(float* oriData, size_t size, float* valueRangeSize, float* medianValue);
-float computeRangeSize_float_MSST19(float* oriData, size_t size, float* valueRangeSize, float* medianValue, unsigned char * signs, bool* positive, float* nearZero);
-double computeRangeSize_double_MSST19(double* oriData, size_t size, double* valueRangeSize, double* medianValue, unsigned char * signs, bool* positive, double* nearZero);
 
-double computeRangeSize_double_subblock(double* oriData, double* valueRangeSize, double* medianValue,
-size_t r5, size_t r4, size_t r3, size_t r2, size_t r1,
-size_t s5, size_t s4, size_t s3, size_t s2, size_t s1,
-size_t e5, size_t e4, size_t e3, size_t e2, size_t e1);
-float computeRangeSize_float_subblock(float* oriData, float* valueRangeSize, float* medianValue,
-size_t r5, size_t r4, size_t r3, size_t r2, size_t r1,
-size_t s5, size_t s4, size_t s3, size_t s2, size_t s1,
-size_t e5, size_t e4, size_t e3, size_t e2, size_t e1);
 double min_d(double a, double b);
 double max_d(double a, double b);
 float min_f(float a, float b);
@@ -56,22 +44,10 @@ void symTransform_8bytes(unsigned char data[8]);
 void symTransform_2bytes(unsigned char data[2]);
 void symTransform_4bytes(unsigned char data[4]);
 
-void compressInt8Value(int8_t tgtValue, int8_t minValue, int byteSize, unsigned char* bytes);
-void compressInt16Value(int16_t tgtValue, int16_t minValue, int byteSize, unsigned char* bytes);
-void compressInt32Value(int32_t tgtValue, int32_t minValue, int byteSize, unsigned char* bytes);
-void compressInt64Value(int64_t tgtValue, int64_t minValue, int byteSize, unsigned char* bytes);
-
-void compressUInt8Value(uint8_t tgtValue, uint8_t minValue, int byteSize, unsigned char* bytes);
-void compressUInt16Value(uint16_t tgtValue, uint16_t minValue, int byteSize, unsigned char* bytes);
-void compressUInt32Value(uint32_t tgtValue, uint32_t minValue, int byteSize, unsigned char* bytes);
-void compressUInt64Value(uint64_t tgtValue, uint64_t minValue, int byteSize, unsigned char* bytes);
-
 void compressSingleFloatValue(FloatValueCompressElement *vce, float tgtValue, float precision, float medianValue, 
 		int reqLength, int reqBytesLength, int resiBitsLength);
-void compressSingleFloatValue_MSST19(FloatValueCompressElement *vce, float tgtValue, float precision, int reqLength, int reqBytesLength, int resiBitsLength);
 void compressSingleDoubleValue(DoubleValueCompressElement *vce, double tgtValue, double precision, double medianValue, 
 		int reqLength, int reqBytesLength, int resiBitsLength);
-void compressSingleDoubleValue_MSST19(DoubleValueCompressElement *vce, double tgtValue, double precision, int reqLength, int reqBytesLength, int resiBitsLength);
                               
 int compIdenticalLeadingBytesCount_double(unsigned char* preBytes, unsigned char* curBytes);
 int compIdenticalLeadingBytesCount_float(unsigned char* preBytes, unsigned char* curBytes);

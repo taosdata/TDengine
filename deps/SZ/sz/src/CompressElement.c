@@ -16,31 +16,6 @@
 #include <sz.h>
 #include <CompressElement.h>
 
-char* decompressGroupIDArray(unsigned char* bytes, size_t dataLength)
-{
-	HuffmanTree* huffmanTree = SZ_Reset(); //create a default huffman tree	
-	int* standGroupID = (int*)malloc(dataLength*sizeof(int));
-	decode_withTree(huffmanTree, bytes, dataLength, standGroupID);
-	SZ_ReleaseHuffman(huffmanTree);
-	
-	char* groupID = (char*)malloc(dataLength*sizeof(char));
-	size_t i = 0;
-	int lastGroupIDValue = 0, curStandIDValue = 0, curGroupIDValue = 0;
-	int offset = 2*(GROUP_COUNT + 2);
-	
-	curGroupIDValue = groupID[0] = standGroupID[0] - GROUP_COUNT;
-	lastGroupIDValue = curGroupIDValue;
-	for(i=1;i<dataLength;i++)
-	{
-		curStandIDValue = standGroupID[i];
-		curGroupIDValue = curStandIDValue + lastGroupIDValue - offset;
-		lastGroupIDValue = curGroupIDValue;
-		groupID[i] = curGroupIDValue;
-	}
-	free(standGroupID);
-	
-	return groupID;
-}
 
 inline short computeGroupNum_float(float value)
 {

@@ -33,13 +33,10 @@ typedef struct TightDataPointStorageF
 	size_t exactDataNum;
 	float reservedValue;
 	
-	unsigned char* rtypeArray;
-	size_t rtypeArray_size;
-	
 	float minLogValue;
 
 	unsigned char* typeArray; //its size is dataSeriesLength/4 (or xxx/4+1) 
-	size_t typeArray_size;
+	size_t typeArray_size;	
 	
 	unsigned char* leadNumArray; //its size is exactDataNum/4 (or exactDataNum/4+1)
 	size_t leadNumArray_size;
@@ -56,8 +53,6 @@ typedef struct TightDataPointStorageF
 	
 	size_t segment_size;
 	
-	unsigned char* pwrErrBoundBytes;
-	int pwrErrBoundBytes_size;
 	
 	unsigned char* raBytes;
 	size_t raBytes_size;
@@ -77,24 +72,10 @@ void new_TightDataPointStorageF(TightDataPointStorageF **self,
 		unsigned char* resiMidBits, size_t resiMidBits_size,
 		unsigned char resiBitLength,
 		double realPrecision, float medianValue, char reqLength, unsigned int intervals, 
-		unsigned char* pwrErrBoundBytes, size_t pwrErrBoundBytes_size, unsigned char radExpo);
-
-/**
- * This function is designed for first-version of the point-wise relative error bound (developed by Sheng Di for TPDS18 paper)
- * 
- * */
-void new_TightDataPointStorageF2(TightDataPointStorageF **self,
-		size_t dataSeriesLength, size_t exactDataNum, 
-		int* type, unsigned char* exactMidBytes, size_t exactMidBytes_size,
-		unsigned char* leadNumIntArray,  //leadNumIntArray contains readable numbers....
-		unsigned char* resiMidBits, size_t resiMidBits_size,
-		unsigned char* resiBitLength, size_t resiBitLengthSize, 
-		double realPrecision, float medianValue, char reqLength, unsigned int intervals, 
-		unsigned char* pwrErrBoundBytes, size_t pwrErrBoundBytes_size, unsigned char radExpo);
+		unsigned char radExpo);
 
 void convertTDPStoBytes_float(TightDataPointStorageF* tdps, unsigned char* bytes, unsigned char* dsLengthBytes, unsigned char sameByte);
 bool convertTDPStoFlatBytes_float(TightDataPointStorageF *tdps, unsigned char* bytes, size_t *size);
-void convertTDPStoFlatBytes_float_args(TightDataPointStorageF *tdps, unsigned char* bytes, size_t *size);
 
 void free_TightDataPointStorageF(TightDataPointStorageF *tdps);
 void free_TightDataPointStorageF2(TightDataPointStorageF *tdps);

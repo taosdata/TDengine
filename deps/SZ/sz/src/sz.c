@@ -19,13 +19,12 @@
 #include "TightDataPointStorageF.h"
 #include "zlib.h"
 #include "rw.h"
-#include "Huffman.h"
 #include "conf.h"
 #include "utility.h"
 
 //#include "CurveFillingCompressStorage.h"
 
-unsigned char versionNumber = SZ_VER_MAJOR;
+unsigned char versionNumber = DATA_FROMAT_VER1;
 int SZ_SIZE_TYPE_DEFUALT = 4;
 
 int dataEndianType = LITTLE_ENDIAN_DATA; //*endian type of the data read from disk
@@ -48,10 +47,7 @@ sz_tsc_metadata *sz_tsc = NULL;
 pastri_params pastri_par;
 #endif
 
-HuffmanTree* SZ_Reset()
-{
-	return createDefaultHuffmanTree();
-}
+
 
 int SZ_Init(const char *configFilePath)
 {
@@ -191,13 +187,22 @@ void SZ_Finalize()
 	}
 }
 
-
+void modulePath(char *buf, int size)
+{
+  char path[1024];
+  sprintf(path, "/proc/%d/exe", getpid());  
+  readlink(path, buf, size);
+  char* pos = strrchr(buf, '/');
+  if(pos)
+    pos[1]=0;
+}
 
 
 struct timeval startTime;
 struct timeval endTime;  /* Start and end times */
 struct timeval costStart; /*only used for recording the cost*/
 double totalCost = 0;
+
 
 
 void cost_start()
