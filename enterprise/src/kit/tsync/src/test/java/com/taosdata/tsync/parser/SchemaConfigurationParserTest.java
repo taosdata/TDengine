@@ -3,6 +3,7 @@ package com.taosdata.tsync.parser;
 import com.alibaba.fastjson.JSONObject;
 import com.taosdata.tsync.entity.config.*;
 import com.taosdata.tsync.enums.ConfigurationType;
+import com.taosdata.tsync.enums.DatabasePrecision;
 import com.taosdata.tsync.factory.ConfigurationFactory;
 import org.apache.commons.io.IOUtils;
 import org.junit.Assert;
@@ -29,7 +30,7 @@ public class SchemaConfigurationParserTest {
         Assert.assertEquals(1, databases.size());
         DatabaseConfiguration database = (DatabaseConfiguration) databases.get(0);
         Assert.assertEquals("test", database.getName());
-        Assert.assertEquals("ms", database.getPrecision());
+        Assert.assertEquals(DatabasePrecision.ms, database.getPrecision());
         // assert stable
         List<Configuration> stables = configuration.find(ConfigurationType.STABLE);
         Assert.assertEquals(1, stables.size());

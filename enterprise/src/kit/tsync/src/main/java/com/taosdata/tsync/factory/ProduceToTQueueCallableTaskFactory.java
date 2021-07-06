@@ -69,15 +69,15 @@ public class ProduceToTQueueCallableTaskFactory {
         // precision
         DatabasePrecision precision = databaseConfiguration.getPrecision();
         switch (precision) {
-            case NS: {
+            case ns: {
                 instance.setTs(new AtomicLong(System.currentTimeMillis() * 1000_000));
                 break;
             }
-            case US: {
+            case us: {
                 instance.setTs(new AtomicLong(System.currentTimeMillis() * 1000));
                 break;
             }
-            case MS:
+            case ms:
             default: {
                 instance.setTs(new AtomicLong(System.currentTimeMillis()));
                 break;

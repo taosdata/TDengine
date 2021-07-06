@@ -21,19 +21,20 @@ public class NetToTQueueApp extends AbstractApp {
 
     public static void main(String[] args) throws IOException {
         File configFile = readCommandLine(args, helpLine);
-
         logger.info("NetToTQueueApp started.");
-        // given
+
         ConfigurationRepository configurationRepository = ConfigurationRepository.getInstance();
         JSONObject configJSON = JSONObject.parseObject(IOUtils.toString(new FileInputStream(configFile)));
-        // when
+
         Job job = JobFactory.build(ConfigurationType.NET_TO_TQUEUE, configJSON, configurationRepository);
-        // when
+
         JobService jobService = new NetToTQueueJobServiceImpl();
         job.prepare(jobService);
-        // when
+
         job.execute(jobService);
         logger.info("NetToTQueueApp stopped.");
+
+        job.shutdown(jobService);
     }
 
 

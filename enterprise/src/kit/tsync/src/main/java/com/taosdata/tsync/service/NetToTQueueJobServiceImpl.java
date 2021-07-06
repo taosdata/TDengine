@@ -21,6 +21,8 @@ public class NetToTQueueJobServiceImpl extends AbstractRunnableJobService {
 
     private static final Logger logger = LoggerFactory.getLogger(NetToTQueueJobServiceImpl.class);
 
+    private TQueueProducer<String> producer;
+
     @Override
     public List<UUID> prepare(ConfigurationType configurationType, UUID configurationId) throws TsyncException {
 
@@ -34,7 +36,7 @@ public class NetToTQueueJobServiceImpl extends AbstractRunnableJobService {
 
         // 1. producer
         ProducerConfiguration producerConfiguration = (ProducerConfiguration) configuration.findFirst(ConfigurationType.PRODUCER);
-        TQueueProducer<String> producer = TQueueProducerFactory.build(producerConfiguration);
+        producer = TQueueProducerFactory.build(producerConfiguration);
 
         // 2. net
         NetConfiguration netConfiguration = (NetConfiguration) configuration.findFirst(ConfigurationType.NET);
@@ -52,5 +54,9 @@ public class NetToTQueueJobServiceImpl extends AbstractRunnableJobService {
         return taskIds;
     }
 
+    @Override
+    public void shutdown() {
+        producer.close();
+    }
 
 }

@@ -35,12 +35,9 @@ public final class StableConfigurationParser implements ConfigurationParser {
             throw new TsyncException(errorMsg);
         }
 
+        // tables
         if (configJSON.containsKey("tables")) {
             configuration.setTables(configJSON.getLong("tables"));
-        } else {
-            String errorMsg = "tables is necessary in stable Configuration";
-            logger.error(errorMsg);
-            throw new TsyncException(errorMsg);
         }
 
         if (configJSON.containsKey("columns")) {

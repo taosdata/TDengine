@@ -99,7 +99,6 @@ public class ConsumeToTDengineJobServiceImpl extends AbstractRunnableJobService 
         // create runnable tasks
         List<UUID> taskIds = new ArrayList<>();
         for (int i = 0; i < threadSize; i++) {
-            TQueueConsumer consumer = TQueueConsumerFactory.build(consumerConfiguration);
             List<Integer> partitionsToWrite = new ArrayList<>(threadIndex2PartitionList.get(i));
             Connection connection = TaosdConnectionFactory.build(taosdConfiguration);
 
@@ -117,6 +116,11 @@ public class ConsumeToTDengineJobServiceImpl extends AbstractRunnableJobService 
             taskIds.add(runnableTask.getId());
         }
         return taskIds;
+    }
+
+    @Override
+    public void shutdown() {
+        // do nothing
     }
 
     private void doCreateSchema() {

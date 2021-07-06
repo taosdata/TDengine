@@ -87,4 +87,9 @@ public class ConsumeToFileJobServiceImpl extends AbstractRunnableJobService {
         return taskIds;
     }
 
+    @Override
+    public void shutdown() {
+        // do nothing
+    }
+
 }

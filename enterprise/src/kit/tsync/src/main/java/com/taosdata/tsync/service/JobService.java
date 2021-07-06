@@ -13,6 +13,8 @@ public interface JobService {
 
     void startAndWait(List<UUID> taskIds) throws TsyncException;
 
+    void shutdown();
+
     Configuration getConfiguration(ConfigurationType configurationType, UUID configurationId);
 
 }

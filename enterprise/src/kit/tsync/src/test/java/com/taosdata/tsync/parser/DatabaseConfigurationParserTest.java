@@ -19,7 +19,7 @@ public class DatabaseConfigurationParserTest {
         DatabaseConfiguration configuration = (DatabaseConfiguration) ConfigurationFactory.build(ConfigurationType.DATABASE, databaseJSON);
         // then
         Assert.assertEquals("test", configuration.getName());
-        Assert.assertEquals(DatabasePrecision.MS, configuration.getPrecision());
+        Assert.assertEquals(DatabasePrecision.ms, configuration.getPrecision());
     }
 
     @Test
@@ -30,7 +30,7 @@ public class DatabaseConfigurationParserTest {
         DatabaseConfiguration configuration = (DatabaseConfiguration) ConfigurationFactory.build(ConfigurationType.DATABASE, databaseJSON);
         // then
         Assert.assertEquals("test", configuration.getName());
-        Assert.assertEquals(DatabasePrecision.US, configuration.getPrecision());
+        Assert.assertEquals(DatabasePrecision.us, configuration.getPrecision());
     }
 
     @Test
@@ -41,7 +41,7 @@ public class DatabaseConfigurationParserTest {
         DatabaseConfiguration configuration = (DatabaseConfiguration) ConfigurationFactory.build(ConfigurationType.DATABASE, databaseJSON);
         // then
         Assert.assertEquals("test", configuration.getName());
-        Assert.assertEquals(DatabasePrecision.NS, configuration.getPrecision());
+        Assert.assertEquals(DatabasePrecision.ns, configuration.getPrecision());
     }
 
 }

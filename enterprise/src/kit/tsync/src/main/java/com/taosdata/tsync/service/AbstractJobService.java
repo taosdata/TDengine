@@ -24,6 +24,9 @@ public abstract class AbstractJobService implements JobService {
     public abstract void startAndWait(List<UUID> taskIds) throws TsyncException;
 
     @Override
+    public abstract void shutdown();
+
+    @Override
     public Configuration getConfiguration(ConfigurationType configurationType, UUID configurationId) {
         return configurationRepository.find(configurationId);
     }

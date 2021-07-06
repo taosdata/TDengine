@@ -60,6 +60,8 @@ public class MessageConfigurationParser implements ConfigurationParser {
             throw new TsyncException(errorMsg);
         }
 
+
+
         return configuration;
     }
 }

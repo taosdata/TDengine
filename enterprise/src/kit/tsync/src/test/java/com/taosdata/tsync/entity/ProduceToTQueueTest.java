@@ -45,6 +45,8 @@ public class ProduceToTQueueTest {
         job.execute(jobService);
         // then
         Assert.assertEquals(JobStatus.COMPLETED, job.getStatus());
+
+        job.shutdown(jobService);
     }
 
     @Before

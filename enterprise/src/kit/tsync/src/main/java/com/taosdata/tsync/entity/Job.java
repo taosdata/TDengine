@@ -59,6 +59,10 @@ public class Job {
         logger.info(">>> job: " + id.toString() + "is done.");
     }
 
+    public void shutdown(JobService jobExecuteService) {
+        jobExecuteService.shutdown();
+    }
+
     public Configuration getConfiguration(JobService jobService) {
         return jobService.getConfiguration(this.configurationType, this.configurationId);
     }

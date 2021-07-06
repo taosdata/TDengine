@@ -15,6 +15,16 @@ public final class Utils {
     private Utils() {
     }
 
+    public static Range<Integer> closedRange(String rangeStr) {
+        if (rangeStr.contains("..")) {
+            String[] split = rangeStr.split("\\.\\.");
+            int lowerEndpoint = Integer.parseInt(split[0]);
+            int upperEndpoint = Integer.parseInt(split[1]);
+            return Range.closed(lowerEndpoint, upperEndpoint);
+        }
+        return Range.closed(Integer.parseInt(rangeStr), Integer.parseInt(rangeStr));
+    }
+
     public static long toMicroSecond(Timestamp timestamp) {
         long high13digits = timestamp.getTime();
         long low3digits = timestamp.getNanos() % 1000_000l / 1000;

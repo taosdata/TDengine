@@ -81,6 +81,11 @@ public class ConsumeToNetJobServiceImpl extends AbstractRunnableJobService {
         return taskIds;
     }
 
+    @Override
+    public void shutdown() {
+        // do nothing
+    }
+
     private boolean containsInvalidPartitionIndex(int[] partitions, int bound) {
         for (int partitionIndex : partitions) {
             if (partitionIndex < 1 || partitionIndex > bound)

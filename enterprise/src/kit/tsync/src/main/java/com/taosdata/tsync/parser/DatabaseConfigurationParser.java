@@ -44,12 +44,12 @@ public class DatabaseConfigurationParser implements ConfigurationParser {
     private DatabasePrecision parsePrecision(String precision) {
         switch (precision.toLowerCase()) {
             case "ns":
-                return DatabasePrecision.NS;
+                return DatabasePrecision.ns;
             case "us":
-                return DatabasePrecision.US;
+                return DatabasePrecision.us;
             case "ms":
             default:
-                return DatabasePrecision.MS;
+                return DatabasePrecision.ms;
         }
     }
 }

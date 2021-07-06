@@ -25,6 +25,8 @@ public class ProduceToTQueueJobServiceImpl extends AbstractCallableJobService {
         super(new AffectRowsProcessService());
     }
 
+    private TQueueProducer<String> producer;
+
     @Override
     public List<UUID> prepare(ConfigurationType configurationType, UUID configurationId) throws TsyncException {
         // throw exception if configuration cannot be found
@@ -36,7 +38,7 @@ public class ProduceToTQueueJobServiceImpl extends AbstractCallableJobService {
         }
 
         ProducerConfiguration producerConfiguration = (ProducerConfiguration) configuration.findFirst(ConfigurationType.PRODUCER);
-        TQueueProducer producer = TQueueProducerFactory.build(producerConfiguration);
+        producer = TQueueProducerFactory.build(producerConfiguration);
         TaskConfiguration taskConfiguration = (TaskConfiguration) configuration.findFirst(ConfigurationType.TASK);
         // throw exception if topic not exist
         String topic = taskConfiguration.getTopic();
@@ -108,6 +110,11 @@ public class ProduceToTQueueJobServiceImpl extends AbstractCallableJobService {
         }
 
         return taskIds;
+    }
+
+    @Override
+    public void shutdown() {
+        producer.close();
     }
 
     private boolean containsInvalidPartitionIndex(int[] partitions, int bound) {

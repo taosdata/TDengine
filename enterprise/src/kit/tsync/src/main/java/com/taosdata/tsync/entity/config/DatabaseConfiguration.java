@@ -4,7 +4,7 @@ import com.taosdata.tsync.enums.ConfigurationType;
 import com.taosdata.tsync.enums.DatabasePrecision;
 
 public class DatabaseConfiguration extends Configuration {
-    public static final DatabasePrecision DEFAULT_PRECISION = DatabasePrecision.MS;
+    public static final DatabasePrecision DEFAULT_PRECISION = DatabasePrecision.ms;
 
     private String name;
     private DatabasePrecision precision;

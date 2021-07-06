@@ -121,7 +121,6 @@ public class TQueueProducer<T> extends TQueueBase {
             final long serializedValueSize = serializedValue.length;
             writeMessage(topic, partition, offset, ts, serializedValue);
             //TODO: cannot get the real offset in TQueue with flushOffset method
-//            offset = currentOffset(topic, partition);
             return new RecordMetadata(record.getTopic(), record.getPartition(), offset, ts, serializedValueSize);
         }
     }

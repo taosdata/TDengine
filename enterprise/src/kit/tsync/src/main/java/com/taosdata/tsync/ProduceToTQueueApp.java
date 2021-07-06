@@ -40,6 +40,8 @@ public class ProduceToTQueueApp extends AbstractApp{
         // execute
         job.execute(jobService);
         logger.info("ProduceToTQueueApp stopped.");
+
+        job.shutdown(jobService);
     }
 
 }

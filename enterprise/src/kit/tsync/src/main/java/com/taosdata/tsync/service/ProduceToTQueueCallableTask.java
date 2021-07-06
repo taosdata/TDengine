@@ -33,8 +33,9 @@ public class ProduceToTQueueCallableTask implements Callable<Long> {
     private long batchValues;
 
     // schema
-    private AtomicLong ts;
     private String dbname;
+    private AtomicLong ts;
+
     private String stableName;
     private List<Configuration> columns;
     private List<Configuration> tags;

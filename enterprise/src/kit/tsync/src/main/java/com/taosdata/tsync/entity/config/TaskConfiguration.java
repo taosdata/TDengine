@@ -5,6 +5,8 @@ import com.taosdata.tsync.enums.ConfigurationType;
 
 public class TaskConfiguration extends Configuration {
     public static final int DEFAULT_THREADS = 1;
+    public static final int MAX_PARTITION_INDEX = 1000;
+    public static final int MIN_PARTITION_INDEX = 1;
 
     private int threads;
     private String topic;

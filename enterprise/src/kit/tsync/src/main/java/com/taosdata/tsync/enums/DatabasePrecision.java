@@ -1,7 +1,7 @@
 package com.taosdata.tsync.enums;
 
 public enum DatabasePrecision {
-    MS, // milliSec
-    US, // microSec
-    NS  // nanoSec
+    ms, // milliSec
+    us, // microSec
+    ns  // nanoSec
 }
