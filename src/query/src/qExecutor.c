@@ -410,9 +410,10 @@ static void prepareResultListBuffer(SResultRowInfo* pResultRowInfo, SQueryRuntim
   pResultRowInfo->capacity = (int32_t)newCapacity;
 }
 
-static SResultRow *doPrepareResultRowFromKey(SQueryRuntimeEnv *pRuntimeEnv, SResultRowInfo *pResultRowInfo, char *pData,
+static SResultRow *doPrepareResultRowFromKey(SQueryRuntieEnv *pRuntimeEnv, SResultRowInfo *pResultRowInfo, char *pData,
                                              int16_t bytes, bool masterscan, uint64_t uid) {
   bool existed = false;
+  pRuntimeEnv->keyBuf = realloc(pRuntimeEnv->keyBuf, pRuntimeEnv->pQueryAttr->maxTableColumnWidth + sizeof(int64_t) + bytes);
   SET_RES_WINDOW_KEY(pRuntimeEnv->keyBuf, pData, bytes, uid);
 
   SResultRow **p1 =
@@ -1458,8 +1459,6 @@ static void doHashGroupbyAgg(SOperatorInfo* pOperator, SGroupbyOperatorInfo *pIn
 
     doApplyFunctions(pRuntimeEnv, pInfo->binfo.pCtx, &w, pSDataBlock->info.rows - num, num, tsList, pSDataBlock->info.rows, pOperator->numOfOutput);
   }
-
-  tfree(pInfo->prevData);
 }
 
 static void doSessionWindowAggImpl(SOperatorInfo* pOperator, SSWindowOperatorInfo *pInfo, SSDataBlock *pSDataBlock) {
@@ -1562,6 +1561,7 @@ static int32_t setGroupResultOutputBuf(SQueryRuntimeEnv *pRuntimeEnv, SOptrBasic
   //  d = varDataVal(pData);
   //  len = varDataLen(pData);
   //}
+  
 
   SResultRow *pResultRow = doPrepareResultRowFromKey(pRuntimeEnv, pResultRowInfo, d, len, true, groupIndex);
   assert (pResultRow != NULL);
@@ -1827,7 +1827,7 @@ static int32_t setupQueryRuntimeEnv(SQueryRuntimeEnv *pRuntimeEnv, int32_t numOf
   pRuntimeEnv->pQueryAttr = pQueryAttr;
 
   pRuntimeEnv->pResultRowHashTable = taosHashInit(numOfTables, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
-  pRuntimeEnv->keyBuf  = malloc(pQueryAttr->maxTableColumnWidth + sizeof(int64_t) + 64);
+  pRuntimeEnv->keyBuf  = malloc(pQueryAttr->maxTableColumnWidth + sizeof(int64_t) + 256);
   pRuntimeEnv->pool    = initResultRowPool(getResultRowSize(pRuntimeEnv));
 
   pRuntimeEnv->prevRow = malloc(POINTER_BYTES * pQueryAttr->numOfCols + pQueryAttr->srcRowSize);
