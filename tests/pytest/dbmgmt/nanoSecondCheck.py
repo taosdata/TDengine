@@ -99,6 +99,15 @@ class TDTestCase:
         tdSql.query('select avg(speed) from tb interval(100000000b)')
         tdSql.checkRows(4)
 
+        tdSql.error('select avg(speed) from tb interval(1b);')
+        tdSql.error('select avg(speed) from tb interval(999b);')
+
+        tdSql.query('select avg(speed) from tb interval(1000b);')
+        tdSql.checkRows(5)
+
+        tdSql.query('select avg(speed) from tb interval(1u);')
+        tdSql.checkRows(5)
+
         tdSql.query('select avg(speed) from tb interval(100000000b) sliding (100000000b);')
         tdSql.checkRows(4)
 

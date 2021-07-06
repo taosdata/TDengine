@@ -71,13 +71,10 @@ class TDTestRetetion:
         tdDnodes.start(1)
         
         tdLog.info(cmd)
+        ttime = datetime.datetime.now()
         tdSql.execute(cmd)
         self.queryRows=tdSql.query('select * from test')
-        if self.queryRows==4:
-            self.checkRows(4,cmd)
-            return 0
-        else:
-            self.checkRows(5,cmd)
+        self.checkRows(3,cmd)
         tdLog.info("=============== step3")
         tdDnodes.stop(1)
         os.system("date -s '%s'"%(datetime.datetime.now()+datetime.timedelta(hours=48)))
@@ -92,7 +89,7 @@ class TDTestRetetion:
         tdLog.info(cmd)
         tdSql.execute(cmd)
         self.queryRows=tdSql.query('select * from test')
-        self.checkRows(6,cmd)
+        self.checkRows(3,cmd)
         tdLog.info("=============== step4")
         tdDnodes.stop(1)
         tdDnodes.start(1)
@@ -100,7 +97,7 @@ class TDTestRetetion:
         tdLog.info(cmd)
         tdSql.execute(cmd)
         self.queryRows=tdSql.query('select * from test')
-        self.checkRows(5,cmd)
+        self.checkRows(4,cmd)
 
         tdLog.info("=============== step5")
         tdDnodes.stop(1)
@@ -108,6 +105,23 @@ class TDTestRetetion:
         cmd='select * from test where ts > now-1d'
         self.queryRows=tdSql.query('select * from test where ts > now-1d')
         self.checkRows(2,cmd)
+
+        tdLog.info("=============== step6")
+        tdDnodes.stop(1)
+        os.system("date -s '%s'"%(ttime + datetime.timedelta(seconds=(72*60*60-7))))
+        tdDnodes.start(1)
+        while datetime.datetime.now() < (ttime + datetime.timedelta(seconds=(72*60*60-1))):
+            time.sleep(0.001)
+        cmd = 'select * from test'
+        self.queryRows=tdSql.query(cmd)
+        self.checkRows(4,cmd)
+        while datetime.datetime.now() <= (ttime + datetime.timedelta(hours=72)):
+            time.sleep(0.001)
+        time.sleep(0.01)
+        cmd = 'select * from test'
+        self.queryRows=tdSql.query(cmd)
+        print(tdSql.queryResult)
+        self.checkRows(3,cmd)
 
     def stop(self):
         os.system("sudo timedatectl set-ntp true")

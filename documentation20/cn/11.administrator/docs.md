@@ -418,6 +418,19 @@ TDengine启动后，会自动创建一个监测数据库log，并自动将服务
 
 这些监测信息的采集缺省是打开的，但可以修改配置文件里的选项enableMonitor将其关闭或打开。
 
+<a class="anchor" id="optimize"></a>
+## 性能优化
+
+因数据行 [update](https://www.taosdata.com/cn/documentation/faq#update)、表删除、数据过期等原因，TDengine 的磁盘存储文件有可能出现数据碎片，影响查询操作的性能表现。从 2.1.3.0 版本开始，新增 SQL 指令 COMPACT 来启动碎片重整过程：
+
+```mysql
+COMPACT VNODES IN (vg_id1, vg_id2, ...)
+```
+
+COMPACT 命令对指定的一个或多个 VGroup 启动碎片重整，系统会通过任务队列尽快安排重整操作的具体执行。COMPACT 指令所需的 VGroup id，可以通过 `SHOW VGROUPS;` 指令的输出结果获取；而且在 `SHOW VGROUPS;` 中会有一个 compacting 列，值为 1 时表示对应的 VGroup 正在进行碎片重整，为 0 时则表示并没有处于重整状态。
+
+需要注意的是，碎片重整操作会大幅消耗磁盘 I/O。因此在重整进行期间，有可能会影响节点的写入和查询性能，甚至在极端情况下导致短时间的阻写。
+
 ## <a class="anchor" id="directories"></a>文件目录结构
 
 安装TDengine后，默认会在操作系统中生成下列目录或文件：
@@ -465,43 +478,44 @@ TDengine的所有可执行文件默认存放在 _/usr/local/taos/bin_ 目录下�
 
 目前 TDengine 有将近 200 个内部保留关键字，这些关键字无论大小写均不可以用作库名、表名、STable 名、数据列名及标签列名等。这些关键字列表如下：
 
-| 关键字列表 |             |              |            |           |
-| ---------- | ----------- | ------------ | ---------- | --------- |
-| ABLOCKS    | CONNECTIONS | HAVING       | MODULES    | SMALLINT  |
-| ABORT      | COPY        | ID           | NCHAR      | SPREAD    |
-| ACCOUNT    | COUNT       | IF           | NE         | STABLE    |
-| ACCOUNTS   | CREATE      | IGNORE       | NONE       | STABLES   |
-| ADD        | CTIME       | IMMEDIATE    | NOT        | STAR      |
-| AFTER      | DATABASE    | IMPORT       | NOTNULL    | STATEMENT |
-| ALL        | DATABASES   | IN           | NOW        | STDDEV    |
-| ALTER      | DAYS        | INITIALLY    | OF         | STREAM    |
-| AND        | DEFERRED    | INSERT       | OFFSET     | STREAMS   |
-| AS         | DELIMITERS  | INSTEAD      | OR         | STRING    |
-| ASC        | DESC        | INTEGER      | ORDER      | SUM       |
-| ATTACH     | DESCRIBE    | INTERVAL     | PASS       | TABLE     |
-| AVG        | DETACH      | INTO         | PERCENTILE | TABLES    |
-| BEFORE     | DIFF        | IP           | PLUS       | TAG       |
-| BEGIN      | DISTINCT    | IS           | PRAGMA     | TAGS      |
-| BETWEEN    | DIVIDE      | ISNULL       | PREV       | TBLOCKS   |
-| BIGINT     | DNODE       | JOIN         | PRIVILEGE  | TBNAME    |
-| BINARY     | DNODES      | KEEP         | QUERIES    | TIMES     |
-| BITAND     | DOT         | KEY          | QUERY      | TIMESTAMP |
-| BITNOT     | DOUBLE      | KILL         | RAISE      | TINYINT   |
-| BITOR      | DROP        | LAST         | REM        | TOP       |
-| BOOL       | EACH        | LE           | REPLACE    | TOPIC     |
-| BOTTOM     | END         | LEASTSQUARES | REPLICA    | TRIGGER   |
-| BY         | EQ          | LIKE         | RESET      | UMINUS    |
-| CACHE      | EXISTS      | LIMIT        | RESTRICT   | UNION     |
-| CASCADE    | EXPLAIN     | LINEAR       | ROW        | UPLUS     |
-| CHANGE     | FAIL        | LOCAL        | ROWS       | USE       |
-| CLOG       | FILL        | LP           | RP         | USER      |
-| CLUSTER    | FIRST       | LSHIFT       | RSHIFT     | USERS     |
-| COLON      | FLOAT       | LT           | SCORES     | USING     |
-| COLUMN     | FOR         | MATCH        | SELECT     | VALUES    |
-| COMMA      | FROM        | MAX          | SEMI       | VARIABLE  |
-| COMP       | GE          | METRIC       | SET        | VGROUPS   |
-| CONCAT     | GLOB        | METRICS      | SHOW       | VIEW      |
-| CONFIGS    | GRANTS      | MIN          | SLASH      | WAVG      |
-| CONFLICT   | GROUP       | MINUS        | SLIDING    | WHERE     |
-| CONNECTION | GT          | MNODES       | SLIMIT     |           |
+|  关键字列表  |              |              |              |              |
+| ------------ | ------------ | ------------ | ------------ | ------------ |
+| ABORT        | CREATE       | IGNORE       | NULL         | STAR         |
+| ACCOUNT      | CTIME        | IMMEDIATE    | OF           | STATE        |
+| ACCOUNTS     | DATABASE     | IMPORT       | OFFSET       | STATEMENT    |
+| ADD          | DATABASES    | IN           | OR           | STATE_WINDOW |
+| AFTER        | DAYS         | INITIALLY    | ORDER        | STORAGE      |
+| ALL          | DBS          | INSERT       | PARTITIONS   | STREAM       |
+| ALTER        | DEFERRED     | INSTEAD      | PASS         | STREAMS      |
+| AND          | DELIMITERS   | INT          | PLUS         | STRING       |
+| AS           | DESC         | INTEGER      | PPS          | SYNCDB       |
+| ASC          | DESCRIBE     | INTERVAL     | PRECISION    | TABLE        |
+| ATTACH       | DETACH       | INTO         | PREV         | TABLES       |
+| BEFORE       | DISTINCT     | IS           | PRIVILEGE    | TAG          |
+| BEGIN        | DIVIDE       | ISNULL       | QTIME        | TAGS         |
+| BETWEEN      | DNODE        | JOIN         | QUERIES      | TBNAME       |
+| BIGINT       | DNODES       | KEEP         | QUERY        | TIMES        |
+| BINARY       | DOT          | KEY          | QUORUM       | TIMESTAMP    |
+| BITAND       | DOUBLE       | KILL         | RAISE        | TINYINT      |
+| BITNOT       | DROP         | LE           | REM          | TOPIC        |
+| BITOR        | EACH         | LIKE         | REPLACE      | TOPICS       |
+| BLOCKS       | END          | LIMIT        | REPLICA      | TRIGGER      |
+| BOOL         | EQ           | LINEAR       | RESET        | TSERIES      |
+| BY           | EXISTS       | LOCAL        | RESTRICT     | UMINUS       |
+| CACHE        | EXPLAIN      | LP           | ROW          | UNION        |
+| CACHELAST    | FAIL         | LSHIFT       | RP           | UNSIGNED     |
+| CASCADE      | FILE         | LT           | RSHIFT       | UPDATE       |
+| CHANGE       | FILL         | MATCH        | SCORES       | UPLUS        |
+| CLUSTER      | FLOAT        | MAXROWS      | SELECT       | USE          |
+| COLON        | FOR          | MINROWS      | SEMI         | USER         |
+| COLUMN       | FROM         | MINUS        | SESSION      | USERS        |
+| COMMA        | FSYNC        | MNODES       | SET          | USING        |
+| COMP         | GE           | MODIFY       | SHOW         | VALUES       |
+| COMPACT      | GLOB         | MODULES      | SLASH        | VARIABLE     |
+| CONCAT       | GRANTS       | NCHAR        | SLIDING      | VARIABLES    |
+| CONFLICT     | GROUP        | NE           | SLIMIT       | VGROUPS      |
+| CONNECTION   | GT           | NONE         | SMALLINT     | VIEW         |
+| CONNECTIONS  | HAVING       | NOT          | SOFFSET      | VNODES       |
+| CONNS        | ID           | NOTNULL      | STABLE       | WAL          |
+| COPY         | IF           | NOW          | STABLES      | WHERE        |
 

@@ -74,13 +74,14 @@ bool taosGetProcMemory(float *memoryUsedMB) {
     return false;
   }
 
+  ssize_t _bytes = 0;
   size_t len;
   char * line = NULL;
   while (!feof(fp)) {
     tfree(line);
     len = 0;
-    getline(&line, &len, fp);
-    if (line == NULL) {
+    _bytes = getline(&line, &len, fp);
+    if ((_bytes < 0) || (line == NULL)) {
       break;
     }
     if (strstr(line, "VmRSS:") != NULL) {
@@ -113,8 +114,8 @@ static bool taosGetSysCpuInfo(SysCpuInfo *cpuInfo) {
 
   size_t len;
   char * line = NULL;
-  getline(&line, &len, fp);
-  if (line == NULL) {
+  ssize_t _bytes = getline(&line, &len, fp);
+  if ((_bytes < 0) || (line == NULL)) {
     uError("read file:%s failed", tsSysCpuFile);
     fclose(fp);
     return false;
@@ -138,8 +139,8 @@ static bool taosGetProcCpuInfo(ProcCpuInfo *cpuInfo) {
 
   size_t len = 0;
   char * line = NULL;
-  getline(&line, &len, fp);
-  if (line == NULL) {
+  ssize_t _bytes = getline(&line, &len, fp);
+  if ((_bytes < 0) || (line == NULL)) {
     uError("read file:%s failed", tsProcCpuFile);
     fclose(fp);
     return false;
@@ -339,6 +340,7 @@ static bool taosGetCardInfo(int64_t *bytes) {
     return false;
   }
 
+  ssize_t _bytes = 0;
   size_t len = 2048;
   char * line = calloc(1, len);
 
@@ -357,7 +359,12 @@ static bool taosGetCardInfo(int64_t *bytes) {
     int64_t nouse6 = 0;
     char    nouse0[200] = {0};
 
-    getline(&line, &len, fp);
+    _bytes = getline(&line, &len, fp);
+    if (_bytes < 0)
+    {
+      break;
+    }
+
     line[len - 1] = 0;
 
     if (strstr(line, "lo:") != NULL) {
@@ -420,6 +427,7 @@ static bool taosReadProcIO(int64_t *readbyte, int64_t *writebyte) {
     return false;
   }
 
+  ssize_t _bytes = 0;
   size_t len;
   char * line = NULL;
   char   tmp[10];
@@ -428,8 +436,8 @@ static bool taosReadProcIO(int64_t *readbyte, int64_t *writebyte) {
   while (!feof(fp)) {
     tfree(line);
     len = 0;
-    getline(&line, &len, fp);
-    if (line == NULL) {
+    _bytes = getline(&line, &len, fp);
+    if ((_bytes < 0) || (line == NULL)) {
       break;
     }
     if (strstr(line, "rchar:") != NULL) {

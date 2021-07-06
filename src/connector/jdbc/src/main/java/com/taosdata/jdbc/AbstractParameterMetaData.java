@@ -1,7 +1,5 @@
 package com.taosdata.jdbc;
 
-import com.sun.org.apache.xpath.internal.operations.Bool;
-
 import java.sql.ParameterMetaData;
 import java.sql.SQLException;
 import java.sql.Timestamp;
