@@ -6,7 +6,7 @@ import org.junit.Test;
 
 import java.sql.*;
 
-public class NullValueInResultSetForJdbcRestfulTest {
+public class NullValueInResultSetJNITest {
 
     private static final String host = "127.0.0.1";
     Connection conn;
@@ -17,11 +17,6 @@ public class NullValueInResultSetForJdbcRestfulTest {
             ResultSet rs = stmt.executeQuery("select * from weather");
             ResultSetMetaData meta = rs.getMetaData();
             while (rs.next()) {
-                for (int i = 1; i <= meta.getColumnCount(); i++) {
-                    Object value = rs.getObject(i);
-                    System.out.print(meta.getColumnLabel(i) + ": " + value + "\t");
-                }
-                System.out.println();
             }
 
         } catch (SQLException e) {
@@ -31,7 +26,7 @@ public class NullValueInResultSetForJdbcRestfulTest {
 
     @Before
     public void before() throws SQLException {
-        final String url = "jdbc:TAOS-RS://" + host + ":6041/?user=root&password=taosdata";
+        final String url = "jdbc:TAOS://" + host + ":6030/?user=root&password=taosdata";
         conn = DriverManager.getConnection(url);
         try (Statement stmt = conn.createStatement()) {
             stmt.execute("drop database if exists test_null");

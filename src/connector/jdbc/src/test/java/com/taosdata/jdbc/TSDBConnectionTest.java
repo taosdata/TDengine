@@ -32,20 +32,34 @@ public class TSDBConnectionTest {
     }
 
     @Test
-    public void subscribe() {
+    public void runSubscribe() {
         try {
+            // given
             TSDBConnection unwrap = conn.unwrap(TSDBConnection.class);
             TSDBSubscribe subscribe = unwrap.subscribe("topic1", "select * from log.log", false);
+            // when
             TSDBResultSet rs = subscribe.consume();
             ResultSetMetaData metaData = rs.getMetaData();
-            for (int count = 0; count < 10 && rs.next(); count++) {
-                for (int i = 1; i <= metaData.getColumnCount(); i++) {
-                    String value = rs.getString(i);
-                    System.out.print(metaData.getColumnLabel(i) + ":" + value + "\t");
-                }
-                System.out.println();
-            }
+
+            // then
             Assert.assertNotNull(rs);
+            Assert.assertEquals(4, metaData.getColumnCount());
+            Assert.assertEquals("ts", metaData.getColumnLabel(1));
+            Assert.assertEquals("level", metaData.getColumnLabel(2));
+            Assert.assertEquals("content", metaData.getColumnLabel(3));
+            Assert.assertEquals("ipaddr", metaData.getColumnLabel(4));
+            rs.next();
+            // row 1
+            {
+                Assert.assertNotNull(rs.getTimestamp(1));
+                Assert.assertNotNull(rs.getTimestamp("ts"));
+                Assert.assertNotNull(rs.getByte(2));
+                Assert.assertNotNull(rs.getByte("level"));
+                Assert.assertNotNull(rs.getString(3));
+                Assert.assertNotNull(rs.getString("content"));
+                Assert.assertNotNull(rs.getString(4));
+                Assert.assertNotNull(rs.getString("ipaddr"));
+            }
             subscribe.close(false);
         } catch (SQLException e) {
             e.printStackTrace();
@@ -366,14 +380,15 @@ public class TSDBConnectionTest {
         conn.abort(null);
     }
 
-    @Test(expected = SQLFeatureNotSupportedException.class)
+    @Test
     public void setNetworkTimeout() throws SQLException {
         conn.setNetworkTimeout(null, 1000);
     }
 
-    @Test(expected = SQLFeatureNotSupportedException.class)
+    @Test
     public void getNetworkTimeout() throws SQLException {
-        conn.getNetworkTimeout();
+        int networkTimeout = conn.getNetworkTimeout();
+        Assert.assertEquals(0, networkTimeout);
     }
 
     @Test
