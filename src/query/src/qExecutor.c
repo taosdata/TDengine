@@ -410,7 +410,7 @@ static void prepareResultListBuffer(SResultRowInfo* pResultRowInfo, SQueryRuntim
   pResultRowInfo->capacity = (int32_t)newCapacity;
 }
 
-static SResultRow *doPrepareResultRowFromKey(SQueryRuntieEnv *pRuntimeEnv, SResultRowInfo *pResultRowInfo, char *pData,
+static SResultRow *doPrepareResultRowFromKey(SQueryRuntimeEnv *pRuntimeEnv, SResultRowInfo *pResultRowInfo, char *pData,
                                              int16_t bytes, bool masterscan, uint64_t uid) {
   bool existed = false;
   pRuntimeEnv->keyBuf = realloc(pRuntimeEnv->keyBuf, pRuntimeEnv->pQueryAttr->maxTableColumnWidth + sizeof(int64_t) + bytes);
