@@ -126,7 +126,7 @@
 			return;
 		}
 		
-		var sql = "alter user " + user + " pass " + pass;
+		var sql = "alter user " + user + " pass '" + pass + "'";
 		
 		$.ajax({
 			type: "post",
