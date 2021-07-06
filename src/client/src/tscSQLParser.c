@@ -916,7 +916,8 @@ static int32_t checkInvalidExprForTimeWindow(SSqlCmd* pCmd, SQueryInfo* pQueryIn
 
 int32_t validateIntervalNode(SSqlObj* pSql, SQueryInfo* pQueryInfo, SSqlNode* pSqlNode) {
   const char* msg1 = "sliding cannot be used without interval";
-  const char* msg2 = "interval cannot be less than 10 ms";
+  const char* msg2 = "interval cannot be less than 1 us";
+  const char* msg3 = "interval value is too small";
 
   SSqlCmd* pCmd = &pSql->cmd;
 
@@ -941,6 +942,10 @@ int32_t validateIntervalNode(SSqlObj* pSql, SQueryInfo* pQueryInfo, SSqlNode* pS
   if (parseNatualDuration(t->z, t->n, &pQueryInfo->interval.interval,
                           &pQueryInfo->interval.intervalUnit, tinfo.precision) != TSDB_CODE_SUCCESS) {
     return TSDB_CODE_TSC_INVALID_OPERATION;
+  }
+
+  if (pQueryInfo->interval.interval <= 0) {
+    return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg3);
   }
 
   if (pQueryInfo->interval.intervalUnit != 'n' && pQueryInfo->interval.intervalUnit != 'y') {
