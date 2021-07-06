@@ -3687,10 +3687,8 @@ void setParamForStableStddevByColData(SQueryRuntimeEnv* pRuntimeEnv, SQLFunction
         break;
       }
       offset += pDataInfo->bytes;
-      if (idx == taosArrayGetSize(pInfo->pGroupbyDataInfo) - 1) {
-        continue;
-      }
     }
+    if (val == NULL) { continue; }
 
     // TODO use hash to speedup this loop
     int32_t numOfGroup = (int32_t)taosArrayGetSize(pRuntimeEnv->prevResult);
