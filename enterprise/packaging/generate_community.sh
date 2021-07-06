@@ -34,7 +34,7 @@ fi
 # mv package to path:/nas/TDengine/version/
 cd $archiveDir
 cp -f $communityDir/release/* ./
-if [ "${cpuType}" == "x64"]; then
+if [ "${cpuType}" == "x64" ]; then
   cp -f $communityDir/debs/* ./
   cp -f $communityDir/rpms/* ./
 fi
