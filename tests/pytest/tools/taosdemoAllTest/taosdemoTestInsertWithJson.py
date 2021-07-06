@@ -64,6 +64,22 @@ class TDTestCase:
         tdSql.query("select count(*) from stb1")
         tdSql.checkData(0, 0, 200000)        
 
+        # restful connector insert data
+        os.system("%staosdemo -f tools/taosdemoAllTest/insertRestful.json -y " % binPath)
+        tdSql.execute("use db")
+        tdSql.query("select count (tbname) from stb0")
+        tdSql.checkData(0, 0, 10)
+        tdSql.query("select count (tbname) from stb1")
+        tdSql.checkData(0, 0, 10)
+        tdSql.query("select count(*) from stb00_0")
+        tdSql.checkData(0, 0, 10)
+        tdSql.query("select count(*) from stb0")
+        tdSql.checkData(0, 0, 100)
+        tdSql.query("select count(*) from stb01_1")
+        tdSql.checkData(0, 0, 20)
+        tdSql.query("select count(*) from stb1")
+        tdSql.checkData(0, 0, 200)
+
 
         # insert: create  mutiple tables per sql and insert one rows per sql . 
         os.system("%staosdemo -f tools/taosdemoAllTest/insert-1s1tntmr.json -y " % binPath)
@@ -165,6 +181,10 @@ class TDTestCase:
         tdSql.query("select count(*) from db.stb0")
         tdSql.checkData(0, 0, 10000) 
         tdSql.execute("drop database if exists db") 
+        os.system("%staosdemo -f tools/taosdemoAllTest/insertInterlaceRowsLarge1M.json -y " % binPath)
+        tdSql.query("select count(*) from db.stb0")
+        tdSql.checkRows(0)
+        tdSql.execute("drop database if exists db") 
         os.system("%staosdemo -f tools/taosdemoAllTest/insertColumnsNum0.json -y " % binPath)
         tdSql.execute("use db") 
         tdSql.query("show stables like 'stb0%' ")
@@ -201,6 +221,12 @@ class TDTestCase:
         tdSql.checkData(0, 0, "2019-10-01 00:00:00")
         tdSql.query("select last(ts) from blf.p_0_topics_6 ")        
         tdSql.checkData(0, 0, "2020-09-29 23:59:00")
+        os.system("%staosdemo -f tools/taosdemoAllTest/insertMaxNumPerReq.json -y " % binPath)   
+        tdSql.execute("use db") 
+        tdSql.query("select count(*) from stb0")
+        tdSql.checkData(0, 0, 5000000)
+        tdSql.query("select count(*) from stb1")
+        tdSql.checkData(0, 0, 5000000)
 
 
 
