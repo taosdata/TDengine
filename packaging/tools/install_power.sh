@@ -752,6 +752,7 @@ function update_PowerDB() {
         echo "File power.tar.gz does not exist"
         exit 1
     fi
+    install_jemalloc
     tar -zxf power.tar.gz
 
     # Check if version compatible
@@ -790,7 +791,6 @@ function update_PowerDB() {
     install_log
     install_header
     install_lib
-    install_jemalloc
     if [ "$pagMode" != "lite" ]; then
       install_connector
     fi
