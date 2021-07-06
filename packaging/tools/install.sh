@@ -270,6 +270,7 @@ function install_jemalloc() {
             ${csudo} /usr/bin/install -c -d /usr/local/share/man/man3
             ${csudo} /usr/bin/install -c -m 644 ${jemalloc_dir}/share/man/man3/jemalloc.3 /usr/local/share/man/man3
         fi
+        ${csudo} ldconfig
     fi
 }
 
@@ -783,7 +784,9 @@ function update_TDengine() {
         echo "File taos.tar.gz does not exist"
         exit 1
     fi
+    install_jemalloc
     tar -zxf taos.tar.gz
+    install_jemalloc
 
     # Check if version compatible
     if ! is_version_compatible; then
@@ -822,7 +825,6 @@ function update_TDengine() {
     install_log
     install_header
     install_lib
-    install_jemalloc
     if [ "$pagMode" != "lite" ]; then
       install_connector
     fi

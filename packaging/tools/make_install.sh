@@ -176,6 +176,7 @@ function install_bin() {
         [ -x ${install_main_dir}/bin/remove_client.sh ] && ${csudo} ln -s ${install_main_dir}/bin/remove_client.sh ${bin_link_dir}/rmtaos  || :
     fi
 }
+
 function install_jemalloc() {
     if [ "$osType" != "Darwin" ]; then
         /usr/bin/install -c -d /usr/local/bin
@@ -217,6 +218,7 @@ function install_jemalloc() {
             /usr/bin/install -c -d /usr/local/share/man/man3
             /usr/bin/install -c -m 644 ${binary_dir}/build/share/man/man3/jemalloc.3 /usr/local/share/man/man3
         fi
+        ${csudo} ldconfig
     fi
 }
 
