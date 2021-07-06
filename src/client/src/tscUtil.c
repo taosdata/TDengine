@@ -2947,6 +2947,7 @@ int32_t tscQueryInfoCopy(SQueryInfo* pQueryInfo, const SQueryInfo* pSrc) {
   pQueryInfo->fillType       = pSrc->fillType;
   pQueryInfo->fillVal        = NULL;
   pQueryInfo->clauseLimit    = pSrc->clauseLimit;
+  pQueryInfo->prjOffset      = pSrc->prjOffset;  
   pQueryInfo->numOfTables    = 0;
   pQueryInfo->window         = pSrc->window;
   pQueryInfo->sessionWindow  = pSrc->sessionWindow;
@@ -3326,6 +3327,7 @@ SSqlObj* createSubqueryObj(SSqlObj* pSql, int16_t tableIndex, __async_cb_func_t 
   pNewQueryInfo->fillType = pQueryInfo->fillType;
   pNewQueryInfo->fillVal  = NULL;
   pNewQueryInfo->clauseLimit = pQueryInfo->clauseLimit;
+  pNewQueryInfo->prjOffset = pQueryInfo->prjOffset;
   pNewQueryInfo->numOfTables = 0;
   pNewQueryInfo->pTableMetaInfo = NULL;
   pNewQueryInfo->bufLen = pQueryInfo->bufLen;

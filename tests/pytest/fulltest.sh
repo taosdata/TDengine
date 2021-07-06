@@ -238,6 +238,7 @@ python3 ./test.py -f query/queryTsisNull.py
 python3 ./test.py -f query/subqueryFilter.py
 # python3 ./test.py -f query/nestedQuery/queryInterval.py
 python3 ./test.py -f query/queryStateWindow.py
+python3 ./test.py -f query/nestedQuery/queryWithOrderLimit.py
 
 
 #stream

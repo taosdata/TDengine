@@ -114,8 +114,7 @@ class TDTestCase:
         tdSql.query("select first(ts),twa(c) from tb interval(14a)")
         tdSql.checkRows(6)
 
-        tdSql.query("select twa(c) from tb group by c")
-        tdSql.checkRows(4)
+        tdSql.error("select twa(c) from tb group by c")
 
 
     def stop(self):

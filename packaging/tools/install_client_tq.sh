@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# This file is used to install TDengine client on linux systems. The operating system
+# This file is used to install TQ client on linux systems. The operating system
 # is required to use systemd to manage services at boot
 
 set -e
@@ -14,19 +14,19 @@ pagMode=full
 if [ "$osType" != "Darwin" ]; then
     script_dir=$(dirname $(readlink -f "$0"))
     # Dynamic directory
-    data_dir="/var/lib/taos"
-    log_dir="/var/log/taos"
+    data_dir="/var/lib/tq"
+    log_dir="/var/log/tq"
 else
     script_dir=`dirname $0`
     cd ${script_dir}
     script_dir="$(pwd)"
-    data_dir="/var/lib/taos"
-    log_dir=~/TDengine/log
+    data_dir="/var/lib/tq"
+    log_dir="~/TQLog"
 fi
 
-log_link_dir="/usr/local/taos/log"
+log_link_dir="/usr/local/tq/log"
 
-cfg_install_dir="/etc/taos"
+cfg_install_dir="/etc/tq"
 
 if [ "$osType" != "Darwin" ]; then
     bin_link_dir="/usr/bin"
@@ -40,13 +40,13 @@ else
 fi
 
 #install main path
-install_main_dir="/usr/local/taos"
+install_main_dir="/usr/local/tq"
 
 # old bin dir
-bin_dir="/usr/local/taos/bin"
+bin_dir="/usr/local/tq/bin"
 
 # v1.5 jar dir
-#v15_java_app_dir="/usr/local/lib/taos"
+#v15_java_app_dir="/usr/local/lib/tq"
 
 # Color setting
 RED='\033[0;31m'
@@ -63,7 +63,7 @@ fi
 update_flag=0
 
 function kill_client() {
-  pid=$(ps -ef | grep "taos" | grep -v "grep" | awk '{print $2}')
+  pid=$(ps -ef | grep "tq" | grep -v "grep" | awk '{print $2}')
   if [ -n "$pid" ]; then
     ${csudo} kill -9 $pid   || :
   fi
@@ -83,23 +83,23 @@ function install_main_path() {
 
 function install_bin() {
   # Remove links
-  ${csudo} rm -f ${bin_link_dir}/taos         || :
+  ${csudo} rm -f ${bin_link_dir}/tq         || :
   if [ "$osType" != "Darwin" ]; then
-      ${csudo} rm -f ${bin_link_dir}/taosdemo || :
-      ${csudo} rm -f ${bin_link_dir}/taosdump || :
+      ${csudo} rm -f ${bin_link_dir}/tqdemo  || :
+      ${csudo} rm -f ${bin_link_dir}/tqdump  || :
   fi
-  ${csudo} rm -f ${bin_link_dir}/rmtaos       || :
-  ${csudo} rm -f ${bin_link_dir}/set_core     || :
+  ${csudo} rm -f ${bin_link_dir}/rmtq       || :
+  ${csudo} rm -f ${bin_link_dir}/set_core      || :
 
   ${csudo} cp -r ${script_dir}/bin/* ${install_main_dir}/bin && ${csudo} chmod 0555 ${install_main_dir}/bin/*
 
   #Make link
-  [ -x ${install_main_dir}/bin/taos ] && ${csudo} ln -s ${install_main_dir}/bin/taos ${bin_link_dir}/taos                 || :
+  [ -x ${install_main_dir}/bin/tq ] && ${csudo} ln -s ${install_main_dir}/bin/tq ${bin_link_dir}/tq                 || :
   if [ "$osType" != "Darwin" ]; then
-      [ -x ${install_main_dir}/bin/taosdemo ] && ${csudo} ln -s ${install_main_dir}/bin/taosdemo ${bin_link_dir}/taosdemo || :
-      [ -x ${install_main_dir}/bin/taosdump ] && ${csudo} ln -s ${install_main_dir}/bin/taosdump ${bin_link_dir}/taosdump || :
+      [ -x ${install_main_dir}/bin/tqdemo ] && ${csudo} ln -s ${install_main_dir}/bin/tqdemo ${bin_link_dir}/tqdemo || :
+      [ -x ${install_main_dir}/bin/tqdump ] && ${csudo} ln -s ${install_main_dir}/bin/tqdump ${bin_link_dir}/tqdump || :
   fi
-  [ -x ${install_main_dir}/bin/remove_client.sh ] && ${csudo} ln -s ${install_main_dir}/bin/remove_client.sh ${bin_link_dir}/rmtaos || :
+  [ -x ${install_main_dir}/bin/remove_client_tq.sh ] && ${csudo} ln -s ${install_main_dir}/bin/remove_client_tq.sh ${bin_link_dir}/rmtq || :
   [ -x ${install_main_dir}/bin/set_core.sh ] && ${csudo} ln -s ${install_main_dir}/bin/set_core.sh ${bin_link_dir}/set_core || :
 }
 
@@ -119,16 +119,16 @@ function install_lib() {
     if [ "$osType" != "Darwin" ]; then
         ${csudo} ln -s ${install_main_dir}/driver/libtaos.* ${lib_link_dir}/libtaos.so.1
         ${csudo} ln -s ${lib_link_dir}/libtaos.so.1 ${lib_link_dir}/libtaos.so
-
+        
         if [ -d "${lib64_link_dir}" ]; then
-            ${csudo} ln -s ${install_main_dir}/driver/libtaos.* ${lib64_link_dir}/libtaos.so.1       || :
-            ${csudo} ln -s ${lib64_link_dir}/libtaos.so.1 ${lib64_link_dir}/libtaos.so               || :
-        fi
+	        ${csudo} ln -s ${install_main_dir}/driver/libtaos.* ${lib64_link_dir}/libtaos.so.1       || :
+	        ${csudo} ln -s ${lib64_link_dir}/libtaos.so.1 ${lib64_link_dir}/libtaos.so               || :
+	      fi
     else
         ${csudo} ln -s ${install_main_dir}/driver/libtaos.* ${lib_link_dir}/libtaos.1.dylib
         ${csudo} ln -s ${lib_link_dir}/libtaos.1.dylib ${lib_link_dir}/libtaos.dylib
     fi
-
+    
     ${csudo} ldconfig
 }
 
@@ -137,52 +137,6 @@ function install_header() {
     ${csudo} cp -f ${script_dir}/inc/* ${install_main_dir}/include && ${csudo} chmod 644 ${install_main_dir}/include/*
     ${csudo} ln -s ${install_main_dir}/include/taos.h ${inc_link_dir}/taos.h
     ${csudo} ln -s ${install_main_dir}/include/taoserror.h ${inc_link_dir}/taoserror.h
-}
-
-function install_jemalloc() {
-    jemalloc_dir=${script_dir}/jemalloc
-
-    if [ -d ${jemalloc_dir} ]; then
-        ${csudo} /usr/bin/install -c -d /usr/local/bin
-
-        if [ -f ${jemalloc_dir}/bin/jemalloc-config ]; then
-            ${csudo} /usr/bin/install -c -m 755 ${jemalloc_dir}/bin/jemalloc-config /usr/local/bin
-        fi
-        if [ -f ${jemalloc_dir}/bin/jemalloc.sh ]; then
-            ${csudo} /usr/bin/install -c -m 755 ${jemalloc_dir}/bin/jemalloc.sh /usr/local/bin
-        fi
-        if [ -f ${jemalloc_dir}/bin/jeprof ]; then
-            ${csudo} /usr/bin/install -c -m 755 ${jemalloc_dir}/bin/jeprof /usr/local/bin
-        fi
-        if [ -f ${jemalloc_dir}/include/jemalloc/jemalloc.h ]; then
-            ${csudo} /usr/bin/install -c -d /usr/local/include/jemalloc
-            ${csudo} /usr/bin/install -c -m 644 ${jemalloc_dir}/include/jemalloc/jemalloc.h /usr/local/include/jemalloc
-        fi
-        if [ -f ${jemalloc_dir}/lib/libjemalloc.so.2 ]; then
-            ${csudo} /usr/bin/install -c -d /usr/local/lib
-            ${csudo} /usr/bin/install -c -m 755 ${jemalloc_dir}/lib/libjemalloc.so.2 /usr/local/lib
-            ${csudo} ln -sf libjemalloc.so.2 /usr/local/lib/libjemalloc.so
-            ${csudo} /usr/bin/install -c -d /usr/local/lib
-            if [ -f ${jemalloc_dir}/lib/libjemalloc.a ]; then
-                ${csudo} /usr/bin/install -c -m 755 ${jemalloc_dir}/lib/libjemalloc.a /usr/local/lib
-            fi
-            if [ -f ${jemalloc_dir}/lib/libjemalloc_pic.a ]; then
-                ${csudo} /usr/bin/install -c -m 755 ${jemalloc_dir}/lib/libjemalloc_pic.a /usr/local/lib
-            fi
-            if [ -f ${jemalloc_dir}/lib/libjemalloc_pic.a ]; then
-                ${csudo} /usr/bin/install -c -d /usr/local/lib/pkgconfig
-                ${csudo} /usr/bin/install -c -m 644 ${jemalloc_dir}/lib/pkgconfig/jemalloc.pc /usr/local/lib/pkgconfig
-            fi
-        fi
-        if [ -f ${jemalloc_dir}/share/doc/jemalloc/jemalloc.html ]; then
-            ${csudo} /usr/bin/install -c -d /usr/local/share/doc/jemalloc
-            ${csudo} /usr/bin/install -c -m 644 ${jemalloc_dir}/share/doc/jemalloc/jemalloc.html /usr/local/share/doc/jemalloc
-        fi
-        if [ -f ${jemalloc_dir}/share/man/man3/jemalloc.3 ]; then
-            ${csudo} /usr/bin/install -c -d /usr/local/share/man/man3
-            ${csudo} /usr/bin/install -c -m 644 ${jemalloc_dir}/share/man/man3/jemalloc.3 /usr/local/share/man/man3
-        fi
-    fi
 }
 
 function install_config() {
@@ -211,7 +165,7 @@ function install_log() {
 }
 
 function install_connector() {
-    ${csudo} cp -rf ${script_dir}/connector/ ${install_main_dir}/
+    ${csudo} cp -rf ${script_dir}/connector/* ${install_main_dir}/connector
 }
 
 function install_examples() {
@@ -220,17 +174,17 @@ function install_examples() {
     fi
 }
 
-function update_TDengine() {
+function update_tq() {
     # Start to update
-    if [ ! -e taos.tar.gz ]; then
-        echo "File taos.tar.gz does not exist"
+    if [ ! -e tq.tar.gz ]; then
+        echo "File tq.tar.gz does not exist"
         exit 1
     fi
-    tar -zxf taos.tar.gz
+    tar -zxf tq.tar.gz
 
-    echo -e "${GREEN}Start to update TDengine client...${NC}"
+    echo -e "${GREEN}Start to update TQ client...${NC}"
     # Stop the client shell if running
-    if pidof taos &> /dev/null; then
+    if pidof tq &> /dev/null; then
         kill_client
         sleep 1
     fi
@@ -240,7 +194,6 @@ function update_TDengine() {
     install_log
     install_header
     install_lib
-    install_jemalloc
     if [ "$pagMode" != "lite" ]; then
       install_connector
     fi
@@ -249,26 +202,25 @@ function update_TDengine() {
     install_config
 
     echo
-    echo -e "\033[44;32;1mTDengine client is updated successfully!${NC}"
+    echo -e "\033[44;32;1mTQ client is updated successfully!${NC}"
 
-    rm -rf $(tar -tf taos.tar.gz)
+    rm -rf $(tar -tf tq.tar.gz)
 }
 
-function install_TDengine() {
+function install_tq() {
     # Start to install
-    if [ ! -e taos.tar.gz ]; then
-        echo "File taos.tar.gz does not exist"
+    if [ ! -e tq.tar.gz ]; then
+        echo "File tq.tar.gz does not exist"
         exit 1
     fi
-    tar -zxf taos.tar.gz
+    tar -zxf tq.tar.gz
 
-    echo -e "${GREEN}Start to install TDengine client...${NC}"
+    echo -e "${GREEN}Start to install TQ client...${NC}"
 
-    install_main_path
+	install_main_path
     install_log
     install_header
     install_lib
-    install_jemalloc
     if [ "$pagMode" != "lite" ]; then
       install_connector
     fi
@@ -277,23 +229,23 @@ function install_TDengine() {
     install_config
 
     echo
-    echo -e "\033[44;32;1mTDengine client is installed successfully!${NC}"
+    echo -e "\033[44;32;1mTQ client is installed successfully!${NC}"
 
-    rm -rf $(tar -tf taos.tar.gz)
+    rm -rf $(tar -tf tq.tar.gz)
 }
 
 
 ## ==============================Main program starts from here============================
 # Install or updata client and client
 # if server is already install, don't install client
-  if [ -e ${bin_dir}/taosd ]; then
-      echo -e "\033[44;32;1mThere are already installed TDengine server, so don't need install client!${NC}"
+  if [ -e ${bin_dir}/tqd ]; then
+      echo -e "\033[44;32;1mThere are already installed TQ server, so don't need install client!${NC}"
       exit 0
   fi
 
-  if [ -x ${bin_dir}/taos ]; then
+  if [ -x ${bin_dir}/tq ]; then
       update_flag=1
-      update_TDengine
+      update_tq
   else
-      install_TDengine
+      install_tq
   fi
