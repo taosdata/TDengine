@@ -2309,7 +2309,7 @@ int tscProcessDropDbRsp(SSqlObj *pSql) {
   //TODO LOCK DB WHEN MODIFY IT
   //pSql->pTscObj->db[0] = 0;
   
-  taosHashEmpty(tscTableMetaInfo);
+  taosHashClear(tscTableMetaInfo);
   return 0;
 }
 
@@ -2340,7 +2340,7 @@ int tscProcessAlterTableMsgRsp(SSqlObj *pSql) {
   tfree(pTableMetaInfo->pTableMeta);
 
   if (isSuperTable) {  // if it is a super table, iterate the hashTable and remove all the childTableMeta
-    taosHashEmpty(tscTableMetaInfo);
+    taosHashClear(tscTableMetaInfo);
   }
 
   return 0;
@@ -2398,11 +2398,12 @@ int tscProcessRetrieveRspFromNode(SSqlObj *pSql) {
   }
 
   STableMetaInfo *pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
-  if (pCmd->command == TSDB_SQL_RETRIEVE) {
-    tscSetResRawPtr(pRes, pQueryInfo);
-  } else if ((UTIL_TABLE_IS_CHILD_TABLE(pTableMetaInfo) || UTIL_TABLE_IS_NORMAL_TABLE(pTableMetaInfo)) && !TSDB_QUERY_HAS_TYPE(pQueryInfo->type, TSDB_QUERY_TYPE_SUBQUERY)) {
-    tscSetResRawPtr(pRes, pQueryInfo);
-  } else if (tscNonOrderedProjectionQueryOnSTable(pQueryInfo, 0) && !TSDB_QUERY_HAS_TYPE(pQueryInfo->type, TSDB_QUERY_TYPE_JOIN_QUERY) && !TSDB_QUERY_HAS_TYPE(pQueryInfo->type, TSDB_QUERY_TYPE_JOIN_SEC_STAGE)) {
+  if ((pCmd->command == TSDB_SQL_RETRIEVE) ||
+      ((UTIL_TABLE_IS_CHILD_TABLE(pTableMetaInfo) || UTIL_TABLE_IS_NORMAL_TABLE(pTableMetaInfo)) &&
+       !TSDB_QUERY_HAS_TYPE(pQueryInfo->type, TSDB_QUERY_TYPE_SUBQUERY)) ||
+      (tscNonOrderedProjectionQueryOnSTable(pQueryInfo, 0) &&
+       !TSDB_QUERY_HAS_TYPE(pQueryInfo->type, TSDB_QUERY_TYPE_JOIN_QUERY) &&
+       !TSDB_QUERY_HAS_TYPE(pQueryInfo->type, TSDB_QUERY_TYPE_JOIN_SEC_STAGE))) {
     tscSetResRawPtr(pRes, pQueryInfo);
   }
 

@@ -179,7 +179,6 @@ static STsdbQueryCond createTsdbQueryCond(SQueryAttr* pQueryAttr, STimeWindow* w
 static STableIdInfo createTableIdInfo(STableQueryInfo* pTableQueryInfo);
 
 static void setTableScanFilterOperatorInfo(STableScanInfo* pTableScanInfo, SOperatorInfo* pDownstream);
-static void* doDestroyFilterInfo(SSingleColumnFilterInfo* pFilterInfo, int32_t numOfFilterCols);
 
 static int32_t getNumOfScanTimes(SQueryAttr* pQueryAttr);
 
@@ -237,37 +236,41 @@ static int compareRowData(const void *a, const void *b, const void *userData) {
 
 static void sortGroupResByOrderList(SGroupResInfo *pGroupResInfo, SQueryRuntimeEnv *pRuntimeEnv, SSDataBlock* pDataBlock) {
   SArray *columnOrderList = getOrderCheckColumns(pRuntimeEnv->pQueryAttr);
-  if (taosArrayGetSize(columnOrderList) <= 0) {
+  size_t size = taosArrayGetSize(columnOrderList);
+  taosArrayDestroy(columnOrderList);
+
+  if (size <= 0) {
     return;
   }
+
   int32_t orderId = pRuntimeEnv->pQueryAttr->order.orderColId;
   if (orderId <= 0) {
     return;
-  } 
+  }
+
   bool found = false;
   int16_t dataOffset = 0;
    
-  //SColIndex *index = taosArrayGet(columnOrderList, 0);
   for (int32_t j = 0; j < pDataBlock->info.numOfCols; ++j) {
     SColumnInfoData* pColInfoData = (SColumnInfoData *)taosArrayGet(pDataBlock->pDataBlock, j);
     if (orderId == j) {
       found = true;
       break;
     }
+
     dataOffset += pColInfoData->info.bytes;
   }  
 
   if (found == false) {
     return;
   }
+
   int16_t type = pRuntimeEnv->pQueryAttr->pExpr1[orderId].base.resType;
    
   SRowCompSupporter support = {.pRuntimeEnv = pRuntimeEnv, .dataOffset = dataOffset, .comFunc = getComparFunc(type, 0)};  
-   
   taosArraySortPWithExt(pGroupResInfo->pRows, compareRowData, &support);
-  return;
-  
 }
+
 //setup the output buffer for each operator
 SSDataBlock* createOutputBuf(SExprInfo* pExpr, int32_t numOfOutput, int32_t numOfRows) {
   const static int32_t minSize = 8;
@@ -1777,9 +1780,9 @@ static int32_t setupQueryRuntimeEnv(SQueryRuntimeEnv *pRuntimeEnv, int32_t numOf
   pRuntimeEnv->pResultRowHashTable = taosHashInit(numOfTables, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
   pRuntimeEnv->keyBuf  = malloc(pQueryAttr->maxTableColumnWidth + sizeof(int64_t));
   pRuntimeEnv->pool    = initResultRowPool(getResultRowSize(pRuntimeEnv));
+
   pRuntimeEnv->prevRow = malloc(POINTER_BYTES * pQueryAttr->numOfCols + pQueryAttr->srcRowSize);
   pRuntimeEnv->tagVal  = malloc(pQueryAttr->tagLen);
-  pRuntimeEnv->currentOffset = pQueryAttr->limit.offset;
 
   // NOTE: pTableCheckInfo need to update the query time range and the lastKey info
   pRuntimeEnv->pTableRetrieveTsMap = taosHashInit(numOfTables, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false, HASH_NO_LOCK);
@@ -1798,7 +1801,9 @@ static int32_t setupQueryRuntimeEnv(SQueryRuntimeEnv *pRuntimeEnv, int32_t numOf
       pRuntimeEnv->prevRow[i] = pRuntimeEnv->prevRow[i - 1] + pQueryAttr->tableCols[i-1].bytes;
     }
 
-    *(int64_t*) pRuntimeEnv->prevRow[0] = INT64_MIN;
+    if (pQueryAttr->tableCols[0].type == TSDB_DATA_TYPE_TIMESTAMP) {
+      *(int64_t*) pRuntimeEnv->prevRow[0] = INT64_MIN;
+    }
   }
 
   qDebug("QInfo:0x%"PRIx64" init runtime environment completed", GET_QID(pRuntimeEnv));
@@ -1832,7 +1837,11 @@ static int32_t setupQueryRuntimeEnv(SQueryRuntimeEnv *pRuntimeEnv, int32_t numOf
       case OP_Groupby: {
         pRuntimeEnv->proot =
             createGroupbyOperatorInfo(pRuntimeEnv, pRuntimeEnv->proot, pQueryAttr->pExpr1, pQueryAttr->numOfOutput);
-        setTableScanFilterOperatorInfo(pRuntimeEnv->proot->upstream[0]->info, pRuntimeEnv->proot);
+
+        int32_t opType = pRuntimeEnv->proot->upstream[0]->operatorType;
+        if (opType != OP_DummyInput) {
+          setTableScanFilterOperatorInfo(pRuntimeEnv->proot->upstream[0]->info, pRuntimeEnv->proot);
+        }
         break;
       }
       case OP_SessionWindow: {
@@ -2683,10 +2692,6 @@ static uint32_t doFilterByBlockTimeWindow(STableScanInfo* pTableScanInfo, SSData
 }
 
 void doSetFilterColumnInfo(SSingleColumnFilterInfo* pFilterInfo, int32_t numOfFilterCols, SSDataBlock* pBlock) {
-  if (numOfFilterCols > 0 && pFilterInfo[0].pData != NULL) {
-    return;
-  }
-
   // set the initial static data value filter expression
   for (int32_t i = 0; i < numOfFilterCols; ++i) {
     for (int32_t j = 0; j < pBlock->info.numOfCols; ++j) {
@@ -3847,14 +3852,17 @@ int32_t doFillTimeIntervalGapsInResults(SFillInfo* pFillInfo, SSDataBlock *pOutp
 }
 
 void publishOperatorProfEvent(SOperatorInfo* operatorInfo, EQueryProfEventType eventType) {
-  SQueryProfEvent event;
-  event.eventType = eventType;
-  event.eventTime = taosGetTimestampUs();
+  SQueryProfEvent event = {0};
+
+  event.eventType    = eventType;
+  event.eventTime    = taosGetTimestampUs();
   event.operatorType = operatorInfo->operatorType;
 
-  SQInfo* qInfo = operatorInfo->pRuntimeEnv->qinfo;
-  if (qInfo->summary.queryProfEvents) {
-    taosArrayPush(qInfo->summary.queryProfEvents, &event);
+  if (operatorInfo->pRuntimeEnv) {
+    SQInfo* pQInfo = operatorInfo->pRuntimeEnv->qinfo;
+    if (pQInfo->summary.queryProfEvents) {
+      taosArrayPush(pQInfo->summary.queryProfEvents, &event);
+    }
   }
 }
 
@@ -7563,6 +7571,7 @@ int32_t initQInfo(STsBufInfo* pTsBufInfo, void* tsdb, void* sourceOptr, SQInfo* 
     pRuntimeEnv->prevResult = prevResult;
   }
 
+  pRuntimeEnv->currentOffset = pQueryAttr->limit.offset;
   if (tsdb != NULL) {
     pQueryAttr->precision = tsdbGetCfg(tsdb)->precision;
   }

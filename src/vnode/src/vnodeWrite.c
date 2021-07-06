@@ -396,10 +396,13 @@ static int32_t vnodePerformFlowCtrl(SVWriteMsg *pWrite) {
 }
 
 void vnodeWaitWriteCompleted(SVnodeObj *pVnode) {
+  int32_t extraSleep = 0;
   while (pVnode->queuedWMsg > 0) {
     vTrace("vgId:%d, queued wmsg num:%d", pVnode->vgId, pVnode->queuedWMsg);
     taosMsleep(10);
+    extraSleep = 1;
   }
 
-  taosMsleep(900);
+  if (extraSleep)
+    taosMsleep(900);
 }

@@ -2450,6 +2450,7 @@ int32_t tscHandleMasterSTableQuery(SSqlObj *pSql) {
   if (ret != 0) {
     pRes->code = ret;
     tscAsyncResultOnError(pSql);
+    tfree(pDesc);
     tfree(pMemoryBuf);
     return ret;
   }
