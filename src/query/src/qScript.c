@@ -124,7 +124,7 @@ void taosLoadScriptNormal(void *pInit, char *pInput, int16_t iType, int16_t iByt
   if (lua_istable(lua, -1)) {
     isGlobalState = true; 
   }
-  lua_pushnumber(lua, key);
+  lua_pushnumber(lua, (lua_Number)key);
   // do call lua script 
   if (lua_pcall(lua, 3, 1, 0) != 0) {
     qError("SCRIPT ERROR: %s", lua_tostring(lua, -1)); 
@@ -178,7 +178,7 @@ void taosLoadScriptFinalize(void *pInit,int64_t key, char *pOutput, int32_t* num
 
   lua_getglobal(lua, "global"); 
 
-  lua_pushnumber(lua, key);
+  lua_pushnumber(lua, (lua_Number)key);
   if (lua_pcall(lua, 2, 2, 0) != 0) {
     qError("SCRIPT ERROR: %s", lua_tostring(lua, -1)); 
     lua_pop(lua, -1);
@@ -254,19 +254,19 @@ void luaValueToTaosType(lua_State *lua, char *interBuf, int32_t *numOfOutput, in
     case LUA_TNUMBER:
       {
         if (oType == TSDB_DATA_TYPE_FLOAT) {
-          float v = lua_tonumber(lua, -1);
+          float v = (float)lua_tonumber(lua, -1);
           memcpy(interBuf, (char *)&v, oBytes);
           sz = 1;
         } else if (oType == TSDB_DATA_TYPE_DOUBLE) {
-          double v = lua_tonumber(lua, -1);
+          double v = (double)lua_tonumber(lua, -1);
           memcpy(interBuf, (char *)&v, oBytes);
           sz = 1;
         } else if (oType == TSDB_DATA_TYPE_BIGINT) {
-          int64_t v = lua_tonumber(lua, -1);
+          int64_t v = (int64_t)lua_tonumber(lua, -1);
           memcpy(interBuf, (char *)&v, oBytes);
           sz = 1;
         } else if (oType <= TSDB_DATA_TYPE_INT) {
-          int32_t v = lua_tonumber(lua, -1);
+          int32_t v = (int32_t)lua_tonumber(lua, -1);
           memcpy(interBuf, (char *)&v, oBytes);
           sz = 1;
         }
@@ -277,7 +277,7 @@ void luaValueToTaosType(lua_State *lua, char *interBuf, int32_t *numOfOutput, in
         lua_pushnil(lua);
         int32_t offset = 0;
         while(lua_next(lua, -2)) {
-          int32_t v = lua_tonumber(lua, -1); 
+          int32_t v = (int32_t)lua_tonumber(lua, -1); 
           memcpy(interBuf + offset, (char *)&v, oBytes);
           offset += oBytes;
           lua_pop(lua, 1);
