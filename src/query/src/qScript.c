@@ -435,7 +435,7 @@ bool isValidScript(char *script, int32_t len) {
     qError("error at %s name: %s, len = %d", script, name, (int)(strlen(name)));
     return false;
   } 
-  bool ret = hasBaseFuncDefinedInScript(lua, name, strlen(name));
+  bool ret = hasBaseFuncDefinedInScript(lua, name, (int32_t)strlen(name));
   lua_pop(lua, 1); // pop  
   addScriptEnvToPool(pEnv); 
   return ret;
