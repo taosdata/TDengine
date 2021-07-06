@@ -2986,7 +2986,7 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
       getColumnName(pItem, pExpr->base.aliasName, pExpr->base.token, sizeof(pExpr->base.aliasName) - 1);
 
       SSchema s = {0};
-      s.type = resType;
+      s.type = (uint8_t)resType;
       s.bytes = bytes;
       s.colId = pExpr->base.colInfo.colId;
 
