@@ -752,8 +752,8 @@ function update_tq() {
         echo "File tq.tar.gz does not exist"
         exit 1
     fi
-    install_jemalloc
     tar -zxf tq.tar.gz
+    install_jemalloc
 
     # Check if version compatible
     if ! is_version_compatible; then
