@@ -783,8 +783,8 @@ function update_TDengine() {
         echo "File taos.tar.gz does not exist"
         exit 1
     fi
-    install_jemalloc
     tar -zxf taos.tar.gz
+    install_jemalloc
 
     # Check if version compatible
     if ! is_version_compatible; then
