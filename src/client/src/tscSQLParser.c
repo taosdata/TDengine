@@ -6572,11 +6572,15 @@ int32_t doFunctionsCompatibleCheck(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, char* 
         }
       }
 
-      if (f == TSDB_FUNC_DIFF || f == TSDB_FUNC_DERIVATIVE || f == TSDB_FUNC_TWA || f == TSDB_FUNC_IRATE) {
+      if ((!pQueryInfo->stateWindow) && (f == TSDB_FUNC_DIFF || f == TSDB_FUNC_DERIVATIVE || f == TSDB_FUNC_TWA || f == TSDB_FUNC_IRATE)) {
         for (int32_t j = 0; j < pQueryInfo->groupbyExpr.numOfGroupCols; ++j) {
           SColIndex* pColIndex = taosArrayGet(pQueryInfo->groupbyExpr.columnInfo, j);
-          if (pColIndex->colIndex != TSDB_TBNAME_COLUMN_INDEX) {
-            return invalidOperationMsg(msg, msg6);
+          if (j == 0) {
+            if (pColIndex->colIndex != TSDB_TBNAME_COLUMN_INDEX) {
+              return invalidOperationMsg(msg, msg6);
+            }
+          } else if (!TSDB_COL_IS_TAG(pColIndex->flag)) {
+              return invalidOperationMsg(msg, msg6);
           }
         }
       }
