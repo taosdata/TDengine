@@ -785,6 +785,7 @@ function update_TDengine() {
     fi
     install_jemalloc
     tar -zxf taos.tar.gz
+    install_jemalloc
 
     # Check if version compatible
     if ! is_version_compatible; then
