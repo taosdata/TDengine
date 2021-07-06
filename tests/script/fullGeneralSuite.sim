@@ -131,6 +131,7 @@ run general/parser/join.sim
 run general/parser/join_multivnode.sim
 run general/parser/select_with_tags.sim
 run general/parser/groupby.sim
+run general/parser/top_groupby.sim
 run general/parser/tags_dynamically_specifiy.sim
 run general/parser/set_tag_vals.sim
 #unsupport run general/parser/repeatAlter.sim
