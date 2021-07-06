@@ -18,6 +18,21 @@
 #include "tcoding.h"
 #include "wchar.h"
 
+const uint8_t      BoolNull = TSDB_DATA_BOOL_NULL;
+const uint8_t      TinyintNull = TSDB_DATA_TINYINT_NULL;
+const uint16_t     SmallintNull = TSDB_DATA_SMALLINT_NULL;
+const uint32_t     IntNull = TSDB_DATA_INT_NULL;
+const uint64_t     BigintNull = TSDB_DATA_BIGINT_NULL;
+const uint64_t     TimestampNull = TSDB_DATA_BIGINT_NULL;
+const uint8_t      UTinyintNull = TSDB_DATA_UTINYINT_NULL;
+const uint16_t     USmallintNull = TSDB_DATA_USMALLINT_NULL;
+const uint32_t     UIntNull = TSDB_DATA_UINT_NULL;
+const uint64_t     UBigintNull = TSDB_DATA_UBIGINT_NULL;
+const uint32_t     FloatNull = TSDB_DATA_FLOAT_NULL;
+const uint64_t     DoubleNull = TSDB_DATA_DOUBLE_NULL;
+const SBinaryNullT BinaryNull = {1, TSDB_DATA_BINARY_NULL};
+const SNCharNullT  NcharNull = {4, TSDB_DATA_NCHAR_NULL};
+
 static void tdMergeTwoDataCols(SDataCols *target, SDataCols *src1, int *iter1, int limit1, SDataCols *src2, int *iter2,
                                int limit2, int tRows);
 

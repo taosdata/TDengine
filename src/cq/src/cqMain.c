@@ -502,7 +502,7 @@ static void cqProcessStreamRes(void *param, TAOS_RES *tres, TAOS_ROW row) {
       memcpy((char *)val + sizeof(VarDataLenT), buf, len);
       varDataLen(val) = len;
     }
-    tdAppendColVal(dataRow, val, c->type, c->bytes, c->offset);
+    tdAppendColVal(dataRow, val, c->type, c->offset);
   }
   pBlk->dataLen = htonl(memRowDataTLen(trow));
   pBlk->schemaLen = 0;

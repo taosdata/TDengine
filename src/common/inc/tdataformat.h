@@ -24,6 +24,33 @@
 extern "C" {
 #endif
 
+#pragma pack(push, 1)
+typedef struct {
+  VarDataLenT len;
+  uint8_t     data;
+} SBinaryNullT;
+
+typedef struct {
+  VarDataLenT len;
+  uint32_t    data;
+} SNCharNullT;
+#pragma pack(pop)
+
+extern const uint8_t      BoolNull;
+extern const uint8_t      TinyintNull;
+extern const uint16_t     SmallintNull;
+extern const uint32_t     IntNull;
+extern const uint64_t     BigintNull;
+extern const uint64_t     TimestampNull;
+extern const uint8_t      UTinyintNull;
+extern const uint16_t     USmallintNull;
+extern const uint32_t     UIntNull;
+extern const uint64_t     UBigintNull;
+extern const uint32_t     FloatNull;
+extern const uint64_t     DoubleNull;
+extern const SBinaryNullT BinaryNull;
+extern const SNCharNullT  NcharNull;
+
 #define STR_TO_VARSTR(x, str)                     \
   do {                                            \
     VarDataLenT __len = (VarDataLenT)strlen(str); \
@@ -207,7 +234,7 @@ SDataRow tdDataRowDup(SDataRow row);
 SMemRow tdMemRowDup(SMemRow row);
 
 // offset here not include dataRow header length
-static FORCE_INLINE int tdAppendColVal(SDataRow row, void *value, int8_t type, int32_t bytes, int32_t offset) {
+static FORCE_INLINE int tdAppendColVal(SDataRow row, const void *value, int8_t type, int32_t offset) {
   ASSERT(value != NULL);
   int32_t toffset = offset + TD_DATA_ROW_HEAD_SIZE;
   char *  ptr = (char *)POINTER_SHIFT(row, dataRowLen(row));
@@ -259,6 +286,42 @@ void dataColSetOffset(SDataCol *pCol, int nEle);
 
 bool isNEleNull(SDataCol *pCol, int nEle);
 void dataColSetNEleNull(SDataCol *pCol, int nEle, int maxPoints);
+
+static FORCE_INLINE const void *tdGetNullVal(int8_t type) {
+  switch (type) {
+    case TSDB_DATA_TYPE_BOOL:
+      return &BoolNull;
+    case TSDB_DATA_TYPE_TINYINT:
+      return &TinyintNull;
+    case TSDB_DATA_TYPE_SMALLINT:
+      return &SmallintNull;
+    case TSDB_DATA_TYPE_INT:
+      return &IntNull;
+    case TSDB_DATA_TYPE_BIGINT:
+      return &BigintNull;
+    case TSDB_DATA_TYPE_FLOAT:
+      return &FloatNull;
+    case TSDB_DATA_TYPE_DOUBLE:
+      return &DoubleNull;
+    case TSDB_DATA_TYPE_BINARY:
+      return &BinaryNull;
+    case TSDB_DATA_TYPE_TIMESTAMP:
+      return &TimestampNull;
+    case TSDB_DATA_TYPE_NCHAR:
+      return &NcharNull;
+    case TSDB_DATA_TYPE_UTINYINT:
+      return &UTinyintNull;
+    case TSDB_DATA_TYPE_USMALLINT:
+      return &USmallintNull;
+    case TSDB_DATA_TYPE_UINT:
+      return &UIntNull;
+    case TSDB_DATA_TYPE_UBIGINT:
+      return &UBigintNull;
+    default:
+      ASSERT(0);
+      return NULL;
+  }
+}
 
 // Get the data pointer from a column-wised data
 static FORCE_INLINE void *tdGetColDataOfRow(SDataCol *pCol, int row) {
@@ -543,6 +606,47 @@ static FORCE_INLINE void *tdGetMemRowDataOfCol(void *row, int8_t type, int32_t o
     ASSERT(0);
   }
   return NULL;
+}
+
+//  RawRow payload structure:
+//  |<---------- header ------------->|<---- body: column data tuple ---->|
+//  |SMemRowType|  dataLen |  nCols   |  colId  | colType | value |...|...|
+//  +-----------+----------+----------+---------------------------------->|
+//  | uint8_t   | uint16_t | uint16_t | int16_t | uint8_t |  ???  |...|...|
+//  +-----------+----------+----------+---------------------------------->|
+
+#define PAYLOAD_NCOLS_LEN sizeof(uint16_t)
+#define PAYLOAD_NCOLS_OFFSET (sizeof(uint8_t) + sizeof(TDRowLenT))
+#define PAYLOAD_HEADER_LEN (PAYLOAD_NCOLS_OFFSET + PAYLOAD_NCOLS_LEN)
+#define PAYLOAD_ID_LEN sizeof(int16_t)
+#define PAYLOAD_ID_TYPE_LEN (sizeof(int16_t) + sizeof(uint8_t))
+
+#define payloadBody(r) POINTER_SHIFT(r, PAYLOAD_HEADER_LEN)
+#define payloadType(r) (*(uint8_t *)(r))
+#define payloadSetType(r, t) (payloadType(r) = (t))
+#define payloadTLen(r) (*(TDRowLenT *)POINTER_SHIFT(r, TD_MEM_ROW_TYPE_SIZE))  // including total header
+#define payloadSetTLen(r, l) (payloadTLen(r) = (l))
+#define payloadNCols(r) (*(TDRowLenT *)POINTER_SHIFT(r, PAYLOAD_NCOLS_OFFSET))
+#define payloadSetNCols(r, n) (payloadNCols(r) = (n))
+
+#define payloadColId(r) (*(int16_t *)(r))
+#define payloadColType(r) (*(uint8_t *)POINTER_SHIFT(r, PAYLOAD_ID_LEN))
+#define payloadColValue(r) POINTER_SHIFT(r, PAYLOAD_ID_TYPE_LEN)
+
+#define payloadColSetId(r, i) (payloadColId(r) = (i))
+#define payloadColSetType(r, t) (payloadColType(r) = (t))
+
+#define payloadKeyAddr(r) POINTER_SHIFT(r, PAYLOAD_HEADER_LEN + PAYLOAD_ID_TYPE_LEN)
+#define payloadTKey(r) (*(TKEY *)(payloadKeyAddr(r)))
+#define payloadKey(r) tdGetKey(payloadTKey(r))
+
+static FORCE_INLINE char *skipToNextEles(char *p) {
+  uint8_t colType = payloadColType(p);
+  if (IS_VAR_DATA_TYPE(colType)) {
+    return POINTER_SHIFT(p, PAYLOAD_ID_TYPE_LEN + varDataTLen(payloadColValue(p)));
+  } else {
+    return POINTER_SHIFT(p, PAYLOAD_ID_TYPE_LEN + TYPE_BYTES[colType]);
+  }
 }
 
 #ifdef __cplusplus

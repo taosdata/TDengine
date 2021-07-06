@@ -924,17 +924,17 @@ int tsdbWriteBlockImpl(STsdbRepo *pRepo, STable *pTable, SDFile *pDFile, SDataCo
       continue;
     }
 
-      memset(pBlockCol, 0, sizeof(*pBlockCol));
+    memset(pBlockCol, 0, sizeof(*pBlockCol));
 
-      pBlockCol->colId = pDataCol->colId;
-      pBlockCol->type = pDataCol->type;
-      if (tDataTypes[pDataCol->type].statisFunc) {
-        (*tDataTypes[pDataCol->type].statisFunc)(pDataCol->pData, rowsToWrite, &(pBlockCol->min), &(pBlockCol->max),
-                                                 &(pBlockCol->sum), &(pBlockCol->minIndex), &(pBlockCol->maxIndex),
-                                                 &(pBlockCol->numOfNull));
-      }
-      nColsNotAllNull++;
+    pBlockCol->colId = pDataCol->colId;
+    pBlockCol->type = pDataCol->type;
+    if (tDataTypes[pDataCol->type].statisFunc) {
+      (*tDataTypes[pDataCol->type].statisFunc)(pDataCol->pData, rowsToWrite, &(pBlockCol->min), &(pBlockCol->max),
+                                               &(pBlockCol->sum), &(pBlockCol->minIndex), &(pBlockCol->maxIndex),
+                                               &(pBlockCol->numOfNull));
     }
+    nColsNotAllNull++;
+  }
 
   ASSERT(nColsNotAllNull >= 0 && nColsNotAllNull <= pDataCols->numOfCols);
 

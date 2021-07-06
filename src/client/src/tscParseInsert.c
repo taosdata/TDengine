@@ -38,10 +38,16 @@ enum {
   TSDB_USE_CLI_TS = 1,
 };
 
+static uint8_t TRUE_VALUE = (uint8_t)TSDB_TRUE;
+static uint8_t FALSE_VALUE = (uint8_t)TSDB_FALSE;
+
 static int32_t tscAllocateMemIfNeed(STableDataBlocks *pDataBlock, int32_t rowSize, int32_t *numOfRows);
 static int32_t parseBoundColumns(SInsertStatementParam *pInsertParam, SParsedDataColInfo *pColInfo, SSchema *pSchema,
                                  char *str, char **end);
 
+static FORCE_INLINE int32_t getPaddingRowSize(STableComInfo *tinfo) {
+  return tinfo->rowSize + PAYLOAD_HEADER_LEN + PAYLOAD_ID_TYPE_LEN * tinfo->numOfColumns;
+}
 static int32_t tscToDouble(SStrToken *pToken, double *value, char **endPtr) {
   errno = 0;
   *value = strtold(pToken->z, endPtr);
@@ -378,6 +384,349 @@ int32_t tsParseOneColumn(SSchema *pSchema, SStrToken *pToken, char *payload, cha
   return TSDB_CODE_SUCCESS;
 }
 
+static FORCE_INLINE uint16_t tsSetColumnValue(char *payload, int16_t columnId, uint8_t columnType, void *value,
+                                              uint16_t valueLen) {
+  payloadColSetId(payload, columnId);
+  payloadColSetType(payload, columnType);
+
+  memcpy(payloadColValue(payload), value, valueLen);
+  return PAYLOAD_ID_TYPE_LEN + valueLen;
+}
+
+static int32_t tsParseOneColumnKV(SSchema *pSchema, SStrToken *pToken, char *payload, char *msg, char **str,
+                                  bool primaryKey, int16_t timePrec, uint16_t *sizeAppend, bool *isColNull,
+                                  TDRowLenT *dataRowColDeltaLen, TDRowLenT *kvRowColLen) {
+  int64_t iv;
+  int32_t ret;
+  char *  endptr = NULL;
+
+  if (IS_NUMERIC_TYPE(pSchema->type) && pToken->n == 0) {
+    return tscInvalidOperationMsg(msg, "invalid numeric data", pToken->z);
+  }
+
+  switch (pSchema->type) {
+    case TSDB_DATA_TYPE_BOOL: {  // bool
+      if (isNullStr(pToken)) {
+        // *((uint8_t *)payload) = TSDB_DATA_BOOL_NULL;
+        *isColNull = true;
+      } else {
+        if ((pToken->type == TK_BOOL || pToken->type == TK_STRING) && (pToken->n != 0)) {
+          if (strncmp(pToken->z, "true", pToken->n) == 0) {
+            // *(uint8_t *)payload = TSDB_TRUE;
+            *sizeAppend =
+                tsSetColumnValue(payload, pSchema->colId, pSchema->type, &TRUE_VALUE, TYPE_BYTES[TSDB_DATA_TYPE_BOOL]);
+            *kvRowColLen += sizeof(SColIdx) + TYPE_BYTES[TSDB_DATA_TYPE_BOOL];
+          } else if (strncmp(pToken->z, "false", pToken->n) == 0) {
+            // *(uint8_t *)payload = TSDB_FALSE;
+            *sizeAppend =
+                tsSetColumnValue(payload, pSchema->colId, pSchema->type, &FALSE_VALUE, TYPE_BYTES[TSDB_DATA_TYPE_BOOL]);
+            *kvRowColLen += sizeof(SColIdx) + TYPE_BYTES[TSDB_DATA_TYPE_BOOL];
+          } else {
+            return tscSQLSyntaxErrMsg(msg, "invalid bool data", pToken->z);
+          }
+        } else if (pToken->type == TK_INTEGER) {
+          iv = strtoll(pToken->z, NULL, 10);
+          // *(uint8_t *)payload = (int8_t)((iv == 0) ? TSDB_FALSE : TSDB_TRUE);
+          *sizeAppend = tsSetColumnValue(payload, pSchema->colId, pSchema->type,
+                                         ((iv == 0) ? &FALSE_VALUE : &TRUE_VALUE), TYPE_BYTES[TSDB_DATA_TYPE_BOOL]);
+          *kvRowColLen += sizeof(SColIdx) + TYPE_BYTES[TSDB_DATA_TYPE_BOOL];
+        } else if (pToken->type == TK_FLOAT) {
+          double dv = strtod(pToken->z, NULL);
+          // *(uint8_t *)payload = (int8_t)((dv == 0) ? TSDB_FALSE : TSDB_TRUE);
+          *sizeAppend = tsSetColumnValue(payload, pSchema->colId, pSchema->type,
+                                         ((dv == 0) ? &FALSE_VALUE : &TRUE_VALUE), TYPE_BYTES[TSDB_DATA_TYPE_BOOL]);
+          *kvRowColLen += sizeof(SColIdx) + TYPE_BYTES[TSDB_DATA_TYPE_BOOL];
+        } else {
+          return tscInvalidOperationMsg(msg, "invalid bool data", pToken->z);
+        }
+      }
+      break;
+    }
+
+    case TSDB_DATA_TYPE_TINYINT:
+      if (isNullStr(pToken)) {
+        // *((uint8_t *)payload) = TSDB_DATA_TINYINT_NULL;
+        *isColNull = true;
+      } else {
+        ret = tStrToInteger(pToken->z, pToken->type, pToken->n, &iv, true);
+        if (ret != TSDB_CODE_SUCCESS) {
+          return tscInvalidOperationMsg(msg, "invalid tinyint data", pToken->z);
+        } else if (!IS_VALID_TINYINT(iv)) {
+          return tscInvalidOperationMsg(msg, "data overflow", pToken->z);
+        }
+
+        // *((uint8_t *)payload) = (uint8_t)iv;
+        uint8_t tmpVal = (uint8_t)iv;
+        *sizeAppend =
+            tsSetColumnValue(payload, pSchema->colId, pSchema->type, &tmpVal, TYPE_BYTES[TSDB_DATA_TYPE_TINYINT]);
+        *kvRowColLen += sizeof(SColIdx) + TYPE_BYTES[TSDB_DATA_TYPE_TINYINT];
+      }
+
+      break;
+
+    case TSDB_DATA_TYPE_UTINYINT:
+      if (isNullStr(pToken)) {
+        // *((uint8_t *)payload) = TSDB_DATA_UTINYINT_NULL;
+        *isColNull = true;
+      } else {
+        ret = tStrToInteger(pToken->z, pToken->type, pToken->n, &iv, false);
+        if (ret != TSDB_CODE_SUCCESS) {
+          return tscInvalidOperationMsg(msg, "invalid unsigned tinyint data", pToken->z);
+        } else if (!IS_VALID_UTINYINT(iv)) {
+          return tscInvalidOperationMsg(msg, "unsigned tinyint data overflow", pToken->z);
+        }
+
+        // *((uint8_t *)payload) = (uint8_t)iv;
+        uint8_t tmpVal = (uint8_t)iv;
+        *sizeAppend =
+            tsSetColumnValue(payload, pSchema->colId, pSchema->type, &tmpVal, TYPE_BYTES[TSDB_DATA_TYPE_UTINYINT]);
+        *kvRowColLen += sizeof(SColIdx) + TYPE_BYTES[TSDB_DATA_TYPE_UTINYINT];
+      }
+
+      break;
+
+    case TSDB_DATA_TYPE_SMALLINT:
+      if (isNullStr(pToken)) {
+        // *((int16_t *)payload) = TSDB_DATA_SMALLINT_NULL;
+        *isColNull = true;
+      } else {
+        ret = tStrToInteger(pToken->z, pToken->type, pToken->n, &iv, true);
+        if (ret != TSDB_CODE_SUCCESS) {
+          return tscInvalidOperationMsg(msg, "invalid smallint data", pToken->z);
+        } else if (!IS_VALID_SMALLINT(iv)) {
+          return tscInvalidOperationMsg(msg, "smallint data overflow", pToken->z);
+        }
+
+        int16_t tmpVal = (int16_t)iv;
+        *sizeAppend =
+            tsSetColumnValue(payload, pSchema->colId, pSchema->type, &tmpVal, TYPE_BYTES[TSDB_DATA_TYPE_SMALLINT]);
+        *kvRowColLen += sizeof(SColIdx) + TYPE_BYTES[TSDB_DATA_TYPE_SMALLINT];
+      }
+
+      break;
+
+    case TSDB_DATA_TYPE_USMALLINT:
+      if (isNullStr(pToken)) {
+        // *((uint16_t *)payload) = TSDB_DATA_USMALLINT_NULL;
+        *isColNull = true;
+      } else {
+        ret = tStrToInteger(pToken->z, pToken->type, pToken->n, &iv, false);
+        if (ret != TSDB_CODE_SUCCESS) {
+          return tscInvalidOperationMsg(msg, "invalid unsigned smallint data", pToken->z);
+        } else if (!IS_VALID_USMALLINT(iv)) {
+          return tscInvalidOperationMsg(msg, "unsigned smallint data overflow", pToken->z);
+        }
+
+        // *((uint16_t *)payload) = (uint16_t)iv;
+        uint16_t tmpVal = (uint16_t)iv;
+        *sizeAppend =
+            tsSetColumnValue(payload, pSchema->colId, pSchema->type, &tmpVal, TYPE_BYTES[TSDB_DATA_TYPE_USMALLINT]);
+        *kvRowColLen += sizeof(SColIdx) + TYPE_BYTES[TSDB_DATA_TYPE_USMALLINT];
+      }
+
+      break;
+
+    case TSDB_DATA_TYPE_INT:
+      if (isNullStr(pToken)) {
+        // *((int32_t *)payload) = TSDB_DATA_INT_NULL;
+        *isColNull = true;
+      } else {
+        ret = tStrToInteger(pToken->z, pToken->type, pToken->n, &iv, true);
+        if (ret != TSDB_CODE_SUCCESS) {
+          return tscInvalidOperationMsg(msg, "invalid int data", pToken->z);
+        } else if (!IS_VALID_INT(iv)) {
+          return tscInvalidOperationMsg(msg, "int data overflow", pToken->z);
+        }
+
+        // *((int32_t *)payload) = (int32_t)iv;
+        int32_t tmpVal = (int32_t)iv;
+        *sizeAppend = tsSetColumnValue(payload, pSchema->colId, pSchema->type, &tmpVal, TYPE_BYTES[TSDB_DATA_TYPE_INT]);
+        *kvRowColLen += sizeof(SColIdx) + TYPE_BYTES[TSDB_DATA_TYPE_INT];
+      }
+
+      break;
+
+    case TSDB_DATA_TYPE_UINT:
+      if (isNullStr(pToken)) {
+        // *((uint32_t *)payload) = TSDB_DATA_UINT_NULL;
+        *isColNull = true;
+      } else {
+        ret = tStrToInteger(pToken->z, pToken->type, pToken->n, &iv, false);
+        if (ret != TSDB_CODE_SUCCESS) {
+          return tscInvalidOperationMsg(msg, "invalid unsigned int data", pToken->z);
+        } else if (!IS_VALID_UINT(iv)) {
+          return tscInvalidOperationMsg(msg, "unsigned int data overflow", pToken->z);
+        }
+
+        // *((uint32_t *)payload) = (uint32_t)iv;
+        uint32_t tmpVal = (uint32_t)iv;
+        *sizeAppend =
+            tsSetColumnValue(payload, pSchema->colId, pSchema->type, &tmpVal, TYPE_BYTES[TSDB_DATA_TYPE_UINT]);
+        *kvRowColLen += sizeof(SColIdx) + TYPE_BYTES[TSDB_DATA_TYPE_UINT];
+      }
+
+      break;
+
+    case TSDB_DATA_TYPE_BIGINT:
+      if (isNullStr(pToken)) {
+        // *((int64_t *)payload) = TSDB_DATA_BIGINT_NULL;
+        *isColNull = true;
+      } else {
+        ret = tStrToInteger(pToken->z, pToken->type, pToken->n, &iv, true);
+        if (ret != TSDB_CODE_SUCCESS) {
+          return tscInvalidOperationMsg(msg, "invalid bigint data", pToken->z);
+        } else if (!IS_VALID_BIGINT(iv)) {
+          return tscInvalidOperationMsg(msg, "bigint data overflow", pToken->z);
+        }
+
+        // *((int64_t *)payload) = iv;
+        // int64_t tmpVal = (int64_t)iv;
+        *sizeAppend = tsSetColumnValue(payload, pSchema->colId, pSchema->type, &iv, TYPE_BYTES[TSDB_DATA_TYPE_BIGINT]);
+        *kvRowColLen += sizeof(SColIdx) + TYPE_BYTES[TSDB_DATA_TYPE_BIGINT];
+      }
+      break;
+
+    case TSDB_DATA_TYPE_UBIGINT:
+      if (isNullStr(pToken)) {
+        // *((uint64_t *)payload) = TSDB_DATA_UBIGINT_NULL;
+        *isColNull = true;
+      } else {
+        ret = tStrToInteger(pToken->z, pToken->type, pToken->n, &iv, false);
+        if (ret != TSDB_CODE_SUCCESS) {
+          return tscInvalidOperationMsg(msg, "invalid unsigned bigint data", pToken->z);
+        } else if (!IS_VALID_UBIGINT((uint64_t)iv)) {
+          return tscInvalidOperationMsg(msg, "unsigned bigint data overflow", pToken->z);
+        }
+
+        // *((uint64_t *)payload) = iv;
+        *sizeAppend = tsSetColumnValue(payload, pSchema->colId, pSchema->type, &iv, TYPE_BYTES[TSDB_DATA_TYPE_UBIGINT]);
+        *kvRowColLen += sizeof(SColIdx) + TYPE_BYTES[TSDB_DATA_TYPE_UBIGINT];
+      }
+      break;
+
+    case TSDB_DATA_TYPE_FLOAT:
+      if (isNullStr(pToken)) {
+        // *((int32_t *)payload) = TSDB_DATA_FLOAT_NULL;
+        *isColNull = true;
+      } else {
+        double dv;
+        if (TK_ILLEGAL == tscToDouble(pToken, &dv, &endptr)) {
+          return tscInvalidOperationMsg(msg, "illegal float data", pToken->z);
+        }
+
+        if (((dv == HUGE_VAL || dv == -HUGE_VAL) && errno == ERANGE) || dv > FLT_MAX || dv < -FLT_MAX || isinf(dv) ||
+            isnan(dv)) {
+          return tscInvalidOperationMsg(msg, "illegal float data", pToken->z);
+        }
+
+        //        *((float *)payload) = (float)dv;
+        // SET_FLOAT_VAL(payload, dv);
+        float tmpVal = (float)dv;
+        *sizeAppend =
+            tsSetColumnValue(payload, pSchema->colId, pSchema->type, &tmpVal, TYPE_BYTES[TSDB_DATA_TYPE_FLOAT]);
+        *kvRowColLen += sizeof(SColIdx) + TYPE_BYTES[TSDB_DATA_TYPE_FLOAT];
+      }
+      break;
+
+    case TSDB_DATA_TYPE_DOUBLE:
+      if (isNullStr(pToken)) {
+        // *((int64_t *)payload) = TSDB_DATA_DOUBLE_NULL;
+        *isColNull = true;
+      } else {
+        double dv;
+        if (TK_ILLEGAL == tscToDouble(pToken, &dv, &endptr)) {
+          return tscInvalidOperationMsg(msg, "illegal double data", pToken->z);
+        }
+
+        if (((dv == HUGE_VAL || dv == -HUGE_VAL) && errno == ERANGE) || isinf(dv) || isnan(dv)) {
+          return tscInvalidOperationMsg(msg, "illegal double data", pToken->z);
+        }
+
+        // *((double *)payload) = dv;
+        *sizeAppend = tsSetColumnValue(payload, pSchema->colId, pSchema->type, &dv, TYPE_BYTES[TSDB_DATA_TYPE_DOUBLE]);
+        *kvRowColLen += sizeof(SColIdx) + TYPE_BYTES[TSDB_DATA_TYPE_DOUBLE];
+      }
+      break;
+
+    case TSDB_DATA_TYPE_BINARY:
+      // binary data cannot be null-terminated char string, otherwise the last char of the string is lost
+      if (pToken->type == TK_NULL) {
+        // setVardataNull(payload, TSDB_DATA_TYPE_BINARY);
+        *isColNull = true;
+      } else {  // too long values will return invalid sql, not be truncated automatically
+        if (pToken->n + VARSTR_HEADER_SIZE > pSchema->bytes) {  // todo refactor
+          return tscInvalidOperationMsg(msg, "string data overflow", pToken->z);
+        }
+
+        // STR_WITH_SIZE_TO_VARSTR(payload, pToken->z, pToken->n);
+
+        payloadColSetId(payload, pSchema->colId);
+        payloadColSetType(payload, pSchema->type);
+        varDataSetLen(payload + PAYLOAD_ID_TYPE_LEN, pToken->n);
+        memcpy(varDataVal(payload + PAYLOAD_ID_TYPE_LEN), pToken->z, pToken->n);
+        *sizeAppend = PAYLOAD_ID_TYPE_LEN + sizeof(VarDataLenT) + pToken->n;
+        *dataRowColDeltaLen += (pToken->n - sizeof(uint8_t));
+        *kvRowColLen += sizeof(SColIdx) + sizeof(VarDataLenT) + pToken->n;
+      }
+
+      break;
+
+    case TSDB_DATA_TYPE_NCHAR:
+      if (pToken->type == TK_NULL) {
+        // setVardataNull(payload, TSDB_DATA_TYPE_NCHAR);
+        *isColNull = true;
+      } else {
+        // if the converted output len is over than pColumnModel->bytes, return error: 'Argument list too long'
+        int32_t output = 0;
+        payloadColSetId(payload, pSchema->colId);
+        payloadColSetType(payload, pSchema->type);
+        if (!taosMbsToUcs4(pToken->z, pToken->n, varDataVal(payload + PAYLOAD_ID_TYPE_LEN),
+                           pSchema->bytes - VARSTR_HEADER_SIZE, &output)) {
+          char buf[512] = {0};
+          snprintf(buf, tListLen(buf), "%s", strerror(errno));
+          return tscInvalidOperationMsg(msg, buf, pToken->z);
+        }
+
+        varDataSetLen(payload + PAYLOAD_ID_TYPE_LEN, output);
+
+        *sizeAppend = PAYLOAD_ID_TYPE_LEN + sizeof(VarDataLenT) + output;
+        *dataRowColDeltaLen += (output - sizeof(uint32_t));
+        *kvRowColLen += sizeof(SColIdx) + sizeof(VarDataLenT) + output;
+      }
+      break;
+
+    case TSDB_DATA_TYPE_TIMESTAMP: {
+      if (pToken->type == TK_NULL) {
+        if (primaryKey) {
+          // *((int64_t *)payload) = 0;
+          // When building SKVRow primaryKey, we should not skip even with NULL value.
+          int64_t tmpVal = 0;
+          *sizeAppend =
+              tsSetColumnValue(payload, pSchema->colId, pSchema->type, &tmpVal, TYPE_BYTES[TSDB_DATA_TYPE_TIMESTAMP]);
+          *kvRowColLen += sizeof(SColIdx) + TYPE_BYTES[TSDB_DATA_TYPE_TIMESTAMP];
+        } else {
+          // *((int64_t *)payload) = TSDB_DATA_BIGINT_NULL;
+          *isColNull = true;
+        }
+      } else {
+        int64_t tmpVal;
+        if (tsParseTime(pToken, &tmpVal, str, msg, timePrec) != TSDB_CODE_SUCCESS) {
+          return tscInvalidOperationMsg(msg, "invalid timestamp", pToken->z);
+        }
+
+        // *((int64_t *)payload) = tmpVal;
+        *sizeAppend =
+            tsSetColumnValue(payload, pSchema->colId, pSchema->type, &tmpVal, TYPE_BYTES[TSDB_DATA_TYPE_TIMESTAMP]);
+        *kvRowColLen += sizeof(SColIdx) + TYPE_BYTES[TSDB_DATA_TYPE_TIMESTAMP];
+      }
+
+      break;
+    }
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
 /*
  * The server time/client time should not be mixed up in one sql string
  * Do not employ sort operation is not involved if server time is used.
@@ -414,23 +763,32 @@ int32_t tsCheckTimestamp(STableDataBlocks *pDataBlocks, const char *start) {
   return TSDB_CODE_SUCCESS;
 }
 
-int tsParseOneRow(char **str, STableDataBlocks *pDataBlocks, int16_t timePrec, int32_t *len,
-                  char *tmpTokenBuf, SInsertStatementParam* pInsertParam) {
-  int32_t    index = 0;
-  SStrToken  sToken = {0};
-  char      *payload = pDataBlocks->pData + pDataBlocks->size;
+int tsParseOneRow(char **str, STableDataBlocks *pDataBlocks, int16_t timePrec, int32_t *len, char *tmpTokenBuf,
+                  SInsertStatementParam *pInsertParam) {
+  int32_t   index = 0;
+  SStrToken sToken = {0};
+
+  SMemRowBuilder *pBuilder = &pDataBlocks->rowBuilder;
+  char *          payload = pDataBlocks->pData + pDataBlocks->size;
 
   SParsedDataColInfo *spd = &pDataBlocks->boundColumnInfo;
-  SSchema *schema = tscGetTableSchema(pDataBlocks->pTableMeta);
+  SSchema *           schema = tscGetTableSchema(pDataBlocks->pTableMeta);
 
   // 1. set the parsed value from sql string
-  int32_t rowSize = 0;
+  int32_t   rowSize = 0;
+  uint16_t  rowSizeAppended = 0;
+  uint16_t  nColsNotNull = 0;
+  TDRowLenT dataRowLen = pBuilder->allNullLen;
+  TDRowLenT kvRowLen = TD_MEM_ROW_KV_VER_SIZE;
+
+  char *kvStart = payload;
   for (int i = 0; i < spd->numOfBound; ++i) {
     // the start position in data block buffer of current value in sql
-    int32_t colIndex = spd->boundedColumns[i];
+    int32_t colIndex = spd->boundedColumns[i];  // ordered
 
-    char    *start = payload + spd->cols[colIndex].offset;
-    SSchema *pSchema = &schema[colIndex];
+    char *start = payload + spd->cols[colIndex].offset;
+
+    SSchema *pSchema = &schema[colIndex];  // get colId here
     rowSize += pSchema->bytes;
 
     index = 0;
@@ -453,7 +811,8 @@ int tsParseOneRow(char **str, STableDataBlocks *pDataBlocks, int16_t timePrec, i
 
     int16_t type = sToken.type;
     if ((type != TK_NOW && type != TK_INTEGER && type != TK_STRING && type != TK_FLOAT && type != TK_BOOL &&
-         type != TK_NULL && type != TK_HEX && type != TK_OCT && type != TK_BIN) || (sToken.n == 0) || (type == TK_RP)) {
+         type != TK_NULL && type != TK_HEX && type != TK_OCT && type != TK_BIN) ||
+        (sToken.n == 0) || (type == TK_RP)) {
       return tscSQLSyntaxErrMsg(pInsertParam->msg, "invalid data or symbol", sToken.z);
     }
 
@@ -467,10 +826,10 @@ int tsParseOneRow(char **str, STableDataBlocks *pDataBlocks, int16_t timePrec, i
       if (sToken.n >= TSDB_MAX_BYTES_PER_ROW) {
         return tscSQLSyntaxErrMsg(pInsertParam->msg, "too long string", sToken.z);
       }
-      
+
       for (uint32_t k = 1; k < sToken.n - 1; ++k) {
         if (sToken.z[k] == '\\' || (sToken.z[k] == delim && sToken.z[k + 1] == delim)) {
-            tmpTokenBuf[j] = sToken.z[k + 1];
+          tmpTokenBuf[j] = sToken.z[k + 1];
 
           cnt++;
           j++;
@@ -487,42 +846,44 @@ int tsParseOneRow(char **str, STableDataBlocks *pDataBlocks, int16_t timePrec, i
       sToken.n -= 2 + cnt;
     }
 
-    bool    isPrimaryKey = (colIndex == PRIMARYKEY_TIMESTAMP_COL_INDEX);
-    int32_t ret = tsParseOneColumn(pSchema, &sToken, start, pInsertParam->msg, str, isPrimaryKey, timePrec);
+    bool      isPrimaryKey = (colIndex == PRIMARYKEY_TIMESTAMP_COL_INDEX);
+    bool      isColNull = false;
+    TDRowLenT dataRowDeltaColLen = 0;  // When combine the data as SDataRow, the delta len between all NULL columns.
+    TDRowLenT kvRowColLen = 0;
+    uint16_t  colSizeAppended = 0;
+    int32_t   ret =
+        tsParseOneColumnKV(pSchema, &sToken, kvStart + PAYLOAD_HEADER_LEN, pInsertParam->msg, str, isPrimaryKey,
+                           timePrec, &colSizeAppended, &isColNull, &dataRowDeltaColLen, &kvRowColLen);
     if (ret != TSDB_CODE_SUCCESS) {
       return ret;
     }
 
-    if (isPrimaryKey && tsCheckTimestamp(pDataBlocks, start) != TSDB_CODE_SUCCESS) {
+    if (isPrimaryKey &&
+        tsCheckTimestamp(pDataBlocks, payloadKeyAddr(kvStart)) != TSDB_CODE_SUCCESS) {
       tscInvalidOperationMsg(pInsertParam->msg, "client time/server time can not be mixed up", sToken.z);
       return TSDB_CODE_TSC_INVALID_TIME_STAMP;
     }
-  }
-
-  // 2. set the null value for the columns that do not assign values
-  if (spd->numOfBound < spd->numOfCols) {
-    char *ptr = payload;
-
-    for (int32_t i = 0; i < spd->numOfCols; ++i) {
-      if (!spd->cols[i].hasVal) {  // current column do not have any value to insert, set it to null
-        if (schema[i].type == TSDB_DATA_TYPE_BINARY) {
-          varDataSetLen(ptr, sizeof(int8_t));
-          *(uint8_t*) varDataVal(ptr) = TSDB_DATA_BINARY_NULL;
-        } else if (schema[i].type == TSDB_DATA_TYPE_NCHAR) {
-          varDataSetLen(ptr, sizeof(int32_t));
-          *(uint32_t*) varDataVal(ptr) = TSDB_DATA_NCHAR_NULL;
-        } else {
-          setNull(ptr, schema[i].type, schema[i].bytes);
-        }
-      }
-      
-      ptr += schema[i].bytes;
+    if (isColNull == false) {
+      ++nColsNotNull;
     }
-
-    rowSize = (int32_t)(ptr - payload);
+    kvRowLen += kvRowColLen;
+    dataRowLen += dataRowDeltaColLen;
+    kvStart += colSizeAppended;          // move to next column
+    rowSizeAppended += colSizeAppended;  // calculate rowLen
   }
 
-  *len = rowSize;
+  if (kvRowLen < dataRowLen) {
+    payloadSetType(payload, SMEM_ROW_KV);
+  } else {
+    payloadSetType(payload, SMEM_ROW_DATA);
+  }
+
+  *(uint16_t *)(payload + sizeof(uint8_t)) = nColsNotNull;  
+  *len = PAYLOAD_HEADER_LEN + rowSizeAppended;
+  
+  payloadSetNCols(payload, nColsNotNull);
+  payloadSetTLen(payload, *len);
+  
   return TSDB_CODE_SUCCESS;
 }
 
@@ -551,21 +912,26 @@ int32_t tsParseValues(char **str, STableDataBlocks *pDataBlock, int maxRows, SIn
   
   int32_t  precision = tinfo.precision;
 
+  int32_t rowSizeWithColIdType = getPaddingRowSize(&tinfo);
+
+  initSMemRowBuilder(&pDataBlock->rowBuilder, tscGetTableSchema(pDataBlock->pTableMeta),
+                     tscGetNumOfColumns(pDataBlock->pTableMeta), 0);
+
   while (1) {
     index = 0;
     sToken = tStrGetToken(*str, &index, false);
     if (sToken.n == 0 || sToken.type != TK_LP) break;
 
     *str += index;
-    if ((*numOfRows) >= maxRows || pDataBlock->size + tinfo.rowSize >= pDataBlock->nAllocSize) {
+    if ((*numOfRows) >= maxRows || pDataBlock->size + rowSizeWithColIdType >= pDataBlock->nAllocSize) {
       int32_t tSize;
-      code = tscAllocateMemIfNeed(pDataBlock, tinfo.rowSize, &tSize);
+      code = tscAllocateMemIfNeed(pDataBlock, rowSizeWithColIdType, &tSize);
       if (code != TSDB_CODE_SUCCESS) {  //TODO pass the correct error code to client
         strcpy(pInsertParam->msg, "client out of memory");
         return TSDB_CODE_TSC_OUT_OF_MEMORY;
       }
 
-      ASSERT(tSize > maxRows);
+      ASSERT(tSize >= maxRows);
       maxRows = tSize;
     }
 
@@ -623,7 +989,7 @@ int32_t tscAllocateMemIfNeed(STableDataBlocks *pDataBlock, int32_t rowSize, int3
   // expand the allocated size
   if (remain < rowSize * factor) {
     while (remain < rowSize * factor) {
-      pDataBlock->nAllocSize = (uint32_t)(pDataBlock->nAllocSize * 1.5);
+      pDataBlock->nAllocSize = (uint32_t)(pDataBlock->nAllocSize * 2);
       remain = pDataBlock->nAllocSize - pDataBlock->size;
     }
 
@@ -657,7 +1023,7 @@ static int32_t tsSetBlockInfo(SSubmitBlk *pBlocks, const STableMeta *pTableMeta,
 }
 
 // data block is disordered, sort it in ascending order
-void tscSortRemoveDataBlockDupRows(STableDataBlocks *dataBuf) {
+void tscSortRemoveDataBlockDupRowsXX(STableDataBlocks *dataBuf) {
   SSubmitBlk *pBlocks = (SSubmitBlk *)dataBuf->pData;
 
   // size is less than the total size, since duplicated rows may be removed yet.
@@ -701,11 +1067,83 @@ void tscSortRemoveDataBlockDupRows(STableDataBlocks *dataBuf) {
   dataBuf->prevTS = INT64_MIN;
 }
 
+// data block is disordered, sort it in ascending order
+int tscSortRemoveDataBlockDupRows(STableDataBlocks *dataBuf, SBlockKeyInfo *pBlkKeyInfo) {
+  SSubmitBlk *pBlocks = (SSubmitBlk *)dataBuf->pData;
+  int16_t         nRows = pBlocks->numOfRows;
+  
+  // size is less than the total size, since duplicated rows may be removed yet.
+
+  // if use server time, this block must be ordered
+  if (dataBuf->tsSource == TSDB_USE_SERVER_TS) {
+    assert(dataBuf->ordered);
+  }
+      // allocate memory
+  size_t curBlkTupleSize = nRows * sizeof(SBlockKeyTuple);
+  if (pBlkKeyInfo->pKeyTuple == NULL || pBlkKeyInfo->nBytesAlloc < curBlkTupleSize) {
+    char *tmp = realloc(pBlkKeyInfo->pKeyTuple, curBlkTupleSize);
+    if (tmp == NULL) {
+      return TSDB_CODE_TSC_OUT_OF_MEMORY;
+    }
+    pBlkKeyInfo->pKeyTuple = (SBlockKeyTuple *)tmp;
+    pBlkKeyInfo->nBytesAlloc = curBlkTupleSize;
+  }
+  memset(pBlkKeyInfo->pKeyTuple, 0, curBlkTupleSize);
+
+  SBlockKeyTuple *pBlkKeyTuple = pBlkKeyInfo->pKeyTuple;
+  char *    pBlockData = pBlocks->data;
+  int       n = 0;
+  uint32_t  totolPayloadLen = 0;
+  TDRowLenT payloadTLen = 0;
+  while (n < nRows) {
+    pBlkKeyTuple->skey = payloadKey(pBlockData);
+    pBlkKeyTuple->payloadAddr = pBlockData;
+    payloadTLen = payloadTLen(pBlockData);
+    totolPayloadLen += payloadTLen;
+    // next loop
+    pBlockData += payloadTLen;
+    ++pBlkKeyTuple;
+    ++n;
+  }
+
+  if (!dataBuf->ordered) {
+    qsort(pBlkKeyTuple, nRows, sizeof(SBlockKeyTuple), rowDataCompar);
+
+    pBlkKeyTuple = pBlkKeyInfo->pKeyTuple;
+    int32_t i = 0;
+    int32_t j = 1;
+    while (j < nRows) {
+      TSKEY ti = *(TSKEY *)(pBlkKeyTuple + sizeof(SBlockKeyTuple) * i);
+      TSKEY tj = *(TSKEY *)(pBlkKeyTuple + sizeof(SBlockKeyTuple) * j);
+
+      if (ti == tj) {
+        totolPayloadLen -= payloadTLen(pBlkKeyTuple + sizeof(SBlockKeyTuple) * j);
+        ++j;
+        continue;
+      }
+
+      int32_t nextPos = (++i);
+      if (nextPos != j) {
+        memmove(pBlkKeyTuple + sizeof(SBlockKeyTuple) * nextPos, pBlkKeyTuple + sizeof(SBlockKeyTuple) * j, sizeof(SBlockKeyTuple));
+      }
+      ++j;
+    }
+
+    dataBuf->ordered = true;
+    pBlocks->numOfRows = i + 1;
+  }
+  
+  dataBuf->size = sizeof(SSubmitBlk) + totolPayloadLen;
+  dataBuf->prevTS = INT64_MIN;
+
+  return 0;
+}
+
 static int32_t doParseInsertStatement(SInsertStatementParam *pInsertParam, char **str, STableDataBlocks* dataBuf, int32_t *totalNum) {
   STableComInfo tinfo = tscGetTableInfo(dataBuf->pTableMeta);
   
   int32_t maxNumOfRows;
-  int32_t code = tscAllocateMemIfNeed(dataBuf, tinfo.rowSize, &maxNumOfRows);
+  int32_t code = tscAllocateMemIfNeed(dataBuf, getPaddingRowSize(&tinfo), &maxNumOfRows);
   if (TSDB_CODE_SUCCESS != code) {
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
   }
@@ -1489,20 +1927,23 @@ static void parseFileSendDataBlock(void *param, TAOS_RES *tres, int32_t numOfRow
   }
 
   STableDataBlocks *pTableDataBlock = NULL;
-  int32_t           ret =
-      tscGetDataBlockFromList(pInsertParam->pTableBlockHashList, pTableMeta->id.uid, TSDB_PAYLOAD_SIZE, sizeof(SSubmitBlk),
-                              tinfo.rowSize, &pTableMetaInfo->name, pTableMeta, &pTableDataBlock, NULL);
+  int32_t ret = tscGetDataBlockFromList(pInsertParam->pTableBlockHashList, pTableMeta->id.uid, TSDB_PAYLOAD_SIZE,
+                                        sizeof(SSubmitBlk), tinfo.rowSize, &pTableMetaInfo->name, pTableMeta,
+                                        &pTableDataBlock, NULL);
   if (ret != TSDB_CODE_SUCCESS) {
     pParentSql->res.code = TSDB_CODE_TSC_OUT_OF_MEMORY;
     goto _error;
   }
 
-  tscAllocateMemIfNeed(pTableDataBlock, tinfo.rowSize, &maxRows);
+  tscAllocateMemIfNeed(pTableDataBlock, getPaddingRowSize(&tinfo), &maxRows);
   tokenBuf = calloc(1, TSDB_MAX_BYTES_PER_ROW);
   if (tokenBuf == NULL) {
     code = TSDB_CODE_TSC_OUT_OF_MEMORY;
     goto _error;
   }
+
+  initSMemRowBuilder(&pTableDataBlock->rowBuilder, tscGetTableSchema(pTableDataBlock->pTableMeta),
+                     tscGetNumOfColumns(pTableDataBlock->pTableMeta), 0);
 
   while ((readLen = tgetline(&line, &n, fp)) != -1) {
     if (('\r' == line[readLen - 1]) || ('\n' == line[readLen - 1])) {

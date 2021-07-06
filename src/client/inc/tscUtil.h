@@ -40,7 +40,8 @@ extern "C" {
 #define UTIL_TABLE_IS_TMP_TABLE(metaInfo)  \
   (((metaInfo)->pTableMeta != NULL) && ((metaInfo)->pTableMeta->tableType == TSDB_TEMP_TABLE))
 
-#define KvRowNColsThresh 1  // default 1200. TODO: only for test, restore to default value after test finished
+#define KvRowNColsThresh 1  // default 1200
+#define KVRowRatio 0.85     // for NonVarType, we get value from SDataRow directly, while needs readdressing for SKVRow
 
 #pragma pack(push,1)
 // this struct is transfered as binary, padding two bytes to avoid
@@ -96,11 +97,21 @@ typedef struct SVgroupTableInfo {
   SArray     *itemList;   // SArray<STableIdInfo>
 } SVgroupTableInfo;
 
+typedef struct SBlockKeyTuple {
+  TSKEY skey;
+  void* payloadAddr;
+} SBlockKeyTuple;
+
+typedef struct SBlockKeyInfo {
+  int32_t         nBytesAlloc;
+  SBlockKeyTuple* pKeyTuple;
+} SBlockKeyInfo;
+
 int32_t converToStr(char *str, int type, void *buf, int32_t bufSize, int32_t *len);
 
 int32_t tscCreateDataBlock(size_t initialSize, int32_t rowSize, int32_t startOffset, SName* name, STableMeta* pTableMeta, STableDataBlocks** dataBlocks);
 void tscDestroyDataBlock(STableDataBlocks* pDataBlock, bool removeMeta);
-void tscSortRemoveDataBlockDupRows(STableDataBlocks* dataBuf);
+int     tscSortRemoveDataBlockDupRows(STableDataBlocks* dataBuf, SBlockKeyInfo* pBlkKeyInfo);
 
 void tscDestroyBoundColumnInfo(SParsedDataColInfo* pColInfo);
 void doRetrieveSubqueryData(SSchedMsg *pMsg);
@@ -342,22 +353,6 @@ char* strdup_throw(const char* str);
 
 bool vgroupInfoIdentical(SNewVgroupInfo *pExisted, SVgroupMsg* src);
 SNewVgroupInfo createNewVgroupInfo(SVgroupMsg *pVgroupMsg);
-
-typedef struct {
-  // for SDataRow
-  SSchema*  pSchema;
-  int16_t   sversion;
-  int32_t   flen;
-  // for  SKVRow
-  uint16_t    nCols;
-  uint16_t    size;
-  void*       buf;
-  
-  void*       pDataBlock;
-  SSubmitBlk* pSubmitBlk;
-} SMemRowBuilder;
-
-SMemRow tdGenMemRowFromBuilder(SMemRowBuilder* pBuilder);
 
 #ifdef __cplusplus
 }
