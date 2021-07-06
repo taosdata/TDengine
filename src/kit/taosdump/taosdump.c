@@ -226,15 +226,16 @@ static struct argp_option options[] = {
     {"schemaonly", 's', 0, 0,  "Only dump schema.", 2},
     {"without-property", 'N', 0, 0,  "Dump schema without properties.", 2},
     {"avro", 'V', 0, 0,  "Dump apache avro format data file. By default, dump sql command sequence.", 2},
-    {"start-time",    'S', "START_TIME",  0,  "Start time to dump. Either Epoch or ISO8601/RFC3339 format is acceptable. Epoch precision millisecond. ISO8601 format example: 2017-10-01T18:00:00.000+0800 or 2017-10-0100:00:00.000+0800 or '2017-10-01 00:00:00.000+0800'",  3},
-    {"end-time",      'E', "END_TIME",    0,  "End time to dump. Either Epoch or ISO8601/RFC3339 format is acceptable. Epoch precision millisecond. ISO8601 format example: 2017-10-01T18:00:00.000+0800 or 2017-10-0100:00:00.000+0800 or '2017-10-01 00:00:00.000+0800'",  3},
+    {"start-time",    'S', "START_TIME",  0,  "Start time to dump. Either epoch or ISO8601/RFC3339 format is acceptable. ISO8601 format example: 2017-10-01T18:00:00.000+0800 or 2017-10-0100:00:00.000+0800 or '2017-10-01 00:00:00.000+0800'",  4},
+    {"end-time",      'E', "END_TIME",    0,  "End time to dump. Either epoch or ISO8601/RFC3339 format is acceptable. ISO8601 format example: 2017-10-01T18:00:00.000+0800 or 2017-10-0100:00:00.000+0800 or '2017-10-01 00:00:00.000+0800'",  5},
+    {"precision",  'C', "PRECISION",  0,  "Epoch precision. Valid value is one of ms, us, and ns. Default is ms.", 6},
     {"data-batch",  'B', "DATA_BATCH",  0,  "Number of data point per insert statement. Max value is 32766. Default is 1.", 3},
     {"max-sql-len", 'L', "SQL_LEN",     0,  "Max length of one sql. Default is 65480.",   3},
     {"table-batch", 't', "TABLE_BATCH", 0,  "Number of table dumpout into one output file. Default is 1.",  3},
     {"thread_num",  'T', "THREAD_NUM",  0,  "Number of thread for dump in file. Default is 5.", 3},
-    {"debug",   'g', 0, 0,  "Print debug info.",    4},
-    {"verbose", 'b', 0, 0,  "Print verbose debug info.", 5},
-    {"performanceprint", 'm', 0, 0,  "Print performance debug info.", 5},
+    {"debug",   'g', 0, 0,  "Print debug info.",    8},
+    {"verbose", 'b', 0, 0,  "Print verbose debug info.", 9},
+    {"performanceprint", 'm', 0, 0,  "Print performance debug info.", 10},
     {0}
 };
 
@@ -262,6 +263,7 @@ typedef struct arguments {
     bool     avro;
     int64_t  start_time;
     int64_t  end_time;
+    char     precision[8];
     int32_t  data_batch;
     int32_t  max_sql_len;
     int32_t  table_batch; // num of table which will be dump into one output file.
@@ -329,8 +331,9 @@ struct arguments g_args = {
     false,      // schemeonly
     true,       // with_property
     false,      // avro format
-    0,          // start_time
+    -INT64_MAX,          // start_time
     INT64_MAX,  // end_time
+    "ms",       // precision
     1,          // data_batch
     TSDB_MAX_SQL_LEN,   // max_sql_len
     1,          // table_batch
@@ -441,6 +444,16 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
         case 'E':
             g_args.end_time = atol(arg);
             break;
+        case 'C':
+            if ((0 != strncasecmp(arg, "ms", strlen("ms")))
+                    && (0 != strncasecmp(arg, "us", strlen("us")))
+                    && (0 != strncasecmp(arg, "ns", strlen("ns")))) {
+                //
+                errorPrint("input precision: %s is invalid value\n", arg);
+                exit(-1);
+            }
+            strncpy(g_args.precision, arg, strlen(arg));
+            break;
         case 'B':
             g_args.data_batch = atoi(arg);
             if (g_args.data_batch > MAX_RECORDS_PER_REQ) {
@@ -518,8 +531,26 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
                 if (tmp) {
                     int64_t tmpEpoch;
                     if (strchr(tmp, ':') && strchr(tmp, '-')) {
+                        int32_t timePrec;
+                        if (0 != strncasecmp(arguments->precision,
+                                    "ms", strlen("ms"))) {
+                            timePrec = TSDB_TIME_PRECISION_MILLI;
+                        } else if (0 != strncasecmp(arguments->precision,
+                                    "us", strlen("us"))) {
+                            timePrec = TSDB_TIME_PRECISION_MICRO;
+                        } else if (0 != strncasecmp(arguments->precision,
+                                    "ns", strlen("ns"))) {
+                            timePrec = TSDB_TIME_PRECISION_NANO;
+                        } else {
+                            errorPrint("Invalid time precision: %s",
+                                    arguments->precision);
+                            free(tmp);
+                            return;
+                        }
+
                         if (TSDB_CODE_SUCCESS != taosParseTime(
-                                    tmp, &tmpEpoch, strlen(tmp), TSDB_TIME_PRECISION_MILLI, 0)) {
+                                    tmp, &tmpEpoch, strlen(tmp),
+                                    timePrec, 0)) {
                             errorPrint("Input %s, end time error!\n", tmp);
                             free(tmp);
                             return;
@@ -534,7 +565,8 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
 
                     free(tmp);
                 } else {
-                    errorPrint("%s() LN%d, strdup() cannot allocate memory\n", __func__, __LINE__);
+                    errorPrint("%s() LN%d, strdup() cannot allocate memory\n",
+                            __func__, __LINE__);
                     exit(-1);
                 }
             } else {
@@ -584,6 +616,7 @@ int main(int argc, char *argv[]) {
         printf("avro format: %s\n", g_args.avro?"true":"false");
         printf("start_time: %" PRId64 "\n", g_args.start_time);
         printf("end_time: %" PRId64 "\n", g_args.end_time);
+        printf("precision: %s\n", g_args.precision);
         printf("data_batch: %d\n", g_args.data_batch);
         printf("max_sql_len: %d\n", g_args.max_sql_len);
         printf("table_batch: %d\n", g_args.table_batch);
@@ -634,6 +667,7 @@ int main(int argc, char *argv[]) {
         fprintf(g_fpOfResult, "avro format: %s\n", g_args.avro?"true":"false");
         fprintf(g_fpOfResult, "start_time: %" PRId64 "\n", g_args.start_time);
         fprintf(g_fpOfResult, "end_time: %" PRId64 "\n", g_args.end_time);
+        fprintf(g_fpOfResult, "precision: %s\n", g_args.precision);
         fprintf(g_fpOfResult, "data_batch: %d\n", g_args.data_batch);
         fprintf(g_fpOfResult, "max_sql_len: %d\n", g_args.max_sql_len);
         fprintf(g_fpOfResult, "table_batch: %d\n", g_args.table_batch);
