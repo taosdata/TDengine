@@ -2676,7 +2676,7 @@ int32_t getMultiTableMetaFromMnode(SSqlObj *pSql, SArray* pNameList, SArray* pVg
 
   int32_t numOfTable      = (int32_t) taosArrayGetSize(pNameList);
   int32_t numOfVgroupList = (int32_t) taosArrayGetSize(pVgroupNameList);
-  int32_t numOfUdf        = pUdfList ? taosArrayGetSize(pUdfList) : 0;
+  int32_t numOfUdf        = pUdfList ? (int32_t)taosArrayGetSize(pUdfList) : 0;
 
   int32_t size = (numOfTable + numOfVgroupList) * TSDB_TABLE_FNAME_LEN + TSDB_FUNC_NAME_LEN * numOfUdf + sizeof(SMultiTableInfoMsg);
   if (TSDB_CODE_SUCCESS != tscAllocPayload(&pNew->cmd, size)) {
