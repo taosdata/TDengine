@@ -571,6 +571,8 @@ SArguments g_args = {
                      "root",          // user
                      #ifdef _TD_POWER_
                      "powerdb",      // password
+                     #elif (_TD_TQ_ == true)
+                     "tqueue",      // password
                      #else
                      "taosdata",      // password
                      #endif
@@ -681,6 +683,11 @@ static void printHelp() {
           "The password to use when connecting to the server. Default is 'powerdb'.");
   printf("%s%s%s%s\n", indent, "-c", indent,
           "Configuration directory. Default is '/etc/power/'.");
+#elif (_TD_TQ_ == true)
+	printf("%s%s%s%s\n", indent, "-P", indent,
+			"The password to use when connecting to the server. Default is 'tqueue'.");
+	printf("%s%s%s%s\n", indent, "-c", indent,
+			"Configuration directory. Default is '/etc/tq/'.");
 #else
   printf("%s%s%s%s\n", indent, "-P", indent,
           "The password to use when connecting to the server. Default is 'taosdata'.");

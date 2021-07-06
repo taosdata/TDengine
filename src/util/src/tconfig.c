@@ -312,6 +312,9 @@ void taosReadGlobalLogCfg() {
     #ifdef _TD_POWER_
     printf("configDir:%s not there, use default value: /etc/power", configDir);
     strcpy(configDir, "/etc/power");
+	#elif (_TD_TQ_ == true)
+    printf("configDir:%s not there, use default value: /etc/tq", configDir);
+    strcpy(configDir, "/etc/tq");
     #else
     printf("configDir:%s not there, use default value: /etc/taos", configDir);
     strcpy(configDir, "/etc/taos");
