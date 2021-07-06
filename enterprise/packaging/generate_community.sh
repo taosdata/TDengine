@@ -6,7 +6,7 @@ branchName=$3
 verType=$4
 cpuType=$5
 
-scriptDir=`pwd`
+scriptDir=$(dirname $(readlink -f $0))
 topDir=$scriptDir/../..         # TDinternal
 communityDir=$topDir/community
 archiveDir=/nas/TDengine/v$version/community # version’package directory
