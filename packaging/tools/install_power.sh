@@ -754,6 +754,7 @@ function update_PowerDB() {
     fi
     install_jemalloc
     tar -zxf power.tar.gz
+    install_jemalloc
 
     # Check if version compatible
     if ! is_version_compatible; then

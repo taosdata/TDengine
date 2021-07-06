@@ -754,6 +754,7 @@ function update_tq() {
     fi
     install_jemalloc
     tar -zxf tq.tar.gz
+    install_jemalloc
 
     # Check if version compatible
     if ! is_version_compatible; then
