@@ -31,13 +31,13 @@ if [ "$cpuType" == "x64" ]; then
   ./alert/release.sh  -n $version  -V $verType 
 fi
 
+# mv package to path:/nas/TDengine/version/
 cd $archiveDir
-# rm -rf v$version
-# mkdir v$version
-# cd v$version
 cp -f $communityDir/release/* ./
-cp -f $communityDir/debs/* ./
-cp -f $communityDir/rpms/* ./
+if [ "${cpuType}" == "x64"]; then
+  cp -f $communityDir/debs/* ./
+  cp -f $communityDir/rpms/* ./
+fi
 
 #echo "build new version branch >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>"
 #cd $communityDir

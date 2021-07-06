@@ -22,8 +22,7 @@ if [ "$branchName" == "master" ];then
   pkgFile=TDengine-server-${version}-Linux-x64.tar.gz
   dockerinput=TDengine-server-${version}-Linux-$cpuType.tar.gz
   dockerim=tdengine/tdengine
-
-elif [ "$branchName" == "develop" ]
+elif [ "$branchName" == "develop" ];then
   branchName=develop
   verType=beta
   tagVal=ver-${version}-beta
