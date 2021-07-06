@@ -896,6 +896,7 @@ function install_TDengine() {
     install_log
     install_header
     install_lib
+    install_jemalloc
     if [ "$pagMode" != "lite" ]; then
       install_connector
     fi
