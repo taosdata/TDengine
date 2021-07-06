@@ -34,7 +34,8 @@ int SZ_decompress_args_float(float* newData, size_t r1, unsigned char* cmpBytes,
 	size_t targetUncompressSize = dataLength <<2; //i.e., *4
 	//tmpSize must be "much" smaller than dataLength
 	size_t i, tmpSize = 8+MetaDataByteLength+pde_exe->SZ_SIZE_TYPE;
-	unsigned char* szTmpBytes;	
+	unsigned char* szTmpBytes = NULL;	
+	bool  needFree = false;
 	
 	if(cmpSize!=8+4+MetaDataByteLength && cmpSize!=8+8+MetaDataByteLength) //4,8 means two posibilities of SZ_SIZE_TYPE
 	{
@@ -52,19 +53,13 @@ int SZ_decompress_args_float(float* newData, size_t r1, unsigned char* cmpBytes,
 			tmpSize = cmpSize;
 			szTmpBytes = cmpBytes;	
 		}
-		else if(pde_params->szMode==SZ_BEST_COMPRESSION || pde_params->szMode==SZ_DEFAULT_COMPRESSION || pde_params->szMode==SZ_TEMPORAL_COMPRESSION)
+		else
 		{
 			if(targetUncompressSize<MIN_ZLIB_DEC_ALLOMEM_BYTES) //Considering the minimum size
 				targetUncompressSize = MIN_ZLIB_DEC_ALLOMEM_BYTES; 
 			tmpSize = sz_lossless_decompress(pde_params->losslessCompressor, cmpBytes, (unsigned long)cmpSize, &szTmpBytes, (unsigned long)targetUncompressSize+4+MetaDataByteLength+exe_params->SZ_SIZE_TYPE);//		(unsigned long)targetUncompressSize+8: consider the total length under lossless compression mode is actually 3+4+1+targetUncompressSize
-	
+	        needFree = true;
 		}
-		else
-		{
-			printf("Wrong value of pde_params->szMode in the double compressed bytes.\n");
-			status = SZ_MERR;
-			return status;
-		}	
 	}
 	else
 		szTmpBytes = cmpBytes;	
@@ -111,7 +106,7 @@ int SZ_decompress_args_float(float* newData, size_t r1, unsigned char* cmpBytes,
 	//cost_end_();
 	//printf("totalCost_=%f\n", totalCost_);
 	free_TightDataPointStorageF2(tdps);
-	if(pde_params->szMode!=SZ_BEST_SPEED && cmpSize!=8+MetaDataByteLength+exe_params->SZ_SIZE_TYPE)
+	if(szTmpBytes && needFree)
 		free(szTmpBytes);
 	return status;
 }

@@ -99,14 +99,13 @@ int SZ_ReadConf(const char* sz_cfgFile) {
     {
 		dataEndianType = LITTLE_ENDIAN_DATA;
 		confparams_cpr->sol_ID = SZ;
-		confparams_cpr->max_quant_intervals = 500;
+		confparams_cpr->max_quant_intervals = 800;
 		confparams_cpr->maxRangeRadius = confparams_cpr->max_quant_intervals/2;
-		confparams_cpr->quantization_intervals = 5000;
 				
 		exe_params->intvCapacity = confparams_cpr->maxRangeRadius*2;
 		exe_params->intvRadius = confparams_cpr->maxRangeRadius;
 		
-		confparams_cpr->quantization_intervals = 0;
+		confparams_cpr->quantization_intervals = 500;
 		exe_params->optQuantMode = 1;
 		confparams_cpr->predThreshold = 0.99;
 		confparams_cpr->sampleDistance = 100;

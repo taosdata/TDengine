@@ -120,32 +120,100 @@ float check_same(float* ft1, float* ft2, int count){
   return same_rate;
 }
 
+double check_same_double(double* ft1, double* ft2, int count){
+  int same_cnt =0;
+  for(int i=0; i< count; i++){
+    
+    if(ft1[i] == ft2[i]){
+       same_cnt ++;
+    }
+
+    if(i < 5){
+      printf(" i=%d ft1=%.40f diff=%.40f \n", i, ft1[i], ft1[i] - ft2[i]);
+      printf(" i=%d ft2=%.40f \n", i, ft2[i]);
+    }
+      
+  }
+  double same_rate = same_cnt*100/count;
+  printf(" all count=%d same=%d same rate=%.0f%% \n", count, same_cnt, same_rate);
+  return same_rate;
+}
+
 //
 // test compress and decompress
 //
 extern bool gOpenLossy;
-bool testFile(const char* inFile, char algorithm){
-  // check valid
-  if(inFile == NULL || inFile[0] == 0 ){
-    printf(" inFile is NULL or EMPTY.\n");
-    return false;
-  }
 
-  int cnt = 0;
-  float* floats = read_float(inFile, &cnt);
-  if(floats == NULL) {
-    return false;
-  }
-
+bool DoDouble(double* doubles, int cnt, int algorithm) {
   // compress
-  const char* input = (const char*)floats;
-  int input_len = cnt * sizeof(cnt);
+  const char* input = (const char*)doubles;
+  int input_len = cnt * sizeof(double);
   char* output = (char*) malloc(input_len);
   int output_len = input_len;
   char* buff = (char*) malloc(input_len);
   int buff_len = input_len;
 
-  printf(" file %s have count=%d \n", inFile, cnt);
+  cost_start();
+  int ret_len = 0;
+  if(algorithm == 2) 
+     ret_len = tsCompressDouble(input, input_len, cnt, output, output_len, algorithm, buff, buff_len);
+  else
+     ret_len = tsCompressDoubleLossy(input, input_len, cnt, output, output_len, algorithm, buff, buff_len);
+
+  if(ret_len == -1) {
+    printf(" compress error.\n");
+    return 0;
+  }
+  double use_ms1 = cost_end("compress");
+
+  printf(" compress len=%d input len=%d\n", ret_len, input_len);
+  double rate=100*(double)ret_len/(double)input_len;
+  printf(" compress rate=%.1f an-rate=%.4f%%\n", (double)input_len/(double)ret_len, rate);
+  
+  //   
+  // decompress
+  //
+  double* ft2 = (double*)malloc(input_len); 
+  cost_start();
+  int code = 0;
+
+  if(algorithm == 2) 
+     code = tsDecompressDouble(output, ret_len, cnt, (char*)ft2, input_len, algorithm, buff, buff_len);
+  else
+     code = tsDecompressDoubleLossy(output, ret_len, cnt, (char*)ft2, input_len, algorithm, buff, buff_len);
+   
+
+  double use_ms2 = cost_end("Decompress");
+  printf(" Decompress return length=%d \n", code);
+
+  // compare same
+  double same_rate = check_same_double(doubles, ft2, cnt);
+
+  printf("\n ------------------  count:%d  <%s> ---------------- \n", cnt, algorithm == 2?"TD":"SZ");
+  printf("    Compress Rate ......... [%.2f%%] \n", rate);
+  double speed1 = (cnt*sizeof(double)*1000/1024/1024)/use_ms1;
+  printf("    Compress Time ......... [%.4fms] speed=%.1f MB/s\n", use_ms1, speed1);
+  double speed2 = (cnt*sizeof(double)*1000/1024/1024)/use_ms2;
+  printf("    Decompress Time........ [%.4fms] speed=%.1f MB/s\n", use_ms2, speed2);
+  printf("    Same Rate ............. [%.0f%%] \n\n", same_rate);
+
+
+  // free
+  free(ft2);
+  free(buff);
+  free(output); 
+
+  return true;
+}
+
+bool DoFloat(float* floats, int cnt, int algorithm) {
+  // compress
+  const char* input = (const char*)floats;
+  int input_len = cnt * sizeof(float);
+  char* output = (char*) malloc(input_len);
+  int output_len = input_len;
+  char* buff = (char*) malloc(input_len);
+  int buff_len = input_len;
 
   cost_start();
   int ret_len = 0;
@@ -194,10 +262,29 @@ bool testFile(const char* inFile, char algorithm){
 
   // free
   free(ft2);
-  free(floats);
   free(buff);
   free(output); 
 
+  return true;
+}
+
+
+bool testFile(const char* inFile, char algorithm){
+  // check valid
+  if(inFile == NULL || inFile[0] == 0 ){
+    printf(" inFile is NULL or EMPTY.\n");
+    return false;
+  }
+
+  int cnt = 0;
+  float* floats = read_float(inFile, &cnt);
+  if(floats == NULL) {
+    return false;
+  }
+
+  DoFloat(floats, cnt, algorithm);
+
+  free(floats);
   return true;
 }
 //
@@ -577,25 +664,26 @@ void unitTestFloat() {
  
 }
 
-void modulePath(char *buf, int size)
-{
-  char path[1024];
-  sprintf(path, "/proc/%d/exe", getpid());  
-  readlink(path, buf, size);
-  char* pos = strrchr(buf, '/');
-  if(pos)
-    pos[1]=0;
+#define DB_CNT 500
+void test_same_double(int algo){
+  double ori =  3.1415926;
+
+  double doubles [DB_CNT];
+  for(int i=0; i< DB_CNT; i++){
+    doubles[i] = ori;
+  } 
+
+  DoDouble(doubles, DB_CNT, algo);
+
 }
+
+
 
 //
 //   -----------------  main ----------------------
 //
 int main(int argc, char *argv[]) {
   printf("welcome to use taospack tools v1.3\n");
-
-  char szbuf[512];
-  modulePath(szbuf, 512);
-  printf(szbuf);
  
   gOpenLossy = false;
   tsLossyInit();
@@ -626,6 +714,11 @@ int main(int argc, char *argv[]) {
         return 0;
     }
 
+   if(strcmp(argv[1], "-samed") == 0) {
+        test_same_double(atoi(argv[2]));
+        return 0;
+    }
+ 
     if(algo == 0){
       printf(" no param -tone -tw \n");
       return 0;

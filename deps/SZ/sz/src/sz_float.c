@@ -139,7 +139,7 @@ TightDataPointStorageF* SZ_compress_float_1D_MDQ(float *oriData,
 	// calc save byte length and bit lengths with reqLength
 	int reqBytesLength = reqLength/8;
 	int resiBitsLength = reqLength%8;
-	float last3CmprsData[3] = {0};
+	//float last3CmprsData[3] = {0};
 
 	FloatValueCompressElement *vce = (FloatValueCompressElement*)malloc(sizeof(FloatValueCompressElement));
 	LossyCompressionElement *lce = (LossyCompressionElement*)malloc(sizeof(LossyCompressionElement));
@@ -152,7 +152,7 @@ TightDataPointStorageF* SZ_compress_float_1D_MDQ(float *oriData,
 	memcpy(preDiffBytes, vce->curBytes, 4);
 	// lce to arrays
 	addExactData(exactMidByteArray, exactLeadNumArray, resiBitArray, lce);
-	listAdd_float(last3CmprsData, vce->data);
+	//listAdd_float(last3CmprsData, vce->data);
 		
 	//add the second data
 	type[1] = 0;
@@ -160,12 +160,12 @@ TightDataPointStorageF* SZ_compress_float_1D_MDQ(float *oriData,
 	updateLossyCompElement_Float(vce->curBytes, preDiffBytes, reqBytesLength, resiBitsLength, lce);
 	memcpy(preDiffBytes, vce->curBytes, 4);
 	addExactData(exactMidByteArray, exactLeadNumArray, resiBitArray, lce);
-	listAdd_float(last3CmprsData, vce->data);
+	//listAdd_float(last3CmprsData, vce->data);
 
 	int state;
 	float checkRadius;
 	float oriFloat;
-	float pred = last3CmprsData[0];
+	float pred = vce->data;
 	float diff;
 	checkRadius = (quantization_intervals-1)*realPrecision;
 	float double_realpreci = 2*realPrecision;

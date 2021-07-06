@@ -17,30 +17,9 @@
 
 void new_TightDataPointStorageF_Empty(TightDataPointStorageF **this)
 {
-	*this = (TightDataPointStorageF*)malloc(sizeof(TightDataPointStorageF));
-	(*this)->dataSeriesLength = 0;
-	(*this)->allSameData = 0;
-	(*this)->exactDataNum = 0;
-	(*this)->reservedValue = 0;
-	(*this)->reqLength = 0;
-	(*this)->radExpo = 0;
-
-	(*this)->leadNumArray = NULL; //its size is exactDataNum/4 (or exactDataNum/4+1)
-	(*this)->leadNumArray_size = 0;
-
-	(*this)->exactMidBytes = NULL;
-	(*this)->exactMidBytes_size = 0;
-
-	(*this)->residualMidBits = NULL;
-	(*this)->residualMidBits_size = 0;
-	
-	(*this)->intervals = 0;
-	(*this)->isLossless = 0;
-	
-	(*this)->segment_size = 0;
-	
-	(*this)->raBytes = NULL;
-	(*this)->raBytes_size = 0;
+	TightDataPointStorageF* tdpf = (TightDataPointStorageF*)malloc(sizeof(TightDataPointStorageF));
+	memset(tdpf, 0, sizeof(TightDataPointStorageF));
+    *this = tdpf;
 }
 
 int new_TightDataPointStorageF_fromFlatBytes(TightDataPointStorageF **this, unsigned char* flatBytes, size_t flatBytesLength, sz_exedata* pde_exe, sz_params* pde_params)

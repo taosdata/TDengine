@@ -26,7 +26,9 @@ int SZ_decompress_args_double(double* newData, size_t r1, unsigned char* cmpByte
 	size_t targetUncompressSize = dataLength <<3; //i.e., *8
 	//tmpSize must be "much" smaller than dataLength
 	size_t i, tmpSize = 12+MetaDataByteLength_double+exe_params->SZ_SIZE_TYPE;
-	unsigned char* szTmpBytes;
+	unsigned char* szTmpBytes = NULL;
+	bool needFree = false;
+
 	if(cmpSize!=12+4+MetaDataByteLength_double && cmpSize!=12+8+MetaDataByteLength_double)
 	{
 		pde_params->losslessCompressor = is_lossless_compressed_data(cmpBytes, cmpSize);
@@ -44,21 +46,13 @@ int SZ_decompress_args_double(double* newData, size_t r1, unsigned char* cmpByte
 			tmpSize = cmpSize;
 			szTmpBytes = cmpBytes;	
 		}	
-		else if(pde_params->szMode==SZ_BEST_COMPRESSION || pde_params->szMode==SZ_DEFAULT_COMPRESSION || pde_params->szMode==SZ_TEMPORAL_COMPRESSION)
+		else
 		{
 			if(targetUncompressSize<MIN_ZLIB_DEC_ALLOMEM_BYTES) //Considering the minimum size
 				targetUncompressSize = MIN_ZLIB_DEC_ALLOMEM_BYTES; 			
 			tmpSize = sz_lossless_decompress(pde_params->losslessCompressor, cmpBytes, (unsigned long)cmpSize, &szTmpBytes, (unsigned long)targetUncompressSize+4+MetaDataByteLength_double+exe_params->SZ_SIZE_TYPE);			
-			//szTmpBytes = (unsigned char*)malloc(sizeof(unsigned char)*tmpSize);
-			//memcpy(szTmpBytes, tmpBytes, tmpSize);
-			//free(tmpBytes); //release useless memory		
+	        needFree = true;	
 		}
-		else
-		{
-			printf("Wrong value of pde_params->szMode in the double compressed bytes.\n");
-			status = SZ_MERR;
-			return status;
-		}	
 	}
 	else
 		szTmpBytes = cmpBytes;
@@ -106,7 +100,7 @@ int SZ_decompress_args_double(double* newData, size_t r1, unsigned char* cmpByte
 	}	
 
 	free_TightDataPointStorageD2(tdps);
-	if(pde_params->szMode!=SZ_BEST_SPEED && cmpSize!=12+MetaDataByteLength_double+exe_params->SZ_SIZE_TYPE)
+	if(szTmpBytes && needFree)
 		free(szTmpBytes);	
 	return status;
 }

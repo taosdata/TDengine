@@ -95,7 +95,7 @@ double getRealPrecision_double(double valueRangeSize, int errBoundMode, double a
 	int state = SZ_SUCCESS;
 	double precision = 0;
 	if(errBoundMode==SZ_ABS||errBoundMode==ABS_OR_PW_REL||errBoundMode==ABS_AND_PW_REL)
-		precision = absErrBound; 
+		precision = absErrBound*0.00000001; 
 	else if(errBoundMode==REL||errBoundMode==REL_OR_PW_REL||errBoundMode==REL_AND_PW_REL)
 		precision = relBoundRatio*valueRangeSize;
 	else if(errBoundMode==ABS_AND_REL)
