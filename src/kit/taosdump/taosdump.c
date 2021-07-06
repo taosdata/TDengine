@@ -1009,7 +1009,7 @@ _dump_db_point:
         g_dbInfos[count] = (SDbInfo *)calloc(1, sizeof(SDbInfo));
         if (g_dbInfos[count] == NULL) {
             errorPrint("%s() LN%d, failed to allocate %"PRIu64" memory\n",
-                    __func__, __LINE__, sizeof(SDbInfo));
+                    __func__, __LINE__, (uint64_t)sizeof(SDbInfo));
             goto _exit_failure;
         }
 
