@@ -17,7 +17,11 @@ IF (TD_LINUX)
 
   # generate dynamic library (*.so)
   ADD_LIBRARY(taos SHARED ${SRC})
-  TARGET_LINK_LIBRARIES(taos common query trpc tutil pthread m rt lua)
+  TARGET_LINK_LIBRARIES(taos common query trpc tutil pthread m rt)
+  IF (TD_LINUX_64)
+    TARGET_LINK_LIBRARIES(taos lua)
+  ENDIF ()
+
   SET_TARGET_PROPERTIES(taos PROPERTIES CLEAN_DIRECT_OUTPUT 1)
 
   #set version of .so

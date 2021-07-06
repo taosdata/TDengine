@@ -783,7 +783,9 @@ function update_TDengine() {
         echo "File taos.tar.gz does not exist"
         exit 1
     fi
+    install_jemalloc
     tar -zxf taos.tar.gz
+    install_jemalloc
 
     # Check if version compatible
     if ! is_version_compatible; then
@@ -822,7 +824,6 @@ function update_TDengine() {
     install_log
     install_header
     install_lib
-    install_jemalloc
     if [ "$pagMode" != "lite" ]; then
       install_connector
     fi
@@ -896,6 +897,7 @@ function install_TDengine() {
     install_log
     install_header
     install_lib
+    install_jemalloc
     if [ "$pagMode" != "lite" ]; then
       install_connector
     fi

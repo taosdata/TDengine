@@ -46,7 +46,7 @@ enum SQL_NODE_FROM_TYPE {
 
 enum SQL_EXPR_FLAG {
   EXPR_FLAG_TS_ERROR = 1,
-  EXPR_FLAG_US_TIMESTAMP = 2,
+  EXPR_FLAG_NS_TIMESTAMP = 2,
   EXPR_FLAG_TIMESTAMP_VAR = 3,
 };
 
@@ -323,6 +323,8 @@ void setCreateAcctSql(SSqlInfo *pInfo, int32_t type, SStrToken *pName, SStrToken
 void setCreateUserSql(SSqlInfo *pInfo, SStrToken *pName, SStrToken *pPasswd);
 void setKillSql(SSqlInfo *pInfo, int32_t type, SStrToken *ip);
 void setAlterUserSql(SSqlInfo *pInfo, int16_t type, SStrToken *pName, SStrToken* pPwd, SStrToken *pPrivilege);
+
+void setCompactVnodeSql(SSqlInfo *pInfo, int32_t type, SArray *pParam);
 
 void setDefaultCreateDbOption(SCreateDbInfo *pDBInfo);
 void setDefaultCreateTopicOption(SCreateDbInfo *pDBInfo);

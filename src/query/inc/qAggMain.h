@@ -66,24 +66,20 @@ extern "C" {
 
 #define TSDB_FUNC_RATE         29
 #define TSDB_FUNC_IRATE        30
-#define TSDB_FUNC_SUM_RATE     31
-#define TSDB_FUNC_SUM_IRATE    32
-#define TSDB_FUNC_AVG_RATE     33
-#define TSDB_FUNC_AVG_IRATE    34
+#define TSDB_FUNC_TID_TAG      31
+#define TSDB_FUNC_DERIVATIVE   32
+#define TSDB_FUNC_BLKINFO      33
 
-#define TSDB_FUNC_TID_TAG      35
-#define TSDB_FUNC_BLKINFO      36
 
-#define TSDB_FUNC_HISTOGRAM    37
-#define TSDB_FUNC_HLL          38
-#define TSDB_FUNC_MODE         39
-#define TSDB_FUNC_SAMPLE       40
-#define TSDB_FUNC_CEIL         41
-#define TSDB_FUNC_FLOOR        42
-#define TSDB_FUNC_ROUND        43
-#define TSDB_FUNC_MAVG         44
-#define TSDB_FUNC_CSUM         45
-
+#define TSDB_FUNC_HISTOGRAM    34
+#define TSDB_FUNC_HLL          35
+#define TSDB_FUNC_MODE         36
+#define TSDB_FUNC_SAMPLE       37
+#define TSDB_FUNC_CEIL         38
+#define TSDB_FUNC_FLOOR        39
+#define TSDB_FUNC_ROUND        40
+#define TSDB_FUNC_MAVG         41
+#define TSDB_FUNC_CSUM         42
 
 #define TSDB_FUNCSTATE_SO           0x1u    // single output
 #define TSDB_FUNCSTATE_MO           0x2u    // dynamic number of output, not multinumber of output e.g., TOP/BOTTOM
@@ -207,9 +203,7 @@ typedef struct SAggFunctionInfo {
   uint16_t status;
 
   bool (*init)(SQLFunctionCtx *pCtx, SResultRowCellInfo* pResultCellInfo);  // setup the execute environment
-
   void (*xFunction)(SQLFunctionCtx *pCtx);                     // blocks version function
-  void (*xFunctionF)(SQLFunctionCtx *pCtx, int32_t position);  // single-row function version, todo merge with blockwise function
 
   // finalizer must be called after all xFunction has been executed to generated final result.
   void (*xFinalize)(SQLFunctionCtx *pCtx);

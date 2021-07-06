@@ -52,6 +52,36 @@ int32_t strdequote(char *z) {
   return j + 1;  // only one quote, do nothing
 }
 
+
+int32_t strRmquote(char *z, int32_t len){  
+    // delete escape character: \\, \', \"
+    char delim = z[0];
+    if (delim != '\'' && delim != '\"') {
+      return len;
+    }
+  
+    int32_t cnt = 0;
+    int32_t j = 0;
+    for (uint32_t k = 1; k < len - 1; ++k) {
+      if (z[k] == '\\' || (z[k] == delim && z[k + 1] == delim)) {
+          z[j] = z[k + 1];
+  
+        cnt++;
+        j++;
+        k++;
+        continue;
+      }
+  
+      z[j] = z[k];
+      j++;
+    }
+  
+    z[j] = 0;
+    
+    return len - 2 - cnt;
+}
+
+
 size_t strtrim(char *z) {
   int32_t i = 0;
   int32_t j = 0;
@@ -397,13 +427,23 @@ char *taosIpStr(uint32_t ipInt) {
 }
 
 FORCE_INLINE float taos_align_get_float(const char* pBuf) {
-  float fv = 0; 
-  *(int32_t*)(&fv) = *(int32_t*)pBuf;
+#if __STDC_VERSION__ >= 201112L
+  static_assert(sizeof(float) == sizeof(uint32_t), "sizeof(float) must equal to sizeof(uint32_t)");
+#else
+  assert(sizeof(float) == sizeof(uint32_t));
+#endif
+  float fv = 0;
+  memcpy(&fv, pBuf, sizeof(fv)); // in ARM, return *((const float*)(pBuf)) may cause problem
   return fv; 
 }
 
 FORCE_INLINE double taos_align_get_double(const char* pBuf) {
-  double dv = 0; 
-  *(int64_t*)(&dv) = *(int64_t*)pBuf;
+#if __STDC_VERSION__ >= 201112L
+  static_assert(sizeof(double) == sizeof(uint64_t), "sizeof(double) must equal to sizeof(uint64_t)");
+#else
+  assert(sizeof(double) == sizeof(uint64_t));
+#endif
+  double dv = 0;
+  memcpy(&dv, pBuf, sizeof(dv)); // in ARM, return *((const double*)(pBuf)) may cause problem
   return dv; 
 }

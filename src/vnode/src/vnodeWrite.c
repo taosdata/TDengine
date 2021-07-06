@@ -303,6 +303,17 @@ static int32_t vnodeWriteToWQueueImp(SVWriteMsg *pWrite) {
 }
 
 int32_t vnodeWriteToWQueue(void *vparam, void *wparam, int32_t qtype, void *rparam) {
+  SVnodeObj *pVnode = vparam;
+  if (qtype == TAOS_QTYPE_RPC) {
+   if (!vnodeInReadyStatus(pVnode)) {
+      return TSDB_CODE_APP_NOT_READY;  // it may be in deleting or closing state
+    }
+
+    if (pVnode->role != TAOS_SYNC_ROLE_MASTER) {
+      return TSDB_CODE_APP_NOT_READY;
+    }
+  }
+
   SVWriteMsg *pWrite = vnodeBuildVWriteMsg(vparam, wparam, qtype, rparam);
   if (pWrite == NULL) {
     assert(terrno != 0);
@@ -385,10 +396,13 @@ static int32_t vnodePerformFlowCtrl(SVWriteMsg *pWrite) {
 }
 
 void vnodeWaitWriteCompleted(SVnodeObj *pVnode) {
+  int32_t extraSleep = 0;
   while (pVnode->queuedWMsg > 0) {
     vTrace("vgId:%d, queued wmsg num:%d", pVnode->vgId, pVnode->queuedWMsg);
     taosMsleep(10);
+    extraSleep = 1;
   }
 
-  taosMsleep(900);
+  if (extraSleep)
+    taosMsleep(900);
 }

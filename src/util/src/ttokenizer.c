@@ -219,11 +219,13 @@ static SKeyword keywordTable[] = {
     {"PARTITIONS",   TK_PARTITIONS},
     {"TOPIC",        TK_TOPIC},
     {"TOPICS",       TK_TOPICS},
+    {"COMPACT",      TK_COMPACT},
+    {"MODIFY",       TK_MODIFY},
     {"FUNCTION",     TK_FUNCTION},
     {"FUNCTIONS",    TK_FUNCTIONS},
     {"OUTPUTTYPE",   TK_OUTPUTTYPE},
     {"AGGREGATE",    TK_AGGREGATE},
-    {"BUFSIZE",      TK_BUFSIZE}
+    {"BUFSIZE",      TK_BUFSIZE},
 };
 
 static const char isIdChar[] = {
@@ -267,6 +269,10 @@ static int32_t tKeywordCode(const char* z, int n) {
     } else {
       key[j] = z[j];
     }
+  }
+
+  if (keywordHashTable == NULL) {
+    return TK_ILLEGAL;
   }
 
   SKeyword** pKey = (SKeyword**)taosHashGet(keywordHashTable, key, n);
@@ -498,9 +504,9 @@ uint32_t tGetToken(char* z, uint32_t* tokenId) {
       }
 
       /* here is the 1u/1a/2s/3m/9y */
-      if ((z[i] == 'u' || z[i] == 'a' || z[i] == 's' || z[i] == 'm' || z[i] == 'h' || z[i] == 'd' || z[i] == 'n' ||
+      if ((z[i] == 'b' || z[i] == 'u' || z[i] == 'a' || z[i] == 's' || z[i] == 'm' || z[i] == 'h' || z[i] == 'd' || z[i] == 'n' ||
            z[i] == 'y' || z[i] == 'w' ||
-           z[i] == 'U' || z[i] == 'A' || z[i] == 'S' || z[i] == 'M' || z[i] == 'H' || z[i] == 'D' || z[i] == 'N' ||
+           z[i] == 'B' || z[i] == 'U' || z[i] == 'A' || z[i] == 'S' || z[i] == 'M' || z[i] == 'H' || z[i] == 'D' || z[i] == 'N' ||
            z[i] == 'Y' || z[i] == 'W') &&
           (isIdChar[(uint8_t)z[i + 1]] == 0)) {
         *tokenId = TK_VARIABLE;
@@ -678,4 +684,16 @@ void taosCleanupKeywordsTable() {
   if (m != NULL && atomic_val_compare_exchange_ptr(&keywordHashTable, m, 0) == m) {
     taosHashCleanup(m);
   }
+}
+
+SStrToken taosTokenDup(SStrToken* pToken, char* buf, int32_t len) {
+  assert(pToken != NULL && buf != NULL);
+  SStrToken token = *pToken;
+  token.z = buf;
+
+  assert(len > token.n);
+  strncpy(token.z, pToken->z, pToken->n);
+  token.z[token.n] = 0;
+
+  return token;
 }
