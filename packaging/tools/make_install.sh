@@ -218,7 +218,7 @@ function install_jemalloc() {
             /usr/bin/install -c -d /usr/local/share/man/man3
             /usr/bin/install -c -m 644 ${binary_dir}/build/share/man/man3/jemalloc.3 /usr/local/share/man/man3
         fi
-        ldconfig
+        ${csudo} ldconfig
     fi
 }
 
