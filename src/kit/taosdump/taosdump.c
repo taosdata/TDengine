@@ -27,6 +27,8 @@
 #include "tutil.h"
 #include <taos.h>
 
+#define TSDB_SUPPORT_NANOSECOND 0
+
 #define MAX_FILE_NAME_LEN       256             // max file name length on linux is 255
 #define COMMAND_SIZE            65536
 #define MAX_RECORDS_PER_REQ     32766
@@ -228,7 +230,11 @@ static struct argp_option options[] = {
     {"avro", 'V', 0, 0,  "Dump apache avro format data file. By default, dump sql command sequence.", 2},
     {"start-time",    'S', "START_TIME",  0,  "Start time to dump. Either epoch or ISO8601/RFC3339 format is acceptable. ISO8601 format example: 2017-10-01T18:00:00.000+0800 or 2017-10-0100:00:00.000+0800 or '2017-10-01 00:00:00.000+0800'",  4},
     {"end-time",      'E', "END_TIME",    0,  "End time to dump. Either epoch or ISO8601/RFC3339 format is acceptable. ISO8601 format example: 2017-10-01T18:00:00.000+0800 or 2017-10-0100:00:00.000+0800 or '2017-10-01 00:00:00.000+0800'",  5},
+#if TSDB_SUPPORT_NANOSECOND == 1
     {"precision",  'C', "PRECISION",  0,  "Epoch precision. Valid value is one of ms, us, and ns. Default is ms.", 6},
+#else
+    {"precision",  'C', "PRECISION",  0,  "Epoch precision. Valid value is one of ms and us. Default is ms.", 6},
+#endif
     {"data-batch",  'B', "DATA_BATCH",  0,  "Number of data point per insert statement. Max value is 32766. Default is 1.", 3},
     {"max-sql-len", 'L', "SQL_LEN",     0,  "Max length of one sql. Default is 65480.",   3},
     {"table-batch", 't', "TABLE_BATCH", 0,  "Number of table dumpout into one output file. Default is 1.",  3},
@@ -527,7 +533,10 @@ static void parse_precision_first(
             }
             if ((0 != strncasecmp(tmp, "ms", strlen("ms")))
                     && (0 != strncasecmp(tmp, "us", strlen("us")))
-                    && (0 != strncasecmp(tmp, "ns", strlen("ns")))) {
+#if TSDB_SUPPORT_NANOSECOND == 1
+                    && (0 != strncasecmp(tmp, "ns", strlen("ns")))
+#endif
+                    ) {
                 //
                 errorPrint("input precision: %s is invalid value\n", tmp);
                 free(tmp);
@@ -564,9 +573,11 @@ static void parse_timestamp(
                 } else if (0 == strncasecmp(arguments->precision,
                             "us", strlen("us"))) {
                     timePrec = TSDB_TIME_PRECISION_MICRO;
+#if TSDB_SUPPORT_NANOSECOND == 1
                 } else if (0 == strncasecmp(arguments->precision,
                             "ns", strlen("ns"))) {
                     timePrec = TSDB_TIME_PRECISION_NANO;
+#endif
                 } else {
                     errorPrint("Invalid time precision: %s",
                             arguments->precision);
