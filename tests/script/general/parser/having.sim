@@ -1835,5 +1835,8 @@ if $data04 != 1 then
 endi
 
 sql_error select top(f1,2) from tb1 group by f1 having count(f1) > 0;
+sql_error select count(*) from tb1 group by f1 having last(*) > 0;
+
+print bug for select count(*) k from tb1 group by f1 having k > 0;
 
 system sh/exec.sh -n dnode1 -s stop -x SIGINT

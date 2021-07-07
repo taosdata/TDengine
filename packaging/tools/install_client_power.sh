@@ -182,7 +182,13 @@ function install_jemalloc() {
             ${csudo} /usr/bin/install -c -d /usr/local/share/man/man3
             ${csudo} /usr/bin/install -c -m 644 ${jemalloc_dir}/share/man/man3/jemalloc.3 /usr/local/share/man/man3
         fi
-        ${csudo} ldconfig
+
+        if [ -d /etc/ld.so.conf.d ]; then
+            ${csudo} echo "/usr/local/lib" > /etc/ld.so.conf.d/jemalloc.conf
+            ${csudo} ldconfig
+        else
+            echo "/etc/ld.so.conf.d not found!"
+        fi
     fi
 }
 
@@ -228,6 +234,7 @@ function update_PowerDB() {
         exit 1
     fi
     tar -zxf power.tar.gz
+    install_jemalloc
 
     echo -e "${GREEN}Start to update PowerDB client...${NC}"
     # Stop the client shell if running
@@ -241,7 +248,6 @@ function update_PowerDB() {
     install_log
     install_header
     install_lib
-    install_jemalloc
     if [ "$pagMode" != "lite" ]; then
       install_connector
     fi
