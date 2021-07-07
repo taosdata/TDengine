@@ -238,6 +238,7 @@ python3 ./test.py -f query/queryTsisNull.py
 python3 ./test.py -f query/subqueryFilter.py
 # python3 ./test.py -f query/nestedQuery/queryInterval.py
 python3 ./test.py -f query/queryStateWindow.py
+python3 ./test.py -f query/nestedQuery/queryWithOrderLimit.py
 
 
 #stream
@@ -334,6 +335,7 @@ python3 ./test.py -f insert/unsignedInt.py
 python3 ./test.py -f insert/unsignedBigint.py
 python3 ./test.py -f insert/unsignedSmallint.py
 python3 ./test.py -f insert/unsignedTinyint.py
+python3 ./test.py -f insert/insertFromCSV.py
 python3 ./test.py -f query/filterAllUnsignedIntTypes.py
 
 python3 ./test.py -f tag_lite/unsignedInt.py

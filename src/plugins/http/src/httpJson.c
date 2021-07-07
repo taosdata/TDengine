@@ -297,6 +297,7 @@ void httpJsonTimestamp(JsonBuf* buf, int64_t t, int32_t timePrecision) {
     }
 
     default:
+      fractionLen = 0;
       assert(false);
   }
 
@@ -342,6 +343,7 @@ void httpJsonUtcTimestamp(JsonBuf* buf, int64_t t, int32_t timePrecision) {
     }
 
     default:
+      fractionLen = 0;
       assert(false);
   }
 

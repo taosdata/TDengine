@@ -119,16 +119,16 @@ function install_lib() {
     if [ "$osType" != "Darwin" ]; then
         ${csudo} ln -s ${install_main_dir}/driver/libtaos.* ${lib_link_dir}/libtaos.so.1
         ${csudo} ln -s ${lib_link_dir}/libtaos.so.1 ${lib_link_dir}/libtaos.so
-        
+
         if [ -d "${lib64_link_dir}" ]; then
-	        ${csudo} ln -s ${install_main_dir}/driver/libtaos.* ${lib64_link_dir}/libtaos.so.1       || :
-	        ${csudo} ln -s ${lib64_link_dir}/libtaos.so.1 ${lib64_link_dir}/libtaos.so               || :
-	      fi
+            ${csudo} ln -s ${install_main_dir}/driver/libtaos.* ${lib64_link_dir}/libtaos.so.1       || :
+            ${csudo} ln -s ${lib64_link_dir}/libtaos.so.1 ${lib64_link_dir}/libtaos.so               || :
+        fi
     else
         ${csudo} ln -s ${install_main_dir}/driver/libtaos.* ${lib_link_dir}/libtaos.1.dylib
         ${csudo} ln -s ${lib_link_dir}/libtaos.1.dylib ${lib_link_dir}/libtaos.dylib
     fi
-    
+
     ${csudo} ldconfig
 }
 
@@ -137,6 +137,59 @@ function install_header() {
     ${csudo} cp -f ${script_dir}/inc/* ${install_main_dir}/include && ${csudo} chmod 644 ${install_main_dir}/include/*
     ${csudo} ln -s ${install_main_dir}/include/taos.h ${inc_link_dir}/taos.h
     ${csudo} ln -s ${install_main_dir}/include/taoserror.h ${inc_link_dir}/taoserror.h
+}
+
+function install_jemalloc() {
+    jemalloc_dir=${script_dir}/jemalloc
+
+    if [ -d ${jemalloc_dir} ]; then
+        ${csudo} /usr/bin/install -c -d /usr/local/bin
+
+        if [ -f ${jemalloc_dir}/bin/jemalloc-config ]; then
+            ${csudo} /usr/bin/install -c -m 755 ${jemalloc_dir}/bin/jemalloc-config /usr/local/bin
+        fi
+        if [ -f ${jemalloc_dir}/bin/jemalloc.sh ]; then
+            ${csudo} /usr/bin/install -c -m 755 ${jemalloc_dir}/bin/jemalloc.sh /usr/local/bin
+        fi
+        if [ -f ${jemalloc_dir}/bin/jeprof ]; then
+            ${csudo} /usr/bin/install -c -m 755 ${jemalloc_dir}/bin/jeprof /usr/local/bin
+        fi
+        if [ -f ${jemalloc_dir}/include/jemalloc/jemalloc.h ]; then
+            ${csudo} /usr/bin/install -c -d /usr/local/include/jemalloc
+            ${csudo} /usr/bin/install -c -m 644 ${jemalloc_dir}/include/jemalloc/jemalloc.h /usr/local/include/jemalloc
+        fi
+        if [ -f ${jemalloc_dir}/lib/libjemalloc.so.2 ]; then
+            ${csudo} /usr/bin/install -c -d /usr/local/lib
+            ${csudo} /usr/bin/install -c -m 755 ${jemalloc_dir}/lib/libjemalloc.so.2 /usr/local/lib
+            ${csudo} ln -sf libjemalloc.so.2 /usr/local/lib/libjemalloc.so
+            ${csudo} /usr/bin/install -c -d /usr/local/lib
+            if [ -f ${jemalloc_dir}/lib/libjemalloc.a ]; then
+                ${csudo} /usr/bin/install -c -m 755 ${jemalloc_dir}/lib/libjemalloc.a /usr/local/lib
+            fi
+            if [ -f ${jemalloc_dir}/lib/libjemalloc_pic.a ]; then
+                ${csudo} /usr/bin/install -c -m 755 ${jemalloc_dir}/lib/libjemalloc_pic.a /usr/local/lib
+            fi
+            if [ -f ${jemalloc_dir}/lib/libjemalloc_pic.a ]; then
+                ${csudo} /usr/bin/install -c -d /usr/local/lib/pkgconfig
+                ${csudo} /usr/bin/install -c -m 644 ${jemalloc_dir}/lib/pkgconfig/jemalloc.pc /usr/local/lib/pkgconfig
+            fi
+        fi
+        if [ -f ${jemalloc_dir}/share/doc/jemalloc/jemalloc.html ]; then
+            ${csudo} /usr/bin/install -c -d /usr/local/share/doc/jemalloc
+            ${csudo} /usr/bin/install -c -m 644 ${jemalloc_dir}/share/doc/jemalloc/jemalloc.html /usr/local/share/doc/jemalloc
+        fi
+        if [ -f ${jemalloc_dir}/share/man/man3/jemalloc.3 ]; then
+            ${csudo} /usr/bin/install -c -d /usr/local/share/man/man3
+            ${csudo} /usr/bin/install -c -m 644 ${jemalloc_dir}/share/man/man3/jemalloc.3 /usr/local/share/man/man3
+        fi
+
+        if [ -d /etc/ld.so.conf.d ]; then
+            ${csudo} echo "/usr/local/lib" > /etc/ld.so.conf.d/jemalloc.conf
+            ${csudo} ldconfig
+        else
+            echo "/etc/ld.so.conf.d not found!"
+        fi
+    fi
 }
 
 function install_config() {
@@ -181,6 +234,7 @@ function update_PowerDB() {
         exit 1
     fi
     tar -zxf power.tar.gz
+    install_jemalloc
 
     echo -e "${GREEN}Start to update PowerDB client...${NC}"
     # Stop the client shell if running
@@ -217,10 +271,11 @@ function install_PowerDB() {
 
     echo -e "${GREEN}Start to install PowerDB client...${NC}"
 
-	install_main_path
+    install_main_path
     install_log
     install_header
     install_lib
+    install_jemalloc
     if [ "$pagMode" != "lite" ]; then
       install_connector
     fi

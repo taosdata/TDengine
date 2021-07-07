@@ -692,6 +692,7 @@ if $data31 != 4 then
   return -1
 endi
 
+sql_error select irate(c) from st where t1="1" and ts >= '2020-03-27 04:11:17.732' and ts < '2020-03-27 05:11:17.732'  interval(1m) sliding(15s) group by tbname,c;
 sql select irate(c) from st where t1="1" and ts >= '2020-03-27 04:11:17.732' and ts < '2020-03-27 05:11:17.732'  interval(1m) sliding(15s) group by tbname,t1,t2;
 if $rows != 40 then
   return -1
@@ -780,5 +781,15 @@ endi
 if $data11 != 2 then
   return -1
 endi
+
+sql_error select count(*) from m1 group by tbname,k,f1;
+sql_error select count(*) from m1 group by tbname,k,a;
+sql_error select count(*) from m1 group by k, tbname;
+sql_error select count(*) from m1 group by k,f1;
+sql_error select count(*) from tm0 group by tbname;
+sql_error select count(*) from tm0 group by a;
+sql_error select count(*) from tm0 group by k,f1;
+
+sql_error select count(*),f1 from m1 group by tbname,k;
 
 system sh/exec.sh -n dnode1 -s stop -x SIGINT

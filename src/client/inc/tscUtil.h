@@ -187,7 +187,7 @@ int32_t   tscGetResRowLength(SArray* pExprList);
 SExprInfo* tscExprInsert(SQueryInfo* pQueryInfo, int32_t index, int16_t functionId, SColumnIndex* pColIndex, int16_t type,
     int16_t size, int16_t resColId, int16_t interSize, bool isTagCol);
 
-SExprInfo* tscExprCreate(SQueryInfo* pQueryInfo, int16_t functionId, SColumnIndex* pColIndex, int16_t type,
+SExprInfo* tscExprCreate(STableMetaInfo* pTableMetaInfo, int16_t functionId, SColumnIndex* pColIndex, int16_t type,
                          int16_t size, int16_t resColId, int16_t interSize, int32_t colType);
 
 void tscExprAddParams(SSqlExpr* pExpr, char* argument, int32_t type, int32_t bytes);
@@ -217,7 +217,7 @@ void tscColumnListDestroy(SArray* pColList);
 void tscColumnListCopy(SArray* dst, const SArray* src, uint64_t tableUid);
 void tscColumnListCopyAll(SArray* dst, const SArray* src);
 
-void convertQueryResult(SSqlRes* pRes, SQueryInfo* pQueryInfo, uint64_t objId);
+void convertQueryResult(SSqlRes* pRes, SQueryInfo* pQueryInfo, uint64_t objId, bool convertNchar);
 
 void tscDequoteAndTrimToken(SStrToken* pToken);
 int32_t tscValidateName(SStrToken* pToken);
