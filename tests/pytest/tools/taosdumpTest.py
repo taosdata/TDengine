@@ -87,7 +87,7 @@ class TDTestCase:
 
         os.system("%staosdump --databases db -o ./taosdumptest/tmp1" % binPath)
         os.system(
-            "%staosdump --databases db1 -N -o ./taosdumptest/tmp2" %
+            "%staosdump --databases db1 -o ./taosdumptest/tmp2" %
             binPath)
 
         tdSql.execute("drop database db")
