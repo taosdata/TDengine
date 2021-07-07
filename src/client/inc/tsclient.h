@@ -110,28 +110,6 @@ typedef struct {
   uint16_t    allNullLen;
 } SMemRowBuilder;
 
-int FORCE_INLINE initSMemRowBuilder(SMemRowBuilder *pBuilder, SSchema *pSSchema, uint16_t nCols,
-                                    uint16_t allNullColsLen) {
-  ASSERT(nCols > 0);
-  pBuilder->pSchema = pSSchema;
-  pBuilder->allNullLen = allNullColsLen;  //  TODO: get allNullColsLen when creating or altering table meta
-  if (pBuilder->allNullLen == 0) {
-    for (uint16_t i = 0; i < nCols; ++i) {
-      uint8_t type = pSSchema[i].type;
-      int32_t typeLen = TYPE_BYTES[type];
-      ASSERT(typeLen > 0);
-      pBuilder->allNullLen += typeLen;
-      if (TSDB_DATA_TYPE_BINARY == type) {
-        pBuilder->allNullLen += (sizeof(VarDataLenT) + CHAR_BYTES);
-      } else if (TSDB_DATA_TYPE_NCHAR == type) {
-        int len = sizeof(VarDataLenT) + TSDB_NCHAR_SIZE;
-        pBuilder->allNullLen += len;
-      }
-    }
-  }
-  return 0;
-}
-
 typedef struct STableDataBlocks {
   SName       tableName;
   int8_t      tsSource;     // where does the UNIX timestamp come from, server or client
