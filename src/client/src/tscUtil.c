@@ -1796,7 +1796,8 @@ static int trimDataBlock(void* pDataBlock, STableDataBlocks* pTableDataBlock, bo
 }
 
 static int32_t getRowExpandSize(STableMeta* pTableMeta) {
-  int32_t result = TD_DATA_ROW_HEAD_SIZE;
+  // add prefix len of KV type SMemRow(we may use SDataRow or SKVRow)
+  int32_t  result = TD_DATA_ROW_HEAD_SIZE + TD_MEM_ROW_KV_TYPE_VER_SIZE;
   int32_t columns = tscGetNumOfColumns(pTableMeta);
   SSchema* pSchema = tscGetTableSchema(pTableMeta);
   for(int32_t i = 0; i < columns; i++) {
@@ -1804,7 +1805,6 @@ static int32_t getRowExpandSize(STableMeta* pTableMeta) {
       result += TYPE_BYTES[TSDB_DATA_TYPE_BINARY];
     }
   }
-  result += TD_MEM_ROW_KV_TYPE_VER_SIZE;  // add prefix len of KV type SMemRow(we may use SDataRow or SKVRow)
   return result;
 }
 
@@ -1835,7 +1835,7 @@ int32_t tscMergeTableDataBlocks(SInsertStatementParam *pInsertParam, bool freeBl
   const int INSERT_HEAD_SIZE = sizeof(SMsgDesc) + sizeof(SSubmitMsg);
   int       code = 0;
   void*     pVnodeDataBlockHashList = taosHashInit(128, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, false);
-  SArray* pVnodeDataBlockList = taosArrayInit(8, POINTER_BYTES);
+  SArray*   pVnodeDataBlockList = taosArrayInit(8, POINTER_BYTES);
 
   STableDataBlocks** p = taosHashIterate(pInsertParam->pTableBlockHashList, NULL);
 
@@ -1883,11 +1883,11 @@ int32_t tscMergeTableDataBlocks(SInsertStatementParam *pInsertParam, bool freeBl
         }
       }
 
-      if((code = tscSortRemoveDataBlockDupRows(pOneTableBlock, &blkKeyInfo)) != 0){
-          taosHashCleanup(pVnodeDataBlockHashList);
-          tscDestroyBlockArrayList(pVnodeDataBlockList);
-          tfree(dataBuf->pData);
-          tfree(blkKeyInfo.pKeyTuple);
+      if ((code = tscSortRemoveDataBlockDupRows(pOneTableBlock, &blkKeyInfo)) != 0) {
+        taosHashCleanup(pVnodeDataBlockHashList);
+        tscDestroyBlockArrayList(pVnodeDataBlockList);
+        tfree(dataBuf->pData);
+        tfree(blkKeyInfo.pKeyTuple);
         return code;
       }
 

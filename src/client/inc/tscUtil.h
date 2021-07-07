@@ -103,7 +103,7 @@ typedef struct SBlockKeyTuple {
 } SBlockKeyTuple;
 
 typedef struct SBlockKeyInfo {
-  int32_t         nBytesAlloc;
+  int32_t         maxBytesAlloc;
   SBlockKeyTuple* pKeyTuple;
 } SBlockKeyInfo;
 
