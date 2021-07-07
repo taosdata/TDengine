@@ -1693,7 +1693,6 @@ SMemRow tdGenMemRowFromBuilder(SMemRowBuilder* pBuilder) {
 
   uint16_t nColsNotNull = 0;
   uint8_t  memRowType = checkTdRowType(pSchema, p, pBuilder->nCols, pBuilder->flen, &nColsNotNull);
-  // nColsNotNull = pBuilder->nCols;
   SMemRow* memRow = (SMemRow)pBuilder->pDataBlock;
   memRowSetType(memRow, memRowType);
 
