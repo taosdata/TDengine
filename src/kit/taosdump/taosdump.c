@@ -444,16 +444,6 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
         case 'E':
             g_args.end_time = atol(arg);
             break;
-        case 'C':
-            if ((0 != strncasecmp(arg, "ms", strlen("ms")))
-                    && (0 != strncasecmp(arg, "us", strlen("us")))
-                    && (0 != strncasecmp(arg, "ns", strlen("ns")))) {
-                //
-                errorPrint("input precision: %s is invalid value\n", arg);
-                exit(-1);
-            }
-            strncpy(g_args.precision, arg, strlen(arg));
-            break;
         case 'B':
             g_args.data_batch = atoi(arg);
             if (g_args.data_batch > MAX_RECORDS_PER_REQ) {
@@ -521,60 +511,84 @@ static int queryDbImpl(TAOS *taos, char *command) {
     return 0;
 }
 
-static void parse_args(int argc, char *argv[], SArguments *arguments) {
+static void parse_precision_first(
+        int argc, char *argv[], SArguments *arguments) {
     for (int i = 1; i < argc; i++) {
-        if ((strcmp(argv[i], "-S") == 0)
-                || (strcmp(argv[i], "-E") == 0)) {
-            if (argv[i+1]) {
-                char *tmp = strdup(argv[++i]);
-
-                if (tmp) {
-                    int64_t tmpEpoch;
-                    if (strchr(tmp, ':') && strchr(tmp, '-')) {
-                        int32_t timePrec;
-                        if (0 != strncasecmp(arguments->precision,
-                                    "ms", strlen("ms"))) {
-                            timePrec = TSDB_TIME_PRECISION_MILLI;
-                        } else if (0 != strncasecmp(arguments->precision,
-                                    "us", strlen("us"))) {
-                            timePrec = TSDB_TIME_PRECISION_MICRO;
-                        } else if (0 != strncasecmp(arguments->precision,
-                                    "ns", strlen("ns"))) {
-                            timePrec = TSDB_TIME_PRECISION_NANO;
-                        } else {
-                            errorPrint("Invalid time precision: %s",
-                                    arguments->precision);
-                            free(tmp);
-                            return;
-                        }
-
-                        if (TSDB_CODE_SUCCESS != taosParseTime(
-                                    tmp, &tmpEpoch, strlen(tmp),
-                                    timePrec, 0)) {
-                            errorPrint("Input %s, end time error!\n", tmp);
-                            free(tmp);
-                            return;
-                        }
-                    } else {
-                        tmpEpoch = atoll(tmp);
-                    }
-
-                    sprintf(argv[i], "%"PRId64"", tmpEpoch);
-                    debugPrint("%s() LN%d, tmp is: %s, argv[%d]: %s\n",
-                            __func__, __LINE__, tmp, i, argv[i]);
-
-                    free(tmp);
-                } else {
-                    errorPrint("%s() LN%d, strdup() cannot allocate memory\n",
-                            __func__, __LINE__);
-                    exit(-1);
-                }
-            } else {
+        if (strcmp(argv[i], "-C") == 0) {
+            if (NULL == argv[i+1]) {
                 errorPrint("%s need a valid value following!\n", argv[i]);
                 exit(-1);
             }
-        } else if (strcmp(argv[i], "-g") == 0) {
-            g_args.debug_print = true;
+            char *tmp = strdup(argv[i+1]);
+            if (tmp == NULL) {
+                errorPrint("%s() LN%d, strdup() cannot allocate memory\n",
+                        __func__, __LINE__);
+                exit(-1);
+            }
+            if ((0 != strncasecmp(tmp, "ms", strlen("ms")))
+                    && (0 != strncasecmp(tmp, "us", strlen("us")))
+                    && (0 != strncasecmp(tmp, "ns", strlen("ns")))) {
+                //
+                errorPrint("input precision: %s is invalid value\n", tmp);
+                free(tmp);
+                exit(-1);
+            }
+            strncpy(g_args.precision, tmp, strlen(tmp));
+            free(tmp);
+        }
+    }
+}
+
+static void parse_timestamp(
+        int argc, char *argv[], SArguments *arguments) {
+    for (int i = 1; i < argc; i++) {
+        if ((strcmp(argv[i], "-S") == 0)
+                || (strcmp(argv[i], "-E") == 0)) {
+            if (NULL == argv[i+1]) {
+                errorPrint("%s need a valid value following!\n", argv[i]);
+                exit(-1);
+            }
+            char *tmp = strdup(argv[i+1]);
+            if (NULL == tmp) {
+                errorPrint("%s() LN%d, strdup() cannot allocate memory\n",
+                        __func__, __LINE__);
+                exit(-1);
+            }
+
+            int64_t tmpEpoch;
+            if (strchr(tmp, ':') && strchr(tmp, '-')) {
+                int32_t timePrec;
+                if (0 == strncasecmp(arguments->precision,
+                            "ms", strlen("ms"))) {
+                    timePrec = TSDB_TIME_PRECISION_MILLI;
+                } else if (0 == strncasecmp(arguments->precision,
+                            "us", strlen("us"))) {
+                    timePrec = TSDB_TIME_PRECISION_MICRO;
+                } else if (0 == strncasecmp(arguments->precision,
+                            "ns", strlen("ns"))) {
+                    timePrec = TSDB_TIME_PRECISION_NANO;
+                } else {
+                    errorPrint("Invalid time precision: %s",
+                            arguments->precision);
+                    free(tmp);
+                    return;
+                }
+
+                if (TSDB_CODE_SUCCESS != taosParseTime(
+                            tmp, &tmpEpoch, strlen(tmp),
+                            timePrec, 0)) {
+                    errorPrint("Input %s, end time error!\n", tmp);
+                    free(tmp);
+                    return;
+                }
+            } else {
+                tmpEpoch = atoll(tmp);
+            }
+
+            sprintf(argv[i], "%"PRId64"", tmpEpoch);
+            debugPrint("%s() LN%d, tmp is: %s, argv[%d]: %s\n",
+                    __func__, __LINE__, tmp, i, argv[i]);
+            free(tmp);
         }
     }
 }
@@ -584,8 +598,10 @@ int main(int argc, char *argv[]) {
     int ret = 0;
     /* Parse our arguments; every option seen by parse_opt will be
        reflected in arguments. */
-    if (argc > 2)
-        parse_args(argc, argv, &g_args);
+    if (argc > 2) {
+        parse_precision_first(argc, argv, &g_args);
+        parse_timestamp(argc, argv, &g_args);
+    }
 
     argp_parse(&argp, argc, argv, 0, 0, &g_args);
 
