@@ -8793,7 +8793,6 @@ void normalizeSqlNode(SSqlNode* pSqlNode, const char* dbName) {
 //  2. pSqlNode->pWhere
 //  3. pSqlNode->pHaving
 //  4. pSqlNode->pSortOrder
-
 //  pSqlNode->from
 
 }
