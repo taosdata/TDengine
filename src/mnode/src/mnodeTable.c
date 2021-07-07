@@ -1036,6 +1036,20 @@ static int32_t mnodeCreateSuperTableCb(SMnodeMsg *pMsg, int32_t code) {
   return code;
 }
 
+static uint64_t mnodeCreateSuperTableUid() {
+  int64_t us = taosGetTimestampUs();
+  uint64_t x = (us & ((((uint64_t)1)<<40) - 1));
+  x = x << 24;
+
+  return x + ((sdbGetVersion() & ((1ul << 16) - 1ul)) << 8) + (taosRand() & ((1ul << 8) - 1ul));
+}
+
+static uint64_t mnodeCreateTableUid(int32_t vgId, int32_t tid) {
+  uint64_t uid = (((uint64_t)vgId) << 48) + ((((uint64_t)tid) & ((1ul << 24) - 1ul)) << 24) +
+                ((sdbGetVersion() & ((1ul << 16) - 1ul)) << 8) + (taosRand() & ((1ul << 8) - 1ul));
+  return uid;
+}
+
 static int32_t mnodeProcessCreateSuperTableMsg(SMnodeMsg *pMsg) {
   if (pMsg == NULL) return TSDB_CODE_MND_APP_ERROR;
 
@@ -1065,15 +1079,10 @@ static int32_t mnodeProcessCreateSuperTableMsg(SMnodeMsg *pMsg) {
     return TSDB_CODE_MND_OUT_OF_MEMORY;
   }
 
-  int64_t us = taosGetTimestampUs();
   pStable->info.tableId = strdup(pCreate->tableName);
   pStable->info.type    = TSDB_SUPER_TABLE;
   pStable->createdTime  = taosGetTimestampMs();
-
-  uint64_t x = (us & ((((uint64_t)1)<<40) - 1));  // todo refactor
-  x = x << 24;
-
-  pStable->uid          = x + ((sdbGetVersion() & ((1ul << 16) - 1ul)) << 8) + (taosRand() & ((1ul << 8) - 1ul));
+  pStable->uid          = mnodeCreateSuperTableUid();
   pStable->sversion     = 0;
   pStable->tversion     = 0;
   pStable->numOfColumns = numOfColumns;
@@ -2076,20 +2085,13 @@ static int32_t mnodeDoCreateChildTable(SMnodeMsg *pMsg, int32_t tid) {
     }
 
     pTable->suid = pMsg->pSTable->uid;
-    pTable->uid = (((uint64_t)pTable->vgId) << 48) + ((((uint64_t)pTable->tid) & ((1ul << 24) - 1ul)) << 24) +
-                  ((sdbGetVersion() & ((1ul << 16) - 1ul)) << 8) + (taosRand() & ((1ul << 8) - 1ul));
+    pTable->uid  = mnodeCreateTableUid(pTable->vgId, pTable->tid);
     pTable->superTable = pMsg->pSTable;
   } else {
     if (pTable->info.type == TSDB_SUPER_TABLE) {
-      uint64_t us = (uint64_t) taosGetTimestampUs();
-
-      uint64_t x = (us & ((((uint64_t)1)<<40) - 1));
-      x = x << 24;
-
-      pTable->uid = x + ((sdbGetVersion() & ((1ul << 16) - 1ul)) << 8) + (taosRand() & ((1ul << 8) - 1ul));
+      pTable->uid = mnodeCreateSuperTableUid();
     } else {
-      pTable->uid = (((uint64_t)pTable->vgId) << 48) + ((((uint64_t)pTable->tid) & ((1ul << 24) - 1ul)) << 24) +
-                    ((sdbGetVersion() & ((1ul << 16) - 1ul)) << 8) + (taosRand() & ((1ul << 8) - 1ul));
+      pTable->uid = mnodeCreateTableUid(pTable->vgId, pTable->tid);
     }
 
     pTable->sversion     = 0;
