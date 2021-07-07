@@ -620,6 +620,7 @@ static FORCE_INLINE void *tdGetMemRowDataOfCol(void *row, int8_t type, int32_t o
 #define PAYLOAD_HEADER_LEN (PAYLOAD_NCOLS_OFFSET + PAYLOAD_NCOLS_LEN)
 #define PAYLOAD_ID_LEN sizeof(int16_t)
 #define PAYLOAD_ID_TYPE_LEN (sizeof(int16_t) + sizeof(uint8_t))
+#define PLAYLOAD_PRIMARY_COL_LEN (PAYLOAD_ID_TYPE_LEN + sizeof(TSKEY))
 
 #define payloadBody(r) POINTER_SHIFT(r, PAYLOAD_HEADER_LEN)
 #define payloadType(r) (*(uint8_t *)(r))
@@ -643,9 +644,9 @@ static FORCE_INLINE void *tdGetMemRowDataOfCol(void *row, int8_t type, int32_t o
 static FORCE_INLINE char *skipToNextEles(char *p) {
   uint8_t colType = payloadColType(p);
   if (IS_VAR_DATA_TYPE(colType)) {
-    return POINTER_SHIFT(p, PAYLOAD_ID_TYPE_LEN + varDataTLen(payloadColValue(p)));
+    return (char *)POINTER_SHIFT(p, PAYLOAD_ID_TYPE_LEN + varDataTLen(payloadColValue(p)));
   } else {
-    return POINTER_SHIFT(p, PAYLOAD_ID_TYPE_LEN + TYPE_BYTES[colType]);
+    return (char *)POINTER_SHIFT(p, PAYLOAD_ID_TYPE_LEN + TYPE_BYTES[colType]);
   }
 }
 

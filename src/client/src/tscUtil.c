@@ -1703,7 +1703,6 @@ static SMemRow tdGenMemRowFromBuilder(SMemRowBuilder* pBuilder) {
       ++i;
     }
 
-    pBuilder->buf = p;
   } else if (memRowType == SMEM_ROW_KV) {
     ASSERT(nColsNotNull <= pBuilder->nCols);
     SKVRow   kvRow = (SKVRow)memRowKvBody(memRow);
@@ -1722,8 +1721,6 @@ static SMemRow tdGenMemRowFromBuilder(SMemRowBuilder* pBuilder) {
       p = skipToNextEles(p);
       ++i;
     }
-
-    pBuilder->buf = p;
 
   } else {
     ASSERT(0);

@@ -413,8 +413,8 @@ static FORCE_INLINE uint16_t tsSetColumnValue(char *payload, int16_t columnId, u
   return PAYLOAD_ID_TYPE_LEN + valueLen;
 }
 
-static int32_t tsParseOneColumnKV(SSchema *pSchema, SStrToken *pToken, char *payload, char *msg, char **str,
-                                  bool primaryKey, int16_t timePrec, TDRowLenT *sizeAppend, bool *isColNull,
+static int32_t tsParseOneColumnKV(SSchema *pSchema, SStrToken *pToken, char *primaryKeyStart, char *payload, char *msg,
+                                  char **str, bool primaryKey, int16_t timePrec, TDRowLenT *sizeAppend, bool *isColNull,
                                   TDRowLenT *dataRowColDeltaLen, TDRowLenT *kvRowColLen) {
   int64_t iv;
   int32_t ret;
@@ -721,8 +721,9 @@ static int32_t tsParseOneColumnKV(SSchema *pSchema, SStrToken *pToken, char *pay
           // *((int64_t *)payload) = 0;
           // When building SKVRow primaryKey, we should not skip even with NULL value.
           int64_t tmpVal = 0;
-          *sizeAppend =
-              tsSetColumnValue(payload, pSchema->colId, pSchema->type, &tmpVal, TYPE_BYTES[TSDB_DATA_TYPE_TIMESTAMP]);
+
+          *sizeAppend = tsSetColumnValue(primaryKeyStart, pSchema->colId, pSchema->type, &tmpVal,
+                                         TYPE_BYTES[TSDB_DATA_TYPE_TIMESTAMP]);
           *kvRowColLen += (TDRowLenT)(sizeof(SColIdx) + TYPE_BYTES[TSDB_DATA_TYPE_TIMESTAMP]);
         } else {
           // *((int64_t *)payload) = TSDB_DATA_BIGINT_NULL;
@@ -735,8 +736,9 @@ static int32_t tsParseOneColumnKV(SSchema *pSchema, SStrToken *pToken, char *pay
         }
 
         // *((int64_t *)payload) = tmpVal;
-        *sizeAppend =
-            tsSetColumnValue(payload, pSchema->colId, pSchema->type, &tmpVal, TYPE_BYTES[TSDB_DATA_TYPE_TIMESTAMP]);
+
+        *sizeAppend = tsSetColumnValue(primaryKey ? primaryKeyStart : payload, pSchema->colId, pSchema->type, &tmpVal,
+                                       TYPE_BYTES[TSDB_DATA_TYPE_TIMESTAMP]);
         *kvRowColLen += (TDRowLenT)(sizeof(SColIdx) + TYPE_BYTES[TSDB_DATA_TYPE_TIMESTAMP]);
       }
 
@@ -801,7 +803,9 @@ int tsParseOneRow(char **str, STableDataBlocks *pDataBlocks, int16_t timePrec, i
   TDRowLenT dataRowLen = pBuilder->allNullLen;
   TDRowLenT kvRowLen = TD_MEM_ROW_KV_VER_SIZE;
 
-  char *kvStart = payload;
+  char *kvPrimayKeyStart = payload + PAYLOAD_HEADER_LEN;
+  char *kvStart = kvPrimayKeyStart + PLAYLOAD_PRIMARY_COL_LEN;  // make sure 1st column tuple is primaryKey
+
   for (int i = 0; i < spd->numOfBound; ++i) {
     // the start position in data block buffer of current value in sql
     int32_t colIndex = spd->boundedColumns[i];  // ordered
@@ -871,9 +875,9 @@ int tsParseOneRow(char **str, STableDataBlocks *pDataBlocks, int16_t timePrec, i
     TDRowLenT dataRowDeltaColLen = 0;  // When combine the data as SDataRow, the delta len between all NULL columns.
     TDRowLenT kvRowColLen = 0;
     TDRowLenT colSizeAppended = 0;
-    int32_t   ret =
-        tsParseOneColumnKV(pSchema, &sToken, kvStart + PAYLOAD_HEADER_LEN, pInsertParam->msg, str, isPrimaryKey,
-                           timePrec, &colSizeAppended, &isColNull, &dataRowDeltaColLen, &kvRowColLen);
+    // make sure the Primarykey locates in the 1st column
+    int32_t ret = tsParseOneColumnKV(pSchema, &sToken, kvPrimayKeyStart, kvStart, pInsertParam->msg, str, isPrimaryKey,
+                                     timePrec, &colSizeAppended, &isColNull, &dataRowDeltaColLen, &kvRowColLen);
     if (ret != TSDB_CODE_SUCCESS) {
       return ret;
     }
@@ -888,7 +892,9 @@ int tsParseOneRow(char **str, STableDataBlocks *pDataBlocks, int16_t timePrec, i
     }
     kvRowLen += kvRowColLen;
     dataRowLen += dataRowDeltaColLen;
-    kvStart += colSizeAppended;          // move to next column
+    if (!isPrimaryKey) {
+      kvStart += colSizeAppended;  // move to next column
+    }
     rowSizeAppended += colSizeAppended;  // calculate rowLen
   }
 
@@ -1134,11 +1140,11 @@ int tscSortRemoveDataBlockDupRows(STableDataBlocks *dataBuf, SBlockKeyInfo *pBlk
     int32_t i = 0;
     int32_t j = 1;
     while (j < nRows) {
-      TSKEY ti = *(TSKEY *)(pBlkKeyTuple + sizeof(SBlockKeyTuple) * i);
-      TSKEY tj = *(TSKEY *)(pBlkKeyTuple + sizeof(SBlockKeyTuple) * j);
+      TSKEY ti = (pBlkKeyTuple + i)->skey;
+      TSKEY tj = (pBlkKeyTuple + j)->skey;
 
       if (ti == tj) {
-        totolPayloadLen -= payloadTLen(pBlkKeyTuple + sizeof(SBlockKeyTuple) * j);
+        totolPayloadLen -= payloadTLen(pBlkKeyTuple + j);
         ++j;
         continue;
       }
