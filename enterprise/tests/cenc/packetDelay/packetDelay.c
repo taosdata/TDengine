@@ -256,7 +256,7 @@ void subscribe_callback(TAOS_SUB *tsub, TAOS_RES *res, void *param, int code)
   struct timeval     start_time, end_time;
 
   /* Set bit flags to validate CRC and unpack data samples */
-  //flags |= MSF_VALIDATECRC;
+  flags |= MSF_VALIDATECRC;
   flags |= MSF_UNPACKDATA;
 
   gettimeofday(&start_time, NULL);

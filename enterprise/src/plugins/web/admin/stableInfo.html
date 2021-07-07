@@ -111,11 +111,11 @@
 		dbShowTableName(dbTableName);
 		$.ajax({
 			type: "post",
-			url: "admin/sql",
+			url: "admin/meta",
 			headers: {
 				'Authorization' : "Taosd " + DbSession.GetToken()
 			},
-			data: "DESCRIBE " + DbSession.GetDb() + "." + dbTableName,
+			data: "select * from " + DbSession.GetDb() + "." + dbTableName,
 			dataType: "json",
 			success: dbOnLoadCb,
 			error: function(msg) { 
@@ -168,7 +168,6 @@
 	//ajax callback
 	function dbOnData(data)
 	{
-		console.log(data)
 		if (data == null || data.head == null) {
 			dbSuccess(DB_CODE_NO_DATAS);
 		}

@@ -498,7 +498,7 @@ void subscribe_callback(TAOS_SUB *tsub, TAOS_RES *res, void *param, int code)
   callback_params_t *ps;
 
   /* Set bit flags to validate CRC and unpack data samples */
-  //flags |= MSF_VALIDATECRC;
+  flags |= MSF_VALIDATECRC;
   flags |= MSF_UNPACKDATA;
 
   ps = (callback_params_t *) param;

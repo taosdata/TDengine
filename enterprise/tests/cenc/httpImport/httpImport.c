@@ -130,6 +130,7 @@ int main(int argc, char *argv[])
     TAOS_RES        *res     = NULL;
     char             cmd[MAX_TSQL_LEN];
     char             sid[LM_SIDLEN];
+    uint64_t         hash    = 0;
     long             numport;
     char            *host    = NULL;
     char            *user    = NULL;
@@ -151,7 +152,7 @@ int main(int argc, char *argv[])
 #if !defined(HTTP_IMPORT_DEBUG)
     memset(tid, 0, TQ_CHAN_NUM * sizeof(pthread_t));
 
-    while ((opt = getopt(argc, argv, "l:L:i:h:u:p:P:t:r:c:")) != -1) {   
+    while ((opt = getopt(argc, argv, "l:L:i:h:u:p:P:t:r:c:")) != -1) {
         switch (opt) {
         case 'l':
             login = strdup(optarg);
