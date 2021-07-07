@@ -634,7 +634,9 @@ static void setResRawPtrImpl(SSqlRes* pRes, SInternalField* pInfo, int32_t i, bo
 
 void tscSetResRawPtr(SSqlRes* pRes, SQueryInfo* pQueryInfo) {
   assert(pRes->numOfCols > 0);
-
+  if (pRes->numOfRows == 0) {
+    return;
+  }
   int32_t offset = 0;
   for (int32_t i = 0; i < pQueryInfo->fieldsInfo.numOfOutput; ++i) {
     SInternalField* pInfo = (SInternalField*)TARRAY_GET_ELEM(pQueryInfo->fieldsInfo.internalField, i);
