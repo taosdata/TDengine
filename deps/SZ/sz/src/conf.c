@@ -375,15 +375,7 @@ int SZ_ReadConf(const char* sz_cfgFile) {
 		//initialization for Huffman encoding
 		//SZ_Reset();	
 	}
-	else if(confparams_cpr->sol_ID == PASTRI)
-	{//load parameters for PSTRI
-		pastri_par.bf[0] = (int)iniparser_getint(ini, "PARAMETER:basisFunction_0", 0);		
-		pastri_par.bf[1] = (int)iniparser_getint(ini, "PARAMETER:basisFunction_1", 0);		
-		pastri_par.bf[2] = (int)iniparser_getint(ini, "PARAMETER:basisFunction_2", 0);		
-		pastri_par.bf[3] = (int)iniparser_getint(ini, "PARAMETER:basisFunction_3", 0);
-		pastri_par.numBlocks = (int)iniparser_getint(ini, "PARAMETER:numBlocks", 0);		
-		confparams_cpr->absErrBound = pastri_par.originalEb = (double)iniparser_getdouble(ini, "PARAMETER:absErrBound", 1E-3);
-	}
+
 	
     iniparser_freedict(ini);
     return SZ_SUCCESS;
@@ -408,31 +400,3 @@ int SZ_LoadConf(const char* sz_cfgFile) {
     }
     return SZ_SUCCESS;
 }
-
-int checkVersion(unsigned char version)
-{
-	return version <= versionNumber;
-}
-
-
-void initSZ_TSC()
-{
-	sz_tsc = (sz_tsc_metadata*)malloc(sizeof(sz_tsc_metadata));
-	memset(sz_tsc, 0, sizeof(sz_tsc_metadata));
-	/*sprintf(sz_tsc->metadata_filename, "sz_tsc_metainfo.txt");
-	sz_tsc->metadata_file = fopen(sz_tsc->metadata_filename, "wb");
-	if (sz_tsc->metadata_file == NULL)
-	{
-		printf("Failed to open sz_tsc_metainfo.txt file for writing metainfo.\n");
-		exit(1);
-	}
-	fputs("#metadata of the time-step based compression\n", sz_tsc->metadata_file);	*/
-}
-
-/*double fabs(double value)
-{
-	if(value<0)
-		return -value;
-	else
-		return value;
-}*/

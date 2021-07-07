@@ -21,22 +21,11 @@
 #include "sz_float.h"
 #include "szd_float.h"
 #include "zlib.h"
-#include "rw.h"
 #include "utility.h"
-#include "CacheTable.h"
-#include "MultiLevelCacheTableWideInterval.h"
-#include "sz_stats.h"
 
 # define MIN(_a, _b) (((_a) < (_b)) ? (_a) : (_b))
 
 
-unsigned char* SZ_skip_compress_float(float* data, size_t dataLength, size_t* outSize)
-{
-	*outSize = dataLength*sizeof(float);
-	unsigned char* out = (unsigned char*)malloc(dataLength*sizeof(float));
-	memcpy(out, data, dataLength*sizeof(float));
-	return out;
-}
 
 void computeReqLength_float(double realPrecision, short rangeExpo, int* reqLength, float* medianValue)
 {

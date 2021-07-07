@@ -18,7 +18,6 @@
 #include "TightDataPointStorageD.h"
 #include "TightDataPointStorageF.h"
 #include "zlib.h"
-#include "rw.h"
 #include "conf.h"
 #include "utility.h"
 
@@ -36,16 +35,6 @@ sz_params *confparams_dec = NULL; //used for decompression
 
 sz_exedata *exe_params = NULL;
 
-/*following global variables are desgined for time-series based compression*/
-/*sz_varset is not used in the single-snapshot data compression*/
-SZ_VarSet* sz_varset = NULL;
-sz_multisteps *multisteps = NULL;
-sz_tsc_metadata *sz_tsc = NULL;
-
-//only for Pastri compressor
-#ifdef PASTRI
-pastri_params pastri_par;
-#endif
 
 
 
@@ -64,10 +53,6 @@ int SZ_Init(const char *configFilePath)
 		return SZ_FAILED;
 	
 	exe_params->SZ_SIZE_TYPE = SZ_SIZE_TYPE_DEFUALT;
-	if(confparams_cpr->szMode == SZ_TEMPORAL_COMPRESSION)
-	{
-		initSZ_TSC();
-	}
 	return SZ_SUCCESS;
 }
 

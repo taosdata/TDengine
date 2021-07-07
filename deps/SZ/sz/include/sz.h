@@ -18,7 +18,6 @@
 #include "CompressElement.h"
 #include "DynamicByteArray.h"
 #include "DynamicIntArray.h"
-#include "VarSet.h"
 #include "TightDataPointStorageD.h"
 #include "TightDataPointStorageF.h"
 #include "conf.h"
@@ -29,15 +28,8 @@
 #include "sz_double.h"
 #include "szd_float.h"
 #include "szd_double.h"
-#include "sz_opencl.h"
 #include "callZlib.h"
-#include "rw.h"
-#include "pastri.h"
 #include "utility.h"
-#include "CacheTable.h"
-#include "MultiLevelCacheTable.h"
-#include "MultiLevelCacheTableWideInterval.h"
-#include "sz_stats.h"
 
 #ifdef _WIN32
 #define PATH_SEPARATOR ';'
@@ -172,15 +164,6 @@ extern sz_params *confparams_cpr;
 extern sz_params *confparams_dec;
 extern sz_exedata *exe_params;
 
-//------------------------------------------------
-extern SZ_VarSet* sz_varset;
-extern sz_multisteps *multisteps; //compression based on multiple time steps (time-dimension based compression)
-extern sz_tsc_metadata *sz_tsc;
-
-//for pastri 
-#ifdef PASTRI
-extern pastri_params pastri_par; 
-#endif
 
 
 void SZ_Finalize();
