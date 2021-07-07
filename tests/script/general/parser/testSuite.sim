@@ -65,4 +65,4 @@ run general/parser/udf.sim
 run general/parser/udf_dll.sim
 run general/parser/udf_dll_stable.sim
 run general/parser/nestquery.sim
-
+run general/parser/precision_ns.sim
