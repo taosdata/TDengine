@@ -753,8 +753,8 @@ static void converNcharFilterColumn(SSingleColumnFilterInfo* pFilterInfo, int32_
       pFilterInfo[i].pData = malloc(rows * pFilterInfo[i].info.bytes);
       int32_t bufSize = pFilterInfo[i].info.bytes - VARSTR_HEADER_SIZE;
       for (int32_t j = 0; j < rows; ++j) {
-        char* dst = pFilterInfo[i].pData + j * pFilterInfo[i].info.bytes;
-        char* src = pFilterInfo[i].pData2 + j * pFilterInfo[i].info.bytes;
+        char* dst = (char *)pFilterInfo[i].pData + j * pFilterInfo[i].info.bytes;
+        char* src = (char *)pFilterInfo[i].pData2 + j * pFilterInfo[i].info.bytes;
         int32_t len = 0;
         taosMbsToUcs4(varDataVal(src), varDataLen(src), varDataVal(dst), bufSize, &len);
         varDataLen(dst) = len;
