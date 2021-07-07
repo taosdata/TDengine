@@ -961,6 +961,10 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql, char** boundC
           break;
         }
 
+        if (sToken.n == 0 || sToken.type == TK_SEMI || index == 0) {
+          return tscSQLSyntaxErrMsg(pCmd->payload, "unexpected token", sql);
+        }
+
         sql += index;
         ++numOfColsAfterTags;
       }

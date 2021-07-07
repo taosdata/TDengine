@@ -63,7 +63,6 @@ class TDTestCase:
         tdSql.execute("create database db  days 11 keep 3649 blocks 8 ")
         tdSql.execute("create database db1  days 12 keep 3640 blocks 7 ")
         tdSql.execute("use db")
-
         tdSql.execute(
             "create table st(ts timestamp, c1 int, c2 nchar(10)) tags(t1 int, t2 binary(10))")
         tdSql.execute("create table t1 using st tags(1, 'beijing')")
@@ -86,9 +85,10 @@ class TDTestCase:
             tdLog.info("taosdump found in %s" % buildPath)
         binPath = buildPath + "/build/bin/"
 
-        os.system("rm ./taosdumptest/tmp1/*.sql")
         os.system("%staosdump --databases db -o ./taosdumptest/tmp1" % binPath)
-        os.system("%staosdump --databases db1 -o ./taosdumptest/tmp2" % binPath)
+        os.system(
+            "%staosdump --databases db1 -N -o ./taosdumptest/tmp2" %
+            binPath)
 
         tdSql.execute("drop database db")
         tdSql.execute("drop database db1")
