@@ -1575,7 +1575,7 @@ static void last_function(SQLFunctionCtx *pCtx) {
 
       memcpy(pCtx->pOutput, data, pCtx->inputBytes);
 
-      TSKEY ts = GET_TS_DATA(pCtx, i);
+      TSKEY ts = pCtx->ptsList ? GET_TS_DATA(pCtx, i) : 0;
       DO_UPDATE_TAG_COLUMNS(pCtx, ts);
 
       pResInfo->hasResult = DATA_SET_FLAG;
@@ -1590,7 +1590,7 @@ static void last_function(SQLFunctionCtx *pCtx) {
         continue;
       }
 
-      TSKEY ts = GET_TS_DATA(pCtx, i);
+      TSKEY ts = pCtx->ptsList ? GET_TS_DATA(pCtx, i) : 0;
 
       char* buf = GET_ROWCELL_INTERBUF(pResInfo);
       if (pResInfo->hasResult != DATA_SET_FLAG || (*(TSKEY*)buf) < ts) {
