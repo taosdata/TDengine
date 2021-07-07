@@ -102,39 +102,39 @@ bool adminBuildSqlJson(HttpContext *pContext, HttpSqlCmd *cmd, TAOS_RES *result,
     httpJsonItemToken(jsonBuf);
     httpJsonToken(jsonBuf, JsonArrStt);
 
-    for (int32_t i = 0; i < num_fields; i++) {
+    for (int32_t j = 0; j < num_fields; j++) {
       httpJsonItemToken(jsonBuf);
-      if (row[i] == NULL) {
+      if (row[j] == NULL) {
         httpJsonString(jsonBuf, "NULL", 4);
         continue;
       }
 
-      switch (fields[i].type) {
+      switch (fields[j].type) {
         case TSDB_DATA_TYPE_BOOL:
         case TSDB_DATA_TYPE_TINYINT:
-          httpJsonInt(jsonBuf, *((int8_t *)row[i]));
+          httpJsonInt(jsonBuf, *((int8_t *)row[j]));
           break;
         case TSDB_DATA_TYPE_SMALLINT:
-          httpJsonInt(jsonBuf, *((int16_t *)row[i]));
+          httpJsonInt(jsonBuf, *((int16_t *)row[j]));
           break;
         case TSDB_DATA_TYPE_INT:
-          httpJsonInt(jsonBuf, *((int32_t *)row[i]));
+          httpJsonInt(jsonBuf, *((int32_t *)row[j]));
           break;
         case TSDB_DATA_TYPE_BIGINT:
-          httpJsonInt64(jsonBuf, *((int64_t *)row[i]));
+          httpJsonInt64(jsonBuf, *((int64_t *)row[j]));
           break;
         case TSDB_DATA_TYPE_FLOAT:
-          httpJsonFloat(jsonBuf, GET_FLOAT_VAL(row[i]));
+          httpJsonFloat(jsonBuf, GET_FLOAT_VAL(row[j]));
           break;
         case TSDB_DATA_TYPE_DOUBLE:
-          httpJsonDouble(jsonBuf, GET_DOUBLE_VAL(row[i]));
+          httpJsonDouble(jsonBuf, GET_DOUBLE_VAL(row[j]));
           break;
         case TSDB_DATA_TYPE_BINARY:
         case TSDB_DATA_TYPE_NCHAR:
-          httpJsonStringForTransMean(jsonBuf, row[i], length[i]);
+          httpJsonStringForTransMean(jsonBuf, row[j], length[j]);
           break;
         case TSDB_DATA_TYPE_TIMESTAMP:
-          httpJsonTimestamp(jsonBuf, *((int64_t *)row[i]), taos_result_precision(result));
+          httpJsonTimestamp(jsonBuf, *((int64_t *)row[j]), taos_result_precision(result) == TSDB_TIME_PRECISION_MICRO);
           break;
         default:
           break;
@@ -150,7 +150,7 @@ bool adminBuildSqlJson(HttpContext *pContext, HttpSqlCmd *cmd, TAOS_RES *result,
               pContext->fd, pContext->user, cmd->numOfRows, tsRestRowLimit);
     return false;
   } else {
-    if (pContext->fd <= 0) {
+    if (!FD_VALID(pContext->fd)) {
       httpError("context:%p, fd:%d, user:%s, connection is closed, abort retrieve", pContext, pContext->fd,
                 pContext->user);
       return false;
@@ -177,39 +177,39 @@ bool adminBuildSqlAllJson(HttpContext *pContext, HttpSqlCmd *cmd, TAOS_RES *resu
     httpJsonItemToken(jsonBuf);
     httpJsonToken(jsonBuf, JsonArrStt);
 
-    for (int32_t i = 0; i < num_fields; i++) {
+    for (int32_t j = 0; j < num_fields; j++) {
       httpJsonItemToken(jsonBuf);
-      if (row[i] == NULL) {
+      if (row[j] == NULL) {
         httpJsonString(jsonBuf, "NULL", 4);
         continue;
       }
 
-      switch (fields[i].type) {
+      switch (fields[j].type) {
         case TSDB_DATA_TYPE_BOOL:
         case TSDB_DATA_TYPE_TINYINT:
-          httpJsonInt(jsonBuf, *((int8_t *)row[i]));
+          httpJsonInt(jsonBuf, *((int8_t *)row[j]));
           break;
         case TSDB_DATA_TYPE_SMALLINT:
-          httpJsonInt(jsonBuf, *((int16_t *)row[i]));
+          httpJsonInt(jsonBuf, *((int16_t *)row[j]));
           break;
         case TSDB_DATA_TYPE_INT:
-          httpJsonInt(jsonBuf, *((int32_t *)row[i]));
+          httpJsonInt(jsonBuf, *((int32_t *)row[j]));
           break;
         case TSDB_DATA_TYPE_BIGINT:
-          httpJsonInt64(jsonBuf, *((int64_t *)row[i]));
+          httpJsonInt64(jsonBuf, *((int64_t *)row[j]));
           break;
         case TSDB_DATA_TYPE_FLOAT:
-          httpJsonFloat(jsonBuf, GET_FLOAT_VAL(row[i]));
+          httpJsonFloat(jsonBuf, GET_FLOAT_VAL(row[j]));
           break;
         case TSDB_DATA_TYPE_DOUBLE:
-          httpJsonDouble(jsonBuf, GET_DOUBLE_VAL(row[i]));
+          httpJsonDouble(jsonBuf, GET_DOUBLE_VAL(row[j]));
           break;
         case TSDB_DATA_TYPE_BINARY:
         case TSDB_DATA_TYPE_NCHAR:
-          httpJsonStringForTransMean(jsonBuf, row[i], fields[i].bytes);
+          httpJsonStringForTransMean(jsonBuf, row[j], fields[j].bytes);
           break;
         case TSDB_DATA_TYPE_TIMESTAMP:
-          httpJsonTimestamp(jsonBuf, *((int64_t *)row[i]), taos_result_precision(result));
+          httpJsonTimestamp(jsonBuf, *((int64_t *)row[j]), taos_result_precision(result) == TSDB_TIME_PRECISION_MICRO);
           break;
         default:
           break;

@@ -6,7 +6,8 @@
 
 #include "tscSQLParser.h"
 
-#include "ttoken.h"
+//#include "sql.h"
+#include "tstoken.h"
 #include "testCommon.h"
 
 static TAOS* conn = NULL;
