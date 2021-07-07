@@ -306,41 +306,11 @@ endi
 
 sql_error select avg(f1),count(f1),sum(f1),twa(f1) from tb1 group by tbname having twa(f1) > 0;
 
-sql select avg(f1),count(f1),sum(f1),twa(f1) from tb1 group by f1 having twa(f1) > 3;
-if $rows != 1 then
-  return -1
-endi
-if $data00 != 4.000000000 then 
-  return -1
-endi
-if $data01 != 2 then 
-  return -1
-endi
-if $data02 != 8 then 
-  return -1
-endi
-if $data03 != 4.000000000 then 
-  return -1
-endi
+sql_error select avg(f1),count(f1),sum(f1),twa(f1) from tb1 group by f1 having twa(f1) > 3;
 
 sql_error select avg(f1),count(f1),sum(f1),twa(f1) from tb1 group by tbname having sum(f1) > 0;
 
-sql select avg(f1),count(f1),sum(f1),twa(f1) from tb1 group by f1 having sum(f1) = 4;
-if $rows != 1 then
-  return -1
-endi
-if $data00 != 2.000000000 then 
-  return -1
-endi
-if $data01 != 2 then 
-  return -1
-endi
-if $data02 != 4 then 
-  return -1
-endi
-if $data03 != 2.000000000 then 
-  return -1
-endi
+sql_error select avg(f1),count(f1),sum(f1),twa(f1) from tb1 group by f1 having sum(f1) = 4;
 
 sql select avg(f1),count(f1),sum(f1) from tb1 group by f1 having sum(f1) > 0;
 if $rows != 4 then

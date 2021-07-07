@@ -11,17 +11,16 @@ pagMode=full
 
 iplist=""
 serverFqdn=""
-
 # -----------------------Variables definition---------------------
 script_dir=$(dirname $(readlink -f "$0"))
 # Dynamic directory
-data_dir="/var/lib/taos"
-log_dir="/var/log/taos"
+data_dir="/var/lib/tq"
+log_dir="/var/log/tq"
 
-data_link_dir="/usr/local/taos/data"
-log_link_dir="/usr/local/taos/log"
+data_link_dir="/usr/local/tq/data"
+log_link_dir="/usr/local/tq/log"
 
-cfg_install_dir="/etc/taos"
+cfg_install_dir="/etc/tq"
 
 bin_link_dir="/usr/bin"
 lib_link_dir="/usr/lib"
@@ -29,13 +28,13 @@ lib64_link_dir="/usr/lib64"
 inc_link_dir="/usr/include"
 
 #install main path
-install_main_dir="/usr/local/taos"
+install_main_dir="/usr/local/tq"
 
 # old bin dir
-bin_dir="/usr/local/taos/bin"
+bin_dir="/usr/local/tq/bin"
 
 # v1.5 jar dir
-#v15_java_app_dir="/usr/local/lib/taos"
+#v15_java_app_dir="/usr/local/lib/tq"
 
 service_config_dir="/etc/systemd/system"
 nginx_port=6060
@@ -168,32 +167,26 @@ function install_main_path() {
     if [ "$verMode" == "cluster" ]; then
         ${csudo} mkdir -p ${nginx_dir}
     fi
-
-    if [[ -e ${script_dir}/email ]]; then
-      ${csudo} cp ${script_dir}/email ${install_main_dir}/ ||:
-    fi
 }
 
 function install_bin() {
     # Remove links
-    ${csudo} rm -f ${bin_link_dir}/taos     || :
-    ${csudo} rm -f ${bin_link_dir}/taosd    || :
-    ${csudo} rm -f ${bin_link_dir}/taosdemo || :
-    ${csudo} rm -f ${bin_link_dir}/taosdump || :
-    ${csudo} rm -f ${bin_link_dir}/rmtaos   || :
+    ${csudo} rm -f ${bin_link_dir}/tq     || :
+    ${csudo} rm -f ${bin_link_dir}/tqd    || :
+    ${csudo} rm -f ${bin_link_dir}/tqdemo || :
+    ${csudo} rm -f ${bin_link_dir}/rmtq   || :
     ${csudo} rm -f ${bin_link_dir}/tarbitrator   || :
     ${csudo} rm -f ${bin_link_dir}/set_core   || :
 
     ${csudo} cp -r ${script_dir}/bin/* ${install_main_dir}/bin && ${csudo} chmod 0555 ${install_main_dir}/bin/*
 
     #Make link
-    [ -x ${install_main_dir}/bin/taos ] && ${csudo} ln -s ${install_main_dir}/bin/taos ${bin_link_dir}/taos                      || :
-    [ -x ${install_main_dir}/bin/taosd ] && ${csudo} ln -s ${install_main_dir}/bin/taosd ${bin_link_dir}/taosd                   || :
-    [ -x ${install_main_dir}/bin/taosdemo ] && ${csudo} ln -s ${install_main_dir}/bin/taosdemo ${bin_link_dir}/taosdemo          || :
-    [ -x ${install_main_dir}/bin/taosdump ] && ${csudo} ln -s ${install_main_dir}/bin/taosdump ${bin_link_dir}/taosdump          || :
-    [ -x ${install_main_dir}/bin/remove.sh ] && ${csudo} ln -s ${install_main_dir}/bin/remove.sh ${bin_link_dir}/rmtaos          || :
-    [ -x ${install_main_dir}/bin/set_core.sh ] && ${csudo} ln -s ${install_main_dir}/bin/set_core.sh ${bin_link_dir}/set_core    || :
-    [ -x ${install_main_dir}/bin/tarbitrator ] && ${csudo} ln -s ${install_main_dir}/bin/tarbitrator ${bin_link_dir}/tarbitrator || :
+    [ -x ${install_main_dir}/bin/tq ] && ${csudo} ln -s ${install_main_dir}/bin/tq ${bin_link_dir}/tq                        || :
+    [ -x ${install_main_dir}/bin/tqd ] && ${csudo} ln -s ${install_main_dir}/bin/tqd ${bin_link_dir}/tqd                     || :
+    [ -x ${install_main_dir}/bin/tqdemo ] && ${csudo} ln -s ${install_main_dir}/bin/tqdemo ${bin_link_dir}/tqdemo            || :
+    [ -x ${install_main_dir}/bin/remove_tq.sh ] && ${csudo} ln -s ${install_main_dir}/bin/remove_tq.sh ${bin_link_dir}/rmtq  || :
+    [ -x ${install_main_dir}/bin/set_core.sh ] && ${csudo} ln -s ${install_main_dir}/bin/set_core.sh ${bin_link_dir}/set_core         || :
+    [ -x ${install_main_dir}/bin/tarbitrator ] && ${csudo} ln -s ${install_main_dir}/bin/tarbitrator ${bin_link_dir}/tarbitrator      || :
 
     if [ "$verMode" == "cluster" ]; then
         ${csudo} cp -r ${script_dir}/nginxd/* ${nginx_dir} && ${csudo} chmod 0555 ${nginx_dir}/*
@@ -225,6 +218,13 @@ function install_lib() {
     #fi
 
     ${csudo} ldconfig
+}
+
+function install_header() {
+    ${csudo} rm -f ${inc_link_dir}/taos.h ${inc_link_dir}/taoserror.h    || :
+    ${csudo} cp -f ${script_dir}/inc/* ${install_main_dir}/include && ${csudo} chmod 644 ${install_main_dir}/include/*
+    ${csudo} ln -s ${install_main_dir}/include/taos.h ${inc_link_dir}/taos.h
+    ${csudo} ln -s ${install_main_dir}/include/taoserror.h ${inc_link_dir}/taoserror.h
 }
 
 function install_jemalloc() {
@@ -272,13 +272,6 @@ function install_jemalloc() {
         fi
         ${csudo} ldconfig
     fi
-}
-
-function install_header() {
-    ${csudo} rm -f ${inc_link_dir}/taos.h ${inc_link_dir}/taoserror.h    || :
-    ${csudo} cp -f ${script_dir}/inc/* ${install_main_dir}/include && ${csudo} chmod 644 ${install_main_dir}/include/*
-    ${csudo} ln -s ${install_main_dir}/include/taos.h ${inc_link_dir}/taos.h
-    ${csudo} ln -s ${install_main_dir}/include/taoserror.h ${inc_link_dir}/taoserror.h
 }
 
 function add_newHostname_to_hosts() {
@@ -397,39 +390,39 @@ function set_ipAsFqdn() {
 }
 
 function local_fqdn_check() {
-  #serverFqdn=$(hostname)
-  echo
-  echo -e -n "System hostname is: ${GREEN}$serverFqdn${NC}"
-  echo
-  if [[ "$serverFqdn" == "" ]] || [[ "$serverFqdn" == "localhost"  ]]; then
-    echo -e -n "${GREEN}It is strongly recommended to configure a hostname for this machine ${NC}"
+    #serverFqdn=$(hostname)
     echo
+    echo -e -n "System hostname is: ${GREEN}$serverFqdn${NC}"
+    echo
+    if [[ "$serverFqdn" == "" ]] || [[ "$serverFqdn" == "localhost"  ]]; then
+        echo -e -n "${GREEN}It is strongly recommended to configure a hostname for this machine ${NC}"
+        echo
 
-    while true
-    do
-        read -r -p "Set hostname now? [Y/n] " input
-        if [ ! -n "$input" ]; then
-            set_hostname
-            break
-        else
-            case $input in
-                [yY][eE][sS]|[yY])
-                    set_hostname
-                    break
-                    ;;
+        while true
+        do
+            read -r -p "Set hostname now? [Y/n] " input
+            if [ ! -n "$input" ]; then
+                set_hostname
+                break
+            else
+                case $input in
+                    [yY][eE][sS]|[yY])
+                        set_hostname
+                        break
+                        ;;
 
-                [nN][oO]|[nN])
-                    set_ipAsFqdn
-                    break
-                    ;;
+                    [nN][oO]|[nN])
+                        set_ipAsFqdn
+                        break
+                        ;;
 
-                *)
-                    echo "Invalid input..."
-                    ;;
-            esac
-        fi
-    done
-  fi
+                    *)
+                        echo "Invalid input..."
+                        ;;
+                esac
+            fi
+        done
+    fi
 }
 
 function install_config() {
@@ -461,9 +454,9 @@ function install_config() {
     #PORT_FORMAT="(/[1-6][0-9][0-9][0-9][0-9]?/)"
     #FQDN_PATTERN=":[0-9]{1,5}$"
 
-    # first full-qualified domain name (FQDN) for TDengine cluster system
+    # first full-qualified domain name (FQDN) for TQ cluster system
     echo
-    echo -e -n "${GREEN}Enter FQDN:port (like h1.taosdata.com:6030) of an existing TDengine cluster node to join${NC}"
+    echo -e -n "${GREEN}Enter FQDN:port (like h1.taosdata.com:6030) of an existing TQ cluster node to join${NC}"
     echo
     echo -e -n "${GREEN}OR leave it blank to build one${NC}:"
     read firstEp
@@ -476,29 +469,6 @@ function install_config() {
                 break
             #else
             #    read -p "Please enter the correct FQDN:port: " firstEp
-            #fi
-        else
-            break
-        fi
-    done
-
-    # user email
-    #EMAIL_PATTERN='^[A-Za-z0-9\u4e00-\u9fa5]+@[a-zA-Z0-9_-]+(\.[a-zA-Z0-9_-]+)+$'
-    #EMAIL_PATTERN='^[\w-]+(\.[\w-]+)*@[\w-]+(\.[\w-]+)+$'
-    #EMAIL_PATTERN="^[\w-]+(\.[\w-]+)*@[\w-]+(\.[\w-]+)+$"
-    echo
-    echo -e -n "${GREEN}Enter your email address for priority support or enter empty to skip${NC}: "
-    read emailAddr
-    while true; do
-        if [ ! -z "$emailAddr" ]; then
-            # check the format of the emailAddr
-            #if [[ "$emailAddr" =~ $EMAIL_PATTERN ]]; then
-                # Write the email address to temp file
-                email_file="${install_main_dir}/email"
-                ${csudo} bash -c "echo $emailAddr > ${email_file}"
-                break
-            #else
-            #    read -p "Please enter the correct email address: " emailAddr
             #fi
         else
             break
@@ -521,7 +491,7 @@ function install_data() {
 }
 
 function install_connector() {
-    ${csudo} cp -rf ${script_dir}/connector/ ${install_main_dir}/
+    ${csudo} cp -rf ${script_dir}/connector/* ${install_main_dir}/connector
 }
 
 function install_examples() {
@@ -531,11 +501,11 @@ function install_examples() {
 }
 
 function clean_service_on_sysvinit() {
-    #restart_config_str="taos:2345:respawn:${service_config_dir}/taosd start"
+    #restart_config_str="tq:2345:respawn:${service_config_dir}/tqd start"
     #${csudo} sed -i "\|${restart_config_str}|d" /etc/inittab || :
 
-    if pidof taosd &> /dev/null; then
-        ${csudo} service taosd stop || :
+    if pidof tqd &> /dev/null; then
+        ${csudo} service tqd stop || :
     fi
 
     if pidof tarbitrator &> /dev/null; then
@@ -543,30 +513,30 @@ function clean_service_on_sysvinit() {
     fi
 
     if ((${initd_mod}==1)); then
-      if [ -e ${service_config_dir}/taosd ]; then
-        ${csudo} chkconfig --del taosd || :
+      if [ -e ${service_config_dir}/tqd ]; then
+        ${csudo} chkconfig --del tqd || :
       fi
 
       if [ -e ${service_config_dir}/tarbitratord ]; then
         ${csudo} chkconfig --del tarbitratord || :
       fi
     elif ((${initd_mod}==2)); then
-      if [ -e ${service_config_dir}/taosd ]; then
-        ${csudo} insserv -r taosd || :
+      if [ -e ${service_config_dir}/tqd ]; then
+        ${csudo} insserv -r tqd || :
       fi
       if [ -e ${service_config_dir}/tarbitratord ]; then
         ${csudo} insserv -r tarbitratord || :
       fi
     elif ((${initd_mod}==3)); then
-      if [ -e ${service_config_dir}/taosd ]; then
-        ${csudo} update-rc.d -f taosd remove || :
+      if [ -e ${service_config_dir}/tqd ]; then
+        ${csudo} update-rc.d -f tqd remove || :
       fi
       if [ -e ${service_config_dir}/tarbitratord ]; then
         ${csudo} update-rc.d -f tarbitratord remove || :
       fi
     fi
 
-    ${csudo} rm -f ${service_config_dir}/taosd || :
+    ${csudo} rm -f ${service_config_dir}/tqd || :
     ${csudo} rm -f ${service_config_dir}/tarbitratord || :
 
     if $(which init &> /dev/null); then
@@ -578,47 +548,47 @@ function install_service_on_sysvinit() {
     clean_service_on_sysvinit
     sleep 1
 
-    # Install taosd service
+    # Install tqd service
 
     if ((${os_type}==1)); then
-        ${csudo} cp -f ${script_dir}/init.d/taosd.deb ${install_main_dir}/init.d/taosd
-        ${csudo} cp    ${script_dir}/init.d/taosd.deb ${service_config_dir}/taosd && ${csudo} chmod a+x ${service_config_dir}/taosd
+        ${csudo} cp -f ${script_dir}/init.d/tqd.deb ${install_main_dir}/init.d/tqd
+        ${csudo} cp    ${script_dir}/init.d/tqd.deb ${service_config_dir}/tqd && ${csudo} chmod a+x ${service_config_dir}/tqd
         ${csudo} cp -f ${script_dir}/init.d/tarbitratord.deb ${install_main_dir}/init.d/tarbitratord
         ${csudo} cp    ${script_dir}/init.d/tarbitratord.deb ${service_config_dir}/tarbitratord && ${csudo} chmod a+x ${service_config_dir}/tarbitratord
     elif ((${os_type}==2)); then
-        ${csudo} cp -f ${script_dir}/init.d/taosd.rpm ${install_main_dir}/init.d/taosd
-        ${csudo} cp    ${script_dir}/init.d/taosd.rpm ${service_config_dir}/taosd && ${csudo} chmod a+x ${service_config_dir}/taosd
+        ${csudo} cp -f ${script_dir}/init.d/tqd.rpm ${install_main_dir}/init.d/tqd
+        ${csudo} cp    ${script_dir}/init.d/tqd.rpm ${service_config_dir}/tqd && ${csudo} chmod a+x ${service_config_dir}/tqd
         ${csudo} cp -f ${script_dir}/init.d/tarbitratord.rpm ${install_main_dir}/init.d/tarbitratord
         ${csudo} cp    ${script_dir}/init.d/tarbitratord.rpm ${service_config_dir}/tarbitratord && ${csudo} chmod a+x ${service_config_dir}/tarbitratord
     fi
 
-    #restart_config_str="taos:2345:respawn:${service_config_dir}/taosd start"
+    #restart_config_str="tq:2345:respawn:${service_config_dir}/tqd start"
     #${csudo} grep -q -F "$restart_config_str" /etc/inittab || ${csudo} bash -c "echo '${restart_config_str}' >> /etc/inittab"
 
     if ((${initd_mod}==1)); then
-        ${csudo} chkconfig --add taosd || :
-        ${csudo} chkconfig --level 2345 taosd on || :
+        ${csudo} chkconfig --add tqd || :
+        ${csudo} chkconfig --level 2345 tqd on || :
         ${csudo} chkconfig --add tarbitratord || :
         ${csudo} chkconfig --level 2345 tarbitratord on || :
     elif ((${initd_mod}==2)); then
-        ${csudo} insserv taosd || :
-        ${csudo} insserv -d taosd || :
+        ${csudo} insserv tqd || :
+        ${csudo} insserv -d tqd || :
         ${csudo} insserv tarbitratord || :
         ${csudo} insserv -d tarbitratord || :
     elif ((${initd_mod}==3)); then
-        ${csudo} update-rc.d taosd defaults || :
+        ${csudo} update-rc.d tqd defaults || :
         ${csudo} update-rc.d tarbitratord defaults || :
     fi
 }
 
 function clean_service_on_systemd() {
-    taosd_service_config="${service_config_dir}/taosd.service"
-    if systemctl is-active --quiet taosd; then
-        echo "TDengine is running, stopping it..."
-        ${csudo} systemctl stop taosd &> /dev/null || echo &> /dev/null
+    tqd_service_config="${service_config_dir}/tqd.service"
+    if systemctl is-active --quiet tqd; then
+        echo "TQ is running, stopping it..."
+        ${csudo} systemctl stop tqd &> /dev/null || echo &> /dev/null
     fi
-    ${csudo} systemctl disable taosd &> /dev/null || echo &> /dev/null
-    ${csudo} rm -f ${taosd_service_config}
+    ${csudo} systemctl disable tqd &> /dev/null || echo &> /dev/null
+    ${csudo} rm -f ${tqd_service_config}
 
     tarbitratord_service_config="${service_config_dir}/tarbitratord.service"
     if systemctl is-active --quiet tarbitratord; then
@@ -639,35 +609,34 @@ function clean_service_on_systemd() {
     fi
 }
 
-# taos:2345:respawn:/etc/init.d/taosd start
+# tq:2345:respawn:/etc/init.d/tqd start
 
 function install_service_on_systemd() {
     clean_service_on_systemd
 
-    taosd_service_config="${service_config_dir}/taosd.service"
-    ${csudo} bash -c "echo '[Unit]'                             >> ${taosd_service_config}"
-    ${csudo} bash -c "echo 'Description=TDengine server service' >> ${taosd_service_config}"
-    ${csudo} bash -c "echo 'After=network-online.target'        >> ${taosd_service_config}"
-    ${csudo} bash -c "echo 'Wants=network-online.target'        >> ${taosd_service_config}"
-    ${csudo} bash -c "echo                                      >> ${taosd_service_config}"
-    ${csudo} bash -c "echo '[Service]'                          >> ${taosd_service_config}"
-    ${csudo} bash -c "echo 'Type=simple'                        >> ${taosd_service_config}"
-    ${csudo} bash -c "echo 'ExecStart=/usr/bin/taosd'           >> ${taosd_service_config}"
-    ${csudo} bash -c "echo 'ExecStartPre=/usr/local/taos/bin/startPre.sh'         >> ${taosd_service_config}"
-    ${csudo} bash -c "echo 'TimeoutStopSec=1000000s'            >> ${taosd_service_config}"
-    ${csudo} bash -c "echo 'LimitNOFILE=infinity'               >> ${taosd_service_config}"
-    ${csudo} bash -c "echo 'LimitNPROC=infinity'                >> ${taosd_service_config}"
-    ${csudo} bash -c "echo 'LimitCORE=infinity'                 >> ${taosd_service_config}"
-    ${csudo} bash -c "echo 'TimeoutStartSec=0'                  >> ${taosd_service_config}"
-    ${csudo} bash -c "echo 'StandardOutput=null'                >> ${taosd_service_config}"
-    ${csudo} bash -c "echo 'Restart=always'                     >> ${taosd_service_config}"
-    ${csudo} bash -c "echo 'StartLimitBurst=3'                  >> ${taosd_service_config}"
-    ${csudo} bash -c "echo 'StartLimitInterval=60s'             >> ${taosd_service_config}"
-    #${csudo} bash -c "echo 'StartLimitIntervalSec=60s'          >> ${taosd_service_config}"
-    ${csudo} bash -c "echo                                      >> ${taosd_service_config}"
-    ${csudo} bash -c "echo '[Install]'                          >> ${taosd_service_config}"
-    ${csudo} bash -c "echo 'WantedBy=multi-user.target'         >> ${taosd_service_config}"
-    ${csudo} systemctl enable taosd
+    tqd_service_config="${service_config_dir}/tqd.service"
+    ${csudo} bash -c "echo '[Unit]'                              >> ${tqd_service_config}"
+    ${csudo} bash -c "echo 'Description=TQ server service'  >> ${tqd_service_config}"
+    ${csudo} bash -c "echo 'After=network-online.target'         >> ${tqd_service_config}"
+    ${csudo} bash -c "echo 'Wants=network-online.target'         >> ${tqd_service_config}"
+    ${csudo} bash -c "echo                                       >> ${tqd_service_config}"
+    ${csudo} bash -c "echo '[Service]'                           >> ${tqd_service_config}"
+    ${csudo} bash -c "echo 'Type=simple'                         >> ${tqd_service_config}"
+    ${csudo} bash -c "echo 'ExecStart=/usr/bin/tqd'           >> ${tqd_service_config}"
+    ${csudo} bash -c "echo 'ExecStartPre=/usr/local/tq/bin/startPre.sh'           >> ${tqd_service_config}"
+    ${csudo} bash -c "echo 'TimeoutStopSec=1000000s'             >> ${tqd_service_config}"
+    ${csudo} bash -c "echo 'LimitNOFILE=infinity'                >> ${tqd_service_config}"
+    ${csudo} bash -c "echo 'LimitNPROC=infinity'                 >> ${tqd_service_config}"
+    ${csudo} bash -c "echo 'LimitCORE=infinity'                  >> ${tqd_service_config}"
+    ${csudo} bash -c "echo 'TimeoutStartSec=0'                   >> ${tqd_service_config}"
+    ${csudo} bash -c "echo 'StandardOutput=null'                 >> ${tqd_service_config}"
+    ${csudo} bash -c "echo 'Restart=always'                      >> ${tqd_service_config}"
+    ${csudo} bash -c "echo 'StartLimitBurst=3'                   >> ${tqd_service_config}"
+    ${csudo} bash -c "echo 'StartLimitInterval=60s'              >> ${tqd_service_config}"
+    ${csudo} bash -c "echo                                       >> ${tqd_service_config}"
+    ${csudo} bash -c "echo '[Install]'                           >> ${tqd_service_config}"
+    ${csudo} bash -c "echo 'WantedBy=multi-user.target'          >> ${tqd_service_config}"
+    ${csudo} systemctl enable tqd
 
     tarbitratord_service_config="${service_config_dir}/tarbitratord.service"
     ${csudo} bash -c "echo '[Unit]'                                  >> ${tarbitratord_service_config}"
@@ -695,7 +664,7 @@ function install_service_on_systemd() {
     if [ "$verMode" == "cluster" ]; then
         nginx_service_config="${service_config_dir}/nginxd.service"
         ${csudo} bash -c "echo '[Unit]'                                             >> ${nginx_service_config}"
-        ${csudo} bash -c "echo 'Description=Nginx For TDengine Service'             >> ${nginx_service_config}"
+        ${csudo} bash -c "echo 'Description=Nginx For PowrDB Service'               >> ${nginx_service_config}"
         ${csudo} bash -c "echo 'After=network-online.target'                        >> ${nginx_service_config}"
         ${csudo} bash -c "echo 'Wants=network-online.target'                        >> ${nginx_service_config}"
         ${csudo} bash -c "echo                                                      >> ${nginx_service_config}"
@@ -730,8 +699,8 @@ function install_service() {
     elif ((${service_mod}==1)); then
         install_service_on_sysvinit
     else
-        # must manual stop taosd
-        kill_process taosd
+        # must manual stop tqd
+        kill_process tqd
     fi
 }
 
@@ -766,9 +735,9 @@ vercomp () {
 
 function is_version_compatible() {
 
-    curr_version=$(${bin_dir}/taosd -V | head -1 | cut -d ' ' -f 3)
+    curr_version=$(${bin_dir}/tqd -V | head -1 | cut -d ' ' -f 3)
 
-    min_compatible_version=$(${script_dir}/bin/taosd -V | head -1 | cut -d ' ' -f 5)
+    min_compatible_version=$(${script_dir}/bin/tqd -V | head -1 | cut -d ' ' -f 5)
 
     vercomp $curr_version $min_compatible_version
     case $? in
@@ -778,14 +747,14 @@ function is_version_compatible() {
     esac
 }
 
-function update_TDengine() {
+function update_tq() {
     # Start to update
-    if [ ! -e taos.tar.gz ]; then
-        echo "File taos.tar.gz does not exist"
+    if [ ! -e tq.tar.gz ]; then
+        echo "File tq.tar.gz does not exist"
         exit 1
     fi
     install_jemalloc
-    tar -zxf taos.tar.gz
+    tar -zxf tq.tar.gz
     install_jemalloc
 
     # Check if version compatible
@@ -794,19 +763,18 @@ function update_TDengine() {
         return 1
     fi
 
-    echo -e "${GREEN}Start to update TDengine...${NC}"
+    echo -e "${GREEN}Start to update TQ...${NC}"
     # Stop the service if running
-    if pidof taosd &> /dev/null; then
+    if pidof tqd &> /dev/null; then
         if ((${service_mod}==0)); then
-            ${csudo} systemctl stop taosd || :
+            ${csudo} systemctl stop tqd || :
         elif ((${service_mod}==1)); then
-            ${csudo} service taosd stop || :
+            ${csudo} service tqd stop || :
         else
-            kill_process taosd
+            kill_process tqd
         fi
         sleep 1
     fi
-
     if [ "$verMode" == "cluster" ]; then
       if pidof nginx &> /dev/null; then
         if ((${service_mod}==0)); then
@@ -840,54 +808,54 @@ function update_TDengine() {
             # Check if nginx is installed successfully
             if type curl &> /dev/null; then
                 if curl -sSf http://127.0.0.1:${nginx_port} &> /dev/null; then
-                    echo -e "\033[44;32;1mNginx for TDengine is updated successfully!${NC}"
+                    echo -e "\033[44;32;1mNginx for TQ is updated successfully!${NC}"
                     openresty_work=true
                 else
-                    echo -e "\033[44;31;5mNginx for TDengine does not work! Please try again!\033[0m"
+                    echo -e "\033[44;31;5mNginx for TQ does not work! Please try again!\033[0m"
                 fi
             fi
         fi
 
         #echo
-        #echo -e "\033[44;32;1mTDengine is updated successfully!${NC}"
+        #echo -e "\033[44;32;1mTQ is updated successfully!${NC}"
         echo
-        echo -e "${GREEN_DARK}To configure TDengine ${NC}: edit /etc/taos/taos.cfg"
+        echo -e "${GREEN_DARK}To configure TQ ${NC}: edit /etc/tq/taos.cfg"
         if ((${service_mod}==0)); then
-            echo -e "${GREEN_DARK}To start TDengine     ${NC}: ${csudo} systemctl start taosd${NC}"
+            echo -e "${GREEN_DARK}To start TQ     ${NC}: ${csudo} systemctl start tqd${NC}"
         elif ((${service_mod}==1)); then
-            echo -e "${GREEN_DARK}To start TDengine     ${NC}: ${csudo} service taosd start${NC}"
+            echo -e "${GREEN_DARK}To start TQ     ${NC}: ${csudo} service tqd start${NC}"
         else
-            echo -e "${GREEN_DARK}To start TDengine     ${NC}: ./taosd${NC}"
+            echo -e "${GREEN_DARK}To start TQ     ${NC}: ./tqd${NC}"
         fi
 
         if [ ${openresty_work} = 'true' ]; then
-            echo -e "${GREEN_DARK}To access TDengine    ${NC}: use ${GREEN_UNDERLINE}taos -h $serverFqdn${NC} in shell OR from ${GREEN_UNDERLINE}http://127.0.0.1:${nginx_port}${NC}"
+            echo -e "${GREEN_DARK}To access TQ    ${NC}: use ${GREEN_UNDERLINE}tq -h $serverFqdn${NC} in shell OR from ${GREEN_UNDERLINE}http://127.0.0.1:${nginx_port}${NC}"
         else
-            echo -e "${GREEN_DARK}To access TDengine    ${NC}: use ${GREEN_UNDERLINE}taos -h $serverFqdn${NC} in shell${NC}"
+            echo -e "${GREEN_DARK}To access TQ    ${NC}: use ${GREEN_UNDERLINE}tq -h $serverFqdn${NC} in shell${NC}"
         fi
 
         echo
-        echo -e "\033[44;32;1mTDengine is updated successfully!${NC}"
+        echo -e "\033[44;32;1mTQ is updated successfully!${NC}"
     else
         install_bin
         install_config
 
         echo
-        echo -e "\033[44;32;1mTDengine client is updated successfully!${NC}"
+        echo -e "\033[44;32;1mTQ client is updated successfully!${NC}"
     fi
 
-    rm -rf $(tar -tf taos.tar.gz)
+    rm -rf $(tar -tf tq.tar.gz)
 }
 
-function install_TDengine() {
+function install_tq() {
     # Start to install
-    if [ ! -e taos.tar.gz ]; then
-      echo "File taos.tar.gz does not exist"
-      exit 1
+    if [ ! -e tq.tar.gz ]; then
+        echo "File tq.tar.gz does not exist"
+        exit 1
     fi
-    tar -zxf taos.tar.gz
+    tar -zxf tq.tar.gz
 
-    echo -e "${GREEN}Start to install TDengine...${NC}"
+    echo -e "${GREEN}Start to install TQ...${NC}"
 
     install_main_path
 
@@ -914,10 +882,10 @@ function install_TDengine() {
             # Check if nginx is installed successfully
             if type curl &> /dev/null; then
                 if curl -sSf http://127.0.0.1:${nginx_port} &> /dev/null; then
-                    echo -e "\033[44;32;1mNginx for TDengine is installed successfully!${NC}"
+                    echo -e "\033[44;32;1mNginx for TQ is installed successfully!${NC}"
                     openresty_work=true
                 else
-                    echo -e "\033[44;31;5mNginx for TDengine does not work! Please try again!\033[0m"
+                    echo -e "\033[44;31;5mNginx for TQ does not work! Please try again!\033[0m"
                 fi
             fi
         fi
@@ -926,21 +894,21 @@ function install_TDengine() {
 
         # Ask if to start the service
         #echo
-        #echo -e "\033[44;32;1mTDengine is installed successfully!${NC}"
+        #echo -e "\033[44;32;1mTQ is installed successfully!${NC}"
         echo
-        echo -e "${GREEN_DARK}To configure TDengine ${NC}: edit /etc/taos/taos.cfg"
+        echo -e "${GREEN_DARK}To configure TQ ${NC}: edit /etc/tq/taos.cfg"
         if ((${service_mod}==0)); then
-          echo -e "${GREEN_DARK}To start TDengine     ${NC}: ${csudo} systemctl start taosd${NC}"
+            echo -e "${GREEN_DARK}To start TQ     ${NC}: ${csudo} systemctl start tqd${NC}"
         elif ((${service_mod}==1)); then
-          echo -e "${GREEN_DARK}To start TDengine     ${NC}: ${csudo} service taosd start${NC}"
+            echo -e "${GREEN_DARK}To start TQ     ${NC}: ${csudo} service tqd start${NC}"
         else
-          echo -e "${GREEN_DARK}To start TDengine     ${NC}: taosd${NC}"
+            echo -e "${GREEN_DARK}To start TQ     ${NC}: tqd${NC}"
         fi
 
         #if [ ${openresty_work} = 'true' ]; then
-        #     echo -e "${GREEN_DARK}To access TDengine    ${NC}: use ${GREEN_UNDERLINE}taos${NC} in shell OR from ${GREEN_UNDERLINE}http://127.0.0.1:${nginx_port}${NC}"
+        #     echo -e "${GREEN_DARK}To access TQ    ${NC}: use ${GREEN_UNDERLINE}tq${NC} in shell OR from ${GREEN_UNDERLINE}http://127.0.0.1:${nginx_port}${NC}"
         #else
-        #     echo -e "${GREEN_DARK}To access TDengine    ${NC}: use ${GREEN_UNDERLINE}taos${NC} in shell${NC}"
+        #     echo -e "${GREEN_DARK}To access TQ    ${NC}: use ${GREEN_UNDERLINE}tq${NC} in shell${NC}"
         #fi
 
         if [ ! -z "$firstEp" ]; then
@@ -952,27 +920,27 @@ function install_TDengine() {
                 tmpPort=""
             fi
             if [[ "$tmpPort" != "" ]];then
-                echo -e "${GREEN_DARK}To access TDengine    ${NC}: taos -h $tmpFqdn -P $tmpPort${GREEN_DARK} to login into cluster, then${NC}"
+                echo -e "${GREEN_DARK}To access TQ    ${NC}: tq -h $tmpFqdn -P $tmpPort${GREEN_DARK} to login into cluster, then${NC}"
             else
-                echo -e "${GREEN_DARK}To access TDengine    ${NC}: taos -h $tmpFqdn${GREEN_DARK} to login into cluster, then${NC}"
+                echo -e "${GREEN_DARK}To access TQ    ${NC}: tq -h $tmpFqdn${GREEN_DARK} to login into cluster, then${NC}"
             fi
             echo -e "${GREEN_DARK}execute ${NC}: create dnode 'newDnodeFQDN:port'; ${GREEN_DARK}to add this new node${NC}"
             echo
         elif [ ! -z "$serverFqdn" ]; then
-            echo -e "${GREEN_DARK}To access TDengine    ${NC}: taos -h $serverFqdn${GREEN_DARK} to login into TDengine server${NC}"
+            echo -e "${GREEN_DARK}To access TQ    ${NC}: tq -h $serverFqdn${GREEN_DARK} to login into TQ server${NC}"
             echo
         fi
-
-        echo -e "\033[44;32;1mTDengine is installed successfully!${NC}"
+        echo -e "\033[44;32;1mTQ is installed successfully!${NC}"
         echo
     else # Only install client
         install_bin
         install_config
+
         echo
-        echo -e "\033[44;32;1mTDengine client is installed successfully!${NC}"
+        echo -e "\033[44;32;1mTQ client is installed successfully!${NC}"
     fi
-    touch ~/.taos_history
-    rm -rf $(tar -tf taos.tar.gz)
+
+    rm -rf $(tar -tf tq.tar.gz)
 }
 
 
@@ -980,20 +948,20 @@ function install_TDengine() {
 serverFqdn=$(hostname)
 if [ "$verType" == "server" ]; then
     # Install server and client
-    if [ -x ${bin_dir}/taosd ]; then
+    if [ -x ${bin_dir}/tqd ]; then
         update_flag=1
-        update_TDengine
+        update_tq
     else
-        install_TDengine
+        install_tq
     fi
 elif [ "$verType" == "client" ]; then
     interactiveFqdn=no
     # Only install client
-    if [ -x ${bin_dir}/taos ]; then
+    if [ -x ${bin_dir}/tq ]; then
         update_flag=1
-        update_TDengine client
+        update_tq client
     else
-        install_TDengine client
+        install_tq client
     fi
 else
     echo  "please input correct verType"
