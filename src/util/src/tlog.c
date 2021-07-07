@@ -84,7 +84,7 @@ int64_t dbgWSize = 0;
 #ifdef _TD_POWER_
 char    tsLogDir[TSDB_FILENAME_LEN] = "/var/log/power";
 #else
-char    tsLogDir[TSDB_FILENAME_LEN] = "/var/log/taos";
+char    tsLogDir[PATH_MAX] = "/var/log/taos";
 #endif
 
 static SLogObj   tsLogObj = { .fileNum = 1 };
