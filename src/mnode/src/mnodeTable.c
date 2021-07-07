@@ -2991,8 +2991,9 @@ static int32_t mnodeProcessMultiTableMetaMsg(SMnodeMsg *pMsg) {
     }
   }
 
+  int32_t tableNum = pInfo->numOfTables + pInfo->numOfVgroups;
   // add the additional super table names that needs the vgroup info
-  for(;t < num; ++t) {
+  for(;t < tableNum; ++t) {
     taosArrayPush(pList, &nameList[t]);
   }
 
