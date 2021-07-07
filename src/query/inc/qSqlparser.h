@@ -237,18 +237,20 @@ typedef struct tSqlExpr {
   uint16_t           type;       // sql node type
   uint32_t           tokenId;    // TK_LE: less than(binary expr)
 
-  // the whole string of the function(col, param), while the function name is kept in token
-  SStrToken          operand;
-  uint32_t           functionId;  // function id
+  // the whole string of the function(col, param), while the function name is kept in exprToken
+  struct {
+    SStrToken        operand;
+    struct SArray   *paramList;      // function parameters list
+  } Expr;
 
-  SStrToken          colInfo;     // table column info
+  uint32_t           functionId;  // function id, todo remove it
+  SStrToken          columnName;  // table column info
   tVariant           value;       // the use input value
-  SStrToken          token;       // original sql expr string
-  uint32_t           flags;
+  SStrToken          exprToken;   // original sql expr string
+  uint32_t           flags;       // todo remove it
   
   struct tSqlExpr   *pLeft;       // left child
   struct tSqlExpr   *pRight;      // right child
-  struct SArray     *pParam;      // function parameters list
 } tSqlExpr;
 
 // used in select clause. select <SArray> from xxx
