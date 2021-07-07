@@ -27,7 +27,7 @@
 #include "tutil.h"
 #include <taos.h>
 
-#define TSDB_SUPPORT_NANOSECOND 0
+#define TSDB_SUPPORT_NANOSECOND 1
 
 #define MAX_FILE_NAME_LEN       256             // max file name length on linux is 255
 #define COMMAND_SIZE            65536
