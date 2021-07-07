@@ -16,6 +16,11 @@ extern "C" {
 
 #include <stdio.h>
 
+//
+// set default value
+//
+void setDefaulParams(sz_exedata* exedata, sz_params* params);
+
 //conf.c
 void updateQuantizationInfo(int quant_intervals);
 int SZ_ReadConf(const char* sz_cfgFile);

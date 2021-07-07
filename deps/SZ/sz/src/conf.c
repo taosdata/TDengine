@@ -12,25 +12,67 @@
 #include "sz.h"
 #include "iniparser.h"
 #include "Huffman.h"
-#include "pastri.h"
 
-/*-------------------------------------------------------------------------*/
-/**
-    @brief      It reads the configuration given in the configuration file.
-    @return     integer         1 if successfull.
+//
+// set default value
+//
+void setDefaulParams(sz_exedata* exedata, sz_params* params)
+{
+	// sz_params
+	if(params)
+	{
+		// first important
+		params->errorBoundMode = SZ_ABS;
+		params->absErrBound    = 1E-8;
+		params->absErrBoundDouble = 1E-16;
+		params->max_quant_intervals = 800;
+		params->quantization_intervals = 500;
+		params->losslessCompressor = ZSTD_COMPRESSOR; //other option: GZIP_COMPRESSOR;
 
-    This function reads the configuration given in the SZ configuration
-    file and sets other required parameters.
+        // second important
+		params->sol_ID = SZ;		
+		params->maxRangeRadius = params->max_quant_intervals/2;		
+		params->predThreshold = 0.99;
+		params->sampleDistance = 100;
+		params->szMode = SZ_BEST_COMPRESSION;
+		if(params->losslessCompressor==ZSTD_COMPRESSOR)
+			params->gzipMode = 3; //fast mode
+		else
+			params->gzipMode = 1; //high speed mode
 
- **/
- 
-/*struct node_t *pool;
-node *qqq;
-node *qq;
-int n_nodes = 0, qend;
-unsigned long **code;
-unsigned char *cout;
-int n_inode;*/ 
+        // other
+		params->psnr = 90;
+		params->relBoundRatio = 1E-8;
+		params->accelerate_pw_rel_compression = 1;
+		params->pw_relBoundRatio = 1E-3;
+		params->segment_size = 36;
+		params->pwr_type = SZ_PWR_MIN_TYPE;
+		params->snapshotCmprStep = 5;
+		params->withRegression = SZ_WITH_LINEAR_REGRESSION;
+		params->randomAccess = 0; //0: no random access , 1: support random access
+		params->protectValueRange = 0;		
+		params->plus_bits = 3;
+	}
+
+    // sz_exedata
+	if(exedata)
+	{
+		exedata->optQuantMode = 1;
+		exedata->SZ_SIZE_TYPE = 4;
+		if(params)
+		{
+			exedata->intvCapacity = params->maxRangeRadius*2;
+			exedata->intvRadius   = params->maxRangeRadius;
+		}
+		else
+		{
+			exedata->intvCapacity = 500;
+			exedata->intvRadius   = 200;
+		}
+	}
+	
+}
+
  
 unsigned int roundUpToPowerOf2(unsigned int base)
 {
@@ -74,8 +116,10 @@ double computeABSErrBoundFromNORM_ERR(double normErr, size_t nbEle)
 int SZ_ReadConf(const char* sz_cfgFile) {
     // Check access to SZ configuration file and load dictionary
     //record the setting in confparams_cpr
-    confparams_cpr = (sz_params*)malloc(sizeof(sz_params));    
-    exe_params = (sz_exedata*)malloc(sizeof(sz_exedata));
+	if(confparams_cpr == NULL)
+	   confparams_cpr = (sz_params*)malloc(sizeof(sz_params));    
+	if(exe_params == NULL)
+       exe_params = (sz_exedata*)malloc(sizeof(sz_exedata));
     
     int x = 1;
     char sol_name[256];
@@ -92,49 +136,12 @@ int SZ_ReadConf(const char* sz_cfgFile) {
 	else //=0
 		sysEndianType = BIG_ENDIAN_SYSTEM;
     
-    confparams_cpr->plus_bits = 3;
     
 	// default option
     if(sz_cfgFile == NULL || access(sz_cfgFile, F_OK) != 0)
     {
 		dataEndianType = LITTLE_ENDIAN_DATA;
-		confparams_cpr->sol_ID = SZ;
-		confparams_cpr->max_quant_intervals = 800;
-		confparams_cpr->maxRangeRadius = confparams_cpr->max_quant_intervals/2;
-				
-		exe_params->intvCapacity = confparams_cpr->maxRangeRadius*2;
-		exe_params->intvRadius = confparams_cpr->maxRangeRadius;
-		
-		confparams_cpr->quantization_intervals = 500;
-		exe_params->optQuantMode = 1;
-		confparams_cpr->predThreshold = 0.99;
-		confparams_cpr->sampleDistance = 100;
-		
-		confparams_cpr->szMode = SZ_BEST_COMPRESSION;
-		confparams_cpr->losslessCompressor = ZSTD_COMPRESSOR; //other option: GZIP_COMPRESSOR;
-		if(confparams_cpr->losslessCompressor==ZSTD_COMPRESSOR)
-			confparams_cpr->gzipMode = 3; //fast mode
-		else
-			confparams_cpr->gzipMode = 1; //high speed mode
-		
-		confparams_cpr->errorBoundMode = SZ_ABS;
-		confparams_cpr->psnr = 90;
-		confparams_cpr->absErrBound = 1E-8;
-		confparams_cpr->relBoundRatio = 1E-8;
-		confparams_cpr->accelerate_pw_rel_compression = 1;
-		
-		confparams_cpr->pw_relBoundRatio = 1E-3;
-		confparams_cpr->segment_size = 36;
-		
-		confparams_cpr->pwr_type = SZ_PWR_MIN_TYPE;
-		
-		confparams_cpr->snapshotCmprStep = 5;
-		
-		confparams_cpr->withRegression = SZ_WITH_LINEAR_REGRESSION;
-	
-		confparams_cpr->randomAccess = 0; //0: no random access , 1: support random access
-	
-		confparams_cpr->protectValueRange = 0;
+		setDefaulParams(exe_params, confparams_cpr);
 	
 		return SZ_SUCCESS;
 	}

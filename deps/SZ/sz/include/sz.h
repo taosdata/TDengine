@@ -161,9 +161,7 @@ extern int dataEndianType; //*endian type of the data read from disk
 extern int sysEndianType; //*sysEndianType is actually set automatically.
 
 extern sz_params *confparams_cpr;
-extern sz_params *confparams_dec;
 extern sz_exedata *exe_params;
-
 
 
 void SZ_Finalize();

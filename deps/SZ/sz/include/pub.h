@@ -33,7 +33,8 @@ typedef struct sz_params
 	int szMode; //* 0 (best speed) or 1 (better compression with Zstd/Gzip) or 3 temporal-dimension based compression
 	int gzipMode; //* four options: Z_NO_COMPRESSION, or Z_BEST_SPEED, Z_BEST_COMPRESSION, Z_DEFAULT_COMPRESSION
 	int  errorBoundMode; //4bits (0.5byte), //SZ_ABS, REL, ABS_AND_REL, or ABS_OR_REL, PSNR, or PW_REL, PSNR
-	double absErrBound; //absolute error bound
+	double absErrBound; //absolute error bound for float
+	double absErrBoundDouble; // for double
 	double relBoundRatio; //value range based relative error bound ratio
 	double psnr; //PSNR
 	double normErr;

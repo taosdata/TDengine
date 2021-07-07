@@ -31,12 +31,7 @@ int sysEndianType  = LITTLE_ENDIAN_SYSTEM ; //*sysEndianType is actually set aut
 
 //the confparams should be separate between compression and decopmression, in case of mutual-affection when calling compression/decompression alternatively
 sz_params *confparams_cpr = NULL; //used for compression
-sz_params *confparams_dec = NULL; //used for decompression 
-
 sz_exedata *exe_params = NULL;
-
-
-
 
 int SZ_Init(const char *configFilePath)
 {
@@ -152,14 +147,8 @@ size_t SZ_decompress(int dataType, unsigned char *bytes, size_t byteLength, size
     return outSize;
 }
 
-
 void SZ_Finalize()
 {
-	if(confparams_dec!=NULL)
-	{
-		free(confparams_dec);
-		confparams_dec = NULL;
-	}
 	if(confparams_cpr!=NULL)
 	{
 		free(confparams_cpr);

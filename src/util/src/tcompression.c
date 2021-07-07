@@ -53,6 +53,8 @@
 #include "taosdef.h"
 #include "tscompression.h"
 #include "tulog.h"
+#include "tglobal.h"
+
 
 static const int TEST_NUMBER = 1;
 #define is_bigendian() ((*(char *)&TEST_NUMBER) == 0)
@@ -62,7 +64,33 @@ static const int TEST_NUMBER = 1;
 #define ZIGZAG_ENCODE(T, v) ((u##T)((v) >> (sizeof(T) * 8 - 1))) ^ (((u##T)(v)) << 1)  // zigzag encode
 #define ZIGZAG_DECODE(T, v) ((v) >> 1) ^ -((T)((v)&1))                                 // zigzag decode
 
-bool  gOpenLossy = true;
+bool lossyFloat  = false;
+bool lossyDouble = false;
+
+// init call
+int tsCompressInit(){
+  // config 
+  if(lossyColumns[0] == 0){
+    lossyFloat = false;
+    lossyDouble = false;
+    return 0;
+  }
+
+  lossyFloat  = strstr(lossyColumns, "float") != NULL;
+  lossyDouble = strstr(lossyColumns, "double") != NULL;
+
+  if(lossyFloat == false && lossyDouble == false)
+        return 0;
+  
+  tdszInit(fPrecision, dPrecision, maxIntervals, intervals, Compressor);
+  uInfo("lossy compression is opened. columns = %s \n", lossyColumns);
+  return 1;
+}
+// exit call
+void tsCompressExit(){
+   tdszExit();
+}
+
 
 /*
  * Compress Integer (Simple8B).
@@ -891,20 +919,6 @@ int tsDecompressFloatImp(const char *const input, const int nelements, char *con
   return nelements * FLOAT_BYTES;
 }
 
-//
-// ----------- global init and exit resource ------
-//
-int SZ_Init(const char *configFilePath);  //declare deps/sz/include/sz.h
-
-bool gLossyInited = false;
-bool tsLossyInit() {
-  // init compress init
-  if(!gLossyInited){
-    gLossyInited = true;
-    SZ_Init("./sz.config");
-  }
-  return true;
-}
 
 //
 //   ----------  float double lossy  -----------

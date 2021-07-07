@@ -23,7 +23,6 @@ extern "C" {
 #include "taosdef.h"
 #include "tutil.h"
 
-
 #define COMP_OVERFLOW_BYTES 2
 #define BITS_PER_BYTE 8
 // Masks
@@ -51,9 +50,6 @@ extern "C" {
 #define HEAD_MODE(x)  x%2
 #define HEAD_ALGO(x)  x/2
 
-
-extern bool gOpenLossy;
-
 extern int tsCompressINTImp(const char *const input, const int nelements, char *const output, const char type);
 extern int tsDecompressINTImp(const char *const input, const int nelements, char *const output, const char type);
 extern int tsCompressBoolImp(const char *const input, const int nelements, char *const output);
@@ -67,13 +63,17 @@ extern int tsDecompressDoubleImp(const char *const input, const int nelements, c
 extern int tsCompressFloatImp(const char *const input, const int nelements, char *const output);
 extern int tsDecompressFloatImp(const char *const input, const int nelements, char *const output);
 // lossy
-int tsCompressFloatLossyImp(const char * input, const int nelements, char *const output);
-int tsDecompressFloatLossyImp(const char * input, int compressedSize, const int nelements, char *const output);
-int tsCompressDoubleLossyImp(const char * input, const int nelements, char *const output);
-int tsDecompressDoubleLossyImp(const char * input, int compressedSize, const int nelements, char *const output);
+extern int tsCompressFloatLossyImp(const char * input, const int nelements, char *const output);
+extern int tsDecompressFloatLossyImp(const char * input, int compressedSize, const int nelements, char *const output);
+extern int tsCompressDoubleLossyImp(const char * input, const int nelements, char *const output);
+extern int tsDecompressDoubleLossyImp(const char * input, int compressedSize, const int nelements, char *const output);
 
-// init
-bool tsLossyInit();
+extern bool lossyFloat;
+extern bool lossyDouble;
+// init call
+int tsCompressInit();
+// exit call
+void tsCompressExit();
 
 void cost_start();
 double cost_end(const char* tag);
@@ -223,7 +223,7 @@ static FORCE_INLINE int tsDecompressString(const char *const input, int compress
 static FORCE_INLINE int tsCompressFloat(const char *const input, int inputSize, const int nelements, char *const output, int outputSize,
                     char algorithm, char *const buffer, int bufferSize) {
   // lossy mode
-  if(gOpenLossy) {
+  if(lossyFloat) {
     return tsCompressFloatLossyImp(input, nelements, output);
   // lossless mode  
   } else {
@@ -269,7 +269,7 @@ static FORCE_INLINE int tsDecompressFloat(const char *const input, int compresse
 
 static FORCE_INLINE int tsCompressDouble(const char *const input, int inputSize, const int nelements, char *const output, int outputSize,
                      char algorithm, char *const buffer, int bufferSize) {
-  if(gOpenLossy){
+  if(lossyDouble){
     // lossy mode
     return tsCompressDoubleLossyImp(input, nelements, output);
   } else {

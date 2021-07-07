@@ -244,6 +244,18 @@ int32_t tsdbDebugFlag = 131;
 int32_t cqDebugFlag = 131;
 int32_t fsDebugFlag = 135;
 
+//
+// lossy compress 6
+//
+char lossyColumns[32] = "";  // "float|double" means all float and double columns can be lossy compressed.  set empty can close lossy compress.
+// below option can take effect when tsLossyColumns not empty 
+double   fPrecision   = 1E-8;   // float column precision
+double   dPrecision   = 1E-16;  // double column precision
+uint32_t maxIntervals = 800;    // max intervals
+uint32_t intervals    = 500;    // intervals
+char     Compressor[32] = "ZSTD_COMPRESSOR"; // ZSTD_COMPRESSOR or GZIP_COMPRESSOR 
+
+
 int32_t (*monStartSystemFp)() = NULL;
 void (*monStopSystemFp)() = NULL;
 void (*monExecuteSQLFp)(char *sql) = NULL;
@@ -1517,6 +1529,68 @@ static void doInitGlobalConfig(void) {
   cfg.ptrLength = tListLen(tsTempDir);
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosInitConfigOption(cfg);
+
+  // lossy compress
+  cfg.option = "lossyColumns";
+  cfg.ptr = lossyColumns;
+  cfg.valType = TAOS_CFG_VTYPE_STRING;
+  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG;
+  cfg.minValue = 0;
+  cfg.maxValue = 0;
+  cfg.ptrLength = tListLen(lossyColumns);
+  cfg.unitType = TAOS_CFG_UTYPE_NONE;
+  taosInitConfigOption(cfg);
+
+  cfg.option = "Compressor";
+  cfg.ptr = Compressor;
+  cfg.valType = TAOS_CFG_VTYPE_STRING;
+  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG;
+  cfg.minValue = 0;
+  cfg.maxValue = 0;
+  cfg.ptrLength = tListLen(Compressor);
+  cfg.unitType = TAOS_CFG_UTYPE_NONE;
+  taosInitConfigOption(cfg);
+
+  cfg.option = "fPrecision";
+  cfg.ptr = &fPrecision;
+  cfg.valType = TAOS_CFG_VTYPE_DOUBLE;
+  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG;
+  cfg.minValue = -MAXFLOAT;
+  cfg.maxValue = MAXFLOAT;
+  cfg.ptrLength = 0;
+  cfg.unitType = TAOS_CFG_UTYPE_NONE;
+  taosInitConfigOption(cfg);
+
+  cfg.option = "dPrecision";
+  cfg.ptr = &dPrecision;
+  cfg.valType = TAOS_CFG_VTYPE_DOUBLE;
+  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG;
+  cfg.minValue = -MAXFLOAT;
+  cfg.maxValue = MAXFLOAT;
+  cfg.ptrLength = 0;
+  cfg.unitType = TAOS_CFG_UTYPE_NONE;
+  taosInitConfigOption(cfg);
+
+  cfg.option = "maxIntervals";
+  cfg.ptr = &maxIntervals;
+  cfg.valType = TAOS_CFG_VTYPE_INT32;
+  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG;
+  cfg.minValue = 0;
+  cfg.maxValue = 65536;
+  cfg.ptrLength = 0;
+  cfg.unitType = TAOS_CFG_UTYPE_NONE;
+  taosInitConfigOption(cfg);
+
+  cfg.option = "intervals";
+  cfg.ptr = &intervals;
+  cfg.valType = TAOS_CFG_VTYPE_INT32;
+  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG;
+  cfg.minValue = 0;
+  cfg.maxValue = 65536;
+  cfg.ptrLength = 0;
+  cfg.unitType = TAOS_CFG_UTYPE_NONE;
+  taosInitConfigOption(cfg);
+
 }
 
 void taosInitGlobalCfg() {

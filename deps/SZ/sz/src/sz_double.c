@@ -325,18 +325,18 @@ int SZ_compress_args_double(double *oriData, size_t r1, unsigned char* newByteDa
 	if(params->errorBoundMode==PSNR)
 	{
 		params->errorBoundMode = SZ_ABS;
-		realPrecision = params->absErrBound = computeABSErrBoundFromPSNR(params->psnr, (double)params->predThreshold, valueRangeSize);
+		realPrecision = params->absErrBoundDouble = computeABSErrBoundFromPSNR(params->psnr, (double)params->predThreshold, valueRangeSize);
 	}
 	else if(params->errorBoundMode==NORM) //norm error = sqrt(sum((xi-xi_)^2))
 	{
 		params->errorBoundMode = SZ_ABS;
-		realPrecision = params->absErrBound = computeABSErrBoundFromNORM_ERR(params->normErr, dataLength);
+		realPrecision = params->absErrBoundDouble = computeABSErrBoundFromNORM_ERR(params->normErr, dataLength);
 		//printf("realPrecision=%lf\n", realPrecision);				
 	}	
 	else
 	{
-		realPrecision = getRealPrecision_double(valueRangeSize, params->errorBoundMode, params->absErrBound, params->relBoundRatio, &status);
-		params->absErrBound = realPrecision;
+		realPrecision = getRealPrecision_double(valueRangeSize, params->errorBoundMode, params->absErrBoundDouble, params->relBoundRatio, &status);
+		params->absErrBoundDouble = realPrecision;
 	}	
 	if(valueRangeSize <= realPrecision)
 	{		

@@ -142,7 +142,6 @@ double check_same_double(double* ft1, double* ft2, int count){
 //
 // test compress and decompress
 //
-extern bool gOpenLossy;
 
 bool DoDouble(double* doubles, int cnt, int algorithm) {
   // compress
@@ -677,7 +676,8 @@ void test_same_double(int algo){
 
 }
 
-
+extern bool lossyFloat;
+extern bool lossyDouble;
 
 //
 //   -----------------  main ----------------------
@@ -685,8 +685,9 @@ void test_same_double(int algo){
 int main(int argc, char *argv[]) {
   printf("welcome to use taospack tools v1.3\n");
  
-  gOpenLossy = false;
-  tsLossyInit();
+  tsCompressInit();
+  lossyFloat = lossyDouble = true;
+ 
   //
   //tsCompressExit();
   //return 1; 
@@ -697,11 +698,11 @@ int main(int argc, char *argv[]) {
     // t
     if(strcmp(argv[1], "-tone") == 0 || strcmp(argv[1], "-t") == 0 ) {
         algo = ONE_STAGE_COMP;
-        gOpenLossy = true;
+        lossyFloat = lossyDouble = true;
     }
     if(strcmp(argv[1], "-tw") == 0) {
         algo = TWO_STAGE_COMP;
-        gOpenLossy = false;
+        lossyFloat = lossyDouble = false;
     }
 
     if(strcmp(argv[1], "-sf") == 0) {
@@ -737,7 +738,7 @@ int main(int argc, char *argv[]) {
     unitTestFloat();
   }
 
-  //memTest();
+  tsCompressExit();
   return 0;
 }
 

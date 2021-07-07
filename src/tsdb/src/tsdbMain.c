@@ -16,6 +16,7 @@
 // no test file errors here
 #include "tsdbint.h"
 #include "tscompression.h"
+#include "tsdbLog.h"
 
 #define IS_VALID_PRECISION(precision) \
   (((precision) >= TSDB_TIME_PRECISION_MILLI) && ((precision) <= TSDB_TIME_PRECISION_NANO))
@@ -66,10 +67,6 @@ STsdbRepo *tsdbOpenRepo(STsdbCfg *pCfg, STsdbAppH *pAppH) {
   STsdbCfg   config = *pCfg;
 
   terrno = TSDB_CODE_SUCCESS;
-
-  // Compress Init
-  //if(pCfg->compressLossy)
-  tsLossyInit();
 
   // Check and set default configurations
   if (tsdbCheckAndSetDefaultCfg(&config) < 0) {
