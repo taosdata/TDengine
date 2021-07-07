@@ -161,7 +161,7 @@ tSqlExpr *tSqlExprCreateIdValue(SStrToken *pToken, int32_t optrType) {
     // Here it must be the column name (tk_id) if it is not a number or string.
     assert(optrType == TK_ID || optrType == TK_ALL);
     if (pToken != NULL) {
-      pSqlExpr->ColumnName.name = *pToken;
+      pSqlExpr->columnName = *pToken;
     }
 
     pSqlExpr->tokenId = optrType;
@@ -355,7 +355,7 @@ int32_t tSqlExprCompare(tSqlExpr *left, tSqlExpr *right) {
     return 1;
   }
 
-  if (tStrTokenCompare(&left->ColumnName.name, &right->ColumnName.name)) {
+  if (tStrTokenCompare(&left->columnName, &right->columnName)) {
     return 1;
   }
 

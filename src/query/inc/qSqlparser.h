@@ -244,11 +244,7 @@ typedef struct tSqlExpr {
   } Expr;
 
   uint32_t           functionId;  // function id, todo remove it
-  struct {
-    SStrToken        name;
-    SStrToken        stdName;
-  } ColumnName;
-//  SStrToken          columnName;  // table column info
+  SStrToken          columnName;  // table column info
   tVariant           value;       // the use input value
   SStrToken          exprToken;   // original sql expr string
   uint32_t           flags;       // todo remove it
