@@ -83,6 +83,8 @@ IF (TD_ARM_64)
   ADD_DEFINITIONS(-DUSE_LIBICONV)
   MESSAGE(STATUS "arm64 is defined")
   SET(COMMON_FLAGS "-Wall -Werror -fPIC -fsigned-char -fpack-struct=8 -D_FILE_OFFSET_BITS=64 -D_LARGE_FILE")
+  
+  INCLUDE_DIRECTORIES(${TD_COMMUNITY_DIR}/deps/lua/src)
 ENDIF ()
 
 IF (TD_ARM_32)
@@ -91,6 +93,8 @@ IF (TD_ARM_32)
   ADD_DEFINITIONS(-DUSE_LIBICONV)
   MESSAGE(STATUS "arm32 is defined")
   SET(COMMON_FLAGS "-Wall -Werror -fPIC -fsigned-char -fpack-struct=8 -D_FILE_OFFSET_BITS=64 -D_LARGE_FILE -Wno-pointer-to-int-cast -Wno-int-to-pointer-cast -Wno-incompatible-pointer-types ")
+
+  INCLUDE_DIRECTORIES(${TD_COMMUNITY_DIR}/deps/lua/src)
 ENDIF ()
 
 IF (TD_MIPS_64)
