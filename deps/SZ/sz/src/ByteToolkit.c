@@ -97,16 +97,15 @@ inline long bytesToLong_bigEndian(unsigned char* b) {
 
 inline void longToBytes_bigEndian(unsigned char *b, unsigned long num) 
 {
-	// arm32
-#ifdef _TD_ARM_32
-	memset(b, 0, 4);
-#else // x64 arm64
+// arm32
+#if defined(_TD_LINUX_64) || defined(_TD_MIPS_64) || defined(_TD_ARM_64)  || defined(_TD_DARWIN_64)
 	b[0] = (unsigned char)(num>>56);
 	b[1] = (unsigned char)(num>>48);
 	b[2] = (unsigned char)(num>>40);
 	b[3] = (unsigned char)(num>>32);
+#else
+	memset(b, 0, 4);
 #endif
-
 	b[4] = (unsigned char)(num>>24);
 	b[5] = (unsigned char)(num>>16);
 	b[6] = (unsigned char)(num>>8);
