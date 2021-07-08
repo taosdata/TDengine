@@ -162,6 +162,8 @@ void SZ_Finalize()
 
 
 #ifdef WINDOWS
+#include <windows.h>
+
 int gettimeofday(struct timeval *tv, struct timezone *tz) {
   time_t t;
   t = time(NULL);
