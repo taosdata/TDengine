@@ -26,7 +26,7 @@ typedef struct {
   char widthOnScreen;
 } UTFCodeInfo;
 
-int countPrefixOnes(char c) {
+int countPrefixOnes(unsigned char c) {
   unsigned char mask = 127;
   mask = ~mask;
   int ret = 0;
@@ -48,7 +48,7 @@ void getPrevCharSize(const char *str, int pos, int *size, int *width) {
   while (--pos >= 0) {
     *size += 1;
 
-    if (str[pos] > 0 || countPrefixOnes(str[pos]) > 1) break;
+    if (str[pos] > 0 || countPrefixOnes((unsigned char )str[pos]) > 1) break;
   }
 
   int rc = mbtowc(&wc, str + pos, MB_CUR_MAX);
