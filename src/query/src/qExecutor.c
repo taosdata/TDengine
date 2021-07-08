@@ -411,6 +411,21 @@ static void prepareResultListBuffer(SResultRowInfo* pResultRowInfo, SQueryRuntim
   pResultRowInfo->capacity = (int32_t)newCapacity;
 }
 
+static int32_t ascResultRowCompareFn(const void* p1, const void* p2) {
+  SResultRow* pRow1 = *(SResultRow**)p1;
+  SResultRow* pRow2 = *(SResultRow**)p2;
+
+  if (pRow1 == pRow2) {
+    return 0;
+  } else {
+    return pRow1->win.skey < pRow2->win.skey? -1:1;
+  }
+}
+
+static int32_t descResultRowCompareFn(const void* p1, const void* p2) {
+  return -ascResultRowCompareFn(p1, p2);
+}
+
 static SResultRow *doPrepareResultRowFromKey(SQueryRuntimeEnv *pRuntimeEnv, SResultRowInfo *pResultRowInfo, char *pData,
                                              int16_t bytes, bool masterscan, uint64_t uid) {
   bool existed = false;
@@ -427,7 +442,18 @@ static SResultRow *doPrepareResultRowFromKey(SQueryRuntimeEnv *pRuntimeEnv, SRes
 
     if (p1 != NULL) {
       pResultRowInfo->current = (*p1);
-      existed = true;
+
+      if (pResultRowInfo->size == 0) {
+        existed = false;
+      } else if (pResultRowInfo->size == 1) {
+        existed = (pResultRowInfo->pResult[0] == (*p1));
+      } else {
+        __compar_fn_t fn = QUERY_IS_ASC_QUERY(pRuntimeEnv->pQueryAttr)? ascResultRowCompareFn:descResultRowCompareFn;
+        void* ptr = taosbsearch(p1, pResultRowInfo->pResult, pResultRowInfo->size, POINTER_BYTES, fn, TD_EQ);
+        if (ptr != NULL) {
+          existed = true;
+        }
+      }
     }
   } else {
     if (p1 != NULL) {  // group by column query
