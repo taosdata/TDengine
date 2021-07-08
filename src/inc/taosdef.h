@@ -193,7 +193,7 @@ do { \
 
 #define TSDB_APPNAME_LEN          TSDB_UNI_LEN
 
-#define TSDB_MAX_BYTES_PER_ROW    65536
+#define TSDB_MAX_BYTES_PER_ROW    65535 // N.B. don't change to 65536. Currently, we have many scenarios use uint16_t(0~65535) to store the row len.
 #define TSDB_MAX_TAGS_LEN         16384
 #define TSDB_MAX_TAGS             128
 #define TSDB_MAX_TAG_CONDITIONS   1024
