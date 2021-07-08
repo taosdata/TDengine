@@ -118,6 +118,7 @@ typedef struct SColumnFilterElem {
 
 typedef struct SSingleColumnFilterInfo {
   void*              pData;
+  void*              pData2;  //used for nchar column
   int32_t            numOfFilters;
   SColumnInfo        info;
   SColumnFilterElem* pFilters;
