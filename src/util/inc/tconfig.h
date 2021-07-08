@@ -32,8 +32,8 @@ extern "C" {
 #define TSDB_CFG_CTYPE_B_OPTION    16U  // can be configured by taos_options function
 #define TSDB_CFG_CTYPE_B_NOT_PRINT 32U  // such as password
 
-#define MAXFLOAT    100000
-#define MINFLOAT   -100000
+#define MAX_FLOAT    100000
+#define MIN_FLOAT   -100000
 
 enum {
   TAOS_CFG_CSTATUS_NONE,     // not configured
