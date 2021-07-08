@@ -30,7 +30,7 @@ unsigned char* SZ_skip_compress_double(double* data, size_t dataLength, size_t* 
 	return out;
 }
 
-inline void computeReqLength_double(double realPrecision, short radExpo, int* reqLength, double* medianValue)
+INLINE void computeReqLength_double(double realPrecision, short radExpo, int* reqLength, double* medianValue)
 {
 	short reqExpo = getPrecisionReqLength_double(realPrecision);
 	*reqLength = 12+radExpo - reqExpo; //radExpo-reqExpo == reqMantiLength

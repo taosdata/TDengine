@@ -151,7 +151,7 @@ size_t convertIntArray2ByteArray_fast_2b(unsigned char* timeStepType, size_t tim
 	return byteLength;
 }
 
-inline int getLeftMovingSteps(size_t k, unsigned char resiBitLength)
+INLINE int getLeftMovingSteps(size_t k, unsigned char resiBitLength)
 {
 	return 8 - k%8 - resiBitLength;
 }

@@ -11,6 +11,7 @@
 #include <stdio.h>
 #include <string.h>
 #include "DynamicIntArray.h"
+#include "sz.h"
 
 void new_DIA(DynamicIntArray **dia, size_t cap) {
 		*dia = (DynamicIntArray *)malloc(sizeof(DynamicIntArray));
@@ -45,7 +46,7 @@ int getDIA_Data(DynamicIntArray *dia, size_t pos)
 	return dia->array[pos];
 }
 
-inline void addDIA_Data(DynamicIntArray *dia, int value)
+INLINE void addDIA_Data(DynamicIntArray *dia, int value)
 {
 	if(dia->size==dia->capacity)
 	{

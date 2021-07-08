@@ -177,14 +177,14 @@ void symTransform_8bytes(unsigned char data[8])
 	data[4] = tmp;
 }
 
-inline void symTransform_2bytes(unsigned char data[2])
+INLINE void symTransform_2bytes(unsigned char data[2])
 {
 	unsigned char tmp = data[0];
 	data[0] = data[1];
 	data[1] = tmp;
 }
 
-inline void symTransform_4bytes(unsigned char data[4])
+INLINE void symTransform_4bytes(unsigned char data[4])
 {
 	unsigned char tmp = data[0];
 	data[0] = data[3];
@@ -195,7 +195,7 @@ inline void symTransform_4bytes(unsigned char data[4])
 	data[2] = tmp;
 }
 
-inline void compressSingleFloatValue(FloatValueCompressElement *vce, float oriValue, float precision, float medianValue, 
+INLINE void compressSingleFloatValue(FloatValueCompressElement *vce, float oriValue, float precision, float medianValue, 
 		int reqLength, int reqBytesLength, int resiBitsLength)
 {		
 	lfloat diffVal;
@@ -255,7 +255,7 @@ int compIdenticalLeadingBytesCount_double(unsigned char* preBytes, unsigned char
 	return n;
 }
 
-inline int compIdenticalLeadingBytesCount_float(unsigned char* preBytes, unsigned char* curBytes)
+INLINE int compIdenticalLeadingBytesCount_float(unsigned char* preBytes, unsigned char* curBytes)
 {
 	int i, n = 0;
 	for(i=0;i<4;i++)
@@ -268,7 +268,7 @@ inline int compIdenticalLeadingBytesCount_float(unsigned char* preBytes, unsigne
 }
 
 //TODO double-check the correctness...
-inline void addExactData(DynamicByteArray *exactMidByteArray, DynamicIntArray *exactLeadNumArray, 
+INLINE void addExactData(DynamicByteArray *exactMidByteArray, DynamicIntArray *exactLeadNumArray, 
 		DynamicIntArray *resiBitArray, LossyCompressionElement *lce)
 {
 	int i;

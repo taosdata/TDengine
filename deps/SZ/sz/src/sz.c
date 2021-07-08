@@ -163,18 +163,8 @@ void SZ_Finalize()
 
 #ifdef WINDOWS
 #include <windows.h>
+int gettimeofday(struct timeval *tv, struct timezone *tz);
 
-int gettimeofday(struct timeval *tv, struct timezone *tz) {
-  time_t t;
-  t = time(NULL);
-  SYSTEMTIME st;
-  GetLocalTime(&st);
-
-  tv->tv_sec = (long)t;
-  tv->tv_usec = st.wMilliseconds * 1000;
-
-  return 0;
-}
 #else
 #include <sys/time.h>
 #endif

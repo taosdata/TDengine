@@ -11,6 +11,7 @@
 #include <stdio.h>
 #include <string.h>
 #include "DynamicByteArray.h"
+#include "sz.h"
 
 void new_DBA(DynamicByteArray **dba, size_t cap) {
 		*dba = (DynamicByteArray *)malloc(sizeof(DynamicByteArray));
@@ -35,7 +36,7 @@ void free_DBA(DynamicByteArray *dba)
 	free(dba);
 }
 
-inline unsigned char getDBA_Data(DynamicByteArray *dba, size_t pos)
+INLINE unsigned char getDBA_Data(DynamicByteArray *dba, size_t pos)
 {
 	if(pos>=dba->size)
 	{
@@ -45,7 +46,7 @@ inline unsigned char getDBA_Data(DynamicByteArray *dba, size_t pos)
 	return dba->array[pos];
 }
 
-inline void addDBA_Data(DynamicByteArray *dba, unsigned char value)
+INLINE void addDBA_Data(DynamicByteArray *dba, unsigned char value)
 {
 	if(dba->size==dba->capacity)
 	{
@@ -56,7 +57,7 @@ inline void addDBA_Data(DynamicByteArray *dba, unsigned char value)
 	dba->size ++;
 }
 
-inline void memcpyDBA_Data(DynamicByteArray *dba, unsigned char* data, size_t length)
+INLINE void memcpyDBA_Data(DynamicByteArray *dba, unsigned char* data, size_t length)
 {
 	if(dba->size + length > dba->capacity)
 	{
