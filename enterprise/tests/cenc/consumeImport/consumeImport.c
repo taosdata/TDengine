@@ -122,7 +122,7 @@ void cenc_import_detail(MS3TraceList *mstl, callback_params_t *param)
     now = time(NULL);
     ts = (int64_t) (id->earliest * 0.001 * 0.001 * 0.001);
 
-    if ((ts >= now && (ts - now > 315360000)) || (ts < now && (now - ts) > 315360000)) {
+    if ((ts > now && (ts - now > 3600)) || (ts < now && (now - ts) > 3600)) {
       fprintf(stderr, "sub(%d): sid(%s), invalid start time: %ld\r\n", index, id->sid, id->earliest);
       id = id->next;
       continue;

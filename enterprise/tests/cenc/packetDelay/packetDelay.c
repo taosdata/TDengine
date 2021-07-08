@@ -120,7 +120,7 @@ void cenc_calc_delay(MS3TraceList *mstl, callback_params_t *param)
     cur = time(NULL);
     ts = (int64_t) (id->earliest * 0.001 * 0.001 * 0.001);
 
-    if ((ts >= cur && (ts - cur > 315360000)) || (ts < cur && (cur - ts) > 315360000)) {
+    if ((ts > cur && (ts - cur > 3600)) || (ts < cur && (cur - ts) > 3600)) {
       fprintf(stderr, "sub(%d): sid(%s), invalid start time: %ld\r\n", index, id->sid, id->earliest);
       id = id->next;
       continue;
