@@ -1972,10 +1972,10 @@ void genUdfList(SArray* pUdfInfo, tSqlExpr *pNode) {
   }
 
   if (pNode->type == SQL_NODE_SQLFUNCTION) {
-    pNode->functionId = isValidFunction(pNode->operand.z, pNode->operand.n);
+    pNode->functionId = isValidFunction(pNode->Expr.operand.z, pNode->Expr.operand.n);
     if (pNode->functionId < 0) { // extract all possible user defined function
       struct SUdfInfo info = {0};
-      info.name = strndup(pNode->operand.z, pNode->operand.n);
+      info.name = strndup(pNode->Expr.operand.z, pNode->Expr.operand.n);
       int32_t functionId = (int32_t)taosArrayGetSize(pUdfInfo) * (-1) - 1;
       info.functionId = functionId;
 
@@ -2057,7 +2057,7 @@ int32_t validateSelectNodeList(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SArray* pS
       pItem->pNode->functionId = isValidFunction(pItem->pNode->Expr.operand.z, pItem->pNode->Expr.operand.n);
       SUdfInfo* pUdfInfo = NULL;
       if (pItem->pNode->functionId < 0) {
-        pUdfInfo = isValidUdf(pQueryInfo->pUdfInfo, pItem->pNode->operand.z, pItem->pNode->operand.n);
+        pUdfInfo = isValidUdf(pQueryInfo->pUdfInfo, pItem->pNode->Expr.operand.z, pItem->pNode->Expr.operand.n);
         if (pUdfInfo == NULL) {
           return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg5);
         }
@@ -2936,7 +2936,7 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
       int16_t resType = 0;
       int16_t bytes   = 0;
 
-      getResultDataInfo(TSDB_DATA_TYPE_INT, 4, TSDB_FUNC_BLKINFO, 0, &resType, &bytes, &inter, 0, 0);
+      getResultDataInfo(TSDB_DATA_TYPE_INT, 4, TSDB_FUNC_BLKINFO, 0, &resType, &bytes, &inter, 0, 0, NULL);
 
       SSchema s = {.name = "block_dist", .type = TSDB_DATA_TYPE_BINARY, .bytes = bytes};
 
@@ -2955,18 +2955,18 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
     }
 
     default: {
-      pUdfInfo = isValidUdf(pQueryInfo->pUdfInfo, pItem->pNode->operand.z, pItem->pNode->operand.n);
+      pUdfInfo = isValidUdf(pQueryInfo->pUdfInfo, pItem->pNode->Expr.operand.z, pItem->pNode->Expr.operand.n);
       if (pUdfInfo == NULL) {
         return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg9);
       }
 
-      tSqlExprItem* pParamElem = taosArrayGet(pItem->pNode->pParam, 0);;
+      tSqlExprItem* pParamElem = taosArrayGet(pItem->pNode->Expr.paramList, 0);;
       if (pParamElem->pNode->tokenId != TK_ID) {
         return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg2);
       }
 
       SColumnIndex index = COLUMN_INDEX_INITIALIZER;
-      if (getColumnIndexByName(&pParamElem->pNode->colInfo, pQueryInfo, &index, tscGetErrorMsgPayload(pCmd)) != TSDB_CODE_SUCCESS) {
+      if (getColumnIndexByName(&pParamElem->pNode->columnName, pQueryInfo, &index, tscGetErrorMsgPayload(pCmd)) != TSDB_CODE_SUCCESS) {
         return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg3);
       }
 
