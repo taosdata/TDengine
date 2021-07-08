@@ -45,7 +45,7 @@ int32_t initResultRowInfo(SResultRowInfo *pResultRowInfo, int32_t size, int16_t 
   pResultRowInfo->type     = type;
   pResultRowInfo->size     = 0;
   pResultRowInfo->prevSKey = TSKEY_INITIAL_VAL;
-  pResultRowInfo->curIndex = -1;
+  pResultRowInfo->current  = NULL;
   pResultRowInfo->capacity = size;
 
   pResultRowInfo->pResult = calloc(pResultRowInfo->capacity, POINTER_BYTES);
@@ -90,9 +90,9 @@ void resetResultRowInfo(SQueryRuntimeEnv *pRuntimeEnv, SResultRowInfo *pResultRo
     SET_RES_WINDOW_KEY(pRuntimeEnv->keyBuf, &groupIndex, sizeof(groupIndex), uid);
     taosHashRemove(pRuntimeEnv->pResultRowHashTable, (const char *)pRuntimeEnv->keyBuf, GET_RES_WINDOW_KEY_LEN(sizeof(groupIndex)));
   }
-  
-  pResultRowInfo->curIndex = -1;
-  pResultRowInfo->size = 0;
+
+  pResultRowInfo->size     = 0;
+  pResultRowInfo->current  = NULL;
   pResultRowInfo->prevSKey = TSKEY_INITIAL_VAL;
 }
 
