@@ -5956,8 +5956,13 @@ SColumnInfo* extractColumnFilterInfo(SExprInfo* pExpr, int32_t numOfOutput, int3
     pCols[i].colId = pExpr[i].base.resColId;
 
     pCols[i].flist.numOfFilters = pExpr[i].base.flist.numOfFilters;
-    pCols[i].flist.filterInfo = calloc(pCols[i].flist.numOfFilters, sizeof(SColumnFilterInfo));
-    memcpy(pCols[i].flist.filterInfo, pExpr[i].base.flist.filterInfo, pCols[i].flist.numOfFilters * sizeof(SColumnFilterInfo));
+    if (pCols[i].flist.numOfFilters != 0) { 
+      pCols[i].flist.filterInfo   = calloc(pCols[i].flist.numOfFilters, sizeof(SColumnFilterInfo));
+      memcpy(pCols[i].flist.filterInfo, pExpr[i].base.flist.filterInfo, pCols[i].flist.numOfFilters * sizeof(SColumnFilterInfo));
+    } else {
+      // avoid runtime error
+      pCols[i].flist.filterInfo   = NULL; 
+    }
   }
 
   assert(numOfFilter > 0);
@@ -6416,10 +6421,10 @@ static SSDataBlock* hashDistinct(void* param, bool* newgroup) {
       if (isNull(val, type)) {
         continue;
       }
-
+      int dummy; 
       void* res = taosHashGet(pInfo->pSet, val, bytes);
       if (res == NULL) {
-        taosHashPut(pInfo->pSet, val, bytes, NULL, 0);
+        taosHashPut(pInfo->pSet, val, bytes, &dummy, sizeof(dummy));
         char* start = pResultColInfoData->pData + bytes * pInfo->pRes->info.rows;
         memcpy(start, val, bytes);
         pRes->info.rows += 1;

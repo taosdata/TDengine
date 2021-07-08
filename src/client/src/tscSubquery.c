@@ -3047,9 +3047,10 @@ static void multiVnodeInsertFinalize(void* param, TAOS_RES* tres, int numOfRows)
       pParentObj->cmd.insertParam.schemaAttached = 1;
     }
   }
-
-  if (!subAndCheckDone(tres, pParentObj, pSupporter->index)) {
-    tscDebug("0x%"PRIx64" insert:%p,%d completed, total:%d", pParentObj->self, tres, pSupporter->index, pParentObj->subState.numOfSub);
+  
+  int32_t suppIdx = pSupporter->index;
+  if (!subAndCheckDone(tres, pParentObj, suppIdx)) {
+    tscDebug("0x%"PRIx64" insert:%p,%d completed, total:%d", pParentObj->self, tres, suppIdx, pParentObj->subState.numOfSub);
     return;
   }
 

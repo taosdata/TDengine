@@ -2766,8 +2766,7 @@ static bool isTablenameToken(SStrToken* token) {
   SStrToken tableToken = {0};
 
   extractTableNameFromToken(&tmpToken, &tableToken);
-
-  return (strncasecmp(TSQL_TBNAME_L, tmpToken.z, tmpToken.n) == 0 && tmpToken.n == strlen(TSQL_TBNAME_L));
+  return (tmpToken.n == strlen(TSQL_TBNAME_L) && strncasecmp(TSQL_TBNAME_L, tmpToken.z, tmpToken.n) == 0);
 }
 
 static int16_t doGetColumnIndex(SQueryInfo* pQueryInfo, int32_t index, SStrToken* pToken) {
@@ -2798,7 +2797,8 @@ int32_t doGetColumnIndexByName(SStrToken* pToken, SQueryInfo* pQueryInfo, SColum
 
   if (isTablenameToken(pToken)) {
     pIndex->columnIndex = TSDB_TBNAME_COLUMN_INDEX;
-  } else if (strncasecmp(pToken->z, DEFAULT_PRIMARY_TIMESTAMP_COL_NAME, pToken->n) == 0) {
+  } else if (strlen(DEFAULT_PRIMARY_TIMESTAMP_COL_NAME) == pToken->n && 
+            strncasecmp(pToken->z, DEFAULT_PRIMARY_TIMESTAMP_COL_NAME, pToken->n) == 0) {
     pIndex->columnIndex = PRIMARYKEY_TIMESTAMP_COL_INDEX;
   } else {
     // not specify the table name, try to locate the table index by column name

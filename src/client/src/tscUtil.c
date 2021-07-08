@@ -297,7 +297,7 @@ bool tscHasColumnFilter(SQueryInfo* pQueryInfo) {
 
   size_t size = taosArrayGetSize(pQueryInfo->colList);
   for (int32_t i = 0; i < size; ++i) {
-    SColumn* pCol = taosArrayGet(pQueryInfo->colList, i);
+    SColumn* pCol = taosArrayGetP(pQueryInfo->colList, i);
     if (pCol->info.flist.numOfFilters > 0) {
       return true;
     }
@@ -4382,7 +4382,9 @@ int32_t tscCreateQueryFromQueryInfo(SQueryInfo* pQueryInfo, SQueryAttr* pQueryAt
 
   if (pQueryAttr->fillType != TSDB_FILL_NONE) {
     pQueryAttr->fillVal = calloc(pQueryAttr->numOfOutput, sizeof(int64_t));
-    memcpy(pQueryAttr->fillVal, pQueryInfo->fillVal, pQueryAttr->numOfOutput * sizeof(int64_t));
+    int32_t fields = tscNumOfFields(pQueryInfo);   
+    int32_t cpySize = fields <  pQueryAttr->numOfOutput ? fields : pQueryAttr->numOfOutput;
+    memcpy(pQueryAttr->fillVal, pQueryInfo->fillVal, cpySize * sizeof(int64_t));
   }
 
   pQueryAttr->srcRowSize = 0;
