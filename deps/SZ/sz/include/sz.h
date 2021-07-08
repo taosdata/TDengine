@@ -12,7 +12,6 @@
 
 #include <stdio.h>
 #include <stdint.h>
-#include <sys/time.h>      /* For gettimeofday(), in microseconds */
 #include <time.h>          /* For time(), in seconds */
 #include "pub.h"
 #include "CompressElement.h"

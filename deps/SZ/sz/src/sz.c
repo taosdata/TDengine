@@ -11,7 +11,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
 #include "sz.h"
 #include "CompressElement.h"
 #include "DynamicByteArray.h"
@@ -20,6 +19,7 @@
 #include "zlib.h"
 #include "conf.h"
 #include "utility.h"
+
 
 //#include "CurveFillingCompressStorage.h"
 
@@ -170,13 +170,26 @@ void modulePath(char *buf, int size)
     pos[1]=0;
 }
 
+#ifdef WINDOWS
+int gettimeofday(struct timeval *tv, struct timezone *tz) {
+  time_t t;
+  t = time(NULL);
+  SYSTEMTIME st;
+  GetLocalTime(&st);
+
+  tv->tv_sec = (long)t;
+  tv->tv_usec = st.wMilliseconds * 1000;
+
+  return 0;
+}
+#else
+#include <sys/time.h>
+#endif
 
 struct timeval startTime;
 struct timeval endTime;  /* Start and end times */
 struct timeval costStart; /*only used for recording the cost*/
 double totalCost = 0;
-
-
 
 void cost_start()
 {
@@ -201,3 +214,4 @@ void show_rate(int in_len, int out_len)
   float rate=100*(float)out_len/(float)in_len;
   printf(" in_len=%d out_len=%d compress rate=%.4f%%\n", in_len, out_len, rate);
 }
+

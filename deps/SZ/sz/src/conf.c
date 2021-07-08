@@ -138,19 +138,13 @@ int SZ_ReadConf(const char* sz_cfgFile) {
     
     
 	// default option
-    if(sz_cfgFile == NULL || access(sz_cfgFile, F_OK) != 0)
+    if(sz_cfgFile == NULL)
     {
 		dataEndianType = LITTLE_ENDIAN_DATA;
 		setDefaulParams(exe_params, confparams_cpr);
 	
 		return SZ_SUCCESS;
 	}
-    
-    if (access(sz_cfgFile, F_OK) != 0)
-    {
-        printf("[SZ] Configuration file NOT accessible.\n");
-        return SZ_FAILED;
-    }
     
     //printf("[SZ] Reading SZ configuration file (%s) ...\n", sz_cfgFile);    
     ini = iniparser_load(sz_cfgFile);

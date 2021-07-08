@@ -26,8 +26,7 @@ short getExponent_float(float value);
 short getPrecisionReqLength_float(float precision);
 short getExponent_double(double value);
 short getPrecisionReqLength_double(double precision);
-unsigned char numberOfLeadingZeros_Int(int i);
-unsigned char numberOfLeadingZeros_Long(long i);
+
 float bytesToFloat(unsigned char* bytes);
 void floatToBytes(unsigned char *b, float num);
 double bytesToDouble(unsigned char* bytes);
