@@ -5366,16 +5366,9 @@ static SSDataBlock* doIntervalAgg(void* param, bool* newgroup) {
 
   SOperatorInfo* upstream = pOperator->upstream[0];
 
-  int64_t ss = taosGetTimestampMs();
-  printf("=-=============%ld\n", ss);
   while(1) {
     publishOperatorProfEvent(upstream, QUERY_PROF_BEFORE_OPERATOR_EXEC);
-    int64_t s = taosGetTimestampMs();
-    printf("start: %ld\n", s);
     SSDataBlock* pBlock = upstream->exec(upstream, newgroup);
-
-    int64_t end = taosGetTimestampMs();
-    printf("end: %ld, el:%ld \n", end, end - s);
     publishOperatorProfEvent(upstream, QUERY_PROF_AFTER_OPERATOR_EXEC);
 
     if (pBlock == NULL) {
@@ -5384,15 +5377,8 @@ static SSDataBlock* doIntervalAgg(void* param, bool* newgroup) {
 
     // the pDataBlock are always the same one, no need to call this again
     setInputDataBlock(pOperator, pIntervalInfo->pCtx, pBlock, pQueryAttr->order.order);
-
-    int64_t x1 = taosGetTimestampMs();
     hashIntervalAgg(pOperator, &pIntervalInfo->resultRowInfo, pBlock, 0);
-    int64_t x2 = taosGetTimestampMs();
-    printf("-------------------------inter:%ld\n", x2-x1);
   }
-
-  int64_t s1 = taosGetTimestampMs();
-  printf("=-=============%ld, el:%ld\n", s1, s1-ss);
 
   // restore the value
   pQueryAttr->order.order = order;
