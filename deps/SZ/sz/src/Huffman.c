@@ -342,103 +342,6 @@ void decode(unsigned char *s, size_t targetLength, node t, int *out)
 	return;
 }
 
-void decode_MSST19(unsigned char *s, size_t targetLength, node t, int *out, int maxBits)
-{
-	size_t count = 0;
-	node n = t;
-
-	if(n->t) //root->t==1 means that all state values are the same (constant)
-	{
-		for(count=0;count<targetLength;count++)
-			out[count] = n->c;
-		return;
-	}
-
-	if(maxBits > 16){
-		maxBits = 16;
-	}
-
-    int tableSize = 1 << maxBits;
-    int* valueTable = (int*)malloc(tableSize * sizeof(int));
-    uint8_t* lengthTable = (uint8_t*)malloc(tableSize * sizeof(int));
-    node* nodeTable = (node*)malloc(tableSize * sizeof(node));
-    uint32_t maskTable[maxBits+8];
-    int j;
-    for(uint32_t i=0; i<tableSize; i++){
-        n = t;
-        j = 0;
-        while(!n->t && j < maxBits){
-            uint32_t res = i >> (maxBits - j - 1);
-            if((res & 0x00000001) == 0){
-                n = n->left;
-            }else{
-                n = n->right;
-            }
-            j++;
-        }
-        if(!n->t){
-        	nodeTable[i] = n;
-        	valueTable[i] = -1;
-        	lengthTable[i] = maxBits;
-        }else{
-			valueTable[i] = n->c;
-			lengthTable[i] = j;
-        }
-    }
-    for(int i=0; i<maxBits+8; i++){
-        maskTable[i] = (1 << (maxBits+8-i-1)) - 1;
-    }
-
-    int leftBits = 0;
-	uint32_t currentValue = 0;
-	size_t i = 0;
-
-    while(count<targetLength)
-	{
-	    while(leftBits < maxBits){
-	        currentValue = currentValue << 8;
-	        currentValue += s[i];
-	        leftBits += 8;
-	        i++;
-	    }
-
-        uint32_t index = currentValue >> (leftBits - maxBits);
-        int value = valueTable[index];
-        if(value != -1){
-			out[count] = value;
-			int bitLength = lengthTable[index];
-			leftBits -= bitLength;
-			uint32_t avoidHeadMask = maskTable[maxBits + 8 - leftBits - 1];
-			currentValue = (currentValue & avoidHeadMask);
-			count++;
-        }else{
-			int bitLength = lengthTable[index];
-			leftBits -= bitLength;
-        	n = nodeTable[index];
-        	while(!n->t){
-        		if(!leftBits){
-					currentValue = currentValue << 8;
-					currentValue += s[i];
-					leftBits += 8;
-					i++;
-        		}
-				if(((currentValue >> (leftBits - 1)) & 0x01) == 0)
-					n = n->left;
-				else
-					n = n->right;
-				leftBits--;
-        	}
-        	currentValue &= maskTable[maxBits + 8 - leftBits - 1];
-			out[count] = n->c;
-			count++;
-        }
-
-	}
-    free(valueTable);
-    free(lengthTable);
-    free(nodeTable);
-	return;
-}
 void pad_tree_uchar(HuffmanTree* huffmanTree, unsigned char* L, unsigned char* R, unsigned int* C, unsigned char* t, unsigned int i, node root)
 {
 	C[i] = root->c;
@@ -811,49 +714,6 @@ void encode_withTree(HuffmanTree* huffmanTree, int *s, size_t length, unsigned c
 	*outSize = 8+treeByteSize+enCodeSize;
 }
 
-int encode_withTree_MSST19(HuffmanTree* huffmanTree, int *s, size_t length, unsigned char **out, size_t *outSize)
-{
-	//struct ClockPoint clockPointInit;
-	//TimeDurationStart("init", &clockPointInit);
-	size_t i;
-	int nodeCount = 0;
-	unsigned char *treeBytes, buffer[4];
-
-	init(huffmanTree, s, length);
-
-	int maxBits = 0;
-	for (i = 0; i < huffmanTree->stateNum; i++)
-		if (huffmanTree->code[i]){
-			nodeCount++;
-			if(huffmanTree->cout[i] > maxBits) maxBits = huffmanTree->cout[i];
-		}
-	nodeCount = nodeCount*2-1;
-	//TimeDurationEnd(&clockPointInit);
-	//struct ClockPoint clockPointST;
-	//TimeDurationStart("save tree", &clockPointST);
-	unsigned int treeByteSize = convert_HuffTree_to_bytes_anyStates(huffmanTree,nodeCount, &treeBytes);
-	//printf("treeByteSize = %d\n", treeByteSize);
-
-	*out = (unsigned char*)malloc(length*sizeof(int)+treeByteSize);
-	intToBytes_bigEndian(buffer, nodeCount);
-	memcpy(*out, buffer, 4);
-	intToBytes_bigEndian(buffer, huffmanTree->stateNum/2); //real number of intervals
-	memcpy(*out+4, buffer, 4);
-	memcpy(*out+8, treeBytes, treeByteSize);
-	free(treeBytes);
-	size_t enCodeSize = 0;
-	//TimeDurationEnd(&clockPointST);
-	//struct ClockPoint clockPointEncode;
-	//TimeDurationStart("encode", &clockPointEncode);
-	encode(huffmanTree, s, length, *out+8+treeByteSize, &enCodeSize);
-	*outSize = 8+treeByteSize+enCodeSize;
-	//TimeDurationEnd(&clockPointEncode);
-	//unsigned short state[length];
-	//decode(*out+4+treeByteSize, enCodeSize, qqq[0], state);
-	//printf("dataSeriesLength=%d",length );
-	return maxBits;
-}
-
 /**
  * @par *out rememmber to allocate targetLength short_type data for it beforehand.
  * 
@@ -882,33 +742,6 @@ void decode_withTree(HuffmanTree* huffmanTree, unsigned char *s, size_t targetLe
 	else
 		encodeStartIndex = 1+3*nodeCount*sizeof(unsigned int)+nodeCount*sizeof(unsigned char);
 	decode(s+8+encodeStartIndex, targetLength, root, out);
-}
-
-void decode_withTree_MSST19(HuffmanTree* huffmanTree, unsigned char *s, size_t targetLength, int *out, int maxBits)
-{
-	size_t encodeStartIndex;
-	size_t nodeCount = bytesToInt_bigEndian(s);
-	node root = reconstruct_HuffTree_from_bytes_anyStates(huffmanTree,s+8, nodeCount);
-
-	//sdi: Debug
-/*	build_code(root, 0, 0, 0);
-	int i;
-	unsigned long code_1, code_2;
-	for (i = 0; i < stateNum; i++)
-		if (code[i])
-		{
-			printf("%d: %lu,%lu ; %u\n", i, (code[i])[0],(code[i])[1], cout[i]);
-			//code_1 = (code[i])[0];
-		}*/
-
-	if(nodeCount<=256)
-		encodeStartIndex = 1+3*nodeCount*sizeof(unsigned char)+nodeCount*sizeof(unsigned int);
-	else if(nodeCount<=65536)
-		encodeStartIndex = 1+2*nodeCount*sizeof(unsigned short)+nodeCount*sizeof(unsigned char)+nodeCount*sizeof(unsigned int);
-	else
-		encodeStartIndex = 1+3*nodeCount*sizeof(unsigned int)+nodeCount*sizeof(unsigned char);
-
-	decode_MSST19(s+8+encodeStartIndex, targetLength, root, out, maxBits);
 }
 
 void SZ_ReleaseHuffman(HuffmanTree* huffmanTree)
