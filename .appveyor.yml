@@ -35,6 +35,9 @@ for:
         - image: macos
     clone_depth: 1
 
+    before_build:
+      - brew install lua
+
     build_script:
       - mkdir debug
       - cd debug
