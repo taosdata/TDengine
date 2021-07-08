@@ -22,7 +22,6 @@ for:
       - call "C:\Program Files (x86)\Microsoft Visual Studio 14.0\VC\vcvarsall.bat" %ARCH%
 
     before_build:
-      - choco install lua
       - cd c:\dev\TDengine
       - md build
 
@@ -35,9 +34,6 @@ for:
       only:
         - image: macos
     clone_depth: 1
-
-    before_build:
-      - brew install lua
 
     build_script:
       - mkdir debug
