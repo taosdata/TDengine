@@ -40,8 +40,10 @@
 #if defined(DEBUGLEVEL) && (DEBUGLEVEL>=2) && !defined(_MSC_VER)
 
 #  include <stdio.h>
-#  include <unistd.h>
-#  include <sys/times.h>
+
+//#  include <unistd.h>
+//#  include <sys/times.h>
+
 
 #  define DEBUG_PRINTHEX(l,p,n) {            \
     unsigned debug_u;                        \

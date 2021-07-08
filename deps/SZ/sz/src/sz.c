@@ -160,15 +160,6 @@ void SZ_Finalize()
 	}
 }
 
-void modulePath(char *buf, int size)
-{
-  char path[1024];
-  sprintf(path, "/proc/%d/exe", getpid());  
-  readlink(path, buf, size);
-  char* pos = strrchr(buf, '/');
-  if(pos)
-    pos[1]=0;
-}
 
 #ifdef WINDOWS
 int gettimeofday(struct timeval *tv, struct timezone *tz) {

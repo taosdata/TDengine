@@ -5,6 +5,12 @@
 
 #include "gzguts.h"
 
+#ifdef WINDOWS
+#include <io.h>
+#else
+#include <unistd.h>
+#endif
+
 #if defined(_WIN32) && !defined(__BORLANDC__) && !defined(__MINGW32__)
 #  define LSEEK _lseeki64
 #else
