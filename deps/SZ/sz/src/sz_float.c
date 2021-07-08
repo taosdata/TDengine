@@ -306,7 +306,7 @@ int SZ_compress_args_float(float *oriData, size_t r1, unsigned char* newByteData
 	// check at least elements count  
 	if(dataLength <= MIN_NUM_OF_ELEMENTS)
 	{
-		printf("error, input elements count=%ld less than %d, so need not do compress.\n", dataLength, MIN_NUM_OF_ELEMENTS);
+		printf("error, input elements count=%d less than %d, so need not do compress.\n", (int)dataLength, MIN_NUM_OF_ELEMENTS);
 		return SZ_LITTER_ELEMENT;
 	}
 	
