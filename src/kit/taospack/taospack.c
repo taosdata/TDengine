@@ -348,7 +348,7 @@ bool txt_to_bin(const char* inFile, const char* outFile){
   fclose(pfout);
 
   // total
-  printf(" count=%d  write bytes=%d \n", count, (int)count*sizeof(float));
+  printf(" count=%d  write bytes=%d \n", count, (int)(count*sizeof(float)));
   return true;
 }
 
