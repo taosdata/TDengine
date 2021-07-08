@@ -180,15 +180,15 @@ int8_t  tsEnableStream = 1;
 int8_t tsCompactMnodeWal = 0;
 int8_t tsPrintAuth = 0;
 int8_t tscEmbedded = 0;
-char   configDir[TSDB_FILENAME_LEN] = {0};
-char   tsVnodeDir[TSDB_FILENAME_LEN] = {0};
-char   tsDnodeDir[TSDB_FILENAME_LEN] = {0};
-char   tsMnodeDir[TSDB_FILENAME_LEN] = {0};
-char   tsMnodeTmpDir[TSDB_FILENAME_LEN] = {0};
-char   tsMnodeBakDir[TSDB_FILENAME_LEN] = {0};
-char   tsDataDir[TSDB_FILENAME_LEN] = {0};
-char   tsScriptDir[TSDB_FILENAME_LEN] = {0};
-char   tsTempDir[TSDB_FILENAME_LEN] = "/tmp/";
+char   configDir[PATH_MAX] = {0};
+char   tsVnodeDir[PATH_MAX] = {0};
+char   tsDnodeDir[PATH_MAX] = {0};
+char   tsMnodeDir[PATH_MAX] = {0};
+char   tsMnodeTmpDir[PATH_MAX] = {0};
+char   tsMnodeBakDir[PATH_MAX] = {0};
+char   tsDataDir[PATH_MAX] = {0};
+char   tsScriptDir[PATH_MAX] = {0};
+char   tsTempDir[PATH_MAX] = "/tmp/";
 
 int32_t  tsDiskCfgNum = 0;
 
