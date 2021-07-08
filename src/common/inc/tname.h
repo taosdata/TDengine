@@ -46,7 +46,7 @@ typedef struct SSqlExpr {
   char      aliasName[TSDB_COL_NAME_LEN];  // as aliasName
   char      token[TSDB_COL_NAME_LEN];      // original token
   SColIndex colInfo;
-  uint64_t  uid;            // refactor use the pointer
+  uint64_t  uid;            // table uid, todo refactor use the pointer
 
   int16_t   functionId;     // function id in aAgg array
 

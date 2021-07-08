@@ -31,9 +31,6 @@ public class ConnectMultiTaosdByRestfulWithDifferentTokenTest {
             ResultSet rs = stmt.executeQuery("select server_status()");
             ResultSetMetaData meta = rs.getMetaData();
             while (rs.next()) {
-                for (int i = 1; i <= meta.getColumnCount(); i++) {
-                    System.out.println(meta.getColumnLabel(i) + ": " + rs.getString(i));
-                }
             }
         } catch (SQLException e) {
             e.printStackTrace();

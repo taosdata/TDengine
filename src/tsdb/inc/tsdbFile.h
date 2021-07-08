@@ -350,8 +350,8 @@ static FORCE_INLINE int tsdbCopyDFileSet(SDFileSet* pSrc, SDFileSet* pDest) {
 }
 
 static FORCE_INLINE void tsdbGetFidKeyRange(int days, int8_t precision, int fid, TSKEY* minKey, TSKEY* maxKey) {
-  *minKey = fid * days * tsMsPerDay[precision];
-  *maxKey = *minKey + days * tsMsPerDay[precision] - 1;
+  *minKey = fid * days * tsTickPerDay[precision];
+  *maxKey = *minKey + days * tsTickPerDay[precision] - 1;
 }
 
 static FORCE_INLINE bool tsdbFSetIsOk(SDFileSet* pSet) {

@@ -17,11 +17,6 @@ public class NullValueInResultSetJNITest {
             ResultSet rs = stmt.executeQuery("select * from weather");
             ResultSetMetaData meta = rs.getMetaData();
             while (rs.next()) {
-                for (int i = 1; i <= meta.getColumnCount(); i++) {
-                    Object value = rs.getObject(i);
-                    System.out.print(meta.getColumnLabel(i) + ": " + value + "\t");
-                }
-                System.out.println();
             }
 
         } catch (SQLException e) {

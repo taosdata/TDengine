@@ -197,8 +197,21 @@ void* taosArraySearch(const SArray* pArray, const void* key, __compar_fn_t compa
  */
 char* taosArraySearchString(const SArray* pArray, const char* key, __compar_fn_t comparFn, int flags);
 
+
+/**
+ * sort the pointer data in the array
+ * @param pArray
+ * @param compar 
+ * @param param  
+ * @return
+ */
+
+void taosArraySortPWithExt(SArray* pArray, __ext_compar_fn_t fn, const void *param);
+
 #ifdef __cplusplus
 }
 #endif
+
+
 
 #endif  // TDENGINE_TAOSARRAY_H

@@ -23,11 +23,27 @@ class TDTestCase:
     def init(self, conn, logSql):
         tdLog.debug("start to execute %s" % __file__)
         tdSql.init(conn.cursor(), logSql)
-        
+
         self.ts = 1601481600000
         self.numberOfTables = 1
         self.numberOfRecords = 15000
-    
+
+    def getBuildPath(self):
+        selfPath = os.path.dirname(os.path.realpath(__file__))
+
+        if ("community" in selfPath):
+            projPath = selfPath[:selfPath.find("community")]
+        else:
+            projPath = selfPath[:selfPath.find("tests")]
+
+        for root, dirs, files in os.walk(projPath):
+            if ("taosdump" in files):
+                rootRealPath = os.path.dirname(os.path.realpath(root))
+                if ("packaging" not in rootRealPath):
+                    buildPath = root[:len(root) - len("/build/bin")]
+                    break
+        return buildPath
+
     def run(self):
         tdSql.prepare()
 
@@ -41,22 +57,31 @@ class TDTestCase:
                 sql += "(%d, 1019774612, 29931, 1442173978, 165092.468750, 1128.643179, 'MOCq1pTu', 18405, 82, 0, 'g0A6S0Fu')" % (currts + i)
                 finish = i + 1
                 if (1048576 - len(sql)) < 16384:
-                 break
+                    break
             tdSql.execute(sql)
 
+        buildPath = self.getBuildPath()
+        if (buildPath == ""):
+            tdLog.exit("taosdump not found!")
+        else:
+            tdLog.info("taosdump found in %s" % buildPath)
+        binPath = buildPath + "/build/bin/"
+
         os.system("rm /tmp/*.sql")
-        os.system("taosdump --databases db -o /tmp -B 32766 -L 1048576")
-        
+        os.system(
+            "%staosdump --databases db -o /tmp -B 32766 -L 1048576" %
+            binPath)
+
         tdSql.execute("drop database db")
         tdSql.query("show databases")
         tdSql.checkRows(0)
-        
-        os.system("taosdump -i /tmp")
+
+        os.system("%staosdump -i /tmp" % binPath)
 
         tdSql.query("show databases")
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 'db')
-        
+
         tdSql.execute("use db")
         tdSql.query("show stables")
         tdSql.checkRows(1)

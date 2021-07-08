@@ -11,7 +11,7 @@ set -e
 #             -V [stable | beta]
 #             -l [full | lite]
 #             -s [static | dynamic]
-#             -d [taos | power]
+#             -d [taos | power | tq ]
 #             -n [2.0.0.3]
 #             -m [2.0.0.0]
 
@@ -22,10 +22,10 @@ cpuType=x64      # [aarch32 | aarch64 | x64 | x86 | mips64 ...]
 osType=Linux     # [Linux | Kylin | Alpine | Raspberrypi | Darwin | Windows | Ningsi60 | Ningsi80 |...]
 pagMode=full     # [full | lite]
 soMode=dynamic   # [static | dynamic]
+dbName=taos      # [taos | power | tq]
 allocator=glibc  # [glibc | jemalloc]
-dbName=taos      # [taos | power]
 verNumber=""
-verNumberComp="2.0.0.0"
+verNumberComp="1.0.0.0"
 
 while getopts "hv:V:c:o:l:s:d:a:n:m:" arg
 do
@@ -78,7 +78,7 @@ do
       echo "                  -l [full | lite] "
       echo "                  -a [glibc | jemalloc] "
       echo "                  -s [static | dynamic] "
-      echo "                  -d [taos | power] "
+      echo "                  -d [taos | power | tq ] "
       echo "                  -n [version number] "
       echo "                  -m [compatible version number] "
       exit 0
@@ -246,11 +246,15 @@ if [ "$osType" != "Darwin" ]; then
   cd ${script_dir}/tools
 
   if [[ "$dbName" == "taos" ]]; then
-    ${csudo} ./makepkg.sh    ${compile_dir} ${verNumber} "${build_time}" ${cpuType} ${osType} ${verMode} ${verType} ${pagMode}
+    ${csudo} ./makepkg.sh    ${compile_dir} ${verNumber} "${build_time}" ${cpuType} ${osType} ${verMode} ${verType} ${pagMode} ${verNumberComp}
     ${csudo} ./makeclient.sh ${compile_dir} ${verNumber} "${build_time}" ${cpuType} ${osType} ${verMode} ${verType} ${pagMode}
     ${csudo} ./makearbi.sh   ${compile_dir} ${verNumber} "${build_time}" ${cpuType} ${osType} ${verMode} ${verType} ${pagMode}
+  elif [[ "$dbName" == "tq" ]]; then
+    ${csudo} ./makepkg_tq.sh    ${compile_dir} ${verNumber} "${build_time}" ${cpuType} ${osType} ${verMode} ${verType} ${pagMode} ${dbName} ${verNumberComp}
+    ${csudo} ./makeclient_tq.sh ${compile_dir} ${verNumber} "${build_time}" ${cpuType} ${osType} ${verMode} ${verType} ${pagMode} ${dbName}
+    ${csudo} ./makearbi_tq.sh   ${compile_dir} ${verNumber} "${build_time}" ${cpuType} ${osType} ${verMode} ${verType} ${pagMode}
   else
-    ${csudo} ./makepkg_power.sh    ${compile_dir} ${verNumber} "${build_time}" ${cpuType} ${osType} ${verMode} ${verType} ${pagMode} ${dbName}
+    ${csudo} ./makepkg_power.sh    ${compile_dir} ${verNumber} "${build_time}" ${cpuType} ${osType} ${verMode} ${verType} ${pagMode} ${dbName} ${verNumberComp}
     ${csudo} ./makeclient_power.sh ${compile_dir} ${verNumber} "${build_time}" ${cpuType} ${osType} ${verMode} ${verType} ${pagMode} ${dbName}
     ${csudo} ./makearbi_power.sh   ${compile_dir} ${verNumber} "${build_time}" ${cpuType} ${osType} ${verMode} ${verType} ${pagMode}
   fi

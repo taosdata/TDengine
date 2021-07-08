@@ -93,7 +93,7 @@ int32_t vnodeCreate(SCreateVnodeMsg *pVnodeCfg) {
 }
 
 int32_t vnodeSync(int32_t vgId) {
-  SVnodeObj *pVnode = vnodeAcquire(vgId);
+  SVnodeObj *pVnode = vnodeAcquireNotClose(vgId);
   if (pVnode == NULL) {
     vDebug("vgId:%d, failed to sync, vnode not find", vgId);
     return TSDB_CODE_VND_INVALID_VGROUP_ID;
@@ -116,7 +116,7 @@ int32_t vnodeSync(int32_t vgId) {
 
 
 int32_t vnodeDrop(int32_t vgId) {
-  SVnodeObj *pVnode = vnodeAcquire(vgId);
+  SVnodeObj *pVnode = vnodeAcquireNotClose(vgId);
   if (pVnode == NULL) {
     vDebug("vgId:%d, failed to drop, vnode not find", vgId);
     return TSDB_CODE_VND_INVALID_VGROUP_ID;
@@ -439,15 +439,16 @@ int32_t vnodeOpen(int32_t vgId) {
 }
 
 int32_t vnodeClose(int32_t vgId) {
-  SVnodeObj *pVnode = vnodeAcquire(vgId);
+  SVnodeObj *pVnode = vnodeAcquireNotClose(vgId);
   if (pVnode == NULL) return 0;
   if (pVnode->dropped) {
     vnodeRelease(pVnode);
     return 0;
   }
 
+  pVnode->preClose = 1;
+
   vDebug("vgId:%d, vnode will be closed, pVnode:%p", pVnode->vgId, pVnode);
-  vnodeRemoveFromHash(pVnode);
   vnodeRelease(pVnode);
   vnodeCleanUp(pVnode);
 
