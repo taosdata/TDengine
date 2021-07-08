@@ -938,7 +938,7 @@ void SqlInfoDestroy(SSqlInfo *pInfo) {
       taosArrayDestroy(pInfo->pMiscInfo->a);
     }
 
-    if (pInfo->pMiscInfo != NULL && pInfo->type == TSDB_SQL_CREATE_DB) {
+    if (pInfo->pMiscInfo != NULL && (pInfo->type == TSDB_SQL_CREATE_DB || pInfo->type == TSDB_SQL_ALTER_DB)) {
       taosArrayDestroyEx(pInfo->pMiscInfo->dbOpt.keep, freeVariant);
     }
 
