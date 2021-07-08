@@ -12,8 +12,7 @@
 #include "sz.h" 	
 #include "zlib.h"
 
-
-inline int bytesToInt_bigEndian(unsigned char* bytes)
+INLINE int bytesToInt_bigEndian(unsigned char* bytes)
 {
 	int temp = 0;
 	int res = 0;
@@ -41,7 +40,7 @@ inline int bytesToInt_bigEndian(unsigned char* bytes)
  * @unsigned char *b the variable to store the converted bytes (length=4)
  * @unsigned int num
  * */
-inline void intToBytes_bigEndian(unsigned char *b, unsigned int num)
+INLINE void intToBytes_bigEndian(unsigned char *b, unsigned int num)
 {
 	b[0] = (unsigned char)(num >> 24);	
 	b[1] = (unsigned char)(num >> 16);	
@@ -56,7 +55,7 @@ inline void intToBytes_bigEndian(unsigned char *b, unsigned int num)
 /**
  * @endianType: refers to the endian_type of unsigned char* b.
  * */
-inline long bytesToLong_bigEndian(unsigned char* b) {
+INLINE long bytesToLong_bigEndian(unsigned char* b) {
 	long temp = 0;
 	long res = 0;
 
@@ -95,7 +94,7 @@ inline long bytesToLong_bigEndian(unsigned char* b) {
 	return res;
 }
 
-inline void longToBytes_bigEndian(unsigned char *b, unsigned long num) 
+INLINE void longToBytes_bigEndian(unsigned char *b, unsigned long num) 
 {
 // arm32
 #if defined(_TD_LINUX_64) || defined(_TD_ARM_64)  || defined(_TD_DARWIN_64)
@@ -115,7 +114,7 @@ inline void longToBytes_bigEndian(unsigned char *b, unsigned long num)
 }
 
 //TODO: debug: lfBuf.lvalue could be actually little_endian....
-inline short getExponent_float(float value)
+INLINE short getExponent_float(float value)
 {
 	//int ivalue = floatToBigEndianInt(value);
 
@@ -128,7 +127,7 @@ inline short getExponent_float(float value)
 	return (short)expValue;
 }
 
-inline short getPrecisionReqLength_float(float precision)
+INLINE short getPrecisionReqLength_float(float precision)
 {
 	lfloat lbuf;
 	lbuf.value = precision;
@@ -142,7 +141,7 @@ inline short getPrecisionReqLength_float(float precision)
 	return (short)expValue;
 }
 
-inline short getExponent_double(double value)
+INLINE short getExponent_double(double value)
 {
 	//long lvalue = doubleToBigEndianLong(value);
 	
@@ -155,7 +154,7 @@ inline short getExponent_double(double value)
 	return (short)expValue;
 }
 
-inline short getPrecisionReqLength_double(double precision)
+INLINE short getPrecisionReqLength_double(double precision)
 {
 	ldouble lbuf;
 	lbuf.value = precision;
@@ -171,7 +170,7 @@ inline short getPrecisionReqLength_double(double precision)
 
 
 //the byte to input is in the big-endian format
-inline float bytesToFloat(unsigned char* bytes)
+INLINE float bytesToFloat(unsigned char* bytes)
 {
 	lfloat buf;
 	memcpy(buf.byte, bytes, 4);
@@ -180,7 +179,7 @@ inline float bytesToFloat(unsigned char* bytes)
 	return buf.value;
 }
 
-inline void floatToBytes(unsigned char *b, float num)
+INLINE void floatToBytes(unsigned char *b, float num)
 {
 	lfloat buf;
 	buf.value = num;
@@ -190,7 +189,7 @@ inline void floatToBytes(unsigned char *b, float num)
 }
 
 //the byte to input is in the big-endian format
-inline double bytesToDouble(unsigned char* bytes)
+INLINE double bytesToDouble(unsigned char* bytes)
 {
 	ldouble buf;
 	memcpy(buf.byte, bytes, 8);
@@ -199,7 +198,7 @@ inline double bytesToDouble(unsigned char* bytes)
 	return buf.value;
 }
 
-inline void doubleToBytes(unsigned char *b, double num)
+INLINE void doubleToBytes(unsigned char *b, double num)
 {
 	ldouble buf;
 	buf.value = num;
@@ -209,7 +208,7 @@ inline void doubleToBytes(unsigned char *b, double num)
 }
 
 
-inline int getMaskRightCode(int m) {
+INLINE int getMaskRightCode(int m) {
 	switch (m) {
 	case 1:
 		return 0x01;
@@ -232,16 +231,16 @@ inline int getMaskRightCode(int m) {
 	}
 }
 
-inline int getLeftMovingCode(int kMod8)
+INLINE int getLeftMovingCode(int kMod8)
 {
 	return getMaskRightCode(8 - kMod8);
 }
 
-inline int getRightMovingSteps(int kMod8, int resiBitLength) {
+INLINE int getRightMovingSteps(int kMod8, int resiBitLength) {
 	return 8 - kMod8 - resiBitLength;
 }
 
-inline int getRightMovingCode(int kMod8, int resiBitLength)
+INLINE int getRightMovingCode(int kMod8, int resiBitLength)
 {
 	int rightMovingSteps = 8 - kMod8 - resiBitLength;
 	if(rightMovingSteps < 0)
@@ -275,7 +274,7 @@ inline int getRightMovingCode(int kMod8, int resiBitLength)
 	}
 }
 
-inline size_t bytesToSize(unsigned char* bytes)
+INLINE size_t bytesToSize(unsigned char* bytes)
 {
 	size_t result = 0;
 	if(exe_params->SZ_SIZE_TYPE==4)	
@@ -285,7 +284,7 @@ inline size_t bytesToSize(unsigned char* bytes)
 	return result;
 }
 
-inline void sizeToBytes(unsigned char* outBytes, size_t size)
+INLINE void sizeToBytes(unsigned char* outBytes, size_t size)
 {
 	if(exe_params->SZ_SIZE_TYPE==4)
 		intToBytes_bigEndian(outBytes, (unsigned int)size);//4

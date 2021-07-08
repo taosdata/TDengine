@@ -32,9 +32,12 @@
 
 #ifdef _WIN32
 #define PATH_SEPARATOR ';'
+#define INLINE
 #else
 #define PATH_SEPARATOR ':'
+#define INLINE inline
 #endif
+
 
 #ifdef __cplusplus
 extern "C" {
