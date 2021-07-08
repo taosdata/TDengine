@@ -15,9 +15,11 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <iconv.h>
-#include <sys/stat.h>
-#include <sys/syscall.h>
+//#include <iconv.h>
+#include <stdio.h>
+#include <stdlib.h>
+//#include <sys/stat.h>
+//#include <sys/syscall.h>
 
 #include "os.h"
 #include "tscompression.h"
@@ -25,8 +27,6 @@
 
 #define FT_CNT  8
 
-#include <stdio.h>
-#include <stdlib.h>
 
 void cost_start();
 double cost_end(const char* tag);
