@@ -8,8 +8,10 @@
  */
  
 #include <stdlib.h>
+#include <string.h>
 #include "sz.h" 	
 #include "zlib.h"
+
 
 inline unsigned short bytesToUInt16_bigEndian(unsigned char* bytes)
 {
@@ -397,37 +399,8 @@ unsigned char getLeadingNumbers_Long(long v1, long v2)
 	return (unsigned char)numberOfLeadingZeros_Long(v);
 }
 
-/**
- * By default, the endian type is OS endian type.
- * */
-short bytesToShort(unsigned char* bytes)
-{
-	lint16 buf;
-	memcpy(buf.byte, bytes, 2);
-	
-	return buf.svalue;
-}
 
-void shortToBytes(unsigned char* b, short value)
-{
-	lint16 buf;
-	buf.svalue = value;
-	memcpy(b, buf.byte, 2);
-}
 
-int bytesToInt(unsigned char* bytes)
-{
-	lfloat buf;
-	memcpy(buf.byte, bytes, 4);
-	return buf.ivalue;
-}
-
-long bytesToLong(unsigned char* bytes)
-{
-	ldouble buf;
-	memcpy(buf.byte, bytes, 8);
-	return buf.lvalue;
-}
 
 //the byte to input is in the big-endian format
 inline float bytesToFloat(unsigned char* bytes)

@@ -43,7 +43,7 @@ int tdszCompress(int type, const char * input, const int nelements, const char *
 	// check valid
 	sz_params comp_params = *confparams_cpr;
 	
-	size_t outSize = SZ_compress_args(type, input, (size_t)nelements, (unsigned char*)output, &comp_params);	
+	size_t outSize = SZ_compress_args(type, (void*)input, (size_t)nelements, (unsigned char*)output, &comp_params);	
     return (int)outSize;
 }
 

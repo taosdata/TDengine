@@ -207,7 +207,6 @@ inline void compressSingleFloatValue(FloatValueCompressElement *vce, float oriVa
 	if(ignBitCount<0)
 		ignBitCount = 0;
 	
-	int tmp_int = diffVal.ivalue;
 	intToBytes_bigEndian(vce->curBytes, diffVal.ivalue);
 	
 	// truncate diff value tail bit with ignBitCount	

@@ -13,8 +13,9 @@
 #include <stdlib.h> 
 #include <stdio.h>
 #include <math.h>
-#include <sz.h>
-#include <CompressElement.h>
+#include <string.h>
+#include "sz.h"
+#include "CompressElement.h"
 
 
 inline short computeGroupNum_float(float value)

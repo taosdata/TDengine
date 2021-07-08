@@ -22,7 +22,6 @@
 #include "szd_double.h"
 #include "zlib.h"
 #include "utility.h"
-#include "sz_stats.h"
 
 unsigned char* SZ_skip_compress_double(double* data, size_t dataLength, size_t* outSize)
 {
@@ -253,7 +252,6 @@ void SZ_compress_args_double_StoreOriData(double* oriData, size_t dataLength, un
 bool SZ_compress_args_double_NoCkRngeNoGzip_1D(unsigned char* newByteData, double *oriData, 
 size_t dataLength, double realPrecision, size_t *outSize, double valueRangeSize, double medianValue_d)
 {
-	char compressionType = 0;	
 	TightDataPointStorageD* tdps = NULL; 	
 	tdps = SZ_compress_double_1D_MDQ(oriData, dataLength, realPrecision, valueRangeSize, medianValue_d);			
 	
@@ -301,16 +299,12 @@ int SZ_compress_args_double(double *oriData, size_t r1, unsigned char* newByteDa
 	int status = SZ_SUCCESS;
 	size_t dataLength = r1;
 	
-
 	double valueRangeSize = 0, medianValue = 0;
-	
-	bool positive = true;
-	double nearZero = 0.0;
 
 	// check at least elements count  
 	if(dataLength <= MIN_NUM_OF_ELEMENTS)
 	{
-		printf("error, double input elements count=%d less than %d, so need not do compress.\n", dataLength, MIN_NUM_OF_ELEMENTS);
+		printf("error, double input elements count=%ld less than %d, so need not do compress.\n", dataLength, MIN_NUM_OF_ELEMENTS);
 		return SZ_LITTER_ELEMENT;
 	}
 		

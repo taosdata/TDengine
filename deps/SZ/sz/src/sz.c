@@ -90,14 +90,13 @@ int SZ_Init_Params(sz_params *params)
 size_t SZ_compress_args(int dataType, void *data, size_t r1, unsigned char* outData, sz_params* params)
 {
 	size_t outSize = 0;
-	int status;
 	if(dataType==SZ_FLOAT)
 	{
-		status = SZ_compress_args_float((float *)data, r1, outData,  &outSize, params);		
+		SZ_compress_args_float((float *)data, r1, outData,  &outSize, params);		
 	}
 	else if(dataType==SZ_DOUBLE)
 	{
-		status = SZ_compress_args_double((double *)data, r1, outData,  &outSize, params);
+		SZ_compress_args_double((double *)data, r1, outData,  &outSize, params);
 	}
 	else
 	{

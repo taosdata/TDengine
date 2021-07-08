@@ -10,6 +10,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <zlib.h>
 #include <sz.h>
 
@@ -221,7 +222,7 @@ unsigned long zlib_compress5(unsigned char* data, unsigned long dataLength, unsi
 		return ret;
 
 	size_t p_size = 0, av_in = 0;
-    uLong estCmpLen = deflateBound(&strm, dataLength);
+    deflateBound(&strm, dataLength);
    	//*compressBytes = (unsigned char*)malloc(sizeof(unsigned char)*estCmpLen);	 // comment by tickduan no need malloc
 	unsigned char* out = compressBytes; 
 

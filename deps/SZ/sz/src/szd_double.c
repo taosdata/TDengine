@@ -67,7 +67,6 @@ int SZ_decompress_args_double(double* newData, size_t r1, unsigned char* cmpByte
 		return SZ_FORMAT_ERR;
 	}
 
-	int dim = r1;
 	int doubleSize = sizeof(double);
 	if(tdps->isLossless)
 	{

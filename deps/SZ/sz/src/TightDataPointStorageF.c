@@ -206,10 +206,7 @@ void convertTDPStoBytes_float(TightDataPointStorageF* tdps, unsigned char* bytes
 	unsigned char exactLengthBytes[8];
 	unsigned char exactMidBytesLength[8];
 	unsigned char realPrecisionBytes[8];
-	
 	unsigned char medianValueBytes[4];
-	
-	unsigned char segment_sizeBytes[8];
 	unsigned char max_quant_intervals_Bytes[4];
 	
 	// 1 version
