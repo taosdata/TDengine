@@ -18,7 +18,7 @@ void new_DBA(DynamicByteArray **dba, size_t cap) {
         (*dba)->size = 0;
         (*dba)->capacity = cap;
         (*dba)->array = (unsigned char*)malloc(sizeof(unsigned char)*cap);
-    }
+}
 
 void convertDBAtoBytes(DynamicByteArray *dba, unsigned char** bytes)
 {

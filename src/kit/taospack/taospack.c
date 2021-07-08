@@ -15,17 +15,22 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+
+
 //#include <iconv.h>
 #include <stdio.h>
 #include <stdlib.h>
 //#include <sys/stat.h>
 //#include <sys/syscall.h>
 
+#ifndef WINDOWS
+
 #include "os.h"
 #include "tscompression.h"
 #include "tdataformat.h"
 
 #define FT_CNT  8
+
 
 
 void cost_start();
@@ -741,4 +746,10 @@ int main(int argc, char *argv[]) {
   tsCompressExit();
   return 0;
 }
+
+#else
+int main(int argc, char *argv[]) {
+  printf("welcome to use taospack tools v1.3 for windows.\n");
+}
+#endif
 
