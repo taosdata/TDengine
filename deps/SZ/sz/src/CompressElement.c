@@ -6,9 +6,10 @@
  *  (C) 2015 by Mathematics and Computer Science (MCS), Argonne National Laboratory.
  *      See COPYRIGHT in top-level directory.
  */
-
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wchar-subscripts"
+#ifndef WINDOWS
+  #pragma GCC diagnostic push
+  #pragma GCC diagnostic ignored "-Wchar-subscripts"
+#endif
 
 #include <stdlib.h> 
 #include <stdio.h>
@@ -231,4 +232,6 @@ inline void updateLossyCompElement_Float(unsigned char* diffBytes, unsigned char
 	lce->residualMidBits = resiBits;
 }
 
-#pragma GCC diagnostic pop
+#ifndef WINDOWS
+  #pragma GCC diagnostic pop
+#endif

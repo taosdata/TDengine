@@ -288,9 +288,9 @@ inline size_t bytesToSize(unsigned char* bytes)
 inline void sizeToBytes(unsigned char* outBytes, size_t size)
 {
 	if(exe_params->SZ_SIZE_TYPE==4)
-		intToBytes_bigEndian(outBytes, size);//4
+		intToBytes_bigEndian(outBytes, (unsigned int)size);//4
 	else
-		longToBytes_bigEndian(outBytes, size);//8
+		longToBytes_bigEndian(outBytes, (unsigned long)size);//8
 }
 
 void convertSZParamsToBytes(sz_params* params, unsigned char* result)
