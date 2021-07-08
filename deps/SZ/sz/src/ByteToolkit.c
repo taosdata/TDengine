@@ -13,162 +13,6 @@
 #include "zlib.h"
 
 
-inline unsigned short bytesToUInt16_bigEndian(unsigned char* bytes)
-{
-	int temp = 0;
-	unsigned short res = 0;
-	
-	temp = bytes[0] & 0xff;
-	res |= temp;	
-
-	res <<= 8;
-	temp = bytes[1] & 0xff;
-	res |= temp;
-	
-	return res;
-}	
-	
-inline unsigned int bytesToUInt32_bigEndian(unsigned char* bytes)
-{
-	unsigned int temp = 0;
-	unsigned int res = 0;
-	
-	res <<= 8;
-	temp = bytes[0] & 0xff;
-	res |= temp;	
-
-	res <<= 8;
-	temp = bytes[1] & 0xff;
-	res |= temp;
-
-	res <<= 8;
-	temp = bytes[2] & 0xff;
-	res |= temp;
-	
-	res <<= 8;
-	temp = bytes[3] & 0xff;
-	res |= temp;
-	
-	return res;
-}
-
-inline unsigned long bytesToUInt64_bigEndian(unsigned char* b) {
-	unsigned long temp = 0;
-	unsigned long res = 0;
-
-	res <<= 8;
-	temp = b[0] & 0xff;
-	res |= temp;
-
-	res <<= 8;
-	temp = b[1] & 0xff;
-	res |= temp;
-	
-	res <<= 8;
-	temp = b[2] & 0xff;
-	res |= temp;
-	
-	res <<= 8;
-	temp = b[3] & 0xff;
-	res |= temp;
-	
-	res <<= 8;
-	temp = b[4] & 0xff;
-	res |= temp;
-	
-	res <<= 8;
-	temp = b[5] & 0xff;
-	res |= temp;
-	
-	res <<= 8;
-	temp = b[6] & 0xff;
-	res |= temp;
-	
-	res <<= 8;
-	temp = b[7] & 0xff;
-	res |= temp;						
-	
-	return res;
-}
-	
-inline short bytesToInt16_bigEndian(unsigned char* bytes)
-{
-	int temp = 0;
-	short res = 0;
-	
-	temp = bytes[0] & 0xff;
-	res |= temp;	
-
-	res <<= 8;
-	temp = bytes[1] & 0xff;
-	res |= temp;
-	
-	return res;
-}	
-	
-inline int bytesToInt32_bigEndian(unsigned char* bytes)
-{
-	int temp = 0;
-	int res = 0;
-	
-	res <<= 8;
-	temp = bytes[0] & 0xff;
-	res |= temp;	
-
-	res <<= 8;
-	temp = bytes[1] & 0xff;
-	res |= temp;
-
-	res <<= 8;
-	temp = bytes[2] & 0xff;
-	res |= temp;
-	
-	res <<= 8;
-	temp = bytes[3] & 0xff;
-	res |= temp;
-	
-	return res;
-}
-
-inline long bytesToInt64_bigEndian(unsigned char* b) {
-	long temp = 0;
-	long res = 0;
-
-	res <<= 8;
-	temp = b[0] & 0xff;
-	res |= temp;
-
-	res <<= 8;
-	temp = b[1] & 0xff;
-	res |= temp;
-	
-	res <<= 8;
-	temp = b[2] & 0xff;
-	res |= temp;
-	
-	res <<= 8;
-	temp = b[3] & 0xff;
-	res |= temp;
-	
-	res <<= 8;
-	temp = b[4] & 0xff;
-	res |= temp;
-	
-	res <<= 8;
-	temp = b[5] & 0xff;
-	res |= temp;
-	
-	res <<= 8;
-	temp = b[6] & 0xff;
-	res |= temp;
-	
-	res <<= 8;
-	temp = b[7] & 0xff;
-	res |= temp;						
-	
-	return res;
-}
-
 inline int bytesToInt_bigEndian(unsigned char* bytes)
 {
 	int temp = 0;
@@ -207,32 +51,6 @@ inline void intToBytes_bigEndian(unsigned char *b, unsigned int num)
 	//note: num >> xxx already considered endian_type...
 //if(dataEndianType==LITTLE_ENDIAN_DATA)
 //		symTransform_4bytes(*b); //change to BIG_ENDIAN_DATA
-}
-
-inline void int64ToBytes_bigEndian(unsigned char *b, uint64_t num)
-{
-	b[0] = (unsigned char)(num>>56);
-	b[1] = (unsigned char)(num>>48);
-	b[2] = (unsigned char)(num>>40);
-	b[3] = (unsigned char)(num>>32);
-	b[4] = (unsigned char)(num>>24);
-	b[5] = (unsigned char)(num>>16);
-	b[6] = (unsigned char)(num>>8);
-	b[7] = (unsigned char)(num);
-}
-
-inline void int32ToBytes_bigEndian(unsigned char *b, uint32_t num)
-{
-	b[0] = (unsigned char)(num >> 24);	
-	b[1] = (unsigned char)(num >> 16);	
-	b[2] = (unsigned char)(num >> 8);	
-	b[3] = (unsigned char)(num);		
-}
-
-inline void int16ToBytes_bigEndian(unsigned char *b, uint16_t num)
-{
-	b[0] = (unsigned char)(num >> 8);	
-	b[1] = (unsigned char)(num);
 }
 
 /**
@@ -279,31 +97,25 @@ inline long bytesToLong_bigEndian(unsigned char* b) {
 
 inline void longToBytes_bigEndian(unsigned char *b, unsigned long num) 
 {
-	b[0] = (unsigned char)(num>>56);
-	b[1] = (unsigned char)(num>>48);
-	b[2] = (unsigned char)(num>>40);
-	b[3] = (unsigned char)(num>>32);
+	// x64 
+	if(sizeof(unsigned long) == 8)
+	{
+		b[0] = (unsigned char)(num>>56);
+		b[1] = (unsigned char)(num>>48);
+		b[2] = (unsigned char)(num>>40);
+		b[3] = (unsigned char)(num>>32);
+	}
+	else // arm 32 or x86 32 
+	{
+		memset(b, 0, 4);
+	}
+
 	b[4] = (unsigned char)(num>>24);
 	b[5] = (unsigned char)(num>>16);
 	b[6] = (unsigned char)(num>>8);
 	b[7] = (unsigned char)(num);
 //	if(dataEndianType==LITTLE_ENDIAN_DATA)
 //		symTransform_8bytes(*b);
-}
-
-
-inline long doubleToOSEndianLong(double value)
-{
-	ldouble buf;
-	buf.value = value;
-	return buf.lvalue;
-}
-
-inline int floatToOSEndianInt(float value)
-{
-	lfloat buf;
-	buf.value = value;
-	return buf.ivalue;
 }
 
 //TODO: debug: lfBuf.lvalue could be actually little_endian....
@@ -361,46 +173,6 @@ inline short getPrecisionReqLength_double(double precision)
 	return (short)expValue;
 }
 
-unsigned char numberOfLeadingZeros_Int(int i) {
-	if (i == 0)
-		return 32;
-	unsigned char n = 1;
-	if (((unsigned int)i) >> 16 == 0) { n += 16; i <<= 16; }
-	if (((unsigned int)i) >> 24 == 0) { n +=  8; i <<=  8; }
-	if (((unsigned int)i) >> 28 == 0) { n +=  4; i <<=  4; }
-	if (((unsigned int)i) >> 30 == 0) { n +=  2; i <<=  2; }
-	n -= ((unsigned int)i) >> 31;
-	return n;
-}
-
-unsigned char numberOfLeadingZeros_Long(long i) {
-	 if (i == 0)
-		return 64;
-	unsigned char n = 1;
-	int x = (int)(((unsigned long)i) >> 32);
-	if (x == 0) { n += 32; x = (int)i; }
-	if (((unsigned int)x) >> 16 == 0) { n += 16; x <<= 16; }
-	if (((unsigned int)x) >> 24 == 0) { n +=  8; x <<=  8; }
-	if (((unsigned int)x) >> 28 == 0) { n +=  4; x <<=  4; }
-	if (((unsigned int)x) >> 30 == 0) { n +=  2; x <<=  2; }
-	n -= ((unsigned int)x) >> 31;
-	return n;
-}
-
-unsigned char getLeadingNumbers_Int(int v1, int v2)
-{
-	int v = v1 ^ v2;
-	return (unsigned char)numberOfLeadingZeros_Int(v);
-}
-
-unsigned char getLeadingNumbers_Long(long v1, long v2)
-{
-	long v = v1 ^ v2;
-	return (unsigned char)numberOfLeadingZeros_Long(v);
-}
-
-
-
 
 //the byte to input is in the big-endian format
 inline float bytesToFloat(unsigned char* bytes)
@@ -440,45 +212,6 @@ inline void doubleToBytes(unsigned char *b, double num)
 		symTransform_8bytes(b);
 }
 
-int extractBytes(unsigned char* byteArray, size_t k, int validLength)
-{
-	size_t outIndex = k/8;
-	int innerIndex = k%8;
-	unsigned char intBytes[4];
-	int length = innerIndex + validLength;
-	int byteNum = 0;
-	if(length%8==0)
-		byteNum = length/8;
-	else
-		byteNum = length/8+1;
-	
-	int i;
-	for(i = 0;i<byteNum;i++)
-		intBytes[exe_params->SZ_SIZE_TYPE-byteNum+i] = byteArray[outIndex+i];
-	int result = bytesToInt_bigEndian(intBytes);
-	int rightMovSteps = innerIndex +(8 - (innerIndex+validLength)%8)%8;
-	result = result << innerIndex;
-	switch(byteNum)
-	{
-	case 1:
-		result = result & 0xff;
-		break;
-	case 2:
-		result = result & 0xffff;
-		break;
-	case 3:
-		result = result & 0xffffff;
-		break;
-	case 4:
-		break;
-	default: 
-		printf("Error: other cases are impossible...\n");
-		exit(0);
-	}
-	result = result >> rightMovSteps;
-	
-	return result;
-}
 
 inline int getMaskRightCode(int m) {
 	switch (m) {
@@ -546,247 +279,6 @@ inline int getRightMovingCode(int kMod8, int resiBitLength)
 	}
 }
 
-short* convertByteDataToShortArray(unsigned char* bytes, size_t byteLength)
-{
-	lint16 ls;
-	size_t i, stateLength = byteLength/2;
-	short* states = (short*)malloc(stateLength*sizeof(short));
-	if(sysEndianType==dataEndianType)
-	{	
-		for(i=0;i<stateLength;i++)
-		{
-			ls.byte[0] = bytes[i*2];
-			ls.byte[1] = bytes[i*2+1];
-			states[i] = ls.svalue;
-		}
-	}
-	else
-	{
-		for(i=0;i<stateLength;i++)
-		{
-			ls.byte[0] = bytes[i*2+1];
-			ls.byte[1] = bytes[i*2];
-			states[i] = ls.svalue;
-		}		
-	}
-	return states;
-} 
-
-unsigned short* convertByteDataToUShortArray(unsigned char* bytes, size_t byteLength)
-{
-	lint16 ls;
-	size_t i, stateLength = byteLength/2;
-	unsigned short* states = (unsigned short*)malloc(stateLength*sizeof(unsigned short));
-	if(sysEndianType==dataEndianType)
-	{	
-		for(i=0;i<stateLength;i++)
-		{
-			ls.byte[0] = bytes[i*2];
-			ls.byte[1] = bytes[i*2+1];
-			states[i] = ls.usvalue;
-		}
-	}
-	else
-	{
-		for(i=0;i<stateLength;i++)
-		{
-			ls.byte[0] = bytes[i*2+1];
-			ls.byte[1] = bytes[i*2];
-			states[i] = ls.usvalue;
-		}		
-	}
-	return states;
-} 
-
-void convertShortArrayToBytes(short* states, size_t stateLength, unsigned char* bytes)
-{
-	lint16 ls;
-	size_t i;
-	if(sysEndianType==dataEndianType)
-	{
-		for(i=0;i<stateLength;i++)
-		{
-			ls.svalue = states[i];
-			bytes[i*2] = ls.byte[0];
-			bytes[i*2+1] = ls.byte[1];
-		}		
-	}
-	else
-	{
-		for(i=0;i<stateLength;i++)
-		{
-			ls.svalue = states[i];
-			bytes[i*2] = ls.byte[1];
-			bytes[i*2+1] = ls.byte[0];
-		}			
-	}
-}
-
-void convertUShortArrayToBytes(unsigned short* states, size_t stateLength, unsigned char* bytes)
-{
-	lint16 ls;
-	size_t i;
-	if(sysEndianType==dataEndianType)
-	{
-		for(i=0;i<stateLength;i++)
-		{
-			ls.usvalue = states[i];
-			bytes[i*2] = ls.byte[0];
-			bytes[i*2+1] = ls.byte[1];
-		}		
-	}
-	else
-	{
-		for(i=0;i<stateLength;i++)
-		{
-			ls.usvalue = states[i];
-			bytes[i*2] = ls.byte[1];
-			bytes[i*2+1] = ls.byte[0];
-		}			
-	}
-}
-
-void convertIntArrayToBytes(int* states, size_t stateLength, unsigned char* bytes)
-{
-	lint32 ls;
-	size_t index = 0;
-	size_t i;
-	if(sysEndianType==dataEndianType)
-	{
-		for(i=0;i<stateLength;i++)
-		{
-			index = i << 2; //==i*4
-			ls.ivalue = states[i];
-			bytes[index] = ls.byte[0];
-			bytes[index+1] = ls.byte[1];
-			bytes[index+2] = ls.byte[2];
-			bytes[index+3] = ls.byte[3];
-		}		
-	}
-	else
-	{
-		for(i=0;i<stateLength;i++)
-		{
-			index = i << 2; //==i*4
-			ls.ivalue = states[i];
-			bytes[index] = ls.byte[3];
-			bytes[index+1] = ls.byte[2];
-			bytes[index+2] = ls.byte[1];
-			bytes[index+3] = ls.byte[0];
-		}			
-	}
-}
-
-void convertUIntArrayToBytes(unsigned int* states, size_t stateLength, unsigned char* bytes)
-{
-	lint32 ls;
-	size_t index = 0;
-	size_t i;
-	if(sysEndianType==dataEndianType)
-	{
-		for(i=0;i<stateLength;i++)
-		{
-			index = i << 2; //==i*4
-			ls.uivalue = states[i];
-			bytes[index] = ls.byte[0];
-			bytes[index+1] = ls.byte[1];
-			bytes[index+2] = ls.byte[2];
-			bytes[index+3] = ls.byte[3];
-		}		
-	}
-	else
-	{
-		for(i=0;i<stateLength;i++)
-		{
-			index = i << 2; //==i*4
-			ls.uivalue = states[i];
-			bytes[index] = ls.byte[3];
-			bytes[index+1] = ls.byte[2];
-			bytes[index+2] = ls.byte[1];
-			bytes[index+3] = ls.byte[0];
-		}			
-	}
-}
-
-void convertLongArrayToBytes(int64_t* states, size_t stateLength, unsigned char* bytes)
-{
-	lint64 ls;
-	size_t index = 0;
-	size_t i;
-	if(sysEndianType==dataEndianType)
-	{
-		for(i=0;i<stateLength;i++)
-		{
-			index = i << 3; //==i*8
-			ls.lvalue = states[i];
-			bytes[index] = ls.byte[0];
-			bytes[index+1] = ls.byte[1];
-			bytes[index+2] = ls.byte[2];
-			bytes[index+3] = ls.byte[3];
-			bytes[index+4] = ls.byte[4];
-			bytes[index+5] = ls.byte[5];
-			bytes[index+6] = ls.byte[6];
-			bytes[index+7] = ls.byte[7];	
-		}		
-	}
-	else
-	{
-		for(i=0;i<stateLength;i++)
-		{
-			index = i << 3; //==i*8
-			ls.lvalue = states[i];
-			bytes[index] = ls.byte[7];
-			bytes[index+1] = ls.byte[6];
-			bytes[index+2] = ls.byte[5];
-			bytes[index+3] = ls.byte[4];
-			bytes[index+4] = ls.byte[3];
-			bytes[index+5] = ls.byte[2];
-			bytes[index+6] = ls.byte[1];
-			bytes[index+7] = ls.byte[0];	
-		}			
-	}
-}
-
-void convertULongArrayToBytes(uint64_t* states, size_t stateLength, unsigned char* bytes)
-{
-	lint64 ls;
-	size_t index = 0;
-	size_t i;
-	if(sysEndianType==dataEndianType)
-	{
-		for(i=0;i<stateLength;i++)
-		{
-			index = i << 3; //==i*8
-			ls.ulvalue = states[i];
-			bytes[index] = ls.byte[0];
-			bytes[index+1] = ls.byte[1];
-			bytes[index+2] = ls.byte[2];
-			bytes[index+3] = ls.byte[3];
-			bytes[index+4] = ls.byte[4];
-			bytes[index+5] = ls.byte[5];
-			bytes[index+6] = ls.byte[6];
-			bytes[index+7] = ls.byte[7];			
-		}		
-	}
-	else
-	{
-		for(i=0;i<stateLength;i++)
-		{
-			index = i << 3; //==i*8
-			ls.ulvalue = states[i];
-			bytes[index] = ls.byte[7];
-			bytes[index+1] = ls.byte[6];
-			bytes[index+2] = ls.byte[5];
-			bytes[index+3] = ls.byte[4];
-			bytes[index+4] = ls.byte[3];
-			bytes[index+5] = ls.byte[2];
-			bytes[index+6] = ls.byte[1];
-			bytes[index+7] = ls.byte[0];	
-		}			
-	}
-}
-
-
 inline size_t bytesToSize(unsigned char* bytes)
 {
 	size_t result = 0;
@@ -803,45 +295,6 @@ inline void sizeToBytes(unsigned char* outBytes, size_t size)
 		intToBytes_bigEndian(outBytes, size);//4
 	else
 		longToBytes_bigEndian(outBytes, size);//8
-}
-
-/**
- * put 'buf_nbBits' bits represented by buf into a long byte stream (the current output byte pointer is p, where offset is the number of bits already filled out for this byte so far)
- * */
-void put_codes_to_output(unsigned int buf, int bitSize, unsigned char** p, int* lackBits, size_t *outSize)
-{
-	int byteSize, byteSizep;
-	if(*lackBits == 0)
-	{
-		byteSize = bitSize%8==0 ? bitSize/8 : bitSize/8+1; //it's equal to the number of bytes involved (for *outSize)
-		byteSizep = bitSize >> 3; //it's used to move the pointer p for next data
-		intToBytes_bigEndian(*p, buf);
-		(*p) += byteSizep;
-		*outSize += byteSize;
-		(*lackBits) = bitSize%8==0 ? 0 : 8 - bitSize%8;
-	}
-	else
-	{
-		**p = (**p) | (unsigned char)(buf >> (32 - *lackBits));
-		if((*lackBits) < bitSize)
-		{
-			(*p)++;
-			int newCode = buf << (*lackBits);
-			intToBytes_bigEndian(*p, newCode);
-			bitSize -= *lackBits;
-			byteSizep = bitSize >> 3; // =bitSize/8
-			byteSize = bitSize%8==0 ? byteSizep : byteSizep+1;
-			*p += byteSizep;
-			(*outSize)+=byteSize;
-			(*lackBits) = bitSize%8==0 ? 0 : 8 - bitSize%8;
-		}
-		else
-		{
-			(*lackBits) -= bitSize;
-			if(*lackBits==0)
-				(*p)++;
-		}
-	}
 }
 
 void convertSZParamsToBytes(sz_params* params, unsigned char* result)
@@ -870,80 +323,6 @@ void convertSZParamsToBytes(sz_params* params, unsigned char* result)
 	buf = (buf << 2) | tmp;
 	//buf = (buf << 2) |  params->pwr_type; //deprecated
 	result[0] = buf;
-	
-    //sampleDistance; //2 bytes 
-    //int16ToBytes_bigEndian(&result[1], params->sampleDistance);
-    
-    //conf_params->predThreshold;  // 2 bytes
-    //short tmp2 = params->predThreshold * 10000;
-    //int16ToBytes_bigEndian(&result[3], tmp2);
-     
-    //errorBoundMode; //4bits(0.5 byte)
-    //result[1] = params->errorBoundMode;
-    
-    //data type (float, double, int8, int16, ....) //10 choices, so 4 bits
-    //result[1] = (result[1] << 4) | (params->dataType & 0x17);
-     
-    //result[5]: abs_err_bound or psnr //4 bytes
-    //result[9]: rel_bound_ratio or pwr_err_bound//4 bytes 
-	/*
-    switch(params->errorBoundMode)
-    {
-	case SZ_ABS:
-		floatToBytes(&result[6-4], (float)(params->absErrBound)); //big_endian
-		memset(&result[10-4], 0, 4);
-		break;
-	case REL:
-		memset(&result[6-4], 0, 4);
-		floatToBytes(&result[10-4], (float)(params->relBoundRatio)); //big_endian
-		break;
-	case ABS_AND_REL:
-	case ABS_OR_REL:
-		floatToBytes(&result[6-4], (float)(params->absErrBound));
-		floatToBytes(&result[10-4], (float)(params->relBoundRatio)); //big_endian
-		break;
-	case PSNR:
-		floatToBytes(&result[6-4], (float)(params->psnr));
-		memset(&result[9-4], 0, 4);
-		break;
-	case ABS_AND_PW_REL:
-	case ABS_OR_PW_REL:
-		floatToBytes(&result[6-4], (float)(params->absErrBound));
-		floatToBytes(&result[10-4], (float)(params->pw_relBoundRatio)); //big_endian	
-		break;
-	case REL_AND_PW_REL:
-	case REL_OR_PW_REL:
-		floatToBytes(&result[6-4], (float)(params->relBoundRatio));
-		floatToBytes(&result[10-4], (float)(params->pw_relBoundRatio)); //big_endian	
-		break;
-	case PW_REL:
-		memset(&result[6-4], 0, 4);
-		floatToBytes(&result[10-4], (float)(params->pw_relBoundRatio)); //big_endian
-		break;		
-	}
-	*/
-   
-    //compressor
-    //result[14-4] = (unsigned char)params->sol_ID;
-      
-	/* remove fmin fmax  intervals
-    if(exe_params->optQuantMode==1)
-		int32ToBytes_bigEndian(&result[16], params->max_quant_intervals);
-	else
-		int32ToBytes_bigEndian(&result[16], params->quantization_intervals);	
-	
-	if(params->dataType==SZ_FLOAT)
-	{
-		floatToBytes(&result[20], params->fmin);
-		floatToBytes(&result[24], params->fmax);		
-	}
-	else
-	{
-		doubleToBytes(&result[20], params->dmin);
-		doubleToBytes(&result[28], params->dmax);		
-	}
-	*/
-
 }
 
 void convertBytesToSZParams(unsigned char* bytes, sz_params* params, sz_exedata* pde_exe)
@@ -968,69 +347,4 @@ void convertBytesToSZParams(unsigned char* bytes, sz_params* params, sz_exedata*
 		params->gzipMode = Z_BEST_COMPRESSION;
 		break;
 	}
-	
-	//params->pwr_type = (flag1 & 0x03) >> 0;
-
-	//params->sampleDistance = bytesToInt16_bigEndian(&bytes[1]);
-	//params->predThreshold = 1.0*bytesToInt16_bigEndian(&bytes[3])/10000.0;
-    
-	/*
-    params->dataType = bytes[1] & 0x07;
-    params->errorBoundMode = (bytes[1] & 0xf0) >> 4;
-
-    switch(params->errorBoundMode)
-    {
-	case SZ_ABS:
-		params->absErrBound = bytesToFloat(&bytes[6-4]);
-		break;
-	case REL:
-		params->relBoundRatio = bytesToFloat(&bytes[10-4]);
-		break;
-	case ABS_AND_REL:
-	case ABS_OR_REL:
-		params->absErrBound = bytesToFloat(&bytes[6-4]);
-		params->relBoundRatio = bytesToFloat(&bytes[10-4]);
-		break;
-	case PSNR:
-		params->psnr = bytesToFloat(&bytes[6-4]);
-		break;
-	case ABS_AND_PW_REL:
-	case ABS_OR_PW_REL:
-		params->absErrBound = bytesToFloat(&bytes[6-4]);
-		params->pw_relBoundRatio = bytesToFloat(&bytes[10-4]);	
-		break;
-	case REL_AND_PW_REL:
-	case REL_OR_PW_REL:
-		params->relBoundRatio = bytesToFloat(&bytes[6-4]);
-		params->pw_relBoundRatio = bytesToFloat(&bytes[10-4]);	
-		break;
-	case PW_REL:
-		params->pw_relBoundRatio = bytesToFloat(&bytes[10-4]);		
-	}
-	
-    params->sol_ID = (int)(bytes[14-4]);
-  
-    if(pde_exe->optQuantMode==1)
-    {
-		params->max_quant_intervals = bytesToInt32_bigEndian(&bytes[16]);
-		params->quantization_intervals = 0;
-	}
-	else
-	{
-		params->max_quant_intervals = 0;
-		params->quantization_intervals = bytesToInt32_bigEndian(&bytes[16]);  
-	}
-	
-	if(params->dataType==SZ_FLOAT)
-	{
-		params->fmin = bytesToFloat(&bytes[20]);
-		params->fmax = bytesToFloat(&bytes[24]);		
-	}
-	else if(params->dataType==SZ_DOUBLE)
-	{
-		params->dmin = bytesToDouble(&bytes[20]);
-		params->dmax = bytesToDouble(&bytes[28]);				
-	}
-	*/
-
 }
