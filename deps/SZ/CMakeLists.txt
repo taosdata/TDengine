@@ -5,6 +5,7 @@ PROJECT(TDengine)
 INCLUDE_DIRECTORIES(sz/include)
 INCLUDE_DIRECTORIES(zlib/)
 INCLUDE_DIRECTORIES(zstd/)
+INCLUDE_DIRECTORIES(zlib/common/)
 
 # source
 AUX_SOURCE_DIRECTORY(sz/src           SRC1)
