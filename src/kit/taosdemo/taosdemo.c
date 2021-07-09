@@ -5104,13 +5104,13 @@ static int32_t generateStbDataTail(
     } else {
         lenOfRow = getRowDataFromSample(
                   data,
-                  remainderBufLen < MAX_DATA_SIZE ? remainderBufLen : MAX_DATA_SIZE,
+                  (remainderBufLen < MAX_DATA_SIZE)?remainderBufLen:MAX_DATA_SIZE,
                   startTime + superTblInfo->timeStampStep * k,
                   superTblInfo,
                   pSamplePos);
     }
 
-    if (lenOfRow > remainderBufLen) {
+    if ((lenOfRow + 1) > remainderBufLen) {
         break;
     }
 
