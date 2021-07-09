@@ -8181,6 +8181,8 @@ static int32_t doLoadAllTableMeta(SSqlObj* pSql, SQueryInfo* pQueryInfo, SSqlNod
 }
 
 static STableMeta* extractTempTableMetaFromSubquery(SQueryInfo* pUpstream) {
+  STableMetaInfo* pUpstreamTableMetaInfo = tscGetMetaInfo(pUpstream, 0);
+
   int32_t numOfColumns = pUpstream->fieldsInfo.numOfOutput;
 
   STableMeta* meta = calloc(1, sizeof(STableMeta) + sizeof(SSchema) * numOfColumns);
@@ -8188,6 +8190,7 @@ static STableMeta* extractTempTableMetaFromSubquery(SQueryInfo* pUpstream) {
 
   STableComInfo *info = &meta->tableInfo;
   info->numOfColumns = numOfColumns;
+  info->precision = pUpstreamTableMetaInfo->pTableMeta->tableInfo.precision;
   info->numOfTags = 0;
 
   int32_t n = 0;
