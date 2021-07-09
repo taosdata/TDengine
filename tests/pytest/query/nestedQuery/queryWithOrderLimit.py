@@ -49,8 +49,8 @@ class TDTestCase:
         tdSql.checkRows(10)
 
         # bug: https://jira.taosdata.com:18080/browse/TD-5043
-        # tdSql.query("select * from (select * from st order by ts desc limit 10 offset 1000)")
-        # tdSql.checkRows(0)
+        tdSql.query("select * from (select * from st order by ts desc limit 10 offset 1000)")
+        tdSql.checkRows(0)
 
         tdSql.query("select avg(value), sum(value) from st group by tbname")
         tdSql.checkRows(self.tables)

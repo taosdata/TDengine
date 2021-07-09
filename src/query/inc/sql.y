@@ -681,7 +681,7 @@ where_opt(A) ::= WHERE expr(X).       {A = X;}
 %type expr {tSqlExpr*}
 %destructor expr {tSqlExprDestroy($$);}
 
-expr(A) ::= LP(X) expr(Y) RP(Z).       {A = Y; A->token.z = X.z; A->token.n = (Z.z - X.z + 1);}
+expr(A) ::= LP(X) expr(Y) RP(Z).       {A = Y; A->exprToken.z = X.z; A->exprToken.n = (Z.z - X.z + 1);}
 
 expr(A) ::= ID(X).               { A = tSqlExprCreateIdValue(&X, TK_ID);}
 expr(A) ::= ID(X) DOT ID(Y).     { X.n += (1+Y.n); A = tSqlExprCreateIdValue(&X, TK_ID);}
