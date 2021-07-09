@@ -1304,7 +1304,8 @@ static void hashIntervalAgg(SOperatorInfo* pOperatorInfo, SResultRowInfo* pResul
         j++;
       }
 
-      for(; pResultRowInfo->pResult[j] != pResultRowInfo->current; ++j) {
+      SResultRow* current = pResultRowInfo->current;
+      for(; pResultRowInfo->pResult[j] != current && j < pResultRowInfo->size; ++j) {
       SResultRow* pRes = pResultRowInfo->pResult[j];
       if (pRes->closed) {
         assert(resultRowInterpolated(pRes, RESULT_ROW_START_INTERP) && resultRowInterpolated(pRes, RESULT_ROW_END_INTERP));
