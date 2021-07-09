@@ -95,7 +95,7 @@ void vnodeCtrlFlow(int32_t vgId, int32_t level) {
 }
 
 void vnodeStartSyncFile(int32_t vgId) {
-  SVnodeObj *pVnode = vnodeAcquire(vgId);
+  SVnodeObj *pVnode = vnodeAcquireNotClose(vgId);
   if (pVnode == NULL) {
     vError("vgId:%d, vnode not found while start filesync", vgId);
     return;
@@ -155,7 +155,7 @@ int32_t vnodeWriteToCache(int32_t vgId, void *wparam, int32_t qtype, void *rpara
 }
 
 int32_t vnodeGetVersion(int32_t vgId, uint64_t *fver, uint64_t *wver) {
-  SVnodeObj *pVnode = vnodeAcquire(vgId);
+  SVnodeObj *pVnode = vnodeAcquireNotClose(vgId);
   if (pVnode == NULL) {
     vError("vgId:%d, vnode not found while write to cache", vgId);
     return -1;

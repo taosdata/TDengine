@@ -57,8 +57,8 @@ public class TSDBPreparedStatement extends TSDBStatement implements PreparedStat
                     parameterCnt++;
                 }
             }
-            parameters = new Object[parameterCnt];
         }
+        parameters = new Object[parameterCnt];
 
         if (parameterCnt > 1) {
             // the table name is also a parameter, so ignore it.
