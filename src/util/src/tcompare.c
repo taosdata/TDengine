@@ -64,21 +64,21 @@ int32_t compareInt8Val(const void *pLeft, const void *pRight) {
 }
 
 int32_t compareUint32Val(const void *pLeft, const void *pRight) {
-  int32_t left = GET_UINT32_VAL(pLeft), right = GET_UINT32_VAL(pRight);
+  uint32_t left = GET_UINT32_VAL(pLeft), right = GET_UINT32_VAL(pRight);
   if (left > right) return 1;
   if (left < right) return -1;
   return 0;
 }
 
 int32_t compareUint64Val(const void *pLeft, const void *pRight) {
-  int64_t left = GET_UINT64_VAL(pLeft), right = GET_UINT64_VAL(pRight);
+  uint64_t left = GET_UINT64_VAL(pLeft), right = GET_UINT64_VAL(pRight);
   if (left > right) return 1;
   if (left < right) return -1;
   return 0;
 }
 
 int32_t compareUint16Val(const void *pLeft, const void *pRight) {
-  int16_t left = GET_UINT16_VAL(pLeft), right = GET_UINT16_VAL(pRight);
+  uint16_t left = GET_UINT16_VAL(pLeft), right = GET_UINT16_VAL(pRight);
   if (left > right) return 1;
   if (left < right) return -1;
   return 0;

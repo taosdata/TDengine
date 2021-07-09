@@ -22,19 +22,24 @@ extern "C" {
 
 #include "texpr.h"
 
+#define FILTER_DEFAULT_GROUP_SIZE 4
 #define FILTER_DEFAULT_UNIT_SIZE 4
 #define FILTER_DEFAULT_FIELD_SIZE 4
 #define FILTER_DEFAULT_GROUP_UNIT_SIZE 2
 
 enum {
-  F_FIELD_COLUMN = 0,
-  F_FIELD_VALUE,
-  F_FIELD_MAX
+  FLD_TYPE_COLUMN = 1,
+  FLD_TYPE_VALUE = 2,  
+  FLD_TYPE_MAX = 3,
+  FLD_DESC_NO_FREE = 4,
+  FLD_DATA_NO_FREE = 8,
 };
 
 enum {
   MR_ST_START = 1,
   MR_ST_FIN = 2,
+  MR_ALL = 4,
+  MR_NONE = 8,
 };
 
 enum {
@@ -46,16 +51,16 @@ enum {
   RA_NULL    = 2,
 };
 
+enum {
+  FILTER_ALL = 1,
+  FILTER_NONE = 2,
+  FILTER_NO_REWRITE = 4,
+};
+
 typedef struct OptrStr {
   uint16_t optr;
   char    *str;
 } OptrStr;
-
-typedef struct SFilterColRange {  
-  uint16_t idx;  //column field idx
-  int64_t s;
-  int64_t e;
-} SFilterColRange;
 
 typedef struct SFilterRange {
   char sflag;
@@ -63,6 +68,13 @@ typedef struct SFilterRange {
   int64_t s;
   int64_t e;
 } SFilterRange;
+
+typedef struct SFilterColRange {  
+  uint16_t idx;  //column field idx
+  bool isNull;
+  bool notNull;
+  SFilterRange ra;
+} SFilterColRange;
 
 
 typedef struct SFilterRangeNode {
@@ -81,7 +93,7 @@ typedef struct SFilterRMCtx {
 } SFilterRMCtx ;
 
 typedef struct SFilterField {
-  uint16_t type;
+  uint16_t flag;
   void*    desc;
   void*    data;
   int64_t  range[];
@@ -99,13 +111,21 @@ typedef struct SFilterFieldId {
 } SFilterFieldId;
 
 typedef struct SFilterGroup {
+  uint16_t  unitSize;
   uint16_t  unitNum;
   uint16_t *unitIdxs;
   uint8_t  *unitFlags;  // !unit result
 } SFilterGroup;
 
+typedef struct SFilterGroupCtx {
+  uint16_t num;
+  int32_t *col;
+  SArray *colRange;
+} SFilterGroupCtx;
+
 typedef struct SFilterCompare {
   __compar_fn_t pCompareFunc;
+  int32_t       type;
   uint8_t       optr;
 } SFilterCompare;
 
@@ -116,10 +136,11 @@ typedef struct SFilterUnit {
 } SFilterUnit;
 
 typedef struct SFilterInfo {
+  uint32_t      flags;
   uint16_t      unitSize;
   uint16_t      unitNum;
   uint16_t      groupNum;
-  SFilterFields fields[F_FIELD_MAX];
+  SFilterFields fields[FLD_TYPE_MAX];
   SFilterGroup *groups;
   SFilterUnit  *units;
   uint8_t      *unitRes;    // result
@@ -133,16 +154,24 @@ typedef struct SFilterInfo {
 
 #define MR_EMPTY_RES(ctx) (ctx->rs == NULL)
 
-#define MR_GET_FLAG(st, f) (st & f)
-#define MR_SET_FLAG(st, f) st |= (f)
+#define SET_OPTR(o) do {if (o == TSDB_RELATION_ISNULL) { isnull = true; } else if (o == TSDB_RELATION_NOTNULL) { notnull = true; } } while (0)
+#define CHK_OPTR()  (isnull == true && notnull == true)
+
+
+#define FILTER_GET_FLAG(st, f) (st & f)
+#define FILTER_SET_FLAG(st, f) st |= (f)
+#define FILTER_CLR_FLAG(st, f) st &= (~f)
 
 #define SIMPLE_COPY_VALUES(dst, src) *((int64_t *)dst) = *((int64_t *)src)
 
-#define RESET_RANGE(ctx, r) do { r->next = ctx->rf; ctx->rf = r; } while (0)
-#define FREE_RANGE(ctx, r) do { if (r->prev) { r->prev->next = r->next; } else { ctx->rs = r->next;} if (r->next) { r->next->prev = r->prev; } RESET_RANGE(ctx, r); } while (0)
-#define FREE_FROM_RANGE(ctx, r) do { if (r->prev) { r->prev->next = NULL; } else { ctx->rs = NULL;} while (r) {SFilterRangeNode *n = r->next; RESET_RANGE(ctx, r); r = n; } } while (0)
-#define INSERT_RANGE(ctx, r, t, s, e) do { SFilterRangeNode *n = filterNewRange(ctx, t, s, e); n->prev = r->prev; if (r->prev) { r->prev->next = n; } else { ctx->rs = n; } r->prev = n; n->next = r; } while (0)
-#define APPEND_RANGE(ctx, r, t, s, e) do { SFilterRangeNode *n = filterNewRange(ctx, t, s, e); n->prev = r; if (r) { r->next = n; } else { ctx->rs = n; } } while (0)
+#define FILTER_GREATER(cr,sflag,eflag) ((cr > 0) || ((cr == 0) && (FILTER_GET_FLAG(sflag,RA_EXCLUDE) || FILTER_GET_FLAG(eflag,RA_EXCLUDE))))
+#define FILTER_COPY_RA(dst, src) do { (dst)->sflag = (src)->sflag; (dst)->eflag = (src)->eflag; (dst)->s = (src)->s; (dst)->e = (src)->e; } while (0)
+
+#define RESET_RANGE(ctx, r) do { (r)->next = (ctx)->rf; (ctx)->rf = r; } while (0)
+#define FREE_RANGE(ctx, r) do { if ((r)->prev) { (r)->prev->next = (r)->next; } else { (ctx)->rs = (r)->next;} if ((r)->next) { (r)->next->prev = (r)->prev; } RESET_RANGE(ctx, r); } while (0)
+#define FREE_FROM_RANGE(ctx, r) do { if ((r)->prev) { (r)->prev->next = NULL; } else { (ctx)->rs = NULL;} while (r) {SFilterRangeNode *n = (r)->next; RESET_RANGE(ctx, r); r = n; } } while (0)
+#define INSERT_RANGE(ctx, r, ra) do { SFilterRangeNode *n = filterNewRange(ctx, ra); n->prev = (r)->prev; if ((r)->prev) { (r)->prev->next = n; } else { (ctx)->rs = n; } (r)->prev = n; n->next = r; } while (0)
+#define APPEND_RANGE(ctx, r, ra) do { SFilterRangeNode *n = filterNewRange(ctx, ra); n->prev = (r); if (r) { (r)->next = n; } else { (ctx)->rs = n; } } while (0)
 
 #define ERR_RET(c) do { int32_t _code = c; if (_code != TSDB_CODE_SUCCESS) { return _code; } } while (0)
 #define ERR_LRET(c,...) do { int32_t _code = c; if (_code != TSDB_CODE_SUCCESS) { qError(__VA_ARGS__); return _code; } } while (0)
@@ -155,16 +184,21 @@ typedef struct SFilterInfo {
 #define CHK_LRET(c, r,...) do { if (c) { qError(__VA_ARGS__); return r; } } while (0)
 
 #define FILTER_GET_FIELD(i, id) (&((i)->fields[(id).type].fields[(id).idx]))
+#define FILTER_GET_COL_FIELD(i, idx) (&((i)->fields[FLD_TYPE_COLUMN].fields[idx]))
 #define FILTER_GET_COL_FIELD_TYPE(fi) (((SSchema *)((fi)->desc))->type)
+#define FILTER_GET_COL_FIELD_DESC(fi) ((SSchema *)((fi)->desc))
 #define FILTER_GET_COL_FIELD_DATA(fi, ri) ((fi)->data + ((SSchema *)((fi)->desc))->bytes * (ri))
 #define FILTER_GET_VAL_FIELD_TYPE(fi) (((tVariant *)((fi)->desc))->nType)
 #define FILTER_GET_VAL_FIELD_DATA(fi) ((fi)->data)
+#define FILTER_GET_TYPE(fl) ((fl) & FLD_TYPE_MAX)
 
-#define FILTER_GROUP_UNIT(i, g, uid) ((i)->units[(g)->unitIdxs[uid]])
+#define FILTER_GROUP_UNIT(i, g, uid) ((i)->units + (g)->unitIdxs[uid])
 #define FILTER_UNIT_LEFT_FIELD(i, u) FILTER_GET_FIELD(i, (u)->left)
 #define FILTER_UNIT_RIGHT_FIELD(i, u) FILTER_GET_FIELD(i, (u)->right)
-#define FILTER_UNIT_DATA_TYPE(i, u) FILTER_GET_COL_FIELD_TYPE(FILTER_UNIT_LEFT_FIELD(i, u))
-#define FILTER_UNIT_VAL(i, u) FILTER_GET_VAL_FIELD_DATA(FILTER_UNIT_RIGHT_FIELD(i, u))
+#define FILTER_UNIT_DATA_TYPE(u) ((u)->compare.type)
+#define FILTER_UNIT_COL_DESC(i, u) FILTER_GET_COL_FIELD_DESC(FILTER_UNIT_LEFT_FIELD(i, u))
+#define FILTER_UNIT_COL_DATA(i, u, ri) FILTER_GET_COL_FIELD_DATA(FILTER_UNIT_LEFT_FIELD(i, u), ri)
+#define FILTER_UNIT_VAL_DATA(i, u) FILTER_GET_VAL_FIELD_DATA(FILTER_UNIT_RIGHT_FIELD(i, u))
 #define FILTER_UNIT_COL_IDX(u) ((u)->left.idx)
 #define FILTER_UNIT_OPTR(u) ((u)->compare.optr)
 
@@ -177,12 +211,12 @@ typedef struct SFilterInfo {
 typedef int32_t(*filter_desc_compare_func)(const void *, const void *);
 
 
-extern int32_t filterInitFromTree(tExprNode* tree, SFilterInfo **pinfo);
+extern int32_t filterInitFromTree(tExprNode* tree, SFilterInfo **pinfo, uint32_t options);
 extern bool filterExecute(SFilterInfo *info, int32_t numOfRows, int8_t* p);
 extern int32_t filterSetColFieldData(SFilterInfo *info, int16_t colId, void *data);
 extern void* filterInitMergeRange(int32_t type, int32_t options);
 extern int32_t filterGetMergeRangeNum(void* h, int32_t* num);
-extern int32_t filterGetMergeRangeRes(void* h, void *s, void* e);
+extern int32_t filterGetMergeRangeRes(void* h, SFilterRange *ra);
 extern int32_t filterFreeMergeRange(void* h);
 extern int32_t filterGetTimeRange(SFilterInfo *info, STimeWindow *win);
 #ifdef __cplusplus

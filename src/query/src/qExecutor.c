@@ -6966,7 +6966,7 @@ int32_t createQueryFilter(char *data, uint16_t len, SFilterInfo** pFilters) {
     return TSDB_CODE_QRY_APP_ERROR;
   }
 
-  int32_t ret = filterInitFromTree(expr, pFilters);
+  int32_t ret = filterInitFromTree(expr, pFilters, 0);
   tExprTreeDestroy(expr, NULL);
 
   return ret;
