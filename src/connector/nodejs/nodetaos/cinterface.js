@@ -254,7 +254,7 @@ CTaosInterface.prototype.config = function config() {
 CTaosInterface.prototype.connect = function connect(host = null, user = "root", password = "taosdata", db = null, port = 0) {
   let _host, _user, _password, _db, _port;
   try {
-    _host = host != null ? ref.allocCString(host) : ref.alloc(ref.types.char_ptr, ref.NULL);
+    _host = host != null ? ref.allocCString(host) : ref.NULL;
   }
   catch (err) {
     throw "Attribute Error: host is expected as a str";
@@ -272,7 +272,7 @@ CTaosInterface.prototype.connect = function connect(host = null, user = "root", 
     throw "Attribute Error: password is expected as a str";
   }
   try {
-    _db = db != null ? ref.allocCString(db) : ref.alloc(ref.types.char_ptr, ref.NULL);
+    _db = db != null ? ref.allocCString(db) : ref.NULL;
   }
   catch (err) {
     throw "Attribute Error: db is expected as a str";
