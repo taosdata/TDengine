@@ -16,6 +16,8 @@ import pandas as pd
 import argparse
 import os.path
 import json
+from util.log import tdLog
+from util.sql import tdSql
 
 
 class taosdemoPerformace:

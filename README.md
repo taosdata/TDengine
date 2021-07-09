@@ -175,7 +175,7 @@ cmake .. && cmake --build .
 
 # Installing
 
-After building successfully, TDengine can be installed by:
+After building successfully, TDengine can be installed by: (On Windows platform, the following command should be `nmake install`)
 ```bash
 sudo make install
 ```
@@ -197,7 +197,7 @@ If TDengine shell connects the server successfully, welcome messages and version
 
 ## Quick Run
 
-If you don't want to run TDengine as a service, you can run it in current shell. For example, to quickly start a TDengine server after building, run the command below in terminal:
+If you don't want to run TDengine as a service, you can run it in current shell. For example, to quickly start a TDengine server after building, run the command below in terminal: (We take Linux as an example, command on Windows will be `taosd.exe`)
 ```bash
 ./build/bin/taosd -c test/cfg
 ```
