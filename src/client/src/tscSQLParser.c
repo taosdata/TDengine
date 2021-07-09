@@ -5015,7 +5015,7 @@ int32_t validateFillNode(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SSqlNode* pSqlNo
   
   if (pQueryInfo->fillVal == NULL) {
     pQueryInfo->fillVal      = calloc(numOfFields, sizeof(int64_t));
-    pQueryInfo->numOfFillVal = numOfFields;
+    pQueryInfo->numOfFillVal = (int32_t)numOfFields;
     if (pQueryInfo->fillVal == NULL) {
       return TSDB_CODE_TSC_OUT_OF_MEMORY;
     }
