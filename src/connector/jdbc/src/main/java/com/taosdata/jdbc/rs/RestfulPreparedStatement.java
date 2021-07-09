@@ -22,16 +22,16 @@ public class RestfulPreparedStatement extends RestfulStatement implements Prepar
         super(conn, database);
         this.rawSql = sql;
 
+        int parameterCnt = 0;
         if (sql.contains("?")) {
-            int parameterCnt = 0;
             for (int i = 0; i < sql.length(); i++) {
                 if ('?' == sql.charAt(i)) {
                     parameterCnt++;
                 }
             }
-            parameters = new Object[parameterCnt];
             this.isPrepared = true;
         }
+        parameters = new Object[parameterCnt];
 
         // build parameterMetaData
         this.parameterMetaData = new RestfulParameterMetaData(parameters);
