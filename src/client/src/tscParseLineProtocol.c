@@ -277,6 +277,9 @@ typedef struct {
   uint8_t type;
   int16_t length;
   char* value;
+
+  //===================================
+  SSchema* fieldSchema;
 } TAOS_SML_KV;
 
 typedef struct {
@@ -415,7 +418,6 @@ int32_t loadTableMeta(TAOS* taos, char* tableName, SSmlSTableSchema* schema) {
   }
 
   return code;
-
 }
 
 typedef enum {
@@ -465,7 +467,6 @@ int32_t getFieldBytesFromSmlKv(TAOS_SML_KV* kv, int32_t* bytes) {
       taosMbsToUcs4(kv->value, kv->length, ucs, kv->length * TSDB_NCHAR_SIZE, &bytesNeeded);
       free(ucs);
       *bytes =  bytesNeeded + VARSTR_HEADER_SIZE;
-
     } else if (kv->type == TSDB_DATA_TYPE_BINARY) {
       *bytes = kv->length + VARSTR_HEADER_SIZE;
     }
@@ -503,6 +504,9 @@ int32_t addTaosFieldToHashAndArray(TAOS_SML_KV* smlKv, SHashObj* hash, SArray* a
     pField = taosArrayPush(array, &field);
     taosHashPut(hash, field.name, tagKeyLen, &pField, POINTER_BYTES);
   }
+
+  smlKv->fieldSchema = pField;
+
   return 0;
 }
 
@@ -700,9 +704,11 @@ int32_t applySchemaAction(TAOS* taos, SSchemaAction* action) {
         *pos = ','; ++pos; --freeBytes;
       }
       --pos; ++freeBytes;
+
       outBytes = snprintf(pos, freeBytes, ") tags (");
-      int numTags = taosArrayGetSize(action->createSTable.tags);
       pos += outBytes; freeBytes -= outBytes;
+
+      int numTags = taosArrayGetSize(action->createSTable.tags);
       for (int32_t i = 0; i < numTags; ++i) {
         SSchema* field = taosArrayGet(action->createSTable.tags, i);
         buildColumnDescription(field, pos, freeBytes, &outBytes);
@@ -716,7 +722,43 @@ int32_t applySchemaAction(TAOS* taos, SSchemaAction* action) {
       break;
     }
     case SCHEMA_ACTION_CREATE_CTABLE: {
-      
+//      SCreateCTableActionInfo* pInfo = &action->createCTable;
+//      SArray* bindParams = taosArrayInit(2 + 2 * pInfo->tagNum, sizeof(TAOS_BIND));
+//      outBytes = sprintf(result, "create table ? using ?(");
+//      char* pos = result + outBytes; int32_t freeBytes = capacity-outBytes;
+//      uintptr_t lenSTableName = strlen(pInfo->sTableName);
+//      uintptr_t lenCTableName = strlen(pInfo->cTableName);
+//      TAOS_BIND tbCTableName = {.is_null = NULL, .buffer_type = TSDB_DATA_TYPE_BINARY,
+//                                .buffer = pInfo->cTableName, .length = &lenCTableName};
+//      TAOS_BIND tbSTableName = {.is_null = NULL, .buffer_type = TSDB_DATA_TYPE_BINARY,
+//                                .buffer = pInfo->sTableName, .length = &lenSTableName};
+//      taosArrayPush(bindParams, &tbCTableName);
+//      taosArrayPush(bindParams, &tbSTableName);
+//      for (int32_t i = 0; i < pInfo->tagNum; ++i) {
+//        outBytes = snprintf(pos, freeBytes, "?,");
+//
+//        TAOS_SML_KV* tagKv = pInfo->tags + i;
+//        TAOS_BIND tbTag = {.is_null = NULL, .buffer_type = TSDB_DATA_TYPE_BINARY,
+//                            .buffer = tagKv->key, .length = };
+//        pos += outBytes; freeBytes -= outBytes;
+//      }
+//      --pos; ++freeBytes;
+//
+//      outBytes = snprintf(pos, freeBytes, ") tags (");
+//      pos += outBytes; freeBytes -= outBytes;
+//      for (int32_t i = 0; i < pInfo->tagNum; ++i) {
+//        TAOS_SML_KV* tagKv = pInfo->tags + i;
+//        outBytes = snprintf(pos, freeBytes, "?,");
+//        pos += outBytes; freeBytes -= outBytes;
+//      }
+//      pos--; ++freeBytes;
+//      outBytes = snprintf(pos, freeBytes, ")");
+//
+//      TAOS_STMT* stmt = taos_stmt_init(taos);
+//      taos_stmt_prepare(stmt, result, strlen(result));
+//
+//
+//      taos_stmt_bind_param(stmt, (TAOS_BIND*)bindParams);
       break;
     }
     default:
@@ -726,6 +768,55 @@ int32_t applySchemaAction(TAOS* taos, SSchemaAction* action) {
   return code;
 }
 
+int32_t transformIntoPreparedStatement(SArray* points) {
+  size_t numPoints = taosArrayGetSize(points);
+
+//  SHashObj* tag2bind = taosHashInit(32, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, false);
+//  SHashObj* field2multiBind = taosHashInit(128, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, false);
+
+  for (int32_t i = 0; i < numPoints; ++i) {
+    TAOS_SML_DATA_POINT * point = taosArrayGet(points, i);
+    char tableKey[256];
+    snprintf(tableKey, 256, "%s.%s", point->stableName, point->childTableName);
+
+  }
+  return 0;
+}
+
+int32_t insertBatch(TAOS* taos, const char* sTableName, char* cTableName, SSchema* tagsSchema, int numTags, TAOS_BIND* tagBind,
+                  SSchema* colsSchema, int numCols, TAOS_MULTI_BIND* colBind) {
+  TAOS_STMT* stmt = taos_stmt_init(taos);
+
+  char result[TSDB_MAX_BINARY_LEN] = {0};
+  sprintf(result, "insert into ? using %s(", sTableName);
+  for (int i = 0; i < numTags; ++i) {
+    snprintf(result+strlen(result), TSDB_MAX_BINARY_LEN-strlen(result), "%s,", tagsSchema[i].name);
+  }
+  snprintf(result + strlen(result)-1, TSDB_MAX_BINARY_LEN-strlen(result)+1, ") tags (");
+
+  for (int i = 0; i < numTags; ++i) {
+    snprintf(result+strlen(result), TSDB_MAX_BINARY_LEN-strlen(result), "?,");
+  }
+  snprintf(result + strlen(result)-1, TSDB_MAX_BINARY_LEN-strlen(result)+1, ") (");
+
+  for (int i = 0; i < numCols; ++i) {
+    snprintf(result+strlen(result), TSDB_MAX_BINARY_LEN-strlen(result), "%s,", colsSchema[i].name);
+  }
+  snprintf(result + strlen(result)-1, TSDB_MAX_BINARY_LEN-strlen(result)+1, ") values (");
+
+  for (int i = 0; i < numCols; ++i) {
+    snprintf(result+strlen(result), TSDB_MAX_BINARY_LEN-strlen(result), "?,");
+  }
+  snprintf(result + strlen(result)-1, TSDB_MAX_BINARY_LEN-strlen(result)+1, ")");
+
+  int32_t code = 0;
+  code = taos_stmt_prepare(stmt, result, strlen(result));
+
+  code = taos_stmt_set_tbname_tags(stmt, cTableName, tagBind);
+  code = taos_stmt_bind_param_batch(stmt, colBind);
+  code = taos_stmt_execute(stmt);
+  return code;
+}
 //todo: table/column length check
 //todo: type check
 //todo: taosmbs2ucs4 check
