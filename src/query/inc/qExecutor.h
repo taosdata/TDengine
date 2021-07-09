@@ -279,6 +279,7 @@ typedef struct SQueryRuntimeEnv {
   bool                  enableGroupData;
   SDiskbasedResultBuf*  pResultBuf;       // query result buffer based on blocked-wised disk file
   SHashObj*             pResultRowHashTable; // quick locate the window object for each result
+  SHashObj*             pResultRowListSet;   // used to check if current ResultRowInfo has ResultRow object or not
   char*                 keyBuf;           // window key buffer
   SResultRowPool*       pool;             // window result object pool
   char**                prevRow;
