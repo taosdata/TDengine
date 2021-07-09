@@ -41,10 +41,10 @@ fi
 
 if [ "$osType" != "Darwin" ]; then
   if [ "$pagMode" == "lite" ]; then
-    #strip ${build_dir}/bin/taosd 
+    #strip ${build_dir}/bin/taosd
     strip ${build_dir}/bin/taos
     bin_files="${build_dir}/bin/taos ${script_dir}/remove_client.sh"
-  else  
+  else
     bin_files="${build_dir}/bin/taos ${build_dir}/bin/taosdump ${build_dir}/bin/taosdemo \
                ${script_dir}/remove_client.sh ${script_dir}/set_core.sh ${script_dir}/get_client.sh ${script_dir}/taosd-dump-cfg.gdb"
   fi
@@ -68,6 +68,39 @@ mkdir -p ${install_dir}
 mkdir -p ${install_dir}/inc && cp ${header_files} ${install_dir}/inc
 mkdir -p ${install_dir}/cfg && cp ${cfg_dir}/taos.cfg ${install_dir}/cfg/taos.cfg
 mkdir -p ${install_dir}/bin && cp ${bin_files} ${install_dir}/bin && chmod a+x ${install_dir}/bin/*
+
+if [ -f ${build_dir}/bin/jemalloc-config ]; then
+    mkdir -p ${install_dir}/jemalloc/{bin,lib,lib/pkgconfig,include/jemalloc,share/doc/jemalloc,share/man/man3}
+    cp ${build_dir}/bin/jemalloc-config ${install_dir}/jemalloc/bin
+    if [ -f ${build_dir}/bin/jemalloc.sh ]; then
+        cp ${build_dir}/bin/jemalloc.sh ${install_dir}/jemalloc/bin
+    fi
+    if [ -f ${build_dir}/bin/jeprof ]; then
+        cp ${build_dir}/bin/jeprof ${install_dir}/jemalloc/bin
+    fi
+    if [ -f ${build_dir}/include/jemalloc/jemalloc.h ]; then
+        cp ${build_dir}/include/jemalloc/jemalloc.h ${install_dir}/jemalloc/include/jemalloc
+    fi
+    if [ -f ${build_dir}/lib/libjemalloc.so.2 ]; then
+        cp ${build_dir}/lib/libjemalloc.so.2 ${install_dir}/jemalloc/lib
+        ln -sf libjemalloc.so.2 ${install_dir}/jemalloc/lib/libjemalloc.so
+    fi
+    if [ -f ${build_dir}/lib/libjemalloc.a ]; then
+        cp ${build_dir}/lib/libjemalloc.a ${install_dir}/jemalloc/lib
+    fi
+    if [ -f ${build_dir}/lib/libjemalloc_pic.a ]; then
+        cp ${build_dir}/lib/libjemalloc_pic.a ${install_dir}/jemalloc/lib
+    fi
+    if [ -f ${build_dir}/lib/pkgconfig/jemalloc.pc ]; then
+        cp ${build_dir}/lib/pkgconfig/jemalloc.pc ${install_dir}/jemalloc/lib/pkgconfig
+    fi
+    if [ -f ${build_dir}/share/doc/jemalloc/jemalloc.html ]; then
+        cp ${build_dir}/share/doc/jemalloc/jemalloc.html ${install_dir}/jemalloc/share/doc/jemalloc
+    fi
+    if [ -f ${build_dir}/share/man/man3/jemalloc.3 ]; then
+        cp ${build_dir}/share/man/man3/jemalloc.3 ${install_dir}/jemalloc/share/man/man3
+    fi
+fi
 
 cd ${install_dir}
 
@@ -106,7 +139,7 @@ if [[ "$pagMode" != "lite" ]] && [[ "$cpuType" != "aarch32" ]]; then
   cp -r ${examples_dir}/C#     ${install_dir}/examples
 fi
 # Copy driver
-mkdir -p ${install_dir}/driver 
+mkdir -p ${install_dir}/driver
 cp ${lib_files} ${install_dir}/driver
 
 # Copy connector
@@ -135,7 +168,7 @@ fi
 
 # exit 1
 
-cd ${release_dir} 
+cd ${release_dir}
 
 if [ "$verMode" == "cluster" ]; then
   pkg_name=${install_dir}-${osType}-${cpuType}
@@ -152,8 +185,8 @@ fi
 
 if [ "$verType" == "beta" ]; then
   pkg_name=${pkg_name}-${verType}
-elif [ "$verType" == "stable" ]; then  
-  pkg_name=${pkg_name} 
+elif [ "$verType" == "stable" ]; then
+  pkg_name=${pkg_name}
 else
   echo "unknow verType, nor stable or beta"
   exit 1
