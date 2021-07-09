@@ -1,5 +1,5 @@
 const FieldTypes = require('./constants');
-
+const util = require('util');
 /**
  * Various objects such as TaosRow and TaosColumn that help make parsing data easier
  * @module TaosObjects
@@ -42,11 +42,53 @@ function TaosField(field) {
  * @param {Date} date - A Javascript date time object or the time in milliseconds past 1970-1-1 00:00:00.000
  */
 class TaosTimestamp extends Date {
-  constructor(date, micro = false) {
-    super(date);
-    this._type = 'TaosTimestamp';
-    if (micro) {
-      this.microTime = date - Math.floor(date);
+  constructor(date, precision = 0) {
+    if (precision === 1) {
+      super(Math.floor(date/1000));
+      this.precisionExtras = date % 1000;
+    } else if (precision === 2) {
+      super(parseInt(date/1000000));
+      // use BigInt to fix: 1625801548423914405 % 1000000 = 914496 which not expected (914405)
+      this.precisionExtras = parseInt(BigInt(date) % 1000000n);
+    } else {
+      super(parseInt(date));
+    }
+    this.precision = precision;
+  }
+  taosTimestamp() {
+    if (this.precision == 1) {
+      return (this * 1000 + this.precisionExtras);
+    } else if (this.precision == 2) {
+      return (this * 1000000 + this.precisionExtras);
+    } else {
+      return Math.floor(this);
+    }
+  }
+  getMicroseconds() {
+    if (this.precision == 1) {
+      return this.getMilliseconds() * 1000 + this.precisionExtras;
+    } else if (this.precision == 2) {
+      return this.getMilliseconds() * 1000 + this.precisionExtras / 1000;
+    } else {
+      return 0;
+    }
+  }
+  getNanoseconds() {
+    if (this.precision == 1) {
+      return this.getMilliseconds() * 1000000 + this.precisionExtras * 1000;
+    } else if (this.precision == 2) {
+      return this.getMilliseconds() * 1000000 + this.precisionExtras;
+    } else {
+      return 0;
+    }
+  }
+  _precisionExtra() {
+    if (this.precision == 1) {
+      return String(this.precisionExtras).padStart(3, '0');
+    } else if (this.precision == 2) {
+      return String(this.precisionExtras).padStart(6, '0');
+    } else {
+      return '';
     }
   }
   /**
@@ -73,7 +115,14 @@ class TaosTimestamp extends Date {
         ':' + pad(this.getMinutes()) +
         ':' + pad(this.getSeconds()) +
         '.' + pad2(this.getMilliseconds()) +
-        ''  + (this.microTime ? pad2(Math.round(this.microTime * 1000)) : '');
+        ''  + this._precisionExtra();
+  }
+
+  [util.inspect.custom](depth, opts) {
+    return this.toTaosString() + JSON.stringify({ precision: this.precision, precisionExtras: this.precisionExtras}, opts);
+  }
+  toString() {
+    return this.toTaosString();
   }
 }
 
