@@ -5014,7 +5014,8 @@ int32_t validateFillNode(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SSqlNode* pSqlNo
   size_t numOfFields = tscNumOfFields(pQueryInfo);
   
   if (pQueryInfo->fillVal == NULL) {
-    pQueryInfo->fillVal = calloc(numOfFields, sizeof(int64_t));
+    pQueryInfo->fillVal      = calloc(numOfFields, sizeof(int64_t));
+    pQueryInfo->numOfFillVal = numOfFields;
     if (pQueryInfo->fillVal == NULL) {
       return TSDB_CODE_TSC_OUT_OF_MEMORY;
     }
@@ -8191,6 +8192,7 @@ int32_t validateSqlNode(SSqlObj* pSql, SSqlNode* pSqlNode, SQueryInfo* pQueryInf
     }
 
     taosArrayAddBatch(pQueryInfo->exprList1, (void*) p, numOfExpr);
+    tfree(p); 
   }
 
 #if 0

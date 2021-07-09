@@ -992,6 +992,7 @@ static void doSetInputDataBlock(SOperatorInfo* pOperator, SQLFunctionCtx* pCtx, 
     setBlockStatisInfo(&pCtx[i], pBlock, &pOperator->pExpr[i].base.colInfo);
 
     if (pCtx[i].functionId == TSDB_FUNC_ARITHM) {
+      pCtx[i].param[1].pz = (char*) &Operator->pRuntimeEnv->sasArray[i];
       setArithParams((SArithmeticSupport*)pCtx[i].param[1].pz, &pOperator->pExpr[i], pBlock);
     } else {
       SColIndex* pCol = &pOperator->pExpr[i].base.colInfo;
