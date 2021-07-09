@@ -939,7 +939,9 @@ static TSKEY getStartTsKey(SQueryAttr* pQueryAttr, STimeWindow* win, const TSKEY
 static void setArithParams(SArithmeticSupport* sas, SExprInfo *pExprInfo, SSDataBlock* pSDataBlock) {
   sas->numOfCols = (int32_t) pSDataBlock->info.numOfCols;
   sas->pExprInfo = pExprInfo;
-
+  if (sas->colList != NULL) {
+    return;
+  }
   sas->colList = calloc(1, pSDataBlock->info.numOfCols*sizeof(SColumnInfo));
   for(int32_t i = 0; i < sas->numOfCols; ++i) {
     SColumnInfoData* pColData = taosArrayGet(pSDataBlock->pDataBlock, i);
@@ -992,7 +994,6 @@ static void doSetInputDataBlock(SOperatorInfo* pOperator, SQLFunctionCtx* pCtx, 
     setBlockStatisInfo(&pCtx[i], pBlock, &pOperator->pExpr[i].base.colInfo);
 
     if (pCtx[i].functionId == TSDB_FUNC_ARITHM) {
-      pCtx[i].param[1].pz = (char*) &Operator->pRuntimeEnv->sasArray[i];
       setArithParams((SArithmeticSupport*)pCtx[i].param[1].pz, &pOperator->pExpr[i], pBlock);
     } else {
       SColIndex* pCol = &pOperator->pExpr[i].base.colInfo;
