@@ -124,7 +124,7 @@ static SKeyword keywordTable[] = {
     {"BLOCKS",       TK_BLOCKS},
     {"CACHE",        TK_CACHE},
     {"CTIME",        TK_CTIME},
-    {"WAL",          TK_WAL},
+    {"WALLEVEL",     TK_WALLEVEL},
     {"FSYNC",        TK_FSYNC},
     {"COMP",         TK_COMP},
     {"PRECISION",    TK_PRECISION},

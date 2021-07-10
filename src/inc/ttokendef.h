@@ -116,7 +116,7 @@
 #define TK_MAXROWS                         98
 #define TK_BLOCKS                          99
 #define TK_CTIME                          100
-#define TK_WAL                            101
+#define TK_WALLEVEL                       101
 #define TK_FSYNC                          102
 #define TK_COMP                           103
 #define TK_PRECISION                      104
