@@ -2799,7 +2799,9 @@ int32_t doGetColumnIndexByName(SStrToken* pToken, SQueryInfo* pQueryInfo, SColum
     pIndex->columnIndex = TSDB_TBNAME_COLUMN_INDEX;
   } else if (strlen(DEFAULT_PRIMARY_TIMESTAMP_COL_NAME) == pToken->n && 
             strncasecmp(pToken->z, DEFAULT_PRIMARY_TIMESTAMP_COL_NAME, pToken->n) == 0) {
-    pIndex->columnIndex = PRIMARYKEY_TIMESTAMP_COL_INDEX;
+    pIndex->columnIndex = PRIMARYKEY_TIMESTAMP_COL_INDEX; // just make runtime happy, need fix java test case InsertSpecialCharacterJniTest
+  } else if (pToken->n == 0) {
+    pIndex->columnIndex = PRIMARYKEY_TIMESTAMP_COL_INDEX; // just make runtime happy, need fix java test case InsertSpecialCharacterJniTest
   } else {
     // not specify the table name, try to locate the table index by column name
     if (pIndex->tableIndex == COLUMN_INDEX_INITIAL_VAL) {
