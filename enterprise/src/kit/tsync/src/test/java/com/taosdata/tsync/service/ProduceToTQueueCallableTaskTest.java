@@ -40,7 +40,7 @@ public class ProduceToTQueueCallableTaskTest {
     @Test
     public void run() throws ExecutionException, InterruptedException {
         // given
-        List<Integer> partitionsToWrite = IntStream.of(1).boxed().collect(Collectors.toList());
+        int[] partitionsToWrite = new int[]{1};
         Range<Long> tablesToWrite = Range.openClosed(1L, 101L);
         long records = 1000L;
         long batchTables = 10L;

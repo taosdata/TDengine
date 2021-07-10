@@ -11,12 +11,7 @@ import com.taosdata.tsync.utils.Utils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.sql.Time;
-import java.sql.Timestamp;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.Callable;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
@@ -26,7 +21,7 @@ import java.util.stream.LongStream;
 public class ProduceToTQueueCallableTask implements Callable<Long> {
     private static final Logger logger = LoggerFactory.getLogger(ProduceToTQueueCallableTask.class);
 
-    private List<Integer> partitionsToWrite;
+    private int[] partitionsToWrite;
     private Range<Long> tablesToWrite;
     private long recordsToWrite;
     private long batchTables;
@@ -40,20 +35,25 @@ public class ProduceToTQueueCallableTask implements Callable<Long> {
     private List<Configuration> columns;
     private List<Configuration> tags;
 
-    private TQueueProducer producer;
+    private TQueueProducer<String> producer;
     private String topic;
 
     @Override
     public Long call() {
-        logger.info(Thread.currentThread().getName() + " write table: " + tablesToWrite + " to partitions: " + partitionsToWrite + " with records: " + recordsToWrite + ", batch values: " + batchValues + ", batch tables: " + batchTables);
+        logger.info(Thread.currentThread().getName() + " write table: " + tablesToWrite + " to partitions: " + Arrays.toString(partitionsToWrite) + " with records: " + recordsToWrite + ", batch values: " + batchValues + ", batch tables: " + batchTables);
 
         long count = 0;
 
         Map<Integer, OnePartitionTask> partitionIndexPerTask = divideTablesRecordsToEachPartition();
+
         for (int partitionId : partitionIndexPerTask.keySet()) {
+            // TODO: error when partition = [1..10], thread = 1, tables = 1
             OnePartitionTask onePartitionTask = partitionIndexPerTask.get(partitionId);
+
             long[] tableIndexArr = LongStream.range(onePartitionTask.tableStartIndex, onePartitionTask.tableEndIndex).toArray();
+
             Map<Long, Range<Long>> tableIndex2RecordRange = Utils.divideIntoArrGroups(onePartitionTask.recordsToWrite, tableIndexArr);
+
             Map<Long, Range<Long>> batchIndex2TableRange = Utils.divideIntoGroupsOfN(onePartitionTask.tableStartIndex, onePartitionTask.tableEndIndex, batchTables);
 
             for (long tableBatchIndex : batchIndex2TableRange.keySet()) {
@@ -82,15 +82,18 @@ public class ProduceToTQueueCallableTask implements Callable<Long> {
                     }
 
                     String message = sb.toString();
+                    if (message.length() > 16000) {
+                        logger.error("message is too long");
+                        continue;
+                    }
                     logger.trace(message);
-                    ProducerRecord record = new ProducerRecord(topic, partitionId, message);
+                    ProducerRecord<String> record = new ProducerRecord<>(topic, partitionId, message);
                     try {
                         producer.send(record);
                     } catch (Exception e) {
                         e.printStackTrace();
                     }
                 }
-
                 count += valueCount;
             }
         }
@@ -99,24 +102,44 @@ public class ProduceToTQueueCallableTask implements Callable<Long> {
     }
 
     private Map<Integer, OnePartitionTask> divideTablesRecordsToEachPartition() {
-        int[] partitionsToWriteArr = partitionsToWrite.stream().mapToInt(i -> i.intValue()).toArray();
+        Map<Long, Long> tableIndex2Records = Utils.divideIntoGroups(recordsToWrite, tablesToWrite);
+
+        Map<Integer, OnePartitionTask> partitionTaskMap = new HashMap<>();
+        // divide tables to each partitions
+        Map<Integer, Range<Long>> partitionIndex2tableRange = Utils.divideRangeIntoArrayGroups(tablesToWrite, partitionsToWrite);
+
+        for (int partitionIndex : partitionIndex2tableRange.keySet()) {
+            Range<Long> tableRange = partitionIndex2tableRange.get(partitionIndex);
+            long sum = 0;
+            for (long tableIndex = tableRange.lowerEndpoint(); tableIndex < tableRange.upperEndpoint(); tableIndex++) {
+                sum += tableIndex2Records.get(tableIndex);
+            }
+            OnePartitionTask task = new OnePartitionTask(tableRange.lowerEndpoint(), tableRange.upperEndpoint(), sum);
+            partitionTaskMap.put(partitionIndex, task);
+        }
+
+        return partitionTaskMap;
+        /*
         Map<Integer, OnePartitionTask> partitionTaskMap = new HashMap<>();
 
-        Map<Integer, Range<Long>> partitionIndex2TableRange = Utils.divideIntoArrGroups(tablesToWrite.lowerEndpoint(), tablesToWrite.upperEndpoint(), partitionsToWriteArr);
-        Map<Integer, Range<Long>> partitionIndex2RecordRange = Utils.divideIntoArrGroups(recordsToWrite, partitionsToWriteArr);
+        Map<Integer, Range<Long>> partitionIndex2TableRange = Utils.divideIntoArrGroups(tablesToWrite.lowerEndpoint(), tablesToWrite.upperEndpoint(), partitionsToWrite);
+
+        Map<Integer, Range<Long>> partitionIndex2RecordRange = Utils.divideIntoArrGroups(recordsToWrite, partitionsToWrite);
+
         for (int partitionId : partitionIndex2TableRange.keySet()) {
             Range<Long> tablesRangeToWrite = partitionIndex2TableRange.get(partitionId);
             Range<Long> recordRange = partitionIndex2RecordRange.get(partitionId);
 
             long tableStartIndex = tablesRangeToWrite.lowerEndpoint();
             long tableEndIndex = tablesRangeToWrite.upperEndpoint();
-            long tableTotal = tableEndIndex - tableStartIndex;
+
             long recordsToWrite = recordRange.upperEndpoint() - recordRange.lowerEndpoint();
 
             OnePartitionTask onePartitionTask = new OnePartitionTask(tableStartIndex, tableEndIndex, recordsToWrite);
             partitionTaskMap.put(partitionId, onePartitionTask);
         }
         return partitionTaskMap;
+         */
     }
 
     private static class OnePartitionTask {
@@ -189,7 +212,7 @@ public class ProduceToTQueueCallableTask implements Callable<Long> {
     }
 
     // setters
-    public void setPartitionsToWrite(List<Integer> partitionsToWrite) {
+    public void setPartitionsToWrite(int[] partitionsToWrite) {
         this.partitionsToWrite = partitionsToWrite;
     }
 

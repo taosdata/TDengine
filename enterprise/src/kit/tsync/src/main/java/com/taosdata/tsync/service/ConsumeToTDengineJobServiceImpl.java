@@ -71,7 +71,7 @@ public class ConsumeToTDengineJobServiceImpl extends AbstractRunnableJobService 
 
         // arrange threads to partitions
         int threadSize = taskConfiguration.getThreads();
-        threadIndex2PartitionList = Utils.divideArrIntoGroups(partitions, threadSize);
+        threadIndex2PartitionList = Utils.divideArrayIntoGroups(partitions, threadSize);
         int actualThreads = threadIndex2PartitionList.keySet().size();
         if (threadSize > actualThreads) {
             logger.warn("Only " + actualThreads + " threads will be created");
@@ -104,7 +104,7 @@ public class ConsumeToTDengineJobServiceImpl extends AbstractRunnableJobService 
 
             // callable task
             ConsumeToTDengineRunnableTask runnable = new ConsumeToTDengineRunnableTaskFactory()
-                    .setConsumer(consumer)
+                    .setConsumer(TQueueConsumerFactory.build(consumerConfiguration))
                     .setPartitionsToWrite(partitionsToWrite)
                     .setTopic(topic)
                     .setTaosdConnection(connection)

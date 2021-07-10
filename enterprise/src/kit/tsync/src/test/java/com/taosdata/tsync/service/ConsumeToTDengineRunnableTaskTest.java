@@ -94,7 +94,7 @@ public class ConsumeToTDengineRunnableTaskTest {
     }
 
     private long produceFewData(long recordSize) throws InterruptedException, ExecutionException {
-        List<Integer> partitionsToWrite = IntStream.of(1).boxed().collect(Collectors.toList());
+        int[] partitionsToWrite = IntStream.of(1).toArray();
         Range<Long> tablesToWrite = Range.openClosed(1L, 101L);
         long records = recordSize;
         long batchTables = 10L;

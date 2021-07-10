@@ -25,7 +25,7 @@ public class ProduceToTQueueCallableTaskFactory {
         return instance;
     }
 
-    public ProduceToTQueueCallableTaskFactory setPartitionsToWrite(List<Integer> partitionsToWrite) {
+    public ProduceToTQueueCallableTaskFactory setPartitionsToWrite(int[] partitionsToWrite) {
         instance.setPartitionsToWrite(partitionsToWrite);
         return this;
     }

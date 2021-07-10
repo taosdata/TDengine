@@ -63,7 +63,7 @@ public class ProduceToTQueueJobServiceImpl extends AbstractCallableJobService {
 
         // arrange threads ==> partitions
         int threadSize = taskConfiguration.getThreads();
-        Multimap<Integer, Integer> threadIndex2PartitionList = Utils.divideArrIntoGroups(partitions, threadSize);
+        Multimap<Integer, Integer> threadIndex2PartitionList = Utils.divideArrayIntoGroups(partitions, threadSize);
         int actualThreads = threadIndex2PartitionList.keySet().size();
         if (threadSize > actualThreads) {
             logger.warn("Only " + actualThreads + " threads will be created");
@@ -73,12 +73,15 @@ public class ProduceToTQueueJobServiceImpl extends AbstractCallableJobService {
         // arrange tables ==> threads
         StableConfiguration stableConfiguration = (StableConfiguration) configuration.findFirst(ConfigurationType.STABLE);
         long tables = stableConfiguration.getTables();
-        Map<Integer, Range<Long>> threadIndex2TableRange = Utils.divideIntoGroups(tables, threadSize);
+
+        List<Range<Long>> tableRanges = Utils.divideIntoRangeList(tables, threadSize);
 
         // 3. messageConfiguration ==> total record
         MessageConfiguration messageConfiguration = (MessageConfiguration) configuration.findFirst(ConfigurationType.MESSAGE);
         long total = messageConfiguration.getTotal();
-        Map<Integer, Range<Long>> threadRecordMap = Utils.divideIntoGroups(total, threadSize);
+
+        List<Range<Long>> threadRecords = Utils.divideIntoRangeList(total, threadSize);
+
         long batchTables = messageConfiguration.getBatchTables();
         long batchValues = messageConfiguration.getBatchValues();
         // 6. SchemaConfiguration ==> schema
@@ -88,13 +91,15 @@ public class ProduceToTQueueJobServiceImpl extends AbstractCallableJobService {
         List<UUID> taskIds = new ArrayList<>();
         for (int i = 0; i < threadSize; i++) {
             // callable task
-            List<Integer> partitionsToWrite = new ArrayList<>(threadIndex2PartitionList.get(i));
-            Range<Long> tablesToWrite = threadIndex2TableRange.get(i);
-            Range<Long> recordsToWrite = threadRecordMap.get(i);
+            int[] partitionsToWrite = new ArrayList<>(threadIndex2PartitionList.get(i)).stream().mapToInt(p -> p.intValue()).toArray();
+
+            Range<Long> tablesToWrite = tableRanges.get(i);
+
+            Range<Long> recordsToWrite = threadRecords.get(i);
             long records = recordsToWrite.upperEndpoint() - recordsToWrite.lowerEndpoint();
 
             ProduceToTQueueCallableTask callable = new ProduceToTQueueCallableTaskFactory()
-                    .setProducer(producer)
+                    .setProducer(TQueueProducerFactory.build(producerConfiguration))
                     .setTopic(topic)
                     .setPartitionsToWrite(partitionsToWrite)
                     .setTablesToWrite(tablesToWrite)

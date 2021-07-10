@@ -5,8 +5,11 @@ import com.google.common.collect.Multimap;
 import com.google.common.collect.Range;
 
 import java.sql.Timestamp;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.LongStream;
 
@@ -32,29 +35,7 @@ public final class Utils {
     }
 
     /**
-     * 把 many ,按照每组 groupsOfN 个，分为若干组
-     *
-     * @param many
-     * @param groupOfN
-     * @return
-     */
-    public static Map<Long, Long> divideIntoGroupsOfN(long many, long groupOfN) {
-        Map<Long, Long> map = new HashMap<>();
-        for (long batchIndex = 0, ind = 0; ind < many; batchIndex++, ind += groupOfN) {
-            long lower = ind;
-            long upper = Math.min(ind + groupOfN, many);
-            map.put(batchIndex, upper - lower);
-        }
-        return map;
-    }
-
-    /**
      * 把从 startInclude 到 endExclude 的数，按照每组 groupOfN 个，分为若干组
-     *
-     * @param startInclude
-     * @param endExclude
-     * @param groupOfN
-     * @return
      */
     public static Map<Long, Range<Long>> divideIntoGroupsOfN(long startInclude, long endExclude, long groupOfN) {
         Map<Long, Range<Long>> batchMap = new HashMap<>();
@@ -66,67 +47,6 @@ public final class Utils {
         return batchMap;
     }
 
-    /***
-     * 把一个数平均的分成n组
-     * @param many 被分的数
-     * @param groups 组数
-     * @return
-     */
-    public static Map<Integer, Range<Long>> divideIntoGroups(long many, int groups) {
-        Map<Integer, Range<Long>> map = new HashMap<>();
-
-        final long gap = Math.round((0.0d + many) / groups);
-        IntStream.range(0, groups).forEach(index -> {
-            long startInd = index * gap;
-            long endInd = Math.min(((index + 1) * gap), many);
-            if (startInd >= many) {
-                map.put(index, Range.closedOpen(many, many));
-            } else if (index == groups - 1) {
-                map.put(index, Range.closedOpen(startInd, many));
-            } else {
-                map.put(index, Range.closedOpen(startInd, endInd));
-            }
-        });
-        return map;
-    }
-
-    public static Map<Long, Range<Long>> divideIntoGroups(long many, long groups) {
-        Map<Long, Range<Long>> map = new HashMap<>();
-
-        final long gap = (int) Math.round((0.0d + many) / groups);
-        LongStream.range(0, groups).forEach(index -> {
-            long startInd = index * gap;
-            long endInd = Math.min(((index + 1) * gap), many);
-            if (startInd >= many) {
-                map.put(index, Range.closedOpen(many, many));
-            } else if (index == groups - 1) {
-                map.put(index, Range.closedOpen(startInd, many));
-            } else {
-                map.put(index, Range.closedOpen(startInd, endInd));
-            }
-        });
-        return map;
-    }
-
-    public static Map<Integer, Range<Long>> divideIntoArrGroups(long many, int[] groups) {
-        Map<Integer, Range<Long>> map = new HashMap<>();
-
-        final long gap = Math.round((0.0d + many) / groups.length);
-        IntStream.range(0, groups.length).forEach(index -> {
-
-            long startInd = index * gap;
-            long endInd = Math.min(((index + 1) * gap), many);
-
-            if (startInd >= many) {
-                map.put(groups[index], Range.closedOpen(many, many));
-            } else if (index == groups.length - 1) {
-                map.put(groups[index], Range.closedOpen(startInd, many));
-            } else {
-                map.put(groups[index], Range.closedOpen(startInd, endInd));
-            }
-        });
-        return map;
-    }
 
     public static Map<Long, Range<Long>> divideIntoArrGroups(long many, long[] groups) {
         Map<Long, Range<Long>> map = new HashMap<>();
@@ -148,27 +68,14 @@ public final class Utils {
         return map;
     }
 
-    public static Map<Integer, Range<Long>> divideIntoArrGroups(long startInclude, long endExclude, int[] groups) {
-        Map<Integer, Range<Long>> map = new HashMap<>();
-
-        long manySize = endExclude - startInclude;
-        final long gap = Math.round((0.0d + manySize) / groups.length);
-        IntStream.range(0, groups.length).forEach(index -> {
-            long startInd = startInclude + index * gap;
-            long endInd = Math.min(startInclude + (index + 1) * gap, endExclude);
-            if (startInd >= endExclude) {
-                map.put(groups[index], Range.closedOpen(manySize, endExclude));
-            } else if (index == groups.length - 1) {
-                map.put(groups[index], Range.closedOpen(startInd, endExclude));
-            } else {
-                map.put(groups[index], Range.closedOpen(startInd, endInd));
-            }
-        });
-        return map;
-    }
-
-    public static Multimap<Integer, Integer> divideArrIntoGroups(int[] arr, int groups) {
+    public static Multimap<Integer, Integer> divideArrayIntoGroups(int[] arr, int groups) {
         Multimap<Integer, Integer> multimap = HashMultimap.create();
+
+        if (arr.length < groups) {
+            IntStream.range(0, arr.length).forEach(i -> multimap.put(i, arr[i]));
+            return multimap;
+        }
+
         final int gap = (int) Math.round((0.0d + arr.length) / groups);
         IntStream.range(0, groups).forEach(groupIndex -> {
             int startIndex = groupIndex * gap;
@@ -188,5 +95,60 @@ public final class Utils {
         return multimap;
     }
 
+    public static List<Range<Long>> divideIntoRangeList(long number, long groups) {
+        List<Range<Long>> ranges = new ArrayList<>();
+        if (number < groups) {
+            return LongStream.range(0, number).mapToObj(i -> Range.closedOpen(i, i + 1)).collect(Collectors.toList());
+        }
 
+        final long gap = Math.round((0.0d + number) / groups);
+        LongStream.range(0, groups).forEach(index -> {
+            long startInd = index * gap;
+            long endInd = Math.min(((index + 1) * gap), number);
+            if (startInd >= number) {
+                ranges.add(Range.closedOpen(number, number));
+            } else if (index == groups - 1) {
+                ranges.add(Range.closedOpen(startInd, number));
+            } else {
+                ranges.add(Range.closedOpen(startInd, endInd));
+            }
+        });
+        return ranges.stream().filter(range -> !range.isEmpty()).collect(Collectors.toList());
+    }
+
+    public static List<Long> divideIntoGroups(long many, long groups) {
+        List<Range<Long>> ranges = divideIntoRangeList(many, (int) groups);
+        return ranges.stream().map(range -> range.upperEndpoint() - range.lowerEndpoint()).collect(Collectors.toList());
+    }
+
+    public static Map<Long, Long> divideIntoGroups(long many, Range<Long> range) {
+        Map<Long, Long> map = new HashMap<>();
+        List<Long> groups = divideIntoGroups(many, range.upperEndpoint() - range.lowerEndpoint());
+        IntStream.range(0, groups.size()).forEach(i -> map.put(range.lowerEndpoint() + i, groups.get(i)));
+        return map;
+    }
+
+    public static Map<Integer, Range<Long>> divideRangeIntoArrayGroups(Range<Long> range, int[] arr) {
+        Map<Integer, Range<Long>> map = new HashMap<>();
+        List<Range<Long>> ranges = divideRangeIntoGroups(range, arr.length);
+        for (int i = 0; i < ranges.size(); i++) {
+            map.put(arr[i], ranges.get(i));
+        }
+        return map;
+    }
+
+    public static List<Range<Long>> divideRangeIntoGroups(Range<Long> range, int groups) {
+        List<Range<Long>> ranges = new ArrayList<>();
+        long rangSize = range.upperEndpoint() - range.lowerEndpoint();
+        List<Long> list = divideIntoGroups(rangSize, groups);
+
+        long offset = 0;
+        for (int i = 0; i < list.size(); i++) {
+            long start = range.lowerEndpoint() + offset;
+            long end = start + list.get(i);
+            ranges.add(Range.closedOpen(start, end));
+            offset += list.get(i);
+        }
+        return ranges;
+    }
 }

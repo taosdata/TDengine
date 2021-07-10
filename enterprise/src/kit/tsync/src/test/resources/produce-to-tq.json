@@ -14,10 +14,10 @@
     "partitions": [
       "1..10"
     ],
-    "threads": 10
+    "threads": 1
   },
   "message": {
-    "total": 10,
+    "total": 8,
     "batchTables": 1,
     "batchValues": 1,
     "schema": {
@@ -27,7 +27,7 @@
       },
       "stable": {
         "name": "weather",
-        "tables": 10,
+        "tables": 1,
         "columns": [
           {
             "name": "ts",

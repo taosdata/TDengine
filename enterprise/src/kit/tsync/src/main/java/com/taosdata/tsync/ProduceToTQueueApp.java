@@ -5,7 +5,6 @@ import com.taosdata.tsync.entity.Job;
 import com.taosdata.tsync.enums.ConfigurationType;
 import com.taosdata.tsync.factory.JobFactory;
 import com.taosdata.tsync.repository.ConfigurationRepository;
-import com.taosdata.tsync.service.AffectRowsProcessService;
 import com.taosdata.tsync.service.JobService;
 import com.taosdata.tsync.service.ProduceToTQueueJobServiceImpl;
 import org.apache.commons.io.IOUtils;
@@ -22,6 +21,8 @@ public class ProduceToTQueueApp extends AbstractApp{
     private final static String helpLine = "Usage: java -jar produce-to-tqueue.jar --config <config file path>";
 
     public static void main(String[] args) throws IOException {
+        long start = System.currentTimeMillis();
+
         File configFile = readCommandLine(args, helpLine);
 
         logger.info("ProduceToTQueueApp started.");
@@ -42,6 +43,9 @@ public class ProduceToTQueueApp extends AbstractApp{
         logger.info("ProduceToTQueueApp stopped.");
 
         job.shutdown(jobService);
+
+        long end = System.currentTimeMillis();
+        System.out.println("time cost: " + (end - start) + " ms");
     }
 
 }
