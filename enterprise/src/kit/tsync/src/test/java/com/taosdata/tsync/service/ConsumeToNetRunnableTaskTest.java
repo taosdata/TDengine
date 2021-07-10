@@ -25,7 +25,7 @@ public class ConsumeToNetRunnableTaskTest {
     @Test
     public void test() {
         // given
-        List<Integer> partitions = IntStream.of(1, 2, 3, 4, 5, 6, 7, 8, 9, 10).boxed().collect(Collectors.toList());
+        int[] partitions = new int[]{1, 2, 3, 4, 5, 6, 7, 8, 9, 10};
         String host = "127.0.0.1";
         int port = 8899;
 

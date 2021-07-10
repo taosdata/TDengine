@@ -13,7 +13,8 @@
     "topic": "tq_test",
     "partitions": [
       "1..10"
-    ]
+    ],
+    "threads": 10
   },
   "destination": {
     "net": {

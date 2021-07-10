@@ -5,10 +5,7 @@ import com.google.common.collect.Multimap;
 import com.google.common.collect.Range;
 
 import java.sql.Timestamp;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.LongStream;
@@ -68,31 +65,20 @@ public final class Utils {
         return map;
     }
 
-    public static Multimap<Integer, Integer> divideArrayIntoGroups(int[] arr, int groups) {
-        Multimap<Integer, Integer> multimap = HashMultimap.create();
+    public static List<Integer[]> divideArrayIntoGroups(int[] arr, int groups) {
+        List<Integer[]> list = new ArrayList<>();
 
-        if (arr.length < groups) {
-            IntStream.range(0, arr.length).forEach(i -> multimap.put(i, arr[i]));
-            return multimap;
+        List<Long> sizePerGroup = divideIntoGroups(arr.length, groups);
+        int offset = 0;
+        for (int i = 0; i < sizePerGroup.size(); i++) {
+            int start = offset;
+            int end = start + sizePerGroup.get(i).intValue();
+            int[] subArr = Arrays.copyOfRange(arr, start, end);
+            list.add(Arrays.stream(subArr).boxed().toArray(Integer[]::new));
+            offset += sizePerGroup.get(i).intValue();
         }
 
-        final int gap = (int) Math.round((0.0d + arr.length) / groups);
-        IntStream.range(0, groups).forEach(groupIndex -> {
-            int startIndex = groupIndex * gap;
-            int endIndex = Math.min((groupIndex + 1) * gap, arr.length);
-            if (startIndex >= arr.length)
-                return;
-            if (groupIndex == groups - 1) {
-                for (int i = startIndex; i < arr.length; i++) {
-                    multimap.put(groupIndex, arr[i]);
-                }
-            } else {
-                for (int i = startIndex; i < endIndex; i++) {
-                    multimap.put(groupIndex, arr[i]);
-                }
-            }
-        });
-        return multimap;
+        return list;
     }
 
     public static List<Range<Long>> divideIntoRangeList(long number, long groups) {

@@ -16,6 +16,8 @@ scp target/consume-to-net-jar-with-dependencies.jar root@$host:$deployDir/consum
 scp target/consume-to-tdengine-jar-with-dependencies.jar root@$host:$deployDir/consume-to-tdengine.jar
 scp target/net-to-tq-jar-with-dependencies.jar root@$host:$deployDir/net-to-tq.jar
 scp target/produce-to-tq-jar-with-dependencies.jar root@$host:$deployDir/produce-to-tq.jar
+scp target/socket-server-jar-with-dependencies.jar root@$host:$deployDir/socket-server.jar
+scp target/socket-client-jar-with-dependencies.jar root@$host:$deployDir/socket-client.jar
 
 ### config
 #scp config/consume-to-net.json root@$host:$deployDir/config/consume-to-net.json

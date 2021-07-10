@@ -11,15 +11,19 @@ import org.slf4j.LoggerFactory;
 import java.io.*;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.net.SocketAddress;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.atomic.AtomicLong;
 
 public class NetToTQueueRunnableTask implements Runnable {
     private static final Logger logger = LoggerFactory.getLogger(NetToTQueueRunnableTask.class);
 
-    private volatile boolean isClosed;
+    private static final AtomicLong count = new AtomicLong(0);
+
     private int listeningPort;
     private TQueueProducer producer;
-    private ServerSocket serverSocket;
+
+    private volatile boolean isClosed;
 
     public void shutdown() {
         this.isClosed = true;
@@ -29,8 +33,12 @@ public class NetToTQueueRunnableTask implements Runnable {
     public void run() {
         try {
             logger.info("server socket start and listening : " + listeningPort);
-            serverSocket = new ServerSocket(listeningPort);
-            fromNetToTQueue();
+            ServerSocket serverSocket = new ServerSocket(listeningPort);
+
+            while (!isClosed && !Thread.currentThread().isInterrupted()) {
+                receiveFromNet(serverSocket);
+            }
+
             serverSocket.close();
             logger.info("server socket closed");
         } catch (IOException e) {
@@ -38,25 +46,23 @@ public class NetToTQueueRunnableTask implements Runnable {
         }
     }
 
-    private void fromNetToTQueue() throws IOException {
-        while (!isClosed && !Thread.currentThread().isInterrupted()) {
-            receiveFromNet(serverSocket);
-        }
-    }
-
     private void receiveFromNet(ServerSocket serverSocket) throws IOException {
         Socket socket = serverSocket.accept();
-
-        try (InputStream in = socket.getInputStream()) {
-            BufferedReader reader = new BufferedReader(new InputStreamReader(new BufferedInputStream(in)));
-            String line;
-            while ((line = reader.readLine()) != null) {
-                logger.trace("receive message: " + line);
-                writeToTQueue(line);
+        new Thread(() -> {
+            try {
+                SocketAddress remote = socket.getRemoteSocketAddress();
+                try (BufferedReader reader = new BufferedReader(new InputStreamReader(new BufferedInputStream(socket.getInputStream())))) {
+                    String line;
+                    while ((line = reader.readLine()) != null) {
+                        logger.trace("receive from " + remote + "[" + count.incrementAndGet() + "] >>> " + line);
+                        writeToTQueue(line);
+                    }
+                }
+                socket.close();
+            } catch (IOException e) {
+                e.printStackTrace();
             }
-        }
-
-        socket.close();
+        }).start();
     }
 
     private void writeToTQueue(String line) {

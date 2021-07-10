@@ -7,21 +7,20 @@ import com.taosdata.tsync.exceptions.TsyncException;
 import com.taosdata.tsync.factory.ConsumeToNetRunnableTaskFactory;
 import com.taosdata.tsync.factory.TQueueConsumerFactory;
 import com.taosdata.tsync.tqueue.TQueueConsumer;
+import com.taosdata.tsync.utils.Utils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
-import java.util.stream.Collectors;
-import java.util.stream.IntStream;
 
 public class ConsumeToNetJobServiceImpl extends AbstractRunnableJobService {
     private static final Logger logger = LoggerFactory.getLogger(ConsumeToNetJobServiceImpl.class);
 
     @Override
     public List<UUID> prepare(ConfigurationType configurationType, UUID configurationId) throws TsyncException {
-
         Configuration config = configurationRepository.find(configurationId);
         if (config == null) {
             String errorMsg = "cannot find Configuration of id:[" + configurationId + "]";
@@ -53,7 +52,6 @@ public class ConsumeToNetJobServiceImpl extends AbstractRunnableJobService {
             logger.error(errorMsg);
             throw new TsyncException(errorMsg);
         }
-        final List<Integer> partitionsToWrite = IntStream.of(partitions).boxed().collect(Collectors.toList());
 
         // 3. polling interval
         StrategyConfiguration strategy = (StrategyConfiguration) configuration.findFirst(ConfigurationType.STRATEGY);
@@ -65,19 +63,26 @@ public class ConsumeToNetJobServiceImpl extends AbstractRunnableJobService {
         final int port = netConfiguration.getPort();
 
         // 5. create threads
-        ConsumeToNetRunnableTask consumeToNetRunnableTask = new ConsumeToNetRunnableTaskFactory()
-                .setConsumer(consumer)
-                .setTopic(topic)
-                .setPartitionsToWrite(partitionsToWrite)
-                .setPollingInterval(pollingInterval)
-                .setHost(host)
-                .setPort(port)
-                .build();
-        RunnableTask task = new RunnableTask(consumeToNetRunnableTask);
-        runnableTaskRepository.add(task);
-        // return
+        int threads = taskConfiguration.getThreads();
+        List<Integer[]> thread2Partition = Utils.divideArrayIntoGroups(partitions, threads);
+
         List<UUID> taskIds = new ArrayList<>();
-        taskIds.add(task.getId());
+        thread2Partition.stream().map(partitionsToConsume -> {
+            int[] partitionsToConsumeArr = Arrays.stream(partitionsToConsume).mapToInt(i -> i).toArray();
+            return new ConsumeToNetRunnableTaskFactory()
+                    .setConsumer(TQueueConsumerFactory.build(consumerConfiguration))
+                    .setTopic(topic)
+                    .setPartitionsToWrite(partitionsToConsumeArr)
+                    .setPollingInterval(pollingInterval)
+                    .setHost(host)
+                    .setPort(port)
+                    .build();
+        }).forEach(consumeToNetRunnableTask -> {
+            RunnableTask task = new RunnableTask(consumeToNetRunnableTask);
+            runnableTaskRepository.add(task);
+            taskIds.add(task.getId());
+        });
+
         return taskIds;
     }
 

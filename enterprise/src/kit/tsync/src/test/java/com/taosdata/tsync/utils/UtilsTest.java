@@ -2,11 +2,14 @@ package com.taosdata.tsync.utils;
 
 import com.google.common.collect.Multimap;
 import com.google.common.collect.Range;
+import com.sun.media.jfxmediaimpl.HostUtils;
 import org.junit.Assert;
 import org.junit.Test;
 
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.IntStream;
 
 import static org.junit.Assert.*;
 
@@ -43,10 +46,20 @@ public class UtilsTest {
     @Test
     public void divideIntoRangeGroups() {
         // when
-        for (int i = 1; i <= 100; i++) {
-            Map<Long, Long> map = Utils.divideIntoGroups(i, Range.closedOpen(3L, 13L));
-            System.out.println(map);
-        }
+        Map<Long, Long> map = Utils.divideIntoGroups(100, Range.closedOpen(10L, 20L));
+
+        // then
+        Assert.assertEquals(10, map.get(10L).longValue());
+        Assert.assertEquals(10, map.get(11L).longValue());
+        Assert.assertEquals(10, map.get(12L).longValue());
+        Assert.assertEquals(10, map.get(13L).longValue());
+        Assert.assertEquals(10, map.get(14L).longValue());
+        Assert.assertEquals(10, map.get(15L).longValue());
+        Assert.assertEquals(10, map.get(16L).longValue());
+        Assert.assertEquals(10, map.get(17L).longValue());
+        Assert.assertEquals(10, map.get(18L).longValue());
+        Assert.assertEquals(10, map.get(19L).longValue());
+
     }
 
     @Test
@@ -152,90 +165,26 @@ public class UtilsTest {
 
     @Test
     public void divideArrayIntoGroups() {
-//        for (int i = 1; i <= 101; i++) {
-//            int[] partitions = IntStream.range(1, i).toArray();
-//            Multimap<Integer, Integer> multimap = Utils.divideArrayIntoGroups(partitions, 10);
-//            System.out.println(multimap);
+//        for (int i = 1; i <= 100; i++) {
+//            int[] arr = IntStream.range(1, i).toArray();
+//            List<Integer[]> arrayGroups = Utils.divideArrayIntoGroups(arr, 10);
+//            arrayGroups.forEach(g -> System.out.print(Arrays.toString(g) + " "));
+//            System.out.println();
 //        }
 
         // when
-        Multimap<Integer, Integer> map = Utils.divideArrayIntoGroups(new int[]{1, 2, 3, 4}, 5);
+        int[] arr = IntStream.range(1, 101).toArray();
+        List<Integer[]> arrayGroups = Utils.divideArrayIntoGroups(arr, 10);
 
         // then
-        assertTrue(map.containsKey(0));
-        assertEquals(1, map.get(0).size());
-        assertTrue(map.get(0).contains(1));
+        Assert.assertEquals(1, arrayGroups.get(0)[0].intValue());
+        Assert.assertEquals(10, arrayGroups.get(0)[9].intValue());
 
-        assertTrue(map.containsKey(1));
-        assertEquals(1, map.get(1).size());
-        assertTrue(map.get(1).contains(2));
+        Assert.assertEquals(51, arrayGroups.get(5)[0].intValue());
+        Assert.assertEquals(60, arrayGroups.get(5)[9].intValue());
 
-        assertTrue(map.containsKey(2));
-        assertEquals(1, map.get(2).size());
-        assertTrue(map.get(2).contains(3));
-
-        assertTrue(map.containsKey(3));
-        assertEquals(1, map.get(3).size());
-        assertTrue(map.get(3).contains(4));
-
-        assertFalse(map.containsKey(4));
-    }
-
-    @Test
-    public void divide8NumberInto5Groups() {
-        // when
-        Multimap<Integer, Integer> map = Utils.divideArrayIntoGroups(new int[]{1, 2, 3, 4, 5, 6, 7, 8}, 5);
-
-        // then
-        assertTrue(map.containsKey(0));
-        assertEquals(2, map.get(0).size());
-        assertTrue(map.get(0).contains(1));
-        assertTrue(map.get(0).contains(2));
-
-        assertTrue(map.containsKey(1));
-        assertEquals(2, map.get(1).size());
-        assertTrue(map.get(1).contains(3));
-        assertTrue(map.get(1).contains(4));
-
-        assertTrue(map.containsKey(2));
-        assertEquals(2, map.get(2).size());
-        assertTrue(map.get(2).contains(5));
-        assertTrue(map.get(2).contains(6));
-
-        assertTrue(map.containsKey(3));
-        assertEquals(2, map.get(3).size());
-        assertTrue(map.get(3).contains(7));
-        assertTrue(map.get(3).contains(8));
-
-        assertFalse(map.containsKey(4));
-    }
-
-    @Test
-    public void divide9NumberArrInto4Groups() {
-        // when
-        Multimap<Integer, Integer> map = Utils.divideArrayIntoGroups(new int[]{1, 2, 3, 4, 5, 6, 7, 8, 9}, 4);
-
-        // then
-        assertTrue(map.containsKey(0));
-        assertEquals(2, map.get(0).size());
-        assertTrue(map.get(0).contains(1));
-        assertTrue(map.get(0).contains(2));
-
-        assertTrue(map.containsKey(1));
-        assertEquals(2, map.get(1).size());
-        assertTrue(map.get(1).contains(3));
-        assertTrue(map.get(1).contains(4));
-
-        assertTrue(map.containsKey(2));
-        assertEquals(2, map.get(2).size());
-        assertTrue(map.get(2).contains(5));
-        assertTrue(map.get(2).contains(6));
-
-        assertTrue(map.containsKey(3));
-        assertEquals(3, map.get(3).size());
-        assertTrue(map.get(3).contains(7));
-        assertTrue(map.get(3).contains(8));
-        assertTrue(map.get(3).contains(9));
+        Assert.assertEquals(91, arrayGroups.get(9)[0].intValue());
+        Assert.assertEquals(100, arrayGroups.get(9)[9].intValue());
     }
 
 }

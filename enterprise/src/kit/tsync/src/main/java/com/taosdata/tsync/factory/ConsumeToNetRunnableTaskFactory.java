@@ -27,7 +27,7 @@ public class ConsumeToNetRunnableTaskFactory {
         return this;
     }
 
-    public ConsumeToNetRunnableTaskFactory setPartitionsToWrite(List<Integer> partitionsToWrite) {
+    public ConsumeToNetRunnableTaskFactory setPartitionsToWrite(int[] partitionsToWrite) {
         instance.setPartitionsToWrite(partitionsToWrite);
         return this;
     }

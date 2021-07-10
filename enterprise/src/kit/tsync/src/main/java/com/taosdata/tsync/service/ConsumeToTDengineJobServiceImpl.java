@@ -21,6 +21,7 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -30,8 +31,6 @@ public class ConsumeToTDengineJobServiceImpl extends AbstractRunnableJobService 
     private static final Logger logger = LoggerFactory.getLogger(ConsumeToTDengineJobServiceImpl.class);
 
     private final ConfigurationRepository configurationRepository = ConfigurationRepository.getInstance();
-
-    private Multimap<Integer, Integer> threadIndex2PartitionList;
 
     public ConsumeToTDengineJobServiceImpl() {
         super();
@@ -71,8 +70,10 @@ public class ConsumeToTDengineJobServiceImpl extends AbstractRunnableJobService 
 
         // arrange threads to partitions
         int threadSize = taskConfiguration.getThreads();
-        threadIndex2PartitionList = Utils.divideArrayIntoGroups(partitions, threadSize);
-        int actualThreads = threadIndex2PartitionList.keySet().size();
+
+        List<Integer[]> threadIndex2PartitionList = Utils.divideArrayIntoGroups(partitions, threadSize);
+
+        int actualThreads = threadIndex2PartitionList.size();
         if (threadSize > actualThreads) {
             logger.warn("Only " + actualThreads + " threads will be created");
         }
@@ -99,7 +100,7 @@ public class ConsumeToTDengineJobServiceImpl extends AbstractRunnableJobService 
         // create runnable tasks
         List<UUID> taskIds = new ArrayList<>();
         for (int i = 0; i < threadSize; i++) {
-            List<Integer> partitionsToWrite = new ArrayList<>(threadIndex2PartitionList.get(i));
+            List<Integer> partitionsToWrite = Arrays.stream(threadIndex2PartitionList.get(i)).collect(Collectors.toList());
             Connection connection = TaosdConnectionFactory.build(taosdConfiguration);
 
             // callable task

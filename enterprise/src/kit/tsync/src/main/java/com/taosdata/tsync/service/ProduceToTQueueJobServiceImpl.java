@@ -13,10 +13,7 @@ import com.taosdata.tsync.utils.Utils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.UUID;
+import java.util.*;
 
 public class ProduceToTQueueJobServiceImpl extends AbstractCallableJobService {
     private static final Logger logger = LoggerFactory.getLogger(ProduceToTQueueJobServiceImpl.class);
@@ -63,8 +60,10 @@ public class ProduceToTQueueJobServiceImpl extends AbstractCallableJobService {
 
         // arrange threads ==> partitions
         int threadSize = taskConfiguration.getThreads();
-        Multimap<Integer, Integer> threadIndex2PartitionList = Utils.divideArrayIntoGroups(partitions, threadSize);
-        int actualThreads = threadIndex2PartitionList.keySet().size();
+
+        List<Integer[]> threadIndex2PartitionList = Utils.divideArrayIntoGroups(partitions, threadSize);
+
+        int actualThreads = threadIndex2PartitionList.size();
         if (threadSize > actualThreads) {
             logger.warn("Only " + actualThreads + " threads will be created");
         }
@@ -91,7 +90,7 @@ public class ProduceToTQueueJobServiceImpl extends AbstractCallableJobService {
         List<UUID> taskIds = new ArrayList<>();
         for (int i = 0; i < threadSize; i++) {
             // callable task
-            int[] partitionsToWrite = new ArrayList<>(threadIndex2PartitionList.get(i)).stream().mapToInt(p -> p.intValue()).toArray();
+            int[] partitionsToWrite = Arrays.stream(threadIndex2PartitionList.get(i)).mapToInt(Integer::intValue).toArray();
 
             Range<Long> tablesToWrite = tableRanges.get(i);
 

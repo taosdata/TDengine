@@ -188,6 +188,46 @@
                             </descriptorRefs>
                         </configuration>
                     </execution>
+
+                    <!-- SocketToolServer -->
+                    <execution>
+                        <id>socket-tool-server</id>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>single</goal>
+                        </goals>
+                        <configuration>
+                            <finalName>socket-server</finalName>
+                            <archive>
+                                <manifest>
+                                    <mainClass>com.taosdata.tsync.SocketToolServer</mainClass>
+                                </manifest>
+                            </archive>
+                            <descriptorRefs>
+                                <descriptorRef>jar-with-dependencies</descriptorRef>
+                            </descriptorRefs>
+                        </configuration>
+                    </execution>
+
+                    <!-- SocketToolClient -->
+                    <execution>
+                        <id>socket-tool-client</id>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>single</goal>
+                        </goals>
+                        <configuration>
+                            <finalName>socket-client</finalName>
+                            <archive>
+                                <manifest>
+                                    <mainClass>com.taosdata.tsync.SocketToolClient</mainClass>
+                                </manifest>
+                            </archive>
+                            <descriptorRefs>
+                                <descriptorRef>jar-with-dependencies</descriptorRef>
+                            </descriptorRefs>
+                        </configuration>
+                    </execution>
                 </executions>
             </plugin>
         </plugins>

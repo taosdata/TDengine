@@ -3,7 +3,6 @@ package com.taosdata.tsync.service;
 import com.alibaba.fastjson.JSONObject;
 import com.taosdata.tsync.entity.ConsumerRecord;
 import com.taosdata.tsync.exceptions.TQueueException;
-import com.taosdata.tsync.exceptions.TsyncException;
 import com.taosdata.tsync.tqueue.TQueueConsumer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -14,14 +13,16 @@ import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 
 public class ConsumeToNetRunnableTask implements Runnable {
 
     private static final Logger logger = LoggerFactory.getLogger(ConsumeToNetRunnableTask.class);
+    private static AtomicLong count = new AtomicLong(0);
 
     private TQueueConsumer consumer;
     private String topic;
-    private List<Integer> partitionsToWrite;
+    private int[] partitionsToWrite;
     private int pollingInterval;
 
     private String host;
@@ -35,7 +36,7 @@ public class ConsumeToNetRunnableTask implements Runnable {
 
     @Override
     public void run() {
-        logger.info("consume topic:" + topic + ", partitions: " + Arrays.toString(partitionsToWrite.toArray()) + " to net [" + host + ":" + port + "]");
+        logger.info("consume topic:" + topic + ", partitions: " + Arrays.toString(partitionsToWrite) + " to net [" + host + ":" + port + "]");
         try {
             Socket socket = new Socket(host, port);
             while (!isClosed && !Thread.currentThread().isInterrupted()) {
@@ -63,7 +64,7 @@ public class ConsumeToNetRunnableTask implements Runnable {
                     obj.put("partition", partition);
                     obj.put("message", message);
 
-                    logger.trace(String.format("topic: %s, partition: %d, offset: %d, value = %s", topic, partition, offset, message));
+                    logger.trace(String.format("count: %d,topic: %s, partition: %d, offset: %d, value = %s", count.incrementAndGet(), topic, partition, offset, message));
                     trySendToNet(socket, obj.toJSONString());
                 }
             }
@@ -86,7 +87,7 @@ public class ConsumeToNetRunnableTask implements Runnable {
     }
 
     //setters
-    public void setPartitionsToWrite(List<Integer> partitionsToWrite) {
+    public void setPartitionsToWrite(int[] partitionsToWrite) {
         this.partitionsToWrite = partitionsToWrite;
     }
 
