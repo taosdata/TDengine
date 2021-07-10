@@ -3364,7 +3364,14 @@ static int32_t doExtractColumnFilterInfo(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, 
   if (IS_NUMERIC_TYPE(pRight->value.nType)) {
     bufLen = 60;
   } else {
-    bufLen = pRight->value.nLen + 1;
+    /*
+     * make memory sanitizer happy;
+     */
+    if (pRight->value.nLen == 0) {
+      bufLen = pRight->value.nLen + 2; 
+    } else {
+      bufLen = pRight->value.nLen + 1; 
+    }
   }
 
   if (pExpr->tokenId == TK_LE || pExpr->tokenId == TK_LT) {
