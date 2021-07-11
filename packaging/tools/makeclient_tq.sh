@@ -91,6 +91,39 @@ else
 fi
 chmod a+x ${install_dir}/bin/* || :
 
+if [ -f ${build_dir}/bin/jemalloc-config ]; then
+    mkdir -p ${install_dir}/jemalloc/{bin,lib,lib/pkgconfig,include/jemalloc,share/doc/jemalloc,share/man/man3}
+    cp ${build_dir}/bin/jemalloc-config ${install_dir}/jemalloc/bin
+    if [ -f ${build_dir}/bin/jemalloc.sh ]; then
+        cp ${build_dir}/bin/jemalloc.sh ${install_dir}/jemalloc/bin
+    fi
+    if [ -f ${build_dir}/bin/jeprof ]; then
+        cp ${build_dir}/bin/jeprof ${install_dir}/jemalloc/bin
+    fi
+    if [ -f ${build_dir}/include/jemalloc/jemalloc.h ]; then
+        cp ${build_dir}/include/jemalloc/jemalloc.h ${install_dir}/jemalloc/include/jemalloc
+    fi
+    if [ -f ${build_dir}/lib/libjemalloc.so.2 ]; then
+        cp ${build_dir}/lib/libjemalloc.so.2 ${install_dir}/jemalloc/lib
+        ln -sf libjemalloc.so.2 ${install_dir}/jemalloc/lib/libjemalloc.so
+    fi
+    if [ -f ${build_dir}/lib/libjemalloc.a ]; then
+        cp ${build_dir}/lib/libjemalloc.a ${install_dir}/jemalloc/lib
+    fi
+    if [ -f ${build_dir}/lib/libjemalloc_pic.a ]; then
+        cp ${build_dir}/lib/libjemalloc_pic.a ${install_dir}/jemalloc/lib
+    fi
+    if [ -f ${build_dir}/lib/pkgconfig/jemalloc.pc ]; then
+        cp ${build_dir}/lib/pkgconfig/jemalloc.pc ${install_dir}/jemalloc/lib/pkgconfig
+    fi
+    if [ -f ${build_dir}/share/doc/jemalloc/jemalloc.html ]; then
+        cp ${build_dir}/share/doc/jemalloc/jemalloc.html ${install_dir}/jemalloc/share/doc/jemalloc
+    fi
+    if [ -f ${build_dir}/share/man/man3/jemalloc.3 ]; then
+        cp ${build_dir}/share/man/man3/jemalloc.3 ${install_dir}/jemalloc/share/man/man3
+    fi
+fi
+
 cd ${install_dir}
 
 if [ "$osType" != "Darwin" ]; then

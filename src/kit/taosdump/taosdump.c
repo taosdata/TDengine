@@ -1596,6 +1596,7 @@ static void taosStartDumpOutWorkThreads(int32_t  numOfThread, char *dbName)
             NULL, g_args.port);
         if (pThread->taosCon == NULL) {
             errorPrint("Failed to connect to TDengine server %s\n", g_args.host);
+            free(threadObj);
             return;
         }
         pthread_attr_init(&thattr);
@@ -2607,6 +2608,7 @@ static void taosStartDumpInWorkThreads()
             NULL, g_args.port);
         if (pThread->taosCon == NULL) {
             errorPrint("Failed to connect to TDengine server %s\n", g_args.host);
+            free(threadObj);
             return;
         }
         pthread_attr_init(&thattr);
