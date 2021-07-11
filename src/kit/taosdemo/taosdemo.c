@@ -571,6 +571,8 @@ SArguments g_args = {
                      "root",          // user
                      #ifdef _TD_POWER_
                      "powerdb",      // password
+                     #elif (_TD_TQ_ == true)
+                     "tqueue",      // password
                      #else
                      "taosdata",      // password
                      #endif
@@ -681,6 +683,11 @@ static void printHelp() {
           "The password to use when connecting to the server. Default is 'powerdb'.");
   printf("%s%s%s%s\n", indent, "-c", indent,
           "Configuration directory. Default is '/etc/power/'.");
+#elif (_TD_TQ_ == true)
+	printf("%s%s%s%s\n", indent, "-P", indent,
+			"The password to use when connecting to the server. Default is 'tqueue'.");
+	printf("%s%s%s%s\n", indent, "-c", indent,
+			"Configuration directory. Default is '/etc/tq/'.");
 #else
   printf("%s%s%s%s\n", indent, "-P", indent,
           "The password to use when connecting to the server. Default is 'taosdata'.");
@@ -3209,13 +3216,6 @@ static int readTagFromCsvFileToMem(SSuperTable  * superTblInfo) {
   return 0;
 }
 
-#if 0
-int readSampleFromJsonFileToMem(SSuperTable  * superTblInfo) {
-  // TODO
-  return 0;
-}
-#endif
-
 /*
   Read 10000 lines at most. If more than 10000 lines, continue to read after using
 */
@@ -4834,7 +4834,7 @@ static int64_t generateStbRowData(
       dataLen += snprintf(pstr + dataLen, maxLen - dataLen,
           "%"PRId64",", rand_bigint());
     }  else {
-      errorPrint( "No support data type: %s\n", stbInfo->columns[i].dataType);
+      errorPrint( "Not support data type: %s\n", stbInfo->columns[i].dataType);
       return -1;
     }
   }
@@ -4842,6 +4842,7 @@ static int64_t generateStbRowData(
   dataLen -= 1;
   dataLen += snprintf(pstr + dataLen, maxLen - dataLen, ")");
 
+  verbosePrint("%s() LN%d, dataLen:%"PRId64"\n", __func__, __LINE__, dataLen);
   verbosePrint("%s() LN%d, recBuf:\n\t%s\n", __func__, __LINE__, recBuf);
 
   return strlen(recBuf);
@@ -5094,39 +5095,40 @@ static int32_t generateStbDataTail(
   } else {
       tsRand = false;
   }
-  verbosePrint("%s() LN%d batch=%u\n", __func__, __LINE__, batch);
+  verbosePrint("%s() LN%d batch=%u buflen=%"PRId64"\n",
+          __func__, __LINE__, batch, remainderBufLen);
 
   int32_t k = 0;
   for (k = 0; k < batch;) {
     char data[MAX_DATA_SIZE];
     memset(data, 0, MAX_DATA_SIZE);
 
-    int64_t retLen = 0;
+    int64_t lenOfRow = 0;
 
     if (tsRand) {
-        retLen = generateStbRowData(superTblInfo, data,
+        lenOfRow = generateStbRowData(superTblInfo, data,
                 startTime + getTSRandTail(
                     superTblInfo->timeStampStep, k,
                     superTblInfo->disorderRatio,
                     superTblInfo->disorderRange)
                 );
     } else {
-        retLen = getRowDataFromSample(
+        lenOfRow = getRowDataFromSample(
                   data,
-                  remainderBufLen < MAX_DATA_SIZE ? remainderBufLen : MAX_DATA_SIZE,
+                  (remainderBufLen < MAX_DATA_SIZE)?remainderBufLen:MAX_DATA_SIZE,
                   startTime + superTblInfo->timeStampStep * k,
                   superTblInfo,
                   pSamplePos);
     }
 
-    if (retLen > remainderBufLen) {
+    if ((lenOfRow + 1) > remainderBufLen) {
         break;
     }
 
-    pstr += snprintf(pstr , retLen + 1, "%s", data);
+    pstr += snprintf(pstr , lenOfRow + 1, "%s", data);
     k++;
-    len += retLen;
-    remainderBufLen -= retLen;
+    len += lenOfRow;
+    remainderBufLen -= lenOfRow;
 
     verbosePrint("%s() LN%d len=%"PRIu64" k=%u \nbuffer=%s\n",
             __func__, __LINE__, len, k, buffer);
@@ -5329,7 +5331,7 @@ static int64_t generateInterlaceDataWithoutStb(
 
 #if STMT_IFACE_ENABLED == 1
 static int32_t prepareStmtBindArrayByType(TAOS_BIND *bind,
-        char *dataType, int32_t dataLen, char **ptr)
+        char *dataType, int32_t dataLen, char **ptr, char *value)
 {
     if (0 == strncasecmp(dataType,
                 "BINARY", strlen("BINARY"))) {
@@ -5339,12 +5341,18 @@ static int32_t prepareStmtBindArrayByType(TAOS_BIND *bind,
             return -1;
         }
         char *bind_binary = (char *)*ptr;
-        rand_string(bind_binary, dataLen);
 
         bind->buffer_type = TSDB_DATA_TYPE_BINARY;
-        bind->buffer_length = dataLen;
-        bind->buffer = bind_binary;
+        if (value) {
+            strncpy(bind_binary, value, strlen(value));
+            bind->buffer_length = strlen(bind_binary);
+        } else {
+            rand_string(bind_binary, dataLen);
+            bind->buffer_length = dataLen;
+        }
+
         bind->length = &bind->buffer_length;
+        bind->buffer = bind_binary;
         bind->is_null = NULL;
 
         *ptr += bind->buffer_length;
@@ -5356,9 +5364,14 @@ static int32_t prepareStmtBindArrayByType(TAOS_BIND *bind,
             return -1;
         }
         char *bind_nchar = (char *)*ptr;
-        rand_string(bind_nchar, dataLen);
 
         bind->buffer_type = TSDB_DATA_TYPE_NCHAR;
+        if (value) {
+            strncpy(bind_nchar, value, strlen(value));
+        } else {
+            rand_string(bind_nchar, dataLen);
+        }
+
         bind->buffer_length = strlen(bind_nchar);
         bind->buffer = bind_nchar;
         bind->length = &bind->buffer_length;
@@ -5369,7 +5382,11 @@ static int32_t prepareStmtBindArrayByType(TAOS_BIND *bind,
                 "INT", strlen("INT"))) {
         int32_t *bind_int = (int32_t *)*ptr;
 
-        *bind_int = rand_int();
+        if (value) {
+            *bind_int = atoi(value);
+        } else {
+            *bind_int = rand_int();
+        }
         bind->buffer_type = TSDB_DATA_TYPE_INT;
         bind->buffer_length = sizeof(int32_t);
         bind->buffer = bind_int;
@@ -5381,7 +5398,11 @@ static int32_t prepareStmtBindArrayByType(TAOS_BIND *bind,
                 "BIGINT", strlen("BIGINT"))) {
         int64_t *bind_bigint = (int64_t *)*ptr;
 
-        *bind_bigint = rand_bigint();
+        if (value) {
+            *bind_bigint = atoll(value);
+        } else {
+            *bind_bigint = rand_bigint();
+        }
         bind->buffer_type = TSDB_DATA_TYPE_BIGINT;
         bind->buffer_length = sizeof(int64_t);
         bind->buffer = bind_bigint;
@@ -5393,7 +5414,11 @@ static int32_t prepareStmtBindArrayByType(TAOS_BIND *bind,
                 "FLOAT", strlen("FLOAT"))) {
         float   *bind_float = (float *) *ptr;
 
-        *bind_float = rand_float();
+        if (value) {
+            *bind_float = (float)atof(value);
+        } else {
+            *bind_float = rand_float();
+        }
         bind->buffer_type = TSDB_DATA_TYPE_FLOAT;
         bind->buffer_length = sizeof(float);
         bind->buffer = bind_float;
@@ -5405,7 +5430,11 @@ static int32_t prepareStmtBindArrayByType(TAOS_BIND *bind,
                 "DOUBLE", strlen("DOUBLE"))) {
         double  *bind_double = (double *)*ptr;
 
-        *bind_double = rand_double();
+        if (value) {
+            *bind_double = atof(value);
+        } else {
+            *bind_double = rand_double();
+        }
         bind->buffer_type = TSDB_DATA_TYPE_DOUBLE;
         bind->buffer_length = sizeof(double);
         bind->buffer = bind_double;
@@ -5417,7 +5446,11 @@ static int32_t prepareStmtBindArrayByType(TAOS_BIND *bind,
                 "SMALLINT", strlen("SMALLINT"))) {
         int16_t *bind_smallint = (int16_t *)*ptr;
 
-        *bind_smallint = rand_smallint();
+        if (value) {
+            *bind_smallint = (int16_t)atoi(value);
+        } else {
+            *bind_smallint = rand_smallint();
+        }
         bind->buffer_type = TSDB_DATA_TYPE_SMALLINT;
         bind->buffer_length = sizeof(int16_t);
         bind->buffer = bind_smallint;
@@ -5429,7 +5462,11 @@ static int32_t prepareStmtBindArrayByType(TAOS_BIND *bind,
                 "TINYINT", strlen("TINYINT"))) {
         int8_t  *bind_tinyint = (int8_t *)*ptr;
 
-        *bind_tinyint = rand_tinyint();
+        if (value) {
+            *bind_tinyint = (int8_t)atoi(value);
+        } else {
+            *bind_tinyint = rand_tinyint();
+        }
         bind->buffer_type = TSDB_DATA_TYPE_TINYINT;
         bind->buffer_length = sizeof(int8_t);
         bind->buffer = bind_tinyint;
@@ -5452,7 +5489,11 @@ static int32_t prepareStmtBindArrayByType(TAOS_BIND *bind,
                 "TIMESTAMP", strlen("TIMESTAMP"))) {
         int64_t *bind_ts2 = (int64_t *) *ptr;
 
-        *bind_ts2 = rand_bigint();
+        if (value) {
+            *bind_ts2 = atoll(value);
+        } else {
+            *bind_ts2 = rand_bigint();
+        }
         bind->buffer_type = TSDB_DATA_TYPE_TIMESTAMP;
         bind->buffer_length = sizeof(int64_t);
         bind->buffer = bind_ts2;
@@ -5518,12 +5559,13 @@ static int32_t prepareStmtWithoutStb(
         ptr += bind->buffer_length;
 
         for (int i = 0; i < g_args.num_of_CPR; i ++) {
-            bind = (TAOS_BIND *)((char *)bindArray + (sizeof(TAOS_BIND) * (i + 1)));
+            bind = (TAOS_BIND *)((char *)bindArray
+                    + (sizeof(TAOS_BIND) * (i + 1)));
             if ( -1 == prepareStmtBindArrayByType(
                         bind,
                         data_type[i],
                         g_args.len_of_binary,
-                        &ptr)) {
+                        &ptr, NULL)) {
                 return -1;
             }
         }
@@ -5542,12 +5584,14 @@ static int32_t prepareStmtWithoutStb(
     return k;
 }
 
-static int32_t prepareStbStmt(SSuperTable *stbInfo,
+static int32_t prepareStbStmt(
+        SSuperTable *stbInfo,
         TAOS_STMT *stmt,
         char *tableName, uint32_t batch,
         uint64_t insertRows,
         uint64_t recordFrom,
-        int64_t startTime, char *buffer)
+        int64_t startTime,
+        int64_t *pSamplePos)
 {
     int ret = taos_stmt_set_tbname(stmt, tableName);
     if (ret != 0) {
@@ -5558,16 +5602,24 @@ static int32_t prepareStbStmt(SSuperTable *stbInfo,
 
     char *bindArray = malloc(sizeof(TAOS_BIND) * (stbInfo->columnCount + 1));
     if (bindArray == NULL) {
-        errorPrint("Failed to allocate %d bind params\n",
-                (stbInfo->columnCount + 1));
+        errorPrint("%s() LN%d, Failed to allocate %d bind params\n",
+                __func__, __LINE__, (stbInfo->columnCount + 1));
         return -1;
     }
 
-    bool tsRand;
+    bool sourceRand;
     if (0 == strncasecmp(stbInfo->dataSource, "rand", strlen("rand"))) {
-        tsRand = true;
+        sourceRand = true;
     } else {
-        tsRand = false;
+        sourceRand = false;     // from sample data file
+    }
+
+    char *bindBuffer = malloc(g_args.len_of_binary);
+    if (bindBuffer == NULL) {
+        errorPrint("%s() LN%d, Failed to allocate %d bind buffer\n",
+                __func__, __LINE__, g_args.len_of_binary);
+        free(bindArray);
+        return -1;
     }
 
     uint32_t k;
@@ -5583,7 +5635,7 @@ static int32_t prepareStbStmt(SSuperTable *stbInfo,
 
         bind_ts = (int64_t *)ptr;
         bind->buffer_type = TSDB_DATA_TYPE_TIMESTAMP;
-        if (tsRand) {
+        if (sourceRand) {
             *bind_ts = startTime + getTSRandTail(
                     stbInfo->timeStampStep, k,
                     stbInfo->disorderRatio,
@@ -5598,14 +5650,46 @@ static int32_t prepareStbStmt(SSuperTable *stbInfo,
 
         ptr += bind->buffer_length;
 
+        int cursor = 0;
         for (int i = 0; i < stbInfo->columnCount; i ++) {
             bind = (TAOS_BIND *)((char *)bindArray + (sizeof(TAOS_BIND) * (i + 1)));
-            if ( -1 == prepareStmtBindArrayByType(
-                        bind,
-                        stbInfo->columns[i].dataType,
-                        stbInfo->columns[i].dataLen,
-                        &ptr)) {
-                return -1;
+
+            if (sourceRand) {
+                if ( -1 == prepareStmtBindArrayByType(
+                            bind,
+                            stbInfo->columns[i].dataType,
+                            stbInfo->columns[i].dataLen,
+                            &ptr,
+                            NULL)) {
+                    free(bindArray);
+                    free(bindBuffer);
+                    return -1;
+                }
+            } else {
+                char *restStr = stbInfo->sampleDataBuf + cursor;
+                int lengthOfRest = strlen(restStr);
+
+                int index = 0;
+                for (index = 0; index < lengthOfRest; index ++) {
+                    if (restStr[index] == ',') {
+                        break;
+                    }
+                }
+
+                memset(bindBuffer, 0, g_args.len_of_binary);
+                strncpy(bindBuffer, restStr, index);
+                cursor += index + 1; // skip ',' too
+
+                if ( -1 == prepareStmtBindArrayByType(
+                            bind,
+                            stbInfo->columns[i].dataType,
+                            stbInfo->columns[i].dataLen,
+                            &ptr,
+                            bindBuffer)) {
+                    free(bindArray);
+                    free(bindBuffer);
+                    return -1;
+                }
             }
         }
         taos_stmt_bind_param(stmt, (TAOS_BIND *)bindArray);
@@ -5614,11 +5698,16 @@ static int32_t prepareStbStmt(SSuperTable *stbInfo,
 
         k++;
         recordFrom ++;
+
+        if (!sourceRand) {
+            (*pSamplePos) ++;
+        }
         if (recordFrom >= insertRows) {
             break;
         }
     }
 
+    free(bindBuffer);
     free(bindArray);
     return k;
 }
@@ -5811,13 +5900,14 @@ static void* syncWriteInterlace(threadInfo *pThreadInfo) {
       if (superTblInfo) {
           if (superTblInfo->iface == STMT_IFACE) {
 #if STMT_IFACE_ENABLED == 1
-              generated = prepareStbStmt(superTblInfo,
+              generated = prepareStbStmt(
+                      superTblInfo,
                       pThreadInfo->stmt,
                       tableName,
                       batchPerTbl,
                       insertRows, i,
                       startTime,
-                      pThreadInfo->buffer);
+                      &(pThreadInfo->samplePos));
 #else
               generated = -1;
 #endif
@@ -5915,11 +6005,14 @@ static void* syncWriteInterlace(threadInfo *pThreadInfo) {
     startTs = taosGetTimestampMs();
 
     if (recOfBatch == 0) {
-      errorPrint("[%d] %s() LN%d try inserting records of batch is %d\n",
-              pThreadInfo->threadID, __func__, __LINE__,
-              recOfBatch);
-      errorPrint("%s\n", "\tPlease check if the batch or the buffer length is proper value!\n");
-      goto free_of_interlace;
+        errorPrint("[%d] %s() LN%d Failed to insert records of batch %d\n",
+                pThreadInfo->threadID, __func__, __LINE__,
+                batchPerTbl);
+        errorPrint("\tIf the batch is %d, the length of the SQL to insert a row must be less then %"PRId64"\n",
+                batchPerTbl, maxSqlLen / batchPerTbl);
+        errorPrint("\tPlease check if the buffer length(%"PRId64") or batch(%d) is set with proper value!\n",
+                maxSqlLen, batchPerTbl);
+        goto free_of_interlace;
     }
     int64_t affectedRows = execInsert(pThreadInfo, recOfBatch);
 
@@ -6039,7 +6132,8 @@ static void* syncWriteProgressive(threadInfo *pThreadInfo) {
                       pThreadInfo->stmt,
                       tableName,
                       g_args.num_of_RPR,
-                      insertRows, i, start_time, pstr);
+                      insertRows, i, start_time,
+                      &(pThreadInfo->samplePos));
 #else
               generated = -1;
 #endif
@@ -7320,6 +7414,7 @@ static void *superSubscribe(void *sarg) {
     TAOS_RES* res = NULL;
 
     uint64_t st = 0, et = 0;
+
     while ((g_queryInfo.superQueryInfo.endAfterConsume == -1)
             || (g_queryInfo.superQueryInfo.endAfterConsume >
                 consumed[pThreadInfo->end_table_to

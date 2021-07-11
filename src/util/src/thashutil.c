@@ -126,15 +126,38 @@ _hash_fn_t taosGetDefaultHashFunction(int32_t type) {
   _hash_fn_t fn = NULL;
   switch(type) {
     case TSDB_DATA_TYPE_TIMESTAMP:
-    case TSDB_DATA_TYPE_BIGINT:   fn = taosIntHash_64;break;
-    case TSDB_DATA_TYPE_BINARY:   fn = MurmurHash3_32;break;
-    case TSDB_DATA_TYPE_NCHAR:    fn = MurmurHash3_32;break;
-    case TSDB_DATA_TYPE_INT:      fn = taosIntHash_32; break;
-    case TSDB_DATA_TYPE_SMALLINT: fn = taosIntHash_16; break;
-    case TSDB_DATA_TYPE_TINYINT:  fn = taosIntHash_8; break;
-    case TSDB_DATA_TYPE_FLOAT:    fn = taosFloatHash; break;                             
-    case TSDB_DATA_TYPE_DOUBLE:   fn = taosDoubleHash; break;                             
-    default: fn = taosIntHash_32;break;
+    case TSDB_DATA_TYPE_UBIGINT:
+    case TSDB_DATA_TYPE_BIGINT:   
+      fn = taosIntHash_64;
+      break;
+    case TSDB_DATA_TYPE_BINARY:   
+      fn = MurmurHash3_32;
+      break;
+    case TSDB_DATA_TYPE_NCHAR:    
+      fn = MurmurHash3_32;
+      break;
+    case TSDB_DATA_TYPE_UINT:
+    case TSDB_DATA_TYPE_INT:      
+      fn = taosIntHash_32; 
+      break;
+    case TSDB_DATA_TYPE_SMALLINT: 
+    case TSDB_DATA_TYPE_USMALLINT:  
+      fn = taosIntHash_16; 
+      break;
+    case TSDB_DATA_TYPE_BOOL:
+    case TSDB_DATA_TYPE_UTINYINT:
+    case TSDB_DATA_TYPE_TINYINT:  
+      fn = taosIntHash_8; 
+      break;
+    case TSDB_DATA_TYPE_FLOAT:    
+      fn = taosFloatHash; 
+      break;                             
+    case TSDB_DATA_TYPE_DOUBLE:   
+      fn = taosDoubleHash; 
+      break;                             
+    default: 
+      fn = taosIntHash_32;
+      break;
   }
   
   return fn;

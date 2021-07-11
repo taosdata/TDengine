@@ -15,6 +15,8 @@ public class RestfulPreparedStatementTest {
     private static PreparedStatement pstmt_insert;
     private static final String sql_select = "select * from t1 where ts > ? and ts <= ? and f1 >= ?";
     private static PreparedStatement pstmt_select;
+    private static final String sql_without_parameters = "select count(*) from t1";
+    private static PreparedStatement pstmt_without_parameters;
 
     @Test
     public void executeQuery() throws SQLException {
@@ -237,6 +239,7 @@ public class RestfulPreparedStatementTest {
     @Test
     public void clearParameters() throws SQLException {
         pstmt_insert.clearParameters();
+        pstmt_without_parameters.clearParameters();
     }
 
     @Test
@@ -382,6 +385,7 @@ public class RestfulPreparedStatementTest {
 
             pstmt_insert = conn.prepareStatement(sql_insert);
             pstmt_select = conn.prepareStatement(sql_select);
+            pstmt_without_parameters = conn.prepareStatement(sql_without_parameters);
         } catch (SQLException e) {
             e.printStackTrace();
         }
@@ -394,6 +398,8 @@ public class RestfulPreparedStatementTest {
                 pstmt_insert.close();
             if (pstmt_select != null)
                 pstmt_select.close();
+            if (pstmt_without_parameters != null)
+                pstmt_without_parameters.close();
             if (conn != null)
                 conn.close();
         } catch (SQLException e) {

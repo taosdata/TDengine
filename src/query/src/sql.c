@@ -2921,7 +2921,7 @@ static void yy_reduce(
 {yymsp[-3].minor.yy414.limit = yymsp[0].minor.yy369;  yymsp[-3].minor.yy414.offset = yymsp[-2].minor.yy369;}
         break;
       case 223: /* expr ::= LP expr RP */
-{yylhsminor.yy166 = yymsp[-1].minor.yy166; yylhsminor.yy166->token.z = yymsp[-2].minor.yy0.z; yylhsminor.yy166->token.n = (yymsp[0].minor.yy0.z - yymsp[-2].minor.yy0.z + 1);}
+{yylhsminor.yy166 = yymsp[-1].minor.yy166; yylhsminor.yy166->exprToken.z = yymsp[-2].minor.yy0.z; yylhsminor.yy166->exprToken.n = (yymsp[0].minor.yy0.z - yymsp[-2].minor.yy0.z + 1);}
   yymsp[-2].minor.yy166 = yylhsminor.yy166;
         break;
       case 224: /* expr ::= ID */

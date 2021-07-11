@@ -73,14 +73,14 @@ typedef struct SResultRowPool {
 
 typedef struct SResultRow {
   int32_t       pageId;      // pageId & rowId is the position of current result in disk-based output buffer
-  int32_t       offset:29;    // row index in buffer page
+  int32_t       offset:29;   // row index in buffer page
   bool          startInterp; // the time window start timestamp has done the interpolation already.
   bool          endInterp;   // the time window end timestamp has done the interpolation already.
   bool          closed;      // this result status: closed or opened
   uint32_t      numOfRows;   // number of rows of current time window
   SResultRowCellInfo*  pCellInfo;  // For each result column, there is a resultInfo
-  STimeWindow win;
-  char* key;                 // start key of current result row
+  STimeWindow   win;
+  char         *key;               // start key of current result row
 } SResultRow;
 
 typedef struct SGroupResInfo {
@@ -105,8 +105,7 @@ typedef struct SResultRowInfo {
   int16_t      type:8;     // data type for hash key
   int32_t      size:24;    // number of result set
   int32_t      capacity;   // max capacity
-  int32_t      curIndex;   // current start active index
-  int64_t      prevSKey;   // previous (not completed) sliding window start key
+  SResultRow*  current;    // current active result row
 } SResultRowInfo;
 
 typedef struct SColumnFilterElem {
@@ -118,6 +117,7 @@ typedef struct SColumnFilterElem {
 
 typedef struct SSingleColumnFilterInfo {
   void*              pData;
+  void*              pData2;  //used for nchar column
   int32_t            numOfFilters;
   SColumnInfo        info;
   SColumnFilterElem* pFilters;
@@ -276,6 +276,7 @@ typedef struct SQueryRuntimeEnv {
   bool                  enableGroupData;
   SDiskbasedResultBuf*  pResultBuf;       // query result buffer based on blocked-wised disk file
   SHashObj*             pResultRowHashTable; // quick locate the window object for each result
+  SHashObj*             pResultRowListSet;   // used to check if current ResultRowInfo has ResultRow object or not
   char*                 keyBuf;           // window key buffer
   SResultRowPool*       pool;             // window result object pool
   char**                prevRow;
@@ -571,6 +572,7 @@ void doCompactSDataBlock(SSDataBlock* pBlock, int32_t numOfRows, int8_t* p);
 
 SSDataBlock* createOutputBuf(SExprInfo* pExpr, int32_t numOfOutput, int32_t numOfRows);
 void* destroyOutputBuf(SSDataBlock* pBlock);
+void* doDestroyFilterInfo(SSingleColumnFilterInfo* pFilterInfo, int32_t numOfFilterCols);
 
 void setInputDataBlock(SOperatorInfo* pOperator, SQLFunctionCtx* pCtx, SSDataBlock* pBlock, int32_t order);
 int32_t getNumOfResult(SQueryRuntimeEnv *pRuntimeEnv, SQLFunctionCtx* pCtx, int32_t numOfOutput);
