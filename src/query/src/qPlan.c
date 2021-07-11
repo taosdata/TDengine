@@ -127,7 +127,8 @@ static SQueryNode* doAddTableColumnNode(SQueryInfo* pQueryInfo, STableMetaInfo* 
       SColumn* pCol = taosArrayGetP(tableCols, i);
 
       SColumnIndex index = {.tableIndex = 0, .columnIndex = pCol->columnIndex};
-      SExprInfo*   p = tscExprCreate(pQueryInfo, TSDB_FUNC_PRJ, &index, pCol->info.type, pCol->info.bytes,
+      STableMetaInfo* pTableMetaInfo1 = tscGetMetaInfo(pQueryInfo, index.tableIndex);
+      SExprInfo*   p = tscExprCreate(pTableMetaInfo1, TSDB_FUNC_PRJ, &index, pCol->info.type, pCol->info.bytes,
                                      pCol->info.colId, 0, TSDB_COL_NORMAL);
       strncpy(p->base.aliasName, pSchema[pCol->columnIndex].name, tListLen(p->base.aliasName));
 

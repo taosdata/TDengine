@@ -179,14 +179,6 @@ if $data21 != 49.500000000 then
   return -1
 endi
 
-#define TSDB_FUNC_APERCT       7
-#define TSDB_FUNC_TWA          14
-#define TSDB_FUNC_LEASTSQR     15
-#define TSDB_FUNC_DIFF         24
-#define TSDB_FUNC_INTERP       28
-#define TSDB_FUNC_IRATE        30
-#define TSDB_FUNC_DERIVATIVE   32
-
 sql_error select stddev(c1) from (select c1 from nest_tb0);
 sql_error select percentile(c1, 20) from (select * from nest_tb0);
 sql_error select interp(c1) from (select * from nest_tb0);
@@ -197,9 +189,90 @@ sql_error select diff(c1), twa(c1) from (select * from nest_tb0);
 sql_error select irate(c1), interp(c1), twa(c1) from (select * from nest_tb0);
 
 sql select apercentile(c1, 50) from (select * from nest_tb0) interval(1d)
+if $rows != 7 then
+  return -1
+endi
+
+if $data00 != @20-09-15 00:00:00.000@ then
+  return -1
+endi
+
+if $data01 != 47.571428571 then
+  return -1
+endi
+
+if $data10 != @20-09-16 00:00:00.000@ then
+  return -1
+endi
+
+if $data11 != 49.666666667 then
+  return -1
+endi
+
+if $data20 != @20-09-17 00:00:00.000@ then
+  return -1
+endi
+
+if $data21 != 49.000000000 then
+  return -1
+endi
+
+if $data30 != @20-09-18 00:00:00.000@ then
+  return -1
+endi
+
+if $data31 != 48.333333333 then
+  return -1
+endi
+
 sql select twa(c1) from (select * from nest_tb0);
+if $rows != 1 then
+  return -1
+endi
+
+if $data00 != 49.500000000 then
+  return -1
+endi
+
 sql select leastsquares(c1, 1, 1) from (select * from nest_tb0);
+if $rows != 1 then
+  return -1
+endi
+
+if $data00 != @{slop:0.000100, intercept:49.000000}@ then
+  return -1
+endi
+
 sql select irate(c1) from (select * from nest_tb0);
+if $data00 != 0.016666667 then
+  return -1
+endi
+
+sql select derivative(c1, 1s, 0) from (select * from nest_tb0);
+if $rows != 9999 then
+  return -1
+endi
+
+if $data00 != @20-09-15 00:01:00.000@ then
+  return -1
+endi
+
+if $data01 != 0.016666667 then
+  return -1
+endi
+
+if $data10 != @20-09-15 00:02:00.000@ then
+  return -1
+endi
+
+if $data11 != 0.016666667 then
+  return -1
+endi
+
+sql select diff(c1) from (select * from nest_tb0);
+if $rows != 9999 then
+  return -1
+endi
 
 sql select avg(c1),sum(c2), max(c3), min(c4), count(*), first(c7), last(c7),spread(c6) from (select * from nest_tb0) interval(1d);
 if $rows != 7 then
@@ -348,6 +421,72 @@ if $data00 != @70-01-01 08:00:00.000@ then
 endi
 
 if $data01 != 1 then
+  return -1
+endi
+
+sql_error select last_row(*) from (select * from nest_tb0) having c1 > 0
+
+print ===========>td-4805
+sql_error select tbname, i from (select * from nest_tb0) group by i;
+
+sql select count(*),c1 from (select * from nest_tb0) where c1 < 2 group by c1;
+if $rows != 2 then
+  return -1
+endi
+
+if $data00 != 100 then
+  return -1
+endi
+
+if $data01 != 0 then
+  return -1
+endi
+
+if $data10 != 100 then
+  return -1
+endi
+
+if $data11 != 1 then
+  return -1
+endi
+
+print =====================>TD-5157
+sql select twa(c1) from nest_tb1 interval(19a);
+if $rows != 10000 then
+  return -1
+endi
+
+if $data00 != @20-09-14 23:59:59.992@ then
+  return -1
+endi
+
+if $data01 != 0.000083333 then
+  return -1
+endi
+
+print =================>us database interval query, TD-5039
+sql create database test precision 'us';
+sql use test;
+sql create table t1(ts timestamp, k int);
+sql insert into t1 values('2020-01-01 01:01:01.000', 1) ('2020-01-01 01:02:00.000', 2);
+sql select avg(k) from (select avg(k) k from t1 interval(1s)) interval(1m);
+if $rows != 2 then
+  return -1
+endi
+
+if $data00 != @20-01-01 01:01:00.000000@ then
+  return -1
+endi
+
+if $data01 != 1.000000000 then
+  return -1
+endi
+
+if $data10 != @20-01-01 01:02:00.000000@ then
+  return -1
+endi
+
+if $data11 != 2.000000000 then
   return -1
 endi
 

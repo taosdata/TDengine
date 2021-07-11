@@ -14,6 +14,7 @@ osType=$5
 verMode=$6
 verType=$7
 pagMode=$8
+versionComp=$9
 
 script_dir="$(dirname $(readlink -f $0))"
 top_dir="$(readlink -f ${script_dir}/../..)"
@@ -175,8 +176,7 @@ if [[ "$pagMode" != "lite" ]] && [[ "$cpuType" != "aarch32" ]]; then
   cp -r ${examples_dir}/C#     ${install_dir}/examples
 fi
 # Copy driver
-mkdir -p ${install_dir}/driver
-cp ${lib_files} ${install_dir}/driver
+mkdir -p ${install_dir}/driver && cp ${lib_files} ${install_dir}/driver && echo "${versionComp}" > ${install_dir}/driver/vercomp.txt
 
 # Copy connector
 connector_dir="${code_dir}/connector"

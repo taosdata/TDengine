@@ -31,7 +31,7 @@ public class ResultSetMetaShouldNotBeNullRestfulTest {
 
         // then
         Assert.assertNotNull(metaData);
-        Assert.assertEquals(0, columnCount);
+        Assert.assertEquals(2, columnCount);
     }
 
     @Test
@@ -53,7 +53,7 @@ public class ResultSetMetaShouldNotBeNullRestfulTest {
         // then
         Assert.assertEquals(true, execute);
         Assert.assertNotNull(metaData);
-        Assert.assertEquals(0, columnCount);
+        Assert.assertEquals(2, columnCount);
     }
 
     @Before

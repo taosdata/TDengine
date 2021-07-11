@@ -745,19 +745,23 @@ static int doBindParam(STableDataBlocks* pBlock, char* data, SParamInfo* param, 
   switch(param->type) {
     case TSDB_DATA_TYPE_BOOL:
     case TSDB_DATA_TYPE_TINYINT:
+    case TSDB_DATA_TYPE_UTINYINT:
       size = 1;
       break;
 
     case TSDB_DATA_TYPE_SMALLINT:
+    case TSDB_DATA_TYPE_USMALLINT:
       size = 2;
       break;
 
     case TSDB_DATA_TYPE_INT:
+    case TSDB_DATA_TYPE_UINT:
     case TSDB_DATA_TYPE_FLOAT:
       size = 4;
       break;
 
     case TSDB_DATA_TYPE_BIGINT:
+    case TSDB_DATA_TYPE_UBIGINT:
     case TSDB_DATA_TYPE_DOUBLE:
     case TSDB_DATA_TYPE_TIMESTAMP:
       size = 8;
@@ -1159,7 +1163,7 @@ static void insertBatchClean(STscStmt* pStmt) {
   pCmd->insertParam.pDataBlocks = tscDestroyBlockArrayList(pCmd->insertParam.pDataBlocks);
   pCmd->insertParam.numOfTables = 0;
 
-  taosHashEmpty(pCmd->insertParam.pTableBlockHashList);
+  taosHashClear(pCmd->insertParam.pTableBlockHashList);
   tscFreeSqlResult(pSql);
   tscFreeSubobj(pSql);
   tfree(pSql->pSubs);

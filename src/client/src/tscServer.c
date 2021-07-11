@@ -484,8 +484,8 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcEpSet *pEpSet) {
   }
 
   if (shouldFree) { // in case of table-meta/vgrouplist query, automatically free it
-    taosRemoveRef(tscObjRef, handle);
     tscDebug("0x%"PRIx64" sqlObj is automatically freed", pSql->self);
+    taosRemoveRef(tscObjRef, handle);
   }
 
   taosReleaseRef(tscObjRef, handle);
@@ -1703,7 +1703,7 @@ int tscProcessRetrieveGlobalMergeRsp(SSqlObj *pSql) {
 
   uint64_t localQueryId = pSql->self;
   qTableQuery(pQueryInfo->pQInfo, &localQueryId);
-  convertQueryResult(pRes, pQueryInfo, pSql->self);
+  convertQueryResult(pRes, pQueryInfo, pSql->self, true);
 
   code = pRes->code;
   if (pRes->code == TSDB_CODE_SUCCESS) {
@@ -2005,7 +2005,6 @@ static SVgroupsInfo* createVgroupInfoFromMsg(char* pMsg, int32_t* size, uint64_t
 
       SVgroupMsg *vmsg = &pVgroupMsg->vgroups[j];
       vmsg->vgId = htonl(vmsg->vgId);
-      vmsg->numOfEps = vmsg->numOfEps;
       for (int32_t k = 0; k < vmsg->numOfEps; ++k) {
         vmsg->epAddr[k].port = htons(vmsg->epAddr[k].port);
       }
@@ -2309,7 +2308,7 @@ int tscProcessDropDbRsp(SSqlObj *pSql) {
   //TODO LOCK DB WHEN MODIFY IT
   //pSql->pTscObj->db[0] = 0;
   
-  taosHashEmpty(tscTableMetaInfo);
+  taosHashClear(tscTableMetaInfo);
   return 0;
 }
 
@@ -2340,7 +2339,7 @@ int tscProcessAlterTableMsgRsp(SSqlObj *pSql) {
   tfree(pTableMetaInfo->pTableMeta);
 
   if (isSuperTable) {  // if it is a super table, iterate the hashTable and remove all the childTableMeta
-    taosHashEmpty(tscTableMetaInfo);
+    taosHashClear(tscTableMetaInfo);
   }
 
   return 0;
@@ -2398,11 +2397,12 @@ int tscProcessRetrieveRspFromNode(SSqlObj *pSql) {
   }
 
   STableMetaInfo *pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
-  if (pCmd->command == TSDB_SQL_RETRIEVE) {
-    tscSetResRawPtr(pRes, pQueryInfo);
-  } else if ((UTIL_TABLE_IS_CHILD_TABLE(pTableMetaInfo) || UTIL_TABLE_IS_NORMAL_TABLE(pTableMetaInfo)) && !TSDB_QUERY_HAS_TYPE(pQueryInfo->type, TSDB_QUERY_TYPE_SUBQUERY)) {
-    tscSetResRawPtr(pRes, pQueryInfo);
-  } else if (tscNonOrderedProjectionQueryOnSTable(pQueryInfo, 0) && !TSDB_QUERY_HAS_TYPE(pQueryInfo->type, TSDB_QUERY_TYPE_JOIN_QUERY) && !TSDB_QUERY_HAS_TYPE(pQueryInfo->type, TSDB_QUERY_TYPE_JOIN_SEC_STAGE)) {
+  if ((pCmd->command == TSDB_SQL_RETRIEVE) ||
+      ((UTIL_TABLE_IS_CHILD_TABLE(pTableMetaInfo) || UTIL_TABLE_IS_NORMAL_TABLE(pTableMetaInfo)) &&
+       !TSDB_QUERY_HAS_TYPE(pQueryInfo->type, TSDB_QUERY_TYPE_SUBQUERY)) ||
+      (tscNonOrderedProjectionQueryOnSTable(pQueryInfo, 0) &&
+       !TSDB_QUERY_HAS_TYPE(pQueryInfo->type, TSDB_QUERY_TYPE_JOIN_QUERY) &&
+       !TSDB_QUERY_HAS_TYPE(pQueryInfo->type, TSDB_QUERY_TYPE_JOIN_SEC_STAGE))) {
     tscSetResRawPtr(pRes, pQueryInfo);
   }
 

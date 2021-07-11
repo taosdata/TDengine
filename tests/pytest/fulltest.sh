@@ -150,6 +150,7 @@ python3 ./test.py -f import_merge/importCSV.py
 #======================p2-start===============
 # tools
 python3 test.py -f tools/taosdumpTest.py
+python3 test.py -f tools/taosdumpTest2.py
 
 python3 test.py -f tools/taosdemoTest.py
 python3 test.py -f tools/taosdemoTestWithoutMetric.py
@@ -237,6 +238,7 @@ python3 ./test.py -f query/queryTsisNull.py
 python3 ./test.py -f query/subqueryFilter.py
 # python3 ./test.py -f query/nestedQuery/queryInterval.py
 python3 ./test.py -f query/queryStateWindow.py
+python3 ./test.py -f query/nestedQuery/queryWithOrderLimit.py
 
 
 #stream
@@ -333,6 +335,7 @@ python3 ./test.py -f insert/unsignedInt.py
 python3 ./test.py -f insert/unsignedBigint.py
 python3 ./test.py -f insert/unsignedSmallint.py
 python3 ./test.py -f insert/unsignedTinyint.py
+python3 ./test.py -f insert/insertFromCSV.py
 python3 ./test.py -f query/filterAllUnsignedIntTypes.py
 
 python3 ./test.py -f tag_lite/unsignedInt.py
@@ -342,12 +345,14 @@ python3 ./test.py -f tag_lite/unsignedTinyint.py
 
 python3 ./test.py -f functions/function_percentile2.py
 python3 ./test.py -f insert/boundary2.py
+python3 ./test.py -f insert/insert_locking.py
 python3 ./test.py -f alter/alter_debugFlag.py
 python3 ./test.py -f query/queryBetweenAnd.py
 python3 ./test.py -f tag_lite/alter_tag.py
 
 python3 test.py -f tools/taosdemoAllTest/taosdemoTestInsertWithJson.py 
 python3 test.py -f tools/taosdemoAllTest/taosdemoTestQueryWithJson.py
+python3 test.py -f tools/taosdemoAllTest/TD-4985/query-limit-offset.py
 python3 ./test.py -f tag_lite/drop_auto_create.py
 python3 test.py -f insert/insert_before_use_db.py
 python3 test.py -f alter/alter_keep.py

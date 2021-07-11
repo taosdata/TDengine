@@ -27,19 +27,18 @@ public class HttpClientPoolUtil {
     private static final int DEFAULT_MAX_TOTAL = 1000;
     private static final int DEFAULT_HTTP_KEEP_TIME = 15000;
 
-    private static PoolingHttpClientConnectionManager connectionManager;
     private static CloseableHttpClient httpClient;
 
     private static synchronized void initPools() {
         if (httpClient == null) {
-            connectionManager = new PoolingHttpClientConnectionManager();
+            PoolingHttpClientConnectionManager connectionManager = new PoolingHttpClientConnectionManager();
             connectionManager.setDefaultMaxPerRoute(DEFAULT_MAX_PER_ROUTE);
             connectionManager.setMaxTotal(DEFAULT_MAX_TOTAL);
             httpClient = HttpClients.custom().setKeepAliveStrategy(DEFAULT_KEEP_ALIVE_STRATEGY).setConnectionManager(connectionManager).build();
         }
     }
 
-    private static ConnectionKeepAliveStrategy DEFAULT_KEEP_ALIVE_STRATEGY = (response, context) -> {
+    private static final ConnectionKeepAliveStrategy DEFAULT_KEEP_ALIVE_STRATEGY = (response, context) -> {
         HeaderElementIterator it = new BasicHeaderElementIterator(response.headerIterator(HTTP.CONN_KEEP_ALIVE));
         int keepTime = DEFAULT_HTTP_KEEP_TIME * 1000;
         while (it.hasNext()) {

@@ -7,7 +7,7 @@ import com.google.common.primitives.Longs;
 import com.google.common.primitives.Shorts;
 import com.taosdata.jdbc.*;
 import com.taosdata.jdbc.enums.TimestampPrecision;
-import com.taosdata.jdbc.rs.enums.TimestampFormat;
+import com.taosdata.jdbc.enums.TimestampFormat;
 import com.taosdata.jdbc.utils.Utils;
 
 import java.math.BigDecimal;
@@ -17,19 +17,20 @@ import java.time.ZoneOffset;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.Calendar;
+import java.util.List;
 
 public class RestfulResultSet extends AbstractResultSet implements ResultSet {
-    private volatile boolean isClosed;
-    private int pos = -1;
 
-    private final String database;
     private final Statement statement;
     // data
-    private final ArrayList<ArrayList<Object>> resultSet = new ArrayList<>();
+    private final List<List<Object>> resultSet = new ArrayList<>();
     // meta
-    private ArrayList<String> columnNames = new ArrayList<>();
-    private ArrayList<Field> columns = new ArrayList<>();
-    private RestfulResultSetMetaData metaData;
+    private final List<String> columnNames = new ArrayList<>();
+    private final List<Field> columns = new ArrayList<>();
+    private final RestfulResultSetMetaData metaData;
+
+    private volatile boolean isClosed;
+    private int pos = -1;
 
     /**
      * 由一个result的Json构造结果集，对应执行show databases, show tables等这些语句，返回结果集，但无法获取结果集对应的meta，统一当成String处理
@@ -37,35 +38,30 @@ public class RestfulResultSet extends AbstractResultSet implements ResultSet {
      * @param resultJson: 包含data信息的结果集，有sql返回的结果集
      ***/
     public RestfulResultSet(String database, Statement statement, JSONObject resultJson) throws SQLException {
-        this.database = database;
         this.statement = statement;
 
+        // get head
+        JSONArray head = resultJson.getJSONArray("head");
         // get column metadata
         JSONArray columnMeta = resultJson.getJSONArray("column_meta");
         // get row data
         JSONArray data = resultJson.getJSONArray("data");
-        if (data == null || data.isEmpty()) {
-            columnNames.clear();
-            columns.clear();
-            this.resultSet.clear();
-            this.metaData = new RestfulResultSetMetaData(this.database, null, this);
-            return;
-        }
-        // get head
-        JSONArray head = resultJson.getJSONArray("head");
         // get rows
         Integer rows = resultJson.getInteger("rows");
+
         // parse column_meta
         if (columnMeta != null) {
             parseColumnMeta_new(columnMeta);
         } else {
             parseColumnMeta_old(head, data, rows);
         }
-        this.metaData = new RestfulResultSetMetaData(this.database, columns, this);
+        this.metaData = new RestfulResultSetMetaData(database, columns, this);
+
+        if (data == null || data.isEmpty())
+            return;
         // parse row data
-        resultSet.clear();
         for (int rowIndex = 0; rowIndex < data.size(); rowIndex++) {
-            ArrayList row = new ArrayList();
+            List<Object> row = new ArrayList();
             JSONArray jsonRow = data.getJSONArray(rowIndex);
             for (int colIndex = 0; colIndex < this.metaData.getColumnCount(); colIndex++) {
                 row.add(parseColumnData(jsonRow, colIndex, columns.get(colIndex).taos_type));
@@ -174,8 +170,8 @@ public class RestfulResultSet extends AbstractResultSet implements ResultSet {
                 //TODO: this implementation has bug if the timestamp bigger than 9999_9999_9999_9
                 if (value < 1_0000_0000_0000_0L)
                     return new Timestamp(value);
-                long epochSec = value / 1000_000l;
-                long nanoAdjustment = value % 1000_000l * 1000l;
+                long epochSec = value / 1000_000L;
+                long nanoAdjustment = value % 1000_000L * 1000L;
                 return Timestamp.from(Instant.ofEpochSecond(epochSec, nanoAdjustment));
             }
             case UTC: {
@@ -244,10 +240,7 @@ public class RestfulResultSet extends AbstractResultSet implements ResultSet {
         if (isClosed())
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_RESULTSET_CLOSED);
         pos++;
-        if (pos <= resultSet.size() - 1) {
-            return true;
-        }
-        return false;
+        return pos <= resultSet.size() - 1;
     }
 
     @Override
@@ -256,13 +249,6 @@ public class RestfulResultSet extends AbstractResultSet implements ResultSet {
             this.isClosed = true;
         }
     }
-
-//    @Override
-//    public boolean wasNull() throws SQLException {
-//        if (isClosed())
-//            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_RESULTSET_CLOSED);
-//        return resultSet.isEmpty();
-//    }
 
     @Override
     public String getString(int columnIndex) throws SQLException {
@@ -288,7 +274,7 @@ public class RestfulResultSet extends AbstractResultSet implements ResultSet {
         wasNull = false;
         if (value instanceof Boolean)
             return (boolean) value;
-        return Boolean.valueOf(value.toString());
+        return Boolean.parseBoolean(value.toString());
     }
 
     @Override
@@ -443,9 +429,7 @@ public class RestfulResultSet extends AbstractResultSet implements ResultSet {
             return null;
         if (value instanceof Timestamp)
             return new Date(((Timestamp) value).getTime());
-        Date date = null;
-        date = Utils.parseDate(value.toString());
-        return date;
+        return Utils.parseDate(value.toString());
     }
 
     @Override
@@ -460,8 +444,7 @@ public class RestfulResultSet extends AbstractResultSet implements ResultSet {
         Time time = null;
         try {
             time = Utils.parseTime(value.toString());
-        } catch (DateTimeParseException e) {
-            time = null;
+        } catch (DateTimeParseException ignored) {
         }
         return time;
     }
@@ -525,9 +508,9 @@ public class RestfulResultSet extends AbstractResultSet implements ResultSet {
             return null;
 
         if (value instanceof Long || value instanceof Integer || value instanceof Short || value instanceof Byte)
-            return new BigDecimal(Long.valueOf(value.toString()));
+            return new BigDecimal(Long.parseLong(value.toString()));
         if (value instanceof Double || value instanceof Float)
-            return new BigDecimal(Double.valueOf(value.toString()));
+            return BigDecimal.valueOf(Double.parseDouble(value.toString()));
         if (value instanceof Timestamp)
             return new BigDecimal(((Timestamp) value).getTime());
         BigDecimal ret;
@@ -637,36 +620,6 @@ public class RestfulResultSet extends AbstractResultSet implements ResultSet {
         if (isClosed())
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_RESULTSET_CLOSED);
 
-//        if (this.resultSet.size() == 0)
-//            return false;
-//
-//        if (row == 0) {
-//            beforeFirst();
-//            return false;
-//        } else if (row == 1) {
-//            return first();
-//        } else if (row == -1) {
-//            return last();
-//        } else if (row > this.resultSet.size()) {
-//            afterLast();
-//            return false;
-//        } else {
-//            if (row < 0) {
-//                // adjust to reflect after end of result set
-//                int newRowPosition = this.resultSet.size() + row + 1;
-//                if (newRowPosition <= 0) {
-//                    beforeFirst();
-//                    return false;
-//                } else {
-//                    return absolute(newRowPosition);
-//                }
-//            } else {
-//                row--; // adjust for index difference
-//                this.pos = row;
-//                return true;
-//            }
-//        }
-
         throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
     }
 
@@ -709,6 +662,5 @@ public class RestfulResultSet extends AbstractResultSet implements ResultSet {
     public boolean isClosed() throws SQLException {
         return isClosed;
     }
-
 
 }

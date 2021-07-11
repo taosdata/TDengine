@@ -961,6 +961,10 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql, char** boundC
           break;
         }
 
+        if (sToken.n == 0 || sToken.type == TK_SEMI || index == 0) {
+          return tscSQLSyntaxErrMsg(pCmd->payload, "unexpected token", sql);
+        }
+
         sql += index;
         ++numOfColsAfterTags;
       }
@@ -1580,7 +1584,6 @@ void tscImportDataFromFile(SSqlObj *pSql) {
 
   SImportFileSupport *pSupporter = calloc(1, sizeof(SImportFileSupport));
   SSqlObj *pNew = createSubqueryObj(pSql, 0, parseFileSendDataBlock, pSupporter, TSDB_SQL_INSERT, NULL);
-  pCmd->count = 1;
 
   FILE *fp = fopen(pCmd->payload, "rb");
   if (fp == NULL) {

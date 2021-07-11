@@ -771,7 +771,7 @@ int tsdbLoadMetaCache(STsdbRepo *pRepo, bool recoverMeta) {
   int64_t   maxBufSize = 0;
   SMFInfo   minfo;
 
-  taosHashEmpty(pfs->metaCache);
+  taosHashClear(pfs->metaCache);
 
   // No meta file, just return
   if (pfs->cstatus->pmf == NULL) return 0;
