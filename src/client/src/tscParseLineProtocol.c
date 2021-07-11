@@ -492,7 +492,8 @@ int32_t insertPoints(TAOS* taos, TAOS_SML_DATA_POINT* points, int32_t numPoints)
       int32_t idx = TARRAY_ELEM_IDX(point->schema->tags, kv->schema);
       TAOS_BIND* bind = taosArrayGet(tagBinds, idx);
       bind->buffer_type = kv->type;
-      bind->length = (uintptr_t*)&kv->length;
+      bind->length = malloc(sizeof(uintptr_t*));
+      *bind->length = kv->length;
       bind->buffer = kv->value;
       bind->is_null = NULL;
     }
@@ -514,7 +515,8 @@ int32_t insertPoints(TAOS* taos, TAOS_SML_DATA_POINT* points, int32_t numPoints)
         int32_t idx = TARRAY_ELEM_IDX(point->schema->fields, kv->schema);
         TAOS_BIND* bind = taosArrayGet(colBinds, idx);
         bind->buffer_type = kv->type;
-        bind->length = (uintptr_t*)&kv->length;
+        bind->length = malloc(sizeof(uintptr_t*));
+        *bind->length = kv->length;
         bind->buffer = kv->value;
         bind->is_null = NULL;
       }
