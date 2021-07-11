@@ -1163,15 +1163,10 @@ int tscSortRemoveDataBlockDupRows(STableDataBlocks *dataBuf, SBlockKeyInfo *pBlk
     pBlkKeyTuple->skey = payloadKey(pBlockData);
     pBlkKeyTuple->payloadAddr = pBlockData;
     payloadTLen = payloadTLen(pBlockData);
-
+#if 0
     ASSERT(payloadNCols(pBlockData) <= 4096);
     ASSERT(payloadTLen(pBlockData) < 65536);
-    ASSERT(pBlkKeyTuple->payloadAddr != NULL);
-
-    ASSERT((pBlkKeyTuple->skey < 1627747200000000 && pBlkKeyTuple->skey > 1498838400000000) ||
-           (pBlkKeyTuple->skey < 1627747200000 && pBlkKeyTuple->skey > 1498838400000) ||
-           (pBlkKeyTuple->skey < 1627747200 && pBlkKeyTuple->skey > 1498838400));
-
+#endif
     totolPayloadTLen += payloadTLen;
     // next loop
     pBlockData += payloadTLen;
@@ -1205,19 +1200,6 @@ int tscSortRemoveDataBlockDupRows(STableDataBlocks *dataBuf, SBlockKeyInfo *pBlk
 
     dataBuf->ordered = true;
     pBlocks->numOfRows = i + 1;
-
-    ASSERT(pBlocks->numOfRows <= nRows);
-
-    int tt = 0;
-    pBlkKeyTuple = pBlkKeyInfo->pKeyTuple;
-    while (tt < pBlocks->numOfRows) {
-      ASSERT(pBlkKeyTuple->payloadAddr != NULL);
-      ASSERT((pBlkKeyTuple->skey < 1627747200000000 && pBlkKeyTuple->skey > 1498838400000000) ||
-             (pBlkKeyTuple->skey < 1627747200000 && pBlkKeyTuple->skey > 1498838400000) ||
-             (pBlkKeyTuple->skey < 1627747200 && pBlkKeyTuple->skey > 1498838400));
-      ++pBlkKeyTuple;
-      ++tt;
-    }
   }
 
   dataBuf->size = sizeof(SSubmitBlk) + totolPayloadTLen;

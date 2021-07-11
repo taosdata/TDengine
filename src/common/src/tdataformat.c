@@ -785,3 +785,38 @@ SKVRow tdGetKVRowFromBuilder(SKVRowBuilder *pBuilder) {
   return row;
 }
 
+const void *tdGetNullVal(int8_t type) {
+  switch (type) {
+    case TSDB_DATA_TYPE_BOOL:
+      return &BoolNull;
+    case TSDB_DATA_TYPE_TINYINT:
+      return &TinyintNull;
+    case TSDB_DATA_TYPE_SMALLINT:
+      return &SmallintNull;
+    case TSDB_DATA_TYPE_INT:
+      return &IntNull;
+    case TSDB_DATA_TYPE_BIGINT:
+      return &BigintNull;
+    case TSDB_DATA_TYPE_FLOAT:
+      return &FloatNull;
+    case TSDB_DATA_TYPE_DOUBLE:
+      return &DoubleNull;
+    case TSDB_DATA_TYPE_BINARY:
+      return &BinaryNull;
+    case TSDB_DATA_TYPE_TIMESTAMP:
+      return &TimestampNull;
+    case TSDB_DATA_TYPE_NCHAR:
+      return &NcharNull;
+    case TSDB_DATA_TYPE_UTINYINT:
+      return &UTinyintNull;
+    case TSDB_DATA_TYPE_USMALLINT:
+      return &USmallintNull;
+    case TSDB_DATA_TYPE_UINT:
+      return &UIntNull;
+    case TSDB_DATA_TYPE_UBIGINT:
+      return &UBigintNull;
+    default:
+      ASSERT(0);
+      return NULL;
+  }
+}

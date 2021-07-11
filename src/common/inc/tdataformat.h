@@ -274,41 +274,7 @@ void dataColSetOffset(SDataCol *pCol, int nEle);
 bool isNEleNull(SDataCol *pCol, int nEle);
 void dataColSetNEleNull(SDataCol *pCol, int nEle, int maxPoints);
 
-FORCE_INLINE const void *tdGetNullVal(int8_t type) {
-  switch (type) {
-    case TSDB_DATA_TYPE_BOOL:
-      return &BoolNull;
-    case TSDB_DATA_TYPE_TINYINT:
-      return &TinyintNull;
-    case TSDB_DATA_TYPE_SMALLINT:
-      return &SmallintNull;
-    case TSDB_DATA_TYPE_INT:
-      return &IntNull;
-    case TSDB_DATA_TYPE_BIGINT:
-      return &BigintNull;
-    case TSDB_DATA_TYPE_FLOAT:
-      return &FloatNull;
-    case TSDB_DATA_TYPE_DOUBLE:
-      return &DoubleNull;
-    case TSDB_DATA_TYPE_BINARY:
-      return &BinaryNull;
-    case TSDB_DATA_TYPE_TIMESTAMP:
-      return &TimestampNull;
-    case TSDB_DATA_TYPE_NCHAR:
-      return &NcharNull;
-    case TSDB_DATA_TYPE_UTINYINT:
-      return &UTinyintNull;
-    case TSDB_DATA_TYPE_USMALLINT:
-      return &USmallintNull;
-    case TSDB_DATA_TYPE_UINT:
-      return &UIntNull;
-    case TSDB_DATA_TYPE_UBIGINT:
-      return &UBigintNull;
-    default:
-      ASSERT(0);
-      return NULL;
-  }
-}
+const void *tdGetNullVal(int8_t type);
 
 // Get the data pointer from a column-wised data
 static FORCE_INLINE void *tdGetColDataOfRow(SDataCol *pCol, int row) {
@@ -562,9 +528,10 @@ typedef void *SMemRow;
 #define memRowDataLen(r) (*(TDRowLenT *)memRowDataBody(r))  //  0~65535
 #define memRowKvLen(r) (*(TDRowLenT *)memRowKvBody(r))      //  0~65535
 
-#define memRowDataTLen(r) (memRowDataLen(r) + TD_MEM_ROW_TYPE_SIZE)  // using uint32_t/int32_t to store the TLen
+#define memRowDataTLen(r) \
+  ((TDRowTLenT)(memRowDataLen(r) + TD_MEM_ROW_TYPE_SIZE))  // using uint32_t/int32_t to store the TLen
 
-#define memRowKvTLen(r) (memRowKvLen(r) + TD_MEM_ROW_KV_TYPE_VER_SIZE)
+#define memRowKvTLen(r) ((TDRowTLenT)(memRowKvLen(r) + TD_MEM_ROW_KV_TYPE_VER_SIZE))
 
 #define memRowLen(r) (isDataRow(r) ? memRowDataLen(r) : memRowKvLen(r))
 #define memRowTLen(r) (isDataRow(r) ? memRowDataTLen(r) : memRowKvTLen(r))  // using uint32_t/int32_t to store the TLen
