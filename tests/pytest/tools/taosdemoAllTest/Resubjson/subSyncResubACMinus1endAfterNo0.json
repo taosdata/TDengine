@@ -1,0 +1,41 @@
+{
+    "filetype":"subscribe",
+    "cfgdir": "/etc/taos",
+    "host": "127.0.0.1",
+    "port": 6030,
+    "user": "root",
+    "password": "taosdata",
+    "databases": "db",
+    "confirm_parameter_prompt": "no",
+    "specified_table_query":
+      {
+       "concurrent":2, 
+       "mode":"sync", 
+       "interval":0, 
+       "resubAfterConsume":-1,
+       "endAfterConsume":1,
+       "keepProgress":"no",
+       "restart":"yes",
+       "sqls": [
+        {
+          "sql": "select * from stb00_0", 
+          "result": "./subscribe_res0.txt"
+        }]
+      },
+    "super_table_query": 
+      {
+       "stblname": "stb0",
+       "threads":2, 
+       "mode":"sync", 
+       "interval":1000, 
+       "resubAfterConsume":-1,
+       "endAfterConsume":2,
+       "keepProgress":"no",
+       "restart":"yes",
+       "sqls": [
+        {
+          "sql": "select * from xxxx where ts >= '2021-02-25 10:00:01.000' ", 
+          "result": "./subscribe_res2.txt"
+        }]
+      }
+  }

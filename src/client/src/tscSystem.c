@@ -46,6 +46,7 @@ static void  *tscCheckDiskUsageTmr;
 void      *tscRpcCache;            // cache to keep rpc obj
 int32_t   tscNumOfThreads = 1;     // num of rpc threads  
 char      tscLogFileName[12] = "taoslog";
+int       tscLogFileNum = 10;
 static    pthread_mutex_t rpcObjMutex; // mutex to protect open the rpc obj concurrently 
 static pthread_once_t tscinit = PTHREAD_ONCE_INIT;
 static volatile int tscInitRes = 0;
@@ -134,7 +135,7 @@ void taos_init_imp(void) {
     }
 
     sprintf(temp, "%s/%s", tsLogDir, tscLogFileName);
-    if (taosInitLog(temp, tsNumOfLogLines, 10) < 0) {
+    if (taosInitLog(temp, tsNumOfLogLines, tscLogFileNum) < 0) {
       printf("failed to open log file in directory:%s\n", tsLogDir);
     }
 
