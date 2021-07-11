@@ -30,8 +30,8 @@ elif [ "$branchName" == "develop" ];then
 fi
 
 
-# bash generate_community.sh  $version $versionComp $branchName $verType $cpuType
-# bash generate_enterprise.sh $version $versionComp $branchName $verType $cpuType
+bash generate_community.sh  $version $versionComp $branchName $verType $cpuType
+bash generate_enterprise.sh $version $versionComp $branchName $verType $cpuType
 
 cd ${scriptDir}
 ####################### build docker image and push
