@@ -1712,7 +1712,6 @@ static SMemRow tdGenMemRowFromBuilder(SMemRowBuilder* pBuilder) {
    */
 
   if (memRowType == SMEM_ROW_DATA) {
-      ASSERT(nColsBound <= nCols);
     SDataRow trow = (SDataRow)memRowDataBody(memRow);
     dataRowSetLen(trow, (TDRowLenT)(TD_DATA_ROW_HEAD_SIZE + pBuilder->flen));
     dataRowSetVersion(trow, pBuilder->sversion);
@@ -1755,7 +1754,6 @@ static SMemRow tdGenMemRowFromBuilder(SMemRowBuilder* pBuilder) {
     #endif
 
   } else if (memRowType == SMEM_ROW_KV) {
-    ASSERT(nColsBound < nCols);
     SKVRow   kvRow = (SKVRow)memRowKvBody(memRow);
     kvRowSetLen(kvRow, (TDRowLenT)(TD_KV_ROW_HEAD_SIZE + sizeof(SColIdx) * nColsBound));
     kvRowSetNCols(kvRow, nColsBound);
