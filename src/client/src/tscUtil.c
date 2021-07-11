@@ -1755,7 +1755,7 @@ static SMemRow tdGenMemRowFromBuilder(SMemRowBuilder* pBuilder) {
     #endif
 
   } else if (memRowType == SMEM_ROW_KV) {
-    ASSERT(nColsBound <= nCols);
+    ASSERT(nColsBound < nCols);
     SKVRow   kvRow = (SKVRow)memRowKvBody(memRow);
     kvRowSetLen(kvRow, (TDRowLenT)(TD_KV_ROW_HEAD_SIZE + sizeof(SColIdx) * nColsBound));
     kvRowSetNCols(kvRow, nColsBound);
@@ -1846,7 +1846,6 @@ static int trimDataBlock(void* pDataBlock, STableDataBlocks* pTableDataBlock, bo
 }
 
 static int32_t getRowExpandSize(STableMeta* pTableMeta) {
-  // add prefix len of KV type SMemRow(we may use SDataRow or SKVRow)
   int32_t  result = TD_MEM_ROW_DATA_HEAD_SIZE;
   int32_t columns = tscGetNumOfColumns(pTableMeta);
   SSchema* pSchema = tscGetTableSchema(pTableMeta);

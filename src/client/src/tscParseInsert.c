@@ -49,13 +49,11 @@ static FORCE_INLINE int32_t getExtendedRowSize(STableComInfo *tinfo) {
   return tinfo->rowSize + PAYLOAD_HEADER_LEN + PAYLOAD_COL_HEAD_LEN * tinfo->numOfColumns;
 }
 int initSMemRowHelper(SMemRowHelper *pHelper, SSchema *pSSchema, uint16_t nCols, uint16_t allNullColsLen) {
-  ASSERT(nCols > 0);
   pHelper->allNullLen = allNullColsLen;  //  TODO: get allNullColsLen when creating or altering table meta
   if (pHelper->allNullLen == 0) {
     for (uint16_t i = 0; i < nCols; ++i) {
       uint8_t type = pSSchema[i].type;
       int32_t typeLen = TYPE_BYTES[type];
-      ASSERT(typeLen > 0);
       pHelper->allNullLen += typeLen;
       if (TSDB_DATA_TYPE_BINARY == type) {
         pHelper->allNullLen += (sizeof(VarDataLenT) + CHAR_BYTES);
@@ -787,14 +785,12 @@ int tsParseOneRow(char **str, STableDataBlocks *pDataBlocks, int16_t timePrec, i
   SParsedDataColInfo *spd = &pDataBlocks->boundColumnInfo;
   SSchema *           schema = tscGetTableSchema(pDataBlocks->pTableMeta);
 
-  
-  int32_t   rowSize = 0;
-  int32_t   dataRowLen = pHelper->allNullLen;
-  int32_t   kvRowLen = TD_MEM_ROW_KV_VER_SIZE;
+  TDRowTLenT dataRowLen = pHelper->allNullLen;
+  TDRowTLenT kvRowLen = TD_MEM_ROW_KV_VER_SIZE;
   TDRowTLenT payloadValOffset = 0;
   TDRowLenT colValOffset = 0;
   ASSERT(dataRowLen > 0);
-  
+
   payloadSetNCols(payload, spd->numOfBound);
   payloadValOffset = payloadValuesOffset(payload); // rely on payloadNCols
   payloadSetTLen(payload, payloadValOffset);
@@ -810,7 +806,6 @@ int tsParseOneRow(char **str, STableDataBlocks *pDataBlocks, int16_t timePrec, i
     char *start = payload + spd->cols[colIndex].offset;
 
     SSchema *pSchema = &schema[colIndex];  // get colId here
-    rowSize += pSchema->bytes;
 
     index = 0;
     sToken = tStrGetToken(*str, &index, true);
@@ -879,9 +874,7 @@ int tsParseOneRow(char **str, STableDataBlocks *pDataBlocks, int16_t timePrec, i
       } else {
         ASSERT(spd->colIdxInfo[i].finalIdx == 0);
       }
-    } else {
-      ASSERT(spd->colIdxInfo == NULL);
-    }
+    } 
     // the primary key locates in 1st column
     int32_t ret = tsParseOneColumnKV(pSchema, &sToken, payload, kvPrimaryKeyStart, kvStart, pInsertParam->msg, str,
                                      isPrimaryKey, timePrec, payloadValOffset + colValOffset, &colValAppended,
@@ -1050,7 +1043,7 @@ int32_t tscAllocateMemIfNeed(STableDataBlocks *pDataBlock, int32_t rowSize, int3
   // expand the allocated size
   if (remain < rowSize * factor) {
     while (remain < rowSize * factor) {
-      pDataBlock->nAllocSize = (uint32_t)(pDataBlock->nAllocSize * 2);
+      pDataBlock->nAllocSize = (uint32_t)(pDataBlock->nAllocSize * 1.5);
       remain = pDataBlock->nAllocSize - pDataBlock->size;
     }
 
@@ -1553,7 +1546,7 @@ static int32_t parseBoundColumns(SInsertStatementParam *pInsertParam, SParsedDat
 
   int32_t code = TSDB_CODE_SUCCESS;
 
-  int32_t index = 0; 
+  int32_t index = 0;
   SStrToken sToken = tStrGetToken(str, &index, false);
   str += index;
 
@@ -1561,6 +1554,7 @@ static int32_t parseBoundColumns(SInsertStatementParam *pInsertParam, SParsedDat
     code = tscSQLSyntaxErrMsg(pInsertParam->msg, "( is expected", sToken.z);
     goto _clean;
   }
+
   bool    isOrdered = true;
   int32_t lastColIdx = -1;
   while (1) {
@@ -1621,13 +1615,13 @@ static int32_t parseBoundColumns(SInsertStatementParam *pInsertParam, SParsedDat
       goto _clean;
     }
     SBoundIdxInfo *pColIdx = pColInfo->colIdxInfo;
-    for (int i = 0; i < pColInfo->numOfBound; ++i) {
+    for (uint16_t i = 0; i < pColInfo->numOfBound; ++i) {
       pColIdx[i].schemaColIdx = (uint16_t)pColInfo->boundedColumns[i];
-      pColIdx[i].boundIdx = (uint16_t)i;
+      pColIdx[i].boundIdx = i;
     }
     qsort(pColIdx, pColInfo->numOfBound, sizeof(SBoundIdxInfo), schemaIdxCompar);
-    for (int i = 0; i < pColInfo->numOfBound; ++i) {
-      pColIdx[i].finalIdx = (uint16_t)i;
+    for (uint16_t i = 0; i < pColInfo->numOfBound; ++i) {
+      pColIdx[i].finalIdx = i;
     }
     qsort(pColIdx, pColInfo->numOfBound, sizeof(SBoundIdxInfo), boundIdxCompar);
   }
