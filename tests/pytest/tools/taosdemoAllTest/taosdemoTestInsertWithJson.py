@@ -198,7 +198,7 @@ class TDTestCase:
         tdSql.checkRows(1)
         tdSql.query("select count(*) from db.stb1") 
         tdSql.checkRows(1)
-        tdSql.error("select * from db.stb3")
+        # tdSql.error("select * from db.stb3")
         tdSql.error("select * from db.stb2")
         tdSql.execute("drop database if exists db") 
         os.system("%staosdemo -f tools/taosdemoAllTest/insertNumOfrecordPerReq0.json -y " % binPath)   
