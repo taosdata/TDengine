@@ -949,6 +949,15 @@ void verify_stream(TAOS* taos) {
   taos_close_stream(strm);
 }
 
+int32_t verify_schema_less(TAOS* taos) {
+  prepare_data(taos);
+  char* lines[] = {
+      "st,t1=3i,t2=4,t3=\"t3\" c1=3i,c3=L\"passit\",c2=false,c4=4 1626006833639162922"
+  };
+  int code = taos_insert_by_lines(taos, lines , 1);
+  return code;
+}
+
 int main(int argc, char *argv[]) {
   const char* host = "127.0.0.1";
   const char* user = "root";
@@ -966,6 +975,12 @@ int main(int argc, char *argv[]) {
   printf("server info: %s\n", info);
   info = taos_get_client_info(taos);
   printf("client info: %s\n", info);
+
+  printf("************  verify query  *************\n");
+  int code = verify_schema_less(taos);
+  if (code == 0) {
+    return code;
+  }
 
   printf("************  verify query  *************\n");
   verify_query(taos);
