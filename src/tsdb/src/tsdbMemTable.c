@@ -767,7 +767,7 @@ static int tsdbCopyRowToMem(STsdbRepo *pRepo, SMemRow row, STable *pTable, void 
 
   void *pRow = tsdbAllocBytes(pRepo, memRowTLen(row));
   if (pRow == NULL) {
-    tsdbError("vgId:%d failed to insert row with key %" PRId64 " to table %s while allocate %d bytes since %s",
+    tsdbError("vgId:%d failed to insert row with key %" PRId64 " to table %s while allocate %" PRIu64 " bytes since %s",
               REPO_ID(pRepo), key, TABLE_CHAR_NAME(pTable), memRowTLen(row), tstrerror(terrno));
     return -1;
   }

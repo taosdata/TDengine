@@ -195,7 +195,11 @@ do { \
 
 #define TSDB_APPNAME_LEN          TSDB_UNI_LEN
 
-#define TSDB_MAX_BYTES_PER_ROW    65536
+  /**
+   *  Don't change to 65536. As in some scenarios uint16_t (0~65535) is used to store the row len.
+   *  Finally, we use 65531(65535 - 4), as the SDataRow and SKVRow including 4 bits header.
+   */
+#define TSDB_MAX_BYTES_PER_ROW    65531
 #define TSDB_MAX_TAGS_LEN         16384
 #define TSDB_MAX_TAGS             128
 #define TSDB_MAX_TAG_CONDITIONS   1024

@@ -1433,6 +1433,7 @@ void tscFreeSqlObj(SSqlObj* pSql) {
 void tscDestroyBoundColumnInfo(SParsedDataColInfo* pColInfo) {
   tfree(pColInfo->boundedColumns);
   tfree(pColInfo->cols);
+  tfree(pColInfo->colIdxInfo);
 }
 
 void tscDestroyDataBlock(STableDataBlocks* pDataBlock, bool removeMeta) {
@@ -1646,51 +1647,54 @@ int32_t tscGetDataBlockFromList(SHashObj* pHashList, int64_t id, int32_t size, i
   return TSDB_CODE_SUCCESS;
 }
 
-
-
-
 static SMemRow tdGenMemRowFromBuilder(SMemRowBuilder* pBuilder) {
   SSchema* pSchema = pBuilder->pSchema;
   char*    p = (char*)pBuilder->buf;
   int      toffset = 0;
   uint16_t nCols = pBuilder->nCols;
 
-//  RawRow payload structure:
-//  |<---------- header ------------->|<------- column data array ------->|
-//  |SMemRowType|  dataLen |  nCols   |  colId  | colType | value |...|...|
-//  +-----------+----------+----------+---------------------------------->|
-//  | uint8_t   | uint16_t | uint16_t | int16_t | uint8_t |  ???  |...|...|
-//  +-----------+----------+----------+---------------------------------->|
   uint8_t  memRowType = payloadType(p);
-  uint16_t nColsNotNull = payloadNCols(p);
-  if (pBuilder->nCols <= 0 || nColsNotNull <= 0) {
+  uint16_t nColsBound = payloadNCols(p);
+  if (pBuilder->nCols <= 0 || nColsBound <= 0) {
     return NULL;
   }
-  ASSERT(nColsNotNull <= nCols);
-
+  char*    pVals = POINTER_SHIFT(p, payloadValuesOffset(p));
   SMemRow* memRow = (SMemRow)pBuilder->pDataBlock;
   memRowSetType(memRow, memRowType);
 
+  // ----------------- Raw payload structure for row:
+  /* |<------------ Head ------------->|<----------- body of column data tuple ------------------->|
+   * |                                 |<----------------- flen ------------->|<--- value part --->|
+   * |SMemRowType| dataTLen |  nCols   |  colId  | colType | offset   |  ...  | value |...|...|... |
+   * +-----------+----------+----------+--------------------------------------|--------------------|
+   * | uint8_t   | uint32_t | uint16_t | int16_t | uint8_t | uint16_t |  ...  |.......|...|...|... |
+   * +-----------+----------+----------+--------------------------------------+--------------------|
+   *  1. offset in column data tuple starts from the value part in case of uint16_t overflow.
+   *  2. dataTLen: total length including the header and body.
+   */
+
   if (memRowType == SMEM_ROW_DATA) {
+      ASSERT(nColsBound <= nCols);
     SDataRow trow = (SDataRow)memRowDataBody(memRow);
-    dataRowSetLen(trow, (uint16_t)(TD_DATA_ROW_HEAD_SIZE + pBuilder->flen));
+    dataRowSetLen(trow, (TDRowLenT)(TD_DATA_ROW_HEAD_SIZE + pBuilder->flen));
     dataRowSetVersion(trow, pBuilder->sversion);
 
     p = (char*)payloadBody(pBuilder->buf);
     uint16_t i = 0, j = 0;
-    while (j < pBuilder->nCols) {
-      if (i >= nColsNotNull) {
+    while (j < nCols) {
+      if (i >= nColsBound) {
         break;
       }
-      int16_t colId = *(int16_t*)p;
+      int16_t colId = payloadColId(p);
       if (colId == pSchema[j].colId) {
-        tdAppendColVal(trow, payloadColValue(p), pSchema[j].type, toffset);
+        // ASSERT(payloadColType(p) == pSchema[j].type);
+        tdAppendColVal(trow, POINTER_SHIFT(pVals, payloadColOffset(p)), pSchema[j].type, toffset);
         toffset += TYPE_BYTES[pSchema[j].type];
-        p = skipToNextEles(p);
+        p = payloadNextCol(p);
         ++i;
         ++j;
       } else if (colId < pSchema[j].colId) {
-        p = skipToNextEles(p);
+        p = payloadNextCol(p);
         ++i;
       } else {
         tdAppendColVal(trow, tdGetNullVal(pSchema[j].type), pSchema[j].type, toffset);
@@ -1699,41 +1703,43 @@ static SMemRow tdGenMemRowFromBuilder(SMemRowBuilder* pBuilder) {
       }
     }
 
-    while (j < pBuilder->nCols) {
+    while (j < nCols) {
       tdAppendColVal(trow, tdGetNullVal(pSchema[j].type), pSchema[j].type, toffset);
       toffset += TYPE_BYTES[pSchema[j].type];
       ++j;
     }
-    while (i < nColsNotNull) {
-      p = skipToNextEles(p);
+    
+    #if 0 // no need anymore
+    while (i < nColsBound) {
+      p = payloadNextCol(p);
       ++i;
     }
+    #endif
 
   } else if (memRowType == SMEM_ROW_KV) {
-    ASSERT(nColsNotNull <= pBuilder->nCols);
+    ASSERT(nColsBound <= nCols);
     SKVRow   kvRow = (SKVRow)memRowKvBody(memRow);
-    uint16_t tlen = TD_KV_ROW_HEAD_SIZE + sizeof(SColIdx) * nColsNotNull;
-    kvRowSetLen(kvRow, tlen);
-    kvRowSetNCols(kvRow, nColsNotNull);
-    memRowKvSetVersion(memRow, pBuilder->sversion);
+    kvRowSetLen(kvRow, (TDRowLenT)(TD_KV_ROW_HEAD_SIZE + sizeof(SColIdx) * nColsBound));
+    kvRowSetNCols(kvRow, nColsBound);
+    memRowSetKvVersion(memRow, pBuilder->sversion);
 
     p = (char*)payloadBody(pBuilder->buf);
     int i = 0;
-    while (i < nColsNotNull) {
+    while (i < nColsBound) {
       int16_t colId = payloadColId(p);
       uint8_t colType = payloadColType(p);
-      tdAppendKvColVal(kvRow, payloadColValue(p), colId, colType, toffset);
+      tdAppendKvColVal(kvRow, POINTER_SHIFT(pVals,payloadColOffset(p)), colId, colType, toffset);
       toffset += sizeof(SColIdx);
-      p = skipToNextEles(p);
+      p = payloadNextCol(p);
       ++i;
     }
 
   } else {
     ASSERT(0);
   }
-
-  pBuilder->pDataBlock = (char*)pBuilder->pDataBlock + memRowTLen(memRow);  // next row
-  pBuilder->pSubmitBlk->dataLen += memRowTLen(memRow);
+  int32_t rowTLen = memRowTLen(memRow);
+  pBuilder->pDataBlock = (char*)pBuilder->pDataBlock + rowTLen;  // next row
+  pBuilder->pSubmitBlk->dataLen += rowTLen;
 
   return memRow;
 }
@@ -1744,7 +1750,6 @@ static int trimDataBlock(void* pDataBlock, STableDataBlocks* pTableDataBlock, bo
   STableMeta*     pTableMeta = pTableDataBlock->pTableMeta;
   STableComInfo   tinfo = tscGetTableInfo(pTableMeta);
   SSchema*        pSchema = tscGetTableSchema(pTableMeta);
-  SMemRowBuilder* pBuilder = &pTableDataBlock->rowBuilder;
 
   SSubmitBlk* pBlock = pDataBlock;
   memcpy(pDataBlock, pTableDataBlock->pData, sizeof(SSubmitBlk));
@@ -1780,18 +1785,19 @@ static int trimDataBlock(void* pDataBlock, STableDataBlocks* pTableDataBlock, bo
   pBlock->dataLen = 0;
   int32_t numOfRows = htons(pBlock->numOfRows);
 
-  pBuilder->pSchema = pSchema;
-  pBuilder->sversion = pTableMeta->sversion;
-  pBuilder->flen = flen;
-  pBuilder->nCols = tinfo.numOfColumns;
-  pBuilder->pDataBlock = pDataBlock;
-  pBuilder->pSubmitBlk = pBlock;
-  pBuilder->buf = p;
-  pBuilder->size = 0;
+  SMemRowBuilder rowBuilder;
+  rowBuilder.pSchema = pSchema;
+  rowBuilder.sversion = pTableMeta->sversion;
+  rowBuilder.flen = flen;
+  rowBuilder.nCols = tinfo.numOfColumns;
+  rowBuilder.pDataBlock = pDataBlock;
+  rowBuilder.pSubmitBlk = pBlock;
+  rowBuilder.buf = p;
+  rowBuilder.size = 0;
 
   for (int32_t i = 0; i < numOfRows; ++i) {
-    pBuilder->buf = (blkKeyTuple+i)->payloadAddr;
-    tdGenMemRowFromBuilder(pBuilder);
+    rowBuilder.buf = (blkKeyTuple + i)->payloadAddr;
+    tdGenMemRowFromBuilder(&rowBuilder);
   }
 
   int32_t len = pBlock->dataLen + pBlock->schemaLen;
@@ -1803,7 +1809,7 @@ static int trimDataBlock(void* pDataBlock, STableDataBlocks* pTableDataBlock, bo
 
 static int32_t getRowExpandSize(STableMeta* pTableMeta) {
   // add prefix len of KV type SMemRow(we may use SDataRow or SKVRow)
-  int32_t  result = TD_DATA_ROW_HEAD_SIZE + TD_MEM_ROW_KV_TYPE_VER_SIZE;
+  int32_t  result = TD_MEM_ROW_DATA_HEAD_SIZE;
   int32_t columns = tscGetNumOfColumns(pTableMeta);
   SSchema* pSchema = tscGetTableSchema(pTableMeta);
   for(int32_t i = 0; i < columns; i++) {

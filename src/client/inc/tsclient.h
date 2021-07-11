@@ -41,6 +41,9 @@ extern "C" {
 // forward declaration
 struct SSqlInfo;
 
+#define KvRowNColsThresh 128  // default 128
+#define KVRowRatio 0.9  // for NonVarType, we get value from SDataRow directly, while needs readdressing for SKVRow
+
 typedef void (*__async_cb_func_t)(void *param, TAOS_RES *tres, int32_t numOfRows);
 
 typedef struct SNewVgroupInfo {
@@ -87,12 +90,18 @@ typedef struct SBoundColumn {
   bool    hasVal;  // denote if current column has bound or not
   int32_t offset;  // all column offset value
 } SBoundColumn;
-
+typedef struct {
+  uint16_t schemaColIdx;
+  uint16_t boundIdx;
+  uint16_t finalIdx;
+} SBoundIdxInfo;
 typedef struct SParsedDataColInfo {
-  int16_t         numOfCols;
-  int16_t         numOfBound;
-  int32_t        *boundedColumns;
-  SBoundColumn   *cols;
+  bool           isOrdered;  // bounded columns
+  int16_t        numOfCols;
+  int16_t        numOfBound;
+  int32_t *      boundedColumns;  // bounded column idx according to schema
+  SBoundColumn * cols;
+  SBoundIdxInfo *colIdxInfo;
 } SParsedDataColInfo;
 
 typedef struct {
@@ -107,8 +116,11 @@ typedef struct {
 
   void *      pDataBlock;
   SSubmitBlk *pSubmitBlk;
-  uint16_t    allNullLen;
 } SMemRowBuilder;
+
+typedef struct {
+  TDRowLenT allNullLen;
+} SMemRowHelper;
 
 typedef struct STableDataBlocks {
   SName       tableName;
@@ -130,7 +142,7 @@ typedef struct STableDataBlocks {
   uint32_t       numOfAllocedParams;
   uint32_t       numOfParams;
   SParamInfo *   params;
-  SMemRowBuilder rowBuilder;
+  SMemRowHelper  rowHelper;
 } STableDataBlocks;
 
 typedef struct {
@@ -398,7 +410,7 @@ extern int   tscRefId;
 extern int   tscNumOfObj;     // number of existed sqlObj in current process.
 
 extern int (*tscBuildMsg[TSDB_SQL_MAX])(SSqlObj *pSql, SSqlInfo *pInfo);
-
+ 
 void tscBuildVgroupTableInfo(SSqlObj* pSql, STableMetaInfo* pTableMetaInfo, SArray* tables);
 int16_t getNewResColId(SSqlCmd* pCmd);
 

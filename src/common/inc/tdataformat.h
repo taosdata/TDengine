@@ -186,18 +186,6 @@ static FORCE_INLINE int tkeyComparFn(const void *tkey1, const void *tkey2) {
     return 0;
   }
 }
-/* A memory data row, the format is like below:
- *|---------+---------------------+--------------------------- len ---------------------------------->|
- *|<- type->|<--     Head      -->|<---------   flen -------------->|                                 |
- *|---------+---------------------+---------------------------------+---------------------------------+
- *| uint8_t | uint16_t |  int16_t |                                 |                                 |
- *|---------+----------+----------+---------------------------------+---------------------------------+
- *| flag    |   len    | sversion |           First part            |             Second part         |
- *|---------+----------+----------+---------------------------------+---------------------------------+
- *
- * NOTE: timestamp in this row structure is TKEY instead of TSKEY
- */
-typedef void *SMemRow;
 
 // ----------------- Data row structure
 
@@ -216,7 +204,7 @@ typedef void *SDataRow;
 
 #define TD_DATA_ROW_HEAD_SIZE (sizeof(uint16_t) + sizeof(int16_t))
 
-#define dataRowLen(r) (*(uint16_t *)(r))
+#define dataRowLen(r) (*(TDRowLenT *)(r))  // 0~65535
 #define dataRowVersion(r) (*(int16_t *)POINTER_SHIFT(r, sizeof(int16_t)))
 #define dataRowTuple(r) POINTER_SHIFT(r, TD_DATA_ROW_HEAD_SIZE)
 #define dataRowTKey(r) (*(TKEY *)(dataRowTuple(r)))
@@ -231,7 +219,6 @@ SDataRow tdNewDataRowFromSchema(STSchema *pSchema);
 void     tdFreeDataRow(SDataRow row);
 void     tdInitDataRow(SDataRow row, STSchema *pSchema);
 SDataRow tdDataRowDup(SDataRow row);
-SMemRow tdMemRowDup(SMemRow row);
 
 // offset here not include dataRow header length
 static FORCE_INLINE int tdAppendColVal(SDataRow row, const void *value, int8_t type, int32_t offset) {
@@ -247,7 +234,7 @@ static FORCE_INLINE int tdAppendColVal(SDataRow row, const void *value, int8_t t
     if (offset == 0) {
       ASSERT(type == TSDB_DATA_TYPE_TIMESTAMP);
       TKEY tvalue = tdGetTKEY(*(TSKEY *)value);
-      memcpy(POINTER_SHIFT(row, toffset), (void *)(&tvalue), TYPE_BYTES[type]);
+      memcpy(POINTER_SHIFT(row, toffset), (const void *)(&tvalue), TYPE_BYTES[type]);
     } else {
       memcpy(POINTER_SHIFT(row, toffset), value, TYPE_BYTES[type]);
     }
@@ -287,7 +274,7 @@ void dataColSetOffset(SDataCol *pCol, int nEle);
 bool isNEleNull(SDataCol *pCol, int nEle);
 void dataColSetNEleNull(SDataCol *pCol, int nEle, int maxPoints);
 
-static FORCE_INLINE const void *tdGetNullVal(int8_t type) {
+FORCE_INLINE const void *tdGetNullVal(int8_t type) {
   switch (type) {
     case TSDB_DATA_TYPE_BOOL:
       return &BoolNull;
@@ -400,11 +387,11 @@ void       tdResetDataCols(SDataCols *pCols);
 int        tdInitDataCols(SDataCols *pCols, STSchema *pSchema);
 SDataCols *tdDupDataCols(SDataCols *pCols, bool keepData);
 SDataCols *tdFreeDataCols(SDataCols *pCols);
-void       tdAppendMemRowToDataCol(SMemRow row, STSchema *pSchema, SDataCols *pCols);
 int        tdMergeDataCols(SDataCols *target, SDataCols *source, int rowsToMerge, int *pOffset);
 
 // ----------------- K-V data row structure
-/*
+/* |<-------------------------------------- len -------------------------------------------->|
+ * |<----- header  ----->|<--------------------------- body -------------------------------->|
  * +----------+----------+---------------------------------+---------------------------------+
  * | uint16_t |  int16_t |                                 |                                 |
  * +----------+----------+---------------------------------+---------------------------------+
@@ -420,7 +407,7 @@ typedef struct {
 
 #define TD_KV_ROW_HEAD_SIZE (sizeof(uint16_t) + sizeof(int16_t))
 
-#define kvRowLen(r) (*(uint16_t *)(r))
+#define kvRowLen(r) (*(TDRowLenT *)(r))
 #define kvRowNCols(r) (*(int16_t *)POINTER_SHIFT(r, sizeof(uint16_t)))
 #define kvRowSetLen(r, len) kvRowLen(r) = (len)
 #define kvRowSetNCols(r, n) kvRowNCols(r) = (n)
@@ -532,7 +519,7 @@ static FORCE_INLINE int tdAddColToKVRow(SKVRowBuilder *pBuilder, int16_t colId, 
 
 // ----------------- SMemRow appended with sequential data row structure
 /*
- * |-------------------------------+--------------------------- len ---------------------------------->|
+ * |---------|------------------------------------------------- len ---------------------------------->|
  * |<--------     Head      ------>|<---------   flen -------------->|                                 |
  * |---------+---------------------+---------------------------------+---------------------------------+
  * | uint8_t | uint16_t |  int16_t |                                 |                                 |
@@ -544,7 +531,8 @@ static FORCE_INLINE int tdAddColToKVRow(SKVRowBuilder *pBuilder, int16_t colId, 
  */
 
 // ----------------- SMemRow appended with extended K-V data row structure
-/* |
+/* |--------------------|------------------------------------------------  len ---------------------------------->|
+ * |<-------------     Head      ------------>|<---------   flen -------------->|                                 |
  * |--------------------+----------+--------------------------------------------+---------------------------------+
  * | uint8_t | int16_t  | uint16_t |  int16_t |                                 |                                 |
  * |---------+----------+----------+----------+---------------------------------+---------------------------------+
@@ -552,11 +540,13 @@ static FORCE_INLINE int tdAddColToKVRow(SKVRowBuilder *pBuilder, int16_t colId, 
  * |---------+----------+----------+----------+---------------------------------+---------------------------------+
  */
 
+typedef void *SMemRow;
+
 #define TD_MEM_ROW_TYPE_SIZE sizeof(uint8_t)
 #define TD_MEM_ROW_KV_VER_SIZE sizeof(int16_t)
 #define TD_MEM_ROW_KV_TYPE_VER_SIZE (TD_MEM_ROW_TYPE_SIZE + TD_MEM_ROW_KV_VER_SIZE)
 #define TD_MEM_ROW_DATA_HEAD_SIZE (TD_MEM_ROW_TYPE_SIZE + TD_DATA_ROW_HEAD_SIZE)
-#define TD_MEM_ROW_KV_HEAD_SIZE (TD_MEM_ROW_TYPE_SIZE + TD_MEM_ROW_KV_VER_SIZE + TD_KV_ROW_HEAD_SIZE)
+// #define TD_MEM_ROW_KV_HEAD_SIZE (TD_MEM_ROW_TYPE_SIZE + TD_MEM_ROW_KV_VER_SIZE + TD_KV_ROW_HEAD_SIZE)
 
 #define SMEM_ROW_DATA 0U  // SDataRow
 #define SMEM_ROW_KV 1U    // SKVRow
@@ -567,21 +557,22 @@ static FORCE_INLINE int tdAddColToKVRow(SKVRowBuilder *pBuilder, int16_t colId, 
 
 #define memRowDataBody(r) POINTER_SHIFT(r, TD_MEM_ROW_TYPE_SIZE)  // section after flag
 #define memRowKvBody(r) \
-  POINTER_SHIFT(r, TD_MEM_ROW_KV_TYPE_VER_SIZE)  // section after flag + sversion as to reuse of SKVRow
-// #define memRowBody(r) (isDataRow(r) ? memRowDataBody(r) : memRowKvBody(r))
+  POINTER_SHIFT(r, TD_MEM_ROW_KV_TYPE_VER_SIZE)  // section after flag + sversion as to reuse SKVRow
 
-#define memRowDataLen(r) (*(TDRowLenT *)memRowDataBody(r))
-#define memRowKvLen(r) (*(TDRowLenT *)memRowKvBody(r))
-#define memRowDataTLen(r) (memRowDataLen(r) + (TDRowLenT)TD_MEM_ROW_TYPE_SIZE)
-#define memRowKvTLen(r) (memRowKvLen(r) + (TDRowLenT)TD_MEM_ROW_KV_TYPE_VER_SIZE)
+#define memRowDataLen(r) (*(TDRowLenT *)memRowDataBody(r))  //  0~65535
+#define memRowKvLen(r) (*(TDRowLenT *)memRowKvBody(r))      //  0~65535
+
+#define memRowDataTLen(r) (memRowDataLen(r) + TD_MEM_ROW_TYPE_SIZE)  // using uint32_t/int32_t to store the TLen
+
+#define memRowKvTLen(r) (memRowKvLen(r) + TD_MEM_ROW_KV_TYPE_VER_SIZE)
 
 #define memRowLen(r) (isDataRow(r) ? memRowDataLen(r) : memRowKvLen(r))
-#define memRowTLen(r) (isDataRow(r) ? memRowDataTLen(r) : memRowKvTLen(r))
+#define memRowTLen(r) (isDataRow(r) ? memRowDataTLen(r) : memRowKvTLen(r))  // using uint32_t/int32_t to store the TLen
 
 #define memRowDataVersion(r) dataRowVersion(memRowDataBody(r))
 #define memRowKvVersion(r) (*(int16_t *)POINTER_SHIFT(r, TD_MEM_ROW_TYPE_SIZE))
 #define memRowVersion(r) (isDataRow(r) ? memRowDataVersion(r) : memRowKvVersion(r))  // schema version
-#define memRowKvSetVersion(r, v) (memRowKvVersion(r) = (v))
+#define memRowSetKvVersion(r, v) (memRowKvVersion(r) = (v))
 #define memRowTuple(r) (isDataRow(r) ? dataRowTuple(memRowDataBody(r)) : kvRowValues(memRowKvBody(r)))
 
 #define memRowTKey(r) (isDataRow(r) ? dataRowTKey(memRowDataBody(r)) : kvRowTKey(memRowKvBody(r)))
@@ -594,6 +585,8 @@ static FORCE_INLINE int tdAddColToKVRow(SKVRowBuilder *pBuilder, int16_t colId, 
 #define memRowMaxBytesFromSchema(s) (schemaTLen(s) + TD_MEM_ROW_DATA_HEAD_SIZE)
 #define memRowDeleted(r) TKEY_IS_DELETED(memRowTKey(r))
 
+SMemRow tdMemRowDup(SMemRow row);
+void    tdAppendMemRowToDataCol(SMemRow row, STSchema *pSchema, SDataCols *pCols);
 // NOTE: offset here including the header size
 static FORCE_INLINE void *tdGetKvRowDataOfCol(void *row, int32_t offset) { return POINTER_SHIFT(row, offset); }
 // NOTE: offset here including the header size
@@ -608,47 +601,49 @@ static FORCE_INLINE void *tdGetMemRowDataOfCol(void *row, int8_t type, int32_t o
   return NULL;
 }
 
-//  RawRow payload structure:
-//  |<---------- header ------------->|<---- body: column data tuple ---->|
-//  |SMemRowType|  dataLen |  nCols   |  colId  | colType | value |...|...|
-//  +-----------+----------+----------+---------------------------------->|
-//  | uint8_t   | uint16_t | uint16_t | int16_t | uint8_t |  ???  |...|...|
-//  +-----------+----------+----------+---------------------------------->|
+// ----------------- Raw payload structure for row:
+/* |<------------ Head ------------->|<----------- body of column data tuple ------------------->|
+ * |                                 |<----------------- flen ------------->|<--- value part --->|
+ * |SMemRowType| dataTLen |  nCols   |  colId  | colType | offset   |  ...  | value |...|...|... |
+ * +-----------+----------+----------+--------------------------------------|--------------------|
+ * | uint8_t   | uint32_t | uint16_t | int16_t | uint8_t | uint16_t |  ...  |.......|...|...|... |
+ * +-----------+----------+----------+--------------------------------------+--------------------|
+ *  1. offset in column data tuple starts from the value part in case of uint16_t overflow.
+ *  2. dataTLen: total length including the header and body.
+ */
 
 #define PAYLOAD_NCOLS_LEN sizeof(uint16_t)
-#define PAYLOAD_NCOLS_OFFSET (sizeof(uint8_t) + sizeof(TDRowLenT))
+#define PAYLOAD_NCOLS_OFFSET (sizeof(uint8_t) + sizeof(TDRowTLenT))
 #define PAYLOAD_HEADER_LEN (PAYLOAD_NCOLS_OFFSET + PAYLOAD_NCOLS_LEN)
 #define PAYLOAD_ID_LEN sizeof(int16_t)
 #define PAYLOAD_ID_TYPE_LEN (sizeof(int16_t) + sizeof(uint8_t))
+#define PAYLOAD_COL_HEAD_LEN (PAYLOAD_ID_TYPE_LEN + sizeof(uint16_t))
 #define PAYLOAD_PRIMARY_COL_LEN (PAYLOAD_ID_TYPE_LEN + sizeof(TSKEY))
 
 #define payloadBody(r) POINTER_SHIFT(r, PAYLOAD_HEADER_LEN)
 #define payloadType(r) (*(uint8_t *)(r))
 #define payloadSetType(r, t) (payloadType(r) = (t))
-#define payloadTLen(r) (*(TDRowLenT *)POINTER_SHIFT(r, TD_MEM_ROW_TYPE_SIZE))  // including total header
+#define payloadTLen(r) (*(TDRowTLenT *)POINTER_SHIFT(r, TD_MEM_ROW_TYPE_SIZE))  // including total header
 #define payloadSetTLen(r, l) (payloadTLen(r) = (l))
 #define payloadNCols(r) (*(TDRowLenT *)POINTER_SHIFT(r, PAYLOAD_NCOLS_OFFSET))
 #define payloadSetNCols(r, n) (payloadNCols(r) = (n))
+#define payloadValuesOffset(r) \
+  (PAYLOAD_HEADER_LEN + payloadNCols(r) * PAYLOAD_COL_HEAD_LEN)    // avoid using the macro in loop
+#define payloadValues(r) POINTER_SHIFT(r, payloadValuesOffset(r))  // avoid using the macro in loop
+#define payloadColId(c) (*(int16_t *)(c))
+#define payloadColType(c) (*(uint8_t *)POINTER_SHIFT(c, PAYLOAD_ID_LEN))
+#define payloadColOffset(c) (*(uint16_t *)POINTER_SHIFT(c, PAYLOAD_ID_TYPE_LEN))
+#define payloadColValue(c) POINTER_SHIFT(c, payloadColOffset(c))
 
-#define payloadColId(r) (*(int16_t *)(r))
-#define payloadColType(r) (*(uint8_t *)POINTER_SHIFT(r, PAYLOAD_ID_LEN))
-#define payloadColValue(r) POINTER_SHIFT(r, PAYLOAD_ID_TYPE_LEN)
+#define payloadColSetId(c, i) (payloadColId(c) = (i))
+#define payloadColSetType(c, t) (payloadColType(c) = (t))
+#define payloadColSetOffset(c, o) (payloadColOffset(c) = (o))
 
-#define payloadColSetId(r, i) (payloadColId(r) = (i))
-#define payloadColSetType(r, t) (payloadColType(r) = (t))
-
-#define payloadKeyAddr(r) POINTER_SHIFT(r, PAYLOAD_HEADER_LEN + PAYLOAD_ID_TYPE_LEN)
-#define payloadTKey(r) (*(TKEY *)(payloadKeyAddr(r)))
+#define payloadKeyOffset(r) (*(uint16_t *)POINTER_SHIFT(r, PAYLOAD_HEADER_LEN + PAYLOAD_ID_TYPE_LEN))
+#define payloadTKey(r) (*(TKEY *)POINTER_SHIFT(r, payloadValuesOffset(r) + payloadKeyOffset(r)))
 #define payloadKey(r) tdGetKey(payloadTKey(r))
 
-static FORCE_INLINE char *skipToNextEles(char *p) {
-  uint8_t colType = payloadColType(p);
-  if (IS_VAR_DATA_TYPE(colType)) {
-    return (char *)POINTER_SHIFT(p, PAYLOAD_ID_TYPE_LEN + varDataTLen(payloadColValue(p)));
-  } else {
-    return (char *)POINTER_SHIFT(p, PAYLOAD_ID_TYPE_LEN + TYPE_BYTES[colType]);
-  }
-}
+static FORCE_INLINE char *payloadNextCol(char *pCol) { return (char *)POINTER_SHIFT(pCol, PAYLOAD_COL_HEAD_LEN); }
 
 #ifdef __cplusplus
 }
