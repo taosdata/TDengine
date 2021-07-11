@@ -5997,8 +5997,10 @@ static void* syncWriteInterlace(threadInfo *pThreadInfo) {
         errorPrint("[%d] %s() LN%d Failed to insert records of batch %d\n",
                 pThreadInfo->threadID, __func__, __LINE__,
                 batchPerTbl);
-        errorPrint("\tIf the batch is %d, the length of the SQL to insert a row must be less then %"PRId64"\n",
-                batchPerTbl, maxSqlLen / batchPerTbl);
+        if (batchPerTbl > 0) {
+          errorPrint("\tIf the batch is %d, the length of the SQL to insert a row must be less then %"PRId64"\n",
+              batchPerTbl, maxSqlLen / batchPerTbl);
+        }
         errorPrint("\tPlease check if the buffer length(%"PRId64") or batch(%d) is set with proper value!\n",
                 maxSqlLen, batchPerTbl);
         goto free_of_interlace;
