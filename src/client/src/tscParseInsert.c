@@ -901,7 +901,7 @@ int tsParseOneRow(char **str, STableDataBlocks *pDataBlocks, int16_t timePrec, i
     dataRowLen += dataRowDeltaColLen;
   }
 
-  if (kvRowLen < dataRowLen * KVRowRatio) {
+  if (kvRowLen < dataRowLen) {
     payloadSetType(payload, SMEM_ROW_KV);
   } else {
     payloadSetType(payload, SMEM_ROW_DATA);

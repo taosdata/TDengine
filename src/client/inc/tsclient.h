@@ -42,7 +42,6 @@ extern "C" {
 struct SSqlInfo;
 
 #define KvRowNColsThresh 128  // default 128
-#define KVRowRatio 0.9  // for NonVarType, we get value from SDataRow directly, while needs readdressing for SKVRow
 
 typedef void (*__async_cb_func_t)(void *param, TAOS_RES *tres, int32_t numOfRows);
 
