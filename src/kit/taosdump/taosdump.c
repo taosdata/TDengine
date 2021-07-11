@@ -111,14 +111,16 @@ enum _describe_table_index {
     TSDB_MAX_DESCRIBE_METRIC
 };
 
-#define COL_NOTE_LEN    128
+#define COL_NOTE_LEN        4
+#define COL_TYPEBUF_LEN     16
+#define COL_VALUEBUF_LEN    32
 
 typedef struct {
     char field[TSDB_COL_NAME_LEN];
-    char type[16];
+    char type[COL_TYPEBUF_LEN];
     int length;
     char note[COL_NOTE_LEN];
-    char value[30];
+    char value[COL_VALUEBUF_LEN];
     char *var_value;
 } SColDes;
 
@@ -1343,8 +1345,10 @@ static int taosGetTableDes(
                 {
                     memset(tableDes->cols[i].value, 0, sizeof(tableDes->cols[i].value));
                     tableDes->cols[i].value[0] = '\'';
-                    char tbuf[30];
-                    converStringToReadable((char *)row[0], length[0], tbuf, COL_NOTE_LEN);
+                    int len = strlen((char *)row[0]);
+                    len = len;
+                    char tbuf[COL_VALUEBUF_LEN];
+                    converStringToReadable((char *)row[0], length[0], tbuf, COL_VALUEBUF_LEN);
                     // FIXME for long value
                     char* pstr = stpcpy(&(tableDes->cols[i].value[1]), tbuf);
                     *(pstr++) = '\'';
@@ -1354,8 +1358,8 @@ static int taosGetTableDes(
             case TSDB_DATA_TYPE_NCHAR:
                 {
                     memset(tableDes->cols[i].value, 0, sizeof(tableDes->cols[i].value));
-                    char tbuf[30-2];    // need reserve 2 bytes for ' '
-                    convertNCharToReadable((char *)row[0], length[0], tbuf, COL_NOTE_LEN);
+                    char tbuf[COL_VALUEBUF_LEN];    // need reserve 2 bytes for ' '
+                    convertNCharToReadable((char *)row[0], length[0], tbuf, COL_VALUEBUF_LEN);
                     // FIXME for long value
                     sprintf(tableDes->cols[i].value, "\'%s\'", tbuf);
                     length = length;

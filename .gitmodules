@@ -15,4 +15,4 @@
 	url = https://github.com/jemalloc/jemalloc
 [submodule "deps/avro"]
 	path = deps/avro
-	url = https://github.com/apache/avro
+	url = git@github.com:apache/avro
