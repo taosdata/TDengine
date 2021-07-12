@@ -540,13 +540,13 @@ int taos_sml_insert(TAOS* taos, TAOS_SML_DATA_POINT* points, int numPoint) {
 
   for (int i = 0; i < numPoint; ++i) {
     TAOS_SML_DATA_POINT* point = &points[i];
-    SSmlSTableSchema** ppStableSchema = taosHashGet(sname2shema, point->stableName, TSDB_TABLE_NAME_LEN);
+    size_t stableNameLen = strlen(point->stableName);
+    SSmlSTableSchema** ppStableSchema = taosHashGet(sname2shema, point->stableName, stableNameLen);
     SSmlSTableSchema* pStableSchema = NULL;
     if (ppStableSchema) {
       pStableSchema= *ppStableSchema;
     } else {
       SSmlSTableSchema schema;
-      size_t stableNameLen = strlen(point->stableName);
       strncpy(schema.sTableName, point->stableName, stableNameLen);
       schema.sTableName[stableNameLen] = '\0';
       schema.fields = taosArrayInit(64, sizeof(SSchema));
@@ -730,13 +730,13 @@ int32_t parseItemValue(SLPItem* item, LPItemKind kind) {
       item->length = (int16_t)tDataTypes[item->type].bytes;
       item->value = malloc(item->length);
       char* endptr = NULL;
-      *(item->value) = strtoll(sv, &endptr, 10);
+      *(int64_t*)(item->value) = strtoll(sv, &endptr, 10);
     } else {
       item->type = TSDB_DATA_TYPE_DOUBLE;
       item->length = (int16_t)tDataTypes[item->type].bytes;
       item->value = malloc(item->length);
       char* endptr = NULL;
-      *(item->value) = strtold(sv, &endptr);
+      *(double*)(item->value) = strtold(sv, &endptr);
     }
   } else if ((sv[0] == 'L' && sv[1] =='"') || sv[0] == '"' ) {
     if (sv[0] == 'L') {
@@ -744,7 +744,7 @@ int32_t parseItemValue(SLPItem* item, LPItemKind kind) {
       uint32_t bytes = item->valueToken.n - 3;
       item->length = bytes;
       item->value = malloc(bytes);
-      memcpy(item->value, sv+1, bytes);
+      memcpy(item->value, sv+2, bytes);
     } else if (sv[0]=='"'){
       item->type = TSDB_DATA_TYPE_BINARY;
       uint32_t bytes = item->valueToken.n - 2;
@@ -756,7 +756,7 @@ int32_t parseItemValue(SLPItem* item, LPItemKind kind) {
     item->type = TSDB_DATA_TYPE_BOOL;
     item->length = tDataTypes[item->type].bytes;
     item->value = malloc(tDataTypes[item->type].bytes);
-    *(item->value) = tolower(sv[0])=='t' ? TSDB_TRUE : TSDB_FALSE;
+    *(uint8_t*)(item->value) = tolower(sv[0])=='t' ? TSDB_TRUE : TSDB_FALSE;
   }
   return 0;
 }
