@@ -1331,21 +1331,21 @@ static float demo_current_float(){
     static int cursor;
     cursor++;
     cursor = cursor % MAX_PREPARED_RAND;
-    return (float)(5 + randfloat[cursor] / 1000000000);
+    return (float)(9.8 + 0.04 * (randint[cursor] % 10) + randfloat[cursor]/1000000000);
 }
 
 static int32_t demo_voltage_int(){
     static int cursor;
     cursor++;
     cursor = cursor % MAX_PREPARED_RAND;
-    return 210 + randint[cursor] % 20;
+    return 215 + randint[cursor] % 10;
 }
 
 static float demo_phase_float(){
     static int cursor;
     cursor++;
     cursor = cursor % MAX_PREPARED_RAND;
-    return (float)(120 + randfloat[cursor] / 1000000000);
+    return (float)((115 + randint[cursor] % 10 + randfloat[cursor]/1000000000)/360);
 }
 
 #if 0
