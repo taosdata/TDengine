@@ -14,25 +14,12 @@
 
 INLINE int bytesToInt_bigEndian(unsigned char* bytes)
 {
-	int temp = 0;
-	int res = 0;
-	
-	res <<= 8;
-	temp = bytes[0] & 0xff;
-	res |= temp;	
-
-	res <<= 8;
-	temp = bytes[1] & 0xff;
-	res |= temp;
-
-	res <<= 8;
-	temp = bytes[2] & 0xff;
-	res |= temp;
-	
-	res <<= 8;
-	temp = bytes[3] & 0xff;
-	res |= temp;
-	
+	int res;
+	unsigned char* des = (unsigned char*)&res;
+	des[0] = bytes[3];
+	des[1] = bytes[2];
+	des[2] = bytes[1];
+	des[3] = bytes[0];
 	return res;
 }
 
@@ -42,20 +29,18 @@ INLINE int bytesToInt_bigEndian(unsigned char* bytes)
  * */
 INLINE void intToBytes_bigEndian(unsigned char *b, unsigned int num)
 {
-	b[0] = (unsigned char)(num >> 24);	
-	b[1] = (unsigned char)(num >> 16);	
-	b[2] = (unsigned char)(num >> 8);	
-	b[3] = (unsigned char)(num);	
-	
-	//note: num >> xxx already considered endian_type...
-//if(dataEndianType==LITTLE_ENDIAN_DATA)
-//		symTransform_4bytes(*b); //change to BIG_ENDIAN_DATA
+	unsigned char* sou =(unsigned char*)&num;
+	b[0] = sou[3];
+	b[1] = sou[2];
+	b[2] = sou[1];
+	b[3] = sou[0];
 }
 
 /**
  * @endianType: refers to the endian_type of unsigned char* b.
  * */
 INLINE long bytesToLong_bigEndian(unsigned char* b) {
+
 	long temp = 0;
 	long res = 0;
 
@@ -92,25 +77,29 @@ INLINE long bytesToLong_bigEndian(unsigned char* b) {
 	res |= temp;						
 	
 	return res;
+	
 }
 
-INLINE void longToBytes_bigEndian(unsigned char *b, unsigned long num) 
+INLINE void longToBytes_bigEndian(unsigned char *b, long num) 
 {
-// arm32
+	unsigned char* sou = (unsigned char*)&num;
 #if defined(_TD_LINUX_64) || defined(_TD_ARM_64)  || defined(_TD_DARWIN_64)
-	b[0] = (unsigned char)(num>>56);
-	b[1] = (unsigned char)(num>>48);
-	b[2] = (unsigned char)(num>>40);
-	b[3] = (unsigned char)(num>>32);
+    // 8 bytes
+	b[7] = sou[0];
+	b[6] = sou[1];
+	b[5] = sou[2];
+	b[4] = sou[3];
+	b[3] = sou[4];
+	b[2] = sou[5];
+	b[1] = sou[6];
+	b[0] = sou[7];
 #else
 	memset(b, 0, 4);
+	b[7] = sou[0];
+	b[6] = sou[1];
+	b[5] = sou[2];
+	b[4] = sou[3];
 #endif
-	b[4] = (unsigned char)(num>>24);
-	b[5] = (unsigned char)(num>>16);
-	b[6] = (unsigned char)(num>>8);
-	b[7] = (unsigned char)(num);
-//	if(dataEndianType==LITTLE_ENDIAN_DATA)
-//		symTransform_8bytes(*b);
 }
 
 //TODO: debug: lfBuf.lvalue could be actually little_endian....
@@ -135,9 +124,6 @@ INLINE short getPrecisionReqLength_float(float precision)
 	
 	int expValue = (ivalue & 0x7F800000) >> 23;
 	expValue -= 127;
-//	unsigned char the1stManBit = (unsigned char)((ivalue & 0x00400000) >> 22);
-//	if(the1stManBit==1)
-//		expValue--;	
 	return (short)expValue;
 }
 
