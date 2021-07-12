@@ -957,16 +957,20 @@ int32_t verify_schema_less(TAOS* taos) {
   result = taos_query(taos, "create database test precision 'us';");
   taos_free_result(result);
   usleep(100000);
+
   taos_select_db(taos, "test");
   result = taos_query(taos, "create stable ste(ts timestamp, f int) tags(t1 bigint)");
+  taos_free_result(result);
+  usleep(100000);
 
   char* lines[] = {
       "st,t1=3i,t2=4,t3=\"t3\" c1=3i,c3=L\"passit\",c2=false,c4=4 1626006833639000000",
       "st,t1=4i,t2=5,t3=\"t4\" c1=3i,c3=L\"passitagain\",c2=true,c4=5 1626006833640000000",
       "st,t1=4i,t2=5,t3=\"t4\" c1=3i,c3=L\"passitagain\",c2=true,c4=5 1626006833642000000",
-      "ste,t2=5,t3=L\"ste\" c1=true,c2=4 1626056811823316532"
+      "ste,t2=5,t3=L\"ste\" c1=true,c2=4,c3=\"iam\" 1626056811823316532",
+      "ste,t2=5,t3=L\"ste2\" c3=\"iamszhou\",c4=false 1626056811843316532"
   };
-  int code = taos_insert_by_lines(taos, lines , 4);
+  int code = taos_insert_by_lines(taos, lines , 5);
   return code;
 }
 
