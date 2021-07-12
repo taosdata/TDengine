@@ -12,7 +12,7 @@ static void prepare_data(TAOS* taos) {
   result = taos_query(taos, "drop database if exists test;");
   taos_free_result(result);
   usleep(100000);
-  result = taos_query(taos, "create database test;");
+  result = taos_query(taos, "create database test precision 'us';");
   taos_free_result(result);
   usleep(100000);
   taos_select_db(taos, "test");
@@ -950,11 +950,19 @@ void verify_stream(TAOS* taos) {
 }
 
 int32_t verify_schema_less(TAOS* taos) {
-  prepare_data(taos);
+  TAOS_RES *result;
+  result = taos_query(taos, "drop database if exists test;");
+  taos_free_result(result);
+  usleep(100000);
+  result = taos_query(taos, "create database test precision 'us';");
+  taos_free_result(result);
+  usleep(100000);
+  taos_select_db(taos, "test");
+
   char* lines[] = {
-      "st,t1=3i,t2=4,t3=\"t3\" c1=3i,c3=L\"passit\",c2=false,c4=4 1626006833639",
-      "st,t1=4i,t2=5,t3=\"t4\" c1=3i,c3=L\"passitagain\",c2=true,c4=5 1626006833640",
-      "st,t1=4i,t2=5,t3=\"t4\" c1=3i,c3=L\"passitagain\",c2=true,c4=5 1626006833642"
+      "st,t1=3i,t2=4,t3=\"t3\" c1=3i,c3=L\"passit\",c2=false,c4=4 1626006833639000000",
+      "st,t1=4i,t2=5,t3=\"t4\" c1=3i,c3=L\"passitagain\",c2=true,c4=5 1626006833640000000",
+      "st,t1=4i,t2=5,t3=\"t4\" c1=3i,c3=L\"passitagain\",c2=true,c4=5 1626006833642000000"
   };
   int code = taos_insert_by_lines(taos, lines , 3);
   return code;
