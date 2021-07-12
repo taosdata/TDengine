@@ -225,7 +225,7 @@ int32_t addTaosFieldToHashAndArray(TAOS_SML_KV* smlKv, SHashObj* hash, SArray* a
 int32_t generateSchemaAction(SSchema* pointColField, SHashObj* dbAttrHash, bool isTag, char sTableName[],
                                        SSchemaAction* action, bool* actionNeeded) {
   SSchema** ppDbAttr = taosHashGet(dbAttrHash, pointColField->name, strlen(pointColField->name));
-  if (*ppDbAttr) {
+  if (ppDbAttr) {
     SSchema* dbAttr = *ppDbAttr;
     if (pointColField->type != dbAttr->type) {
       //todo error
