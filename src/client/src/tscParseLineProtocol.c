@@ -377,39 +377,26 @@ int32_t getChildTableName(TAOS_SML_DATA_POINT* point, char* tableName, int* tabl
   return 0;
 }
 
-int32_t getPreparedSQL(const char* sTableName, SArray* tagsSchema, SArray* colsSchema, char* result, int16_t freeBytes) {
+int32_t creatChildTableIfNotExists(TAOS* taos, const char* cTableName, const char* sTableName, SArray* tagsSchema, SArray* tagsBind) {
   size_t numTags = taosArrayGetSize(tagsSchema);
-  size_t numCols = taosArrayGetSize(colsSchema);
-  sprintf(result, "insert into ? using %s", sTableName);
+  char sql[TSDB_MAX_BINARY_LEN] = {0};
+  int freeBytes = TSDB_MAX_BINARY_LEN;
+  sprintf(sql, "create table if not exists %s using %s", cTableName, sTableName);
 
-//  snprintf(result+strlen(result), freeBytes-strlen(result), "(");
-//  for (int i = 0; i < numTags; ++i) {
-//    SSchema* tagSchema = taosArrayGet(tagsSchema, i);
-//    snprintf(result+strlen(result), freeBytes-strlen(result), "%s,", tagSchema->name);
-//  }
-//  snprintf(result + strlen(result)-1, freeBytes-strlen(result)+1, ")");
+  snprintf(sql+strlen(sql), freeBytes-strlen(sql), "(");
+  for (int i = 0; i < numTags; ++i) {
+    SSchema* tagSchema = taosArrayGet(tagsSchema, i);
+    snprintf(sql+strlen(sql), freeBytes-strlen(sql), "%s,", tagSchema->name);
+  }
+  snprintf(sql + strlen(sql) - 1, freeBytes-strlen(sql)+1, ")");
 
-  snprintf(result + strlen(result), freeBytes-strlen(result), " tags (");
+  snprintf(sql + strlen(sql), freeBytes-strlen(sql), " tags (");
 
   for (int i = 0; i < numTags; ++i) {
-    snprintf(result+strlen(result), freeBytes-strlen(result), "?,");
+    snprintf(sql+strlen(sql), freeBytes-strlen(sql), "?,");
   }
-  snprintf(result + strlen(result)-1, freeBytes-strlen(result)+1, ") (");
+  snprintf(sql + strlen(sql) - 1, freeBytes-strlen(sql)+1, ")");
 
-  for (int i = 0; i < numCols; ++i) {
-    SSchema* colSchema = taosArrayGet(colsSchema, i);
-    snprintf(result+strlen(result), freeBytes-strlen(result), "%s,", colSchema->name);
-  }
-  snprintf(result + strlen(result)-1, freeBytes-strlen(result)+1, ") values (");
-
-  for (int i = 0; i < numCols; ++i) {
-    snprintf(result+strlen(result), freeBytes-strlen(result), "?,");
-  }
-  snprintf(result + strlen(result)-1, freeBytes-strlen(result)+1, ")");
-  return 0;
-}
-
-int32_t insertBatch(TAOS* taos, char* sql, char* cTableName, SArray* tagsBind, SArray* rowsBind) {
   TAOS_STMT* stmt = taos_stmt_init(taos);
   int32_t code;
   code = taos_stmt_prepare(stmt, sql, strlen(sql));
@@ -418,7 +405,47 @@ int32_t insertBatch(TAOS* taos, char* sql, char* cTableName, SArray* tagsBind, S
     return code;
   }
 
-  code = taos_stmt_set_tbname_tags(stmt, cTableName, TARRAY_GET_START(tagsBind));
+  code = taos_stmt_bind_param(stmt, TARRAY_GET_START(tagsBind));
+  if (code != 0) {
+    printf("%s", taos_stmt_errstr(stmt));
+    return code;
+  }
+
+  code = taos_stmt_execute(stmt);
+  if (code != 0) {
+    printf("%s", taos_stmt_errstr(stmt));
+    return code;
+  }
+  TAOS_RES* res = taos_stmt_use_result(stmt);
+  return taos_errno(res);
+}
+
+int32_t insertBatch(TAOS* taos,  char* cTableName, SArray* colsSchema, SArray* rowsBind) {
+  size_t numCols = taosArrayGetSize(colsSchema);
+  char sql[TSDB_MAX_BINARY_LEN];
+  int32_t freeBytes = TSDB_MAX_BINARY_LEN;
+  sprintf(sql, "insert into ? (");
+
+  for (int i = 0; i < numCols; ++i) {
+    SSchema* colSchema = taosArrayGet(colsSchema, i);
+    snprintf(sql+strlen(sql), freeBytes-strlen(sql), "%s,", colSchema->name);
+  }
+  snprintf(sql + strlen(sql)-1, freeBytes-strlen(sql)+1, ") values (");
+
+  for (int i = 0; i < numCols; ++i) {
+    snprintf(sql+strlen(sql), freeBytes-strlen(sql), "?,");
+  }
+  snprintf(sql + strlen(sql)-1, freeBytes-strlen(sql)+1, ")");
+
+  TAOS_STMT* stmt = taos_stmt_init(taos);
+  int32_t code;
+  code = taos_stmt_prepare(stmt, sql, strlen(sql));
+  if (code != 0) {
+    printf("%s", taos_stmt_errstr(stmt));
+    return code;
+  }
+
+  code = taos_stmt_set_tbname(stmt, cTableName);
   if (code != 0) {
     printf("%s", taos_stmt_errstr(stmt));
     return code;
@@ -478,7 +505,6 @@ int32_t insertPoints(TAOS* taos, TAOS_SML_DATA_POINT* points, int32_t numPoints)
     TAOS_SML_DATA_POINT * point = taosArrayGetP(cTablePoints, 0);
     int32_t numTags = taosArrayGetSize(point->schema->tags);
     int32_t numCols = taosArrayGetSize(point->schema->fields);
-    char* stableName = point->stableName;
     char* ctableName = point->childTableName;
 
     SArray* tagBinds = taosArrayInit(numTags, sizeof(TAOS_BIND));
@@ -523,9 +549,8 @@ int32_t insertPoints(TAOS* taos, TAOS_SML_DATA_POINT* points, int32_t numPoints)
       taosArrayPush(rowsBind, &colBinds);
     }
 
-    char sql[TSDB_MAX_BINARY_LEN];
-    getPreparedSQL(stableName, point->schema->tags, point->schema->fields, sql, TSDB_MAX_BINARY_LEN);
-    insertBatch(taos, sql, ctableName, tagBinds, rowsBind);
+    creatChildTableIfNotExists(taos, point->childTableName, point->stableName, point->schema->tags, tagBinds);
+    insertBatch(taos, ctableName, point->schema->fields, rowsBind);
 
     pCTablePoints = taosHashIterate(cname2points, pCTablePoints);
   }
