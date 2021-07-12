@@ -26,7 +26,10 @@ void convertDBAtoBytes(DynamicByteArray *dba, unsigned char** bytes)
 	if(size>0)
 		*bytes = (unsigned char*)malloc(size * sizeof(unsigned char));
 	else
-		*bytes = NULL;
+	{
+	    *bytes = NULL;
+		return ;
+	}
 	memcpy(*bytes, dba->array, size*sizeof(unsigned char));	
 }
 

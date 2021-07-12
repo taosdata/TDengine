@@ -43,6 +43,10 @@
 extern "C" {
 #endif
 
+void cost_start();
+double cost_end(const char* tag);
+void show_rate( int in_len, int out_len);
+
 //typedef char int8_t;
 //typedef unsigned char uint8_t;
 //typedef short int16_t;

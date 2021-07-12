@@ -20,7 +20,7 @@ int bytesToInt_bigEndian(unsigned char* bytes);
 void intToBytes_bigEndian(unsigned char *b, unsigned int num);
 
 long bytesToLong_bigEndian(unsigned char* b);
-void longToBytes_bigEndian(unsigned char *b, unsigned long num);
+void longToBytes_bigEndian(unsigned char *b, long num);
 
 short getExponent_float(float value);
 short getPrecisionReqLength_float(float precision);

@@ -251,8 +251,8 @@ char lossyColumns[32] = "";  // "float|double" means all float and double column
 // below option can take effect when tsLossyColumns not empty 
 double   fPrecision   = 1E-8;   // float column precision
 double   dPrecision   = 1E-16;  // double column precision
-uint32_t maxIntervals = 800;    // max intervals
-uint32_t intervals    = 500;    // intervals
+uint32_t maxIntervals = 500;    // max intervals
+uint32_t intervals    = 100;    // intervals
 char     Compressor[32] = "ZSTD_COMPRESSOR"; // ZSTD_COMPRESSOR or GZIP_COMPRESSOR 
 
 

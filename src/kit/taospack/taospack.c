@@ -137,6 +137,8 @@ float* read_float(const char* inFile, int* pcount){
   int  fi = 0;
   while(fgets(buf, sizeof(buf), pfin) != NULL) {
     // get item
+    if(buf[0] == 0 || strcmp(buf, " ") == 0)
+        continue;
     floats[fi] = atof(buf);
     //printf(" buff=%s float=%.50f \n ", buf, floats[fi]);
     if ( ++fi == malloc_cnt ) {
@@ -257,7 +259,7 @@ bool DoDouble(double* doubles, int cnt, int algorithm) {
   return true;
 }
 
-bool DoFloat(float* floats, int cnt, int algorithm) {
+bool DoFloat(float* floats, int cnt, int algorithm, bool lossy) {
   // compress
   const char* input = (const char*)floats;
   int input_len = cnt * sizeof(float);
@@ -268,11 +270,8 @@ bool DoFloat(float* floats, int cnt, int algorithm) {
 
   cost_start();
   int ret_len = 0;
-  if(algorithm == 2) 
-     ret_len = tsCompressFloat(input, input_len, cnt, output, output_len, algorithm, buff, buff_len);
-  else
-     ret_len = tsCompressFloatLossy(input, input_len, cnt, output, output_len, algorithm, buff, buff_len);
-
+  ret_len = tsCompressFloat(input, input_len, cnt, output, output_len, algorithm, buff, buff_len);
+ 
   if(ret_len == -1) {
     printf(" compress error.\n");
     return 0;
@@ -289,20 +288,15 @@ bool DoFloat(float* floats, int cnt, int algorithm) {
   float* ft2 = (float*)malloc(input_len); 
   cost_start();
   int code = 0;
-
-  if(algorithm == 2) 
-     code = tsDecompressFloat(output, ret_len, cnt, (char*)ft2, input_len, algorithm, buff, buff_len);
-  else
-     code = tsDecompressFloatLossy(output, ret_len, cnt, (char*)ft2, input_len, algorithm, buff, buff_len);
-   
-
+  code = tsDecompressFloat(output, ret_len, cnt, (char*)ft2, input_len, algorithm, buff, buff_len);
+  
   double use_ms2 = cost_end("Decompress");
   printf(" Decompress return length=%d \n", code);
 
   // compare same
   float same_rate = check_same(floats, ft2, cnt);
 
-  printf("\n ------------------  count:%d  <%s> ---------------- \n", cnt, algorithm == 2?"TD":"SZ");
+  printf("\n ------------------  count:%d  <%s> ---------------- \n", cnt, lossy?"SZ":"TD");
   printf("    Compress Rate ......... [%.2f%%] \n", rate);
   double speed1 = (cnt*sizeof(float)*1000/1024/1024)/use_ms1;
   printf("    Compress Time ......... [%.4fms] speed=%.1f MB/s\n", use_ms1, speed1);
@@ -320,7 +314,7 @@ bool DoFloat(float* floats, int cnt, int algorithm) {
 }
 
 
-bool testFile(const char* inFile, char algorithm){
+bool testFile(const char* inFile, char algorithm, bool lossy){
   // check valid
   if(inFile == NULL || inFile[0] == 0 ){
     printf(" inFile is NULL or EMPTY.\n");
@@ -333,7 +327,7 @@ bool testFile(const char* inFile, char algorithm){
     return false;
   }
 
-  DoFloat(floats, cnt, algorithm);
+  DoFloat(floats, cnt, algorithm, lossy);
 
   free(floats);
   return true;
@@ -688,10 +682,15 @@ extern bool lossyFloat;
 //
 int main(int argc, char *argv[]) {
   printf("welcome to use taospack tools v1.3\n");
+
+  printf(" sizeof(int)=%d\n",  (int)sizeof(int));
+  printf(" sizeof(long)=%d\n", (int)sizeof(long));
+  printf(" sizeof(short)=%d\n",(int)sizeof(short));
  
   strcpy(lossyColumns, "float|double");
+  bool lossy = true;
   tsCompressInit();
-  //lossyFloat = lossyDouble = true;
+  lossyFloat = lossyDouble = true;
  
   //
   //tsCompressExit();
@@ -707,6 +706,7 @@ int main(int argc, char *argv[]) {
     }
     if(strcmp(argv[1], "-tw") == 0) {
         algo = TWO_STAGE_COMP;
+        lossy = false;
         lossyFloat = lossyDouble = false;
     }
 
@@ -730,7 +730,7 @@ int main(int argc, char *argv[]) {
       return 0;
     }
      
-    bool ret = testFile(argv[2], algo);
+    bool ret = testFile(argv[2], algo, lossy);
     printf(" test file %s. \n", ret ? "ok" : "err");
     return 1;
 

@@ -25,8 +25,8 @@ void setDefaulParams(sz_exedata* exedata, sz_params* params)
 		params->errorBoundMode = SZ_ABS;
 		params->absErrBound    = 1E-8;
 		params->absErrBoundDouble = 1E-16;
-		params->max_quant_intervals = 800;
-		params->quantization_intervals = 500;
+		params->max_quant_intervals = 500;
+		params->quantization_intervals = 100;
 		params->losslessCompressor = ZSTD_COMPRESSOR; //other option: GZIP_COMPRESSOR;
 
         // second important
