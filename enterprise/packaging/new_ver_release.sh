@@ -25,7 +25,7 @@ elif [ "$branchName" == "develop" ];then
   branchName=develop
   verType=beta
   tagVal=ver-${version}-beta
-  dockerinput=TDengine-server-${version}-Linux-$cpuType-${verType}.tar.gz  
+  dockerinput=TDengine-server-${version}-${verType}-Linux-$cpuType.tar.gz  
   dockerim=tdengine/tdengine-beta
 fi
 
