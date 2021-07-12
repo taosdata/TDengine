@@ -956,7 +956,7 @@ int32_t verify_schema_less(TAOS* taos) {
       "st,t1=4i,t2=5,t3=\"t4\" c1=3i,c3=L\"passitagain\",c2=true,c4=5 1626006833640",
       "st,t1=4i,t2=5,t3=\"t4\" c1=3i,c3=L\"passitagain\",c2=true,c4=5 1626006833642"
   };
-  int code = taos_insert_by_lines(taos, lines , 2);
+  int code = taos_insert_by_lines(taos, lines , 3);
   return code;
 }
 
