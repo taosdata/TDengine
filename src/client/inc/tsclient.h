@@ -89,18 +89,26 @@ typedef struct SBoundColumn {
   bool    hasVal;  // denote if current column has bound or not
   int32_t offset;  // all column offset value
 } SBoundColumn;
+
 typedef struct {
   uint16_t schemaColIdx;
   uint16_t boundIdx;
   uint16_t finalIdx;
 } SBoundIdxInfo;
+
+typedef enum _COL_ORDER_STATUS {
+  ORDER_STATUS_UNKNOWN = 0,
+  ORDER_STATUS_ORDERED = 1,
+  ORDER_STATUS_DISORDERED = 2,
+} EOrderStatus;
+
 typedef struct SParsedDataColInfo {
-  bool           isOrdered;  // bounded columns
   int16_t        numOfCols;
   int16_t        numOfBound;
   int32_t *      boundedColumns;  // bounded column idx according to schema
   SBoundColumn * cols;
   SBoundIdxInfo *colIdxInfo;
+  int8_t         orderStatus;  // bounded columns: 
 } SParsedDataColInfo;
 
 typedef struct {
@@ -408,6 +416,11 @@ extern int (*tscBuildMsg[TSDB_SQL_MAX])(SSqlObj *pSql, SSqlInfo *pInfo);
  
 void tscBuildVgroupTableInfo(SSqlObj* pSql, STableMetaInfo* pTableMetaInfo, SArray* tables);
 int16_t getNewResColId(SSqlCmd* pCmd);
+
+int32_t schemaIdxCompar(const void *lhs, const void *rhs);
+int32_t boundIdxCompar(const void *lhs, const void *rhs);
+int     initSMemRowHelper(SMemRowHelper *pHelper, SSchema *pSSchema, uint16_t nCols, uint16_t allNullColsLen);
+int32_t getExtendedRowSize(STableComInfo *tinfo);
 
 #ifdef __cplusplus
 }

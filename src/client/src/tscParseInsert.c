@@ -45,10 +45,10 @@ static int32_t tscAllocateMemIfNeed(STableDataBlocks *pDataBlock, int32_t rowSiz
 static int32_t parseBoundColumns(SInsertStatementParam *pInsertParam, SParsedDataColInfo *pColInfo, SSchema *pSchema,
                                  char *str, char **end);
 
-static FORCE_INLINE int32_t getExtendedRowSize(STableComInfo *tinfo) {
+int32_t getExtendedRowSize(STableComInfo *tinfo) {
   return tinfo->rowSize + PAYLOAD_HEADER_LEN + PAYLOAD_COL_HEAD_LEN * tinfo->numOfColumns;
 }
-static int initSMemRowHelper(SMemRowHelper *pHelper, SSchema *pSSchema, uint16_t nCols, uint16_t allNullColsLen) {
+int initSMemRowHelper(SMemRowHelper *pHelper, SSchema *pSSchema, uint16_t nCols, uint16_t allNullColsLen) {
   pHelper->allNullLen = allNullColsLen;  //  TODO: get allNullColsLen when creating or altering table meta
   if (pHelper->allNullLen == 0) {
     for (uint16_t i = 0; i < nCols; ++i) {
@@ -56,9 +56,9 @@ static int initSMemRowHelper(SMemRowHelper *pHelper, SSchema *pSSchema, uint16_t
       int32_t typeLen = TYPE_BYTES[type];
       pHelper->allNullLen += typeLen;
       if (TSDB_DATA_TYPE_BINARY == type) {
-        pHelper->allNullLen += (sizeof(VarDataLenT) + CHAR_BYTES);
+        pHelper->allNullLen += (VARSTR_HEADER_SIZE + CHAR_BYTES);
       } else if (TSDB_DATA_TYPE_NCHAR == type) {
-        int len = sizeof(VarDataLenT) + TSDB_NCHAR_SIZE;
+        int len = VARSTR_HEADER_SIZE + TSDB_NCHAR_SIZE;
         pHelper->allNullLen += len;
       }
     }
@@ -867,14 +867,14 @@ int tsParseOneRow(char **str, STableDataBlocks *pDataBlocks, int16_t timePrec, i
     TDRowLenT kvRowColLen = 0;
     TDRowLenT colValAppended = 0;
 
-    if(!spd->isOrdered) {
+    if (spd->orderStatus == ORDER_STATUS_DISORDERED) {
       ASSERT(spd->colIdxInfo != NULL);
       if(!isPrimaryKey) {
         kvStart = POINTER_SHIFT(kvPrimaryKeyStart, spd->colIdxInfo[i].finalIdx * PAYLOAD_COL_HEAD_LEN);
       } else {
         ASSERT(spd->colIdxInfo[i].finalIdx == 0);
       }
-    } 
+    }
     // the primary key locates in 1st column
     int32_t ret = tsParseOneColumnKV(pSchema, &sToken, payload, kvPrimaryKeyStart, kvStart, pInsertParam->msg, str,
                                      isPrimaryKey, timePrec, payloadValOffset + colValOffset, &colValAppended,
@@ -891,7 +891,7 @@ int tsParseOneRow(char **str, STableDataBlocks *pDataBlocks, int16_t timePrec, i
       payloadColSetOffset(kvPrimaryKeyStart, colValOffset);
     } else {
       payloadColSetOffset(kvStart, colValOffset);
-      if(spd->isOrdered) {
+      if (spd->orderStatus == ORDER_STATUS_ORDERED) {
         kvStart += PAYLOAD_COL_HEAD_LEN;  // move to next column
       }
     }
@@ -929,7 +929,7 @@ static int32_t rowDataCompar(const void *lhs, const void *rhs) {
     return left > right ? 1 : -1;
   }
 }
-static int32_t schemaIdxCompar(const void *lhs, const void *rhs) {
+int32_t schemaIdxCompar(const void *lhs, const void *rhs) {
   uint16_t left = *(uint16_t *)lhs;
   uint16_t right = *(uint16_t *)rhs;
 
@@ -940,7 +940,7 @@ static int32_t schemaIdxCompar(const void *lhs, const void *rhs) {
   }
 }
 
-static int32_t boundIdxCompar(const void *lhs, const void *rhs) {
+int32_t boundIdxCompar(const void *lhs, const void *rhs) {
   uint16_t left = *(uint16_t *)POINTER_SHIFT(lhs, sizeof(uint16_t));
   uint16_t right = *(uint16_t *)POINTER_SHIFT(rhs, sizeof(uint16_t));
 
@@ -1020,7 +1020,7 @@ int32_t tsParseValues(char **str, STableDataBlocks *pDataBlock, int maxRows, SIn
 void tscSetBoundColumnInfo(SParsedDataColInfo *pColInfo, SSchema *pSchema, int32_t numOfCols) {
   pColInfo->numOfCols = numOfCols;
   pColInfo->numOfBound = numOfCols;
-  pColInfo->isOrdered = true;
+  pColInfo->orderStatus = ORDER_STATUS_UNKNOWN;
   pColInfo->boundedColumns = calloc(pColInfo->numOfCols, sizeof(int32_t));
   pColInfo->cols = calloc(pColInfo->numOfCols, sizeof(SBoundColumn));
   pColInfo->colIdxInfo = NULL;
@@ -1606,7 +1606,7 @@ static int32_t parseBoundColumns(SInsertStatementParam *pInsertParam, SParsedDat
     }
   }
 
-  pColInfo->isOrdered = isOrdered;
+  pColInfo->orderStatus = isOrdered ? ORDER_STATUS_ORDERED : ORDER_STATUS_DISORDERED;
 
   if (!isOrdered) {
     pColInfo->colIdxInfo = tcalloc(pColInfo->numOfBound, sizeof(SBoundIdxInfo));
