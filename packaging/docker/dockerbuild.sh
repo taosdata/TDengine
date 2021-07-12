@@ -16,7 +16,7 @@ cpuType=""
 version=""
 passWord=""
 pkgFile=""
-verType=""
+verType="stable"
 
 while getopts "hc:n:p:f:V:" arg
 do
