@@ -1424,47 +1424,60 @@ static int convertTbDesToAvroSchema(
     errorPrint("%s() LN%d TODO: covert table schema to avro schema\n",
             __func__, __LINE__);
     // {
-    // "dbname": "database name",
-    // "tbname": "table name",
-    // "columns": [
+    // "namesapce": "database name",
+    // "type": "record",
+    // "name": "table name",
+    // "fields": [
     //      {
     //      "name": "col0 name",
-    //      "type": "timestamp"
+    //      "type": "long"
     //      },
     //      {
     //      "name": "col1 name",
-    //      "type": "int"
+    //      "type": ["int", "null"]
     //      },
     //      {
     //      "name": "col2 name",
-    //      "type": "float"
+    //      "type": ["float", "null"]
     //      },
     //      ...
     //      {
     //      "name": "coln name",
-    //      "type": "binary",
-    //      "len": 20
+    //      "type": ["string", "null"]
     //      }
     // ]
     // }
     *avroSchema = (char *)calloc(1,
-            13 + TSDB_DB_NAME_LEN               /* dbname section */
-            + 13 + TSDB_TABLE_NAME_LEN          /* tbname section */
-            + 14                                /* columns section */
-            + (TSDB_COL_NAME_LEN + 20 + 12) * colCount + 3);    /* column section */
+            17 + TSDB_DB_NAME_LEN               /* dbname section */
+            + 17                                /* type: record */
+            + 11 + TSDB_TABLE_NAME_LEN          /* tbname section */
+            + 10                                /* fields section */
+            + (TSDB_COL_NAME_LEN + 11 + 16) * colCount + 4);    /* fields section */
     if (*avroSchema == NULL) {
         errorPrint("%s() LN%d, memory allocation failed!\n", __func__, __LINE__);
         return -1;
     }
 
     char *pstr = *avroSchema;
-    pstr += sprintf(pstr, "{\"dbname\": \"%s\", \"tbname\": \"%s\", \"columns\": [", dbName, tbName);
+    pstr += sprintf(pstr,
+            "{\"namespace\": \"%s\", \"type\": \"record\", \"name\": \"%s\", \"fields\": [",
+            dbName, tbName);
     for (int i = 0; i < colCount; i ++) {
-        pstr += sprintf(pstr, "{\"name\": \"%s\", \"type\": \"%s\"",
-                tableDes->cols[i].field, tableDes->cols[i].type);
-        if (strcasecmp(tableDes->cols[i].type, "binary") == 0 ||
-                strcasecmp(tableDes->cols[i].type, "nchar") == 0) {
-            pstr += sprintf(pstr, ", \"len\": %d", tableDes->cols[i].length);
+        if (0 == i) {
+            pstr += sprintf(pstr,
+                    "{\"name\": \"%s\", \"type\": \"%s\"",
+                    tableDes->cols[i].field, "long");
+        } else {
+            if (strcasecmp(tableDes->cols[i].type, "binary") == 0 ||
+                    strcasecmp(tableDes->cols[i].type, "nchar") == 0) {
+                pstr += sprintf(pstr,
+                    "{\"name\": \"%s\", \"type\": [\"%s\", \"null\"]",
+                    tableDes->cols[i].field, "string");
+            } else {
+                pstr += sprintf(pstr,
+                    "{\"name\": \"%s\", \"type\": [\"%s\", \"null\"]",
+                    tableDes->cols[i].field, tableDes->cols[i].type);
+            }
         }
         if ((i != (colCount -1))
                 && (strcmp(tableDes->cols[i + 1].note, "TAG") != 0)) {
