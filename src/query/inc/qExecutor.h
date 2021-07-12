@@ -105,8 +105,7 @@ typedef struct SResultRowInfo {
   int16_t      type:8;     // data type for hash key
   int32_t      size:24;    // number of result set
   int32_t      capacity;   // max capacity
-  SResultRow*  current;    // current start active index
-  int64_t      prevSKey;   // previous (not completed) sliding window start key
+  SResultRow*  current;    // current active result row
 } SResultRowInfo;
 
 typedef struct SColumnFilterElem {
@@ -277,6 +276,7 @@ typedef struct SQueryRuntimeEnv {
   bool                  enableGroupData;
   SDiskbasedResultBuf*  pResultBuf;       // query result buffer based on blocked-wised disk file
   SHashObj*             pResultRowHashTable; // quick locate the window object for each result
+  SHashObj*             pResultRowListSet;   // used to check if current ResultRowInfo has ResultRow object or not
   char*                 keyBuf;           // window key buffer
   SResultRowPool*       pool;             // window result object pool
   char**                prevRow;
