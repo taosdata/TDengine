@@ -1391,7 +1391,7 @@ int32_t doCopyRowsFromFileBlock(STsdbQueryHandle* pQueryHandle, int32_t capacity
 
         // todo refactor, only copy one-by-one
         for (int32_t k = start; k < num + start; ++k) {
-          char* p = tdGetColDataOfRow(src, k);
+          const char* p = tdGetColDataOfRow(src, k);
           memcpy(dst, p, varDataTLen(p));
           dst += bytes;
         }

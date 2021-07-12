@@ -265,10 +265,11 @@ typedef struct SDataCol {
   TSKEY           ts;         // only used in last NULL column
 } SDataCol;
 
+#define isAllRowsNull(pCol) ((pCol)->len == 0)
 static FORCE_INLINE void dataColReset(SDataCol *pDataCol) { pDataCol->len = 0; }
 
 void dataColInit(SDataCol *pDataCol, STColumn *pCol, void **pBuf, int maxPoints);
-void dataColAppendVal(SDataCol *pCol, void *value, int numOfRows, int maxPoints);
+void dataColAppendVal(SDataCol *pCol, const void *value, int numOfRows, int maxPoints);
 void dataColSetOffset(SDataCol *pCol, int nEle);
 
 bool isNEleNull(SDataCol *pCol, int nEle);
@@ -277,7 +278,10 @@ void dataColSetNEleNull(SDataCol *pCol, int nEle, int maxPoints);
 const void *tdGetNullVal(int8_t type);
 
 // Get the data pointer from a column-wised data
-static FORCE_INLINE void *tdGetColDataOfRow(SDataCol *pCol, int row) {
+static FORCE_INLINE const void *tdGetColDataOfRow(SDataCol *pCol, int row) {
+  if (isAllRowsNull(pCol)) {
+    return tdGetNullVal(pCol->type);
+  }
   if (IS_VAR_DATA_TYPE(pCol->type)) {
     return POINTER_SHIFT(pCol->pData, pCol->dataOff[row]);
   } else {
