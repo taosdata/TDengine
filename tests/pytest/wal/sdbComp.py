@@ -28,6 +28,7 @@ class TDTestCase:
         tdSql.init(conn.cursor(), logSql)
         
     def getBuildPath(self):
+        global selfPath
         selfPath = os.path.dirname(os.path.realpath(__file__))
         
         if ("community" in selfPath):
@@ -53,7 +54,7 @@ class TDTestCase:
             tdLog.info("taosd found in %s" % buildPath)
 
         binPath = buildPath+ "/build/bin/"
-        testPath = buildPath[:buildPath.find("debug")]
+        testPath = selfPath+ "/../../../"
         walFilePath = testPath + "/sim/dnode1/data/mnode_bak/wal/"
 
         #new db and insert data
