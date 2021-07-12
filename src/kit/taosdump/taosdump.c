@@ -500,6 +500,12 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
 
 static void freeTbDes(STableDef *tableDes)
 {
+    for (int i = 0; i < TSDB_MAX_COLUMNS; i ++) {
+        if (tableDes->cols[i].var_value) {
+            free(tableDes->cols[i].var_value);
+        }
+    }
+
     free(tableDes);
 }
 
@@ -1275,7 +1281,6 @@ static int taosGetTableDes(
         strncpy(tableDes->cols[count].note,
                 (char *)row[TSDB_DESCRIBE_METRIC_NOTE_INDEX],
                 fields[TSDB_DESCRIBE_METRIC_NOTE_INDEX].bytes);
-
         count++;
     }
 
@@ -1313,7 +1318,7 @@ static int taosGetTableDes(
         }
 
         if (row[0] == NULL) {
-            sprintf(tableDes->cols[i].note, "%s", "NULL");
+            sprintf(tableDes->cols[i].note, "%s", "");
             taos_free_result(res);
             res = NULL;
             continue;
@@ -1347,25 +1352,42 @@ static int taosGetTableDes(
                 break;
             case TSDB_DATA_TYPE_BINARY:
                 {
-                    memset(tableDes->cols[i].value, 0, sizeof(tableDes->cols[i].value));
-                    tableDes->cols[i].value[0] = '\'';
+                    memset(tableDes->cols[i].value, 0,
+                            sizeof(tableDes->cols[i].value));
                     int len = strlen((char *)row[0]);
-                    len = len;
-                    char tbuf[COL_VALUEBUF_LEN];
-                    converStringToReadable((char *)row[0], length[0], tbuf, COL_VALUEBUF_LEN);
                     // FIXME for long value
-                    char* pstr = stpcpy(&(tableDes->cols[i].value[1]), tbuf);
-                    *(pstr++) = '\'';
-                    length = length;
+                    if (len < (COL_VALUEBUF_LEN - 2)) {
+                        tableDes->cols[i].value[0] = '\'';
+                        converStringToReadable(
+                                (char *)row[0],
+                                length[0],
+                                tableDes->cols[i].value + 1,
+                                len);
+                        tableDes->cols[i].value[len+1] = '\'';
+                    } else {
+                        tableDes->cols[i].var_value = calloc(1, len + 2);
+                        if (tableDes->cols[i].var_value == NULL) {
+                            errorPrint("%s() LN%d, memory alalocation failed!\n",
+                                    __func__, __LINE__);
+                            taos_free_result(res);
+                            return -1;
+                        }
+                        tableDes->cols[i].var_value[0] = '\'';
+                        converStringToReadable((char *)row[0],
+                                length[0],
+                                (char *)(tableDes->cols[i].var_value + 1), len);
+                        tableDes->cols[i].var_value[len+1] = '\'';
+                    }
                     break;
                 }
             case TSDB_DATA_TYPE_NCHAR:
                 {
                     memset(tableDes->cols[i].value, 0, sizeof(tableDes->cols[i].value));
-                    char tbuf[COL_VALUEBUF_LEN];    // need reserve 2 bytes for ' '
-                    convertNCharToReadable((char *)row[0], length[0], tbuf, COL_VALUEBUF_LEN);
+                    char tbuf[COL_VALUEBUF_LEN - 2];    // need reserve 2 bytes for ' '
+                    convertNCharToReadable((char *)row[0], length[0], tbuf,
+                            COL_VALUEBUF_LEN);
                     // FIXME for long value
-                    sprintf(tableDes->cols[i].value, "\'%s\'", tbuf);
+                    snprintf(tableDes->cols[i].value, COL_VALUEBUF_LEN, "\'%s\'", tbuf);
                     length = length;
                     break;
                 }
@@ -2020,7 +2042,12 @@ static void taosDumpCreateMTableClause(STableDef *tableDes, char *metric,
             if (strcasecmp(tableDes->cols[counter].type, "binary") == 0 ||
                     strcasecmp(tableDes->cols[counter].type, "nchar") == 0) {
                 //pstr += sprintf(pstr, ", \'%s\'", tableDes->cols[counter].note);
-                pstr += sprintf(pstr, ", %s", tableDes->cols[counter].value);
+                if (tableDes->cols[counter].var_value) {
+                    pstr += sprintf(pstr, ", %s",
+                            tableDes->cols[counter].var_value);
+                } else {
+                    pstr += sprintf(pstr, ", %s", tableDes->cols[counter].value);
+                }
             } else {
                 pstr += sprintf(pstr, ", %s", tableDes->cols[counter].value);
             }
@@ -2028,7 +2055,11 @@ static void taosDumpCreateMTableClause(STableDef *tableDes, char *metric,
             if (strcasecmp(tableDes->cols[counter].type, "binary") == 0 ||
                     strcasecmp(tableDes->cols[counter].type, "nchar") == 0) {
                 //pstr += sprintf(pstr, "\'%s\'", tableDes->cols[counter].note);
-                pstr += sprintf(pstr, "%s", tableDes->cols[counter].value);
+                if (tableDes->cols[counter].var_value) {
+                    pstr += sprintf(pstr, "%s", tableDes->cols[counter].var_value);
+                } else {
+                    pstr += sprintf(pstr, "%s", tableDes->cols[counter].value);
+                }
             } else {
                 pstr += sprintf(pstr, "%s", tableDes->cols[counter].value);
             }
@@ -2143,10 +2174,7 @@ static int64_t writeResultToSql(TAOS_RES *res, FILE *fp, char *dbName, char *tbN
                 case TSDB_DATA_TYPE_BINARY:
                     {
                         char tbuf[COMMAND_SIZE] = {0};
-                        //*(pstr++) = '\'';
                         converStringToReadable((char *)row[col], length[col], tbuf, COMMAND_SIZE);
-                        //pstr = stpcpy(pstr, tbuf);
-                        //*(pstr++) = '\'';
                         curr_sqlstr_len += sprintf(pstr + curr_sqlstr_len, "\'%s\'", tbuf);
                         break;
                     }
