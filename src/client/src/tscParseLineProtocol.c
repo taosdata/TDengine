@@ -21,6 +21,7 @@ typedef struct  {
   SHashObj* fieldHash;
   SArray* tags; //SArray<SSchema>
   SArray* fields; //SArray<SSchema>
+  uint8_t precision;
 } SSmlSTableSchema;
 
 typedef struct {
@@ -117,6 +118,7 @@ int32_t loadTableMeta(TAOS* taos, char* tableName, SSmlSTableSchema* schema) {
   taosHashGetClone(tscTableMetaInfo, fullTableName, strlen(fullTableName), NULL, tableMeta, -1);
 
   tstrncpy(schema->sTableName, tableName, strlen(tableName)+1);
+  schema->precision = tableMeta->tableInfo.precision;
   for (int i=0; i<tableMeta->tableInfo.numOfColumns; ++i) {
     SSchema field;
     tstrncpy(field.name, tableMeta->schema[i].name, strlen(tableMeta->schema[i].name)+1);
@@ -486,6 +488,25 @@ int32_t insertPoints(TAOS* taos, TAOS_SML_DATA_POINT* points, int32_t numPoints)
       strncpy(point->childTableName, childTableName, tableNameLen);
       point->childTableName[tableNameLen] = '\0';
     }
+
+    for (int j = 0; j < point->tagNum; ++j) {
+      TAOS_SML_KV* kv =  point->tags + j;
+      if (kv->type == TSDB_DATA_TYPE_TIMESTAMP) {
+        int64_t ts = *(int64_t*)(kv->value);
+        ts = convertTimePrecision(ts, TSDB_TIME_PRECISION_NANO, point->schema->precision);
+        *(int64_t*)(kv->value) = ts;
+      }
+    }
+
+    for (int j = 0; j < point->fieldNum; ++j) {
+      TAOS_SML_KV* kv =  point->fields + j;
+      if (kv->type == TSDB_DATA_TYPE_TIMESTAMP) {
+        int64_t ts = *(int64_t*)(kv->value);
+        ts = convertTimePrecision(ts, TSDB_TIME_PRECISION_NANO, point->schema->precision);
+        *(int64_t*)(kv->value) = ts;
+      }
+    }
+
     SArray* cTablePoints = NULL;
     SArray** pCTablePoints = taosHashGet(cname2points, point->childTableName, strlen(point->childTableName));
     if (pCTablePoints) {
@@ -596,7 +617,6 @@ int taos_sml_insert(TAOS* taos, TAOS_SML_DATA_POINT* points, int numPoint) {
     point->schema = pStableSchema;
   }
 
-  SArray* schemaActions = taosArrayInit(32, sizeof(SSchemaAction));
   size_t numStable = taosArrayGetSize(stableArray);
   for (int i = 0; i < numStable; ++i) {
     SSmlSTableSchema* pointSchema = taosArrayGet(stableArray, i);
@@ -615,8 +635,10 @@ int taos_sml_insert(TAOS* taos, TAOS_SML_DATA_POINT* points, int numPoint) {
       memcpy(schemaAction.createSTable.sTableName, pointSchema->sTableName, TSDB_TABLE_NAME_LEN);
       schemaAction.createSTable.tags = pointSchema->tags;
       schemaAction.createSTable.fields = pointSchema->fields;
-      taosArrayPush(schemaActions, &schemaAction);
-    }else if (code == TSDB_CODE_SUCCESS) {
+      applySchemaAction(taos, &schemaAction);
+      code = loadTableMeta(taos, pointSchema->sTableName, &dbSchema);
+      pointSchema->precision = dbSchema.precision;
+    } else if (code == TSDB_CODE_SUCCESS) {
       size_t pointTagSize = taosArrayGetSize(pointSchema->tags);
       size_t pointFieldSize = taosArrayGetSize(pointSchema->fields);
 
@@ -629,7 +651,7 @@ int taos_sml_insert(TAOS* taos, TAOS_SML_DATA_POINT* points, int numPoint) {
         bool actionNeeded = false;
         generateSchemaAction(pointTag, dbTagHash, true, pointSchema->sTableName, &schemaAction, &actionNeeded);
         if (actionNeeded) {
-          taosArrayPush(schemaActions, &schemaAction);
+          applySchemaAction(taos, &schemaAction);
         }
       }
 
@@ -643,17 +665,14 @@ int taos_sml_insert(TAOS* taos, TAOS_SML_DATA_POINT* points, int numPoint) {
         bool actionNeeded = false;
         generateSchemaAction(pointCol, dbFieldHash, false, pointSchema->sTableName, &schemaAction, &actionNeeded);
         if (actionNeeded) {
-          taosArrayPush(schemaActions, &schemaAction);
+          applySchemaAction(taos, &schemaAction);
         }
       }
+
+      pointSchema->precision = dbSchema.precision;
     } else {
       return code;
     }
-  }
-
-  for (int i = 0; i < taosArrayGetSize(schemaActions); ++i) {
-    SSchemaAction* action = taosArrayGet(schemaActions, i);
-    applySchemaAction(taos, action);
   }
 
   insertPoints(taos, points, numPoint);
