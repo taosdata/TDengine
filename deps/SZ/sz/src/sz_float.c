@@ -372,7 +372,7 @@ int SZ_compress_args_float(float *oriData, size_t r1, unsigned char* newByteData
 	}
 
     //cost_end(" sz_first_compress");
-	//show_rate(r1*sizeof(float), *outSize);
+	//show_rate(r1*sizeof(float), tmpOutSize);
 	//
 	//  second compress with Call Zstd or Gzip 
 	//

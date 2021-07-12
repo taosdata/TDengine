@@ -676,6 +676,8 @@ void test_same_double(int algo){
 extern char lossyColumns [];
 extern bool lossyDouble;
 extern bool lossyFloat;
+extern double  fPrecision;
+extern char Compressor [];
 
 //
 //   -----------------  main ----------------------
@@ -683,14 +685,21 @@ extern bool lossyFloat;
 int main(int argc, char *argv[]) {
   printf("welcome to use taospack tools v1.3\n");
 
-  printf(" sizeof(int)=%d\n",  (int)sizeof(int));
-  printf(" sizeof(long)=%d\n", (int)sizeof(long));
-  printf(" sizeof(short)=%d\n",(int)sizeof(short));
+  //printf(" sizeof(int)=%d\n",  (int)sizeof(int));
+  //printf(" sizeof(long)=%d\n", (int)sizeof(long));
+  //printf(" sizeof(short)=%d\n",(int)sizeof(short));
+  
  
   strcpy(lossyColumns, "float|double");
   bool lossy = true;
+  fPrecision = 1E-5;
+  //strcpy(Compressor, "GZIP_COMPRESSOR");
+
   tsCompressInit();
   lossyFloat = lossyDouble = true;
+
+  printf(" fPrecision=%.15f\n",fPrecision);
+
  
   //
   //tsCompressExit();
