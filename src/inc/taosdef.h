@@ -196,9 +196,10 @@ do { \
 #define TSDB_APPNAME_LEN          TSDB_UNI_LEN
 
   /**
-   *  Don't change to 65536. As in some scenarios uint16_t (0~65535) is used to store the row len.
-   *  So, we use 65531(65535 - 4), as the SDataRow and SKVRow including 4 bits header.
-   *  If all cols are VarType except primary key, we need 4 bits to store the offset. 65531-8-4095*4=49143
+   *  In some scenarios uint16_t (0~65535) is used to store the row len.
+   *  - Firstly, we use 65531(65535 - 4), as the SDataRow and SKVRow including 4 bits header.
+   *  - Secondly, if all cols are VarType except primary key, we need 4 bits to store the offset, thus
+   *    the final value is 65531-8-4095*4 = 49143.
    */
 #define TSDB_MAX_BYTES_PER_ROW    49143
 #define TSDB_MAX_TAGS_LEN         16384

@@ -1829,7 +1829,6 @@ static int trimDataBlock(void* pDataBlock, STableDataBlocks* pTableDataBlock, bo
   rowBuilder.pDataBlock = pDataBlock;
   rowBuilder.pSubmitBlk = pBlock;
   rowBuilder.buf = p;
-  rowBuilder.size = 0;
 
   for (int32_t i = 0; i < numOfRows; ++i) {
     rowBuilder.buf = (blkKeyTuple + i)->payloadAddr;

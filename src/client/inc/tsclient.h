@@ -104,15 +104,11 @@ typedef struct SParsedDataColInfo {
 } SParsedDataColInfo;
 
 typedef struct {
-  // for SDataRow
-  SSchema *pSchema;
-  int16_t  sversion;
-  int32_t  flen;
-  // for  SKVRow
-  uint16_t nCols;
-  uint16_t size;
-  void *   buf;
-
+  SSchema *   pSchema;
+  int16_t     sversion;
+  int32_t     flen;
+  uint16_t    nCols;
+  void *      buf;
   void *      pDataBlock;
   SSubmitBlk *pSubmitBlk;
 } SMemRowBuilder;

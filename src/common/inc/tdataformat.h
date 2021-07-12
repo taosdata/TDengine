@@ -190,7 +190,7 @@ static FORCE_INLINE int tkeyComparFn(const void *tkey1, const void *tkey2) {
 // ----------------- Data row structure
 
 /* A data row, the format is like below:
- * |<--------------------+--------------------------- len ---------------------------------->|
+ * |<------------------------------------------------ len ---------------------------------->|
  * |<--     Head      -->|<---------   flen -------------->|                                 |
  * +---------------------+---------------------------------+---------------------------------+
  * | uint16_t |  int16_t |                                 |                                 |
@@ -224,11 +224,10 @@ SDataRow tdDataRowDup(SDataRow row);
 static FORCE_INLINE int tdAppendColVal(SDataRow row, const void *value, int8_t type, int32_t offset) {
   ASSERT(value != NULL);
   int32_t toffset = offset + TD_DATA_ROW_HEAD_SIZE;
-  char *  ptr = (char *)POINTER_SHIFT(row, dataRowLen(row));
 
   if (IS_VAR_DATA_TYPE(type)) {
     *(VarDataOffsetT *)POINTER_SHIFT(row, toffset) = dataRowLen(row);
-    memcpy(ptr, value, varDataTLen(value));
+    memcpy(POINTER_SHIFT(row, dataRowLen(row)), value, varDataTLen(value));
     dataRowLen(row) += varDataTLen(value);
   } else {
     if (offset == 0) {

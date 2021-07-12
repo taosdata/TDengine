@@ -48,7 +48,7 @@ static int32_t parseBoundColumns(SInsertStatementParam *pInsertParam, SParsedDat
 static FORCE_INLINE int32_t getExtendedRowSize(STableComInfo *tinfo) {
   return tinfo->rowSize + PAYLOAD_HEADER_LEN + PAYLOAD_COL_HEAD_LEN * tinfo->numOfColumns;
 }
-int initSMemRowHelper(SMemRowHelper *pHelper, SSchema *pSSchema, uint16_t nCols, uint16_t allNullColsLen) {
+static int initSMemRowHelper(SMemRowHelper *pHelper, SSchema *pSSchema, uint16_t nCols, uint16_t allNullColsLen) {
   pHelper->allNullLen = allNullColsLen;  //  TODO: get allNullColsLen when creating or altering table meta
   if (pHelper->allNullLen == 0) {
     for (uint16_t i = 0; i < nCols; ++i) {
@@ -406,7 +406,7 @@ static FORCE_INLINE TDRowLenT tsSetPayloadColValue(char *payloadStart, char *pay
   payloadColSetId(payload, columnId);
   payloadColSetType(payload, columnType);
   memcpy(POINTER_SHIFT(payloadStart,tOffset), value, valueLen);
-  payloadSetTLen(payloadStart, payloadTLen(payloadStart) + valueLen);
+  // payloadSetTLen(payloadStart, payloadTLen(payloadStart) + valueLen);
   return valueLen;
 }
 
@@ -793,7 +793,7 @@ int tsParseOneRow(char **str, STableDataBlocks *pDataBlocks, int16_t timePrec, i
 
   payloadSetNCols(payload, spd->numOfBound);
   payloadValOffset = payloadValuesOffset(payload); // rely on payloadNCols
-  payloadSetTLen(payload, payloadValOffset);
+  // payloadSetTLen(payload, payloadValOffset);
 
   char *kvPrimaryKeyStart = payload + PAYLOAD_HEADER_LEN;    // primaryKey in 1st column tuple
   char *kvStart = kvPrimaryKeyStart + PAYLOAD_COL_HEAD_LEN;  // the column tuple behind the primaryKey
@@ -1138,7 +1138,7 @@ int tscSortRemoveDataBlockDupRows(STableDataBlocks *dataBuf, SBlockKeyInfo *pBlk
   size_t nAlloc = nRows * sizeof(SBlockKeyTuple);
   if (pBlkKeyInfo->pKeyTuple == NULL || pBlkKeyInfo->maxBytesAlloc < nAlloc) {
     size_t nRealAlloc = nAlloc + 10 * sizeof(SBlockKeyTuple);
-    char * tmp = realloc(pBlkKeyInfo->pKeyTuple, nRealAlloc);
+    char * tmp = trealloc(pBlkKeyInfo->pKeyTuple, nRealAlloc);
     if (tmp == NULL) {
         return TSDB_CODE_TSC_OUT_OF_MEMORY;
     }
@@ -1609,7 +1609,7 @@ static int32_t parseBoundColumns(SInsertStatementParam *pInsertParam, SParsedDat
   pColInfo->isOrdered = isOrdered;
 
   if (!isOrdered) {
-    pColInfo->colIdxInfo = calloc(pColInfo->numOfBound, sizeof(SBoundIdxInfo));
+    pColInfo->colIdxInfo = tcalloc(pColInfo->numOfBound, sizeof(SBoundIdxInfo));
     if (pColInfo->colIdxInfo == NULL) {
       code = TSDB_CODE_TSC_OUT_OF_MEMORY;
       goto _clean;
