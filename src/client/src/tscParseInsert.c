@@ -685,8 +685,8 @@ static int32_t tsParseOneColumnKV(SSchema *pSchema, SStrToken *pToken, char *pay
       if (pToken->type == TK_NULL) {
         payloadColSetId(payload, pSchema->colId);
         payloadColSetType(payload, pSchema->type);
-        memcpy(POINTER_SHIFT(payloadStart,tOffset), tdGetNullVal(TSDB_DATA_TYPE_NCHAR), VARSTR_HEADER_SIZE + INT_BYTES);
-        *sizeAppend = (TDRowLenT)(VARSTR_HEADER_SIZE + INT_BYTES);
+        memcpy(POINTER_SHIFT(payloadStart,tOffset), tdGetNullVal(TSDB_DATA_TYPE_NCHAR), VARSTR_HEADER_SIZE + TSDB_NCHAR_SIZE);
+        *sizeAppend = (TDRowLenT)(VARSTR_HEADER_SIZE + TSDB_NCHAR_SIZE);
       } else {
         // if the converted output len is over than pColumnModel->bytes, return error: 'Argument list too long'
         int32_t output = 0;
