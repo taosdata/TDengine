@@ -610,17 +610,6 @@ if $rows != 1 then
   return -1
 endi
 
-sql alter database d1 fsync 0
-sql show topics;
-if $rows != 0 then 
-  return -1
-endi
-
-sql show databases;
-if $rows != 1 then 
-  return -1
-endi
-
 sql drop database d1
 sql show topics;
 if $rows != 0 then 
@@ -634,17 +623,6 @@ endi
 
 print ============== step db2
 sql create topic d1
-sql show topics;
-if $rows != 1 then 
-  return -1
-endi
-
-sql show databases;
-if $rows != 1 then 
-  return -1
-endi
-
-sql alter database d1 fsync 0
 sql show topics;
 if $rows != 1 then 
   return -1
