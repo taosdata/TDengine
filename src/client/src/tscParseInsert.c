@@ -867,7 +867,7 @@ int tsParseOneRow(char **str, STableDataBlocks *pDataBlocks, int16_t timePrec, i
     TDRowLenT kvRowColLen = 0;
     TDRowLenT colValAppended = 0;
 
-    if (spd->orderStatus == ORDER_STATUS_DISORDERED) {
+    if (!IS_DATA_COL_ORDERED(spd)) {
       ASSERT(spd->colIdxInfo != NULL);
       if(!isPrimaryKey) {
         kvStart = POINTER_SHIFT(kvPrimaryKeyStart, spd->colIdxInfo[i].finalIdx * PAYLOAD_COL_HEAD_LEN);
@@ -1020,7 +1020,7 @@ int32_t tsParseValues(char **str, STableDataBlocks *pDataBlock, int maxRows, SIn
 void tscSetBoundColumnInfo(SParsedDataColInfo *pColInfo, SSchema *pSchema, int32_t numOfCols) {
   pColInfo->numOfCols = numOfCols;
   pColInfo->numOfBound = numOfCols;
-  pColInfo->orderStatus = ORDER_STATUS_UNKNOWN;
+  pColInfo->orderStatus = ORDER_STATUS_ORDERED;
   pColInfo->boundedColumns = calloc(pColInfo->numOfCols, sizeof(int32_t));
   pColInfo->cols = calloc(pColInfo->numOfCols, sizeof(SBoundColumn));
   pColInfo->colIdxInfo = NULL;

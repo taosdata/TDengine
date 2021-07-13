@@ -111,6 +111,8 @@ typedef struct SParsedDataColInfo {
   int8_t         orderStatus;  // bounded columns: 
 } SParsedDataColInfo;
 
+#define IS_DATA_COL_ORDERED(s)  (((s)->orderStatus) == (int8_t)ORDER_STATUS_ORDERED)
+
 typedef struct {
   SSchema *   pSchema;
   int16_t     sversion;

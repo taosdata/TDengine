@@ -370,7 +370,7 @@ static int refactorPayload(STableDataBlocks* pBlock, int32_t rowNum) {
       bool     isPrimaryKey = (colIndex == PRIMARYKEY_TIMESTAMP_COL_INDEX);
 
       // the primary key locates in 1st column
-      if (spd->orderStatus == ORDER_STATUS_DISORDERED) {
+      if (!IS_DATA_COL_ORDERED(spd)) {
         ASSERT(spd->colIdxInfo != NULL);
         if (!isPrimaryKey) {
           kvStart = POINTER_SHIFT(kvPrimaryKeyStart, spd->colIdxInfo[i].finalIdx * PAYLOAD_COL_HEAD_LEN);
@@ -406,7 +406,7 @@ static int refactorPayload(STableDataBlocks* pBlock, int32_t rowNum) {
           kvRowLen += TYPE_BYTES[pSchema->type];
         }
 
-        if (spd->orderStatus == ORDER_STATUS_ORDERED) {
+        if (IS_DATA_COL_ORDERED(spd)) {
           kvStart += PAYLOAD_COL_HEAD_LEN;  // move to next column
         }
       }
