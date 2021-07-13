@@ -1470,6 +1470,7 @@ int taos_stmt_prepare(TAOS_STMT* stmt, const char* sql, unsigned long length) {
   pSql->fetchFp    = waitForQueryRsp;
   
   pCmd->insertParam.insertType = TSDB_QUERY_TYPE_STMT_INSERT;
+  pCmd->insertParam.objectId = pSql->self;
 
   pSql->sqlstr = realloc(pSql->sqlstr, sqlLen + 1);
 
