@@ -565,16 +565,19 @@ static int32_t insertChildTableBatch(TAOS* taos,  char* cTableName, SArray* cols
   }
   snprintf(sql + strlen(sql)-1, freeBytes-strlen(sql)+1, ")");
 
+
   int32_t code = 0;
   int32_t try = 0;
-  do {
-    TAOS_STMT* stmt = taos_stmt_init(taos);
 
-    code = taos_stmt_prepare(stmt, sql, strlen(sql));
-    if (code != 0) {
-      printf("%s", taos_stmt_errstr(stmt));
-      return code;
-    }
+  TAOS_STMT* stmt = taos_stmt_init(taos);
+  
+  code = taos_stmt_prepare(stmt, sql, strlen(sql));
+  if (code != 0) {
+    printf("%s", taos_stmt_errstr(stmt));
+    return code;
+  }
+
+  do {
 
     code = taos_stmt_set_tbname(stmt, cTableName);
     if (code != 0) {
@@ -598,13 +601,14 @@ static int32_t insertChildTableBatch(TAOS* taos,  char* cTableName, SArray* cols
     }
 
     code = taos_stmt_execute(stmt);
-    if (code != 0) {
-      printf("%s", taos_stmt_errstr(stmt));
-      taos_stmt_close(stmt);
-    } else {
-      taos_stmt_close(stmt);
-    }
   } while (code == TSDB_CODE_TDB_TABLE_RECONFIGURE && try++ < TSDB_MAX_REPLICA);
+
+  if (code != 0) {
+    printf("%s", taos_stmt_errstr(stmt));
+    taos_stmt_close(stmt);
+  } else {
+    taos_stmt_close(stmt);
+  }
 
   return code;
 }
