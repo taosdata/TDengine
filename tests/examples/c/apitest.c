@@ -968,12 +968,13 @@ int32_t verify_schema_less(TAOS* taos) {
       "st,t1=4i,t3=\"t4\",t2=5,t4=5 c1=3i,c3=L\"passitagin\",c2=true,c4=5,c5=5 1626006833640000000",
       "st,t1=4i,t2=5,t3=\"t4\" c1=3i,c3=L\"passitagain\",c2=true,c4=5 1626006833642000000",
       "ste,t2=5,t3=L\"ste\" c1=true,c2=4,c3=\"iam\" 1626056811823316532",
-      "ste,t2=5,t3=L\"ste2\" c3=\"iamszhou\",c4=false 1626056811843316532"
+      "ste,t2=5,t3=L\"ste2\" c3=\"iamszhou\",c4=false 1626056811843316532",
+      "ste,t2=5,t3=L\"ste2\" c3=\"iamszhou\",c4=false,c5=32b,c6=64s,c7=32w,c8=88.88f 1626056812843316532"
   };
 
-  // int code = taos_insert_by_lines(taos, lines , 5);
-  int code = taos_insert_by_lines(taos, &lines[0], 1);
-  code = taos_insert_by_lines(taos, &lines[1], 1);
+  int code = taos_insert_by_lines(taos, lines , 6);
+//  int code = taos_insert_by_lines(taos, &lines[0], 1);
+//  code = taos_insert_by_lines(taos, &lines[1], 1);
 
   return code;
 }
