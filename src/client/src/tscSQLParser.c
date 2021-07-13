@@ -7809,11 +7809,9 @@ static STableMeta* extractTempTableMetaFromSubquery(SQueryInfo* pUpstream) {
   meta->tableType = TSDB_TEMP_TABLE;
 
   STableComInfo *info = &meta->tableInfo;
-
-  // todo : row size, numOfTags, numOfCols, tag info
-//  info->numOfColumns = numOfColumns;
+  info->numOfColumns = numOfColumns;
   info->precision    = pUpstreamTableMetaInfo->pTableMeta->tableInfo.precision;
-//  info->numOfTags    = 0;
+  info->numOfTags    = 0;
 
   int32_t n = 0;
   for(int32_t i = 0; i < numOfColumns; ++i) {
@@ -7831,16 +7829,6 @@ static STableMeta* extractTempTableMetaFromSubquery(SQueryInfo* pUpstream) {
     info->rowSize += meta->schema[n].bytes;
 
     n += 1;
-
-    if (pExpr->pExpr != NULL) {
-      info->numOfColumns += 1;
-    } else {
-      if (TSDB_COL_IS_TAG(pExpr->base.colInfo.flag)) {
-        info->numOfTags += 1;
-      } else {
-        info->numOfColumns += 1;
-      }
-    }
   }
 
   return meta;
