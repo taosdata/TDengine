@@ -975,9 +975,9 @@ int32_t verify_schema_less(TAOS* taos) {
       "stf,t1=4i,t3=\"t4\",t2=5,t4=5 c1=3i,c3=L\"passitagin_stf\",c2=false,c5=5,c6=7u 1626006933641a"
   };
 
-//  int code = taos_insert_by_lines(taos, lines , sizeof(lines)/sizeof(char*));
-  int code = taos_insert_by_lines(taos, &lines[0], 1);
-  code = taos_insert_by_lines(taos, &lines[1], 1);
+//  int code = taos_insert_lines(taos, lines , sizeof(lines)/sizeof(char*));
+  int code = taos_insert_lines(taos, &lines[0], 1);
+  code = taos_insert_lines(taos, &lines[1], 1);
 
   return code;
 }

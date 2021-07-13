@@ -1079,7 +1079,7 @@ bool simExecuteLineInsertCmd(SScript *script, char *rest) {
   simInfo("script:%s, %s", script->fileName, rest);
   simLogSql(buf, true);
   char *  lines[] = {rest};
-  int32_t ret = taos_insert_by_lines(script->taos, lines, 1);
+  int32_t ret = taos_insert_lines(script->taos, lines, 1);
   if (ret == TSDB_CODE_SUCCESS) {
     simDebug("script:%s, taos:%p, %s executed. success.", script->fileName, script->taos, rest);
     script->linePos++;
@@ -1102,7 +1102,7 @@ bool simExecuteLineInsertErrorCmd(SScript *script, char *rest) {
   simInfo("script:%s, %s", script->fileName, rest);
   simLogSql(buf, true);
   char *  lines[] = {rest};
-  int32_t ret = taos_insert_by_lines(script->taos, lines, 1);
+  int32_t ret = taos_insert_lines(script->taos, lines, 1);
   if (ret == TSDB_CODE_SUCCESS) {
     sprintf(script->error, "script:%s, taos:%p, %s executed. expect failed, but success.", script->fileName, script->taos, rest);
     script->linePos++;

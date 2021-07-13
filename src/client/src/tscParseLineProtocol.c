@@ -2,19 +2,21 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
 #include "os.h"
 #include "osString.h"
 #include "ttype.h"
 #include "tmd5.h"
 #include "tstrbuild.h"
 #include "tname.h"
-#include "taos.h"
-#include "tsclient.h"
-#include "tscLog.h"
 #include "hash.h"
 #include "tskiplist.h"
-#include "tscUtil.h"
 
+#include "tscUtil.h"
+#include "tsclient.h"
+#include "tscLog.h"
+
+#include "taos.h"
 typedef struct  {
   char sTableName[TSDB_TABLE_NAME_LEN];
   SHashObj* tagHash;
@@ -1137,7 +1139,7 @@ void destroySmlDataPoint(TAOS_SML_DATA_POINT* point) {
   free(point->childTableName);
 }
 
-int taos_insert_by_lines(TAOS* taos, char* lines[], int numLines) {
+int taos_insert_lines(TAOS* taos, char* lines[], int numLines) {
   SArray* lpPoints = taosArrayInit(numLines, sizeof(SLPPoint));
   tscParseLines(lines, numLines, lpPoints, NULL);
 
