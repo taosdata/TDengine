@@ -22,7 +22,7 @@
 //prediction mode of temporal dimension based compression
 #define SZ_PREVIOUS_VALUE_ESTIMATE 0
 
-#define MIN_NUM_OF_ELEMENTS 50 //if the # elements <= 20, skip the compression
+#define MIN_NUM_OF_ELEMENTS 10 //if the # elements <= 20, skip the compression
 
 #define SZ_ABS 0
 #define REL 1

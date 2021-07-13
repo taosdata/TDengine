@@ -303,7 +303,7 @@ int SZ_compress_args_double(double *oriData, size_t r1, unsigned char* newByteDa
 	// check at least elements count  
 	if(dataLength <= MIN_NUM_OF_ELEMENTS)
 	{
-		printf("error, double input elements count=%d less than %d, so need not do compress.\n", (int)dataLength, MIN_NUM_OF_ELEMENTS);
+		printf("warning, double input elements count=%d less than %d, so need not do compress.\n", (int)dataLength, MIN_NUM_OF_ELEMENTS);
 		return SZ_LITTER_ELEMENT;
 	}
 		
