@@ -154,8 +154,10 @@ typedef struct SFilterInfo {
 
 #define MR_EMPTY_RES(ctx) (ctx->rs == NULL)
 
-#define SET_OPTR(o) do {if (o == TSDB_RELATION_ISNULL) { isnull = true; } else if (o == TSDB_RELATION_NOTNULL) { notnull = true; } } while (0)
-#define CHK_OPTR()  (isnull == true && notnull == true)
+#define SET_AND_OPTR(o) do {if (o == TSDB_RELATION_ISNULL) { isnull = true; } else if (o == TSDB_RELATION_NOTNULL) { if (!isrange) { notnull = true; } } else { isrange = true; notnull = false; }  } while (0)
+#define SET_OR_OPTR(o) do {if (o == TSDB_RELATION_ISNULL) { isnull = true; } else if (o == TSDB_RELATION_NOTNULL) { notnull = true; } } while (0)
+#define CHK_OR_OPTR()  (isnull == true && notnull == true)
+#define CHK_AND_OPTR()  (isnull == true && ((notnull == true) || (isrange == true)))
 
 
 #define FILTER_GET_FLAG(st, f) (st & f)

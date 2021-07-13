@@ -199,13 +199,13 @@ int32_t filterAddMergeRangeImpl(void* h, SFilterRange* ra, int32_t optr) {
       cr = ctx->pCompareFunc(&ra->s, &r->ra.s);
       if (FILTER_GREATER(cr, ra->sflag, r->ra.sflag)) {
         SIMPLE_COPY_VALUES((char *)&r->ra.s, &ra->s);
-        cr == 0 ? (r->ra.sflag = 0) : (r->ra.sflag = ra->sflag);
+        cr == 0 ? (r->ra.sflag |= ra->sflag) : (r->ra.sflag = ra->sflag);
       }
 
       cr = ctx->pCompareFunc(&r->ra.e, &ra->e);
       if (FILTER_GREATER(cr, r->ra.eflag, ra->eflag)) {
         SIMPLE_COPY_VALUES((char *)&r->ra.e, &ra->e);
-        cr == 0 ? (r->ra.eflag = 0) : (r->ra.eflag = ra->eflag);
+        cr == 0 ? (r->ra.eflag |= ra->eflag) : (r->ra.eflag = ra->eflag);
         break;
       }
 
@@ -677,7 +677,7 @@ int32_t filterAddGroupUnitFromRange(SFilterInfo *dst, SFilterInfo *src, SFilterC
     }
 
     if (g->unitNum > 0) {
-      taosArrayPush(res, g);      
+      taosArrayPush(res, g);
     }
   }
 
@@ -966,9 +966,9 @@ int32_t filterAddUnitRange(SFilterInfo *info, SFilterUnit* u, SFilterRMCtx *ctx,
 
 
 int32_t filterProcessUnitsInOneGroup(SFilterInfo *info, SFilterGroup* g, uint16_t id1, uint16_t id2, SArray* res, uint16_t *removedNum) {
-  bool isnull = false, notnull = false;
+  bool isnull = false, notnull = false, isrange = false;
   int32_t num = 0;
-  
+  SFilterRMCtx *cur = NULL;
   SFilterUnit* u1 = FILTER_GROUP_UNIT(info, g, id1);
   SFilterUnit* u2 = FILTER_GROUP_UNIT(info, g, id2);
   uint8_t optr1 = FILTER_UNIT_OPTR(u1);
@@ -976,12 +976,13 @@ int32_t filterProcessUnitsInOneGroup(SFilterInfo *info, SFilterGroup* g, uint16_
   uint16_t cidx = FILTER_UNIT_COL_IDX(u1);
 
   int32_t type = FILTER_UNIT_DATA_TYPE(u1);
-  SFilterRMCtx *cur = filterInitMergeRange(type, 0);
 
-  SET_OPTR(optr1);
-  SET_OPTR(optr2);
+  SET_AND_OPTR(optr1);
+  SET_AND_OPTR(optr2);
   
-  CHK_JMP(CHK_OPTR());
+  CHK_JMP(CHK_AND_OPTR());
+
+  cur = filterInitMergeRange(type, 0);
 
   if (!FILTER_NO_MERGE_OPTR(optr1)) {
     filterAddUnitRange(info, u1, cur, TSDB_RELATION_AND);
@@ -1001,8 +1002,8 @@ int32_t filterProcessUnitsInOneGroup(SFilterInfo *info, SFilterGroup* g, uint16_
 
     ++(*removedNum);
     optr2 = FILTER_UNIT_OPTR(u);
-    SET_OPTR(optr2);
-    CHK_JMP(CHK_OPTR());
+    SET_AND_OPTR(optr2);
+    CHK_JMP(CHK_AND_OPTR());
     
     if (!FILTER_NO_MERGE_OPTR(optr2)) {
       filterAddUnitRange(info, u, cur, TSDB_RELATION_AND);
@@ -1053,17 +1054,18 @@ int32_t filterProcessUnits(SFilterInfo *info, SFilterGroupCtx*** res) {
   SFilterGroupCtx *gctx = NULL;
   SArray *colRange = NULL;
   bool gresUsed = false;
+  bool colInit = false;
   uint16_t removedNum = 0;
   
   for (uint16_t i = 0; i < info->groupNum; ++i) {
     SFilterGroup* g = info->groups + i;
 
-    if (col == NULL) {
-      col = calloc(info->fields[FLD_TYPE_COLUMN].num, sizeof(int32_t));
-    } else {
-      memset(col, 0, info->fields[FLD_TYPE_COLUMN].num * sizeof(int32_t));
+    if (g->unitNum <= 1) {
+      continue;
     }
+        
     gresUsed = false;
+    colInit = false;
 
     removedNum = 0;
     
@@ -1072,6 +1074,16 @@ int32_t filterProcessUnits(SFilterInfo *info, SFilterGroupCtx*** res) {
       int32_t type = FILTER_UNIT_DATA_TYPE(u);
       if (FILTER_NO_MERGE_DATA_TYPE(type)) {
         continue;
+      }
+
+      if (colInit == false) {
+        if (col == NULL) {
+          col = calloc(info->fields[FLD_TYPE_COLUMN].num, sizeof(int32_t));
+        } else {
+          memset(col, 0, info->fields[FLD_TYPE_COLUMN].num * sizeof(int32_t));
+        }
+        
+        colInit = true;
       }
       
       uint16_t cidx = FILTER_UNIT_COL_IDX(u);
@@ -1171,7 +1183,7 @@ int32_t filterProcessGroupsSameColumn(SFilterInfo *info, uint16_t id1, uint16_t 
 
       if (cra->notNull) {
         notnull = true;        
-        CHK_JMP(CHK_OPTR());
+        CHK_JMP(CHK_OR_OPTR());
       }
       
       cidx2 = cra->idx;
@@ -1202,21 +1214,21 @@ int32_t filterProcessGroupsSameColumn(SFilterInfo *info, uint16_t id1, uint16_t 
       filterAddMergeRange(cur, &cra->ra, TSDB_RELATION_OR);
       if (MR_EMPTY_RES(cur)) {
         notnull = true;
-        CHK_JMP(CHK_OPTR());
+        CHK_JMP(CHK_OR_OPTR());
       }
 
       continue;
     }
 
     optr = FILTER_UNIT_OPTR(u1);
-    SET_OPTR(optr);
-    CHK_JMP(CHK_OPTR());
+    SET_OR_OPTR(optr);
+    CHK_JMP(CHK_OR_OPTR());
     
     if (!FILTER_NO_MERGE_OPTR(optr) && notnull == false) {
       filterAddUnitRange(info, u1, cur, TSDB_RELATION_OR);
       if (MR_EMPTY_RES(cur)) {
         notnull = true;
-        CHK_JMP(CHK_OPTR());
+        CHK_JMP(CHK_OR_OPTR());
       }      
     }
   }
@@ -1234,36 +1246,41 @@ int32_t filterProcessGroupsSameColumn(SFilterInfo *info, uint16_t id1, uint16_t 
 
   if (!notnull) {
     filterGetMergeRangeNum(cur, &num);
-    if (num > 1) {
-      ra = calloc(num, sizeof(*ra));
-    } else {
-      assert(num == 1);
-      ra = &ncra.ra;
-    }
+    if (num > 0) {
+      if (num > 1) {
+        ra = calloc(num, sizeof(*ra));
+      } else {
+        ra = &ncra.ra;
+      }
 
-    filterGetMergeRangeRes(cur, ra);
+      filterGetMergeRangeRes(cur, ra);
 
-    SFilterRange *tra = ra;
-    for (int32_t i = 0; i < num; ++i) {
-      filterPostProcessRange(cur, tra, &ncra.notNull);
-      assert(ncra.notNull == false);
-      ++tra;
-    }
-
-    if (num > 1) {
+      SFilterRange *tra = ra;
       for (int32_t i = 0; i < num; ++i) {
-        FILTER_COPY_RA(&ncra.ra, ra);
-        
-        taosArrayPush(res, &ncra);
+        filterPostProcessRange(cur, tra, &ncra.notNull);
+        assert(ncra.notNull == false);
+        ++tra;
+      }
 
-        ++ra;
+      if (num > 1) {
+        for (int32_t i = 0; i < num; ++i) {
+          FILTER_COPY_RA(&ncra.ra, ra);
+          
+          taosArrayPush(res, &ncra);
+
+          ++ra;
+        }
+      } else {
+        taosArrayPush(res, &ncra);      
       }
     } else {
-      FILTER_COPY_RA(&ncra.ra, ra);
-
+      ncra.ra.sflag = RA_NULL;
+      ncra.ra.eflag = RA_NULL;      
       taosArrayPush(res, &ncra);      
     }
   } else {
+    ncra.ra.sflag = RA_NULL;
+    ncra.ra.eflag = RA_NULL;
     taosArrayPush(res, &ncra);
   }
 
@@ -1286,11 +1303,17 @@ int32_t filterProcessGroups(SFilterInfo *info, SFilterGroupCtx** unitRes, SFilte
   int32_t *col = NULL;
   uint16_t cidx;
   uint16_t removedNum = 0;
+  bool merged = false;
   SArray *colRange = NULL;
 
   for (uint16_t i = 0; i < info->groupNum; ++i) {
     SFilterGroup* g = info->groups + i;
-    uint16_t unitNum = (unitRes && unitRes[i]) ? unitRes[i]->num : g->unitNum;
+    uint16_t unitNum = g->unitNum;
+  
+    if (unitRes && unitRes[i]) {
+      unitNum = unitRes[i]->num;
+      merged = true;
+    }
 
     if (unitNum == 0) {
       ++removedNum;
@@ -1317,7 +1340,11 @@ int32_t filterProcessGroups(SFilterInfo *info, SFilterGroupCtx** unitRes, SFilte
     }
 
     if (col == NULL) {
-      col = calloc(info->fields[FLD_TYPE_COLUMN].num, sizeof(int32_t));
+      if (i < (info->groupNum - 1)) {
+        col = calloc(info->fields[FLD_TYPE_COLUMN].num, sizeof(int32_t));
+      } else {
+        break;
+      }
     }
     
     if (col[cidx] == 0) {
@@ -1351,7 +1378,7 @@ int32_t filterProcessGroups(SFilterInfo *info, SFilterGroupCtx** unitRes, SFilte
     goto _err_return;
   }
 
-  if (colRange || removedNum > 0) {
+  if (colRange || removedNum > 0 || merged) {
     groupRes->num = num;
     groupRes->col = col;
     groupRes->colRange = colRange;
