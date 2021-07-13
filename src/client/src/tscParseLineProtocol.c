@@ -912,6 +912,12 @@ int32_t parseItemValue(SLPItem* item, LPItemKind kind) {
       item->value = malloc(item->length);
       char* endptr = NULL;
       *(int64_t*)(item->value) = strtoll(sv, &endptr, 10);
+    } else if (*last == 'u') {
+      item->type = TSDB_DATA_TYPE_UBIGINT;
+      item->length = (int16_t)tDataTypes[item->type].bytes;
+      item->value = malloc(item->length);
+      char* endptr = NULL;
+      *(uint64_t*)(item->value) = (uint64_t)strtoull(sv, &endptr, 10);
     } else if (*last == 'b') {
       item->type = TSDB_DATA_TYPE_TINYINT;
       item->length = (int16_t)tDataTypes[item->type].bytes;
@@ -989,6 +995,16 @@ int32_t parsePointTime(SLPPoint* point) {
   } else {
     char* endptr = NULL;
     point->ts = strtoll(point->tsToken.z, &endptr, 10);
+    char* last = point->tsToken.z + point->tsToken.n - 1;
+    if (*last == 's') {
+      point->ts *= (int64_t)1e9;
+    } else if (*last == 'a') {
+      point->ts *= (int64_t)1e6;
+    } else if (*last == 'u') {
+      point->ts *= (int64_t)1e3;
+    } else if (*last == 'b') {
+      point->ts *= 1;
+    }
   }
   return 0;
 }
@@ -1083,7 +1099,7 @@ int32_t tscParseLine(SStrToken line, SLPPoint* point) {
 
 int32_t tscParseLines(char* lines[], int numLines, SArray* points, SArray* failedLines) {
   for (int32_t i = 0; i < numLines; ++i) {
-    SStrToken tkLine = {.z = lines[i], .n = (uint32_t)strlen(lines[i])+1};
+    SStrToken tkLine = {.z = lines[i], .n = (uint32_t)strlen(lines[i])};
     SLPPoint point;
     tscParseLine(tkLine, &point);
     taosArrayPush(points, &point);
