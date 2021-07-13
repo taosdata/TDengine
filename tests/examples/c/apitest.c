@@ -6,6 +6,7 @@
 #include <string.h>
 #include <taos.h>
 #include <unistd.h>
+#include <tconfig.h>
 
 static void prepare_data(TAOS* taos) {
   TAOS_RES *result;
@@ -965,23 +966,13 @@ int32_t verify_schema_less(TAOS* taos) {
 
   char* lines[] = {
       "st,t1=3i,t2=4,t3=\"t3\" c1=3i,c3=L\"passit\",c2=false,c4=4 1626006833639000000",
-      "st,t1=4i,t3=\"t4\",t2=5,t4=5 c1=3i,c3=L\"passitagain\",c2=true,c4=5 1626006833640000000",
+      "st,t1=4i,t3=\"t4\",t2=5,t4=5 c1=3i,c3=L\"passitagin\",c2=true,c4=5,c5=5 1626006833640000000",
       "st,t1=4i,t2=5,t3=\"t4\" c1=3i,c3=L\"passitagain\",c2=true,c4=5 1626006833642000000",
       "ste,t2=5,t3=L\"ste\" c1=true,c2=4,c3=\"iam\" 1626056811823316532",
       "ste,t2=5,t3=L\"ste2\" c3=\"iamszhou\",c4=false 1626056811843316532"
   };
 
-//  int code = taos_insert_by_lines(taos, lines , 5);
-  int code = taos_insert_by_lines(taos, &(lines[0]), 1);
-
-  code = taos_insert_by_lines(taos, &(lines[1]), 1);
-
-//  code = taos_insert_by_lines(taos, &(lines[2]), 1);
-//
-//  code = taos_insert_by_lines(taos, &(lines[3]), 1);
-//
-//  code = taos_insert_by_lines(taos, &(lines[4]), 1);
-
+  int code = taos_insert_by_lines(taos, lines , 5);
 
   return code;
 }
@@ -992,7 +983,7 @@ int main(int argc, char *argv[]) {
   const char* passwd = "taosdata";
 
   taos_options(TSDB_OPTION_TIMEZONE, "GMT-8");
-  taos_options(TSDB_OPTION_CONFIGDIR, "/etc/taos");
+  taosDumpGlobalCfg();
   TAOS* taos = taos_connect(host, user, passwd, "", 0);
   if (taos == NULL) {
     printf("\033[31mfailed to connect to db, reason:%s\033[0m\n", taos_errstr(taos));
