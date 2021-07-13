@@ -972,7 +972,9 @@ int32_t verify_schema_less(TAOS* taos) {
       "ste,t2=5,t3=L\"ste2\" c3=\"iamszhou\",c4=false 1626056811843316532"
   };
 
-  int code = taos_insert_by_lines(taos, lines , 5);
+  //int code = taos_insert_by_lines(taos, lines , 5);
+  int code = taos_insert_by_lines(taos, &lines[0], 1);
+  code = taos_insert_by_lines(taos, &lines[1], 1);
 
   return code;
 }
