@@ -518,11 +518,11 @@ sql_error alter topic db wal -1
 sql_error alter topic db wal 1000
 
 print ============== step fsync
-sql alter database db fsync 0
-sql alter database db fsync 1
-sql alter database db fsync 3600
-sql alter database db fsync 18000
-sql alter database db fsync 180000
+sql_error alter database db fsync 0
+sql_error alter database db fsync 1
+sql_error alter database db fsync 3600
+sql_error alter database db fsync 18000
+sql_error alter database db fsync 180000
 sql_error alter database db fsync 180001
 sql_error alter database db fsync -1
 
