@@ -324,7 +324,7 @@ static int32_t applySchemaAction(TAOS* taos, SSchemaAction* action) {
   return code;
 }
 
-static int32_t destorySmlSTableSchema(SSmlSTableSchema* schema) {
+static int32_t destroySmlSTableSchema(SSmlSTableSchema* schema) {
   taosHashCleanup(schema->tagHash);
   taosHashCleanup(schema->fieldHash);
   taosArrayDestroy(schema->tags);
@@ -435,7 +435,7 @@ static int32_t reconcileDBSchemas(TAOS* taos, SArray* stableSchemas) {
 
       pointSchema->precision = dbSchema.precision;
 
-      destorySmlSTableSchema(&dbSchema);
+      destroySmlSTableSchema(&dbSchema);
     } else if (code == TSDB_CODE_SUCCESS) {
       size_t pointTagSize = taosArrayGetSize(pointSchema->tags);
       size_t pointFieldSize = taosArrayGetSize(pointSchema->fields);
@@ -469,7 +469,7 @@ static int32_t reconcileDBSchemas(TAOS* taos, SArray* stableSchemas) {
 
       pointSchema->precision = dbSchema.precision;
 
-      destorySmlSTableSchema(&dbSchema);
+      destroySmlSTableSchema(&dbSchema);
     } else {
       return code;
     }
@@ -565,42 +565,47 @@ static int32_t insertChildTableBatch(TAOS* taos,  char* cTableName, SArray* cols
   }
   snprintf(sql + strlen(sql)-1, freeBytes-strlen(sql)+1, ")");
 
-  TAOS_STMT* stmt = taos_stmt_init(taos);
-  int32_t code;
-  code = taos_stmt_prepare(stmt, sql, strlen(sql));
-  if (code != 0) {
-    printf("%s", taos_stmt_errstr(stmt));
-    return code;
-  }
+  int32_t code = 0;
+  int32_t try = 0;
+  do {
+    TAOS_STMT* stmt = taos_stmt_init(taos);
 
-  code = taos_stmt_set_tbname(stmt, cTableName);
-  if (code != 0) {
-    printf("%s", taos_stmt_errstr(stmt));
-    return code;
-  }
-
-  size_t rows = taosArrayGetSize(rowsBind);
-  for (int32_t i = 0; i < rows; ++i) {
-    TAOS_BIND* colsBinds = taosArrayGetP(rowsBind, i);
-    code = taos_stmt_bind_param(stmt, colsBinds);
+    code = taos_stmt_prepare(stmt, sql, strlen(sql));
     if (code != 0) {
       printf("%s", taos_stmt_errstr(stmt));
       return code;
     }
-    code = taos_stmt_add_batch(stmt);
+
+    code = taos_stmt_set_tbname(stmt, cTableName);
     if (code != 0) {
       printf("%s", taos_stmt_errstr(stmt));
       return code;
     }
-  }
 
-  code = taos_stmt_execute(stmt);
-  if (code != 0) {
-    printf("%s", taos_stmt_errstr(stmt));
-    return code;
-  }
+    size_t rows = taosArrayGetSize(rowsBind);
+    for (int32_t i = 0; i < rows; ++i) {
+      TAOS_BIND* colsBinds = taosArrayGetP(rowsBind, i);
+      code = taos_stmt_bind_param(stmt, colsBinds);
+      if (code != 0) {
+        printf("%s", taos_stmt_errstr(stmt));
+        return code;
+      }
+      code = taos_stmt_add_batch(stmt);
+      if (code != 0) {
+        printf("%s", taos_stmt_errstr(stmt));
+        return code;
+      }
+    }
 
-  taos_stmt_close(stmt);
+    code = taos_stmt_execute(stmt);
+    if (code != 0) {
+      printf("%s", taos_stmt_errstr(stmt));
+      taos_stmt_close(stmt);
+    } else {
+      taos_stmt_close(stmt);
+    }
+  } while (code == TSDB_CODE_TDB_TABLE_RECONFIGURE && try++ < TSDB_MAX_REPLICA);
+
   return code;
 }
 

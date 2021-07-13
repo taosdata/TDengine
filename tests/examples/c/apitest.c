@@ -6,7 +6,6 @@
 #include <string.h>
 #include <taos.h>
 #include <unistd.h>
-#include <tconfig.h>
 
 static void prepare_data(TAOS* taos) {
   TAOS_RES *result;
@@ -972,9 +971,9 @@ int32_t verify_schema_less(TAOS* taos) {
       "ste,t2=5,t3=L\"ste2\" c3=\"iamszhou\",c4=false 1626056811843316532"
   };
 
-  int code = taos_insert_by_lines(taos, lines , 5);
-  //int code = taos_insert_by_lines(taos, &lines[0], 1);
-  //code = taos_insert_by_lines(taos, &lines[1], 1);
+  // int code = taos_insert_by_lines(taos, lines , 5);
+  int code = taos_insert_by_lines(taos, &lines[0], 1);
+  code = taos_insert_by_lines(taos, &lines[1], 1);
 
   return code;
 }
@@ -985,7 +984,6 @@ int main(int argc, char *argv[]) {
   const char* passwd = "taosdata";
 
   taos_options(TSDB_OPTION_TIMEZONE, "GMT-8");
-  taosDumpGlobalCfg();
   TAOS* taos = taos_connect(host, user, passwd, "", 0);
   if (taos == NULL) {
     printf("\033[31mfailed to connect to db, reason:%s\033[0m\n", taos_errstr(taos));
