@@ -146,7 +146,7 @@ bool tscIsProjectionQueryOnSTable(SQueryInfo* pQueryInfo, int32_t tableIndex);
 bool tscIsProjectionQuery(SQueryInfo* pQueryInfo);
 bool tscHasColumnFilter(SQueryInfo* pQueryInfo);
 
-bool tscIsTwoStageSTableQuery(SSqlCmd *pCmd, SQueryInfo* pQueryInfo, int32_t tableIndex);
+bool tscIsTwoStageSTableQuery(SQueryInfo* pQueryInfo, int32_t tableIndex);
 bool tscQueryTags(SQueryInfo* pQueryInfo);
 bool tscMultiRoundQuery(SQueryInfo* pQueryInfo, int32_t tableIndex);
 bool tscQueryBlockInfo(SQueryInfo* pQueryInfo);

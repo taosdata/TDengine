@@ -173,7 +173,7 @@ bool tscQueryBlockInfo(SQueryInfo* pQueryInfo) {
   return false;
 }
 
-bool tscIsTwoStageSTableQuery(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t tableIndex) {
+bool tscIsTwoStageSTableQuery(SQueryInfo* pQueryInfo, int32_t tableIndex) {
   if (pQueryInfo == NULL) {
     return false;
   }
@@ -3069,7 +3069,6 @@ int32_t tscQueryInfoCopy(SQueryInfo* pQueryInfo, const SQueryInfo* pSrc) {
   pQueryInfo->numOfTables    = 0;
   pQueryInfo->window         = pSrc->window;
   pQueryInfo->sessionWindow  = pSrc->sessionWindow;
-  pQueryInfo->globalMerge    = pSrc->globalMerge;
   pQueryInfo->pTableMetaInfo = NULL;
 
   pQueryInfo->bufLen         = pSrc->bufLen;
@@ -3421,8 +3420,6 @@ SSqlObj* createSubqueryObj(SSqlObj* pSql, int16_t tableIndex, __async_cb_func_t 
   SSqlCmd* pnCmd  = &pNew->cmd;
   memcpy(pnCmd, pCmd, sizeof(SSqlCmd));
 
-  pnCmd->subCmd    = true;
-
   pnCmd->command = cmd;
   pnCmd->payload = NULL;
   pnCmd->allocSize = 0;
@@ -3468,7 +3465,6 @@ SSqlObj* createSubqueryObj(SSqlObj* pSql, int16_t tableIndex, __async_cb_func_t 
   pNewQueryInfo->numOfTables = 0;
   pNewQueryInfo->pTableMetaInfo = NULL;
   pNewQueryInfo->bufLen = pQueryInfo->bufLen;
-  pNewQueryInfo->globalMerge = false;
 
   pNewQueryInfo->buf = malloc(pQueryInfo->bufLen);
   if (pNewQueryInfo->buf == NULL) {
@@ -3604,7 +3600,7 @@ void doExecuteQuery(SSqlObj* pSql, SQueryInfo* pQueryInfo) {
     tscHandleMasterJoinQuery(pSql);
   } else if (tscMultiRoundQuery(pQueryInfo, 0) && pQueryInfo->round == 0) {
     tscHandleFirstRoundStableQuery(pSql);                // todo lock?
-  } else if (pQueryInfo->globalMerge) {  // super table query
+  } else if (tscIsTwoStageSTableQuery(pQueryInfo, 0)) {  // super table query
     tscLockByThread(&pSql->squeryLock);
     tscHandleMasterSTableQuery(pSql);
     tscUnlockByThread(&pSql->squeryLock);
@@ -4334,7 +4330,7 @@ int32_t createProjectionExpr(SQueryInfo* pQueryInfo, STableMetaInfo* pTableMetaI
 }
 
 static int32_t createGlobalAggregateExpr(SQueryAttr* pQueryAttr, SQueryInfo* pQueryInfo) {
-  assert(pQueryInfo->globalMerge);
+  assert(tscIsTwoStageSTableQuery(pQueryInfo, 0));
 
   pQueryAttr->numOfExpr3 = (int32_t) tscNumOfExprs(pQueryInfo);
   pQueryAttr->pExpr3 = calloc(pQueryAttr->numOfExpr3, sizeof(SExprInfo));
@@ -4504,7 +4500,7 @@ int32_t tscCreateQueryFromQueryInfo(SQueryInfo* pQueryInfo, SQueryAttr* pQueryAt
   }
 
   // global aggregate query
-  if (pQueryAttr->stableQuery && (pQueryAttr->simpleAgg || pQueryAttr->interval.interval > 0) && pQueryInfo->globalMerge) {
+  if (pQueryAttr->stableQuery && (pQueryAttr->simpleAgg || pQueryAttr->interval.interval > 0) && tscIsTwoStageSTableQuery(pQueryInfo, 0)) {
     createGlobalAggregateExpr(pQueryAttr, pQueryInfo);
   }
 
