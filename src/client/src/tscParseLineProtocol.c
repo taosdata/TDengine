@@ -1632,11 +1632,12 @@ int taos_insert_lines(TAOS* taos, char* lines[], int numLines) {
   SArray* lpPoints = taosArrayInit(numLines, sizeof(TAOS_SML_DATA_POINT));
 
   code = tscParseLines(lines, numLines, lpPoints, NULL);
+  size_t numPoints = taosArrayGetSize(lpPoints);
+
   if (code != 0) {
     goto cleanup;
   }
 
-  size_t numPoints = taosArrayGetSize(lpPoints);
   TAOS_SML_DATA_POINT* points = TARRAY_GET_START(lpPoints);
   code = taos_sml_insert(taos, points, (int)numPoints);
   if (code != 0) {
