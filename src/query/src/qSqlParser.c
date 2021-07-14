@@ -936,8 +936,8 @@ void* destroyCreateTableSql(SCreateTableSql* pCreate) {
 }
 
 void SqlInfoDestroy(SSqlInfo *pInfo) {
-  if (pInfo == NULL) return;
-
+  if (pInfo == NULL) return;;
+  taosArrayDestroy(pInfo->funcs); 
   if (pInfo->type == TSDB_SQL_SELECT) {
     destroyAllSqlNode(pInfo->list);
   } else if (pInfo->type == TSDB_SQL_CREATE_TABLE) {
