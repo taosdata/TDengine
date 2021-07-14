@@ -1412,9 +1412,11 @@ static int insertBatchStmtExecute(STscStmt* pStmt) {
   // wait for the callback function to post the semaphore
   tsem_wait(&pStmt->pSql->rspSem);
 
+  code = pStmt->pSql->res.code;
+  
   insertBatchClean(pStmt);
 
-  return pStmt->pSql->res.code;
+  return code;
 }
 
 int stmtParseInsertTbTags(SSqlObj* pSql, STscStmt* pStmt) {
@@ -1682,6 +1684,7 @@ int taos_stmt_prepare(TAOS_STMT* stmt, const char* sql, unsigned long length) {
   pSql->fetchFp    = waitForQueryRsp;
   
   pCmd->insertParam.insertType = TSDB_QUERY_TYPE_STMT_INSERT;
+  pCmd->insertParam.objectId = pSql->self;
 
   pSql->sqlstr = realloc(pSql->sqlstr, sqlLen + 1);
 
@@ -1858,7 +1861,11 @@ int taos_stmt_close(TAOS_STMT* stmt) {
   } else {
     if (pStmt->multiTbInsert) {
       taosHashCleanup(pStmt->mtb.pTableHash);
-      pStmt->mtb.pTableBlockHashList = tscDestroyBlockHashTable(pStmt->mtb.pTableBlockHashList, false);
+      bool rmMeta = false;
+      if (pStmt->pSql && pStmt->pSql->res.code != 0) {
+        rmMeta = true;
+      }
+      pStmt->mtb.pTableBlockHashList = tscDestroyBlockHashTable(pStmt->mtb.pTableBlockHashList, rmMeta);
       taosHashCleanup(pStmt->pSql->cmd.insertParam.pTableBlockHashList);
       pStmt->pSql->cmd.insertParam.pTableBlockHashList = NULL;
       taosArrayDestroy(pStmt->mtb.tags);

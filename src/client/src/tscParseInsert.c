@@ -1660,6 +1660,7 @@ int tsParseInsertSql(SSqlObj *pSql) {
   SSqlCmd *pCmd = &pSql->cmd;
 
   SInsertStatementParam* pInsertParam = &pCmd->insertParam;
+  pInsertParam->objectId = pSql->self;
   char* str = pInsertParam->sql;
 
   int32_t totalNum = 0;
