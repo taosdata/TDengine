@@ -190,32 +190,32 @@ if $rows != 12800 then
   return -1
 endi
 
-sql select top(c1, 100), tbname, t1, t2 from select_tags_mt0;
-if $rows != 100 then
+sql select top(c1, 80), tbname, t1, t2 from select_tags_mt0;
+if $rows != 80 then
    return -1
 endi
 
-if $data00 != @70-01-01 08:03:30.100@ then
+if $data00 != @70-01-01 08:03:40.100@ then
    return -1
 endi
 
-if $data10 != @70-01-01 08:03:30.200@ then
+if $data10 != @70-01-01 08:03:40.200@ then
    return -1
 endi
 
-if $data01 != 110 then
+if $data01 != 111 then
    return -1
 endi
 
-if $data02 != @select_tags_tb11@ then
+if $data02 != @select_tags_tb12@ then
    return -1
 endi
 
-if $data03 != 11 then
+if $data03 != 12 then
    return -1
 endi
 
-if $data04 != @abc11@ then
+if $data04 != @abc12@ then
    return -1
 endi
 
@@ -248,8 +248,8 @@ if $data04 != @abc12@ then
    return -1
 endi
 
-sql select bottom(c1, 100), tbname, t1, t2 from select_tags_mt0;
-if $rows != 100 then
+sql select bottom(c1, 72), tbname, t1, t2 from select_tags_mt0;
+if $rows != 72 then
    return -1
 endi
 
