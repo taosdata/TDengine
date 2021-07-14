@@ -643,7 +643,7 @@ int32_t tscAllocateMemIfNeed(STableDataBlocks *pDataBlock, int32_t rowSize, int3
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t tsSetBlockInfo(SSubmitBlk *pBlocks, const STableMeta *pTableMeta, int32_t numOfRows) {
+int32_t tsSetBlockInfo(SSubmitBlk *pBlocks, const STableMeta *pTableMeta, int32_t numOfRows) {
   pBlocks->tid = pTableMeta->id.tid;
   pBlocks->uid = pTableMeta->id.uid;
   pBlocks->sversion = pTableMeta->sversion;

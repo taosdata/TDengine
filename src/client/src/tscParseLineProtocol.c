@@ -1140,6 +1140,7 @@ void destroySmlDataPoint(TAOS_SML_DATA_POINT* point) {
 }
 
 int taos_insert_lines(TAOS* taos, char* lines[], int numLines) {
+  int32_t code = 0;
   SArray* lpPoints = taosArrayInit(numLines, sizeof(SLPPoint));
   tscParseLines(lines, numLines, lpPoints, NULL);
 
@@ -1202,13 +1203,16 @@ int taos_insert_lines(TAOS* taos, char* lines[], int numLines) {
     }
   }
 
-  taos_sml_insert(taos, points, (int)numPoints);
+  code = taos_sml_insert(taos, points, (int)numPoints);
+  if (code != 0) {
+    tscError("taos_sml_insert error: %s", tstrerror((code)));
+  }
 
   for (int i=0; i<numPoints; ++i) {
     destroySmlDataPoint(points+i);
   }
   free(points);
   taosArrayDestroyEx(lpPoints, destroyLPPoint);
-  return 0;
+  return code;
 }
 

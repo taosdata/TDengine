@@ -369,6 +369,7 @@ int32_t tscSQLSyntaxErrMsg(char* msg, const char* additionalInfo,  const char* s
 
 int32_t tscValidateSqlInfo(SSqlObj *pSql, struct SSqlInfo *pInfo);
 
+int32_t tsSetBlockInfo(SSubmitBlk *pBlocks, const STableMeta *pTableMeta, int32_t numOfRows);
 extern int32_t    sentinel;
 extern SHashObj  *tscVgroupMap;
 extern SHashObj  *tscTableMetaInfo;
