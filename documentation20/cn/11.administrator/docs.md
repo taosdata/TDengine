@@ -123,8 +123,8 @@ taosd -C
 - minRows：文件块中记录的最小条数。单位为条，默认值：100。
 - maxRows：文件块中记录的最大条数。单位为条，默认值：4096。
 - comp：文件压缩标志位。0：关闭；1：一阶段压缩；2：两阶段压缩。默认值：2。（可通过 alter database 修改）
-- wal：WAL级别。1：写wal，但不执行fsync；2：写wal, 而且执行fsync。默认值：1。（在 taos.cfg 中参数名需要写作 walLevel）（可通过 alter database 修改）
-- fsync：当wal设置为2时，执行fsync的周期。设置为0，表示每次写入，立即执行fsync。单位为毫秒，默认值：3000。（可通过 alter database 修改）
+- wal：WAL级别。1：写wal，但不执行fsync；2：写wal, 而且执行fsync。默认值：1。（在 taos.cfg 中参数名需要写作 walLevel）
+- fsync：当wal设置为2时，执行fsync的周期。设置为0，表示每次写入，立即执行fsync。单位为毫秒，默认值：3000。
 - cache：内存块的大小。单位为兆字节（MB），默认值：16。
 - blocks：每个VNODE（TSDB）中有多少cache大小的内存块。因此一个VNODE的用的内存大小粗略为（cache * blocks）。单位为块，默认值：4。（可通过 alter database 修改）
 - replica：副本个数。取值范围：1-3，单位为个，默认值：1。（可通过 alter database 修改）

@@ -8195,13 +8195,19 @@ static STableMeta* extractTempTableMetaFromSubquery(SQueryInfo* pUpstream) {
   int32_t n = 0;
   for(int32_t i = 0; i < numOfColumns; ++i) {
     SInternalField* pField = tscFieldInfoGetInternalField(&pUpstream->fieldsInfo, i);
-    if (pField->visible) {
-      meta->schema[n].bytes = pField->field.bytes;
-      meta->schema[n].type  = pField->field.type;
-      meta->schema[n].colId = pField->pExpr->base.resColId;
-      tstrncpy(meta->schema[n].name, pField->pExpr->base.aliasName, TSDB_COL_NAME_LEN);
-      n += 1;
+    if (!pField->visible) {
+      continue;
     }
+
+    meta->schema[n].bytes = pField->field.bytes;
+    meta->schema[n].type  = pField->field.type;
+
+    SExprInfo* pExpr = pField->pExpr;
+    meta->schema[n].colId = pExpr->base.resColId;
+    tstrncpy(meta->schema[n].name, pField->pExpr->base.aliasName, TSDB_COL_NAME_LEN);
+    info->rowSize += meta->schema[n].bytes;
+
+    n += 1;
   }
 
   return meta;

@@ -106,7 +106,7 @@ typedef struct SResultRowInfo {
   int16_t      type:8;     // data type for hash key
   int32_t      size:24;    // number of result set
   int32_t      capacity;   // max capacity
-  SResultRow*  current;    // current active result row
+  int32_t      curPos;     // current active result row index of pResult list
 } SResultRowInfo;
 
 typedef struct SColumnFilterElem {
@@ -427,7 +427,7 @@ typedef struct STagScanInfo {
   SColumnInfo* pCols;
   SSDataBlock* pRes;
   int32_t      totalTables;
-  int32_t      currentIndex;
+  int32_t      curPos;
 } STagScanInfo;
 
 typedef struct SOptrBasicInfo {
