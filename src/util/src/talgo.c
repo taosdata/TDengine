@@ -225,3 +225,89 @@ void * taosbsearch(const void *key, const void *base, size_t nmemb, size_t size,
   
   return NULL;
 }
+
+void taosheapadjust(void *base, int32_t size, int32_t start, int32_t end, const void *parcompar, __ext_compar_fn_t compar, const void *parswap, __ext_swap_fn_t swap, bool maxroot)
+{
+  int32_t  parent;
+  int32_t  child;
+  char    *buf;
+
+  if (base && size > 0 && compar) {
+    parent = start;
+    child = 2 * parent + 1;
+
+    if (swap == NULL) {
+      buf = calloc(1, size);
+      if (buf == NULL) {
+        return;
+      }
+    }
+
+    if (maxroot) {
+      while (child <= end) {
+        if (child + 1 <= end && (*compar)(elePtrAt(base, size, child), elePtrAt(base, size, child + 1), parcompar) < 0) {
+          child++;
+        }
+
+        if ((*compar)(elePtrAt(base, size, parent), elePtrAt(base, size, child), parcompar) > 0) {
+          break;
+        }
+
+        if (swap == NULL) {
+          doswap(elePtrAt(base, size, parent), elePtrAt(base, size, child), size, buf);
+        } else {
+          (*swap)(elePtrAt(base, size, parent), elePtrAt(base, size, child), parswap);
+        }
+
+        parent = child;
+        child = 2 * parent + 1;
+      }
+    } else {
+      while (child <= end) {
+        if (child + 1 <= end && (*compar)(elePtrAt(base, size, child), elePtrAt(base, size, child + 1), parcompar) > 0) {
+          child++;
+        }
+
+        if ((*compar)(elePtrAt(base, size, parent), elePtrAt(base, size, child), parcompar) < 0) {
+          break;
+        }
+
+        if (swap == NULL) {
+          doswap(elePtrAt(base, size, parent), elePtrAt(base, size, child), size, buf);
+        } else {
+          (*swap)(elePtrAt(base, size, parent), elePtrAt(base, size, child), parswap);
+        }
+
+        parent = child;
+        child = 2 * parent + 1;
+      }
+    }
+
+    if (swap == NULL) {
+      tfree(buf);
+    }
+  }
+}
+
+void taosheapsort(void *base, int32_t size, int32_t len, const void *parcompar, __ext_compar_fn_t compar, const void *parswap, __ext_swap_fn_t swap, bool maxroot)
+{
+  int32_t  i;
+
+  if (base && size > 0) {
+    for (i = len / 2 - 1; i >= 0; i--) {
+      taosheapadjust(base, size, i, len - 1, parcompar, compar, parswap, swap, maxroot);
+    }
+  }
+
+/*
+  char *buf = calloc(1, size);
+
+  for (i = len - 1; i > 0; i--) {
+    doswap(elePtrAt(base, size, 0), elePtrAt(base, size, i));
+    taosheapadjust(base, size, 0, i - 1, parcompar, compar, parswap, swap, maxroot);
+  }
+
+  tfree(buf);
+*/
+}
+
