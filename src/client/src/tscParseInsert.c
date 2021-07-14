@@ -788,7 +788,7 @@ int tsParseOneRow(char **str, STableDataBlocks *pDataBlocks, int16_t timePrec, i
   TDRowTLenT dataRowLen = pHelper->allNullLen;
   TDRowTLenT kvRowLen = TD_MEM_ROW_KV_VER_SIZE;
   TDRowTLenT payloadValOffset = 0;
-  TDRowLenT colValOffset = 0;
+  TDRowLenT  colValOffset = 0;
   ASSERT(dataRowLen > 0);
 
   payloadSetNCols(payload, spd->numOfBound);
@@ -906,8 +906,6 @@ int tsParseOneRow(char **str, STableDataBlocks *pDataBlocks, int16_t timePrec, i
   } else {
     payloadSetType(payload, SMEM_ROW_DATA);
   }
-
-  ASSERT(colValOffset <= TSDB_MAX_BYTES_PER_ROW);
 
   *len = (int32_t)(payloadValOffset + colValOffset);
   payloadSetTLen(payload, *len);
@@ -1538,9 +1536,11 @@ static int32_t validateDataSource(SInsertStatementParam *pInsertParam, int32_t t
 
 static int32_t parseBoundColumns(SInsertStatementParam *pInsertParam, SParsedDataColInfo* pColInfo, SSchema* pSchema,
     char* str, char **end) {
+  int32_t nCols = pColInfo->numOfCols;
+
   pColInfo->numOfBound = 0;
-  memset(pColInfo->boundedColumns, 0, sizeof(int32_t) * pColInfo->numOfCols);
-  for(int32_t i = 0; i < pColInfo->numOfCols; ++i) {
+  memset(pColInfo->boundedColumns, 0, sizeof(int32_t) * nCols);
+  for (int32_t i = 0; i < nCols; ++i) {
     pColInfo->cols[i].hasVal = false;
   }
 
@@ -1556,7 +1556,7 @@ static int32_t parseBoundColumns(SInsertStatementParam *pInsertParam, SParsedDat
   }
 
   bool    isOrdered = true;
-  int32_t lastColIdx = -1;
+  int32_t lastColIdx = -1;  // last column found
   while (1) {
     index = 0;
     sToken = tStrGetToken(str, &index, false);
@@ -1577,7 +1577,8 @@ static int32_t parseBoundColumns(SInsertStatementParam *pInsertParam, SParsedDat
     bool findColumnIndex = false;
 
     // todo speedup by using hash list
-    for (int32_t t = 0; t < pColInfo->numOfCols; ++t) {
+    int32_t nScanned = 0, t = lastColIdx + 1;
+    while (t < nCols) {
       if (strncmp(sToken.z, pSchema[t].name, sToken.n) == 0 && strlen(pSchema[t].name) == sToken.n) {
         if (pColInfo->cols[t].hasVal == true) {
           code = tscInvalidOperationMsg(pInsertParam->msg, "duplicated column name", sToken.z);
@@ -1586,17 +1587,38 @@ static int32_t parseBoundColumns(SInsertStatementParam *pInsertParam, SParsedDat
 
         pColInfo->cols[t].hasVal = true;
         pColInfo->boundedColumns[pColInfo->numOfBound] = t;
-        pColInfo->numOfBound += 1;
+        ++pColInfo->numOfBound;
         findColumnIndex = true;
-
-        if (isOrdered) {
-          if (lastColIdx > t) {
-            isOrdered = false;
-          } else {
-            lastColIdx = t;
-          }
+        if (isOrdered && (lastColIdx > t)) {
+          isOrdered = false;
         }
+        lastColIdx = t;
         break;
+      }
+      ++t;
+      ++nScanned;
+    }
+    if (!findColumnIndex) {
+      t = 0;
+      int32_t nRemain = nCols - nScanned;
+      while (t < nRemain) {
+        if (strncmp(sToken.z, pSchema[t].name, sToken.n) == 0 && strlen(pSchema[t].name) == sToken.n) {
+          if (pColInfo->cols[t].hasVal == true) {
+            code = tscInvalidOperationMsg(pInsertParam->msg, "duplicated column name", sToken.z);
+            goto _clean;
+          }
+
+          pColInfo->cols[t].hasVal = true;
+          pColInfo->boundedColumns[pColInfo->numOfBound] = t;
+          ++pColInfo->numOfBound;
+          findColumnIndex = true;
+          if (isOrdered && (lastColIdx > t)) {
+            isOrdered = false;
+          }
+          lastColIdx = t;
+          break;
+        }
+        ++t;
       }
     }
 
