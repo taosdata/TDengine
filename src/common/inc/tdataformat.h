@@ -547,6 +547,14 @@ typedef void *SMemRow;
 
 #define memRowTKey(r) (isDataRow(r) ? dataRowTKey(memRowDataBody(r)) : kvRowTKey(memRowKvBody(r)))
 #define memRowKey(r) (isDataRow(r) ? dataRowKey(memRowDataBody(r)) : kvRowKey(memRowKvBody(r)))
+#define memRowSetTKey(r, k)                 \
+  do {                                      \
+    if (isDataRow(r)) {                     \
+      dataRowTKey(memRowDataBody(r)) = (k); \
+    } else {                                \
+      kvRowTKey(memRowKvBody(r)) = (k);     \
+    }                                       \
+  } while (0)
 
 #define memRowSetType(r, t) (memRowType(r) = (t))
 #define memRowSetLen(r, l) (isDataRow(r) ? memRowDataLen(r) = (l) : memRowKvLen(r) = (l))
