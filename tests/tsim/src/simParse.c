@@ -838,6 +838,38 @@ bool simParseRunBackCmd(char *rest, SCommand *pCmd, int32_t lineNum) {
   return true;
 }
 
+bool simParseLineInsertCmd(char* rest, SCommand* pCmd, int32_t lineNum) {
+  int32_t expLen;
+
+  rest++;
+  cmdLine[numOfLines].cmdno = SIM_CMD_LINE_INSERT;
+  cmdLine[numOfLines].lineNum = lineNum;
+  cmdLine[numOfLines].optionOffset = optionOffset;
+  expLen = (int32_t)strlen(rest);
+  memcpy(optionBuffer + optionOffset, rest, expLen);
+  optionOffset += expLen + 1;
+  *(optionBuffer + optionOffset - 1) = 0;
+
+  numOfLines++;
+  return true;
+}
+
+bool simParseLineInsertErrorCmd(char* rest, SCommand* pCmd, int32_t lineNum) {
+  int32_t expLen;
+
+  rest++;
+  cmdLine[numOfLines].cmdno = SIM_CMD_LINE_INSERT;
+  cmdLine[numOfLines].lineNum = lineNum;
+  cmdLine[numOfLines].optionOffset = optionOffset;
+  expLen = (int32_t)strlen(rest);
+  memcpy(optionBuffer + optionOffset, rest, expLen);
+  optionOffset += expLen + 1;
+  *(optionBuffer + optionOffset - 1) = 0;
+
+  numOfLines++;
+  return true;
+}
+
 void simInitsimCmdList() {
   int32_t cmdno;
   memset(simCmdList, 0, SIM_CMD_END * sizeof(SCommand));
@@ -1048,5 +1080,21 @@ void simInitsimCmdList() {
   simCmdList[cmdno].nlen = (int16_t)strlen(simCmdList[cmdno].name);
   simCmdList[cmdno].parseCmd = simParseReturnCmd;
   simCmdList[cmdno].executeCmd = simExecuteReturnCmd;
+  simAddCmdIntoHash(&(simCmdList[cmdno]));
+
+  cmdno = SIM_CMD_LINE_INSERT;
+  simCmdList[cmdno].cmdno = cmdno;
+  strcpy(simCmdList[cmdno].name, "line_insert");
+  simCmdList[cmdno].nlen = (int16_t)strlen(simCmdList[cmdno].name);
+  simCmdList[cmdno].parseCmd = simParseLineInsertCmd;
+  simCmdList[cmdno].executeCmd = simExecuteLineInsertCmd;
+  simAddCmdIntoHash(&(simCmdList[cmdno]));
+
+  cmdno = SIM_CMD_LINE_INSERT_ERROR;
+  simCmdList[cmdno].cmdno = cmdno;
+  strcpy(simCmdList[cmdno].name, "line_insert_error");
+  simCmdList[cmdno].nlen = (int16_t)strlen(simCmdList[cmdno].name);
+  simCmdList[cmdno].parseCmd = simParseLineInsertErrorCmd;
+  simCmdList[cmdno].executeCmd = simExecuteLineInsertErrorCmd;
   simAddCmdIntoHash(&(simCmdList[cmdno]));
 }

@@ -12,7 +12,7 @@ static void prepare_data(TAOS* taos) {
   result = taos_query(taos, "drop database if exists test;");
   taos_free_result(result);
   usleep(100000);
-  result = taos_query(taos, "create database test;");
+  result = taos_query(taos, "create database test precision 'us';");
   taos_free_result(result);
   usleep(100000);
   taos_select_db(taos, "test");
@@ -949,13 +949,45 @@ void verify_stream(TAOS* taos) {
   taos_close_stream(strm);
 }
 
+int32_t verify_schema_less(TAOS* taos) {
+  TAOS_RES *result;
+  result = taos_query(taos, "drop database if exists test;");
+  taos_free_result(result);
+  usleep(100000);
+  result = taos_query(taos, "create database test precision 'us';");
+  taos_free_result(result);
+  usleep(100000);
+
+  taos_select_db(taos, "test");
+  result = taos_query(taos, "create stable ste(ts timestamp, f int) tags(t1 bigint)");
+  taos_free_result(result);
+  usleep(100000);
+
+  char* lines[] = {
+      "st,t1=3i,t2=4,t3=\"t3\" c1=3i,c3=L\"passit\",c2=false,c4=4 1626006833639000000",
+      "st,t1=4i,t3=\"t4\",t2=5,t4=5 c1=3i,c3=L\"passitagin\",c2=true,c4=5,c5=5 1626006833640000000",
+      "ste,t2=5,t3=L\"ste\" c1=true,c2=4,c3=\"iam\" 1626056811823316532",
+      "st,t1=4i,t2=5,t3=\"t4\" c1=3i,c3=L\"passitagain\",c2=true,c4=5 1626006833642000000",
+      "ste,t2=5,t3=L\"ste2\" c3=\"iamszhou\",c4=false 1626056811843316532",
+      "ste,t2=5,t3=L\"ste2\" c3=\"iamszhou\",c4=false,c5=32b,c6=64s,c7=32w,c8=88.88f 1626056812843316532",
+      "st,t1=4i,t3=\"t4\",t2=5,t4=5 c1=3i,c3=L\"passitagin\",c2=true,c4=5,c5=5,c6=7u 1626006933640000000",
+      "stf,t1=4i,t3=\"t4\",t2=5,t4=5 c1=3i,c3=L\"passitagin\",c2=true,c4=5,c5=5,c6=7u 1626006933640000000",
+      "stf,t1=4i,t3=\"t4\",t2=5,t4=5 c1=3i,c3=L\"passitagin_stf\",c2=false,c5=5,c6=7u 1626006933641a"
+  };
+
+//  int code = taos_insert_lines(taos, lines , sizeof(lines)/sizeof(char*));
+  int code = taos_insert_lines(taos, &lines[0], 1);
+  code = taos_insert_lines(taos, &lines[1], 1);
+
+  return code;
+}
+
 int main(int argc, char *argv[]) {
   const char* host = "127.0.0.1";
   const char* user = "root";
   const char* passwd = "taosdata";
 
   taos_options(TSDB_OPTION_TIMEZONE, "GMT-8");
-
   TAOS* taos = taos_connect(host, user, passwd, "", 0);
   if (taos == NULL) {
     printf("\033[31mfailed to connect to db, reason:%s\033[0m\n", taos_errstr(taos));
@@ -966,6 +998,12 @@ int main(int argc, char *argv[]) {
   printf("server info: %s\n", info);
   info = taos_get_client_info(taos);
   printf("client info: %s\n", info);
+
+  printf("************  verify shemaless  *************\n");
+  int code = verify_schema_less(taos);
+  if (code == 0) {
+    return code;
+  }
 
   printf("************  verify query  *************\n");
   verify_query(taos);
