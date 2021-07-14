@@ -123,13 +123,15 @@ else
 fi
 
 if [ "$verType" == "beta" ]; then
-  debname=${debname}-${verType}".deb"
+  debname="TDengine-server-"${tdengine_ver}-${verType}-${osType}-${cpuType}".deb"
 elif [ "$verType" == "stable" ]; then
   debname=${debname}".deb"
 else
   echo "unknow verType, nor stabel or beta"
   exit 1
 fi
+
+
 
 # make deb package
 dpkg -b ${pkg_dir} $debname
