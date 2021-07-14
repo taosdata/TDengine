@@ -419,7 +419,9 @@ static void tscDestroyJoinSupporter(SJoinSupporter* pSupporter) {
   }
 
 //  tscFieldInfoClear(&pSupporter->fieldsInfo);
-
+  if (pSupporter->fieldsInfo.internalField != NULL) {
+    taosArrayDestroy(pSupporter->fieldsInfo.internalField);
+  }
   if (pSupporter->pTSBuf != NULL) {
     tsBufDestroy(pSupporter->pTSBuf);
     pSupporter->pTSBuf = NULL;
@@ -433,7 +435,8 @@ static void tscDestroyJoinSupporter(SJoinSupporter* pSupporter) {
   }
 
   if (pSupporter->pVgroupTables != NULL) {
-    taosArrayDestroy(pSupporter->pVgroupTables);
+    //taosArrayDestroy(pSupporter->pVgroupTables);
+    tscFreeVgroupTableInfo(pSupporter->pVgroupTables); 
     pSupporter->pVgroupTables = NULL;
   }
 
@@ -892,7 +895,9 @@ static int32_t getIntersectionOfTableTuple(SQueryInfo* pQueryInfo, SSqlObj* pPar
     tscDebug("Join %d - num:%d", i, p->num);
 
     // sort according to the tag valu
-    qsort(p->pIdTagList, p->num, p->tagSize, tagValCompar);
+    if (p->pIdTagList != NULL) {
+      qsort(p->pIdTagList, p->num, p->tagSize, tagValCompar);
+    }
 
     if (!checkForDuplicateTagVal(pColSchema, p, pParentSql)) {
       for (int32_t j = 0; j <= i; j++) {

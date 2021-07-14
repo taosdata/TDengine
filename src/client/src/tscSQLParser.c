@@ -4812,7 +4812,7 @@ int32_t validateWhereNode(SQueryInfo* pQueryInfo, tSqlExpr** pExpr, SSqlObj* pSq
 
   int32_t type = 0;
   if ((ret = getQueryCondExpr(&pSql->cmd, pQueryInfo, pExpr, &condExpr, &type, (*pExpr)->tokenId)) != TSDB_CODE_SUCCESS) {
-    return ret;
+    goto PARSE_WHERE_EXIT; 
   }
 
   tSqlExprCompact(pExpr);
@@ -4822,17 +4822,17 @@ int32_t validateWhereNode(SQueryInfo* pQueryInfo, tSqlExpr** pExpr, SSqlObj* pSq
 
   // 1. check if it is a join query
   if ((ret = validateJoinExpr(&pSql->cmd, pQueryInfo, &condExpr)) != TSDB_CODE_SUCCESS) {
-    return ret;
+    goto PARSE_WHERE_EXIT; 
   }
 
   // 2. get the query time range
   if ((ret = getTimeRangeFromExpr(&pSql->cmd, pQueryInfo, condExpr.pTimewindow)) != TSDB_CODE_SUCCESS) {
-    return ret;
+    goto PARSE_WHERE_EXIT; 
   }
 
   // 3. get the tag query condition
   if ((ret = getTagQueryCondExpr(&pSql->cmd, pQueryInfo, &condExpr, pExpr)) != TSDB_CODE_SUCCESS) {
-    return ret;
+    goto PARSE_WHERE_EXIT; 
   }
 
   // 4. get the table name query condition
@@ -7707,11 +7707,18 @@ int32_t loadAllTableMeta(SSqlObj* pSql, struct SSqlInfo* pInfo) {
         taosArrayPush(pVgroupList, &t);
       }
 
-      STableMeta* pMeta = tscTableMetaDup(pTableMeta);
-      STableMetaVgroupInfo p = { .pTableMeta = pMeta };
+      //STableMeta* pMeta = tscTableMetaDup(pTableMeta);
+      //STableMetaVgroupInfo p = { .pTableMeta = pMeta };
 
+      //const char* px = tNameGetTableName(pname);
+      //taosHashPut(pCmd->pTableMetaMap, px, strlen(px), &p, sizeof(STableMetaVgroupInfo));
+      // avoid mem leak, may should update pTableMeta
       const char* px = tNameGetTableName(pname);
-      taosHashPut(pCmd->pTableMetaMap, px, strlen(px), &p, sizeof(STableMetaVgroupInfo));
+      if (taosHashGet(pCmd->pTableMetaMap, px, strlen(px)) == NULL) {
+        STableMeta* pMeta = tscTableMetaDup(pTableMeta); 
+        STableMetaVgroupInfo p = { .pTableMeta = pMeta,  .pVgroupInfo = NULL};
+        taosHashPut(pCmd->pTableMetaMap, px, strlen(px), &p, sizeof(STableMetaVgroupInfo));
+      }
     } else {  // add to the retrieve table meta array list.
       char* t = strdup(name);
       taosArrayPush(plist, &t);
@@ -8161,7 +8168,7 @@ int32_t validateSqlNode(SSqlObj* pSql, SSqlNode* pSqlNode, SQueryInfo* pQueryInf
 
     // in case of join query, time range is required.
     if (QUERY_IS_JOIN_QUERY(pQueryInfo->type)) {
-      int64_t timeRange = ABS(pQueryInfo->window.skey - pQueryInfo->window.ekey);
+      uint64_t timeRange = (uint64_t)pQueryInfo->window.ekey - pQueryInfo->window.skey;
       if (timeRange == 0 && pQueryInfo->window.skey == 0) {
         return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg3);
       }
