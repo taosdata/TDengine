@@ -25,6 +25,7 @@ public class SchemaConfigurationParserTest {
         // when
         SchemaConfiguration configuration = (SchemaConfiguration) ConfigurationFactory.build(ConfigurationType.SCHEMA, schemaJSON);
         // then
+        Assert.assertEquals(1609473600123L, configuration.getStartTime().longValue());
         // assert database
         List<Configuration> databases = configuration.find(ConfigurationType.DATABASE);
         Assert.assertEquals(1, databases.size());

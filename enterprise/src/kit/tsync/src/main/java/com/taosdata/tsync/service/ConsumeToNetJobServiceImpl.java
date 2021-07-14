@@ -15,9 +15,13 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 public class ConsumeToNetJobServiceImpl extends AbstractRunnableJobService {
     private static final Logger logger = LoggerFactory.getLogger(ConsumeToNetJobServiceImpl.class);
+
+    private List<UUID> taskIds = new ArrayList<>();
+    private PrintCountRunnableTask printCountRunnableTask;
 
     @Override
     public List<UUID> prepare(ConfigurationType configurationType, UUID configurationId) throws TsyncException {
@@ -64,10 +68,10 @@ public class ConsumeToNetJobServiceImpl extends AbstractRunnableJobService {
 
         // 5. create threads
         int threads = taskConfiguration.getThreads();
-        List<Integer[]> thread2Partition = Utils.divideArrayIntoGroups(partitions, threads);
+        List<Integer[]> threadIndex2Partition = Utils.divideArrayIntoGroups(partitions, threads);
 
-        List<UUID> taskIds = new ArrayList<>();
-        thread2Partition.stream().map(partitionsToConsume -> {
+
+        List<ConsumeToNetRunnableTask> consumeToNetRunnableTasks = threadIndex2Partition.stream().map(partitionsToConsume -> {
             int[] partitionsToConsumeArr = Arrays.stream(partitionsToConsume).mapToInt(i -> i).toArray();
             return new ConsumeToNetRunnableTaskFactory()
                     .setConsumer(TQueueConsumerFactory.build(consumerConfiguration))
@@ -77,18 +81,27 @@ public class ConsumeToNetJobServiceImpl extends AbstractRunnableJobService {
                     .setHost(host)
                     .setPort(port)
                     .build();
-        }).forEach(consumeToNetRunnableTask -> {
-            RunnableTask task = new RunnableTask(consumeToNetRunnableTask);
-            runnableTaskRepository.add(task);
-            taskIds.add(task.getId());
-        });
+        }).collect(Collectors.toList());
 
+        consumeToNetRunnableTasks.forEach(consumeToNetRunnableTask -> {
+                    RunnableTask task = new RunnableTask(consumeToNetRunnableTask);
+                    runnableTaskRepository.add(task);
+                    taskIds.add(task.getId());
+                }
+        );
+
+        // create print count thread
+        printCountRunnableTask = new PrintCountRunnableTask(consumeToNetRunnableTasks.get(0), 10 * 1000);
+        RunnableTask task = new RunnableTask(printCountRunnableTask);
+        runnableTaskRepository.add(task);
+        taskIds.add(task.getId());
         return taskIds;
     }
 
     @Override
     public void shutdown() {
         // do nothing
+        printCountRunnableTask.shutdown();
     }
 
     private boolean containsInvalidPartitionIndex(int[] partitions, int bound) {

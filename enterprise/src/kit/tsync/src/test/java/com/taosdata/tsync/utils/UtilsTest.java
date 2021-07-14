@@ -1,17 +1,15 @@
 package com.taosdata.tsync.utils;
 
-import com.google.common.collect.Multimap;
 import com.google.common.collect.Range;
-import com.sun.media.jfxmediaimpl.HostUtils;
 import org.junit.Assert;
 import org.junit.Test;
 
-import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.IntStream;
 
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 public class UtilsTest {
 

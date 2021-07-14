@@ -20,18 +20,21 @@ scp target/socket-server-jar-with-dependencies.jar root@$host:$deployDir/socket-
 scp target/socket-client-jar-with-dependencies.jar root@$host:$deployDir/socket-client.jar
 
 ### config
-#scp config/consume-to-net.json root@$host:$deployDir/config/consume-to-net.json
-#scp config/consume-to-tdengine.json root@$host:$deployDir/config/consume-to-tdengine.json
-#scp config/net-to-tq.json root@$host:$deployDir/config/net-to-tq.json
-#scp config/produce-to-tq.json root@$host:$deployDir/config/produce-to-tq.json
+scp config/log4j.properties root@$host:$deployDir/config/log4j.properties
+
+scp config/consume-to-net.json root@$host:$deployDir/config/consume-to-net.json
+scp config/consume-to-tdengine.json root@$host:$deployDir/config/consume-to-tdengine.json
+scp config/net-to-tq.json root@$host:$deployDir/config/net-to-tq.json
+scp config/produce-to-tq.json root@$host:$deployDir/config/produce-to-tq.json
+
 
 ### scripts
-scp bin/produce-to-tq.sh root@$host:$deployDir
-scp bin/consume-to-tdengine-start.sh root@$host:$deployDir
-scp bin/consume-to-tdengine-stop.sh root@$host:$deployDir
-scp bin/consume-to-net-start.sh root@$host:$deployDir
-scp bin/consume-to-net-stop.sh root@$host:$deployDir
-scp bin/net-to-tq-start.sh root@$host:$deployDir
-scp bin/net-to-tq-stop.sh root@$host:$deployDir
+#scp bin/produce-to-tq.sh root@$host:$deployDir
+#scp bin/consume-to-tdengine-start.sh root@$host:$deployDir
+#scp bin/consume-to-tdengine-stop.sh root@$host:$deployDir
+#scp bin/consume-to-net-start.sh root@$host:$deployDir
+#scp bin/consume-to-net-stop.sh root@$host:$deployDir
+#scp bin/net-to-tq-start.sh root@$host:$deployDir
+#scp bin/net-to-tq-stop.sh root@$host:$deployDir
 
-ssh root@$host "chmod a+x $deployDir/*.sh"
+#ssh root@$host "chmod a+x $deployDir/*.sh"

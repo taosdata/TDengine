@@ -1,6 +1,5 @@
 package com.taosdata.tsync.service;
 
-import com.google.common.collect.Multimap;
 import com.google.common.collect.Range;
 import com.taosdata.tsync.entity.CallableTask;
 import com.taosdata.tsync.entity.config.*;
@@ -13,7 +12,10 @@ import com.taosdata.tsync.utils.Utils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import java.util.UUID;
 
 public class ProduceToTQueueJobServiceImpl extends AbstractCallableJobService {
     private static final Logger logger = LoggerFactory.getLogger(ProduceToTQueueJobServiceImpl.class);
@@ -23,6 +25,7 @@ public class ProduceToTQueueJobServiceImpl extends AbstractCallableJobService {
     }
 
     private TQueueProducer<String> producer;
+    private List<UUID> taskIds = new ArrayList<>();
 
     @Override
     public List<UUID> prepare(ConfigurationType configurationType, UUID configurationId) throws TsyncException {
@@ -83,11 +86,11 @@ public class ProduceToTQueueJobServiceImpl extends AbstractCallableJobService {
 
         long batchTables = messageConfiguration.getBatchTables();
         long batchValues = messageConfiguration.getBatchValues();
+
         // 6. SchemaConfiguration ==> schema
         SchemaConfiguration schemaConfiguration = (SchemaConfiguration) configuration.findFirst(ConfigurationType.SCHEMA);
 
         // 7. create threads
-        List<UUID> taskIds = new ArrayList<>();
         for (int i = 0; i < threadSize; i++) {
             // callable task
             int[] partitionsToWrite = Arrays.stream(threadIndex2PartitionList.get(i)).mapToInt(Integer::intValue).toArray();
@@ -119,6 +122,10 @@ public class ProduceToTQueueJobServiceImpl extends AbstractCallableJobService {
     @Override
     public void shutdown() {
         producer.close();
+        for (UUID taskId : taskIds) {
+            ProduceToTQueueCallableTask produceToTQueueCallableTask = (ProduceToTQueueCallableTask) callableTaskRepository.find(taskId).getCallable();
+            produceToTQueueCallableTask.shutdown();
+        }
     }
 
     private boolean containsInvalidPartitionIndex(int[] partitions, int bound) {

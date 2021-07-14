@@ -15,7 +15,7 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
-public class ConsumeToNetRunnableTask implements Runnable {
+public class ConsumeToNetRunnableTask implements Runnable, Countable {
 
     private static final Logger logger = LoggerFactory.getLogger(ConsumeToNetRunnableTask.class);
     private static AtomicLong count = new AtomicLong(0);
@@ -68,7 +68,8 @@ public class ConsumeToNetRunnableTask implements Runnable {
                     trySendToNet(socket, obj.toJSONString());
                 }
             }
-            TimeUnit.MILLISECONDS.sleep(pollingInterval);
+            if (pollingInterval > 0)
+                TimeUnit.MILLISECONDS.sleep(pollingInterval);
         } catch (TQueueException e) {
             e.printStackTrace();
         } catch (InterruptedException e) {
@@ -109,5 +110,10 @@ public class ConsumeToNetRunnableTask implements Runnable {
 
     public void setPort(int port) {
         this.port = port;
+    }
+
+    @Override
+    public long getCount() {
+        return count.get();
     }
 }

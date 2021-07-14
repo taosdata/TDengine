@@ -119,27 +119,10 @@ public class ProduceToTQueueCallableTask implements Callable<Long> {
         }
 
         return partitionTaskMap;
-        /*
-        Map<Integer, OnePartitionTask> partitionTaskMap = new HashMap<>();
+    }
 
-        Map<Integer, Range<Long>> partitionIndex2TableRange = Utils.divideIntoArrGroups(tablesToWrite.lowerEndpoint(), tablesToWrite.upperEndpoint(), partitionsToWrite);
-
-        Map<Integer, Range<Long>> partitionIndex2RecordRange = Utils.divideIntoArrGroups(recordsToWrite, partitionsToWrite);
-
-        for (int partitionId : partitionIndex2TableRange.keySet()) {
-            Range<Long> tablesRangeToWrite = partitionIndex2TableRange.get(partitionId);
-            Range<Long> recordRange = partitionIndex2RecordRange.get(partitionId);
-
-            long tableStartIndex = tablesRangeToWrite.lowerEndpoint();
-            long tableEndIndex = tablesRangeToWrite.upperEndpoint();
-
-            long recordsToWrite = recordRange.upperEndpoint() - recordRange.lowerEndpoint();
-
-            OnePartitionTask onePartitionTask = new OnePartitionTask(tableStartIndex, tableEndIndex, recordsToWrite);
-            partitionTaskMap.put(partitionId, onePartitionTask);
-        }
-        return partitionTaskMap;
-         */
+    public void shutdown() {
+        producer.close();
     }
 
     private static class OnePartitionTask {

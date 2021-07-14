@@ -10,6 +10,7 @@ public class MessageConfiguration extends Configuration {
     private Long total;
     private Long batchValues;
     private Long batchTables;
+    private Long startTime;
 
     public MessageConfiguration() {
         super(ConfigurationType.MESSAGE);
@@ -38,5 +39,13 @@ public class MessageConfiguration extends Configuration {
 
     public void setBatchTables(Long batchTables) {
         this.batchTables = batchTables;
+    }
+
+    public Long getStartTime() {
+        return startTime;
+    }
+
+    public void setStartTime(Long startTime) {
+        this.startTime = startTime;
     }
 }

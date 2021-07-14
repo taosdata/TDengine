@@ -13,9 +13,11 @@ import java.sql.Statement;
 import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 
-public class ConsumeToTDengineRunnableTask implements Runnable {
+public class ConsumeToTDengineRunnableTask implements Runnable, Countable {
     private static final Logger logger = LoggerFactory.getLogger(ConsumeToTDengineRunnableTask.class);
+    private static final AtomicLong count = new AtomicLong(0);
 
     private List<Integer> partitionsToWrite;
     private String topic;
@@ -47,25 +49,28 @@ public class ConsumeToTDengineRunnableTask implements Runnable {
         }
     }
 
+    @Override
+    public long getCount() {
+        return count.get();
+    }
+
     private void doWriteToTDengine() throws Exception {
         for (int partitionId : partitionsToWrite) {
             consumer.assign(topic, partitionId);
             List<ConsumerRecord> records = consumer.poll();
             for (ConsumerRecord record : records) {
                 String message = new String(record.value(), StandardCharsets.UTF_8);
-//                logger.trace(String.format("topic: %s, partition: %d, offset: %d, value = %s", record.topic(), record.partition(), record.offset(), message));
+                logger.trace("count: " + count.incrementAndGet() + ", topic: " + record.topic() + ", partition: " + record.partition() + ", offset: " + record.offset() + ", value: " + message);
                 tryExecuteSQL(message);
             }
         }
-        TimeUnit.MILLISECONDS.sleep(pollingInterval);
+        if (pollingInterval > 0)
+            TimeUnit.MILLISECONDS.sleep(pollingInterval);
     }
 
     public void tryExecuteSQL(String sql) {
-        try {
-            logger.trace("execute sql >>> " + sql);
-            try (Statement statement = taosdConnection.createStatement()) {
-                statement.execute(sql);
-            }
+        try (Statement statement = taosdConnection.createStatement()) {
+            statement.execute(sql);
         } catch (SQLException e) {
             e.printStackTrace();
         }
@@ -91,5 +96,6 @@ public class ConsumeToTDengineRunnableTask implements Runnable {
     public void setPollingInterval(int pollingInterval) {
         this.pollingInterval = pollingInterval;
     }
+
 
 }

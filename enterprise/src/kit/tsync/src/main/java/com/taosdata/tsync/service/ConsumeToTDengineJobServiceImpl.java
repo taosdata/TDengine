@@ -25,6 +25,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 public class ConsumeToTDengineJobServiceImpl extends AbstractRunnableJobService {
 
@@ -32,9 +33,7 @@ public class ConsumeToTDengineJobServiceImpl extends AbstractRunnableJobService 
 
     private final ConfigurationRepository configurationRepository = ConfigurationRepository.getInstance();
 
-    public ConsumeToTDengineJobServiceImpl() {
-        super();
-    }
+    private List<UUID> taskIds = new ArrayList<>();
 
     private ConsumerConfiguration consumerConfiguration;
     private TQueueConsumer consumer;
@@ -43,6 +42,8 @@ public class ConsumeToTDengineJobServiceImpl extends AbstractRunnableJobService 
     private int pollingInterval;
     private SchemaMissingStrategy schemaMissing;
     private SchemaConfiguration schemaConfiguration;
+
+    private PrintCountRunnableTask printCountRunnable;
 
     @Override
     public List<UUID> prepare(ConfigurationType configurationType, UUID configurationId) throws TsyncException {
@@ -98,8 +99,7 @@ public class ConsumeToTDengineJobServiceImpl extends AbstractRunnableJobService 
         }
 
         // create runnable tasks
-        List<UUID> taskIds = new ArrayList<>();
-        for (int i = 0; i < threadSize; i++) {
+        List<ConsumeToTDengineRunnableTask> runnableTasks = IntStream.range(0, threadSize).mapToObj(i -> {
             List<Integer> partitionsToWrite = Arrays.stream(threadIndex2PartitionList.get(i)).collect(Collectors.toList());
             Connection connection = TaosdConnectionFactory.build(taosdConfiguration);
 
@@ -111,17 +111,27 @@ public class ConsumeToTDengineJobServiceImpl extends AbstractRunnableJobService 
                     .setTaosdConnection(connection)
                     .setPollingInterval(pollingInterval)
                     .build();
+            return runnable;
+        }).collect(Collectors.toList());
 
-            RunnableTask runnableTask = new RunnableTask(runnable);
-            runnableTaskRepository.add(runnableTask);
-            taskIds.add(runnableTask.getId());
-        }
+
+        runnableTasks.stream().map(RunnableTask::new).forEach(i -> {
+            runnableTaskRepository.add(i);
+            taskIds.add(i.getId());
+        });
+        // create print count thread
+        printCountRunnable = new PrintCountRunnableTask(runnableTasks.get(0), 10 * 1000);
+        RunnableTask printCountRunnableTask = new RunnableTask(printCountRunnable);
+        runnableTaskRepository.add(printCountRunnableTask);
+        taskIds.add(printCountRunnableTask.getId());
+
         return taskIds;
     }
 
     @Override
     public void shutdown() {
         // do nothing
+        printCountRunnable.shutdown();
     }
 
     private void doCreateSchema() {

@@ -27,7 +27,7 @@
       "timezone": "UTC-8"
     },
     "strategy": {
-      "pollingInterval": 1000,
+      "pollingInterval": 10,
       "schemaMissing": "CREATE"
     },
     "schema": {

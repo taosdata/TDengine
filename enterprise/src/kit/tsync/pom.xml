@@ -63,6 +63,17 @@
                 </configuration>
             </plugin>
 
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-jar-plugin</artifactId>
+                <configuration>
+                    <!--不打入jar包的文件类型或者路径-->
+                    <excludes>
+                        <exclude>**/*.properties</exclude>
+                    </excludes>
+                </configuration>
+            </plugin>
+
             <!-- test -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
@@ -99,6 +110,7 @@
                             <resources>
                                 <resource>
                                     <directory>src/test/resources/</directory>
+                                    <directory>src/main/resources/</directory>
                                 </resource>
                             </resources>
                         </configuration>

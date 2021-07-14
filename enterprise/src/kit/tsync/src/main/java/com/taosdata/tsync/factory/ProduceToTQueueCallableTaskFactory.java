@@ -61,6 +61,8 @@ public class ProduceToTQueueCallableTaskFactory {
     }
 
     public ProduceToTQueueCallableTaskFactory setSchemaConfiguration(SchemaConfiguration schemaConfiguration) {
+        long startTime = schemaConfiguration.getStartTime();
+
         // dbname
         DatabaseConfiguration databaseConfiguration = (DatabaseConfiguration) schemaConfiguration.findFirst(ConfigurationType.DATABASE);
         String dbname = databaseConfiguration.getName();
@@ -70,16 +72,16 @@ public class ProduceToTQueueCallableTaskFactory {
         DatabasePrecision precision = databaseConfiguration.getPrecision();
         switch (precision) {
             case ns: {
-                instance.setTs(new AtomicLong(System.currentTimeMillis() * 1000_000));
+                instance.setTs(new AtomicLong(startTime * 1000_000));
                 break;
             }
             case us: {
-                instance.setTs(new AtomicLong(System.currentTimeMillis() * 1000));
+                instance.setTs(new AtomicLong(startTime * 1000));
                 break;
             }
             case ms:
             default: {
-                instance.setTs(new AtomicLong(System.currentTimeMillis()));
+                instance.setTs(new AtomicLong(startTime));
                 break;
             }
         }
@@ -96,4 +98,5 @@ public class ProduceToTQueueCallableTaskFactory {
         instance.setTags(tags);
         return this;
     }
+
 }

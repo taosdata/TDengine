@@ -1,12 +1,16 @@
 package com.taosdata.tsync.parser;
 
+import com.alibaba.fastjson.JSONException;
 import com.alibaba.fastjson.JSONObject;
+import com.taosdata.jdbc.utils.Utils;
 import com.taosdata.tsync.entity.config.Configuration;
 import com.taosdata.tsync.enums.ConfigurationType;
 import com.taosdata.tsync.entity.config.MessageConfiguration;
 import com.taosdata.tsync.exceptions.TsyncException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import java.sql.Timestamp;
 
 public class MessageConfigurationParser implements ConfigurationParser {
     private static final Logger logger = LoggerFactory.getLogger(MessageConfigurationParser.class);
@@ -59,7 +63,6 @@ public class MessageConfigurationParser implements ConfigurationParser {
             logger.error(errorMsg);
             throw new TsyncException(errorMsg);
         }
-
 
 
         return configuration;

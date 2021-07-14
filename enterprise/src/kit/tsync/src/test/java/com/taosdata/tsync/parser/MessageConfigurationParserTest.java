@@ -25,9 +25,10 @@ public class MessageConfigurationParserTest {
         // when
         MessageConfiguration configuration = (MessageConfiguration) ConfigurationFactory.build(ConfigurationType.MESSAGE, messageJSON);
         // then
-        Assert.assertEquals(new Long(100), configuration.getTotal());
-        Assert.assertEquals(new Long(10), configuration.getBatchTables());
-        Assert.assertEquals(new Long(10), configuration.getBatchValues());
+        Assert.assertEquals(100L, configuration.getTotal().longValue());
+        Assert.assertEquals(10L, configuration.getBatchTables().longValue());
+        Assert.assertEquals(10L, configuration.getBatchValues().longValue());
+
         List<Configuration> schemas = configuration.find(ConfigurationType.SCHEMA);
         Assert.assertEquals(1, schemas.size());
     }
