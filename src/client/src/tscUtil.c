@@ -3342,6 +3342,7 @@ SSqlObj* createSubqueryObj(SSqlObj* pSql, int16_t tableIndex, __async_cb_func_t 
   pnCmd->insertParam.numOfTables = 0;
   pnCmd->insertParam.pTableNameList = NULL;
   pnCmd->insertParam.pTableBlockHashList = NULL;
+  pnCmd->insertParam.objectId = pNew->self;
 
   memset(&pnCmd->insertParam.tagData, 0, sizeof(STagData));
 
