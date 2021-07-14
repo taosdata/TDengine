@@ -975,9 +975,14 @@ int32_t verify_schema_less(TAOS* taos) {
       "stf,t1=4i,t3=\"t4\",t2=5,t4=5 c1=3i,c3=L\"passitagin_stf\",c2=false,c5=5,c6=7u 1626006933641a"
   };
 
-//  int code = taos_insert_lines(taos, lines , sizeof(lines)/sizeof(char*));
-  int code = taos_insert_lines(taos, &lines[0], 1);
-  code = taos_insert_lines(taos, &lines[1], 1);
+  int code = 0;
+  code = taos_insert_lines(taos, lines , sizeof(lines)/sizeof(char*));
+  char* lines2[] = {
+      "stg,t1=3i,t2=4,t3=\"t3\" c1=3i,c3=L\"passit\",c2=false,c4=4 1626006833639000000",
+      "stg,t1=4i,t3=\"t4\",t2=5,t4=5 c1=3i,c3=L\"passitagin\",c2=true,c4=5,c5=5 1626006833640000000"
+  };
+  code = taos_insert_lines(taos, &lines2[0], 1);
+  code = taos_insert_lines(taos, &lines2[1], 1);
 
   return code;
 }
@@ -1000,10 +1005,7 @@ int main(int argc, char *argv[]) {
   printf("client info: %s\n", info);
 
   printf("************  verify shemaless  *************\n");
-  int code = verify_schema_less(taos);
-  if (code == 0) {
-    return code;
-  }
+  verify_schema_less(taos);
 
   printf("************  verify query  *************\n");
   verify_query(taos);
