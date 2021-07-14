@@ -565,6 +565,8 @@ double   randdouble[MAX_PREPARED_RAND];
 char *aggreFunc[] = {"*", "count(*)", "avg(col0)", "sum(col0)",
     "max(col0)", "min(col0)", "first(col0)", "last(col0)"};
 
+#define DEFAULT_DATATYPE_NUM    3
+
 SArguments g_args = {
     NULL,            // metaFile
     0,               // test_mode
@@ -595,7 +597,7 @@ SArguments g_args = {
     {
         "FLOAT",         // datatype
         "INT",           // datatype
-        "FLOAT",         // datatype
+        "FLOAT",         // datatype. DEFAULT_DATATYPE_NUM is 3
     },
     16,              // len_of_binary
     4,               // num_of_CPR
@@ -725,9 +727,13 @@ static void printHelp() {
             "The data_type of columns, default: FLOAT, INT, FLOAT.");
     printf("%s%s%s%s\n", indent, "-w", indent,
             "The length of data_type 'BINARY' or 'NCHAR'. Default is 16");
-    printf("%s%s%s%s%d\n", indent, "-l", indent,
-            "The number of columns per record. Default is 3. Max values is ",
+    printf("%s%s%s%s%d%s%d\n", indent, "-l", indent,
+            "The number of columns per record. Default is ",
+            DEFAULT_DATATYPE_NUM,
+            ". Max values is ",
             MAX_NUM_DATATYPE);
+    printf("%s%s%s%s\n", indent, indent, indent,
+            "All of the new column(s) type is INT. If use -b to specify column type, -l will be ignored.");
     printf("%s%s%s%s\n", indent, "-T", indent,
             "The number of threads. Default is 10.");
     printf("%s%s%s%s\n", indent, "-i", indent,
@@ -937,6 +943,9 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
                 arguments->num_of_CPR = MAX_NUM_DATATYPE;
             }
 
+            for (int col = DEFAULT_DATATYPE_NUM; col < arguments->num_of_CPR; col ++) {
+                arguments->datatype[col] = "INT";
+            }
             for (int col = arguments->num_of_CPR; col < MAX_NUM_DATATYPE; col++) {
                 arguments->datatype[col] = NULL;
             }
@@ -2389,8 +2398,15 @@ static char* generateTagVaulesForStb(SSuperTable* stbInfo, int32_t tableSeq) {
             tmfree(buf);
         } else if (0 == strncasecmp(stbInfo->tags[i].dataType,
                     "int", strlen("int"))) {
-            dataLen += snprintf(dataBuf + dataLen, TSDB_MAX_SQL_LEN - dataLen,
+            if ((g_args.demo_mode) && (i == 0)) {
+                dataLen += snprintf(dataBuf + dataLen,
+                        TSDB_MAX_SQL_LEN - dataLen,
+                    "%d, ", tableSeq % 10);
+            } else {
+                dataLen += snprintf(dataBuf + dataLen,
+                        TSDB_MAX_SQL_LEN - dataLen,
                     "%d, ", tableSeq);
+            }
         } else if (0 == strncasecmp(stbInfo->tags[i].dataType,
                     "bigint", strlen("bigint"))) {
             dataLen += snprintf(dataBuf + dataLen, TSDB_MAX_SQL_LEN - dataLen,
@@ -2787,16 +2803,26 @@ static int createSuperTable(
         char* dataType = superTbl->tags[tagIndex].dataType;
 
         if (strcasecmp(dataType, "BINARY") == 0) {
-            len += snprintf(tags + len, STRING_LEN - len, "t%d %s(%d), ", tagIndex,
-                    "BINARY", superTbl->tags[tagIndex].dataLen);
+            if ((g_args.demo_mode) && (tagIndex == 1)) {
+                len += snprintf(tags + len, STRING_LEN - len,
+                        "loction BINARY(%d), ",
+                        superTbl->tags[tagIndex].dataLen);
+            } else {
+                len += snprintf(tags + len, STRING_LEN - len, "t%d %s(%d), ",
+                        tagIndex, "BINARY", superTbl->tags[tagIndex].dataLen);
+            }
             lenOfTagOfOneRow += superTbl->tags[tagIndex].dataLen + 3;
         } else if (strcasecmp(dataType, "NCHAR") == 0) {
             len += snprintf(tags + len, STRING_LEN - len, "t%d %s(%d), ", tagIndex,
                     "NCHAR", superTbl->tags[tagIndex].dataLen);
             lenOfTagOfOneRow += superTbl->tags[tagIndex].dataLen + 3;
         } else if (strcasecmp(dataType, "INT") == 0)  {
-            len += snprintf(tags + len, STRING_LEN - len, "t%d %s, ", tagIndex,
+            if ((g_args.demo_mode) && (tagIndex == 0)) {
+                len += snprintf(tags + len, STRING_LEN - len, "groupId INT, ");
+            } else {
+                len += snprintf(tags + len, STRING_LEN - len, "t%d %s, ", tagIndex,
                     "INT");
+            }
             lenOfTagOfOneRow += superTbl->tags[tagIndex].dataLen + 11;
         } else if (strcasecmp(dataType, "BIGINT") == 0)  {
             len += snprintf(tags + len, STRING_LEN - len, "t%d %s, ", tagIndex,
