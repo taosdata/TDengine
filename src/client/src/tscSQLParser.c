@@ -7802,25 +7802,33 @@ static int32_t doLoadAllTableMeta(SSqlObj* pSql, SQueryInfo* pQueryInfo, SSqlNod
 }
 
 static STableMeta* extractTempTableMetaFromSubquery(SQueryInfo* pUpstream) {
-  int32_t numOfColumns = pUpstream->fieldsInfo.numOfOutput;
+  STableMetaInfo* pUpstreamTableMetaInfo = tscGetMetaInfo(pUpstream, 0);
 
-  STableMeta* meta = calloc(1, sizeof(STableMeta) + sizeof(SSchema) * numOfColumns);
+  int32_t     numOfColumns = pUpstream->fieldsInfo.numOfOutput;
+  STableMeta *meta = calloc(1, sizeof(STableMeta) + sizeof(SSchema) * numOfColumns);
   meta->tableType = TSDB_TEMP_TABLE;
 
   STableComInfo *info = &meta->tableInfo;
   info->numOfColumns = numOfColumns;
-  info->numOfTags = 0;
+  info->precision    = pUpstreamTableMetaInfo->pTableMeta->tableInfo.precision;
+  info->numOfTags    = 0;
 
   int32_t n = 0;
   for(int32_t i = 0; i < numOfColumns; ++i) {
     SInternalField* pField = tscFieldInfoGetInternalField(&pUpstream->fieldsInfo, i);
-    if (pField->visible) {
-      meta->schema[n].bytes = pField->field.bytes;
-      meta->schema[n].type  = pField->field.type;
-      meta->schema[n].colId = pField->pExpr->base.resColId;
-      tstrncpy(meta->schema[n].name, pField->pExpr->base.aliasName, TSDB_COL_NAME_LEN);
-      n += 1;
+    if (!pField->visible) {
+      continue;
     }
+
+    meta->schema[n].bytes = pField->field.bytes;
+    meta->schema[n].type  = pField->field.type;
+
+    SExprInfo* pExpr = pField->pExpr;
+    meta->schema[n].colId = pExpr->base.resColId;
+    tstrncpy(meta->schema[n].name, pField->pExpr->base.aliasName, TSDB_COL_NAME_LEN);
+    info->rowSize += meta->schema[n].bytes;
+
+    n += 1;
   }
 
   return meta;

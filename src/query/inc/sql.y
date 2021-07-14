@@ -303,10 +303,12 @@ alter_db_optr(Y) ::= alter_db_optr(Z) quorum(X).      { Y = Z; Y.quorum = strtol
 alter_db_optr(Y) ::= alter_db_optr(Z) keep(X).        { Y = Z; Y.keep = X; }
 alter_db_optr(Y) ::= alter_db_optr(Z) blocks(X).      { Y = Z; Y.numOfBlocks = strtol(X.z, NULL, 10); }
 alter_db_optr(Y) ::= alter_db_optr(Z) comp(X).        { Y = Z; Y.compressionLevel = strtol(X.z, NULL, 10); }
-alter_db_optr(Y) ::= alter_db_optr(Z) wal(X).         { Y = Z; Y.walLevel = strtol(X.z, NULL, 10); }
-alter_db_optr(Y) ::= alter_db_optr(Z) fsync(X).       { Y = Z; Y.fsyncPeriod = strtol(X.z, NULL, 10); }
 alter_db_optr(Y) ::= alter_db_optr(Z) update(X).      { Y = Z; Y.update = strtol(X.z, NULL, 10); }
 alter_db_optr(Y) ::= alter_db_optr(Z) cachelast(X).   { Y = Z; Y.cachelast = strtol(X.z, NULL, 10); }
+
+// dynamically update the following two parameters are not allowed.
+//alter_db_optr(Y) ::= alter_db_optr(Z) fsync(X).       { Y = Z; Y.fsyncPeriod = strtol(X.z, NULL, 10); }
+//alter_db_optr(Y) ::= alter_db_optr(Z) wal(X).         { Y = Z; Y.walLevel = strtol(X.z, NULL, 10); } not support yet
 
 %type alter_topic_optr {SCreateDbInfo}
 
