@@ -4827,12 +4827,12 @@ int32_t validateWhereNode(SQueryInfo* pQueryInfo, tSqlExpr** pExpr, SSqlObj* pSq
 
   // 2. get the query time range
   if ((ret = getTimeRangeFromExpr(&pSql->cmd, pQueryInfo, condExpr.pTimewindow)) != TSDB_CODE_SUCCESS) {
-    goto PARSE_WHERE_EXIT; 
+    return ret;
   }
 
   // 3. get the tag query condition
   if ((ret = getTagQueryCondExpr(&pSql->cmd, pQueryInfo, &condExpr, pExpr)) != TSDB_CODE_SUCCESS) {
-    goto PARSE_WHERE_EXIT; 
+    return ret;
   }
 
   // 4. get the table name query condition
