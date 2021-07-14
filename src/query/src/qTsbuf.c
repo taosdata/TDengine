@@ -269,7 +269,7 @@ static void writeDataToDisk(STSBuf* pTSBuf) {
     metaLen += (int32_t)fwrite(pBlock->tag.pz, 1, (size_t)pBlock->tag.nLen, pTSBuf->f);
   } else if (pBlock->tag.nType == TSDB_DATA_TYPE_FLOAT) {
     metaLen += (int32_t)fwrite(&pBlock->tag.nLen, 1, sizeof(pBlock->tag.nLen), pTSBuf->f);
-    float tfloat = pBlock->tag.dKey;
+    float tfloat = (float)pBlock->tag.dKey;
     metaLen += (int32_t)fwrite(&tfloat, 1, (size_t) pBlock->tag.nLen, pTSBuf->f);  
   } else if (pBlock->tag.nType != TSDB_DATA_TYPE_NULL) {
     metaLen += (int32_t)fwrite(&pBlock->tag.nLen, 1, sizeof(pBlock->tag.nLen), pTSBuf->f);
@@ -358,7 +358,7 @@ STSBlock* readDataFromDisk(STSBuf* pTSBuf, int32_t order, bool decomp) {
   } else if (pBlock->tag.nType == TSDB_DATA_TYPE_FLOAT) {
     float tfloat = 0;
     sz = fread(&tfloat, (size_t) pBlock->tag.nLen, 1, pTSBuf->f);
-    pBlock->tag.dKey = tfloat;
+    pBlock->tag.dKey = (double)tfloat;
     UNUSED(sz);
   } else if (pBlock->tag.nType != TSDB_DATA_TYPE_NULL) { //TODO check the return value
     sz = fread(&pBlock->tag.i64, (size_t) pBlock->tag.nLen, 1, pTSBuf->f);
