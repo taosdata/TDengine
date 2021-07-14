@@ -24,6 +24,15 @@
     memcpy((_k) + sizeof(uint64_t), (_ori), (_len)); \
   } while (0)
 
+#define SET_RES_EXT_WINDOW_KEY(_k, _ori, _len, _uid, _buf)             \
+  do {                                                                 \
+    assert(sizeof(_uid) == sizeof(uint64_t));                          \
+    *(void **)(_k) = (_buf);                                           \
+    *(uint64_t *)((_k) + POINTER_BYTES) = (_uid);                      \
+    memcpy((_k) + POINTER_BYTES + sizeof(uint64_t), (_ori), (_len));   \
+  } while (0)
+
+
 #define GET_RES_WINDOW_KEY_LEN(_l) ((_l) + sizeof(uint64_t))
 #define GET_QID(_r)  (((SQInfo*)((_r)->qinfo))->qId)
 
