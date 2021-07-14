@@ -1454,6 +1454,7 @@ static void joinRetrieveFinalResCallback(void* param, TAOS_RES* tres, int numOfR
   }
 
   // update the records for each subquery in parent sql object.
+  bool stableQuery = tscIsTwoStageSTableQuery(pQueryInfo, 0);
   for (int32_t i = 0; i < pState->numOfSub; ++i) {
     if (pParentSql->pSubs[i] == NULL) {
       tscDebug("0x%"PRIx64" %p sub:%d not retrieve data", pParentSql->self, NULL, i);
@@ -1469,7 +1470,7 @@ static void joinRetrieveFinalResCallback(void* param, TAOS_RES* tres, int numOfR
           pParentSql->pSubs[i]->self, i, pRes1->numOfRows, pRes1->numOfTotal);
       assert(pRes1->row < pRes1->numOfRows);
     } else {
-      if (!pQueryInfo->globalMerge) {
+      if (!stableQuery) {
         pRes1->numOfClauseTotal += pRes1->numOfRows;
       }
 
@@ -2314,8 +2315,6 @@ int32_t tscHandleFirstRoundStableQuery(SSqlObj *pSql) {
   pNewQueryInfo->window   = pQueryInfo->window;
   pNewQueryInfo->interval = pQueryInfo->interval;
   pNewQueryInfo->sessionWindow = pQueryInfo->sessionWindow;
-  pNewQueryInfo->globalMerge = pQueryInfo->globalMerge;
-  assert(pNewQueryInfo->globalMerge);
 
   pCmd->command = TSDB_SQL_SELECT;
   pNew->fp = tscFirstRoundCallback;
