@@ -475,10 +475,6 @@ static SResultRow* doSetResultOutBufByKey(SQueryRuntimeEnv* pRuntimeEnv, SResult
     pResultRowInfo->curPos = pResultRowInfo->size;
     pResultRowInfo->pResult[pResultRowInfo->size++] = pResult;
 
-    if (pResultRowInfo->curPos > 0) {
-      assert(pResultRowInfo->pResult[pResultRowInfo->curPos]->win.skey > pResultRowInfo->pResult[pResultRowInfo->curPos-1]->win.skey);
-    }
-
     int64_t index = pResultRowInfo->curPos;
     SET_RES_EXT_WINDOW_KEY(pRuntimeEnv->keyBuf, pData, bytes, tid, pResultRowInfo);
     taosHashPut(pRuntimeEnv->pResultRowListSet, pRuntimeEnv->keyBuf, GET_RES_EXT_WINDOW_KEY_LEN(bytes), &index, POINTER_BYTES);
