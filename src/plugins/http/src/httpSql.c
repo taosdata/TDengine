@@ -468,7 +468,7 @@ int32_t httpCheckAllocEscapeSql(char *oldSql, char **newSql)
     src = ++pos;
     pos = strchr(pos, '%');
     if (pos == NULL) {
-      memcpy(dst, src, sqlLen - strlen(src));
+      memcpy(dst, src, strlen(src));
       break;
     }
   }
