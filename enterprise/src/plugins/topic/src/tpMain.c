@@ -14,23 +14,23 @@
  */
 
 #define _DEFAULT_SOURCE
+#include "dnode.h"
+#include "mnode.h"
+#include "mnodeDb.h"
+#include "mnodeDef.h"
+#include "mnodeInt.h"
+#include "mnodeRead.h"
+#include "mnodeSdb.h"
+#include "mnodeShow.h"
+#include "mnodeUser.h"
+#include "mnodeWrite.h"
 #include "os.h"
 #include "taosdef.h"
 #include "taoserror.h"
 #include "tglobal.h"
-#include "mnode.h"
-#include "dnode.h"
-#include "mnodeDef.h"
-#include "mnodeInt.h"
-#include "mnodeDb.h"
-#include "mnodeSdb.h"
-#include "mnodeShow.h"
-#include "mnodeUser.h"
-#include "mnodeRead.h"
-#include "mnodeWrite.h"
 
 #define TP_SCHEMA_SQL_LEN 4096
-#define TP_BINARY_LEN     16000
+#define TP_BINARY_LEN 16000
 
 extern void *  tsDbSdb;
 extern char *  mnodeGetDbStr(char *src);
@@ -110,8 +110,9 @@ static void tpBuildDropDbSql(char *sql, const char *topic) {
 }
 
 static void tpBuildCreateStableSql(char *sql, const char *topic) {
-  snprintf(sql, TP_SCHEMA_SQL_LEN, "create table if not exists %s.ps (off timestamp, ts timestamp, content binary(%d)) tags(pid int)",
-           topic, TP_BINARY_LEN);
+  snprintf(sql, TP_SCHEMA_SQL_LEN,
+           "create table if not exists %s.ps (off timestamp, ts timestamp, content binary(%d)) tags(pid int)", topic,
+           TP_BINARY_LEN);
 }
 
 static void tpBuildCreateCtableSql(char *sql, const char *topic, int32_t tableId) {
@@ -383,7 +384,7 @@ static void *tpProcessDropTp(void *param) {
     if (pDrop->ignoreNotExists) {
       mDebug("topic:%s, tp already exist, ignore exist is set", pDrop->db);
       goto dtp_over;
-    } 
+    }
   }
 
   if (pDb == NULL || pDb->cfg.dbType != TSDB_DB_TYPE_TOPIC) {
@@ -560,16 +561,16 @@ void tpUpdateTs(int32_t vgId, int64_t *seq, void *pMsg) {
     int32_t rows = 0;
     int64_t sec = (int64_t)taosGetTimestampSec() * 1000000L;
     while (rows < numOfRows && rowOffset < blockTotalLen) {
-      SDataRow *pRow = (SDataRow *)((char *)pBlock->data + rowOffset);
+      SMemRow *pRow = (SMemRow *)((char *)pBlock->data + rowOffset);
 
-      rowOffset += dataRowLen(pRow);
+      rowOffset += memRowTLen(pRow);
       rows++;
 
       if ((*seq)++ < sec) {
         *seq = sec;
       }
 
-      dataRowTKey(pRow) = *seq;
+      memRowSetTKey(pRow, *seq);
       mTrace("vgId:%d, sec:%" PRId64 ", seq:%" PRId64, vgId, sec, *seq);
     }
   }
