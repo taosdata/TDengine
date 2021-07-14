@@ -437,6 +437,11 @@ static SResultRow* doSetResultOutBufByKey(SQueryRuntimeEnv* pRuntimeEnv, SResult
         int64_t* index = taosHashGet(pRuntimeEnv->pResultRowListSet, pRuntimeEnv->keyBuf, GET_RES_WINDOW_KEY_LEN(bytes));
         if (index != NULL) {
           pResultRowInfo->curPos = (int32_t) *index;
+          if (pResultRowInfo->size > 1) {
+            for(int32_t k = 0; k <pResultRowInfo->size - 1; ++k) {
+              assert(pResultRowInfo->pResult[k]->win.skey < pResultRowInfo->pResult[k+1]->win.skey);
+            }
+          }
           existed = true;
         } else {
           existed = false;
@@ -469,6 +474,10 @@ static SResultRow* doSetResultOutBufByKey(SQueryRuntimeEnv* pRuntimeEnv, SResult
 
     pResultRowInfo->curPos = pResultRowInfo->size;
     pResultRowInfo->pResult[pResultRowInfo->size++] = pResult;
+
+    if (pResultRowInfo->curPos > 0) {
+      assert(pResultRowInfo->pResult[pResultRowInfo->curPos]->win.skey > pResultRowInfo->pResult[pResultRowInfo->curPos-1]->win.skey);
+    }
 
     int64_t index = pResultRowInfo->curPos;
     SET_RES_EXT_WINDOW_KEY(pRuntimeEnv->keyBuf, pData, bytes, tid, pResultRowInfo);
