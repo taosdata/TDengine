@@ -1124,6 +1124,8 @@ static int32_t mnodeDropSuperTableCb(SMnodeMsg *pMsg, int32_t code) {
   mLInfo("msg:%p, app:%p stable:%s, is dropped from sdb", pMsg, pMsg->rpcMsg.ahandle, pTable->info.tableId);
 
   SSTableObj *pStable = (SSTableObj *)pMsg->pTable;
+  mnodeDropAllChildTablesInStable(pStable);
+
   if (pStable->vgHash != NULL /*pStable->numOfTables != 0*/) {
     int32_t *pVgId = taosHashIterate(pStable->vgHash, NULL);
     while (pVgId) {
@@ -1141,14 +1143,17 @@ static int32_t mnodeDropSuperTableCb(SMnodeMsg *pMsg, int32_t code) {
             pMsg->rpcMsg.ahandle, pStable->info.tableId, pVgroup->vgId, pStable->vgHash,
             taosHashGetSize(pStable->vgHash));
       SRpcEpSet epSet = mnodeGetEpSetFromVgroup(pVgroup);
-      SRpcMsg   rpcMsg = {.pCont = pDrop, .contLen = sizeof(SDropSTableMsg), .msgType = TSDB_MSG_TYPE_MD_DROP_STABLE};
+      SRpcMsg   rpcMsg = {
+        .ahandle = pVgroup,
+        .pCont = pDrop,
+        .contLen = sizeof(SDropSTableMsg),
+        .msgType = TSDB_MSG_TYPE_MD_DROP_STABLE
+      };
       dnodeSendMsgToDnode(&epSet, &rpcMsg);
       mnodeDecVgroupRef(pVgroup);
     }
 
     taosHashCancelIterate(pStable->vgHash, pVgId);
-
-    mnodeDropAllChildTablesInStable(pStable);
   }
 
   return TSDB_CODE_SUCCESS;
@@ -1800,6 +1805,12 @@ static int32_t mnodeProcessSuperTableVgroupMsg(SMnodeMsg *pMsg) {
 
 static void mnodeProcessDropSuperTableRsp(SRpcMsg *rpcMsg) {
   mInfo("drop stable rsp received, result:%s", tstrerror(rpcMsg->code));
+  if (rpcMsg->ahandle == NULL) return;
+  SVgObj *pVgroup = rpcMsg->ahandle;
+  if (pVgroup->numOfTables <= 0) {
+    mInfo("vgId:%d, all tables is dropped, drop vgroup", pVgroup->vgId);
+    mnodeDropVgroup(pVgroup, NULL);
+  }
 }
 
 static void *mnodeBuildCreateChildTableMsg(SCMCreateTableMsg *pCreateMsg, SCTableObj *pTable) {
