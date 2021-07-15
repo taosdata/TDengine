@@ -110,7 +110,7 @@ public class Utils {
             return rawSql;
         // toLowerCase
         String preparedSql = rawSql.trim().toLowerCase();
-        String[] clause = new String[]{"values\\s*\\(.*?\\)", "tags\\s*\\(.*?\\)", "where\\s*.*"};
+        String[] clause = new String[]{"values\\s*\\([\\s\\S]*?\\)", "tags\\s*\\([\\s\\S]*?\\)", "where[\\s\\S]*"};
         Map<Integer, Integer> placeholderPositions = new HashMap<>();
         RangeSet<Integer> clauseRangeSet = TreeRangeSet.create();
         findPlaceholderPosition(preparedSql, placeholderPositions);
