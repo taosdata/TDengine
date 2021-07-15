@@ -1365,23 +1365,23 @@ int32_t tscGetTimeStampValue(char *value, uint16_t len, SMLTimeStampType type, i
   }
   switch (type) {
     case SML_TIME_STAMP_NOW: {
-      time_t now = time(NULL);
-      *ts = SECONDS_TO_MICRO((int64_t)now);
+      *ts = taosGetTimestampNs();
       break;
     }
     case SML_TIME_STAMP_SECONDS: {
+      *ts = (int64_t)(*ts * 1e9);
       break;
     }
     case SML_TIME_STAMP_MILLI_SECONDS: {
-      *ts = SECONDS_TO_MILLI(*ts);
+      *ts = convertTimePrecision(*ts, TSDB_TIME_PRECISION_MILLI, TSDB_TIME_PRECISION_NANO);
       break;
     }
     case SML_TIME_STAMP_MICRO_SECONDS: {
-      *ts = SECONDS_TO_MICRO(*ts);
+      *ts = convertTimePrecision(*ts, TSDB_TIME_PRECISION_MICRO, TSDB_TIME_PRECISION_NANO);
       break;
     }
     case SML_TIME_STAMP_NANO_SECONDS: {
-      *ts = SECONDS_TO_NANO(*ts);
+      *ts = *ts * 1;
       break;
     }
     default: {
@@ -1405,7 +1405,7 @@ int32_t taos_sml_timestamp_convert(TAOS_SML_KV *pVal, char *value, uint16_t len)
   if (ret) {
     return ret;
   }
-  printf("Timestamp after conversion:%lld\n", tsVal);
+  printf("Timestamp after conversion:%ld\n", tsVal);
 
   pVal->type = TSDB_DATA_TYPE_TIMESTAMP;
   pVal->length = (int16_t)tDataTypes[pVal->type].bytes;
@@ -1592,12 +1592,14 @@ int32_t taos_sml_parse_measurement(TAOS_SML_DATA_POINT *pSml, const char **index
   pSml->stableName = calloc(TSDB_TABLE_NAME_LEN, 1);
   if (*cur == '_') {
     printf("Measurement field cannnot start with \'_\'\n");
+    free(pSml->stableName);
     return TSDB_CODE_TSC_LINE_SYNTAX_ERROR;
   }
 
   while (*cur != '\0') {
     if (len > TSDB_TABLE_NAME_LEN) {
       printf("Measurement field cannot exceeds 193 characters");
+      free(pSml->stableName);
       return TSDB_CODE_TSC_LINE_SYNTAX_ERROR;
     }
     //first unescaped comma or space identifies measurement
@@ -1635,7 +1637,7 @@ bool tscGetChildTableName(TAOS_SML_DATA_POINT *pData) {
   for (int i = 0; i < tagNum; ++i) {
     //use tag value as child table name if key is "ID"
     //tag value has to be binary for now
-    if (!strcmp(pTags->key, "ID") && pTags->type == TSDB_DATA_TYPE_BINARY) {
+    if (!strcasecmp(pTags->key, "ID") && pTags->type == TSDB_DATA_TYPE_BINARY) {
       memcpy(childTableName, pTags->value, pTags->length);
       return true;
     }
@@ -1654,8 +1656,6 @@ int32_t tscParseLine(const char* sql, TAOS_SML_DATA_POINT* sml_data) {
   ret = taos_sml_parse_measurement(sml_data, &index, &has_tags);
   if (ret) {
     printf("Unable to parse measurement\n");
-    free(sml_data->stableName);
-    free(sml_data);
     return ret;
   }
   printf("============Parse measurement finished, has_tags:%d===============\n", has_tags);
@@ -1671,11 +1671,36 @@ int32_t tscParseLine(const char* sql, TAOS_SML_DATA_POINT* sml_data) {
     sml_data->childTableName = calloc(TSDB_TABLE_NAME_LEN, 1);
     if (!tscGetChildTableName(sml_data)) {
       free(sml_data->childTableName);
+      sml_data->childTableName = NULL;
+      printf("no table name\n");
+    } else {
+      printf("Child table name:%02x:%02x:%02x:%02x\n", sml_data->childTableName[0], sml_data->childTableName[1],
+             sml_data->childTableName[2], sml_data->childTableName[3]);
     }
-    printf("Child table name:%02x:%02x:%02x:%02x\n", sml_data->childTableName[0],
-                                                     sml_data->childTableName[1],
-                                                     sml_data->childTableName[2],
-                                                     sml_data->childTableName[3]);
+
+    TAOS_SML_KV* destTags = calloc(sml_data->tagNum, sizeof(TAOS_SML_KV));
+    TAOS_SML_KV* srcTags = sml_data->tags;
+    int numDestTags = 0;
+    for (int32_t i = 0; i < sml_data->tagNum; ++i) {
+      TAOS_SML_KV* srcTag = srcTags + i;
+      if (strcasecmp(srcTag->key, "ID") == 0) {
+        continue;
+      } else {
+        TAOS_SML_KV* destTag = destTags + numDestTags;
+        memcpy(destTag, srcTag, sizeof(TAOS_SML_KV));
+        destTag->key = calloc(1, strlen(srcTag->key) + 1);
+        memcpy(destTag->key, srcTag->key, strlen(srcTag->key) + 1);
+        destTag->value = calloc(1, srcTag->length);
+        memcpy(destTag->value, srcTag->value, srcTag->length);
+        numDestTags++;
+      }
+      free(srcTag->key);
+      free(srcTag->value);
+    }
+    sml_data->tags = destTags;
+    sml_data->tagNum = numDestTags;
+
+    free(srcTags);
   } else {
     //no tags given
   }

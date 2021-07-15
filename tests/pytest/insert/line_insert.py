@@ -55,24 +55,33 @@ class TDTestCase:
         self._conn.insertLines([ lines2[1] ])
         print("insertLines result {}".format(code))
 
-        tdSql.query("select * from st");
+        tdSql.query("select * from st")
         tdSql.checkRows(4)
 
-        tdSql.query("select * from ste");
+        tdSql.query("select * from ste")
         tdSql.checkRows(3)
 
-        tdSql.query("select * from stf");
+        tdSql.query("select * from stf")
         tdSql.checkRows(2)
 
-        tdSql.query("select * from stg");
+        tdSql.query("select * from stg")
         tdSql.checkRows(2)
 
-        tdSql.query("show tables");
+        tdSql.query("show tables")
         tdSql.checkRows(8)
 
-        tdSql.query("describe stf");
+        tdSql.query("describe stf")
         tdSql.checkData(2, 2, 14)
 
+        self._conn.insertLines([
+                                "sth,t1=4i64,t2=5f64,t4=5f64,ID=\"childtable\" c1=3i64,c3=L\"passitagin_stf\",c2=false,c5=5f64,c6=7u64 1626006933641ms",
+                                "sth,t1=4i64,t2=5f64,t4=5f64 c1=3i64,c3=L\"passitagin_stf\",c2=false,c5=5f64,c6=7u64 1626006933654ms"                    
+                                ])
+        tdSql.query('select tbname, * from sth')
+        tdSql.checkRows(2)
+
+        tdSql.query('select tbname, * from childtable')
+        tdSql.checkRows(1)
     def stop(self):
         tdSql.close()
         tdLog.success("%s successfully executed" % __file__)
