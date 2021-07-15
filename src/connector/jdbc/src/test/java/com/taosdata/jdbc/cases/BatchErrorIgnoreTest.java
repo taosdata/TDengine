@@ -2,10 +2,7 @@ package com.taosdata.jdbc.cases;
 
 import org.junit.*;
 
-import java.sql.Connection;
-import java.sql.DriverManager;
-import java.sql.SQLException;
-import java.sql.Statement;
+import java.sql.*;
 import java.util.stream.IntStream;
 
 public class BatchErrorIgnoreTest {
@@ -18,7 +15,6 @@ public class BatchErrorIgnoreTest {
         Connection conn = DriverManager.getConnection("jdbc:TAOS://" + host + ":6030/?user=root&password=taosdata");
 
         // when
-        int[] results = null;
         try (Statement stmt = conn.createStatement()) {
             IntStream.range(1, 6).mapToObj(i -> "insert into test.t" + i + " values(now, " + i + ")").forEach(sql -> {
                 try {
@@ -37,20 +33,18 @@ public class BatchErrorIgnoreTest {
             });
             stmt.addBatch("select count(*) from test.weather");
 
-            results = stmt.executeBatch();
-        } catch (SQLException e) {
-            e.printStackTrace();
+            stmt.executeBatch();
+        } catch (BatchUpdateException e) {
+            int[] updateCounts = e.getUpdateCounts();
+            Assert.assertEquals(6, updateCounts.length);
+            Assert.assertEquals(1, updateCounts[0]);
+            Assert.assertEquals(1, updateCounts[1]);
+            Assert.assertEquals(1, updateCounts[2]);
+            Assert.assertEquals(1, updateCounts[3]);
+            Assert.assertEquals(1, updateCounts[4]);
+            Assert.assertEquals(Statement.EXECUTE_FAILED, updateCounts[5]);
         }
 
-        // then
-        assert results != null;
-        Assert.assertEquals(6, results.length);
-        Assert.assertEquals(1, results[0]);
-        Assert.assertEquals(1, results[1]);
-        Assert.assertEquals(1, results[2]);
-        Assert.assertEquals(1, results[3]);
-        Assert.assertEquals(1, results[4]);
-        Assert.assertEquals(Statement.EXECUTE_FAILED, results[5]);
     }
 
     @Test
