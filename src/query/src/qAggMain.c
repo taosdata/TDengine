@@ -74,7 +74,6 @@
   } while (0);
 
 void noop1(SQLFunctionCtx *UNUSED_PARAM(pCtx)) {}
-void noop2(SQLFunctionCtx *UNUSED_PARAM(pCtx), int32_t UNUSED_PARAM(index)) {}
 
 void doFinalizer(SQLFunctionCtx *pCtx) { RESET_RESULT_INFO(GET_RES_INFO(pCtx)); }
 
@@ -1576,7 +1575,7 @@ static void last_function(SQLFunctionCtx *pCtx) {
 
       memcpy(pCtx->pOutput, data, pCtx->inputBytes);
 
-      TSKEY ts = GET_TS_DATA(pCtx, i);
+      TSKEY ts = pCtx->ptsList ? GET_TS_DATA(pCtx, i) : 0;
       DO_UPDATE_TAG_COLUMNS(pCtx, ts);
 
       pResInfo->hasResult = DATA_SET_FLAG;
@@ -1591,7 +1590,7 @@ static void last_function(SQLFunctionCtx *pCtx) {
         continue;
       }
 
-      TSKEY ts = GET_TS_DATA(pCtx, i);
+      TSKEY ts = pCtx->ptsList ? GET_TS_DATA(pCtx, i) : 0;
 
       char* buf = GET_ROWCELL_INTERBUF(pResInfo);
       if (pResInfo->hasResult != DATA_SET_FLAG || (*(TSKEY*)buf) < ts) {
@@ -1759,6 +1758,49 @@ static void valuePairAssign(tValuePair *dst, int16_t type, const char *val, int6
     memcpy((dst)->pTags, (src)->pTags, (size_t)(__l)); \
   } while (0)
 
+static int32_t topBotComparFn(const void *p1, const void *p2, const void *param)
+{
+  uint16_t     type = *(uint16_t *) param;
+  tValuePair  *val1 = *(tValuePair **) p1;
+  tValuePair  *val2 = *(tValuePair **) p2;
+
+  if (IS_SIGNED_NUMERIC_TYPE(type)) {
+    if (val1->v.i64 == val2->v.i64) {
+      return 0;
+    }
+
+    return (val1->v.i64 > val2->v.i64) ? 1 : -1;
+   } else if (IS_UNSIGNED_NUMERIC_TYPE(type)) {
+     if (val1->v.u64 == val2->v.u64) {
+       return 0;
+     }
+
+     return (val1->v.u64 > val2->v.u64) ? 1 : -1;
+  }
+
+  if (val1->v.dKey == val2->v.dKey) {
+    return 0;
+  }
+
+  return (val1->v.dKey > val2->v.dKey) ? 1 : -1;
+}
+
+static void topBotSwapFn(void *dst, void *src, const void *param)
+{
+  char         tag[32768];
+  tValuePair   temp;
+  uint16_t     tagLen = *(uint16_t *) param;
+  tValuePair  *vdst = *(tValuePair **) dst;
+  tValuePair  *vsrc = *(tValuePair **) src;
+
+  memset(tag, 0, sizeof(tag));
+  temp.pTags = tag;
+
+  VALUEPAIRASSIGN(&temp, vdst, tagLen);
+  VALUEPAIRASSIGN(vdst, vsrc, tagLen);
+  VALUEPAIRASSIGN(vsrc, &temp, tagLen);
+}
+
 static void do_top_function_add(STopBotInfo *pInfo, int32_t maxLen, void *pData, int64_t ts, uint16_t type,
                                 SExtTagsInfo *pTagInfo, char *pTags, int16_t stage) {
   tVariant val = {0};
@@ -1766,61 +1808,19 @@ static void do_top_function_add(STopBotInfo *pInfo, int32_t maxLen, void *pData,
   
   tValuePair **pList = pInfo->res;
   assert(pList != NULL);
-  
+
   if (pInfo->num < maxLen) {
-    if (pInfo->num == 0 ||
-        (IS_SIGNED_NUMERIC_TYPE(type) && val.i64 >= pList[pInfo->num - 1]->v.i64) ||
-        (IS_UNSIGNED_NUMERIC_TYPE(type) && val.u64 >= pList[pInfo->num - 1]->v.u64) ||
-        (IS_FLOAT_TYPE(type) && val.dKey >= pList[pInfo->num - 1]->v.dKey)) {
-      valuePairAssign(pList[pInfo->num], type, (const char*)&val.i64, ts, pTags, pTagInfo, stage);
-    } else {
-      int32_t i = pInfo->num - 1;
-      if (IS_SIGNED_NUMERIC_TYPE(type)) {
-        while (i >= 0 && pList[i]->v.i64 > val.i64) {
-          VALUEPAIRASSIGN(pList[i + 1], pList[i], pTagInfo->tagsLen);
-          i -= 1;
-        }
-      } else if (IS_UNSIGNED_NUMERIC_TYPE(type)) {
-        while (i >= 0 && pList[i]->v.u64 > val.u64) {
-          VALUEPAIRASSIGN(pList[i + 1], pList[i], pTagInfo->tagsLen);
-          i -= 1;
-        }
-      } else {
-        while (i >= 0 && pList[i]->v.dKey > val.dKey) {
-          VALUEPAIRASSIGN(pList[i + 1], pList[i], pTagInfo->tagsLen);
-          i -= 1;
-        }
-      }
-      
-      valuePairAssign(pList[i + 1], type, (const char*) &val.i64, ts, pTags, pTagInfo, stage);
-    }
-    
+    valuePairAssign(pList[pInfo->num], type, (const char *)&val.i64, ts, pTags, pTagInfo, stage);
+
+    taosheapsort((void *) pList, sizeof(tValuePair **), pInfo->num + 1, (const void *) &type, topBotComparFn, (const void *) &pTagInfo->tagsLen, topBotSwapFn, 0);
+ 
     pInfo->num++;
   } else {
-    int32_t i = 0;
-
     if ((IS_SIGNED_NUMERIC_TYPE(type) && val.i64 > pList[0]->v.i64) ||
         (IS_UNSIGNED_NUMERIC_TYPE(type) && val.u64 > pList[0]->v.u64) ||
         (IS_FLOAT_TYPE(type) && val.dKey > pList[0]->v.dKey)) {
-      // find the appropriate the slot position
-      if (IS_SIGNED_NUMERIC_TYPE(type)) {
-        while (i + 1 < maxLen && pList[i + 1]->v.i64 < val.i64) {
-          VALUEPAIRASSIGN(pList[i], pList[i + 1], pTagInfo->tagsLen);
-          i += 1;
-        }
-      } if (IS_UNSIGNED_NUMERIC_TYPE(type)) {
-        while (i + 1 < maxLen && pList[i + 1]->v.u64 < val.u64) {
-          VALUEPAIRASSIGN(pList[i], pList[i + 1], pTagInfo->tagsLen);
-          i += 1;
-        }
-      } else {
-        while (i + 1 < maxLen && pList[i + 1]->v.dKey < val.dKey) {
-          VALUEPAIRASSIGN(pList[i], pList[i + 1], pTagInfo->tagsLen);
-          i += 1;
-        }
-      }
-
-      valuePairAssign(pList[i], type, (const char *)&val.i64, ts, pTags, pTagInfo, stage);
+      valuePairAssign(pList[0], type, (const char *)&val.i64, ts, pTags, pTagInfo, stage);
+      taosheapadjust((void *) pList, sizeof(tValuePair **), 0, maxLen - 1, (const void *) &type, topBotComparFn, (const void *) &pTagInfo->tagsLen, topBotSwapFn, 0);
     }
   }
 }
@@ -1834,57 +1834,17 @@ static void do_bottom_function_add(STopBotInfo *pInfo, int32_t maxLen, void *pDa
   assert(pList != NULL);
 
   if (pInfo->num < maxLen) {
-    if (pInfo->num == 0) {
-      valuePairAssign(pList[pInfo->num], type, (const char*) &val.i64, ts, pTags, pTagInfo, stage);
-    } else {
-      int32_t i = pInfo->num - 1;
-      
-      if (IS_SIGNED_NUMERIC_TYPE(type)) {
-        while (i >= 0 && pList[i]->v.i64 < val.i64) {
-          VALUEPAIRASSIGN(pList[i + 1], pList[i], pTagInfo->tagsLen);
-          i -= 1;
-        }
-      } else if (IS_UNSIGNED_NUMERIC_TYPE(type)) {
-          while (i >= 0 && pList[i]->v.u64 < val.u64) {
-            VALUEPAIRASSIGN(pList[i + 1], pList[i], pTagInfo->tagsLen);
-            i -= 1;
-          }
-      } else {
-        while (i >= 0 && pList[i]->v.dKey < val.dKey) {
-          VALUEPAIRASSIGN(pList[i + 1], pList[i], pTagInfo->tagsLen);
-          i -= 1;
-        }
-      }
-      
-      valuePairAssign(pList[i + 1], type, (const char*)&val.i64, ts, pTags, pTagInfo, stage);
-    }
-    
+    valuePairAssign(pList[pInfo->num], type, (const char *)&val.i64, ts, pTags, pTagInfo, stage);
+
+    taosheapsort((void *) pList, sizeof(tValuePair **), pInfo->num + 1, (const void *) &type, topBotComparFn, (const void *) &pTagInfo->tagsLen, topBotSwapFn, 1);
+
     pInfo->num++;
   } else {
-    int32_t i = 0;
-    
     if ((IS_SIGNED_NUMERIC_TYPE(type) && val.i64 < pList[0]->v.i64) ||
         (IS_UNSIGNED_NUMERIC_TYPE(type) && val.u64 < pList[0]->v.u64) ||
         (IS_FLOAT_TYPE(type) && val.dKey < pList[0]->v.dKey)) {
-      // find the appropriate the slot position
-      if (IS_SIGNED_NUMERIC_TYPE(type)) {
-        while (i + 1 < maxLen && pList[i + 1]->v.i64 > val.i64) {
-          VALUEPAIRASSIGN(pList[i], pList[i + 1], pTagInfo->tagsLen);
-          i += 1;
-        }
-      } if (IS_UNSIGNED_NUMERIC_TYPE(type)) {
-        while (i + 1 < maxLen && pList[i + 1]->v.u64 > val.u64) {
-          VALUEPAIRASSIGN(pList[i], pList[i + 1], pTagInfo->tagsLen);
-          i += 1;
-        }
-      } else {
-        while (i + 1 < maxLen && pList[i + 1]->v.dKey > val.dKey) {
-          VALUEPAIRASSIGN(pList[i], pList[i + 1], pTagInfo->tagsLen);
-          i += 1;
-        }
-      }
-      
-      valuePairAssign(pList[i], type, (const char*)&val.i64, ts, pTags, pTagInfo, stage);
+      valuePairAssign(pList[0], type, (const char *)&val.i64, ts, pTags, pTagInfo, stage);
+      taosheapadjust((void *) pList, sizeof(tValuePair **), 0, maxLen - 1, (const void *) &type, topBotComparFn, (const void *) &pTagInfo->tagsLen, topBotSwapFn, 1);
     }
   }
 }

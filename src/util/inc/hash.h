@@ -140,7 +140,7 @@ int32_t taosHashRemoveWithData(SHashObj *pHashObj, const void *key, size_t keyLe
 
 int32_t taosHashCondTraverse(SHashObj *pHashObj, bool (*fp)(void *, void *), void *param);
 
-void taosHashEmpty(SHashObj *pHashObj);
+void taosHashClear(SHashObj *pHashObj);
 
 /**
  * clean up hash table

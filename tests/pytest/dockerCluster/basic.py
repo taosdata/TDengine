@@ -44,7 +44,16 @@ class BuildDockerCluser:
             "jnidebugFlag":"135",
             "qdebugFlag":"135",
             "maxSQLLength":"1048576"
-        }     
+        }
+        cmd = "mkdir -p %s" % self.dockerDir
+        self.execCmd(cmd)
+
+        cmd = "cp *.yml %s" % self.dockerDir
+        self.execCmd(cmd)
+
+        cmd = "cp Dockerfile %s" % self.dockerDir
+        self.execCmd(cmd)
+
 
     # execute command, and return the output 
     # ref: https://blog.csdn.net/wowocpp/article/details/80775650  
@@ -81,7 +90,7 @@ class BuildDockerCluser:
     def removeFile(self, rootDir, index, dir):
         cmd = "rm -rf %s/node%d/%s/*" % (rootDir, index, dir)        
         self.execCmd(cmd)
-
+    
     def clearEnv(self):
         cmd = "cd %s && docker-compose down --remove-orphans" % self.dockerDir
         self.execCmd(cmd)
@@ -108,10 +117,14 @@ class BuildDockerCluser:
         self.execCmd(cmd)
     
     def updateLocalhosts(self):
-        cmd = "grep '172.27.0.7 *tdnode1' /etc/hosts"
+        cmd = "grep '172.27.0.7 *tdnode1' /etc/hosts | sed 's: ::g'"
         result = self.execCmdAndGetOutput(cmd)
-        if result and not result.isspace():
+        print(result)
+        if result is None or result.isspace():
+            print("==========")
             cmd = "echo '172.27.0.7 tdnode1' >> /etc/hosts"
+            display = "echo %s" % cmd
+            self.execCmd(display)
             self.execCmd(cmd)
     
     def deploy(self):
@@ -138,13 +151,13 @@ class BuildDockerCluser:
         if self.numOfNodes < 2 or self.numOfNodes > 10:
             print("the number of nodes must be between 2 and 10")
             exit(0)
-        self.clearEnv()
-        self.createDirs()
         self.updateLocalhosts()
         self.deploy()
 
     def run(self):           
-        cmd = "./buildClusterEnv.sh -n %d -v %s -d %s" % (self.numOfNodes, self.getTaosdVersion(), self.dockerDir)        
+        cmd = "./buildClusterEnv.sh -n %d -v %s -d %s" % (self.numOfNodes, self.getTaosdVersion(), self.dockerDir)
+        display = "echo %s" % cmd
+        self.execCmd(display)
         self.execCmd(cmd)
         self.getConnection()
         self.createDondes()

@@ -303,10 +303,12 @@ alter_db_optr(Y) ::= alter_db_optr(Z) quorum(X).      { Y = Z; Y.quorum = strtol
 alter_db_optr(Y) ::= alter_db_optr(Z) keep(X).        { Y = Z; Y.keep = X; }
 alter_db_optr(Y) ::= alter_db_optr(Z) blocks(X).      { Y = Z; Y.numOfBlocks = strtol(X.z, NULL, 10); }
 alter_db_optr(Y) ::= alter_db_optr(Z) comp(X).        { Y = Z; Y.compressionLevel = strtol(X.z, NULL, 10); }
-alter_db_optr(Y) ::= alter_db_optr(Z) wal(X).         { Y = Z; Y.walLevel = strtol(X.z, NULL, 10); }
-alter_db_optr(Y) ::= alter_db_optr(Z) fsync(X).       { Y = Z; Y.fsyncPeriod = strtol(X.z, NULL, 10); }
 alter_db_optr(Y) ::= alter_db_optr(Z) update(X).      { Y = Z; Y.update = strtol(X.z, NULL, 10); }
 alter_db_optr(Y) ::= alter_db_optr(Z) cachelast(X).   { Y = Z; Y.cachelast = strtol(X.z, NULL, 10); }
+
+// dynamically update the following two parameters are not allowed.
+//alter_db_optr(Y) ::= alter_db_optr(Z) fsync(X).       { Y = Z; Y.fsyncPeriod = strtol(X.z, NULL, 10); }
+//alter_db_optr(Y) ::= alter_db_optr(Z) wal(X).         { Y = Z; Y.walLevel = strtol(X.z, NULL, 10); } not support yet
 
 %type alter_topic_optr {SCreateDbInfo}
 
@@ -681,7 +683,7 @@ where_opt(A) ::= WHERE expr(X).       {A = X;}
 %type expr {tSqlExpr*}
 %destructor expr {tSqlExprDestroy($$);}
 
-expr(A) ::= LP(X) expr(Y) RP(Z).       {A = Y; A->token.z = X.z; A->token.n = (Z.z - X.z + 1);}
+expr(A) ::= LP(X) expr(Y) RP(Z).       {A = Y; A->exprToken.z = X.z; A->exprToken.n = (Z.z - X.z + 1);}
 
 expr(A) ::= ID(X).               { A = tSqlExprCreateIdValue(&X, TK_ID);}
 expr(A) ::= ID(X) DOT ID(Y).     { X.n += (1+Y.n); A = tSqlExprCreateIdValue(&X, TK_ID);}

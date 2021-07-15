@@ -6,6 +6,7 @@ import com.google.common.collect.TreeRangeSet;
 import com.taosdata.jdbc.enums.TimestampPrecision;
 
 import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.sql.Date;
 import java.sql.Time;
 import java.sql.Timestamp;
@@ -109,7 +110,7 @@ public class Utils {
             return rawSql;
         // toLowerCase
         String preparedSql = rawSql.trim().toLowerCase();
-        String[] clause = new String[]{"values\\s*\\(.*?\\)", "tags\\s*\\(.*?\\)", "where\\s*.*"};
+        String[] clause = new String[]{"values\\s*\\([\\s\\S]*?\\)", "tags\\s*\\([\\s\\S]*?\\)", "where[\\s\\S]*"};
         Map<Integer, Integer> placeholderPositions = new HashMap<>();
         RangeSet<Integer> clauseRangeSet = TreeRangeSet.create();
         findPlaceholderPosition(preparedSql, placeholderPositions);
@@ -160,7 +161,7 @@ public class Utils {
             String paraStr;
             if (para != null) {
                 if (para instanceof byte[]) {
-                    paraStr = new String((byte[]) para, Charset.forName("UTF-8"));
+                    paraStr = new String((byte[]) para, StandardCharsets.UTF_8);
                 } else {
                     paraStr = para.toString();
                 }

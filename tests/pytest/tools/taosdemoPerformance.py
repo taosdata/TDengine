@@ -16,11 +16,14 @@ import pandas as pd
 import argparse
 import os.path
 import json
+from util.log import tdLog
+from util.sql import tdSql
+
 
 class taosdemoPerformace:
     def __init__(self, commitID, dbName):
         self.commitID = commitID
-        self.dbName = dbName        
+        self.dbName = dbName
         self.host = "127.0.0.1"
         self.user = "root"
         self.password = "taosdata"
@@ -30,8 +33,8 @@ class taosdemoPerformace:
             self.user,
             self.password,
             self.config)
-        self.insertDB = "insertDB";    
-    
+        self.insertDB = "insertDB"
+
     def generateJson(self):
         db = {
             "name": "%s" % self.insertDB,
@@ -41,7 +44,7 @@ class taosdemoPerformace:
 
         stb = {
             "name": "meters",
-            "child_table_exists":"no",
+            "child_table_exists": "no",
             "childtable_count": 10000,
             "childtable_prefix": "stb_",
             "auto_create_table": "no",
@@ -57,12 +60,12 @@ class taosdemoPerformace:
             "start_timestamp": "2020-10-01 00:00:00.000",
             "sample_format": "csv",
             "sample_file": "./sample.csv",
-            "tags_file": "",            
+            "tags_file": "",
             "columns": [
                 {"type": "INT", "count": 4}
-            ],            
+            ],
             "tags": [
-                {"type": "INT", "count":1}, 
+                {"type": "INT", "count": 1},
                 {"type": "BINARY", "len": 16}
             ]
         }
@@ -88,7 +91,7 @@ class taosdemoPerformace:
             "confirm_parameter_prompt": "no",
             "insert_interval": 0,
             "num_of_records_per_req": 30000,
-            "databases": [db]        
+            "databases": [db]
         }
 
         insert_json_file = f"/tmp/insert.json"
@@ -103,24 +106,56 @@ class taosdemoPerformace:
         cmd.close()
         return output
 
-    def insertData(self):        
-        os.system("taosdemo -f %s > taosdemoperf.txt 2>&1" % self.generateJson())
-        self.createTableTime = self.getCMDOutput("grep 'Spent' taosdemoperf.txt | awk 'NR==1{print $2}'")
-        self.insertRecordsTime = self.getCMDOutput("grep 'Spent' taosdemoperf.txt | awk 'NR==2{print $2}'")
-        self.recordsPerSecond = self.getCMDOutput("grep 'Spent' taosdemoperf.txt | awk 'NR==2{print $16}'")
+    def getBuildPath(self):
+        selfPath = os.path.dirname(os.path.realpath(__file__))
+
+        if ("community" in selfPath):
+            projPath = selfPath[:selfPath.find("community")]
+        else:
+            projPath = selfPath[:selfPath.find("tests")]
+
+        for root, dirs, files in os.walk(projPath):
+            if ("taosdemo" in files):
+                rootRealPath = os.path.dirname(os.path.realpath(root))
+                if ("packaging" not in rootRealPath):
+                    buildPath = root[:len(root) - len("/build/bin")]
+                    break
+        return buildPath
+
+    def insertData(self):
+        tdSql.prepare()
+        buildPath = self.getBuildPath()
+        if (buildPath == ""):
+            tdLog.exit("taosdemo not found!")
+        else:
+            tdLog.info("taosdemo found in %s" % buildPath)
+        binPath = buildPath + "/build/bin/"
+
+        os.system(
+            "%staosdemo -f %s > taosdemoperf.txt 2>&1" %
+            (binPath, self.generateJson()))
+        self.createTableTime = self.getCMDOutput(
+            "grep 'Spent' taosdemoperf.txt | awk 'NR==1{print $2}'")
+        self.insertRecordsTime = self.getCMDOutput(
+            "grep 'Spent' taosdemoperf.txt | awk 'NR==2{print $2}'")
+        self.recordsPerSecond = self.getCMDOutput(
+            "grep 'Spent' taosdemoperf.txt | awk 'NR==2{print $16}'")
         self.commitID = self.getCMDOutput("git rev-parse --short HEAD")
-        delay = self.getCMDOutput("grep 'delay' taosdemoperf.txt | awk '{print $4}'")
+        delay = self.getCMDOutput(
+            "grep 'delay' taosdemoperf.txt | awk '{print $4}'")
         self.avgDelay = delay[:-4]
-        delay = self.getCMDOutput("grep 'delay' taosdemoperf.txt | awk '{print $6}'")
+        delay = self.getCMDOutput(
+            "grep 'delay' taosdemoperf.txt | awk '{print $6}'")
         self.maxDelay = delay[:-4]
-        delay = self.getCMDOutput("grep 'delay' taosdemoperf.txt | awk '{print $8}'") 
+        delay = self.getCMDOutput(
+            "grep 'delay' taosdemoperf.txt | awk '{print $8}'")
         self.minDelay = delay[:-3]
 
         os.system("[ -f taosdemoperf.txt ] && rm taosdemoperf.txt")
 
     def createTablesAndStoreData(self):
         cursor = self.conn.cursor()
-                    
+
         cursor.execute("create database if not exists %s" % self.dbName)
         cursor.execute("use %s" % self.dbName)
         cursor.execute("create table if not exists taosdemo_perf (ts timestamp, create_table_time float, insert_records_time float, records_per_second float, commit_id binary(50), avg_delay float, max_delay float, min_delay float)")
@@ -130,12 +165,20 @@ class taosdemoPerformace:
         print("records per second: %f" % float(self.recordsPerSecond))
         print("avg delay: %f" % float(self.avgDelay))
         print("max delay: %f" % float(self.maxDelay))
-        print("min delay: %f" % float(self.minDelay)) 
-        cursor.execute("insert into taosdemo_perf values(now, %f, %f, %f, '%s', %f, %f, %f)" % 
-        (float(self.createTableTime), float(self.insertRecordsTime), float(self.recordsPerSecond), self.commitID, float(self.avgDelay), float(self.maxDelay), float(self.minDelay)))
+        print("min delay: %f" % float(self.minDelay))
+        cursor.execute(
+            "insert into taosdemo_perf values(now, %f, %f, %f, '%s', %f, %f, %f)" %
+            (float(
+                self.createTableTime), float(
+                self.insertRecordsTime), float(
+                self.recordsPerSecond), self.commitID, float(
+                    self.avgDelay), float(
+                        self.maxDelay), float(
+                            self.minDelay)))
         cursor.execute("drop database if exists %s" % self.insertDB)
 
         cursor.close()
+
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -155,6 +198,6 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
-    perftest = taosdemoPerformace(args.commit_id, args.database_name) 
+    perftest = taosdemoPerformace(args.commit_id, args.database_name)
     perftest.insertData()
     perftest.createTablesAndStoreData()

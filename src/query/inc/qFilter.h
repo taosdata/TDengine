@@ -221,6 +221,10 @@ extern int32_t filterGetMergeRangeNum(void* h, int32_t* num);
 extern int32_t filterGetMergeRangeRes(void* h, SFilterRange *ra);
 extern int32_t filterFreeMergeRange(void* h);
 extern int32_t filterGetTimeRange(SFilterInfo *info, STimeWindow *win);
+extern int32_t filterConverNcharColumns(SFilterInfo* pFilterInfo, int32_t rows, bool *gotNchar);
+extern int32_t filterFreeNcharColumns(SFilterInfo* pFilterInfo);
+extern void filterFreeInfo(SFilterInfo *info);
+
 #ifdef __cplusplus
 }
 #endif

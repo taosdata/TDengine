@@ -485,6 +485,7 @@ static int32_t tscGetDBInfo(SCreateBuilder *builder, char *result) {
 
   char buf[TSDB_DB_NAME_LEN + 64] = {0}; 
   do {
+    memset(buf, 0, sizeof(buf));
     int32_t* lengths = taos_fetch_lengths(pSql);  
     int32_t ret = tscGetNthFieldResult(row, fields, lengths, 0, buf);
     if (0 == ret && STR_NOCASE_EQUAL(buf, strlen(buf), builder->buf, strlen(builder->buf))) {
@@ -919,7 +920,7 @@ int tscProcessLocalCmd(SSqlObj *pSql) {
   } else if (pCmd->command == TSDB_SQL_SHOW_CREATE_DATABASE) {
     pRes->code = tscProcessShowCreateDatabase(pSql); 
   } else if (pCmd->command == TSDB_SQL_RESET_CACHE) {
-    taosHashEmpty(tscTableMetaInfo);
+    taosHashClear(tscTableMetaInfo);
     pRes->code = TSDB_CODE_SUCCESS;
   } else if (pCmd->command == TSDB_SQL_SERV_VERSION) {
     pRes->code = tscProcessServerVer(pSql);

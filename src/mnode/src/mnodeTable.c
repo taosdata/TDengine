@@ -1035,6 +1035,20 @@ static int32_t mnodeCreateSuperTableCb(SMnodeMsg *pMsg, int32_t code) {
   return code;
 }
 
+static uint64_t mnodeCreateSuperTableUid() {
+  int64_t us = taosGetTimestampUs();
+  uint64_t x = (us & ((((uint64_t)1)<<40) - 1));
+  x = x << 24;
+
+  return x + ((sdbGetVersion() & ((1ul << 16) - 1ul)) << 8) + (taosRand() & ((1ul << 8) - 1ul));
+}
+
+static uint64_t mnodeCreateTableUid(int32_t vgId, int32_t tid) {
+  uint64_t uid = (((uint64_t)vgId) << 48) + ((((uint64_t)tid) & ((1ul << 24) - 1ul)) << 24) +
+                ((sdbGetVersion() & ((1ul << 16) - 1ul)) << 8) + (taosRand() & ((1ul << 8) - 1ul));
+  return uid;
+}
+
 static int32_t mnodeProcessCreateSuperTableMsg(SMnodeMsg *pMsg) {
   if (pMsg == NULL) return TSDB_CODE_MND_APP_ERROR;
 
@@ -1058,19 +1072,16 @@ static int32_t mnodeProcessCreateSuperTableMsg(SMnodeMsg *pMsg) {
     return TSDB_CODE_MND_TOO_MANY_COLUMNS;
   }
 
-  SSTableObj *   pStable = calloc(1, sizeof(SSTableObj));
+  SSTableObj *pStable = calloc(1, sizeof(SSTableObj));
   if (pStable == NULL) {
     mError("msg:%p, app:%p table:%s, failed to create, no enough memory", pMsg, pMsg->rpcMsg.ahandle, pCreate->tableName);
     return TSDB_CODE_MND_OUT_OF_MEMORY;
   }
 
-  int64_t us = taosGetTimestampUs();
   pStable->info.tableId = strdup(pCreate->tableName);
   pStable->info.type    = TSDB_SUPER_TABLE;
   pStable->createdTime  = taosGetTimestampMs();
-  int64_t x = (us&0x000000FFFFFFFFFF);
-  x = x<<24;
-  pStable->uid          = x + ((sdbGetVersion() & ((1ul << 16) - 1ul)) << 8) + (taosRand() & ((1ul << 8) - 1ul));
+  pStable->uid          = mnodeCreateSuperTableUid();
   pStable->sversion     = 0;
   pStable->tversion     = 0;
   pStable->numOfColumns = numOfColumns;
@@ -1079,7 +1090,8 @@ static int32_t mnodeProcessCreateSuperTableMsg(SMnodeMsg *pMsg) {
   int32_t schemaSize = numOfCols * sizeof(SSchema);
   pStable->schema = (SSchema *)calloc(1, schemaSize);
   if (pStable->schema == NULL) {
-    free(pStable);
+    tfree(pStable->info.tableId);
+    tfree(pStable);
     mError("msg:%p, app:%p table:%s, failed to create, no schema input", pMsg, pMsg->rpcMsg.ahandle, pCreate->tableName);
     return TSDB_CODE_MND_INVALID_TABLE_NAME;
   }
@@ -1096,6 +1108,9 @@ static int32_t mnodeProcessCreateSuperTableMsg(SMnodeMsg *pMsg) {
 
   if (!tIsValidSchema(pStable->schema, pStable->numOfColumns, pStable->numOfTags)) {
     mError("msg:%p, app:%p table:%s, failed to create table, invalid schema", pMsg, pMsg->rpcMsg.ahandle, pCreate->tableName);
+    tfree(pStable->info.tableId);
+    tfree(pStable->schema);
+    tfree(pStable);
     return TSDB_CODE_MND_INVALID_CREATE_TABLE_MSG;
   }
 
@@ -2069,16 +2084,13 @@ static int32_t mnodeDoCreateChildTable(SMnodeMsg *pMsg, int32_t tid) {
     }
 
     pTable->suid = pMsg->pSTable->uid;
-    pTable->uid = (((uint64_t)pTable->vgId) << 48) + ((((uint64_t)pTable->tid) & ((1ul << 24) - 1ul)) << 24) +
-                  ((sdbGetVersion() & ((1ul << 16) - 1ul)) << 8) + (taosRand() & ((1ul << 8) - 1ul));
+    pTable->uid  = mnodeCreateTableUid(pTable->vgId, pTable->tid);
     pTable->superTable = pMsg->pSTable;
   } else {
     if (pTable->info.type == TSDB_SUPER_TABLE) {
-      int64_t us = taosGetTimestampUs();
-      pTable->uid = (us << 24) + ((sdbGetVersion() & ((1ul << 16) - 1ul)) << 8) + (taosRand() & ((1ul << 8) - 1ul));
+      pTable->uid = mnodeCreateSuperTableUid();
     } else {
-      pTable->uid = (((uint64_t)pTable->vgId) << 48) + ((((uint64_t)pTable->tid) & ((1ul << 24) - 1ul)) << 24) +
-                    ((sdbGetVersion() & ((1ul << 16) - 1ul)) << 8) + (taosRand() & ((1ul << 8) - 1ul));
+      pTable->uid = mnodeCreateTableUid(pTable->vgId, pTable->tid);
     }
 
     pTable->sversion     = 0;

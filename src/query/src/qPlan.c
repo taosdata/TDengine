@@ -127,7 +127,8 @@ static SQueryNode* doAddTableColumnNode(SQueryInfo* pQueryInfo, STableMetaInfo* 
       SColumn* pCol = taosArrayGetP(tableCols, i);
 
       SColumnIndex index = {.tableIndex = 0, .columnIndex = pCol->columnIndex};
-      SExprInfo*   p = tscExprCreate(pQueryInfo, TSDB_FUNC_PRJ, &index, pCol->info.type, pCol->info.bytes,
+      STableMetaInfo* pTableMetaInfo1 = tscGetMetaInfo(pQueryInfo, index.tableIndex);
+      SExprInfo*   p = tscExprCreate(pTableMetaInfo1, TSDB_FUNC_PRJ, &index, pCol->info.type, pCol->info.bytes,
                                      pCol->info.colId, 0, TSDB_COL_NORMAL);
       strncpy(p->base.aliasName, pSchema[pCol->columnIndex].name, tListLen(p->base.aliasName));
 
@@ -565,7 +566,7 @@ SArray* createExecOperatorPlan(SQueryAttr* pQueryAttr) {
       taosArrayPush(plan, &op);
 
       if (pQueryAttr->pExpr2 != NULL) {
-        op = OP_Arithmetic;
+        op = OP_Project;
         taosArrayPush(plan, &op);
       }
 
@@ -585,7 +586,7 @@ SArray* createExecOperatorPlan(SQueryAttr* pQueryAttr) {
     }
 
     if (pQueryAttr->pExpr2 != NULL) {
-      op = OP_Arithmetic;
+      op = OP_Project;
       taosArrayPush(plan, &op);
     }
   } else if (pQueryAttr->sw.gap > 0) {
@@ -593,7 +594,7 @@ SArray* createExecOperatorPlan(SQueryAttr* pQueryAttr) {
     taosArrayPush(plan, &op);
 
     if (pQueryAttr->pExpr2 != NULL) {
-      op = OP_Arithmetic;
+      op = OP_Project;
       taosArrayPush(plan, &op);
     }
   } else if (pQueryAttr->stateWindow) {
@@ -601,7 +602,7 @@ SArray* createExecOperatorPlan(SQueryAttr* pQueryAttr) {
     taosArrayPush(plan, &op);
 
     if (pQueryAttr->pExpr2 != NULL) {
-      op = OP_Arithmetic;
+      op = OP_Project;
       taosArrayPush(plan, &op);
     }
   } else if (pQueryAttr->simpleAgg) {
@@ -619,15 +620,15 @@ SArray* createExecOperatorPlan(SQueryAttr* pQueryAttr) {
     }
 
     if (pQueryAttr->pExpr2 != NULL && !pQueryAttr->stableQuery) {
-      op = OP_Arithmetic;
+      op = OP_Project;
       taosArrayPush(plan, &op);
     }
   } else {  // diff/add/multiply/subtract/division
-    if (pQueryAttr->numOfFilterCols > 0 && pQueryAttr->vgId == 0) { // todo refactor
+    if (pQueryAttr->numOfFilterCols > 0 && pQueryAttr->createFilterOperator && pQueryAttr->vgId == 0) { // todo refactor
       op = OP_Filter;
       taosArrayPush(plan, &op);
     } else {
-      op = OP_Arithmetic;
+      op = OP_Project;
       taosArrayPush(plan, &op);
     }
   }
@@ -665,7 +666,7 @@ SArray* createGlobalMergePlan(SQueryAttr* pQueryAttr) {
     }
 
     if (pQueryAttr->pExpr2 != NULL) {
-      op = OP_Arithmetic;
+      op = OP_Project;
       taosArrayPush(plan, &op);
     }
   }

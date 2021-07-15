@@ -1262,7 +1262,7 @@ int32_t filterProcessGroupsSameColumn(SFilterInfo *info, uint16_t id1, uint16_t 
       cidx2 = cra->idx;
     } else {
       u1 = FILTER_GROUP_UNIT(info, g, 0);
-      int32_t type = FILTER_UNIT_DATA_TYPE(u1);
+      type = FILTER_UNIT_DATA_TYPE(u1);
       if (FILTER_NO_MERGE_DATA_TYPE(type)) {
         continue;
       }
@@ -1547,8 +1547,8 @@ int32_t filterRewrite(SFilterInfo *info, SFilterGroupCtx* gctx, SFilterGroupCtx*
 
     if (ctx->colRange && taosArrayGetSize(ctx->colRange) > 0) {
       int32_t size = (int32_t)taosArrayGetSize(ctx->colRange);
-      for (int32_t i = 0; i < size; ++i) {
-        SFilterColRange *cra = taosArrayGet(ctx->colRange, i);
+      for (int32_t m = 0; m < size; ++m) {
+        SFilterColRange *cra = taosArrayGet(ctx->colRange, m);
         filterAddGroupUnitFromRange(info, &oinfo, cra, &ng, TSDB_RELATION_AND, NULL);
       }
     }
@@ -1799,10 +1799,10 @@ int32_t filterGetTimeRange(SFilterInfo *info, STimeWindow       *win) {
         ERR_JRET(TSDB_CODE_QRY_INVALID_TIME_CONDITION);
       }
 
-      SFilterRange ra;
-      filterGetMergeRangeRes(prev, &ra);
-      win->skey = ra.s; 
-      win->ekey = ra.e;
+      SFilterRange tra;
+      filterGetMergeRangeRes(prev, &tra);
+      win->skey = tra.s; 
+      win->ekey = tra.e;
     }
   }
 
@@ -1813,6 +1813,47 @@ _err_return:
 
   return code;
 }
+
+
+int32_t filterConverNcharColumns(SFilterInfo* pFilterInfo, int32_t rows, bool *gotNchar) {
+#if 0
+  for (int32_t i = 0; i < numOfFilterCols; ++i) {
+    if (pFilterInfo[i].info.type == TSDB_DATA_TYPE_NCHAR) {
+      pFilterInfo[i].pData2 = pFilterInfo[i].pData;
+      pFilterInfo[i].pData = malloc(rows * pFilterInfo[i].info.bytes);
+      int32_t bufSize = pFilterInfo[i].info.bytes - VARSTR_HEADER_SIZE;
+      for (int32_t j = 0; j < rows; ++j) {
+        char* dst = (char *)pFilterInfo[i].pData + j * pFilterInfo[i].info.bytes;
+        char* src = (char *)pFilterInfo[i].pData2 + j * pFilterInfo[i].info.bytes;
+        int32_t len = 0;
+        taosMbsToUcs4(varDataVal(src), varDataLen(src), varDataVal(dst), bufSize, &len);
+        varDataLen(dst) = len;
+      }
+      *gotNchar = true;
+    }
+  }
+#endif
+
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t filterFreeNcharColumns(SFilterInfo* pFilterInfo) {
+#if 0
+  for (int32_t i = 0; i < numOfFilterCols; ++i) {
+    if (pFilterInfo[i].info.type == TSDB_DATA_TYPE_NCHAR) {
+      if (pFilterInfo[i].pData2) {
+        tfree(pFilterInfo[i].pData);
+        pFilterInfo[i].pData = pFilterInfo[i].pData2;
+        pFilterInfo[i].pData2 = NULL;
+      }
+    }
+  }
+#endif
+
+  return TSDB_CODE_SUCCESS;
+}
+
+
 
 
 
