@@ -8086,7 +8086,6 @@ int32_t loadAllTableMeta(SSqlObj* pSql, struct SSqlInfo* pInfo) {
   if (pInfo->funcs) {
     funcSize = taosArrayGetSize(pInfo->funcs);
   }
-
   if (funcSize > 0) {
     for (size_t i = 0; i < funcSize; ++i) {
       SStrToken* t = taosArrayGet(pInfo->funcs, i);
