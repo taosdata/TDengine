@@ -8,7 +8,8 @@ import com.taosdata.taosdemo.domain.SubTableValue;
 import com.taosdata.taosdemo.domain.SuperTableMeta;
 import com.taosdata.taosdemo.service.data.SubTableMetaGenerator;
 import com.taosdata.taosdemo.service.data.SubTableValueGenerator;
-import org.apache.log4j.Logger;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
 
 import javax.sql.DataSource;
 import java.util.ArrayList;
@@ -20,7 +21,7 @@ import java.util.stream.IntStream;
 public class SubTableService extends AbstractService {
 
     private SubTableMapper mapper;
-    private static final Logger logger = Logger.getLogger(SubTableService.class);
+    private static final Logger logger = LogManager.getLogger(SubTableService.class);
 
     public SubTableService(DataSource datasource) {
         this.mapper = new SubTableMapperImpl(datasource);
