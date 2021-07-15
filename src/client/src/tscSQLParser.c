@@ -96,7 +96,7 @@ static int32_t parseIntervalOffset(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SStrTo
 static int32_t parseSlidingClause(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SStrToken* pSliding);
 static int32_t validateStateWindowNode(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SSqlNode* pSqlNode, bool isStable);
 
-static int32_t addProjectionExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSqlExprItem* pItem);
+static int32_t addProjectionExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSqlExprItem* pItem, bool outerQuery);
 
 static int32_t validateWhereNode(SQueryInfo* pQueryInfo, tSqlExpr** pExpr, SSqlObj* pSql);
 static int32_t validateFillNode(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SSqlNode* pSqlNode);
@@ -1809,8 +1809,8 @@ static bool hasNoneUserDefineExpr(SQueryInfo* pQueryInfo) {
   return false;
 }
 
-int32_t validateSelectNodeList(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SArray* pSelNodeList, bool isSTable, bool joinQuery,
-                               bool timeWindowQuery) {
+int32_t validateSelectNodeList(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SArray* pSelNodeList, bool joinQuery,
+                               bool timeWindowQuery, bool outerQuery) {
   assert(pSelNodeList != NULL && pCmd != NULL);
 
   const char* msg1 = "too many items in selection clause";
@@ -1852,7 +1852,7 @@ int32_t validateSelectNodeList(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SArray* pS
     } else if (type == SQL_NODE_TABLE_COLUMN || type == SQL_NODE_VALUE) {
       // use the dynamic array list to decide if the function is valid or not
       // select table_name1.field_name1, table_name2.field_name2  from table_name1, table_name2
-      if (addProjectionExprAndResultField(pCmd, pQueryInfo, pItem) != TSDB_CODE_SUCCESS) {
+      if (addProjectionExprAndResultField(pCmd, pQueryInfo, pItem, outerQuery) != TSDB_CODE_SUCCESS) {
         return TSDB_CODE_TSC_INVALID_OPERATION;
       }
     } else if (type == SQL_NODE_EXPR) {
@@ -1988,14 +1988,15 @@ static int32_t doAddProjectionExprAndResultFields(SQueryInfo* pQueryInfo, SColum
   return numOfTotalColumns;
 }
 
-int32_t addProjectionExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSqlExprItem* pItem) {
+int32_t addProjectionExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSqlExprItem* pItem, bool outerQuery) {
   const char* msg1 = "tag for normal table query is not allowed";
   const char* msg2 = "invalid column name";
+  const char* msg3 = "tbname not allowed in outer query";
 
   int32_t startPos = (int32_t)tscNumOfExprs(pQueryInfo);
-  int32_t optr = pItem->pNode->tokenId;
+  int32_t tokenId = pItem->pNode->tokenId;
 
-  if (optr == TK_ALL) {  // project on all fields
+  if (tokenId == TK_ALL) {  // project on all fields
     TSDB_QUERY_SET_TYPE(pQueryInfo->type, TSDB_QUERY_TYPE_PROJECTION_QUERY);
 
     SColumnIndex index = COLUMN_INDEX_INITIALIZER;
@@ -2019,7 +2020,7 @@ int32_t addProjectionExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, t
     if (pTableMeta->tableType != TSDB_TEMP_TABLE) {
       tscInsertPrimaryTsSourceColumn(pQueryInfo, pTableMeta->id.uid);
     }
-  } else if (optr == TK_STRING || optr == TK_INTEGER || optr == TK_FLOAT) {  // simple column projection query
+  } else if (tokenId == TK_STRING || tokenId == TK_INTEGER || tokenId == TK_FLOAT) {  // simple column projection query
     SColumnIndex index = COLUMN_INDEX_INITIALIZER;
 
     // user-specified constant value as a new result column
@@ -2027,13 +2028,13 @@ int32_t addProjectionExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, t
     index.tableIndex = 0;
 
     SSchema colSchema = tGetUserSpecifiedColumnSchema(&pItem->pNode->value, &pItem->pNode->exprToken, pItem->aliasName);
-    SExprInfo* pExpr =
-        tscAddFuncInSelectClause(pQueryInfo, startPos, TSDB_FUNC_PRJ, &index, &colSchema, TSDB_COL_UDC, getNewResColId(pCmd));
+    SExprInfo* pExpr = tscAddFuncInSelectClause(pQueryInfo, startPos, TSDB_FUNC_PRJ, &index, &colSchema, TSDB_COL_UDC,
+                                                getNewResColId(pCmd));
 
     // NOTE: the first parameter is reserved for the tag column id during join query process.
     pExpr->base.numOfParams = 2;
     tVariantAssign(&pExpr->base.param[1], &pItem->pNode->value);
-  } else if (optr == TK_ID) {
+  } else if (tokenId == TK_ID) {
     SColumnIndex index = COLUMN_INDEX_INITIALIZER;
 
     if (getColumnIndexByName(&pItem->pNode->columnName, pQueryInfo, &index, tscGetErrorMsgPayload(pCmd)) != TSDB_CODE_SUCCESS) {
@@ -2041,12 +2042,40 @@ int32_t addProjectionExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, t
     }
 
     if (index.columnIndex == TSDB_TBNAME_COLUMN_INDEX) {
-      SSchema colSchema = *tGetTbnameColumnSchema();
-      char name[TSDB_COL_NAME_LEN] = {0};
-      getColumnName(pItem, name, colSchema.name, sizeof(colSchema.name) - 1);
+      if (outerQuery) {
+        STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, index.tableIndex);
+        int32_t         numOfCols = tscGetNumOfColumns(pTableMetaInfo->pTableMeta);
 
-      tstrncpy(colSchema.name, name, TSDB_COL_NAME_LEN);
-      /*SExprInfo* pExpr = */tscAddFuncInSelectClause(pQueryInfo, startPos, TSDB_FUNC_TAGPRJ, &index, &colSchema, TSDB_COL_TAG, getNewResColId(pCmd));
+        bool existed = false;
+        SSchema* pSchema = pTableMetaInfo->pTableMeta->schema;
+        for (int32_t i = 0; i < numOfCols; ++i) {
+          if (strncasecmp(pSchema[i].name, TSQL_TBNAME_L, tListLen(pSchema[i].name)) == 0) {
+            existed = true;
+            index.columnIndex = i;
+            break;
+          }
+        }
+
+        if (!existed) {
+          return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg3);
+        }
+
+        SSchema colSchema = pSchema[index.columnIndex];
+        char    name[TSDB_COL_NAME_LEN] = {0};
+        getColumnName(pItem, name, colSchema.name, sizeof(colSchema.name) - 1);
+
+        tstrncpy(colSchema.name, name, TSDB_COL_NAME_LEN);
+        /*SExprInfo* pExpr = */ tscAddFuncInSelectClause(pQueryInfo, startPos, TSDB_FUNC_PRJ, &index, &colSchema,
+                                                         TSDB_COL_NORMAL, getNewResColId(pCmd));
+      } else {
+        SSchema colSchema = *tGetTbnameColumnSchema();
+        char    name[TSDB_COL_NAME_LEN] = {0};
+        getColumnName(pItem, name, colSchema.name, sizeof(colSchema.name) - 1);
+
+        tstrncpy(colSchema.name, name, TSDB_COL_NAME_LEN);
+        /*SExprInfo* pExpr = */ tscAddFuncInSelectClause(pQueryInfo, startPos, TSDB_FUNC_TAGPRJ, &index, &colSchema,
+                                                         TSDB_COL_TAG, getNewResColId(pCmd));
+      }
     } else {
       STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, index.tableIndex);
       STableMeta*     pTableMeta = pTableMetaInfo->pTableMeta;
@@ -7156,8 +7185,7 @@ int32_t doCheckForStream(SSqlObj* pSql, SSqlInfo* pInfo) {
     return code;
   }
 
-  bool isSTable = UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo);
-  if (validateSelectNodeList(&pSql->cmd, pQueryInfo, pSqlNode->pSelNodeList, isSTable, false, false) != TSDB_CODE_SUCCESS) {
+  if (validateSelectNodeList(&pSql->cmd, pQueryInfo, pSqlNode->pSelNodeList, false, false, false) != TSDB_CODE_SUCCESS) {
     return TSDB_CODE_TSC_INVALID_OPERATION;
   }
 
@@ -7802,25 +7830,33 @@ static int32_t doLoadAllTableMeta(SSqlObj* pSql, SQueryInfo* pQueryInfo, SSqlNod
 }
 
 static STableMeta* extractTempTableMetaFromSubquery(SQueryInfo* pUpstream) {
-  int32_t numOfColumns = pUpstream->fieldsInfo.numOfOutput;
+  STableMetaInfo* pUpstreamTableMetaInfo = tscGetMetaInfo(pUpstream, 0);
 
-  STableMeta* meta = calloc(1, sizeof(STableMeta) + sizeof(SSchema) * numOfColumns);
+  int32_t     numOfColumns = pUpstream->fieldsInfo.numOfOutput;
+  STableMeta *meta = calloc(1, sizeof(STableMeta) + sizeof(SSchema) * numOfColumns);
   meta->tableType = TSDB_TEMP_TABLE;
 
   STableComInfo *info = &meta->tableInfo;
   info->numOfColumns = numOfColumns;
-  info->numOfTags = 0;
+  info->precision    = pUpstreamTableMetaInfo->pTableMeta->tableInfo.precision;
+  info->numOfTags    = 0;
 
   int32_t n = 0;
   for(int32_t i = 0; i < numOfColumns; ++i) {
     SInternalField* pField = tscFieldInfoGetInternalField(&pUpstream->fieldsInfo, i);
-    if (pField->visible) {
-      meta->schema[n].bytes = pField->field.bytes;
-      meta->schema[n].type  = pField->field.type;
-      meta->schema[n].colId = pField->pExpr->base.resColId;
-      tstrncpy(meta->schema[n].name, pField->pExpr->base.aliasName, TSDB_COL_NAME_LEN);
-      n += 1;
+    if (!pField->visible) {
+      continue;
     }
+
+    meta->schema[n].bytes = pField->field.bytes;
+    meta->schema[n].type  = pField->field.type;
+
+    SExprInfo* pExpr = pField->pExpr;
+    meta->schema[n].colId = pExpr->base.resColId;
+    tstrncpy(meta->schema[n].name, pField->pExpr->base.aliasName, TSDB_COL_NAME_LEN);
+    info->rowSize += meta->schema[n].bytes;
+
+    n += 1;
   }
 
   return meta;
@@ -7937,7 +7973,7 @@ int32_t validateSqlNode(SSqlObj* pSql, SSqlNode* pSqlNode, SQueryInfo* pQueryInf
       return TSDB_CODE_TSC_INVALID_OPERATION;
     }
 
-    if (validateSelectNodeList(pCmd, pQueryInfo, pSqlNode->pSelNodeList, false, false, timeWindowQuery) !=
+    if (validateSelectNodeList(pCmd, pQueryInfo, pSqlNode->pSelNodeList, false, timeWindowQuery, true) !=
         TSDB_CODE_SUCCESS) {
       return TSDB_CODE_TSC_INVALID_OPERATION;
     }
@@ -8077,7 +8113,7 @@ int32_t validateSqlNode(SSqlObj* pSql, SSqlNode* pSqlNode, SQueryInfo* pQueryInf
     int32_t timeWindowQuery =
         (TPARSER_HAS_TOKEN(pSqlNode->interval.interval) || TPARSER_HAS_TOKEN(pSqlNode->sessionVal.gap));
 
-    if (validateSelectNodeList(pCmd, pQueryInfo, pSqlNode->pSelNodeList, isSTable, joinQuery, timeWindowQuery) !=
+    if (validateSelectNodeList(pCmd, pQueryInfo, pSqlNode->pSelNodeList, joinQuery, timeWindowQuery, false) !=
         TSDB_CODE_SUCCESS) {
       return TSDB_CODE_TSC_INVALID_OPERATION;
     }

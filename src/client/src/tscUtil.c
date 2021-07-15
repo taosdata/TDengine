@@ -634,7 +634,9 @@ static void setResRawPtrImpl(SSqlRes* pRes, SInternalField* pInfo, int32_t i, bo
 
 void tscSetResRawPtr(SSqlRes* pRes, SQueryInfo* pQueryInfo) {
   assert(pRes->numOfCols > 0);
-
+  if (pRes->numOfRows == 0) {
+    return;
+  }
   int32_t offset = 0;
   for (int32_t i = 0; i < pQueryInfo->fieldsInfo.numOfOutput; ++i) {
     SInternalField* pInfo = (SInternalField*)TARRAY_GET_ELEM(pQueryInfo->fieldsInfo.internalField, i);
@@ -746,6 +748,37 @@ typedef struct SJoinOperatorInfo {
   SRspResultInfo resultInfo;  // todo refactor, add this info for each operator
 } SJoinOperatorInfo;
 
+static void converNcharFilterColumn(SSingleColumnFilterInfo* pFilterInfo, int32_t numOfFilterCols, int32_t rows, bool *gotNchar) {
+  for (int32_t i = 0; i < numOfFilterCols; ++i) {
+    if (pFilterInfo[i].info.type == TSDB_DATA_TYPE_NCHAR) {
+      pFilterInfo[i].pData2 = pFilterInfo[i].pData;
+      pFilterInfo[i].pData = malloc(rows * pFilterInfo[i].info.bytes);
+      int32_t bufSize = pFilterInfo[i].info.bytes - VARSTR_HEADER_SIZE;
+      for (int32_t j = 0; j < rows; ++j) {
+        char* dst = (char *)pFilterInfo[i].pData + j * pFilterInfo[i].info.bytes;
+        char* src = (char *)pFilterInfo[i].pData2 + j * pFilterInfo[i].info.bytes;
+        int32_t len = 0;
+        taosMbsToUcs4(varDataVal(src), varDataLen(src), varDataVal(dst), bufSize, &len);
+        varDataLen(dst) = len;
+      }
+      *gotNchar = true;
+    }
+  }
+}
+
+static void freeNcharFilterColumn(SSingleColumnFilterInfo* pFilterInfo, int32_t numOfFilterCols) {
+  for (int32_t i = 0; i < numOfFilterCols; ++i) {
+    if (pFilterInfo[i].info.type == TSDB_DATA_TYPE_NCHAR) {
+      if (pFilterInfo[i].pData2) {
+        tfree(pFilterInfo[i].pData);
+        pFilterInfo[i].pData = pFilterInfo[i].pData2;
+        pFilterInfo[i].pData2 = NULL;
+      }
+    }
+  }
+}
+
+
 static void doSetupSDataBlock(SSqlRes* pRes, SSDataBlock* pBlock, SSingleColumnFilterInfo* pFilterInfo, int32_t numOfFilterCols) {
   int32_t offset = 0;
   char* pData = pRes->data;
@@ -764,8 +797,13 @@ static void doSetupSDataBlock(SSqlRes* pRes, SSDataBlock* pBlock, SSingleColumnF
   // filter data if needed
   if (numOfFilterCols > 0) {
     doSetFilterColumnInfo(pFilterInfo, numOfFilterCols, pBlock);
+    bool gotNchar = false;
+    converNcharFilterColumn(pFilterInfo, numOfFilterCols, pBlock->info.rows, &gotNchar);
     int8_t* p = calloc(pBlock->info.rows, sizeof(int8_t));
     bool all = doFilterDataBlock(pFilterInfo, numOfFilterCols, pBlock->info.rows, p);
+    if (gotNchar) {
+      freeNcharFilterColumn(pFilterInfo, numOfFilterCols);
+    }
     if (!all) {
       doCompactSDataBlock(pBlock, pBlock->info.rows, p);
     }
@@ -3304,6 +3342,7 @@ SSqlObj* createSubqueryObj(SSqlObj* pSql, int16_t tableIndex, __async_cb_func_t 
   pnCmd->insertParam.numOfTables = 0;
   pnCmd->insertParam.pTableNameList = NULL;
   pnCmd->insertParam.pTableBlockHashList = NULL;
+  pnCmd->insertParam.objectId = pNew->self;
 
   memset(&pnCmd->insertParam.tagData, 0, sizeof(STagData));
 
@@ -3570,6 +3609,7 @@ void executeQuery(SSqlObj* pSql, SQueryInfo* pQueryInfo) {
       pNew->signature = pNew;
       pNew->sqlstr = strdup(pSql->sqlstr);  // todo refactor
       pNew->fp = tscSubqueryCompleteCallback;
+      tsem_init(&pNew->rspSem, 0, 0);
 
       SRetrieveSupport* ps = calloc(1, sizeof(SRetrieveSupport));  // todo use object id
       ps->pParentSql = pSql;
