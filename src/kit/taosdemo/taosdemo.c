@@ -946,7 +946,6 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
             for (int col = arguments->num_of_CPR; col < MAX_NUM_COLUMNS; col++) {
                 arguments->datatype[col] = NULL;
             }
-
         } else if (strcmp(argv[i], "-b") == 0) {
             arguments->demo_mode = false;
             if (argc == i+1) {
@@ -3104,7 +3103,7 @@ static int startMultiThreadCreateChildTable(
         char* cols, int threads, uint64_t tableFrom, int64_t ntables,
         char* db_name, SSuperTable* superTblInfo) {
 
-  pthread_t *pids = malloc(threads * sizeof(pthread_t));
+  pthread_t *pids = calloc(1, threads * sizeof(pthread_t));
   threadInfo *infos = calloc(1, threads * sizeof(threadInfo));
 
   if ((NULL == pids) || (NULL == infos)) {
@@ -6602,7 +6601,7 @@ static void startMultiThreadInsertData(int threads, char* db_name,
       }
   }
 
-  pthread_t *pids = malloc(threads * sizeof(pthread_t));
+  pthread_t *pids = calloc(1, threads * sizeof(pthread_t));
   assert(pids != NULL);
 
   threadInfo *infos = calloc(1, threads * sizeof(threadInfo));
@@ -7261,8 +7260,8 @@ static int queryTestProcess() {
 
   if ((nSqlCount > 0) && (nConcurrent > 0)) {
 
-    pids  = malloc(nConcurrent * nSqlCount * sizeof(pthread_t));
-    infos = malloc(nConcurrent * nSqlCount * sizeof(threadInfo));
+    pids  = calloc(1, nConcurrent * nSqlCount * sizeof(pthread_t));
+    infos = calloc(1, nConcurrent * nSqlCount * sizeof(threadInfo));
 
     if ((NULL == pids) || (NULL == infos)) {
       taos_close(taos);
@@ -7307,8 +7306,8 @@ static int queryTestProcess() {
   //==== create sub threads for query from all sub table of the super table
   if ((g_queryInfo.superQueryInfo.sqlCount > 0)
           && (g_queryInfo.superQueryInfo.threadCnt > 0)) {
-    pidsOfSub  = malloc(g_queryInfo.superQueryInfo.threadCnt * sizeof(pthread_t));
-    infosOfSub = malloc(g_queryInfo.superQueryInfo.threadCnt * sizeof(threadInfo));
+    pidsOfSub  = calloc(1, g_queryInfo.superQueryInfo.threadCnt * sizeof(pthread_t));
+    infosOfSub = calloc(1, g_queryInfo.superQueryInfo.threadCnt * sizeof(threadInfo));
 
     if ((NULL == pidsOfSub) || (NULL == infosOfSub)) {
       free(infos);
@@ -7741,11 +7740,13 @@ static int subscribeTestProcess() {
         exit(-1);
     }
 
-    pids  = malloc(
+    pids  = calloc(
+            1,
             g_queryInfo.specifiedQueryInfo.sqlCount *
             g_queryInfo.specifiedQueryInfo.concurrent *
             sizeof(pthread_t));
-    infos = malloc(
+    infos = calloc(
+            1,
             g_queryInfo.specifiedQueryInfo.sqlCount *
             g_queryInfo.specifiedQueryInfo.concurrent *
             sizeof(threadInfo));
@@ -7774,11 +7775,13 @@ static int subscribeTestProcess() {
   } else {
     if ((g_queryInfo.superQueryInfo.sqlCount > 0)
           && (g_queryInfo.superQueryInfo.threadCnt > 0)) {
-        pidsOfStable  = malloc(
+        pidsOfStable  = calloc(
+                1,
                 g_queryInfo.superQueryInfo.sqlCount *
                 g_queryInfo.superQueryInfo.threadCnt *
             sizeof(pthread_t));
-        infosOfStable = malloc(
+        infosOfStable = calloc(
+                1,
                 g_queryInfo.superQueryInfo.sqlCount *
                 g_queryInfo.superQueryInfo.threadCnt *
             sizeof(threadInfo));
@@ -8095,7 +8098,7 @@ static void queryResult() {
   // query data
 
   pthread_t read_id;
-  threadInfo *pThreadInfo = malloc(sizeof(threadInfo));
+  threadInfo *pThreadInfo = calloc(1, sizeof(threadInfo));
   assert(pThreadInfo);
   pThreadInfo->start_time = 1500000000000;  // 2017-07-14 10:40:00.000
   pThreadInfo->start_table_from = 0;
