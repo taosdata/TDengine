@@ -75,7 +75,7 @@ enum TEST_MODE {
 
 #define MAX_RECORDS_PER_REQ     32766
 
-#define HEAD_BUFF_LEN    1024*24  // 16*1024 + (192+32)*2 + insert into ..
+#define HEAD_BUFF_LEN       TSDB_MAX_COLUMNS*24  // 16*MAX_COLUMNS + (192+32)*2 + insert into ..
 
 #define MAX_SQL_SIZE       65536
 #define BUFFER_SIZE        (65536*2)
@@ -84,26 +84,23 @@ enum TEST_MODE {
 #define MAX_PASSWORD_SIZE  64
 #define MAX_HOSTNAME_SIZE  64
 #define MAX_TB_NAME_SIZE   64
-#define MAX_DATA_SIZE      (16*1024)+20     // max record len: 16*1024, timestamp string and ,('') need extra space
-#define MAX_NUM_DATATYPE   10
+#define MAX_DATA_SIZE      (16*TSDB_MAX_COLUMNS)+20     // max record len: 16*MAX_COLUMNS, timestamp string and ,('') need extra space
 #define OPT_ABORT          1 /* –abort */
 #define STRING_LEN         60000
 #define MAX_PREPARED_RAND  1000000
 #define MAX_FILE_NAME_LEN  256              // max file name length on linux is 255.
 
-#define   MAX_SAMPLES_ONCE_FROM_FILE   10000
-#define   MAX_NUM_DATATYPE 10
+#define MAX_SAMPLES_ONCE_FROM_FILE   10000
+#define MAX_NUM_COLUMNS        (TSDB_MAX_COLUMNS - 1)      // exclude first column timestamp
 
-#define   MAX_DB_COUNT           8
-#define   MAX_SUPER_TABLE_COUNT  200
-#define   MAX_COLUMN_COUNT       1024
-#define   MAX_TAG_COUNT          128
+#define MAX_DB_COUNT            8
+#define MAX_SUPER_TABLE_COUNT   200
 
-#define   MAX_QUERY_SQL_COUNT    100
-#define   MAX_QUERY_SQL_LENGTH   1024
+#define MAX_QUERY_SQL_COUNT     100
+#define MAX_QUERY_SQL_LENGTH    1024
 
-#define   MAX_DATABASE_COUNT     256
-#define INPUT_BUF_LEN   256
+#define MAX_DATABASE_COUNT      256
+#define INPUT_BUF_LEN           256
 
 #define DEFAULT_TIMESTAMP_STEP  1
 
@@ -218,7 +215,7 @@ typedef struct SArguments_S {
     bool     performance_print;
     char *   output_file;
     bool     async_mode;
-    char *   datatype[MAX_NUM_DATATYPE + 1];
+    char *   datatype[MAX_NUM_COLUMNS + 1];
     uint32_t len_of_binary;
     uint32_t num_of_CPR;
     uint32_t num_of_threads;
@@ -274,9 +271,9 @@ typedef struct SSuperTable_S {
   char         tagsFile[MAX_FILE_NAME_LEN];
 
   uint32_t     columnCount;
-  StrColumn    columns[MAX_COLUMN_COUNT];
+  StrColumn    columns[TSDB_MAX_COLUMNS];
   uint32_t     tagCount;
-  StrColumn    tags[MAX_TAG_COUNT];
+  StrColumn    tags[TSDB_MAX_TAGS];
 
   char*        childTblName;
   char*        colsOfCreateChildTable;
@@ -565,6 +562,8 @@ double   randdouble[MAX_PREPARED_RAND];
 char *aggreFunc[] = {"*", "count(*)", "avg(col0)", "sum(col0)",
     "max(col0)", "min(col0)", "first(col0)", "last(col0)"};
 
+#define DEFAULT_DATATYPE_NUM    3
+
 SArguments g_args = {
     NULL,            // metaFile
     0,               // test_mode
@@ -595,7 +594,7 @@ SArguments g_args = {
     {
         "FLOAT",         // datatype
         "INT",           // datatype
-        "FLOAT",         // datatype
+        "FLOAT",         // datatype. DEFAULT_DATATYPE_NUM is 3
     },
     16,              // len_of_binary
     4,               // num_of_CPR
@@ -725,9 +724,13 @@ static void printHelp() {
             "The data_type of columns, default: FLOAT, INT, FLOAT.");
     printf("%s%s%s%s\n", indent, "-w", indent,
             "The length of data_type 'BINARY' or 'NCHAR'. Default is 16");
-    printf("%s%s%s%s%d\n", indent, "-l", indent,
-            "The number of columns per record. Default is 3. Max values is ",
-            MAX_NUM_DATATYPE);
+    printf("%s%s%s%s%d%s%d\n", indent, "-l", indent,
+            "The number of columns per record. Default is ",
+            DEFAULT_DATATYPE_NUM,
+            ". Max values is ",
+            MAX_NUM_COLUMNS);
+    printf("%s%s%s%s\n", indent, indent, indent,
+            "All of the new column(s) type is INT. If use -b to specify column type, -l will be ignored.");
     printf("%s%s%s%s\n", indent, "-T", indent,
             "The number of threads. Default is 10.");
     printf("%s%s%s%s\n", indent, "-i", indent,
@@ -931,16 +934,18 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
             }
             arguments->num_of_CPR = atoi(argv[++i]);
 
-            if (arguments->num_of_CPR > MAX_NUM_DATATYPE) {
-                printf("WARNING: max acceptible columns count is %d\n", MAX_NUM_DATATYPE);
+            if (arguments->num_of_CPR > MAX_NUM_COLUMNS) {
+                printf("WARNING: max acceptible columns count is %d\n", MAX_NUM_COLUMNS);
                 prompt();
-                arguments->num_of_CPR = MAX_NUM_DATATYPE;
+                arguments->num_of_CPR = MAX_NUM_COLUMNS;
             }
 
-            for (int col = arguments->num_of_CPR; col < MAX_NUM_DATATYPE; col++) {
+            for (int col = DEFAULT_DATATYPE_NUM; col < arguments->num_of_CPR; col ++) {
+                arguments->datatype[col] = "INT";
+            }
+            for (int col = arguments->num_of_CPR; col < MAX_NUM_COLUMNS; col++) {
                 arguments->datatype[col] = NULL;
             }
-
         } else if (strcmp(argv[i], "-b") == 0) {
             arguments->demo_mode = false;
             if (argc == i+1) {
@@ -990,7 +995,7 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
                     }
                     arguments->datatype[index++] = token;
                     token = strsep(&running, ",");
-                    if (index >= MAX_NUM_DATATYPE) break;
+                    if (index >= MAX_NUM_COLUMNS) break;
                 }
                 arguments->datatype[index] = NULL;
             }
@@ -1086,7 +1091,7 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
     }
 
     int columnCount;
-    for (columnCount = 0; columnCount < MAX_NUM_DATATYPE; columnCount ++) {
+    for (columnCount = 0; columnCount < MAX_NUM_COLUMNS; columnCount ++) {
         if (g_args.datatype[columnCount] == NULL) {
             break;
         }
@@ -1111,7 +1116,7 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
                 arguments->use_metric ? "true" : "false");
         if (*(arguments->datatype)) {
             printf("# Specified data type:               ");
-            for (int i = 0; i < MAX_NUM_DATATYPE; i++)
+            for (int i = 0; i < MAX_NUM_COLUMNS; i++)
                 if (arguments->datatype[i])
                     printf("%s,", arguments->datatype[i]);
                 else
@@ -2389,8 +2394,15 @@ static char* generateTagVaulesForStb(SSuperTable* stbInfo, int32_t tableSeq) {
             tmfree(buf);
         } else if (0 == strncasecmp(stbInfo->tags[i].dataType,
                     "int", strlen("int"))) {
-            dataLen += snprintf(dataBuf + dataLen, TSDB_MAX_SQL_LEN - dataLen,
+            if ((g_args.demo_mode) && (i == 0)) {
+                dataLen += snprintf(dataBuf + dataLen,
+                        TSDB_MAX_SQL_LEN - dataLen,
+                    "%d, ", tableSeq % 10);
+            } else {
+                dataLen += snprintf(dataBuf + dataLen,
+                        TSDB_MAX_SQL_LEN - dataLen,
                     "%d, ", tableSeq);
+            }
         } else if (0 == strncasecmp(stbInfo->tags[i].dataType,
                     "bigint", strlen("bigint"))) {
             dataLen += snprintf(dataBuf + dataLen, TSDB_MAX_SQL_LEN - dataLen,
@@ -2787,16 +2799,26 @@ static int createSuperTable(
         char* dataType = superTbl->tags[tagIndex].dataType;
 
         if (strcasecmp(dataType, "BINARY") == 0) {
-            len += snprintf(tags + len, STRING_LEN - len, "t%d %s(%d), ", tagIndex,
-                    "BINARY", superTbl->tags[tagIndex].dataLen);
+            if ((g_args.demo_mode) && (tagIndex == 1)) {
+                len += snprintf(tags + len, STRING_LEN - len,
+                        "loction BINARY(%d), ",
+                        superTbl->tags[tagIndex].dataLen);
+            } else {
+                len += snprintf(tags + len, STRING_LEN - len, "t%d %s(%d), ",
+                        tagIndex, "BINARY", superTbl->tags[tagIndex].dataLen);
+            }
             lenOfTagOfOneRow += superTbl->tags[tagIndex].dataLen + 3;
         } else if (strcasecmp(dataType, "NCHAR") == 0) {
             len += snprintf(tags + len, STRING_LEN - len, "t%d %s(%d), ", tagIndex,
                     "NCHAR", superTbl->tags[tagIndex].dataLen);
             lenOfTagOfOneRow += superTbl->tags[tagIndex].dataLen + 3;
         } else if (strcasecmp(dataType, "INT") == 0)  {
-            len += snprintf(tags + len, STRING_LEN - len, "t%d %s, ", tagIndex,
+            if ((g_args.demo_mode) && (tagIndex == 0)) {
+                len += snprintf(tags + len, STRING_LEN - len, "groupId INT, ");
+            } else {
+                len += snprintf(tags + len, STRING_LEN - len, "t%d %s, ", tagIndex,
                     "INT");
+            }
             lenOfTagOfOneRow += superTbl->tags[tagIndex].dataLen + 11;
         } else if (strcasecmp(dataType, "BIGINT") == 0)  {
             len += snprintf(tags + len, STRING_LEN - len, "t%d %s, ", tagIndex,
@@ -3081,7 +3103,7 @@ static int startMultiThreadCreateChildTable(
         char* cols, int threads, uint64_t tableFrom, int64_t ntables,
         char* db_name, SSuperTable* superTblInfo) {
 
-  pthread_t *pids = malloc(threads * sizeof(pthread_t));
+  pthread_t *pids = calloc(1, threads * sizeof(pthread_t));
   threadInfo *infos = calloc(1, threads * sizeof(threadInfo));
 
   if ((NULL == pids) || (NULL == infos)) {
@@ -3352,9 +3374,9 @@ static bool getColumnAndTagTypeFromInsertJsonFile(
   }
 
   int columnSize = cJSON_GetArraySize(columns);
-  if ((columnSize + 1/* ts */) > MAX_COLUMN_COUNT) {
+  if ((columnSize + 1/* ts */) > TSDB_MAX_COLUMNS) {
     errorPrint("%s() LN%d, failed to read json, column size overflow, max column size is %d\n",
-            __func__, __LINE__, MAX_COLUMN_COUNT);
+            __func__, __LINE__, TSDB_MAX_COLUMNS);
     goto PARSE_OVER;
   }
 
@@ -3410,9 +3432,9 @@ static bool getColumnAndTagTypeFromInsertJsonFile(
     }
   }
 
-  if ((index + 1 /* ts */) > MAX_COLUMN_COUNT) {
+  if ((index + 1 /* ts */) > MAX_NUM_COLUMNS) {
     errorPrint("%s() LN%d, failed to read json, column size overflow, allowed max column size is %d\n",
-            __func__, __LINE__, MAX_COLUMN_COUNT);
+            __func__, __LINE__, MAX_NUM_COLUMNS);
     goto PARSE_OVER;
   }
 
@@ -3429,9 +3451,9 @@ static bool getColumnAndTagTypeFromInsertJsonFile(
   }
 
   int tagSize = cJSON_GetArraySize(tags);
-  if (tagSize > MAX_TAG_COUNT) {
+  if (tagSize > TSDB_MAX_TAGS) {
     errorPrint("%s() LN%d, failed to read json, tags size overflow, max tag size is %d\n",
-        __func__, __LINE__, MAX_TAG_COUNT);
+        __func__, __LINE__, TSDB_MAX_TAGS);
     goto PARSE_OVER;
   }
 
@@ -3481,17 +3503,17 @@ static bool getColumnAndTagTypeFromInsertJsonFile(
     }
   }
 
-  if (index > MAX_TAG_COUNT) {
+  if (index > TSDB_MAX_TAGS) {
     errorPrint("%s() LN%d, failed to read json, tags size overflow, allowed max tag count is %d\n",
-        __func__, __LINE__, MAX_TAG_COUNT);
+        __func__, __LINE__, TSDB_MAX_TAGS);
     goto PARSE_OVER;
   }
 
   superTbls->tagCount = index;
 
-  if ((superTbls->columnCount + superTbls->tagCount + 1 /* ts */) > MAX_COLUMN_COUNT) {
+  if ((superTbls->columnCount + superTbls->tagCount + 1 /* ts */) > TSDB_MAX_COLUMNS) {
     errorPrint("%s() LN%d, columns + tags is more than allowed max columns count: %d\n",
-        __func__, __LINE__, MAX_COLUMN_COUNT);
+        __func__, __LINE__, TSDB_MAX_COLUMNS);
     goto PARSE_OVER;
   }
   ret = true;
@@ -6579,7 +6601,7 @@ static void startMultiThreadInsertData(int threads, char* db_name,
       }
   }
 
-  pthread_t *pids = malloc(threads * sizeof(pthread_t));
+  pthread_t *pids = calloc(1, threads * sizeof(pthread_t));
   assert(pids != NULL);
 
   threadInfo *infos = calloc(1, threads * sizeof(threadInfo));
@@ -7238,8 +7260,8 @@ static int queryTestProcess() {
 
   if ((nSqlCount > 0) && (nConcurrent > 0)) {
 
-    pids  = malloc(nConcurrent * nSqlCount * sizeof(pthread_t));
-    infos = malloc(nConcurrent * nSqlCount * sizeof(threadInfo));
+    pids  = calloc(1, nConcurrent * nSqlCount * sizeof(pthread_t));
+    infos = calloc(1, nConcurrent * nSqlCount * sizeof(threadInfo));
 
     if ((NULL == pids) || (NULL == infos)) {
       taos_close(taos);
@@ -7284,8 +7306,8 @@ static int queryTestProcess() {
   //==== create sub threads for query from all sub table of the super table
   if ((g_queryInfo.superQueryInfo.sqlCount > 0)
           && (g_queryInfo.superQueryInfo.threadCnt > 0)) {
-    pidsOfSub  = malloc(g_queryInfo.superQueryInfo.threadCnt * sizeof(pthread_t));
-    infosOfSub = malloc(g_queryInfo.superQueryInfo.threadCnt * sizeof(threadInfo));
+    pidsOfSub  = calloc(1, g_queryInfo.superQueryInfo.threadCnt * sizeof(pthread_t));
+    infosOfSub = calloc(1, g_queryInfo.superQueryInfo.threadCnt * sizeof(threadInfo));
 
     if ((NULL == pidsOfSub) || (NULL == infosOfSub)) {
       free(infos);
@@ -7718,11 +7740,13 @@ static int subscribeTestProcess() {
         exit(-1);
     }
 
-    pids  = malloc(
+    pids  = calloc(
+            1,
             g_queryInfo.specifiedQueryInfo.sqlCount *
             g_queryInfo.specifiedQueryInfo.concurrent *
             sizeof(pthread_t));
-    infos = malloc(
+    infos = calloc(
+            1,
             g_queryInfo.specifiedQueryInfo.sqlCount *
             g_queryInfo.specifiedQueryInfo.concurrent *
             sizeof(threadInfo));
@@ -7751,11 +7775,13 @@ static int subscribeTestProcess() {
   } else {
     if ((g_queryInfo.superQueryInfo.sqlCount > 0)
           && (g_queryInfo.superQueryInfo.threadCnt > 0)) {
-        pidsOfStable  = malloc(
+        pidsOfStable  = calloc(
+                1,
                 g_queryInfo.superQueryInfo.sqlCount *
                 g_queryInfo.superQueryInfo.threadCnt *
             sizeof(pthread_t));
-        infosOfStable = malloc(
+        infosOfStable = calloc(
+                1,
                 g_queryInfo.superQueryInfo.sqlCount *
                 g_queryInfo.superQueryInfo.threadCnt *
             sizeof(threadInfo));
@@ -7919,7 +7945,7 @@ static void setParaFromArg(){
     g_Dbs.db[0].superTbls[0].maxSqlLen = g_args.max_sql_len;
 
     g_Dbs.db[0].superTbls[0].columnCount = 0;
-    for (int i = 0; i < MAX_NUM_DATATYPE; i++) {
+    for (int i = 0; i < MAX_NUM_COLUMNS; i++) {
       if (data_type[i] == NULL) {
         break;
       }
@@ -8072,7 +8098,7 @@ static void queryResult() {
   // query data
 
   pthread_t read_id;
-  threadInfo *pThreadInfo = malloc(sizeof(threadInfo));
+  threadInfo *pThreadInfo = calloc(1, sizeof(threadInfo));
   assert(pThreadInfo);
   pThreadInfo->start_time = 1500000000000;  // 2017-07-14 10:40:00.000
   pThreadInfo->start_table_from = 0;
