@@ -3028,6 +3028,11 @@ static int32_t mnodeProcessMultiTableMetaMsg(SMnodeMsg *pMsg) {
   code = TSDB_CODE_SUCCESS;
 
   char* tmp = rpcMallocCont(pMultiMeta->contLen + 2);
+  if (tmp == NULL) {
+    code = TSDB_CODE_MND_OUT_OF_MEMORY;
+    goto _end;
+  }
+
   int32_t len = tsCompressString(pMultiMeta->meta, (int32_t)pMultiMeta->contLen - sizeof(SMultiTableMeta), 1,
       tmp + sizeof(SMultiTableMeta), (int32_t)pMultiMeta->contLen - sizeof(SMultiTableMeta) + 2, ONE_STAGE_COMP, NULL, 0);
 
