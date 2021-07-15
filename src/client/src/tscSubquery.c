@@ -2430,9 +2430,9 @@ int32_t tscHandleMasterSTableQuery(SSqlObj *pSql) {
   tOrderDescriptor *pDesc  = NULL;
 
   pRes->qId = 0x1;  // hack the qhandle check
-  
-  const uint32_t nBufferSize = (1u << 16u);  // 64KB
-  
+
+  const uint32_t nBufferSize = (1u << 18u);  // 256KB
+
   SQueryInfo     *pQueryInfo = tscGetQueryInfo(pCmd);
   STableMetaInfo *pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
   SSubqueryState *pState = &pSql->subState;

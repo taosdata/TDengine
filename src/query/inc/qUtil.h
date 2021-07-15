@@ -66,7 +66,8 @@ static FORCE_INLINE SResultRow *getResultRow(SResultRowInfo *pResultRowInfo, int
   return pResultRowInfo->pResult[slot];
 }
 
-static FORCE_INLINE char *getPosInResultPage(SQueryAttr *pQueryAttr, tFilePage* page, int32_t rowOffset, int16_t offset) {
+static FORCE_INLINE char* getPosInResultPage(SQueryAttr* pQueryAttr, tFilePage* page, int32_t rowOffset,
+                                             int32_t offset) {
   assert(rowOffset >= 0 && pQueryAttr != NULL);
 
   int32_t numOfRows = (int32_t)GET_ROW_PARAM_FOR_MULTIOUTPUT(pQueryAttr, pQueryAttr->topBotQuery, pQueryAttr->stableQuery);
