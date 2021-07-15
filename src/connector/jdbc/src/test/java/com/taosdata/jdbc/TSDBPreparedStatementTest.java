@@ -847,7 +847,7 @@ public class TSDBPreparedStatementTest {
         byte[] f8 = "{\"name\": \"john\", \"age\": 10, \"address\": \"192.168.1.100\"}".getBytes();
 
         // when
-        pstmt_insert.setTimestamp(1, new Timestamp(System.currentTimeMillis()));
+        pstmt_insert.setTimestamp(1, new Timestamp(ts));
         pstmt_insert.setBytes(9, f8);
         int result = pstmt_insert.executeUpdate();
 
