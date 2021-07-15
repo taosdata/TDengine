@@ -1431,6 +1431,7 @@ static int printfInsertMeta() {
         printf("\ntaosdemo is simulating random data as you request..\n\n");
 
     if (g_args.iface != INTERFACE_BUT) {
+        // first time if no iface specified
         printf("interface:                  \033[33m%s\033[0m\n",
             (g_args.iface==TAOSC_IFACE)?"taosc":
             (g_args.iface==REST_IFACE)?"rest":"stmt");
@@ -5043,8 +5044,12 @@ static int32_t execInsert(threadInfo *pThreadInfo, uint32_t k)
     uint16_t iface;
     if (superTblInfo)
         iface = superTblInfo->iface;
-    else
-        iface = g_args.iface;
+    else {
+        if (g_args.iface == INTERFACE_BUT)
+            iface = TAOSC_IFACE;
+        else
+            iface = g_args.iface;
+    }
 
     debugPrint("[%d] %s() LN%d %s\n", pThreadInfo->threadID,
             __func__, __LINE__,
@@ -7939,7 +7944,12 @@ static void setParaFromArg(){
     tstrncpy(g_Dbs.db[0].superTbls[0].childTblPrefix,
             g_args.tb_prefix, TSDB_TABLE_NAME_LEN - 20);
     tstrncpy(g_Dbs.db[0].superTbls[0].dataSource, "rand", MAX_TB_NAME_SIZE);
-    g_Dbs.db[0].superTbls[0].iface = g_args.iface;
+
+    if (g_args.iface == INTERFACE_BUT) {
+        g_Dbs.db[0].superTbls[0].iface = TAOSC_IFACE;
+    } else {
+        g_Dbs.db[0].superTbls[0].iface = g_args.iface;
+    }
     tstrncpy(g_Dbs.db[0].superTbls[0].startTimestamp,
             "2017-07-14 10:40:00.000", MAX_TB_NAME_SIZE);
     g_Dbs.db[0].superTbls[0].timeStampStep = DEFAULT_TIMESTAMP_STEP;
