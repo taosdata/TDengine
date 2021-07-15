@@ -20,8 +20,7 @@ public class ExecuteBatchErrorContinueTest {
         // when
         int[] results = null;
         try (Statement stmt = conn.createStatement()) {
-
-            IntStream.range(1, 6).mapToObj(i -> "insert into t" + i + " values(now, " + i + ")").forEach(sql -> {
+            IntStream.range(1, 6).mapToObj(i -> "insert into test.t" + i + " values(now, " + i + ")").forEach(sql -> {
                 try {
                     stmt.addBatch(sql);
                 } catch (SQLException e) {
@@ -29,14 +28,14 @@ public class ExecuteBatchErrorContinueTest {
                 }
             });
             stmt.addBatch("insert into t11 values(now, 11)");
-            IntStream.range(6, 11).mapToObj(i -> "insert into t" + i + " values(now, " + i + "),(now + 1s, " + (10 * i) + ")").forEach(sql -> {
+            IntStream.range(6, 11).mapToObj(i -> "insert into test.t" + i + " values(now, " + i + "),(now + 1s, " + (10 * i) + ")").forEach(sql -> {
                 try {
                     stmt.addBatch(sql);
                 } catch (SQLException e) {
                     e.printStackTrace();
                 }
             });
-            stmt.addBatch("select count(*) from ");
+            stmt.addBatch("select count(*) from test.weather");
 
             results = stmt.executeBatch();
         } catch (SQLException e) {
