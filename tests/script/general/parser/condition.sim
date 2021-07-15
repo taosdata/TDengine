@@ -1696,6 +1696,23 @@ if $data00 != @21-05-05 18:19:02.000@ then
   return -1
 endi
 
+sql select * from stb1 where (c2 in (1,2,3,4) or c2 in (11,12,13,14)) and c2 != 11 and c2 >2 and c2 != 14;
+if $rows != 4 then
+  return -1
+endi
+if $data00 != @21-05-05 18:19:02.000@ then
+  return -1
+endi
+if $data10 != @21-05-05 18:19:03.000@ then
+  return -1
+endi
+if $data20 != @21-05-05 18:19:05.000@ then
+  return -1
+endi
+if $data30 != @21-05-05 18:19:06.000@ then
+  return -1
+endi
+
 sql select * from stb1 where (c1 > 60 or c1 < 4 or c1 > 10 and c1 < 20 and c1 != 13 or c1 < 2 or c1 > 50) and (c1 != 51 and c1 <= 54 and c1 != 54 and c1 >=1 and c1 != 1) and (c1 >= 11 and c1 <=52 and c1 != 52 and c1 != 11);
 if $rows != 2 then
   return -1

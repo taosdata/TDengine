@@ -699,6 +699,12 @@ FORCE_INLINE void *taosHashGetDataKey(SHashObj *pHashObj, void *data) {
   return GET_HASH_NODE_KEY(GET_HASH_PNODE(data));
 }
 
+FORCE_INLINE uint32_t taosHashGetDataKeyLen(SHashObj *pHashObj, void *data) {
+  SHashNode * node = GET_HASH_PNODE(data);
+  return node->keyLen;
+}
+
+
 // release the pNode, return next pNode, and lock the current entry
 static void *taosHashReleaseNode(SHashObj *pHashObj, void *p, int *slot) {
 

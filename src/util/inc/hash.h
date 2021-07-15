@@ -163,6 +163,8 @@ void  taosHashCancelIterate(SHashObj *pHashObj, void *p);
 
 void *taosHashGetDataKey(SHashObj *pHashObj, void *data);
 
+uint32_t taosHashGetDataKeyLen(SHashObj *pHashObj, void *data);
+
 #ifdef __cplusplus
 }
 #endif
