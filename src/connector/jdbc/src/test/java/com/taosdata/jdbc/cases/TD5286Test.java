@@ -15,6 +15,7 @@ public class TD5286Test {
     public void test() {
         // given
         long ts = System.currentTimeMillis();
+        System.out.println("ts : " + ts);
         byte[] f8 = "{\"name\": \"john\", \"age\": 10, \"address\": \"192.168.1.100\"}".getBytes();
 
         // when
