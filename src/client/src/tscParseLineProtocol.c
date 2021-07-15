@@ -1400,7 +1400,7 @@ static int32_t convertSmlTimeStamp(TAOS_SML_KV *pVal, char *value,
   if (ret) {
     return ret;
   }
-  //printf("Timestamp after conversion:%ld\n", tsVal);
+  tscDebug("Timestamp after conversion:%"PRId64"\n", tsVal);
 
   pVal->type = TSDB_DATA_TYPE_TIMESTAMP;
   pVal->length = (int16_t)tDataTypes[pVal->type].bytes;
