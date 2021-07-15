@@ -841,7 +841,7 @@ public class TSDBPreparedStatementTest {
     }
 
     @Test
-    public void setBytes() throws SQLException, IOException {
+    public void setBytes() throws SQLException {
         // given
         long ts = System.currentTimeMillis();
         byte[] f8 = "{\"name\": \"john\", \"age\": 10, \"address\": \"192.168.1.100\"}".getBytes();
