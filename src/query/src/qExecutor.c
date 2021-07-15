@@ -2340,6 +2340,7 @@ static void updateDataCheckOrder(SQInfo *pQInfo, SQueryTableMsg* pQueryMsg, bool
       }
 
       pQueryAttr->order.order = TSDB_ORDER_ASC;
+      pQueryAttr->needReverseScan = false;
     } else if (onlyLastQuery(pQueryAttr) && notContainSessionOrStateWindow(pQueryAttr)) {
       if (QUERY_IS_ASC_QUERY(pQueryAttr)) {
         qDebug(msg, pQInfo, "only-last", pQueryAttr->order.order, TSDB_ORDER_DESC, pQueryAttr->window.skey,
@@ -2350,9 +2351,9 @@ static void updateDataCheckOrder(SQInfo *pQInfo, SQueryTableMsg* pQueryMsg, bool
       }
 
       pQueryAttr->order.order = TSDB_ORDER_DESC;
+      pQueryAttr->needReverseScan = false;
     }
 
-    pQueryAttr->needReverseScan = false;
   } else {  // interval query
     if (stableQuery) {
       if (onlyFirstQuery(pQueryAttr)) {
