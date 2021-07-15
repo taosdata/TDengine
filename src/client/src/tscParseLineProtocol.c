@@ -17,6 +17,11 @@
 #include "tscLog.h"
 
 #include "taos.h"
+
+#define SECONDS_TO_MILLI(TS) TS * 1000
+#define SECONDS_TO_MICRO(TS) TS * 1000000
+#define SECONDS_TO_NANO(TS)  TS * 1000000000
+
 typedef struct  {
   char sTableName[TSDB_TABLE_NAME_LEN];
   SHashObj* tagHash;
@@ -50,6 +55,14 @@ typedef struct {
   //================================
   SSmlSTableSchema* schema;
 } TAOS_SML_DATA_POINT;
+
+typedef enum {
+  SML_TIME_STAMP_NOW,
+  SML_TIME_STAMP_SECONDS,
+  SML_TIME_STAMP_MILLI_SECONDS,
+  SML_TIME_STAMP_MICRO_SECONDS,
+  SML_TIME_STAMP_NANO_SECONDS
+} SMLTimeStampType;
 
 //=================================================================================================
 
@@ -825,93 +838,125 @@ clean_up:
 
 //=========================================================================
 
-bool is_timestamp(char *pVal, uint16_t len) {
-  if ((len == 1) && pVal[0] == '0') {
-    printf("Type is timestamp(%s)\n", pVal);
-    return true;
+/*        Field                          Escape charaters
+    1: measurement                        Comma,Space
+    2: tag_key, tag_value, field_key  Comma,Equal Sign,Space
+    3: field_value                    Double quote,Backslash
+*/
+void escape_special_char(uint8_t field, const char **pos) {
+  const char *cur = *pos;
+  if (*cur != '\\') {
+    return;
   }
-  if (len < 2) {
+  switch (field) {
+    case 1:
+      switch (*(cur + 1)) {
+        case ',':
+        case ' ':
+          cur++;
+          break;
+        default:
+          break;
+      }
+      break;
+    case 2:
+      switch (*(cur + 1)) {
+        case ',':
+        case ' ':
+        case '=':
+          cur++;
+          break;
+        default:
+          break;
+      }
+      break;
+    case 3:
+      switch (*(cur + 1)) {
+        case '"':
+        case '\\':
+          cur++;
+          break;
+        default:
+          break;
+      }
+      break;
+    default:
+      break;
+  }
+  *pos = cur;
+}
+
+bool is_valid_integer(char *str) {
+  char *c = str;
+  if (*c != '+' && *c != '-' && !isdigit(*c)) {
     return false;
   }
-  if (pVal[len - 1] == 's') {
-    switch (pVal[len - 2]) {
-      case 'm':
-      case 'u':
-      case 'n':
-        break;
-      default:
-        if (isdigit(pVal[len - 2])) {
+  c++;
+  while (*c != '\0') {
+    if (!isdigit(*c)) {
+      return false;
+    }
+    c++;
+  }
+  return true;
+}
+
+bool is_valid_float(char *str) {
+  char *c = str;
+  uint8_t has_dot, has_exp, has_sign;
+  has_dot = 0;
+  has_exp = 0;
+  has_sign = 0;
+
+  if (*c != '+' && *c != '-' && *c != '.' && !isdigit(*c)) {
+    return false;
+  }
+  if (*c == '.' && isdigit(*(c + 1))) {
+    has_dot = 1;
+  }
+  c++;
+  while (*c != '\0') {
+    if (!isdigit(*c)) {
+      switch (*c) {
+        case '.': {
+          if (!has_dot && !has_exp && isdigit(*(c + 1))) {
+            has_dot = 1;
+          } else {
+            return false;
+          }
           break;
-        } else {
+        }
+        case 'e':
+        case 'E': {
+          if (!has_exp && isdigit(*(c - 1)) &&
+              (isdigit(*(c + 1)) ||
+               *(c + 1) == '+' ||
+               *(c + 1) == '-')) {
+            has_exp = 1;
+          } else {
+            return false;
+          }
+          break;
+        }
+        case '+':
+        case '-': {
+          if (!has_sign && has_exp && isdigit(*(c + 1))) {
+            has_sign = 1;
+          } else {
+            return false;
+          }
+          break;
+        }
+        default: {
           return false;
         }
+      }
     }
-    printf("Type is timestamp\n");
-    return true;
-  }
-  return false;
+    c++;
+  } //while
+  return true;
 }
 
-bool is_bool(char *pVal, uint16_t len, bool *b_val) {
-  if ((len == 1) &&
-      (pVal[len - 1] == 't' ||
-       pVal[len - 1] == 'T')) {
-    printf("Type is bool(%c)\n", pVal[len - 1]);
-    *b_val = true;
-    return true;
-  }
-
-  if ((len == 1) &&
-      (pVal[len - 1] == 'f' ||
-       pVal[len - 1] == 'F')) {
-    printf("Type is bool(%c)\n", pVal[len - 1]);
-    *b_val = false;
-    return true;
-  }
-
-  if((len == 4) &&
-     (!strcmp(&pVal[len - 4], "true") ||
-      !strcmp(&pVal[len - 4], "True") ||
-      !strcmp(&pVal[len - 4], "TRUE"))) {
-    printf("Type is bool(%s)\n", &pVal[len - 4]);
-    *b_val = true;
-    return true;
-  }
-  if((len == 5) &&
-     (!strcmp(&pVal[len - 5], "false") ||
-      !strcmp(&pVal[len - 5], "False") ||
-      !strcmp(&pVal[len - 5], "FALSE"))) {
-    printf("Type is bool(%s)\n", &pVal[len - 5]);
-    *b_val = false;
-    return true;
-  }
-  return false;
-}
-
-bool is_binary(char *pVal, uint16_t len) {
-  //binary: "abc"
-  if (len < 2) {
-    return false;
-  }
-  //binary
-  if (pVal[0] == '"' && pVal[len - 1] == '"') {
-    printf("Type is binary(%s)\n", pVal);
-    return true;
-  }
-  return false;
-}
-
-bool is_nchar(char *pVal, uint16_t len) {
-  //nchar: L"abc"
-  if (len < 3) {
-    return false;
-  }
-  if (pVal[0] == 'L' && pVal[1] == '"' && pVal[len - 1] == '"') {
-    printf("Type is nchar(%s)\n", pVal);
-    return true;
-  }
-  return false;
-}
 
 bool is_tiny_int(char *pVal, uint16_t len) {
   if (len <= 2) {
@@ -1035,89 +1080,111 @@ bool is_double(char *pVal, uint16_t len) {
   return false;
 }
 
-bool is_valid_integer(char *str) {
-  char *c = str;
-  if (*c != '+' && *c != '-' && !isdigit(*c)) {
-    return false;
+bool is_bool(char *pVal, uint16_t len, bool *b_val) {
+  if ((len == 1) &&
+      (pVal[len - 1] == 't' ||
+       pVal[len - 1] == 'T')) {
+    printf("Type is bool(%c)\n", pVal[len - 1]);
+    *b_val = true;
+    return true;
   }
-  c++;
-  while (*c != '\0') {
-    if (!isdigit(*c)) {
-      return false;
-    }
-    c++;
-  }
-  return true;
-}
 
-bool is_valid_float(char *str) {
-  char *c = str;
-  uint8_t has_dot, has_exp, has_sign;
-  has_dot = 0;
-  has_exp = 0;
-  has_sign = 0;
-
-  if (*c != '+' && *c != '-' && *c != '.' && !isdigit(*c)) {
-    return false;
+  if ((len == 1) &&
+      (pVal[len - 1] == 'f' ||
+       pVal[len - 1] == 'F')) {
+    printf("Type is bool(%c)\n", pVal[len - 1]);
+    *b_val = false;
+    return true;
   }
-  if (*c == '.' && isdigit(*(c + 1))) {
-    has_dot = 1;
-  }
-  c++;
-  while (*c != '\0') {
-    if (!isdigit(*c)) {
-      switch (*c) {
-        case '.': {
-          if (!has_dot && !has_exp && isdigit(*(c + 1))) {
-            has_dot = 1;
-          } else {
-            return false;
-          }
-          break;
-        }
-        case 'e':
-        case 'E': {
-          if (!has_exp && isdigit(*(c - 1)) &&
-              (isdigit(*(c + 1)) ||
-               *(c + 1) == '+' ||
-               *(c + 1) == '-')) {
-            has_exp = 1;
-          } else {
-            return false;
-          }
-          break;
-        }
-        case '+':
-        case '-': {
-          if (!has_sign && has_exp && isdigit(*(c + 1))) {
-            has_sign = 1;
-          } else {
-            return false;
-          }
-          break;
-        }
-        default: {
-          return false;
-        }
-      }
-    }
-    c++;
-  } //while
-  return true;
-}
 
-bool taos_sml_timestamp_convert(TAOS_SML_KV *pVal, char *value,
-                                uint16_t len) {
-  if (is_timestamp(value, len)) {
-    pVal->type = TSDB_DATA_TYPE_TIMESTAMP;
-    pVal->length = (int16_t)tDataTypes[pVal->type].bytes;
-    pVal->value = calloc(pVal->length, 1);
-    int64_t val = (int64_t)strtoll(value, NULL, 10);
-    memcpy(pVal->value, &val, pVal->length);
+  if((len == 4) &&
+     (!strcmp(&pVal[len - 4], "true") ||
+      !strcmp(&pVal[len - 4], "True") ||
+      !strcmp(&pVal[len - 4], "TRUE"))) {
+    printf("Type is bool(%s)\n", &pVal[len - 4]);
+    *b_val = true;
+    return true;
+  }
+  if((len == 5) &&
+     (!strcmp(&pVal[len - 5], "false") ||
+      !strcmp(&pVal[len - 5], "False") ||
+      !strcmp(&pVal[len - 5], "FALSE"))) {
+    printf("Type is bool(%s)\n", &pVal[len - 5]);
+    *b_val = false;
     return true;
   }
   return false;
 }
+
+bool is_binary(char *pVal, uint16_t len) {
+  //binary: "abc"
+  if (len < 2) {
+    return false;
+  }
+  //binary
+  if (pVal[0] == '"' && pVal[len - 1] == '"') {
+    printf("Type is binary(%s)\n", pVal);
+    return true;
+  }
+  return false;
+}
+
+bool is_nchar(char *pVal, uint16_t len) {
+  //nchar: L"abc"
+  if (len < 3) {
+    return false;
+  }
+  if (pVal[0] == 'L' && pVal[1] == '"' && pVal[len - 1] == '"') {
+    printf("Type is nchar(%s)\n", pVal);
+    return true;
+  }
+  return false;
+}
+
+bool is_timestamp(char *pVal, uint16_t len, SMLTimeStampType *tsType) {
+  if (len == 0) {
+    return true;
+  }
+  if ((len == 1) && pVal[0] == '0') {
+    *tsType = SML_TIME_STAMP_NOW;
+    printf("Type is timestamp(%s)\n", pVal);
+    return true;
+  }
+  if (len < 2) {
+    return false;
+  }
+  //No appendix use usec as default
+  if (isdigit(pVal[len - 1]) && isdigit(pVal[len - 2])) {
+    *tsType = SML_TIME_STAMP_MICRO_SECONDS;
+    printf("Type is timestamp(%s)\n", pVal);
+    return true;
+  }
+  if (pVal[len - 1] == 's') {
+    switch (pVal[len - 2]) {
+      case 'm':
+        *tsType = SML_TIME_STAMP_MILLI_SECONDS;
+        break;
+      case 'u':
+        *tsType = SML_TIME_STAMP_MICRO_SECONDS;
+        break;
+      case 'n':
+        *tsType = SML_TIME_STAMP_NANO_SECONDS;
+        break;
+      default:
+        if (isdigit(pVal[len - 2])) {
+          *tsType = SML_TIME_STAMP_SECONDS;
+          break;
+        } else {
+          return false;
+        }
+    }
+    printf("Type is timestamp(%s)\n", pVal);
+    return true;
+  }
+  return false;
+}
+
+
 //len does not include '\0' from value.
 bool taos_sml_type_convert(TAOS_SML_KV *pVal, char *value,
                            uint16_t len) {
@@ -1278,97 +1345,113 @@ bool taos_sml_type_convert(TAOS_SML_KV *pVal, char *value,
   return  false;
 }
 
-/*        Field                          Escape charaters
-    1: measurement                        Comma,Space
-    2: tag_key, tag_value, field_key  Comma,Equal Sign,Space
-    3: field_value                    Double quote,Backslash
-*/
-void escape_special_char(uint8_t field, const char **pos) {
-  const char *cur = *pos;
-  if (*cur != '\\') {
-    return;
+int32_t tscGetTimeStampValue(char *value, uint16_t len, SMLTimeStampType type, int64_t *ts) {
+
+  if (len >= 2) {
+    for (int i = 0; i < len - 2; ++i) {
+      if(!isdigit(value[i])) {
+        return TSDB_CODE_TSC_LINE_SYNTAX_ERROR;
+      }
+    }
   }
-  switch (field) {
-    case 1:
-      switch (*(cur + 1)) {
-        case ',':
-        case ' ':
-          cur++;
-          break;
-        default:
-          break;
-      }
-      break;
-    case 2:
-      switch (*(cur + 1)) {
-        case ',':
-        case ' ':
-        case '=':
-          cur++;
-          break;
-        default:
-          break;
-      }
-      break;
-    case 3:
-      switch (*(cur + 1)) {
-        case '"':
-        case '\\':
-          cur++;
-          break;
-        default:
-          break;
-      }
-      break;
-    default:
-      break;
+  //No appendix or no timestamp given (len = 0)
+  if (len >= 1 && isdigit(value[len - 1]) && type != SML_TIME_STAMP_NOW) {
+    type = SML_TIME_STAMP_MICRO_SECONDS;
   }
-  *pos = cur;
+  if (len != 0) {
+    *ts = (int64_t)strtoll(value, NULL, 10);
+  } else {
+    type = SML_TIME_STAMP_NOW;
+  }
+  switch (type) {
+    case SML_TIME_STAMP_NOW: {
+      time_t now = time(NULL);
+      *ts = SECONDS_TO_MICRO((int64_t)now);
+      break;
+    }
+    case SML_TIME_STAMP_SECONDS: {
+      break;
+    }
+    case SML_TIME_STAMP_MILLI_SECONDS: {
+      *ts = SECONDS_TO_MILLI(*ts);
+      break;
+    }
+    case SML_TIME_STAMP_MICRO_SECONDS: {
+      *ts = SECONDS_TO_MICRO(*ts);
+      break;
+    }
+    case SML_TIME_STAMP_NANO_SECONDS: {
+      *ts = SECONDS_TO_NANO(*ts);
+      break;
+    }
+    default: {
+      return TSDB_CODE_TSC_LINE_SYNTAX_ERROR;
+    }
+  }
+  return TSDB_CODE_SUCCESS;
 }
 
-bool taos_sml_parse_measurement(TAOS_SML_DATA_POINT *pSml, const char **index, uint8_t *has_tags) {
-  const char *cur = *index;
-  uint16_t len = 0;
+int32_t taos_sml_timestamp_convert(TAOS_SML_KV *pVal, char *value, uint16_t len) {
+  int32_t ret;
+  SMLTimeStampType type;
+  int64_t tsVal;
 
-  pSml->stableName = calloc(TSDB_TABLE_NAME_LEN, 1);
-  if (*cur == '_') {
-    printf("Measurement field cannnot start with \'_\'\n");
-    return false;
+  
+  if (!is_timestamp(value, len, &type)) {
+    return TSDB_CODE_TSC_LINE_SYNTAX_ERROR;
   }
 
-  while (*cur != '\0') {
-    if (len > TSDB_TABLE_NAME_LEN) {
-      printf("Measurement field cannot exceeds 193 characters");
-      return false;
-    }
-    //first unescaped comma or space identifies measurement
-    //if space detected first, meaning no tag in the input
-    if (*cur == ',' && *(cur - 1) != '\\') {
-      *has_tags = 1;
-      printf("measurement:found comma\n");
+  ret = tscGetTimeStampValue(value, len, type, &tsVal);
+  if (ret) {
+    return ret;
+  }
+  printf("Timestamp after conversion:%lld\n", tsVal);
+
+  pVal->type = TSDB_DATA_TYPE_TIMESTAMP;
+  pVal->length = (int16_t)tDataTypes[pVal->type].bytes;
+  pVal->value = calloc(pVal->length, 1);
+  memcpy(pVal->value, &tsVal, pVal->length);
+  return TSDB_CODE_SUCCESS;
+}
+
+bool taos_sml_parse_value(TAOS_SML_KV *pKV, const char **index,
+                          bool *is_last_kv) {
+  const char *start, *cur;
+  char *value = NULL;
+  uint16_t len = 0;
+  start = cur = *index;
+
+  while (1) {
+    // unescaped ',' or ' ' or '\0' identifies a value
+    if ((*cur == ',' || *cur == ' ' || *cur == '\0') && *(cur - 1) != '\\') {
+      value = calloc(len + 1, 1);
+      memcpy(value, start, len);
+      value[len] = '\0';
+      if (!taos_sml_type_convert(pKV, value, len)) {
+        free(value);
+        return TSDB_CODE_TSC_LINE_SYNTAX_ERROR;
+      }
+      //unescaped ' ' or '\0' indicates end of value
+      *is_last_kv = (*cur == ' ' || *cur == '\0') ? true : false;
       break;
     }
-    if (*cur == ' ' && *(cur - 1) != '\\') {
-      printf("measurement:found space\n");
-      break;
-    }
-    //Comma, Space, Backslash needs to be escaped if any
+    //Escape special character
     if (*cur == '\\') {
-      escape_special_char(1, &cur);
+      escape_special_char(2, &cur);
     }
-    pSml->stableName[len] = *cur;
     cur++;
     len++;
   }
-  pSml->stableName[len] = '\0';
-  *index = cur + 1;
-  printf("stable name:%s|len:%d\n", pSml->stableName, len);
 
-  return true;
+  if (value) {
+    free(value);
+  }
+
+  *index = (*cur == '\0') ? cur : cur + 1;
+  return TSDB_CODE_SUCCESS;
 }
 
-
-bool taos_sml_parse_key(TAOS_SML_KV *pKV, const char **index) {
+int32_t taos_sml_parse_key(TAOS_SML_KV *pKV, const char **index) {
   const char *cur = *index;
   char key[TSDB_COL_NAME_LEN];
   uint16_t len = 0;
@@ -1376,14 +1459,12 @@ bool taos_sml_parse_key(TAOS_SML_KV *pKV, const char **index) {
   //key field cannot start with '_'
   if (*cur == '_') {
     printf("Tag key cannnot start with \'_\'\n");
-    return false;
+    return TSDB_CODE_TSC_LINE_SYNTAX_ERROR;
   }
-  //TODO: If tag key has ID field, use corresponding
-  //tag value as child table name
   while (*cur != '\0') {
     if (len > TSDB_COL_NAME_LEN) {
       printf("Key field cannot exceeds 65 characters");
-      return false;
+      return TSDB_CODE_TSC_LINE_SYNTAX_ERROR;
     }
     //unescaped '=' identifies a tag key
     if (*cur == '=' && *(cur - 1) != '\\') {
@@ -1404,48 +1485,46 @@ bool taos_sml_parse_key(TAOS_SML_KV *pKV, const char **index) {
   memcpy(pKV->key, key, len + 1);
   printf("key:%s|len:%d\n", pKV->key, len);
   *index = cur + 1;
-  return true;
+  return TSDB_CODE_SUCCESS;
 }
 
-bool taos_sml_parse_value(TAOS_SML_KV *pKV, const char **index,
-                          bool *is_last_kv) {
-  const char *start, *cur;
-  char *value = NULL;
-  uint16_t len = 0;
-  start = cur = *index;
 
-  while (1) {
-    // unescaped ',' or ' ' or '\0' identifies a value
-    if ((*cur == ',' || *cur == ' ' || *cur == '\0') && *(cur - 1) != '\\') {
-      value = calloc(len + 1, 1);
-      memcpy(value, start, len);
-      value[len] = '\0';
-      if (!taos_sml_type_convert(pKV, value, len)) {
-        free(value);
-        return false;
-      }
-      //unescaped ' ' or '\0' indicates end of value
-      *is_last_kv = (*cur == ' ' || *cur == '\0') ? true : false;
-      break;
-    }
-    //Escape special character
-    if (*cur == '\\') {
-      escape_special_char(2, &cur);
-    }
+int32_t taos_sml_parse_timestamp(TAOS_SML_KV **pTS, const char **index) {
+  const char *start, *cur;
+  int32_t ret = TSDB_CODE_SUCCESS;
+  int len = 0;
+  char key[] = "_ts";
+  char *value = NULL;
+
+  start = cur = *index;
+  *pTS = calloc(1, sizeof(TAOS_SML_KV));
+
+  while(*cur != '\0') {
     cur++;
     len++;
   }
 
-  if (value) {
-    free(value);
+  if (len > 0) {
+    value = calloc(len, 1);
+    memcpy(value, start, len);
   }
 
-  *index = (*cur == '\0') ? cur : cur + 1;
-  return true;
+  ret = taos_sml_timestamp_convert(*pTS, value, len); 
+  if (ret) {
+    free(value);
+    free(*pTS);
+    return ret;
+  }
+  free(value);
+
+  (*pTS)->key = calloc(sizeof(key), 1);
+  memcpy((*pTS)->key, key, sizeof(key));
+  return ret;
 }
 
-bool taos_sml_parse_kv_pairs(TAOS_SML_KV **pKVs, int *num_kvs, const char **index, bool isField) {
+int32_t taos_sml_parse_kv_pairs(TAOS_SML_KV **pKVs, int *num_kvs, const char **index, bool isField) {
   const char *cur = *index;
+  int32_t ret = TSDB_CODE_SUCCESS;
   TAOS_SML_KV *pkv;
   bool is_last_kv = false;
 
@@ -1461,17 +1540,19 @@ bool taos_sml_parse_kv_pairs(TAOS_SML_KV **pKVs, int *num_kvs, const char **inde
   }
 
   while (*cur != '\0') {
-    if (!taos_sml_parse_key(pkv, &cur)) {
+    ret = taos_sml_parse_key(pkv, &cur);
+    if (ret) {
       printf("Unable to parse key field\n");
       goto error;
     }
-    if (!taos_sml_parse_value(pkv, &cur, &is_last_kv)) {
+    ret = taos_sml_parse_value(pkv, &cur, &is_last_kv);
+    if (ret) {
       printf("Unable to parse value field\n");
       goto error;
     }
     *num_kvs += 1;
 
-    if(is_last_kv) {
+    if (is_last_kv) {
       printf("last key value field detected\n");
       goto done;
     }
@@ -1498,82 +1579,122 @@ bool taos_sml_parse_kv_pairs(TAOS_SML_KV **pKVs, int *num_kvs, const char **inde
 
   error:
   free(*pKVs);
-  return false;
+  return ret;
   done:
   *index = cur;
-  return true;
+  return ret;
 }
 
-bool taos_sml_parse_timestamp(TAOS_SML_KV **pTS, const char **index) {
-  const char *start, *cur;
-  int len = 0;
-  char key[] = "_ts";
-  char *value = NULL;
+int32_t taos_sml_parse_measurement(TAOS_SML_DATA_POINT *pSml, const char **index, uint8_t *has_tags) {
+  const char *cur = *index;
+  uint16_t len = 0;
 
-  start = cur = *index;
-  *pTS = calloc(1, sizeof(TAOS_SML_KV));
-
-  if (*cur == '\0') {
-    //no timestamp given, use current system time
-    return true;
+  pSml->stableName = calloc(TSDB_TABLE_NAME_LEN, 1);
+  if (*cur == '_') {
+    printf("Measurement field cannnot start with \'_\'\n");
+    return TSDB_CODE_TSC_LINE_SYNTAX_ERROR;
   }
 
-  while(*cur != '\0') {
+  while (*cur != '\0') {
+    if (len > TSDB_TABLE_NAME_LEN) {
+      printf("Measurement field cannot exceeds 193 characters");
+      return TSDB_CODE_TSC_LINE_SYNTAX_ERROR;
+    }
+    //first unescaped comma or space identifies measurement
+    //if space detected first, meaning no tag in the input
+    if (*cur == ',' && *(cur - 1) != '\\') {
+      *has_tags = 1;
+      printf("measurement:found comma\n");
+      break;
+    }
+    if (*cur == ' ' && *(cur - 1) != '\\') {
+      printf("measurement:found space\n");
+      break;
+    }
+    //Comma, Space, Backslash needs to be escaped if any
+    if (*cur == '\\') {
+      escape_special_char(1, &cur);
+    }
+    pSml->stableName[len] = *cur;
     cur++;
     len++;
   }
-  value = calloc(len, 1);
-  memcpy(value, start, len);
-  if (!taos_sml_timestamp_convert(*pTS, value, len)) {
-    free(*pTS);
-    return false;
-  }
-  free(value);
+  pSml->stableName[len] = '\0';
+  *index = cur + 1;
+  printf("stable name:%s|len:%d\n", pSml->stableName, len);
 
-
-  (*pTS)->key = calloc(sizeof(key), 1);
-  memcpy((*pTS)->key, key, sizeof(key));
-  return true;
+  return TSDB_CODE_SUCCESS;
 }
 
-bool tscParseLine(const char* sql, TAOS_SML_DATA_POINT* sml_data) {
+
+bool tscGetChildTableName(TAOS_SML_DATA_POINT *pData) {
+  TAOS_SML_KV *pTags = pData->tags;
+  int tagNum = pData->tagNum;
+  char *childTableName = pData->childTableName;
+
+  for (int i = 0; i < tagNum; ++i) {
+    //use tag value as child table name if key is "ID"
+    //tag value has to be binary for now
+    if (!strcmp(pTags->key, "ID") && pTags->type == TSDB_DATA_TYPE_BINARY) {
+      memcpy(childTableName, pTags->value, pTags->length);
+      return true;
+    }
+    pTags++;
+  }
+  return false;
+}
+
+int32_t tscParseLine(const char* sql, TAOS_SML_DATA_POINT* sml_data) {
   const char* index = sql;
+  int32_t ret = TSDB_CODE_SUCCESS;
   uint8_t has_tags = 0;
   TAOS_SML_KV *timestamp = NULL;
 
 
-  if (!taos_sml_parse_measurement(sml_data, &index, &has_tags)) {
+  ret = taos_sml_parse_measurement(sml_data, &index, &has_tags);
+  if (ret) {
     printf("Unable to parse measurement\n");
     free(sml_data->stableName);
     free(sml_data);
-    return false;
+    return ret;
   }
   printf("============Parse measurement finished, has_tags:%d===============\n", has_tags);
 
   //Parse Tags
   if (has_tags) {
-    if (!taos_sml_parse_kv_pairs(&sml_data->tags, &sml_data->tagNum, &index, false)) {
+    ret = taos_sml_parse_kv_pairs(&sml_data->tags, &sml_data->tagNum, &index, false);
+    if (ret) {
       printf("Unable to parse tag\n");
       //TODO free allocated fileds inside TAOS_SML_DATA_POINT first
-      return false;
+      return ret;
     }
+    sml_data->childTableName = calloc(TSDB_TABLE_NAME_LEN, 1);
+    if (!tscGetChildTableName(sml_data)) {
+      free(sml_data->childTableName);
+    }
+    printf("Child table name:%02x:%02x:%02x:%02x\n", sml_data->childTableName[0],
+                                                     sml_data->childTableName[1],
+                                                     sml_data->childTableName[2],
+                                                     sml_data->childTableName[3]);
   } else {
     //no tags given
   }
 
   printf("============Parse tags finished, num_tags:%d===============\n", sml_data->tagNum);
   //Parse fields
-  if (!taos_sml_parse_kv_pairs(&sml_data->fields, &sml_data->fieldNum, &index, true)) {
+  ret = taos_sml_parse_kv_pairs(&sml_data->fields, &sml_data->fieldNum, &index, true);
+  if (ret) {
     printf("Unable to parse field\n");
     //TODO free allocated fileds inside TAOS_SML_DATA_POINT first
-    return false;
+    return ret;
   }
+
   printf("============Parse fields finished, num_fields:%d===============\n", sml_data->fieldNum);
   //Parse timestamp
-  if (!taos_sml_parse_timestamp(&timestamp, &index)) {
+  ret = taos_sml_parse_timestamp(&timestamp, &index);
+  if (ret) {
     printf("Unable to parse timestamp\n");
-
-    return false;
+    return ret;
   }
 
   sml_data->fieldNum = sml_data->fieldNum + 1;
@@ -1593,7 +1714,7 @@ bool tscParseLine(const char* sql, TAOS_SML_DATA_POINT* sml_data) {
   return true;
 }
 
-
+//=========================================================================
 
 int32_t tscParseLines(char* lines[], int numLines, SArray* points, SArray* failedLines) {
   for (int32_t i = 0; i < numLines; ++i) {
