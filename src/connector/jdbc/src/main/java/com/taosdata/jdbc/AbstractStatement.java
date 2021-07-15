@@ -232,9 +232,8 @@ public abstract class AbstractStatement extends WrapperImpl implements Statement
                     res[i] = getUpdateCount();
                 }
             } catch (SQLException e) {
-                res[i] = EXECUTE_FAILED;
                 String reason = e.getMessage();
-                int[] updateCounts = Arrays.copyOfRange(res, 0, i + 1);
+                int[] updateCounts = Arrays.copyOfRange(res, 0, i);
                 throw new BatchUpdateException(reason, updateCounts, e);
             }
         }

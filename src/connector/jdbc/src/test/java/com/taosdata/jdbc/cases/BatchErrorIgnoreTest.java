@@ -36,13 +36,12 @@ public class BatchErrorIgnoreTest {
             stmt.executeBatch();
         } catch (BatchUpdateException e) {
             int[] updateCounts = e.getUpdateCounts();
-            Assert.assertEquals(6, updateCounts.length);
+            Assert.assertEquals(5, updateCounts.length);
             Assert.assertEquals(1, updateCounts[0]);
             Assert.assertEquals(1, updateCounts[1]);
             Assert.assertEquals(1, updateCounts[2]);
             Assert.assertEquals(1, updateCounts[3]);
             Assert.assertEquals(1, updateCounts[4]);
-            Assert.assertEquals(Statement.EXECUTE_FAILED, updateCounts[5]);
         }
 
     }
