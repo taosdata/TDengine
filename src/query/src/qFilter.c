@@ -1815,7 +1815,31 @@ _err_return:
 }
 
 
-int32_t filterConverNcharColumns(SFilterInfo* pFilterInfo, int32_t rows, bool *gotNchar) {
+int32_t filterConverNcharColumns(SFilterInfo* info, int32_t rows, bool *gotNchar) {
+  for (uint16_t i = 0; i < info->fields[FLD_TYPE_COLUMN].num; ++i) {
+    SFilterField* fi = &info->fields[FLD_TYPE_COLUMN].fields[i];
+    int32_t type = FILTER_GET_COL_FIELD_TYPE(fi);
+    if (type == TSDB_DATA_TYPE_NCHAR) {
+      SFilterField nfi = {0};
+      nfi.desc = fi->desc;
+      int32_t bytes = FILTER_GET_COL_FIELD_SIZE(fi);
+      nfi.data = malloc(rows * bytes);
+      int32_t bufSize = bytes - VARSTR_HEADER_SIZE;
+      for (int32_t j = 0; j < rows; ++j) {
+        char *src = FILTER_GET_COL_FIELD_DATA(fi, j);
+        char *dst = FILTER_GET_COL_FIELD_DATA(&nfi, j);
+        int32_t len = 0;
+        taosMbsToUcs4(varDataVal(src), varDataLen(src), varDataVal(dst), bufSize, &len);
+        varDataLen(dst) = len;
+      }
+
+      fi->data = nfi.data;
+      
+      *gotNchar = true;
+    }
+  }
+
+
 #if 0
   for (int32_t i = 0; i < numOfFilterCols; ++i) {
     if (pFilterInfo[i].info.type == TSDB_DATA_TYPE_NCHAR) {
@@ -1837,7 +1861,7 @@ int32_t filterConverNcharColumns(SFilterInfo* pFilterInfo, int32_t rows, bool *g
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t filterFreeNcharColumns(SFilterInfo* pFilterInfo) {
+int32_t filterFreeNcharColumns(SFilterInfo* info) {
 #if 0
   for (int32_t i = 0; i < numOfFilterCols; ++i) {
     if (pFilterInfo[i].info.type == TSDB_DATA_TYPE_NCHAR) {
@@ -1849,6 +1873,15 @@ int32_t filterFreeNcharColumns(SFilterInfo* pFilterInfo) {
     }
   }
 #endif
+
+  for (uint16_t i = 0; i < info->fields[FLD_TYPE_COLUMN].num; ++i) {
+    SFilterField* fi = &info->fields[FLD_TYPE_COLUMN].fields[i];
+    int32_t type = FILTER_GET_COL_FIELD_TYPE(fi);
+    if (type == TSDB_DATA_TYPE_NCHAR) {
+      tfree(fi->data);
+    }
+  }
+
 
   return TSDB_CODE_SUCCESS;
 }
