@@ -460,6 +460,11 @@ static int tsdbCompactMetaFile(STsdbRepo *pRepo, STsdbFS *pfs, SMFile *pMFile) {
     return 0;
   }
 
+  if (tsdbOpenMFile(pMFile, O_RDONLY) < 0) {
+    tsdbError("open meta file %s compact fail", pMFile->f.rname);
+    return -1;
+  }
+
   tsdbInfo("begin compact tsdb meta file, nDels:%" PRId64 ",nRecords:%" PRId64 ",tombSize:%" PRId64 ",size:%" PRId64,
     pMFile->info.nDels,pMFile->info.nRecords,pMFile->info.tombSize,pMFile->info.size);
 
@@ -530,10 +535,19 @@ static int tsdbCompactMetaFile(STsdbRepo *pRepo, STsdbFS *pfs, SMFile *pMFile) {
 _err:
   TSDB_FILE_FSYNC(&mf);
   tsdbCloseMFile(&mf);
+  tsdbCloseMFile(pMFile);
 
-  tsdbRenameOrDeleleTempMetaFile(&mf, did, REPO_ID(pRepo), FS_TXN_VERSION(REPO_FS(pRepo)), code);
   if (code == 0) {
+    // rename meta.tmp -> meta
+    taosRename(mf.f.aname,pMFile->f.aname);
+    tstrncpy(mf.f.aname, pMFile->f.aname, TSDB_FILENAME_LEN);
+    tstrncpy(mf.f.rname, pMFile->f.rname, TSDB_FILENAME_LEN);
+    // update current meta file info
+    pfs->nstatus->pmf = NULL;
     tsdbUpdateMFile(pfs, &mf);
+  } else {
+    // remove meta.tmp file
+    remove(mf.f.aname);
   }
 
   tfree(pBuf);

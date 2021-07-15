@@ -57,7 +57,6 @@ typedef struct {
 } SMFile;
 
 void  tsdbInitMFile(SMFile* pMFile, SDiskID did, int vid, uint32_t ver, bool tmp);
-void  tsdbRenameOrDeleleTempMetaFile(SMFile* pMFile, SDiskID did, int vid, uint32_t ver, int code);
 void  tsdbInitMFileEx(SMFile* pMFile, const SMFile* pOMFile);
 int   tsdbEncodeSMFile(void** buf, SMFile* pMFile);
 void* tsdbDecodeSMFile(void* buf, SMFile* pMFile);

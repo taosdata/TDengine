@@ -20,8 +20,8 @@ static const char *TSDB_FNAME_SUFFIX[] = {
     "data",     // TSDB_FILE_DATA
     "last",     // TSDB_FILE_LAST
     "",         // TSDB_FILE_MAX
-    "meta"      // TSDB_FILE_META
-    "meta.tmp"  // TSDB_FILE_META_TMP
+    "meta",     // TSDB_FILE_META
+    "meta.tmp", // TSDB_FILE_META_TMP
 };
 
 static void  tsdbGetFilename(int vid, int fid, uint32_t ver, TSDB_FILE_T ftype, char *fname);
@@ -41,22 +41,6 @@ void tsdbInitMFile(SMFile *pMFile, SDiskID did, int vid, uint32_t ver, bool tmp)
 
   tsdbGetFilename(vid, 0, ver, tmp ? TSDB_FILE_META_TMP : TSDB_FILE_META, fname);
   tfsInitFile(TSDB_FILE_F(pMFile), did.level, did.id, fname);
-}
-
-void tsdbRenameOrDeleleTempMetaFile(SMFile* pMFile, SDiskID did, int vid, uint32_t ver, int code) {
-  char mfname[TSDB_FILENAME_LEN] = {'\0'};
-  char tfname[TSDB_FILENAME_LEN] = {'\0'};
-
-  tsdbGetFilename(vid, 0, ver, TSDB_FILE_META_TMP, tfname);
-
-  if (code != 0) {
-    remove(tfname);
-    return;
-  }
-
-  tsdbGetFilename(vid, 0, ver, TSDB_FILE_META, mfname);
-
-  (void)taosRename(tfname, mfname);
 }
 
 void tsdbInitMFileEx(SMFile *pMFile, const SMFile *pOMFile) {
