@@ -406,7 +406,6 @@ static FORCE_INLINE TDRowLenT tsSetPayloadColValue(char *payloadStart, char *pay
   payloadColSetId(payload, columnId);
   payloadColSetType(payload, columnType);
   memcpy(POINTER_SHIFT(payloadStart,tOffset), value, valueLen);
-  // payloadSetTLen(payloadStart, payloadTLen(payloadStart) + valueLen);
   return valueLen;
 }
 
@@ -867,7 +866,7 @@ int tsParseOneRow(char **str, STableDataBlocks *pDataBlocks, int16_t timePrec, i
     TDRowLenT kvRowColLen = 0;
     TDRowLenT colValAppended = 0;
 
-    if (!IS_DATA_COL_ORDERED(spd)) {
+    if (!IS_DATA_COL_ORDERED(spd->orderStatus)) {
       ASSERT(spd->colIdxInfo != NULL);
       if(!isPrimaryKey) {
         kvStart = POINTER_SHIFT(kvPrimaryKeyStart, spd->colIdxInfo[i].finalIdx * PAYLOAD_COL_HEAD_LEN);
@@ -891,7 +890,7 @@ int tsParseOneRow(char **str, STableDataBlocks *pDataBlocks, int16_t timePrec, i
       payloadColSetOffset(kvPrimaryKeyStart, colValOffset);
     } else {
       payloadColSetOffset(kvStart, colValOffset);
-      if (spd->orderStatus == ORDER_STATUS_ORDERED) {
+      if (IS_DATA_COL_ORDERED(spd->orderStatus)) {
         kvStart += PAYLOAD_COL_HEAD_LEN;  // move to next column
       }
     }
@@ -910,10 +909,6 @@ int tsParseOneRow(char **str, STableDataBlocks *pDataBlocks, int16_t timePrec, i
   *len = (int32_t)(payloadValOffset + colValOffset);
   payloadSetTLen(payload, *len);
   
-  // TSKEY tsKey = payloadKey(payload);
-  // ASSERT((tsKey < 1627747200000000 && tsKey > 1498838400000000) || (tsKey < 1627747200000 && tsKey > 1498838400000) ||
-  //        (tsKey < 1627747200 && tsKey > 1498838400));
-
   return TSDB_CODE_SUCCESS;
 }
 

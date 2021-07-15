@@ -1245,11 +1245,15 @@ static bool validateTableColumnInfo(SArray* pFieldList, SSqlCmd* pCmd) {
   const char* msg4 = "invalid data type";
   const char* msg5 = "invalid binary/nchar column length";
   const char* msg6 = "invalid column name";
+  const char* msg7 = "too many columns";
 
   // number of fields no less than 2
   size_t numOfCols = taosArrayGetSize(pFieldList);
-  if (numOfCols <= 1 || numOfCols > TSDB_MAX_COLUMNS) {
+  if (numOfCols <= 1 ) {
     invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg);
+    return false;
+  } else if (numOfCols > TSDB_MAX_COLUMNS) {
+    invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg7);
     return false;
   }
 

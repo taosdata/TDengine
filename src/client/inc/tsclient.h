@@ -41,8 +41,6 @@ extern "C" {
 // forward declaration
 struct SSqlInfo;
 
-#define KvRowNColsThresh 128  // default 128
-
 typedef void (*__async_cb_func_t)(void *param, TAOS_RES *tres, int32_t numOfRows);
 
 typedef struct SNewVgroupInfo {
@@ -111,7 +109,7 @@ typedef struct SParsedDataColInfo {
   int8_t         orderStatus;  // bounded columns: 
 } SParsedDataColInfo;
 
-#define IS_DATA_COL_ORDERED(s)  (((s)->orderStatus) == (int8_t)ORDER_STATUS_ORDERED)
+#define IS_DATA_COL_ORDERED(s) ((s) == (int8_t)ORDER_STATUS_ORDERED)
 
 typedef struct {
   SSchema *   pSchema;

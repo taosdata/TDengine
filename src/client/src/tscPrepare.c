@@ -370,7 +370,7 @@ static int refactorPayload(STableDataBlocks* pBlock, int32_t rowNum) {
       bool     isPrimaryKey = (colIndex == PRIMARYKEY_TIMESTAMP_COL_INDEX);
 
       // the primary key locates in 1st column
-      if (!IS_DATA_COL_ORDERED(spd)) {
+      if (!IS_DATA_COL_ORDERED(spd->orderStatus)) {
         ASSERT(spd->colIdxInfo != NULL);
         if (!isPrimaryKey) {
           kvStart = POINTER_SHIFT(kvPrimaryKeyStart, spd->colIdxInfo[i].finalIdx * PAYLOAD_COL_HEAD_LEN);
@@ -406,7 +406,7 @@ static int refactorPayload(STableDataBlocks* pBlock, int32_t rowNum) {
           kvRowLen += TYPE_BYTES[pSchema->type];
         }
 
-        if (IS_DATA_COL_ORDERED(spd)) {
+        if (IS_DATA_COL_ORDERED(spd->orderStatus)) {
           kvStart += PAYLOAD_COL_HEAD_LEN;  // move to next column
         }
       }
@@ -424,12 +424,6 @@ static int refactorPayload(STableDataBlocks* pBlock, int32_t rowNum) {
 
     TDRowTLenT len = payloadValOffset + colValOffset;
     payloadSetTLen(destPayload, len);
-
-#if 0
-    TSKEY tsKey = payloadKey(destPayload);
-    ASSERT((tsKey < 1627747200000000 && tsKey > 1498838400000000) || (tsKey < 1627747200000 && tsKey > 1498838400000) ||
-           (tsKey < 1627747200 && tsKey > 1498838400));
-#endif
 
     // next loop
     srcPayload += pBlock->rowSize;

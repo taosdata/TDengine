@@ -198,7 +198,7 @@ do { \
   /**
    *  In some scenarios uint16_t (0~65535) is used to store the row len.
    *  - Firstly, we use 65531(65535 - 4), as the SDataRow and SKVRow including 4 bits header.
-   *  - Secondly, if all cols are VarType except primary key, we need 4 bits to store the offset, thus
+   *  - Secondly, if all cols are VarDataT type except primary key, we need 4 bits to store the offset, thus
    *    the final value is 65531-(4096-1)*4 = 49151.
    */
 #define TSDB_MAX_BYTES_PER_ROW    49151
