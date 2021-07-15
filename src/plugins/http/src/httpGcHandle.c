@@ -178,12 +178,8 @@ bool gcProcessQueryRequest(HttpContext* pContext) {
 
 #define ESCAPE_ERROR_PROC(code, context, root)                          \
   do {                                                                  \
-    if (code != 0) {                                                    \
-      if (code == 1) {                                                  \
-        httpSendErrorResp(context, TSDB_CODE_HTTP_GC_REQ_PARSE_ERROR);  \
-      } else {                                                          \
-        httpSendErrorResp(context, TSDB_CODE_HTTP_NO_ENOUGH_MEMORY);    \
-      }                                                                 \
+    if (code != TSDB_CODE_SUCCESS) {                                    \
+      httpSendErrorResp(context, code);                                 \
                                                                         \
       cJSON_Delete(root);                                               \
       return false;                                                     \

@@ -613,12 +613,8 @@ bool tgProcessSingleMetric(HttpContext *pContext, cJSON *metric, char *db) {
 
     char *tagStr = NULL;
     int32_t retCode = httpCheckAllocEscapeSql(tag->string, &tagStr);
-    if (retCode != 0) {
-      if (retCode == 1) {
-        httpSendErrorResp(pContext, TSDB_CODE_HTTP_TG_INVALID_JSON);
-      } else {
-        httpSendErrorResp(pContext, TSDB_CODE_HTTP_NO_ENOUGH_MEMORY);
-      }
+    if (retCode != TSDB_CODE_SUCCESS) {
+      httpSendErrorResp(pContext, retCode);
 
       return false;
     }

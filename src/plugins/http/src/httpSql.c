@@ -429,27 +429,27 @@ int32_t httpCheckAllocEscapeSql(char *oldSql, char **newSql)
   char *pos;
 
   if (oldSql == NULL || newSql == NULL) {
-    return 0;
+    return TSDB_CODE_SUCCESS;
   }
 
   /* bad sql clause */
   pos = strstr(oldSql, "%%");
   if (pos) {
     httpError("bad sql:%s", oldSql);
-    return 1;
+    return TSDB_CODE_HTTP_REQUEST_JSON_ERROR;
   }
 
   pos = strchr(oldSql, '%');
   if (pos == NULL) {
     httpDebug("sql:%s", oldSql);
     *newSql = oldSql;
-    return 0;
+    return TSDB_CODE_SUCCESS;
   }
 
   *newSql = (char *) calloc(1, (strlen(oldSql) << 1) + 1);
   if (newSql == NULL) {
     httpError("failed to allocate for new sql, old sql:%s", oldSql);
-    return -1;
+    return TSDB_CODE_HTTP_NO_ENOUGH_MEMORY;
   }
 
   char *src = oldSql;
@@ -473,7 +473,7 @@ int32_t httpCheckAllocEscapeSql(char *oldSql, char **newSql)
     }
   }
 
-  return 0;
+  return TSDB_CODE_SUCCESS;
 }
 
 void httpCheckFreeEscapedSql(char *oldSql, char *newSql)
