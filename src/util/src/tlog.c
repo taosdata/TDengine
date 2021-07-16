@@ -367,11 +367,10 @@ static int32_t taosOpenLogFile(char *fn, int32_t maxLines, int32_t maxFileNum) {
 void taosFormatLineNum(char* result, const char *flag, const char *filename, int lineNum){
   char *name = strrchr(filename, '/');
   if(name){
-    name = name + 1;  // jump /
+    sprintf(result, "%s%20s:%-5d\t", flag, name + 1, lineNum);   // align
   }else{
-    name = filename;
+    sprintf(result, "%s%20s:%-5d\t", flag, filename, lineNum);   // align
   }
-  sprintf(result, "%s%20s:%-5d\t", flag, name, lineNum);   // align
 }
 
 void taosPrintLog(const char *flags, const char *file, int line, int32_t dflag, const char *format, ...) {
