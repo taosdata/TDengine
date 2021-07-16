@@ -1734,14 +1734,14 @@ static SMemRow tdGenMemRowFromBuilder(SMemRowBuilder* pBuilder) {
         p = payloadNextCol(p);
         ++i;
       } else {
-        tdAppendColVal(trow, tdGetNullVal(pSchema[j].type), pSchema[j].type, toffset);
+        tdAppendColVal(trow, getNullValue(pSchema[j].type), pSchema[j].type, toffset);
         toffset += TYPE_BYTES[pSchema[j].type];
         ++j;
       }
     }
 
     while (j < nCols) {
-      tdAppendColVal(trow, tdGetNullVal(pSchema[j].type), pSchema[j].type, toffset);
+      tdAppendColVal(trow, getNullValue(pSchema[j].type), pSchema[j].type, toffset);
       toffset += TYPE_BYTES[pSchema[j].type];
       ++j;
     }

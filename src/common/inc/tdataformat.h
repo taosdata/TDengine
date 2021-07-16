@@ -274,12 +274,10 @@ void dataColSetOffset(SDataCol *pCol, int nEle);
 bool isNEleNull(SDataCol *pCol, int nEle);
 void dataColSetNEleNull(SDataCol *pCol, int nEle, int maxPoints);
 
-const void *tdGetNullVal(int8_t type);
-
 // Get the data pointer from a column-wised data
 static FORCE_INLINE const void *tdGetColDataOfRow(SDataCol *pCol, int row) {
   if (isAllRowsNull(pCol)) {
-    return tdGetNullVal(pCol->type);
+    return getNullValue(pCol->type);
   }
   if (IS_VAR_DATA_TYPE(pCol->type)) {
     return POINTER_SHIFT(pCol->pData, pCol->dataOff[row]);

@@ -453,7 +453,7 @@ static void tdAppendDataRowToDataCol(SDataRow row, STSchema *pSchema, SDataCols 
       SDataCol *pDataCol = &(pCols->cols[dcol]);
       if (rcol >= schemaNCols(pSchema)) {
         // dataColSetNullAt(pDataCol, pCols->numOfRows);
-        dataColAppendVal(pDataCol, tdGetNullVal(pDataCol->type), pCols->numOfRows, pCols->maxPoints);
+        dataColAppendVal(pDataCol, getNullValue(pDataCol->type), pCols->numOfRows, pCols->maxPoints);
         dcol++;
         continue;
       }
@@ -468,7 +468,7 @@ static void tdAppendDataRowToDataCol(SDataRow row, STSchema *pSchema, SDataCols 
         rcol++;
       } else {
         // dataColSetNullAt(pDataCol, pCols->numOfRows);
-        dataColAppendVal(pDataCol, tdGetNullVal(pDataCol->type), pCols->numOfRows, pCols->maxPoints);
+        dataColAppendVal(pDataCol, getNullValue(pDataCol->type), pCols->numOfRows, pCols->maxPoints);
         dcol++;
       }
     }
@@ -498,7 +498,7 @@ static void tdAppendKvRowToDataCol(SKVRow row, STSchema *pSchema, SDataCols *pCo
       SDataCol *pDataCol = &(pCols->cols[dcol]);
       if (rcol >= nRowCols || rcol >= schemaNCols(pSchema)) {
         // dataColSetNullAt(pDataCol, pCols->numOfRows);
-        dataColAppendVal(pDataCol, tdGetNullVal(pDataCol->type), pCols->numOfRows, pCols->maxPoints);
+        dataColAppendVal(pDataCol, getNullValue(pDataCol->type), pCols->numOfRows, pCols->maxPoints);
         ++dcol;
         continue;
       }
@@ -514,7 +514,7 @@ static void tdAppendKvRowToDataCol(SKVRow row, STSchema *pSchema, SDataCols *pCo
         ++rcol;
       } else {
         // dataColSetNullAt(pDataCol, pCols->numOfRows);
-        dataColAppendVal(pDataCol, tdGetNullVal(pDataCol->type), pCols->numOfRows, pCols->maxPoints);
+        dataColAppendVal(pDataCol, getNullValue(pDataCol->type), pCols->numOfRows, pCols->maxPoints);
         ++dcol;
       }
     }
@@ -799,40 +799,4 @@ SKVRow tdGetKVRowFromBuilder(SKVRowBuilder *pBuilder) {
   memcpy(kvRowValues(row), pBuilder->buf, pBuilder->size);
 
   return row;
-}
-
-const void *tdGetNullVal(int8_t type) {
-  switch (type) {
-    case TSDB_DATA_TYPE_BOOL:
-      return &BoolNull;
-    case TSDB_DATA_TYPE_TINYINT:
-      return &TinyintNull;
-    case TSDB_DATA_TYPE_SMALLINT:
-      return &SmallintNull;
-    case TSDB_DATA_TYPE_INT:
-      return &IntNull;
-    case TSDB_DATA_TYPE_BIGINT:
-      return &BigintNull;
-    case TSDB_DATA_TYPE_FLOAT:
-      return &FloatNull;
-    case TSDB_DATA_TYPE_DOUBLE:
-      return &DoubleNull;
-    case TSDB_DATA_TYPE_BINARY:
-      return &BinaryNull;
-    case TSDB_DATA_TYPE_TIMESTAMP:
-      return &TimestampNull;
-    case TSDB_DATA_TYPE_NCHAR:
-      return &NcharNull;
-    case TSDB_DATA_TYPE_UTINYINT:
-      return &UTinyintNull;
-    case TSDB_DATA_TYPE_USMALLINT:
-      return &USmallintNull;
-    case TSDB_DATA_TYPE_UINT:
-      return &UIntNull;
-    case TSDB_DATA_TYPE_UBIGINT:
-      return &UBigintNull;
-    default:
-      ASSERT(0);
-      return NULL;
-  }
 }
