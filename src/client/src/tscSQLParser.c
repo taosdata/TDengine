@@ -1245,11 +1245,15 @@ static bool validateTableColumnInfo(SArray* pFieldList, SSqlCmd* pCmd) {
   const char* msg4 = "invalid data type";
   const char* msg5 = "invalid binary/nchar column length";
   const char* msg6 = "invalid column name";
+  const char* msg7 = "too many columns";
 
   // number of fields no less than 2
   size_t numOfCols = taosArrayGetSize(pFieldList);
-  if (numOfCols <= 1 || numOfCols > TSDB_MAX_COLUMNS) {
+  if (numOfCols <= 1 ) {
     invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg);
+    return false;
+  } else if (numOfCols > TSDB_MAX_COLUMNS) {
+    invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg7);
     return false;
   }
 
@@ -7702,8 +7706,12 @@ int32_t loadAllTableMeta(SSqlObj* pSql, struct SSqlInfo* pInfo) {
   uint32_t maxSize = tscGetTableMetaMaxSize();
   char     name[TSDB_TABLE_FNAME_LEN] = {0};
 
-  char buf[80 * 1024] = {0};
-  assert(maxSize < 80 * 1024);
+  assert(maxSize < 80 * TSDB_MAX_COLUMNS);
+  if (!pSql->cmd.pBuf) {
+    if (NULL == (pSql->cmd.pBuf = tcalloc(1, 80 * TSDB_MAX_COLUMNS))) {
+      return TSDB_CODE_TSC_OUT_OF_MEMORY;
+    }
+  }
   pTableMeta = calloc(1, maxSize);
 
   plist = taosArrayInit(4, POINTER_BYTES);
@@ -7720,7 +7728,7 @@ int32_t loadAllTableMeta(SSqlObj* pSql, struct SSqlInfo* pInfo) {
 
     if (pTableMeta->id.uid > 0) {
       if (pTableMeta->tableType == TSDB_CHILD_TABLE) {
-        code = tscCreateTableMetaFromSTableMeta(pTableMeta, name, buf);
+        code = tscCreateTableMetaFromSTableMeta(pTableMeta, name, pSql->cmd.pBuf);
 
         // create the child table meta from super table failed, try load it from mnode
         if (code != TSDB_CODE_SUCCESS) {

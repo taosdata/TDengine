@@ -2616,22 +2616,24 @@ int32_t tscGetTableMetaImpl(SSqlObj* pSql, STableMetaInfo *pTableMetaInfo, bool 
   taosHashGetClone(tscTableMetaInfo, name, len, NULL, pTableMetaInfo->pTableMeta, -1);
 
   // TODO resize the tableMeta
-  char buf[80*1024] = {0};
-  assert(size < 80*1024);
+  assert(size < 80 * TSDB_MAX_COLUMNS);
+  if (!pSql->cmd.pBuf) {
+    if (NULL == (pSql->cmd.pBuf = tcalloc(1, 80 * TSDB_MAX_COLUMNS))) {
+      return TSDB_CODE_TSC_OUT_OF_MEMORY;
+    }
+  }
 
   STableMeta* pMeta = pTableMetaInfo->pTableMeta;
   if (pMeta->id.uid > 0) {
     // in case of child table, here only get the
     if (pMeta->tableType == TSDB_CHILD_TABLE) {
-      int32_t code = tscCreateTableMetaFromSTableMeta(pTableMetaInfo->pTableMeta, name, buf);
+      int32_t code = tscCreateTableMetaFromSTableMeta(pTableMetaInfo->pTableMeta, name, pSql->cmd.pBuf);
       if (code != TSDB_CODE_SUCCESS) {
         return getTableMetaFromMnode(pSql, pTableMetaInfo, autocreate);
       }
     }
-
     return TSDB_CODE_SUCCESS;
   }
-
   return getTableMetaFromMnode(pSql, pTableMetaInfo, autocreate);
 }
 
@@ -2692,7 +2694,6 @@ int tscGetSTableVgroupInfo(SSqlObj *pSql, SQueryInfo* pQueryInfo) {
   if (allVgroupInfoRetrieved(pQueryInfo)) {
     return TSDB_CODE_SUCCESS;
   }
-
   SSqlObj *pNew = calloc(1, sizeof(SSqlObj));
   pNew->pTscObj = pSql->pTscObj;
   pNew->signature = pNew;

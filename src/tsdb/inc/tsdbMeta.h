@@ -32,7 +32,7 @@ typedef struct STable {
   void*          eventHandler;   // TODO
   void*          streamHandler;  // TODO
   TSKEY          lastKey;
-  SDataRow       lastRow;
+  SMemRow        lastRow;
   char*          sql;
   void*          cqhandle;
   SRWLatch       latch;  // TODO: implementa latch functions
@@ -148,7 +148,7 @@ static FORCE_INLINE STSchema *tsdbGetTableTagSchema(STable *pTable) {
 }
 
 static FORCE_INLINE TSKEY tsdbGetTableLastKeyImpl(STable* pTable) {
-  ASSERT(pTable->lastRow == NULL || pTable->lastKey == dataRowKey(pTable->lastRow));
+  ASSERT((pTable->lastRow == NULL) || (pTable->lastKey == memRowKey(pTable->lastRow)));
   return pTable->lastKey;
 }
 

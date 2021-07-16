@@ -515,7 +515,7 @@ static void *nullValues[] = {
     &nullTinyIntu, &nullSmallIntu, &nullIntu,     &nullBigIntu,
 };
 
-void *getNullValue(int32_t type) {
+const void *getNullValue(int32_t type) {
   assert(type >= TSDB_DATA_TYPE_BOOL && type <= TSDB_DATA_TYPE_UBIGINT);
   return nullValues[type - 1];
 }

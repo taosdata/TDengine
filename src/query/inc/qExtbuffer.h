@@ -77,13 +77,13 @@ typedef struct tFilePagesItem {
 
 typedef struct SSchemaEx {
   struct SSchema field;
-  int16_t        offset;
+  int32_t        offset;
 } SSchemaEx;
 
 typedef struct SColumnModel {
   int32_t    capacity;
   int32_t    numOfCols;
-  int16_t    rowSize;
+  int32_t    rowSize;
   SSchemaEx *pFields;
 } SColumnModel;
 
