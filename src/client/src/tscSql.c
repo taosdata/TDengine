@@ -566,7 +566,7 @@ static bool tscKillQueryInDnode(SSqlObj* pSql) {
 
   SQueryInfo *pQueryInfo = tscGetQueryInfo(pCmd);
 
-  if ((pQueryInfo == NULL) || tscIsTwoStageSTableQuery(pQueryInfo, 0)) {
+  if ((pQueryInfo == NULL) || pQueryInfo->globalMerge) {
     return true;
   }
 
@@ -679,7 +679,7 @@ static void tscKillSTableQuery(SSqlObj *pSql) {
 
   SQueryInfo* pQueryInfo = tscGetQueryInfo(pCmd);
 
-  if (!tscIsTwoStageSTableQuery(pQueryInfo, 0)) {
+  if (!pQueryInfo->globalMerge) {
     return;
   }
 
@@ -730,7 +730,7 @@ void taos_stop_query(TAOS_RES *res) {
 
   SQueryInfo *pQueryInfo = tscGetQueryInfo(pCmd);
 
-  if (tscIsTwoStageSTableQuery(pQueryInfo, 0)) {
+  if (pQueryInfo->globalMerge) {
     assert(pSql->rpcRid <= 0);
     tscKillSTableQuery(pSql);
   } else {
@@ -987,7 +987,7 @@ int taos_load_table_info(TAOS *taos, const char *tableNameList) {
   registerSqlObj(pSql);
   tscDebug("0x%"PRIx64" load multiple table meta, tableNameList: %s pObj:%p", pSql->self, tableNameList, pObj);
 
-  code = getMultiTableMetaFromMnode(pSql, plist, vgroupList, loadMultiTableMetaCallback, false);
+  code = getMultiTableMetaFromMnode(pSql, plist, vgroupList, NULL, loadMultiTableMetaCallback, false);
   if (code == TSDB_CODE_TSC_ACTION_IN_PROGRESS) {
     code = TSDB_CODE_SUCCESS;
   }

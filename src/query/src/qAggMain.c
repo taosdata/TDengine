@@ -27,6 +27,7 @@
 #include "qPercentile.h"
 #include "qTsbuf.h"
 #include "queryLog.h"
+#include "qUdf.h"
 
 #define GET_INPUT_DATA_LIST(x) ((char *)((x)->pInput))
 #define GET_INPUT_DATA(x, y) (GET_INPUT_DATA_LIST(x) + (y) * (x)->inputBytes)
@@ -169,12 +170,13 @@ typedef struct SDerivInfo {
 } SDerivInfo;
 
 int32_t getResultDataInfo(int32_t dataType, int32_t dataBytes, int32_t functionId, int32_t param, int16_t *type,
-                          int16_t *bytes, int32_t *interBytes, int16_t extLength, bool isSuperTable) {
+                          int16_t *bytes, int32_t *interBytes, int16_t extLength, bool isSuperTable, SUdfInfo* pUdfInfo) {
   if (!isValidDataType(dataType)) {
     qError("Illegal data type %d or data type length %d", dataType, dataBytes);
     return TSDB_CODE_TSC_INVALID_OPERATION;
   }
-  
+
+
   if (functionId == TSDB_FUNC_TS || functionId == TSDB_FUNC_TS_DUMMY || functionId == TSDB_FUNC_TAG_DUMMY ||
       functionId == TSDB_FUNC_DIFF || functionId == TSDB_FUNC_PRJ || functionId == TSDB_FUNC_TAGPRJ ||
       functionId == TSDB_FUNC_TAG || functionId == TSDB_FUNC_INTERP) {
@@ -234,6 +236,20 @@ int32_t getResultDataInfo(int32_t dataType, int32_t dataBytes, int32_t functionI
   }
 
   if (isSuperTable) {
+    if (functionId < 0) {
+      if (pUdfInfo->bufSize > 0) {
+        *type = TSDB_DATA_TYPE_BINARY;
+        *bytes = pUdfInfo->bufSize;
+        *interBytes = *bytes;
+      } else {
+        *type = pUdfInfo->resType;
+        *bytes = pUdfInfo->resBytes;
+        *interBytes = *bytes;
+      }
+
+      return TSDB_CODE_SUCCESS;
+    }
+
     if (functionId == TSDB_FUNC_MIN || functionId == TSDB_FUNC_MAX) {
       *type = TSDB_DATA_TYPE_BINARY;
       *bytes = (int16_t)(dataBytes + DATA_SET_FLAG_SIZE);
@@ -288,7 +304,7 @@ int32_t getResultDataInfo(int32_t dataType, int32_t dataBytes, int32_t functionI
       return TSDB_CODE_SUCCESS;
     }
   }
-  
+
   if (functionId == TSDB_FUNC_SUM) {
     if (IS_SIGNED_NUMERIC_TYPE(dataType)) {
       *type = TSDB_DATA_TYPE_BIGINT;
@@ -313,7 +329,20 @@ int32_t getResultDataInfo(int32_t dataType, int32_t dataBytes, int32_t functionI
     *interBytes = sizeof(STwaInfo);
     return TSDB_CODE_SUCCESS;
   }
-  
+
+  if (functionId < 0) {
+    *type = pUdfInfo->resType;
+    *bytes = pUdfInfo->resBytes;
+
+    if (pUdfInfo->bufSize > 0) {
+      *interBytes = pUdfInfo->bufSize;
+    } else {
+      *interBytes = *bytes;
+    }
+
+    return TSDB_CODE_SUCCESS;
+  }
+
   if (functionId == TSDB_FUNC_AVG) {
     *type = TSDB_DATA_TYPE_DOUBLE;
     *bytes = sizeof(double);
@@ -390,14 +419,13 @@ int32_t isValidFunction(const char* name, int32_t len) {
   return -1;
 }
 
-static bool function_setup(SQLFunctionCtx *pCtx) {
-  SResultRowCellInfo *pResInfo = GET_RES_INFO(pCtx);
-  if (pResInfo->initialized) {
+static bool function_setup(SQLFunctionCtx *pCtx, SResultRowCellInfo* pResultInfo) {
+  if (pResultInfo->initialized) {
     return false;
   }
   
   memset(pCtx->pOutput, 0, (size_t)pCtx->outputBytes);
-  initResultInfo(pResInfo, pCtx->interBufBytes);
+  initResultInfo(pResultInfo, pCtx->interBufBytes);
   return true;
 }
 
@@ -985,8 +1013,8 @@ static void minMax_function(SQLFunctionCtx *pCtx, char *pOutput, int32_t isMin, 
   }
 }
 
-static bool min_func_setup(SQLFunctionCtx *pCtx) {
-  if (!function_setup(pCtx)) {
+static bool min_func_setup(SQLFunctionCtx *pCtx, SResultRowCellInfo* pResultInfo) {
+  if (!function_setup(pCtx, pResultInfo)) {
     return false;  // not initialized since it has been initialized
   }
   
@@ -1030,8 +1058,8 @@ static bool min_func_setup(SQLFunctionCtx *pCtx) {
   return true;
 }
 
-static bool max_func_setup(SQLFunctionCtx *pCtx) {
-  if (!function_setup(pCtx)) {
+static bool max_func_setup(SQLFunctionCtx *pCtx, SResultRowCellInfo* pResultInfo) {
+  if (!function_setup(pCtx, pResultInfo)) {
     return false;  // not initialized since it has been initialized
   }
   
@@ -1435,8 +1463,8 @@ static void stddev_dst_finalizer(SQLFunctionCtx *pCtx) {
 }
 
 //////////////////////////////////////////////////////////////////////////////////////
-static bool first_last_function_setup(SQLFunctionCtx *pCtx) {
-  if (!function_setup(pCtx)) {
+static bool first_last_function_setup(SQLFunctionCtx *pCtx, SResultRowCellInfo* pResInfo) {
+  if (!function_setup(pCtx, pResInfo)) {
     return false;
   }
   
@@ -1606,7 +1634,7 @@ static void last_function(SQLFunctionCtx *pCtx) {
       break;
     }
   }
-  
+
   SET_VAL(pCtx, notNullElems, 1);
 }
 
@@ -2007,7 +2035,7 @@ static void buildTopBotStruct(STopBotInfo *pTopBotInfo, SQLFunctionCtx *pCtx) {
   char *tmp = (char *)pTopBotInfo + sizeof(STopBotInfo);
   pTopBotInfo->res = (tValuePair**) tmp;
   tmp += POINTER_BYTES * pCtx->param[0].i64;
-  
+
   size_t size = sizeof(tValuePair) + pCtx->tagInfo.tagsLen;
 
   for (int32_t i = 0; i < pCtx->param[0].i64; ++i) {
@@ -2073,14 +2101,13 @@ bool topbot_datablock_filter(SQLFunctionCtx *pCtx, const char *minval, const cha
   }
 }
 
-static bool top_bottom_function_setup(SQLFunctionCtx *pCtx) {
-  if (!function_setup(pCtx)) {
+static bool top_bottom_function_setup(SQLFunctionCtx *pCtx, SResultRowCellInfo* pResInfo) {
+  if (!function_setup(pCtx, pResInfo)) {
     return false;
   }
   
   STopBotInfo *pInfo = getTopBotOutputInfo(pCtx);
   buildTopBotStruct(pInfo, pCtx);
-  
   return true;
 }
 
@@ -2229,14 +2256,13 @@ static void top_bottom_func_finalizer(SQLFunctionCtx *pCtx) {
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////
-static bool percentile_function_setup(SQLFunctionCtx *pCtx) {
-  if (!function_setup(pCtx)) {
+static bool percentile_function_setup(SQLFunctionCtx *pCtx, SResultRowCellInfo* pResultInfo) {
+  if (!function_setup(pCtx, pResultInfo)) {
     return false;
   }
 
   // in the first round, get the min-max value of all involved data
-  SResultRowCellInfo *pResInfo = GET_RES_INFO(pCtx);
-  SPercentileInfo *pInfo = GET_ROWCELL_INTERBUF(pResInfo);
+  SPercentileInfo *pInfo = GET_ROWCELL_INTERBUF(pResultInfo);
   SET_DOUBLE_VAL(&pInfo->minval, DBL_MAX);
   SET_DOUBLE_VAL(&pInfo->maxval, -DBL_MAX);
   pInfo->numOfElems = 0;
@@ -2367,8 +2393,8 @@ static SAPercentileInfo *getAPerctInfo(SQLFunctionCtx *pCtx) {
   return pInfo;
 }
 
-static bool apercentile_function_setup(SQLFunctionCtx *pCtx) {
-  if (!function_setup(pCtx)) {
+static bool apercentile_function_setup(SQLFunctionCtx *pCtx, SResultRowCellInfo* pResultInfo) {
+  if (!function_setup(pCtx, pResultInfo)) {
     return false;
   }
   
@@ -2477,12 +2503,11 @@ static void apercentile_finalizer(SQLFunctionCtx *pCtx) {
 }
 
 /////////////////////////////////////////////////////////////////////////////////
-static bool leastsquares_function_setup(SQLFunctionCtx *pCtx) {
-  if (!function_setup(pCtx)) {
+static bool leastsquares_function_setup(SQLFunctionCtx *pCtx, SResultRowCellInfo* pResInfo) {
+  if (!function_setup(pCtx, pResInfo)) {
     return false;
   }
-  
-  SResultRowCellInfo *     pResInfo = GET_RES_INFO(pCtx);
+
   SLeastsquaresInfo *pInfo = GET_ROWCELL_INTERBUF(pResInfo);
   
   // 2*3 matrix
@@ -2706,8 +2731,8 @@ enum {
   INITIAL_VALUE_NOT_ASSIGNED = 0,
 };
 
-static bool diff_function_setup(SQLFunctionCtx *pCtx) {
-  if (!function_setup(pCtx)) {
+static bool diff_function_setup(SQLFunctionCtx *pCtx, SResultRowCellInfo* pResInfo) {
+  if (!function_setup(pCtx, pResInfo)) {
     return false;
   }
   
@@ -2716,14 +2741,13 @@ static bool diff_function_setup(SQLFunctionCtx *pCtx) {
   return false;
 }
 
-static bool deriv_function_setup(SQLFunctionCtx *pCtx) {
-  if (!function_setup(pCtx)) {
+static bool deriv_function_setup(SQLFunctionCtx *pCtx, SResultRowCellInfo* pResultInfo) {
+  if (!function_setup(pCtx, pResultInfo)) {
     return false;
   }
 
   // diff function require the value is set to -1
-  SResultRowCellInfo *pResInfo = GET_RES_INFO(pCtx);
-  SDerivInfo* pDerivInfo = GET_ROWCELL_INTERBUF(pResInfo);
+  SDerivInfo* pDerivInfo = GET_ROWCELL_INTERBUF(pResultInfo);
 
   pDerivInfo->ignoreNegative = pCtx->param[1].i64;
   pDerivInfo->prevTs   = -1;
@@ -3130,12 +3154,12 @@ static void arithmetic_function(SQLFunctionCtx *pCtx) {
   }
 
 /////////////////////////////////////////////////////////////////////////////////
-static bool spread_function_setup(SQLFunctionCtx *pCtx) {
-  if (!function_setup(pCtx)) {
+static bool spread_function_setup(SQLFunctionCtx *pCtx, SResultRowCellInfo* pResInfo) {
+  if (!function_setup(pCtx, pResInfo)) {
     return false;
   }
   
-  SSpreadInfo *pInfo = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
+  SSpreadInfo *pInfo = GET_ROWCELL_INTERBUF(pResInfo);
   
   // this is the server-side setup function in client-side, the secondary merge do not need this procedure
   if (pCtx->currentStage == MERGE_STAGE) {
@@ -3289,12 +3313,10 @@ void spread_function_finalizer(SQLFunctionCtx *pCtx) {
  * param[2]: end time
  * @param pCtx
  */
-static bool twa_function_setup(SQLFunctionCtx *pCtx) {
-  if (!function_setup(pCtx)) {
+static bool twa_function_setup(SQLFunctionCtx *pCtx, SResultRowCellInfo* pResInfo) {
+  if (!function_setup(pCtx, pResInfo)) {
     return false;
   }
-  
-  SResultRowCellInfo *pResInfo = GET_RES_INFO(pCtx);
 
   STwaInfo *pInfo = GET_ROWCELL_INTERBUF(pResInfo);
   pInfo->p.key    = INT64_MIN;
@@ -3726,14 +3748,12 @@ static void interp_function(SQLFunctionCtx *pCtx) {
   }
 }
 
-static bool ts_comp_function_setup(SQLFunctionCtx *pCtx) {
-  if (!function_setup(pCtx)) {
+static bool ts_comp_function_setup(SQLFunctionCtx *pCtx, SResultRowCellInfo* pResInfo) {
+  if (!function_setup(pCtx, pResInfo)) {
     return false;  // not initialized since it has been initialized
   }
-  
-  SResultRowCellInfo *pResInfo = GET_RES_INFO(pCtx);
+
   STSCompInfo *pInfo = GET_ROWCELL_INTERBUF(pResInfo);
-  
   pInfo->pTSBuf = tsBufCreate(false, pCtx->order);
   pInfo->pTSBuf->tsOrder = pCtx->order;
   return true;
@@ -3816,13 +3836,11 @@ static double do_calc_rate(const SRateInfo* pRateInfo, double tickPerSec) {
   return (duration > 0)? ((double)diff) / (duration/tickPerSec):0.0;
 }
 
-static bool rate_function_setup(SQLFunctionCtx *pCtx) {
-  if (!function_setup(pCtx)) {
+static bool rate_function_setup(SQLFunctionCtx *pCtx, SResultRowCellInfo* pResInfo) {
+  if (!function_setup(pCtx, pResInfo)) {
     return false;
   }
   
-  SResultRowCellInfo *pResInfo = GET_RES_INFO(pCtx);
-
   SRateInfo *pInfo = GET_ROWCELL_INTERBUF(pResInfo);
   pInfo->correctionValue = 0;
   pInfo->firstKey    = INT64_MIN;
@@ -3920,7 +3938,7 @@ static void irate_function(SQLFunctionCtx *pCtx) {
   int32_t    notNullElems = 0;
   SRateInfo *pRateInfo    = (SRateInfo *)GET_ROWCELL_INTERBUF(pResInfo);
   TSKEY     *primaryKey   = GET_TS_LIST(pCtx);
-  
+
   for (int32_t i = pCtx->size - 1; i >= 0; --i) {
     char *pData = GET_INPUT_DATA(pCtx, i);
     if (pCtx->hasNull && isNull(pData, pCtx->inputType)) {
