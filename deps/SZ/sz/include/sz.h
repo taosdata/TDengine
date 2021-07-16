@@ -186,7 +186,7 @@ size_t SZ_compress_args(int dataType, void *data, size_t r1, unsigned char* outD
 size_t SZ_decompress(int dataType, unsigned char *bytes, size_t byteLength, size_t r1, unsigned char* outData);
 
 
-void convertSZParamsToBytes(sz_params* params, unsigned char* result);
+void convertSZParamsToBytes(sz_params* params, unsigned char* result, char optQuantMode);
 void convertBytesToSZParams(unsigned char* bytes, sz_params* params, sz_exedata* pde_exe);
 
 #ifdef __cplusplus

@@ -48,16 +48,16 @@ int new_TightDataPointStorageF_fromFlatBytes(TightDataPointStorageF **this, unsi
 	// 2 same(1)														      //note that 1000,0000 is reserved for regression tag.
 	int same = sameRByte & 0x01; 											//0000,0001
 	(*this)->isLossless = (sameRByte & 0x10)>>4; 							//0001,0000								//0010,0000
-	exe_params->SZ_SIZE_TYPE = ((sameRByte & 0x40)>>6)==1?8:4; 				//0100,0000	
+	pde_exe->SZ_SIZE_TYPE = ((sameRByte & 0x40)>>6)==1?8:4; 				//0100,0000	
 	int errorBoundMode = SZ_ABS;
     // 3 meta(2)   
 	convertBytesToSZParams(&(flatBytes[index]), pde_params, pde_exe);
 	index += MetaDataByteLength;
     // 4 element count(4)
 	unsigned char dsLengthBytes[8];
-	for (i = 0; i < exe_params->SZ_SIZE_TYPE; i++)
+	for (i = 0; i < pde_exe->SZ_SIZE_TYPE; i++)
 		dsLengthBytes[i] = flatBytes[index++];
-	(*this)->dataSeriesLength = bytesToSize(dsLengthBytes);// 4 or 8		
+	(*this)->dataSeriesLength = bytesToSize(dsLengthBytes, pde_exe->SZ_SIZE_TYPE);// 4 or 8		
 	if((*this)->isLossless==1)
 	{
 		//(*this)->exactMidBytes = flatBytes+8;
@@ -66,7 +66,6 @@ int new_TightDataPointStorageF_fromFlatBytes(TightDataPointStorageF **this, unsi
 	else if(same==1)
 	{
 		(*this)->allSameData = 1;
-		//size_t exactMidBytesLength = sizeof(double);//flatBytesLength - 1 - 1 - MetaDataByteLength -exe_params->SZ_SIZE_TYPE;
 		(*this)->exactMidBytes = &(flatBytes[index]);
 		return errorBoundMode;
 	}
@@ -76,7 +75,7 @@ int new_TightDataPointStorageF_fromFlatBytes(TightDataPointStorageF **this, unsi
     int isRegression = (sameRByte >> 7) & 0x01;
 	if(isRegression == 1)
 	{
-		(*this)->raBytes_size = flatBytesLength - 1 - 1 - MetaDataByteLength - exe_params->SZ_SIZE_TYPE;
+		(*this)->raBytes_size = flatBytesLength - 1 - 1 - MetaDataByteLength - pde_exe->SZ_SIZE_TYPE;
 		(*this)->raBytes = &(flatBytes[index]);
 		return errorBoundMode;
 	}			
@@ -101,17 +100,17 @@ int new_TightDataPointStorageF_fromFlatBytes(TightDataPointStorageF **this, unsi
 		byteBuf[i] = flatBytes[index++];
 	(*this)->realPrecision = bytesToDouble(byteBuf);//8
 	// 10 typeArray_size
-	for (i = 0; i < exe_params->SZ_SIZE_TYPE; i++)
+	for (i = 0; i < pde_exe->SZ_SIZE_TYPE; i++)
 		byteBuf[i] = flatBytes[index++];
-	(*this)->typeArray_size = bytesToSize(byteBuf);// 4		
+	(*this)->typeArray_size = bytesToSize(byteBuf, pde_exe->SZ_SIZE_TYPE);// 4		
     // 11 exactNum
-	for (i = 0; i < exe_params->SZ_SIZE_TYPE; i++)
+	for (i = 0; i < pde_exe->SZ_SIZE_TYPE; i++)
 		byteBuf[i] = flatBytes[index++];    
-	(*this)->exactDataNum = bytesToSize(byteBuf);// ST
+	(*this)->exactDataNum = bytesToSize(byteBuf, pde_exe->SZ_SIZE_TYPE);// ST
     // 12 mid size
-	for (i = 0; i < exe_params->SZ_SIZE_TYPE; i++)
+	for (i = 0; i < pde_exe->SZ_SIZE_TYPE; i++)
 		byteBuf[i] = flatBytes[index++];
-	(*this)->exactMidBytes_size = bytesToSize(byteBuf);// ST
+	(*this)->exactMidBytes_size = bytesToSize(byteBuf, pde_exe->SZ_SIZE_TYPE);// STqq
     
 	// calc leadNumArray_size
 	size_t logicLeadNumBitsNum = (*this)->exactDataNum * 2;
@@ -141,8 +140,8 @@ int new_TightDataPointStorageF_fromFlatBytes(TightDataPointStorageF **this, unsi
 	(*this)->residualMidBits = &flatBytes[index];
 
     // calc residualMidBits_size
-	(*this)->residualMidBits_size = flatBytesLength - 1 - 1 - MetaDataByteLength - exe_params->SZ_SIZE_TYPE - 4 - 4 - 4 - 1 - 8 
-			- exe_params->SZ_SIZE_TYPE - exe_params->SZ_SIZE_TYPE - exe_params->SZ_SIZE_TYPE
+	(*this)->residualMidBits_size = flatBytesLength - 1 - 1 - MetaDataByteLength - pde_exe->SZ_SIZE_TYPE - 4 - 4 - 4 - 1 - 8 
+			- pde_exe->SZ_SIZE_TYPE - pde_exe->SZ_SIZE_TYPE - pde_exe->SZ_SIZE_TYPE
 			- (*this)->leadNumArray_size - (*this)->exactMidBytes_size - (*this)->typeArray_size;	
 	
 	
@@ -211,7 +210,7 @@ void convertTDPStoBytes_float(TightDataPointStorageF* tdps, unsigned char* bytes
 	// 2 same
 	bytes[k++] = sameByte;	//1	byte
 	// 3 meta
-	convertSZParamsToBytes(confparams_cpr, &(bytes[k]));
+	convertSZParamsToBytes(confparams_cpr, &(bytes[k]), exe_params->optQuantMode);
 	k = k + MetaDataByteLength;
 	// 4 element count
 	for(i = 0; i < exe_params->SZ_SIZE_TYPE; i++)//ST: 4 or 8 bytes
@@ -235,15 +234,15 @@ void convertTDPStoBytes_float(TightDataPointStorageF* tdps, unsigned char* bytes
 	for (i = 0; i < 8; i++)// 8
 		bytes[k++] = realPrecisionBytes[i];		
    // 10 typeArray size
-	sizeToBytes(typeArrayLengthBytes, tdps->typeArray_size);
+	sizeToBytes(typeArrayLengthBytes, tdps->typeArray_size, exe_params->SZ_SIZE_TYPE);
 	for(i = 0;i<exe_params->SZ_SIZE_TYPE;i++)//ST
 		bytes[k++] = typeArrayLengthBytes[i];			
     // 11 exactDataNum  leadNum calc by this , so not save leadNum
-	sizeToBytes(exactLengthBytes, tdps->exactDataNum);
+	sizeToBytes(exactLengthBytes, tdps->exactDataNum, exe_params->SZ_SIZE_TYPE);
 	for(i = 0;i<exe_params->SZ_SIZE_TYPE;i++)//ST
 		bytes[k++] = exactLengthBytes[i];
     // 12 Mid size
-	sizeToBytes(exactMidBytesLength, tdps->exactMidBytes_size);
+	sizeToBytes(exactMidBytesLength, tdps->exactMidBytes_size, exe_params->SZ_SIZE_TYPE);
 	for(i = 0;i<exe_params->SZ_SIZE_TYPE;i++)//ST
 		bytes[k++] = exactMidBytesLength[i];
 	// 13 typeArray	
@@ -306,7 +305,7 @@ bool convertTDPStoFlatBytes_float(TightDataPointStorageF *tdps, unsigned char* b
 		// 2 same flag 1 bytes
 		bytes[k++] = sameByte;
 		// 3 metaData 26 bytes
-		convertSZParamsToBytes(confparams_cpr, &(bytes[k]));
+		convertSZParamsToBytes(confparams_cpr, &(bytes[k]), exe_params->optQuantMode);
 		k = k + MetaDataByteLength;
 		// 4 data Length 4 or 8 bytes	
 		for (i = 0; i < exe_params->SZ_SIZE_TYPE; i++)

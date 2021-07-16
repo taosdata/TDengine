@@ -260,30 +260,29 @@ INLINE int getRightMovingCode(int kMod8, int resiBitLength)
 	}
 }
 
-INLINE size_t bytesToSize(unsigned char* bytes)
+INLINE size_t bytesToSize(unsigned char* bytes, int size_type)
 {
 	size_t result = 0;
-	if(exe_params->SZ_SIZE_TYPE==4)	
+	if(size_type == 4)	
 		result = bytesToInt_bigEndian(bytes);//4		
 	else
 		result = bytesToLong_bigEndian(bytes);//8	
 	return result;
 }
 
-INLINE void sizeToBytes(unsigned char* outBytes, size_t size)
+INLINE void sizeToBytes(unsigned char* outBytes, size_t size, int size_type)
 {
-	if(exe_params->SZ_SIZE_TYPE==4)
+	if(size_type == 4)
 		intToBytes_bigEndian(outBytes, (unsigned int)size);//4
 	else
 		longToBytes_bigEndian(outBytes, (unsigned long)size);//8
 }
 
-void convertSZParamsToBytes(sz_params* params, unsigned char* result)
+void convertSZParamsToBytes(sz_params* params, unsigned char* result, char optQuantMode)
 {
 	//unsigned char* result = (unsigned char*)malloc(16);
 	unsigned char buf = 0;
-	//flag1: exe_params->optQuantMode(1bit), dataEndianType(1bit), sysEndianType(1bit), conf_params->szMode (1bit), conf_params->gzipMode (2bits), pwrType (2bits)
-	buf = exe_params->optQuantMode;
+	buf = optQuantMode;
 	buf = (buf << 1) | dataEndianType;
 	buf = (buf << 1) | sysEndianType;
 	buf = (buf << 2) | params->szMode;

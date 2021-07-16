@@ -57,7 +57,7 @@ int SZ_decompress_args_float(float* newData, size_t r1, unsigned char* cmpBytes,
 		{
 			if(targetUncompressSize<MIN_ZLIB_DEC_ALLOMEM_BYTES) //Considering the minimum size
 				targetUncompressSize = MIN_ZLIB_DEC_ALLOMEM_BYTES; 
-			tmpSize = sz_lossless_decompress(pde_params->losslessCompressor, cmpBytes, (unsigned long)cmpSize, &szTmpBytes, (unsigned long)targetUncompressSize+4+MetaDataByteLength+exe_params->SZ_SIZE_TYPE);//		(unsigned long)targetUncompressSize+8: consider the total length under lossless compression mode is actually 3+4+1+targetUncompressSize
+			tmpSize = sz_lossless_decompress(pde_params->losslessCompressor, cmpBytes, (unsigned long)cmpSize, &szTmpBytes, (unsigned long)targetUncompressSize+4+MetaDataByteLength+8);
 	        needFree = true;
 		}
 	}
@@ -81,11 +81,11 @@ int SZ_decompress_args_float(float* newData, size_t r1, unsigned char* cmpBytes,
 		//*newData = (float*)malloc(floatSize*dataLength);  comment by tickduan
 		if(sysEndianType==BIG_ENDIAN_SYSTEM)
 		{
-			memcpy(newData, szTmpBytes+4+MetaDataByteLength+exe_params->SZ_SIZE_TYPE, dataLength*floatSize);
+			memcpy(newData, szTmpBytes+4+MetaDataByteLength+pde_exe->SZ_SIZE_TYPE, dataLength*floatSize);
 		}
 		else
 		{
-			unsigned char* p = szTmpBytes+4+MetaDataByteLength+exe_params->SZ_SIZE_TYPE;
+			unsigned char* p = szTmpBytes+4+MetaDataByteLength+pde_exe->SZ_SIZE_TYPE;
 			for(i=0;i<dataLength;i++,p+=floatSize)
 				newData[i] = bytesToFloat(p);
 		}		

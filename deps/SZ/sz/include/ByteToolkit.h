@@ -36,8 +36,8 @@ int getLeftMovingCode(int kMod8);
 int getRightMovingSteps(int kMod8, int resiBitLength);
 int getRightMovingCode(int kMod8, int resiBitLength);
 
-size_t bytesToSize(unsigned char* bytes);
-void sizeToBytes(unsigned char* outBytes, size_t size);
+size_t bytesToSize(unsigned char* bytes, int size_type);
+void sizeToBytes(unsigned char* outBytes, size_t size, int size_type);
 
 #ifdef __cplusplus
 }

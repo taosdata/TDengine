@@ -25,7 +25,7 @@ int SZ_decompress_args_double(double* newData, size_t r1, unsigned char* cmpByte
 	//unsigned char* tmpBytes;
 	size_t targetUncompressSize = dataLength <<3; //i.e., *8
 	//tmpSize must be "much" smaller than dataLength
-	size_t i, tmpSize = 12+MetaDataByteLength_double+exe_params->SZ_SIZE_TYPE;
+	size_t i, tmpSize = 12+MetaDataByteLength_double+8;
 	unsigned char* szTmpBytes = NULL;
 	bool needFree = false;
 
@@ -50,7 +50,7 @@ int SZ_decompress_args_double(double* newData, size_t r1, unsigned char* cmpByte
 		{
 			if(targetUncompressSize<MIN_ZLIB_DEC_ALLOMEM_BYTES) //Considering the minimum size
 				targetUncompressSize = MIN_ZLIB_DEC_ALLOMEM_BYTES; 			
-			tmpSize = sz_lossless_decompress(pde_params->losslessCompressor, cmpBytes, (unsigned long)cmpSize, &szTmpBytes, (unsigned long)targetUncompressSize+4+MetaDataByteLength_double+exe_params->SZ_SIZE_TYPE);			
+			tmpSize = sz_lossless_decompress(pde_params->losslessCompressor, cmpBytes, (unsigned long)cmpSize, &szTmpBytes, (unsigned long)targetUncompressSize+4+MetaDataByteLength_double+8);			
 	        needFree = true;	
 		}
 	}
@@ -73,11 +73,11 @@ int SZ_decompress_args_double(double* newData, size_t r1, unsigned char* cmpByte
 		// *newData = (double*)malloc(doubleSize*dataLength); comment by tickduan
 		if(sysEndianType==BIG_ENDIAN_SYSTEM)
 		{
-			memcpy(newData, szTmpBytes+4+MetaDataByteLength_double+exe_params->SZ_SIZE_TYPE, dataLength*doubleSize);
+			memcpy(newData, szTmpBytes+4+MetaDataByteLength_double+pde_exe->SZ_SIZE_TYPE, dataLength*doubleSize);
 		}
 		else
 		{
-			unsigned char* p = szTmpBytes+4+MetaDataByteLength_double+exe_params->SZ_SIZE_TYPE;
+			unsigned char* p = szTmpBytes+4+MetaDataByteLength_double+pde_exe->SZ_SIZE_TYPE;
 			for(i=0;i<dataLength;i++,p+=doubleSize)
 				newData[i] = bytesToDouble(p);
 		}		

@@ -229,10 +229,10 @@ void SZ_compress_args_double_StoreOriData(double* oriData, size_t dataLength, un
 	else
 		newByteData[k++] = 80;	//01010000: 01000000 indicates the SZ_SIZE_TYPE=8
 
-	convertSZParamsToBytes(confparams_cpr, &(newByteData[k]));
+	convertSZParamsToBytes(confparams_cpr, &(newByteData[k]), exe_params->optQuantMode);
 	k = k + MetaDataByteLength_double;
 
-	sizeToBytes(dsLengthBytes,dataLength);
+	sizeToBytes(dsLengthBytes,dataLength, exe_params->SZ_SIZE_TYPE);
 	for (i = 0; i < exe_params->SZ_SIZE_TYPE; i++)//ST: 4 or 8
 		newByteData[k++] = dsLengthBytes[i];
 
