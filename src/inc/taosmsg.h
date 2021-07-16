@@ -710,6 +710,7 @@ typedef struct {
 } STableInfoMsg;
 
 typedef struct {
+  uint8_t metaClone;     // create local clone of the cached table meta
   int32_t numOfVgroups;
   int32_t numOfTables;
   char    tableNames[];
@@ -761,10 +762,11 @@ typedef struct STableMetaMsg {
 
 typedef struct SMultiTableMeta {
   int32_t  numOfTables;
-  int32_t  numOfVgroup;
-  uint32_t contLen:31;
-  uint8_t  compressed:1;      // denote if compressed or not
-  uint32_t rawLen;            // size before compress
+  uint8_t  metaClone;         // make meta clone after retrieve meta from mnode
+  uint8_t  compressed;        // denote if compressed or not
+  int32_t  numOfVgroup;       // number of tables
+  uint32_t contLen;           // current content length
+  uint32_t rawLen;            // size before compressed
   char     meta[];
 } SMultiTableMeta;
 

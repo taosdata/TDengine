@@ -948,7 +948,6 @@ int taos_load_table_info(TAOS *taos, const char *tableNameList) {
   SSqlObj* pSql = calloc(1, sizeof(SSqlObj));
   pSql->pTscObj = taos;
   pSql->signature = pSql;
-  pSql->cmd.pTableMetaMap = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);
 
   int32_t length = (int32_t)strlen(tableNameList);
   if (length > MAX_TABLE_NAME_LENGTH) {
@@ -967,6 +966,11 @@ int taos_load_table_info(TAOS *taos, const char *tableNameList) {
   strtolower(str, tableNameList);
   SArray* plist = taosArrayInit(4, POINTER_BYTES);
   SArray* vgroupList = taosArrayInit(4, POINTER_BYTES);
+  if (plist == NULL || vgroupList == NULL) {
+    tfree(str);
+    tscFreeSqlObj(pSql);
+    return TSDB_CODE_TSC_OUT_OF_MEMORY;
+  }
 
   int32_t code = (uint8_t) tscTransferTableNameList(pSql, str, length, plist);
   free(str);
@@ -976,10 +980,11 @@ int taos_load_table_info(TAOS *taos, const char *tableNameList) {
     return code;
   }
 
+  pSql->cmd.pTableMetaMap = taosHashInit(taosArrayGetSize(plist), taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);
   registerSqlObj(pSql);
   tscDebug("0x%"PRIx64" load multiple table meta, tableNameList: %s pObj:%p", pSql->self, tableNameList, pObj);
 
-  code = getMultiTableMetaFromMnode(pSql, plist, vgroupList, loadMultiTableMetaCallback);
+  code = getMultiTableMetaFromMnode(pSql, plist, vgroupList, loadMultiTableMetaCallback, false);
   if (code == TSDB_CODE_TSC_ACTION_IN_PROGRESS) {
     code = TSDB_CODE_SUCCESS;
   }

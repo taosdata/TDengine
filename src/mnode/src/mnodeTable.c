@@ -3036,6 +3036,7 @@ static int32_t mnodeProcessMultiTableMetaMsg(SMnodeMsg *pMsg) {
   int32_t len = tsCompressString(pMultiMeta->meta, (int32_t)pMultiMeta->contLen - sizeof(SMultiTableMeta), 1,
       tmp + sizeof(SMultiTableMeta), (int32_t)pMultiMeta->contLen - sizeof(SMultiTableMeta) + 2, ONE_STAGE_COMP, NULL, 0);
 
+  pMultiMeta->metaClone = pInfo->metaClone;
   pMultiMeta->rawLen = pMultiMeta->contLen;
   if (len == -1 || len + sizeof(SMultiTableMeta) >= pMultiMeta->contLen + 2) { // compress failed, do not compress this binary data
     pMultiMeta->compressed = 0;

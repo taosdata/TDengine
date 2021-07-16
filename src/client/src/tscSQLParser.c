@@ -7738,7 +7738,7 @@ int32_t loadAllTableMeta(SSqlObj* pSql, struct SSqlInfo* pInfo) {
 
   // load the table meta for a given table name list
   if (taosArrayGetSize(plist) > 0 || taosArrayGetSize(pVgroupList) > 0) {
-    code = getMultiTableMetaFromMnode(pSql, plist, pVgroupList, tscTableMetaCallBack);
+    code = getMultiTableMetaFromMnode(pSql, plist, pVgroupList, tscTableMetaCallBack, true);
   }
 
 _end:
