@@ -5844,7 +5844,7 @@ int32_t validateDNodeConfig(SMiscInfo* pOptions) {
       {"cDebugFlag", 10}, {"httpDebugFlag", 13},    {"qDebugflag", 10}, {"sdbDebugFlag", 12},
       {"uDebugFlag", 10}, {"tsdbDebugFlag", 13},    {"sDebugflag", 10}, {"rpcDebugFlag", 12},
       {"dDebugFlag", 10}, {"mqttDebugFlag", 13},    {"wDebugFlag", 10}, {"tmrDebugFlag", 12},
-      {"cqDebugFlag", 11},
+      {"cqDebugFlag", 11}, {"cacheDebugFlag", 13},
   };
 
   SStrToken* pOptionToken = taosArrayGet(pOptions->a, 1);

@@ -241,6 +241,7 @@ int32_t debugFlag = 0;
 int32_t sDebugFlag = 135;
 int32_t wDebugFlag = 135;
 int32_t tsdbDebugFlag = 131;
+int32_t cacheDebugFlag = 131;
 int32_t cqDebugFlag = 131;
 int32_t fsDebugFlag = 135;
 
@@ -270,6 +271,7 @@ void taosSetAllDebugFlag() {
     sDebugFlag = debugFlag;
     wDebugFlag = debugFlag;
     tsdbDebugFlag = debugFlag;
+    cacheDebugFlag = debugFlag;
     cqDebugFlag = debugFlag;
     uInfo("all debug flag are set to %d", debugFlag);
   }
@@ -1419,6 +1421,16 @@ static void doInitGlobalConfig(void) {
 
   cfg.option = "tsdbDebugFlag";
   cfg.ptr = &tsdbDebugFlag;
+  cfg.valType = TAOS_CFG_VTYPE_INT32;
+  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_LOG | TSDB_CFG_CTYPE_B_CLIENT;
+  cfg.minValue = 0;
+  cfg.maxValue = 255;
+  cfg.ptrLength = 0;
+  cfg.unitType = TAOS_CFG_UTYPE_NONE;
+  taosInitConfigOption(cfg);
+
+  cfg.option = "cacheDebugFlag";
+  cfg.ptr = &cacheDebugFlag;
   cfg.valType = TAOS_CFG_VTYPE_INT32;
   cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_LOG | TSDB_CFG_CTYPE_B_CLIENT;
   cfg.minValue = 0;

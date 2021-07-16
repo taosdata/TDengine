@@ -16,6 +16,8 @@
 #ifndef TDENGINE_TLOG_H
 #define TDENGINE_TLOG_H
 
+#include <stdint.h> // for int32_t
+
 #ifdef __cplusplus
 extern "C" {
 #endif
