@@ -15,7 +15,7 @@ import java.net.SocketAddress;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicLong;
 
-public class NetToTQueueRunnableTask implements Runnable {
+public class NetToTQueueRunnableTask implements Runnable, Countable, Stoppable {
     private static final Logger logger = LoggerFactory.getLogger(NetToTQueueRunnableTask.class);
 
     private static final AtomicLong count = new AtomicLong(0);
@@ -25,8 +25,14 @@ public class NetToTQueueRunnableTask implements Runnable {
 
     private volatile boolean isClosed;
 
+    @Override
     public void shutdown() {
         this.isClosed = true;
+    }
+
+    @Override
+    public long getCount() {
+        return count.get();
     }
 
     @Override
@@ -95,4 +101,6 @@ public class NetToTQueueRunnableTask implements Runnable {
     public void setListeningPort(int listeningPort) {
         this.listeningPort = listeningPort;
     }
+
+
 }

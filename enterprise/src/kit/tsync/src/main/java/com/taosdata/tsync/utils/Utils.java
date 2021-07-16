@@ -1,7 +1,5 @@
 package com.taosdata.tsync.utils;
 
-import com.google.common.collect.HashMultimap;
-import com.google.common.collect.Multimap;
 import com.google.common.collect.Range;
 
 import java.sql.Timestamp;

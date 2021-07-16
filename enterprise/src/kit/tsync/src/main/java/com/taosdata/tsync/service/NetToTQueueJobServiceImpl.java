@@ -57,6 +57,7 @@ public class NetToTQueueJobServiceImpl extends AbstractRunnableJobService {
     @Override
     public void shutdown() {
         producer.close();
+        
     }
 
 }

@@ -63,7 +63,6 @@ public class ProduceToTQueueJobServiceImpl extends AbstractCallableJobService {
 
         // arrange threads ==> partitions
         int threadSize = taskConfiguration.getThreads();
-
         List<Integer[]> threadIndex2PartitionList = Utils.divideArrayIntoGroups(partitions, threadSize);
 
         int actualThreads = threadIndex2PartitionList.size();
@@ -72,20 +71,32 @@ public class ProduceToTQueueJobServiceImpl extends AbstractCallableJobService {
         }
         threadSize = actualThreads;
 
-        // arrange tables ==> threads
+        // arrange table to each thread
         StableConfiguration stableConfiguration = (StableConfiguration) configuration.findFirst(ConfigurationType.STABLE);
+        MessageConfiguration messageConfiguration = (MessageConfiguration) configuration.findFirst(ConfigurationType.MESSAGE);
+        long total = messageConfiguration.getTotal();
         long tables = stableConfiguration.getTables();
+        if (total < tables) {
+            logger.warn("Only " + total + " tables will be created");
+            tables = total;
+        }
+
+        long batchTables = messageConfiguration.getBatchTables();
+        if (batchTables > tables) {
+            logger.warn("Only " + tables + " batchTable will be used");
+            batchTables = tables;
+        }
+
+        long batchValues = messageConfiguration.getBatchValues();
+        if (batchValues > Math.abs(total / tables)) {
+            logger.warn("Only " + Math.abs(total / tables) + " batchValue will be used");
+            batchValues = Math.abs(total / tables);
+        }
 
         List<Range<Long>> tableRanges = Utils.divideIntoRangeList(tables, threadSize);
 
-        // 3. messageConfiguration ==> total record
-        MessageConfiguration messageConfiguration = (MessageConfiguration) configuration.findFirst(ConfigurationType.MESSAGE);
-        long total = messageConfiguration.getTotal();
-
         List<Range<Long>> threadRecords = Utils.divideIntoRangeList(total, threadSize);
 
-        long batchTables = messageConfiguration.getBatchTables();
-        long batchValues = messageConfiguration.getBatchValues();
 
         // 6. SchemaConfiguration ==> schema
         SchemaConfiguration schemaConfiguration = (SchemaConfiguration) configuration.findFirst(ConfigurationType.SCHEMA);
