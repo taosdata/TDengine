@@ -5891,10 +5891,12 @@ static int32_t generateProgressiveDataWithoutStb(
 static void printStatPerThread(threadInfo *pThreadInfo)
 {
     fprintf(stderr, "====thread[%d] completed total inserted rows: %"PRIu64 ", total affected rows: %"PRIu64". %.2f records/second====\n",
-          pThreadInfo->threadID,
-          pThreadInfo->totalInsertRows,
-          pThreadInfo->totalAffectedRows,
-          (pThreadInfo->totalDelay)?(double)((pThreadInfo->totalAffectedRows / (pThreadInfo->totalDelay)/1000.0)): FLT_MAX);
+            pThreadInfo->threadID,
+            pThreadInfo->totalInsertRows,
+            pThreadInfo->totalAffectedRows,
+            (pThreadInfo->totalDelay/1000.0)?
+            (double)(pThreadInfo->totalAffectedRows/(pThreadInfo->totalDelay/1000.0)):
+            FLT_MAX);
 }
 
 // sync write interlace data
@@ -6757,34 +6759,40 @@ static void startMultiThreadInsertData(int threads, char* db_name,
   int64_t end = taosGetTimestampMs();
   int64_t t = end - start;
 
+  double tInMs = t/1000.0;
+
   if (superTblInfo) {
     fprintf(stderr, "Spent %.2f seconds to insert rows: %"PRIu64", affected rows: %"PRIu64" with %d thread(s) into %s.%s. %.2f records/second\n\n",
-          t / 1000.0, superTblInfo->totalInsertRows,
+          tInMs, superTblInfo->totalInsertRows,
           superTblInfo->totalAffectedRows,
           threads, db_name, superTblInfo->sTblName,
-          (double)superTblInfo->totalInsertRows / (t / 1000.0));
+          (tInMs)?
+          (double)(superTblInfo->totalInsertRows/tInMs):FLT_MAX);
 
     if (g_fpOfInsertResult) {
       fprintf(g_fpOfInsertResult,
           "Spent %.2f seconds to insert rows: %"PRIu64", affected rows: %"PRIu64" with %d thread(s) into %s.%s. %.2f records/second\n\n",
-          t / 1000.0, superTblInfo->totalInsertRows,
+          tInMs, superTblInfo->totalInsertRows,
           superTblInfo->totalAffectedRows,
           threads, db_name, superTblInfo->sTblName,
-          (double)superTblInfo->totalInsertRows / (t / 1000.0));
+          (tInMs)?
+          (double)(superTblInfo->totalInsertRows/tInMs):FLT_MAX);
     }
   } else {
     fprintf(stderr, "Spent %.2f seconds to insert rows: %"PRIu64", affected rows: %"PRIu64" with %d thread(s) into %s %.2f records/second\n\n",
-          t / 1000.0, g_args.totalInsertRows,
+          tInMs, g_args.totalInsertRows,
           g_args.totalAffectedRows,
           threads, db_name,
-          (double)g_args.totalInsertRows / (t / 1000.0));
+          (tInMs)?
+          (double)(g_args.totalInsertRows/tInMs):FLT_MAX);
     if (g_fpOfInsertResult) {
       fprintf(g_fpOfInsertResult,
           "Spent %.2f seconds to insert rows: %"PRIu64", affected rows: %"PRIu64" with %d thread(s) into %s %.2f records/second\n\n",
-          t * 1000.0, g_args.totalInsertRows,
+          tInMs, g_args.totalInsertRows,
           g_args.totalAffectedRows,
           threads, db_name,
-          (double)g_args.totalInsertRows / (t / 1000.0));
+          (tInMs)?
+          (double)(g_args.totalInsertRows/tInMs):FLT_MAX);
     }
   }
 
