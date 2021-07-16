@@ -2076,6 +2076,7 @@ int tscProcessMultiTableMetaRsp(SSqlObj *pSql) {
     STableMeta* pTableMeta = tscCreateTableMetaFromMsg(pMetaMsg);
     if (!tIsValidSchema(pTableMeta->schema, pTableMeta->tableInfo.numOfColumns, pTableMeta->tableInfo.numOfTags)) {
       tscError("0x%"PRIx64" invalid table meta from mnode, name:%s", pSql->self, pMetaMsg->tableFname);
+      tfree(pTableMeta);
       taosHashCleanup(pSet);
       taosReleaseRef(tscObjRef, pParentSql->self);
 
@@ -2119,6 +2120,10 @@ int tscProcessMultiTableMetaRsp(SSqlObj *pSql) {
     assert(p != NULL);
 
     int32_t size = 0;
+    if (p->pVgroupInfo!= NULL) {
+      tscVgroupInfoClear(p->pVgroupInfo);
+      //tfree(p->pTableMeta);
+    }
     p->pVgroupInfo = createVgroupInfoFromMsg(pMsg, &size, pSql->self);
     pMsg += size;
   }
