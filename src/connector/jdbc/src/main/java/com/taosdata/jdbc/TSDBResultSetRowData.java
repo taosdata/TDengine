@@ -19,6 +19,7 @@ import com.taosdata.jdbc.utils.NullType;
 import java.math.BigDecimal;
 import java.sql.SQLException;
 import java.sql.Timestamp;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
 
@@ -461,6 +462,22 @@ public class TSDBResultSetRowData {
         Timestamp tsObj = new Timestamp(milliseconds);
         tsObj.setNanos(fracNanoseconds);
         data.set(col, tsObj);
+    }
+
+    public void setTimestamp(int col, long ts) {
+        //TODO: this implementation contains logical error
+        // when precision is us the (long ts) is 16 digital number
+        // when precision is ms, the (long ts) is 13 digital number
+        // we need a JNI function like this:
+        //      public void setTimestamp(int col, long epochSecond, long nanoAdjustment)
+        if (ts < 1_0000_0000_0000_0L) {
+            data.set(col, new Timestamp(ts));
+        } else {
+            long epochSec = ts / 1000_000l;
+            long nanoAdjustment = ts % 1000_000l * 1000l;
+            Timestamp timestamp = Timestamp.from(Instant.ofEpochSecond(epochSec, nanoAdjustment));
+            data.set(col, timestamp);
+        }
     }
 
     public Timestamp getTimestamp(int col, int nativeType) {
