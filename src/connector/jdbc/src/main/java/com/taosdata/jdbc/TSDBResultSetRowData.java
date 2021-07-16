@@ -464,6 +464,9 @@ public class TSDBResultSetRowData {
         data.set(col, tsObj);
     }
 
+    /**
+     * this implementation is used for TDengine old version
+     */
     public void setTimestamp(int col, long ts) {
         //TODO: this implementation contains logical error
         // when precision is us the (long ts) is 16 digital number
