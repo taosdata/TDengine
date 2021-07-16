@@ -2296,6 +2296,7 @@ int32_t tscHandleFirstRoundStableQuery(SSqlObj *pSql) {
 
   SArray* pColList = pNewQueryInfo->colList;
   pNewQueryInfo->colList = NULL;
+  pNewQueryInfo->fillType = TSDB_FILL_NONE;
 
   tscClearSubqueryInfo(pCmd);
   tscFreeSqlResult(pSql);

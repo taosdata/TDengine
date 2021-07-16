@@ -3106,7 +3106,7 @@ int32_t doGetColumnIndexByName(SStrToken* pToken, SQueryInfo* pQueryInfo, SColum
 
   if (isTablenameToken(pToken)) {
     pIndex->columnIndex = TSDB_TBNAME_COLUMN_INDEX;
-  } else if (strlen(DEFAULT_PRIMARY_TIMESTAMP_COL_NAME) == pToken->n && 
+  } else if (strlen(DEFAULT_PRIMARY_TIMESTAMP_COL_NAME) == pToken->n &&
             strncasecmp(pToken->z, DEFAULT_PRIMARY_TIMESTAMP_COL_NAME, pToken->n) == 0) {
     pIndex->columnIndex = PRIMARYKEY_TIMESTAMP_COL_INDEX; // just make runtime happy, need fix java test case InsertSpecialCharacterJniTest
   } else if (pToken->n == 0) {
@@ -3708,9 +3708,9 @@ static int32_t doExtractColumnFilterInfo(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, 
      * make memory sanitizer happy;
      */
     if (pRight->value.nLen == 0) {
-      bufLen = pRight->value.nLen + 2; 
+      bufLen = pRight->value.nLen + 2;
     } else {
-      bufLen = pRight->value.nLen + 1; 
+      bufLen = pRight->value.nLen + 1;
     }
   }
 
@@ -5150,7 +5150,7 @@ int32_t validateWhereNode(SQueryInfo* pQueryInfo, tSqlExpr** pExpr, SSqlObj* pSq
 
   int32_t type = 0;
   if ((ret = getQueryCondExpr(&pSql->cmd, pQueryInfo, pExpr, &condExpr, &type, (*pExpr)->tokenId)) != TSDB_CODE_SUCCESS) {
-    goto PARSE_WHERE_EXIT; 
+    goto PARSE_WHERE_EXIT;
   }
 
   tSqlExprCompact(pExpr);
@@ -5160,7 +5160,7 @@ int32_t validateWhereNode(SQueryInfo* pQueryInfo, tSqlExpr** pExpr, SSqlObj* pSq
 
   // 1. check if it is a join query
   if ((ret = validateJoinExpr(&pSql->cmd, pQueryInfo, &condExpr)) != TSDB_CODE_SUCCESS) {
-    goto PARSE_WHERE_EXIT; 
+    goto PARSE_WHERE_EXIT;
   }
 
   // 2. get the query time range
@@ -8089,7 +8089,7 @@ int32_t loadAllTableMeta(SSqlObj* pSql, struct SSqlInfo* pInfo) {
       // avoid mem leak, may should update pTableMeta
       const char* px = tNameGetTableName(pname);
       if (taosHashGet(pCmd->pTableMetaMap, px, strlen(px)) == NULL) {
-        STableMeta* pMeta = tscTableMetaDup(pTableMeta); 
+        STableMeta* pMeta = tscTableMetaDup(pTableMeta);
         STableMetaVgroupInfo p = { .pTableMeta = pMeta,  .pVgroupInfo = NULL};
         taosHashPut(pCmd->pTableMetaMap, px, strlen(px), &p, sizeof(STableMetaVgroupInfo));
       }
@@ -8133,7 +8133,7 @@ int32_t loadAllTableMeta(SSqlObj* pSql, struct SSqlInfo* pInfo) {
 
   // load the table meta for a given table name list
   if (taosArrayGetSize(plist) > 0 || taosArrayGetSize(pVgroupList) > 0 || (pQueryInfo->pUdfInfo && taosArrayGetSize(pQueryInfo->pUdfInfo) > 0)) {
-    code = getMultiTableMetaFromMnode(pSql, plist, pVgroupList, pQueryInfo->pUdfInfo, tscTableMetaCallBack);
+    code = getMultiTableMetaFromMnode(pSql, plist, pVgroupList, pQueryInfo->pUdfInfo, tscTableMetaCallBack, true);
   }
 
 _end:
@@ -8630,7 +8630,7 @@ int32_t validateSqlNode(SSqlObj* pSql, SSqlNode* pSqlNode, SQueryInfo* pQueryInf
     }
 
     taosArrayAddBatch(pQueryInfo->exprList1, (void*) p, numOfExpr);
-    tfree(p); 
+    tfree(p);
   }
 
 #if 0

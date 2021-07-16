@@ -1132,4 +1132,19 @@ if $data92 != t1 then
   return -1
 endi
 
+print =========================>TD-5190
+sql select stddev(f1) from st1 where ts>'2021-07-01 1:1:1' and ts<'2021-07-30 00:00:00' interval(1d) fill(NULL);
+if $rows != 29 then
+  return -1
+endi
+
+if $data00 != @21-07-01 00:00:00.000@ then
+  return -1
+endi
+
+if $data01 != NULL then
+  return -1
+endi
+
+
 sql select derivative(test_column_alias_name, 1s, 0) from (select avg(k) test_column_alias_name from t1 interval(1s));

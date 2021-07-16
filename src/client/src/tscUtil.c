@@ -4574,8 +4574,13 @@ static int32_t doAddTableName(char* nextStr, char** str, SArray* pNameArray, SSq
     strncpy(tablename, *str, TSDB_TABLE_FNAME_LEN);
     len = (int32_t) strlen(tablename);
   } else {
-    memcpy(tablename, *str, nextStr - (*str));
     len = (int32_t)(nextStr - (*str));
+    if (len >= TSDB_TABLE_NAME_LEN) {
+      sprintf(pCmd->payload, "table name too long");
+      return TSDB_CODE_TSC_INVALID_OPERATION;
+    }
+
+    memcpy(tablename, *str, nextStr - (*str));
     tablename[len] = '\0';
   }
 
@@ -4587,9 +4592,8 @@ static int32_t doAddTableName(char* nextStr, char** str, SArray* pNameArray, SSq
 
   // Check if the table name available or not
   if (tscValidateName(&sToken) != TSDB_CODE_SUCCESS) {
-    code = TSDB_CODE_TSC_INVALID_TABLE_ID_LENGTH;
     sprintf(pCmd->payload, "table name is invalid");
-    return code;
+    return TSDB_CODE_TSC_INVALID_TABLE_ID_LENGTH;
   }
 
   SName name = {0};
@@ -4603,6 +4607,15 @@ static int32_t doAddTableName(char* nextStr, char** str, SArray* pNameArray, SSq
   char* p = strdup(tablename);
   taosArrayPush(pNameArray, &p);
   return TSDB_CODE_SUCCESS;
+}
+
+int32_t nameComparFn(const void* n1, const void* n2) {
+  int32_t ret = strcmp(*(char**)n1, *(char**)n2);
+  if (ret == 0) {
+    return 0;
+  } else {
+    return ret > 0? 1:-1;
+  }
 }
 
 int tscTransferTableNameList(SSqlObj *pSql, const char *pNameList, int32_t length, SArray* pNameArray) {
@@ -4640,12 +4653,44 @@ int tscTransferTableNameList(SSqlObj *pSql, const char *pNameList, int32_t lengt
     }
   }
 
-  if (taosArrayGetSize(pNameArray) > TSDB_MULTI_TABLEMETA_MAX_NUM) {
+  size_t len = taosArrayGetSize(pNameArray);
+  if (len == 1) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (len > TSDB_MULTI_TABLEMETA_MAX_NUM) {
     code = TSDB_CODE_TSC_INVALID_TABLE_ID_LENGTH;
     sprintf(pCmd->payload, "tables over the max number");
     return code;
   }
 
+  taosArraySort(pNameArray, nameComparFn);
+
+  int32_t pos = 0;
+  for(int32_t i = 1; i < len; ++i) {
+    char** p1 = taosArrayGet(pNameArray, pos);
+    char** p2 = taosArrayGet(pNameArray, i);
+
+    if (strcmp(*p1, *p2) == 0) {
+      // do nothing
+    } else {
+      if (pos + 1 != i) {
+        char* p = taosArrayGetP(pNameArray, pos + 1);
+        tfree(p);
+        taosArraySet(pNameArray, pos + 1, p2);
+        pos += 1;
+      } else {
+        pos += 1;
+      }
+    }
+  }
+
+  for(int32_t i = pos + 1; i < pNameArray->size; ++i) {
+    char* p = taosArrayGetP(pNameArray, i);
+    tfree(p);
+  }
+
+  pNameArray->size = pos + 1;
   return TSDB_CODE_SUCCESS;
 }
 
