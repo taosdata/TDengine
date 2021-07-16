@@ -27,12 +27,12 @@ extern "C" {
 
 extern int32_t vDebugFlag;
 
-#define vFatal(...) { if (vDebugFlag & DEBUG_FATAL) { taosPrintLog("VND FATAL ", 255, __VA_ARGS__); }}
-#define vError(...) { if (vDebugFlag & DEBUG_ERROR) { taosPrintLog("VND ERROR ", 255, __VA_ARGS__); }}
-#define vWarn(...)  { if (vDebugFlag & DEBUG_WARN)  { taosPrintLog("VND WARN ", 255, __VA_ARGS__); }}
-#define vInfo(...)  { if (vDebugFlag & DEBUG_INFO)  { taosPrintLog("VND ", 255, __VA_ARGS__); }}
-#define vDebug(...) { if (vDebugFlag & DEBUG_DEBUG) { taosPrintLog("VND ", vDebugFlag, __VA_ARGS__); }}
-#define vTrace(...) { if (vDebugFlag & DEBUG_TRACE) { taosPrintLog("VND ", vDebugFlag, __VA_ARGS__); }}
+#define vFatal(...) { if (vDebugFlag & DEBUG_FATAL) { taosPrintLog("VND FATAL ", __FILE__, __LINE__, 255, __VA_ARGS__); }}
+#define vError(...) { if (vDebugFlag & DEBUG_ERROR) { taosPrintLog("VND ERROR ", __FILE__, __LINE__, 255, __VA_ARGS__); }}
+#define vWarn(...)  { if (vDebugFlag & DEBUG_WARN)  { taosPrintLog("VND WARN ", __FILE__, __LINE__, 255, __VA_ARGS__); }}
+#define vInfo(...)  { if (vDebugFlag & DEBUG_INFO)  { taosPrintLog("VND ", __FILE__, __LINE__, 255, __VA_ARGS__); }}
+#define vDebug(...) { if (vDebugFlag & DEBUG_DEBUG) { taosPrintLog("VND ", __FILE__, __LINE__, vDebugFlag, __VA_ARGS__); }}
+#define vTrace(...) { if (vDebugFlag & DEBUG_TRACE) { taosPrintLog("VND ", __FILE__, __LINE__, vDebugFlag, __VA_ARGS__); }}
 
 typedef struct {
   int32_t  vgId;      // global vnode group ID

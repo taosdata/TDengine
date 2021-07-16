@@ -20,12 +20,12 @@
 
 #include "com_taosdata_jdbc_TSDBJNIConnector.h"
 
-#define jniFatal(...) { if (jniDebugFlag & DEBUG_FATAL) { taosPrintLog("JNI FATAL ", tscEmbedded ? 255 : jniDebugFlag, __VA_ARGS__); }}
-#define jniError(...) { if (jniDebugFlag & DEBUG_ERROR) { taosPrintLog("JNI ERROR ", tscEmbedded ? 255 : jniDebugFlag, __VA_ARGS__); }}
-#define jniWarn(...)  { if (jniDebugFlag & DEBUG_WARN)  { taosPrintLog("JNI WARN ", tscEmbedded ? 255 : jniDebugFlag, __VA_ARGS__); }}
-#define jniInfo(...)  { if (jniDebugFlag & DEBUG_INFO)  { taosPrintLog("JNI ", tscEmbedded ? 255 : jniDebugFlag, __VA_ARGS__); }}
-#define jniDebug(...) { if (jniDebugFlag & DEBUG_DEBUG) { taosPrintLog("JNI ", jniDebugFlag, __VA_ARGS__); }}
-#define jniTrace(...) { if (jniDebugFlag & DEBUG_TRACE) { taosPrintLog("JNI ", jniDebugFlag, __VA_ARGS__); }}
+#define jniFatal(...) { if (jniDebugFlag & DEBUG_FATAL) { taosPrintLog("JNI FATAL ", __FILE__, __LINE__, tscEmbedded ? 255 : jniDebugFlag, __VA_ARGS__); }}
+#define jniError(...) { if (jniDebugFlag & DEBUG_ERROR) { taosPrintLog("JNI ERROR ", __FILE__, __LINE__, tscEmbedded ? 255 : jniDebugFlag, __VA_ARGS__); }}
+#define jniWarn(...)  { if (jniDebugFlag & DEBUG_WARN)  { taosPrintLog("JNI WARN ", __FILE__, __LINE__, tscEmbedded ? 255 : jniDebugFlag, __VA_ARGS__); }}
+#define jniInfo(...)  { if (jniDebugFlag & DEBUG_INFO)  { taosPrintLog("JNI ", __FILE__, __LINE__, tscEmbedded ? 255 : jniDebugFlag, __VA_ARGS__); }}
+#define jniDebug(...) { if (jniDebugFlag & DEBUG_DEBUG) { taosPrintLog("JNI ", __FILE__, __LINE__, jniDebugFlag, __VA_ARGS__); }}
+#define jniTrace(...) { if (jniDebugFlag & DEBUG_TRACE) { taosPrintLog("JNI ", __FILE__, __LINE__, jniDebugFlag, __VA_ARGS__); }}
 
 int __init = 0;
 
