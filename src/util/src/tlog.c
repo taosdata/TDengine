@@ -366,9 +366,14 @@ static int32_t taosOpenLogFile(char *fn, int32_t maxLines, int32_t maxFileNum) {
 
 void taosFormatLineNum(char* tag, const char *flag, const char *filename, int lineNum){
   char line[10] = "\0";
-  sprintf(line, "%d", lineNum);
+  sprintf(line, ":%d ", lineNum);
   strcat(tag, flag);
-  strcat(tag, filename);
+  char *name = strrchr(filename, '/');
+  if(name){
+    strcat(tag, name + 1);  // jump /
+  }else{
+    strcat(tag, filename);
+  }
   strcat(tag, line);
 }
 
