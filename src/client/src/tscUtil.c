@@ -2437,7 +2437,9 @@ void tscDoQuery(SSqlObj* pSql) {
     SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
     uint16_t type = pQueryInfo->type;
 
-    if ((pCmd->command == TSDB_SQL_SELECT) && (!TSDB_QUERY_HAS_TYPE(type, TSDB_QUERY_TYPE_SUBQUERY)) && (!TSDB_QUERY_HAS_TYPE(type, TSDB_QUERY_TYPE_STABLE_SUBQUERY))) {
+    if ((pCmd->command == TSDB_SQL_SELECT) && (((!TSDB_QUERY_HAS_TYPE(type, TSDB_QUERY_TYPE_SUBQUERY)) &&
+                                                (!TSDB_QUERY_HAS_TYPE(type, TSDB_QUERY_TYPE_STABLE_SUBQUERY))) ||
+                                               (tscIsProjectionQuery(pQueryInfo)))) {
       tscAddIntoSqlList(pSql);
     }
   
