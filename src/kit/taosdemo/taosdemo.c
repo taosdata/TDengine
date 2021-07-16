@@ -4983,12 +4983,20 @@ static int64_t generateData(char *recBuf, char **data_type,
       bool b = rand_bool() & 1;
       pstr += sprintf(pstr, ",%s", b ? "true" : "false");
     } else if (strcasecmp(data_type[i % columnCount], "BINARY") == 0) {
-      char *s = malloc(lenOfBinary);
+      char *s = malloc(lenOfBinary + 1);
+      if (s == NULL) {
+          errorPrint("%s() LN%d, memory allocation %d bytes failed\n",
+                  __func__, __LINE__, lenOfBinary + 1);
+      }
       rand_string(s, lenOfBinary);
       pstr += sprintf(pstr, ",\"%s\"", s);
       free(s);
     } else if (strcasecmp(data_type[i % columnCount], "NCHAR") == 0) {
-      char *s = malloc(lenOfBinary);
+      char *s = malloc(lenOfBinary + 1);
+      if (s == NULL) {
+          errorPrint("%s() LN%d, memory allocation %d bytes failed\n",
+                  __func__, __LINE__, lenOfBinary + 1);
+      }
       rand_string(s, lenOfBinary);
       pstr += sprintf(pstr, ",\"%s\"", s);
       free(s);
