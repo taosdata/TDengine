@@ -25,15 +25,15 @@ extern "C" {
 extern int32_t uDebugFlag;
 extern int8_t  tscEmbedded;
 
-#define uFatal(...) { if (uDebugFlag & DEBUG_FATAL) { taosPrintLog("UTL FATAL", tscEmbedded ? 255 : uDebugFlag, __VA_ARGS__); }}
-#define uError(...) { if (uDebugFlag & DEBUG_ERROR) { taosPrintLog("UTL ERROR ", tscEmbedded ? 255 : uDebugFlag, __VA_ARGS__); }}
-#define uWarn(...)  { if (uDebugFlag & DEBUG_WARN)  { taosPrintLog("UTL WARN ", tscEmbedded ? 255 : uDebugFlag, __VA_ARGS__); }}
-#define uInfo(...)  { if (uDebugFlag & DEBUG_INFO)  { taosPrintLog("UTL ", tscEmbedded ? 255 : uDebugFlag, __VA_ARGS__); }}
-#define uDebug(...) { if (uDebugFlag & DEBUG_DEBUG) { taosPrintLog("UTL ", uDebugFlag, __VA_ARGS__); }}
-#define uTrace(...) { if (uDebugFlag & DEBUG_TRACE) { taosPrintLog("UTL ", uDebugFlag, __VA_ARGS__); }}
+#define uFatal(...) { if (uDebugFlag & DEBUG_FATAL) { taosPrintLog("UTL FATAL", __FILE__, __LINE__, tscEmbedded ? 255 : uDebugFlag, __VA_ARGS__); }}
+#define uError(...) { if (uDebugFlag & DEBUG_ERROR) { taosPrintLog("UTL ERROR ", __FILE__, __LINE__, tscEmbedded ? 255 : uDebugFlag, __VA_ARGS__); }}
+#define uWarn(...)  { if (uDebugFlag & DEBUG_WARN)  { taosPrintLog("UTL WARN ", __FILE__, __LINE__, tscEmbedded ? 255 : uDebugFlag, __VA_ARGS__); }}
+#define uInfo(...)  { if (uDebugFlag & DEBUG_INFO)  { taosPrintLog("UTL ", __FILE__, __LINE__, tscEmbedded ? 255 : uDebugFlag, __VA_ARGS__); }}
+#define uDebug(...) { if (uDebugFlag & DEBUG_DEBUG) { taosPrintLog("UTL ", __FILE__, __LINE__, uDebugFlag, __VA_ARGS__); }}
+#define uTrace(...) { if (uDebugFlag & DEBUG_TRACE) { taosPrintLog("UTL ", __FILE__, __LINE__, uDebugFlag, __VA_ARGS__); }}
 
-#define pError(...) { taosPrintLog("APP ERROR ", 255, __VA_ARGS__); }  
-#define pPrint(...) { taosPrintLog("APP ", 255, __VA_ARGS__); }  
+#define pError(...) { taosPrintLog("APP ERROR ", __FILE__, __LINE__, 255, __VA_ARGS__); }
+#define pPrint(...) { taosPrintLog("APP ", __FILE__, __LINE__, 255, __VA_ARGS__); }
 
 #ifdef __cplusplus
 }
