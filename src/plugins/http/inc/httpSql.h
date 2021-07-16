@@ -35,4 +35,7 @@ void    httpTrimTableName(char *name);
 int32_t httpShrinkTableName(HttpContext *pContext, int32_t pos, char *name);
 char *  httpGetCmdsString(HttpContext *pContext, int32_t pos);
 
+int32_t httpCheckAllocEscapeSql(char *oldSql, char **newSql);
+void httpCheckFreeEscapedSql(char *oldSql, char *newSql);
+
 #endif

@@ -5,7 +5,8 @@ import com.taosdata.example.pool.C3p0Builder;
 import com.taosdata.example.pool.DbcpBuilder;
 import com.taosdata.example.pool.DruidPoolBuilder;
 import com.taosdata.example.pool.HikariCpBuilder;
-import org.apache.log4j.Logger;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
 
 import javax.sql.DataSource;
 import java.sql.Connection;
@@ -17,7 +18,7 @@ import java.util.concurrent.TimeUnit;
 
 public class ConnectionPoolDemo {
 
-    private static Logger logger = Logger.getLogger(DruidPoolBuilder.class);
+    private static Logger logger = LogManager.getLogger(DruidPoolBuilder.class);
     private static final String dbName = "pool_test";
 
     private static String poolType = "hikari";

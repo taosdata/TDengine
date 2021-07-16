@@ -760,10 +760,12 @@ typedef struct STableMetaMsg {
 } STableMetaMsg;
 
 typedef struct SMultiTableMeta {
-  int32_t       numOfTables;
-  int32_t       numOfVgroup;
-  int32_t       contLen;
-  char          meta[];
+  int32_t  numOfTables;
+  int32_t  numOfVgroup;
+  uint32_t contLen:31;
+  uint8_t  compressed:1;      // denote if compressed or not
+  uint32_t rawLen;            // size before compress
+  char     meta[];
 } SMultiTableMeta;
 
 typedef struct {
