@@ -946,3 +946,34 @@ JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_setTableNameTagsI
 
   return JNI_SUCCESS;
 }
+
+JNIEXPORT jlong JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_insertLinesImp(JNIEnv *env, jobject jobj,
+                                                                                jobjectArray lines, jlong conn) {
+  TAOS *taos = (TAOS *)conn;
+  if (taos == NULL) {
+    jniError("jobj:%p, connection already closed", jobj);
+    return JNI_CONNECTION_NULL;
+  }
+
+  int numLines = (*env)->GetArrayLength(env, lines);
+  char** c_lines = calloc(numLines, sizeof(char*));
+
+  for (int i = 0; i < numLines; ++i) {
+    jstring line = (jstring) ((*env)->GetObjectArrayElement(env, lines, i));
+    c_lines[i] = (char*)(*env)->GetStringUTFChars(env, line, 0);
+  }
+
+  int code = taos_insert_lines(taos, c_lines, numLines);
+
+  for (int i = 0; i < numLines; ++i) {
+    jstring line = (jstring) ((*env)->GetObjectArrayElement(env, lines, i));
+    (*env)->ReleaseStringUTFChars(env, line, c_lines[i]);
+  }
+
+  if (code != TSDB_CODE_SUCCESS) {
+    jniError("jobj:%p, conn:%p, code:%s", jobj, taos, tstrerror(code));
+    return JNI_TDENGINE_ERROR;
+  }
+
+  return code;
+}

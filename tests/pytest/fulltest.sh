@@ -27,6 +27,7 @@ python3 ./test.py -f insert/bug3654.py
 python3 ./test.py -f insert/insertDynamicColBeforeVal.py
 python3 ./test.py -f insert/in_function.py
 python3 ./test.py -f insert/modify_column.py
+python3 ./test.py -f insert/line_insert.py
 
 #table
 python3 ./test.py -f table/alter_wal0.py

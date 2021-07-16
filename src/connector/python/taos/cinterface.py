@@ -404,6 +404,20 @@ class CTaosInterface(object):
         return CTaosInterface.libtaos.taos_affected_rows(result)
 
     @staticmethod
+    def insertLines(connection, lines):
+        '''
+            insert through lines protocol
+            @lines: list of str
+            @rtype: tsdb error codes 
+        '''
+        numLines = len(lines)
+        c_lines_type = ctypes.c_char_p*numLines
+        c_lines = c_lines_type()
+        for i in range(numLines):
+            c_lines[i] = ctypes.c_char_p(lines[i].encode('utf-8'))
+        return CTaosInterface.libtaos.taos_insert_lines(connection, c_lines, ctypes.c_int(numLines))
+
+    @staticmethod
     def subscribe(connection, restart, topic, sql, interval):
         """Create a subscription
          @restart boolean,
