@@ -106,6 +106,9 @@ class TDTestCase:
         tdSql.execute("drop database if exists db1")
         tdSql.execute("create database  if not exists db keep 3650")
         tdSql.execute("create database  if not exists db1 keep 3650")
+        tdSql.execute("create database  if not exists new keep 3650")
+        tdSql.execute("create database  if not exists private keep 3650")
+        tdSql.execute("create database  if not exists db2 keep 3650")
 
         tdSql.execute("create stable db.stb1 (ts timestamp, c1 int) tags(t1 int)")
         tdSql.execute("create stable db.stb2 (ts timestamp, c1 int) tags(t1 int)")
@@ -121,6 +124,14 @@ class TDTestCase:
 
         # p1 不进入指定数据库
         tdSql.query("show create database db")
+        tdSql.checkRows(1)
+        tdSql.query("show create database db1")
+        tdSql.checkRows(1)
+        tdSql.query("show create database db2")
+        tdSql.checkRows(1)
+        tdSql.query("show create database new")
+        tdSql.checkRows(1)
+        tdSql.query("show create database private")
         tdSql.checkRows(1)
         tdSql.error("show create database ")
         tdSql.error("show create databases db ")
@@ -340,16 +351,45 @@ class TDTestCase:
 
         pass
 
+    def td4889(self):
+        tdLog.printNoPrefix("==========TD-4097==========")
+        tdSql.execute("drop database if exists db")
+        tdSql.execute("create database  if not exists db keep 3650")
+
+        tdSql.execute("use db")
+        tdSql.execute("create stable db.stb1 (ts timestamp, c1 int) tags(t1 int)")
+
+        for i in range(1000):
+            tdSql.execute(f"create table db.t1{i} using db.stb1 tags({i})")
+            for j in range(100):
+                tdSql.execute(f"insert into db.t1{i} values (now-100d, {i+j})")
+
+        tdSql.query("show vgroups")
+        index = tdSql.getData(0,0)
+        tdSql.checkData(0, 6, 0)
+        tdSql.execute(f"compact vnodes in({index})")
+        for i in range(3):
+            tdSql.query("show vgroups")
+            if tdSql.getData(0, 6) == 1:
+                tdLog.printNoPrefix("show vgroups row:0 col:6 data:0 == expect:1")
+                break
+            if i == 3:
+                tdLog.exit("compacting not occured")
+            time.sleep(0.5)
+
+        pass
+
     def run(self):
 
         # master branch
         # self.td3690()
         # self.td4082()
         # self.td4288()
-        self.td4724()
+        # self.td4724()
 
         # develop branch
         # self.td4097()
+        self.td4889()
 
 
     def stop(self):
