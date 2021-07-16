@@ -945,21 +945,19 @@ int taos_load_table_info(TAOS *taos, const char *tableNameList) {
     return TSDB_CODE_TSC_DISCONNECTED;
   }
 
-  SSqlObj* pSql = calloc(1, sizeof(SSqlObj));
-  pSql->pTscObj = taos;
-  pSql->signature = pSql;
-
   int32_t length = (int32_t)strlen(tableNameList);
+  if (length == 0) {
+    return TSDB_CODE_SUCCESS;
+  }
+
   if (length > MAX_TABLE_NAME_LENGTH) {
-    tscError("0x%"PRIx64" tableNameList too long, length:%d, maximum allowed:%d", pSql->self, length, MAX_TABLE_NAME_LENGTH);
-    tscFreeSqlObj(pSql);
+    tscError("tableNameList too long, length:%d, maximum allowed:%d", length, MAX_TABLE_NAME_LENGTH);
     return TSDB_CODE_TSC_INVALID_OPERATION;
   }
 
   char *str = calloc(1, length + 1);
   if (str == NULL) {
-    tscError("0x%"PRIx64" failed to allocate sql string buffer", pSql->self);
-    tscFreeSqlObj(pSql);
+    tscError("failed to allocate sql string buffer, size:%d", length);
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
   }
 
@@ -968,9 +966,14 @@ int taos_load_table_info(TAOS *taos, const char *tableNameList) {
   SArray* vgroupList = taosArrayInit(4, POINTER_BYTES);
   if (plist == NULL || vgroupList == NULL) {
     tfree(str);
-    tscFreeSqlObj(pSql);
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
   }
+
+  SSqlObj* pSql = calloc(1, sizeof(SSqlObj));
+  tscAllocPayload(&pSql->cmd, 1024);
+
+  pSql->pTscObj   = taos;
+  pSql->signature = pSql;
 
   int32_t code = (uint8_t) tscTransferTableNameList(pSql, str, length, plist);
   free(str);

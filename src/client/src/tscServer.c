@@ -2073,6 +2073,7 @@ int tscProcessMultiTableMetaRsp(SSqlObj *pSql) {
       return code;
     }
 
+    bool freeMeta = false;
     STableMeta* pTableMeta = tscCreateTableMetaFromMsg(pMetaMsg);
     if (!tIsValidSchema(pTableMeta->schema, pTableMeta->tableInfo.numOfColumns, pTableMeta->tableInfo.numOfTags)) {
       tscError("0x%"PRIx64" invalid table meta from mnode, name:%s", pSql->self, pMetaMsg->tableFname);
@@ -2092,11 +2093,13 @@ int tscProcessMultiTableMetaRsp(SSqlObj *pSql) {
       const char* tableName = tNameGetTableName(&sn);
       size_t keyLen = strlen(tableName);
       taosHashPut(pParentCmd->pTableMetaMap, tableName, keyLen, &p, sizeof(STableMetaVgroupInfo));
+    } else {
+      freeMeta = true;
     }
 
     // for each super table, only update meta information once
     bool updateStableMeta = false;
-    if (pTableMeta->tableType == TSDB_CHILD_TABLE && taosHashGet(pSet, &pMetaMsg->uid, sizeof(pMetaMsg->uid)) == NULL) {
+    if (pTableMeta->tableType == TSDB_CHILD_TABLE && taosHashGet(pSet, &pMetaMsg->suid, sizeof(pMetaMsg->suid)) == NULL) {
       updateStableMeta = true;
       taosHashPut(pSet, &pTableMeta->suid, sizeof(pMetaMsg->suid), "", 0);
     }
@@ -2112,6 +2115,9 @@ int tscProcessMultiTableMetaRsp(SSqlObj *pSql) {
     }
 
     pMsg += pMetaMsg->contLen;
+    if (freeMeta) {
+      tfree(pTableMeta);
+    }
   }
 
   for(int32_t i = 0; i < pMultiMeta->numOfVgroup; ++i) {

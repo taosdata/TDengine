@@ -4497,6 +4497,15 @@ static int32_t doAddTableName(char* nextStr, char** str, SArray* pNameArray, SSq
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t nameComparFn(const void* n1, const void* n2) {
+  int32_t ret = strcmp(*(char**)n1, *(char**)n2);
+  if (ret == 0) {
+    return 0;
+  } else {
+    return ret > 0? 1:-1;
+  }
+}
+
 int tscTransferTableNameList(SSqlObj *pSql, const char *pNameList, int32_t length, SArray* pNameArray) {
   SSqlCmd *pCmd = &pSql->cmd;
 
@@ -4538,6 +4547,34 @@ int tscTransferTableNameList(SSqlObj *pSql, const char *pNameList, int32_t lengt
     return code;
   }
 
+  taosArraySort(pNameArray, nameComparFn);
+  size_t len = taosArrayGetSize(pNameArray);
+
+  int32_t pos = 0;
+  for(int32_t i = 1; i < len; ++i) {
+    char** p1 = taosArrayGet(pNameArray, pos);
+    char** p2 = taosArrayGet(pNameArray, i);
+
+    if (strcmp(*p1, *p2) == 0) {
+      // do nothing
+    } else {
+      if (pos + 1 != i) {
+        char* p = taosArrayGetP(pNameArray, pos + 1);
+        tfree(p);
+        taosArraySet(pNameArray, pos + 1, p2);
+        pos += 1;
+      } else {
+        pos += 1;
+      }
+    }
+  }
+
+  for(int32_t i = pos + 1; i < pNameArray->size; ++i) {
+    char* p = taosArrayGetP(pNameArray, i);
+    tfree(p);
+  }
+
+  pNameArray->size = pos + 1;
   return TSDB_CODE_SUCCESS;
 }
 
