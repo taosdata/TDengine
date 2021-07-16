@@ -1470,7 +1470,7 @@ _err_return:
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t filterGenerateGroupFromArray(SFilterInfo *info, SArray* group) {
+int32_t filterConvertGroupFromArray(SFilterInfo *info, SArray* group) {
   size_t groupSize = taosArrayGetSize(group);
 
   info->groupNum = (uint16_t)groupSize;
@@ -1487,6 +1487,89 @@ int32_t filterGenerateGroupFromArray(SFilterInfo *info, SArray* group) {
 
   return TSDB_CODE_SUCCESS;
 }
+
+int32_t filterCheckRangeCoverage(SFilterInfo *info, SFilterGroupCtx* gctx, SFilterGroupCtx** uctx) {
+  if (gctx->num == 0) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SFilterInfo oinfo = *info;
+  uint16_t gNum = 0;
+  SArray* group = taosArrayInit(FILTER_DEFAULT_GROUP_SIZE, sizeof(SFilterGroup));
+
+  memset(info, 0, sizeof(*info));
+
+  filterInitUnitsFields(info);
+  
+  for (uint16_t i = 0; i < oinfo.groupNum; ++i) {
+    SFilterGroup* g = oinfo.groups + i;
+    SFilterGroup ng = {0};
+    uint16_t unitNum = (uctx && uctx[i]) ? uctx[i]->num : g->unitNum;
+
+    if (unitNum == 0) {
+      continue;
+    }
+
+    ++gNum;
+
+    if ((uctx == NULL) || (uctx[i] == NULL)) {
+      for (uint16_t n = 0; n < g->unitNum; ++n) {
+        SFilterUnit* u = FILTER_GROUP_UNIT(&oinfo, g, n);
+        filterAddUnitFromUnit(info, &oinfo, u);      
+        filterAddUnitToGroup(&ng, info->unitNum - 1);
+      }
+      
+      taosArrayPush(group, &ng);
+
+      continue;
+    }
+    
+    SFilterGroupCtx* ctx = uctx[i];
+    for (uint16_t n = 0; n < g->unitNum; ++n) {
+      SFilterUnit* u = FILTER_GROUP_UNIT(&oinfo, g, n);
+      int32_t type = FILTER_UNIT_DATA_TYPE(u);
+      if (FILTER_NO_MERGE_DATA_TYPE(type)) {
+        filterAddUnitFromUnit(info, &oinfo, u);
+        filterAddUnitToGroup(&ng, info->unitNum - 1);
+        continue;
+      }
+
+      uint16_t cidx = FILTER_UNIT_COL_IDX(u);
+
+      assert(ctx->col[cidx] > 0 || ctx->col[cidx] == -1);
+      
+      if (ctx->col[cidx] != -1) {
+        filterAddUnitFromUnit(info, &oinfo, u);        
+        filterAddUnitToGroup(&ng, info->unitNum - 1);
+      }
+    }
+
+    if (ctx->colRange && taosArrayGetSize(ctx->colRange) > 0) {
+      int32_t size = (int32_t)taosArrayGetSize(ctx->colRange);
+      for (int32_t m = 0; m < size; ++m) {
+        SFilterColRange *cra = taosArrayGet(ctx->colRange, m);
+        filterAddGroupUnitFromRange(info, &oinfo, cra, &ng, TSDB_RELATION_AND, NULL);
+      }
+    }
+
+    taosArrayPush(group, &ng);
+  }
+
+  if (gctx->colRange && taosArrayGetSize(gctx->colRange) > 0) {
+    int32_t size = (int32_t)taosArrayGetSize(gctx->colRange);
+    for (int32_t i = 0; i < size; ++i) {
+      SFilterColRange *cra = taosArrayGet(gctx->colRange, i);
+      filterAddGroupUnitFromRange(info, &oinfo, cra, NULL, TSDB_RELATION_OR, group);
+    }
+  }
+
+  filterConvertGroupFromArray(info, group);
+
+  taosArrayDestroy(group);
+
+  return TSDB_CODE_SUCCESS;
+}
+
 
 
 int32_t filterRewrite(SFilterInfo *info, SFilterGroupCtx* gctx, SFilterGroupCtx** uctx) {
@@ -1564,7 +1647,7 @@ int32_t filterRewrite(SFilterInfo *info, SFilterGroupCtx* gctx, SFilterGroupCtx*
     }
   }
 
-  filterGenerateGroupFromArray(info, group);
+  filterConvertGroupFromArray(info, group);
 
   taosArrayDestroy(group);
 
@@ -1589,6 +1672,8 @@ int32_t filterPreprocess(SFilterInfo *info) {
     qInfo("Final - FilterInfo: [NONE]");
     return TSDB_CODE_SUCCESS;
   }  
+
+  filterCheckRangeCoverage(info, &groupRes, unitsRes);
 
   //TODO GET COLUMN RANGE
 
@@ -1699,7 +1784,7 @@ int32_t filterInitFromTree(tExprNode* tree, SFilterInfo **pinfo, uint32_t option
 
   ERR_JRET(code);
 
-  filterGenerateGroupFromArray(info, group);
+  filterConvertGroupFromArray(info, group);
 
   ERR_JRET(filterInitValFieldData(info));
 

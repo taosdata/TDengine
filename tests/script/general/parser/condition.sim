@@ -93,6 +93,12 @@ sql_error select ts,c1,c7 from stb1 where c7 > false
 sql_error select * from stb1 where c1 > NULL;
 sql_error select * from stb1 where c1 = NULL;
 sql_error select * from stb1 where c1 LIKE '%1';
+sql_error select * from stb1 where c2 LIKE '%1';
+sql_error select * from stb1 where c3 LIKE '%1';
+sql_error select * from stb1 where c4 LIKE '%1';
+sql_error select * from stb1 where c5 LIKE '%1';
+sql_error select * from stb1 where c6 LIKE '%1';
+sql_error select * from stb1 where c7 LIKE '%1';
 sql_error select * from stb1 where c1 = 'NULL';
 sql_error select * from stb1 where c2 > 'NULL';
 sql_error select * from stb1 where c3 <> 'NULL';
@@ -1222,6 +1228,39 @@ if $data10 != @21-05-05 18:19:17.000@ then
   return -1
 endi
 if $data20 != @21-05-05 18:19:18.000@ then
+  return -1
+endi
+
+sql select * from stb1 where c1 in (11,21,31,41) and c1 in (11,42);
+if $rows != 1 then
+  return -1
+endi
+if $data00 != @21-05-05 18:19:04.000@ then
+  return -1
+endi
+
+sql select * from stb1 where c8 in ('11','21','31','41') and c8 in ('11','42');
+if $rows != 1 then
+  return -1
+endi
+if $data00 != @21-05-05 18:19:04.000@ then
+  return -1
+endi
+
+sql select * from stb1 where (c1 > 60 and c2 > 40) or (c1 > 62 and c2 > 50);
+if $rows != 4 then
+  return -1
+endi
+if $data00 != @21-05-05 18:19:24.000@ then
+  return -1
+endi
+if $data10 != @21-05-05 18:19:25.000@ then
+  return -1
+endi
+if $data20 != @21-05-05 18:19:26.000@ then
+  return -1
+endi
+if $data30 != @21-05-05 18:19:27.000@ then
   return -1
 endi
 
