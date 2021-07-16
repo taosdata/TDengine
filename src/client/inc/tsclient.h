@@ -146,6 +146,7 @@ typedef struct {
   SInsertStatementParam insertParam;
   char    reserve1[3];        // fix bus error on arm32
   int32_t count;   // todo remove it
+  bool    subCmd;
 
   char         reserve2[3];        // fix bus error on arm32
   int16_t      numOfCols;

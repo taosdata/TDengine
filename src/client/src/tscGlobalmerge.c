@@ -602,6 +602,15 @@ static void doExecuteFinalMerge(SOperatorInfo* pOperator, int32_t numOfExpr, SSD
           if (functionId == TSDB_FUNC_TAG_DUMMY || functionId == TSDB_FUNC_TS_DUMMY) {
             continue;
           }
+
+          if (functionId < 0) {
+            SUdfInfo* pUdfInfo = taosArrayGet(pInfo->udfInfo, -1 * functionId - 1);
+
+            doInvokeUdf(pUdfInfo, &pCtx[j], 0, TSDB_UDF_FUNC_MERGE);
+
+            continue;
+          }
+
           aAggs[functionId].mergeFunc(&pCtx[j]);
         }
       } else {
@@ -610,6 +619,15 @@ static void doExecuteFinalMerge(SOperatorInfo* pOperator, int32_t numOfExpr, SSD
           if (functionId == TSDB_FUNC_TAG_DUMMY || functionId == TSDB_FUNC_TS_DUMMY) {
             continue;
           }
+
+          if (functionId < 0) {
+            SUdfInfo* pUdfInfo = taosArrayGet(pInfo->udfInfo, -1 * functionId - 1);
+
+            doInvokeUdf(pUdfInfo, &pCtx[j], 0, TSDB_UDF_FUNC_FINALIZE);
+
+            continue;
+          }
+
           aAggs[functionId].xFinalize(&pCtx[j]);
         }
 
@@ -626,7 +644,11 @@ static void doExecuteFinalMerge(SOperatorInfo* pOperator, int32_t numOfExpr, SSD
         }
 
         for(int32_t j = 0; j < numOfExpr; ++j) {
-          aAggs[pCtx[j].functionId].init(&pCtx[j]);
+          if (pCtx[j].functionId < 0) {
+            continue;
+          }
+
+          aAggs[pCtx[j].functionId].init(&pCtx[j], pCtx[j].resultInfo);
         }
 
         for (int32_t j = 0; j < numOfExpr; ++j) {
@@ -638,6 +660,15 @@ static void doExecuteFinalMerge(SOperatorInfo* pOperator, int32_t numOfExpr, SSD
           if (functionId == TSDB_FUNC_TAG_DUMMY || functionId == TSDB_FUNC_TS_DUMMY) {
             continue;
           }
+
+          if (functionId < 0) {
+            SUdfInfo* pUdfInfo = taosArrayGet(pInfo->udfInfo, -1 * functionId - 1);
+
+            doInvokeUdf(pUdfInfo, &pCtx[j], 0, TSDB_UDF_FUNC_MERGE);
+
+            continue;
+          }
+
           aAggs[functionId].mergeFunc(&pCtx[j]);
         }
       }
@@ -651,6 +682,15 @@ static void doExecuteFinalMerge(SOperatorInfo* pOperator, int32_t numOfExpr, SSD
         if (functionId == TSDB_FUNC_TAG_DUMMY || functionId == TSDB_FUNC_TS_DUMMY) {
           continue;
         }
+
+        if (functionId < 0) {
+          SUdfInfo* pUdfInfo = taosArrayGet(pInfo->udfInfo, -1 * functionId - 1);
+
+          doInvokeUdf(pUdfInfo, &pCtx[j], 0, TSDB_UDF_FUNC_MERGE);
+
+          continue;
+        }
+
         aAggs[functionId].mergeFunc(&pCtx[j]);
       }
     }
@@ -871,7 +911,6 @@ SSDataBlock* doGlobalAggregate(void* param, bool* newgroup) {
 
   {
     if (pAggInfo->hasDataBlockForNewGroup) {
-      pAggInfo->binfo.pRes->info.rows = 0;
       pAggInfo->hasPrev = false; // now we start from a new group data set.
 
       // not belongs to the same group, return the result of current group;
@@ -880,7 +919,13 @@ SSDataBlock* doGlobalAggregate(void* param, bool* newgroup) {
 
       { // reset output buffer
         for(int32_t j = 0; j < pOperator->numOfOutput; ++j) {
-          aAggs[pAggInfo->binfo.pCtx[j].functionId].init(&pAggInfo->binfo.pCtx[j]);
+          SQLFunctionCtx* pCtx = &pAggInfo->binfo.pCtx[j];
+          if (pCtx->functionId < 0) {
+            clearOutputBuf(&pAggInfo->binfo, &pAggInfo->bufCapacity);
+            continue;
+          }
+
+          aAggs[pCtx->functionId].init(pCtx, pCtx->resultInfo);
         }
       }
 
@@ -930,6 +975,14 @@ SSDataBlock* doGlobalAggregate(void* param, bool* newgroup) {
     for(int32_t j = 0; j < pOperator->numOfOutput; ++j) {
       int32_t functionId = pAggInfo->binfo.pCtx[j].functionId;
       if (functionId == TSDB_FUNC_TAG_DUMMY || functionId == TSDB_FUNC_TS_DUMMY) {
+        continue;
+      }
+
+      if (functionId < 0) {
+        SUdfInfo* pUdfInfo = taosArrayGet(pAggInfo->udfInfo, -1 * functionId - 1);
+
+        doInvokeUdf(pUdfInfo, &pAggInfo->binfo.pCtx[j], 0, TSDB_UDF_FUNC_FINALIZE);
+
         continue;
       }
 
