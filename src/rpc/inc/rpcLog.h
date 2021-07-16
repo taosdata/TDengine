@@ -25,12 +25,12 @@ extern "C" {
 extern int32_t rpcDebugFlag;
 extern int8_t  tscEmbedded;
 
-#define tFatal(...) { if (rpcDebugFlag & DEBUG_FATAL) { taosPrintLog("RPC FATAL ", tscEmbedded ? 255 : rpcDebugFlag, __VA_ARGS__); }}
-#define tError(...) { if (rpcDebugFlag & DEBUG_ERROR) { taosPrintLog("RPC ERROR ", tscEmbedded ? 255 : rpcDebugFlag, __VA_ARGS__); }}
-#define tWarn(...)  { if (rpcDebugFlag & DEBUG_WARN)  { taosPrintLog("RPC WARN ", tscEmbedded ? 255 : rpcDebugFlag, __VA_ARGS__); }}
-#define tInfo(...)  { if (rpcDebugFlag & DEBUG_INFO)  { taosPrintLog("RPC ", tscEmbedded ? 255 : rpcDebugFlag, __VA_ARGS__); }}
-#define tDebug(...) { if (rpcDebugFlag & DEBUG_DEBUG) { taosPrintLog("RPC ", rpcDebugFlag, __VA_ARGS__); }}
-#define tTrace(...) { if (rpcDebugFlag & DEBUG_TRACE) { taosPrintLog("RPC ", rpcDebugFlag, __VA_ARGS__); }}
+#define tFatal(...) { if (rpcDebugFlag & DEBUG_FATAL) { taosPrintLog("RPC FATAL ", __FILE__, __LINE__, tscEmbedded ? 255 : rpcDebugFlag, __VA_ARGS__); }}
+#define tError(...) { if (rpcDebugFlag & DEBUG_ERROR) { taosPrintLog("RPC ERROR ", __FILE__, __LINE__, tscEmbedded ? 255 : rpcDebugFlag, __VA_ARGS__); }}
+#define tWarn(...)  { if (rpcDebugFlag & DEBUG_WARN)  { taosPrintLog("RPC WARN ", __FILE__, __LINE__, tscEmbedded ? 255 : rpcDebugFlag, __VA_ARGS__); }}
+#define tInfo(...)  { if (rpcDebugFlag & DEBUG_INFO)  { taosPrintLog("RPC ", __FILE__, __LINE__, tscEmbedded ? 255 : rpcDebugFlag, __VA_ARGS__); }}
+#define tDebug(...) { if (rpcDebugFlag & DEBUG_DEBUG) { taosPrintLog("RPC ", __FILE__, __LINE__, rpcDebugFlag, __VA_ARGS__); }}
+#define tTrace(...) { if (rpcDebugFlag & DEBUG_TRACE) { taosPrintLog("RPC ", __FILE__, __LINE__, rpcDebugFlag, __VA_ARGS__); }}
 #define tDump(x, y) { if (rpcDebugFlag & DEBUG_DUMP)  { taosDumpData((unsigned char *)x, y); }}
 
 #ifdef __cplusplus

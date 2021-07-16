@@ -34,8 +34,9 @@ extern "C" {
 int32_t taosInitLog(char *logName, int32_t numOfLogLines, int32_t maxFiles);
 void    taosCloseLog();
 void    taosResetLog();
+void    taosFormatLineNum(char* tag, const char *flag, const char *filename, int lineNum);
 
-void    taosPrintLog(const char *flags, int32_t dflag, const char *format, ...)
+void taosPrintLog(const char *flags, const char *file, int line, int32_t dflag, const char *format, ...)
 #ifdef __GNUC__
  __attribute__((format(printf, 3, 4)))
 #endif
