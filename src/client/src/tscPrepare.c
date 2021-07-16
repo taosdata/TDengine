@@ -47,6 +47,7 @@ typedef struct SNormalStmt {
 typedef struct SMultiTbStmt {
   bool      nameSet;
   bool      tagSet;
+  bool      subSet;
   uint64_t  currentUid;
   char     *sqlstr;
   uint32_t  tbNum;
@@ -1522,6 +1523,7 @@ int taos_stmt_prepare(TAOS_STMT* stmt, const char* sql, unsigned long length) {
 
 int taos_stmt_set_tbname_tags(TAOS_STMT* stmt, const char* name, TAOS_BIND* tags) {
   STscStmt* pStmt = (STscStmt*)stmt;
+  int32_t code = 0;
 
   if (stmt == NULL || pStmt->pSql == NULL || pStmt->taos == NULL) {
     STMT_RET(TSDB_CODE_TSC_DISCONNECTED);
@@ -1566,6 +1568,52 @@ int taos_stmt_set_tbname_tags(TAOS_STMT* stmt, const char* name, TAOS_BIND* tags
     STMT_RET(TSDB_CODE_SUCCESS);
   }
 
+  if (pStmt->mtb.subSet && taosHashGetSize(pStmt->mtb.pTableHash) > 0) {
+    STableMetaInfo* pTableMetaInfo = tscGetTableMetaInfoFromCmd(pCmd, 0);
+    STableMeta* pTableMeta = pTableMetaInfo->pTableMeta;
+    char sTableName[TSDB_TABLE_FNAME_LEN];
+    strncpy(sTableName, pTableMeta->sTableName, sizeof(sTableName));
+
+    SStrToken tname = {0};
+    tname.type = TK_STRING;
+    tname.z = (char *)name;
+    tname.n = strlen(name);
+    SName fullname = {0};
+    tscSetTableFullName(&fullname, &tname, pSql);
+    code = tscGetTableMeta(pSql, pTableMetaInfo);
+    if (code != TSDB_CODE_SUCCESS) {
+      STMT_RET(code);
+    }
+
+    pTableMeta = pTableMetaInfo->pTableMeta;
+
+    if (strcmp(sTableName, pTableMeta->sTableName)) {
+      tscError("0x%"PRIx64" only tables belongs to one stable is allowed", pSql->self);
+      STMT_RET(TSDB_CODE_TSC_APP_ERROR);
+    }
+
+    memcpy(&pTableMetaInfo->name, &fullname, sizeof(fullname));
+
+    STableDataBlocks* pBlock = NULL;
+    code = tscGetDataBlockFromList(pCmd->insertParam.pTableBlockHashList, pTableMeta->id.uid, TSDB_PAYLOAD_SIZE, sizeof(SSubmitBlk),
+                              pTableMeta->tableInfo.rowSize, &pTableMetaInfo->name, pTableMeta, &pBlock, NULL);
+    if (code != TSDB_CODE_SUCCESS) {
+      STMT_RET(code);
+    }
+
+    SSubmitBlk* blk = (SSubmitBlk*)pBlock->pData;
+    blk->numOfRows = 0;
+
+    pStmt->mtb.currentUid = pTableMeta->id.uid;
+    pStmt->mtb.tbNum++;
+
+    taosHashPut(pStmt->mtb.pTableBlockHashList, (void *)&pStmt->mtb.currentUid, sizeof(pStmt->mtb.currentUid), (void*)&pBlock, POINTER_BYTES);
+    taosHashPut(pStmt->mtb.pTableHash, name, strlen(name), (char*) &pTableMeta->id.uid, sizeof(pTableMeta->id.uid));
+
+    tscDebug("0x%"PRIx64" table:%s is prepared, uid:%" PRIx64, pSql->self, name, pStmt->mtb.currentUid);
+    STMT_RET(TSDB_CODE_SUCCESS);
+  }
+
   if (pStmt->mtb.tagSet) {
     pStmt->mtb.tbname = tscReplaceStrToken(&pSql->sqlstr, &pStmt->mtb.tbname, name);
   } else {
@@ -1594,7 +1642,7 @@ int taos_stmt_set_tbname_tags(TAOS_STMT* stmt, const char* name, TAOS_BIND* tags
     pCmd->insertParam.pTableBlockHashList = hashList;
   }
 
-  int32_t code = tsParseSql(pStmt->pSql, true);
+  code = tsParseSql(pStmt->pSql, true);
   if (code == TSDB_CODE_TSC_ACTION_IN_PROGRESS) {
     // wait for the callback function to post the semaphore
     tsem_wait(&pStmt->pSql->rspSem);
@@ -1629,7 +1677,17 @@ int taos_stmt_set_tbname_tags(TAOS_STMT* stmt, const char* name, TAOS_BIND* tags
 }
 
 
+int taos_stmt_set_sub_tbname(TAOS_STMT* stmt, const char* name) {
+  STscStmt* pStmt = (STscStmt*)stmt;
+  pStmt->mtb.subSet = true;
+  return taos_stmt_set_tbname_tags(stmt, name, NULL);
+}
+
+
+
 int taos_stmt_set_tbname(TAOS_STMT* stmt, const char* name) {
+  STscStmt* pStmt = (STscStmt*)stmt;
+  pStmt->mtb.subSet = false;
   return taos_stmt_set_tbname_tags(stmt, name, NULL);
 }
 
