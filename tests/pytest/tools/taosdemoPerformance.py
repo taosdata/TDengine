@@ -19,7 +19,6 @@ import json
 from util.log import tdLog
 from util.sql import tdSql
 
-
 class taosdemoPerformace:
     def __init__(self, commitID, dbName):
         self.commitID = commitID
@@ -124,6 +123,7 @@ class taosdemoPerformace:
 
     def insertData(self):
         tdSql.prepare()
+
         buildPath = self.getBuildPath()
         if (buildPath == ""):
             tdLog.exit("taosdemo not found!")

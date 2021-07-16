@@ -3698,6 +3698,10 @@ static void* doFreeColumnInfoData(SArray* pColumnInfoData) {
 }
 
 static void* destroyTableCheckInfo(SArray* pTableCheckInfo) {
+  if (pTableCheckInfo == NULL) {
+    return NULL;
+  }
+  
   size_t size = taosArrayGetSize(pTableCheckInfo);
   for (int32_t i = 0; i < size; ++i) {
     STableCheckInfo* p = taosArrayGet(pTableCheckInfo, i);

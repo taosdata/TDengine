@@ -73,10 +73,11 @@ class taosdemoQueryPerformace:
         sql = "select avg(f1), max(f2), min(f3) from meters where ts <= '2017-07-15 10:40:01.000' and ts <= '2017-07-15 14:00:40.000'"
         tableid = 8
         cursor.execute("create table if not exists %s%d using %s tags(%d, \"%s\")" % (self.tbPerfix, tableid, self.stbName, tableid, sql))
-        
+ 
         sql = "select last(*) from meters"
         tableid = 9
         cursor.execute("create table if not exists %s%d using %s tags(%d, '%s')" % (self.tbPerfix, tableid, self.stbName, tableid, sql))
+
         cursor.close()
 
     def query(self): 
