@@ -1185,13 +1185,13 @@ static bool convertSmlValueType(TAOS_SML_KV *pVal, char *value,
   if (len <= 0) {
     return false;
   }
+
   //integer number
   if (isTinyInt(value, len)) {
     pVal->type = TSDB_DATA_TYPE_TINYINT;
     pVal->length = (int16_t)tDataTypes[pVal->type].bytes;
     value[len - 2] = '\0';
     if (!isValidInteger(value)) {
-      return false;
     }
     pVal->value = calloc(pVal->length, 1);
     int8_t val = (int8_t)strtoll(value, NULL, 10);
@@ -1335,7 +1335,17 @@ static bool convertSmlValueType(TAOS_SML_KV *pVal, char *value,
     memcpy(pVal->value, &bVal, pVal->length);
     return true;
   }
-  //TODO: handle default is float here
+  //Handle default(no appendix) as float
+  if (isValidInteger(value) || isValidFloat(value)) {
+    printf("Gavin Default as float\n");
+    pVal->type = TSDB_DATA_TYPE_FLOAT;
+    pVal->length = (int16_t)tDataTypes[pVal->type].bytes;
+    pVal->value = calloc(pVal->length, 1);
+    float val = (float)strtold(value, NULL);
+    memcpy(pVal->value, &val, pVal->length);
+    printf("value:%02x %02x %02x %02x\n", pVal->value[0]&0xff,pVal->value[1]&0xff,pVal->value[2]&0xff,pVal->value[3]&0xff);
+    return true;
+  }
   return  false;
 }
 
@@ -1464,9 +1474,9 @@ static int32_t parseSmlKey(TAOS_SML_KV *pKV, const char **index) {
   char key[TSDB_COL_NAME_LEN];
   uint16_t len = 0;
 
-  //key field cannot start with '_'
-  if (*cur == '_') {
-    //printf("Tag key cannnot start with \'_\'\n");
+  //key field cannot start with digit
+  if (isdigit(*cur)) {
+    tscError("Tag key cannnot start with digit\n");
     return TSDB_CODE_TSC_LINE_SYNTAX_ERROR;
   }
   while (*cur != '\0') {
@@ -1490,7 +1500,7 @@ static int32_t parseSmlKey(TAOS_SML_KV *pKV, const char **index) {
 
   pKV->key = calloc(len + 1, 1);
   memcpy(pKV->key, key, len + 1);
-  tscDebug("Key:%s|len:%d", pKV->key, len);
+  //tscDebug("Key:%s|len:%d", pKV->key, len);
   *index = cur + 1;
   return TSDB_CODE_SUCCESS;
 }
@@ -1539,8 +1549,8 @@ static int32_t parseSmlMeasurement(TAOS_SML_DATA_POINT *pSml, const char **index
   uint16_t len = 0;
 
   pSml->stableName = calloc(TSDB_TABLE_NAME_LEN, 1);
-  if (*cur == '_') {
-    tscError("Measurement field cannnot start with \'_\'");
+  if (isdigit(*cur)) {
+    tscError("Measurement field cannnot start with digit");
     free(pSml->stableName);
     return TSDB_CODE_TSC_LINE_SYNTAX_ERROR;
   }
@@ -1607,7 +1617,7 @@ static int32_t parseSmlKvPairs(TAOS_SML_KV **pKVs, int *num_kvs,
     *num_kvs += 1;
 
     if (is_last_kv) {
-      tscDebug("last key-value field detected");
+      //tscDebug("last key-value field detected");
       goto done;
     }
 
