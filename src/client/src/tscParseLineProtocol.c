@@ -1400,7 +1400,7 @@ static int32_t convertSmlTimeStamp(TAOS_SML_KV *pVal, char *value,
   if (ret) {
     return ret;
   }
-  tscDebug("Timestamp after conversion:%"PRId64"\n", tsVal);
+  tscDebug("Timestamp after conversion:%"PRId64, tsVal);
 
   pVal->type = TSDB_DATA_TYPE_TIMESTAMP;
   pVal->length = (int16_t)tDataTypes[pVal->type].bytes;
@@ -1582,14 +1582,16 @@ static int32_t parseSmlKvPairs(TAOS_SML_KV **pKVs, int *num_kvs,
   TAOS_SML_KV *pkv;
   bool is_last_kv = false;
 
+  int32_t capacity = 0;
   if (isField) {
-    //leave space for timestamp
-    *pKVs = calloc(2, sizeof(TAOS_SML_KV));
+    capacity = 64;
+    *pKVs = calloc(capacity, sizeof(TAOS_SML_KV));
+    // leave space for timestamp;
     pkv = *pKVs;
     pkv++;
-  }
-  else {
-    *pKVs = calloc(1, sizeof(TAOS_SML_KV));
+  } else {
+    capacity = 8;
+    *pKVs = calloc(capacity, sizeof(TAOS_SML_KV));
     pkv = *pKVs;
   }
 
@@ -1613,11 +1615,19 @@ static int32_t parseSmlKvPairs(TAOS_SML_KV **pKVs, int *num_kvs,
 
     //reallocate addtional memory for more kvs
     TAOS_SML_KV *more_kvs = NULL;
+
     if (isField) {
-      more_kvs = realloc(*pKVs, (*num_kvs + 2) * sizeof(TAOS_SML_KV));
+      if ((*num_kvs + 2) > capacity) {
+        capacity *= 3; capacity /= 2;
+      }
+      more_kvs = realloc(*pKVs, capacity * sizeof(TAOS_SML_KV));
     } else {
-      more_kvs = realloc(*pKVs, (*num_kvs + 1) * sizeof(TAOS_SML_KV));
+      if ((*num_kvs + 1) > capacity) {
+        capacity *= 3; capacity /= 2;
+      }
+      more_kvs = realloc(*pKVs, capacity * sizeof(TAOS_SML_KV));
     }
+
     if (!more_kvs) {
       goto error;
     }
@@ -1631,10 +1641,10 @@ static int32_t parseSmlKvPairs(TAOS_SML_KV **pKVs, int *num_kvs,
   }
   goto done;
 
-  error:
+error:
   free(*pKVs);
   return ret;
-  done:
+done:
   *index = cur;
   return ret;
 }
@@ -1707,6 +1717,7 @@ int32_t tscParseLine(const char* sql, TAOS_SML_DATA_POINT* smlData) {
       tscDebug("No child table name in tags");
     }
     removeChildTableNameFromTags(&smlData);
+
   }
   tscDebug("Parse tags finished, num of tags:%d", smlData->tagNum);
 
