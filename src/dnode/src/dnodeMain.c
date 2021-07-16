@@ -42,6 +42,7 @@
 #include "module.h"
 #include "qScript.h"
 #include "mnode.h"
+#include "tscompression.h"
 
 #if !defined(_MODULE) || !defined(_TD_LINUX)
 int32_t moduleStart() { return 0; }
@@ -236,6 +237,10 @@ static void dnodeCheckDataDirOpenned(char *dir) {
 }
 
 static int32_t dnodeInitStorage() {
+  // compress module init
+  tsCompressInit();
+  
+  // storage module init
   if (tsDiskCfgNum == 1 && dnodeCreateDir(tsDataDir) < 0) {
     dError("failed to create dir: %s, reason: %s", tsDataDir, strerror(errno));
     return -1;
@@ -311,7 +316,13 @@ static int32_t dnodeInitStorage() {
   return 0;
 }
 
-static void dnodeCleanupStorage() { tfsDestroy(); }
+static void dnodeCleanupStorage() {
+  // storage destroy
+  tfsDestroy(); 
+  
+  // compress destroy
+  tsCompressExit();
+}
 
 bool  dnodeIsFirstDeploy() {
   return strcmp(tsFirst, tsLocalEp) == 0;
