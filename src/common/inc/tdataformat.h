@@ -617,9 +617,10 @@ static FORCE_INLINE void *tdGetMemRowDataOfCol(void *row, int8_t type, int32_t o
 #define payloadColSetType(c, t) (payloadColType(c) = (t))
 #define payloadColSetOffset(c, o) (payloadColOffset(c) = (o))
 
-#define payloadKeyOffset(r) (*(uint16_t *)POINTER_SHIFT(r, PAYLOAD_HEADER_LEN + PAYLOAD_ID_TYPE_LEN))
-#define payloadTKey(r) (*(TKEY *)POINTER_SHIFT(r, payloadValuesOffset(r) + payloadKeyOffset(r)))
+#define payloadTSKey(r) (*(TSKEY *)POINTER_SHIFT(r, payloadValuesOffset(r)))
+#define payloadTKey(r) (*(TKEY *)POINTER_SHIFT(r, payloadValuesOffset(r)))
 #define payloadKey(r) tdGetKey(payloadTKey(r))
+
 
 static FORCE_INLINE char *payloadNextCol(char *pCol) { return (char *)POINTER_SHIFT(pCol, PAYLOAD_COL_HEAD_LEN); }
 

@@ -1146,7 +1146,7 @@ int tscSortRemoveDataBlockDupRows(STableDataBlocks *dataBuf, SBlockKeyInfo *pBlk
   TDRowTLenT      payloadTLen = 0;
   int             n = 0;
   while (n < nRows) {
-    pBlkKeyTuple->skey = payloadKey(pBlockData);
+    pBlkKeyTuple->skey = payloadTSKey(pBlockData);
     pBlkKeyTuple->payloadAddr = pBlockData;
     payloadTLen = payloadTLen(pBlockData);
 #if 0
