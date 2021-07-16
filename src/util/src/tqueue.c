@@ -173,10 +173,12 @@ int taosReadAllQitems(taos_queue param, taos_qall p2) {
   STaosQueue *queue = (STaosQueue *)param;
   STaosQall  *qall = (STaosQall *)p2;
   int         code = 0;
+  bool        empty;
 
   pthread_mutex_lock(&queue->mutex);
 
-  if (queue->head) {
+  empty = queue->head == NULL;
+  if (!empty) {
     memset(qall, 0, sizeof(STaosQall));
     qall->current = queue->head;
     qall->start = queue->head;
@@ -188,11 +190,17 @@ int taosReadAllQitems(taos_queue param, taos_qall p2) {
     queue->tail = NULL;
     queue->numOfItems = 0;
     if (queue->qset) atomic_sub_fetch_32(&queue->qset->numOfItems, qall->numOfItems);
-  } 
+  }
 
   pthread_mutex_unlock(&queue->mutex);
-  
-  return code; 
+
+  // if source queue is empty, we set destination qall to empty too.
+  if (empty) {
+    qall->current = NULL;
+    qall->start = NULL;
+    qall->numOfItems = 0;
+  }
+  return code;
 }
 
 int taosGetQitem(taos_qall param, int *type, void **pitem) {
@@ -423,10 +431,22 @@ int taosReadAllQitemsFromQset(taos_qset param, taos_qall p2, void **phandle) {
 
 int taosGetQueueItemsNumber(taos_queue param) {
   STaosQueue *queue = (STaosQueue *)param;
-  return queue->numOfItems;
+  if (!queue) return 0;
+
+  int num;
+  pthread_mutex_lock(&queue->mutex);
+  num = queue->numOfItems;
+  pthread_mutex_unlock(&queue->mutex);
+  return num;
 }
 
 int taosGetQsetItemsNumber(taos_qset param) {
   STaosQset *qset = (STaosQset *)param;
-  return qset->numOfItems;
+  if (!qset) return 0;
+
+  int num = 0;
+  pthread_mutex_lock(&qset->mutex);
+  num = qset->numOfItems;
+  pthread_mutex_unlock(&qset->mutex);
+  return num;
 }
