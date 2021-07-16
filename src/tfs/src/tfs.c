@@ -241,6 +241,13 @@ void tfsdirname(const TFILE *pf, char *dest) {
   tstrncpy(dest, dirname(tname), TSDB_FILENAME_LEN);
 }
 
+void tfsrdirname(const TFILE *pf, char *dest) {
+  char tname[TSDB_FILENAME_LEN] = "\0";
+
+  tstrncpy(tname, pf->rname, TSDB_FILENAME_LEN);
+  tstrncpy(dest, dirname(tname), TSDB_FILENAME_LEN);
+}
+
 // DIR APIs ====================================
 int tfsMkdirAt(const char *rname, int level, int id) {
   SDisk *pDisk = TFS_DISK_AT(level, id);

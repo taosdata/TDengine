@@ -183,6 +183,11 @@ int   tsdbCreateDFile(SDFile* pDFile, bool updateHeader);
 int   tsdbUpdateDFileHeader(SDFile* pDFile);
 int   tsdbLoadDFileHeader(SDFile* pDFile, SDFInfo* pInfo);
 int   tsdbParseDFilename(const char* fname, int* vid, int* fid, TSDB_FILE_T* ftype, uint32_t* version);
+int   tsdbGetDFileType(const TFILE* tFile, TSDB_FILE_T* fType);
+void  tsdbGetFileNameByPrefix(char* fname, int vid, int fid, uint32_t ver, TSDB_FILE_T ftype, const char* prefix);
+void  tsdbGetFilePathNameByPrefix(char* fname, int vid, int fid, uint32_t ver, TSDB_FILE_T ftype, const char* prefix,
+                                  const char* dir);
+int   tsdbRenameDFile(SDFile* fromDFile, SDFile* toDFile);
 
 static FORCE_INLINE void tsdbSetDFileInfo(SDFile* pDFile, SDFInfo* pInfo) { pDFile->info = *pInfo; }
 

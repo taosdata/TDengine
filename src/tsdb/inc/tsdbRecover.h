@@ -13,23 +13,14 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_OS_DIR_H
-#define TDENGINE_OS_DIR_H
+#ifndef _TD_TSDB_RECOVER_H_
+#define _TD_TSDB_RECOVER_H_
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+/**
+ * check and recover data
+ */
+int tsdbRecoverDataMain(STsdbRepo *pRepo);
 
-void    taosRemoveDir(char *rootDir);
-bool    taosDirExist(const char* dirname);
-int32_t taosMkDir(const char *pathname, mode_t mode);
-int32_t taosMkDirRecur(const char *path, mode_t mode);
-void    taosRemoveOldLogFiles(char *rootDir, int32_t keepDays);
-int32_t taosRename(char *oldName, char *newName);
-int32_t taosCompressFile(char *srcFileName, char *destFileName);
+void tsdbClearBakFiles(void);
 
-#ifdef __cplusplus
-}
-#endif
-
-#endif
+#endif /* _TD_TSDB_RECOVER_H_ */

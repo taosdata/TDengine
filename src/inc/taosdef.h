@@ -428,6 +428,12 @@ typedef enum {
   TSDB_CHECK_ITEM_MAX
 } ECheckItemType;
 
+typedef enum {
+  TSDB_CHECK_MODE_DEFAULT = 0,               // check header and file size
+  TSDB_CHECK_MODE_CHKSUM_IF_NO_CURRENT = 1,  // check chksum if no current
+  TSDB_CHECK_MODE_MAX
+} ETsdbCheckMode;
+
 extern char *qtypeStr[];
 
 #ifdef __cplusplus

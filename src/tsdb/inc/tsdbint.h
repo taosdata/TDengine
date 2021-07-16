@@ -68,6 +68,9 @@ extern "C" {
 #include "tsdbCompact.h"
 // Commit Queue
 #include "tsdbCommitQueue.h"
+// Recover
+#include "tsdbRecover.h"
+
 // Main definitions
 struct STsdbRepo {
   uint8_t state;

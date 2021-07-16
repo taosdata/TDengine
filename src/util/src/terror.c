@@ -262,6 +262,8 @@ TAOS_DEFINE_ERROR(TSDB_CODE_TDB_IVD_CREATE_TABLE_INFO,    "Invalid information t
 TAOS_DEFINE_ERROR(TSDB_CODE_TDB_NO_AVAIL_DISK,            "No available disk")
 TAOS_DEFINE_ERROR(TSDB_CODE_TDB_MESSED_MSG,               "TSDB messed message")
 TAOS_DEFINE_ERROR(TSDB_CODE_TDB_IVLD_TAG_VAL,             "TSDB invalid tag value")
+TAOS_DEFINE_ERROR(TSDB_CODE_TDB_IVLD_CHECK_MODE,          "TSDB invalid check mode")
+TAOS_DEFINE_ERROR(TSDB_CODE_TDB_NO_AVAIL_DFILE,           "No available dfile")
 
 // query
 TAOS_DEFINE_ERROR(TSDB_CODE_QRY_INVALID_QHANDLE,          "Invalid handle")
