@@ -569,7 +569,7 @@ SArguments g_args = {
     0,               // test_mode
     "127.0.0.1",     // host
     6030,            // port
-    TAOSC_IFACE,     // iface
+    INTERFACE_BUT,   // iface
     "root",          // user
 #ifdef _TD_POWER_
     "powerdb",      // password
@@ -1429,8 +1429,13 @@ static int printfInsertMeta() {
     else
         printf("\ntaosdemo is simulating random data as you request..\n\n");
 
-    printf("interface:                  \033[33m%s\033[0m\n",
-            (g_args.iface==TAOSC_IFACE)?"taosc":(g_args.iface==REST_IFACE)?"rest":"stmt");
+    if (g_args.iface != INTERFACE_BUT) {
+        // first time if no iface specified
+        printf("interface:                  \033[33m%s\033[0m\n",
+            (g_args.iface==TAOSC_IFACE)?"taosc":
+            (g_args.iface==REST_IFACE)?"rest":"stmt");
+    }
+
     printf("host:                       \033[33m%s:%u\033[0m\n",
             g_Dbs.host, g_Dbs.port);
     printf("user:                       \033[33m%s\033[0m\n", g_Dbs.user);
@@ -5040,13 +5045,17 @@ static int32_t execInsert(threadInfo *pThreadInfo, uint32_t k)
     uint16_t iface;
     if (superTblInfo)
         iface = superTblInfo->iface;
-    else
-        iface = g_args.iface;
+    else {
+        if (g_args.iface == INTERFACE_BUT)
+            iface = TAOSC_IFACE;
+        else
+            iface = g_args.iface;
+    }
 
     debugPrint("[%d] %s() LN%d %s\n", pThreadInfo->threadID,
             __func__, __LINE__,
-            (g_args.iface==TAOSC_IFACE)?
-            "taosc":(g_args.iface==REST_IFACE)?"rest":"stmt");
+            (iface==TAOSC_IFACE)?
+            "taosc":(iface==REST_IFACE)?"rest":"stmt");
 
     switch(iface) {
         case TAOSC_IFACE:
@@ -5935,7 +5944,7 @@ static void printStatPerThread(threadInfo *pThreadInfo)
           pThreadInfo->threadID,
           pThreadInfo->totalInsertRows,
           pThreadInfo->totalAffectedRows,
-          (double)(pThreadInfo->totalAffectedRows / (pThreadInfo->totalDelay/1000.0)));
+          (pThreadInfo->totalDelay)?(double)((pThreadInfo->totalAffectedRows / (pThreadInfo->totalDelay)/1000.0)): FLT_MAX);
 }
 
 // sync write interlace data
@@ -7998,7 +8007,12 @@ static void setParaFromArg(){
     tstrncpy(g_Dbs.db[0].superTbls[0].childTblPrefix,
             g_args.tb_prefix, TSDB_TABLE_NAME_LEN - 20);
     tstrncpy(g_Dbs.db[0].superTbls[0].dataSource, "rand", MAX_TB_NAME_SIZE);
-    g_Dbs.db[0].superTbls[0].iface = g_args.iface;
+
+    if (g_args.iface == INTERFACE_BUT) {
+        g_Dbs.db[0].superTbls[0].iface = TAOSC_IFACE;
+    } else {
+        g_Dbs.db[0].superTbls[0].iface = g_args.iface;
+    }
     tstrncpy(g_Dbs.db[0].superTbls[0].startTimestamp,
             "2017-07-14 10:40:00.000", MAX_TB_NAME_SIZE);
     g_Dbs.db[0].superTbls[0].timeStampStep = DEFAULT_TIMESTAMP_STEP;
