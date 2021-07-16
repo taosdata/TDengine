@@ -364,10 +364,10 @@ static int32_t taosOpenLogFile(char *fn, int32_t maxLines, int32_t maxFileNum) {
   return 0;
 }
 
-void taosFormatLineNum(char* tag, const char *flag, const char *filename, int lineNum){
+void taosFormatLineNum(char* result, const char *flag, const char *filename, int lineNum){
+  char tag[50] = "\0";
   char line[10] = "\0";
-  sprintf(line, ":%d ", lineNum);
-  strcat(tag, flag);
+  sprintf(line, ":%d\t", lineNum);
   char *name = strrchr(filename, '/');
   if(name){
     strcat(tag, name + 1);  // jump /
@@ -375,6 +375,8 @@ void taosFormatLineNum(char* tag, const char *flag, const char *filename, int li
     strcat(tag, filename);
   }
   strcat(tag, line);
+
+  sprintf(result, "%s%20s", flag, tag);
 }
 
 void taosPrintLog(const char *flags, const char *file, int line, int32_t dflag, const char *format, ...) {
@@ -408,7 +410,7 @@ void taosPrintLog(const char *flags, const char *file, int line, int32_t dflag, 
 
   len = sprintf(buffer, "%02d/%02d %02d:%02d:%02d.%06d %08" PRId64 " ", ptm->tm_mon + 1, ptm->tm_mday, ptm->tm_hour,
                 ptm->tm_min, ptm->tm_sec, (int32_t)timeSecs.tv_usec, taosGetSelfPthreadId());
-  len += sprintf(buffer + len, "%20s", tag);
+  len += sprintf(buffer + len, "%s", tag);
 
   va_start(argpointer, format);
   int32_t writeLen = vsnprintf(buffer + len, MAX_LOGLINE_CONTENT_SIZE, format, argpointer);
