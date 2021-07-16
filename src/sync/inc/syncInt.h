@@ -22,12 +22,12 @@ extern "C" {
 #include "syncMsg.h"
 #include "twal.h"
 
-#define sFatal(...) { if (sDebugFlag & DEBUG_FATAL) { taosPrintLog("SYN FATAL ", sDebugFlag, __VA_ARGS__); }}
-#define sError(...) { if (sDebugFlag & DEBUG_ERROR) { taosPrintLog("SYN ERROR ", sDebugFlag, __VA_ARGS__); }}
-#define sWarn(...)  { if (sDebugFlag & DEBUG_WARN)  { taosPrintLog("SYN WARN ", sDebugFlag, __VA_ARGS__); }}
-#define sInfo(...)  { if (sDebugFlag & DEBUG_INFO)  { taosPrintLog("SYN ", sDebugFlag, __VA_ARGS__); }}
-#define sDebug(...) { if (sDebugFlag & DEBUG_DEBUG) { taosPrintLog("SYN ", sDebugFlag, __VA_ARGS__); }}
-#define sTrace(...) { if (sDebugFlag & DEBUG_TRACE) { taosPrintLog("SYN ", sDebugFlag, __VA_ARGS__); }}
+#define sFatal(...) { if (sDebugFlag & DEBUG_FATAL) { taosPrintLog("SYN FATAL ", __FILE__, __LINE__, sDebugFlag, __VA_ARGS__); }}
+#define sError(...) { if (sDebugFlag & DEBUG_ERROR) { taosPrintLog("SYN ERROR ", __FILE__, __LINE__, sDebugFlag, __VA_ARGS__); }}
+#define sWarn(...)  { if (sDebugFlag & DEBUG_WARN)  { taosPrintLog("SYN WARN ", __FILE__, __LINE__, sDebugFlag, __VA_ARGS__); }}
+#define sInfo(...)  { if (sDebugFlag & DEBUG_INFO)  { taosPrintLog("SYN ", __FILE__, __LINE__, sDebugFlag, __VA_ARGS__); }}
+#define sDebug(...) { if (sDebugFlag & DEBUG_DEBUG) { taosPrintLog("SYN ", __FILE__, __LINE__, sDebugFlag, __VA_ARGS__); }}
+#define sTrace(...) { if (sDebugFlag & DEBUG_TRACE) { taosPrintLog("SYN ", __FILE__, __LINE__, sDebugFlag, __VA_ARGS__); }}
 
 #define SYNC_TCP_THREADS 2
 #define SYNC_MAX_NUM 2

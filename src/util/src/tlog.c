@@ -364,7 +364,15 @@ static int32_t taosOpenLogFile(char *fn, int32_t maxLines, int32_t maxFileNum) {
   return 0;
 }
 
-void taosPrintLog(const char *flags, int32_t dflag, const char *format, ...) {
+void taosFormatLineNum(char* tag, const char *flag, const char *filename, int lineNum){
+  char line[10] = "\0";
+  sprintf(line, "%d", lineNum);
+  strcat(tag, flag);
+  strcat(tag, filename);
+  strcat(tag, line);
+}
+
+void taosPrintLog(const char *flags, const char *file, int line, int32_t dflag, const char *format, ...) {
   if (tsTotalLogDirGB != 0 && tsAvailLogDirGB < tsMinimalLogDirGB) {
     char buf[256] = "\0";
     sprintf(buf, "server disk:%s space remain %.3f GB, total %.1f GB, stop print log.\n", tsLogDir, tsAvailLogDirGB,
@@ -379,6 +387,9 @@ void taosPrintLog(const char *flags, int32_t dflag, const char *format, ...) {
     atomic_store_8(&tsNoDisk, 0);
   }
 
+  char tag[50] = "\0";
+  taosFormatLineNum(tag, flags, file, line);
+
   va_list        argpointer;
   char           buffer[MAX_LOGLINE_BUFFER_SIZE] = { 0 };
   int32_t        len;
@@ -392,7 +403,7 @@ void taosPrintLog(const char *flags, int32_t dflag, const char *format, ...) {
 
   len = sprintf(buffer, "%02d/%02d %02d:%02d:%02d.%06d %08" PRId64 " ", ptm->tm_mon + 1, ptm->tm_mday, ptm->tm_hour,
                 ptm->tm_min, ptm->tm_sec, (int32_t)timeSecs.tv_usec, taosGetSelfPthreadId());
-  len += sprintf(buffer + len, "%s", flags);
+  len += sprintf(buffer + len, "%s", tag);
 
   va_start(argpointer, format);
   int32_t writeLen = vsnprintf(buffer + len, MAX_LOGLINE_CONTENT_SIZE, format, argpointer);
