@@ -5,7 +5,6 @@ import com.google.common.collect.RangeSet;
 import com.google.common.collect.TreeRangeSet;
 import com.taosdata.jdbc.enums.TimestampPrecision;
 
-import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.sql.Date;
 import java.sql.Time;
@@ -110,13 +109,25 @@ public class Utils {
             return rawSql;
         // toLowerCase
         String preparedSql = rawSql.trim().toLowerCase();
-        String[] clause = new String[]{"values\\s*\\([\\s\\S]*?\\)", "tags\\s*\\([\\s\\S]*?\\)", "where[\\s\\S]*"};
+        String[] clause = new String[]{"tags\\s*\\([\\s\\S]*?\\)", "where[\\s\\S]*"};
         Map<Integer, Integer> placeholderPositions = new HashMap<>();
         RangeSet<Integer> clauseRangeSet = TreeRangeSet.create();
         findPlaceholderPosition(preparedSql, placeholderPositions);
+        // find tags and where clause's position
         findClauseRangeSet(preparedSql, clause, clauseRangeSet);
+        // find values clause's position
+        findValuesClauseRangeSet(preparedSql, clauseRangeSet);
 
         return transformSql(rawSql, parameters, placeholderPositions, clauseRangeSet);
+    }
+
+    private static void findValuesClauseRangeSet(String preparedSql, RangeSet<Integer> clauseRangeSet) {
+        Matcher matcher = Pattern.compile("(values|,)\\s*(\\([^)]*\\))").matcher(preparedSql);
+        while (matcher.find()) {
+            int start = matcher.start(2);
+            int end = matcher.end(2);
+            clauseRangeSet.add(Range.closedOpen(start, end));
+        }
     }
 
     private static void findClauseRangeSet(String preparedSql, String[] regexArr, RangeSet<Integer> clauseRangeSet) {
@@ -126,7 +137,7 @@ public class Utils {
             while (matcher.find()) {
                 int start = matcher.start();
                 int end = matcher.end();
-                clauseRangeSet.add(Range.closed(start, end));
+                clauseRangeSet.add(Range.closedOpen(start, end));
             }
         }
     }
