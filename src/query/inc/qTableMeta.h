@@ -106,11 +106,14 @@ typedef struct SQueryInfo {
   STagCond         tagCond;
 
   SOrderVal        order;
-  int16_t          fillType;      // final result fill type
   int16_t          numOfTables;
   STableMetaInfo **pTableMetaInfo;
   struct STSBuf   *tsBuf;
+
+  int16_t          fillType;      // final result fill type
   int64_t *        fillVal;       // default value for fill
+  int32_t          numOfFillVal;  // fill value size
+
   char *           msg;           // pointer to the pCmd->payload to keep error message temporarily
   int64_t          clauseLimit;   // limit for current sub clause
 

@@ -104,6 +104,20 @@ static void mnodeDestroyChildTable(SCTableObj *pTable) {
   tfree(pTable);
 }
 
+static char* mnodeGetTableShowPattern(SShowObj *pShow) {
+  char* pattern = NULL;
+  if (pShow != NULL && pShow->payloadLen > 0) {
+    pattern = (char*)malloc(pShow->payloadLen + 1);
+    if (pattern == NULL) {
+      terrno = TSDB_CODE_QRY_OUT_OF_MEMORY;
+      return NULL;
+    }
+    memcpy(pattern, pShow->payload, pShow->payloadLen);
+    pattern[pShow->payloadLen] = 0;
+  }
+  return pattern;
+}
+
 static int32_t mnodeChildTableActionDestroy(SSdbRow *pRow) {
   mnodeDestroyChildTable(pRow->pObj);
   return TSDB_CODE_SUCCESS;
@@ -1620,6 +1634,11 @@ int32_t mnodeRetrieveShowSuperTables(SShowObj *pShow, char *data, int32_t rows, 
   SPatternCompareInfo info = PATTERN_COMPARE_INFO_INITIALIZER;
   char stableName[TSDB_TABLE_NAME_LEN] = {0};
 
+  char* pattern = mnodeGetTableShowPattern(pShow);
+  if (pShow->payloadLen > 0 && pattern == NULL) {
+    return 0;
+  }
+
   while (numOfRows < rows) {
     pShow->pIter = mnodeGetNextSuperTable(pShow->pIter, &pTable);
     if (pTable == NULL) break;
@@ -1631,7 +1650,7 @@ int32_t mnodeRetrieveShowSuperTables(SShowObj *pShow, char *data, int32_t rows, 
     memset(stableName, 0, tListLen(stableName));
     mnodeExtractTableName(pTable->info.tableId, stableName);
 
-    if (pShow->payloadLen > 0 && patternMatch(pShow->payload, stableName, sizeof(stableName) - 1, &info) != TSDB_PATTERN_MATCH) {
+    if (pShow->payloadLen > 0 && patternMatch(pattern, stableName, sizeof(stableName) - 1, &info) != TSDB_PATTERN_MATCH) {
       mnodeDecTableRef(pTable);
       continue;
     }
@@ -1671,6 +1690,7 @@ int32_t mnodeRetrieveShowSuperTables(SShowObj *pShow, char *data, int32_t rows, 
 
   mnodeVacuumResult(data, pShow->numOfColumns, numOfRows, rows, pShow);
   mnodeDecDbRef(pDb);
+  free(pattern);
 
   return numOfRows;
 }
@@ -2892,7 +2912,7 @@ static SMultiTableMeta* ensureMsgBufferSpace(SMultiTableMeta *pMultiMeta, SArray
       (*totalMallocLen) *= 2;
     }
 
-    pMultiMeta = rpcReallocCont(pMultiMeta, *totalMallocLen);
+    pMultiMeta = realloc(pMultiMeta, *totalMallocLen);
     if (pMultiMeta == NULL) {
       return NULL;
     }
@@ -2923,8 +2943,8 @@ static int32_t mnodeProcessMultiTableMetaMsg(SMnodeMsg *pMsg) {
   }
 
   // first malloc 80KB, subsequent reallocation will expand the size as twice of the original size
-  int32_t totalMallocLen = sizeof(STableMetaMsg) + sizeof(SSchema) * (TSDB_MAX_TAGS + TSDB_MAX_COLUMNS + 16);
-  pMultiMeta = rpcMallocCont(totalMallocLen);
+  int32_t totalMallocLen = sizeof(SMultiTableMeta) + sizeof(STableMetaMsg) + sizeof(SSchema) * (TSDB_MAX_TAGS + TSDB_MAX_COLUMNS + 16);
+  pMultiMeta = calloc(1, totalMallocLen);
   if (pMultiMeta == NULL) {
     code = TSDB_CODE_MND_OUT_OF_MEMORY;
     goto _end;
@@ -2957,7 +2977,7 @@ static int32_t mnodeProcessMultiTableMetaMsg(SMnodeMsg *pMsg) {
     int remain = totalMallocLen - pMultiMeta->contLen;
     if (remain <= sizeof(STableMetaMsg) + sizeof(SSchema) * (TSDB_MAX_TAGS + TSDB_MAX_COLUMNS + 16)) {
       totalMallocLen *= 2;
-      pMultiMeta = rpcReallocCont(pMultiMeta, totalMallocLen);
+      pMultiMeta = realloc(pMultiMeta, totalMallocLen);
       if (pMultiMeta == NULL) {
         mnodeDecTableRef(pMsg->pTable);
         code = TSDB_CODE_MND_OUT_OF_MEMORY;
@@ -3027,16 +3047,41 @@ static int32_t mnodeProcessMultiTableMetaMsg(SMnodeMsg *pMsg) {
   pMsg->rpcRsp.len = pMultiMeta->contLen;
   code = TSDB_CODE_SUCCESS;
 
+  char* tmp = rpcMallocCont(pMultiMeta->contLen + 2);
+  if (tmp == NULL) {
+    code = TSDB_CODE_MND_OUT_OF_MEMORY;
+    goto _end;
+  }
+
+  int32_t len = tsCompressString(pMultiMeta->meta, (int32_t)pMultiMeta->contLen - sizeof(SMultiTableMeta), 1,
+      tmp + sizeof(SMultiTableMeta), (int32_t)pMultiMeta->contLen - sizeof(SMultiTableMeta) + 2, ONE_STAGE_COMP, NULL, 0);
+
+  pMultiMeta->rawLen = pMultiMeta->contLen;
+  if (len == -1 || len + sizeof(SMultiTableMeta) >= pMultiMeta->contLen + 2) { // compress failed, do not compress this binary data
+    pMultiMeta->compressed = 0;
+    memcpy(tmp, pMultiMeta, sizeof(SMultiTableMeta) + pMultiMeta->contLen);
+  } else {
+    pMultiMeta->compressed = 1;
+    pMultiMeta->contLen = sizeof(SMultiTableMeta) + len;
+
+    // copy the header and the compressed payload
+    memcpy(tmp, pMultiMeta, sizeof(SMultiTableMeta));
+  }
+
+  pMsg->rpcRsp.rsp = tmp;
+  pMsg->rpcRsp.len = pMultiMeta->contLen;
+
+  SMultiTableMeta* p = (SMultiTableMeta*) tmp;
+
+  mDebug("multiTable info build completed, original:%d, compressed:%d, comp:%d", p->rawLen, p->contLen, p->compressed);
+
   _end:
   tfree(str);
   tfree(nameList);
   taosArrayDestroy(pList);
   pMsg->pTable  = NULL;
   pMsg->pVgroup = NULL;
-
-  if (code != TSDB_CODE_SUCCESS) {
-    rpcFreeCont(pMultiMeta);
-  }
+  tfree(pMultiMeta);
 
   return code;
 }
@@ -3132,15 +3177,9 @@ static int32_t mnodeRetrieveShowTables(SShowObj *pShow, char *data, int32_t rows
   char prefix[64] = {0};
   int32_t prefixLen = (int32_t)tableIdPrefix(pDb->name, prefix, 64);
 
-  char* pattern = NULL;
-  if (pShow->payloadLen > 0) {
-    pattern = (char*)malloc(pShow->payloadLen + 1);
-    if (pattern == NULL) {
-      terrno = TSDB_CODE_QRY_OUT_OF_MEMORY;
-      return 0;
-    }
-    memcpy(pattern, pShow->payload, pShow->payloadLen);
-    pattern[pShow->payloadLen] = 0;
+  char* pattern = mnodeGetTableShowPattern(pShow);
+  if (pShow->payloadLen > 0 && pattern == NULL) {
+    return 0;
   }
 
   while (numOfRows < rows) {
@@ -3372,6 +3411,11 @@ static int32_t mnodeRetrieveStreamTables(SShowObj *pShow, char *data, int32_t ro
   strcat(prefix, TS_PATH_DELIMITER);
   int32_t prefixLen = (int32_t)strlen(prefix);
 
+  char* pattern = mnodeGetTableShowPattern(pShow);
+  if (pShow->payloadLen > 0 && pattern == NULL) {
+    return 0;
+  }
+
   while (numOfRows < rows) {
     pShow->pIter = mnodeGetNextChildTable(pShow->pIter, &pTable);
     if (pTable == NULL) break;
@@ -3387,7 +3431,7 @@ static int32_t mnodeRetrieveStreamTables(SShowObj *pShow, char *data, int32_t ro
     // pattern compare for table name
     mnodeExtractTableName(pTable->info.tableId, tableName);
 
-    if (pShow->payloadLen > 0 && patternMatch(pShow->payload, tableName, sizeof(tableName) - 1, &info) != TSDB_PATTERN_MATCH) {
+    if (pShow->payloadLen > 0 && patternMatch(pattern, tableName, sizeof(tableName) - 1, &info) != TSDB_PATTERN_MATCH) {
       mnodeDecTableRef(pTable);
       continue;
     }
@@ -3419,6 +3463,7 @@ static int32_t mnodeRetrieveStreamTables(SShowObj *pShow, char *data, int32_t ro
 
   mnodeVacuumResult(data, pShow->numOfColumns, numOfRows, rows, pShow);
   mnodeDecDbRef(pDb);
+  free(pattern);
 
   return numOfRows;
 }

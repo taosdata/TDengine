@@ -334,10 +334,6 @@ sql select top(x, 20) from (select c1 x from nest_tb0);
 
 sql select bottom(x, 20) from (select c1 x from nest_tb0)
 
-print ===================> complex query
-
-
-
 print ===================> group by + having
 
 
@@ -461,6 +457,28 @@ if $data00 != @20-09-14 23:59:59.992@ then
 endi
 
 if $data01 != 0.000083333 then
+  return -1
+endi
+
+print ======================>TD-5271
+sql select min(val),max(val),first(val),last(val),count(val),sum(val),avg(val) from (select count(*) val from nest_mt0 group by tbname)
+if $rows != 1 then
+  return -1
+endi
+
+if $data00 != 10000 then
+  return -1
+endi
+
+if $data01 != 10000 then
+  return -1
+endi
+
+if $data04 != 10 then
+  return -1
+endi
+
+if $data05 != 100000 then
   return -1
 endi
 

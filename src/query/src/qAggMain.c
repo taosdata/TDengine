@@ -58,7 +58,7 @@
     for (int32_t _i = 0; _i < (ctx)->tagInfo.numOfTagCols; ++_i) { \
       SQLFunctionCtx *__ctx = (ctx)->tagInfo.pTagCtxList[_i];      \
       if (__ctx->functionId == TSDB_FUNC_TS_DUMMY) {               \
-        __ctx->tag.i64 = (ts);                                  \
+        __ctx->tag.i64 = (ts);                                     \
         __ctx->tag.nType = TSDB_DATA_TYPE_BIGINT;                  \
       }                                                            \
       aAggs[TSDB_FUNC_TAG].xFunction(__ctx);                       \
@@ -520,7 +520,7 @@ int32_t noDataRequired(SQLFunctionCtx *pCtx, STimeWindow* w, int32_t colId) {
     if ((ctx)->hasNull && isNull((char *)&(list)[i], tsdbType)) { \
       continue;                                                   \
     }                                                             \
-    TSKEY key = GET_TS_DATA(ctx, i);                              \
+    TSKEY key = (ctx)->ptsList != NULL? GET_TS_DATA(ctx, i):0;    \
     UPDATE_DATA(ctx, val, (list)[i], num, sign, key);             \
   }
 
@@ -1463,10 +1463,11 @@ static void first_function(SQLFunctionCtx *pCtx) {
     }
     
     memcpy(pCtx->pOutput, data, pCtx->inputBytes);
-    
-    TSKEY k = GET_TS_DATA(pCtx, i);
-    DO_UPDATE_TAG_COLUMNS(pCtx, k);
-    
+    if (pCtx->ptsList != NULL) {
+      TSKEY k = GET_TS_DATA(pCtx, i);
+      DO_UPDATE_TAG_COLUMNS(pCtx, k);
+    }
+
     SResultRowCellInfo *pInfo = GET_RES_INFO(pCtx);
     pInfo->hasResult = DATA_SET_FLAG;
     pInfo->complete = true;

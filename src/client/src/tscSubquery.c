@@ -107,6 +107,9 @@ bool subAndCheckDone(SSqlObj *pSql, SSqlObj *pParentSql, int idx) {
   subState->states[idx] = 1;
 
   bool done = allSubqueryDone(pParentSql);
+  if (!done) {
+    tscDebug("0x%"PRIx64" sub:%p,%d completed, total:%d", pParentSql->self, pSql, idx, pParentSql->subState.numOfSub);
+  }
   pthread_mutex_unlock(&subState->mutex);
   return done;
 }
@@ -416,7 +419,9 @@ static void tscDestroyJoinSupporter(SJoinSupporter* pSupporter) {
   }
 
 //  tscFieldInfoClear(&pSupporter->fieldsInfo);
-
+  if (pSupporter->fieldsInfo.internalField != NULL) {
+    taosArrayDestroy(pSupporter->fieldsInfo.internalField);
+  }
   if (pSupporter->pTSBuf != NULL) {
     tsBufDestroy(pSupporter->pTSBuf);
     pSupporter->pTSBuf = NULL;
@@ -430,7 +435,8 @@ static void tscDestroyJoinSupporter(SJoinSupporter* pSupporter) {
   }
 
   if (pSupporter->pVgroupTables != NULL) {
-    taosArrayDestroy(pSupporter->pVgroupTables);
+    //taosArrayDestroy(pSupporter->pVgroupTables);
+    tscFreeVgroupTableInfo(pSupporter->pVgroupTables); 
     pSupporter->pVgroupTables = NULL;
   }
 
@@ -889,7 +895,9 @@ static int32_t getIntersectionOfTableTuple(SQueryInfo* pQueryInfo, SSqlObj* pPar
     tscDebug("Join %d - num:%d", i, p->num);
 
     // sort according to the tag valu
-    qsort(p->pIdTagList, p->num, p->tagSize, tagValCompar);
+    if (p->pIdTagList != NULL) {
+      qsort(p->pIdTagList, p->num, p->tagSize, tagValCompar);
+    }
 
     if (!checkForDuplicateTagVal(pColSchema, p, pParentSql)) {
       for (int32_t j = 0; j <= i; j++) {
@@ -1173,7 +1181,7 @@ static void tidTagRetrieveCallback(void* param, TAOS_RES* tres, int32_t numOfRow
   // no data exists in next vnode, mark the <tid, tags> query completed
   // only when there is no subquery exits any more, proceeds to get the intersect of the <tid, tags> tuple sets.
   if (!subAndCheckDone(pSql, pParentSql, pSupporter->subqueryIndex)) {
-    tscDebug("0x%"PRIx64" tagRetrieve:%p,%d completed, total:%d", pParentSql->self, tres, pSupporter->subqueryIndex, pParentSql->subState.numOfSub);
+    //tscDebug("0x%"PRIx64" tagRetrieve:%p,%d completed, total:%d", pParentSql->self, tres, pSupporter->subqueryIndex, pParentSql->subState.numOfSub);
     return;
   }  
 
@@ -1441,7 +1449,7 @@ static void joinRetrieveFinalResCallback(void* param, TAOS_RES* tres, int numOfR
   }
 
   if (!subAndCheckDone(pSql, pParentSql, pSupporter->subqueryIndex)) {
-    tscDebug("0x%"PRIx64" sub:0x%"PRIx64",%d completed, total:%d", pParentSql->self, pSql->self, pSupporter->subqueryIndex, pState->numOfSub);
+    //tscDebug("0x%"PRIx64" sub:0x%"PRIx64",%d completed, total:%d", pParentSql->self, pSql->self, pSupporter->subqueryIndex, pState->numOfSub);
     return;
   }
 
@@ -3047,9 +3055,10 @@ static void multiVnodeInsertFinalize(void* param, TAOS_RES* tres, int numOfRows)
       pParentObj->cmd.insertParam.schemaAttached = 1;
     }
   }
-
+  
   if (!subAndCheckDone(tres, pParentObj, pSupporter->index)) {
-    tscDebug("0x%"PRIx64" insert:%p,%d completed, total:%d", pParentObj->self, tres, pSupporter->index, pParentObj->subState.numOfSub);
+    // concurrency problem, other thread already release pParentObj 
+    //tscDebug("0x%"PRIx64" insert:%p,%d completed, total:%d", pParentObj->self, tres, suppIdx, pParentObj->subState.numOfSub);
     return;
   }
 
