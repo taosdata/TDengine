@@ -374,7 +374,7 @@ void taosFormatLineNum(char* tag, const char *flag, const char *filename, int li
 
 void taosPrintLog(const char *flags, const char *file, int line, int32_t dflag, const char *format, ...) {
   if (tsTotalLogDirGB != 0 && tsAvailLogDirGB < tsMinimalLogDirGB) {
-    char buf[256] = "\0";
+    char buf[8192] = "\0";
     sprintf(buf, "server disk:%s space remain %.3f GB, total %.1f GB, stop print log.\n", tsLogDir, tsAvailLogDirGB,
             tsTotalLogDirGB);
     if (atomic_val_compare_exchange_8(&tsNoDisk, 0, 1) == 1) {
