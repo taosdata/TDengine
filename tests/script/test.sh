@@ -1,8 +1,8 @@
 #!/bin/bash
 
 ##################################################
-# 
-# Do simulation test 
+#
+# Do simulation test
 #
 ##################################################
 
@@ -14,6 +14,8 @@ RELEASE=0
 ASYNC=0
 VALGRIND=0
 UNIQUE=0
+UNAME_BIN=`which uname`
+OS_TYPE=`$UNAME_BIN`
 while getopts "f:avu" arg
 do
   case $arg in
@@ -51,10 +53,16 @@ fi
 TOP_DIR=`pwd`
 TAOSD_DIR=`find . -name "taosd"|grep bin|head -n1`
 
-if [[ "$TAOSD_DIR" == *"$IN_TDINTERNAL"* ]]; then
-  BIN_DIR=`find . -name "taosd"|grep bin|head -n1|cut -d '/' --fields=2,3`
+if [[ "$OS_TYPE" != "Darwin" ]]; then
+  cut_opt="--field="
 else
-  BIN_DIR=`find . -name "taosd"|grep bin|head -n1|cut -d '/' --fields=2`
+  cut_opt="-f "
+fi
+
+if [[ "$TAOSD_DIR" == *"$IN_TDINTERNAL"* ]]; then
+  BIN_DIR=`find . -name "taosd"|grep bin|head -n1|cut -d '/' ${cut_opt}2,3`
+else
+  BIN_DIR=`find . -name "taosd"|grep bin|head -n1|cut -d '/' ${cut_opt}2`
 fi
 
 BUILD_DIR=$TOP_DIR/$BIN_DIR/build
@@ -117,7 +125,7 @@ echo "wal                0"                       >> $TAOS_CFG
 echo "asyncLog           0"                       >> $TAOS_CFG
 echo "locale             en_US.UTF-8"             >> $TAOS_CFG
 echo "enableCoreFile     1"                       >> $TAOS_CFG
-echo " "                                          >> $TAOS_CFG  
+echo " "                                          >> $TAOS_CFG
 
 ulimit -n 600000
 ulimit -c unlimited
