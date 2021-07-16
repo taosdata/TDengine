@@ -329,8 +329,9 @@ do { \
 #define TSDB_MAX_JOIN_TABLE_NUM         10
 #define TSDB_MAX_UNION_CLAUSE           5
 
-#define TSDB_MAX_BINARY_LEN            (16384-TSDB_KEYSIZE) // keep 16384
-#define TSDB_MAX_NCHAR_LEN             (16384-TSDB_KEYSIZE) // keep 16384
+#define TSDB_MAX_FIELD_LEN              16384
+#define TSDB_MAX_BINARY_LEN            (TSDB_MAX_FIELD_LEN-TSDB_KEYSIZE) // keep 16384
+#define TSDB_MAX_NCHAR_LEN             (TSDB_MAX_FIELD_LEN-TSDB_KEYSIZE) // keep 16384
 #define PRIMARYKEY_TIMESTAMP_COL_INDEX  0
 
 #define TSDB_MAX_RPC_THREADS            5

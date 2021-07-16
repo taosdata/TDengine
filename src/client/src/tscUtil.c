@@ -1450,7 +1450,6 @@ void tscFreeSqlObj(SSqlObj* pSql) {
   pSql->signature = NULL;
   pSql->fp = NULL;
   tfree(pSql->sqlstr);
-  tfree(pSql->pBuf);
 
   tfree(pSql->pSubs);
   pSql->subState.numOfSub = 0;
@@ -1461,8 +1460,9 @@ void tscFreeSqlObj(SSqlObj* pSql) {
 
   memset(pCmd->payload, 0, (size_t)pCmd->allocSize);
   tfree(pCmd->payload);
+  tfree(pCmd->pBuf);
   pCmd->allocSize = 0;
-  
+
   tsem_destroy(&pSql->rspSem);
   memset(pSql, 0, sizeof(*pSql));
   free(pSql);

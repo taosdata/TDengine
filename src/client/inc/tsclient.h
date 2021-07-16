@@ -184,6 +184,7 @@ typedef struct {
   uint32_t     allocSize;
   char *       payload;
   int32_t      payloadLen;
+  void *       pBuf;               // table meta buffer
 
   SHashObj    *pTableMetaMap;  // local buffer to keep the queried table meta, before validating the AST
   SQueryInfo  *pQueryInfo;
@@ -273,7 +274,6 @@ typedef struct SSqlObj {
   void *           pStream;
   void *           pSubscription;
   char *           sqlstr;
-  void *           pBuf;         // tableMeta buffer
   char             parseRetry;
   char             retry;
   char             maxRetry;
