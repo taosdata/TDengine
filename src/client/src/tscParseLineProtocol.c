@@ -1215,6 +1215,7 @@ static bool convertSmlValueType(TAOS_SML_KV *pVal, char *value,
     pVal->length = (int16_t)tDataTypes[pVal->type].bytes;
     value[len - 2] = '\0';
     if (!isValidInteger(value)) {
+      return false;
     }
     pVal->value = calloc(pVal->length, 1);
     int8_t val = (int8_t)strtoll(value, NULL, 10);
@@ -1360,13 +1361,11 @@ static bool convertSmlValueType(TAOS_SML_KV *pVal, char *value,
   }
   //Handle default(no appendix) as float
   if (isValidInteger(value) || isValidFloat(value)) {
-    printf("Gavin Default as float\n");
     pVal->type = TSDB_DATA_TYPE_FLOAT;
     pVal->length = (int16_t)tDataTypes[pVal->type].bytes;
     pVal->value = calloc(pVal->length, 1);
     float val = (float)strtold(value, NULL);
     memcpy(pVal->value, &val, pVal->length);
-    printf("value:%02x %02x %02x %02x\n", pVal->value[0]&0xff,pVal->value[1]&0xff,pVal->value[2]&0xff,pVal->value[3]&0xff);
     return true;
   }
   return  false;
