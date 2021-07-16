@@ -408,7 +408,7 @@ void taosPrintLog(const char *flags, const char *file, int line, int32_t dflag, 
 
   len = sprintf(buffer, "%02d/%02d %02d:%02d:%02d.%06d %08" PRId64 " ", ptm->tm_mon + 1, ptm->tm_mday, ptm->tm_hour,
                 ptm->tm_min, ptm->tm_sec, (int32_t)timeSecs.tv_usec, taosGetSelfPthreadId());
-  len += sprintf(buffer + len, "%s", tag);
+  len += sprintf(buffer + len, "%20s", tag);
 
   va_start(argpointer, format);
   int32_t writeLen = vsnprintf(buffer + len, MAX_LOGLINE_CONTENT_SIZE, format, argpointer);
