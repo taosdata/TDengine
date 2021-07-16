@@ -236,11 +236,12 @@ static int32_t buildDataPointSchemas(TAOS_SML_DATA_POINT* points, int numPoint, 
   return 0;
 }
 
-static int32_t generateSchemaAction(SSchema* pointColField, SHashObj* dbAttrHash, bool isTag, char sTableName[],
+static int32_t generateSchemaAction(SSchema* pointColField, SHashObj* dbAttrHash, SArray* dbAttrArray, bool isTag, char sTableName[],
                                        SSchemaAction* action, bool* actionNeeded) {
-  SSchema** ppDbAttr = taosHashGet(dbAttrHash, pointColField->name, strlen(pointColField->name));
-  if (ppDbAttr) {
-    SSchema* dbAttr = *ppDbAttr;
+  size_t* pDbIndex = taosHashGet(dbAttrHash, pointColField->name, strlen(pointColField->name));
+  if (pDbIndex) {
+    SSchema* dbAttr = taosArrayGet(dbAttrArray, *pDbIndex);
+    assert(strcasecmp(dbAttr->name, pointColField->name) == 0);
     if (pointColField->type != dbAttr->type) {
       tscError("point type and db type mismatch. key: %s. point type: %d, db type: %d", pointColField->name,
                pointColField->type, dbAttr->type);
@@ -452,8 +453,9 @@ int32_t loadTableMeta(TAOS* taos, char* tableName, SSmlSTableSchema* schema) {
     tstrncpy(field.name, tableMeta->schema[i].name, strlen(tableMeta->schema[i].name)+1);
     field.type = tableMeta->schema[i].type;
     field.bytes = tableMeta->schema[i].bytes;
-    SSchema* pField = taosArrayPush(schema->fields, &field);
-    taosHashPut(schema->fieldHash, field.name, strlen(field.name), &pField, POINTER_BYTES);
+    taosArrayPush(schema->fields, &field);
+    size_t fieldIndex = taosArrayGetSize(schema->fields) - 1;
+    taosHashPut(schema->fieldHash, field.name, strlen(field.name), &fieldIndex, sizeof(fieldIndex));
   }
 
   for (int i=0; i<tableMeta->tableInfo.numOfTags; ++i) {
@@ -462,8 +464,9 @@ int32_t loadTableMeta(TAOS* taos, char* tableName, SSmlSTableSchema* schema) {
     tstrncpy(field.name, tableMeta->schema[j].name, strlen(tableMeta->schema[j].name)+1);
     field.type = tableMeta->schema[j].type;
     field.bytes = tableMeta->schema[j].bytes;
-    SSchema* pField = taosArrayPush(schema->tags, &field);
-    taosHashPut(schema->tagHash, field.name, strlen(field.name), &pField, POINTER_BYTES);
+    taosArrayPush(schema->tags, &field);
+    size_t tagIndex = taosArrayGetSize(schema->tags) - 1;
+    taosHashPut(schema->tagHash, field.name, strlen(field.name), &tagIndex, sizeof(tagIndex));
   }
   tscDebug("load table meta succeed. %s, columns number: %d, tag number: %d, precision: %d",
            tableName, tableMeta->tableInfo.numOfColumns, tableMeta->tableInfo.numOfTags, schema->precision);
@@ -506,7 +509,7 @@ static int32_t reconcileDBSchemas(TAOS* taos, SArray* stableSchemas) {
         SSchema* pointTag = taosArrayGet(pointSchema->tags, j);
         SSchemaAction schemaAction = {0};
         bool actionNeeded = false;
-        generateSchemaAction(pointTag, dbTagHash, true, pointSchema->sTableName, &schemaAction, &actionNeeded);
+        generateSchemaAction(pointTag, dbTagHash, dbSchema.tags, true, pointSchema->sTableName, &schemaAction, &actionNeeded);
         if (actionNeeded) {
           applySchemaAction(taos, &schemaAction);
         }
@@ -520,7 +523,7 @@ static int32_t reconcileDBSchemas(TAOS* taos, SArray* stableSchemas) {
         SSchema* pointCol = taosArrayGet(pointSchema->fields, j);
         SSchemaAction schemaAction = {0};
         bool actionNeeded = false;
-        generateSchemaAction(pointCol, dbFieldHash, false, pointSchema->sTableName, &schemaAction, &actionNeeded);
+        generateSchemaAction(pointCol, dbFieldHash, dbSchema.fields,false, pointSchema->sTableName, &schemaAction, &actionNeeded);
         if (actionNeeded) {
           applySchemaAction(taos, &schemaAction);
         }
