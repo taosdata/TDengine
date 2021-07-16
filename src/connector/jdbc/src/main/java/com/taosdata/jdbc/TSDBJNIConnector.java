@@ -348,4 +348,13 @@ public class TSDBJNIConnector {
     }
 
     private native int closeStmt(long stmt, long con);
+
+    public void insertLines(String[] lines) {
+        int code = insertLines(lines, this.taos);
+        if (code != TSDBConstants.JNI_SUCCESS) {
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNKNOWN, "failed to insertLines");
+        }
+    }
+
+    private native int insertLinesImp(String[] lines, long conn);
 }
