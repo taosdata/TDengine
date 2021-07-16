@@ -637,7 +637,7 @@ static FILE *          g_fpOfInsertResult = NULL;
 
 #define performancePrint(fmt, ...) \
     do { if (g_args.performance_print) \
-        fprintf(stderr, "VERB: "fmt, __VA_ARGS__); } while(0)
+        fprintf(stderr, "PERF: "fmt, __VA_ARGS__); } while(0)
 
 #define errorPrint(fmt, ...) \
     do { fprintf(stderr, "ERROR: "fmt, __VA_ARGS__); } while(0)
@@ -4153,6 +4153,22 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
         goto PARSE_OVER;
       }
 */
+      cJSON* insertRows = cJSON_GetObjectItem(stbInfo, "insert_rows");
+      if (insertRows && insertRows->type == cJSON_Number) {
+        if (insertRows->valueint < 0) {
+          errorPrint("%s() LN%d, failed to read json, insert_rows input mistake\n",
+                __func__, __LINE__);
+          goto PARSE_OVER;
+        }
+        g_Dbs.db[i].superTbls[j].insertRows = insertRows->valueint;
+      } else if (!insertRows) {
+        g_Dbs.db[i].superTbls[j].insertRows = 0x7FFFFFFFFFFFFFFF;
+      } else {
+        errorPrint("%s() LN%d, failed to read json, insert_rows input mistake\n",
+                __func__, __LINE__);
+        goto PARSE_OVER;
+      }
+
       cJSON* stbInterlaceRows = cJSON_GetObjectItem(stbInfo, "interlace_rows");
       if (stbInterlaceRows && stbInterlaceRows->type == cJSON_Number) {
         if (stbInterlaceRows->valueint < 0) {
@@ -4161,25 +4177,15 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
           goto PARSE_OVER;
         }
         g_Dbs.db[i].superTbls[j].interlaceRows = stbInterlaceRows->valueint;
-        // rows per table need be less than insert batch
-        if (g_Dbs.db[i].superTbls[j].interlaceRows > g_args.num_of_RPR) {
-          printf("NOTICE: db[%d].superTbl[%d]'s interlace rows value %u > num_of_records_per_req %u\n\n",
-                  i, j, g_Dbs.db[i].superTbls[j].interlaceRows,
-                  g_args.num_of_RPR);
-          printf("        interlace rows value will be set to num_of_records_per_req %u\n\n",
-                  g_args.num_of_RPR);
-          prompt();
-          g_Dbs.db[i].superTbls[j].interlaceRows = g_args.num_of_RPR;
-        }
 
         if (g_Dbs.db[i].superTbls[j].interlaceRows > g_Dbs.db[i].superTbls[j].insertRows) {
-            printf("NOTICE: db[%d].superTbl[%d]'s interlace rows value %u > insert_rows %u\n\n",
+            printf("NOTICE: db[%d].superTbl[%d]'s interlace rows value %u > insert_rows %"PRId64"\n\n",
                     i, j, g_Dbs.db[i].superTbls[j].interlaceRows,
-                    g_Dbs.db[i].superTbls[j].interlaceRows);
-            printf("        interlace rows value will be set to insert_rows %u\n\n",
-                    g_Dbs.db[i].superTbls[j].interlaceRows);
+                    g_Dbs.db[i].superTbls[j].insertRows);
+            printf("        interlace rows value will be set to insert_rows %"PRId64"\n\n",
+                    g_Dbs.db[i].superTbls[j].insertRows);
             prompt();
-            g_Dbs.db[i].superTbls[j].interlaceRows = g_args.num_of_RPR;
+            g_Dbs.db[i].superTbls[j].interlaceRows = g_Dbs.db[i].superTbls[j].insertRows;
         }
       } else if (!stbInterlaceRows) {
         g_Dbs.db[i].superTbls[j].interlaceRows = 0; // 0 means progressive mode, > 0 mean interlace mode. max value is less or equ num_of_records_per_req
@@ -4213,22 +4219,6 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
         g_Dbs.db[i].superTbls[j].disorderRange = 1000;
       } else {
         printf("ERROR: failed to read json, disorderRange not found\n");
-        goto PARSE_OVER;
-      }
-
-      cJSON* insertRows = cJSON_GetObjectItem(stbInfo, "insert_rows");
-      if (insertRows && insertRows->type == cJSON_Number) {
-        if (insertRows->valueint < 0) {
-          errorPrint("%s() LN%d, failed to read json, insert_rows input mistake\n",
-                __func__, __LINE__);
-          goto PARSE_OVER;
-        }
-        g_Dbs.db[i].superTbls[j].insertRows = insertRows->valueint;
-      } else if (!insertRows) {
-        g_Dbs.db[i].superTbls[j].insertRows = 0x7FFFFFFFFFFFFFFF;
-      } else {
-        errorPrint("%s() LN%d, failed to read json, insert_rows input mistake\n",
-                __func__, __LINE__);
         goto PARSE_OVER;
       }
 
