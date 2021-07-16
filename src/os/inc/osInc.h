@@ -76,7 +76,8 @@ extern "C" {
     #include <dispatch/dispatch.h>
     #include "osEok.h"
   #else
-    #include <argp.h> 
+    #include <argp.h>
+    #include <dlfcn.h>
     #include <endian.h>
     #include <linux/sysctl.h>
     #include <poll.h>

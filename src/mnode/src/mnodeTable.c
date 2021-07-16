@@ -42,6 +42,7 @@
 #include "mnodeWrite.h"
 #include "mnodeRead.h"
 #include "mnodePeer.h"
+#include "mnodeFunc.h"
 
 #define ALTER_CTABLE_RETRY_TIMES  3
 #define CREATE_CTABLE_RETRY_TIMES 10
@@ -2926,6 +2927,7 @@ static int32_t mnodeProcessMultiTableMetaMsg(SMnodeMsg *pMsg) {
 
   pInfo->numOfTables  = htonl(pInfo->numOfTables);
   pInfo->numOfVgroups = htonl(pInfo->numOfVgroups);
+  pInfo->numOfUdfs    = htonl(pInfo->numOfUdfs);
 
   int32_t contLen = pMsg->rpcMsg.contLen - sizeof(SMultiTableInfoMsg);
 
@@ -2934,9 +2936,9 @@ static int32_t mnodeProcessMultiTableMetaMsg(SMnodeMsg *pMsg) {
   char*   str      = strndup(pInfo->tableNames, contLen);
   char**  nameList = strsplit(str, ",", &num);
   SArray* pList    = taosArrayInit(4, POINTER_BYTES);
-  SMultiTableMeta *pMultiMeta = NULL;
 
-  if (num != pInfo->numOfTables + pInfo->numOfVgroups) {
+  SMultiTableMeta *pMultiMeta = NULL;
+  if (num != pInfo->numOfTables + pInfo->numOfVgroups + pInfo->numOfUdfs) {
     mError("msg:%p, app:%p, failed to get multi-tableMeta, msg inconsistent", pMsg, pMsg->rpcMsg.ahandle);
     code = TSDB_CODE_MND_INVALID_TABLE_NAME;
     goto _end;
@@ -3011,8 +3013,10 @@ static int32_t mnodeProcessMultiTableMetaMsg(SMnodeMsg *pMsg) {
     }
   }
 
+  int32_t tableNum = pInfo->numOfTables + pInfo->numOfVgroups;
+
   // add the additional super table names that needs the vgroup info
-  for(;t < num; ++t) {
+  for(;t < tableNum; ++t) {
     taosArrayPush(pList, &nameList[t]);
   }
 
@@ -3043,6 +3047,36 @@ static int32_t mnodeProcessMultiTableMetaMsg(SMnodeMsg *pMsg) {
   pMultiMeta->contLen = (int32_t) (msg - (char*) pMultiMeta);
 
   pMultiMeta->numOfTables = htonl(pMultiMeta->numOfTables);
+
+  // add the user-defined-function information
+  for(int32_t i = 0; i < pInfo->numOfUdfs; ++i, ++t) {
+    char buf[TSDB_FUNC_NAME_LEN] = {0};
+    strcpy(buf, nameList[t]);
+
+    SFuncObj* pFuncObj = mnodeGetFunc(buf);
+    if (pFuncObj == NULL) {
+      mError("function %s does not exist", buf);
+      code = TSDB_CODE_MND_INVALID_FUNC;
+      goto _end;
+    }
+
+    SFunctionInfoMsg* pFuncInfo = (SFunctionInfoMsg*) msg;
+
+    strcpy(pFuncInfo->name, buf);
+    pFuncInfo->len = htonl(pFuncObj->contLen);
+    memcpy(pFuncInfo->content, pFuncObj->cont, pFuncObj->contLen);
+
+    pFuncInfo->funcType = htonl(pFuncObj->funcType);
+    pFuncInfo->resType  = pFuncObj->resType;
+    pFuncInfo->resBytes = htons(pFuncObj->resBytes);
+    pFuncInfo->bufSize  = htonl(pFuncObj->bufSize);
+
+    msg += sizeof(SFunctionInfoMsg) + pFuncObj->contLen;
+  }
+
+  pMultiMeta->contLen  = (int32_t) (msg - (char*) pMultiMeta);
+  pMultiMeta->numOfUdf = htonl(pInfo->numOfUdfs);
+
   pMsg->rpcRsp.rsp = pMultiMeta;
   pMsg->rpcRsp.len = pMultiMeta->contLen;
   code = TSDB_CODE_SUCCESS;
@@ -3053,11 +3087,12 @@ static int32_t mnodeProcessMultiTableMetaMsg(SMnodeMsg *pMsg) {
     goto _end;
   }
 
-  int32_t len = tsCompressString(pMultiMeta->meta, (int32_t)pMultiMeta->contLen - sizeof(SMultiTableMeta), 1,
-      tmp + sizeof(SMultiTableMeta), (int32_t)pMultiMeta->contLen - sizeof(SMultiTableMeta) + 2, ONE_STAGE_COMP, NULL, 0);
+  int32_t dataLen = (int32_t)pMultiMeta->contLen - sizeof(SMultiTableMeta);
+  int32_t len = tsCompressString(pMultiMeta->meta, dataLen, 1, tmp + sizeof(SMultiTableMeta), (int32_t)dataLen + 2,
+                                 ONE_STAGE_COMP, NULL, 0);
 
   pMultiMeta->rawLen = pMultiMeta->contLen;
-  if (len == -1 || len + sizeof(SMultiTableMeta) >= pMultiMeta->contLen + 2) { // compress failed, do not compress this binary data
+  if (len == -1 || len >= dataLen + 2) { // compress failed, do not compress this binary data
     pMultiMeta->compressed = 0;
     memcpy(tmp, pMultiMeta, sizeof(SMultiTableMeta) + pMultiMeta->contLen);
   } else {
