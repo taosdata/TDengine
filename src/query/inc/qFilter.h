@@ -57,6 +57,11 @@ enum {
   FILTER_NO_REWRITE = 4,
 };
 
+enum {
+  RANGE_TYPE_UNIT = 1,
+  RANGE_TYPE_COL_RANGE,
+};
+
 typedef struct OptrStr {
   uint16_t optr;
   char    *str;
@@ -117,11 +122,17 @@ typedef struct SFilterGroup {
   uint8_t  *unitFlags;  // !unit result
 } SFilterGroup;
 
+typedef struct SFilterColInfo {
+  uint8_t type;
+  void   *info;
+} SFilterColInfo;
+
 typedef struct SFilterGroupCtx {
-  uint16_t num;
-  int32_t *col;
-  SArray *colRange;
+  uint16_t  colNum;
+  uint16_t *colIdx;
+  SArray  **colInfo;
 } SFilterGroupCtx;
+
 
 typedef struct SFilterCompare {
   __compar_fn_t pCompareFunc;
@@ -194,6 +205,11 @@ typedef struct SFilterInfo {
 #define FILTER_GET_VAL_FIELD_TYPE(fi) (((tVariant *)((fi)->desc))->nType)
 #define FILTER_GET_VAL_FIELD_DATA(fi) ((fi)->data)
 #define FILTER_GET_TYPE(fl) ((fl) & FLD_TYPE_MAX)
+
+
+#define FILTER_PUSH_UNIT(colInfo, u) do { SFilterColInfo* _info = malloc(sizeof(SFilterColInfo)); _info->type = RANGE_TYPE_UNIT; _info->info = u; taosArrayPush((SArray *)(colInfo), &_info);} while (0)
+#define FILTER_PUSH_RANGE(colInfo, cra) do { SFilterColInfo* _info = malloc(sizeof(SFilterColInfo)); _info->type = RANGE_TYPE_COL_RANGE; _info->info = cra; taosArrayPush((SArray *)(colInfo), &_info);} while (0)
+#define FILTER_COPY_IDX(dst, src, n) do { *(dst) = malloc(sizeof(uint16_t) * n); memcpy(*(dst), src, sizeof(uint16_t) * n);} while (0)
 
 #define FILTER_GROUP_UNIT(i, g, uid) ((i)->units + (g)->unitIdxs[uid])
 #define FILTER_UNIT_LEFT_FIELD(i, u) FILTER_GET_FIELD(i, (u)->left)

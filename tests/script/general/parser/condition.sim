@@ -1247,7 +1247,7 @@ if $data00 != @21-05-05 18:19:04.000@ then
   return -1
 endi
 
-sql select * from stb1 where (c1 > 60 and c2 > 40) or (c1 > 62 and c2 > 50);
+xxx sql select * from stb1 where (c1 > 60 and c2 > 40) or (c1 > 62 and c2 > 50);
 if $rows != 4 then
   return -1
 endi
