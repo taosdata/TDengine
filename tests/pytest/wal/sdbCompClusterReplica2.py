@@ -86,6 +86,18 @@ class TwoClients:
         tdSql.execute("alter table stb2_0 add column col2 binary(4)")
         tdSql.execute("alter table stb2_0 drop column col1")
         tdSql.execute("insert into stb2_0 values(1614218422000,8638,'R')")
+        tdSql.execute("drop dnode 10")
+        sleep(10)
+        os.system("rm -rf /var/lib/taos/*")
+        print("clear dnode chenhaoran02'data files")
+        os.system("nohup /usr/bin/taosd > /dev/null 2>&1 &")
+        print("start taosd")
+        sleep(10)
+        tdSql.execute("reset query cache ;")
+        tdSql.execute("create dnode chenhaoran02 ;")
+      
+
+       
         
 
         # stop taosd and compact wal file

@@ -263,6 +263,13 @@ function install_jemalloc() {
             ${csudo} /usr/bin/install -c -d /usr/local/share/man/man3
             ${csudo} /usr/bin/install -c -m 644 ${jemalloc_dir}/share/man/man3/jemalloc.3 /usr/local/share/man/man3
         fi
+
+        if [ -d /etc/ld.so.conf.d ]; then
+            ${csudo} echo "/usr/local/lib" > /etc/ld.so.conf.d/jemalloc.conf
+            ${csudo} ldconfig
+        else
+            echo "/etc/ld.so.conf.d not found!"
+        fi
     fi
 }
 
@@ -734,9 +741,13 @@ vercomp () {
 
 function is_version_compatible() {
 
-    curr_version=$(${bin_dir}/powerd -V | head -1 | cut -d ' ' -f 3)
+    curr_version=`ls ${script_dir}/driver/libtaos.so* |cut -d '.' -f 3-6`
 
-    min_compatible_version=$(${script_dir}/bin/powerd -V | head -1 | cut -d ' ' -f 5)
+    if [ -f ${script_dir}/driver/vercomp.txt ]; then
+        min_compatible_version=`cat ${script_dir}/driver/vercomp.txt`
+    else
+        min_compatible_version=$(${script_dir}/bin/tqd -V | head -1 | cut -d ' ' -f 5)
+    fi
 
     vercomp $curr_version $min_compatible_version
     case $? in
@@ -753,6 +764,7 @@ function update_PowerDB() {
         exit 1
     fi
     tar -zxf power.tar.gz
+    install_jemalloc
 
     # Check if version compatible
     if ! is_version_compatible; then
@@ -790,7 +802,6 @@ function update_PowerDB() {
     install_log
     install_header
     install_lib
-    install_jemalloc
     if [ "$pagMode" != "lite" ]; then
       install_connector
     fi

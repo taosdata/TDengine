@@ -185,9 +185,10 @@ cmake .. && cmake --build .
 
 # 安装
 
-如果你不想安装，可以直接在shell中运行。生成完成后，安装 TDengine：
+生成完成后，安装 TDengine（下文给出的指令以 Linux 为例，如果是在 Windows 下，那么对应的指令会是 `nmake install`）：
+
 ```bash
-make install
+sudo make install
 ```
 
 用户可以在[文件目录结构](https://www.taosdata.com/cn/documentation/administrator#directories)中了解更多在操作系统中生成的目录或文件。
@@ -195,7 +196,7 @@ make install
 安装成功后，在终端中启动 TDengine 服务：
 
 ```bash
-taosd
+sudo systemctl start taosd
 ```
 
 用户可以使用 TDengine Shell 来连接 TDengine 服务，在终端中，输入：
@@ -208,7 +209,7 @@ taos
 
 ## 快速运行
 
-TDengine 生成后，在终端执行以下命令：
+如果不希望以服务方式运行 TDengine，也可以在终端中直接运行它。也即在生成完成后，执行以下命令（在 Windows 下，生成的可执行文件会带有 .exe 后缀，例如会名为 taosd.exe ）：
 
 ```bash
 ./build/bin/taosd -c test/cfg

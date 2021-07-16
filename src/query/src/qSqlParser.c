@@ -28,6 +28,7 @@ SSqlInfo qSqlParse(const char *pStr) {
 
   SSqlInfo sqlInfo = {0};
   sqlInfo.valid = true;
+  sqlInfo.funcs = taosArrayInit(4, sizeof(SStrToken));
 
   int32_t i = 0;
   while (1) {
@@ -120,11 +121,24 @@ void tSqlExprListDestroy(SArray *pList) {
   taosArrayDestroyEx(pList, freeExprElem);
 }
 
+
+SArray *tStrTokenAppend(SArray *pList, SStrToken *pToken) {
+  if (pList == NULL) {
+    pList = taosArrayInit(4, sizeof(tVariantListItem));
+  }
+
+  if (pToken) {
+    taosArrayPush(pList, pToken);
+  }
+
+  return pList;
+}
+
 tSqlExpr *tSqlExprCreateIdValue(SStrToken *pToken, int32_t optrType) {
   tSqlExpr *pSqlExpr = calloc(1, sizeof(tSqlExpr));
 
   if (pToken != NULL) {
-    pSqlExpr->token = *pToken;
+    pSqlExpr->exprToken = *pToken;
   }
 
   if (optrType == TK_NULL) {
@@ -146,7 +160,8 @@ tSqlExpr *tSqlExprCreateIdValue(SStrToken *pToken, int32_t optrType) {
     pSqlExpr->type    = SQL_NODE_VALUE;
     pSqlExpr->flags  |= 1 << EXPR_FLAG_NS_TIMESTAMP;
   } else if (optrType == TK_VARIABLE) {
-    // use nanosecond by default TODO set value after getting database precision
+    // use nanosecond by default
+    // TODO set value after getting database precision
     int32_t ret = parseAbsoluteDuration(pToken->z, pToken->n, &pSqlExpr->value.i64, TSDB_TIME_PRECISION_NANO);
     if (ret != TSDB_CODE_SUCCESS) {
       terrno = TSDB_CODE_TSC_SQL_SYNTAX_ERROR;
@@ -161,7 +176,7 @@ tSqlExpr *tSqlExprCreateIdValue(SStrToken *pToken, int32_t optrType) {
     // Here it must be the column name (tk_id) if it is not a number or string.
     assert(optrType == TK_ID || optrType == TK_ALL);
     if (pToken != NULL) {
-      pSqlExpr->colInfo = *pToken;
+      pSqlExpr->columnName = *pToken;
     }
 
     pSqlExpr->tokenId = optrType;
@@ -180,17 +195,17 @@ tSqlExpr *tSqlExprCreateFunction(SArray *pParam, SStrToken *pFuncToken, SStrToke
     return NULL;
   }
 
-  tSqlExpr *pExpr = calloc(1, sizeof(tSqlExpr));
-  pExpr->tokenId = optType;
-  pExpr->type    = SQL_NODE_SQLFUNCTION;
-  pExpr->pParam  = pParam;
+  tSqlExpr *pExpr     = calloc(1, sizeof(tSqlExpr));
+  pExpr->tokenId      = optType;
+  pExpr->type         = SQL_NODE_SQLFUNCTION;
+  pExpr->Expr.paramList = pParam;
 
   int32_t len = (int32_t)((endToken->z + endToken->n) - pFuncToken->z);
-  pExpr->operand = (*pFuncToken);
+  pExpr->Expr.operand = (*pFuncToken);
 
-  pExpr->token.n = len;
-  pExpr->token.z = pFuncToken->z;
-  pExpr->token.type = pFuncToken->type;
+  pExpr->exprToken.n = len;
+  pExpr->exprToken.z = pFuncToken->z;
+  pExpr->exprToken.type = pFuncToken->type;
 
   return pExpr;
 }
@@ -204,16 +219,16 @@ tSqlExpr *tSqlExprCreate(tSqlExpr *pLeft, tSqlExpr *pRight, int32_t optrType) {
 
   pExpr->type = SQL_NODE_EXPR;
   if (pLeft != NULL && pRight != NULL && (optrType != TK_IN)) {
-    char* endPos   = pRight->token.z + pRight->token.n;
-    pExpr->token.z = pLeft->token.z;
-    pExpr->token.n = (uint32_t)(endPos - pExpr->token.z);
-    pExpr->token.type = pLeft->token.type;
+    char* endPos   = pRight->exprToken.z + pRight->exprToken.n;
+    pExpr->exprToken.z = pLeft->exprToken.z;
+    pExpr->exprToken.n = (uint32_t)(endPos - pExpr->exprToken.z);
+    pExpr->exprToken.type = pLeft->exprToken.type;
   }
 
   if ((pLeft != NULL && pRight != NULL) &&
       (optrType == TK_PLUS || optrType == TK_MINUS || optrType == TK_STAR || optrType == TK_DIVIDE || optrType == TK_REM)) {
     /*
-     * if a token is noted as the TK_TIMESTAMP, the time precision is microsecond
+     * if a exprToken is noted as the TK_TIMESTAMP, the time precision is microsecond
      * Otherwise, the time precision is adaptive, determined by the time precision from databases.
      */
     if ((pLeft->tokenId == TK_INTEGER && pRight->tokenId == TK_INTEGER) ||
@@ -304,7 +319,7 @@ tSqlExpr *tSqlExprCreate(tSqlExpr *pLeft, tSqlExpr *pRight, int32_t optrType) {
 
     tSqlExpr *pRSub = calloc(1, sizeof(tSqlExpr));
     pRSub->tokenId = TK_SET;  // TODO refactor .....
-    pRSub->pParam = (SArray *)pRight;
+    pRSub->Expr.paramList = (SArray *)pRight;
 
     pExpr->pRight = pRSub;
   } else {
@@ -346,8 +361,8 @@ int32_t tSqlExprCompare(tSqlExpr *left, tSqlExpr *right) {
     || (left->pLeft == NULL && right->pLeft)
     || (left->pRight && right->pRight == NULL)
     || (left->pRight == NULL && right->pRight)
-    || (left->pParam && right->pParam == NULL)
-    || (left->pParam == NULL && right->pParam)) {
+    || (left->Expr.paramList && right->Expr.paramList == NULL)
+    || (left->Expr.paramList == NULL && right->Expr.paramList)) {
     return 1;
   }
 
@@ -355,20 +370,20 @@ int32_t tSqlExprCompare(tSqlExpr *left, tSqlExpr *right) {
     return 1;
   }
 
-  if (tStrTokenCompare(&left->colInfo, &right->colInfo)) {
+  if (tStrTokenCompare(&left->columnName, &right->columnName)) {
     return 1;
   }
 
-  if (right->pParam && left->pParam) {
-    size_t size = taosArrayGetSize(right->pParam);
-    if (left->pParam && taosArrayGetSize(left->pParam) != size) {
+  if (right->Expr.paramList && left->Expr.paramList) {
+    size_t size = taosArrayGetSize(right->Expr.paramList);
+    if (left->Expr.paramList && taosArrayGetSize(left->Expr.paramList) != size) {
       return 1;
     }
 
     for (int32_t i = 0; i < size; i++) {
-      tSqlExprItem* pLeftElem = taosArrayGet(left->pParam, i);
+      tSqlExprItem* pLeftElem = taosArrayGet(left->Expr.paramList, i);
       tSqlExpr* pSubLeft = pLeftElem->pNode;
-      tSqlExprItem* pRightElem = taosArrayGet(right->pParam, i);
+      tSqlExprItem* pRightElem = taosArrayGet(right->Expr.paramList, i);
       tSqlExpr* pSubRight = pRightElem->pNode;
 
       if (tSqlExprCompare(pSubLeft, pSubRight)) {
@@ -401,8 +416,8 @@ tSqlExpr *tSqlExprClone(tSqlExpr *pSrc) {
     pExpr->pRight = tSqlExprClone(pSrc->pRight);
   }
 
-  //we don't clone pParam now because clone is only used for between/and
-  assert(pSrc->pParam == NULL);
+  //we don't clone paramList now because clone is only used for between/and
+  assert(pSrc->Expr.paramList == NULL);
   return pExpr;
 }
 
@@ -460,7 +475,7 @@ static void doDestroySqlExprNode(tSqlExpr *pExpr) {
     tVariantDestroy(&pExpr->value);
   }
 
-  tSqlExprListDestroy(pExpr->pParam);
+  tSqlExprListDestroy(pExpr->Expr.paramList);
   free(pExpr);
 }
 
@@ -922,8 +937,8 @@ void* destroyCreateTableSql(SCreateTableSql* pCreate) {
 }
 
 void SqlInfoDestroy(SSqlInfo *pInfo) {
-  if (pInfo == NULL) return;
-
+  if (pInfo == NULL) return;;
+  taosArrayDestroy(pInfo->funcs); 
   if (pInfo->type == TSDB_SQL_SELECT) {
     destroyAllSqlNode(pInfo->list);
   } else if (pInfo->type == TSDB_SQL_CREATE_TABLE) {
@@ -938,7 +953,7 @@ void SqlInfoDestroy(SSqlInfo *pInfo) {
       taosArrayDestroy(pInfo->pMiscInfo->a);
     }
 
-    if (pInfo->pMiscInfo != NULL && pInfo->type == TSDB_SQL_CREATE_DB) {
+    if (pInfo->pMiscInfo != NULL && (pInfo->type == TSDB_SQL_CREATE_DB || pInfo->type == TSDB_SQL_ALTER_DB)) {
       taosArrayDestroyEx(pInfo->pMiscInfo->dbOpt.keep, freeVariant);
     }
 
@@ -1018,6 +1033,18 @@ void setDropDbTableInfo(SSqlInfo *pInfo, int32_t type, SStrToken* pToken, SStrTo
   pInfo->pMiscInfo->tableType = tableType;
 }
 
+void setDropFuncInfo(SSqlInfo *pInfo, int32_t type, SStrToken* pToken) {
+  pInfo->type = type;
+
+  if (pInfo->pMiscInfo == NULL) {
+    pInfo->pMiscInfo = (SMiscInfo *)calloc(1, sizeof(SMiscInfo));
+    pInfo->pMiscInfo->a = taosArrayInit(4, sizeof(SStrToken));
+  }
+
+  taosArrayPush(pInfo->pMiscInfo->a, pToken);
+}
+
+
 void setShowOptions(SSqlInfo *pInfo, int32_t type, SStrToken* prefix, SStrToken* pPatterns) {
   if (pInfo->pMiscInfo == NULL) {
     pInfo->pMiscInfo = calloc(1, sizeof(SMiscInfo));
@@ -1051,6 +1078,24 @@ void setCreateDbInfo(SSqlInfo *pInfo, int32_t type, SStrToken *pToken, SCreateDb
   pInfo->pMiscInfo->dbOpt.dbname = *pToken;
   pInfo->pMiscInfo->dbOpt.ignoreExists = pIgExists->n; // sql.y has: ifnotexists(X) ::= IF NOT EXISTS.   {X.n = 1;}
 }
+
+void setCreateFuncInfo(SSqlInfo *pInfo, int32_t type, SStrToken *pName, SStrToken *pPath, TAOS_FIELD *output, SStrToken* bufSize, int32_t funcType) {
+  pInfo->type = type;
+  if (pInfo->pMiscInfo == NULL) {
+    pInfo->pMiscInfo = calloc(1, sizeof(SMiscInfo));
+  }
+
+  pInfo->pMiscInfo->funcOpt.name = *pName;
+  pInfo->pMiscInfo->funcOpt.path = *pPath;
+  pInfo->pMiscInfo->funcOpt.output = *output;
+  pInfo->pMiscInfo->funcOpt.type = funcType;
+  if (bufSize->n > 0) {
+    pInfo->pMiscInfo->funcOpt.bufSize = strtol(bufSize->z, NULL, 10);
+  } else {
+    pInfo->pMiscInfo->funcOpt.bufSize = 0;  
+  }
+}
+
 
 void setCreateAcctSql(SSqlInfo *pInfo, int32_t type, SStrToken *pName, SStrToken *pPwd, SCreateAcctInfo *pAcctInfo) {
   pInfo->type = type;

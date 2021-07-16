@@ -961,6 +961,10 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql, char** boundC
           break;
         }
 
+        if (sToken.n == 0 || sToken.type == TK_SEMI || index == 0) {
+          return tscSQLSyntaxErrMsg(pCmd->payload, "unexpected token", sql);
+        }
+
         sql += index;
         ++numOfColsAfterTags;
       }
@@ -1125,6 +1129,7 @@ int tsParseInsertSql(SSqlObj *pSql) {
   SSqlCmd *pCmd = &pSql->cmd;
 
   SInsertStatementParam* pInsertParam = &pCmd->insertParam;
+  pInsertParam->objectId = pSql->self;
   char* str = pInsertParam->sql;
 
   int32_t totalNum = 0;

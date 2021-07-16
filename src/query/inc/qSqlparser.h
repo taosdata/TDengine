@@ -182,6 +182,15 @@ typedef struct SCreateDbInfo {
   int16_t            partitions;
 } SCreateDbInfo;
 
+typedef struct SCreateFuncInfo {
+  SStrToken name;
+  SStrToken path;
+  int32_t   type;
+  int32_t   bufSize;
+  TAOS_FIELD output;
+} SCreateFuncInfo;
+
+
 typedef struct SCreateAcctInfo {
   int32_t            maxUsers;
   int32_t            maxDbs;
@@ -214,10 +223,11 @@ typedef struct SMiscInfo {
   int16_t            tableType;
   SUserInfo          user;
   union {
-    SCreateDbInfo    dbOpt;
-    SCreateAcctInfo  acctOpt;
-    SShowInfo        showOpt;
-    SStrToken        id;
+    SCreateDbInfo   dbOpt;
+    SCreateAcctInfo acctOpt;
+    SCreateFuncInfo funcOpt;
+    SShowInfo       showOpt;
+    SStrToken       id;
   };
 } SMiscInfo;
 
@@ -226,6 +236,7 @@ typedef struct SSqlInfo {
   bool               valid;
   SArray            *list;    // todo refactor
   char               msg[256];
+  SArray            *funcs;
   union {
     SCreateTableSql *pCreateTableInfo;
     SAlterTableInfo *pAlterInfo;
@@ -237,18 +248,20 @@ typedef struct tSqlExpr {
   uint16_t           type;       // sql node type
   uint32_t           tokenId;    // TK_LE: less than(binary expr)
 
-  // the whole string of the function(col, param), while the function name is kept in token
-  SStrToken          operand;
-  uint32_t           functionId;  // function id
+  // the whole string of the function(col, param), while the function name is kept in exprToken
+  struct {
+    SStrToken        operand;
+    struct SArray   *paramList;      // function parameters list
+  } Expr;
 
-  SStrToken          colInfo;     // table column info
+  uint32_t           functionId;  // function id, todo remove it
+  SStrToken          columnName;  // table column info
   tVariant           value;       // the use input value
-  SStrToken          token;       // original sql expr string
-  uint32_t           flags;
+  SStrToken          exprToken;   // original sql expr string
+  uint32_t           flags;       // todo remove it
   
   struct tSqlExpr   *pLeft;       // left child
   struct tSqlExpr   *pRight;      // right child
-  struct SArray     *pParam;      // function parameters list
 } tSqlExpr;
 
 // used in select clause. select <SArray> from xxx
@@ -269,6 +282,7 @@ SRelationInfo *addSubqueryElem(SRelationInfo* pRelationInfo, SArray* pSub, SStrT
 // sql expr leaf node
 tSqlExpr *tSqlExprCreateIdValue(SStrToken *pToken, int32_t optrType);
 tSqlExpr *tSqlExprCreateFunction(SArray *pParam, SStrToken *pFuncToken, SStrToken *endToken, int32_t optType);
+SArray *tStrTokenAppend(SArray *pList, SStrToken *pToken);
 
 tSqlExpr *tSqlExprCreate(tSqlExpr *pLeft, tSqlExpr *pRight, int32_t optrType);
 tSqlExpr *tSqlExprClone(tSqlExpr *pSrc);

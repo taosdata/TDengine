@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# if [ $# != 4 || $# != 5 ]; then 
+# if [ $# != 4 || $# != 5 ]; then
   # echo "argument list need input : "
   # echo "  -n nodeName"
   # echo "  -s start/stop"
@@ -8,10 +8,13 @@
   # exit 1
 # fi
 
+UNAME_BIN=`which uname`
+OS_TYPE=`$UNAME_BIN`
+
 NODE_NAME=
 EXEC_OPTON=
 CLEAR_OPTION="false"
-while getopts "n:s:u:x:ct" arg 
+while getopts "n:s:u:x:ct" arg
 do
   case $arg in
     n)
@@ -52,10 +55,16 @@ fi
 TAOS_DIR=`pwd`
 TAOSD_DIR=`find . -name "taosd"|grep bin|head -n1`
 
-if [[ "$TAOSD_DIR" == *"$IN_TDINTERNAL"* ]]; then
-  BIN_DIR=`find . -name "taosd"|grep bin|head -n1|cut -d '/' --fields=2,3`
+if [[ "$OS_TYPE" != "Darwin" ]]; then
+  cut_opt="--field="
 else
-  BIN_DIR=`find . -name "taosd"|grep bin|head -n1|cut -d '/' --fields=2`
+  cut_opt="-f "
+fi
+
+if [[ "$TAOSD_DIR" == *"$IN_TDINTERNAL"* ]]; then
+  BIN_DIR=`find . -name "taosd"|grep bin|head -n1|cut -d '/' ${cut_opt}2,3`
+else
+  BIN_DIR=`find . -name "taosd"|grep bin|head -n1|cut -d '/' ${cut_opt}2`
 fi
 
 BUILD_DIR=$TAOS_DIR/$BIN_DIR/build

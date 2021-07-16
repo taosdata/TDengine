@@ -107,6 +107,7 @@ SParamInfo* tscAddParamToDataBlock(STableDataBlocks* pDataBlock, char type, uint
                                    uint32_t offset);
 
 void*   tscDestroyBlockArrayList(SArray* pDataBlockList);
+void*  tscDestroyUdfArrayList(SArray* pUdfList);
 void*   tscDestroyBlockHashTable(SHashObj* pBlockHashTable, bool removeMeta);
 
 int32_t tscCopyDataBlockToPayload(SSqlObj* pSql, STableDataBlocks* pDataBlock);
@@ -187,7 +188,7 @@ int32_t   tscGetResRowLength(SArray* pExprList);
 SExprInfo* tscExprInsert(SQueryInfo* pQueryInfo, int32_t index, int16_t functionId, SColumnIndex* pColIndex, int16_t type,
     int16_t size, int16_t resColId, int16_t interSize, bool isTagCol);
 
-SExprInfo* tscExprCreate(SQueryInfo* pQueryInfo, int16_t functionId, SColumnIndex* pColIndex, int16_t type,
+SExprInfo* tscExprCreate(STableMetaInfo* pTableMetaInfo, int16_t functionId, SColumnIndex* pColIndex, int16_t type,
                          int16_t size, int16_t resColId, int16_t interSize, int32_t colType);
 
 void tscExprAddParams(SSqlExpr* pExpr, char* argument, int32_t type, int32_t bytes);
@@ -261,6 +262,7 @@ void tscVgroupTableCopy(SVgroupTableInfo* info, SVgroupTableInfo* pInfo);
 int  tscGetSTableVgroupInfo(SSqlObj* pSql, SQueryInfo* pQueryInfo);
 int  tscGetTableMeta(SSqlObj* pSql, STableMetaInfo* pTableMetaInfo);
 int  tscGetTableMetaEx(SSqlObj* pSql, STableMetaInfo* pTableMetaInfo, bool createIfNotExists);
+int32_t tscGetUdfFromNode(SSqlObj *pSql, SQueryInfo* pQueryInfo);
 
 void tscResetForNextRetrieve(SSqlRes* pRes);
 void executeQuery(SSqlObj* pSql, SQueryInfo* pQueryInfo);
@@ -307,10 +309,9 @@ bool hasMoreClauseToTry(SSqlObj* pSql);
 void tscFreeQueryInfo(SSqlCmd* pCmd, bool removeMeta);
 
 void tscTryQueryNextVnode(SSqlObj *pSql, __async_cb_func_t fp);
-void tscAsyncQuerySingleRowForNextVnode(void *param, TAOS_RES *tres, int numOfRows);
 void tscTryQueryNextClause(SSqlObj* pSql, __async_cb_func_t fp);
 int  tscSetMgmtEpSetFromCfg(const char *first, const char *second, SRpcCorEpSet *corEpSet);
-int32_t getMultiTableMetaFromMnode(SSqlObj *pSql, SArray* pNameList, SArray* pVgroupNameList, __async_cb_func_t fp);
+int32_t getMultiTableMetaFromMnode(SSqlObj *pSql, SArray* pNameList, SArray* pVgroupNameList, SArray* pUdfList, __async_cb_func_t fp, bool metaClone);
 
 int tscTransferTableNameList(SSqlObj *pSql, const char *pNameList, int32_t length, SArray* pNameArray);
 
