@@ -396,6 +396,8 @@ int32_t* taosGetErrno();
 #define TSDB_CODE_HTTP_OP_VALUE_NULL            TAOS_DEF_ERROR_CODE(0, 0x11A5)  //"value not find")
 #define TSDB_CODE_HTTP_OP_VALUE_TYPE            TAOS_DEF_ERROR_CODE(0, 0x11A6)  //"value type should be boolean number or string")
 
+#define TSDB_CODE_HTTP_REQUEST_JSON_ERROR       TAOS_DEF_ERROR_CODE(0, 0x1F00)  //"http request json error")
+
 // odbc
 #define TSDB_CODE_ODBC_OOM                      TAOS_DEF_ERROR_CODE(0, 0x2100)  //"out of memory")
 #define TSDB_CODE_ODBC_CONV_CHAR_NOT_NUM        TAOS_DEF_ERROR_CODE(0, 0x2101)  //"convertion not a valid literal input")
