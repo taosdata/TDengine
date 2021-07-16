@@ -806,6 +806,8 @@ typedef struct SMultiTableMeta {
   int32_t       numOfVgroup;
   int32_t       numOfUdf;
   int32_t       contLen;
+  uint8_t       compressed;      // denote if compressed or not
+  uint32_t      rawLen;          // size before compress
   char          meta[];
 } SMultiTableMeta;
 

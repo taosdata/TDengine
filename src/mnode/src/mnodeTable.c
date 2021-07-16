@@ -2893,7 +2893,7 @@ static SMultiTableMeta* ensureMsgBufferSpace(SMultiTableMeta *pMultiMeta, SArray
       (*totalMallocLen) *= 2;
     }
 
-    pMultiMeta = rpcReallocCont(pMultiMeta, *totalMallocLen);
+    pMultiMeta = realloc(pMultiMeta, *totalMallocLen);
     if (pMultiMeta == NULL) {
       return NULL;
     }
@@ -2916,8 +2916,8 @@ static int32_t mnodeProcessMultiTableMetaMsg(SMnodeMsg *pMsg) {
   char*   str      = strndup(pInfo->tableNames, contLen);
   char**  nameList = strsplit(str, ",", &num);
   SArray* pList    = taosArrayInit(4, POINTER_BYTES);
-  SMultiTableMeta *pMultiMeta = NULL;
 
+  SMultiTableMeta *pMultiMeta = NULL;
   if (num != pInfo->numOfTables + pInfo->numOfVgroups + pInfo->numOfUdfs) {
     mError("msg:%p, app:%p, failed to get multi-tableMeta, msg inconsistent", pMsg, pMsg->rpcMsg.ahandle);
     code = TSDB_CODE_MND_INVALID_TABLE_NAME;
@@ -2925,8 +2925,8 @@ static int32_t mnodeProcessMultiTableMetaMsg(SMnodeMsg *pMsg) {
   }
 
   // first malloc 80KB, subsequent reallocation will expand the size as twice of the original size
-  int32_t totalMallocLen = sizeof(STableMetaMsg) + sizeof(SSchema) * (TSDB_MAX_TAGS + TSDB_MAX_COLUMNS + 16) + (sizeof(SFunctionInfoMsg) + TSDB_FUNC_CODE_LEN) * pInfo->numOfUdfs + 16384;
-  pMultiMeta = rpcMallocCont(totalMallocLen);
+  int32_t totalMallocLen = sizeof(SMultiTableMeta) + sizeof(STableMetaMsg) + sizeof(SSchema) * (TSDB_MAX_TAGS + TSDB_MAX_COLUMNS + 16);
+  pMultiMeta = calloc(1, totalMallocLen);
   if (pMultiMeta == NULL) {
     code = TSDB_CODE_MND_OUT_OF_MEMORY;
     goto _end;
@@ -2959,7 +2959,7 @@ static int32_t mnodeProcessMultiTableMetaMsg(SMnodeMsg *pMsg) {
     int remain = totalMallocLen - pMultiMeta->contLen;
     if (remain <= sizeof(STableMetaMsg) + sizeof(SSchema) * (TSDB_MAX_TAGS + TSDB_MAX_COLUMNS + 16)) {
       totalMallocLen *= 2;
-      pMultiMeta = rpcReallocCont(pMultiMeta, totalMallocLen);
+      pMultiMeta = realloc(pMultiMeta, totalMallocLen);
       if (pMultiMeta == NULL) {
         mnodeDecTableRef(pMsg->pTable);
         code = TSDB_CODE_MND_OUT_OF_MEMORY;
@@ -2994,6 +2994,7 @@ static int32_t mnodeProcessMultiTableMetaMsg(SMnodeMsg *pMsg) {
   }
 
   int32_t tableNum = pInfo->numOfTables + pInfo->numOfVgroups;
+
   // add the additional super table names that needs the vgroup info
   for(;t < tableNum; ++t) {
     taosArrayPush(pList, &nameList[t]);
@@ -3027,6 +3028,7 @@ static int32_t mnodeProcessMultiTableMetaMsg(SMnodeMsg *pMsg) {
 
   pMultiMeta->numOfTables = htonl(pMultiMeta->numOfTables);
 
+  // add the user-defined-function information
   for(int32_t i = 0; i < pInfo->numOfUdfs; ++i, ++t) {
     char buf[TSDB_FUNC_NAME_LEN] = {0};
     strcpy(buf, nameList[t]);
@@ -3045,20 +3047,48 @@ static int32_t mnodeProcessMultiTableMetaMsg(SMnodeMsg *pMsg) {
     memcpy(pFuncInfo->content, pFuncObj->cont, pFuncObj->contLen);
 
     pFuncInfo->funcType = htonl(pFuncObj->funcType);
-    pFuncInfo->resType = pFuncObj->resType;
+    pFuncInfo->resType  = pFuncObj->resType;
     pFuncInfo->resBytes = htons(pFuncObj->resBytes);
     pFuncInfo->bufSize  = htonl(pFuncObj->bufSize);
 
     msg += sizeof(SFunctionInfoMsg) + pFuncObj->contLen;
   }
 
-  pMultiMeta->contLen = (int32_t) (msg - (char*) pMultiMeta);
-
+  pMultiMeta->contLen  = (int32_t) (msg - (char*) pMultiMeta);
   pMultiMeta->numOfUdf = htonl(pInfo->numOfUdfs);
 
   pMsg->rpcRsp.rsp = pMultiMeta;
   pMsg->rpcRsp.len = pMultiMeta->contLen;
   code = TSDB_CODE_SUCCESS;
+
+  char* tmp = rpcMallocCont(pMultiMeta->contLen + 2);
+  if (tmp == NULL) {
+    code = TSDB_CODE_MND_OUT_OF_MEMORY;
+    goto _end;
+  }
+
+  int32_t dataLen = (int32_t)pMultiMeta->contLen - sizeof(SMultiTableMeta);
+  int32_t len = tsCompressString(pMultiMeta->meta, dataLen, 1, tmp + sizeof(SMultiTableMeta), (int32_t)dataLen + 2,
+                                 ONE_STAGE_COMP, NULL, 0);
+
+  pMultiMeta->rawLen = pMultiMeta->contLen;
+  if (len == -1 || len >= dataLen + 2) { // compress failed, do not compress this binary data
+    pMultiMeta->compressed = 0;
+    memcpy(tmp, pMultiMeta, sizeof(SMultiTableMeta) + pMultiMeta->contLen);
+  } else {
+    pMultiMeta->compressed = 1;
+    pMultiMeta->contLen = sizeof(SMultiTableMeta) + len;
+
+    // copy the header and the compressed payload
+    memcpy(tmp, pMultiMeta, sizeof(SMultiTableMeta));
+  }
+
+  pMsg->rpcRsp.rsp = tmp;
+  pMsg->rpcRsp.len = pMultiMeta->contLen;
+
+  SMultiTableMeta* p = (SMultiTableMeta*) tmp;
+
+  mDebug("multiTable info build completed, original:%d, compressed:%d, comp:%d", p->rawLen, p->contLen, p->compressed);
 
   _end:
   tfree(str);
@@ -3066,10 +3096,7 @@ static int32_t mnodeProcessMultiTableMetaMsg(SMnodeMsg *pMsg) {
   taosArrayDestroy(pList);
   pMsg->pTable  = NULL;
   pMsg->pVgroup = NULL;
-
-  if (code != TSDB_CODE_SUCCESS) {
-    rpcFreeCont(pMultiMeta);
-  }
+  tfree(pMultiMeta);
 
   return code;
 }

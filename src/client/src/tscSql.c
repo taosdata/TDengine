@@ -948,8 +948,6 @@ int taos_load_table_info(TAOS *taos, const char *tableNameList) {
   SSqlObj* pSql = calloc(1, sizeof(SSqlObj));
   pSql->pTscObj = taos;
   pSql->signature = pSql;
-
-  pSql->fp = NULL;        // todo set the correct callback function pointer
   pSql->cmd.pTableMetaMap = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);
 
   int32_t length = (int32_t)strlen(tableNameList);

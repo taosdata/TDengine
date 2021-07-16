@@ -13,7 +13,10 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <tscompression.h>
 #include "os.h"
+#include "qPlan.h"
+#include "qTableMeta.h"
 #include "tcmdtype.h"
 #include "tlockfree.h"
 #include "trpc.h"
@@ -21,10 +24,8 @@
 #include "tscLog.h"
 #include "tscProfile.h"
 #include "tscUtil.h"
-#include "qTableMeta.h"
 #include "tsclient.h"
 #include "ttimer.h"
-#include "qPlan.h"
 
 int (*tscBuildMsg[TSDB_SQL_MAX])(SSqlObj *pSql, SSqlInfo *pInfo) = {0};
 
@@ -2182,16 +2183,27 @@ int tscProcessMultiTableMetaRsp(SSqlObj *pSql) {
   }
 
   SSqlCmd *pParentCmd = &pParentSql->cmd;
-
   SHashObj *pSet = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
 
   char* pMsg = pMultiMeta->meta;
+  char* buf = NULL;
+  if (pMultiMeta->compressed) {
+    buf = malloc(pMultiMeta->rawLen - sizeof(SMultiTableMeta));
+    int32_t len = tsDecompressString(pMultiMeta->meta, pMultiMeta->contLen - sizeof(SMultiTableMeta), 1,
+        buf, pMultiMeta->rawLen - sizeof(SMultiTableMeta), ONE_STAGE_COMP, NULL, 0);
+    assert(len == pMultiMeta->rawLen - sizeof(SMultiTableMeta));
+
+    pMsg = buf;
+  }
+
   for (int32_t i = 0; i < pMultiMeta->numOfTables; i++) {
     STableMetaMsg *pMetaMsg = (STableMetaMsg *)pMsg;
     int32_t code = tableMetaMsgConvert(pMetaMsg);
     if (code != TSDB_CODE_SUCCESS) {
       taosHashCleanup(pSet);
       taosReleaseRef(tscObjRef, pParentSql->self);
+
+      tfree(buf);
       return code;
     }
 
@@ -2200,6 +2212,8 @@ int tscProcessMultiTableMetaRsp(SSqlObj *pSql) {
       tscError("0x%"PRIx64" invalid table meta from mnode, name:%s", pSql->self, pMetaMsg->tableFname);
       taosHashCleanup(pSet);
       taosReleaseRef(tscObjRef, pParentSql->self);
+
+      tfree(buf);
       return TSDB_CODE_TSC_INVALID_VALUE;
     }
 
@@ -2280,6 +2294,8 @@ int tscProcessMultiTableMetaRsp(SSqlObj *pSql) {
 
   taosHashCleanup(pSet);
   taosReleaseRef(tscObjRef, pParentSql->self);
+
+  tfree(buf);
   return TSDB_CODE_SUCCESS;
 }
 

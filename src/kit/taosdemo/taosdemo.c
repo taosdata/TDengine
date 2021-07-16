@@ -569,7 +569,7 @@ SArguments g_args = {
     0,               // test_mode
     "127.0.0.1",     // host
     6030,            // port
-    TAOSC_IFACE,     // iface
+    INTERFACE_BUT,   // iface
     "root",          // user
 #ifdef _TD_POWER_
     "powerdb",      // password
@@ -946,7 +946,6 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
             for (int col = arguments->num_of_CPR; col < MAX_NUM_COLUMNS; col++) {
                 arguments->datatype[col] = NULL;
             }
-
         } else if (strcmp(argv[i], "-b") == 0) {
             arguments->demo_mode = false;
             if (argc == i+1) {
@@ -1430,8 +1429,13 @@ static int printfInsertMeta() {
     else
         printf("\ntaosdemo is simulating random data as you request..\n\n");
 
-    printf("interface:                  \033[33m%s\033[0m\n",
-            (g_args.iface==TAOSC_IFACE)?"taosc":(g_args.iface==REST_IFACE)?"rest":"stmt");
+    if (g_args.iface != INTERFACE_BUT) {
+        // first time if no iface specified
+        printf("interface:                  \033[33m%s\033[0m\n",
+            (g_args.iface==TAOSC_IFACE)?"taosc":
+            (g_args.iface==REST_IFACE)?"rest":"stmt");
+    }
+
     printf("host:                       \033[33m%s:%u\033[0m\n",
             g_Dbs.host, g_Dbs.port);
     printf("user:                       \033[33m%s\033[0m\n", g_Dbs.user);
@@ -3104,7 +3108,7 @@ static int startMultiThreadCreateChildTable(
         char* cols, int threads, uint64_t tableFrom, int64_t ntables,
         char* db_name, SSuperTable* superTblInfo) {
 
-  pthread_t *pids = malloc(threads * sizeof(pthread_t));
+  pthread_t *pids = calloc(1, threads * sizeof(pthread_t));
   threadInfo *infos = calloc(1, threads * sizeof(threadInfo));
 
   if ((NULL == pids) || (NULL == infos)) {
@@ -5039,13 +5043,17 @@ static int32_t execInsert(threadInfo *pThreadInfo, uint32_t k)
     uint16_t iface;
     if (superTblInfo)
         iface = superTblInfo->iface;
-    else
-        iface = g_args.iface;
+    else {
+        if (g_args.iface == INTERFACE_BUT)
+            iface = TAOSC_IFACE;
+        else
+            iface = g_args.iface;
+    }
 
     debugPrint("[%d] %s() LN%d %s\n", pThreadInfo->threadID,
             __func__, __LINE__,
-            (g_args.iface==TAOSC_IFACE)?
-            "taosc":(g_args.iface==REST_IFACE)?"rest":"stmt");
+            (iface==TAOSC_IFACE)?
+            "taosc":(iface==REST_IFACE)?"rest":"stmt");
 
     switch(iface) {
         case TAOSC_IFACE:
@@ -5885,7 +5893,7 @@ static void printStatPerThread(threadInfo *pThreadInfo)
           pThreadInfo->threadID,
           pThreadInfo->totalInsertRows,
           pThreadInfo->totalAffectedRows,
-          (double)(pThreadInfo->totalAffectedRows / (pThreadInfo->totalDelay/1000.0)));
+          (pThreadInfo->totalDelay)?(double)((pThreadInfo->totalAffectedRows / (pThreadInfo->totalDelay)/1000.0)): FLT_MAX);
 }
 
 // sync write interlace data
@@ -6464,7 +6472,7 @@ static int convertHostToServAddr(char *host, uint16_t port, struct sockaddr_in *
 }
 
 static void startMultiThreadInsertData(int threads, char* db_name,
-        char* precision,SSuperTable* superTblInfo) {
+        char* precision, SSuperTable* superTblInfo) {
 
   int32_t timePrec = TSDB_TIME_PRECISION_MILLI;
   if (0 != precision[0]) {
@@ -6602,7 +6610,7 @@ static void startMultiThreadInsertData(int threads, char* db_name,
       }
   }
 
-  pthread_t *pids = malloc(threads * sizeof(pthread_t));
+  pthread_t *pids = calloc(1, threads * sizeof(pthread_t));
   assert(pids != NULL);
 
   threadInfo *infos = calloc(1, threads * sizeof(threadInfo));
@@ -7261,8 +7269,8 @@ static int queryTestProcess() {
 
   if ((nSqlCount > 0) && (nConcurrent > 0)) {
 
-    pids  = malloc(nConcurrent * nSqlCount * sizeof(pthread_t));
-    infos = malloc(nConcurrent * nSqlCount * sizeof(threadInfo));
+    pids  = calloc(1, nConcurrent * nSqlCount * sizeof(pthread_t));
+    infos = calloc(1, nConcurrent * nSqlCount * sizeof(threadInfo));
 
     if ((NULL == pids) || (NULL == infos)) {
       taos_close(taos);
@@ -7307,8 +7315,8 @@ static int queryTestProcess() {
   //==== create sub threads for query from all sub table of the super table
   if ((g_queryInfo.superQueryInfo.sqlCount > 0)
           && (g_queryInfo.superQueryInfo.threadCnt > 0)) {
-    pidsOfSub  = malloc(g_queryInfo.superQueryInfo.threadCnt * sizeof(pthread_t));
-    infosOfSub = malloc(g_queryInfo.superQueryInfo.threadCnt * sizeof(threadInfo));
+    pidsOfSub  = calloc(1, g_queryInfo.superQueryInfo.threadCnt * sizeof(pthread_t));
+    infosOfSub = calloc(1, g_queryInfo.superQueryInfo.threadCnt * sizeof(threadInfo));
 
     if ((NULL == pidsOfSub) || (NULL == infosOfSub)) {
       free(infos);
@@ -7741,11 +7749,13 @@ static int subscribeTestProcess() {
         exit(-1);
     }
 
-    pids  = malloc(
+    pids  = calloc(
+            1,
             g_queryInfo.specifiedQueryInfo.sqlCount *
             g_queryInfo.specifiedQueryInfo.concurrent *
             sizeof(pthread_t));
-    infos = malloc(
+    infos = calloc(
+            1,
             g_queryInfo.specifiedQueryInfo.sqlCount *
             g_queryInfo.specifiedQueryInfo.concurrent *
             sizeof(threadInfo));
@@ -7774,11 +7784,13 @@ static int subscribeTestProcess() {
   } else {
     if ((g_queryInfo.superQueryInfo.sqlCount > 0)
           && (g_queryInfo.superQueryInfo.threadCnt > 0)) {
-        pidsOfStable  = malloc(
+        pidsOfStable  = calloc(
+                1,
                 g_queryInfo.superQueryInfo.sqlCount *
                 g_queryInfo.superQueryInfo.threadCnt *
             sizeof(pthread_t));
-        infosOfStable = malloc(
+        infosOfStable = calloc(
+                1,
                 g_queryInfo.superQueryInfo.sqlCount *
                 g_queryInfo.superQueryInfo.threadCnt *
             sizeof(threadInfo));
@@ -7933,7 +7945,12 @@ static void setParaFromArg(){
     tstrncpy(g_Dbs.db[0].superTbls[0].childTblPrefix,
             g_args.tb_prefix, TSDB_TABLE_NAME_LEN - 20);
     tstrncpy(g_Dbs.db[0].superTbls[0].dataSource, "rand", MAX_TB_NAME_SIZE);
-    g_Dbs.db[0].superTbls[0].iface = g_args.iface;
+
+    if (g_args.iface == INTERFACE_BUT) {
+        g_Dbs.db[0].superTbls[0].iface = TAOSC_IFACE;
+    } else {
+        g_Dbs.db[0].superTbls[0].iface = g_args.iface;
+    }
     tstrncpy(g_Dbs.db[0].superTbls[0].startTimestamp,
             "2017-07-14 10:40:00.000", MAX_TB_NAME_SIZE);
     g_Dbs.db[0].superTbls[0].timeStampStep = DEFAULT_TIMESTAMP_STEP;
@@ -8095,7 +8112,7 @@ static void queryResult() {
   // query data
 
   pthread_t read_id;
-  threadInfo *pThreadInfo = malloc(sizeof(threadInfo));
+  threadInfo *pThreadInfo = calloc(1, sizeof(threadInfo));
   assert(pThreadInfo);
   pThreadInfo->start_time = 1500000000000;  // 2017-07-14 10:40:00.000
   pThreadInfo->start_table_from = 0;
