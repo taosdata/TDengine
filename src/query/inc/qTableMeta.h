@@ -125,8 +125,12 @@ typedef struct SQueryInfo {
   int32_t          round;         // 0/1/....
   int32_t          bufLen;
   char*            buf;
-  struct SQInfo*          pQInfo;      // global merge operator
-  struct SQueryAttr*      pQueryAttr;     // query object
+
+  bool               udfCopy;
+  SArray            *pUdfInfo;
+
+  struct SQInfo     *pQInfo;      // global merge operator
+  struct SQueryAttr *pQueryAttr;     // query object
 
   struct SQueryInfo *sibling;     // sibling
   SArray            *pUpstream;   // SArray<struct SQueryInfo>
@@ -141,6 +145,7 @@ typedef struct SQueryInfo {
   bool               onlyTagQuery;
   bool               orderProjectQuery;
   bool               stateWindow;
+  bool               globalMerge;
 } SQueryInfo;
 
 /**

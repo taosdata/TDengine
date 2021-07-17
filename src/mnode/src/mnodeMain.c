@@ -32,6 +32,7 @@
 #include "mnodeSdb.h"
 #include "mnodeVgroup.h"
 #include "mnodeUser.h"
+#include "mnodeFunc.h"
 #include "mnodeTable.h"
 #include "mnodeCluster.h"
 #include "mnodeShow.h"
@@ -46,6 +47,7 @@ static SStep tsMnodeSteps[] = {
   {"cluster", mnodeInitCluster, mnodeCleanupCluster},
   {"accts",   mnodeInitAccts,   mnodeCleanupAccts},
   {"users",   mnodeInitUsers,   mnodeCleanupUsers},
+  {"funcs",   mnodeInitFuncs,   mnodeCleanupFuncs},
   {"dnodes",  mnodeInitDnodes,  mnodeCleanupDnodes},
   {"dbs",     mnodeInitDbs,     mnodeCleanupDbs},
   {"vgroups", mnodeInitVgroups, mnodeCleanupVgroups},
