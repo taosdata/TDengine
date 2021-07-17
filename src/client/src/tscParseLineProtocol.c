@@ -1781,23 +1781,6 @@ int32_t tscParseLine(const char* sql, TAOS_SML_DATA_POINT* smlData) {
 
 //=========================================================================
 
-int32_t tscParseLines(char* lines[], int numLines, SArray* points, SArray* failedLines) {
-  for (int32_t i = 0; i < numLines; ++i) {
-    TAOS_SML_DATA_POINT point = {0};
-    int32_t code = tscParseLine(lines[i], &point);
-    if (code != TSDB_CODE_SUCCESS) {
-      tscError("data point line parse failed. line %d : %s", i, lines[i]);
-      return TSDB_CODE_TSC_LINE_SYNTAX_ERROR;
-    } else {
-      tscDebug("data point line parse success. line %d", i);
-    }
-
-    taosArrayPush(points, &point);
-  }
-  return 0;
-}
-
-
 void destroySmlDataPoint(TAOS_SML_DATA_POINT* point) {
   for (int i=0; i<point->tagNum; ++i) {
     free((point->tags+i)->key);
@@ -1811,6 +1794,23 @@ void destroySmlDataPoint(TAOS_SML_DATA_POINT* point) {
   free(point->fields);
   free(point->stableName);
   free(point->childTableName);
+}
+
+int32_t tscParseLines(char* lines[], int numLines, SArray* points, SArray* failedLines) {
+  for (int32_t i = 0; i < numLines; ++i) {
+    TAOS_SML_DATA_POINT point = {0};
+    int32_t code = tscParseLine(lines[i], &point);
+    if (code != TSDB_CODE_SUCCESS) {
+      tscError("data point line parse failed. line %d : %s", i, lines[i]);
+      destroySmlDataPoint(&point);
+      return TSDB_CODE_TSC_LINE_SYNTAX_ERROR;
+    } else {
+      tscDebug("data point line parse success. line %d", i);
+    }
+
+    taosArrayPush(points, &point);
+  }
+  return 0;
 }
 
 int taos_insert_lines(TAOS* taos, char* lines[], int numLines) {
