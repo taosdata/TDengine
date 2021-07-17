@@ -1536,13 +1536,20 @@ bool validateOneTags(SSqlCmd* pCmd, TAOS_FIELD* pTagField) {
   const char* msg4 = "invalid tag name";
   const char* msg5 = "invalid binary/nchar tag length";
   const char* msg6 = "invalid data type in tags";
+  const char* msg7 = "too many columns";
 
   STableMetaInfo* pTableMetaInfo = tscGetTableMetaInfoFromCmd(pCmd,  0);
   STableMeta*     pTableMeta = pTableMetaInfo->pTableMeta;
 
   int32_t numOfTags = tscGetNumOfTags(pTableMeta);
   int32_t numOfCols = tscGetNumOfColumns(pTableMeta);
-  
+
+  // no more max columns
+  if (numOfTags + numOfCols >= TSDB_MAX_COLUMNS) {
+    invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg7);
+    return false;
+  }
+
   // no more than 6 tags
   if (numOfTags == TSDB_MAX_TAGS) {
     char msg[128] = {0};
