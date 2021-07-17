@@ -1488,6 +1488,7 @@ void tscFreeSqlObj(SSqlObj* pSql) {
   pSql->signature = NULL;
   pSql->fp = NULL;
   tfree(pSql->sqlstr);
+  tfree(pSql->pBuf);
 
   tfree(pSql->pSubs);
   pSql->subState.numOfSub = 0;
@@ -1498,7 +1499,6 @@ void tscFreeSqlObj(SSqlObj* pSql) {
 
   memset(pCmd->payload, 0, (size_t)pCmd->allocSize);
   tfree(pCmd->payload);
-  tfree(pCmd->pBuf);
   pCmd->allocSize = 0;
 
   tsem_destroy(&pSql->rspSem);
@@ -1813,14 +1813,14 @@ static SMemRow tdGenMemRowFromBuilder(SMemRowBuilder* pBuilder) {
         p = payloadNextCol(p);
         ++i;
       } else {
-        tdAppendColVal(trow, getNullValue(pSchema[j].type), pSchema[j].type, toffset);
+        tdAppendColVal(trow, tdGetNullVal(pSchema[j].type), pSchema[j].type, toffset);
         toffset += TYPE_BYTES[pSchema[j].type];
         ++j;
       }
     }
 
     while (j < nCols) {
-      tdAppendColVal(trow, getNullValue(pSchema[j].type), pSchema[j].type, toffset);
+      tdAppendColVal(trow, tdGetNullVal(pSchema[j].type), pSchema[j].type, toffset);
       toffset += TYPE_BYTES[pSchema[j].type];
       ++j;
     }

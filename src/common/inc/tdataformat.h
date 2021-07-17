@@ -51,6 +51,8 @@ extern const uint64_t     DoubleNull;
 extern const SBinaryNullT BinaryNull;
 extern const SNCharNullT  NcharNull;
 
+const void *tdGetNullVal(int8_t type);
+
 #define STR_TO_VARSTR(x, str)                     \
   do {                                            \
     VarDataLenT __len = (VarDataLenT)strlen(str); \
@@ -285,7 +287,7 @@ void dataColSetNEleNull(SDataCol *pCol, int nEle, int maxPoints);
 // Get the data pointer from a column-wised data
 static FORCE_INLINE const void *tdGetColDataOfRow(SDataCol *pCol, int row) {
   if (isAllRowsNull(pCol)) {
-    return getNullValue(pCol->type);
+    return tdGetNullVal(pCol->type);
   }
   if (IS_VAR_DATA_TYPE(pCol->type)) {
     return POINTER_SHIFT(pCol->pData, pCol->dataOff[row]);

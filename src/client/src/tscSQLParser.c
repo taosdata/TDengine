@@ -8053,8 +8053,8 @@ int32_t loadAllTableMeta(SSqlObj* pSql, struct SSqlInfo* pInfo) {
   char     name[TSDB_TABLE_FNAME_LEN] = {0};
 
   assert(maxSize < 80 * TSDB_MAX_COLUMNS);
-  if (!pSql->cmd.pBuf) {
-    if (NULL == (pSql->cmd.pBuf = tcalloc(1, 80 * TSDB_MAX_COLUMNS))) {
+  if (!pSql->pBuf) {
+    if (NULL == (pSql->pBuf = tcalloc(1, 80 * TSDB_MAX_COLUMNS))) {
       return TSDB_CODE_TSC_OUT_OF_MEMORY;
     }
   }
@@ -8074,7 +8074,7 @@ int32_t loadAllTableMeta(SSqlObj* pSql, struct SSqlInfo* pInfo) {
 
     if (pTableMeta->id.uid > 0) {
       if (pTableMeta->tableType == TSDB_CHILD_TABLE) {
-        code = tscCreateTableMetaFromSTableMeta(pTableMeta, name, pSql->cmd.pBuf);
+        code = tscCreateTableMetaFromSTableMeta(pTableMeta, name, pSql->pBuf);
 
         // create the child table meta from super table failed, try load it from mnode
         if (code != TSDB_CODE_SUCCESS) {
