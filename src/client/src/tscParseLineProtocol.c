@@ -1460,7 +1460,7 @@ static int32_t parseSmlTimeStamp(TAOS_SML_KV **pTS, const char **index) {
   }
 
   if (len > 0) {
-    value = calloc(len, 1);
+    value = calloc(len+1, 1);
     memcpy(value, start, len);
   }
 
@@ -1786,7 +1786,7 @@ int32_t tscParseLines(char* lines[], int numLines, SArray* points, SArray* faile
     TAOS_SML_DATA_POINT point = {0};
     int32_t code = tscParseLine(lines[i], &point);
     if (code != TSDB_CODE_SUCCESS) {
-      tscError("data point line parse failed. line %d", i);
+      tscError("data point line parse failed. line %d : %s", i, lines[i]);
       return TSDB_CODE_TSC_LINE_SYNTAX_ERROR;
     } else {
       tscDebug("data point line parse success. line %d", i);
