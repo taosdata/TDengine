@@ -219,8 +219,13 @@ static SKeyword keywordTable[] = {
     {"PARTITIONS",   TK_PARTITIONS},
     {"TOPIC",        TK_TOPIC},
     {"TOPICS",       TK_TOPICS},
-    {"COMPACT",       TK_COMPACT},
-    {"MODIFY",       TK_MODIFY}
+    {"COMPACT",      TK_COMPACT},
+    {"MODIFY",       TK_MODIFY},
+    {"FUNCTION",     TK_FUNCTION},
+    {"FUNCTIONS",    TK_FUNCTIONS},
+    {"OUTPUTTYPE",   TK_OUTPUTTYPE},
+    {"AGGREGATE",    TK_AGGREGATE},
+    {"BUFSIZE",      TK_BUFSIZE},
 };
 
 static const char isIdChar[] = {
@@ -269,7 +274,7 @@ static int32_t tKeywordCode(const char* z, int n) {
   if (keywordHashTable == NULL) {
     return TK_ILLEGAL;
   }
-  
+
   SKeyword** pKey = (SKeyword**)taosHashGet(keywordHashTable, key, n);
   return (pKey != NULL)? (*pKey)->type:TK_ID;
 }

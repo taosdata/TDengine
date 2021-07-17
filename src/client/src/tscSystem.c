@@ -28,6 +28,7 @@
 #include "tconfig.h"
 #include "ttimezone.h"
 #include "tlocale.h"
+#include "qScript.h"
 
 // global, not configurable
 #define TSC_VAR_NOT_RELEASE 1
@@ -148,6 +149,8 @@ void taos_init_imp(void) {
     taosInitNotes();
 
     rpcInit();
+
+    scriptEnvPoolInit();
     tscDebug("starting to initialize TAOS client ...");
     tscDebug("Local End Point is:%s", tsLocalEp);
   }
@@ -202,7 +205,9 @@ void taos_cleanup(void) {
   if (atomic_val_compare_exchange_32(&sentinel, TSC_VAR_NOT_RELEASE, TSC_VAR_RELEASED) != TSC_VAR_NOT_RELEASE) {
     return;
   }
-
+  if (tscEmbedded == 0) {
+    scriptEnvPoolCleanup();
+  }
   taosHashCleanup(tscTableMetaInfo);
   tscTableMetaInfo = NULL;
 
