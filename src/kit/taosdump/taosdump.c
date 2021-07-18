@@ -124,6 +124,9 @@ typedef struct {
 
 extern char version[];
 
+#define DB_PRECISION_LEN   8
+#define DB_STATUS_LEN      16
+
 typedef struct {
     char     name[TSDB_DB_NAME_LEN];
     char     create_time[32];
@@ -144,9 +147,9 @@ typedef struct {
     int32_t  fsync;
     int8_t   comp;
     int8_t   cachelast;
-    char     precision[8];   // time resolution
+    char     precision[DB_PRECISION_LEN];   // time resolution
     int8_t   update;
-    char     status[16];
+    char     status[DB_STATUS_LEN];
 } SDbInfo;
 
 typedef struct {
@@ -542,7 +545,8 @@ static void parse_precision_first(
                 free(tmp);
                 exit(-1);
             }
-            strncpy(g_args.precision, tmp, strlen(tmp));
+            strncpy(g_args.precision, tmp,
+                min(DB_PRECISION_LEN - 1, strlen(tmp)));
             free(tmp);
         }
     }

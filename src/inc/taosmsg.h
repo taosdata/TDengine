@@ -77,8 +77,10 @@ TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CM_DROP_USER, "drop-user" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CM_CREATE_DNODE, "create-dnode" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CM_DROP_DNODE, "drop-dnode" )   
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CM_CREATE_DB, "create-db" )
-TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CM_DROP_DB, "drop-db" )	  
-TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CM_USE_DB, "use-db" )	 
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CM_CREATE_FUNCTION, "create-function" )
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CM_DROP_DB, "drop-db" )
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CM_DROP_FUNCTION, "drop-function" )
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CM_USE_DB, "use-db" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CM_ALTER_DB, "alter-db" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CM_SYNC_DB, "sync-db-replica" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CM_CREATE_TABLE, "create-table" )
@@ -96,7 +98,7 @@ TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CM_KILL_STREAM, "kill-stream" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CM_KILL_CONN, "kill-conn" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CM_CONFIG_DNODE, "cm-config-dnode" ) 
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CM_HEARTBEAT, "heartbeat" )
-TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_DUMMY8, "dummy8" )
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CM_RETRIEVE_FUNC, "retrieve-func" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_DUMMY9, "dummy9" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_DUMMY10, "dummy10" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_DUMMY11, "dummy11" )
@@ -153,6 +155,7 @@ enum _mgmt_table {
   TSDB_MGMT_TABLE_STREAMTABLES,
   TSDB_MGMT_TABLE_CLUSTER,
   TSDB_MGMT_TABLE_TP,
+  TSDB_MGMT_TABLE_FUNCTION,
   TSDB_MGMT_TABLE_MAX,
 };
 
@@ -507,6 +510,9 @@ typedef struct {
   int32_t     prevResultLen;    // previous result length
   int32_t     numOfOperator;
   int32_t     tableScanOperator;// table scan operator. -1 means no scan operator
+  int32_t     udfNum;           // number of udf function
+  int32_t     udfContentOffset;
+  int32_t     udfContentLen;
   SColumnInfo tableCols[];
 } SQueryTableMsg;
 
@@ -570,6 +576,41 @@ typedef struct {
   int16_t  partitions;
   int8_t   reserve[5];
 } SCreateDbMsg, SAlterDbMsg;
+
+typedef struct {
+  char     name[TSDB_FUNC_NAME_LEN];
+  char     path[PATH_MAX];
+  int32_t  funcType;
+  uint8_t  outputType;
+  int16_t  outputLen;
+  int32_t  bufSize;
+  int32_t  codeLen;
+  char     code[];
+} SCreateFuncMsg;
+
+typedef struct {
+  int32_t num;
+  char    name[];
+} SRetrieveFuncMsg;
+
+typedef struct {
+  char    name[TSDB_FUNC_NAME_LEN];
+  int32_t funcType;
+  int8_t  resType;
+  int16_t resBytes;
+  int32_t bufSize;
+  int32_t len;
+  char    content[];
+} SFunctionInfoMsg;
+
+typedef struct {
+  int32_t num;
+  char    content[];
+} SUdfFuncMsg;
+
+typedef struct {
+  char     name[TSDB_FUNC_NAME_LEN];
+} SDropFuncMsg;
 
 typedef struct {
   char    db[TSDB_TABLE_FNAME_LEN];
@@ -710,8 +751,10 @@ typedef struct {
 } STableInfoMsg;
 
 typedef struct {
+  uint8_t metaClone;     // create local clone of the cached table meta
   int32_t numOfVgroups;
   int32_t numOfTables;
+  int32_t numOfUdfs;
   char    tableNames[];
 } SMultiTableInfoMsg;
 
@@ -762,7 +805,11 @@ typedef struct STableMetaMsg {
 typedef struct SMultiTableMeta {
   int32_t       numOfTables;
   int32_t       numOfVgroup;
+  int32_t       numOfUdf;
   int32_t       contLen;
+  uint8_t       compressed;      // denote if compressed or not
+  uint32_t      rawLen;          // size before compress
+  uint8_t       metaClone;         // make meta clone after retrieve meta from mnode
   char          meta[];
 } SMultiTableMeta;
 

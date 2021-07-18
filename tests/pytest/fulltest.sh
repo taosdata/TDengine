@@ -236,9 +236,11 @@ python3 ./test.py -f query/queryTscomputWithNow.py
 python3 ./test.py -f query/computeErrorinWhere.py
 python3 ./test.py -f query/queryTsisNull.py
 python3 ./test.py -f query/subqueryFilter.py
-# python3 ./test.py -f query/nestedQuery/queryInterval.py
+python3 ./test.py -f query/nestedQuery/queryInterval.py
 python3 ./test.py -f query/queryStateWindow.py
 python3 ./test.py -f query/nestedQuery/queryWithOrderLimit.py
+python3 ./test.py -f query/nestquery_last_row.py
+python3 ./test.py -f query/queryCnameDisplay.py
 
 
 #stream

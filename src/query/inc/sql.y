@@ -65,6 +65,7 @@ program ::= cmd.    {}
 //////////////////////////////////THE SHOW STATEMENT///////////////////////////////////////////
 cmd ::= SHOW DATABASES.  { setShowOptions(pInfo, TSDB_MGMT_TABLE_DB, 0, 0);}
 cmd ::= SHOW TOPICS.     { setShowOptions(pInfo, TSDB_MGMT_TABLE_TP, 0, 0);}
+cmd ::= SHOW FUNCTIONS.  { setShowOptions(pInfo, TSDB_MGMT_TABLE_FUNCTION, 0, 0);}
 cmd ::= SHOW MNODES.     { setShowOptions(pInfo, TSDB_MGMT_TABLE_MNODE, 0, 0);}
 cmd ::= SHOW DNODES.     { setShowOptions(pInfo, TSDB_MGMT_TABLE_DNODE, 0, 0);}
 cmd ::= SHOW ACCOUNTS.   { setShowOptions(pInfo, TSDB_MGMT_TABLE_ACCT, 0, 0);}
@@ -147,6 +148,7 @@ cmd ::= DROP STABLE ifexists(Y) ids(X) cpxName(Z).   {
 
 cmd ::= DROP DATABASE ifexists(Y) ids(X).    { setDropDbTableInfo(pInfo, TSDB_SQL_DROP_DB, &X, &Y, TSDB_DB_TYPE_DEFAULT, -1); }
 cmd ::= DROP TOPIC ifexists(Y) ids(X).    { setDropDbTableInfo(pInfo, TSDB_SQL_DROP_DB, &X, &Y, TSDB_DB_TYPE_TOPIC, -1); }
+cmd ::= DROP FUNCTION ids(X).    { setDropFuncInfo(pInfo, TSDB_SQL_DROP_FUNCTION, &X); }
 
 cmd ::= DROP DNODE ids(X).       { setDCLSqlElems(pInfo, TSDB_SQL_DROP_DNODE, 1, &X);    }
 cmd ::= DROP USER ids(X).        { setDCLSqlElems(pInfo, TSDB_SQL_DROP_USER, 1, &X);     }
@@ -200,7 +202,12 @@ cmd ::= CREATE ACCOUNT ids(X) PASS ids(Y) acct_optr(Z).
                                 { setCreateAcctSql(pInfo, TSDB_SQL_CREATE_ACCT, &X, &Y, &Z);}
 cmd ::= CREATE DATABASE ifnotexists(Z) ids(X) db_optr(Y).  { setCreateDbInfo(pInfo, TSDB_SQL_CREATE_DB, &X, &Y, &Z);}
 cmd ::= CREATE TOPIC ifnotexists(Z) ids(X) topic_optr(Y).  { setCreateDbInfo(pInfo, TSDB_SQL_CREATE_DB, &X, &Y, &Z);}
+cmd ::= CREATE FUNCTION ids(X) AS ids(Y) OUTPUTTYPE typename(Z) bufsize(B).   { setCreateFuncInfo(pInfo, TSDB_SQL_CREATE_FUNCTION, &X, &Y, &Z, &B, 1);}
+cmd ::= CREATE AGGREGATE FUNCTION ids(X) AS ids(Y) OUTPUTTYPE typename(Z) bufsize(B).   { setCreateFuncInfo(pInfo, TSDB_SQL_CREATE_FUNCTION, &X, &Y, &Z, &B, 2);}
 cmd ::= CREATE USER ids(X) PASS ids(Y).     { setCreateUserSql(pInfo, &X, &Y);}
+
+bufsize(Y) ::= .                                { Y.n = 0;   }
+bufsize(Y) ::= BUFSIZE INTEGER(X).              { Y = X;     }
 
 pps(Y) ::= .                                { Y.n = 0;   }
 pps(Y) ::= PPS INTEGER(X).                  { Y = X;     }
@@ -303,10 +310,12 @@ alter_db_optr(Y) ::= alter_db_optr(Z) quorum(X).      { Y = Z; Y.quorum = strtol
 alter_db_optr(Y) ::= alter_db_optr(Z) keep(X).        { Y = Z; Y.keep = X; }
 alter_db_optr(Y) ::= alter_db_optr(Z) blocks(X).      { Y = Z; Y.numOfBlocks = strtol(X.z, NULL, 10); }
 alter_db_optr(Y) ::= alter_db_optr(Z) comp(X).        { Y = Z; Y.compressionLevel = strtol(X.z, NULL, 10); }
-alter_db_optr(Y) ::= alter_db_optr(Z) wal(X).         { Y = Z; Y.walLevel = strtol(X.z, NULL, 10); }
-alter_db_optr(Y) ::= alter_db_optr(Z) fsync(X).       { Y = Z; Y.fsyncPeriod = strtol(X.z, NULL, 10); }
 alter_db_optr(Y) ::= alter_db_optr(Z) update(X).      { Y = Z; Y.update = strtol(X.z, NULL, 10); }
 alter_db_optr(Y) ::= alter_db_optr(Z) cachelast(X).   { Y = Z; Y.cachelast = strtol(X.z, NULL, 10); }
+
+// dynamically update the following two parameters are not allowed.
+//alter_db_optr(Y) ::= alter_db_optr(Z) fsync(X).       { Y = Z; Y.fsyncPeriod = strtol(X.z, NULL, 10); }
+//alter_db_optr(Y) ::= alter_db_optr(Z) wal(X).         { Y = Z; Y.walLevel = strtol(X.z, NULL, 10); } not support yet
 
 %type alter_topic_optr {SCreateDbInfo}
 
@@ -702,10 +711,10 @@ expr(A) ::= BOOL(X).             { A = tSqlExprCreateIdValue(&X, TK_BOOL);}
 expr(A) ::= NULL(X).             { A = tSqlExprCreateIdValue(&X, TK_NULL);}
 
 // ordinary functions: min(x), max(x), top(k, 20)
-expr(A) ::= ID(X) LP exprlist(Y) RP(E). { A = tSqlExprCreateFunction(Y, &X, &E, X.type); }
+expr(A) ::= ID(X) LP exprlist(Y) RP(E). { tStrTokenAppend(pInfo->funcs, &X); A = tSqlExprCreateFunction(Y, &X, &E, X.type); }
 
 // for parsing sql functions with wildcard for parameters. e.g., count(*)/first(*)/last(*) operation
-expr(A) ::= ID(X) LP STAR RP(Y).     { A = tSqlExprCreateFunction(NULL, &X, &Y, X.type); }
+expr(A) ::= ID(X) LP STAR RP(Y).     { tStrTokenAppend(pInfo->funcs, &X); A = tSqlExprCreateFunction(NULL, &X, &Y, X.type); }
 
 // is (not) null expression
 expr(A) ::= expr(X) IS NULL.           {A = tSqlExprCreate(X, NULL, TK_ISNULL);}
