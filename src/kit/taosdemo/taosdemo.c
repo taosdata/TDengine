@@ -4973,62 +4973,64 @@ static int64_t generateStbRowData(
 
 static int64_t generateData(char *recBuf, char **data_type,
         int64_t timestamp, int lenOfBinary) {
-  memset(recBuf, 0, MAX_DATA_SIZE);
-  char *pstr = recBuf;
-  pstr += sprintf(pstr, "(%" PRId64, timestamp);
+    memset(recBuf, 0, MAX_DATA_SIZE);
+    char *pstr = recBuf;
+    pstr += sprintf(pstr, "(%" PRId64, timestamp);
 
-  int columnCount = g_args.num_of_CPR;
+    int columnCount = g_args.num_of_CPR;
 
-  for (int i = 0; i < columnCount; i++) {
-    if (strcasecmp(data_type[i % columnCount], "TINYINT") == 0) {
-      pstr += sprintf(pstr, ",%d", rand_tinyint() );
-    } else if (strcasecmp(data_type[i % columnCount], "SMALLINT") == 0) {
-      pstr += sprintf(pstr, ",%d", rand_smallint());
-    } else if (strcasecmp(data_type[i % columnCount], "INT") == 0) {
-      pstr += sprintf(pstr, ",%d", rand_int());
-    } else if (strcasecmp(data_type[i % columnCount], "BIGINT") == 0) {
-      pstr += sprintf(pstr, ",%" PRId64, rand_bigint());
-    } else if (strcasecmp(data_type[i % columnCount], "TIMESTAMP") == 0) {
-      pstr += sprintf(pstr, ",%" PRId64, rand_bigint());
-    } else if (strcasecmp(data_type[i % columnCount], "FLOAT") == 0) {
-      pstr += sprintf(pstr, ",%10.4f", rand_float());
-    } else if (strcasecmp(data_type[i % columnCount], "DOUBLE") == 0) {
-      double t = rand_double();
-      pstr += sprintf(pstr, ",%20.8f", t);
-    } else if (strcasecmp(data_type[i % columnCount], "BOOL") == 0) {
-      bool b = rand_bool() & 1;
-      pstr += sprintf(pstr, ",%s", b ? "true" : "false");
-    } else if (strcasecmp(data_type[i % columnCount], "BINARY") == 0) {
-      char *s = malloc(lenOfBinary + 1);
-      if (s == NULL) {
-          errorPrint("%s() LN%d, memory allocation %d bytes failed\n",
-                  __func__, __LINE__, lenOfBinary + 1);
-      }
-      rand_string(s, lenOfBinary);
-      pstr += sprintf(pstr, ",\"%s\"", s);
-      free(s);
-    } else if (strcasecmp(data_type[i % columnCount], "NCHAR") == 0) {
-      char *s = malloc(lenOfBinary + 1);
-      if (s == NULL) {
-          errorPrint("%s() LN%d, memory allocation %d bytes failed\n",
-                  __func__, __LINE__, lenOfBinary + 1);
-      }
-      rand_string(s, lenOfBinary);
-      pstr += sprintf(pstr, ",\"%s\"", s);
-      free(s);
+    for (int i = 0; i < columnCount; i++) {
+        if (strcasecmp(data_type[i % columnCount], "TINYINT") == 0) {
+            pstr += sprintf(pstr, ",%d", rand_tinyint() );
+        } else if (strcasecmp(data_type[i % columnCount], "SMALLINT") == 0) {
+            pstr += sprintf(pstr, ",%d", rand_smallint());
+        } else if (strcasecmp(data_type[i % columnCount], "INT") == 0) {
+            pstr += sprintf(pstr, ",%d", rand_int());
+        } else if (strcasecmp(data_type[i % columnCount], "BIGINT") == 0) {
+            pstr += sprintf(pstr, ",%" PRId64, rand_bigint());
+        } else if (strcasecmp(data_type[i % columnCount], "TIMESTAMP") == 0) {
+            pstr += sprintf(pstr, ",%" PRId64, rand_bigint());
+        } else if (strcasecmp(data_type[i % columnCount], "FLOAT") == 0) {
+            pstr += sprintf(pstr, ",%10.4f", rand_float());
+        } else if (strcasecmp(data_type[i % columnCount], "DOUBLE") == 0) {
+            double t = rand_double();
+            pstr += sprintf(pstr, ",%20.8f", t);
+        } else if (strcasecmp(data_type[i % columnCount], "BOOL") == 0) {
+            bool b = rand_bool() & 1;
+            pstr += sprintf(pstr, ",%s", b ? "true" : "false");
+        } else if (strcasecmp(data_type[i % columnCount], "BINARY") == 0) {
+            char *s = malloc(lenOfBinary + 1);
+            if (s == NULL) {
+                errorPrint("%s() LN%d, memory allocation %d bytes failed\n",
+                        __func__, __LINE__, lenOfBinary + 1);
+                exit(-1);
+            }
+            rand_string(s, lenOfBinary);
+            pstr += sprintf(pstr, ",\"%s\"", s);
+            free(s);
+        } else if (strcasecmp(data_type[i % columnCount], "NCHAR") == 0) {
+            char *s = malloc(lenOfBinary + 1);
+            if (s == NULL) {
+                errorPrint("%s() LN%d, memory allocation %d bytes failed\n",
+                        __func__, __LINE__, lenOfBinary + 1);
+                exit(-1);
+            }
+            rand_string(s, lenOfBinary);
+            pstr += sprintf(pstr, ",\"%s\"", s);
+            free(s);
+        }
+
+        if (strlen(recBuf) > MAX_DATA_SIZE) {
+            perror("column length too long, abort");
+            exit(-1);
+        }
     }
 
-    if (strlen(recBuf) > MAX_DATA_SIZE) {
-      perror("column length too long, abort");
-      exit(-1);
-    }
-  }
+    pstr += sprintf(pstr, ")");
 
-  pstr += sprintf(pstr, ")");
+    verbosePrint("%s() LN%d, recBuf:\n\t%s\n", __func__, __LINE__, recBuf);
 
-  verbosePrint("%s() LN%d, recBuf:\n\t%s\n", __func__, __LINE__, recBuf);
-
-  return (int32_t)strlen(recBuf);
+    return (int32_t)strlen(recBuf);
 }
 
 static int prepareSampleDataForSTable(SSuperTable *superTblInfo) {
@@ -6748,7 +6750,9 @@ static void startMultiThreadInsertData(int threads, char* db_name,
                 char buffer[3000];
                 char *pstr = buffer;
 
-                if (AUTO_CREATE_SUBTBL == superTblInfo->autoCreateTable) {
+                if ((superTblInfo)
+                        && (AUTO_CREATE_SUBTBL
+                            == superTblInfo->autoCreateTable)) {
                     pstr += sprintf(pstr, "INSERT INTO ? USING %s TAGS(?",
                             superTblInfo->sTblName);
                     for (int tag = 0; tag < (superTblInfo->tagCount - 1); tag ++ ) {
