@@ -34,7 +34,7 @@ public class UtilsTest {
     }
 
     @Test
-    public void case001() {
+    public void lowerCase() {
         // given
         String nativeSql = "insert into ?.? (ts, temperature, humidity) using ?.? tags(?,?) values(now, ?, ?)";
         Object[] parameters = Stream.of("test", "t1", "test", "weather", "beijing", 1, 12.2, 4).toArray();
@@ -48,7 +48,7 @@ public class UtilsTest {
     }
 
     @Test
-    public void case002() {
+    public void upperCase() {
         // given
         String nativeSql = "INSERT INTO ? (TS,CURRENT,VOLTAGE,PHASE) USING METERS TAGS (?)  VALUES (?,?,?,?)";
         Object[] parameters = Stream.of("d1", 1, 123, 3.14, 220, 4).toArray();
@@ -62,7 +62,7 @@ public class UtilsTest {
     }
 
     @Test
-    public void case003() {
+    public void multiValues() {
         // given
         String nativeSql = "INSERT INTO ? (TS,CURRENT,VOLTAGE,PHASE) USING METERS TAGS (?)  VALUES (?,?,?,?),(?,?,?,?)";
         Object[] parameters = Stream.of("d1", 1, 100, 3.14, "abc", 4, 200, 3.1415, "xyz", 5).toArray();
@@ -76,7 +76,7 @@ public class UtilsTest {
     }
 
     @Test
-    public void case004() {
+    public void lineTerminator() {
         // given
         String nativeSql = "INSERT INTO ? (TS,CURRENT,VOLTAGE,PHASE) USING METERS TAGS (?)  VALUES (?,?,\r\n?,?),(?,?,?,?)";
         Object[] parameters = Stream.of("d1", 1, 100, 3.14, "abc", 4, 200, 3.1415, "xyz", 5).toArray();
@@ -90,7 +90,7 @@ public class UtilsTest {
     }
 
     @Test
-    public void case005() {
+    public void lineTerminatorAndMultiValues() {
         String nativeSql = "INSERT Into ? TAGS(?) VALUES(?,?,\r\n?,?),(?,? ,\r\n?,?) t? tags (?) Values (?,?,?\r\n,?),(?,?,?,?) t? Tags(?) values  (?,?,?,?) , (?,?,?,?)";
         Object[] parameters = Stream.of("t1", "abc", 100, 1.1, "xxx", "xxx", 200, 2.2, "xxx", "xxx", 2, "bcd", 300, 3.3, "xxx", "xxx", 400, 4.4, "xxx", "xxx", 3, "cde", 500, 5.5, "xxx", "xxx", 600, 6.6, "xxx", "xxx").toArray();
 
