@@ -476,8 +476,8 @@ public class TSDBResultSetRowData {
         if (ts < 1_0000_0000_0000_0L) {
             data.set(col, new Timestamp(ts));
         } else {
-            long epochSec = ts / 1000_000l;
-            long nanoAdjustment = ts % 1000_000l * 1000l;
+            long epochSec = ts / 1000_000L;
+            long nanoAdjustment = ts % 1000_000L * 1000L;
             Timestamp timestamp = Timestamp.from(Instant.ofEpochSecond(epochSec, nanoAdjustment));
             data.set(col, timestamp);
         }
