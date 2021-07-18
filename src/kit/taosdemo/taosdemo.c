@@ -2817,7 +2817,7 @@ static int createSuperTable(
         if (strcasecmp(dataType, "BINARY") == 0) {
             if ((g_args.demo_mode) && (tagIndex == 1)) {
                 len += snprintf(tags + len, STRING_LEN - len,
-                        "loction BINARY(%d), ",
+                        "location BINARY(%d), ",
                         superTbl->tags[tagIndex].dataLen);
             } else {
                 len += snprintf(tags + len, STRING_LEN - len, "t%d %s(%d), ",
