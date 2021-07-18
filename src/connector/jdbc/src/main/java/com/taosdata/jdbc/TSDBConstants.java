@@ -74,6 +74,8 @@ public abstract class TSDBConstants {
 
     public static final String DEFAULT_PRECISION = "ms";
 
+    public static final boolean DEFAULT_BATCH_ERROR_IGNORE = false;
+
     public static int typeName2JdbcType(String type) {
         switch (type.toUpperCase()) {
             case "TIMESTAMP":

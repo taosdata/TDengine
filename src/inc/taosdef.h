@@ -186,6 +186,10 @@ do { \
 #define TSDB_NODE_NAME_LEN        64
 #define TSDB_TABLE_NAME_LEN       193     // it is a null-terminated string
 #define TSDB_DB_NAME_LEN          33
+#define TSDB_FUNC_NAME_LEN        65
+#define TSDB_FUNC_CODE_LEN        (65535 - 512)
+#define TSDB_FUNC_BUF_SIZE        512
+#define TSDB_TYPE_STR_MAX_LEN     32
 #define TSDB_TABLE_FNAME_LEN      (TSDB_ACCT_ID_LEN + TSDB_DB_NAME_LEN + TSDB_TABLE_NAME_LEN)
 #define TSDB_COL_NAME_LEN         65
 #define TSDB_MAX_SAVED_SQL_LEN    TSDB_MAX_COLUMNS * 64
@@ -331,6 +335,10 @@ do { \
 
 #define TSDB_QUERY_TYPE_NON_TYPE               0x00u     // none type
 #define TSDB_QUERY_TYPE_FREE_RESOURCE          0x01u     // free qhandle at vnode
+
+#define TSDB_UDF_TYPE_SCALAR       1
+#define TSDB_UDF_TYPE_AGGREGATE    2
+
 
 /*
  * 1. ordinary sub query for select * from super_table
