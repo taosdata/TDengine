@@ -47,9 +47,6 @@ int32_t vnodeCreate(SCreateVnodeMsg *pVnodeCfg) {
     return terrno;
   }
 
-  char rootDir[TSDB_FILENAME_LEN] = {0};
-  sprintf(rootDir, "%s/vnode%d", tsVnodeDir, pVnodeCfg->cfg.vgId);
-
   char vnodeDir[TSDB_FILENAME_LEN] = "\0";
   snprintf(vnodeDir, TSDB_FILENAME_LEN, "/vnode/vnode%d", pVnodeCfg->cfg.vgId);
   if (tfsMkdir(vnodeDir) < 0) {
@@ -63,23 +60,6 @@ int32_t vnodeCreate(SCreateVnodeMsg *pVnodeCfg) {
     return code;
   }
 
-  // STsdbCfg tsdbCfg = {0};
-  // tsdbCfg.tsdbId              = pVnodeCfg->cfg.vgId;
-  // tsdbCfg.cacheBlockSize      = pVnodeCfg->cfg.cacheBlockSize;
-  // tsdbCfg.totalBlocks         = pVnodeCfg->cfg.totalBlocks;
-  // tsdbCfg.daysPerFile         = pVnodeCfg->cfg.daysPerFile;
-  // tsdbCfg.keep                = pVnodeCfg->cfg.daysToKeep;
-  // tsdbCfg.keep1               = pVnodeCfg->cfg.daysToKeep1;
-  // tsdbCfg.keep2               = pVnodeCfg->cfg.daysToKeep2;
-  // tsdbCfg.minRowsPerFileBlock = pVnodeCfg->cfg.minRowsPerFileBlock;
-  // tsdbCfg.maxRowsPerFileBlock = pVnodeCfg->cfg.maxRowsPerFileBlock;
-  // tsdbCfg.precision           = pVnodeCfg->cfg.precision;
-  // tsdbCfg.compression         = pVnodeCfg->cfg.compression;
-  // tsdbCfg.update              = pVnodeCfg->cfg.update;
-  // tsdbCfg.cacheLastRow        = pVnodeCfg->cfg.cacheLastRow;
-
-  // char tsdbDir[TSDB_FILENAME_LEN] = {0};
-  // sprintf(tsdbDir, "vnode/vnode%d/tsdb", pVnodeCfg->cfg.vgId);
   if (tsdbCreateRepo(pVnodeCfg->cfg.vgId) < 0) {
     vError("vgId:%d, failed to create tsdb in vnode, reason:%s", pVnodeCfg->cfg.vgId, tstrerror(terrno));
     return TSDB_CODE_VND_INIT_FAILED;
