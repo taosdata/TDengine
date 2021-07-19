@@ -53,6 +53,15 @@ void* taosArrayInit(size_t size, size_t elemSize);
 void *taosArrayAddBatch(SArray *pArray, const void *pData, int nEles);
 
 /**
+ *
+ * @param pArray
+ * @param pData           position array list
+ * @param numOfElems      the number of removed position
+ */
+void taosArrayRemoveBatch(SArray *pArray, const int32_t* pData, int32_t numOfElems);
+
+
+/**
  *  add all element from the source array list into the destination
  * @param pArray
  * @param pInput

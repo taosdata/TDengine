@@ -83,6 +83,47 @@ void* taosArrayAddBatch(SArray* pArray, const void* pData, int nEles) {
   return dst;
 }
 
+void taosArrayRemoveBatch(SArray *pArray, const int32_t* pData, int32_t numOfElems) {
+  assert(pArray != NULL && pData != NULL);
+  if (numOfElems <= 0) {
+    return;
+  }
+
+  size_t size = taosArrayGetSize(pArray);
+  if (numOfElems >= size) {
+    taosArrayClear(pArray);
+    return;
+  }
+
+  int32_t i = pData[0] + 1, j = 0;
+  while(i < size) {
+    if (j == numOfElems - 1) {
+      break;
+    }
+
+    char* p = TARRAY_GET_ELEM(pArray, i);
+    if (i > pData[j] && i < pData[j + 1]) {
+      char* dst = TARRAY_GET_ELEM(pArray, i - (j + 1));
+      memmove(dst, p, pArray->elemSize);
+    } else if (i == pData[j + 1]) {
+      j += 1;
+    }
+
+    i += 1;
+  }
+
+  assert(i == pData[numOfElems - 1] + 1);
+
+  int32_t dstIndex = pData[numOfElems - 1] - numOfElems + 1;
+  int32_t srcIndex = pData[numOfElems - 1] + 1;
+
+  char* dst = TARRAY_GET_ELEM(pArray, dstIndex);
+  char* src = TARRAY_GET_ELEM(pArray, srcIndex);
+  memmove(dst, src, pArray->elemSize * (pArray->size - numOfElems));
+
+  pArray->size -= numOfElems;
+}
+
 void* taosArrayAddAll(SArray* pArray, const SArray* pInput) {
   return taosArrayAddBatch(pArray, pInput->pData, (int32_t) taosArrayGetSize(pInput));
 }
