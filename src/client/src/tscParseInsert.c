@@ -1069,9 +1069,8 @@ static int32_t tsSetBlockInfo(SSubmitBlk *pBlocks, const STableMeta *pTableMeta,
   }
 }
 
-#if 0
 // data block is disordered, sort it in ascending order
-static void tscSortRemoveDataBlockDupRowsOld(STableDataBlocks *dataBuf) {
+void tscSortRemoveDataBlockDupRowsRaw(STableDataBlocks *dataBuf) {
   SSubmitBlk *pBlocks = (SSubmitBlk *)dataBuf->pData;
 
   // size is less than the total size, since duplicated rows may be removed yet.
@@ -1114,7 +1113,6 @@ static void tscSortRemoveDataBlockDupRowsOld(STableDataBlocks *dataBuf) {
 
   dataBuf->prevTS = INT64_MIN;
 }
-#endif
 
 // data block is disordered, sort it in ascending order
 int tscSortRemoveDataBlockDupRows(STableDataBlocks *dataBuf, SBlockKeyInfo *pBlkKeyInfo) {
