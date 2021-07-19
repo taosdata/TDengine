@@ -108,7 +108,8 @@ typedef struct STableDataBlocks {
   uint32_t    size;
   STableMeta *pTableMeta;   // the tableMeta of current table, the table meta will be used during submit, keep a ref to avoid to be removed from cache
   char       *pData;
-
+  bool        cloned;
+  
   SParsedDataColInfo  boundColumnInfo;
 
   // for parameter ('?') binding
