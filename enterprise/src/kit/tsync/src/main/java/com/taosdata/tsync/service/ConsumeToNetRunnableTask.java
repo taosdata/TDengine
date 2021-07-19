@@ -70,7 +70,7 @@ public class ConsumeToNetRunnableTask implements Runnable, Countable, Stoppable 
                     obj.put("partition", partition);
                     obj.put("message", message);
 
-                    logger.trace(String.format("count: %d, topic: %s, partition: %d, offset: %d, value = %s", count.incrementAndGet(), topic, partition, offset, message));
+                    logger.debug(String.format("count: %d, topic: %s, partition: %d, offset: %d, value = %s", count.incrementAndGet(), topic, partition, offset, message));
                     trySendToNet(socket, obj.toJSONString());
                 }
             }

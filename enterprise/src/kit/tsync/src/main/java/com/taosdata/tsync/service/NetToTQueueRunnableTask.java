@@ -60,7 +60,7 @@ public class NetToTQueueRunnableTask implements Runnable, Countable, Stoppable {
                 try (BufferedReader reader = new BufferedReader(new InputStreamReader(new BufferedInputStream(socket.getInputStream())))) {
                     String line;
                     while ((line = reader.readLine()) != null) {
-                        logger.trace("receive from " + remote + "[" + count.incrementAndGet() + "] >>> " + line);
+                        logger.debug("receive from " + remote + "[" + count.incrementAndGet() + "] >>> " + line);
                         writeToTQueue(line);
                     }
                 }
