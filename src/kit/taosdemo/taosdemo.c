@@ -71,8 +71,7 @@ extern char configDir[];
 
 #define HEAD_BUFF_LEN       TSDB_MAX_COLUMNS*24  // 16*MAX_COLUMNS + (192+32)*2 + insert into ..
 
-#define MAX_SQL_SIZE       65536
-#define BUFFER_SIZE        (65536*2)
+#define BUFFER_SIZE        (TSDB_MAX_BYTES_PER_ROW*2)
 #define COND_BUF_LEN       (BUFFER_SIZE - 30)
 #define MAX_USERNAME_SIZE  64
 #define MAX_PASSWORD_SIZE  64
@@ -3023,175 +3022,175 @@ static int createDatabasesAndStables() {
 
 static void* createTable(void *sarg)
 {
-  threadInfo *pThreadInfo = (threadInfo *)sarg;
-  SSuperTable* superTblInfo = pThreadInfo->superTblInfo;
+    threadInfo *pThreadInfo = (threadInfo *)sarg;
+    SSuperTable* superTblInfo = pThreadInfo->superTblInfo;
 
-  uint64_t  lastPrintTime = taosGetTimestampMs();
+    uint64_t  lastPrintTime = taosGetTimestampMs();
 
-  int buff_len;
-  buff_len = BUFFER_SIZE / 8;
+    int buff_len;
+    buff_len = BUFFER_SIZE;
 
-  pThreadInfo->buffer = calloc(buff_len, 1);
-  if (pThreadInfo->buffer == NULL) {
-    errorPrint("%s() LN%d, Memory allocated failed!\n", __func__, __LINE__);
-    exit(-1);
-  }
-
-  int len = 0;
-  int batchNum = 0;
-
-  verbosePrint("%s() LN%d: Creating table from %"PRIu64" to %"PRIu64"\n",
-          __func__, __LINE__,
-          pThreadInfo->start_table_from, pThreadInfo->end_table_to);
-
-  for (uint64_t i = pThreadInfo->start_table_from;
-          i <= pThreadInfo->end_table_to; i++) {
-    if (0 == g_Dbs.use_metric) {
-      snprintf(pThreadInfo->buffer, buff_len,
-              "create table if not exists %s.%s%"PRIu64" %s;",
-              pThreadInfo->db_name,
-              g_args.tb_prefix, i,
-              pThreadInfo->cols);
-    } else {
-      if (superTblInfo == NULL) {
-        errorPrint("%s() LN%d, use metric, but super table info is NULL\n",
-                  __func__, __LINE__);
-        free(pThreadInfo->buffer);
+    pThreadInfo->buffer = calloc(buff_len, 1);
+    if (pThreadInfo->buffer == NULL) {
+        errorPrint("%s() LN%d, Memory allocated failed!\n", __func__, __LINE__);
         exit(-1);
-      } else {
-        if (0 == len) {
-          batchNum = 0;
-          memset(pThreadInfo->buffer, 0, buff_len);
-          len += snprintf(pThreadInfo->buffer + len,
-                  buff_len - len, "create table ");
-        }
-        char* tagsValBuf = NULL;
-        if (0 == superTblInfo->tagSource) {
-          tagsValBuf = generateTagVaulesForStb(superTblInfo, i);
+    }
+
+    int len = 0;
+    int batchNum = 0;
+
+    verbosePrint("%s() LN%d: Creating table from %"PRIu64" to %"PRIu64"\n",
+            __func__, __LINE__,
+            pThreadInfo->start_table_from, pThreadInfo->end_table_to);
+
+    for (uint64_t i = pThreadInfo->start_table_from;
+            i <= pThreadInfo->end_table_to; i++) {
+        if (0 == g_Dbs.use_metric) {
+            snprintf(pThreadInfo->buffer, buff_len,
+                    "create table if not exists %s.%s%"PRIu64" %s;",
+                    pThreadInfo->db_name,
+                    g_args.tb_prefix, i,
+                    pThreadInfo->cols);
         } else {
-          tagsValBuf = getTagValueFromTagSample(
-                  superTblInfo,
-                  i % superTblInfo->tagSampleCount);
+            if (superTblInfo == NULL) {
+                errorPrint("%s() LN%d, use metric, but super table info is NULL\n",
+                        __func__, __LINE__);
+                free(pThreadInfo->buffer);
+                exit(-1);
+            } else {
+                if (0 == len) {
+                    batchNum = 0;
+                    memset(pThreadInfo->buffer, 0, buff_len);
+                    len += snprintf(pThreadInfo->buffer + len,
+                            buff_len - len, "create table ");
+                }
+                char* tagsValBuf = NULL;
+                if (0 == superTblInfo->tagSource) {
+                    tagsValBuf = generateTagVaulesForStb(superTblInfo, i);
+                } else {
+                    tagsValBuf = getTagValueFromTagSample(
+                            superTblInfo,
+                            i % superTblInfo->tagSampleCount);
+                }
+                if (NULL == tagsValBuf) {
+                    free(pThreadInfo->buffer);
+                    return NULL;
+                }
+                len += snprintf(pThreadInfo->buffer + len,
+                        buff_len - len,
+                        "if not exists %s.%s%"PRIu64" using %s.%s tags %s ",
+                        pThreadInfo->db_name, superTblInfo->childTblPrefix,
+                        i, pThreadInfo->db_name,
+                        superTblInfo->sTblName, tagsValBuf);
+                free(tagsValBuf);
+                batchNum++;
+                if ((batchNum < superTblInfo->batchCreateTableNum)
+                        && ((buff_len - len)
+                            >= (superTblInfo->lenOfTagOfOneRow + 256))) {
+                    continue;
+                }
+            }
         }
-        if (NULL == tagsValBuf) {
-          free(pThreadInfo->buffer);
-          return NULL;
+
+        len = 0;
+        if (0 != queryDbExec(pThreadInfo->taos, pThreadInfo->buffer,
+                    NO_INSERT_TYPE, false)){
+            errorPrint( "queryDbExec() failed. buffer:\n%s\n", pThreadInfo->buffer);
+            free(pThreadInfo->buffer);
+            return NULL;
         }
-        len += snprintf(pThreadInfo->buffer + len,
-                buff_len - len,
-                "if not exists %s.%s%"PRIu64" using %s.%s tags %s ",
-                pThreadInfo->db_name, superTblInfo->childTblPrefix,
-                i, pThreadInfo->db_name,
-                superTblInfo->sTblName, tagsValBuf);
-        free(tagsValBuf);
-        batchNum++;
-        if ((batchNum < superTblInfo->batchCreateTableNum)
-                && ((buff_len - len)
-                    >= (superTblInfo->lenOfTagOfOneRow + 256))) {
-          continue;
+
+        uint64_t  currentPrintTime = taosGetTimestampMs();
+        if (currentPrintTime - lastPrintTime > 30*1000) {
+            printf("thread[%d] already create %"PRIu64" - %"PRIu64" tables\n",
+                    pThreadInfo->threadID, pThreadInfo->start_table_from, i);
+            lastPrintTime = currentPrintTime;
         }
-      }
     }
 
-    len = 0;
-    if (0 != queryDbExec(pThreadInfo->taos, pThreadInfo->buffer,
-                NO_INSERT_TYPE, false)){
-      errorPrint( "queryDbExec() failed. buffer:\n%s\n", pThreadInfo->buffer);
-      free(pThreadInfo->buffer);
-      return NULL;
+    if (0 != len) {
+        if (0 != queryDbExec(pThreadInfo->taos, pThreadInfo->buffer,
+                    NO_INSERT_TYPE, false)) {
+            errorPrint( "queryDbExec() failed. buffer:\n%s\n", pThreadInfo->buffer);
+        }
     }
 
-    uint64_t  currentPrintTime = taosGetTimestampMs();
-    if (currentPrintTime - lastPrintTime > 30*1000) {
-      printf("thread[%d] already create %"PRIu64" - %"PRIu64" tables\n",
-              pThreadInfo->threadID, pThreadInfo->start_table_from, i);
-      lastPrintTime = currentPrintTime;
-    }
-  }
-
-  if (0 != len) {
-    if (0 != queryDbExec(pThreadInfo->taos, pThreadInfo->buffer,
-                NO_INSERT_TYPE, false)) {
-      errorPrint( "queryDbExec() failed. buffer:\n%s\n", pThreadInfo->buffer);
-    }
-  }
-
-  free(pThreadInfo->buffer);
-  return NULL;
+    free(pThreadInfo->buffer);
+    return NULL;
 }
 
 static int startMultiThreadCreateChildTable(
         char* cols, int threads, uint64_t tableFrom, int64_t ntables,
         char* db_name, SSuperTable* superTblInfo) {
 
-  pthread_t *pids = calloc(1, threads * sizeof(pthread_t));
-  threadInfo *infos = calloc(1, threads * sizeof(threadInfo));
+    pthread_t *pids = calloc(1, threads * sizeof(pthread_t));
+    threadInfo *infos = calloc(1, threads * sizeof(threadInfo));
 
-  if ((NULL == pids) || (NULL == infos)) {
-    printf("malloc failed\n");
-    exit(-1);
-  }
-
-  if (threads < 1) {
-    threads = 1;
-  }
-
-  int64_t a = ntables / threads;
-  if (a < 1) {
-    threads = ntables;
-    a = 1;
-  }
-
-  int64_t b = 0;
-  b = ntables % threads;
-
-  for (int64_t i = 0; i < threads; i++) {
-    threadInfo *pThreadInfo = infos + i;
-    pThreadInfo->threadID = i;
-    tstrncpy(pThreadInfo->db_name, db_name, TSDB_DB_NAME_LEN);
-    pThreadInfo->superTblInfo = superTblInfo;
-    verbosePrint("%s() %d db_name: %s\n", __func__, __LINE__, db_name);
-    pThreadInfo->taos = taos_connect(
-            g_Dbs.host,
-            g_Dbs.user,
-            g_Dbs.password,
-            db_name,
-            g_Dbs.port);
-    if (pThreadInfo->taos == NULL) {
-      errorPrint( "%s() LN%d, Failed to connect to TDengine, reason:%s\n",
-         __func__, __LINE__, taos_errstr(NULL));
-      free(pids);
-      free(infos);
-      return -1;
+    if ((NULL == pids) || (NULL == infos)) {
+        printf("malloc failed\n");
+        exit(-1);
     }
 
-    pThreadInfo->start_table_from = tableFrom;
-    pThreadInfo->ntables = i<b?a+1:a;
-    pThreadInfo->end_table_to = i < b ? tableFrom + a : tableFrom + a - 1;
-    tableFrom = pThreadInfo->end_table_to + 1;
-    pThreadInfo->use_metric = true;
-    pThreadInfo->cols = cols;
-    pThreadInfo->minDelay = UINT64_MAX;
-    pthread_create(pids + i, NULL, createTable, pThreadInfo);
-  }
+    if (threads < 1) {
+        threads = 1;
+    }
 
-  for (int i = 0; i < threads; i++) {
-    pthread_join(pids[i], NULL);
-  }
+    int64_t a = ntables / threads;
+    if (a < 1) {
+        threads = ntables;
+        a = 1;
+    }
 
-  for (int i = 0; i < threads; i++) {
-    threadInfo *pThreadInfo = infos + i;
-    taos_close(pThreadInfo->taos);
-  }
+    int64_t b = 0;
+    b = ntables % threads;
 
-  free(pids);
-  free(infos);
+    for (int64_t i = 0; i < threads; i++) {
+        threadInfo *pThreadInfo = infos + i;
+        pThreadInfo->threadID = i;
+        tstrncpy(pThreadInfo->db_name, db_name, TSDB_DB_NAME_LEN);
+        pThreadInfo->superTblInfo = superTblInfo;
+        verbosePrint("%s() %d db_name: %s\n", __func__, __LINE__, db_name);
+        pThreadInfo->taos = taos_connect(
+                g_Dbs.host,
+                g_Dbs.user,
+                g_Dbs.password,
+                db_name,
+                g_Dbs.port);
+        if (pThreadInfo->taos == NULL) {
+            errorPrint( "%s() LN%d, Failed to connect to TDengine, reason:%s\n",
+                    __func__, __LINE__, taos_errstr(NULL));
+            free(pids);
+            free(infos);
+            return -1;
+        }
 
-  return 0;
+        pThreadInfo->start_table_from = tableFrom;
+        pThreadInfo->ntables = i<b?a+1:a;
+        pThreadInfo->end_table_to = i < b ? tableFrom + a : tableFrom + a - 1;
+        tableFrom = pThreadInfo->end_table_to + 1;
+        pThreadInfo->use_metric = true;
+        pThreadInfo->cols = cols;
+        pThreadInfo->minDelay = UINT64_MAX;
+        pthread_create(pids + i, NULL, createTable, pThreadInfo);
+    }
+
+    for (int i = 0; i < threads; i++) {
+        pthread_join(pids[i], NULL);
+    }
+
+    for (int i = 0; i < threads; i++) {
+        threadInfo *pThreadInfo = infos + i;
+        taos_close(pThreadInfo->taos);
+    }
+
+    free(pids);
+    free(infos);
+
+    return 0;
 }
 
 static void createChildTables() {
-    char tblColsBuf[MAX_SQL_SIZE];
+    char tblColsBuf[TSDB_MAX_BYTES_PER_ROW];
     int len;
 
     for (int i = 0; i < g_Dbs.dbCount; i++) {
@@ -3223,21 +3222,21 @@ static void createChildTables() {
             }
         } else {
             // normal table
-            len = snprintf(tblColsBuf, MAX_SQL_SIZE, "(TS TIMESTAMP");
+            len = snprintf(tblColsBuf, TSDB_MAX_BYTES_PER_ROW, "(TS TIMESTAMP");
             for (int j = 0; j < g_args.num_of_CPR; j++) {
                 if ((strncasecmp(g_args.datatype[j], "BINARY", strlen("BINARY")) == 0)
                         || (strncasecmp(g_args.datatype[j],
                                 "NCHAR", strlen("NCHAR")) == 0)) {
-                    snprintf(tblColsBuf + len, MAX_SQL_SIZE - len,
-                            ", COL%d %s(%d)", j, g_args.datatype[j], g_args.len_of_binary);
+                    snprintf(tblColsBuf + len, TSDB_MAX_BYTES_PER_ROW - len,
+                            ",C%d %s(%d)", j, g_args.datatype[j], g_args.len_of_binary);
                 } else {
-                    snprintf(tblColsBuf + len, MAX_SQL_SIZE - len,
-                            ", COL%d %s", j, g_args.datatype[j]);
+                    snprintf(tblColsBuf + len, TSDB_MAX_BYTES_PER_ROW - len,
+                            ",C%d %s", j, g_args.datatype[j]);
                 }
                 len = strlen(tblColsBuf);
             }
 
-            snprintf(tblColsBuf + len, MAX_SQL_SIZE - len, ")");
+            snprintf(tblColsBuf + len, TSDB_MAX_BYTES_PER_ROW - len, ")");
 
             verbosePrint("%s() LN%d: dbName: %s num of tb: %"PRId64" schema: %s\n",
                     __func__, __LINE__,
@@ -7989,7 +7988,7 @@ static void initOfQueryMeta() {
   tstrncpy(g_queryInfo.password, TSDB_DEFAULT_PASS, MAX_PASSWORD_SIZE);
 }
 
-static void setParaFromArg(){
+static void setParaFromArg() {
     if (g_args.host) {
         tstrncpy(g_Dbs.host, g_args.host, MAX_HOSTNAME_SIZE);
     } else {
@@ -8146,7 +8145,7 @@ static void querySqlFile(TAOS* taos, char* sqlFile)
   }
 
   int       read_len = 0;
-  char *    cmd = calloc(1, MAX_SQL_SIZE);
+  char *    cmd = calloc(1, TSDB_MAX_BYTES_PER_ROW);
   size_t    cmd_len = 0;
   char *    line = NULL;
   size_t    line_len = 0;
@@ -8154,7 +8153,7 @@ static void querySqlFile(TAOS* taos, char* sqlFile)
   double t = taosGetTimestampMs();
 
   while((read_len = tgetline(&line, &line_len, fp)) != -1) {
-    if (read_len >= MAX_SQL_SIZE) continue;
+    if (read_len >= TSDB_MAX_BYTES_PER_ROW) continue;
     line[--read_len] = '\0';
 
     if (read_len == 0 || isCommentLine(line)) {  // line starts with #
@@ -8177,7 +8176,7 @@ static void querySqlFile(TAOS* taos, char* sqlFile)
         tmfclose(fp);
         return;
     }
-    memset(cmd, 0, MAX_SQL_SIZE);
+    memset(cmd, 0, TSDB_MAX_BYTES_PER_ROW);
     cmd_len = 0;
   }
 
