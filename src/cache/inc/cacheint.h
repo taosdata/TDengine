@@ -49,6 +49,11 @@ typedef struct cache_manager_t {
 
 } cache_manager_t;
 
+typedef struct cache_key_t {
+  const char* key;
+  uint8_t nkey;
+} cache_key_t;
+
 #ifdef __cplusplus
 }
 #endif

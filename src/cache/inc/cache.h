@@ -23,24 +23,25 @@
 extern "C" {
 #endif
 
-typedef enum cache_hash_t {
-  CACHE_MURMUR3_HASH = 0,
-} cache_hash_t;
+typedef int (*cache_load_func_t)(void*, const char* key, uint8_t nkey, char** value, size_t *len);
 
 typedef struct cache_option_t {
-  size_t limit;           /* size limit */
+  size_t limit;               /* size limit */
 
-  double factor;          /* slab growth factor */
+  double factor;              /* slab growth factor */
 
-  cache_hash_t hash; /* hash function */
+  int hashPowerInit;
 
-  int hash_power_init;
+  void* userData;             /* user data */
+
+  cache_load_func_t loadFunc; /* user defined load data function */
 } cache_option_t;
 
 typedef enum cache_code_t {
   CACHE_OK    = 0,
   CACHE_FAIL  = -1,
   CACHE_OOM   = -2,
+  CACHE_KEY_NOT_FOUND = -3,
 } cache_code_t;
 
 struct cache_context_t;
@@ -51,7 +52,7 @@ void  cache_destroy(cache_context_t*);
 
 cache_code_t cache_put(cache_context_t* context, const char* key, uint8_t nkey, const char* value, int nbytes);
 
-cache_code_t cache_get(cache_context_t* context, const char* key, char** value, size_t *len);
+cache_code_t cache_get(cache_context_t* context, const char* key, uint8_t nkey, char** value, int *len);
 
 void         cache_remove(cache_context_t* context, const char* key);
 

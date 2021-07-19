@@ -30,7 +30,7 @@ cache_code_t hash_init(cache_context_t* context) {
     return CACHE_OOM;
   }
 
-  table->hashpower = context->options.hash_power_init;
+  table->hashpower = context->options.hashPowerInit;
   table->primary_hashtable = calloc(hashsize(table->hashpower), sizeof(void *));
   if (table->primary_hashtable == NULL) {
     free(table);
@@ -76,6 +76,20 @@ cache_code_t hash_put(cache_context_t* context, item_t* item) {
   return CACHE_OK;
 }
 
-item_t* hash_get(cache_context_t* context, item_t* item) {
+item_t* hash_get(cache_context_t* context, const char* key, uint8_t nkey) {
+  hashtable_t* table = context->table;
+  uint32_t hash = table->hash(key, nkey);
+  item_t* hash_head = table->primary_hashtable[hash & hashmask(table->hashpower)], *current = NULL;
+  cache_key_t find_key = (cache_key_t){.key = key, .nkey = nkey};
+
+  for (current = hash_head; current != NULL; current = current->h_next) {
+    cache_key_t current_key = key_from_item(current);
+    if (!key_equal(current_key, find_key)) {
+      continue;
+    }
+    
+    return current;
+  }
+
   return NULL;
 }

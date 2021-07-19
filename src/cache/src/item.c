@@ -24,6 +24,6 @@ item_t* item_alloc(cache_context_t* context, size_t ntotal, int id) {
   return NULL;
 }
 
-void    item_free(cache_context_t* context, item_t* item) {
+void item_free(cache_context_t* context, item_t* item) {
 
 }

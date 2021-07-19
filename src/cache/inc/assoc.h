@@ -40,7 +40,7 @@ struct hashtable_t {
 
 cache_code_t hash_init(cache_context_t* context);
 cache_code_t hash_put(cache_context_t* context, item_t* item);
-item_t* hash_get(cache_context_t* context, item_t* item);
+item_t* hash_get(cache_context_t* context, const char* key, uint8_t nkey);
 
 #ifdef __cplusplus
 }

@@ -21,6 +21,7 @@
 #include "slab.h"
 
 static cache_code_t check_cache_options(cache_option_t* options);
+static cache_code_t do_cache_put(cache_context_t* context, const char* key, uint8_t nkey, const char* value, int nbytes, item_t** ppItem);
 
 //static cache_manager_t cache_manager
 
@@ -59,11 +60,38 @@ void  cache_destroy(cache_context_t* context) {
 }
 
 cache_code_t cache_put(cache_context_t* context, const char* key, uint8_t nkey, const char* value, int nbytes) {
+  return do_cache_put(context,key,nkey,value,nbytes,NULL);
+}
+
+cache_code_t cache_get(cache_context_t* context, const char* key, uint8_t nkey, char** value, int *len) {
+  item_t* item = hash_get(context, key, nkey);
+  if (item) {
+    *value = item_data(item);
+    *len = item->nbytes;
+    return CACHE_OK;
+  }
+
+  char *loadValue;
+  size_t loadLen = 0;
+  if (context->options.loadFunc(context->options.userData, key, nkey, &loadValue, &loadLen) != CACHE_OK) {
+    return CACHE_KEY_NOT_FOUND;
+  }
+
+  int ret = do_cache_put(context,key,nkey,loadValue,loadLen,&item);
+  if (ret != CACHE_OK) {
+    return ret;
+  }
+  *value = item_data(item);
+  *len   = item_len(item);
+
+  return CACHE_OK;
+}
+
+static cache_code_t do_cache_put(cache_context_t* context, const char* key, uint8_t nkey, const char* value, int nbytes, item_t** ppItem) {
   size_t ntotal = item_size(nkey, nbytes);
   unsigned int id = slabs_clsid(context, ntotal);
-  item_t* item;
 
-  item = item_alloc(context, ntotal, id);
+  item_t* item = item_alloc(context, ntotal, id);
   if (item == NULL) {
     return CACHE_OOM;
   }
@@ -71,10 +99,9 @@ cache_code_t cache_put(cache_context_t* context, const char* key, uint8_t nkey, 
   memcpy(item_key(item), key, nkey);
   memcpy(item_data(item), value, nbytes);
 
-  return CACHE_OK;
-}
-
-cache_code_t cache_get(cache_context_t* context, const char* key, char** value, size_t *len) {
+  if (ppItem) {
+    *ppItem = item;
+  }
   return CACHE_OK;
 }
 
