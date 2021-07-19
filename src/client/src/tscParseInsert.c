@@ -425,7 +425,7 @@ static int32_t tsParseOneColumnKV(SSchema *pSchema, SStrToken *pToken, char *pay
     case TSDB_DATA_TYPE_BOOL: {  // bool
       if (isNullStr(pToken)) {
         *sizeAppend = tsSetPayloadColValue(payloadStart, payload, pSchema->colId, pSchema->type,
-                                           tdGetNullVal(TSDB_DATA_TYPE_BOOL), TYPE_BYTES[TSDB_DATA_TYPE_BOOL], tOffset);
+                                           getNullValue(TSDB_DATA_TYPE_BOOL), TYPE_BYTES[TSDB_DATA_TYPE_BOOL], tOffset);
       } else {
         if ((pToken->type == TK_BOOL || pToken->type == TK_STRING) && (pToken->n != 0)) {
           if (strncmp(pToken->z, "true", pToken->n) == 0) {
@@ -459,7 +459,7 @@ static int32_t tsParseOneColumnKV(SSchema *pSchema, SStrToken *pToken, char *pay
     case TSDB_DATA_TYPE_TINYINT:
       if (isNullStr(pToken)) {
         *sizeAppend = tsSetPayloadColValue(payloadStart, payload, pSchema->colId, pSchema->type,
-                                           tdGetNullVal(TSDB_DATA_TYPE_TINYINT), TYPE_BYTES[TSDB_DATA_TYPE_TINYINT], tOffset);
+                                           getNullValue(TSDB_DATA_TYPE_TINYINT), TYPE_BYTES[TSDB_DATA_TYPE_TINYINT], tOffset);
       } else {
         ret = tStrToInteger(pToken->z, pToken->type, pToken->n, &iv, true);
         if (ret != TSDB_CODE_SUCCESS) {
@@ -479,7 +479,7 @@ static int32_t tsParseOneColumnKV(SSchema *pSchema, SStrToken *pToken, char *pay
     case TSDB_DATA_TYPE_UTINYINT:
       if (isNullStr(pToken)) {
         *sizeAppend = tsSetPayloadColValue(payloadStart, payload, pSchema->colId, pSchema->type,
-                                           tdGetNullVal(TSDB_DATA_TYPE_UTINYINT), TYPE_BYTES[TSDB_DATA_TYPE_UTINYINT], tOffset);
+                                           getNullValue(TSDB_DATA_TYPE_UTINYINT), TYPE_BYTES[TSDB_DATA_TYPE_UTINYINT], tOffset);
       } else {
         ret = tStrToInteger(pToken->z, pToken->type, pToken->n, &iv, false);
         if (ret != TSDB_CODE_SUCCESS) {
@@ -499,7 +499,7 @@ static int32_t tsParseOneColumnKV(SSchema *pSchema, SStrToken *pToken, char *pay
     case TSDB_DATA_TYPE_SMALLINT:
       if (isNullStr(pToken)) {
         *sizeAppend = tsSetPayloadColValue(payloadStart, payload, pSchema->colId, pSchema->type,
-                                           tdGetNullVal(TSDB_DATA_TYPE_SMALLINT), TYPE_BYTES[TSDB_DATA_TYPE_SMALLINT], tOffset);
+                                           getNullValue(TSDB_DATA_TYPE_SMALLINT), TYPE_BYTES[TSDB_DATA_TYPE_SMALLINT], tOffset);
       } else {
         ret = tStrToInteger(pToken->z, pToken->type, pToken->n, &iv, true);
         if (ret != TSDB_CODE_SUCCESS) {
@@ -520,7 +520,7 @@ static int32_t tsParseOneColumnKV(SSchema *pSchema, SStrToken *pToken, char *pay
       if (isNullStr(pToken)) {
         *sizeAppend =
             tsSetPayloadColValue(payloadStart, payload, pSchema->colId, pSchema->type,
-                                 tdGetNullVal(TSDB_DATA_TYPE_USMALLINT), TYPE_BYTES[TSDB_DATA_TYPE_USMALLINT], tOffset);
+                                 getNullValue(TSDB_DATA_TYPE_USMALLINT), TYPE_BYTES[TSDB_DATA_TYPE_USMALLINT], tOffset);
       } else {
         ret = tStrToInteger(pToken->z, pToken->type, pToken->n, &iv, false);
         if (ret != TSDB_CODE_SUCCESS) {
@@ -540,7 +540,7 @@ static int32_t tsParseOneColumnKV(SSchema *pSchema, SStrToken *pToken, char *pay
     case TSDB_DATA_TYPE_INT:
       if (isNullStr(pToken)) {
         *sizeAppend = tsSetPayloadColValue(payloadStart, payload, pSchema->colId, pSchema->type,
-                                           tdGetNullVal(TSDB_DATA_TYPE_INT), TYPE_BYTES[TSDB_DATA_TYPE_INT], tOffset);
+                                           getNullValue(TSDB_DATA_TYPE_INT), TYPE_BYTES[TSDB_DATA_TYPE_INT], tOffset);
       } else {
         ret = tStrToInteger(pToken->z, pToken->type, pToken->n, &iv, true);
         if (ret != TSDB_CODE_SUCCESS) {
@@ -560,7 +560,7 @@ static int32_t tsParseOneColumnKV(SSchema *pSchema, SStrToken *pToken, char *pay
     case TSDB_DATA_TYPE_UINT:
       if (isNullStr(pToken)) {
         *sizeAppend = tsSetPayloadColValue(payloadStart, payload, pSchema->colId, pSchema->type,
-                                           tdGetNullVal(TSDB_DATA_TYPE_UINT), TYPE_BYTES[TSDB_DATA_TYPE_UINT], tOffset);
+                                           getNullValue(TSDB_DATA_TYPE_UINT), TYPE_BYTES[TSDB_DATA_TYPE_UINT], tOffset);
       } else {
         ret = tStrToInteger(pToken->z, pToken->type, pToken->n, &iv, false);
         if (ret != TSDB_CODE_SUCCESS) {
@@ -580,7 +580,7 @@ static int32_t tsParseOneColumnKV(SSchema *pSchema, SStrToken *pToken, char *pay
     case TSDB_DATA_TYPE_BIGINT:
       if (isNullStr(pToken)) {
         *sizeAppend = tsSetPayloadColValue(payloadStart, payload, pSchema->colId, pSchema->type,
-                                           tdGetNullVal(TSDB_DATA_TYPE_BIGINT), TYPE_BYTES[TSDB_DATA_TYPE_BIGINT], tOffset);
+                                           getNullValue(TSDB_DATA_TYPE_BIGINT), TYPE_BYTES[TSDB_DATA_TYPE_BIGINT], tOffset);
       } else {
         ret = tStrToInteger(pToken->z, pToken->type, pToken->n, &iv, true);
         if (ret != TSDB_CODE_SUCCESS) {
@@ -598,7 +598,7 @@ static int32_t tsParseOneColumnKV(SSchema *pSchema, SStrToken *pToken, char *pay
     case TSDB_DATA_TYPE_UBIGINT:
       if (isNullStr(pToken)) {
         *sizeAppend = tsSetPayloadColValue(payloadStart, payload, pSchema->colId, pSchema->type,
-                                           tdGetNullVal(TSDB_DATA_TYPE_UBIGINT), TYPE_BYTES[TSDB_DATA_TYPE_UBIGINT], tOffset);
+                                           getNullValue(TSDB_DATA_TYPE_UBIGINT), TYPE_BYTES[TSDB_DATA_TYPE_UBIGINT], tOffset);
       } else {
         ret = tStrToInteger(pToken->z, pToken->type, pToken->n, &iv, false);
         if (ret != TSDB_CODE_SUCCESS) {
@@ -639,7 +639,7 @@ static int32_t tsParseOneColumnKV(SSchema *pSchema, SStrToken *pToken, char *pay
     case TSDB_DATA_TYPE_DOUBLE:
       if (isNullStr(pToken)) {
         *sizeAppend = tsSetPayloadColValue(payloadStart, payload, pSchema->colId, pSchema->type,
-                                           tdGetNullVal(TSDB_DATA_TYPE_DOUBLE), TYPE_BYTES[TSDB_DATA_TYPE_DOUBLE], tOffset);
+                                           getNullValue(TSDB_DATA_TYPE_DOUBLE), TYPE_BYTES[TSDB_DATA_TYPE_DOUBLE], tOffset);
       } else {
         double dv;
         if (TK_ILLEGAL == tscToDouble(pToken, &dv, &endptr)) {
@@ -661,7 +661,7 @@ static int32_t tsParseOneColumnKV(SSchema *pSchema, SStrToken *pToken, char *pay
       if (pToken->type == TK_NULL) {
         payloadColSetId(payload, pSchema->colId);
         payloadColSetType(payload, pSchema->type);
-        memcpy(POINTER_SHIFT(payloadStart, tOffset), tdGetNullVal(TSDB_DATA_TYPE_BINARY), VARSTR_HEADER_SIZE + CHAR_BYTES);
+        memcpy(POINTER_SHIFT(payloadStart, tOffset), getNullValue(TSDB_DATA_TYPE_BINARY), VARSTR_HEADER_SIZE + CHAR_BYTES);
         *sizeAppend = (TDRowLenT)(VARSTR_HEADER_SIZE + CHAR_BYTES);
       } else {  // too long values will return invalid sql, not be truncated automatically
         if (pToken->n + VARSTR_HEADER_SIZE > pSchema->bytes) {  // todo refactor
@@ -684,7 +684,7 @@ static int32_t tsParseOneColumnKV(SSchema *pSchema, SStrToken *pToken, char *pay
       if (pToken->type == TK_NULL) {
         payloadColSetId(payload, pSchema->colId);
         payloadColSetType(payload, pSchema->type);
-        memcpy(POINTER_SHIFT(payloadStart,tOffset), tdGetNullVal(TSDB_DATA_TYPE_NCHAR), VARSTR_HEADER_SIZE + TSDB_NCHAR_SIZE);
+        memcpy(POINTER_SHIFT(payloadStart,tOffset), getNullValue(TSDB_DATA_TYPE_NCHAR), VARSTR_HEADER_SIZE + TSDB_NCHAR_SIZE);
         *sizeAppend = (TDRowLenT)(VARSTR_HEADER_SIZE + TSDB_NCHAR_SIZE);
       } else {
         // if the converted output len is over than pColumnModel->bytes, return error: 'Argument list too long'
@@ -716,7 +716,7 @@ static int32_t tsParseOneColumnKV(SSchema *pSchema, SStrToken *pToken, char *pay
           *kvRowColLen += (TDRowLenT)(sizeof(SColIdx) + TYPE_BYTES[TSDB_DATA_TYPE_TIMESTAMP]);
         } else {
           *sizeAppend = tsSetPayloadColValue(payloadStart, payload, pSchema->colId, pSchema->type,
-                                             tdGetNullVal(TSDB_DATA_TYPE_TIMESTAMP),
+                                             getNullValue(TSDB_DATA_TYPE_TIMESTAMP),
                                              TYPE_BYTES[TSDB_DATA_TYPE_TIMESTAMP], tOffset);
         }
       } else {
