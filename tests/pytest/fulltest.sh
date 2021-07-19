@@ -241,7 +241,7 @@ python3 ./test.py -f query/queryStateWindow.py
 python3 ./test.py -f query/nestedQuery/queryWithOrderLimit.py
 python3 ./test.py -f query/nestquery_last_row.py
 python3 ./test.py -f query/queryCnameDisplay.py
-
+python3 test.py -f query/nestedQuery/queryWithSpread.py
 
 #stream
 python3 ./test.py -f stream/metric_1.py
