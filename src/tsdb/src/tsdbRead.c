@@ -3098,7 +3098,7 @@ STimeWindow updateLastrowForEachGroup(STableGroupInfo *groupList) {
     assert(totalNumOfTable == 0 && taosArrayGetSize(groupList->pGroupList) == numOfGroups);
   }
 
-  taosArrayRemoveBatch(groupList->pGroupList, TARRAY_GET_START(emptyGroup), taosArrayGetSize(emptyGroup));
+  taosArrayRemoveBatch(groupList->pGroupList, TARRAY_GET_START(emptyGroup), (int32_t) taosArrayGetSize(emptyGroup));
   taosArrayDestroy(emptyGroup);
 
   groupList->numOfTables = totalNumOfTable;
