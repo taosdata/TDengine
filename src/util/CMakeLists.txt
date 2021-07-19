@@ -11,7 +11,7 @@ TARGET_LINK_LIBRARIES(tutil pthread os lz4 z rmonotonic)
 
 IF (TD_LINUX)
   TARGET_LINK_LIBRARIES(tutil m rt)
-#  ADD_SUBDIRECTORY(tests)
+  ADD_SUBDIRECTORY(tests)
 
   FIND_PATH(ICONV_INCLUDE_EXIST iconv.h /usr/include/ /usr/local/include/)
   IF (ICONV_INCLUDE_EXIST)

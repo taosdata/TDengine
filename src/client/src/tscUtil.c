@@ -1315,8 +1315,7 @@ void tscFreeQueryInfo(SSqlCmd* pCmd, bool removeMeta) {
     return;
   }
 
-  SQueryInfo* pQueryInfo = tscGetQueryInfo(pCmd);
-
+  SQueryInfo* pQueryInfo = pCmd->pQueryInfo;
   while(pQueryInfo != NULL) {
     SQueryInfo* p = pQueryInfo->sibling;
 
@@ -1596,7 +1595,7 @@ void freeUdfInfo(SUdfInfo* pUdfInfo) {
   taosCloseDll(pUdfInfo->handle);
 }
 
-
+// todo refactor
 void*  tscDestroyUdfArrayList(SArray* pUdfList) {
   if (pUdfList == NULL) {
     return NULL;
@@ -2986,6 +2985,7 @@ void tscInitQueryInfo(SQueryInfo* pQueryInfo) {
 int32_t tscAddQueryInfo(SSqlCmd* pCmd) {
   assert(pCmd != NULL);
   SQueryInfo* pQueryInfo = calloc(1, sizeof(SQueryInfo));
+
   if (pQueryInfo == NULL) {
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
   }
@@ -3968,17 +3968,21 @@ void tscTryQueryNextClause(SSqlObj* pSql, __async_cb_func_t fp) {
   //backup the total number of result first
   int64_t num = pRes->numOfTotal + pRes->numOfClauseTotal;
 
-
   // DON't free final since it may be recoreded and used later in APP
   TAOS_FIELD* finalBk = pRes->final;
   pRes->final = NULL;
   tscFreeSqlResult(pSql);
+
   pRes->final = finalBk;
-  
   pRes->numOfTotal = num;
-  
+
+  for(int32_t i = 0; i < pSql->subState.numOfSub; ++i) {
+    taos_free_result(pSql->pSubs[i]);
+  }
+
   tfree(pSql->pSubs);
   pSql->subState.numOfSub = 0;
+
   pSql->fp = fp;
 
   tscDebug("0x%"PRIx64" try data in the next subclause", pSql->self);
@@ -4618,6 +4622,20 @@ int32_t nameComparFn(const void* n1, const void* n2) {
   }
 }
 
+static void freeContent(void* p) {
+  char* ptr = *(char**)p;
+  tfree(ptr);
+}
+
+static int32_t contCompare(const void* p1, const void* p2) {
+  int32_t ret = strcmp(p1, p2);
+  if (ret == 0) {
+    return 0;
+  } else {
+    return ret > 0 ? 1:-1;
+  }
+}
+
 int tscTransferTableNameList(SSqlObj *pSql, const char *pNameList, int32_t length, SArray* pNameArray) {
   SSqlCmd *pCmd = &pSql->cmd;
 
@@ -4665,32 +4683,7 @@ int tscTransferTableNameList(SSqlObj *pSql, const char *pNameList, int32_t lengt
   }
 
   taosArraySort(pNameArray, nameComparFn);
-
-  int32_t pos = 0;
-  for(int32_t i = 1; i < len; ++i) {
-    char** p1 = taosArrayGet(pNameArray, pos);
-    char** p2 = taosArrayGet(pNameArray, i);
-
-    if (strcmp(*p1, *p2) == 0) {
-      // do nothing
-    } else {
-      if (pos + 1 != i) {
-        char* p = taosArrayGetP(pNameArray, pos + 1);
-        tfree(p);
-        taosArraySet(pNameArray, pos + 1, p2);
-        pos += 1;
-      } else {
-        pos += 1;
-      }
-    }
-  }
-
-  for(int32_t i = pos + 1; i < pNameArray->size; ++i) {
-    char* p = taosArrayGetP(pNameArray, i);
-    tfree(p);
-  }
-
-  pNameArray->size = pos + 1;
+  taosArrayRemoveDuplicate(pNameArray, contCompare, freeContent);
   return TSDB_CODE_SUCCESS;
 }
 
