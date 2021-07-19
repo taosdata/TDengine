@@ -560,16 +560,16 @@ void tpUpdateTs(int32_t vgId, int64_t *seq, void *pMsg) {
     int32_t rows = 0;
     int64_t sec = (int64_t)taosGetTimestampSec() * 1000000L;
     while (rows < numOfRows && rowOffset < blockTotalLen) {
-      SDataRow *pRow = (SDataRow *)((char *)pBlock->data + rowOffset);
+      SMemRow *pRow = (SMemRow *)((char *)pBlock->data + rowOffset);
 
-      rowOffset += dataRowLen(pRow);
+      rowOffset += memRowTLen(pRow);
       rows++;
 
       if ((*seq)++ < sec) {
         *seq = sec;
       }
 
-      dataRowTKey(pRow) = *seq;
+      memRowSetTKey(pRow, *seq);
       mTrace("vgId:%d, sec:%" PRId64 ", seq:%" PRId64, vgId, sec, *seq);
     }
   }
