@@ -712,6 +712,15 @@ static void updateQueryTimeRange(SQueryInfo* pQueryInfo, STimeWindow* win) {
   pQueryInfo->window = *win;
 }
 
+int32_t tagValCompar(const void* p1, const void* p2) {
+  const STidTags* t1 = (const STidTags*) varDataVal(p1);
+  const STidTags* t2 = (const STidTags*) varDataVal(p2);
+
+  __compar_fn_t func = getComparFunc(t1->padding, 0);
+
+  return func(t1->tag, t2->tag);
+}
+
 int32_t tidTagsCompar(const void* p1, const void* p2) {
   const STidTags* t1 = (const STidTags*) (p1);
   const STidTags* t2 = (const STidTags*) (p2);
@@ -720,28 +729,7 @@ int32_t tidTagsCompar(const void* p1, const void* p2) {
     return (t1->vgId > t2->vgId) ? 1 : -1;
   }
 
-  tstr* tag1 = (tstr*) t1->tag;
-  tstr* tag2 = (tstr*) t2->tag;
-
-  if (tag1->len != tag2->len) {
-    return (tag1->len > tag2->len)? 1: -1;
-  }
-
-  return strncmp(tag1->data, tag2->data, tag1->len);
-}
-
-int32_t tagValCompar(const void* p1, const void* p2) {
-  const STidTags* t1 = (const STidTags*) varDataVal(p1);
-  const STidTags* t2 = (const STidTags*) varDataVal(p2);
-
-  tstr* tag1 = (tstr*) t1->tag;
-  tstr* tag2 = (tstr*) t2->tag;
-
-  if (tag1->len != tag2->len) {
-    return (tag1->len > tag2->len)? 1: -1;
-  }
-
-  return memcmp(tag1->data, tag2->data, tag1->len);
+  return tagValCompar(p1, p2);
 }
 
 void tscBuildVgroupTableInfo(SSqlObj* pSql, STableMetaInfo* pTableMetaInfo, SArray* tables) {
@@ -871,6 +859,12 @@ static bool checkForDuplicateTagVal(SSchema* pColSchema, SJoinSupporter* p1, SSq
   return true;
 }
 
+static void setTidTagType(SJoinSupporter* p, uint8_t type) {
+  for (int32_t i = 0; i < p->num; ++i) {
+    STidTags * tag = (STidTags*) varDataVal(p->pIdTagList + i * p->tagSize);
+    tag->padding = type;
+  }
+}
 
 static int32_t getIntersectionOfTableTuple(SQueryInfo* pQueryInfo, SSqlObj* pParentSql, SArray* resList) {
   int16_t joinNum = pParentSql->subState.numOfSub;
@@ -889,6 +883,8 @@ static int32_t getIntersectionOfTableTuple(SQueryInfo* pQueryInfo, SSqlObj* pPar
 
   for (int32_t i = 0; i < joinNum; i++) {
     SJoinSupporter* p = pParentSql->pSubs[i]->param;
+
+    setTidTagType(p, pColSchema->type);
 
     ctxlist[i].p = p;
     ctxlist[i].res = taosArrayInit(p->num, size);
@@ -2296,6 +2292,7 @@ int32_t tscHandleFirstRoundStableQuery(SSqlObj *pSql) {
 
   SArray* pColList = pNewQueryInfo->colList;
   pNewQueryInfo->colList = NULL;
+  pNewQueryInfo->fillType = TSDB_FILL_NONE;
 
   tscClearSubqueryInfo(pCmd);
   tscFreeSqlResult(pSql);
@@ -2439,9 +2436,9 @@ int32_t tscHandleMasterSTableQuery(SSqlObj *pSql) {
   tOrderDescriptor *pDesc  = NULL;
 
   pRes->qId = 0x1;  // hack the qhandle check
-  
-  const uint32_t nBufferSize = (1u << 16u);  // 64KB
-  
+
+  const uint32_t nBufferSize = (1u << 18u);  // 256KB
+
   SQueryInfo     *pQueryInfo = tscGetQueryInfo(pCmd);
   STableMetaInfo *pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
   SSubqueryState *pState = &pSql->subState;

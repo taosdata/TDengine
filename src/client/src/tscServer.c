@@ -1955,7 +1955,6 @@ static int32_t tableMetaMsgConvert(STableMetaMsg* pMetaMsg) {
   pMetaMsg->vgroup.vgId = htonl(pMetaMsg->vgroup.vgId);
 
   pMetaMsg->uid = htobe64(pMetaMsg->uid);
-//  pMetaMsg->contLen = htonl(pMetaMsg->contLen);
   pMetaMsg->numOfColumns = htons(pMetaMsg->numOfColumns);
 
   if ((pMetaMsg->tableType != TSDB_SUPER_TABLE) &&
@@ -2020,13 +2019,14 @@ static void doAddTableMetaToLocalBuf(STableMeta* pTableMeta, STableMetaMsg* pMet
     int32_t len = (int32_t) strnlen(pTableMeta->sTableName, TSDB_TABLE_FNAME_LEN);
 
     // The super tableMeta already exists, create it according to tableMeta and add it to hash map
-    STableMeta* pSupTableMeta = createSuperTableMeta(pMetaMsg);
+    if (updateSTable) {
+      STableMeta* pSupTableMeta = createSuperTableMeta(pMetaMsg);
+      uint32_t size = tscGetTableMetaSize(pSupTableMeta);
+      int32_t code = taosHashPut(tscTableMetaInfo, pTableMeta->sTableName, len, pSupTableMeta, size);
+      assert(code == TSDB_CODE_SUCCESS);
 
-    uint32_t size = tscGetTableMetaSize(pSupTableMeta);
-    int32_t code = taosHashPut(tscTableMetaInfo, pTableMeta->sTableName, len, pSupTableMeta, size);
-    assert(code == TSDB_CODE_SUCCESS);
-
-    tfree(pSupTableMeta);
+      tfree(pSupTableMeta);
+    }
 
     CChildTableMeta* cMeta = tscCreateChildMeta(pTableMeta);
     taosHashPut(tscTableMetaInfo, pMetaMsg->tableFname, strlen(pMetaMsg->tableFname), cMeta, sizeof(CChildTableMeta));
@@ -2183,10 +2183,10 @@ int tscProcessMultiTableMetaRsp(SSqlObj *pSql) {
   }
 
   SSqlCmd *pParentCmd = &pParentSql->cmd;
-  SHashObj *pSet = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
+  SHashObj *pSet = taosHashInit(pMultiMeta->numOfVgroup, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
 
-  char* pMsg = pMultiMeta->meta;
   char* buf = NULL;
+  char* pMsg = pMultiMeta->meta;
   if (pMultiMeta->compressed) {
     buf = malloc(pMultiMeta->rawLen - sizeof(SMultiTableMeta));
     int32_t len = tsDecompressString(pMultiMeta->meta, pMultiMeta->contLen - sizeof(SMultiTableMeta), 1,
@@ -2207,6 +2207,7 @@ int tscProcessMultiTableMetaRsp(SSqlObj *pSql) {
       return code;
     }
 
+    bool freeMeta = false;
     STableMeta* pTableMeta = tscCreateTableMetaFromMsg(pMetaMsg);
     if (!tIsValidSchema(pTableMeta->schema, pTableMeta->tableInfo.numOfColumns, pTableMeta->tableInfo.numOfTags)) {
       tscError("0x%"PRIx64" invalid table meta from mnode, name:%s", pSql->self, pMetaMsg->tableFname);
@@ -2221,22 +2222,27 @@ int tscProcessMultiTableMetaRsp(SSqlObj *pSql) {
     SName sn = {0};
     tNameFromString(&sn, pMetaMsg->tableFname, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
 
-    const char* tableName = tNameGetTableName(&sn);
-    size_t keyLen = strlen(tableName);
+    if (pMultiMeta->metaClone == 1 || pTableMeta->tableType == TSDB_SUPER_TABLE) {
+      STableMetaVgroupInfo p = {.pTableMeta = pTableMeta,};
 
-    STableMetaVgroupInfo p = {.pTableMeta = pTableMeta,};
-    taosHashPut(pParentCmd->pTableMetaMap, tableName, keyLen, &p, sizeof(STableMetaVgroupInfo));
+      const char* tableName = tNameGetTableName(&sn);
+      size_t keyLen = strlen(tableName);
+      taosHashPut(pParentCmd->pTableMetaMap, tableName, keyLen, &p, sizeof(STableMetaVgroupInfo));
+    } else {
+      freeMeta = true;
+    }
 
-    bool addToBuf = false;
-    if (taosHashGet(pSet, &pMetaMsg->uid, sizeof(pMetaMsg->uid)) == NULL) {
-      addToBuf = true;
-      taosHashPut(pSet, &pMetaMsg->uid, sizeof(pMetaMsg->uid), "", 0);
+    // for each super table, only update meta information once
+    bool updateStableMeta = false;
+    if (pTableMeta->tableType == TSDB_CHILD_TABLE && taosHashGet(pSet, &pMetaMsg->suid, sizeof(pMetaMsg->suid)) == NULL) {
+      updateStableMeta = true;
+      taosHashPut(pSet, &pTableMeta->suid, sizeof(pMetaMsg->suid), "", 0);
     }
 
     // create the tableMeta and add it into the TableMeta map
-    doAddTableMetaToLocalBuf(pTableMeta, pMetaMsg, addToBuf);
+    doAddTableMetaToLocalBuf(pTableMeta, pMetaMsg, updateStableMeta);
 
-    // if the vgroup is not updated in current process, update it.
+    // for each vgroup, only update the information once.
     int64_t vgId = pMetaMsg->vgroup.vgId;
     if (pTableMeta->tableType != TSDB_SUPER_TABLE && taosHashGet(pSet, &vgId, sizeof(vgId)) == NULL) {
       doUpdateVgroupInfo(pTableMeta, &pMetaMsg->vgroup);
@@ -2244,6 +2250,9 @@ int tscProcessMultiTableMetaRsp(SSqlObj *pSql) {
     }
 
     pMsg += pMetaMsg->contLen;
+    if (freeMeta) {
+      tfree(pTableMeta);
+    }
   }
 
   for(int32_t i = 0; i < pMultiMeta->numOfVgroup; ++i) {
@@ -2683,7 +2692,7 @@ static int32_t getTableMetaFromMnode(SSqlObj *pSql, STableMetaInfo *pTableMetaIn
   return code;
 }
 
-int32_t getMultiTableMetaFromMnode(SSqlObj *pSql, SArray* pNameList, SArray* pVgroupNameList, SArray* pUdfList, __async_cb_func_t fp) {
+int32_t getMultiTableMetaFromMnode(SSqlObj *pSql, SArray* pNameList, SArray* pVgroupNameList, SArray* pUdfList, __async_cb_func_t fp, bool metaClone) {
   SSqlObj *pNew = calloc(1, sizeof(SSqlObj));
   if (NULL == pNew) {
     tscError("0x%"PRIx64" failed to allocate sqlobj to get multiple table meta", pSql->self);
@@ -2706,6 +2715,7 @@ int32_t getMultiTableMetaFromMnode(SSqlObj *pSql, SArray* pNameList, SArray* pVg
   }
 
   SMultiTableInfoMsg* pInfo = (SMultiTableInfoMsg*) pNew->cmd.payload;
+  pInfo->metaClone    = metaClone? 1:0;
   pInfo->numOfTables  = htonl((uint32_t) taosArrayGetSize(pNameList));
   pInfo->numOfVgroups = htonl((uint32_t) taosArrayGetSize(pVgroupNameList));
   pInfo->numOfUdfs    = htonl(numOfUdf);
@@ -2794,22 +2804,24 @@ int32_t tscGetTableMetaImpl(SSqlObj* pSql, STableMetaInfo *pTableMetaInfo, bool 
   taosHashGetClone(tscTableMetaInfo, name, len, NULL, pTableMetaInfo->pTableMeta, -1);
 
   // TODO resize the tableMeta
-  char buf[80*1024] = {0};
-  assert(size < 80*1024);
+  assert(size < 80 * TSDB_MAX_COLUMNS);
+  if (!pSql->pBuf) {
+    if (NULL == (pSql->pBuf = tcalloc(1, 80 * TSDB_MAX_COLUMNS))) {
+      return TSDB_CODE_TSC_OUT_OF_MEMORY;
+    }
+  }
 
   STableMeta* pMeta = pTableMetaInfo->pTableMeta;
   if (pMeta->id.uid > 0) {
     // in case of child table, here only get the
     if (pMeta->tableType == TSDB_CHILD_TABLE) {
-      int32_t code = tscCreateTableMetaFromSTableMeta(pTableMetaInfo->pTableMeta, name, buf);
+      int32_t code = tscCreateTableMetaFromSTableMeta(pTableMetaInfo->pTableMeta, name, pSql->pBuf);
       if (code != TSDB_CODE_SUCCESS) {
         return getTableMetaFromMnode(pSql, pTableMetaInfo, autocreate);
       }
     }
-
     return TSDB_CODE_SUCCESS;
   }
-
   return getTableMetaFromMnode(pSql, pTableMetaInfo, autocreate);
 }
 
@@ -2924,7 +2936,6 @@ int tscGetSTableVgroupInfo(SSqlObj *pSql, SQueryInfo* pQueryInfo) {
   if (allVgroupInfoRetrieved(pQueryInfo)) {
     return TSDB_CODE_SUCCESS;
   }
-
   SSqlObj *pNew = calloc(1, sizeof(SSqlObj));
   pNew->pTscObj = pSql->pTscObj;
   pNew->signature = pNew;

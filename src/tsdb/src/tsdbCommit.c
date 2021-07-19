@@ -920,7 +920,8 @@ int tsdbWriteBlockImpl(STsdbRepo *pRepo, STable *pTable, SDFile *pDFile, SDataCo
     SDataCol * pDataCol = pDataCols->cols + ncol;
     SBlockCol *pBlockCol = pBlockData->cols + nColsNotAllNull;
 
-    if (isNEleNull(pDataCol, rowsToWrite)) {  // all data to commit are NULL, just ignore it
+    // if (isNEleNull(pDataCol, rowsToWrite)) {  // all data to commit are NULL, just ignore it
+    if (isAllRowsNull(pDataCol)) {  // all data to commit are NULL, just ignore it
       continue;
     }
 
@@ -1264,12 +1265,12 @@ static void tsdbLoadAndMergeFromCache(SDataCols *pDataCols, int *iter, SCommitIt
   while (true) {
     key1 = (*iter >= pDataCols->numOfRows) ? INT64_MAX : dataColsKeyAt(pDataCols, *iter);
     bool isRowDel = false;
-    SDataRow row = tsdbNextIterRow(pCommitIter->pIter);
-    if (row == NULL || dataRowKey(row) > maxKey) {
+    SMemRow row = tsdbNextIterRow(pCommitIter->pIter);
+    if (row == NULL || memRowKey(row) > maxKey) {
       key2 = INT64_MAX;
     } else {
-      key2 = dataRowKey(row);
-      isRowDel = dataRowDeleted(row);
+      key2 = memRowKey(row);
+      isRowDel = memRowDeleted(row);
     }
 
     if (key1 == INT64_MAX && key2 == INT64_MAX) break;
@@ -1284,24 +1285,24 @@ static void tsdbLoadAndMergeFromCache(SDataCols *pDataCols, int *iter, SCommitIt
       (*iter)++;
     } else if (key1 > key2) {
       if (!isRowDel) {
-        if (pSchema == NULL || schemaVersion(pSchema) != dataRowVersion(row)) {
-          pSchema = tsdbGetTableSchemaImpl(pCommitIter->pTable, false, false, dataRowVersion(row));
+        if (pSchema == NULL || schemaVersion(pSchema) != memRowVersion(row)) {
+          pSchema = tsdbGetTableSchemaImpl(pCommitIter->pTable, false, false, memRowVersion(row));
           ASSERT(pSchema != NULL);
         }
 
-        tdAppendDataRowToDataCol(row, pSchema, pTarget);
+        tdAppendMemRowToDataCol(row, pSchema, pTarget);
       }
 
       tSkipListIterNext(pCommitIter->pIter);
     } else {
       if (update) {
         if (!isRowDel) {
-          if (pSchema == NULL || schemaVersion(pSchema) != dataRowVersion(row)) {
-            pSchema = tsdbGetTableSchemaImpl(pCommitIter->pTable, false, false, dataRowVersion(row));
+          if (pSchema == NULL || schemaVersion(pSchema) != memRowVersion(row)) {
+            pSchema = tsdbGetTableSchemaImpl(pCommitIter->pTable, false, false, memRowVersion(row));
             ASSERT(pSchema != NULL);
           }
 
-          tdAppendDataRowToDataCol(row, pSchema, pTarget);
+          tdAppendMemRowToDataCol(row, pSchema, pTarget);
         }
       } else {
         ASSERT(!isRowDel);

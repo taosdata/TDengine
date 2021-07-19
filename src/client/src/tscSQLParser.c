@@ -1396,11 +1396,15 @@ static bool validateTableColumnInfo(SArray* pFieldList, SSqlCmd* pCmd) {
   const char* msg4 = "invalid data type";
   const char* msg5 = "invalid binary/nchar column length";
   const char* msg6 = "invalid column name";
+  const char* msg7 = "too many columns";
 
   // number of fields no less than 2
   size_t numOfCols = taosArrayGetSize(pFieldList);
-  if (numOfCols <= 1 || numOfCols > TSDB_MAX_COLUMNS) {
+  if (numOfCols <= 1 ) {
     invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg);
+    return false;
+  } else if (numOfCols > TSDB_MAX_COLUMNS) {
+    invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg7);
     return false;
   }
 
@@ -1536,13 +1540,20 @@ bool validateOneTags(SSqlCmd* pCmd, TAOS_FIELD* pTagField) {
   const char* msg4 = "invalid tag name";
   const char* msg5 = "invalid binary/nchar tag length";
   const char* msg6 = "invalid data type in tags";
+  const char* msg7 = "too many columns";
 
   STableMetaInfo* pTableMetaInfo = tscGetTableMetaInfoFromCmd(pCmd,  0);
   STableMeta*     pTableMeta = pTableMetaInfo->pTableMeta;
 
   int32_t numOfTags = tscGetNumOfTags(pTableMeta);
   int32_t numOfCols = tscGetNumOfColumns(pTableMeta);
-  
+
+  // no more max columns
+  if (numOfTags + numOfCols >= TSDB_MAX_COLUMNS) {
+    invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg7);
+    return false;
+  }
+
   // no more than 6 tags
   if (numOfTags == TSDB_MAX_TAGS) {
     char msg[128] = {0};
@@ -3106,7 +3117,7 @@ int32_t doGetColumnIndexByName(SStrToken* pToken, SQueryInfo* pQueryInfo, SColum
 
   if (isTablenameToken(pToken)) {
     pIndex->columnIndex = TSDB_TBNAME_COLUMN_INDEX;
-  } else if (strlen(DEFAULT_PRIMARY_TIMESTAMP_COL_NAME) == pToken->n && 
+  } else if (strlen(DEFAULT_PRIMARY_TIMESTAMP_COL_NAME) == pToken->n &&
             strncasecmp(pToken->z, DEFAULT_PRIMARY_TIMESTAMP_COL_NAME, pToken->n) == 0) {
     pIndex->columnIndex = PRIMARYKEY_TIMESTAMP_COL_INDEX; // just make runtime happy, need fix java test case InsertSpecialCharacterJniTest
   } else if (pToken->n == 0) {
@@ -3708,9 +3719,9 @@ static int32_t doExtractColumnFilterInfo(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, 
      * make memory sanitizer happy;
      */
     if (pRight->value.nLen == 0) {
-      bufLen = pRight->value.nLen + 2; 
+      bufLen = pRight->value.nLen + 2;
     } else {
-      bufLen = pRight->value.nLen + 1; 
+      bufLen = pRight->value.nLen + 1;
     }
   }
 
@@ -5150,7 +5161,7 @@ int32_t validateWhereNode(SQueryInfo* pQueryInfo, tSqlExpr** pExpr, SSqlObj* pSq
 
   int32_t type = 0;
   if ((ret = getQueryCondExpr(&pSql->cmd, pQueryInfo, pExpr, &condExpr, &type, (*pExpr)->tokenId)) != TSDB_CODE_SUCCESS) {
-    goto PARSE_WHERE_EXIT; 
+    goto PARSE_WHERE_EXIT;
   }
 
   tSqlExprCompact(pExpr);
@@ -5160,7 +5171,7 @@ int32_t validateWhereNode(SQueryInfo* pQueryInfo, tSqlExpr** pExpr, SSqlObj* pSq
 
   // 1. check if it is a join query
   if ((ret = validateJoinExpr(&pSql->cmd, pQueryInfo, &condExpr)) != TSDB_CODE_SUCCESS) {
-    goto PARSE_WHERE_EXIT; 
+    goto PARSE_WHERE_EXIT;
   }
 
   // 2. get the query time range
@@ -5999,6 +6010,16 @@ int32_t setAlterTableInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
       return invalidOperationMsg(pMsg, msg22);
     }
 
+    SSchema* pSchema = (SSchema*) pTableMetaInfo->pTableMeta->schema;
+    int16_t numOfColumns = pTableMetaInfo->pTableMeta->tableInfo.numOfColumns;
+    int16_t i;
+    uint32_t nLen = 0;
+    for (i = 0; i < numOfColumns; ++i) {
+      nLen += pSchema[i].colId != columnIndex.columnIndex ? pSchema[i].bytes : pItem->bytes;
+    }
+    if (nLen >= TSDB_MAX_BYTES_PER_ROW) {
+      return invalidOperationMsg(pMsg, msg24);
+    }
     TAOS_FIELD f = tscCreateField(pColSchema->type, name.z, pItem->bytes);
     tscFieldInfoAppend(&pQueryInfo->fieldsInfo, &f);
   }else if (pAlterSQL->type == TSDB_ALTER_TABLE_MODIFY_TAG_COLUMN) {
@@ -6038,6 +6059,17 @@ int32_t setAlterTableInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
 
     if (pItem->bytes <= pColSchema->bytes) {
       return invalidOperationMsg(pMsg, msg22);
+    }
+
+    SSchema* pSchema = (SSchema*) pTableMetaInfo->pTableMeta->schema;
+    int16_t numOfColumns = pTableMetaInfo->pTableMeta->tableInfo.numOfColumns;
+    int16_t i;
+    uint32_t nLen = 0;
+    for (i = 0; i < numOfColumns; ++i) {
+      nLen += pSchema[i].colId != columnIndex.columnIndex ? pSchema[i].bytes : pItem->bytes;
+    }
+    if (nLen >= TSDB_MAX_BYTES_PER_ROW) {
+      return invalidOperationMsg(pMsg, msg24);
     }
 
     TAOS_FIELD f = tscCreateField(pColSchema->type, name.z, pItem->bytes);
@@ -8048,8 +8080,12 @@ int32_t loadAllTableMeta(SSqlObj* pSql, struct SSqlInfo* pInfo) {
   uint32_t maxSize = tscGetTableMetaMaxSize();
   char     name[TSDB_TABLE_FNAME_LEN] = {0};
 
-  char buf[80 * 1024] = {0};
-  assert(maxSize < 80 * 1024);
+  assert(maxSize < 80 * TSDB_MAX_COLUMNS);
+  if (!pSql->pBuf) {
+    if (NULL == (pSql->pBuf = tcalloc(1, 80 * TSDB_MAX_COLUMNS))) {
+      return TSDB_CODE_TSC_OUT_OF_MEMORY;
+    }
+  }
   pTableMeta = calloc(1, maxSize);
 
   plist = taosArrayInit(4, POINTER_BYTES);
@@ -8066,7 +8102,7 @@ int32_t loadAllTableMeta(SSqlObj* pSql, struct SSqlInfo* pInfo) {
 
     if (pTableMeta->id.uid > 0) {
       if (pTableMeta->tableType == TSDB_CHILD_TABLE) {
-        code = tscCreateTableMetaFromSTableMeta(pTableMeta, name, buf);
+        code = tscCreateTableMetaFromSTableMeta(pTableMeta, name, pSql->pBuf);
 
         // create the child table meta from super table failed, try load it from mnode
         if (code != TSDB_CODE_SUCCESS) {
@@ -8089,7 +8125,7 @@ int32_t loadAllTableMeta(SSqlObj* pSql, struct SSqlInfo* pInfo) {
       // avoid mem leak, may should update pTableMeta
       const char* px = tNameGetTableName(pname);
       if (taosHashGet(pCmd->pTableMetaMap, px, strlen(px)) == NULL) {
-        STableMeta* pMeta = tscTableMetaDup(pTableMeta); 
+        STableMeta* pMeta = tscTableMetaDup(pTableMeta);
         STableMetaVgroupInfo p = { .pTableMeta = pMeta,  .pVgroupInfo = NULL};
         taosHashPut(pCmd->pTableMetaMap, px, strlen(px), &p, sizeof(STableMetaVgroupInfo));
       }
@@ -8133,7 +8169,7 @@ int32_t loadAllTableMeta(SSqlObj* pSql, struct SSqlInfo* pInfo) {
 
   // load the table meta for a given table name list
   if (taosArrayGetSize(plist) > 0 || taosArrayGetSize(pVgroupList) > 0 || (pQueryInfo->pUdfInfo && taosArrayGetSize(pQueryInfo->pUdfInfo) > 0)) {
-    code = getMultiTableMetaFromMnode(pSql, plist, pVgroupList, pQueryInfo->pUdfInfo, tscTableMetaCallBack);
+    code = getMultiTableMetaFromMnode(pSql, plist, pVgroupList, pQueryInfo->pUdfInfo, tscTableMetaCallBack, true);
   }
 
 _end:
@@ -8262,7 +8298,9 @@ static int32_t doValidateSubquery(SSqlNode* pSqlNode, int32_t index, SSqlObj* pS
 
   // union all is not support currently
   SSqlNode* p = taosArrayGetP(subInfo->pSubquery, 0);
-
+  if (taosArrayGetSize(subInfo->pSubquery) >= 2) {
+    return invalidOperationMsg(msgBuf, "not support union in subquery");
+  }
   SQueryInfo* pSub = calloc(1, sizeof(SQueryInfo));
   tscInitQueryInfo(pSub);
 
@@ -8630,7 +8668,7 @@ int32_t validateSqlNode(SSqlObj* pSql, SSqlNode* pSqlNode, SQueryInfo* pQueryInf
     }
 
     taosArrayAddBatch(pQueryInfo->exprList1, (void*) p, numOfExpr);
-    tfree(p); 
+    tfree(p);
   }
 
 #if 0

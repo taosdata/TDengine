@@ -10,8 +10,10 @@ extern "C" {
 #include "taosdef.h"
 
 // ----------------- For variable data types such as TSDB_DATA_TYPE_BINARY and TSDB_DATA_TYPE_NCHAR
-typedef int32_t VarDataOffsetT;
-typedef int16_t VarDataLenT;
+typedef int32_t  VarDataOffsetT;
+typedef int16_t  VarDataLenT;  // maxVarDataLen: 32767
+typedef uint16_t TDRowLenT;    // not including overhead: 0 ~ 65535
+typedef uint32_t TDRowTLenT;   // total length, including overhead
 
 typedef struct tstr {
   VarDataLenT len;

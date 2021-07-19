@@ -94,11 +94,21 @@ typedef struct SVgroupTableInfo {
   SArray     *itemList;   // SArray<STableIdInfo>
 } SVgroupTableInfo;
 
+typedef struct SBlockKeyTuple {
+  TSKEY skey;
+  void* payloadAddr;
+} SBlockKeyTuple;
+
+typedef struct SBlockKeyInfo {
+  int32_t         maxBytesAlloc;
+  SBlockKeyTuple* pKeyTuple;
+} SBlockKeyInfo;
+
 int32_t converToStr(char *str, int type, void *buf, int32_t bufSize, int32_t *len);
 
 int32_t tscCreateDataBlock(size_t initialSize, int32_t rowSize, int32_t startOffset, SName* name, STableMeta* pTableMeta, STableDataBlocks** dataBlocks);
 void tscDestroyDataBlock(STableDataBlocks* pDataBlock, bool removeMeta);
-void tscSortRemoveDataBlockDupRows(STableDataBlocks* dataBuf);
+int     tscSortRemoveDataBlockDupRows(STableDataBlocks* dataBuf, SBlockKeyInfo* pBlkKeyInfo);
 
 void tscDestroyBoundColumnInfo(SParsedDataColInfo* pColInfo);
 void doRetrieveSubqueryData(SSchedMsg *pMsg);
@@ -309,10 +319,9 @@ bool hasMoreClauseToTry(SSqlObj* pSql);
 void tscFreeQueryInfo(SSqlCmd* pCmd, bool removeMeta);
 
 void tscTryQueryNextVnode(SSqlObj *pSql, __async_cb_func_t fp);
-void tscAsyncQuerySingleRowForNextVnode(void *param, TAOS_RES *tres, int numOfRows);
 void tscTryQueryNextClause(SSqlObj* pSql, __async_cb_func_t fp);
 int  tscSetMgmtEpSetFromCfg(const char *first, const char *second, SRpcCorEpSet *corEpSet);
-int32_t getMultiTableMetaFromMnode(SSqlObj *pSql, SArray* pNameList, SArray* pVgroupNameList, SArray* pUdfList, __async_cb_func_t fp);
+int32_t getMultiTableMetaFromMnode(SSqlObj *pSql, SArray* pNameList, SArray* pVgroupNameList, SArray* pUdfList, __async_cb_func_t fp, bool metaClone);
 
 int tscTransferTableNameList(SSqlObj *pSql, const char *pNameList, int32_t length, SArray* pNameArray);
 

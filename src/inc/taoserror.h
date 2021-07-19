@@ -175,6 +175,7 @@ int32_t* taosGetErrno();
 #define TSDB_CODE_MND_FIELD_NOT_EXIST           TAOS_DEF_ERROR_CODE(0, 0x036C)  //"Field does not exist")
 #define TSDB_CODE_MND_INVALID_STABLE_NAME       TAOS_DEF_ERROR_CODE(0, 0x036D)  //"Super table does not exist")
 #define TSDB_CODE_MND_INVALID_CREATE_TABLE_MSG  TAOS_DEF_ERROR_CODE(0, 0x036E)  //"Invalid create table message")
+#define TSDB_CODE_MND_EXCEED_MAX_ROW_BYTES      TAOS_DEF_ERROR_CODE(0, 0x036F)  //"Exceed max row bytes")
 
 #define TSDB_CODE_MND_INVALID_FUNC_NAME         TAOS_DEF_ERROR_CODE(0, 0x0370)  //"Invalid func name")
 #define TSDB_CODE_MND_INVALID_FUNC_LEN          TAOS_DEF_ERROR_CODE(0, 0x0371)  //"Invalid func length")
