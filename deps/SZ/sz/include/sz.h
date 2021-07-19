@@ -27,7 +27,6 @@
 #include "sz_double.h"
 #include "szd_float.h"
 #include "szd_double.h"
-#include "callZlib.h"
 #include "utility.h"
 
 #ifdef _WIN32
