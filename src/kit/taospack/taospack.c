@@ -22,9 +22,9 @@
 int main(int argc, char *argv[]) {
   printf("welcome to use taospack tools v1.3 for windows.\n");
 }
-#elif !defined(TSZ_IMPL) 
+#elif !defined(TD_TSZ) 
 int main(int argc, char *argv[]) {
-  printf(" welcome taospack. \n You not open TSZ , please define TSZ_IMPL to open TSZ algo.\n");
+  printf(" welcome taospack. \n You not open TSZ , please define TD_TSZ to open TSZ algo.\n");
 }
 #else
 
@@ -678,7 +678,7 @@ void test_same_double(int algo){
 
 }
 
-#ifdef TSZ_IMPL
+#ifdef TD_TSZ
 extern char lossyColumns [];
 extern bool lossyDouble;
 extern bool lossyFloat;

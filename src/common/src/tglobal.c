@@ -244,7 +244,7 @@ int32_t tsdbDebugFlag = 131;
 int32_t cqDebugFlag = 131;
 int32_t fsDebugFlag = 135;
 
-#ifdef TSZ_IMPL
+#ifdef TD_TSZ
 //
 // lossy compress 6
 //
@@ -1531,7 +1531,7 @@ static void doInitGlobalConfig(void) {
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosInitConfigOption(cfg);
 
-#ifdef TSZ_IMPL
+#ifdef TD_TSZ
   // lossy compress
   cfg.option = "lossyColumns";
   cfg.ptr = lossyColumns;

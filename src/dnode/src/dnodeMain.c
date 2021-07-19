@@ -237,7 +237,7 @@ static void dnodeCheckDataDirOpenned(char *dir) {
 }
 
 static int32_t dnodeInitStorage() {
-#ifdef TSZ_IMPL
+#ifdef TD_TSZ
   // compress module init
   tsCompressInit();
 #endif
@@ -322,7 +322,7 @@ static void dnodeCleanupStorage() {
   // storage destroy
   tfsDestroy(); 
 
- #ifdef TSZ_IMPL 
+ #ifdef TD_TSZ 
   // compress destroy
   tsCompressExit();
  #endif 

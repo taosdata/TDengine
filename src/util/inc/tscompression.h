@@ -68,7 +68,7 @@ extern int tsDecompressFloatLossyImp(const char * input, int compressedSize, con
 extern int tsCompressDoubleLossyImp(const char * input, const int nelements, char *const output);
 extern int tsDecompressDoubleLossyImp(const char * input, int compressedSize, const int nelements, char *const output);
 
-#ifdef TSZ_IMPL
+#ifdef TD_TSZ
 extern bool lossyFloat;
 extern bool lossyDouble;
 // init call
@@ -223,7 +223,7 @@ static FORCE_INLINE int tsDecompressString(const char *const input, int compress
 
 static FORCE_INLINE int tsCompressFloat(const char *const input, int inputSize, const int nelements, char *const output, int outputSize,
                     char algorithm, char *const buffer, int bufferSize) {
-#ifdef TSZ_IMPL
+#ifdef TD_TSZ
   // lossy mode
   if(lossyFloat) {
     return tsCompressFloatLossyImp(input, nelements, output);
@@ -246,14 +246,14 @@ static FORCE_INLINE int tsCompressFloat(const char *const input, int inputSize, 
       assert(0);
       return -1;
     }    
-#ifdef TSZ_IMPL  
+#ifdef TD_TSZ  
   }
 #endif
 }
 
 static FORCE_INLINE int tsDecompressFloat(const char *const input, int compressedSize, const int nelements, char *const output,
                       int outputSize, char algorithm, char *const buffer, int bufferSize) {
-#ifdef TSZ_IMPL
+#ifdef TD_TSZ
   if(HEAD_ALGO(input[0]) == ALGO_SZ_LOSSY){
     // decompress lossy
     return tsDecompressFloatLossyImp(input, compressedSize, nelements, output);
@@ -269,7 +269,7 @@ static FORCE_INLINE int tsDecompressFloat(const char *const input, int compresse
       assert(0);
       return -1;
     }
-#ifdef TSZ_IMPL  
+#ifdef TD_TSZ  
   }
 #endif
 }
@@ -277,7 +277,7 @@ static FORCE_INLINE int tsDecompressFloat(const char *const input, int compresse
 
 static FORCE_INLINE int tsCompressDouble(const char *const input, int inputSize, const int nelements, char *const output, int outputSize,
                      char algorithm, char *const buffer, int bufferSize) {
-#ifdef TSZ_IMPL  
+#ifdef TD_TSZ  
   if(lossyDouble){
     // lossy mode
     return tsCompressDoubleLossyImp(input, nelements, output);
@@ -293,14 +293,14 @@ static FORCE_INLINE int tsCompressDouble(const char *const input, int inputSize,
       assert(0);
       return -1;
     }
-#ifdef TSZ_IMPL      
+#ifdef TD_TSZ      
   }
 #endif  
 }
 
 static FORCE_INLINE int tsDecompressDouble(const char *const input, int compressedSize, const int nelements, char *const output,
                        int outputSize, char algorithm, char *const buffer, int bufferSize) {
-  #ifdef TSZ_IMPL  
+  #ifdef TD_TSZ  
   if(HEAD_ALGO(input[0]) == ALGO_SZ_LOSSY){
     // decompress lossy
     return tsDecompressDoubleLossyImp(input, compressedSize, nelements, output);
@@ -316,12 +316,12 @@ static FORCE_INLINE int tsDecompressDouble(const char *const input, int compress
       assert(0);
       return -1;
     }
-#ifdef TSZ_IMPL      
+#ifdef TD_TSZ      
   }
 #endif  
 }
 
-#ifdef TSZ_IMPL  
+#ifdef TD_TSZ  
 //
 //  lossy float double
 //

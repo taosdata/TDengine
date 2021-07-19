@@ -205,7 +205,7 @@ extern int32_t wDebugFlag;
 extern int32_t cqDebugFlag;
 extern int32_t debugFlag;
 
-#ifdef TSZ_IMPL
+#ifdef TD_TSZ
 // lossy 
 extern char lossyColumns[];
 extern double fPrecision;

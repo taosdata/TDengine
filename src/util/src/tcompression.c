@@ -49,7 +49,7 @@
 
 #include "os.h"
 #include "lz4.h"
-#ifdef TSZ_IMPL  
+#ifdef TD_TSZ  
   #include "td_sz.h"
 #endif
 #include "taosdef.h"
@@ -66,7 +66,7 @@ static const int TEST_NUMBER = 1;
 #define ZIGZAG_ENCODE(T, v) ((u##T)((v) >> (sizeof(T) * 8 - 1))) ^ (((u##T)(v)) << 1)  // zigzag encode
 #define ZIGZAG_DECODE(T, v) ((v) >> 1) ^ -((T)((v)&1))                                 // zigzag decode
 
-#ifdef TSZ_IMPL
+#ifdef TD_TSZ
 bool lossyFloat  = false;
 bool lossyDouble = false;
 
@@ -923,7 +923,7 @@ int tsDecompressFloatImp(const char *const input, const int nelements, char *con
   return nelements * FLOAT_BYTES;
 }
 
-#ifdef TSZ_IMPL  
+#ifdef TD_TSZ  
 //
 //   ----------  float double lossy  -----------
 //
