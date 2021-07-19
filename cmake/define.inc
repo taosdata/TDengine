@@ -83,6 +83,8 @@ IF (TD_ARM_64)
   ADD_DEFINITIONS(-DUSE_LIBICONV)
   MESSAGE(STATUS "arm64 is defined")
   SET(COMMON_FLAGS "-Wall -Werror -fPIC -fsigned-char -fpack-struct=8 -D_FILE_OFFSET_BITS=64 -D_LARGE_FILE")
+  
+  INCLUDE_DIRECTORIES(${TD_COMMUNITY_DIR}/deps/lua/src)
 ENDIF ()
 
 IF (TD_ARM_32)
@@ -91,6 +93,8 @@ IF (TD_ARM_32)
   ADD_DEFINITIONS(-DUSE_LIBICONV)
   MESSAGE(STATUS "arm32 is defined")
   SET(COMMON_FLAGS "-Wall -Werror -fPIC -fsigned-char -fpack-struct=8 -D_FILE_OFFSET_BITS=64 -D_LARGE_FILE -Wno-pointer-to-int-cast -Wno-int-to-pointer-cast -Wno-incompatible-pointer-types ")
+
+  INCLUDE_DIRECTORIES(${TD_COMMUNITY_DIR}/deps/lua/src)
 ENDIF ()
 
 IF (TD_MIPS_64)
@@ -143,6 +147,7 @@ IF (TD_LINUX)
 
   INCLUDE_DIRECTORIES(${TD_COMMUNITY_DIR}/deps/cJson/inc)
   INCLUDE_DIRECTORIES(${TD_COMMUNITY_DIR}/deps/lz4/inc)
+  INCLUDE_DIRECTORIES(${TD_COMMUNITY_DIR}/deps/lua/src)
 ENDIF ()
 
 IF (TD_DARWIN_64)
@@ -164,6 +169,7 @@ IF (TD_DARWIN_64)
   SET(RELEASE_FLAGS "-Og")
   INCLUDE_DIRECTORIES(${TD_COMMUNITY_DIR}/deps/cJson/inc)
   INCLUDE_DIRECTORIES(${TD_COMMUNITY_DIR}/deps/lz4/inc)
+  INCLUDE_DIRECTORIES(${TD_COMMUNITY_DIR}/deps/lua/src)
 ENDIF ()
 
 IF (TD_WINDOWS)
@@ -194,6 +200,7 @@ IF (TD_WINDOWS)
   INCLUDE_DIRECTORIES(${TD_COMMUNITY_DIR}/deps/regex)
   INCLUDE_DIRECTORIES(${TD_COMMUNITY_DIR}/deps/wepoll/inc)
   INCLUDE_DIRECTORIES(${TD_COMMUNITY_DIR}/deps/MsvcLibX/include)
+  INCLUDE_DIRECTORIES(${TD_COMMUNITY_DIR}/deps/lua/src)
 ENDIF ()
 
 IF (TD_WINDOWS_64)
