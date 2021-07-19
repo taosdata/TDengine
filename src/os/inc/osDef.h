@@ -210,6 +210,20 @@ extern "C" {
   #define PRIzu "zu"  
 #endif
 
+
+#if defined(_TD_LINUX_64) || defined(_TD_LINUX_32) || defined(_TD_MIPS_64)  || defined(_TD_ARM_32) || defined(_TD_ARM_64)  || defined(_TD_DARWIN_64)
+  #if defined(_TD_DARWIN_64)
+    // MacOS
+    #define setThreadName(name) do { pthread_setname_np((name)); } while (0)
+  #else
+    // Linux, length of name must <= 16 (the last '\0' included)
+    #define setThreadName(name) do { prctl(PR_SET_NAME, (name)); } while (0)
+  #endif
+#else
+  // Windows
+  #define setThreadName(name)
+#endif
+
 #ifdef __cplusplus
 }
 #endif

@@ -45,8 +45,10 @@ static void processResponse(SRpcMsg *pMsg, SRpcEpSet *pEpSet) {
 static int tcount = 0;
 
 static void *sendRequest(void *param) {
-  SInfo  *pInfo = (SInfo *)param;
-  SRpcMsg rpcMsg = {0}; 
+  SInfo   *pInfo = (SInfo *)param;
+  SRpcMsg  rpcMsg = {0}; 
+
+  setThreadName("sendCliReq");
   
   tDebug("thread:%d, start to send request", pInfo->index);
 

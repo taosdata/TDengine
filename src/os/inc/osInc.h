@@ -84,6 +84,7 @@ extern "C" {
     #include <sys/eventfd.h>
     #include <sys/resource.h>
     #include <sys/sendfile.h>
+    #include <sys/prctl.h>
 
     #if !(defined(_ALPINE))
       #include <error.h>

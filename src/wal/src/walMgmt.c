@@ -183,6 +183,8 @@ static void walFsyncAll() {
 }
 
 static void *walThreadFunc(void *param) {
+  setThreadName("walThread");
+
   while (1) {
     walUpdateSeq();
     walFsyncAll();

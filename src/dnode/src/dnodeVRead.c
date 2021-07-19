@@ -118,6 +118,11 @@ static void *dnodeProcessReadQueue(void *wparam) {
   SVReadMsg *  pRead;
   int32_t      qtype;
   void *       pVnode;
+  char         name[16];
+
+  memset(name, 0, 16);
+  snprintf(name, 16, "%s-dnProcRQ", pPool->name);
+  setThreadName(name);
 
   while (1) {
     if (taosReadQitemFromQset(pPool->qset, &qtype, (void **)&pRead, &pVnode) == 0) {

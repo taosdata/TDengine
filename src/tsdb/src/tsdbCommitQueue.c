@@ -158,6 +158,8 @@ static void *tsdbLoopCommit(void *arg) {
   STsdbRepo *   pRepo = NULL;
   TSDB_REQ_T    req;
 
+  setThreadName("tsdbLoopCommit");
+
   while (true) {
     pthread_mutex_lock(&(pQueue->lock));
 

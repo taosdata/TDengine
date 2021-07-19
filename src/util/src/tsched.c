@@ -122,6 +122,8 @@ void *taosProcessSchedQueue(void *scheduler) {
   SSchedQueue *pSched = (SSchedQueue *)scheduler;
   int ret = 0;
 
+  setThreadName("procSchedQ");
+
   while (1) {
     if ((ret = tsem_wait(&pSched->fullSem)) != 0) {
       uFatal("wait %s fullSem failed(%s)", pSched->label, strerror(errno));

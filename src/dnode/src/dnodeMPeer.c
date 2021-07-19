@@ -150,6 +150,8 @@ static void *dnodeProcessMPeerQueue(void *param) {
   SMnodeMsg *pPeerMsg;
   int32_t    type;
   void *     unUsed;
+
+  setThreadName("dnodeProcMPeerQ");
   
   while (1) {
     if (taosReadQitemFromQset(tsMPeerQset, &type, (void **)&pPeerMsg, &unUsed) == 0) {
