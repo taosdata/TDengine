@@ -8277,7 +8277,9 @@ static int32_t doValidateSubquery(SSqlNode* pSqlNode, int32_t index, SSqlObj* pS
 
   // union all is not support currently
   SSqlNode* p = taosArrayGetP(subInfo->pSubquery, 0);
-
+  if (taosArrayGetSize(subInfo->pSubquery) >= 2) {
+    return invalidOperationMsg(msgBuf, "not support union in subquery");
+  }
   SQueryInfo* pSub = calloc(1, sizeof(SQueryInfo));
   tscInitQueryInfo(pSub);
 
