@@ -1141,7 +1141,6 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
         if (arguments->disorderRatio) {
             printf("# Data order:                        %d\n", arguments->disorderRatio);
             printf("# Data out of order rate:            %d\n", arguments->disorderRange);
-
         }
         printf("# Delete method:                     %d\n", arguments->method_of_delete);
         printf("# Answer yes when prompt:            %d\n", arguments->answer_yes);
@@ -2196,7 +2195,6 @@ static void printfQuerySystemInfo(TAOS * taos) {
         snprintf(buffer, MAX_QUERY_SQL_LENGTH, "show %s.stables;", dbInfos[i]->name);
         res = taos_query(taos, buffer);
         xDumpResultToFile(filename, res);
-
         free(dbInfos[i]);
     }
 
