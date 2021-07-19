@@ -291,6 +291,7 @@ static char* normalStmtBuildSql(STscStmt* stmt) {
   return taosStringBuilderGetResult(&sb, NULL);
 }
 
+#if 0
 static int fillColumnsNull(STableDataBlocks* pBlock, int32_t rowNum) {
   SParsedDataColInfo* spd = &pBlock->boundColumnInfo;
   int32_t offset = 0;
@@ -318,8 +319,129 @@ static int fillColumnsNull(STableDataBlocks* pBlock, int32_t rowNum) {
 
   return TSDB_CODE_SUCCESS;
 }
+#endif
+
+/**
+ * input:
+ * - schema:
+ * - payload:
+ * - spd:
+ * output:
+ * - pBlock with data block replaced by K-V format
+ */
+static int refactorPayload(STableDataBlocks* pBlock, int32_t rowNum) {
+  SParsedDataColInfo* spd = &pBlock->boundColumnInfo;
+  SSchema*            schema = (SSchema*)pBlock->pTableMeta->schema;
+  SMemRowHelper*      pHelper = &pBlock->rowHelper;
+  STableMeta*         pTableMeta = pBlock->pTableMeta;
+  STableComInfo       tinfo = tscGetTableInfo(pTableMeta);
+  int                 code = TSDB_CODE_SUCCESS;
+  int32_t             extendedRowSize = getExtendedRowSize(&tinfo);
+  TDRowTLenT          destPayloadSize = sizeof(SSubmitBlk);
+
+  ASSERT(pHelper->allNullLen >= 8);
+
+  TDRowTLenT  destAllocSize = sizeof(SSubmitBlk) + rowNum * extendedRowSize;
+  SSubmitBlk* pDestBlock = tcalloc(destAllocSize, 1);
+  if (pDestBlock == NULL) {
+    return TSDB_CODE_TSC_OUT_OF_MEMORY;
+  }
+  memcpy(pDestBlock, pBlock->pData, sizeof(SSubmitBlk));
+  char* destPayload = (char*)pDestBlock + sizeof(SSubmitBlk);
+
+  char* srcPayload = (char*)pBlock->pData + sizeof(SSubmitBlk);
+
+  for (int n = 0; n < rowNum; ++n) {
+    payloadSetNCols(destPayload, spd->numOfBound);
+
+    TDRowTLenT dataRowLen = pHelper->allNullLen;
+    TDRowTLenT kvRowLen = TD_MEM_ROW_KV_VER_SIZE + sizeof(SColIdx) * spd->numOfBound;
+    TDRowTLenT payloadValOffset = payloadValuesOffset(destPayload);  // rely on payloadNCols
+    TDRowLenT  colValOffset = 0;
+
+    char* kvPrimaryKeyStart = destPayload + PAYLOAD_HEADER_LEN;  // primaryKey in 1st column tuple
+    char* kvStart = kvPrimaryKeyStart + PAYLOAD_COL_HEAD_LEN;    // the column tuple behind the primaryKey
+
+    for (int32_t i = 0; i < spd->numOfBound; ++i) {
+      int32_t colIndex = spd->boundedColumns[i];
+      ASSERT(spd->cols[colIndex].hasVal);
+      char*    start = srcPayload + spd->cols[colIndex].offset;
+      SSchema* pSchema = &schema[colIndex];  // get colId here
+      bool     isPrimaryKey = (colIndex == PRIMARYKEY_TIMESTAMP_COL_INDEX);
+
+      // the primary key locates in 1st column
+      if (!IS_DATA_COL_ORDERED(spd->orderStatus)) {
+        ASSERT(spd->colIdxInfo != NULL);
+        if (!isPrimaryKey) {
+          kvStart = POINTER_SHIFT(kvPrimaryKeyStart, spd->colIdxInfo[i].finalIdx * PAYLOAD_COL_HEAD_LEN);
+        } else {
+          ASSERT(spd->colIdxInfo[i].finalIdx == 0);
+        }
+      }
+      if (isPrimaryKey) {
+        payloadColSetId(kvPrimaryKeyStart, pSchema->colId);
+        payloadColSetType(kvPrimaryKeyStart, pSchema->type);
+        payloadColSetOffset(kvPrimaryKeyStart, colValOffset);
+        memcpy(POINTER_SHIFT(destPayload, payloadValOffset + colValOffset), start, TYPE_BYTES[pSchema->type]);
+        colValOffset += TYPE_BYTES[pSchema->type];
+        kvRowLen += TYPE_BYTES[pSchema->type];
+      } else {
+        payloadColSetId(kvStart, pSchema->colId);
+        payloadColSetType(kvStart, pSchema->type);
+        payloadColSetOffset(kvStart, colValOffset);
+        if (IS_VAR_DATA_TYPE(pSchema->type)) {
+          varDataCopy(POINTER_SHIFT(destPayload, payloadValOffset + colValOffset), start);
+          colValOffset += varDataTLen(start);
+          kvRowLen += varDataTLen(start);
+          if (pSchema->type == TSDB_DATA_TYPE_BINARY) {
+            dataRowLen += (varDataLen(start) - CHAR_BYTES);
+          } else if (pSchema->type == TSDB_DATA_TYPE_NCHAR) {
+            dataRowLen += (varDataLen(start) - TSDB_NCHAR_SIZE);
+          } else {
+            ASSERT(0);
+          }
+        } else {
+          memcpy(POINTER_SHIFT(destPayload, payloadValOffset + colValOffset), start, TYPE_BYTES[pSchema->type]);
+          colValOffset += TYPE_BYTES[pSchema->type];
+          kvRowLen += TYPE_BYTES[pSchema->type];
+        }
+
+        if (IS_DATA_COL_ORDERED(spd->orderStatus)) {
+          kvStart += PAYLOAD_COL_HEAD_LEN;  // move to next column
+        }
+      }
 
 
+    }  // end of column
+
+    if (kvRowLen < dataRowLen) {
+      payloadSetType(destPayload, SMEM_ROW_KV);
+    } else {
+      payloadSetType(destPayload, SMEM_ROW_DATA);
+    }
+
+    ASSERT(colValOffset <= TSDB_MAX_BYTES_PER_ROW);
+
+    TDRowTLenT len = payloadValOffset + colValOffset;
+    payloadSetTLen(destPayload, len);
+
+    // next loop
+    srcPayload += pBlock->rowSize;
+    destPayload += len;
+
+    destPayloadSize += len;
+  }  // end of row
+  
+  ASSERT(destPayloadSize <= destAllocSize);
+
+  tfree(pBlock->pData);
+  pBlock->pData = (char*)pDestBlock;
+  pBlock->nAllocSize = destAllocSize;
+  pBlock->size = destPayloadSize;
+
+  return code;
+}
+#if 0
 int32_t fillTablesColumnsNull(SSqlObj* pSql) {
   SSqlCmd* pCmd = &pSql->cmd;
 
@@ -342,16 +464,97 @@ int32_t fillTablesColumnsNull(SSqlObj* pSql) {
 
   return TSDB_CODE_SUCCESS;
 }
+#endif
 
-
-
-////////////////////////////////////////////////////////////////////////////////
-// functions for insertion statement preparation
-static int doBindParam(STableDataBlocks* pBlock, char* data, SParamInfo* param, TAOS_BIND* bind, int32_t colNum) {
-  if (bind->is_null != NULL && *(bind->is_null)) {
-    setNull(data + param->offset, param->type, param->bytes);
+/**
+ * check and sort
+ */
+static int initPayloadEnv(STableDataBlocks* pBlock, int32_t rowNum) {
+  SParsedDataColInfo* spd = &pBlock->boundColumnInfo;
+  if (spd->orderStatus != ORDER_STATUS_UNKNOWN) {
     return TSDB_CODE_SUCCESS;
   }
+
+  bool isOrdered = true;
+  int32_t lastColIdx = -1;
+  for (int32_t i = 0; i < spd->numOfBound; ++i) {
+    ASSERT(spd->cols[i].hasVal);
+    int32_t colIdx = spd->boundedColumns[i];
+    if (isOrdered) {
+      if (lastColIdx > colIdx) {
+        isOrdered = false;
+        break;
+      } else {
+        lastColIdx = colIdx;
+      }
+    }
+  }
+
+  spd->orderStatus = isOrdered ? ORDER_STATUS_ORDERED : ORDER_STATUS_DISORDERED;
+
+  if (isOrdered) {
+    spd->colIdxInfo = NULL;
+  } else {
+    spd->colIdxInfo = calloc(spd->numOfBound, sizeof(SBoundIdxInfo));
+    if (spd->colIdxInfo == NULL) {
+      return TSDB_CODE_TSC_OUT_OF_MEMORY;
+    }
+    SBoundIdxInfo* pColIdx = spd->colIdxInfo;
+    for (uint16_t i = 0; i < spd->numOfBound; ++i) {
+      pColIdx[i].schemaColIdx = (uint16_t)spd->boundedColumns[i];
+      pColIdx[i].boundIdx = i;
+    }
+    qsort(pColIdx, spd->numOfBound, sizeof(SBoundIdxInfo), schemaIdxCompar);
+    for (uint16_t i = 0; i < spd->numOfBound; ++i) {
+      pColIdx[i].finalIdx = i;
+    }
+    qsort(pColIdx, spd->numOfBound, sizeof(SBoundIdxInfo), boundIdxCompar);
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+/**
+ *  Refactor the raw payload structure to K-V format as the in tsParseOneRow()
+ */
+int32_t fillTablesPayload(SSqlObj* pSql) {
+  SSqlCmd* pCmd = &pSql->cmd;
+  int      code = TSDB_CODE_SUCCESS;
+
+  STableDataBlocks** p = taosHashIterate(pCmd->insertParam.pTableBlockHashList, NULL);
+
+  STableDataBlocks* pOneTableBlock = *p;
+  while (pOneTableBlock) {
+    SSubmitBlk* pBlocks = (SSubmitBlk*)pOneTableBlock->pData;
+
+    if (pBlocks->numOfRows > 0) {
+      initSMemRowHelper(&pOneTableBlock->rowHelper, tscGetTableSchema(pOneTableBlock->pTableMeta),
+                        tscGetNumOfColumns(pOneTableBlock->pTableMeta), 0);
+      if ((code = initPayloadEnv(pOneTableBlock, pBlocks->numOfRows)) != TSDB_CODE_SUCCESS) {
+        return code;
+      }
+      if ((code = refactorPayload(pOneTableBlock, pBlocks->numOfRows)) != TSDB_CODE_SUCCESS) {
+        return code;
+      };
+    }
+
+    p = taosHashIterate(pCmd->insertParam.pTableBlockHashList, p);
+    if (p == NULL) {
+      break;
+    }
+
+    pOneTableBlock = *p;
+  }
+
+  return code;
+}
+  ////////////////////////////////////////////////////////////////////////////////
+  // functions for insertion statement preparation
+  static int doBindParam(STableDataBlocks* pBlock, char* data, SParamInfo* param, TAOS_BIND* bind, int32_t colNum) {
+    if (bind->is_null != NULL && *(bind->is_null)) {
+      setNull(data + param->offset, param->type, param->bytes);
+      return TSDB_CODE_SUCCESS;
+    }
 
 #if 0
   if (0) {
@@ -1106,9 +1309,12 @@ static int insertStmtExecute(STscStmt* stmt) {
   pBlk->uid = pTableMeta->id.uid;
   pBlk->tid = pTableMeta->id.tid;
 
-  fillTablesColumnsNull(stmt->pSql);
+  int code = fillTablesPayload(stmt->pSql);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
 
-  int code = tscMergeTableDataBlocks(&stmt->pSql->cmd.insertParam, false);
+  code = tscMergeTableDataBlocks(&stmt->pSql->cmd.insertParam, false);
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }
@@ -1185,7 +1391,7 @@ static int insertBatchStmtExecute(STscStmt* pStmt) {
     return TSDB_CODE_TSC_APP_ERROR;
   }
 
-  fillTablesColumnsNull(pStmt->pSql);
+  fillTablesPayload(pStmt->pSql);
 
   if ((code = tscMergeTableDataBlocks(&pStmt->pSql->cmd.insertParam, false)) != TSDB_CODE_SUCCESS) {
     return code;

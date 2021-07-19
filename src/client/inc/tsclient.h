@@ -88,12 +88,42 @@ typedef struct SBoundColumn {
   int32_t offset;  // all column offset value
 } SBoundColumn;
 
+typedef struct {
+  uint16_t schemaColIdx;
+  uint16_t boundIdx;
+  uint16_t finalIdx;
+} SBoundIdxInfo;
+
+typedef enum _COL_ORDER_STATUS {
+  ORDER_STATUS_UNKNOWN = 0,
+  ORDER_STATUS_ORDERED = 1,
+  ORDER_STATUS_DISORDERED = 2,
+} EOrderStatus;
+
 typedef struct SParsedDataColInfo {
-  int16_t         numOfCols;
-  int16_t         numOfBound;
-  int32_t        *boundedColumns;
-  SBoundColumn   *cols;
+  int16_t        numOfCols;
+  int16_t        numOfBound;
+  int32_t *      boundedColumns;  // bounded column idx according to schema
+  SBoundColumn * cols;
+  SBoundIdxInfo *colIdxInfo;
+  int8_t         orderStatus;  // bounded columns: 
 } SParsedDataColInfo;
+
+#define IS_DATA_COL_ORDERED(s) ((s) == (int8_t)ORDER_STATUS_ORDERED)
+
+typedef struct {
+  SSchema *   pSchema;
+  int16_t     sversion;
+  int32_t     flen;
+  uint16_t    nCols;
+  void *      buf;
+  void *      pDataBlock;
+  SSubmitBlk *pSubmitBlk;
+} SMemRowBuilder;
+
+typedef struct {
+  TDRowLenT allNullLen;
+} SMemRowHelper;
 
 typedef struct STableDataBlocks {
   SName       tableName;
@@ -109,12 +139,13 @@ typedef struct STableDataBlocks {
   STableMeta *pTableMeta;   // the tableMeta of current table, the table meta will be used during submit, keep a ref to avoid to be removed from cache
   char       *pData;
 
-  SParsedDataColInfo  boundColumnInfo;
+  SParsedDataColInfo boundColumnInfo;
 
   // for parameter ('?') binding
-  uint32_t    numOfAllocedParams;
-  uint32_t    numOfParams;
-  SParamInfo *params;
+  uint32_t       numOfAllocedParams;
+  uint32_t       numOfParams;
+  SParamInfo *   params;
+  SMemRowHelper  rowHelper;
 } STableDataBlocks;
 
 typedef struct {
@@ -243,6 +274,7 @@ typedef struct SSqlObj {
   void *           pStream;
   void *           pSubscription;
   char *           sqlstr;
+  void *           pBuf;  // table meta buffer
   char             parseRetry;
   char             retry;
   char             maxRetry;
@@ -382,9 +414,14 @@ extern int   tscRefId;
 extern int   tscNumOfObj;     // number of existed sqlObj in current process.
 
 extern int (*tscBuildMsg[TSDB_SQL_MAX])(SSqlObj *pSql, SSqlInfo *pInfo);
-
+ 
 void tscBuildVgroupTableInfo(SSqlObj* pSql, STableMetaInfo* pTableMetaInfo, SArray* tables);
 int16_t getNewResColId(SSqlCmd* pCmd);
+
+int32_t schemaIdxCompar(const void *lhs, const void *rhs);
+int32_t boundIdxCompar(const void *lhs, const void *rhs);
+int     initSMemRowHelper(SMemRowHelper *pHelper, SSchema *pSSchema, uint16_t nCols, uint16_t allNullColsLen);
+int32_t getExtendedRowSize(STableComInfo *tinfo);
 
 #ifdef __cplusplus
 }
