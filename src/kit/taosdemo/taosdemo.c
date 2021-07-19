@@ -71,9 +71,9 @@ extern char configDir[];
 
 #define HEAD_BUFF_LEN       TSDB_MAX_COLUMNS*24  // 16*MAX_COLUMNS + (192+32)*2 + insert into ..
 
-#define BUFFER_SIZE         (TSDB_MAX_BYTES_PER_ROW*2)
-#define COND_BUF_LEN        (BUFFER_SIZE - 30)
 #define COL_BUFFER_LEN      (TSDB_MAX_BYTES_PER_ROW - 50)
+#define BUFFER_SIZE         (50 + TSDB_DB_NAME_LEN + TSDB_TABLE_NAME_LEN + TSDB_MAX_BYTES_PER_ROW + TSDB_MAX_TAGS_LEN)
+#define COND_BUF_LEN        (BUFFER_SIZE - 30)
 #define MAX_USERNAME_SIZE  64
 #define MAX_PASSWORD_SIZE  64
 #define MAX_HOSTNAME_SIZE  64
