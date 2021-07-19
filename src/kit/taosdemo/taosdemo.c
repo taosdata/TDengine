@@ -71,15 +71,15 @@ extern char configDir[];
 
 #define HEAD_BUFF_LEN       TSDB_MAX_COLUMNS*24  // 16*MAX_COLUMNS + (192+32)*2 + insert into ..
 
-#define BUFFER_SIZE        (TSDB_MAX_BYTES_PER_ROW*2)
-#define COND_BUF_LEN       (BUFFER_SIZE - 30)
+#define BUFFER_SIZE         (TSDB_MAX_BYTES_PER_ROW*2)
+#define COND_BUF_LEN        (BUFFER_SIZE - 30)
+#define COL_BUFFER_LEN      (TSDB_MAX_BYTES_PER_ROW - 50)
 #define MAX_USERNAME_SIZE  64
 #define MAX_PASSWORD_SIZE  64
 #define MAX_HOSTNAME_SIZE  64
 #define MAX_TB_NAME_SIZE   64
 #define MAX_DATA_SIZE      (16*TSDB_MAX_COLUMNS)+20     // max record len: 16*MAX_COLUMNS, timestamp string and ,('') need extra space
 #define OPT_ABORT          1 /* –abort */
-#define STRING_LEN         60000
 #define MAX_PREPARED_RAND  1000000
 #define MAX_FILE_NAME_LEN  256              // max file name length on linux is 255.
 
@@ -2706,7 +2706,7 @@ static int createSuperTable(
 
     char command[BUFFER_SIZE] = "\0";
 
-    char cols[STRING_LEN] = "\0";
+    char cols[COL_BUFFER_LEN] = "\0";
     int colIndex;
     int len = 0;
 
@@ -2722,55 +2722,55 @@ static int createSuperTable(
         char* dataType = superTbl->columns[colIndex].dataType;
 
         if (strcasecmp(dataType, "BINARY") == 0) {
-            len += snprintf(cols + len, STRING_LEN - len,
-                    ", col%d %s(%d)", colIndex, "BINARY",
+            len += snprintf(cols + len, COL_BUFFER_LEN - len,
+                    ", C%d %s(%d)", colIndex, "BINARY",
                     superTbl->columns[colIndex].dataLen);
             lenOfOneRow += superTbl->columns[colIndex].dataLen + 3;
         } else if (strcasecmp(dataType, "NCHAR") == 0) {
-            len += snprintf(cols + len, STRING_LEN - len,
-                    ", col%d %s(%d)", colIndex, "NCHAR",
+            len += snprintf(cols + len, COL_BUFFER_LEN - len,
+                    ", C%d %s(%d)", colIndex, "NCHAR",
                     superTbl->columns[colIndex].dataLen);
             lenOfOneRow += superTbl->columns[colIndex].dataLen + 3;
         } else if (strcasecmp(dataType, "INT") == 0)  {
             if ((g_args.demo_mode) && (colIndex == 1)) {
-                    len += snprintf(cols + len, STRING_LEN - len,
+                    len += snprintf(cols + len, COL_BUFFER_LEN - len,
                             ", VOLTAGE INT");
             } else {
-                len += snprintf(cols + len, STRING_LEN - len, ", col%d %s", colIndex, "INT");
+                len += snprintf(cols + len, COL_BUFFER_LEN - len, ", C%d %s", colIndex, "INT");
             }
             lenOfOneRow += 11;
         } else if (strcasecmp(dataType, "BIGINT") == 0)  {
-            len += snprintf(cols + len, STRING_LEN - len, ", col%d %s",
+            len += snprintf(cols + len, COL_BUFFER_LEN - len, ", C%d %s",
                     colIndex, "BIGINT");
             lenOfOneRow += 21;
         } else if (strcasecmp(dataType, "SMALLINT") == 0)  {
-            len += snprintf(cols + len, STRING_LEN - len, ", col%d %s",
+            len += snprintf(cols + len, COL_BUFFER_LEN - len, ", C%d %s",
                     colIndex, "SMALLINT");
             lenOfOneRow += 6;
         } else if (strcasecmp(dataType, "TINYINT") == 0)  {
-            len += snprintf(cols + len, STRING_LEN - len, ", col%d %s", colIndex, "TINYINT");
+            len += snprintf(cols + len, COL_BUFFER_LEN - len, ", C%d %s", colIndex, "TINYINT");
             lenOfOneRow += 4;
         } else if (strcasecmp(dataType, "BOOL") == 0)  {
-            len += snprintf(cols + len, STRING_LEN - len, ", col%d %s", colIndex, "BOOL");
+            len += snprintf(cols + len, COL_BUFFER_LEN - len, ", C%d %s", colIndex, "BOOL");
             lenOfOneRow += 6;
         } else if (strcasecmp(dataType, "FLOAT") == 0) {
             if (g_args.demo_mode) {
                 if (colIndex == 0) {
-                    len += snprintf(cols + len, STRING_LEN - len, ", CURRENT FLOAT");
+                    len += snprintf(cols + len, COL_BUFFER_LEN - len, ", CURRENT FLOAT");
                 } else if (colIndex == 2) {
-                    len += snprintf(cols + len, STRING_LEN - len, ", PHASE FLOAT");
+                    len += snprintf(cols + len, COL_BUFFER_LEN - len, ", PHASE FLOAT");
                 }
             } else {
-                len += snprintf(cols + len, STRING_LEN - len, ", col%d %s", colIndex, "FLOAT");
+                len += snprintf(cols + len, COL_BUFFER_LEN - len, ", C%d %s", colIndex, "FLOAT");
             }
 
             lenOfOneRow += 22;
         } else if (strcasecmp(dataType, "DOUBLE") == 0) {
-            len += snprintf(cols + len, STRING_LEN - len, ", col%d %s",
+            len += snprintf(cols + len, COL_BUFFER_LEN - len, ", C%d %s",
                     colIndex, "DOUBLE");
             lenOfOneRow += 42;
         }  else if (strcasecmp(dataType, "TIMESTAMP") == 0) {
-            len += snprintf(cols + len, STRING_LEN - len, ", col%d %s",
+            len += snprintf(cols + len, COL_BUFFER_LEN - len, ", C%d %s",
                     colIndex, "TIMESTAMP");
             lenOfOneRow += 21;
         } else {
@@ -2802,60 +2802,63 @@ static int createSuperTable(
         return -1;
     }
 
-    char tags[STRING_LEN] = "\0";
+    char tags[TSDB_MAX_TAGS_LEN] = "\0";
     int tagIndex;
     len = 0;
 
     int lenOfTagOfOneRow = 0;
-    len += snprintf(tags + len, STRING_LEN - len, "(");
+    len += snprintf(tags + len, TSDB_MAX_TAGS_LEN - len, "(");
     for (tagIndex = 0; tagIndex < superTbl->tagCount; tagIndex++) {
         char* dataType = superTbl->tags[tagIndex].dataType;
 
         if (strcasecmp(dataType, "BINARY") == 0) {
             if ((g_args.demo_mode) && (tagIndex == 1)) {
-                len += snprintf(tags + len, STRING_LEN - len,
+                len += snprintf(tags + len, TSDB_MAX_TAGS_LEN - len,
                         "location BINARY(%d), ",
                         superTbl->tags[tagIndex].dataLen);
             } else {
-                len += snprintf(tags + len, STRING_LEN - len, "t%d %s(%d), ",
-                        tagIndex, "BINARY", superTbl->tags[tagIndex].dataLen);
+                len += snprintf(tags + len, TSDB_MAX_TAGS_LEN - len,
+                        "t%d %s(%d), ", tagIndex, "BINARY",
+                        superTbl->tags[tagIndex].dataLen);
             }
             lenOfTagOfOneRow += superTbl->tags[tagIndex].dataLen + 3;
         } else if (strcasecmp(dataType, "NCHAR") == 0) {
-            len += snprintf(tags + len, STRING_LEN - len, "t%d %s(%d), ", tagIndex,
+            len += snprintf(tags + len, TSDB_MAX_TAGS_LEN - len,
+                    "t%d %s(%d), ", tagIndex,
                     "NCHAR", superTbl->tags[tagIndex].dataLen);
             lenOfTagOfOneRow += superTbl->tags[tagIndex].dataLen + 3;
         } else if (strcasecmp(dataType, "INT") == 0)  {
             if ((g_args.demo_mode) && (tagIndex == 0)) {
-                len += snprintf(tags + len, STRING_LEN - len, "groupId INT, ");
+                len += snprintf(tags + len, TSDB_MAX_TAGS_LEN - len,
+                        "groupId INT, ");
             } else {
-                len += snprintf(tags + len, STRING_LEN - len, "t%d %s, ", tagIndex,
-                    "INT");
+                len += snprintf(tags + len, TSDB_MAX_TAGS_LEN - len,
+                        "t%d %s, ", tagIndex, "INT");
             }
             lenOfTagOfOneRow += superTbl->tags[tagIndex].dataLen + 11;
         } else if (strcasecmp(dataType, "BIGINT") == 0)  {
-            len += snprintf(tags + len, STRING_LEN - len, "t%d %s, ", tagIndex,
-                    "BIGINT");
+            len += snprintf(tags + len, TSDB_MAX_TAGS_LEN - len,
+                    "t%d %s, ", tagIndex, "BIGINT");
             lenOfTagOfOneRow += superTbl->tags[tagIndex].dataLen + 21;
         } else if (strcasecmp(dataType, "SMALLINT") == 0)  {
-            len += snprintf(tags + len, STRING_LEN - len, "t%d %s, ", tagIndex,
-                    "SMALLINT");
+            len += snprintf(tags + len, TSDB_MAX_TAGS_LEN - len,
+                    "t%d %s, ", tagIndex, "SMALLINT");
             lenOfTagOfOneRow += superTbl->tags[tagIndex].dataLen + 6;
         } else if (strcasecmp(dataType, "TINYINT") == 0)  {
-            len += snprintf(tags + len, STRING_LEN - len, "t%d %s, ", tagIndex,
-                    "TINYINT");
+            len += snprintf(tags + len, TSDB_MAX_TAGS_LEN - len,
+                    "t%d %s, ", tagIndex, "TINYINT");
             lenOfTagOfOneRow += superTbl->tags[tagIndex].dataLen + 4;
         } else if (strcasecmp(dataType, "BOOL") == 0)  {
-            len += snprintf(tags + len, STRING_LEN - len, "t%d %s, ", tagIndex,
-                    "BOOL");
+            len += snprintf(tags + len, TSDB_MAX_TAGS_LEN - len,
+                    "t%d %s, ", tagIndex, "BOOL");
             lenOfTagOfOneRow += superTbl->tags[tagIndex].dataLen + 6;
         } else if (strcasecmp(dataType, "FLOAT") == 0) {
-            len += snprintf(tags + len, STRING_LEN - len, "t%d %s, ", tagIndex,
-                    "FLOAT");
+            len += snprintf(tags + len, TSDB_MAX_TAGS_LEN - len,
+                    "t%d %s, ", tagIndex, "FLOAT");
             lenOfTagOfOneRow += superTbl->tags[tagIndex].dataLen + 22;
         } else if (strcasecmp(dataType, "DOUBLE") == 0) {
-            len += snprintf(tags + len, STRING_LEN - len, "t%d %s, ", tagIndex,
-                    "DOUBLE");
+            len += snprintf(tags + len, TSDB_MAX_TAGS_LEN - len,
+                    "t%d %s, ", tagIndex, "DOUBLE");
             lenOfTagOfOneRow += superTbl->tags[tagIndex].dataLen + 42;
         } else {
             taos_close(taos);
@@ -2866,7 +2869,7 @@ static int createSuperTable(
     }
 
     len -= 2;
-    len += snprintf(tags + len, STRING_LEN - len, ")");
+    len += snprintf(tags + len, TSDB_MAX_TAGS_LEN - len, ")");
 
     superTbl->lenOfTagOfOneRow = lenOfTagOfOneRow;
 
@@ -8021,10 +8024,10 @@ static void setParaFromArg() {
 
     g_Dbs.do_aggreFunc = true;
 
-    char dataString[STRING_LEN];
+    char dataString[TSDB_MAX_BYTES_PER_ROW];
     char **data_type = g_args.datatype;
 
-    memset(dataString, 0, STRING_LEN);
+    memset(dataString, 0, TSDB_MAX_BYTES_PER_ROW);
 
     if (strcasecmp(data_type[0], "BINARY") == 0
             || strcasecmp(data_type[0], "BOOL") == 0
