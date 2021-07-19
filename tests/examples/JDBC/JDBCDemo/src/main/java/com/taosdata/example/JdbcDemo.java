@@ -4,7 +4,7 @@ import java.sql.*;
 import java.util.Properties;
 
 public class JdbcDemo {
-    private static String host="u195";
+    private static String host;
     private static final String dbName = "test";
     private static final String tbName = "weather";
     private Connection connection;
