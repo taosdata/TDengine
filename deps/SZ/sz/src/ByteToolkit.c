@@ -10,7 +10,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include "sz.h" 	
-#include "zlib.h"
 
 INLINE int bytesToInt_bigEndian(unsigned char* bytes)
 {
@@ -287,21 +286,6 @@ void convertSZParamsToBytes(sz_params* params, unsigned char* result, char optQu
 	buf = (buf << 1) | sysEndianType;
 	buf = (buf << 2) | params->szMode;
 	
-	int tmp = 0;
-	switch(params->gzipMode)
-	{
-	case Z_BEST_SPEED:
-		tmp = 0;
-		break;
-	case Z_DEFAULT_STRATEGY:
-		tmp = 1;
-		break;
-	case Z_BEST_COMPRESSION:
-		tmp = 2;
-		break;
-	}
-	buf = (buf << 2) | tmp;
-	//buf = (buf << 2) |  params->pwr_type; //deprecated
 	result[0] = buf;
 }
 
@@ -309,22 +293,6 @@ void convertBytesToSZParams(unsigned char* bytes, sz_params* params, sz_exedata*
 {
 	unsigned char flag1 = bytes[0];
 	pde_exe->optQuantMode = (flag1 & 0x40) >> 6;
-	dataEndianType = (flag1 & 0x20) >> 5;
-	//sysEndianType = (flag1 & 0x10) >> 4;
-	
+	dataEndianType = (flag1 & 0x20) >> 5;	
 	params->szMode = (flag1 & 0x0c) >> 2;
-	
-	int tmp = (flag1 & 0x03);
-	switch(tmp)
-	{
-	case 0:
-		params->gzipMode = Z_BEST_SPEED;
-		break;
-	case 1:
-		params->gzipMode = Z_DEFAULT_STRATEGY;
-		break;
-	case 2:
-		params->gzipMode = Z_BEST_COMPRESSION;
-		break;
-	}
 }

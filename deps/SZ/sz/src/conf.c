@@ -35,10 +35,6 @@ void setDefaulParams(sz_exedata* exedata, sz_params* params)
 		params->predThreshold = 0.99;
 		params->sampleDistance = 100;
 		params->szMode = SZ_BEST_COMPRESSION;
-		if(params->losslessCompressor==ZSTD_COMPRESSOR)
-			params->gzipMode = 3; //fast mode
-		else
-			params->gzipMode = 1; //high speed mode
 
         // other
 		params->psnr = 90;
@@ -254,51 +250,7 @@ int SZ_ReadConf(const char* sz_cfgFile) {
 			confparams_cpr->withRegression = SZ_WITH_LINEAR_REGRESSION;
 		else
 			confparams_cpr->withRegression = SZ_NO_REGRESSION;
-		
-		modeBuf = iniparser_getstring(ini, "PARAMETER:gzipMode", "Gzip_BEST_SPEED");
-		if(modeBuf==NULL)
-		{
-			printf("[SZ] Error: Null Gzip mode setting (please check sz.config file)\n");
-			iniparser_freedict(ini);
-			return SZ_FAILED;					
-		}		
-		else if(strcmp(modeBuf, "Gzip_NO_COMPRESSION")==0)
-			confparams_cpr->gzipMode = 0;
-		else if(strcmp(modeBuf, "Gzip_BEST_SPEED")==0)
-			confparams_cpr->gzipMode = 1;
-		else if(strcmp(modeBuf, "Gzip_BEST_COMPRESSION")==0)
-			confparams_cpr->gzipMode = 9;
-		else if(strcmp(modeBuf, "Gzip_DEFAULT_COMPRESSION")==0)
-			confparams_cpr->gzipMode = -1;
-		else
-		{
-			printf("[SZ] Error: Wrong gzip Mode (please check sz.config file)\n");
-			return SZ_FAILED;
-		}
-		
-		modeBuf = iniparser_getstring(ini, "PARAMETER:zstdMode", "Zstd_HIGH_SPEED");		
-		if(modeBuf==NULL)
-		{
-			printf("[SZ] Error: Null Zstd mode setting (please check sz.config file)\n");
-			iniparser_freedict(ini);
-			return SZ_FAILED;					
-		}		
-		else if(strcmp(modeBuf, "Zstd_BEST_SPEED")==0)
-			confparams_cpr->gzipMode = 1;
-		else if(strcmp(modeBuf, "Zstd_HIGH_SPEED")==0)
-			confparams_cpr->gzipMode = 3;
-		else if(strcmp(modeBuf, "Zstd_HIGH_COMPRESSION")==0)
-			confparams_cpr->gzipMode = 19;
-		else if(strcmp(modeBuf, "Zstd_BEST_COMPRESSION")==0)
-			confparams_cpr->gzipMode = 22;			
-		else if(strcmp(modeBuf, "Zstd_DEFAULT_COMPRESSION")==0)
-			confparams_cpr->gzipMode = 3;
-		else
-		{
-			printf("[SZ] Error: Wrong zstd Mode (please check sz.config file)\n");
-			return SZ_FAILED;
-		}		
-		
+						
 		modeBuf = iniparser_getstring(ini, "PARAMETER:protectValueRange", "YES");
 		if(strcmp(modeBuf, "YES")==0)
 			confparams_cpr->protectValueRange = 1;

@@ -19,7 +19,6 @@
 #include "TightDataPointStorageF.h"
 #include "sz_float.h"
 #include "szd_float.h"
-#include "zlib.h"
 #include "utility.h"
 
 # define MIN(_a, _b) (((_a) < (_b)) ? (_a) : (_b))
@@ -383,7 +382,7 @@ int SZ_compress_args_float(float *oriData, size_t r1, unsigned char* newByteData
 	}
 	else
 	{
-		*outSize = sz_lossless_compress(params->losslessCompressor, params->gzipMode, tmpByteData, tmpOutSize, newByteData);
+		*outSize = sz_lossless_compress(params->losslessCompressor, tmpByteData, tmpOutSize, newByteData);
 		free(tmpByteData);	
 	}
 

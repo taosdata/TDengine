@@ -244,6 +244,7 @@ int32_t tsdbDebugFlag = 131;
 int32_t cqDebugFlag = 131;
 int32_t fsDebugFlag = 135;
 
+#ifdef TSZ_IMPL
 //
 // lossy compress 6
 //
@@ -254,7 +255,7 @@ double   dPrecision   = 1E-16;  // double column precision
 uint32_t maxIntervals = 500;    // max intervals
 uint32_t intervals    = 100;    // intervals
 char     Compressor[32] = "ZSTD_COMPRESSOR"; // ZSTD_COMPRESSOR or GZIP_COMPRESSOR 
-
+#endif
 
 int32_t (*monStartSystemFp)() = NULL;
 void (*monStopSystemFp)() = NULL;
@@ -1530,6 +1531,7 @@ static void doInitGlobalConfig(void) {
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosInitConfigOption(cfg);
 
+#ifdef TSZ_IMPL
   // lossy compress
   cfg.option = "lossyColumns";
   cfg.ptr = lossyColumns;
@@ -1538,16 +1540,6 @@ static void doInitGlobalConfig(void) {
   cfg.minValue = 0;
   cfg.maxValue = 0;
   cfg.ptrLength = tListLen(lossyColumns);
-  cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosInitConfigOption(cfg);
-
-  cfg.option = "Compressor";
-  cfg.ptr = Compressor;
-  cfg.valType = TAOS_CFG_VTYPE_STRING;
-  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG;
-  cfg.minValue = 0;
-  cfg.maxValue = 0;
-  cfg.ptrLength = tListLen(Compressor);
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosInitConfigOption(cfg);
 
@@ -1592,6 +1584,7 @@ static void doInitGlobalConfig(void) {
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosInitConfigOption(cfg);
+#endif
 
 }
 

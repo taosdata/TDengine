@@ -13,7 +13,6 @@
 #include <math.h>
 #include "utility.h"
 #include "sz.h"
-#include "callZlib.h"
 #include "zstd.h"
 
 
@@ -28,22 +27,17 @@ int is_lossless_compressed_data(unsigned char* compressedBytes, size_t cmpSize)
 	if(frameContentSize != 0)
 		return ZSTD_COMPRESSOR;
 #endif
-	int flag = isZlibFormat(compressedBytes[0], compressedBytes[1]);
-	if(flag)
-		return GZIP_COMPRESSOR;
 
 	return -1; //fast mode (without GZIP or ZSTD)
 }
 
-unsigned long sz_lossless_compress(int losslessCompressor, int level, unsigned char* data, unsigned long dataLength, unsigned char* compressBytes)
+unsigned long sz_lossless_compress(int losslessCompressor, unsigned char* data, unsigned long dataLength, unsigned char* compressBytes)
 {
 	unsigned long outSize = 0; 
+	int level = 3 ; // fast mode
 	size_t estimatedCompressedSize = 0;
 	switch(losslessCompressor)
 	{
-	case GZIP_COMPRESSOR:
-		outSize = zlib_compress5(data, dataLength, compressBytes, level);
-		break;
 	case ZSTD_COMPRESSOR:
 		if(dataLength < 100) 
 			estimatedCompressedSize = 200;
@@ -63,9 +57,6 @@ unsigned long sz_lossless_decompress(int losslessCompressor, unsigned char* comp
 	unsigned long outSize = 0;
 	switch(losslessCompressor)
 	{
-	case GZIP_COMPRESSOR:
-		outSize = zlib_uncompress5(compressBytes, cmpSize, oriData, targetOriSize);
-		break;
 	case ZSTD_COMPRESSOR:
 		*oriData = (unsigned char*)malloc(targetOriSize);
 		outSize = ZSTD_decompress(*oriData, targetOriSize, compressBytes, cmpSize);

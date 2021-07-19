@@ -19,7 +19,6 @@
 #include "TightDataPointStorageD.h"
 #include "sz_double.h"
 #include "szd_double.h"
-#include "zlib.h"
 #include "utility.h"
 
 unsigned char* SZ_skip_compress_double(double* data, size_t dataLength, size_t* outSize)
@@ -360,7 +359,7 @@ int SZ_compress_args_double(double *oriData, size_t r1, unsigned char* newByteDa
 		//
 		if(twoStage)
 		{
-			*outSize = sz_lossless_compress(params->losslessCompressor, params->gzipMode, tmpByteData, tmpOutSize, newByteData);
+			*outSize = sz_lossless_compress(params->losslessCompressor, tmpByteData, tmpOutSize, newByteData);
 			free(tmpByteData);
 		}
 		else

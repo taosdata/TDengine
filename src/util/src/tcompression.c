@@ -49,7 +49,9 @@
 
 #include "os.h"
 #include "lz4.h"
-#include "td_sz.h"
+#ifdef TSZ_IMPL  
+  #include "td_sz.h"
+#endif
 #include "taosdef.h"
 #include "tscompression.h"
 #include "tulog.h"
@@ -64,6 +66,7 @@ static const int TEST_NUMBER = 1;
 #define ZIGZAG_ENCODE(T, v) ((u##T)((v) >> (sizeof(T) * 8 - 1))) ^ (((u##T)(v)) << 1)  // zigzag encode
 #define ZIGZAG_DECODE(T, v) ((v) >> 1) ^ -((T)((v)&1))                                 // zigzag decode
 
+#ifdef TSZ_IMPL
 bool lossyFloat  = false;
 bool lossyDouble = false;
 
@@ -91,6 +94,7 @@ void tsCompressExit(){
    tdszExit();
 }
 
+#endif
 
 /*
  * Compress Integer (Simple8B).
@@ -919,7 +923,7 @@ int tsDecompressFloatImp(const char *const input, const int nelements, char *con
   return nelements * FLOAT_BYTES;
 }
 
-
+#ifdef TSZ_IMPL  
 //
 //   ----------  float double lossy  -----------
 //
@@ -986,3 +990,4 @@ int tsDecompressDoubleLossyImp(const char * input, int compressedSize, const int
   // decompressed with sz
   return tdszDecompress(SZ_DOUBLE, input + 1, compressedSize - 1, nelements, output);
 }
+#endif

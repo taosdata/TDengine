@@ -15,19 +15,24 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-
-
-//#include <iconv.h>
 #include <stdio.h>
 #include <stdlib.h>
-//#include <sys/stat.h>
-//#include <sys/syscall.h>
 
-#ifndef WINDOWS
+#if defined(WINDOWS) 
+int main(int argc, char *argv[]) {
+  printf("welcome to use taospack tools v1.3 for windows.\n");
+}
+#elif !defined(TSZ_IMPL) 
+int main(int argc, char *argv[]) {
+  printf(" welcome taospack. \n You not open TSZ , please define TSZ_IMPL to open TSZ algo.\n");
+}
+#else
 
 #include "os.h"
 #include "tscompression.h"
 #include "tdataformat.h"
+
+
 
 // ------- define -----------
 #define FT_CNT  8
@@ -673,12 +678,13 @@ void test_same_double(int algo){
 
 }
 
+#ifdef TSZ_IMPL
 extern char lossyColumns [];
 extern bool lossyDouble;
 extern bool lossyFloat;
 extern double  fPrecision;
 extern char Compressor [];
-
+#endif
 //
 //   -----------------  main ----------------------
 //
@@ -692,7 +698,7 @@ int main(int argc, char *argv[]) {
  
   strcpy(lossyColumns, "float|double");
   bool lossy = true;
-  fPrecision = 1E-5;
+  //fPrecision = 1E-5;
   //strcpy(Compressor, "GZIP_COMPRESSOR");
 
   tsCompressInit();
@@ -756,9 +762,5 @@ int main(int argc, char *argv[]) {
   return 0;
 }
 
-#else
-int main(int argc, char *argv[]) {
-  printf("welcome to use taospack tools v1.3 for windows.\n");
-}
 #endif
 

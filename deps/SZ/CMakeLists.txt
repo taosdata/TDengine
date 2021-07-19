@@ -3,23 +3,21 @@ PROJECT(TDengine)
 
 # include
 INCLUDE_DIRECTORIES(sz/include)
-INCLUDE_DIRECTORIES(zlib/)
 INCLUDE_DIRECTORIES(zstd/)
 INCLUDE_DIRECTORIES(zstd/common/)
 
 # source
 AUX_SOURCE_DIRECTORY(sz/src           SRC1)
-AUX_SOURCE_DIRECTORY(zlib/            SRC2)
+AUX_SOURCE_DIRECTORY(zstd/dictBuilder SRC2)
 AUX_SOURCE_DIRECTORY(zstd/common      SRC3)
 AUX_SOURCE_DIRECTORY(zstd/compress    SRC4)
 AUX_SOURCE_DIRECTORY(zstd/decompress  SRC5)
 AUX_SOURCE_DIRECTORY(zstd/deprecated  SRC6)
 AUX_SOURCE_DIRECTORY(zstd/legacy      SRC7)
-AUX_SOURCE_DIRECTORY(zstd/dictBuilder SRC8)
 
 
 # archive
-ADD_LIBRARY(SZ STATIC ${SRC1} ${SRC2} ${SRC3} ${SRC4} ${SRC5} ${SRC6} ${SRC7} ${SRC8})
+ADD_LIBRARY(SZ STATIC ${SRC1} ${SRC2} ${SRC3} ${SRC4} ${SRC5} ${SRC6} ${SRC7})
 
 # windows ignore warning
 IF (TD_WINDOWS)

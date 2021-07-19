@@ -16,7 +16,6 @@
 #include "DynamicByteArray.h"
 #include "TightDataPointStorageD.h"
 #include "TightDataPointStorageF.h"
-#include "zlib.h"
 #include "conf.h"
 #include "utility.h"
 

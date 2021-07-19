@@ -205,6 +205,7 @@ extern int32_t wDebugFlag;
 extern int32_t cqDebugFlag;
 extern int32_t debugFlag;
 
+#ifdef TSZ_IMPL
 // lossy 
 extern char lossyColumns[];
 extern double fPrecision;
@@ -212,6 +213,7 @@ extern double dPrecision;
 extern uint32_t maxIntervals;
 extern uint32_t intervals;
 extern char Compressor[];
+#endif
 
 typedef struct {
   char dir[TSDB_FILENAME_LEN];

@@ -237,9 +237,11 @@ static void dnodeCheckDataDirOpenned(char *dir) {
 }
 
 static int32_t dnodeInitStorage() {
+#ifdef TSZ_IMPL
   // compress module init
   tsCompressInit();
-  
+#endif
+
   // storage module init
   if (tsDiskCfgNum == 1 && dnodeCreateDir(tsDataDir) < 0) {
     dError("failed to create dir: %s, reason: %s", tsDataDir, strerror(errno));
@@ -319,9 +321,11 @@ static int32_t dnodeInitStorage() {
 static void dnodeCleanupStorage() {
   // storage destroy
   tfsDestroy(); 
-  
+
+ #ifdef TSZ_IMPL 
   // compress destroy
   tsCompressExit();
+ #endif 
 }
 
 bool  dnodeIsFirstDeploy() {
