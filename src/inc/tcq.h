@@ -27,7 +27,7 @@ typedef struct {
   int32_t  vgId;
   char     user[TSDB_USER_LEN];
   char     pass[TSDB_KEY_LEN];
-  char     db[TSDB_DB_NAME_LEN];
+  char     db[TSDB_ACCT_ID_LEN + TSDB_DB_NAME_LEN];
   FCqWrite cqWrite;
 } SCqCfg;
 

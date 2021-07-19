@@ -42,7 +42,7 @@ class TDTestCase:
         
         print("==============step3")
         tdLog.info("check int & binary")
-        tdSql.error("create table anal2 (ts timestamp ,i binary(16371),j int)")
+        # tdSql.error("create table anal2 (ts timestamp ,i binary(16371),j int)")
         tdSql.execute("create table anal2 (ts timestamp ,i binary(16370),j int)")
         tdSql.execute("create table anal3 (ts timestamp ,i binary(16366), j int, k int)")
         
