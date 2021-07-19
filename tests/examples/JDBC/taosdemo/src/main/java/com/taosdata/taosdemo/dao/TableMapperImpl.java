@@ -3,13 +3,14 @@ package com.taosdata.taosdemo.dao;
 import com.taosdata.taosdemo.domain.TableMeta;
 import com.taosdata.taosdemo.domain.TableValue;
 import com.taosdata.taosdemo.utils.SqlSpeller;
-import org.apache.log4j.Logger;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 import java.util.List;
 
 public class TableMapperImpl implements TableMapper {
-    private static final Logger logger = Logger.getLogger(TableMapperImpl.class);
+    private static final Logger logger = LogManager.getLogger(TableMapperImpl.class);
     private JdbcTemplate template;
 
     @Override

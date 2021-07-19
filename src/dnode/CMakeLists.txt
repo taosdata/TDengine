@@ -18,7 +18,7 @@ ELSE ()
 ENDIF ()
 
 ADD_EXECUTABLE(taosd ${SRC})
-TARGET_LINK_LIBRARIES(taosd mnode monitor http tsdb twal vnode cJson lz4 balance sync ${LINK_JEMALLOC})
+TARGET_LINK_LIBRARIES(taosd mnode monitor http tsdb twal vnode cJson lua lz4 balance sync ${LINK_JEMALLOC})
 
 IF (TD_SOMODE_STATIC)
   TARGET_LINK_LIBRARIES(taosd taos_static)

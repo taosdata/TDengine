@@ -17,7 +17,7 @@
 #define HTTP_PARSER_H
 #include "httpGzip.h"
 
-#define HTTP_MAX_URL 5  // http url stack size
+#define HTTP_MAX_URL 6  // http url stack size
 
 #define HTTP_CODE_CONTINUE                 100
 #define HTTP_CODE_SWITCHING_PROTOCOL       101

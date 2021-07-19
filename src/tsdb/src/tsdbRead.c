@@ -98,6 +98,8 @@ typedef struct SIOCostSummary {
   int64_t blockLoadTime;
   int64_t statisInfoLoadTime;
   int64_t checkForNextTime;
+  int64_t headFileLoad;
+  int64_t headFileLoadTime;
 } SIOCostSummary;
 
 typedef struct STsdbQueryHandle {
@@ -1045,15 +1047,21 @@ static int32_t getFileCompInfo(STsdbQueryHandle* pQueryHandle, int32_t* numOfBlo
   int32_t code = TSDB_CODE_SUCCESS;
   *numOfBlocks = 0;
 
+  pQueryHandle->cost.headFileLoad += 1;
+  int64_t s = taosGetTimestampUs();
+
   size_t numOfTables = 0;
   if (pQueryHandle->loadType == BLOCK_LOAD_TABLE_SEQ_ORDER) {
-     code = loadBlockInfo(pQueryHandle, pQueryHandle->activeIndex, numOfBlocks);
+    code = loadBlockInfo(pQueryHandle, pQueryHandle->activeIndex, numOfBlocks);
   } else if (pQueryHandle->loadType == BLOCK_LOAD_OFFSET_SEQ_ORDER) {
     numOfTables = taosArrayGetSize(pQueryHandle->pTableCheckInfo);
 
     for (int32_t i = 0; i < numOfTables; ++i) {
       code = loadBlockInfo(pQueryHandle, i, numOfBlocks);
       if (code != TSDB_CODE_SUCCESS) {
+        int64_t e = taosGetTimestampUs();
+
+        pQueryHandle->cost.headFileLoadTime += (e - s);
         return code;
       }
     }
@@ -1061,6 +1069,8 @@ static int32_t getFileCompInfo(STsdbQueryHandle* pQueryHandle, int32_t* numOfBlo
     assert(0);
   }
 
+  int64_t e = taosGetTimestampUs();
+  pQueryHandle->cost.headFileLoadTime += (e - s);
   return code;
 }
 
@@ -3688,6 +3698,10 @@ static void* doFreeColumnInfoData(SArray* pColumnInfoData) {
 }
 
 static void* destroyTableCheckInfo(SArray* pTableCheckInfo) {
+  if (pTableCheckInfo == NULL) {
+    return NULL;
+  }
+  
   size_t size = taosArrayGetSize(pTableCheckInfo);
   for (int32_t i = 0; i < size; ++i) {
     STableCheckInfo* p = taosArrayGet(pTableCheckInfo, i);
@@ -3731,8 +3745,8 @@ void tsdbCleanupQueryHandle(TsdbQueryHandleT queryHandle) {
   pQueryHandle->next = doFreeColumnInfoData(pQueryHandle->next);
 
   SIOCostSummary* pCost = &pQueryHandle->cost;
-  tsdbDebug("%p :io-cost summary: statis-info:%"PRId64" us, datablock:%" PRId64" us, check data:%"PRId64" us, 0x%"PRIx64,
-      pQueryHandle, pCost->statisInfoLoadTime, pCost->blockLoadTime, pCost->checkForNextTime, pQueryHandle->qId);
+  tsdbDebug("%p :io-cost summary: head-file read cnt:%"PRIu64", head-file time:%"PRIu64" us, statis-info:%"PRId64" us, datablock:%" PRId64" us, check data:%"PRId64" us, 0x%"PRIx64,
+      pQueryHandle, pCost->headFileLoad, pCost->headFileLoadTime, pCost->statisInfoLoadTime, pCost->blockLoadTime, pCost->checkForNextTime, pQueryHandle->qId);
 
   tfree(pQueryHandle);
 }

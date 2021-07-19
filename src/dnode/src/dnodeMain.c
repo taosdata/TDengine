@@ -40,6 +40,7 @@
 #include "dnodeShell.h"
 #include "dnodeTelemetry.h"
 #include "module.h"
+#include "qScript.h"
 #include "mnode.h"
 #include "tscompression.h"
 
@@ -85,6 +86,7 @@ static SStep tsDnodeSteps[] = {
   {"dnode-shell",     dnodeInitShell,      dnodeCleanupShell},
   {"dnode-statustmr", dnodeInitStatusTimer,dnodeCleanupStatusTimer},
   {"dnode-telemetry", dnodeInitTelemetry,  dnodeCleanupTelemetry},
+  {"dnode-script",    scriptEnvPoolInit,   scriptEnvPoolCleanup},
 };
 
 static SStep tsDnodeCompactSteps[] = {
@@ -271,7 +273,7 @@ static int32_t dnodeInitStorage() {
       return -1;
     }
   }
-  //TODO(dengyihao): no need to init here 
+  //TODO(dengyihao): no need to init here
   if (dnodeCreateDir(tsMnodeDir) < 0) {
    dError("failed to create dir: %s, reason: %s", tsMnodeDir, strerror(errno));
    return -1;
