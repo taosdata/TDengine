@@ -46,7 +46,5 @@ static void remove_batch_test() {
 }  // namespace
 
 TEST(arrayTest, array_list_test) {
-
   remove_batch_test();
-
 }
