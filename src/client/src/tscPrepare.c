@@ -1010,31 +1010,11 @@ static int32_t insertStmtGenLastBlock(STableDataBlocks** lastBlock, STableDataBl
   memcpy(*lastBlock, pBlock, sizeof(STableDataBlocks));
   (*lastBlock)->cloned = true;
   
-#if 0  
-  void* tmp = malloc((*pBlock)->numOfAllocedParams * sizeof(SParamInfo));
-  memcpy(tmp, (*pBlock)->params, (*pBlock)->numOfAllocedParams * sizeof(SParamInfo));
-  (*pBlock)->params = tmp;  
-#endif 
-
   (*lastBlock)->pData    = NULL;
   (*lastBlock)->ordered  = true;
   (*lastBlock)->prevTS   = INT64_MIN;
   (*lastBlock)->size     = sizeof(SSubmitBlk);
   (*lastBlock)->tsSource = -1;
-
-#if 0
-  if ((*pBlock)->boundColumnInfo.boundedColumns) {
-    tmp = malloc((*pBlock)->boundColumnInfo.numOfCols * sizeof(int32_t));
-    memcpy(tmp, (*pBlock)->boundColumnInfo.boundedColumns, (*pBlock)->boundColumnInfo.numOfCols * sizeof(int32_t));
-    (*pBlock)->boundColumnInfo.boundedColumns = tmp;
-  }
-
-  if ((*pBlock)->boundColumnInfo.cols) {
-    tmp = malloc((*pBlock)->boundColumnInfo.numOfCols * sizeof(SBoundColumn));
-    memcpy(tmp, (*pBlock)->boundColumnInfo.cols, (*pBlock)->boundColumnInfo.numOfCols * sizeof(SBoundColumn));
-    (*pBlock)->boundColumnInfo.cols = tmp;
-  }
-#endif
 
   return TSDB_CODE_SUCCESS;
 }
@@ -1054,38 +1034,15 @@ static int32_t insertStmtGenBlock(STscStmt* pStmt, STableDataBlocks** pBlock, ST
   void *t = malloc(tsize);
   *pBlock = t;
 
-  //*pBlock = (STableDataBlocks*)malloc(sizeof(STableDataBlocks));
   memcpy(*pBlock, pStmt->mtb.lastBlock, sizeof(STableDataBlocks));
-  
-#if 0  
-  void* tmp = malloc((*pBlock)->numOfAllocedParams * sizeof(SParamInfo));
-  memcpy(tmp, (*pBlock)->params, (*pBlock)->numOfAllocedParams * sizeof(SParamInfo));
-  (*pBlock)->params = tmp;  
-#endif 
 
   t = (char *)t + sizeof(STableDataBlocks);
   (*pBlock)->pTableMeta = t;
   memcpy((*pBlock)->pTableMeta, pTableMeta, msize);
 
   (*pBlock)->pData = malloc((*pBlock)->nAllocSize);
-  //(*pBlock)->pTableMeta = tscTableMetaDup(pTableMeta);
-  //(*pBlock)->pTableMeta = pTableMeta;
 
   (*pBlock)->vgId     = (*pBlock)->pTableMeta->vgId;
-
-#if 0
-  if ((*pBlock)->boundColumnInfo.boundedColumns) {
-    tmp = malloc((*pBlock)->boundColumnInfo.numOfCols * sizeof(int32_t));
-    memcpy(tmp, (*pBlock)->boundColumnInfo.boundedColumns, (*pBlock)->boundColumnInfo.numOfCols * sizeof(int32_t));
-    (*pBlock)->boundColumnInfo.boundedColumns = tmp;
-  }
-
-  if ((*pBlock)->boundColumnInfo.cols) {
-    tmp = malloc((*pBlock)->boundColumnInfo.numOfCols * sizeof(SBoundColumn));
-    memcpy(tmp, (*pBlock)->boundColumnInfo.cols, (*pBlock)->boundColumnInfo.numOfCols * sizeof(SBoundColumn));
-    (*pBlock)->boundColumnInfo.cols = tmp;
-  }
-#endif
 
   tNameAssign(&(*pBlock)->tableName, name);
   
@@ -1881,7 +1838,7 @@ int taos_stmt_set_tbname_tags(TAOS_STMT* stmt, const char* name, TAOS_BIND* tags
     SStrToken tname = {0};
     tname.type = TK_STRING;
     tname.z = (char *)name;
-    tname.n = strlen(name);
+    tname.n = (uint32_t)strlen(name);
     SName fullname = {0};
     tscSetTableFullName(&fullname, &tname, pSql);
 
