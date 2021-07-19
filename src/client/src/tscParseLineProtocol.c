@@ -1371,7 +1371,7 @@ static bool convertSmlValueType(TAOS_SML_KV *pVal, char *value,
     memcpy(pVal->value, &val, pVal->length);
     return true;
   }
-  return  false;
+  return false;
 }
 
 static int32_t getTimeStampValue(char *value, uint16_t len,
@@ -1460,7 +1460,7 @@ static int32_t parseSmlTimeStamp(TAOS_SML_KV **pTS, const char **index) {
   }
 
   if (len > 0) {
-    value = calloc(len+1, 1);
+    value = calloc(len + 1, 1);
     memcpy(value, start, len);
   }
 
@@ -1541,13 +1541,6 @@ static bool parseSmlValue(TAOS_SML_KV *pKV, const char **index,
   while (1) {
     // unescaped ',' or ' ' or '\0' identifies a value
     if ((*cur == ',' || *cur == ' ' || *cur == '\0') && *(cur - 1) != '\\') {
-      value = calloc(len + 1, 1);
-      memcpy(value, start, len);
-      value[len] = '\0';
-      if (!convertSmlValueType(pKV, value, len)) {
-        free(value);
-        return TSDB_CODE_TSC_LINE_SYNTAX_ERROR;
-      }
       //unescaped ' ' or '\0' indicates end of value
       *is_last_kv = (*cur == ' ' || *cur == '\0') ? true : false;
       break;
@@ -1560,9 +1553,16 @@ static bool parseSmlValue(TAOS_SML_KV *pKV, const char **index,
     len++;
   }
 
-  if (value) {
+  value = calloc(len + 1, 1);
+  memcpy(value, start, len);
+  value[len] = '\0';
+  if (!convertSmlValueType(pKV, value, len)) {
+    //free previous alocated key field
+    free(pKV->key);
     free(value);
+    return TSDB_CODE_TSC_LINE_SYNTAX_ERROR;
   }
+  free(value);
 
   *index = (*cur == '\0') ? cur : cur + 1;
   return TSDB_CODE_SUCCESS;
