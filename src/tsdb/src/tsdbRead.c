@@ -3095,7 +3095,7 @@ STimeWindow updateLastrowForEachGroup(STableGroupInfo *groupList) {
   // window does not being updated, so set the original
   if (window.skey == INT64_MAX && window.ekey == INT64_MIN) {
     window = TSWINDOW_INITIALIZER;
-    assert(totalNumOfTable == 0 && taosArrayGetSize(groupList->pGroupList) == 0);
+    assert(totalNumOfTable == 0 && taosArrayGetSize(groupList->pGroupList) == numOfGroups);
   }
 
   taosArrayRemoveBatch(groupList->pGroupList, TARRAY_GET_START(emptyGroup), taosArrayGetSize(emptyGroup));
