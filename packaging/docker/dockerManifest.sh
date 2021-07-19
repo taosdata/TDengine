@@ -49,12 +49,14 @@ if [ "$verType" == "beta" ]; then
   docker login -u tdengine -p ${passWord}  #replace the docker registry username and password
   docker manifest push tdengine/tdengine-beta:latest
   docker manifest push tdengine/tdengine-beta:${version}
+
 elif [ "$verType" == "stable" ]; then
   docker manifest create -a tdengine/tdengine:${version} tdengine/tdengine-amd64:${version} tdengine/tdengine-aarch64:${version} tdengine/tdengine-aarch32:${version}
   docker manifest create -a tdengine/tdengine:latest tdengine/tdengine-amd64:latest tdengine/tdengine-aarch64:latest tdengine/tdengine-aarch32:latest
   docker login -u tdengine -p ${passWord}  #replace the docker registry username and password
   docker manifest push tdengine/tdengine:latest
-  docker manifest push tdengine/tdengine:${version}
+    docker manifest push tdengine/tdengine:${version}
+
 else
   echo "unknow verType, nor stabel or beta"
   exit 1

@@ -69,7 +69,7 @@ rm -rf ./TDengine-alert
 pkg_name=TDengine-alert-${version}-${osType^}-${archMap[${cpuType}]}
 
 if [ "$verType" == "beta" ]; then
-  pkg_name=${pkg_name}-${verType}
+  pkg_name=TDengine-alert-${version}-${verType}-${osType^}-${archMap[${cpuType}]}
 elif [ "$verType" == "stable" ]; then
   pkg_name=${pkg_name}
 else
