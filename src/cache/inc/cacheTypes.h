@@ -13,24 +13,33 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_DEFINE_H
-#define TDENGINE_DEFINE_H
+#ifndef TDENGINE_CACHE_TYPES_H
+#define TDENGINE_CACHE_TYPES_H
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#define HASH_POWER_INIT             1024
-#define CHUNK_SIZE                  48
+struct cache_context_t;
+typedef struct cache_context_t cache_context_t;
 
-#define MAX_NUMBER_OF_SLAB_CLASSES  64
+enum cache_code_t;
+typedef enum cache_code_t cache_code_t;
 
-#define CHUNK_ALIGN_BYTES 8
+struct cache_option_t;
+typedef struct cache_option_t cache_option_t;
 
-#define SLAB_PAGE_SIZE 1024 * 1024
+struct hashtable_t;
+typedef struct hashtable_t hashtable_t;
+
+struct cache_item_t;
+typedef struct cache_item_t cache_item_t;
+
+struct cache_slab_t;
+typedef struct cache_slab_t cache_slab_t;
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /* TDENGINE_DEFINE_H */
+#endif /* TDENGINE_CACHE_TYPES_H */

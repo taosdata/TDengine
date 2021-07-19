@@ -13,33 +13,36 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_CACHE_TYPES_H
-#define TDENGINE_CACHE_TYPES_H
+#ifndef TDENGINE_CACHE_HASHTABLE_H
+#define TDENGINE_CACHE_HASHTABLE_H
+
+#include <stdbool.h>
+#include <stdint.h>
+#include "cacheTypes.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-struct cache_context_t;
-typedef struct cache_context_t cache_context_t;
+typedef uint32_t (*hash_func_t)(const void *key, size_t length);
 
-enum cache_code_t;
-typedef enum cache_code_t cache_code_t;
+struct hashtable_t {
+  cache_item_t** primary_hashtable;
 
-struct cache_option_t;
-typedef struct cache_option_t cache_option_t;
+  cache_item_t** old_hashtable;
 
-struct hashtable_t;
-typedef struct hashtable_t hashtable_t;
+  hash_func_t hash;
 
-struct item_t;
-typedef struct item_t item_t;
+  int   hashpower;
+  bool    expanding;
+};
 
-struct slab_t;
-typedef struct slab_t slab_t;
+cache_code_t hash_init(cache_context_t* context);
+cache_code_t hash_put(cache_context_t* context, cache_item_t* item);
+cache_item_t* hash_get(cache_context_t* context, const char* key, uint8_t nkey);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /* TDENGINE_CACHE_TYPES_H */
+#endif /* TDENGINE_CACHE_HASHTABLE_H */

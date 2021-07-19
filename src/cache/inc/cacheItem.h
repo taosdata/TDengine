@@ -13,28 +13,27 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_ITEM_H
-#define TDENGINE_ITEM_H
+#ifndef TDENGINE_CACHE_ITEM_H
+#define TDENGINE_CACHE_ITEM_H
 
 #include <stdint.h>
 #include <string.h>
 #include "cacheint.h"
-#include "item.h"
-#include "types.h"
+#include "cacheTypes.h"
 #include "osDef.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-struct item_t {
+struct cache_item_t {
   /* Protected by LRU locks */
-  struct item_t*  next;
-  struct item_t*  prev;
+  struct cache_item_t*  next;
+  struct cache_item_t*  prev;
 
-  struct item_t*  h_next;       /* hash chain next */
+  struct cache_item_t*  h_next;       /* hash chain next */
 
-  uint8_t         slabs_clsid;    /* which slab class we're in */
+  uint8_t         slab_class_id;    /* which slab class we're in */
   uint8_t         nkey;           /* key length */
 
   int             nbytes;         /* size of data */
@@ -43,8 +42,8 @@ struct item_t {
 };
 
 size_t item_size(uint8_t nkey, int nbytes);
-item_t* item_alloc(cache_context_t*, size_t ntotal, int id);
-void    item_free(cache_context_t*, item_t*);
+cache_item_t* item_alloc(cache_context_t*, uint8_t nkey, int nbytes);
+void    item_free(cache_context_t*, cache_item_t*);
 
 #define item_key(item)  (((char*)&((item)->data)) + sizeof(unsigned int))
 
@@ -62,7 +61,7 @@ static FORCE_INLINE bool key_equal(cache_key_t key1, cache_key_t key2) {
   return memcmp(key1.key, key2.key, key1.nkey) == 0;
 }
 
-static FORCE_INLINE bool item_key_equal(item_t* item1, item_t* item2) {
+static FORCE_INLINE bool item_key_equal(cache_item_t* item1, cache_item_t* item2) {
   cache_key_t key1 = key_from_item(item1);
   cache_key_t key2 = key_from_item(item2);
   return key_equal(key1, key2);
@@ -72,4 +71,4 @@ static FORCE_INLINE bool item_key_equal(item_t* item1, item_t* item2) {
 }
 #endif
 
-#endif  // TDENGINE_ITEM_H
+#endif  // TDENGINE_CACHE_ITEM_H

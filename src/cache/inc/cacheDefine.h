@@ -13,28 +13,24 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_SLAB_H
-#define TDENGINE_SLAB_H
-
-#include <stdlib.h> // for size_t
-#include "slab.h"
-#include "types.h"
+#ifndef TDENGINE_CACHE_DEFINE_H
+#define TDENGINE_CACHE_DEFINE_H
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-struct slab_t {
-  unsigned int size;      /* sizes of items */
-  unsigned int perslab;   /* how many items per slab */
-} ;
+#define HASH_POWER_INIT             1024
+#define CHUNK_SIZE                  48
 
-cache_code_t slab_init(cache_context_t *);
+#define MAX_NUMBER_OF_SLAB_CLASSES  64
 
-unsigned int slabs_clsid(cache_context_t *context, size_t size);
+#define CHUNK_ALIGN_BYTES 8
+
+#define SLAB_PAGE_SIZE 1024 * 1024
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif  // TDENGINE_SLAB_H
+#endif /* TDENGINE_CACHE_DEFINE_H */

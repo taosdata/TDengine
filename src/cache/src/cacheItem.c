@@ -13,37 +13,28 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_ASSOC_H
-#define TDENGINE_ASSOC_H
+#include "cacheint.h"
+#include "cacheItem.h"
 
-#include <stdbool.h>
-#include <stdint.h>
-#include "assoc.h"
-#include "types.h"
-
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-typedef uint32_t (*hash_func_t)(const void *key, size_t length);
-
-struct hashtable_t {
-  item_t** primary_hashtable;
-
-  item_t** old_hashtable;
-
-  hash_func_t hash;
-
-  int   hashpower;
-  bool    expanding;
-};
-
-cache_code_t hash_init(cache_context_t* context);
-cache_code_t hash_put(cache_context_t* context, item_t* item);
-item_t* hash_get(cache_context_t* context, const char* key, uint8_t nkey);
-
-#ifdef __cplusplus
+size_t item_size(uint8_t nkey, int nbytes) {
+  return sizeof(cache_item_t) + sizeof(unsigned int) + (nkey + 1) + nbytes;
 }
-#endif
 
-#endif /* TDENGINE_ASSOC_H */
+cache_item_t* item_alloc(cache_context_t* context, uint8_t nkey, int nbytes) {
+  /*
+  size_t ntotal = item_size(nkey, nbytes);
+  unsigned int id = slab_class_id(context, ntotal);
+  cache_item_t* item = NULL;
+
+  if (ntotal > 10240) {
+
+  } else {
+
+  }
+  */
+  return NULL;
+}
+
+void item_free(cache_context_t* context, cache_item_t* item) {
+
+}

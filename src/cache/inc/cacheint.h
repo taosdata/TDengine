@@ -20,7 +20,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include "cache.h"
-#include "types.h"
+#include "cacheTypes.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -28,18 +28,26 @@ extern "C" {
 
 typedef uint32_t (*hash_func)(const void *key, size_t length);
 
+// cache statistics data
+typedef struct cache_stat_t {
+  int32_t outMemory;
+} cache_stat_t;
+
 struct cache_context_t {
   // cache options
   cache_option_t options;
 
   // array of slab pointers
-  slab_t** slabs;
+  cache_slab_t** slabs;
 
   size_t alloced;
 
   int power_largest;
 
   hashtable_t* table;
+
+  cache_stat_t stat;
+
   // list link pointer in manager
   struct cache_context_t* next;
 };

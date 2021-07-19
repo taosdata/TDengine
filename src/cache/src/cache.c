@@ -14,14 +14,14 @@
  */
 
 #include <string.h>
-#include "assoc.h"
+#include "cacheHashtable.h"
 #include "cacheint.h"
 #include "cacheLog.h"
-#include "item.h"
-#include "slab.h"
+#include "cacheItem.h"
+#include "cacheSlab.h"
 
 static cache_code_t check_cache_options(cache_option_t* options);
-static cache_code_t do_cache_put(cache_context_t* context, const char* key, uint8_t nkey, const char* value, int nbytes, item_t** ppItem);
+static cache_code_t do_cache_put(cache_context_t* context, const char* key, uint8_t nkey, const char* value, int nbytes, cache_item_t** ppItem);
 
 //static cache_manager_t cache_manager
 
@@ -64,7 +64,7 @@ cache_code_t cache_put(cache_context_t* context, const char* key, uint8_t nkey, 
 }
 
 cache_code_t cache_get(cache_context_t* context, const char* key, uint8_t nkey, char** value, int *len) {
-  item_t* item = hash_get(context, key, nkey);
+  cache_item_t* item = hash_get(context, key, nkey);
   if (item) {
     *value = item_data(item);
     *len = item->nbytes;
@@ -87,11 +87,8 @@ cache_code_t cache_get(cache_context_t* context, const char* key, uint8_t nkey, 
   return CACHE_OK;
 }
 
-static cache_code_t do_cache_put(cache_context_t* context, const char* key, uint8_t nkey, const char* value, int nbytes, item_t** ppItem) {
-  size_t ntotal = item_size(nkey, nbytes);
-  unsigned int id = slabs_clsid(context, ntotal);
-
-  item_t* item = item_alloc(context, ntotal, id);
+static cache_code_t do_cache_put(cache_context_t* context, const char* key, uint8_t nkey, const char* value, int nbytes, cache_item_t** ppItem) {
+  cache_item_t* item = item_alloc(context, nkey, nbytes);
   if (item == NULL) {
     return CACHE_OOM;
   }

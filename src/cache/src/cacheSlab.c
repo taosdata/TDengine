@@ -14,22 +14,22 @@
  */
 
 #include "cacheint.h"
-#include "item.h"
-#include "define.h"
-#include "slab.h"
+#include "cacheItem.h"
+#include "cacheDefine.h"
+#include "cacheSlab.h"
 
 cache_code_t slab_init(cache_context_t *context) {
   context->slabs = NULL;
 
-  context->slabs = calloc(1, sizeof(slab_t) * MAX_NUMBER_OF_SLAB_CLASSES);
+  context->slabs = calloc(1, sizeof(cache_slab_t) * MAX_NUMBER_OF_SLAB_CLASSES);
   if (context->slabs == NULL) {
     goto error;
   }
 
   int i = 0;
-  size_t size = sizeof(item_t) + CHUNK_SIZE;
+  size_t size = sizeof(cache_item_t) + CHUNK_SIZE;
   while (i < MAX_NUMBER_OF_SLAB_CLASSES) {
-    slab_t *slab = calloc(1, sizeof(slab_t));
+    cache_slab_t *slab = calloc(1, sizeof(cache_slab_t));
     if (slab == NULL) {
       goto error;
     }
@@ -60,7 +60,7 @@ error:
   return CACHE_FAIL;
 }
 
-unsigned int slabs_clsid(cache_context_t *context, size_t size) {
+unsigned int slab_class_id(cache_context_t *context, size_t size) {
   int i = 0;
   while (size > context->slabs[i]->size) {
     if (i++ > context->power_largest) {
@@ -69,4 +69,13 @@ unsigned int slabs_clsid(cache_context_t *context, size_t size) {
   }
 
   return i;
+}
+
+cache_item_t* slab_alloc(cache_context_t *context, size_t ntotal) {
+  /*
+  unsigned int id = slab_class_id(context, ntotal);
+  cache_item_t *item = NULL;
+
+  */
+  return NULL;
 }

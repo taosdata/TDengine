@@ -14,9 +14,9 @@
  */
 
 #include <stdlib.h>
-#include "assoc.h"
+#include "cacheHashtable.h"
 #include "cacheint.h"
-#include "item.h"
+#include "cacheItem.h"
 
 #define hashsize(n) ((int32_t)1<<(n))
 #define hashmask(n) (hashsize(n)-1)
@@ -43,9 +43,9 @@ cache_code_t hash_init(cache_context_t* context) {
   return CACHE_OK;
 }
 
-cache_code_t hash_put(cache_context_t* context, item_t* item) {
+cache_code_t hash_put(cache_context_t* context, cache_item_t* item) {
   hashtable_t* table = context->table;
-  item_t* hash_head = NULL, *current = NULL, *hash_last = NULL;
+  cache_item_t* hash_head = NULL, *current = NULL, *hash_last = NULL;
   const char* key = item_key(item);
   uint32_t hash = table->hash(key, item->nkey);
   
@@ -76,10 +76,10 @@ cache_code_t hash_put(cache_context_t* context, item_t* item) {
   return CACHE_OK;
 }
 
-item_t* hash_get(cache_context_t* context, const char* key, uint8_t nkey) {
+cache_item_t* hash_get(cache_context_t* context, const char* key, uint8_t nkey) {
   hashtable_t* table = context->table;
   uint32_t hash = table->hash(key, nkey);
-  item_t* hash_head = table->primary_hashtable[hash & hashmask(table->hashpower)], *current = NULL;
+  cache_item_t* hash_head = table->primary_hashtable[hash & hashmask(table->hashpower)], *current = NULL;
   cache_key_t find_key = (cache_key_t){.key = key, .nkey = nkey};
 
   for (current = hash_head; current != NULL; current = current->h_next) {

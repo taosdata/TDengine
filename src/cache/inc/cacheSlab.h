@@ -13,17 +13,29 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "cacheint.h"
-#include "item.h"
+#ifndef TDENGINE_CACHE_SLAB_H
+#define TDENGINE_CACHE_SLAB_H
 
-size_t item_size(uint8_t nkey, int nbytes) {
-  return sizeof(item_t) + sizeof(unsigned int) + (nkey + 1) + nbytes;
+#include <stdlib.h> // for size_t
+#include "cacheTypes.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+struct cache_slab_t {
+  unsigned int size;      /* sizes of items */
+  unsigned int perslab;   /* how many items per slab */
+} ;
+
+cache_code_t slab_init(cache_context_t *);
+
+unsigned int slab_class_id(cache_context_t *context, size_t size);
+
+cache_item_t* slab_alloc(cache_context_t *context, size_t ntotal);
+
+#ifdef __cplusplus
 }
+#endif
 
-item_t* item_alloc(cache_context_t* context, size_t ntotal, int id) {
-  return NULL;
-}
-
-void item_free(cache_context_t* context, item_t* item) {
-
-}
+#endif  // TDENGINE_CACHE_SLAB_H
