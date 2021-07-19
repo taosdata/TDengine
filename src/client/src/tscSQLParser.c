@@ -6010,6 +6010,16 @@ int32_t setAlterTableInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
       return invalidOperationMsg(pMsg, msg22);
     }
 
+    SSchema* pSchema = (SSchema*) pTableMetaInfo->pTableMeta->schema;
+    int16_t numOfColumns = pTableMetaInfo->pTableMeta->tableInfo.numOfColumns;
+    int16_t i;
+    uint32_t nLen = 0;
+    for (i = 0; i < numOfColumns; ++i) {
+      nLen += pSchema[i].colId != columnIndex.columnIndex ? pSchema[i].bytes : pItem->bytes;
+    }
+    if (nLen >= TSDB_MAX_BYTES_PER_ROW) {
+      return invalidOperationMsg(pMsg, msg24);
+    }
     TAOS_FIELD f = tscCreateField(pColSchema->type, name.z, pItem->bytes);
     tscFieldInfoAppend(&pQueryInfo->fieldsInfo, &f);
   }else if (pAlterSQL->type == TSDB_ALTER_TABLE_MODIFY_TAG_COLUMN) {
@@ -6049,6 +6059,17 @@ int32_t setAlterTableInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
 
     if (pItem->bytes <= pColSchema->bytes) {
       return invalidOperationMsg(pMsg, msg22);
+    }
+
+    SSchema* pSchema = (SSchema*) pTableMetaInfo->pTableMeta->schema;
+    int16_t numOfColumns = pTableMetaInfo->pTableMeta->tableInfo.numOfColumns;
+    int16_t i;
+    uint32_t nLen = 0;
+    for (i = 0; i < numOfColumns; ++i) {
+      nLen += pSchema[i].colId != columnIndex.columnIndex ? pSchema[i].bytes : pItem->bytes;
+    }
+    if (nLen >= TSDB_MAX_BYTES_PER_ROW) {
+      return invalidOperationMsg(pMsg, msg24);
     }
 
     TAOS_FIELD f = tscCreateField(pColSchema->type, name.z, pItem->bytes);
