@@ -20,10 +20,10 @@ size_t item_size(uint8_t nkey, int nbytes) {
   return sizeof(cache_item_t) + sizeof(unsigned int) + (nkey + 1) + nbytes;
 }
 
-cache_item_t* item_alloc(cache_context_t* context, uint8_t nkey, int nbytes) {
+cache_item_t* item_alloc(cache_t* cache, uint8_t nkey, int nbytes) {
   /*
   size_t ntotal = item_size(nkey, nbytes);
-  unsigned int id = slab_class_id(context, ntotal);
+  unsigned int id = slabClsId(cache, ntotal);
   cache_item_t* item = NULL;
 
   if (ntotal > 10240) {
@@ -35,6 +35,6 @@ cache_item_t* item_alloc(cache_context_t* context, uint8_t nkey, int nbytes) {
   return NULL;
 }
 
-void item_free(cache_context_t* context, cache_item_t* item) {
+void item_free(cache_t* cache, cache_item_t* item) {
 
 }

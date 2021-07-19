@@ -24,13 +24,13 @@
 extern uint32_t jenkins_hash(const void *key, size_t length);
 extern uint32_t MurmurHash3_x86_32(const void *key, size_t length);
 
-cache_code_t hash_init(cache_context_t* context) {
-  hashtable_t* table = calloc(1, sizeof(hashtable_t));
+cache_code_t hash_init(cache_t* cache) {
+  cache_hashtable_t* table = calloc(1, sizeof(cache_hashtable_t));
   if (table == NULL) {
     return CACHE_OOM;
   }
 
-  table->hashpower = context->options.hashPowerInit;
+  table->hashpower = cache->options.hashPowerInit;
   table->primary_hashtable = calloc(hashsize(table->hashpower), sizeof(void *));
   if (table->primary_hashtable == NULL) {
     free(table);
@@ -39,12 +39,12 @@ cache_code_t hash_init(cache_context_t* context) {
   table->hash = MurmurHash3_x86_32;
   table->expanding = false;
 
-  context->table = table;
+  cache->table = table;
   return CACHE_OK;
 }
 
-cache_code_t hash_put(cache_context_t* context, cache_item_t* item) {
-  hashtable_t* table = context->table;
+cache_code_t hash_put(cache_t* cache, cache_item_t* item) {
+  cache_hashtable_t* table = cache->table;
   cache_item_t* hash_head = NULL, *current = NULL, *hash_last = NULL;
   const char* key = item_key(item);
   uint32_t hash = table->hash(key, item->nkey);
@@ -66,7 +66,7 @@ cache_code_t hash_put(cache_context_t* context, cache_item_t* item) {
     } else {
       // first item
     }
-    item_free(context, current);
+    item_free(cache, current);
     break;
   }
 
@@ -76,8 +76,8 @@ cache_code_t hash_put(cache_context_t* context, cache_item_t* item) {
   return CACHE_OK;
 }
 
-cache_item_t* hash_get(cache_context_t* context, const char* key, uint8_t nkey) {
-  hashtable_t* table = context->table;
+cache_item_t* hash_get(cache_t* cache, const char* key, uint8_t nkey) {
+  cache_hashtable_t* table = cache->table;
   uint32_t hash = table->hash(key, nkey);
   cache_item_t* hash_head = table->primary_hashtable[hash & hashmask(table->hashpower)], *current = NULL;
   cache_key_t find_key = (cache_key_t){.key = key, .nkey = nkey};

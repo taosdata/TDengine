@@ -23,16 +23,23 @@
 extern "C" {
 #endif
 
-struct cache_slab_t {
-  unsigned int size;      /* sizes of items */
-  unsigned int perslab;   /* how many items per slab */
-} ;
+struct cache_slabcls_t {
+  unsigned int size;        /* sizes of items */
+  unsigned int perSlab;     /* how many items per slab */
 
-cache_code_t slab_init(cache_context_t *);
+  cache_item_t *freeItem;   /* list of free item ptrs */
+  unsigned int nFree;       /* free item count */
+  unsigned int nAllocSlabs; /* how many slabs were allocated for this class */
 
-unsigned int slab_class_id(cache_context_t *context, size_t size);
+  void **slabArray;         /* array of slab pointers */
+  unsigned int nArray;      /* size of slab array */
+};
 
-cache_item_t* slab_alloc(cache_context_t *context, size_t ntotal);
+cache_code_t slab_init(cache_t *);
+
+unsigned int slabClsId(cache_t *cache, size_t size);
+
+cache_item_t* slab_alloc_item(cache_t *cache, size_t ntotal);
 
 #ifdef __cplusplus
 }

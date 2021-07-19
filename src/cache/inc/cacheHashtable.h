@@ -26,7 +26,7 @@ extern "C" {
 
 typedef uint32_t (*hash_func_t)(const void *key, size_t length);
 
-struct hashtable_t {
+struct cache_hashtable_t {
   cache_item_t** primary_hashtable;
 
   cache_item_t** old_hashtable;
@@ -37,9 +37,9 @@ struct hashtable_t {
   bool    expanding;
 };
 
-cache_code_t hash_init(cache_context_t* context);
-cache_code_t hash_put(cache_context_t* context, cache_item_t* item);
-cache_item_t* hash_get(cache_context_t* context, const char* key, uint8_t nkey);
+cache_code_t hash_init(cache_t* cache);
+cache_code_t hash_put(cache_t* cache, cache_item_t* item);
+cache_item_t* hash_get(cache_t* cache, const char* key, uint8_t nkey);
 
 #ifdef __cplusplus
 }

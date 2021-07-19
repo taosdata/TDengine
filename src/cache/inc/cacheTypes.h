@@ -20,8 +20,8 @@
 extern "C" {
 #endif
 
-struct cache_context_t;
-typedef struct cache_context_t cache_context_t;
+struct cache_t;
+typedef struct cache_t cache_t;
 
 enum cache_code_t;
 typedef enum cache_code_t cache_code_t;
@@ -29,14 +29,14 @@ typedef enum cache_code_t cache_code_t;
 struct cache_option_t;
 typedef struct cache_option_t cache_option_t;
 
-struct hashtable_t;
-typedef struct hashtable_t hashtable_t;
+struct cache_hashtable_t;
+typedef struct cache_hashtable_t cache_hashtable_t;
 
 struct cache_item_t;
 typedef struct cache_item_t cache_item_t;
 
-struct cache_slab_t;
-typedef struct cache_slab_t cache_slab_t;
+struct cache_slabcls_t;
+typedef struct cache_slabcls_t cache_slabcls_t;
 
 #ifdef __cplusplus
 }

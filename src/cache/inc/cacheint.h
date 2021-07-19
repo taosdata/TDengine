@@ -33,23 +33,25 @@ typedef struct cache_stat_t {
   int32_t outMemory;
 } cache_stat_t;
 
-struct cache_context_t {
+struct cache_t {
   // cache options
   cache_option_t options;
 
   // array of slab pointers
-  cache_slab_t** slabs;
+  cache_slabcls_t** slabs;
 
   size_t alloced;
 
+  bool reachLimit;
+
   int power_largest;
 
-  hashtable_t* table;
+  cache_hashtable_t* table;
 
   cache_stat_t stat;
 
   // list link pointer in manager
-  struct cache_context_t* next;
+  struct cache_t* next;
 };
 
 // the global cache manager

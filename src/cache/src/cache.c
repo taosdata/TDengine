@@ -21,50 +21,50 @@
 #include "cacheSlab.h"
 
 static cache_code_t check_cache_options(cache_option_t* options);
-static cache_code_t do_cache_put(cache_context_t* context, const char* key, uint8_t nkey, const char* value, int nbytes, cache_item_t** ppItem);
+static cache_code_t do_cache_put(cache_t* cache, const char* key, uint8_t nkey, const char* value, int nbytes, cache_item_t** ppItem);
 
 //static cache_manager_t cache_manager
 
-cache_context_t* cache_create(cache_option_t* options) {
+cache_t* cache_create(cache_option_t* options) {
   if (check_cache_options(options) != CACHE_OK) {
     cacheError("check_cache_options fail");
     return NULL;
   }
 
-  cache_context_t* context = calloc(1, sizeof(cache_context_t));
-  if (context == NULL) {
-    cacheError("calloc cache_context_t fail");
+  cache_t* cache = calloc(1, sizeof(cache_t));
+  if (cache == NULL) {
+    cacheError("calloc cache_t fail");
     return NULL;
   }
 
-  context->options = *options;
-  if (hash_init(context) != CACHE_OK) {
+  cache->options = *options;
+  if (hash_init(cache) != CACHE_OK) {
     goto error;
   }
-  if (slab_init(context) != CACHE_OK) {
+  if (slab_init(cache) != CACHE_OK) {
     goto error;
   }
 
-  return context;
+  return cache;
 
 error:
-  if (context != NULL) {
-    free(context);
+  if (cache != NULL) {
+    free(cache);
   }
 
   return NULL;
 }
 
-void  cache_destroy(cache_context_t* context) {
+void  cache_destroy(cache_t* cache) {
 
 }
 
-cache_code_t cache_put(cache_context_t* context, const char* key, uint8_t nkey, const char* value, int nbytes) {
-  return do_cache_put(context,key,nkey,value,nbytes,NULL);
+cache_code_t cache_put(cache_t* cache, const char* key, uint8_t nkey, const char* value, int nbytes) {
+  return do_cache_put(cache,key,nkey,value,nbytes,NULL);
 }
 
-cache_code_t cache_get(cache_context_t* context, const char* key, uint8_t nkey, char** value, int *len) {
-  cache_item_t* item = hash_get(context, key, nkey);
+cache_code_t cache_get(cache_t* cache, const char* key, uint8_t nkey, char** value, int *len) {
+  cache_item_t* item = hash_get(cache, key, nkey);
   if (item) {
     *value = item_data(item);
     *len = item->nbytes;
@@ -73,11 +73,11 @@ cache_code_t cache_get(cache_context_t* context, const char* key, uint8_t nkey, 
 
   char *loadValue;
   size_t loadLen = 0;
-  if (context->options.loadFunc(context->options.userData, key, nkey, &loadValue, &loadLen) != CACHE_OK) {
+  if (cache->options.loadFunc(cache->options.userData, key, nkey, &loadValue, &loadLen) != CACHE_OK) {
     return CACHE_KEY_NOT_FOUND;
   }
 
-  int ret = do_cache_put(context,key,nkey,loadValue,loadLen,&item);
+  int ret = do_cache_put(cache,key,nkey,loadValue,loadLen,&item);
   if (ret != CACHE_OK) {
     return ret;
   }
@@ -87,8 +87,8 @@ cache_code_t cache_get(cache_context_t* context, const char* key, uint8_t nkey, 
   return CACHE_OK;
 }
 
-static cache_code_t do_cache_put(cache_context_t* context, const char* key, uint8_t nkey, const char* value, int nbytes, cache_item_t** ppItem) {
-  cache_item_t* item = item_alloc(context, nkey, nbytes);
+static cache_code_t do_cache_put(cache_t* cache, const char* key, uint8_t nkey, const char* value, int nbytes, cache_item_t** ppItem) {
+  cache_item_t* item = item_alloc(cache, nkey, nbytes);
   if (item == NULL) {
     return CACHE_OOM;
   }

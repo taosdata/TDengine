@@ -42,19 +42,21 @@ typedef enum cache_code_t {
   CACHE_FAIL  = -1,
   CACHE_OOM   = -2,
   CACHE_KEY_NOT_FOUND = -3,
+  CACHE_REACH_LIMIT = -4,
+  CACHE_ALLOC_FAIL = -5,
 } cache_code_t;
 
-struct cache_context_t;
-typedef struct cache_context_t cache_context_t;
+struct cache_t;
+typedef struct cache_t cache_t;
 
-cache_context_t* cache_create(cache_option_t* options);
-void  cache_destroy(cache_context_t*);
+cache_t* cache_create(cache_option_t* options);
+void  cache_destroy(cache_t*);
 
-cache_code_t cache_put(cache_context_t* context, const char* key, uint8_t nkey, const char* value, int nbytes);
+cache_code_t cache_put(cache_t* cache, const char* key, uint8_t nkey, const char* value, int nbytes);
 
-cache_code_t cache_get(cache_context_t* context, const char* key, uint8_t nkey, char** value, int *len);
+cache_code_t cache_get(cache_t* cache, const char* key, uint8_t nkey, char** value, int *len);
 
-void         cache_remove(cache_context_t* context, const char* key);
+void         cache_remove(cache_t* cache, const char* key);
 
 #ifdef __cplusplus
 }

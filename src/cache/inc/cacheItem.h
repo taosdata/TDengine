@@ -26,14 +26,22 @@
 extern "C" {
 #endif
 
+typedef enum cache_item_flag_t {
+  ITEM_LINKED   = 1,
+  ITEM_SLABBED  = 2,  /* item in slab free list */
+  ITEM_CHUNKED  = 4,  /* item in chunked mode */
+} cache_item_flag_t;
+
 struct cache_item_t {
   /* Protected by LRU locks */
   struct cache_item_t*  next;
   struct cache_item_t*  prev;
 
-  struct cache_item_t*  h_next;       /* hash chain next */
+  struct cache_item_t*  h_next;   /* hash chain next */
 
-  uint8_t         slab_class_id;    /* which slab class we're in */
+  uint16_t        flags;          /* item flags above */
+
+  uint8_t         slabClsId;      /* which slab class we're in */
   uint8_t         nkey;           /* key length */
 
   int             nbytes;         /* size of data */
@@ -42,8 +50,8 @@ struct cache_item_t {
 };
 
 size_t item_size(uint8_t nkey, int nbytes);
-cache_item_t* item_alloc(cache_context_t*, uint8_t nkey, int nbytes);
-void    item_free(cache_context_t*, cache_item_t*);
+cache_item_t* item_alloc(cache_t*, uint8_t nkey, int nbytes);
+void    item_free(cache_t*, cache_item_t*);
 
 #define item_key(item)  (((char*)&((item)->data)) + sizeof(unsigned int))
 
