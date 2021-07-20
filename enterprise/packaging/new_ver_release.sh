@@ -19,11 +19,6 @@ verMode=all        # -v [cluster, edge ,all ] cluster is enterprise, edge is com
 versionComp=2.0.0.0
 dockerMode=""
 
-# docker parameters
-dockerPass="tbase125!"
-dockerinput_x64=TDengine-server-${version}-Linux-amd64.tar.gz
-
-
 while getopts "hb:c:n:l:v:d:" arg
 do
   case $arg in
@@ -67,7 +62,7 @@ do
   esac
 done
 
-#
+
 # scripts path
 scriptDir=$(dirname $(readlink -f $0))
 cd ${scriptDir}
@@ -99,6 +94,14 @@ elif [ "$verMode" == "cluster" ];then
 else
   echo "please input right Specified para "
 fi
+
+if [ ! -d $comunityArchiveDir ]; then
+  mkdir -p $comunityArchiveDir
+fi
+
+# docker parameters
+dockerPass="tbase125!"
+dockerinput_x64=TDengine-server-${version}-Linux-amd64.tar.gz
 
 if [ "$dockerMode" == "isdocker" ];then
   cd ${scriptDir}

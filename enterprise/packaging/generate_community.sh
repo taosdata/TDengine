@@ -26,6 +26,11 @@ rm -rf debs/*
 rm -rf rpms/*
 ./packaging/release.sh -a $allocator -n $version -m $versionComp -V $verType -c $cpuType
 
+# generate lite version in x64
+if [ "$cpuType" == "x64" ]; then
+  ./packaging/release.sh -a $allocator -n $version -m $versionComp -V $verType -c $cpuType -l lite
+fi
+
 # generate alert version on x64-linux
 if [ "$cpuType" == "x64" ]; then
   ./alert/release.sh  -n $version  -V $verType 
