@@ -10,10 +10,9 @@ else
 fi
 jemalloc=
 if [ x$2 != x ];then
-        jemalloc=1
+		jemalloc=jemalloc
         echo "Building TDengine using jemalloc"
 else
-        jemalloc=0
         echo "Building TDengine using glibc"
 fi
 
@@ -70,14 +69,16 @@ function buildTDengine {
 		git pull > /dev/null 2>&1
 
 		LOCAL_COMMIT=`git rev-parse --short @`
-		if [ $jemalloc = "1" ];then
+		if [ $jemalloc = "jemalloc" ];then
+			echo "git submodule update --init --recursive"
 			git submodule update --init --recursive
 		fi
 		
 		cd debug
 		rm -rf *
 
-		if [ $jemalloc = "1" ];then
+		if [ $jemalloc = "jemalloc" ];then
+			echo "cmake .. -DJEMALLOC_ENABLED=true > /dev/null"
 			cmake .. -DJEMALLOC_ENABLED=true > /dev/null
 		else
 			cmake .. > /dev/null
@@ -121,7 +122,8 @@ function sendReport {
 
 	sed -i 's/\x1b\[[0-9;]*m//g' $PERFORMANCE_TEST_REPORT
 	BODY_CONTENT=`cat $PERFORMANCE_TEST_REPORT`
-	echo -e "From: <support@taosdata.com>\nto: ${receiver}\nsubject: Query Performace Report ${branch} ${today}, commit ID: ${LOCAL_COMMIT}\n\n${today}:\n${BODY_CONTENT}" | \
+	
+	echo -e "From: <support@taosdata.com>\nto: ${receiver}\nsubject: Query Performace Report ${branch} ${jemalloc} ${today}, commit ID: ${LOCAL_COMMIT}\n\n${today}:\n${BODY_CONTENT}" | \
 	(cat - && uuencode $PERFORMANCE_TEST_REPORT performance-test-report-$today.log) | \
 	/usr/sbin/ssmtp "${receiver}" && echo "Report Sent!"
 }
