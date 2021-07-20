@@ -490,9 +490,9 @@ static void cqProcessStreamRes(void *param, TAOS_RES *tres, TAOS_ROW row) {
 
   for (int32_t i = 0; i < pSchema->numOfCols; i++) {
     STColumn *c = pSchema->columns + i;
-    void* val = row[i];
+    void *val = row[i];
     if (val == NULL) {
-      val = getNullValue(c->type);
+      val = (void *)getNullValue(c->type);
     } else if (c->type == TSDB_DATA_TYPE_BINARY) {
       val = ((char*)val) - sizeof(VarDataLenT);
     } else if (c->type == TSDB_DATA_TYPE_NCHAR) {
