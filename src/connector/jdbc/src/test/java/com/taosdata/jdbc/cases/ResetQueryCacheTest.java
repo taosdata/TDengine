@@ -33,8 +33,7 @@ public class ResetQueryCacheTest {
     @Test
     public void testResetQueryCache() throws SQLException {
         String resetSql = "reset query cache";
-        ResultSet rs = statement.executeQuery(resetSql);
-        rs.close();
+        statement.execute(resetSql);
     }
 
     @After
