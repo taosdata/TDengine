@@ -88,7 +88,7 @@ dirName=${pkgFile%-Linux*}
 echo "dirName=${dirName}"
 
 
-docker build --rm -f "Dockerfile" -t tdengine/tdengine-${dockername}:${version} "." --build-arg pkgFile=${pkgFile} --build-arg dirName=${dirName}
+docker build --rm -f "Dockerfile"  --network=host -t tdengine/tdengine-${dockername}:${version} "." --build-arg pkgFile=${pkgFile} --build-arg dirName=${dirName}
 docker login -u tdengine -p ${passWord}  #replace the docker registry username and password
 docker push tdengine/tdengine-${dockername}:${version}
 
