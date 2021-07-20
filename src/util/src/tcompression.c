@@ -50,7 +50,7 @@
 #include "os.h"
 #include "lz4.h"
 #ifdef TD_TSZ  
-  #include "td_sz.h"
+  #include "../../../deps/TSZ/sz/include/td_sz.h"
 #endif
 #include "taosdef.h"
 #include "tscompression.h"
@@ -86,7 +86,10 @@ int tsCompressInit(){
         return 0;
   
   tdszInit(fPrecision, dPrecision, maxIntervals, intervals, Compressor);
-  uInfo("lossy compression is opened. columns = %s \n", lossyColumns);
+  if(lossyFloat)
+     uInfo("lossy compression float  is opened. \n");
+  if(lossyDouble)
+     uInfo("lossy compression double is opened. \n");
   return 1;
 }
 // exit call

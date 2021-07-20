@@ -7,7 +7,8 @@ INCLUDE_DIRECTORIES(${TD_COMMUNITY_DIR}/deps/rmonotonic/inc)
 INCLUDE_DIRECTORIES(${TD_COMMUNITY_DIR}/deps/SZ/sz/include)
 AUX_SOURCE_DIRECTORY(src SRC)
 ADD_LIBRARY(tutil ${SRC})
-TARGET_LINK_LIBRARIES(tutil pthread os lz4 z rmonotonic SZ )
+
+TARGET_LINK_LIBRARIES(tutil pthread os lz4 z rmonotonic ${VAR_TSZ} )
 
 
 
