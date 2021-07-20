@@ -71,7 +71,7 @@ static pthread_once_t cacheThreadInit = PTHREAD_ONCE_INIT;
 static pthread_mutex_t guard          = PTHREAD_MUTEX_INITIALIZER;
 static SArray* pCacheArrayList        = NULL;
 
-static void doInitRefreshThread() {
+static void doInitRefreshThread(void) {
   pCacheArrayList = taosArrayInit(4, POINTER_BYTES);
 
   pthread_attr_t thattr;
