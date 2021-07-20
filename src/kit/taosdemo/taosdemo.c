@@ -73,7 +73,7 @@ extern char configDir[];
 
 #define BUFFER_SIZE         TSDB_MAX_ALLOWED_SQL_LEN
 #define COND_BUF_LEN        (BUFFER_SIZE - 30)
-#define COL_BUFFER_LEN      (BUFFER_SIZE - 50)
+#define COL_BUFFER_LEN      ((TSDB_COL_NAME_LEN + 15) * TSDB_MAX_COLUMNS)
 #define MAX_USERNAME_SIZE  64
 #define MAX_PASSWORD_SIZE  64
 #define MAX_HOSTNAME_SIZE  64
@@ -2734,7 +2734,7 @@ static int createSuperTable(
         } else if (strcasecmp(dataType, "INT") == 0)  {
             if ((g_args.demo_mode) && (colIndex == 1)) {
                     len += snprintf(cols + len, COL_BUFFER_LEN - len,
-                            ", VOLTAGE INT");
+                            ",VOLTAGE INT");
             } else {
                 len += snprintf(cols + len, COL_BUFFER_LEN - len, ",C%d %s", colIndex, "INT");
             }
@@ -2756,9 +2756,9 @@ static int createSuperTable(
         } else if (strcasecmp(dataType, "FLOAT") == 0) {
             if (g_args.demo_mode) {
                 if (colIndex == 0) {
-                    len += snprintf(cols + len, COL_BUFFER_LEN - len, ", CURRENT FLOAT");
+                    len += snprintf(cols + len, COL_BUFFER_LEN - len, ",CURRENT FLOAT");
                 } else if (colIndex == 2) {
-                    len += snprintf(cols + len, COL_BUFFER_LEN - len, ", PHASE FLOAT");
+                    len += snprintf(cols + len, COL_BUFFER_LEN - len, ",PHASE FLOAT");
                 }
             } else {
                 len += snprintf(cols + len, COL_BUFFER_LEN - len, ",C%d %s", colIndex, "FLOAT");
