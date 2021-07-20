@@ -71,9 +71,9 @@ extern char configDir[];
 
 #define HEAD_BUFF_LEN       TSDB_MAX_COLUMNS*24  // 16*MAX_COLUMNS + (192+32)*2 + insert into ..
 
-#define COL_BUFFER_LEN      (TSDB_MAX_BYTES_PER_ROW - 50)
-#define BUFFER_SIZE         (50 + TSDB_DB_NAME_LEN + TSDB_TABLE_NAME_LEN + TSDB_MAX_BYTES_PER_ROW + TSDB_MAX_TAGS_LEN)
+#define BUFFER_SIZE         TSDB_MAX_ALLOWED_SQL_LEN
 #define COND_BUF_LEN        (BUFFER_SIZE - 30)
+#define COL_BUFFER_LEN      (BUFFER_SIZE - 50)
 #define MAX_USERNAME_SIZE  64
 #define MAX_PASSWORD_SIZE  64
 #define MAX_HOSTNAME_SIZE  64
@@ -2367,7 +2367,7 @@ static char* getTagValueFromTagSample(SSuperTable* stbInfo, int tagUsePos) {
     return dataBuf;
 }
 
-static char* generateTagVaulesForStb(SSuperTable* stbInfo, int32_t tableSeq) {
+static char* generateTagValuesForStb(SSuperTable* stbInfo, int32_t tableSeq) {
     char*  dataBuf = (char*)calloc(TSDB_MAX_SQL_LEN+1, 1);
     if (NULL == dataBuf) {
         printf("calloc failed! size:%d\n", TSDB_MAX_SQL_LEN+1);
@@ -2403,47 +2403,47 @@ static char* generateTagVaulesForStb(SSuperTable* stbInfo, int32_t tableSeq) {
             }
             //rand_string(buf, stbInfo->tags[i].dataLen);
             dataLen += snprintf(dataBuf + dataLen, TSDB_MAX_SQL_LEN - dataLen,
-                    "\'%s\', ", buf);
+                    "\'%s\',", buf);
             tmfree(buf);
         } else if (0 == strncasecmp(stbInfo->tags[i].dataType,
                     "int", strlen("int"))) {
             if ((g_args.demo_mode) && (i == 0)) {
                 dataLen += snprintf(dataBuf + dataLen,
                         TSDB_MAX_SQL_LEN - dataLen,
-                    "%d, ", tableSeq % 10);
+                    "%d,", tableSeq % 10);
             } else {
                 dataLen += snprintf(dataBuf + dataLen,
                         TSDB_MAX_SQL_LEN - dataLen,
-                    "%d, ", tableSeq);
+                    "%d,", tableSeq);
             }
         } else if (0 == strncasecmp(stbInfo->tags[i].dataType,
                     "bigint", strlen("bigint"))) {
             dataLen += snprintf(dataBuf + dataLen, TSDB_MAX_SQL_LEN - dataLen,
-                    "%"PRId64", ", rand_bigint());
+                    "%"PRId64",", rand_bigint());
         }  else if (0 == strncasecmp(stbInfo->tags[i].dataType,
                     "float", strlen("float"))) {
             dataLen += snprintf(dataBuf + dataLen, TSDB_MAX_SQL_LEN - dataLen,
-                    "%f, ", rand_float());
+                    "%f,", rand_float());
         }  else if (0 == strncasecmp(stbInfo->tags[i].dataType,
                     "double", strlen("double"))) {
             dataLen += snprintf(dataBuf + dataLen, TSDB_MAX_SQL_LEN - dataLen,
-                    "%f, ", rand_double());
+                    "%f,", rand_double());
         }  else if (0 == strncasecmp(stbInfo->tags[i].dataType,
                     "smallint", strlen("smallint"))) {
             dataLen += snprintf(dataBuf + dataLen, TSDB_MAX_SQL_LEN - dataLen,
-                    "%d, ", rand_smallint());
+                    "%d,", rand_smallint());
         }  else if (0 == strncasecmp(stbInfo->tags[i].dataType,
                     "tinyint", strlen("tinyint"))) {
             dataLen += snprintf(dataBuf + dataLen, TSDB_MAX_SQL_LEN - dataLen,
-                    "%d, ", rand_tinyint());
+                    "%d,", rand_tinyint());
         }  else if (0 == strncasecmp(stbInfo->tags[i].dataType,
                     "bool", strlen("bool"))) {
             dataLen += snprintf(dataBuf + dataLen, TSDB_MAX_SQL_LEN - dataLen,
-                    "%d, ", rand_bool());
+                    "%d,", rand_bool());
         }  else if (0 == strncasecmp(stbInfo->tags[i].dataType,
                     "timestamp", strlen("timestamp"))) {
             dataLen += snprintf(dataBuf + dataLen, TSDB_MAX_SQL_LEN - dataLen,
-                    "%"PRId64", ", rand_bigint());
+                    "%"PRId64",", rand_bigint());
         }  else {
             printf("No support data type: %s\n", stbInfo->tags[i].dataType);
             tmfree(dataBuf);
@@ -2451,7 +2451,7 @@ static char* generateTagVaulesForStb(SSuperTable* stbInfo, int32_t tableSeq) {
         }
     }
 
-    dataLen -= 2;
+    dataLen -= 1;
     dataLen += snprintf(dataBuf + dataLen, TSDB_MAX_SQL_LEN - dataLen, ")");
     return dataBuf;
 }
@@ -2868,7 +2868,7 @@ static int createSuperTable(
         }
     }
 
-    len -= 2;
+    len -= 1;
     len += snprintf(tags + len, TSDB_MAX_TAGS_LEN - len, ")");
 
     superTbl->lenOfTagOfOneRow = lenOfTagOfOneRow;
@@ -3066,7 +3066,7 @@ static void* createTable(void *sarg)
                 }
                 char* tagsValBuf = NULL;
                 if (0 == superTblInfo->tagSource) {
-                    tagsValBuf = generateTagVaulesForStb(superTblInfo, i);
+                    tagsValBuf = generateTagValuesForStb(superTblInfo, i);
                 } else {
                     tagsValBuf = getTagValueFromTagSample(
                             superTblInfo,
@@ -5329,7 +5329,7 @@ static int generateStbSQLHead(
   if (AUTO_CREATE_SUBTBL == superTblInfo->autoCreateTable) {
       char* tagsValBuf = NULL;
       if (0 == superTblInfo->tagSource) {
-            tagsValBuf = generateTagVaulesForStb(superTblInfo, tableSeq);
+            tagsValBuf = generateTagValuesForStb(superTblInfo, tableSeq);
       } else {
             tagsValBuf = getTagValueFromTagSample(
                     superTblInfo,
@@ -5344,7 +5344,7 @@ static int generateStbSQLHead(
       len = snprintf(
           headBuf,
                   HEAD_BUFF_LEN,
-                  "%s.%s using %s.%s tags %s values",
+                  "%s.%s using %s.%s TAGS%s values",
                   dbName,
                   tableName,
                   dbName,
@@ -6590,6 +6590,8 @@ static void startMultiThreadInsertData(int threads, char* db_name,
     } else {
         start_time = 1500000000000;
     }
+    debugPrint("%s() LN%d, start_time= %"PRId64"\n",
+            __func__, __LINE__, start_time);
 
     int64_t start = taosGetTimestampMs();
 
