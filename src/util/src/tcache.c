@@ -66,7 +66,7 @@ static void doCleanupDataCache(SCacheObj *pCacheObj);
  */
 static void* taosCacheTimedRefresh(void *handle);
 
-static pthread_t cacheRefreshWorker   = 0;
+static pthread_t cacheRefreshWorker   = {0};
 static pthread_once_t cacheThreadInit = PTHREAD_ONCE_INIT;
 static pthread_mutex_t guard          = PTHREAD_MUTEX_INITIALIZER;
 static SArray* pCacheArrayList        = NULL;
