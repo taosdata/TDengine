@@ -83,6 +83,7 @@ typedef struct {
   uint8_t         deleting;           // set the deleting flag to stop refreshing ASAP.
   pthread_t       refreshWorker;
   bool            extendLifespan;     // auto extend life span when one item is accessed.
+  int64_t         checkTick;          // tick used to record the check times of the refresh threads
 #if defined(LINUX)
   pthread_rwlock_t lock;
 #else

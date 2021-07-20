@@ -55,6 +55,44 @@ static FORCE_INLINE void __cache_lock_destroy(SCacheObj *pCacheObj) {
 }
 
 /**
+ * do cleanup the taos cache
+ * @param pCacheObj
+ */
+static void doCleanupDataCache(SCacheObj *pCacheObj);
+
+/**
+ * refresh cache to remove data in both hash list and trash, if any nodes' refcount == 0, every pCacheObj->refreshTime
+ * @param handle   Cache object handle
+ */
+static void* taosCacheTimedRefresh(void *handle);
+
+static pthread_t cacheRefreshWorker   = 0;
+static pthread_once_t cacheThreadInit = PTHREAD_ONCE_INIT;
+static pthread_mutex_t guard          = PTHREAD_MUTEX_INITIALIZER;
+static SArray* pCacheArrayList        = NULL;
+
+static void doInitRefreshThread() {
+  pCacheArrayList = taosArrayInit(4, POINTER_BYTES);
+
+  pthread_attr_t thattr;
+  pthread_attr_init(&thattr);
+  pthread_attr_setdetachstate(&thattr, PTHREAD_CREATE_JOINABLE);
+
+  pthread_create(&cacheRefreshWorker, &thattr, taosCacheTimedRefresh, NULL);
+  pthread_attr_destroy(&thattr);
+}
+
+pthread_t doRegisterCacheObj(SCacheObj* pCacheObj) {
+  pthread_once(&cacheThreadInit, doInitRefreshThread);
+
+  pthread_mutex_lock(&guard);
+  taosArrayPush(pCacheArrayList, &pCacheObj);
+  pthread_mutex_unlock(&guard);
+
+  return cacheRefreshWorker;
+}
+
+/**
  * @param key      key of object for hash, usually a null-terminated string
  * @param keyLen   length of key
  * @param pData    actually data. required a consecutive memory block, no pointer is allowed
@@ -142,19 +180,9 @@ static FORCE_INLINE void doDestroyTrashcanElem(SCacheObj* pCacheObj, STrashElem 
   free(pElem);
 }
 
-/**
- * do cleanup the taos cache
- * @param pCacheObj
- */
-static void doCleanupDataCache(SCacheObj *pCacheObj);
-
-/**
- * refresh cache to remove data in both hash list and trash, if any nodes' refcount == 0, every pCacheObj->refreshTime
- * @param handle   Cache object handle
- */
-static void* taosCacheTimedRefresh(void *handle);
-
 SCacheObj *taosCacheInit(int32_t keyType, int64_t refreshTimeInSeconds, bool extendLifespan, __cache_free_fn_t fn, const char* cacheName) {
+  const int32_t SLEEP_DURATION = 500; //500 ms
+
   if (refreshTimeInSeconds <= 0) {
     return NULL;
   }
@@ -174,9 +202,10 @@ SCacheObj *taosCacheInit(int32_t keyType, int64_t refreshTimeInSeconds, bool ext
   }
   
   // set free cache node callback function
-  pCacheObj->freeFp = fn;
+  pCacheObj->freeFp      = fn;
   pCacheObj->refreshTime = refreshTimeInSeconds * 1000;
-  pCacheObj->extendLifespan = extendLifespan;
+  pCacheObj->checkTick   = pCacheObj->refreshTime / SLEEP_DURATION;
+  pCacheObj->extendLifespan = extendLifespan;  // the TTL after the last access
 
   if (__cache_lock_init(pCacheObj) != 0) {
     taosHashCleanup(pCacheObj->pHashTable);
@@ -186,13 +215,7 @@ SCacheObj *taosCacheInit(int32_t keyType, int64_t refreshTimeInSeconds, bool ext
     return NULL;
   }
 
-  pthread_attr_t thattr;
-  pthread_attr_init(&thattr);
-  pthread_attr_setdetachstate(&thattr, PTHREAD_CREATE_JOINABLE);
-
-  pthread_create(&pCacheObj->refreshWorker, &thattr, taosCacheTimedRefresh, pCacheObj);
-
-  pthread_attr_destroy(&thattr);
+  doRegisterCacheObj(pCacheObj);
   return pCacheObj;
 }
 
@@ -364,7 +387,7 @@ void taosCacheRelease(SCacheObj *pCacheObj, void **data, bool _remove) {
 
   if (pCacheObj->extendLifespan && (!inTrashcan) && (!_remove)) {
     atomic_store_64(&pNode->expireTime, pNode->lifespan + taosGetTimestampMs());
-    uDebug("cache:%s data:%p extend expire time: %"PRId64, pCacheObj->name, pNode->data, pNode->expireTime);
+    uDebug("cache:%s, data:%p extend expire time: %"PRId64, pCacheObj->name, pNode->data, pNode->expireTime);
   }
 
   if (_remove) {
@@ -510,8 +533,10 @@ void taosCacheCleanup(SCacheObj *pCacheObj) {
   }
 
   pCacheObj->deleting = 1;
-  if (taosCheckPthreadValid(pCacheObj->refreshWorker)) {
-    pthread_join(pCacheObj->refreshWorker, NULL);
+
+  // wait for the refresh thread quit before destroying the cache object.
+  while(atomic_load_64(&cacheRefreshWorker) != 0) {
+    taosMsleep(50);
   }
 
   uInfo("cache:%s will be cleaned up", pCacheObj->name);
@@ -650,48 +675,63 @@ static void doCacheRefresh(SCacheObj* pCacheObj, int64_t time, __cache_free_fn_t
 }
 
 void* taosCacheTimedRefresh(void *handle) {
-  SCacheObj* pCacheObj = handle;
-  if (pCacheObj == NULL) {
-    uDebug("object is destroyed. no refresh retry");
-    return NULL;
-  }
+  assert(pCacheArrayList != NULL);
+  uDebug("cache refresh thread starts");
 
   const int32_t SLEEP_DURATION = 500; //500 ms
-  int64_t totalTick = pCacheObj->refreshTime / SLEEP_DURATION;
-
   int64_t count = 0;
+
   while(1) {
-    taosMsleep(500);
+    taosMsleep(SLEEP_DURATION);
 
-    // check if current cache object will be deleted every 500ms.
-    if (pCacheObj->deleting) {
-      uDebug("%s refresh threads quit", pCacheObj->name);
-      break;
+    pthread_mutex_lock(&guard);
+    size_t size = taosArrayGetSize(pCacheArrayList);
+    pthread_mutex_unlock(&guard);
+
+    count += 1;
+
+    for(int32_t i = 0; i < size; ++i) {
+      pthread_mutex_lock(&guard);
+      SCacheObj* pCacheObj = taosArrayGetP(pCacheArrayList, i);
+      pthread_mutex_unlock(&guard);
+
+      if (pCacheObj == NULL) {
+        uDebug("object is destroyed. no refresh retry");
+        break;
+      }
+
+      // check if current cache object will be deleted every 500ms.
+      if (pCacheObj->deleting) {
+        uDebug("%s is destroying, cache refresh thread quit", pCacheObj->name);
+        goto _end;
+      }
+
+      if ((count % pCacheObj->checkTick) != 0) {
+        continue;
+      }
+
+      size_t elemInHash = taosHashGetSize(pCacheObj->pHashTable);
+      if (elemInHash + pCacheObj->numOfElemsInTrash == 0) {
+        continue;
+      }
+
+      uDebug("%s refresh thread scan", pCacheObj->name);
+      pCacheObj->statistics.refreshCount++;
+
+      // refresh data in hash table
+      if (elemInHash > 0) {
+        int64_t now = taosGetTimestampMs();
+        doCacheRefresh(pCacheObj, now, NULL);
+      }
+
+      taosTrashcanEmpty(pCacheObj, false);
     }
-
-    if (++count < totalTick) {
-      continue;
-    }
-
-    // reset the count value
-    count = 0;
-    size_t elemInHash = taosHashGetSize(pCacheObj->pHashTable);
-    if (elemInHash + pCacheObj->numOfElemsInTrash == 0) {
-      continue;
-    }
-
-    uDebug("%s refresh thread timed scan", pCacheObj->name);
-    pCacheObj->statistics.refreshCount++;
-
-    // refresh data in hash table
-    if (elemInHash > 0) {
-      int64_t now = taosGetTimestampMs();
-      doCacheRefresh(pCacheObj, now, NULL);
-    }
-
-    taosTrashcanEmpty(pCacheObj, false);
   }
 
+  _end:
+  cacheRefreshWorker = 0;
+  taosArrayDestroy(pCacheArrayList);
+  uDebug("cache refresh thread quits");
   return NULL;
 }
 
