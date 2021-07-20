@@ -50,7 +50,7 @@
 #include "os.h"
 #include "lz4.h"
 #ifdef TD_TSZ  
-  #include "../../../deps/TSZ/sz/include/td_sz.h"
+  #include "td_sz.h"
 #endif
 #include "taosdef.h"
 #include "tscompression.h"
