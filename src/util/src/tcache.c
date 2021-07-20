@@ -656,6 +656,8 @@ void* taosCacheTimedRefresh(void *handle) {
     return NULL;
   }
 
+  setThreadName("cacheTimedRefre");
+
   const int32_t SLEEP_DURATION = 500; //500 ms
   int64_t totalTick = pCacheObj->refreshTime / SLEEP_DURATION;
 
