@@ -108,6 +108,7 @@ int32_t converToStr(char *str, int type, void *buf, int32_t bufSize, int32_t *le
 
 int32_t tscCreateDataBlock(size_t initialSize, int32_t rowSize, int32_t startOffset, SName* name, STableMeta* pTableMeta, STableDataBlocks** dataBlocks);
 void tscDestroyDataBlock(STableDataBlocks* pDataBlock, bool removeMeta);
+void    tscSortRemoveDataBlockDupRowsRaw(STableDataBlocks* dataBuf);
 int     tscSortRemoveDataBlockDupRows(STableDataBlocks* dataBuf, SBlockKeyInfo* pBlkKeyInfo);
 
 void tscDestroyBoundColumnInfo(SParsedDataColInfo* pColInfo);
