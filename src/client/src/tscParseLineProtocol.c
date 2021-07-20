@@ -540,7 +540,8 @@ static int32_t reconcileDBSchemas(TAOS* taos, SArray* stableSchemas) {
   return 0;
 }
 
-static int32_t getChildTableName(TAOS_SML_DATA_POINT* point, char* tableName, int* tableNameLen) {
+static int32_t getSmlMd5ChildTableName(TAOS_SML_DATA_POINT* point, char* tableName, int* tableNameLen) {
+  tscDebug("taos_sml_insert get child table name through md5");
   qsort(point->tags, point->tagNum, sizeof(TAOS_SML_KV), compareSmlColKv);
 
   SStringBuilder sb; memset(&sb, 0, sizeof(sb));
@@ -694,7 +695,7 @@ static int32_t arrangePointsByChildTableName(TAOS_SML_DATA_POINT* points, int nu
     if (!point->childTableName) {
       char childTableName[TSDB_TABLE_NAME_LEN];
       int32_t tableNameLen = TSDB_TABLE_NAME_LEN;
-      getChildTableName(point, childTableName, &tableNameLen);
+      getSmlMd5ChildTableName(point, childTableName, &tableNameLen);
       point->childTableName = calloc(1, tableNameLen+1);
       strncpy(point->childTableName, childTableName, tableNameLen);
       point->childTableName[tableNameLen] = '\0';
@@ -774,6 +775,10 @@ static int32_t insertPoints(TAOS* taos, TAOS_SML_DATA_POINT* points, int32_t num
       point = taosArrayGetP(cTablePoints, i);
 
       TAOS_BIND* colBinds = calloc(numCols, sizeof(TAOS_BIND));
+      if (colBinds == NULL) {
+        tscError("taos_sml_insert insert points, failed to allocated memory for TAOS_BIND, "
+            "num of rows: %zu, num of cols: %zu", rows, numCols);
+      }
       for (int j = 0; j < numCols; ++j) {
         TAOS_BIND* bind = colBinds + j;
         bind->is_null = &isNullColBind;
@@ -1815,8 +1820,27 @@ int32_t tscParseLines(char* lines[], int numLines, SArray* points, SArray* faile
 
 int taos_insert_lines(TAOS* taos, char* lines[], int numLines) {
   int32_t code = 0;
-  SArray* lpPoints = taosArrayInit(numLines, sizeof(TAOS_SML_DATA_POINT));
+  if (numLines <= 0) {
+    tscError("taos_insert_lines numLines should be greater than zero. numLines: %d", numLines);
+    code = TSDB_CODE_TSC_APP_ERROR;
+    return code;
+  }
 
+  for (int i = 0; i < numLines; ++i) {
+    if (lines[i] == NULL) {
+      tscError("taos_insert_lines line %d is NULL", i);
+      code = TSDB_CODE_TSC_APP_ERROR;
+      return code;
+    }
+  }
+
+  SArray* lpPoints = taosArrayInit(numLines, sizeof(TAOS_SML_DATA_POINT));
+  if (lpPoints == NULL) {
+    tscError("taos_insert_lines failed to allocate memory");
+    return TSDB_CODE_TSC_OUT_OF_MEMORY;
+  }
+
+  tscDebug("taos_insert_lines begin inserting %d lines, first line: %s", numLines, lines[0]);
   code = tscParseLines(lines, numLines, lpPoints, NULL);
   size_t numPoints = taosArrayGetSize(lpPoints);
 
@@ -1831,6 +1855,7 @@ int taos_insert_lines(TAOS* taos, char* lines[], int numLines) {
   }
 
 cleanup:
+  tscDebug("taos_insert_lines finish inserting %d lines. code: %d", numLines, code);
   for (int i=0; i<numPoints; ++i) {
     destroySmlDataPoint(points+i);
   }
