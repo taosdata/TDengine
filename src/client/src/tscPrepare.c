@@ -1806,6 +1806,7 @@ int taos_stmt_execute(TAOS_STMT* stmt) {
 
     pStmt->last = STMT_EXECUTE;
 
+    pStmt->pSql->cmd.insertParam.payloadType = PAYLOAD_TYPE_RAW;
     if (pStmt->multiTbInsert) {
       ret = insertBatchStmtExecute(pStmt);
     } else {
