@@ -1482,23 +1482,6 @@ static int32_t parseSmlTimeStamp(TAOS_SML_KV **pTS, const char **index) {
   return ret;
 }
 
-static bool getChildTableNameFromTags(TAOS_SML_DATA_POINT *pData) {
-  TAOS_SML_KV *pTags = pData->tags;
-  int tagNum = pData->tagNum;
-  char *childTableName = pData->childTableName;
-
-  for (int i = 0; i < tagNum; ++i) {
-    //use tag value as child table name if key is "ID"
-    //tag value has to be binary for now
-    if (!strcasecmp(pTags->key, "ID") && pTags->type == TSDB_DATA_TYPE_BINARY) {
-      memcpy(childTableName, pTags->value, pTags->length);
-      return true;
-    }
-    pTags++;
-  }
-  return false;
-}
-
 static int32_t parseSmlKey(TAOS_SML_KV *pKV, const char **index) {
   const char *cur = *index;
   char key[TSDB_COL_NAME_LEN];
@@ -1616,7 +1599,7 @@ static int32_t parseSmlMeasurement(TAOS_SML_DATA_POINT *pSml, const char **index
 }
 
 static int32_t parseSmlKvPairs(TAOS_SML_KV **pKVs, int *num_kvs,
-                               const char **index, bool isField) {
+                               const char **index, bool isField, TAOS_SML_DATA_POINT* smlData) {
   const char *cur = *index;
   int32_t ret = TSDB_CODE_SUCCESS;
   TAOS_SML_KV *pkv;
@@ -1646,8 +1629,16 @@ static int32_t parseSmlKvPairs(TAOS_SML_KV **pKVs, int *num_kvs,
       tscError("Unable to parse value field");
       goto error;
     }
-    *num_kvs += 1;
-
+    if (!isField &&
+        (strcasecmp(pkv->key, "ID") == 0) && pkv->type == TSDB_DATA_TYPE_BINARY) {
+      smlData->childTableName = malloc( pkv->length + 1);
+      memcpy(smlData->childTableName, pkv->value, pkv->length);
+      smlData->childTableName[pkv->length] = '\0';
+      free(pkv->key);
+      free(pkv->value);
+    } else {
+      *num_kvs += 1;
+    }
     if (is_last_kv) {
       //tscDebug("last key-value field detected");
       goto done;
@@ -1692,32 +1683,6 @@ done:
   return ret;
 }
 
-static void removeChildTableNameFromTags(TAOS_SML_DATA_POINT** smlData) {
-  TAOS_SML_KV* destTags = calloc((*smlData)->tagNum, sizeof(TAOS_SML_KV));
-  TAOS_SML_KV* srcTags = (*smlData)->tags;
-  int numDestTags = 0;
-  for (int32_t i = 0; i < (*smlData)->tagNum; ++i) {
-    TAOS_SML_KV* srcTag = srcTags + i;
-    if (strcasecmp(srcTag->key, "ID") == 0) {
-      continue;
-    } else {
-      TAOS_SML_KV* destTag = destTags + numDestTags;
-      memcpy(destTag, srcTag, sizeof(TAOS_SML_KV));
-      destTag->key = calloc(1, strlen(srcTag->key) + 1);
-      memcpy(destTag->key, srcTag->key, strlen(srcTag->key) + 1);
-      destTag->value = calloc(1, srcTag->length);
-      memcpy(destTag->value, srcTag->value, srcTag->length);
-      numDestTags++;
-    }
-    free(srcTag->key);
-    free(srcTag->value);
-  }
-  (*smlData)->tags = destTags;
-  (*smlData)->tagNum = numDestTags;
-
-  free(srcTags);
-}
-
 static void moveTimeStampToFirstKv(TAOS_SML_DATA_POINT** smlData, TAOS_SML_KV *ts) {
   TAOS_SML_KV* tsField = (*smlData)->fields;
   tsField->length = ts->length;
@@ -1748,24 +1713,16 @@ int32_t tscParseLine(const char* sql, TAOS_SML_DATA_POINT* smlData) {
 
   //Parse Tags
   if (has_tags) {
-    ret = parseSmlKvPairs(&smlData->tags, &smlData->tagNum, &index, false);
+    ret = parseSmlKvPairs(&smlData->tags, &smlData->tagNum, &index, false, smlData);
     if (ret) {
       tscError("Unable to parse tag");
       return ret;
     }
-    smlData->childTableName = calloc(TSDB_TABLE_NAME_LEN, 1);
-    if (!getChildTableNameFromTags(smlData)) {
-      free(smlData->childTableName);
-      smlData->childTableName = NULL;
-      tscDebug("No child table name in tags");
-    }
-    removeChildTableNameFromTags(&smlData);
-
   }
   tscDebug("Parse tags finished, num of tags:%d", smlData->tagNum);
 
   //Parse fields
-  ret = parseSmlKvPairs(&smlData->fields, &smlData->fieldNum, &index, true);
+  ret = parseSmlKvPairs(&smlData->fields, &smlData->fieldNum, &index, true, smlData);
   if (ret) {
     tscError("Unable to parse field");
     return ret;
