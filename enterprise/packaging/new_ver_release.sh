@@ -63,8 +63,8 @@ do
 done
 
 #
-sed -i "7s/.*TD_VER_NUMBER.*/  SET(TD_VER_NUMBER \""$version"\")/"  ../../../TDinternal/community/cmake/version.inc_bak
-sed -i "3s/version.*/version: \'"$version"\'/"  ../../community/snap/snapcraft.yaml
+# sed -i "7s/.*TD_VER_NUMBER.*/  SET(TD_VER_NUMBER \""$version"\")/"  ../../../TDinternal/community/cmake/version.inc
+# sed -i "3s/version.*/version: \'"$version"\'/"  ../../community/snap/snapcraft.yaml
 
 # scripts path
 scriptDir=$(dirname $(readlink -f $0))
