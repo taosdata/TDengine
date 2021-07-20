@@ -23,7 +23,7 @@
 extern "C" {
 #endif
 
-struct cache_slabcls_t {
+struct cache_slab_class_t {
   unsigned int size;        /* sizes of items */
   unsigned int perSlab;     /* how many items per slab */
 

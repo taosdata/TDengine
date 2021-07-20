@@ -34,6 +34,11 @@ typedef struct cache_option_t {
 
   void* userData;             /* user data */
 
+  uint64_t expireTime;  /* item expire time(in millisecond),30 min by default */
+
+  int hotPercent;             /* percentage of slab space for CACHE_LRU_HOT */
+  int warmPercent;            /* percentage of slab space for CACHE_LRU_WARM */
+
   cache_load_func_t loadFunc; /* user defined load data function */
 } cache_option_t;
 

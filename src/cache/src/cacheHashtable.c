@@ -36,7 +36,7 @@ cache_code_t hash_init(cache_t* cache) {
     free(table);
     return CACHE_OOM;
   }
-  table->hash = MurmurHash3_x86_32;
+  cache->hash = MurmurHash3_x86_32;
   table->expanding = false;
 
   cache->table = table;
@@ -46,8 +46,7 @@ cache_code_t hash_init(cache_t* cache) {
 cache_code_t hash_put(cache_t* cache, cache_item_t* item) {
   cache_hashtable_t* table = cache->table;
   cache_item_t* hash_head = NULL, *current = NULL, *hash_last = NULL;
-  const char* key = item_key(item);
-  uint32_t hash = table->hash(key, item->nkey);
+  uint32_t hash = cache->hash(item_key(item), item->nkey);
   
   if (table->expanding) {
 
@@ -78,7 +77,7 @@ cache_code_t hash_put(cache_t* cache, cache_item_t* item) {
 
 cache_item_t* hash_get(cache_t* cache, const char* key, uint8_t nkey) {
   cache_hashtable_t* table = cache->table;
-  uint32_t hash = table->hash(key, nkey);
+  uint32_t hash = cache->hash(key, nkey);
   cache_item_t* hash_head = table->primary_hashtable[hash & hashmask(table->hashpower)], *current = NULL;
   cache_key_t find_key = (cache_key_t){.key = key, .nkey = nkey};
 
@@ -92,4 +91,8 @@ cache_item_t* hash_get(cache_t* cache, const char* key, uint8_t nkey) {
   }
 
   return NULL;
+}
+
+void hash_remove(cache_t* cache, const char* key, uint8_t nkey, uint32_t hv) {
+
 }

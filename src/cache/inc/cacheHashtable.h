@@ -24,15 +24,11 @@
 extern "C" {
 #endif
 
-typedef uint32_t (*hash_func_t)(const void *key, size_t length);
-
 struct cache_hashtable_t {
   cache_item_t** primary_hashtable;
 
   cache_item_t** old_hashtable;
-
-  hash_func_t hash;
-
+  
   int   hashpower;
   bool    expanding;
 };
@@ -40,6 +36,7 @@ struct cache_hashtable_t {
 cache_code_t hash_init(cache_t* cache);
 cache_code_t hash_put(cache_t* cache, cache_item_t* item);
 cache_item_t* hash_get(cache_t* cache, const char* key, uint8_t nkey);
+void          hash_remove(cache_t* cache, const char* key, uint8_t nkey, uint32_t hv);
 
 #ifdef __cplusplus
 }

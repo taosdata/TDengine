@@ -35,8 +35,8 @@ typedef struct cache_hashtable_t cache_hashtable_t;
 struct cache_item_t;
 typedef struct cache_item_t cache_item_t;
 
-struct cache_slabcls_t;
-typedef struct cache_slabcls_t cache_slabcls_t;
+struct cache_slab_class_t;
+typedef struct cache_slab_class_t cache_slab_class_t;
 
 #ifdef __cplusplus
 }

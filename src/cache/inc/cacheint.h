@@ -33,25 +33,32 @@ typedef struct cache_stat_t {
   int32_t outMemory;
 } cache_stat_t;
 
-struct cache_t {
-  // cache options
+typedef struct cache_lru_class_t {
+  cache_item_t* tail;   // tail of lru item list
+  uint32_t      num;    // number of lru list items
+  uint64_t      bytes;  // total size of lru list items
+} cache_lru_class_t;
+
+typedef uint32_t (*cache_hash_func_t)(const void *key, size_t length);
+
+struct cache_t {  
   cache_option_t options;
 
-  // array of slab pointers
-  cache_slabcls_t** slabs;
+  cache_slab_class_t** slabs;   /* array of slab pointers */
 
-  size_t alloced;
+  cache_lru_class_t*  lruArray; /* LRU item list array */
 
-  bool reachLimit;
+  cache_hash_func_t hash;
+
+  size_t alloced;               /* allocated memory size */
 
   int power_largest;
 
   cache_hashtable_t* table;
 
   cache_stat_t stat;
-
-  // list link pointer in manager
-  struct cache_t* next;
+    
+  cache_t* next;                /* cache list link in manager */
 };
 
 // the global cache manager

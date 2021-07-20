@@ -28,8 +28,10 @@ extern "C" {
 
 typedef enum cache_item_flag_t {
   ITEM_LINKED   = 1,
-  ITEM_SLABBED  = 2,  /* item in slab free list */
-  ITEM_CHUNKED  = 4,  /* item in chunked mode */
+  ITEM_SLABBED  = 2,  /* item in slab free list */  
+  ITEM_FETCHED  = 4,  /* Item was fetched at least once in its lifetime */
+  ITEM_ACTIVE   = 8,  /* Appended on fetch, removed on LRU shuffling */
+  ITEM_CHUNKED  = 16, /* item in chunked mode */
 } cache_item_flag_t;
 
 struct cache_item_t {
@@ -42,6 +44,8 @@ struct cache_item_t {
   uint16_t        flags;          /* item flags above */
 
   uint8_t         slabClsId;      /* which slab class we're in */
+
+  uint64_t        lastTime;       /* last access time */
   uint8_t         nkey;           /* key length */
 
   int             nbytes;         /* size of data */
@@ -49,9 +53,24 @@ struct cache_item_t {
   char            data[];
 };
 
+#define item_is_linked(item)    ((item)->flags & ITEM_LINKED)
+#define item_is_slabbed(item)   ((item)->flags & ITEM_SLABBED)
+#define item_is_active(item)    ((item)->flags & ITEM_ACTIVE)
+
+#define item_unlink(item)       ((item)->flags &= ~ITEM_LINKED)
+#define item_unactive(item)     ((item)->flags &= ~ITEM_ACTIVE)
+
+#define item_clsid(item)        ((item)->slabClsId & ~(3<<6))
+#define item_lruid(item)        ((item)->slabClsId & (3<<6))
+
 size_t item_size(uint8_t nkey, int nbytes);
 cache_item_t* item_alloc(cache_t*, uint8_t nkey, int nbytes);
 void    item_free(cache_t*, cache_item_t*);
+void   item_unlink_nolock(cache_t*, cache_item_t*, uint32_t hv);
+void   item_unlink_from_lru(cache_t*, cache_item_t*);
+void   item_link_to_lru(cache_t*, cache_item_t*);
+void    item_move_to_lru_head(cache_t*, cache_item_t*);
+void    item_remove(cache_t*, cache_item_t*);
 
 #define item_key(item)  (((char*)&((item)->data)) + sizeof(unsigned int))
 
