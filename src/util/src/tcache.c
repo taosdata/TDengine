@@ -535,7 +535,7 @@ void taosCacheCleanup(SCacheObj *pCacheObj) {
   pCacheObj->deleting = 1;
 
   // wait for the refresh thread quit before destroying the cache object.
-  while(atomic_load_64(&cacheRefreshWorker) != 0) {
+  while(atomic_load_ptr((void**)&pCacheArrayList) != 0) {
     taosMsleep(50);
   }
 
@@ -729,8 +729,11 @@ void* taosCacheTimedRefresh(void *handle) {
   }
 
   _end:
-  cacheRefreshWorker = 0;
   taosArrayDestroy(pCacheArrayList);
+
+  pCacheArrayList = NULL;
+  pthread_mutex_destroy(&guard);
+
   uDebug("cache refresh thread quits");
   return NULL;
 }
