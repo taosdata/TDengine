@@ -122,7 +122,7 @@ void *taosProcessSchedQueue(void *scheduler) {
   SSchedQueue *pSched = (SSchedQueue *)scheduler;
   int ret = 0;
 
-  setThreadName("procSchedQ");
+  setThreadName("schedQ");
 
   while (1) {
     if ((ret = tsem_wait(&pSched->fullSem)) != 0) {

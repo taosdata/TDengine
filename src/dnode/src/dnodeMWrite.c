@@ -169,7 +169,7 @@ static void *dnodeProcessMWriteQueue(void *param) {
   int32_t    type;
   void *     unUsed;
 
-  setThreadName("dnodeProcMWQ");
+  setThreadName("dnodeMWriteQ");
 
   while (1) {
     if (taosReadQitemFromQset(tsMWriteQset, &type, (void **)&pWrite, &unUsed) == 0) {

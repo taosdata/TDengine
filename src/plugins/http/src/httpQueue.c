@@ -70,7 +70,7 @@ static void *httpProcessResultQueue(void *param) {
   int32_t      type;
   void *       unUsed;
 
-  setThreadName("httpProcResQ");
+  setThreadName("httpResultQ");
 
   while (1) {
     if (taosReadQitemFromQset(tsHttpQset, &type, (void **)&pMsg, &unUsed) == 0) {

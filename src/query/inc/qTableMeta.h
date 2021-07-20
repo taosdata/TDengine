@@ -106,11 +106,14 @@ typedef struct SQueryInfo {
   STagCond         tagCond;
 
   SOrderVal        order;
-  int16_t          fillType;      // final result fill type
   int16_t          numOfTables;
   STableMetaInfo **pTableMetaInfo;
   struct STSBuf   *tsBuf;
+
+  int16_t          fillType;      // final result fill type
   int64_t *        fillVal;       // default value for fill
+  int32_t          numOfFillVal;  // fill value size
+
   char *           msg;           // pointer to the pCmd->payload to keep error message temporarily
   int64_t          clauseLimit;   // limit for current sub clause
 
@@ -122,8 +125,12 @@ typedef struct SQueryInfo {
   int32_t          round;         // 0/1/....
   int32_t          bufLen;
   char*            buf;
-  struct SQInfo*          pQInfo;      // global merge operator
-  struct SQueryAttr*      pQueryAttr;     // query object
+
+  bool               udfCopy;
+  SArray            *pUdfInfo;
+
+  struct SQInfo     *pQInfo;      // global merge operator
+  struct SQueryAttr *pQueryAttr;     // query object
 
   struct SQueryInfo *sibling;     // sibling
   SArray            *pUpstream;   // SArray<struct SQueryInfo>
@@ -138,6 +145,7 @@ typedef struct SQueryInfo {
   bool               onlyTagQuery;
   bool               orderProjectQuery;
   bool               stateWindow;
+  bool               globalMerge;
 } SQueryInfo;
 
 /**

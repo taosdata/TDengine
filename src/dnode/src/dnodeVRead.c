@@ -121,7 +121,7 @@ static void *dnodeProcessReadQueue(void *wparam) {
   char         name[16];
 
   memset(name, 0, 16);
-  snprintf(name, 16, "%s-dnProcRQ", pPool->name);
+  snprintf(name, 16, "%s-dnReadQ", pPool->name);
   setThreadName(name);
 
   while (1) {

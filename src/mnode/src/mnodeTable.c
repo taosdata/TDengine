@@ -42,6 +42,7 @@
 #include "mnodeWrite.h"
 #include "mnodeRead.h"
 #include "mnodePeer.h"
+#include "mnodeFunc.h"
 
 #define ALTER_CTABLE_RETRY_TIMES  3
 #define CREATE_CTABLE_RETRY_TIMES 10
@@ -102,6 +103,20 @@ static void mnodeDestroyChildTable(SCTableObj *pTable) {
   tfree(pTable->schema);
   tfree(pTable->sql);
   tfree(pTable);
+}
+
+static char* mnodeGetTableShowPattern(SShowObj *pShow) {
+  char* pattern = NULL;
+  if (pShow != NULL && pShow->payloadLen > 0) {
+    pattern = (char*)malloc(pShow->payloadLen + 1);
+    if (pattern == NULL) {
+      terrno = TSDB_CODE_QRY_OUT_OF_MEMORY;
+      return NULL;
+    }
+    memcpy(pattern, pShow->payload, pShow->payloadLen);
+    pattern[pShow->payloadLen] = 0;
+  }
+  return pattern;
 }
 
 static int32_t mnodeChildTableActionDestroy(SSdbRow *pRow) {
@@ -1488,6 +1503,18 @@ static int32_t mnodeChangeSuperTableColumn(SMnodeMsg *pMsg) {
     return TSDB_CODE_MND_FIELD_NOT_EXIST;
   }
 
+  // check exceed max row bytes
+  int32_t i;
+  uint32_t nLen = 0;
+  for (i = 0; i < pStable->numOfColumns; ++i) {
+    nLen += (pStable->schema[i].colId == col) ? pAlter->schema[0].bytes : pStable->schema[i].bytes;
+  }
+  if (nLen > TSDB_MAX_BYTES_PER_ROW) {
+    mError("msg:%p, app:%p stable:%s, change column, name:%s exceed max row bytes", pMsg, pMsg->rpcMsg.ahandle,
+           pStable->info.tableId, name);
+    return TSDB_CODE_MND_EXCEED_MAX_ROW_BYTES;
+  }
+
   // update
   SSchema *schema = (SSchema *) (pStable->schema + col);
   ASSERT(schema->type == TSDB_DATA_TYPE_BINARY || schema->type == TSDB_DATA_TYPE_NCHAR);
@@ -1620,6 +1647,11 @@ int32_t mnodeRetrieveShowSuperTables(SShowObj *pShow, char *data, int32_t rows, 
   SPatternCompareInfo info = PATTERN_COMPARE_INFO_INITIALIZER;
   char stableName[TSDB_TABLE_NAME_LEN] = {0};
 
+  char* pattern = mnodeGetTableShowPattern(pShow);
+  if (pShow->payloadLen > 0 && pattern == NULL) {
+    return 0;
+  }
+
   while (numOfRows < rows) {
     pShow->pIter = mnodeGetNextSuperTable(pShow->pIter, &pTable);
     if (pTable == NULL) break;
@@ -1631,7 +1663,7 @@ int32_t mnodeRetrieveShowSuperTables(SShowObj *pShow, char *data, int32_t rows, 
     memset(stableName, 0, tListLen(stableName));
     mnodeExtractTableName(pTable->info.tableId, stableName);
 
-    if (pShow->payloadLen > 0 && patternMatch(pShow->payload, stableName, sizeof(stableName) - 1, &info) != TSDB_PATTERN_MATCH) {
+    if (pShow->payloadLen > 0 && patternMatch(pattern, stableName, sizeof(stableName) - 1, &info) != TSDB_PATTERN_MATCH) {
       mnodeDecTableRef(pTable);
       continue;
     }
@@ -1671,6 +1703,7 @@ int32_t mnodeRetrieveShowSuperTables(SShowObj *pShow, char *data, int32_t rows, 
 
   mnodeVacuumResult(data, pShow->numOfColumns, numOfRows, rows, pShow);
   mnodeDecDbRef(pDb);
+  free(pattern);
 
   return numOfRows;
 }
@@ -2892,7 +2925,7 @@ static SMultiTableMeta* ensureMsgBufferSpace(SMultiTableMeta *pMultiMeta, SArray
       (*totalMallocLen) *= 2;
     }
 
-    pMultiMeta = rpcReallocCont(pMultiMeta, *totalMallocLen);
+    pMultiMeta = realloc(pMultiMeta, *totalMallocLen);
     if (pMultiMeta == NULL) {
       return NULL;
     }
@@ -2906,6 +2939,7 @@ static int32_t mnodeProcessMultiTableMetaMsg(SMnodeMsg *pMsg) {
 
   pInfo->numOfTables  = htonl(pInfo->numOfTables);
   pInfo->numOfVgroups = htonl(pInfo->numOfVgroups);
+  pInfo->numOfUdfs    = htonl(pInfo->numOfUdfs);
 
   int32_t contLen = pMsg->rpcMsg.contLen - sizeof(SMultiTableInfoMsg);
 
@@ -2914,17 +2948,17 @@ static int32_t mnodeProcessMultiTableMetaMsg(SMnodeMsg *pMsg) {
   char*   str      = strndup(pInfo->tableNames, contLen);
   char**  nameList = strsplit(str, ",", &num);
   SArray* pList    = taosArrayInit(4, POINTER_BYTES);
-  SMultiTableMeta *pMultiMeta = NULL;
 
-  if (num != pInfo->numOfTables + pInfo->numOfVgroups) {
+  SMultiTableMeta *pMultiMeta = NULL;
+  if (num != pInfo->numOfTables + pInfo->numOfVgroups + pInfo->numOfUdfs) {
     mError("msg:%p, app:%p, failed to get multi-tableMeta, msg inconsistent", pMsg, pMsg->rpcMsg.ahandle);
     code = TSDB_CODE_MND_INVALID_TABLE_NAME;
     goto _end;
   }
 
   // first malloc 80KB, subsequent reallocation will expand the size as twice of the original size
-  int32_t totalMallocLen = sizeof(STableMetaMsg) + sizeof(SSchema) * (TSDB_MAX_TAGS + TSDB_MAX_COLUMNS + 16);
-  pMultiMeta = rpcMallocCont(totalMallocLen);
+  int32_t totalMallocLen = sizeof(SMultiTableMeta) + sizeof(STableMetaMsg) + sizeof(SSchema) * (TSDB_MAX_TAGS + TSDB_MAX_COLUMNS + 16);
+  pMultiMeta = calloc(1, totalMallocLen);
   if (pMultiMeta == NULL) {
     code = TSDB_CODE_MND_OUT_OF_MEMORY;
     goto _end;
@@ -2957,7 +2991,7 @@ static int32_t mnodeProcessMultiTableMetaMsg(SMnodeMsg *pMsg) {
     int remain = totalMallocLen - pMultiMeta->contLen;
     if (remain <= sizeof(STableMetaMsg) + sizeof(SSchema) * (TSDB_MAX_TAGS + TSDB_MAX_COLUMNS + 16)) {
       totalMallocLen *= 2;
-      pMultiMeta = rpcReallocCont(pMultiMeta, totalMallocLen);
+      pMultiMeta = realloc(pMultiMeta, totalMallocLen);
       if (pMultiMeta == NULL) {
         mnodeDecTableRef(pMsg->pTable);
         code = TSDB_CODE_MND_OUT_OF_MEMORY;
@@ -2991,8 +3025,10 @@ static int32_t mnodeProcessMultiTableMetaMsg(SMnodeMsg *pMsg) {
     }
   }
 
+  int32_t tableNum = pInfo->numOfTables + pInfo->numOfVgroups;
+
   // add the additional super table names that needs the vgroup info
-  for(;t < num; ++t) {
+  for(;t < tableNum; ++t) {
     taosArrayPush(pList, &nameList[t]);
   }
 
@@ -3023,9 +3059,69 @@ static int32_t mnodeProcessMultiTableMetaMsg(SMnodeMsg *pMsg) {
   pMultiMeta->contLen = (int32_t) (msg - (char*) pMultiMeta);
 
   pMultiMeta->numOfTables = htonl(pMultiMeta->numOfTables);
+
+  // add the user-defined-function information
+  for(int32_t i = 0; i < pInfo->numOfUdfs; ++i, ++t) {
+    char buf[TSDB_FUNC_NAME_LEN] = {0};
+    strcpy(buf, nameList[t]);
+
+    SFuncObj* pFuncObj = mnodeGetFunc(buf);
+    if (pFuncObj == NULL) {
+      mError("function %s does not exist", buf);
+      code = TSDB_CODE_MND_INVALID_FUNC;
+      goto _end;
+    }
+
+    SFunctionInfoMsg* pFuncInfo = (SFunctionInfoMsg*) msg;
+
+    strcpy(pFuncInfo->name, buf);
+    pFuncInfo->len = htonl(pFuncObj->contLen);
+    memcpy(pFuncInfo->content, pFuncObj->cont, pFuncObj->contLen);
+
+    pFuncInfo->funcType = htonl(pFuncObj->funcType);
+    pFuncInfo->resType  = pFuncObj->resType;
+    pFuncInfo->resBytes = htons(pFuncObj->resBytes);
+    pFuncInfo->bufSize  = htonl(pFuncObj->bufSize);
+
+    msg += sizeof(SFunctionInfoMsg) + pFuncObj->contLen;
+  }
+
+  pMultiMeta->contLen  = (int32_t) (msg - (char*) pMultiMeta);
+  pMultiMeta->numOfUdf = htonl(pInfo->numOfUdfs);
+
   pMsg->rpcRsp.rsp = pMultiMeta;
   pMsg->rpcRsp.len = pMultiMeta->contLen;
   code = TSDB_CODE_SUCCESS;
+
+  char* tmp = rpcMallocCont(pMultiMeta->contLen + 2);
+  if (tmp == NULL) {
+    code = TSDB_CODE_MND_OUT_OF_MEMORY;
+    goto _end;
+  }
+
+  int32_t dataLen = (int32_t)pMultiMeta->contLen - sizeof(SMultiTableMeta);
+  int32_t len = tsCompressString(pMultiMeta->meta, dataLen, 1, tmp + sizeof(SMultiTableMeta), (int32_t)dataLen + 2,
+                                 ONE_STAGE_COMP, NULL, 0);
+
+  pMultiMeta->metaClone = pInfo->metaClone;
+  pMultiMeta->rawLen = pMultiMeta->contLen;
+  if (len == -1 || len >= dataLen + 2) { // compress failed, do not compress this binary data
+    pMultiMeta->compressed = 0;
+    memcpy(tmp, pMultiMeta, sizeof(SMultiTableMeta) + pMultiMeta->contLen);
+  } else {
+    pMultiMeta->compressed = 1;
+    pMultiMeta->contLen = sizeof(SMultiTableMeta) + len;
+
+    // copy the header and the compressed payload
+    memcpy(tmp, pMultiMeta, sizeof(SMultiTableMeta));
+  }
+
+  pMsg->rpcRsp.rsp = tmp;
+  pMsg->rpcRsp.len = pMultiMeta->contLen;
+
+  SMultiTableMeta* p = (SMultiTableMeta*) tmp;
+
+  mDebug("multiTable info build completed, original:%d, compressed:%d, comp:%d", p->rawLen, p->contLen, p->compressed);
 
   _end:
   tfree(str);
@@ -3033,10 +3129,7 @@ static int32_t mnodeProcessMultiTableMetaMsg(SMnodeMsg *pMsg) {
   taosArrayDestroy(pList);
   pMsg->pTable  = NULL;
   pMsg->pVgroup = NULL;
-
-  if (code != TSDB_CODE_SUCCESS) {
-    rpcFreeCont(pMultiMeta);
-  }
+  tfree(pMultiMeta);
 
   return code;
 }
@@ -3132,15 +3225,9 @@ static int32_t mnodeRetrieveShowTables(SShowObj *pShow, char *data, int32_t rows
   char prefix[64] = {0};
   int32_t prefixLen = (int32_t)tableIdPrefix(pDb->name, prefix, 64);
 
-  char* pattern = NULL;
-  if (pShow->payloadLen > 0) {
-    pattern = (char*)malloc(pShow->payloadLen + 1);
-    if (pattern == NULL) {
-      terrno = TSDB_CODE_QRY_OUT_OF_MEMORY;
-      return 0;
-    }
-    memcpy(pattern, pShow->payload, pShow->payloadLen);
-    pattern[pShow->payloadLen] = 0;
+  char* pattern = mnodeGetTableShowPattern(pShow);
+  if (pShow->payloadLen > 0 && pattern == NULL) {
+    return 0;
   }
 
   while (numOfRows < rows) {
@@ -3372,6 +3459,11 @@ static int32_t mnodeRetrieveStreamTables(SShowObj *pShow, char *data, int32_t ro
   strcat(prefix, TS_PATH_DELIMITER);
   int32_t prefixLen = (int32_t)strlen(prefix);
 
+  char* pattern = mnodeGetTableShowPattern(pShow);
+  if (pShow->payloadLen > 0 && pattern == NULL) {
+    return 0;
+  }
+
   while (numOfRows < rows) {
     pShow->pIter = mnodeGetNextChildTable(pShow->pIter, &pTable);
     if (pTable == NULL) break;
@@ -3387,7 +3479,7 @@ static int32_t mnodeRetrieveStreamTables(SShowObj *pShow, char *data, int32_t ro
     // pattern compare for table name
     mnodeExtractTableName(pTable->info.tableId, tableName);
 
-    if (pShow->payloadLen > 0 && patternMatch(pShow->payload, tableName, sizeof(tableName) - 1, &info) != TSDB_PATTERN_MATCH) {
+    if (pShow->payloadLen > 0 && patternMatch(pattern, tableName, sizeof(tableName) - 1, &info) != TSDB_PATTERN_MATCH) {
       mnodeDecTableRef(pTable);
       continue;
     }
@@ -3419,6 +3511,7 @@ static int32_t mnodeRetrieveStreamTables(SShowObj *pShow, char *data, int32_t ro
 
   mnodeVacuumResult(data, pShow->numOfColumns, numOfRows, rows, pShow);
   mnodeDecDbRef(pDb);
+  free(pattern);
 
   return numOfRows;
 }

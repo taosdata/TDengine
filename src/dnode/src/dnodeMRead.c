@@ -155,7 +155,7 @@ static void *dnodeProcessMReadQueue(void *param) {
   int32_t    type;
   void *     unUsed;
 
-  setThreadName("dnodeProcMRQ");
+  setThreadName("dnodeMReadQ");
 
   while (1) {
     if (taosReadQitemFromQset(tsMReadQset, &type, (void **)&pRead, &unUsed) == 0) {

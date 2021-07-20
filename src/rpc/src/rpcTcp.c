@@ -532,7 +532,7 @@ static void *taosProcessTcpData(void *param) {
   char               name[16];
 
   memset(name, 0, sizeof(name));
-  snprintf(name, 16, "%s-procTcp", pThreadObj->label);
+  snprintf(name, 16, "%s-tcpData", pThreadObj->label);
   setThreadName(name);
 
   while (1) {

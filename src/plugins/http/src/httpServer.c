@@ -117,7 +117,7 @@ static void httpProcessHttpData(void *param) {
   int32_t      fdNum;
 
   taosSetMaskSIGPIPE();
-  setThreadName("httpProcData");
+  setThreadName("httpData");
 
   while (1) {
     struct epoll_event events[HTTP_MAX_EVENTS];

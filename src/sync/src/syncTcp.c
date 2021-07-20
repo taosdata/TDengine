@@ -195,7 +195,7 @@ static void *syncProcessTcpData(void *param) {
   SConnObj *  pConn = NULL;
   struct epoll_event events[maxEvents];
 
-  setThreadName("syncProcTcpData");
+  setThreadName("syncTcpData");
 
   void *buffer = malloc(pInfo->bufferSize);
   taosBlockSIGPIPE();
