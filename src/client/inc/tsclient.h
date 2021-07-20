@@ -160,6 +160,7 @@ typedef struct SInsertStatementParam {
   SHashObj    *pTableBlockHashList;     // data block for each table
   SArray      *pDataBlocks;             // SArray<STableDataBlocks*>. Merged submit block for each vgroup
   int8_t       schemaAttached;          // denote if submit block is built with table schema or not
+  uint8_t      payloadType;             // EPayloadType. 0: K-V payload for non-prepare insert, 1: rawPayload for prepare insert
   STagData     tagData;                 // NOTE: pTagData->data is used as a variant length array
 
   int32_t      batchSize;               // for parameter ('?') binding and batch processing
@@ -170,6 +171,14 @@ typedef struct SInsertStatementParam {
   uint64_t     objectId;                // sql object id
   char        *sql;                     // current sql statement position
 } SInsertStatementParam;
+
+typedef enum {
+  PAYLOAD_TYPE_KV = 0,
+  PAYLOAD_TYPE_RAW = 1,
+} EPayloadType;
+
+#define IS_RAW_PAYLOAD(t) \
+  (((int)(t)) == PAYLOAD_TYPE_RAW)  // 0: K-V payload for non-prepare insert, 1: rawPayload for prepare insert
 
 // TODO extract sql parser supporter
 typedef struct {
