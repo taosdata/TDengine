@@ -62,9 +62,6 @@ do
   esac
 done
 
-#
-# sed -i "7s/.*TD_VER_NUMBER.*/  SET(TD_VER_NUMBER \""$version"\")/"  ../../../TDinternal/community/cmake/version.inc
-# sed -i "3s/version.*/version: \'"$version"\'/"  ../../community/snap/snapcraft.yaml
 
 # scripts path
 scriptDir=$(dirname $(readlink -f $0))
@@ -87,16 +84,16 @@ elif [ "$branchName" == "develop" ];then
   dockerim=tdengine/tdengine-beta
 fi
 
-# if [ "$verMode" == "all" ];then
-#   bash generate_community.sh  $version $versionComp $branchName $verType $cpuType
-#   bash generate_enterprise.sh $version $versionComp $branchName $verType $cpuType
-# elif [ "$verMode" == "edge" ];then
-#   bash generate_community.sh  $version $versionComp $branchName $verType $cpuType
-# elif [ "$verMode" == "cluster" ];then
-#   bash generate_enterprise.sh $version $versionComp $branchName $verType $cpuType
-# else
-#   echo "please input right Specified para "
-# fi
+if [ "$verMode" == "all" ];then
+  bash generate_community.sh  $version $versionComp $branchName $verType $cpuType
+  bash generate_enterprise.sh $version $versionComp $branchName $verType $cpuType
+elif [ "$verMode" == "edge" ];then
+  bash generate_community.sh  $version $versionComp $branchName $verType $cpuType
+elif [ "$verMode" == "cluster" ];then
+  bash generate_enterprise.sh $version $versionComp $branchName $verType $cpuType
+else
+  echo "please input right Specified para "
+fi
 
 if [ ! -d $comunityArchiveDir ]; then
   mkdir -p $comunityArchiveDir
