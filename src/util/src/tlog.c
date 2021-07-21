@@ -178,6 +178,8 @@ static void *taosThreadToOpenNewFile(void *param) {
   char keepName[LOG_FILE_NAME_LEN + 20];
   sprintf(keepName, "%s.%d", tsLogObj.logName, tsLogObj.flag);
 
+  setThreadName("openNewFile");
+
   tsLogObj.flag ^= 1;
   tsLogObj.lines = 0;
   char name[LOG_FILE_NAME_LEN + 20];
@@ -687,6 +689,8 @@ static void taosWriteLog(SLogBuff *tLogBuff) {
 
 static void *taosAsyncOutputLog(void *param) {
   SLogBuff *tLogBuff = (SLogBuff *)param;
+
+  setThreadName("asyncOutputLog");
   
   while (1) {
     //tsem_wait(&(tLogBuff->buffNotEmpty));
