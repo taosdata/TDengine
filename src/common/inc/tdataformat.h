@@ -201,17 +201,14 @@ void     tdFreeDataRow(SDataRow row);
 void     tdInitDataRow(SDataRow row, STSchema *pSchema);
 SDataRow tdDataRowDup(SDataRow row);
 
-static FORCE_INLINE int tdAppendColValEx(SDataRow row, const void *value, int8_t type, int32_t offset,
-                                         char **finalVal) {
+// offset here not include dataRow header length
+static FORCE_INLINE int tdAppendColVal(SDataRow row, const void *value, int8_t type, int32_t offset) {
   ASSERT(value != NULL);
   int32_t toffset = offset + TD_DATA_ROW_HEAD_SIZE;
 
   if (IS_VAR_DATA_TYPE(type)) {
     *(VarDataOffsetT *)POINTER_SHIFT(row, toffset) = dataRowLen(row);
     memcpy(POINTER_SHIFT(row, dataRowLen(row)), value, varDataTLen(value));
-    if (finalVal != NULL) {
-      *finalVal = POINTER_SHIFT(row, dataRowLen(row));
-    }
     dataRowLen(row) += varDataTLen(value);
 
   } else {
@@ -222,17 +219,9 @@ static FORCE_INLINE int tdAppendColValEx(SDataRow row, const void *value, int8_t
     } else {
       memcpy(POINTER_SHIFT(row, toffset), value, TYPE_BYTES[type]);
     }
-    if (finalVal != NULL) {
-      *finalVal = POINTER_SHIFT(row, toffset);
-    }
   }
 
   return 0;
-}
-
-// offset here not include dataRow header length
-static FORCE_INLINE int tdAppendColVal(SDataRow row, const void *value, int8_t type, int32_t offset) {
-  return tdAppendColValEx(row, value, type, offset, NULL);
 }
 
 // NOTE: offset here including the header size
