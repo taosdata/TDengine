@@ -71,7 +71,6 @@ if [ "$verType" == "beta" ]; then
 elif [ "$verType" == "stable" ]; then
   dockername=${cpuType}
   dirName=${pkgFile%-Linux*}
-
 else
   echo "unknow verType, nor stabel or beta"
   exit 1
@@ -90,7 +89,7 @@ cp -f ${comunityArchiveDir}/${pkgFile}  .
 echo "dirName=${dirName}"
 
 
-docker build --rm -f "Dockerfile" --network=host -t tdengine/tdengine-${dockername}:${version} "." --build-arg pkgFile=${pkgFile} --build-arg dirName=${dirName}
+docker build --rm -f "Dockerfile"  --network=host -t tdengine/tdengine-${dockername}:${version} "." --build-arg pkgFile=${pkgFile} --build-arg dirName=${dirName}
 docker login -u tdengine -p ${passWord}  #replace the docker registry username and password
 docker push tdengine/tdengine-${dockername}:${version}
 
