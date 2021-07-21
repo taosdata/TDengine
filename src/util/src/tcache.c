@@ -678,6 +678,8 @@ void* taosCacheTimedRefresh(void *handle) {
   assert(pCacheArrayList != NULL);
   uDebug("cache refresh thread starts");
 
+  setThreadName("cacheTimedRefre");
+
   const int32_t SLEEP_DURATION = 500; //500 ms
   int64_t count = 0;
 
