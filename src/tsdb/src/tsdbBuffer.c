@@ -159,7 +159,7 @@ _err:
 
 static void tsdbFreeBufBlock(STsdbBufBlock *pBufBlock) { tfree(pBufBlock); }
 
-int tsdbExpendPool(STsdbRepo* pRepo, int32_t oldTotalBlocks) {
+int tsdbExpandPool(STsdbRepo* pRepo, int32_t oldTotalBlocks) {
   if (oldTotalBlocks == pRepo->config.totalBlocks) {
     return TSDB_CODE_SUCCESS;
   }
