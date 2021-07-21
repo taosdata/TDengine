@@ -26,14 +26,16 @@ IF (TD_DARWIN AND TD_MQTT)
   ADD_SUBDIRECTORY(MQTT-C)
 ENDIF ()
 
-include(ExternalProject)
-ExternalProject_Add(
+IF (TD_LINUX)
+  include(ExternalProject)
+  ExternalProject_Add(
     apache-avro
     PREFIX          "avro"
     SOURCE_DIR      ${CMAKE_CURRENT_SOURCE_DIR}/avro/lang/c
     BUILD_IN_SOURCE 1
     CONFIGURE_COMMAND   cmake -DCMAKE_INSTALL_PREFIX:PATH=${CMAKE_BINARY_DIR}/build
-)
+    )
+ENDIF ()
 
 IF (TD_LINUX_64 AND JEMALLOC_ENABLED)
   MESSAGE("setup deps/jemalloc, current source dir:" ${CMAKE_CURRENT_SOURCE_DIR})
