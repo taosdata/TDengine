@@ -201,15 +201,19 @@ void     tdFreeDataRow(SDataRow row);
 void     tdInitDataRow(SDataRow row, STSchema *pSchema);
 SDataRow tdDataRowDup(SDataRow row);
 
-// offset here not include dataRow header length
-static FORCE_INLINE int tdAppendColVal(SDataRow row, const void *value, int8_t type, int32_t offset) {
+static FORCE_INLINE int tdAppendColValEx(SDataRow row, const void *value, int8_t type, int32_t offset,
+                                         char **finalVal) {
   ASSERT(value != NULL);
   int32_t toffset = offset + TD_DATA_ROW_HEAD_SIZE;
 
   if (IS_VAR_DATA_TYPE(type)) {
     *(VarDataOffsetT *)POINTER_SHIFT(row, toffset) = dataRowLen(row);
     memcpy(POINTER_SHIFT(row, dataRowLen(row)), value, varDataTLen(value));
+    if (finalVal != NULL) {
+      *finalVal = POINTER_SHIFT(row, dataRowLen(row));
+    }
     dataRowLen(row) += varDataTLen(value);
+
   } else {
     if (offset == 0) {
       ASSERT(type == TSDB_DATA_TYPE_TIMESTAMP);
@@ -218,9 +222,17 @@ static FORCE_INLINE int tdAppendColVal(SDataRow row, const void *value, int8_t t
     } else {
       memcpy(POINTER_SHIFT(row, toffset), value, TYPE_BYTES[type]);
     }
+    if (finalVal != NULL) {
+      *finalVal = POINTER_SHIFT(row, toffset);
+    }
   }
 
   return 0;
+}
+
+// offset here not include dataRow header length
+static FORCE_INLINE int tdAppendColVal(SDataRow row, const void *value, int8_t type, int32_t offset) {
+  return tdAppendColValEx(row, value, type, offset, NULL);
 }
 
 // NOTE: offset here including the header size
@@ -424,6 +436,24 @@ static FORCE_INLINE int tdAppendKvColVal(SKVRow row, const void *value, int16_t 
   return 0;
 }
 
+// NOTE: offset here including the header size
+static FORCE_INLINE void *tdGetKvRowDataOfCol(void *row, int32_t offset) { return POINTER_SHIFT(row, offset); }
+
+static FORCE_INLINE void *tdGetKVRowValOfColEx(SKVRow row, int16_t colId, int32_t *nIdx) {
+  while (*nIdx < kvRowNCols(row)) {
+    SColIdx *pColIdx = kvRowColIdxAt(row, *nIdx);
+    if (pColIdx->colId == colId) {
+      *nIdx += sizeof(SColIdx);
+      return tdGetKvRowDataOfCol(row, pColIdx->offset);
+    } else if (pColIdx->colId > colId) {
+      return NULL;
+    } else {
+      *nIdx += sizeof(SColIdx);
+    }
+  }
+  return NULL;
+}
+
 // ----------------- K-V data row builder
 typedef struct {
   int16_t  tCols;
@@ -546,13 +576,21 @@ typedef void *SMemRow;
 SMemRow tdMemRowDup(SMemRow row);
 void    tdAppendMemRowToDataCol(SMemRow row, STSchema *pSchema, SDataCols *pCols);
 // NOTE: offset here including the header size
-static FORCE_INLINE void *tdGetKvRowDataOfCol(void *row, int32_t offset) { return POINTER_SHIFT(row, offset); }
-// NOTE: offset here including the header size
 static FORCE_INLINE void *tdGetMemRowDataOfCol(void *row, int16_t colId, int8_t colType, uint16_t offset) {
   if (isDataRow(row)) {
     return tdGetRowDataOfCol(memRowDataBody(row), colType, offset);
   } else {
     return tdGetKVRowValOfCol(memRowKvBody(row), colId);
+  }
+}
+
+// NOTE: offset here including the header size
+static FORCE_INLINE void *tdGetMemRowDataOfColEx(void *row, int16_t colId, int8_t colType, int32_t offset,
+                                                 int32_t *kvNIdx) {
+  if (isDataRow(row)) {
+    return tdGetRowDataOfCol(memRowDataBody(row), colType, offset);
+  } else {
+    return tdGetKVRowValOfColEx(memRowKvBody(row), colId, kvNIdx);
   }
 }
 
@@ -566,18 +604,17 @@ static FORCE_INLINE int tdAppendMemColVal(SMemRow row, const void *value, int16_
   return 0;
 }
 
+// make sure schema->flen appended for SDataRow
 static FORCE_INLINE int32_t tdGetColAppendLen(uint8_t rowType, const void *value, int8_t colType) {
   int32_t len = 0;
   if (IS_VAR_DATA_TYPE(colType)) {
     len += varDataTLen(value);
-    if (rowType == SMEM_ROW_DATA) {
-      len += sizeof(VarDataOffsetT);
-    } else {
+    if (rowType == SMEM_ROW_KV) {
       len += sizeof(SColIdx);
     }
   } else {
-    len += TYPE_BYTES[colType];
     if (rowType == SMEM_ROW_KV) {
+      len += TYPE_BYTES[colType];
       len += sizeof(SColIdx);
     }
   }
