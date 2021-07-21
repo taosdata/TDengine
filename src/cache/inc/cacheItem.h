@@ -74,11 +74,11 @@ size_t cacheItemTotalBytes(uint8_t nkey, uint32_t nbytes);
 cacheItem* cacheAllocItem(cache_t*, uint8_t nkey, uint32_t nbytes, uint64_t expireTime);
 
 void    cacheItemFree(cache_t*, cacheItem*);
-void    item_unlink_nolock(cacheTable* pTable, cacheItem* item);
-void   item_unlink_from_lru(cache_t*, cacheItem*);
-void   item_link_to_lru(cache_t*, cacheItem*);
-void    item_move_to_lru_head(cache_t*, cacheItem*);
-void    item_remove(cache_t*, cacheItem*);
+void    cacheItemUnlinkNolock(cacheTable* pTable, cacheItem* item);
+void   cacheItemUnlinkFromLru(cache_t*, cacheItem*, bool lock);
+void   cacheItemLinkToLru(cache_t*, cacheItem*, bool lock);
+void    cacheItemMoveToLruHead(cache_t*, cacheItem*);
+void    cacheItemRemove(cache_t*, cacheItem*);
 
 #define item_key(item)  (((char*)&((item)->data)) + sizeof(unsigned int))
 

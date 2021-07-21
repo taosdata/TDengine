@@ -31,9 +31,10 @@ extern "C" {
 typedef uint32_t (*hash_func)(const void *key, size_t length);
 
 typedef struct cacheSlabLruClass {
-  cacheItem*    tail;   // tail of lru item list
+  cacheItem*    tail;   /* tail of lru item list */
   uint32_t      num;    // number of lru list items
   uint64_t      bytes;  // total size of lru list items
+  int           id;     /* lru id */
   cacheMutex    mutex;
 } cacheSlabLruClass;
 

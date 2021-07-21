@@ -59,17 +59,37 @@ void cacheItemFree(cache_t* cache, cacheItem* item) {
   cacheSlabFreeItem(cache, item);
 }
 
-void item_move_to_lru_head(cache_t* cache, cacheItem* item) {
-  item_unlink_from_lru(cache, item);
-  item_link_to_lru(cache, item);
+void cacheItemMoveToLruHead(cache_t* cache, cacheItem* item) {
+  cacheSlabLruClass* lru = &(cache->lruArray[item_lruid(item)]);
+  cacheMutexLock(&(lru->mutex));
+
+  cacheItemUnlinkFromLru(cache, item, false);
+  cacheItemLinkToLru(cache, item, false);
+
+  cacheMutexUnlock(&(lru->mutex));
 }
 
-void   item_link_to_lru(cache_t* cache, cacheItem* item) {
+void cacheItemLinkToLru(cache_t* cache, cacheItem* item, bool lock) {
+  cacheSlabLruClass* lru = &(cache->lruArray[item_lruid(item)]);
 
+  if (lock) cacheMutexLock(&(lru->mutex));
+
+  cacheItem* tail = lru->tail;
+  if (tail->next) tail->next->prev = item;
+  item->next = tail->next;
+  item->prev = NULL;
+  tail->next = item;
+
+  lru->num += 1;
+  lru->bytes += cacheItemTotalBytes(item->nkey, item->nbytes);
+
+  if (lock) cacheMutexUnlock(&(lru->mutex));
 }
 
-void item_unlink_from_lru(cache_t* cache, cacheItem* item) {
-  cacheSlabLruClass* lru = &(cache->lruArray[item->slabClsId]);
+void cacheItemUnlinkFromLru(cache_t* cache, cacheItem* item, bool lock) {  
+  cacheSlabLruClass* lru = &(cache->lruArray[item_lruid(item)]);
+  if (lock) cacheMutexLock(&(lru->mutex));
+
   cacheItem* tail = lru->tail;
 
   if (tail == item) {
@@ -81,18 +101,20 @@ void item_unlink_from_lru(cache_t* cache, cacheItem* item) {
 
   lru->num -= 1;
   lru->bytes -= cacheItemTotalBytes(item->nkey, item->nbytes);
+
+  if (lock) cacheMutexUnlock(&(lru->mutex));
 }
 
-void item_unlink_nolock(cacheTable* pTable, cacheItem* item) {
+void cacheItemUnlinkNolock(cacheTable* pTable, cacheItem* item) {
   if (item_is_linked(item)) {
     item_unlink(item);
     cacheTableRemove(pTable, item_key(item), item->nkey);
-    item_unlink_from_lru(pTable->pCache, item);
-    item_remove(pTable->pCache, item);
+    cacheItemUnlinkFromLru(pTable->pCache, item, false);
+    cacheItemRemove(pTable->pCache, item);
   }
 }
 
-void item_remove(cache_t* cache, cacheItem* item) {
+void cacheItemRemove(cache_t* cache, cacheItem* item) {
   assert(!item_is_slabbed(item));
   assert(item->refCount > 0);
 
