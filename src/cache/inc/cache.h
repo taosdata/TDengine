@@ -31,8 +31,6 @@ typedef struct cache_option_t {
 
   double factor;              /* slab growth factor */
 
-  uint64_t expireTime;        /* item expire time(in millisecond),30 min by default */
-
   int hotPercent;             /* percentage of slab space for CACHE_LRU_HOT */
   int warmPercent;            /* percentage of slab space for CACHE_LRU_WARM */
 } cache_option_t;
@@ -70,7 +68,7 @@ void  cacheDestroy(cache_t*);
 
 cacheTable* cacheCreateTable(cache_t* cache, cacheTableOption* options);
 
-cache_code_t cachePut(cacheTable*, const char* key, uint8_t nkey, const char* value, uint32_t nbytes);
+cache_code_t cachePut(cacheTable*, const char* key, uint8_t nkey, const char* value, uint32_t nbytes, uint64_t expire);
 
 cacheItem* cacheGet(cacheTable*, const char* key, uint8_t nkey);
 

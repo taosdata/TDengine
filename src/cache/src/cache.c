@@ -21,7 +21,7 @@
 #include "cacheSlab.h"
 
 static cache_code_t check_cache_options(cache_option_t* options);
-static cache_code_t doCachePut(cacheTable* pTable, const char* key, uint8_t nkey, const char* value, uint32_t nbytes, cacheItem** ppItem);
+static cache_code_t cachePutDataIntoCache(cacheTable* pTable, const char* key, uint8_t nkey, const char* value, uint32_t nbytes, cacheItem** ppItem);
 
 //static cache_manager_t cache_manager
 
@@ -39,7 +39,7 @@ cache_t* cacheCreate(cache_option_t* options) {
 
   cache->options = *options;
 
-  if (slab_init(cache) != CACHE_OK) {
+  if (cacheSlabInit(cache) != CACHE_OK) {
     goto error;
   }
 
@@ -57,8 +57,8 @@ void  cacheDestroy(cache_t* cache) {
 
 }
 
-cache_code_t cachePut(cacheTable* pTable, const char* key, uint8_t nkey, const char* value, uint32_t nbytes) {
-  return doCachePut(pTable,key,nkey,value,nbytes,NULL);
+cache_code_t cachePut(cacheTable* pTable, const char* key, uint8_t nkey, const char* value, uint32_t nbytes, uint64_t expire) {
+  return cachePutDataIntoCache(pTable,key,nkey,value,nbytes,NULL);
 }
 
 cacheItem* cacheGet(cacheTable* pTable, const char* key, uint8_t nkey) {
@@ -77,7 +77,7 @@ cacheItem* cacheGet(cacheTable* pTable, const char* key, uint8_t nkey) {
   }
 
   // TODO: save in the cache if access only one time?
-  int ret = doCachePut(pTable,key,nkey,loadValue,loadLen,&item);
+  int ret = cachePutDataIntoCache(pTable,key,nkey,loadValue,loadLen,&item);
   free(loadValue);
   if (ret != CACHE_OK) {
     return NULL;
@@ -92,8 +92,8 @@ void cacheItemData(cacheItem* pItem, char** data, int* nbytes) {
   *nbytes = pItem->nbytes;
 }
 
-static cache_code_t doCachePut(cacheTable* pTable, const char* key, uint8_t nkey, const char* value, uint32_t nbytes, cacheItem** ppItem) {
-  cacheItem* item = itemAlloc(pTable->pCache, nkey, nbytes);
+static cache_code_t cachePutDataIntoCache(cacheTable* pTable, const char* key, uint8_t nkey, const char* value, uint32_t nbytes, cacheItem** ppItem) {
+  cacheItem* item = cacheAllocItem(pTable->pCache, nkey, nbytes, 3600 * 1000);
   if (item == NULL) {
     return CACHE_OOM;
   }

@@ -45,6 +45,7 @@ struct cacheItem {
 
   uint8_t         slabClsId;      /* which slab class we're in */
 
+  uint64_t        expireTime;     /* expire time, 0 means no expire time */
   uint64_t        lastTime;       /* last access time */
   uint8_t         nkey;           /* key length */
   uint8_t         refCount;       /* reference count */
@@ -57,16 +58,22 @@ struct cacheItem {
 #define item_is_linked(item)    ((item)->flags & ITEM_LINKED)
 #define item_is_slabbed(item)   ((item)->flags & ITEM_SLABBED)
 #define item_is_active(item)    ((item)->flags & ITEM_ACTIVE)
+#define item_is_chunked(item)   ((item)->flags & ITEM_CHUNKED)
 
-#define item_unlink(item)       ((item)->flags &= ~ITEM_LINKED)
-#define item_unactive(item)     ((item)->flags &= ~ITEM_ACTIVE)
+#define item_set_slabbed(item)   (item)->flags &= ITEM_SLABBED
+
+#define item_unlink(item)       (item)->flags &= ~ITEM_LINKED
+#define item_unactive(item)     (item)->flags &= ~ITEM_ACTIVE
+#define item_unslabbed(item)    (item)->flags &= ~ITEM_SLABBED
 
 #define item_clsid(item)        ((item)->slabClsId & ~(3<<6))
 #define item_lruid(item)        ((item)->slabClsId & (3<<6))
 
-size_t item_size(uint8_t nkey, uint32_t nbytes);
-cacheItem* itemAlloc(cache_t*, uint8_t nkey, uint32_t nbytes);
-void    item_free(cache_t*, cacheItem*);
+size_t cacheItemTotalBytes(uint8_t nkey, uint32_t nbytes);
+
+cacheItem* cacheAllocItem(cache_t*, uint8_t nkey, uint32_t nbytes, uint64_t expireTime);
+
+void    cacheItemFree(cache_t*, cacheItem*);
 void    item_unlink_nolock(cacheTable* pTable, cacheItem* item);
 void   item_unlink_from_lru(cache_t*, cacheItem*);
 void   item_link_to_lru(cache_t*, cacheItem*);
@@ -87,6 +94,10 @@ static FORCE_INLINE uint8_t itemIncrRef(cacheItem* pItem) {
 
 static FORCE_INLINE uint8_t itemDecrRef(cacheItem* pItem) { 
   return atomic_sub_fetch_32(&(pItem->refCount), 1);
+}
+
+static FORCE_INLINE bool cacheItemNeverExpired(cacheItem* pItem) {
+  return pItem->expireTime == 0;
 }
 
 static FORCE_INLINE bool key_equal(cache_key_t key1, cache_key_t key2) {

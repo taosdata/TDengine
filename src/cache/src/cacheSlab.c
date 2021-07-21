@@ -19,36 +19,27 @@
 #include "cacheSlab.h"
 #include "osTime.h"
 
-typedef enum cache_lru_list_t {
-  CACHE_LRU_HOT   = 0,
-  CACHE_LRU_WARM  = 64,
-  CACHE_LRU_COLD  = 128,
-} cache_lru_list_t;
-
-static cacheItem* do_slab_alloc(cache_t *cache, size_t size, unsigned int id);
-static int  do_slab_newslab(cache_t *cache, unsigned int id);
-static bool reach_cache_limit(cache_t *cache, int len);
-static int  grow_slab_array(cache_t *cache, unsigned int id);
-static void *alloc_memory(cache_t *cache, size_t size);
-static void split_slab_page_into_freelist(cache_t *cache,char *ptr, const unsigned int id);
-static void do_slabs_free(cache_t *cache, void *ptr, unsigned int id);
+static cacheItem* cacheSlabDoAllocItem(cache_t *cache, size_t size, unsigned int id);
+static int  cacheNewSlab(cache_t *cache, cacheSlabClass *pSlab);
+static bool cacheIsReachMemoryLimit(cache_t *cache, int len);
+static int  cacheSlabGrowArray(cache_t *cache, cacheSlabClass *pSlab);
+static void *cacheAllocMemory(cache_t *cache, size_t size);
+static void cacheSplitSlabPageInfoFreelist(cache_t *cache,char *ptr, uint32_t id);
 static int move_item_from_lru(cache_t *cache, int id, int curLru, uint64_t totalBytes, 
                                 uint32_t* moveToLru,  cacheItem* search, cacheItem** pItem);
-static int lru_pull(cache_t *cache, int origId, int curLru, uint64_t total_bytes);
+static int cacheLruItemPull(cache_t *cache, int origId, int curLru, uint64_t total_bytes);
 
-cache_code_t slab_init(cache_t *cache) {
-  cache->slabs = NULL;
-
-  cache->slabs = calloc(1, sizeof(cache_slab_class_t) * MAX_NUMBER_OF_SLAB_CLASSES);
-  if (cache->slabs == NULL) {
-    goto error;
-  }
-
+cache_code_t cacheSlabInit(cache_t *cache) {
+  // init slab class
   int i = 0;
   size_t size = sizeof(cacheItem) + CHUNK_SIZE;
-  while (i < MAX_NUMBER_OF_SLAB_CLASSES) {
-    cache_slab_class_t *slab = calloc(1, sizeof(cache_slab_class_t));
+  for (i = 0; i < MAX_NUMBER_OF_SLAB_CLASSES; i++) {
+    cacheSlabClass *slab = calloc(1, sizeof(cacheSlabClass));
     if (slab == NULL) {
+      goto error;
+    }
+
+    if (cacheMutexInit(&(slab->mutex)) != 0) {
       goto error;
     }
 
@@ -57,52 +48,64 @@ cache_code_t slab_init(cache_t *cache) {
     }
     slab->size = size;
     slab->perSlab = SLAB_PAGE_SIZE / size;
+    slab->id = i;
+    slab->nAllocSlabs = 0;
+    slab->slabArray = NULL;
+    slab->nArray = 0;
 
     cache->slabs[i] = slab;
 
     size *= cache->options.factor;
   }
-  cache->power_largest = i;
+  cache->powerLargest = i;
+
+  // init slab lru class
+  for (i = 0; i < POWER_LARGEST; i++) {
+    cacheSlabLruClass* lru = &(cache->lruArray[i]);
+    lru->tail = NULL;
+    lru->bytes = lru->num = 0;
+    if (cacheMutexInit(&(lru->mutex)) != 0) {
+      goto error;
+    }
+  }
 
   return CACHE_OK;
 
 error:
-  if (cache->slabs != NULL) {
-    while (i < MAX_NUMBER_OF_SLAB_CLASSES) {
-      if (cache->slabs[i] == NULL) {
-        continue;
-      }
-      free(cache->slabs[i]);
+  for (i = 0; i < MAX_NUMBER_OF_SLAB_CLASSES; ++i) {
+    if (cache->slabs[i] == NULL) {
+      continue;
     }
+    free(cache->slabs[i]);
   }
+  
   return CACHE_FAIL;
 }
 
-unsigned int slabClsId(cache_t *cache, size_t size) {
+uint32_t slabClsId(cache_t *cache, size_t size) {
   int i = 0;
   while (size > cache->slabs[i]->size) {
-    if (i++ > cache->power_largest) {
-      return cache->power_largest;
+    if (i++ > cache->powerLargest) {
+      return cache->powerLargest;
     }
   }
 
   return i;
 }
 
-cacheItem* slab_alloc_item(cache_t *cache, size_t ntotal) {
-  unsigned int id = slabClsId(cache, ntotal);
+cacheItem* cacheSlabAllocItem(cache_t *cache, size_t ntotal, uint32_t id) {
   cacheItem *item = NULL;
   int i;
 
   for (i = 0; i < 10; ++i) {
-    item = do_slab_alloc(cache, ntotal, id);
+    item = cacheSlabDoAllocItem(cache, ntotal, id);
     if (item) {
       break;
     }
 
-    if (lru_pull(cache, id, CACHE_LRU_COLD, 0) <= 0) {  /* try to pull item fom cold list */
+    if (cacheLruItemPull(cache, id, CACHE_LRU_COLD, 0) <= 0) {  /* try to pull item fom cold list */
       /* pull item from cold list failed, try to pull item from hot list */
-      if (lru_pull(cache, id, CACHE_LRU_HOT, 0) <= 0) {
+      if (cacheLruItemPull(cache, id, CACHE_LRU_HOT, 0) <= 0) {
         break;
       }
     }
@@ -111,7 +114,37 @@ cacheItem* slab_alloc_item(cache_t *cache, size_t ntotal) {
   return item;
 }
 
-static bool reach_cache_limit(cache_t *cache, int len) {
+void cacheSlabFreeItem(cache_t *cache, cacheItem* item) {  
+  //size_t ntotal = cacheItemTotalBytes(item->nkey, item->nbytes);
+  uint32_t id = item_clsid(item);
+
+  if (cacheItemNeverExpired(item)) {
+    if (item->next) item->next->prev = item->prev;
+    if (item->prev) item->prev->next = item->next;
+    if (item == cache->neverExpireItemHead) {
+      cache->neverExpireItemHead = item->next;
+    }
+  }
+
+  cacheSlabClass* pSlab = cache->slabs[id];
+  cacheMutexLock(&pSlab->mutex);
+
+  if (!item_is_chunked(item)) {
+    item->flags = ITEM_SLABBED;
+    item->slabClsId = id;
+    item->prev = NULL;
+    item->next = pSlab->freeItem;
+    if (pSlab->freeItem) pSlab->freeItem->prev = item;
+    pSlab->freeItem = item;
+    pSlab->nFree += 1;
+  } else {
+
+  }
+
+  cacheMutexUnlock(&pSlab->mutex);
+}
+
+static bool cacheIsReachMemoryLimit(cache_t *cache, int len) {
   if (cache->alloced + len >= cache->options.limit) {
     return true;
   }
@@ -119,86 +152,76 @@ static bool reach_cache_limit(cache_t *cache, int len) {
   return false;
 }
 
-static void do_slabs_free(cache_t *cache, void *ptr, unsigned int id) {
-  cache_slab_class_t *p = cache->slabs[id];
-  cacheItem *item = (cacheItem *)ptr;
-
-  if (!(item->flags & ITEM_CHUNKED)) {
-    item->flags = ITEM_SLABBED;
-    item->slabClsId = id;
-    item->prev = NULL;
-    item->next = p->freeItem;
-    if (item->next) item->next->prev = item;
-    p->freeItem = item;
-    p->nFree++;
-  } else {
-
-  }
-}
-
-static void *alloc_memory(cache_t *cache, size_t size) {
+static void *cacheAllocMemory(cache_t *cache, size_t size) {
   cache->alloced += size;
   return malloc(size);
 }
 
-static int grow_slab_array(cache_t *cache, unsigned int id) {
-  cache_slab_class_t *p = cache->slabs[id];
-  if (p->nAllocSlabs == p->nArray) {
-    size_t new_size =  (p->nArray != 0) ? p->nArray * 2 : 16;
-    void *new_array = realloc(p->slabArray, new_size * sizeof(void *));
+static int cacheSlabGrowArray(cache_t *cache, cacheSlabClass *pSlab) {
+  if (pSlab->nAllocSlabs == pSlab->nArray) {
+    size_t new_size =  (pSlab->nArray != 0) ? pSlab->nArray * 2 : 16;
+    void *new_array = realloc(pSlab->slabArray, new_size * sizeof(void *));
     if (new_array == NULL) return 0;
-    p->nArray = new_size;
-    p->slabArray = new_array;
+    pSlab->nArray = new_size;
+    pSlab->slabArray = new_array;
   }
 
   return 1;
 }
 
-static void split_slab_page_into_freelist(cache_t *cache, char *ptr, const unsigned int id) {
-  cache_slab_class_t *p = cache->slabs[id];
+static void cacheSplitSlabPageInfoFreelist(cache_t *cache, char *ptr, uint32_t id) {
+  cacheSlabClass *p = cache->slabs[id];
   int i = 0;
   for (i = 0; i < p->perSlab; i++) {
-    do_slabs_free(cache, ptr, id);
+    cacheItem* item = (cacheItem*)ptr;
+    item->slabClsId = id;
+    cacheSlabFreeItem(cache, item);
     ptr += p->size;
   }
 }
 
-static int do_slab_newslab(cache_t *cache, unsigned int id) {
-  cache_slab_class_t *p = cache->slabs[id];
+static int cacheNewSlab(cache_t *cache, cacheSlabClass *pSlab) {
   char *ptr;
-  int len = p->size * p->perSlab;
+  uint32_t id = pSlab->id;
+  int len = pSlab->size * pSlab->perSlab;
 
-  if (reach_cache_limit(cache, len)) { 
+  if (cacheIsReachMemoryLimit(cache, len)) { 
     return CACHE_REACH_LIMIT;
   }
 
-  if (grow_slab_array(cache, id) == 0 || (ptr = alloc_memory(cache, len)) == NULL) {
+  if (cacheSlabGrowArray(cache, pSlab) == 0 || (ptr = cacheAllocMemory(cache, len)) == NULL) {
     return CACHE_ALLOC_FAIL;
   }
 
   memset(ptr, 0, (size_t)len);
-  split_slab_page_into_freelist(cache, ptr, id);
+  cacheSplitSlabPageInfoFreelist(cache, ptr, id);
 
-  p->slabArray[p->nArray++] = ptr;
+  pSlab->slabArray[pSlab->nArray++] = ptr;
 
   return CACHE_OK;
 }
 
-static cacheItem* do_slab_alloc(cache_t *cache, size_t size, unsigned int id) {
-  cache_slab_class_t *p = cache->slabs[id];
+static cacheItem* cacheSlabDoAllocItem(cache_t *cache, size_t size, unsigned int id) {
+  cacheSlabClass *pSlab = cache->slabs[id];
   cacheItem *item = NULL;
 
-  if (p->nFree == 0) {
-    do_slab_newslab(cache, id);
+  cacheMutexLock(&pSlab->mutex);
+
+  /* no free item, try to alloc new page */
+  if (pSlab->nFree == 0) {
+    cacheNewSlab(cache, pSlab);
   }
 
-  if (p->nFree > 0) {
-    item = p->freeItem;
-    p->freeItem = item->next;
+  /* if there is free items, free it from free list */
+  if (pSlab->nFree > 0) {
+    item = pSlab->freeItem;
+    pSlab->freeItem = item->next;
     if (item->next) item->next->prev = NULL;
-    item->flags &= ~ITEM_SLABBED;
-    p->nFree -= 1;
+    item_unslabbed(item);
+    pSlab->nFree -= 1;
   }
+
+  cacheMutexUnlock(&pSlab->mutex);
 
   return item;
 }
@@ -208,7 +231,7 @@ static int move_item_from_lru(cache_t *cache, int id, int curLru, uint64_t total
   int removed = 0;
   uint64_t limit = 0;
   cache_option_t* opt = &(cache->options);
-  cache_lru_class_t* lruCls = cache->lruArray;
+  cacheSlabLruClass* lruCls = cache->lruArray;
 
   switch (curLru) {
     case CACHE_LRU_HOT:
@@ -246,11 +269,10 @@ static int move_item_from_lru(cache_t *cache, int id, int curLru, uint64_t total
   return removed;
 }
 
-static int lru_pull(cache_t *cache, int origId, int curLru, uint64_t totalBytes) {
+static int cacheLruItemPull(cache_t *cache, int origId, int curLru, uint64_t totalBytes) {
   cacheItem* item = NULL;
   cacheItem* search;
   cacheItem* next;
-  cache_option_t* opt = &(cache->options);
   int id = origId;
   int removed = 0;
   int tries = 5;
@@ -263,7 +285,7 @@ static int lru_pull(cache_t *cache, int origId, int curLru, uint64_t totalBytes)
     next = search->prev;
 
     // is item expired?
-    if (now - search->lastTime >= opt->expireTime) {
+    if (search->expireTime != 0 && now - search->lastTime >= search->expireTime) {
       item_unlink_nolock(search->pTable, search);
       item_remove(cache, search);
       removed++;

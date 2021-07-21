@@ -25,6 +25,8 @@ extern "C" {
 
 #define MAX_NUMBER_OF_SLAB_CLASSES  64
 
+#define POWER_LARGEST               MAX_NUMBER_OF_SLAB_CLASSES*3
+
 #define CHUNK_ALIGN_BYTES 8
 
 #define SLAB_PAGE_SIZE 1024 * 1024

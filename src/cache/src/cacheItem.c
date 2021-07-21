@@ -17,28 +17,46 @@
 #include "cacheHashtable.h"
 #include "cacheint.h"
 #include "cacheItem.h"
+#include "cacheSlab.h"
 
-size_t item_size(uint8_t nkey, uint32_t nbytes) {
+size_t cacheItemTotalBytes(uint8_t nkey, uint32_t nbytes) {
   return sizeof(cacheItem) + sizeof(unsigned int) + (nkey + 1) + nbytes;
 }
 
-cacheItem* itemAlloc(cache_t* cache, uint8_t nkey, uint32_t nbytes) {
-  /*
-  size_t ntotal = item_size(nkey, nbytes);
-  unsigned int id = slabClsId(cache, ntotal);
+cacheItem* cacheAllocItem(cache_t* cache, uint8_t nkey, uint32_t nbytes, uint64_t expireTime) {
+  size_t ntotal = cacheItemTotalBytes(nkey, nbytes);
+  uint32_t id = slabClsId(cache, ntotal);
   cacheItem* item = NULL;
 
   if (ntotal > 10240) {
 
   } else {
-
+    item = cacheSlabAllocItem(cache, ntotal, id);
   }
-  */
-  return NULL;
+
+  if (item == NULL) {
+    return NULL;
+  }
+
+  item->next = item->prev = NULL;
+  item->expireTime = expireTime;
+  if (expireTime == 0) {
+    item->next = cache->neverExpireItemHead;
+    if (cache->neverExpireItemHead) cache->neverExpireItemHead->prev = item;
+    cache->neverExpireItemHead = item;
+  } else {
+    id |= CACHE_LRU_HOT;
+  }
+  item->slabClsId = id;
+
+  return item;
 }
 
-void item_free(cache_t* cache, cacheItem* item) {
+void cacheItemFree(cache_t* cache, cacheItem* item) {
+  assert(item->refCount == 0);
+  assert(!item_is_linked(item));
 
+  cacheSlabFreeItem(cache, item);
 }
 
 void item_move_to_lru_head(cache_t* cache, cacheItem* item) {
@@ -51,7 +69,7 @@ void   item_link_to_lru(cache_t* cache, cacheItem* item) {
 }
 
 void item_unlink_from_lru(cache_t* cache, cacheItem* item) {
-  cache_lru_class_t* lru = &(cache->lruArray[item->slabClsId]);
+  cacheSlabLruClass* lru = &(cache->lruArray[item->slabClsId]);
   cacheItem* tail = lru->tail;
 
   if (tail == item) {
@@ -62,7 +80,7 @@ void item_unlink_from_lru(cache_t* cache, cacheItem* item) {
   if (item->prev) item->prev->next = item->next;
 
   lru->num -= 1;
-  lru->bytes -= item_size(item->nkey, item->nbytes);
+  lru->bytes -= cacheItemTotalBytes(item->nkey, item->nbytes);
 }
 
 void item_unlink_nolock(cacheTable* pTable, cacheItem* item) {
@@ -76,6 +94,9 @@ void item_unlink_nolock(cacheTable* pTable, cacheItem* item) {
 
 void item_remove(cache_t* cache, cacheItem* item) {
   assert(!item_is_slabbed(item));
+  assert(item->refCount > 0);
 
-  item_free(cache, item);
+  if (itemDecrRef(item) == 0) {
+    cacheItemFree(cache, item);
+  }
 }

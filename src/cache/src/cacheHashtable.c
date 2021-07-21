@@ -42,12 +42,12 @@ cacheTable* cacheCreateTable(cache_t* cache, cacheTableOption* option) {
   pTable->option = *option;
   pTable->pCache = cache;
 
-  if (cache->tables == NULL) {
-    cache->table = pTable;
+  if (cache->tableHead == NULL) {
+    cache->tableHead = pTable;
     pTable->next = NULL;
   } else {
-    pTable->next = cache->table;
-    cache->table = pTable;
+    pTable->next = cache->tableHead;
+    cache->tableHead = pTable;
   }
 
   return pTable;

@@ -32,8 +32,8 @@ typedef struct cache_option_t cache_option_t;
 struct cacheMutex;
 typedef struct cacheMutex cacheMutex;
 
-struct cache_slab_class_t;
-typedef struct cache_slab_class_t cache_slab_class_t;
+struct cacheSlabClass;
+typedef struct cacheSlabClass cacheSlabClass;
 
 #ifdef __cplusplus
 }
