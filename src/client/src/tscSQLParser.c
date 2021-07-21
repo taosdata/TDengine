@@ -5051,7 +5051,7 @@ static int32_t getQueryTimeRange(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSqlExpr
     goto _ret;
   }
 
-  ret = filterInitFromTree(p, &filter, FILTER_NO_REWRITE);
+  ret = filterInitFromTree(p, &filter, FI_OPTION_NO_REWRITE|FI_OPTION_TIMESTAMP);
   if (ret != TSDB_CODE_SUCCESS) {
     goto _ret;
   }

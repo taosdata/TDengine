@@ -38,12 +38,8 @@ enum {
 enum {
   MR_ST_START = 1,
   MR_ST_FIN = 2,
-  MR_ALL = 4,
-  MR_NONE = 8,
-};
-
-enum {
-  MR_OPT_TS = 1,
+  MR_ST_ALL = 4,
+  MR_ST_EMPTY = 8,
 };
 
 enum {
@@ -52,14 +48,21 @@ enum {
 };
 
 enum {
-  FILTER_ALL = 1,
-  FILTER_NONE = 2,
-  FILTER_NO_REWRITE = 4,
+  FI_OPTION_NO_REWRITE = 1,
+  FI_OPTION_TIMESTAMP = 2,
+  FI_OPTION_NEED_UNIQE = 4,
+};
+
+enum {
+  FI_STATUS_ALL = 1,
+  FI_STATUS_EMPTY = 2,
+  FI_STATUS_REWRITE = 4,
 };
 
 enum {
   RANGE_TYPE_UNIT = 1,
-  RANGE_TYPE_COL_RANGE,
+  RANGE_TYPE_COL_RANGE = 2,
+  RANGE_TYPE_MR_CTX = 3,
 };
 
 typedef struct OptrStr {
@@ -78,6 +81,7 @@ typedef struct SFilterColRange {
   uint16_t idx;  //column field idx
   bool isNull;
   bool notNull;
+  bool isRange;
   SFilterRange ra;
 } SFilterColRange;
 
@@ -91,7 +95,10 @@ typedef struct SFilterRangeNode {
 typedef struct SFilterRMCtx {
   int32_t type;
   int32_t options;
-  int8_t  status;
+  int8_t  status;  
+  bool isnull;
+  bool notnull;
+  bool isrange;
   __compar_fn_t pCompareFunc;
   SFilterRangeNode *rf;        //freed
   SFilterRangeNode *rs;
@@ -124,15 +131,20 @@ typedef struct SFilterGroup {
 
 typedef struct SFilterColInfo {
   uint8_t type;
+  int32_t dataType;
   void   *info;
 } SFilterColInfo;
 
 typedef struct SFilterGroupCtx {
-  uint16_t  colNum;
-  uint16_t *colIdx;
-  SArray  **colInfo;
+  uint16_t         colNum;
+  uint16_t        *colIdx;
+  SFilterColInfo  *colInfo;
 } SFilterGroupCtx;
 
+typedef struct SFilterColCtx {
+  uint16_t  colIdx;
+  void*     ctx;
+} SFilterColCtx;
 
 typedef struct SFilterCompare {
   __compar_fn_t pCompareFunc;
@@ -146,8 +158,15 @@ typedef struct SFilterUnit {
   SFilterFieldId  right;
 } SFilterUnit;
 
+typedef struct SFilterPCtx {
+  SHashObj *colHash;
+  SHashObj *valHash;
+  SHashObj *unitHash;
+} SFilterPCtx;
+
 typedef struct SFilterInfo {
-  uint32_t      flags;
+  uint32_t      options;
+  uint32_t      status;  
   uint16_t      unitSize;
   uint16_t      unitNum;
   uint16_t      groupNum;
@@ -156,6 +175,7 @@ typedef struct SFilterInfo {
   SFilterUnit  *units;
   uint8_t      *unitRes;    // result
   uint8_t      *unitFlags;  // got result
+  SFilterPCtx  *pctx;
 } SFilterInfo;
 
 #define COL_FIELD_SIZE (sizeof(SFilterField) + 2 * sizeof(int64_t))
@@ -165,10 +185,10 @@ typedef struct SFilterInfo {
 
 #define MR_EMPTY_RES(ctx) (ctx->rs == NULL)
 
-#define SET_AND_OPTR(o) do {if (o == TSDB_RELATION_ISNULL) { isnull = true; } else if (o == TSDB_RELATION_NOTNULL) { if (!isrange) { notnull = true; } } else { isrange = true; notnull = false; }  } while (0)
-#define SET_OR_OPTR(o) do {if (o == TSDB_RELATION_ISNULL) { isnull = true; } else if (o == TSDB_RELATION_NOTNULL) { notnull = true; } } while (0)
-#define CHK_OR_OPTR()  (isnull == true && notnull == true)
-#define CHK_AND_OPTR()  (isnull == true && ((notnull == true) || (isrange == true)))
+#define SET_AND_OPTR(ctx, o) do {if (o == TSDB_RELATION_ISNULL) { (ctx)->isnull = true; } else if (o == TSDB_RELATION_NOTNULL) { if (!(ctx)->isrange) { (ctx)->notnull = true; } } else { (ctx)->isrange = true; (ctx)->notnull = false; }  } while (0)
+#define SET_OR_OPTR(ctx,o) do {if (o == TSDB_RELATION_ISNULL) { (ctx)->isnull = true; } else if (o == TSDB_RELATION_NOTNULL) { (ctx)->notnull = true; (ctx)->isrange = false; } else { if (!(ctx)->notnull) { (ctx)->isrange = true; } } } while (0)
+#define CHK_OR_OPTR(ctx)  ((ctx)->isnull == true && (ctx)->notnull == true)
+#define CHK_AND_OPTR(ctx)  ((ctx)->isnull == true && (((ctx)->notnull == true) || ((ctx)->isrange == true)))
 
 
 #define FILTER_GET_FLAG(st, f) (st & f)
@@ -206,11 +226,6 @@ typedef struct SFilterInfo {
 #define FILTER_GET_VAL_FIELD_DATA(fi) ((fi)->data)
 #define FILTER_GET_TYPE(fl) ((fl) & FLD_TYPE_MAX)
 
-
-#define FILTER_PUSH_UNIT(colInfo, u) do { SFilterColInfo* _info = malloc(sizeof(SFilterColInfo)); _info->type = RANGE_TYPE_UNIT; _info->info = u; taosArrayPush((SArray *)(colInfo), &_info);} while (0)
-#define FILTER_PUSH_RANGE(colInfo, cra) do { SFilterColInfo* _info = malloc(sizeof(SFilterColInfo)); _info->type = RANGE_TYPE_COL_RANGE; _info->info = cra; taosArrayPush((SArray *)(colInfo), &_info);} while (0)
-#define FILTER_COPY_IDX(dst, src, n) do { *(dst) = malloc(sizeof(uint16_t) * n); memcpy(*(dst), src, sizeof(uint16_t) * n);} while (0)
-
 #define FILTER_GROUP_UNIT(i, g, uid) ((i)->units + (g)->unitIdxs[uid])
 #define FILTER_UNIT_LEFT_FIELD(i, u) FILTER_GET_FIELD(i, (u)->left)
 #define FILTER_UNIT_RIGHT_FIELD(i, u) FILTER_GET_FIELD(i, (u)->right)
@@ -226,6 +241,14 @@ typedef struct SFilterInfo {
 #define FILTER_UNIT_GET_F(i, idx) ((i)->unitFlags[idx])
 #define FILTER_UNIT_GET_R(i, idx) ((i)->unitRes[idx])
 #define FILTER_UNIT_SET_R(i, idx, v) (i)->unitRes[idx] = (v)
+
+#define FILTER_PUSH_UNIT(colInfo, u) do { (colInfo).type = RANGE_TYPE_UNIT; (colInfo).dataType = FILTER_UNIT_DATA_TYPE(u);taosArrayPush((SArray *)((colInfo).info), &u);} while (0)
+#define FILTER_PUSH_RANGE(colInfo, cra) do { SFilterColInfo* _info = malloc(sizeof(SFilterColInfo)); _info->type = RANGE_TYPE_COL_RANGE; _info->info = cra; taosArrayPush((SArray *)(colInfo), &_info);} while (0)
+#define FILTER_PUSH_CTX(colInfo, ctx) do { (colInfo).type = RANGE_TYPE_MR_CTX; (colInfo).info = ctx;} while (0)
+
+#define FILTER_COPY_IDX(dst, src, n) do { *(dst) = malloc(sizeof(uint16_t) * n); memcpy(*(dst), src, sizeof(uint16_t) * n);} while (0)
+
+#define FILTER_ADD_CTX_TO_GRES(gres, idx, ctx) do { if ((gres)->colCtxs == NULL) { (gres)->colCtxs = taosArrayInit(gres->colNum, sizeof(SFilterColCtx)); } SFilterColCtx cCtx = {idx, ctx}; taosArrayPush((gres)->colCtxs, &cCtx); } while (0) 
 
 typedef int32_t(*filter_desc_compare_func)(const void *, const void *);
 

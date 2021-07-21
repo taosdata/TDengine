@@ -78,7 +78,7 @@ void intDataTest() {
 
 
   memset(ra, 0, sizeof(ra));
-  h = filterInitMergeRange(TSDB_DATA_TYPE_BIGINT, MR_OPT_TS);
+  h = filterInitMergeRange(TSDB_DATA_TYPE_BIGINT, FI_OPTION_TIMESTAMP);
   for (int32_t i = 0; i < asize; ++i) {
     ra[0].s = s[i];
     ra[0].e = e[i];
