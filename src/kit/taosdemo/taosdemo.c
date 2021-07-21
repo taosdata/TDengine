@@ -7013,6 +7013,7 @@ static int insertTestProcess() {
   // create sub threads for inserting data
   //start = taosGetTimestampMs();
   for (int i = 0; i < g_Dbs.dbCount; i++) {
+    break;
     if (g_Dbs.use_metric) {
       if (g_Dbs.db[i].superTblCount > 0) {
         for (uint64_t j = 0; j < g_Dbs.db[i].superTblCount; j++) {
@@ -7931,65 +7932,62 @@ static void setParaFromArg(){
   }
 
   if (g_args.use_metric) {
-    g_Dbs.db[0].superTblCount = 1;
-    tstrncpy(g_Dbs.db[0].superTbls[0].sTblName, "meters", TSDB_TABLE_NAME_LEN);
-    g_Dbs.db[0].superTbls[0].childTblCount = g_args.num_of_tables;
-    g_Dbs.threadCount = g_args.num_of_threads;
-    g_Dbs.threadCountByCreateTbl = g_args.num_of_threads;
-    g_Dbs.asyncMode = g_args.async_mode;
+    g_Dbs.db[0].superTblCount = 1000;
+    for (int index = 0; index < g_Dbs.db[0].superTblCount; ++index) {
+      //tstrncpy(g_Dbs.db[0].superTbls[i].sTblName, "meters", TSDB_TABLE_NAME_LEN);
+      sprintf(g_Dbs.db[0].superTbls[index].sTblName, "meters_%d", index);
+      g_Dbs.db[0].superTbls[index].childTblCount = g_args.num_of_tables;
+      g_Dbs.threadCount = g_args.num_of_threads;
+      g_Dbs.threadCountByCreateTbl = g_args.num_of_threads;
+      g_Dbs.asyncMode = g_args.async_mode;
 
-    g_Dbs.db[0].superTbls[0].autoCreateTable = PRE_CREATE_SUBTBL;
-    g_Dbs.db[0].superTbls[0].childTblExists = TBL_NO_EXISTS;
-    g_Dbs.db[0].superTbls[0].disorderRange = g_args.disorderRange;
-    g_Dbs.db[0].superTbls[0].disorderRatio = g_args.disorderRatio;
-    tstrncpy(g_Dbs.db[0].superTbls[0].childTblPrefix,
-            g_args.tb_prefix, TSDB_TABLE_NAME_LEN - 20);
-    tstrncpy(g_Dbs.db[0].superTbls[0].dataSource, "rand", MAX_TB_NAME_SIZE);
+      g_Dbs.db[0].superTbls[index].autoCreateTable = PRE_CREATE_SUBTBL;
+      g_Dbs.db[0].superTbls[index].childTblExists = TBL_NO_EXISTS;
+      g_Dbs.db[0].superTbls[index].disorderRange = g_args.disorderRange;
+      g_Dbs.db[0].superTbls[index].disorderRatio = g_args.disorderRatio;
+      //tstrncpy(g_Dbs.db[0].superTbls[index].childTblPrefix, g_args.tb_prefix, TSDB_TABLE_NAME_LEN - 20);
+      sprintf(g_Dbs.db[0].superTbls[index].childTblPrefix, "meters_%d_%s", index, g_args.tb_prefix);
+      tstrncpy(g_Dbs.db[0].superTbls[index].dataSource, "rand", MAX_TB_NAME_SIZE);
 
-    if (g_args.iface == INTERFACE_BUT) {
-        g_Dbs.db[0].superTbls[0].iface = TAOSC_IFACE;
-    } else {
-        g_Dbs.db[0].superTbls[0].iface = g_args.iface;
-    }
-    tstrncpy(g_Dbs.db[0].superTbls[0].startTimestamp,
-            "2017-07-14 10:40:00.000", MAX_TB_NAME_SIZE);
-    g_Dbs.db[0].superTbls[0].timeStampStep = DEFAULT_TIMESTAMP_STEP;
+      if (g_args.iface == INTERFACE_BUT) {
+        g_Dbs.db[0].superTbls[index].iface = TAOSC_IFACE;
+      } else {
+        g_Dbs.db[0].superTbls[index].iface = g_args.iface;
+      }
+      tstrncpy(g_Dbs.db[0].superTbls[index].startTimestamp, "2017-07-14 10:40:00.000", MAX_TB_NAME_SIZE);
+      g_Dbs.db[0].superTbls[index].timeStampStep = DEFAULT_TIMESTAMP_STEP;
 
-    g_Dbs.db[0].superTbls[0].insertRows = g_args.num_of_DPT;
-    g_Dbs.db[0].superTbls[0].maxSqlLen = g_args.max_sql_len;
+      g_Dbs.db[0].superTbls[index].insertRows = g_args.num_of_DPT;
+      g_Dbs.db[0].superTbls[index].maxSqlLen = g_args.max_sql_len;
 
-    g_Dbs.db[0].superTbls[0].columnCount = 0;
-    for (int i = 0; i < MAX_NUM_COLUMNS; i++) {
-      if (data_type[i] == NULL) {
-        break;
+      g_Dbs.db[0].superTbls[index].columnCount = 0;
+      for (int i = 0; i < MAX_NUM_COLUMNS; i++) {
+        if (data_type[i] == NULL) {
+          break;
+        }
+
+        tstrncpy(g_Dbs.db[0].superTbls[index].columns[i].dataType, data_type[i], strlen(data_type[i]) + 1);
+        g_Dbs.db[0].superTbls[index].columns[i].dataLen = g_args.len_of_binary;
+        g_Dbs.db[0].superTbls[index].columnCount++;
       }
 
-      tstrncpy(g_Dbs.db[0].superTbls[0].columns[i].dataType,
-              data_type[i], strlen(data_type[i]) + 1);
-      g_Dbs.db[0].superTbls[0].columns[i].dataLen = g_args.len_of_binary;
-      g_Dbs.db[0].superTbls[0].columnCount++;
-    }
-
-    if (g_Dbs.db[0].superTbls[0].columnCount > g_args.num_of_CPR) {
-      g_Dbs.db[0].superTbls[0].columnCount = g_args.num_of_CPR;
-    } else {
-      for (int i = g_Dbs.db[0].superTbls[0].columnCount;
-              i < g_args.num_of_CPR; i++) {
-        tstrncpy(g_Dbs.db[0].superTbls[0].columns[i].dataType,
-                "INT", strlen("INT") + 1);
-        g_Dbs.db[0].superTbls[0].columns[i].dataLen = 0;
-        g_Dbs.db[0].superTbls[0].columnCount++;
+      if (g_Dbs.db[0].superTbls[index].columnCount > g_args.num_of_CPR) {
+        g_Dbs.db[0].superTbls[index].columnCount = g_args.num_of_CPR;
+      } else {
+        for (int i = g_Dbs.db[0].superTbls[index].columnCount; i < g_args.num_of_CPR; i++) {
+          tstrncpy(g_Dbs.db[0].superTbls[index].columns[i].dataType, "INT", strlen("INT") + 1);
+          g_Dbs.db[0].superTbls[index].columns[i].dataLen = 0;
+          g_Dbs.db[0].superTbls[index].columnCount++;
+        }
       }
+
+      tstrncpy(g_Dbs.db[0].superTbls[index].tags[0].dataType, "INT", strlen("INT") + 1);
+      g_Dbs.db[0].superTbls[index].tags[0].dataLen = 0;
+
+      tstrncpy(g_Dbs.db[0].superTbls[index].tags[1].dataType, "BINARY", strlen("BINARY") + 1);
+      g_Dbs.db[0].superTbls[index].tags[1].dataLen = g_args.len_of_binary;
+      g_Dbs.db[0].superTbls[index].tagCount = 2;
     }
-
-    tstrncpy(g_Dbs.db[0].superTbls[0].tags[0].dataType,
-            "INT", strlen("INT") + 1);
-    g_Dbs.db[0].superTbls[0].tags[0].dataLen = 0;
-
-    tstrncpy(g_Dbs.db[0].superTbls[0].tags[1].dataType,
-            "BINARY", strlen("BINARY") + 1);
-    g_Dbs.db[0].superTbls[0].tags[1].dataLen = g_args.len_of_binary;
-    g_Dbs.db[0].superTbls[0].tagCount = 2;
   } else {
     g_Dbs.threadCountByCreateTbl = g_args.num_of_threads;
     g_Dbs.db[0].superTbls[0].tagCount = 0;
