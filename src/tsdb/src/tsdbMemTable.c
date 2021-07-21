@@ -1006,10 +1006,9 @@ static void updateTableLatestColumn(STsdbRepo *pRepo, STable *pTable, SMemRow ro
 
   SDataCol *pLatestCols = pTable->lastCols;
 
-  bool isDataRow = isDataRow(row);
   for (int16_t j = 0; j < schemaNCols(pSchema); j++) {
     STColumn *pTCol = schemaColAt(pSchema, j);
-    // ignore not exist colId
+    // ignore not exist colIdå
     int16_t idx = tsdbGetLastColumnsIndexByColId(pTable, pTCol->colId);
     if (idx == -1) {
       continue;
@@ -1017,16 +1016,7 @@ static void updateTableLatestColumn(STsdbRepo *pRepo, STable *pTable, SMemRow ro
 
     void *value = NULL;
 
-    if (isDataRow) {
-      value = tdGetRowDataOfCol(memRowDataBody(row), (int8_t)pTCol->type,
-                                TD_DATA_ROW_HEAD_SIZE + pSchema->columns[j].offset);
-    } else {
-      // SKVRow
-      SColIdx *pColIdx = tdGetKVRowIdxOfCol(memRowKvBody(row), pTCol->colId);
-      if (pColIdx) {
-        value = tdGetKvRowDataOfCol(memRowKvBody(row), pColIdx->offset);
-      }
-    }
+    value = tdGetMemRowDataOfCol(row, pTCol->colId, (int8_t)pTCol->type, TD_DATA_ROW_HEAD_SIZE + pSchema->columns[j].offset);
 
     if ((value == NULL) || isNull(value, pTCol->type)) {
       continue;

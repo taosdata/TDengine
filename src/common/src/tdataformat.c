@@ -13,9 +13,10 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 #include "tdataformat.h"
-#include "tulog.h"
 #include "talgo.h"
+#include "tarray.h"
 #include "tcoding.h"
+#include "tulog.h"
 #include "wchar.h"
 
 static void tdMergeTwoDataCols(SDataCols *target, SDataCols *src1, int *iter1, int limit1, SDataCols *src2, int *iter2,
@@ -784,4 +785,95 @@ SKVRow tdGetKVRowFromBuilder(SKVRowBuilder *pBuilder) {
   memcpy(kvRowValues(row), pBuilder->buf, pBuilder->size);
 
   return row;
+}
+
+SMemRow mergeTowMemRow(void *buffer, SMemRow row1, SMemRow row2, STSchema *pSchema1, STSchema *pSchema2) {
+  ASSERT(memRowKey(row1) == memRowKey(row2));
+  ASSERT(schemaVersion(pSchema1) == memRowVersion(row1));
+  ASSERT(schemaVersion(pSchema2) == memRowVersion(row2));
+  ASSERT(schemaVersion(pSchema1) >= schemaVersion(pSchema2));
+
+  SArray *stashRow = taosArrayInit(pSchema1->numOfCols, sizeof(SColInfo));
+  if (stashRow == NULL) {
+    return row1;  // TODO:
+  }
+
+  SMemRow  pRow = buffer;
+  SDataRow dataRow = memRowDataBody(pRow);
+  memRowSetType(pRow, SMEM_ROW_DATA);
+  dataRowSetVersion(dataRow, schemaVersion(pSchema1));  // use latest schema version
+  dataRowSetLen(dataRow, (TDRowLenT)(TD_DATA_ROW_HEAD_SIZE + pSchema1->flen));
+
+  TDRowTLenT dataLen = 0, kvLen = 0;
+
+  int32_t  i = 0;  // row1
+  int32_t  j = 0;  // row2
+  int32_t  nCols1 = schemaNCols(pSchema1);
+  int32_t  nCols2 = schemaNCols(pSchema2);
+  SColInfo colInfo = {0};
+
+  while (i < nCols1) {
+    STColumn *pCol = schemaColAt(pSchema1, i);
+    void *    val1 = tdGetMemRowDataOfCol(row1, pCol->colId, pCol->type, pCol->offset);
+    // if val1 != NULL, use val1;
+    if (val1 != NULL && !isNull(val1, pCol->type)) {
+      tdAppendColVal(dataRow, val1, pCol->type, pCol->offset);
+      kvLen += tdGetColAppendLen(SMEM_ROW_KV, val1, pCol->type);
+      setSColInfo(&colInfo, pCol->colId, pCol->type, val1);
+      taosArrayPush(stashRow, &colInfo);
+      continue;
+    }
+
+    void *val2 = NULL;
+    while (j < nCols2) {
+      STColumn *tCol = schemaColAt(pSchema2, j);
+      if (tCol->colId < pCol->colId) {
+        ++j;
+        continue;
+      }
+      if (tCol->colId == pCol->colId) {
+        val2 = tdGetMemRowDataOfCol(row2, tCol->colId, tCol->type, tCol->offset);
+      } else if (tCol->colId > pCol->colId) {
+        // set NULL
+      }
+      break;
+    }  // end of while(j<nCols2)
+    if (val2 == NULL) {
+      val2 = (void *)getNullValue(pCol->type);
+    }
+    tdAppendColVal(dataRow, val2, pCol->type, pCol->offset);
+    if (!isNull(val2, pCol->type)) {
+      kvLen += tdGetColAppendLen(SMEM_ROW_KV, val2, pCol->type);
+      setSColInfo(&colInfo, pCol->colId, pCol->type, val2);
+      taosArrayPush(stashRow, &colInfo);
+    }
+
+    ++i;  // primary row
+  }
+
+  dataLen = memRowTLen(pRow);
+  kvLen += TD_MEM_ROW_KV_HEAD_SIZE;
+
+  if (kvLen < dataLen) {
+    // scan stashRow and generate SKVRow
+    int32_t nKvNCols = taosArrayGetSize(stashRow);
+    SMemRow tRow = tcalloc(kvLen, 1);
+    if (tRow != NULL) {
+      SKVRow kvRow = (SKVRow)memRowKvBody(tRow);
+      kvRowSetLen(kvRow, (TDRowLenT)(TD_KV_ROW_HEAD_SIZE + sizeof(SColIdx) * nKvNCols));
+      kvRowSetNCols(kvRow, nKvNCols);
+      memRowSetKvVersion(tRow, pSchema1->version);
+
+      int32_t toffset = 0;
+      for (int32_t k = 0; k < nKvNCols; ++k) {
+        SColInfo *pColInfo = taosArrayGet(stashRow, k);
+        tdAppendKvColVal(kvRow, pColInfo->colVal, pColInfo->colId, pColInfo->colType, &toffset);
+      }
+      ASSERT(kvLen == memRowTLen(tRow));
+      memset(buffer, 0, sizeof(dataLen));
+      memcpy(buffer, tRow, kvLen);
+    }
+  }
+  taosArrayDestroy(stashRow);
+  return buffer;
 }

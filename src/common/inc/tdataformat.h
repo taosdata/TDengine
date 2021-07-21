@@ -397,9 +397,9 @@ static FORCE_INLINE void *tdGetKVRowIdxOfCol(SKVRow row, int16_t colId) {
 }
 
 // offset here not include kvRow header length
-static FORCE_INLINE int tdAppendKvColVal(SKVRow row, const void *value, int16_t colId, int8_t type, int32_t offset) {
+static FORCE_INLINE int tdAppendKvColVal(SKVRow row, const void *value, int16_t colId, int8_t type, int32_t *offset) {
   ASSERT(value != NULL);
-  int32_t  toffset = offset + TD_KV_ROW_HEAD_SIZE;
+  int32_t  toffset = *offset + TD_KV_ROW_HEAD_SIZE;
   SColIdx *pColIdx = (SColIdx *)POINTER_SHIFT(row, toffset);
   char *   ptr = (char *)POINTER_SHIFT(row, kvRowLen(row));
 
@@ -410,7 +410,7 @@ static FORCE_INLINE int tdAppendKvColVal(SKVRow row, const void *value, int16_t 
     memcpy(ptr, value, varDataTLen(value));
     kvRowLen(row) += varDataTLen(value);
   } else {
-    if (offset == 0) {
+    if (*offset == 0) {
       ASSERT(type == TSDB_DATA_TYPE_TIMESTAMP);
       TKEY tvalue = tdGetTKEY(*(TSKEY *)value);
       memcpy(ptr, (void *)(&tvalue), TYPE_BYTES[type]);
@@ -419,6 +419,7 @@ static FORCE_INLINE int tdAppendKvColVal(SKVRow row, const void *value, int16_t 
     }
     kvRowLen(row) += TYPE_BYTES[type];
   }
+  *offset += sizeof(SColIdx);
 
   return 0;
 }
@@ -494,7 +495,7 @@ typedef void *SMemRow;
 #define TD_MEM_ROW_KV_VER_SIZE sizeof(int16_t)
 #define TD_MEM_ROW_KV_TYPE_VER_SIZE (TD_MEM_ROW_TYPE_SIZE + TD_MEM_ROW_KV_VER_SIZE)
 #define TD_MEM_ROW_DATA_HEAD_SIZE (TD_MEM_ROW_TYPE_SIZE + TD_DATA_ROW_HEAD_SIZE)
-// #define TD_MEM_ROW_KV_HEAD_SIZE (TD_MEM_ROW_TYPE_SIZE + TD_MEM_ROW_KV_VER_SIZE + TD_KV_ROW_HEAD_SIZE)
+#define TD_MEM_ROW_KV_HEAD_SIZE (TD_MEM_ROW_TYPE_SIZE + TD_MEM_ROW_KV_VER_SIZE + TD_KV_ROW_HEAD_SIZE)
 
 #define SMEM_ROW_DATA 0U  // SDataRow
 #define SMEM_ROW_KV 1U    // SKVRow
@@ -537,7 +538,7 @@ typedef void *SMemRow;
 
 #define memRowSetType(r, t) (memRowType(r) = (t))
 #define memRowSetLen(r, l) (isDataRow(r) ? memRowDataLen(r) = (l) : memRowKvLen(r) = (l))
-#define memRowSetVersion(r, v) (isDataRow(r) ? dataRowSetVersion(memRowDataBody(r), v) : memRowKvSetVersion(r, v))
+#define memRowSetVersion(r, v) (isDataRow(r) ? dataRowSetVersion(memRowDataBody(r), v) : memRowSetKvVersion(r, v))
 #define memRowCpy(dst, r) memcpy((dst), (r), memRowTLen(r))
 #define memRowMaxBytesFromSchema(s) (schemaTLen(s) + TD_MEM_ROW_DATA_HEAD_SIZE)
 #define memRowDeleted(r) TKEY_IS_DELETED(memRowTKey(r))
@@ -547,16 +548,56 @@ void    tdAppendMemRowToDataCol(SMemRow row, STSchema *pSchema, SDataCols *pCols
 // NOTE: offset here including the header size
 static FORCE_INLINE void *tdGetKvRowDataOfCol(void *row, int32_t offset) { return POINTER_SHIFT(row, offset); }
 // NOTE: offset here including the header size
-static FORCE_INLINE void *tdGetMemRowDataOfCol(void *row, int8_t type, int32_t offset) {
+static FORCE_INLINE void *tdGetMemRowDataOfCol(void *row, int16_t colId, int8_t colType, uint16_t offset) {
   if (isDataRow(row)) {
-    return tdGetRowDataOfCol(row, type, offset);
-  } else if (isKvRow(row)) {
-    return tdGetKvRowDataOfCol(row, offset);
+    return tdGetRowDataOfCol(memRowDataBody(row), colType, offset);
   } else {
-    ASSERT(0);
+    return tdGetKVRowValOfCol(memRowKvBody(row), colId);
   }
-  return NULL;
 }
+
+static FORCE_INLINE int tdAppendMemColVal(SMemRow row, const void *value, int16_t colId, int8_t type, int32_t offset,
+                                          int32_t *kvOffset) {
+  if (isDataRow(row)) {
+    tdAppendColVal(memRowDataBody(row), value, type, offset);
+  } else {
+    tdAppendKvColVal(memRowKvBody(row), value, colId, type, kvOffset);
+  }
+  return 0;
+}
+
+static FORCE_INLINE int32_t tdGetColAppendLen(uint8_t rowType, const void *value, int8_t colType) {
+  int32_t len = 0;
+  if (IS_VAR_DATA_TYPE(colType)) {
+    len += varDataTLen(value);
+    if (rowType == SMEM_ROW_DATA) {
+      len += sizeof(VarDataOffsetT);
+    } else {
+      len += sizeof(SColIdx);
+    }
+  } else {
+    len += TYPE_BYTES[colType];
+    if (rowType == SMEM_ROW_KV) {
+      len += sizeof(SColIdx);
+    }
+  }
+  return len;
+}
+
+
+typedef struct {
+  int16_t colId;
+  uint8_t colType;
+  char*   colVal;
+} SColInfo;
+
+FORCE_INLINE void setSColInfo(SColInfo* colInfo, int16_t colId, uint8_t colType, char* colVal) {
+  colInfo->colId = colId;
+  colInfo->colType = colType;
+  colInfo->colVal = colVal;
+}
+
+SMemRow mergeTowMemRow(void *buffer, SMemRow row1, SMemRow row2, STSchema *pSchema1, STSchema *pSchema2);
 
 // ----------------- Raw payload structure for row:
 /* |<------------ Head ------------->|<----------- body of column data tuple ------------------->|
