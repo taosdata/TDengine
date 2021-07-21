@@ -233,15 +233,8 @@ static FORCE_INLINE int tsCompressFloat(const char *const input, int inputSize, 
     if (algorithm == ONE_STAGE_COMP) {
       return tsCompressFloatImp(input, nelements, output);
     } else if (algorithm == TWO_STAGE_COMP) {
-      //cost_start();
       int len = tsCompressFloatImp(input, nelements, buffer);
-      //cost_end(" td_first_compress");
-      //show_rate(inputSize, len);
-      //cost_start();
-      int ret = tsCompressStringImp(buffer, len, output, outputSize);
-      //cost_end(" td_second_compress");
-      //show_rate(inputSize, ret);
-      return ret;
+      return tsCompressStringImp(buffer, len, output, outputSize);
     } else {
       assert(0);
       return -1;
