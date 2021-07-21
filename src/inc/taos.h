@@ -111,10 +111,12 @@ typedef struct TAOS_MULTI_BIND {
 } TAOS_MULTI_BIND;
 
 
+
 DLL_EXPORT TAOS_STMT *taos_stmt_init(TAOS *taos);
 DLL_EXPORT int        taos_stmt_prepare(TAOS_STMT *stmt, const char *sql, unsigned long length);
 DLL_EXPORT int        taos_stmt_set_tbname_tags(TAOS_STMT* stmt, const char* name, TAOS_BIND* tags);
 DLL_EXPORT int        taos_stmt_set_tbname(TAOS_STMT* stmt, const char* name);
+DLL_EXPORT int        taos_stmt_set_sub_tbname(TAOS_STMT* stmt, const char* name);
 DLL_EXPORT int        taos_stmt_is_insert(TAOS_STMT *stmt, int *insert);
 DLL_EXPORT int        taos_stmt_num_params(TAOS_STMT *stmt, int *nums);
 int        taos_stmt_get_param(TAOS_STMT *stmt, int idx, int *type, int *bytes);

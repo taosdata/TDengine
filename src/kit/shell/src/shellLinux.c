@@ -336,6 +336,8 @@ void *shellLoopQuery(void *arg) {
 
   TAOS *con = (TAOS *)arg;
 
+  setThreadName("shellLoopQuery");
+
   pthread_cleanup_push(cleanup_handler, NULL);
 
   char *command = malloc(MAX_COMMAND_SIZE);

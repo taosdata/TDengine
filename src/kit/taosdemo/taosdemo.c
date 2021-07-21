@@ -3035,10 +3035,11 @@ static void* createTable(void *sarg)
     threadInfo *pThreadInfo = (threadInfo *)sarg;
     SSuperTable* superTblInfo = pThreadInfo->superTblInfo;
 
+    setThreadName("createTable");
+
     uint64_t  lastPrintTime = taosGetTimestampMs();
 
-    int buff_len;
-    buff_len = BUFFER_SIZE;
+    int buff_len = BUFFER_SIZE;
 
     pThreadInfo->buffer = calloc(buff_len, 1);
     if (pThreadInfo->buffer == NULL) {
@@ -6521,6 +6522,8 @@ static void* syncWrite(void *sarg) {
     threadInfo *pThreadInfo = (threadInfo *)sarg;
     SSuperTable* superTblInfo = pThreadInfo->superTblInfo;
 
+    setThreadName("syncWrite");
+
     uint32_t interlaceRows;
 
     if (superTblInfo) {
@@ -6605,6 +6608,8 @@ static void callBack(void *param, TAOS_RES *res, int code) {
 static void *asyncWrite(void *sarg) {
   threadInfo *pThreadInfo = (threadInfo *)sarg;
   SSuperTable* superTblInfo = pThreadInfo->superTblInfo;
+
+  setThreadName("asyncWrite");
 
   pThreadInfo->st = 0;
   pThreadInfo->et = 0;
@@ -7006,6 +7011,7 @@ static void *readTable(void *sarg) {
 #if 1
   threadInfo *pThreadInfo = (threadInfo *)sarg;
   TAOS *taos = pThreadInfo->taos;
+  setThreadName("readTable");
   char command[BUFFER_SIZE] = "\0";
   uint64_t sTime = pThreadInfo->start_time;
   char *tb_prefix = pThreadInfo->tb_prefix;
@@ -7078,6 +7084,7 @@ static void *readMetric(void *sarg) {
 #if 1
   threadInfo *pThreadInfo = (threadInfo *)sarg;
   TAOS *taos = pThreadInfo->taos;
+  setThreadName("readMetric");
   char command[BUFFER_SIZE] = "\0";
   FILE *fp = fopen(pThreadInfo->filePath, "a");
   if (NULL == fp) {
@@ -7254,6 +7261,8 @@ static int insertTestProcess() {
 static void *specifiedTableQuery(void *sarg) {
   threadInfo *pThreadInfo = (threadInfo *)sarg;
 
+  setThreadName("specTableQuery");
+
   if (pThreadInfo->taos == NULL) {
     TAOS * taos = NULL;
     taos = taos_connect(g_queryInfo.host,
@@ -7352,6 +7361,8 @@ static void replaceChildTblName(char* inSql, char* outSql, int tblIndex) {
 static void *superTableQuery(void *sarg) {
   char sqlstr[MAX_QUERY_SQL_LENGTH];
   threadInfo *pThreadInfo = (threadInfo *)sarg;
+
+  setThreadName("superTableQuery");
 
   if (pThreadInfo->taos == NULL) {
     TAOS * taos = NULL;
@@ -7655,6 +7666,8 @@ static void *superSubscribe(void *sarg) {
     TAOS_SUB*    tsub[MAX_QUERY_SQL_COUNT] = {0};
     uint64_t tsubSeq;
 
+    setThreadName("superSub");
+
     if (pThreadInfo->ntables > MAX_QUERY_SQL_COUNT) {
         errorPrint("The table number(%"PRId64") of the thread is more than max query sql count: %d\n",
                 pThreadInfo->ntables, MAX_QUERY_SQL_COUNT);
@@ -7800,6 +7813,8 @@ static void *superSubscribe(void *sarg) {
 static void *specifiedSubscribe(void *sarg) {
   threadInfo *pThreadInfo = (threadInfo *)sarg;
 //  TAOS_SUB*  tsub = NULL;
+
+  setThreadName("specSub");
 
   if (pThreadInfo->taos == NULL) {
     pThreadInfo->taos = taos_connect(g_queryInfo.host,

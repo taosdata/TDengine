@@ -41,6 +41,8 @@ static semaphore_t               sem_exit;
 
 static void* sem_thread_routine(void *arg) {
   (void)arg;
+  setThreadName("sem_thrd");
+
   sem_port = mach_task_self();
   kern_return_t ret = semaphore_create(sem_port, &sem_exit, SYNC_POLICY_FIFO, 0);
   if (ret != KERN_SUCCESS) {
