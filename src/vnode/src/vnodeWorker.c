@@ -188,6 +188,8 @@ static void vnodeProcessMWorkerMsg(SVMWorkerMsg *pMsg) {
 }
 
 static void *vnodeMWorkerFunc(void *param) {
+  setThreadName("vnodeMWorker");
+
   while (1) {
     SVMWorkerMsg *pMsg = NULL;
     if (taosReadQitemFromQset(tsVMWorkerQset, NULL, (void **)&pMsg, NULL) == 0) {
