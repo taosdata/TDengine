@@ -6594,10 +6594,19 @@ static SSDataBlock* hashDistinct(void* param, bool* newgroup) {
       if (isNull(val, type)) {
         continue;
       }
-      int dummy; 
-      void* res = taosHashGet(pInfo->pSet, val, bytes);
+
+      size_t keyLen = 0;
+      if (IS_VAR_DATA_TYPE(pOperator->pExpr->base.colType)) {
+        tstr* var = (tstr*)(val);
+        keyLen = varDataLen(var);
+      } else {
+        keyLen = bytes;
+      }
+
+      int dummy;
+      void* res = taosHashGet(pInfo->pSet, val, keyLen);
       if (res == NULL) {
-        taosHashPut(pInfo->pSet, val, bytes, &dummy, sizeof(dummy));
+        taosHashPut(pInfo->pSet, val, keyLen, &dummy, sizeof(dummy));
         char* start = pResultColInfoData->pData + bytes * pInfo->pRes->info.rows;
         memcpy(start, val, bytes);
         pRes->info.rows += 1;
@@ -6624,6 +6633,7 @@ SOperatorInfo* createDistinctOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperat
   pOperator->blockingOptr = false;
   pOperator->status       = OP_IN_EXECUTING;
   pOperator->operatorType = OP_Distinct;
+  pOperator->pExpr        = pExpr;
   pOperator->numOfOutput  = numOfOutput;
   pOperator->info         = pInfo;
   pOperator->pRuntimeEnv  = pRuntimeEnv;
