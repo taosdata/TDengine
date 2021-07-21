@@ -40,7 +40,7 @@ public class TSDBErrorNumbers {
     public static final int ERROR_JNI_FETCH_END = 0x2358;       // fetch to the end of resultSet
     public static final int ERROR_JNI_OUT_OF_MEMORY = 0x2359;   // JNI alloc memory failed
 
-    private static final Set<Integer> errorNumbers = new HashSet();
+    private static final Set<Integer> errorNumbers = new HashSet<>();
 
     static {
         errorNumbers.add(ERROR_CONNECTION_CLOSED);
