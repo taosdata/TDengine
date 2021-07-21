@@ -597,7 +597,7 @@ FORCE_INLINE void setSColInfo(SColInfo* colInfo, int16_t colId, uint8_t colType,
   colInfo->colVal = colVal;
 }
 
-SMemRow mergeTowMemRow(void *buffer, SMemRow row1, SMemRow row2, STSchema *pSchema1, STSchema *pSchema2);
+SMemRow mergeTwoMemRows(void *buffer, SMemRow row1, SMemRow row2, STSchema *pSchema1, STSchema *pSchema2);
 
 // ----------------- Raw payload structure for row:
 /* |<------------ Head ------------->|<----------- body of column data tuple ------------------->|

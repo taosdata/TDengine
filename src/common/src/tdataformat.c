@@ -787,7 +787,7 @@ SKVRow tdGetKVRowFromBuilder(SKVRowBuilder *pBuilder) {
   return row;
 }
 
-SMemRow mergeTowMemRow(void *buffer, SMemRow row1, SMemRow row2, STSchema *pSchema1, STSchema *pSchema2) {
+SMemRow mergeTwoMemRows(void *buffer, SMemRow row1, SMemRow row2, STSchema *pSchema1, STSchema *pSchema2) {
   ASSERT(memRowKey(row1) == memRowKey(row2));
   ASSERT(schemaVersion(pSchema1) == memRowVersion(row1));
   ASSERT(schemaVersion(pSchema2) == memRowVersion(row2));
@@ -872,6 +872,7 @@ SMemRow mergeTowMemRow(void *buffer, SMemRow row1, SMemRow row2, STSchema *pSche
       ASSERT(kvLen == memRowTLen(tRow));
       memset(buffer, 0, sizeof(dataLen));
       memcpy(buffer, tRow, kvLen);
+      tfree(tRow);
     }
   }
   taosArrayDestroy(stashRow);
