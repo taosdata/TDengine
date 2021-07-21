@@ -55,6 +55,11 @@
 
 #define STMT_IFACE_ENABLED  1
 #define NANO_SECOND_ENABLED  1
+#define SET_THREADNAME_ENABLED  1
+
+#if SET_THREADNAME_ENABLED == 0
+#define setThreadName(name)
+#endif
 
 #define REQ_EXTRA_BUF_LEN   1024
 #define RESP_BUF_LEN        4096
