@@ -100,6 +100,11 @@ public class TSDBDriver extends AbstractDriver {
      */
     public static final String PROPERTY_KEY_TIMESTAMP_FORMAT = "timestampFormat";
 
+    /**
+     * continue process commands in executeBatch
+     */
+    public static final String PROPERTY_KEY_BATCH_ERROR_IGNORE = "batchErrorIgnore";
+
     private TSDBDatabaseMetaData dbMetaData = null;
 
     static {

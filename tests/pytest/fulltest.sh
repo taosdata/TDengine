@@ -236,10 +236,12 @@ python3 ./test.py -f query/queryTscomputWithNow.py
 python3 ./test.py -f query/computeErrorinWhere.py
 python3 ./test.py -f query/queryTsisNull.py
 python3 ./test.py -f query/subqueryFilter.py
-# python3 ./test.py -f query/nestedQuery/queryInterval.py
+python3 ./test.py -f query/nestedQuery/queryInterval.py
 python3 ./test.py -f query/queryStateWindow.py
 python3 ./test.py -f query/nestedQuery/queryWithOrderLimit.py
-
+python3 ./test.py -f query/nestquery_last_row.py
+python3 ./test.py -f query/queryCnameDisplay.py
+python3 test.py -f query/nestedQuery/queryWithSpread.py
 
 #stream
 python3 ./test.py -f stream/metric_1.py
@@ -350,7 +352,7 @@ python3 ./test.py -f alter/alter_debugFlag.py
 python3 ./test.py -f query/queryBetweenAnd.py
 python3 ./test.py -f tag_lite/alter_tag.py
 
-python3 test.py -f tools/taosdemoAllTest/taosdemoTestInsertWithJson.py 
+# python3 test.py -f tools/taosdemoAllTest/taosdemoTestInsertWithJson.py 
 python3 test.py -f tools/taosdemoAllTest/taosdemoTestQueryWithJson.py
 python3 test.py -f tools/taosdemoAllTest/TD-4985/query-limit-offset.py
 python3 ./test.py -f tag_lite/drop_auto_create.py
@@ -359,4 +361,6 @@ python3 test.py -f alter/alter_keep.py
 python3 test.py -f alter/alter_cacheLastRow.py
 python3 ./test.py -f query/querySession.py 
 python3 test.py -f  alter/alter_create_exception.py
+
+python3 ./test.py -f insert/flushwhiledrop.py
 #======================p4-end===============

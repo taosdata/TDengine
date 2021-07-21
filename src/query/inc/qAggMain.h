@@ -27,6 +27,7 @@ extern "C" {
 #include "trpc.h"
 #include "tvariant.h"
 #include "tsdb.h"
+#include "qUdf.h"
 
 #define TSDB_FUNC_INVALID_ID  -1
 #define TSDB_FUNC_COUNT        0
@@ -201,10 +202,8 @@ typedef struct SAggFunctionInfo {
   int8_t   stableFuncId;  // transfer function for super table query
   uint16_t status;
 
-  bool (*init)(SQLFunctionCtx *pCtx);  // setup the execute environment
-
+  bool (*init)(SQLFunctionCtx *pCtx, SResultRowCellInfo* pResultCellInfo);  // setup the execute environment
   void (*xFunction)(SQLFunctionCtx *pCtx);                     // blocks version function
-//  void (*xFunctionF)(SQLFunctionCtx *pCtx, int32_t position);  // single-row function version, todo merge with blockwise function
 
   // finalizer must be called after all xFunction has been executed to generated final result.
   void (*xFinalize)(SQLFunctionCtx *pCtx);
@@ -216,7 +215,7 @@ typedef struct SAggFunctionInfo {
 #define GET_RES_INFO(ctx) ((ctx)->resultInfo)
 
 int32_t getResultDataInfo(int32_t dataType, int32_t dataBytes, int32_t functionId, int32_t param, int16_t *type,
-                          int16_t *len, int32_t *interBytes, int16_t extLength, bool isSuperTable);
+                          int16_t *len, int32_t *interBytes, int16_t extLength, bool isSuperTable, SUdfInfo* pUdfInfo);
 int32_t isValidFunction(const char* name, int32_t len);
 
 #define IS_STREAM_QUERY_VALID(x)  (((x)&TSDB_FUNCSTATE_STREAM) != 0)
@@ -262,9 +261,9 @@ bool topbot_datablock_filter(SQLFunctionCtx *pCtx, const char *minval, const cha
 static FORCE_INLINE void initResultInfo(SResultRowCellInfo *pResInfo, int32_t bufLen) {
   pResInfo->initialized = true;  // the this struct has been initialized flag
   
-  pResInfo->complete = false;
+  pResInfo->complete  = false;
   pResInfo->hasResult = false;
-  pResInfo->numOfRes = 0;
+  pResInfo->numOfRes  = 0;
   
   memset(GET_ROWCELL_INTERBUF(pResInfo), 0, bufLen);
 }
