@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# if [ $# != 4 || $# != 5 ]; then 
+# if [ $# != 4 || $# != 5 ]; then
   # echo "argument list need input : "
   # echo "  -n nodeName"
   # echo "  -s start/stop"
@@ -8,10 +8,12 @@
   # exit 1
 # fi
 
+UNAME_BIN=`which uname`
+OS_TYPE=`$UNAME_BIN`
 NODE_NAME=
 EXEC_OPTON=
 CLEAR_OPTION="false"
-while getopts "n:s:u:x:ct" arg 
+while getopts "n:s:u:x:ct" arg
 do
   case $arg in
     n)
@@ -52,10 +54,16 @@ fi
 TAOS_DIR=`pwd`
 TAOSD_DIR=`find . -name "taosd"|grep bin|head -n1`
 
-if [[ "$TAOSD_DIR" == *"$IN_TDINTERNAL"* ]]; then
-  BIN_DIR=`find . -name "taosd"|grep bin|head -n1|cut -d '/' --fields=2,3`
+if [[ "$OS_TYPE" != "Darwin" ]]; then
+  cut_opt="--field="
 else
-  BIN_DIR=`find . -name "taosd"|grep bin|head -n1|cut -d '/' --fields=2`
+  cut_opt="-f "
+fi
+
+if [[ "$TAOSD_DIR" == *"$IN_TDINTERNAL"* ]]; then
+  BIN_DIR=`find . -name "taosd"|grep bin|head -n1|cut -d '/' ${cut_opt}2,3`
+else
+  BIN_DIR=`find . -name "taosd"|grep bin|head -n1|cut -d '/' ${cut_opt}2`
 fi
 
 BUILD_DIR=$TAOS_DIR/$BIN_DIR/build
@@ -78,23 +86,23 @@ if [ -f "$TAOS_FLAG" ]; then
   EXE_DIR=/usr/local/bin/taos
 fi
 
-if [ "$CLEAR_OPTION" = "clear" ]; then 
-  echo rm -rf $MGMT_DIR $TSDB_DIR  
+if [ "$CLEAR_OPTION" = "clear" ]; then
+  echo rm -rf $MGMT_DIR $TSDB_DIR
   rm -rf $TSDB_DIR
   rm -rf $MGMT_DIR
 fi
 
-if [ "$EXEC_OPTON" = "start" ]; then 
+if [ "$EXEC_OPTON" = "start" ]; then
   echo "ExcuteCmd:" $EXE_DIR/taosd -c $CFG_DIR
-  
-  if [ "$SHELL_OPTION" = "true" ]; then 
+
+  if [ "$SHELL_OPTION" = "true" ]; then
     TT=`date +%s`
     mkdir ${LOG_DIR}/${TT}
-    nohup valgrind --log-file=${LOG_DIR}/${TT}/valgrind.log --tool=memcheck --leak-check=full --show-reachable=no  --track-origins=yes --show-leak-kinds=all  -v  --workaround-gcc296-bugs=yes   $EXE_DIR/taosd -c $CFG_DIR > /dev/null 2>&1 &   
+    nohup valgrind --log-file=${LOG_DIR}/${TT}/valgrind.log --tool=memcheck --leak-check=full --show-reachable=no  --track-origins=yes --show-leak-kinds=all  -v  --workaround-gcc296-bugs=yes   $EXE_DIR/taosd -c $CFG_DIR > /dev/null 2>&1 &
   else
-    nohup $EXE_DIR/taosd -c $CFG_DIR --random-file-fail-factor 0 > /dev/null 2>&1 & 
+    nohup $EXE_DIR/taosd -c $CFG_DIR --random-file-fail-factor 0 > /dev/null 2>&1 &
   fi
-  
+
 else
   #relative path
   RCFG_DIR=sim/$NODE_NAME/cfg
@@ -110,6 +118,6 @@ else
     fi
     sleep 1
     PID=`ps -ef|grep taosd | grep $RCFG_DIR | grep -v grep | awk '{print $2}'`
-  done 
+  done
 fi
 

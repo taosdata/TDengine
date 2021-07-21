@@ -59,11 +59,11 @@ class TDTestCase:
         tdSql.checkData(0, 0, self.numberOfTables * self.numberOfRecords)
 
         tdSql.query(
-            "select sum(col1) from test.meters interval(1h) sliding(30m)")
+            "select sum(c1) from test.meters interval(1h) sliding(30m)")
         tdSql.checkRows(2)
 
         tdSql.query(
-            "select apercentile(col1, 1) from test.meters interval(100s)")
+            "select apercentile(c1, 1) from test.meters interval(100s)")
         tdSql.checkRows(1)
 
         tdSql.error("select loc, count(loc) from test.meters")

@@ -23,7 +23,7 @@ class TDTestCase:
     def init(self, conn, logSql):
         tdLog.debug("start to execute %s" % __file__)
         tdSql.init(conn.cursor(), logSql)
-        
+
     def getBuildPath(self):
         selfPath = os.path.dirname(os.path.realpath(__file__))
 
@@ -39,7 +39,7 @@ class TDTestCase:
                     buildPath = root[:len(root)-len("/build/bin")]
                     break
         return buildPath
-        
+
     def run(self):
         buildPath = self.getBuildPath()
         if (buildPath == ""):
@@ -48,7 +48,7 @@ class TDTestCase:
             tdLog.info("taosd found in %s" % buildPath)
         binPath = buildPath+ "/build/bin/"
 
-        # insert: create one  or mutiple tables per sql and insert multiple rows per sql 
+        # insert: create one  or mutiple tables per sql and insert multiple rows per sql
         # test case for https://jira.taosdata.com:18080/browse/TD-4985
         os.system("%staosdemo -f tools/taosdemoAllTest/TD-4985/query-limit-offset.json -y " % binPath)
         tdSql.execute("use db")
@@ -56,27 +56,27 @@ class TDTestCase:
         tdSql.checkData(0, 0, 10000)
 
         for i in range(1000):
-            tdSql.execute('''insert into stb00_9999 values(%d, %d, %d,'test99.%s')''' 
+            tdSql.execute('''insert into stb00_9999 values(%d, %d, %d,'test99.%s')'''
                             % (1600000000000 + i, i, -10000+i, i))
-            tdSql.execute('''insert into stb00_8888 values(%d, %d, %d,'test98.%s')''' 
+            tdSql.execute('''insert into stb00_8888 values(%d, %d, %d,'test98.%s')'''
                             % (1600000000000 + i, i, -10000+i, i))
-            tdSql.execute('''insert into stb00_7777 values(%d, %d, %d,'test97.%s')''' 
+            tdSql.execute('''insert into stb00_7777 values(%d, %d, %d,'test97.%s')'''
                             % (1600000000000 + i, i, -10000+i, i))
-            tdSql.execute('''insert into stb00_6666 values(%d, %d, %d,'test96.%s')''' 
+            tdSql.execute('''insert into stb00_6666 values(%d, %d, %d,'test96.%s')'''
                             % (1600000000000 + i, i, -10000+i, i))
-            tdSql.execute('''insert into stb00_5555 values(%d, %d, %d,'test95.%s')''' 
+            tdSql.execute('''insert into stb00_5555 values(%d, %d, %d,'test95.%s')'''
                             % (1600000000000 + i, i, -10000+i, i))
-            tdSql.execute('''insert into stb00_4444 values(%d, %d, %d,'test94.%s')''' 
+            tdSql.execute('''insert into stb00_4444 values(%d, %d, %d,'test94.%s')'''
                             % (1600000000000 + i, i, -10000+i, i))
-            tdSql.execute('''insert into stb00_3333 values(%d, %d, %d,'test93.%s')''' 
+            tdSql.execute('''insert into stb00_3333 values(%d, %d, %d,'test93.%s')'''
                             % (1600000000000 + i, i, -10000+i, i))
-            tdSql.execute('''insert into stb00_2222 values(%d, %d, %d,'test92.%s')''' 
+            tdSql.execute('''insert into stb00_2222 values(%d, %d, %d,'test92.%s')'''
                             % (1600000000000 + i, i, -10000+i, i))
-            tdSql.execute('''insert into stb00_1111 values(%d, %d, %d,'test91.%s')''' 
+            tdSql.execute('''insert into stb00_1111 values(%d, %d, %d,'test91.%s')'''
                             % (1600000000000 + i, i, -10000+i, i))
-            tdSql.execute('''insert into stb00_100 values(%d, %d, %d,'test90.%s')''' 
+            tdSql.execute('''insert into stb00_100 values(%d, %d, %d,'test90.%s')'''
                             % (1600000000000 + i, i, -10000+i, i))
-        tdSql.query("select * from stb0 where col2 like 'test99%' ")
+        tdSql.query("select * from stb0 where c2 like 'test99%' ")
         tdSql.checkRows(1000)
         tdSql.query("select * from stb0 where  tbname like 'stb00_9999'  limit 10" )
         tdSql.checkData(0, 1, 0)
@@ -86,7 +86,7 @@ class TDTestCase:
         tdSql.checkData(0, 1, 5)
         tdSql.checkData(1, 1, 6)
         tdSql.checkData(2, 1, 7)
-        tdSql.query("select *  from stb0 where col2 like 'test98%' ")
+        tdSql.query("select *  from stb0 where c2 like 'test98%' ")
         tdSql.checkRows(1000)
         tdSql.query("select  *  from stb0 where tbname like 'stb00_8888' limit 10" )
         tdSql.checkData(0, 1, 0)
@@ -96,7 +96,7 @@ class TDTestCase:
         tdSql.checkData(0, 1, 5)
         tdSql.checkData(1, 1, 6)
         tdSql.checkData(2, 1, 7)
-        tdSql.query("select *  from stb0 where col2 like 'test97%' ")
+        tdSql.query("select *  from stb0 where c2 like 'test97%' ")
         tdSql.checkRows(1000)
         tdSql.query("select  *  from stb0 where tbname like 'stb00_7777' limit 10" )
         tdSql.checkData(0, 1, 0)
@@ -106,7 +106,7 @@ class TDTestCase:
         tdSql.checkData(0, 1, 5)
         tdSql.checkData(1, 1, 6)
         tdSql.checkData(2, 1, 7)
-        tdSql.query("select *  from stb0 where col2 like 'test96%' ")
+        tdSql.query("select *  from stb0 where c2 like 'test96%' ")
         tdSql.checkRows(1000)
         tdSql.query("select  *  from stb0 where tbname like 'stb00_6666' limit 10" )
         tdSql.checkData(0, 1, 0)
@@ -116,7 +116,7 @@ class TDTestCase:
         tdSql.checkData(0, 1, 5)
         tdSql.checkData(1, 1, 6)
         tdSql.checkData(2, 1, 7)
-        tdSql.query("select *  from stb0 where col2 like 'test95%' ")
+        tdSql.query("select *  from stb0 where c2 like 'test95%' ")
         tdSql.checkRows(1000)
         tdSql.query("select  *  from stb0 where tbname like 'stb00_5555' limit 10" )
         tdSql.checkData(0, 1, 0)
@@ -126,7 +126,7 @@ class TDTestCase:
         tdSql.checkData(0, 1, 5)
         tdSql.checkData(1, 1, 6)
         tdSql.checkData(2, 1, 7)
-        tdSql.query("select * from stb0 where col2 like 'test94%' ")
+        tdSql.query("select * from stb0 where c2 like 'test94%' ")
         tdSql.checkRows(1000)
         tdSql.query("select * from stb0 where tbname like 'stb00_4444' limit 10" )
         tdSql.checkData(0, 1, 0)
@@ -136,7 +136,7 @@ class TDTestCase:
         tdSql.checkData(0, 1, 5)
         tdSql.checkData(1, 1, 6)
         tdSql.checkData(2, 1, 7)
-        tdSql.query("select *  from stb0 where col2 like 'test93%' ")
+        tdSql.query("select *  from stb0 where c2 like 'test93%' ")
         tdSql.checkRows(1000)
         tdSql.query("select  *  from stb0 where tbname like 'stb00_3333' limit 100" )
         tdSql.checkData(0, 1, 0)
@@ -146,7 +146,7 @@ class TDTestCase:
         tdSql.checkData(0, 1, 5)
         tdSql.checkData(1, 1, 6)
         tdSql.checkData(2, 1, 7)
-        tdSql.query("select *  from stb0 where col2 like 'test92%' ")
+        tdSql.query("select *  from stb0 where c2 like 'test92%' ")
         tdSql.checkRows(1000)
         tdSql.query("select  *  from stb0 where tbname like 'stb00_2222' limit 100" )
         tdSql.checkData(0, 1, 0)
@@ -156,7 +156,7 @@ class TDTestCase:
         tdSql.checkData(0, 1, 5)
         tdSql.checkData(1, 1, 6)
         tdSql.checkData(2, 1, 7)
-        tdSql.query("select *  from stb0 where col2 like 'test91%' ")
+        tdSql.query("select *  from stb0 where c2 like 'test91%' ")
         tdSql.checkRows(1000)
         tdSql.query("select  *  from stb0 where tbname like 'stb00_1111' limit 100" )
         tdSql.checkData(0, 1, 0)
@@ -166,7 +166,7 @@ class TDTestCase:
         tdSql.checkData(0, 1, 5)
         tdSql.checkData(1, 1, 6)
         tdSql.checkData(2, 1, 7)
-        tdSql.query("select *  from stb0 where col2 like 'test90%' ")
+        tdSql.query("select *  from stb0 where c2 like 'test90%' ")
         tdSql.checkRows(1000)
         tdSql.query("select  *  from stb0 where tbname like 'stb00_100' limit 100" )
         tdSql.checkData(0, 1, 0)
@@ -178,10 +178,10 @@ class TDTestCase:
         tdSql.checkData(2, 1, 7)
 
 
-        os.system("rm -rf tools/taosdemoAllTest/TD-4985/query-limit-offset.py.sql")        
-        
-        
-        
+        os.system("rm -rf tools/taosdemoAllTest/TD-4985/query-limit-offset.py.sql")
+
+
+
     def stop(self):
         tdSql.close()
         tdLog.success("%s successfully executed" % __file__)

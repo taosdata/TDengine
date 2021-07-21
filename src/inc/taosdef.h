@@ -180,12 +180,16 @@ do { \
 // this is the length of its string representation, including the terminator zero
 #define TSDB_ACCT_ID_LEN          11
 
-#define TSDB_MAX_COLUMNS          1024
+#define TSDB_MAX_COLUMNS          4096
 #define TSDB_MIN_COLUMNS          2       //PRIMARY COLUMN(timestamp) + other columns
 
 #define TSDB_NODE_NAME_LEN        64
 #define TSDB_TABLE_NAME_LEN       193     // it is a null-terminated string
 #define TSDB_DB_NAME_LEN          33
+#define TSDB_FUNC_NAME_LEN        65
+#define TSDB_FUNC_CODE_LEN        (65535 - 512)
+#define TSDB_FUNC_BUF_SIZE        512
+#define TSDB_TYPE_STR_MAX_LEN     32
 #define TSDB_TABLE_FNAME_LEN      (TSDB_ACCT_ID_LEN + TSDB_DB_NAME_LEN + TSDB_TABLE_NAME_LEN)
 #define TSDB_COL_NAME_LEN         65
 #define TSDB_MAX_SAVED_SQL_LEN    TSDB_MAX_COLUMNS * 64
@@ -195,7 +199,13 @@ do { \
 
 #define TSDB_APPNAME_LEN          TSDB_UNI_LEN
 
-#define TSDB_MAX_BYTES_PER_ROW    16384
+  /**
+   *  In some scenarios uint16_t (0~65535) is used to store the row len.
+   *  - Firstly, we use 65531(65535 - 4), as the SDataRow/SKVRow contains 4 bits header.
+   *  - Secondly, if all cols are VarDataT type except primary key, we need 4 bits to store the offset, thus
+   *    the final value is 65531-(4096-1)*4 = 49151.
+   */
+#define TSDB_MAX_BYTES_PER_ROW    49151
 #define TSDB_MAX_TAGS_LEN         16384
 #define TSDB_MAX_TAGS             128
 #define TSDB_MAX_TAG_CONDITIONS   1024
@@ -323,14 +333,19 @@ do { \
 #define TSDB_MAX_JOIN_TABLE_NUM         10
 #define TSDB_MAX_UNION_CLAUSE           5
 
-#define TSDB_MAX_BINARY_LEN            (TSDB_MAX_BYTES_PER_ROW-TSDB_KEYSIZE)
-#define TSDB_MAX_NCHAR_LEN             (TSDB_MAX_BYTES_PER_ROW-TSDB_KEYSIZE)
+#define TSDB_MAX_FIELD_LEN              16384
+#define TSDB_MAX_BINARY_LEN            (TSDB_MAX_FIELD_LEN-TSDB_KEYSIZE) // keep 16384
+#define TSDB_MAX_NCHAR_LEN             (TSDB_MAX_FIELD_LEN-TSDB_KEYSIZE) // keep 16384
 #define PRIMARYKEY_TIMESTAMP_COL_INDEX  0
 
 #define TSDB_MAX_RPC_THREADS            5
 
 #define TSDB_QUERY_TYPE_NON_TYPE               0x00u     // none type
 #define TSDB_QUERY_TYPE_FREE_RESOURCE          0x01u     // free qhandle at vnode
+
+#define TSDB_UDF_TYPE_SCALAR       1
+#define TSDB_UDF_TYPE_AGGREGATE    2
+
 
 /*
  * 1. ordinary sub query for select * from super_table
