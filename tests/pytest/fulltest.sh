@@ -361,4 +361,6 @@ python3 test.py -f alter/alter_keep.py
 python3 test.py -f alter/alter_cacheLastRow.py
 python3 ./test.py -f query/querySession.py 
 python3 test.py -f  alter/alter_create_exception.py
+
+python3 ./test.py -f insert/flushwhiledrop.py
 #======================p4-end===============
