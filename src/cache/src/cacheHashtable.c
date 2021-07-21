@@ -17,6 +17,7 @@
 #include "cacheHashtable.h"
 #include "cacheint.h"
 #include "cacheItem.h"
+#include "hash.h"
 
 #define hashsize(n) ((int32_t)1<<(n))
 #define hashmask(n) (hashsize(n)-1)
@@ -24,75 +25,57 @@
 extern uint32_t jenkins_hash(const void *key, size_t length);
 extern uint32_t MurmurHash3_x86_32(const void *key, size_t length);
 
-cache_code_t hash_init(cache_t* cache) {
-  cache_hashtable_t* table = calloc(1, sizeof(cache_hashtable_t));
-  if (table == NULL) {
-    return CACHE_OOM;
+cacheTable* cacheCreateTable(cache_t* cache, cacheTableOption* option) {
+  cacheTable* pTable = calloc(1, sizeof(cacheTable));
+  if (pTable == NULL) {
+    goto error;
   }
 
-  table->hashpower = cache->options.hashPowerInit;
-  table->primary_hashtable = calloc(hashsize(table->hashpower), sizeof(void *));
-  if (table->primary_hashtable == NULL) {
-    free(table);
-    return CACHE_OOM;
+  if (cacheMutexInit(&pTable->mutex) != 0) {
+    goto error;
   }
-  cache->hash = MurmurHash3_x86_32;
-  table->expanding = false;
 
-  cache->table = table;
-  return CACHE_OK;
-}
+  pTable->pHandle = taosHashInit(option->initNum, option->hashFp, true, HASH_ENTRY_LOCK);
+  if (pTable->pHandle == NULL) {
+    goto error;
+  }
+  pTable->option = *option;
+  pTable->pCache = cache;
 
-cache_code_t hash_put(cache_t* cache, cache_item_t* item) {
-  cache_hashtable_t* table = cache->table;
-  cache_item_t* hash_head = NULL, *current = NULL, *hash_last = NULL;
-  uint32_t hash = cache->hash(item_key(item), item->nkey);
-  
-  if (table->expanding) {
-
+  if (cache->tables == NULL) {
+    cache->table = pTable;
+    pTable->next = NULL;
   } else {
-    hash_head = table->primary_hashtable[hash & hashmask(table->hashpower)];
+    pTable->next = cache->table;
+    cache->table = pTable;
   }
 
-  // check if the same key exists in the table?
-  for (current = hash_head; current != NULL; current = current->h_next) {
-    if (!item_key_equal(current, item)) {
-      hash_last = current;
-      continue;
-    }
-    if (hash_last) {
-      hash_last->h_next = current->h_next;
-    } else {
-      // first item
-    }
-    item_free(cache, current);
-    break;
-  }
+  return pTable;
 
-  // insert it
-  item->h_next = hash_head;
-
-  return CACHE_OK;
-}
-
-cache_item_t* hash_get(cache_t* cache, const char* key, uint8_t nkey) {
-  cache_hashtable_t* table = cache->table;
-  uint32_t hash = cache->hash(key, nkey);
-  cache_item_t* hash_head = table->primary_hashtable[hash & hashmask(table->hashpower)], *current = NULL;
-  cache_key_t find_key = (cache_key_t){.key = key, .nkey = nkey};
-
-  for (current = hash_head; current != NULL; current = current->h_next) {
-    cache_key_t current_key = key_from_item(current);
-    if (!key_equal(current_key, find_key)) {
-      continue;
-    }
-    
-    return current;
+error:
+  if (pTable) {
+    free(pTable);
   }
 
   return NULL;
 }
 
-void hash_remove(cache_t* cache, const char* key, uint8_t nkey, uint32_t hv) {
+cache_code_t cacheTablePut(cacheTable* pTable, cacheItem* item) {
+  cacheMutexLock(&(pTable->mutex));
+  //taosHashPut(pTable->pHandle, item_key(item), item->nkey);
+  cacheMutexUnlock(&(pTable->mutex));
+  return CACHE_OK;
+}
 
+cacheItem* cacheTableGet(cacheTable* pTable, const char* key, uint8_t nkey) {
+  cacheMutexLock(&(pTable->mutex));
+  cacheItem* item = (cacheItem*)taosHashGet(pTable->pHandle, key, nkey);
+  cacheMutexUnlock(&(pTable->mutex));
+  return item;
+}
+
+void cacheTableRemove(cacheTable* pTable, const char* key, uint8_t nkey) {
+  cacheMutexLock(&(pTable->mutex));
+  taosHashRemove(pTable->pHandle,key, nkey);
+  cacheMutexUnlock(&(pTable->mutex));
 }

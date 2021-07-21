@@ -34,12 +34,10 @@ typedef struct cache_stat_t {
 } cache_stat_t;
 
 typedef struct cache_lru_class_t {
-  cache_item_t* tail;   // tail of lru item list
+  cacheItem* tail;   // tail of lru item list
   uint32_t      num;    // number of lru list items
   uint64_t      bytes;  // total size of lru list items
 } cache_lru_class_t;
-
-typedef uint32_t (*cache_hash_func_t)(const void *key, size_t length);
 
 struct cache_t {  
   cache_option_t options;
@@ -48,13 +46,13 @@ struct cache_t {
 
   cache_lru_class_t*  lruArray; /* LRU item list array */
 
-  cache_hash_func_t hash;
+  cacheTable* tables;
 
   size_t alloced;               /* allocated memory size */
 
   int power_largest;
 
-  cache_hashtable_t* table;
+  cacheTable* table;
 
   cache_stat_t stat;
     

@@ -27,7 +27,7 @@ struct cache_slab_class_t {
   unsigned int size;        /* sizes of items */
   unsigned int perSlab;     /* how many items per slab */
 
-  cache_item_t *freeItem;   /* list of free item ptrs */
+  cacheItem *freeItem;   /* list of free item ptrs */
   unsigned int nFree;       /* free item count */
   unsigned int nAllocSlabs; /* how many slabs were allocated for this class */
 
@@ -39,7 +39,7 @@ cache_code_t slab_init(cache_t *);
 
 unsigned int slabClsId(cache_t *cache, size_t size);
 
-cache_item_t* slab_alloc_item(cache_t *cache, size_t ntotal);
+cacheItem* slab_alloc_item(cache_t *cache, size_t ntotal);
 
 #ifdef __cplusplus
 }

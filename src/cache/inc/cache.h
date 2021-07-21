@@ -18,6 +18,7 @@
 
 #include <stddef.h> // for size_t
 #include <stdint.h> // for uint8_t
+#include "hashfunc.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -30,17 +31,20 @@ typedef struct cache_option_t {
 
   double factor;              /* slab growth factor */
 
-  int hashPowerInit;
-
-  void* userData;             /* user data */
-
-  uint64_t expireTime;  /* item expire time(in millisecond),30 min by default */
+  uint64_t expireTime;        /* item expire time(in millisecond),30 min by default */
 
   int hotPercent;             /* percentage of slab space for CACHE_LRU_HOT */
   int warmPercent;            /* percentage of slab space for CACHE_LRU_WARM */
-
-  cache_load_func_t loadFunc; /* user defined load data function */
 } cache_option_t;
+
+typedef struct cacheTableOption {
+  cache_load_func_t loadFunc; /* user defined load data function */
+
+  int initNum;                  /* table initial size */
+
+  void* userData;             /* user data */
+  _hash_fn_t hashFp;
+} cacheTableOption;
 
 typedef enum cache_code_t {
   CACHE_OK    = 0,
@@ -54,12 +58,23 @@ typedef enum cache_code_t {
 struct cache_t;
 typedef struct cache_t cache_t;
 
-cache_t* cache_create(cache_option_t* options);
-void  cache_destroy(cache_t*);
+struct cacheTable;
+typedef struct cacheTable cacheTable;
 
-cache_code_t cache_put(cache_t* cache, const char* key, uint8_t nkey, const char* value, int nbytes);
+struct cacheItem;
+typedef struct cacheItem cacheItem;
 
-cache_code_t cache_get(cache_t* cache, const char* key, uint8_t nkey, char** value, int *len);
+cache_t* cacheCreate(cache_option_t* options);
+
+void  cacheDestroy(cache_t*);
+
+cacheTable* cacheCreateTable(cache_t* cache, cacheTableOption* options);
+
+cache_code_t cachePut(cacheTable*, const char* key, uint8_t nkey, const char* value, uint32_t nbytes);
+
+cacheItem* cacheGet(cacheTable*, const char* key, uint8_t nkey);
+
+void cacheItemData(cacheItem*, char** data, int* nbytes);
 
 void         cache_remove(cache_t* cache, const char* key);
 

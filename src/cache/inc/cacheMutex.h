@@ -16,13 +16,33 @@
 #ifndef TDENGINE_MUTEX_H
 #define TDENGINE_MUTEX_H
 
+#include <pthread.h>
+#include "cacheTypes.h"
+#include "osDef.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-typedef struct mutex_t {
+struct cacheMutex {
+  pthread_mutex_t mutex;
+};
 
-} mutex_t;
+static FORCE_INLINE int cacheMutexInit(cacheMutex* mutex) {
+  return pthread_mutex_init(&(mutex->mutex), NULL);
+}
+
+static FORCE_INLINE int cacheMutexLock(cacheMutex* mutex) {
+  return pthread_mutex_lock(&(mutex->mutex));
+}
+
+static FORCE_INLINE int cacheMutexUnlock(cacheMutex* mutex) {
+  return pthread_mutex_unlock(&(mutex->mutex));
+}
+
+static FORCE_INLINE int cacheMutexDestroy(cacheMutex* mutex) {
+  return pthread_mutex_destroy(&(mutex->mutex));
+}
 
 #ifdef __cplusplus
 }

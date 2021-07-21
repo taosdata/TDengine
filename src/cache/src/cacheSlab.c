@@ -25,7 +25,7 @@ typedef enum cache_lru_list_t {
   CACHE_LRU_COLD  = 128,
 } cache_lru_list_t;
 
-static cache_item_t* do_slab_alloc(cache_t *cache, size_t size, unsigned int id);
+static cacheItem* do_slab_alloc(cache_t *cache, size_t size, unsigned int id);
 static int  do_slab_newslab(cache_t *cache, unsigned int id);
 static bool reach_cache_limit(cache_t *cache, int len);
 static int  grow_slab_array(cache_t *cache, unsigned int id);
@@ -33,7 +33,7 @@ static void *alloc_memory(cache_t *cache, size_t size);
 static void split_slab_page_into_freelist(cache_t *cache,char *ptr, const unsigned int id);
 static void do_slabs_free(cache_t *cache, void *ptr, unsigned int id);
 static int move_item_from_lru(cache_t *cache, int id, int curLru, uint64_t totalBytes, 
-                                uint32_t* moveToLru,  cache_item_t* search, cache_item_t** pItem);
+                                uint32_t* moveToLru,  cacheItem* search, cacheItem** pItem);
 static int lru_pull(cache_t *cache, int origId, int curLru, uint64_t total_bytes);
 
 cache_code_t slab_init(cache_t *cache) {
@@ -45,7 +45,7 @@ cache_code_t slab_init(cache_t *cache) {
   }
 
   int i = 0;
-  size_t size = sizeof(cache_item_t) + CHUNK_SIZE;
+  size_t size = sizeof(cacheItem) + CHUNK_SIZE;
   while (i < MAX_NUMBER_OF_SLAB_CLASSES) {
     cache_slab_class_t *slab = calloc(1, sizeof(cache_slab_class_t));
     if (slab == NULL) {
@@ -89,9 +89,9 @@ unsigned int slabClsId(cache_t *cache, size_t size) {
   return i;
 }
 
-cache_item_t* slab_alloc_item(cache_t *cache, size_t ntotal) {
+cacheItem* slab_alloc_item(cache_t *cache, size_t ntotal) {
   unsigned int id = slabClsId(cache, ntotal);
-  cache_item_t *item = NULL;
+  cacheItem *item = NULL;
   int i;
 
   for (i = 0; i < 10; ++i) {
@@ -121,7 +121,7 @@ static bool reach_cache_limit(cache_t *cache, int len) {
 
 static void do_slabs_free(cache_t *cache, void *ptr, unsigned int id) {
   cache_slab_class_t *p = cache->slabs[id];
-  cache_item_t *item = (cache_item_t *)ptr;
+  cacheItem *item = (cacheItem *)ptr;
 
   if (!(item->flags & ITEM_CHUNKED)) {
     item->flags = ITEM_SLABBED;
@@ -184,9 +184,9 @@ static int do_slab_newslab(cache_t *cache, unsigned int id) {
   return CACHE_OK;
 }
 
-static cache_item_t* do_slab_alloc(cache_t *cache, size_t size, unsigned int id) {
+static cacheItem* do_slab_alloc(cache_t *cache, size_t size, unsigned int id) {
   cache_slab_class_t *p = cache->slabs[id];
-  cache_item_t *item = NULL;
+  cacheItem *item = NULL;
 
   if (p->nFree == 0) {
     do_slab_newslab(cache, id);
@@ -204,7 +204,7 @@ static cache_item_t* do_slab_alloc(cache_t *cache, size_t size, unsigned int id)
 }
 
 static int move_item_from_lru(cache_t *cache, int id, int curLru, uint64_t totalBytes, 
-                                uint32_t* moveToLru,  cache_item_t* search, cache_item_t** pItem) {
+                                uint32_t* moveToLru,  cacheItem* search, cacheItem** pItem) {
   int removed = 0;
   uint64_t limit = 0;
   cache_option_t* opt = &(cache->options);
@@ -247,9 +247,9 @@ static int move_item_from_lru(cache_t *cache, int id, int curLru, uint64_t total
 }
 
 static int lru_pull(cache_t *cache, int origId, int curLru, uint64_t totalBytes) {
-  cache_item_t* item = NULL;
-  cache_item_t* search;
-  cache_item_t* next;
+  cacheItem* item = NULL;
+  cacheItem* search;
+  cacheItem* next;
   cache_option_t* opt = &(cache->options);
   int id = origId;
   int removed = 0;
@@ -261,11 +261,10 @@ static int lru_pull(cache_t *cache, int origId, int curLru, uint64_t totalBytes)
   search = cache->lruArray[id].tail;
   for (; tries > 0 && search != NULL; tries--, search = next) {
     next = search->prev;
-    uint32_t hv = cache->hash(item_key(search), search->nkey);
 
     // is item expired?
     if (now - search->lastTime >= opt->expireTime) {
-      item_unlink_nolock(cache, search, hv);
+      item_unlink_nolock(search->pTable, search);
       item_remove(cache, search);
       removed++;
       continue;

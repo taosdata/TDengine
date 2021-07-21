@@ -29,11 +29,8 @@ typedef enum cache_code_t cache_code_t;
 struct cache_option_t;
 typedef struct cache_option_t cache_option_t;
 
-struct cache_hashtable_t;
-typedef struct cache_hashtable_t cache_hashtable_t;
-
-struct cache_item_t;
-typedef struct cache_item_t cache_item_t;
+struct cacheMutex;
+typedef struct cacheMutex cacheMutex;
 
 struct cache_slab_class_t;
 typedef struct cache_slab_class_t cache_slab_class_t;

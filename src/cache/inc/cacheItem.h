@@ -20,6 +20,7 @@
 #include <string.h>
 #include "cacheint.h"
 #include "cacheTypes.h"
+#include "osAtomic.h"
 #include "osDef.h"
 
 #ifdef __cplusplus
@@ -34,25 +35,25 @@ typedef enum cache_item_flag_t {
   ITEM_CHUNKED  = 16, /* item in chunked mode */
 } cache_item_flag_t;
 
-struct cache_item_t {
+struct cacheItem {
   /* Protected by LRU locks */
-  struct cache_item_t*  next;
-  struct cache_item_t*  prev;
+  struct cacheItem*  next;
+  struct cacheItem*  prev;
 
-  struct cache_item_t*  h_next;   /* hash chain next */
-
+  cacheTable*     pTable;         /* owner cache table */
   uint16_t        flags;          /* item flags above */
 
   uint8_t         slabClsId;      /* which slab class we're in */
 
   uint64_t        lastTime;       /* last access time */
   uint8_t         nkey;           /* key length */
-
-  int             nbytes;         /* size of data */
+  uint8_t         refCount;       /* reference count */
+  uint32_t        nbytes;         /* size of data */
 
   char            data[];
 };
 
+/* item flags macros */
 #define item_is_linked(item)    ((item)->flags & ITEM_LINKED)
 #define item_is_slabbed(item)   ((item)->flags & ITEM_SLABBED)
 #define item_is_active(item)    ((item)->flags & ITEM_ACTIVE)
@@ -63,14 +64,14 @@ struct cache_item_t {
 #define item_clsid(item)        ((item)->slabClsId & ~(3<<6))
 #define item_lruid(item)        ((item)->slabClsId & (3<<6))
 
-size_t item_size(uint8_t nkey, int nbytes);
-cache_item_t* item_alloc(cache_t*, uint8_t nkey, int nbytes);
-void    item_free(cache_t*, cache_item_t*);
-void   item_unlink_nolock(cache_t*, cache_item_t*, uint32_t hv);
-void   item_unlink_from_lru(cache_t*, cache_item_t*);
-void   item_link_to_lru(cache_t*, cache_item_t*);
-void    item_move_to_lru_head(cache_t*, cache_item_t*);
-void    item_remove(cache_t*, cache_item_t*);
+size_t item_size(uint8_t nkey, uint32_t nbytes);
+cacheItem* itemAlloc(cache_t*, uint8_t nkey, uint32_t nbytes);
+void    item_free(cache_t*, cacheItem*);
+void    item_unlink_nolock(cacheTable* pTable, cacheItem* item);
+void   item_unlink_from_lru(cache_t*, cacheItem*);
+void   item_link_to_lru(cache_t*, cacheItem*);
+void    item_move_to_lru_head(cache_t*, cacheItem*);
+void    item_remove(cache_t*, cacheItem*);
 
 #define item_key(item)  (((char*)&((item)->data)) + sizeof(unsigned int))
 
@@ -80,6 +81,14 @@ void    item_remove(cache_t*, cache_item_t*);
 
 #define key_from_item(item) (cache_key_t) {.key = item_key(item), .nkey = (item)->nkey};
 
+static FORCE_INLINE uint8_t itemIncrRef(cacheItem* pItem) { 
+  return atomic_add_fetch_32(&(pItem->refCount), 1);
+}
+
+static FORCE_INLINE uint8_t itemDecrRef(cacheItem* pItem) { 
+  return atomic_sub_fetch_32(&(pItem->refCount), 1);
+}
+
 static FORCE_INLINE bool key_equal(cache_key_t key1, cache_key_t key2) {
   if (key1.nkey != key2.nkey) {
     return false;
@@ -88,7 +97,7 @@ static FORCE_INLINE bool key_equal(cache_key_t key1, cache_key_t key2) {
   return memcmp(key1.key, key2.key, key1.nkey) == 0;
 }
 
-static FORCE_INLINE bool item_key_equal(cache_item_t* item1, cache_item_t* item2) {
+static FORCE_INLINE bool item_key_equal(cacheItem* item1, cacheItem* item2) {
   cache_key_t key1 = key_from_item(item1);
   cache_key_t key2 = key_from_item(item2);
   return key_equal(key1, key2);

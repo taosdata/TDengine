@@ -21,11 +21,11 @@
 #include "cacheSlab.h"
 
 static cache_code_t check_cache_options(cache_option_t* options);
-static cache_code_t do_cache_put(cache_t* cache, const char* key, uint8_t nkey, const char* value, int nbytes, cache_item_t** ppItem);
+static cache_code_t doCachePut(cacheTable* pTable, const char* key, uint8_t nkey, const char* value, uint32_t nbytes, cacheItem** ppItem);
 
 //static cache_manager_t cache_manager
 
-cache_t* cache_create(cache_option_t* options) {
+cache_t* cacheCreate(cache_option_t* options) {
   if (check_cache_options(options) != CACHE_OK) {
     cacheError("check_cache_options fail");
     return NULL;
@@ -38,9 +38,7 @@ cache_t* cache_create(cache_option_t* options) {
   }
 
   cache->options = *options;
-  if (hash_init(cache) != CACHE_OK) {
-    goto error;
-  }
+
   if (slab_init(cache) != CACHE_OK) {
     goto error;
   }
@@ -55,46 +53,57 @@ error:
   return NULL;
 }
 
-void  cache_destroy(cache_t* cache) {
+void  cacheDestroy(cache_t* cache) {
 
 }
 
-cache_code_t cache_put(cache_t* cache, const char* key, uint8_t nkey, const char* value, int nbytes) {
-  return do_cache_put(cache,key,nkey,value,nbytes,NULL);
+cache_code_t cachePut(cacheTable* pTable, const char* key, uint8_t nkey, const char* value, uint32_t nbytes) {
+  return doCachePut(pTable,key,nkey,value,nbytes,NULL);
 }
 
-cache_code_t cache_get(cache_t* cache, const char* key, uint8_t nkey, char** value, int *len) {
-  cache_item_t* item = hash_get(cache, key, nkey);
+cacheItem* cacheGet(cacheTable* pTable, const char* key, uint8_t nkey) {
+  // first find the key in the cache table
+  cacheItem* item = cacheTableGet(pTable, key, nkey);
   if (item) {
-    *value = item_data(item);
-    *len = item->nbytes;
-    return CACHE_OK;
+    itemIncrRef(item);
+    return item;
   }
 
+  // try to load the data from user defined function
   char *loadValue;
   size_t loadLen = 0;
-  if (cache->options.loadFunc(cache->options.userData, key, nkey, &loadValue, &loadLen) != CACHE_OK) {
-    return CACHE_KEY_NOT_FOUND;
+  if (pTable->option.loadFunc(pTable->option.userData, key, nkey, &loadValue, &loadLen) != CACHE_OK) {
+    return NULL;
   }
 
-  int ret = do_cache_put(cache,key,nkey,loadValue,loadLen,&item);
+  // TODO: save in the cache if access only one time?
+  int ret = doCachePut(pTable,key,nkey,loadValue,loadLen,&item);
+  free(loadValue);
   if (ret != CACHE_OK) {
-    return ret;
+    return NULL;
   }
-  *value = item_data(item);
-  *len   = item_len(item);
 
-  return CACHE_OK;
+  itemIncrRef(item);
+  return item;
 }
 
-static cache_code_t do_cache_put(cache_t* cache, const char* key, uint8_t nkey, const char* value, int nbytes, cache_item_t** ppItem) {
-  cache_item_t* item = item_alloc(cache, nkey, nbytes);
+void cacheItemData(cacheItem* pItem, char** data, int* nbytes) {
+  *data = item_data(pItem);
+  *nbytes = pItem->nbytes;
+}
+
+static cache_code_t doCachePut(cacheTable* pTable, const char* key, uint8_t nkey, const char* value, uint32_t nbytes, cacheItem** ppItem) {
+  cacheItem* item = itemAlloc(pTable->pCache, nkey, nbytes);
   if (item == NULL) {
     return CACHE_OOM;
   }
 
+  item->nkey = nkey;
+  item->nbytes = nbytes;
   memcpy(item_key(item), key, nkey);
   memcpy(item_data(item), value, nbytes);
+
+  cacheTablePut(pTable, item);
 
   if (ppItem) {
     *ppItem = item;

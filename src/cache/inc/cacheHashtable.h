@@ -18,25 +18,26 @@
 
 #include <stdbool.h>
 #include <stdint.h>
+#include "cache.h"
+#include "cacheMutex.h"
 #include "cacheTypes.h"
+#include "hashfunc.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-struct cache_hashtable_t {
-  cache_item_t** primary_hashtable;
-
-  cache_item_t** old_hashtable;
-  
-  int   hashpower;
-  bool    expanding;
+struct cacheTable {
+  void* pHandle;
+  cache_t* pCache;
+  cacheMutex mutex;
+  cacheTable* next;
+  cacheTableOption option;
 };
 
-cache_code_t hash_init(cache_t* cache);
-cache_code_t hash_put(cache_t* cache, cache_item_t* item);
-cache_item_t* hash_get(cache_t* cache, const char* key, uint8_t nkey);
-void          hash_remove(cache_t* cache, const char* key, uint8_t nkey, uint32_t hv);
+cache_code_t cacheTablePut(cacheTable *pTable, cacheItem* item);
+cacheItem* cacheTableGet(cacheTable* pTable, const char* key, uint8_t nkey);
+void          cacheTableRemove(cacheTable* pTable, const char* key, uint8_t nkey);
 
 #ifdef __cplusplus
 }
