@@ -494,6 +494,7 @@ static int32_t reconcileDBSchemas(TAOS* taos, SArray* stableSchemas) {
       code = loadTableMeta(taos, pointSchema->sTableName, &dbSchema);
       if (code != 0) {
         tscError("reconcile point schema failed. can not create %s", pointSchema->sTableName);
+        return code;
       } else {
         pointSchema->precision = dbSchema.precision;
         destroySmlSTableSchema(&dbSchema);
@@ -1565,6 +1566,7 @@ static int32_t parseSmlMeasurement(TAOS_SML_DATA_POINT *pSml, const char **index
   if (isdigit(*cur)) {
     tscError("Measurement field cannnot start with digit");
     free(pSml->stableName);
+    pSml->stableName = NULL;
     return TSDB_CODE_TSC_LINE_SYNTAX_ERROR;
   }
 
@@ -1572,6 +1574,7 @@ static int32_t parseSmlMeasurement(TAOS_SML_DATA_POINT *pSml, const char **index
     if (len > TSDB_TABLE_NAME_LEN) {
       tscError("Measurement field cannot exceeds 193 characters");
       free(pSml->stableName);
+      pSml->stableName = NULL;
       return TSDB_CODE_TSC_LINE_SYNTAX_ERROR;
     }
     //first unescaped comma or space identifies measurement
