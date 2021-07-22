@@ -1895,7 +1895,8 @@ static void doMergeTwoLevelData(STsdbQueryHandle* pQueryHandle, STableCheckInfo*
   // compared with the data from in-memory buffer, to generate the correct timestamp array list
   int32_t numOfRows = 0;
 
-  int16_t rv = -1;
+  int16_t rv1 = -1;
+  int16_t rv2 = -1;
   STSchema* pSchema1 = NULL;
   STSchema* pSchema2 = NULL;
 
@@ -1928,9 +1929,13 @@ static void doMergeTwoLevelData(STsdbQueryHandle* pQueryHandle, STableCheckInfo*
 
       if ((key < tsArray[pos] && ASCENDING_TRAVERSE(pQueryHandle->order)) ||
           (key > tsArray[pos] && !ASCENDING_TRAVERSE(pQueryHandle->order))) {
-        if (rv != memRowVersion(row1)) {
+        if (rv1 != memRowVersion(row1)) {
           pSchema1 = tsdbGetTableSchemaByVersion(pTable, memRowVersion(row1));
-          rv = memRowVersion(row1);
+          rv1 = memRowVersion(row1);
+        }
+        if(row2 && rv2 != memRowVersion(row2)) {
+          pSchema2 = tsdbGetTableSchemaByVersion(pTable, memRowVersion(row2));
+          rv2 = memRowVersion(row2);
         }
         
         mergeTwoRowFromMem(pQueryHandle, pQueryHandle->outputCapacity, numOfRows, row1, row2, numOfCols, pTable, pSchema1, pSchema2, true);
@@ -1949,9 +1954,13 @@ static void doMergeTwoLevelData(STsdbQueryHandle* pQueryHandle, STableCheckInfo*
           if(pCfg->update == TD_ROW_PARTIAL_UPDATE) {
             doCopyRowsFromFileBlock(pQueryHandle, pQueryHandle->outputCapacity, numOfRows, pos, pos);
           }
-          if (rv != memRowVersion(row1)) {
+          if (rv1 != memRowVersion(row1)) {
             pSchema1 = tsdbGetTableSchemaByVersion(pTable, memRowVersion(row1));
-            rv = memRowVersion(row1);
+            rv1 = memRowVersion(row1);
+          }
+          if(row2 && rv2 != memRowVersion(row2)) {
+            pSchema2 = tsdbGetTableSchemaByVersion(pTable, memRowVersion(row2));
+            rv2 = memRowVersion(row2);
           }
           
           bool forceSetNull = pCfg->update != TD_ROW_PARTIAL_UPDATE;

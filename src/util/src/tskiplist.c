@@ -775,7 +775,7 @@ static SSkipListNode *tSkipListNewNode(uint8_t level) {
 }
 
 //TODO: when memory allocation is implemented in this func
-//      it should return a status code to handle fail situation
+//      it should return a status code to handle failure
 static SSkipListNode *tSkipListPutImpl(SSkipList *pSkipList, void *pData, SSkipListNode **direction, bool isForward,
                                        bool hasDup) {
   uint8_t        dupMode = SL_DUP_MODE(pSkipList);
