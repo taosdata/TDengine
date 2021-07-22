@@ -21,10 +21,12 @@ extern "C" {
 #endif
 
 #include "texpr.h"
+#include "hash.h"
 
 #define FILTER_DEFAULT_GROUP_SIZE 4
 #define FILTER_DEFAULT_UNIT_SIZE 4
 #define FILTER_DEFAULT_FIELD_SIZE 4
+#define FILTER_DEFAULT_VALUE_SIZE 4
 #define FILTER_DEFAULT_GROUP_UNIT_SIZE 2
 
 enum {
@@ -175,7 +177,7 @@ typedef struct SFilterInfo {
   SFilterUnit  *units;
   uint8_t      *unitRes;    // result
   uint8_t      *unitFlags;  // got result
-  SFilterPCtx  *pctx;
+  SFilterPCtx   pctx;
 } SFilterInfo;
 
 #define COL_FIELD_SIZE (sizeof(SFilterField) + 2 * sizeof(int64_t))
@@ -196,7 +198,7 @@ typedef struct SFilterInfo {
 #define FILTER_CLR_FLAG(st, f) st &= (~f)
 
 #define SIMPLE_COPY_VALUES(dst, src) *((int64_t *)dst) = *((int64_t *)src)
-
+#define FILTER_PACKAGE_UNIT_HASH_KEY(v, optr, idx1, idx2) do { char *_t = (char *)v; _t[0] = optr; *(uint16_t *)(_t + 1) = idx1; *(uint16_t *)(_t + 3) = idx2; } while (0)
 #define FILTER_GREATER(cr,sflag,eflag) ((cr > 0) || ((cr == 0) && (FILTER_GET_FLAG(sflag,RA_EXCLUDE) || FILTER_GET_FLAG(eflag,RA_EXCLUDE))))
 #define FILTER_COPY_RA(dst, src) do { (dst)->sflag = (src)->sflag; (dst)->eflag = (src)->eflag; (dst)->s = (src)->s; (dst)->e = (src)->e; } while (0)
 
