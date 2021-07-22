@@ -6,3 +6,8 @@ AUX_SOURCE_DIRECTORY(src SRC)
 
 ADD_LIBRARY(cache ${SRC})
 TARGET_LINK_LIBRARIES(cache common util)
+
+IF (TD_LINUX)
+  # Someone has no gtest directory, so comment it
+  ADD_SUBDIRECTORY(tests)
+ENDIF ()
