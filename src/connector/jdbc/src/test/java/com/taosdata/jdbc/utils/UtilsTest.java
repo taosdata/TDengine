@@ -3,8 +3,6 @@ package com.taosdata.jdbc.utils;
 import org.junit.Assert;
 import org.junit.Test;
 
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
 public class UtilsTest {
@@ -19,14 +17,14 @@ public class UtilsTest {
         Assert.assertEquals("\\'\\'\\'\\'\\'a\\'", news);
 
         // given
-        s = "\'''''a\\'";
+        s = "'''''a\\'";
         // when
         news = Utils.escapeSingleQuota(s);
         // then
         Assert.assertEquals("\\'\\'\\'\\'\\'a\\'", news);
 
         // given
-        s = "\'\'\'\''a\\'";
+        s = "'''''a\\'";
         // when
         news = Utils.escapeSingleQuota(s);
         // then

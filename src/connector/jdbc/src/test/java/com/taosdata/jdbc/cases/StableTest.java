@@ -16,9 +16,9 @@ import static org.junit.Assert.assertEquals;
 public class StableTest {
 
     private static Connection connection;
-    private static String dbName = "test";
-    private static String stbName = "st";
-    private static String host = "127.0.0.1";
+    private static final String dbName = "test";
+    private static final String stbName = "st";
+    private static final String host = "127.0.0.1";
 
     @BeforeClass
     public static void createDatabase() {
