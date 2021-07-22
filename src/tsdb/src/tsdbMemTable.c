@@ -13,8 +13,6 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <stdint.h>
-#include "osDef.h"
 #include "tdataformat.h"
 #include "tfunctional.h"
 #include "tsdbint.h"

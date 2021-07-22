@@ -14,8 +14,6 @@
  */
 
 #include "tsdbRowMergeBuf.h"
-#include <stdint.h>
-#include "osDef.h"
 #include "tdataformat.h"
 
 int tsdbMergeBufMakeSureRoom(SMergeBuf *pBuf, STSchema* pSchema1, STSchema* pSchema2) {
