@@ -191,6 +191,8 @@ static void *dnodeProcessVWriteQueue(void *wparam) {
   taosBlockSIGPIPE();
   dDebug("dnode vwrite worker:%d is running", pWorker->workerId);
 
+  setThreadName("dnodeWriteQ");
+
   while (1) {
     numOfMsgs = taosReadAllQitemsFromQset(pWorker->qset, pWorker->qall, &pVnode);
     if (numOfMsgs == 0) {
