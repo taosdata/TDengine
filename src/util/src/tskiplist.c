@@ -774,6 +774,8 @@ static SSkipListNode *tSkipListNewNode(uint8_t level) {
   return pNode;
 }
 
+//TODO: when memory allocation is implemented in this func
+//      it should return a status code to handle fail situation
 static SSkipListNode *tSkipListPutImpl(SSkipList *pSkipList, void *pData, SSkipListNode **direction, bool isForward,
                                        bool hasDup) {
   uint8_t        dupMode = SL_DUP_MODE(pSkipList);
@@ -792,10 +794,12 @@ static SSkipListNode *tSkipListPutImpl(SSkipList *pSkipList, void *pData, SSkipL
         void *pNewData = genericInvoke(pSkipList->dupHandleFn);
         pData = pNewData;
       }
-      pSkipList->memAllocFn->args[1] = pData;
-      void *newAllocMem = genericInvoke(pSkipList->memAllocFn);
-      pData = newAllocMem;
-      atomic_store_ptr(&(pNode->pData), pData);
+      if(pData) {
+        pSkipList->memAllocFn->args[1] = pData;
+        void *newAllocMem = genericInvoke(pSkipList->memAllocFn);
+        pData = newAllocMem;
+        atomic_store_ptr(&(pNode->pData), pData);
+      }
     }
   } else {
     pNode = tSkipListNewNode(getSkipListRandLevel(pSkipList));

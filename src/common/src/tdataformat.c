@@ -800,7 +800,7 @@ SMemRow mergeTwoMemRows(void *buffer, SMemRow row1, SMemRow row2, STSchema *pSch
 
   SArray *stashRow = taosArrayInit(pSchema1->numOfCols, sizeof(SColInfo));
   if (stashRow == NULL) {
-    return row1;
+    return NULL;
   }
 
   SMemRow  pRow = buffer;
