@@ -2023,6 +2023,10 @@ static int32_t checkForUdf(SSqlObj* pSql, SQueryInfo* pQueryInfo, SArray* pSelec
 */
 
 static SUdfInfo* isValidUdf(SArray* pUdfInfo, const char* name, int32_t len) {
+  if(pUdfInfo == NULL){
+    tscError("udfinfo is null");
+    return NULL;
+  }
   size_t t = taosArrayGetSize(pUdfInfo);
   for(int32_t i = 0; i < t; ++i) {
     SUdfInfo* pUdf = taosArrayGet(pUdfInfo, i);
