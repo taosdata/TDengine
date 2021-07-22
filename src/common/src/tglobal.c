@@ -318,7 +318,7 @@ bool taosCfgDynamicOptions(char *msg) {
     } else {
       *((int8_t *)cfg->ptr) = (int8_t)vint;
     }
-        
+
     if (strncasecmp(cfg->option, "monitor", olen) == 0) {
       if (1 == vint) {
         if (monStartSystemFp) {
