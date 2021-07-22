@@ -707,7 +707,7 @@ void* taosCacheTimedRefresh(void *handle) {
         taosArrayRemove(pCacheArrayList, i);
         size = taosArrayGetSize(pCacheArrayList);
 
-        uDebug("%s is destroying, remove it from refresh list, remain cache obj:%"PRId64, pCacheObj->name, size);
+        uDebug("%s is destroying, remove it from refresh list, remain cache obj:%"PRIzu, pCacheObj->name, size);
         pCacheObj->deleting = 0;  //reset the deleting flag to enable pCacheObj does self destroy process
 
         // all contained caches has been marked to be removed, destroy the scanner it self.
