@@ -252,8 +252,8 @@ char lossyColumns[32] = "";  // "float|double" means all float and double column
 // below option can take effect when tsLossyColumns not empty 
 double   fPrecision   = 1E-8;   // float column precision
 double   dPrecision   = 1E-16;  // double column precision
-uint32_t maxIntervals = 500;    // max intervals
-uint32_t intervals    = 100;    // intervals
+uint32_t maxRange = 500;    // max range
+uint32_t range    = 100;    // range
 char     Compressor[32] = "ZSTD_COMPRESSOR"; // ZSTD_COMPRESSOR or GZIP_COMPRESSOR 
 #endif
 
@@ -312,13 +312,7 @@ bool taosCfgDynamicOptions(char *msg) {
     
     int32_t cfgLen = (int32_t)strlen(cfg->option);
     if (cfgLen != olen) continue;
-    if (strncasecmp(option, cfg->option, olen) != 0) continue;
-    if (cfg->valType == TAOS_CFG_VTYPE_INT32) {
-      *((int32_t *)cfg->ptr) = vint;
-    } else {
-      *((int8_t *)cfg->ptr) = (int8_t)vint;
-    }
-
+y
     if (strncasecmp(cfg->option, "monitor", olen) == 0) {
       if (1 == vint) {
         if (monStartSystemFp) {
@@ -1533,7 +1527,7 @@ static void doInitGlobalConfig(void) {
 
 #ifdef TD_TSZ
   // lossy compress
-  cfg.option = "lossyColumns";
+  cfg.option = "lossyColumns"; 
   cfg.ptr = lossyColumns;
   cfg.valType = TAOS_CFG_VTYPE_STRING;
   cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG;
@@ -1565,8 +1559,8 @@ static void doInitGlobalConfig(void) {
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosInitConfigOption(cfg);
 
-  cfg.option = "maxIntervals";
-  cfg.ptr = &maxIntervals;
+  cfg.option = "maxRange";
+  cfg.ptr = &maxRange;
   cfg.valType = TAOS_CFG_VTYPE_INT32;
   cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG;
   cfg.minValue = 0;
@@ -1575,8 +1569,8 @@ static void doInitGlobalConfig(void) {
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosInitConfigOption(cfg);
 
-  cfg.option = "intervals";
-  cfg.ptr = &intervals;
+  cfg.option = "range";
+  cfg.ptr = &range;
   cfg.valType = TAOS_CFG_VTYPE_INT32;
   cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG;
   cfg.minValue = 0;
