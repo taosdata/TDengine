@@ -16,7 +16,7 @@ package com.taosdata.jdbc.utils;
 
 public class SqlSyntaxValidator {
 
-    private static final String[] SQL = {"select", "insert", "import", "create", "use", "alter", "drop", "set", "show", "describe"};
+    private static final String[] SQL = {"select", "insert", "import", "create", "use", "alter", "drop", "set", "show", "describe", "reset"};
     private static final String[] updateSQL = {"insert", "import", "create", "use", "alter", "drop", "set"};
     private static final String[] querySQL = {"select", "show", "describe"};
 
@@ -61,28 +61,10 @@ public class SqlSyntaxValidator {
 
     public static boolean isUseSql(String sql) {
         return sql.trim().toLowerCase().startsWith("use");
-//                || sql.trim().toLowerCase().matches("create\\s*database.*") || sql.toLowerCase().toLowerCase().matches("drop\\s*database.*");
-    }
-
-    public static boolean isShowSql(String sql) {
-        return sql.trim().toLowerCase().startsWith("show");
-    }
-
-    public static boolean isDescribeSql(String sql) {
-        return sql.trim().toLowerCase().startsWith("describe");
-    }
-
-
-    public static boolean isInsertSql(String sql) {
-        return sql.trim().toLowerCase().startsWith("insert") || sql.trim().toLowerCase().startsWith("import");
     }
 
     public static boolean isSelectSql(String sql) {
         return sql.trim().toLowerCase().startsWith("select");
-    }
-
-    public static boolean isShowDatabaseSql(String sql) {
-        return sql.trim().toLowerCase().matches("show\\s*databases");
     }
 
 

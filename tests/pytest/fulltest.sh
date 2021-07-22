@@ -27,6 +27,7 @@ python3 ./test.py -f insert/bug3654.py
 python3 ./test.py -f insert/insertDynamicColBeforeVal.py
 python3 ./test.py -f insert/in_function.py
 python3 ./test.py -f insert/modify_column.py
+python3 ./test.py -f insert/line_insert.py
 
 #table
 python3 ./test.py -f table/alter_wal0.py
@@ -361,4 +362,6 @@ python3 test.py -f alter/alter_keep.py
 python3 test.py -f alter/alter_cacheLastRow.py
 python3 ./test.py -f query/querySession.py 
 python3 test.py -f  alter/alter_create_exception.py
+
+python3 ./test.py -f insert/flushwhiledrop.py
 #======================p4-end===============
