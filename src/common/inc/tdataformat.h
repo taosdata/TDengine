@@ -24,35 +24,6 @@
 extern "C" {
 #endif
 
-#pragma pack(push, 1)
-typedef struct {
-  VarDataLenT len;
-  uint8_t     data;
-} SBinaryNullT;
-
-typedef struct {
-  VarDataLenT len;
-  uint32_t    data;
-} SNCharNullT;
-#pragma pack(pop)
-
-extern const uint8_t      BoolNull;
-extern const uint8_t      TinyintNull;
-extern const uint16_t     SmallintNull;
-extern const uint32_t     IntNull;
-extern const uint64_t     BigintNull;
-extern const uint64_t     TimestampNull;
-extern const uint8_t      UTinyintNull;
-extern const uint16_t     USmallintNull;
-extern const uint32_t     UIntNull;
-extern const uint64_t     UBigintNull;
-extern const uint32_t     FloatNull;
-extern const uint64_t     DoubleNull;
-extern const SBinaryNullT BinaryNull;
-extern const SNCharNullT  NcharNull;
-
-const void *tdGetNullVal(int8_t type);
-
 #define STR_TO_VARSTR(x, str)                     \
   do {                                            \
     VarDataLenT __len = (VarDataLenT)strlen(str); \
@@ -287,7 +258,7 @@ void dataColSetNEleNull(SDataCol *pCol, int nEle, int maxPoints);
 // Get the data pointer from a column-wised data
 static FORCE_INLINE const void *tdGetColDataOfRow(SDataCol *pCol, int row) {
   if (isAllRowsNull(pCol)) {
-    return tdGetNullVal(pCol->type);
+    return getNullValue(pCol->type);
   }
   if (IS_VAR_DATA_TYPE(pCol->type)) {
     return POINTER_SHIFT(pCol->pData, pCol->dataOff[row]);

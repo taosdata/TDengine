@@ -1315,8 +1315,7 @@ void tscFreeQueryInfo(SSqlCmd* pCmd, bool removeMeta) {
     return;
   }
 
-  SQueryInfo* pQueryInfo = tscGetQueryInfo(pCmd);
-
+  SQueryInfo* pQueryInfo = pCmd->pQueryInfo;
   while(pQueryInfo != NULL) {
     SQueryInfo* p = pQueryInfo->sibling;
 
@@ -1518,12 +1517,6 @@ void tscDestroyDataBlock(STableDataBlocks* pDataBlock, bool removeMeta) {
   }
 
   tfree(pDataBlock->pData);
-  tfree(pDataBlock->params);
-
-  // free the refcount for metermeta
-  if (pDataBlock->pTableMeta != NULL) {
-    tfree(pDataBlock->pTableMeta);
-  }
 
   if (removeMeta) {
     char name[TSDB_TABLE_FNAME_LEN] = {0};
@@ -1532,7 +1525,17 @@ void tscDestroyDataBlock(STableDataBlocks* pDataBlock, bool removeMeta) {
     taosHashRemove(tscTableMetaInfo, name, strnlen(name, TSDB_TABLE_FNAME_LEN));
   }
 
-  tscDestroyBoundColumnInfo(&pDataBlock->boundColumnInfo);
+  if (!pDataBlock->cloned) {
+    tfree(pDataBlock->params);
+
+    // free the refcount for metermeta
+    if (pDataBlock->pTableMeta != NULL) {
+      tfree(pDataBlock->pTableMeta);
+    }
+
+    tscDestroyBoundColumnInfo(&pDataBlock->boundColumnInfo);
+  }
+
   tfree(pDataBlock);
 }
 
@@ -1598,7 +1601,7 @@ void freeUdfInfo(SUdfInfo* pUdfInfo) {
   taosCloseDll(pUdfInfo->handle);
 }
 
-
+// todo refactor
 void*  tscDestroyUdfArrayList(SArray* pUdfList) {
   if (pUdfList == NULL) {
     return NULL;
@@ -1711,12 +1714,14 @@ int32_t tscCreateDataBlock(size_t defaultSize, int32_t rowSize, int32_t startOff
     dataBuf->nAllocSize = dataBuf->headerSize * 2;
   }
   
-  dataBuf->pData = calloc(1, dataBuf->nAllocSize);
+  //dataBuf->pData = calloc(1, dataBuf->nAllocSize);
+  dataBuf->pData = malloc(dataBuf->nAllocSize);
   if (dataBuf->pData == NULL) {
     tscError("failed to allocated memory, reason:%s", strerror(errno));
     tfree(dataBuf);
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
   }
+  memset(dataBuf->pData, 0, sizeof(SSubmitBlk));
 
   //Here we keep the tableMeta to avoid it to be remove by other threads.
   dataBuf->pTableMeta = tscTableMetaDup(pTableMeta);
@@ -1813,14 +1818,14 @@ static SMemRow tdGenMemRowFromBuilder(SMemRowBuilder* pBuilder) {
         p = payloadNextCol(p);
         ++i;
       } else {
-        tdAppendColVal(trow, tdGetNullVal(pSchema[j].type), pSchema[j].type, toffset);
+        tdAppendColVal(trow, getNullValue(pSchema[j].type), pSchema[j].type, toffset);
         toffset += TYPE_BYTES[pSchema[j].type];
         ++j;
       }
     }
 
     while (j < nCols) {
-      tdAppendColVal(trow, tdGetNullVal(pSchema[j].type), pSchema[j].type, toffset);
+      tdAppendColVal(trow, getNullValue(pSchema[j].type), pSchema[j].type, toffset);
       toffset += TYPE_BYTES[pSchema[j].type];
       ++j;
     }
@@ -1860,7 +1865,8 @@ static SMemRow tdGenMemRowFromBuilder(SMemRowBuilder* pBuilder) {
 }
 
 // Erase the empty space reserved for binary data
-static int trimDataBlock(void* pDataBlock, STableDataBlocks* pTableDataBlock, bool includeSchema, SBlockKeyTuple *blkKeyTuple) {
+static int trimDataBlock(void* pDataBlock, STableDataBlocks* pTableDataBlock, SInsertStatementParam* insertParam,
+                         SBlockKeyTuple* blkKeyTuple) {
   // TODO: optimize this function, handle the case while binary is not presented
   STableMeta*     pTableMeta = pTableDataBlock->pTableMeta;
   STableComInfo   tinfo = tscGetTableInfo(pTableMeta);
@@ -1873,7 +1879,7 @@ static int trimDataBlock(void* pDataBlock, STableDataBlocks* pTableDataBlock, bo
   int32_t flen = 0;  // original total length of row
 
   // schema needs to be included into the submit data block
-  if (includeSchema) {
+  if (insertParam->schemaAttached) {
     int32_t numOfCols = tscGetNumOfColumns(pTableDataBlock->pTableMeta);
     for(int32_t j = 0; j < numOfCols; ++j) {
       STColumn* pCol = (STColumn*) pDataBlock;
@@ -1900,18 +1906,38 @@ static int trimDataBlock(void* pDataBlock, STableDataBlocks* pTableDataBlock, bo
   pBlock->dataLen = 0;
   int32_t numOfRows = htons(pBlock->numOfRows);
 
-  SMemRowBuilder rowBuilder;
-  rowBuilder.pSchema = pSchema;
-  rowBuilder.sversion = pTableMeta->sversion;
-  rowBuilder.flen = flen;
-  rowBuilder.nCols = tinfo.numOfColumns;
-  rowBuilder.pDataBlock = pDataBlock;
-  rowBuilder.pSubmitBlk = pBlock;
-  rowBuilder.buf = p;
+  if (IS_RAW_PAYLOAD(insertParam->payloadType)) {
+    for (int32_t i = 0; i < numOfRows; ++i) {
+      SMemRow memRow = (SMemRow)pDataBlock;
+      memRowSetType(memRow, SMEM_ROW_DATA);
+      SDataRow trow = memRowDataBody(memRow);
+      dataRowSetLen(trow, (uint16_t)(TD_DATA_ROW_HEAD_SIZE + flen));
+      dataRowSetVersion(trow, pTableMeta->sversion);
 
-  for (int32_t i = 0; i < numOfRows; ++i) {
-    rowBuilder.buf = (blkKeyTuple + i)->payloadAddr;
-    tdGenMemRowFromBuilder(&rowBuilder);
+      int toffset = 0;
+      for (int32_t j = 0; j < tinfo.numOfColumns; j++) {
+        tdAppendColVal(trow, p, pSchema[j].type, toffset);
+        toffset += TYPE_BYTES[pSchema[j].type];
+        p += pSchema[j].bytes;
+      }
+
+      pDataBlock = (char*)pDataBlock + memRowTLen(memRow);
+      pBlock->dataLen += memRowTLen(memRow);
+    }
+  } else {
+    SMemRowBuilder rowBuilder;
+    rowBuilder.pSchema = pSchema;
+    rowBuilder.sversion = pTableMeta->sversion;
+    rowBuilder.flen = flen;
+    rowBuilder.nCols = tinfo.numOfColumns;
+    rowBuilder.pDataBlock = pDataBlock;
+    rowBuilder.pSubmitBlk = pBlock;
+    rowBuilder.buf = p;
+
+    for (int32_t i = 0; i < numOfRows; ++i) {
+      rowBuilder.buf = (blkKeyTuple + i)->payloadAddr;
+      tdGenMemRowFromBuilder(&rowBuilder);
+    }
   }
 
   int32_t len = pBlock->dataLen + pBlock->schemaLen;
@@ -1936,16 +1962,14 @@ static int32_t getRowExpandSize(STableMeta* pTableMeta) {
 static void extractTableNameList(SInsertStatementParam *pInsertParam, bool freeBlockMap) {
   pInsertParam->numOfTables = (int32_t) taosHashGetSize(pInsertParam->pTableBlockHashList);
   if (pInsertParam->pTableNameList == NULL) {
-    pInsertParam->pTableNameList = calloc(pInsertParam->numOfTables, POINTER_BYTES);
-  } else {
-    memset(pInsertParam->pTableNameList, 0, pInsertParam->numOfTables * POINTER_BYTES);
+    pInsertParam->pTableNameList = malloc(pInsertParam->numOfTables * POINTER_BYTES);
   }
 
   STableDataBlocks **p1 = taosHashIterate(pInsertParam->pTableBlockHashList, NULL);
   int32_t i = 0;
   while(p1) {
     STableDataBlocks* pBlocks = *p1;
-    tfree(pInsertParam->pTableNameList[i]);
+    //tfree(pInsertParam->pTableNameList[i]);
 
     pInsertParam->pTableNameList[i++] = tNameDup(&pBlocks->tableName);
     p1 = taosHashIterate(pInsertParam->pTableBlockHashList, p1);
@@ -1959,6 +1983,7 @@ static void extractTableNameList(SInsertStatementParam *pInsertParam, bool freeB
 int32_t tscMergeTableDataBlocks(SInsertStatementParam *pInsertParam, bool freeBlockMap) {
   const int INSERT_HEAD_SIZE = sizeof(SMsgDesc) + sizeof(SSubmitMsg);
   int       code = 0;
+  bool      isRawPayload = IS_RAW_PAYLOAD(pInsertParam->payloadType);
   void*     pVnodeDataBlockHashList = taosHashInit(128, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, false);
   SArray*   pVnodeDataBlockList = taosArrayInit(8, POINTER_BYTES);
 
@@ -1967,7 +1992,7 @@ int32_t tscMergeTableDataBlocks(SInsertStatementParam *pInsertParam, bool freeBl
   STableDataBlocks* pOneTableBlock = *p;
 
   SBlockKeyInfo blkKeyInfo = {0};  // share by pOneTableBlock
-  
+
   while(pOneTableBlock) {
     SSubmitBlk* pBlocks = (SSubmitBlk*) pOneTableBlock->pData;
     if (pBlocks->numOfRows > 0) {
@@ -1988,14 +2013,12 @@ int32_t tscMergeTableDataBlocks(SInsertStatementParam *pInsertParam, bool freeBl
       int64_t destSize = dataBuf->size + pOneTableBlock->size + pBlocks->numOfRows * expandSize + sizeof(STColumn) * tscGetNumOfColumns(pOneTableBlock->pTableMeta);
 
       if (dataBuf->nAllocSize < destSize) {
-        while (dataBuf->nAllocSize < destSize) {
-          dataBuf->nAllocSize = (uint32_t)(dataBuf->nAllocSize * 1.5);
-        }
+        dataBuf->nAllocSize = (uint32_t)(destSize * 1.5);
 
         char* tmp = realloc(dataBuf->pData, dataBuf->nAllocSize);
         if (tmp != NULL) {
           dataBuf->pData = tmp;
-          memset(dataBuf->pData + dataBuf->size, 0, dataBuf->nAllocSize - dataBuf->size);
+          //memset(dataBuf->pData + dataBuf->size, 0, dataBuf->nAllocSize - dataBuf->size);
         } else {  // failed to allocate memory, free already allocated memory and return error code
           tscError("0x%"PRIx64" failed to allocate memory for merging submit block, size:%d", pInsertParam->objectId, dataBuf->nAllocSize);
 
@@ -2008,21 +2031,29 @@ int32_t tscMergeTableDataBlocks(SInsertStatementParam *pInsertParam, bool freeBl
         }
       }
 
-      if ((code = tscSortRemoveDataBlockDupRows(pOneTableBlock, &blkKeyInfo)) != 0) {
-        taosHashCleanup(pVnodeDataBlockHashList);
-        tscDestroyBlockArrayList(pVnodeDataBlockList);
-        tfree(dataBuf->pData);
-        tfree(blkKeyInfo.pKeyTuple);
-        return code;
+      if (isRawPayload) {
+        tscSortRemoveDataBlockDupRowsRaw(pOneTableBlock);
+        char* ekey = (char*)pBlocks->data + pOneTableBlock->rowSize * (pBlocks->numOfRows - 1);
+
+        tscDebug("0x%" PRIx64 " name:%s, tid:%d rows:%d sversion:%d skey:%" PRId64 ", ekey:%" PRId64,
+                 pInsertParam->objectId, tNameGetTableName(&pOneTableBlock->tableName), pBlocks->tid,
+                 pBlocks->numOfRows, pBlocks->sversion, GET_INT64_VAL(pBlocks->data), GET_INT64_VAL(ekey));
+      } else {
+        if ((code = tscSortRemoveDataBlockDupRows(pOneTableBlock, &blkKeyInfo)) != 0) {
+          taosHashCleanup(pVnodeDataBlockHashList);
+          tscDestroyBlockArrayList(pVnodeDataBlockList);
+          tfree(dataBuf->pData);
+          tfree(blkKeyInfo.pKeyTuple);
+          return code;
+        }
+        ASSERT(blkKeyInfo.pKeyTuple != NULL && pBlocks->numOfRows > 0);
+
+        SBlockKeyTuple* pLastKeyTuple = blkKeyInfo.pKeyTuple + pBlocks->numOfRows - 1;
+        tscDebug("0x%" PRIx64 " name:%s, tid:%d rows:%d sversion:%d skey:%" PRId64 ", ekey:%" PRId64,
+                 pInsertParam->objectId, tNameGetTableName(&pOneTableBlock->tableName), pBlocks->tid,
+                 pBlocks->numOfRows, pBlocks->sversion, blkKeyInfo.pKeyTuple->skey, pLastKeyTuple->skey);
       }
-
-      ASSERT(blkKeyInfo.pKeyTuple != NULL && pBlocks->numOfRows > 0);
-
-      SBlockKeyTuple* pLastKeyTuple = blkKeyInfo.pKeyTuple + pBlocks->numOfRows - 1;
-      tscDebug("0x%" PRIx64 " name:%s, tid:%d rows:%d sversion:%d skey:%" PRId64 ", ekey:%" PRId64,
-               pInsertParam->objectId, tNameGetTableName(&pOneTableBlock->tableName), pBlocks->tid, pBlocks->numOfRows,
-               pBlocks->sversion, blkKeyInfo.pKeyTuple->skey, pLastKeyTuple->skey);
-
+      
       int32_t len = pBlocks->numOfRows * (pOneTableBlock->rowSize + expandSize) + sizeof(STColumn) * tscGetNumOfColumns(pOneTableBlock->pTableMeta);
 
       pBlocks->tid = htonl(pBlocks->tid);
@@ -2032,7 +2063,7 @@ int32_t tscMergeTableDataBlocks(SInsertStatementParam *pInsertParam, bool freeBl
       pBlocks->schemaLen = 0;
 
       // erase the empty space reserved for binary data
-      int32_t finalLen = trimDataBlock(dataBuf->pData + dataBuf->size, pOneTableBlock, pInsertParam->schemaAttached, blkKeyInfo.pKeyTuple);
+      int32_t finalLen = trimDataBlock(dataBuf->pData + dataBuf->size, pOneTableBlock, pInsertParam, blkKeyInfo.pKeyTuple);
       assert(finalLen <= len);
 
       dataBuf->size += (finalLen + sizeof(SSubmitBlk));
@@ -3097,6 +3128,7 @@ void tscInitQueryInfo(SQueryInfo* pQueryInfo) {
 int32_t tscAddQueryInfo(SSqlCmd* pCmd) {
   assert(pCmd != NULL);
   SQueryInfo* pQueryInfo = calloc(1, sizeof(SQueryInfo));
+
   if (pQueryInfo == NULL) {
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
   }
@@ -3889,7 +3921,7 @@ bool tscIsUpdateQuery(SSqlObj* pSql) {
   }
 
   SSqlCmd* pCmd = &pSql->cmd;
-  return ((pCmd->command >= TSDB_SQL_INSERT && pCmd->command <= TSDB_SQL_DROP_DNODE) || TSDB_SQL_USE_DB == pCmd->command);
+  return ((pCmd->command >= TSDB_SQL_INSERT && pCmd->command <= TSDB_SQL_DROP_DNODE) || TSDB_SQL_RESET_CACHE == pCmd->command || TSDB_SQL_USE_DB == pCmd->command);
 }
 
 char* tscGetSqlStr(SSqlObj* pSql) {
@@ -4079,17 +4111,21 @@ void tscTryQueryNextClause(SSqlObj* pSql, __async_cb_func_t fp) {
   //backup the total number of result first
   int64_t num = pRes->numOfTotal + pRes->numOfClauseTotal;
 
-
   // DON't free final since it may be recoreded and used later in APP
   TAOS_FIELD* finalBk = pRes->final;
   pRes->final = NULL;
   tscFreeSqlResult(pSql);
+
   pRes->final = finalBk;
-  
   pRes->numOfTotal = num;
-  
+
+  for(int32_t i = 0; i < pSql->subState.numOfSub; ++i) {
+    taos_free_result(pSql->pSubs[i]);
+  }
+
   tfree(pSql->pSubs);
   pSql->subState.numOfSub = 0;
+
   pSql->fp = fp;
 
   tscDebug("0x%"PRIx64" try data in the next subclause", pSql->self);
@@ -4350,7 +4386,7 @@ STableMeta* tscTableMetaDup(STableMeta* pTableMeta) {
   assert(pTableMeta != NULL);
   size_t size = tscGetTableMetaSize(pTableMeta);
 
-  STableMeta* p = calloc(1, size);
+  STableMeta* p = malloc(size);
   memcpy(p, pTableMeta, size);
   return p;
 }
@@ -4729,6 +4765,20 @@ int32_t nameComparFn(const void* n1, const void* n2) {
   }
 }
 
+static void freeContent(void* p) {
+  char* ptr = *(char**)p;
+  tfree(ptr);
+}
+
+static int32_t contCompare(const void* p1, const void* p2) {
+  int32_t ret = strcmp(p1, p2);
+  if (ret == 0) {
+    return 0;
+  } else {
+    return ret > 0 ? 1:-1;
+  }
+}
+
 int tscTransferTableNameList(SSqlObj *pSql, const char *pNameList, int32_t length, SArray* pNameArray) {
   SSqlCmd *pCmd = &pSql->cmd;
 
@@ -4776,32 +4826,7 @@ int tscTransferTableNameList(SSqlObj *pSql, const char *pNameList, int32_t lengt
   }
 
   taosArraySort(pNameArray, nameComparFn);
-
-  int32_t pos = 0;
-  for(int32_t i = 1; i < len; ++i) {
-    char** p1 = taosArrayGet(pNameArray, pos);
-    char** p2 = taosArrayGet(pNameArray, i);
-
-    if (strcmp(*p1, *p2) == 0) {
-      // do nothing
-    } else {
-      if (pos + 1 != i) {
-        char* p = taosArrayGetP(pNameArray, pos + 1);
-        tfree(p);
-        taosArraySet(pNameArray, pos + 1, p2);
-        pos += 1;
-      } else {
-        pos += 1;
-      }
-    }
-  }
-
-  for(int32_t i = pos + 1; i < pNameArray->size; ++i) {
-    char* p = taosArrayGetP(pNameArray, i);
-    tfree(p);
-  }
-
-  pNameArray->size = pos + 1;
+  taosArrayRemoveDuplicate(pNameArray, contCompare, freeContent);
   return TSDB_CODE_SUCCESS;
 }
 

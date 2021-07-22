@@ -3085,7 +3085,7 @@ int32_t checkForCachedLastRow(STsdbQueryHandle* pQueryHandle, STableGroupInfo *g
   }
 
   // update the tsdb query time range
-  if (pQueryHandle->cachelastrow) {
+  if (pQueryHandle->cachelastrow != TSDB_CACHED_TYPE_NONE) {
     pQueryHandle->window      = TSWINDOW_INITIALIZER;
     pQueryHandle->checkFiles  = false;
     pQueryHandle->activeIndex = -1;  // start from -1
@@ -3117,6 +3117,7 @@ STimeWindow updateLastrowForEachGroup(STableGroupInfo *groupList) {
   STimeWindow window = {INT64_MAX, INT64_MIN};
 
   int32_t totalNumOfTable = 0;
+  SArray* emptyGroup = taosArrayInit(16, sizeof(int32_t));
 
   // NOTE: starts from the buffer in case of descending timestamp order check data blocks
   size_t numOfGroups = taosArrayGetSize(groupList->pGroupList);
@@ -3159,26 +3160,29 @@ STimeWindow updateLastrowForEachGroup(STableGroupInfo *groupList) {
       }
     }
 
-    taosArrayClear(pGroup);
-
     // more than one table in each group, only one table left for each group
     if (keyInfo.pTable != NULL) {
       totalNumOfTable++;
-      taosArrayPush(pGroup, &keyInfo);
-    } else {
+      if (taosArrayGetSize(pGroup) == 1) {
+        // do nothing
+      } else {
+        taosArrayClear(pGroup);
+        taosArrayPush(pGroup, &keyInfo);
+      }
+    } else {  // mark all the empty groups, and remove it later
       taosArrayDestroy(pGroup);
-
-      taosArrayRemove(groupList->pGroupList, j);
-      numOfGroups -= 1;
-      j -= 1;
+      taosArrayPush(emptyGroup, &j);
     }
   }
 
   // window does not being updated, so set the original
   if (window.skey == INT64_MAX && window.ekey == INT64_MIN) {
     window = TSWINDOW_INITIALIZER;
-    assert(totalNumOfTable == 0 && taosArrayGetSize(groupList->pGroupList) == 0);
+    assert(totalNumOfTable == 0 && taosArrayGetSize(groupList->pGroupList) == numOfGroups);
   }
+
+  taosArrayRemoveBatch(groupList->pGroupList, TARRAY_GET_START(emptyGroup), (int32_t) taosArrayGetSize(emptyGroup));
+  taosArrayDestroy(emptyGroup);
 
   groupList->numOfTables = totalNumOfTable;
   return window;

@@ -1,16 +1,16 @@
 package com.taosdata.jdbc;
 
 import org.junit.Test;
-import static org.junit.Assert.*;
 
+import java.lang.management.ManagementFactory;
+import java.lang.management.RuntimeMXBean;
 import java.sql.SQLException;
 import java.sql.SQLWarning;
 import java.util.ArrayList;
 import java.util.List;
 
-import java.lang.management.ManagementFactory;
-import java.lang.management.RuntimeMXBean;
-import java.lang.management.ThreadMXBean;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 public class TSDBJNIConnectorTest {
 
