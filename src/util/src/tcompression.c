@@ -159,7 +159,7 @@ int tsCompressINTImp(const char *const input, const int nelements, char *const o
           break;
       }
       // Get difference.
-      if (!safeInt64Add(curr_value, -prev_value)) goto _copy_and_exit;
+      if (!safeInt64Add(curr_value, -prev_value_tmp)) goto _copy_and_exit;
 
       int64_t diff = curr_value - prev_value_tmp;
       // Zigzag encode the value.
