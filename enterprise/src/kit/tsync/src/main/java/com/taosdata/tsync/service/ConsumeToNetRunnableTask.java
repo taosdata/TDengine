@@ -18,7 +18,7 @@ import java.util.concurrent.atomic.AtomicLong;
 public class ConsumeToNetRunnableTask implements Runnable, Countable, Stoppable {
 
     private static final Logger logger = LoggerFactory.getLogger(ConsumeToNetRunnableTask.class);
-    private static AtomicLong count = new AtomicLong(0);
+    private static final AtomicLong count = new AtomicLong(0);
 
     private TQueueConsumer consumer;
     private String topic;
@@ -117,6 +117,5 @@ public class ConsumeToNetRunnableTask implements Runnable, Countable, Stoppable 
     public void setPort(int port) {
         this.port = port;
     }
-
 
 }

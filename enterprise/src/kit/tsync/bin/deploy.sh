@@ -26,7 +26,6 @@ scp config/log4j.properties root@$host:$deployDir/config/log4j.properties
 #scp config/net-to-tq.json root@$host:$deployDir/config/net-to-tq.json
 #scp config/produce-to-tq.json root@$host:$deployDir/config/produce-to-tq.json
 
-
 ### scripts
 #scp bin/produce-to-tq.sh root@$host:$deployDir
 #scp bin/consume-to-tdengine-start.sh root@$host:$deployDir
