@@ -2023,6 +2023,11 @@ static int32_t checkForUdf(SSqlObj* pSql, SQueryInfo* pQueryInfo, SArray* pSelec
 */
 
 static SUdfInfo* isValidUdf(SArray* pUdfInfo, const char* name, int32_t len) {
+  if(pUdfInfo == NULL){
+    tscError("udfinfo is null");
+    return NULL;
+  }
+  
   size_t t = taosArrayGetSize(pUdfInfo);
   for(int32_t i = 0; i < t; ++i) {
     SUdfInfo* pUdf = taosArrayGet(pUdfInfo, i);
@@ -8037,6 +8042,28 @@ static void freeElem(void* p) {
   tfree(*(char**)p);
 }
 
+int32_t tnameComparFn(const void* p1, const void* p2) {
+  SName* pn1 = (SName*)p1;
+  SName* pn2 = (SName*)p2;
+
+  int32_t ret = strncmp(pn1->acctId, pn2->acctId, tListLen(pn1->acctId));
+  if (ret != 0) {
+    return ret > 0? 1:-1;
+  } else {
+    ret = strncmp(pn1->dbname, pn2->dbname, tListLen(pn1->dbname));
+    if (ret != 0) {
+      return ret > 0? 1:-1;
+    } else {
+      ret = strncmp(pn1->tname, pn2->tname, tListLen(pn1->tname));
+      if (ret != 0) {
+        return ret > 0? 1:-1;
+      } else {
+        return 0;
+      }
+    }
+  }
+}
+
 int32_t loadAllTableMeta(SSqlObj* pSql, struct SSqlInfo* pInfo) {
   SSqlCmd* pCmd = &pSql->cmd;
 
@@ -8091,6 +8118,9 @@ int32_t loadAllTableMeta(SSqlObj* pSql, struct SSqlInfo* pInfo) {
   plist = taosArrayInit(4, POINTER_BYTES);
   pVgroupList = taosArrayInit(4, POINTER_BYTES);
 
+  taosArraySort(tableNameList, tnameComparFn);
+  taosArrayRemoveDuplicate(tableNameList, tnameComparFn, NULL);
+
   size_t numOfTables = taosArrayGetSize(tableNameList);
   for (int32_t i = 0; i < numOfTables; ++i) {
     SName* pname = taosArrayGet(tableNameList, i);
@@ -8111,8 +8141,7 @@ int32_t loadAllTableMeta(SSqlObj* pSql, struct SSqlInfo* pInfo) {
           continue;
         }
       } else if (pTableMeta->tableType == TSDB_SUPER_TABLE) {
-        // the vgroup list of a super table is not kept in local buffer, so here need retrieve it
-        // from the mnode each time
+        // the vgroup list of super table is not kept in local buffer, so here need retrieve it from the mnode each time
         char* t = strdup(name);
         taosArrayPush(pVgroupList, &t);
       }
@@ -8139,6 +8168,7 @@ int32_t loadAllTableMeta(SSqlObj* pSql, struct SSqlInfo* pInfo) {
   if (pInfo->funcs) {
     funcSize = taosArrayGetSize(pInfo->funcs);
   }
+
   if (funcSize > 0) {
     for (size_t i = 0; i < funcSize; ++i) {
       SStrToken* t = taosArrayGet(pInfo->funcs, i);

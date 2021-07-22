@@ -1056,7 +1056,7 @@ int32_t tscAllocateMemIfNeed(STableDataBlocks *pDataBlock, int32_t rowSize, int3
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t tsSetBlockInfo(SSubmitBlk *pBlocks, const STableMeta *pTableMeta, int32_t numOfRows) {
+int32_t FORCE_INLINE tsSetBlockInfo(SSubmitBlk *pBlocks, const STableMeta *pTableMeta, int32_t numOfRows) {
   pBlocks->tid = pTableMeta->id.tid;
   pBlocks->uid = pTableMeta->id.uid;
   pBlocks->sversion = pTableMeta->sversion;
@@ -1904,7 +1904,6 @@ int tsInsertInitialCheck(SSqlObj *pSql) {
 int tsParseSql(SSqlObj *pSql, bool initial) {
   int32_t ret = TSDB_CODE_SUCCESS;
   SSqlCmd* pCmd = &pSql->cmd;
-
   if (!initial) {
     tscDebug("0x%"PRIx64" resume to parse sql: %s", pSql->self, pCmd->insertParam.sql);
   }

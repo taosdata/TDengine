@@ -61,7 +61,7 @@ public class RestfulResultSet extends AbstractResultSet implements ResultSet {
             return;
         // parse row data
         for (int rowIndex = 0; rowIndex < data.size(); rowIndex++) {
-            List<Object> row = new ArrayList();
+            List<Object> row = new ArrayList<>();
             JSONArray jsonRow = data.getJSONArray(rowIndex);
             for (int colIndex = 0; colIndex < this.metaData.getColumnCount(); colIndex++) {
                 row.add(parseColumnData(jsonRow, colIndex, columns.get(colIndex).taos_type));

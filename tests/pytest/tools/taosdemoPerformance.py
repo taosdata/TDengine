@@ -122,7 +122,6 @@ class taosdemoPerformace:
         return buildPath
 
     def insertData(self):
-        tdSql.prepare()
 
         buildPath = self.getBuildPath()
         if (buildPath == ""):
