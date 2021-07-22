@@ -312,6 +312,13 @@ bool taosCfgDynamicOptions(char *msg) {
     
     int32_t cfgLen = (int32_t)strlen(cfg->option);
     if (cfgLen != olen) continue;
+    if (strncasecmp(option, cfg->option, olen) != 0) continue;
+    if (cfg->valType == TAOS_CFG_VTYPE_INT32) {
+      *((int32_t *)cfg->ptr) = vint;
+    } else {
+      *((int8_t *)cfg->ptr) = (int8_t)vint;
+    }
+        
     if (strncasecmp(cfg->option, "monitor", olen) == 0) {
       if (1 == vint) {
         if (monStartSystemFp) {
@@ -1526,7 +1533,7 @@ static void doInitGlobalConfig(void) {
 
 #ifdef TD_TSZ
   // lossy compress
-  cfg.option = "lossyColumns"; 
+  cfg.option = "lossyColumns";
   cfg.ptr = lossyColumns;
   cfg.valType = TAOS_CFG_VTYPE_STRING;
   cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG;
