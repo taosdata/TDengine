@@ -432,12 +432,12 @@ static FORCE_INLINE void *tdGetKVRowValOfColEx(SKVRow row, int16_t colId, int32_
   while (*nIdx < kvRowNCols(row)) {
     SColIdx *pColIdx = kvRowColIdxAt(row, *nIdx);
     if (pColIdx->colId == colId) {
-      *nIdx += sizeof(SColIdx);
+      ++(*nIdx);
       return tdGetKvRowDataOfCol(row, pColIdx->offset);
     } else if (pColIdx->colId > colId) {
       return NULL;
     } else {
-      *nIdx += sizeof(SColIdx);
+      ++(*nIdx);
     }
   }
   return NULL;
