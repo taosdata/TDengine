@@ -25,7 +25,7 @@ public class TaosInfoMonitorTest {
             return null;
         }).collect(Collectors.toList());
 
-        connectionList.stream().forEach(conn -> {
+        connectionList.forEach(conn -> {
             try (Statement stmt = conn.createStatement()) {
                 ResultSet rs = stmt.executeQuery("show databases");
                 while (rs.next()) {
@@ -37,7 +37,7 @@ public class TaosInfoMonitorTest {
             }
         });
 
-        connectionList.stream().forEach(conn -> {
+        connectionList.forEach(conn -> {
             try {
                 conn.close();
                 TimeUnit.MILLISECONDS.sleep(100);
