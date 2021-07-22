@@ -564,7 +564,12 @@ typedef void *SMemRow;
 
 SMemRow tdMemRowDup(SMemRow row);
 void    tdAppendMemRowToDataCol(SMemRow row, STSchema *pSchema, SDataCols *pCols);
-// NOTE: offset here including the header size
+
+/**
+ * NOTE:
+ *  1. Applicable to fetch one column by colId, and possibly avoid to use this method in loop.
+ *  2. offset here including the header size
+ */
 static FORCE_INLINE void *tdGetMemRowDataOfCol(void *row, int16_t colId, int8_t colType, uint16_t offset) {
   if (isDataRow(row)) {
     return tdGetRowDataOfCol(memRowDataBody(row), colType, offset);
@@ -573,7 +578,11 @@ static FORCE_INLINE void *tdGetMemRowDataOfCol(void *row, int16_t colId, int8_t 
   }
 }
 
-// NOTE: offset here including the header size
+/**
+ * NOTE:
+ *  1. Applicable to scan columns one by one
+ *  2. offset here including the header size
+ */
 static FORCE_INLINE void *tdGetMemRowDataOfColEx(void *row, int16_t colId, int8_t colType, int32_t offset,
                                                  int32_t *kvNIdx) {
   if (isDataRow(row)) {
