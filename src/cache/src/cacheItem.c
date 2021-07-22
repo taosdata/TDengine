@@ -14,6 +14,7 @@
  */
 
 #include <assert.h>
+#include <string.h>
 #include "cacheHashtable.h"
 #include "cacheint.h"
 #include "cacheItem.h"
@@ -38,6 +39,8 @@ cacheItem* cacheAllocItem(cache_t* cache, uint8_t nkey, uint32_t nbytes, uint64_
     return NULL;
   }
 
+  memset(item, 0, sizeof(cacheItem));
+
   item->next = item->prev = NULL;
   item->expireTime = expireTime;
   if (expireTime == 0) {
@@ -56,7 +59,7 @@ void cacheItemFree(cache_t* cache, cacheItem* item) {
   assert(item->refCount == 0);
   assert(!item_is_linked(item));
 
-  cacheSlabFreeItem(cache, item);
+  cacheSlabFreeItem(cache, item, false);
 }
 
 void cacheItemMoveToLruHead(cache_t* cache, cacheItem* item) {

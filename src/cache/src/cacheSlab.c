@@ -16,6 +16,7 @@
 #include "cacheint.h"
 #include "cacheItem.h"
 #include "cacheDefine.h"
+#include "cacheLog.h"
 #include "cacheSlab.h"
 #include "osTime.h"
 
@@ -29,7 +30,7 @@ static int cacheMoveItemFromLru(cache_t *cache, int id, int curLru, uint64_t tot
                                 uint32_t* moveToLru,  cacheItem* search, cacheItem** pItem);
 static int cacheLruItemPull(cache_t *cache, int origId, int curLru, uint64_t total_bytes);
 
-cache_code_t cacheSlabInit(cache_t *cache) {
+int cacheSlabInit(cache_t *cache) {
   // init slab class
   int i = 0;
   size_t size = sizeof(cacheItem) + CHUNK_SIZE;
@@ -115,7 +116,7 @@ cacheItem* cacheSlabAllocItem(cache_t *cache, size_t ntotal, uint32_t id) {
   return item;
 }
 
-void cacheSlabFreeItem(cache_t *cache, cacheItem* item) {  
+void cacheSlabFreeItem(cache_t *cache, cacheItem* item, bool lock) {  
   //size_t ntotal = cacheItemTotalBytes(item->nkey, item->nbytes);
   uint32_t id = item_clsid(item);
 
@@ -128,7 +129,7 @@ void cacheSlabFreeItem(cache_t *cache, cacheItem* item) {
   }
 
   cacheSlabClass* pSlab = cache->slabs[id];
-  cacheMutexLock(&pSlab->mutex);
+  if (lock) cacheMutexLock(&pSlab->mutex);
 
   if (!item_is_chunked(item)) {
     item->flags = ITEM_SLABBED;
@@ -142,7 +143,7 @@ void cacheSlabFreeItem(cache_t *cache, cacheItem* item) {
 
   }
 
-  cacheMutexUnlock(&pSlab->mutex);
+  if (lock) cacheMutexUnlock(&pSlab->mutex);
 }
 
 static bool cacheIsReachMemoryLimit(cache_t *cache, int len) {
@@ -176,7 +177,7 @@ static void cacheSplitSlabPageInfoFreelist(cache_t *cache, char *ptr, uint32_t i
   for (i = 0; i < p->perSlab; i++) {
     cacheItem* item = (cacheItem*)ptr;
     item->slabClsId = id;
-    cacheSlabFreeItem(cache, item);
+    cacheSlabFreeItem(cache, item, false);
     ptr += p->size;
   }
 }
@@ -187,10 +188,12 @@ static int cacheNewSlab(cache_t *cache, cacheSlabClass *pSlab) {
   int len = pSlab->size * pSlab->perSlab;
 
   if (cacheIsReachMemoryLimit(cache, len)) { 
+    cacheError("cache has been reached limit");
     return CACHE_REACH_LIMIT;
   }
 
   if (cacheSlabGrowArray(cache, pSlab) == 0 || (ptr = cacheAllocMemory(cache, len)) == NULL) {
+    cacheError("cacheAllocMemory fail");
     return CACHE_ALLOC_FAIL;
   }
 
@@ -231,7 +234,7 @@ static int cacheMoveItemFromLru(cache_t *cache, int lruId, int curLru, uint64_t 
                                 uint32_t* moveToLru,  cacheItem* search, cacheItem** pItem) {
   int removed = 0;
   uint64_t limit = 0;
-  cache_option_t* opt = &(cache->options);
+  cacheOption* opt = &(cache->options);
   cacheSlabLruClass* lru = &(cache->lruArray[lruId]);
 
   switch (curLru) {

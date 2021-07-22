@@ -26,14 +26,14 @@ extern "C" {
 
 typedef int (*cache_load_func_t)(void*, const char* key, uint8_t nkey, char** value, size_t *len);
 
-typedef struct cache_option_t {
+typedef struct cacheOption {
   size_t limit;               /* size limit */
 
   double factor;              /* slab growth factor */
 
   int hotPercent;             /* percentage of slab space for CACHE_LRU_HOT */
   int warmPercent;            /* percentage of slab space for CACHE_LRU_WARM */
-} cache_option_t;
+} cacheOption;
 
 typedef struct cacheTableOption {
   cache_load_func_t loadFunc; /* user defined load data function */
@@ -41,17 +41,17 @@ typedef struct cacheTableOption {
   int initNum;                  /* table initial size */
 
   void* userData;             /* user data */
-  _hash_fn_t hashFp;
+  int32_t keyType;
 } cacheTableOption;
 
-typedef enum cache_code_t {
+enum {
   CACHE_OK    = 0,
   CACHE_FAIL  = -1,
   CACHE_OOM   = -2,
   CACHE_KEY_NOT_FOUND = -3,
   CACHE_REACH_LIMIT = -4,
   CACHE_ALLOC_FAIL = -5,
-} cache_code_t;
+};
 
 struct cache_t;
 typedef struct cache_t cache_t;
@@ -62,13 +62,13 @@ typedef struct cacheTable cacheTable;
 struct cacheItem;
 typedef struct cacheItem cacheItem;
 
-cache_t* cacheCreate(cache_option_t* options);
+cache_t* cacheCreate(cacheOption* options);
 
 void  cacheDestroy(cache_t*);
 
 cacheTable* cacheCreateTable(cache_t* cache, cacheTableOption* options);
 
-cache_code_t cachePut(cacheTable*, const char* key, uint8_t nkey, const char* value, uint32_t nbytes, uint64_t expire);
+int cachePut(cacheTable*, const char* key, uint8_t nkey, const char* value, uint32_t nbytes, uint64_t expire);
 
 cacheItem* cacheGet(cacheTable*, const char* key, uint8_t nkey);
 

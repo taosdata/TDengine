@@ -35,7 +35,7 @@ struct cacheTable {
   cacheTableOption option;
 };
 
-cache_code_t cacheTablePut(cacheTable *pTable, cacheItem* item);
+int cacheTablePut(cacheTable *pTable, cacheItem* item);
 cacheItem* cacheTableGet(cacheTable* pTable, const char* key, uint8_t nkey);
 void          cacheTableRemove(cacheTable* pTable, const char* key, uint8_t nkey);
 

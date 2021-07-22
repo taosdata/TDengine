@@ -23,11 +23,8 @@ extern "C" {
 struct cache_t;
 typedef struct cache_t cache_t;
 
-enum cache_code_t;
-typedef enum cache_code_t cache_code_t;
-
-struct cache_option_t;
-typedef struct cache_option_t cache_option_t;
+struct cacheOption;
+typedef struct cacheOption cacheOption;
 
 struct cacheMutex;
 typedef struct cacheMutex cacheMutex;

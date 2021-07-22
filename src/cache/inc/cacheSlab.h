@@ -46,13 +46,13 @@ struct cacheSlabClass {
   unsigned int nArray;      /* size of slab array */
 };
 
-cache_code_t cacheSlabInit(cache_t *);
+int cacheSlabInit(cache_t *);
 
 uint32_t slabClsId(cache_t *cache, size_t size);
 
 cacheItem* cacheSlabAllocItem(cache_t *cache, size_t ntotal, uint32_t id);
 
-void cacheSlabFreeItem(cache_t *cache, cacheItem* item);
+void cacheSlabFreeItem(cache_t *cache, cacheItem* item, bool lock);
 
 #ifdef __cplusplus
 }

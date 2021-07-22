@@ -20,12 +20,12 @@
 #include "cacheItem.h"
 #include "cacheSlab.h"
 
-static cache_code_t check_cache_options(cache_option_t* options);
-static cache_code_t cachePutDataIntoCache(cacheTable* pTable, const char* key, uint8_t nkey, const char* value, uint32_t nbytes, cacheItem** ppItem);
+static int check_cache_options(cacheOption* options);
+static int cachePutDataIntoCache(cacheTable* pTable, const char* key, uint8_t nkey, const char* value, uint32_t nbytes, cacheItem** ppItem);
 
 //static cache_manager_t cache_manager
 
-cache_t* cacheCreate(cache_option_t* options) {
+cache_t* cacheCreate(cacheOption* options) {
   if (check_cache_options(options) != CACHE_OK) {
     cacheError("check_cache_options fail");
     return NULL;
@@ -57,7 +57,7 @@ void  cacheDestroy(cache_t* cache) {
 
 }
 
-cache_code_t cachePut(cacheTable* pTable, const char* key, uint8_t nkey, const char* value, uint32_t nbytes, uint64_t expire) {
+int cachePut(cacheTable* pTable, const char* key, uint8_t nkey, const char* value, uint32_t nbytes, uint64_t expire) {
   return cachePutDataIntoCache(pTable,key,nkey,value,nbytes,NULL);
 }
 
@@ -70,6 +70,9 @@ cacheItem* cacheGet(cacheTable* pTable, const char* key, uint8_t nkey) {
   }
 
   // try to load the data from user defined function
+  if (pTable->option.loadFunc == NULL) {
+    return NULL;
+  }
   char *loadValue;
   size_t loadLen = 0;
   if (pTable->option.loadFunc(pTable->option.userData, key, nkey, &loadValue, &loadLen) != CACHE_OK) {
@@ -92,7 +95,7 @@ void cacheItemData(cacheItem* pItem, char** data, int* nbytes) {
   *nbytes = pItem->nbytes;
 }
 
-static cache_code_t cachePutDataIntoCache(cacheTable* pTable, const char* key, uint8_t nkey, const char* value, uint32_t nbytes, cacheItem** ppItem) {
+static int cachePutDataIntoCache(cacheTable* pTable, const char* key, uint8_t nkey, const char* value, uint32_t nbytes, cacheItem** ppItem) {
   cacheItem* item = cacheAllocItem(pTable->pCache, nkey, nbytes, 3600 * 1000);
   if (item == NULL) {
     return CACHE_OOM;
@@ -111,6 +114,6 @@ static cache_code_t cachePutDataIntoCache(cacheTable* pTable, const char* key, u
   return CACHE_OK;
 }
 
-static cache_code_t check_cache_options(cache_option_t* options) {
+static int check_cache_options(cacheOption* options) {
   return CACHE_OK;
 }

@@ -19,12 +19,6 @@
 #include "cacheItem.h"
 #include "hash.h"
 
-#define hashsize(n) ((int32_t)1<<(n))
-#define hashmask(n) (hashsize(n)-1)
-
-extern uint32_t jenkins_hash(const void *key, size_t length);
-extern uint32_t MurmurHash3_x86_32(const void *key, size_t length);
-
 cacheTable* cacheCreateTable(cache_t* cache, cacheTableOption* option) {
   cacheTable* pTable = calloc(1, sizeof(cacheTable));
   if (pTable == NULL) {
@@ -35,7 +29,7 @@ cacheTable* cacheCreateTable(cache_t* cache, cacheTableOption* option) {
     goto error;
   }
 
-  pTable->pHandle = taosHashInit(option->initNum, option->hashFp, true, HASH_ENTRY_LOCK);
+  pTable->pHandle = taosHashInit(option->initNum, taosGetDefaultHashFunction(option->keyType), true, HASH_NO_LOCK);
   if (pTable->pHandle == NULL) {
     goto error;
   }
@@ -60,9 +54,9 @@ error:
   return NULL;
 }
 
-cache_code_t cacheTablePut(cacheTable* pTable, cacheItem* item) {
+int cacheTablePut(cacheTable* pTable, cacheItem* item) {
   cacheMutexLock(&(pTable->mutex));
-  //taosHashPut(pTable->pHandle, item_key(item), item->nkey);
+  taosHashPut(pTable->pHandle, item_key(item), item->nkey, item, sizeof(cacheItem*));
   cacheMutexUnlock(&(pTable->mutex));
   return CACHE_OK;
 }

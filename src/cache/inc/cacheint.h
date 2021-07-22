@@ -39,7 +39,7 @@ typedef struct cacheSlabLruClass {
 } cacheSlabLruClass;
 
 struct cache_t {  
-  cache_option_t options;
+  cacheOption options;
 
   cacheSlabClass* slabs[MAX_NUMBER_OF_SLAB_CLASSES];    /* array of slab pointers */
 
