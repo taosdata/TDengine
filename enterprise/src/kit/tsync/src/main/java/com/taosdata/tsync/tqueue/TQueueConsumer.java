@@ -204,14 +204,22 @@ public class TQueueConsumer extends TQueueBase {
 
         final String sql = "select * from " + topic + ".p" + partition + " where off > ? order by off asc";
         try (PreparedStatement pstmt = connection.prepareStatement(sql)) {
-            pstmt.setLong(1, partitionOffsets.get(cur_topic_partition_hash).get());
+
+            long currentOffset = partitionOffsets.get(cur_topic_partition_hash).get();
+            pstmt.setLong(1, currentOffset);
+
             ResultSet rs = pstmt.executeQuery();
             while (rs.next()) {
                 long offset = Utils.toMicroSecond(rs.getTimestamp(1));
                 long ts = rs.getTimestamp(2).getTime();
                 byte[] message = rs.getBytes(3);
-                ConsumerRecord consumerRecord = new ConsumerRecord(topic, partition, offset, ts, message);
-                records.add(consumerRecord);
+
+                if (offset <= currentOffset) {
+                    logger.error("currentOffset: " + currentOffset + " > queryOffset: " + offset);
+                } else {
+                    ConsumerRecord consumerRecord = new ConsumerRecord(topic, partition, offset, ts, message);
+                    records.add(consumerRecord);
+                }
             }
         } catch (SQLException e) {
             e.printStackTrace();
@@ -220,26 +228,5 @@ public class TQueueConsumer extends TQueueBase {
         }
         return records;
     }
-
-
-//    public List<ConsumerRecord> pollAndMark() throws TQueueException {
-//        if (topic == null || partition == 0) {
-//            String message = "topic: " + topic + ", partition: " + partition + " is invalid";
-//            logger.error(message);
-//            throw new TQueueException(message);
-//        }
-//
-//        List<ConsumerRecord> records;
-//        synchronized (LOCK) {
-//            records = fetchRows();
-//            if (records.isEmpty())
-//                return records;
-//            long currentOffset = records.get(records.size() - 1).offset();
-//            writeOffset(topic, partition, currentOffset);
-//            this.partitionOffsets.get(cur_topic_partition_hash).getAndSet(currentOffset);
-//        }
-//        return records;
-//    }
-
 
 }

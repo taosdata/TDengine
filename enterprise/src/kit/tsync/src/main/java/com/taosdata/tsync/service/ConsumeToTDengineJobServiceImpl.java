@@ -33,7 +33,7 @@ public class ConsumeToTDengineJobServiceImpl extends AbstractRunnableJobService 
 
     private final ConfigurationRepository configurationRepository = ConfigurationRepository.getInstance();
 
-    private List<UUID> taskIds = new ArrayList<>();
+    private final List<UUID> taskIds = new ArrayList<>();
 
     private ConsumerConfiguration consumerConfiguration;
     private TQueueConsumer consumer;
