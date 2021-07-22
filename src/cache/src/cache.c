@@ -14,7 +14,7 @@
  */
 
 #include <string.h>
-#include "cacheHashtable.h"
+#include "cacheTable.h"
 #include "cacheint.h"
 #include "cacheLog.h"
 #include "cacheItem.h"

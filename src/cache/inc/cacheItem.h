@@ -40,6 +40,8 @@ struct cacheItem {
   struct cacheItem*  next;
   struct cacheItem*  prev;
 
+  struct cacheItem* h_next;
+
   cacheTable*     pTable;         /* owner cache table */
   uint16_t        flags;          /* item flags above */
 
@@ -106,6 +108,14 @@ static FORCE_INLINE bool key_equal(cache_key_t key1, cache_key_t key2) {
   }
 
   return memcmp(key1.key, key2.key, key1.nkey) == 0;
+}
+
+static FORCE_INLINE bool item_equal_key(cacheItem* item, const char* key, uint8_t nkey) {
+  if (item->nkey != nkey) {
+    return false;
+  }
+
+  return memcmp(item_key(item), key, nkey) == 0;
 }
 
 static FORCE_INLINE bool item_key_equal(cacheItem* item1, cacheItem* item2) {

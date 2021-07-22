@@ -27,12 +27,17 @@
 extern "C" {
 #endif
 
-struct cacheTable {
-  void* pHandle;
+struct cacheTable { 
   cache_t* pCache;
   cacheMutex mutex;
   cacheTable* next;
   cacheTableOption option;
+
+  _hash_fn_t hashFp;
+
+  uint32_t capacity;
+
+  cacheItem** ppItems;
 };
 
 int cacheTablePut(cacheTable *pTable, cacheItem* item);

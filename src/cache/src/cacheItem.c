@@ -15,7 +15,7 @@
 
 #include <assert.h>
 #include <string.h>
-#include "cacheHashtable.h"
+#include "cacheTable.h"
 #include "cacheint.h"
 #include "cacheItem.h"
 #include "cacheSlab.h"

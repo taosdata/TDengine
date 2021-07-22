@@ -14,10 +14,12 @@
  */
 
 #include <stdlib.h>
-#include "cacheHashtable.h"
+#include "cacheTable.h"
 #include "cacheint.h"
 #include "cacheItem.h"
 #include "hash.h"
+
+static cacheItem* cacheFindItemByKey(cacheTable* pTable, const char* key, uint8_t nkey, cacheItem **ppPrev);
 
 cacheTable* cacheCreateTable(cache_t* cache, cacheTableOption* option) {
   cacheTable* pTable = calloc(1, sizeof(cacheTable));
@@ -29,10 +31,14 @@ cacheTable* cacheCreateTable(cache_t* cache, cacheTableOption* option) {
     goto error;
   }
 
-  pTable->pHandle = taosHashInit(option->initNum, taosGetDefaultHashFunction(option->keyType), true, HASH_NO_LOCK);
-  if (pTable->pHandle == NULL) {
+  pTable->capacity = option->initNum;
+  pTable->ppItems = malloc(sizeof(cacheItem*) * pTable->capacity);
+  if (pTable->ppItems == NULL) {
     goto error;
   }
+  memset(pTable->ppItems, 0, sizeof(cacheItem*) * pTable->capacity);
+
+  pTable->hashFp = taosGetDefaultHashFunction(option->keyType);
   pTable->option = *option;
   pTable->pCache = cache;
 
@@ -54,22 +60,67 @@ error:
   return NULL;
 }
 
+static cacheItem* cacheFindItemByKey(cacheTable* pTable, const char* key, uint8_t nkey, cacheItem **ppPrev) {
+  cacheItem* item = NULL;
+  uint32_t index = pTable->hashFp(key, nkey) % pTable->capacity;
+
+  item = pTable->ppItems[index];
+  if (ppPrev) *ppPrev = NULL;
+
+  while (item != NULL) {
+    if (!item_equal_key(item, key, nkey)) {
+      if (ppPrev) {
+        *ppPrev = item;
+      }
+      item = item->next;
+      continue;
+    }
+    return item;
+  }
+
+  return NULL;
+}
+
 int cacheTablePut(cacheTable* pTable, cacheItem* item) {
   cacheMutexLock(&(pTable->mutex));
-  taosHashPut(pTable->pHandle, item_key(item), item->nkey, item, sizeof(cacheItem*));
+
+  cacheItem *pOldItem, *pPrev;
+  pOldItem = cacheFindItemByKey(pTable, item_key(item), item->nkey, &pPrev);
+  if (pOldItem != NULL) {
+    if (pPrev != NULL) {
+      pPrev->h_next = pOldItem->h_next;
+    }
+    cacheItemRemove(pTable->pCache, pOldItem);
+  }
+  uint32_t index = pTable->hashFp(item_key(item), item->nkey) % pTable->capacity;
+  item->h_next = pTable->ppItems[index];
+  pTable->ppItems[index] = item;
+
   cacheMutexUnlock(&(pTable->mutex));
   return CACHE_OK;
 }
 
 cacheItem* cacheTableGet(cacheTable* pTable, const char* key, uint8_t nkey) {
   cacheMutexLock(&(pTable->mutex));
-  cacheItem* item = (cacheItem*)taosHashGet(pTable->pHandle, key, nkey);
+  
+  cacheItem *pItem;
+  pItem = cacheFindItemByKey(pTable, key, nkey, NULL);
+
   cacheMutexUnlock(&(pTable->mutex));
-  return item;
+  return pItem;
 }
 
 void cacheTableRemove(cacheTable* pTable, const char* key, uint8_t nkey) {
   cacheMutexLock(&(pTable->mutex));
-  taosHashRemove(pTable->pHandle,key, nkey);
+  
+  cacheItem *pItem, *pPrev;
+  pItem = cacheFindItemByKey(pTable, key, nkey, &pPrev);
+  if (pItem != NULL) {
+    if (pPrev != NULL) {
+      pPrev->h_next = pItem->h_next;
+    }
+    cacheItemRemove(pTable->pCache, pItem);
+  }
+
   cacheMutexUnlock(&(pTable->mutex));
 }
