@@ -4770,15 +4770,6 @@ static void freeContent(void* p) {
   tfree(ptr);
 }
 
-static int32_t contCompare(const void* p1, const void* p2) {
-  int32_t ret = strcmp(p1, p2);
-  if (ret == 0) {
-    return 0;
-  } else {
-    return ret > 0 ? 1:-1;
-  }
-}
-
 int tscTransferTableNameList(SSqlObj *pSql, const char *pNameList, int32_t length, SArray* pNameArray) {
   SSqlCmd *pCmd = &pSql->cmd;
 
@@ -4826,7 +4817,7 @@ int tscTransferTableNameList(SSqlObj *pSql, const char *pNameList, int32_t lengt
   }
 
   taosArraySort(pNameArray, nameComparFn);
-  taosArrayRemoveDuplicate(pNameArray, contCompare, freeContent);
+  taosArrayRemoveDuplicate(pNameArray, nameComparFn, freeContent);
   return TSDB_CODE_SUCCESS;
 }
 
