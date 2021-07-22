@@ -241,7 +241,7 @@ python3 ./test.py -f query/queryStateWindow.py
 python3 ./test.py -f query/nestedQuery/queryWithOrderLimit.py
 python3 ./test.py -f query/nestquery_last_row.py
 python3 ./test.py -f query/queryCnameDisplay.py
-
+python3 test.py -f query/nestedQuery/queryWithSpread.py
 
 #stream
 python3 ./test.py -f stream/metric_1.py
@@ -361,4 +361,6 @@ python3 test.py -f alter/alter_keep.py
 python3 test.py -f alter/alter_cacheLastRow.py
 python3 ./test.py -f query/querySession.py 
 python3 test.py -f  alter/alter_create_exception.py
+
+python3 ./test.py -f insert/flushwhiledrop.py
 #======================p4-end===============

@@ -8,13 +8,13 @@ import java.util.Properties;
 
 public class InvalidResultSetPointerTest {
 
-    private static String host = "127.0.0.1";
+    private static final String host = "127.0.0.1";
     private static final String dbName = "test";
     private static final String stbName = "stb";
     private static final String tbName = "tb";
     private static Connection connection;
-    private static int numOfSTb = 30000;
-    private static int numOfTb = 3;
+    private static final int numOfSTb = 30000;
+    private static final int numOfTb = 3;
     private static int numOfThreads = 100;
 
     @Test
@@ -74,7 +74,7 @@ public class InvalidResultSetPointerTest {
             b = numOfSTb % numOfThreads;
         }
 
-        multiThreadingClass instance[] = new multiThreadingClass[numOfThreads];
+        multiThreadingClass[] instance = new multiThreadingClass[numOfThreads];
 
         int last = 0;
         for (int i = 0; i < numOfThreads; i++) {

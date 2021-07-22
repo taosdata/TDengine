@@ -5,10 +5,6 @@
 #include "taos.h"
 #include "tcache.h"
 
-namespace {
-int32_t tsMaxMgmtConnections = 10000;
-int32_t tsMaxMeterConnections = 200;
-}
 // test cache
 TEST(testCase, client_cache_test) {
   const int32_t REFRESH_TIME_IN_SEC = 2;
@@ -43,7 +39,7 @@ TEST(testCase, client_cache_test) {
 
   sleep(3);
   char* d = (char*) taosCacheAcquireByKey(tscMetaCache, key3, strlen(key3));
-//    assert(d == NULL);
+  assert(d == NULL);
 
   char key5[] = "test5";
   char data5[] = "data5kkkkk";
@@ -102,7 +98,7 @@ TEST(testCase, cache_resize_test) {
 
   char key[256] = {0};
   char data[1024] = "abcdefghijk";
-  int32_t len = strlen(data);
+//  int32_t len = strlen(data);
 
   uint64_t startTime = taosGetTimestampUs();
   int32_t num = 10000;

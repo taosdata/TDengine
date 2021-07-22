@@ -5,7 +5,6 @@ import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import javax.management.OperationsException;
 import java.sql.*;
 import java.util.Properties;
 

@@ -263,6 +263,7 @@ static int32_t syncRestoreDataStepByStep(SSyncPeer *pPeer) {
 }
 
 void *syncRestoreData(void *param) {
+  setThreadName("syncRestoreData");
   int64_t    rid = (int64_t)param;
   SSyncPeer *pPeer = syncAcquirePeer(rid);
   if (pPeer == NULL) {

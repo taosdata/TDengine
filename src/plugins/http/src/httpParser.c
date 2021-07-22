@@ -744,6 +744,15 @@ static int32_t httpParserOnSp(HttpParser *parser, HTTP_PARSER_STATE state, const
   return ok;
 }
 
+static int32_t httpParserOnOptionalSp(HttpParser *parser, HTTP_PARSER_STATE state, const char c, int32_t *again) {
+  int32_t ok = 0;
+  if (c != ' ') {
+    *again = 1;
+    httpPopStack(parser);
+  }
+  return ok;
+}
+
 static int32_t httpParserOnStatusCode(HttpParser *parser, HTTP_PARSER_STATE state, const char c, int32_t *again) {
   HttpContext *pContext = parser->pContext;
   int32_t      ok = 0;
@@ -867,7 +876,7 @@ static int32_t httpParserOnHeader(HttpParser *parser, HTTP_PARSER_STATE state, c
       }
       httpPushStack(parser, HTTP_PARSER_CRLF);
       httpPushStack(parser, HTTP_PARSER_HEADER_VAL);
-      httpPushStack(parser, HTTP_PARSER_SP);
+      httpPushStack(parser, HTTP_PARSER_OPTIONAL_SP);
       httpPushStack(parser, HTTP_PARSER_HEADER_KEY);
       break;
     }
@@ -1059,6 +1068,10 @@ static int32_t httpParseChar(HttpParser *parser, const char c, int32_t *again) {
     }
     if (state == HTTP_PARSER_SP) {
       ok = httpParserOnSp(parser, state, c, again);
+      break;
+    }
+    if (state == HTTP_PARSER_OPTIONAL_SP) {
+      ok = httpParserOnOptionalSp(parser, state, c, again);
       break;
     }
     if (state == HTTP_PARSER_STATUS_CODE) {

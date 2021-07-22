@@ -9,8 +9,7 @@ import java.util.concurrent.TimeUnit;
 
 public class MultiThreadsWithSameStatementTest {
 
-
-    private class Service {
+    private static class Service {
         public Connection conn;
         public Statement stmt;
 
