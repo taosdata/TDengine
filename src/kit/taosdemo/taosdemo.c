@@ -96,8 +96,10 @@ extern char configDir[];
 #define MAX_DATABASE_COUNT      256
 #define INPUT_BUF_LEN           256
 
-#define TBNAME_PREFIX_LEN      (TSDB_TABLE_NAME_LEN - 20) // 20 characters reserved for seq
+#define TBNAME_PREFIX_LEN       (TSDB_TABLE_NAME_LEN - 20) // 20 characters reserved for seq
 #define SMALL_BUFF_LEN          8
+#define DATATYPE_BUFF_LEN       (SMALL_BUFF_LEN*3)
+#define NOTE_BUFF_LEN           (SMALL_BUFF_LEN*16)
 
 #define DEFAULT_TIMESTAMP_STEP  1
 
@@ -243,9 +245,9 @@ typedef struct SArguments_S {
 
 typedef struct SColumn_S {
     char      field[TSDB_COL_NAME_LEN];
-    char      dataType[SMALL_BUFF_LEN];
+    char      dataType[DATATYPE_BUFF_LEN];
     uint32_t  dataLen;
-    char      note[128];
+    char      note[NOTE_BUFF_LEN];
 } StrColumn;
 
 typedef struct SSuperTable_S {
@@ -2678,12 +2680,14 @@ static int getSuperTableFromServer(TAOS * taos, char* dbName,
                     fields[TSDB_DESCRIBE_METRIC_FIELD_INDEX].bytes);
             tstrncpy(superTbls->tags[tagIndex].dataType,
                     (char *)row[TSDB_DESCRIBE_METRIC_TYPE_INDEX],
-                    min(15, fields[TSDB_DESCRIBE_METRIC_TYPE_INDEX].bytes));
+                    min(DATATYPE_BUFF_LEN,
+                        fields[TSDB_DESCRIBE_METRIC_TYPE_INDEX].bytes) + 1);
             superTbls->tags[tagIndex].dataLen =
                 *((int *)row[TSDB_DESCRIBE_METRIC_LENGTH_INDEX]);
             tstrncpy(superTbls->tags[tagIndex].note,
                     (char *)row[TSDB_DESCRIBE_METRIC_NOTE_INDEX],
-                    fields[TSDB_DESCRIBE_METRIC_NOTE_INDEX].bytes);
+                    min(NOTE_BUFF_LEN,
+                        fields[TSDB_DESCRIBE_METRIC_NOTE_INDEX].bytes) + 1);
             tagIndex++;
         } else {
             tstrncpy(superTbls->columns[columnIndex].field,
@@ -2691,12 +2695,14 @@ static int getSuperTableFromServer(TAOS * taos, char* dbName,
                     fields[TSDB_DESCRIBE_METRIC_FIELD_INDEX].bytes);
             tstrncpy(superTbls->columns[columnIndex].dataType,
                     (char *)row[TSDB_DESCRIBE_METRIC_TYPE_INDEX],
-                    min(15, fields[TSDB_DESCRIBE_METRIC_TYPE_INDEX].bytes));
+                    min(DATATYPE_BUFF_LEN,
+                        fields[TSDB_DESCRIBE_METRIC_TYPE_INDEX].bytes) + 1);
             superTbls->columns[columnIndex].dataLen =
                 *((int *)row[TSDB_DESCRIBE_METRIC_LENGTH_INDEX]);
             tstrncpy(superTbls->columns[columnIndex].note,
                     (char *)row[TSDB_DESCRIBE_METRIC_NOTE_INDEX],
-                    fields[TSDB_DESCRIBE_METRIC_NOTE_INDEX].bytes);
+                    min(NOTE_BUFF_LEN,
+                        fields[TSDB_DESCRIBE_METRIC_NOTE_INDEX].bytes) + 1);
             columnIndex++;
         }
         count++;
@@ -3459,8 +3465,9 @@ static bool getColumnAndTagTypeFromInsertJsonFile(
                     __func__, __LINE__);
             goto PARSE_OVER;
         }
-        //tstrncpy(superTbls->columns[k].dataType, dataType->valuestring, MAX_TB_NAME_SIZE);
-        tstrncpy(columnCase.dataType, dataType->valuestring, min(SMALL_BUFF_LEN, strlen(dataType->valuestring) + 1));
+        //tstrncpy(superTbls->columns[k].dataType, dataType->valuestring, DATATYPE_BUFF_LEN);
+        tstrncpy(columnCase.dataType, dataType->valuestring,
+                min(DATATYPE_BUFF_LEN, strlen(dataType->valuestring) + 1));
 
         cJSON* dataLen = cJSON_GetObjectItem(column, "len");
         if (dataLen && dataLen->type == cJSON_Number) {
@@ -3475,7 +3482,8 @@ static bool getColumnAndTagTypeFromInsertJsonFile(
 
         for (int n = 0; n < count; ++n) {
             tstrncpy(superTbls->columns[index].dataType,
-                    columnCase.dataType, strlen(columnCase.dataType) + 1);
+                    columnCase.dataType,
+                    min(DATATYPE_BUFF_LEN, strlen(columnCase.dataType) + 1));
             superTbls->columns[index].dataLen = columnCase.dataLen;
             index++;
         }
@@ -3531,7 +3539,8 @@ static bool getColumnAndTagTypeFromInsertJsonFile(
                     __func__, __LINE__);
             goto PARSE_OVER;
         }
-        tstrncpy(columnCase.dataType, dataType->valuestring, min(SMALL_BUFF_LEN, strlen(dataType->valuestring) + 1));
+        tstrncpy(columnCase.dataType, dataType->valuestring,
+                min(DATATYPE_BUFF_LEN, strlen(dataType->valuestring) + 1));
 
         cJSON* dataLen = cJSON_GetObjectItem(tag, "len");
         if (dataLen && dataLen->type == cJSON_Number) {
@@ -3546,7 +3555,7 @@ static bool getColumnAndTagTypeFromInsertJsonFile(
 
         for (int n = 0; n < count; ++n) {
             tstrncpy(superTbls->tags[index].dataType, columnCase.dataType,
-                    strlen(columnCase.dataType) + 1);
+                    min(DATATYPE_BUFF_LEN, strlen(columnCase.dataType) + 1));
             superTbls->tags[index].dataLen = columnCase.dataLen;
             index++;
         }
@@ -4048,7 +4057,8 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
                         dataSource->valuestring,
                         min(SMALL_BUFF_LEN, strlen(dataSource->valuestring) + 1));
             } else if (!dataSource) {
-                tstrncpy(g_Dbs.db[i].superTbls[j].dataSource, "rand", min(SMALL_BUFF_LEN, strlen("rand") + 1));
+                tstrncpy(g_Dbs.db[i].superTbls[j].dataSource, "rand",
+                        min(SMALL_BUFF_LEN, strlen("rand") + 1));
             } else {
                 errorPrint("%s() LN%d, failed to read json, data_source not found\n",
                         __func__, __LINE__);
@@ -4129,9 +4139,12 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
             if (sampleFormat && sampleFormat->type
                     == cJSON_String && sampleFormat->valuestring != NULL) {
                 tstrncpy(g_Dbs.db[i].superTbls[j].sampleFormat,
-                        sampleFormat->valuestring, TSDB_DB_NAME_LEN);
+                        sampleFormat->valuestring,
+                        min(SMALL_BUFF_LEN,
+                            strlen(sampleFormat->valuestring) + 1));
             } else if (!sampleFormat) {
-                tstrncpy(g_Dbs.db[i].superTbls[j].sampleFormat, "csv", TSDB_DB_NAME_LEN);
+                tstrncpy(g_Dbs.db[i].superTbls[j].sampleFormat, "csv",
+                        SMALL_BUFF_LEN);
             } else {
                 printf("ERROR: failed to read json, sample_format not found\n");
                 goto PARSE_OVER;
@@ -4141,9 +4154,12 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
             if (sampleFile && sampleFile->type == cJSON_String
                     && sampleFile->valuestring != NULL) {
                 tstrncpy(g_Dbs.db[i].superTbls[j].sampleFile,
-                        sampleFile->valuestring, MAX_FILE_NAME_LEN);
+                        sampleFile->valuestring,
+                        min(MAX_FILE_NAME_LEN,
+                            strlen(sampleFile->valuestring) + 1));
             } else if (!sampleFile) {
-                memset(g_Dbs.db[i].superTbls[j].sampleFile, 0, MAX_FILE_NAME_LEN);
+                memset(g_Dbs.db[i].superTbls[j].sampleFile, 0,
+                        MAX_FILE_NAME_LEN);
             } else {
                 printf("ERROR: failed to read json, sample_file not found\n");
                 goto PARSE_OVER;
@@ -4383,10 +4399,14 @@ static bool getMetaFromQueryJsonFile(cJSON* root) {
     }
 
     cJSON* queryMode = cJSON_GetObjectItem(root, "query_mode");
-    if (queryMode && queryMode->type == cJSON_String && queryMode->valuestring != NULL) {
-        tstrncpy(g_queryInfo.queryMode, queryMode->valuestring, MAX_TB_NAME_SIZE);
+    if (queryMode
+            && queryMode->type == cJSON_String
+            && queryMode->valuestring != NULL) {
+        tstrncpy(g_queryInfo.queryMode, queryMode->valuestring,
+                min(SMALL_BUFF_LEN, strlen(queryMode->valuestring) + 1));
     } else if (!queryMode) {
-        tstrncpy(g_queryInfo.queryMode, "taosc", min(SMALL_BUFF_LEN, strlen("taosc") + 1));
+        tstrncpy(g_queryInfo.queryMode, "taosc",
+                min(SMALL_BUFF_LEN, strlen("taosc") + 1));
     } else {
         printf("ERROR: failed to read json, query_mode not found\n");
         goto PARSE_OVER;
@@ -8232,7 +8252,7 @@ static void setParaFromArg() {
             }
 
             tstrncpy(g_Dbs.db[0].superTbls[0].columns[i].dataType,
-                    data_type[i], strlen(data_type[i]) + 1);
+                    data_type[i], min(DATATYPE_BUFF_LEN, strlen(data_type[i]) + 1));
             g_Dbs.db[0].superTbls[0].columns[i].dataLen = g_args.len_of_binary;
             g_Dbs.db[0].superTbls[0].columnCount++;
         }
@@ -8243,18 +8263,18 @@ static void setParaFromArg() {
             for (int i = g_Dbs.db[0].superTbls[0].columnCount;
                     i < g_args.num_of_CPR; i++) {
                 tstrncpy(g_Dbs.db[0].superTbls[0].columns[i].dataType,
-                        "INT", strlen("INT") + 1);
+                        "INT", min(DATATYPE_BUFF_LEN, strlen("INT") + 1));
                 g_Dbs.db[0].superTbls[0].columns[i].dataLen = 0;
                 g_Dbs.db[0].superTbls[0].columnCount++;
             }
         }
 
         tstrncpy(g_Dbs.db[0].superTbls[0].tags[0].dataType,
-                "INT", strlen("INT") + 1);
+                "INT", min(DATATYPE_BUFF_LEN, strlen("INT") + 1));
         g_Dbs.db[0].superTbls[0].tags[0].dataLen = 0;
 
         tstrncpy(g_Dbs.db[0].superTbls[0].tags[1].dataType,
-                "BINARY", strlen("BINARY") + 1);
+                "BINARY", min(DATATYPE_BUFF_LEN, strlen("BINARY") + 1));
         g_Dbs.db[0].superTbls[0].tags[1].dataLen = g_args.len_of_binary;
         g_Dbs.db[0].superTbls[0].tagCount = 2;
     } else {
