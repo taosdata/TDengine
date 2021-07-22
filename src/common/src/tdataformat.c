@@ -866,13 +866,13 @@ SMemRow mergeTwoMemRows(void *buffer, SMemRow row1, SMemRow row2, STSchema *pSch
     SMemRow tRow = buffer;
     memRowSetType(tRow, SMEM_ROW_KV);
     SKVRow kvRow = (SKVRow)memRowKvBody(tRow);
-    size_t nKvNCols = taosArrayGetSize(stashRow);
+    int16_t nKvNCols = (int16_t) taosArrayGetSize(stashRow);
     kvRowSetLen(kvRow, (TDRowLenT)(TD_KV_ROW_HEAD_SIZE + sizeof(SColIdx) * nKvNCols));
     kvRowSetNCols(kvRow, nKvNCols);
     memRowSetKvVersion(tRow, pSchema1->version);
 
     int32_t toffset = 0;
-    size_t k;
+    int16_t k;
     for (k = 0; k < nKvNCols; ++k) {
       SColInfo *pColInfo = taosArrayGet(stashRow, k);
       tdAppendKvColVal(kvRow, pColInfo->colVal, pColInfo->colId, pColInfo->colType, &toffset);
