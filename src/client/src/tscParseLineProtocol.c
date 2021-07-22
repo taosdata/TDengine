@@ -298,9 +298,9 @@ static int32_t buildColumnDescription(SSchema* field,
 
 static int32_t applySchemaAction(TAOS* taos, SSchemaAction* action) {
   int32_t code = 0;
-  int32_t capacity = TSDB_MAX_BINARY_LEN;
   int32_t outBytes = 0;
-  char *result = (char *)calloc(1, capacity);
+  char *result = (char *)calloc(1, tsMaxSQLStringLen+1);
+  int32_t capacity = tsMaxSQLStringLen +  1;
 
   tscDebug("apply schema action: %d", action->action);
   switch (action->action) {
@@ -572,8 +572,8 @@ static int32_t getSmlMd5ChildTableName(TAOS_SML_DATA_POINT* point, char* tableNa
 
 static int32_t creatChildTableIfNotExists(TAOS* taos, const char* cTableName, const char* sTableName, SArray* tagsSchema, SArray* tagsBind) {
   size_t numTags = taosArrayGetSize(tagsSchema);
-  char sql[TSDB_MAX_BINARY_LEN] = {0};
-  int freeBytes = TSDB_MAX_BINARY_LEN;
+  char* sql = malloc(tsMaxSQLStringLen+1);
+  int freeBytes = tsMaxSQLStringLen + 1;
   sprintf(sql, "create table if not exists %s using %s", cTableName, sTableName);
 
   snprintf(sql+strlen(sql), freeBytes-strlen(sql), "(");
@@ -589,12 +589,15 @@ static int32_t creatChildTableIfNotExists(TAOS* taos, const char* cTableName, co
     snprintf(sql+strlen(sql), freeBytes-strlen(sql), "?,");
   }
   snprintf(sql + strlen(sql) - 1, freeBytes-strlen(sql)+1, ")");
+  sql[strlen(sql)] = '\0';
 
   tscDebug("create table : %s", sql);
 
   TAOS_STMT* stmt = taos_stmt_init(taos);
   int32_t code;
   code = taos_stmt_prepare(stmt, sql, (unsigned long)strlen(sql));
+  free(sql);
+
   if (code != 0) {
     tscError("%s", taos_stmt_errstr(stmt));
     return code;
@@ -622,8 +625,8 @@ static int32_t creatChildTableIfNotExists(TAOS* taos, const char* cTableName, co
 
 static int32_t insertChildTableBatch(TAOS* taos,  char* cTableName, SArray* colsSchema, SArray* rowsBind) {
   size_t numCols = taosArrayGetSize(colsSchema);
-  char sql[TSDB_MAX_BINARY_LEN];
-  int32_t freeBytes = TSDB_MAX_BINARY_LEN;
+  char* sql = malloc(tsMaxSQLStringLen+1);
+  int32_t freeBytes = tsMaxSQLStringLen + 1 ;
   sprintf(sql, "insert into ? (");
 
   for (int i = 0; i < numCols; ++i) {
@@ -636,6 +639,7 @@ static int32_t insertChildTableBatch(TAOS* taos,  char* cTableName, SArray* cols
     snprintf(sql+strlen(sql), freeBytes-strlen(sql), "?,");
   }
   snprintf(sql + strlen(sql)-1, freeBytes-strlen(sql)+1, ")");
+  sql[strlen(sql)] = '\0';
 
   tscDebug("insert rows %zu into child table %s. ", taosArrayGetSize(rowsBind), cTableName);
 
@@ -645,6 +649,8 @@ static int32_t insertChildTableBatch(TAOS* taos,  char* cTableName, SArray* cols
   TAOS_STMT* stmt = taos_stmt_init(taos);
 
   code = taos_stmt_prepare(stmt, sql, (unsigned long)strlen(sql));
+  free(sql);
+
   if (code != 0) {
     tscError("%s", taos_stmt_errstr(stmt));
     return code;
