@@ -535,7 +535,7 @@ void taosCacheCleanup(SCacheObj *pCacheObj) {
   pCacheObj->deleting = 1;
 
   // wait for the refresh thread quit before destroying the cache object.
-  while(atomic_load_ptr((void**)&pCacheArrayList) != 0) {
+  while(atomic_load_8(&pCacheObj->deleting) != 0) {
     taosMsleep(50);
   }
 
@@ -695,18 +695,29 @@ void* taosCacheTimedRefresh(void *handle) {
     for(int32_t i = 0; i < size; ++i) {
       pthread_mutex_lock(&guard);
       SCacheObj* pCacheObj = taosArrayGetP(pCacheArrayList, i);
-      pthread_mutex_unlock(&guard);
 
       if (pCacheObj == NULL) {
-        uDebug("object is destroyed. no refresh retry");
-        break;
+        uError("object is destroyed. ignore and try next");
+        pthread_mutex_unlock(&guard);
+        continue;
       }
 
       // check if current cache object will be deleted every 500ms.
       if (pCacheObj->deleting) {
-        uDebug("%s is destroying, cache refresh thread quit", pCacheObj->name);
-        goto _end;
+        taosArrayRemove(pCacheArrayList, i);
+        size = taosArrayGetSize(pCacheArrayList);
+
+        uDebug("%s is destroying, remove it from refresh list, remain cache obj:%"PRId64, pCacheObj->name, size);
+        pCacheObj->deleting = 0;  //reset the deleting flag to enable pCacheObj does self destroy process
+
+        // all contained caches has been marked to be removed, destroy the scanner it self.
+        if (size == 0) {
+          pthread_mutex_unlock(&guard);
+          goto _end;
+        }
       }
+
+      pthread_mutex_unlock(&guard);
 
       if ((count % pCacheObj->checkTick) != 0) {
         continue;
