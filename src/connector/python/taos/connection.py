@@ -66,6 +66,14 @@ class TDengineConnection(object):
             self._conn, restart, topic, sql, interval)
         return TDengineSubscription(sub)
 
+    def insertLines(self, lines):
+        """
+        insert lines through line protocol
+        """
+        if self._conn is None:
+            return None
+        return CTaosInterface.insertLines(self._conn, lines)
+        
     def cursor(self):
         """Return a new Cursor object using the connection.
         """
