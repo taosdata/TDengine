@@ -2427,7 +2427,7 @@ static void updateDataCheckOrder(SQInfo *pQInfo, SQueryTableMsg* pQueryMsg, bool
 
   if (pQueryAttr->pointInterpQuery && pQueryAttr->interval.interval == 0) {
     if (!QUERY_IS_ASC_QUERY(pQueryAttr)) {
-      qDebug(msg, pQInfo, "interp", pQueryAttr->order.order, TSDB_ORDER_ASC, pQueryAttr->window.skey, pQueryAttr->window.ekey, pQueryAttr->window.ekey, pQueryAttr->window.skey);
+      qDebug(msg, pQInfo->qId, "interp", pQueryAttr->order.order, TSDB_ORDER_ASC, pQueryAttr->window.skey, pQueryAttr->window.ekey, pQueryAttr->window.ekey, pQueryAttr->window.skey);
       SWAP(pQueryAttr->window.skey, pQueryAttr->window.ekey, TSKEY);
     }
 
@@ -2438,7 +2438,7 @@ static void updateDataCheckOrder(SQInfo *pQInfo, SQueryTableMsg* pQueryMsg, bool
   if (pQueryAttr->interval.interval == 0) {
     if (onlyFirstQuery(pQueryAttr)) {
       if (!QUERY_IS_ASC_QUERY(pQueryAttr)) {
-        qDebug(msg, pQInfo, "only-first", pQueryAttr->order.order, TSDB_ORDER_ASC, pQueryAttr->window.skey,
+        qDebug(msg, pQInfo->qId, "only-first", pQueryAttr->order.order, TSDB_ORDER_ASC, pQueryAttr->window.skey,
                pQueryAttr->window.ekey, pQueryAttr->window.ekey, pQueryAttr->window.skey);
 
         SWAP(pQueryAttr->window.skey, pQueryAttr->window.ekey, TSKEY);
@@ -2449,7 +2449,7 @@ static void updateDataCheckOrder(SQInfo *pQInfo, SQueryTableMsg* pQueryMsg, bool
       pQueryAttr->needReverseScan = false;
     } else if (onlyLastQuery(pQueryAttr) && notContainSessionOrStateWindow(pQueryAttr)) {
       if (QUERY_IS_ASC_QUERY(pQueryAttr)) {
-        qDebug(msg, pQInfo, "only-last", pQueryAttr->order.order, TSDB_ORDER_DESC, pQueryAttr->window.skey,
+        qDebug(msg, pQInfo->qId, "only-last", pQueryAttr->order.order, TSDB_ORDER_DESC, pQueryAttr->window.skey,
                pQueryAttr->window.ekey, pQueryAttr->window.ekey, pQueryAttr->window.skey);
 
         SWAP(pQueryAttr->window.skey, pQueryAttr->window.ekey, TSKEY);
@@ -2464,7 +2464,7 @@ static void updateDataCheckOrder(SQInfo *pQInfo, SQueryTableMsg* pQueryMsg, bool
     if (stableQuery) {
       if (onlyFirstQuery(pQueryAttr)) {
         if (!QUERY_IS_ASC_QUERY(pQueryAttr)) {
-          qDebug(msg, pQInfo, "only-first stable", pQueryAttr->order.order, TSDB_ORDER_ASC,
+          qDebug(msg, pQInfo->qId, "only-first stable", pQueryAttr->order.order, TSDB_ORDER_ASC,
                  pQueryAttr->window.skey, pQueryAttr->window.ekey, pQueryAttr->window.ekey, pQueryAttr->window.skey);
 
           SWAP(pQueryAttr->window.skey, pQueryAttr->window.ekey, TSKEY);
@@ -2475,7 +2475,7 @@ static void updateDataCheckOrder(SQInfo *pQInfo, SQueryTableMsg* pQueryMsg, bool
         pQueryAttr->needReverseScan = false;
       } else if (onlyLastQuery(pQueryAttr)) {
         if (QUERY_IS_ASC_QUERY(pQueryAttr)) {
-          qDebug(msg, pQInfo, "only-last stable", pQueryAttr->order.order, TSDB_ORDER_DESC,
+          qDebug(msg, pQInfo->qId, "only-last stable", pQueryAttr->order.order, TSDB_ORDER_DESC,
                  pQueryAttr->window.skey, pQueryAttr->window.ekey, pQueryAttr->window.ekey, pQueryAttr->window.skey);
 
           SWAP(pQueryAttr->window.skey, pQueryAttr->window.ekey, TSKEY);
