@@ -1777,8 +1777,9 @@ int32_t tscParseLines(char* lines[], int numLines, SArray* points, SArray* faile
 
 int taos_insert_lines(TAOS* taos, char* lines[], int numLines) {
   int32_t code = 0;
-  if (numLines <= 0) {
-    tscError("taos_insert_lines numLines should be greater than zero. numLines: %d", numLines);
+
+  if (numLines <= 0 || numLines > 65536) {
+    tscError("taos_insert_lines numLines should be between 1 and 65536. numLines: %d", numLines);
     code = TSDB_CODE_TSC_APP_ERROR;
     return code;
   }
