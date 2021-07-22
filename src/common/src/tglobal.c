@@ -252,8 +252,8 @@ char lossyColumns[32] = "";  // "float|double" means all float and double column
 // below option can take effect when tsLossyColumns not empty 
 double   fPrecision   = 1E-8;   // float column precision
 double   dPrecision   = 1E-16;  // double column precision
-uint32_t maxRange = 500;    // max range
-uint32_t range    = 100;    // range
+uint32_t maxRange     = 500;    // max range
+uint32_t curRange     = 100;    // range
 char     Compressor[32] = "ZSTD_COMPRESSOR"; // ZSTD_COMPRESSOR or GZIP_COMPRESSOR 
 #endif
 
@@ -312,7 +312,6 @@ bool taosCfgDynamicOptions(char *msg) {
     
     int32_t cfgLen = (int32_t)strlen(cfg->option);
     if (cfgLen != olen) continue;
-y
     if (strncasecmp(cfg->option, "monitor", olen) == 0) {
       if (1 == vint) {
         if (monStartSystemFp) {
@@ -1570,7 +1569,7 @@ static void doInitGlobalConfig(void) {
   taosInitConfigOption(cfg);
 
   cfg.option = "range";
-  cfg.ptr = &range;
+  cfg.ptr = &curRange;
   cfg.valType = TAOS_CFG_VTYPE_INT32;
   cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG;
   cfg.minValue = 0;

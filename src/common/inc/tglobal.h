@@ -211,7 +211,7 @@ extern char lossyColumns[];
 extern double fPrecision;
 extern double dPrecision;
 extern uint32_t maxRange;
-extern uint32_t range;
+extern uint32_t curRange;
 extern char Compressor[];
 #endif
 
