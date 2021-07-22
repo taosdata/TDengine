@@ -1489,7 +1489,31 @@ static int32_t parseSmlTimeStamp(TAOS_SML_KV **pTS, const char **index) {
   return ret;
 }
 
-static int32_t parseSmlKey(TAOS_SML_KV *pKV, const char **index) {
+static bool checkDuplicateKey(char *key, SHashObj *pHash) {
+  char *val = NULL;
+  char *cur = key;
+  char keyLower[TSDB_COL_NAME_LEN];
+  size_t keyLen = 0;
+  while(*cur != '\0') {
+    keyLower[keyLen] = tolower(*cur);
+    keyLen++;
+    cur++;
+  }
+  keyLower[keyLen] = '\0';
+
+  val = taosHashGet(pHash, keyLower, keyLen);
+  if (val) {
+    tscError("Duplicate key:%s", keyLower);
+    return true;
+  }
+
+  uint8_t dummy_val = 0;
+  taosHashPut(pHash, keyLower, strlen(key), &dummy_val, sizeof(uint8_t));
+
+  return false;
+}
+
+static int32_t parseSmlKey(TAOS_SML_KV *pKV, const char **index, SHashObj *pHash) {
   const char *cur = *index;
   char key[TSDB_COL_NAME_LEN];
   uint16_t len = 0;
@@ -1517,6 +1541,10 @@ static int32_t parseSmlKey(TAOS_SML_KV *pKV, const char **index) {
     len++;
   }
   key[len] = '\0';
+
+  if (checkDuplicateKey(key, pHash)) {
+    return TSDB_CODE_TSC_LINE_SYNTAX_ERROR;
+  }
 
   pKV->key = calloc(len + 1, 1);
   memcpy(pKV->key, key, len + 1);
@@ -1608,7 +1636,8 @@ static int32_t parseSmlMeasurement(TAOS_SML_DATA_POINT *pSml, const char **index
 }
 
 static int32_t parseSmlKvPairs(TAOS_SML_KV **pKVs, int *num_kvs,
-                               const char **index, bool isField, TAOS_SML_DATA_POINT* smlData) {
+                               const char **index, bool isField,
+                               TAOS_SML_DATA_POINT* smlData, SHashObj *pHash) {
   const char *cur = *index;
   int32_t ret = TSDB_CODE_SUCCESS;
   TAOS_SML_KV *pkv;
@@ -1628,7 +1657,7 @@ static int32_t parseSmlKvPairs(TAOS_SML_KV **pKVs, int *num_kvs,
   }
 
   while (*cur != '\0') {
-    ret = parseSmlKey(pkv, &cur);
+    ret = parseSmlKey(pkv, &cur, pHash);
     if (ret) {
       tscError("Unable to parse key field");
       goto error;
@@ -1712,31 +1741,36 @@ int32_t tscParseLine(const char* sql, TAOS_SML_DATA_POINT* smlData) {
   int32_t ret = TSDB_CODE_SUCCESS;
   uint8_t has_tags = 0;
   TAOS_SML_KV *timestamp = NULL;
+  SHashObj *keyHashTable = taosHashInit(128, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, false);
 
   ret = parseSmlMeasurement(smlData, &index, &has_tags);
   if (ret) {
     tscError("Unable to parse measurement");
+    taosHashCleanup(keyHashTable);
     return ret;
   }
   tscDebug("Parse measurement finished, has_tags:%d", has_tags);
 
   //Parse Tags
   if (has_tags) {
-    ret = parseSmlKvPairs(&smlData->tags, &smlData->tagNum, &index, false, smlData);
+    ret = parseSmlKvPairs(&smlData->tags, &smlData->tagNum, &index, false, smlData, keyHashTable);
     if (ret) {
       tscError("Unable to parse tag");
+      taosHashCleanup(keyHashTable);
       return ret;
     }
   }
   tscDebug("Parse tags finished, num of tags:%d", smlData->tagNum);
 
   //Parse fields
-  ret = parseSmlKvPairs(&smlData->fields, &smlData->fieldNum, &index, true, smlData);
+  ret = parseSmlKvPairs(&smlData->fields, &smlData->fieldNum, &index, true, smlData, keyHashTable);
   if (ret) {
     tscError("Unable to parse field");
+    taosHashCleanup(keyHashTable);
     return ret;
   }
   tscDebug("Parse fields finished, num of fields:%d", smlData->fieldNum);
+  taosHashCleanup(keyHashTable);
 
   //Parse timestamp
   ret = parseSmlTimeStamp(&timestamp, &index);
