@@ -735,7 +735,7 @@ static FORCE_INLINE void insertDataToTablePostEntry(int32_t* affectedRows, int64
 }
 
 static void insertDataToTablePostEntryPacked(void** args) {
-  return insertDataToTablePostEntry(*args, *(args+1));
+  insertDataToTablePostEntry(*args, *(args+1));
 }
 
 static void* allocBytesFromBufferPoolPacked(void **args) {
