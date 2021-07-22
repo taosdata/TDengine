@@ -742,7 +742,7 @@ static void insertDataToTablePostEntryPacked(void** args) {
 
 static void* allocBytesFromBufferPoolPacked(void **args) {
   void *pData = args[1];
-  void* pMem = tsdbAllocBytes(*args, memRowLen(pData));
+  void* pMem = tsdbAllocBytes(*args, memRowTLen(pData));
   memRowCpy(pMem, pData);
   return pMem;
 }

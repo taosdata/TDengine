@@ -19,8 +19,7 @@
 extern "C" {
 #endif
 
-#include "osDef.h"
-#include "tarray.h"
+#include "os.h"
 
 //TODO: hard to use, trying to rewrite it using va_list
 
