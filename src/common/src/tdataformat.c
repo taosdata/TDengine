@@ -815,7 +815,7 @@ SMemRow mergeTwoMemRows(void *buffer, SMemRow row1, SMemRow row2, STSchema *pSch
 
   while (i < nCols1) {
     STColumn *pCol = schemaColAt(pSchema1, i);
-    void *    val1 = tdGetMemRowDataOfColEx(row1, pCol->colId, pCol->type, pCol->offset, &kvIdx1);
+    void *    val1 = tdGetMemRowDataOfColEx(row1, pCol->colId, pCol->type, TD_DATA_ROW_HEAD_SIZE + pCol->offset, &kvIdx1);
     // if val1 != NULL, use val1;
     if (val1 != NULL && !isNull(val1, pCol->type)) {
       tdAppendColVal(dataRow, val1, pCol->type, pCol->offset);
@@ -834,7 +834,7 @@ SMemRow mergeTwoMemRows(void *buffer, SMemRow row1, SMemRow row2, STSchema *pSch
         continue;
       }
       if (tCol->colId == pCol->colId) {
-        val2 = tdGetMemRowDataOfColEx(row2, tCol->colId, tCol->type, tCol->offset, &kvIdx2);
+        val2 = tdGetMemRowDataOfColEx(row2, tCol->colId, tCol->type, TD_DATA_ROW_HEAD_SIZE + tCol->offset, &kvIdx2);
       } else if (tCol->colId > pCol->colId) {
         // set NULL
       }
