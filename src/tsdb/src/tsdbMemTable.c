@@ -1005,7 +1005,7 @@ static void updateTableLatestColumn(STsdbRepo *pRepo, STable *pTable, SMemRow ro
   }
 
   SDataCol *pLatestCols = pTable->lastCols;
-
+  int32_t   kvIdx = 0;
   for (int16_t j = 0; j < schemaNCols(pSchema); j++) {
     STColumn *pTCol = schemaColAt(pSchema, j);
     // ignore not exist colIdå
@@ -1016,7 +1016,8 @@ static void updateTableLatestColumn(STsdbRepo *pRepo, STable *pTable, SMemRow ro
 
     void *value = NULL;
 
-    value = tdGetMemRowDataOfCol(row, pTCol->colId, (int8_t)pTCol->type, TD_DATA_ROW_HEAD_SIZE + pSchema->columns[j].offset);
+    value = tdGetMemRowDataOfColEx(row, pTCol->colId, (int8_t)pTCol->type,
+                                   TD_DATA_ROW_HEAD_SIZE + pSchema->columns[j].offset, &kvIdx);
 
     if ((value == NULL) || isNull(value, pTCol->type)) {
       continue;
