@@ -697,7 +697,7 @@ typedef struct {
   char*   colVal;
 } SColInfo;
 
-FORCE_INLINE void setSColInfo(SColInfo* colInfo, int16_t colId, uint8_t colType, char* colVal) {
+static FORCE_INLINE void setSColInfo(SColInfo* colInfo, int16_t colId, uint8_t colType, char* colVal) {
   colInfo->colId = colId;
   colInfo->colType = colType;
   colInfo->colVal = colVal;

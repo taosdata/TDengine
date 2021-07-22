@@ -31,11 +31,11 @@ int tsdbMergeBufMakeSureRoom(SMergeBuf *pBuf, STSchema* pSchema1, STSchema* pSch
 
 SDataRow tsdbMergeTwoRows(SMergeBuf *pBuf, SMemRow row1, SMemRow row2, STSchema *pSchema1, STSchema *pSchema2);
 
-FORCE_INLINE SMergeBuf tsdbMakeBuf(int size) {
+static FORCE_INLINE SMergeBuf tsdbMakeBuf(int size) {
   return malloc(size);
 }
 
-FORCE_INLINE void tsdbFreeMergeBuf(SMergeBuf buf) {
+static FORCE_INLINE void tsdbFreeMergeBuf(SMergeBuf buf) {
   if(buf) free(buf);
 }
 
