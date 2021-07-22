@@ -96,7 +96,6 @@ static SLogBuff *taosLogBuffNew(int32_t bufSize);
 static void      taosCloseLogByFd(int32_t oldFd);
 static int32_t   taosOpenLogFile(char *fn, int32_t maxLines, int32_t maxFileNum);
 extern void      taosPrintGlobalCfg();
-static volatile int8_t tsNoDisk = 0;
 
 static int32_t taosStartLog() {
   pthread_attr_t threadAttr;
@@ -178,6 +177,8 @@ static void taosKeepOldLog(char *oldName) {
 static void *taosThreadToOpenNewFile(void *param) {
   char keepName[LOG_FILE_NAME_LEN + 20];
   sprintf(keepName, "%s.%d", tsLogObj.logName, tsLogObj.flag);
+
+  setThreadName("openNewFile");
 
   tsLogObj.flag ^= 1;
   tsLogObj.lines = 0;
@@ -375,17 +376,8 @@ void taosFormatLineNum(char* result, const char *flag, const char *filename, int
 
 void taosPrintLog(const char *flags, const char *file, int line, int32_t dflag, const char *format, ...) {
   if (tsTotalLogDirGB != 0 && tsAvailLogDirGB < tsMinimalLogDirGB) {
-    char buf[8192] = "\0";
-    sprintf(buf, "server disk:%s space remain %.3f GB, total %.1f GB, stop print log.\n", tsLogDir, tsAvailLogDirGB,
-            tsTotalLogDirGB);
-    if (atomic_val_compare_exchange_8(&tsNoDisk, 0, 1) == 1) {
-      taosWrite(tsLogObj.logHandle->fd, buf, (uint32_t)strlen(buf));
-    }
-    puts(buf);
     fflush(stdout);
     return;
-  } else {
-    atomic_store_8(&tsNoDisk, 0);
   }
 
   char tag[50] = "\0";
@@ -708,6 +700,8 @@ static void taosWriteLog(SLogBuff *tLogBuff) {
 
 static void *taosAsyncOutputLog(void *param) {
   SLogBuff *tLogBuff = (SLogBuff *)param;
+
+  setThreadName("asyncOutputLog");
   
   while (1) {
     //tsem_wait(&(tLogBuff->buffNotEmpty));

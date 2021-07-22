@@ -40,7 +40,9 @@
 #include "dnodeShell.h"
 #include "dnodeTelemetry.h"
 #include "module.h"
+#include "qScript.h"
 #include "mnode.h"
+#include "tscompression.h"
 
 #if !defined(_MODULE) || !defined(_TD_LINUX)
 int32_t moduleStart() { return 0; }
@@ -84,6 +86,7 @@ static SStep tsDnodeSteps[] = {
   {"dnode-shell",     dnodeInitShell,      dnodeCleanupShell},
   {"dnode-statustmr", dnodeInitStatusTimer,dnodeCleanupStatusTimer},
   {"dnode-telemetry", dnodeInitTelemetry,  dnodeCleanupTelemetry},
+  {"dnode-script",    scriptEnvPoolInit,   scriptEnvPoolCleanup},
 };
 
 static SStep tsDnodeCompactSteps[] = {
@@ -234,6 +237,12 @@ static void dnodeCheckDataDirOpenned(char *dir) {
 }
 
 static int32_t dnodeInitStorage() {
+#ifdef TD_TSZ
+  // compress module init
+  tsCompressInit();
+#endif
+
+  // storage module init
   if (tsDiskCfgNum == 1 && dnodeCreateDir(tsDataDir) < 0) {
     dError("failed to create dir: %s, reason: %s", tsDataDir, strerror(errno));
     return -1;
@@ -266,7 +275,7 @@ static int32_t dnodeInitStorage() {
       return -1;
     }
   }
-  //TODO(dengyihao): no need to init here 
+  //TODO(dengyihao): no need to init here
   if (dnodeCreateDir(tsMnodeDir) < 0) {
    dError("failed to create dir: %s, reason: %s", tsMnodeDir, strerror(errno));
    return -1;
@@ -309,7 +318,15 @@ static int32_t dnodeInitStorage() {
   return 0;
 }
 
-static void dnodeCleanupStorage() { tfsDestroy(); }
+static void dnodeCleanupStorage() {
+  // storage destroy
+  tfsDestroy(); 
+
+ #ifdef TD_TSZ 
+  // compress destroy
+  tsCompressExit();
+ #endif 
+}
 
 bool  dnodeIsFirstDeploy() {
   return strcmp(tsFirst, tsLocalEp) == 0;
