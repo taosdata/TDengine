@@ -368,6 +368,7 @@ python3 test.py -f  alter/alter_create_exception.py
 python3 test.py -f tools/taosdemoAllTest/taosdemoTestSupportNanoInsert.py
 python3 test.py -f tools/taosdemoAllTest/taosdemoTestSupportNanoQuery.py
 python3 test.py -f tools/taosdemoAllTest/taosdemoTestSupportNanosubscribe.py
+python3 test.py -f tools/taosdemoAllTest/taosdemoTestInsertTime_step.py
 python3 ./test.py -f insert/flushwhiledrop.py
 
 #======================p4-end===============

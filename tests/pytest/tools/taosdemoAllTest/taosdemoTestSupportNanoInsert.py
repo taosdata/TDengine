@@ -64,8 +64,7 @@ class TDTestCase:
         tdSql.query("select count(*) from stb0")
         tdSql.checkData(0, 0, 10000000)
         tdSql.query("describe stb0")
-        tdSql.getData(8, 1)
-        tdSql.checkDataType(8, 1,"TIMESTAMP")
+        tdSql.checkDataType(9, 1,"TIMESTAMP")
         tdSql.query("select last(ts) from stb0")
         tdSql.getData(0, 0)
 
@@ -79,7 +78,7 @@ class TDTestCase:
         tdSql.checkData(0, 0, 10000000)
         # check c8 is an nano timestamp
         tdSql.query("describe stb1")
-        tdSql.checkDataType(8, 1,"TIMESTAMP")
+        tdSql.checkDataType(9, 1,"TIMESTAMP")
         # check insert timestamp_step is nano_second
         tdSql.query("select last(ts) from stb1")
         tdSql.checkData(0, 0,"2021-07-01 00:01:39.990000000") 
@@ -99,7 +98,7 @@ class TDTestCase:
         tdSql.checkData(0, 0, 100000)
         # check c8 is an nano timestamp
         tdSql.query("describe stb0")
-        tdSql.checkDataType(8,1,"TIMESTAMP")
+        tdSql.checkDataType(9,1,"TIMESTAMP")
 
         # insert by csv files and timetamp is long int , strings  in ts and cols 
         
@@ -118,16 +117,6 @@ class TDTestCase:
         
         os.system("rm -rf ./insert_res.txt")
         os.system("rm -rf tools/taosdemoAllTest/taosdemoTestSupportNano*.py.sql")
-       
-
-
-
-        
-
-
-
-
-        
         # taosdemo test insert with command and parameter , detals show taosdemo --help
 
         os.system("%staosdemo  -u root -P taosdata -p 6030 -h vm84 -a 1  -m pre -n 10 -T 20 -t 60 -o res.txt -y " % binPath)
@@ -140,13 +129,26 @@ class TDTestCase:
 
         # check taosdemo -s
 
-        os.system("%staosdemo  -s tools/taosdemoAllTest/taosdemoTestNanoCreateDB.sql  -y " % binPath)
+        sqls_ls = ['drop database  if exists nsdbsql;','create database nsdbsql precision "ns" keep 36 days 6 update 1;',
+                'use nsdbsql;','CREATE STABLE meters (ts timestamp, current float, voltage int, phase float) TAGS (location binary(64), groupdId int);',
+                'CREATE TABLE d1001 USING meters TAGS ("Beijing.Chaoyang", 2);',
+                'INSERT INTO d1001 USING METERS TAGS ("Beijng.Chaoyang", 2) VALUES (now, 10.2, 219, 0.32);',
+                'INSERT INTO d1001 USING METERS TAGS ("Beijng.Chaoyang", 2) VALUES (now, 85, 32, 0.76);']
+
+        with open("./taosdemoTestNanoCreateDB.sql",mode ="a" ) as sql_files:
+            for sql in sqls_ls:
+                sql_files.write(sql+"\n")
+            sql_files.close()
+
+        sleep(10)
+
+        os.system("%staosdemo  -s taosdemoTestNanoCreateDB.sql  -y " % binPath)
         tdSql.query("select count(*) from nsdbsql.meters")
         tdSql.checkData(0, 0, 2)
       
-
-
         os.system("rm -rf ./res.txt")
+        os.system("rm -rf ./*.py.sql")
+        os.system("rm -rf ./taosdemoTestNanoCreateDB.sql")
        
 
     def stop(self):
