@@ -1,6 +1,7 @@
 package com.taosdata.jdbc;
 
 import java.util.HashSet;
+import java.util.Set;
 
 public class TSDBErrorNumbers {
 
@@ -25,6 +26,7 @@ public class TSDBErrorNumbers {
     public static final int ERROR_INVALID_SQL = 0x2313;     // invalid sql
     public static final int ERROR_NUMERIC_VALUE_OUT_OF_RANGE = 0x2314;  // numeric value out of range
     public static final int ERROR_UNKNOWN_TAOS_TYPE_IN_TDENGINE = 0x2315; //unknown taos type in tdengine
+    public static final int ERROR_UNKNOWN_TIMESTAMP_PERCISION = 0x2316;     // unknown timestamp precision
 
     public static final int ERROR_UNKNOWN = 0x2350;    //unknown error
 
@@ -38,10 +40,9 @@ public class TSDBErrorNumbers {
     public static final int ERROR_JNI_FETCH_END = 0x2358;       // fetch to the end of resultSet
     public static final int ERROR_JNI_OUT_OF_MEMORY = 0x2359;   // JNI alloc memory failed
 
-    private static final HashSet<Integer> errorNumbers;
+    private static final Set<Integer> errorNumbers = new HashSet<>();
 
     static {
-        errorNumbers = new HashSet();
         errorNumbers.add(ERROR_CONNECTION_CLOSED);
         errorNumbers.add(ERROR_UNSUPPORTED_METHOD);
         errorNumbers.add(ERROR_INVALID_VARIABLE);
@@ -62,8 +63,8 @@ public class TSDBErrorNumbers {
         errorNumbers.add(ERROR_INVALID_SQL);
         errorNumbers.add(ERROR_NUMERIC_VALUE_OUT_OF_RANGE);
         errorNumbers.add(ERROR_UNKNOWN_TAOS_TYPE_IN_TDENGINE);
+        errorNumbers.add(ERROR_UNKNOWN_TIMESTAMP_PERCISION);
 
-        /*****************************************************/
         errorNumbers.add(ERROR_SUBSCRIBE_FAILED);
         errorNumbers.add(ERROR_UNSUPPORTED_ENCODING);
         errorNumbers.add(ERROR_JNI_TDENGINE_ERROR);

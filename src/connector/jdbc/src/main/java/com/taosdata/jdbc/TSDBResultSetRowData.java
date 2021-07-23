@@ -26,7 +26,7 @@ import java.util.Collections;
 public class TSDBResultSetRowData {
 
     private ArrayList<Object> data;
-    private int colSize;
+    private final int colSize;
 
     public TSDBResultSetRowData(int colSize) {
         this.colSize = colSize;
@@ -147,30 +147,14 @@ public class TSDBResultSetRowData {
             case TSDBConstants.TSDB_DATA_TYPE_NCHAR:
             case TSDBConstants.TSDB_DATA_TYPE_BINARY:
                 return Integer.parseInt((String) obj);
-            case TSDBConstants.TSDB_DATA_TYPE_UTINYINT: {
-                Byte value = (byte) obj;
-                if (value < 0)
-                    throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_NUMERIC_VALUE_OUT_OF_RANGE);
-                return value;
-            }
-            case TSDBConstants.TSDB_DATA_TYPE_USMALLINT: {
-                short value = (short) obj;
-                if (value < 0)
-                    throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_NUMERIC_VALUE_OUT_OF_RANGE);
-                return value;
-            }
-            case TSDBConstants.TSDB_DATA_TYPE_UINT: {
-                int value = (int) obj;
-                if (value < 0)
-                    throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_NUMERIC_VALUE_OUT_OF_RANGE);
-                return value;
-            }
-            case TSDBConstants.TSDB_DATA_TYPE_UBIGINT: {
-                long value = (long) obj;
-                if (value < 0)
-                    throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_NUMERIC_VALUE_OUT_OF_RANGE);
-                return Long.valueOf(value).intValue();
-            }
+            case TSDBConstants.TSDB_DATA_TYPE_UTINYINT:
+                return parseUnsignedTinyIntToInt(obj);
+            case TSDBConstants.TSDB_DATA_TYPE_USMALLINT:
+                return parseUnsignedSmallIntToInt(obj);
+            case TSDBConstants.TSDB_DATA_TYPE_UINT:
+                return parseUnsignedIntegerToInt(obj);
+            case TSDBConstants.TSDB_DATA_TYPE_UBIGINT:
+                return parseUnsignedBigIntToInt(obj);
             case TSDBConstants.TSDB_DATA_TYPE_FLOAT:
                 return ((Float) obj).intValue();
             case TSDBConstants.TSDB_DATA_TYPE_DOUBLE:
@@ -179,6 +163,35 @@ public class TSDBResultSetRowData {
                 return 0;
         }
     }
+
+    private byte parseUnsignedTinyIntToInt(Object obj) throws SQLException {
+        byte value = (byte) obj;
+        if (value < 0)
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_NUMERIC_VALUE_OUT_OF_RANGE);
+        return value;
+    }
+
+    private short parseUnsignedSmallIntToInt(Object obj) throws SQLException {
+        short value = (short) obj;
+        if (value < 0)
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_NUMERIC_VALUE_OUT_OF_RANGE);
+        return value;
+    }
+
+    private int parseUnsignedIntegerToInt(Object obj) throws SQLException {
+        int value = (int) obj;
+        if (value < 0)
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_NUMERIC_VALUE_OUT_OF_RANGE);
+        return value;
+    }
+
+    private int parseUnsignedBigIntToInt(Object obj) throws SQLException {
+        long value = (long) obj;
+        if (value < 0)
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_NUMERIC_VALUE_OUT_OF_RANGE);
+        return Long.valueOf(value).intValue();
+    }
+
 
     /**
      * $$$ this method is invoked by databaseMetaDataResultSet and so on which use a index start from 1 in JDBC api
@@ -216,7 +229,7 @@ public class TSDBResultSetRowData {
             case TSDBConstants.TSDB_DATA_TYPE_BINARY:
                 return Long.parseLong((String) obj);
             case TSDBConstants.TSDB_DATA_TYPE_UTINYINT: {
-                Byte value = (byte) obj;
+                byte value = (byte) obj;
                 if (value < 0)
                     throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_NUMERIC_VALUE_OUT_OF_RANGE);
                 return value;
@@ -377,27 +390,27 @@ public class TSDBResultSetRowData {
 
         switch (nativeType) {
             case TSDBConstants.TSDB_DATA_TYPE_UTINYINT: {
-                Byte value = new Byte(String.valueOf(obj));
+                byte value = new Byte(String.valueOf(obj));
                 if (value >= 0)
-                    return value.toString();
+                    return Byte.toString(value);
                 return Integer.toString(value & 0xff);
             }
             case TSDBConstants.TSDB_DATA_TYPE_USMALLINT: {
-                Short value = new Short(String.valueOf(obj));
+                short value = new Short(String.valueOf(obj));
                 if (value >= 0)
-                    return value.toString();
+                    return Short.toString(value);
                 return Integer.toString(value & 0xffff);
             }
             case TSDBConstants.TSDB_DATA_TYPE_UINT: {
-                Integer value = new Integer(String.valueOf(obj));
+                int value = new Integer(String.valueOf(obj));
                 if (value >= 0)
-                    return value.toString();
-                return Long.toString(value & 0xffffffffl);
+                    return Integer.toString(value);
+                return Long.toString(value & 0xffffffffL);
             }
             case TSDBConstants.TSDB_DATA_TYPE_UBIGINT: {
-                Long value = new Long(String.valueOf(obj));
+                long value = new Long(String.valueOf(obj));
                 if (value >= 0)
-                    return value.toString();
+                    return Long.toString(value);
                 long lowValue = value & 0x7fffffffffffffffL;
                 return BigDecimal.valueOf(lowValue).add(BigDecimal.valueOf(Long.MAX_VALUE)).add(BigDecimal.valueOf(1)).toString();
             }
@@ -414,11 +427,45 @@ public class TSDBResultSetRowData {
      * $$$ this method is invoked by databaseMetaDataResultSet and so on which use a index start from 1 in JDBC api
      */
     public void setTimestampValue(int colIndex, long value) {
-        setTimestamp(colIndex - 1, value);
+        setTimestamp(colIndex - 1, value, 0);
     }
 
     /**
      * !!! this method is invoked by JNI method and the index start from 0 in C implementations
+     *
+     * @param precision 0 : ms, 1 : us, 2 : ns
+     */
+    public void setTimestamp(int col, long ts, int precision) {
+        long milliseconds;
+        int fracNanoseconds;
+        switch (precision) {
+            case 0: {
+                milliseconds = ts;
+                fracNanoseconds = (int) (ts * 1_000_000 % 1_000_000_000);
+                break;
+            }
+            case 1: {
+                milliseconds = ts / 1_000;
+                fracNanoseconds = (int) (ts * 1_000 % 1_000_000_000);
+                break;
+            }
+            case 2: {
+                milliseconds = ts / 1_000_000;
+                fracNanoseconds = (int) (ts % 1_000_000_000);
+                break;
+            }
+            default: {
+                throw new IllegalArgumentException("precision is not valid. precision: " + precision);
+            }
+        }
+
+        Timestamp tsObj = new Timestamp(milliseconds);
+        tsObj.setNanos(fracNanoseconds);
+        data.set(col, tsObj);
+    }
+
+    /**
+     * this implementation is used for TDengine old version
      */
     public void setTimestamp(int col, long ts) {
         //TODO: this implementation contains logical error
@@ -429,8 +476,8 @@ public class TSDBResultSetRowData {
         if (ts < 1_0000_0000_0000_0L) {
             data.set(col, new Timestamp(ts));
         } else {
-            long epochSec = ts / 1000_000l;
-            long nanoAdjustment = ts % 1000_000l * 1000l;
+            long epochSec = ts / 1000_000L;
+            long nanoAdjustment = ts % 1000_000L * 1000L;
             Timestamp timestamp = Timestamp.from(Instant.ofEpochSecond(epochSec, nanoAdjustment));
             data.set(col, timestamp);
         }
@@ -440,12 +487,10 @@ public class TSDBResultSetRowData {
         Object obj = data.get(col - 1);
         if (obj == null)
             return null;
-        switch (nativeType) {
-            case TSDBConstants.TSDB_DATA_TYPE_BIGINT:
-                return new Timestamp((Long) obj);
-            default:
-                return (Timestamp) obj;
+        if (nativeType == TSDBConstants.TSDB_DATA_TYPE_BIGINT) {
+            return new Timestamp((Long) obj);
         }
+        return (Timestamp) obj;
     }
 
     public Object getObject(int col) {

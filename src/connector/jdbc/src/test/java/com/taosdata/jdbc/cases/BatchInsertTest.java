@@ -60,7 +60,6 @@ public class BatchInsertTest {
             final int index = i;
             executorService.execute(() -> {
                 try {
-                    long startTime = System.currentTimeMillis();
                     Statement statement = connection.createStatement(); // get statement
                     StringBuilder sb = new StringBuilder();
                     sb.append("INSERT INTO " + tablePrefix + index + " VALUES");
@@ -73,8 +72,6 @@ public class BatchInsertTest {
                     }
                     statement.addBatch(sb.toString());
                     statement.executeBatch();
-                    long endTime = System.currentTimeMillis();
-                    System.out.println("Thread " + index + " takes " + (endTime - startTime) + " microseconds");
                     connection.commit();
                     statement.close();
                 } catch (Exception e) {

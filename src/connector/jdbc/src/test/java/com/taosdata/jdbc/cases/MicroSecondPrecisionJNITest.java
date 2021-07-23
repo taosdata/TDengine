@@ -10,7 +10,7 @@ import org.junit.Test;
 import java.sql.*;
 import java.util.Properties;
 
-public class TwoTypeTimestampPercisionInJniTest {
+public class MicroSecondPrecisionJNITest {
 
     private static final String host = "127.0.0.1";
     private static final String ms_timestamp_db = "ms_precision_test";
@@ -41,7 +41,6 @@ public class TwoTypeTimestampPercisionInJniTest {
             rs.next();
 
             Timestamp timestamp = rs.getTimestamp(1);
-            System.out.println(timestamp);
             long ts = timestamp.getTime();
             Assert.assertEquals(timestamp1, ts);
             int nanos = timestamp.getNanos();

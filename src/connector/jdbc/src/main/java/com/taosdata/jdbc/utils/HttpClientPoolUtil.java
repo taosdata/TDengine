@@ -9,6 +9,7 @@ import org.apache.http.client.protocol.HttpClientContext;
 import org.apache.http.conn.ConnectionKeepAliveStrategy;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.impl.client.CloseableHttpClient;
+import org.apache.http.impl.client.DefaultHttpRequestRetryHandler;
 import org.apache.http.impl.client.HttpClients;
 import org.apache.http.impl.conn.PoolingHttpClientConnectionManager;
 import org.apache.http.message.BasicHeaderElementIterator;
@@ -16,31 +17,33 @@ import org.apache.http.protocol.HTTP;
 import org.apache.http.protocol.HttpContext;
 import org.apache.http.util.EntityUtils;
 
-import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 
 
 public class HttpClientPoolUtil {
 
     private static final String DEFAULT_CONTENT_TYPE = "application/json";
-    private static final String DEFAULT_TOKEN = "cm9vdDp0YW9zZGF0YQ==";
     private static final int DEFAULT_TIME_OUT = 15000;
     private static final int DEFAULT_MAX_PER_ROUTE = 32;
     private static final int DEFAULT_MAX_TOTAL = 1000;
     private static final int DEFAULT_HTTP_KEEP_TIME = 15000;
 
-    private static PoolingHttpClientConnectionManager connectionManager;
     private static CloseableHttpClient httpClient;
 
     private static synchronized void initPools() {
         if (httpClient == null) {
-            connectionManager = new PoolingHttpClientConnectionManager();
+            PoolingHttpClientConnectionManager connectionManager = new PoolingHttpClientConnectionManager();
             connectionManager.setDefaultMaxPerRoute(DEFAULT_MAX_PER_ROUTE);
             connectionManager.setMaxTotal(DEFAULT_MAX_TOTAL);
-            httpClient = HttpClients.custom().setKeepAliveStrategy(DEFAULT_KEEP_ALIVE_STRATEGY).setConnectionManager(connectionManager).build();
+            httpClient = HttpClients.custom()
+                    .setKeepAliveStrategy(DEFAULT_KEEP_ALIVE_STRATEGY)
+                    .setConnectionManager(connectionManager)
+                    .setRetryHandler(new DefaultHttpRequestRetryHandler(3, true))
+                    .build();
         }
     }
 
-    private static ConnectionKeepAliveStrategy DEFAULT_KEEP_ALIVE_STRATEGY = (response, context) -> {
+    private static final ConnectionKeepAliveStrategy DEFAULT_KEEP_ALIVE_STRATEGY = (response, context) -> {
         HeaderElementIterator it = new BasicHeaderElementIterator(response.headerIterator(HTTP.CONN_KEEP_ALIVE));
         int keepTime = DEFAULT_HTTP_KEEP_TIME * 1000;
         while (it.hasNext()) {
@@ -80,7 +83,7 @@ public class HttpClientPoolUtil {
             method.setHeader("Connection", "keep-alive");
             method.setHeader("Authorization", "Taosd " + token);
 
-            method.setEntity(new StringEntity(data, Charset.forName("UTF-8")));
+            method.setEntity(new StringEntity(data, StandardCharsets.UTF_8));
             HttpContext context = HttpClientContext.create();
             CloseableHttpResponse httpResponse = httpClient.execute(method, context);
             httpEntity = httpResponse.getEntity();
@@ -165,28 +168,18 @@ public class HttpClientPoolUtil {
             httpEntity = httpResponse.getEntity();
             if (httpEntity != null) {
                 responseBody = EntityUtils.toString(httpEntity, "UTF-8");
-//                logger.info("请求URL: " + uri + "+ 返回状态码：" + httpResponse.getStatusLine().getStatusCode());
             }
         } catch (Exception e) {
             if (method != null) {
                 method.abort();
             }
             e.printStackTrace();
-//            logger.error("execute get request exception, url:" + uri + ", exception:" + e.toString() + ",cost time(ms):"
-//                    + (System.currentTimeMillis() - startTime));
-            System.out.println("log:调用 HttpClientPoolUtil execute get request exception, url:" + uri + ", exception:" + e.toString() + ",cost time(ms):"
-                    + (System.currentTimeMillis() - startTime));
         } finally {
             if (httpEntity != null) {
                 try {
                     EntityUtils.consumeQuietly(httpEntity);
                 } catch (Exception e) {
-//                    e.printStackTrace();
-//                    logger.error("close response exception, url:" + uri + ", exception:" + e.toString()
-//                            + ",cost time(ms):" + (System.currentTimeMillis() - startTime));
-                    new Exception("close response exception, url:" + uri + ", exception:" + e.toString()
-                            + ",cost time(ms):" + (System.currentTimeMillis() - startTime))
-                            .printStackTrace();
+                    new Exception("close response exception, url:" + uri + ", exception:" + e.toString() + ",cost time(ms):" + (System.currentTimeMillis() - startTime)).printStackTrace();
                 }
             }
         }
