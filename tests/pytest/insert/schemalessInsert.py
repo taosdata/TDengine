@@ -216,8 +216,9 @@ class TDTestCase:
                         t4="9223372036854775807i64", t5="11.12345f32", t6="22.123456789f64", t7="\"binaryTagValue\"",
                         t8="L\"ncharTagValue\"", c0="", c1="127i8", c2="32767i16", c3="2147483647i32",
                         c4="9223372036854775807i64", c5="11.12345f32", c6="22.123456789f64", c7="\"binaryColValue\"", 
-                        c8="L\"ncharColValue\"", c9="7u64", ts="1626006833639000000ns", cl_add_tag=None,
-                        id_noexist_tag=None, id_change_tag=None, id_upper_tag=None, id_double_tag=None):
+                        c8="L\"ncharColValue\"", c9="7u64", ts="1626006833639000000ns",
+                        id_noexist_tag=None, id_change_tag=None, id_upper_tag=None, id_double_tag=None,
+                        ct_add_tag=None, ct_am_tag=None, ct_ma_tag=None, ct_min_tag=None):
         if stb_name == "":
             stb_name = self.getLongName(len=6, mode="letters")
         if tb_name == "":
@@ -234,14 +235,20 @@ class TDTestCase:
         sql_seq = f'{stb_name},{id}=\"{tb_name}\",t0={t0},t1={t1},t2={t2},t3={t3},t4={t4},t5={t5},t6={t6},t7={t7},t8={t8} c0={c0},c1={c1},c2={c2},c3={c3},c4={c4},c5={c5},c6={c6},c7={c7},c8={c8},c9={c9} {ts}'
         if id_noexist_tag is not None:
             sql_seq = f'{stb_name},t0={t0},t1={t1},t2={t2},t3={t3},t4={t4},t5={t5},t6={t6},t7={t7},t8={t8} c0={c0},c1={c1},c2={c2},c3={c3},c4={c4},c5={c5},c6={c6},c7={c7},c8={c8},c9={c9} {ts}'
-            if cl_add_tag is not None:
+            if ct_add_tag is not None:
                 sql_seq = f'{stb_name},t0={t0},t1={t1},t2={t2},t3={t3},t4={t4},t5={t5},t6={t6},t7={t7},t8={t8},t9={t8} c0={c0},c1={c1},c2={c2},c3={c3},c4={c4},c5={c5},c6={c6},c7={c7},c8={c8},c9={c9} {ts}'
         if id_change_tag is not None:
             sql_seq = f'{stb_name},t0={t0},t1={t1},{id}=\"{tb_name}\",t2={t2},t3={t3},t4={t4},t5={t5},t6={t6},t7={t7},t8={t8} c0={c0},c1={c1},c2={c2},c3={c3},c4={c4},c5={c5},c6={c6},c7={c7},c8={c8},c9={c9} {ts}'
         if id_double_tag is not None:
             sql_seq = f'{stb_name},{id}=\"{tb_name}_1\",t0={t0},t1={t1},{id}=\"{tb_name}_2\",t2={t2},t3={t3},t4={t4},t5={t5},t6={t6},t7={t7},t8={t8} c0={c0},c1={c1},c2={c2},c3={c3},c4={c4},c5={c5},c6={c6},c7={c7},c8={c8},c9={c9} {ts}'
-        if cl_add_tag is not None:
+        if ct_add_tag is not None:
             sql_seq = f'{stb_name},{id}=\"{tb_name}\",t0={t0},t1={t1},t2={t2},t3={t3},t4={t4},t5={t5},t6={t6},t7={t7},t8={t8},t11={t1},t10={t8} c0={c0},c1={c1},c2={c2},c3={c3},c4={c4},c5={c5},c6={c6},c7={c7},c8={c8},c9={c9},c11={c8},c10={t0} {ts}'
+        if ct_am_tag is not None:
+            sql_seq = f'{stb_name},{id}=\"{tb_name}\",t0={t0},t1={t1},t2={t2},t3={t3},t4={t4},t5={t5},t6={t6} c0={c0},c1={c1},c2={c2},c3={c3},c4={c4},c5={c5},c6={c6},c7={c7},c8={c8},c9={c9},c11={c8},c10={t0} {ts}'
+        if ct_ma_tag is not None:
+            sql_seq = f'{stb_name},{id}=\"{tb_name}\",t0={t0},t1={t1},t2={t2},t3={t3},t4={t4},t5={t5},t6={t6},t7={t7},t8={t8},t11={t1},t10={t8} c0={c0},c1={c1},c2={c2},c3={c3},c4={c4},c5={c5},c6={c6} {ts}'
+        if ct_min_tag is not None:
+            sql_seq = f'{stb_name},{id}=\"{tb_name}\",t0={t0},t1={t1},t2={t2},t3={t3},t4={t4},t5={t5},t6={t6} c0={c0},c1={c1},c2={c2},c3={c3},c4={c4},c5={c5},c6={c6} {ts}'
         return sql_seq, stb_name, tb_name
     
     def genMulTagColStr(self, genType, count):
@@ -657,7 +664,7 @@ class TDTestCase:
         input_sql, stb_name, tb_name = self.genFullTypeSql(t0="f", c0="f")
         print(input_sql)
         self.resCmp(input_sql, stb_name)
-        input_sql, stb_name, tb_name = self.genFullTypeSql(stb_name=stb_name, tb_name=f'{tb_name}', t0="f", c0="f", cl_add_tag=True)
+        input_sql, stb_name, tb_name = self.genFullTypeSql(stb_name=stb_name, tb_name=f'{tb_name}', t0="f", c0="f", ct_add_tag=True)
         print(input_sql)
         self.resCmp(input_sql, stb_name, condition=f'where tbname like "{tb_name}"')
 
@@ -667,7 +674,7 @@ class TDTestCase:
         """
         input_sql, stb_name, tb_name = self.genFullTypeSql(t0="f", c0="f")
         self.resCmp(input_sql, stb_name)
-        input_sql, stb_name, tb_name_1 = self.genFullTypeSql(stb_name=stb_name, tb_name=f'{tb_name}_1', t0="f", c0="f", cl_add_tag=True)
+        input_sql, stb_name, tb_name_1 = self.genFullTypeSql(stb_name=stb_name, tb_name=f'{tb_name}_1', t0="f", c0="f", ct_add_tag=True)
         self.resCmp(input_sql, stb_name, condition=f'where tbname like "{tb_name_1}"')
         res_row_list = self.resHandle(f"select c10,c11,t10,t11 from {tb_name}", True)[0]
         tdSql.checkEqual(res_row_list[0], ['None', 'None', 'None', 'None'])
@@ -687,7 +694,7 @@ class TDTestCase:
         tdSql.query(f"select * from {stb_name}")
         tdSql.checkRows(1)
         tdSql.checkEqual(tb_name1, tb_name2)
-        input_sql, stb_name, tb_name = self.genFullTypeSql(stb_name=stb_name, t0="f", c0="f", id_noexist_tag=True, cl_add_tag=True)
+        input_sql, stb_name, tb_name = self.genFullTypeSql(stb_name=stb_name, t0="f", c0="f", id_noexist_tag=True, ct_add_tag=True)
         self._conn.insertLines([input_sql])
         tb_name3 = self.getNoIdTbName(stb_name)
         tdSql.query(f"select * from {stb_name}")
@@ -793,10 +800,12 @@ class TDTestCase:
         d_stb_d_tb_list = list()
         s_stb_s_tb_list = list()
         s_stb_s_tb_a_col_a_tag_list = list()
+        s_stb_s_tb_m_col_m_tag_list = list()
         for i in range(count):
             d_stb_d_tb_list.append(self.genFullTypeSql(t0="f", c0="f"))
-            s_stb_s_tb_list.append(self.genFullTypeSql(t7=f'"{self.getLongName(8, "letters")}"', c7=f'{self.getLongName(8, "letters")}"', cl_add_tag=True))
-            s_stb_s_tb_a_col_a_tag_list.append(self.genFullTypeSql(t7=f'"{self.getLongName(8, "letters")}"', c7=f'{self.getLongName(8, "letters")}"'))
+            s_stb_s_tb_list.append(self.genFullTypeSql(t7=f'"{self.getLongName(8, "letters")}"', c7=f'{self.getLongName(8, "letters")}"'))
+            s_stb_s_tb_a_col_a_tag_list.append(self.genFullTypeSql(t7=f'"{self.getLongName(8, "letters")}"', c7=f'{self.getLongName(8, "letters")}"'), ct_add_tag=True)
+            s_stb_s_tb_m_col_m_tag_list.append(self.genFullTypeSql(t7=f'"{self.getLongName(8, "letters")}"', c7=f'{self.getLongName(8, "letters")}"'), ct_min_tag=True)
         return d_stb_d_tb_list, s_stb_s_tb_list, s_stb_s_tb_a_col_a_tag_list
 
     def genMultiThreadSeq(self, sql_list):
