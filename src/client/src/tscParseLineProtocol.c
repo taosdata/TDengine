@@ -1217,6 +1217,122 @@ static bool isTimeStamp(char *pVal, uint16_t len, SMLTimeStampType *tsType) {
   return false;
 }
 
+static bool convertStrToNumber(TAOS_SML_KV *pVal, char*str) {
+  errno = 0;
+  uint8_t type = pVal->type;
+  int16_t length = pVal->length;
+  int64_t val_s;
+  uint64_t val_u;
+  double val_d;
+
+  printf("origin str:%s\n", str);
+  if (IS_FLOAT_TYPE(type)) {
+    val_d = strtod(str, NULL);
+  } else {
+    if (IS_SIGNED_NUMERIC_TYPE(type)) {
+      val_s = strtoll(str, NULL, 10);
+    } else {
+      val_u = strtoull(str, NULL, 10);
+    }
+  }
+
+  if (errno == ERANGE) {
+    printf("out of range\n");
+    return false;
+  }
+
+  switch (type) {
+    case TSDB_DATA_TYPE_TINYINT:
+      if (!IS_VALID_TINYINT(val_s)) {
+        printf("tiny int out of range\n");
+        return false;
+      }
+      pVal->value = calloc(length, 1);
+      *(int8_t *)(pVal->value) = (int8_t)val_s;
+      printf("tiny int:%d\n", *(int8_t *)(pVal->value));
+      break;
+    case TSDB_DATA_TYPE_UTINYINT:
+      if (!IS_VALID_UTINYINT(val_u)) {
+        return false;
+      }
+      pVal->value = calloc(length, 1);
+      *(uint8_t *)(pVal->value) = (uint8_t)val_u;
+      printf("tiny uint:%u\n", *(uint8_t *)(pVal->value));
+      break;
+    case TSDB_DATA_TYPE_SMALLINT:
+      if (!IS_VALID_SMALLINT(val_s)) {
+        printf("small int out of range\n");
+        return false;
+      }
+      pVal->value = calloc(length, 1);
+      *(int16_t *)(pVal->value) = (int16_t)val_s;
+      printf("small int:%d\n", *(int16_t *)(pVal->value));
+      break;
+    case TSDB_DATA_TYPE_USMALLINT:
+      if (!IS_VALID_USMALLINT(val_u)) {
+        return false;
+      }
+      pVal->value = calloc(length, 1);
+      *(uint16_t *)(pVal->value) = (uint16_t)val_u;
+      printf("small uint:%u\n", *(uint16_t *)(pVal->value));
+      break;
+    case TSDB_DATA_TYPE_INT:
+      if (!IS_VALID_INT(val_s)) {
+        printf("int out of range\n");
+        return false;
+      }
+      pVal->value = calloc(length, 1);
+      *(int32_t *)(pVal->value) = (int32_t)val_s;
+      printf("int:%d\n", *(int32_t *)(pVal->value));
+      break;
+    case TSDB_DATA_TYPE_UINT:
+      if (!IS_VALID_UINT(val_u)) {
+        return false;
+      }
+      pVal->value = calloc(length, 1);
+      *(uint32_t *)(pVal->value) = (uint32_t)val_u;
+      printf("uint:%u\n", *(uint32_t *)(pVal->value));
+      break;
+    case TSDB_DATA_TYPE_BIGINT:
+      if (!IS_VALID_BIGINT(val_s)) {
+        printf("big int out of range\n");
+        return false;
+      }
+      pVal->value = calloc(length, 1);
+      *(int64_t *)(pVal->value) = (int64_t)val_s;
+      printf("big int:%ld\n", *(int64_t *)(pVal->value));
+      break;
+    case TSDB_DATA_TYPE_UBIGINT:
+      if (!IS_VALID_UBIGINT(val_u)) {
+        return false;
+      }
+      pVal->value = calloc(length, 1);
+      *(uint64_t *)(pVal->value) = (uint64_t)val_u;
+      printf("big uint:%lu\n", *(uint64_t *)(pVal->value));
+      break;
+    case TSDB_DATA_TYPE_FLOAT:
+      if (!IS_VALID_FLOAT(val_d)) {
+        printf("float out of range\n");
+        return false;
+      }
+      pVal->value = calloc(length, 1);
+      *(float *)(pVal->value) = (float)val_d;
+      printf("float:%.5e\n", *(float *)(pVal->value));
+      break;
+    case TSDB_DATA_TYPE_DOUBLE:
+      if (!IS_VALID_DOUBLE(val_d)) {
+        printf("double out of range\n");
+        return false;
+      }
+      pVal->value = calloc(length, 1);
+      *(double *)(pVal->value) = (double)val_d;
+      printf("double:%.5e\n", *(double *)(pVal->value));
+      break;
+    default:
+      return false;
+  }
+  return true;
+}
 //len does not include '\0' from value.
 static bool convertSmlValueType(TAOS_SML_KV *pVal, char *value,
                                 uint16_t len) {
@@ -1229,97 +1345,72 @@ static bool convertSmlValueType(TAOS_SML_KV *pVal, char *value,
     pVal->type = TSDB_DATA_TYPE_TINYINT;
     pVal->length = (int16_t)tDataTypes[pVal->type].bytes;
     value[len - 2] = '\0';
-    if (!isValidInteger(value)) {
+    if (!isValidInteger(value) || !convertStrToNumber(pVal, value)) {
       return false;
     }
-    pVal->value = calloc(pVal->length, 1);
-    int8_t val = (int8_t)strtoll(value, NULL, 10);
-    memcpy(pVal->value, &val, pVal->length);
     return true;
   }
   if (isTinyUint(value, len)) {
     pVal->type = TSDB_DATA_TYPE_UTINYINT;
     pVal->length = (int16_t)tDataTypes[pVal->type].bytes;
     value[len - 2] = '\0';
-    if (!isValidInteger(value)) {
+    if (!isValidInteger(value) || !convertStrToNumber(pVal, value)) {
       return false;
     }
-    pVal->value = calloc(pVal->length, 1);
-    uint8_t val = (uint8_t)strtoul(value, NULL, 10);
-    memcpy(pVal->value, &val, pVal->length);
     return true;
   }
   if (isSmallInt(value, len)) {
     pVal->type = TSDB_DATA_TYPE_SMALLINT;
     pVal->length = (int16_t)tDataTypes[pVal->type].bytes;
     value[len - 3] = '\0';
-    if (!isValidInteger(value)) {
+    if (!isValidInteger(value) || !convertStrToNumber(pVal, value)) {
       return false;
     }
-    pVal->value = calloc(pVal->length, 1);
-    int16_t val = (int16_t)strtoll(value, NULL, 10);
-    memcpy(pVal->value, &val, pVal->length);
     return true;
   }
   if (isSmallUint(value, len)) {
     pVal->type = TSDB_DATA_TYPE_USMALLINT;
     pVal->length = (int16_t)tDataTypes[pVal->type].bytes;
     value[len - 3] = '\0';
-    if (!isValidInteger(value)) {
+    if (!isValidInteger(value) || !convertStrToNumber(pVal, value)) {
       return false;
     }
-    pVal->value = calloc(pVal->length, 1);
-    uint16_t val = (uint16_t)strtoul(value, NULL, 10);
-    memcpy(pVal->value, &val, pVal->length);
-    //memcpy(pVal->value, &val, pVal->length);
     return true;
   }
   if (isInt(value, len)) {
     pVal->type = TSDB_DATA_TYPE_INT;
     pVal->length = (int16_t)tDataTypes[pVal->type].bytes;
     value[len - 3] = '\0';
-    if (!isValidInteger(value)) {
+    if (!isValidInteger(value) || !convertStrToNumber(pVal, value)) {
       return false;
     }
-    pVal->value = calloc(pVal->length, 1);
-    int32_t val = (int32_t)strtoll(value, NULL, 10);
-    memcpy(pVal->value, &val, pVal->length);
     return true;
   }
   if (isUint(value, len)) {
     pVal->type = TSDB_DATA_TYPE_UINT;
     pVal->length = (int16_t)tDataTypes[pVal->type].bytes;
     value[len - 3] = '\0';
-    if (!isValidInteger(value)) {
+    if (!isValidInteger(value) || !convertStrToNumber(pVal, value)) {
       return false;
     }
-    pVal->value = calloc(pVal->length, 1);
-    uint32_t val = (uint32_t)strtoul(value, NULL, 10);
-    memcpy(pVal->value, &val, pVal->length);
     return true;
   }
   if (isBigInt(value, len)) {
     pVal->type = TSDB_DATA_TYPE_BIGINT;
     pVal->length = (int16_t)tDataTypes[pVal->type].bytes;
     value[len - 3] = '\0';
-    if (!isValidInteger(value)) {
+    if (!isValidInteger(value) || !convertStrToNumber(pVal, value)) {
       return false;
     }
-    pVal->value = calloc(pVal->length, 1);
-    int64_t val = (int64_t)strtoll(value, NULL, 10);
-    memcpy(pVal->value, &val, pVal->length);
     return true;
   }
   if (isBigUint(value, len)) {
     pVal->type = TSDB_DATA_TYPE_UBIGINT;
     pVal->length = (int16_t)tDataTypes[pVal->type].bytes;
     value[len - 3] = '\0';
-    if (!isValidInteger(value)) {
+    if (!isValidInteger(value) || !convertStrToNumber(pVal, value)) {
       return false;
     }
-    pVal->value = calloc(pVal->length, 1);
-    uint64_t val = (uint64_t)strtoul(value, NULL, 10);
-    memcpy(pVal->value, &val, pVal->length);
     return true;
   }
   //floating number
@@ -1327,24 +1418,18 @@ static bool convertSmlValueType(TAOS_SML_KV *pVal, char *value,
     pVal->type = TSDB_DATA_TYPE_FLOAT;
     pVal->length = (int16_t)tDataTypes[pVal->type].bytes;
     value[len - 3] = '\0';
-    if (!isValidFloat(value)) {
+    if (!isValidFloat(value) || !convertStrToNumber(pVal, value)) {
       return false;
     }
-    pVal->value = calloc(pVal->length, 1);
-    float val = (float)strtold(value, NULL);
-    memcpy(pVal->value, &val, pVal->length);
     return true;
   }
   if (isDouble(value, len)) {
     pVal->type = TSDB_DATA_TYPE_DOUBLE;
     pVal->length = (int16_t)tDataTypes[pVal->type].bytes;
     value[len - 3] = '\0';
-    if (!isValidFloat(value)) {
+    if (!isValidFloat(value) || !convertStrToNumber(pVal, value)) {
       return false;
     }
-    pVal->value = calloc(pVal->length, 1);
-    double val = (double)strtold(value, NULL);
-    memcpy(pVal->value, &val, pVal->length);
     return true;
   }
   //binary
@@ -1554,6 +1639,7 @@ static bool parseSmlValue(TAOS_SML_KV *pKV, const char **index,
   if (!convertSmlValueType(pKV, value, len)) {
     //free previous alocated key field
     free(pKV->key);
+    pKV->key = NULL;
     free(value);
     return TSDB_CODE_TSC_LINE_SYNTAX_ERROR;
   }
@@ -1823,8 +1909,11 @@ int taos_insert_lines(TAOS* taos, char* lines[], int numLines) {
 
 cleanup:
   tscDebug("taos_insert_lines finish inserting %d lines. code: %d", numLines, code);
+  numPoints = taosArrayGetSize(lpPoints);
+  TAOS_SML_DATA_POINT* ppoints = TARRAY_GET_START(lpPoints);
+
   for (int i=0; i<numPoints; ++i) {
-    destroySmlDataPoint(points+i);
+    destroySmlDataPoint(ppoints+i);
   }
 
   taosArrayDestroy(lpPoints);
