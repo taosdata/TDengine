@@ -1146,6 +1146,7 @@ static int32_t mnodeRetrieveConfigs(SShowObj *pShow, char *data, int32_t rows, v
         numOfRows++;
         break;
       case TAOS_CFG_VTYPE_FLOAT:
+      case TAOS_CFG_VTYPE_DOUBLE:
         t = snprintf(varDataVal(pWrite), TSDB_CFG_VALUE_LEN, "%f", *((float *)cfg->ptr));
         varDataSetLen(pWrite, t);
         numOfRows++;
