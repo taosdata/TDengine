@@ -1048,13 +1048,14 @@ static int tsdbUpdateTableLatestInfo(STsdbRepo *pRepo, STable *pTable, SMemRow r
 
   // if cacheLastRow config has been reset, free the lastRow
   if (!pCfg->cacheLastRow && pTable->lastRow != NULL) {
-    taosTZfree(pTable->lastRow);
+    SMemRow cachedLastRow = pTable->lastRow;
     TSDB_WLOCK_TABLE(pTable);
     pTable->lastRow = NULL;
     TSDB_WUNLOCK_TABLE(pTable);
+    taosTZfree(cachedLastRow);
   }
 
-  if (tsdbGetTableLastKeyImpl(pTable) < memRowKey(row)) {
+  if (tsdbGetTableLastKeyImpl(pTable) <= memRowKey(row)) {
     if (CACHE_LAST_ROW(pCfg) || pTable->lastRow != NULL) {
       SMemRow nrow = pTable->lastRow;
       if (taosTSizeof(nrow) < memRowTLen(row)) {
