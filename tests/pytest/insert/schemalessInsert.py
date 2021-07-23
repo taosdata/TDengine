@@ -11,7 +11,6 @@
 
 # -*- coding: utf-8 -*-
 
-import sys
 import random
 import string
 import time
@@ -21,6 +20,7 @@ import numpy as np
 from util.log import *
 from util.cases import *
 from util.sql import *
+import threading
 
 
 class TDTestCase:
@@ -818,8 +818,8 @@ class TDTestCase:
         # self.tagMd5Check()
 
         # ! rollback bug
-        # self.tagColBinaryMaxLengthCheckCase()
-        self.tagColNcharMaxLengthCheckCase()
+        self.tagColBinaryMaxLengthCheckCase()
+        # self.tagColNcharMaxLengthCheckCase()
         
         # self.batchInsertCheckCase()
         
