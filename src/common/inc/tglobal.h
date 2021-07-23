@@ -210,8 +210,8 @@ extern int32_t debugFlag;
 extern char lossyColumns[];
 extern double fPrecision;
 extern double dPrecision;
-extern uint32_t maxIntervals;
-extern uint32_t intervals;
+extern uint32_t maxRange;
+extern uint32_t curRange;
 extern char Compressor[];
 #endif
 
