@@ -600,7 +600,7 @@ static void parse_timestamp(
                 tmpEpoch = atoll(tmp);
             }
 
-            sprintf(argv[i], "%"PRId64"", tmpEpoch);
+            sprintf(argv[i+1], "%"PRId64"", tmpEpoch);
             debugPrint("%s() LN%d, tmp is: %s, argv[%d]: %s\n",
                     __func__, __LINE__, tmp, i, argv[i]);
             free(tmp);

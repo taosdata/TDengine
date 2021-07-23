@@ -61,6 +61,24 @@ static void taosReadFloatConfig(SGlobalCfg *cfg, char *input_value) {
   }
 }
 
+static void taosReadDoubleConfig(SGlobalCfg *cfg, char *input_value) {
+  double  value = atof(input_value);
+  double *option = (double *)cfg->ptr;
+  if (value < cfg->minValue || value > cfg->maxValue) {
+    uError("config option:%s, input value:%s, out of range[%f, %f], use default value:%f",
+           cfg->option, input_value, cfg->minValue, cfg->maxValue, *option);
+  } else {
+    if (cfg->cfgStatus <= TAOS_CFG_CSTATUS_FILE) {
+      *option = value;
+      cfg->cfgStatus = TAOS_CFG_CSTATUS_FILE;
+    } else {
+      uWarn("config option:%s, input value:%s, is configured by %s, use %f", cfg->option, input_value,
+            tsCfgStatusStr[cfg->cfgStatus], *option);
+    }
+  }
+}
+
+
 static void taosReadInt32Config(SGlobalCfg *cfg, char *input_value) {
   int32_t  value = atoi(input_value);
   int32_t *option = (int32_t *)cfg->ptr;
@@ -262,6 +280,9 @@ static void taosReadConfigOption(const char *option, char *value, char *value2, 
       case TAOS_CFG_VTYPE_FLOAT:
         taosReadFloatConfig(cfg, value);
         break;
+      case TAOS_CFG_VTYPE_DOUBLE:
+        taosReadDoubleConfig(cfg, value);
+        break;
       case TAOS_CFG_VTYPE_STRING:
         taosReadStringConfig(cfg, value);
         break;
@@ -462,6 +483,9 @@ void taosPrintGlobalCfg() {
         break;
       case TAOS_CFG_VTYPE_FLOAT:
         uInfo(" %s:%s%f%s", cfg->option, blank, *((float *)cfg->ptr), tsGlobalUnit[cfg->unitType]);
+        break;
+      case TAOS_CFG_VTYPE_DOUBLE:
+        uInfo(" %s:%s%f%s", cfg->option, blank, *((double *)cfg->ptr), tsGlobalUnit[cfg->unitType]);
         break;
       case TAOS_CFG_VTYPE_STRING:
       case TAOS_CFG_VTYPE_IPSTR:

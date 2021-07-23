@@ -11,7 +11,7 @@ IF (TD_LINUX)
 
   # set the static lib name
   ADD_LIBRARY(taos_static STATIC ${SRC})
-  TARGET_LINK_LIBRARIES(taos_static common query trpc tutil pthread m rt)
+  TARGET_LINK_LIBRARIES(taos_static common query trpc tutil pthread m rt ${VAR_TSZ})
   SET_TARGET_PROPERTIES(taos_static PROPERTIES OUTPUT_NAME "taos_static")
   SET_TARGET_PROPERTIES(taos_static PROPERTIES CLEAN_DIRECT_OUTPUT 1)
 
