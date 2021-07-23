@@ -77,6 +77,9 @@ static FORCE_INLINE SHashNode *doSearchInEntryList(SHashObj *pHashObj, SHashEntr
   SHashNode *pNode = pe->next;
   while (pNode) {
     if ((pNode->keyLen == keyLen) && ((*(pHashObj->equalFp))(GET_HASH_NODE_KEY(pNode), key, keyLen) == 0) && pNode->removed == 0) {
+      if (pNode->hashVal != hashVal) {
+        printf("error hash:%p %u %s", pNode, pNode->hashVal, (char*)key);
+      }
       assert(pNode->hashVal == hashVal);
       break;
     }
@@ -686,6 +689,7 @@ SHashNode *doCreateHashNode(const void *key, size_t keyLen, const void *pData, s
 
   pNewNode->keyLen = (uint32_t)keyLen;
   pNewNode->hashVal = hashVal;
+  printf("create new node:%p,%u,%s\n", pNewNode, hashVal, (char*)key);
   pNewNode->dataLen = (uint32_t) dsize;
   pNewNode->count = 1;
 

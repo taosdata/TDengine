@@ -20,6 +20,7 @@
 #include "hash.h"
 
 static cacheItem* cacheFindItemByKey(cacheTable* pTable, const char* key, uint8_t nkey, cacheItem **ppPrev);
+static void       cacheRemoveTableItem(cache_t* pCache, cacheItem* pItem, cacheItem* pPrev);
 
 cacheTable* cacheCreateTable(cache_t* cache, cacheTableOption* option) {
   cacheTable* pTable = calloc(1, sizeof(cacheTable));
@@ -72,7 +73,7 @@ static cacheItem* cacheFindItemByKey(cacheTable* pTable, const char* key, uint8_
       if (ppPrev) {
         *ppPrev = item;
       }
-      item = item->next;
+      item = item->h_next;
       continue;
     }
     return item;
@@ -81,17 +82,23 @@ static cacheItem* cacheFindItemByKey(cacheTable* pTable, const char* key, uint8_
   return NULL;
 }
 
+static void cacheRemoveTableItem(cache_t* pCache, cacheItem* pItem, cacheItem* pPrev) {
+  if (pItem != NULL) {
+    if (pPrev != NULL) {
+      pPrev->h_next = pItem->h_next;
+    }
+    cacheItemRemove(pCache, pItem);
+  }
+}
+
 int cacheTablePut(cacheTable* pTable, cacheItem* item) {
   cacheMutexLock(&(pTable->mutex));
 
   cacheItem *pOldItem, *pPrev;
   pOldItem = cacheFindItemByKey(pTable, item_key(item), item->nkey, &pPrev);
-  if (pOldItem != NULL) {
-    if (pPrev != NULL) {
-      pPrev->h_next = pOldItem->h_next;
-    }
-    cacheItemRemove(pTable->pCache, pOldItem);
-  }
+
+  cacheRemoveTableItem(pTable->pCache, pOldItem, pPrev);
+
   uint32_t index = pTable->hashFp(item_key(item), item->nkey) % pTable->capacity;
   item->h_next = pTable->ppItems[index];
   pTable->ppItems[index] = item;
@@ -115,12 +122,8 @@ void cacheTableRemove(cacheTable* pTable, const char* key, uint8_t nkey) {
   
   cacheItem *pItem, *pPrev;
   pItem = cacheFindItemByKey(pTable, key, nkey, &pPrev);
-  if (pItem != NULL) {
-    if (pPrev != NULL) {
-      pPrev->h_next = pItem->h_next;
-    }
-    cacheItemRemove(pTable->pCache, pItem);
-  }
+
+  cacheRemoveTableItem(pTable->pCache, pItem, pPrev);
 
   cacheMutexUnlock(&(pTable->mutex));
 }
