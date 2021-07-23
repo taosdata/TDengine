@@ -694,21 +694,34 @@ class TDTestCase:
         tdSql.checkRows(2)
         tdSql.checkNotEqual(tb_name1, tb_name3)
 
-    # TODO tag binary max is 16380, col+ts binary max??? 49143
+    # ? tag binary max is 16384, col+ts binary max  49151
     def tagColBinaryMaxLengthCheckCase(self):
+        """
+            # ? case finish , src bug exist
+            every binary and nchar must be length+2, so 
+        """
         stb_name = self.getLongName(7, "letters")
         tb_name = f'{stb_name}_1'
         input_sql = f'{stb_name},id="{tb_name}",t0=t c0=f 1626006833639000000ns'
         code = self._conn.insertLines([input_sql])
-        # input_sql = f'{stb_name},t0=t,t1="{self.getLongName(16374, "letters")}",t2="{self.getLongName(6, "letters")}" c0=f,c1="{self.getLongName(16374, "letters")}",c2="{self.getLongName(16374, "letters")}",c3="{self.getLongName(16374, "letters")}",c4="{self.getLongName(12, "letters")}" 1626006833639000000ns'
-        input_sql = f'{stb_name},t0=t,t1="{self.getLongName(16374, "letters")}",t2="{self.getLongName(6, "letters")}" c0=f 1626006833639000000ns'
+
+        # * every binary and nchar must be length+2, so here is two tag, max length could not larger than 16384-2*2
+        input_sql = f'{stb_name},t0=t,t1="{self.getLongName(16374, "letters")}",t2="{self.getLongName(5, "letters")}" c0=f 1626006833639000000ns'
         code = self._conn.insertLines([input_sql])
         tdSql.checkEqual(code, 0)
-        # input_sql = f'{stb_name},t0=t c0=f,c1="{self.getLongName(16374, "letters")}",c2="{self.getLongName(16374, "letters")}",c3="{self.getLongName(16374, "letters")}" 1626006833639000000ns'
+        input_sql = f'{stb_name},t0=t,t1="{self.getLongName(16374, "letters")}",t2="{self.getLongName(6, "letters")}" c0=f 1626006833639000000ns'
+        code = self._conn.insertLines([input_sql])
+        tdSql.checkNotEqual(code, 0)
+
+        # * check col，col+ts max in describe ---> 16143
+        # input_sql = f'{stb_name},t0=t c0=f,c1="{self.getLongName(16374, "letters")}",c2="{self.getLongName(16374, "letters")}",c3="{self.getLongName(16374, "letters")}",c4="{self.getLongName(12, "letters")}" 1626006833639000000ns'
         # code = self._conn.insertLines([input_sql])
         # tdSql.checkEqual(code, 0)
+        # input_sql = f'{stb_name},t0=t c0=f,c1="{self.getLongName(16374, "letters")}",c2="{self.getLongName(16374, "letters")}",c3="{self.getLongName(16374, "letters")}",c4="{self.getLongName(13, "letters")}" 1626006833639000000ns'
+        # code = self._conn.insertLines([input_sql])
+        # tdSql.checkNotEqual(code, 0)
     
-    # TODO tag nchar max is 16379, col binary max???
+    # ? tag nchar max is 16384, col+ts nchar max  49151
     def tagColNcharMaxLengthCheckCase(self):
         stb_name = self.getLongName(7, "letters")
         tb_name = f'{stb_name}_1'
@@ -805,7 +818,7 @@ class TDTestCase:
         # self.tagMd5Check()
 
         # ! rollback bug
-        # self.tagColBinaryMaxLengthCheckCase()
+        self.tagColBinaryMaxLengthCheckCase()
         # self.tagColNcharMaxLengthCheckCase()
         
         # self.batchInsertCheckCase()
