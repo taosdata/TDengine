@@ -178,6 +178,11 @@ void taosCacheCleanup(SCacheObj *pCacheObj);
  */
 void taosCacheRefresh(SCacheObj *pCacheObj, __cache_free_fn_t fp);
 
+/**
+ * stop background refresh worker thread
+ */
+void taosStopCacheRefreshWorker();
+
 #ifdef __cplusplus
 }
 #endif

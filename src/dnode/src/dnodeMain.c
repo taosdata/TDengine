@@ -40,8 +40,9 @@
 #include "dnodeShell.h"
 #include "dnodeTelemetry.h"
 #include "module.h"
-#include "qScript.h"
 #include "mnode.h"
+#include "qScript.h"
+#include "tcache.h"
 
 #if !defined(_MODULE) || !defined(_TD_LINUX)
 int32_t moduleStart() { return 0; }
@@ -207,6 +208,7 @@ void dnodeCleanUpSystem() {
     dnodeCleanupComponents();
     taos_cleanup();
     taosCloseLog();
+    taosStopCacheRefreshWorker();
   }
 }
 

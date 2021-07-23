@@ -70,6 +70,7 @@ static pthread_t cacheRefreshWorker   = {0};
 static pthread_once_t cacheThreadInit = PTHREAD_ONCE_INIT;
 static pthread_mutex_t guard          = PTHREAD_MUTEX_INITIALIZER;
 static SArray* pCacheArrayList        = NULL;
+static bool    stopRefreshWorker      = false;
 
 static void doInitRefreshThread(void) {
   pCacheArrayList = taosArrayInit(4, POINTER_BYTES);
@@ -685,6 +686,9 @@ void* taosCacheTimedRefresh(void *handle) {
 
   while(1) {
     taosMsleep(SLEEP_DURATION);
+    if (stopRefreshWorker) {
+      goto _end;
+    }
 
     pthread_mutex_lock(&guard);
     size_t size = taosArrayGetSize(pCacheArrayList);
@@ -708,13 +712,10 @@ void* taosCacheTimedRefresh(void *handle) {
         size = taosArrayGetSize(pCacheArrayList);
 
         uDebug("%s is destroying, remove it from refresh list, remain cache obj:%"PRIzu, pCacheObj->name, size);
-        pCacheObj->deleting = 0;  //reset the deleting flag to enable pCacheObj does self destroy process
+        pCacheObj->deleting = 0;  //reset the deleting flag to enable pCacheObj to continue releasing resources.
 
-        // all contained caches has been marked to be removed, destroy the scanner it self.
-        if (size == 0) {
-          pthread_mutex_unlock(&guard);
-          goto _end;
-        }
+        pthread_mutex_unlock(&guard);
+        continue;
       }
 
       pthread_mutex_unlock(&guard);
@@ -758,4 +759,8 @@ void taosCacheRefresh(SCacheObj *pCacheObj, __cache_free_fn_t fp) {
 
   int64_t now = taosGetTimestampMs();
   doCacheRefresh(pCacheObj, now, fp);
+}
+
+void taosStopCacheRefreshWorker() {
+  stopRefreshWorker = false;
 }
