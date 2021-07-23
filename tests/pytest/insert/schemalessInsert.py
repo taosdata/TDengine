@@ -694,18 +694,19 @@ class TDTestCase:
         tdSql.checkRows(2)
         tdSql.checkNotEqual(tb_name1, tb_name3)
 
-    # TODO tag binary max is 16379, col binary max??? 16379
+    # TODO tag binary max is 16380, col+ts binary max??? 49143
     def tagColBinaryMaxLengthCheckCase(self):
         stb_name = self.getLongName(7, "letters")
         tb_name = f'{stb_name}_1'
         input_sql = f'{stb_name},id="{tb_name}",t0=t c0=f 1626006833639000000ns'
         code = self._conn.insertLines([input_sql])
-        input_sql = f'{stb_name},t0=t,t1="{self.getLongName(16374, "letters")}",t2="{self.getLongName(5, "letters")}" c0=f 1626006833639000000ns'
+        # input_sql = f'{stb_name},t0=t,t1="{self.getLongName(16374, "letters")}",t2="{self.getLongName(6, "letters")}" c0=f,c1="{self.getLongName(16374, "letters")}",c2="{self.getLongName(16374, "letters")}",c3="{self.getLongName(16374, "letters")}",c4="{self.getLongName(12, "letters")}" 1626006833639000000ns'
+        input_sql = f'{stb_name},t0=t,t1="{self.getLongName(16374, "letters")}",t2="{self.getLongName(6, "letters")}" c0=f 1626006833639000000ns'
         code = self._conn.insertLines([input_sql])
         tdSql.checkEqual(code, 0)
-        input_sql = f'{stb_name},t0=t c0=f,c1="{self.getLongName(16374, "letters")}",c2="{self.getLongName(16374, "letters")}",c3="{self.getLongName(16374, "letters")}" 1626006833639000000ns'
-        code = self._conn.insertLines([input_sql])
-        tdSql.checkEqual(code, 0)
+        # input_sql = f'{stb_name},t0=t c0=f,c1="{self.getLongName(16374, "letters")}",c2="{self.getLongName(16374, "letters")}",c3="{self.getLongName(16374, "letters")}" 1626006833639000000ns'
+        # code = self._conn.insertLines([input_sql])
+        # tdSql.checkEqual(code, 0)
     
     # TODO tag nchar max is 16379, col binary max???
     def tagColNcharMaxLengthCheckCase(self):
@@ -715,12 +716,12 @@ class TDTestCase:
         print(input_sql)
         code = self._conn.insertLines([input_sql])
         # input_sql = f'{stb_name},t0=t,t1=L"{self.getLongName(4093, "letters")}" c0=f 1626006833639000000ns'
-        input_sql = f'{stb_name},t0=t,t1=L"{self.getLongName(4093, "letters")}",t2=L"{self.getLongName(1, "letters")}" c0=f 1626006833639000000ns'
+        input_sql = f'{stb_name},t0=t,t1=L"{self.getLongName(4094, "letters")}",t2=L"{self.getLongName(1, "letters")}" c0=f 1626006833639000000ns'
         code = self._conn.insertLines([input_sql])
         tdSql.checkEqual(code, 0)
-        input_sql = f'{stb_name},t0=t,t1=L"{self.getLongName(4093, "letters")}",t2=L"{self.getLongName(2, "letters")}" c0=f 1626006833639000000ns'
-        code = self._conn.insertLines([input_sql])
-        tdSql.checkNotEqual(code, 0)
+        # input_sql = f'{stb_name},t0=t,t1=L"{self.getLongName(4093, "letters")}",t2=L"{self.getLongName(2, "letters")}" c0=f 1626006833639000000ns'
+        # code = self._conn.insertLines([input_sql])
+        # tdSql.checkNotEqual(code, 0)
 
         # ! rollback bug
         # TODO because it is no rollback now, so stb has been broken, create a new!
@@ -762,6 +763,9 @@ class TDTestCase:
                 ]
         code = self._conn.insertLines(lines)
         # tdSql.checkEqual(code, 0)
+
+    def stbInsertMultiThreadCheckCase(self):
+        pass
 
     def run(self):
         print("running {}".format(__file__))
@@ -807,7 +811,7 @@ class TDTestCase:
         # self.batchInsertCheckCase()
         
         # ! bug
-        # ! self.batchErrorInsertCheckCase()
+        # self.batchErrorInsertCheckCase()
 
 
 
