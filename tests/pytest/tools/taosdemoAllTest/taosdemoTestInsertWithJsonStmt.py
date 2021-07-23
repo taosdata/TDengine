@@ -160,7 +160,7 @@ class TDTestCase:
         tdSql.execute("drop database if exists db") 
         os.system("%staosdemo -f tools/taosdemoAllTest/stmt/insertSigcolumnsNum4096-stmt.json -y " % binPath)
         tdSql.error("select * from db.stb0")
-        tdSql.execute("drop database if exists db") 
+        # tdSql.execute("drop database if exists db") 
         # os.system("%staosdemo -f tools/taosdemoAllTest/stmt/insertColumnsAndTagNum4096-stmt.json -y " % binPath)
         # tdSql.query("select count(*) from db.stb0")
         # tdSql.checkData(0, 0, 10000) 
@@ -244,17 +244,17 @@ class TDTestCase:
         tdSql.query("select count(*) from stb1")
         tdSql.checkData(0, 0, 10) 
 
-        # # insert:  sample json
-        # os.system("%staosdemo -f tools/taosdemoAllTest/stmt/insert-sample-stmt.json -y " % binPath)
-        # tdSql.execute("use dbtest123")
-        # tdSql.query("select col2 from stb0")
-        # tdSql.checkData(0, 0, 2147483647)
-        # tdSql.query("select * from stb1 where t1=-127")
-        # tdSql.checkRows(20)
-        # tdSql.query("select * from stb1 where t2=127")
-        # tdSql.checkRows(10)
-        # tdSql.query("select * from stb1 where t2=126")
-        # tdSql.checkRows(10)
+        # insert:  sample json
+        os.system("%staosdemo -f tools/taosdemoAllTest/stmt/insert-sample-stmt.json -y " % binPath)
+        tdSql.execute("use dbtest123")
+        tdSql.query("select c2 from stb0")
+        tdSql.checkData(0, 0, 2147483647)
+        tdSql.query("select * from stb1 where t1=-127")
+        tdSql.checkRows(20)
+        tdSql.query("select * from stb1 where t2=127")
+        tdSql.checkRows(10)
+        tdSql.query("select * from stb1 where t2=126")
+        tdSql.checkRows(10)
 
         # insert: test interlace parament 
         os.system("%staosdemo -f tools/taosdemoAllTest/stmt/insert-interlace-row-stmt.json -y " % binPath)
