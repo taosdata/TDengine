@@ -113,10 +113,6 @@ class TDTestCase:
         tdSql.checkDataType(3, 1, "TIMESTAMP")
         tdSql.query("select count(*) from stb0 where ts > \"2021-07-01 00:00:00.490000000\"")
         tdSql.checkData(0, 0, 5000)
-        tdSql.query("select count(*) from stb0 where ts >now -22d-1h-3s")
-        tdSql.checkData(0, 0, 10000)
-        tdSql.query("select count(*) from stb0 where ts >now -22d-1h-3s")
-        tdSql.checkData(0, 0, 10000)
         tdSql.query("select count(*) from stb0 where ts < 1626918583000000000")
         tdSql.checkData(0, 0, 10000)
         
