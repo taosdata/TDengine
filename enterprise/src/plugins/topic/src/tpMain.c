@@ -224,7 +224,7 @@ static void *tpProcessCreateTp(void *param) {
   SCreateDbMsg *pCreate = pMsg->rpcMsg.pCont;
   pDb = mnodeGetDb(pCreate->db);
 
-  sprintf(db, pCreate->db, sizeof(pCreate->db));
+  tstrncpy(db, pCreate->db, sizeof(pCreate->db));
   if (pDb != NULL) {
     if (pDb->cfg.dbType != TSDB_DB_TYPE_TOPIC) {
       mError("topic:%s, db already exist but type is not topic", db);
@@ -319,7 +319,7 @@ static void *tpProcessAlterTp(void *param) {
   int32_t      code = 0;
   char db[TSDB_ACCT_ID_LEN + TSDB_DB_NAME_LEN] = {0};
 
-  sprintf(db, pAlter->db, sizeof(pAlter->db));
+  tstrncpy(db, pAlter->db, sizeof(pAlter->db));
 
   pDb = mnodeGetDb(pAlter->db);
   if (pDb == NULL || pDb->cfg.dbType != TSDB_DB_TYPE_TOPIC) {
@@ -383,8 +383,10 @@ static void *tpProcessDropTp(void *param) {
   SDropDbMsg *pDrop = pMsg->rpcMsg.pCont;
   void *      taos = NULL;
 
-  char db[TSDB_ACCT_ID_LEN + TSDB_DB_NAME_LEN] = {0};
-  sprintf(db, pDrop->db, sizeof(pDrop->db));
+  //not change msg protocal between client/server, actually, db max length is (TSDB_ACCT_ID_LEN + TSDB_DB_NAME_LEN)
+  //just make runtime happy
+  char db[TSDB_TABLE_FNAME_LEN] = {0};
+  tstrncpy(db, pDrop->db, sizeof(pDrop->db));
 
   mDebug("topic:%s, start to drop", db);
   pDb = mnodeGetDb(pDrop->db);
