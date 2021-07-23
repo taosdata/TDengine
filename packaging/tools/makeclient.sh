@@ -195,15 +195,6 @@ if [ "$pagMode" == "lite" ]; then
   pkg_name=${pkg_name}-Lite
 fi
 
-if [ "$verType" == "beta" ]; then
-  pkg_name=${pkg_name}-${verType}
-elif [ "$verType" == "stable" ]; then
-  pkg_name=${pkg_name}
-else
-  echo "unknow verType, nor stable or beta"
-  exit 1
-fi
-
 if [ "$osType" != "Darwin" ]; then
     tar -zcv -f "$(basename ${pkg_name}).tar.gz" $(basename ${install_dir}) --remove-files || :
 else
