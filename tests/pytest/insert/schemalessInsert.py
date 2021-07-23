@@ -717,9 +717,11 @@ class TDTestCase:
         input_sql = f'{stb_name},t0=t c0=f,c1="{self.getLongName(16374, "letters")}",c2="{self.getLongName(16374, "letters")}",c3="{self.getLongName(16374, "letters")}",c4="{self.getLongName(12, "letters")}" 1626006833639000000ns'
         code = self._conn.insertLines([input_sql])
         tdSql.checkEqual(code, 0)
-        input_sql = f'{stb_name},t0=t c0=f,c1="{self.getLongName(16374, "letters")}",c2="{self.getLongName(16374, "letters")}",c3="{self.getLongName(16374, "letters")}",c4="{self.getLongName(13, "letters")}" 1626006833639000000ns'
-        code = self._conn.insertLines([input_sql])
-        tdSql.checkNotEqual(code, 0)
+        # input_sql = f'{stb_name},t0=t c0=f,c1="{self.getLongName(16374, "letters")}",c2="{self.getLongName(16374, "letters")}",c3="{self.getLongName(16374, "letters")}",c4="{self.getLongName(13, "letters")}" 1626006833639000000ns'
+        # print(input_sql)
+        # code = self._conn.insertLines([input_sql])
+        # print(code)
+        # tdSql.checkNotEqual(code, 0)
     
     # ? tag nchar max is 16384, col+ts nchar max  49151
     def tagColNcharMaxLengthCheckCase(self):
@@ -772,8 +774,7 @@ class TDTestCase:
         """
         stb_name = self.getLongName(8, "letters")
         lines = ["st123456,t1=3i64,t2=4f64,t3=\"t3\" c1=3i64,c3=L\"passit\",c2=false,c4=4f64 1626006833639000000ns",
-                f"{stb_name},t2=5f64,t3=L\"ste\" c1=tRue,c2=4i64,c3=\"iam\" 1626056811823316532ns",
-                ]
+                f"{stb_name},t2=5f64,t3=L\"ste\" c1=tRue,c2=4i64,c3=\"iam\" 1626056811823316532ns"]
         code = self._conn.insertLines(lines)
         # tdSql.checkEqual(code, 0)
 
@@ -781,17 +782,22 @@ class TDTestCase:
         """
             stb --> supertable
             tb  --> table
-            ts  --> timestamp
-            col --> column
-            tag --> tag
+            ts  --> timestamp, same default
+            col --> column, same default
+            tag --> tag, same default
             d   --> different
             s   --> same
+            a   --> add
+            m   --> minus
         """
         d_stb_d_tb_list = list()
+        s_stb_s_tb_list = list()
+        s_stb_s_tb_a_col_a_tag_list = list()
         for i in range(count):
             d_stb_d_tb_list.append(self.genFullTypeSql(t0="f", c0="f"))
-            
-        return d_stb_d_tb_list, 
+            s_stb_s_tb_list.append(self.genFullTypeSql(t7=f'"{self.getLongName(8, "letters")}"', c7=f'{self.getLongName(8, "letters")}"', cl_add_tag=True))
+            s_stb_s_tb_a_col_a_tag_list.append(self.genFullTypeSql(t7=f'"{self.getLongName(8, "letters")}"', c7=f'{self.getLongName(8, "letters")}"'))
+        return d_stb_d_tb_list, s_stb_s_tb_list, s_stb_s_tb_a_col_a_tag_list
 
     def genMultiThreadSeq(self, sql_list):
         tlist = list()
