@@ -225,6 +225,7 @@ typedef struct SArguments_S {
     uint32_t num_of_CPR;
     uint32_t num_of_threads;
     uint64_t insert_interval;
+    uint64_t timestamp_step;
     int64_t  query_times;
     uint32_t interlace_rows;
     uint32_t num_of_RPR;                  // num_of_records_per_req
@@ -605,6 +606,7 @@ SArguments g_args = {
     4,               // num_of_CPR
     10,              // num_of_connections/thread
     0,               // insert_interval
+    DEFAULT_TIMESTAMP_STEP, // timestamp_step
     1,               // query_times
     0,               // interlace_rows;
     30000,           // num_of_RPR
@@ -740,6 +742,9 @@ static void printHelp() {
             "The number of threads. Default is 10.");
     printf("%s%s%s%s\n", indent, "-i", indent,
             "The sleep time (ms) between insertion. Default is 0.");
+    printf("%s%s%s%s%d\n", indent, "-S", indent,
+            "The timestamp step between insertion. Default is %d.",
+            DEFAULT_TIMESTAMP_STEP);
     printf("%s%s%s%s\n", indent, "-r", indent,
             "The number of records per request. Default is 30000.");
     printf("%s%s%s%s\n", indent, "-t", indent,
@@ -881,6 +886,14 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
                 exit(EXIT_FAILURE);
             }
             arguments->insert_interval = atoi(argv[++i]);
+        } else if (strcmp(argv[i], "-S") == 0) {
+            if ((argc == i+1) ||
+                    (!isStringNumber(argv[i+1]))) {
+                printHelp();
+                errorPrint("\n\t%s%s", argv[i], " need a number following!\n");
+                exit(EXIT_FAILURE);
+            }
+            arguments->timestamp_step = atoi(argv[++i]);
         } else if (strcmp(argv[i], "-qt") == 0) {
             if ((argc == i+1)
                     || (!isStringNumber(argv[i+1]))) {
@@ -4107,7 +4120,7 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
             if (timestampStep && timestampStep->type == cJSON_Number) {
                 g_Dbs.db[i].superTbls[j].timeStampStep = timestampStep->valueint;
             } else if (!timestampStep) {
-                g_Dbs.db[i].superTbls[j].timeStampStep = DEFAULT_TIMESTAMP_STEP;
+                g_Dbs.db[i].superTbls[j].timeStampStep = g_args.timestamp_step;
             } else {
                 printf("ERROR: failed to read json, timestamp_step not found\n");
                 goto PARSE_OVER;
@@ -5190,13 +5203,13 @@ static int32_t generateDataTailWithoutStb(
         if (g_args.disorderRatio) {
             retLen = generateData(data, data_type,
                     startTime + getTSRandTail(
-                        (int64_t) DEFAULT_TIMESTAMP_STEP, k,
+                        g_args.timestamp_step, k,
                         g_args.disorderRatio,
                         g_args.disorderRange),
                     lenOfBinary);
         } else {
             retLen = generateData(data, data_type,
-                    startTime + (int64_t) (DEFAULT_TIMESTAMP_STEP* k),
+                    startTime + g_args.timestamp_step * k,
                     lenOfBinary);
         }
 
@@ -5714,11 +5727,11 @@ static int32_t prepareStmtWithoutStb(
 
         if (g_args.disorderRatio) {
             *bind_ts = startTime + getTSRandTail(
-                    (int64_t)DEFAULT_TIMESTAMP_STEP, k,
+                    g_args.timestamp_step, k,
                     g_args.disorderRatio,
                     g_args.disorderRange);
         } else {
-            *bind_ts = startTime + (int64_t)(DEFAULT_TIMESTAMP_STEP * k);
+            *bind_ts = startTime + g_args.timestamp_step * k;
         }
         bind->buffer_length = sizeof(int64_t);
         bind->buffer = bind_ts;
@@ -6109,7 +6122,7 @@ static void* syncWriteInterlace(threadInfo *pThreadInfo) {
         insertRows = g_args.num_of_DPT;
         interlaceRows = g_args.interlace_rows;
         maxSqlLen = g_args.max_sql_len;
-        nTimeStampStep = DEFAULT_TIMESTAMP_STEP;
+        nTimeStampStep = g_args.timestamp_step;
         insert_interval = g_args.insert_interval;
     }
 
@@ -6369,7 +6382,7 @@ static void* syncWriteProgressive(threadInfo *pThreadInfo) {
     SSuperTable* superTblInfo = pThreadInfo->superTblInfo;
     uint64_t maxSqlLen = superTblInfo?superTblInfo->maxSqlLen:g_args.max_sql_len;
     int64_t timeStampStep =
-        superTblInfo?superTblInfo->timeStampStep:DEFAULT_TIMESTAMP_STEP;
+        superTblInfo?superTblInfo->timeStampStep:g_args.timestamp_step;
     int64_t insertRows =
         (superTblInfo)?superTblInfo->insertRows:g_args.num_of_DPT;
     verbosePrint("%s() LN%d insertRows=%"PRId64"\n",
@@ -8181,7 +8194,7 @@ static void setParaFromArg() {
         }
         tstrncpy(g_Dbs.db[0].superTbls[0].startTimestamp,
                 "2017-07-14 10:40:00.000", MAX_TB_NAME_SIZE);
-        g_Dbs.db[0].superTbls[0].timeStampStep = DEFAULT_TIMESTAMP_STEP;
+        g_Dbs.db[0].superTbls[0].timeStampStep = g_args.timestamp_step;
 
         g_Dbs.db[0].superTbls[0].insertRows = g_args.num_of_DPT;
         g_Dbs.db[0].superTbls[0].maxSqlLen = g_args.max_sql_len;
