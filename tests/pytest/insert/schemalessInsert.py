@@ -714,37 +714,37 @@ class TDTestCase:
         tdSql.checkNotEqual(code, 0)
 
         # * check col，col+ts max in describe ---> 16143
-        # input_sql = f'{stb_name},t0=t c0=f,c1="{self.getLongName(16374, "letters")}",c2="{self.getLongName(16374, "letters")}",c3="{self.getLongName(16374, "letters")}",c4="{self.getLongName(12, "letters")}" 1626006833639000000ns'
-        # code = self._conn.insertLines([input_sql])
-        # tdSql.checkEqual(code, 0)
-        # input_sql = f'{stb_name},t0=t c0=f,c1="{self.getLongName(16374, "letters")}",c2="{self.getLongName(16374, "letters")}",c3="{self.getLongName(16374, "letters")}",c4="{self.getLongName(13, "letters")}" 1626006833639000000ns'
-        # code = self._conn.insertLines([input_sql])
-        # tdSql.checkNotEqual(code, 0)
+        input_sql = f'{stb_name},t0=t c0=f,c1="{self.getLongName(16374, "letters")}",c2="{self.getLongName(16374, "letters")}",c3="{self.getLongName(16374, "letters")}",c4="{self.getLongName(12, "letters")}" 1626006833639000000ns'
+        code = self._conn.insertLines([input_sql])
+        tdSql.checkEqual(code, 0)
+        input_sql = f'{stb_name},t0=t c0=f,c1="{self.getLongName(16374, "letters")}",c2="{self.getLongName(16374, "letters")}",c3="{self.getLongName(16374, "letters")}",c4="{self.getLongName(13, "letters")}" 1626006833639000000ns'
+        code = self._conn.insertLines([input_sql])
+        tdSql.checkNotEqual(code, 0)
     
     # ? tag nchar max is 16384, col+ts nchar max  49151
     def tagColNcharMaxLengthCheckCase(self):
         stb_name = self.getLongName(7, "letters")
         tb_name = f'{stb_name}_1'
         input_sql = f'{stb_name},id="{tb_name}",t0=t c0=f 1626006833639000000ns'
-        print(input_sql)
         code = self._conn.insertLines([input_sql])
-        # input_sql = f'{stb_name},t0=t,t1=L"{self.getLongName(4093, "letters")}" c0=f 1626006833639000000ns'
-        input_sql = f'{stb_name},t0=t,t1=L"{self.getLongName(4094, "letters")}",t2=L"{self.getLongName(1, "letters")}" c0=f 1626006833639000000ns'
+
+        # * legal nchar could not be larger than 16374/4
+        input_sql = f'{stb_name},t0=t,t1=L"{self.getLongName(4093, "letters")}",t2=L"{self.getLongName(1, "letters")}" c0=f 1626006833639000000ns'
         code = self._conn.insertLines([input_sql])
         tdSql.checkEqual(code, 0)
-        # input_sql = f'{stb_name},t0=t,t1=L"{self.getLongName(4093, "letters")}",t2=L"{self.getLongName(2, "letters")}" c0=f 1626006833639000000ns'
-        # code = self._conn.insertLines([input_sql])
-        # tdSql.checkNotEqual(code, 0)
+        input_sql = f'{stb_name},t0=t,t1=L"{self.getLongName(4093, "letters")}",t2=L"{self.getLongName(2, "letters")}" c0=f 1626006833639000000ns'
+        code = self._conn.insertLines([input_sql])
+        tdSql.checkNotEqual(code, 0)
 
         # ! rollback bug
         # TODO because it is no rollback now, so stb has been broken, create a new!
-        stb_name = self.getLongName(7, "letters")
-        tb_name = f'{stb_name}_1'
-        input_sql = f'{stb_name},id="{tb_name}",t0=t c0=f 1626006833639000000ns'
-        code = self._conn.insertLines([input_sql])
-        input_sql = f'{stb_name},t0=t c0=f,c1=L"{self.getLongName(4093, "letters")}",c2=L"{self.getLongName(4093, "letters")}",c3=L"{self.getLongName(4093, "letters")}" 1626006833639000000ns'
-        code = self._conn.insertLines([input_sql])
-        tdSql.checkEqual(code, 0)
+        # stb_name = self.getLongName(7, "letters")
+        # tb_name = f'{stb_name}_1'
+        # input_sql = f'{stb_name},id="{tb_name}",t0=t c0=f 1626006833639000000ns'
+        # code = self._conn.insertLines([input_sql])
+        # input_sql = f'{stb_name},t0=t c0=f,c1=L"{self.getLongName(4093, "letters")}",c2=L"{self.getLongName(4093, "letters")}",c3=L"{self.getLongName(4093, "letters")}" 1626006833639000000ns'
+        # code = self._conn.insertLines([input_sql])
+        # tdSql.checkEqual(code, 0)
 
     def batchInsertCheckCase(self):
         """
@@ -818,8 +818,8 @@ class TDTestCase:
         # self.tagMd5Check()
 
         # ! rollback bug
-        self.tagColBinaryMaxLengthCheckCase()
-        # self.tagColNcharMaxLengthCheckCase()
+        # self.tagColBinaryMaxLengthCheckCase()
+        self.tagColNcharMaxLengthCheckCase()
         
         # self.batchInsertCheckCase()
         
