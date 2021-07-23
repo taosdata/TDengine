@@ -114,6 +114,7 @@
                     <excludes>
                         <exclude>**/TimestampPrecisionInNanoInJniTest.java</exclude>
                         <exclude>**/NanoSecondTimestampJNITest.java</exclude>
+                        <exclude>**/NanoSecondTimestampRestfulTest.java</exclude>
                         <exclude>**/AppMemoryLeakTest.java</exclude>
                         <exclude>**/AuthenticationTest.java</exclude>
                         <exclude>**/ConnectMultiTaosdByRestfulWithDifferentTokenTest.java</exclude>
