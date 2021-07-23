@@ -453,6 +453,8 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
         case 'E':
             g_args.end_time = atol(arg);
             break;
+        case 'C':
+            break;
         case 'B':
             g_args.data_batch = atoi(arg);
             if (g_args.data_batch > MAX_RECORDS_PER_REQ) {
