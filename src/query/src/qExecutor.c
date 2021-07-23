@@ -2395,77 +2395,14 @@ static void getIntermediateBufInfo(SQueryRuntimeEnv* pRuntimeEnv, int32_t* ps, i
 
 #define IS_PREFILTER_TYPE(_t) ((_t) != TSDB_DATA_TYPE_BINARY && (_t) != TSDB_DATA_TYPE_NCHAR)
 
-static bool doFilterByBlockStatistics(SQueryRuntimeEnv* pRuntimeEnv, SDataStatis *pDataStatis, SQLFunctionCtx *pCtx, int32_t numOfRows) {
+static FORCE_INLINE bool doFilterByBlockStatistics(SQueryRuntimeEnv* pRuntimeEnv, SDataStatis *pDataStatis, SQLFunctionCtx *pCtx, int32_t numOfRows) {
   SQueryAttr* pQueryAttr = pRuntimeEnv->pQueryAttr;
 
-  if (pDataStatis == NULL || pQueryAttr->numOfFilterCols == 0) {
+  if (pDataStatis == NULL || pQueryAttr->pFilters == NULL) {
     return true;
   }
-  bool ret = true;
-  for (int32_t k = 0; k < pQueryAttr->numOfFilterCols; ++k) {
-    SSingleColumnFilterInfo *pFilterInfo = &pQueryAttr->pFilterInfo[k];
 
-    int32_t index = -1;
-    for(int32_t i = 0; i < pQueryAttr->numOfCols; ++i) {
-      if (pDataStatis[i].colId == pFilterInfo->info.colId) {
-        index = i;
-        break;
-      }
-    }
-
-    // no statistics data, load the true data block
-    if (index == -1) {
-      return true;
-    }
-
-    // not support pre-filter operation on binary/nchar data type
-    if (!IS_PREFILTER_TYPE(pFilterInfo->info.type)) {
-      return true;
-    }
-
-    // all data in current column are NULL, no need to check its boundary value
-    if (pDataStatis[index].numOfNull == numOfRows) {
-
-      // if isNULL query exists, load the null data column
-      for (int32_t j = 0; j < pFilterInfo->numOfFilters; ++j) {
-        SColumnFilterElem *pFilterElem = &pFilterInfo->pFilters[j];
-        if (pFilterElem->fp == isNullOperator) {
-          return true;
-        }
-      }
-
-      continue;
-    }
-
-    SDataStatis* pDataBlockst = &pDataStatis[index];
-    
-    if (pFilterInfo->info.type == TSDB_DATA_TYPE_FLOAT) {
-      float minval = (float)(*(double *)(&pDataBlockst->min));
-      float maxval = (float)(*(double *)(&pDataBlockst->max));
-       
-      for (int32_t i = 0; i < pFilterInfo->numOfFilters; ++i) {
-        if (pFilterInfo->pFilters[i].filterInfo.lowerRelOptr == TSDB_RELATION_IN) {
-           continue;   
-        }
-        ret &= pFilterInfo->pFilters[i].fp(&pFilterInfo->pFilters[i], (char *)&minval, (char *)&maxval, TSDB_DATA_TYPE_FLOAT);
-        if (ret == false) {
-          return false;
-        }
-      }
-    } else {
-      for (int32_t i = 0; i < pFilterInfo->numOfFilters; ++i) {
-        if (pFilterInfo->pFilters[i].filterInfo.lowerRelOptr == TSDB_RELATION_IN) {
-           continue; 
-        }
-        ret &= pFilterInfo->pFilters[i].fp(&pFilterInfo->pFilters[i], (char *)&pDataBlockst->min, (char *)&pDataBlockst->max, pFilterInfo->info.type); 
-        if (ret == false) {
-          return false;
-        }
-      }
-    }
-  }
-
-  return ret;
+  return filterRangeExecute(pQueryAttr->pFilters, pDataStatis, numOfRows);
 }
 
 static bool overlapWithTimeWindow(SQueryAttr* pQueryAttr, SDataBlockInfo* pBlockInfo) {

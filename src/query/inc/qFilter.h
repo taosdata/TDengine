@@ -46,8 +46,12 @@ enum {
 
 enum {
   RA_EXCLUDE = 1,
-  RA_NULL    = 2,
+  RA_INCLUDE = 2,
+  RA_NULL    = 4,
 };
+
+#define RA_EMPTY (RA_EXCLUDE|RA_INCLUDE)
+#define RA_ALL (RA_EXCLUDE|RA_INCLUDE)
 
 enum {
   FI_OPTION_NO_REWRITE = 1,
@@ -63,7 +67,7 @@ enum {
 
 enum {
   RANGE_TYPE_UNIT = 1,
-  RANGE_TYPE_COL_RANGE = 2,
+  RANGE_TYPE_VAR_HASH = 2,
   RANGE_TYPE_MR_CTX = 3,
 };
 
@@ -73,10 +77,10 @@ typedef struct OptrStr {
 } OptrStr;
 
 typedef struct SFilterRange {
-  char sflag;
-  char eflag;
   int64_t s;
   int64_t e;
+  char sflag;
+  char eflag;
 } SFilterRange;
 
 typedef struct SFilterColRange {  
@@ -87,30 +91,51 @@ typedef struct SFilterColRange {
   SFilterRange ra;
 } SFilterColRange;
 
+typedef struct SFilterRangeCompare {
+  int64_t s;
+  int64_t e;
+  rangeCompFunc func;
+} SFilterRangeCompare;
+
+typedef bool (*rangeCompFunc) (const void *, const void *, const void *, const void *, __compar_fn_t);
 
 typedef struct SFilterRangeNode {
   struct SFilterRangeNode*   prev;
   struct SFilterRangeNode*   next;
-  SFilterRange ra;
+  union {
+    SFilterRange ra;
+    SFilterRangeCompare rc;
+  };
 } SFilterRangeNode;
 
-typedef struct SFilterRMCtx {
+typedef struct SFilterRangeCtx {
   int32_t type;
   int32_t options;
   int8_t  status;  
   bool isnull;
   bool notnull;
   bool isrange;
+  int16_t colId;
   __compar_fn_t pCompareFunc;
   SFilterRangeNode *rf;        //freed
   SFilterRangeNode *rs;
-} SFilterRMCtx ;
+} SFilterRangeCtx ;
+
+typedef struct SFilterVarCtx {
+  int32_t type;
+  int32_t options;
+  int8_t  status;  
+  bool isnull;
+  bool notnull;
+  bool isrange;
+  SHashObj *wild;
+  SHashObj *value;
+} SFilterVarCtx;
 
 typedef struct SFilterField {
   uint16_t flag;
   void*    desc;
   void*    data;
-  int64_t  range[];
 } SFilterField;
 
 typedef struct SFilterFields {
@@ -172,11 +197,13 @@ typedef struct SFilterInfo {
   uint16_t      unitSize;
   uint16_t      unitNum;
   uint16_t      groupNum;
+  uint16_t      colRangeNum;
   SFilterFields fields[FLD_TYPE_MAX];
   SFilterGroup *groups;
   SFilterUnit  *units;
   uint8_t      *unitRes;    // result
   uint8_t      *unitFlags;  // got result
+  SFilterRangeCtx **colRange;
   SFilterPCtx   pctx;
 } SFilterInfo;
 
@@ -245,7 +272,7 @@ typedef struct SFilterInfo {
 #define FILTER_UNIT_SET_R(i, idx, v) (i)->unitRes[idx] = (v)
 
 #define FILTER_PUSH_UNIT(colInfo, u) do { (colInfo).type = RANGE_TYPE_UNIT; (colInfo).dataType = FILTER_UNIT_DATA_TYPE(u);taosArrayPush((SArray *)((colInfo).info), &u);} while (0)
-#define FILTER_PUSH_RANGE(colInfo, cra) do { SFilterColInfo* _info = malloc(sizeof(SFilterColInfo)); _info->type = RANGE_TYPE_COL_RANGE; _info->info = cra; taosArrayPush((SArray *)(colInfo), &_info);} while (0)
+#define FILTER_PUSH_VAR_HASH(colInfo, ha) do { (colInfo).type = RANGE_TYPE_VAR_HASH; (colInfo).info = ha;} while (0)
 #define FILTER_PUSH_CTX(colInfo, ctx) do { (colInfo).type = RANGE_TYPE_MR_CTX; (colInfo).info = ctx;} while (0)
 
 #define FILTER_COPY_IDX(dst, src, n) do { *(dst) = malloc(sizeof(uint16_t) * n); memcpy(*(dst), src, sizeof(uint16_t) * n);} while (0)
@@ -258,14 +285,15 @@ typedef int32_t(*filter_desc_compare_func)(const void *, const void *);
 extern int32_t filterInitFromTree(tExprNode* tree, SFilterInfo **pinfo, uint32_t options);
 extern bool filterExecute(SFilterInfo *info, int32_t numOfRows, int8_t* p);
 extern int32_t filterSetColFieldData(SFilterInfo *info, int16_t colId, void *data);
-extern void* filterInitMergeRange(int32_t type, int32_t options);
-extern int32_t filterGetMergeRangeNum(void* h, int32_t* num);
-extern int32_t filterGetMergeRangeRes(void* h, SFilterRange *ra);
-extern int32_t filterFreeMergeRange(void* h);
+extern void* filterInitRangeCtx(int32_t type, int32_t options);
+extern int32_t filterGetRangeNum(void* h, int32_t* num);
+extern int32_t filterGetRangeRes(void* h, SFilterRange *ra);
+extern int32_t filterFreeRangeCtx(void* h);
 extern int32_t filterGetTimeRange(SFilterInfo *info, STimeWindow *win);
 extern int32_t filterConverNcharColumns(SFilterInfo* pFilterInfo, int32_t rows, bool *gotNchar);
 extern int32_t filterFreeNcharColumns(SFilterInfo* pFilterInfo);
 extern void filterFreeInfo(SFilterInfo *info);
+extern bool filterIsEmptyRes(SFilterInfo *info);
 
 #ifdef __cplusplus
 }

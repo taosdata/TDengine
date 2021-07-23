@@ -174,6 +174,7 @@ if $rows != 0 then
   return -1
 endi
 
+#xxx
 sql select * from stb1 where c8 = '51' or c8 != '51';
 if $rows != 28 then
   return -1
@@ -1072,6 +1073,34 @@ endi
 if $data01 != NULL then
   return -1
 endi
+
+#xxx
+sql select * from stb1 where c8 like '1';
+if $rows != 1 then
+  return -1
+endi
+if $data00 != @21-05-05 18:19:00.000@ then
+  return -1
+endi
+
+#xxx
+sql select * from stb1 where c8 like '1%' and c8 like '%1';
+if $rows != 2 then
+  return -1
+endi
+if $data00 != @21-05-05 18:19:00.000@ then
+  return -1
+endi
+if $data10 != @21-05-05 18:19:04.000@ then
+  return -1
+endi
+
+#xxx
+sql select * from stb1 where c8 like '1' and c8 like '2';
+if $rows != 0 then
+  return -1
+endi
+
 sql select * from stb1 where c9 is null;
 if $rows != 1 then
   return -1
@@ -1817,6 +1846,48 @@ if $data20 != @21-05-05 18:19:12.000@ then
   return -1
 endi
 
+sql select * from stb1 where c1 > 40 and c2 > 50 and c3 > 62 or c1 < 2 and c2 < 3;
+if $rows != 3 then
+  return -1
+endi
+if $data00 != @21-05-05 18:19:00.000@ then
+  return -1
+endi
+if $data10 != @21-05-05 18:19:26.000@ then
+  return -1
+endi
+if $data20 != @21-05-05 18:19:27.000@ then
+  return -1
+endi
+
+sql select * from stb1 where (c1 > 3 and c2 > 4) or (c1 < 60 and c2 < 30);
+if $rows != 28 then
+  return -1
+endi
+
+sql select * from stb1 where (c1 > 3 and c2 > 4) or (c1 < 60 and c2 < 30) or (c1 is null and c2 is null);
+if $rows != 29 then
+  return -1
+endi
+
+sql select * from stb1 where (c1 > 3 and c2 > 4) or (c1 < 60 and c3 < 30) or (c1 is null and c2 is null);
+if $rows != 29 then
+  return -1
+endi
+
+sql select * from stb1 where (c1 > 60 and c2 < 63) or (c1 >62 and c3 < 30) or (c1 is null and c2 is null);
+if $rows != 3 then
+  return -1
+endi
+if $data00 != @21-05-05 18:19:24.000@ then
+  return -1
+endi
+if $data10 != @21-05-05 18:19:25.000@ then
+  return -1
+endi
+if $data20 != @21-05-05 18:19:28.000@ then
+  return -1
+endi
 
 print "ts test"
 sql_error select ts,c1,c7 from stb1 where ts != '2021-05-05 18:19:27'
