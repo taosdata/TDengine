@@ -1556,7 +1556,7 @@ static void mergeTwoRowFromMem(STsdbQueryHandle* pQueryHandle, int32_t capacity,
   if(isRow1DataRow) {
     numOfColsOfRow1 = schemaNCols(pSchema1);
   } else {
-    numOfColsOfRow1 = kvRowNCols(row1);
+    numOfColsOfRow1 = kvRowNCols(memRowKvBody(row1));
   }
 
   int32_t numOfColsOfRow2 = 0;
@@ -1568,7 +1568,7 @@ static void mergeTwoRowFromMem(STsdbQueryHandle* pQueryHandle, int32_t capacity,
     if(isRow2DataRow) {
       numOfColsOfRow2 = schemaNCols(pSchema2);
     } else {
-      numOfColsOfRow2 = kvRowNCols(row2);
+      numOfColsOfRow2 = kvRowNCols(memRowKvBody(row2));
     }
   }
 
@@ -1590,7 +1590,7 @@ static void mergeTwoRowFromMem(STsdbQueryHandle* pQueryHandle, int32_t capacity,
       colIdOfRow1 = pSchema1->columns[j].colId;
     } else {
       void *rowBody = memRowKvBody(row1);
-      SColIdx *pColIdx = kvRowColIdxAt(rowBody, chosen_itr);
+      SColIdx *pColIdx = kvRowColIdxAt(rowBody, j);
       colIdOfRow1 = pColIdx->colId;
     }
 
@@ -1601,7 +1601,7 @@ static void mergeTwoRowFromMem(STsdbQueryHandle* pQueryHandle, int32_t capacity,
       colIdOfRow2 = pSchema2->columns[k].colId;
     } else {
       void *rowBody = memRowKvBody(row2);
-      SColIdx *pColIdx = kvRowColIdxAt(rowBody, chosen_itr);
+      SColIdx *pColIdx = kvRowColIdxAt(rowBody, k);
       colIdOfRow2 = pColIdx->colId;
     }
 

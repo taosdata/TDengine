@@ -176,8 +176,8 @@ void tSkipListPutBatchByIter(SSkipList *pSkipList, void *iter, iter_next_fn_t it
   hasDup = tSkipListGetPosToPut(pSkipList, backward, pData);
 
   if((pSkipList->preEntryFn == NULL) || (i32Invoke(pSkipList->preEntryFn) != SSkipListPutBatchPreEarlyStop)) {
-    tSkipListPutImpl(pSkipList, pData, backward, false, hasDup);
-    *lastData = pData;
+    SSkipListNode* pNode = tSkipListPutImpl(pSkipList, pData, backward, false, hasDup);
+    *lastData = pNode->pData;
     voidInvoke(pSkipList->postEntryFn);
   }
 

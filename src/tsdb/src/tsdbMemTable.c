@@ -878,8 +878,6 @@ static int tsdbInsertDataToTable(STsdbRepo* pRepo, SSubmitBlk* pBlock, int32_t *
     }
   }
 
-  // update table latest info
-
   STSchema *pSchema = tsdbGetTableSchemaByVersion(pTable, pBlock->sversion);
   pRepo->stat.pointsWritten += points * schemaNCols(pSchema);
   pRepo->stat.totalStorage += points * schemaVLen(pSchema);
