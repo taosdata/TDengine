@@ -43,6 +43,7 @@ python3 ./test.py -f table/del_stable.py
 
 #stable
 python3 ./test.py -f stable/insert.py
+python3 test.py -f tools/taosdemoAllTest/taosdemoTestInsertWithJsonStmt.py 
 
 # tag
 python3 ./test.py -f tag_lite/filter.py
@@ -353,7 +354,6 @@ python3 ./test.py -f query/queryBetweenAnd.py
 python3 ./test.py -f tag_lite/alter_tag.py
 
 python3 test.py -f tools/taosdemoAllTest/taosdemoTestInsertWithJson.py 
-python3 test.py -f tools/taosdemoAllTest/taosdemoTestInsertWithJsonStmt.py 
 python3 test.py -f tools/taosdemoAllTest/taosdemoTestQueryWithJson.py
 python3 test.py -f tools/taosdemoAllTest/TD-4985/query-limit-offset.py
 python3 ./test.py -f tag_lite/drop_auto_create.py
