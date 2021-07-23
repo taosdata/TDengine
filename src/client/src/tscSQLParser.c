@@ -6073,7 +6073,7 @@ int32_t setAlterTableInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
     for (i = 0; i < numOfColumns; ++i) {
       nLen += pSchema[i].colId != columnIndex.columnIndex ? pSchema[i].bytes : pItem->bytes;
     }
-    if (nLen >= TSDB_MAX_BYTES_PER_ROW) {
+    if (nLen >= TSDB_MAX_TAGS_LEN) {
       return invalidOperationMsg(pMsg, msg24);
     }
 
