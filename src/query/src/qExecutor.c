@@ -2427,7 +2427,7 @@ static void updateDataCheckOrder(SQInfo *pQInfo, SQueryTableMsg* pQueryMsg, bool
 
   if (pQueryAttr->pointInterpQuery && pQueryAttr->interval.interval == 0) {
     if (!QUERY_IS_ASC_QUERY(pQueryAttr)) {
-      qDebug(msg, pQInfo, "interp", pQueryAttr->order.order, TSDB_ORDER_ASC, pQueryAttr->window.skey, pQueryAttr->window.ekey, pQueryAttr->window.ekey, pQueryAttr->window.skey);
+      qDebug(msg, pQInfo->qId, "interp", pQueryAttr->order.order, TSDB_ORDER_ASC, pQueryAttr->window.skey, pQueryAttr->window.ekey, pQueryAttr->window.ekey, pQueryAttr->window.skey);
       SWAP(pQueryAttr->window.skey, pQueryAttr->window.ekey, TSKEY);
     }
 
@@ -2438,7 +2438,7 @@ static void updateDataCheckOrder(SQInfo *pQInfo, SQueryTableMsg* pQueryMsg, bool
   if (pQueryAttr->interval.interval == 0) {
     if (onlyFirstQuery(pQueryAttr)) {
       if (!QUERY_IS_ASC_QUERY(pQueryAttr)) {
-        qDebug(msg, pQInfo, "only-first", pQueryAttr->order.order, TSDB_ORDER_ASC, pQueryAttr->window.skey,
+        qDebug(msg, pQInfo->qId, "only-first", pQueryAttr->order.order, TSDB_ORDER_ASC, pQueryAttr->window.skey,
                pQueryAttr->window.ekey, pQueryAttr->window.ekey, pQueryAttr->window.skey);
 
         SWAP(pQueryAttr->window.skey, pQueryAttr->window.ekey, TSKEY);
@@ -2449,7 +2449,7 @@ static void updateDataCheckOrder(SQInfo *pQInfo, SQueryTableMsg* pQueryMsg, bool
       pQueryAttr->needReverseScan = false;
     } else if (onlyLastQuery(pQueryAttr) && notContainSessionOrStateWindow(pQueryAttr)) {
       if (QUERY_IS_ASC_QUERY(pQueryAttr)) {
-        qDebug(msg, pQInfo, "only-last", pQueryAttr->order.order, TSDB_ORDER_DESC, pQueryAttr->window.skey,
+        qDebug(msg, pQInfo->qId, "only-last", pQueryAttr->order.order, TSDB_ORDER_DESC, pQueryAttr->window.skey,
                pQueryAttr->window.ekey, pQueryAttr->window.ekey, pQueryAttr->window.skey);
 
         SWAP(pQueryAttr->window.skey, pQueryAttr->window.ekey, TSKEY);
@@ -2464,7 +2464,7 @@ static void updateDataCheckOrder(SQInfo *pQInfo, SQueryTableMsg* pQueryMsg, bool
     if (stableQuery) {
       if (onlyFirstQuery(pQueryAttr)) {
         if (!QUERY_IS_ASC_QUERY(pQueryAttr)) {
-          qDebug(msg, pQInfo, "only-first stable", pQueryAttr->order.order, TSDB_ORDER_ASC,
+          qDebug(msg, pQInfo->qId, "only-first stable", pQueryAttr->order.order, TSDB_ORDER_ASC,
                  pQueryAttr->window.skey, pQueryAttr->window.ekey, pQueryAttr->window.ekey, pQueryAttr->window.skey);
 
           SWAP(pQueryAttr->window.skey, pQueryAttr->window.ekey, TSKEY);
@@ -2475,7 +2475,7 @@ static void updateDataCheckOrder(SQInfo *pQInfo, SQueryTableMsg* pQueryMsg, bool
         pQueryAttr->needReverseScan = false;
       } else if (onlyLastQuery(pQueryAttr)) {
         if (QUERY_IS_ASC_QUERY(pQueryAttr)) {
-          qDebug(msg, pQInfo, "only-last stable", pQueryAttr->order.order, TSDB_ORDER_DESC,
+          qDebug(msg, pQInfo->qId, "only-last stable", pQueryAttr->order.order, TSDB_ORDER_DESC,
                  pQueryAttr->window.skey, pQueryAttr->window.ekey, pQueryAttr->window.ekey, pQueryAttr->window.skey);
 
           SWAP(pQueryAttr->window.skey, pQueryAttr->window.ekey, TSKEY);
@@ -6594,10 +6594,19 @@ static SSDataBlock* hashDistinct(void* param, bool* newgroup) {
       if (isNull(val, type)) {
         continue;
       }
-      int dummy; 
-      void* res = taosHashGet(pInfo->pSet, val, bytes);
+
+      size_t keyLen = 0;
+      if (IS_VAR_DATA_TYPE(pOperator->pExpr->base.colType)) {
+        tstr* var = (tstr*)(val);
+        keyLen = varDataLen(var);
+      } else {
+        keyLen = bytes;
+      }
+
+      int dummy;
+      void* res = taosHashGet(pInfo->pSet, val, keyLen);
       if (res == NULL) {
-        taosHashPut(pInfo->pSet, val, bytes, &dummy, sizeof(dummy));
+        taosHashPut(pInfo->pSet, val, keyLen, &dummy, sizeof(dummy));
         char* start = pResultColInfoData->pData + bytes * pInfo->pRes->info.rows;
         memcpy(start, val, bytes);
         pRes->info.rows += 1;
@@ -6624,6 +6633,7 @@ SOperatorInfo* createDistinctOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperat
   pOperator->blockingOptr = false;
   pOperator->status       = OP_IN_EXECUTING;
   pOperator->operatorType = OP_Distinct;
+  pOperator->pExpr        = pExpr;
   pOperator->numOfOutput  = numOfOutput;
   pOperator->info         = pInfo;
   pOperator->pRuntimeEnv  = pRuntimeEnv;

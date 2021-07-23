@@ -1904,7 +1904,6 @@ int tsInsertInitialCheck(SSqlObj *pSql) {
 int tsParseSql(SSqlObj *pSql, bool initial) {
   int32_t ret = TSDB_CODE_SUCCESS;
   SSqlCmd* pCmd = &pSql->cmd;
-
   if (!initial) {
     tscDebug("0x%"PRIx64" resume to parse sql: %s", pSql->self, pCmd->insertParam.sql);
   }
