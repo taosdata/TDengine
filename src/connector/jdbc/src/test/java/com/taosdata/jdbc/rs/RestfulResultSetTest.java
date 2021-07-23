@@ -95,13 +95,13 @@ public class RestfulResultSetTest {
     public void getBigDecimal() throws SQLException {
         BigDecimal f1 = rs.getBigDecimal("f1");
         long actual = (f1 == null) ? 0 : f1.longValue();
-        Assert.assertEquals(1609430400000l, actual);
+        Assert.assertEquals(1609430400000L, actual);
 
         BigDecimal f2 = rs.getBigDecimal("f2");
         Assert.assertEquals(1, f2.intValue());
 
         BigDecimal f3 = rs.getBigDecimal("f3");
-        Assert.assertEquals(100l, f3.longValue());
+        Assert.assertEquals(100L, f3.longValue());
 
         BigDecimal f4 = rs.getBigDecimal("f4");
         Assert.assertEquals(3.1415f, f4.floatValue(), 0.00000f);
@@ -125,13 +125,13 @@ public class RestfulResultSetTest {
         Assert.assertEquals(1, Ints.fromByteArray(f2));
 
         byte[] f3 = rs.getBytes("f3");
-        Assert.assertEquals(100l, Longs.fromByteArray(f3));
+        Assert.assertEquals(100L, Longs.fromByteArray(f3));
 
         byte[] f4 = rs.getBytes("f4");
-        Assert.assertEquals(3.1415f, Float.valueOf(new String(f4)), 0.000000f);
+        Assert.assertEquals(3.1415f, Float.parseFloat(new String(f4)), 0.000000f);
 
         byte[] f5 = rs.getBytes("f5");
-        Assert.assertEquals(3.1415926, Double.valueOf(new String(f5)), 0.000000f);
+        Assert.assertEquals(3.1415926, Double.parseDouble(new String(f5)), 0.000000f);
 
         byte[] f6 = rs.getBytes("f6");
         Assert.assertEquals("abc", new String(f6));
@@ -222,7 +222,7 @@ public class RestfulResultSetTest {
 
         Object f3 = rs.getObject("f3");
         Assert.assertEquals(Long.class, f3.getClass());
-        Assert.assertEquals(100l, f3);
+        Assert.assertEquals(100L, f3);
 
         Object f4 = rs.getObject("f4");
         Assert.assertEquals(Float.class, f4.getClass());
@@ -434,7 +434,7 @@ public class RestfulResultSetTest {
 
     @Test(expected = SQLFeatureNotSupportedException.class)
     public void updateLong() throws SQLException {
-        rs.updateLong(1, 1l);
+        rs.updateLong(1, 1L);
     }
 
     @Test(expected = SQLFeatureNotSupportedException.class)

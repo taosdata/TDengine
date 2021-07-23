@@ -15,6 +15,8 @@ public class RestfulPreparedStatementTest {
     private static PreparedStatement pstmt_insert;
     private static final String sql_select = "select * from t1 where ts > ? and ts <= ? and f1 >= ?";
     private static PreparedStatement pstmt_select;
+    private static final String sql_without_parameters = "select count(*) from t1";
+    private static PreparedStatement pstmt_without_parameters;
 
     @Test
     public void executeQuery() throws SQLException {
@@ -27,12 +29,9 @@ public class RestfulPreparedStatementTest {
         ResultSet rs = pstmt_select.executeQuery();
         Assert.assertNotNull(rs);
         ResultSetMetaData meta = rs.getMetaData();
-        while (rs.next()) {
-            for (int i = 1; i <= meta.getColumnCount(); i++) {
-                System.out.print(meta.getColumnLabel(i) + ": " + rs.getString(i) + "\t");
-            }
-            System.out.println();
-        }
+        int columnCount = meta.getColumnCount();
+        Assert.assertEquals(10, columnCount);
+        Assert.assertNotNull(rs);
     }
 
     @Test
@@ -240,6 +239,7 @@ public class RestfulPreparedStatementTest {
     @Test
     public void clearParameters() throws SQLException {
         pstmt_insert.clearParameters();
+        pstmt_without_parameters.clearParameters();
     }
 
     @Test
@@ -373,18 +373,20 @@ public class RestfulPreparedStatementTest {
     @BeforeClass
     public static void beforeClass() {
         try {
-            Class.forName("com.taosdata.jdbc.rs.RestfulDriver");
             conn = DriverManager.getConnection("jdbc:TAOS-RS://" + host + ":6041/?user=root&password=taosdata");
-            try (Statement stmt = conn.createStatement()) {
-                stmt.execute("drop database if exists test_pstmt");
-                stmt.execute("create database if not exists test_pstmt");
-                stmt.execute("use test_pstmt");
-                stmt.execute("create table weather(ts timestamp, f1 int, f2 bigint, f3 float, f4 double, f5 smallint, f6 tinyint, f7 bool, f8 binary(64), f9 nchar(64)) tags(loc nchar(64))");
-                stmt.execute("create table t1 using weather tags('beijing')");
-            }
+
+            Statement stmt = conn.createStatement();
+            stmt.execute("drop database if exists test_pstmt");
+            stmt.execute("create database if not exists test_pstmt");
+            stmt.execute("use test_pstmt");
+            stmt.execute("create table weather(ts timestamp, f1 int, f2 bigint, f3 float, f4 double, f5 smallint, f6 tinyint, f7 bool, f8 binary(64), f9 nchar(64)) tags(loc nchar(64))");
+            stmt.execute("create table t1 using weather tags('beijing')");
+            stmt.close();
+
             pstmt_insert = conn.prepareStatement(sql_insert);
             pstmt_select = conn.prepareStatement(sql_select);
-        } catch (ClassNotFoundException | SQLException e) {
+            pstmt_without_parameters = conn.prepareStatement(sql_without_parameters);
+        } catch (SQLException e) {
             e.printStackTrace();
         }
     }
@@ -396,6 +398,8 @@ public class RestfulPreparedStatementTest {
                 pstmt_insert.close();
             if (pstmt_select != null)
                 pstmt_select.close();
+            if (pstmt_without_parameters != null)
+                pstmt_without_parameters.close();
             if (conn != null)
                 conn.close();
         } catch (SQLException e) {

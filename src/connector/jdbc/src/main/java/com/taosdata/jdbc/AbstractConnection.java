@@ -1,5 +1,7 @@
 package com.taosdata.jdbc;
 
+import com.taosdata.jdbc.enums.TimestampFormat;
+
 import java.sql.*;
 import java.util.Enumeration;
 import java.util.Map;
@@ -18,7 +20,7 @@ public abstract class AbstractConnection extends WrapperImpl implements Connecti
         for (String propName : propNames) {
             clientInfoProps.setProperty(propName, properties.getProperty(propName));
         }
-        String timestampFormat = properties.getProperty(TSDBDriver.PROPERTY_KEY_TIMESTAMP_FORMAT, "STRING");
+        String timestampFormat = properties.getProperty(TSDBDriver.PROPERTY_KEY_TIMESTAMP_FORMAT, String.valueOf(TimestampFormat.STRING));
         clientInfoProps.setProperty(TSDBDriver.PROPERTY_KEY_TIMESTAMP_FORMAT, timestampFormat);
     }
 
@@ -169,11 +171,7 @@ public abstract class AbstractConnection extends WrapperImpl implements Connecti
         // do nothing
     }
 
-    @Override
-    public Statement createStatement(int resultSetType, int resultSetConcurrency) throws SQLException {
-        if (isClosed())
-            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_CONNECTION_CLOSED);
-
+    private void checkResultSetTypeAndResultSetConcurrency(int resultSetType, int resultSetConcurrency) throws SQLException {
         switch (resultSetType) {
             case ResultSet.TYPE_FORWARD_ONLY:
                 break;
@@ -192,7 +190,14 @@ public abstract class AbstractConnection extends WrapperImpl implements Connecti
             default:
                 throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_INVALID_VARIABLE);
         }
+    }
 
+    @Override
+    public Statement createStatement(int resultSetType, int resultSetConcurrency) throws SQLException {
+        if (isClosed())
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_CONNECTION_CLOSED);
+
+        checkResultSetTypeAndResultSetConcurrency(resultSetType, resultSetConcurrency);
         return createStatement();
     }
 
@@ -201,24 +206,7 @@ public abstract class AbstractConnection extends WrapperImpl implements Connecti
         if (isClosed())
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_CONNECTION_CLOSED);
 
-        switch (resultSetType) {
-            case ResultSet.TYPE_FORWARD_ONLY:
-                break;
-            case ResultSet.TYPE_SCROLL_INSENSITIVE:
-            case ResultSet.TYPE_SCROLL_SENSITIVE:
-                throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
-            default:
-                throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_INVALID_VARIABLE);
-        }
-
-        switch (resultSetConcurrency) {
-            case ResultSet.CONCUR_READ_ONLY:
-                break;
-            case ResultSet.CONCUR_UPDATABLE:
-                throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
-            default:
-                throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_INVALID_VARIABLE);
-        }
+        checkResultSetTypeAndResultSetConcurrency(resultSetType, resultSetConcurrency);
         return prepareStatement(sql);
     }
 
@@ -304,9 +292,6 @@ public abstract class AbstractConnection extends WrapperImpl implements Connecti
 
     @Override
     public Statement createStatement(int resultSetType, int resultSetConcurrency, int resultSetHoldability) throws SQLException {
-        if (isClosed())
-            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_CONNECTION_CLOSED);
-
         switch (resultSetHoldability) {
             case ResultSet.HOLD_CURSORS_OVER_COMMIT:
                 break;
@@ -320,11 +305,7 @@ public abstract class AbstractConnection extends WrapperImpl implements Connecti
     }
 
     @Override
-    public PreparedStatement prepareStatement(String sql, int resultSetType, int resultSetConcurrency, int resultSetHoldability)
-            throws SQLException {
-        if (isClosed())
-            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_CONNECTION_CLOSED);
-
+    public PreparedStatement prepareStatement(String sql, int resultSetType, int resultSetConcurrency, int resultSetHoldability) throws SQLException {
         switch (resultSetHoldability) {
             case ResultSet.HOLD_CURSORS_OVER_COMMIT:
                 break;
@@ -423,7 +404,7 @@ public abstract class AbstractConnection extends WrapperImpl implements Connecti
                 status = resultSet.getInt("server_status()");
                 resultSet.close();
             }
-            return status == 1 ? true : false;
+            return status == 1;
         });
 
         boolean status = false;
@@ -432,9 +413,7 @@ public abstract class AbstractConnection extends WrapperImpl implements Connecti
                 status = future.get();
             else
                 status = future.get(timeout, TimeUnit.SECONDS);
-        } catch (InterruptedException e) {
-            e.printStackTrace();
-        } catch (ExecutionException e) {
+        } catch (InterruptedException | ExecutionException e) {
             e.printStackTrace();
         } catch (TimeoutException e) {
             future.cancel(true);
@@ -450,8 +429,7 @@ public abstract class AbstractConnection extends WrapperImpl implements Connecti
         if (isClosed)
             throw (SQLClientInfoException) TSDBError.createSQLException(TSDBErrorNumbers.ERROR_SQLCLIENT_EXCEPTION_ON_CONNECTION_CLOSED);
 
-        if (clientInfoProps != null)
-            clientInfoProps.setProperty(name, value);
+        clientInfoProps.setProperty(name, value);
     }
 
     @Override
@@ -459,8 +437,8 @@ public abstract class AbstractConnection extends WrapperImpl implements Connecti
         if (isClosed)
             throw (SQLClientInfoException) TSDBError.createSQLException(TSDBErrorNumbers.ERROR_SQLCLIENT_EXCEPTION_ON_CONNECTION_CLOSED);
 
-        for (Enumeration<Object> enumer = properties.keys(); enumer.hasMoreElements(); ) {
-            String name = (String) enumer.nextElement();
+        for (Enumeration<Object> enumeration = properties.keys(); enumeration.hasMoreElements(); ) {
+            String name = (String) enumeration.nextElement();
             clientInfoProps.put(name, properties.getProperty(name));
         }
     }
@@ -516,7 +494,6 @@ public abstract class AbstractConnection extends WrapperImpl implements Connecti
     public void abort(Executor executor) throws SQLException {
         if (isClosed())
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_CONNECTION_CLOSED);
-
         // do nothing
     }
 
@@ -527,14 +504,13 @@ public abstract class AbstractConnection extends WrapperImpl implements Connecti
         if (milliseconds < 0)
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_INVALID_VARIABLE);
 
-        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
+        // do nothing
     }
 
     @Override
     public int getNetworkTimeout() throws SQLException {
         if (isClosed())
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_CONNECTION_CLOSED);
-
-        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
+        return 0;
     }
 }
