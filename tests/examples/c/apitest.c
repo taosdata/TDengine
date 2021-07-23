@@ -989,6 +989,12 @@ int32_t verify_schema_less(TAOS* taos) {
       "sth,t1=4i64,t2=5f64,t4=5f64 c1=3i64,c3=L\"passitagin_stf\",c2=false,c5=5f64,c6=7u64 1626006933654ms"
   };
   code = taos_insert_lines(taos, lines3, 2);
+
+  char* lines4[] = {
+      "st123456,t1=3i64,t2=4f64,t3=\"t3\" c1=3i64,c3=L\"passit\",c2=false,c4=4f64 1626006833639000000ns",
+      "dgtyqodr,t2=5f64,t3=L\"ste\" c1=tRue,c2=4i64,c3=\"iam\" 1626056811823316532ns"
+  };
+  code = taos_insert_lines(taos, lines4, 2);
   return code;
 }
 

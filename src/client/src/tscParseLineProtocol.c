@@ -1823,6 +1823,8 @@ int taos_insert_lines(TAOS* taos, char* lines[], int numLines) {
 
 cleanup:
   tscDebug("taos_insert_lines finish inserting %d lines. code: %d", numLines, code);
+  points = TARRAY_GET_START(lpPoints);
+  numPoints = taosArrayGetSize(lpPoints);
   for (int i=0; i<numPoints; ++i) {
     destroySmlDataPoint(points+i);
   }
