@@ -713,7 +713,7 @@ class TDTestCase:
         code = self._conn.insertLines([input_sql])
         tdSql.checkNotEqual(code, 0)
 
-        # * check col，col+ts max in describe ---> 16143
+        # # * check col，col+ts max in describe ---> 16143
         input_sql = f'{stb_name},t0=t c0=f,c1="{self.getLongName(16374, "letters")}",c2="{self.getLongName(16374, "letters")}",c3="{self.getLongName(16374, "letters")}",c4="{self.getLongName(12, "letters")}" 1626006833639000000ns'
         code = self._conn.insertLines([input_sql])
         tdSql.checkEqual(code, 0)
@@ -776,6 +776,35 @@ class TDTestCase:
                 ]
         code = self._conn.insertLines(lines)
         # tdSql.checkEqual(code, 0)
+
+    def genSqlList(self, count=5):
+        """
+            stb --> supertable
+            tb  --> table
+            ts  --> timestamp
+            col --> column
+            tag --> tag
+            d   --> different
+            s   --> same
+        """
+        d_stb_d_tb_list = list()
+        for i in range(count):
+            d_stb_d_tb_list.append(self.genFullTypeSql(t0="f", c0="f"))
+            
+        return d_stb_d_tb_list, 
+
+    def genMultiThreadSeq(self, sql_list):
+        tlist = list()
+        for insert_sql in sql_list:
+            t = threading.Thread(target=self._conn.insertLines,args=insert_sql)
+            tlist.append(t)
+        return tlist
+
+    def multiThreadRun(self, tlist):
+        for t in tlist:
+            t.start()
+        for t in tlist:
+            t.join()
 
     def stbInsertMultiThreadCheckCase(self):
         pass
