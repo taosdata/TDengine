@@ -6066,11 +6066,11 @@ int32_t setAlterTableInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
       return invalidOperationMsg(pMsg, msg22);
     }
 
-    SSchema* pSchema = (SSchema*) pTableMetaInfo->pTableMeta->schema;
-    int16_t numOfColumns = pTableMetaInfo->pTableMeta->tableInfo.numOfColumns;
+    SSchema* pSchema = tscGetTableTagSchema(pTableMetaInfo->pTableMeta);
+    int16_t numOfTags = tscGetNumOfTags(pTableMetaInfo->pTableMeta);
     int16_t i;
     uint32_t nLen = 0;
-    for (i = 0; i < numOfColumns; ++i) {
+    for (i = 0; i < numOfTags; ++i) {
       nLen += pSchema[i].colId != columnIndex.columnIndex ? pSchema[i].bytes : pItem->bytes;
     }
     if (nLen >= TSDB_MAX_TAGS_LEN) {
