@@ -27,7 +27,7 @@ TEST(cacheTest, testInsert) {
   int nBytes;
   int i = 0, j = 0;
   char buf[20];
-  for (i = 0; i < 100; ++i) {
+  for (i = 0; i < 1024 * 1024; ++i) {
     snprintf(buf, sizeof(buf), "0123456789_%d", i);
     int err = cachePut(pTable, buf, strlen(buf), buf, strlen(buf), 0);
 

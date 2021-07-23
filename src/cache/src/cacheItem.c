@@ -21,7 +21,7 @@
 #include "cacheSlab.h"
 
 size_t cacheItemTotalBytes(uint8_t nkey, uint32_t nbytes) {
-  return sizeof(cacheItem) + sizeof(unsigned int) + (nkey + 1) + nbytes;
+  return sizeof(cacheItem) + nkey + nbytes;
 }
 
 cacheItem* cacheAllocItem(cache_t* cache, uint8_t nkey, uint32_t nbytes, uint64_t expireTime) {
@@ -29,7 +29,7 @@ cacheItem* cacheAllocItem(cache_t* cache, uint8_t nkey, uint32_t nbytes, uint64_
   uint32_t id = slabClsId(cache, ntotal);
   cacheItem* item = NULL;
 
-  if (ntotal > 10240) {
+  if (ntotal > 10240) { /* chunk item */
 
   } else {
     item = cacheSlabAllocItem(cache, ntotal, id);
@@ -44,11 +44,24 @@ cacheItem* cacheAllocItem(cache_t* cache, uint8_t nkey, uint32_t nbytes, uint64_
   item->next = item->prev = NULL;
   item->expireTime = expireTime;
   if (expireTime == 0) {
+    /* never expire item MUST not in link lru list */
+    assert(item_is_linked(item) == false);
+
+    /* never expire, add to never expire list */
     item->next = cache->neverExpireItemHead;
     if (cache->neverExpireItemHead) cache->neverExpireItemHead->prev = item;
     cache->neverExpireItemHead = item;
   } else {
+    /* add to lru slab list */
+    item_set_linked(item);
+
     id |= CACHE_LRU_HOT;
+    cacheSlabLruClass* lru = &(cache->lruArray[id]);
+    if (lru->tail) {
+      lru->tail->prev = item;
+    }
+    item->next = lru->tail;
+    lru->tail  = item;
   }
   item->slabClsId = id;
 

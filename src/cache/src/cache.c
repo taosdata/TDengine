@@ -105,7 +105,7 @@ static int cachePutDataIntoCache(cacheTable* pTable, const char* key, uint8_t nk
   item->nbytes = nbytes;
   memcpy(item_key(item), key, nkey);
   memcpy(item_data(item), value, nbytes);
-
+  item_set_linked(item);
   cacheTablePut(pTable, item);
 
   if (ppItem) {

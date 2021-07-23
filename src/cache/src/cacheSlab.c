@@ -28,7 +28,7 @@ static void *cacheAllocMemory(cache_t *cache, size_t size);
 static void cacheSplitSlabPageInfoFreelist(cache_t *cache,char *ptr, uint32_t id);
 static int cacheMoveItemFromLru(cache_t *cache, int id, int curLru, uint64_t totalBytes, 
                                 uint32_t* moveToLru,  cacheItem* search, cacheItem** pItem);
-static int cacheLruItemPull(cache_t *cache, int origId, int curLru, uint64_t total_bytes);
+static int cacheLruPull(cache_t *cache, int origId, int curLru, uint64_t total_bytes);
 
 int cacheSlabInit(cache_t *cache) {
   // init slab class
@@ -95,19 +95,19 @@ uint32_t slabClsId(cache_t *cache, size_t size) {
   return i;
 }
 
-cacheItem* cacheSlabAllocItem(cache_t *cache, size_t ntotal, uint32_t id) {
+cacheItem* cacheSlabAllocItem(cache_t *cache, size_t ntotal, uint32_t slabId) {
   cacheItem *item = NULL;
   int i;
 
   for (i = 0; i < 10; ++i) {
-    item = cacheSlabDoAllocItem(cache, ntotal, id);
+    item = cacheSlabDoAllocItem(cache, ntotal, slabId);
     if (item) {
       break;
     }
 
-    if (cacheLruItemPull(cache, id, CACHE_LRU_COLD, 0) <= 0) {  /* try to pull item fom cold list */
+    if (cacheLruPull(cache, slabId, CACHE_LRU_COLD, 0) <= 0) {  /* try to pull item fom cold list */
       /* pull item from cold list failed, try to pull item from hot list */
-      if (cacheLruItemPull(cache, id, CACHE_LRU_HOT, 0) <= 0) {
+      if (cacheLruPull(cache, slabId, CACHE_LRU_HOT, 0) <= 0) {
         break;
       }
     }
@@ -240,7 +240,7 @@ static int cacheMoveItemFromLru(cache_t *cache, int lruId, int curLru, uint64_t 
   switch (curLru) {
     case CACHE_LRU_HOT:
       limit = totalBytes * opt->hotPercent / 100;
-      // no break here, go through to next case
+      /* no break here, go through to next case */
     case CACHE_LRU_WARM:
       if (limit == 0) {
         limit = totalBytes * opt->warmPercent / 100;
@@ -273,12 +273,12 @@ static int cacheMoveItemFromLru(cache_t *cache, int lruId, int curLru, uint64_t 
   return removed;
 }
 
-static int cacheLruItemPull(cache_t *cache, int origId, int curLru, uint64_t totalBytes) {
+static int cacheLruPull(cache_t *cache, int slabId, int curLru, uint64_t totalBytes) {
   cacheItem* item = NULL;
   cacheItem* search;
   cacheItem* next;
   cacheSlabLruClass* lru;
-  int lruId = origId;
+  int lruId = slabId;
   int removed = 0;
   int tries = 5;
   uint32_t moveToLru = 0;
@@ -289,7 +289,8 @@ static int cacheLruItemPull(cache_t *cache, int origId, int curLru, uint64_t tot
   assert(lru->id == lruId);
   search = lru->tail;
   for (; tries > 0 && search != NULL; tries--, search = next) {
-    assert(item_lruid(search) == lruId);
+    assert(item_lruid(search) == curLru);
+    assert(item_is_linked(search));
 
     cacheMutexLock(&(lru->mutex));
 
@@ -314,8 +315,7 @@ static int cacheLruItemPull(cache_t *cache, int origId, int curLru, uint64_t tot
 
   if (item != NULL) {
     if (moveToLru) {
-      item->slabClsId = item_clsid(item);
-      item->slabClsId|= moveToLru;
+      item->slabClsId = item_clsid(item) | moveToLru;
       cacheItemLinkToLru(cache, item, true);
     }
   }

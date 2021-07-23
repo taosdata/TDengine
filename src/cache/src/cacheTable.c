@@ -110,8 +110,7 @@ int cacheTablePut(cacheTable* pTable, cacheItem* item) {
 cacheItem* cacheTableGet(cacheTable* pTable, const char* key, uint8_t nkey) {
   cacheMutexLock(&(pTable->mutex));
   
-  cacheItem *pItem;
-  pItem = cacheFindItemByKey(pTable, key, nkey, NULL);
+  cacheItem *pItem = cacheFindItemByKey(pTable, key, nkey, NULL);
 
   cacheMutexUnlock(&(pTable->mutex));
   return pItem;

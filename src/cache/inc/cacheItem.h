@@ -28,11 +28,14 @@ extern "C" {
 #endif
 
 typedef enum cache_item_flag_t {
-  ITEM_LINKED   = 1,
-  ITEM_SLABBED  = 2,  /* item in slab free list */  
-  ITEM_FETCHED  = 4,  /* Item was fetched at least once in its lifetime */
+  /* item is free */
+  ITEM_SLABBED  = 1,  /* item in slab free list, means item is free */
+
+  /* item in use */
+  ITEM_LINKED   = 2,  /* item in lru list, means item in use */
+  ITEM_FETCHED  = 4,  /* item in use and was fetched at least once in its lifetime */
   ITEM_ACTIVE   = 8,  /* Appended on fetch, removed on LRU shuffling */
-  ITEM_CHUNKED  = 16, /* item in chunked mode */
+  ITEM_CHUNKED  = 16, /* item in use and in chunked mode */
 } cache_item_flag_t;
 
 struct cacheItem {
@@ -40,7 +43,7 @@ struct cacheItem {
   struct cacheItem*  next;
   struct cacheItem*  prev;
 
-  struct cacheItem* h_next;
+  struct cacheItem* h_next;       /* hash tabel next item */
 
   cacheTable*     pTable;         /* owner cache table */
   uint16_t        flags;          /* item flags above */
@@ -57,30 +60,36 @@ struct cacheItem {
 };
 
 /* item flags macros */
-#define item_is_linked(item)    ((item)->flags & ITEM_LINKED)
 #define item_is_slabbed(item)   ((item)->flags & ITEM_SLABBED)
+#define item_is_linked(item)    ((item)->flags & ITEM_LINKED)
 #define item_is_active(item)    ((item)->flags & ITEM_ACTIVE)
 #define item_is_chunked(item)   ((item)->flags & ITEM_CHUNKED)
 
-#define item_set_slabbed(item)   (item)->flags &= ITEM_SLABBED
+#define item_set_slabbed(item)  (item)->flags &= ITEM_SLABBED
+#define item_set_linked(item)   (item)->flags &= ITEM_LINKED
+#define item_set_fetched(item)  (item)->flags &= ITEM_FETCHED
+#define item_set_actived(item)  (item)->flags &= ITEM_ACTIVE
 
 #define item_unlink(item)       (item)->flags &= ~ITEM_LINKED
 #define item_unactive(item)     (item)->flags &= ~ITEM_ACTIVE
 #define item_unslabbed(item)    (item)->flags &= ~ITEM_SLABBED
 
+/* return slab class id in [0,63] */
 #define item_clsid(item)        ((item)->slabClsId & ~(3<<6))
+
+/* return the lru list id:hot,warm,cold */
 #define item_lruid(item)        ((item)->slabClsId & (3<<6))
 
 size_t cacheItemTotalBytes(uint8_t nkey, uint32_t nbytes);
 
 cacheItem* cacheAllocItem(cache_t*, uint8_t nkey, uint32_t nbytes, uint64_t expireTime);
 
-void    cacheItemFree(cache_t*, cacheItem*);
-void    cacheItemUnlinkNolock(cacheTable* pTable, cacheItem* item);
-void   cacheItemUnlinkFromLru(cache_t*, cacheItem*, bool lock);
-void   cacheItemLinkToLru(cache_t*, cacheItem*, bool lock);
-void    cacheItemMoveToLruHead(cache_t*, cacheItem*);
-void    cacheItemRemove(cache_t*, cacheItem*);
+void  cacheItemFree(cache_t*, cacheItem*);
+void  cacheItemUnlinkNolock(cacheTable* pTable, cacheItem* item);
+void  cacheItemUnlinkFromLru(cache_t*, cacheItem*, bool lock);
+void  cacheItemLinkToLru(cache_t*, cacheItem*, bool lock);
+void  cacheItemMoveToLruHead(cache_t*, cacheItem*);
+void  cacheItemRemove(cache_t*, cacheItem*);
 
 #define item_key(item)  (((char*)&((item)->data)) + sizeof(unsigned int))
 
