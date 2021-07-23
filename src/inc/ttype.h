@@ -139,7 +139,7 @@ typedef struct {
 #define IS_VALID_UINT(_t)       ((_t) >= 0 && (_t) < UINT32_MAX)
 #define IS_VALID_UBIGINT(_t)    ((_t) >= 0 && (_t) < UINT64_MAX)
 
-static FORCE_INLINE bool isNull(const char *val, int32_t type) {
+static FORCE_INLINE bool isNull(const void *val, int32_t type) {
   switch (type) {
     case TSDB_DATA_TYPE_BOOL:
       return *(uint8_t *)val == TSDB_DATA_BOOL_NULL;
@@ -191,9 +191,9 @@ extern tDataTypeDescriptor tDataTypes[15];
 
 bool isValidDataType(int32_t type);
 
-void  setVardataNull(char* val, int32_t type);
-void  setNull(char *val, int32_t type, int32_t bytes);
-void  setNullN(char *val, int32_t type, int32_t bytes, int32_t numOfElems);
+void  setVardataNull(void* val, int32_t type);
+void  setNull(void *val, int32_t type, int32_t bytes);
+void  setNullN(void *val, int32_t type, int32_t bytes, int32_t numOfElems);
 const void *getNullValue(int32_t type);
 
 void assignVal(char *val, const char *src, int32_t len, int32_t type);

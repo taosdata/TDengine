@@ -405,7 +405,7 @@ bool isValidDataType(int32_t type) {
   return type >= TSDB_DATA_TYPE_NULL && type <= TSDB_DATA_TYPE_UBIGINT;
 }
 
-void setVardataNull(char* val, int32_t type) {
+void setVardataNull(void* val, int32_t type) {
   if (type == TSDB_DATA_TYPE_BINARY) {
     varDataSetLen(val, sizeof(int8_t));
     *(uint8_t*) varDataVal(val) = TSDB_DATA_BINARY_NULL;
@@ -417,9 +417,9 @@ void setVardataNull(char* val, int32_t type) {
   }
 }
 
-void setNull(char *val, int32_t type, int32_t bytes) { setNullN(val, type, bytes, 1); }
+void setNull(void *val, int32_t type, int32_t bytes) { setNullN(val, type, bytes, 1); }
 
-void setNullN(char *val, int32_t type, int32_t bytes, int32_t numOfElems) {
+void setNullN(void *val, int32_t type, int32_t bytes, int32_t numOfElems) {
   switch (type) {
     case TSDB_DATA_TYPE_BOOL:
       for (int32_t i = 0; i < numOfElems; ++i) {
