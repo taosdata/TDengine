@@ -1482,7 +1482,7 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql, char** boundC
       return TSDB_CODE_TSC_SQL_SYNTAX_ERROR;
     }
 
-    code = tscGetTableMetaEx(pSql, pTableMetaInfo, true);
+    code = tscGetTableMetaEx(pSql, pTableMetaInfo, true, false);
     if (TSDB_CODE_TSC_ACTION_IN_PROGRESS == code) {
       return code;
     }
@@ -1493,7 +1493,7 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql, char** boundC
     }
 
     sql = sToken.z;
-    code = tscGetTableMetaEx(pSql, pTableMetaInfo, false);
+    code = tscGetTableMetaEx(pSql, pTableMetaInfo, false, false);
     if (pInsertParam->sql == NULL) {
       assert(code == TSDB_CODE_TSC_ACTION_IN_PROGRESS);
     }
