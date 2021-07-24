@@ -8157,12 +8157,12 @@ int32_t loadAllTableMeta(SSqlObj* pSql, struct SSqlInfo* pInfo) {
           tscDebug("0x%"PRIx64" failed to retrieve stable %s vgroup id list in cache, try fetch from mnode", pSql->self, pTableName);
         } else {
           tFilePage* pdata = (tFilePage*) pv;
-          pVgroupIdList = taosArrayInit(pdata->num, sizeof(int32_t));
+          pVgroupIdList = taosArrayInit((size_t) pdata->num, sizeof(int32_t));
           if (pVgroupIdList == NULL) {
             return TSDB_CODE_TSC_OUT_OF_MEMORY;
           }
 
-          taosArrayAddBatch(pVgroupIdList, pdata->data, pdata->num);
+          taosArrayAddBatch(pVgroupIdList, pdata->data, (int32_t) pdata->num);
           taosCacheRelease(tscVgroupListBuf, &pv, false);
         }
       }
