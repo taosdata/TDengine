@@ -2266,7 +2266,7 @@ int tscProcessMultiTableMetaRsp(SSqlObj *pSql) {
     tstrncpy(tableName, name, TSDB_TABLE_NAME_LEN);
     p->vgroupIdList = createVgroupIdListFromMsg(pMsg, pSet, tableName, &size, pSql->self);
 
-    int32_t numOfVgId = taosArrayGetSize(p->vgroupIdList);
+    int32_t numOfVgId = (int32_t) taosArrayGetSize(p->vgroupIdList);
     int32_t s = sizeof(tFilePage) + numOfVgId * sizeof(int32_t);
 
     tFilePage* idList = calloc(1, s);
