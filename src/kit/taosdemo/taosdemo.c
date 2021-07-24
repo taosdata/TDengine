@@ -743,8 +743,8 @@ static void printHelp() {
             "The number of threads. Default is 10.");
     printf("%s%s%s%s\n", indent, "-i", indent,
             "The sleep time (ms) between insertion. Default is 0.");
-    printf("%s%s%s%s%d\n", indent, "-S", indent,
-            "The timestamp step between insertion. Default is %d.",
+    printf("%s%s%s%s%d.\n", indent, "-S", indent,
+            "The timestamp step between insertion. Default is ",
             DEFAULT_TIMESTAMP_STEP);
     printf("%s%s%s%s\n", indent, "-r", indent,
             "The number of records per request. Default is 30000.");
