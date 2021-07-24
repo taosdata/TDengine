@@ -491,17 +491,17 @@ class TDTestCase:
         for t4 in ["-9223372036854775807i64"]:
             input_sql, stb_name, tb_name = self.genFullTypeSql(t4=t4)
             self.resCmp(input_sql, stb_name)
-        # ! 9223372036854775808i64 failed
-        # !for t4 in ["-9223372036854775808i64", "9223372036854775808i64"]:
-        # !   input_sql = self.genFullTypeSql(t4=t4)[0]
-        # !   code = self._conn.insertLines([input_sql])
-        # !   tdSql.checkNotEqual(code, 0)
+        #! 9223372036854775808i64 failed
+        for t4 in ["-9223372036854775808i64", "9223372036854775808i64"]:
+            input_sql = self.genFullTypeSql(t4=t4)[0]
+            code = self._conn.insertLines([input_sql])
+            tdSql.checkNotEqual(code, 0)
 
         # f32
-        for t5 in ["-11.12345f32"]:
-            input_sql, stb_name, tb_name = self.genFullTypeSql(t5=t5)
-            self.resCmp(input_sql, stb_name)
-        # TODO to confirm length
+        # for t5 in ["-11.12345f32"]:
+        #     input_sql, stb_name, tb_name = self.genFullTypeSql(t5=t5)
+        #     self.resCmp(input_sql, stb_name)
+        # # TODO to confirm length
         # #for t5 in [f"{-3.4028234663852886*(10**38)-1}f32", f"{3.4028234663852886*(10**38)+1}f32"]:
         # for t5 in [f"{-3.4028234663852886*(10**38)-1}f32", f"{3.4028234663852886*(10**38)+1}f32"]:
         #     print("tag2")
@@ -510,10 +510,10 @@ class TDTestCase:
         #     code = self._conn.insertLines([input_sql])
         #     tdSql.checkNotEqual(code, 0)
         
-        # f64
-        for t6 in ["-22.123456789f64"]:
-            input_sql, stb_name, tb_name = self.genFullTypeSql(t6=t6)
-            self.resCmp(input_sql, stb_name)
+        # # f64
+        # for t6 in ["-22.123456789f64"]:
+        #     input_sql, stb_name, tb_name = self.genFullTypeSql(t6=t6)
+        #     self.resCmp(input_sql, stb_name)
         # TODO to confirm length
 
         # TODO binary nchar
@@ -846,7 +846,7 @@ class TDTestCase:
         # self.nowTsCheckCase()
         # self.dateFormatTsCheckCase()
         # self.illegalTsCheckCase()
-        # self.tagValueLengthCheckCase()
+        self.tagValueLengthCheckCase()
 
         # ! 问题很多
         # ! self.colValueLengthCheckCase()
@@ -862,7 +862,7 @@ class TDTestCase:
         # self.tagMd5Check()
 
         # ! rollback bug
-        self.tagColBinaryMaxLengthCheckCase()
+        # self.tagColBinaryMaxLengthCheckCase()
         # self.tagColNcharMaxLengthCheckCase()
         
         # self.batchInsertCheckCase()
