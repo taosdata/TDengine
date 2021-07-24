@@ -6554,8 +6554,10 @@ static SSDataBlock* hashDistinct(void* param, bool* newgroup) {
     return NULL;
   }
 
+
   SDistinctOperatorInfo* pInfo = pOperator->info;
   SSDataBlock* pRes = pInfo->pRes;
+
 
   pRes->info.rows = 0;
   SSDataBlock* pBlock = NULL;
