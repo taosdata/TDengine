@@ -2240,7 +2240,7 @@ int tscProcessMultiTableMetaRsp(SSqlObj *pSql) {
     // for each vgroup, only update the information once.
     int64_t vgId = pMetaMsg->vgroup.vgId;
     if (pTableMeta->tableType != TSDB_SUPER_TABLE && taosHashGet(pSet, &vgId, sizeof(vgId)) == NULL) {
-      doUpdateVgroupInfo(vgId, &pMetaMsg->vgroup);
+      doUpdateVgroupInfo((int32_t) vgId, &pMetaMsg->vgroup);
       taosHashPut(pSet, &vgId, sizeof(vgId), "", 0);
     }
 
