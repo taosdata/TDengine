@@ -67,17 +67,18 @@ cacheItem* cacheGet(cacheTable* pTable, const char* key, uint8_t nkey) {
   if (pItem) {
     itemIncrRef(pItem);
     uint64_t now = taosGetTimestamp(TSDB_TIME_PRECISION_MILLI);
-    if (cacheItemIsExpired(pItem, now)) { /* is item expired? */
-      cacheItemUnlink(pTable, pItem);
-      cacheRemove(pTable, pItem);
+    if (cacheItemIsExpired(pItem, now)) { /* is item expired? */      
+      cacheItemUnlink(pTable, pItem, true);
+      cacheItemRemove(pTable->pCache, pItem);
       pItem = NULL;
-    } else if (!cacheItemIsNeverExpired(pItem)) {
-      cacheItemBump(pTable, pItem, now);
-    } else {
+    } else if (cacheItemIsNeverExpired(pItem)) {      
       /* never expired item refCount == 1 */
-      assert(pItem->refCount == 1);
+      assert(pItem->refCount == 2);
       itemDecrRef(pItem);
-      pItem->lastTime = now;
+      pItem->lastTime = now;    
+    } else {
+      cacheItemBump(pTable, pItem, now);
+      itemDecrRef(pItem);
     }
     return pItem;
   }

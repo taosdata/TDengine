@@ -61,13 +61,13 @@ cacheItem* cacheAllocItem(cache_t* cache, uint8_t nkey, uint32_t nbytes, uint64_
   return pItem;
 }
 
-void cacheItemUnlink(cacheTable* pTable, cacheItem* pItem) {
+void cacheItemUnlink(cacheTable* pTable, cacheItem* pItem, bool lockLru) {
   assert(pItem->pTable == pTable);
   if (item_is_used(pItem)) {
     item_unset_used(pItem);
     cacheTableRemove(pTable, item_key(pItem), pItem->nkey);
-    cacheLruUnlinkItem(pTable->pCache, pItem, true);
-    cacheItemRemove(pTable, pItem);
+    cacheLruUnlinkItem(pTable->pCache, pItem, lockLru);
+    cacheItemRemove(pTable->pCache, pItem);
   }
 }
 
@@ -82,14 +82,12 @@ void cacheItemRemove(cache_t* pCache, cacheItem* pItem) {
 
 void cacheItemBump(cacheTable* pTable, cacheItem* pItem, uint64_t now) {
   if (item_is_active(pItem)) {
-    /* already is active pItem, return */
-    itemDecrRef(pItem);
+    /* already is active item, return */
     return;
   }
 
   if (!item_is_fetched(pItem)) {
     /* access only one time, make it as fetched */
-    itemDecrRef(pItem);
     item_set_fetched(pItem);
     return;
   }
@@ -99,11 +97,14 @@ void cacheItemBump(cacheTable* pTable, cacheItem* pItem, uint64_t now) {
 
   if (item_slablru_id(pItem) != CACHE_LRU_COLD) {
     pItem->lastTime = now;
-    itemDecrRef(pItem);
     return;
   }
 
   cacheItemUpdateInColdLruList(pItem, now);
+}
+
+FORCE_INLINE cacheMutex* cacheItemBucketMutex(cacheItem* pItem) {
+  return &(pItem->pTable->pBucket[pItem->hash].mutex);
 }
 
 static void cacheItemUpdateInColdLruList(cacheItem* pItem, uint64_t now) {
@@ -120,8 +121,6 @@ static void cacheItemUpdateInColdLruList(cacheItem* pItem, uint64_t now) {
   pItem->slabLruId = item_cls_id(pItem) | CACHE_LRU_WARM;
   cacheLruLinkItem(pItem->pTable->pCache, pItem, true);
 
-  itemDecrRef(pItem);
-
   cacheTableUnlockBucket(pItem->pTable, pItem->hash);
 }
 
@@ -131,27 +130,3 @@ static void cacheItemFree(cache_t* pCache, cacheItem* pItem) {
 
   cacheSlabFreeItem(pCache, pItem, false);
 }
-
-/*
-
-void cacheItemMoveToLruHead(cache_t* cache, cacheItem* pItem) {
-  cacheSlabLruClass* lru = &(cache->lruArray[item_lru_id(pItem)]);
-  cacheMutexLock(&(lru->mutex));
-
-  cacheLruUnlinkItem(cache, pItem, false);
-  cacheItemLinkToLru(cache, pItem, false);
-
-  cacheMutexUnlock(&(lru->mutex));
-}
-
-
-void cacheItemUnlinkNolock(cacheTable* pTable, cacheItem* pItem) {
-  if (item_is_used(pItem)) {
-    item_unset_used(pItem);
-    cacheTableRemove(pTable, item_key(pItem), pItem->nkey);
-    cacheLruUnlinkItem(pTable->pCache, pItem, false);
-    cacheItemRemove(pTable->pCache, pItem);
-  }
-}
-
-*/

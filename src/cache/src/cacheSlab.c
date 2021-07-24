@@ -18,6 +18,7 @@
 #include "cacheDefine.h"
 #include "cacheLog.h"
 #include "cacheSlab.h"
+#include "cacheTable.h"
 #include "osTime.h"
 
 static cacheItem* cacheSlabDoAllocItem(cache_t *cache, size_t size, unsigned int id);
@@ -26,7 +27,7 @@ static bool cacheIsReachMemoryLimit(cache_t *cache, int len);
 static int  cacheSlabGrowArray(cache_t *cache, cacheSlabClass *pSlab);
 static void *cacheAllocMemory(cache_t *cache, size_t size);
 static void cacheSplitSlabPageInfoFreelist(cache_t *cache,char *ptr, uint32_t id);
-static int cacheMoveItemFromLru(cache_t *cache, int id, int curLru, uint64_t totalBytes, 
+static int cacheMoveItemFromLru(cache_t *cache, int id, int curLru, uint64_t totalBytes, cacheMutex *pMutex,
                                 uint32_t* moveToLru,  cacheItem* search, cacheItem** pItem);
 static int cacheLruPull(cache_t *cache, int origId, int curLru, uint64_t total_bytes);
 
@@ -233,13 +234,14 @@ static cacheItem* cacheSlabDoAllocItem(cache_t *cache, size_t size, unsigned int
 /* If we're CACHE_LRU_HOT or CACHE_LRU_WARM and over size limit, send to CACHE_LRU_COLD.
  * If we're COLD_LRU, send to WARM_LRU unless we need to evict
  */
-static int cacheMoveItemFromLru(cache_t *cache, int lruId, int curLru, uint64_t totalBytes, 
+static int cacheMoveItemFromLru(cache_t *cache, int lruId, int curLru, uint64_t totalBytes, cacheMutex *pMutex,
                                 uint32_t* moveToLru,  cacheItem* search, cacheItem** pItem) {
   int removed = 0;
   uint64_t limit = 0;
   cacheOption* opt = &(cache->options);
   cacheSlabLruClass* lru = &(cache->lruArray[lruId]);
 
+  *moveToLru = 0;
   switch (curLru) {
     case CACHE_LRU_HOT:
       limit = totalBytes * opt->hotPercent / 100;
@@ -252,7 +254,8 @@ static int cacheMoveItemFromLru(cache_t *cache, int lruId, int curLru, uint64_t 
         item_unset_active(search);      /* mark as unactive */
         removed++;
         if (curLru == CACHE_LRU_WARM) {   /* is warm lru list? */          
-          cacheItemMoveToLruHead(cache, search);  /* move to lru head */
+          cacheLruMoveToHead(cache, search, false);  /* move to lru head */
+          cacheMutexTryUnlock(pMutex);
           //cacheItemRemove(cache, search);
         } else {                          /* else is hot lru list */
           /* Active CACHE_LRU_HOT items flow to CACHE_LRU_WARM */
@@ -267,6 +270,10 @@ static int cacheMoveItemFromLru(cache_t *cache, int lruId, int curLru, uint64_t 
       } else {
         /* not active, don't want to move to CACHE_LRU_COLD, not active */
         *pItem = search;
+        if (item_is_active(search)) {
+          item_unset_active(search);
+          *moveToLru = CACHE_LRU_WARM;         
+        }
       }
       break;
     case CACHE_LRU_COLD:
@@ -274,6 +281,10 @@ static int cacheMoveItemFromLru(cache_t *cache, int lruId, int curLru, uint64_t 
       break;
   }
 
+  if (*moveToLru != 0) {
+    /* unlink from current lru list */
+    cacheLruUnlinkItem(search->pTable->pCache, search, false);
+  }
   return removed;
 }
 
@@ -286,49 +297,66 @@ static int cacheLruPull(cache_t *cache, int slabId, int curLru, uint64_t totalBy
   int removed = 0;
   int tries = 5;
   uint32_t moveToLru = 0;
+  cacheMutex *pMutex = NULL;
   uint64_t now = taosGetTimestamp(TSDB_TIME_PRECISION_MILLI);
 
   lruId |= curLru;
   lru = &(cache->lruArray[lruId]);
   assert(lru->id == lruId);
+
+  cacheMutexLock(&(lru->mutex));
+
   search = lru->tail;
   for (; tries > 0 && search != NULL; tries--, search = next) {
     assert(item_lru_id(search) == curLru);
-    assert(item_is_used(search));
-
-    cacheMutexLock(&(lru->mutex));
+    assert(item_is_used(search));    
 
     next = search->prev;
-
-    /* is item expired? */
-    if (cacheItemIsExpired(search, now)) {
-      cacheItemUnlinkNolock(search->pTable, search);
-      cacheItemRemove(cache, search);
-      removed++;
-      cacheMutexUnlock(&(lru->mutex));
+    pMutex = cacheItemBucketMutex(search);
+  
+    /* hash bucket has been locked by other thread */
+    if (cacheMutexTryLock(pMutex) != 0) {
       continue;
     }
 
-    cacheMutexUnlock(&(lru->mutex));    
+    /* is item is refcount locked? */
+    if (itemIncrRef(search) != 2) {
+      search->refCount = 1;
+      cacheItemUnlink(search->pTable, search, false);
+      cacheMutexTryUnlock(pMutex);
+      continue;
+    }
 
-    removed += cacheMoveItemFromLru(cache, lruId, curLru, totalBytes, &moveToLru, search, &item);
+    /* is item expired? */
+    if (cacheItemIsExpired(search, now)) {
+      /* refcnt 2 -> 1 */
+      cacheItemUnlink(search->pTable, search, false);
+      /* refcnt 1 -> 0 -> cacheItemFree */
+      cacheItemRemove(cache, search);      
+      cacheMutexTryUnlock(pMutex);
+      removed++;
+      continue;
+    }    
+
+    removed += cacheMoveItemFromLru(cache, lruId, curLru, totalBytes, pMutex, &moveToLru, search, &item);
 
     if (item != NULL) {
       break;
     }   
   }
 
+  cacheMutexUnlock(&(lru->mutex));
+
   if (item != NULL) {
     if (moveToLru) {  /* move item to new lru list */
-      /* first remove item from current lru list */
-      cacheLruUnlinkItem(cache, item, true);
       /* set new lru list id */
       item->slabLruId = item_cls_id(item) | moveToLru;
       /* link to new lru list */
-      cacheItemLinkToLru(cache, item, true);
-    } else {  /* free item directly */
-
+      cacheLruLinkItem(cache, item, true);
     }
+
+    cacheItemRemove(cache, item);
+    cacheMutexTryUnlock(pMutex);
   }
 
   return removed;

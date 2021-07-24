@@ -73,21 +73,21 @@ static int cacheInitBucket(cacheTableBucket* pBucket, uint32_t id) {
 }
 
 static cacheItem* cacheFindItemByKey(cacheTable* pTable, const char* key, uint8_t nkey, cacheItem **ppPrev) {
-  cacheItem* item = NULL;
+  cacheItem* pItem = NULL;
   uint32_t index = pTable->hashFp(key, nkey) % pTable->capacity;
 
-  item = pTable->pBucket[index].head;
+  pItem = pTable->pBucket[index].head;
   if (ppPrev) *ppPrev = NULL;
 
-  while (item != NULL) {
-    if (!item_equal_key(item, key, nkey)) {
+  while (pItem != NULL) {
+    if (!item_equal_key(pItem, key, nkey)) {
       if (ppPrev) {
-        *ppPrev = item;
+        *ppPrev = pItem;
       }
-      item = item->h_next;
+      pItem = pItem->h_next;
       continue;
     }
-    return item;
+    return pItem;
   }
 
   return NULL;
@@ -101,22 +101,26 @@ static void cacheRemoveTableItem(cache_t* pCache, cacheTableBucket* pBucket, cac
     if (pBucket->head == pItem) {
       pBucket->head = pItem->h_next;
     }
+    pItem->pTable = NULL;
+    pItem->hash = 0;
   }
 }
 
-int cacheTablePut(cacheTable* pTable, cacheItem* item) {
-  uint32_t index = pTable->hashFp(item_key(item), item->nkey) % pTable->capacity;
+int cacheTablePut(cacheTable* pTable, cacheItem* pItem) {
+  uint32_t index = pTable->hashFp(item_key(pItem), pItem->nkey) % pTable->capacity;
   cacheTableBucket* pBucket = &(pTable->pBucket[index]);
 
   cacheTableLockBucket(pTable, index);
 
   cacheItem *pOldItem, *pPrev;
-  pOldItem = cacheFindItemByKey(pTable, item_key(item), item->nkey, &pPrev);
+  pOldItem = cacheFindItemByKey(pTable, item_key(pItem), pItem->nkey, &pPrev);
 
   cacheRemoveTableItem(pTable->pCache, pBucket, pOldItem, pPrev);
   
-  item->h_next = pBucket->head;
-  pBucket->head->h_next = item;
+  pItem->h_next = pBucket->head;
+  pBucket->head->h_next = pItem;
+  pItem->hash = index;
+  pItem->pTable = pTable;
 
   cacheTableUnlockBucket(pTable, index);
   return CACHE_OK;
@@ -124,29 +128,11 @@ int cacheTablePut(cacheTable* pTable, cacheItem* item) {
 
 cacheItem* cacheTableGet(cacheTable* pTable, const char* key, uint8_t nkey) {
   uint32_t index = pTable->hashFp(key, nkey) % pTable->capacity;
-  cacheTableBucket* pBucket = &(pTable->pBucket[index]);
 
   cacheTableLockBucket(pTable, index);
   
   cacheItem *pItem;
   pItem = cacheFindItemByKey(pTable, key, nkey, NULL);
-
-#if 0
-  if (pItem) {    
-    uint64_t now = taosGetTimestamp(TSDB_TIME_PRECISION_MILLI);
-
-    /* is item expired? */
-    if (cacheItemIsExpired(pItem, now)) {
-      cacheRemoveTableItem(pTable->pCache, pBucket, pItem, pPrev);
-      cacheLruUnlinkItem(pTable->pCache, pItem, true);
-      pItem = NULL;
-    } else {
-      // update last access time
-      cacheItemUpdateLastTime(pItem, now);
-      // move forward in lru list
-    }
-  }
-#endif
 
   cacheTableUnlockBucket(pTable, index);
   return pItem;

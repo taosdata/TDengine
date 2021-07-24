@@ -35,6 +35,8 @@ typedef struct cacheSlabLruClass {
 void  cacheLruUnlinkItem(cache_t*, cacheItem*, bool lock);
 void  cacheLruLinkItem(cache_t*, cacheItem*, bool lock);
 
+void  cacheLruMoveToHead(cache_t*, cacheItem*, bool lock);
+
 #ifdef __cplusplus
 }
 #endif

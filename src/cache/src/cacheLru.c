@@ -20,8 +20,6 @@ void cacheLruUnlinkItem(cache_t* pCache, cacheItem* pItem, bool lock) {
   cacheSlabLruClass* pLru = &(pCache->lruArray[pItem->slabLruId]);
   if (lock) cacheMutexLock(&(pLru->mutex));
 
-  item_set_freed(pItem);
-
   cacheItem* tail = pLru->tail;
 
   if (tail == pItem) {
@@ -42,8 +40,6 @@ void cacheLruLinkItem(cache_t* pCache, cacheItem* pItem, bool lock) {
 
   if (lock) cacheMutexLock(&(pLru->mutex));
   
-  item_set_used(pItem);
-
   cacheItem* tail = pLru->tail;
   cacheItem* head = NULL;
 
@@ -58,6 +54,16 @@ void cacheLruLinkItem(cache_t* pCache, cacheItem* pItem, bool lock) {
 
   pLru->num += 1;
   pLru->bytes += cacheItemTotalBytes(pItem->nkey, pItem->nbytes);
+
+  if (lock) cacheMutexUnlock(&(pLru->mutex));
+}
+
+void cacheLruMoveToHead(cache_t* cache, cacheItem* pItem, bool lock) {
+  cacheSlabLruClass* pLru = &(cache->lruArray[item_slablru_id(pItem)]);
+  if (lock) cacheMutexLock(&(pLru->mutex));
+
+  cacheLruUnlinkItem(cache, pItem, false);
+  cacheLruLinkItem(cache, pItem, false);
 
   if (lock) cacheMutexUnlock(&(pLru->mutex));
 }

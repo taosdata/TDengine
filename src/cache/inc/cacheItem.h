@@ -86,19 +86,6 @@ struct cacheItem {
 /* return the slab lru list array index in [0,MAX_NUMBER_OF_SLAB_LRU] */
 #define item_slablru_id(item)   ((item)->slabLruId)
 
-size_t cacheItemTotalBytes(uint8_t nkey, uint32_t nbytes);
-
-cacheItem* cacheAllocItem(cache_t*, uint8_t nkey, uint32_t nbytes, uint64_t expireTime);
-
-/*
-void  cacheItemFree(cache_t*, cacheItem*);
-void  cacheItemUnlinkNolock(cacheTable* pTable, cacheItem* item);
-
-void  cacheItemLinkToLru(cache_t*, cacheItem*, bool lock);
-void  cacheItemMoveToLruHead(cache_t*, cacheItem*);
-void  cacheItemRemove(cache_t*, cacheItem*);
-*/
-
 #define item_key(item)  (((char*)&((item)->data)) + sizeof(unsigned int))
 
 #define item_data(item) (((char*)&((item)->data)) + sizeof(unsigned int) + (item)->nkey + 1)
@@ -106,18 +93,6 @@ void  cacheItemRemove(cache_t*, cacheItem*);
 #define item_len(item) ((item)->nbytes)
 
 #define key_from_item(item) (cache_key_t) {.key = item_key(item), .nkey = (item)->nkey};
-
-static void FORCE_INLINE cacheItemUpdateLastTime(cacheItem* pItem, uint64_t now) {
-  pItem->lastTime = now;
-}
-
-static int FORCE_INLINE cacheItemTryLock(cacheItem* pItem) {
-  return cacheTableTryLockBucket(pItem->pTable, pItem->hash);
-}
-
-static int FORCE_INLINE cacheItemTryUnLock(cacheItem* pItem) {
-  return cacheTableTryLockBucket(pItem->pTable, pItem->hash);
-}
 
 /* item totalBytes = sizeof(cacheItem) + key size + data size */
 static size_t FORCE_INLINE cacheItemTotalBytes(uint8_t nkey, uint32_t nbytes) {
@@ -162,10 +137,11 @@ static FORCE_INLINE bool item_key_equal(cacheItem* item1, cacheItem* item2) {
   return key_equal(key1, key2);
 }
 
-
-void cacheItemUnlink(cacheTable* pTable, cacheItem* pItem);
-void  cacheItemRemove(cache_t*, cacheItem*);
+void cacheItemUnlink(cacheTable* pTable, cacheItem* pItem, bool lockLru);
+void cacheItemRemove(cache_t*, cacheItem*);
 void cacheItemBump(cacheTable* pTable, cacheItem* pItem, uint64_t now);
+cacheMutex* cacheItemBucketMutex(cacheItem*);
+cacheItem* cacheAllocItem(cache_t*, uint8_t nkey, uint32_t nbytes, uint64_t expireTime);
 
 #ifdef __cplusplus
 }
