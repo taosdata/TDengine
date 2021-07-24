@@ -93,7 +93,7 @@ static void vnodeIncRef(void *ptNode) {
 void *vnodeAcquire(int32_t vgId) {
   SVnodeObj *pVnode = NULL;
   if (tsVnodesHash != NULL) {
-    taosHashGetClone(tsVnodesHash, &vgId, sizeof(int32_t), vnodeIncRef, &pVnode, sizeof(void *));
+    taosHashGetClone(tsVnodesHash, &vgId, sizeof(int32_t), vnodeIncRef, &pVnode);
   }
 
   if (pVnode == NULL) {
