@@ -21,6 +21,7 @@
 #include <stdio.h>
 #include "cache.h"
 #include "cacheDefine.h"
+#include "cacheLru.h"
 #include "cacheMutex.h"
 #include "cacheTypes.h"
 
@@ -28,22 +29,12 @@
 extern "C" {
 #endif
 
-typedef uint32_t (*hash_func)(const void *key, size_t length);
-
-typedef struct cacheSlabLruClass {
-  cacheItem*    tail;   /* tail of lru item list */
-  uint32_t      num;    // number of lru list items
-  uint64_t      bytes;  // total size of lru list items
-  int           id;     /* lru id */
-  cacheMutex    mutex;
-} cacheSlabLruClass;
-
 struct cache_t {  
   cacheOption options;
 
   cacheSlabClass* slabs[MAX_NUMBER_OF_SLAB_CLASSES];    /* array of slab pointers */
 
-  cacheSlabLruClass  lruArray[POWER_LARGEST];           /* LRU item list array */
+  cacheSlabLruClass  lruArray[MAX_NUMBER_OF_SLAB_LRU];           /* LRU item list array */
 
   cacheTable* tableHead;                                /* cache table list */
 

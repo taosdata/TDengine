@@ -17,124 +17,141 @@
 #include <string.h>
 #include "cacheTable.h"
 #include "cacheint.h"
+#include "cacheLru.h"
 #include "cacheItem.h"
 #include "cacheSlab.h"
 
-size_t cacheItemTotalBytes(uint8_t nkey, uint32_t nbytes) {
-  return sizeof(cacheItem) + nkey + nbytes;
-}
+static void cacheItemFree(cache_t* pCache, cacheItem* pItem);
+
+static void cacheItemUpdateInColdLruList(cacheItem* pItem, uint64_t now);
 
 cacheItem* cacheAllocItem(cache_t* cache, uint8_t nkey, uint32_t nbytes, uint64_t expireTime) {
   size_t ntotal = cacheItemTotalBytes(nkey, nbytes);
-  uint32_t id = slabClsId(cache, ntotal);
-  cacheItem* item = NULL;
+  uint32_t id = cacheSlabId(cache, ntotal);
+  cacheItem* pItem = NULL;
 
-  if (ntotal > 10240) { /* chunk item */
+  if (ntotal > 10240) { /* chunk pItem */
 
   } else {
-    item = cacheSlabAllocItem(cache, ntotal, id);
+    pItem = cacheSlabAllocItem(cache, ntotal, id);
   }
 
-  if (item == NULL) {
+  if (pItem == NULL) {
     return NULL;
   }
 
-  memset(item, 0, sizeof(cacheItem));
+  memset(pItem, 0, sizeof(cacheItem));
 
-  item->next = item->prev = NULL;
-  item->expireTime = expireTime;
+  itemIncrRef(pItem);
+  item_set_used(pItem);
+
+  pItem->next = pItem->prev = NULL;
+  pItem->expireTime = expireTime;
   if (expireTime == 0) {
-    /* never expire item MUST not in link lru list */
-    assert(item_is_linked(item) == false);
-
     /* never expire, add to never expire list */
-    item->next = cache->neverExpireItemHead;
-    if (cache->neverExpireItemHead) cache->neverExpireItemHead->prev = item;
-    cache->neverExpireItemHead = item;
+    pItem->next = cache->neverExpireItemHead;
+    if (cache->neverExpireItemHead) cache->neverExpireItemHead->prev = pItem;
+    cache->neverExpireItemHead = pItem;
   } else {
-    /* add to lru slab list */
-    item_set_linked(item);
-
-    id |= CACHE_LRU_HOT;
-    cacheSlabLruClass* lru = &(cache->lruArray[id]);
-    if (lru->tail) {
-      lru->tail->prev = item;
-    }
-    item->next = lru->tail;
-    lru->tail  = item;
+    /* add to hot lru slab list */    
+    pItem->slabLruId = id | CACHE_LRU_HOT;
+    cacheLruLinkItem(cache, pItem, true);
   }
-  item->slabClsId = id;
 
-  return item;
+  return pItem;
 }
 
-void cacheItemFree(cache_t* cache, cacheItem* item) {
-  assert(item->refCount == 0);
-  assert(!item_is_linked(item));
-
-  cacheSlabFreeItem(cache, item, false);
+void cacheItemUnlink(cacheTable* pTable, cacheItem* pItem) {
+  assert(pItem->pTable == pTable);
+  if (item_is_used(pItem)) {
+    item_unset_used(pItem);
+    cacheTableRemove(pTable, item_key(pItem), pItem->nkey);
+    cacheLruUnlinkItem(pTable->pCache, pItem, true);
+    cacheItemRemove(pTable, pItem);
+  }
 }
 
-void cacheItemMoveToLruHead(cache_t* cache, cacheItem* item) {
-  cacheSlabLruClass* lru = &(cache->lruArray[item_lruid(item)]);
+void cacheItemRemove(cache_t* pCache, cacheItem* pItem) {
+  assert(item_is_freed(pItem));
+  assert(pItem->refCount > 0);
+
+  if (itemDecrRef(pItem) == 0) {
+    cacheItemFree(pCache, pItem);
+  }
+}
+
+void cacheItemBump(cacheTable* pTable, cacheItem* pItem, uint64_t now) {
+  if (item_is_active(pItem)) {
+    /* already is active pItem, return */
+    itemDecrRef(pItem);
+    return;
+  }
+
+  if (!item_is_fetched(pItem)) {
+    /* access only one time, make it as fetched */
+    itemDecrRef(pItem);
+    item_set_fetched(pItem);
+    return;
+  }
+
+  /* already mark as fetched, mark it as active */
+  item_set_actived(pItem);
+
+  if (item_slablru_id(pItem) != CACHE_LRU_COLD) {
+    pItem->lastTime = now;
+    itemDecrRef(pItem);
+    return;
+  }
+
+  cacheItemUpdateInColdLruList(pItem, now);
+}
+
+static void cacheItemUpdateInColdLruList(cacheItem* pItem, uint64_t now) {
+  assert(item_is_used(pItem));
+  assert(item_slablru_id(pItem) == CACHE_LRU_COLD && item_is_active(pItem));
+
+  cacheTableLockBucket(pItem->pTable, pItem->hash);
+
+  /* update last access time */
+  pItem->lastTime = now;
+
+  /* move pItem to warm lru list */
+  cacheLruUnlinkItem(pItem->pTable->pCache, pItem, true);
+  pItem->slabLruId = item_cls_id(pItem) | CACHE_LRU_WARM;
+  cacheLruLinkItem(pItem->pTable->pCache, pItem, true);
+
+  itemDecrRef(pItem);
+
+  cacheTableUnlockBucket(pItem->pTable, pItem->hash);
+}
+
+static void cacheItemFree(cache_t* pCache, cacheItem* pItem) {
+  assert(pItem->refCount == 0);
+  assert(item_is_freed(pItem));
+
+  cacheSlabFreeItem(pCache, pItem, false);
+}
+
+/*
+
+void cacheItemMoveToLruHead(cache_t* cache, cacheItem* pItem) {
+  cacheSlabLruClass* lru = &(cache->lruArray[item_lru_id(pItem)]);
   cacheMutexLock(&(lru->mutex));
 
-  cacheItemUnlinkFromLru(cache, item, false);
-  cacheItemLinkToLru(cache, item, false);
+  cacheLruUnlinkItem(cache, pItem, false);
+  cacheItemLinkToLru(cache, pItem, false);
 
   cacheMutexUnlock(&(lru->mutex));
 }
 
-void cacheItemLinkToLru(cache_t* cache, cacheItem* item, bool lock) {
-  cacheSlabLruClass* lru = &(cache->lruArray[item_lruid(item)]);
 
-  if (lock) cacheMutexLock(&(lru->mutex));
-
-  cacheItem* tail = lru->tail;
-  if (tail->next) tail->next->prev = item;
-  item->next = tail->next;
-  item->prev = NULL;
-  tail->next = item;
-
-  lru->num += 1;
-  lru->bytes += cacheItemTotalBytes(item->nkey, item->nbytes);
-
-  if (lock) cacheMutexUnlock(&(lru->mutex));
-}
-
-void cacheItemUnlinkFromLru(cache_t* cache, cacheItem* item, bool lock) {  
-  cacheSlabLruClass* lru = &(cache->lruArray[item_lruid(item)]);
-  if (lock) cacheMutexLock(&(lru->mutex));
-
-  cacheItem* tail = lru->tail;
-
-  if (tail == item) {
-    tail = tail->next;
-  }
-
-  if (item->next) item->next->prev = item->prev;
-  if (item->prev) item->prev->next = item->next;
-
-  lru->num -= 1;
-  lru->bytes -= cacheItemTotalBytes(item->nkey, item->nbytes);
-
-  if (lock) cacheMutexUnlock(&(lru->mutex));
-}
-
-void cacheItemUnlinkNolock(cacheTable* pTable, cacheItem* item) {
-  if (item_is_linked(item)) {
-    item_unlink(item);
-    cacheTableRemove(pTable, item_key(item), item->nkey);
-    cacheItemUnlinkFromLru(pTable->pCache, item, false);
-    cacheItemRemove(pTable->pCache, item);
+void cacheItemUnlinkNolock(cacheTable* pTable, cacheItem* pItem) {
+  if (item_is_used(pItem)) {
+    item_unset_used(pItem);
+    cacheTableRemove(pTable, item_key(pItem), pItem->nkey);
+    cacheLruUnlinkItem(pTable->pCache, pItem, false);
+    cacheItemRemove(pTable->pCache, pItem);
   }
 }
 
-void cacheItemRemove(cache_t* cache, cacheItem* item) {
-  assert(!item_is_slabbed(item));
-  assert(item->refCount > 0);
-
-  if (itemDecrRef(item) == 0) {
-    cacheItemFree(cache, item);
-  }
-}
+*/

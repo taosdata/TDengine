@@ -72,7 +72,11 @@ int cachePut(cacheTable*, const char* key, uint8_t nkey, const char* value, uint
 
 cacheItem* cacheGet(cacheTable*, const char* key, uint8_t nkey);
 
+/* get the item data and data length */
 void cacheItemData(cacheItem*, char** data, int* nbytes);
+
+/* after access the item, unference the item */
+void cacheItemUnreference(cacheItem*);
 
 void         cache_remove(cache_t* cache, const char* key);
 

@@ -62,14 +62,27 @@ int cachePut(cacheTable* pTable, const char* key, uint8_t nkey, const char* valu
 }
 
 cacheItem* cacheGet(cacheTable* pTable, const char* key, uint8_t nkey) {
-  // first find the key in the cache table
-  cacheItem* item = cacheTableGet(pTable, key, nkey);
-  if (item) {
-    itemIncrRef(item);
-    return item;
+  /* first find the key in the cache table */
+  cacheItem* pItem = cacheTableGet(pTable, key, nkey);
+  if (pItem) {
+    itemIncrRef(pItem);
+    uint64_t now = taosGetTimestamp(TSDB_TIME_PRECISION_MILLI);
+    if (cacheItemIsExpired(pItem, now)) { /* is item expired? */
+      cacheItemUnlink(pTable, pItem);
+      cacheRemove(pTable, pItem);
+      pItem = NULL;
+    } else if (!cacheItemIsNeverExpired(pItem)) {
+      cacheItemBump(pTable, pItem, now);
+    } else {
+      /* never expired item refCount == 1 */
+      assert(pItem->refCount == 1);
+      itemDecrRef(pItem);
+      pItem->lastTime = now;
+    }
+    return pItem;
   }
 
-  // try to load the data from user defined function
+  /* try to load the data from user defined function */
   if (pTable->option.loadFunc == NULL) {
     return NULL;
   }
@@ -79,15 +92,14 @@ cacheItem* cacheGet(cacheTable* pTable, const char* key, uint8_t nkey) {
     return NULL;
   }
 
-  // TODO: save in the cache if access only one time?
-  int ret = cachePutDataIntoCache(pTable,key,nkey,loadValue,loadLen,&item);
+  /* TODO: save in the cache if access only one time? */
+  int ret = cachePutDataIntoCache(pTable,key,nkey,loadValue,loadLen,&pItem);
   free(loadValue);
   if (ret != CACHE_OK) {
     return NULL;
   }
 
-  itemIncrRef(item);
-  return item;
+  return pItem;
 }
 
 void cacheItemData(cacheItem* pItem, char** data, int* nbytes) {
@@ -95,21 +107,24 @@ void cacheItemData(cacheItem* pItem, char** data, int* nbytes) {
   *nbytes = pItem->nbytes;
 }
 
+void cacheItemUnreference(cacheItem* pItem) {
+  itemDecrRef(pItem);
+}
+
 static int cachePutDataIntoCache(cacheTable* pTable, const char* key, uint8_t nkey, const char* value, uint32_t nbytes, cacheItem** ppItem) {
-  cacheItem* item = cacheAllocItem(pTable->pCache, nkey, nbytes, 3600 * 1000);
-  if (item == NULL) {
+  cacheItem* pItem = cacheAllocItem(pTable->pCache, nkey, nbytes, 3600 * 1000);
+  if (pItem == NULL) {
     return CACHE_OOM;
   }
 
-  item->nkey = nkey;
-  item->nbytes = nbytes;
-  memcpy(item_key(item), key, nkey);
-  memcpy(item_data(item), value, nbytes);
-  item_set_linked(item);
-  cacheTablePut(pTable, item);
+  pItem->nkey = nkey;
+  pItem->nbytes = nbytes;
+  memcpy(item_key(pItem), key, nkey);
+  memcpy(item_data(pItem), value, nbytes);  
+  cacheTablePut(pTable, pItem);
 
   if (ppItem) {
-    *ppItem = item;
+    *ppItem = pItem;
   }
   return CACHE_OK;
 }
