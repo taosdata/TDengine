@@ -324,6 +324,13 @@ class TDTestCase:
         tdSql.checkEqual(res_field_list_without_ts, expect_list[1])
         tdSql.checkEqual(res_type_list, expect_list[2])
 
+    def cleanStb(self):
+        query_sql = "show stables"
+        res_row_list = self.resHandle(query_sql, True)[0]
+        print(res_row_list)
+        for stb in res_row_list:
+            tdSql.execute(f'drop table if exists {stb}')
+
     def initCheckCase(self):
         """
             normal tags and cols, one for every elm
@@ -838,7 +845,7 @@ class TDTestCase:
         code = self._conn.insertLines(lines)
         # tdSql.checkEqual(code, 0)
 
-    def genSqlList(self, count=5):
+    def genSqlList(self, count=5, stb_name="", tb_name=""):
         """
             stb --> supertable
             tb  --> table
@@ -856,9 +863,9 @@ class TDTestCase:
         s_stb_s_tb_m_col_m_tag_list = list()
         for i in range(count):
             d_stb_d_tb_list.append(self.genFullTypeSql(t0="f", c0="f"))
-            s_stb_s_tb_list.append(self.genFullTypeSql(t7=f'"{self.getLongName(8, "letters")}"', c7=f'{self.getLongName(8, "letters")}"'))
-            s_stb_s_tb_a_col_a_tag_list.append(self.genFullTypeSql(t7=f'"{self.getLongName(8, "letters")}"', c7=f'{self.getLongName(8, "letters")}"', ct_add_tag=True))
-            s_stb_s_tb_m_col_m_tag_list.append(self.genFullTypeSql(t7=f'"{self.getLongName(8, "letters")}"', c7=f'{self.getLongName(8, "letters")}"', ct_min_tag=True))
+            s_stb_s_tb_list.append(self.genFullTypeSql(stb_name=stb_name, tb_name=tb_name, t7=f'"{self.getLongName(8, "letters")}"', c7=f'{self.getLongName(8, "letters")}"'))
+            s_stb_s_tb_a_col_a_tag_list.append(self.genFullTypeSql(stb_name=stb_name, tb_name=tb_name, t7=f'"{self.getLongName(8, "letters")}"', c7=f'{self.getLongName(8, "letters")}"', ct_add_tag=True))
+            s_stb_s_tb_m_col_m_tag_list.append(self.genFullTypeSql(stb_name=stb_name, tb_name=tb_name, t7=f'"{self.getLongName(8, "letters")}"', c7=f'{self.getLongName(8, "letters")}"', ct_min_tag=True))
         return d_stb_d_tb_list, s_stb_s_tb_list, s_stb_s_tb_a_col_a_tag_list, s_stb_s_tb_m_col_m_tag_list
 
     def genMultiThreadSeq(self, sql_list):
@@ -872,21 +879,66 @@ class TDTestCase:
         for t in tlist:
             t.start()
         for t in tlist:
-            tlist[t].join()
+            t.join()
 
     def stbInsertMultiThreadCheckCase(self):
         """
             thread input different stb
         """
         input_sql = self.genSqlList()[0]
-        print(input_sql)
         self.multiThreadRun(self.genMultiThreadSeq(input_sql))
+        tdSql.query(f"show tables;")
+        tdSql.checkRows(5)
+    
+    def sStbStbDdataInsertMultiThreadCheckCase(self):
+        """
+            thread input same stb tb, different data, result keep first data
+        """
+        input_sql, stb_name, tb_name = self.genFullTypeSql(tb_name=self.getLongName(10, "letters"))
+        self.resCmp(input_sql, stb_name)
+        s_stb_s_tb_list = self.genSqlList(stb_name=stb_name, tb_name=tb_name)[1]
+        self.multiThreadRun(self.genMultiThreadSeq(s_stb_s_tb_list))
+        tdSql.query(f"show tables;")
+        tdSql.checkRows(1)
+        expected_tb_name = self.getNoIdTbName(stb_name)[0]
+        tdSql.checkEqual(tb_name, expected_tb_name)
+
+    def sStbStbDdataAtcInsertMultiThreadCheckCase(self):
+        """
+            thread input same stb tb, different data, add columes and tags,  result keep first data
+        """
+        input_sql, stb_name, tb_name = self.genFullTypeSql(tb_name=self.getLongName(10, "letters"))
+        self.resCmp(input_sql, stb_name)
+        s_stb_s_tb_a_col_a_tag_list = self.genSqlList(stb_name=stb_name, tb_name=tb_name)[2]
+        print(s_stb_s_tb_a_col_a_tag_list)
+        self.multiThreadRun(self.genMultiThreadSeq(s_stb_s_tb_a_col_a_tag_list))
+        tdSql.query(f"show tables;")
+        tdSql.checkRows(1)
+        expected_tb_name = self.getNoIdTbName(stb_name)[0]
+        tdSql.checkEqual(tb_name, expected_tb_name)
+    
+    def sStbStbDdataMtcInsertMultiThreadCheckCase(self):
+        """
+            thread input same stb tb, different data, add columes and tags,  result keep first data
+        """
+        self.cleanStb()
+        input_sql, stb_name, tb_name = self.genFullTypeSql(tb_name=self.getLongName(10, "letters"))
+        self.resCmp(input_sql, stb_name)
+        s_stb_s_tb_m_col_m_tag_list = self.genSqlList(stb_name=stb_name, tb_name=tb_name)[3]
+        print(s_stb_s_tb_m_col_m_tag_list)
+        self.multiThreadRun(self.genMultiThreadSeq(s_stb_s_tb_m_col_m_tag_list))
+        tdSql.query(f"show tables;")
+        tdSql.checkRows(1)
+        expected_tb_name = self.getNoIdTbName(stb_name)[0]
+        tdSql.checkEqual(tb_name, expected_tb_name)
 
     def run(self):
         print("running {}".format(__file__))
         tdSql.execute("drop database if exists test")
         tdSql.execute("create database if not exists test precision 'us'")
         tdSql.execute('use test')
+        
+
         # tdSql.execute("create table super_table_cname_check (ts timestamp, pi1 int, pi2 bigint, pf1 float, pf2 double, ps1 binary(10), pi3 smallint, pi4 tinyint, pb1 bool, ps2 nchar(20)) tags (si1 int, si2 bigint, sf1 float, sf2 double, ss1 binary(10), si3 smallint, si4 tinyint, sb1 bool, ss2 nchar(20));")
         # tdSql.execute('create table st1 using super_table_cname_check tags (1, 2, 1.1, 2.2, "a", 1, 1, true, "aa");')
         # tdSql.execute('insert into st1 values (now, 1, 2, 1.1, 2.2, "a", 1, 1, true, "aa");')
@@ -931,7 +983,9 @@ class TDTestCase:
         # self.batchErrorInsertCheckCase()
 
         self.stbInsertMultiThreadCheckCase()
-
+        # self.sStbStbDdataInsertMultiThreadCheckCase()
+        # self.sStbStbDdataAtcInsertMultiThreadCheckCase()
+        self.sStbStbDdataMtcInsertMultiThreadCheckCase()
 
 
 
