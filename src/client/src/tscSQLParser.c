@@ -7237,7 +7237,7 @@ void tscPrintSelNodeList(SSqlObj* pSql, int32_t subClauseIndex) {
     }
 
     tmpLen =
-        sprintf(tmpBuf, "%s(uid:%" PRId64 ", %d)", name, pExpr->base.uid, pExpr->base.colInfo.colId);
+        sprintf(tmpBuf, "%s(uid:%" PRIu64 ", %d)", name, pExpr->base.uid, pExpr->base.colInfo.colId);
 
     if (tmpLen + offset >= totalBufSize - 1) break;
 
@@ -8135,9 +8135,6 @@ int32_t loadAllTableMeta(SSqlObj* pSql, struct SSqlInfo* pInfo) {
       tscDebug("0x%"PRIx64" retrieve table meta %s from local buf", pSql->self, name);
 
       // avoid mem leak, may should update pTableMeta
-      const char* pTableName = tNameGetTableName(pname);
-      size_t nameLen = strlen(pTableName);
-
       void* pVgroupIdList = NULL;
       if (pTableMeta->tableType == TSDB_CHILD_TABLE) {
         code = tscCreateTableMetaFromSTableMeta(pTableMeta, name, pSql->pBuf);
@@ -8150,11 +8147,12 @@ int32_t loadAllTableMeta(SSqlObj* pSql, struct SSqlInfo* pInfo) {
         }
       } else if (pTableMeta->tableType == TSDB_SUPER_TABLE) {
         // the vgroup list of super table is not kept in local buffer, so here need retrieve it from the mnode each time
-        void* pv = taosCacheAcquireByKey(tscVgroupListBuf, pTableName, nameLen);
+        tscDebug("0x%"PRIx64" try to acquire cached super table %s vgroup id list", pSql->self, name);
+        void* pv = taosCacheAcquireByKey(tscVgroupListBuf, name, len);
         if (pv == NULL) {
           char* t = strdup(name);
           taosArrayPush(pVgroupList, &t);
-          tscDebug("0x%"PRIx64" failed to retrieve stable %s vgroup id list in cache, try fetch from mnode", pSql->self, pTableName);
+          tscDebug("0x%"PRIx64" failed to retrieve stable %s vgroup id list in cache, try fetch from mnode", pSql->self, name);
         } else {
           tFilePage* pdata = (tFilePage*) pv;
           pVgroupIdList = taosArrayInit((size_t) pdata->num, sizeof(int32_t));
@@ -8167,10 +8165,10 @@ int32_t loadAllTableMeta(SSqlObj* pSql, struct SSqlInfo* pInfo) {
         }
       }
 
-      if (taosHashGet(pCmd->pTableMetaMap, pTableName, nameLen) == NULL) {
+      if (taosHashGet(pCmd->pTableMetaMap, name, len) == NULL) {
         STableMeta* pMeta = tscTableMetaDup(pTableMeta);
         STableMetaVgroupInfo tvi = { .pTableMeta = pMeta,  .vgroupIdList = pVgroupIdList};
-        taosHashPut(pCmd->pTableMetaMap, pTableName, nameLen, &tvi, sizeof(STableMetaVgroupInfo));
+        taosHashPut(pCmd->pTableMetaMap, name, len, &tvi, sizeof(STableMetaVgroupInfo));
       }
     } else {
       // Add to the retrieve table meta array list.
@@ -8290,8 +8288,9 @@ static int32_t doLoadAllTableMeta(SSqlObj* pSql, SQueryInfo* pQueryInfo, SSqlNod
       strncpy(pTableMetaInfo->aliasName, tNameGetTableName(&pTableMetaInfo->name), tListLen(pTableMetaInfo->aliasName));
     }
 
-    const char* name = tNameGetTableName(&pTableMetaInfo->name);
-    STableMetaVgroupInfo* p = taosHashGet(pCmd->pTableMetaMap, name, strlen(name));
+    char fname[TSDB_TABLE_FNAME_LEN] = {0};
+    tNameExtractFullName(&pTableMetaInfo->name, fname);
+    STableMetaVgroupInfo* p = taosHashGet(pCmd->pTableMetaMap, fname, strnlen(fname, TSDB_TABLE_FNAME_LEN));
 
     pTableMetaInfo->pTableMeta = tscTableMetaDup(p->pTableMeta);
     assert(pTableMetaInfo->pTableMeta != NULL);

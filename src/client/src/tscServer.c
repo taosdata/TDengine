@@ -391,9 +391,9 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcEpSet *pEpSet) {
   }
 
   if ((cmd == TSDB_SQL_SELECT || cmd == TSDB_SQL_UPDATE_TAGS_VAL) &&
-      (rpcMsg->code == TSDB_CODE_TDB_INVALID_TABLE_ID ||
-       rpcMsg->code == TSDB_CODE_VND_INVALID_VGROUP_ID ||
-       rpcMsg->code == TSDB_CODE_RPC_NETWORK_UNAVAIL ||
+      (rpcMsg->code == TSDB_CODE_TDB_INVALID_TABLE_ID ||     //  change the retry procedure
+      /*(*/rpcMsg->code == TSDB_CODE_VND_INVALID_VGROUP_ID ||
+       rpcMsg->code == TSDB_CODE_RPC_NETWORK_UNAVAIL ||      //  change the retry procedure
        rpcMsg->code == TSDB_CODE_APP_NOT_READY)) {
         
     pSql->retry++;
@@ -404,7 +404,7 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcEpSet *pEpSet) {
       tscError("0x%"PRIx64" max retry %d reached, give up", pSql->self, pSql->maxRetry);
     } else {
       // wait for a little bit moment and then retry
-      // todo do not sleep in rpc callback thread, add this process into queueu to process
+      // todo do not sleep in rpc callback thread, add this process into queue to process
       if (rpcMsg->code == TSDB_CODE_APP_NOT_READY || rpcMsg->code == TSDB_CODE_VND_INVALID_VGROUP_ID) {
         int32_t duration = getWaitingTimeInterval(pSql->retry);
         taosMsleep(duration);
@@ -2214,15 +2214,10 @@ int tscProcessMultiTableMetaRsp(SSqlObj *pSql) {
       return TSDB_CODE_TSC_INVALID_VALUE;
     }
 
-    SName sn = {0};
-    tNameFromString(&sn, pMetaMsg->tableFname, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
-
     if (pMultiMeta->metaClone == 1 || pTableMeta->tableType == TSDB_SUPER_TABLE) {
       STableMetaVgroupInfo p = {.pTableMeta = pTableMeta,};
-
-      const char* tableName = tNameGetTableName(&sn);
-      size_t keyLen = strlen(tableName);
-      taosHashPut(pParentCmd->pTableMetaMap, tableName, keyLen, &p, sizeof(STableMetaVgroupInfo));
+      size_t keyLen = strnlen(pMetaMsg->tableFname, TSDB_TABLE_FNAME_LEN);
+      taosHashPut(pParentCmd->pTableMetaMap, pMetaMsg->tableFname, keyLen, &p, sizeof(STableMetaVgroupInfo));
     } else {
       freeMeta = true;
     }
@@ -2251,10 +2246,13 @@ int tscProcessMultiTableMetaRsp(SSqlObj *pSql) {
   }
 
   for(int32_t i = 0; i < pMultiMeta->numOfVgroup; ++i) {
-    char* name = pMsg;
-    pMsg += TSDB_TABLE_NAME_LEN;
+    char fname[TSDB_TABLE_FNAME_LEN] = {0};
+    tstrncpy(fname, pMsg, TSDB_TABLE_FNAME_LEN);
+    size_t len = strnlen(fname, TSDB_TABLE_FNAME_LEN);
 
-    STableMetaVgroupInfo* p = taosHashGet(pParentCmd->pTableMetaMap, name, strnlen(name, TSDB_TABLE_NAME_LEN));
+    pMsg += TSDB_TABLE_FNAME_LEN;
+
+    STableMetaVgroupInfo* p = taosHashGet(pParentCmd->pTableMetaMap, fname, len);
     assert(p != NULL);
 
     int32_t size = 0;
@@ -2262,9 +2260,7 @@ int tscProcessMultiTableMetaRsp(SSqlObj *pSql) {
       taosArrayDestroy(p->vgroupIdList);
     }
 
-    char tableName[TSDB_TABLE_FNAME_LEN] = {0};
-    tstrncpy(tableName, name, TSDB_TABLE_NAME_LEN);
-    p->vgroupIdList = createVgroupIdListFromMsg(pMsg, pSet, tableName, &size, pSql->self);
+    p->vgroupIdList = createVgroupIdListFromMsg(pMsg, pSet, fname, &size, pSql->self);
 
     int32_t numOfVgId = (int32_t) taosArrayGetSize(p->vgroupIdList);
     int32_t s = sizeof(tFilePage) + numOfVgId * sizeof(int32_t);
@@ -2273,11 +2269,10 @@ int tscProcessMultiTableMetaRsp(SSqlObj *pSql) {
     idList->num = numOfVgId;
     memcpy(idList->data, TARRAY_GET_START(p->vgroupIdList), numOfVgId * sizeof(int32_t));
 
-    void* idListInst = taosCachePut(tscVgroupListBuf, tableName, strlen(tableName), idList, s, 5000);
+    void* idListInst = taosCachePut(tscVgroupListBuf, fname, len, idList, s, 5000);
     taosCacheRelease(tscVgroupListBuf, (void*) &idListInst, false);
 
     tfree(idList);
-
     pMsg += size;
   }
 
@@ -2918,7 +2913,7 @@ int tscRenewTableMeta(SSqlObj *pSql, int32_t tableIndex) {
 
   STableMeta* pTableMeta = pTableMetaInfo->pTableMeta;
   if (pTableMeta) {
-    tscDebug("0x%"PRIx64" update table meta:%s, old meta numOfTags:%d, numOfCols:%d, uid:%" PRId64, pSql->self, name,
+    tscDebug("0x%"PRIx64" update table meta:%s, old meta numOfTags:%d, numOfCols:%d, uid:%" PRIu64, pSql->self, name,
              tscGetNumOfTags(pTableMeta), tscGetNumOfColumns(pTableMeta), pTableMeta->id.uid);
   }
 
