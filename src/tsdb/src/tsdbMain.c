@@ -641,7 +641,7 @@ static int tsdbRestoreLastColumns(STsdbRepo *pRepo, STable *pTable, SReadH* pRea
   int numColumns;
   int32_t blockIdx;
   SDataStatis* pBlockStatis = NULL;
-  SDataRow row = NULL;
+  SMemRow      row = NULL;
   // restore last column data with last schema
   
   int err = 0;
@@ -657,13 +657,15 @@ static int tsdbRestoreLastColumns(STsdbRepo *pRepo, STable *pTable, SReadH* pRea
     }
   }
 
-  row = taosTMalloc(dataRowMaxBytesFromSchema(pSchema));
+  row = taosTMalloc(memRowMaxBytesFromSchema(pSchema));
   if (row == NULL) {
     terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
     err = -1;
     goto out;
   }
-  tdInitDataRow(row, pSchema);
+
+  memRowSetType(row, SMEM_ROW_DATA);
+  tdInitDataRow(memRowDataBody(row), pSchema);
 
   // first load block index info
   if (tsdbLoadBlockInfo(pReadh, NULL) < 0) {
@@ -720,9 +722,9 @@ static int tsdbRestoreLastColumns(STsdbRepo *pRepo, STable *pTable, SReadH* pRea
       // OK,let's load row from backward to get not-null column
       for (int32_t rowId = pBlock->numOfRows - 1; rowId >= 0; rowId--) {
         SDataCol *pDataCol = pReadh->pDCols[0]->cols + i;
-        tdAppendColVal(row, tdGetColDataOfRow(pDataCol, rowId), pCol->type, pCol->bytes, pCol->offset);
+        tdAppendColVal(memRowDataBody(row), tdGetColDataOfRow(pDataCol, rowId), pCol->type, pCol->offset);
         //SDataCol *pDataCol = readh.pDCols[0]->cols + j;
-        void* value = tdGetRowDataOfCol(row, (int8_t)pCol->type, TD_DATA_ROW_HEAD_SIZE + pCol->offset);
+        void *value = tdGetRowDataOfCol(memRowDataBody(row), (int8_t)pCol->type, TD_DATA_ROW_HEAD_SIZE + pCol->offset);
         if (isNull(value, pCol->type)) {
           continue;
         }
@@ -742,8 +744,8 @@ static int tsdbRestoreLastColumns(STsdbRepo *pRepo, STable *pTable, SReadH* pRea
         // save row ts(in column 0)
         pDataCol = pReadh->pDCols[0]->cols + 0;
         pCol = schemaColAt(pSchema, 0);
-        tdAppendColVal(row, tdGetColDataOfRow(pDataCol, rowId), pCol->type, pCol->bytes, pCol->offset);
-        pLastCol->ts = dataRowKey(row);
+        tdAppendColVal(memRowDataBody(row), tdGetColDataOfRow(pDataCol, rowId), pCol->type, pCol->offset);
+        pLastCol->ts = memRowKey(row);
 
         pTable->restoreColumnNum += 1;
 
@@ -779,18 +781,18 @@ static int tsdbRestoreLastRow(STsdbRepo *pRepo, STable *pTable, SReadH* pReadh, 
   // Get the data in row
   
   STSchema *pSchema = tsdbGetTableSchema(pTable);
-  pTable->lastRow = taosTMalloc(dataRowMaxBytesFromSchema(pSchema));
+  pTable->lastRow = taosTMalloc(memRowMaxBytesFromSchema(pSchema));
   if (pTable->lastRow == NULL) {
     terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
     return -1;
   }
-
-  tdInitDataRow(pTable->lastRow, pSchema);
+  memRowSetType(pTable->lastRow, SMEM_ROW_DATA);
+  tdInitDataRow(memRowDataBody(pTable->lastRow), pSchema);
   for (int icol = 0; icol < schemaNCols(pSchema); icol++) {
     STColumn *pCol = schemaColAt(pSchema, icol);
     SDataCol *pDataCol = pReadh->pDCols[0]->cols + icol;
-    tdAppendColVal(pTable->lastRow, tdGetColDataOfRow(pDataCol, pBlock->numOfRows - 1), pCol->type, pCol->bytes,
-                    pCol->offset);
+    tdAppendColVal(memRowDataBody(pTable->lastRow), tdGetColDataOfRow(pDataCol, pBlock->numOfRows - 1), pCol->type,
+                   pCol->offset);
   }
 
   return 0;

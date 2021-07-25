@@ -32,6 +32,7 @@ static volatile int  timer_stop = 0;
 
 static void* timer_routine(void *arg) {
   (void)arg;
+  setThreadName("timer");
 
   int r = 0;
   struct timespec to = {0};
