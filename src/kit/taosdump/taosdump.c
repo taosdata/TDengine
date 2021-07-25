@@ -453,6 +453,8 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
         case 'E':
             g_args.end_time = atol(arg);
             break;
+        case 'C':
+            break;
         case 'B':
             g_args.data_batch = atoi(arg);
             if (g_args.data_batch > MAX_RECORDS_PER_REQ) {
@@ -600,7 +602,7 @@ static void parse_timestamp(
                 tmpEpoch = atoll(tmp);
             }
 
-            sprintf(argv[i], "%"PRId64"", tmpEpoch);
+            sprintf(argv[i+1], "%"PRId64"", tmpEpoch);
             debugPrint("%s() LN%d, tmp is: %s, argv[%d]: %s\n",
                     __func__, __LINE__, tmp, i, argv[i]);
             free(tmp);
