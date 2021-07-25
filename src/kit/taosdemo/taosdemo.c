@@ -5940,14 +5940,15 @@ static int32_t prepareStbStmt(
 
         if (-1 == prepareStbStmtBind(
                     tagsArray, stbInfo, tagRand, -1, -1, false /* is tag */)) {
-            free(tagsArray);
+            tmfree(tagsValBuf);
+            tmfree(tagsArray);
             return -1;
         }
 
         ret = taos_stmt_set_tbname_tags(stmt, tableName, (TAOS_BIND *)tagsArray);
 
         tmfree(tagsValBuf);
-        tmfree((char *)tagsArray);
+        tmfree(tagsArray);
     } else {
         ret = taos_stmt_set_tbname(stmt, tableName);
     }
