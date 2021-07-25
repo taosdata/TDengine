@@ -412,22 +412,25 @@ class TDTestCase:
         else:
             tdSql.checkColNameList(res_row_list, "please check noIdCheckCase")
 
-    # ! bug
-    # TODO confirm!!!
     def maxColTagCheckCase(self):
         """
             max tag count is 128
             max col count is ??
         """
-        self.cleanStb()
-        input_sql, stb_name = self.genLongSql(128, 4000)
-        print(input_sql)
-        code = self._conn.insertLines([input_sql])
-        print("insertLines result {}".format(code))
-        query_sql = f"describe {stb_name}"
-        insert_tag_col_num = len(self.resHandle(query_sql, True)[0])
-        expected_num = 128 + 1023 + 1
-        tdSql.checkEqual(insert_tag_col_num, expected_num)
+        for input_sql in [self.genLongSql(128, 1)[0], self.genLongSql(1, 4094)[0]]:
+            self.cleanStb()
+            code = self._conn.insertLines([input_sql])
+            tdSql.checkEqual(code, 0)
+        for input_sql in [self.genLongSql(129, 1)[0], self.genLongSql(1, 4095)[0]]:
+            self.cleanStb()
+            code = self._conn.insertLines([input_sql])
+            tdSql.checkNotEqual(code, 0)
+
+        # print("insertLines result {}".format(code))
+        # query_sql = f"describe {stb_name}"
+        # insert_tag_col_num = len(self.resHandle(query_sql, True)[0])
+        # expected_num = 128 + 1023 + 1
+        # tdSql.checkEqual(insert_tag_col_num, expected_num)
 
         # input_sql, stb_name = self.genLongSql(128, 1500)
         # code = self._conn.insertLines([input_sql])
@@ -574,7 +577,6 @@ class TDTestCase:
             print(input_sql)
             code = self._conn.insertLines([input_sql])
             tdSql.checkNotEqual(code, 0)
-
         # i16
         for c2 in ["-32767i16"]:
             input_sql, stb_name, tb_name = self.genFullTypeSql(c2=c2)
@@ -867,6 +869,20 @@ class TDTestCase:
         code = self._conn.insertLines(lines)
         tdSql.checkEqual(code, 0)
     
+    def multiInsertCheckCase(self, count):
+            """
+                test multi insert
+            """
+            self.cleanStb()
+            sql_list = []
+            stb_name = self.getLongName(8, "letters")
+            tdSql.execute(f'create stable {stb_name}(ts timestamp, f int) tags(t1 bigint)')
+            for i in range(count):
+                input_sql = self.genFullTypeSql(stb_name=stb_name, t7=f'"{self.getLongName(8, "letters")}"', c7=f'"{self.getLongName(8, "letters")}"', id_noexist_tag=True)[0]
+                sql_list.append(input_sql)
+            code = self._conn.insertLines(sql_list)
+            tdSql.checkEqual(code, 0)
+
     # ! bug
     def batchErrorInsertCheckCase(self):
         """
@@ -877,7 +893,7 @@ class TDTestCase:
         lines = ["st123456,t1=3i64,t2=4f64,t3=\"t3\" c1=3i64,c3=L\"passit\",c2=false,c4=4f64 1626006833639000000ns",
                 f"{stb_name},t2=5f64,t3=L\"ste\" c1=tRue,c2=4i64,c3=\"iam\" 1626056811823316532ns"]
         code = self._conn.insertLines(lines)
-        # tdSql.checkEqual(code, 0)
+        tdSql.checkNotEqual(code, 0)
 
     def genSqlList(self, count=5, stb_name="", tb_name=""):
         """
@@ -1046,12 +1062,14 @@ class TDTestCase:
         input_sql1 = "rfasta,id=\"rfasta_1\",t0=true,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7=\"ddzhiksj\",t8=L\"ncharTagValue\" c0=True,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7=\"bnhwlgvj\",c8=L\"ncharTagValue\",c9=7u64 1626006833639000000ns"
 
         input_sql2 = "rfasta,t0=true,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7=\"ddzhiksj\",t8=L\"ncharTagValue\" c0=True,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7=\"bnhwlgvj\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000ns"
-        input_sql3 = 'hmemeb,id="kilrcrldgf",t0=True,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7="ndsfdrum",t8=L"ncharTagValue" c0=f,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7="igwoehkm",c8=L"ncharColValue",c9=7u64 0'
-        input_sql4 = 'hmemeb,id="kilrcrldgf",t0=F,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7="fysodjql",t8=L"ncharTagValue" c0=True,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7="waszbfvc",c8=L"ncharColValue",c9=7u64 0'
+        input_sql3 = f'ab*cd,id="ccc",t0=True,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7="ndsfdrum",t8=L"ncharTagValue" c0=f,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7="igwoehkm",c8=L"ncharColValue",c9=7u64 0'
+        print(input_sql3)
+        # input_sql4 = 'hmemeb,id="kilrcrldgf",t0=F,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7="fysodjql",t8=L"ncharTagValue" c0=True,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7="waszbfvc",c8=L"ncharColValue",c9=7u64 0'
 
 
-        self._conn.insertLines([input_sql3])
-        self._conn.insertLines([input_sql4])
+        code = self._conn.insertLines([input_sql3])
+        print(code)
+        # self._conn.insertLines([input_sql4])
 
     def run(self):
         print("running {}".format(__file__))
@@ -1071,7 +1089,7 @@ class TDTestCase:
         # self.idSeqCheckCase()
         # self.idUpperCheckCase()
         # self.noIdCheckCase()
-        # self.maxColTagCheckCase()
+        self.maxColTagCheckCase()
         # self.idIllegalNameCheckCase()
         # self.idStartWithNumCheckCase()
         # self.nowTsCheckCase()
@@ -1099,7 +1117,7 @@ class TDTestCase:
         # self.tagColNcharMaxLengthCheckCase()
         
         # self.batchInsertCheckCase()
-        
+        # self.multiInsertCheckCase(5000)
         # ! bug
         # self.batchErrorInsertCheckCase()
 
