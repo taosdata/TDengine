@@ -29,28 +29,27 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
+import com.taosdata.jdbc.utils.NullType;
+
 public class TSDBResultSetBlockData {
     private int numOfRows = 0;
     private int rowIndex = 0;
 
     private List<ColumnMetaData> columnMetaDataList;
-    private ArrayList<Object> colData = null;
+    private ArrayList<Object> colData;
 
     public TSDBResultSetBlockData(List<ColumnMetaData> colMeta, int numOfCols) {
         this.columnMetaDataList = colMeta;
-        this.colData = new ArrayList<Object>(numOfCols);
+        this.colData = new ArrayList<>(numOfCols);
     }
 
     public TSDBResultSetBlockData() {
-        this.colData = new ArrayList<Object>();
+        this.colData = new ArrayList<>();
     }
 
     public void clear() {
         int size = this.colData.size();
-        if (this.colData != null) {
-            this.colData.clear();
-        }
-
+        this.colData.clear();
         setNumOfCols(size);
     }
 
@@ -67,7 +66,7 @@ public class TSDBResultSetBlockData {
     }
 
     public void setNumOfCols(int numOfCols) {
-        this.colData = new ArrayList<Object>(numOfCols);
+        this.colData = new ArrayList<>(numOfCols);
         this.colData.addAll(Collections.nCopies(numOfCols, null));
     }
 
@@ -164,67 +163,10 @@ public class TSDBResultSetBlockData {
         }
     }
 
-    private static class NullType {
-        private static final byte NULL_BOOL_VAL = 0x2;
-        private static final String NULL_STR = "null";
-
-        public String toString() {
-            return NullType.NULL_STR;
-        }
-
-        public static boolean isBooleanNull(byte val) {
-            return val == NullType.NULL_BOOL_VAL;
-        }
-
-        private static boolean isTinyIntNull(byte val) {
-            return val == Byte.MIN_VALUE;
-        }
-
-        private static boolean isSmallIntNull(short val) {
-            return val == Short.MIN_VALUE;
-        }
-
-        private static boolean isIntNull(int val) {
-            return val == Integer.MIN_VALUE;
-        }
-
-        private static boolean isBigIntNull(long val) {
-            return val == Long.MIN_VALUE;
-        }
-
-        private static boolean isFloatNull(float val) {
-            return Float.isNaN(val);
-        }
-
-        private static boolean isDoubleNull(double val) {
-            return Double.isNaN(val);
-        }
-
-        private static boolean isBinaryNull(byte[] val, int length) {
-            if (length != Byte.BYTES) {
-                return false;
-            }
-
-            return val[0] == 0xFF;
-        }
-
-        private static boolean isNcharNull(byte[] val, int length) {
-            if (length != Integer.BYTES) {
-                return false;
-            }
-
-            return (val[0] & val[1] & val[2] & val[3]) == 0xFF;
-        }
-
-    }
 
     /**
      * The original type may not be a string type, but will be converted to by
      * calling this method
-     *
-     * @param col column index
-     * @return
-     * @throws SQLException
      */
     public String getString(int col) throws SQLException {
         Object obj = get(col);
@@ -437,7 +379,7 @@ public class TSDBResultSetBlockData {
                     return null;
                 }
 
-                return (long) val;
+                return val;
             }
 
             case TSDBConstants.TSDB_DATA_TYPE_FLOAT: {
@@ -488,8 +430,8 @@ public class TSDBResultSetBlockData {
                 }
 
                 try {
-                    String ss = TaosGlobalConfig.getCharset();
-                    return new String(dest, ss);
+                    String charset = TaosGlobalConfig.getCharset();
+                    return new String(dest, charset);
                 } catch (UnsupportedEncodingException e) {
                     e.printStackTrace();
                 }

@@ -730,8 +730,16 @@ static int32_t quitAllSubquery(SSqlObj* pSqlSub, SSqlObj* pSqlObj, SJoinSupporte
 static void updateQueryTimeRange(SQueryInfo* pQueryInfo, STimeWindow* win) {
   assert(pQueryInfo->window.skey <= win->skey && pQueryInfo->window.ekey >= win->ekey);
   pQueryInfo->window = *win;
+}
 
 
+int32_t tagValCompar(const void* p1, const void* p2) {
+  const STidTags* t1 = (const STidTags*) varDataVal(p1);
+  const STidTags* t2 = (const STidTags*) varDataVal(p2);
+
+  __compar_fn_t func = getComparFunc(t1->padding, 0);
+
+  return func(t1->tag, t2->tag);
 }
 
 int32_t tidTagsCompar(const void* p1, const void* p2) {
@@ -742,28 +750,7 @@ int32_t tidTagsCompar(const void* p1, const void* p2) {
     return (t1->vgId > t2->vgId) ? 1 : -1;
   }
 
-  tstr* tag1 = (tstr*) t1->tag;
-  tstr* tag2 = (tstr*) t2->tag;
-
-  if (tag1->len != tag2->len) {
-    return (tag1->len > tag2->len)? 1: -1;
-  }
-
-  return strncmp(tag1->data, tag2->data, tag1->len);
-}
-
-int32_t tagValCompar(const void* p1, const void* p2) {
-  const STidTags* t1 = (const STidTags*) varDataVal(p1);
-  const STidTags* t2 = (const STidTags*) varDataVal(p2);
-
-  tstr* tag1 = (tstr*) t1->tag;
-  tstr* tag2 = (tstr*) t2->tag;
-
-  if (tag1->len != tag2->len) {
-    return (tag1->len > tag2->len)? 1: -1;
-  }
-
-  return memcmp(tag1->data, tag2->data, tag1->len);
+  return tagValCompar(p1, p2);
 }
 
 void tscBuildVgroupTableInfo(SSqlObj* pSql, STableMetaInfo* pTableMetaInfo, SArray* tables) {
@@ -889,6 +876,12 @@ static bool checkForDuplicateTagVal(SSchema* pColSchema, SJoinSupporter* p1, SSq
   return true;
 }
 
+static void setTidTagType(SJoinSupporter* p, uint8_t type) {
+  for (int32_t i = 0; i < p->num; ++i) {
+    STidTags * tag = (STidTags*) varDataVal(p->pIdTagList + i * p->tagSize);
+    tag->padding = type;
+  }
+}
 
 static int32_t getIntersectionOfTableTuple(SQueryInfo* pQueryInfo, SSqlObj* pParentSql, SArray* resList) {
   int16_t joinNum = pParentSql->subState.numOfSub;
@@ -907,6 +900,8 @@ static int32_t getIntersectionOfTableTuple(SQueryInfo* pQueryInfo, SSqlObj* pPar
 
   for (int32_t i = 0; i < joinNum; i++) {
     SJoinSupporter* p = pParentSql->pSubs[i]->param;
+
+    setTidTagType(p, pColSchema->type);
 
     ctxlist[i].p = p;
     ctxlist[i].res = taosArrayInit(p->num, size);
@@ -1488,6 +1483,8 @@ static void joinRetrieveFinalResCallback(void* param, TAOS_RES* tres, int numOfR
     }
 
     SSqlRes* pRes1 = &pParentSql->pSubs[i]->res;
+
+    pParentSql->res.precision = pRes1->precision;
 
     if (pRes1->row > 0 && pRes1->numOfRows > 0) {
       tscDebug("0x%"PRIx64" sub:%p index:%d numOfRows:%d total:%"PRId64 " (not retrieve)", pParentSql->self, pParentSql->pSubs[i], i,
@@ -3152,6 +3149,13 @@ int32_t tscHandleMultivnodeInsert(SSqlObj *pSql) {
 
   // it is the failure retry insert
   if (pSql->pSubs != NULL) {
+    int32_t blockNum = (int32_t)taosArrayGetSize(pCmd->pDataBlocks);
+    if (pSql->subState.numOfSub != blockNum) {
+      tscError("0x%"PRIx64" sub num:%d is not same with data block num:%d", pSql->self, pSql->subState.numOfSub, blockNum);
+      pRes->code = TSDB_CODE_TSC_APP_ERROR;
+      return pRes->code;
+    }
+    
     for(int32_t i = 0; i < pSql->subState.numOfSub; ++i) {
       SSqlObj* pSub = pSql->pSubs[i];
       SInsertSupporter* pSup = calloc(1, sizeof(SInsertSupporter));

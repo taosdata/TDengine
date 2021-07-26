@@ -1759,7 +1759,6 @@ static int32_t setupQueryRuntimeEnv(SQueryRuntimeEnv *pRuntimeEnv, int32_t numOf
   pRuntimeEnv->pool    = initResultRowPool(getResultRowSize(pRuntimeEnv));
   pRuntimeEnv->prevRow = malloc(POINTER_BYTES * pQuery->numOfCols + pQuery->srcRowSize);
   pRuntimeEnv->tagVal  = malloc(pQuery->tagLen);
-  pRuntimeEnv->currentOffset = pQuery->limit.offset;
 
   // NOTE: pTableCheckInfo need to update the query time range and the lastKey info
   pRuntimeEnv->pTableRetrieveTsMap = taosHashInit(numOfTables, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false, HASH_NO_LOCK);
@@ -4886,6 +4885,8 @@ static SSDataBlock* doIntervalAgg(void* param) {
       break;
     }
 
+    setTagValue(pOperator, pRuntimeEnv->pQuery->current->pTable, pIntervalInfo->pCtx, pOperator->numOfOutput);
+
     // the pDataBlock are always the same one, no need to call this again
     setInputDataBlock(pOperator, pIntervalInfo->pCtx, pBlock, pQuery->order.order);
     hashIntervalAgg(pOperator, &pIntervalInfo->resultRowInfo, pBlock, 0);
@@ -6720,7 +6721,11 @@ int32_t initQInfo(SQueryTableMsg *pQueryMsg, void *tsdb, int32_t vgId, SQInfo *p
   if (pQueryMsg->tsLen > 0) { // open new file to save the result
     char *tsBlock = (char *) pQueryMsg + pQueryMsg->tsOffset;
     pTsBuf = tsBufCreateFromCompBlocks(tsBlock, pQueryMsg->tsNumOfBlocks, pQueryMsg->tsLen, pQueryMsg->tsOrder, vgId);
-
+    if (pTsBuf == NULL) {
+      code = TSDB_CODE_QRY_NO_DISKSPACE;
+      goto _error;
+    }
+    
     tsBufResetPos(pTsBuf);
     bool ret = tsBufNextPos(pTsBuf);
 
@@ -6733,6 +6738,8 @@ int32_t initQInfo(SQueryTableMsg *pQueryMsg, void *tsdb, int32_t vgId, SQInfo *p
     
     pRuntimeEnv->prevResult = prevResult;    
   }
+
+  pRuntimeEnv->currentOffset = pQuery->limit.offset;
 
   pQuery->precision = tsdbGetCfg(tsdb)->precision;
 

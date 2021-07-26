@@ -314,7 +314,9 @@ int32_t tscToSQLCmd(SSqlObj* pSql, struct SSqlInfo* pInfo) {
         }
         
       } else if (pInfo->type == TSDB_SQL_DROP_DNODE) {
-        pzName->n = strdequote(pzName->z);
+        if (pzName->type == TK_STRING) {
+          pzName->n = strdequote(pzName->z);
+        }
         strncpy(pCmd->payload, pzName->z, pzName->n);
       } else {  // drop user/account
         if (pzName->n >= TSDB_USER_LEN) {
@@ -392,7 +394,9 @@ int32_t tscToSQLCmd(SSqlObj* pSql, struct SSqlInfo* pInfo) {
       }
 
       SStrToken* id = taosArrayGet(pInfo->pMiscInfo->a, 0);
-      id->n = strdequote(id->z);
+      if (id->type == TK_STRING) {
+        id->n = strdequote(id->z);
+      }
       break;
     }
 
@@ -1987,6 +1991,7 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
   const char* msg7 = "normal table can not apply this function";
   const char* msg8 = "multi-columns selection does not support alias column name";
   const char* msg9 = "diff can no be applied to unsigned numeric type";
+  const char* msg10 = "parameter is out of range [1, 100]";
 
   switch (functionId) {
     case TSDB_FUNC_COUNT: {
@@ -2374,7 +2379,7 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
 
         int64_t nTop = GET_INT32_VAL(val);
         if (nTop <= 0 || nTop > 100) {  // todo use macro
-          return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg5);
+          return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg10);
         }
 
         // todo REFACTOR
@@ -4689,7 +4694,10 @@ int32_t getTimeRange(STimeWindow* win, tSqlExpr* pRight, int32_t optr, int16_t t
     win->skey = val;
   } else if (optr == TK_EQ) {
     win->ekey = win->skey = val;
+  } else if (optr == TK_NE) {
+    return TSDB_CODE_TSC_INVALID_SQL;
   }
+
   return TSDB_CODE_SUCCESS;
 }
 
@@ -5648,11 +5656,17 @@ static int32_t setKeepOption(SSqlCmd* pCmd, SCreateDbMsg* pMsg, SCreateDbInfo* p
     tVariantListItem* p0 = taosArrayGet(pKeep, 0);
     switch (s) {
       case 1: {
+        if ((int32_t)p0->pVar.i64 <= 0) {
+          return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg);
+        }
         pMsg->daysToKeep = htonl((int32_t)p0->pVar.i64);
       }
         break;
       case 2: {
         tVariantListItem* p1 = taosArrayGet(pKeep, 1);
+        if ((int32_t)p0->pVar.i64 <= 0 || (int32_t)p1->pVar.i64 <= 0) {
+          return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg);
+        }        
         pMsg->daysToKeep = htonl((int32_t)p0->pVar.i64);
         pMsg->daysToKeep1 = htonl((int32_t)p1->pVar.i64);
         break;
@@ -5660,6 +5674,10 @@ static int32_t setKeepOption(SSqlCmd* pCmd, SCreateDbMsg* pMsg, SCreateDbInfo* p
       case 3: {
         tVariantListItem* p1 = taosArrayGet(pKeep, 1);
         tVariantListItem* p2 = taosArrayGet(pKeep, 2);
+
+        if ((int32_t)p0->pVar.i64 <= 0 || (int32_t)p1->pVar.i64 <= 0 || (int32_t)p2->pVar.i64 <= 0) {
+          return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg);
+        } 
 
         pMsg->daysToKeep = htonl((int32_t)p0->pVar.i64);
         pMsg->daysToKeep1 = htonl((int32_t)p1->pVar.i64);
@@ -6664,7 +6682,8 @@ int32_t doCheckForStream(SSqlObj* pSql, SSqlInfo* pInfo) {
   const char* msg5 = "sql too long";  // todo ADD support
   const char* msg6 = "from missing in subclause";
   const char* msg7 = "time interval is required";
-  
+  const char* msg8 = "the first column should be primary timestamp column";
+   
   SSqlCmd*    pCmd = &pSql->cmd;
   SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, 0);
   assert(pQueryInfo->numOfTables == 1);
@@ -6721,8 +6740,26 @@ int32_t doCheckForStream(SSqlObj* pSql, SSqlInfo* pInfo) {
     return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg2);
   }
 
-  if (!tscIsProjectionQuery(pQueryInfo) && pQueryInfo->interval.interval == 0) {
-    return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg7);
+  // project query primary column must be timestamp type
+  if (tscIsProjectionQuery(pQueryInfo)) {
+    size_t size = tscSqlExprNumOfExprs(pQueryInfo);
+    // check zero
+    if(size == 0) {
+      return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg8);
+    }
+
+    // check primary column is timestamp
+    SSqlExpr* pSqlExpr = tscSqlExprGet(pQueryInfo, 0);
+    if(pSqlExpr == NULL) {
+      return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg8);
+    }
+    if( pSqlExpr->colInfo.colId != PRIMARYKEY_TIMESTAMP_COL_INDEX) {
+      return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg8);
+    }
+  } else {
+    if (pQueryInfo->interval.interval == 0) {
+      return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg7);
+    }    
   }
 
   // set the created table[stream] name

@@ -3319,6 +3319,9 @@ int32_t tsdbGetTableGroupFromIdList(STsdbRepo* tsdb, SArray* pTableIdList, STabl
     if (pTable->type == TSDB_SUPER_TABLE) {
       tsdbError("direct query on super tale is not allowed, table uid:%"PRIu64", tid:%d", id->uid, id->tid);
       terrno = TSDB_CODE_QRY_INVALID_MSG;
+      tsdbUnlockRepoMeta(tsdb);
+      taosArrayDestroy(group);
+      return terrno;
     }
 
     tsdbRefTable(pTable);
@@ -3358,6 +3361,10 @@ static void* doFreeColumnInfoData(SArray* pColumnInfoData) {
 }
 
 static void* destroyTableCheckInfo(SArray* pTableCheckInfo) {
+  if (pTableCheckInfo == NULL) {
+    return NULL;
+  }
+  
   size_t size = taosArrayGetSize(pTableCheckInfo);
   for (int32_t i = 0; i < size; ++i) {
     STableCheckInfo* p = taosArrayGet(pTableCheckInfo, i);

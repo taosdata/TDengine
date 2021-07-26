@@ -466,6 +466,10 @@ int tsParseOneRow(char **str, STableDataBlocks *pDataBlocks, SSqlCmd *pCmd, int1
 
       int32_t cnt = 0;
       int32_t j = 0;
+      if (sToken.n >= TSDB_MAX_BYTES_PER_ROW) {
+        return tscSQLSyntaxErrMsg(pCmd->payload, "too long string", sToken.z);
+      }
+      
       for (uint32_t k = 1; k < sToken.n - 1; ++k) {
         if (sToken.z[k] == '\\' || (sToken.z[k] == delim && sToken.z[k + 1] == delim)) {
             tmpTokenBuf[j] = sToken.z[k + 1];
@@ -705,7 +709,7 @@ static int32_t doParseInsertStatement(SSqlCmd* pCmd, char **str, STableDataBlock
   }
 
   code = TSDB_CODE_TSC_INVALID_SQL;
-  char tmpTokenBuf[16*1024] = {0};  // used for deleting Escape character: \\, \', \"
+  char tmpTokenBuf[TSDB_MAX_BYTES_PER_ROW] = {0};  // used for deleting Escape character: \\, \', \"
 
   int32_t numOfRows = 0;
   code = tsParseValues(str, dataBuf, maxNumOfRows, pCmd, &numOfRows, tmpTokenBuf);
@@ -948,6 +952,10 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql, char** boundC
 
         if (sToken.type == TK_RP) {
           break;
+        }
+
+        if (sToken.n == 0 || sToken.type == TK_SEMI || index == 0) {
+          return tscSQLSyntaxErrMsg(pCmd->payload, "unexpected token", sql);
         }
 
         sql += index;

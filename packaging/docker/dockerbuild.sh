@@ -1,20 +1,24 @@
 #!/bin/bash
+#
+
 set -e
 #set -x
 
 # dockerbuild.sh 
 #             -c [aarch32 | aarch64 | amd64 | x86 | mips64 ...]  
-#             -f [pkg file]
 #             -n [version number]
 #             -p [password for docker hub]
+#             -V [stable | beta]
+#             -f [pkg file]
 
 # set parameters by default value
-cpuType=amd64
-verNumber=""
+cpuType=""
+version=""
 passWord=""
 pkgFile=""
+verType="stable"
 
-while getopts "hc:n:p:f:" arg
+while getopts "hc:n:p:f:V:" arg
 do
   case $arg in
     c)
@@ -22,8 +26,8 @@ do
       cpuType=$(echo $OPTARG)
       ;;
     n)
-      #echo "verNumber=$OPTARG"
-      verNumber=$(echo $OPTARG)
+      #echo "version=$OPTARG"
+      version=$(echo $OPTARG)
       ;;
     p)
       #echo "passWord=$OPTARG"
@@ -33,11 +37,17 @@ do
       #echo "pkgFile=$OPTARG"
       pkgFile=$(echo $OPTARG)
       ;;
+    V)
+      #echo "verType=$OPTARG"
+      verType=$(echo $OPTARG)
+      ;;
     h)
-      echo "Usage: `basename $0` -c [aarch32 | aarch64 | amd64 | x86 | mips64 ...] "      
-      echo "                      -f [pkg file] "      
+      echo "Usage: `basename $0`  -c [aarch32 | aarch64 | amd64 | x86 | mips64 ...] "
       echo "                      -n [version number] "
       echo "                      -p [password for docker hub] "
+      echo "                      -V [stable | beta] "
+      echo "                      -f [pkg file] "
+
       exit 0
       ;;
     ?) #unknow option 
@@ -47,17 +57,45 @@ do
   esac
 done
 
-echo "cpuType=${cpuType} verNumber=${verNumber} pkgFile=${pkgFile} "
+# if [ "$verType" == "beta" ]; then
+#   pkgFile=TDengine-server-${version}-Linux-${cpuType}-${verType}.tar.gz
+# elif [ "$verType" == "stable" ]; then
+#   pkgFile=TDengine-server-${version}-Linux-${cpuType}.tar.gz
+# else
+#   echo "unknow verType, nor stabel or beta"
+#   exit 1
+
+if [ "$verType" == "beta" ]; then
+  dockername=${cpuType}-${verType}
+  dirName=${pkgFile%-beta*}
+elif [ "$verType" == "stable" ]; then
+  dockername=${cpuType}
+  dirName=${pkgFile%-Linux*}
+else
+  echo "unknow verType, nor stabel or beta"
+  exit 1
+fi
+
+
+echo "cpuType=${cpuType} version=${version} pkgFile=${pkgFile} verType=${verType} "
 echo "$(pwd)"
 echo "====NOTES: ${pkgFile} must be in the same directory as dockerbuild.sh===="
 
-dirName=${pkgFile%-Linux*}
-#echo "dirName=${dirName}"
+scriptDir=$(dirname $(readlink -f $0))
+comunityArchiveDir=/nas/TDengine/v$version/community   # community version’package directory
+cd ${scriptDir}
+cp -f ${comunityArchiveDir}/${pkgFile}  .
 
-docker build --rm -f "Dockerfile" -t tdengine/tdengine-${cpuType}:${verNumber} "." --build-arg pkgFile=${pkgFile} --build-arg dirName=${dirName}
+echo "dirName=${dirName}"
+
+
+docker build --rm -f "Dockerfile"  --network=host -t tdengine/tdengine-${dockername}:${version} "." --build-arg pkgFile=${pkgFile} --build-arg dirName=${dirName}
 docker login -u tdengine -p ${passWord}  #replace the docker registry username and password
-docker push tdengine/tdengine-${cpuType}:${verNumber}
+docker push tdengine/tdengine-${dockername}:${version}
 
 # set this version to latest version
-docker tag tdengine/tdengine-${cpuType}:${verNumber} tdengine/tdengine-${cpuType}:latest
-docker push tdengine/tdengine-${cpuType}:latest
+docker tag tdengine/tdengine-${dockername}:${version} tdengine/tdengine-${dockername}:latest
+docker push tdengine/tdengine-${dockername}:latest
+
+
+rm -f ${pkgFile}
