@@ -626,9 +626,9 @@ class TDTestCase:
 
         # # binary 
         stb_name = self.getLongName(7, "letters")
-        # input_sql = f'{stb_name},t0=t c0=f,c1="{self.getLongName(16374, "letters")}" 1626006833639000000ns'
-        # code = self._conn.insertLines([input_sql])
-        # tdSql.checkEqual(code, 0)
+        input_sql = f'{stb_name},t0=t c0=f,c1="{self.getLongName(16374, "letters")}" 1626006833639000000ns'
+        code = self._conn.insertLines([input_sql])
+        tdSql.checkEqual(code, 0)
         # ! bug code is 0
         input_sql = f'{stb_name},t0=t c0=f,c1="{self.getLongName(16375, "letters")}" 1626006833639000000ns'
         code = self._conn.insertLines([input_sql])
