@@ -874,6 +874,10 @@ typedef struct {
   int64_t  useconds;
   int64_t  stime;
   uint64_t qId;
+  uint64_t sqlObjId;
+  int32_t  pid;
+  char     fqdn[TSDB_FQDN_LEN];
+  int32_t  numOfSub;
 } SQueryDesc;
 
 typedef struct {
