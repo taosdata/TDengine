@@ -3846,7 +3846,6 @@ void setParamForStableStddevByColData(SQueryRuntimeEnv* pRuntimeEnv, SQLFunction
     pCtx[i].param[0].arr = NULL;
     pCtx[i].param[0].nType = TSDB_DATA_TYPE_INT;  // avoid freeing the memory by setting the type to be int
     
-  
     // find colid in dataBlock
     int32_t bytes, offset = 0;
     char*   val = NULL;
