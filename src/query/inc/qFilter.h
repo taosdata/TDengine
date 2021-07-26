@@ -22,6 +22,7 @@ extern "C" {
 
 #include "texpr.h"
 #include "hash.h"
+#include "tname.h"
 
 #define FILTER_DEFAULT_GROUP_SIZE 4
 #define FILTER_DEFAULT_UNIT_SIZE 4
@@ -91,13 +92,13 @@ typedef struct SFilterColRange {
   SFilterRange ra;
 } SFilterColRange;
 
+typedef bool (*rangeCompFunc) (const void *, const void *, const void *, const void *, __compar_fn_t);
+
 typedef struct SFilterRangeCompare {
   int64_t s;
   int64_t e;
   rangeCompFunc func;
 } SFilterRangeCompare;
-
-typedef bool (*rangeCompFunc) (const void *, const void *, const void *, const void *, __compar_fn_t);
 
 typedef struct SFilterRangeNode {
   struct SFilterRangeNode*   prev;
@@ -294,6 +295,7 @@ extern int32_t filterConverNcharColumns(SFilterInfo* pFilterInfo, int32_t rows, 
 extern int32_t filterFreeNcharColumns(SFilterInfo* pFilterInfo);
 extern void filterFreeInfo(SFilterInfo *info);
 extern bool filterIsEmptyRes(SFilterInfo *info);
+extern bool filterRangeExecute(SFilterInfo *info, SDataStatis *pDataStatis, int32_t numOfCols, int32_t numOfRows);
 
 #ifdef __cplusplus
 }

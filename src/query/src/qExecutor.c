@@ -2402,7 +2402,7 @@ static FORCE_INLINE bool doFilterByBlockStatistics(SQueryRuntimeEnv* pRuntimeEnv
     return true;
   }
 
-  return filterRangeExecute(pQueryAttr->pFilters, pDataStatis, numOfRows);
+  return filterRangeExecute(pQueryAttr->pFilters, pDataStatis, pQueryAttr->numOfCols, numOfRows);
 }
 
 static bool overlapWithTimeWindow(SQueryAttr* pQueryAttr, SDataBlockInfo* pBlockInfo) {

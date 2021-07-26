@@ -57,28 +57,28 @@ filter_desc_compare_func gDescCompare [FLD_TYPE_MAX] = {
   filterFieldValDescCompare
 };
 
-bool filterRangeCompGi (const char *minv, const void *maxv, const void *minr, const void *maxr, __compar_fn_t cfunc) {
+bool filterRangeCompGi (const void *minv, const void *maxv, const void *minr, const void *maxr, __compar_fn_t cfunc) {
   return cfunc(maxv, minr) >= 0;
 }
-bool filterRangeCompGe (const char *minv, const void *maxv, const void *minr, const void *maxr, __compar_fn_t cfunc) {
+bool filterRangeCompGe (const void *minv, const void *maxv, const void *minr, const void *maxr, __compar_fn_t cfunc) {
   return cfunc(maxv, minr) > 0;
 }
-bool filterRangeCompLi (const char *minv, const void *maxv, const void *minr, const void *maxr, __compar_fn_t cfunc) {
+bool filterRangeCompLi (const void *minv, const void *maxv, const void *minr, const void *maxr, __compar_fn_t cfunc) {
   return cfunc(minv, maxr) <= 0;
 }
-bool filterRangeCompLe (const char *minv, const void *maxv, const void *minr, const void *maxr, __compar_fn_t cfunc) {
+bool filterRangeCompLe (const void *minv, const void *maxv, const void *minr, const void *maxr, __compar_fn_t cfunc) {
   return cfunc(minv, maxr) < 0;
 }
-bool filterRangeCompii (const char *minv, const void *maxv, const void *minr, const void *maxr, __compar_fn_t cfunc) {
+bool filterRangeCompii (const void *minv, const void *maxv, const void *minr, const void *maxr, __compar_fn_t cfunc) {
   return cfunc(maxv, minr) >= 0 && cfunc(minv, maxr) <= 0;
 }
-bool filterRangeCompee (const char *minv, const void *maxv, const void *minr, const void *maxr, __compar_fn_t cfunc) {
+bool filterRangeCompee (const void *minv, const void *maxv, const void *minr, const void *maxr, __compar_fn_t cfunc) {
   return cfunc(maxv, minr) > 0 && cfunc(minv, maxr) < 0;
 }
-bool filterRangeCompei (const char *minv, const void *maxv, const void *minr, const void *maxr, __compar_fn_t cfunc) {
+bool filterRangeCompei (const void *minv, const void *maxv, const void *minr, const void *maxr, __compar_fn_t cfunc) {
   return cfunc(maxv, minr) > 0 && cfunc(minv, maxr) <= 0;
 }
-bool filterRangeCompie (const char *minv, const void *maxv, const void *minr, const void *maxr, __compar_fn_t cfunc) {
+bool filterRangeCompie (const void *minv, const void *maxv, const void *minr, const void *maxr, __compar_fn_t cfunc) {
   return cfunc(maxv, minr) >= 0 && cfunc(minv, maxr) < 0;
 }
 
@@ -1823,6 +1823,7 @@ int32_t filterRewrite(SFilterInfo *info, SFilterGroupCtx** gRes, int32_t gResNum
   }
   
   SFilterInfo oinfo = *info;
+  
   SArray* group = taosArrayInit(FILTER_DEFAULT_GROUP_SIZE, sizeof(SFilterGroup));
   SFilterGroupCtx *res = NULL;
   SFilterColInfo *colInfo = NULL;
@@ -1830,6 +1831,10 @@ int32_t filterRewrite(SFilterInfo *info, SFilterGroupCtx** gRes, int32_t gResNum
   uint16_t uidx = 0;
 
   memset(info, 0, sizeof(*info));
+  info->colRangeNum = oinfo.colRangeNum;
+  info->colRange = oinfo.colRange;
+  oinfo.colRangeNum = 0;
+  oinfo.colRange = NULL;
 
   FILTER_SET_FLAG(info->options, FI_OPTION_NEED_UNIQE);
 
@@ -1993,13 +1998,13 @@ int32_t filterPreprocess(SFilterInfo *info) {
     return TSDB_CODE_SUCCESS;
   }  
 
-  filterRewrite(info, gRes, gResNum);
-
   filterGenerateColRange(info, gRes, gResNum);
 
   filterDumpInfoToString(info, "Final", 1);
 
   filterPostProcessRange(info);
+
+  filterRewrite(info, gRes, gResNum);
   
   return TSDB_CODE_SUCCESS;
 }
@@ -2179,7 +2184,7 @@ bool filterRangeExecute(SFilterInfo *info, SDataStatis *pDataStatis, int32_t num
     }
 
     // not support pre-filter operation on binary/nchar data type
-    if (!IS_PREFILTER_TYPE(ctx->type)) {
+    if (FILTER_NO_MERGE_DATA_TYPE(ctx->type)) {
       return true;
     }
 
@@ -2200,7 +2205,7 @@ bool filterRangeExecute(SFilterInfo *info, SDataStatis *pDataStatis, int32_t num
 
     SDataStatis* pDataBlockst = &pDataStatis[index];
 
-    SFilterRangeNode r = ctx->rs;
+    SFilterRangeNode *r = ctx->rs;
 
     if (ctx->type == TSDB_DATA_TYPE_FLOAT) {
       float minv = (float)(*(double *)(&pDataBlockst->min));
@@ -2215,10 +2220,13 @@ bool filterRangeExecute(SFilterInfo *info, SDataStatis *pDataStatis, int32_t num
 
     while (r) {
       ret = r->rc.func(minVal, maxVal, &r->rc.s, &r->rc.e, ctx->pCompareFunc);
-      CHK_RET(!ret, ret);
-
+      if (ret) {
+        break;
+      }
       r = r->next;
     }
+    
+    CHK_RET(!ret, ret);
   }
 
   return ret;
