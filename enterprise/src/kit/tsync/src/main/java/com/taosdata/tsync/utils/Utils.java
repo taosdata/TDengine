@@ -25,7 +25,7 @@ public final class Utils {
 
     public static long toMicroSecond(Timestamp timestamp) {
         long high13digits = timestamp.getTime();
-        long low3digits = timestamp.getNanos() % 1000_000l / 1000;
+        long low3digits = timestamp.getNanos() % 1000_000L / 1000;
         return high13digits * 1000 + low3digits;
     }
 
@@ -41,7 +41,6 @@ public final class Utils {
         }
         return batchMap;
     }
-
 
     public static Map<Long, Range<Long>> divideIntoArrGroups(long many, long[] groups) {
         Map<Long, Range<Long>> map = new HashMap<>();

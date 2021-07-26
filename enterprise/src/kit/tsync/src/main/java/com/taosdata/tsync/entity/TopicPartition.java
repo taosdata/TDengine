@@ -21,7 +21,7 @@ public class TopicPartition {
         return topic;
     }
 
-    public static int hashCode(String topic,int partition){
+    public static int hashCode(String topic, int partition) {
         final int prime = 31;
         int result = 1;
         result = prime * result + partition;
@@ -33,12 +33,9 @@ public class TopicPartition {
     public int hashCode() {
         if (hash != 0)
             return hash;
-        final int prime = 31;
-        int result = 1;
-        result = prime * result + partition;
-        result = prime * result + Objects.hashCode(topic);
-        this.hash = result;
-        return result;
+
+        this.hash = hashCode(this.topic, partition);
+        return this.hash;
     }
 
     @Override

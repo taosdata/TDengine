@@ -28,15 +28,16 @@ public class TQueueConsumer extends TQueueBase {
 
     public TQueueConsumer(Properties properties) {
         super(properties);
-        if (!isOffsetDatabaseExist()) {
-            createOffsetDatabase();
-        }
-        if (!isOffsetTableExist()) {
-            createOffsetTable();
-            logger.warn("table[" + TQueueConstants.DEFAULT_OFFSET_DATABASE_NAME + "." + TQueueConstants.DEFAULT_OFFSET_TABLE_NAME + "] is not exists, and all partitions' offset in topic:" + TQueueConstants.DEFAULT_OFFSET_DATABASE_NAME + " will be set to 0");
-        }
+//        if (!isOffsetDatabaseExist()) {
+//            createOffsetDatabase();
+//        }
+//        if (!isOffsetTableExist()) {
+//            createOffsetTable();
+//            logger.warn("table[" + TQueueConstants.DEFAULT_OFFSET_DATABASE_NAME + "." + TQueueConstants.DEFAULT_OFFSET_TABLE_NAME + "] is not exists, and all partitions' offset in topic:" + TQueueConstants.DEFAULT_OFFSET_DATABASE_NAME + " will be set to 0");
+//        }
     }
 
+    /*
     private boolean isOffsetDatabaseExist() {
         boolean isExist = false;
         try (Statement stmt = connection.createStatement()) {
@@ -87,6 +88,7 @@ public class TQueueConsumer extends TQueueBase {
             e.printStackTrace();
         }
     }
+     */
 
     /**
      * 为Consumer指定要消费的主题和分区，每次调用这个方法会覆盖当前consumer正在消费的主题和分区
@@ -95,7 +97,7 @@ public class TQueueConsumer extends TQueueBase {
      * @param partition
      * @return
      */
-    public long assign(String topic, int partition) throws TQueueException {
+    public long assign(String topic, int partition) {
         int hashCode = TopicPartition.hashCode(topic, partition);
         // return current offset if topicPartition already assigned
         if (hashCode == TopicPartition.hashCode(this.topic, this.partition))
@@ -215,7 +217,7 @@ public class TQueueConsumer extends TQueueBase {
                 byte[] message = rs.getBytes(3);
 
                 if (offset <= currentOffset) {
-                    logger.error("currentOffset: " + currentOffset + " > queryOffset: " + offset);
+                    logger.error("queryOffset: " + offset + " < currentOffset: " + currentOffset);
                 } else {
                     ConsumerRecord consumerRecord = new ConsumerRecord(topic, partition, offset, ts, message);
                     records.add(consumerRecord);
