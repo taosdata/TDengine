@@ -31,8 +31,8 @@ public class TSDBError {
         TSDBErrorMap.put(TSDBErrorNumbers.ERROR_URL_NOT_SET, "url is not set");
         TSDBErrorMap.put(TSDBErrorNumbers.ERROR_INVALID_SQL, "invalid sql");
         TSDBErrorMap.put(TSDBErrorNumbers.ERROR_NUMERIC_VALUE_OUT_OF_RANGE, "numeric value out of range");
-        TSDBErrorMap.put(TSDBErrorNumbers.ERROR_UNKNOWN_TAOS_TYPE_IN_TDENGINE, "unknown taos type in tdengine");
-        TSDBErrorMap.put(TSDBErrorNumbers.ERROR_UNKNOWN_TIMESTAMP_PERCISION, "unknown timestamp precision");
+        TSDBErrorMap.put(TSDBErrorNumbers.ERROR_UNKNOWN_TAOS_TYPE, "unknown taos type in tdengine");
+        TSDBErrorMap.put(TSDBErrorNumbers.ERROR_UNKNOWN_TIMESTAMP_PRECISION, "unknown timestamp precision");
 
         TSDBErrorMap.put(TSDBErrorNumbers.ERROR_UNKNOWN, "unknown error");
 
