@@ -1089,20 +1089,20 @@ class TDTestCase:
         # tdSql.execute('create table st1 using super_table_cname_check tags (1, 2, 1.1, 2.2, "a", 1, 1, true, "aa");')
         # tdSql.execute('insert into st1 values (now, 1, 2, 1.1, 2.2, "a", 1, 1, true, "aa");')
 
-        self.initCheckCase()
-        self.boolTypeCheckCase()
-        self.symbolsCheckCase()
+        # self.initCheckCase()
+        # self.boolTypeCheckCase()
+        # self.symbolsCheckCase()
         # ! case bug
         # self.tsCheckCase()
-        self.idSeqCheckCase()
-        self.idUpperCheckCase()
-        self.noIdCheckCase()
-        self.maxColTagCheckCase()
-        self.idIllegalNameCheckCase()
-        self.idStartWithNumCheckCase()
-        self.nowTsCheckCase()
-        self.dateFormatTsCheckCase()
-        self.illegalTsCheckCase()
+        # self.idSeqCheckCase()
+        # self.idUpperCheckCase()
+        # self.noIdCheckCase()
+        # self.maxColTagCheckCase()
+        # self.idIllegalNameCheckCase()
+        # self.idStartWithNumCheckCase()
+        # self.nowTsCheckCase()
+        # self.dateFormatTsCheckCase()
+        # self.illegalTsCheckCase()
 
         # ! confirm double
         # self.tagValueLengthCheckCase()
@@ -1110,35 +1110,35 @@ class TDTestCase:
         # ! bug
         # self.colValueLengthCheckCase()
 
-        self.tagColIllegalValueCheckCase()
+        # self.tagColIllegalValueCheckCase()
         
         # ! 重复ID未合并
         # self.duplicateIdTagColInsertCheckCase()
 
-        self.noIdStbExistCheckCase()
-        self.duplicateInsertExistCheckCase()
-        self.tagColBinaryNcharLengthCheckCase()
+        # self.noIdStbExistCheckCase()
+        # self.duplicateInsertExistCheckCase()
+        # self.tagColBinaryNcharLengthCheckCase()
 
         # ! 结果未校验
-        self.tagColAddDupIDCheckCase()
+        # self.tagColAddDupIDCheckCase()
 
-        self.tagColAddCheckCase()
-        self.tagMd5Check()
+        # self.tagColAddCheckCase()
+        # self.tagMd5Check()
 
         # ! rollback bug
-        self.tagColBinaryMaxLengthCheckCase()
-        self.tagColNcharMaxLengthCheckCase()
+        # self.tagColBinaryMaxLengthCheckCase()
+        # self.tagColNcharMaxLengthCheckCase()
         
-        self.batchInsertCheckCase()
+        # self.batchInsertCheckCase()
         # self.multiInsertCheckCase(5000)
         # ! bug
-        self.batchErrorInsertCheckCase()
+        # self.batchErrorInsertCheckCase()
 
-        self.stbInsertMultiThreadCheckCase()
-        self.sStbStbDdataInsertMultiThreadCheckCase()
-        self.sStbStbDdataAtcInsertMultiThreadCheckCase()
-        self.sStbStbDdataMtcInsertMultiThreadCheckCase()
-        self.sStbDtbDdataInsertMultiThreadCheckCase()
+        # self.stbInsertMultiThreadCheckCase()
+        # self.sStbStbDdataInsertMultiThreadCheckCase()
+        # self.sStbStbDdataAtcInsertMultiThreadCheckCase()
+        # self.sStbStbDdataMtcInsertMultiThreadCheckCase()
+        # self.sStbDtbDdataInsertMultiThreadCheckCase()
 
         # ! concurrency conflict
         # self.sStbDtbDdataAcMtInsertMultiThreadCheckCase()
@@ -1146,7 +1146,7 @@ class TDTestCase:
         # ! concurrency conflict
 
         # self.sStbStbDdataDtsInsertMultiThreadCheckCase()
-        # self.test()
+        self.test()
 
 
 
