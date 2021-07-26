@@ -1102,10 +1102,10 @@ class TDTestCase:
         # self.illegalTsCheckCase()
 
         # ! confirm double
-        self.tagValueLengthCheckCase()
+        # self.tagValueLengthCheckCase()
 
         # ! bug
-        # self.colValueLengthCheckCase()
+        self.colValueLengthCheckCase()
 
         # self.tagColIllegalValueCheckCase()
         
