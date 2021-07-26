@@ -4588,7 +4588,7 @@ int32_t tscGetColFilterSerializeLen(SQueryInfo* pQueryInfo) {
     for (int32_t j = 0; j < pCol->info.flist.numOfFilters; ++j) {
       len += sizeof(SColumnFilterInfo);
       if (pCol->info.flist.filterInfo[j].filterstr) {
-        len += pCol->info.flist.filterInfo[j].len + 1 * TSDB_NCHAR_SIZE;
+        len += (int32_t)pCol->info.flist.filterInfo[j].len + 1 * TSDB_NCHAR_SIZE;
       }
     }
   }
