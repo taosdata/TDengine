@@ -238,7 +238,10 @@ static int32_t buildDataPointSchemas(TAOS_SML_DATA_POINT* points, int numPoint, 
 
 static int32_t generateSchemaAction(SSchema* pointColField, SHashObj* dbAttrHash, SArray* dbAttrArray, bool isTag, char sTableName[],
                                        SSchemaAction* action, bool* actionNeeded) {
-  size_t* pDbIndex = taosHashGet(dbAttrHash, pointColField->name, strlen(pointColField->name));
+  char fieldNameLowerCase[TSDB_COL_NAME_LEN] = {0};
+  strtolower(fieldNameLowerCase, pointColField->name);
+
+  size_t* pDbIndex = taosHashGet(dbAttrHash, fieldNameLowerCase, strlen(fieldNameLowerCase));
   if (pDbIndex) {
     SSchema* dbAttr = taosArrayGet(dbAttrArray, *pDbIndex);
     assert(strcasecmp(dbAttr->name, pointColField->name) == 0);
@@ -399,8 +402,11 @@ int32_t loadTableMeta(TAOS* taos, char* tableName, SSmlSTableSchema* schema) {
 
   tscDebug("load table schema. super table name: %s", tableName);
 
+  char tableNameLowerCase[TSDB_TABLE_NAME_LEN];
+  strtolower(tableNameLowerCase, tableName);
+
   char sql[256];
-  snprintf(sql, 256, "describe %s", tableName);
+  snprintf(sql, 256, "describe %s", tableNameLowerCase);
   TAOS_RES* res = taos_query(taos, sql);
   code = taos_errno(res);
   if (code != 0) {
@@ -415,8 +421,8 @@ int32_t loadTableMeta(TAOS* taos, char* tableName, SSmlSTableSchema* schema) {
   pSql->signature = pSql;
   pSql->fp = NULL;
 
-  SStrToken tableToken = {.z=tableName, .n=(uint32_t)strlen(tableName), .type=TK_ID};
-  tGetToken(tableName, &tableToken.type);
+  SStrToken tableToken = {.z=tableNameLowerCase, .n=(uint32_t)strlen(tableNameLowerCase), .type=TK_ID};
+  tGetToken(tableNameLowerCase, &tableToken.type);
   // Check if the table name available or not
   if (tscValidateName(&tableToken) != TSDB_CODE_SUCCESS) {
     code = TSDB_CODE_TSC_INVALID_TABLE_ID_LENGTH;
