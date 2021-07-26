@@ -168,7 +168,7 @@ static int32_t buildSmlKvSchema(TAOS_SML_KV* smlKv, SHashObj* hash, SArray* arra
     taosHashPut(hash, field.name, tagKeyLen, &fieldIdx, sizeof(fieldIdx));
   }
 
-  smlKv->fieldSchemaIdx = fieldIdx;
+  smlKv->fieldSchemaIdx = (uint32_t)fieldIdx;
 
   return 0;
 }
@@ -219,7 +219,7 @@ static int32_t buildDataPointSchemas(TAOS_SML_DATA_POINT* points, int numPoint, 
       }
     }
 
-    point->schemaIdx = stableIdx;
+    point->schemaIdx = (uint32_t)stableIdx;
   }
 
   size_t numStables = taosArrayGetSize(stableSchemas);
