@@ -9,8 +9,8 @@
 #include <unistd.h>
 
 int numSuperTables = 8;
-int numChildTables = 1024;
-int numRowsPerChildTable = 128;
+int numChildTables = 4;
+int numRowsPerChildTable = 2048;
 
 void shuffle(char**lines, size_t n)
 {

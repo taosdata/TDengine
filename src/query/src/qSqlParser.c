@@ -712,9 +712,8 @@ void tSetColumnType(TAOS_FIELD *pField, SStrToken *type) {
     } else {
       int32_t bytes = -(int32_t)(type->type);
       if (bytes > (TSDB_MAX_NCHAR_LEN - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE) {
-        // we have to postpone reporting the error because it cannot be done here
-        // as pField->bytes is int16_t, use 'TSDB_MAX_NCHAR_LEN + 1' to avoid overflow
-        bytes = TSDB_MAX_NCHAR_LEN + 1;
+        // overflowed. set bytes to -1 so that error can be reported
+        bytes = -1;
       } else {
         bytes = bytes * TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE;
       }
@@ -727,8 +726,8 @@ void tSetColumnType(TAOS_FIELD *pField, SStrToken *type) {
     } else {
       int32_t bytes = -(int32_t)(type->type);
       if (bytes > TSDB_MAX_BINARY_LEN - VARSTR_HEADER_SIZE) {
-        // refer comment for NCHAR above
-        bytes = TSDB_MAX_BINARY_LEN + 1;
+        // overflowed. set bytes to -1 so that error can be reported
+        bytes = -1;
       } else {
         bytes += VARSTR_HEADER_SIZE;
       }

@@ -1640,7 +1640,7 @@ int taos_stmt_set_tbname_tags(TAOS_STMT* stmt, const char* name, TAOS_BIND* tags
 
     memcpy(&pTableMetaInfo->name, &fullname, sizeof(fullname));
 
-    code = tscGetTableMeta(pSql, pTableMetaInfo);
+    code = tscGetTableMetaEx(pSql, pTableMetaInfo, false, true);
     if (code != TSDB_CODE_SUCCESS) {
       STMT_RET(code);
     }
