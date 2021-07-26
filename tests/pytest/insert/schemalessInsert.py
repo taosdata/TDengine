@@ -488,51 +488,51 @@ class TDTestCase:
             check full type tag value limit
         """
         self.cleanStb()
-        # # i8
-        # for t1 in ["-127i8", "127i8"]:
-        #     input_sql, stb_name, tb_name = self.genFullTypeSql(t1=t1)
-        #     self.resCmp(input_sql, stb_name)
-        # for t1 in ["-128i8", "128i8"]:
-        #     input_sql = self.genFullTypeSql(t1=t1)[0]
-        #     code = self._conn.insertLines([input_sql])
-        #     tdSql.checkNotEqual(code, 0)
+        # i8
+        for t1 in ["-127i8", "127i8"]:
+            input_sql, stb_name, tb_name = self.genFullTypeSql(t1=t1)
+            self.resCmp(input_sql, stb_name)
+        for t1 in ["-128i8", "128i8"]:
+            input_sql = self.genFullTypeSql(t1=t1)[0]
+            code = self._conn.insertLines([input_sql])
+            tdSql.checkNotEqual(code, 0)
 
-        # #i16
-        # for t2 in ["-32767i16", "32767i16"]:
-        #     input_sql, stb_name, tb_name = self.genFullTypeSql(t2=t2)
-        #     self.resCmp(input_sql, stb_name)
-        # for t2 in ["-32768i16", "32768i16"]:
-        #     input_sql = self.genFullTypeSql(t2=t2)[0]
-        #     code = self._conn.insertLines([input_sql])
-        #     tdSql.checkNotEqual(code, 0)
+        #i16
+        for t2 in ["-32767i16", "32767i16"]:
+            input_sql, stb_name, tb_name = self.genFullTypeSql(t2=t2)
+            self.resCmp(input_sql, stb_name)
+        for t2 in ["-32768i16", "32768i16"]:
+            input_sql = self.genFullTypeSql(t2=t2)[0]
+            code = self._conn.insertLines([input_sql])
+            tdSql.checkNotEqual(code, 0)
 
-        # #i32
-        # for t3 in ["-2147483647i32", "2147483647i32"]:
-        #     input_sql, stb_name, tb_name = self.genFullTypeSql(t3=t3)
-        #     self.resCmp(input_sql, stb_name)
-        # for t3 in ["-2147483648i32", "2147483648i32"]:
-        #     input_sql = self.genFullTypeSql(t3=t3)[0]
-        #     code = self._conn.insertLines([input_sql])
-        #     tdSql.checkNotEqual(code, 0)
+        #i32
+        for t3 in ["-2147483647i32", "2147483647i32"]:
+            input_sql, stb_name, tb_name = self.genFullTypeSql(t3=t3)
+            self.resCmp(input_sql, stb_name)
+        for t3 in ["-2147483648i32", "2147483648i32"]:
+            input_sql = self.genFullTypeSql(t3=t3)[0]
+            code = self._conn.insertLines([input_sql])
+            tdSql.checkNotEqual(code, 0)
 
-        # #i64
-        # for t4 in ["-9223372036854775807i64", "9223372036854775807i64"]:
-        #     input_sql, stb_name, tb_name = self.genFullTypeSql(t4=t4)
-        #     self.resCmp(input_sql, stb_name)
-        # for t4 in ["-9223372036854775808i64", "9223372036854775808i64"]:
-        #     input_sql = self.genFullTypeSql(t4=t4)[0]
-        #     code = self._conn.insertLines([input_sql])
-        #     tdSql.checkNotEqual(code, 0)
+        #i64
+        for t4 in ["-9223372036854775807i64", "9223372036854775807i64"]:
+            input_sql, stb_name, tb_name = self.genFullTypeSql(t4=t4)
+            self.resCmp(input_sql, stb_name)
+        for t4 in ["-9223372036854775808i64", "9223372036854775808i64"]:
+            input_sql = self.genFullTypeSql(t4=t4)[0]
+            code = self._conn.insertLines([input_sql])
+            tdSql.checkNotEqual(code, 0)
 
-        # # f32
-        # for t5 in [f"{-3.4028234663852885981170418348451692544*(10**38)}f32", f"{3.4028234663852885981170418348451692544*(10**38)}f32"]:
-        #     input_sql, stb_name, tb_name = self.genFullTypeSql(t5=t5)
-        #     self.resCmp(input_sql, stb_name)
-        # # * limit set to 4028234664*(10**38)
-        # for t5 in [f"{-3.4028234664*(10**38)}f32", f"{3.4028234664*(10**38)}f32"]:
-        #     input_sql = self.genFullTypeSql(t5=t5)[0]
-        #     code = self._conn.insertLines([input_sql])
-        #     tdSql.checkNotEqual(code, 0)
+        # f32
+        for t5 in [f"{-3.4028234663852885981170418348451692544*(10**38)}f32", f"{3.4028234663852885981170418348451692544*(10**38)}f32"]:
+            input_sql, stb_name, tb_name = self.genFullTypeSql(t5=t5)
+            self.resCmp(input_sql, stb_name)
+        # * limit set to 4028234664*(10**38)
+        for t5 in [f"{-3.4028234664*(10**38)}f32", f"{3.4028234664*(10**38)}f32"]:
+            input_sql = self.genFullTypeSql(t5=t5)[0]
+            code = self._conn.insertLines([input_sql])
+            tdSql.checkNotEqual(code, 0)
 
         # f64 #!bug stack smashing detected ***: <unknown> terminated Aborted
         # for t6 in [f'{-1.79769313486231570814527423731704356798070567525844996598917476803157260780*(10**308)}f64', f'{-1.79769313486231570814527423731704356798070567525844996598917476803157260780*(10**308)}f64']:
@@ -541,25 +541,30 @@ class TDTestCase:
             input_sql, stb_name, tb_name = self.genFullTypeSql(t6=t6)
             self.resCmp(input_sql, stb_name)
         # TODO to confirm length
+        # * limit set to 1.797693134862316*(10**308)
+        for c6 in [f'{-1.797693134862316*(10**308)}f64', f'{-1.797693134862316*(10**308)}f64']:
+            input_sql = self.genFullTypeSql(c6=c6)[0]
+            code = self._conn.insertLines([input_sql])
+            tdSql.checkNotEqual(code, 0)
 
-        # # binary 
-        # stb_name = self.getLongName(7, "letters")
-        # input_sql = f'{stb_name},t0=t,t1="{self.getLongName(16374, "letters")}" c0=f 1626006833639000000ns'
-        # code = self._conn.insertLines([input_sql])
-        # tdSql.checkEqual(code, 0)
-        # input_sql = f'{stb_name},t0=t,t1="{self.getLongName(16375, "letters")}" c0=f 1626006833639000000ns'
-        # code = self._conn.insertLines([input_sql])
-        # tdSql.checkNotEqual(code, 0)
+        # binary 
+        stb_name = self.getLongName(7, "letters")
+        input_sql = f'{stb_name},t0=t,t1="{self.getLongName(16374, "letters")}" c0=f 1626006833639000000ns'
+        code = self._conn.insertLines([input_sql])
+        tdSql.checkEqual(code, 0)
+        input_sql = f'{stb_name},t0=t,t1="{self.getLongName(16375, "letters")}" c0=f 1626006833639000000ns'
+        code = self._conn.insertLines([input_sql])
+        tdSql.checkNotEqual(code, 0)
 
-        # # nchar
-        # # * legal nchar could not be larger than 16374/4
-        # stb_name = self.getLongName(7, "letters")
-        # input_sql = f'{stb_name},t0=t,t1=L"{self.getLongName(4093, "letters")}" c0=f 1626006833639000000ns'
-        # code = self._conn.insertLines([input_sql])
-        # tdSql.checkEqual(code, 0)
-        # input_sql = f'{stb_name},t0=t,t1=L"{self.getLongName(4094, "letters")}" c0=f 1626006833639000000ns'
-        # code = self._conn.insertLines([input_sql])
-        # tdSql.checkNotEqual(code, 0)
+        # nchar
+        # * legal nchar could not be larger than 16374/4
+        stb_name = self.getLongName(7, "letters")
+        input_sql = f'{stb_name},t0=t,t1=L"{self.getLongName(4093, "letters")}" c0=f 1626006833639000000ns'
+        code = self._conn.insertLines([input_sql])
+        tdSql.checkEqual(code, 0)
+        input_sql = f'{stb_name},t0=t,t1=L"{self.getLongName(4094, "letters")}" c0=f 1626006833639000000ns'
+        code = self._conn.insertLines([input_sql])
+        tdSql.checkNotEqual(code, 0)
 
 
     def colValueLengthCheckCase(self):
@@ -1097,10 +1102,10 @@ class TDTestCase:
         # self.illegalTsCheckCase()
 
         # ! confirm double
-        # self.tagValueLengthCheckCase()
+        self.tagValueLengthCheckCase()
 
         # ! bug
-        self.colValueLengthCheckCase()
+        # self.colValueLengthCheckCase()
 
         # self.tagColIllegalValueCheckCase()
         
