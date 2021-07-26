@@ -27,6 +27,7 @@ python3 ./test.py -f insert/bug3654.py
 python3 ./test.py -f insert/insertDynamicColBeforeVal.py
 python3 ./test.py -f insert/in_function.py
 python3 ./test.py -f insert/modify_column.py
+python3 ./test.py -f insert/line_insert.py
 
 #table
 python3 ./test.py -f table/alter_wal0.py
@@ -43,6 +44,7 @@ python3 ./test.py -f table/del_stable.py
 
 #stable
 python3 ./test.py -f stable/insert.py
+python3 test.py -f tools/taosdemoAllTest/taosdemoTestInsertWithJsonStmt.py 
 
 # tag
 python3 ./test.py -f tag_lite/filter.py
@@ -241,7 +243,7 @@ python3 ./test.py -f query/queryStateWindow.py
 python3 ./test.py -f query/nestedQuery/queryWithOrderLimit.py
 python3 ./test.py -f query/nestquery_last_row.py
 python3 ./test.py -f query/queryCnameDisplay.py
-
+python3 test.py -f query/nestedQuery/queryWithSpread.py
 
 #stream
 python3 ./test.py -f stream/metric_1.py
@@ -361,4 +363,6 @@ python3 test.py -f alter/alter_keep.py
 python3 test.py -f alter/alter_cacheLastRow.py
 python3 ./test.py -f query/querySession.py 
 python3 test.py -f  alter/alter_create_exception.py
+
+python3 ./test.py -f insert/flushwhiledrop.py
 #======================p4-end===============
