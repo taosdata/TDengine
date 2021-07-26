@@ -1747,7 +1747,7 @@ static int32_t parseSmlMeasurement(TAOS_SML_DATA_POINT *pSml, const char **index
 static int32_t isValidChildTableName(const char *pTbName, int16_t len) {
   const char *cur = pTbName;
   for (int i = 0; i < len; ++i) {
-    if(!isdigit(cur[i]) && !isalpha(cur[i]) && cur[i] != '_') {
+    if(!isdigit(cur[i]) && !isalpha(cur[i]) && (cur[i] != '_')) {
       return TSDB_CODE_TSC_LINE_SYNTAX_ERROR;
     }
   }
@@ -1789,7 +1789,7 @@ static int32_t parseSmlKvPairs(TAOS_SML_KV **pKVs, int *num_kvs,
     if (!isField &&
         (strcasecmp(pkv->key, "ID") == 0) && pkv->type == TSDB_DATA_TYPE_BINARY) {
       ret = isValidChildTableName(pkv->value, pkv->length);
-      if (!ret) {
+      if (ret) {
         goto error;
       }
       smlData->childTableName = malloc( pkv->length + 1);
