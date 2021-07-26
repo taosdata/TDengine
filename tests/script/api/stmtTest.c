@@ -186,25 +186,24 @@ int main(int argc, char *argv[]) {
         sprintf(buf, "t%d", i);
         if (i == 0) {
             code = taos_stmt_set_tbname(stmt, buf);
+            if (code != 0) {
+                PRINT_ERROR
+                printf("failed to execute taos_stmt_set_tbname. code:0x%x\n", code);
+                exit(EXIT_FAILURE);
+            }
+            PRINT_SUCCESS
+            printf("Successfully execute taos_stmt_set_tbname\n");
         } else {
             code = taos_stmt_set_sub_tbname(stmt, buf);
+            if (code != 0) {
+                PRINT_ERROR
+                printf("failed to execute taos_stmt_set_sub_tbname. code:0x%x\n", code);
+                exit(EXIT_FAILURE);
+            }
+            PRINT_SUCCESS
+            printf("Successfully execute taos_stmt_set_sub_tbname\n");
         }
-        if (code != 0) {
-            PRINT_ERROR
-            printf("failed to execute taos_stmt_set_tbname. code:0x%x\n", code);
-            exit(EXIT_FAILURE);
-        }
-        PRINT_SUCCESS
-        printf("Successfully execute taos_stmt_set_tbname\n");
-        code = taos_stmt_set_sub_tbname(stmt, buf);
-        if (code != 0) {
-            PRINT_ERROR
-            printf("failed to execute taos_stmt_set_sub_tbname. code:0x%x\n", code);
-            exit(EXIT_FAILURE);
-        }
-        PRINT_SUCCESS
-        printf("Successfully execute taos_stmt_set_sub_tbname\n");
-
+        
         v.c1 = (int64_t)1591060628000;
         v.c2 = (int32_t)2147483647;
         v.c3 = (int64_t)2147483648;
