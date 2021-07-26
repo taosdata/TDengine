@@ -1225,7 +1225,6 @@ static bool convertStrToNumber(TAOS_SML_KV *pVal, char*str) {
   uint64_t val_u;
   double val_d;
 
-  printf("origin str:%s\n", str);
   if (IS_FLOAT_TYPE(type)) {
     val_d = strtod(str, NULL);
   } else {
@@ -1237,19 +1236,17 @@ static bool convertStrToNumber(TAOS_SML_KV *pVal, char*str) {
   }
 
   if (errno == ERANGE) {
-    printf("out of range\n");
+    tscError("Converted number out of range");
     return false;
   }
 
   switch (type) {
     case TSDB_DATA_TYPE_TINYINT:
       if (!IS_VALID_TINYINT(val_s)) {
-        printf("tiny int out of range\n");
         return false;
       }
       pVal->value = calloc(length, 1);
       *(int8_t *)(pVal->value) = (int8_t)val_s;
-      printf("tiny int:%d\n", *(int8_t *)(pVal->value));
       break;
     case TSDB_DATA_TYPE_UTINYINT:
       if (!IS_VALID_UTINYINT(val_u)) {
@@ -1257,16 +1254,13 @@ static bool convertStrToNumber(TAOS_SML_KV *pVal, char*str) {
       }
       pVal->value = calloc(length, 1);
       *(uint8_t *)(pVal->value) = (uint8_t)val_u;
-      printf("tiny uint:%u\n", *(uint8_t *)(pVal->value));
       break;
     case TSDB_DATA_TYPE_SMALLINT:
       if (!IS_VALID_SMALLINT(val_s)) {
-        printf("small int out of range\n");
         return false;
       }
       pVal->value = calloc(length, 1);
       *(int16_t *)(pVal->value) = (int16_t)val_s;
-      printf("small int:%d\n", *(int16_t *)(pVal->value));
       break;
     case TSDB_DATA_TYPE_USMALLINT:
       if (!IS_VALID_USMALLINT(val_u)) {
@@ -1274,16 +1268,13 @@ static bool convertStrToNumber(TAOS_SML_KV *pVal, char*str) {
       }
       pVal->value = calloc(length, 1);
       *(uint16_t *)(pVal->value) = (uint16_t)val_u;
-      printf("small uint:%u\n", *(uint16_t *)(pVal->value));
       break;
     case TSDB_DATA_TYPE_INT:
       if (!IS_VALID_INT(val_s)) {
-        printf("int out of range\n");
         return false;
       }
       pVal->value = calloc(length, 1);
       *(int32_t *)(pVal->value) = (int32_t)val_s;
-      printf("int:%d\n", *(int32_t *)(pVal->value));
       break;
     case TSDB_DATA_TYPE_UINT:
       if (!IS_VALID_UINT(val_u)) {
@@ -1291,16 +1282,13 @@ static bool convertStrToNumber(TAOS_SML_KV *pVal, char*str) {
       }
       pVal->value = calloc(length, 1);
       *(uint32_t *)(pVal->value) = (uint32_t)val_u;
-      printf("uint:%u\n", *(uint32_t *)(pVal->value));
       break;
     case TSDB_DATA_TYPE_BIGINT:
       if (!IS_VALID_BIGINT(val_s)) {
-        printf("big int out of range\n");
         return false;
       }
       pVal->value = calloc(length, 1);
       *(int64_t *)(pVal->value) = (int64_t)val_s;
-      printf("big int:%ld\n", *(int64_t *)(pVal->value));
       break;
     case TSDB_DATA_TYPE_UBIGINT:
       if (!IS_VALID_UBIGINT(val_u)) {
@@ -1308,25 +1296,20 @@ static bool convertStrToNumber(TAOS_SML_KV *pVal, char*str) {
       }
       pVal->value = calloc(length, 1);
       *(uint64_t *)(pVal->value) = (uint64_t)val_u;
-      printf("big uint:%lu\n", *(uint64_t *)(pVal->value));
       break;
     case TSDB_DATA_TYPE_FLOAT:
       if (!IS_VALID_FLOAT(val_d)) {
-        printf("float out of range\n");
         return false;
       }
       pVal->value = calloc(length, 1);
       *(float *)(pVal->value) = (float)val_d;
-      printf("float:%.5e\n", *(float *)(pVal->value));
       break;
     case TSDB_DATA_TYPE_DOUBLE:
       if (!IS_VALID_DOUBLE(val_d)) {
-        printf("double out of range\n");
         return false;
       }
       pVal->value = calloc(length, 1);
       *(double *)(pVal->value) = (double)val_d;
-      printf("double:%.5e\n", *(double *)(pVal->value));
       break;
     default:
       return false;
@@ -1463,9 +1446,9 @@ static bool convertSmlValueType(TAOS_SML_KV *pVal, char *value,
   if (isValidInteger(value) || isValidFloat(value)) {
     pVal->type = TSDB_DATA_TYPE_FLOAT;
     pVal->length = (int16_t)tDataTypes[pVal->type].bytes;
-    pVal->value = calloc(pVal->length, 1);
-    float val = (float)strtold(value, NULL);
-    memcpy(pVal->value, &val, pVal->length);
+    if (!convertStrToNumber(pVal, value)) {
+      return false;
+    }
     return true;
   }
   return false;
