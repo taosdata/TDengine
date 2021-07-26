@@ -411,6 +411,11 @@ int32_t loadTableMeta(TAOS* taos, char* tableName, SSmlSTableSchema* schema) {
   taos_free_result(res);
 
   SSqlObj* pSql = calloc(1, sizeof(SSqlObj));
+  if (pSql == NULL){
+      tscError("failed to allocate memory, reason:%s", strerror(errno));
+      code = TSDB_CODE_TSC_OUT_OF_MEMORY;
+      return code;
+  }
   pSql->pTscObj = taos;
   pSql->signature = pSql;
   pSql->fp = NULL;
@@ -421,11 +426,13 @@ int32_t loadTableMeta(TAOS* taos, char* tableName, SSmlSTableSchema* schema) {
   if (tscValidateName(&tableToken) != TSDB_CODE_SUCCESS) {
     code = TSDB_CODE_TSC_INVALID_TABLE_ID_LENGTH;
     sprintf(pSql->cmd.payload, "table name is invalid");
+    tscFreeSqlObj(pSql);
     return code;
   }
 
   SName sname = {0};
   if ((code = tscSetTableFullName(&sname, &tableToken, pSql)) != TSDB_CODE_SUCCESS) {
+    tscFreeSqlObj(pSql);
     return code;
   }
   char  fullTableName[TSDB_TABLE_FNAME_LEN] = {0};
@@ -607,6 +614,10 @@ static int32_t changeChildTableTagValue(TAOS* taos, const char* cTableName, cons
 static int32_t creatChildTableIfNotExists(TAOS* taos, const char* cTableName, const char* sTableName, SArray* tagsSchema, SArray* tagsBind) {
   size_t numTags = taosArrayGetSize(tagsSchema);
   char* sql = malloc(tsMaxSQLStringLen+1);
+  if (sql == NULL) {
+    tscError("malloc sql memory error");
+    return TSDB_CODE_TSC_OUT_OF_MEMORY;
+  }
   int freeBytes = tsMaxSQLStringLen + 1;
   sprintf(sql, "create table if not exists %s using %s", cTableName, sTableName);
 
@@ -628,24 +639,31 @@ static int32_t creatChildTableIfNotExists(TAOS* taos, const char* cTableName, co
   tscDebug("create table : %s", sql);
 
   TAOS_STMT* stmt = taos_stmt_init(taos);
+  if (stmt == NULL) {
+    free(sql);
+    return TSDB_CODE_TSC_OUT_OF_MEMORY;
+  }
   int32_t code;
   code = taos_stmt_prepare(stmt, sql, (unsigned long)strlen(sql));
   free(sql);
 
   if (code != 0) {
     tscError("%s", taos_stmt_errstr(stmt));
+    free(stmt);
     return code;
   }
 
   code = taos_stmt_bind_param(stmt, TARRAY_GET_START(tagsBind));
   if (code != 0) {
     tscError("%s", taos_stmt_errstr(stmt));
+    free(stmt);
     return code;
   }
 
   code = taos_stmt_execute(stmt);
   if (code != 0) {
     tscError("%s", taos_stmt_errstr(stmt));
+    free(stmt);
     return code;
   }
 
@@ -660,6 +678,11 @@ static int32_t creatChildTableIfNotExists(TAOS* taos, const char* cTableName, co
 static int32_t insertChildTableBatch(TAOS* taos,  char* cTableName, SArray* colsSchema, SArray* rowsBind) {
   size_t numCols = taosArrayGetSize(colsSchema);
   char* sql = malloc(tsMaxSQLStringLen+1);
+  if (sql == NULL) {
+    tscError("malloc sql memory error");
+    return TSDB_CODE_TSC_OUT_OF_MEMORY;
+  }
+
   int32_t freeBytes = tsMaxSQLStringLen + 1 ;
   sprintf(sql, "insert into ? (");
 
@@ -681,11 +704,15 @@ static int32_t insertChildTableBatch(TAOS* taos,  char* cTableName, SArray* cols
   int32_t try = 0;
 
   TAOS_STMT* stmt = taos_stmt_init(taos);
-
+  if (stmt == NULL) {
+    free(sql);
+    return TSDB_CODE_TSC_OUT_OF_MEMORY;
+  }
   code = taos_stmt_prepare(stmt, sql, (unsigned long)strlen(sql));
   free(sql);
 
   if (code != 0) {
+    free(stmt);
     tscError("%s", taos_stmt_errstr(stmt));
     return code;
   }
@@ -694,6 +721,7 @@ static int32_t insertChildTableBatch(TAOS* taos,  char* cTableName, SArray* cols
     code = taos_stmt_set_tbname(stmt, cTableName);
     if (code != 0) {
       tscError("%s", taos_stmt_errstr(stmt));
+      free(stmt);
       return code;
     }
 
@@ -703,11 +731,13 @@ static int32_t insertChildTableBatch(TAOS* taos,  char* cTableName, SArray* cols
       code = taos_stmt_bind_param(stmt, colsBinds);
       if (code != 0) {
         tscError("%s", taos_stmt_errstr(stmt));
+        free(stmt);
         return code;
       }
       code = taos_stmt_add_batch(stmt);
       if (code != 0) {
         tscError("%s", taos_stmt_errstr(stmt));
+        free(stmt);
         return code;
       }
     }
@@ -1627,7 +1657,7 @@ static int32_t parseSmlTimeStamp(TAOS_SML_KV **pTS, const char **index) {
 
 static int32_t parseSmlKey(TAOS_SML_KV *pKV, const char **index) {
   const char *cur = *index;
-  char key[TSDB_COL_NAME_LEN];
+  char key[TSDB_COL_NAME_LEN + 1];  // +1 to avoid 1685 line over write
   uint16_t len = 0;
 
   //key field cannot start with digit
@@ -1704,7 +1734,10 @@ static int32_t parseSmlMeasurement(TAOS_SML_DATA_POINT *pSml, const char **index
   const char *cur = *index;
   uint16_t len = 0;
 
-  pSml->stableName = calloc(TSDB_TABLE_NAME_LEN, 1);
+  pSml->stableName = calloc(TSDB_TABLE_NAME_LEN + 1, 1);    // +1 to avoid 1772 line over write
+  if (pSml->stableName == NULL){
+      return TSDB_CODE_TSC_OUT_OF_MEMORY;
+  }
   if (isdigit(*cur)) {
     tscError("Measurement field cannnot start with digit");
     free(pSml->stableName);

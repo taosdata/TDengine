@@ -421,7 +421,8 @@ int32_t readFromFile(char *name, uint32_t *len, void **buf) {
     tfree(*buf);
     return TSDB_CODE_TSC_APP_ERROR;
   }
-
+  close(fd);
+  tfree(*buf);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -8110,7 +8111,8 @@ int32_t loadAllTableMeta(SSqlObj* pSql, struct SSqlInfo* pInfo) {
   assert(maxSize < 80 * TSDB_MAX_COLUMNS);
   if (!pSql->pBuf) {
     if (NULL == (pSql->pBuf = tcalloc(1, 80 * TSDB_MAX_COLUMNS))) {
-      return TSDB_CODE_TSC_OUT_OF_MEMORY;
+      code = TSDB_CODE_TSC_OUT_OF_MEMORY;
+      goto _end;
     }
   }
   pTableMeta = calloc(1, maxSize);
@@ -8351,14 +8353,18 @@ static int32_t doValidateSubquery(SSqlNode* pSqlNode, int32_t index, SSqlObj* pS
 
   // create dummy table meta info
   STableMetaInfo* pTableMetaInfo1 = calloc(1, sizeof(STableMetaInfo));
+  if (pTableMetaInfo1 == NULL) {
+    return TSDB_CODE_TSC_OUT_OF_MEMORY;
+  }
   pTableMetaInfo1->pTableMeta = extractTempTableMetaFromSubquery(pSub);
 
   if (subInfo->aliasName.n > 0) {
     if (subInfo->aliasName.n >= TSDB_TABLE_FNAME_LEN) {
+      free(pTableMetaInfo1);
       return invalidOperationMsg(msgBuf, "subquery alias name too long");
     }
 
-    strncpy(pTableMetaInfo1->aliasName, subInfo->aliasName.z, subInfo->aliasName.n);
+    strncpy(pTableMetaInfo1->aliasName, subInfo->aliasName.z, MIN(subInfo->aliasName.n, sizeof(pTableMetaInfo1->aliasName) - 1));
   }
 
   taosArrayPush(pQueryInfo->pUpstream, &pSub);
@@ -8368,6 +8374,7 @@ static int32_t doValidateSubquery(SSqlNode* pSqlNode, int32_t index, SSqlObj* pS
 
   STableMetaInfo** tmp = realloc(pQueryInfo->pTableMetaInfo, (pQueryInfo->numOfTables + 1) * POINTER_BYTES);
   if (tmp == NULL) {
+    free(pTableMetaInfo1);
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
   }
 
