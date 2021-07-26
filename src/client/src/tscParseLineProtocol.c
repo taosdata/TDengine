@@ -518,7 +518,11 @@ static int32_t modifyDBSchemas(TAOS* taos, SArray* stableSchemas) {
         bool actionNeeded = false;
         generateSchemaAction(pointTag, dbTagHash, dbSchema.tags, true, pointSchema->sTableName, &schemaAction, &actionNeeded);
         if (actionNeeded) {
-          applySchemaAction(taos, &schemaAction);
+          code = applySchemaAction(taos, &schemaAction);
+          if (code != 0) {
+            destroySmlSTableSchema(&dbSchema);
+            return code;
+          }
         }
       }
 
@@ -532,7 +536,11 @@ static int32_t modifyDBSchemas(TAOS* taos, SArray* stableSchemas) {
         bool actionNeeded = false;
         generateSchemaAction(pointCol, dbFieldHash, dbSchema.fields,false, pointSchema->sTableName, &schemaAction, &actionNeeded);
         if (actionNeeded) {
-          applySchemaAction(taos, &schemaAction);
+          code = applySchemaAction(taos, &schemaAction);
+          if (code != 0) {
+            destroySmlSTableSchema(&dbSchema);
+            return code;
+          }
         }
       }
 
