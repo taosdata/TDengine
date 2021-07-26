@@ -2337,14 +2337,18 @@ int tscProcessSTableVgroupRsp(SSqlObj *pSql) {
   SSqlCmd* pCmd = &parent->cmd;
   SQueryInfo* pQueryInfo = tscGetQueryInfo(pCmd);
 
+  char fName[TSDB_TABLE_FNAME_LEN] = {0};
   for(int32_t i = 0; i < pStableVgroup->numOfTables; ++i) {
     char* name = pMsg;
-    pMsg += TSDB_TABLE_NAME_LEN;
+    pMsg += TSDB_TABLE_FNAME_LEN;
 
     STableMetaInfo *pInfo = NULL;
     for(int32_t j = 0; j < pQueryInfo->numOfTables; ++j) {
       STableMetaInfo *pInfo1 = tscGetTableMetaInfoFromCmd(pCmd, j);
-      if (strcmp(name, tNameGetTableName(&pInfo1->name)) != 0) {
+      memset(fName, 0, tListLen(fName));
+
+      tNameExtractFullName(&pInfo1->name, fName);
+      if (strcmp(name, fName) != 0) {
         continue;
       }
 
@@ -2504,11 +2508,14 @@ int tscProcessUseDbRsp(SSqlObj *pSql) {
   return ret;
 }
 
+//todo only invalid the buffered data that belongs to dropped databases
 int tscProcessDropDbRsp(SSqlObj *pSql) {
   //TODO LOCK DB WHEN MODIFY IT
   //pSql->pTscObj->db[0] = 0;
   
   taosHashClear(tscTableMetaMap);
+  taosHashClear(tscVgroupMap);
+  taosCacheEmpty(tscVgroupListBuf);
   return 0;
 }
 
@@ -2892,6 +2899,10 @@ int32_t tscGetUdfFromNode(SSqlObj *pSql, SQueryInfo* pQueryInfo) {
   return code;
 }
 
+static void freeElem(void* p) {
+  tfree(*(char**)p);
+}
+
 /**
  * retrieve table meta from mnode, and then update the local table meta hashmap.
  * @param pSql          sql object
@@ -2921,7 +2932,23 @@ int tscRenewTableMeta(SSqlObj *pSql, int32_t tableIndex) {
   size_t len = strlen(name);
   taosHashRemove(tscTableMetaMap, name, len);
 
-  return getTableMetaFromMnode(pSql, pTableMetaInfo, false);
+  if (pTableMeta->tableType == TSDB_SUPER_TABLE) {
+    void* pv = taosCacheAcquireByKey(tscVgroupListBuf, name, len);
+    if (pv != NULL) {
+      taosCacheRelease(tscVgroupListBuf, &pv, true);
+    }
+  }
+
+  SArray* pNameList = taosArrayInit(1, POINTER_BYTES);
+  SArray* vgroupList = taosArrayInit(1, POINTER_BYTES);
+
+  char* n = strdup(name);
+  taosArrayPush(pNameList, &n);
+  code = getMultiTableMetaFromMnode(pSql, pNameList, vgroupList, NULL, tscTableMetaCallBack, true);
+  taosArrayDestroyEx(pNameList, freeElem);
+  taosArrayDestroyEx(vgroupList, freeElem);
+
+  return code;
 }
 
 static bool allVgroupInfoRetrieved(SQueryInfo* pQueryInfo) {

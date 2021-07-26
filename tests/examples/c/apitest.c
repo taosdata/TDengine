@@ -1009,7 +1009,7 @@ int main(int argc, char *argv[]) {
   info = taos_get_client_info(taos);
   printf("client info: %s\n", info);
 
-  printf("************  verify shemaless  *************\n");
+  printf("************  verify schema-less  *************\n");
   verify_schema_less(taos);
 
 
