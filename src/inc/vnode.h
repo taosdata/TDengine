@@ -49,7 +49,7 @@ typedef struct {
   SRpcMsg  rpcMsg;
   SRspRet  rspRet;
   char     reserveForSync[24];
-  SWalHead pHead;
+  SWalHead walHead;
 } SVWriteMsg;
 
 // vnodeStatus
@@ -62,12 +62,14 @@ int32_t vnodeOpen(int32_t vgId);
 int32_t vnodeAlter(void *pVnode, SCreateVnodeMsg *pVnodeCfg);
 int32_t vnodeSync(int32_t vgId);
 int32_t vnodeClose(int32_t vgId);
+int32_t vnodeCompact(int32_t vgId); 
 
 // vnodeMgmt
 int32_t vnodeInitMgmt();
 void    vnodeCleanupMgmt();
 void*   vnodeAcquire(int32_t vgId);
 void    vnodeRelease(void *pVnode);
+void*   vnodeAcquireNotClose(int32_t vgId);
 void*   vnodeGetWal(void *pVnode);
 int32_t vnodeGetVnodeList(int32_t vnodeList[], int32_t *numOfVnodes);
 void    vnodeBuildStatusMsg(void *pStatus);

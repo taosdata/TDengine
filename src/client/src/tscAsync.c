@@ -22,7 +22,7 @@
 #include "tscSubquery.h"
 #include "tscUtil.h"
 #include "tsched.h"
-#include "tschemautil.h"
+#include "qTableMeta.h"
 #include "tsclient.h"
 
 static void tscAsyncQueryRowsForNextVnode(void *param, TAOS_RES *tres, int numOfRows);
@@ -58,7 +58,6 @@ void doAsyncQuery(STscObj* pObj, SSqlObj* pSql, __async_cb_func_t fp, void* para
   strntolower(pSql->sqlstr, sqlstr, (int32_t)sqlLen);
 
   tscDebugL("0x%"PRIx64" SQL: %s", pSql->self, pSql->sqlstr);
-  pCmd->curSql = pSql->sqlstr;
   pCmd->resColumnId = TSDB_RES_COL_ID;
 
   int32_t code = tsParseSql(pSql, true);
@@ -145,7 +144,7 @@ static void tscAsyncFetchRowsProxy(void *param, TAOS_RES *tres, int numOfRows) {
   }
   
   // local merge has handle this situation during super table non-projection query.
-  if (pCmd->command != TSDB_SQL_RETRIEVE_LOCALMERGE) {
+  if (pCmd->command != TSDB_SQL_RETRIEVE_GLOBALMERGE) {
     pRes->numOfClauseTotal += pRes->numOfRows;
   }
 
@@ -175,7 +174,7 @@ static void tscProcessAsyncRetrieveImpl(void *param, TAOS_RES *tres, int numOfRo
   }
 
   pSql->fp = fp;
-  if (pCmd->command != TSDB_SQL_RETRIEVE_LOCALMERGE && pCmd->command < TSDB_SQL_LOCAL) {
+  if (pCmd->command != TSDB_SQL_RETRIEVE_GLOBALMERGE && pCmd->command < TSDB_SQL_LOCAL) {
     pCmd->command = (pCmd->command > TSDB_SQL_MGMT) ? TSDB_SQL_RETRIEVE : TSDB_SQL_FETCH;
   }
 
@@ -221,7 +220,7 @@ void taos_fetch_rows_a(TAOS_RES *tres, __async_cb_func_t fp, void *param) {
 
   tscResetForNextRetrieve(pRes);
   
-  // handle the sub queries of join query
+  // handle outer query based on the already retrieved nest query results.
   SQueryInfo* pQueryInfo = tscGetQueryInfo(pCmd);
   if (pQueryInfo->pUpstream != NULL && taosArrayGetSize(pQueryInfo->pUpstream) > 0) {
     SSchedMsg schedMsg = {0};
@@ -258,14 +257,14 @@ void taos_fetch_rows_a(TAOS_RES *tres, __async_cb_func_t fp, void *param) {
       }
 
       return;
-    } else if (pCmd->command == TSDB_SQL_RETRIEVE || pCmd->command == TSDB_SQL_RETRIEVE_LOCALMERGE) {
+    } else if (pCmd->command == TSDB_SQL_RETRIEVE || pCmd->command == TSDB_SQL_RETRIEVE_GLOBALMERGE) {
       // in case of show command, return no data
       (*pSql->fetchFp)(param, pSql, 0);
     } else {
       assert(0);
     }
   } else { // current query is not completed, continue retrieve from node
-    if (pCmd->command != TSDB_SQL_RETRIEVE_LOCALMERGE && pCmd->command < TSDB_SQL_LOCAL) {
+    if (pCmd->command != TSDB_SQL_RETRIEVE_GLOBALMERGE && pCmd->command < TSDB_SQL_LOCAL) {
       pCmd->command = (pCmd->command > TSDB_SQL_MGMT) ? TSDB_SQL_RETRIEVE : TSDB_SQL_FETCH;
     }
 

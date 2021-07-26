@@ -17,7 +17,71 @@
 #define HTTP_PARSER_H
 #include "httpGzip.h"
 
-#define HTTP_MAX_URL 5  // http url stack size
+#define HTTP_MAX_URL 6  // http url stack size
+
+#define HTTP_CODE_CONTINUE                 100
+#define HTTP_CODE_SWITCHING_PROTOCOL       101
+#define HTTP_CODE_PROCESSING               102
+#define HTTP_CODE_EARLY_HINTS              103
+#define HTTP_CODE_OK                       200
+#define HTTP_CODE_CREATED                  201
+#define HTTP_CODE_ACCEPTED                 202
+#define HTTP_CODE_NON_AUTHORITATIVE_INFO   203
+#define HTTP_CODE_NO_CONTENT               204
+#define HTTP_CODE_RESET_CONTENT            205
+#define HTTP_CODE_PARTIAL_CONTENT          206
+#define HTTP_CODE_MULTI_STATUS             207
+#define HTTP_CODE_ALREADY_REPORTED         208
+#define HTTP_CODE_IM_USED                  226
+#define HTTP_CODE_MULTIPLE_CHOICE          300
+#define HTTP_CODE_MOVED_PERMANENTLY        301
+#define HTTP_CODE_FOUND                    302
+#define HTTP_CODE_SEE_OTHER                303
+#define HTTP_CODE_NOT_MODIFIED             304
+#define HTTP_CODE_USE_PROXY                305
+#define HTTP_CODE_UNUSED                   306
+#define HTTP_CODE_TEMPORARY_REDIRECT       307
+#define HTTP_CODE_PERMANENT_REDIRECT       308
+#define HTTP_CODE_BAD_REQUEST              400
+#define HTTP_CODE_UNAUTHORIZED             401
+#define HTTP_CODE_PAYMENT_REQUIRED         402
+#define HTTP_CODE_FORBIDDEN                403
+#define HTTP_CODE_NOT_FOUND                404
+#define HTTP_CODE_METHOD_NOT_ALLOWED       405
+#define HTTP_CODE_NOT_ACCEPTABLE           406
+#define HTTP_CODE_PROXY_AUTH_REQUIRED      407
+#define HTTP_CODE_REQUEST_TIMEOUT          408
+#define HTTP_CODE_CONFLICT                 409
+#define HTTP_CODE_GONE                     410
+#define HTTP_CODE_LENGTH_REQUIRED          411
+#define HTTP_CODE_PRECONDITION_FAILED      412
+#define HTTP_CODE_PAYLOAD_TOO_LARGE        413
+#define HTTP_CODE_URI_TOO_LARGE            414
+#define HTTP_CODE_UNSUPPORTED_MEDIA_TYPE   415
+#define HTTP_CODE_RANGE_NOT_SATISFIABLE    416
+#define HTTP_CODE_EXPECTATION_FAILED       417
+#define HTTP_CODE_IM_A_TEAPOT              418
+#define HTTP_CODE_MISDIRECTED_REQUEST      421
+#define HTTP_CODE_UNPROCESSABLE_ENTITY     422
+#define HTTP_CODE_LOCKED                   423
+#define HTTP_CODE_FAILED_DEPENDENCY        424
+#define HTTP_CODE_TOO_EARLY                425
+#define HTTP_CODE_UPGRADE_REQUIRED         426
+#define HTTP_CODE_PRECONDITION_REQUIRED    428
+#define HTTP_CODE_TOO_MANY_REQUESTS        429
+#define HTTP_CODE_REQ_HDR_FIELDS_TOO_LARGE 431
+#define HTTP_CODE_UNAVAIL_4_LEGAL_REASONS  451
+#define HTTP_CODE_INTERNAL_SERVER_ERROR    500
+#define HTTP_CODE_NOT_IMPLEMENTED          501
+#define HTTP_CODE_BAD_GATEWAY              502
+#define HTTP_CODE_SERVICE_UNAVAILABLE      503
+#define HTTP_CODE_GATEWAY_TIMEOUT          504
+#define HTTP_CODE_HTTP_VER_NOT_SUPPORTED   505
+#define HTTP_CODE_VARIANT_ALSO_NEGOTIATES  506
+#define HTTP_CODE_INSUFFICIENT_STORAGE     507
+#define HTTP_CODE_LOOP_DETECTED            508
+#define HTTP_CODE_NOT_EXTENDED             510
+#define HTTP_CODE_NETWORK_AUTH_REQUIRED    511
 
 typedef enum HTTP_PARSER_STATE {
   HTTP_PARSER_BEGIN,
@@ -36,6 +100,7 @@ typedef enum HTTP_PARSER_STATE {
   HTTP_PARSER_CHUNK,
   HTTP_PARSER_END,
   HTTP_PARSER_ERROR,
+  HTTP_PARSER_OPTIONAL_SP
 } HTTP_PARSER_STATE;
 
 typedef enum HTTP_AUTH_TYPE {

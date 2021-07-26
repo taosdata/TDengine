@@ -112,25 +112,25 @@ endi
 sql alter database db keep 30
 sql show databases
 print keep $data7_db
-if $data7_db != 20,20,30 then
+if $data7_db != 30,30,30 then
   return -1
 endi
 
 sql alter database db keep 40
 sql show databases
 print keep $data7_db
-if $data7_db != 20,20,40 then
+if $data7_db != 40,40,40 then
   return -1
 endi
 
-sql alter database db keep 40
-sql alter database db keep 30
+sql alter database db keep 40,50
+sql alter database db keep 30,31
 sql alter database db keep 20
-sql_error alter database db keep 10
+sql_error alter database db keep 10.0
 sql_error alter database db keep 9
 sql_error alter database db keep 1
-sql alter database db keep 0
-sql alter database db keep -1
+sql_error alter database db keep 0
+sql_error alter database db keep -1
 sql_error alter database db keep 365001
 
 print ============== step cache
@@ -177,7 +177,7 @@ sql alter database db blocks 20
 sql alter database db blocks 10
 sql_error alter database db blocks 2
 sql_error alter database db blocks 1
-sql alter database db blocks 0
+sql_error alter database db blocks 0
 sql_error alter database db blocks -1
 sql_error alter database db blocks 10001
 
@@ -198,29 +198,25 @@ if $data12_db != 1 then
   return -1
 endi
 
-sql alter database db wal 1
-sql show databases
-print wal $data12_db
-if $data12_db != 1 then 
-  return -1
-endi
+sql_error alter database db wal 1
 
-sql alter database db wal 1
-sql alter database db wal 2
-sql alter database db wal 1
-sql alter database db wal 2
-sql alter database db wal 0
+
+sql_error alter database db wal 1
+sql_error alter database db wal 2
+sql_error alter database db wal 1
+sql_error alter database db wal 2
+sql_error alter database db wal 0
 sql_error alter database db wal 3
 sql_error alter database db wal 4
 sql_error alter database db wal -1
 sql_error alter database db wal 1000
 
 print ============== step fsync
-sql alter database db fsync 0
-sql alter database db fsync 1
-sql alter database db fsync 3600
-sql alter database db fsync 18000
-sql alter database db fsync 180000
+sql_error alter database db fsync 0
+sql_error alter database db fsync 1
+sql_error alter database db fsync 3600
+sql_error alter database db fsync 18000
+sql_error alter database db fsync 180000
 sql_error alter database db fsync 180001
 sql_error alter database db fsync -1
 

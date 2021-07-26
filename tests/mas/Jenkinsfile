@@ -21,7 +21,7 @@ def pre_test(){
     cmake .. > /dev/null
     make > /dev/null
     make install > /dev/null
-    pip3 install ${WKC}/src/connector/python/linux/python3/
+    pip3 install ${WKC}/src/connector/python/ || echo 0
     '''
     return 1
 }
@@ -29,8 +29,8 @@ pipeline {
   agent none
   environment{
     
-      WK = '/var/lib/jenkins/workspace/TDinternal'
-      WKC= '/var/lib/jenkins/workspace/TDinternal/community'
+      WK = '/data/lib/jenkins/workspace/TDinternal'
+      WKC= '/data/lib/jenkins/workspace/TDinternal/community'
   }
 
   stages {

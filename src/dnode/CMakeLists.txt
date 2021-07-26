@@ -1,4 +1,4 @@
-CMAKE_MINIMUM_REQUIRED(VERSION 2.8)
+CMAKE_MINIMUM_REQUIRED(VERSION 2.8...3.20)
 PROJECT(TDengine)
 
 INCLUDE_DIRECTORIES(${TD_COMMUNITY_DIR}/src/query/inc)
@@ -10,8 +10,15 @@ INCLUDE_DIRECTORIES(${TD_ENTERPRISE_DIR}/src/inc)
 INCLUDE_DIRECTORIES(inc)
 AUX_SOURCE_DIRECTORY(src SRC)
 
+IF (TD_LINUX_64 AND JEMALLOC_ENABLED)
+  ADD_DEFINITIONS(-DTD_JEMALLOC_ENABLED -I${CMAKE_BINARY_DIR}/build/include -L${CMAKE_BINARY_DIR}/build/lib -Wl,-rpath,${CMAKE_BINARY_DIR}/build/lib -ljemalloc)
+  SET(LINK_JEMALLOC "-L${CMAKE_BINARY_DIR}/build/lib -ljemalloc")
+ELSE ()
+  SET(LINK_JEMALLOC "")
+ENDIF ()
+
 ADD_EXECUTABLE(taosd ${SRC})
-TARGET_LINK_LIBRARIES(taosd mnode monitor http tsdb twal vnode cJson lz4 balance sync)
+TARGET_LINK_LIBRARIES(taosd mnode monitor http tsdb twal vnode cJson lua lz4 balance sync ${LINK_JEMALLOC})
 
 IF (TD_SOMODE_STATIC)
   TARGET_LINK_LIBRARIES(taosd taos_static)

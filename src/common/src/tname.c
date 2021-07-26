@@ -33,15 +33,6 @@ size_t tableIdPrefix(const char* name, char* prefix, int32_t len) {
   return strlen(prefix);
 }
 
-SSchema tGetBlockDistColumnSchema() {
-  SSchema s = {0};
-  s.bytes = TSDB_MAX_BINARY_LEN;;
-  s.type  = TSDB_DATA_TYPE_BINARY;
-  s.colId = TSDB_BLOCK_DIST_COLUMN_INDEX;
-  tstrncpy(s.name, TSQL_BLOCK_DIST_L, TSDB_COL_NAME_LEN);
-  return s;
-}
-
 SSchema tGetUserSpecifiedColumnSchema(tVariant* pVal, SStrToken* exprStr, const char* name) {
   SSchema s = {0};
 
@@ -265,7 +256,7 @@ int32_t tNameExtractFullName(const SName* name, char* dst) {
     return -1;
   }
 
-  int32_t len = snprintf(dst, TSDB_ACCT_ID_LEN + 1 + TSDB_DB_NAME_LEN, "%s.%s", name->acctId, name->dbname);
+  int32_t len = snprintf(dst, TSDB_ACCT_ID_LEN + TSDB_DB_NAME_LEN, "%s.%s", name->acctId, name->dbname);
 
   size_t tnameLen = strlen(name->tname);
   if (tnameLen > 0) {
@@ -315,7 +306,7 @@ bool tIsValidName(const SName* name) {
 SName* tNameDup(const SName* name) {
   assert(name != NULL);
 
-  SName* p = calloc(1, sizeof(SName));
+  SName* p = malloc(sizeof(SName));
   memcpy(p, name, sizeof(SName));
   return p;
 }

@@ -1,5 +1,5 @@
 #include "os.h"
-#include "tschemautil.h"
+#include "qTableMeta.h"
 #include "qPlan.h"
 #include "qExecutor.h"
 #include "qUtil.h"
@@ -127,7 +127,8 @@ static SQueryNode* doAddTableColumnNode(SQueryInfo* pQueryInfo, STableMetaInfo* 
       SColumn* pCol = taosArrayGetP(tableCols, i);
 
       SColumnIndex index = {.tableIndex = 0, .columnIndex = pCol->columnIndex};
-      SExprInfo*   p = tscExprCreate(pQueryInfo, TSDB_FUNC_PRJ, &index, pCol->info.type, pCol->info.bytes,
+      STableMetaInfo* pTableMetaInfo1 = tscGetMetaInfo(pQueryInfo, index.tableIndex);
+      SExprInfo*   p = tscExprCreate(pTableMetaInfo1, TSDB_FUNC_PRJ, &index, pCol->info.type, pCol->info.bytes,
                                      pCol->info.colId, 0, TSDB_COL_NORMAL);
       strncpy(p->base.aliasName, pSchema[pCol->columnIndex].name, tListLen(p->base.aliasName));
 
@@ -531,7 +532,7 @@ SArray* createTableScanPlan(SQueryAttr* pQueryAttr) {
   } else {
     if (pQueryAttr->queryBlockDist) {
       op = OP_TableBlockInfoScan;
-    } else if (pQueryAttr->tsCompQuery || pQueryAttr->pointInterpQuery) {
+    } else if (pQueryAttr->tsCompQuery || pQueryAttr->pointInterpQuery || pQueryAttr->diffQuery) {
       op = OP_TableSeqScan;
     } else if (pQueryAttr->needReverseScan) {
       op = OP_DataBlocksOptScan;
@@ -565,7 +566,7 @@ SArray* createExecOperatorPlan(SQueryAttr* pQueryAttr) {
       taosArrayPush(plan, &op);
 
       if (pQueryAttr->pExpr2 != NULL) {
-        op = OP_Arithmetic;
+        op = OP_Project;
         taosArrayPush(plan, &op);
       }
 
@@ -585,7 +586,7 @@ SArray* createExecOperatorPlan(SQueryAttr* pQueryAttr) {
     }
 
     if (pQueryAttr->pExpr2 != NULL) {
-      op = OP_Arithmetic;
+      op = OP_Project;
       taosArrayPush(plan, &op);
     }
   } else if (pQueryAttr->sw.gap > 0) {
@@ -593,11 +594,19 @@ SArray* createExecOperatorPlan(SQueryAttr* pQueryAttr) {
     taosArrayPush(plan, &op);
 
     if (pQueryAttr->pExpr2 != NULL) {
-      op = OP_Arithmetic;
+      op = OP_Project;
+      taosArrayPush(plan, &op);
+    }
+  } else if (pQueryAttr->stateWindow) {
+    op =  OP_StateWindow;
+    taosArrayPush(plan, &op);
+
+    if (pQueryAttr->pExpr2 != NULL) {
+      op = OP_Project;
       taosArrayPush(plan, &op);
     }
   } else if (pQueryAttr->simpleAgg) {
-    if (pQueryAttr->stableQuery && !pQueryAttr->tsCompQuery) {
+    if (pQueryAttr->stableQuery && !pQueryAttr->tsCompQuery && !pQueryAttr->diffQuery) {
       op = OP_MultiTableAggregate;
     } else {
       op = OP_Aggregate;
@@ -611,15 +620,15 @@ SArray* createExecOperatorPlan(SQueryAttr* pQueryAttr) {
     }
 
     if (pQueryAttr->pExpr2 != NULL && !pQueryAttr->stableQuery) {
-      op = OP_Arithmetic;
+      op = OP_Project;
       taosArrayPush(plan, &op);
     }
   } else {  // diff/add/multiply/subtract/division
-    if (pQueryAttr->numOfFilterCols > 0 && pQueryAttr->vgId == 0) { // todo refactor
+    if (pQueryAttr->numOfFilterCols > 0 && pQueryAttr->createFilterOperator && pQueryAttr->vgId == 0) { // todo refactor
       op = OP_Filter;
       taosArrayPush(plan, &op);
     } else {
-      op = OP_Arithmetic;
+      op = OP_Project;
       taosArrayPush(plan, &op);
     }
   }
@@ -657,7 +666,7 @@ SArray* createGlobalMergePlan(SQueryAttr* pQueryAttr) {
     }
 
     if (pQueryAttr->pExpr2 != NULL) {
-      op = OP_Arithmetic;
+      op = OP_Project;
       taosArrayPush(plan, &op);
     }
   }

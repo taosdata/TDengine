@@ -175,7 +175,7 @@ if $data21 != 2.10000 then
 endi
 
 print =====================td-1302 case
-sql create database t1 keep 36500;
+sql create database t1 keep 36500
 sql use t1;
 sql create table test(ts timestamp, k int);
 sql insert into test values(29999, 1)(70000, 2)(80000, 3)
@@ -194,7 +194,7 @@ if $rows != 3 then
 endi
 
 print ==============>td-1308
-sql create database db keep 36500;
+sql create database db keep 36500
 sql use db;
 
 sql create table stb (ts timestamp, c1 int, c2 binary(10)) tags(t1 binary(10));

@@ -26,8 +26,9 @@ typedef struct {
 } SCommitQueue;
 
 typedef struct {
+  TSDB_REQ_T req;
   STsdbRepo *pRepo;
-} SCommitReq;
+} SReq;
 
 static void *tsdbLoopCommit(void *arg);
 
@@ -90,16 +91,17 @@ void tsdbDestroyCommitQueue() {
   pthread_mutex_destroy(&(pQueue->lock));
 }
 
-int tsdbScheduleCommit(STsdbRepo *pRepo) {
+int tsdbScheduleCommit(STsdbRepo *pRepo, TSDB_REQ_T req) {
   SCommitQueue *pQueue = &tsCommitQueue;
 
-  SListNode *pNode = (SListNode *)calloc(1, sizeof(SListNode) + sizeof(SCommitReq));
+  SListNode *pNode = (SListNode *)calloc(1, sizeof(SListNode) + sizeof(SReq));
   if (pNode == NULL) {
     terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
     return -1;
   }
 
-  ((SCommitReq *)pNode->data)->pRepo = pRepo;
+  ((SReq *)pNode->data)->req = req;
+  ((SReq *)pNode->data)->pRepo = pRepo;
 
   pthread_mutex_lock(&(pQueue->lock));
 
@@ -154,6 +156,9 @@ static void *tsdbLoopCommit(void *arg) {
   SCommitQueue *pQueue = &tsCommitQueue;
   SListNode *   pNode = NULL;
   STsdbRepo *   pRepo = NULL;
+  TSDB_REQ_T    req;
+
+  setThreadName("tsdbCommit");
 
   while (true) {
     pthread_mutex_lock(&(pQueue->lock));
@@ -174,14 +179,21 @@ static void *tsdbLoopCommit(void *arg) {
 
     pthread_mutex_unlock(&(pQueue->lock));
 
-    pRepo = ((SCommitReq *)pNode->data)->pRepo;
+    req = ((SReq *)pNode->data)->req;
+    pRepo = ((SReq *)pNode->data)->pRepo;
 
-    // check if need to apply new config
-    if (pRepo->config_changed) {             
+    if (req == COMMIT_REQ) {
+      tsdbCommitData(pRepo);
+    } else if (req == COMPACT_REQ) {
+      tsdbCompactImpl(pRepo);
+    } else if (req == COMMIT_CONFIG_REQ) {        
+      ASSERT(pRepo->config_changed);
       tsdbApplyRepoConfig(pRepo);
+      tsem_post(&(pRepo->readyToCommit));
+    } else {
+      ASSERT(0);
     }
 
-    tsdbCommitData(pRepo);
     listNodeFree(pNode);
   }
 

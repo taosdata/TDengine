@@ -20,17 +20,22 @@ sql use db
 sql create table tb (ts timestamp, val int, val1 int, val2 int)
 sql create table tb2 (ts timestamp, val int, val1 int, val2 int)
 sql create table t2 (ts timestamp, val int)
+sql create table tb3 (ts timestamp, val int, val1 int, val2 int)
 
 sql insert into tb values('2020-01-01 00:00:00.000', 1, 11, 21)
 sql insert into tb values('2020-01-02 00:00:00.000', 1, 12, 22)
 sql insert into tb values('2020-01-03 00:00:00.000', 2, 13, 23)
 sql insert into tb values('2020-01-04 00:00:00.000', 2, 14, 24)
 
+
 sql insert into tb2 values('2020-01-01 00:00:00.000', 21, 211, 221)
 sql insert into tb2 values('2020-01-02 00:00:00.000', 21, 212, 222)
 sql insert into tb2 values('2020-01-03 00:00:00.000', 22, 213, 223)
 sql insert into tb2 values('2020-01-04 00:00:00.000', 22, 214, 224)
 
+
+sql insert into tb3 values('2020-01-01 00:00:00.000', NULL, NULL, NULL)
+sql insert into tb3 values('2020-01-02 00:00:00.000', NULL, NULL, NULL)
 print ===============  step1 - one query, 1 column, with timestamp
 
 system_content curl -H 'Authorization: Basic cm9vdDp0YW9zZGF0YQ==' -d '[ {"refId":"A","alias":"","sql":"select ts from db.tb where ts >= 1577980800000 "} ]' 127.0.0.1:7111/grafana/query
@@ -232,6 +237,34 @@ print ===============  step25 - two query, 2 column, no timestamp, 3 column, no 
 system_content curl -H 'Authorization: Basic cm9vdDp0YW9zZGF0YQ==' -d '[ {"refId":"B","alias":"BB","sql":"select val1,val2 from db.tb2 where ts >= 1577980800000 "},{"refId":"A","alias":"AA","sql":"select val,val1,val2 from db.tb2 where ts >= 1577980800000 "} ]' 127.0.0.1:7111/grafana/query
 print step1-> $system_content
 if $system_content != @[{"refId":"B","target":"BB{val2:223,}","datapoints":[[213,"-"]]},{"refId":"B","target":"BB{val2:224,}","datapoints":[[214,"-"]]},{"refId":"A","target":"AA{val1:213,, val2:223,}","datapoints":[[22,"-"]]},{"refId":"A","target":"AA{val1:214,, val2:224,}","datapoints":[[22,"-"]]}]@ then
+  return -1
+endi
+
+print ===============  step26 - 2 column, no timestamp, NULL
+system_content curl -H 'Authorization: Basic cm9vdDp0YW9zZGF0YQ==' -d '[ {"refId":"A","alias":"","sql":"select * from db.tb3 "} ]' 127.0.0.1:7111/grafana/query
+print step1-> $system_content
+if $system_content != @[{"refId":"A","target":"{val1:nil, val2:nil}","datapoints":[[null,1577808000000],[null,1577894400000]]}]@ then
+  return -1
+endi
+
+sql create table tt (ts timestamp ,i int) tags(j binary(20),k binary(20));
+sql insert into t1 using tt tags('jnetworki','t1') values('2020-01-01 00:00:00.000',1)('2020-01-01 00:01:00.000',2)('2020-01-01 00:02:00.000',3)('2020-01-01 00:03:00.000',4)('2020-01-01 00:04:00.000',5);
+
+system_content curl -H 'Authorization: Basic cm9vdDp0YW9zZGF0YQ==' -d '[ {"refId":"A","alias":"","sql":"select max(i) from db.tt where j like \u0027%network%\u0027 and ts >= \u00272020-01-01 00:00:00.000\u0027 and ts < \u00272020-01-01 00:05:00.000\u0027 interval(5m) group by k "} ]' 127.0.0.1:7111/grafana/query
+print step1-> $system_content
+if $system_content != @[{"refId":"A","target":"{k:t1}","datapoints":[[5,1577808000000]]}]@ then
+  return -1
+endi
+
+system_content curl -H 'Authorization: Basic cm9vdDp0YW9zZGF0YQ==' -d '[ {"refId":"A","alias":"","sql":"select max(i) from db.tt where j like \u0027jnetwo%\u0027 and ts >= \u00272020-01-01 00:00:00.000\u0027 and ts < \u00272020-01-01 00:05:00.000\u0027 interval(5m) group by k "} ]' 127.0.0.1:7111/grafana/query
+print step1-> $system_content
+if $system_content != @[{"refId":"A","target":"{k:t1}","datapoints":[[5,1577808000000]]}]@ then
+  return -1
+endi
+
+system_content curl -H 'Authorization: Basic cm9vdDp0YW9zZGF0YQ==' -d '[ {"refId":"A","alias":"","sql":"select max(i) from db.tt where j like \u0027%networki\u0027 and ts >= \u00272020-01-01 00:00:00.000\u0027 and ts < \u00272020-01-01 00:05:00.000\u0027 interval(5m) group by k "} ]' 127.0.0.1:7111/grafana/query
+print step1-> $system_content
+if $system_content != @[{"refId":"A","target":"{k:t1}","datapoints":[[5,1577808000000]]}]@ then
   return -1
 endi
 

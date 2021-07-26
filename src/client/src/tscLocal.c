@@ -20,7 +20,7 @@
 #include "tname.h"
 #include "tscLog.h"
 #include "tscUtil.h"
-#include "tschemautil.h"
+#include "qTableMeta.h"
 #include "tsclient.h"
 #include "taos.h"
 #include "tscSubquery.h"
@@ -71,7 +71,9 @@ static int32_t tscSetValueToResObj(SSqlObj *pSql, int32_t rowLen) {
     numOfRows = numOfRows + tscGetNumOfTags(pMeta);
   }
 
-  tscInitResObjForLocalQuery(pSql, totalNumOfRows, rowLen);
+  pSql->res.pMerger = tscInitResObjForLocalQuery(totalNumOfRows, rowLen, pSql->self);
+  tscInitResForMerge(&pSql->res);
+
   SSchema *pSchema = tscGetTableSchema(pMeta);
 
   for (int32_t i = 0; i < numOfRows; ++i) {
@@ -321,7 +323,7 @@ TAOS_ROW tscFetchRow(void *param) {
   // current data set are exhausted, fetch more data from node
   if (pRes->row >= pRes->numOfRows && (pRes->completed != true || hasMoreVnodesToTry(pSql) || hasMoreClauseToTry(pSql)) &&
       (pCmd->command == TSDB_SQL_RETRIEVE ||
-       pCmd->command == TSDB_SQL_RETRIEVE_LOCALMERGE ||
+       pCmd->command == TSDB_SQL_RETRIEVE_GLOBALMERGE ||
        pCmd->command == TSDB_SQL_TABLE_JOIN_RETRIEVE ||
        pCmd->command == TSDB_SQL_FETCH ||
        pCmd->command == TSDB_SQL_SHOW ||
@@ -433,7 +435,8 @@ static int32_t tscSCreateSetValueToResObj(SSqlObj *pSql, int32_t rowLen, const c
   if (strlen(ddl) == 0) {
     
   }
-  tscInitResObjForLocalQuery(pSql, numOfRows, rowLen);
+  pSql->res.pMerger = tscInitResObjForLocalQuery(numOfRows, rowLen, pSql->self);
+  tscInitResForMerge(&pSql->res);
 
   TAOS_FIELD *pField = tscFieldInfoGetField(&pQueryInfo->fieldsInfo, 0);
   char* dst = pRes->data + tscFieldInfoGetOffset(pQueryInfo, 0) * numOfRows;
@@ -482,6 +485,7 @@ static int32_t tscGetDBInfo(SCreateBuilder *builder, char *result) {
 
   char buf[TSDB_DB_NAME_LEN + 64] = {0}; 
   do {
+    memset(buf, 0, sizeof(buf));
     int32_t* lengths = taos_fetch_lengths(pSql);  
     int32_t ret = tscGetNthFieldResult(row, fields, lengths, 0, buf);
     if (0 == ret && STR_NOCASE_EQUAL(buf, strlen(buf), builder->buf, strlen(builder->buf))) {
@@ -882,7 +886,8 @@ void tscSetLocalQueryResult(SSqlObj *pSql, const char *val, const char *columnNa
   TAOS_FIELD f = tscCreateField((int8_t)type, columnName, (int16_t)valueLength);
   tscFieldInfoAppend(&pQueryInfo->fieldsInfo, &f);
 
-  tscInitResObjForLocalQuery(pSql, 1, (int32_t)valueLength);
+  pSql->res.pMerger = tscInitResObjForLocalQuery(1, (int32_t)valueLength, pSql->self);
+  tscInitResForMerge(&pSql->res);
 
   SInternalField* pInfo = tscFieldInfoGetInternalField(&pQueryInfo->fieldsInfo, 0);
   pInfo->pExpr = taosArrayGetP(pQueryInfo->exprList, 0);
@@ -915,7 +920,7 @@ int tscProcessLocalCmd(SSqlObj *pSql) {
   } else if (pCmd->command == TSDB_SQL_SHOW_CREATE_DATABASE) {
     pRes->code = tscProcessShowCreateDatabase(pSql); 
   } else if (pCmd->command == TSDB_SQL_RESET_CACHE) {
-    taosHashEmpty(tscTableMetaInfo);
+    taosHashClear(tscTableMetaInfo);
     pRes->code = TSDB_CODE_SUCCESS;
   } else if (pCmd->command == TSDB_SQL_SERV_VERSION) {
     pRes->code = tscProcessServerVer(pSql);

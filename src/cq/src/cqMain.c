@@ -38,21 +38,6 @@
 #define cDebug(...) { if (cqDebugFlag & DEBUG_DEBUG) { taosPrintLog("CQ  ", cqDebugFlag, __VA_ARGS__); }}
 #define cTrace(...) { if (cqDebugFlag & DEBUG_TRACE) { taosPrintLog("CQ  ", cqDebugFlag, __VA_ARGS__); }}
 
-typedef struct {
-  int32_t  vgId;
-  int32_t  master;
-  int32_t  num;      // number of continuous streams
-  char     user[TSDB_USER_LEN];
-  char     pass[TSDB_KEY_LEN];
-  char     db[TSDB_DB_NAME_LEN];
-  FCqWrite cqWrite;
-  struct SCqObj *pHead;
-  void    *dbConn;
-  void    *tmrCtrl;
-  pthread_mutex_t mutex;
-  int32_t delete;
-  int32_t cqObjNum;
-} SCqContext;
 
 typedef struct SCqObj {
   tmr_h          tmrId;
@@ -437,6 +422,10 @@ static void cqProcessCreateTimer(void *param, void *tmrId) {
   taosReleaseRef(cqObjRef, (int64_t)param);
 }
 
+// inner implement in tscStream.c
+TAOS_STREAM *taos_open_stream_withname(TAOS *taos, const char* desName, const char *sqlstr, void (*fp)(void *param, TAOS_RES *, TAOS_ROW row),
+                              int64_t stime, void *param, void (*callback)(void *), void* cqhandle);
+
 static void cqCreateStream(SCqContext *pContext, SCqObj *pObj) {
   pObj->pContext = pContext;
 
@@ -449,11 +438,11 @@ static void cqCreateStream(SCqContext *pContext, SCqObj *pObj) {
   pObj->tmrId = 0;
 
   if (pObj->pStream == NULL) {
-    pObj->pStream = taos_open_stream(pContext->dbConn, pObj->sqlStr, cqProcessStreamRes, INT64_MIN, (void *)pObj->rid, NULL);
+    pObj->pStream = taos_open_stream_withname(pContext->dbConn, pObj->dstTable, pObj->sqlStr, cqProcessStreamRes, \
+                                               INT64_MIN, (void *)pObj->rid, NULL, pContext);
 
     // TODO the pObj->pStream may be released if error happens
     if (pObj->pStream) {
-      tscSetStreamDestTable(pObj->pStream, pObj->dstTable);
       pContext->num++;
       cDebug("vgId:%d, id:%d CQ:%s is opened", pContext->vgId, pObj->tid, pObj->sqlStr);
     } else {
@@ -487,21 +476,23 @@ static void cqProcessStreamRes(void *param, TAOS_RES *tres, TAOS_ROW row) {
   
   cDebug("vgId:%d, id:%d CQ:%s stream result is ready", pContext->vgId, pObj->tid, pObj->sqlStr);
 
-  int32_t size = sizeof(SWalHead) + sizeof(SSubmitMsg) + sizeof(SSubmitBlk) + TD_DATA_ROW_HEAD_SIZE + pObj->rowSize;
+  int32_t size = sizeof(SWalHead) + sizeof(SSubmitMsg) + sizeof(SSubmitBlk) + TD_MEM_ROW_DATA_HEAD_SIZE + pObj->rowSize;
   char *buffer = calloc(size, 1);
 
   SWalHead   *pHead = (SWalHead *)buffer;
   SSubmitMsg *pMsg = (SSubmitMsg *) (buffer + sizeof(SWalHead));
   SSubmitBlk *pBlk = (SSubmitBlk *) (buffer + sizeof(SWalHead) + sizeof(SSubmitMsg));
 
-  SDataRow trow = (SDataRow)pBlk->data;
-  tdInitDataRow(trow, pSchema);
+  SMemRow trow = (SMemRow)pBlk->data;
+  SDataRow dataRow = (SDataRow)memRowDataBody(trow);
+  memRowSetType(trow, SMEM_ROW_DATA);
+  tdInitDataRow(dataRow, pSchema);
 
   for (int32_t i = 0; i < pSchema->numOfCols; i++) {
     STColumn *c = pSchema->columns + i;
-    void* val = row[i];
+    void *val = row[i];
     if (val == NULL) {
-      val = getNullValue(c->type);
+      val = (void *)getNullValue(c->type);
     } else if (c->type == TSDB_DATA_TYPE_BINARY) {
       val = ((char*)val) - sizeof(VarDataLenT);
     } else if (c->type == TSDB_DATA_TYPE_NCHAR) {
@@ -511,9 +502,9 @@ static void cqProcessStreamRes(void *param, TAOS_RES *tres, TAOS_ROW row) {
       memcpy((char *)val + sizeof(VarDataLenT), buf, len);
       varDataLen(val) = len;
     }
-    tdAppendColVal(trow, val, c->type, c->bytes, c->offset);
+    tdAppendColVal(dataRow, val, c->type, c->offset);
   }
-  pBlk->dataLen = htonl(dataRowLen(trow));
+  pBlk->dataLen = htonl(memRowDataTLen(trow));
   pBlk->schemaLen = 0;
 
   pBlk->uid = htobe64(pObj->uid);
@@ -522,7 +513,7 @@ static void cqProcessStreamRes(void *param, TAOS_RES *tres, TAOS_ROW row) {
   pBlk->sversion = htonl(pSchema->version);
   pBlk->padding = 0;
 
-  pHead->len = sizeof(SSubmitMsg) + sizeof(SSubmitBlk) + dataRowLen(trow);
+  pHead->len = sizeof(SSubmitMsg) + sizeof(SSubmitBlk) + memRowDataTLen(trow);
 
   pMsg->header.vgId = htonl(pContext->vgId);
   pMsg->header.contLen = htonl(pHead->len);

@@ -61,6 +61,7 @@ typedef struct SHashObj {
   size_t          size;         // number of elements in hash table
   _hash_fn_t      hashFp;       // hash function
   _hash_free_fn_t freeFp;       // hash node free callback function
+  _equal_fn_t     equalFp;       // equal function
 
   SRWLatch        lock;         // read-write spin lock
   SHashLockTypeE  type;         // lock type
@@ -77,6 +78,15 @@ typedef struct SHashObj {
  * @return
  */
 SHashObj *taosHashInit(size_t capacity, _hash_fn_t fn, bool update, SHashLockTypeE type);
+
+
+/**
+ * set equal func of the hash table  
+ * @param pHashObj    
+ * @param equalFp       
+ * @return
+ */
+void taosHashSetEqualFp(SHashObj *pHashObj, _equal_fn_t fp);
 
 /**
  * return the size of hash table
@@ -130,7 +140,7 @@ int32_t taosHashRemoveWithData(SHashObj *pHashObj, const void *key, size_t keyLe
 
 int32_t taosHashCondTraverse(SHashObj *pHashObj, bool (*fp)(void *, void *), void *param);
 
-void taosHashEmpty(SHashObj *pHashObj);
+void taosHashClear(SHashObj *pHashObj);
 
 /**
  * clean up hash table
