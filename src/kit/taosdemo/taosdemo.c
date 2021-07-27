@@ -648,7 +648,7 @@ static FILE *          g_fpOfInsertResult = NULL;
         fprintf(stderr, "PERF: "fmt, __VA_ARGS__); } while(0)
 
 #define errorPrint(fmt, ...) \
-    do { fprintf(stderr, "ERROR: "fmt, __VA_ARGS__); } while(0)
+    do { fprintf(stderr, " \033[31m"); fprintf(stderr, "ERROR: "fmt, __VA_ARGS__); fprintf(stderr, " \033[0m"); } while(0)
 
 // for strncpy buffer overflow
 #define min(a, b) (((a) < (b)) ? (a) : (b))
@@ -5156,6 +5156,8 @@ static int32_t execInsert(threadInfo *pThreadInfo, uint32_t k)
             if (0 != taos_stmt_execute(pThreadInfo->stmt)) {
                 errorPrint("%s() LN%d, failied to execute insert statement. reason: %s\n",
                         __func__, __LINE__, taos_stmt_errstr(pThreadInfo->stmt));
+
+                fprintf(stderr, "\n\033[31m === Please reduce batch number if WAL size exceeds limit. ===\033[0m\n\n");
                 exit(-1);
             }
             affectedRows = k;
