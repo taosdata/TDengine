@@ -1653,7 +1653,7 @@ static int32_t parseSmlTimeStamp(TAOS_SML_KV **pTS, const char **index) {
 
 static int32_t parseSmlKey(TAOS_SML_KV *pKV, const char **index) {
   const char *cur = *index;
-  char key[TSDB_COL_NAME_LEN + 1];  // +1 to avoid 1685 line over write
+  char key[TSDB_COL_NAME_LEN + 1];  // +1 to avoid key[len] over write
   uint16_t len = 0;
 
   //key field cannot start with digit

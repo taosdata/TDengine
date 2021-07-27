@@ -164,7 +164,7 @@ static void tscUpdateVgroupInfo(SSqlObj *pSql, SRpcEpSet *pEpSet) {
   vgroupInfo.inUse    = pEpSet->inUse;
   vgroupInfo.numOfEps = pEpSet->numOfEps;
   for (int32_t i = 0; i < vgroupInfo.numOfEps; i++) {
-    strncpy(vgroupInfo.ep[i].fqdn, pEpSet->fqdn[i], TSDB_FQDN_LEN);   // buffer not null terminated risk
+    tstrncpy(vgroupInfo.ep[i].fqdn, pEpSet->fqdn[i], TSDB_FQDN_LEN);   // buffer not null terminated risk
     vgroupInfo.ep[i].port = pEpSet->port[i];
   }
 

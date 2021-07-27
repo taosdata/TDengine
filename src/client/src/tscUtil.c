@@ -1236,10 +1236,6 @@ void handleDownstreamOperator(SSqlObj** pSqlObjList, int32_t numOfUpstream, SQue
       }
 
       pSourceOperator = createJoinOperatorInfo(p, px->numOfTables, schema, num);
-
-      for(int32_t i = 0; i < px->numOfTables; ++i) {
-        destroyOperatorInfo(p[i]);
-      }
       tfree(p);
     } else {
       size_t num = taosArrayGetSize(px->colList);
@@ -4714,7 +4710,7 @@ static int32_t doAddTableName(char* nextStr, char** str, SArray* pNameArray, SSq
   int32_t len = 0;
 
   if (nextStr == NULL) {
-    strncpy(tablename, *str, TSDB_TABLE_FNAME_LEN - 1);
+    tstrncpy(tablename, *str, TSDB_TABLE_FNAME_LEN);
     len = (int32_t) strlen(tablename);
   } else {
     len = (int32_t)(nextStr - (*str));

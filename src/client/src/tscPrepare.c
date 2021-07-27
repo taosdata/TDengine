@@ -1628,8 +1628,8 @@ int taos_stmt_set_tbname_tags(TAOS_STMT* stmt, const char* name, TAOS_BIND* tags
   if (pStmt->mtb.subSet && taosHashGetSize(pStmt->mtb.pTableHash) > 0) {
     STableMetaInfo* pTableMetaInfo = tscGetTableMetaInfoFromCmd(pCmd, 0);
     STableMeta* pTableMeta = pTableMetaInfo->pTableMeta;
-    char sTableName[TSDB_TABLE_FNAME_LEN + 1] = {0};
-    strncpy(sTableName, pTableMeta->sTableName, sizeof(sTableName) - 1);
+    char sTableName[TSDB_TABLE_FNAME_LEN] = {0};
+    tstrncpy(sTableName, pTableMeta->sTableName, sizeof(sTableName));
 
     SStrToken tname = {0};
     tname.type = TK_STRING;

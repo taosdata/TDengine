@@ -5949,7 +5949,7 @@ static int32_t getNumOfScanTimes(SQueryAttr* pQueryAttr) {
   return 1;
 }
 
-void destroyOperatorInfo(SOperatorInfo* pOperator) {
+static void destroyOperatorInfo(SOperatorInfo* pOperator) {
   if (pOperator == NULL) {
     return;
   }
