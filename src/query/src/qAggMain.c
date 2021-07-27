@@ -515,6 +515,17 @@ int32_t countRequired(SQLFunctionCtx *pCtx, STimeWindow* w, int32_t colId) {
 int32_t noDataRequired(SQLFunctionCtx *pCtx, STimeWindow* w, int32_t colId) {
   return BLK_DATA_NO_NEEDED;
 }
+#define LIST_ADD_N_DOUBLE(x, ctx, p, t, numOfElem, tsdbType)              \
+  do {                                                                \
+    t *d = (t *)(p);                                               \
+    for (int32_t i = 0; i < (ctx)->size; ++i) {                    \
+      if (((ctx)->hasNull) && isNull((char *)&(d)[i], tsdbType)) { \
+        continue;                                                  \
+      };                                                           \
+      SET_DOUBLE_VALUE_BY_TMP((x) , (x) + (d)[i]);                                               \
+      (numOfElem)++;                                               \
+    }                                                              \
+  } while(0)
 
 #define LIST_ADD_N(x, ctx, p, t, numOfElem, tsdbType)              \
   do {                                                                \
@@ -523,7 +534,7 @@ int32_t noDataRequired(SQLFunctionCtx *pCtx, STimeWindow* w, int32_t colId) {
       if (((ctx)->hasNull) && isNull((char *)&(d)[i], tsdbType)) { \
         continue;                                                  \
       };                                                           \
-      SET_DOUBLE_VALUE_BY_TMP((x),(x) + (d)[i]);                                               \
+      (x) += (d)[i];                                               \
       (numOfElem)++;                                               \
     }                                                              \
   } while(0)
@@ -610,7 +621,7 @@ static void do_sum(SQLFunctionCtx *pCtx) {
       }
     } else if (pCtx->inputType == TSDB_DATA_TYPE_DOUBLE) {
       double *retVal = (double *)pCtx->pOutput;
-      LIST_ADD_N(*retVal, pCtx, pData, double, notNullElems, pCtx->inputType);
+      LIST_ADD_N_DOUBLE(*retVal, pCtx, pData, double, notNullElems, pCtx->inputType);
     } else if (pCtx->inputType == TSDB_DATA_TYPE_FLOAT) {
       double *retVal = (double *)pCtx->pOutput;
       LIST_ADD_N(*retVal, pCtx, pData, float, notNullElems, pCtx->inputType);
@@ -781,7 +792,7 @@ static void avg_function(SQLFunctionCtx *pCtx) {
     } else if (pCtx->inputType == TSDB_DATA_TYPE_BIGINT) {
       LIST_ADD_N(*pVal, pCtx, pData, int64_t, notNullElems, pCtx->inputType);
     } else if (pCtx->inputType == TSDB_DATA_TYPE_DOUBLE) {
-      LIST_ADD_N(*pVal, pCtx, pData, double, notNullElems, pCtx->inputType);
+      LIST_ADD_N_DOUBLE(*pVal, pCtx, pData, double, notNullElems, pCtx->inputType);
     } else if (pCtx->inputType == TSDB_DATA_TYPE_FLOAT) {
       LIST_ADD_N(*pVal, pCtx, pData, float, notNullElems, pCtx->inputType);
     } else if (pCtx->inputType == TSDB_DATA_TYPE_UTINYINT) {
