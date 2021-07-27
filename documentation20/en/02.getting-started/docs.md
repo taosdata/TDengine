@@ -188,16 +188,14 @@ List of platforms supported by TDengine server
 |                    | **CentOS 6/7/8** | **Ubuntu 16/18/20** | **Other Linux** | UnionTech UOS | NeoKylin | LINX V60/V80 |
 | ------------------ | ---------------- | ------------------- | --------------- | ------------- | -------- | ------------ |
 | X64                | ●                | ●                   |                 | ○             | ●        | ●            |
-| Raspberry ARM32    |                  | ●                   | ●               |               |          |              |
 | Loongson MIPS64    |                  |                     | ●               |               |          |              |
 | Kunpeng ARM64      |                  | ○                   | ○               |               | ●        |              |
 | SWCPU Alpha64      |                  |                     | ○               | ●             |          |              |
 | FT ARM64           |                  | ○Ubuntu Kylin       |                 |               |          |              |
 | Hygon X64          | ●                | ●                   | ●               | ○             | ●        | ●            |
-| Rockchip ARM64/32  |                  |                     | ○               |               |          |              |
-| Allwinner ARM64/32 |                  |                     | ○               |               |          |              |
-| Actions ARM64/32   |                  |                     | ○               |               |          |              |
-| TI ARM32           |                  |                     | ○               |               |          |              |
+| Rockchip ARM64     |                  |                     | ○               |               |          |              |
+| Allwinner ARM64    |                  |                     | ○               |               |          |              |
+| Actions ARM64      |                  |                     | ○               |               |          |              |
 
 Note: ● has been verified by official tests; ○ has been verified by unofficial tests. 
 
