@@ -135,7 +135,7 @@ int32_t tscCreateGlobalMerger(tExtMemBuffer **pMemBuffer, int32_t numOfBuffer, t
       SLocalDataSource *ds = (SLocalDataSource *)malloc(sizeof(SLocalDataSource) + pMemBuffer[0]->pageSize);
       if (ds == NULL) {
         tscError("0x%"PRIx64" failed to create merge structure", id);
-        tfree(pMerger);
+        tfree(*pMerger);
         return TSDB_CODE_TSC_OUT_OF_MEMORY;
       }
       
@@ -443,6 +443,10 @@ int32_t tscCreateGlobalMergerEnv(SQueryInfo *pQueryInfo, tExtMemBuffer ***pMemBu
   }
   
   pModel = createColumnModel(pSchema, (int32_t)size, capacity);
+  if (pModel == NULL){
+    tfree(pSchema);
+    return TSDB_CODE_TSC_OUT_OF_MEMORY;
+  }
   tfree(pSchema);
 
   int32_t pg = DEFAULT_PAGE_SIZE;
@@ -458,6 +462,7 @@ int32_t tscCreateGlobalMergerEnv(SQueryInfo *pQueryInfo, tExtMemBuffer ***pMemBu
   }
 
   if (createOrderDescriptor(pOrderDesc, pQueryInfo, pModel) != TSDB_CODE_SUCCESS) {
+    tfree(pModel);
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
   }
 

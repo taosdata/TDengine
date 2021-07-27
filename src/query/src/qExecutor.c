@@ -191,8 +191,6 @@ static void destroyTagScanOperatorInfo(void* param, int32_t numOfOutput);
 static void destroySWindowOperatorInfo(void* param, int32_t numOfOutput);
 static void destroyStateWindowOperatorInfo(void* param, int32_t numOfOutput);
 static void destroyAggOperatorInfo(void* param, int32_t numOfOutput);
-static void destroyOperatorInfo(SOperatorInfo* pOperator);
-
 
 static int32_t doCopyToSDataBlock(SQueryRuntimeEnv* pRuntimeEnv, SGroupResInfo* pGroupResInfo, int32_t orderType, SSDataBlock* pBlock);
 
@@ -3563,6 +3561,7 @@ STableQueryInfo* createTmpTableQueryInfo(STimeWindow win) {
   int32_t initialSize = 16;
   int32_t code = initResultRowInfo(&pTableQueryInfo->resInfo, initialSize, TSDB_DATA_TYPE_INT);
   if (code != TSDB_CODE_SUCCESS) {
+    tfree(pTableQueryInfo);
     return NULL;
   }
 
@@ -5945,7 +5944,7 @@ static int32_t getNumOfScanTimes(SQueryAttr* pQueryAttr) {
   return 1;
 }
 
-static void destroyOperatorInfo(SOperatorInfo* pOperator) {
+void destroyOperatorInfo(SOperatorInfo* pOperator) {
   if (pOperator == NULL) {
     return;
   }
@@ -7241,9 +7240,7 @@ void destroyUdfInfo(SUdfInfo* pUdfInfo) {
   tfree(pUdfInfo);
 }
 
-static char* getUdfFuncName(char* name, int type) {
-  char* funcname = calloc(1, TSDB_FUNCTIONS_NAME_MAX_LENGTH + 10);
-
+static char* getUdfFuncName(char* funcname, char* name, int type) {
   switch (type) {
     case TSDB_UDF_FUNC_NORMAL:
       strcpy(funcname, name);
@@ -7314,19 +7311,20 @@ int32_t initUdfInfo(SUdfInfo* pUdfInfo) {
       return TSDB_CODE_QRY_SYS_ERROR;
     }
 
-    pUdfInfo->funcs[TSDB_UDF_FUNC_NORMAL] = taosLoadSym(pUdfInfo->handle, getUdfFuncName(pUdfInfo->name, TSDB_UDF_FUNC_NORMAL));
+    char funcname[TSDB_FUNCTIONS_NAME_MAX_LENGTH + 10] = {0};
+    pUdfInfo->funcs[TSDB_UDF_FUNC_NORMAL] = taosLoadSym(pUdfInfo->handle, getUdfFuncName(funcname, pUdfInfo->name, TSDB_UDF_FUNC_NORMAL));
     if (NULL == pUdfInfo->funcs[TSDB_UDF_FUNC_NORMAL]) {
       return TSDB_CODE_QRY_SYS_ERROR;
     }
 
-    pUdfInfo->funcs[TSDB_UDF_FUNC_INIT] = taosLoadSym(pUdfInfo->handle, getUdfFuncName(pUdfInfo->name, TSDB_UDF_FUNC_INIT));
+    pUdfInfo->funcs[TSDB_UDF_FUNC_INIT] = taosLoadSym(pUdfInfo->handle, getUdfFuncName(funcname, pUdfInfo->name, TSDB_UDF_FUNC_INIT));
 
     if (pUdfInfo->funcType == TSDB_UDF_TYPE_AGGREGATE) {
-      pUdfInfo->funcs[TSDB_UDF_FUNC_FINALIZE] = taosLoadSym(pUdfInfo->handle, getUdfFuncName(pUdfInfo->name, TSDB_UDF_FUNC_FINALIZE));
-      pUdfInfo->funcs[TSDB_UDF_FUNC_MERGE] = taosLoadSym(pUdfInfo->handle, getUdfFuncName(pUdfInfo->name, TSDB_UDF_FUNC_MERGE));
+      pUdfInfo->funcs[TSDB_UDF_FUNC_FINALIZE] = taosLoadSym(pUdfInfo->handle, getUdfFuncName(funcname, pUdfInfo->name, TSDB_UDF_FUNC_FINALIZE));
+      pUdfInfo->funcs[TSDB_UDF_FUNC_MERGE] = taosLoadSym(pUdfInfo->handle, getUdfFuncName(funcname, pUdfInfo->name, TSDB_UDF_FUNC_MERGE));
     }
 
-    pUdfInfo->funcs[TSDB_UDF_FUNC_DESTROY] = taosLoadSym(pUdfInfo->handle, getUdfFuncName(pUdfInfo->name, TSDB_UDF_FUNC_DESTROY));
+    pUdfInfo->funcs[TSDB_UDF_FUNC_DESTROY] = taosLoadSym(pUdfInfo->handle, getUdfFuncName(funcname, pUdfInfo->name, TSDB_UDF_FUNC_DESTROY));
 
     if (pUdfInfo->funcs[TSDB_UDF_FUNC_INIT]) {
       return (*(udfInitFunc)pUdfInfo->funcs[TSDB_UDF_FUNC_INIT])(&pUdfInfo->init);
@@ -7398,10 +7396,12 @@ int32_t createQueryFunc(SQueriedTableInfo* pTableInfo, int32_t numOfOutput, SExp
       int32_t j = getColumnIndexInSource(pTableInfo, &pExprs[i].base, pTagCols);
       if (TSDB_COL_IS_TAG(pExprs[i].base.colInfo.flag)) {
         if (j < TSDB_TBNAME_COLUMN_INDEX || j >= pTableInfo->numOfTags) {
+          tfree(pExprs);
           return TSDB_CODE_QRY_INVALID_MSG;
         }
       } else {
         if (j < PRIMARYKEY_TIMESTAMP_COL_INDEX || j >= pTableInfo->numOfCols) {
+          tfree(pExprs);
           return TSDB_CODE_QRY_INVALID_MSG;
         }
       }
@@ -7421,6 +7421,7 @@ int32_t createQueryFunc(SQueriedTableInfo* pTableInfo, int32_t numOfOutput, SExp
         int32_t ret = cloneExprFilterInfo(&pExprs[i].base.flist.filterInfo, pExprMsg[i]->flist.filterInfo,
             pExprMsg[i]->flist.numOfFilters);
         if (ret) {
+          tfree(pExprs);
           return ret;
         }
       }

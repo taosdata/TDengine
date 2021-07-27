@@ -2476,8 +2476,9 @@ int32_t tscHandleMasterSTableQuery(SSqlObj *pSql) {
     pState->states = calloc(pState->numOfSub, sizeof(*pState->states));
     if (pState->states == NULL) {
       pRes->code = TSDB_CODE_TSC_OUT_OF_MEMORY;
+      tscDestroyGlobalMergerEnv(pMemoryBuf, pDesc,pState->numOfSub);
+
       tscAsyncResultOnError(pSql);
-      tfree(pMemoryBuf);
       return ret;
     }
 

@@ -963,8 +963,14 @@ int taos_load_table_info(TAOS *taos, const char *tableNameList) {
 
   strtolower(str, tableNameList);
   SArray* plist = taosArrayInit(4, POINTER_BYTES);
+  if (plist == NULL) {
+    tfree(str);
+    return TSDB_CODE_TSC_OUT_OF_MEMORY;
+  }
+
   SArray* vgroupList = taosArrayInit(4, POINTER_BYTES);
-  if (plist == NULL || vgroupList == NULL) {
+  if (vgroupList == NULL) {
+    taosArrayDestroy(plist);
     tfree(str);
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
   }
@@ -980,6 +986,8 @@ int taos_load_table_info(TAOS *taos, const char *tableNameList) {
 
   if (code != TSDB_CODE_SUCCESS) {
     tscFreeSqlObj(pSql);
+    taosArrayDestroyEx(plist);
+    taosArrayDestroyEx(vgroupList);
     return code;
   }
 

@@ -1246,6 +1246,10 @@ void handleDownstreamOperator(SSqlObj** pSqlObjList, int32_t numOfUpstream, SQue
       }
 
       pSourceOperator = createJoinOperatorInfo(p, px->numOfTables, schema, num);
+
+      for(int32_t i = 0; i < px->numOfTables; ++i) {
+        destroyOperatorInfo(p[i]);
+      }
       tfree(p);
     } else {
       size_t num = taosArrayGetSize(px->colList);
@@ -4368,7 +4372,7 @@ int32_t tscCreateTableMetaFromSTableMeta(STableMeta* pChild, const char* name, v
     pChild->sversion = p->sversion;
     pChild->tversion = p->tversion;
 
-    memcpy(&pChild->tableInfo, &p->tableInfo, sizeof(STableInfo));
+    memcpy(&pChild->tableInfo, &p->tableInfo, sizeof(STableComInfo));
     int32_t total = pChild->tableInfo.numOfColumns + pChild->tableInfo.numOfTags;
 
     memcpy(pChild->schema, p->schema, sizeof(SSchema) *total);
@@ -4719,7 +4723,7 @@ static int32_t doAddTableName(char* nextStr, char** str, SArray* pNameArray, SSq
   int32_t len = 0;
 
   if (nextStr == NULL) {
-    strncpy(tablename, *str, TSDB_TABLE_FNAME_LEN);
+    strncpy(tablename, *str, TSDB_TABLE_FNAME_LEN - 1);
     len = (int32_t) strlen(tablename);
   } else {
     len = (int32_t)(nextStr - (*str));
