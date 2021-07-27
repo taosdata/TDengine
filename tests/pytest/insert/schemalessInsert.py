@@ -14,7 +14,6 @@
 import random
 import string
 import time
-import datetime
 from copy import deepcopy
 import numpy as np
 from util.log import *
@@ -1052,8 +1051,6 @@ class TDTestCase:
         tdSql.checkRows(1)
         tdSql.query(f"select * from {stb_name}")
         tdSql.checkRows(6)
-        
-
 
     def test(self):
         input_sql1 = "rfasta,id=\"rfasta_1\",t0=true,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7=\"ddzhiksj\",t8=L\"ncharTagValue\" c0=True,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7=\"bnhwlgvj\",c8=L\"ncharTagValue\",c9=7u64 1626006833639000000ns"
@@ -1062,138 +1059,74 @@ class TDTestCase:
         input_sql3 = f'abcd,id="cc¥Ec",t0=True,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7="ndsfdrum",t8=L"ncharTagValue" c0=f,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7="igwoehkm",c8=L"ncharColValue",c9=7u64 0'
         print(input_sql3)
         # input_sql4 = 'hmemeb,id="kilrcrldgf",t0=F,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7="fysodjql",t8=L"ncharTagValue" c0=True,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7="waszbfvc",c8=L"ncharColValue",c9=7u64 0'
-
-
         code = self._conn.insertLines([input_sql3])
         print(code)
         # self._conn.insertLines([input_sql4])
 
-    def run(self):
-        print("running {}".format(__file__))
-        self.createDb()
-        
-
-        # tdSql.execute("create table super_table_cname_check (ts timestamp, pi1 int, pi2 bigint, pf1 float, pf2 double, ps1 binary(10), pi3 smallint, pi4 tinyint, pb1 bool, ps2 nchar(20)) tags (si1 int, si2 bigint, sf1 float, sf2 double, ss1 binary(10), si3 smallint, si4 tinyint, sb1 bool, ss2 nchar(20));")
-        # tdSql.execute('create table st1 using super_table_cname_check tags (1, 2, 1.1, 2.2, "a", 1, 1, true, "aa");')
-        # tdSql.execute('insert into st1 values (now, 1, 2, 1.1, 2.2, "a", 1, 1, true, "aa");')
-
-        # self.initCheckCase()
-        # self.boolTypeCheckCase()
-        # self.symbolsCheckCase()
-        # self.tsCheckCase()
-        # self.idSeqCheckCase()
-        # self.idUpperCheckCase()
-        # self.noIdCheckCase()
-        # self.maxColTagCheckCase()
-        # self.idIllegalNameCheckCase()
-        # self.idStartWithNumCheckCase()
-        # self.nowTsCheckCase()
-        # self.dateFormatTsCheckCase()
-        # self.illegalTsCheckCase()
+    def runAll(self):
+        self.initCheckCase()
+        self.boolTypeCheckCase()
+        self.symbolsCheckCase()
+        self.tsCheckCase()
+        self.idSeqCheckCase()
+        self.idUpperCheckCase()
+        self.noIdCheckCase()
+        self.maxColTagCheckCase()
+        self.idIllegalNameCheckCase()
+        self.idStartWithNumCheckCase()
+        self.nowTsCheckCase()
+        self.dateFormatTsCheckCase()
+        self.illegalTsCheckCase()
 
         # ! confirm double
-        # self.tagValueLengthCheckCase()
+        self.tagValueLengthCheckCase()
 
         # ! bug
-        # self.colValueLengthCheckCase()
+        self.colValueLengthCheckCase()
 
-        # self.tagColIllegalValueCheckCase()
+        self.tagColIllegalValueCheckCase()
         
         # ! 重复ID未合并
-        # self.duplicateIdTagColInsertCheckCase()
+        self.duplicateIdTagColInsertCheckCase()
 
-        # self.noIdStbExistCheckCase()
-        # self.duplicateInsertExistCheckCase()
-        # self.tagColBinaryNcharLengthCheckCase()
+        self.noIdStbExistCheckCase()
+        self.duplicateInsertExistCheckCase()
+        self.tagColBinaryNcharLengthCheckCase()
 
         # ! 结果未校验
         self.tagColAddDupIDCheckCase()
 
-        # self.tagColAddCheckCase()
-        # self.tagMd5Check()
+        self.tagColAddCheckCase()
+        self.tagMd5Check()
 
         # ! rollback bug
-        # self.tagColBinaryMaxLengthCheckCase()
-        # self.tagColNcharMaxLengthCheckCase()
+        self.tagColBinaryMaxLengthCheckCase()
+        self.tagColNcharMaxLengthCheckCase()
         
-        # self.batchInsertCheckCase()
-        # self.multiInsertCheckCase(5000)
+        self.batchInsertCheckCase()
+        self.multiInsertCheckCase(5000)
         # ! bug
-        # self.batchErrorInsertCheckCase()
+        self.batchErrorInsertCheckCase()
 
-        # self.stbInsertMultiThreadCheckCase()
-        # self.sStbStbDdataInsertMultiThreadCheckCase()
-        # self.sStbStbDdataAtcInsertMultiThreadCheckCase()
-        # self.sStbStbDdataMtcInsertMultiThreadCheckCase()
-        # self.sStbDtbDdataInsertMultiThreadCheckCase()
+        self.stbInsertMultiThreadCheckCase()
+        self.sStbStbDdataInsertMultiThreadCheckCase()
+        self.sStbStbDdataAtcInsertMultiThreadCheckCase()
+        self.sStbStbDdataMtcInsertMultiThreadCheckCase()
+        self.sStbDtbDdataInsertMultiThreadCheckCase()
 
         # ! concurrency conflict
-        # self.sStbDtbDdataAcMtInsertMultiThreadCheckCase()
-        # self.sStbDtbDdataAtMcInsertMultiThreadCheckCase()
+        self.sStbDtbDdataAcMtInsertMultiThreadCheckCase()
+        self.sStbDtbDdataAtMcInsertMultiThreadCheckCase()
         # ! concurrency conflict
+        self.sStbStbDdataDtsInsertMultiThreadCheckCase()
 
-        # self.sStbStbDdataDtsInsertMultiThreadCheckCase()
+    def run(self):
+        print("running {}".format(__file__))
+        self.createDb()
+        self.runAll()
+
         # self.test()
 
-
-
-
-
-
-
-        # tdSql.execute('create stable ste(ts timestamp, f int) tags(t1 bigint)')
-
-        # lines = [   "st,t1=3i64,t2=4f64,t3=\"t3\" c1=3i64,c3=L\"passit\",c2=false,c4=4f64 1626006833639000000ns",
-        #             "st,t1=4i64,t3=\"t4\",t2=5f64,t4=5f64 c1=3i64,c3=L\"passitagin\",c2=true,c4=5f64,c5=5f64 1626006833640000000ns",
-        #             "ste,t2=5f64,t3=L\"ste\" c1=true,c2=4i64,c3=\"iam\" 1626056811823316532ns",
-        #             "stf,t1=4i64,t3=\"t4\",t2=5f64,t4=5f64 c1=3i64,c3=L\"passitagin\",c2=true,c4=5f64,c5=5f64,c6=7u64 1626006933640000000ns",
-        #             "st,t1=4i64,t2=5f64,t3=\"t4\" c1=3i64,c3=L\"passitagain\",c2=true,c4=5f64 1626006833642000000ns",
-        #             "ste,t2=5f64,t3=L\"ste2\" c3=\"iamszhou\",c4=false 1626056811843316532ns",
-        #             "ste,t2=5f64,t3=L\"ste2\" c3=\"iamszhou\",c4=false,c5=32i8,c6=64i16,c7=32i32,c8=88.88f32 1626056812843316532ns",
-        #             "st,t1=4i64,t3=\"t4\",t2=5f64,t4=5f64 c1=3i64,c3=L\"passitagin\",c2=true,c4=5f64,c5=5f64,c6=7u64 1626006933640000000ns",
-        #             "stf,t1=4i64,t3=\"t4\",t2=5f64,t4=5f64 c1=3i64,c3=L\"passitagin_stf\",c2=false,c5=5f64,c6=7u64 1626006933641000000ns"
-        #         ]
-
-        # code = self._conn.insertLines(lines)
-        # print("insertLines result {}".format(code))
-
-        # lines2 = [  "stg,t1=3i64,t2=4f64,t3=\"t3\" c1=3i64,c3=L\"passit\",c2=false,c4=4f64 1626006833639000000ns",
-        #             "stg,t1=4i64,t3=\"t4\",t2=5f64,t4=5f64 c1=3i64,c3=L\"passitagin\",c2=true,c4=5f64,c5=5f64 1626006833640000000ns"
-        #         ]
-        
-        # code = self._conn.insertLines([ lines2[0] ])
-        # print("insertLines result {}".format(code))
-
-        # self._conn.insertLines([ lines2[1] ])
-        # print("insertLines result {}".format(code))
-
-        # tdSql.query("select * from st")
-        # tdSql.checkRows(4)
-
-        # tdSql.query("select * from ste")
-        # tdSql.checkRows(3)
-
-        # tdSql.query("select * from stf")
-        # tdSql.checkRows(2)
-
-        # tdSql.query("select * from stg")
-        # tdSql.checkRows(2)
-
-        # tdSql.query("show tables")
-        # tdSql.checkRows(8)
-
-        # tdSql.query("describe stf")
-        # tdSql.checkData(2, 2, 14)
-
-        # self._conn.insertLines([
-        #                         "sth,t1=4i64,t2=5f64,t4=5f64,ID=\"childtable\" c1=3i64,c3=L\"passitagin_stf\",c2=false,c5=5f64,c6=7u64 1626006933641ms",
-        #                         "sth,t1=4i64,t2=5f64,t4=5f64 c1=3i64,c3=L\"passitagin_stf\",c2=false,c5=5f64,c6=7u64 1626006933654ms"                    
-        #                         ])
-        # tdSql.query('select tbname, * from sth')
-        # tdSql.checkRows(2)
-
-        # tdSql.query('select tbname, * from childtable')
-        # tdSql.checkRows(1)
     def stop(self):
         tdSql.close()
         tdLog.success("%s successfully executed" % __file__)
