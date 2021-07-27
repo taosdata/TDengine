@@ -118,7 +118,7 @@ int cacheTablePut(cacheTable* pTable, cacheItem* pItem) {
   cacheRemoveTableItem(pTable->pCache, pBucket, pOldItem, pPrev);
   
   pItem->h_next = pBucket->head;
-  pBucket->head->h_next = pItem;
+  pBucket->head = pItem;
   pItem->hash = index;
   pItem->pTable = pTable;
 

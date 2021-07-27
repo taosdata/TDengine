@@ -25,26 +25,29 @@ TEST(cacheTest, testInsert) {
   cacheItem* pItem = NULL;
   char *pData;
   int nBytes;
-  int i = 0, j = 0;
-  char buf[20];
+  int i = 0;
   for (i = 0; i < 1024 * 1024; ++i) {
+    char buf[20] = {0};
     snprintf(buf, sizeof(buf), "0123456789_%d", i);
-    int err = cachePut(pTable, buf, strlen(buf), buf, strlen(buf), 0);
+    size_t nkey = strlen(buf);
+    int err = cachePut(pTable, buf, nkey, buf, nkey, 0);
 
     printf("\nhas push key %s %s\n", buf, err == CACHE_OK ? "success" : "fail");
 
-    pItem = cacheGet(pTable, buf, strlen(buf));
+    pItem = cacheGet(pTable, buf, nkey);
     ASSERT(pItem != NULL);
     
     cacheItemData(pItem, &pData, &nBytes);
-
+    ASSERT_EQ(nkey, nBytes);
     ASSERT(memcmp(pData, buf, nBytes) == 0);
 
-    for (j = 10; j >= 0 && i - j >= 0; j--) {
+    /*
+    for (int j = 10; j >= 0 && i - j >= 0; j--) {
       snprintf(buf, sizeof(buf), "0123456789_%d", i - j);
       pItem = cacheGet(pTable, buf, strlen(buf));
       printf("cache item %s %s\n", buf, pItem == NULL ? "not found" : "found");
     }
+    */
   }
 }
 

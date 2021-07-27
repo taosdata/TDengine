@@ -21,7 +21,8 @@
 #include "cacheSlab.h"
 
 static int check_cache_options(cacheOption* options);
-static int cachePutDataIntoCache(cacheTable* pTable, const char* key, uint8_t nkey, const char* value, uint32_t nbytes, cacheItem** ppItem);
+static int cachePutDataIntoCache(cacheTable* pTable, const char* key, uint8_t nkey, 
+                                const char* value, uint32_t nbytes, cacheItem** ppItem, uint64_t expire);
 
 //static cache_manager_t cache_manager
 
@@ -58,7 +59,7 @@ void  cacheDestroy(cache_t* cache) {
 }
 
 int cachePut(cacheTable* pTable, const char* key, uint8_t nkey, const char* value, uint32_t nbytes, uint64_t expire) {
-  return cachePutDataIntoCache(pTable,key,nkey,value,nbytes,NULL);
+  return cachePutDataIntoCache(pTable,key,nkey,value,nbytes,NULL, expire);
 }
 
 cacheItem* cacheGet(cacheTable* pTable, const char* key, uint8_t nkey) {
@@ -67,8 +68,10 @@ cacheItem* cacheGet(cacheTable* pTable, const char* key, uint8_t nkey) {
   if (pItem) {
     itemIncrRef(pItem);
     uint64_t now = taosGetTimestamp(TSDB_TIME_PRECISION_MILLI);
-    if (cacheItemIsExpired(pItem, now)) { /* is item expired? */      
+    if (cacheItemIsExpired(pItem, now)) { /* is item expired? */
+      /* cacheItemUnlink make ref == 1 */
       cacheItemUnlink(pTable, pItem, true);
+      /* cacheItemRemove make ref == 0 then free item */
       cacheItemRemove(pTable->pCache, pItem);
       pItem = NULL;
     } else if (cacheItemIsNeverExpired(pItem)) {      
@@ -89,12 +92,13 @@ cacheItem* cacheGet(cacheTable* pTable, const char* key, uint8_t nkey) {
   }
   char *loadValue;
   size_t loadLen = 0;
-  if (pTable->option.loadFunc(pTable->option.userData, key, nkey, &loadValue, &loadLen) != CACHE_OK) {
+  uint64_t expire;
+  if (pTable->option.loadFunc(pTable->option.userData, key, nkey, &loadValue, &loadLen, &expire) != CACHE_OK) {
     return NULL;
   }
 
   /* TODO: save in the cache if access only one time? */
-  int ret = cachePutDataIntoCache(pTable,key,nkey,loadValue,loadLen,&pItem);
+  int ret = cachePutDataIntoCache(pTable,key,nkey,loadValue,loadLen,&pItem, expire);
   free(loadValue);
   if (ret != CACHE_OK) {
     return NULL;
@@ -112,8 +116,9 @@ void cacheItemUnreference(cacheItem* pItem) {
   itemDecrRef(pItem);
 }
 
-static int cachePutDataIntoCache(cacheTable* pTable, const char* key, uint8_t nkey, const char* value, uint32_t nbytes, cacheItem** ppItem) {
-  cacheItem* pItem = cacheAllocItem(pTable->pCache, nkey, nbytes, 3600 * 1000);
+static int cachePutDataIntoCache(cacheTable* pTable, const char* key, uint8_t nkey, const char* value,
+                                uint32_t nbytes, cacheItem** ppItem, uint64_t expire) {
+  cacheItem* pItem = cacheAllocItem(pTable->pCache, nkey, nbytes, expire);
   if (pItem == NULL) {
     return CACHE_OOM;
   }
@@ -121,7 +126,8 @@ static int cachePutDataIntoCache(cacheTable* pTable, const char* key, uint8_t nk
   pItem->nkey = nkey;
   pItem->nbytes = nbytes;
   memcpy(item_key(pItem), key, nkey);
-  memcpy(item_data(pItem), value, nbytes);  
+  memcpy(item_data(pItem), value, nbytes);
+  pItem->lastTime = taosGetTimestamp(TSDB_TIME_PRECISION_MILLI);
   cacheTablePut(pTable, pItem);
 
   if (ppItem) {

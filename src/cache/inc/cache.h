@@ -24,7 +24,7 @@
 extern "C" {
 #endif
 
-typedef int (*cache_load_func_t)(void*, const char* key, uint8_t nkey, char** value, size_t *len);
+typedef int (*cache_load_func_t)(void*, const char* key, uint8_t nkey, char** value, size_t *len, uint64_t *pExpire);
 
 typedef struct cacheOption {
   size_t limit;               /* size limit */

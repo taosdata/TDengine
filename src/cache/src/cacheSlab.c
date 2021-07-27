@@ -162,11 +162,11 @@ static void *cacheAllocMemory(cache_t *cache, size_t size) {
 
 static int cacheSlabGrowArray(cache_t *cache, cacheSlabClass *pSlab) {
   if (pSlab->nAllocSlabs == pSlab->nArray) {
-    size_t new_size =  (pSlab->nArray != 0) ? pSlab->nArray * 2 : 16;
-    void *new_array = realloc(pSlab->slabArray, new_size * sizeof(void *));
-    if (new_array == NULL) return 0;
-    pSlab->nAllocSlabs = new_size;
-    pSlab->slabArray = new_array;
+    size_t newSize =  (pSlab->nArray != 0) ? pSlab->nArray * 2 : 16;
+    void *pArray = realloc(pSlab->slabArray, newSize * sizeof(void *));
+    if (pArray == NULL) return 0;
+    pSlab->nAllocSlabs = newSize;
+    pSlab->slabArray = pArray;
   }
 
   return 1;
