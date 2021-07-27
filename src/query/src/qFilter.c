@@ -2351,7 +2351,7 @@ int32_t filterGetTimeRange(SFilterInfo *info, STimeWindow       *win) {
   SFilterRangeCtx *cur = NULL;
   int32_t num = 0;
   int32_t optr = 0;
-  int32_t code = TSDB_CODE_QRY_INVALID_TIME_CONDITION;
+  int32_t code = 0;
   bool empty = false, all = false;
 
   for (int32_t i = 0; i < info->groupNum; ++i) {
@@ -2405,10 +2405,12 @@ int32_t filterGetTimeRange(SFilterInfo *info, STimeWindow       *win) {
     *win = TSWINDOW_INITIALIZER;
   } else {
     filterGetRangeNum(prev, &num);
-    if (num != 1) {
+    if (num > 1) {
       qError("only one time range accepted, num:%d", num);
       ERR_JRET(TSDB_CODE_QRY_INVALID_TIME_CONDITION);
     }
+
+    CHK_JMP(num < 1);
 
     SFilterRange tra;
     filterGetRangeRes(prev, &tra);

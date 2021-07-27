@@ -245,7 +245,7 @@ SCond* tsGetSTableQueryCond(STagCond* pCond, uint64_t uid);
 void   tsSetSTableQueryCond(STagCond* pTagCond, uint64_t uid, SBufferWriter* bw);
 
 int32_t tscTagCondCopy(STagCond* dest, const STagCond* src);
-int32_t tscColCondCopy(SArray** dest, const SArray* src);
+int32_t tscColCondCopy(SArray** dest, const SArray* src, uint64_t uid, int16_t tidx);
 void tscTagCondRelease(STagCond* pCond);
 void tscColCondRelease(SArray** pCond);
 void tscGetSrcColumnInfo(SSrcColumnInfo* pColInfo, SQueryInfo* pQueryInfo);

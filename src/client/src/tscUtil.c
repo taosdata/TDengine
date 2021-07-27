@@ -2999,7 +2999,7 @@ int32_t tscTagCondCopy(STagCond* dest, const STagCond* src) {
   return 0;
 }
 
-int32_t tscColCondCopy(SArray** dest, const SArray* src) {
+int32_t tscColCondCopy(SArray** dest, const SArray* src, uint64_t uid, int16_t tidx) {
   if (src == NULL) {
     return 0;
   }
@@ -3009,11 +3009,20 @@ int32_t tscColCondCopy(SArray** dest, const SArray* src) {
   
   for (int32_t i = 0; i < s; ++i) {
     STblCond* pCond = taosArrayGet(src, i);
-    
     STblCond c = {0};
+
+    if (tidx > 0) {
+      if (!(pCond->uid == uid && pCond->idx == tidx)) {
+        continue;
+      }
+
+      c.idx = 0;
+    } else {
+      c.idx = pCond->idx;
+    }
+    
     c.len = pCond->len;
     c.uid = pCond->uid;
-    c.idx = pCond->idx;
     
     if (pCond->len > 0) {
       assert(pCond->cond != NULL);
@@ -3329,7 +3338,7 @@ int32_t tscQueryInfoCopy(SQueryInfo* pQueryInfo, const SQueryInfo* pSrc) {
     goto _error;
   }
 
-  if (tscColCondCopy(&pQueryInfo->colCond, pSrc->colCond) != 0) {
+  if (tscColCondCopy(&pQueryInfo->colCond, pSrc->colCond, 0, -1) != 0) {
     code = TSDB_CODE_TSC_OUT_OF_MEMORY;
     goto _error;
   }
@@ -3729,7 +3738,7 @@ SSqlObj* createSubqueryObj(SSqlObj* pSql, int16_t tableIndex, __async_cb_func_t 
     goto _error;
   }
 
-  if (tscColCondCopy(&pNewQueryInfo->colCond, pQueryInfo->colCond) != 0) {
+  if (tscColCondCopy(&pNewQueryInfo->colCond, pQueryInfo->colCond, pTableMetaInfo->pTableMeta->id.uid, tableIndex) != 0) {
     terrno = TSDB_CODE_TSC_OUT_OF_MEMORY;
     goto _error;
   }

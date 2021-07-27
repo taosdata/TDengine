@@ -50,10 +50,10 @@ sql insert into tb6 values ('2021-05-05 18:19:26',63,63.0,63,63,63,63.0,false,'6
 sql insert into tb6 values ('2021-05-05 18:19:27',64,64.0,64,64,64,64.0,false,'64','64')
 sql insert into tb6 values ('2021-05-05 18:19:28',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL)
 
-sql create table stb2 (ts timestamp, u1 int unsigned, u2 bigint unsigned, u3 smallint unsigned, u4 tinyint unsigned, ts2 timestamp) TAGS(t1 int unsigned, t2 bigint unsigned, t3 timestamp)
+sql create table stb2 (ts timestamp, u1 int unsigned, u2 bigint unsigned, u3 smallint unsigned, u4 tinyint unsigned, ts2 timestamp) TAGS(t1 int unsigned, t2 bigint unsigned, t3 timestamp, t4 int)
 
-sql create table tb2_1 using stb2 tags(1,1,'2021-05-05 18:38:38')
-sql create table tb2_2 using stb2 tags(2,2,'2021-05-05 18:58:58')
+sql create table tb2_1 using stb2 tags(1,1,'2021-05-05 18:38:38',1)
+sql create table tb2_2 using stb2 tags(2,2,'2021-05-05 18:58:58',2)
 
 sql insert into tb2_1 values ('2021-05-05 18:19:00',1,2,3,4,'2021-05-05 18:28:01')
 sql insert into tb2_1 values ('2021-05-05 18:19:01',5,6,7,8,'2021-05-05 18:28:02')

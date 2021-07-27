@@ -2321,7 +2321,7 @@ int32_t tscHandleFirstRoundStableQuery(SSqlObj *pSql) {
     goto _error;
   }
 
-  if (tscColCondCopy(&pNewQueryInfo->colCond, pQueryInfo->colCond) != 0) {
+  if (tscColCondCopy(&pNewQueryInfo->colCond, pQueryInfo->colCond, pTableMetaInfo->pTableMeta->id.uid, 0) != 0) {
     terrno = TSDB_CODE_TSC_OUT_OF_MEMORY;
     goto _error;
   }
