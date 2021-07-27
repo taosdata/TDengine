@@ -1454,6 +1454,9 @@ static bool buildGroupbyInfo(const SSDataBlock *pSDataBlock, const SGroupbyExpr 
 
   for (int32_t k = 0; k < pGroupbyExpr->numOfGroupCols; ++k) {
     SColIndex* pColIndex = taosArrayGet(pGroupbyExpr->columnInfo, k);
+    if (TSDB_COL_IS_TAG(pColIndex->flag)) {
+      continue;
+    }
     for (int32_t i = 0; i < pSDataBlock->info.numOfCols; ++i) {
       SColumnInfoData* pColInfo = taosArrayGet(pSDataBlock->pDataBlock, i);
       if (pColInfo->info.colId == pColIndex->colId) {
