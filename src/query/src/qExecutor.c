@@ -6479,7 +6479,7 @@ static SSDataBlock* doTagScan(void* param, bool* newgroup) {
     pOperator->status = OP_EXEC_DONE;
     qDebug("QInfo:0x%"PRIx64" create count(tbname) query, res:%d rows:1", GET_QID(pRuntimeEnv), count);
   } else {  // return only the tags|table name etc.
-    SExprInfo* pExprInfo = pOperator->pExpr;  // todo use the column list instead of exprinfo
+    SExprInfo* pExprInfo = &pOperator->pExpr[0];  // todo use the column list instead of exprinfo
 
     count = 0;
     while(pInfo->curPos < pInfo->totalTables && count < maxNumOfTables) {
@@ -6567,11 +6567,23 @@ static SSDataBlock* hashDistinct(void* param, bool* newgroup) {
     if (pBlock == NULL) {
       setQueryStatus(pOperator->pRuntimeEnv, QUERY_COMPLETED);
       pOperator->status = OP_EXEC_DONE;
+      break;
+    }
+    if (pInfo->colIndex == -1) {
+      for (int i = 0; i < taosArrayGetSize(pBlock->pDataBlock); i++) {
+        SColumnInfoData* pColDataInfo = taosArrayGet(pBlock->pDataBlock, i);
+        if (pColDataInfo->info.colId == pOperator->pExpr[0].base.resColId) {
+          pInfo->colIndex = i;  
+          break;
+        }
+      }
+    }
+    if (pInfo->colIndex == -1) {
+      setQueryStatus(pOperator->pRuntimeEnv, QUERY_COMPLETED);
+      pOperator->status = OP_EXEC_DONE;
       return NULL;
     }
-
-    assert(pBlock->info.numOfCols == 1);
-    SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, 0);
+    SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, pInfo->colIndex);
 
     int16_t bytes = pColInfoData->info.bytes;
     int16_t type = pColInfoData->info.type;
@@ -6623,7 +6635,8 @@ static SSDataBlock* hashDistinct(void* param, bool* newgroup) {
 
 SOperatorInfo* createDistinctOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorInfo* upstream, SExprInfo* pExpr, int32_t numOfOutput) {
   SDistinctOperatorInfo* pInfo = calloc(1, sizeof(SDistinctOperatorInfo));
-
+  pInfo->colIndex        = -1;
+  pInfo->threshold       = 10000000; // distinct result threshold
   pInfo->outputCapacity = 4096;
   pInfo->pSet = taosHashInit(64, taosGetDefaultHashFunction(pExpr->base.colType), false, HASH_NO_LOCK);
   pInfo->pRes = createOutputBuf(pExpr, numOfOutput, (int32_t) pInfo->outputCapacity);
@@ -6638,6 +6651,7 @@ SOperatorInfo* createDistinctOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperat
   pOperator->info         = pInfo;
   pOperator->pRuntimeEnv  = pRuntimeEnv;
   pOperator->exec         = hashDistinct;
+  pOperator->pExpr        = pExpr; 
   pOperator->cleanup      = destroyDistinctOperatorInfo;
 
   appendUpstream(pOperator, upstream);
