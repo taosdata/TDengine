@@ -164,7 +164,7 @@ static int cacheSlabGrowArray(cache_t *cache, cacheSlabClass *pSlab) {
     size_t new_size =  (pSlab->nArray != 0) ? pSlab->nArray * 2 : 16;
     void *new_array = realloc(pSlab->slabArray, new_size * sizeof(void *));
     if (new_array == NULL) return 0;
-    pSlab->nArray = new_size;
+    pSlab->nAllocSlabs = new_size;
     pSlab->slabArray = new_array;
   }
 
