@@ -986,8 +986,8 @@ int taos_load_table_info(TAOS *taos, const char *tableNameList) {
 
   if (code != TSDB_CODE_SUCCESS) {
     tscFreeSqlObj(pSql);
-    taosArrayDestroyEx(plist);
-    taosArrayDestroyEx(vgroupList);
+    taosArrayDestroyEx(plist, freeElem);
+    taosArrayDestroyEx(vgroupList, freeElem);
     return code;
   }
 
