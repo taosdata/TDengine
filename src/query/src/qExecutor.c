@@ -2847,7 +2847,10 @@ int32_t loadDataBlockOnDemand(SQueryRuntimeEnv* pRuntimeEnv, STableScanInfo* pTa
       return terrno;
     }
 
-    doSetFilterColInfo(pQueryAttr->pFilters, pBlock);
+    if (pQueryAttr->pFilters != NULL) {
+      doSetFilterColInfo(pQueryAttr->pFilters, pBlock);
+    }
+    
     if (pQueryAttr->pFilters != NULL || pRuntimeEnv->pTsBuf != NULL) {
       filterColRowsInDataBlock(pRuntimeEnv, pBlock, ascQuery);
     }
@@ -7575,6 +7578,8 @@ _cleanup_qinfo:
 
   tfree(pExprs);
 
+  filterFreeInfo(pFilters);
+
 _cleanup:
   freeQInfo(pQInfo);
   return NULL;
@@ -7930,6 +7935,8 @@ void freeQueryAttr(SQueryAttr* pQueryAttr) {
       taosArrayDestroy(pQueryAttr->pGroupbyExpr->columnInfo);
       tfree(pQueryAttr->pGroupbyExpr);
     }
+
+    filterFreeInfo(pQueryAttr->pFilters);
   }
 }
 

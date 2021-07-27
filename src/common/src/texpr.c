@@ -513,7 +513,8 @@ void convertFilterSetFromBinary(void **q, const char *buf, int32_t len, uint32_t
   tVariant tmpVar = {0};  
   size_t  t = 0;
   int32_t sz = tbufReadInt32(&br);
-  void *pvar = NULL;
+  void *pvar = NULL;  
+  int64_t val = 0;
   int32_t bufLen = 0;
   if (IS_NUMERIC_TYPE(sType)) {
     bufLen = 60;  // The maximum length of string that a number is converted to.
@@ -528,21 +529,21 @@ void convertFilterSetFromBinary(void **q, const char *buf, int32_t len, uint32_t
     case TSDB_DATA_TYPE_BOOL:
     case TSDB_DATA_TYPE_UTINYINT:
     case TSDB_DATA_TYPE_TINYINT: {
-      uint8_t val = (uint8_t)tbufReadInt64(&br); 
+      *(uint8_t *)&val = (uint8_t)tbufReadInt64(&br); 
       t = sizeof(val);
       pvar = &val;
       break;
     }
     case TSDB_DATA_TYPE_USMALLINT:
     case TSDB_DATA_TYPE_SMALLINT: {
-      uint16_t val = (uint16_t)tbufReadInt64(&br); 
+      *(uint16_t *)&val = (uint16_t)tbufReadInt64(&br); 
       t = sizeof(val);
       pvar = &val;
       break;
     }
     case TSDB_DATA_TYPE_UINT:
     case TSDB_DATA_TYPE_INT: {
-      uint32_t val = (uint32_t)tbufReadInt64(&br); 
+      *(uint32_t *)&val = (uint32_t)tbufReadInt64(&br); 
       t = sizeof(val);
       pvar = &val;
       break;
@@ -550,31 +551,29 @@ void convertFilterSetFromBinary(void **q, const char *buf, int32_t len, uint32_t
     case TSDB_DATA_TYPE_TIMESTAMP:
     case TSDB_DATA_TYPE_UBIGINT:
     case TSDB_DATA_TYPE_BIGINT: {
-      uint64_t val = (uint64_t)tbufReadInt64(&br); 
+      *(uint64_t *)&val = (uint64_t)tbufReadInt64(&br); 
       t = sizeof(val);
       pvar = &val;
       break;
     }
     case TSDB_DATA_TYPE_DOUBLE: {
-      double  val = tbufReadDouble(&br);
+      *(double *)&val = tbufReadDouble(&br);
       t = sizeof(val);
       pvar = &val;
       break;
     }
     case TSDB_DATA_TYPE_FLOAT: {
-      float  val = (float)tbufReadDouble(&br);
+      *(float *)&val = (float)tbufReadDouble(&br);
       t = sizeof(val);
       pvar = &val;
       break;
     }
     case TSDB_DATA_TYPE_BINARY: {
-      char *val = (char *)tbufReadBinary(&br, &t);
-      pvar = val;
+      pvar = (char *)tbufReadBinary(&br, &t);
       break;
     }
     case TSDB_DATA_TYPE_NCHAR: {
-      char *val = (char *)tbufReadBinary(&br, &t);      
-      pvar = val;
+      pvar = (char *)tbufReadBinary(&br, &t);      
       break;
     }
     default:
@@ -594,7 +593,6 @@ void convertFilterSetFromBinary(void **q, const char *buf, int32_t len, uint32_t
       case TSDB_DATA_TYPE_BOOL:
       case TSDB_DATA_TYPE_UTINYINT:
       case TSDB_DATA_TYPE_TINYINT: {
-        int8_t val = 0; 
         if (tVariantDump(&tmpVar, (char *)&val, tType, false)) {
           goto err_ret;
         }
@@ -604,7 +602,6 @@ void convertFilterSetFromBinary(void **q, const char *buf, int32_t len, uint32_t
       }
       case TSDB_DATA_TYPE_USMALLINT:
       case TSDB_DATA_TYPE_SMALLINT: {
-        int16_t val = 0; 
         if (tVariantDump(&tmpVar, (char *)&val, tType, false)) {
           goto err_ret;
         }
@@ -614,7 +611,6 @@ void convertFilterSetFromBinary(void **q, const char *buf, int32_t len, uint32_t
       }
       case TSDB_DATA_TYPE_UINT:
       case TSDB_DATA_TYPE_INT: {
-        int32_t val = 0; 
         if (tVariantDump(&tmpVar, (char *)&val, tType, false)) {
           goto err_ret;
         }
@@ -625,7 +621,6 @@ void convertFilterSetFromBinary(void **q, const char *buf, int32_t len, uint32_t
       case TSDB_DATA_TYPE_TIMESTAMP:
       case TSDB_DATA_TYPE_UBIGINT:
       case TSDB_DATA_TYPE_BIGINT: {
-        int64_t val = 0; 
         if (tVariantDump(&tmpVar, (char *)&val, tType, false)) {
           goto err_ret;
         }
@@ -634,7 +629,6 @@ void convertFilterSetFromBinary(void **q, const char *buf, int32_t len, uint32_t
         break;
       }
       case TSDB_DATA_TYPE_DOUBLE: {
-        double  val = 0;
         if (tVariantDump(&tmpVar, (char *)&val, tType, false)) {
           goto err_ret;
         }
@@ -643,7 +637,6 @@ void convertFilterSetFromBinary(void **q, const char *buf, int32_t len, uint32_t
         break;
       }
       case TSDB_DATA_TYPE_FLOAT: {
-        float  val = 0;
         if (tVariantDump(&tmpVar, (char *)&val, tType, false)) {
           goto err_ret;
         }
@@ -672,12 +665,15 @@ void convertFilterSetFromBinary(void **q, const char *buf, int32_t len, uint32_t
     }
     
     taosHashPut(pObj, (char *)pvar, t,  &dummy, sizeof(dummy));
+    tVariantDestroy(&tmpVar);
+    memset(&tmpVar, 0, sizeof(tmpVar));
   } 
 
   *q = (void *)pObj;
   pObj = NULL;
   
 err_ret:  
+  tVariantDestroy(&tmpVar);
   taosHashCleanup(pObj);
   tfree(tmp);
 }

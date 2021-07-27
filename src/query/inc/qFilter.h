@@ -36,6 +36,7 @@ enum {
   FLD_TYPE_MAX = 3,
   FLD_DESC_NO_FREE = 4,
   FLD_DATA_NO_FREE = 8,
+  FLD_DATA_IS_HASH = 16,
 };
 
 enum {
@@ -64,6 +65,7 @@ enum {
   FI_STATUS_ALL = 1,
   FI_STATUS_EMPTY = 2,
   FI_STATUS_REWRITE = 4,
+  FI_STATUS_CLONED = 8,
 };
 
 enum {
@@ -187,7 +189,6 @@ typedef struct SFilterUnit {
 } SFilterUnit;
 
 typedef struct SFilterPCtx {
-  SHashObj *colHash;
   SHashObj *valHash;
   SHashObj *unitHash;
 } SFilterPCtx;
@@ -232,7 +233,7 @@ typedef struct SFilterInfo {
 
 #define RESET_RANGE(ctx, r) do { (r)->next = (ctx)->rf; (ctx)->rf = r; } while (0)
 #define FREE_RANGE(ctx, r) do { if ((r)->prev) { (r)->prev->next = (r)->next; } else { (ctx)->rs = (r)->next;} if ((r)->next) { (r)->next->prev = (r)->prev; } RESET_RANGE(ctx, r); } while (0)
-#define FREE_FROM_RANGE(ctx, r) do { if ((r)->prev) { (r)->prev->next = NULL; } else { (ctx)->rs = NULL;} while (r) {SFilterRangeNode *n = (r)->next; RESET_RANGE(ctx, r); r = n; } } while (0)
+#define FREE_FROM_RANGE(ctx, r) do { SFilterRangeNode *_r = r; if ((_r)->prev) { (_r)->prev->next = NULL; } else { (ctx)->rs = NULL;} while (_r) {SFilterRangeNode *n = (_r)->next; RESET_RANGE(ctx, _r); _r = n; } } while (0)
 #define INSERT_RANGE(ctx, r, ra) do { SFilterRangeNode *n = filterNewRange(ctx, ra); n->prev = (r)->prev; if ((r)->prev) { (r)->prev->next = n; } else { (ctx)->rs = n; } (r)->prev = n; n->next = r; } while (0)
 #define APPEND_RANGE(ctx, r, ra) do { SFilterRangeNode *n = filterNewRange(ctx, ra); n->prev = (r); if (r) { (r)->next = n; } else { (ctx)->rs = n; } } while (0)
 

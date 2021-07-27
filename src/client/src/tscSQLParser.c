@@ -3424,8 +3424,8 @@ static int32_t doExtractColumnFilterInfo(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, 
     retVal = tVariantDump(&pRight->value, (char*)pColumnFilter->pz, colType, false);
 
   } else if (colType == TSDB_DATA_TYPE_NCHAR) {
-    // pRight->value.nLen + 1 is larger than the actual nchar string length
-    pColumnFilter->pz = (int64_t)calloc(1, bufLen * TSDB_NCHAR_SIZE);
+    // bufLen + 1 is larger than the actual nchar string length
+    pColumnFilter->pz = (int64_t)calloc(1, (bufLen + 1) * TSDB_NCHAR_SIZE);
     retVal = tVariantDump(&pRight->value, (char*)pColumnFilter->pz, colType, false);
     size_t len = twcslen((wchar_t*)pColumnFilter->pz);
     pColumnFilter->len = len * TSDB_NCHAR_SIZE;
@@ -3652,14 +3652,10 @@ static int32_t getColQueryCondExpr(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSqlEx
     }
 
     tExprNode* p = NULL;
-    //SFilterInfo colFilter = {0};
-  
-    SArray* colList = taosArrayInit(10, sizeof(SColIndex));
-    ret = exprTreeFromSqlExpr(pCmd, &p, p1, pQueryInfo, colList, NULL);
-    //if (ret == TSDB_CODE_SUCCESS) {
-    //  ret = filterInitFromTree(p, &colFilter, (int32_t)taosArrayGetSize(colList));
-    //}
 
+    SArray* colList = taosArrayInit(10, sizeof(SColIndex));  
+    ret = exprTreeFromSqlExpr(pCmd, &p, p1, pQueryInfo, colList, NULL);
+    taosArrayDestroy(colList);
 
     SBufferWriter bw = tbufInitWriter(NULL, false);
 
@@ -5045,8 +5041,10 @@ static int32_t getQueryTimeRange(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSqlExpr
   tExprNode* p = NULL;
   SFilterInfo *filter = NULL;
 
-  SArray* colList = taosArrayInit(10, sizeof(SColIndex));
+  SArray* colList = taosArrayInit(10, sizeof(SColIndex));  
   ret = exprTreeFromSqlExpr(pCmd, &p, *pExpr, pQueryInfo, colList, NULL);
+  taosArrayDestroy(colList);
+
   if (ret != TSDB_CODE_SUCCESS) {
     goto _ret;
   }
@@ -5057,6 +5055,8 @@ static int32_t getQueryTimeRange(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSqlExpr
   }
 
   ret = filterGetTimeRange(filter, &pQueryInfo->window);
+
+  filterFreeInfo(filter);
 
 _ret:
   tExprTreeDestroy(p, NULL);
@@ -5100,7 +5100,7 @@ int32_t validateWhereNode(SQueryInfo* pQueryInfo, tSqlExpr** pExpr, SSqlObj* pSq
 #endif
 
   if ((ret = getQueryCondExpr(&pSql->cmd, pQueryInfo, pExpr, &condExpr, etype, &tbIdx, (*pExpr)->tokenId, &condExpr.pColumnCond, &condExpr.pTimewindow)) != TSDB_CODE_SUCCESS) {
-    return ret;
+    goto PARSE_WHERE_EXIT;
   }
 
   if (taosArrayGetSize(pQueryInfo->pUpstream) > 0 && condExpr.pTimewindow != NULL) {
@@ -5115,21 +5115,21 @@ int32_t validateWhereNode(SQueryInfo* pQueryInfo, tSqlExpr** pExpr, SSqlObj* pSq
 
   // 1. check if it is a join query
   if ((ret = validateJoinExpr(&pSql->cmd, pQueryInfo, &condExpr)) != TSDB_CODE_SUCCESS) {
-    return ret;
+    goto PARSE_WHERE_EXIT;
   }
 
   // 2. get the query time range
   if ((ret = convertTimeRangeFromExpr(&pSql->cmd, pQueryInfo, condExpr.pTimewindow)) != TSDB_CODE_SUCCESS) {
-    return ret;
+    goto PARSE_WHERE_EXIT;
   }
 
   if ((ret = getQueryTimeRange(&pSql->cmd, pQueryInfo, &condExpr.pTimewindow)) != TSDB_CODE_SUCCESS) {
-    return ret;
+    goto PARSE_WHERE_EXIT;
   }
 
   // 3. get the tag query condition
   if ((ret = getTagQueryCondExpr(&pSql->cmd, pQueryInfo, &condExpr, pExpr)) != TSDB_CODE_SUCCESS) {
-    return ret;
+    goto PARSE_WHERE_EXIT;
   }
 
   // 4. get the table name query condition
@@ -8613,12 +8613,15 @@ int32_t exprTreeFromSqlExpr(SSqlCmd* pCmd, tExprNode **pExpr, const tSqlExpr* pS
     } else if (pSqlExpr->tokenId == TK_SET) {
       int32_t colType = -1;
       STableMeta* pTableMeta = tscGetMetaInfo(pQueryInfo, pQueryInfo->curTableIdx)->pTableMeta;
-      size_t colSize = taosArrayGetSize(pCols);
-      if (pCols != NULL && colSize > 0) {
-        SColIndex* idx = taosArrayGet(pCols, colSize - 1);
-        SSchema* pSchema = tscGetTableColumnSchema(pTableMeta, idx->colIndex);
-        if (pSchema != NULL) {
-          colType = pSchema->type;
+      if (pCols != NULL) {
+        size_t colSize = taosArrayGetSize(pCols);
+
+        if (colSize > 0) {
+          SColIndex* idx = taosArrayGet(pCols, colSize - 1);
+          SSchema* pSchema = tscGetTableColumnSchema(pTableMeta, idx->colIndex);
+          if (pSchema != NULL) {
+            colType = pSchema->type;
+          }
         }
       }
       tVariant *pVal;

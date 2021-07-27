@@ -175,6 +175,7 @@ int32_t qCreateQueryInfo(void* tsdb, int32_t vgId, SQueryTableMsg* pQueryMsg, qi
   param.pSecExprs = NULL;
   param.pGroupbyExpr = NULL;
   param.pTagColumnInfo = NULL;
+  param.pFilters = NULL;
 
   if ((*pQInfo) == NULL) {
     code = TSDB_CODE_QRY_OUT_OF_MEMORY;
@@ -199,6 +200,8 @@ int32_t qCreateQueryInfo(void* tsdb, int32_t vgId, SQueryTableMsg* pQueryMsg, qi
     SColumnInfo* column = pQueryMsg->tableCols + i;
     freeColumnFilterInfo(column->flist.filterInfo, column->flist.numOfFilters);
   }
+
+  filterFreeInfo(param.pFilters);
 
   //pQInfo already freed in initQInfo, but *pQInfo may not pointer to null;
   if (code != TSDB_CODE_SUCCESS) {

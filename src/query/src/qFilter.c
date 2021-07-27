@@ -581,6 +581,13 @@ int32_t filterFreeRangeCtx(void* h) {
     r = rn;
   }
 
+  r = ctx->rf;
+  while (r) {
+    rn = r->next;
+    free(r);
+    r = rn;
+  }
+
   free(ctx);
 
   return TSDB_CODE_SUCCESS;
@@ -654,7 +661,7 @@ int32_t filterGetFiledByData(SFilterInfo *info, int32_t type, void *v, int32_t d
 }
 
 
-int32_t filterAddField(SFilterInfo *info, void *desc, void *data, int32_t type, SFilterFieldId *fid, int32_t dataLen) {
+int32_t filterAddField(SFilterInfo *info, void *desc, void **data, int32_t type, SFilterFieldId *fid, int32_t dataLen, bool freeIfExists) {
   int32_t idx = -1;
   uint16_t *num;
 
@@ -663,8 +670,8 @@ int32_t filterAddField(SFilterInfo *info, void *desc, void *data, int32_t type, 
   if (*num > 0) {
     if (type == FLD_TYPE_COLUMN) {
       idx = filterGetFiledByDesc(&info->fields[type], type, desc);
-    } else if (dataLen > 0 && FILTER_GET_FLAG(info->options, FI_OPTION_NEED_UNIQE)) {
-      idx = filterGetFiledByData(info, type, data, dataLen);
+    } else if (data && (*data) && dataLen > 0 && FILTER_GET_FLAG(info->options, FI_OPTION_NEED_UNIQE)) {
+      idx = filterGetFiledByData(info, type, *data, dataLen);
     }
   }
   
@@ -677,15 +684,28 @@ int32_t filterAddField(SFilterInfo *info, void *desc, void *data, int32_t type, 
     
     info->fields[type].fields[idx].flag = type;  
     info->fields[type].fields[idx].desc = desc;
-    info->fields[type].fields[idx].data = data;
+    info->fields[type].fields[idx].data = data ? *data : NULL;
+
+    if (type == FLD_TYPE_COLUMN) {
+      FILTER_SET_FLAG(info->fields[type].fields[idx].flag, FLD_DATA_NO_FREE);
+    }
+
     ++(*num);
 
-    if (data && dataLen > 0 && FILTER_GET_FLAG(info->options, FI_OPTION_NEED_UNIQE)) {
+    if (data && (*data) && dataLen > 0 && FILTER_GET_FLAG(info->options, FI_OPTION_NEED_UNIQE)) {
       if (info->pctx.valHash == NULL) {
         info->pctx.valHash = taosHashInit(FILTER_DEFAULT_GROUP_SIZE * FILTER_DEFAULT_VALUE_SIZE, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, false);
       }
       
-      taosHashPut(info->pctx.valHash, data, dataLen, &idx, sizeof(idx));
+      taosHashPut(info->pctx.valHash, *data, dataLen, &idx, sizeof(idx));
+    }
+  } else {
+    if (freeIfExists) {
+      tfree(desc);
+    }
+
+    if (data && freeIfExists) {
+      tfree(*data);
     }
   }
 
@@ -696,7 +716,7 @@ int32_t filterAddField(SFilterInfo *info, void *desc, void *data, int32_t type, 
 }
 
 static FORCE_INLINE int32_t filterAddColFieldFromField(SFilterInfo *info, SFilterField *field, SFilterFieldId *fid) {
-  filterAddField(info, field->desc, field->data, FILTER_GET_TYPE(field->flag), fid, 0);
+  filterAddField(info, field->desc, &field->data, FILTER_GET_TYPE(field->flag), fid, 0, false);
 
   FILTER_SET_FLAG(field->flag, FLD_DESC_NO_FREE);
   FILTER_SET_FLAG(field->flag, FLD_DATA_NO_FREE);
@@ -722,7 +742,7 @@ int32_t filterAddFieldFromNode(SFilterInfo *info, tExprNode *node, SFilterFieldI
     node->pVal = NULL;
   }
 
-  filterAddField(info, v, NULL, type, fid, 0);
+  filterAddField(info, v, NULL, type, fid, 0, true);
   
   return TSDB_CODE_SUCCESS;
 }
@@ -829,7 +849,7 @@ int32_t filterAddGroupUnitFromNode(SFilterInfo *info, tExprNode* tree, SArray *g
         len = tDataTypes[type].bytes;
       }
       
-      filterAddField(info, NULL, fdata, FLD_TYPE_VALUE, &right, len);
+      filterAddField(info, NULL, &fdata, FLD_TYPE_VALUE, &right, len, true);
 
       filterAddUnit(info, TSDB_RELATION_EQUAL, &left, &right, &uidx);
       
@@ -840,6 +860,8 @@ int32_t filterAddGroupUnitFromNode(SFilterInfo *info, tExprNode* tree, SArray *g
       
       p = taosHashIterate((SHashObj *)data, p);
     }
+
+    taosHashCleanup(data);
   } else {
     filterAddFieldFromNode(info, tree->_node.pRight, &right);  
     
@@ -858,28 +880,34 @@ int32_t filterAddGroupUnitFromNode(SFilterInfo *info, tExprNode* tree, SArray *g
 int32_t filterAddUnitFromUnit(SFilterInfo *dst, SFilterInfo *src, SFilterUnit* u, uint16_t *uidx) {
   SFilterFieldId left, right, *pright = &right;
   int32_t type = FILTER_UNIT_DATA_TYPE(u);
+  uint16_t flag = FLD_DESC_NO_FREE;
 
-  filterAddField(dst, FILTER_UNIT_COL_DESC(src, u), NULL, FLD_TYPE_COLUMN, &left, 0);
+  filterAddField(dst, FILTER_UNIT_COL_DESC(src, u), NULL, FLD_TYPE_COLUMN, &left, 0, false);
   SFilterField *t = FILTER_UNIT_LEFT_FIELD(src, u);
-  FILTER_SET_FLAG(t->flag, FLD_DESC_NO_FREE);
-
+  FILTER_SET_FLAG(t->flag, flag);
+  
   if (u->right.type == FLD_TYPE_VALUE) {
     void *data = FILTER_UNIT_VAL_DATA(src, u);
     if (IS_VAR_DATA_TYPE(type)) {
       if (FILTER_UNIT_OPTR(u) ==  TSDB_RELATION_IN) {
-        filterAddField(dst, NULL, data, FLD_TYPE_VALUE, &right, 0);
+        filterAddField(dst, NULL, &data, FLD_TYPE_VALUE, &right, 0, false);
+
+        t = FILTER_GET_FIELD(dst, right);
+        
+        FILTER_SET_FLAG(t->flag, FLD_DATA_IS_HASH);
       } else {
-        filterAddField(dst, NULL, data, FLD_TYPE_VALUE, &right, varDataTLen(data));
+        filterAddField(dst, NULL, &data, FLD_TYPE_VALUE, &right, varDataTLen(data), false);
       }
     } else {
-      filterAddField(dst, NULL, data, FLD_TYPE_VALUE, &right, tDataTypes[type].bytes);
+      filterAddField(dst, NULL, &data, FLD_TYPE_VALUE, &right, tDataTypes[type].bytes, false);
     }
+
+    flag = FLD_DATA_NO_FREE;    
     t = FILTER_UNIT_RIGHT_FIELD(src, u);
-    FILTER_SET_FLAG(t->flag, FLD_DATA_NO_FREE);
+    FILTER_SET_FLAG(t->flag, flag);
   } else {
     pright = NULL;
   }
-  
 
   return filterAddUnit(dst, FILTER_UNIT_OPTR(u), &left, pright, uidx);
 }
@@ -926,7 +954,7 @@ int32_t filterAddGroupUnitFromCtx(SFilterInfo *dst, SFilterInfo *src, SFilterRan
       if (func(&ra->s, &ra->e) == 0) {
         void *data = malloc(sizeof(int64_t));
         SIMPLE_COPY_VALUES(data, &ra->s);
-        filterAddField(dst, NULL, data, FLD_TYPE_VALUE, &right, tDataTypes[type].bytes);
+        filterAddField(dst, NULL, &data, FLD_TYPE_VALUE, &right, tDataTypes[type].bytes, true);
         filterAddUnit(dst, TSDB_RELATION_EQUAL, &left, &right, &uidx);
         filterAddUnitToGroup(g, uidx);
         return TSDB_CODE_SUCCESS;              
@@ -936,7 +964,7 @@ int32_t filterAddGroupUnitFromCtx(SFilterInfo *dst, SFilterInfo *src, SFilterRan
     if (!FILTER_GET_FLAG(ra->sflag, RA_NULL)) {
       void *data = malloc(sizeof(int64_t));
       SIMPLE_COPY_VALUES(data, &ra->s);
-      filterAddField(dst, NULL, data, FLD_TYPE_VALUE, &right, tDataTypes[type].bytes);
+      filterAddField(dst, NULL, &data, FLD_TYPE_VALUE, &right, tDataTypes[type].bytes, true);
       filterAddUnit(dst, FILTER_GET_FLAG(ra->sflag, RA_EXCLUDE) ? TSDB_RELATION_GREATER : TSDB_RELATION_GREATER_EQUAL, &left, &right, &uidx);
       filterAddUnitToGroup(g, uidx);
     }
@@ -944,7 +972,7 @@ int32_t filterAddGroupUnitFromCtx(SFilterInfo *dst, SFilterInfo *src, SFilterRan
     if (!FILTER_GET_FLAG(ra->eflag, RA_NULL)) {
       void *data = malloc(sizeof(int64_t));
       SIMPLE_COPY_VALUES(data, &ra->e);
-      filterAddField(dst, NULL, data, FLD_TYPE_VALUE, &right, tDataTypes[type].bytes);
+      filterAddField(dst, NULL, &data, FLD_TYPE_VALUE, &right, tDataTypes[type].bytes, true);
       filterAddUnit(dst, FILTER_GET_FLAG(ra->eflag, RA_EXCLUDE) ? TSDB_RELATION_LESS : TSDB_RELATION_LESS_EQUAL, &left, &right, &uidx);
       filterAddUnitToGroup(g, uidx);
     }    
@@ -990,7 +1018,7 @@ int32_t filterAddGroupUnitFromCtx(SFilterInfo *dst, SFilterInfo *src, SFilterRan
       if (func(&r->ra.s, &r->ra.e) == 0) {
         void *data = malloc(sizeof(int64_t));
         SIMPLE_COPY_VALUES(data, &r->ra.s);
-        filterAddField(dst, NULL, data, FLD_TYPE_VALUE, &right, tDataTypes[type].bytes);
+        filterAddField(dst, NULL, &data, FLD_TYPE_VALUE, &right, tDataTypes[type].bytes, true);
         filterAddUnit(dst, TSDB_RELATION_EQUAL, &left, &right, &uidx);
         filterAddUnitToGroup(g, uidx);
         
@@ -1004,7 +1032,7 @@ int32_t filterAddGroupUnitFromCtx(SFilterInfo *dst, SFilterInfo *src, SFilterRan
     if (!FILTER_GET_FLAG(r->ra.sflag, RA_NULL)) {
       void *data = malloc(sizeof(int64_t));
       SIMPLE_COPY_VALUES(data, &r->ra.s);
-      filterAddField(dst, NULL, data, FLD_TYPE_VALUE, &right, tDataTypes[type].bytes);
+      filterAddField(dst, NULL, &data, FLD_TYPE_VALUE, &right, tDataTypes[type].bytes, true);
       filterAddUnit(dst, FILTER_GET_FLAG(r->ra.sflag, RA_EXCLUDE) ? TSDB_RELATION_GREATER : TSDB_RELATION_GREATER_EQUAL, &left, &right, &uidx);
       filterAddUnitToGroup(g, uidx);
     }
@@ -1012,7 +1040,7 @@ int32_t filterAddGroupUnitFromCtx(SFilterInfo *dst, SFilterInfo *src, SFilterRan
     if (!FILTER_GET_FLAG(r->ra.eflag, RA_NULL)) {
       void *data = malloc(sizeof(int64_t));
       SIMPLE_COPY_VALUES(data, &r->ra.e);    
-      filterAddField(dst, NULL, data, FLD_TYPE_VALUE, &right, tDataTypes[type].bytes);
+      filterAddField(dst, NULL, &data, FLD_TYPE_VALUE, &right, tDataTypes[type].bytes, true);
       filterAddUnit(dst, FILTER_GET_FLAG(r->ra.eflag, RA_EXCLUDE) ? TSDB_RELATION_LESS : TSDB_RELATION_LESS_EQUAL, &left, &right, &uidx);
       filterAddUnitToGroup(g, uidx);
     }
@@ -1031,11 +1059,13 @@ int32_t filterAddGroupUnitFromCtx(SFilterInfo *dst, SFilterInfo *src, SFilterRan
 
 
 static void filterFreeGroup(void *pItem) {
-  SFilterGroup* p = (SFilterGroup*) pItem;
-  if (p) {
-    tfree(p->unitIdxs);
-    tfree(p->unitFlags);
+  if (pItem == NULL) {
+    return;
   }
+  
+  SFilterGroup* p = (SFilterGroup*) pItem;
+  tfree(p->unitIdxs);
+  tfree(p->unitFlags);
 }
 
 
@@ -1113,10 +1143,10 @@ void filterDumpInfoToString(SFilterInfo *info, const char *msg, int32_t options)
           if (var->nType == TSDB_DATA_TYPE_VALUE_ARRAY) {
             qDebug("VAL%d => [type:TS][val:[%" PRIi64"] - [%" PRId64 "]]", i, *(int64_t *)field->data, *(((int64_t *)field->data) + 1)); 
           } else {
-            qDebug("VAL%d => [type:%d][val:%" PRIi64"]", i, var->nType, var->i64); //TODO
+            qDebug("VAL%d => [type:%d][val:%" PRIx64"]", i, var->nType, var->i64); //TODO
           }
-        } else {
-          qDebug("VAL%d => [type:NIL][val:0x%" PRIx64"]", i, *(int64_t *)field->data); //TODO
+        } else if (field->data) {
+          qDebug("VAL%d => [type:NIL][val:NIL]", i); //TODO
         }
       }
 
@@ -1248,10 +1278,67 @@ void filterFreeGroupCtx(SFilterGroupCtx* gRes) {
   tfree(gRes);
 }
 
+void filterFreeField(SFilterField* field, int32_t type) {
+  if (field == NULL) {
+    return;
+  }
+
+  if (!FILTER_GET_FLAG(field->flag, FLD_DESC_NO_FREE)) {
+    if (type == FLD_TYPE_VALUE) {
+      tVariantDestroy(field->desc);
+    }
+    
+    tfree(field->desc);
+  }
+
+  if (!FILTER_GET_FLAG(field->flag, FLD_DATA_NO_FREE)) {
+    if (FILTER_GET_FLAG(field->flag, FLD_DATA_IS_HASH)) {
+      taosHashCleanup(field->data);
+    } else {
+      tfree(field->data);
+    }
+  }
+}
+
+void filterFreePCtx(SFilterPCtx *pctx) {
+  taosHashCleanup(pctx->valHash);
+  taosHashCleanup(pctx->unitHash);
+}
+
 void filterFreeInfo(SFilterInfo *info) {
   CHK_RETV(info == NULL);
 
-  //TODO
+  for (int32_t i = 0; i < FLD_TYPE_MAX; ++i) {
+    for (uint16_t f = 0; f < info->fields[i].num; ++f) {
+      filterFreeField(&info->fields[i].fields[f], i);
+    }
+    
+    tfree(info->fields[i].fields);
+  }
+
+  for (int32_t i = 0; i < info->groupNum; ++i) {
+    filterFreeGroup(&info->groups[i]);    
+  }
+  
+  tfree(info->groups);
+
+  tfree(info->units);
+
+  tfree(info->unitRes);
+
+  tfree(info->unitFlags);
+
+  for (uint16_t i = 0; i < info->colRangeNum; ++i) {
+    filterFreeRangeCtx(info->colRange[i]);
+  }
+
+  tfree(info->colRange);
+
+  filterFreePCtx(&info->pctx);
+
+  if (!FILTER_GET_FLAG(info->status, FI_STATUS_CLONED)) {
+    tfree(info);
+  }
 }
 
 
@@ -1281,14 +1368,16 @@ int32_t filterInitValFieldData(SFilterInfo *info) {
     if (unit->compare.optr == TSDB_RELATION_IN) {
       convertFilterSetFromBinary((void **)&fi->data, var->pz, var->nLen, type);
       CHK_LRET(fi->data == NULL, TSDB_CODE_QRY_APP_ERROR, "failed to convert in param");
-    
+
+      FILTER_SET_FLAG(fi->flag, FLD_DATA_IS_HASH);
+      
       continue;
     }
 
     if (type == TSDB_DATA_TYPE_BINARY) {
-      fi->data = calloc(1, (var->nLen + 1) * TSDB_NCHAR_SIZE);
+      fi->data = calloc(1, var->nLen + VARSTR_HEADER_SIZE);
     } else if (type == TSDB_DATA_TYPE_NCHAR) {
-      fi->data = calloc(1, (var->nLen + 1) * TSDB_NCHAR_SIZE);
+      fi->data = calloc(1, (var->nLen + VARSTR_HEADER_SIZE) * TSDB_NCHAR_SIZE);
     } else {
       if (var->nType == TSDB_DATA_TYPE_VALUE_ARRAY) {  //TIME RANGE
         fi->data = calloc(var->nLen, tDataTypes[type].bytes);
@@ -1488,7 +1577,9 @@ int32_t filterMergeGroupUnits(SFilterInfo *info, SFilterGroupCtx** gRes, int32_t
         colIdx[colIdxi++] = cidx;
         ++gRes[gResIdx]->colNum;
       } else {
-        FILTER_SET_FLAG(info->status, FI_STATUS_REWRITE);
+        if (!FILTER_NO_MERGE_DATA_TYPE(FILTER_UNIT_DATA_TYPE(u))) {
+          FILTER_SET_FLAG(info->status, FI_STATUS_REWRITE);
+        }
       }
       
       FILTER_PUSH_UNIT(gRes[gResIdx]->colInfo[cidx], u);
@@ -1701,8 +1792,12 @@ int32_t filterMergeTwoGroups(SFilterInfo *info, SFilterGroupCtx** gRes1, SFilter
 
 _err_return:
 
-  if (colCtxs && taosArrayGetSize(colCtxs) > 0) {
-    taosArrayDestroyEx(colCtxs, filterFreeColCtx);
+  if (colCtxs) {
+    if (taosArrayGetSize(colCtxs) > 0) {
+      taosArrayDestroyEx(colCtxs, filterFreeColCtx);
+    } else {
+      taosArrayDestroy(colCtxs);
+    }
   }
 
   filterFreeRangeCtx(ctx);
@@ -1823,6 +1918,8 @@ int32_t filterRewrite(SFilterInfo *info, SFilterGroupCtx** gRes, int32_t gResNum
   }
   
   SFilterInfo oinfo = *info;
+
+  FILTER_SET_FLAG(oinfo.status, FI_STATUS_CLONED);
   
   SArray* group = taosArrayInit(FILTER_DEFAULT_GROUP_SIZE, sizeof(SFilterGroup));
   SFilterGroupCtx *res = NULL;
@@ -1831,6 +1928,7 @@ int32_t filterRewrite(SFilterInfo *info, SFilterGroupCtx** gRes, int32_t gResNum
   uint16_t uidx = 0;
 
   memset(info, 0, sizeof(*info));
+  
   info->colRangeNum = oinfo.colRangeNum;
   info->colRange = oinfo.colRange;
   oinfo.colRangeNum = 0;
@@ -1876,6 +1974,8 @@ int32_t filterRewrite(SFilterInfo *info, SFilterGroupCtx** gRes, int32_t gResNum
   filterConvertGroupFromArray(info, group);
 
   taosArrayDestroy(group);
+
+  filterFreeInfo(&oinfo);
 
   return TSDB_CODE_SUCCESS;
 }
@@ -1961,6 +2061,7 @@ int32_t filterGenerateColRange(SFilterInfo *info, SFilterGroupCtx** gRes, int32_
   }
 
 _err_return:
+  tfree(idxNum);
   tfree(idxs);
 
   return TSDB_CODE_SUCCESS;
@@ -1990,12 +2091,13 @@ int32_t filterPreprocess(SFilterInfo *info) {
 
   if (FILTER_GET_FLAG(info->status, FI_STATUS_ALL)) {
     qInfo("Final - FilterInfo: [ALL]");
-    return TSDB_CODE_SUCCESS;
+    goto _return;
   }
 
+  
   if (FILTER_GET_FLAG(info->status, FI_STATUS_EMPTY)) {
     qInfo("Final - FilterInfo: [EMPTY]");
-    return TSDB_CODE_SUCCESS;
+    goto _return;
   }  
 
   filterGenerateColRange(info, gRes, gResNum);
@@ -2005,6 +2107,14 @@ int32_t filterPreprocess(SFilterInfo *info) {
   filterPostProcessRange(info);
 
   filterRewrite(info, gRes, gResNum);
+
+_return:
+
+  for (int32_t i = 0; i < gResNum; ++i) {
+    filterFreeGroupCtx(gRes[i]);
+  }
+
+  tfree(gRes);
   
   return TSDB_CODE_SUCCESS;
 }

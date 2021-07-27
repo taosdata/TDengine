@@ -459,9 +459,7 @@ static void doDestroySqlExprNode(tSqlExpr *pExpr) {
     return;
   }
 
-  if (pExpr->tokenId == TK_STRING) {
-    tVariantDestroy(&pExpr->value);
-  }
+  tVariantDestroy(&pExpr->value);
 
   tSqlExprListDestroy(pExpr->Expr.paramList);
   free(pExpr);

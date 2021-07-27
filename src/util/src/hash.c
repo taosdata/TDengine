@@ -713,7 +713,8 @@ size_t taosHashGetMemSize(const SHashObj *pHashObj) {
 }
 
 FORCE_INLINE void *taosHashGetDataKey(SHashObj *pHashObj, void *data) {
-  return GET_HASH_NODE_KEY(GET_HASH_PNODE(data));
+  SHashNode * node = GET_HASH_PNODE(data);
+  return GET_HASH_NODE_KEY(node);
 }
 
 FORCE_INLINE uint32_t taosHashGetDataKeyLen(SHashObj *pHashObj, void *data) {
