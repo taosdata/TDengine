@@ -964,7 +964,7 @@ JNIEXPORT jlong JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_insertLinesImp(J
   int numLines = (*env)->GetArrayLength(env, lines);
   char** c_lines = calloc(numLines, sizeof(char*));
   if (c_lines == NULL) {
-    jniError("c_lines:%d, alloc memory failed", c_lines);
+    jniError("c_lines:%p, alloc memory failed", c_lines);
     return JNI_OUT_OF_MEMORY;
   }
   for (int i = 0; i < numLines; ++i) {
