@@ -68,7 +68,7 @@ void freeParam(SQueryParam *param) {
   tfree(param->prevResult);
 }
 
-int32_t qCreateQueryInfo(void* tsdb, int32_t vgId, SQueryTableMsg* pQueryMsg, qinfo_t* pQInfo, uint64_t *qId) {
+int32_t qCreateQueryInfo(void* tsdb, int32_t vgId, SQueryTableMsg* pQueryMsg, qinfo_t* pQInfo, uint64_t qId) {
   assert(pQueryMsg != NULL && tsdb != NULL);
 
   int32_t code = TSDB_CODE_SUCCESS;
@@ -93,12 +93,12 @@ int32_t qCreateQueryInfo(void* tsdb, int32_t vgId, SQueryTableMsg* pQueryMsg, qi
 
   SQueriedTableInfo info = { .numOfTags = pQueryMsg->numOfTags, .numOfCols = pQueryMsg->numOfCols, .colList = pQueryMsg->tableCols};
   if ((code = createQueryFunc(&info, pQueryMsg->numOfOutput, &param.pExprs, param.pExpr, param.pTagColumnInfo,
-                              pQueryMsg->queryType, pQueryMsg)) != TSDB_CODE_SUCCESS) {
+                              pQueryMsg->queryType, pQueryMsg, param.pUdfInfo)) != TSDB_CODE_SUCCESS) {
     goto _over;
   }
 
   if (param.pSecExpr != NULL) {
-    if ((code = createIndirectQueryFuncExprFromMsg(pQueryMsg, pQueryMsg->secondStageOutput, &param.pSecExprs, param.pSecExpr, param.pExprs)) != TSDB_CODE_SUCCESS) {
+    if ((code = createIndirectQueryFuncExprFromMsg(pQueryMsg, pQueryMsg->secondStageOutput, &param.pSecExprs, param.pSecExpr, param.pExprs, param.pUdfInfo)) != TSDB_CODE_SUCCESS) {
       goto _over;
     }
   }
@@ -168,7 +168,7 @@ int32_t qCreateQueryInfo(void* tsdb, int32_t vgId, SQueryTableMsg* pQueryMsg, qi
 
   assert(pQueryMsg->stableQuery == isSTableQuery);
   (*pQInfo) = createQInfoImpl(pQueryMsg, param.pGroupbyExpr, param.pExprs, param.pSecExprs, &tableGroupInfo,
-                              param.pTagColumnInfo, param.pFilters, vgId, param.sql, qId);
+                              param.pTagColumnInfo, param.pFilters, vgId, param.sql, qId, param.pUdfInfo);
 
   param.sql    = NULL;
   param.pExprs = NULL;
@@ -181,6 +181,7 @@ int32_t qCreateQueryInfo(void* tsdb, int32_t vgId, SQueryTableMsg* pQueryMsg, qi
     code = TSDB_CODE_QRY_OUT_OF_MEMORY;
     goto _over;
   }
+  param.pUdfInfo = NULL;
 
   code = initQInfo(&pQueryMsg->tsBuf, tsdb, NULL, *pQInfo, &param, (char*)pQueryMsg, pQueryMsg->prevResultLen, NULL);
 
@@ -191,6 +192,8 @@ int32_t qCreateQueryInfo(void* tsdb, int32_t vgId, SQueryTableMsg* pQueryMsg, qi
 
   tfree(param.colCond);
   
+  destroyUdfInfo(param.pUdfInfo);
+
   taosArrayDestroy(param.pTableIdList);
   param.pTableIdList = NULL;
 

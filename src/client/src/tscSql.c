@@ -566,7 +566,7 @@ static bool tscKillQueryInDnode(SSqlObj* pSql) {
 
   SQueryInfo *pQueryInfo = tscGetQueryInfo(pCmd);
 
-  if ((pQueryInfo == NULL) || tscIsTwoStageSTableQuery(pQueryInfo, 0)) {
+  if ((pQueryInfo == NULL) || pQueryInfo->globalMerge) {
     return true;
   }
 
@@ -679,7 +679,7 @@ static void tscKillSTableQuery(SSqlObj *pSql) {
 
   SQueryInfo* pQueryInfo = tscGetQueryInfo(pCmd);
 
-  if (!tscIsTwoStageSTableQuery(pQueryInfo, 0)) {
+  if (!pQueryInfo->globalMerge) {
     return;
   }
 
@@ -730,7 +730,7 @@ void taos_stop_query(TAOS_RES *res) {
 
   SQueryInfo *pQueryInfo = tscGetQueryInfo(pCmd);
 
-  if (tscIsTwoStageSTableQuery(pQueryInfo, 0)) {
+  if (pQueryInfo->globalMerge) {
     assert(pSql->rpcRid <= 0);
     tscKillSTableQuery(pSql);
   } else {
@@ -945,30 +945,35 @@ int taos_load_table_info(TAOS *taos, const char *tableNameList) {
     return TSDB_CODE_TSC_DISCONNECTED;
   }
 
-  SSqlObj* pSql = calloc(1, sizeof(SSqlObj));
-  pSql->pTscObj = taos;
-  pSql->signature = pSql;
-
-  pSql->fp = NULL;        // todo set the correct callback function pointer
-  pSql->cmd.pTableMetaMap = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);
-
   int32_t length = (int32_t)strlen(tableNameList);
+  if (length == 0) {
+    return TSDB_CODE_SUCCESS;
+  }
+
   if (length > MAX_TABLE_NAME_LENGTH) {
-    tscError("0x%"PRIx64" tableNameList too long, length:%d, maximum allowed:%d", pSql->self, length, MAX_TABLE_NAME_LENGTH);
-    tscFreeSqlObj(pSql);
+    tscError("tableNameList too long, length:%d, maximum allowed:%d", length, MAX_TABLE_NAME_LENGTH);
     return TSDB_CODE_TSC_INVALID_OPERATION;
   }
 
   char *str = calloc(1, length + 1);
   if (str == NULL) {
-    tscError("0x%"PRIx64" failed to allocate sql string buffer", pSql->self);
-    tscFreeSqlObj(pSql);
+    tscError("failed to allocate sql string buffer, size:%d", length);
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
   }
 
   strtolower(str, tableNameList);
   SArray* plist = taosArrayInit(4, POINTER_BYTES);
   SArray* vgroupList = taosArrayInit(4, POINTER_BYTES);
+  if (plist == NULL || vgroupList == NULL) {
+    tfree(str);
+    return TSDB_CODE_TSC_OUT_OF_MEMORY;
+  }
+
+  SSqlObj* pSql = calloc(1, sizeof(SSqlObj));
+  tscAllocPayload(&pSql->cmd, 1024);
+
+  pSql->pTscObj   = taos;
+  pSql->signature = pSql;
 
   int32_t code = (uint8_t) tscTransferTableNameList(pSql, str, length, plist);
   free(str);
@@ -978,10 +983,11 @@ int taos_load_table_info(TAOS *taos, const char *tableNameList) {
     return code;
   }
 
+  pSql->cmd.pTableMetaMap = taosHashInit(taosArrayGetSize(plist), taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);
   registerSqlObj(pSql);
   tscDebug("0x%"PRIx64" load multiple table meta, tableNameList: %s pObj:%p", pSql->self, tableNameList, pObj);
 
-  code = getMultiTableMetaFromMnode(pSql, plist, vgroupList, loadMultiTableMetaCallback);
+  code = getMultiTableMetaFromMnode(pSql, plist, vgroupList, NULL, loadMultiTableMetaCallback, false);
   if (code == TSDB_CODE_TSC_ACTION_IN_PROGRESS) {
     code = TSDB_CODE_SUCCESS;
   }

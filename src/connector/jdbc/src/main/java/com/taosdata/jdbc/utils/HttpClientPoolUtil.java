@@ -9,6 +9,7 @@ import org.apache.http.client.protocol.HttpClientContext;
 import org.apache.http.conn.ConnectionKeepAliveStrategy;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.impl.client.CloseableHttpClient;
+import org.apache.http.impl.client.DefaultHttpRequestRetryHandler;
 import org.apache.http.impl.client.HttpClients;
 import org.apache.http.impl.conn.PoolingHttpClientConnectionManager;
 import org.apache.http.message.BasicHeaderElementIterator;
@@ -34,7 +35,11 @@ public class HttpClientPoolUtil {
             PoolingHttpClientConnectionManager connectionManager = new PoolingHttpClientConnectionManager();
             connectionManager.setDefaultMaxPerRoute(DEFAULT_MAX_PER_ROUTE);
             connectionManager.setMaxTotal(DEFAULT_MAX_TOTAL);
-            httpClient = HttpClients.custom().setKeepAliveStrategy(DEFAULT_KEEP_ALIVE_STRATEGY).setConnectionManager(connectionManager).build();
+            httpClient = HttpClients.custom()
+                    .setKeepAliveStrategy(DEFAULT_KEEP_ALIVE_STRATEGY)
+                    .setConnectionManager(connectionManager)
+                    .setRetryHandler(new DefaultHttpRequestRetryHandler(3, true))
+                    .build();
         }
     }
 

@@ -29,6 +29,7 @@
 #include "tarray.h"
 #include "tlockfree.h"
 #include "tsdb.h"
+#include "qUdf.h"
 
 struct SColumnFilterElem;
 typedef bool (*__filter_func_t)(struct SColumnFilterElem* pFilter, const char* val1, const char* val2, int16_t type);
@@ -259,6 +260,7 @@ typedef struct SQueryAttr {
   SMemRef          memRef;
   STableGroupInfo  tableGroupInfo;       // table <tid, last_key> list  SArray<STableKeyInfo>
   int32_t          vgId;
+  SArray          *pUdfInfo;             // no need to free
 } SQueryAttr;
 
 typedef SSDataBlock* (*__operator_fn_t)(void* param, bool* newgroup);
@@ -299,6 +301,7 @@ typedef struct SQueryRuntimeEnv {
   STableQueryInfo      *current;
   SRspResultInfo        resultInfo;
   SHashObj             *pTableRetrieveTsMap;
+  SUdfInfo             *pUdfInfo;
 } SQueryRuntimeEnv;
 
 enum {
@@ -397,6 +400,7 @@ typedef struct SQueryParam {
   SGroupbyExpr *pGroupbyExpr;
   int32_t          tableScanOperator;
   SArray          *pOperator;
+  SUdfInfo        *pUdfInfo;
 } SQueryParam;
 
 typedef struct STableScanInfo {
@@ -536,6 +540,7 @@ typedef struct SMultiwayMergeInfo {
 
   bool                 hasPrev;
   bool                 groupMix;
+  SArray              *udfInfo;
 } SMultiwayMergeInfo;
 
 void appendUpstream(SOperatorInfo* p, SOperatorInfo* pUpstream);
@@ -558,8 +563,8 @@ SOperatorInfo* createDistinctOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperat
 SOperatorInfo* createTableBlockInfoScanOperator(void* pTsdbQueryHandle, SQueryRuntimeEnv* pRuntimeEnv);
 SOperatorInfo* createMultiwaySortOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SExprInfo* pExpr, int32_t numOfOutput,
                                               int32_t numOfRows, void* merger, bool groupMix);
+SOperatorInfo* createGlobalAggregateOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorInfo* upstream, SExprInfo* pExpr, int32_t numOfOutput, void* param, SArray* pUdfInfo);
 SOperatorInfo* createStatewindowOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorInfo* upstream, SExprInfo* pExpr, int32_t numOfOutput);
-SOperatorInfo* createGlobalAggregateOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorInfo* upstream, SExprInfo* pExpr, int32_t numOfOutput, void* param);
 SOperatorInfo* createSLimitOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorInfo* upstream, SExprInfo* pExpr, int32_t numOfOutput, void* merger);
 SOperatorInfo* createFilterOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorInfo* upstream, SExprInfo* pExpr,
                                         int32_t numOfOutput, SColumnInfo* pCols, int32_t numOfFilter);
@@ -584,20 +589,21 @@ void setInputDataBlock(SOperatorInfo* pOperator, SQLFunctionCtx* pCtx, SSDataBlo
 int32_t getNumOfResult(SQueryRuntimeEnv *pRuntimeEnv, SQLFunctionCtx* pCtx, int32_t numOfOutput);
 void finalizeQueryResult(SOperatorInfo* pOperator, SQLFunctionCtx* pCtx, SResultRowInfo* pResultRowInfo, int32_t* rowCellInfoOffset);
 void updateOutputBuf(SOptrBasicInfo* pBInfo, int32_t *bufCapacity, int32_t numOfInputRows);
+void clearOutputBuf(SOptrBasicInfo* pBInfo, int32_t *bufCapacity);
 
 void freeParam(SQueryParam *param);
 int32_t convertQueryMsg(SQueryTableMsg *pQueryMsg, SQueryParam* param);
 int32_t createQueryFunc(SQueriedTableInfo* pTableInfo, int32_t numOfOutput, SExprInfo** pExprInfo,
-                        SSqlExpr** pExprMsg, SColumnInfo* pTagCols, int32_t queryType, void* pMsg);
+                        SSqlExpr** pExprMsg, SColumnInfo* pTagCols, int32_t queryType, void* pMsg, SUdfInfo* pUdfInfo);
 
 int32_t createIndirectQueryFuncExprFromMsg(SQueryTableMsg *pQueryMsg, int32_t numOfOutput, SExprInfo **pExprInfo,
-                                           SSqlExpr **pExpr, SExprInfo *prevExpr);
+                                           SSqlExpr **pExpr, SExprInfo *prevExpr, SUdfInfo *pUdfInfo);
 
 int32_t createQueryFilter(char *data, uint16_t len, SFilterInfo** pFilters);
 
 SGroupbyExpr *createGroupbyExprFromMsg(SQueryTableMsg *pQueryMsg, SColIndex *pColIndex, int32_t *code);
 SQInfo *createQInfoImpl(SQueryTableMsg *pQueryMsg, SGroupbyExpr *pGroupbyExpr, SExprInfo *pExprs,
-                        SExprInfo *pSecExprs, STableGroupInfo *pTableGroupInfo, SColumnInfo* pTagCols, SFilterInfo* pFilters, int32_t vgId, char* sql, uint64_t *qId);
+                        SExprInfo *pSecExprs, STableGroupInfo *pTableGroupInfo, SColumnInfo* pTagCols, SFilterInfo* pFilters, int32_t vgId, char* sql, uint64_t qId, SUdfInfo* pUdfInfo);
 
 int32_t initQInfo(STsBufInfo* pTsBufInfo, void* tsdb, void* sourceOptr, SQInfo* pQInfo, SQueryParam* param, char* start,
                   int32_t prevResultLen, void* merger);
@@ -616,6 +622,8 @@ bool doBuildResCheck(SQInfo* pQInfo);
 void setQueryStatus(SQueryRuntimeEnv *pRuntimeEnv, int8_t status);
 
 bool onlyQueryTags(SQueryAttr* pQueryAttr);
+void destroyUdfInfo(SUdfInfo* pUdfInfo);
+
 bool isValidQInfo(void *param);
 
 int32_t doDumpQueryResult(SQInfo *pQInfo, char *data);
@@ -632,5 +640,7 @@ void freeQInfo(SQInfo *pQInfo);
 void freeQueryAttr(SQueryAttr *pQuery);
 
 int32_t getMaximumIdleDurationSec();
+
+void doInvokeUdf(SUdfInfo* pUdfInfo, SQLFunctionCtx *pCtx, int32_t idx, int32_t type);
 
 #endif  // TDENGINE_QEXECUTOR_H

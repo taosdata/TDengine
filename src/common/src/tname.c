@@ -306,7 +306,7 @@ bool tIsValidName(const SName* name) {
 SName* tNameDup(const SName* name) {
   assert(name != NULL);
 
-  SName* p = calloc(1, sizeof(SName));
+  SName* p = malloc(sizeof(SName));
   memcpy(p, name, sizeof(SName));
   return p;
 }

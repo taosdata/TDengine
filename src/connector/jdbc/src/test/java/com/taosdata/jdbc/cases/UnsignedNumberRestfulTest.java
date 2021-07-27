@@ -45,7 +45,7 @@ public class UnsignedNumberRestfulTest {
                 Assert.assertEquals(127, rs.getByte(2));
                 Assert.assertEquals(32767, rs.getShort(3));
                 Assert.assertEquals(2147483647, rs.getInt(4));
-                Assert.assertEquals(9223372036854775807l, rs.getLong(5));
+                Assert.assertEquals(9223372036854775807L, rs.getLong(5));
             }
         } catch (SQLException e) {
             e.printStackTrace();

@@ -247,4 +247,25 @@ if $system_content != @[{"refId":"A","target":"{val1:nil, val2:nil}","datapoints
   return -1
 endi
 
+sql create table tt (ts timestamp ,i int) tags(j binary(20),k binary(20));
+sql insert into t1 using tt tags('jnetworki','t1') values('2020-01-01 00:00:00.000',1)('2020-01-01 00:01:00.000',2)('2020-01-01 00:02:00.000',3)('2020-01-01 00:03:00.000',4)('2020-01-01 00:04:00.000',5);
+
+system_content curl -H 'Authorization: Basic cm9vdDp0YW9zZGF0YQ==' -d '[ {"refId":"A","alias":"","sql":"select max(i) from db.tt where j like \u0027%network%\u0027 and ts >= \u00272020-01-01 00:00:00.000\u0027 and ts < \u00272020-01-01 00:05:00.000\u0027 interval(5m) group by k "} ]' 127.0.0.1:7111/grafana/query
+print step1-> $system_content
+if $system_content != @[{"refId":"A","target":"{k:t1}","datapoints":[[5,1577808000000]]}]@ then
+  return -1
+endi
+
+system_content curl -H 'Authorization: Basic cm9vdDp0YW9zZGF0YQ==' -d '[ {"refId":"A","alias":"","sql":"select max(i) from db.tt where j like \u0027jnetwo%\u0027 and ts >= \u00272020-01-01 00:00:00.000\u0027 and ts < \u00272020-01-01 00:05:00.000\u0027 interval(5m) group by k "} ]' 127.0.0.1:7111/grafana/query
+print step1-> $system_content
+if $system_content != @[{"refId":"A","target":"{k:t1}","datapoints":[[5,1577808000000]]}]@ then
+  return -1
+endi
+
+system_content curl -H 'Authorization: Basic cm9vdDp0YW9zZGF0YQ==' -d '[ {"refId":"A","alias":"","sql":"select max(i) from db.tt where j like \u0027%networki\u0027 and ts >= \u00272020-01-01 00:00:00.000\u0027 and ts < \u00272020-01-01 00:05:00.000\u0027 interval(5m) group by k "} ]' 127.0.0.1:7111/grafana/query
+print step1-> $system_content
+if $system_content != @[{"refId":"A","target":"{k:t1}","datapoints":[[5,1577808000000]]}]@ then
+  return -1
+endi
+
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
