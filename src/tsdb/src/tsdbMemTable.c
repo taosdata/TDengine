@@ -728,6 +728,13 @@ static FORCE_INLINE int32_t insertDataToTablePreEntry(STsdbRepo* pRepo, STable *
 
 //row1 has higher priority
 static SMemRow tsdbInsertDupKeyMerge(SMemRow row1, SMemRow row2, STsdbRepo* pRepo, STSchema **ppSchema1, STSchema **ppSchema2, STable* pTable, int32_t* affectedRows, int64_t* points) {
+  
+  //for compatiblity, duplicate key inserted when update=0 should be also calculated as affected rows!
+  if(row1 == NULL && row2 == NULL && pRepo->config.update == TD_ROW_DISCARD_UPDATE) {
+    (*affectedRows)++;
+    (*points)++;
+    return NULL;
+  }
 
   if(row2 == NULL || pRepo->config.update != TD_ROW_PARTIAL_UPDATE) {
     void* pMem = tsdbAllocBytes(pRepo, memRowTLen(row1));

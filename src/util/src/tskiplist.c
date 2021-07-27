@@ -746,7 +746,7 @@ static SSkipListNode *tSkipListPutImpl(SSkipList *pSkipList, void *pData, SSkipL
       } else {
         pNode = SL_NODE_GET_BACKWARD_POINTER(direction[0], 0);
       }
-      if (pSkipList->dupHandleFn != NULL) {
+      if (pSkipList->dupHandleFn) {
         pSkipList->dupHandleFn->args[0] = pData;
         pSkipList->dupHandleFn->args[1] = pNode->pData;
         pData = genericInvoke(pSkipList->dupHandleFn);
@@ -756,8 +756,11 @@ static SSkipListNode *tSkipListPutImpl(SSkipList *pSkipList, void *pData, SSkipL
       }
     } else {
       //for compatiblity, duplicate key inserted when update=0 should be also calculated as affected rows!
-      (*(int32_t*)(pSkipList->dupHandleFn->args[6]))++;
-      (*(int64_t*)(pSkipList->dupHandleFn->args[7]))++;
+      if(pSkipList->dupHandleFn) {
+        pSkipList->dupHandleFn->args[0] = NULL;
+        pSkipList->dupHandleFn->args[1] = NULL;
+        pData = genericInvoke(pSkipList->dupHandleFn);
+      }
     }
   } else {
     pNode = tSkipListNewNode(getSkipListRandLevel(pSkipList));
