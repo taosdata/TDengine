@@ -754,6 +754,10 @@ static SSkipListNode *tSkipListPutImpl(SSkipList *pSkipList, void *pData, SSkipL
       if(pData) {
         atomic_store_ptr(&(pNode->pData), pData);
       }
+    } else {
+      //for compatiblity, duplicate key inserted when update=0 should be also calculated as affected rows!
+      (*(int32_t*)(pSkipList->dupHandleFn->args[6]))++;
+      (*(int64_t*)(pSkipList->dupHandleFn->args[7]))++;
     }
   } else {
     pNode = tSkipListNewNode(getSkipListRandLevel(pSkipList));
