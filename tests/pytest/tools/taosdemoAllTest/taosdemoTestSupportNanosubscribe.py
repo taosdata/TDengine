@@ -79,7 +79,7 @@ class TDTestCase:
 
 
         # merge result files
-        sleep(20)
+        sleep(10)
         os.system("cat subscribe_res0.txt* > all_subscribe_res0.txt")
         os.system("cat subscribe_res1.txt* > all_subscribe_res1.txt")
         os.system("cat subscribe_res2.txt* > all_subscribe_res2.txt")
@@ -90,7 +90,7 @@ class TDTestCase:
         self.assertCheck("all_subscribe_res0.txt",subTimes0 ,200)
 
         subTimes1 = self.subTimes("all_subscribe_res1.txt")
-        self.assertCheck("all_subscribe_res1.txt",subTimes1 ,0)
+        self.assertCheck("all_subscribe_res1.txt",subTimes1 ,200)
 
         subTimes2 = self.subTimes("all_subscribe_res2.txt")
         self.assertCheck("all_subscribe_res2.txt",subTimes2 ,200)
@@ -103,6 +103,7 @@ class TDTestCase:
 
         os.system("cat subscribe_res0.txt* > all_subscribe_res0.txt")
         subTimes0 = self.subTimes("all_subscribe_res0.txt")
+        print("pass")
         self.assertCheck("all_subscribe_res0.txt",subTimes0 ,202)
 
         
@@ -112,6 +113,7 @@ class TDTestCase:
         sleep(3)
         os.system("rm -rf ./subscribe_res*")   
         os.system("rm -rf ./all_subscribe*")
+        os.system("rm -rf ./*.py.sql")
   
 
          

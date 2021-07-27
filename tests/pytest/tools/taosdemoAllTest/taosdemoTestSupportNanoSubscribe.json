@@ -20,7 +20,7 @@
         "result": "./subscribe_res0.txt"
       },
       {
-        "sql": "select * from stb0 where ts > now -20d-1h-3s ;",
+        "sql": "select * from stb0 where ts < now -2d-1h-3s ;",
         "result": "./subscribe_res1.txt"
       },
       {

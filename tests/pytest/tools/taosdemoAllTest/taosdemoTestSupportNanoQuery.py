@@ -55,15 +55,15 @@ class TDTestCase:
 
         # use where to filter 
         
-        tdSql.query("select count(*) from stb0 where ts>\"2021-07-01 00:01:00.000000000 \" ;")
-        tdSql.checkData(0, 0, 3999000)
-        tdSql.query("select count(*) from stb0 where ts>\"2021-07-01 00:01:00.000000000\" and ts <=\"2021-07-01 00:01:10.000000000\" ;")
-        tdSql.checkData(0, 0, 1000000)
+        tdSql.query("select count(*) from stb0 where ts>\"2021-07-01 00:00:00.590000000 \" ")
+        tdSql.checkData(0, 0, 4000)
+        tdSql.query("select count(*) from stb0 where ts>\"2021-07-01 00:00:00.000000000\" and ts <=\"2021-07-01 00:00:00.590000000\" ")
+        tdSql.checkData(0, 0, 5900)
 
-        tdSql.query("select count(*) from tb0_0 where ts>\"2021-07-01 00:01:00.000000000 \" ;")
-        tdSql.checkData(0, 0, 3999)
-        tdSql.query("select count(*) from tb0_0 where ts>\"2021-07-01 00:01:00.000000000\" and ts <=\"2021-07-01 00:01:10.000000000\" ;")
-        tdSql.checkData(0, 0, 1000)
+        tdSql.query("select count(*) from tb0_0 where ts>\"2021-07-01 00:00:00.590000000 \" ;")
+        tdSql.checkData(0, 0, 40)
+        tdSql.query("select count(*) from tb0_0 where ts>\"2021-07-01 00:00:00.000000000\" and ts <=\"2021-07-01 00:00:00.590000000\" ")
+        tdSql.checkData(0, 0, 59)
 
 
         # select max min avg from special col
@@ -87,8 +87,8 @@ class TDTestCase:
         print( "select avg(c1) from tb0_0 : " , tdSql.getData(0, 0))
 
         tdSql.query("select count(*) from stb0 group by tbname;")
-        tdSql.checkData(0, 0, 10000)
-        tdSql.checkData(100, 0, 10000)
+        tdSql.checkData(0, 0, 100)
+        tdSql.checkData(10, 0, 100)
 
          #  query : query above sqls by taosdemo and continuously
 
@@ -105,7 +105,7 @@ class TDTestCase:
         tdSql.checkDataType(3, 1, "TIMESTAMP")
         tdSql.query("select count(*) from stb0 where ts >\"2021-07-01 00:00:00.490000000\"")
         tdSql.checkData(0, 0, 5000)
-        tdSql.query("select count(*) from stb0 where ts >now -22d-1h-3s")
+        tdSql.query("select count(*) from stb0 where ts <now -1d-1h-3s")
         tdSql.checkData(0, 0, 10000)
         tdSql.query("select count(*) from stb0 where ts < 1626918583000000000")
         tdSql.checkData(0, 0, 10000)

@@ -18,7 +18,7 @@
           "result": "./query_res0.txt"
         },
         {
-          "sql": "select count(*) from stb0 where ts > now -22d-1h-3s ;",
+          "sql": "select count(*) from stb0 where ts < now -22d-1h-3s ;",
           "result": "./query_res1.txt"
         },
         {

@@ -56,46 +56,47 @@ class TDTestCase:
         os.system("%staosdemo -f tools/taosdemoAllTest/taosdemoTestNanoDatabase.json -y " % binPath)
         tdSql.execute("use nsdb")
         tdSql.query("show stables")
-        tdSql.checkData(0, 4, 1000)
+        tdSql.checkData(0, 4, 100)
         tdSql.query("select count (tbname) from stb0")
-        tdSql.checkData(0, 0, 1000)
+        tdSql.checkData(0, 0, 100)
         tdSql.query("select count(*) from tb0_0")
-        tdSql.checkData(0, 0, 10000)
+        tdSql.checkData(0, 0, 100)
         tdSql.query("select count(*) from stb0")
-        tdSql.checkData(0, 0, 10000000)
+        tdSql.checkData(0, 0, 10000)
         tdSql.query("describe stb0")
         tdSql.checkDataType(9, 1,"TIMESTAMP")
         tdSql.query("select last(ts) from stb0")
-        tdSql.getData(0, 0)
+        tdSql.checkData(0, 0,"2021-07-01 00:00:00.990000000") 
 
         # check stable stb1 which is insert with disord
 
         tdSql.query("select count (tbname) from stb1")
-        tdSql.checkData(0, 0, 1000)
+        tdSql.checkData(0, 0, 100)
         tdSql.query("select count(*) from tb1_0")
-        tdSql.checkData(0, 0, 10000)
+        tdSql.checkData(0, 0, 100)
         tdSql.query("select count(*) from stb1")
-        tdSql.checkData(0, 0, 10000000)
+        tdSql.checkData(0, 0, 10000)
         # check c8 is an nano timestamp
         tdSql.query("describe stb1")
         tdSql.checkDataType(9, 1,"TIMESTAMP")
         # check insert timestamp_step is nano_second
         tdSql.query("select last(ts) from stb1")
-        tdSql.checkData(0, 0,"2021-07-01 00:01:39.990000000") 
-
+        tdSql.checkData(0, 0,"2021-07-01 00:00:00.990000000") 
+        
         # insert data from now time
 
         # check stable stb0
         os.system("%staosdemo -f tools/taosdemoAllTest/taosdemoTestNanoDatabaseNow.json -y " % binPath)
+        
         tdSql.execute("use nsdb2")
         tdSql.query("show stables")
-        tdSql.checkData(0, 4, 1000)
+        tdSql.checkData(0, 4, 100)
         tdSql.query("select count (tbname) from stb0")
-        tdSql.checkData(0, 0, 1000)
+        tdSql.checkData(0, 0, 100)
         tdSql.query("select count(*) from tb0_0")
         tdSql.checkData(0, 0, 100)
         tdSql.query("select count(*) from stb0")
-        tdSql.checkData(0, 0, 100000)
+        tdSql.checkData(0, 0, 10000)
         # check c8 is an nano timestamp
         tdSql.query("describe stb0")
         tdSql.checkDataType(9,1,"TIMESTAMP")
@@ -117,16 +118,11 @@ class TDTestCase:
         
         os.system("rm -rf ./insert_res.txt")
         os.system("rm -rf tools/taosdemoAllTest/taosdemoTestSupportNano*.py.sql")
+
         # taosdemo test insert with command and parameter , detals show taosdemo --help
-
-        os.system("%staosdemo  -u root -P taosdata -p 6030 -h vm84 -a 1  -m pre -n 10 -T 20 -t 60 -o res.txt -y " % binPath)
+        os.system("%staosdemo  -u root -P taosdata -p 6030  -a 1  -m pre -n 10 -T 20 -t 60 -o res.txt -y " % binPath)
         tdSql.query("select count(*) from test.meters")
         tdSql.checkData(0, 0, 600)
-
-        os.system("%staosdemo  -u root -P taosdata -p 6030 -h vm84 -a 1  -m pre -n 10 -T 20 -t 60 -o res.txt -y " % binPath)
-        tdSql.query("select count(*) from test.meters")
-        tdSql.checkData(0, 0, 600)
-
         # check taosdemo -s
 
         sqls_ls = ['drop database  if exists nsdbsql;','create database nsdbsql precision "ns" keep 36 days 6 update 1;',

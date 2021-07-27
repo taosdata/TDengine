@@ -35,7 +35,7 @@
         "super_tables": [{
             "name": "stb0",
             "child_table_exists":"no",
-            "childtable_count": 1000,
+            "childtable_count": 100,
             "childtable_prefix": "tb0_",
             "auto_create_table": "no",
             "batch_create_tbl_num": 20,
