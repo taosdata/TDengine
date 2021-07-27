@@ -74,6 +74,9 @@
     }                                                           \
   } while (0);
 
+// [TD-5547] To avoid arm32 byte alignment causing bus errors
+#define SET_DOUBLE_VALUE_BY_TMP(TARGET,VALUE) {double __tmp=(VALUE);(TARGET)=__tmp;}
+
 void noop1(SQLFunctionCtx *UNUSED_PARAM(pCtx)) {}
 
 void doFinalizer(SQLFunctionCtx *pCtx) { RESET_RESULT_INFO(GET_RES_INFO(pCtx)); }
@@ -520,7 +523,7 @@ int32_t noDataRequired(SQLFunctionCtx *pCtx, STimeWindow* w, int32_t colId) {
       if (((ctx)->hasNull) && isNull((char *)&(d)[i], tsdbType)) { \
         continue;                                                  \
       };                                                           \
-      (x) += (d)[i];                                               \
+      SET_DOUBLE_VALUE_BY_TMP((x),(x) + (d)[i]);                                               \
       (numOfElem)++;                                               \
     }                                                              \
   } while(0)
@@ -654,7 +657,7 @@ static void sum_func_merge(SQLFunctionCtx *pCtx) {
     } else if (IS_UNSIGNED_NUMERIC_TYPE(type)) {
       *(uint64_t *) pCtx->pOutput += pInput->usum;
     } else {
-      *(double *)pCtx->pOutput += pInput->dsum;
+      SET_DOUBLE_VALUE_BY_TMP(*(double *)pCtx->pOutput, *(double *)pCtx->pOutput + pInput->dsum);
     }
   }
 
@@ -841,8 +844,8 @@ static void avg_finalizer(SQLFunctionCtx *pCtx) {
       setNull(pCtx->pOutput, pCtx->outputType, pCtx->outputBytes);
       return;
     }
-    
-    double tmp; *(double *)pCtx->pOutput = tmp = (*(double *)pCtx->pOutput) / *(int64_t *)GET_ROWCELL_INTERBUF(pResInfo);
+
+    SET_DOUBLE_VALUE_BY_TMP(*(double *)pCtx->pOutput,(*(double *)pCtx->pOutput) / *(int64_t *)GET_ROWCELL_INTERBUF(pResInfo));
   } else {  // this is the secondary merge, only in the secondary merge, the input type is TSDB_DATA_TYPE_BINARY
     assert(IS_NUMERIC_TYPE(pCtx->inputType));
     SAvgInfo *pAvgInfo = (SAvgInfo *)GET_ROWCELL_INTERBUF(pResInfo);
@@ -852,7 +855,7 @@ static void avg_finalizer(SQLFunctionCtx *pCtx) {
       return;
     }
     
-    double tmp; *(double *)pCtx->pOutput = tmp = pAvgInfo->sum / pAvgInfo->num;
+    SET_DOUBLE_VALUE_BY_TMP(*(double *)pCtx->pOutput, pAvgInfo->sum / pAvgInfo->num);
   }
   
   // cannot set the numOfIteratedElems again since it is set during previous iteration
@@ -1049,7 +1052,7 @@ static bool min_func_setup(SQLFunctionCtx *pCtx, SResultRowCellInfo* pResultInfo
       *((float *)pCtx->pOutput) = FLT_MAX;
       break;
     case TSDB_DATA_TYPE_DOUBLE:
-      *((double *)pCtx->pOutput) = DBL_MAX;
+      SET_DOUBLE_VALUE_BY_TMP(*((double *)pCtx->pOutput), DBL_MAX);
       break;
     default:
       qError("illegal data type:%d in min/max query", pCtx->inputType);
@@ -1076,7 +1079,7 @@ static bool max_func_setup(SQLFunctionCtx *pCtx, SResultRowCellInfo* pResultInfo
       *((float *)pCtx->pOutput) = -FLT_MAX;
       break;
     case TSDB_DATA_TYPE_DOUBLE:
-      *((double *)pCtx->pOutput) = -DBL_MAX;
+      SET_DOUBLE_VALUE_BY_TMP(*((double *)pCtx->pOutput), -DBL_MAX);
       break;
     case TSDB_DATA_TYPE_BIGINT:
       *((int64_t *)pCtx->pOutput) = INT64_MIN;
@@ -1322,7 +1325,7 @@ static void stddev_finalizer(SQLFunctionCtx *pCtx) {
     setNull(pCtx->pOutput, pCtx->outputType, pCtx->outputBytes);
   } else {
     double *retValue = (double *)pCtx->pOutput;
-    *retValue = sqrt(pStd->res / pStd->num);
+    SET_DOUBLE_VALUE_BY_TMP(*retValue, sqrt(pStd->res / pStd->num));
     SET_VAL(pCtx, 1, 1);
   }
   
@@ -1455,7 +1458,7 @@ static void stddev_dst_finalizer(SQLFunctionCtx *pCtx) {
     setNull(pCtx->pOutput, pCtx->outputType, pCtx->outputBytes);
   } else {
     double *retValue = (double *)pCtx->pOutput;
-    *retValue = sqrt(pStd->res / pStd->num);
+    SET_DOUBLE_VALUE_BY_TMP(*retValue, sqrt(pStd->res / pStd->num));
     SET_VAL(pCtx, 1, 1);
   }
 
@@ -1947,7 +1950,7 @@ static void copyTopBotRes(SQLFunctionCtx *pCtx, int32_t type) {
     case TSDB_DATA_TYPE_DOUBLE: {
       double *output = (double *)pCtx->pOutput;
       for (int32_t i = 0; i < len; ++i, output += step) {
-        *output = tvp[i]->v.dKey;
+        SET_DOUBLE_VALUE_BY_TMP(*output, tvp[i]->v.dKey);
       }
       break;
     }
@@ -2366,7 +2369,7 @@ static void percentile_finalizer(SQLFunctionCtx *pCtx) {
     assert(ppInfo->numOfElems == 0);
     setNull(pCtx->pOutput, pCtx->outputType, pCtx->outputBytes);
   } else {
-    double tmp; *(double *)pCtx->pOutput = tmp = getPercentile(pMemBucket, v);
+    SET_DOUBLE_VALUE_BY_TMP(*(double *)pCtx->pOutput, getPercentile(pMemBucket, v));
   }
   
   tMemBucketDestroy(pMemBucket);
@@ -2782,7 +2785,7 @@ static void deriv_function(SQLFunctionCtx *pCtx) {
         if (!pDerivInfo->valueSet) {  // initial value is not set yet
           pDerivInfo->valueSet  = true;
         } else {
-          *pOutput = ((pData[i] - pDerivInfo->prevValue) * pDerivInfo->tsWindow) / (tsList[i] - pDerivInfo->prevTs);
+          SET_DOUBLE_VALUE_BY_TMP(*pOutput, ((pData[i] - pDerivInfo->prevValue) * pDerivInfo->tsWindow) / (tsList[i] - pDerivInfo->prevTs));
           if (pDerivInfo->ignoreNegative && *pOutput < 0) {
           } else {
             *pTimestamp = tsList[i];
@@ -3017,7 +3020,7 @@ static void diff_function(SQLFunctionCtx *pCtx) {
         }
 
         if (pCtx->param[1].nType != INITIAL_VALUE_NOT_ASSIGNED) {  // initial value is not set yet
-          *pOutput = pData[i] - pCtx->param[1].dKey;  // direct previous may be null
+          SET_DOUBLE_VALUE_BY_TMP(*pOutput, pData[i] - pCtx->param[1].dKey);  // direct previous may be null
           *pTimestamp = (tsList != NULL)? tsList[i]:0;
           pOutput    += 1;
           pTimestamp += 1;
@@ -3290,7 +3293,7 @@ void spread_function_finalizer(SQLFunctionCtx *pCtx) {
       return;
     }
     
-    double tmp; *(double *)pCtx->pOutput = tmp = pCtx->param[3].dKey - pCtx->param[0].dKey;
+    SET_DOUBLE_VALUE_BY_TMP(*(double *)pCtx->pOutput, pCtx->param[3].dKey - pCtx->param[0].dKey);
   } else {
     assert(IS_NUMERIC_TYPE(pCtx->inputType) || (pCtx->inputType == TSDB_DATA_TYPE_TIMESTAMP));
     
@@ -3300,7 +3303,7 @@ void spread_function_finalizer(SQLFunctionCtx *pCtx) {
       return;
     }
     
-    double tmp; *(double *)pCtx->pOutput = tmp = pInfo->max - pInfo->min;
+    SET_DOUBLE_VALUE_BY_TMP(*(double *)pCtx->pOutput, pInfo->max - pInfo->min);
   }
   
   GET_RES_INFO(pCtx)->numOfRes = 1;  // todo add test case
@@ -3628,9 +3631,9 @@ void twa_function_finalizer(SQLFunctionCtx *pCtx) {
 
   assert(pInfo->win.ekey == pInfo->p.key && pInfo->hasResult == pResInfo->hasResult);
   if (pInfo->win.ekey == pInfo->win.skey) {
-    double tmp; *(double *)pCtx->pOutput = tmp = pInfo->p.val;
+    SET_DOUBLE_VALUE_BY_TMP(*(double *)pCtx->pOutput, pInfo->p.val);
   } else {
-    double tmp; *(double *)pCtx->pOutput = tmp = pInfo->dOutput / (pInfo->win.ekey - pInfo->win.skey);
+    SET_DOUBLE_VALUE_BY_TMP(*(double *)pCtx->pOutput , pInfo->dOutput / (pInfo->win.ekey - pInfo->win.skey));
   }
   
   GET_RES_INFO(pCtx)->numOfRes = 1;
