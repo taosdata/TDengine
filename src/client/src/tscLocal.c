@@ -860,10 +860,10 @@ static int32_t tscProcessServStatus(SSqlObj *pSql) {
 
   if (pHb != NULL) {
     pSql->res.code = checkForOnlineNode(pHb);
+    taosReleaseRef(tscObjRef, pObj->hbrid);
   }
 
   if (pSql->res.code == TSDB_CODE_RPC_NETWORK_UNAVAIL) {
-    taosReleaseRef(tscObjRef, pObj->hbrid);
     return pSql->res.code;
   }
 
