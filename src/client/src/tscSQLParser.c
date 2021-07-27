@@ -6860,7 +6860,8 @@ static int32_t doAddGroupbyColumnsOnDemand(SSqlCmd* pCmd, SQueryInfo* pQueryInfo
     tagSchema = tscGetTableTagSchema(pTableMetaInfo->pTableMeta);
   }
 
-  SSchema* s = NULL;
+  SSchema tmp = {.type = 0, .name = "", .colId = 0, .bytes = 0};
+  SSchema* s = &tmp;
 
   for (int32_t i = 0; i < pQueryInfo->groupbyExpr.numOfGroupCols; ++i) {
     SColIndex* pColIndex = taosArrayGet(pQueryInfo->groupbyExpr.columnInfo, i);
@@ -6870,7 +6871,9 @@ static int32_t doAddGroupbyColumnsOnDemand(SSqlCmd* pCmd, SQueryInfo* pQueryInfo
       s = tGetTbnameColumnSchema();
     } else {
       if (TSDB_COL_IS_TAG(pColIndex->flag)) {
-        s = &tagSchema[colIndex];
+        if(tagSchema){
+          s = &tagSchema[colIndex];
+        }
       } else {
         s = &pSchema[colIndex];
       }
@@ -8276,16 +8279,15 @@ static int32_t doLoadAllTableMeta(SSqlObj* pSql, SQueryInfo* pQueryInfo, SSqlNod
 
     const char* name = tNameGetTableName(&pTableMetaInfo->name);
     STableMetaVgroupInfo* p = taosHashGet(pCmd->pTableMetaMap, name, strlen(name));
-
+    if(!p){
+      tscError("taosHashGet meta null. name:%s", name);
+      return TSDB_CODE_TSC_APP_ERROR;
+    }
     pTableMetaInfo->pTableMeta = tscTableMetaDup(p->pTableMeta);
     assert(pTableMetaInfo->pTableMeta != NULL);
 
     if (p->pVgroupInfo != NULL) {
       pTableMetaInfo->vgroupList = tscVgroupsInfoDup(p->pVgroupInfo);
-    }
-
-    if (code != TSDB_CODE_SUCCESS) {
-      return code;
     }
   }
 

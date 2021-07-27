@@ -1773,7 +1773,9 @@ int taos_stmt_close(TAOS_STMT* stmt) {
       }
       tscDestroyDataBlock(pStmt->mtb.lastBlock, rmMeta);
       pStmt->mtb.pTableBlockHashList = tscDestroyBlockHashTable(pStmt->mtb.pTableBlockHashList, rmMeta);
-      taosHashCleanup(pStmt->pSql->cmd.insertParam.pTableBlockHashList);
+      if (pStmt->pSql){
+        taosHashCleanup(pStmt->pSql->cmd.insertParam.pTableBlockHashList);
+      }
       pStmt->pSql->cmd.insertParam.pTableBlockHashList = NULL;
       taosArrayDestroy(pStmt->mtb.tags);
       tfree(pStmt->mtb.sqlstr);

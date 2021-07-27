@@ -40,7 +40,7 @@ static SQueryNode* createQueryNode(int32_t type, const char* name, SQueryNode** 
   pNode->info.type = type;
   pNode->info.name = strdup(name);
 
-  if (pTableInfo->id.uid != 0) { // it is a true table
+  if (pTableInfo->id.uid != 0 && pTableInfo->tableName) { // it is a true table
     pNode->tableInfo.id = pTableInfo->id;
     pNode->tableInfo.tableName = strdup(pTableInfo->tableName);
   }

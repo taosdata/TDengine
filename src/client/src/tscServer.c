@@ -691,7 +691,9 @@ static char *doSerializeTableInfo(SQueryTableMsg *pQueryMsg, SSqlObj *pSql, STab
       tscDumpEpSetFromVgroupInfo(&pSql->epSet, &vgroupInfo);
     }
 
-    pSql->epSet.inUse = rand()%pSql->epSet.numOfEps;
+    if (pSql->epSet.numOfEps > 0){
+      pSql->epSet.inUse = rand()%pSql->epSet.numOfEps;
+    }
     pQueryMsg->head.vgId = htonl(vgId);
 
     STableIdInfo *pTableIdInfo = (STableIdInfo *)pMsg;
@@ -968,7 +970,7 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
     }
   }
 
-  if (query.numOfTags > 0) {
+  if (query.numOfTags > 0 && query.tagColList != NULL) {
     for (int32_t i = 0; i < query.numOfTags; ++i) {
       SColumnInfo* pTag = &query.tagColList[i];
 
@@ -2351,6 +2353,9 @@ int tscProcessSTableVgroupRsp(SSqlObj *pSql) {
       break;
     }
 
+    if (!pInfo){
+      continue;
+    }
     int32_t size = 0;
     pInfo->vgroupList = createVgroupInfoFromMsg(pMsg, &size, pSql->self);
     pMsg += size;

@@ -438,10 +438,6 @@ int32_t loadTableMeta(TAOS* taos, char* tableName, SSmlSTableSchema* schema) {
   char  fullTableName[TSDB_TABLE_FNAME_LEN] = {0};
   memset(fullTableName, 0, tListLen(fullTableName));
   tNameExtractFullName(&sname, fullTableName);
-  if (code != TSDB_CODE_SUCCESS) {
-    tscFreeSqlObj(pSql);
-    return code;
-  }
   tscFreeSqlObj(pSql);
 
   schema->tags = taosArrayInit(8, sizeof(SSchema));

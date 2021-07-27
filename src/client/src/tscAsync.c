@@ -493,9 +493,6 @@ void tscTableMetaCallBack(void *param, TAOS_RES *res, int code) {
     return;
   }
 
-  taosReleaseRef(tscObjRef, pSql->self);
-  return;
-
   _error:
   pRes->code = code;
   tscAsyncResultOnError(pSql);

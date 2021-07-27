@@ -851,15 +851,19 @@ static int32_t tscProcessServStatus(SSqlObj *pSql) {
   SSqlObj* pHb = (SSqlObj*)taosAcquireRef(tscObjRef, pObj->hbrid);
   if (pHb != NULL) {
     pSql->res.code = pHb->res.code;
-    taosReleaseRef(tscObjRef, pObj->hbrid);
   }
 
   if (pSql->res.code == TSDB_CODE_RPC_NETWORK_UNAVAIL) {
+    taosReleaseRef(tscObjRef, pObj->hbrid);
     return pSql->res.code;
   }
 
-  pSql->res.code = checkForOnlineNode(pHb);
+  if (pHb != NULL) {
+    pSql->res.code = checkForOnlineNode(pHb);
+  }
+
   if (pSql->res.code == TSDB_CODE_RPC_NETWORK_UNAVAIL) {
+    taosReleaseRef(tscObjRef, pObj->hbrid);
     return pSql->res.code;
   }
 
