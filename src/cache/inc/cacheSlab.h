@@ -24,11 +24,11 @@
 extern "C" {
 #endif
 
-typedef enum cache_lru_list_t {
+enum cacheLruListId {
   CACHE_LRU_HOT   = 0,
   CACHE_LRU_WARM  = 64,
   CACHE_LRU_COLD  = 128,
-} cache_lru_list_t;
+};
 
 struct cacheSlabClass {
   unsigned int size;        /* sizes of items */
@@ -48,7 +48,7 @@ struct cacheSlabClass {
 
 int cacheSlabInit(cache_t *);
 
-uint32_t slabClsId(cache_t *cache, size_t size);
+uint32_t cacheSlabId(cache_t *cache, size_t size);
 
 cacheItem* cacheSlabAllocItem(cache_t *cache, size_t ntotal, uint32_t id);
 

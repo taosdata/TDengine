@@ -40,6 +40,14 @@ static FORCE_INLINE int cacheMutexUnlock(cacheMutex* mutex) {
   return pthread_mutex_unlock(&(mutex->mutex));
 }
 
+static FORCE_INLINE int cacheMutexTryLock(cacheMutex* mutex) {
+  return pthread_mutex_trylock(&(mutex->mutex));
+}
+
+static FORCE_INLINE int cacheMutexTryUnlock(cacheMutex* mutex) {
+  return pthread_mutex_unlock(&(mutex->mutex));
+}
+
 static FORCE_INLINE int cacheMutexDestroy(cacheMutex* mutex) {
   return pthread_mutex_destroy(&(mutex->mutex));
 }

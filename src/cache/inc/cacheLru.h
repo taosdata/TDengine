@@ -13,30 +13,32 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_CACHE_TYPES_H
-#define TDENGINE_CACHE_TYPES_H
+#ifndef TDENGINE_CACHELRU_H
+#define TDENGINE_CACHELRU_H
+
+#include "cache.h"
+#include "cacheMutex.h"
+#include "cacheTypes.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-struct cache_t;
-typedef struct cache_t cache_t;
+typedef struct cacheSlabLruClass {
+  cacheItem*    tail;   /* tail of lru item list */
+  uint32_t      num;    /* number of lru list items */
+  uint64_t      bytes;  /* total size of lru list items */
+  int           id;     /* lru id */
+  cacheMutex    mutex;
+} cacheSlabLruClass;
 
-struct cacheOption;
-typedef struct cacheOption cacheOption;
+void  cacheLruUnlinkItem(cache_t*, cacheItem*, bool lock);
+void  cacheLruLinkItem(cache_t*, cacheItem*, bool lock);
 
-struct cacheMutex;
-typedef struct cacheMutex cacheMutex;
-
-struct cacheSlabClass;
-typedef struct cacheSlabClass cacheSlabClass;
-
-struct cacheSlabLruClass;
-typedef struct cacheSlabLruClass cacheSlabLruClass;
+void  cacheLruMoveToHead(cache_t*, cacheItem*, bool lock);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /* TDENGINE_CACHE_TYPES_H */
+#endif /* TDENGINE_CACHELRU_H */

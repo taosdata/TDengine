@@ -18,6 +18,7 @@
 #include "cacheDefine.h"
 #include "cacheLog.h"
 #include "cacheSlab.h"
+#include "cacheTable.h"
 #include "osTime.h"
 
 static cacheItem* cacheSlabDoAllocItem(cache_t *cache, size_t size, unsigned int id);
@@ -26,7 +27,7 @@ static bool cacheIsReachMemoryLimit(cache_t *cache, int len);
 static int  cacheSlabGrowArray(cache_t *cache, cacheSlabClass *pSlab);
 static void *cacheAllocMemory(cache_t *cache, size_t size);
 static void cacheSplitSlabPageInfoFreelist(cache_t *cache,char *ptr, uint32_t id);
-static int cacheMoveItemFromLru(cache_t *cache, int id, int curLru, uint64_t totalBytes, 
+static int cacheMoveItemFromLru(cache_t *cache, int id, int curLru, uint64_t totalBytes, cacheMutex *pMutex,
                                 uint32_t* moveToLru,  cacheItem* search, cacheItem** pItem);
 static int cacheLruPull(cache_t *cache, int origId, int curLru, uint64_t total_bytes);
 
@@ -61,7 +62,7 @@ int cacheSlabInit(cache_t *cache) {
   cache->powerLargest = i;
 
   // init slab lru class
-  for (i = 0; i < POWER_LARGEST; i++) {
+  for (i = 0; i < MAX_NUMBER_OF_SLAB_LRU; i++) {
     cacheSlabLruClass* lru = &(cache->lruArray[i]);
     lru->tail = NULL;
     lru->bytes = lru->num = 0;
@@ -84,7 +85,7 @@ error:
   return CACHE_FAIL;
 }
 
-uint32_t slabClsId(cache_t *cache, size_t size) {
+uint32_t cacheSlabId(cache_t *cache, size_t size) {
   int i = 0;
   while (size > cache->slabs[i]->size) {
     if (i++ > cache->powerLargest) {
@@ -118,9 +119,9 @@ cacheItem* cacheSlabAllocItem(cache_t *cache, size_t ntotal, uint32_t slabId) {
 
 void cacheSlabFreeItem(cache_t *cache, cacheItem* item, bool lock) {  
   //size_t ntotal = cacheItemTotalBytes(item->nkey, item->nbytes);
-  uint32_t id = item_clsid(item);
+  uint32_t id = item_cls_id(item);
 
-  if (cacheItemNeverExpired(item)) {
+  if (cacheItemIsNeverExpired(item)) {
     if (item->next) item->next->prev = item->prev;
     if (item->prev) item->prev->next = item->next;
     if (item == cache->neverExpireItemHead) {
@@ -132,8 +133,8 @@ void cacheSlabFreeItem(cache_t *cache, cacheItem* item, bool lock) {
   if (lock) cacheMutexLock(&pSlab->mutex);
 
   if (!item_is_chunked(item)) {
-    item->flags = ITEM_SLABBED;
-    item->slabClsId = id;
+    item->flags = ITEM_FREED;
+    item->slabLruId = id;
     item->prev = NULL;
     item->next = pSlab->freeItem;
     if (pSlab->freeItem) pSlab->freeItem->prev = item;
@@ -176,7 +177,7 @@ static void cacheSplitSlabPageInfoFreelist(cache_t *cache, char *ptr, uint32_t i
   int i = 0;
   for (i = 0; i < p->perSlab; i++) {
     cacheItem* item = (cacheItem*)ptr;
-    item->slabClsId = id;
+    item->slabLruId = id;
     cacheSlabFreeItem(cache, item, false);
     ptr += p->size;
   }
@@ -188,7 +189,7 @@ static int cacheNewSlab(cache_t *cache, cacheSlabClass *pSlab) {
   int len = pSlab->size * pSlab->perSlab;
 
   if (cacheIsReachMemoryLimit(cache, len)) { 
-    cacheError("cache has been reached limit");
+    cacheDebug("cache has been reached limit");
     return CACHE_REACH_LIMIT;
   }
 
@@ -221,7 +222,7 @@ static cacheItem* cacheSlabDoAllocItem(cache_t *cache, size_t size, unsigned int
     item = pSlab->freeItem;
     pSlab->freeItem = item->next;
     if (item->next) item->next->prev = NULL;
-    item_unslabbed(item);
+    item_unset_freed(item);
     pSlab->nFree -= 1;
   }
 
@@ -230,13 +231,17 @@ static cacheItem* cacheSlabDoAllocItem(cache_t *cache, size_t size, unsigned int
   return item;
 }
 
-static int cacheMoveItemFromLru(cache_t *cache, int lruId, int curLru, uint64_t totalBytes, 
+/* If we're CACHE_LRU_HOT or CACHE_LRU_WARM and over size limit, send to CACHE_LRU_COLD.
+ * If we're COLD_LRU, send to WARM_LRU unless we need to evict
+ */
+static int cacheMoveItemFromLru(cache_t *cache, int lruId, int curLru, uint64_t totalBytes, cacheMutex *pMutex,
                                 uint32_t* moveToLru,  cacheItem* search, cacheItem** pItem) {
   int removed = 0;
   uint64_t limit = 0;
   cacheOption* opt = &(cache->options);
   cacheSlabLruClass* lru = &(cache->lruArray[lruId]);
 
+  *moveToLru = 0;
   switch (curLru) {
     case CACHE_LRU_HOT:
       limit = totalBytes * opt->hotPercent / 100;
@@ -245,24 +250,30 @@ static int cacheMoveItemFromLru(cache_t *cache, int lruId, int curLru, uint64_t 
       if (limit == 0) {
         limit = totalBytes * opt->warmPercent / 100;
       }
-      if (item_is_active(search)) { /* is item active? */
-        item_unactive(search);      /* mark as unactive */
+      if (item_is_active(search)) {     /* is item active? */
+        item_unset_active(search);      /* mark as unactive */
         removed++;
-        if (curLru == CACHE_LRU_WARM) { /* is warm lru list? */          
-          cacheItemMoveToLruHead(cache, search);  /* move to lru head */
-          cacheItemRemove(cache, search);
-        } else {                        /* else is hot lru list */
-          *moveToLru = CACHE_LRU_WARM;    /* move to warm lru list */          
-          cacheItemUnlinkFromLru(cache, search, true);
+        if (curLru == CACHE_LRU_WARM) {   /* is warm lru list? */          
+          cacheLruMoveToHead(cache, search, false);  /* move to lru head */
+          cacheMutexTryUnlock(pMutex);
+          //cacheItemRemove(cache, search);
+        } else {                          /* else is hot lru list */
+          /* Active CACHE_LRU_HOT items flow to CACHE_LRU_WARM */
+          *moveToLru = CACHE_LRU_WARM;
           *pItem = search;
         }
       } else if (lru->bytes > limit) {
+        /* over size limit, send to CACHE_LRU_COLD */
         *moveToLru = CACHE_LRU_COLD;
-        cacheItemUnlinkFromLru(cache, search, true);
         *pItem = search;
         removed++;
       } else {
+        /* not active, don't want to move to CACHE_LRU_COLD, not active */
         *pItem = search;
+        if (item_is_active(search)) {
+          item_unset_active(search);
+          *moveToLru = CACHE_LRU_WARM;         
+        }
       }
       break;
     case CACHE_LRU_COLD:
@@ -270,6 +281,10 @@ static int cacheMoveItemFromLru(cache_t *cache, int lruId, int curLru, uint64_t 
       break;
   }
 
+  if (*moveToLru != 0) {
+    /* unlink from current lru list */
+    cacheLruUnlinkItem(search->pTable->pCache, search, false);
+  }
   return removed;
 }
 
@@ -282,42 +297,66 @@ static int cacheLruPull(cache_t *cache, int slabId, int curLru, uint64_t totalBy
   int removed = 0;
   int tries = 5;
   uint32_t moveToLru = 0;
+  cacheMutex *pMutex = NULL;
   uint64_t now = taosGetTimestamp(TSDB_TIME_PRECISION_MILLI);
 
   lruId |= curLru;
   lru = &(cache->lruArray[lruId]);
   assert(lru->id == lruId);
+
+  cacheMutexLock(&(lru->mutex));
+
   search = lru->tail;
   for (; tries > 0 && search != NULL; tries--, search = next) {
-    assert(item_lruid(search) == curLru);
-    assert(item_is_linked(search));
-
-    cacheMutexLock(&(lru->mutex));
+    assert(item_lru_id(search) == curLru);
+    assert(item_is_used(search));    
 
     next = search->prev;
-
-    // is item expired?
-    if (search->expireTime != 0 && now - search->lastTime >= search->expireTime) {
-      cacheItemUnlinkNolock(search->pTable, search);
-      cacheItemRemove(cache, search);
-      removed++;
+    pMutex = cacheItemBucketMutex(search);
+  
+    /* hash bucket has been locked by other thread */
+    if (cacheMutexTryLock(pMutex) != 0) {
       continue;
     }
 
-    cacheMutexUnlock(&(lru->mutex));
+    /* is item is refcount locked? */
+    if (itemIncrRef(search) != 2) {
+      search->refCount = 1;
+      cacheItemUnlink(search->pTable, search, false);
+      cacheMutexTryUnlock(pMutex);
+      continue;
+    }
 
-    removed += cacheMoveItemFromLru(cache, lruId, curLru, totalBytes, &moveToLru, search, &item);
+    /* is item expired? */
+    if (cacheItemIsExpired(search, now)) {
+      /* refcnt 2 -> 1 */
+      cacheItemUnlink(search->pTable, search, false);
+      /* refcnt 1 -> 0 -> cacheItemFree */
+      cacheItemRemove(cache, search);      
+      cacheMutexTryUnlock(pMutex);
+      removed++;
+      continue;
+    }    
+
+    removed += cacheMoveItemFromLru(cache, lruId, curLru, totalBytes, pMutex, &moveToLru, search, &item);
 
     if (item != NULL) {
       break;
     }   
   }
 
+  cacheMutexUnlock(&(lru->mutex));
+
   if (item != NULL) {
-    if (moveToLru) {
-      item->slabClsId = item_clsid(item) | moveToLru;
-      cacheItemLinkToLru(cache, item, true);
+    if (moveToLru) {  /* move item to new lru list */
+      /* set new lru list id */
+      item->slabLruId = item_cls_id(item) | moveToLru;
+      /* link to new lru list */
+      cacheLruLinkItem(cache, item, true);
     }
+
+    cacheItemRemove(cache, item);
+    cacheMutexTryUnlock(pMutex);
   }
 
   return removed;
