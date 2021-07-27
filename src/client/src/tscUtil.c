@@ -4857,3 +4857,19 @@ SNewVgroupInfo createNewVgroupInfo(SVgroupMsg *pVgroupMsg) {
 
   return info;
 }
+
+void tscRemoveTableMetaBuf(STableMetaInfo* pTableMetaInfo, uint64_t id) {
+  char fname[TSDB_TABLE_FNAME_LEN] = {0};
+  tNameExtractFullName(&pTableMetaInfo->name, fname);
+
+  int32_t len = (int32_t) strnlen(fname, TSDB_TABLE_FNAME_LEN);
+  if (UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo)) {
+    void* pv = taosCacheAcquireByKey(tscVgroupListBuf, fname, len);
+    if (pv != NULL) {
+      taosCacheRelease(tscVgroupListBuf, &pv, true);
+    }
+  }
+
+  taosHashRemove(tscTableMetaMap, fname, len);
+  tscDebug("0x%"PRIx64" remove table meta %s, numOfRemain:%d", id, fname, (int32_t) taosHashGetSize(tscTableMetaMap));
+}

@@ -390,33 +390,40 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcEpSet *pEpSet) {
     pSql->cmd.insertParam.schemaAttached = 1;
   }
 
+  // single table query error need to be handled here.
   if ((cmd == TSDB_SQL_SELECT || cmd == TSDB_SQL_UPDATE_TAGS_VAL) &&
-      (rpcMsg->code == TSDB_CODE_TDB_INVALID_TABLE_ID ||     //  change the retry procedure
-      /*(*/rpcMsg->code == TSDB_CODE_VND_INVALID_VGROUP_ID ||
+      (((rpcMsg->code == TSDB_CODE_TDB_INVALID_TABLE_ID ||     //  change the retry procedure
+       rpcMsg->code == TSDB_CODE_VND_INVALID_VGROUP_ID)) ||
        rpcMsg->code == TSDB_CODE_RPC_NETWORK_UNAVAIL ||      //  change the retry procedure
        rpcMsg->code == TSDB_CODE_APP_NOT_READY)) {
-        
-    pSql->retry++;
-    tscWarn("0x%"PRIx64" it shall renew table meta, code:%s, retry:%d", pSql->self, tstrerror(rpcMsg->code), pSql->retry);
 
-    pSql->res.code = rpcMsg->code;  // keep the previous error code
-    if (pSql->retry > pSql->maxRetry) {
-      tscError("0x%"PRIx64" max retry %d reached, give up", pSql->self, pSql->maxRetry);
-    } else {
-      // wait for a little bit moment and then retry
-      // todo do not sleep in rpc callback thread, add this process into queue to process
-      if (rpcMsg->code == TSDB_CODE_APP_NOT_READY || rpcMsg->code == TSDB_CODE_VND_INVALID_VGROUP_ID) {
-        int32_t duration = getWaitingTimeInterval(pSql->retry);
-        taosMsleep(duration);
-      }
+    if (TSDB_QUERY_HAS_TYPE(pQueryInfo->type, (TSDB_QUERY_TYPE_STABLE_SUBQUERY | TSDB_QUERY_TYPE_SUBQUERY |
+                                               TSDB_QUERY_TYPE_TAG_FILTER_QUERY)) &&
+                                               !TSDB_QUERY_HAS_TYPE(pQueryInfo->type, TSDB_QUERY_TYPE_PROJECTION_QUERY)) {
+      // do nothing in case of super table subquery
+    }  else {
+      pSql->retry += 1;
+      tscWarn("0x%" PRIx64 " it shall renew table meta, code:%s, retry:%d", pSql->self, tstrerror(rpcMsg->code), pSql->retry);
 
-      pSql->retryReason = rpcMsg->code;
-      rpcMsg->code = tscRenewTableMeta(pSql, 0);
-      // if there is an error occurring, proceed to the following error handling procedure.
-      if (rpcMsg->code == TSDB_CODE_TSC_ACTION_IN_PROGRESS) {
-        taosReleaseRef(tscObjRef, handle);
-        rpcFreeCont(rpcMsg->pCont);
-        return;
+      pSql->res.code = rpcMsg->code;  // keep the previous error code
+      if (pSql->retry > pSql->maxRetry) {
+        tscError("0x%" PRIx64 " max retry %d reached, give up", pSql->self, pSql->maxRetry);
+      } else {
+        // wait for a little bit moment and then retry
+        // todo do not sleep in rpc callback thread, add this process into queue to process
+        if (rpcMsg->code == TSDB_CODE_APP_NOT_READY || rpcMsg->code == TSDB_CODE_VND_INVALID_VGROUP_ID) {
+          int32_t duration = getWaitingTimeInterval(pSql->retry);
+          taosMsleep(duration);
+        }
+
+        pSql->retryReason = rpcMsg->code;
+        rpcMsg->code = tscRenewTableMeta(pSql, 0);
+        // if there is an error occurring, proceed to the following error handling procedure.
+        if (rpcMsg->code == TSDB_CODE_TSC_ACTION_IN_PROGRESS) {
+          taosReleaseRef(tscObjRef, handle);
+          rpcFreeCont(rpcMsg->pCont);
+          return;
+        }
       }
     }
   }
@@ -2521,14 +2528,7 @@ int tscProcessDropDbRsp(SSqlObj *pSql) {
 
 int tscProcessDropTableRsp(SSqlObj *pSql) {
   STableMetaInfo *pTableMetaInfo = tscGetTableMetaInfoFromCmd(&pSql->cmd, 0);
-
-  //The cached tableMeta is expired in this case, so clean it in hash table
-  char name[TSDB_TABLE_FNAME_LEN] = {0};
-  tNameExtractFullName(&pTableMetaInfo->name, name);
-
-  taosHashRemove(tscTableMetaMap, name, strnlen(name, TSDB_TABLE_FNAME_LEN));
-  tscDebug("0x%"PRIx64" remove table meta after drop table:%s, numOfRemain:%d", pSql->self, name, (int32_t) taosHashGetSize(tscTableMetaMap));
-
+  tscRemoveTableMetaBuf(pTableMetaInfo, pSql->self);
   tfree(pTableMetaInfo->pTableMeta);
   return 0;
 }
@@ -2915,9 +2915,7 @@ static void freeElem(void* p) {
  * @return              status code
  */
 int tscRenewTableMeta(SSqlObj *pSql, int32_t tableIndex) {
-  SSqlCmd *pCmd = &pSql->cmd;
-
-  SQueryInfo     *pQueryInfo = tscGetQueryInfo(pCmd);
+  SQueryInfo     *pQueryInfo = tscGetQueryInfo(&pSql->cmd);
   STableMetaInfo *pTableMetaInfo = tscGetMetaInfo(pQueryInfo, tableIndex);
 
   char name[TSDB_TABLE_FNAME_LEN] = {0};
@@ -2934,15 +2932,7 @@ int tscRenewTableMeta(SSqlObj *pSql, int32_t tableIndex) {
   }
 
   // remove stored tableMeta info in hash table
-  size_t len = strlen(name);
-  taosHashRemove(tscTableMetaMap, name, len);
-
-  if (pTableMeta->tableType == TSDB_SUPER_TABLE) {
-    void* pv = taosCacheAcquireByKey(tscVgroupListBuf, name, len);
-    if (pv != NULL) {
-      taosCacheRelease(tscVgroupListBuf, &pv, true);
-    }
-  }
+  tscRemoveTableMetaBuf(pTableMetaInfo, pSql->self);
 
   SArray* pNameList = taosArrayInit(1, POINTER_BYTES);
   SArray* vgroupList = taosArrayInit(1, POINTER_BYTES);

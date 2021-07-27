@@ -354,6 +354,8 @@ char* strdup_throw(const char* str);
 bool vgroupInfoIdentical(SNewVgroupInfo *pExisted, SVgroupMsg* src);
 SNewVgroupInfo createNewVgroupInfo(SVgroupMsg *pVgroupMsg);
 
+void tscRemoveTableMetaBuf(STableMetaInfo* pTableMetaInfo, uint64_t id);
+
 #ifdef __cplusplus
 }
 #endif
