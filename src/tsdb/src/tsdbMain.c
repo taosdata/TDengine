@@ -735,11 +735,12 @@ static int tsdbRestoreLastColumns(STsdbRepo *pRepo, STable *pTable, SReadH* pRea
           continue;
         }
         // save not-null column
+        uint16_t bytes = IS_VAR_DATA_TYPE(pCol->type) ? varDataTLen(tdGetColDataOfRow(pDataCol, rowId)) : TYPE_BYTES[pCol->type];
         SDataCol *pLastCol = &(pTable->lastCols[idx]);
-        pLastCol->pData = malloc(pCol->bytes);
-        pLastCol->bytes = pCol->bytes;
+        pLastCol->pData = malloc(bytes);
+        pLastCol->bytes = bytes;
         pLastCol->colId = pCol->colId;
-        memcpy(pLastCol->pData, value, pCol->bytes);
+        memcpy(pLastCol->pData, value, bytes);
 
         // save row ts(in column 0)
         pDataCol = pReadh->pDCols[0]->cols + 0;
