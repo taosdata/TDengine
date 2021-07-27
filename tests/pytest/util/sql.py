@@ -197,6 +197,19 @@ class TDSql:
         self.checkRowCol(row, col)
         return self.queryResult[row][col]
 
+    def getResult(self, sql):
+        self.sql = sql
+        try:
+            self.cursor.execute(sql)
+            self.queryResult = self.cursor.fetchall()
+        except Exception as e:
+            caller = inspect.getframeinfo(inspect.stack()[1][0])
+            args = (caller.filename, caller.lineno, sql, repr(e))
+            tdLog.notice("%s(%d) failed: sql:%s, %s" % args)
+            raise Exception(repr(e))
+        return self.queryResult
+
+        
     def executeTimes(self, sql, times):
         for i in range(times):
             try:
