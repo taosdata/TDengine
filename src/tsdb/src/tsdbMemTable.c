@@ -525,12 +525,11 @@ static STableData *tsdbNewTableData(STsdbCfg *pCfg, STable *pTable) {
   pTableData->keyLast = 0;
   pTableData->numOfRows = 0;
 
-  uint8_t skipListCreateFlags = 0;
-  switch(pCfg->update) {
-    case 0x1: skipListCreateFlags = SL_UPDATE_DUP_KEY; break;
-    case 0x2: skipListCreateFlags = SL_PATCH_DUP_KEY; break;
-    default : skipListCreateFlags = SL_DISCARD_DUP_KEY;
-  }
+  uint8_t skipListCreateFlags;
+  if(pCfg->update == TD_ROW_DISCARD_UPDATE)
+    skipListCreateFlags = SL_DISCARD_DUP_KEY;
+  else
+    skipListCreateFlags = SL_UPDATE_DUP_KEY;
 
   pTableData->pData =
       tSkipListCreate(TSDB_DATA_SKIPLIST_LEVEL, TSDB_DATA_TYPE_TIMESTAMP, TYPE_BYTES[TSDB_DATA_TYPE_TIMESTAMP],
@@ -702,6 +701,7 @@ static int tsdbScanAndConvertSubmitMsg(STsdbRepo *pRepo, SSubmitMsg *pMsg) {
   return 0;
 }
 
+#if 0
 static FORCE_INLINE int32_t insertDataToTablePreEntry(STsdbRepo* pRepo, STable *pTable, SMemRow row) {
   STsdbCfg *  pCfg = &pRepo->config;
   TKEY        tkey = memRowTKey(row);
@@ -712,42 +712,35 @@ static FORCE_INLINE int32_t insertDataToTablePreEntry(STsdbRepo* pRepo, STable *
     if (pCfg->update == TD_ROW_DISCARD_UPDATE) {
       tsdbWarn("vgId:%d vnode is not allowed to update but try to delete a data row", REPO_ID(pRepo));
       terrno = TSDB_CODE_TDB_INVALID_ACTION;
-      return SSkipListPutBatchPreEarlyStop;
+      return SSkipListPutEarlyStop;
     }
 
     TSKEY lastKey = tsdbGetTableLastKeyImpl(pTable);
     if (key > lastKey) {
       tsdbTrace("vgId:%d skip to delete row key %" PRId64 " which is larger than table lastKey %" PRId64,
                 REPO_ID(pRepo), key, lastKey);
-      return SSkipListPutBatchPreNormal;
+      return SSkipListPutNormal;
     }
   }
-  return SSkipListPutBatchPreNormal;
+  return SSkipListPutNormal;
 }
+#endif
 
-static int32_t insertDatoToTablePreEntryPacked(void** args) {
-  return insertDataToTablePreEntry(*args, *(args+1), *(args+2));
-}
+//row1 has higher priority
+static SMemRow tsdbInsertDupKeyMerge(SMemRow row1, SMemRow row2, STsdbRepo* pRepo, STSchema **ppSchema1, STSchema **ppSchema2, STable* pTable, int32_t* affectedRows, int64_t* points) {
 
-static FORCE_INLINE void insertDataToTablePostEntry(int32_t* affectedRows, int64_t* points) {
+  if(row2 == NULL || pRepo->config.update != TD_ROW_PARTIAL_UPDATE) {
+    void* pMem = tsdbAllocBytes(pRepo, memRowTLen(row1));
+    if(pMem == NULL) return NULL;
+    memRowCpy(pMem, row1);
     (*affectedRows)++;
     (*points)++;
-}
+    return pMem;
+  }
 
-static void insertDataToTablePostEntryPacked(void** args) {
-  insertDataToTablePostEntry(*args, *(args+1));
-}
-
-static void* allocBytesFromBufferPoolPacked(void **args) {
-  void *pData = args[1];
-  void* pMem = tsdbAllocBytes(*args, memRowTLen(pData));
-  memRowCpy(pMem, pData);
-  return pMem;
-}
-
-static SMemRow tsdbInsertDupKeyMerge(SMemRow row1, SMemRow row2, SMergeBuf * pBuf, STSchema **ppSchema1, STSchema **ppSchema2, STable* pTable) {
   STSchema *pSchema1 = *ppSchema1;
   STSchema *pSchema2 = *ppSchema2;
+  SMergeBuf * pBuf = &pRepo->mergeBuf;
   int dv1 = memRowVersion(row1);
   int dv2 = memRowVersion(row2);
   if(pSchema1 == NULL || schemaVersion(pSchema1) != dv1) {
@@ -763,45 +756,37 @@ static SMemRow tsdbInsertDupKeyMerge(SMemRow row1, SMemRow row2, SMergeBuf * pBu
     if(schemaVersion(pSchema1) == dv2) {
       pSchema2 = pSchema1;
     } else {
-      *ppSchema2 = tsdbGetTableSchemaImpl(pTable, false, false, memRowVersion(row1));
+      *ppSchema2 = tsdbGetTableSchemaImpl(pTable, false, false, memRowVersion(row2));
       pSchema2 = *ppSchema2;
     }
   }
 
-  return tsdbMergeTwoRows(pBuf, row1, row2, pSchema1, pSchema2);
+  SMemRow tmp = tsdbMergeTwoRows(pBuf, row1, row2, pSchema1, pSchema2);
+
+  void* pMem = tsdbAllocBytes(pRepo, memRowTLen(tmp));
+  if(pMem == NULL) return NULL;
+  memRowCpy(pMem, tmp);
+
+  (*affectedRows)++;
+  (*points)++;
+
+  return pMem;
 }
 
 static void* tsdbInsertDupKeyMergePacked(void** args) {
-  return tsdbInsertDupKeyMerge(args[0], args[1], args[2], (STSchema**)&args[3], (STSchema**)&args[4], args[5]);
+  return tsdbInsertDupKeyMerge(args[0], args[1], args[2], (STSchema**)&args[3], (STSchema**)&args[4], args[5], args[6], args[7]);
 }
 
 static void tsdbSetupSkipListHookFns(SSkipList* pSkipList, STsdbRepo *pRepo, STable *pTable, int32_t* affectedRows, int64_t* points) {
-  if(pSkipList->preEntryFn == NULL) {
-    tI32SavedFunc *preEntrySavedFunc = i32SavedFuncInit((I32VaFunc)&insertDatoToTablePreEntryPacked, 3);
-    preEntrySavedFunc->args[0] = pRepo;
-    preEntrySavedFunc->args[1] = pTable;
-    pSkipList->preEntryFn = preEntrySavedFunc;
-  }
 
-  if(pSkipList->postEntryFn == NULL) {
-    tVoidSavedFunc *postEntrySavedFunc = voidSavedFuncInit((VoidVaFunc)&insertDataToTablePostEntryPacked, 2);
-    postEntrySavedFunc->args[0] = affectedRows;
-    postEntrySavedFunc->args[1] = points;
-    pSkipList->postEntryFn = postEntrySavedFunc;
-  }
-
-  if(pSkipList->memAllocFn == NULL) {
-    tGenericSavedFunc *memAllocSavedFunc = genericSavedFuncInit((GenericVaFunc)&allocBytesFromBufferPoolPacked, 2);
-    memAllocSavedFunc->args[0] = pRepo;
-    pSkipList->memAllocFn = memAllocSavedFunc;
-  }
-  
   if(pSkipList->dupHandleFn == NULL) {
-    tGenericSavedFunc *dupHandleSavedFunc = genericSavedFuncInit((GenericVaFunc)&tsdbInsertDupKeyMergePacked, 6);
-    dupHandleSavedFunc->args[2] = &pRepo->mergeBuf;
+    tGenericSavedFunc *dupHandleSavedFunc = genericSavedFuncInit((GenericVaFunc)&tsdbInsertDupKeyMergePacked, 8);
+    dupHandleSavedFunc->args[2] = pRepo;
     dupHandleSavedFunc->args[3] = NULL;
     dupHandleSavedFunc->args[4] = NULL;
     dupHandleSavedFunc->args[5] = pTable;
+    dupHandleSavedFunc->args[6] = affectedRows;
+    dupHandleSavedFunc->args[7] = points;
     pSkipList->dupHandleFn = dupHandleSavedFunc;
   }
 }

@@ -38,27 +38,6 @@ static FORCE_INLINE int     tSkipListRLock(SSkipList *pSkipList);
 static FORCE_INLINE int     tSkipListUnlock(SSkipList *pSkipList);
 static FORCE_INLINE int32_t getSkipListRandLevel(SSkipList *pSkipList);
 
-void FORCE_INLINE tSkipListPutBatchSetHookFns(SSkipList* pSkipList,
-                              tI32SavedFunc* preBatchFn,
-                              tI32SavedFunc* preEntryFn,
-                              tVoidSavedFunc* postEntryFn,
-                              tVoidSavedFunc* postBatchFn,
-                              tGenericSavedFunc* memAllocFn,
-                              tGenericSavedFunc* dupHandleFn
-                              ) {
-  if (pSkipList == NULL) return;
-  pSkipList->preBatchFn = preBatchFn;
-  pSkipList->preEntryFn = preEntryFn;
-  pSkipList->postEntryFn = postEntryFn;
-  pSkipList->postBatchFn = postBatchFn;
-  pSkipList->memAllocFn = memAllocFn;
-  pSkipList->dupHandleFn = dupHandleFn;
-}
-
-void FORCE_INLINE tSkipListPutBatchClearHookFns(SSkipList* pSkipList) {
-  tSkipListPutBatchSetHookFns(pSkipList, NULL, NULL, NULL, NULL, NULL, NULL);
-}
-
 SSkipList *tSkipListCreate(uint8_t maxLevel, uint8_t keyType, uint16_t keyLen, __compar_fn_t comparFn, uint8_t flags,
                            __sl_key_fn_t fn) {
   SSkipList *pSkipList = (SSkipList *)calloc(1, sizeof(SSkipList));
@@ -103,7 +82,7 @@ SSkipList *tSkipListCreate(uint8_t maxLevel, uint8_t keyType, uint16_t keyLen, _
 #if SKIP_LIST_RECORD_PERFORMANCE
   pSkipList->state.nTotalMemSize += sizeof(SSkipList);
 #endif
-  tSkipListPutBatchClearHookFns(pSkipList);
+  pSkipList->dupHandleFn = NULL;
 
   return pSkipList;
 }
@@ -121,12 +100,7 @@ void tSkipListDestroy(SSkipList *pSkipList) {
     tSkipListFreeNode(pTemp);
   }
 
-  FREE_SAVED_FUNC(pSkipList->preBatchFn);
-  FREE_SAVED_FUNC(pSkipList->preEntryFn);
-  FREE_SAVED_FUNC(pSkipList->postEntryFn);
-  FREE_SAVED_FUNC(pSkipList->postBatchFn);
-  FREE_SAVED_FUNC(pSkipList->memAllocFn);
-  FREE_SAVED_FUNC(pSkipList->dupHandleFn);
+  tfree(pSkipList->dupHandleFn);
 
   tSkipListUnlock(pSkipList);
   if (pSkipList->lock != NULL) {
@@ -162,24 +136,18 @@ void tSkipListPutBatchByIter(SSkipList *pSkipList, void *iter, iter_next_fn_t it
   char *         pKey = NULL;
   char *         pDataKey = NULL;
   int            compare = 0;
+  SSkipListNode* pNode;
 
   tSkipListWLock(pSkipList);
 
   void* pData = iterate(iter);
   if(pData == NULL) return;
-  pSkipList->preEntryFn->args[2] = pData;
 
-  if(pSkipList->preBatchFn && i32Invoke(pSkipList->preBatchFn) == SSkipListPutBatchPreEarlyStop) {
-    goto finish;
-  }
   // backward to put the first data
   hasDup = tSkipListGetPosToPut(pSkipList, backward, pData);
 
-  if((pSkipList->preEntryFn == NULL) || (i32Invoke(pSkipList->preEntryFn) != SSkipListPutBatchPreEarlyStop)) {
-    SSkipListNode* pNode = tSkipListPutImpl(pSkipList, pData, backward, false, hasDup);
-    if(pNode) *lastData = pNode->pData;
-    voidInvoke(pSkipList->postEntryFn);
-  }
+  pNode = tSkipListPutImpl(pSkipList, pData, backward, false, hasDup);
+  if(pNode) *lastData = pNode->pData;
 
   for (int level = 0; level < pSkipList->maxLevel; level++) {
     forward[level] = SL_NODE_GET_BACKWARD_POINTER(backward[level], level);
@@ -187,7 +155,6 @@ void tSkipListPutBatchByIter(SSkipList *pSkipList, void *iter, iter_next_fn_t it
 
   // forward to put the rest of data
   while ((pData = iterate(iter)) != NULL) {
-    pSkipList->preEntryFn->args[2] = pData;
     pDataKey = pSkipList->keyFn(pData);
     hasDup = false;
 
@@ -229,15 +196,9 @@ void tSkipListPutBatchByIter(SSkipList *pSkipList, void *iter, iter_next_fn_t it
       }
     }
 
-    if(pSkipList->preEntryFn && i32Invoke(pSkipList->preEntryFn) == SSkipListPutBatchPreEarlyStop) {
-      continue;
-    }
-    SSkipListNode *pNode = tSkipListPutImpl(pSkipList, pData, forward, true, hasDup);
+    pNode = tSkipListPutImpl(pSkipList, pData, forward, true, hasDup);
     if(pNode) *lastData = pNode->pData;
-    voidInvoke(pSkipList->postEntryFn);
   }
-finish:
-  voidInvoke(pSkipList->postBatchFn);
   tSkipListUnlock(pSkipList);
 }
 
@@ -773,43 +734,37 @@ static SSkipListNode *tSkipListNewNode(uint8_t level) {
   return pNode;
 }
 
-//TODO: when memory allocation is implemented in this func
-//      it should return a status code to handle failure
 static SSkipListNode *tSkipListPutImpl(SSkipList *pSkipList, void *pData, SSkipListNode **direction, bool isForward,
                                        bool hasDup) {
   uint8_t        dupMode = SL_DUP_MODE(pSkipList);
   SSkipListNode *pNode = NULL;
 
   if (hasDup && (dupMode != SL_ALLOW_DUP_KEY)) {
-    if (dupMode == SL_UPDATE_DUP_KEY || dupMode == SL_PATCH_DUP_KEY) {
+    if (dupMode == SL_UPDATE_DUP_KEY) {
       if (isForward) {
         pNode = SL_NODE_GET_FORWARD_POINTER(direction[0], 0);
       } else {
         pNode = SL_NODE_GET_BACKWARD_POINTER(direction[0], 0);
       }
-      if (dupMode == SL_PATCH_DUP_KEY && pSkipList->dupHandleFn != NULL) {
+      if (pSkipList->dupHandleFn != NULL) {
         pSkipList->dupHandleFn->args[0] = pData;
         pSkipList->dupHandleFn->args[1] = pNode->pData;
-        void *pNewData = genericInvoke(pSkipList->dupHandleFn);
-        pData = pNewData;
+        pData = genericInvoke(pSkipList->dupHandleFn);
       }
       if(pData) {
-        pSkipList->memAllocFn->args[1] = pData;
-        void *newAllocMem = genericInvoke(pSkipList->memAllocFn);
-        pData = newAllocMem;
         atomic_store_ptr(&(pNode->pData), pData);
       }
     }
   } else {
     pNode = tSkipListNewNode(getSkipListRandLevel(pSkipList));
     if (pNode != NULL) {
-      // memAllocFn will be assigned only for timeseries data,
+      // dupHandleFn will be assigned only for timeseries data,
       // in which case, pData is pointed to an memory to be freed later;
       // while for metadata, the mem alloc will not be called.
-      if(pSkipList->memAllocFn) {
-        pSkipList->memAllocFn->args[1] = pData;
-        void *newAllocMem = genericInvoke(pSkipList->memAllocFn);
-        pData = newAllocMem;
+      if (pSkipList->dupHandleFn) {
+        pSkipList->dupHandleFn->args[0] = pData;
+        pSkipList->dupHandleFn->args[1] = NULL;
+        pData = genericInvoke(pSkipList->dupHandleFn);
       }
       pNode->pData = pData;
 

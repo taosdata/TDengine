@@ -49,14 +49,6 @@ void* genericInvoke(tGenericSavedFunc* const pSavedFunc);
 int32_t i32Invoke(tI32SavedFunc* const pSavedFunc);
 void voidInvoke(tVoidSavedFunc* const pSavedFunc);
 
-#define FREE_SAVED_FUNC(x)                \
-  do {                                    \
-    if(x) {                               \
-      free(x);                            \
-      x = 0;                              \
-    }                                     \
-  } while(0)
-
 #ifdef __cplusplus
 }
 #endif

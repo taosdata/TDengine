@@ -16,19 +16,6 @@
 #include "tsdbRowMergeBuf.h"
 #include "tdataformat.h"
 
-int tsdbMergeBufMakeSureRoom(SMergeBuf *pBuf, STSchema* pSchema1, STSchema* pSchema2) {
-  int len = MAX(dataRowMaxBytesFromSchema(pSchema1), dataRowMaxBytesFromSchema(pSchema2)) + sizeof(int);
-  SMergeBuf buf = *pBuf;
-  if(SMERGE_BUF_LEN(buf) < len) {
-    buf = realloc(buf, len + sizeof(int));
-    if(buf == NULL) {
-      return -1;
-    }
-  *pBuf = buf;
-  }
-  return 0;
-}
-
 // row1 has higher priority
 SMemRow tsdbMergeTwoRows(SMergeBuf *pBuf, SMemRow row1, SMemRow row2, STSchema *pSchema1, STSchema *pSchema2) {
   if(row2 == NULL) return row1;
@@ -44,41 +31,4 @@ SMemRow tsdbMergeTwoRows(SMergeBuf *pBuf, SMemRow row1, SMemRow row2, STSchema *
   void *pData = SMERGE_BUF_PTR(buf);
 
   return mergeTwoMemRows(pData, row1, row2, pSchema1, pSchema2);
-
-  /*
-  *(uint16_t*)pData = *(uint16_t*)row1;
-  *(int16_t*)POINTER_SHIFT(pData, sizeof(int16_t)) = *(int16_t*)POINTER_SHIFT(row1, sizeof(int16_t));
-
-  int numOfColsOfRow1 = schemaNCols(pSchema1);
-  int numOfColsOfRow2 = schemaNCols(pSchema2);
-  int i = 0, j = 0;
-  int16_t colIdOfRow1 = pSchema1->columns[i].colId;
-  int16_t colIdOfRow2 = pSchema2->columns[j].colId;
-
-  while(i < numOfColsOfRow1) {
-    if(j >= numOfColsOfRow2) {
-      tdCopyColOfRowBySchema(pData, pSchema1, i, row1, pSchema1, i);
-      i++;
-    } else {
-      colIdOfRow1 = pSchema1->columns[i].colId;
-      colIdOfRow2 = pSchema2->columns[j].colId;
-      if(colIdOfRow1 > colIdOfRow2) {
-        j++;
-        continue;
-      }
-      if(tdIsColOfRowNullBySchema(row1, pSchema1, i)) {
-        if(tdIsColOfRowNullBySchema(row2, pSchema2, j)) {
-          tdSetColOfRowNullBySchema(pData, pSchema1, j);
-        } else {
-          tdCopyColOfRowBySchema(pData, pSchema1, i, row2, pSchema2, j);
-        }
-      } else {
-        tdCopyColOfRowBySchema(pData, pSchema1, i, row1, pSchema1, i);
-      }
-      i++;
-      j++;
-    }
-  }
-  return pData;
-  */
 }

@@ -31,13 +31,7 @@ extern "C" {
 // For key property setting
 #define SL_ALLOW_DUP_KEY (uint8_t)0x0    // Allow duplicate key exists (for tag index usage)
 #define SL_DISCARD_DUP_KEY (uint8_t)0x1  // Discard duplicate key (for data update=0 case)
-#define SL_UPDATE_DUP_KEY (uint8_t)0x2   // Update duplicate key by remove/insert (for data update=1 case)
-
-// Patch duplicate key, the difference between `SL_UPDATE_DUP_KEY` is that
-// in this setting the non-null column in the new row will replace original one
-// whereas the null column in the new row will keep old value intact
-// to enable this setting set update=2 when creating database
-#define SL_PATCH_DUP_KEY (uint8_t)0x3
+#define SL_UPDATE_DUP_KEY (uint8_t)0x2   // Update duplicate key by remove/insert (for data update!=0 case)
 
 // For thread safety setting
 #define SL_THREAD_SAFE (uint8_t)0x4
@@ -107,17 +101,10 @@ typedef struct tSkipListState {
 } tSkipListState;
 
 typedef enum {
-  SSkipListPutBatchPreNormal    = 0,
-  SSkipListPutBatchPreEarlyStop = 1
-} SSkipListPutBatchPreStatus;
-
-#define INCLUDE_PUTBATCH_HOOK()  \
-  tI32SavedFunc* preBatchFn;     \
-  tI32SavedFunc* preEntryFn;     \
-  tVoidSavedFunc* postEntryFn;   \
-  tVoidSavedFunc* postBatchFn;   \
-  tGenericSavedFunc* memAllocFn; \
-  tGenericSavedFunc* dupHandleFn;
+  SSkipListPutSuccess    = 0,
+  SSkipListPutEarlyStop  = 1,
+  SSkipListPutSkipOne    = 2
+} SSkipListPutStatus;
 
 typedef struct SSkipList {
   unsigned int      seed;
@@ -135,7 +122,7 @@ typedef struct SSkipList {
 #if SKIP_LIST_RECORD_PERFORMANCE
   tSkipListState state;  // skiplist state
 #endif
-  INCLUDE_PUTBATCH_HOOK()
+  tGenericSavedFunc* dupHandleFn;
 } SSkipList;
 
 typedef struct SSkipListIterator {
@@ -143,7 +130,7 @@ typedef struct SSkipListIterator {
   SSkipListNode *cur;
   int32_t        step;          // the number of nodes that have been checked already
   int32_t        order;         // order of the iterator
-  SSkipListNode *next;          // next points to the true qualified node in skip list
+  SSkipListNode *next;          // next points to the true qualified node in skiplist
 } SSkipListIterator;
 
 #define SL_IS_THREAD_SAFE(s) (((s)->flags) & SL_THREAD_SAFE)
@@ -152,8 +139,6 @@ typedef struct SSkipListIterator {
 #define SL_GET_MIN_KEY(s) SL_GET_NODE_KEY(s, SL_NODE_GET_FORWARD_POINTER((s)->pHead, 0))
 #define SL_GET_MAX_KEY(s) SL_GET_NODE_KEY((s), SL_NODE_GET_BACKWARD_POINTER((s)->pTail, 0))
 #define SL_SIZE(s) (s)->size
-
-void tSkipListPutBatchSetHookFns(SSkipList* pSkipList, tI32SavedFunc* preBatchFn, tI32SavedFunc* preEntryFn, tVoidSavedFunc* postEntryFn, tVoidSavedFunc* postBatchFn, tGenericSavedFunc* memAllocFn, tGenericSavedFunc* dupHandleFn);
 
 SSkipList *tSkipListCreate(uint8_t maxLevel, uint8_t keyType, uint16_t keyLen, __compar_fn_t comparFn, uint8_t flags,
                            __sl_key_fn_t fn);
@@ -170,8 +155,6 @@ SSkipListNode *    tSkipListIterGet(SSkipListIterator *iter);
 void *             tSkipListDestroyIter(SSkipListIterator *iter);
 uint32_t           tSkipListRemove(SSkipList *pSkipList, SSkipListKey key);
 void               tSkipListRemoveNode(SSkipList *pSkipList, SSkipListNode *pNode);
-
-#undef INCLUDE_PUTBATCH_HOOK
 
 #ifdef __cplusplus
 }

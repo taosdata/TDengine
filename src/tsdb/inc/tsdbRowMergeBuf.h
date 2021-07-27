@@ -21,22 +21,22 @@ extern "C" {
 #endif
 
 #include "tsdb.h"
+#include "tchecksum.h"
+#include "tsdbReadImpl.h"
 
 typedef void* SMergeBuf;
 
-#define SMERGE_BUF_LEN(x) (*(int*)(x))
-#define SMERGE_BUF_PTR(x) POINTER_SHIFT(x, sizeof(int))
-
-int tsdbMergeBufMakeSureRoom(SMergeBuf *pBuf, STSchema* pSchema1, STSchema* pSchema2);
+#define SMERGE_BUF_LEN(x) (*(size_t*)(x))
+#define SMERGE_BUF_PTR(x) POINTER_SHIFT(x, sizeof(size_t))
 
 SDataRow tsdbMergeTwoRows(SMergeBuf *pBuf, SMemRow row1, SMemRow row2, STSchema *pSchema1, STSchema *pSchema2);
 
-static FORCE_INLINE SMergeBuf tsdbMakeBuf(int size) {
-  return malloc(size);
+static FORCE_INLINE int tsdbMergeBufMakeSureRoom(SMergeBuf *pBuf, STSchema* pSchema1, STSchema* pSchema2) {
+  return tsdbMakeRoom(pBuf, MAX(dataRowMaxBytesFromSchema(pSchema1), dataRowMaxBytesFromSchema(pSchema2)));
 }
 
 static FORCE_INLINE void tsdbFreeMergeBuf(SMergeBuf buf) {
-  if(buf) free(buf);
+  taosTZfree(buf);
 }
 
 #ifdef __cplusplus

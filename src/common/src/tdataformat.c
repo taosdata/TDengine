@@ -793,10 +793,12 @@ SKVRow tdGetKVRowFromBuilder(SKVRowBuilder *pBuilder) {
 }
 
 SMemRow mergeTwoMemRows(void *buffer, SMemRow row1, SMemRow row2, STSchema *pSchema1, STSchema *pSchema2) {
-  /*ASSERT(memRowKey(row1) == memRowKey(row2));*/
-  /*ASSERT(schemaVersion(pSchema1) == memRowVersion(row1));*/
-  /*ASSERT(schemaVersion(pSchema2) == memRowVersion(row2));*/
-  /*ASSERT(schemaVersion(pSchema1) >= schemaVersion(pSchema2));*/
+#if 0
+  ASSERT(memRowKey(row1) == memRowKey(row2));
+  ASSERT(schemaVersion(pSchema1) == memRowVersion(row1));
+  ASSERT(schemaVersion(pSchema2) == memRowVersion(row2));
+  ASSERT(schemaVersion(pSchema1) >= schemaVersion(pSchema2));
+#endif
 
   SArray *stashRow = taosArrayInit(pSchema1->numOfCols, sizeof(SColInfo));
   if (stashRow == NULL) {

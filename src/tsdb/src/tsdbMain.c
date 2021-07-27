@@ -107,16 +107,7 @@ STsdbRepo *tsdbOpenRepo(STsdbCfg *pCfg, STsdbAppH *pAppH) {
     return NULL;
   }
 
-  if(pCfg->update == TD_ROW_PARTIAL_UPDATE) {
-    SMergeBuf buf;
-    if((buf = tsdbMakeBuf(512)) == NULL) {
-      tsdbError("vgId:%d failed to open TSDB repository while opening merge buffer pool since %s", config.tsdbId,
-                tstrerror(terrno));
-      tsdbCloseRepo(pRepo, false);
-    return NULL;
-    }
-    pRepo->mergeBuf = buf;
-  }
+  pRepo->mergeBuf = NULL;
 
   tsdbStartStream(pRepo);
 
