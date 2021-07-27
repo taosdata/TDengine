@@ -480,7 +480,7 @@ int tsCompressTimestampImp(const char *const input, const int nelements, char *c
   int64_t *istream = (int64_t *)input;
 
   int64_t  prev_value = istream[0];
-  int64_t  prev_delta = -prev_value;
+  int64_t  prev_delta = 0; //-prev_value;
   uint8_t  flags = 0, flag1 = 0, flag2 = 0;
   uint64_t dd1 = 0, dd2 = 0;
 
@@ -488,8 +488,16 @@ int tsCompressTimestampImp(const char *const input, const int nelements, char *c
     int64_t curr_value = istream[i];
     if (!safeInt64Add(curr_value, -prev_value)) goto _exit_over;
     int64_t curr_delta = curr_value - prev_value;
-    if (!safeInt64Add(curr_delta, -prev_delta)) goto _exit_over;
-    int64_t delta_of_delta = curr_delta - prev_delta;
+    int64_t delta_of_delta = 0;
+    if (i == 0) {
+      if (!safeInt64Add(curr_delta, prev_value)) goto _exit_over;
+      else {
+        delta_of_delta = curr_delta + prev_value;
+      }
+    } else {
+      if (!safeInt64Add(curr_delta, -prev_delta)) goto _exit_over;
+      delta_of_delta = curr_delta - prev_delta;
+    } 
     // zigzag encode the value.
     uint64_t zigzag_value = ZIGZAG_ENCODE(int64_t, delta_of_delta);
     if (i % 2 == 0) {
