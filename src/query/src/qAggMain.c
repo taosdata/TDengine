@@ -842,7 +842,7 @@ static void avg_finalizer(SQLFunctionCtx *pCtx) {
       return;
     }
     
-    *(double *)pCtx->pOutput = (*(double *)pCtx->pOutput) / *(int64_t *)GET_ROWCELL_INTERBUF(pResInfo);
+    double tmp; *(double *)pCtx->pOutput = tmp = (*(double *)pCtx->pOutput) / *(int64_t *)GET_ROWCELL_INTERBUF(pResInfo);
   } else {  // this is the secondary merge, only in the secondary merge, the input type is TSDB_DATA_TYPE_BINARY
     assert(IS_NUMERIC_TYPE(pCtx->inputType));
     SAvgInfo *pAvgInfo = (SAvgInfo *)GET_ROWCELL_INTERBUF(pResInfo);
@@ -852,7 +852,7 @@ static void avg_finalizer(SQLFunctionCtx *pCtx) {
       return;
     }
     
-    *(double *)pCtx->pOutput = pAvgInfo->sum / pAvgInfo->num;
+    double tmp; *(double *)pCtx->pOutput = tmp = pAvgInfo->sum / pAvgInfo->num;
   }
   
   // cannot set the numOfIteratedElems again since it is set during previous iteration
@@ -2366,7 +2366,7 @@ static void percentile_finalizer(SQLFunctionCtx *pCtx) {
     assert(ppInfo->numOfElems == 0);
     setNull(pCtx->pOutput, pCtx->outputType, pCtx->outputBytes);
   } else {
-    *(double *)pCtx->pOutput = getPercentile(pMemBucket, v);
+    double tmp; *(double *)pCtx->pOutput = tmp = getPercentile(pMemBucket, v);
   }
   
   tMemBucketDestroy(pMemBucket);
@@ -3290,7 +3290,7 @@ void spread_function_finalizer(SQLFunctionCtx *pCtx) {
       return;
     }
     
-    *(double *)pCtx->pOutput = pCtx->param[3].dKey - pCtx->param[0].dKey;
+    double tmp; *(double *)pCtx->pOutput = tmp = pCtx->param[3].dKey - pCtx->param[0].dKey;
   } else {
     assert(IS_NUMERIC_TYPE(pCtx->inputType) || (pCtx->inputType == TSDB_DATA_TYPE_TIMESTAMP));
     
@@ -3300,7 +3300,7 @@ void spread_function_finalizer(SQLFunctionCtx *pCtx) {
       return;
     }
     
-    *(double *)pCtx->pOutput = pInfo->max - pInfo->min;
+    double tmp; *(double *)pCtx->pOutput = tmp = pInfo->max - pInfo->min;
   }
   
   GET_RES_INFO(pCtx)->numOfRes = 1;  // todo add test case
@@ -3628,9 +3628,9 @@ void twa_function_finalizer(SQLFunctionCtx *pCtx) {
 
   assert(pInfo->win.ekey == pInfo->p.key && pInfo->hasResult == pResInfo->hasResult);
   if (pInfo->win.ekey == pInfo->win.skey) {
-    *(double *)pCtx->pOutput = pInfo->p.val;
+    double tmp; *(double *)pCtx->pOutput = tmp = pInfo->p.val;
   } else {
-    *(double *)pCtx->pOutput = pInfo->dOutput / (pInfo->win.ekey - pInfo->win.skey);
+    double tmp; *(double *)pCtx->pOutput = tmp = pInfo->dOutput / (pInfo->win.ekey - pInfo->win.skey);
   }
   
   GET_RES_INFO(pCtx)->numOfRes = 1;
