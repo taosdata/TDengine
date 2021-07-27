@@ -67,7 +67,6 @@ class TDTestCase:
         ulsec = repr(ts).split('.')[1][:6]
         if len(ulsec) < 6 and int(ulsec) != 0:
             ulsec = int(ulsec) * (10 ** (6 - len(ulsec)))
-        # ! to confirm .000000
         elif int(ulsec) == 0:
             ulsec *= 6
             # ! follow two rows added for tsCheckCase
@@ -101,7 +100,6 @@ class TDTestCase:
             td_type = "FLOAT"
             td_tag_value = ''.join(list(value)[:-3])
             td_tag_value = '{}'.format(np.float32(td_tag_value))
-
         elif value.endswith("f64"):
             td_type = "DOUBLE"
             td_tag_value = ''.join(list(value)[:-3])
@@ -171,7 +169,6 @@ class TDTestCase:
 
         for elm in stb_tag_list:
             if "id=" in elm.lower():
-                # id_index = stb_id_tag_list.index(elm)
                 tb_name = elm.split('=')[1]
             else:
                 tag_name_list.append(elm.split("=")[0])
@@ -186,26 +183,10 @@ class TDTestCase:
             td_col_value_list.append(self.getTdTypeValue(elm.split("=")[1])[1])
             td_col_type_list.append(self.getTdTypeValue(elm.split("=")[1])[0])
 
-        # print(stb_name)
-        # print(tb_name)
-        # print(tag_name_list)
-        # print(tag_value_list)
-        # print(td_tag_type_list)
-        # print(td_tag_value_list)
-
-        # print(ts_value)
-
-        # print(col_name_list)
-        # print(col_value_list)
-        # print(td_col_value_list)
-        # print(td_col_type_list)
-
-        # print("final type--------######")
         final_field_list = []
         final_field_list.extend(col_name_list)
         final_field_list.extend(tag_name_list)
 
-        # print("final type--------######")
         final_type_list = []
         final_type_list.append("TIMESTAMP")
         final_type_list.extend(td_col_type_list)
@@ -216,9 +197,6 @@ class TDTestCase:
         final_value_list.append(ts_value)
         final_value_list.extend(td_col_value_list)
         final_value_list.extend(td_tag_value_list)
-        # print("-----------value-----------")
-        # print(final_value_list)
-        # print("-----------value-----------")
         return final_value_list, final_field_list, final_type_list, stb_name, tb_name
 
     def genFullTypeSql(self, stb_name="", tb_name="", t0="", t1="127i8", t2="32767i16", t3="2147483647i32",
@@ -262,7 +240,7 @@ class TDTestCase:
                 sql_seq = f'{stb_name},t0={t0},t1={t1},t2={t2},t3={t3},t4={t4},t5={t5},t6={t6},t7={t7},t8={t8},t11={t1},t10={t8} c0={c0},c1={c1},c2={c2},c3={c3},c4={c4},c5={c5},c6={c6} {ts}'
         if ct_min_tag is not None:
             sql_seq = f'{stb_name},{id}=\"{tb_name}\",t0={t0},t1={t1},t2={t2},t3={t3},t4={t4},t5={t5},t6={t6} c0={c0},c1={c1},c2={c2},c3={c3},c4={c4},c5={c5},c6={c6} {ts}'
-        return sql_seq, stb_name, tb_name
+        return sql_seq, stb_name
     
     def genMulTagColStr(self, genType, count):
         """
@@ -349,7 +327,7 @@ class TDTestCase:
             normal tags and cols, one for every elm
         """
         self.cleanStb()
-        input_sql, stb_name, tb_name = self.genFullTypeSql()
+        input_sql, stb_name = self.genFullTypeSql()
         self.resCmp(input_sql, stb_name)
 
     def boolTypeCheckCase(self):
@@ -359,7 +337,7 @@ class TDTestCase:
         self.cleanStb()
         full_type_list = ["f", "F", "false", "False", "t", "T", "true", "True"]
         for t_type in full_type_list:
-            input_sql, stb_name, tb_name = self.genFullTypeSql(c0=t_type, t0=t_type)
+            input_sql, stb_name = self.genFullTypeSql(c0=t_type, t0=t_type)
             self.resCmp(input_sql, stb_name)
         
     def symbolsCheckCase(self):
@@ -373,7 +351,7 @@ class TDTestCase:
         self.cleanStb()
         binary_symbols = '\"abcd`~!@#$%^&*()_-{[}]|:;<.>?lfjal"\"'
         nchar_symbols = f'L{binary_symbols}'
-        input_sql, stb_name, tb_name = self.genFullTypeSql(c7=binary_symbols, c8=nchar_symbols, t7=binary_symbols, t8=nchar_symbols)
+        input_sql, stb_name = self.genFullTypeSql(c7=binary_symbols, c8=nchar_symbols, t7=binary_symbols, t8=nchar_symbols)
         self.resCmp(input_sql, stb_name)
 
     def tsCheckCase(self):
@@ -394,7 +372,7 @@ class TDTestCase:
             eg: t0=**,id=**,t1=**
         """
         self.cleanStb()
-        input_sql, stb_name, tb_name = self.genFullTypeSql(id_change_tag=True)
+        input_sql, stb_name = self.genFullTypeSql(id_change_tag=True)
         self.resCmp(input_sql, stb_name)
     
     def idUpperCheckCase(self):
@@ -403,9 +381,9 @@ class TDTestCase:
             eg: id and ID
         """
         self.cleanStb()
-        input_sql, stb_name, tb_name = self.genFullTypeSql(id_upper_tag=True)
+        input_sql, stb_name = self.genFullTypeSql(id_upper_tag=True)
         self.resCmp(input_sql, stb_name)
-        input_sql, stb_name, tb_name = self.genFullTypeSql(id_change_tag=True, id_upper_tag=True)
+        input_sql, stb_name = self.genFullTypeSql(id_change_tag=True, id_upper_tag=True)
         self.resCmp(input_sql, stb_name)
 
     def noIdCheckCase(self):
@@ -413,7 +391,7 @@ class TDTestCase:
             id not exist
         """
         self.cleanStb()
-        input_sql, stb_name, tb_name = self.genFullTypeSql(id_noexist_tag=True)
+        input_sql, stb_name = self.genFullTypeSql(id_noexist_tag=True)
         self.resCmp(input_sql, stb_name)
         query_sql = f"select tbname from {stb_name}"
         res_row_list = self.resHandle(query_sql, True)[0]
@@ -492,7 +470,7 @@ class TDTestCase:
         self.cleanStb()
         # i8
         for t1 in ["-127i8", "127i8"]:
-            input_sql, stb_name, tb_name = self.genFullTypeSql(t1=t1)
+            input_sql, stb_name = self.genFullTypeSql(t1=t1)
             self.resCmp(input_sql, stb_name)
         for t1 in ["-128i8", "128i8"]:
             input_sql = self.genFullTypeSql(t1=t1)[0]
@@ -501,7 +479,7 @@ class TDTestCase:
 
         #i16
         for t2 in ["-32767i16", "32767i16"]:
-            input_sql, stb_name, tb_name = self.genFullTypeSql(t2=t2)
+            input_sql, stb_name = self.genFullTypeSql(t2=t2)
             self.resCmp(input_sql, stb_name)
         for t2 in ["-32768i16", "32768i16"]:
             input_sql = self.genFullTypeSql(t2=t2)[0]
@@ -510,7 +488,7 @@ class TDTestCase:
 
         #i32
         for t3 in ["-2147483647i32", "2147483647i32"]:
-            input_sql, stb_name, tb_name = self.genFullTypeSql(t3=t3)
+            input_sql, stb_name = self.genFullTypeSql(t3=t3)
             self.resCmp(input_sql, stb_name)
         for t3 in ["-2147483648i32", "2147483648i32"]:
             input_sql = self.genFullTypeSql(t3=t3)[0]
@@ -519,7 +497,7 @@ class TDTestCase:
 
         #i64
         for t4 in ["-9223372036854775807i64", "9223372036854775807i64"]:
-            input_sql, stb_name, tb_name = self.genFullTypeSql(t4=t4)
+            input_sql, stb_name = self.genFullTypeSql(t4=t4)
             self.resCmp(input_sql, stb_name)
         for t4 in ["-9223372036854775808i64", "9223372036854775808i64"]:
             input_sql = self.genFullTypeSql(t4=t4)[0]
@@ -528,7 +506,7 @@ class TDTestCase:
 
         # f32
         for t5 in [f"{-3.4028234663852885981170418348451692544*(10**38)}f32", f"{3.4028234663852885981170418348451692544*(10**38)}f32"]:
-            input_sql, stb_name, tb_name = self.genFullTypeSql(t5=t5)
+            input_sql, stb_name = self.genFullTypeSql(t5=t5)
             self.resCmp(input_sql, stb_name)
         # * limit set to 4028234664*(10**38)
         for t5 in [f"{-3.4028234664*(10**38)}f32", f"{3.4028234664*(10**38)}f32"]:
@@ -540,7 +518,7 @@ class TDTestCase:
         # for t6 in [f'{-1.79769313486231570814527423731704356798070567525844996598917476803157260780*(10**308)}f64', f'{-1.79769313486231570814527423731704356798070567525844996598917476803157260780*(10**308)}f64']:
         for t6 in [f'{-1.79769*(10**308)}f64', f'{-1.79769*(10**308)}f64']:
             print("f64?")
-            input_sql, stb_name, tb_name = self.genFullTypeSql(t6=t6)
+            input_sql, stb_name = self.genFullTypeSql(t6=t6)
             self.resCmp(input_sql, stb_name)
         # TODO to confirm length
         # * limit set to 1.797693134862316*(10**308)
@@ -576,7 +554,7 @@ class TDTestCase:
         self.cleanStb()
         # i8
         for c1 in ["-127i8", "127i8"]:
-            input_sql, stb_name, tb_name = self.genFullTypeSql(c1=c1)
+            input_sql, stb_name = self.genFullTypeSql(c1=c1)
             self.resCmp(input_sql, stb_name)
 
         for c1 in ["-128i8", "128i8"]:
@@ -586,7 +564,7 @@ class TDTestCase:
             tdSql.checkNotEqual(code, 0)
         # i16
         for c2 in ["-32767i16"]:
-            input_sql, stb_name, tb_name = self.genFullTypeSql(c2=c2)
+            input_sql, stb_name = self.genFullTypeSql(c2=c2)
             self.resCmp(input_sql, stb_name)
         for c2 in ["-32768i16", "32768i16"]:
             input_sql = self.genFullTypeSql(c2=c2)[0]
@@ -595,7 +573,7 @@ class TDTestCase:
 
         # i32
         for c3 in ["-2147483647i32"]:
-            input_sql, stb_name, tb_name = self.genFullTypeSql(c3=c3)
+            input_sql, stb_name = self.genFullTypeSql(c3=c3)
             self.resCmp(input_sql, stb_name)
         for c3 in ["-2147483648i32", "2147483648i32"]:
             input_sql = self.genFullTypeSql(c3=c3)[0]
@@ -604,7 +582,7 @@ class TDTestCase:
 
         # i64
         for c4 in ["-9223372036854775807i64"]:
-            input_sql, stb_name, tb_name = self.genFullTypeSql(c4=c4)
+            input_sql, stb_name = self.genFullTypeSql(c4=c4)
             self.resCmp(input_sql, stb_name)
         for c4 in ["-9223372036854775808i64", "9223372036854775808i64"]:
             input_sql = self.genFullTypeSql(c4=c4)[0]
@@ -613,7 +591,7 @@ class TDTestCase:
 
         # f32       
         for c5 in [f"{-3.4028234663852885981170418348451692544*(10**38)}f32", f"{3.4028234663852885981170418348451692544*(10**38)}f32"]:
-            input_sql, stb_name, tb_name = self.genFullTypeSql(c5=c5)
+            input_sql, stb_name = self.genFullTypeSql(c5=c5)
             self.resCmp(input_sql, stb_name)
         # * limit set to 4028234664*(10**38)
         for c5 in [f"{-3.4028234664*(10**38)}f32", f"{3.4028234664*(10**38)}f32"]:
@@ -623,7 +601,7 @@ class TDTestCase:
 
         # f64
         for c6 in [f'{-1.79769313486231570814527423731704356798070567525844996598917476803157260780*(10**308)}f64', f'{-1.79769313486231570814527423731704356798070567525844996598917476803157260780*(10**308)}f64']:
-            input_sql, stb_name, tb_name = self.genFullTypeSql(c6=c6)
+            input_sql, stb_name = self.genFullTypeSql(c6=c6)
             self.resCmp(input_sql, stb_name)
         # * limit set to 1.797693134862316*(10**308)
         for c6 in [f'{-1.797693134862316*(10**308)}f64', f'{-1.797693134862316*(10**308)}f64']:
@@ -716,9 +694,9 @@ class TDTestCase:
             case no id when stb exist
         """
         self.cleanStb()
-        input_sql, stb_name, tb_name = self.genFullTypeSql(t0="f", c0="f")
+        input_sql, stb_name = self.genFullTypeSql(t0="f", c0="f")
         self.resCmp(input_sql, stb_name)
-        input_sql, stb_name, tb_name = self.genFullTypeSql(stb_name=stb_name, id_noexist_tag=True, t0="f", c0="f")
+        input_sql, stb_name = self.genFullTypeSql(stb_name=stb_name, id_noexist_tag=True, t0="f", c0="f")
         self.resCmp(input_sql, stb_name, condition='where tbname like "t_%"')
         tdSql.query(f"select * from {stb_name}")
         tdSql.checkRows(2)
@@ -729,7 +707,7 @@ class TDTestCase:
             check duplicate insert when stb exist
         """
         self.cleanStb()
-        input_sql, stb_name, tb_name = self.genFullTypeSql()
+        input_sql, stb_name = self.genFullTypeSql()
         self.resCmp(input_sql, stb_name)
         code = self._conn.insertLines([input_sql])
         tdSql.checkEqual(code, 0)
@@ -740,10 +718,10 @@ class TDTestCase:
             check length increase
         """
         self.cleanStb()
-        input_sql, stb_name, tb_name = self.genFullTypeSql()
+        input_sql, stb_name = self.genFullTypeSql()
         self.resCmp(input_sql, stb_name)
         tb_name = self.getLongName(5, "letters")
-        input_sql, stb_name, tb_name = self.genFullTypeSql(stb_name=stb_name, tb_name=tb_name,t7="\"binaryTagValuebinaryTagValue\"", t8="L\"ncharTagValuencharTagValue\"", c7="\"binaryTagValuebinaryTagValue\"", c8="L\"ncharTagValuencharTagValue\"")
+        input_sql, stb_name = self.genFullTypeSql(stb_name=stb_name, tb_name=tb_name,t7="\"binaryTagValuebinaryTagValue\"", t8="L\"ncharTagValuencharTagValue\"", c7="\"binaryTagValuebinaryTagValue\"", c8="L\"ncharTagValuencharTagValue\"")
         self.resCmp(input_sql, stb_name, condition=f'where tbname like "{tb_name}"')
 
     # ! use tb_name
@@ -757,27 +735,28 @@ class TDTestCase:
             * col is added with value when update==1
         """
         self.cleanStb()
+        tb_name = self.getLongName(7, "letters")
         for db_update_tag in [0, 1]:
             if db_update_tag == 1 :
                 self.createDb("test_update", db_update_tag=db_update_tag)
-            input_sql, stb_name, tb_name = self.genFullTypeSql(t0="f", c0="f")
+            input_sql, stb_name = self.genFullTypeSql(tb_name=tb_name, t0="f", c0="f")
             self.resCmp(input_sql, stb_name)
-            input_sql, stb_name, tb_name = self.genFullTypeSql(stb_name=stb_name, tb_name=f'{tb_name}', t0="f", c0="f", ct_add_tag=True)
+            self.genFullTypeSql(stb_name=stb_name, tb_name=tb_name, t0="f", c0="f", ct_add_tag=True)
             if db_update_tag == 1 :
                 self.resCmp(input_sql, stb_name, condition=f'where tbname like "{tb_name}"')
             else:
                 self.resCmp(input_sql, stb_name, condition=f'where tbname like "{tb_name}"', none_check_tag=True)
-
-        
 
     def tagColAddCheckCase(self):
         """
             check column and tag count add
         """
         self.cleanStb()
-        input_sql, stb_name, tb_name = self.genFullTypeSql(t0="f", c0="f")
+        tb_name = self.getLongName(7, "letters")
+        input_sql, stb_name = self.genFullTypeSql(tb_name=tb_name, t0="f", c0="f")
         self.resCmp(input_sql, stb_name)
-        input_sql, stb_name, tb_name_1 = self.genFullTypeSql(stb_name=stb_name, tb_name=f'{tb_name}_1', t0="f", c0="f", ct_add_tag=True)
+        tb_name_1 = self.getLongName(7, "letters")
+        input_sql, stb_name = self.genFullTypeSql(stb_name=stb_name, tb_name=tb_name_1, t0="f", c0="f", ct_add_tag=True)
         self.resCmp(input_sql, stb_name, condition=f'where tbname like "{tb_name_1}"')
         res_row_list = self.resHandle(f"select c10,c11,t10,t11 from {tb_name}", True)[0]
         tdSql.checkEqual(res_row_list[0], ['None', 'None', 'None', 'None'])
@@ -789,16 +768,16 @@ class TDTestCase:
             insert two table, keep tag unchange, change col
         """
         self.cleanStb()
-        input_sql, stb_name, tb_name = self.genFullTypeSql(t0="f", c0="f", id_noexist_tag=True)
+        input_sql, stb_name = self.genFullTypeSql(t0="f", c0="f", id_noexist_tag=True)
         self.resCmp(input_sql, stb_name)
         tb_name1 = self.getNoIdTbName(stb_name)
-        input_sql, stb_name, tb_name = self.genFullTypeSql(stb_name=stb_name, t0="f", c0="f", id_noexist_tag=True)
+        input_sql, stb_name = self.genFullTypeSql(stb_name=stb_name, t0="f", c0="f", id_noexist_tag=True)
         self.resCmp(input_sql, stb_name)
         tb_name2 = self.getNoIdTbName(stb_name)
         tdSql.query(f"select * from {stb_name}")
         tdSql.checkRows(1)
         tdSql.checkEqual(tb_name1, tb_name2)
-        input_sql, stb_name, tb_name = self.genFullTypeSql(stb_name=stb_name, t0="f", c0="f", id_noexist_tag=True, ct_add_tag=True)
+        input_sql, stb_name = self.genFullTypeSql(stb_name=stb_name, t0="f", c0="f", id_noexist_tag=True, ct_add_tag=True)
         self._conn.insertLines([input_sql])
         tb_name3 = self.getNoIdTbName(stb_name)
         tdSql.query(f"select * from {stb_name}")
@@ -898,7 +877,6 @@ class TDTestCase:
             code = self._conn.insertLines(sql_list)
             tdSql.checkEqual(code, 0)
 
-    # ! bug
     def batchErrorInsertCheckCase(self):
         """
             test batch error insert
@@ -971,7 +949,8 @@ class TDTestCase:
             thread input same stb tb, different data, result keep first data
         """
         self.cleanStb()
-        input_sql, stb_name, tb_name = self.genFullTypeSql(tb_name=self.getLongName(10, "letters"))
+        tb_name = self.getLongName(7, "letters")
+        input_sql, stb_name = self.genFullTypeSql(tb_name=tb_name)
         self.resCmp(input_sql, stb_name)
         s_stb_s_tb_list = self.genSqlList(stb_name=stb_name, tb_name=tb_name)[1]
         self.multiThreadRun(self.genMultiThreadSeq(s_stb_s_tb_list))
@@ -987,7 +966,8 @@ class TDTestCase:
             thread input same stb tb, different data, add columes and tags,  result keep first data
         """
         self.cleanStb()
-        input_sql, stb_name, tb_name = self.genFullTypeSql(tb_name=self.getLongName(10, "letters"))
+        tb_name = self.getLongName(7, "letters")
+        input_sql, stb_name = self.genFullTypeSql(tb_name=tb_name)
         self.resCmp(input_sql, stb_name)
         s_stb_s_tb_a_col_a_tag_list = self.genSqlList(stb_name=stb_name, tb_name=tb_name)[2]
         self.multiThreadRun(self.genMultiThreadSeq(s_stb_s_tb_a_col_a_tag_list))
@@ -1003,7 +983,8 @@ class TDTestCase:
             thread input same stb tb, different data, minus columes and tags,  result keep first data
         """
         self.cleanStb()
-        input_sql, stb_name, tb_name = self.genFullTypeSql(tb_name=self.getLongName(10, "letters"))
+        tb_name = self.getLongName(7, "letters")
+        input_sql, stb_name = self.genFullTypeSql(tb_name=tb_name)
         self.resCmp(input_sql, stb_name)
         s_stb_s_tb_m_col_m_tag_list = self.genSqlList(stb_name=stb_name, tb_name=tb_name)[3]
         self.multiThreadRun(self.genMultiThreadSeq(s_stb_s_tb_m_col_m_tag_list))
@@ -1019,7 +1000,7 @@ class TDTestCase:
             thread input same stb, different tb, different data
         """
         self.cleanStb()
-        input_sql, stb_name, tb_name = self.genFullTypeSql()
+        input_sql, stb_name = self.genFullTypeSql()
         self.resCmp(input_sql, stb_name)
         s_stb_d_tb_list = self.genSqlList(stb_name=stb_name)[4]
         self.multiThreadRun(self.genMultiThreadSeq(s_stb_d_tb_list))
@@ -1034,7 +1015,7 @@ class TDTestCase:
             thread input same stb, different tb, different data, add col, mul tag
         """
         self.cleanStb()
-        input_sql, stb_name, tb_name = self.genFullTypeSql()
+        input_sql, stb_name = self.genFullTypeSql()
         self.resCmp(input_sql, stb_name)
         s_stb_d_tb_a_col_m_tag_list = self.genSqlList(stb_name=stb_name)[5]
         self.multiThreadRun(self.genMultiThreadSeq(s_stb_d_tb_a_col_m_tag_list))
@@ -1049,7 +1030,7 @@ class TDTestCase:
             thread input same stb, different tb, different data, add tag, mul col
         """
         self.cleanStb()
-        input_sql, stb_name, tb_name = self.genFullTypeSql()
+        input_sql, stb_name = self.genFullTypeSql()
         self.resCmp(input_sql, stb_name)
         s_stb_d_tb_a_tag_m_col_list = self.genSqlList(stb_name=stb_name)[6]
         self.multiThreadRun(self.genMultiThreadSeq(s_stb_d_tb_a_tag_m_col_list))
@@ -1061,7 +1042,8 @@ class TDTestCase:
             thread input same stb tb, different ts
         """
         self.cleanStb()
-        input_sql, stb_name, tb_name = self.genFullTypeSql(tb_name=self.getLongName(10, "letters"))
+        tb_name = self.getLongName(7, "letters")
+        input_sql, stb_name = self.genFullTypeSql(tb_name=tb_name)
         self.resCmp(input_sql, stb_name)
         s_stb_s_tb_d_ts_list = self.genSqlList(stb_name=stb_name, tb_name=tb_name)[7]
         print(s_stb_s_tb_d_ts_list)
