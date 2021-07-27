@@ -33,7 +33,7 @@ namespace TDengineDriver
         //sql parameters
         private string dbName;
         private string tbName;
-	private string precision;
+        private string precision;
 
         private bool isInsertData;
         private bool isQueryData;
@@ -61,9 +61,9 @@ namespace TDengineDriver
             tester.checkInsert();
             tester.checkSelect();
             tester.checkDropTable();
-	    tester.dropDatabase();
+            tester.dropDatabase();
             tester.CloseConnection();
-	    tester.cleanup();
+            tester.cleanup();
 
 
         }
@@ -156,8 +156,8 @@ namespace TDengineDriver
                     Console.WriteLine("{0:G}{1:G}{2:G}", indent, indent, "How many rows to insert, default is 100");
                     Console.WriteLine("{0:G}{1:G}", indent, "-c");
                     Console.WriteLine("{0:G}{1:G}{2:G}", indent, indent, "Configuration directory");
-		    //
-		    Console.WriteLine("{0:G}{1:G}", indent, "-ps");
+                    //
+                    Console.WriteLine("{0:G}{1:G}", indent, "-ps");
                     Console.WriteLine("{0:G}{1:G}{2:G}", indent, indent, "Configurate db precision,default millisecond");
                     ExitProgram();
                 }
@@ -172,7 +172,7 @@ namespace TDengineDriver
             password = this.GetArgumentAsString(argv, "-p", "taosdata");
             dbName = this.GetArgumentAsString(argv, "-d", "test");
             tbName = this.GetArgumentAsString(argv, "-s", "weather");
-	    precision = this.GetArgumentAsString(argv, "-ps", "ms");
+            precision = this.GetArgumentAsString(argv, "-ps", "ms");
             isInsertData = this.GetArgumentAsLong(argv, "-w", 0, 1, 1) != 0;
             isQueryData = this.GetArgumentAsLong(argv, "-r", 0, 1, 1) != 0;
             tableCount = this.GetArgumentAsLong(argv, "-n", 1, 10000, 10);
@@ -186,7 +186,7 @@ namespace TDengineDriver
             TDengine.Options((int)TDengineInitOption.TDDB_OPTION_CONFIGDIR, this.configDir);
             TDengine.Options((int)TDengineInitOption.TDDB_OPTION_SHELL_ACTIVITY_TIMER, "60");
             Console.WriteLine("init...");
-	    TDengine.Init();
+            TDengine.Init();
             Console.WriteLine("get connection starting...");
         }
 
@@ -208,7 +208,7 @@ namespace TDengineDriver
         {
             StringBuilder sql = new StringBuilder();
             sql.Append("create database if not exists ").Append(this.dbName).Append(" precision '").Append(this.precision).Append("'");
-	    execute(sql.ToString());
+            execute(sql.ToString());
         }
         public void useDatabase()
         {
@@ -232,7 +232,7 @@ namespace TDengineDriver
         {
             StringBuilder sql = new StringBuilder();
             sql.Append("insert into ").Append(this.dbName).Append(".").Append(this.tbName).Append("(ts, temperature, humidity) values(now, 20.5, 34)");
-	    execute(sql.ToString());
+            execute(sql.ToString());
         }
         public void checkDropTable()
         {
@@ -240,7 +240,7 @@ namespace TDengineDriver
             sql.Append("drop table if exists ").Append(this.dbName).Append(".").Append(this.tbName).Append("");
             execute(sql.ToString());
         }
-	public void dropDatabase()
+        public void dropDatabase()
         {
             StringBuilder sql = new StringBuilder();
             sql.Append("drop database if exists ").Append(this.dbName);
@@ -276,7 +276,7 @@ namespace TDengineDriver
             long queryRows = 0;
             IntPtr res = TDengine.Query(conn, sql);
             getPrecision(res);
-	    if ((res == IntPtr.Zero) || (TDengine.ErrorNo(res) != 0))
+            if ((res == IntPtr.Zero) || (TDengine.ErrorNo(res) != 0))
             {
               Console.Write(sql.ToString() + " failure, ");
               if (res != IntPtr.Zero) {
@@ -392,28 +392,27 @@ namespace TDengineDriver
             System.Environment.Exit(0);
         }
 
-	public void cleanup()
+        public void cleanup()
         {
-			Console.WriteLine("clean up...");
+            Console.WriteLine("clean up...");
             System.Environment.Exit(0);
         }
-	// method to get db precision
-	public void getPrecision(IntPtr res)
+        // method to get db precision
+        public void getPrecision(IntPtr res)
         {
             int psc=TDengine.ResultPrecision(res);
-			switch(psc)
-			{
-				case 0:
-				 Console.WriteLine("db：[{0:G}]'s precision is {1:G}",this.dbName,"millisecond");
-				 break;
-				case 1:
-				 Console.WriteLine("db：[{0:G}]'s precision is {1:G}",this.dbName,"microsecond");
-				 break;
-				case 2:
-				 Console.WriteLine("db：[{0:G}]'s precision is {1:G}",this.dbName,"nanosecond");
-				 break;
-
-			}
+            switch(psc)
+            {
+                case 0:
+                    Console.WriteLine("db：[{0:G}]'s precision is {1:G}",this.dbName,"millisecond");
+                    break;
+                case 1:
+                    Console.WriteLine("db：[{0:G}]'s precision is {1:G}",this.dbName,"microsecond");
+                    break;
+                case 2:
+                    Console.WriteLine("db：[{0:G}]'s precision is {1:G}",this.dbName,"nanosecond");
+                    break;
+            }
 
         }
     }
