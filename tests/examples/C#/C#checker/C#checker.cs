@@ -240,7 +240,7 @@ namespace TDengineDriver
             sql.Append("drop table if exists ").Append(this.dbName).Append(".").Append(this.tbName).Append("");
             execute(sql.ToString());
         }
-		public void dropDatabase()
+	public void dropDatabase()
         {
             StringBuilder sql = new StringBuilder();
             sql.Append("drop database if exists ").Append(this.dbName);
@@ -392,13 +392,13 @@ namespace TDengineDriver
             System.Environment.Exit(0);
         }
 
-			public void cleanup()
+	public void cleanup()
         {
 			Console.WriteLine("clean up...");
             System.Environment.Exit(0);
         }
-		// method to get db precision
-		 public void getPrecision(IntPtr res)
+	// method to get db precision
+	public void getPrecision(IntPtr res)
         {
             int psc=TDengine.ResultPrecision(res);
 			switch(psc)
