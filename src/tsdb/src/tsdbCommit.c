@@ -499,13 +499,13 @@ static int tsdbCompactMetaFile(STsdbRepo *pRepo, STsdbFS *pfs, SMFile *pMFile) {
     if (tsdbSeekMFile(pMFile, pRecord->offset + sizeof(SKVRecord), SEEK_SET) < 0) {
       tsdbError("vgId:%d failed to seek file %s since %s", REPO_ID(pRepo), TSDB_FILE_FULL_NAME(pMFile),
                 tstrerror(terrno));
-      break;
+      goto _err;
     }
     if (pRecord->size > maxBufSize) {
       maxBufSize = pRecord->size;
       void* tmp = realloc(pBuf, (size_t)maxBufSize);
       if (tmp == NULL) {
-        break;
+        goto _err;
       }
       pBuf = tmp;
     }
@@ -513,19 +513,19 @@ static int tsdbCompactMetaFile(STsdbRepo *pRepo, STsdbFS *pfs, SMFile *pMFile) {
     if (nread < 0) {
       tsdbError("vgId:%d failed to read file %s since %s", REPO_ID(pRepo), TSDB_FILE_FULL_NAME(pMFile),
         tstrerror(terrno));
-      break;
+      goto _err;
     }
 
     if (nread < pRecord->size) {
       tsdbError("vgId:%d failed to read file %s since file corrupted, expected read:%" PRId64 " actual read:%d",
                 REPO_ID(pRepo), TSDB_FILE_FULL_NAME(pMFile), pRecord->size, nread);
-      break;
+      goto _err;
     }
 
     if (tsdbUpdateMetaRecord(pfs, &mf, pRecord->uid, pBuf, (int)pRecord->size, false) < 0) {
       tsdbError("vgId:%d failed to update META record, uid %" PRIu64 " since %s", REPO_ID(pRepo), pRecord->uid,
                 tstrerror(terrno));
-      break;
+      goto _err;
     }
 
     pRecord = taosHashIterate(pfs->metaCache, pRecord);
