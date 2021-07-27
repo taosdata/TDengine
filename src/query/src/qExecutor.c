@@ -192,6 +192,8 @@ static void destroyTagScanOperatorInfo(void* param, int32_t numOfOutput);
 static void destroySWindowOperatorInfo(void* param, int32_t numOfOutput);
 static void destroyStateWindowOperatorInfo(void* param, int32_t numOfOutput);
 static void destroyAggOperatorInfo(void* param, int32_t numOfOutput);
+static void destroyOperatorInfo(SOperatorInfo* pOperator);
+
 
 static int32_t doCopyToSDataBlock(SQueryRuntimeEnv* pRuntimeEnv, SGroupResInfo* pGroupResInfo, int32_t orderType, SSDataBlock* pBlock);
 
