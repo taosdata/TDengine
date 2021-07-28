@@ -648,7 +648,7 @@ static FILE *          g_fpOfInsertResult = NULL;
         fprintf(stderr, "PERF: "fmt, __VA_ARGS__); } while(0)
 
 #define errorPrint(fmt, ...) \
-    do { fprintf(stderr, "ERROR: "fmt, __VA_ARGS__); } while(0)
+    do { fprintf(stderr, " \033[31m"); fprintf(stderr, "ERROR: "fmt, __VA_ARGS__); fprintf(stderr, " \033[0m"); } while(0)
 
 // for strncpy buffer overflow
 #define min(a, b) (((a) < (b)) ? (a) : (b))
@@ -5154,8 +5154,10 @@ static int32_t execInsert(threadInfo *pThreadInfo, uint32_t k)
             debugPrint("%s() LN%d, stmt=%p",
                     __func__, __LINE__, pThreadInfo->stmt);
             if (0 != taos_stmt_execute(pThreadInfo->stmt)) {
-                errorPrint("%s() LN%d, failied to execute insert statement\n",
-                        __func__, __LINE__);
+                errorPrint("%s() LN%d, failied to execute insert statement. reason: %s\n",
+                        __func__, __LINE__, taos_stmt_errstr(pThreadInfo->stmt));
+
+                fprintf(stderr, "\n\033[31m === Please reduce batch number if WAL size exceeds limit. ===\033[0m\n\n");
                 exit(-1);
             }
             affectedRows = k;
@@ -5718,7 +5720,7 @@ static int32_t prepareStmtWithoutStb(
     int ret = taos_stmt_set_tbname(stmt, tableName);
     if (ret != 0) {
         errorPrint("failed to execute taos_stmt_set_tbname(%s). return 0x%x. reason: %s\n",
-                tableName, ret, taos_errstr(NULL));
+                tableName, ret, taos_stmt_errstr(stmt));
         return ret;
     }
 
@@ -5771,9 +5773,17 @@ static int32_t prepareStmtWithoutStb(
                 return -1;
             }
         }
-        taos_stmt_bind_param(stmt, (TAOS_BIND *)bindArray);
+        if (0 != taos_stmt_bind_param(stmt, (TAOS_BIND *)bindArray)) {
+            errorPrint("%s() LN%d, stmt_bind_param() failed! reason: %s\n",
+                    __func__, __LINE__, taos_stmt_errstr(stmt));
+            break;
+        }
         // if msg > 3MB, break
-        taos_stmt_add_batch(stmt);
+        if (0 != taos_stmt_add_batch(stmt)) {
+            errorPrint("%s() LN%d, stmt_add_batch() failed! reason: %s\n",
+                    __func__, __LINE__, taos_stmt_errstr(stmt));
+            break;
+        }
 
         k++;
         recordFrom ++;
@@ -5949,14 +5959,19 @@ static int32_t prepareStbStmt(
 
         tmfree(tagsValBuf);
         tmfree(tagsArray);
+
+        if (0 != ret) {
+            errorPrint("%s() LN%d, stmt_set_tbname_tags() failed! reason: %s\n",
+                    __func__, __LINE__, taos_stmt_errstr(stmt));
+            return -1;
+        }
     } else {
         ret = taos_stmt_set_tbname(stmt, tableName);
-    }
-
-    if (ret != 0) {
-        errorPrint("failed to execute taos_stmt_set_tbname(%s). return 0x%x. reason: %s\n",
-                tableName, ret, taos_errstr(NULL));
-        return ret;
+        if (0 != ret) {
+            errorPrint("%s() LN%d, stmt_set_tbname() failed! reason: %s\n",
+                    __func__, __LINE__, taos_stmt_errstr(stmt));
+            return -1;
+        }
     }
 
     char *bindArray = calloc(1, sizeof(TAOS_BIND) * (stbInfo->columnCount + 1));
@@ -5974,9 +5989,19 @@ static int32_t prepareStbStmt(
             free(bindArray);
             return -1;
         }
-        taos_stmt_bind_param(stmt, (TAOS_BIND *)bindArray);
+        ret = taos_stmt_bind_param(stmt, (TAOS_BIND *)bindArray);
+        if (0 != ret) {
+            errorPrint("%s() LN%d, stmt_bind_param() failed! reason: %s\n",
+                    __func__, __LINE__, taos_stmt_errstr(stmt));
+            return -1;
+        }
         // if msg > 3MB, break
-        taos_stmt_add_batch(stmt);
+        ret = taos_stmt_add_batch(stmt);
+        if (0 != ret) {
+            errorPrint("%s() LN%d, stmt_add_batch() failed! reason: %s\n",
+                    __func__, __LINE__, taos_stmt_errstr(stmt));
+            return -1;
+        }
 
         k++;
         recordFrom ++;
@@ -6925,7 +6950,7 @@ static void startMultiThreadInsertData(int threads, char* db_name,
                 int ret = taos_stmt_prepare(pThreadInfo->stmt, buffer, 0);
                 if (ret != 0){
                     errorPrint("failed to execute taos_stmt_prepare. return 0x%x. reason: %s\n",
-                            ret, taos_errstr(NULL));
+                            ret, taos_stmt_errstr(pThreadInfo->stmt));
                     free(pids);
                     free(infos);
                     exit(-1);

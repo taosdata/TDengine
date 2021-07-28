@@ -640,7 +640,7 @@ static STableGroupInfo* trimTableGroup(STimeWindow* window, STableGroupInfo* pGr
   size_t numOfGroup = taosArrayGetSize(pGroupList->pGroupList);
 
   STableGroupInfo* pNew = calloc(1, sizeof(STableGroupInfo));
-  pNew->pGroupList = taosArrayInit(numOfGroup, sizeof(SArray));
+  pNew->pGroupList = taosArrayInit(numOfGroup, POINTER_BYTES);
 
   for(int32_t i = 0; i < numOfGroup; ++i) {
     SArray* oneGroup = taosArrayGetP(pGroupList->pGroupList, i);
@@ -3383,11 +3383,13 @@ static int32_t tableGroupComparFn(const void *p1, const void *p2, const void *pa
       type = TSDB_DATA_TYPE_BINARY;
       bytes = tGetTbnameColumnSchema()->bytes;
     } else {
-      STColumn* pCol = schemaColAt(pTableGroupSupp->pTagSchema, colIndex);
-      bytes = pCol->bytes;
-      type = pCol->type;
-      f1 = tdGetKVRowValOfCol(pTable1->tagVal, pCol->colId);
-      f2 = tdGetKVRowValOfCol(pTable2->tagVal, pCol->colId);
+      if (pTableGroupSupp->pTagSchema && colIndex < pTableGroupSupp->pTagSchema->numOfCols) {
+        STColumn* pCol = schemaColAt(pTableGroupSupp->pTagSchema, colIndex);
+        bytes = pCol->bytes;
+        type = pCol->type;
+        f1 = tdGetKVRowValOfCol(pTable1->tagVal, pCol->colId);
+        f2 = tdGetKVRowValOfCol(pTable2->tagVal, pCol->colId);
+      } 
     }
 
     // this tags value may be NULL

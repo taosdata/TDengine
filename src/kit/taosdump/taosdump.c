@@ -60,7 +60,7 @@ typedef struct {
         fprintf(stderr, "VERB: "fmt, __VA_ARGS__); } while(0)
 
 #define errorPrint(fmt, ...) \
-    do { fprintf(stderr, "ERROR: "fmt, __VA_ARGS__); } while(0)
+    do { fprintf(stderr, "\033[31m"); fprintf(stderr, "ERROR: "fmt, __VA_ARGS__); fprintf(stderr, "\033[0m"); } while(0)
 
 
 // -------------------------- SHOW DATABASE INTERFACE-----------------------
@@ -234,9 +234,9 @@ static struct argp_option options[] = {
     {"start-time",    'S', "START_TIME",  0,  "Start time to dump. Either epoch or ISO8601/RFC3339 format is acceptable. ISO8601 format example: 2017-10-01T18:00:00.000+0800 or 2017-10-0100:00:00.000+0800 or '2017-10-01 00:00:00.000+0800'",  4},
     {"end-time",      'E', "END_TIME",    0,  "End time to dump. Either epoch or ISO8601/RFC3339 format is acceptable. ISO8601 format example: 2017-10-01T18:00:00.000+0800 or 2017-10-0100:00:00.000+0800 or '2017-10-01 00:00:00.000+0800'",  5},
 #if TSDB_SUPPORT_NANOSECOND == 1
-    {"precision",  'C', "PRECISION",  0,  "Epoch precision. Valid value is one of ms, us, and ns. Default is ms.", 6},
+    {"precision",  'C', "PRECISION",  0,  "Specify precision for converting human-readable time to epoch. Valid value is one of ms, us, and ns. Default is ms.", 6},
 #else
-    {"precision",  'C', "PRECISION",  0,  "Epoch precision. Valid value is one of ms and us. Default is ms.", 6},
+    {"precision",  'C', "PRECISION",  0,  "Use specified precision to convert human-readable time. Valid value is one of ms and us. Default is ms.", 6},
 #endif
     {"data-batch",  'B', "DATA_BATCH",  0,  "Number of data point per insert statement. Max value is 32766. Default is 1.", 3},
     {"max-sql-len", 'L', "SQL_LEN",     0,  "Max length of one sql. Default is 65480.",   3},
@@ -547,8 +547,8 @@ static void parse_precision_first(
                 free(tmp);
                 exit(-1);
             }
-            strncpy(g_args.precision, tmp,
-                min(DB_PRECISION_LEN - 1, strlen(tmp)));
+            tstrncpy(g_args.precision, tmp,
+                min(DB_PRECISION_LEN, strlen(tmp) + 1));
             free(tmp);
         }
     }
@@ -599,6 +599,7 @@ static void parse_timestamp(
                     return;
                 }
             } else {
+                tstrncpy(arguments->precision, "n/a", strlen("n/a") + 1);
                 tmpEpoch = atoll(tmp);
             }
 
@@ -794,12 +795,14 @@ static int taosGetTableRecordInfo(
     while ((row = taos_fetch_row(result)) != NULL) {
         isSet = true;
         pTableRecordInfo->isMetric = false;
-        strncpy(pTableRecordInfo->tableRecord.name,
+        tstrncpy(pTableRecordInfo->tableRecord.name,
                 (char *)row[TSDB_SHOW_TABLES_NAME_INDEX],
-                fields[TSDB_SHOW_TABLES_NAME_INDEX].bytes);
-        strncpy(pTableRecordInfo->tableRecord.metric,
+                min(TSDB_TABLE_NAME_LEN,
+                    fields[TSDB_SHOW_TABLES_NAME_INDEX].bytes) + 1);
+        tstrncpy(pTableRecordInfo->tableRecord.metric,
                 (char *)row[TSDB_SHOW_TABLES_METRIC_INDEX],
-                fields[TSDB_SHOW_TABLES_METRIC_INDEX].bytes);
+                min(TSDB_TABLE_NAME_LEN,
+                    fields[TSDB_SHOW_TABLES_METRIC_INDEX].bytes) + 1);
         break;
     }
 
@@ -1080,8 +1083,8 @@ _dump_db_point:
             goto _exit_failure;
         }
 
-        strncpy(g_dbInfos[count]->name, (char *)row[TSDB_SHOW_DB_NAME_INDEX],
-                fields[TSDB_SHOW_DB_NAME_INDEX].bytes);
+        tstrncpy(g_dbInfos[count]->name, (char *)row[TSDB_SHOW_DB_NAME_INDEX],
+                min(TSDB_DB_NAME_LEN, fields[TSDB_SHOW_DB_NAME_INDEX].bytes) + 1);
         if (g_args.with_property) {
             g_dbInfos[count]->ntables = *((int32_t *)row[TSDB_SHOW_DB_NTABLES_INDEX]);
             g_dbInfos[count]->vgroups = *((int32_t *)row[TSDB_SHOW_DB_VGROUPS_INDEX]);
@@ -1089,8 +1092,8 @@ _dump_db_point:
             g_dbInfos[count]->quorum = *((int16_t *)row[TSDB_SHOW_DB_QUORUM_INDEX]);
             g_dbInfos[count]->days = *((int16_t *)row[TSDB_SHOW_DB_DAYS_INDEX]);
 
-            strncpy(g_dbInfos[count]->keeplist, (char *)row[TSDB_SHOW_DB_KEEP_INDEX],
-                    fields[TSDB_SHOW_DB_KEEP_INDEX].bytes);
+            tstrncpy(g_dbInfos[count]->keeplist, (char *)row[TSDB_SHOW_DB_KEEP_INDEX],
+                    min(32, fields[TSDB_SHOW_DB_KEEP_INDEX].bytes) + 1);
             //g_dbInfos[count]->daysToKeep = *((int16_t *)row[TSDB_SHOW_DB_KEEP_INDEX]);
             //g_dbInfos[count]->daysToKeep1;
             //g_dbInfos[count]->daysToKeep2;
@@ -1103,8 +1106,8 @@ _dump_db_point:
             g_dbInfos[count]->comp = (int8_t)(*((int8_t *)row[TSDB_SHOW_DB_COMP_INDEX]));
             g_dbInfos[count]->cachelast = (int8_t)(*((int8_t *)row[TSDB_SHOW_DB_CACHELAST_INDEX]));
 
-            strncpy(g_dbInfos[count]->precision, (char *)row[TSDB_SHOW_DB_PRECISION_INDEX],
-                    fields[TSDB_SHOW_DB_PRECISION_INDEX].bytes);
+            tstrncpy(g_dbInfos[count]->precision, (char *)row[TSDB_SHOW_DB_PRECISION_INDEX],
+                    min(8, fields[TSDB_SHOW_DB_PRECISION_INDEX].bytes) + 1);
             //g_dbInfos[count]->precision = *((int8_t *)row[TSDB_SHOW_DB_PRECISION_INDEX]);
             g_dbInfos[count]->update = *((int8_t *)row[TSDB_SHOW_DB_UPDATE_INDEX]);
         }
@@ -1255,17 +1258,19 @@ static int taosGetTableDes(
 
     tstrncpy(tableDes->name, table, TSDB_TABLE_NAME_LEN);
     while ((row = taos_fetch_row(res)) != NULL) {
-        strncpy(tableDes->cols[count].field,
+        tstrncpy(tableDes->cols[count].field,
                 (char *)row[TSDB_DESCRIBE_METRIC_FIELD_INDEX],
-                fields[TSDB_DESCRIBE_METRIC_FIELD_INDEX].bytes);
-        strncpy(tableDes->cols[count].type,
+                min(TSDB_COL_NAME_LEN + 1,
+                    fields[TSDB_DESCRIBE_METRIC_FIELD_INDEX].bytes + 1));
+        tstrncpy(tableDes->cols[count].type,
                 (char *)row[TSDB_DESCRIBE_METRIC_TYPE_INDEX],
-                min(15, fields[TSDB_DESCRIBE_METRIC_TYPE_INDEX].bytes));
+                min(16, fields[TSDB_DESCRIBE_METRIC_TYPE_INDEX].bytes) + 1);
         tableDes->cols[count].length =
             *((int *)row[TSDB_DESCRIBE_METRIC_LENGTH_INDEX]);
-        strncpy(tableDes->cols[count].note,
+        tstrncpy(tableDes->cols[count].note,
                 (char *)row[TSDB_DESCRIBE_METRIC_NOTE_INDEX],
-                fields[TSDB_DESCRIBE_METRIC_NOTE_INDEX].bytes);
+                min(COL_NOTE_LEN,
+                    fields[TSDB_DESCRIBE_METRIC_NOTE_INDEX].bytes + 1));
 
         count++;
     }
@@ -1700,8 +1705,9 @@ static int32_t taosDumpCreateSuperTableClause(TAOS* taosCon, char* dbName, FILE 
 
     while ((row = taos_fetch_row(res)) != NULL) {
         memset(&tableRecord, 0, sizeof(STableRecord));
-        strncpy(tableRecord.name, (char *)row[TSDB_SHOW_TABLES_NAME_INDEX],
-                fields[TSDB_SHOW_TABLES_NAME_INDEX].bytes);
+        tstrncpy(tableRecord.name, (char *)row[TSDB_SHOW_TABLES_NAME_INDEX],
+                min(TSDB_TABLE_NAME_LEN,
+                    fields[TSDB_SHOW_TABLES_NAME_INDEX].bytes) + 1);
         taosWrite(fd, &tableRecord, sizeof(STableRecord));
     }
 
@@ -1775,9 +1781,11 @@ static int taosDumpDb(SDbInfo *dbInfo, FILE *fp, TAOS *taosCon) {
     while ((row = taos_fetch_row(res)) != NULL) {
         memset(&tableRecord, 0, sizeof(STableRecord));
         tstrncpy(tableRecord.name, (char *)row[TSDB_SHOW_TABLES_NAME_INDEX],
-                fields[TSDB_SHOW_TABLES_NAME_INDEX].bytes);
+                min(TSDB_TABLE_NAME_LEN,
+                    fields[TSDB_SHOW_TABLES_NAME_INDEX].bytes) + 1);
         tstrncpy(tableRecord.metric, (char *)row[TSDB_SHOW_TABLES_METRIC_INDEX],
-                min(TSDB_TABLE_NAME_LEN, fields[TSDB_SHOW_TABLES_METRIC_INDEX].bytes));
+                min(TSDB_TABLE_NAME_LEN,
+                    fields[TSDB_SHOW_TABLES_METRIC_INDEX].bytes) + 1);
 
         taosWrite(fd, &tableRecord, sizeof(STableRecord));
 
@@ -2165,7 +2173,7 @@ static int taosCheckParam(struct arguments *arguments) {
 
     if (g_args.arg_list_len == 0) {
         if ((!g_args.all_databases) && (!g_args.isDumpIn)) {
-            fprintf(stderr, "taosdump requires parameters\n");
+            errorPrint("%s", "taosdump requires parameters for database and operation\n");
             return -1;
         }
     }
