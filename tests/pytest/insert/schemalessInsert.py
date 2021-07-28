@@ -655,7 +655,10 @@ class TDTestCase:
             code = self._conn.insertLines([input_sql])
             tdSql.checkNotEqual(code, 0)
         # TODO nchar binary
-        # `~!@#$¥%^&*()-+={}|[]、「」【】:;
+        # check blank
+        
+
+        # ~!@#$¥%^&*()-+={}|[]、「」:;
 
     def duplicateIdTagColInsertCheckCase(self):
         """
@@ -831,9 +834,9 @@ class TDTestCase:
         input_sql = f'{stb_name},t0=t,t1=L"{self.getLongName(4093, "letters")}",t2=L"{self.getLongName(2, "letters")}" c0=f 1626006833639000000ns'
         code = self._conn.insertLines([input_sql])
         # ! leave a bug DB error: Invalid value in client
-        # tdSql.checkNotEqual(code, 0)
-        # tdSql.query(f"select * from {stb_name}")
-        # tdSql.checkRows(2)
+        tdSql.checkNotEqual(code, 0)
+        tdSql.query(f"select * from {stb_name}")
+        tdSql.checkRows(2)
 
         # stb_name = self.getLongName(7, "letters")
         # tb_name = f'{stb_name}_1'
@@ -1133,10 +1136,11 @@ class TDTestCase:
         tdSql.checkRows(6)
 
     def test(self):
-        input_sql1 = "rfasta,id=\"rfasta_1\",t0=true,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7=\"ddzhiksj\",t8=L\"ncharTagValue\" c0=True,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7=\"bnhwlgvj\",c8=L\"ncharTagValue\",c9=7u64 0"
-        input_sql2 = "rfasta,id=\"rfasta_1\",t0=true,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64 c0=True,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64 0"
-        self._conn.insertLines([input_sql1])
-        self._conn.insertLines([input_sql2])
+        input_sql1 = "rfasta,id=\"rfasta_1\",t0=true,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7=\"ddzhiksj\",t8=L\"nchar TagValue\" c0=True,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7=\"bnhwlgvj\",c8=L\"ncharTagValue\",c9=7u64 0"
+        # input_sql2 = "rfasta,id=\"rfasta_1\",t0=true,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64 c0=True,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64 0"
+        code = self._conn.insertLines([input_sql1])
+        print(code)
+        # self._conn.insertLines([input_sql2])
         # input_sql3 = f'abcd,id="cc¥Ec",t0=True,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7="ndsfdrum",t8=L"ncharTagValue" c0=f,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7="igwoehkm",c8=L"ncharColValue",c9=7u64 0'
         # print(input_sql3)
         # input_sql4 = 'hmemeb,id="kilrcrldgf",t0=F,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7="fysodjql",t8=L"ncharTagValue" c0=True,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7="waszbfvc",c8=L"ncharColValue",c9=7u64 0'
@@ -1200,10 +1204,10 @@ class TDTestCase:
     def run(self):
         print("running {}".format(__file__))
         self.createDb()
-        self.runAll()
+        # self.runAll()
         # ! bug leave 
         # self.tagColNcharMaxLengthCheckCase()
-        # self.test()
+        self.test()
 
     def stop(self):
         tdSql.close()
