@@ -443,11 +443,10 @@ int32_t tscCreateGlobalMergerEnv(SQueryInfo *pQueryInfo, tExtMemBuffer ***pMemBu
   }
   
   pModel = createColumnModel(pSchema, (int32_t)size, capacity);
+  tfree(pSchema);
   if (pModel == NULL){
-    tfree(pSchema);
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
   }
-  tfree(pSchema);
 
   int32_t pg = DEFAULT_PAGE_SIZE;
   int32_t overhead = sizeof(tFilePage);

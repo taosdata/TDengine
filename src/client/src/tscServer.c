@@ -2055,7 +2055,7 @@ int tscProcessTableMetaRsp(SSqlObj *pSql) {
   }
   if (!tIsValidSchema(pTableMeta->schema, pTableMeta->tableInfo.numOfColumns, pTableMeta->tableInfo.numOfTags)) {
     tscError("0x%"PRIx64" invalid table meta from mnode, name:%s", pSql->self, tNameGetTableName(&pTableMetaInfo->name));
-    free(pTableMeta);
+    tfree(pTableMeta);
     return TSDB_CODE_TSC_INVALID_VALUE;
   }
 

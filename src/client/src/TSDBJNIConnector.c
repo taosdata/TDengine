@@ -726,13 +726,12 @@ JNIEXPORT jlong JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_prepareStmtImp(J
 
   TAOS_STMT* pStmt = taos_stmt_init(tscon);
   int32_t code = taos_stmt_prepare(pStmt, str, len);
+  tfree(str);
   if (code != TSDB_CODE_SUCCESS) {
     jniError("jobj:%p, conn:%p, code:%s", jobj, tscon, tstrerror(code));
-    free(str);
     return JNI_TDENGINE_ERROR;
   }
 
-  free(str);
   return (jlong) pStmt;
 }
 
@@ -920,10 +919,6 @@ JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_setTableNameTagsI
   char* curTags = tagsData;
 
   TAOS_BIND *tagsBind = calloc(numOfTags, sizeof(TAOS_BIND));
-  if (tagsBind == NULL) {
-    jniError("numOfTags:%d, alloc memory failed", numOfTags);
-    return JNI_OUT_OF_MEMORY;
-  }
   for(int32_t i = 0; i < numOfTags; ++i) {
     tagsBind[i].buffer_type = typeArray[i];
     tagsBind[i].buffer  = curTags;
@@ -942,14 +937,13 @@ JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_setTableNameTagsI
   tfree(lengthArray);
   tfree(typeArray);
   tfree(nullArray);
+  tfree(tagsBind);
   (*env)->ReleaseStringUTFChars(env, tableName, name);
 
   if (code != TSDB_CODE_SUCCESS) {
     jniError("jobj:%p, conn:%p, code:%s", jobj, tsconn, tstrerror(code));
-    free(tagsBind);
     return JNI_TDENGINE_ERROR;
   }
-  free(tagsBind);
   return JNI_SUCCESS;
 }
 
@@ -979,12 +973,11 @@ JNIEXPORT jlong JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_insertLinesImp(J
     (*env)->ReleaseStringUTFChars(env, line, c_lines[i]);
   }
 
+  tfree(c_lines);
   if (code != TSDB_CODE_SUCCESS) {
     jniError("jobj:%p, conn:%p, code:%s", jobj, taos, tstrerror(code));
-    free(c_lines);
+
     return JNI_TDENGINE_ERROR;
   }
-
-  free(c_lines);
   return code;
 }

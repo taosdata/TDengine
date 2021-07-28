@@ -701,14 +701,14 @@ static int32_t insertChildTableBatch(TAOS* taos,  char* cTableName, SArray* cols
 
   TAOS_STMT* stmt = taos_stmt_init(taos);
   if (stmt == NULL) {
-    free(sql);
+    tfree(sql);
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
   }
   code = taos_stmt_prepare(stmt, sql, (unsigned long)strlen(sql));
-  free(sql);
+  tfree(sql);
 
   if (code != 0) {
-    free(stmt);
+    tfree(stmt);
     tscError("%s", taos_stmt_errstr(stmt));
     return code;
   }
@@ -717,7 +717,7 @@ static int32_t insertChildTableBatch(TAOS* taos,  char* cTableName, SArray* cols
     code = taos_stmt_set_tbname(stmt, cTableName);
     if (code != 0) {
       tscError("%s", taos_stmt_errstr(stmt));
-      free(stmt);
+      tfree(stmt);
       return code;
     }
 
@@ -727,13 +727,13 @@ static int32_t insertChildTableBatch(TAOS* taos,  char* cTableName, SArray* cols
       code = taos_stmt_bind_param(stmt, colsBinds);
       if (code != 0) {
         tscError("%s", taos_stmt_errstr(stmt));
-        free(stmt);
+        tfree(stmt);
         return code;
       }
       code = taos_stmt_add_batch(stmt);
       if (code != 0) {
         tscError("%s", taos_stmt_errstr(stmt));
-        free(stmt);
+        tfree(stmt);
         return code;
       }
     }

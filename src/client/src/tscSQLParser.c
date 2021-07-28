@@ -8362,7 +8362,7 @@ static int32_t doValidateSubquery(SSqlNode* pSqlNode, int32_t index, SSqlObj* pS
 
   if (subInfo->aliasName.n > 0) {
     if (subInfo->aliasName.n >= TSDB_TABLE_FNAME_LEN) {
-      free(pTableMetaInfo1);
+      tfree(pTableMetaInfo1);
       return invalidOperationMsg(msgBuf, "subquery alias name too long");
     }
 
@@ -8376,7 +8376,7 @@ static int32_t doValidateSubquery(SSqlNode* pSqlNode, int32_t index, SSqlObj* pS
 
   STableMetaInfo** tmp = realloc(pQueryInfo->pTableMetaInfo, (pQueryInfo->numOfTables + 1) * POINTER_BYTES);
   if (tmp == NULL) {
-    free(pTableMetaInfo1);
+    tfree(pTableMetaInfo1);
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
   }
 
