@@ -262,8 +262,6 @@ void httpJsonUInt64(JsonBuf* buf, uint64_t num) {
   buf->lst += snprintf(buf->lst, MAX_NUM_STR_SZ, "%" PRIu64, num);
 }
 
-static int64_t last_t = 0;
-
 void httpJsonTimestamp(JsonBuf* buf, int64_t t, int32_t timePrecision) {
   char       ts[35] = {0};
   
@@ -303,21 +301,9 @@ void httpJsonTimestamp(JsonBuf* buf, int64_t t, int32_t timePrecision) {
   }
 
   struct tm ptm = {0};
-  /*ptm = */localtime_r(&quot, &ptm);
+  localtime_r(&quot, &ptm);
   int32_t length = (int32_t)strftime(ts, 35, "%Y-%m-%d %H:%M:%S", &ptm);
   length += snprintf(ts + length, fractionLen, format, mod);
-
-  if (last_t == 0) {
-    last_t = ptm.tm_hour;
-  }
-
-  int64_t local = last_t;
-  int64_t diff = ptm.tm_hour - local;
-  if (abs(diff) > 2) {
-    assert(0);
-  }
-
-  last_t = ptm.tm_hour;
 
   httpJsonString(buf, ts, length);
 }
