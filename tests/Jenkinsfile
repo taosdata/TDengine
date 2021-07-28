@@ -119,7 +119,7 @@ pipeline {
             }
             
             sh'''
-            systemctl start taosd 
+            nohup taosd >/dev/null & 
             sleep 10
             '''
             catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
@@ -155,7 +155,7 @@ pipeline {
                 '''
             }
             sh '''
-            systemctl stop taosd 
+            pkill -9 taosd 
             cd ${WKC}/tests
             ./test-all.sh b2
             date
