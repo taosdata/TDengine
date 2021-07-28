@@ -1,3 +1,4 @@
+#include "taos.h"
 #include "callback_udf_func.h"
 #if 0
 #include "libmseed.h"
@@ -42,6 +43,7 @@ callback_udf_func(char *data, short itype, short ibytes, int numOfRows, long lon
 #endif
     short                 *sp;
     long long             *llp;
+    int                   *ip;
     float                 *fp;
     float                 *amps             = NULL;
     FilterPicker5_Memory  *mem              = NULL;
@@ -76,22 +78,29 @@ callback_udf_func(char *data, short itype, short ibytes, int numOfRows, long lon
     valid = 0;
     memset(amps, 0, numOfRows * sizeof(float));
 
-    switch (type) {
-    case 1:
+    switch (itype) {
+    case TSDB_DATA_TYPE_BOOL:
+    case TSDB_DATA_TYPE_TINYINT:
         for (n = 0; n < numOfRows; n++) {
             amps[n] = (float) data[n];
         }
         break;
-    case 2:
+    case TSDB_DATA_TYPE_SMALLINT:
         sp = (short *) data;
         for (n = 0; n < numOfRows; n++) {
             amps[n] = (float) sp[n];
         }
         break;
-    case 4:
+    case TSDB_DATA_TYPE_INT:
+        ip = (int *) data;
+        for (n = 0; n < numOfRows; n++) {
+            amps[n] = (float) ip[n];
+        }
+        break;
+    case TSDB_DATA_TYPE_FLOAT:
         fp = (float *) data;
         for (n = 0; n < numOfRows; n++) {
-            amps[n] = (float) fp[n];
+            amps[n] = fp[n];
         }
         break;
     default:
@@ -192,7 +201,6 @@ callback_udf_func(char *data, short itype, short ibytes, int numOfRows, long lon
                 llp[valid++] = ts[index];
             }
 
-
 #if 0
             ms_nstime2timestrz(ts[index], timestr, ISOMONTHDAY, MICRO);
             fprintf(stderr, "%s %f\n", timestr, (float) amps[index]);
@@ -248,7 +256,7 @@ callback_udf_func(char *data, short itype, short ibytes, int numOfRows, long lon
         buf->ptr = (char *) cbp;
     } else {
         free_FilterPicker5_Memory(&mem);
-    //}
+    }
 
     if (numOfOutput) {
         *numOfOutput = num_picks;
@@ -291,7 +299,7 @@ callback_udf_func_destroy(SUdfInit *buf)
     }
 
     cbp = (cb_udf_params_t *) buf->ptr;
-
+    
     mem = cbp->memory;
     if (mem) {
         free_FilterPicker5_Memory(&mem);
