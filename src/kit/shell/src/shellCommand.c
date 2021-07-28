@@ -102,6 +102,28 @@ void backspaceChar(Command *cmd) {
   }
 }
 
+void clearLineBefore(Command *cmd) {
+  assert(cmd->cursorOffset <= cmd->commandSize && cmd->endOffset >= cmd->screenOffset);
+
+  clearScreen(cmd->endOffset + prompt_size, cmd->screenOffset + prompt_size);
+  memmove(cmd->command, cmd->command + cmd->cursorOffset,
+          cmd->commandSize - cmd->cursorOffset);
+  cmd->commandSize -= cmd->cursorOffset;
+  cmd->cursorOffset = 0;
+  cmd->screenOffset = 0;
+  cmd->endOffset = cmd->commandSize;
+  showOnScreen(cmd);
+}
+
+void clearLineAfter(Command *cmd) {
+  assert(cmd->cursorOffset <= cmd->commandSize && cmd->endOffset >= cmd->screenOffset);
+
+  clearScreen(cmd->endOffset + prompt_size, cmd->screenOffset + prompt_size);
+  cmd->commandSize -= cmd->endOffset - cmd->cursorOffset;
+  cmd->endOffset = cmd->cursorOffset;
+  showOnScreen(cmd);
+}
+
 void deleteChar(Command *cmd) {
   assert(cmd->cursorOffset <= cmd->commandSize && cmd->endOffset >= cmd->screenOffset);
 

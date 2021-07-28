@@ -997,14 +997,17 @@ static void updateTableLatestColumn(STsdbRepo *pRepo, STable *pTable, SMemRow ro
 
     SDataCol *pDataCol = &(pLatestCols[idx]);
     if (pDataCol->pData == NULL) {
-      pDataCol->pData = malloc(pSchema->columns[j].bytes);
-      pDataCol->bytes = pSchema->columns[j].bytes;
-    } else if (pDataCol->bytes < pSchema->columns[j].bytes) {
-      pDataCol->pData = realloc(pDataCol->pData, pSchema->columns[j].bytes);
-      pDataCol->bytes = pSchema->columns[j].bytes;
+      pDataCol->pData = malloc(pTCol->bytes);
+      pDataCol->bytes = pTCol->bytes;
+    } else if (pDataCol->bytes < pTCol->bytes) {
+      pDataCol->pData = realloc(pDataCol->pData, pTCol->bytes);
+      pDataCol->bytes = pTCol->bytes;
     }
-
-    memcpy(pDataCol->pData, value, pDataCol->bytes);
+    // the actual value size
+    uint16_t bytes = IS_VAR_DATA_TYPE(pTCol->type) ? varDataTLen(value) : pTCol->bytes;
+    // the actual data size CANNOT larger than column size
+    assert(pTCol->bytes >= bytes);
+    memcpy(pDataCol->pData, value, bytes);
     //tsdbInfo("updateTableLatestColumn vgId:%d cache column %d for %d,%s", REPO_ID(pRepo), j, pDataCol->bytes, (char*)pDataCol->pData);
     pDataCol->ts = memRowKey(row);
   }
