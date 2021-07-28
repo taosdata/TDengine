@@ -64,8 +64,7 @@ class TDTestCase:
         os.system("%staosdemo -f tsdb/insertDataDb2.json -y " % binPath)
         tdSql.execute("drop table if exists db2.stb0") 
         os.system("%staosdemo -f tsdb/insertDataDb2Newstab.json -y " % binPath)
-        # query_pid1 = int(subprocess.getstatusoutput('ps aux|grep taosd |grep -v "grep"|awk \'{print $2}\'')[1])
-        # print(query_pid1)
+
         tdSql.execute("use db2")
         tdSql.execute("drop table if exists stb1_0")
         tdSql.execute("drop table if exists stb1_1")
@@ -109,11 +108,6 @@ class TDTestCase:
         self.rowNum2 = 100
         self.rowNum3 = 20
         self.ts = 1537146000000
-        self.ts1 = 1537146000000000
-        self.ts2 = 1597146000000
-        # tdSql.execute("create table test1 using test tags('beijing', 10)")
-        # tdSql.execute("create table test2 using test tags('tianjing', 20)")
-        # tdSql.execute("create table test3 using test tags('shanghai', 20)")   
         
         for j in range(self.rowNum2):
             tdSql.execute("create table test%d using test tags('beijing%d', 10)" % (j,j) )
@@ -154,7 +148,7 @@ class TDTestCase:
         # delete useless file
         testcaseFilename = os.path.split(__file__)[-1]
         os.system("rm -rf ./insert_res.txt")
-        os.system("rm -rf wal/%s.sql" % testcaseFilename )       
+        os.system("rm -rf tsdb/%s.sql" % testcaseFilename )       
         
         
         
