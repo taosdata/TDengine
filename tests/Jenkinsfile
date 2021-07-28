@@ -48,7 +48,7 @@ pipeline {
           }
         }
         stage('test_b1') {
-          agent{label 'master'}
+          agent{label 'slad2'}
           steps {
             pre_test()
             
@@ -62,7 +62,7 @@ pipeline {
         }
 
         stage('test_crash_gen') {
-          agent{label "slad2"}
+          agent{label "slad3"}
           steps {
             pre_test()
             sh '''
@@ -141,7 +141,7 @@ pipeline {
         }
 
         stage('test_valgrind') {
-          agent{label "slad3"}
+          agent{label "slad4"}
 
           steps {
             pre_test()
