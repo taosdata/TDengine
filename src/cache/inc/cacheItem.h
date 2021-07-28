@@ -28,10 +28,8 @@ extern "C" {
 #endif
 
 enum cacheItemFlag {
-  /* item is free state: */
-  ITEM_FREED    = 1,  /* item in slab free list */
-
   /* item in use state: */
+  ITEM_IN_USE   = 1,  /* item in use, 0 means item is free */
   ITEM_FETCHED  = 2,  /* item in use and was fetched at least once in its lifetime */
   ITEM_ACTIVE   = 4,  /* Appended on fetch, removed on LRU shuffling */
   ITEM_CHUNKED  = 8,  /* item in use and in chunked mode */
@@ -60,19 +58,18 @@ struct cacheItem {
 };
 
 /* item flags macros */
-#define item_is_freed(item)       ((item)->flags & ITEM_FREED)
-#define item_set_freed(item)      (item)->flags &= ITEM_FREED
-#define item_unset_freed(item)    (item)->flags &= ~ITEM_FREED
+#define item_is_free(item)       ((item)->flags == 0)
+#define item_set_free(item)      (item)->flags = 0
+#define item_unset_free(item)    item_set_used(item)
 
-#define item_is_used(item)        (!item_is_freed(item))
-#define item_set_used(item)       item_unset_freed(item)
-#define item_unset_used(item)     item_set_freed(item)
+#define item_is_used(item)        ((item)->flags & ITEM_IN_USE)
+#define item_set_used(item)       (item)->flags |= ITEM_IN_USE
 
-#define item_set_fetched(item)    (item)->flags &= ITEM_FETCHED
+#define item_set_fetched(item)    (item)->flags |= ITEM_FETCHED
 #define item_is_fetched(item)     ((item)->flags & ITEM_FETCHED)
 
 #define item_is_active(item)      ((item)->flags & ITEM_ACTIVE)
-#define item_set_actived(item)    (item)->flags &= ITEM_ACTIVE
+#define item_set_actived(item)    (item)->flags |= ITEM_ACTIVE
 #define item_unset_active(item)   (item)->flags &= ~ITEM_ACTIVE
 
 #define item_is_chunked(item)     ((item)->flags & ITEM_CHUNKED)
@@ -137,7 +134,7 @@ static FORCE_INLINE bool item_key_equal(cacheItem* item1, cacheItem* item2) {
   return key_equal(key1, key2);
 }
 
-void cacheItemUnlink(cacheTable* pTable, cacheItem* pItem, bool lockLru);
+void cacheItemUnlink(cacheTable* pTable, cacheItem* pItem, bool lockLru, bool lockhash);
 void cacheItemRemove(cache_t*, cacheItem*);
 void cacheItemBump(cacheTable* pTable, cacheItem* pItem, uint64_t now);
 cacheMutex* cacheItemBucketMutex(cacheItem*);

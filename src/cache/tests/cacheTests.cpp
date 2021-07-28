@@ -30,7 +30,7 @@ TEST(cacheTest, testInsert) {
     char buf[20] = {0};
     snprintf(buf, sizeof(buf), "0123456789_%d", i);
     size_t nkey = strlen(buf);
-    int err = cachePut(pTable, buf, nkey, buf, nkey, 0);
+    int err = cachePut(pTable, buf, nkey, buf, nkey, 3600);
 
     printf("\nhas push key %s %s\n", buf, err == CACHE_OK ? "success" : "fail");
 
@@ -40,7 +40,7 @@ TEST(cacheTest, testInsert) {
     cacheItemData(pItem, &pData, &nBytes);
     ASSERT_EQ(nkey, nBytes);
     ASSERT(memcmp(pData, buf, nBytes) == 0);
-
+    cacheItemUnreference(pItem);
     /*
     for (int j = 10; j >= 0 && i - j >= 0; j--) {
       snprintf(buf, sizeof(buf), "0123456789_%d", i - j);

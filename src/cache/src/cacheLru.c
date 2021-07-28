@@ -46,6 +46,8 @@ void cacheLruLinkItem(cache_t* pCache, cacheItem* pItem, bool lock) {
   if (tail) {
     head = tail->next;
     tail->next = pItem;
+  } else {
+    pLru->tail = pItem;
   }
 
   if (head) head->prev = pItem;

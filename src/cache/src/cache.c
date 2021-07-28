@@ -70,7 +70,7 @@ cacheItem* cacheGet(cacheTable* pTable, const char* key, uint8_t nkey) {
     uint64_t now = taosGetTimestamp(TSDB_TIME_PRECISION_MILLI);
     if (cacheItemIsExpired(pItem, now)) { /* is item expired? */
       /* cacheItemUnlink make ref == 1 */
-      cacheItemUnlink(pTable, pItem, true);
+      cacheItemUnlink(pTable, pItem, true, true);
       /* cacheItemRemove make ref == 0 then free item */
       cacheItemRemove(pTable->pCache, pItem);
       pItem = NULL;

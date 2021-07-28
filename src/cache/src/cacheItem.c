@@ -21,9 +21,9 @@
 #include "cacheItem.h"
 #include "cacheSlab.h"
 
-static void cacheItemFree(cache_t* pCache, cacheItem* pItem);
+static void freeCacheItem(cache_t* pCache, cacheItem* pItem);
 
-static void cacheItemUpdateInColdLruList(cacheItem* pItem, uint64_t now);
+static void updateItemInColdLruList(cacheItem* pItem, uint64_t now);
 
 cacheItem* cacheAllocItem(cache_t* cache, uint8_t nkey, uint32_t nbytes, uint64_t expireTime) {
   size_t ntotal = cacheItemTotalBytes(nkey, nbytes);
@@ -45,7 +45,6 @@ cacheItem* cacheAllocItem(cache_t* cache, uint8_t nkey, uint32_t nbytes, uint64_
   itemIncrRef(pItem);
   item_set_used(pItem);
 
-  pItem->next = pItem->prev = NULL;
   pItem->expireTime = expireTime;
   if (expireTime == 0) {
     /* never expire, add to never expire list */
@@ -61,22 +60,21 @@ cacheItem* cacheAllocItem(cache_t* cache, uint8_t nkey, uint32_t nbytes, uint64_
   return pItem;
 }
 
-void cacheItemUnlink(cacheTable* pTable, cacheItem* pItem, bool lockLru) {
+void cacheItemUnlink(cacheTable* pTable, cacheItem* pItem, bool lockLru, bool lockhash) {
   assert(pItem->pTable == pTable);
   if (item_is_used(pItem)) {
-    item_unset_used(pItem);
-    cacheTableRemove(pTable, item_key(pItem), pItem->nkey);
+    cacheTableRemove(pTable, item_key(pItem), pItem->nkey, lockhash);
     cacheLruUnlinkItem(pTable->pCache, pItem, lockLru);
     cacheItemRemove(pTable->pCache, pItem);
   }
 }
 
 void cacheItemRemove(cache_t* pCache, cacheItem* pItem) {
-  assert(item_is_freed(pItem));
+  assert(item_is_used(pItem));
   assert(pItem->refCount > 0);
 
   if (itemDecrRef(pItem) == 0) {
-    cacheItemFree(pCache, pItem);
+    freeCacheItem(pCache, pItem);
   }
 }
 
@@ -100,14 +98,14 @@ void cacheItemBump(cacheTable* pTable, cacheItem* pItem, uint64_t now) {
     return;
   }
 
-  cacheItemUpdateInColdLruList(pItem, now);
+  updateItemInColdLruList(pItem, now);
 }
 
 FORCE_INLINE cacheMutex* cacheItemBucketMutex(cacheItem* pItem) {
   return &(pItem->pTable->pBucket[pItem->hash].mutex);
 }
 
-static void cacheItemUpdateInColdLruList(cacheItem* pItem, uint64_t now) {
+static void updateItemInColdLruList(cacheItem* pItem, uint64_t now) {
   assert(item_is_used(pItem));
   assert(item_slablru_id(pItem) == CACHE_LRU_COLD && item_is_active(pItem));
 
@@ -124,9 +122,9 @@ static void cacheItemUpdateInColdLruList(cacheItem* pItem, uint64_t now) {
   cacheTableUnlockBucket(pItem->pTable, pItem->hash);
 }
 
-static void cacheItemFree(cache_t* pCache, cacheItem* pItem) {
+static void freeCacheItem(cache_t* pCache, cacheItem* pItem) {
   assert(pItem->refCount == 0);
-  assert(item_is_freed(pItem));
+  assert(item_is_used(pItem));
 
   cacheSlabFreeItem(pCache, pItem, false);
 }

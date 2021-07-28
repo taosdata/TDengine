@@ -21,15 +21,15 @@
 #include "cacheTable.h"
 #include "osTime.h"
 
-static cacheItem* cacheSlabDoAllocItem(cache_t *cache, size_t size, unsigned int id);
-static int  cacheNewSlab(cache_t *cache, cacheSlabClass *pSlab);
-static bool cacheIsReachMemoryLimit(cache_t *cache, int len);
-static int  cacheSlabGrowArray(cache_t *cache, cacheSlabClass *pSlab);
-static void *cacheAllocMemory(cache_t *cache, size_t size);
-static void cacheSplitSlabPageInfoFreelist(cache_t *cache,char *ptr, uint32_t id);
-static int cacheMoveItemFromLru(cache_t *cache, int id, int curLru, uint64_t totalBytes, cacheMutex *pMutex,
+static cacheItem* doAllocItem(cache_t *cache, size_t size, unsigned int id);
+static int  createNewSlab(cache_t *cache, cacheSlabClass *pSlab);
+static bool isReachMemoryLimit(cache_t *cache, int len);
+static int  slabGrowArray(cache_t *cache, cacheSlabClass *pSlab);
+static void *allocMemory(cache_t *cache, size_t size);
+static void splitSlabPageIntoFreelist(cache_t *cache,char *ptr, uint32_t id);
+static int moveItemFromLru(cache_t *cache, int id, int curLru, uint64_t totalBytes, cacheMutex *pMutex,
                                 uint32_t* moveToLru,  cacheItem* search, cacheItem** pItem);
-static int cacheLruPull(cache_t *cache, int origId, int curLru, uint64_t total_bytes);
+static int pullFromLru(cache_t *cache, int origId, int curLru, uint64_t total_bytes);
 
 int cacheSlabInit(cache_t *cache) {
   // init slab class
@@ -101,14 +101,14 @@ cacheItem* cacheSlabAllocItem(cache_t *cache, size_t ntotal, uint32_t slabId) {
   int i;
 
   for (i = 0; i < 10; ++i) {
-    item = cacheSlabDoAllocItem(cache, ntotal, slabId);
+    item = doAllocItem(cache, ntotal, slabId);
     if (item) {
       break;
     }
 
-    if (cacheLruPull(cache, slabId, CACHE_LRU_COLD, 0) <= 0) {  /* try to pull item fom cold list */
+    if (pullFromLru(cache, slabId, CACHE_LRU_COLD, 0) <= 0) {  /* try to pull item fom cold list */
       /* pull item from cold list failed, try to pull item from hot list */
-      if (cacheLruPull(cache, slabId, CACHE_LRU_HOT, 0) <= 0) {
+      if (pullFromLru(cache, slabId, CACHE_LRU_HOT, 0) <= 0) {
         break;
       }
     }
@@ -133,7 +133,6 @@ void cacheSlabFreeItem(cache_t *cache, cacheItem* item, bool lock) {
   if (lock) cacheMutexLock(&pSlab->mutex);
 
   if (!item_is_chunked(item)) {
-    item->flags = ITEM_FREED;
     item->slabLruId = id;
     item->prev = NULL;
     item->next = pSlab->freeItem;
@@ -144,10 +143,12 @@ void cacheSlabFreeItem(cache_t *cache, cacheItem* item, bool lock) {
 
   }
 
+  item_set_free(item);
+
   if (lock) cacheMutexUnlock(&pSlab->mutex);
 }
 
-static bool cacheIsReachMemoryLimit(cache_t *cache, int len) {
+static bool isReachMemoryLimit(cache_t *cache, int len) {
   if (cache->alloced + len >= cache->options.limit) {
     return true;
   }
@@ -155,12 +156,12 @@ static bool cacheIsReachMemoryLimit(cache_t *cache, int len) {
   return false;
 }
 
-static void *cacheAllocMemory(cache_t *cache, size_t size) {
+static void *allocMemory(cache_t *cache, size_t size) {
   cache->alloced += size;
   return malloc(size);
 }
 
-static int cacheSlabGrowArray(cache_t *cache, cacheSlabClass *pSlab) {
+static int slabGrowArray(cache_t *cache, cacheSlabClass *pSlab) {
   if (pSlab->nAllocSlabs == pSlab->nArray) {
     size_t newSize =  (pSlab->nArray != 0) ? pSlab->nArray * 2 : 16;
     void *pArray = realloc(pSlab->slabArray, newSize * sizeof(void *));
@@ -172,7 +173,7 @@ static int cacheSlabGrowArray(cache_t *cache, cacheSlabClass *pSlab) {
   return 1;
 }
 
-static void cacheSplitSlabPageInfoFreelist(cache_t *cache, char *ptr, uint32_t id) {
+static void splitSlabPageIntoFreelist(cache_t *cache, char *ptr, uint32_t id) {
   cacheSlabClass *p = cache->slabs[id];
   int i = 0;
   for (i = 0; i < p->perSlab; i++) {
@@ -183,30 +184,30 @@ static void cacheSplitSlabPageInfoFreelist(cache_t *cache, char *ptr, uint32_t i
   }
 }
 
-static int cacheNewSlab(cache_t *cache, cacheSlabClass *pSlab) {
+static int createNewSlab(cache_t *cache, cacheSlabClass *pSlab) {
   char *ptr;
   uint32_t id = pSlab->id;
   int len = pSlab->size * pSlab->perSlab;
 
-  if (cacheIsReachMemoryLimit(cache, len)) { 
+  if (isReachMemoryLimit(cache, len)) { 
     cacheDebug("cache has been reached limit");
     return CACHE_REACH_LIMIT;
   }
 
-  if (cacheSlabGrowArray(cache, pSlab) == 0 || (ptr = cacheAllocMemory(cache, len)) == NULL) {
-    cacheError("cacheAllocMemory fail");
+  if (slabGrowArray(cache, pSlab) == 0 || (ptr = allocMemory(cache, len)) == NULL) {
+    cacheError("allocMemory fail");
     return CACHE_ALLOC_FAIL;
   }
 
   memset(ptr, 0, (size_t)len);
-  cacheSplitSlabPageInfoFreelist(cache, ptr, id);
+  splitSlabPageIntoFreelist(cache, ptr, id);
 
   pSlab->slabArray[pSlab->nArray++] = ptr;
 
   return CACHE_OK;
 }
 
-static cacheItem* cacheSlabDoAllocItem(cache_t *cache, size_t size, unsigned int id) {
+static cacheItem* doAllocItem(cache_t *cache, size_t size, unsigned int id) {
   cacheSlabClass *pSlab = cache->slabs[id];
   cacheItem *item = NULL;
 
@@ -214,7 +215,7 @@ static cacheItem* cacheSlabDoAllocItem(cache_t *cache, size_t size, unsigned int
 
   /* no free item, try to alloc new slab page */
   if (pSlab->nFree == 0) {
-    cacheNewSlab(cache, pSlab);
+    createNewSlab(cache, pSlab);
   }
 
   /* if there is free items, free it from free list */
@@ -222,7 +223,7 @@ static cacheItem* cacheSlabDoAllocItem(cache_t *cache, size_t size, unsigned int
     item = pSlab->freeItem;
     pSlab->freeItem = item->next;
     if (item->next) item->next->prev = NULL;
-    item_unset_freed(item);
+    item_unset_free(item);
     pSlab->nFree -= 1;
   }
 
@@ -234,7 +235,7 @@ static cacheItem* cacheSlabDoAllocItem(cache_t *cache, size_t size, unsigned int
 /* If we're CACHE_LRU_HOT or CACHE_LRU_WARM and over size limit, send to CACHE_LRU_COLD.
  * If we're COLD_LRU, send to WARM_LRU unless we need to evict
  */
-static int cacheMoveItemFromLru(cache_t *cache, int lruId, int curLru, uint64_t totalBytes, cacheMutex *pMutex,
+static int moveItemFromLru(cache_t *cache, int lruId, int curLru, uint64_t totalBytes, cacheMutex *pMutex,
                                 uint32_t* moveToLru,  cacheItem* search, cacheItem** pItem) {
   int removed = 0;
   uint64_t limit = 0;
@@ -288,7 +289,7 @@ static int cacheMoveItemFromLru(cache_t *cache, int lruId, int curLru, uint64_t 
   return removed;
 }
 
-static int cacheLruPull(cache_t *cache, int slabId, int curLru, uint64_t totalBytes) {
+static int pullFromLru(cache_t *cache, int slabId, int curLru, uint64_t totalBytes) {
   cacheItem* item = NULL;
   cacheItem* search;
   cacheItem* next;
@@ -322,7 +323,7 @@ static int cacheLruPull(cache_t *cache, int slabId, int curLru, uint64_t totalBy
     /* is item is refcount locked? */
     if (itemIncrRef(search) != 2) {
       search->refCount = 1;
-      cacheItemUnlink(search->pTable, search, false);
+      cacheItemUnlink(search->pTable, search, false, false);
       cacheMutexTryUnlock(pMutex);
       continue;
     }
@@ -330,15 +331,15 @@ static int cacheLruPull(cache_t *cache, int slabId, int curLru, uint64_t totalBy
     /* is item expired? */
     if (cacheItemIsExpired(search, now)) {
       /* refcnt 2 -> 1 */
-      cacheItemUnlink(search->pTable, search, false);
-      /* refcnt 1 -> 0 -> cacheItemFree */
+      cacheItemUnlink(search->pTable, search, false, false);
+      /* refcnt 1 -> 0 -> freeCacheItem */
       cacheItemRemove(cache, search);      
       cacheMutexTryUnlock(pMutex);
       removed++;
       continue;
     }    
 
-    removed += cacheMoveItemFromLru(cache, lruId, curLru, totalBytes, pMutex, &moveToLru, search, &item);
+    removed += moveItemFromLru(cache, lruId, curLru, totalBytes, pMutex, &moveToLru, search, &item);
 
     if (item != NULL) {
       break;
