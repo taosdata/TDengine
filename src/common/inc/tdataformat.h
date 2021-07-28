@@ -55,7 +55,7 @@ extern "C" {
 typedef struct {
   int8_t   type;    // Column type
   int16_t  colId;   // column ID
-  uint16_t bytes;   // column bytes
+  int16_t  bytes;   // column bytes (restore to int16_t in case of misuse)
   uint16_t offset;  // point offset in SDataRow after the header part.
 } STColumn;
 
@@ -366,6 +366,7 @@ typedef struct {
 #define kvRowColIdxAt(r, i) (kvRowColIdx(r) + (i))
 #define kvRowFree(r) tfree(r)
 #define kvRowEnd(r) POINTER_SHIFT(r, kvRowLen(r))
+#define kvRowValLen(r) (kvRowLen(r) - TD_KV_ROW_HEAD_SIZE - sizeof(SColIdx) * kvRowNCols(r))
 #define kvRowTKey(r) (*(TKEY *)(kvRowValues(r)))
 #define kvRowKey(r) tdGetKey(kvRowTKey(r))
 #define kvRowDeleted(r) TKEY_IS_DELETED(kvRowTKey(r))
