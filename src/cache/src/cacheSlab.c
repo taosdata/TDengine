@@ -21,15 +21,19 @@
 #include "cacheTable.h"
 #include "osTime.h"
 
+enum {
+  LRU_PULL_EVICT = 1,
+};
+
 static cacheItem* doAllocItem(cache_t *cache, size_t size, unsigned int id);
 static int  createNewSlab(cache_t *cache, cacheSlabClass *pSlab);
 static bool isReachMemoryLimit(cache_t *cache, int len);
 static int  slabGrowArray(cache_t *cache, cacheSlabClass *pSlab);
 static void *allocMemory(cache_t *cache, size_t size);
 static void splitSlabPageIntoFreelist(cache_t *cache,char *ptr, uint32_t id);
-static int moveItemFromLru(cache_t *cache, int id, int curLru, uint64_t totalBytes, cacheMutex *pMutex,
-                                uint32_t* moveToLru,  cacheItem* search, cacheItem** pItem);
-static int pullFromLru(cache_t *cache, int origId, int curLru, uint64_t total_bytes);
+static int moveItemFromLru(cache_t *cache, int id, int curLru, uint64_t totalBytes, uint8_t flags,
+                           cacheMutex *pMutex, uint32_t* moveToLru,  cacheItem* search, cacheItem** pItem);
+static int pullFromLru(cache_t *cache, int origId, int curLru, uint64_t total_bytes, uint8_t flags);
 
 int cacheSlabInit(cache_t *cache) {
   // init slab class
@@ -108,9 +112,9 @@ cacheItem* cacheSlabAllocItem(cache_t *cache, size_t ntotal, uint32_t slabId) {
       break;
     }
 
-    if (pullFromLru(cache, slabId, CACHE_LRU_COLD, 0) <= 0) {  /* try to pull item fom cold list */
+    if (pullFromLru(cache, slabId, CACHE_LRU_COLD, 0, LRU_PULL_EVICT) <= 0) {  /* try to pull item fom cold list */
       /* pull item from cold list failed, try to pull item from hot list */
-      if (pullFromLru(cache, slabId, CACHE_LRU_HOT, 0) <= 0) {
+      if (pullFromLru(cache, slabId, CACHE_LRU_HOT, 0, 0) <= 0) {
         break;
       }
     }
@@ -121,7 +125,7 @@ cacheItem* cacheSlabAllocItem(cache_t *cache, size_t ntotal, uint32_t slabId) {
 
 void cacheSlabFreeItem(cache_t *cache, cacheItem* item, bool lock) {  
   //size_t ntotal = cacheItemTotalBytes(item->nkey, item->nbytes);
-  uint32_t id = item_cls_id(item);
+  uint32_t id = item_slab_id(item);
 
   if (cacheItemIsNeverExpired(item)) {
     if (item->next) item->next->prev = item->prev;
@@ -237,8 +241,8 @@ static cacheItem* doAllocItem(cache_t *cache, size_t size, unsigned int id) {
 /* If we're CACHE_LRU_HOT or CACHE_LRU_WARM and over size limit, send to CACHE_LRU_COLD.
  * If we're COLD_LRU, send to WARM_LRU unless we need to evict
  */
-static int moveItemFromLru(cache_t *cache, int lruId, int curLru, uint64_t totalBytes, cacheMutex *pMutex,
-                                uint32_t* moveToLru,  cacheItem* search, cacheItem** pItem) {
+static int moveItemFromLru(cache_t *cache, int lruId, int curLru, uint64_t totalBytes, uint8_t flags,
+                            cacheMutex *pMutex, uint32_t* moveToLru,  cacheItem* search, cacheItem** pItem) {
   int removed = 0;
   uint64_t limit = 0;
   cacheOption* opt = &(cache->options);
@@ -281,20 +285,24 @@ static int moveItemFromLru(cache_t *cache, int lruId, int curLru, uint64_t total
       break;
     case CACHE_LRU_COLD:
       *pItem = search;
+      if (flags & LRU_PULL_EVICT) {
+        cacheItemUnlink(search->pTable, search, false, false);
+        removed++;
+      }
       break;
   }
 
   if (*moveToLru != 0) {
     /* unlink from current lru list */
-    cacheLruUnlinkItem(search->pTable->pCache, search, false);
+    cacheLruUnlinkItem(cache, search, false);
   }
   return removed;
 }
 
-static int pullFromLru(cache_t *cache, int slabId, int curLru, uint64_t totalBytes) {
+static int pullFromLru(cache_t *cache, int slabId, int curLru, uint64_t totalBytes, uint8_t flags) {
   cacheItem* item = NULL;
   cacheItem* search;
-  cacheItem* next;
+  cacheItem* prev;
   cacheSlabLruClass* lru;
   int lruId = slabId;
   int removed = 0;
@@ -310,11 +318,11 @@ static int pullFromLru(cache_t *cache, int slabId, int curLru, uint64_t totalByt
   cacheMutexLock(&(lru->mutex));
 
   search = lru->tail;
-  for (; tries > 0 && search != NULL; tries--, search = next) {
-    assert(item_lru_id(search) == curLru);
+  for (; tries > 0 && search != NULL; tries--, search = prev) {
+    assert(item_slablru_id(search) == lruId);
     assert(item_is_used(search));    
 
-    next = search->prev;
+    prev = search->prev;
     pMutex = cacheItemBucketMutex(search);
   
     /* hash bucket has been locked by other thread */
@@ -322,13 +330,16 @@ static int pullFromLru(cache_t *cache, int slabId, int curLru, uint64_t totalByt
       continue;
     }
 
-    /* after incr(refcount) != 2 means ref count leaks */
+    /*
+     * after incr(refcount) > 2 means ref count leaks,
+     * == 1 means no reference to this item
+    */
     if (itemIncrRef(search) != 2) {
       search->refCount = 1;
       cacheItemUnlink(search->pTable, search, false, false);
       cacheMutexTryUnlock(pMutex);
       removed++;
-      break;
+      continue;
     }
 
     /* is item expired? */
@@ -339,10 +350,10 @@ static int pullFromLru(cache_t *cache, int slabId, int curLru, uint64_t totalByt
       cacheItemRemove(cache, search);      
       cacheMutexTryUnlock(pMutex);
       removed++;
-      break;
-    }    
+      continue;
+    }
 
-    removed += moveItemFromLru(cache, lruId, curLru, totalBytes, pMutex, &moveToLru, search, &item);
+    removed += moveItemFromLru(cache, lruId, curLru, totalBytes, flags, pMutex, &moveToLru, search, &item);
 
     if (item != NULL) {
       break;
@@ -354,7 +365,7 @@ static int pullFromLru(cache_t *cache, int slabId, int curLru, uint64_t totalByt
   if (item != NULL) {
     if (moveToLru) {  /* move item to new lru list */
       /* set new lru list id */
-      item->slabLruId = item_cls_id(item) | moveToLru;
+      item->slabLruId = item_slab_id(item) | moveToLru;
       /* link to new lru list */
       cacheLruLinkItem(cache, item, true);
     }

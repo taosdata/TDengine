@@ -52,7 +52,7 @@ void cacheLruUnlinkItem(cache_t* pCache, cacheItem* pItem, bool lock) {
 
   if (pItem->next) pItem->next->prev = pItem->prev;
   if (pItem->prev) pItem->prev->next = pItem->next;
-
+  pItem->next = pItem->prev = NULL;
   pLru->num -= 1;
   pLru->bytes -= cacheItemTotalBytes(pItem->nkey, pItem->nbytes);
 

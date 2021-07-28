@@ -75,7 +75,7 @@ struct cacheItem {
 #define item_is_chunked(item)     ((item)->flags & ITEM_CHUNKED)
 
 /* return slab class id in [0,MAX_NUMBER_OF_SLAB_CLASSES-1] */
-#define item_cls_id(item)       ((item)->slabLruId & ~(3<<6))
+#define item_slab_id(item)       ((item)->slabLruId & ~(3<<6))
 
 /* return the lru list type id:hot,warm,cold */
 #define item_lru_id(item)       ((item)->slabLruId & (3<<6))

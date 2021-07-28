@@ -116,7 +116,7 @@ static void updateItemInColdLruList(cacheItem* pItem, uint64_t now) {
 
   /* move pItem to warm lru list */
   cacheLruUnlinkItem(pItem->pTable->pCache, pItem, true);
-  pItem->slabLruId = item_cls_id(pItem) | CACHE_LRU_WARM;
+  pItem->slabLruId = item_slab_id(pItem) | CACHE_LRU_WARM;
   cacheLruLinkItem(pItem->pTable->pCache, pItem, true);
 
   cacheTableUnlockBucket(pItem->pTable, pItem->hash);
@@ -125,6 +125,9 @@ static void updateItemInColdLruList(cacheItem* pItem, uint64_t now) {
 static void freeCacheItem(cache_t* pCache, cacheItem* pItem) {
   assert(pItem->refCount == 0);
   assert(item_is_used(pItem));
+  cacheSlabLruClass* pLru = &(pCache->lruArray[item_slablru_id(pItem)]);
+  assert(pLru->head != pItem);
+  assert(pLru->tail != pItem);
 
   cacheSlabFreeItem(pCache, pItem, false);
 }
