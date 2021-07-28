@@ -376,6 +376,8 @@ void tscResetSqlCmd(SSqlCmd *pCmd, bool removeMeta);
  */
 void tscFreeSqlResult(SSqlObj *pSql);
 
+void* tscCleanupTableMetaMap(SHashObj* pTableMetaMap);
+
 /**
  * free sql object, release allocated resource
  * @param pObj

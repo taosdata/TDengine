@@ -2224,6 +2224,9 @@ int tscProcessMultiTableMetaRsp(SSqlObj *pSql) {
     if (pMultiMeta->metaClone == 1 || pTableMeta->tableType == TSDB_SUPER_TABLE) {
       STableMetaVgroupInfo p = {.pTableMeta = pTableMeta,};
       size_t keyLen = strnlen(pMetaMsg->tableFname, TSDB_TABLE_FNAME_LEN);
+      void* t = taosHashGet(pParentCmd->pTableMetaMap, pMetaMsg->tableFname, keyLen);
+      assert(t == NULL);
+
       taosHashPut(pParentCmd->pTableMetaMap, pMetaMsg->tableFname, keyLen, &p, sizeof(STableMetaVgroupInfo));
     } else {
       freeMeta = true;
@@ -2915,7 +2918,9 @@ static void freeElem(void* p) {
  * @return              status code
  */
 int tscRenewTableMeta(SSqlObj *pSql, int32_t tableIndex) {
-  SQueryInfo     *pQueryInfo = tscGetQueryInfo(&pSql->cmd);
+  SSqlCmd* pCmd = &pSql->cmd;
+
+  SQueryInfo     *pQueryInfo = tscGetQueryInfo(pCmd);
   STableMetaInfo *pTableMetaInfo = tscGetMetaInfo(pQueryInfo, tableIndex);
 
   char name[TSDB_TABLE_FNAME_LEN] = {0};
@@ -2933,6 +2938,9 @@ int tscRenewTableMeta(SSqlObj *pSql, int32_t tableIndex) {
 
   // remove stored tableMeta info in hash table
   tscRemoveTableMetaBuf(pTableMetaInfo, pSql->self);
+
+  pCmd->pTableMetaMap = tscCleanupTableMetaMap(pCmd->pTableMetaMap);
+  pCmd->pTableMetaMap = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);
 
   SArray* pNameList = taosArrayInit(1, POINTER_BYTES);
   SArray* vgroupList = taosArrayInit(1, POINTER_BYTES);

@@ -1398,6 +1398,22 @@ void tscResetSqlCmd(SSqlCmd* pCmd, bool clearCachedMeta) {
   }
 }
 
+void* tscCleanupTableMetaMap(SHashObj* pTableMetaMap) {
+  if (pTableMetaMap == NULL) {
+    return NULL;
+  }
+
+  STableMetaVgroupInfo* p = taosHashIterate(pTableMetaMap, NULL);
+  while (p) {
+    taosArrayDestroy(p->vgroupIdList);
+    tfree(p->pTableMeta);
+    p = taosHashIterate(pTableMetaMap, p);
+  }
+
+  taosHashCleanup(pTableMetaMap);
+  return NULL;
+}
+
 void tscFreeSqlResult(SSqlObj* pSql) {
   SSqlRes* pRes = &pSql->res;
 
@@ -3481,11 +3497,9 @@ SSqlObj* createSimpleSubObj(SSqlObj* pSql, __async_cb_func_t fp, void* param, in
 
   SSqlCmd* pCmd = &pNew->cmd;
   pCmd->command = cmd;
+  tsem_init(&pNew->rspSem, 0 ,0);
+
   if (tscAddQueryInfo(pCmd) != TSDB_CODE_SUCCESS) {
-#ifdef __APPLE__
-    // to satisfy later tsem_destroy in taos_free_result
-    tsem_init(&pNew->rspSem, 0, 0);
-#endif // __APPLE__
     tscFreeSqlObj(pNew);
     return NULL;
   }
