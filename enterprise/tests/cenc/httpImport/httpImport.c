@@ -10,13 +10,13 @@
 #if !defined(HTTP_IMPORT_DEBUG)
 #include <errno.h>
 #include "taos.h"
+#include "base64.h"
+#include "urlencode.h"
 #endif
 
 
-#define CIR_BUF_NUM   8192
-#define CIR_BUF_SIZE  1536
+#define CIR_BUF_SIZE  1024
 #define MAX_SEED_LEN  512
-#define MAX_BATCH_NUM 2048
 
 
 typedef struct SNETIO
@@ -44,10 +44,26 @@ typedef struct recv_buf_info_s
 } recv_buf_info_t;
 
 
+#if !defined(HTTP_IMPORT_DEBUG)
+
+#if defined(IN_DATA_DEBUG)
+#define REC_TAB_MOD  5000
+
+typedef struct record_s record_t;
+
+struct record_s
+{
+  char               sid[LM_SIDLEN];
+  record_t          *next;
+};
+#endif
+
+
 typedef struct circular_buf_s
 {
-    char             data[CIR_BUF_NUM][CIR_BUF_SIZE];
-    int              len[CIR_BUF_NUM];
+    char           **data;
+    int             *len;
+    int64_t         *ts;
     int              pos;
     int              last;
 
@@ -59,15 +75,19 @@ typedef struct thread_arg_s
 {
     int              index;
     circular_buf_t   buffer;
+    int              buffer_num;
     TAOS            *taos;
 } thread_arg_t;
+#endif
 
 
 #define BUF_SKIP_LEN                1
 #define TQ_CHAN_NUM                 16
+#define MY_CHAN_NUM                 8
 #define MAX_TSQL_LEN                ((MAXRECLEN - 100) << 3)
 #define MAX_BUFF_LEN                (MAXRECLEN - 100)
-#define hash(key, c)                ((uint64_t) key * 31 + c)
+#define MAX_DB_ROWS                 32767
+#define hash(key, c)                ((uint64_t) (key) * 31 + (c))
 #define BUF_UNPROC_LEN(info)        (info)->readlength - (info)->readoffset
 #define BUF_TOREAD_PTR(info)        (info)->readbuffer + (info)->readoffset
 
@@ -89,11 +109,17 @@ void shift_buffer(recv_buf_info_t *info, int shift);
 int seed_read_from(SNETIO *io, recv_buf_info_t *info, uint32_t flags, char *sid, int sidlen, int *reclen);
 int seed_detect(char *record, int recbuflen, uint32_t flags, char *sid, int sidlen, int *readlen);
 char *seed_recordsid(char *record, char *sid, int sidlen);
-#if !defined(HTTP_IMPORT_DEBUG)
 void signal_handler(int sig);
+#if !defined(HTTP_IMPORT_DEBUG)
 void *seed_write_routine(void *arg);
-int check_and_free_res(TAOS_RES **res, const char *cmd);
-uint64_t hash_key(char *data, size_t len);
+int check_and_free_res(TAOS_RES **res, const char *cmd, thread_arg_t *par);
+uint64_t hash_key(const char *data, size_t len);
+#if defined(IN_DATA_DEBUG)
+void *seed_statistics_routine(void *arg);
+void *seed_record_routine(void *arg);
+record_t **get_hash_item(const char *sid, record_t **htb);
+void free_hash_table(record_t **htb);
+#endif
 #endif
 
 
@@ -104,55 +130,76 @@ char  *default_user    = "root";
 char  *default_passwd  = "taosdata";
 char  *default_port    = "6030";
 char  *default_topic   = "packet";
-
+char  *default_cbuf_nm = "512";
 
 
 int main(int argc, char *argv[])
 {
-    int              i, ret;
+    int              ret;
     int              opt;
     int              reclen;
     int64_t          packets;
     time_t           start, end;
     SNETIO           io;
     recv_buf_info_t  info;
-    uint32_t         flags   = MSF_SKIPNOTDATA;
-    char            *login   = NULL;
-    char            *logout  = NULL;
-    char            *url     = NULL;
+    uint32_t         flags    = MSF_SKIPNOTDATA;
+    char            *login    = NULL;
+    char            *logout   = NULL;
+    char            *url      = NULL;
     struct sigaction act;
+    struct timeval   now, echot;
 #if !defined(HTTP_IMPORT_DEBUG)
+    int              i, j;
     int              np;
     int              id;
-    int              iretry  = 0;
-    int              icount  = 0;
-    TAOS            *taos    = NULL;
-    TAOS_RES        *res     = NULL;
+    int              iretry   = 0;
+    int              icount   = 0;
+    int              igroup   = 0;
+    int              icbuf_nm = 0;
+    TAOS            *taos     = NULL;
+    TAOS_RES        *res      = NULL;
     char             cmd[MAX_TSQL_LEN];
     char             sid[LM_SIDLEN];
-    uint64_t         hash    = 0;
-    long             numport;
-    char            *host    = NULL;
-    char            *user    = NULL;
-    char            *passwd  = NULL;
-    char            *port    = NULL;
-    char            *topic   = NULL;
-    char            *retry   = NULL;
-    char            *count   = NULL;
+    char             enc_url[BUFSIZ];
+    long             numport  = 6030;
+    char            *pos      = NULL;
+    char            *host     = NULL;
+    char            *user     = NULL;
+    char            *passwd   = NULL;
+    char            *port     = NULL;
+    char            *topic    = NULL;
+    char            *retry    = NULL;
+    char            *count    = NULL;
+    char            *group    = NULL;
+    char            *cbuf_nm  = NULL;
     int              last;
-    pthread_t        tid[TQ_CHAN_NUM];
-    thread_arg_t    *arg     = NULL;
+    pthread_t        tid[MY_CHAN_NUM];
+#if defined(IN_DATA_DEBUG)
+    pthread_t        stat_tid;
+    pthread_t        rec_tid;
+    record_t       **t, **htb;
+#endif
+    thread_arg_t    *arg      = NULL;
+    char            *base64;
     uint64_t         hash;
-    struct timeval   now;
+    struct timeval   retryt, connt1, connt2, recvt;
 #else
-    FILE            *fp      = NULL;
-    char            *ofile   = NULL;
+    FILE            *fp       = NULL;
+    char            *ofile    = NULL;
 #endif 
 
 #if !defined(HTTP_IMPORT_DEBUG)
-    memset(tid, 0, TQ_CHAN_NUM * sizeof(pthread_t));
+#if defined(IN_DATA_DEBUG)
+    htb = NULL;
+    memset(&stat_tid, 0, sizeof(pthread_t));
+    memset(&rec_tid, 0, sizeof(pthread_t));
+#endif
+    memset(&io, 0, sizeof(SNETIO));
+    memset(tid, 0, MY_CHAN_NUM * sizeof(pthread_t));
 
-    while ((opt = getopt(argc, argv, "l:L:i:h:u:p:P:t:r:c:")) != -1) {
+    packets = 0;
+
+    while ((opt = getopt(argc, argv, "l:L:i:h:u:p:P:t:r:c:g:n:")) != -1) {
         switch (opt) {
         case 'l':
             login = strdup(optarg);
@@ -184,14 +231,25 @@ int main(int argc, char *argv[])
         case 'c':
             count = strdup(optarg);
             break;
+        case 'g':
+            group = strdup(optarg);
+            break;
+        case 'n':
+            cbuf_nm = strdup(optarg);
         default:
-            fprintf(stderr, "Usage: %s -i url[ -l login -L logout -h host -u user -P port -t topic -r <on|off> -c count]\r\n", argv[0]);
+            fprintf(stderr, "Usage: %s -i url -g group[ -l login -L logout -h host -u user -P port -t topic -r <on|off> -c count -n cbuf_nm(KB)]\r\n", argv[0]);
             goto failed;
         }
     }
 
-    if (url == NULL || url[0] == '\0') {
-        fprintf(stderr, "Usage: %s -i url[ -l login -L logout -h host -u user -P port -t topic -r <on|off> -c count]\r\n", argv[0]);
+    if (url == NULL || url[0] == '\0' || group == NULL || group[0] == '\0') {
+        fprintf(stderr, "Usage: %s -i url -g group[ -l login -L logout -h host -u user -P port -t topic -r <on|off> -c count -n cbuf_nm(KB)]\r\n", argv[0]);
+        goto failed;
+    }
+
+    igroup = (int) strtol(group, NULL, 10);
+    if (errno == EINVAL || errno == ERANGE || (igroup != 1 && igroup != 2)) {
+        fprintf(stderr, "the option -g with invalid number!\r\n");
         goto failed;
     }
 
@@ -240,13 +298,23 @@ int main(int argc, char *argv[])
         topic = default_topic;
     }
 
+    if (cbuf_nm == NULL) {
+        cbuf_nm = default_cbuf_nm;
+    }
+
     numport = strtol(port, NULL, 10);
     if (errno == EINVAL || errno == ERANGE || (numport < 0 || numport > 65535)) {
         fprintf(stderr, "the option -p with invalid number!\r\n");
         goto failed;
     }
 
-    fprintf(stderr, "################################################################\r\n");
+    icbuf_nm = (int) strtol(cbuf_nm, NULL, 10);
+    if (errno == EINVAL || errno == ERANGE) {
+        fprintf(stderr, "the option -n with invalid number!\r\n");
+        goto failed;
+    }
+
+    fprintf(stderr, "################################################################\rn");
     fprintf(stderr, "# Login URL:                             %s\r\n", login);
     fprintf(stderr, "# Logout URL:                            %s\r\n", logout);
     fprintf(stderr, "# URL:                                   %s\r\n", url);
@@ -256,6 +324,8 @@ int main(int argc, char *argv[])
     fprintf(stderr, "# Topic:                                 %s\r\n", topic);
     fprintf(stderr, "# Retry:                                 %s\r\n", retry);
     fprintf(stderr, "# Retry Count:                           %s\r\n", count);
+    fprintf(stderr, "# Group:                                 %s\r\n", group);
+    fprintf(stderr, "# Circular Buffer Num:                   %s\r\n", cbuf_nm);
     fprintf(stderr, "################################################################\r\n");
 #else
     while ((opt = getopt(argc, argv, "i:o:")) != -1) {   
@@ -282,10 +352,10 @@ int main(int argc, char *argv[])
         goto failed;
     }
 
-    fprintf(stderr, "################################################################\r\n");
-    fprintf(stderr, "# URL:                                   %s\r\n", url);
-    fprintf(stderr, "# Output:                                %s\r\n", ofile);
-    fprintf(stderr, "################################################################\r\n");
+    fprintf(stdout, "################################################################\r\n");
+    fprintf(stdout, "# URL:                                   %s\r\n", url);
+    fprintf(stdout, "# Output:                                %s\r\n", ofile);
+    fprintf(stdout, "################################################################\r\n");
 #endif
 
     act.sa_handler = signal_handler;
@@ -293,26 +363,60 @@ int main(int argc, char *argv[])
     act.sa_flags = 0;
     sigaction(SIGINT, &act, 0);
 
-    packets = 0;
-
 #if !defined(HTTP_IMPORT_DEBUG)
+    if (arg == NULL) {
+        arg = (thread_arg_t *) malloc(MY_CHAN_NUM * sizeof(thread_arg_t));
+        if (arg == NULL) {
+            goto quit;
+        }
+    }
+
+    memset(arg, 0, MY_CHAN_NUM * sizeof(thread_arg_t));
+
+    for (i = 0; i < MY_CHAN_NUM; i++) {
+        arg[i].buffer.len = (int *) malloc(icbuf_nm * 1024 * sizeof(int));
+        if (arg[i].buffer.len == NULL) {
+            fprintf(stderr, "failed to allocate for circular buffer length\r\n");
+            goto quit;
+        }
+
+        arg[i].buffer.ts = (int64_t *) malloc(icbuf_nm * 1024 * sizeof(int64_t));
+        if (arg[i].buffer.ts == NULL) {
+            fprintf(stderr, "failed to allocate for circular buffer timestamp\r\n");
+            goto quit;
+        }
+
+        arg[i].buffer_num = icbuf_nm * 1024;
+
+        arg[i].buffer.data = (char **) malloc(icbuf_nm * 1024 * sizeof(char *));
+        if (arg[i].buffer.data == NULL) {
+            fprintf(stderr, "failed to allocate for circular buffer data\r\n");
+            goto quit;
+        }
+
+        memset(arg[i].buffer.data, 0, icbuf_nm * 1024 * sizeof(char *));
+
+        for (j = 0; j < icbuf_nm * 1024; j++) {
+            arg[i].buffer.data[j] = (char *) malloc(CIR_BUF_SIZE);
+            if (arg[i].buffer.data[j] == NULL) {
+                fprintf(stderr, "failed to allocate for circular buffer data[%d]\r\n", j);
+                goto quit;
+            }
+        }
+    }
+
 retry:
+
+#if defined(IN_DATA_DEBUG)
+    htb = NULL;
+    memset(&stat_tid, 0, sizeof(pthread_t));
+    memset(&rec_tid, 0, sizeof(pthread_t));
 #endif
 
     memset(&io, 0, sizeof(SNETIO));
-    memset(&info, 0, sizeof(info));
+    memset(tid, 0, MY_CHAN_NUM * sizeof(pthread_t));
+    memset(&recvt, 0, sizeof(struct timeval));
 
-    start = time(NULL);
-
-    ret = seed_net_open(&io, login, url);
-    if (ret != 0) {
-        fprintf(stderr, "failed to open %s\r\n", url);
-        goto failed;
-    }
-
-    fprintf(stderr, "opened %s ok\r\n", url);
-
-#if !defined(HTTP_IMPORT_DEBUG)
     taos_init();
 
     taos = taos_connect(host, user, passwd, NULL, numport);
@@ -331,14 +435,39 @@ retry:
     cmd[np] = '\0';
 
     res = taos_query(taos, cmd);
-    if (check_and_free_res(&res, cmd) != 0) {
+    if (check_and_free_res(&res, cmd, NULL) != 0) {
         goto failed;
     }
 
     // use database
     taos_select_db(taos, topic);
 
-    fprintf(stderr, "running write data in stream to database, please wait...\n");
+    fprintf(stdout, "running write data in stream to database, please wait...\r\n");
+
+    if (strlen(url) < 10 || (pos = strstr(url, "http://")) == NULL) {
+        fprintf(stderr, "too short or not http url %s\r\n", url);
+        quit = 1;
+        goto failed;
+    }
+
+    pos += 7;
+    if ((pos = strchr(pos, '/')) == NULL) {
+        fprintf(stderr, "invalid url %s\r\n", url);
+        quit = 1;
+        goto failed;
+    }
+
+    memset(enc_url, 0, BUFSIZ);
+    memmove(enc_url, url, pos - url);
+
+    if (urlencode(enc_url + strlen(enc_url), BUFSIZ - 1 - strlen(enc_url), pos, strlen(pos)) <= 0) {
+        fprintf(stderr, "invalid url path %s\r\n", pos);
+        quit = 1;
+        goto failed;
+    }
+
+    gettimeofday(&connt1, NULL);
+    fprintf(stderr, "timestamp: %"PRId64" before open %s\r\n", connt1.tv_sec * 1000000 + connt1.tv_usec, url);
 #else
     fp = fopen(ofile, "w");
     if (fp == NULL) {
@@ -347,27 +476,56 @@ retry:
     }
 #endif
 
+    memset(&info, 0, sizeof(info));
+
+    start = time(NULL);
+
+    ret = seed_net_open(&io, login,
+#if !defined(HTTP_IMPORT_DEBUG)
+                        enc_url
+#else
+                        url
+#endif
+);
+    if (ret != 0) {
+        fprintf(stderr, "failed to open %s\r\n", url);
+        goto failed;
+    }
+
+    fprintf(stderr, "opened %s ok\r\n", url);
+
+#if !defined(HTTP_IMPORT_DEBUG)
+    gettimeofday(&connt2, NULL);
+    fprintf(stderr, "timestamp: %"PRId64" after open %s\r\n", connt2.tv_sec * 1000000 + connt2.tv_usec, url);
+#endif
+
 #if !defined(HTTP_IMPORT_DEBUG)
     np = 0;
     id = 0;
     reclen = 0;
     memset(sid, 0, LM_SIDLEN);
 
-    if (arg == NULL) {
-        arg = (thread_arg_t *) malloc(TQ_CHAN_NUM * sizeof(thread_arg_t));
-        if (arg == NULL) {
-            goto failed;
-        }
+#if defined(IN_DATA_DEBUG)
+    htb = (record_t **) malloc(sizeof(record_t *) * REC_TAB_MOD);
+    if (htb == NULL) {
+        fprintf(stderr, "failed to allocate for record hash table\r\n");
+        goto failed;
     }
 
-    memset(arg, 0, TQ_CHAN_NUM * sizeof(thread_arg_t));
+    memset(htb, 0, sizeof(record_t *) * REC_TAB_MOD);
+#endif
 
-    for (i = 0; i < TQ_CHAN_NUM; i++) {
-        arg[i].index = i;
+    for (i = 0; i < MY_CHAN_NUM; i++) {
+        arg[i].index = (i + 1) + (igroup - 1) * MY_CHAN_NUM;
         arg[i].taos = taos;
 
         pthread_create(&tid[i], NULL, seed_write_routine, (void *) &arg[i]);
     }
+
+#if defined(IN_DATA_DEBUG)
+    pthread_create(&stat_tid, NULL, seed_statistics_routine, (void *) arg);
+    pthread_create(&rec_tid, NULL, seed_record_routine, (void *) htb);
+#endif
 #endif
 
     while (running) {
@@ -383,35 +541,63 @@ retry:
             break;
         }
 
+#if !defined(HTTP_IMPORT_DEBUG)
+        if (recvt.tv_sec == 0 && recvt.tv_usec == 0) {
+            gettimeofday(&recvt, NULL);
+            fprintf(stderr, "timestamp: %"PRId64" data arrival\r\n", recvt.tv_sec * 1000000 + recvt.tv_usec);
+        }
+#endif
+
         packets++;
 
 #if !defined(HTTP_IMPORT_DEBUG)
+#if defined(IN_DATA_DEBUG)
+        t = get_hash_item(sid, htb);
+        if (t == NULL) {
+            fprintf(stderr, "failed to get_hash_item for: %s\r\n", sid);
+        }
+#endif
+
+        base64 = base64_encode((const unsigned char *) info.readbuffer + info.readoffset - reclen, reclen);
+        if (base64 == NULL) {
+            fprintf(stderr, "base64 error\r\n");
+            continue;
+        }
+
         hash = hash_key(sid, strlen(sid));
-        id = (int) (hash % TQ_CHAN_NUM);
+        id = (int) (hash % MY_CHAN_NUM);
 
         //pthread_mutex_lock(&arg[id].buffer.mutex);
 
-        last = (arg[id].buffer.last + 1) % CIR_BUF_NUM;
+        last = (arg[id].buffer.last + 1) % arg[id].buffer_num;
+
+        gettimeofday(&now, NULL);
 
         if (last == arg[id].buffer.pos) {
-            fprintf(stderr, "buffer(%d) was full\r\n", id);
+            fprintf(stderr, "buffer(%d) was full, timestamp: %"PRId64"\r\n",
+                    id + (igroup - 1) * MY_CHAN_NUM + 1, now.tv_sec * 1000000 + now.tv_usec);
             //pthread_mutex_unlock(&arg[id].buffer.mutex);
             continue;
         }
 
+        reclen = strlen(base64);
+
         if (reclen > CIR_BUF_SIZE - 1) {
-            fprintf(stderr, "too long(%d) packet\r\n", reclen);
+            fprintf(stderr, "too long(%d) packet, sid: %s\r\n", reclen, sid);
             //pthread_mutex_unlock(&arg[id].buffer.mutex);
             continue;
         }
 
         arg[id].buffer.data[arg[id].buffer.last][reclen] = '\0';
         arg[id].buffer.len[arg[id].buffer.last] = reclen;
-        memcpy(arg[id].buffer.data[arg[id].buffer.last], info.readbuffer + info.readoffset - reclen, reclen);
+        arg[id].buffer.ts[arg[id].buffer.last] = now.tv_sec * 1000000 + now.tv_usec;
+        memcpy(arg[id].buffer.data[arg[id].buffer.last], base64, reclen);
 
         arg[id].buffer.last = last;
 
         //pthread_mutex_unlock(&arg[id].buffer.mutex);
+
+        free(base64);
 #else
         if (running && fwrite(info.readbuffer + info.readoffset - reclen, 1, reclen, fp) != reclen) {
             fprintf(stderr, "failed to write to %s\r\n", ofile);
@@ -420,7 +606,8 @@ retry:
 #endif
 
         if (packets % 50000 == 0) {
-            fprintf(stdout, "%ld packet(s) transfered\r\n", packets);
+            gettimeofday(&echot, NULL);
+            fprintf(stdout, "%"PRId64" packet(s) transfered, now: %"PRId64"\r\n", packets, echot.tv_sec * 1000000 + echot.tv_usec);
         }
     }
 
@@ -429,11 +616,10 @@ retry:
     gettimeofday(&now, NULL);
 
     if (ret != MS_ENDOFFILE) {
-        fprintf(stderr, "terminated prematurely, %ld packet(s) transfered, %lds elapsed, now: %ld\r\n",
+        fprintf(stderr, "terminated prematurely, %"PRId64" packet(s) transfered, %"PRId64"s elapsed, now: %"PRId64"\r\n",
                 packets, end - start, now.tv_sec * 1000000 + now.tv_usec);
     } else {
-        fprintf(stdout, "done, %ld packet(s) transfered, %lds elapsed, now: %ld\r\n",
-                packets, end - start, now.tv_sec * 1000000 + now.tv_usec);
+        fprintf(stdout, "done, %"PRId64" packet(s) transfered, %"PRId64"s elapsed, now: %"PRId64"\r\n", packets, end - start, now.tv_sec * 1000000 + now.tv_usec);
     }
 
 failed:
@@ -441,9 +627,26 @@ failed:
     seed_net_close(&io, logout);
 
 #if !defined(HTTP_IMPORT_DEBUG)
-    for (i = 0; i < TQ_CHAN_NUM && tid[i]; i++) {
-        pthread_join(tid[i], NULL);
+    for (i = 0; i < MY_CHAN_NUM; i++) {
+        if (tid[i]) {
+            pthread_join(tid[i], NULL);
+        }
     }
+
+#if defined(IN_DATA_DEBUG)
+    if (stat_tid) {
+        pthread_join(stat_tid, NULL);
+    }
+
+    if (rec_tid) {
+        pthread_join(rec_tid, NULL);
+    }
+
+    if (htb) {
+        free_hash_table(htb);
+        free(htb);
+    }
+#endif
 
     if (taos) {
         taos_close(taos);
@@ -454,15 +657,40 @@ failed:
             if (icount > 0) {
                 icount--;
                 running = 1;
+                gettimeofday(&retryt, NULL);
+                fprintf(stderr, "retry timestamp (%d time(s) left): %"PRId64"\r\n", icount, retryt.tv_sec * 1000000 + retryt.tv_usec);
                 goto retry;
             }
         } else {
             running = 1;
+            gettimeofday(&retryt, NULL);
+            fprintf(stderr, "retry timestamp: %"PRId64"\r\n", retryt.tv_sec * 1000000 + retryt.tv_usec);
             goto retry;
         }
     }
 
+quit:
     if (arg) {
+        for (i = 0; i < MY_CHAN_NUM; i++) {
+            if (arg[i].buffer.ts) {
+                free(arg[i].buffer.ts);
+            }
+
+            if (arg[i].buffer.len) {
+                free(arg[i].buffer.len);
+            }
+
+            for (j = 0; j < icbuf_nm * 1024; j++) {
+                if (arg[i].buffer.data[j]) {
+                    free(arg[i].buffer.data[j]);
+                }
+            }
+
+            if (arg[i].buffer.data) {
+                free(arg[i].buffer.data);
+            }
+        }
+
         free(arg);
     }
 
@@ -504,6 +732,10 @@ failed:
 
     if (topic && topic != default_topic) {
         free(topic);
+    }
+
+    if (cbuf_nm && cbuf_nm != default_cbuf_nm) {
+        free(cbuf_nm);
     }
 #else
     if (fp) {
@@ -553,7 +785,7 @@ seed_net_open(SNETIO *io, const char *login, const char *url)
 
         res = curl_easy_perform(io->curl);
         if (res != CURLE_OK) {
-            fprintf(stderr, "curl perform failed for login: %s\n", curl_easy_strerror(res));
+            fprintf(stderr, "curl perform failed for login: %s\r\n", curl_easy_strerror(res));
             goto failed;
         }
 
@@ -626,7 +858,7 @@ seed_net_open(SNETIO *io, const char *login, const char *url)
         fprintf(stderr, "could not open %s, Not Found\r\n", url);
         goto failed;
     } else if (http_code >= 400 && http_code < 600) {
-        fprintf(stderr, "could not open %s, response code: %ld\r\n", url, http_code);
+        fprintf(stderr, "could not open %s, response code: %"PRId64"\r\n", url, http_code);
         goto failed;
     }
 
@@ -756,7 +988,7 @@ seed_net_close(SNETIO *io, const char *logout)
 
         res = curl_easy_perform(io->curl);
         if (res != CURLE_OK) {
-            fprintf(stderr, "curl perform failed for logout: %s\n", curl_easy_strerror(res));
+            fprintf(stderr, "curl perform failed for logout: %s\r\n", curl_easy_strerror(res));
         }
 
         curl_easy_cleanup(io->curl);
@@ -1005,220 +1237,217 @@ seed_recordsid(char *record, char *sid, int sidlen)
 }
 
 
-#if !defined(HTTP_IMPORT_DEBUG)
 void signal_handler(int sig)
 {
-    quit = 1;
-    running = 0;
+    switch (sig) {
+    case SIGINT:
+        quit = 1;
+        running = 0;
+        break;
+    default:
+        break;
+    }
 }
 
 
+#if !defined(HTTP_IMPORT_DEBUG)
 void *seed_write_routine(void *arg)
 {
-    int               n;
-    int               code;
-    int               np, rows;
-    int32_t           off_len[MAX_BATCH_NUM];
-    int32_t           ts_len[MAX_BATCH_NUM];
-    int32_t           bin_len[MAX_BATCH_NUM];
+    int               np, offset, cursor, rows;
     int64_t           total_rows, prv, ts;
-    char              is_null[MAX_BATCH_NUM];
     char              cmd[MAX_TSQL_LEN];
+    const char       *prefix  = "insert into";
+    const int         pfxlen  = sizeof("insert into") - 1;
     struct timeval    now;
     thread_arg_t     *p;
-    TAOS_STMT        *stmt;
-    TAOS_MULTI_BIND   params[3];
-    struct {
-        int64_t       off[MAX_BATCH_NUM];
-        int64_t       ts[MAX_BATCH_NUM];
-        char          bin[MAX_BATCH_NUM][MAX_SEED_LEN];
-    } val;
+    TAOS_RES         *res;
 
     p = (thread_arg_t *) arg;
 
+    offset = 0;
     rows = 0;
-    n = 0;
     total_rows = 0;
     prv = -1;
 
     memset(cmd, 0, sizeof(cmd));
-    memset(is_null, 0, MAX_BATCH_NUM);
+    memcpy(cmd, prefix, pfxlen);
+    offset += pfxlen;
 
-    np = snprintf(cmd, sizeof(cmd), "insert into p%d using ps tags (%d) values (?, ?, ?)", p->index + 1, p->index + 1);
+    np = snprintf(cmd + offset, sizeof(cmd) - offset,
+                  " p%d using ps tags (%d) values", p->index, p->index);
     if (np <= 0) {
-        fprintf(stderr, "thread(%d): snprintf error for preparing sql\r\n", p->index + 1);
+        fprintf(stderr, "thread(%d): fprintf error cmd for preparing data prefix: %s\r\n", p->index, cmd);
         running = 0;
         return NULL;
     }
 
-    stmt = taos_stmt_init(p->taos);
-    if (stmt == NULL) {
-        fprintf(stderr, "thread(%d): failed to init stmt\r\n", p->index + 1);
-        return NULL;
-    }
-
-    code = taos_stmt_prepare(stmt, cmd, 0);
-    if (code != 0) {
-        fprintf(stderr, "thread(%d): failed to stmt prepare for: %s\r\n", p->index + 1, cmd);
-        return NULL;
-    }
-
-    params[0].buffer_type = TSDB_DATA_TYPE_TIMESTAMP;
-    params[0].buffer_length = sizeof(val.off[0]);
-    params[0].buffer = val.off;
-    params[0].length = off_len;
-    params[0].is_null = is_null;
-    params[0].num = MAX_BATCH_NUM;
-
-    params[1].buffer_type = TSDB_DATA_TYPE_TIMESTAMP;
-    params[1].buffer_length = sizeof(val.ts[0]);
-    params[1].buffer = val.ts;
-    params[1].length = ts_len;
-    params[1].is_null = is_null;
-    params[1].num = MAX_BATCH_NUM;
-
-    params[2].buffer_type = TSDB_DATA_TYPE_BINARY;
-    params[2].buffer_length = sizeof(val.bin[0]);
-    params[2].buffer = val.bin;
-    params[2].length = bin_len;
-    params[2].is_null = is_null;
-    params[2].num = MAX_BATCH_NUM;
+    offset += np;
+    cursor = offset;
 
     while (running) {
         if (p->buffer.pos == p->buffer.last) {
-            usleep(5);
+            usleep(2);
             continue;
         }
 
-        if (n < MAX_BATCH_NUM) {
+        if (offset + strlen(p->buffer.data[p->buffer.pos]) < (MAX_TSQL_LEN - 256) && rows < MAX_DB_ROWS) {
             gettimeofday(&now, NULL);
             ts = (int64_t) (now.tv_sec * 1000000 + now.tv_usec);
 
             /* so fast */
             if (prv == ts) {
-                usleep(5);
+                usleep(2);
                 gettimeofday(&now, NULL);
                 ts = (int64_t) (now.tv_sec * 1000000 + now.tv_usec);
             }
 
             prv = ts;
 
-            val.off[n] = ts;
-            val.ts[n] = ts;
+            np = snprintf(cmd + offset, sizeof(cmd) - offset, " (%"PRId64", %"PRId64", '%s')",
+                          ts, p->buffer.ts[p->buffer.pos], p->buffer.data[p->buffer.pos]);
+            if (np <= 0) {
+                fprintf(stderr, "thread(%d): fprintf error cmd for preparing data: %s\r\n", p->index, cmd);
+                continue;
+            }
 
-            memset(val.bin[n], 0, MAX_SEED_LEN);
-            memcpy(val.bin[n], p->buffer.data[p->buffer.pos], p->buffer.len[p->buffer.pos]);
-
-            off_len[n] = sizeof(val.off[0]);
-            ts_len[n] = sizeof(val.ts[0]);
-            bin_len[n] = p->buffer.len[p->buffer.pos];
-
-            n++;
+            offset += np;
             rows++;
             total_rows++;
             p->buffer.pos++;
-            p->buffer.pos %= CIR_BUF_NUM;
+	    p->buffer.pos %= p->buffer_num;
         } else {
-            taos_stmt_bind_param_batch(stmt, params);
-            taos_stmt_add_batch(stmt);
+            if (rows >= MAX_DB_ROWS) {
+                fprintf(stderr, "thread(%d): too many rows: %d\r\n", p->index, rows);
+            } else {
+                cmd[offset] = ';';
 
-            n = 0;
-            rows = 0;
-
-            if (taos_stmt_execute(stmt) != 0) {
-                fprintf(stderr, "thread(%d): failed to execute insert statement\r\n", p->index + 1);
-                taos_stmt_close(stmt);
-                running = 0;
-                return NULL;
-            }
-        }
-    }
-
-    while (1) {
-        if (p->buffer.pos == p->buffer.last) {
-            if (n > 0) {
-                params[0].num = n;
-                params[1].num = n;
-                params[2].num = n;
-
-                taos_stmt_bind_param_batch(stmt, params);
-                taos_stmt_add_batch(stmt);
-
-                if (taos_stmt_execute(stmt) != 0) {
-                    fprintf(stderr, "thread(%d): failed to execute the last insert statement\r\n", p->index + 1);
+                res = taos_query(p->taos, cmd);
+                if (check_and_free_res(&res, cmd, p) != 0) {
+                    running = 0;
+                    break;
                 }
             }
 
-            break;
-        }
-
-        if (n < MAX_BATCH_NUM) {
-            gettimeofday(&now, NULL);
-            ts = (int64_t) (now.tv_sec * 1000000 + now.tv_usec);
-
-            /* so fast */
-            if (prv == ts) {
-                usleep(5);
-                gettimeofday(&now, NULL);
-                ts = (int64_t) (now.tv_sec * 1000000 + now.tv_usec);
-            }
-
-            prv = ts;
-
-            val.off[n] = ts;
-            val.ts[n] = ts;
-
-            memset(val.bin[n], 0, MAX_SEED_LEN);
-            memcpy(val.bin[n], p->buffer.data[p->buffer.pos], p->buffer.len[p->buffer.pos]);
-
-            off_len[n] = sizeof(val.off[0]);
-            ts_len[n] = sizeof(val.ts[0]);
-            bin_len[n] = p->buffer.len[p->buffer.pos];
-
-            n++;
-            rows++;
-            total_rows++;
-            p->buffer.pos++;
-            p->buffer.pos %= CIR_BUF_NUM;
-        } else {
-            taos_stmt_bind_param_batch(stmt, params);
-            taos_stmt_add_batch(stmt);
-
-            n = 0;
+            //fprintf(stderr, "thread(%d): rows: %d\r\n", p->index, rows);
+            memset(cmd + cursor, 0, sizeof(cmd) - cursor);
+            offset = cursor;
             rows = 0;
-
-            if (taos_stmt_execute(stmt) != 0) {
-                fprintf(stderr, "thread(%d): failed to execute insert statement\r\n", p->index + 1);
-                running = 0;
-                break;
-            }
         }
     }
 
-    taos_stmt_close(stmt);
-    //fprintf(stderr, "thread(%d): total rows: %ld\r\n", p->index + 1, total_rows);
+    if (offset > 0 && offset > cursor) {
+        cmd[offset] = ';';
+
+        res = taos_query(p->taos, cmd);
+        check_and_free_res(&res, cmd, p);
+    }
+
+    //fprintf(stderr, "thread(%d): total rows: %"PRId64"\r\n", p->index, total_rows);
 
     return NULL;
 }
 
 
+#if defined(IN_DATA_DEBUG)
+void *seed_statistics_routine(void *arg)
+{
+    int             i;
+    int64_t         size, sum;
+    time_t          start, end;
+    struct timeval  now;
+    thread_arg_t   *p;
+
+    p = (thread_arg_t *) arg;
+
+    start = time(NULL);
+
+    while (running) {
+        end = time(NULL);
+
+        if (end - start >= 60) {
+            sum = 0;
+            start = time(NULL);
+            gettimeofday(&now, NULL);
+
+            for (i = 0; i < MY_CHAN_NUM; i++) {
+                size = ((p[i].buffer.last + p[i].buffer_num - p[i].buffer.pos) % p[i].buffer_num) * CIR_BUF_SIZE;
+                fprintf(stderr, "thread(%d): memory used %"PRId64", now: %"PRId64"\r\n",
+                        p[i].index, size, now.tv_sec * 1000000 + now.tv_usec);
+                sum += size;
+            }
+
+            fprintf(stderr, "all memory used %"PRId64"(KB)\r\n", sum / 1024);
+        } else {
+            usleep(500000);
+        }
+    }
+
+    return NULL;
+}
+
+
+void *seed_record_routine(void *arg)
+{
+    int               i;
+    time_t            start, end;
+    struct timeval    now;
+    record_t        **t;
+    record_t        **htb;
+
+    htb = (record_t **) arg;
+
+    start = time(NULL);
+
+    while (running) {
+        end = time(NULL);
+
+        if (end - start >= 1800) {
+            start = time(NULL);
+
+            fprintf(stderr, "============== start ==============\r\n");
+
+            for (i = 0; i < REC_TAB_MOD && running; i++) {
+                if (htb[i] && running) {
+                    gettimeofday(&now, NULL);
+
+                    for (t = &htb[i]; *t; t = &(*t)->next) {
+                        fprintf(stderr, "recorded sid: %s, now: %"PRId64"\r\n", (*t)->sid, now.tv_sec * 1000000 + now.tv_usec);
+                    }
+                }
+            }
+
+            fprintf(stderr, "=============== end ===============\r\n");
+        } else {
+            usleep(500000);
+        }
+    }
+
+    return NULL;
+}
+#endif
+
+
 int
-check_and_free_res(TAOS_RES **res, const char *cmd)
+check_and_free_res(TAOS_RES **res, const char *cmd, thread_arg_t *par)
 {
     int code = 0;
 
     if (res == NULL) {
-        return code;
-    }
-
-    if (*res == NULL) {
-        fprintf(stderr, "NULL res\r\n");
+        if (par) {
+            fprintf(stderr, "thread(%d): NULL res\r\n", par->index);
+        } else {
+            fprintf(stderr, "NULL res\r\n");
+        }
         code = -1;
     } else {
-        if (taos_errno(*res) != 0) {
-            fprintf(stderr, "failed to execute: \"%s\", reason: %s\r\n",
-                    cmd, taos_errstr(*res));
-            code = -2;
+        code = taos_errno(*res);
+        if (code != 0) {
+            if (par) {
+                fprintf(stderr, "thread(%d): failed to execute: \"%s\", reason: %s\r\n",
+                        par->index, cmd, taos_errstr(*res));
+            } else {
+                fprintf(stderr, "failed to execute: \"%s\", reason: %s\r\n", cmd, taos_errstr(*res));
+            }
         }
 
         taos_free_result(*res);
@@ -1229,8 +1458,59 @@ check_and_free_res(TAOS_RES **res, const char *cmd)
 }
 
 
+#if defined(IN_DATA_DEBUG)
+record_t **get_hash_item(const char *sid, record_t **htb)
+{
+  int          index;
+  uint64_t     hash;
+  size_t       slen, dlen;
+  record_t   **t;
+
+  hash = hash_key(sid, strlen(sid));
+  index = hash % REC_TAB_MOD;
+
+  for (t = &htb[index]; *t; t = &(*t)->next) {
+    slen = strlen(sid);
+    dlen = strlen((*t)->sid);
+    if (slen == dlen && strncasecmp((*t)->sid, sid, slen) == 0) {
+      break;
+    }
+  }
+
+  if (*t == NULL) {
+    *t = (record_t *) malloc(sizeof(record_t));
+    if (*t) {
+      memset(*t, 0, sizeof(record_t));
+      strncpy((*t)->sid, sid, strlen(sid));
+    }
+  }
+
+  return t;
+}
+
+
+void free_hash_table(record_t **htb)
+{
+  int         i;
+  record_t   *l;
+  record_t  **t;
+
+  for (i = 0; i < REC_TAB_MOD; i++) {
+    if (htb[i]) {
+      for (t = &htb[i]; *t; /* void */) {
+        l = (*t)->next;
+        free(*t);
+        *t = NULL;
+        t = &l;
+      }
+    }
+  }
+}
+#endif
+
+
 uint64_t
-hash_key(char *data, size_t len)
+hash_key(const char *data, size_t len)
 {
     uint64_t  i, key;
 

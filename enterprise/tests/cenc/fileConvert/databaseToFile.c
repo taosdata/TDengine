@@ -72,8 +72,8 @@ int main(int argc, char *argv[])
     char              net[LM_SIDLEN], stat[LM_SIDLEN], loc[LM_SIDLEN], chan[LM_SIDLEN];
     char              cmd[MAX_TSQL_LEN];
     int64_t           records;
-    nstime_t          nsbegin_time; 
-    nstime_t          nsend_time; 
+    nstime_t          nsbegin_time = 0;
+    nstime_t          nsend_time = 0;
     int64_t           prev_time = 0, delta_time;
     struct sigaction  act;
     enum              {
@@ -206,16 +206,16 @@ int main(int argc, char *argv[])
         }
     }
 
-    fprintf(stderr, "################################################################\r\n");
-    fprintf(stderr, "# File Name:                       %s\r\n", file_name);
-    fprintf(stderr, "# Server:                          %s\r\n", tsdb_server);
-    fprintf(stderr, "# User:                            %s\r\n", tsdb_usrname);
-    fprintf(stderr, "# Server Port:                     %s\r\n", tsdb_port);
-    fprintf(stderr, "# Database Name:                   %s\r\n", db_name);
-    fprintf(stderr, "# Table Name:                      %s\r\n", tb_name);
-    fprintf(stderr, "# Begin time:                      %s\r\n", begin_time);
-    fprintf(stderr, "# End time:                        %s\r\n", end_time);
-    fprintf(stderr, "################################################################\r\n");
+    fprintf(stdout, "################################################################\r\n");
+    fprintf(stdout, "# File Name:                       %s\r\n", file_name);
+    fprintf(stdout, "# Server:                          %s\r\n", tsdb_server);
+    fprintf(stdout, "# User:                            %s\r\n", tsdb_usrname);
+    fprintf(stdout, "# Server Port:                     %s\r\n", tsdb_port);
+    fprintf(stdout, "# Database Name:                   %s\r\n", db_name);
+    fprintf(stdout, "# Table Name:                      %s\r\n", tb_name);
+    fprintf(stdout, "# Begin time:                      %s\r\n", begin_time);
+    fprintf(stdout, "# End time:                        %s\r\n", end_time);
+    fprintf(stdout, "################################################################\r\n");
 
     act.sa_handler = handler;
     sigemptyset(&act.sa_mask);

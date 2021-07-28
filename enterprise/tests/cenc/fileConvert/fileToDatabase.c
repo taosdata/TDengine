@@ -144,14 +144,14 @@ int main(int argc, char *argv[])
         stable_name = default_stable_name;
     }
 
-    fprintf(stderr, "################################################################\r\n");
-    fprintf(stderr, "# File Name:                       %s\r\n", file_name);
-    fprintf(stderr, "# Server:                          %s\r\n", tsdb_server);
-    fprintf(stderr, "# User:                            %s\r\n", tsdb_usrname);
-    fprintf(stderr, "# Server Port:                     %s\r\n", tsdb_port);
-    fprintf(stderr, "# Database Name:                   %s\r\n", db_name);
-    fprintf(stderr, "# Super Table Name:                %s\r\n", stable_name);
-    fprintf(stderr, "################################################################\r\n");
+    fprintf(stdout, "################################################################\r\n");
+    fprintf(stdout, "# File Name:                       %s\r\n", file_name);
+    fprintf(stdout, "# Server:                          %s\r\n", tsdb_server);
+    fprintf(stdout, "# User:                            %s\r\n", tsdb_usrname);
+    fprintf(stdout, "# Server Port:                     %s\r\n", tsdb_port);
+    fprintf(stdout, "# Database Name:                   %s\r\n", db_name);
+    fprintf(stdout, "# Super Table Name:                %s\r\n", stable_name);
+    fprintf(stdout, "################################################################\r\n");
 
     act.sa_handler = handler;
     sigemptyset(&act.sa_mask);

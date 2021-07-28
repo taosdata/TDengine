@@ -8,6 +8,7 @@
 #include <pthread.h>
 #include <errno.h>
 #include "taos.h"
+#include "base64.h"
 #include "libmseed.h"
 #include "sachdr.h"
 #include "ew_bridge.h"
@@ -33,25 +34,39 @@ pthread_spinlock_t  lock_tsamps;
 pthread_spinlock_t  lock_ttime;
 
 
-int              run       = 1;
-int              async     = 0;
-int              restart   = 0;
-int              keep      = 1;
-int              seed_only = 1;
-const char      *src_host  = "localhost";
-const char      *dst_host  = "localhost";
-const char      *src_user  = "root";
-const char      *dst_user  = "root";
-const char      *src_passwd= "taosdata";
-const char      *dst_passwd= "taosdata";
-const char      *src_port  = "6030";
-const char      *dst_port  = "6030";
-const char      *topic     = "packet";
-const char      *fpicker   = "fpicker";
-const char      *stb_name  = "ms";
-const char      *channel   = NULL;
-const char      *retry     = "0";
-char             cchan     = '\0';
+int              run        = 1;
+int              quit       = 0;
+int              async      = 0;
+int              restart    = 0;
+int              keep       = 1;
+int              seed_only  = 1;
+int              nolimit    = 0;
+const char      *src_host   = "localhost";
+const char      *dst_host   = "localhost";
+const char      *src_user   = "root";
+const char      *dst_user   = "root";
+const char      *src_passwd = "taosdata";
+const char      *dst_passwd = "taosdata";
+const char      *src_port   = "6030";
+const char      *dst_port   = "6030";
+const char      *topic      = "packet";
+const char      *fpicker    = "fpicker";
+const char      *stb_name   = "ms";
+const char      *channel    = NULL;
+const char      *retry      = "0";
+char             cchan      = '\0';
+
+
+#if defined(FILTER_DEBUG)
+typedef struct timestamp_s
+{
+  struct timeval  stime;
+  struct timeval  etime;
+  int64_t         start;
+  int64_t         end;
+  int64_t         delta;
+} timestamp_t;
+#endif
 
 
 typedef struct cenc_hsamples_s {
@@ -86,6 +101,10 @@ typedef struct callback_params_s {
   TAOS_SUB         *tsub;
   memory_table_t  **mtb;
   void             *data;
+#if defined(FILTER_DEBUG)
+  timestamp_t      proc;
+  timestamp_t      write;
+#endif
 } callback_params_t;
 
 
@@ -154,16 +173,26 @@ void free_memory_table(memory_table_t **mtb)
 }
 
 
-int check_and_free_res(TAOS_RES **res, const char *cmd) {
+int check_and_free_res(TAOS_RES **res, const char *cmd, callback_params_t *par)
+{
     int code = 0;
 
     if (*res == NULL) {
-        fprintf(stderr, "NULL res\r\n");
+        if (par) {
+            fprintf(stderr, "thread(%d): NULL res\r\n", par->index);
+        } else {
+            fprintf(stderr, "NULL res\r\n");
+        }
         code = -1;
     } else {
         code = taos_errno(*res);
         if (code != 0) {
-            fprintf(stderr, "failed to execute: \"%s\", reason: %s\r\n", cmd, taos_errstr(*res));
+            if (par) {
+                fprintf(stderr, "thread(%d): failed to execute: \"%s\", reason: %s\r\n",
+                        par->index, cmd, taos_errstr(*res));
+            } else {
+                fprintf(stderr, "failed to execute: \"%s\", reason: %s\r\n", cmd, taos_errstr(*res));
+            }
         }
 
         taos_free_result(*res);
@@ -253,8 +282,8 @@ void cenc_picker_func(MS3TraceList *mstl, callback_params_t *param)
     now = time(NULL);
     ts = (int64_t) (id->earliest * 0.001 * 0.001 * 0.001);
 
-    if ((ts > now && (ts - now > 3600)) || (ts < now && (now - ts) > 3600)) {
-      fprintf(stderr, "sub(%d): sid(%s), invalid start time: %ld\r\n", idx, id->sid, id->earliest);
+    if (nolimit == 0 && ((ts > now && (ts - now > 3600)) || (ts < now && (now - ts) > 3600))) {
+      //fprintf(stderr, "sub(%d): sid(%s), invalid start time: %"PRId64"\r\n", idx, id->sid, id->earliest);
       id = id->next;
       continue;
     }
@@ -390,7 +419,7 @@ void cenc_picker_func(MS3TraceList *mstl, callback_params_t *param)
             continue;
           }
 
-          np = snprintf(pos, cmd + MAX_TSQL_LEN - pos, "(%ld, now) ",
+          np = snprintf(pos, cmd + MAX_TSQL_LEN - pos, "(%"PRId64", now) ",
                         (int64_t) (h->history[h->count + index] * 0.001));
 #if 0
       ms_nstime2timestrz(h->history[h->count + index], timestr, ISOMONTHDAY, MICRO);
@@ -398,7 +427,7 @@ void cenc_picker_func(MS3TraceList *mstl, callback_params_t *param)
 #endif
         }
       } else {
-        np = snprintf(pos, cmd + MAX_TSQL_LEN - pos, "(%ld, now) ",
+        np = snprintf(pos, cmd + MAX_TSQL_LEN - pos, "(%"PRId64", now) ",
                       (int64_t) (samps.time[index] * 0.001));
 #if 0
       ms_nstime2timestrz(samps.time[index], timestr, ISOMONTHDAY, MICRO);
@@ -447,15 +476,42 @@ void cenc_picker_func(MS3TraceList *mstl, callback_params_t *param)
       }
     }
 
+#if defined(FILTER_DEBUG)
+    gettimeofday(&p->proc.etime, NULL);
+    p->proc.end = p->proc.etime.tv_sec * 1000000 + p->proc.etime.tv_usec;
+    p->proc.delta += p->proc.end - p->proc.start;
+#endif
+
     if (num_picks && invalid_num_picks < num_picks) {
       if (pos < cmd + MAX_TSQL_LEN - 1) {
         *pos++ = ';';
         *pos++ = '\0';
 
+#if defined(FILTER_DEBUG)
+        if (p->proc.delta > 1000000) {
+          fprintf(stderr, "sub(%d) proc data, delta: %"PRId64", row(s): %d\r\n", idx, p->proc.delta, num_picks - invalid_num_picks);
+        }
+
+	p->proc.delta = 0;
+#endif
+
         retry = p->retry;
         do {
+#if defined(FILTER_DEBUG)
+          gettimeofday(&p->write.stime, NULL);
+          p->write.start = p->write.stime.tv_sec * 1000000 + p->write.stime.tv_usec;
+#endif
           res = taos_query(p->res_taos, cmd);
-          if (check_and_free_res(&res, cmd) != 0) {
+
+#if defined(FILTER_DEBUG)
+          gettimeofday(&p->write.etime, NULL);
+          p->write.end = p->write.etime.tv_sec * 1000000 + p->write.etime.tv_usec;
+          if (p->write.end - p->write.start > 1000000) {
+            fprintf(stderr, "sub(%d) write data, start: %"PRId64", end: %"PRId64", delta: %"PRId64"\r\n",
+                    idx, p->write.start, p->write.end, p->write.end - p->write.start);
+          }
+#endif
+          if (check_and_free_res(&res, cmd, p) != 0) {
             fprintf(stderr, "sub(%d): times left to retry: %d\r\n", idx, retry);
             retry--;
           } else {
@@ -487,7 +543,7 @@ void subscribe_callback(TAOS_SUB *tsub, TAOS_RES *res, void *param, int code)
 {
   MS3TraceList      *mstl              = NULL;
   TAOS_FIELD        *fields            = NULL;
-  uint8_t            fmt_ver;
+  unsigned char     *p;
   int                records           = 0;
   int                nRows             = 0;
   int                i, len, nfields;
@@ -496,9 +552,10 @@ void subscribe_callback(TAOS_SUB *tsub, TAOS_RES *res, void *param, int code)
   TAOS_ROW           row               = NULL;
   struct timeval     start_time, end_time;
   callback_params_t *ps;
+  int64_t            stime, etime;
 
   /* Set bit flags to validate CRC and unpack data samples */
-  flags |= MSF_VALIDATECRC;
+  //flags |= MSF_VALIDATECRC;
   flags |= MSF_UNPACKDATA;
 
   ps = (callback_params_t *) param;
@@ -518,28 +575,35 @@ void subscribe_callback(TAOS_SUB *tsub, TAOS_RES *res, void *param, int code)
 
     nRows++;
 
+#if defined(FILTER_DEBUG)
+    gettimeofday(&ps->proc.stime, NULL);
+    ps->proc.start = ps->proc.stime.tv_sec * 1000000 + ps->proc.stime.tv_usec;
+#endif
+
     /* TODO: no iteration or free to improve performance */
     for (i = 0; i < nfields; i++) {
       if (strncasecmp(fields[i].name, "content", sizeof("content") - 1) == 0 &&
           fields[i].type == TSDB_DATA_TYPE_BINARY)
       {
-        len = ms3_detect((char *) row[i], 512, &fmt_ver);
-        if (len <= 0) {
-          fprintf(stderr, "ms3_detect error returned: %d\r\n", len);
+        p = base64_decode((const char *) row[i], strlen((char *) row[i]), &len);
+        if (p == NULL) {
+          fprintf(stderr, "sub(%d): base64_decode error\r\n", idx);
           continue;
         }
 
         mstl = mstl3_init(NULL);
         if (mstl == NULL) {
-          fprintf(stderr, "error allocating MS3TraceList\r\n");
+          fprintf(stderr, "sub(%d): error allocating MS3TraceList\r\n", idx);
+          free(p);
           continue;
         }
 
-        records = mstl3_readbuffer(&mstl, (char *) row[i], len, 0, flags, NULL, 0);
+        records = mstl3_readbuffer(&mstl, (char *) p, len, 0, flags, NULL, 0);
         if (records < 0) {
-          //fprintf(stderr, "mstl3_readbuffer error, p = %s, len = %d\r\n", (char *) row[i], len);
+          //fprintf(stderr, "sub(%d): mstl3_readbuffer error, p = %s, len = %d\r\n", idx, (char *) row[i], len);
 
           mstl3_free(&mstl, 0);
+          free(p);
 
           continue;
         }
@@ -547,6 +611,7 @@ void subscribe_callback(TAOS_SUB *tsub, TAOS_RES *res, void *param, int code)
         cenc_picker_func(mstl, param);
 
         mstl3_free(&mstl, 0);
+        free(p);
       }
     }
   }
@@ -560,10 +625,12 @@ void subscribe_callback(TAOS_SUB *tsub, TAOS_RES *res, void *param, int code)
 
     gettimeofday(&end_time, NULL);
     pthread_spin_lock(&lock_ttime);
-    nTotalTime += (end_time.tv_sec * 1000000 + end_time.tv_usec) - (start_time.tv_sec * 1000000 + start_time.tv_usec);
+    etime = end_time.tv_sec * 1000000 + end_time.tv_usec;
+    stime = start_time.tv_sec * 1000000 + start_time.tv_usec;
+    nTotalTime += etime - stime;
     pthread_spin_unlock(&lock_ttime);
 
-    fprintf(stderr, "sub(%d): %d row(s) consumed, now: %ld\r\n", idx, nRows, end_time.tv_sec * 1000000 + end_time.tv_usec);
+    fprintf(stdout, "sub(%d): %d row(s) consumed, now: %"PRId64"\r\n", idx, nRows, etime);
   }
 }
 
@@ -577,6 +644,10 @@ void subscribe_routine_init(callback_params_t *params, const int index, memory_t
     params->res_taos = NULL;
     params->tsub = NULL;
     params->mtb = mtb;
+#if defined(FILTER_DEBUG)
+    memset(&params->proc, 0, sizeof(timestamp_t));
+    memset(&params->write, 0, sizeof(timestamp_t));
+#endif
   }
 }
 
@@ -622,7 +693,7 @@ void *subscribe_routine(void *arg)
   pthread_mutex_lock(&mutex);
   res = taos_query(pps->taos, cmd);
   pthread_mutex_unlock(&mutex);
-  if (check_and_free_res(&res, cmd) != 0) {
+  if (check_and_free_res(&res, cmd, NULL) != 0) {
     goto failed;
   }
 
@@ -644,7 +715,7 @@ void *subscribe_routine(void *arg)
   pthread_mutex_lock(&mutex);
   res = taos_query(pps->res_taos, cmd);
   pthread_mutex_unlock(&mutex);
-  if (check_and_free_res(&res, cmd) != 0) {
+  if (check_and_free_res(&res, cmd, NULL) != 0) {
     goto failed;
   }
 
@@ -669,7 +740,7 @@ void *subscribe_routine(void *arg)
   pthread_mutex_lock(&mutex);
   res = taos_query(pps->res_taos, cmd);
   pthread_mutex_unlock(&mutex);
-  if (check_and_free_res(&res, cmd) != 0) {
+  if (check_and_free_res(&res, cmd, NULL) != 0) {
     goto failed;
   }
 
@@ -684,7 +755,7 @@ void *subscribe_routine(void *arg)
     pps->tsub = taos_subscribe(pps->taos, restart, topic_name, sql, subscribe_callback, pps, 1000);
   } else {
     // create an synchronized subscription, need to call 'taos_consume' manually
-    pps->tsub = taos_subscribe(pps->taos, restart, topic_name, sql, NULL, NULL, 10);
+    pps->tsub = taos_subscribe(pps->taos, restart, topic_name, sql, NULL, NULL, 50);
   }
 
   if (pps->tsub == NULL) {
@@ -700,6 +771,7 @@ void *subscribe_routine(void *arg)
       res = taos_consume(pps->tsub);
       if (res == NULL) {
         fprintf(stderr, "sub(%d): failed to consume data.\r\n", index);
+        run = 0;
         break;
       } else {
         subscribe_callback(pps->tsub, res, pps, 0);
@@ -744,6 +816,7 @@ void subscribe_routine_finalize(callback_params_t *params)
 
 void handler(int sig) {
     run = 0;
+    quit = 1;
 }
 
 
@@ -755,6 +828,7 @@ int main(int argc, char *argv[])
   callback_params_t   pp[TQ_CHAN_NUM];
   memory_table_t    **mtb;
   struct sigaction    act;
+  struct timeval      now;
 
   for (i = 1; i < argc; i++) {
     if (strncmp(argv[i], "-h=", 3) == 0) {
@@ -827,7 +901,7 @@ int main(int argc, char *argv[])
       fprintf(stderr,
               "Usage: %s [-h=src_host -u=src_user -p=src_password -H=dst_host -U=dst_user "
               "-P=dst_password -S=src_port -D=dst_port -t=topic -f=result_db_name -s=result_stb_name "
-              "-c=channel -r=retry -async -restart -nokeep -help]\r\n", argv[0]);
+              "-c=channel -r=retry -nolimit -async -restart -nokeep -help]\r\n", argv[0]);
 
       exit(0);
     }
@@ -835,6 +909,10 @@ int main(int argc, char *argv[])
     if (strcmp(argv[i], "-all") == 0) {
       seed_only = 0;
       continue;
+    }
+
+    if (strcmp(argv[i], "-nolimit") == 0) {
+      nolimit = 1;
     }
 
     if (strcmp(argv[i], "-async") == 0) {
@@ -874,27 +952,29 @@ int main(int argc, char *argv[])
     }
   }
 
-  fprintf(stdout, "################################################################\r\n");
-  fprintf(stdout, "# Src Server:                      %s\r\n", src_host);
-  fprintf(stdout, "# Src User:                        %s\r\n", src_user);
-  fprintf(stdout, "# Dst Server:                      %s\r\n", dst_host);
-  fprintf(stdout, "# Dst User:                        %s\r\n", dst_user);
-  fprintf(stdout, "# Src Port:                        %s\r\n", src_port);
-  fprintf(stdout, "# Dst Port:                        %s\r\n", dst_port);
-  fprintf(stdout, "# Topic:                           %s\r\n", topic);
-  fprintf(stdout, "# Result Database Name:            %s\r\n", fpicker);
-  fprintf(stdout, "# Result Super Table Name:         %s\r\n", stb_name);
-  fprintf(stdout, "# Async:                           %d\r\n", async);
-  fprintf(stdout, "# Restart:                         %d\r\n", restart);
-  fprintf(stdout, "# Keep:                            %d\r\n", keep);
-  fprintf(stdout, "# Channel:                         %s\r\n", channel);
-  fprintf(stdout, "# Retry:                           %s\r\n", retry);
-  fprintf(stdout, "################################################################\r\n");
+  fprintf(stderr, "################################################################\r\n");
+  fprintf(stderr, "# Src Server:                      %s\r\n", src_host);
+  fprintf(stderr, "# Src User:                        %s\r\n", src_user);
+  fprintf(stderr, "# Dst Server:                      %s\r\n", dst_host);
+  fprintf(stderr, "# Dst User:                        %s\r\n", dst_user);
+  fprintf(stderr, "# Src Port:                        %s\r\n", src_port);
+  fprintf(stderr, "# Dst Port:                        %s\r\n", dst_port);
+  fprintf(stderr, "# Topic:                           %s\r\n", topic);
+  fprintf(stderr, "# Result Database Name:            %s\r\n", fpicker);
+  fprintf(stderr, "# Result Super Table Name:         %s\r\n", stb_name);
+  fprintf(stderr, "# Async:                           %d\r\n", async);
+  fprintf(stderr, "# Restart:                         %d\r\n", restart);
+  fprintf(stderr, "# Keep:                            %d\r\n", keep);
+  fprintf(stderr, "# Channel:                         %s\r\n", channel);
+  fprintf(stderr, "# Retry:                           %s\r\n", retry);
+  fprintf(stderr, "################################################################\r\n");
 
   act.sa_handler = handler;
   sigemptyset(&act.sa_mask);
   act.sa_flags = 0;
   sigaction(SIGINT, &act, 0);
+
+retry:
 
   usleep(500000);
 
@@ -925,13 +1005,21 @@ int main(int argc, char *argv[])
     subscribe_routine_finalize(&pp[i]);
   }
 
-  fprintf(stdout, "total samples consumed: %ld\r\n", nTotalSamples);
-  fprintf(stdout, "total rows consumed: %ld\r\n", nTotalRows);
-  fprintf(stdout, "total time consumed: %ld\r\n", nTotalTime / TQ_CHAN_NUM);
+  fprintf(stdout, "total samples consumed: %"PRId64"\r\n", nTotalSamples);
+  fprintf(stdout, "total rows consumed: %"PRId64"\r\n", nTotalRows);
+  fprintf(stdout, "total time consumed: %"PRId64"\r\n", nTotalTime / TQ_CHAN_NUM);
 
   if (mtb) {
     free_memory_table(mtb);
     free(mtb);
+  }
+
+  gettimeofday(&now, NULL);
+  fprintf(stderr, "retry at %"PRId64"\r\n", now.tv_sec * 1000000 + now.tv_usec);
+  run = 1;
+
+  if (quit != 1) {
+    goto retry;
   }
 
   return 0;

@@ -5,7 +5,7 @@
 #   CFLAGS : Specify compiler options to use
 
 # Required compiler parameters
-CFLAGS += -I/usr/local/include -g -Wall
+CFLAGS += -I/usr/local/include -g -O0 -Wall
 
 LDFLAGS += -L/usr/local/lib
 LDLIBS := -lmseed -ltaos -lm -lcurl $(LDLIBS)
