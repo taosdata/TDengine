@@ -163,7 +163,7 @@ python3 test.py -f tools/taosdemoTestSampleData.py
 python3 test.py -f tools/taosdemoTestInterlace.py
 python3 test.py -f tools/taosdemoTestQuery.py
 
-
+python3 test.py -f tools/taosdumpTestNanoSupport.py
 
 # update
 python3 ./test.py -f update/allow_update.py
