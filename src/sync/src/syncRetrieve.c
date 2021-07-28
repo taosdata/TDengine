@@ -415,11 +415,18 @@ static int32_t syncRetrieveDataStepByStep(SSyncPeer *pPeer) {
 }
 
 void *syncRetrieveData(void *param) {
+  setThreadName("syncRetrievData");
   int64_t    rid = (int64_t)param;
   SSyncPeer *pPeer = syncAcquirePeer(rid);
   if (pPeer == NULL) {
     sError("failed to retrieve data, invalid peer rid:%" PRId64, rid);
     return NULL;
+  }
+
+  uint32_t ip = syncResolvePeerFqdn(pPeer);
+  if (!ip) {
+      syncReleasePeer(pPeer);
+      return NULL;
   }
 
   SSyncNode *pNode = pPeer->pSyncNode;
@@ -430,7 +437,7 @@ void *syncRetrieveData(void *param) {
 
   if (pNode->notifyFlowCtrlFp) (*pNode->notifyFlowCtrlFp)(pNode->vgId, pPeer->numOfRetrieves);
 
-  pPeer->syncFd = taosOpenTcpClientSocket(pPeer->ip, pPeer->port, 0);
+  pPeer->syncFd = taosOpenTcpClientSocket(ip, pPeer->port, 0);
   if (pPeer->syncFd < 0) {
     sError("%s, failed to open socket to sync", pPeer->id);
   } else {

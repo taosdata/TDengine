@@ -959,14 +959,14 @@ endi
 if $data31 != 9.000000000 then
   return -1
 endi
-if $data41 != null then
+if $data41 != NULL then
   print ===== $data41
   return -1
 endi
 if $data51 != 16.000000000 then
   return -1
 endi
-if $data61 != null then
+if $data61 != NULL then
    print ===== $data61
   return -1
 endi

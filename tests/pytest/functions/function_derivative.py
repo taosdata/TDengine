@@ -128,7 +128,14 @@ class TDTestCase:
 
     def run(self):
         tdSql.prepare()        
-        self.insertAndCheckData()               
+        self.insertAndCheckData()
+
+        tdSql.execute("create table st(ts timestamp, c1 int, c2 int) tags(id int)")
+        tdSql.execute("insert into dev1(ts, c1) using st tags(1) values(now, 1)")
+
+        tdSql.error("select derivative(c1, 10s, 0) from (select c1 from st)")
+        tdSql.query("select diff(c1) from (select derivative(c1, 1s, 0) c1 from dev1)")
+        tdSql.checkRows(0)
               
     def stop(self):
         tdSql.close()

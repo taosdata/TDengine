@@ -84,6 +84,8 @@ static void *taosThreadToOpenNewNote(void *param) {
   char      name[NOTE_FILE_NAME_LEN * 2];
   SNoteObj *pNote = (SNoteObj *)param;
 
+  setThreadName("openNewNote");
+
   pNote->flag ^= 1;
   pNote->lines = 0;
   sprintf(name, "%s.%d", pNote->name, pNote->flag);

@@ -53,6 +53,22 @@ int64_t taosFSendFile(FILE *outfile, FILE *infile, int64_t *offset, int64_t size
 void taosGetTmpfilePath(const char *fileNamePrefix, char *dstPath);
 void taosClose(FileFd fd);
 
+#ifdef TAOS_RANDOM_FILE_FAIL
+  void taosSetRandomFileFailFactor(int32_t factor);
+  void taosSetRandomFileFailOutput(const char *path);
+  #ifdef TAOS_RANDOM_FILE_FAIL_TEST
+    int64_t taosReadFileRandomFail(int32_t fd, void *buf, int32_t count, const char *file, uint32_t line);
+    int64_t taosWriteFileRandomFail(int32_t fd, void *buf, int32_t count, const char *file, uint32_t line);
+    int64_t taosLSeekRandomFail(int32_t fd, int64_t offset, int32_t whence, const char *file, uint32_t line);
+    #undef taosRead
+    #undef taosWrite
+    #undef taosLSeek
+    #define taosRead(fd, buf, count) taosReadFileRandomFail(fd, buf, count, __FILE__, __LINE__)
+    #define taosWrite(fd, buf, count) taosWriteFileRandomFail(fd, buf, count, __FILE__, __LINE__)
+    #define taosLSeek(fd, offset, whence) taosLSeekRandomFail(fd, offset, whence, __FILE__, __LINE__)
+  #endif
+#endif
+
 #ifdef __cplusplus
 }
 #endif

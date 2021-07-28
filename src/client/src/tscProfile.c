@@ -16,6 +16,7 @@
 #include "os.h"
 #include "tscLog.h"
 #include "tsclient.h"
+#include "tsocket.h"
 #include "ttimer.h"
 #include "tutil.h"
 #include "taosmsg.h"
@@ -228,7 +229,7 @@ int tscBuildQueryStreamDesc(void *pMsg, STscObj *pObj) {
   SHeartBeatMsg *pHeartbeat = pMsg;
   int allocedQueriesNum = pHeartbeat->numOfQueries;
   int allocedStreamsNum = pHeartbeat->numOfStreams;
-  
+
   pHeartbeat->numOfQueries = 0;
   SQueryDesc *pQdesc = (SQueryDesc *)pHeartbeat->pData;
 
@@ -252,6 +253,16 @@ int tscBuildQueryStreamDesc(void *pMsg, STscObj *pObj) {
     //pQdesc->useconds = htobe64(pSql->res.useconds);
     pQdesc->useconds = htobe64(now - pSql->stime);
     pQdesc->qId = htobe64(pSql->res.qId);
+    pQdesc->sqlObjId = htobe64(pSql->self);
+    pQdesc->pid = pHeartbeat->pid;
+    if (pSql->cmd.pQueryInfo->stableQuery == true) {
+      pQdesc->numOfSub = pSql->subState.numOfSub;
+    } else {
+      pQdesc->numOfSub = 1;
+    }
+    pQdesc->numOfSub = htonl(pQdesc->numOfSub);
+
+    taosGetFqdn(pQdesc->fqdn);
 
     pHeartbeat->numOfQueries++;
     pQdesc++;

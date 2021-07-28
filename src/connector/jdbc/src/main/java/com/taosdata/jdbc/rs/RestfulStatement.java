@@ -35,10 +35,6 @@ public class RestfulStatement extends AbstractStatement {
         if (!SqlSyntaxValidator.isValidForExecuteQuery(sql))
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_INVALID_FOR_EXECUTE_QUERY, "not a valid sql for executeQuery: " + sql);
 
-        if (SqlSyntaxValidator.isDatabaseUnspecifiedQuery(sql)) {
-            return executeOneQuery(sql);
-        }
-
         return executeOneQuery(sql);
     }
 
@@ -50,9 +46,6 @@ public class RestfulStatement extends AbstractStatement {
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_INVALID_FOR_EXECUTE_UPDATE, "not a valid sql for executeUpdate: " + sql);
 
         final String url = "http://" + conn.getHost() + ":" + conn.getPort() + "/rest/sql";
-        if (SqlSyntaxValidator.isDatabaseUnspecifiedUpdate(sql)) {
-            return executeOneUpdate(url, sql);
-        }
 
         return executeOneUpdate(url, sql);
     }

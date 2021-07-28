@@ -35,6 +35,8 @@ struct Command {
 };
 
 extern void backspaceChar(Command *cmd);
+extern void clearLineBefore(Command *cmd);
+extern void clearLineAfter(Command *cmd);
 extern void deleteChar(Command *cmd);
 extern void moveCursorLeft(Command *cmd);
 extern void moveCursorRight(Command *cmd);
@@ -45,7 +47,7 @@ extern void updateBuffer(Command *cmd);
 extern int isReadyGo(Command *cmd);
 extern void resetCommand(Command *cmd, const char s[]);
 
-int countPrefixOnes(char c);
+int countPrefixOnes(unsigned char c);
 void clearScreen(int ecmd_pos, int cursor_pos);
 void printChar(char c, int times);
 void positionCursor(int step, int direction);

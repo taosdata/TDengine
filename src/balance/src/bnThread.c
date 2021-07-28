@@ -23,6 +23,8 @@
 static SBnThread tsBnThread;
 
 static void *bnThreadFunc(void *arg) {
+  setThreadName("bnThreadd");
+
   while (1) {
     pthread_mutex_lock(&tsBnThread.mutex);
     if (tsBnThread.stop) {

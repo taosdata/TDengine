@@ -1,6 +1,7 @@
 package com.taosdata.example.common;
 
-import org.apache.log4j.Logger;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
 
 import javax.sql.DataSource;
 import java.sql.Connection;
@@ -10,7 +11,7 @@ import java.util.Random;
 
 public class InsertTask implements Runnable {
     private final Random random = new Random(System.currentTimeMillis());
-    private static final Logger logger = Logger.getLogger(InsertTask.class);
+    private static final Logger logger = LogManager.getLogger(InsertTask.class);
 
     private final DataSource ds;
     private final String dbName;

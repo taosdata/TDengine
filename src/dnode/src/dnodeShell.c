@@ -48,9 +48,11 @@ int32_t dnodeInitShell() {
   dnodeProcessShellMsgFp[TSDB_MSG_TYPE_CM_DROP_DNODE]  = dnodeDispatchToMWriteQueue;
   dnodeProcessShellMsgFp[TSDB_MSG_TYPE_CM_CREATE_DB]   = dnodeDispatchToMWriteQueue;
   dnodeProcessShellMsgFp[TSDB_MSG_TYPE_CM_CREATE_TP]   = dnodeDispatchToMWriteQueue;
+  dnodeProcessShellMsgFp[TSDB_MSG_TYPE_CM_CREATE_FUNCTION] = dnodeDispatchToMWriteQueue;
   dnodeProcessShellMsgFp[TSDB_MSG_TYPE_CM_DROP_DB]     = dnodeDispatchToMWriteQueue;
   dnodeProcessShellMsgFp[TSDB_MSG_TYPE_CM_SYNC_DB]     = dnodeDispatchToMWriteQueue;
   dnodeProcessShellMsgFp[TSDB_MSG_TYPE_CM_DROP_TP]     = dnodeDispatchToMWriteQueue;
+  dnodeProcessShellMsgFp[TSDB_MSG_TYPE_CM_DROP_FUNCTION] = dnodeDispatchToMWriteQueue;
   dnodeProcessShellMsgFp[TSDB_MSG_TYPE_CM_ALTER_DB]    = dnodeDispatchToMWriteQueue;
   dnodeProcessShellMsgFp[TSDB_MSG_TYPE_CM_ALTER_TP]    = dnodeDispatchToMWriteQueue;
   dnodeProcessShellMsgFp[TSDB_MSG_TYPE_CM_CREATE_TABLE]= dnodeDispatchToMWriteQueue;
@@ -72,6 +74,7 @@ int32_t dnodeInitShell() {
   dnodeProcessShellMsgFp[TSDB_MSG_TYPE_CM_TABLES_META] = dnodeDispatchToMReadQueue;
   dnodeProcessShellMsgFp[TSDB_MSG_TYPE_CM_SHOW]        = dnodeDispatchToMReadQueue;
   dnodeProcessShellMsgFp[TSDB_MSG_TYPE_CM_RETRIEVE]    = dnodeDispatchToMReadQueue;
+  dnodeProcessShellMsgFp[TSDB_MSG_TYPE_CM_RETRIEVE_FUNC] = dnodeDispatchToMReadQueue;
 
   dnodeProcessShellMsgFp[TSDB_MSG_TYPE_NETWORK_TEST]   = dnodeSendStartupStep;
 
@@ -117,7 +120,14 @@ static void dnodeProcessMsgFromShell(SRpcMsg *pMsg, SRpcEpSet *pEpSet) {
 
   if (pMsg->pCont == NULL) return;
 
-  if (dnodeGetRunStatus() != TSDB_RUN_STATUS_RUNING) {
+  SRunStatus dnodeStatus = dnodeGetRunStatus();
+  if (dnodeStatus == TSDB_RUN_STATUS_STOPPED) {
+    dError("RPC %p, shell msg:%s is ignored since dnode exiting", pMsg->handle, taosMsg[pMsg->msgType]);
+    rpcMsg.code = TSDB_CODE_DND_EXITING;
+    rpcSendResponse(&rpcMsg);
+    rpcFreeCont(pMsg->pCont);
+    return;
+  } else if (dnodeStatus != TSDB_RUN_STATUS_RUNING) {
     dError("RPC %p, shell msg:%s is ignored since dnode not running", pMsg->handle, taosMsg[pMsg->msgType]);
     rpcMsg.code = TSDB_CODE_APP_NOT_READY;
     rpcSendResponse(&rpcMsg);

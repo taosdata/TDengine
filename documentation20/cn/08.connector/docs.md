@@ -259,7 +259,7 @@ typedef struct taosField {
 
   获取最近一次API调用失败的原因,返回值为字符串。
 
-- `char *taos_errno(TAOS_RES *res)`
+- `int taos_errno(TAOS_RES *res)`
 
   获取最近一次API调用失败的原因，返回值为错误代码。
 
@@ -427,11 +427,14 @@ TDengine提供时间驱动的实时流式计算API。可以每隔一指定的时
     * res：查询结果集，注意结果集中可能没有记录
     * param：调用 `taos_subscribe`时客户程序提供的附加参数
     * code：错误码
+  
   **注意**：在这个回调函数里不可以做耗时过长的处理，尤其是对于返回的结果集中数据较多的情况，否则有可能导致客户端阻塞等异常状态。如果必须进行复杂计算，则建议在另外的线程中进行处理。
 
 * `TAOS_RES *taos_consume(TAOS_SUB *tsub)`
 
   同步模式下，该函数用来获取订阅的结果。 用户应用程序将其置于一个循环之中。 如两次调用`taos_consume`的间隔小于订阅的轮询周期，API将会阻塞，直到时间间隔超过此周期。 如果数据库有新记录到达，该API将返回该最新的记录，否则返回一个没有记录的空结果集。 如果返回值为 `NULL`，说明系统出错。 异步模式下，用户程序不应调用此API。
+
+  **注意**：在调用 `taos_consume()` 之后，用户应用应确保尽快调用 `taos_fetch_row()` 或 `taos_fetch_block()` 来处理订阅结果，否则服务端会持续缓存查询结果数据等待客户端读取，极端情况下会导致服务端内存消耗殆尽，影响服务稳定性。
 
 * `void taos_unsubscribe(TAOS_SUB *tsub, int keepProgress)`
 
@@ -554,6 +557,13 @@ c1.close()
 conn.close()
 ```
 
+#### 关于纳秒 (nanosecond) 在 Python 连接器中的说明
+
+由于目前 Python 对 nanosecond 支持的不完善(参见链接 1. 2. )，目前的实现方式是在 nanosecond 精度时返回整数，而不是 ms 和 us 返回的 datetime 类型，应用开发者需要自行处理，建议使用 pandas 的 to_datetime()。未来如果 Python 正式完整支持了纳秒，涛思数据可能会修改相关接口。
+
+1. https://stackoverflow.com/questions/10611328/parsing-datetime-strings-containing-nanoseconds
+2. https://www.python.org/dev/peps/pep-0564/
+
 #### 帮助信息
 
 用户可通过python的帮助信息直接查看模块的使用信息，或者参考tests/examples/python中的示例程序。以下为部分常用类和方法：
@@ -585,7 +595,9 @@ conn.close()
 
 ## <a class="anchor" id="restful"></a>RESTful Connector
 
-为支持各种不同类型平台的开发，TDengine提供符合REST设计标准的API，即RESTful API。为最大程度降低学习成本，不同于其他数据库RESTful API的设计方法，TDengine直接通过HTTP POST 请求BODY中包含的SQL语句来操作数据库，仅需要一个URL。RESTful连接器的使用参见[视频教程](https://www.taosdata.com/blog/2020/11/11/1965.html)。
+为支持各种不同类型平台的开发，TDengine 提供符合 REST 设计标准的 API，即 RESTful API。为最大程度降低学习成本，不同于其他数据库 RESTful API 的设计方法，TDengine 直接通过 HTTP POST 请求 BODY 中包含的 SQL 语句来操作数据库，仅需要一个 URL。RESTful 连接器的使用参见[视频教程](https://www.taosdata.com/blog/2020/11/11/1965.html)。
+
+注意：与标准连接器的一个区别是，RESTful 接口是无状态的，因此 `USE db_name` 指令没有效果，所有对表名、超级表名的引用都需要指定数据库名前缀。
 
 ### HTTP请求格式 
 
@@ -803,7 +815,7 @@ C#连接器支持的系统有：Linux 64/Windows x64/Windows x86
 
 * 应用驱动安装请参考[安装连接器驱动步骤](https://www.taosdata.com/cn/documentation/connector#driver)。
 * .NET接口文件﻿TDengineDrivercs.cs和参考程序示例TDengineTest.cs均位于Windows客户端install_directory/examples/C#目录下。
-* 在Windows系统上，C#应用程序可以使用TDengine的原生C接口来执行所有数据库操作，后续版本将提供ORM（dapper）框架驱动。
+* 在Windows系统上，C#应用程序可以使用TDengine的原生C接口来执行所有数据库操作，后续版本将提供ORM（Dapper）框架驱动。
 
 ### 安装验证
 
@@ -894,6 +906,10 @@ go env -w GOPROXY=https://goproxy.io,direct
 - `func (s *Stmt) Close() error`
 
   sql.Open内置的方法，Close closes the statement.	
+
+### 其他代码示例
+
+[Consume Messages from Kafka](https://github.com/taosdata/go-demo-kafka) 是一个通过 Go 语言实现消费 Kafka 队列写入 TDengine 的示例程序，也可以作为通过 Go 连接 TDengine 的写法参考。
 
 ## <a class="anchor" id="nodejs"></a>Node.js Connector
 

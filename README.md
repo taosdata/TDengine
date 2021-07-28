@@ -110,6 +110,12 @@ mkdir debug && cd debug
 cmake .. && cmake --build .
 ```
 
+You can use Jemalloc as memory allocator instead of glibc:
+```
+apt install autoconf
+cmake .. -DJEMALLOC_ENABLED=true
+```
+
 TDengine build script can detect the host machine's architecture on X86-64, X86, arm64, arm32 and mips64 platform.
 You can also specify CPUTYPE option like aarch64 or aarch32 too if the detection result is not correct:
 
@@ -169,7 +175,7 @@ cmake .. && cmake --build .
 
 # Installing
 
-After building successfully, TDengine can be installed by:
+After building successfully, TDengine can be installed by: (On Windows platform, the following command should be `nmake install`)
 ```bash
 sudo make install
 ```
@@ -191,7 +197,7 @@ If TDengine shell connects the server successfully, welcome messages and version
 
 ## Quick Run
 
-If you don't want to run TDengine as a service, you can run it in current shell. For example, to quickly start a TDengine server after building, run the command below in terminal:
+If you don't want to run TDengine as a service, you can run it in current shell. For example, to quickly start a TDengine server after building, run the command below in terminal: (We take Linux as an example, command on Windows will be `taosd.exe`)
 ```bash
 ./build/bin/taosd -c test/cfg
 ```

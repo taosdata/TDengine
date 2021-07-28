@@ -423,3 +423,65 @@ void httpProcessRequest(HttpContext *pContext) {
     httpExecCmd(pContext);
   }
 }
+
+int32_t httpCheckAllocEscapeSql(char *oldSql, char **newSql)
+{
+  char *pos;
+
+  if (oldSql == NULL || newSql == NULL) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  /* bad sql clause */
+  pos = strstr(oldSql, "%%");
+  if (pos) {
+    httpError("bad sql:%s", oldSql);
+    return TSDB_CODE_HTTP_REQUEST_JSON_ERROR;
+  }
+
+  pos = strchr(oldSql, '%');
+  if (pos == NULL) {
+    httpDebug("sql:%s", oldSql);
+    *newSql = oldSql;
+    return TSDB_CODE_SUCCESS;
+  }
+
+  *newSql = (char *) calloc(1, (strlen(oldSql) << 1) + 1);
+  if (newSql == NULL) {
+    httpError("failed to allocate for new sql, old sql:%s", oldSql);
+    return TSDB_CODE_HTTP_NO_ENOUGH_MEMORY;
+  }
+
+  char *src = oldSql;
+  char *dst = *newSql;
+  size_t sqlLen = strlen(src);
+
+  while (1) {
+    memcpy(dst, src, pos - src + 1);
+    dst += pos - src + 1;
+    *dst++ = '%';
+
+    if (pos + 1 >= oldSql + sqlLen) {
+      break;
+    }
+
+    src = ++pos;
+    pos = strchr(pos, '%');
+    if (pos == NULL) {
+      memcpy(dst, src, strlen(src));
+      break;
+    }
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+void httpCheckFreeEscapedSql(char *oldSql, char *newSql)
+{
+  if (oldSql && newSql) {
+    if (oldSql != newSql) {
+      free(newSql);
+    }
+  }
+}
+
