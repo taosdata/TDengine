@@ -195,9 +195,6 @@ class TDTestCase:
         sql = '''select distinct(t_tinyint) from stable_1;'''
         tdSql.query(sql)
         tdSql.checkRows(6)
-        sql = '''select distinct(t_binary) from stable_1;'''
-        tdSql.query(sql)
-        tdSql.checkRows(6)
         sql = '''select distinct(t_nchar) from stable_1;'''
         tdSql.query(sql)
         tdSql.checkRows(6)
