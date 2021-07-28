@@ -90,6 +90,10 @@ _err:
 }
 
 static int tsdbAsyncCompact(STsdbRepo *pRepo) {
+  if (pRepo->compactState != TSDB_NO_COMPACT) {
+    tsdbInfo("vgId:%d not compact tsdb again", REPO_ID(pRepo));
+    return 0; 
+  } 
   pRepo->compactState = TSDB_WAITING_COMPACT;   
   tsem_wait(&(pRepo->readyToCommit));
   return tsdbScheduleCommit(pRepo, COMPACT_REQ);
