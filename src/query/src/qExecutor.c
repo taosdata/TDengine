@@ -481,6 +481,7 @@ static SResultRow* doSetResultOutBufByKey(SQueryRuntimeEnv* pRuntimeEnv, SResult
     longjmp(pRuntimeEnv->env, TSDB_CODE_QRY_TOO_MANY_TIMEWINDOW);
   }
 
+  memset(pRuntimeEnv->keyBuf, 0, GET_RES_WINDOW_KEY_LEN(bytes));
   return pResultRowInfo->pResult[pResultRowInfo->curPos];
 }
 
@@ -1494,8 +1495,12 @@ static void buildGroupbyKeyBuf(const SSDataBlock *pSDataBlock, SGroupbyOperatorI
       p += pDataInfo->bytes;
       continue;
     }
+    if (IS_VAR_DATA_TYPE(pDataInfo->type)) {
+      memcpy(p, varDataVal(val), varDataLen(val));
+    } else {
+      memcpy(p, val, pDataInfo->bytes);
+    }
     *isNullKey = false; 
-    memcpy(p, val, pDataInfo->bytes);
     p += pDataInfo->bytes;
   }  
 }
@@ -1583,7 +1588,7 @@ static void doHashGroupbyAgg(SOperatorInfo* pOperator, SGroupbyOperatorInfo *pIn
 
     doApplyFunctions(pRuntimeEnv, pInfo->binfo.pCtx, &w, pSDataBlock->info.rows - num, num, tsList, pSDataBlock->info.rows, pOperator->numOfOutput);
   }
-  tfree(pInfo->prevData);
+  //tfree(pInfo->prevData);
 }
 
 static void doSessionWindowAggImpl(SOperatorInfo* pOperator, SSWindowOperatorInfo *pInfo, SSDataBlock *pSDataBlock) {
