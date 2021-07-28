@@ -29,7 +29,7 @@ extern "C" {
 #include "osMath.h"
 #include "osMemory.h"
 #include "osRand.h"
-#include "osSemphone.h"
+#include "osSemaphore.h"
 #include "osSignal.h"
 #include "osSleep.h"
 #include "osSocket.h"
@@ -37,6 +37,7 @@ extern "C" {
 #include "osSysinfo.h"
 #include "osTime.h"
 #include "osTimer.h"
+#include "osSystem.h"
 
 void osInit();
 

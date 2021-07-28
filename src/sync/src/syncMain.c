@@ -559,7 +559,8 @@ static void syncClosePeerConn(SSyncPeer *pPeer) {
 static void syncRemovePeer(SSyncPeer *pPeer) {
   sInfo("%s, it is removed", pPeer->id);
 
-  pPeer->ip = 0;
+  //pPeer->ip = 0;
+  pPeer->fqdn[0] = '\0';
   syncClosePeerConn(pPeer);
   //taosRemoveRef(tsPeerRefId, pPeer->rid);
   syncReleasePeer(pPeer);
@@ -585,20 +586,31 @@ static void syncStopCheckPeerConn(SSyncPeer *pPeer) {
   sDebug("%s, stop check peer connection", pPeer->id);
 }
 
+uint32_t syncResolvePeerFqdn(SSyncPeer *pPeer) {
+  uint32_t ip = taosGetIpv4FromFqdn(pPeer->fqdn);
+  if (ip == 0xFFFFFFFF) {
+    sError("failed to resolve peer fqdn:%s since %s", pPeer->fqdn, strerror(errno));
+    terrno = TSDB_CODE_RPC_FQDN_ERROR;
+    return 0;
+  }
+
+  return ip;
+}
+
 static SSyncPeer *syncAddPeer(SSyncNode *pNode, const SNodeInfo *pInfo) {
-  uint32_t ip = taosGetIpv4FromFqdn(pInfo->nodeFqdn);
+  /*uint32_t ip = taosGetIpv4FromFqdn(pInfo->nodeFqdn);
   if (ip == 0xFFFFFFFF) {
     sError("failed to add peer, can resolve fqdn:%s since %s", pInfo->nodeFqdn, strerror(errno));
     terrno = TSDB_CODE_RPC_FQDN_ERROR;
     return NULL;
   }
-
+  */
   SSyncPeer *pPeer = calloc(1, sizeof(SSyncPeer));
   if (pPeer == NULL) return NULL;
 
   pPeer->nodeId = pInfo->nodeId;
   tstrncpy(pPeer->fqdn, pInfo->nodeFqdn, sizeof(pPeer->fqdn));
-  pPeer->ip = ip;
+  //pPeer->ip = ip;
   pPeer->port = pInfo->nodePort;
   pPeer->fqdn[sizeof(pPeer->fqdn) - 1] = 0;
   snprintf(pPeer->id, sizeof(pPeer->id), "vgId:%d, nodeId:%d", pNode->vgId, pPeer->nodeId);
@@ -857,14 +869,14 @@ static void syncRestartPeer(SSyncPeer *pPeer) {
   sDebug("%s, peer conn is restart and set sstatus:%s", pPeer->id, syncStatus[pPeer->sstatus]);
 
   int32_t ret = strcmp(pPeer->fqdn, tsNodeFqdn);
-  if (ret > 0 || (ret == 0 && pPeer->port > tsSyncPort)) {
+  if (pPeer->nodeId == 0 || ret > 0 || (ret == 0 && pPeer->port > tsSyncPort)) {
     sDebug("%s, check peer connection in 1000 ms", pPeer->id);
     taosTmrReset(syncCheckPeerConnection, SYNC_CHECK_INTERVAL, (void *)pPeer->rid, tsSyncTmrCtrl, &pPeer->timer);
   }
 }
 
 void syncRestartConnection(SSyncPeer *pPeer) {
-  if (pPeer->ip == 0) return;
+  if (pPeer->fqdn[0] == '\0') return;
 
   if (syncAcquirePeer(pPeer->rid) == NULL) return;
   
@@ -878,7 +890,7 @@ static void syncProcessSyncRequest(char *msg, SSyncPeer *pPeer) {
   SSyncNode *pNode = pPeer->pSyncNode;
   sInfo("%s, sync-req is received", pPeer->id);
 
-  if (pPeer->ip == 0) return;
+  if (pPeer->fqdn[0] == '\0') return;
 
   if (nodeRole != TAOS_SYNC_ROLE_MASTER) {
     sError("%s, I am not master anymore", pPeer->id);
@@ -1090,7 +1102,7 @@ static int32_t syncProcessPeerMsg(int64_t rid, void *buffer) {
 }
 
 static int32_t syncSendPeersStatusMsgToPeer(SSyncPeer *pPeer, char ack, int8_t type, uint16_t tranId) {
-  if (pPeer->peerFd < 0 || pPeer->ip == 0) {
+  if (pPeer->peerFd < 0 || pPeer->fqdn[0] == '\0') {
     sDebug("%s, failed to send status msg, restart fd:%d", pPeer->id, pPeer->peerFd);
     syncRestartConnection(pPeer);
     return -1;
@@ -1135,7 +1147,13 @@ static void syncSetupPeerConnection(SSyncPeer *pPeer) {
     return;
   }
 
-  SOCKET connFd = taosOpenTcpClientSocket(pPeer->ip, pPeer->port, 0);
+  uint32_t ip = syncResolvePeerFqdn(pPeer);
+  if (!ip) {
+    taosTmrReset(syncCheckPeerConnection, SYNC_CHECK_INTERVAL, (void *)pPeer->rid, tsSyncTmrCtrl, &pPeer->timer);
+    return;
+  }
+
+  SOCKET connFd = taosOpenTcpClientSocket(ip, pPeer->port, 0);
   if (connFd <= 0) {
     sDebug("%s, failed to open tcp socket since %s", pPeer->id, strerror(errno));
     taosTmrReset(syncCheckPeerConnection, SYNC_CHECK_INTERVAL, (void *)pPeer->rid, tsSyncTmrCtrl, &pPeer->timer);

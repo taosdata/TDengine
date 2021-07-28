@@ -367,6 +367,7 @@ static bool bnMonitorBalance() {
         for (int32_t dest = 0; dest < src; dest++) {
           SDnodeObj *pDestDnode = tsBnDnodes.list[dest];
           if (bnCheckDnodeInVgroup(pDestDnode, pVgroup)) continue;
+          if (taosGetTimestampMs() - pDestDnode->createdTime < 2000) continue;
 
           float destScore = bnTryCalcDnodeScore(pDestDnode, 1);
           if (srcScore + 0.0001 < destScore) continue;
@@ -636,6 +637,19 @@ int32_t bnDropDnode(SDnodeObj *pDnode) {
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t bnDnodeCanCreateMnode(struct SDnodeObj *pDnode) {
+  if (pDnode == NULL)
+    return 0;
+
+  if (pDnode->isMgmt || pDnode->alternativeRole == TAOS_DN_ALTERNATIVE_ROLE_VNODE
+      || pDnode->status == TAOS_DN_STATUS_DROPPING
+      || pDnode->status == TAOS_DN_STATUS_OFFLINE) {
+    return 0;
+  } else {
+    return 1;
+  }
+}
+
 static void bnMonitorDnodeModule() {
   int32_t numOfMnodes = mnodeGetMnodesNum();
   if (numOfMnodes >= tsNumOfMnodes) return;
@@ -644,13 +658,7 @@ static void bnMonitorDnodeModule() {
     SDnodeObj *pDnode = tsBnDnodes.list[i];
     if (pDnode == NULL) break;
 
-    if (pDnode->isMgmt || pDnode->status == TAOS_DN_STATUS_DROPPING || pDnode->status == TAOS_DN_STATUS_OFFLINE) {
-      continue;
-    }
-
-    if (pDnode->alternativeRole == TAOS_DN_ALTERNATIVE_ROLE_VNODE) {
-      continue;
-    }
+    if (!bnDnodeCanCreateMnode(pDnode)) continue;
 
     mLInfo("dnode:%d, numOfMnodes:%d expect:%d, create mnode in this dnode", pDnode->dnodeId, numOfMnodes, tsNumOfMnodes);
     mnodeCreateMnode(pDnode->dnodeId, pDnode->dnodeEp, true);

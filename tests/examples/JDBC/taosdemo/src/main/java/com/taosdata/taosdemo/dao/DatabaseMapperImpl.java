@@ -1,14 +1,15 @@
 package com.taosdata.taosdemo.dao;
 
 import com.taosdata.taosdemo.utils.SqlSpeller;
-import org.apache.log4j.Logger;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 import javax.sql.DataSource;
 import java.util.Map;
 
 public class DatabaseMapperImpl implements DatabaseMapper {
-    private static final Logger logger = Logger.getLogger(DatabaseMapperImpl.class);
+    private static final Logger logger = LogManager.getLogger(DatabaseMapperImpl.class);
 
     private final JdbcTemplate jdbcTemplate;
 

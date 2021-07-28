@@ -16,7 +16,6 @@
 #define _DEFAULT_SOURCE
 #include "os.h"
 #include "tgrant.h"
-#include "tbn.h"
 #include "tglobal.h"
 #include "tconfig.h"
 #include "tutil.h"
@@ -100,6 +99,8 @@ static int32_t mnodeDnodeActionInsert(SSdbRow *pRow) {
     pDnode->lastAccess = tsAccessSquence;
     pDnode->offlineReason = TAOS_DN_OFF_STATUS_NOT_RECEIVED;
   }
+
+  pDnode->customScore = 0;
 
   dnodeUpdateEp(pDnode->dnodeId, pDnode->dnodeEp, pDnode->dnodeFqdn, &pDnode->dnodePort);
   mnodeUpdateDnodeEps();
@@ -630,7 +631,8 @@ static int32_t mnodeProcessDnodeStatusMsg(SMnodeMsg *pMsg) {
   }
 
   int32_t numOfMnodes = mnodeGetMnodesNum();
-  if (numOfMnodes < tsNumOfMnodes && numOfMnodes < mnodeGetOnlineDnodesNum() && !pDnode->isMgmt) {
+  if (numOfMnodes < tsNumOfMnodes && numOfMnodes < mnodeGetOnlineDnodesNum()
+      && bnDnodeCanCreateMnode(pDnode)) {
     bnNotify();
   }
 
@@ -1144,6 +1146,7 @@ static int32_t mnodeRetrieveConfigs(SShowObj *pShow, char *data, int32_t rows, v
         numOfRows++;
         break;
       case TAOS_CFG_VTYPE_FLOAT:
+      case TAOS_CFG_VTYPE_DOUBLE:
         t = snprintf(varDataVal(pWrite), TSDB_CFG_VALUE_LEN, "%f", *((float *)cfg->ptr));
         varDataSetLen(pWrite, t);
         numOfRows++;

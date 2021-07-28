@@ -155,7 +155,7 @@ extern char    tsMnodeTmpDir[];
 extern char    tsDataDir[];
 extern char    tsLogDir[];
 extern char    tsScriptDir[];
-extern int64_t tsMsPerDay[3];
+extern int64_t tsTickPerDay[3];
 
 // system info
 extern char    tsOsName[];
@@ -204,6 +204,16 @@ extern uint32_t qDebugFlag;
 extern int32_t wDebugFlag;
 extern int32_t cqDebugFlag;
 extern int32_t debugFlag;
+
+#ifdef TD_TSZ
+// lossy 
+extern char lossyColumns[];
+extern double fPrecision;
+extern double dPrecision;
+extern uint32_t maxRange;
+extern uint32_t curRange;
+extern char Compressor[];
+#endif
 
 typedef struct {
   char dir[TSDB_FILENAME_LEN];

@@ -99,7 +99,7 @@ $i_binary2 = varchar(20) # illegal string
 $i_bool = boolean
 $nchar = nchar # nchar with unspecified length
 print ========== create_mt.sim case4: illegal data types in tags test
-sql_error create table $mt (ts timestamp, col int) tags (tag1 timestamp )
+##sql_error create table $mt (ts timestamp, col int) tags (tag1 timestamp )
 sql_error create table $mt (ts timestamp, col int) tags (tag1 $i_ts )
 sql_error create table $mt (ts timestamp, col int) tags (tag1 $i_binary )
 sql_error create table $mt (ts timestamp, col int) tags (tag1 $i_bigint )

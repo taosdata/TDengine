@@ -2,6 +2,7 @@
 #include "taoserror.h"
 #include "tscompression.h"
 #include "tutil.h"
+#include "queryLog.h"
 
 static int32_t getDataStartOffset();
 static void TSBufUpdateGroupInfo(STSBuf* pTSBuf, int32_t index, STSGroupBlockInfo* pBlockInfo);
@@ -266,6 +267,10 @@ static void writeDataToDisk(STSBuf* pTSBuf) {
   if (pBlock->tag.nType == TSDB_DATA_TYPE_BINARY || pBlock->tag.nType == TSDB_DATA_TYPE_NCHAR) {
     metaLen += (int32_t)fwrite(&pBlock->tag.nLen, 1, sizeof(pBlock->tag.nLen), pTSBuf->f);
     metaLen += (int32_t)fwrite(pBlock->tag.pz, 1, (size_t)pBlock->tag.nLen, pTSBuf->f);
+  } else if (pBlock->tag.nType == TSDB_DATA_TYPE_FLOAT) {
+    metaLen += (int32_t)fwrite(&pBlock->tag.nLen, 1, sizeof(pBlock->tag.nLen), pTSBuf->f);
+    float tfloat = (float)pBlock->tag.dKey;
+    metaLen += (int32_t)fwrite(&tfloat, 1, (size_t) pBlock->tag.nLen, pTSBuf->f);  
   } else if (pBlock->tag.nType != TSDB_DATA_TYPE_NULL) {
     metaLen += (int32_t)fwrite(&pBlock->tag.nLen, 1, sizeof(pBlock->tag.nLen), pTSBuf->f);
     metaLen += (int32_t)fwrite(&pBlock->tag.i64, 1, (size_t) pBlock->tag.nLen, pTSBuf->f);
@@ -349,6 +354,11 @@ STSBlock* readDataFromDisk(STSBuf* pTSBuf, int32_t order, bool decomp) {
     pBlock->tag.pz = tp;
 
     sz = fread(pBlock->tag.pz, (size_t)pBlock->tag.nLen, 1, pTSBuf->f);
+    UNUSED(sz);
+  } else if (pBlock->tag.nType == TSDB_DATA_TYPE_FLOAT) {
+    float tfloat = 0;
+    sz = fread(&tfloat, (size_t) pBlock->tag.nLen, 1, pTSBuf->f);
+    pBlock->tag.dKey = (double)tfloat;
     UNUSED(sz);
   } else if (pBlock->tag.nType != TSDB_DATA_TYPE_NULL) { //TODO check the return value
     sz = fread(&pBlock->tag.i64, (size_t) pBlock->tag.nLen, 1, pTSBuf->f);
@@ -633,10 +643,15 @@ int32_t STSBufUpdateHeader(STSBuf* pTSBuf, STSBufFileHeader* pHeader) {
 
   int32_t r = fseek(pTSBuf->f, 0, SEEK_SET);
   if (r != 0) {
+    qError("fseek failed, errno:%d", errno);
     return -1;
   }
-  
-  fwrite(pHeader, sizeof(STSBufFileHeader), 1, pTSBuf->f);
+
+  size_t ws = fwrite(pHeader, sizeof(STSBufFileHeader), 1, pTSBuf->f);
+  if (ws != 1) {    
+    qError("ts update header fwrite failed, size:%d, expected size:%d", (int32_t)ws, (int32_t)sizeof(STSBufFileHeader));
+    return -1;
+  }
   return 0;
 }
 
@@ -853,9 +868,17 @@ STSBuf* tsBufCreateFromCompBlocks(const char* pData, int32_t numOfBlocks, int32_
   TSBufUpdateGroupInfo(pTSBuf, pTSBuf->numOfGroups - 1, pBlockInfo);
   
   int32_t ret = fseek(pTSBuf->f, pBlockInfo->offset, SEEK_SET);
-  UNUSED(ret);
+  if (ret == -1) {
+    qError("fseek failed, errno:%d", errno);
+    tsBufDestroy(pTSBuf);
+    return NULL;
+  }
   size_t sz = fwrite((void*)pData, 1, len, pTSBuf->f);
-  UNUSED(sz);
+  if (sz != len) {
+    qError("ts data fwrite failed, write size:%d, expected size:%d", (int32_t)sz, len);
+    tsBufDestroy(pTSBuf);
+    return NULL;
+  }
   pTSBuf->fileSize += len;
   
   pTSBuf->tsOrder = order;
@@ -863,9 +886,16 @@ STSBuf* tsBufCreateFromCompBlocks(const char* pData, int32_t numOfBlocks, int32_
   
   STSBufFileHeader header = {
       .magic = TS_COMP_FILE_MAGIC, .numOfGroup = pTSBuf->numOfGroups, .tsOrder = pTSBuf->tsOrder};
-  STSBufUpdateHeader(pTSBuf, &header);
+  if (STSBufUpdateHeader(pTSBuf, &header) < 0) {
+    tsBufDestroy(pTSBuf);
+    return NULL;
+  }
   
-  taosFsync(fileno(pTSBuf->f));
+  if (taosFsync(fileno(pTSBuf->f)) == -1) {
+    qError("fsync failed, errno:%d", errno);
+    tsBufDestroy(pTSBuf);
+    return NULL;
+  }
   
   return pTSBuf;
 }

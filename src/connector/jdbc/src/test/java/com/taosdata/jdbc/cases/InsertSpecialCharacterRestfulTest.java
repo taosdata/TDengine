@@ -8,14 +8,14 @@ public class InsertSpecialCharacterRestfulTest {
 
     private static final String host = "127.0.0.1";
     private static Connection conn;
-    private static String dbName = "spec_char_test";
-    private static String tbname1 = "test";
-    private static String tbname2 = "weather";
-    private static String special_character_str_1 = "$asd$$fsfsf$";
-    private static String special_character_str_2 = "\\\\asdfsfsf\\\\";
-    private static String special_character_str_3 = "\\\\asdfsfsf\\";
-    private static String special_character_str_4 = "?asd??fsf?sf?";
-    private static String special_character_str_5 = "?#sd@$f(('<(s[P)>\"){]}f?s[]{}%vaew|\"fsfs^a&d*jhg)(j))(f@~!?$";
+    private static final String dbName = "spec_char_test";
+    private static final String tbname1 = "test";
+    private static final String tbname2 = "weather";
+    private static final String special_character_str_1 = "$asd$$fsfsf$";
+    private static final String special_character_str_2 = "\\\\asdfsfsf\\\\";
+    private static final String special_character_str_3 = "\\\\asdfsfsf\\";
+    private static final String special_character_str_4 = "?asd??fsf?sf?";
+    private static final String special_character_str_5 = "?#sd@$f(('<(s[P)>\"){]}f?s[]{}%vaew|\"fsfs^a&d*jhg)(j))(f@~!?$";
 
     @Test
     public void testCase01() throws SQLException {

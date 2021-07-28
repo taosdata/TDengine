@@ -12,8 +12,7 @@ public abstract class AbstractDatabaseMetaData extends WrapperImpl implements Da
     private final static int DRIVER_MAJAR_VERSION = 2;
     private final static int DRIVER_MINOR_VERSION = 0;
 
-    private String precision = "ms";
-    private String database;
+    private String precision = TSDBConstants.DEFAULT_PRECISION;
 
     public boolean allProceduresAreCallable() throws SQLException {
         return false;
@@ -1223,7 +1222,6 @@ public abstract class AbstractDatabaseMetaData extends WrapperImpl implements Da
             ResultSet databases = stmt.executeQuery("show databases");
             while (databases.next()) {
                 String dbname = databases.getString("name");
-                this.database = dbname;
                 this.precision = databases.getString("precision");
                 if (dbname.equalsIgnoreCase(catalog))
                     return true;

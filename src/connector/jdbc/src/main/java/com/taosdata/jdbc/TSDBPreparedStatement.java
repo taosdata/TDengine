@@ -38,7 +38,6 @@ import java.util.regex.Pattern;
 public class TSDBPreparedStatement extends TSDBStatement implements PreparedStatement {
     private String rawSql;
     private Object[] parameters;
-    private boolean isPrepared;
 
     private ArrayList<ColumnInfo> colData;
     private ArrayList<TableTagInfo> tableTags;
@@ -46,8 +45,6 @@ public class TSDBPreparedStatement extends TSDBStatement implements PreparedStat
 
     private String tableName;
     private long nativeStmtHandle = 0;
-
-    private volatile TSDBParameterMetaData parameterMetaData;
 
     TSDBPreparedStatement(TSDBConnection connection, String sql) {
         super(connection);
@@ -60,14 +57,13 @@ public class TSDBPreparedStatement extends TSDBStatement implements PreparedStat
                     parameterCnt++;
                 }
             }
-            parameters = new Object[parameterCnt];
-            this.isPrepared = true;
         }
+        parameters = new Object[parameterCnt];
 
         if (parameterCnt > 1) {
             // the table name is also a parameter, so ignore it.
-            this.colData = new ArrayList<ColumnInfo>();
-            this.tableTags = new ArrayList<TableTagInfo>();
+            this.colData = new ArrayList<>();
+            this.tableTags = new ArrayList<>();
         }
     }
 
@@ -76,18 +72,17 @@ public class TSDBPreparedStatement extends TSDBStatement implements PreparedStat
         preprocessSql();
     }
 
-    @Override
-    public int[] executeBatch() throws SQLException {
-        return super.executeBatch();
-    }
-
     /*
+     *
+     */
+
+    /**
      * Some of the SQLs sent by other popular frameworks or tools like Spark, contains syntax that cannot be parsed by
      * the TDengine client. Thus, some simple parsers/filters are intentionally added in this JDBC implementation in
      * order to process those supported SQLs.
      */
     private void preprocessSql() {
-        /***** For processing some of Spark SQLs*****/
+        /***For processing some of Spark SQLs*/
         // should replace it first
         this.rawSql = this.rawSql.replaceAll("or (.*) is null", "");
         this.rawSql = this.rawSql.replaceAll(" where ", " WHERE ");
@@ -134,32 +129,17 @@ public class TSDBPreparedStatement extends TSDBStatement implements PreparedStat
             }
             rawSql = rawSql.replace(matcher.group(1), tableFullName);
         }
-        /***** for inner queries *****/
-    }
-
-    /**
-     * Populate parameters into prepared sql statements
-     *
-     * @return a string of the native sql statement for TSDB
-     */
-    private String getNativeSql(String rawSql) throws SQLException {
-        return Utils.getNativeSql(rawSql, this.parameters);
     }
 
     @Override
     public ResultSet executeQuery() throws SQLException {
-        if (!isPrepared)
-            return executeQuery(this.rawSql);
-
-        final String sql = getNativeSql(this.rawSql);
+        final String sql = Utils.getNativeSql(this.rawSql, this.parameters);
         return executeQuery(sql);
     }
 
     @Override
     public int executeUpdate() throws SQLException {
-        if (!isPrepared)
-            return executeUpdate(this.rawSql);
-        String sql = getNativeSql(this.rawSql);
+        String sql = Utils.getNativeSql(this.rawSql, this.parameters);
         return executeUpdate(sql);
     }
 
@@ -282,25 +262,14 @@ public class TSDBPreparedStatement extends TSDBStatement implements PreparedStat
 
     @Override
     public boolean execute() throws SQLException {
-        if (!isPrepared)
-            return execute(this.rawSql);
-
-        final String sql = getNativeSql(this.rawSql);
+        final String sql = Utils.getNativeSql(this.rawSql, this.parameters);
         return execute(sql);
     }
 
     @Override
     public void addBatch() throws SQLException {
-        if (this.batchedArgs == null) {
-            batchedArgs = new ArrayList<>();
-        }
-
-        if (!isPrepared) {
-            addBatch(this.rawSql);
-        } else {
-            String sql = this.getConnection().nativeSQL(this.rawSql);
-            addBatch(sql);
-        }
+        String sql = Utils.getNativeSql(this.rawSql, this.parameters);
+        addBatch(sql);
     }
 
     @Override
@@ -553,12 +522,10 @@ public class TSDBPreparedStatement extends TSDBStatement implements PreparedStat
         }
     }
 
-    ;
-
     private static class TableTagInfo {
         private boolean isNull;
-        private Object value;
-        private int type;
+        private final Object value;
+        private final int type;
 
         public TableTagInfo(Object value, int type) {
             this.value = value;
@@ -571,8 +538,6 @@ public class TSDBPreparedStatement extends TSDBStatement implements PreparedStat
             return info;
         }
     }
-
-    ;
 
     public void setTableName(String name) {
         this.tableName = name;
@@ -661,7 +626,7 @@ public class TSDBPreparedStatement extends TSDBStatement implements PreparedStat
             this.colData.addAll(Collections.nCopies(this.parameters.length - 1 - this.tableTags.size(), null));
         }
 
-        ColumnInfo col = (ColumnInfo) this.colData.get(columnIndex);
+        ColumnInfo col = this.colData.get(columnIndex);
         if (col == null) {
             ColumnInfo p = new ColumnInfo();
             p.setType(type);
@@ -752,8 +717,7 @@ public class TSDBPreparedStatement extends TSDBStatement implements PreparedStat
             ByteBuffer isNullList = ByteBuffer.allocate(num * Integer.BYTES);
             isNullList.order(ByteOrder.LITTLE_ENDIAN);
 
-            for (int i = 0; i < num; ++i) {
-                TableTagInfo tag = this.tableTags.get(i);
+            for (TableTagInfo tag : this.tableTags) {
                 if (tag.isNull) {
                     typeList.put((byte) tag.type);
                     isNullList.putInt(1);
@@ -852,7 +816,7 @@ public class TSDBPreparedStatement extends TSDBStatement implements PreparedStat
                     typeList, lengthList, isNullList);
         }
 
-        ColumnInfo colInfo = (ColumnInfo) this.colData.get(0);
+        ColumnInfo colInfo = this.colData.get(0);
         if (colInfo == null) {
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNKNOWN, "column data not bind");
         }
@@ -988,7 +952,6 @@ public class TSDBPreparedStatement extends TSDBStatement implements PreparedStat
                     throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNKNOWN, "not support data types");
                 }
             }
-            ;
 
             connector.bindColumnDataArray(this.nativeStmtHandle, colDataList, lengthList, isNullList, col1.type, col1.bytes, rows, i);
         }

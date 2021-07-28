@@ -106,11 +106,14 @@ typedef struct SQueryInfo {
   STagCond         tagCond;
 
   SOrderVal        order;
-  int16_t          fillType;      // final result fill type
   int16_t          numOfTables;
   STableMetaInfo **pTableMetaInfo;
   struct STSBuf   *tsBuf;
+
+  int16_t          fillType;      // final result fill type
   int64_t *        fillVal;       // default value for fill
+  int32_t          numOfFillVal;  // fill value size
+
   char *           msg;           // pointer to the pCmd->payload to keep error message temporarily
   int64_t          clauseLimit;   // limit for current sub clause
 
@@ -118,13 +121,17 @@ typedef struct SQueryInfo {
   int64_t          vgroupLimit;    // table limit in case of super table projection query + global order + limit
 
   int32_t          udColumnId;    // current user-defined constant output field column id, monotonically decreases from TSDB_UD_COLUMN_INDEX
-  int16_t          resColumnId;   // result column id
-  bool             distinctTag;   // distinct tag or not
+  bool             distinct;   // distinct tag or not
+  bool             onlyHasTagCond;
   int32_t          round;         // 0/1/....
   int32_t          bufLen;
   char*            buf;
-  struct SQInfo*          pQInfo;      // global merge operator
-  struct SQueryAttr*      pQueryAttr;     // query object
+
+  bool               udfCopy;
+  SArray            *pUdfInfo;
+
+  struct SQInfo     *pQInfo;      // global merge operator
+  struct SQueryAttr *pQueryAttr;     // query object
 
   struct SQueryInfo *sibling;     // sibling
   SArray            *pUpstream;   // SArray<struct SQueryInfo>
@@ -138,8 +145,8 @@ typedef struct SQueryInfo {
   bool               hasFilter;
   bool               onlyTagQuery;
   bool               orderProjectQuery;
-//  bool               diffQuery;
   bool               stateWindow;
+  bool               globalMerge;
 } SQueryInfo;
 
 /**

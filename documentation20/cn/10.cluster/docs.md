@@ -85,7 +85,7 @@ taos>
 
 将后续的数据节点添加到现有集群，具体有以下几步：
 
-1. 按照[《立即开始》](https://www.taosdata.com/cn/documentation/getting-started/)一章的方法在每个物理节点启动taosd；
+1. 按照[《立即开始》](https://www.taosdata.com/cn/documentation/getting-started/)一章的方法在每个物理节点启动taosd；（注意：每个物理节点都需要在 taos.cfg 文件中将 firstEP 参数配置为新集群首个节点的 End Point——在本例中是 h1.taos.com:6030）
 
 2. 在第一个数据节点，使用CLI程序taos, 登录进TDengine系统, 执行命令:
 

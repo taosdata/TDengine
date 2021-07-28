@@ -39,7 +39,6 @@ run general/parser/slimit1.sim
 run general/parser/slimit_alter_tags.sim
 run general/parser/tbnameIn.sim
 run general/parser/join.sim
-#run general/parser/join_multitables.sim
 run general/parser/join_multivnode.sim
 run general/parser/join_manyblocks.sim
 run general/parser/projection_limit_offset.sim
@@ -61,6 +60,9 @@ run general/parser/slimit_alter_tags.sim
 run general/parser/binary_escapeCharacter.sim
 run general/parser/between_and.sim
 run general/parser/last_cache.sim
+run general/parser/slimit_alter_tags.sim
+run general/parser/udf.sim
+run general/parser/udf_dll.sim
+run general/parser/udf_dll_stable.sim
 run general/parser/nestquery.sim
 run general/parser/precision_ns.sim
-
