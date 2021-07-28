@@ -111,7 +111,7 @@ typedef struct {
   uint64_t   superUid;
   STSchema * schema;
   STSchema * tagSchema;
-  SDataRow   tagValues;
+  SKVRow     tagValues;
   char *     sql;
 } STableCfg;
 
