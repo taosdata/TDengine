@@ -140,7 +140,7 @@ TDengine采取的是Master-Slave模式进行同步，与流行的RAFT一致性�
 
 整个数据恢复流程分为两大步骤，第一步，先恢复archived data(file), 然后恢复wal。具体流程如下：
 
-![replica-forward.png](page://images/architecture/replica-forward.png)
+![replica-restore.png](page://images/architecture/replica-restore.png)
 
 1. 通过已经建立的TCP连接，发送sync req给master节点
 2. master收到sync req后，以client的身份，向vnode B主动建立一新的专用于同步的TCP连接（syncFd)

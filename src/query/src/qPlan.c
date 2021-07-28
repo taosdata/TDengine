@@ -104,7 +104,7 @@ static SQueryNode* doAddTableColumnNode(SQueryInfo* pQueryInfo, STableMetaInfo* 
     int32_t     num = (int32_t) taosArrayGetSize(pExprs);
     SQueryNode* pNode = createQueryNode(QNODE_TAGSCAN, "TableTagScan", NULL, 0, pExprs->pData, num, info, NULL);
 
-    if (pQueryInfo->distinctTag) {
+    if (pQueryInfo->distinct) {
       pNode = createQueryNode(QNODE_DISTINCT, "Distinct", &pNode, 1, pExprs->pData, num, info, NULL);
     }
 
@@ -555,9 +555,11 @@ SArray* createExecOperatorPlan(SQueryAttr* pQueryAttr) {
   int32_t op = 0;
 
   if (onlyQueryTags(pQueryAttr)) {  // do nothing for tags query
-    op = OP_TagScan;
-    taosArrayPush(plan, &op);
-    if (pQueryAttr->distinctTag) {
+    if (onlyQueryTags(pQueryAttr)) {
+      op = OP_TagScan;
+      taosArrayPush(plan, &op);
+    }
+    if (pQueryAttr->distinct) {
       op = OP_Distinct;
       taosArrayPush(plan, &op);
     }
@@ -634,8 +636,13 @@ SArray* createExecOperatorPlan(SQueryAttr* pQueryAttr) {
     } else {
       op = OP_Project;
       taosArrayPush(plan, &op);
+      if (pQueryAttr->distinct) {
+        op = OP_Distinct;
+        taosArrayPush(plan, &op);
+      }
     }
   }
+ 
 
   if (pQueryAttr->limit.limit > 0 || pQueryAttr->limit.offset > 0) {
     op = OP_Limit;
@@ -655,7 +662,7 @@ SArray* createGlobalMergePlan(SQueryAttr* pQueryAttr) {
   int32_t op = OP_MultiwayMergeSort;
   taosArrayPush(plan, &op);
 
-  if (pQueryAttr->distinctTag) {
+  if (pQueryAttr->distinct) {
     op = OP_Distinct;
     taosArrayPush(plan, &op);
   }
