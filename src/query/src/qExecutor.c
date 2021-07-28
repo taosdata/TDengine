@@ -1478,7 +1478,7 @@ static bool buildGroupbyInfo(const SSDataBlock *pSDataBlock, const SGroupbyExpr 
       }
     }
   }
-  pInfo->totalBytes += strlen(GROUPBY_MULTI_COLUMN_DELIM) * pGroupbyExpr->numOfGroupCols;
+  pInfo->totalBytes += (int32_t)strlen(GROUPBY_MULTI_COLUMN_DELIM) * pGroupbyExpr->numOfGroupCols;
   
   return true;
 }
@@ -1522,7 +1522,7 @@ static bool isGroupbyKeyEqual(void *a, void *b, void *ext) {
        return false;  
     }
     offset += pDataInfo->bytes; 
-    offset += strlen(GROUPBY_MULTI_COLUMN_DELIM);
+    offset += (int32_t)strlen(GROUPBY_MULTI_COLUMN_DELIM);
   }
   return true;
 }
