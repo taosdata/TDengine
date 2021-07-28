@@ -481,7 +481,6 @@ static SResultRow* doSetResultOutBufByKey(SQueryRuntimeEnv* pRuntimeEnv, SResult
     longjmp(pRuntimeEnv->env, TSDB_CODE_QRY_TOO_MANY_TIMEWINDOW);
   }
 
-  memset(pRuntimeEnv->keyBuf, 0, GET_RES_WINDOW_KEY_LEN(bytes));
   return pResultRowInfo->pResult[pResultRowInfo->curPos];
 }
 
@@ -1497,11 +1496,12 @@ static void buildGroupbyKeyBuf(const SSDataBlock *pSDataBlock, SGroupbyOperatorI
     }
     if (IS_VAR_DATA_TYPE(pDataInfo->type)) {
       memcpy(p, varDataVal(val), varDataLen(val));
+      p +=  varDataLen(val);
     } else {
       memcpy(p, val, pDataInfo->bytes);
+      p += pDataInfo->bytes;
     }
     *isNullKey = false; 
-    p += pDataInfo->bytes;
   }  
 }
 static bool isGroupbyKeyEqual(void *a, void *b, void *ext) {
@@ -1529,8 +1529,9 @@ static void doHashGroupbyAgg(SOperatorInfo* pOperator, SGroupbyOperatorInfo *pIn
     qError("QInfo:0x%"PRIx64" group by not supported on double/float columns, abort", GET_QID(pRuntimeEnv));
     return;
   }
+  //realloc pRuntimeEnv->keyBuf   
+  pRuntimeEnv->keyBuf = realloc(pRuntimeEnv->keyBuf, pInfo->totalBytes + sizeof(int64_t) + POINTER_BYTES); 
    
-
   SColumnInfoData* pFirstColData = taosArrayGet(pSDataBlock->pDataBlock, 0);
   int64_t* tsList = (pFirstColData->info.type == TSDB_DATA_TYPE_TIMESTAMP)? (int64_t*) pFirstColData->pData:NULL;
 
@@ -1588,7 +1589,7 @@ static void doHashGroupbyAgg(SOperatorInfo* pOperator, SGroupbyOperatorInfo *pIn
 
     doApplyFunctions(pRuntimeEnv, pInfo->binfo.pCtx, &w, pSDataBlock->info.rows - num, num, tsList, pSDataBlock->info.rows, pOperator->numOfOutput);
   }
-  //tfree(pInfo->prevData);
+  tfree(pInfo->prevData);
 }
 
 static void doSessionWindowAggImpl(SOperatorInfo* pOperator, SSWindowOperatorInfo *pInfo, SSDataBlock *pSDataBlock) {
