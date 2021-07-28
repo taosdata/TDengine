@@ -48,6 +48,8 @@
    (_dst).ekey = (_src).ekey;\
 } while (0)
 
+#define GROUPBY_MULTI_COLUMN_DELIM "-"
+
 enum {
   TS_JOIN_TS_EQUAL       = 0,
   TS_JOIN_TS_NOT_EQUALS  = 1,
@@ -1476,6 +1478,8 @@ static bool buildGroupbyInfo(const SSDataBlock *pSDataBlock, const SGroupbyExpr 
       }
     }
   }
+  pInfo->totalBytes += strlen(GROUPBY_MULTI_COLUMN_DELIM) * pGroupbyExpr->numOfGroupCols;
+  
   return true;
 }
 static void buildGroupbyKeyBuf(const SSDataBlock *pSDataBlock, SGroupbyOperatorInfo *pInfo, int32_t rowId, char **buf, bool *isNullKey) {
@@ -1501,6 +1505,8 @@ static void buildGroupbyKeyBuf(const SSDataBlock *pSDataBlock, SGroupbyOperatorI
       memcpy(p, val, pDataInfo->bytes);
       p += pDataInfo->bytes;
     }
+    memcpy(p, GROUPBY_MULTI_COLUMN_DELIM, strlen(GROUPBY_MULTI_COLUMN_DELIM));
+    p += strlen(GROUPBY_MULTI_COLUMN_DELIM);
     *isNullKey = false; 
   }  
 }
@@ -1516,6 +1522,7 @@ static bool isGroupbyKeyEqual(void *a, void *b, void *ext) {
        return false;  
     }
     offset += pDataInfo->bytes; 
+    offset += strlen(GROUPBY_MULTI_COLUMN_DELIM);
   }
   return true;
 }
@@ -1661,22 +1668,22 @@ static void doSessionWindowAggImpl(SOperatorInfo* pOperator, SSWindowOperatorInf
                    pSDataBlock->info.rows, pOperator->numOfOutput);
 }
 
-static void setResultRowKey(SResultRow* pResultRow, char* pData, int16_t type) {
-  if (IS_VAR_DATA_TYPE(type)) {
-    if (pResultRow->key == NULL) {
-      pResultRow->key = malloc(varDataTLen(pData));
-      varDataCopy(pResultRow->key, pData);
-    } else {
-      assert(memcmp(pResultRow->key, pData, varDataTLen(pData)) == 0);
-    }
-  } else {
-    int64_t v = -1;
-    GET_TYPED_DATA(v, int64_t, type, pData);
-
-    pResultRow->win.skey = v;
-    pResultRow->win.ekey = v;
-  }
-}
+//static void setResultRowKey(SResultRow* pResultRow, char* pData, int16_t type) {
+//  if (IS_VAR_DATA_TYPE(type)) {
+//    if (pResultRow->key == NULL) {
+//      pResultRow->key = malloc(varDataTLen(pData));
+//      varDataCopy(pResultRow->key, pData);
+//    } else {
+//      assert(memcmp(pResultRow->key, pData, varDataTLen(pData)) == 0);
+//    }
+//  } else {
+//    int64_t v = -1;
+//    GET_TYPED_DATA(v, int64_t, type, pData);
+//
+//    pResultRow->win.skey = v;
+//    pResultRow->win.ekey = v;
+//  }
+//}
 
 static int32_t setGroupResultOutputBuf(SQueryRuntimeEnv *pRuntimeEnv, SOptrBasicInfo *binfo, int32_t numOfCols, char *pData, int16_t type, int16_t bytes, int32_t groupIndex) {
   SDiskbasedResultBuf *pResultBuf = pRuntimeEnv->pResultBuf;
@@ -1698,7 +1705,7 @@ static int32_t setGroupResultOutputBuf(SQueryRuntimeEnv *pRuntimeEnv, SOptrBasic
   SResultRow *pResultRow = doSetResultOutBufByKey(pRuntimeEnv, pResultRowInfo, tid, d, len, true, groupIndex);
   assert (pResultRow != NULL);
 
-  setResultRowKey(pResultRow, pData, type);
+  //setResultRowKey(pResultRow, pData, type);
   if (pResultRow->pageId == -1) {
     int32_t ret = addNewWindowResultBuf(pResultRow, pResultBuf, groupIndex, pRuntimeEnv->pQueryAttr->resultRowSize);
     if (ret != 0) {
