@@ -85,7 +85,7 @@ int tsCompressInit(){
   if(lossyFloat == false && lossyDouble == false)
         return 0;
   
-  tdszInit(fPrecision, dPrecision, maxIntervals, intervals, Compressor);
+  tdszInit(fPrecision, dPrecision, maxRange, curRange, Compressor);
   if(lossyFloat)
      uInfo("lossy compression float  is opened. ");
   if(lossyDouble)
@@ -159,7 +159,7 @@ int tsCompressINTImp(const char *const input, const int nelements, char *const o
           break;
       }
       // Get difference.
-      if (!safeInt64Add(curr_value, -prev_value)) goto _copy_and_exit;
+      if (!safeInt64Add(curr_value, -prev_value_tmp)) goto _copy_and_exit;
 
       int64_t diff = curr_value - prev_value_tmp;
       // Zigzag encode the value.

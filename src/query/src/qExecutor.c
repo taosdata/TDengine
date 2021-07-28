@@ -97,12 +97,47 @@ static UNUSED_FUNC void* u_realloc(void* p, size_t __size) {
 #define GET_NUM_OF_TABLEGROUP(q)    taosArrayGetSize((q)->tableqinfoGroupInfo.pGroupList)
 #define QUERY_IS_INTERVAL_QUERY(_q) ((_q)->interval.interval > 0)
 
+#define TSKEY_MAX_ADD(a,b)                 \
+do {                                       \
+  if (a < 0) { a = a + b; break;}          \
+  if (sizeof(a) == sizeof(int32_t)) {      \
+   if((b) > 0 && ((b) >= INT32_MAX - (a))){\
+     a = INT32_MAX;                        \
+   } else {                                \
+     a = a + b;                            \
+   }                                       \
+  } else {                                 \
+   if((b) > 0 && ((b) >= INT64_MAX - (a))){\
+     a = INT64_MAX;                        \
+   } else {                                \
+     a = a + b;                            \
+   }                                       \
+  }                                        \
+} while(0)                                 
+
+#define TSKEY_MIN_SUB(a,b)                 \
+do {                                       \
+  if (a >= 0) { a = a + b; break;}         \
+  if (sizeof(a) == sizeof(int32_t)){       \
+   if((b) < 0 && ((b) <= INT32_MIN - (a))){\
+     a = INT32_MIN;                        \
+   } else {                                \
+     a = a + b;                            \
+   }                                       \
+  } else {                                 \
+    if((b) < 0 && ((b) <= INT64_MIN-(a))) {\
+     a = INT64_MIN;                        \
+    } else {                               \
+     a = a + b;                            \
+    }                                      \
+  }                                        \
+} while (0)
+
 uint64_t queryHandleId = 0;
 
 int32_t getMaximumIdleDurationSec() {
   return tsShellActivityTimer * 2;
 }
-
 int64_t genQueryId(void) {
   int64_t uid = 0;
   int64_t did = tsDnodeId;
@@ -2427,7 +2462,7 @@ static void updateDataCheckOrder(SQInfo *pQInfo, SQueryTableMsg* pQueryMsg, bool
 
   if (pQueryAttr->pointInterpQuery && pQueryAttr->interval.interval == 0) {
     if (!QUERY_IS_ASC_QUERY(pQueryAttr)) {
-      qDebug(msg, pQInfo, "interp", pQueryAttr->order.order, TSDB_ORDER_ASC, pQueryAttr->window.skey, pQueryAttr->window.ekey, pQueryAttr->window.ekey, pQueryAttr->window.skey);
+      qDebug(msg, pQInfo->qId, "interp", pQueryAttr->order.order, TSDB_ORDER_ASC, pQueryAttr->window.skey, pQueryAttr->window.ekey, pQueryAttr->window.ekey, pQueryAttr->window.skey);
       SWAP(pQueryAttr->window.skey, pQueryAttr->window.ekey, TSKEY);
     }
 
@@ -2438,7 +2473,7 @@ static void updateDataCheckOrder(SQInfo *pQInfo, SQueryTableMsg* pQueryMsg, bool
   if (pQueryAttr->interval.interval == 0) {
     if (onlyFirstQuery(pQueryAttr)) {
       if (!QUERY_IS_ASC_QUERY(pQueryAttr)) {
-        qDebug(msg, pQInfo, "only-first", pQueryAttr->order.order, TSDB_ORDER_ASC, pQueryAttr->window.skey,
+        qDebug(msg, pQInfo->qId, "only-first", pQueryAttr->order.order, TSDB_ORDER_ASC, pQueryAttr->window.skey,
                pQueryAttr->window.ekey, pQueryAttr->window.ekey, pQueryAttr->window.skey);
 
         SWAP(pQueryAttr->window.skey, pQueryAttr->window.ekey, TSKEY);
@@ -2449,7 +2484,7 @@ static void updateDataCheckOrder(SQInfo *pQInfo, SQueryTableMsg* pQueryMsg, bool
       pQueryAttr->needReverseScan = false;
     } else if (onlyLastQuery(pQueryAttr) && notContainSessionOrStateWindow(pQueryAttr)) {
       if (QUERY_IS_ASC_QUERY(pQueryAttr)) {
-        qDebug(msg, pQInfo, "only-last", pQueryAttr->order.order, TSDB_ORDER_DESC, pQueryAttr->window.skey,
+        qDebug(msg, pQInfo->qId, "only-last", pQueryAttr->order.order, TSDB_ORDER_DESC, pQueryAttr->window.skey,
                pQueryAttr->window.ekey, pQueryAttr->window.ekey, pQueryAttr->window.skey);
 
         SWAP(pQueryAttr->window.skey, pQueryAttr->window.ekey, TSKEY);
@@ -2464,7 +2499,7 @@ static void updateDataCheckOrder(SQInfo *pQInfo, SQueryTableMsg* pQueryMsg, bool
     if (stableQuery) {
       if (onlyFirstQuery(pQueryAttr)) {
         if (!QUERY_IS_ASC_QUERY(pQueryAttr)) {
-          qDebug(msg, pQInfo, "only-first stable", pQueryAttr->order.order, TSDB_ORDER_ASC,
+          qDebug(msg, pQInfo->qId, "only-first stable", pQueryAttr->order.order, TSDB_ORDER_ASC,
                  pQueryAttr->window.skey, pQueryAttr->window.ekey, pQueryAttr->window.ekey, pQueryAttr->window.skey);
 
           SWAP(pQueryAttr->window.skey, pQueryAttr->window.ekey, TSKEY);
@@ -2475,7 +2510,7 @@ static void updateDataCheckOrder(SQInfo *pQInfo, SQueryTableMsg* pQueryMsg, bool
         pQueryAttr->needReverseScan = false;
       } else if (onlyLastQuery(pQueryAttr)) {
         if (QUERY_IS_ASC_QUERY(pQueryAttr)) {
-          qDebug(msg, pQInfo, "only-last stable", pQueryAttr->order.order, TSDB_ORDER_DESC,
+          qDebug(msg, pQInfo->qId, "only-last stable", pQueryAttr->order.order, TSDB_ORDER_DESC,
                  pQueryAttr->window.skey, pQueryAttr->window.ekey, pQueryAttr->window.ekey, pQueryAttr->window.skey);
 
           SWAP(pQueryAttr->window.skey, pQueryAttr->window.ekey, TSKEY);
@@ -3124,7 +3159,9 @@ void setTagValue(SOperatorInfo* pOperatorInfo, void *pTable, SQLFunctionCtx* pCt
           || pLocalExprInfo->base.resType == TSDB_DATA_TYPE_TIMESTAMP) {
         memcpy(pRuntimeEnv->tagVal + offset, &pCtx[idx].tag.i64, pLocalExprInfo->base.resBytes);
       } else {
-        memcpy(pRuntimeEnv->tagVal + offset, pCtx[idx].tag.pz, pCtx[idx].tag.nLen);
+        if (pCtx[idx].tag.pz != NULL) {
+          memcpy(pRuntimeEnv->tagVal + offset, pCtx[idx].tag.pz, pCtx[idx].tag.nLen);
+        }      
       }
 
       offset += pLocalExprInfo->base.resBytes;
@@ -3934,8 +3971,8 @@ static void toSSDataBlock(SGroupResInfo *pGroupResInfo, SQueryRuntimeEnv* pRunti
 
   // refactor : extract method
   SColumnInfoData* pInfoData = taosArrayGet(pBlock->pDataBlock, 0);
-
-  if (pInfoData->info.type == TSDB_DATA_TYPE_TIMESTAMP) {
+  //add condition (pBlock->info.rows >= 1) just to runtime happy
+  if (pInfoData->info.type == TSDB_DATA_TYPE_TIMESTAMP && pBlock->info.rows >= 1) {
     STimeWindow* w = &pBlock->info.window;
     w->skey = *(int64_t*)pInfoData->pData;
     w->ekey = *(int64_t*)(((char*)pInfoData->pData) + TSDB_KEYSIZE * (pBlock->info.rows - 1));
@@ -5273,7 +5310,15 @@ static SSDataBlock* doSTableAggregate(void* param, bool* newgroup) {
     // the pDataBlock are always the same one, no need to call this again
     setInputDataBlock(pOperator, pInfo->pCtx, pBlock, order);
 
-    TSKEY key = QUERY_IS_ASC_QUERY(pQueryAttr)? pBlock->info.window.ekey + 1:pBlock->info.window.skey-1;
+    TSKEY key = 0;
+    if (QUERY_IS_ASC_QUERY(pQueryAttr)) {
+      key = pBlock->info.window.ekey;
+      TSKEY_MAX_ADD(key, 1);
+    } else {
+      key = pBlock->info.window.skey;
+      TSKEY_MIN_SUB(key, -1);
+    }
+    
     setExecutionContext(pRuntimeEnv, pInfo, pOperator->numOfOutput, pRuntimeEnv->current->groupIndex, key);
     doAggregateImpl(pOperator, pQueryAttr->window.skey, pInfo->pCtx, pBlock);
   }
@@ -6479,7 +6524,7 @@ static SSDataBlock* doTagScan(void* param, bool* newgroup) {
     pOperator->status = OP_EXEC_DONE;
     qDebug("QInfo:0x%"PRIx64" create count(tbname) query, res:%d rows:1", GET_QID(pRuntimeEnv), count);
   } else {  // return only the tags|table name etc.
-    SExprInfo* pExprInfo = pOperator->pExpr;  // todo use the column list instead of exprinfo
+    SExprInfo* pExprInfo = &pOperator->pExpr[0];  // todo use the column list instead of exprinfo
 
     count = 0;
     while(pInfo->curPos < pInfo->totalTables && count < maxNumOfTables) {
@@ -6567,11 +6612,23 @@ static SSDataBlock* hashDistinct(void* param, bool* newgroup) {
     if (pBlock == NULL) {
       setQueryStatus(pOperator->pRuntimeEnv, QUERY_COMPLETED);
       pOperator->status = OP_EXEC_DONE;
+      break;
+    }
+    if (pInfo->colIndex == -1) {
+      for (int i = 0; i < taosArrayGetSize(pBlock->pDataBlock); i++) {
+        SColumnInfoData* pColDataInfo = taosArrayGet(pBlock->pDataBlock, i);
+        if (pColDataInfo->info.colId == pOperator->pExpr[0].base.resColId) {
+          pInfo->colIndex = i;  
+          break;
+        }
+      }
+    }
+    if (pInfo->colIndex == -1) {
+      setQueryStatus(pOperator->pRuntimeEnv, QUERY_COMPLETED);
+      pOperator->status = OP_EXEC_DONE;
       return NULL;
     }
-
-    assert(pBlock->info.numOfCols == 1);
-    SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, 0);
+    SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, pInfo->colIndex);
 
     int16_t bytes = pColInfoData->info.bytes;
     int16_t type = pColInfoData->info.type;
@@ -6594,10 +6651,19 @@ static SSDataBlock* hashDistinct(void* param, bool* newgroup) {
       if (isNull(val, type)) {
         continue;
       }
-      int dummy; 
-      void* res = taosHashGet(pInfo->pSet, val, bytes);
+
+      size_t keyLen = 0;
+      if (IS_VAR_DATA_TYPE(pOperator->pExpr->base.colType)) {
+        tstr* var = (tstr*)(val);
+        keyLen = varDataLen(var);
+      } else {
+        keyLen = bytes;
+      }
+
+      int dummy;
+      void* res = taosHashGet(pInfo->pSet, val, keyLen);
       if (res == NULL) {
-        taosHashPut(pInfo->pSet, val, bytes, &dummy, sizeof(dummy));
+        taosHashPut(pInfo->pSet, val, keyLen, &dummy, sizeof(dummy));
         char* start = pResultColInfoData->pData + bytes * pInfo->pRes->info.rows;
         memcpy(start, val, bytes);
         pRes->info.rows += 1;
@@ -6614,7 +6680,8 @@ static SSDataBlock* hashDistinct(void* param, bool* newgroup) {
 
 SOperatorInfo* createDistinctOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorInfo* upstream, SExprInfo* pExpr, int32_t numOfOutput) {
   SDistinctOperatorInfo* pInfo = calloc(1, sizeof(SDistinctOperatorInfo));
-
+  pInfo->colIndex        = -1;
+  pInfo->threshold       = 10000000; // distinct result threshold
   pInfo->outputCapacity = 4096;
   pInfo->pSet = taosHashInit(64, taosGetDefaultHashFunction(pExpr->base.colType), false, HASH_NO_LOCK);
   pInfo->pRes = createOutputBuf(pExpr, numOfOutput, (int32_t) pInfo->outputCapacity);
@@ -6624,10 +6691,12 @@ SOperatorInfo* createDistinctOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperat
   pOperator->blockingOptr = false;
   pOperator->status       = OP_IN_EXECUTING;
   pOperator->operatorType = OP_Distinct;
+  pOperator->pExpr        = pExpr;
   pOperator->numOfOutput  = numOfOutput;
   pOperator->info         = pInfo;
   pOperator->pRuntimeEnv  = pRuntimeEnv;
   pOperator->exec         = hashDistinct;
+  pOperator->pExpr        = pExpr; 
   pOperator->cleanup      = destroyDistinctOperatorInfo;
 
   appendUpstream(pOperator, upstream);

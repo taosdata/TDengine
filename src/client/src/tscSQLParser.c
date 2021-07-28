@@ -1947,12 +1947,13 @@ bool isValidDistinctSql(SQueryInfo* pQueryInfo) {
   if (pQueryInfo == NULL) {
     return false;
   }
-  if ((pQueryInfo->type & TSDB_QUERY_TYPE_STABLE_QUERY)  != TSDB_QUERY_TYPE_STABLE_QUERY) {
+  if ((pQueryInfo->type & TSDB_QUERY_TYPE_STABLE_QUERY)  != TSDB_QUERY_TYPE_STABLE_QUERY 
+      && (pQueryInfo->type & TSDB_QUERY_TYPE_TABLE_QUERY)  != TSDB_QUERY_TYPE_TABLE_QUERY) {
     return false;
   }
-  if (tscQueryTags(pQueryInfo) && tscNumOfExprs(pQueryInfo) == 1){
+  if (tscNumOfExprs(pQueryInfo) == 1){
     return true;
-  }
+  } 
   return false;
 }
 
@@ -2045,7 +2046,7 @@ int32_t validateSelectNodeList(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SArray* pS
   const char* msg1 = "too many items in selection clause";
   const char* msg2 = "functions or others can not be mixed up";
   const char* msg3 = "not support query expression";
-  const char* msg4 = "only support distinct one tag";
+  const char* msg4 = "only support distinct one column or tag";
   const char* msg5 = "invalid function name";
 
   // too many result columns not support order by in query
@@ -2105,12 +2106,12 @@ int32_t validateSelectNodeList(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SArray* pS
   }
 
   if (hasDistinct == true) {
-    if (!isValidDistinctSql(pQueryInfo)) {
+    if (!isValidDistinctSql(pQueryInfo) ) {
       return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg4);
     }
-
-    pQueryInfo->distinctTag = true;
+    pQueryInfo->distinct = true;
   }
+  
   
   // there is only one user-defined column in the final result field, add the timestamp column.
   size_t numOfSrcCols = taosArrayGetSize(pQueryInfo->colList);
@@ -3975,8 +3976,10 @@ static int32_t getTablenameCond(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSqlExpr*
 
 static int32_t getColumnQueryCondInfo(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSqlExpr* pExpr, int32_t relOptr) {
   if (pExpr == NULL) {
+    pQueryInfo->onlyHasTagCond &= true;
     return TSDB_CODE_SUCCESS;
   }
+  pQueryInfo->onlyHasTagCond &= false;
 
   if (!tSqlExprIsParentOfLeaf(pExpr)) {  // internal node
     int32_t ret = getColumnQueryCondInfo(pCmd, pQueryInfo, pExpr->pLeft, pExpr->tokenId);
@@ -4103,6 +4106,7 @@ static int32_t checkAndSetJoinCondInfo(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tS
 
 static int32_t getJoinCondInfo(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSqlExpr* pExpr) {
   if (pExpr == NULL) {
+    pQueryInfo->onlyHasTagCond &= true;
     return TSDB_CODE_SUCCESS;
   }
 
@@ -4782,8 +4786,11 @@ static int32_t getTimeRangeFromExpr(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSqlE
   int32_t code = 0;
 
   if (pExpr == NULL) {
+    pQueryInfo->onlyHasTagCond &= true;
     return TSDB_CODE_SUCCESS;
   }
+  pQueryInfo->onlyHasTagCond &= false;
+  
 
   if (!tSqlExprIsParentOfLeaf(pExpr)) {
     if (pExpr->tokenId == TK_OR) {
@@ -4832,11 +4839,13 @@ static int32_t validateJoinExpr(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SCondExpr
 
   if (!QUERY_IS_JOIN_QUERY(pQueryInfo->type)) {
     if (pQueryInfo->numOfTables == 1) {
+      pQueryInfo->onlyHasTagCond &= true;
       return TSDB_CODE_SUCCESS;
     } else {
       return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg3);
     }
   }
+  pQueryInfo->onlyHasTagCond &= false;
 
   STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
   if (UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo)) {  // for stable join, tag columns
@@ -5149,7 +5158,7 @@ int32_t validateWhereNode(SQueryInfo* pQueryInfo, tSqlExpr** pExpr, SSqlObj* pSq
   if (pExpr == NULL) {
     return TSDB_CODE_SUCCESS;
   }
-
+  
   const char* msg1 = "invalid expression";
   const char* msg2 = "invalid filter expression";
 
@@ -5182,6 +5191,7 @@ int32_t validateWhereNode(SQueryInfo* pQueryInfo, tSqlExpr** pExpr, SSqlObj* pSq
   if ((ret = getTimeRangeFromExpr(&pSql->cmd, pQueryInfo, condExpr.pTimewindow)) != TSDB_CODE_SUCCESS) {
     return ret;
   }
+  
 
   // 3. get the tag query condition
   if ((ret = getTagQueryCondExpr(&pSql->cmd, pQueryInfo, &condExpr, pExpr)) != TSDB_CODE_SUCCESS) {
@@ -5491,7 +5501,7 @@ int32_t validateOrderbyNode(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SSqlNode* pSq
   STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
 
 
-  if (pQueryInfo->distinctTag == true) {
+  if (pQueryInfo->distinct == true) {
     pQueryInfo->order.order = TSDB_ORDER_ASC;
     pQueryInfo->order.orderColId = 0; 
     return TSDB_CODE_SUCCESS;
@@ -6019,7 +6029,7 @@ int32_t setAlterTableInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
     int16_t i;
     uint32_t nLen = 0;
     for (i = 0; i < numOfColumns; ++i) {
-      nLen += pSchema[i].colId != columnIndex.columnIndex ? pSchema[i].bytes : pItem->bytes;
+      nLen += (i != columnIndex.columnIndex) ? pSchema[i].bytes : pItem->bytes;
     }
     if (nLen >= TSDB_MAX_BYTES_PER_ROW) {
       return invalidOperationMsg(pMsg, msg24);
@@ -6065,14 +6075,14 @@ int32_t setAlterTableInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
       return invalidOperationMsg(pMsg, msg22);
     }
 
-    SSchema* pSchema = (SSchema*) pTableMetaInfo->pTableMeta->schema;
-    int16_t numOfColumns = pTableMetaInfo->pTableMeta->tableInfo.numOfColumns;
+    SSchema* pSchema = tscGetTableTagSchema(pTableMetaInfo->pTableMeta);
+    int16_t numOfTags = tscGetNumOfTags(pTableMetaInfo->pTableMeta);
     int16_t i;
     uint32_t nLen = 0;
-    for (i = 0; i < numOfColumns; ++i) {
-      nLen += pSchema[i].colId != columnIndex.columnIndex ? pSchema[i].bytes : pItem->bytes;
+    for (i = 0; i < numOfTags; ++i) {
+      nLen += (i != columnIndex.columnIndex) ? pSchema[i].bytes : pItem->bytes;
     }
-    if (nLen >= TSDB_MAX_BYTES_PER_ROW) {
+    if (nLen >= TSDB_MAX_TAGS_LEN) {
       return invalidOperationMsg(pMsg, msg24);
     }
 
@@ -8564,7 +8574,7 @@ int32_t validateSqlNode(SSqlObj* pSql, SSqlNode* pSqlNode, SQueryInfo* pQueryInf
     if (validateGroupbyNode(pQueryInfo, pSqlNode->pGroupby, pCmd) != TSDB_CODE_SUCCESS) {
       return TSDB_CODE_TSC_INVALID_OPERATION;
     }
-
+    pQueryInfo->onlyHasTagCond = true;
     // set where info
     if (pSqlNode->pWhere != NULL) {
       if (validateWhereNode(pQueryInfo, &pSqlNode->pWhere, pSql) != TSDB_CODE_SUCCESS) {
@@ -8585,6 +8595,10 @@ int32_t validateSqlNode(SSqlObj* pSql, SSqlNode* pSqlNode, SQueryInfo* pQueryInf
     if (validateSelectNodeList(pCmd, pQueryInfo, pSqlNode->pSelNodeList, joinQuery, timeWindowQuery, false) !=
         TSDB_CODE_SUCCESS) {
       return TSDB_CODE_TSC_INVALID_OPERATION;
+    }
+
+    if (isSTable && tscQueryTags(pQueryInfo) && pQueryInfo->distinct && !pQueryInfo->onlyHasTagCond) {
+      return TSDB_CODE_TSC_INVALID_OPERATION; 
     }
 
     // parse the window_state

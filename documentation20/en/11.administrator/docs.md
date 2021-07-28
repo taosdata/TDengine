@@ -240,7 +240,7 @@ Client configuration parameters:
     ```sql
     SELECT count(*) FROM table_name WHERE TS<1554984068000;
     ```
-    In order to avoid the uncertainty caused by using string time format, Unix timestamp can also be used directly. In addition, timestamp strings with time zones can also be used in SQL statements, such as: timestamp strings in RFC3339 format, 2013-04-12T15: 52: 01.123 +08:00, or ISO-8601 format timestamp strings 2013-04-12T15: 52: 01.123 +0800. The conversion of the above two strings into Unix timestamps is not affected by the time zone in which the system is located.
+    In order to avoid the uncertainty caused by using string time format, Unix timestamp can also be used directly. In addition, timestamp strings with time zones can also be used in SQL statements, such as: timestamp strings in RFC3339 format, 2013-04-12T15:52:01.123+08:00, or ISO-8601 format timestamp strings 2013-04-12T15:52:01.123+0800. The conversion of the above two strings into Unix timestamps is not affected by the time zone in which the system is located.
     
     When starting taos, you can also specify an end point for an instance of taosd from the command line, otherwise read from taos.cfg.
 

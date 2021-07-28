@@ -3561,6 +3561,7 @@ SSqlObj* createSubqueryObj(SSqlObj* pSql, int16_t tableIndex, __async_cb_func_t 
   pNew->pTscObj   = pSql->pTscObj;
   pNew->signature = pNew;
   pNew->sqlstr    = strdup(pSql->sqlstr);
+  tsem_init(&pNew->rspSem, 0, 0);
 
   SSqlCmd* pnCmd  = &pNew->cmd;
   memcpy(pnCmd, pCmd, sizeof(SSqlCmd));
@@ -4579,6 +4580,22 @@ static int32_t createTagColumnInfo(SQueryAttr* pQueryAttr, SQueryInfo* pQueryInf
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t tscGetColFilterSerializeLen(SQueryInfo* pQueryInfo) {
+  int16_t numOfCols = (int16_t)taosArrayGetSize(pQueryInfo->colList);
+  int32_t len = 0;
+
+  for(int32_t i = 0; i < numOfCols; ++i) {
+    SColumn* pCol = taosArrayGetP(pQueryInfo->colList, i);
+    for (int32_t j = 0; j < pCol->info.flist.numOfFilters; ++j) {
+      len += sizeof(SColumnFilterInfo);
+      if (pCol->info.flist.filterInfo[j].filterstr) {
+        len += (int32_t)pCol->info.flist.filterInfo[j].len + 1 * TSDB_NCHAR_SIZE;
+      }
+    }
+  }
+  return len;
+}
+
 int32_t tscCreateQueryFromQueryInfo(SQueryInfo* pQueryInfo, SQueryAttr* pQueryAttr, void* addr) {
   memset(pQueryAttr, 0, sizeof(SQueryAttr));
 
@@ -4597,7 +4614,7 @@ int32_t tscCreateQueryFromQueryInfo(SQueryInfo* pQueryInfo, SQueryAttr* pQueryAt
   pQueryAttr->queryBlockDist    = isBlockDistQuery(pQueryInfo);
   pQueryAttr->pointInterpQuery  = tscIsPointInterpQuery(pQueryInfo);
   pQueryAttr->timeWindowInterpo = timeWindowInterpoRequired(pQueryInfo);
-  pQueryAttr->distinctTag       = pQueryInfo->distinctTag;
+  pQueryAttr->distinct          = pQueryInfo->distinct;
   pQueryAttr->sw                = pQueryInfo->sessionWindow;
   pQueryAttr->stateWindow       = pQueryInfo->stateWindow;
 
@@ -4770,15 +4787,6 @@ static void freeContent(void* p) {
   tfree(ptr);
 }
 
-static int32_t contCompare(const void* p1, const void* p2) {
-  int32_t ret = strcmp(p1, p2);
-  if (ret == 0) {
-    return 0;
-  } else {
-    return ret > 0 ? 1:-1;
-  }
-}
-
 int tscTransferTableNameList(SSqlObj *pSql, const char *pNameList, int32_t length, SArray* pNameArray) {
   SSqlCmd *pCmd = &pSql->cmd;
 
@@ -4826,7 +4834,7 @@ int tscTransferTableNameList(SSqlObj *pSql, const char *pNameList, int32_t lengt
   }
 
   taosArraySort(pNameArray, nameComparFn);
-  taosArrayRemoveDuplicate(pNameArray, contCompare, freeContent);
+  taosArrayRemoveDuplicate(pNameArray, nameComparFn, freeContent);
   return TSDB_CODE_SUCCESS;
 }
 
