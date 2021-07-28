@@ -907,6 +907,11 @@ class TDTestCase:
         s_stb_d_tb_a_col_m_tag_list = list()
         s_stb_d_tb_a_tag_m_col_list = list()
         s_stb_s_tb_d_ts_list = list()
+        s_stb_s_tb_d_ts_a_col_m_tag_list = list()
+        s_stb_s_tb_d_ts_a_tag_m_col_list = list()
+        s_stb_d_tb_d_ts_list = list()
+        s_stb_d_tb_d_ts_a_col_m_tag_list = list()
+        s_stb_d_tb_d_ts_a_tag_m_col_list = list()
         for i in range(count):
             d_stb_d_tb_list.append(self.genFullTypeSql(t0="f", c0="f"))
             s_stb_s_tb_list.append(self.genFullTypeSql(stb_name=stb_name, tb_name=tb_name, t7=f'"{self.getLongName(8, "letters")}"', c7=f'"{self.getLongName(8, "letters")}"'))
@@ -916,8 +921,16 @@ class TDTestCase:
             s_stb_d_tb_a_col_m_tag_list.append(self.genFullTypeSql(stb_name=stb_name, t7=f'"{self.getLongName(8, "letters")}"', c7=f'"{self.getLongName(8, "letters")}"', id_noexist_tag=True, ct_am_tag=True))
             s_stb_d_tb_a_tag_m_col_list.append(self.genFullTypeSql(stb_name=stb_name, t7=f'"{self.getLongName(8, "letters")}"', c7=f'"{self.getLongName(8, "letters")}"', id_noexist_tag=True, ct_ma_tag=True))
             s_stb_s_tb_d_ts_list.append(self.genFullTypeSql(stb_name=stb_name, tb_name=tb_name, t7=f'"{self.getLongName(8, "letters")}"', c7=f'"{self.getLongName(8, "letters")}"', ts=0))
+            s_stb_s_tb_d_ts_a_col_m_tag_list.append(self.genFullTypeSql(stb_name=stb_name, tb_name=tb_name, t7=f'"{self.getLongName(8, "letters")}"', c7=f'"{self.getLongName(8, "letters")}"', ts=0, ct_am_tag=True))
+            s_stb_s_tb_d_ts_a_tag_m_col_list.append(self.genFullTypeSql(stb_name=stb_name, tb_name=tb_name, t7=f'"{self.getLongName(8, "letters")}"', c7=f'"{self.getLongName(8, "letters")}"', ts=0, ct_ma_tag=True))
+            s_stb_d_tb_d_ts_list.append(self.genFullTypeSql(stb_name=stb_name, t7=f'"{self.getLongName(8, "letters")}"', c7=f'"{self.getLongName(8, "letters")}"', id_noexist_tag=True, ts=0))
+            s_stb_d_tb_d_ts_a_col_m_tag_list.append(self.genFullTypeSql(stb_name=stb_name, t7=f'"{self.getLongName(8, "letters")}"', c7=f'"{self.getLongName(8, "letters")}"', id_noexist_tag=True, ts=0, ct_am_tag=True))
+            s_stb_d_tb_d_ts_a_tag_m_col_list.append(self.genFullTypeSql(stb_name=stb_name, t7=f'"{self.getLongName(8, "letters")}"', c7=f'"{self.getLongName(8, "letters")}"', id_noexist_tag=True, ts=0, ct_ma_tag=True))
 
-        return d_stb_d_tb_list, s_stb_s_tb_list, s_stb_s_tb_a_col_a_tag_list, s_stb_s_tb_m_col_m_tag_list, s_stb_d_tb_list, s_stb_d_tb_a_col_m_tag_list, s_stb_d_tb_a_tag_m_col_list, s_stb_s_tb_d_ts_list
+        return d_stb_d_tb_list, s_stb_s_tb_list, s_stb_s_tb_a_col_a_tag_list, s_stb_s_tb_m_col_m_tag_list, \
+            s_stb_d_tb_list, s_stb_d_tb_a_col_m_tag_list, s_stb_d_tb_a_tag_m_col_list, s_stb_s_tb_d_ts_list, \
+            s_stb_s_tb_d_ts_a_col_m_tag_list, s_stb_s_tb_d_ts_a_tag_m_col_list, s_stb_d_tb_d_ts_list, \
+            s_stb_d_tb_d_ts_a_col_m_tag_list, s_stb_d_tb_d_ts_a_tag_m_col_list
 
 
     def genMultiThreadSeq(self, sql_list):
@@ -1052,15 +1065,86 @@ class TDTestCase:
         tdSql.query(f"select * from {stb_name}")
         tdSql.checkRows(6)
 
-    def test(self):
-        input_sql1 = "rfasta,id=\"rfasta_1\",t0=true,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7=\"ddzhiksj\",t8=L\"ncharTagValue\" c0=True,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7=\"bnhwlgvj\",c8=L\"ncharTagValue\",c9=7u64 1626006833639000000ns"
+    def sStbStbDdataDtsAcMtInsertMultiThreadCheckCase(self):
+        """
+            thread input same stb tb, different ts, add col, mul tag
+        """
+        self.cleanStb()
+        tb_name = self.getLongName(7, "letters")
+        input_sql, stb_name = self.genFullTypeSql(tb_name=tb_name)
+        self.resCmp(input_sql, stb_name)
+        s_stb_s_tb_d_ts_a_col_m_tag_list = self.genSqlList(stb_name=stb_name, tb_name=tb_name)[8]
+        print(s_stb_s_tb_d_ts_a_col_m_tag_list)
+        self.multiThreadRun(self.genMultiThreadSeq(s_stb_s_tb_d_ts_a_col_m_tag_list))
+        tdSql.query(f"show tables;")
+        tdSql.checkRows(1)
+        tdSql.query(f"select * from {stb_name}")
+        tdSql.checkRows(6)
+        tdSql.query(f"select * from {stb_name} where t8 is not NULL")
+        tdSql.checkRows(6)
+        tdSql.query(f"select * from {tb_name} where c11 is not NULL;")
+        tdSql.checkRows(5)
 
-        input_sql2 = "rfasta,t0=true,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7=\"ddzhiksj\",t8=L\"ncharTagValue\" c0=True,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7=\"bnhwlgvj\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000ns"
-        input_sql3 = f'abcd,id="cc¥Ec",t0=True,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7="ndsfdrum",t8=L"ncharTagValue" c0=f,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7="igwoehkm",c8=L"ncharColValue",c9=7u64 0'
-        print(input_sql3)
+    def sStbStbDdataDtsAtMcInsertMultiThreadCheckCase(self):
+        """
+            thread input same stb tb, different ts, add tag, mul col
+        """
+        self.cleanStb()
+        tb_name = self.getLongName(7, "letters")
+        input_sql, stb_name = self.genFullTypeSql(tb_name=tb_name)
+        self.resCmp(input_sql, stb_name)
+        s_stb_s_tb_d_ts_a_tag_m_col_list = self.genSqlList(stb_name=stb_name, tb_name=tb_name)[9]
+        print(s_stb_s_tb_d_ts_a_tag_m_col_list)
+        self.multiThreadRun(self.genMultiThreadSeq(s_stb_s_tb_d_ts_a_tag_m_col_list))
+        tdSql.query(f"show tables;")
+        tdSql.checkRows(1)
+        tdSql.query(f"select * from {stb_name}")
+        tdSql.checkRows(6)
+        for c in ["c7", "c8", "c9"]:
+            tdSql.query(f"select * from {stb_name} where {c} is NULL")
+            tdSql.checkRows(5)        
+        for t in ["t10", "t11"]:
+            tdSql.query(f"select * from {stb_name} where {t} is not NULL;")
+            tdSql.checkRows(6)
+
+    def sStbDtbDdataDtsInsertMultiThreadCheckCase(self):
+        """
+            thread input same stb, different tb, data, ts
+        """
+        self.cleanStb()
+        input_sql, stb_name = self.genFullTypeSql()
+        self.resCmp(input_sql, stb_name)
+        s_stb_d_tb_d_ts_list = self.genSqlList(stb_name=stb_name)[10]
+        self.multiThreadRun(self.genMultiThreadSeq(s_stb_d_tb_d_ts_list))
+        tdSql.query(f"show tables;")
+        tdSql.checkRows(6)
+
+    def sStbDtbDdataDtsAcMtInsertMultiThreadCheckCase(self):
+        """
+            # ! concurrency conflict
+        """
+        """
+            thread input same stb, different tb, data, ts, add col, mul tag
+        """
+        self.cleanStb()
+        input_sql, stb_name = self.genFullTypeSql()
+        self.resCmp(input_sql, stb_name)
+        s_stb_d_tb_d_ts_a_col_m_tag_list = self.genSqlList(stb_name=stb_name)[11]
+        print(s_stb_d_tb_d_ts_a_col_m_tag_list)
+        self.multiThreadRun(self.genMultiThreadSeq(s_stb_d_tb_d_ts_a_col_m_tag_list))
+        tdSql.query(f"show tables;")
+        tdSql.checkRows(6)
+
+    def test(self):
+        input_sql1 = "rfasta,id=\"rfasta_1\",t0=true,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7=\"ddzhiksj\",t8=L\"ncharTagValue\" c0=True,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7=\"bnhwlgvj\",c8=L\"ncharTagValue\",c9=7u64 0"
+        input_sql2 = "rfasta,id=\"rfasta_1\",t0=true,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64 c0=True,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64 0"
+        self._conn.insertLines([input_sql1])
+        self._conn.insertLines([input_sql2])
+        # input_sql3 = f'abcd,id="cc¥Ec",t0=True,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7="ndsfdrum",t8=L"ncharTagValue" c0=f,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7="igwoehkm",c8=L"ncharColValue",c9=7u64 0'
+        # print(input_sql3)
         # input_sql4 = 'hmemeb,id="kilrcrldgf",t0=F,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7="fysodjql",t8=L"ncharTagValue" c0=True,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7="waszbfvc",c8=L"ncharColValue",c9=7u64 0'
-        code = self._conn.insertLines([input_sql3])
-        print(code)
+        # code = self._conn.insertLines([input_sql3])
+        # print(code)
         # self._conn.insertLines([input_sql4])
 
     def runAll(self):
@@ -1115,16 +1199,25 @@ class TDTestCase:
         self.sStbDtbDdataInsertMultiThreadCheckCase()
 
         # ! concurrency conflict
-        self.sStbDtbDdataAcMtInsertMultiThreadCheckCase()
-        self.sStbDtbDdataAtMcInsertMultiThreadCheckCase()
+        # self.sStbDtbDdataAcMtInsertMultiThreadCheckCase()
+        # self.sStbDtbDdataAtMcInsertMultiThreadCheckCase()
         # ! concurrency conflict
         self.sStbStbDdataDtsInsertMultiThreadCheckCase()
+
+        self.sStbStbDdataDtsAcMtInsertMultiThreadCheckCase()
+        self.sStbStbDdataDtsAtMcInsertMultiThreadCheckCase()
+        self.sStbDtbDdataDtsInsertMultiThreadCheckCase()
+
+        # ! concurrency conflict
+        # self.sStbDtbDdataDtsAcMtInsertMultiThreadCheckCase()
+
+
 
     def run(self):
         print("running {}".format(__file__))
         self.createDb()
-        self.runAll()
-
+        # self.runAll()
+        self.sStbDtbDdataDtsAcMtInsertMultiThreadCheckCase()
         # self.test()
 
     def stop(self):
