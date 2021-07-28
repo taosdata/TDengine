@@ -97,12 +97,47 @@ static UNUSED_FUNC void* u_realloc(void* p, size_t __size) {
 #define GET_NUM_OF_TABLEGROUP(q)    taosArrayGetSize((q)->tableqinfoGroupInfo.pGroupList)
 #define QUERY_IS_INTERVAL_QUERY(_q) ((_q)->interval.interval > 0)
 
+#define TSKEY_MAX_ADD(a,b)                 \
+do {                                       \
+  if (a < 0) { a = a + b; break;}          \
+  if (sizeof(a) == sizeof(int32_t)) {      \
+   if((b) > 0 && ((b) >= INT32_MAX - (a))){\
+     a = INT32_MAX;                        \
+   } else {                                \
+     a = a + b;                            \
+   }                                       \
+  } else {                                 \
+   if((b) > 0 && ((b) >= INT64_MAX - (a))){\
+     a = INT64_MAX;                        \
+   } else {                                \
+     a = a + b;                            \
+   }                                       \
+  }                                        \
+} while(0)                                 
+
+#define TSKEY_MIN_SUB(a,b)                 \
+do {                                       \
+  if (a >= 0) { a = a + b; break;}         \
+  if (sizeof(a) == sizeof(int32_t)){       \
+   if((b) < 0 && ((b) <= INT32_MIN - (a))){\
+     a = INT32_MIN;                        \
+   } else {                                \
+     a = a + b;                            \
+   }                                       \
+  } else {                                 \
+    if((b) < 0 && ((b) <= INT64_MIN-(a))) {\
+     a = INT64_MIN;                        \
+    } else {                               \
+     a = a + b;                            \
+    }                                      \
+  }                                        \
+} while (0)
+
 uint64_t queryHandleId = 0;
 
 int32_t getMaximumIdleDurationSec() {
   return tsShellActivityTimer * 2;
 }
-
 int64_t genQueryId(void) {
   int64_t uid = 0;
   int64_t did = tsDnodeId;
@@ -3124,7 +3159,9 @@ void setTagValue(SOperatorInfo* pOperatorInfo, void *pTable, SQLFunctionCtx* pCt
           || pLocalExprInfo->base.resType == TSDB_DATA_TYPE_TIMESTAMP) {
         memcpy(pRuntimeEnv->tagVal + offset, &pCtx[idx].tag.i64, pLocalExprInfo->base.resBytes);
       } else {
-        memcpy(pRuntimeEnv->tagVal + offset, pCtx[idx].tag.pz, pCtx[idx].tag.nLen);
+        if (pCtx[idx].tag.pz != NULL) {
+          memcpy(pRuntimeEnv->tagVal + offset, pCtx[idx].tag.pz, pCtx[idx].tag.nLen);
+        }      
       }
 
       offset += pLocalExprInfo->base.resBytes;
@@ -3934,8 +3971,8 @@ static void toSSDataBlock(SGroupResInfo *pGroupResInfo, SQueryRuntimeEnv* pRunti
 
   // refactor : extract method
   SColumnInfoData* pInfoData = taosArrayGet(pBlock->pDataBlock, 0);
-
-  if (pInfoData->info.type == TSDB_DATA_TYPE_TIMESTAMP) {
+  //add condition (pBlock->info.rows >= 1) just to runtime happy
+  if (pInfoData->info.type == TSDB_DATA_TYPE_TIMESTAMP && pBlock->info.rows >= 1) {
     STimeWindow* w = &pBlock->info.window;
     w->skey = *(int64_t*)pInfoData->pData;
     w->ekey = *(int64_t*)(((char*)pInfoData->pData) + TSDB_KEYSIZE * (pBlock->info.rows - 1));
@@ -5273,7 +5310,15 @@ static SSDataBlock* doSTableAggregate(void* param, bool* newgroup) {
     // the pDataBlock are always the same one, no need to call this again
     setInputDataBlock(pOperator, pInfo->pCtx, pBlock, order);
 
-    TSKEY key = QUERY_IS_ASC_QUERY(pQueryAttr)? pBlock->info.window.ekey + 1:pBlock->info.window.skey-1;
+    TSKEY key = 0;
+    if (QUERY_IS_ASC_QUERY(pQueryAttr)) {
+      key = pBlock->info.window.ekey;
+      TSKEY_MAX_ADD(key, 1);
+    } else {
+      key = pBlock->info.window.skey;
+      TSKEY_MIN_SUB(key, -1);
+    }
+    
     setExecutionContext(pRuntimeEnv, pInfo, pOperator->numOfOutput, pRuntimeEnv->current->groupIndex, key);
     doAggregateImpl(pOperator, pQueryAttr->window.skey, pInfo->pCtx, pBlock);
   }

@@ -722,7 +722,8 @@ static int tsdbRestoreLastColumns(STsdbRepo *pRepo, STable *pTable, SReadH* pRea
       // OK,let's load row from backward to get not-null column
       for (int32_t rowId = pBlock->numOfRows - 1; rowId >= 0; rowId--) {
         SDataCol *pDataCol = pReadh->pDCols[0]->cols + i;
-        tdAppendColVal(memRowDataBody(row), tdGetColDataOfRow(pDataCol, rowId), pCol->type, pCol->offset);
+        const void* pColData = tdGetColDataOfRow(pDataCol, rowId);
+        tdAppendColVal(memRowDataBody(row), pColData, pCol->type, pCol->offset);
         //SDataCol *pDataCol = readh.pDCols[0]->cols + j;
         void *value = tdGetRowDataOfCol(memRowDataBody(row), (int8_t)pCol->type, TD_DATA_ROW_HEAD_SIZE + pCol->offset);
         if (isNull(value, pCol->type)) {
@@ -735,11 +736,12 @@ static int tsdbRestoreLastColumns(STsdbRepo *pRepo, STable *pTable, SReadH* pRea
           continue;
         }
         // save not-null column
+        uint16_t bytes = IS_VAR_DATA_TYPE(pCol->type) ? varDataTLen(pColData) : pCol->bytes;
         SDataCol *pLastCol = &(pTable->lastCols[idx]);
-        pLastCol->pData = malloc(pCol->bytes);
-        pLastCol->bytes = pCol->bytes;
+        pLastCol->pData = malloc(bytes);
+        pLastCol->bytes = bytes;
         pLastCol->colId = pCol->colId;
-        memcpy(pLastCol->pData, value, pCol->bytes);
+        memcpy(pLastCol->pData, value, bytes);
 
         // save row ts(in column 0)
         pDataCol = pReadh->pDCols[0]->cols + 0;
