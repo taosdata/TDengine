@@ -64,10 +64,8 @@ int cacheSlabInit(cache_t *cache) {
   // init slab lru class
   for (i = 0; i < MAX_NUMBER_OF_SLAB_LRU; i++) {
     cacheSlabLruClass* lru = &(cache->lruArray[i]);
-    lru->tail = NULL;
-    lru->bytes = lru->num = 0;
-    lru->id = i;
-    if (cacheMutexInit(&(lru->mutex)) != 0) {
+    if (cacheLruInit(lru, i) != 0) {
+      cacheError("cacheLruInit fail:%d", i);
       goto error;
     }
   }
@@ -83,6 +81,10 @@ error:
   }
   
   return CACHE_FAIL;
+}
+
+int cacheSlabDestroy(cache_t *cache) {
+  return CACHE_OK;
 }
 
 uint32_t cacheSlabId(cache_t *cache, size_t size) {
@@ -320,12 +322,13 @@ static int pullFromLru(cache_t *cache, int slabId, int curLru, uint64_t totalByt
       continue;
     }
 
-    /* is item is refcount locked? */
+    /* after incr(refcount) != 2 means ref count leaks */
     if (itemIncrRef(search) != 2) {
       search->refCount = 1;
       cacheItemUnlink(search->pTable, search, false, false);
       cacheMutexTryUnlock(pMutex);
-      continue;
+      removed++;
+      break;
     }
 
     /* is item expired? */
@@ -336,7 +339,7 @@ static int pullFromLru(cache_t *cache, int slabId, int curLru, uint64_t totalByt
       cacheItemRemove(cache, search);      
       cacheMutexTryUnlock(pMutex);
       removed++;
-      continue;
+      break;
     }    
 
     removed += moveItemFromLru(cache, lruId, curLru, totalBytes, pMutex, &moveToLru, search, &item);

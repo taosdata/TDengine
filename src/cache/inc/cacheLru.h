@@ -26,11 +26,15 @@ extern "C" {
 
 typedef struct cacheSlabLruClass {
   cacheItem*    tail;   /* tail of lru item list */
+  cacheItem*    head;   /* head of lru item list */
   uint32_t      num;    /* number of lru list items */
   uint64_t      bytes;  /* total size of lru list items */
   int           id;     /* lru id */
   cacheMutex    mutex;
 } cacheSlabLruClass;
+
+int   cacheLruInit(cacheSlabLruClass* pLru, int i);
+int   cacheLruDestroy(cacheSlabLruClass* pLru);
 
 void  cacheLruUnlinkItem(cache_t*, cacheItem*, bool lock);
 void  cacheLruLinkItem(cache_t*, cacheItem*, bool lock);
