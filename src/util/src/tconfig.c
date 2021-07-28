@@ -484,6 +484,9 @@ void taosPrintGlobalCfg() {
       case TAOS_CFG_VTYPE_FLOAT:
         uInfo(" %s:%s%f%s", cfg->option, blank, *((float *)cfg->ptr), tsGlobalUnit[cfg->unitType]);
         break;
+      case TAOS_CFG_VTYPE_DOUBLE:
+        uInfo(" %s:%s%f%s", cfg->option, blank, *((double *)cfg->ptr), tsGlobalUnit[cfg->unitType]);
+        break;
       case TAOS_CFG_VTYPE_STRING:
       case TAOS_CFG_VTYPE_IPSTR:
       case TAOS_CFG_VTYPE_DIRECTORY:

@@ -632,7 +632,7 @@ static int32_t tscEstimateQueryMsgSize(SSqlObj *pSql) {
   SQueryInfo *pQueryInfo = tscGetQueryInfo(pCmd);
 
   int32_t srcColListSize = (int32_t)(taosArrayGetSize(pQueryInfo->colList) * sizeof(SColumnInfo));
-
+  int32_t srcColFilterSize = tscGetColFilterSerializeLen(pQueryInfo);
   size_t  numOfExprs = tscNumOfExprs(pQueryInfo);
   int32_t exprSize = (int32_t)(sizeof(SSqlExpr) * numOfExprs * 2);
 
@@ -653,7 +653,7 @@ static int32_t tscEstimateQueryMsgSize(SSqlObj *pSql) {
     tableSerialize = totalTables * sizeof(STableIdInfo);
   }
 
-  return MIN_QUERY_MSG_PKT_SIZE + minMsgSize() + sizeof(SQueryTableMsg) + srcColListSize + exprSize + tsBufSize +
+  return MIN_QUERY_MSG_PKT_SIZE + minMsgSize() + sizeof(SQueryTableMsg) + srcColListSize + srcColFilterSize + exprSize + tsBufSize +
          tableSerialize + sqlLen + 4096 + pQueryInfo->bufLen;
 }
 
@@ -2776,7 +2776,7 @@ int32_t getMultiTableMetaFromMnode(SSqlObj *pSql, SArray* pNameList, SArray* pVg
   return code;
 }
 
-int32_t tscGetTableMetaImpl(SSqlObj* pSql, STableMetaInfo *pTableMetaInfo, bool autocreate) {
+int32_t tscGetTableMetaImpl(SSqlObj* pSql, STableMetaInfo *pTableMetaInfo, bool autocreate, bool onlyLocal) {
   assert(tIsValidName(&pTableMetaInfo->name));
 
   uint32_t size = tscGetTableMetaMaxSize();
@@ -2822,15 +2822,20 @@ int32_t tscGetTableMetaImpl(SSqlObj* pSql, STableMetaInfo *pTableMetaInfo, bool 
     }
     return TSDB_CODE_SUCCESS;
   }
+
+  if (onlyLocal) {
+    return TSDB_CODE_TSC_NO_META_CACHED;
+  }
+  
   return getTableMetaFromMnode(pSql, pTableMetaInfo, autocreate);
 }
 
 int32_t tscGetTableMeta(SSqlObj *pSql, STableMetaInfo *pTableMetaInfo) {
-  return tscGetTableMetaImpl(pSql, pTableMetaInfo, false);
+  return tscGetTableMetaImpl(pSql, pTableMetaInfo, false, false);
 }
 
-int tscGetTableMetaEx(SSqlObj *pSql, STableMetaInfo *pTableMetaInfo, bool createIfNotExists) {
-  return tscGetTableMetaImpl(pSql, pTableMetaInfo, createIfNotExists);
+int tscGetTableMetaEx(SSqlObj *pSql, STableMetaInfo *pTableMetaInfo, bool createIfNotExists, bool onlyLocal) {
+  return tscGetTableMetaImpl(pSql, pTableMetaInfo, createIfNotExists, onlyLocal);
 }
 
 int32_t tscGetUdfFromNode(SSqlObj *pSql, SQueryInfo* pQueryInfo) {
