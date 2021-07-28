@@ -34,15 +34,15 @@ typedef struct {
   void *  pMsg;
 } SSubmitMsgIter;
 
-static SMemTable * tsdbNewMemTable(STsdbRepo *pRepo);
-static void        tsdbFreeMemTable(SMemTable *pMemTable);
-static STableData *tsdbNewTableData(STsdbCfg *pCfg, STable *pTable);
-static void        tsdbFreeTableData(STableData *pTableData);
-static char *      tsdbGetTsTupleKey(const void *data);
+static SMemTable *  tsdbNewMemTable(STsdbRepo *pRepo);
+static void         tsdbFreeMemTable(SMemTable *pMemTable);
+static STableData*  tsdbNewTableData(STsdbCfg *pCfg, STable *pTable);
+static void         tsdbFreeTableData(STableData *pTableData);
+static char *       tsdbGetTsTupleKey(const void *data);
 static int          tsdbAdjustMemMaxTables(SMemTable *pMemTable, int maxTables);
-static int              tsdbAppendTableRowToCols(STable *pTable, SDataCols *pCols, STSchema **ppSchema, SMemRow row);
+static int          tsdbAppendTableRowToCols(STable *pTable, SDataCols *pCols, STSchema **ppSchema, SMemRow row);
 static int          tsdbInitSubmitBlkIter(SSubmitBlk *pBlock, SSubmitBlkIter *pIter);
-static SMemRow          tsdbGetSubmitBlkNext(SSubmitBlkIter *pIter);
+static SMemRow      tsdbGetSubmitBlkNext(SSubmitBlkIter *pIter);
 static int          tsdbScanAndConvertSubmitMsg(STsdbRepo *pRepo, SSubmitMsg *pMsg);
 static int          tsdbInsertDataToTable(STsdbRepo *pRepo, SSubmitBlk *pBlock, int32_t *affectedrows);
 static int          tsdbInitSubmitMsgIter(SSubmitMsg *pMsg, SSubmitMsgIter *pIter);
@@ -700,31 +700,6 @@ static int tsdbScanAndConvertSubmitMsg(STsdbRepo *pRepo, SSubmitMsg *pMsg) {
   if (terrno != TSDB_CODE_SUCCESS) return -1;
   return 0;
 }
-
-#if 0
-static FORCE_INLINE int32_t insertDataToTablePreEntry(STsdbRepo* pRepo, STable *pTable, SMemRow row) {
-  STsdbCfg *  pCfg = &pRepo->config;
-  TKEY        tkey = memRowTKey(row);
-  TSKEY       key = memRowKey(row);
-  bool        isRowDelete = TKEY_IS_DELETED(tkey);
-
-  if (isRowDelete) {
-    if (pCfg->update == TD_ROW_DISCARD_UPDATE) {
-      tsdbWarn("vgId:%d vnode is not allowed to update but try to delete a data row", REPO_ID(pRepo));
-      terrno = TSDB_CODE_TDB_INVALID_ACTION;
-      return SSkipListPutEarlyStop;
-    }
-
-    TSKEY lastKey = tsdbGetTableLastKeyImpl(pTable);
-    if (key > lastKey) {
-      tsdbTrace("vgId:%d skip to delete row key %" PRId64 " which is larger than table lastKey %" PRId64,
-                REPO_ID(pRepo), key, lastKey);
-      return SSkipListPutNormal;
-    }
-  }
-  return SSkipListPutNormal;
-}
-#endif
 
 //row1 has higher priority
 static SMemRow tsdbInsertDupKeyMerge(SMemRow row1, SMemRow row2, STsdbRepo* pRepo, STSchema **ppSchema1, STSchema **ppSchema2, STable* pTable, int32_t* affectedRows, int64_t* points) {

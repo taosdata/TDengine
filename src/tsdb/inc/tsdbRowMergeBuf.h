@@ -26,9 +26,6 @@ extern "C" {
 
 typedef void* SMergeBuf;
 
-#define SMERGE_BUF_LEN(x) (*(size_t*)(x))
-#define SMERGE_BUF_PTR(x) POINTER_SHIFT(x, sizeof(size_t))
-
 SDataRow tsdbMergeTwoRows(SMergeBuf *pBuf, SMemRow row1, SMemRow row2, STSchema *pSchema1, STSchema *pSchema2);
 
 static FORCE_INLINE int tsdbMergeBufMakeSureRoom(SMergeBuf *pBuf, STSchema* pSchema1, STSchema* pSchema2) {

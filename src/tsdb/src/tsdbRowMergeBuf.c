@@ -26,9 +26,5 @@ SMemRow tsdbMergeTwoRows(SMergeBuf *pBuf, SMemRow row1, SMemRow row2, STSchema *
   if(tsdbMergeBufMakeSureRoom(pBuf, pSchema1, pSchema2) < 0) {
     return NULL;
   }
-  SMergeBuf buf = *pBuf;
-
-  void *pData = SMERGE_BUF_PTR(buf);
-
-  return mergeTwoMemRows(pData, row1, row2, pSchema1, pSchema2);
+  return mergeTwoMemRows(*pBuf, row1, row2, pSchema1, pSchema2);
 }
