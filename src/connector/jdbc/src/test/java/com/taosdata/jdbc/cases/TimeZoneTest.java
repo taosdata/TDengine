@@ -13,11 +13,12 @@ public class TimeZoneTest {
     private String url = "jdbc:TAOS://127.0.0.1:6030/?user=root&password=taosdata";
 
     @Test
-    public void test() {
+    public void utcMinus8() {
         // given
         Properties props = new Properties();
         props.setProperty(TSDBDriver.PROPERTY_KEY_TIME_ZONE, "UTC-8");
 
+        // when and then
         try (Connection connection = DriverManager.getConnection(url, props)) {
             Statement stmt = connection.createStatement();
             stmt.execute("insert into timezone_test.weather(ts, temperature) values('1970-01-01 00:00:00', 1.0)");
@@ -25,15 +26,58 @@ public class TimeZoneTest {
             ResultSet rs = stmt.executeQuery("select * from timezone_test.weather");
             while (rs.next()) {
                 Timestamp ts = rs.getTimestamp("ts");
-                System.out.println(ts);
-//                assertEquals();
+                System.out.println("ts: " + ts.getTime() + "," + ts);
             }
 
             stmt.close();
         } catch (SQLException e) {
             e.printStackTrace();
         }
+    }
 
+    @Test
+    public void noTimeZoneSetting() {
+        // given
+        Properties props = new Properties();
+
+        // when and then
+        try (Connection connection = DriverManager.getConnection(url, props)) {
+            Statement stmt = connection.createStatement();
+            stmt.execute("insert into timezone_test.weather(ts, temperature) values('1970-01-01 00:00:00', 1.0)");
+
+            ResultSet rs = stmt.executeQuery("select * from timezone_test.weather");
+            while (rs.next()) {
+                Timestamp ts = rs.getTimestamp("ts");
+                System.out.println("ts: " + ts.getTime() + "," + ts);
+            }
+
+            stmt.close();
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+    }
+
+    @Test
+    public void utcPlus8() {
+        // given
+        Properties props = new Properties();
+        props.setProperty(TSDBDriver.PROPERTY_KEY_TIME_ZONE, "UTC+8");
+
+        // when and then
+        try (Connection connection = DriverManager.getConnection(url, props)) {
+            Statement stmt = connection.createStatement();
+            stmt.execute("insert into timezone_test.weather(ts, temperature) values('1970-01-01 00:00:00', 1.0)");
+
+            ResultSet rs = stmt.executeQuery("select * from timezone_test.weather");
+            while (rs.next()) {
+                Timestamp ts = rs.getTimestamp("ts");
+                System.out.println("ts: " + ts.getTime() + "," + ts);
+            }
+
+            stmt.close();
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
     }
 
     @Before
