@@ -1964,6 +1964,7 @@ static void freeQueryInfoImpl(SQueryInfo* pQueryInfo) {
   pQueryInfo->tsBuf = tsBufDestroy(pQueryInfo->tsBuf);
 
   tfree(pQueryInfo->fillVal);
+  pQueryInfo->fillType = 0;
   tfree(pQueryInfo->buf);
 }
 
@@ -2437,7 +2438,9 @@ void tscDoQuery(SSqlObj* pSql) {
     SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
     uint16_t type = pQueryInfo->type;
 
-    if ((pCmd->command == TSDB_SQL_SELECT) && (!TSDB_QUERY_HAS_TYPE(type, TSDB_QUERY_TYPE_SUBQUERY)) && (!TSDB_QUERY_HAS_TYPE(type, TSDB_QUERY_TYPE_STABLE_SUBQUERY))) {
+    if ((pCmd->command == TSDB_SQL_SELECT) && (((!TSDB_QUERY_HAS_TYPE(type, TSDB_QUERY_TYPE_SUBQUERY)) &&
+                                                (!TSDB_QUERY_HAS_TYPE(type, TSDB_QUERY_TYPE_STABLE_SUBQUERY))) ||
+                                               (tscIsProjectionQuery(pQueryInfo)))) {
       tscAddIntoSqlList(pSql);
     }
   
@@ -2516,7 +2519,7 @@ bool tscIsUpdateQuery(SSqlObj* pSql) {
   }
 
   SSqlCmd* pCmd = &pSql->cmd;
-  return ((pCmd->command >= TSDB_SQL_INSERT && pCmd->command <= TSDB_SQL_DROP_DNODE) || TSDB_SQL_USE_DB == pCmd->command);
+  return ((pCmd->command >= TSDB_SQL_INSERT && pCmd->command <= TSDB_SQL_DROP_DNODE) || TSDB_SQL_RESET_CACHE == pCmd->command || TSDB_SQL_USE_DB == pCmd->command);
 }
 
 char* tscGetSqlStr(SSqlObj* pSql) {

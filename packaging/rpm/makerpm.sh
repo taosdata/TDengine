@@ -73,7 +73,7 @@ else
 fi
 
 if [ "$verType" == "beta" ]; then
-  rpmname=${rpmname}-${verType}".rpm"
+  rpmname="TDengine-server-"${tdengine_ver}-${verType}-${osType}-${cpuType}".rpm"
 elif [ "$verType" == "stable" ]; then
   rpmname=${rpmname}".rpm"
 else

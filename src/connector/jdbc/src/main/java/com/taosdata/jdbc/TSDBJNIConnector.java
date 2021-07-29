@@ -29,14 +29,9 @@ import java.util.List;
 public class TSDBJNIConnector {
     private static volatile Boolean isInitialized = false;
 
-    private TaosInfo taosInfo = TaosInfo.getInstance();
-
-    // Connection pointer used in C
-    private long taos = TSDBConstants.JNI_NULL_POINTER;
-
-    // result set status in current connection
-    private boolean isResultsetClosed;
-
+    private final TaosInfo taosInfo = TaosInfo.getInstance();
+    private long taos = TSDBConstants.JNI_NULL_POINTER;     // Connection pointer used in C
+    private boolean isResultsetClosed;      // result set status in current connection
     private int affectedRows = -1;
 
     static {
@@ -96,11 +91,9 @@ public class TSDBJNIConnector {
 
     /**
      * Execute DML/DDL operation
-     *
-     * @throws SQLException
      */
     public long executeQuery(String sql) throws SQLException {
-        Long pSql = 0l;
+        long pSql = 0L;
         try {
             pSql = this.executeQueryImp(sql.getBytes(TaosGlobalConfig.getCharset()), this.taos);
             taosInfo.stmt_count_increment();
@@ -161,7 +154,7 @@ public class TSDBJNIConnector {
     private native long getResultSetImp(long connection, long pSql);
 
     public boolean isUpdateQuery(long pSql) {
-        return isUpdateQueryImp(this.taos, pSql) == 1 ? true : false;
+        return isUpdateQueryImp(this.taos, pSql) == 1;
     }
 
     private native long isUpdateQueryImp(long connection, long pSql);
@@ -195,7 +188,7 @@ public class TSDBJNIConnector {
      */
     public int getSchemaMetaData(long resultSet, List<ColumnMetaData> columnMetaData) {
         int ret = this.getSchemaMetaDataImp(this.taos, resultSet, columnMetaData);
-        columnMetaData.stream().forEach(column -> column.setColIndex(column.getColIndex() + 1));
+        columnMetaData.forEach(column -> column.setColIndex(column.getColIndex() + 1));
         return ret;
     }
 
@@ -217,9 +210,18 @@ public class TSDBJNIConnector {
     private native int fetchBlockImp(long connection, long resultSet, TSDBResultSetBlockData blockData);
 
     /**
-     * Execute close operation from C to release connection pointer by JNI
+     * Get Result Time Precision.
      *
-     * @throws SQLException
+     * @return 0: ms, 1: us, 2: ns
+     */
+    public int getResultTimePrecision(long sqlObj) {
+        return this.getResultTimePrecisionImp(this.taos, sqlObj);
+    }
+
+    private native int getResultTimePrecisionImp(long connection, long result);
+
+    /**
+     * Execute close operation from C to release connection pointer by JNI
      */
     public void closeConnection() throws SQLException {
         int code = this.closeConnectionImp(this.taos);
@@ -258,8 +260,6 @@ public class TSDBJNIConnector {
 
     /**
      * Unsubscribe, close a subscription
-     *
-     * @param subscription
      */
     void unsubscribe(long subscription, boolean isKeep) {
         unsubscribeImp(subscription, isKeep);
@@ -272,13 +272,13 @@ public class TSDBJNIConnector {
      */
     public boolean validateCreateTableSql(String sql) {
         int res = validateCreateTableSqlImp(taos, sql.getBytes());
-        return res != 0 ? false : true;
+        return res == 0;
     }
 
     private native int validateCreateTableSqlImp(long connection, byte[] sqlBytes);
 
     public long prepareStmt(String sql) throws SQLException {
-        Long stmt;
+        long stmt;
         try {
             stmt = prepareStmtImp(sql.getBytes(), this.taos);
         } catch (Exception e) {
@@ -348,4 +348,13 @@ public class TSDBJNIConnector {
     }
 
     private native int closeStmt(long stmt, long con);
+
+    public void insertLines(String[] lines) throws SQLException {
+        int code = insertLinesImp(lines, this.taos);
+        if (code != TSDBConstants.JNI_SUCCESS) {
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNKNOWN, "failed to insertLines");
+        }
+    }
+
+    private native int insertLinesImp(String[] lines, long conn);
 }
