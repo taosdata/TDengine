@@ -746,7 +746,7 @@ function is_version_compatible() {
     if [ -f ${script_dir}/driver/vercomp.txt ]; then
         min_compatible_version=`cat ${script_dir}/driver/vercomp.txt`
     else
-        min_compatible_version=$(${script_dir}/bin/tqd -V | head -1 | cut -d ' ' -f 5)
+        min_compatible_version=$(${script_dir}/bin/powerd -V | head -1 | cut -d ' ' -f 5)
     fi
 
     vercomp $curr_version $min_compatible_version
