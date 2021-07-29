@@ -294,10 +294,10 @@ int32_t taosHashPut(SHashObj *pHashObj, const void *key, size_t keyLen, void *da
 }
 
 void *taosHashGet(SHashObj *pHashObj, const void *key, size_t keyLen) {
-  return taosHashGetClone(pHashObj, key, keyLen, NULL, NULL, 0);
+  return taosHashGetClone(pHashObj, key, keyLen, NULL, NULL);
 }
 
-void* taosHashGetClone(SHashObj *pHashObj, const void *key, size_t keyLen, void (*fp)(void *), void* d, size_t dsize) {
+void* taosHashGetClone(SHashObj *pHashObj, const void *key, size_t keyLen, void (*fp)(void *), void* d) {
   if (taosHashTableEmpty(pHashObj) || keyLen == 0 || key == NULL) {
     return NULL;
   }

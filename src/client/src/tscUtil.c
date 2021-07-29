@@ -1420,7 +1420,7 @@ void tscResetSqlCmd(SSqlCmd* pCmd, bool clearCachedMeta) {
   if (pCmd->pTableMetaMap != NULL) {
     STableMetaVgroupInfo* p = taosHashIterate(pCmd->pTableMetaMap, NULL);
     while (p) {
-      tscVgroupInfoClear(p->pVgroupInfo);
+      taosArrayDestroy(p->vgroupIdList);
       tfree(p->pTableMeta);
       p = taosHashIterate(pCmd->pTableMetaMap, p);
     }
@@ -1428,6 +1428,22 @@ void tscResetSqlCmd(SSqlCmd* pCmd, bool clearCachedMeta) {
     taosHashCleanup(pCmd->pTableMetaMap);
     pCmd->pTableMetaMap = NULL;
   }
+}
+
+void* tscCleanupTableMetaMap(SHashObj* pTableMetaMap) {
+  if (pTableMetaMap == NULL) {
+    return NULL;
+  }
+
+  STableMetaVgroupInfo* p = taosHashIterate(pTableMetaMap, NULL);
+  while (p) {
+    taosArrayDestroy(p->vgroupIdList);
+    tfree(p->pTableMeta);
+    p = taosHashIterate(pTableMetaMap, p);
+  }
+
+  taosHashCleanup(pTableMetaMap);
+  return NULL;
 }
 
 void tscFreeSqlResult(SSqlObj* pSql) {
@@ -1554,7 +1570,7 @@ void tscDestroyDataBlock(STableDataBlocks* pDataBlock, bool removeMeta) {
     char name[TSDB_TABLE_FNAME_LEN] = {0};
     tNameExtractFullName(&pDataBlock->tableName, name);
 
-    taosHashRemove(tscTableMetaInfo, name, strnlen(name, TSDB_TABLE_FNAME_LEN));
+    taosHashRemove(tscTableMetaMap, name, strnlen(name, TSDB_TABLE_FNAME_LEN));
   }
 
   if (!pDataBlock->cloned) {
@@ -3466,7 +3482,7 @@ void clearAllTableMetaInfo(SQueryInfo* pQueryInfo, bool removeMeta) {
     if (removeMeta) {
       char name[TSDB_TABLE_FNAME_LEN] = {0};
       tNameExtractFullName(&pTableMetaInfo->name, name);
-      taosHashRemove(tscTableMetaInfo, name, strnlen(name, TSDB_TABLE_FNAME_LEN));
+      taosHashRemove(tscTableMetaMap, name, strnlen(name, TSDB_TABLE_FNAME_LEN));
     }
     
     tscFreeVgroupTableInfo(pTableMetaInfo->pVgroupTables);
@@ -3582,11 +3598,9 @@ SSqlObj* createSimpleSubObj(SSqlObj* pSql, __async_cb_func_t fp, void* param, in
 
   SSqlCmd* pCmd = &pNew->cmd;
   pCmd->command = cmd;
+  tsem_init(&pNew->rspSem, 0 ,0);
+
   if (tscAddQueryInfo(pCmd) != TSDB_CODE_SUCCESS) {
-#ifdef __APPLE__
-    // to satisfy later tsem_destroy in taos_free_result
-    tsem_init(&pNew->rspSem, 0, 0);
-#endif // __APPLE__
     tscFreeSqlObj(pNew);
     return NULL;
   }
@@ -4466,7 +4480,7 @@ int32_t tscCreateTableMetaFromSTableMeta(STableMeta* pChild, const char* name, v
   assert(pChild != NULL && buf != NULL);
 
   STableMeta* p = buf;
-  taosHashGetClone(tscTableMetaInfo, pChild->sTableName, strnlen(pChild->sTableName, TSDB_TABLE_FNAME_LEN), NULL, p, -1);
+  taosHashGetClone(tscTableMetaMap, pChild->sTableName, strnlen(pChild->sTableName, TSDB_TABLE_FNAME_LEN), NULL, p);
 
   // tableMeta exists, build child table meta according to the super table meta
   // the uid need to be checked in addition to the general name of the super table.
@@ -4480,7 +4494,7 @@ int32_t tscCreateTableMetaFromSTableMeta(STableMeta* pChild, const char* name, v
     memcpy(pChild->schema, p->schema, sizeof(SSchema) *total);
     return TSDB_CODE_SUCCESS;
   } else { // super table has been removed, current tableMeta is also expired. remove it here
-    taosHashRemove(tscTableMetaInfo, name, strnlen(name, TSDB_TABLE_FNAME_LEN));
+    taosHashRemove(tscTableMetaMap, name, strnlen(name, TSDB_TABLE_FNAME_LEN));
     return -1;
   }
 }
@@ -4686,6 +4700,22 @@ static int32_t createTagColumnInfo(SQueryAttr* pQueryAttr, SQueryInfo* pQueryInf
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t tscGetColFilterSerializeLen(SQueryInfo* pQueryInfo) {
+  int16_t numOfCols = (int16_t)taosArrayGetSize(pQueryInfo->colList);
+  int32_t len = 0;
+
+  for(int32_t i = 0; i < numOfCols; ++i) {
+    SColumn* pCol = taosArrayGetP(pQueryInfo->colList, i);
+    for (int32_t j = 0; j < pCol->info.flist.numOfFilters; ++j) {
+      len += sizeof(SColumnFilterInfo);
+      if (pCol->info.flist.filterInfo[j].filterstr) {
+        len += (int32_t)pCol->info.flist.filterInfo[j].len + 1 * TSDB_NCHAR_SIZE;
+      }
+    }
+  }
+  return len;
+}
+
 int32_t tscCreateQueryFromQueryInfo(SQueryInfo* pQueryInfo, SQueryAttr* pQueryAttr, void* addr) {
   memset(pQueryAttr, 0, sizeof(SQueryAttr));
 
@@ -4704,7 +4734,7 @@ int32_t tscCreateQueryFromQueryInfo(SQueryInfo* pQueryInfo, SQueryAttr* pQueryAt
   pQueryAttr->queryBlockDist    = isBlockDistQuery(pQueryInfo);
   pQueryAttr->pointInterpQuery  = tscIsPointInterpQuery(pQueryInfo);
   pQueryAttr->timeWindowInterpo = timeWindowInterpoRequired(pQueryInfo);
-  pQueryAttr->distinctTag       = pQueryInfo->distinctTag;
+  pQueryAttr->distinct          = pQueryInfo->distinct;
   pQueryAttr->sw                = pQueryInfo->sessionWindow;
   pQueryAttr->stateWindow       = pQueryInfo->stateWindow;
 
@@ -4962,4 +4992,20 @@ SNewVgroupInfo createNewVgroupInfo(SVgroupMsg *pVgroupMsg) {
   }
 
   return info;
+}
+
+void tscRemoveTableMetaBuf(STableMetaInfo* pTableMetaInfo, uint64_t id) {
+  char fname[TSDB_TABLE_FNAME_LEN] = {0};
+  tNameExtractFullName(&pTableMetaInfo->name, fname);
+
+  int32_t len = (int32_t) strnlen(fname, TSDB_TABLE_FNAME_LEN);
+  if (UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo)) {
+    void* pv = taosCacheAcquireByKey(tscVgroupListBuf, fname, len);
+    if (pv != NULL) {
+      taosCacheRelease(tscVgroupListBuf, &pv, true);
+    }
+  }
+
+  taosHashRemove(tscTableMetaMap, fname, len);
+  tscDebug("0x%"PRIx64" remove table meta %s, numOfRemain:%d", id, fname, (int32_t) taosHashGetSize(tscTableMetaMap));
 }

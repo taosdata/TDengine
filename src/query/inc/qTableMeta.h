@@ -138,7 +138,8 @@ typedef struct SQueryInfo {
   int64_t          vgroupLimit;    // table limit in case of super table projection query + global order + limit
 
   int32_t          udColumnId;    // current user-defined constant output field column id, monotonically decreases from TSDB_UD_COLUMN_INDEX
-  bool             distinctTag;   // distinct tag or not
+  bool             distinct;   // distinct tag or not
+  bool             onlyHasTagCond;
   int32_t          round;         // 0/1/....
   int32_t          bufLen;
   char*            buf;

@@ -123,10 +123,9 @@ void *taosHashGet(SHashObj *pHashObj, const void *key, size_t keyLen);
  * @param keyLen
  * @param fp
  * @param d
- * @param dsize
  * @return
  */
-void* taosHashGetClone(SHashObj *pHashObj, const void *key, size_t keyLen, void (*fp)(void *), void* d, size_t dsize);
+void* taosHashGetClone(SHashObj *pHashObj, const void *key, size_t keyLen, void (*fp)(void *), void* d);
 
 /**
  * remove item with the specified key

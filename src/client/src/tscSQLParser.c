@@ -81,8 +81,8 @@ static void getColumnName(tSqlExprItem* pItem, char* resultFieldName, char* rawN
 
 static int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t colIndex, tSqlExprItem* pItem,
     bool finalResult, SUdfInfo* pUdfInfo);
-static int32_t insertResultField(SQueryInfo* pQueryInfo, int32_t outputIndex, SColumnList* pIdList, int16_t bytes,
-                                 int8_t type, char* fieldName, SExprInfo* pSqlExpr);
+static int32_t insertResultField(SQueryInfo* pQueryInfo, int32_t outputIndex, SColumnList* pColList, int16_t bytes,
+                          int8_t type, char* fieldName, SExprInfo* pSqlExpr);
 
 static uint8_t convertRelationalOperator(SStrToken *pToken);
 
@@ -1952,12 +1952,13 @@ bool isValidDistinctSql(SQueryInfo* pQueryInfo) {
   if (pQueryInfo == NULL) {
     return false;
   }
-  if ((pQueryInfo->type & TSDB_QUERY_TYPE_STABLE_QUERY)  != TSDB_QUERY_TYPE_STABLE_QUERY) {
+  if ((pQueryInfo->type & TSDB_QUERY_TYPE_STABLE_QUERY)  != TSDB_QUERY_TYPE_STABLE_QUERY 
+      && (pQueryInfo->type & TSDB_QUERY_TYPE_TABLE_QUERY)  != TSDB_QUERY_TYPE_TABLE_QUERY) {
     return false;
   }
-  if (tscQueryTags(pQueryInfo) && tscNumOfExprs(pQueryInfo) == 1){
+  if (tscNumOfExprs(pQueryInfo) == 1){
     return true;
-  }
+  } 
   return false;
 }
 
@@ -2051,7 +2052,7 @@ int32_t validateSelectNodeList(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SArray* pS
   const char* msg1 = "too many items in selection clause";
   const char* msg2 = "functions or others can not be mixed up";
   const char* msg3 = "not support query expression";
-  const char* msg4 = "only support distinct one tag";
+  const char* msg4 = "only support distinct one column or tag";
   const char* msg5 = "invalid function name";
 
   // too many result columns not support order by in query
@@ -2111,12 +2112,12 @@ int32_t validateSelectNodeList(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SArray* pS
   }
 
   if (hasDistinct == true) {
-    if (!isValidDistinctSql(pQueryInfo)) {
+    if (!isValidDistinctSql(pQueryInfo) ) {
       return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg4);
     }
-
-    pQueryInfo->distinctTag = true;
+    pQueryInfo->distinct = true;
   }
+  
   
   // there is only one user-defined column in the final result field, add the timestamp column.
   size_t numOfSrcCols = taosArrayGetSize(pQueryInfo->colList);
@@ -4032,8 +4033,10 @@ static int32_t getColQueryCondExpr(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSqlEx
 
 static int32_t checkColumnQueryCondInfo(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSqlExpr* pExpr, int32_t relOptr) {
   if (pExpr == NULL) {
+    pQueryInfo->onlyHasTagCond &= true;
     return TSDB_CODE_SUCCESS;
   }
+  pQueryInfo->onlyHasTagCond &= false;
 
   if (!tSqlExprIsParentOfLeaf(pExpr)) {  // internal node
     int32_t ret = checkColumnQueryCondInfo(pCmd, pQueryInfo, pExpr->pLeft, pExpr->tokenId);
@@ -4160,6 +4163,7 @@ static int32_t checkAndSetJoinCondInfo(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tS
 
 static int32_t getJoinCondInfo(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSqlExpr* pExpr) {
   if (pExpr == NULL) {
+    pQueryInfo->onlyHasTagCond &= true;
     return TSDB_CODE_SUCCESS;
   }
 
@@ -5006,8 +5010,11 @@ static int32_t convertTimeRangeFromExpr(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, t
   STimeWindow win = {.skey = INT64_MIN, .ekey = INT64_MAX};
 
   if (pExpr == NULL) {
+    pQueryInfo->onlyHasTagCond &= true;
     return TSDB_CODE_SUCCESS;
   }
+  pQueryInfo->onlyHasTagCond &= false;
+  
 
   if (!tSqlExprIsParentOfLeaf(pExpr)) {
       code = convertTimeRangeFromExpr(pCmd, pQueryInfo, pExpr->pLeft);
@@ -5049,11 +5056,13 @@ static int32_t validateJoinExpr(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SCondExpr
 
   if (!QUERY_IS_JOIN_QUERY(pQueryInfo->type)) {
     if (pQueryInfo->numOfTables == 1) {
+      pQueryInfo->onlyHasTagCond &= true;
       return TSDB_CODE_SUCCESS;
     } else {
       return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg3);
     }
   }
+  pQueryInfo->onlyHasTagCond &= false;
 
   STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
   if (UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo)) {  // for stable join, tag columns
@@ -5409,7 +5418,7 @@ int32_t validateWhereNode(SQueryInfo* pQueryInfo, tSqlExpr** pExpr, SSqlObj* pSq
   if (pExpr == NULL) {
     return TSDB_CODE_SUCCESS;
   }
-
+  
   const char* msg1 = "invalid expression";
 //  const char* msg2 = "invalid filter expression";
 
@@ -5462,6 +5471,7 @@ int32_t validateWhereNode(SQueryInfo* pQueryInfo, tSqlExpr** pExpr, SSqlObj* pSq
   if ((ret = getQueryTimeRange(&pSql->cmd, pQueryInfo, &condExpr.pTimewindow)) != TSDB_CODE_SUCCESS) {
     goto PARSE_WHERE_EXIT;
   }
+  
 
   // 3. get the tag query condition
   if ((ret = getTagQueryCondExpr(&pSql->cmd, pQueryInfo, &condExpr)) != TSDB_CODE_SUCCESS) {
@@ -5770,7 +5780,7 @@ int32_t validateOrderbyNode(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SSqlNode* pSq
   STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
 
 
-  if (pQueryInfo->distinctTag == true) {
+  if (pQueryInfo->distinct == true) {
     pQueryInfo->order.order = TSDB_ORDER_ASC;
     pQueryInfo->order.orderColId = 0; 
     return TSDB_CODE_SUCCESS;
@@ -7515,7 +7525,7 @@ void tscPrintSelNodeList(SSqlObj* pSql, int32_t subClauseIndex) {
     }
 
     tmpLen =
-        sprintf(tmpBuf, "%s(uid:%" PRId64 ", %d)", name, pExpr->base.uid, pExpr->base.colInfo.colId);
+        sprintf(tmpBuf, "%s(uid:%" PRIu64 ", %d)", name, pExpr->base.uid, pExpr->base.colInfo.colId);
 
     if (tmpLen + offset >= totalBufSize - 1) break;
 
@@ -8391,6 +8401,7 @@ int32_t loadAllTableMeta(SSqlObj* pSql, struct SSqlInfo* pInfo) {
       return TSDB_CODE_TSC_OUT_OF_MEMORY;
     }
   }
+
   pTableMeta = calloc(1, maxSize);
 
   plist = taosArrayInit(4, POINTER_BYTES);
@@ -8406,9 +8417,13 @@ int32_t loadAllTableMeta(SSqlObj* pSql, struct SSqlInfo* pInfo) {
 
     size_t len = strlen(name);
     memset(pTableMeta, 0, maxSize);
-    taosHashGetClone(tscTableMetaInfo, name, len, NULL, pTableMeta, -1);
+    taosHashGetClone(tscTableMetaMap, name, len, NULL, pTableMeta);
 
     if (pTableMeta->id.uid > 0) {
+      tscDebug("0x%"PRIx64" retrieve table meta %s from local buf", pSql->self, name);
+
+      // avoid mem leak, may should update pTableMeta
+      void* pVgroupIdList = NULL;
       if (pTableMeta->tableType == TSDB_CHILD_TABLE) {
         code = tscCreateTableMetaFromSTableMeta(pTableMeta, name, pSql->pBuf);
 
@@ -8420,23 +8435,34 @@ int32_t loadAllTableMeta(SSqlObj* pSql, struct SSqlInfo* pInfo) {
         }
       } else if (pTableMeta->tableType == TSDB_SUPER_TABLE) {
         // the vgroup list of super table is not kept in local buffer, so here need retrieve it from the mnode each time
-        char* t = strdup(name);
-        taosArrayPush(pVgroupList, &t);
+        tscDebug("0x%"PRIx64" try to acquire cached super table %s vgroup id list", pSql->self, name);
+        void* pv = taosCacheAcquireByKey(tscVgroupListBuf, name, len);
+        if (pv == NULL) {
+          char* t = strdup(name);
+          taosArrayPush(pVgroupList, &t);
+          tscDebug("0x%"PRIx64" failed to retrieve stable %s vgroup id list in cache, try fetch from mnode", pSql->self, name);
+        } else {
+          tFilePage* pdata = (tFilePage*) pv;
+          pVgroupIdList = taosArrayInit((size_t) pdata->num, sizeof(int32_t));
+          if (pVgroupIdList == NULL) {
+            return TSDB_CODE_TSC_OUT_OF_MEMORY;
+          }
+
+          taosArrayAddBatch(pVgroupIdList, pdata->data, (int32_t) pdata->num);
+          taosCacheRelease(tscVgroupListBuf, &pv, false);
+        }
       }
 
-      //STableMeta* pMeta = tscTableMetaDup(pTableMeta);
-      //STableMetaVgroupInfo p = { .pTableMeta = pMeta };
-
-      //const char* px = tNameGetTableName(pname);
-      //taosHashPut(pCmd->pTableMetaMap, px, strlen(px), &p, sizeof(STableMetaVgroupInfo));
-      // avoid mem leak, may should update pTableMeta
-      const char* px = tNameGetTableName(pname);
-      if (taosHashGet(pCmd->pTableMetaMap, px, strlen(px)) == NULL) {
+      if (taosHashGet(pCmd->pTableMetaMap, name, len) == NULL) {
         STableMeta* pMeta = tscTableMetaDup(pTableMeta);
-        STableMetaVgroupInfo p = { .pTableMeta = pMeta,  .pVgroupInfo = NULL};
-        taosHashPut(pCmd->pTableMetaMap, px, strlen(px), &p, sizeof(STableMetaVgroupInfo));
+        STableMetaVgroupInfo tvi = { .pTableMeta = pMeta,  .vgroupIdList = pVgroupIdList};
+        taosHashPut(pCmd->pTableMetaMap, name, len, &tvi, sizeof(STableMetaVgroupInfo));
       }
-    } else {  // add to the retrieve table meta array list.
+    } else {
+      // Add to the retrieve table meta array list.
+      // If the tableMeta is missing, the cached vgroup list for the corresponding super table will be ignored.
+      tscDebug("0x%"PRIx64" failed to retrieve table meta %s from local buf", pSql->self, name);
+
       char* t = strdup(name);
       taosArrayPush(plist, &t);
     }
@@ -8550,22 +8576,44 @@ static int32_t doLoadAllTableMeta(SSqlObj* pSql, SQueryInfo* pQueryInfo, SSqlNod
       strncpy(pTableMetaInfo->aliasName, tNameGetTableName(&pTableMetaInfo->name), tListLen(pTableMetaInfo->aliasName));
     }
 
-    const char* name = tNameGetTableName(&pTableMetaInfo->name);
-    STableMetaVgroupInfo* p = taosHashGet(pCmd->pTableMetaMap, name, strlen(name));
+    char fname[TSDB_TABLE_FNAME_LEN] = {0};
+    tNameExtractFullName(&pTableMetaInfo->name, fname);
+    STableMetaVgroupInfo* p = taosHashGet(pCmd->pTableMetaMap, fname, strnlen(fname, TSDB_TABLE_FNAME_LEN));
 
     pTableMetaInfo->pTableMeta = tscTableMetaDup(p->pTableMeta);
     assert(pTableMetaInfo->pTableMeta != NULL);
 
-    if (p->pVgroupInfo != NULL) {
-      pTableMetaInfo->vgroupList = tscVgroupsInfoDup(p->pVgroupInfo);
-    }
+    if (p->vgroupIdList != NULL) {
+      size_t s = taosArrayGetSize(p->vgroupIdList);
 
-    if (code != TSDB_CODE_SUCCESS) {
-      return code;
+      size_t vgroupsz = sizeof(SVgroupInfo) * s + sizeof(SVgroupsInfo);
+      pTableMetaInfo->vgroupList = calloc(1, vgroupsz);
+      if (pTableMetaInfo->vgroupList == NULL) {
+        return TSDB_CODE_TSC_OUT_OF_MEMORY;
+      }
+
+      pTableMetaInfo->vgroupList->numOfVgroups = (int32_t) s;
+      for(int32_t j = 0; j < s; ++j) {
+        int32_t* id = taosArrayGet(p->vgroupIdList, j);
+
+        // check if current buffer contains the vgroup info. If not, add it
+        SNewVgroupInfo existVgroupInfo = {.inUse = -1,};
+        taosHashGetClone(tscVgroupMap, id, sizeof(*id), NULL, &existVgroupInfo);
+
+        assert(existVgroupInfo.inUse >= 0);
+        SVgroupInfo *pVgroup = &pTableMetaInfo->vgroupList->vgroups[j];
+
+        pVgroup->numOfEps = existVgroupInfo.numOfEps;
+        pVgroup->vgId = existVgroupInfo.vgId;
+        for (int32_t k = 0; k < existVgroupInfo.numOfEps; ++k) {
+          pVgroup->epAddr[k].port = existVgroupInfo.ep[k].port;
+          pVgroup->epAddr[k].fqdn = strndup(existVgroupInfo.ep[k].fqdn, TSDB_FQDN_LEN);
+        }
+      }
     }
   }
 
-  return TSDB_CODE_SUCCESS;
+  return code;
 }
 
 static STableMeta* extractTempTableMetaFromSubquery(SQueryInfo* pUpstream) {
@@ -8843,7 +8891,7 @@ int32_t validateSqlNode(SSqlObj* pSql, SSqlNode* pSqlNode, SQueryInfo* pQueryInf
     if (validateGroupbyNode(pQueryInfo, pSqlNode->pGroupby, pCmd) != TSDB_CODE_SUCCESS) {
       return TSDB_CODE_TSC_INVALID_OPERATION;
     }
-
+    pQueryInfo->onlyHasTagCond = true;
     // set where info
     if (pSqlNode->pWhere != NULL) {
       if (validateWhereNode(pQueryInfo, &pSqlNode->pWhere, pSql) != TSDB_CODE_SUCCESS) {
@@ -8864,6 +8912,10 @@ int32_t validateSqlNode(SSqlObj* pSql, SSqlNode* pSqlNode, SQueryInfo* pQueryInf
     if (validateSelectNodeList(pCmd, pQueryInfo, pSqlNode->pSelNodeList, joinQuery, timeWindowQuery, false) !=
         TSDB_CODE_SUCCESS) {
       return TSDB_CODE_TSC_INVALID_OPERATION;
+    }
+
+    if (isSTable && tscQueryTags(pQueryInfo) && pQueryInfo->distinct && !pQueryInfo->onlyHasTagCond) {
+      return TSDB_CODE_TSC_INVALID_OPERATION; 
     }
 
     // parse the window_state
