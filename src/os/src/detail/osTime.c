@@ -100,8 +100,8 @@ int32_t taosParseTime(char* timestr, int64_t* time, int32_t len, int32_t timePre
   if (strnchr(timestr, 'T', len, false) != NULL) {
     return parseTimeWithTz(timestr, time, timePrec, 'T');
   } else if (strnchr(timestr, ' ', len, false) != NULL &&
-             (strnchr(seg, 'Z', strlen(seg), false) != NULL || strnchr(seg, 'z', strlen(seg), false) != NULL ||
-              strnchr(seg, '+', strlen(seg), false) != NULL || strnchr(seg, '-', strlen(seg), false) != NULL)) {
+             (strnchr(seg, 'Z', (int32_t)strlen(seg), false) != NULL || strnchr(seg, 'z', (int32_t)strlen(seg), false) != NULL ||
+              strnchr(seg, '+', (int32_t)strlen(seg), false) != NULL || strnchr(seg, '-', (int32_t)strlen(seg), false) != NULL)) {
     return parseTimeWithTz(timestr, time, timePrec, ' ');
   } else {
     return (*parseLocaltimeFp[day_light])(timestr, time, timePrec);
