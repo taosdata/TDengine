@@ -163,7 +163,7 @@ pipeline {
                 '''
             }
             sh '''
-            pkill -9  taosd 
+            pkill -9 taosd || echo 1
             cd ${WKC}/tests
             ./test-all.sh b2
             date
