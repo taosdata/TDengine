@@ -1864,8 +1864,8 @@ static SMemRow tdGenMemRowFromBuilder(SMemRowBuilder* pBuilder) {
     while (i < nColsBound) {
       int16_t colId = payloadColId(p);
       uint8_t colType = payloadColType(p);
-      tdAppendKvColVal(kvRow, POINTER_SHIFT(pVals,payloadColOffset(p)), colId, colType, toffset);
-      toffset += sizeof(SColIdx);
+      tdAppendKvColVal(kvRow, POINTER_SHIFT(pVals,payloadColOffset(p)), colId, colType, &toffset);
+      //toffset += sizeof(SColIdx);
       p = payloadNextCol(p);
       ++i;
     }
