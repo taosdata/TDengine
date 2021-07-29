@@ -42,7 +42,7 @@ public class TimeZoneTest {
             Connection conn = DriverManager.getConnection(url);
             Statement stmt = conn.createStatement();
             stmt.execute("drop database if exists timezone_test");
-            stmt.execute("create database if not exists timezone_test");
+            stmt.execute("create database if not exists timezone_test keep 365000");
             stmt.execute("use timezone_test");
             stmt.execute("create table weather(ts timestamp, temperature float)");
             stmt.close();
