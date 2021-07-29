@@ -457,7 +457,7 @@ int32_t loadTableMeta(TAOS* taos, char* tableName, SSmlSTableSchema* schema, SSm
 
   uint32_t size = tscGetTableMetaMaxSize();
   STableMeta* tableMeta = calloc(1, size);
-  taosHashGetClone(tscTableMetaInfo, fullTableName, strlen(fullTableName), NULL, tableMeta, -1);
+  taosHashGetClone(tscTableMetaMap, fullTableName, strlen(fullTableName), NULL, tableMeta);
 
   tstrncpy(schema->sTableName, tableName, strlen(tableName)+1);
   schema->precision = tableMeta->tableInfo.precision;

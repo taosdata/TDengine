@@ -809,7 +809,7 @@ typedef struct SMultiTableMeta {
   int32_t       contLen;
   uint8_t       compressed;      // denote if compressed or not
   uint32_t      rawLen;          // size before compress
-  uint8_t       metaClone;         // make meta clone after retrieve meta from mnode
+  uint8_t       metaClone;       // make meta clone after retrieve meta from mnode
   char          meta[];
 } SMultiTableMeta;
 

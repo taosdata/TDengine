@@ -40,9 +40,7 @@ static int terror = 0;
 static void *sendRequest(void *param) {
   SInfo  *pInfo = (SInfo *)param;
   SRpcMsg rpcMsg, rspMsg;
-  
-  setThreadName("sendSrvReq");
- 
+
   tDebug("thread:%d, start to send request", pInfo->index);
 
   while ( pInfo->numOfReqs == 0 || pInfo->num < pInfo->numOfReqs) {
