@@ -29,7 +29,7 @@ public class TimeZoneTest {
     }
 
     @Test
-    public void utcMinus8() {
+    public void taosTimeZone() {
         // given
         Properties props = new Properties();
         props.setProperty(TSDBDriver.PROPERTY_KEY_TIME_ZONE, "UTC-8");
