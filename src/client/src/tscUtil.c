@@ -3947,6 +3947,8 @@ void executeQuery(SSqlObj* pSql, SQueryInfo* pQueryInfo) {
 
       SQueryInfo* pNewQueryInfo = tscGetQueryInfo(pCmd);
       tscQueryInfoCopy(pNewQueryInfo, pSub);
+
+      TSDB_QUERY_SET_TYPE(pNewQueryInfo->type, TSDB_QUERY_TYPE_NEST_SUBQUERY);
       numOfInit++;
     }
 

@@ -402,7 +402,7 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcEpSet *pEpSet) {
     if ((TSDB_QUERY_HAS_TYPE(pQueryInfo->type, (TSDB_QUERY_TYPE_STABLE_SUBQUERY | TSDB_QUERY_TYPE_SUBQUERY |
                                                TSDB_QUERY_TYPE_TAG_FILTER_QUERY)) &&
                                                !TSDB_QUERY_HAS_TYPE(pQueryInfo->type, TSDB_QUERY_TYPE_PROJECTION_QUERY)) ||
-                                               (pQueryInfo->pUpstream != NULL)) {
+                                               (TSDB_QUERY_HAS_TYPE(pQueryInfo->type, TSDB_QUERY_TYPE_NEST_SUBQUERY))) {
       // do nothing in case of super table subquery
     }  else {
       pSql->retry += 1;
