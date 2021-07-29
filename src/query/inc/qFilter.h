@@ -30,6 +30,8 @@ extern "C" {
 #define FILTER_DEFAULT_VALUE_SIZE 4
 #define FILTER_DEFAULT_GROUP_UNIT_SIZE 2
 
+#define MAX_NUM_STR_SIZE 40
+
 enum {
   FLD_TYPE_COLUMN = 1,
   FLD_TYPE_VALUE = 2,  
