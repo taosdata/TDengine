@@ -521,8 +521,6 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcEpSet *pEpSet) {
 
   SRpcMsg* rpcMsgCopy = calloc(1, sizeof(SRpcMsg));
   memcpy(rpcMsgCopy, rpcMsg, sizeof(struct SRpcMsg));
-  rpcMsgCopy->pCont = rpcMallocCont(rpcMsg->contLen);
-  memcpy(rpcMsgCopy->pCont, rpcMsg->pCont, rpcMsg->contLen);
   schedMsg.ahandle = (void*)rpcMsgCopy;
 
   SRpcEpSet* pEpSetCopy = NULL;
