@@ -58,7 +58,7 @@ static int  tsdbCompactFSetImpl(SCompactH *pComph);
 static int  tsdbWriteBlockToRightFile(SCompactH *pComph, STable *pTable, SDataCols *pDataCols, void **ppBuf,
                                       void **ppCBuf);
 
-enum {TSDB_NO_COMPACT, TSDB_IN_COMPACT, TSDB_WAITING_COMPACT};
+enum { TSDB_NO_COMPACT, TSDB_IN_COMPACT, TSDB_WAITING_COMPACT};
 int tsdbCompact(STsdbRepo *pRepo) { return tsdbAsyncCompact(pRepo); }
 
 void *tsdbCompactImpl(STsdbRepo *pRepo) {
@@ -91,7 +91,7 @@ _err:
 
 static int tsdbAsyncCompact(STsdbRepo *pRepo) {
   if (pRepo->compactState != TSDB_NO_COMPACT) {
-    tsdbInfo("vgId:%d not compact tsdb again", REPO_ID(pRepo));
+    tsdbInfo("vgId:%d not compact tsdb again ", REPO_ID(pRepo));
     return 0; 
   } 
   pRepo->compactState = TSDB_WAITING_COMPACT;   
