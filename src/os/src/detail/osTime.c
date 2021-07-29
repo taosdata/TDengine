@@ -82,7 +82,7 @@ void deltaToUtcInitOnce() {
 }
 
 static int64_t parseFraction(char* str, char** end, int32_t timePrec);
-static int32_t parseTimeWithTz(char* timestr, int64_t* time, int32_t timePrec);
+static int32_t parseTimeWithTz(char* timestr, int64_t* time, int32_t timePrec, char delim);
 static int32_t parseLocaltime(char* timestr, int64_t* time, int32_t timePrec);
 static int32_t parseLocaltimeWithDst(char* timestr, int64_t* time, int32_t timePrec);
 
@@ -96,7 +96,9 @@ int32_t taosGetTimestampSec() { return (int32_t)time(NULL); }
 int32_t taosParseTime(char* timestr, int64_t* time, int32_t len, int32_t timePrec, int8_t day_light) {
   /* parse datatime string in with tz */
   if (strnchr(timestr, 'T', len, false) != NULL) {
-    return parseTimeWithTz(timestr, time, timePrec);
+    return parseTimeWithTz(timestr, time, timePrec, 'T');
+  } else if (strnchr(timestr, ' ', len, false) != NULL) {
+    return parseTimeWithTz(timestr, time, timePrec, ' ');
   } else {
     return (*parseLocaltimeFp[day_light])(timestr, time, timePrec);
   }
@@ -213,14 +215,23 @@ int32_t parseTimezone(char* str, int64_t* tzOffset) {
  * 2013-04-12T15:52:01+0800
  * 2013-04-12T15:52:01.123+0800
  */
-int32_t parseTimeWithTz(char* timestr, int64_t* time, int32_t timePrec) {
+int32_t parseTimeWithTz(char* timestr, int64_t* time, int32_t timePrec, char delim) {
 
   int64_t factor = (timePrec == TSDB_TIME_PRECISION_MILLI) ? 1000 :
                              (timePrec == TSDB_TIME_PRECISION_MICRO ? 1000000 : 1000000000);
   int64_t tzOffset = 0;
 
   struct tm tm = {0};
-  char*     str = strptime(timestr, "%Y-%m-%dT%H:%M:%S", &tm);
+
+  char* str;
+  if (delim == 'T') {
+    str = strptime(timestr, "%Y-%m-%dT%H:%M:%S", &tm);
+  } else if (delim == ' ') {
+    str = strptime(timestr, "%Y-%m-%d%n%H:%M:%S", &tm);
+  } else {
+    str = NULL;
+  }
+
   if (str == NULL) {
     return -1;
   }
