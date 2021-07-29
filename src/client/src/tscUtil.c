@@ -3190,6 +3190,7 @@ static void freeQueryInfoImpl(SQueryInfo* pQueryInfo) {
   }
   
   pQueryInfo->tsBuf = tsBufDestroy(pQueryInfo->tsBuf);
+  pQueryInfo->fillType = 0;
 
   tfree(pQueryInfo->fillVal);
   tfree(pQueryInfo->buf);
