@@ -407,10 +407,32 @@ TEST(testCase, parse_time) {
   taosParseTime(t41, &time, strlen(t41), TSDB_TIME_PRECISION_MILLI, 0);
   EXPECT_EQ(time, 852048000999);
 
-  int64_t k = timezone;
   char    t42[] = "1997-1-1T0:0:0.999999999Z";
   taosParseTime(t42, &time, strlen(t42), TSDB_TIME_PRECISION_MILLI, 0);
   EXPECT_EQ(time, 852048000999 - timezone * MILLISECOND_PER_SECOND);
+
+  // "%Y-%m-%d %H:%M:%S" format with TimeZone appendix is also treated as legal
+  // and TimeZone will be processed
+  char t60[] = "2017-4-3 1:1:2.980";
+  char t61[] = "2017-4-3 2:1:2.98+9:00";
+  taosParseTime(t60, &time, strlen(t60), TSDB_TIME_PRECISION_MILLI, 0);
+  taosParseTime(t61, &time1, strlen(t61), TSDB_TIME_PRECISION_MILLI, 0);
+  EXPECT_EQ(time, time1);
+
+  char t62[] = "2017-4-3 2:1:2.98+09:00";
+  taosParseTime(t62, &time, strlen(t62), TSDB_TIME_PRECISION_MILLI, 0);
+  taosParseTime(t61, &time1, strlen(t61), TSDB_TIME_PRECISION_MILLI, 0);
+  EXPECT_EQ(time, time1);
+
+  char t63[] = "2017-4-3 2:1:2.98+0900";
+  taosParseTime(t63, &time, strlen(t63), TSDB_TIME_PRECISION_MILLI, 0);
+  taosParseTime(t62, &time1, strlen(t62), TSDB_TIME_PRECISION_MILLI, 0);
+  EXPECT_EQ(time, time1);
+
+  char t64[] = "2017-4-2 17:1:2.98Z";
+  taosParseTime(t63, &time, strlen(t63), TSDB_TIME_PRECISION_MILLI, 0);
+  taosParseTime(t64, &time1, strlen(t64), TSDB_TIME_PRECISION_MILLI, 0);
+  EXPECT_EQ(time, time1);
 
   ////////////////////////////////////////////////////////////////////
   // illegal timestamp format
@@ -430,8 +452,7 @@ TEST(testCase, parse_time) {
   EXPECT_EQ(taosParseTime(t19, &time, strlen(t19), TSDB_TIME_PRECISION_MILLI, 0), -1);
 
   char t20[] = "2017-12-31 9:0:0.1+12:99";
-  EXPECT_EQ(taosParseTime(t20, &time, strlen(t20), TSDB_TIME_PRECISION_MILLI, 0), 0);
-  EXPECT_EQ(time, 1514682000100);
+  EXPECT_EQ(taosParseTime(t20, &time, strlen(t20), TSDB_TIME_PRECISION_MILLI, 0), -1);
 
   char t21[] = "2017-12-31T9:0:0.1+12:99";
   EXPECT_EQ(taosParseTime(t21, &time, strlen(t21), TSDB_TIME_PRECISION_MILLI, 0), -1);
