@@ -35,6 +35,8 @@ static int  tsdbRestoreCurrent(STsdbRepo *pRepo);
 static int  tsdbComparTFILE(const void *arg1, const void *arg2);
 static void tsdbScanAndTryFixDFilesHeader(STsdbRepo *pRepo);
 
+// For backward compatibility
+bool tsdbForceKeepFile = false;
 // ================== CURRENT file header info
 static int tsdbEncodeFSHeader(void **buf, SFSHeader *pHeader) {
   int tlen = 0;
@@ -982,6 +984,26 @@ static int tsdbRestoreMeta(STsdbRepo *pRepo) {
           return -1;
         }
 
+        if (tsdbForceKeepFile) {
+          struct stat tfstat;
+
+          // Get real file size
+          if (fstat(pfs->cstatus->pmf->fd, &tfstat) < 0) {
+            terrno = TAOS_SYSTEM_ERROR(errno);
+            tsdbCloseMFile(pfs->cstatus->pmf);
+            tfsClosedir(tdir);
+            regfree(&regex);
+            return -1;
+          }
+
+          if (pfs->cstatus->pmf->info.size != tfstat.st_size) {
+            int64_t tfsize = pfs->cstatus->pmf->info.size;
+            pfs->cstatus->pmf->info.size = tfstat.st_size;
+            tsdbInfo("vgId:%d file %s header size is changed from %" PRId64 " to %" PRId64, REPO_ID(pRepo),
+                     TSDB_FILE_FULL_NAME(pfs->cstatus->pmf), tfsize, pfs->cstatus->pmf->info.size);
+          }
+        }
+
         tsdbCloseMFile(pfs->cstatus->pmf);
       }
     } else if (code == REG_NOMATCH) {
@@ -1139,6 +1161,24 @@ static int tsdbRestoreDFileSet(STsdbRepo *pRepo) {
                   tstrerror(terrno));
         taosArrayDestroy(fArray);
         return -1;
+      }
+
+      if (tsdbForceKeepFile) {
+        struct stat tfstat;
+
+        // Get real file size
+        if (fstat(pDFile->fd, &tfstat) < 0) {
+          terrno = TAOS_SYSTEM_ERROR(errno);
+          taosArrayDestroy(fArray);
+          return -1;
+        }
+
+        if (pDFile->info.size != tfstat.st_size) {
+          int64_t tfsize = pDFile->info.size;
+          pDFile->info.size = tfstat.st_size;
+          tsdbInfo("vgId:%d file %s header size is changed from %" PRId64 " to %" PRId64, REPO_ID(pRepo),
+                   TSDB_FILE_FULL_NAME(pDFile), tfsize, pDFile->info.size);
+        }
       }
 
       tsdbCloseDFile(pDFile);
