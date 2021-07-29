@@ -702,12 +702,12 @@ static int tsdbScanAndConvertSubmitMsg(STsdbRepo *pRepo, SSubmitMsg *pMsg) {
 }
 
 //row1 has higher priority
-static SMemRow tsdbInsertDupKeyMerge(SMemRow row1, SMemRow row2, STsdbRepo* pRepo, STSchema **ppSchema1, STSchema **ppSchema2, STable* pTable, int32_t* affectedRows, int64_t* points, SMemRow* pLastRow) {
+static SMemRow tsdbInsertDupKeyMerge(SMemRow row1, SMemRow row2, STsdbRepo* pRepo, STSchema **ppSchema1, STSchema **ppSchema2, STable* pTable, int32_t* pAffectedRows, int64_t* pPoints, SMemRow* pLastRow) {
   
   //for compatiblity, duplicate key inserted when update=0 should be also calculated as affected rows!
   if(row1 == NULL && row2 == NULL && pRepo->config.update == TD_ROW_DISCARD_UPDATE) {
-    (*affectedRows)++;
-    (*points)++;
+    (*pAffectedRows)++;
+    (*pPoints)++;
     return NULL;
   }
 
@@ -715,8 +715,8 @@ static SMemRow tsdbInsertDupKeyMerge(SMemRow row1, SMemRow row2, STsdbRepo* pRep
     void* pMem = tsdbAllocBytes(pRepo, memRowTLen(row1));
     if(pMem == NULL) return NULL;
     memRowCpy(pMem, row1);
-    (*affectedRows)++;
-    (*points)++;
+    (*pAffectedRows)++;
+    (*pPoints)++;
     *pLastRow = pMem;
     return pMem;
   }
@@ -750,8 +750,8 @@ static SMemRow tsdbInsertDupKeyMerge(SMemRow row1, SMemRow row2, STsdbRepo* pRep
   if(pMem == NULL) return NULL;
   memRowCpy(pMem, tmp);
 
-  (*affectedRows)++;
-  (*points)++;
+  (*pAffectedRows)++;
+  (*pPoints)++;
 
   *pLastRow = pMem;
   return pMem;
@@ -761,7 +761,7 @@ static void* tsdbInsertDupKeyMergePacked(void** args) {
   return tsdbInsertDupKeyMerge(args[0], args[1], args[2], (STSchema**)&args[3], (STSchema**)&args[4], args[5], args[6], args[7], args[8]);
 }
 
-static void tsdbSetupSkipListHookFns(SSkipList* pSkipList, STsdbRepo *pRepo, STable *pTable, int32_t* affectedRows, int64_t* points, SMemRow* pLastRow) {
+static void tsdbSetupSkipListHookFns(SSkipList* pSkipList, STsdbRepo *pRepo, STable *pTable, int32_t* pAffectedRows, int64_t* pPoints, SMemRow* pLastRow) {
 
   if(pSkipList->insertHandleFn == NULL) {
     tGenericSavedFunc *dupHandleSavedFunc = genericSavedFuncInit((GenericVaFunc)&tsdbInsertDupKeyMergePacked, 9);
@@ -769,8 +769,8 @@ static void tsdbSetupSkipListHookFns(SSkipList* pSkipList, STsdbRepo *pRepo, STa
     dupHandleSavedFunc->args[3] = NULL;
     dupHandleSavedFunc->args[4] = NULL;
     dupHandleSavedFunc->args[5] = pTable;
-    dupHandleSavedFunc->args[6] = affectedRows;
-    dupHandleSavedFunc->args[7] = points;
+    dupHandleSavedFunc->args[6] = pAffectedRows;
+    dupHandleSavedFunc->args[7] = pPoints;
     dupHandleSavedFunc->args[8] = pLastRow;
     pSkipList->insertHandleFn = dupHandleSavedFunc;
   }
@@ -794,9 +794,10 @@ static int tsdbInsertDataToTable(STsdbRepo* pRepo, SSubmitBlk* pBlock, int32_t *
   pMemTable = pRepo->mem;
 
   ASSERT(pMemTable != NULL);
-
   ASSERT(pBlock->tid < pMeta->maxTables);
+
   pTable = pMeta->tables[pBlock->tid];
+
   ASSERT(pTable != NULL && TABLE_UID(pTable) == pBlock->uid);
 
 
