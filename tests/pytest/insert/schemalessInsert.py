@@ -68,7 +68,7 @@ class TDTestCase:
             ulsec = int(ulsec) * (10 ** (6 - len(ulsec)))
         elif int(ulsec) == 0:
             ulsec *= 6
-            # ! follow two rows added for tsCheckCase
+            # * follow two rows added for tsCheckCase
             td_ts = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(ts))
             return td_ts
         #td_ts = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(ts))
@@ -510,7 +510,7 @@ class TDTestCase:
             code = self._conn.insertLines([input_sql])
             tdSql.checkNotEqual(code, 0)
 
-        # f64 # * bug stack smashing detected ***: <unknown> terminated Aborted --- fixed
+        # f64
         for t6 in [f'{-1.79769*(10**308)}f64', f'{-1.79769*(10**308)}f64']:
             input_sql, stb_name = self.genFullTypeSql(t6=t6)
             self.resCmp(input_sql, stb_name)
@@ -606,7 +606,6 @@ class TDTestCase:
         input_sql = f'{stb_name},t0=t c0=f,c1="{self.getLongName(16374, "letters")}" 1626006833639000000ns'
         code = self._conn.insertLines([input_sql])
         tdSql.checkEqual(code, 0)
-        # * bug code is 0 ----- fixed
         input_sql = f'{stb_name},t0=t c0=f,c1="{self.getLongName(16375, "letters")}" 1626006833639000000ns'
         code = self._conn.insertLines([input_sql])
         tdSql.checkNotEqual(code, 0)
@@ -654,11 +653,27 @@ class TDTestCase:
             ]:
             code = self._conn.insertLines([input_sql])
             tdSql.checkNotEqual(code, 0)
-        # TODO nchar binary
-        # check blank
-        
 
-        # ~!@#$¥%^&*()-+={}|[]、「」:;
+        # check binary and nchar blank
+        stb_name = self.getLongName(7, "letters")
+        input_sql1 = f'{stb_name},t0=t c0=f,c1="abc aaa" 1626006833639000000ns'
+        input_sql2 = f'{stb_name},t0=t c0=f,c1=L"abc aaa" 1626006833639000000ns'
+        input_sql3 = f'{stb_name},t0=t,t1="abc aaa" c0=f 1626006833639000000ns'
+        input_sql4 = f'{stb_name},t0=t,t1=L"abc aaa" c0=f 1626006833639000000ns'
+        for input_sql in [input_sql1, input_sql2, input_sql3, input_sql4]:
+            code = self._conn.insertLines([input_sql])
+            tdSql.checkNotEqual(code, 0)
+
+        # check accepted binary and nchar symbols 
+        # # * ~!@#$¥%^&*()-+={}|[]、「」:;
+        for symbol in list('~!@#$¥%^&*()-+={}|[]、「」:;'):
+            input_sql1 = f'{stb_name},t0=t c0=f,c1="abc{symbol}aaa" 1626006833639000000ns'
+            input_sql2 = f'{stb_name},t0=t,t1="abc{symbol}aaa" c0=f 1626006833639000000ns'
+            code = self._conn.insertLines([input_sql1])
+            tdSql.checkEqual(code, 0)
+            code = self._conn.insertLines([input_sql2])
+            tdSql.checkEqual(code, 0)
+        
 
     def duplicateIdTagColInsertCheckCase(self):
         """
@@ -782,7 +797,7 @@ class TDTestCase:
     # * tag binary max is 16384, col+ts binary max  49151
     def tagColBinaryMaxLengthCheckCase(self):
         """
-            every binary and nchar must be length+2, so 
+            every binary and nchar must be length+2
         """
         self.cleanStb()
         stb_name = self.getLongName(7, "letters")
@@ -817,7 +832,7 @@ class TDTestCase:
     # * tag nchar max is 16374/4, col+ts nchar max  49151
     def tagColNcharMaxLengthCheckCase(self):
         """
-            # ? case finish , src bug exist
+            check nchar length limit
         """
         self.cleanStb()
         stb_name = self.getLongName(7, "letters")
@@ -833,18 +848,20 @@ class TDTestCase:
         tdSql.checkRows(2)
         input_sql = f'{stb_name},t0=t,t1=L"{self.getLongName(4093, "letters")}",t2=L"{self.getLongName(2, "letters")}" c0=f 1626006833639000000ns'
         code = self._conn.insertLines([input_sql])
-        # ! leave a bug DB error: Invalid value in client
         tdSql.checkNotEqual(code, 0)
         tdSql.query(f"select * from {stb_name}")
         tdSql.checkRows(2)
 
-        # stb_name = self.getLongName(7, "letters")
-        # tb_name = f'{stb_name}_1'
-        # input_sql = f'{stb_name},id="{tb_name}",t0=t c0=f 1626006833639000000ns'
-        # code = self._conn.insertLines([input_sql])
-        # input_sql = f'{stb_name},t0=t c0=f,c1=L"{self.getLongName(4093, "letters")}",c2=L"{self.getLongName(4093, "letters")}",c3=L"{self.getLongName(4093, "letters")}" 1626006833639000000ns'
-        # code = self._conn.insertLines([input_sql])
-        # tdSql.checkEqual(code, 0)
+        input_sql = f'{stb_name},t0=t c0=f,c1=L"{self.getLongName(4093, "letters")}",c2=L"{self.getLongName(4093, "letters")}",c3=L"{self.getLongName(4093, "letters")}",c4=L"{self.getLongName(4, "letters")}" 1626006833639000000ns'
+        code = self._conn.insertLines([input_sql])
+        tdSql.checkEqual(code, 0)
+        tdSql.query(f"select * from {stb_name}")
+        tdSql.checkRows(3)
+        input_sql = f'{stb_name},t0=t c0=f,c1=L"{self.getLongName(4093, "letters")}",c2=L"{self.getLongName(4093, "letters")}",c3=L"{self.getLongName(4093, "letters")}",c4=L"{self.getLongName(5, "letters")}" 1626006833639000000ns'
+        code = self._conn.insertLines([input_sql])
+        tdSql.checkNotEqual(code, 0)
+        tdSql.query(f"select * from {stb_name}")
+        tdSql.checkRows(3)
 
     def batchInsertCheckCase(self):
         """
@@ -1136,9 +1153,10 @@ class TDTestCase:
         tdSql.checkRows(6)
 
     def test(self):
-        input_sql1 = "rfasta,id=\"rfasta_1\",t0=true,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7=\"ddzhiksj\",t8=L\"nchar TagValue\" c0=True,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7=\"bnhwlgvj\",c8=L\"ncharTagValue\",c9=7u64 0"
-        # input_sql2 = "rfasta,id=\"rfasta_1\",t0=true,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64 c0=True,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64 0"
+        input_sql1 = "rfasta,id=\"rfasta_1\",t0=true,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7=\"ddzhiksj\",t8=L\"ncharTagValue\" c0=True,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7=\"bnhwlgvj\",c8=L\"ncharTagValue\",c9=7u64 1626006933640000000ns"
+        input_sql2 = "rfasta,id=\"rfasta_1\",t0=true,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64 c0=True,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64 1626006933640000000ns"
         code = self._conn.insertLines([input_sql1])
+        code = self._conn.insertLines([input_sql2])
         print(code)
         # self._conn.insertLines([input_sql2])
         # input_sql3 = f'abcd,id="cc¥Ec",t0=True,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7="ndsfdrum",t8=L"ncharTagValue" c0=f,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7="igwoehkm",c8=L"ncharColValue",c9=7u64 0'
@@ -1175,7 +1193,7 @@ class TDTestCase:
         self.tagColBinaryMaxLengthCheckCase()
         self.tagColNcharMaxLengthCheckCase()
         self.batchInsertCheckCase()
-        self.multiInsertCheckCase(10000)
+        self.multiInsertCheckCase(5000)
         self.batchErrorInsertCheckCase()
         # MultiThreads
         self.stbInsertMultiThreadCheckCase()
@@ -1204,10 +1222,9 @@ class TDTestCase:
     def run(self):
         print("running {}".format(__file__))
         self.createDb()
-        # self.runAll()
-        # ! bug leave 
-        # self.tagColNcharMaxLengthCheckCase()
-        self.test()
+        self.runAll()
+        # self.tagColIllegalValueCheckCase()
+        # self.test()
 
     def stop(self):
         tdSql.close()
