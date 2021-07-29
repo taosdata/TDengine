@@ -151,7 +151,8 @@ typedef struct STableDataBlocks {
 
 typedef struct {
   STableMeta   *pTableMeta;
-  SVgroupsInfo *pVgroupInfo;
+  SArray       *vgroupIdList;
+//  SVgroupsInfo *pVgroupsInfo;
 } STableMetaVgroupInfo;
 
 typedef struct SInsertStatementParam {
@@ -375,6 +376,8 @@ void tscResetSqlCmd(SSqlCmd *pCmd, bool removeMeta);
  */
 void tscFreeSqlResult(SSqlObj *pSql);
 
+void* tscCleanupTableMetaMap(SHashObj* pTableMetaMap);
+
 /**
  * free sql object, release allocated resource
  * @param pObj
@@ -415,7 +418,8 @@ int32_t tscValidateSqlInfo(SSqlObj *pSql, struct SSqlInfo *pInfo);
 int32_t tsSetBlockInfo(SSubmitBlk *pBlocks, const STableMeta *pTableMeta, int32_t numOfRows);
 extern int32_t    sentinel;
 extern SHashObj  *tscVgroupMap;
-extern SHashObj  *tscTableMetaInfo;
+extern SHashObj  *tscTableMetaMap;
+extern SCacheObj *tscVgroupListBuf;
 
 extern int   tscObjRef;
 extern void *tscTmr;

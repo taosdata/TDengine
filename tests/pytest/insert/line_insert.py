@@ -77,6 +77,8 @@ class TDTestCase:
                                 "sth,t1=4i64,t2=5f64,t4=5f64,ID=\"childtable\" c1=3i64,c3=L\"passitagin_stf\",c2=false,c5=5f64,c6=7u64 1626006933641ms",
                                 "sth,t1=4i64,t2=5f64,t4=5f64 c1=3i64,c3=L\"passitagin_stf\",c2=false,c5=5f64,c6=7u64 1626006933654ms"                    
                                 ])
+        tdSql.execute('reset query cache')
+
         tdSql.query('select tbname, * from sth')
         tdSql.checkRows(2)
 

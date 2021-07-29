@@ -206,7 +206,7 @@ static void tscProcessStreamQueryCallback(void *param, TAOS_RES *tres, int numOf
     char name[TSDB_TABLE_FNAME_LEN] = {0};
     tNameExtractFullName(&pTableMetaInfo->name, name);
 
-    taosHashRemove(tscTableMetaInfo, name, strnlen(name, TSDB_TABLE_FNAME_LEN));
+    taosHashRemove(tscTableMetaMap, name, strnlen(name, TSDB_TABLE_FNAME_LEN));
 
     tfree(pTableMetaInfo->pTableMeta);
 
