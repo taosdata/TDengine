@@ -342,6 +342,7 @@ int32_t scriptEnvPoolInit() {
     env->lua_state = createLuaEnv(); 
     tdListAppend(pool->scriptEnvs, (void *)(&env));  
   }
+
   pool->mSize = size;
   pool->cSize = size;
   return 0;  

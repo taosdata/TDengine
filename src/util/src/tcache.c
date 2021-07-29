@@ -132,11 +132,11 @@ static FORCE_INLINE void taosCacheReleaseNode(SCacheObj *pCacheObj, SCacheDataNo
     return;
   }
 
-  pCacheObj->totalSize -= pNode->size;
+  atomic_sub_fetch_64(&pCacheObj->totalSize, pNode->size);
   int32_t size = (int32_t)taosHashGetSize(pCacheObj->pHashTable);
   assert(size > 0);
 
-  uDebug("cache:%s, key:%p, %p is destroyed from cache, size:%dbytes, totalNum:%d size:%" PRId64 "bytes",
+  uDebug("cache:%s, key:%p, %p is destroyed from cache, size:%dbytes, total num:%d size:%" PRId64 "bytes",
          pCacheObj->name, pNode->key, pNode->data, pNode->size, size - 1, pCacheObj->totalSize);
 
   if (pCacheObj->freeFp) {
@@ -252,6 +252,7 @@ void *taosCachePut(SCacheObj *pCacheObj, const void *key, size_t keyLen, const v
             pCacheObj->freeFp(p->data);
           }
 
+          atomic_sub_fetch_64(&pCacheObj->totalSize, p->size);
           tfree(p);
         } else {
           taosAddToTrashcan(pCacheObj, p);
@@ -302,7 +303,7 @@ void *taosCacheAcquireByKey(SCacheObj *pCacheObj, const void *key, size_t keyLen
   }
 
   SCacheDataNode* ptNode = NULL;
-  taosHashGetClone(pCacheObj->pHashTable, key, keyLen, incRefFn, &ptNode, sizeof(void*));
+  taosHashGetClone(pCacheObj->pHashTable, key, keyLen, incRefFn, &ptNode);
 
   void* pData = (ptNode != NULL)? ptNode->data:NULL;
 
@@ -679,7 +680,7 @@ void* taosCacheTimedRefresh(void *handle) {
   assert(pCacheArrayList != NULL);
   uDebug("cache refresh thread starts");
 
-  setThreadName("cacheTimedRefre");
+  setThreadName("cacheRefresh");
 
   const int32_t SLEEP_DURATION = 500; //500 ms
   int64_t count = 0;

@@ -163,7 +163,12 @@ python3 test.py -f tools/taosdemoTestSampleData.py
 python3 test.py -f tools/taosdemoTestInterlace.py
 python3 test.py -f tools/taosdemoTestQuery.py
 
-
+# nano support
+python3 test.py -f tools/taosdemoAllTest/taosdemoTestSupportNanoInsert.py
+python3 test.py -f tools/taosdemoAllTest/taosdemoTestSupportNanoQuery.py
+python3 test.py -f tools/taosdemoAllTest/taosdemoTestSupportNanosubscribe.py
+python3 test.py -f tools/taosdemoAllTest/taosdemoTestInsertTime_step.py
+python3 test.py -f tools/taosdumpTestNanoSupport.py
 
 # update
 python3 ./test.py -f update/allow_update.py
@@ -247,6 +252,7 @@ python3 ./test.py -f query/queryStateWindow.py
 python3 ./test.py -f query/nestedQuery/queryWithOrderLimit.py
 python3 ./test.py -f query/nestquery_last_row.py
 python3 ./test.py -f query/queryCnameDisplay.py
+python3 ./test.py -f query/operator_cost.py
 python3 test.py -f query/nestedQuery/queryWithSpread.py
 
 #stream
@@ -360,12 +366,23 @@ python3 ./test.py -f tag_lite/alter_tag.py
 
 
 python3 test.py -f tools/taosdemoAllTest/TD-4985/query-limit-offset.py
+python3 test.py -f tools/taosdemoAllTest/TD-5213/insert4096columns_not_use_taosdemo.py
+python3 test.py -f tools/taosdemoAllTest/TD-5213/insertSigcolumnsNum4096.py
 python3 ./test.py -f tag_lite/drop_auto_create.py
 python3 test.py -f insert/insert_before_use_db.py
 python3 test.py -f alter/alter_keep.py
 python3 test.py -f alter/alter_cacheLastRow.py
 python3 ./test.py -f query/querySession.py 
 python3 test.py -f  alter/alter_create_exception.py
-
 python3 ./test.py -f insert/flushwhiledrop.py
+
 #======================p4-end===============
+python3 test.py -f  tools/taosdemoAllTest/pytest.py
+
+
+
+
+
+
+
+
