@@ -3829,13 +3829,64 @@ static void tscSubqueryRetrieveCallback(void* param, TAOS_RES* tres, int code) {
   }
 }
 
-// todo handle the failure
 static void tscSubqueryCompleteCallback(void* param, TAOS_RES* tres, int code) {
+  SSqlObj* pSql = tres;
+  SRetrieveSupport* ps = param;
+
+  if (pSql->res.code != TSDB_CODE_SUCCESS) {
+    SSqlObj* pParentSql = ps->pParentSql;
+
+    int32_t index = ps->subqueryIndex;
+    bool ret = subAndCheckDone(pSql, pParentSql, index);
+
+    tfree(ps);
+    pSql->param = NULL;
+
+    if (!ret) {
+      tscDebug("0x%"PRIx64" sub:0x%"PRIx64" orderOfSub:%d completed, not all subquery finished", pParentSql->self, pSql->self, index);
+      return;
+    }
+
+    // todo refactor
+    tscDebug("0x%"PRIx64" all subquery response received, retry", pParentSql->self);
+
+    SSqlCmd* pParentCmd = &pParentSql->cmd;
+    STableMetaInfo* pTableMetaInfo = tscGetTableMetaInfoFromCmd(pParentCmd, 0);
+    tscRemoveTableMetaBuf(pTableMetaInfo, pParentSql->self);
+
+    pParentCmd->pTableMetaMap = tscCleanupTableMetaMap(pParentCmd->pTableMetaMap);
+    pParentCmd->pTableMetaMap = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);
+
+    pParentSql->res.code = TSDB_CODE_SUCCESS;
+    pParentSql->retry++;
+
+    tscDebug("0x%"PRIx64" retry parse sql and send query, prev error: %s, retry:%d", pParentSql->self,
+             tstrerror(code), pParentSql->retry);
+
+    code = tsParseSql(pParentSql, true);
+    if (code == TSDB_CODE_TSC_ACTION_IN_PROGRESS) {
+      return;
+    }
+
+    if (code != TSDB_CODE_SUCCESS) {
+      pParentSql->res.code = code;
+      tscAsyncResultOnError(pParentSql);
+      return;
+    }
+
+    SQueryInfo *pQueryInfo = tscGetQueryInfo(pParentCmd);
+    executeQuery(pParentSql, pQueryInfo);
+    return;
+  }
+
   taos_fetch_rows_a(tres, tscSubqueryRetrieveCallback, param);
 }
 
 // do execute the query according to the query execution plan
 void executeQuery(SSqlObj* pSql, SQueryInfo* pQueryInfo) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t numOfInit = 0;
+
   if (pSql->cmd.command == TSDB_SQL_RETRIEVE_EMPTY_RESULT) {
     (*pSql->fp)(pSql->param, pSql, 0);
     return;
@@ -3850,7 +3901,12 @@ void executeQuery(SSqlObj* pSql, SQueryInfo* pQueryInfo) {
 
     pSql->pSubs = calloc(pSql->subState.numOfSub, POINTER_BYTES);
     pSql->subState.states = calloc(pSql->subState.numOfSub, sizeof(int8_t));
-    pthread_mutex_init(&pSql->subState.mutex, NULL);
+    code = pthread_mutex_init(&pSql->subState.mutex, NULL);
+
+    if (pSql->pSubs == NULL || pSql->subState.states == NULL || code != TSDB_CODE_SUCCESS) {
+      code = TSDB_CODE_TSC_OUT_OF_MEMORY;
+      goto _error;
+    }
 
     for(int32_t i = 0; i < pSql->subState.numOfSub; ++i) {
       SQueryInfo* pSub = taosArrayGetP(pQueryInfo->pUpstream, i);
@@ -3858,45 +3914,69 @@ void executeQuery(SSqlObj* pSql, SQueryInfo* pQueryInfo) {
       pSql->cmd.active = pSub;
       pSql->cmd.command = TSDB_SQL_SELECT;
 
-      // TODO handle memory failure
       SSqlObj* pNew = (SSqlObj*)calloc(1, sizeof(SSqlObj));
       if (pNew == NULL) {
-        terrno = TSDB_CODE_TSC_OUT_OF_MEMORY;
-        //      return NULL;
+        code = TSDB_CODE_TSC_OUT_OF_MEMORY;
+        goto _error;
       }
 
-      pNew->pTscObj = pSql->pTscObj;
+      pNew->pTscObj   = pSql->pTscObj;
       pNew->signature = pNew;
-      pNew->sqlstr = strdup(pSql->sqlstr);  // todo refactor
-      pNew->fp = tscSubqueryCompleteCallback;
+      pNew->sqlstr    = strdup(pSql->sqlstr);
+      pNew->fp        = tscSubqueryCompleteCallback;
+      pNew->maxRetry  = pSql->maxRetry;
       tsem_init(&pNew->rspSem, 0, 0);
 
       SRetrieveSupport* ps = calloc(1, sizeof(SRetrieveSupport));  // todo use object id
+      if (ps == NULL) {
+        tscFreeSqlObj(pNew);
+        goto _error;
+      }
+
       ps->pParentSql = pSql;
       ps->subqueryIndex = i;
 
       pNew->param = ps;
       pSql->pSubs[i] = pNew;
-      registerSqlObj(pNew);
 
       SSqlCmd* pCmd = &pNew->cmd;
       pCmd->command = TSDB_SQL_SELECT;
-      if (tscAddQueryInfo(pCmd) != TSDB_CODE_SUCCESS) {
+      if ((code = tscAddQueryInfo(pCmd)) != TSDB_CODE_SUCCESS) {
+        goto _error;
       }
 
       SQueryInfo* pNewQueryInfo = tscGetQueryInfo(pCmd);
       tscQueryInfoCopy(pNewQueryInfo, pSub);
-
-      // create sub query to handle the sub query.
-      executeQuery(pNew, pNewQueryInfo);
+      numOfInit++;
     }
 
-    // merge sub query result and generate final results
+    for(int32_t i = 0; i < pSql->subState.numOfSub; ++i) {
+      SSqlObj* psub = pSql->pSubs[i];
+      registerSqlObj(psub);
+
+      // create sub query to handle the sub query.
+      SQueryInfo* pq = tscGetQueryInfo(&psub->cmd);
+      executeQuery(psub, pq);
+    }
+
     return;
   }
 
   pSql->cmd.active = pQueryInfo;
   doExecuteQuery(pSql, pQueryInfo);
+  return;
+
+  _error:
+  for(int32_t i = 0; i < numOfInit; ++i) {
+    SSqlObj* p = pSql->pSubs[i];
+    tscFreeSqlObj(p);
+  }
+
+  pSql->res.code = code;
+  pSql->subState.numOfSub = 0;   // not initialized sub query object will not be freed
+  tfree(pSql->subState.states);
+  tfree(pSql->pSubs);
+  tscAsyncResultOnError(pSql);
 }
 
 int16_t tscGetJoinTagColIdByUid(STagCond* pTagCond, uint64_t uid) {
