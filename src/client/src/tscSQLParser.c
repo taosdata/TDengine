@@ -8415,7 +8415,7 @@ static int32_t doValidateSubquery(SSqlNode* pSqlNode, int32_t index, SSqlObj* pS
       return invalidOperationMsg(msgBuf, "subquery alias name too long");
     }
 
-    tstrncpy(pTableMetaInfo1->aliasName, subInfo->aliasName.z, sizeof(pTableMetaInfo1->aliasName));
+    tstrncpy(pTableMetaInfo1->aliasName, subInfo->aliasName.z, subInfo->aliasName.n + 1);
   }
 
   taosArrayPush(pQueryInfo->pUpstream, &pSub);
