@@ -83,10 +83,7 @@ while $i < $tbNum
 endw
 
 print ================== all tags have been changed!
-sql select tbname from $stb where t3 = 'NULL'
-if $rows != 0 then 
-  return -1
-endi
+sql_error select tbname from $stb where t3 = 'NULL'
 
 print ================== set tag to NULL
 sql create table stb1_tg (ts timestamp, c1 int) tags(t1 int,t2 bigint,t3 double,t4 float,t5 smallint,t6 tinyint)

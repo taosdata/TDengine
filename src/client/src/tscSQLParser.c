@@ -4805,6 +4805,8 @@ err_ret:
   
   tSqlExprDestroy(columnLeft);
   tSqlExprDestroy(columnRight);
+  tSqlExprDestroy(tsLeft);
+  tSqlExprDestroy(tsRight);
   return ret;
 }
 
@@ -5198,7 +5200,7 @@ static int32_t validateTagCondExpr(SSqlCmd* pCmd, tExprNode *p) {
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t getTagQueryCondExpr(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SCondExpr* pCondExpr, tSqlExpr** pExpr) {
+static int32_t getTagQueryCondExpr(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SCondExpr* pCondExpr) {
   int32_t ret = TSDB_CODE_SUCCESS;
 
   if (pCondExpr->pTagCond == NULL) {
@@ -5206,7 +5208,7 @@ static int32_t getTagQueryCondExpr(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SCondE
   }
   
   for (int32_t i = 0; i < pQueryInfo->numOfTables; ++i) {
-    tSqlExpr* p1 = extractExprForSTable(pCmd, pExpr, pQueryInfo, i);
+    tSqlExpr* p1 = extractExprForSTable(pCmd, &pCondExpr->pTagCond, pQueryInfo, i);
     if (p1 == NULL) {  // no query condition on this table
       continue;
     }
@@ -5245,7 +5247,7 @@ static int32_t getTagQueryCondExpr(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SCondE
     }
     
     tsSetSTableQueryCond(&pQueryInfo->tagCond, uid, &bw);
-    tSqlExprCompact(pExpr);
+    tSqlExprCompact(&pCondExpr->pTagCond);
 
     if (ret == TSDB_CODE_SUCCESS) {
       ret = validateTagCondExpr(pCmd, p);
@@ -5264,7 +5266,6 @@ static int32_t getTagQueryCondExpr(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SCondE
     }
   }
 
-  pCondExpr->pTagCond = NULL;
   return ret;
 }
 
@@ -5446,6 +5447,7 @@ int32_t validateWhereNode(SQueryInfo* pQueryInfo, tSqlExpr** pExpr, SSqlObj* pSq
 
   // after expression compact, the expression tree is only include tag query condition
   condExpr.pTagCond = (*pExpr);
+  *pExpr = NULL;
 
   // 1. check if it is a join query
   if ((ret = validateJoinExpr(&pSql->cmd, pQueryInfo, &condExpr)) != TSDB_CODE_SUCCESS) {
@@ -5462,7 +5464,7 @@ int32_t validateWhereNode(SQueryInfo* pQueryInfo, tSqlExpr** pExpr, SSqlObj* pSq
   }
 
   // 3. get the tag query condition
-  if ((ret = getTagQueryCondExpr(&pSql->cmd, pQueryInfo, &condExpr, pExpr)) != TSDB_CODE_SUCCESS) {
+  if ((ret = getTagQueryCondExpr(&pSql->cmd, pQueryInfo, &condExpr)) != TSDB_CODE_SUCCESS) {
     goto PARSE_WHERE_EXIT;
   }
 
@@ -9141,7 +9143,7 @@ int32_t exprTreeFromSqlExpr(SSqlCmd* pCmd, tExprNode **pExpr, const tSqlExpr* pS
     // NOTE: binary|nchar data allows the >|< type filter
     if ((*pExpr)->_node.optr != TSDB_RELATION_EQUAL && (*pExpr)->_node.optr != TSDB_RELATION_NOT_EQUAL) {
       if (pRight != NULL && pRight->nodeType == TSQL_NODE_VALUE) {
-        if (pRight->pVal->nType == TSDB_DATA_TYPE_BOOL) {
+        if (pRight->pVal->nType == TSDB_DATA_TYPE_BOOL && pLeft->pSchema->type == TSDB_DATA_TYPE_BOOL) {
           return TSDB_CODE_TSC_INVALID_OPERATION;
         }
       }
