@@ -421,7 +421,8 @@ int32_t readFromFile(char *name, uint32_t *len, void **buf) {
     tfree(*buf);
     return TSDB_CODE_TSC_APP_ERROR;
   }
-
+  close(fd);
+  tfree(*buf);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -6868,7 +6869,8 @@ static int32_t doAddGroupbyColumnsOnDemand(SSqlCmd* pCmd, SQueryInfo* pQueryInfo
     tagSchema = tscGetTableTagSchema(pTableMetaInfo->pTableMeta);
   }
 
-  SSchema* s = NULL;
+  SSchema tmp = {.type = 0, .name = "", .colId = 0, .bytes = 0};
+  SSchema* s = &tmp;
 
   for (int32_t i = 0; i < pQueryInfo->groupbyExpr.numOfGroupCols; ++i) {
     SColIndex* pColIndex = taosArrayGet(pQueryInfo->groupbyExpr.columnInfo, i);
@@ -6878,7 +6880,9 @@ static int32_t doAddGroupbyColumnsOnDemand(SSqlCmd* pCmd, SQueryInfo* pQueryInfo
       s = tGetTbnameColumnSchema();
     } else {
       if (TSDB_COL_IS_TAG(pColIndex->flag)) {
-        s = &tagSchema[colIndex];
+        if(tagSchema){
+          s = &tagSchema[colIndex];
+        }
       } else {
         s = &pSchema[colIndex];
       }
@@ -8119,7 +8123,8 @@ int32_t loadAllTableMeta(SSqlObj* pSql, struct SSqlInfo* pInfo) {
   assert(maxSize < 80 * TSDB_MAX_COLUMNS);
   if (!pSql->pBuf) {
     if (NULL == (pSql->pBuf = tcalloc(1, 80 * TSDB_MAX_COLUMNS))) {
-      return TSDB_CODE_TSC_OUT_OF_MEMORY;
+      code = TSDB_CODE_TSC_OUT_OF_MEMORY;
+      goto _end;
     }
   }
 
@@ -8398,14 +8403,18 @@ static int32_t doValidateSubquery(SSqlNode* pSqlNode, int32_t index, SSqlObj* pS
 
   // create dummy table meta info
   STableMetaInfo* pTableMetaInfo1 = calloc(1, sizeof(STableMetaInfo));
+  if (pTableMetaInfo1 == NULL) {
+    return TSDB_CODE_TSC_OUT_OF_MEMORY;
+  }
   pTableMetaInfo1->pTableMeta = extractTempTableMetaFromSubquery(pSub);
 
   if (subInfo->aliasName.n > 0) {
     if (subInfo->aliasName.n >= TSDB_TABLE_FNAME_LEN) {
+      tfree(pTableMetaInfo1);
       return invalidOperationMsg(msgBuf, "subquery alias name too long");
     }
 
-    strncpy(pTableMetaInfo1->aliasName, subInfo->aliasName.z, subInfo->aliasName.n);
+    tstrncpy(pTableMetaInfo1->aliasName, subInfo->aliasName.z, sizeof(pTableMetaInfo1->aliasName));
   }
 
   taosArrayPush(pQueryInfo->pUpstream, &pSub);
@@ -8415,6 +8424,7 @@ static int32_t doValidateSubquery(SSqlNode* pSqlNode, int32_t index, SSqlObj* pS
 
   STableMetaInfo** tmp = realloc(pQueryInfo->pTableMetaInfo, (pQueryInfo->numOfTables + 1) * POINTER_BYTES);
   if (tmp == NULL) {
+    tfree(pTableMetaInfo1);
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
   }
 

@@ -2476,8 +2476,9 @@ int32_t tscHandleMasterSTableQuery(SSqlObj *pSql) {
     pState->states = calloc(pState->numOfSub, sizeof(*pState->states));
     if (pState->states == NULL) {
       pRes->code = TSDB_CODE_TSC_OUT_OF_MEMORY;
+      tscDestroyGlobalMergerEnv(pMemoryBuf, pDesc,pState->numOfSub);
+
       tscAsyncResultOnError(pSql);
-      tfree(pMemoryBuf);
       return ret;
     }
 
@@ -2749,6 +2750,9 @@ void tscHandleSubqueryError(SRetrieveSupport *trsupport, SSqlObj *pSql, int numO
 }
 
 static void tscAllDataRetrievedFromDnode(SRetrieveSupport *trsupport, SSqlObj* pSql) {
+  if (trsupport->pExtMemBuffer == NULL){
+    return;
+  }
   int32_t           idx = trsupport->subqueryIndex;
   SSqlObj *         pParentSql = trsupport->pParentSql;
   tOrderDescriptor *pDesc = trsupport->pOrderDescriptor;
