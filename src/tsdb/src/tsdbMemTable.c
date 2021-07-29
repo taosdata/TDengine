@@ -702,7 +702,7 @@ static int tsdbScanAndConvertSubmitMsg(STsdbRepo *pRepo, SSubmitMsg *pMsg) {
 }
 
 //row1 has higher priority
-static SMemRow tsdbInsertDupKeyMerge(SMemRow row1, SMemRow row2, STsdbRepo* pRepo, STSchema **ppSchema1, STSchema **ppSchema2, STable* pTable, int32_t* affectedRows, int64_t* points) {
+static SMemRow tsdbInsertDupKeyMerge(SMemRow row1, SMemRow row2, STsdbRepo* pRepo, STSchema **ppSchema1, STSchema **ppSchema2, STable* pTable, int32_t* affectedRows, int64_t* points, SMemRow* pLastRow) {
   
   //for compatiblity, duplicate key inserted when update=0 should be also calculated as affected rows!
   if(row1 == NULL && row2 == NULL && pRepo->config.update == TD_ROW_DISCARD_UPDATE) {
@@ -717,6 +717,7 @@ static SMemRow tsdbInsertDupKeyMerge(SMemRow row1, SMemRow row2, STsdbRepo* pRep
     memRowCpy(pMem, row1);
     (*affectedRows)++;
     (*points)++;
+    *pLastRow = pMem;
     return pMem;
   }
 
@@ -752,24 +753,26 @@ static SMemRow tsdbInsertDupKeyMerge(SMemRow row1, SMemRow row2, STsdbRepo* pRep
   (*affectedRows)++;
   (*points)++;
 
+  *pLastRow = pMem;
   return pMem;
 }
 
 static void* tsdbInsertDupKeyMergePacked(void** args) {
-  return tsdbInsertDupKeyMerge(args[0], args[1], args[2], (STSchema**)&args[3], (STSchema**)&args[4], args[5], args[6], args[7]);
+  return tsdbInsertDupKeyMerge(args[0], args[1], args[2], (STSchema**)&args[3], (STSchema**)&args[4], args[5], args[6], args[7], args[8]);
 }
 
-static void tsdbSetupSkipListHookFns(SSkipList* pSkipList, STsdbRepo *pRepo, STable *pTable, int32_t* affectedRows, int64_t* points) {
+static void tsdbSetupSkipListHookFns(SSkipList* pSkipList, STsdbRepo *pRepo, STable *pTable, int32_t* affectedRows, int64_t* points, SMemRow* pLastRow) {
 
-  if(pSkipList->dupHandleFn == NULL) {
-    tGenericSavedFunc *dupHandleSavedFunc = genericSavedFuncInit((GenericVaFunc)&tsdbInsertDupKeyMergePacked, 8);
+  if(pSkipList->insertHandleFn == NULL) {
+    tGenericSavedFunc *dupHandleSavedFunc = genericSavedFuncInit((GenericVaFunc)&tsdbInsertDupKeyMergePacked, 9);
     dupHandleSavedFunc->args[2] = pRepo;
     dupHandleSavedFunc->args[3] = NULL;
     dupHandleSavedFunc->args[4] = NULL;
     dupHandleSavedFunc->args[5] = pTable;
     dupHandleSavedFunc->args[6] = affectedRows;
     dupHandleSavedFunc->args[7] = points;
-    pSkipList->dupHandleFn = dupHandleSavedFunc;
+    dupHandleSavedFunc->args[8] = pLastRow;
+    pSkipList->insertHandleFn = dupHandleSavedFunc;
   }
 }
 
@@ -826,8 +829,8 @@ static int tsdbInsertDataToTable(STsdbRepo* pRepo, SSubmitBlk* pBlock, int32_t *
 
   SMemRow lastRow = NULL;
   int64_t osize = SL_SIZE(pTableData->pData);
-  tsdbSetupSkipListHookFns(pTableData->pData, pRepo, pTable, pAffectedRows, &points);
-  tSkipListPutBatchByIter(pTableData->pData, &blkIter, (iter_next_fn_t)tsdbGetSubmitBlkNext, &lastRow);
+  tsdbSetupSkipListHookFns(pTableData->pData, pRepo, pTable, pAffectedRows, &points, &lastRow);
+  tSkipListPutBatchByIter(pTableData->pData, &blkIter, (iter_next_fn_t)tsdbGetSubmitBlkNext);
   int64_t dsize = SL_SIZE(pTableData->pData) - osize;
 
 
