@@ -4132,6 +4132,11 @@ void blockinfo_func_finalizer(SQLFunctionCtx* pCtx) {
   pDist->rowSize = (uint16_t)pCtx->param[0].i64;
   generateBlockDistResult(pDist, pCtx->pOutput);
 
+  if (pDist->dataBlockInfos != NULL) {
+    taosArrayDestroy(pDist->dataBlockInfos);
+    pDist->dataBlockInfos = NULL;
+  }
+  
   // cannot set the numOfIteratedElems again since it is set during previous iteration
   pResInfo->numOfRes  = 1;
   pResInfo->hasResult = DATA_SET_FLAG;
