@@ -2,6 +2,7 @@ package com.taosdata.jdbc;
 
 import java.sql.*;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 public abstract class AbstractStatement extends WrapperImpl implements Statement {
@@ -196,13 +197,44 @@ public abstract class AbstractStatement extends WrapperImpl implements Statement
         if (batchedArgs == null || batchedArgs.isEmpty())
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_BATCH_IS_EMPTY);
 
+        String clientInfo = getConnection().getClientInfo(TSDBDriver.PROPERTY_KEY_BATCH_ERROR_IGNORE);
+        boolean batchErrorIgnore = clientInfo == null ? TSDBConstants.DEFAULT_BATCH_ERROR_IGNORE : Boolean.parseBoolean(clientInfo);
+
+        if (batchErrorIgnore) {
+            return executeBatchIgnoreException();
+        }
+        return executeBatchThrowException();
+    }
+
+    private int[] executeBatchIgnoreException() {
+        return batchedArgs.stream().mapToInt(sql -> {
+            try {
+                boolean isSelect = execute(sql);
+                if (isSelect) {
+                    return SUCCESS_NO_INFO;
+                } else {
+                    return getUpdateCount();
+                }
+            } catch (SQLException e) {
+                return EXECUTE_FAILED;
+            }
+        }).toArray();
+    }
+
+    private int[] executeBatchThrowException() throws BatchUpdateException {
         int[] res = new int[batchedArgs.size()];
         for (int i = 0; i < batchedArgs.size(); i++) {
-            boolean isSelect = execute(batchedArgs.get(i));
-            if (isSelect) {
-                res[i] = SUCCESS_NO_INFO;
-            } else {
-                res[i] = getUpdateCount();
+            try {
+                boolean isSelect = execute(batchedArgs.get(i));
+                if (isSelect) {
+                    res[i] = SUCCESS_NO_INFO;
+                } else {
+                    res[i] = getUpdateCount();
+                }
+            } catch (SQLException e) {
+                String reason = e.getMessage();
+                int[] updateCounts = Arrays.copyOfRange(res, 0, i);
+                throw new BatchUpdateException(reason, updateCounts, e);
             }
         }
         return res;

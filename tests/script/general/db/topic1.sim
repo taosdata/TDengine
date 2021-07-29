@@ -495,18 +495,13 @@ if $data12_db != 1 then
 endi
 
 sql_error alter topic db wal 1
-sql alter database db wal 1
-sql show databases
-print wal $data12_db
-if $data12_db != 1 then 
-  return -1
-endi
+sql_error alter database db wal 1
 
-sql alter database db wal 1
-sql alter database db wal 2
-sql alter database db wal 1
-sql alter database db wal 2
-sql alter database db wal 0
+sql_error alter database db wal 1
+sql_error alter database db wal 2
+sql_error alter database db wal 1
+sql_error alter database db wal 2
+sql_error alter database db wal 0
 sql_error alter database db wal 3
 sql_error alter database db wal 4
 sql_error alter database db wal -1
@@ -523,11 +518,11 @@ sql_error alter topic db wal -1
 sql_error alter topic db wal 1000
 
 print ============== step fsync
-sql alter database db fsync 0
-sql alter database db fsync 1
-sql alter database db fsync 3600
-sql alter database db fsync 18000
-sql alter database db fsync 180000
+sql_error alter database db fsync 0
+sql_error alter database db fsync 1
+sql_error alter database db fsync 3600
+sql_error alter database db fsync 18000
+sql_error alter database db fsync 180000
 sql_error alter database db fsync 180001
 sql_error alter database db fsync -1
 
@@ -615,17 +610,6 @@ if $rows != 1 then
   return -1
 endi
 
-sql alter database d1 fsync 0
-sql show topics;
-if $rows != 0 then 
-  return -1
-endi
-
-sql show databases;
-if $rows != 1 then 
-  return -1
-endi
-
 sql drop database d1
 sql show topics;
 if $rows != 0 then 
@@ -639,17 +623,6 @@ endi
 
 print ============== step db2
 sql create topic d1
-sql show topics;
-if $rows != 1 then 
-  return -1
-endi
-
-sql show databases;
-if $rows != 1 then 
-  return -1
-endi
-
-sql alter database d1 fsync 0
 sql show topics;
 if $rows != 1 then 
   return -1

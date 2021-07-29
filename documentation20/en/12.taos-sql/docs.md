@@ -1132,7 +1132,7 @@ TDengine supports aggregations over data, they are listed below:
     ```
     Function: Return the difference between the max value and the min value of a column in statistics /STable.
     
-    Return Data Type: Same as applicable fields.
+    Return Data Type: Double.
     
     Applicable Fields: All types except binary, nchar, bool.
     

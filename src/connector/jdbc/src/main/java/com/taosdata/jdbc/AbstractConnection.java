@@ -171,11 +171,7 @@ public abstract class AbstractConnection extends WrapperImpl implements Connecti
         // do nothing
     }
 
-    @Override
-    public Statement createStatement(int resultSetType, int resultSetConcurrency) throws SQLException {
-        if (isClosed())
-            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_CONNECTION_CLOSED);
-
+    private void checkResultSetTypeAndResultSetConcurrency(int resultSetType, int resultSetConcurrency) throws SQLException {
         switch (resultSetType) {
             case ResultSet.TYPE_FORWARD_ONLY:
                 break;
@@ -194,7 +190,14 @@ public abstract class AbstractConnection extends WrapperImpl implements Connecti
             default:
                 throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_INVALID_VARIABLE);
         }
+    }
 
+    @Override
+    public Statement createStatement(int resultSetType, int resultSetConcurrency) throws SQLException {
+        if (isClosed())
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_CONNECTION_CLOSED);
+
+        checkResultSetTypeAndResultSetConcurrency(resultSetType, resultSetConcurrency);
         return createStatement();
     }
 
@@ -203,24 +206,7 @@ public abstract class AbstractConnection extends WrapperImpl implements Connecti
         if (isClosed())
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_CONNECTION_CLOSED);
 
-        switch (resultSetType) {
-            case ResultSet.TYPE_FORWARD_ONLY:
-                break;
-            case ResultSet.TYPE_SCROLL_INSENSITIVE:
-            case ResultSet.TYPE_SCROLL_SENSITIVE:
-                throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
-            default:
-                throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_INVALID_VARIABLE);
-        }
-
-        switch (resultSetConcurrency) {
-            case ResultSet.CONCUR_READ_ONLY:
-                break;
-            case ResultSet.CONCUR_UPDATABLE:
-                throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
-            default:
-                throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_INVALID_VARIABLE);
-        }
+        checkResultSetTypeAndResultSetConcurrency(resultSetType, resultSetConcurrency);
         return prepareStatement(sql);
     }
 

@@ -79,6 +79,21 @@ class TDSql:
             raise Exception(repr(e))
         return self.queryRows
 
+    def getColNameList(self, sql):
+        self.sql = sql
+        try:
+            col_name_list = []
+            self.cursor.execute(sql)
+            self.queryCols = self.cursor.description
+            for query_col in self.queryCols:
+                col_name_list.append(query_col[0])
+        except Exception as e:
+            caller = inspect.getframeinfo(inspect.stack()[1][0])
+            args = (caller.filename, caller.lineno, sql, repr(e))
+            tdLog.notice("%s(%d) failed: sql:%s, %s" % args)
+            raise Exception(repr(e))
+        return col_name_list
+
     def waitedQuery(self, sql, expectRows, timeout):
         tdLog.info("sql: %s, try to retrieve %d rows in %d seconds" % (sql, expectRows, timeout))
         self.sql = sql
@@ -182,6 +197,19 @@ class TDSql:
         self.checkRowCol(row, col)
         return self.queryResult[row][col]
 
+    def getResult(self, sql):
+        self.sql = sql
+        try:
+            self.cursor.execute(sql)
+            self.queryResult = self.cursor.fetchall()
+        except Exception as e:
+            caller = inspect.getframeinfo(inspect.stack()[1][0])
+            args = (caller.filename, caller.lineno, sql, repr(e))
+            tdLog.notice("%s(%d) failed: sql:%s, %s" % args)
+            raise Exception(repr(e))
+        return self.queryResult
+
+        
     def executeTimes(self, sql, times):
         for i in range(times):
             try:
@@ -208,6 +236,14 @@ class TDSql:
             tdLog.exit("%s(%d) failed: sql:%s, affectedRows:%d != expect:%d" % args)
 
         tdLog.info("sql:%s, affectedRows:%d == expect:%d" % (self.sql, self.affectedRows, expectAffectedRows))
+
+    def checkColNameList(self, col_name_list, expect_col_name_list):
+        if col_name_list == expect_col_name_list:
+            tdLog.info("sql:%s, col_name_list:%s == expect_col_name_list:%s" % (self.sql, col_name_list, expect_col_name_list))
+        else:
+            caller = inspect.getframeinfo(inspect.stack()[1][0])
+            args = (caller.filename, caller.lineno, self.sql, col_name_list, expect_col_name_list)
+            tdLog.exit("%s(%d) failed: sql:%s, col_name_list:%s != expect_col_name_list:%s" % args)
 
     def taosdStatus(self, state):
         tdLog.sleep(5)

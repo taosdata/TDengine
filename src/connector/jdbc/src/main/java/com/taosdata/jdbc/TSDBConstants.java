@@ -74,6 +74,8 @@ public abstract class TSDBConstants {
 
     public static final String DEFAULT_PRECISION = "ms";
 
+    public static final boolean DEFAULT_BATCH_ERROR_IGNORE = false;
+
     public static int typeName2JdbcType(String type) {
         switch (type.toUpperCase()) {
             case "TIMESTAMP":
@@ -128,7 +130,7 @@ public abstract class TSDBConstants {
             case TSDBConstants.TSDB_DATA_TYPE_NCHAR:
                 return Types.NCHAR;
         }
-        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNKNOWN_TAOS_TYPE_IN_TDENGINE);
+        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNKNOWN_TAOS_TYPE);
     }
 
     public static String taosType2JdbcTypeName(int taosType) throws SQLException {
@@ -158,7 +160,7 @@ public abstract class TSDBConstants {
             case TSDBConstants.TSDB_DATA_TYPE_NCHAR:
                 return "NCHAR";
             default:
-                throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNKNOWN_TAOS_TYPE_IN_TDENGINE);
+                throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNKNOWN_TAOS_TYPE);
         }
     }
 

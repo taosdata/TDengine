@@ -787,7 +787,7 @@ static char *getTagIndexKey(const void *pData) {
   void *    res = tdGetKVRowValOfCol(pTable->tagVal, pCol->colId);
   if (res == NULL) {
     // treat the column as NULL if we cannot find it
-    res = getNullValue(pCol->type);
+    res = (char*)getNullValue(pCol->type);
   }
   return res;
 }

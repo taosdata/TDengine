@@ -178,6 +178,8 @@ void *processWriteQueue(void *param) {
   int   type;
   void *item;
 
+  setThreadName("syncWrite");
+
   while (1) {
     int ret = taosReadQitem(qhandle, &type, &item);
     if (ret <= 0) {
