@@ -42,7 +42,8 @@ extern "C" {
 struct SSqlInfo;
 
 typedef void (*__async_cb_func_t)(void *param, TAOS_RES *tres, int32_t numOfRows);
-
+// #define __DEV_BRANCH__
+#define __5221_BRANCH__
 typedef struct SNewVgroupInfo {
   int32_t    vgId;
   int8_t     inUse;
@@ -84,8 +85,9 @@ typedef struct SParamInfo {
 } SParamInfo;
 
 typedef struct SBoundColumn {
-  bool    hasVal;  // denote if current column has bound or not
-  int32_t offset;  // all column offset value
+  bool    hasVal;   // denote if current column has bound or not
+  int32_t offset;   // all column offset value
+  int32_t toffset;  // first part offset for SDataRow TODO: get offset from STSchema on future
 } SBoundColumn;
 
 typedef struct {
@@ -103,13 +105,15 @@ typedef enum _COL_ORDER_STATUS {
 typedef struct SParsedDataColInfo {
   int16_t        numOfCols;
   int16_t        numOfBound;
-  int32_t *      boundedColumns;  // bounded column idx according to schema
+  uint16_t       flen;            // TODO: get from STSchema
+  uint16_t       allNullLen;      // TODO: get from STSchema
+  int32_t *      boundedColumns;  // bound column idx according to schema
   SBoundColumn * cols;
   SBoundIdxInfo *colIdxInfo;
-  int8_t         orderStatus;  // bounded columns: 
+  int8_t         orderStatus;  // bound columns
 } SParsedDataColInfo;
 
-#define IS_DATA_COL_ORDERED(s) ((s) == (int8_t)ORDER_STATUS_ORDERED)
+#define IS_DATA_COL_ORDERED(spd) ((spd->orderStatus) == (int8_t)ORDER_STATUS_ORDERED)
 
 typedef struct {
   SSchema *   pSchema;
@@ -119,11 +123,80 @@ typedef struct {
   void *      buf;
   void *      pDataBlock;
   SSubmitBlk *pSubmitBlk;
+} SMemRowBuilderX;  // no more needed if generate SMemRow from origin insert
+typedef struct {
+  // int32_t offset;
+  int32_t dataLen;  // len of SDataRow
+  int32_t kvLen;    // len of SKVRow
+} SMemRowInfo;
+typedef struct {
+  uint8_t      memRowType;
+  uint16_t     nBoundCols;
+  int32_t      nRows;    // rows to insert
+  SArray *     colInfo;  // SColInfo
+  SMemRowInfo *rowInfo;
 } SMemRowBuilder;
 
-typedef struct {
-  TDRowLenT allNullLen;
-} SMemRowHelper;
+#define KVRatioThres (0.4f)
+
+int initMemRowBuilder(SMemRowBuilder *pBuilder, uint32_t nRows, uint32_t nCols, uint32_t nBoundCols,
+                      int32_t allNullLen);
+
+void destroyMemRowBuilder(SMemRowBuilder *pBuilder);
+
+/**
+ * @brief
+ *
+ * @param memRowType
+ * @param spd
+ * @param idx   the absolute bound index of columns
+ * @return FORCE_INLINE
+ */
+static FORCE_INLINE void tscGetMemRowAppendInfo(SSchema *pSchema, uint8_t memRowType, SParsedDataColInfo *spd,
+                                                int32_t idx, int32_t *toffset, int16_t *colId) {
+  int32_t schemaIdx = 0;
+  if (IS_DATA_COL_ORDERED(spd)) {
+    schemaIdx = spd->boundedColumns[idx];
+    if (isDataRowT(memRowType)) {
+      *toffset = (spd->cols + schemaIdx)->toffset;  // the offset of firstPart
+    } else {
+      *toffset = idx * sizeof(SColIdx);  // the offset of SColIdx
+    }
+  } else {
+    ASSERT(idx == (spd->colIdxInfo + idx)->boundIdx);
+    schemaIdx = (spd->colIdxInfo + idx)->schemaColIdx;
+    if (isDataRowT(memRowType)) {
+      *toffset = (spd->cols + schemaIdx)->toffset;
+    } else {
+      *toffset = ((spd->colIdxInfo + idx)->finalIdx) * sizeof(SColIdx);
+    }
+  }
+  *colId = pSchema[schemaIdx].colId;
+}
+
+/**
+ * @brief
+ *
+ * @param row
+ * @param value
+ * @param isCopyVarData In some scenario, the varVal is copied to row directly before calling tdAppend***ColVal()
+ * @param colId
+ * @param colType
+ * @param idx index in SSchema
+ * @param pBuilder
+ * @param spd
+ * @return FORCE_INLINE
+ */
+static FORCE_INLINE void tscAppendMemRowColVal(SMemRow row, const void *value, bool isCopyVarData, int16_t colId,
+                                               int8_t colType, int32_t toffset, SMemRowBuilder *pBuilder,
+                                               int32_t rowNum) {
+  tdAppendMemRowColVal(row, value, isCopyVarData, colId, colType, toffset);
+  // TODO: When nBoundCols/nCols > 0.5,
+  SMemRowInfo *pRowInfo = pBuilder->rowInfo + rowNum;
+  tdGetColAppendDeltaLen(value, colType, &pRowInfo->dataLen, &pRowInfo->kvLen);
+}
+
+int tranferRowKVToData(SMemRowBuilder *pBuilder, SMemRow rowKV, SMemRow rowData, TDRowTLenT destLen);
 
 typedef struct STableDataBlocks {
   SName       tableName;
@@ -146,12 +219,12 @@ typedef struct STableDataBlocks {
   uint32_t       numOfAllocedParams;
   uint32_t       numOfParams;
   SParamInfo *   params;
-  SMemRowHelper  rowHelper;
 } STableDataBlocks;
 
 typedef struct {
   STableMeta   *pTableMeta;
-  SVgroupsInfo *pVgroupInfo;
+  SArray       *vgroupIdList;
+//  SVgroupsInfo *pVgroupsInfo;
 } STableMetaVgroupInfo;
 
 typedef struct SInsertStatementParam {
@@ -375,6 +448,8 @@ void tscResetSqlCmd(SSqlCmd *pCmd, bool removeMeta);
  */
 void tscFreeSqlResult(SSqlObj *pSql);
 
+void* tscCleanupTableMetaMap(SHashObj* pTableMetaMap);
+
 /**
  * free sql object, release allocated resource
  * @param pObj
@@ -415,7 +490,8 @@ int32_t tscValidateSqlInfo(SSqlObj *pSql, struct SSqlInfo *pInfo);
 int32_t tsSetBlockInfo(SSubmitBlk *pBlocks, const STableMeta *pTableMeta, int32_t numOfRows);
 extern int32_t    sentinel;
 extern SHashObj  *tscVgroupMap;
-extern SHashObj  *tscTableMetaInfo;
+extern SHashObj  *tscTableMetaMap;
+extern SCacheObj *tscVgroupListBuf;
 
 extern int   tscObjRef;
 extern void *tscTmr;
@@ -431,7 +507,6 @@ int16_t getNewResColId(SSqlCmd* pCmd);
 
 int32_t schemaIdxCompar(const void *lhs, const void *rhs);
 int32_t boundIdxCompar(const void *lhs, const void *rhs);
-int     initSMemRowHelper(SMemRowHelper *pHelper, SSchema *pSSchema, uint16_t nCols, uint16_t allNullColsLen);
 int32_t getExtendedRowSize(STableComInfo *tinfo);
 
 #ifdef __cplusplus

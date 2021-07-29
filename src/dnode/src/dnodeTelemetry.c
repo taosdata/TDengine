@@ -245,7 +245,7 @@ static void* telemetryThread(void* param) {
   clock_gettime(CLOCK_REALTIME, &end);
   end.tv_sec += 300; // wait 5 minutes before send first report
 
-  setThreadName("telemetryThrd");
+  setThreadName("telemetry");
 
   while (!tsExit) {
     int r = 0;

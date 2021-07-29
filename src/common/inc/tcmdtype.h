@@ -88,10 +88,7 @@ enum {
   TSDB_DEFINE_SQL_TYPE( TSDB_SQL_SHOW_CREATE_STABLE, "show-create-stable")
   TSDB_DEFINE_SQL_TYPE( TSDB_SQL_SHOW_CREATE_DATABASE, "show-create-database")
 
-  /*
-   * build empty result instead of accessing dnode to fetch result
-   * reset the client cache
-   */
+  // build empty result instead of accessing dnode to fetch result reset the client cache
   TSDB_DEFINE_SQL_TYPE( TSDB_SQL_RETRIEVE_EMPTY_RESULT, "retrieve-empty-result" )
 
   TSDB_DEFINE_SQL_TYPE( TSDB_SQL_RESET_CACHE,  "reset-cache" )

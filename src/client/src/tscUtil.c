@@ -1388,7 +1388,7 @@ void tscResetSqlCmd(SSqlCmd* pCmd, bool clearCachedMeta) {
   if (pCmd->pTableMetaMap != NULL) {
     STableMetaVgroupInfo* p = taosHashIterate(pCmd->pTableMetaMap, NULL);
     while (p) {
-      tscVgroupInfoClear(p->pVgroupInfo);
+      taosArrayDestroy(p->vgroupIdList);
       tfree(p->pTableMeta);
       p = taosHashIterate(pCmd->pTableMetaMap, p);
     }
@@ -1396,6 +1396,22 @@ void tscResetSqlCmd(SSqlCmd* pCmd, bool clearCachedMeta) {
     taosHashCleanup(pCmd->pTableMetaMap);
     pCmd->pTableMetaMap = NULL;
   }
+}
+
+void* tscCleanupTableMetaMap(SHashObj* pTableMetaMap) {
+  if (pTableMetaMap == NULL) {
+    return NULL;
+  }
+
+  STableMetaVgroupInfo* p = taosHashIterate(pTableMetaMap, NULL);
+  while (p) {
+    taosArrayDestroy(p->vgroupIdList);
+    tfree(p->pTableMeta);
+    p = taosHashIterate(pTableMetaMap, p);
+  }
+
+  taosHashCleanup(pTableMetaMap);
+  return NULL;
 }
 
 void tscFreeSqlResult(SSqlObj* pSql) {
@@ -1522,7 +1538,7 @@ void tscDestroyDataBlock(STableDataBlocks* pDataBlock, bool removeMeta) {
     char name[TSDB_TABLE_FNAME_LEN] = {0};
     tNameExtractFullName(&pDataBlock->tableName, name);
 
-    taosHashRemove(tscTableMetaInfo, name, strnlen(name, TSDB_TABLE_FNAME_LEN));
+    taosHashRemove(tscTableMetaMap, name, strnlen(name, TSDB_TABLE_FNAME_LEN));
   }
 
   if (!pDataBlock->cloned) {
@@ -1689,6 +1705,15 @@ SQueryInfo* tscGetQueryInfo(SSqlCmd* pCmd) {
   return pCmd->active;
 }
 
+int tranferRowDataToKV(SMemRowBuilder* pBuilder, SMemRow rowData, SMemRow rowKV, TDRowTLenT destLen) {
+  // TDRowTLenT srcLen = memRowTLen(rowData);
+  return 0;
+}
+int tranferRowKVToData(SMemRowBuilder* pBuilder, SMemRow rowKV, SMemRow rowData, TDRowTLenT destLen) {
+  // TDRowTLenT srcLen = memRowTLen(rowData);
+  return 0;
+}
+
 /**
  * create the in-memory buffer for each table to keep the submitted data block
  * @param initialSize
@@ -1769,7 +1794,7 @@ int32_t tscGetDataBlockFromList(SHashObj* pHashList, int64_t id, int32_t size, i
   return TSDB_CODE_SUCCESS;
 }
 
-static SMemRow tdGenMemRowFromBuilder(SMemRowBuilder* pBuilder) {
+static SMemRow tdGenMemRowFromBuilder(SMemRowBuilderX* pBuilder) {
   SSchema* pSchema = pBuilder->pSchema;
   char*    p = (char*)pBuilder->buf;
   int      toffset = 0;
@@ -1809,8 +1834,7 @@ static SMemRow tdGenMemRowFromBuilder(SMemRowBuilder* pBuilder) {
       int16_t colId = payloadColId(p);
       if (colId == pSchema[j].colId) {
         // ASSERT(payloadColType(p) == pSchema[j].type);
-        tdAppendColVal(trow, POINTER_SHIFT(pVals, payloadColOffset(p)), pSchema[j].type, toffset);
-        toffset += TYPE_BYTES[pSchema[j].type];
+        tdAppendDataColVal(trow, POINTER_SHIFT(pVals, payloadColOffset(p)), true, pSchema[j].type, toffset);
         p = payloadNextCol(p);
         ++i;
         ++j;
@@ -1818,15 +1842,13 @@ static SMemRow tdGenMemRowFromBuilder(SMemRowBuilder* pBuilder) {
         p = payloadNextCol(p);
         ++i;
       } else {
-        tdAppendColVal(trow, getNullValue(pSchema[j].type), pSchema[j].type, toffset);
-        toffset += TYPE_BYTES[pSchema[j].type];
+        tdAppendDataColVal(trow, getNullValue(pSchema[j].type), true, pSchema[j].type, toffset);
         ++j;
       }
     }
 
     while (j < nCols) {
-      tdAppendColVal(trow, getNullValue(pSchema[j].type), pSchema[j].type, toffset);
-      toffset += TYPE_BYTES[pSchema[j].type];
+      tdAppendDataColVal(trow, getNullValue(pSchema[j].type), true, pSchema[j].type, toffset);
       ++j;
     }
     
@@ -1848,8 +1870,8 @@ static SMemRow tdGenMemRowFromBuilder(SMemRowBuilder* pBuilder) {
     while (i < nColsBound) {
       int16_t colId = payloadColId(p);
       uint8_t colType = payloadColType(p);
-      tdAppendKvColVal(kvRow, POINTER_SHIFT(pVals,payloadColOffset(p)), colId, colType, &toffset);
-      // toffset += sizeof(SColIdx);
+      tdAppendKvColVal(kvRow, POINTER_SHIFT(pVals, payloadColOffset(p)), true, colId, colType, toffset);
+      toffset += sizeof(SColIdx);
       p = payloadNextCol(p);
       ++i;
     }
@@ -1916,7 +1938,7 @@ static int trimDataBlock(void* pDataBlock, STableDataBlocks* pTableDataBlock, SI
 
       int toffset = 0;
       for (int32_t j = 0; j < tinfo.numOfColumns; j++) {
-        tdAppendColVal(trow, p, pSchema[j].type, toffset);
+        tdAppendDataColVal(trow, p, true, pSchema[j].type, toffset);
         toffset += TYPE_BYTES[pSchema[j].type];
         p += pSchema[j].bytes;
       }
@@ -1925,7 +1947,7 @@ static int trimDataBlock(void* pDataBlock, STableDataBlocks* pTableDataBlock, SI
       pBlock->dataLen += memRowTLen(memRow);
     }
   } else {
-    SMemRowBuilder rowBuilder;
+    SMemRowBuilderX rowBuilder;
     rowBuilder.pSchema = pSchema;
     rowBuilder.sversion = pTableMeta->sversion;
     rowBuilder.flen = flen;
@@ -3365,7 +3387,7 @@ void clearAllTableMetaInfo(SQueryInfo* pQueryInfo, bool removeMeta) {
     if (removeMeta) {
       char name[TSDB_TABLE_FNAME_LEN] = {0};
       tNameExtractFullName(&pTableMetaInfo->name, name);
-      taosHashRemove(tscTableMetaInfo, name, strnlen(name, TSDB_TABLE_FNAME_LEN));
+      taosHashRemove(tscTableMetaMap, name, strnlen(name, TSDB_TABLE_FNAME_LEN));
     }
     
     tscFreeVgroupTableInfo(pTableMetaInfo->pVgroupTables);
@@ -3481,11 +3503,9 @@ SSqlObj* createSimpleSubObj(SSqlObj* pSql, __async_cb_func_t fp, void* param, in
 
   SSqlCmd* pCmd = &pNew->cmd;
   pCmd->command = cmd;
+  tsem_init(&pNew->rspSem, 0 ,0);
+
   if (tscAddQueryInfo(pCmd) != TSDB_CODE_SUCCESS) {
-#ifdef __APPLE__
-    // to satisfy later tsem_destroy in taos_free_result
-    tsem_init(&pNew->rspSem, 0, 0);
-#endif // __APPLE__
     tscFreeSqlObj(pNew);
     return NULL;
   }
@@ -4360,7 +4380,7 @@ int32_t tscCreateTableMetaFromSTableMeta(STableMeta* pChild, const char* name, v
   assert(pChild != NULL && buf != NULL);
 
   STableMeta* p = buf;
-  taosHashGetClone(tscTableMetaInfo, pChild->sTableName, strnlen(pChild->sTableName, TSDB_TABLE_FNAME_LEN), NULL, p, -1);
+  taosHashGetClone(tscTableMetaMap, pChild->sTableName, strnlen(pChild->sTableName, TSDB_TABLE_FNAME_LEN), NULL, p);
 
   // tableMeta exists, build child table meta according to the super table meta
   // the uid need to be checked in addition to the general name of the super table.
@@ -4374,7 +4394,7 @@ int32_t tscCreateTableMetaFromSTableMeta(STableMeta* pChild, const char* name, v
     memcpy(pChild->schema, p->schema, sizeof(SSchema) *total);
     return TSDB_CODE_SUCCESS;
   } else { // super table has been removed, current tableMeta is also expired. remove it here
-    taosHashRemove(tscTableMetaInfo, name, strnlen(name, TSDB_TABLE_FNAME_LEN));
+    taosHashRemove(tscTableMetaMap, name, strnlen(name, TSDB_TABLE_FNAME_LEN));
     return -1;
   }
 }
@@ -4872,4 +4892,20 @@ SNewVgroupInfo createNewVgroupInfo(SVgroupMsg *pVgroupMsg) {
   }
 
   return info;
+}
+
+void tscRemoveTableMetaBuf(STableMetaInfo* pTableMetaInfo, uint64_t id) {
+  char fname[TSDB_TABLE_FNAME_LEN] = {0};
+  tNameExtractFullName(&pTableMetaInfo->name, fname);
+
+  int32_t len = (int32_t) strnlen(fname, TSDB_TABLE_FNAME_LEN);
+  if (UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo)) {
+    void* pv = taosCacheAcquireByKey(tscVgroupListBuf, fname, len);
+    if (pv != NULL) {
+      taosCacheRelease(tscVgroupListBuf, &pv, true);
+    }
+  }
+
+  taosHashRemove(tscTableMetaMap, fname, len);
+  tscDebug("0x%"PRIx64" remove table meta %s, numOfRemain:%d", id, fname, (int32_t) taosHashGetSize(tscTableMetaMap));
 }
