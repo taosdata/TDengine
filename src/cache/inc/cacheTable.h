@@ -48,7 +48,7 @@ struct cacheTable {
 
 int cacheTablePut(cacheTable *pTable, cacheItem* pItem);
 cacheItem* cacheTableGet(cacheTable* pTable, const char* key, uint8_t nkey);
-void cacheTableRemove(cacheTable* pTable, const char* key, uint8_t nkey, bool lock);
+void cacheTableRemove(cacheTable* pTable, const char* key, uint8_t nkey, cacheLockFlag flag);
 
 static int FORCE_INLINE cacheTableTryLockBucket(cacheTable* pTable, uint32_t hash) {
   return cacheMutexTryLock(&(pTable->pBucket[hash % pTable->capacity].mutex));

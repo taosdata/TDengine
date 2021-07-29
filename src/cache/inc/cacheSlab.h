@@ -53,7 +53,7 @@ uint32_t cacheSlabId(cache_t *cache, size_t size);
 
 cacheItem* cacheSlabAllocItem(cache_t *cache, size_t ntotal, uint32_t id);
 
-void cacheSlabFreeItem(cache_t *cache, cacheItem* item, bool lock);
+void cacheSlabFreeItem(cache_t *cache, cacheItem* item, cacheLockFlag flag);
 
 #ifdef __cplusplus
 }

@@ -24,8 +24,6 @@ static int check_cache_options(cacheOption* options);
 static int cachePutDataIntoCache(cacheTable* pTable, const char* key, uint8_t nkey, 
                                 const char* value, uint32_t nbytes, cacheItem** ppItem, uint64_t expire);
 
-//static cache_manager_t cache_manager
-
 cache_t* cacheCreate(cacheOption* options) {
   if (check_cache_options(options) != CACHE_OK) {
     cacheError("check_cache_options fail");
@@ -70,7 +68,7 @@ cacheItem* cacheGet(cacheTable* pTable, const char* key, uint8_t nkey) {
     uint64_t now = taosGetTimestamp(TSDB_TIME_PRECISION_MILLI);
     if (cacheItemIsExpired(pItem, now)) { /* is item expired? */
       /* cacheItemUnlink make ref == 1 */
-      cacheItemUnlink(pTable, pItem, true, true);
+      cacheItemUnlink(pTable, pItem, CACHE_LOCK_HASH | CACHE_LOCK_LRU);
       /* cacheItemRemove make ref == 0 then free item */
       cacheItemRemove(pTable->pCache, pItem);
       pItem = NULL;
@@ -114,6 +112,10 @@ void cacheItemData(cacheItem* pItem, char** data, int* nbytes) {
 
 void cacheItemUnreference(cacheItem* pItem) {
   itemDecrRef(pItem);
+}
+
+void cacheRemove(cacheTable* pTable, const char* key, uint8_t nkey) {
+  cacheTableRemove(pTable, key, nkey, CACHE_LOCK_HASH);
 }
 
 static int cachePutDataIntoCache(cacheTable* pTable, const char* key, uint8_t nkey, const char* value,

@@ -60,11 +60,11 @@ cacheItem* cacheAllocItem(cache_t* cache, uint8_t nkey, uint32_t nbytes, uint64_
   return pItem;
 }
 
-void cacheItemUnlink(cacheTable* pTable, cacheItem* pItem, bool lockLru, bool lockhash) {
+void cacheItemUnlink(cacheTable* pTable, cacheItem* pItem, cacheLockFlag flag) {
   assert(pItem->pTable == pTable);
   if (item_is_used(pItem)) {
-    cacheTableRemove(pTable, item_key(pItem), pItem->nkey, lockhash);
-    cacheLruUnlinkItem(pTable->pCache, pItem, lockLru);
+    cacheTableRemove(pTable, item_key(pItem), pItem->nkey, flag);
+    cacheLruUnlinkItem(pTable->pCache, pItem, flag);
     cacheItemRemove(pTable->pCache, pItem);
   }
 }
@@ -129,5 +129,5 @@ static void freeCacheItem(cache_t* pCache, cacheItem* pItem) {
   assert(pLru->head != pItem);
   assert(pLru->tail != pItem);
 
-  cacheSlabFreeItem(pCache, pItem, false);
+  cacheSlabFreeItem(pCache, pItem, CACHE_LOCK_SLAB);
 }

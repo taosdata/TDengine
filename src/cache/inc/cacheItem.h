@@ -134,7 +134,7 @@ static FORCE_INLINE bool item_key_equal(cacheItem* item1, cacheItem* item2) {
   return key_equal(key1, key2);
 }
 
-void cacheItemUnlink(cacheTable* pTable, cacheItem* pItem, bool lockLru, bool lockhash);
+void cacheItemUnlink(cacheTable* pTable, cacheItem* pItem, cacheLockFlag flag);
 void cacheItemRemove(cache_t*, cacheItem*);
 void cacheItemBump(cacheTable* pTable, cacheItem* pItem, uint64_t now);
 cacheMutex* cacheItemBucketMutex(cacheItem*);

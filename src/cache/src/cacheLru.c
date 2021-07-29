@@ -27,11 +27,11 @@ int cacheLruDestroy(cacheSlabLruClass* pLru) {
   return (cacheMutexDestroy(&(pLru->mutex)));
 }
 
-void cacheLruUnlinkItem(cache_t* pCache, cacheItem* pItem, bool lock) {  
+void cacheLruUnlinkItem(cache_t* pCache, cacheItem* pItem, cacheLockFlag flag) {  
   cacheSlabLruClass* pLru = &(pCache->lruArray[item_slablru_id(pItem)]);
   assert(item_slablru_id(pItem) == pLru->id);
 
-  if (lock) cacheMutexLock(&(pLru->mutex));
+  if (IS_CACHE_LOCK_LRU(flag)) cacheMutexLock(&(pLru->mutex));
 
   cacheItem* head = pLru->head;
   cacheItem* tail = pLru->tail;
@@ -56,14 +56,14 @@ void cacheLruUnlinkItem(cache_t* pCache, cacheItem* pItem, bool lock) {
   pLru->num -= 1;
   pLru->bytes -= cacheItemTotalBytes(pItem->nkey, pItem->nbytes);
 
-  if (lock) cacheMutexUnlock(&(pLru->mutex));
+  if (IS_CACHE_LOCK_LRU(flag)) cacheMutexUnlock(&(pLru->mutex));
 }
 
-void cacheLruLinkItem(cache_t* pCache, cacheItem* pItem, bool lock) {
+void cacheLruLinkItem(cache_t* pCache, cacheItem* pItem, cacheLockFlag flag) {
   cacheSlabLruClass* pLru = &(pCache->lruArray[item_slablru_id(pItem)]);
   assert(item_slablru_id(pItem) == pLru->id);
 
-  if (lock) cacheMutexLock(&(pLru->mutex));
+  if (IS_CACHE_LOCK_LRU(flag)) cacheMutexLock(&(pLru->mutex));
   
   cacheItem* head = pLru->head;
   cacheItem* tail = pLru->tail;
@@ -82,15 +82,15 @@ void cacheLruLinkItem(cache_t* pCache, cacheItem* pItem, bool lock) {
   pLru->num += 1;
   pLru->bytes += cacheItemTotalBytes(pItem->nkey, pItem->nbytes);
 
-  if (lock) cacheMutexUnlock(&(pLru->mutex));
+  if (IS_CACHE_LOCK_LRU(flag)) cacheMutexUnlock(&(pLru->mutex));
 }
 
-void cacheLruMoveToHead(cache_t* cache, cacheItem* pItem, bool lock) {
+void cacheLruMoveToHead(cache_t* cache, cacheItem* pItem, cacheLockFlag flag) {
   cacheSlabLruClass* pLru = &(cache->lruArray[item_slablru_id(pItem)]);
-  if (lock) cacheMutexLock(&(pLru->mutex));
+  if (IS_CACHE_LOCK_LRU(flag)) cacheMutexLock(&(pLru->mutex));
 
-  cacheLruUnlinkItem(cache, pItem, false);
-  cacheLruLinkItem(cache, pItem, false);
+  cacheLruUnlinkItem(cache, pItem, 0);
+  cacheLruLinkItem(cache, pItem, 0);
 
-  if (lock) cacheMutexUnlock(&(pLru->mutex));
+  if (IS_CACHE_LOCK_LRU(flag)) cacheMutexUnlock(&(pLru->mutex));
 }

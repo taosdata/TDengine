@@ -35,6 +35,16 @@ typedef struct cacheSlabClass cacheSlabClass;
 struct cacheSlabLruClass;
 typedef struct cacheSlabLruClass cacheSlabLruClass;
 
+typedef enum cacheLockFlag {
+  CACHE_LOCK_HASH = 1,
+  CACHE_LOCK_SLAB = 2,
+  CACHE_LOCK_LRU  = 4,
+} cacheLockFlag;
+
+#define IS_CACHE_LOCK_HASH(flag) (flag & CACHE_LOCK_HASH)
+#define IS_CACHE_LOCK_SLAB(flag) (flag & CACHE_LOCK_SLAB)
+#define IS_CACHE_LOCK_LRU(flag)  (flag & CACHE_LOCK_LRU)
+
 #ifdef __cplusplus
 }
 #endif

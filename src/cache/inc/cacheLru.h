@@ -36,10 +36,10 @@ typedef struct cacheSlabLruClass {
 int   cacheLruInit(cacheSlabLruClass* pLru, int i);
 int   cacheLruDestroy(cacheSlabLruClass* pLru);
 
-void  cacheLruUnlinkItem(cache_t*, cacheItem*, bool lock);
-void  cacheLruLinkItem(cache_t*, cacheItem*, bool lock);
+void  cacheLruUnlinkItem(cache_t*, cacheItem*, cacheLockFlag flag);
+void  cacheLruLinkItem(cache_t*, cacheItem*, cacheLockFlag flag);
 
-void  cacheLruMoveToHead(cache_t*, cacheItem*, bool lock);
+void  cacheLruMoveToHead(cache_t*, cacheItem*, cacheLockFlag flag);
 
 #ifdef __cplusplus
 }

@@ -78,7 +78,7 @@ void cacheItemData(cacheItem*, char** data, int* nbytes);
 /* after access the item, unference the item */
 void cacheItemUnreference(cacheItem*);
 
-void         cache_remove(cache_t* cache, const char* key);
+void cacheRemove(cacheTable* pTable, const char* key, uint8_t nkey);
 
 #ifdef __cplusplus
 }
