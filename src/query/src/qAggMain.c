@@ -3996,6 +3996,7 @@ static void mergeTableBlockDist(SResultRowCellInfo* pResInfo, const STableBlockD
 
   pDist->numOfTables += pSrc->numOfTables;
   pDist->numOfRowsInMemTable += pSrc->numOfRowsInMemTable;
+  pDist->numOfSmallBlocks += pSrc->numOfSmallBlocks;
   pDist->numOfFiles += pSrc->numOfFiles;
   pDist->totalSize += pSrc->totalSize;
   pDist->totalRows += pSrc->totalRows;
