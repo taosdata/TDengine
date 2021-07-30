@@ -783,7 +783,7 @@ endi
 sql create stable st1 (ts timestamp, f1 int, f2 int) tags (id int);
 sql create table tb1 using st1 tags(1);
 
-sql insert into tb1 values (now, 1, 1);
+sql insert into tb1 values ('2021-07-02 00:00:00', 1, 1);
 
 sql select stddev(f1) from st1 group by f1;
 
