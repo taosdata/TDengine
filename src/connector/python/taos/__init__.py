@@ -235,6 +235,7 @@ __all__ = [
 ]
 
 def connect(*args, **kwargs):
+    # type: (..., ...) -> TaosConnection
     """Function to return a TDengine connector object
 
     Current supporting keyword parameters:

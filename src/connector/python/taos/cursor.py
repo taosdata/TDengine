@@ -227,6 +227,10 @@ class TaosCursor(object):
                 buffer[i].extend(block[i])
         return list(map(tuple, zip(*buffer)))
 
+    def stop_query(self):
+        if self._result != None:
+            taos_stop_query(self._result)
+            
     def nextset(self):
         """ """
         pass
