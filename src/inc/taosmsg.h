@@ -232,6 +232,10 @@ typedef struct SSubmitBlk {
   char     data[];
 } SSubmitBlk;
 
+// #define IS_BLOCK_COMPACT_(b) (((b)->padding) & 0x00000001)
+// #define SET_BLOCK_LOOSLY(b) (((b)->padding) &= 0xFFFFFFFE)
+// #define SET_BLOCK_COMPACT(b) (((b)->padding) |= 0x00000001)
+
 // Submit message for this TSDB
 typedef struct SSubmitMsg {
   SMsgHead   header;

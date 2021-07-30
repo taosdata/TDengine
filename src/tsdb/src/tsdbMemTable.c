@@ -984,7 +984,7 @@ static void updateTableLatestColumn(STsdbRepo *pRepo, STable *pTable, SMemRow ro
 
   for (int16_t j = 0; j < schemaNCols(pSchema); j++) {
     STColumn *pTCol = schemaColAt(pSchema, j);
-    // ignore not exist colIdå
+    // ignore not exist colId
     int16_t idx = tsdbGetLastColumnsIndexByColId(pTable, pTCol->colId);
     if (idx == -1) {
       continue;

@@ -44,6 +44,7 @@ struct SSqlInfo;
 typedef void (*__async_cb_func_t)(void *param, TAOS_RES *tres, int32_t numOfRows);
 // #define __DEV_BRANCH__
 #define __5221_BRANCH__
+
 typedef struct SNewVgroupInfo {
   int32_t    vgId;
   int8_t     inUse;
@@ -132,16 +133,13 @@ typedef struct {
 typedef struct {
   uint8_t      memRowType;
   uint16_t     nBoundCols;
-  int32_t      nRows;    // rows to insert
+  // int32_t      nRows;    // rows to insert
   SArray *     colInfo;  // SColInfo
   SMemRowInfo *rowInfo;
 } SMemRowBuilder;
 
-#define KVRatioThres (0.4f)
-
-int initMemRowBuilder(SMemRowBuilder *pBuilder, uint32_t nRows, uint32_t nCols, uint32_t nBoundCols,
-                      int32_t allNullLen);
-
+int  initMemRowBuilder(SMemRowBuilder *pBuilder, uint32_t nRows, uint32_t nCols, uint32_t nBoundCols,
+                       int32_t allNullLen);
 void destroyMemRowBuilder(SMemRowBuilder *pBuilder);
 
 /**
@@ -175,7 +173,7 @@ static FORCE_INLINE void tscGetMemRowAppendInfo(SSchema *pSchema, uint8_t memRow
 }
 
 /**
- * @brief
+ * @brief Applicable to consume by multi-columns
  *
  * @param row
  * @param value
@@ -194,6 +192,14 @@ static FORCE_INLINE void tscAppendMemRowColVal(SMemRow row, const void *value, b
   // TODO: When nBoundCols/nCols > 0.5,
   SMemRowInfo *pRowInfo = pBuilder->rowInfo + rowNum;
   tdGetColAppendDeltaLen(value, colType, &pRowInfo->dataLen, &pRowInfo->kvLen);
+}
+
+// Applicable to consume by one row
+static FORCE_INLINE void tscAppendMemRowColValEx(SMemRow row, const void *value, bool isCopyVarData, int16_t colId,
+                                                 int8_t colType, int32_t toffset, int32_t *dataLen, int32_t *kvLen) {
+  tdAppendMemRowColVal(row, value, isCopyVarData, colId, colType, toffset);
+  // TODO: When nBoundCols/nCols > 0.5,
+  tdGetColAppendDeltaLen(value, colType, dataLen, kvLen);
 }
 
 int tranferRowKVToData(SMemRowBuilder *pBuilder, SMemRow rowKV, SMemRow rowData, TDRowTLenT destLen);
@@ -219,6 +225,7 @@ typedef struct STableDataBlocks {
   uint32_t       numOfAllocedParams;
   uint32_t       numOfParams;
   SParamInfo *   params;
+  SMemRowBuilder rowBuilder;
 } STableDataBlocks;
 
 typedef struct {
@@ -233,7 +240,6 @@ typedef struct SInsertStatementParam {
   SHashObj    *pTableBlockHashList;     // data block for each table
   SArray      *pDataBlocks;             // SArray<STableDataBlocks*>. Merged submit block for each vgroup
   int8_t       schemaAttached;          // denote if submit block is built with table schema or not
-  uint8_t      payloadType;             // EPayloadType. 0: K-V payload for non-prepare insert, 1: rawPayload for prepare insert
   STagData     tagData;                 // NOTE: pTagData->data is used as a variant length array
 
   int32_t      batchSize;               // for parameter ('?') binding and batch processing
@@ -244,14 +250,6 @@ typedef struct SInsertStatementParam {
   uint64_t     objectId;                // sql object id
   char        *sql;                     // current sql statement position
 } SInsertStatementParam;
-
-typedef enum {
-  PAYLOAD_TYPE_KV = 0,
-  PAYLOAD_TYPE_RAW = 1,
-} EPayloadType;
-
-#define IS_RAW_PAYLOAD(t) \
-  (((int)(t)) == PAYLOAD_TYPE_RAW)  // 0: K-V payload for non-prepare insert, 1: rawPayload for prepare insert
 
 // TODO extract sql parser supporter
 typedef struct {
@@ -507,7 +505,102 @@ int16_t getNewResColId(SSqlCmd* pCmd);
 
 int32_t schemaIdxCompar(const void *lhs, const void *rhs);
 int32_t boundIdxCompar(const void *lhs, const void *rhs);
-int32_t getExtendedRowSize(STableComInfo *tinfo);
+FORCE_INLINE int32_t getExtendedRowSize(STableMeta *pMeta) {
+  return pMeta->tableInfo.rowSize + TD_MEM_ROW_DATA_HEAD_SIZE;
+}
+FORCE_INLINE void checkAndConvertMemRow(SMemRow row, int32_t dataLen, int32_t kvLen) {
+  if (isDataRow(row)) {
+    if (kvLen < (dataLen * KVRatioConvert)) {
+      memRowSetConvert(row);
+    }
+  } else if (kvLen > dataLen) {
+    memRowSetConvert(row);
+  }
+}
+
+FORCE_INLINE void initSMemRow(SMemRow row, uint8_t memRowType, STableDataBlocks *pBlock, int16_t nCols) {
+  memRowSetType(row, memRowType);
+  if (isDataRowT(memRowType)) {
+    dataRowSetVersion(memRowDataBody(row), pBlock->pTableMeta->sversion);
+    dataRowSetLen(memRowDataBody(row), (TDRowLenT)(TD_DATA_ROW_HEAD_SIZE + pBlock->boundColumnInfo.flen));
+  } else {
+    memRowSetKvVersion(row, pBlock->pTableMeta->sversion);
+    kvRowSetNCols(memRowKvBody(row), pBlock->numOfParams);
+    kvRowSetLen(memRowKvBody(row), (TDRowLenT)(TD_KV_ROW_HEAD_SIZE + sizeof(SColIdx) * pBlock->numOfParams));
+  }
+}
+/**
+ * TODO: Move to tdataformat.h and refactor when STSchema available.
+ *    - fetch flen and toffset from STSChema and remove param spd
+ */
+static FORCE_INLINE void convertToSDataRow(SMemRow dest, SMemRow src, SSchema *pSchema, int nCols,
+                                           SParsedDataColInfo *spd) {
+  ASSERT(isKvRow(src));
+
+  SDataRow dataRow = memRowDataBody(dest);
+  SKVRow   kvRow = memRowKvBody(src);
+
+  memRowSetType(dest, SMEM_ROW_DATA);
+  dataRowSetVersion(dataRow, memRowKvVersion(src));
+  dataRowSetLen(dataRow, (TDRowLenT)(TD_DATA_ROW_HEAD_SIZE + spd->flen));
+
+  int32_t kvIdx = 0;
+  for (int i = 0; i < nCols; ++i) {
+    SSchema *schema = pSchema + i;
+    char *   val = tdGetKVRowValOfColEx(kvRow, schema->colId, &kvIdx);
+    tdAppendDataColVal(dataRow, val != NULL ? val : getNullValue(schema->type), true, schema->type,
+                       (spd->cols + i)->toffset);
+  }
+}
+
+// if (isDataRowT(memRowType)) {
+//   dataRowSetVersion(memRowDataBody(row), pBlock->pTableMeta->sversion);
+//   dataRowSetLen(memRowDataBody(row), (TDRowLenT)(TD_DATA_ROW_HEAD_SIZE + pBlock->boundColumnInfo.flen));
+// } else {
+//   memRowSetKvVersion(row, pBlock->pTableMeta->sversion);
+//   kvRowSetNCols(memRowKvBody(row), pBlock->numOfParams);
+//   kvRowSetLen(memRowKvBody(row), (TDRowLenT)(TD_KV_ROW_HEAD_SIZE + sizeof(SColIdx) * pBlock->numOfParams));
+// }
+// TODO: Move to tdataformat.h and refactor when STSchema available.
+static FORCE_INLINE void convertToSKVRow(SMemRow dest, SMemRow src, SSchema *pSchema, int nCols, int nBoundCols,
+                                         SParsedDataColInfo *spd) {
+  ASSERT(isDataRow(src));
+
+  SDataRow dataRow = memRowKvBody(src);
+  SKVRow   kvRow = memRowDataBody(dest);
+
+  memRowSetType(dest, SMEM_ROW_KV);
+  memRowSetKvVersion(kvRow, dataRowVersion(dataRow));
+  kvRowSetNCols(kvRow, nBoundCols);
+  kvRowSetLen(kvRow, (TDRowLenT)(TD_KV_ROW_HEAD_SIZE + sizeof(SColIdx) * nBoundCols));
+
+  int32_t toffset = 0, kvOffset = 0;
+  for (int i = 0; i < nCols; ++i) {
+    SSchema *schema = pSchema + i;
+    toffset = (spd->cols + i)->toffset;
+    if ((spd->cols + i)->hasVal) {
+      char *val = tdGetRowDataOfCol(dataRow, schema->type, toffset + TD_DATA_ROW_HEAD_SIZE);
+      tdAppendKvColVal(kvRow, val, true, schema->colId, schema->type, kvOffset);
+      kvOffset += sizeof(SColIdx);
+    }
+  }
+}
+
+// TODO: Move to tdataformat.h and refactor when STSchema available.
+static FORCE_INLINE void convertSMemRow(SMemRow dest, SMemRow src, STableDataBlocks *pBlock) {
+  STableMeta *  pTableMeta = pBlock->pTableMeta;
+  STableComInfo tinfo = tscGetTableInfo(pTableMeta);
+  SSchema *     pSchema = tscGetTableSchema(pTableMeta);
+
+  ASSERT(dest != src);
+
+  if (isDataRow(src)) {
+    // TODO: Can we use pBlock -> numOfParam directly?
+    convertToSKVRow(dest, src, pSchema, tinfo.numOfColumns, pBlock->numOfParams, &pBlock->boundColumnInfo);
+  } else {
+    convertToSDataRow(dest, src, pSchema, tinfo.numOfColumns, &pBlock->boundColumnInfo);
+  }
+}
 
 #ifdef __cplusplus
 }

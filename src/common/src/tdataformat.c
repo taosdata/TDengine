@@ -838,7 +838,7 @@ SMemRow mergeTwoMemRows(void *buffer, SMemRow row1, SMemRow row2, STSchema *pSch
 
   dataLen = memRowTLen(pRow);
 
-  if (kvLen < dataLen) {
+  if (kvLen < dataLen * KVRatioConvert) {
     // scan stashRow and generate SKVRow
     memset(buffer, 0, sizeof(dataLen));
     SMemRow tRow = buffer;

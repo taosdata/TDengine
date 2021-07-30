@@ -189,6 +189,7 @@ typedef void *SDataRow;
 #define dataRowEnd(r) POINTER_SHIFT(r, dataRowLen(r))
 #define dataRowVersion(r) (*(int16_t *)POINTER_SHIFT(r, sizeof(int16_t)))
 #define dataRowTuple(r) POINTER_SHIFT(r, TD_DATA_ROW_HEAD_SIZE)
+#define dataRowTSKey(r) (*(TSKEY *)(dataRowTuple(r)))
 #define dataRowTKey(r) (*(TKEY *)(dataRowTuple(r)))
 #define dataRowKey(r) tdGetKey(dataRowTKey(r))
 #define dataRowSetLen(r, l) (dataRowLen(r) = (l))
@@ -470,6 +471,7 @@ typedef struct {
 #define kvRowFree(r) tfree(r)
 #define kvRowEnd(r) POINTER_SHIFT(r, kvRowLen(r))
 #define kvRowValLen(r) (kvRowLen(r) - TD_KV_ROW_HEAD_SIZE - sizeof(SColIdx) * kvRowNCols(r))
+#define kvRowTSKey(r) (*(TSKEY *)(kvRowValues(r)))
 #define kvRowTKey(r) (*(TKEY *)(kvRowValues(r)))
 #define kvRowKey(r) tdGetKey(kvRowTKey(r))
 #define kvRowDeleted(r) TKEY_IS_DELETED(kvRowTKey(r))
@@ -620,14 +622,22 @@ typedef void *SMemRow;
 #define TD_MEM_ROW_DATA_HEAD_SIZE (TD_MEM_ROW_TYPE_SIZE + TD_DATA_ROW_HEAD_SIZE)
 #define TD_MEM_ROW_KV_HEAD_SIZE (TD_MEM_ROW_TYPE_SIZE + TD_MEM_ROW_KV_VER_SIZE + TD_KV_ROW_HEAD_SIZE)
 
-#define SMEM_ROW_DATA 0U  // SDataRow
-#define SMEM_ROW_KV 1U    // SKVRow
+#define SMEM_ROW_DATA 0x0U      // SDataRow
+#define SMEM_ROW_KV 0x01U       // SKVRow
+#define SMEM_ROW_CONVERT 0x80U  // SMemRow convert flag
 
-#define memRowType(r) (*(uint8_t *)(r))
-#define isDataRowT(t) (SMEM_ROW_DATA == (uint8_t)(t))
+#define KVRatioPredict (0.4f)
+#define KVRatioConvert (0.9f)
+
+#define memRowType(r) ((*(uint8_t *)(r)) & 0x01)
+
+#define memRowSetType(r, t) ((*(uint8_t *)(r)) = (((*(uint8_t *)(r)) & 0xFE) | (t)))               // lowest bit
+#define memRowSetConvert(r) ((*(uint8_t *)(r)) = (((*(uint8_t *)(r)) & 0x7F) | SMEM_ROW_CONVERT))  // highest bit
+#define isDataRowT(t) (SMEM_ROW_DATA == (((uint8_t)(t)) & 0x01))
 #define isDataRow(r) (SMEM_ROW_DATA == memRowType(r))
-#define isKvRowT(t) (SMEM_ROW_KV == (uint8_t)(t))
+#define isKvRowT(t) (SMEM_ROW_KV == (((uint8_t)(t)) & 0x01))
 #define isKvRow(r) (SMEM_ROW_KV == memRowType(r))
+#define isNeedConvertRow(r) ((((*(uint8_t *)(r)) & 0x7F) == SMEM_ROW_CONVERT))
 
 #define memRowDataBody(r) POINTER_SHIFT(r, TD_MEM_ROW_TYPE_SIZE)  // section after flag
 #define memRowKvBody(r) \
@@ -687,6 +697,13 @@ static FORCE_INLINE TKEY memRowTKey(SMemRow row) {
     return kvRowTKey(memRowKvBody(row));
   }
 }
+static FORCE_INLINE TKEY memRowTSKey(SMemRow row) {
+  if (isDataRow(row)) {
+    return dataRowTSKey(memRowDataBody(row));
+  } else {
+    return kvRowTSKey(memRowKvBody(row));
+  }
+}
 static FORCE_INLINE TSKEY memRowKey(SMemRow row) {
   if (isDataRow(row)) {
     return dataRowKey(memRowDataBody(row));
@@ -702,7 +719,6 @@ static FORCE_INLINE void memRowSetTKey(SMemRow row, TKEY key) {
   }
 }
 
-#define memRowSetType(r, t) (memRowType(r) = (t))
 static FORCE_INLINE void memRowSetLen(SMemRow row, TDRowLenT len) {
   if (isDataRow(row)) {
     memRowDataLen(row) = len;
@@ -793,13 +809,12 @@ static FORCE_INLINE int32_t tdGetColAppendLen(uint8_t rowType, const void *value
  * 2. calculate the real len for SKVRow.
  */
 static FORCE_INLINE void tdGetColAppendDeltaLen(const void *value, int8_t colType, int32_t *dataLen, int32_t *kvLen) {
-  *dataLen = *kvLen = 0;
   if (colType == TSDB_DATA_TYPE_BINARY) {
-    int32_t varLen = varDataTLen(value);
+    int32_t varLen = varDataLen(value);
     *dataLen += (varLen - CHAR_BYTES);
     *kvLen += (varLen + sizeof(SColIdx));
   } else if (colType == TSDB_DATA_TYPE_NCHAR) {
-    int32_t varLen = varDataTLen(value);
+    int32_t varLen = varDataLen(value);
     *dataLen += (varLen - TSDB_NCHAR_SIZE);
     *kvLen += (varLen + sizeof(SColIdx));
   } else {
@@ -820,6 +835,8 @@ static FORCE_INLINE void setSColInfo(SColInfo* colInfo, int16_t colId, uint8_t c
 }
 
 SMemRow mergeTwoMemRows(void *buffer, SMemRow row1, SMemRow row2, STSchema *pSchema1, STSchema *pSchema2);
+
+#if 0
 // ----------------- Raw payload structure for row:
 /* |<------------ Head ------------->|<----------- body of column data tuple ------------------->|
  * |                                 |<----------------- flen ------------->|<--- value part --->|
@@ -864,6 +881,7 @@ SMemRow mergeTwoMemRows(void *buffer, SMemRow row1, SMemRow row2, STSchema *pSch
 
 
 static FORCE_INLINE char *payloadNextCol(char *pCol) { return (char *)POINTER_SHIFT(pCol, PAYLOAD_COL_HEAD_LEN); }
+#endif
 
 #ifdef __cplusplus
 }
