@@ -95,7 +95,6 @@ extern char configDir[];
 #define MAX_SUPER_TABLE_COUNT   200
 
 #define MAX_QUERY_SQL_COUNT     100
-#define MAX_QUERY_SQL_LENGTH    BUFFER_SIZE
 
 #define MAX_DATABASE_COUNT      256
 #define INPUT_BUF_LEN           256
@@ -382,7 +381,7 @@ typedef struct SpecifiedQueryInfo_S {
     uint64_t     queryTimes;
     bool         subscribeRestart;
     int          subscribeKeepProgress;
-    char         sql[MAX_QUERY_SQL_COUNT][MAX_QUERY_SQL_LENGTH+1];
+    char         sql[MAX_QUERY_SQL_COUNT][BUFFER_SIZE+1];
     char         result[MAX_QUERY_SQL_COUNT][MAX_FILE_NAME_LEN];
     int          resubAfterConsume[MAX_QUERY_SQL_COUNT];
     int          endAfterConsume[MAX_QUERY_SQL_COUNT];
@@ -405,7 +404,7 @@ typedef struct SuperQueryInfo_S {
     int64_t      childTblCount;
     char         childTblPrefix[TSDB_TABLE_NAME_LEN - 20];    // 20 characters reserved for seq
     int          sqlCount;
-    char         sql[MAX_QUERY_SQL_COUNT][MAX_QUERY_SQL_LENGTH+1];
+    char         sql[MAX_QUERY_SQL_COUNT][BUFFER_SIZE+1];
     char         result[MAX_QUERY_SQL_COUNT][MAX_FILE_NAME_LEN];
     int          resubAfterConsume;
     int          endAfterConsume;
@@ -1252,14 +1251,14 @@ static void fetchResult(TAOS_RES *res, threadInfo* pThreadInfo) {
 
     // fetch the records row by row
     while((row = taos_fetch_row(res))) {
-        if (totalLen >= 100*1024*1024 - 32000) {
+        if (totalLen >= (100*1024*1024 - HEAD_BUFF_LEN*2)) {
             if (strlen(pThreadInfo->filePath) > 0)
                 appendResultBufToFile(databuf, pThreadInfo);
             totalLen = 0;
             memset(databuf, 0, 100*1024*1024);
         }
         num_rows++;
-        char  temp[16000] = {0};
+        char  temp[HEAD_BUFF_LEN] = {0};
         int len = taos_print_row(temp, row, fields, num_fields);
         len += sprintf(temp + len, "\n");
         //printf("query result:%s\n", temp);
@@ -2164,15 +2163,15 @@ static void printfDbInfoForQueryToFile(
 }
 
 static void printfQuerySystemInfo(TAOS * taos) {
-    char filename[MAX_QUERY_SQL_LENGTH+1] = {0};
-    char buffer[MAX_QUERY_SQL_LENGTH+1] = {0};
+    char filename[BUFFER_SIZE+1] = {0};
+    char buffer[BUFFER_SIZE+1] = {0};
     TAOS_RES* res;
 
     time_t t;
     struct tm* lt;
     time(&t);
     lt = localtime(&t);
-    snprintf(filename, MAX_QUERY_SQL_LENGTH, "querySystemInfo-%d-%d-%d %d:%d:%d",
+    snprintf(filename, BUFFER_SIZE, "querySystemInfo-%d-%d-%d %d:%d:%d",
             lt->tm_year+1900, lt->tm_mon, lt->tm_mday, lt->tm_hour, lt->tm_min,
             lt->tm_sec);
 
@@ -2204,12 +2203,12 @@ static void printfQuerySystemInfo(TAOS * taos) {
         printfDbInfoForQueryToFile(filename, dbInfos[i], i);
 
         // show db.vgroups
-        snprintf(buffer, MAX_QUERY_SQL_LENGTH, "show %s.vgroups;", dbInfos[i]->name);
+        snprintf(buffer, BUFFER_SIZE, "show %s.vgroups;", dbInfos[i]->name);
         res = taos_query(taos, buffer);
         xDumpResultToFile(filename, res);
 
         // show db.stables
-        snprintf(buffer, MAX_QUERY_SQL_LENGTH, "show %s.stables;", dbInfos[i]->name);
+        snprintf(buffer, BUFFER_SIZE, "show %s.stables;", dbInfos[i]->name);
         res = taos_query(taos, buffer);
         xDumpResultToFile(filename, res);
         free(dbInfos[i]);
@@ -4529,7 +4528,7 @@ static bool getMetaFromQueryJsonFile(cJSON* root) {
                     goto PARSE_OVER;
                 }
                 tstrncpy(g_queryInfo.specifiedQueryInfo.sql[j],
-                        sqlStr->valuestring, MAX_QUERY_SQL_LENGTH);
+                        sqlStr->valuestring, BUFFER_SIZE);
 
                 // default value is -1, which mean infinite loop
                 g_queryInfo.specifiedQueryInfo.endAfterConsume[j] = -1;
@@ -4751,7 +4750,7 @@ static bool getMetaFromQueryJsonFile(cJSON* root) {
                     goto PARSE_OVER;
                 }
                 tstrncpy(g_queryInfo.superQueryInfo.sql[j], sqlStr->valuestring,
-                        MAX_QUERY_SQL_LENGTH);
+                        BUFFER_SIZE);
 
                 cJSON *result = cJSON_GetObjectItem(sql, "result");
                 if (result != NULL && result->type == cJSON_String
@@ -7404,14 +7403,14 @@ static void replaceChildTblName(char* inSql, char* outSql, int tblIndex) {
 
     tstrncpy(outSql, inSql, pos - inSql + 1);
     //printf("1: %s\n", outSql);
-    strncat(outSql, subTblName, MAX_QUERY_SQL_LENGTH - 1);
+    strncat(outSql, subTblName, BUFFER_SIZE - 1);
     //printf("2: %s\n", outSql);
-    strncat(outSql, pos+strlen(sourceString), MAX_QUERY_SQL_LENGTH - 1);
+    strncat(outSql, pos+strlen(sourceString), BUFFER_SIZE - 1);
     //printf("3: %s\n", outSql);
 }
 
 static void *superTableQuery(void *sarg) {
-    char sqlstr[MAX_QUERY_SQL_LENGTH];
+    char sqlstr[BUFFER_SIZE];
     threadInfo *pThreadInfo = (threadInfo *)sarg;
 
     setThreadName("superTableQuery");
@@ -7714,7 +7713,7 @@ static TAOS_SUB* subscribeImpl(
 
 static void *superSubscribe(void *sarg) {
     threadInfo *pThreadInfo = (threadInfo *)sarg;
-    char subSqlstr[MAX_QUERY_SQL_LENGTH];
+    char subSqlstr[BUFFER_SIZE];
     TAOS_SUB*    tsub[MAX_QUERY_SQL_COUNT] = {0};
     uint64_t tsubSeq;
 
