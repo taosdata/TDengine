@@ -1331,7 +1331,7 @@ static void selectAndGetResult(
 static char *rand_bool_str(){
     static int cursor;
     cursor++;
-    if (cursor > MAX_PREPARED_RAND) cursor = 0;
+    if (cursor > (MAX_PREPARED_RAND - 1)) cursor = 0;
     return g_randbool_buff + (cursor * BOOL_BUFF_LEN);
 }
 
@@ -1346,7 +1346,7 @@ static char *rand_tinyint_str()
 {
     static int cursor;
     cursor++;
-    if (cursor > MAX_PREPARED_RAND) cursor = 0;
+    if (cursor > (MAX_PREPARED_RAND - 1)) cursor = 0;
     return g_randtinyint_buff + (cursor * TINYINT_BUFF_LEN);
 }
 
