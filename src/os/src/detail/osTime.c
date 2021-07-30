@@ -97,11 +97,12 @@ int32_t taosGetTimestampSec() { return (int32_t)time(NULL); }
 int32_t taosParseTime(char* timestr, int64_t* time, int32_t len, int32_t timePrec, int8_t day_light) {
   /* parse datatime string in with tz */
   char *seg = forwardToTimeStringEnd(timestr);
+  int32_t seg_len = len - (seg - timestr);
   if (strnchr(timestr, 'T', len, false) != NULL) {
     return parseTimeWithTz(timestr, time, timePrec, 'T');
   } else if (strnchr(timestr, ' ', len, false) != NULL &&
-             (strnchr(seg, 'Z', (int32_t)strlen(seg), false) != NULL || strnchr(seg, 'z', (int32_t)strlen(seg), false) != NULL ||
-              strnchr(seg, '+', (int32_t)strlen(seg), false) != NULL || strnchr(seg, '-', (int32_t)strlen(seg), false) != NULL)) {
+             (strnchr(seg, 'Z', seg_len, false) != NULL || strnchr(seg, 'z', seg_len, false) != NULL ||
+              strnchr(seg, '+', seg_len, false) != NULL || strnchr(seg, '-', seg_len, false) != NULL)) {
     return parseTimeWithTz(timestr, time, timePrec, ' ');
   } else {
     return (*parseLocaltimeFp[day_light])(timestr, time, timePrec);
