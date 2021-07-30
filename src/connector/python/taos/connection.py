@@ -7,9 +7,6 @@ from .statement import TaosStmt
 from .stream import TaosStream
 from .result import *
 
-import _thread as thread
-
-    #callback(param, result, rows)
 class TaosConnection(object):
     """TDengine connection object"""
 

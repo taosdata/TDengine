@@ -1,6 +1,7 @@
 from .cinterface import *
 from .error import *
 from .constants import FieldType
+from .result import *
 
 
 class TaosCursor(object):
@@ -124,16 +125,13 @@ class TaosCursor(object):
             with open(self._logfile, "a") as logfile:
                 logfile.write("%s;\n" % operation)
 
-        errno = taos_errno(self._result)
-        if errno == 0:
-            if taos_field_count(self._result) == 0:
-                self._affected_rows += taos_affected_rows(self._result)
-                return taos_affected_rows(self._result)
-            else:
-                self._fields = taos_fetch_fields(self._result)
-                return self._handle_result()
+        if taos_field_count(self._result) == 0:
+            affected_rows = taos_affected_rows(self._result)
+            self._affected_rows += affected_rows
+            return affected_rows
         else:
-            raise ProgrammingError(taos_errstr(self._result), errno)
+            self._fields = taos_fetch_fields(self._result)
+            return self._handle_result()
 
     def executemany(self, operation, seq_of_parameters):
         """Prepare a database operation (query or command) and then execute it against all parameter sequences or mappings found in the sequence seq_of_parameters."""
@@ -212,9 +210,9 @@ class TaosCursor(object):
         return list(map(tuple, zip(*buffer)))
 
     def fetchall(self):
-        if self._result is None or self._fields is None:
+        if self._result is None:
             raise OperationalError("Invalid use of fetchall")
-        fields = taos_fetch_fields(self._result)
+        fields = self._fields if self._fields is not None else taos_fetch_fields(self._result)
         buffer = [[] for i in range(len(fields))]
         self._rowcount = 0
         while True:

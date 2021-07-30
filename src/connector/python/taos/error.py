@@ -76,7 +76,7 @@ class ResultError(DatabaseError):
 
     pass
 
-class SchemalessError(DatabaseError):
+class LinesError(DatabaseError):
     """taos_insert_lines errors."""
 
     pass
