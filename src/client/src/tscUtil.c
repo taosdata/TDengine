@@ -275,16 +275,6 @@ bool tscIsProjectionQuery(SQueryInfo* pQueryInfo) {
         f != TSDB_FUNC_DERIVATIVE) {
       return false;
     }
-
-    if (f < 0) {
-      SUdfInfo* pUdfInfo = taosArrayGet(pQueryInfo->pUdfInfo, -1 * f - 1);
-      if (pUdfInfo->funcType == TSDB_UDF_TYPE_AGGREGATE) {
-        return false;
-      }
-
-      continue;
-    }
-
   }
 
   return true;
@@ -3295,7 +3285,7 @@ STableMetaInfo* tscAddTableMetaInfo(SQueryInfo* pQueryInfo, SName* name, STableM
     return NULL;
   }
 
-  if (pTagCols != NULL) {
+  if (pTagCols != NULL && pTableMetaInfo->pTableMeta != NULL) {
     tscColumnListCopy(pTableMetaInfo->tagColList, pTagCols, pTableMetaInfo->pTableMeta->id.uid);
   }
 
@@ -3724,7 +3714,8 @@ void executeQuery(SSqlObj* pSql, SQueryInfo* pQueryInfo) {
       SSqlObj* pNew = (SSqlObj*)calloc(1, sizeof(SSqlObj));
       if (pNew == NULL) {
         terrno = TSDB_CODE_TSC_OUT_OF_MEMORY;
-        //      return NULL;
+        tscError("pNew == NULL, out of memory");
+        return;
       }
 
       pNew->pTscObj = pSql->pTscObj;
@@ -4212,7 +4203,7 @@ uint32_t tscGetTableMetaSize(STableMeta* pTableMeta) {
   assert(pTableMeta != NULL);
 
   int32_t totalCols = 0;
-  if (pTableMeta->tableInfo.numOfColumns >= 0 && pTableMeta->tableInfo.numOfTags >= 0) {
+  if (pTableMeta->tableInfo.numOfColumns >= 0) {
     totalCols = pTableMeta->tableInfo.numOfColumns + pTableMeta->tableInfo.numOfTags;
   }
   
@@ -4245,7 +4236,7 @@ int32_t tscCreateTableMetaFromSTableMeta(STableMeta* pChild, const char* name, v
     pChild->sversion = p->sversion;
     pChild->tversion = p->tversion;
 
-    memcpy(&pChild->tableInfo, &p->tableInfo, sizeof(STableInfo));
+    memcpy(&pChild->tableInfo, &p->tableInfo, sizeof(STableComInfo));
     int32_t total = pChild->tableInfo.numOfColumns + pChild->tableInfo.numOfTags;
 
     memcpy(pChild->schema, p->schema, sizeof(SSchema) *total);
@@ -4612,7 +4603,7 @@ static int32_t doAddTableName(char* nextStr, char** str, SArray* pNameArray, SSq
   int32_t len = 0;
 
   if (nextStr == NULL) {
-    strncpy(tablename, *str, TSDB_TABLE_FNAME_LEN);
+    tstrncpy(tablename, *str, TSDB_TABLE_FNAME_LEN);
     len = (int32_t) strlen(tablename);
   } else {
     len = (int32_t)(nextStr - (*str));
