@@ -111,7 +111,7 @@ TDengine采取的是Master-Slave模式进行同步，与流行的RAFT一致性�
 2. 应用将打上版本号的写请求封装一个WAL Head, 写入WAL(Write Ahead Log)
 3. 应用调用API syncForwardToPeer，如果vnode B是slave状态，sync模块将包含WAL Head的数据包通过Forward消息发送给vnode B，否则就不转发。
 4. vnode B收到Forward消息后，调用回调函数writeToCache, 交给应用处理
-5. vnode B应用在写入成功后，都需要调用syncAckForward通知sync模块已经写入成功。
+5. vnode B应用在写入成功后，都需要调用syncConfirmForward通知sync模块已经写入成功。
 6. 如果quorum大于1，vnode B需要等待应用的回复确认，收到确认后，vnode B发送Forward Response消息给node A。
 7. 如果quorum大于1，vnode A需要等待vnode B或其他副本对Forward消息的确认。
 8. 如果quorum大于1，vnode A收到quorum-1条确认消息后，调用回调函数confirmForward，通知应用写入成功。
