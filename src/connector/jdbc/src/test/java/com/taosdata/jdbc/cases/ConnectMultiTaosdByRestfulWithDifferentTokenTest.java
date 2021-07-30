@@ -1,6 +1,7 @@
 package com.taosdata.jdbc.cases;
 
 import com.taosdata.jdbc.TSDBDriver;
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -9,13 +10,13 @@ import java.util.Properties;
 
 public class ConnectMultiTaosdByRestfulWithDifferentTokenTest {
 
-    private static String host1 = "192.168.17.156";
-    private static String user1 = "root";
-    private static String password1 = "tqueue";
+    private static final String host1 = "192.168.17.156";
+    private static final String user1 = "root";
+    private static final String password1 = "tqueue";
     private Connection conn1;
-    private static String host2 = "192.168.17.82";
-    private static String user2 = "root";
-    private static String password2 = "taosdata";
+    private static final String host2 = "192.168.17.82";
+    private static final String user2 = "root";
+    private static final String password2 = "taosdata";
     private Connection conn2;
 
     @Test
@@ -30,10 +31,8 @@ public class ConnectMultiTaosdByRestfulWithDifferentTokenTest {
         try (Statement stmt = connection.createStatement()) {
             ResultSet rs = stmt.executeQuery("select server_status()");
             ResultSetMetaData meta = rs.getMetaData();
+            Assert.assertNotNull(meta);
             while (rs.next()) {
-                for (int i = 1; i <= meta.getColumnCount(); i++) {
-                    System.out.println(meta.getColumnLabel(i) + ": " + rs.getString(i));
-                }
             }
         } catch (SQLException e) {
             e.printStackTrace();

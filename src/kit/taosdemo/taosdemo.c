@@ -95,7 +95,6 @@ extern char configDir[];
 #define MAX_SUPER_TABLE_COUNT   200
 
 #define MAX_QUERY_SQL_COUNT     100
-#define MAX_QUERY_SQL_LENGTH    BUFFER_SIZE
 
 #define MAX_DATABASE_COUNT      256
 #define INPUT_BUF_LEN           256
@@ -225,6 +224,7 @@ typedef struct SArguments_S {
     uint32_t num_of_CPR;
     uint32_t num_of_threads;
     uint64_t insert_interval;
+    uint64_t timestamp_step;
     int64_t  query_times;
     uint32_t interlace_rows;
     uint32_t num_of_RPR;                  // num_of_records_per_req
@@ -381,7 +381,7 @@ typedef struct SpecifiedQueryInfo_S {
     uint64_t     queryTimes;
     bool         subscribeRestart;
     int          subscribeKeepProgress;
-    char         sql[MAX_QUERY_SQL_COUNT][MAX_QUERY_SQL_LENGTH+1];
+    char         sql[MAX_QUERY_SQL_COUNT][BUFFER_SIZE+1];
     char         result[MAX_QUERY_SQL_COUNT][MAX_FILE_NAME_LEN];
     int          resubAfterConsume[MAX_QUERY_SQL_COUNT];
     int          endAfterConsume[MAX_QUERY_SQL_COUNT];
@@ -404,7 +404,7 @@ typedef struct SuperQueryInfo_S {
     int64_t      childTblCount;
     char         childTblPrefix[TSDB_TABLE_NAME_LEN - 20];    // 20 characters reserved for seq
     int          sqlCount;
-    char         sql[MAX_QUERY_SQL_COUNT][MAX_QUERY_SQL_LENGTH+1];
+    char         sql[MAX_QUERY_SQL_COUNT][BUFFER_SIZE+1];
     char         result[MAX_QUERY_SQL_COUNT][MAX_FILE_NAME_LEN];
     int          resubAfterConsume;
     int          endAfterConsume;
@@ -605,6 +605,7 @@ SArguments g_args = {
     4,               // num_of_CPR
     10,              // num_of_connections/thread
     0,               // insert_interval
+    DEFAULT_TIMESTAMP_STEP, // timestamp_step
     1,               // query_times
     0,               // interlace_rows;
     30000,           // num_of_RPR
@@ -645,7 +646,7 @@ static FILE *          g_fpOfInsertResult = NULL;
         fprintf(stderr, "PERF: "fmt, __VA_ARGS__); } while(0)
 
 #define errorPrint(fmt, ...) \
-    do { fprintf(stderr, "ERROR: "fmt, __VA_ARGS__); } while(0)
+    do { fprintf(stderr, " \033[31m"); fprintf(stderr, "ERROR: "fmt, __VA_ARGS__); fprintf(stderr, " \033[0m"); } while(0)
 
 // for strncpy buffer overflow
 #define min(a, b) (((a) < (b)) ? (a) : (b))
@@ -740,6 +741,9 @@ static void printHelp() {
             "The number of threads. Default is 10.");
     printf("%s%s%s%s\n", indent, "-i", indent,
             "The sleep time (ms) between insertion. Default is 0.");
+    printf("%s%s%s%s%d.\n", indent, "-S", indent,
+            "The timestamp step between insertion. Default is ",
+            DEFAULT_TIMESTAMP_STEP);
     printf("%s%s%s%s\n", indent, "-r", indent,
             "The number of records per request. Default is 30000.");
     printf("%s%s%s%s\n", indent, "-t", indent,
@@ -881,6 +885,14 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
                 exit(EXIT_FAILURE);
             }
             arguments->insert_interval = atoi(argv[++i]);
+        } else if (strcmp(argv[i], "-S") == 0) {
+            if ((argc == i+1) ||
+                    (!isStringNumber(argv[i+1]))) {
+                printHelp();
+                errorPrint("\n\t%s%s", argv[i], " need a number following!\n");
+                exit(EXIT_FAILURE);
+            }
+            arguments->timestamp_step = atoi(argv[++i]);
         } else if (strcmp(argv[i], "-qt") == 0) {
             if ((argc == i+1)
                     || (!isStringNumber(argv[i+1]))) {
@@ -1239,14 +1251,14 @@ static void fetchResult(TAOS_RES *res, threadInfo* pThreadInfo) {
 
     // fetch the records row by row
     while((row = taos_fetch_row(res))) {
-        if (totalLen >= 100*1024*1024 - 32000) {
+        if (totalLen >= (100*1024*1024 - HEAD_BUFF_LEN*2)) {
             if (strlen(pThreadInfo->filePath) > 0)
                 appendResultBufToFile(databuf, pThreadInfo);
             totalLen = 0;
             memset(databuf, 0, 100*1024*1024);
         }
         num_rows++;
-        char  temp[16000] = {0};
+        char  temp[HEAD_BUFF_LEN] = {0};
         int len = taos_print_row(temp, row, fields, num_fields);
         len += sprintf(temp + len, "\n");
         //printf("query result:%s\n", temp);
@@ -2151,15 +2163,15 @@ static void printfDbInfoForQueryToFile(
 }
 
 static void printfQuerySystemInfo(TAOS * taos) {
-    char filename[MAX_QUERY_SQL_LENGTH+1] = {0};
-    char buffer[MAX_QUERY_SQL_LENGTH+1] = {0};
+    char filename[BUFFER_SIZE+1] = {0};
+    char buffer[BUFFER_SIZE+1] = {0};
     TAOS_RES* res;
 
     time_t t;
     struct tm* lt;
     time(&t);
     lt = localtime(&t);
-    snprintf(filename, MAX_QUERY_SQL_LENGTH, "querySystemInfo-%d-%d-%d %d:%d:%d",
+    snprintf(filename, BUFFER_SIZE, "querySystemInfo-%d-%d-%d %d:%d:%d",
             lt->tm_year+1900, lt->tm_mon, lt->tm_mday, lt->tm_hour, lt->tm_min,
             lt->tm_sec);
 
@@ -2191,12 +2203,12 @@ static void printfQuerySystemInfo(TAOS * taos) {
         printfDbInfoForQueryToFile(filename, dbInfos[i], i);
 
         // show db.vgroups
-        snprintf(buffer, MAX_QUERY_SQL_LENGTH, "show %s.vgroups;", dbInfos[i]->name);
+        snprintf(buffer, BUFFER_SIZE, "show %s.vgroups;", dbInfos[i]->name);
         res = taos_query(taos, buffer);
         xDumpResultToFile(filename, res);
 
         // show db.stables
-        snprintf(buffer, MAX_QUERY_SQL_LENGTH, "show %s.stables;", dbInfos[i]->name);
+        snprintf(buffer, BUFFER_SIZE, "show %s.stables;", dbInfos[i]->name);
         res = taos_query(taos, buffer);
         xDumpResultToFile(filename, res);
         free(dbInfos[i]);
@@ -4107,7 +4119,7 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
             if (timestampStep && timestampStep->type == cJSON_Number) {
                 g_Dbs.db[i].superTbls[j].timeStampStep = timestampStep->valueint;
             } else if (!timestampStep) {
-                g_Dbs.db[i].superTbls[j].timeStampStep = DEFAULT_TIMESTAMP_STEP;
+                g_Dbs.db[i].superTbls[j].timeStampStep = g_args.timestamp_step;
             } else {
                 printf("ERROR: failed to read json, timestamp_step not found\n");
                 goto PARSE_OVER;
@@ -4516,7 +4528,7 @@ static bool getMetaFromQueryJsonFile(cJSON* root) {
                     goto PARSE_OVER;
                 }
                 tstrncpy(g_queryInfo.specifiedQueryInfo.sql[j],
-                        sqlStr->valuestring, MAX_QUERY_SQL_LENGTH);
+                        sqlStr->valuestring, BUFFER_SIZE);
 
                 // default value is -1, which mean infinite loop
                 g_queryInfo.specifiedQueryInfo.endAfterConsume[j] = -1;
@@ -4738,7 +4750,7 @@ static bool getMetaFromQueryJsonFile(cJSON* root) {
                     goto PARSE_OVER;
                 }
                 tstrncpy(g_queryInfo.superQueryInfo.sql[j], sqlStr->valuestring,
-                        MAX_QUERY_SQL_LENGTH);
+                        BUFFER_SIZE);
 
                 cJSON *result = cJSON_GetObjectItem(sql, "result");
                 if (result != NULL && result->type == cJSON_String
@@ -5121,8 +5133,10 @@ static int32_t execInsert(threadInfo *pThreadInfo, uint32_t k)
             debugPrint("%s() LN%d, stmt=%p",
                     __func__, __LINE__, pThreadInfo->stmt);
             if (0 != taos_stmt_execute(pThreadInfo->stmt)) {
-                errorPrint("%s() LN%d, failied to execute insert statement\n",
-                        __func__, __LINE__);
+                errorPrint("%s() LN%d, failied to execute insert statement. reason: %s\n",
+                        __func__, __LINE__, taos_stmt_errstr(pThreadInfo->stmt));
+
+                fprintf(stderr, "\n\033[31m === Please reduce batch number if WAL size exceeds limit. ===\033[0m\n\n");
                 exit(-1);
             }
             affectedRows = k;
@@ -5190,13 +5204,13 @@ static int32_t generateDataTailWithoutStb(
         if (g_args.disorderRatio) {
             retLen = generateData(data, data_type,
                     startTime + getTSRandTail(
-                        (int64_t) DEFAULT_TIMESTAMP_STEP, k,
+                        g_args.timestamp_step, k,
                         g_args.disorderRatio,
                         g_args.disorderRange),
                     lenOfBinary);
         } else {
             retLen = generateData(data, data_type,
-                    startTime + (int64_t) (DEFAULT_TIMESTAMP_STEP* k),
+                    startTime + g_args.timestamp_step * k,
                     lenOfBinary);
         }
 
@@ -5685,7 +5699,7 @@ static int32_t prepareStmtWithoutStb(
     int ret = taos_stmt_set_tbname(stmt, tableName);
     if (ret != 0) {
         errorPrint("failed to execute taos_stmt_set_tbname(%s). return 0x%x. reason: %s\n",
-                tableName, ret, taos_errstr(NULL));
+                tableName, ret, taos_stmt_errstr(stmt));
         return ret;
     }
 
@@ -5714,11 +5728,11 @@ static int32_t prepareStmtWithoutStb(
 
         if (g_args.disorderRatio) {
             *bind_ts = startTime + getTSRandTail(
-                    (int64_t)DEFAULT_TIMESTAMP_STEP, k,
+                    g_args.timestamp_step, k,
                     g_args.disorderRatio,
                     g_args.disorderRange);
         } else {
-            *bind_ts = startTime + (int64_t)(DEFAULT_TIMESTAMP_STEP * k);
+            *bind_ts = startTime + g_args.timestamp_step * k;
         }
         bind->buffer_length = sizeof(int64_t);
         bind->buffer = bind_ts;
@@ -5738,9 +5752,17 @@ static int32_t prepareStmtWithoutStb(
                 return -1;
             }
         }
-        taos_stmt_bind_param(stmt, (TAOS_BIND *)bindArray);
+        if (0 != taos_stmt_bind_param(stmt, (TAOS_BIND *)bindArray)) {
+            errorPrint("%s() LN%d, stmt_bind_param() failed! reason: %s\n",
+                    __func__, __LINE__, taos_stmt_errstr(stmt));
+            break;
+        }
         // if msg > 3MB, break
-        taos_stmt_add_batch(stmt);
+        if (0 != taos_stmt_add_batch(stmt)) {
+            errorPrint("%s() LN%d, stmt_add_batch() failed! reason: %s\n",
+                    __func__, __LINE__, taos_stmt_errstr(stmt));
+            break;
+        }
 
         k++;
         recordFrom ++;
@@ -5907,22 +5929,28 @@ static int32_t prepareStbStmt(
 
         if (-1 == prepareStbStmtBind(
                     tagsArray, stbInfo, tagRand, -1, -1, false /* is tag */)) {
-            free(tagsArray);
+            tmfree(tagsValBuf);
+            tmfree(tagsArray);
             return -1;
         }
 
         ret = taos_stmt_set_tbname_tags(stmt, tableName, (TAOS_BIND *)tagsArray);
 
         tmfree(tagsValBuf);
-        tmfree((char *)tagsArray);
+        tmfree(tagsArray);
+
+        if (0 != ret) {
+            errorPrint("%s() LN%d, stmt_set_tbname_tags() failed! reason: %s\n",
+                    __func__, __LINE__, taos_stmt_errstr(stmt));
+            return -1;
+        }
     } else {
         ret = taos_stmt_set_tbname(stmt, tableName);
-    }
-
-    if (ret != 0) {
-        errorPrint("failed to execute taos_stmt_set_tbname(%s). return 0x%x. reason: %s\n",
-                tableName, ret, taos_errstr(NULL));
-        return ret;
+        if (0 != ret) {
+            errorPrint("%s() LN%d, stmt_set_tbname() failed! reason: %s\n",
+                    __func__, __LINE__, taos_stmt_errstr(stmt));
+            return -1;
+        }
     }
 
     char *bindArray = calloc(1, sizeof(TAOS_BIND) * (stbInfo->columnCount + 1));
@@ -5940,9 +5968,19 @@ static int32_t prepareStbStmt(
             free(bindArray);
             return -1;
         }
-        taos_stmt_bind_param(stmt, (TAOS_BIND *)bindArray);
+        ret = taos_stmt_bind_param(stmt, (TAOS_BIND *)bindArray);
+        if (0 != ret) {
+            errorPrint("%s() LN%d, stmt_bind_param() failed! reason: %s\n",
+                    __func__, __LINE__, taos_stmt_errstr(stmt));
+            return -1;
+        }
         // if msg > 3MB, break
-        taos_stmt_add_batch(stmt);
+        ret = taos_stmt_add_batch(stmt);
+        if (0 != ret) {
+            errorPrint("%s() LN%d, stmt_add_batch() failed! reason: %s\n",
+                    __func__, __LINE__, taos_stmt_errstr(stmt));
+            return -1;
+        }
 
         k++;
         recordFrom ++;
@@ -6109,7 +6147,7 @@ static void* syncWriteInterlace(threadInfo *pThreadInfo) {
         insertRows = g_args.num_of_DPT;
         interlaceRows = g_args.interlace_rows;
         maxSqlLen = g_args.max_sql_len;
-        nTimeStampStep = DEFAULT_TIMESTAMP_STEP;
+        nTimeStampStep = g_args.timestamp_step;
         insert_interval = g_args.insert_interval;
     }
 
@@ -6369,7 +6407,7 @@ static void* syncWriteProgressive(threadInfo *pThreadInfo) {
     SSuperTable* superTblInfo = pThreadInfo->superTblInfo;
     uint64_t maxSqlLen = superTblInfo?superTblInfo->maxSqlLen:g_args.max_sql_len;
     int64_t timeStampStep =
-        superTblInfo?superTblInfo->timeStampStep:DEFAULT_TIMESTAMP_STEP;
+        superTblInfo?superTblInfo->timeStampStep:g_args.timestamp_step;
     int64_t insertRows =
         (superTblInfo)?superTblInfo->insertRows:g_args.num_of_DPT;
     verbosePrint("%s() LN%d insertRows=%"PRId64"\n",
@@ -6890,7 +6928,7 @@ static void startMultiThreadInsertData(int threads, char* db_name,
                 int ret = taos_stmt_prepare(pThreadInfo->stmt, buffer, 0);
                 if (ret != 0){
                     errorPrint("failed to execute taos_stmt_prepare. return 0x%x. reason: %s\n",
-                            ret, taos_errstr(NULL));
+                            ret, taos_stmt_errstr(pThreadInfo->stmt));
                     free(pids);
                     free(infos);
                     exit(-1);
@@ -7365,14 +7403,14 @@ static void replaceChildTblName(char* inSql, char* outSql, int tblIndex) {
 
     tstrncpy(outSql, inSql, pos - inSql + 1);
     //printf("1: %s\n", outSql);
-    strncat(outSql, subTblName, MAX_QUERY_SQL_LENGTH - 1);
+    strncat(outSql, subTblName, BUFFER_SIZE - 1);
     //printf("2: %s\n", outSql);
-    strncat(outSql, pos+strlen(sourceString), MAX_QUERY_SQL_LENGTH - 1);
+    strncat(outSql, pos+strlen(sourceString), BUFFER_SIZE - 1);
     //printf("3: %s\n", outSql);
 }
 
 static void *superTableQuery(void *sarg) {
-    char sqlstr[MAX_QUERY_SQL_LENGTH];
+    char sqlstr[BUFFER_SIZE];
     threadInfo *pThreadInfo = (threadInfo *)sarg;
 
     setThreadName("superTableQuery");
@@ -7675,7 +7713,7 @@ static TAOS_SUB* subscribeImpl(
 
 static void *superSubscribe(void *sarg) {
     threadInfo *pThreadInfo = (threadInfo *)sarg;
-    char subSqlstr[MAX_QUERY_SQL_LENGTH];
+    char subSqlstr[BUFFER_SIZE];
     TAOS_SUB*    tsub[MAX_QUERY_SQL_COUNT] = {0};
     uint64_t tsubSeq;
 
@@ -8181,7 +8219,7 @@ static void setParaFromArg() {
         }
         tstrncpy(g_Dbs.db[0].superTbls[0].startTimestamp,
                 "2017-07-14 10:40:00.000", MAX_TB_NAME_SIZE);
-        g_Dbs.db[0].superTbls[0].timeStampStep = DEFAULT_TIMESTAMP_STEP;
+        g_Dbs.db[0].superTbls[0].timeStampStep = g_args.timestamp_step;
 
         g_Dbs.db[0].superTbls[0].insertRows = g_args.num_of_DPT;
         g_Dbs.db[0].superTbls[0].maxSqlLen = g_args.max_sql_len;

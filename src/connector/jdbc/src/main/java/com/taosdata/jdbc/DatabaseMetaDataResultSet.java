@@ -15,10 +15,12 @@
 package com.taosdata.jdbc;
 
 import java.math.BigDecimal;
-import java.sql.*;
+import java.sql.ResultSetMetaData;
+import java.sql.SQLException;
+import java.sql.Statement;
+import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.Calendar;
-import java.util.Iterator;
 import java.util.List;
 
 /*
@@ -130,7 +132,7 @@ public class DatabaseMetaDataResultSet extends AbstractResultSet {
     public Timestamp getTimestamp(int columnIndex) throws SQLException {
         int colType = columnMetaDataList.get(columnIndex - 1).getColType();
         int nativeType = TSDBConstants.jdbcType2TaosType(colType);
-        return rowCursor.getTimestamp(columnIndex,nativeType);
+        return rowCursor.getTimestamp(columnIndex, nativeType);
     }
 
     @Override
@@ -145,9 +147,7 @@ public class DatabaseMetaDataResultSet extends AbstractResultSet {
 
     @Override
     public int findColumn(String columnLabel) throws SQLException {
-        Iterator<ColumnMetaData> colMetaDataIt = this.columnMetaDataList.iterator();
-        while (colMetaDataIt.hasNext()) {
-            ColumnMetaData colMetaData = colMetaDataIt.next();
+        for (ColumnMetaData colMetaData : this.columnMetaDataList) {
             if (colMetaData.getColName() != null && colMetaData.getColName().equals(columnLabel)) {
                 return colMetaData.getColIndex();
             }

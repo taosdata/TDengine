@@ -5,7 +5,6 @@ import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import javax.management.OperationsException;
 import java.sql.*;
 import java.util.Properties;
 
@@ -380,14 +379,15 @@ public class TSDBConnectionTest {
         conn.abort(null);
     }
 
-    @Test(expected = SQLFeatureNotSupportedException.class)
+    @Test
     public void setNetworkTimeout() throws SQLException {
         conn.setNetworkTimeout(null, 1000);
     }
 
-    @Test(expected = SQLFeatureNotSupportedException.class)
+    @Test
     public void getNetworkTimeout() throws SQLException {
-        conn.getNetworkTimeout();
+        int networkTimeout = conn.getNetworkTimeout();
+        Assert.assertEquals(0, networkTimeout);
     }
 
     @Test

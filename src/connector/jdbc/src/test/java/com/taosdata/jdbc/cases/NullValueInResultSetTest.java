@@ -7,7 +7,7 @@ import org.junit.*;
 import java.sql.*;
 import java.util.Properties;
 
-public class TD3841Test {
+public class NullValueInResultSetTest {
     private static final String host = "127.0.0.1";
     private static Properties properties;
     private static Connection conn_restful;
