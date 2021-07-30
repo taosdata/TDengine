@@ -164,7 +164,7 @@ static void tscUpdateVgroupInfo(SSqlObj *pSql, SRpcEpSet *pEpSet) {
   vgroupInfo.inUse    = pEpSet->inUse;
   vgroupInfo.numOfEps = pEpSet->numOfEps;
   for (int32_t i = 0; i < vgroupInfo.numOfEps; i++) {
-    strncpy(vgroupInfo.ep[i].fqdn, pEpSet->fqdn[i], TSDB_FQDN_LEN);
+    tstrncpy(vgroupInfo.ep[i].fqdn, pEpSet->fqdn[i], TSDB_FQDN_LEN);
     vgroupInfo.ep[i].port = pEpSet->port[i];
   }
 
@@ -702,7 +702,9 @@ static char *doSerializeTableInfo(SQueryTableMsg *pQueryMsg, SSqlObj *pSql, STab
       tscDumpEpSetFromVgroupInfo(&pSql->epSet, &vgroupInfo);
     }
 
-    pSql->epSet.inUse = rand()%pSql->epSet.numOfEps;
+    if (pSql->epSet.numOfEps > 0){
+      pSql->epSet.inUse = rand()%pSql->epSet.numOfEps;
+    }
     pQueryMsg->head.vgId = htonl(vgId);
 
     STableIdInfo *pTableIdInfo = (STableIdInfo *)pMsg;
@@ -979,7 +981,7 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
     }
   }
 
-  if (query.numOfTags > 0) {
+  if (query.numOfTags > 0 && query.tagColList != NULL) {
     for (int32_t i = 0; i < query.numOfTags; ++i) {
       SColumnInfo* pTag = &query.tagColList[i];
 
@@ -2028,8 +2030,12 @@ int tscProcessTableMetaRsp(SSqlObj *pSql) {
   assert(pTableMetaInfo->pTableMeta == NULL);
 
   STableMeta* pTableMeta = tscCreateTableMetaFromMsg(pMetaMsg);
+  if (pTableMeta == NULL){
+    return TSDB_CODE_TSC_OUT_OF_MEMORY;
+  }
   if (!tIsValidSchema(pTableMeta->schema, pTableMeta->tableInfo.numOfColumns, pTableMeta->tableInfo.numOfTags)) {
     tscError("0x%"PRIx64" invalid table meta from mnode, name:%s", pSql->self, tNameGetTableName(&pTableMetaInfo->name));
+    tfree(pTableMeta);
     return TSDB_CODE_TSC_INVALID_VALUE;
   }
 
@@ -2369,6 +2375,9 @@ int tscProcessSTableVgroupRsp(SSqlObj *pSql) {
       break;
     }
 
+    if (!pInfo){
+      continue;
+    }
     int32_t size = 0;
     pInfo->vgroupList = createVgroupInfoFromMsg(pMsg, &size, pSql->self);
     pMsg += size;

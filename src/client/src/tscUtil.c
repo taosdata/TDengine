@@ -275,16 +275,6 @@ bool tscIsProjectionQuery(SQueryInfo* pQueryInfo) {
         f != TSDB_FUNC_DERIVATIVE) {
       return false;
     }
-
-    if (f < 0) {
-      SUdfInfo* pUdfInfo = taosArrayGet(pQueryInfo->pUdfInfo, -1 * f - 1);
-      if (pUdfInfo->funcType == TSDB_UDF_TYPE_AGGREGATE) {
-        return false;
-      }
-
-      continue;
-    }
-
   }
 
   return true;
@@ -1864,8 +1854,8 @@ static SMemRow tdGenMemRowFromBuilder(SMemRowBuilder* pBuilder) {
     while (i < nColsBound) {
       int16_t colId = payloadColId(p);
       uint8_t colType = payloadColType(p);
-      tdAppendKvColVal(kvRow, POINTER_SHIFT(pVals,payloadColOffset(p)), colId, colType, toffset);
-      toffset += sizeof(SColIdx);
+      tdAppendKvColVal(kvRow, POINTER_SHIFT(pVals,payloadColOffset(p)), colId, colType, &toffset);
+      //toffset += sizeof(SColIdx);
       p = payloadNextCol(p);
       ++i;
     }
@@ -3433,7 +3423,7 @@ STableMetaInfo* tscAddTableMetaInfo(SQueryInfo* pQueryInfo, SName* name, STableM
     return NULL;
   }
 
-  if (pTagCols != NULL) {
+  if (pTagCols != NULL && pTableMetaInfo->pTableMeta != NULL) {
     tscColumnListCopy(pTableMetaInfo->tagColList, pTagCols, pTableMetaInfo->pTableMeta->id.uid);
   }
 
@@ -4432,7 +4422,7 @@ uint32_t tscGetTableMetaSize(STableMeta* pTableMeta) {
   assert(pTableMeta != NULL);
 
   int32_t totalCols = 0;
-  if (pTableMeta->tableInfo.numOfColumns >= 0 && pTableMeta->tableInfo.numOfTags >= 0) {
+  if (pTableMeta->tableInfo.numOfColumns >= 0) {
     totalCols = pTableMeta->tableInfo.numOfColumns + pTableMeta->tableInfo.numOfTags;
   }
   
@@ -4465,7 +4455,7 @@ int32_t tscCreateTableMetaFromSTableMeta(STableMeta* pChild, const char* name, v
     pChild->sversion = p->sversion;
     pChild->tversion = p->tversion;
 
-    memcpy(&pChild->tableInfo, &p->tableInfo, sizeof(STableInfo));
+    memcpy(&pChild->tableInfo, &p->tableInfo, sizeof(STableComInfo));
     int32_t total = pChild->tableInfo.numOfColumns + pChild->tableInfo.numOfTags;
 
     memcpy(pChild->schema, p->schema, sizeof(SSchema) *total);
@@ -4832,7 +4822,7 @@ static int32_t doAddTableName(char* nextStr, char** str, SArray* pNameArray, SSq
   int32_t len = 0;
 
   if (nextStr == NULL) {
-    strncpy(tablename, *str, TSDB_TABLE_FNAME_LEN);
+    tstrncpy(tablename, *str, TSDB_TABLE_FNAME_LEN);
     len = (int32_t) strlen(tablename);
   } else {
     len = (int32_t)(nextStr - (*str));

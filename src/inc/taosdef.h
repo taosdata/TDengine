@@ -307,7 +307,7 @@ do { \
 #define TSDB_DEFAULT_WAL_LEVEL          1
 
 #define TSDB_MIN_DB_UPDATE              0
-#define TSDB_MAX_DB_UPDATE              1
+#define TSDB_MAX_DB_UPDATE              2
 #define TSDB_DEFAULT_DB_UPDATE_OPTION   0
 
 #define TSDB_MIN_DB_CACHE_LAST_ROW      0
@@ -435,6 +435,12 @@ typedef enum {
   TSDB_CHECK_ITEM_DATAFILE,
   TSDB_CHECK_ITEM_MAX
 } ECheckItemType;
+
+typedef enum {
+  TD_ROW_DISCARD_UPDATE   = 0,
+  TD_ROW_OVERWRITE_UPDATE = 1,
+  TD_ROW_PARTIAL_UPDATE   = 2
+} TDUpdateConfig;
 
 extern char *qtypeStr[];
 
