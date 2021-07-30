@@ -51,6 +51,15 @@ public class TimeZoneTest {
                 System.out.println("ts: " + ts.getTime() + "," + ts);
             }
 
+            stmt.execute("insert into timezone_test.weather(ts, temperature, humidity) values('1970-01-01 00:00:00', 1.0, 2.0)");
+
+            rs = stmt.executeQuery("select * from timezone_test.weather");
+            while (rs.next()) {
+                Timestamp ts = rs.getTimestamp("ts");
+                System.out.println("ts: " + ts.getTime() + "," + ts);
+            }
+
+
             stmt.execute("drop database if exists timezone_test");
 
             stmt.close();
