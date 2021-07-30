@@ -277,6 +277,7 @@ class TDTestCase:
         return tb_name
 
     def resHandle(self, query_sql, query_tag):
+        tdSql.execute('reset query cache')
         row_info = tdSql.query(query_sql, query_tag)
         col_info = tdSql.getColNameList(query_sql, query_tag)
         res_row_list = []
