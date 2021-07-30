@@ -7,11 +7,11 @@ import platform
 
 
 def _convert_millisecond_to_datetime(milli):
-    return datetime.datetime.fromtimestamp(milli / 1000.0)
+    return datetime.datetime.fromtimestamp(0) + datetime.timedelta(seconds=milli/1000.0)
 
 
 def _convert_microsecond_to_datetime(micro):
-    return datetime.datetime.fromtimestamp(micro / 1000000.0)
+    return datetime.datetime.fromtimestamp(0) + datetime.timedelta(seconds=micro / 1000000.0)
 
 
 def _convert_nanosecond_to_datetime(nanosec):
