@@ -117,23 +117,12 @@ typedef struct SParsedDataColInfo {
 #define IS_DATA_COL_ORDERED(spd) ((spd->orderStatus) == (int8_t)ORDER_STATUS_ORDERED)
 
 typedef struct {
-  SSchema *   pSchema;
-  int16_t     sversion;
-  int32_t     flen;
-  uint16_t    nCols;
-  void *      buf;
-  void *      pDataBlock;
-  SSubmitBlk *pSubmitBlk;
-} SMemRowBuilderX;  // no more needed if generate SMemRow from origin insert
-typedef struct {
-  // int32_t offset;
   int32_t dataLen;  // len of SDataRow
   int32_t kvLen;    // len of SKVRow
 } SMemRowInfo;
 typedef struct {
   uint8_t      memRowType;
   uint16_t     nBoundCols;
-  // int32_t      nRows;    // rows to insert
   SArray *     colInfo;  // SColInfo
   SMemRowInfo *rowInfo;
 } SMemRowBuilder;
@@ -553,14 +542,6 @@ static FORCE_INLINE void convertToSDataRow(SMemRow dest, SMemRow src, SSchema *p
   }
 }
 
-// if (isDataRowT(memRowType)) {
-//   dataRowSetVersion(memRowDataBody(row), pBlock->pTableMeta->sversion);
-//   dataRowSetLen(memRowDataBody(row), (TDRowLenT)(TD_DATA_ROW_HEAD_SIZE + pBlock->boundColumnInfo.flen));
-// } else {
-//   memRowSetKvVersion(row, pBlock->pTableMeta->sversion);
-//   kvRowSetNCols(memRowKvBody(row), pBlock->numOfParams);
-//   kvRowSetLen(memRowKvBody(row), (TDRowLenT)(TD_KV_ROW_HEAD_SIZE + sizeof(SColIdx) * pBlock->numOfParams));
-// }
 // TODO: Move to tdataformat.h and refactor when STSchema available.
 static FORCE_INLINE void convertToSKVRow(SMemRow dest, SMemRow src, SSchema *pSchema, int nCols, int nBoundCols,
                                          SParsedDataColInfo *spd) {
@@ -577,8 +558,8 @@ static FORCE_INLINE void convertToSKVRow(SMemRow dest, SMemRow src, SSchema *pSc
   int32_t toffset = 0, kvOffset = 0;
   for (int i = 0; i < nCols; ++i) {
     SSchema *schema = pSchema + i;
-    toffset = (spd->cols + i)->toffset;
     if ((spd->cols + i)->hasVal) {
+      toffset = (spd->cols + i)->toffset;
       char *val = tdGetRowDataOfCol(dataRow, schema->type, toffset + TD_DATA_ROW_HEAD_SIZE);
       tdAppendKvColVal(kvRow, val, true, schema->colId, schema->type, kvOffset);
       kvOffset += sizeof(SColIdx);
@@ -588,17 +569,19 @@ static FORCE_INLINE void convertToSKVRow(SMemRow dest, SMemRow src, SSchema *pSc
 
 // TODO: Move to tdataformat.h and refactor when STSchema available.
 static FORCE_INLINE void convertSMemRow(SMemRow dest, SMemRow src, STableDataBlocks *pBlock) {
-  STableMeta *  pTableMeta = pBlock->pTableMeta;
-  STableComInfo tinfo = tscGetTableInfo(pTableMeta);
-  SSchema *     pSchema = tscGetTableSchema(pTableMeta);
+  STableMeta *        pTableMeta = pBlock->pTableMeta;
+  STableComInfo       tinfo = tscGetTableInfo(pTableMeta);
+  SSchema *           pSchema = tscGetTableSchema(pTableMeta);
+  SParsedDataColInfo *spd = &pBlock->boundColumnInfo;
 
   ASSERT(dest != src);
 
   if (isDataRow(src)) {
     // TODO: Can we use pBlock -> numOfParam directly?
-    convertToSKVRow(dest, src, pSchema, tinfo.numOfColumns, pBlock->numOfParams, &pBlock->boundColumnInfo);
+    ASSERT(spd->numOfBound > 0);
+    convertToSKVRow(dest, src, pSchema, tinfo.numOfColumns, spd->numOfBound, spd);
   } else {
-    convertToSDataRow(dest, src, pSchema, tinfo.numOfColumns, &pBlock->boundColumnInfo);
+    convertToSDataRow(dest, src, pSchema, tinfo.numOfColumns, spd);
   }
 }
 

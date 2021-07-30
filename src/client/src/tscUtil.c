@@ -1707,15 +1707,6 @@ SQueryInfo* tscGetQueryInfo(SSqlCmd* pCmd) {
   return pCmd->active;
 }
 
-int tranferRowDataToKV(SMemRowBuilder* pBuilder, SMemRow rowData, SMemRow rowKV, TDRowTLenT destLen) {
-  // TDRowTLenT srcLen = memRowTLen(rowData);
-  return 0;
-}
-int tranferRowKVToData(SMemRowBuilder* pBuilder, SMemRow rowKV, SMemRow rowData, TDRowTLenT destLen) {
-  // TDRowTLenT srcLen = memRowTLen(rowData);
-  return 0;
-}
-
 /**
  * create the in-memory buffer for each table to keep the submitted data block
  * @param initialSize
@@ -1803,7 +1794,6 @@ static int trimDataBlock(void* pDataBlock, STableDataBlocks* pTableDataBlock, SI
                          SBlockKeyTuple* blkKeyTuple) {
   // TODO: optimize this function, handle the case while binary is not presented
   STableMeta*     pTableMeta = pTableDataBlock->pTableMeta;
-  // STableComInfo   tinfo = tscGetTableInfo(pTableMeta);
   SSchema*        pSchema = tscGetTableSchema(pTableMeta);
 
   SSubmitBlk* pBlock = pDataBlock;
@@ -1834,15 +1824,15 @@ static int trimDataBlock(void* pDataBlock, STableDataBlocks* pTableDataBlock, SI
 
   for (int32_t i = 0; i < numOfRows; ++i) {
     if (isNeedConvertRow(p)) {
-      convertSMemRow(pBlock, p, pTableDataBlock);
-      TDRowTLenT rowTLen = memRowTLen(pBlock);
-      pBlock = POINTER_SHIFT(pBlock, rowTLen);
+      convertSMemRow(pDataBlock, p, pTableDataBlock);
+      TDRowTLenT rowTLen = memRowTLen(pDataBlock);
+      pDataBlock = POINTER_SHIFT(pDataBlock, rowTLen);
       pBlock->dataLen += rowTLen;
       ASSERT(rowTLen < memRowTLen(p));
     } else {
       TDRowTLenT rowTLen = memRowTLen(p);
-      memcpy(pBlock, p, rowTLen);
-      pBlock = POINTER_SHIFT(pBlock, rowTLen);
+      memcpy(pDataBlock, p, rowTLen);
+      pDataBlock = POINTER_SHIFT(pDataBlock, rowTLen);
       pBlock->dataLen += rowTLen;
     }
     p += extendedRowSize;
@@ -1854,21 +1844,6 @@ static int trimDataBlock(void* pDataBlock, STableDataBlocks* pTableDataBlock, SI
 
   return len;
 }
-
-#if 0
-static int32_t getRowExpandSize(STableMeta* pTableMeta) {
-
-  int32_t  result = TD_MEM_ROW_DATA_HEAD_SIZE;
-  int32_t columns = tscGetNumOfColumns(pTableMeta);
-  SSchema* pSchema = tscGetTableSchema(pTableMeta);
-  for(int32_t i = 0; i < columns; i++) {
-    if (IS_VAR_DATA_TYPE((pSchema + i)->type)) {
-      result += TYPE_BYTES[TSDB_DATA_TYPE_BINARY];
-    }
-  }
-  return result;
-}
-#endif
 
 static void extractTableNameList(SInsertStatementParam *pInsertParam, bool freeBlockMap) {
   pInsertParam->numOfTables = (int32_t) taosHashGetSize(pInsertParam->pTableBlockHashList);

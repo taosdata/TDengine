@@ -33,8 +33,6 @@
 
 #include "tdataformat.h"
 
-#define KVRowRatio 0.4f  // If nBoundedCols/nTotalCols no more than KVRowRatio, use SKVRow to combine the SMemRow.
-
 enum {
   TSDB_USE_SERVER_TS = 0,
   TSDB_USE_CLI_TS = 1,
@@ -53,7 +51,7 @@ int initMemRowBuilder(SMemRowBuilder *pBuilder, uint32_t nRows, uint32_t nCols, 
     // already init(bind multiple rows by single column)
     return TSDB_CODE_SUCCESS;
   }
-  ASSERT(nRows > 0 && nCols > 0 && (nBoundCols <= nCols) && nBoundCols > 0);
+  ASSERT(nRows > 0 && nCols > 0 && (nBoundCols <= nCols) && (nBoundCols > 0));
 
   pBuilder->rowInfo = tcalloc(nRows, sizeof(SMemRowInfo));
   if (pBuilder->rowInfo == NULL) {
@@ -372,7 +370,6 @@ int32_t tsParseOneColumn(SSchema *pSchema, SStrToken *pToken, char *payload, cha
         if (pToken->n + VARSTR_HEADER_SIZE > pSchema->bytes) { //todo refactor
           return tscInvalidOperationMsg(msg, "string data overflow", pToken->z);
         }
-        
         STR_WITH_SIZE_TO_VARSTR(payload, pToken->z, pToken->n);
       }
 
@@ -631,7 +628,7 @@ static int32_t tsParseOneColumnKV(SSchema *pSchema, SStrToken *pToken, SMemRow r
         tscAppendMemRowColValEx(row, getNullValue(pSchema->type), true, colId, pSchema->type, toffset, dataLen, kvLen);
       } else {  // too long values will return invalid sql, not be truncated automatically
         if (pToken->n + VARSTR_HEADER_SIZE > pSchema->bytes) {  // todo refactor
-         return tscInvalidOperationMsg(msg, "string data overflow", pToken->z);
+          return tscInvalidOperationMsg(msg, "string data overflow", pToken->z);
         }
         // STR_WITH_SIZE_TO_VARSTR(payload, pToken->z, pToken->n);
         char *rowEnd = memRowEnd(row);
@@ -724,7 +721,7 @@ int tsParseOneRow(char **str, STableDataBlocks *pDataBlocks, int16_t timePrec, i
   int32_t   index = 0;
   SStrToken sToken = {0};
 
-  char *         payload = pDataBlocks->pData + pDataBlocks->size;
+  char *payload = pDataBlocks->pData + pDataBlocks->size;
 
   SParsedDataColInfo *spd = &pDataBlocks->boundColumnInfo;
   SSchema *           schema = tscGetTableSchema(pDataBlocks->pTableMeta);
@@ -966,14 +963,15 @@ int tsParseOneRowKV(char **str, STableDataBlocks *pDataBlocks, int16_t timePrec,
     }
   }
 
+  // 2. check and set convert flag
   checkAndConvertMemRow(row, dataLen, kvLen);
 
-  // 2. set the null value for the columns that do not assign values
+  // 3. set the null value for the columns that do not assign values
   if ((spd->numOfBound < spd->numOfCols) && isDataRow(row) && !isNeedConvertRow(row)) {
+    SDataRow dataRow = memRowDataBody(row);
     for (int32_t i = 0; i < spd->numOfCols; ++i) {
       if (!spd->cols[i].hasVal) {
-        tdAppendDataColVal(memRowDataBody(row), getNullValue(schema[i].type), true, schema[i].type,
-                           spd->cols[i].toffset);
+        tdAppendDataColVal(dataRow, getNullValue(schema[i].type), true, schema[i].type, spd->cols[i].toffset);
       }
     }
   }
