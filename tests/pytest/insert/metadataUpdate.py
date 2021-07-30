@@ -16,7 +16,6 @@ from util.log import tdLog
 from util.cases import tdCases
 from util.sql import tdSql
 from util.dnodes import tdDnodes
-from multiprocessing import Process
 import subprocess
 
 class TDTestCase:
@@ -28,16 +27,6 @@ class TDTestCase:
         self.tables = 10
         self.rows = 1000
 
-    def updateMetadata(self):
-        self.host = "127.0.0.1"
-        self.user = "root"
-        self.password = "taosdata"
-        self.config = tdDnodes.getSimCfgPath()
-
-        self.conn = taos.connect(host = self.host, user = self.user, password = self.password, config = self.config)
-        self.cursor = self.conn.cursor()    
-        self.cursor.execute("alter table db.tb add column col2 int")
-        print("alter table done")
 
     def deleteTableAndRecreate(self):
         self.config = tdDnodes.getSimCfgPath()
@@ -68,11 +57,15 @@ class TDTestCase:
         tdSql.query("select * from tb")
         tdSql.checkRows(1)
 
-        p = Process(target=self.updateMetadata, args=())
-        p.start()        
-        p.join()
-        p.terminate()
-                
+        self.config = tdDnodes.getSimCfgPath()
+        command = ["taos", "-c", self.config, "-s", "alter table db.tb add column col2 int;"]
+        print("alter table db.tb add column col2 int;")
+        result = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, encoding="utf-8")
+        if result.returncode == 0:
+            print("success:", result)
+        else:
+            print("error:", result)
+
         tdSql.execute("insert into tb(ts, col1, col2) values(%d, 1, 2)" % (self.ts + 2))
 
         print("==============step2")
