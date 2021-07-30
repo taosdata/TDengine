@@ -82,8 +82,17 @@ extern char configDir[];
 #define MAX_TB_NAME_SIZE   64
 #define MAX_DATA_SIZE      (16*TSDB_MAX_COLUMNS)+20     // max record len: 16*MAX_COLUMNS, timestamp string and ,('') need extra space
 #define OPT_ABORT          1 /* –abort */
-#define MAX_PREPARED_RAND  1000000
 #define MAX_FILE_NAME_LEN  256              // max file name length on linux is 255.
+
+#define MAX_PREPARED_RAND  1000000
+#define INT_BUFF_LEN            11
+#define BIGINT_BUFF_LEN         21
+#define SMALLINT_BUFF_LEN       6
+#define TINYINT_BUFF_LEN        4
+#define BOOL_BUFF_LEN           6
+#define FLOAT_BUFF_LEN          22
+#define DOUBLE_BUFF_LEN         42
+#define TIMESTAMP_BUFF_LEN      21
 
 #define MAX_SAMPLES_ONCE_FROM_FILE   10000
 #define MAX_NUM_COLUMNS        (TSDB_MAX_COLUMNS - 1)      // exclude first column timestamp
@@ -561,11 +570,23 @@ static void init_rand_data();
 
 /* ************ Global variables ************  */
 
-int32_t  randint[MAX_PREPARED_RAND];
-int64_t  randbigint[MAX_PREPARED_RAND];
-float    randfloat[MAX_PREPARED_RAND];
-double   randdouble[MAX_PREPARED_RAND];
-char *aggreFunc[] = {"*", "count(*)", "avg(col0)", "sum(col0)",
+int32_t  g_randint[MAX_PREPARED_RAND];
+int64_t  g_randbigint[MAX_PREPARED_RAND];
+float    g_randfloat[MAX_PREPARED_RAND];
+double   g_randdouble[MAX_PREPARED_RAND];
+
+char    *g_randbool_buff = NULL;
+char    *g_randint_buff = NULL;
+char    *g_rand_voltage_buff = NULL;
+char    *g_randbigint_buff = NULL;
+char    *g_randsmallint_buff = NULL;
+char    *g_randtinyint_buff = NULL;
+char    *g_randfloat_buff = NULL;
+char    *g_rand_current_buff = NULL;
+char    *g_rand_phase_buff = NULL;
+char    *g_randdouble_buff = NULL;
+
+char    *g_aggreFunc[] = {"*", "count(*)", "avg(col0)", "sum(col0)",
     "max(col0)", "min(col0)", "first(col0)", "last(col0)"};
 
 #define DEFAULT_DATATYPE_NUM    3
@@ -1307,67 +1328,144 @@ static void selectAndGetResult(
     }
 }
 
+static char *rand_bool_str(){
+    static int cursor;
+    cursor++;
+    if (cursor > MAX_PREPARED_RAND) cursor = 0;
+    return g_randbool_buff + (cursor * BOOL_BUFF_LEN);
+}
+
 static int32_t rand_bool(){
     static int cursor;
     cursor++;
     cursor = cursor % MAX_PREPARED_RAND;
-    return randint[cursor] % 2;
+    return g_randint[cursor] % 2;
 }
 
-static int32_t rand_tinyint(){
+static char *rand_tinyint_str()
+{
+    static int cursor;
+    cursor++;
+    if (cursor > MAX_PREPARED_RAND) cursor = 0;
+    return g_randtinyint_buff + (cursor * TINYINT_BUFF_LEN);
+}
+
+static int32_t rand_tinyint()
+{
     static int cursor;
     cursor++;
     cursor = cursor % MAX_PREPARED_RAND;
-    return randint[cursor] % 128;
+    return g_randint[cursor] % 128;
 }
 
-static int32_t rand_smallint(){
+static char *rand_smallint_str()
+{
+    static int cursor;
+    cursor++;
+    if (cursor > (MAX_PREPARED_RAND - 1)) cursor = 0;
+    return g_randsmallint_buff + (cursor * SMALLINT_BUFF_LEN);
+}
+
+static int32_t rand_smallint()
+{
     static int cursor;
     cursor++;
     cursor = cursor % MAX_PREPARED_RAND;
-    return randint[cursor] % 32767;
+    return g_randint[cursor] % 32767;
 }
 
-static int32_t rand_int(){
+static char *rand_int_str()
+{
+    static int cursor;
+    cursor++;
+    if (cursor > (MAX_PREPARED_RAND - 1)) cursor = 0;
+    return g_randint_buff + (cursor * INT_BUFF_LEN);
+}
+
+static int32_t rand_int()
+{
     static int cursor;
     cursor++;
     cursor = cursor % MAX_PREPARED_RAND;
-    return randint[cursor];
+    return g_randint[cursor];
 }
 
-static int64_t rand_bigint(){
+static char *rand_bigint_str()
+{
+    static int cursor;
+    cursor++;
+    if (cursor > (MAX_PREPARED_RAND - 1)) cursor = 0;
+    return g_randbigint_buff + (cursor * BIGINT_BUFF_LEN);
+}
+
+static int64_t rand_bigint()
+{
     static int cursor;
     cursor++;
     cursor = cursor % MAX_PREPARED_RAND;
-    return randbigint[cursor];
+    return g_randbigint[cursor];
 }
 
-static float rand_float(){
+static char *rand_float_str()
+{
+    static int cursor;
+    cursor++;
+    if (cursor > (MAX_PREPARED_RAND - 1)) cursor = 0;
+    return g_randfloat_buff + (cursor * FLOAT_BUFF_LEN);
+}
+
+static float rand_float()
+{
     static int cursor;
     cursor++;
     cursor = cursor % MAX_PREPARED_RAND;
-    return randfloat[cursor];
+    return g_randfloat[cursor];
 }
 
-static float demo_current_float(){
+static char *demo_current_float_str()
+{
+    static int cursor;
+    cursor++;
+    if (cursor > (MAX_PREPARED_RAND - 1)) cursor = 0;
+    return g_rand_current_buff + (cursor * FLOAT_BUFF_LEN);
+}
+
+static float UNUSED_FUNC demo_current_float()
+{
     static int cursor;
     cursor++;
     cursor = cursor % MAX_PREPARED_RAND;
-    return (float)(9.8 + 0.04 * (randint[cursor] % 10) + randfloat[cursor]/1000000000);
+    return (float)(9.8 + 0.04 * (g_randint[cursor] % 10) + g_randfloat[cursor]/1000000000);
 }
 
-static int32_t demo_voltage_int(){
+static char *demo_voltage_int_str()
+{
+    static int cursor;
+    cursor++;
+    if (cursor > (MAX_PREPARED_RAND - 1)) cursor = 0;
+    return g_rand_voltage_buff + (cursor * INT_BUFF_LEN);
+}
+
+static int32_t UNUSED_FUNC demo_voltage_int()
+{
     static int cursor;
     cursor++;
     cursor = cursor % MAX_PREPARED_RAND;
-    return 215 + randint[cursor] % 10;
+    return 215 + g_randint[cursor] % 10;
 }
 
-static float demo_phase_float(){
+static char *demo_phase_float_str() {
+    static int cursor;
+    cursor++;
+    if (cursor > (MAX_PREPARED_RAND - 1)) cursor = 0;
+    return g_rand_phase_buff + (cursor * FLOAT_BUFF_LEN);
+}
+
+static float UNUSED_FUNC demo_phase_float(){
     static int cursor;
     cursor++;
     cursor = cursor % MAX_PREPARED_RAND;
-    return (float)((115 + randint[cursor] % 10 + randfloat[cursor]/1000000000)/360);
+    return (float)((115 + g_randint[cursor] % 10 + g_randfloat[cursor]/1000000000)/360);
 }
 
 #if 0
@@ -1402,19 +1500,76 @@ static void rand_string(char *str, int size) {
     }
 }
 
-static double rand_double() {
+static char *rand_double_str()
+{
+    static int cursor;
+    cursor++;
+    if (cursor > (MAX_PREPARED_RAND - 1)) cursor = 0;
+    return g_randdouble_buff + (cursor * DOUBLE_BUFF_LEN);
+}
+
+static double rand_double()
+{
     static int cursor;
     cursor++;
     cursor = cursor % MAX_PREPARED_RAND;
-    return randdouble[cursor];
+    return g_randdouble[cursor];
 }
 
 static void init_rand_data() {
+
+    g_randint_buff = calloc(1, INT_BUFF_LEN * MAX_PREPARED_RAND);
+    assert(g_randint_buff);
+    g_rand_voltage_buff = calloc(1, INT_BUFF_LEN * MAX_PREPARED_RAND);
+    assert(g_rand_voltage_buff);
+    g_randbigint_buff = calloc(1, BIGINT_BUFF_LEN * MAX_PREPARED_RAND);
+    assert(g_randbigint_buff);
+    g_randsmallint_buff = calloc(1, SMALLINT_BUFF_LEN * MAX_PREPARED_RAND);
+    assert(g_randsmallint_buff);
+    g_randtinyint_buff = calloc(1, TINYINT_BUFF_LEN * MAX_PREPARED_RAND);
+    assert(g_randtinyint_buff);
+    g_randbool_buff = calloc(1, BOOL_BUFF_LEN * MAX_PREPARED_RAND);
+    assert(g_randbool_buff);
+    g_randfloat_buff = calloc(1, FLOAT_BUFF_LEN * MAX_PREPARED_RAND);
+    assert(g_randfloat_buff);
+    g_rand_current_buff = calloc(1, FLOAT_BUFF_LEN * MAX_PREPARED_RAND);
+    assert(g_rand_current_buff);
+    g_rand_phase_buff = calloc(1, FLOAT_BUFF_LEN * MAX_PREPARED_RAND);
+    assert(g_rand_phase_buff);
+    g_randdouble_buff = calloc(1, DOUBLE_BUFF_LEN * MAX_PREPARED_RAND);
+    assert(g_randdouble_buff);
+
     for (int i = 0; i < MAX_PREPARED_RAND; i++){
-        randint[i] = (int)(taosRandom() % 65535);
-        randbigint[i] = (int64_t)(taosRandom() % 2147483648);
-        randfloat[i] = (float)(taosRandom() / 1000.0);
-        randdouble[i] = (double)(taosRandom() / 1000000.0);
+        g_randint[i] = (int)(taosRandom() % 65535);
+        sprintf(g_randint_buff + i * INT_BUFF_LEN, "%d",
+                g_randint[i]);
+        sprintf(g_rand_voltage_buff + i * INT_BUFF_LEN, "%d",
+                215 + g_randint[i] % 10);
+
+        sprintf(g_randbool_buff + i * BOOL_BUFF_LEN, "%s",
+                ((g_randint[i] % 2) & 1)?"true":"false");
+        sprintf(g_randsmallint_buff + i * SMALLINT_BUFF_LEN, "%d",
+                g_randint[i] % 32767);
+        sprintf(g_randtinyint_buff + i * TINYINT_BUFF_LEN, "%d",
+                g_randint[i] % 128);
+
+        g_randbigint[i] = (int64_t)(taosRandom() % 2147483648);
+        sprintf(g_randbigint_buff + i * BIGINT_BUFF_LEN, "%"PRId64"",
+                g_randbigint[i]);
+
+        g_randfloat[i] = (float)(taosRandom() / 1000.0);
+        sprintf(g_randfloat_buff + i * FLOAT_BUFF_LEN, "%f",
+                g_randfloat[i]);
+        sprintf(g_rand_current_buff + i * FLOAT_BUFF_LEN, "%f",
+                (float)(9.8 + 0.04 * (g_randint[i] % 10)
+                    + g_randfloat[i]/1000000000));
+        sprintf(g_rand_phase_buff + i * FLOAT_BUFF_LEN, "%f",
+                (float)((115 + g_randint[i] % 10
+                        + g_randfloat[i]/1000000000)/360));
+
+        g_randdouble[i] = (double)(taosRandom() / 1000000.0);
+        sprintf(g_randdouble_buff + i * DOUBLE_BUFF_LEN, "%f",
+                g_randdouble[i]);
     }
 }
 
@@ -2496,21 +2651,21 @@ static int calcRowLen(SSuperTable*  superTbls) {
         } else if (strcasecmp(dataType, "NCHAR") == 0) {
             lenOfOneRow += superTbls->columns[colIndex].dataLen + 3;
         } else if (strcasecmp(dataType, "INT") == 0)  {
-            lenOfOneRow += 11;
+            lenOfOneRow += INT_BUFF_LEN;
         } else if (strcasecmp(dataType, "BIGINT") == 0)  {
-            lenOfOneRow += 21;
+            lenOfOneRow += BIGINT_BUFF_LEN;
         } else if (strcasecmp(dataType, "SMALLINT") == 0)  {
-            lenOfOneRow += 6;
+            lenOfOneRow += SMALLINT_BUFF_LEN;
         } else if (strcasecmp(dataType, "TINYINT") == 0)  {
-            lenOfOneRow += 4;
+            lenOfOneRow += TINYINT_BUFF_LEN;
         } else if (strcasecmp(dataType, "BOOL") == 0)  {
-            lenOfOneRow += 6;
+            lenOfOneRow += BOOL_BUFF_LEN;
         } else if (strcasecmp(dataType, "FLOAT") == 0) {
-            lenOfOneRow += 22;
+            lenOfOneRow += FLOAT_BUFF_LEN;
         } else if (strcasecmp(dataType, "DOUBLE") == 0) {
-            lenOfOneRow += 42;
+            lenOfOneRow += DOUBLE_BUFF_LEN;
         }  else if (strcasecmp(dataType, "TIMESTAMP") == 0) {
-            lenOfOneRow += 21;
+            lenOfOneRow += TIMESTAMP_BUFF_LEN;
         } else {
             printf("get error data type : %s\n", dataType);
             exit(-1);
@@ -2529,19 +2684,19 @@ static int calcRowLen(SSuperTable*  superTbls) {
         } else if (strcasecmp(dataType, "NCHAR") == 0) {
             lenOfTagOfOneRow += superTbls->tags[tagIndex].dataLen + 3;
         } else if (strcasecmp(dataType, "INT") == 0)  {
-            lenOfTagOfOneRow += superTbls->tags[tagIndex].dataLen + 11;
+            lenOfTagOfOneRow += superTbls->tags[tagIndex].dataLen + INT_BUFF_LEN;
         } else if (strcasecmp(dataType, "BIGINT") == 0)  {
-            lenOfTagOfOneRow += superTbls->tags[tagIndex].dataLen + 21;
+            lenOfTagOfOneRow += superTbls->tags[tagIndex].dataLen + BIGINT_BUFF_LEN;
         } else if (strcasecmp(dataType, "SMALLINT") == 0)  {
-            lenOfTagOfOneRow += superTbls->tags[tagIndex].dataLen + 6;
+            lenOfTagOfOneRow += superTbls->tags[tagIndex].dataLen + SMALLINT_BUFF_LEN;
         } else if (strcasecmp(dataType, "TINYINT") == 0)  {
-            lenOfTagOfOneRow += superTbls->tags[tagIndex].dataLen + 4;
+            lenOfTagOfOneRow += superTbls->tags[tagIndex].dataLen + TINYINT_BUFF_LEN;
         } else if (strcasecmp(dataType, "BOOL") == 0)  {
-            lenOfTagOfOneRow += superTbls->tags[tagIndex].dataLen + 6;
+            lenOfTagOfOneRow += superTbls->tags[tagIndex].dataLen + BOOL_BUFF_LEN;
         } else if (strcasecmp(dataType, "FLOAT") == 0) {
-            lenOfTagOfOneRow += superTbls->tags[tagIndex].dataLen + 22;
+            lenOfTagOfOneRow += superTbls->tags[tagIndex].dataLen + FLOAT_BUFF_LEN;
         } else if (strcasecmp(dataType, "DOUBLE") == 0) {
-            lenOfTagOfOneRow += superTbls->tags[tagIndex].dataLen + 42;
+            lenOfTagOfOneRow += superTbls->tags[tagIndex].dataLen + DOUBLE_BUFF_LEN;
         } else {
             printf("get error tag type : %s\n", dataType);
             exit(-1);
@@ -2770,21 +2925,21 @@ static int createSuperTable(
             } else {
                 len += snprintf(cols + len, COL_BUFFER_LEN - len, ",C%d %s", colIndex, "INT");
             }
-            lenOfOneRow += 11;
+            lenOfOneRow += INT_BUFF_LEN;
         } else if (strcasecmp(dataType, "BIGINT") == 0)  {
             len += snprintf(cols + len, COL_BUFFER_LEN - len, ",C%d %s",
                     colIndex, "BIGINT");
-            lenOfOneRow += 21;
+            lenOfOneRow += BIGINT_BUFF_LEN;
         } else if (strcasecmp(dataType, "SMALLINT") == 0)  {
             len += snprintf(cols + len, COL_BUFFER_LEN - len, ",C%d %s",
                     colIndex, "SMALLINT");
-            lenOfOneRow += 6;
+            lenOfOneRow += SMALLINT_BUFF_LEN;
         } else if (strcasecmp(dataType, "TINYINT") == 0)  {
             len += snprintf(cols + len, COL_BUFFER_LEN - len, ",C%d %s", colIndex, "TINYINT");
-            lenOfOneRow += 4;
+            lenOfOneRow += TINYINT_BUFF_LEN;
         } else if (strcasecmp(dataType, "BOOL") == 0)  {
             len += snprintf(cols + len, COL_BUFFER_LEN - len, ",C%d %s", colIndex, "BOOL");
-            lenOfOneRow += 6;
+            lenOfOneRow += BOOL_BUFF_LEN;
         } else if (strcasecmp(dataType, "FLOAT") == 0) {
             if (g_args.demo_mode) {
                 if (colIndex == 0) {
@@ -2796,15 +2951,15 @@ static int createSuperTable(
                 len += snprintf(cols + len, COL_BUFFER_LEN - len, ",C%d %s", colIndex, "FLOAT");
             }
 
-            lenOfOneRow += 22;
+            lenOfOneRow += FLOAT_BUFF_LEN;
         } else if (strcasecmp(dataType, "DOUBLE") == 0) {
             len += snprintf(cols + len, COL_BUFFER_LEN - len, ",C%d %s",
                     colIndex, "DOUBLE");
-            lenOfOneRow += 42;
+            lenOfOneRow += DOUBLE_BUFF_LEN;
         }  else if (strcasecmp(dataType, "TIMESTAMP") == 0) {
             len += snprintf(cols + len, COL_BUFFER_LEN - len, ",C%d %s",
                     colIndex, "TIMESTAMP");
-            lenOfOneRow += 21;
+            lenOfOneRow += TIMESTAMP_BUFF_LEN;
         } else {
             taos_close(taos);
             errorPrint("%s() LN%d, config error data type : %s\n",
@@ -2867,31 +3022,31 @@ static int createSuperTable(
                 len += snprintf(tags + len, TSDB_MAX_TAGS_LEN - len,
                         "T%d %s,", tagIndex, "INT");
             }
-            lenOfTagOfOneRow += superTbl->tags[tagIndex].dataLen + 11;
+            lenOfTagOfOneRow += superTbl->tags[tagIndex].dataLen + INT_BUFF_LEN;
         } else if (strcasecmp(dataType, "BIGINT") == 0)  {
             len += snprintf(tags + len, TSDB_MAX_TAGS_LEN - len,
                     "T%d %s,", tagIndex, "BIGINT");
-            lenOfTagOfOneRow += superTbl->tags[tagIndex].dataLen + 21;
+            lenOfTagOfOneRow += superTbl->tags[tagIndex].dataLen + BIGINT_BUFF_LEN;
         } else if (strcasecmp(dataType, "SMALLINT") == 0)  {
             len += snprintf(tags + len, TSDB_MAX_TAGS_LEN - len,
                     "T%d %s,", tagIndex, "SMALLINT");
-            lenOfTagOfOneRow += superTbl->tags[tagIndex].dataLen + 6;
+            lenOfTagOfOneRow += superTbl->tags[tagIndex].dataLen + SMALLINT_BUFF_LEN;
         } else if (strcasecmp(dataType, "TINYINT") == 0)  {
             len += snprintf(tags + len, TSDB_MAX_TAGS_LEN - len,
                     "T%d %s,", tagIndex, "TINYINT");
-            lenOfTagOfOneRow += superTbl->tags[tagIndex].dataLen + 4;
+            lenOfTagOfOneRow += superTbl->tags[tagIndex].dataLen + TINYINT_BUFF_LEN;
         } else if (strcasecmp(dataType, "BOOL") == 0)  {
             len += snprintf(tags + len, TSDB_MAX_TAGS_LEN - len,
                     "T%d %s,", tagIndex, "BOOL");
-            lenOfTagOfOneRow += superTbl->tags[tagIndex].dataLen + 6;
+            lenOfTagOfOneRow += superTbl->tags[tagIndex].dataLen + BOOL_BUFF_LEN;
         } else if (strcasecmp(dataType, "FLOAT") == 0) {
             len += snprintf(tags + len, TSDB_MAX_TAGS_LEN - len,
                     "T%d %s,", tagIndex, "FLOAT");
-            lenOfTagOfOneRow += superTbl->tags[tagIndex].dataLen + 22;
+            lenOfTagOfOneRow += superTbl->tags[tagIndex].dataLen + FLOAT_BUFF_LEN;
         } else if (strcasecmp(dataType, "DOUBLE") == 0) {
             len += snprintf(tags + len, TSDB_MAX_TAGS_LEN - len,
                     "T%d %s,", tagIndex, "DOUBLE");
-            lenOfTagOfOneRow += superTbl->tags[tagIndex].dataLen + 42;
+            lenOfTagOfOneRow += superTbl->tags[tagIndex].dataLen + DOUBLE_BUFF_LEN;
         } else {
             taos_close(taos);
             errorPrint("%s() LN%d, config error tag type : %s\n",
@@ -4894,6 +5049,17 @@ static void postFreeResource() {
             }
         }
     }
+
+    tmfree(g_randbool_buff);
+    tmfree(g_randint_buff);
+    tmfree(g_rand_voltage_buff);
+    tmfree(g_randbigint_buff);
+    tmfree(g_randsmallint_buff);
+    tmfree(g_randtinyint_buff);
+    tmfree(g_randfloat_buff);
+    tmfree(g_rand_current_buff);
+    tmfree(g_rand_phase_buff);
+    tmfree(g_randdouble_buff);
 }
 
 static int getRowDataFromSample(
@@ -4956,56 +5122,61 @@ static int64_t generateStbRowData(
             rand_string(buf, stbInfo->columns[i].dataLen);
             dataLen += snprintf(pstr + dataLen, maxLen - dataLen, "\'%s\',", buf);
             tmfree(buf);
-        } else if (0 == strncasecmp(stbInfo->columns[i].dataType,
-                    "INT", strlen("INT"))) {
-            if ((g_args.demo_mode) && (i == 1)) {
-                dataLen += snprintf(pstr + dataLen, maxLen - dataLen,
-                        "%d,", demo_voltage_int());
-            } else {
-                dataLen += snprintf(pstr + dataLen, maxLen - dataLen,
-                        "%d,", rand_int());
-            }
-        } else if (0 == strncasecmp(stbInfo->columns[i].dataType,
-                    "BIGINT", strlen("BIGINT"))) {
-            dataLen += snprintf(pstr + dataLen, maxLen - dataLen,
-                    "%"PRId64",", rand_bigint());
-        }  else if (0 == strncasecmp(stbInfo->columns[i].dataType,
-                    "FLOAT", strlen("FLOAT"))) {
-            if (g_args.demo_mode) {
-                if (i == 0) {
-                    dataLen += snprintf(pstr + dataLen, maxLen - dataLen,
-                            "%f,", demo_current_float());
+        } else {
+            char *tmp;
+
+            if (0 == strncasecmp(stbInfo->columns[i].dataType,
+                        "INT", strlen("INT"))) {
+                if ((g_args.demo_mode) && (i == 1)) {
+                    tmp = demo_voltage_int_str();
                 } else {
-                    dataLen += snprintf(pstr + dataLen, maxLen - dataLen,
-                            "%f,", demo_phase_float());
+                    tmp = rand_int_str();
                 }
-            } else {
-                dataLen += snprintf(pstr + dataLen, maxLen - dataLen,
-                        "%f,", rand_float());
+                tstrncpy(pstr + dataLen, tmp, INT_BUFF_LEN);
+            } else if (0 == strncasecmp(stbInfo->columns[i].dataType,
+                        "BIGINT", strlen("BIGINT"))) {
+                tmp = rand_bigint_str();
+                tstrncpy(pstr + dataLen, tmp, BIGINT_BUFF_LEN);
+            }  else if (0 == strncasecmp(stbInfo->columns[i].dataType,
+                        "FLOAT", strlen("FLOAT"))) {
+                if (g_args.demo_mode) {
+                    if (i == 0) {
+                        tmp = demo_current_float_str();
+                    } else {
+                        tmp = demo_phase_float_str();
+                    }
+                } else {
+                    tmp = rand_float_str();
+                }
+                tstrncpy(pstr + dataLen, tmp, FLOAT_BUFF_LEN);
+            }  else if (0 == strncasecmp(stbInfo->columns[i].dataType,
+                        "DOUBLE", strlen("DOUBLE"))) {
+                tmp = rand_double_str();
+                tstrncpy(pstr + dataLen, tmp, DOUBLE_BUFF_LEN);
+            }  else if (0 == strncasecmp(stbInfo->columns[i].dataType,
+                        "SMALLINT", strlen("SMALLINT"))) {
+                tmp = rand_smallint_str();
+                tstrncpy(pstr + dataLen, tmp, SMALLINT_BUFF_LEN);
+            }  else if (0 == strncasecmp(stbInfo->columns[i].dataType,
+                        "TINYINT", strlen("TINYINT"))) {
+                tmp = rand_tinyint_str();
+                tstrncpy(pstr + dataLen, tmp, TINYINT_BUFF_LEN);
+            }  else if (0 == strncasecmp(stbInfo->columns[i].dataType,
+                        "BOOL", strlen("BOOL"))) {
+                tmp = rand_bool_str();
+                tstrncpy(pstr + dataLen, tmp, BOOL_BUFF_LEN);
+            }  else if (0 == strncasecmp(stbInfo->columns[i].dataType,
+                        "TIMESTAMP", strlen("TIMESTAMP"))) {
+                tmp = rand_int_str();
+                tstrncpy(pstr + dataLen, tmp, INT_BUFF_LEN);
+            }  else {
+                errorPrint( "Not support data type: %s\n", stbInfo->columns[i].dataType);
+                return -1;
             }
-        }  else if (0 == strncasecmp(stbInfo->columns[i].dataType,
-                    "DOUBLE", strlen("DOUBLE"))) {
-            dataLen += snprintf(pstr + dataLen, maxLen - dataLen,
-                    "%f,", rand_double());
-        }  else if (0 == strncasecmp(stbInfo->columns[i].dataType,
-                    "SMALLINT", strlen("SMALLINT"))) {
-            dataLen += snprintf(pstr + dataLen, maxLen - dataLen,
-                    "%d,", rand_smallint());
-        }  else if (0 == strncasecmp(stbInfo->columns[i].dataType,
-                    "TINYINT", strlen("TINYINT"))) {
-            dataLen += snprintf(pstr + dataLen, maxLen - dataLen,
-                    "%d,", rand_tinyint());
-        }  else if (0 == strncasecmp(stbInfo->columns[i].dataType,
-                    "BOOL", strlen("BOOL"))) {
-            dataLen += snprintf(pstr + dataLen, maxLen - dataLen,
-                    "%d,", rand_bool());
-        }  else if (0 == strncasecmp(stbInfo->columns[i].dataType,
-                    "TIMESTAMP", strlen("TIMESTAMP"))) {
-            dataLen += snprintf(pstr + dataLen, maxLen - dataLen,
-                    "%"PRId64",", rand_bigint());
-        }  else {
-            errorPrint( "Not support data type: %s\n", stbInfo->columns[i].dataType);
-            return -1;
+
+            dataLen += strlen(tmp);
+            tstrncpy(pstr + dataLen, ",", 2);
+            dataLen += 1;
         }
     }
 
@@ -7105,7 +7276,7 @@ static void *readTable(void *sarg) {
     int64_t totalData = num_of_DPT * num_of_tables;
     bool do_aggreFunc = g_Dbs.do_aggreFunc;
 
-    int n = do_aggreFunc ? (sizeof(aggreFunc) / sizeof(aggreFunc[0])) : 2;
+    int n = do_aggreFunc ? (sizeof(g_aggreFunc) / sizeof(g_aggreFunc[0])) : 2;
     if (!do_aggreFunc) {
         printf("\nThe first field is either Binary or Bool. Aggregation functions are not supported.\n");
     }
@@ -7117,7 +7288,7 @@ static void *readTable(void *sarg) {
         uint64_t count = 0;
         for (int64_t i = 0; i < num_of_tables; i++) {
             sprintf(command, "select %s from %s%"PRId64" where ts>= %" PRIu64,
-                    aggreFunc[j], tb_prefix, i, sTime);
+                    g_aggreFunc[j], tb_prefix, i, sTime);
 
             double t = taosGetTimestampMs();
             TAOS_RES *pSql = taos_query(taos, command);
@@ -7142,9 +7313,9 @@ static void *readTable(void *sarg) {
         }
 
         fprintf(fp, "|%10s  |   %"PRId64"   |  %12.2f   |   %10.2f  |\n",
-                aggreFunc[j][0] == '*' ? "   *   " : aggreFunc[j], totalData,
+                g_aggreFunc[j][0] == '*' ? "   *   " : g_aggreFunc[j], totalData,
                 (double)(num_of_tables * num_of_DPT) / totalT, totalT * 1000);
-        printf("select %10s took %.6f second(s)\n", aggreFunc[j], totalT * 1000);
+        printf("select %10s took %.6f second(s)\n", g_aggreFunc[j], totalT * 1000);
     }
     fprintf(fp, "\n");
     fclose(fp);
@@ -7169,7 +7340,7 @@ static void *readMetric(void *sarg) {
     int64_t totalData = num_of_DPT * num_of_tables;
     bool do_aggreFunc = g_Dbs.do_aggreFunc;
 
-    int n = do_aggreFunc ? (sizeof(aggreFunc) / sizeof(aggreFunc[0])) : 2;
+    int n = do_aggreFunc ? (sizeof(g_aggreFunc) / sizeof(g_aggreFunc[0])) : 2;
     if (!do_aggreFunc) {
         printf("\nThe first field is either Binary or Bool. Aggregation functions are not supported.\n");
     }
@@ -7190,7 +7361,7 @@ static void *readMetric(void *sarg) {
             }
             strncat(condition, tempS, COND_BUF_LEN - 1);
 
-            sprintf(command, "select %s from meters where %s", aggreFunc[j], condition);
+            sprintf(command, "select %s from meters where %s", g_aggreFunc[j], condition);
 
             printf("Where condition: %s\n", condition);
             fprintf(fp, "%s\n", command);
@@ -7215,7 +7386,7 @@ static void *readMetric(void *sarg) {
 
             fprintf(fp, "| Speed: %12.2f(per s) | Latency: %.4f(ms) |\n",
                     num_of_tables * num_of_DPT / (t * 1000.0), t);
-            printf("select %10s took %.6f second(s)\n\n", aggreFunc[j], t * 1000.0);
+            printf("select %10s took %.6f second(s)\n\n", g_aggreFunc[j], t * 1000.0);
 
             taos_free_result(pSql);
         }
