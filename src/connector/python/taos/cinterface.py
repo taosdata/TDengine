@@ -516,7 +516,7 @@ def taos_validate_sql(connection, sql):
     return None
 
 
-_libtaos.taos_print_row.restype = None
+_libtaos.taos_print_row.restype = c_int
 _libtaos.taos_print_row.argstype = (c_char_p, c_void_p, c_void_p, c_int)
 
 
@@ -524,14 +524,13 @@ def taos_print_row(row, fields, num_fields, buffer_size=4096):
     # type: (ctypes.c_void_p, ctypes.c_void_p | TaosFields, int, int) -> str
     """Print an row to string"""
     p = ctypes.create_string_buffer(buffer_size)
-    errno = 0
     if isinstance(fields, TaosFields):
-        errno = _libtaos.taos_print_row(p, row, fields.as_ptr(), num_fields)
+        _libtaos.taos_print_row(p, row, fields.as_ptr(), num_fields)
     else:
-        errno = _libtaos.taos_print_row(p, row, fields, num_fields)
-    if errno != 0:
-        raise OperationalError("taos_print_row failed")
-    return p.value.decode("utf-8")
+        _libtaos.taos_print_row(p, row, fields, num_fields)
+    if p:
+        return p.value.decode("utf-8")
+    raise OperationalError("taos_print_row failed")
 
 
 _libtaos.taos_select_db.restype = c_int

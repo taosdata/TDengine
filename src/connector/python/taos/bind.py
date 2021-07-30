@@ -77,7 +77,7 @@ class TaosBind(ctypes.Structure):
         self.buffer_length = length
         self.length = pointer(c_size_t(self.buffer_length))
 
-    def timestamp(self, value, precision):
+    def timestamp(self, value, precision=PrecisionEnum.Milliseconds):
         if type(value) is datetime:
             if precision == PrecisionEnum.Milliseconds:
                 ts = int(round((value - _datetime_epoch).total_seconds() * 1000))
