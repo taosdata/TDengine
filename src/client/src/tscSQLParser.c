@@ -899,8 +899,7 @@ int32_t tscValidateSqlInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
       for (int32_t i = 0; i < size; ++i) {
         SSqlNode* pSqlNode = taosArrayGetP(pInfo->list, i);
 
-        tscTrace("%p start to parse %dth subclause, total:%"PRIzu, pSql, i, size);
-
+        tscTrace("0x%"PRIx64" start to parse the %dth subclause, total:%"PRIzu, pSql->self, i, size);
 //        normalizeSqlNode(pSqlNode); // normalize the column name in each function
         if ((code = validateSqlNode(pSql, pSqlNode, pQueryInfo)) != TSDB_CODE_SUCCESS) {
           return code;

@@ -211,24 +211,24 @@ void taos_fetch_rows_a(TAOS_RES *tres, __async_cb_func_t fp, void *param) {
   pSql->fp      = tscAsyncFetchRowsProxy;
   pSql->param   = param;
 
-  if (pRes->qId == 0) {
-    tscError("qhandle is invalid");
-    pRes->code = TSDB_CODE_TSC_INVALID_QHANDLE;
-    tscAsyncResultOnError(pSql);
-    return;
-  }
-
   tscResetForNextRetrieve(pRes);
   
   // handle outer query based on the already retrieved nest query results.
   SQueryInfo* pQueryInfo = tscGetQueryInfo(pCmd);
   if (pQueryInfo->pUpstream != NULL && taosArrayGetSize(pQueryInfo->pUpstream) > 0) {
     SSchedMsg schedMsg = {0};
-    schedMsg.fp = doRetrieveSubqueryData;
+    schedMsg.fp      = doRetrieveSubqueryData;
     schedMsg.ahandle = (void *)pSql;
     schedMsg.thandle = (void *)1;
-    schedMsg.msg = 0;
+    schedMsg.msg     = 0;
     taosScheduleTask(tscQhandle, &schedMsg);
+    return;
+  }
+
+  if (pRes->qId == 0) {
+    tscError("qhandle is invalid");
+    pRes->code = TSDB_CODE_TSC_INVALID_QHANDLE;
+    tscAsyncResultOnError(pSql);
     return;
   }
 
