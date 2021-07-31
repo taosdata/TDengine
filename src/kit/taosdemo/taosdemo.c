@@ -5992,6 +5992,7 @@ static int32_t prepareStbStmt(
         if (0 != ret) {
             errorPrint("%s() LN%d, stmt_bind_param() failed! reason: %s\n",
                     __func__, __LINE__, taos_stmt_errstr(stmt));
+            free(bindArray);
             return -1;
         }
         // if msg > 3MB, break
@@ -5999,6 +6000,7 @@ static int32_t prepareStbStmt(
         if (0 != ret) {
             errorPrint("%s() LN%d, stmt_add_batch() failed! reason: %s\n",
                     __func__, __LINE__, taos_stmt_errstr(stmt));
+            free(bindArray);
             return -1;
         }
 
