@@ -159,7 +159,7 @@ int tsCompressINTImp(const char *const input, const int nelements, char *const o
           break;
       }
       // Get difference.
-      if (!safeInt64Add(curr_value, -prev_value)) goto _copy_and_exit;
+      if (!safeInt64Add(curr_value, -prev_value_tmp)) goto _copy_and_exit;
 
       int64_t diff = curr_value - prev_value_tmp;
       // Zigzag encode the value.
@@ -480,6 +480,10 @@ int tsCompressTimestampImp(const char *const input, const int nelements, char *c
   int64_t *istream = (int64_t *)input;
 
   int64_t  prev_value = istream[0];
+  if(prev_value >= 0x8000000000000000) {
+     uWarn("compression timestamp is over signed long long range. ts = 0x%"PRIx64" \n", prev_value);
+     goto _exit_over;
+  }
   int64_t  prev_delta = -prev_value;
   uint8_t  flags = 0, flag1 = 0, flag2 = 0;
   uint64_t dd1 = 0, dd2 = 0;

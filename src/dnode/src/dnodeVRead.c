@@ -118,10 +118,11 @@ static void *dnodeProcessReadQueue(void *wparam) {
   SVReadMsg *  pRead;
   int32_t      qtype;
   void *       pVnode;
-  char         name[16];
 
-  memset(name, 0, 16);
-  snprintf(name, 16, "%s-dnReadQ", pPool->name);
+  char* threadname  = strcmp(pPool->name, "vquery") == 0? "dnodeQueryQ":"dnodeFetchQ";
+
+  char name[16] = {0};
+  snprintf(name, tListLen(name), "%s", threadname);
   setThreadName(name);
 
   while (1) {

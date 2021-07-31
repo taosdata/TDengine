@@ -35,6 +35,8 @@ struct Command {
 };
 
 extern void backspaceChar(Command *cmd);
+extern void clearLineBefore(Command *cmd);
+extern void clearLineAfter(Command *cmd);
 extern void deleteChar(Command *cmd);
 extern void moveCursorLeft(Command *cmd);
 extern void moveCursorRight(Command *cmd);

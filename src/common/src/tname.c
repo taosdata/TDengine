@@ -319,7 +319,7 @@ int32_t tNameGetDbName(const SName* name, char* dst) {
 
 int32_t tNameGetFullDbName(const SName* name, char* dst) {
   assert(name != NULL && dst != NULL);
-  snprintf(dst, TSDB_ACCT_ID_LEN + TS_PATH_DELIMITER_LEN + TSDB_DB_NAME_LEN,
+  snprintf(dst, TSDB_ACCT_ID_LEN + TS_PATH_DELIMITER_LEN + TSDB_DB_NAME_LEN,    // there is a over write risk
       "%s.%s", name->acctId, name->dbname);
   return 0;
 }

@@ -22,7 +22,7 @@ Note: ● stands for that has been verified by official tests; ○ stands for th
 Note:
 
 - To access the TDengine database through connectors (except RESTful) in the system without TDengine server software, it is necessary to install the corresponding version of the client installation package to make the application driver (the file name is [libtaos.so](http://libtaos.so/) in Linux system and taos.dll in Windows system) installed in the system, otherwise, the error that the corresponding library file cannot be found will occur.
-- All APIs that execute SQL statements, such as `tao_query`, `taos_query_a`, `taos_subscribe` in C/C + + Connector, and APIs corresponding to them in other languages, can only execute one SQL statement at a time. If the actual parameters contain multiple statements, their behavior is undefined.
+- All APIs that execute SQL statements, such as `tao_query`, `taos_query_a`, `taos_subscribe` in C/C++ Connector, and APIs corresponding to them in other languages, can only execute one SQL statement at a time. If the actual parameters contain multiple statements, their behavior is undefined.
 - Users upgrading to TDengine 2.0. 8.0 must update the JDBC connection. TDengine must upgrade taos-jdbcdriver to 2.0.12 and above.
 - No matter which programming language connector is selected, TDengine version 2.0 and above recommends that each thread of database application establish an independent connection or establish a connection pool based on threads to avoid mutual interference between threads of "USE statement" state variables in the connection (but query and write operations of the connection are thread-safe).
 
@@ -152,7 +152,7 @@ Under cmd, enter the c:\ tdengine directory and directly execute taos.exe, and y
 | **OS Type**          | Linux                        | Win64   | Win32   | Linux     | Linux              |
 | **Supported or Not** | Yes                          | **Yes** | **Yes** | **Yes**   | **In development** |
 
-The C/C + + API is similar to MySQL's C API. When application use it, it needs to include the TDengine header file taos.h (after installed, it is located in/usr/local/taos/include):
+The C/C++ API is similar to MySQL's C API. When application use it, it needs to include the TDengine header file taos.h (after installed, it is located in/usr/local/taos/include):
 
 ```C
 #include <taos.h>
@@ -923,7 +923,7 @@ Manually install the following tools:
 
 If the  steps above cannot be performed successfully, you can refer to Microsoft's Node.js User Manual [Microsoft's Node.js Guidelines for Windows](https://github.com/Microsoft/nodejs-guidelines/blob/master/windows-environment.md#compiling-native-addon-modules).
 
-If you use ARM64 Node.js on Windows 10 ARM, you also need to add "Visual C + + compilers and libraries for ARM64" and "Visual C + + ATL for ARM64".
+If you use ARM64 Node.js on Windows 10 ARM, you also need to add "Visual C++ compilers and libraries for ARM64" and "Visual C++ ATL for ARM64".
 
 #### Sample
 
