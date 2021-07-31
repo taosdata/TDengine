@@ -516,13 +516,13 @@ int16_t getNewResColId(SSqlCmd* pCmd);
 
 int32_t schemaIdxCompar(const void *lhs, const void *rhs);
 int32_t boundIdxCompar(const void *lhs, const void *rhs);
-FORCE_INLINE int32_t getExtendedRowSize(STableDataBlocks *pBlock) {
+static FORCE_INLINE int32_t getExtendedRowSize(STableDataBlocks *pBlock) {
 #ifdef __5221_BRANCH__
   ASSERT(pBlock->rowSize == pBlock->pTableMeta->tableInfo.rowSize);
 #endif
   return pBlock->pTableMeta->tableInfo.rowSize + TD_MEM_ROW_DATA_HEAD_SIZE + pBlock->boundColumnInfo.extendedVarLen;
 }
-FORCE_INLINE void checkAndConvertMemRow(SMemRow row, int32_t dataLen, int32_t kvLen) {
+static FORCE_INLINE void checkAndConvertMemRow(SMemRow row, int32_t dataLen, int32_t kvLen) {
   if (isDataRow(row)) {
     if (kvLen < (dataLen * KVRatioConvert)) {
       memRowSetConvert(row);
@@ -532,7 +532,7 @@ FORCE_INLINE void checkAndConvertMemRow(SMemRow row, int32_t dataLen, int32_t kv
   }
 }
 
-FORCE_INLINE void initSMemRow(SMemRow row, uint8_t memRowType, STableDataBlocks *pBlock, int16_t nCols) {
+static FORCE_INLINE void initSMemRow(SMemRow row, uint8_t memRowType, STableDataBlocks *pBlock, int16_t nCols) {
   memRowSetType(row, memRowType);
   if (isDataRowT(memRowType)) {
     dataRowSetVersion(memRowDataBody(row), pBlock->pTableMeta->sversion);
