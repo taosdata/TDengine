@@ -36,59 +36,57 @@ static int moveItemFromLru(cache_t *cache, int id, int curLru, uint64_t totalByt
 static int pullFromLru(cache_t *cache, int origId, int curLru, uint64_t total_bytes, uint8_t flags);
 
 int cacheSlabInit(cache_t *cache) {
-  // init slab class
+  // init pSlab class
   int i = 0;
   size_t size = sizeof(cacheItem) + CHUNK_SIZE;
+  
   for (i = 0; i < MAX_NUMBER_OF_SLAB_CLASSES; i++) {
-    cacheSlabClass *slab = calloc(1, sizeof(cacheSlabClass));
-    if (slab == NULL) {
+    cacheSlabClass *pSlab = calloc(1, sizeof(cacheSlabClass));
+    if (pSlab == NULL) {
       goto error;
     }
 
-    if (cacheMutexInit(&(slab->mutex)) != 0) {
+    memset(pSlab, 0, sizeof(cacheSlabClass));
+
+    if (cacheMutexInit(&(pSlab->mutex)) != 0) {
       goto error;
     }
 
     if (size % CHUNK_ALIGN_BYTES) {
       size += CHUNK_ALIGN_BYTES - (size % CHUNK_ALIGN_BYTES);
     }
-    slab->size = size;
-    slab->perSlab = SLAB_PAGE_SIZE / size;
-    slab->id = i;
-    slab->nAllocSlabs = 0;
-    slab->slabArray = NULL;
-    slab->nArray = 0;
+    pSlab->size = size;
+    pSlab->perSlab = SLAB_PAGE_SIZE / size;
+    pSlab->id = i;
+    pSlab->nAllocSlabs = 0;
+    pSlab->slabArray = NULL;
+    pSlab->nArray = 0;
 
-    cache->slabs[i] = slab;
+    cache->slabs[i] = pSlab;
 
     size *= cache->options.factor;
   }
   cache->powerLargest = i;
 
-  // init slab lru class
-  for (i = 0; i < MAX_NUMBER_OF_SLAB_LRU; i++) {
-    cacheSlabLruClass* lru = &(cache->lruArray[i]);
-    if (cacheLruInit(lru, i) != 0) {
-      cacheError("cacheLruInit fail:%d", i);
-      goto error;
-    }
-  }
-
   return CACHE_OK;
 
 error:
-  for (i = 0; i < MAX_NUMBER_OF_SLAB_CLASSES; ++i) {
-    if (cache->slabs[i] == NULL) {
-      continue;
-    }
-    free(cache->slabs[i]);
-  }
+  cacheLruDestroy(cache);
   
   return CACHE_FAIL;
 }
 
-int cacheSlabDestroy(cache_t *cache) {
-  return CACHE_OK;
+void cacheSlabDestroy(cache_t *cache) {
+  int i = 0;
+  for (i = 0; i < MAX_NUMBER_OF_SLAB_CLASSES; ++i) {
+    cacheSlabClass *pSlab = cache->slabs[i];
+    if (pSlab == NULL) {
+      continue;
+    }
+    cacheMutexDestroy(&(pSlab->mutex));
+    free(pSlab->slabArray);
+    free(pSlab);
+  }
 }
 
 uint32_t cacheSlabId(cache_t *cache, size_t size) {
@@ -167,7 +165,14 @@ static bool isReachMemoryLimit(cache_t *cache, int len) {
 
 static void *allocMemory(cache_t *cache, size_t size) {
   cache->alloced += size;
-  return malloc(size);
+  void* ptr = malloc(size);
+
+  cacheAllocMemoryCookie *pCookie = malloc(sizeof(cacheAllocMemoryCookie));
+  pCookie->buffer = ptr;
+  pCookie->next = cache->cookieHead;
+  cache->cookieHead = pCookie;
+
+  return ptr;
 }
 
 static int slabGrowArray(cache_t *cache, cacheSlabClass *pSlab) {
@@ -222,7 +227,7 @@ static cacheItem* doAllocItem(cache_t *cache, size_t size, unsigned int id) {
 
   cacheMutexLock(&pSlab->mutex);
 
-  /* no free pItem, try to alloc new slab page */
+  /* no free pItem, try to alloc new pSlab page */
   if (pSlab->nFree == 0) {
     createNewSlab(cache, pSlab);
   }

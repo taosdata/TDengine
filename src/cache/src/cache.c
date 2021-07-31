@@ -42,6 +42,10 @@ cache_t* cacheCreate(cacheOption* options) {
     goto error;
   }
 
+  if (cacheLruInit(cache) != CACHE_OK) {
+    goto error;
+  }
+
   return cache;
 
 error:
@@ -53,7 +57,25 @@ error:
 }
 
 void  cacheDestroy(cache_t* cache) {
+  cacheSlabDestroy(cache);
+  cacheLruDestroy(cache);
 
+  cacheAllocMemoryCookie *pCookie = cache->cookieHead;
+  while (pCookie != NULL) {
+    cacheAllocMemoryCookie *next = pCookie->next;
+    free(pCookie->buffer);
+    free(pCookie);
+    pCookie = next;
+  }
+
+  cacheTable *pTable = cache->tableHead;
+  while (pTable != NULL) {
+    cacheTable* pNextTable = pTable->next;
+    cacheTableDestroy(pTable);
+    pTable = pNextTable;
+  }
+
+  free(cache);
 }
 
 int cachePut(cacheTable* pTable, const char* key, uint8_t nkey, const char* value, uint32_t nbytes, uint64_t expire) {

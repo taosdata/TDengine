@@ -89,8 +89,6 @@ struct cacheItem {
 
 #define item_len(item) ((item)->nbytes)
 
-#define key_from_item(item) (cache_key_t) {.key = item_key(item), .nkey = (item)->nkey};
-
 /* item totalBytes = sizeof(cacheItem) + key size + data size */
 static size_t FORCE_INLINE cacheItemTotalBytes(uint8_t nkey, uint32_t nbytes) {
   return sizeof(cacheItem) + nkey + nbytes;

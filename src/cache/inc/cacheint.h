@@ -29,6 +29,11 @@
 extern "C" {
 #endif
 
+typedef struct cacheAllocMemoryCookie {
+  void* buffer;
+  struct cacheAllocMemoryCookie *next;
+} cacheAllocMemoryCookie;
+
 struct cache_t {  
   cacheOption options;
 
@@ -42,13 +47,10 @@ struct cache_t {
 
   cacheItem*  neverExpireItemHead;  /* never expire items list head */
 
+  cacheAllocMemoryCookie* cookieHead;
+
   int powerLargest;  
 };
-
-typedef struct cache_key_t {
-  const char* key;
-  uint8_t nkey;
-} cache_key_t;
 
 #ifdef __cplusplus
 }

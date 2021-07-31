@@ -16,15 +16,37 @@
 #include "cacheLru.h"
 #include "cacheItem.h"
 
-int cacheLruInit(cacheSlabLruClass* pLru, int i) {
-  pLru->tail = pLru->head = NULL;
-  pLru->bytes = pLru->num = 0;
-  pLru->id = i;
-  return cacheMutexInit(&(pLru->mutex));
+int cacheLruInit(cache_t* pCache) {
+  int i = 0;
+  cacheSlabLruClass *pLru = &(pCache->lruArray[0]);
+  memset(pLru, 0, sizeof(cacheSlabLruClass) * MAX_NUMBER_OF_SLAB_LRU);
+
+  for (i = 0; i < MAX_NUMBER_OF_SLAB_LRU; i++) {
+    cacheSlabLruClass* lru = pLru + i;
+    if (cacheMutexInit(&(lru->mutex)) != 0) {
+      goto _err;
+    }
+
+    lru->id = i;
+  }
+  return CACHE_OK;
+
+_err:
+  cacheLruDestroy(pCache);
+  return CACHE_FAIL;
 }
 
-int cacheLruDestroy(cacheSlabLruClass* pLru) {
-  return (cacheMutexDestroy(&(pLru->mutex)));
+void cacheLruDestroy(cache_t* pCache) {
+  int i = 0;
+  cacheSlabLruClass *pLru = &(pCache->lruArray[0]);
+
+  for (i = 0; i < MAX_NUMBER_OF_SLAB_LRU; i++) {
+    cacheSlabLruClass* lru = pLru + i;
+    if (lru->id == 0) {
+      break;
+    }
+    cacheMutexDestroy(&(lru->mutex));
+  }
 }
 
 void cacheLruUnlinkItem(cache_t* pCache, cacheItem* pItem, cacheLockFlag flag) {  

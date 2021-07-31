@@ -52,6 +52,7 @@ TEST(cacheTest, testInsert) {
     }
     */
   }
+  cacheDestroy(cache);
 }
 
 int main(int argc, char** argv) {

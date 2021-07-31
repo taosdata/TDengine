@@ -33,8 +33,8 @@ typedef struct cacheSlabLruClass {
   cacheMutex    mutex;
 } cacheSlabLruClass;
 
-int   cacheLruInit(cacheSlabLruClass* pLru, int i);
-int   cacheLruDestroy(cacheSlabLruClass* pLru);
+int   cacheLruInit(cache_t*);
+void  cacheLruDestroy(cache_t*);
 
 void  cacheLruUnlinkItem(cache_t*, cacheItem*, cacheLockFlag flag);
 void  cacheLruLinkItem(cache_t*, cacheItem*, cacheLockFlag flag);

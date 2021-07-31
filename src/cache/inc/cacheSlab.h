@@ -47,7 +47,7 @@ struct cacheSlabClass {
 };
 
 int cacheSlabInit(cache_t *);
-int cacheSlabDestroy(cache_t *);
+void cacheSlabDestroy(cache_t *);
 
 uint32_t cacheSlabId(cache_t *cache, size_t size);
 

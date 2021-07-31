@@ -22,6 +22,7 @@
 #include "hash.h"
 
 static int        initTableBucket(cacheTableBucket* pBucket, uint32_t id);
+static void       destroyTableBucket(cacheTableBucket* pBucket);
 static cacheItem* findItemByKey(cacheTable* pTable, const char* key, uint8_t nkey, cacheItem **ppPrev);
 static void       removeTableItem(cache_t* pCache, cacheTableBucket* pBucket, cacheItem* pItem,
                                 cacheItem* pPrev, bool freeItem);
@@ -69,10 +70,24 @@ error:
   return NULL;
 }
 
+void cacheTableDestroy(cacheTable *pTable) {
+  cacheMutexDestroy(&(pTable->mutex));
+  int i = 0;
+  for (i = 0; i < pTable->capacity; i++) {
+    destroyTableBucket(&(pTable->pBucket[i]));
+  }
+  free(pTable->pBucket);
+  free(pTable);
+}
+
 static int initTableBucket(cacheTableBucket* pBucket, uint32_t id) {
   pBucket->hash = id;
   pBucket->head = NULL;
   return cacheMutexInit(&(pBucket->mutex));
+}
+
+static void destroyTableBucket(cacheTableBucket* pBucket) {
+  cacheMutexDestroy(&(pBucket->mutex));
 }
 
 static cacheItem* findItemByKey(cacheTable* pTable, const char* key, uint8_t nkey, cacheItem **ppPrev) {
