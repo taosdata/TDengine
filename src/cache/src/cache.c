@@ -14,11 +14,11 @@
  */
 
 #include <string.h>
-#include "cacheTable.h"
 #include "cacheint.h"
 #include "cacheLog.h"
 #include "cacheItem.h"
 #include "cacheSlab.h"
+#include "cacheTable.h"
 
 static int check_cache_options(cacheOption* options);
 static int cachePutDataIntoCache(cacheTable* pTable, const char* key, uint8_t nkey, 
@@ -57,10 +57,20 @@ void  cacheDestroy(cache_t* cache) {
 }
 
 int cachePut(cacheTable* pTable, const char* key, uint8_t nkey, const char* value, uint32_t nbytes, uint64_t expire) {
-  return cachePutDataIntoCache(pTable,key,nkey,value,nbytes,NULL, expire);
+  cacheMutex* pMutex = cacheGetTableBucketMutexByKey(pTable, key, nkey);
+  cacheMutexLock(pMutex);
+
+  int ret = cachePutDataIntoCache(pTable,key,nkey,value,nbytes,NULL, expire);
+
+  cacheMutexUnlock(pMutex);
+
+  return ret;
 }
 
 int cacheGet(cacheTable* pTable, const char* key, uint8_t nkey, char** data, int* nbytes) {
+  cacheMutex *pMutex = cacheGetTableBucketMutexByKey(pTable, key, nkey);
+  cacheMutexLock(pMutex);
+
   *data = NULL;
   *nbytes = 0;
   /* first find the key in the cache table */
@@ -70,7 +80,7 @@ int cacheGet(cacheTable* pTable, const char* key, uint8_t nkey, char** data, int
     uint64_t now = taosGetTimestamp(TSDB_TIME_PRECISION_MILLI);
     if (cacheItemIsExpired(pItem, now)) { /* is item expired? */
       /* cacheItemUnlink make ref == 1 */
-      cacheItemUnlink(pTable, pItem, CACHE_LOCK_HASH | CACHE_LOCK_LRU);
+      cacheItemUnlink(pTable, pItem, CACHE_LOCK_LRU);
       /* cacheItemRemove make ref == 0 then free item */
       cacheItemRemove(pTable->pCache, pItem);
       pItem = NULL;
@@ -105,30 +115,30 @@ int cacheGet(cacheTable* pTable, const char* key, uint8_t nkey, char** data, int
 
 out:
   if (pItem == NULL) {
+    cacheMutexUnlock(pMutex);
     return CACHE_KEY_NOT_FOUND;
   }
   *data = malloc(pItem->nbytes);
   if (*data == NULL) {
+    cacheMutexUnlock(pMutex);
     return CACHE_OOM;
   }
   memcpy(*data, item_data(pItem), pItem->nbytes);
   *nbytes = pItem->nbytes;
   itemDecrRef(pItem);
 
+  cacheMutexUnlock(pMutex);
+
   return CACHE_OK;
 }
 
-void cacheItemData(cacheItem* pItem, char** data, int* nbytes) {
-  *data = item_data(pItem);
-  *nbytes = pItem->nbytes;
-}
-
-void cacheItemUnreference(cacheItem* pItem) {
-  itemDecrRef(pItem);
-}
-
 void cacheRemove(cacheTable* pTable, const char* key, uint8_t nkey) {
-  cacheTableRemove(pTable, key, nkey, CACHE_LOCK_HASH);
+  cacheMutex* mutex = cacheGetTableBucketMutexByKey(pTable, key, nkey);
+  cacheMutexLock(mutex);
+
+  cacheTableRemove(pTable, key, nkey);
+
+  cacheMutexUnlock(mutex);
 }
 
 static int cachePutDataIntoCache(cacheTable* pTable, const char* key, uint8_t nkey, const char* value,

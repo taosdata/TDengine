@@ -112,26 +112,12 @@ static bool FORCE_INLINE cacheItemIsExpired(cacheItem* pItem, uint64_t now) {
   return (pItem->expireTime != 0) && (now - pItem->lastTime >= pItem->expireTime);
 }
 
-static FORCE_INLINE bool key_equal(cache_key_t key1, cache_key_t key2) {
-  if (key1.nkey != key2.nkey) {
-    return false;
-  }
-
-  return memcmp(key1.key, key2.key, key1.nkey) == 0;
-}
-
 static FORCE_INLINE bool item_equal_key(cacheItem* item, const char* key, uint8_t nkey) {
   if (item->nkey != nkey) {
     return false;
   }
 
   return memcmp(item_key(item), key, nkey) == 0;
-}
-
-static FORCE_INLINE bool item_key_equal(cacheItem* item1, cacheItem* item2) {
-  cache_key_t key1 = key_from_item(item1);
-  cache_key_t key2 = key_from_item(item2);
-  return key_equal(key1, key2);
 }
 
 void cacheItemUnlink(cacheTable* pTable, cacheItem* pItem, cacheLockFlag flag);

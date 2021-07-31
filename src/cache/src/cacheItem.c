@@ -63,7 +63,7 @@ cacheItem* cacheAllocItem(cache_t* cache, uint8_t nkey, uint32_t nbytes, uint64_
 void cacheItemUnlink(cacheTable* pTable, cacheItem* pItem, cacheLockFlag flag) {
   assert(pItem->pTable == pTable);
   if (item_is_used(pItem)) {
-    cacheTableRemove(pTable, item_key(pItem), pItem->nkey, flag);
+    cacheTableRemove(pTable, item_key(pItem), pItem->nkey);
     cacheLruUnlinkItem(pTable->pCache, pItem, flag);
     cacheItemRemove(pTable->pCache, pItem);
   }
