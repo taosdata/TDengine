@@ -333,15 +333,11 @@ static int pullFromLru(cache_t *cache, int slabId, int curLru, uint64_t totalByt
       continue;
     }
 
-    /*
-     * after incr(refcount) > 2 means ref count leaks,
-     * == 1 means no reference to this pItem
-    */
     if (itemIncrRef(search) != 2) {
       search->refCount = 1;
       cacheItemUnlink(search->pTable, search, 0);
       cacheMutexTryUnlock(pMutex);
-      removed++;
+      removed++;      
       continue;
     }
 
@@ -350,7 +346,7 @@ static int pullFromLru(cache_t *cache, int slabId, int curLru, uint64_t totalByt
       /* refcnt 2 -> 1 */
       cacheItemUnlink(search->pTable, search, 0);
       /* refcnt 1 -> 0 -> freeCacheItem */
-      cacheItemRemove(cache, search);      
+      //cacheItemRemove(cache, search);     
       cacheMutexTryUnlock(pMutex);
       removed++;
       continue;

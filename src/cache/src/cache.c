@@ -60,7 +60,9 @@ int cachePut(cacheTable* pTable, const char* key, uint8_t nkey, const char* valu
   return cachePutDataIntoCache(pTable,key,nkey,value,nbytes,NULL, expire);
 }
 
-cacheItem* cacheGet(cacheTable* pTable, const char* key, uint8_t nkey) {
+int cacheGet(cacheTable* pTable, const char* key, uint8_t nkey, char** data, int* nbytes) {
+  *data = NULL;
+  *nbytes = 0;
   /* first find the key in the cache table */
   cacheItem* pItem = cacheTableGet(pTable, key, nkey);
   if (pItem) {
@@ -75,34 +77,45 @@ cacheItem* cacheGet(cacheTable* pTable, const char* key, uint8_t nkey) {
     } else if (cacheItemIsNeverExpired(pItem)) {      
       /* never expired item refCount == 1 */
       assert(pItem->refCount == 2);
-      itemDecrRef(pItem);
       pItem->lastTime = now;    
     } else {
-      cacheItemBump(pTable, pItem, now);
-      itemDecrRef(pItem);
+      cacheItemBump(pTable, pItem, now);      
     }
-    return pItem;
+    goto out;
   }
 
   /* try to load the data from user defined function */
   if (pTable->option.loadFunc == NULL) {
-    return NULL;
+    goto out;
   }
   char *loadValue;
   size_t loadLen = 0;
   uint64_t expire;
   if (pTable->option.loadFunc(pTable->option.userData, key, nkey, &loadValue, &loadLen, &expire) != CACHE_OK) {
-    return NULL;
+    goto out;
   }
 
   /* TODO: save in the cache if access only one time? */
   int ret = cachePutDataIntoCache(pTable,key,nkey,loadValue,loadLen,&pItem, expire);
   free(loadValue);
   if (ret != CACHE_OK) {
-    return NULL;
+    goto out;
   }
+  itemIncrRef(pItem);
 
-  return pItem;
+out:
+  if (pItem == NULL) {
+    return CACHE_KEY_NOT_FOUND;
+  }
+  *data = malloc(pItem->nbytes);
+  if (*data == NULL) {
+    return CACHE_OOM;
+  }
+  memcpy(*data, item_data(pItem), pItem->nbytes);
+  *nbytes = pItem->nbytes;
+  itemDecrRef(pItem);
+
+  return CACHE_OK;
 }
 
 void cacheItemData(cacheItem* pItem, char** data, int* nbytes) {

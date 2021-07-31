@@ -22,10 +22,11 @@ TEST(cacheTest, testInsert) {
   };
 
   cacheTable* pTable = cacheCreateTable(cache, &tableOptions);
-  cacheItem* pItem = NULL;
+
   char *pData;
   int nBytes;
   int i = 0;
+
   for (i = 0; i < 10240; ++i) {
     char buf[20] = {0};
     snprintf(buf, sizeof(buf), "0123456789_%d", i);
@@ -34,16 +35,15 @@ TEST(cacheTest, testInsert) {
 
     printf("\nhas push key %s %s\n", buf, err == CACHE_OK ? "success" : "fail");
 
-    pItem = cacheGet(pTable, buf, nkey);
-    ASSERT(pItem != NULL);
+    int ret = cacheGet(pTable, buf, nkey, &pData, &nBytes);
+    ASSERT(ret == CACHE_OK);
     
-    cacheItemData(pItem, &pData, &nBytes);
     ASSERT_EQ(nkey, nBytes);
     ASSERT(memcmp(pData, buf, nBytes) == 0);
-    cacheItemUnreference(pItem);
+    free(pData);
 
     cacheRemove(pTable, buf, nkey);
-    ASSERT(cacheGet(pTable, buf, nkey) == NULL);
+    ASSERT(cacheGet(pTable, buf, nkey, &pData, &nBytes) == CACHE_KEY_NOT_FOUND);
     /*
     for (int j = 10; j >= 0 && i - j >= 0; j--) {
       snprintf(buf, sizeof(buf), "0123456789_%d", i - j);

@@ -70,13 +70,8 @@ cacheTable* cacheCreateTable(cache_t* cache, cacheTableOption* options);
 
 int cachePut(cacheTable*, const char* key, uint8_t nkey, const char* value, uint32_t nbytes, uint64_t expire);
 
-cacheItem* cacheGet(cacheTable*, const char* key, uint8_t nkey);
-
-/* get the item data and data length */
-void cacheItemData(cacheItem*, char** data, int* nbytes);
-
-/* after access the item, unference the item */
-void cacheItemUnreference(cacheItem*);
+/* data MUST be free by user */
+int cacheGet(cacheTable*, const char* key, uint8_t nkey, char** data, int* nbytes);
 
 void cacheRemove(cacheTable* pTable, const char* key, uint8_t nkey);
 
