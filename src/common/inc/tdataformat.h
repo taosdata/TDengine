@@ -650,20 +650,21 @@ typedef void *SMemRow;
   ((TDRowTLenT)(memRowDataLen(r) + TD_MEM_ROW_TYPE_SIZE))  // using uint32_t/int32_t to store the TLen
 
 #define memRowKvTLen(r) ((TDRowTLenT)(memRowKvLen(r) + TD_MEM_ROW_KV_TYPE_VER_SIZE))
-static FORCE_INLINE TDRowLenT memRowLen(SMemRow row) {
-  if (isDataRow(row)) {
-    return memRowDataLen(row);
-  } else {
-    return memRowKvLen(row);
-  }
-}
-static FORCE_INLINE TDRowTLenT memRowTLen(SMemRow row) {  // using uint32_t/int32_t to store the TLen
-  if (isDataRow(row)) {
-    return memRowDataTLen(row);
-  } else {
-    return memRowKvTLen(row);
-  }
-}
+// static FORCE_INLINE TDRowLenT memRowLen(SMemRow row) {
+//   if (isDataRow(row)) {
+//     return memRowDataLen(row);
+//   } else {
+//     return memRowKvLen(row);
+//   }
+// }
+// static FORCE_INLINE TDRowTLenT memRowTLen(SMemRow row) {  // using uint32_t/int32_t to store the TLen
+//   if (isDataRow(row)) {
+//     return memRowDataTLen(row);
+//   } else {
+//     return memRowKvTLen(row);
+//   }
+// }
+#define memRowTLen(r) (isDataRow(r) ? memRowDataTLen(r) : memRowKvTLen(r))
 
 static FORCE_INLINE char *memRowEnd(SMemRow row) {
   if (isDataRow(row)) {
@@ -777,12 +778,12 @@ static FORCE_INLINE void *tdGetMemRowDataOfColEx(void *row, int16_t colId, int8_
   }
 }
 
-static FORCE_INLINE int tdAppendMemRowColVal(SMemRow row, const void *value, bool isCopyValData, int16_t colId,
+static FORCE_INLINE int tdAppendMemRowColVal(SMemRow row, const void *value, bool isCopyVarData, int16_t colId,
                                              int8_t type, int32_t offset) {
   if (isDataRow(row)) {
-    tdAppendDataColVal(memRowDataBody(row), value, isCopyValData, type, offset);
+    tdAppendDataColVal(memRowDataBody(row), value, isCopyVarData, type, offset);
   } else {
-    tdAppendKvColVal(memRowKvBody(row), value, isCopyValData, colId, type, offset);
+    tdAppendKvColVal(memRowKvBody(row), value, isCopyVarData, colId, type, offset);
   }
   return 0;
 }
@@ -809,16 +810,23 @@ static FORCE_INLINE int32_t tdGetColAppendLen(uint8_t rowType, const void *value
  * 2. calculate the real len for SKVRow.
  */
 static FORCE_INLINE void tdGetColAppendDeltaLen(const void *value, int8_t colType, int32_t *dataLen, int32_t *kvLen) {
-  if (colType == TSDB_DATA_TYPE_BINARY) {
-    int32_t varLen = varDataLen(value);
-    *dataLen += (varLen - CHAR_BYTES);
-    *kvLen += (varLen + sizeof(SColIdx));
-  } else if (colType == TSDB_DATA_TYPE_NCHAR) {
-    int32_t varLen = varDataLen(value);
-    *dataLen += (varLen - TSDB_NCHAR_SIZE);
-    *kvLen += (varLen + sizeof(SColIdx));
-  } else {
-    *kvLen += (TYPE_BYTES[colType] + sizeof(SColIdx));
+  switch (colType) {
+    case TSDB_DATA_TYPE_BINARY: {
+      int32_t varLen = varDataLen(value);
+      *dataLen += (varLen - CHAR_BYTES);
+      *kvLen += (varLen + sizeof(SColIdx));
+      break;
+    }
+    case TSDB_DATA_TYPE_NCHAR: {
+      int32_t varLen = varDataLen(value);
+      *dataLen += (varLen - TSDB_NCHAR_SIZE);
+      *kvLen += (varLen + sizeof(SColIdx));
+      break;
+    }
+    default: {
+      *kvLen += (TYPE_BYTES[colType] + sizeof(SColIdx));
+      break;
+    }
   }
 }
 

@@ -86,11 +86,14 @@ typedef struct SParamInfo {
 } SParamInfo;
 
 typedef struct SBoundColumn {
-  bool    hasVal;   // denote if current column has bound or not
   int32_t offset;   // all column offset value
   int32_t toffset;  // first part offset for SDataRow TODO: get offset from STSchema on future
+  uint8_t valStat;  // denote if current column bound or not(0 means has val, 1 means no val)
 } SBoundColumn;
-
+typedef enum {
+  VAL_STAT_YES = 0x0,  // 0 means has val
+  VAL_STAT_NO = 0x01,  // 1 means no val
+} EValStat;
 typedef struct {
   uint16_t schemaColIdx;
   uint16_t boundIdx;
@@ -108,6 +111,7 @@ typedef struct SParsedDataColInfo {
   int16_t        numOfBound;
   uint16_t       flen;            // TODO: get from STSchema
   uint16_t       allNullLen;      // TODO: get from STSchema
+  uint16_t       extendedVarLen;
   int32_t *      boundedColumns;  // bound column idx according to schema
   SBoundColumn * cols;
   SBoundIdxInfo *colIdxInfo;
@@ -123,6 +127,8 @@ typedef struct {
 typedef struct {
   uint8_t      memRowType;
   uint16_t     nBoundCols;
+  TDRowTLenT   dataRowInitLen;
+  TDRowTLenT   kvRowInitLen;
   SArray *     colInfo;  // SColInfo
   SMemRowInfo *rowInfo;
 } SMemRowBuilder;
@@ -191,23 +197,39 @@ static FORCE_INLINE void tscAppendMemRowColValEx(SMemRow row, const void *value,
   tdGetColAppendDeltaLen(value, colType, dataLen, kvLen);
 }
 
+static FORCE_INLINE void tscAppendDataRowColValEx(SDataRow row, const void *value, bool isCopyVarData, int16_t colId,
+                                                  int8_t colType, int32_t toffset, int32_t *dataLen, int32_t *kvLen) {
+  tdAppendDataColVal(row, value, isCopyVarData, colType, toffset);
+  // TODO: When nBoundCols/nCols > 0.5,
+  tdGetColAppendDeltaLen(value, colType, dataLen, kvLen);
+}
+static FORCE_INLINE void tscAppendKvRowColValEx(SKVRow row, const void *value, bool isCopyVarData, int16_t colId,
+                                                int8_t colType, int32_t toffset, int32_t *dataLen, int32_t *kvLen) {
+  tdAppendKvColVal(row, value, isCopyVarData, colId, colType, toffset);
+  // TODO: When nBoundCols/nCols > 0.5,
+  tdGetColAppendDeltaLen(value, colType, dataLen, kvLen);
+}
+typedef void (*FPAppendColVal)(SKVRow row, const void *value, bool isCopyVarData, int16_t colId, int8_t colType,
+                               int32_t toffset, int32_t *dataLen, int32_t *kvLen);
+
 int tranferRowKVToData(SMemRowBuilder *pBuilder, SMemRow rowKV, SMemRow rowData, TDRowTLenT destLen);
 
 typedef struct STableDataBlocks {
   SName       tableName;
   int8_t      tsSource;     // where does the UNIX timestamp come from, server or client
   bool        ordered;      // if current rows are ordered or not
+  bool        cloned;       // for the tables belongs to one stable
   int64_t     vgId;         // virtual group id
   int64_t     prevTS;       // previous timestamp, recorded to decide if the records array is ts ascending
   int32_t     numOfTables;  // number of tables in current submit block
   int32_t     rowSize;      // row size for current table
   uint32_t    nAllocSize;
-  uint32_t    headerSize;   // header for table info (uid, tid, submit metadata)
+  uint32_t    headerSize;  // header for table info (uid, tid, submit metadata)
   uint32_t    size;
-  STableMeta *pTableMeta;   // the tableMeta of current table, the table meta will be used during submit, keep a ref to avoid to be removed from cache
-  char       *pData;
-  bool        cloned;
-  
+  STableMeta *pTableMeta;  // the tableMeta of current table, the table meta will be used during submit, keep a ref to
+                           // avoid to be removed from cache
+  char *pData;
+
   SParsedDataColInfo boundColumnInfo;
 
   // for parameter ('?') binding
@@ -494,8 +516,11 @@ int16_t getNewResColId(SSqlCmd* pCmd);
 
 int32_t schemaIdxCompar(const void *lhs, const void *rhs);
 int32_t boundIdxCompar(const void *lhs, const void *rhs);
-FORCE_INLINE int32_t getExtendedRowSize(STableMeta *pMeta) {
-  return pMeta->tableInfo.rowSize + TD_MEM_ROW_DATA_HEAD_SIZE;
+FORCE_INLINE int32_t getExtendedRowSize(STableDataBlocks *pBlock) {
+#ifdef __5221_BRANCH__
+  ASSERT(pBlock->rowSize == pBlock->pTableMeta->tableInfo.rowSize);
+#endif
+  return pBlock->pTableMeta->tableInfo.rowSize + TD_MEM_ROW_DATA_HEAD_SIZE + pBlock->boundColumnInfo.extendedVarLen;
 }
 FORCE_INLINE void checkAndConvertMemRow(SMemRow row, int32_t dataLen, int32_t kvLen) {
   if (isDataRow(row)) {
@@ -558,7 +583,7 @@ static FORCE_INLINE void convertToSKVRow(SMemRow dest, SMemRow src, SSchema *pSc
   int32_t toffset = 0, kvOffset = 0;
   for (int i = 0; i < nCols; ++i) {
     SSchema *schema = pSchema + i;
-    if ((spd->cols + i)->hasVal) {
+    if ((spd->cols + i)->valStat == VAL_STAT_YES) {
       toffset = (spd->cols + i)->toffset;
       char *val = tdGetRowDataOfCol(dataRow, schema->type, toffset + TD_DATA_ROW_HEAD_SIZE);
       tdAppendKvColVal(kvRow, val, true, schema->colId, schema->type, kvOffset);

@@ -300,7 +300,7 @@ static int fillColumnsNull(STableDataBlocks* pBlock, int32_t rowNum) {
   SSchema *schema = (SSchema*)pBlock->pTableMeta->schema;
 
   for (int32_t i = 0; i < spd->numOfCols; ++i) {
-    if (!spd->cols[i].hasVal) {  // current column do not have any value to insert, set it to null
+    if (spd->cols[i].valStat == VAL_STAT_NO) {  // current column do not have any value to insert, set it to null
       for (int32_t n = 0; n < rowNum; ++n) {
         char *ptr = pBlock->pData + sizeof(SSubmitBlk) + pBlock->rowSize * n + offset;
 
@@ -327,14 +327,14 @@ static int fillColumnsNull(STableDataBlocks* pBlock, int32_t rowNum) {
 static int fillColumnsNull(STableDataBlocks* pBlock, int32_t rowNum) {
   SParsedDataColInfo* spd = &pBlock->boundColumnInfo;
   SSchema*            schema = (SSchema*)pBlock->pTableMeta->schema;
-  int32_t             extendedRowSize = getExtendedRowSize(pBlock->pTableMeta);
+  int32_t             extendedRowSize = getExtendedRowSize(pBlock);
 
   for (int32_t n = 0; n < rowNum; ++n) {
     char* row = pBlock->pData + sizeof(SSubmitBlk) + extendedRowSize * n;
     if (isDataRow(row) && !isNeedConvertRow(row)) {
       SDataRow dataRow = memRowDataBody(row);
       for (int32_t i = 0; i < spd->numOfCols; ++i) {
-        if (!spd->cols[i].hasVal) {
+        if (spd->cols[i].valStat == VAL_STAT_NO) {
           tdAppendDataColVal(dataRow, getNullValue(schema[i].type), true, schema[i].type, spd->cols[i].toffset);
         }
       }
@@ -1050,7 +1050,7 @@ static int doBindBatchParam(STableDataBlocks* pBlock, SParamInfo* param, TAOS_MU
   SMemRowBuilder* pBuilder = &pBlock->rowBuilder;
 
   ASSERT(pBlock->rowSize == pBlock->pTableMeta->tableInfo.rowSize);
-  int32_t extendedRowSize = getExtendedRowSize(pBlock->pTableMeta);
+  int32_t extendedRowSize = getExtendedRowSize(pBlock);
   for (int i = 0; i < bind->num; ++i) {
     char* data = pBlock->pData + sizeof(SSubmitBlk) + extendedRowSize * (batchSize + i);
     if (param->offset == 0) {
@@ -1228,9 +1228,7 @@ static int insertStmtBindParam(STscStmt* stmt, TAOS_BIND* bind) {
 
   ASSERT(pBlock->boundColumnInfo.allNullLen >= 8);
 
-  STableMeta* pTblMeta = pBlock->pTableMeta;
-
-  uint32_t totalDataSize = sizeof(SSubmitBlk) + (pCmd->batchSize + 1) * getExtendedRowSize(pTblMeta);
+  uint32_t totalDataSize = sizeof(SSubmitBlk) + (pCmd->batchSize + 1) * getExtendedRowSize(pBlock);
   if (totalDataSize > pBlock->nAllocSize) {
     const double factor = 1.5;
 
@@ -1244,14 +1242,14 @@ static int insertStmtBindParam(STscStmt* stmt, TAOS_BIND* bind) {
     ASSERT(pBlock->nAllocSize >= totalDataSize);
   }
 
-  char* data = pBlock->pData + sizeof(SSubmitBlk) + getExtendedRowSize(pTblMeta) * pCmd->batchSize;
+  char* data = pBlock->pData + sizeof(SSubmitBlk) + getExtendedRowSize(pBlock) * pCmd->batchSize;
 
   if (TSDB_CODE_SUCCESS != (code = initMemRowBuilder(&pBlock->rowBuilder, 1, pBlock->pTableMeta->tableInfo.numOfColumns,
                                                      pBlock->numOfParams, pBlock->boundColumnInfo.allNullLen))) {
     return code;
   }
 
-  SSchema*            pSchema = pTblMeta->schema;
+  SSchema*            pSchema = pBlock->pTableMeta->schema;
   SParsedDataColInfo* spd = &pBlock->boundColumnInfo;
 
   uint8_t memRowType = pBlock->rowBuilder.memRowType;
@@ -1322,8 +1320,7 @@ static int insertStmtBindParamBatch(STscStmt* stmt, TAOS_MULTI_BIND* bind, int c
   }
 
   ASSERT(pBlock->boundColumnInfo.allNullLen >= 8);
-  STableMeta* pTblMeta = pBlock->pTableMeta;
-  int32_t     extendedRowSize = getExtendedRowSize(pTblMeta);
+  int32_t     extendedRowSize = getExtendedRowSize(pBlock);
   uint32_t    totalDataSize = sizeof(SSubmitBlk) + (pCmd->batchSize + rowNum)* extendedRowSize;
 
   if (totalDataSize > pBlock->nAllocSize) {
@@ -1346,7 +1343,7 @@ static int insertStmtBindParamBatch(STscStmt* stmt, TAOS_MULTI_BIND* bind, int c
   }
   
   uint8_t             memRowType = pBlock->rowBuilder.memRowType;
-  SSchema*            pSchema = pTblMeta->schema;
+  SSchema*            pSchema = pBlock->pTableMeta->schema;
   SParsedDataColInfo* spd = &pBlock->boundColumnInfo;
 
   if (colIdx == -1) {
@@ -1534,7 +1531,7 @@ static int insertStmtUpdateBatch(STscStmt* stmt) {
 
   STableMeta* pTableMeta = pBlock->pTableMeta;
 
-  pBlock->size = sizeof(SSubmitBlk) + pCmd->batchSize * getExtendedRowSize(pBlock->pTableMeta); // pBlock->rowSize;
+  pBlock->size = sizeof(SSubmitBlk) + pCmd->batchSize * getExtendedRowSize(pBlock); // pBlock->rowSize;
   SSubmitBlk* pBlk = (SSubmitBlk*) pBlock->pData;
   pBlk->numOfRows = pCmd->batchSize;
   pBlk->dataLen = 0;
@@ -1602,7 +1599,7 @@ static int insertStmtExecute(STscStmt* stmt) {
                                         sizeof(SSubmitBlk), pTableMeta->tableInfo.rowSize, &pTableMetaInfo->name,
                                         pTableMeta, &pBlock, NULL);
   assert(ret == 0);
-  pBlock->size = sizeof(SSubmitBlk) + pCmd->batchSize * getExtendedRowSize(pBlock->pTableMeta);  // pBlock->rowSize;
+  pBlock->size = sizeof(SSubmitBlk) + pCmd->batchSize * getExtendedRowSize(pBlock);  // pBlock->rowSize;
   SSubmitBlk* pBlk = (SSubmitBlk*) pBlock->pData;
   pBlk->numOfRows = pCmd->batchSize;
   pBlk->dataLen = 0;

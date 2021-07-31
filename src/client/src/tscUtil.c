@@ -1807,25 +1807,23 @@ static int trimDataBlock(void* pDataBlock, STableDataBlocks* pTableDataBlock, SI
     pBlock->schemaLen = schemaSize;
   }
 
-  char* p = pTableDataBlock->pData + sizeof(SSubmitBlk);  // source payload
   pBlock->dataLen = 0;
   int32_t numOfRows = htons(pBlock->numOfRows);
-  int32_t extendedRowSize = getExtendedRowSize(pTableMeta);
 
   for (int32_t i = 0; i < numOfRows; ++i) {
-    if (isNeedConvertRow(p)) {
-      convertSMemRow(pDataBlock, p, pTableDataBlock);
+    char* payload = (blkKeyTuple + i)->payloadAddr;
+    if (isNeedConvertRow(payload)) {
+      convertSMemRow(pDataBlock, payload, pTableDataBlock);
       TDRowTLenT rowTLen = memRowTLen(pDataBlock);
       pDataBlock = POINTER_SHIFT(pDataBlock, rowTLen);
       pBlock->dataLen += rowTLen;
-      ASSERT(rowTLen < memRowTLen(p));
+      ASSERT(rowTLen < memRowTLen(payload));
     } else {
-      TDRowTLenT rowTLen = memRowTLen(p);
-      memcpy(pDataBlock, p, rowTLen);
+      TDRowTLenT rowTLen = memRowTLen(payload);
+      memcpy(pDataBlock, payload, rowTLen);
       pDataBlock = POINTER_SHIFT(pDataBlock, rowTLen);
       pBlock->dataLen += rowTLen;
     }
-    p += extendedRowSize;
   }
 
   int32_t len = pBlock->dataLen + pBlock->schemaLen;
@@ -1922,7 +1920,7 @@ int32_t tscMergeTableDataBlocks(SInsertStatementParam *pInsertParam, bool freeBl
                pInsertParam->objectId, tNameGetTableName(&pOneTableBlock->tableName), pBlocks->tid, pBlocks->numOfRows,
                pBlocks->sversion, blkKeyInfo.pKeyTuple->skey, pLastKeyTuple->skey);
 
-      int32_t len = pBlocks->numOfRows * getExtendedRowSize(pOneTableBlock->pTableMeta) +
+      int32_t len = pBlocks->numOfRows * getExtendedRowSize(pOneTableBlock) +
                     sizeof(STColumn) * tscGetNumOfColumns(pOneTableBlock->pTableMeta);
 
       pBlocks->tid = htonl(pBlocks->tid);
@@ -1931,7 +1929,7 @@ int32_t tscMergeTableDataBlocks(SInsertStatementParam *pInsertParam, bool freeBl
       pBlocks->numOfRows = htons(pBlocks->numOfRows);
       pBlocks->schemaLen = 0;
 
-      // erase the empty space reserved for binary data
+      // erase the empty space reserved for binary data and SKVRow
       int32_t finalLen = trimDataBlock(dataBuf->pData + dataBuf->size, pOneTableBlock, pInsertParam, blkKeyInfo.pKeyTuple);
       assert(finalLen <= len);
 
