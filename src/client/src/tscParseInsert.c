@@ -419,276 +419,6 @@ int32_t tsParseOneColumn(SSchema *pSchema, SStrToken *pToken, char *payload, cha
 
   return TSDB_CODE_SUCCESS;
 }
-
-#if 0
-static int32_t tsParseOneColumnKV(SSchema *pSchema, SStrToken *pToken, SMemRow row, char *msg, char **str,
-                                  bool primaryKey, int16_t timePrec, int32_t toffset, int16_t colId, int32_t *dataLen,
-                                  int32_t *kvLen, FPAppendColVal fpAppendColVal) {
-  int64_t iv;
-  int32_t ret;
-  char *  endptr = NULL;
-
-  if (IS_NUMERIC_TYPE(pSchema->type) && pToken->n == 0) {
-    return tscInvalidOperationMsg(msg, "invalid numeric data", pToken->z);
-  }
-  
-  switch (pSchema->type) {
-    case TSDB_DATA_TYPE_BOOL: {  // bool
-      if (isNullStr(pToken)) {
-        fpAppendColVal(row, getNullValue(pSchema->type), true, colId, pSchema->type, toffset, dataLen, kvLen);
-      } else {
-        if ((pToken->type == TK_BOOL || pToken->type == TK_STRING) && (pToken->n != 0)) {
-          if (strncmp(pToken->z, "true", pToken->n) == 0) {
-            fpAppendColVal(row, &TRUE_VALUE, true, colId, pSchema->type, toffset, dataLen, kvLen);
-          } else if (strncmp(pToken->z, "false", pToken->n) == 0) {
-            fpAppendColVal(row, &FALSE_VALUE, true, colId, pSchema->type, toffset, dataLen, kvLen);
-          } else {
-            return tscSQLSyntaxErrMsg(msg, "invalid bool data", pToken->z);
-          }
-        } else if (pToken->type == TK_INTEGER) {
-          iv = strtoll(pToken->z, NULL, 10);
-          fpAppendColVal(row, ((iv == 0) ? &FALSE_VALUE : &TRUE_VALUE), true, colId, pSchema->type, toffset,
-                                  dataLen, kvLen);
-        } else if (pToken->type == TK_FLOAT) {
-          double dv = strtod(pToken->z, NULL);
-          fpAppendColVal(row, ((dv == 0) ? &FALSE_VALUE : &TRUE_VALUE), true, colId, pSchema->type, toffset,
-                                  dataLen, kvLen);
-        } else {
-          return tscInvalidOperationMsg(msg, "invalid bool data", pToken->z);
-        }
-      }
-      break;
-    }
-
-    case TSDB_DATA_TYPE_TINYINT:
-      if (isNullStr(pToken)) {
-        fpAppendColVal(row, getNullValue(pSchema->type), true, colId, pSchema->type, toffset, dataLen, kvLen);
-      } else {
-        ret = tStrToInteger(pToken->z, pToken->type, pToken->n, &iv, true);
-        if (ret != TSDB_CODE_SUCCESS) {
-          return tscInvalidOperationMsg(msg, "invalid tinyint data", pToken->z);
-        } else if (!IS_VALID_TINYINT(iv)) {
-          return tscInvalidOperationMsg(msg, "data overflow", pToken->z);
-        }
-
-        uint8_t tmpVal = (uint8_t)iv;
-        fpAppendColVal(row, &tmpVal, true, colId, pSchema->type, toffset, dataLen, kvLen);
-      }
-
-      break;
-
-    case TSDB_DATA_TYPE_UTINYINT:
-      if (isNullStr(pToken)) {
-        fpAppendColVal(row, getNullValue(pSchema->type), true, colId, pSchema->type, toffset, dataLen, kvLen);
-      } else {
-        ret = tStrToInteger(pToken->z, pToken->type, pToken->n, &iv, false);
-        if (ret != TSDB_CODE_SUCCESS) {
-          return tscInvalidOperationMsg(msg, "invalid unsigned tinyint data", pToken->z);
-        } else if (!IS_VALID_UTINYINT(iv)) {
-          return tscInvalidOperationMsg(msg, "unsigned tinyint data overflow", pToken->z);
-        }
-
-        uint8_t tmpVal = (uint8_t)iv;
-        fpAppendColVal(row, &tmpVal, true, colId, pSchema->type, toffset, dataLen, kvLen);
-      }
-
-      break;
-
-    case TSDB_DATA_TYPE_SMALLINT:
-      if (isNullStr(pToken)) {
-        fpAppendColVal(row, getNullValue(pSchema->type), true, colId, pSchema->type, toffset, dataLen, kvLen);
-      } else {
-        ret = tStrToInteger(pToken->z, pToken->type, pToken->n, &iv, true);
-        if (ret != TSDB_CODE_SUCCESS) {
-          return tscInvalidOperationMsg(msg, "invalid smallint data", pToken->z);
-        } else if (!IS_VALID_SMALLINT(iv)) {
-          return tscInvalidOperationMsg(msg, "smallint data overflow", pToken->z);
-        }
-
-        int16_t tmpVal = (int16_t)iv;
-        fpAppendColVal(row, &tmpVal, true, colId, pSchema->type, toffset, dataLen, kvLen);
-      }
-
-      break;
-
-    case TSDB_DATA_TYPE_USMALLINT:
-      if (isNullStr(pToken)) {
-        fpAppendColVal(row, getNullValue(pSchema->type), true, colId, pSchema->type, toffset, dataLen, kvLen);
-      } else {
-        ret = tStrToInteger(pToken->z, pToken->type, pToken->n, &iv, false);
-        if (ret != TSDB_CODE_SUCCESS) {
-          return tscInvalidOperationMsg(msg, "invalid unsigned smallint data", pToken->z);
-        } else if (!IS_VALID_USMALLINT(iv)) {
-          return tscInvalidOperationMsg(msg, "unsigned smallint data overflow", pToken->z);
-        }
-
-        uint16_t tmpVal = (uint16_t)iv;
-        fpAppendColVal(row, &tmpVal, true, colId, pSchema->type, toffset, dataLen, kvLen);
-      }
-
-      break;
-
-    case TSDB_DATA_TYPE_INT:
-      if (isNullStr(pToken)) {
-        fpAppendColVal(row, getNullValue(pSchema->type), true, colId, pSchema->type, toffset, dataLen, kvLen);
-      } else {
-        ret = tStrToInteger(pToken->z, pToken->type, pToken->n, &iv, true);
-        if (ret != TSDB_CODE_SUCCESS) {
-          return tscInvalidOperationMsg(msg, "invalid int data", pToken->z);
-        } else if (!IS_VALID_INT(iv)) {
-          return tscInvalidOperationMsg(msg, "int data overflow", pToken->z);
-        }
-
-        int32_t tmpVal = (int32_t)iv;
-        fpAppendColVal(row, &tmpVal, true, colId, pSchema->type, toffset, dataLen, kvLen);
-      }
-
-      break;
-
-    case TSDB_DATA_TYPE_UINT:
-      if (isNullStr(pToken)) {
-        fpAppendColVal(row, getNullValue(pSchema->type), true, colId, pSchema->type, toffset, dataLen, kvLen);
-      } else {
-        ret = tStrToInteger(pToken->z, pToken->type, pToken->n, &iv, false);
-        if (ret != TSDB_CODE_SUCCESS) {
-          return tscInvalidOperationMsg(msg, "invalid unsigned int data", pToken->z);
-        } else if (!IS_VALID_UINT(iv)) {
-          return tscInvalidOperationMsg(msg, "unsigned int data overflow", pToken->z);
-        }
-
-        uint32_t tmpVal = (uint32_t)iv;
-        fpAppendColVal(row, &tmpVal, true, colId, pSchema->type, toffset, dataLen, kvLen);
-      }
-
-      break;
-
-    case TSDB_DATA_TYPE_BIGINT:
-      if (isNullStr(pToken)) {
-        fpAppendColVal(row, getNullValue(pSchema->type), true, colId, pSchema->type, toffset, dataLen, kvLen);
-      } else {
-        ret = tStrToInteger(pToken->z, pToken->type, pToken->n, &iv, true);
-        if (ret != TSDB_CODE_SUCCESS) {
-          return tscInvalidOperationMsg(msg, "invalid bigint data", pToken->z);
-        } else if (!IS_VALID_BIGINT(iv)) {
-          return tscInvalidOperationMsg(msg, "bigint data overflow", pToken->z);
-        }
-
-        fpAppendColVal(row, &iv, true, colId, pSchema->type, toffset, dataLen, kvLen);
-      }
-      break;
-
-    case TSDB_DATA_TYPE_UBIGINT:
-      if (isNullStr(pToken)) {
-        fpAppendColVal(row, getNullValue(pSchema->type), true, colId, pSchema->type, toffset, dataLen, kvLen);
-      } else {
-        ret = tStrToInteger(pToken->z, pToken->type, pToken->n, &iv, false);
-        if (ret != TSDB_CODE_SUCCESS) {
-          return tscInvalidOperationMsg(msg, "invalid unsigned bigint data", pToken->z);
-        } else if (!IS_VALID_UBIGINT((uint64_t)iv)) {
-          return tscInvalidOperationMsg(msg, "unsigned bigint data overflow", pToken->z);
-        }
-
-        uint64_t tmpVal = (uint64_t)iv;
-        fpAppendColVal(row, &tmpVal, true, colId, pSchema->type, toffset, dataLen, kvLen);
-      }
-      break;
-
-    case TSDB_DATA_TYPE_FLOAT:
-      if (isNullStr(pToken)) {
-        fpAppendColVal(row, getNullValue(pSchema->type), true, colId, pSchema->type, toffset, dataLen, kvLen);
-      } else {
-        double dv;
-        if (TK_ILLEGAL == tscToDouble(pToken, &dv, &endptr)) {
-          return tscInvalidOperationMsg(msg, "illegal float data", pToken->z);
-        }
-
-        if (((dv == HUGE_VAL || dv == -HUGE_VAL) && errno == ERANGE) || dv > FLT_MAX || dv < -FLT_MAX || isinf(dv) ||
-            isnan(dv)) {
-          return tscInvalidOperationMsg(msg, "illegal float data", pToken->z);
-        }
-
-        float tmpVal = (float)dv;
-        fpAppendColVal(row, &tmpVal, true, colId, pSchema->type, toffset, dataLen, kvLen);
-      }
-      break;
-
-    case TSDB_DATA_TYPE_DOUBLE:
-      if (isNullStr(pToken)) {
-        fpAppendColVal(row, getNullValue(pSchema->type), true, colId, pSchema->type, toffset, dataLen, kvLen);
-      } else {
-        double dv;
-        if (TK_ILLEGAL == tscToDouble(pToken, &dv, &endptr)) {
-          return tscInvalidOperationMsg(msg, "illegal double data", pToken->z);
-        }
-
-        if (((dv == HUGE_VAL || dv == -HUGE_VAL) && errno == ERANGE) || isinf(dv) || isnan(dv)) {
-          return tscInvalidOperationMsg(msg, "illegal double data", pToken->z);
-        }
-
-        fpAppendColVal(row, &dv, true, colId, pSchema->type, toffset, dataLen, kvLen);
-      }
-      break;
-
-    case TSDB_DATA_TYPE_BINARY:
-      // binary data cannot be null-terminated char string, otherwise the last char of the string is lost
-      if (pToken->type == TK_NULL) {
-        tscAppendMemRowColValEx(row, getNullValue(pSchema->type), true, colId, pSchema->type, toffset, dataLen, kvLen);
-      } else {  // too long values will return invalid sql, not be truncated automatically
-        if (pToken->n + VARSTR_HEADER_SIZE > pSchema->bytes) {  // todo refactor
-          return tscInvalidOperationMsg(msg, "string data overflow", pToken->z);
-        }
-        // STR_WITH_SIZE_TO_VARSTR(payload, pToken->z, pToken->n);
-        char *rowEnd = memRowEnd(row);
-        STR_WITH_SIZE_TO_VARSTR(rowEnd, pToken->z, pToken->n);
-        fpAppendColVal(row, rowEnd, false, colId, pSchema->type, toffset, dataLen, kvLen);
-      }
-      break;
-
-    case TSDB_DATA_TYPE_NCHAR:
-      if (pToken->type == TK_NULL) {
-        fpAppendColVal(row, getNullValue(pSchema->type), true, colId, pSchema->type, toffset, dataLen, kvLen);
-      } else {
-        // if the converted output len is over than pColumnModel->bytes, return error: 'Argument list too long'
-        int32_t output = 0;
-        char *  rowEnd = memRowEnd(row);
-        if (!taosMbsToUcs4(pToken->z, pToken->n, varDataVal(rowEnd), pSchema->bytes - VARSTR_HEADER_SIZE, &output)) {
-          char buf[512] = {0};
-          snprintf(buf, tListLen(buf), "%s", strerror(errno));
-          return tscInvalidOperationMsg(msg, buf, pToken->z);
-        }
-        varDataSetLen(rowEnd, output);
-        fpAppendColVal(row, rowEnd, false, colId, pSchema->type, toffset, dataLen, kvLen);
-      }
-      break;
-
-    case TSDB_DATA_TYPE_TIMESTAMP: {
-      if (pToken->type == TK_NULL) {
-        if (primaryKey) {
-          // When building SKVRow primaryKey, we should not skip even with NULL value.
-          int64_t tmpVal = 0;
-          fpAppendColVal(row, &tmpVal, true, colId, pSchema->type, toffset, dataLen, kvLen);
-        } else {
-          fpAppendColVal(row, getNullValue(pSchema->type), true, colId, pSchema->type, toffset, dataLen,
-                                  kvLen);
-        }
-      } else {
-        int64_t tmpVal;
-        if (tsParseTime(pToken, &tmpVal, str, msg, timePrec) != TSDB_CODE_SUCCESS) {
-          return tscInvalidOperationMsg(msg, "invalid timestamp", pToken->z);
-        }
-        fpAppendColVal(row, &tmpVal, true, colId, pSchema->type, toffset, dataLen, kvLen);
-      }
-
-      break;
-    }
-  }
-
-  return TSDB_CODE_SUCCESS;
-}
-#endif
-
-
-
 /*
  * The server time/client time should not be mixed up in one sql string
  * Do not employ sort operation is not involved if server time is used.
@@ -725,147 +455,6 @@ int32_t tsCheckTimestamp(STableDataBlocks *pDataBlocks, const char *start) {
   return TSDB_CODE_SUCCESS;
 }
 
-#if 0
-int tsParseOneRow(char **str, STableDataBlocks *pDataBlocks, int16_t timePrec, int32_t *len, char *tmpTokenBuf,
-                  SInsertStatementParam *pInsertParam) {
-  int32_t   index = 0;
-  SStrToken sToken = {0};
-
-  char *payload = pDataBlocks->pData + pDataBlocks->size;
-
-  SParsedDataColInfo *spd = &pDataBlocks->boundColumnInfo;
-  SSchema *           schema = tscGetTableSchema(pDataBlocks->pTableMeta);
-
-  TDRowTLenT dataRowLen = spd->allNullLen;
-  TDRowTLenT kvRowLen = TD_MEM_ROW_KV_VER_SIZE;
-  TDRowTLenT payloadValOffset = 0;
-  TDRowLenT  colValOffset = 0;
-  ASSERT(dataRowLen > 0);
-
-  payloadSetNCols(payload, spd->numOfBound);
-  payloadValOffset = payloadValuesOffset(payload); // rely on payloadNCols
-  // payloadSetTLen(payload, payloadValOffset);
-
-  char *kvPrimaryKeyStart = payload + PAYLOAD_HEADER_LEN;    // primaryKey in 1st column tuple
-  char *kvStart = kvPrimaryKeyStart + PAYLOAD_COL_HEAD_LEN;  // the column tuple behind the primaryKey
-
-  // 1. set the parsed value from sql string
-  for (int i = 0; i < spd->numOfBound; ++i) {
-    // the start position in data block buffer of current value in sql
-    int32_t colIndex = spd->boundedColumns[i];
-
-    char *start = payload + spd->cols[colIndex].offset;
-
-    SSchema *pSchema = &schema[colIndex];  // get colId here
-
-    index = 0;
-    sToken = tStrGetToken(*str, &index, true);
-    *str += index;
-
-    if (sToken.type == TK_QUESTION) {
-      if (pInsertParam->insertType != TSDB_QUERY_TYPE_STMT_INSERT) {
-        return tscSQLSyntaxErrMsg(pInsertParam->msg, "? only allowed in binding insertion", *str);
-      }
-
-      uint32_t offset = (uint32_t)(start - pDataBlocks->pData);
-      if (tscAddParamToDataBlock(pDataBlocks, pSchema->type, (uint8_t)timePrec, pSchema->bytes, offset) != NULL) {
-        continue;
-      }
-
-      strcpy(pInsertParam->msg, "client out of memory");
-      return TSDB_CODE_TSC_OUT_OF_MEMORY;
-    }
-
-    int16_t type = sToken.type;
-    if ((type != TK_NOW && type != TK_INTEGER && type != TK_STRING && type != TK_FLOAT && type != TK_BOOL &&
-         type != TK_NULL && type != TK_HEX && type != TK_OCT && type != TK_BIN) ||
-        (sToken.n == 0) || (type == TK_RP)) {
-      return tscSQLSyntaxErrMsg(pInsertParam->msg, "invalid data or symbol", sToken.z);
-    }
-
-    // Remove quotation marks
-    if (TK_STRING == sToken.type) {
-      // delete escape character: \\, \', \"
-      char delim = sToken.z[0];
-
-      int32_t cnt = 0;
-      int32_t j = 0;
-      if (sToken.n >= TSDB_MAX_BYTES_PER_ROW) {
-        return tscSQLSyntaxErrMsg(pInsertParam->msg, "too long string", sToken.z);
-      }
-
-      for (uint32_t k = 1; k < sToken.n - 1; ++k) {
-        if (sToken.z[k] == '\\' || (sToken.z[k] == delim && sToken.z[k + 1] == delim)) {
-          tmpTokenBuf[j] = sToken.z[k + 1];
-
-          cnt++;
-          j++;
-          k++;
-          continue;
-        }
-
-        tmpTokenBuf[j] = sToken.z[k];
-        j++;
-      }
-
-      tmpTokenBuf[j] = 0;
-      sToken.z = tmpTokenBuf;
-      sToken.n -= 2 + cnt;
-    }
-
-    bool      isPrimaryKey = (colIndex == PRIMARYKEY_TIMESTAMP_COL_INDEX);
-    TDRowLenT dataRowDeltaColLen = 0;  // When combine the data as SDataRow, the delta len between all NULL columns.
-    TDRowLenT kvRowColLen = 0;
-    TDRowLenT colValAppended = 0;
-
-    if (!IS_DATA_COL_ORDERED(spd)) {
-      ASSERT(spd->colIdxInfo != NULL);
-      if(!isPrimaryKey) {
-        kvStart = POINTER_SHIFT(kvPrimaryKeyStart, spd->colIdxInfo[i].finalIdx * PAYLOAD_COL_HEAD_LEN);
-      } else {
-        ASSERT(spd->colIdxInfo[i].finalIdx == 0);
-      }
-    }
-    // the primary key locates in 1st column
-    int32_t ret = tsParseOneColumnKV(pSchema, &sToken, payload, kvPrimaryKeyStart, kvStart, pInsertParam->msg, str,
-                                     isPrimaryKey, timePrec, payloadValOffset + colValOffset, &colValAppended,
-                                     &dataRowDeltaColLen, &kvRowColLen);
-    if (ret != TSDB_CODE_SUCCESS) {
-      return ret;
-    }
-
-    if (isPrimaryKey) {
-      if (tsCheckTimestamp(pDataBlocks, payloadValues(payload)) != TSDB_CODE_SUCCESS) {
-        tscInvalidOperationMsg(pInsertParam->msg, "client time/server time can not be mixed up", sToken.z);
-        return TSDB_CODE_TSC_INVALID_TIME_STAMP;
-      }
-      payloadColSetOffset(kvPrimaryKeyStart, colValOffset);
-    } else {
-      payloadColSetOffset(kvStart, colValOffset);
-      if (IS_DATA_COL_ORDERED(spd)) {
-        kvStart += PAYLOAD_COL_HEAD_LEN;  // move to next column
-      }
-    }
-    
-    colValOffset += colValAppended;
-    kvRowLen += kvRowColLen;
-    dataRowLen += dataRowDeltaColLen;
-  }
-
-  if (kvRowLen < dataRowLen) {
-    payloadSetType(payload, SMEM_ROW_KV);
-  } else {
-    payloadSetType(payload, SMEM_ROW_DATA);
-  }
-
-  *len = (int32_t)(payloadValOffset + colValOffset);
-  payloadSetTLen(payload, *len);
-  
-  return TSDB_CODE_SUCCESS;
-}
-
-#endif
-
 /**
  * @brief Generate SDataRow or SKVRow directly.
  * Step1: Firstly, predict the final row type and generate the row.
@@ -875,8 +464,8 @@ int tsParseOneRow(char **str, STableDataBlocks *pDataBlocks, int16_t timePrec, i
  *        - The transfer rate from SKVRow to SDataRow should be As Lower As Possible.
  *        - The worst case is that all the rows regenerated, in which case the performance is just that we have now.
  */
-int tsParseOneRowKV(char **str, STableDataBlocks *pDataBlocks, int16_t timePrec, int32_t *len, char *tmpTokenBuf,
-                    SInsertStatementParam *pInsertParam) {
+int tsParseOneRow(char **str, STableDataBlocks *pDataBlocks, int16_t timePrec, int32_t *len, char *tmpTokenBuf,
+                  SInsertStatementParam *pInsertParam) {
   int32_t   index = 0;
   SStrToken sToken = {0};
 
@@ -991,7 +580,7 @@ int tsParseOneRowKV(char **str, STableDataBlocks *pDataBlocks, int16_t timePrec,
     }
 
     // 3. set the null value for the columns that do not assign values
-    if (isDataRow(row) && !isNeedConvertRow(row)) {
+    if ((spd->numOfBound < spd->numOfCols) && isDataRow(row) && !isNeedConvertRow(row)) {
       SDataRow dataRow = memRowDataBody(row);
       for (int32_t i = 0; i < spd->numOfCols; ++i) {
         if (spd->cols[i].valStat == VAL_STAT_NO) {
@@ -1080,7 +669,7 @@ int32_t tsParseValues(char **str, STableDataBlocks *pDataBlock, int maxRows, SIn
     }
 
     int32_t len = 0;
-    code = tsParseOneRowKV(str, pDataBlock, precision, &len, tmpTokenBuf, pInsertParam);
+    code = tsParseOneRow(str, pDataBlock, precision, &len, tmpTokenBuf, pInsertParam);
     if (code != TSDB_CODE_SUCCESS) {  // error message has been set in tsParseOneRow, return directly
       return TSDB_CODE_TSC_SQL_SYNTAX_ERROR;
     }
@@ -1185,52 +774,6 @@ int32_t FORCE_INLINE tsSetBlockInfo(SSubmitBlk *pBlocks, const STableMeta *pTabl
   }
 }
 
-#if 0
-// data block is disordered, sort it in ascending order
-void tscSortRemoveDataBlockDupRowsRaw(STableDataBlocks *dataBuf) {
-  SSubmitBlk *pBlocks = (SSubmitBlk *)dataBuf->pData;
-
-  // size is less than the total size, since duplicated rows may be removed yet.
-  assert(pBlocks->numOfRows * dataBuf->rowSize + sizeof(SSubmitBlk) == dataBuf->size);
-
-  // if use server time, this block must be ordered
-  if (dataBuf->tsSource == TSDB_USE_SERVER_TS) {
-    assert(dataBuf->ordered);
-  }
-
-  if (!dataBuf->ordered) {
-    char *pBlockData = pBlocks->data;
-    qsort(pBlockData, pBlocks->numOfRows, dataBuf->rowSize, rowDataCompar);
-
-    int32_t i = 0;
-    int32_t j = 1;
-
-    while (j < pBlocks->numOfRows) {
-      TSKEY ti = *(TSKEY *)(pBlockData + dataBuf->rowSize * i);
-      TSKEY tj = *(TSKEY *)(pBlockData + dataBuf->rowSize * j);
-
-      if (ti == tj) {
-        ++j;
-        continue;
-      }
-
-      int32_t nextPos = (++i);
-      if (nextPos != j) {
-        memmove(pBlockData + dataBuf->rowSize * nextPos, pBlockData + dataBuf->rowSize * j, dataBuf->rowSize);
-      }
-
-      ++j;
-    }
-
-    dataBuf->ordered = true;
-
-    pBlocks->numOfRows = i + 1;
-    dataBuf->size = sizeof(SSubmitBlk) + dataBuf->rowSize * pBlocks->numOfRows;
-  }
-
-  dataBuf->prevTS = INT64_MIN;
-}
-#endif
 // data block is disordered, sort it in ascending order
 int tscSortRemoveDataBlockDupRows(STableDataBlocks *dataBuf, SBlockKeyInfo *pBlkKeyInfo) {
   SSubmitBlk *pBlocks = (SSubmitBlk *)dataBuf->pData;
@@ -2182,7 +1725,7 @@ static void parseFileSendDataBlock(void *param, TAOS_RES *tres, int32_t numOfRow
     strtolower(line, line);
 
     int32_t len = 0;
-    code = tsParseOneRowKV(&lineptr, pTableDataBlock, tinfo.precision, &len, tokenBuf, pInsertParam);
+    code = tsParseOneRow(&lineptr, pTableDataBlock, tinfo.precision, &len, tokenBuf, pInsertParam);
     if (code != TSDB_CODE_SUCCESS || pTableDataBlock->numOfParams > 0) {
       pSql->res.code = code;
       break;

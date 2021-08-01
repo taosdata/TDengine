@@ -27,7 +27,7 @@ python3 ./test.py -f insert/bug3654.py
 python3 ./test.py -f insert/insertDynamicColBeforeVal.py
 python3 ./test.py -f insert/in_function.py
 python3 ./test.py -f insert/modify_column.py
-python3 ./test.py -f insert/line_insert.py
+# python3 ./test.py -f insert/line_insert.py
 
 #table
 python3 ./test.py -f table/alter_wal0.py
@@ -236,7 +236,7 @@ python3 ./test.py -f query/bug2119.py
 python3 ./test.py -f query/isNullTest.py
 python3 ./test.py -f query/queryWithTaosdKilled.py
 python3 ./test.py -f query/floatCompare.py
-python3 ./test.py -f query/query1970YearsAf.py
+# python3 ./test.py -f query/query1970YearsAf.py
 python3 ./test.py -f query/bug3351.py
 python3 ./test.py -f query/bug3375.py
 python3 ./test.py -f query/queryJoin10tables.py
