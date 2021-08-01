@@ -803,7 +803,7 @@ int tscSortRemoveDataBlockDupRows(STableDataBlocks *dataBuf, SBlockKeyInfo *pBlk
   char *          pBlockData = pBlocks->data;
   int             n = 0;
   while (n < nRows) {
-    pBlkKeyTuple->skey = memRowTSKey(pBlockData);
+    pBlkKeyTuple->skey = memRowKey(pBlockData);
     pBlkKeyTuple->payloadAddr = pBlockData;
 
     // next loop

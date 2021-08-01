@@ -189,7 +189,6 @@ typedef void *SDataRow;
 #define dataRowEnd(r) POINTER_SHIFT(r, dataRowLen(r))
 #define dataRowVersion(r) (*(int16_t *)POINTER_SHIFT(r, sizeof(int16_t)))
 #define dataRowTuple(r) POINTER_SHIFT(r, TD_DATA_ROW_HEAD_SIZE)
-#define dataRowTSKey(r) (*(TSKEY *)(dataRowTuple(r)))
 #define dataRowTKey(r) (*(TKEY *)(dataRowTuple(r)))
 #define dataRowKey(r) tdGetKey(dataRowTKey(r))
 #define dataRowSetLen(r, l) (dataRowLen(r) = (l))
@@ -471,7 +470,6 @@ typedef struct {
 #define kvRowFree(r) tfree(r)
 #define kvRowEnd(r) POINTER_SHIFT(r, kvRowLen(r))
 #define kvRowValLen(r) (kvRowLen(r) - TD_KV_ROW_HEAD_SIZE - sizeof(SColIdx) * kvRowNCols(r))
-#define kvRowTSKey(r) (*(TSKEY *)(kvRowValues(r)))
 #define kvRowTKey(r) (*(TKEY *)(kvRowValues(r)))
 #define kvRowKey(r) tdGetKey(kvRowTKey(r))
 #define kvRowDeleted(r) TKEY_IS_DELETED(kvRowTKey(r))
@@ -691,13 +689,6 @@ static FORCE_INLINE TKEY memRowTKey(SMemRow row) {
     return dataRowTKey(memRowDataBody(row));
   } else {
     return kvRowTKey(memRowKvBody(row));
-  }
-}
-static FORCE_INLINE TKEY memRowTSKey(SMemRow row) {
-  if (isDataRow(row)) {
-    return dataRowTSKey(memRowDataBody(row));
-  } else {
-    return kvRowTSKey(memRowKvBody(row));
   }
 }
 static FORCE_INLINE TSKEY memRowKey(SMemRow row) {
