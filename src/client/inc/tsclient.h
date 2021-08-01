@@ -194,8 +194,10 @@ static FORCE_INLINE void tscAppendMemRowColVal(SMemRow row, const void *value, b
                                                int32_t rowNum) {
   tdAppendMemRowColVal(row, value, isCopyVarData, colId, colType, toffset);
   // TODO: When nBoundCols/nCols > 0.5,
-  SMemRowInfo *pRowInfo = pBuilder->rowInfo + rowNum;
-  tdGetColAppendDeltaLen(value, colType, &pRowInfo->dataLen, &pRowInfo->kvLen);
+  if (pBuilder->compareStat == ROW_COMPARE_NEED) {
+    SMemRowInfo *pRowInfo = pBuilder->rowInfo + rowNum;
+    tdGetColAppendDeltaLen(value, colType, &pRowInfo->dataLen, &pRowInfo->kvLen);
+  }
 }
 
 // Applicable to consume by one row
@@ -574,7 +576,7 @@ static FORCE_INLINE void convertToSDataRow(SMemRow dest, SMemRow src, SSchema *p
   int32_t kvIdx = 0;
   for (int i = 0; i < nCols; ++i) {
     SSchema *schema = pSchema + i;
-    char *   val = tdGetKVRowValOfColEx(kvRow, schema->colId, &kvIdx);
+    void *   val = tdGetKVRowValOfColEx(kvRow, schema->colId, &kvIdx);
     tdAppendDataColVal(dataRow, val != NULL ? val : getNullValue(schema->type), true, schema->type,
                        (spd->cols + i)->toffset);
   }
@@ -598,7 +600,7 @@ static FORCE_INLINE void convertToSKVRow(SMemRow dest, SMemRow src, SSchema *pSc
     SSchema *schema = pSchema + i;
     if ((spd->cols + i)->valStat == VAL_STAT_YES) {
       toffset = (spd->cols + i)->toffset;
-      char *val = tdGetRowDataOfCol(dataRow, schema->type, toffset + TD_DATA_ROW_HEAD_SIZE);
+      void *val = tdGetRowDataOfCol(dataRow, schema->type, toffset + TD_DATA_ROW_HEAD_SIZE);
       tdAppendKvColVal(kvRow, val, true, schema->colId, schema->type, kvOffset);
       kvOffset += sizeof(SColIdx);
     }
@@ -887,7 +889,7 @@ static FORCE_INLINE int32_t tsParseOneColumnKV(SSchema *pSchema, SStrToken *pTok
         // if the converted output len is over than pColumnModel->bytes, return error: 'Argument list too long'
         int32_t output = 0;
         char *  rowEnd = memRowEnd(row);
-        if (!taosMbsToUcs4(pToken->z, pToken->n, varDataVal(rowEnd), pSchema->bytes - VARSTR_HEADER_SIZE, &output)) {
+        if (!taosMbsToUcs4(pToken->z, pToken->n, (char*)varDataVal(rowEnd), pSchema->bytes - VARSTR_HEADER_SIZE, &output)) {
           char buf[512] = {0};
           snprintf(buf, tListLen(buf), "%s", strerror(errno));
           return tscInvalidOperationMsg(msg, buf, pToken->z);

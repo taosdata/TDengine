@@ -909,7 +909,8 @@ static FORCE_INLINE int doBindParam(STableDataBlocks* pBlock, SMemRow row, SPara
       // }
       // varDataSetLen(data + param->offset, output);
       char* rowEnd = memRowEnd(row);
-      if (!taosMbsToUcs4(bind->buffer, *bind->length, varDataVal(rowEnd), param->bytes - VARSTR_HEADER_SIZE, &output)) {
+      if (!taosMbsToUcs4(bind->buffer, *bind->length, (char*)varDataVal(rowEnd), param->bytes - VARSTR_HEADER_SIZE,
+                         &output)) {
         tscError("convert nchar failed");
         return TSDB_CODE_TSC_INVALID_VALUE;
       }
@@ -1087,7 +1088,7 @@ static int doBindBatchParam(STableDataBlocks* pBlock, SParamInfo* param, TAOS_MU
 
         int32_t output = 0;
         char*   rowEnd = memRowEnd(data);
-        if (!taosMbsToUcs4((char*)bind->buffer + bind->buffer_length * i, bind->length[i], varDataVal(rowEnd),
+        if (!taosMbsToUcs4((char*)bind->buffer + bind->buffer_length * i, bind->length[i], (char*)varDataVal(rowEnd),
                            param->bytes - VARSTR_HEADER_SIZE, &output)) {
           tscError("convert nchar string to UCS4_LE failed:%s", (char*)((char*)bind->buffer + bind->buffer_length * i));
           return TSDB_CODE_TSC_INVALID_VALUE;
@@ -1269,8 +1270,10 @@ static int insertStmtBindParam(STscStmt* stmt, TAOS_BIND* bind) {
     }
   }
 
-  SMemRowInfo* pRowInfo = pBlock->rowBuilder.rowInfo;
-  checkAndConvertMemRow(data, pRowInfo->dataLen, pRowInfo->kvLen);
+  if (pBlock->rowBuilder.compareStat == ROW_COMPARE_NEED) {
+    SMemRowInfo* pRowInfo = pBlock->rowBuilder.rowInfo;
+    checkAndConvertMemRow(data, pRowInfo->dataLen, pRowInfo->kvLen);
+  }
 
   return code;
 }
@@ -1366,10 +1369,12 @@ static int insertStmtBindParamBatch(STscStmt* stmt, TAOS_MULTI_BIND* bind, int c
       }
     }
 
-    for (int i = 0; i < bind->num; ++i) {
-      char*        row = pBlock->pData + sizeof(SSubmitBlk) + extendedRowSize * (pCmd->batchSize + i);
-      SMemRowInfo* pRowInfo = pBlock->rowBuilder.rowInfo + i;
-      checkAndConvertMemRow(row, pRowInfo->dataLen, pRowInfo->kvLen);
+    if (pBlock->rowBuilder.compareStat == ROW_COMPARE_NEED) {
+      for (int i = 0; i < bind->num; ++i) {
+        char*        row = pBlock->pData + sizeof(SSubmitBlk) + extendedRowSize * (pCmd->batchSize + i);
+        SMemRowInfo* pRowInfo = pBlock->rowBuilder.rowInfo + i;
+        checkAndConvertMemRow(row, pRowInfo->dataLen, pRowInfo->kvLen);
+      }
     }
 
     pCmd->batchSize += rowNum - 1;
@@ -1388,10 +1393,12 @@ static int insertStmtBindParamBatch(STscStmt* stmt, TAOS_MULTI_BIND* bind, int c
     }
 
     if (colIdx == (pBlock->numOfParams - 1)) {  // last bound column
-      for (int i = 0; i < bind->num; ++i) {
-        char*        row = pBlock->pData + sizeof(SSubmitBlk) + extendedRowSize * (pCmd->batchSize + i);
-        SMemRowInfo* pRowInfo = pBlock->rowBuilder.rowInfo + i;
-        checkAndConvertMemRow(row, pRowInfo->dataLen, pRowInfo->kvLen);
+      if (pBlock->rowBuilder.compareStat == ROW_COMPARE_NEED) {
+        for (int i = 0; i < bind->num; ++i) {
+          char*        row = pBlock->pData + sizeof(SSubmitBlk) + extendedRowSize * (pCmd->batchSize + i);
+          SMemRowInfo* pRowInfo = pBlock->rowBuilder.rowInfo + i;
+          checkAndConvertMemRow(row, pRowInfo->dataLen, pRowInfo->kvLen);
+        }
       }
       pCmd->batchSize += rowNum - 1;
     }
