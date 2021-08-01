@@ -1929,7 +1929,7 @@ int32_t tscMergeTableDataBlocks(SInsertStatementParam *pInsertParam, bool freeBl
       pBlocks->numOfRows = htons(pBlocks->numOfRows);
       pBlocks->schemaLen = 0;
 
-      // erase the empty space reserved for binary data and SKVRow
+      // copy row payload directly and convert row type if specified
       int32_t finalLen = trimDataBlock(dataBuf->pData + dataBuf->size, pOneTableBlock, pInsertParam, blkKeyInfo.pKeyTuple);
       assert(finalLen <= len);
 

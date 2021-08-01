@@ -293,7 +293,7 @@ static char* normalStmtBuildSql(STscStmt* stmt) {
   return taosStringBuilderGetResult(&sb, NULL);
 }
 
-#ifdef 0
+#if 0
 static int fillColumnsNull(STableDataBlocks* pBlock, int32_t rowNum) {
   SParsedDataColInfo* spd = &pBlock->boundColumnInfo;
   int32_t offset = 0;
@@ -372,7 +372,7 @@ int32_t fillTablesColumnsNull(SSqlObj* pSql) {
 
 ////////////////////////////////////////////////////////////////////////////////
 // functions for insertion statement preparation
-#ifdef 0
+#if 0
 static FORCE_INLINE int doBindParam(STableDataBlocks* pBlock, char* data, SParamInfo* param, TAOS_BIND* bind, int32_t colNum) {
     if (bind->is_null != NULL && *(bind->is_null)) {
       setNull(data + param->offset, param->type, param->bytes);
@@ -979,7 +979,7 @@ static int32_t insertStmtGenBlock(STscStmt* pStmt, STableDataBlocks** pBlock, ST
   return TSDB_CODE_SUCCESS;
 }
 
-#ifdef 0
+#if 0
 static int doBindBatchParam(STableDataBlocks* pBlock, SParamInfo* param, TAOS_MULTI_BIND* bind, int32_t rowNum) {
   if (bind->buffer_type != param->type || !isValidDataType(param->type)) {
     tscError("column mismatch or invalid");
@@ -1123,7 +1123,7 @@ static int doBindBatchParam(STableDataBlocks* pBlock, SParamInfo* param, TAOS_MU
 
 
 
-#ifdef 0
+#if 0
 static int insertStmtBindParam(STscStmt* stmt, TAOS_BIND* bind) {
   SSqlCmd* pCmd = &stmt->pSql->cmd;
   STscStmt* pStmt = (STscStmt*)stmt;
@@ -1408,7 +1408,7 @@ static int insertStmtBindParamBatch(STscStmt* stmt, TAOS_MULTI_BIND* bind, int c
 }
 #endif
 
-#ifdef 0
+#if 0
 static int insertStmtBindParamBatch(STscStmt* stmt, TAOS_MULTI_BIND* bind, int colIdx) {
   int32_t   code = TSDB_CODE_SUCCESS;
   SSqlCmd*  pCmd = &stmt->pSql->cmd;
