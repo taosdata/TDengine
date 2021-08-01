@@ -5561,6 +5561,8 @@ static SSDataBlock* doIntervalAgg(void* param, bool* newgroup) {
       break;
     }
 
+    setTagValue(pOperator, pRuntimeEnv->current->pTable, pIntervalInfo->pCtx, pOperator->numOfOutput);
+
     // the pDataBlock are always the same one, no need to call this again
     setInputDataBlock(pOperator, pIntervalInfo->pCtx, pBlock, pQueryAttr->order.order);
     hashIntervalAgg(pOperator, &pIntervalInfo->resultRowInfo, pBlock, 0);

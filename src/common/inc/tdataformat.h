@@ -626,7 +626,9 @@ typedef void *SMemRow;
 #define SMEM_ROW_KV 0x01U       // SKVRow
 #define SMEM_ROW_CONVERT 0x80U  // SMemRow convert flag
 
+#define KVRatioKV (0.2f)  // all bool
 #define KVRatioPredict (0.4f)
+#define KVRatioData (0.75f)  // all bigint
 #define KVRatioConvert (0.9f)
 
 #define memRowType(r) ((*(uint8_t *)(r)) & 0x01)
@@ -668,9 +670,9 @@ typedef void *SMemRow;
 
 static FORCE_INLINE char *memRowEnd(SMemRow row) {
   if (isDataRow(row)) {
-    return dataRowEnd(memRowDataBody(row));
+    return (char *)dataRowEnd(memRowDataBody(row));
   } else {
-    return kvRowEnd(memRowKvBody(row));
+    return (char *)kvRowEnd(memRowKvBody(row));
   }
 }
 

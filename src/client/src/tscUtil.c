@@ -3044,6 +3044,7 @@ static void freeQueryInfoImpl(SQueryInfo* pQueryInfo) {
   pQueryInfo->fillType = 0;
 
   tfree(pQueryInfo->fillVal);
+  pQueryInfo->fillType = 0;
   tfree(pQueryInfo->buf);
 
   taosArrayDestroy(pQueryInfo->pUpstream);
