@@ -42,7 +42,6 @@ extern "C" {
 struct SSqlInfo;
 
 typedef void (*__async_cb_func_t)(void *param, TAOS_RES *tres, int32_t numOfRows);
-// #define __DEV_BRANCH__
 #define __5221_BRANCH__
 
 typedef struct SNewVgroupInfo {
@@ -127,10 +126,8 @@ typedef struct {
 typedef struct {
   uint8_t      memRowType;
   uint8_t      compareStat;  // 0 unknown, 1 need compare, 2 no need
-  uint16_t     nBoundCols;
   TDRowTLenT   dataRowInitLen;
   TDRowTLenT   kvRowInitLen;
-  SArray *     colInfo;  // SColInfo
   SMemRowInfo *rowInfo;
 } SMemRowBuilder;
 

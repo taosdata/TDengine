@@ -652,21 +652,14 @@ typedef void *SMemRow;
   ((TDRowTLenT)(memRowDataLen(r) + TD_MEM_ROW_TYPE_SIZE))  // using uint32_t/int32_t to store the TLen
 
 #define memRowKvTLen(r) ((TDRowTLenT)(memRowKvLen(r) + TD_MEM_ROW_KV_TYPE_VER_SIZE))
-// static FORCE_INLINE TDRowLenT memRowLen(SMemRow row) {
-//   if (isDataRow(row)) {
-//     return memRowDataLen(row);
-//   } else {
-//     return memRowKvLen(row);
-//   }
-// }
-// static FORCE_INLINE TDRowTLenT memRowTLen(SMemRow row) {  // using uint32_t/int32_t to store the TLen
-//   if (isDataRow(row)) {
-//     return memRowDataTLen(row);
-//   } else {
-//     return memRowKvTLen(row);
-//   }
-// }
-#define memRowTLen(r) (isDataRow(r) ? memRowDataTLen(r) : memRowKvTLen(r))
+
+static FORCE_INLINE TDRowTLenT memRowTLen(SMemRow row) {  // using uint32_t/int32_t to store the TLen
+  if (isDataRow(row)) {
+    return memRowDataTLen(row);
+  } else {
+    return memRowKvTLen(row);
+  }
+}
 
 static FORCE_INLINE char *memRowEnd(SMemRow row) {
   if (isDataRow(row)) {
@@ -846,52 +839,7 @@ static FORCE_INLINE void setSColInfo(SColInfo* colInfo, int16_t colId, uint8_t c
 
 SMemRow mergeTwoMemRows(void *buffer, SMemRow row1, SMemRow row2, STSchema *pSchema1, STSchema *pSchema2);
 
-#if 0
-// ----------------- Raw payload structure for row:
-/* |<------------ Head ------------->|<----------- body of column data tuple ------------------->|
- * |                                 |<----------------- flen ------------->|<--- value part --->|
- * |SMemRowType| dataTLen |  nCols   |  colId  | colType | offset   |  ...  | value |...|...|... |
- * +-----------+----------+----------+--------------------------------------|--------------------|
- * | uint8_t   | uint32_t | uint16_t | int16_t | uint8_t | uint16_t |  ...  |.......|...|...|... |
- * +-----------+----------+----------+--------------------------------------+--------------------|
- *  1. offset in column data tuple starts from the value part in case of uint16_t overflow.
- *  2. dataTLen: total length including the header and body.
- */
 
-#define PAYLOAD_NCOLS_LEN sizeof(uint16_t)
-#define PAYLOAD_NCOLS_OFFSET (sizeof(uint8_t) + sizeof(TDRowTLenT))
-#define PAYLOAD_HEADER_LEN (PAYLOAD_NCOLS_OFFSET + PAYLOAD_NCOLS_LEN)
-#define PAYLOAD_ID_LEN sizeof(int16_t)
-#define PAYLOAD_ID_TYPE_LEN (sizeof(int16_t) + sizeof(uint8_t))
-#define PAYLOAD_COL_HEAD_LEN (PAYLOAD_ID_TYPE_LEN + sizeof(uint16_t))
-#define PAYLOAD_PRIMARY_COL_LEN (PAYLOAD_ID_TYPE_LEN + sizeof(TSKEY))
-
-#define payloadBody(r) POINTER_SHIFT(r, PAYLOAD_HEADER_LEN)
-#define payloadType(r) (*(uint8_t *)(r))
-#define payloadSetType(r, t) (payloadType(r) = (t))
-#define payloadTLen(r) (*(TDRowTLenT *)POINTER_SHIFT(r, TD_MEM_ROW_TYPE_SIZE))  // including total header
-#define payloadSetTLen(r, l) (payloadTLen(r) = (l))
-#define payloadNCols(r) (*(TDRowLenT *)POINTER_SHIFT(r, PAYLOAD_NCOLS_OFFSET))
-#define payloadSetNCols(r, n) (payloadNCols(r) = (n))
-#define payloadValuesOffset(r) \
-  (PAYLOAD_HEADER_LEN + payloadNCols(r) * PAYLOAD_COL_HEAD_LEN)    // avoid using the macro in loop
-#define payloadValues(r) POINTER_SHIFT(r, payloadValuesOffset(r))  // avoid using the macro in loop
-#define payloadColId(c) (*(int16_t *)(c))
-#define payloadColType(c) (*(uint8_t *)POINTER_SHIFT(c, PAYLOAD_ID_LEN))
-#define payloadColOffset(c) (*(uint16_t *)POINTER_SHIFT(c, PAYLOAD_ID_TYPE_LEN))
-#define payloadColValue(c) POINTER_SHIFT(c, payloadColOffset(c))
-
-#define payloadColSetId(c, i) (payloadColId(c) = (i))
-#define payloadColSetType(c, t) (payloadColType(c) = (t))
-#define payloadColSetOffset(c, o) (payloadColOffset(c) = (o))
-
-#define payloadTSKey(r) (*(TSKEY *)POINTER_SHIFT(r, payloadValuesOffset(r)))
-#define payloadTKey(r) (*(TKEY *)POINTER_SHIFT(r, payloadValuesOffset(r)))
-#define payloadKey(r) tdGetKey(payloadTKey(r))
-
-
-static FORCE_INLINE char *payloadNextCol(char *pCol) { return (char *)POINTER_SHIFT(pCol, PAYLOAD_COL_HEAD_LEN); }
-#endif
 
 #ifdef __cplusplus
 }

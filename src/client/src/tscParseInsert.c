@@ -49,12 +49,12 @@ int initMemRowBuilder(SMemRowBuilder *pBuilder, uint32_t nRows, uint32_t nCols, 
 #endif
   if (nRows > 0) {
     // already init(bind multiple rows by single column)
-    if (pBuilder->compareStat == ROW_COMPARE_NEED && (pBuilder->colInfo != NULL)) {
+    if (pBuilder->compareStat == ROW_COMPARE_NEED && (pBuilder->rowInfo != NULL)) {
       return TSDB_CODE_SUCCESS;
     }
   }
 
-  if (nBoundCols == 0) {
+  if (nBoundCols == 0) {  // file input
     pBuilder->memRowType = SMEM_ROW_DATA;
     pBuilder->compareStat = ROW_COMPARE_NO_NEED;
     return TSDB_CODE_SUCCESS;
@@ -81,8 +81,6 @@ int initMemRowBuilder(SMemRowBuilder *pBuilder, uint32_t nRows, uint32_t nCols, 
 
   pBuilder->dataRowInitLen = TD_MEM_ROW_DATA_HEAD_SIZE + allNullLen;
   pBuilder->kvRowInitLen = TD_MEM_ROW_KV_HEAD_SIZE + nBoundCols * sizeof(SColIdx);
-  pBuilder->nBoundCols = nBoundCols;
-  pBuilder->colInfo = NULL;
 
   if (nRows > 0) {
     pBuilder->rowInfo = tcalloc(nRows, sizeof(SMemRowInfo));
@@ -100,7 +98,6 @@ int initMemRowBuilder(SMemRowBuilder *pBuilder, uint32_t nRows, uint32_t nCols, 
 }
 
 void destroyMemRowBuilder(SMemRowBuilder *pBuilder) {
-  tfree(pBuilder->colInfo);
   tfree(pBuilder->rowInfo);
 }
 
