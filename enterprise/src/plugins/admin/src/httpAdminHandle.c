@@ -126,6 +126,10 @@ bool adminProcessGrantRequest(HttpContext* pContext) {
   char       buf[64] = {0};
 
   char       expire[22] = {0};
+  char       cfgFile[PATH_MAX] = {0};
+  sprintf(cfgFile, "%s/taos.cfg", configDir);
+  grantActiveSystem(cfgFile);
+
   time_t     tt = grantObj.expireTimeSec;
 
   if (!grantObj.officialVersion) {
