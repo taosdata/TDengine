@@ -4394,7 +4394,7 @@ static int32_t validateNullExpr(tSqlExpr* pExpr, char* msgBuf) {
 
 // check for like expression
 static int32_t validateLikeExpr(tSqlExpr* pExpr, STableMeta* pTableMeta, int32_t index, char* msgBuf) {
-  const char* msg1 = "wildcard string should be less than 20 characters";
+  const char* msg1 = "wildcard string should be less than %d characters";
   const char* msg2 = "illegal column name";
 
   tSqlExpr* pLeft  = pExpr->pLeft;
@@ -4402,7 +4402,9 @@ static int32_t validateLikeExpr(tSqlExpr* pExpr, STableMeta* pTableMeta, int32_t
 
   if (pExpr->tokenId == TK_LIKE) {
     if (pRight->value.nLen > tsMaxLikeStringLen) {
-      return invalidOperationMsg(msgBuf, msg1);
+      char tmp[64] = {0};
+      sprintf(tmp, msg1, tsMaxLikeStringLen);
+      return invalidOperationMsg(msgBuf, tmp);
     }
 
     SSchema* pSchema = tscGetTableSchema(pTableMeta);
