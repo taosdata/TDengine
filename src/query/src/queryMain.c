@@ -261,7 +261,7 @@ int32_t qRetrieveQueryResultInfo(qinfo_t qinfo, bool* buildRes, void* pRspContex
   SQInfo *pQInfo = (SQInfo *)qinfo;
 
   if (pQInfo == NULL || !isValidQInfo(pQInfo)) {
-    qError("QInfo:0x%"PRIx64" invalid qhandle", pQInfo->qId);
+    qError("QInfo invalid qhandle");
     return TSDB_CODE_QRY_INVALID_QHANDLE;
   }
 

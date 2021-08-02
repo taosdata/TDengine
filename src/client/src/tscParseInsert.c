@@ -2104,7 +2104,7 @@ static void parseFileSendDataBlock(void *param, TAOS_RES *tres, int32_t numOfRow
       pParentSql->fp = pParentSql->fetchFp;
 
       // all data has been sent to vnode, call user function
-      int32_t v = (code != TSDB_CODE_SUCCESS) ? code : (int32_t)pParentSql->res.numOfRows;
+      int32_t v = (int32_t)pParentSql->res.numOfRows;
       (*pParentSql->fp)(pParentSql->param, pParentSql, v);
       return;
     }
