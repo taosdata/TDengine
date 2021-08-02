@@ -5094,7 +5094,7 @@ static int getRowDataFromSample(
 
 static int64_t generateStbRowData(
         SSuperTable* stbInfo,
-        char* recBuf, 
+        char* recBuf,
         int64_t remainderBufLen,
         int64_t timestamp)
 {
