@@ -540,7 +540,6 @@ class TDTestCase:
         code = self._conn.insertLines([input_sql])
         tdSql.checkNotEqual(code, 0)
 
-
     def colValueLengthCheckCase(self):
         """
             check full type col value limit
