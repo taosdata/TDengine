@@ -253,11 +253,15 @@ static int32_t mnodeProcessHeartBeatMsg(SMnodeMsg *pMsg) {
     
   int32_t connId = htonl(pHBMsg->connId);
   SConnObj *pConn = mnodeAccquireConn(connId, connInfo.user, connInfo.clientIp, connInfo.clientPort);
+  if (pConn == NULL) {
+    pHBMsg->pid = htonl(pHBMsg->pid);
+    pConn = mnodeCreateConn(connInfo.user, connInfo.clientIp, connInfo.clientPort, pHBMsg->pid, pHBMsg->appName);
+  }
 
   if (pConn == NULL) {
     // do not close existing links, otherwise
     // mError("failed to create connId, close connect");
-    // pRsp->killConnection = 1;
+    // pRsp->killConnection = 1;    
   } else {
     pRsp->connId = htonl(pConn->connId);
     mnodeSaveQueryStreamList(pConn, pHBMsg);
