@@ -899,8 +899,7 @@ int32_t tscValidateSqlInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
       for (int32_t i = 0; i < size; ++i) {
         SSqlNode* pSqlNode = taosArrayGetP(pInfo->list, i);
 
-        tscTrace("%p start to parse %dth subclause, total:%"PRIzu, pSql, i, size);
-
+        tscTrace("0x%"PRIx64" start to parse the %dth subclause, total:%"PRIzu, pSql->self, i, size);
 //        normalizeSqlNode(pSqlNode); // normalize the column name in each function
         if ((code = validateSqlNode(pSql, pSqlNode, pQueryInfo)) != TSDB_CODE_SUCCESS) {
           return code;
@@ -6078,10 +6077,12 @@ int32_t setAlterTableInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
 
     SSchema* pSchema = tscGetTableTagSchema(pTableMetaInfo->pTableMeta);
     int16_t numOfTags = tscGetNumOfTags(pTableMetaInfo->pTableMeta);
-    int16_t i;
+    int32_t numOfCols = tscGetNumOfColumns(pTableMetaInfo->pTableMeta);
+    int32_t tagIndex = columnIndex.columnIndex - numOfCols;
+    assert(tagIndex>=0);
     uint32_t nLen = 0;
-    for (i = 0; i < numOfTags; ++i) {
-      nLen += (i != columnIndex.columnIndex) ? pSchema[i].bytes : pItem->bytes;
+    for (int i = 0; i < numOfTags; ++i) {
+      nLen += (i != tagIndex) ? pSchema[i].bytes : pItem->bytes;
     }
     if (nLen >= TSDB_MAX_TAGS_LEN) {
       return invalidOperationMsg(pMsg, msg24);
@@ -8414,7 +8415,7 @@ static int32_t doValidateSubquery(SSqlNode* pSqlNode, int32_t index, SSqlObj* pS
       return invalidOperationMsg(msgBuf, "subquery alias name too long");
     }
 
-    tstrncpy(pTableMetaInfo1->aliasName, subInfo->aliasName.z, sizeof(pTableMetaInfo1->aliasName));
+    tstrncpy(pTableMetaInfo1->aliasName, subInfo->aliasName.z, subInfo->aliasName.n + 1);
   }
 
   taosArrayPush(pQueryInfo->pUpstream, &pSub);
