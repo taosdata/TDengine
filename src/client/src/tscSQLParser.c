@@ -4401,7 +4401,7 @@ static int32_t validateLikeExpr(tSqlExpr* pExpr, STableMeta* pTableMeta, int32_t
   tSqlExpr* pRight = pExpr->pRight;
 
   if (pExpr->tokenId == TK_LIKE) {
-    if (pRight->value.nLen > TSDB_PATTERN_STRING_MAX_LEN) {
+    if (pRight->value.nLen > tsMaxLikeStringLen) {
       return invalidOperationMsg(msgBuf, msg1);
     }
 
