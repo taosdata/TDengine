@@ -244,6 +244,7 @@ python3 ./test.py -f query/queryStddevWithGroupby.py
 python3 ./test.py -f query/querySecondtscolumnTowherenow.py
 python3 ./test.py -f query/queryFilterTswithDateUnit.py
 python3 ./test.py -f query/queryTscomputWithNow.py
+python3 ./test.py -f query/queryStableJoin.py
 python3 ./test.py -f query/computeErrorinWhere.py
 python3 ./test.py -f query/queryTsisNull.py
 python3 ./test.py -f query/subqueryFilter.py
