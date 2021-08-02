@@ -13,7 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "cacheint.h"
+#include "cache_priv.h"
 #include "cacheItem.h"
 #include "cacheDefine.h"
 #include "cacheLog.h"
@@ -149,7 +149,6 @@ void cacheSlabFreeItem(cache_t *cache, cacheItem* pItem, cacheLockFlag flag) {
   }
 
   pItem->pTable = NULL;
-  pItem->hash   = 0;
 
   item_set_free(pItem);
 
@@ -162,36 +161,6 @@ static bool isReachMemoryLimit(cache_t *cache, int len) {
   }
 
   return false;
-}
-
-void *allocMemory(cache_t *cache, size_t size, bool chunked) {  
-  void* ptr = malloc(size);
-  if (ptr == NULL) {
-    return NULL;
-  }
-
-  cacheAllocMemoryCookie *pCookie = malloc(sizeof(cacheAllocMemoryCookie));
-  if (pCookie == NULL) {
-    free(ptr);
-    return NULL;
-  }
-  pCookie->buffer = ptr;
-
-  taosWLockLatch(&(cache->latch));
-  cache->alloced += size;
-  if (!chunked) {
-    pCookie->next = cache->cookieHead;
-    cache->cookieHead = pCookie;
-  } else {
-    cacheItem* pItem = (cacheItem*)ptr;
-    pItem->next = pItem->prev = NULL;
-    pItem->next = cache->chunkItemHead;
-    if (cache->chunkItemHead) cache->chunkItemHead->prev = pItem;
-    cache->chunkItemHead = pItem;
-  }
-  taosWUnLockLatch(&(cache->latch));
-
-  return ptr;
 }
 
 static int slabGrowArray(cache_t *cache, cacheSlabClass *pSlab) {
@@ -350,7 +319,7 @@ static int pullFromLru(cache_t *cache, int slabId, int curLru, uint64_t totalByt
     assert(item_is_used(search));    
 
     prev = search->prev;
-    pMutex = cacheItemBucketMutex(search);
+    pMutex = getItemMutexByItem(search);
   
     /* hash bucket has been locked by other thread */
     if (cacheMutexTryLock(pMutex) != 0) {

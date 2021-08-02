@@ -30,7 +30,6 @@ extern "C" {
 typedef struct cacheTableBucket {
   uint32_t hash;
   cacheItem* head;
-  cacheMutex mutex;
 } cacheTableBucket;
 
 struct cacheTable { 
@@ -51,16 +50,6 @@ void cacheTableDestroy(cacheTable *pTable);
 int cacheTablePut(cacheTable *pTable, cacheItem* pItem);
 cacheItem* cacheTableGet(cacheTable* pTable, const char* key, uint8_t nkey);
 void cacheTableRemove(cacheTable* pTable, const char* key, uint8_t nkey, bool freeItem);
-
-cacheMutex* cacheGetTableBucketMutexByKey(cacheTable* pTable, const char* key, uint8_t nkey);
-
-static int FORCE_INLINE cacheTableLockBucket(cacheTable* pTable, uint32_t hash) {
-  return cacheMutexLock(&(pTable->pBucket[hash % pTable->capacity].mutex));
-}
-
-static int FORCE_INLINE cacheTableUnlockBucket(cacheTable* pTable, uint32_t hash) {
-  return cacheMutexUnlock(&(pTable->pBucket[hash % pTable->capacity].mutex));
-}
 
 #ifdef __cplusplus
 }

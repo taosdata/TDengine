@@ -14,7 +14,7 @@
  */
 
 #include <string.h>
-#include "cacheint.h"
+#include "cache_priv.h"
 #include "cacheLog.h"
 #include "cacheItem.h"
 #include "cacheSlab.h"
@@ -23,9 +23,11 @@
 static int check_cache_options(cacheOption* options);
 static int cachePutDataIntoCache(cacheTable* pTable, const char* key, uint8_t nkey, 
                                 const char* value, uint32_t nbytes, cacheItem** ppItem, uint64_t expire);
+static int cacheInitItemMutex(cache_t*);
 static void cacheFreeChunkItems(cache_t*);
 static void cacheFreeMemory(cache_t*);
 static void cacheFreeTable(cache_t*);
+static void cacheDestroyItemMutex(cache_t*);
 
 cache_t* cacheCreate(cacheOption* options) {
   if (check_cache_options(options) != CACHE_OK) {
@@ -33,28 +35,32 @@ cache_t* cacheCreate(cacheOption* options) {
     return NULL;
   }
 
-  cache_t* cache = calloc(1, sizeof(cache_t));
-  if (cache == NULL) {
+  cache_t* pCache = calloc(1, sizeof(cache_t));
+  if (pCache == NULL) {
     cacheError("calloc cache_t fail");
     return NULL;
   }
 
-  taosInitRWLatch(&(cache->latch));
-  cache->options = *options;
+  taosInitRWLatch(&(pCache->latch));
+  pCache->options = *options;
 
-  if (cacheSlabInit(cache) != CACHE_OK) {
+  if (cacheSlabInit(pCache) != CACHE_OK) {
     goto error;
   }
 
-  if (cacheLruInit(cache) != CACHE_OK) {
+  if (cacheLruInit(pCache) != CACHE_OK) {
     goto error;
   }
 
-  return cache;
+  if (cacheInitItemMutex(pCache) != CACHE_OK) {
+    goto error;
+  }
+
+  return pCache;
 
 error:
-  if (cache != NULL) {
-    free(cache);
+  if (pCache != NULL) {
+    free(pCache);
   }
 
   return NULL;
@@ -66,12 +72,13 @@ void  cacheDestroy(cache_t* pCache) {
   cacheFreeChunkItems(pCache);
   cacheFreeMemory(pCache);
   cacheFreeTable(pCache);
+  cacheDestroyItemMutex(pCache);
 
   free(pCache);
 }
 
 int cachePut(cacheTable* pTable, const char* key, uint8_t nkey, const char* value, uint32_t nbytes, uint64_t expire) {
-  cacheMutex* pMutex = cacheGetTableBucketMutexByKey(pTable, key, nkey);
+  cacheMutex* pMutex = getItemMutexByKey(pTable, key, nkey);
   cacheMutexLock(pMutex);
 
   int ret = cachePutDataIntoCache(pTable,key,nkey,value,nbytes,NULL, expire);
@@ -82,7 +89,7 @@ int cachePut(cacheTable* pTable, const char* key, uint8_t nkey, const char* valu
 }
 
 int cacheGet(cacheTable* pTable, const char* key, uint8_t nkey, char** data, int* nbytes) {
-  cacheMutex *pMutex = cacheGetTableBucketMutexByKey(pTable, key, nkey);
+  cacheMutex *pMutex = getItemMutexByKey(pTable, key, nkey);
   cacheMutexLock(pMutex);
 
   *data = NULL;
@@ -147,12 +154,64 @@ out:
 }
 
 void cacheRemove(cacheTable* pTable, const char* key, uint8_t nkey) {
-  cacheMutex* mutex = cacheGetTableBucketMutexByKey(pTable, key, nkey);
+  cacheMutex* mutex = getItemMutexByKey(pTable, key, nkey);
   cacheMutexLock(mutex);
 
   cacheTableRemove(pTable, key, nkey, true);
 
   cacheMutexUnlock(mutex);
+}
+
+void *allocMemory(cache_t *cache, size_t size, bool chunked) {  
+  void* ptr = malloc(size);
+  if (ptr == NULL) {
+    return NULL;
+  }
+
+  cacheAllocMemoryCookie *pCookie = malloc(sizeof(cacheAllocMemoryCookie));
+  if (pCookie == NULL) {
+    free(ptr);
+    return NULL;
+  }
+  pCookie->buffer = ptr;
+
+  taosWLockLatch(&(cache->latch));
+  cache->alloced += size;
+  if (!chunked) {
+    pCookie->next = cache->cookieHead;
+    cache->cookieHead = pCookie;
+  } else {
+    cacheItem* pItem = (cacheItem*)ptr;
+    pItem->next = pItem->prev = NULL;
+    pItem->next = cache->chunkItemHead;
+    if (cache->chunkItemHead) cache->chunkItemHead->prev = pItem;
+    cache->chunkItemHead = pItem;
+  }
+  taosWUnLockLatch(&(cache->latch));
+
+  return ptr;
+}
+
+FORCE_INLINE cacheMutex* getItemMutexByKey(cacheTable* pTable, const char* key, uint8_t nkey) {
+  return &(pTable->pCache->itemMutex[pTable->hashFp(key, nkey) % ITEM_MUTEX_HASH_POWER]);
+}
+
+FORCE_INLINE cacheMutex* getItemMutexByItem(cacheItem* pItem) {
+  return getItemMutexByKey(pItem->pTable, item_key(pItem), pItem->nkey);
+}
+
+static int cacheInitItemMutex(cache_t* pCache) {
+  int i = 0;
+  int count = hashsize(ITEM_MUTEX_HASH_POWER);
+  pCache->itemMutex = calloc(count, sizeof(cacheMutex));
+  for (; i < hashsize(ITEM_MUTEX_HASH_POWER); i++) {
+    if (cacheMutexInit(&(pCache->itemMutex[i]))) {
+      goto err;
+    }
+  }
+  return 0;
+err:
+  return -1;
 }
 
 static int cachePutDataIntoCache(cacheTable* pTable, const char* key, uint8_t nkey, const char* value,
@@ -204,6 +263,14 @@ static void cacheFreeTable(cache_t* pCache) {
     cacheTableDestroy(pTable);
     pTable = pNextTable;
   }
+}
+
+static void cacheDestroyItemMutex(cache_t* pCache) {
+  int i = 0;
+  for (; i < hashsize(ITEM_MUTEX_HASH_POWER); i++) {
+    cacheMutexDestroy(&(pCache->itemMutex[i]));  
+  }
+  free(pCache->itemMutex);
 }
 
 static int check_cache_options(cacheOption* options) {

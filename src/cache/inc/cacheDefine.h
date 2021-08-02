@@ -31,6 +31,8 @@ extern "C" {
 
 #define SLAB_PAGE_SIZE 1024 * 1024
 
+#define ITEM_MUTEX_HASH_POWER 10
+
 #ifdef __cplusplus
 }
 #endif

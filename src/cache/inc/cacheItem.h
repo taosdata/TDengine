@@ -18,7 +18,7 @@
 
 #include <stdint.h>
 #include <string.h>
-#include "cacheint.h"
+#include "cache_priv.h"
 #include "cacheTypes.h"
 #include "osAtomic.h"
 #include "osDef.h"
@@ -43,7 +43,6 @@ struct cacheItem {
   struct cacheItem* h_next;       /* hash tabel next item, protected by table mutex */
 
   cacheTable*       pTable;       /* owner cache table */
-  uint32_t          hash;         /* hash index in cacheTable */
   uint16_t          flags;        /* item flags above */
 
   uint8_t           slabLruId;    /* which slab lru class we're in */
@@ -122,7 +121,7 @@ static FORCE_INLINE bool item_equal_key(cacheItem* item, const char* key, uint8_
 void cacheItemUnlink(cacheTable* pTable, cacheItem* pItem, cacheLockFlag flag);
 void cacheItemRemove(cache_t*, cacheItem*);
 void cacheItemBump(cacheTable* pTable, cacheItem* pItem, uint64_t now);
-cacheMutex* cacheItemBucketMutex(cacheItem*);
+cacheMutex* getItemMutexByItem(cacheItem*);
 cacheItem* cacheAllocItem(cache_t*, uint8_t nkey, uint32_t nbytes, uint64_t expireTime);
 
 #ifdef __cplusplus

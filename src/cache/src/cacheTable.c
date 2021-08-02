@@ -15,14 +15,13 @@
 
 #include <stdlib.h>
 #include "cacheTable.h"
-#include "cacheint.h"
+#include "cache_priv.h"
 #include "cacheItem.h"
 #include "cacheSlab.h"
 #include "cacheTypes.h"
 #include "hash.h"
 
 static int        initTableBucket(cacheTableBucket* pBucket, uint32_t id);
-static void       destroyTableBucket(cacheTableBucket* pBucket);
 static cacheItem* findItemByKey(cacheTable* pTable, const char* key, uint8_t nkey, cacheItem **ppPrev);
 static void       removeTableItem(cache_t* pCache, cacheTableBucket* pBucket, cacheItem* pItem,
                                 cacheItem* pPrev, bool freeItem);
@@ -74,10 +73,7 @@ error:
 
 void cacheTableDestroy(cacheTable *pTable) {
   cacheMutexDestroy(&(pTable->mutex));
-  int i = 0;
-  for (i = 0; i < pTable->capacity; i++) {
-    destroyTableBucket(&(pTable->pBucket[i]));
-  }
+
   free(pTable->pBucket);
   free(pTable);
 }
@@ -85,11 +81,7 @@ void cacheTableDestroy(cacheTable *pTable) {
 static int initTableBucket(cacheTableBucket* pBucket, uint32_t id) {
   pBucket->hash = id;
   pBucket->head = NULL;
-  return cacheMutexInit(&(pBucket->mutex));
-}
-
-static void destroyTableBucket(cacheTableBucket* pBucket) {
-  cacheMutexDestroy(&(pBucket->mutex));
+  return 0;
 }
 
 static cacheItem* findItemByKey(cacheTable* pTable, const char* key, uint8_t nkey, cacheItem **ppPrev) {
@@ -138,7 +130,6 @@ int cacheTablePut(cacheTable* pTable, cacheItem* pItem) {
   
   pItem->h_next = pBucket->head;
   pBucket->head = pItem;
-  pItem->hash = index;
   pItem->pTable = pTable;
 
   return CACHE_OK;
@@ -156,9 +147,4 @@ void cacheTableRemove(cacheTable* pTable, const char* key, uint8_t nkey, bool fr
   pItem = findItemByKey(pTable, key, nkey, &pPrev);
 
   removeTableItem(pTable->pCache, pBucket, pItem, pPrev, freeItem);
-}
-
-cacheMutex* cacheGetTableBucketMutexByKey(cacheTable* pTable, const char* key, uint8_t nkey) {
-  uint32_t hash = pTable->hashFp(key, nkey) % pTable->capacity;
-  return &(pTable->pBucket[hash].mutex);
 }

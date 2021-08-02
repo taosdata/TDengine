@@ -16,7 +16,7 @@
 #include <assert.h>
 #include <string.h>
 #include "cacheTable.h"
-#include "cacheint.h"
+#include "cache_priv.h"
 #include "cacheLru.h"
 #include "cacheItem.h"
 #include "cacheSlab.h"
@@ -103,15 +103,12 @@ void cacheItemBump(cacheTable* pTable, cacheItem* pItem, uint64_t now) {
   updateItemInColdLruList(pItem, now);
 }
 
-FORCE_INLINE cacheMutex* cacheItemBucketMutex(cacheItem* pItem) {
-  return &(pItem->pTable->pBucket[pItem->hash].mutex);
-}
-
 static void updateItemInColdLruList(cacheItem* pItem, uint64_t now) {
   assert(item_is_used(pItem));
   assert(item_slablru_id(pItem) == CACHE_LRU_COLD && item_is_active(pItem));
 
-  cacheTableLockBucket(pItem->pTable, pItem->hash);
+  cacheMutex* pMutex = getItemMutexByKey(pItem->pTable, item_key(pItem), pItem->nkey);
+  cacheMutexLock(pMutex);
 
   /* update last access time */
   pItem->lastTime = now;
@@ -121,7 +118,7 @@ static void updateItemInColdLruList(cacheItem* pItem, uint64_t now) {
   pItem->slabLruId = item_slab_id(pItem) | CACHE_LRU_WARM;
   cacheLruLinkItem(pItem->pTable->pCache, pItem, true);
 
-  cacheTableUnlockBucket(pItem->pTable, pItem->hash);
+  cacheMutexUnlock(pMutex);
 }
 
 static void freeCacheItem(cache_t* pCache, cacheItem* pItem) {

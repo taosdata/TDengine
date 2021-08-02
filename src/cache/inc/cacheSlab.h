@@ -55,8 +55,6 @@ cacheItem* cacheSlabAllocItem(cache_t *cache, size_t ntotal, uint32_t id);
 
 void cacheSlabFreeItem(cache_t *cache, cacheItem* item, cacheLockFlag flag);
 
-void *allocMemory(cache_t *cache, size_t size, bool chunked);
-
 #ifdef __cplusplus
 }
 #endif

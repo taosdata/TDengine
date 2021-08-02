@@ -54,8 +54,17 @@ struct cache_t {
 
   cacheItem* chunkItemHead;
 
+  cacheMutex* itemMutex;
+
   int powerLargest;  
 };
+
+void *allocMemory(cache_t *cache, size_t size, bool chunked);
+
+cacheMutex* getItemMutexByKey(cacheTable* pTable, const char* key, uint8_t nkey);
+
+#define hashsize(n) ((unsigned long int)1<<(n))
+#define hashmask(n) (hashsize(n)-1)
 
 #ifdef __cplusplus
 }
