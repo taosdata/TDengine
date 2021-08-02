@@ -1816,6 +1816,59 @@ if $data20 != @21-05-05 18:19:28.000@ then
   return -1
 endi
 
+sql select * from stb1 where c1 between 60 and 9999999999;
+if $rows != 4 then
+  return -1
+endi
+if $data00 != @21-05-05 18:19:24.000@ then
+  return -1
+endi
+if $data10 != @21-05-05 18:19:25.000@ then
+  return -1
+endi
+if $data20 != @21-05-05 18:19:26.000@ then
+  return -1
+endi
+if $data30 != @21-05-05 18:19:27.000@ then
+  return -1
+endi
+sql select * from stb1 where c1 > 9999999999;
+if $rows != 0 then
+  return -1
+endi
+sql select * from stb1 where c1 < 9999999999;
+if $rows != 28 then
+  return -1
+endi
+sql select * from stb1 where c1 = 9999999999;
+if $rows != 0 then
+  return -1
+endi
+sql select * from stb1 where c1 <> 9999999999;
+if $rows != 28 then
+  return -1
+endi
+sql select * from stb1 where c4 < -9999999999;
+if $rows != 0 then
+  return -1
+endi
+sql select * from stb1 where c4 > -9999999999;
+if $rows != 28 then
+  return -1
+endi
+sql select * from stb1 where c4 = -9999999999;
+if $rows != 0 then
+  return -1
+endi
+sql select * from stb1 where c4 <> -9999999999;
+if $rows != 28 then
+  return -1
+endi
+sql select * from stb1 where c5 in (-9999999999);
+#sql select * from stb1 where c5 in (9999999999);
+#sql select * from stb1 where c5 in (-9999999999,3,4,9999999999);
+
+
 sql select * from stb3 where c1 > 3 and c1 < 2;
 if $rows != 0 then
   return -1
@@ -1889,6 +1942,7 @@ sql select * from stb3 where c1 is not null or c1 is null;
 if $rows != 14 then
   return -1
 endi
+
 
 
 print "ts test"

@@ -95,7 +95,6 @@ void arithmeticTreeTraverse(tExprNode *pExprs, int32_t numOfRows, char *pOutput,
                             char *(*cb)(void *, const char*, int32_t));
 
 void buildFilterSetFromBinary(void **q, const char *buf, int32_t len);
-void convertFilterSetFromBinary(void **q, const char *buf, int32_t len, uint32_t tType);
 
 #ifdef __cplusplus
 }

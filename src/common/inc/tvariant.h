@@ -53,6 +53,8 @@ int32_t tVariantToString(tVariant *pVar, char *dst);
 
 int32_t tVariantDump(tVariant *pVariant, char *payload, int16_t type, bool includeLengthPrefix);
 
+int32_t tVariantDumpEx(tVariant *pVariant, char *payload, int16_t type, bool includeLengthPrefix, bool *converted, char *extInfo);
+
 int32_t tVariantTypeSetType(tVariant *pVariant, char type);
 
 #ifdef __cplusplus

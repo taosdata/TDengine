@@ -30,6 +30,8 @@ extern "C" {
 #define FILTER_DEFAULT_VALUE_SIZE 4
 #define FILTER_DEFAULT_GROUP_UNIT_SIZE 2
 
+#define FILTER_DUMMY_EMPTY_OPTR  127
+
 #define MAX_NUM_STR_SIZE 40
 
 enum {
@@ -214,12 +216,12 @@ typedef struct SFilterInfo {
 #define COL_FIELD_SIZE (sizeof(SFilterField) + 2 * sizeof(int64_t))
 
 #define FILTER_NO_MERGE_DATA_TYPE(t) ((t) == TSDB_DATA_TYPE_BINARY || (t) == TSDB_DATA_TYPE_NCHAR)
-#define FILTER_NO_MERGE_OPTR(o) ((o) == TSDB_RELATION_ISNULL || (o) == TSDB_RELATION_NOTNULL)
+#define FILTER_NO_MERGE_OPTR(o) ((o) == TSDB_RELATION_ISNULL || (o) == TSDB_RELATION_NOTNULL || (o) == FILTER_DUMMY_EMPTY_OPTR)
 
 #define MR_EMPTY_RES(ctx) (ctx->rs == NULL)
 
-#define SET_AND_OPTR(ctx, o) do {if (o == TSDB_RELATION_ISNULL) { (ctx)->isnull = true; } else if (o == TSDB_RELATION_NOTNULL) { if (!(ctx)->isrange) { (ctx)->notnull = true; } } else { (ctx)->isrange = true; (ctx)->notnull = false; }  } while (0)
-#define SET_OR_OPTR(ctx,o) do {if (o == TSDB_RELATION_ISNULL) { (ctx)->isnull = true; } else if (o == TSDB_RELATION_NOTNULL) { (ctx)->notnull = true; (ctx)->isrange = false; } else { if (!(ctx)->notnull) { (ctx)->isrange = true; } } } while (0)
+#define SET_AND_OPTR(ctx, o) do {if (o == TSDB_RELATION_ISNULL) { (ctx)->isnull = true; } else if (o == TSDB_RELATION_NOTNULL) { if (!(ctx)->isrange) { (ctx)->notnull = true; } } else if (o != FILTER_DUMMY_EMPTY_OPTR) { (ctx)->isrange = true; (ctx)->notnull = false; }  } while (0)
+#define SET_OR_OPTR(ctx,o) do {if (o == TSDB_RELATION_ISNULL) { (ctx)->isnull = true; } else if (o == TSDB_RELATION_NOTNULL) { (ctx)->notnull = true; (ctx)->isrange = false; } else if (o != FILTER_DUMMY_EMPTY_OPTR) { if (!(ctx)->notnull) { (ctx)->isrange = true; } } } while (0)
 #define CHK_OR_OPTR(ctx)  ((ctx)->isnull == true && (ctx)->notnull == true)
 #define CHK_AND_OPTR(ctx)  ((ctx)->isnull == true && (((ctx)->notnull == true) || ((ctx)->isrange == true)))
 
