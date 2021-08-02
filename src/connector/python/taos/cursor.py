@@ -11,8 +11,8 @@ class TaosCursor(object):
     Attributes:
         .description: Read-only attribute consists of 7-item sequences:
 
-            > name (mondatory)
-            > type_code (mondatory)
+            > name (mandatory)
+            > type_code (mandatory)
             > display_size
             > internal_size
             > precision
@@ -118,7 +118,7 @@ class TaosCursor(object):
 
         # global querySeqNum
         # querySeqNum += 1
-        # localSeqNum = querySeqNum # avoid raice condition
+        # localSeqNum = querySeqNum # avoid race condition
         # print("   >> Exec Query ({}): {}".format(localSeqNum, str(stmt)))
         self._result = taos_query(self._connection._conn, stmt)
         # print("   << Query ({}) Exec Done".format(localSeqNum))

@@ -1,4 +1,3 @@
-from struct import Struct
 from taos.cinterface import *
 from taos.precision import *
 from taos.bind import *

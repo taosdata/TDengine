@@ -81,7 +81,7 @@ class TaosConnection(object):
     
     def query_a(self, sql, callback, param):
         # type: (str, async_query_callback_type, c_void_p) -> None
-        """Asyncronously query a sql with callback function
+        """Asynchronously query a sql with callback function
         """
         taos_query_a(self._conn, sql, callback, param)
 

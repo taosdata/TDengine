@@ -38,7 +38,6 @@ class TaosBind(ctypes.Structure):
         self.buffer_type = FieldType.C_TINYINT
         self.buffer = cast(pointer(c_int8(value)), c_void_p)
         self.buffer_length = sizeof(c_int8)
-        # self.lenght = pointer(c_int(self.buffer_length))
 
     def smallint(self, value):
         self.buffer_type = FieldType.C_SMALLINT

@@ -390,7 +390,7 @@ if __name__ == "__main__":
     test_stream(connect())
 ```
 
-### Insert with line protocal
+### Insert with line protocol
 
 ```python
 import taos

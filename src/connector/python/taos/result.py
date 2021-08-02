@@ -124,7 +124,7 @@ class TaosResult(object):
         return taos_stop_query(self._result)
 
     def errno(self):
-        """DONOT use this directly unless you know what you are doing"""
+        """**DO NOT** use this directly unless you know what you are doing"""
         return taos_errno(self._result)
 
     def errstr(self):
