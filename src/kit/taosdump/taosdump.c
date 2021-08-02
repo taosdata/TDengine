@@ -340,8 +340,8 @@ struct arguments g_args = {
     false,      // schemeonly
     true,       // with_property
     false,      // avro format
-    -INT64_MAX,          // start_time
-    INT64_MAX,  // end_time
+    -INT64_MAX/1000, // start_time
+    INT64_MAX/1000,  // end_time
     "ms",       // precision
     1,          // data_batch
     TSDB_MAX_SQL_LEN,   // max_sql_len
@@ -798,11 +798,11 @@ static int taosGetTableRecordInfo(
         tstrncpy(pTableRecordInfo->tableRecord.name,
                 (char *)row[TSDB_SHOW_TABLES_NAME_INDEX],
                 min(TSDB_TABLE_NAME_LEN,
-                    fields[TSDB_SHOW_TABLES_NAME_INDEX].bytes) + 1);
+                    fields[TSDB_SHOW_TABLES_NAME_INDEX].bytes + 1));
         tstrncpy(pTableRecordInfo->tableRecord.metric,
                 (char *)row[TSDB_SHOW_TABLES_METRIC_INDEX],
                 min(TSDB_TABLE_NAME_LEN,
-                    fields[TSDB_SHOW_TABLES_METRIC_INDEX].bytes) + 1);
+                    fields[TSDB_SHOW_TABLES_METRIC_INDEX].bytes + 1));
         break;
     }
 
@@ -1084,7 +1084,7 @@ _dump_db_point:
         }
 
         tstrncpy(g_dbInfos[count]->name, (char *)row[TSDB_SHOW_DB_NAME_INDEX],
-                min(TSDB_DB_NAME_LEN, fields[TSDB_SHOW_DB_NAME_INDEX].bytes) + 1);
+                min(TSDB_DB_NAME_LEN, fields[TSDB_SHOW_DB_NAME_INDEX].bytes + 1));
         if (g_args.with_property) {
             g_dbInfos[count]->ntables = *((int32_t *)row[TSDB_SHOW_DB_NTABLES_INDEX]);
             g_dbInfos[count]->vgroups = *((int32_t *)row[TSDB_SHOW_DB_VGROUPS_INDEX]);
@@ -1093,7 +1093,7 @@ _dump_db_point:
             g_dbInfos[count]->days = *((int16_t *)row[TSDB_SHOW_DB_DAYS_INDEX]);
 
             tstrncpy(g_dbInfos[count]->keeplist, (char *)row[TSDB_SHOW_DB_KEEP_INDEX],
-                    min(32, fields[TSDB_SHOW_DB_KEEP_INDEX].bytes) + 1);
+                    min(32, fields[TSDB_SHOW_DB_KEEP_INDEX].bytes + 1));
             //g_dbInfos[count]->daysToKeep = *((int16_t *)row[TSDB_SHOW_DB_KEEP_INDEX]);
             //g_dbInfos[count]->daysToKeep1;
             //g_dbInfos[count]->daysToKeep2;
@@ -1107,7 +1107,7 @@ _dump_db_point:
             g_dbInfos[count]->cachelast = (int8_t)(*((int8_t *)row[TSDB_SHOW_DB_CACHELAST_INDEX]));
 
             tstrncpy(g_dbInfos[count]->precision, (char *)row[TSDB_SHOW_DB_PRECISION_INDEX],
-                    min(8, fields[TSDB_SHOW_DB_PRECISION_INDEX].bytes) + 1);
+                    min(8, fields[TSDB_SHOW_DB_PRECISION_INDEX].bytes + 1));
             //g_dbInfos[count]->precision = *((int8_t *)row[TSDB_SHOW_DB_PRECISION_INDEX]);
             g_dbInfos[count]->update = *((int8_t *)row[TSDB_SHOW_DB_UPDATE_INDEX]);
         }
@@ -1707,7 +1707,7 @@ static int32_t taosDumpCreateSuperTableClause(TAOS* taosCon, char* dbName, FILE 
         memset(&tableRecord, 0, sizeof(STableRecord));
         tstrncpy(tableRecord.name, (char *)row[TSDB_SHOW_TABLES_NAME_INDEX],
                 min(TSDB_TABLE_NAME_LEN,
-                    fields[TSDB_SHOW_TABLES_NAME_INDEX].bytes) + 1);
+                    fields[TSDB_SHOW_TABLES_NAME_INDEX].bytes + 1));
         taosWrite(fd, &tableRecord, sizeof(STableRecord));
     }
 
@@ -1782,10 +1782,10 @@ static int taosDumpDb(SDbInfo *dbInfo, FILE *fp, TAOS *taosCon) {
         memset(&tableRecord, 0, sizeof(STableRecord));
         tstrncpy(tableRecord.name, (char *)row[TSDB_SHOW_TABLES_NAME_INDEX],
                 min(TSDB_TABLE_NAME_LEN,
-                    fields[TSDB_SHOW_TABLES_NAME_INDEX].bytes) + 1);
+                    fields[TSDB_SHOW_TABLES_NAME_INDEX].bytes + 1));
         tstrncpy(tableRecord.metric, (char *)row[TSDB_SHOW_TABLES_METRIC_INDEX],
                 min(TSDB_TABLE_NAME_LEN,
-                    fields[TSDB_SHOW_TABLES_METRIC_INDEX].bytes) + 1);
+                    fields[TSDB_SHOW_TABLES_METRIC_INDEX].bytes + 1));
 
         taosWrite(fd, &tableRecord, sizeof(STableRecord));
 
