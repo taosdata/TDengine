@@ -6078,10 +6078,12 @@ int32_t setAlterTableInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
 
     SSchema* pSchema = tscGetTableTagSchema(pTableMetaInfo->pTableMeta);
     int16_t numOfTags = tscGetNumOfTags(pTableMetaInfo->pTableMeta);
-    int16_t i;
+    int32_t numOfCols = tscGetNumOfColumns(pTableMetaInfo->pTableMeta);
+    int32_t tagIndex = columnIndex.columnIndex - numOfCols;
+    assert(tagIndex>=0);
     uint32_t nLen = 0;
-    for (i = 0; i < numOfTags; ++i) {
-      nLen += (i != columnIndex.columnIndex) ? pSchema[i].bytes : pItem->bytes;
+    for (int i = 0; i < numOfTags; ++i) {
+      nLen += (i != tagIndex) ? pSchema[i].bytes : pItem->bytes;
     }
     if (nLen >= TSDB_MAX_TAGS_LEN) {
       return invalidOperationMsg(pMsg, msg24);
