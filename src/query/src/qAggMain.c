@@ -4018,6 +4018,7 @@ static void mergeTableBlockDist(SResultRowCellInfo* pResInfo, const STableBlockD
 
   pDist->numOfTables += pSrc->numOfTables;
   pDist->numOfRowsInMemTable += pSrc->numOfRowsInMemTable;
+  pDist->numOfSmallBlocks += pSrc->numOfSmallBlocks;
   pDist->numOfFiles += pSrc->numOfFiles;
   pDist->totalSize += pSrc->totalSize;
   pDist->totalRows += pSrc->totalRows;
@@ -4130,18 +4131,19 @@ void generateBlockDistResult(STableBlockDist *pTableBlockDist, char* result) {
 
   uint64_t totalLen = pTableBlockDist->totalSize;
   int32_t rowSize = pTableBlockDist->rowSize;
+  int32_t smallBlocks = pTableBlockDist->numOfSmallBlocks;
   double compRatio = (totalRows>0) ? ((double)(totalLen)/(rowSize*totalRows)) : 1;
   int sz = sprintf(result + VARSTR_HEADER_SIZE,
                    "summary: \n\t "
                    "5th=[%d], 10th=[%d], 20th=[%d], 30th=[%d], 40th=[%d], 50th=[%d]\n\t "
                    "60th=[%d], 70th=[%d], 80th=[%d], 90th=[%d], 95th=[%d], 99th=[%d]\n\t "
                    "Min=[%"PRId64"(Rows)] Max=[%"PRId64"(Rows)] Avg=[%"PRId64"(Rows)] Stddev=[%.2f] \n\t "
-                   "Rows=[%"PRIu64"], Blocks=[%"PRId64"], Size=[%.3f(Kb)] Comp=[%.2f]\n\t "
+                   "Rows=[%"PRIu64"], Blocks=[%"PRId64"], SmallBlocks=[%d], Size=[%.3f(Kb)] Comp=[%.2f]\n\t "
                    "RowsInMem=[%d] \n\t",
                    percentiles[0], percentiles[1], percentiles[2], percentiles[3], percentiles[4], percentiles[5],
                    percentiles[6], percentiles[7], percentiles[8], percentiles[9], percentiles[10], percentiles[11],
                    min, max, avg, stdDev,
-                   totalRows, totalBlocks, totalLen/1024.0, compRatio,
+                   totalRows, totalBlocks, smallBlocks, totalLen/1024.0, compRatio,
                    pTableBlockDist->numOfRowsInMemTable);
   varDataSetLen(result, sz);
   UNUSED(sz);
@@ -4184,8 +4186,8 @@ int32_t functionCompatList[] = {
     4,         -1,       -1,         1,        1,      1,          1,           1,        1,     -1,
     //  tag,    colprj,   tagprj,    arithmetic, diff, first_dist, last_dist,   stddev_dst, interp    rate    irate
     1,          1,        1,         1,       -1,      1,          1,           1,          5,        1,      1,
-    // tid_tag, blk_info
-    6,       7
+    // tid_tag, derivative, blk_info
+    6,          8,        7,
 };
 
 SAggFunctionInfo aAggs[] = {{
