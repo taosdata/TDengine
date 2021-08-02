@@ -183,6 +183,7 @@ typedef struct SQuery {
 
   bool             stableQuery;      // super table query or not
   bool             topBotQuery;      // TODO used bitwise flag
+  bool             interpQuery;      // denote if this is an interp query
   bool             groupbyColumn;    // denote if this is a groupby normal column query
   bool             hasTagResults;    // if there are tag values in final result or not
   bool             timeWindowInterpo;// if the time window start/end required interpolation
@@ -288,6 +289,8 @@ enum OPERATOR_TYPE_E {
   OP_MultiTableAggregate     = 14,
   OP_MultiTableTimeInterval  = 15,
   OP_Having            = 16,
+  OP_AllTimeWindow     = 17,
+  OP_AllMultiTableTimeInterval = 18,
 };
 
 typedef struct SOperatorInfo {
