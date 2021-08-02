@@ -1192,9 +1192,9 @@ class TDTestCase:
         self.tagColAddCheckCase()
         self.tagMd5Check()
         self.tagColBinaryMaxLengthCheckCase()
-        self.tagColNcharMaxLengthCheckCase()
+        # self.tagColNcharMaxLengthCheckCase()
         self.batchInsertCheckCase()
-        self.multiInsertCheckCase(5000)
+        self.multiInsertCheckCase(1000)
         self.batchErrorInsertCheckCase()
         # MultiThreads
         self.stbInsertMultiThreadCheckCase()
