@@ -180,13 +180,14 @@ class TDTestCase:
         os.system("%staosdemo -f tools/taosdemoAllTest/insertColumnsAndTagNum4096.json -y " % binPath)
         tdSql.query("select count(*) from db.stb0")
         tdSql.checkData(0, 0, 10000) 
+
         tdSql.execute("drop database if exists db")
         os.system("%staosdemo -f tools/taosdemoAllTest/insertInterlaceRowsLarge1M.json -y " % binPath)
         tdSql.query("select count(*) from db.stb0")
         tdSql.checkRows(0)
-        tdSql.execute("drop database if exists db") 
+        tdSql.execute("drop database if exists db")
         os.system("%staosdemo -f tools/taosdemoAllTest/insertColumnsNum0.json -y " % binPath)
-        tdSql.execute("use db") 
+        tdSql.execute("use db")
         tdSql.query("show stables like 'stb0%' ")
         tdSql.checkData(0, 2, 11)
         tdSql.execute("drop database if exists db") 
@@ -196,7 +197,7 @@ class TDTestCase:
         os.system("%staosdemo -f tools/taosdemoAllTest/insertBinaryLenLarge16374AllcolLar49151.json -y " % binPath)   
         tdSql.query("select count(*) from db.stb0") 
         tdSql.checkRows(1)
-        tdSql.query("select count(*) from db.stb1") 
+        tdSql.query("select count(*) from db.stb1")
         tdSql.checkRows(1)
         tdSql.error("select * from db.stb4")
         tdSql.error("select * from db.stb2")
@@ -221,7 +222,7 @@ class TDTestCase:
         tdSql.checkData(0, 0, "2020-03-31 12:00:00.000")
         tdSql.query("select first(ts) from blf.p_0_topics_2")
         tdSql.checkData(0, 0, "2019-10-01 00:00:00")
-        tdSql.query("select last(ts) from blf.p_0_topics_6 ")        
+        tdSql.query("select last(ts) from blf.p_0_topics_6 ")
         tdSql.checkData(0, 0, "2020-09-29 23:59:00")
         os.system("%staosdemo -f tools/taosdemoAllTest/insertMaxNumPerReq.json -y " % binPath)
         tdSql.execute("use db")
@@ -324,6 +325,7 @@ class TDTestCase:
         
         
         
+
     def stop(self):
         tdSql.close()
         tdLog.success("%s successfully executed" % __file__)

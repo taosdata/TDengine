@@ -69,7 +69,7 @@ typedef struct STableComInfo {
 typedef struct STableMeta {
   int32_t        vgId;
   STableId       id;
-  uint8_t        tableType;
+  int8_t         tableType;
   char           sTableName[TSDB_TABLE_FNAME_LEN];  // super table name
   uint64_t       suid;       // super table id
   int16_t        sversion;

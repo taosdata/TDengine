@@ -40,7 +40,7 @@ static SQueryNode* createQueryNode(int32_t type, const char* name, SQueryNode** 
   pNode->info.type = type;
   pNode->info.name = strdup(name);
 
-  if (pTableInfo->id.uid != 0) { // it is a true table
+  if (pTableInfo->id.uid != 0 && pTableInfo->tableName) { // it is a true table
     pNode->tableInfo.id = pTableInfo->id;
     pNode->tableInfo.tableName = strdup(pTableInfo->tableName);
   }
@@ -222,6 +222,7 @@ SArray* createQueryPlanImpl(SQueryInfo* pQueryInfo) {
 
   if (pQueryInfo->numOfTables > 1) {  // it is a join query
     // 1. separate the select clause according to table
+    taosArrayDestroy(upstream);
     upstream = taosArrayInit(5, POINTER_BYTES);
 
     for(int32_t i = 0; i < pQueryInfo->numOfTables; ++i) {
@@ -231,6 +232,7 @@ SArray* createQueryPlanImpl(SQueryInfo* pQueryInfo) {
       SArray* exprList = taosArrayInit(4, POINTER_BYTES);
       if (tscExprCopy(exprList, pQueryInfo->exprList, uid, true) != 0) {
         terrno = TSDB_CODE_TSC_OUT_OF_MEMORY;
+        tscExprDestroy(exprList);
         exit(-1);
       }
 
@@ -245,6 +247,8 @@ SArray* createQueryPlanImpl(SQueryInfo* pQueryInfo) {
 
       // 4. add the projection query node
       SQueryNode* pNode = doAddTableColumnNode(pQueryInfo, pTableMetaInfo, &info, exprList, tableColumnList);
+      tscColumnListDestroy(tableColumnList);
+      tscExprDestroy(exprList);
       taosArrayPush(upstream, &pNode);
     }
 

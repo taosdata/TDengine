@@ -34,11 +34,11 @@ while $i < $tbNum
   $tb = $tbPrefix . $i
   sql create table $tb using $mt tags( $i )
   
-  $x = -1440
+  $x = 0
   $y = 0
   while $y < $rowNum
-    $ms = $x . m 
-    sql insert into $tb values (now $ms , $y , $y ) 
+    $ts = 1626710400000 + $x  
+    sql insert into $tb values ($ts , $y , $y ) 
     $x = $x + 1
 	$y = $y + 1
   endw 

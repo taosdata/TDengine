@@ -308,7 +308,7 @@ do { \
 #define TSDB_DEFAULT_WAL_LEVEL          1
 
 #define TSDB_MIN_DB_UPDATE              0
-#define TSDB_MAX_DB_UPDATE              1
+#define TSDB_MAX_DB_UPDATE              2
 #define TSDB_DEFAULT_DB_UPDATE_OPTION   0
 
 #define TSDB_MIN_DB_CACHE_LAST_ROW      0
@@ -366,6 +366,7 @@ do { \
 #define TSDB_QUERY_TYPE_MULTITABLE_QUERY       0x200u
 #define TSDB_QUERY_TYPE_FILE_INSERT            0x400u    // insert data from file
 #define TSDB_QUERY_TYPE_STMT_INSERT            0x800u    // stmt insert type
+#define TSDB_QUERY_TYPE_NEST_SUBQUERY          0x1000u   // nested sub query
 
 #define TSDB_QUERY_HAS_TYPE(x, _type)          (((x) & (_type)) != 0)
 #define TSDB_QUERY_SET_TYPE(x, _type)          ((x) |= (_type))
@@ -435,6 +436,12 @@ typedef enum {
   TSDB_CHECK_ITEM_DATAFILE,
   TSDB_CHECK_ITEM_MAX
 } ECheckItemType;
+
+typedef enum {
+  TD_ROW_DISCARD_UPDATE   = 0,
+  TD_ROW_OVERWRITE_UPDATE = 1,
+  TD_ROW_PARTIAL_UPDATE   = 2
+} TDUpdateConfig;
 
 extern char *qtypeStr[];
 

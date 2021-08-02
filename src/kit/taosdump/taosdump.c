@@ -1264,7 +1264,7 @@ static int taosGetTableDes(
                     fields[TSDB_DESCRIBE_METRIC_FIELD_INDEX].bytes + 1));
         tstrncpy(tableDes->cols[count].type,
                 (char *)row[TSDB_DESCRIBE_METRIC_TYPE_INDEX],
-                min(16, fields[TSDB_DESCRIBE_METRIC_TYPE_INDEX].bytes) + 1);
+                min(16, fields[TSDB_DESCRIBE_METRIC_TYPE_INDEX].bytes + 1));
         tableDes->cols[count].length =
             *((int *)row[TSDB_DESCRIBE_METRIC_LENGTH_INDEX]);
         tstrncpy(tableDes->cols[count].note,
