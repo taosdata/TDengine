@@ -582,9 +582,7 @@ int32_t tsParseValues(char **str, STableDataBlocks *pDataBlock, int maxRows, SSq
     sToken = tStrGetToken(*str, &index, false);
     *str += index;
     if (sToken.n == 0 || sToken.type != TK_RP) {
-      tscSQLSyntaxErrMsg(pCmd->payload, ") expected", *str);
-      code = TSDB_CODE_TSC_SQL_SYNTAX_ERROR;
-      return -1;
+      return tscSQLSyntaxErrMsg(pCmd->payload, ") expected", *str);
     }
 
     (*numOfRows)++;
