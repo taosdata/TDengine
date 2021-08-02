@@ -2432,6 +2432,7 @@ int32_t tsdbGetFileBlocksDistInfo(TsdbQueryHandleT* queryHandle, STableBlockDist
   int32_t     code = TSDB_CODE_SUCCESS;
   int32_t     numOfBlocks = 0;
   int32_t     numOfTables = (int32_t)taosArrayGetSize(pQueryHandle->pTableCheckInfo);
+  int         defaultRows = TSDB_DEFAULT_BLOCK_ROWS(pCfg->maxRowsPerFileBlock);
   STimeWindow win = TSWINDOW_INITIALIZER;
 
   while (true) {
@@ -2491,6 +2492,7 @@ int32_t tsdbGetFileBlocksDistInfo(TsdbQueryHandleT* queryHandle, STableBlockDist
         pTableBlockInfo->totalRows += numOfRows;
         if (numOfRows > pTableBlockInfo->maxRows) pTableBlockInfo->maxRows = numOfRows;
         if (numOfRows < pTableBlockInfo->minRows) pTableBlockInfo->minRows = numOfRows;
+        if (numOfRows < defaultRows) pTableBlockInfo->numOfSmallBlocks+=1;
         int32_t  stepIndex = (numOfRows-1)/TSDB_BLOCK_DIST_STEP_ROWS;
         SFileBlockInfo *blockInfo = (SFileBlockInfo*)taosArrayGet(pTableBlockInfo->dataBlockInfos, stepIndex);
         blockInfo->numBlocksOfStep++;
