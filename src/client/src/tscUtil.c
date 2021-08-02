@@ -3654,7 +3654,7 @@ SSqlObj* createSubqueryObj(SSqlObj* pSql, int16_t tableIndex, __async_cb_func_t 
 
   if (pQueryInfo->fillType != TSDB_FILL_NONE) {
     //just make memory memory sanitizer happy  
-    //refator later
+    //refactor later
     pNewQueryInfo->fillVal = calloc(1, pQueryInfo->fieldsInfo.numOfOutput * sizeof(int64_t));
     if (pNewQueryInfo->fillVal == NULL) {
       terrno = TSDB_CODE_TSC_OUT_OF_MEMORY;
