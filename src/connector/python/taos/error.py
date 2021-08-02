@@ -1,3 +1,4 @@
+# encoding:UTF-8
 """Python exceptions
 """
 
@@ -29,6 +30,9 @@ class DatabaseError(Error):
 
     pass
 
+class ConnectionError(Error):
+    """Exceptin raised for connection failed"""
+    pass
 
 class DataError(DatabaseError):
     """Exception raised for errors that are due to problems with the processed data like division by zero, numeric value out of range."""

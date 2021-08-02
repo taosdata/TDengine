@@ -1,13 +1,14 @@
+# encoding:UTF-8
 from taos import *
 
 conn = connect()
 
 dbname = "pytest_taos_stmt"
-conn.exec("drop database if exists %s" % dbname)
-conn.exec("create database if not exists %s" % dbname)
+conn.execute("drop database if exists %s" % dbname)
+conn.execute("create database if not exists %s" % dbname)
 conn.select_db(dbname)
 
-conn.exec(
+conn.execute(
     "create table if not exists log(ts timestamp, bo bool, nil tinyint, \
         ti tinyint, si smallint, ii int, bi bigint, tu tinyint unsigned, \
         su smallint unsigned, iu int unsigned, bu bigint unsigned, \

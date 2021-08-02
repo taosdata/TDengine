@@ -1,3 +1,5 @@
+# encoding:UTF-8
+
 import ctypes
 import platform
 import sys
@@ -7,6 +9,7 @@ from typing import Any
 from .error import *
 from .bind import *
 from .field import *
+
 
 # stream callback
 stream_callback_type = CFUNCTYPE(None, c_void_p, c_void_p, c_void_p)
@@ -47,7 +50,6 @@ def _load_taos():
 
 
 _libtaos = _load_taos()
-
 
 _libtaos.taos_fetch_fields.restype = ctypes.POINTER(TaosField)
 _libtaos.taos_init.restype = None

@@ -1,4 +1,4 @@
-
+# encoding:UTF-8
 from types import FunctionType
 from .cinterface import *
 from .cursor import TaosCursor
@@ -68,7 +68,7 @@ class TaosConnection(object):
         # type: (str) -> None
         taos_select_db(self._conn, database)
 
-    def exec(self, sql):
+    def execute(self, sql):
         # type: (str) -> None
         """Simplely execute sql ignoring the results"""
         res = taos_query(self._conn, sql)

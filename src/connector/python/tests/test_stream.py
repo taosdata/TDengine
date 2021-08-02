@@ -44,10 +44,10 @@ def test_stream(conn):
     # type: (TaosConnection) -> None
     dbname = "pytest_taos_stream"
     try:
-        conn.exec("drop database if exists %s" % dbname)
-        conn.exec("create database if not exists %s" % dbname)
+        conn.execute("drop database if exists %s" % dbname)
+        conn.execute("create database if not exists %s" % dbname)
         conn.select_db(dbname)
-        conn.exec("create table if not exists log(ts timestamp, n int)")
+        conn.execute("create table if not exists log(ts timestamp, n int)")
 
         result = conn.query("select count(*) from log interval(5s)")
         assert result.field_count == 2
@@ -56,13 +56,13 @@ def test_stream(conn):
         stream = conn.stream("select count(*) from log interval(5s)", stream_callback, param=byref(counter))
 
         for _ in range(0, 20):
-            conn.exec("insert into log values(now,0)(now+1s, 1)(now + 2s, 2)")
+            conn.execute("insert into log values(now,0)(now+1s, 1)(now + 2s, 2)")
             time.sleep(2)
         stream.close()
-        conn.exec("drop database if exists %s" % dbname)
+        conn.execute("drop database if exists %s" % dbname)
         conn.close()
     except Exception as err:
-        conn.exec("drop database if exists %s" % dbname)
+        conn.execute("drop database if exists %s" % dbname)
         conn.close()
         raise err
 

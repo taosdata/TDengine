@@ -15,11 +15,11 @@ def test_stmt_insert(conn):
 
     dbname = "pytest_taos_stmt"
     try:
-        conn.exec("drop database if exists %s" % dbname)
-        conn.exec("create database if not exists %s" % dbname)
+        conn.execute("drop database if exists %s" % dbname)
+        conn.execute("create database if not exists %s" % dbname)
         conn.select_db(dbname)
 
-        conn.exec(
+        conn.execute(
             "create table if not exists log(ts timestamp, bo bool, nil tinyint, ti tinyint, si smallint, ii int,\
              bi bigint, tu tinyint unsigned, su smallint unsigned, iu int unsigned, bu bigint unsigned, \
              ff float, dd double, bb binary(100), nn nchar(100), tt timestamp)",
@@ -68,11 +68,11 @@ def test_stmt_insert(conn):
         assert row[13] == "hello"
         assert row[14] == "stmt"
 
-        conn.exec("drop database if exists %s" % dbname)
+        conn.execute("drop database if exists %s" % dbname)
         conn.close()
 
     except Exception as err:
-        conn.exec("drop database if exists %s" % dbname)
+        conn.execute("drop database if exists %s" % dbname)
         conn.close()
         raise err
 
@@ -81,11 +81,11 @@ def test_stmt_insert_multi(conn):
 
     dbname = "pytest_taos_stmt_multi"
     try:
-        conn.exec("drop database if exists %s" % dbname)
-        conn.exec("create database if not exists %s" % dbname)
+        conn.execute("drop database if exists %s" % dbname)
+        conn.execute("create database if not exists %s" % dbname)
         conn.select_db(dbname)
 
-        conn.exec(
+        conn.execute(
             "create table if not exists log(ts timestamp, bo bool, nil tinyint, ti tinyint, si smallint, ii int,\
              bi bigint, tu tinyint unsigned, su smallint unsigned, iu int unsigned, bu bigint unsigned, \
              ff float, dd double, bb binary(100), nn nchar(100), tt timestamp)",
@@ -137,11 +137,11 @@ def test_stmt_insert_multi(conn):
         # end = datetime.now()
         # print("elapsed time: ", end - start)
 
-        conn.exec("drop database if exists %s" % dbname)
+        conn.execute("drop database if exists %s" % dbname)
         conn.close()
 
     except Exception as err:
-        conn.exec("drop database if exists %s" % dbname)
+        conn.execute("drop database if exists %s" % dbname)
         conn.close()
         raise err
 if __name__ == "__main__":

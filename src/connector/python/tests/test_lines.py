@@ -18,8 +18,8 @@ def test_insert_lines(conn):
 
     dbname = "pytest_taos_insert_lines"
     try:
-        conn.exec("drop database if exists %s" % dbname)
-        conn.exec("create database if not exists %s precision 'us'" % dbname)
+        conn.execute("drop database if exists %s" % dbname)
+        conn.execute("create database if not exists %s precision 'us'" % dbname)
         conn.select_db(dbname)
 
         lines = [
@@ -43,11 +43,11 @@ def test_insert_lines(conn):
         result.close()
         print(result.row_count)
 
-        conn.exec("drop database if exists %s" % dbname)
+        conn.execute("drop database if exists %s" % dbname)
         conn.close()
 
     except Exception as err:
-        conn.exec("drop database if exists %s" % dbname)
+        conn.execute("drop database if exists %s" % dbname)
         conn.close()
         print(err)
         raise err

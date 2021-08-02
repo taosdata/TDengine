@@ -1,3 +1,4 @@
+# encoding:UTF-8
 import ctypes
 from .constants import FieldType
 from .error import *
@@ -5,10 +6,12 @@ from .precision import *
 from datetime import datetime
 from typing import Callable
 from ctypes import *
+import sys
 
 _datetime_epoch = datetime.utcfromtimestamp(0)
 
-
+def _is_not_none(obj):
+    obj != None
 class TaosBind(ctypes.Structure):
     _fields_ = [
         ("buffer_type", c_int),
@@ -300,10 +303,10 @@ class TaosMultiBind(ctypes.Structure):
 
     def binary(self, values):
         self.num = len(values)
-        self.buffer = cast(c_char_p("".join(filter(None.__ne__, values)).encode("utf-8")), c_void_p)
+        self.buffer = cast(c_char_p("".join(filter(_is_not_none, values)).encode("utf-8")), c_void_p)
         self.length = (c_int * len(values))(*[len(value) if value is not None else 0 for value in values])
         self.buffer_type = FieldType.C_BINARY
-        self.is_null = cast((c_char * self.num)(*[1 if v == None else 0 for v in values]), c_char_p)
+        self.is_null = cast((c_byte * self.num)(*[1 if v == None else 0 for v in values]), c_char_p)
 
     def timestamp(self, values, precision=PrecisionEnum.Milliseconds):
         try:
@@ -318,26 +321,37 @@ class TaosMultiBind(ctypes.Structure):
         self.num = len(values)
 
     def nchar(self, values):
-        bytes = [value.encode("utf-8") if value is not None else None for value in values]
-        buffer_length = max(len(b) for b in bytes if b is not None)
-        self.buffer = cast(
-            c_char_p(
-                b"".join(
-                    [
-                        create_string_buffer(b, buffer_length)
-                        if b is not None
-                        else create_string_buffer(buffer_length)
-                        for b in bytes
-                    ]
-                )
-            ),
-            c_void_p,
-        )
-        self.length = (c_int32 * len(values))(*[len(b) if b is not None else 0 for b in bytes])
+        # type: (list[str]) -> None
+        if sys.version_info < (3, 0):
+            _bytes = [bytes(value) if value is not None else None for value in values]
+            buffer_length = max(len(b) + 1 for b in _bytes if b is not None)
+            buffers = [
+                create_string_buffer(b, buffer_length) if b is not None else create_string_buffer(buffer_length)
+                for b in _bytes
+            ]
+            buffer_all = b''.join(v[:] for v in buffers)
+            self.buffer = cast(c_char_p(buffer_all), c_void_p)
+        else:
+            _bytes = [value.encode("utf-8") if value is not None else None for value in values]
+            buffer_length = max(len(b) for b in _bytes if b is not None)
+            self.buffer = cast(
+                c_char_p(
+                    b"".join(
+                        [
+                            create_string_buffer(b, buffer_length)
+                            if b is not None
+                            else create_string_buffer(buffer_length)
+                            for b in _bytes
+                        ]
+                    )
+                ),
+                c_void_p,
+            )
+        self.length = (c_int32 * len(values))(*[len(b) if b is not None else 0 for b in _bytes])
         self.buffer_length = buffer_length
         self.num = len(values)
+        self.is_null = cast((c_byte * self.num)(*[1 if v == None else 0 for v in values]), c_char_p)
         self.buffer_type = FieldType.C_NCHAR
-        self.is_null = cast((c_char * self.num)(*[1 if v == None else 0 for v in bytes]), c_char_p)
 
     def tinyint_unsigned(self, values):
         self.buffer_type = FieldType.C_TINYINT_UNSIGNED

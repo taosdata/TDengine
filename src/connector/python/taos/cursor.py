@@ -1,3 +1,4 @@
+# encoding:UTF-8
 from .cinterface import *
 from .error import *
 from .constants import FieldType

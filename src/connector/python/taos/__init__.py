@@ -1,3 +1,4 @@
+# encoding:UTF-8
 """
 # TDengine Connector for Python
 

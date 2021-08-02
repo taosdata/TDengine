@@ -186,7 +186,7 @@ class TaosRow:
         self._result = result
         self._row = row
 
-    def __str__(self) -> str:
+    def __str__(self):
         return taos_print_row(self._row, self._result.fields, self._result.field_count)
 
     def __call__(self):

@@ -1,3 +1,4 @@
+# encoding:UTF-8
 import ctypes
 import math
 import datetime
@@ -250,7 +251,7 @@ class TaosField(ctypes.Structure):
     def __dict__(self):
         return {"name": self.name, "type": self.type, "bytes": self.length}
 
-    def __str__(self) -> str:
+    def __str__(self):
         return "{name: %s, type: %d, bytes: %d}" % (self.name, self.type, self.length)
 
     def __getitem__(self, item):
@@ -278,6 +279,9 @@ class TaosFields(object):
         return self._fields
 
     def __next__(self):
+        return self._next_field()
+    
+    def next(self):
         return self._next_field()
 
     def _next_field(self):

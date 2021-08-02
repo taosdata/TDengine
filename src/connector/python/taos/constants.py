@@ -1,3 +1,5 @@
+# encoding:UTF-8
+
 """Constants in TDengine python
 """
 
