@@ -24,6 +24,7 @@
 #include "cacheLru.h"
 #include "cacheMutex.h"
 #include "cacheTypes.h"
+#include "tlockfree.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -34,7 +35,9 @@ typedef struct cacheAllocMemoryCookie {
   struct cacheAllocMemoryCookie *next;
 } cacheAllocMemoryCookie;
 
-struct cache_t {  
+struct cache_t {
+  SRWLatch     latch;
+
   cacheOption options;
 
   cacheSlabClass* slabs[MAX_NUMBER_OF_SLAB_CLASSES];    /* array of slab pointers */
@@ -48,6 +51,8 @@ struct cache_t {
   cacheItem*  neverExpireItemHead;  /* never expire items list head */
 
   cacheAllocMemoryCookie* cookieHead;
+
+  cacheItem* chunkItemHead;
 
   int powerLargest;  
 };

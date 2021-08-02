@@ -22,7 +22,7 @@
 #include "cacheSlab.h"
 
 static void freeCacheItem(cache_t* pCache, cacheItem* pItem);
-
+static cacheItem* allocChunkItem(cache_t* pCache, size_t nTotal);
 static void updateItemInColdLruList(cacheItem* pItem, uint64_t now);
 
 cacheItem* cacheAllocItem(cache_t* cache, uint8_t nkey, uint32_t nbytes, uint64_t expireTime) {
@@ -30,8 +30,8 @@ cacheItem* cacheAllocItem(cache_t* cache, uint8_t nkey, uint32_t nbytes, uint64_
   uint32_t id = cacheSlabId(cache, ntotal);
   cacheItem* pItem = NULL;
 
-  if (ntotal > 10240) { /* chunk pItem */
-
+  if (ntotal > cache->slabs[cache->powerLargest - 1]->size) { /* chunk pItem */
+    pItem = allocChunkItem(cache, ntotal);
   } else {
     pItem = cacheSlabAllocItem(cache, ntotal, id);
   }
@@ -48,9 +48,11 @@ cacheItem* cacheAllocItem(cache_t* cache, uint8_t nkey, uint32_t nbytes, uint64_
   pItem->expireTime = expireTime;
   if (expireTime == 0) {
     /* never expire, add to never expire list */
+    taosWLockLatch(&(cache->latch));
     pItem->next = cache->neverExpireItemHead;
     if (cache->neverExpireItemHead) cache->neverExpireItemHead->prev = pItem;
     cache->neverExpireItemHead = pItem;
+    taosWUnLockLatch(&(cache->latch));
   } else {
     /* add to hot lru slab list */    
     pItem->slabLruId = id | CACHE_LRU_HOT;
@@ -63,7 +65,7 @@ cacheItem* cacheAllocItem(cache_t* cache, uint8_t nkey, uint32_t nbytes, uint64_
 void cacheItemUnlink(cacheTable* pTable, cacheItem* pItem, cacheLockFlag flag) {
   assert(pItem->pTable == pTable);
   if (item_is_used(pItem)) {
-    cacheTableRemove(pTable, item_key(pItem), pItem->nkey);
+    cacheTableRemove(pTable, item_key(pItem), pItem->nkey, false);
     cacheLruUnlinkItem(pTable->pCache, pItem, flag);
     cacheItemRemove(pTable->pCache, pItem);
   }
@@ -129,5 +131,26 @@ static void freeCacheItem(cache_t* pCache, cacheItem* pItem) {
   assert(pLru->head != pItem);
   assert(pLru->tail != pItem);
 
-  cacheSlabFreeItem(pCache, pItem, CACHE_LOCK_SLAB);
+  if (item_is_chunked(pItem)) {
+    taosWLockLatch(&(pCache->latch));
+    pCache->alloced -= cacheItemTotalBytes(pItem->nkey, pItem->nbytes);
+    if (pItem->prev) pItem->prev->next = pItem->next;
+    if (pItem->next) pItem->next->prev = pItem->prev;
+    if (pItem == pCache->chunkItemHead) pCache->chunkItemHead = pItem->next;
+    taosWLockLatch(&(pCache->latch));
+    free(pItem);
+  } else {
+    cacheSlabFreeItem(pCache, pItem, CACHE_LOCK_SLAB);
+  }  
+}
+
+static cacheItem* allocChunkItem(cache_t* pCache, size_t nTotal) {
+  cacheItem* pItem = allocMemory(pCache, nTotal, true);
+  if (pItem == NULL) {
+    return pItem;
+  }
+
+  item_set_chunked(pItem);
+
+  return pItem;
 }

@@ -29,7 +29,6 @@ static cacheItem* doAllocItem(cache_t *cache, size_t size, unsigned int id);
 static int  createNewSlab(cache_t *cache, cacheSlabClass *pSlab);
 static bool isReachMemoryLimit(cache_t *cache, int len);
 static int  slabGrowArray(cache_t *cache, cacheSlabClass *pSlab);
-static void *allocMemory(cache_t *cache, size_t size);
 static void splitSlabPageIntoFreelist(cache_t *cache,char *ptr, uint32_t id);
 static int moveItemFromLru(cache_t *cache, int id, int curLru, uint64_t totalBytes, uint8_t flags,
                            cacheMutex *pMutex, uint32_t* moveToLru,  cacheItem* search, cacheItem** pItem);
@@ -128,9 +127,11 @@ void cacheSlabFreeItem(cache_t *cache, cacheItem* pItem, cacheLockFlag flag) {
   if (cacheItemIsNeverExpired(pItem)) {
     if (pItem->next) pItem->next->prev = pItem->prev;
     if (pItem->prev) pItem->prev->next = pItem->next;
+    taosWLockLatch(&(cache->latch));
     if (pItem == cache->neverExpireItemHead) {
       cache->neverExpireItemHead = pItem->next;
     }
+    taosWUnLockLatch(&(cache->latch));
   }
 
   cacheSlabClass* pSlab = cache->slabs[id];
@@ -163,14 +164,32 @@ static bool isReachMemoryLimit(cache_t *cache, int len) {
   return false;
 }
 
-static void *allocMemory(cache_t *cache, size_t size) {
-  cache->alloced += size;
+void *allocMemory(cache_t *cache, size_t size, bool chunked) {  
   void* ptr = malloc(size);
+  if (ptr == NULL) {
+    return NULL;
+  }
 
   cacheAllocMemoryCookie *pCookie = malloc(sizeof(cacheAllocMemoryCookie));
+  if (pCookie == NULL) {
+    free(ptr);
+    return NULL;
+  }
   pCookie->buffer = ptr;
-  pCookie->next = cache->cookieHead;
-  cache->cookieHead = pCookie;
+
+  taosWLockLatch(&(cache->latch));
+  cache->alloced += size;
+  if (!chunked) {
+    pCookie->next = cache->cookieHead;
+    cache->cookieHead = pCookie;
+  } else {
+    cacheItem* pItem = (cacheItem*)ptr;
+    pItem->next = pItem->prev = NULL;
+    pItem->next = cache->chunkItemHead;
+    if (cache->chunkItemHead) cache->chunkItemHead->prev = pItem;
+    cache->chunkItemHead = pItem;
+  }
+  taosWUnLockLatch(&(cache->latch));
 
   return ptr;
 }
@@ -208,7 +227,7 @@ static int createNewSlab(cache_t *cache, cacheSlabClass *pSlab) {
     return CACHE_REACH_LIMIT;
   }
 
-  if (slabGrowArray(cache, pSlab) == 0 || (ptr = allocMemory(cache, len)) == NULL) {
+  if (slabGrowArray(cache, pSlab) == 0 || (ptr = allocMemory(cache, len, false)) == NULL) {
     cacheError("allocMemory fail");
     return CACHE_ALLOC_FAIL;
   }

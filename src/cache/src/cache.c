@@ -23,6 +23,9 @@
 static int check_cache_options(cacheOption* options);
 static int cachePutDataIntoCache(cacheTable* pTable, const char* key, uint8_t nkey, 
                                 const char* value, uint32_t nbytes, cacheItem** ppItem, uint64_t expire);
+static void cacheFreeChunkItems(cache_t*);
+static void cacheFreeMemory(cache_t*);
+static void cacheFreeTable(cache_t*);
 
 cache_t* cacheCreate(cacheOption* options) {
   if (check_cache_options(options) != CACHE_OK) {
@@ -36,6 +39,7 @@ cache_t* cacheCreate(cacheOption* options) {
     return NULL;
   }
 
+  taosInitRWLatch(&(cache->latch));
   cache->options = *options;
 
   if (cacheSlabInit(cache) != CACHE_OK) {
@@ -56,26 +60,14 @@ error:
   return NULL;
 }
 
-void  cacheDestroy(cache_t* cache) {
-  cacheSlabDestroy(cache);
-  cacheLruDestroy(cache);
+void  cacheDestroy(cache_t* pCache) {
+  cacheSlabDestroy(pCache);
+  cacheLruDestroy(pCache);
+  cacheFreeChunkItems(pCache);
+  cacheFreeMemory(pCache);
+  cacheFreeTable(pCache);
 
-  cacheAllocMemoryCookie *pCookie = cache->cookieHead;
-  while (pCookie != NULL) {
-    cacheAllocMemoryCookie *next = pCookie->next;
-    free(pCookie->buffer);
-    free(pCookie);
-    pCookie = next;
-  }
-
-  cacheTable *pTable = cache->tableHead;
-  while (pTable != NULL) {
-    cacheTable* pNextTable = pTable->next;
-    cacheTableDestroy(pTable);
-    pTable = pNextTable;
-  }
-
-  free(cache);
+  free(pCache);
 }
 
 int cachePut(cacheTable* pTable, const char* key, uint8_t nkey, const char* value, uint32_t nbytes, uint64_t expire) {
@@ -158,7 +150,7 @@ void cacheRemove(cacheTable* pTable, const char* key, uint8_t nkey) {
   cacheMutex* mutex = cacheGetTableBucketMutexByKey(pTable, key, nkey);
   cacheMutexLock(mutex);
 
-  cacheTableRemove(pTable, key, nkey);
+  cacheTableRemove(pTable, key, nkey, true);
 
   cacheMutexUnlock(mutex);
 }
@@ -181,6 +173,37 @@ static int cachePutDataIntoCache(cacheTable* pTable, const char* key, uint8_t nk
     *ppItem = pItem;
   }
   return CACHE_OK;
+}
+
+static void cacheFreeChunkItems(cache_t* pCache) {
+  cacheItem* pItem = pCache->chunkItemHead;
+
+  while (pItem) {
+    cacheItem* next = pItem->next;
+    free(pItem);
+    pItem = next;
+  }
+}
+
+static void cacheFreeMemory(cache_t* pCache) {
+  cacheAllocMemoryCookie *pCookie = pCache->cookieHead;
+
+  while (pCookie != NULL) {
+    cacheAllocMemoryCookie *next = pCookie->next;
+    free(pCookie->buffer);
+    free(pCookie);
+    pCookie = next;
+  }
+}
+
+static void cacheFreeTable(cache_t* pCache) {
+  cacheTable *pTable = pCache->tableHead;
+
+  while (pTable != NULL) {
+    cacheTable* pNextTable = pTable->next;
+    cacheTableDestroy(pTable);
+    pTable = pNextTable;
+  }
 }
 
 static int check_cache_options(cacheOption* options) {

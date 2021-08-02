@@ -31,19 +31,19 @@ enum cacheLruListId {
 };
 
 struct cacheSlabClass {
-  unsigned int size;        /* sizes of items */
-  unsigned int perSlab;     /* how many items per slab */
+  size_t        size;        /* sizes of items */
+  unsigned int  perSlab;     /* how many items per slab */
 
-  cacheMutex mutex;
+  cacheMutex    mutex;
 
-  uint32_t    id;           /* slab class id */
+  uint32_t      id;           /* slab class id */
 
-  cacheItem *freeItem;      /* list of free item ptrs */
-  unsigned int nFree;       /* free item count */
-  unsigned int nAllocSlabs; /* how many slabs were allocated for this class */
+  cacheItem*    freeItem;     /* list of free item ptrs */
+  unsigned int  nFree;        /* free item count */
+  unsigned int  nAllocSlabs;  /* how many slabs were allocated for this class */
 
-  void **slabArray;         /* array of slab pointers */
-  unsigned int nArray;      /* size of slab array */
+  void **       slabArray;    /* array of slab pointers */
+  unsigned int  nArray;       /* size of slab array */
 };
 
 int cacheSlabInit(cache_t *);
@@ -54,6 +54,8 @@ uint32_t cacheSlabId(cache_t *cache, size_t size);
 cacheItem* cacheSlabAllocItem(cache_t *cache, size_t ntotal, uint32_t id);
 
 void cacheSlabFreeItem(cache_t *cache, cacheItem* item, cacheLockFlag flag);
+
+void *allocMemory(cache_t *cache, size_t size, bool chunked);
 
 #ifdef __cplusplus
 }

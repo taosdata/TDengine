@@ -52,6 +52,7 @@ cacheTable* cacheCreateTable(cache_t* cache, cacheTableOption* option) {
   pTable->option = *option;
   pTable->pCache = cache;
 
+  taosWLockLatch(&(cache->latch));
   if (cache->tableHead == NULL) {
     cache->tableHead = pTable;
     pTable->next = NULL;
@@ -59,6 +60,7 @@ cacheTable* cacheCreateTable(cache_t* cache, cacheTableOption* option) {
     pTable->next = cache->tableHead;
     cache->tableHead = pTable;
   }
+  taosWUnLockLatch(&(cache->latch));
 
   return pTable;
 
@@ -146,14 +148,14 @@ cacheItem* cacheTableGet(cacheTable* pTable, const char* key, uint8_t nkey) {
   return findItemByKey(pTable, key, nkey, NULL);
 }
 
-void cacheTableRemove(cacheTable* pTable, const char* key, uint8_t nkey) {
+void cacheTableRemove(cacheTable* pTable, const char* key, uint8_t nkey, bool freeItem) {
   uint32_t index = pTable->hashFp(key, nkey) % pTable->capacity;
   cacheTableBucket* pBucket = &(pTable->pBucket[index]);
 
   cacheItem *pItem, *pPrev;
   pItem = findItemByKey(pTable, key, nkey, &pPrev);
 
-  removeTableItem(pTable->pCache, pBucket, pItem, pPrev, false);
+  removeTableItem(pTable->pCache, pBucket, pItem, pPrev, freeItem);
 }
 
 cacheMutex* cacheGetTableBucketMutexByKey(cacheTable* pTable, const char* key, uint8_t nkey) {
