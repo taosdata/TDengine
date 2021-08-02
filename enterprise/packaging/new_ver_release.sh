@@ -101,7 +101,7 @@ fi
 
 # docker parameters
 dockerPass="tbase125!"
-dockerinput_x64=TDengine-server-${version}-Linux-amd64.tar.gz
+dockerinput_x64=TDengine-server-${version}-beta-Linux-amd64.tar.gz
 
 ####################### build docker image and push
 if [ "$dockerMode" == "isdocker" ];then
