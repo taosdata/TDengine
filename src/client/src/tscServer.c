@@ -337,11 +337,16 @@ int tscSendMsgToServer(SSqlObj *pSql) {
   return TSDB_CODE_SUCCESS;
 }
 
-void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcEpSet *pEpSet) {
+static void doProcessMsgFromServer(SSchedMsg* pSchedMsg) {
+  SRpcMsg* rpcMsg = pSchedMsg->ahandle;
+  SRpcEpSet* pEpSet = pSchedMsg->thandle;
+
   TSDB_CACHE_PTR_TYPE handle = (TSDB_CACHE_PTR_TYPE) rpcMsg->ahandle;
   SSqlObj* pSql = (SSqlObj*)taosAcquireRef(tscObjRef, handle);
   if (pSql == NULL) {
     rpcFreeCont(rpcMsg->pCont);
+    free(rpcMsg);
+    free(pEpSet);
     return;
   }
 
@@ -359,6 +364,8 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcEpSet *pEpSet) {
     taosRemoveRef(tscObjRef, handle);
     taosReleaseRef(tscObjRef, handle);
     rpcFreeCont(rpcMsg->pCont);
+    free(rpcMsg);
+    free(pEpSet);
     return;
   }
 
@@ -370,6 +377,8 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcEpSet *pEpSet) {
     taosRemoveRef(tscObjRef, handle);
     taosReleaseRef(tscObjRef, handle);
     rpcFreeCont(rpcMsg->pCont);
+    free(rpcMsg);
+    free(pEpSet);
     return;
   }
 
@@ -425,6 +434,8 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcEpSet *pEpSet) {
         if (rpcMsg->code == TSDB_CODE_TSC_ACTION_IN_PROGRESS) {
           taosReleaseRef(tscObjRef, handle);
           rpcFreeCont(rpcMsg->pCont);
+          free(rpcMsg);
+          free(pEpSet);
           return;
         }
       }
@@ -432,7 +443,7 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcEpSet *pEpSet) {
   }
 
   pRes->rspLen = 0;
-  
+
   if (pRes->code == TSDB_CODE_TSC_QUERY_CANCELLED) {
     tscDebug("0x%"PRIx64" query is cancelled, code:%s", pSql->self, tstrerror(pRes->code));
   } else {
@@ -481,7 +492,7 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcEpSet *pEpSet) {
       tscDebug("0x%"PRIx64" SQL cmd:%s, code:%s rspLen:%d", pSql->self, sqlCmd[pCmd->command], tstrerror(pRes->code), pRes->rspLen);
     }
   }
-  
+
   if (pRes->code == TSDB_CODE_SUCCESS && tscProcessMsgRsp[pCmd->command]) {
     rpcMsg->code = (*tscProcessMsgRsp[pCmd->command])(pSql);
   }
@@ -502,6 +513,29 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcEpSet *pEpSet) {
 
   taosReleaseRef(tscObjRef, handle);
   rpcFreeCont(rpcMsg->pCont);
+  free(rpcMsg);
+  free(pEpSet);
+}
+
+void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcEpSet *pEpSet) {
+  SSchedMsg schedMsg = {0};
+
+  schedMsg.fp = doProcessMsgFromServer;
+
+  SRpcMsg* rpcMsgCopy = calloc(1, sizeof(SRpcMsg));
+  memcpy(rpcMsgCopy, rpcMsg, sizeof(struct SRpcMsg));
+  schedMsg.ahandle = (void*)rpcMsgCopy;
+
+  SRpcEpSet* pEpSetCopy = NULL;
+  if (pEpSet != NULL) {
+    pEpSetCopy = calloc(1, sizeof(SRpcEpSet));
+    memcpy(pEpSetCopy, pEpSet, sizeof(SRpcEpSet));
+  }
+
+  schedMsg.thandle = (void*)pEpSetCopy;
+  schedMsg.msg = NULL;
+
+  taosScheduleTask(tscQhandle, &schedMsg);
 }
 
 int doBuildAndSendMsg(SSqlObj *pSql) {
