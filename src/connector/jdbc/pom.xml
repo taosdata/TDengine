@@ -122,6 +122,7 @@
                         <exclude>**/TSDBJNIConnectorTest.java</exclude>
                         <exclude>**/TaosInfoMonitorTest.java</exclude>
                         <exclude>**/UnsignedNumberJniTest.java</exclude>
+                        <exclude>**/TimeZoneTest.java</exclude>
                     </excludes>
                     <testFailureIgnore>true</testFailureIgnore>
                 </configuration>
