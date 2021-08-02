@@ -5094,7 +5094,9 @@ static int getRowDataFromSample(
 
 static int64_t generateStbRowData(
         SSuperTable* stbInfo,
-        char* recBuf, int64_t timestamp)
+        char* recBuf, 
+        int64_t remainderBufLen,
+        int64_t timestamp)
 {
     int64_t   dataLen = 0;
     char  *pstr = recBuf;
@@ -5122,6 +5124,7 @@ static int64_t generateStbRowData(
             rand_string(buf, stbInfo->columns[i].dataLen);
             dataLen += snprintf(pstr + dataLen, maxLen - dataLen, "\'%s\',", buf);
             tmfree(buf);
+
         } else {
             char *tmp;
 
@@ -5178,6 +5181,9 @@ static int64_t generateStbRowData(
             tstrncpy(pstr + dataLen, ",", 2);
             dataLen += 1;
         }
+
+        if (dataLen > remainderBufLen)
+            return 0;
     }
 
     dataLen -= 1;
@@ -5471,6 +5477,7 @@ static int32_t generateStbDataTail(
         if (tsRand) {
             if (superTblInfo->disorderRatio > 0) {
                 lenOfRow = generateStbRowData(superTblInfo, data,
+                        remainderBufLen,
                         startTime + getTSRandTail(
                             superTblInfo->timeStampStep, k,
                             superTblInfo->disorderRatio,
@@ -5478,6 +5485,7 @@ static int32_t generateStbDataTail(
                         );
             } else {
                 lenOfRow = generateStbRowData(superTblInfo, data,
+                        remainderBufLen,
                         startTime + superTblInfo->timeStampStep * k
                         );
             }
@@ -5490,6 +5498,10 @@ static int32_t generateStbDataTail(
                     pSamplePos);
         }
 
+        if (lenOfRow == 0) {
+            data[0] = '\0';
+            break;
+        }
         if ((lenOfRow + 1) > remainderBufLen) {
             break;
         }
@@ -6822,10 +6834,14 @@ static void callBack(void *param, TAOS_RES *res, int code) {
                 && rand_num < pThreadInfo->superTblInfo->disorderRatio) {
             int64_t d = pThreadInfo->lastTs
                 - (taosRandom() % pThreadInfo->superTblInfo->disorderRange + 1);
-            generateStbRowData(pThreadInfo->superTblInfo, data, d);
+            generateStbRowData(pThreadInfo->superTblInfo, data,
+                    MAX_DATA_SIZE,
+                    d);
         } else {
             generateStbRowData(pThreadInfo->superTblInfo,
-                    data, pThreadInfo->lastTs += 1000);
+                    data,
+                    MAX_DATA_SIZE,
+                    pThreadInfo->lastTs += 1000);
         }
         pstr += sprintf(pstr, "%s", data);
         pThreadInfo->counter++;
