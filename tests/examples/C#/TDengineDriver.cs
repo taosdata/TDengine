@@ -163,5 +163,9 @@ namespace TDengineDriver
 
         [DllImport("taos", EntryPoint = "taos_close", CallingConvention = CallingConvention.Cdecl)]
         static extern public int Close(IntPtr taos);
+
+        //get precision£¬in parameter restultset
+        [DllImport("taos", EntryPoint = "taos_result_precision", CallingConvention = CallingConvention.Cdecl)]
+        static extern public int ResultPrecision(IntPtr taos);
     }
 }

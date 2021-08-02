@@ -182,7 +182,7 @@ pkg_name=${install_dir}-${osType}-${cpuType}
 #   exit 1
 # fi
 
-if [ "$verType" == "beta" ]; then
+if [[ "$verType" == "beta" ]] || [[ "$verType" == "preRelease" ]]; then
   pkg_name=${install_dir}-${verType}-${osType}-${cpuType} 
 elif [ "$verType" == "stable" ]; then
   pkg_name=${pkg_name}
@@ -193,15 +193,6 @@ fi
 
 if [ "$pagMode" == "lite" ]; then
   pkg_name=${pkg_name}-Lite
-fi
-
-if [ "$verType" == "beta" ]; then
-  pkg_name=${pkg_name}-${verType}
-elif [ "$verType" == "stable" ]; then
-  pkg_name=${pkg_name}
-else
-  echo "unknow verType, nor stable or beta"
-  exit 1
 fi
 
 if [ "$osType" != "Darwin" ]; then

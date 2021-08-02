@@ -111,7 +111,7 @@ typedef struct {
   uint64_t   superUid;
   STSchema * schema;
   STSchema * tagSchema;
-  SDataRow   tagValues;
+  SKVRow     tagValues;
   char *     sql;
 } STableCfg;
 
@@ -240,6 +240,7 @@ typedef struct {
   int32_t   minRows;
   int32_t   firstSeekTimeUs;
   uint32_t  numOfRowsInMemTable;
+  uint32_t  numOfSmallBlocks;
   SArray   *dataBlockInfos;
 } STableBlockDist;
 

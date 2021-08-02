@@ -529,10 +529,9 @@ static void *taosProcessTcpData(void *param) {
   SFdObj            *pFdObj;
   struct epoll_event events[maxEvents];
   SRecvInfo          recvInfo;
-  char               name[16];
 
-  memset(name, 0, sizeof(name));
-  snprintf(name, 16, "%s-tcpData", pThreadObj->label);
+  char name[16] = {0};
+  snprintf(name, tListLen(name), "%s-tcp", pThreadObj->label);
   setThreadName(name);
 
   while (1) {

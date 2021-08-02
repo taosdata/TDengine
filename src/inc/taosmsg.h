@@ -809,7 +809,7 @@ typedef struct SMultiTableMeta {
   int32_t       contLen;
   uint8_t       compressed;      // denote if compressed or not
   uint32_t      rawLen;          // size before compress
-  uint8_t       metaClone;         // make meta clone after retrieve meta from mnode
+  uint8_t       metaClone;       // make meta clone after retrieve meta from mnode
   char          meta[];
 } SMultiTableMeta;
 
@@ -874,6 +874,10 @@ typedef struct {
   int64_t  useconds;
   int64_t  stime;
   uint64_t qId;
+  uint64_t sqlObjId;
+  int32_t  pid;
+  char     fqdn[TSDB_FQDN_LEN];
+  int32_t  numOfSub;
 } SQueryDesc;
 
 typedef struct {

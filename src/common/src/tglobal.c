@@ -38,7 +38,7 @@ uint16_t tsDnodeDnodePort = 6035;  // udp/tcp
 uint16_t tsSyncPort = 6040;
 uint16_t tsArbitratorPort = 6042;
 int32_t  tsStatusInterval = 1;  // second
-int32_t  tsNumOfMnodes = 3;
+int32_t  tsNumOfMnodes = 1;
 int8_t   tsEnableVnodeBak = 1;
 int8_t   tsEnableTelemetryReporting = 1;
 int8_t   tsArbOnline = 0;
@@ -252,8 +252,8 @@ char lossyColumns[32] = "";  // "float|double" means all float and double column
 // below option can take effect when tsLossyColumns not empty 
 double   fPrecision   = 1E-8;   // float column precision
 double   dPrecision   = 1E-16;  // double column precision
-uint32_t maxIntervals = 500;    // max intervals
-uint32_t intervals    = 100;    // intervals
+uint32_t maxRange     = 500;    // max range
+uint32_t curRange     = 100;    // range
 char     Compressor[32] = "ZSTD_COMPRESSOR"; // ZSTD_COMPRESSOR or GZIP_COMPRESSOR 
 #endif
 
@@ -1565,8 +1565,8 @@ static void doInitGlobalConfig(void) {
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosInitConfigOption(cfg);
 
-  cfg.option = "maxIntervals";
-  cfg.ptr = &maxIntervals;
+  cfg.option = "maxRange";
+  cfg.ptr = &maxRange;
   cfg.valType = TAOS_CFG_VTYPE_INT32;
   cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG;
   cfg.minValue = 0;
@@ -1575,8 +1575,8 @@ static void doInitGlobalConfig(void) {
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosInitConfigOption(cfg);
 
-  cfg.option = "intervals";
-  cfg.ptr = &intervals;
+  cfg.option = "range";
+  cfg.ptr = &curRange;
   cfg.valType = TAOS_CFG_VTYPE_INT32;
   cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG;
   cfg.minValue = 0;

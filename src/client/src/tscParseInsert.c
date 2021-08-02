@@ -1482,7 +1482,7 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql, char** boundC
       return TSDB_CODE_TSC_SQL_SYNTAX_ERROR;
     }
 
-    code = tscGetTableMetaEx(pSql, pTableMetaInfo, true);
+    code = tscGetTableMetaEx(pSql, pTableMetaInfo, true, false);
     if (TSDB_CODE_TSC_ACTION_IN_PROGRESS == code) {
       return code;
     }
@@ -1493,7 +1493,7 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql, char** boundC
     }
 
     sql = sToken.z;
-    code = tscGetTableMetaEx(pSql, pTableMetaInfo, false);
+    code = tscGetTableMetaEx(pSql, pTableMetaInfo, false, false);
     if (pInsertParam->sql == NULL) {
       assert(code == TSDB_CODE_TSC_ACTION_IN_PROGRESS);
     }
@@ -1904,7 +1904,6 @@ int tsInsertInitialCheck(SSqlObj *pSql) {
 int tsParseSql(SSqlObj *pSql, bool initial) {
   int32_t ret = TSDB_CODE_SUCCESS;
   SSqlCmd* pCmd = &pSql->cmd;
-
   if (!initial) {
     tscDebug("0x%"PRIx64" resume to parse sql: %s", pSql->self, pCmd->insertParam.sql);
   }
@@ -2106,7 +2105,7 @@ static void parseFileSendDataBlock(void *param, TAOS_RES *tres, int32_t numOfRow
       pParentSql->fp = pParentSql->fetchFp;
 
       // all data has been sent to vnode, call user function
-      int32_t v = (code != TSDB_CODE_SUCCESS) ? code : (int32_t)pParentSql->res.numOfRows;
+      int32_t v = (int32_t)pParentSql->res.numOfRows;
       (*pParentSql->fp)(pParentSql->param, pParentSql, v);
       return;
     }
