@@ -115,10 +115,6 @@ class TaosConnection(object):
         stream = taos_open_stream(self._conn, sql, callback, stime, param, callback2)
         return TaosStream(stream)
 
-    def insertLines(self, lines):
-        # type: (list[str]) -> None
-        self.insert_lines(lines)
-
     def insert_lines(self, lines):
         # type: (list[str]) -> None
         """Line protocol and schemaless support
@@ -145,7 +141,7 @@ class TaosConnection(object):
             print(err)
         ```
         """
-        taos_insert_lines(self._conn, lines)
+        return taos_insert_lines(self._conn, lines)
 
     def cursor(self):
         # type: () -> TaosCursor
