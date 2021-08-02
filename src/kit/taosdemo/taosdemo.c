@@ -5384,7 +5384,7 @@ static int32_t generateDataTailWithoutStb(
 
     int32_t k = 0;
     for (k = 0; k < batch;) {
-        char data[MAX_DATA_SIZE];
+        char *data = pstr;
         memset(data, 0, MAX_DATA_SIZE);
 
         int64_t retLen = 0;
@@ -5408,7 +5408,7 @@ static int32_t generateDataTailWithoutStb(
         if (len > remainderBufLen)
             break;
 
-        pstr += sprintf(pstr, "%s", data);
+        pstr += retLen;
         k++;
         len += retLen;
         remainderBufLen -= retLen;
@@ -5464,8 +5464,7 @@ static int32_t generateStbDataTail(
 
     int32_t k;
     for (k = 0; k < batch;) {
-        char data[MAX_DATA_SIZE];
-        memset(data, 0, MAX_DATA_SIZE);
+        char *data = pstr;
 
         int64_t lenOfRow = 0;
 
@@ -5495,7 +5494,7 @@ static int32_t generateStbDataTail(
             break;
         }
 
-        pstr += snprintf(pstr , lenOfRow + 1, "%s", data);
+        pstr += lenOfRow;
         k++;
         len += lenOfRow;
         remainderBufLen -= lenOfRow;
@@ -6247,7 +6246,7 @@ static int32_t generateStbProgressiveData(
     assert(buffer != NULL);
     char *pstr = buffer;
 
-    memset(buffer, 0, *pRemainderBufLen);
+    memset(pstr, 0, *pRemainderBufLen);
 
     int64_t headLen = generateStbSQLHead(
             superTblInfo,
@@ -6641,7 +6640,7 @@ static void* syncWriteProgressive(threadInfo *pThreadInfo) {
                 return NULL;
             }
 
-            int64_t remainderBufLen = maxSqlLen;
+            int64_t remainderBufLen = maxSqlLen - 2000;
             char *pstr = pThreadInfo->buffer;
 
             int len = snprintf(pstr,
@@ -7051,6 +7050,7 @@ static void startMultiThreadInsertData(int threads, char* db_name,
     for (int i = 0; i < threads; i++) {
         threadInfo *pThreadInfo = infos + i;
         pThreadInfo->threadID = i;
+
         tstrncpy(pThreadInfo->db_name, db_name, TSDB_DB_NAME_LEN);
         pThreadInfo->time_precision = timePrec;
         pThreadInfo->superTblInfo = superTblInfo;
