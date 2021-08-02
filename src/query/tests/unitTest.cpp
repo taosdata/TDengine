@@ -462,6 +462,42 @@ TEST(testCase, parse_time) {
 
   char t23[] = "2017-12-31T9:0:0.1+13:1";
   EXPECT_EQ(taosParseTime(t23, &time, strlen(t23), TSDB_TIME_PRECISION_MILLI, 0), 0);
+
+  char t24[] = "2017-12-31T9:0:0.1+13:001";
+  EXPECT_EQ(taosParseTime(t24, &time, strlen(t24), TSDB_TIME_PRECISION_MILLI, 0), -1);
+
+  char t25[] = "2017-12-31T9:0:0.1+13:00abc";
+  EXPECT_EQ(taosParseTime(t25, &time, strlen(t25), TSDB_TIME_PRECISION_MILLI, 0), -1);
+
+  char t26[] = "2017-12-31T9:0:0.1+13001";
+  EXPECT_EQ(taosParseTime(t26, &time, strlen(t26), TSDB_TIME_PRECISION_MILLI, 0), -1);
+
+  char t27[] = "2017-12-31T9:0:0.1+1300abc";
+  EXPECT_EQ(taosParseTime(t27, &time, strlen(t27), TSDB_TIME_PRECISION_MILLI, 0), -1);
+
+  char t28[] = "2017-12-31T9:0:0Z+12:00";
+  EXPECT_EQ(taosParseTime(t28, &time, strlen(t28), TSDB_TIME_PRECISION_MILLI, 0), -1);
+
+  char t29[] = "2017-12-31T9:0:0.123Z+12:00";
+  EXPECT_EQ(taosParseTime(t29, &time, strlen(t29), TSDB_TIME_PRECISION_MILLI, 0), -1);
+
+  char t65[] = "2017-12-31 9:0:0.1+13:001";
+  EXPECT_EQ(taosParseTime(t65, &time, strlen(t65), TSDB_TIME_PRECISION_MILLI, 0), -1);
+
+  char t66[] = "2017-12-31 9:0:0.1+13:00abc";
+  EXPECT_EQ(taosParseTime(t66, &time, strlen(t66), TSDB_TIME_PRECISION_MILLI, 0), -1);
+
+  char t67[] = "2017-12-31 9:0:0.1+13001";
+  EXPECT_EQ(taosParseTime(t67, &time, strlen(t67), TSDB_TIME_PRECISION_MILLI, 0), -1);
+
+  char t68[] = "2017-12-31 9:0:0.1+1300abc";
+  EXPECT_EQ(taosParseTime(t68, &time, strlen(t68), TSDB_TIME_PRECISION_MILLI, 0), -1);
+
+  char t69[] = "2017-12-31 9:0:0Z+12:00";
+  EXPECT_EQ(taosParseTime(t69, &time, strlen(t69), TSDB_TIME_PRECISION_MILLI, 0), -1);
+
+  char t70[] = "2017-12-31 9:0:0.123Z+12:00";
+  EXPECT_EQ(taosParseTime(t70, &time, strlen(t70), TSDB_TIME_PRECISION_MILLI, 0), -1);
 }
 
 TEST(testCase, tvariant_convert) {

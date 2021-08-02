@@ -72,12 +72,12 @@ int64_t user_mktime64(const unsigned int year0, const unsigned int mon0,
 
 // ==== mktime() kernel code =================//
 static int64_t m_deltaUtc = 0;
-void deltaToUtcInitOnce() {  
+void deltaToUtcInitOnce() {
   struct tm tm = {0};
-  
+
   (void)strptime("1970-01-01 00:00:00", (const char *)("%Y-%m-%d %H:%M:%S"), &tm);
   m_deltaUtc = (int64_t)mktime(&tm);
-  //printf("====delta:%lld\n\n", seconds);	
+  //printf("====delta:%lld\n\n", seconds);
   return;
 }
 
@@ -90,7 +90,7 @@ static char* forwardToTimeStringEnd(char* str);
 static int32_t (*parseLocaltimeFp[]) (char* timestr, int64_t* time, int32_t timePrec) = {
   parseLocaltime,
   parseLocaltimeWithDst
-}; 
+};
 
 int32_t taosGetTimestampSec() { return (int32_t)time(NULL); }
 
@@ -194,6 +194,13 @@ int32_t parseTimezone(char* str, int64_t* tzOffset) {
     i += 2;
   }
 
+  //return error if there're illegal charaters after min(2 Digits)
+  char *minStr = &str[i];
+  if (minStr[1] != '\0' && minStr[2] != '\0') {
+      return -1;
+  }
+
+
   int64_t minute = strnatoi(&str[i], 2);
   if (minute > 59) {
     return -1;
@@ -252,7 +259,7 @@ int32_t parseTimeWithTz(char* timestr, int64_t* time, int32_t timePrec, char del
   int64_t fraction = 0;
   str = forwardToTimeStringEnd(timestr);
 
-  if (str[0] == 'Z' || str[0] == 'z') {
+  if ((str[0] == 'Z' || str[0] == 'z') && str[1] == '\0') {
     /* utc time, no millisecond, return directly*/
     *time = seconds * factor;
   } else if (str[0] == '.') {
@@ -265,6 +272,8 @@ int32_t parseTimeWithTz(char* timestr, int64_t* time, int32_t timePrec, char del
 
     char seg = str[0];
     if (seg != 'Z' && seg != 'z' && seg != '+' && seg != '-') {
+      return -1;
+    } else if ((seg == 'Z' || seg == 'z') && str[1] != '\0') {
       return -1;
     } else if (seg == '+' || seg == '-') {
       // parse the timezone
