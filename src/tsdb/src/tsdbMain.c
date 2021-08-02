@@ -14,6 +14,7 @@
  */
 
 // no test file errors here
+#include "taosdef.h"
 #include "tsdbint.h"
 
 #define IS_VALID_PRECISION(precision) \
@@ -105,6 +106,8 @@ STsdbRepo *tsdbOpenRepo(STsdbCfg *pCfg, STsdbAppH *pAppH) {
     tsdbCloseRepo(pRepo, false);
     return NULL;
   }
+
+  pRepo->mergeBuf = NULL;
 
   tsdbStartStream(pRepo);
 
@@ -518,7 +521,8 @@ static int32_t tsdbCheckAndSetDefaultCfg(STsdbCfg *pCfg) {
   }
 
   // update check
-  if (pCfg->update != 0) pCfg->update = 1;
+  if (pCfg->update < TD_ROW_DISCARD_UPDATE || pCfg->update > TD_ROW_PARTIAL_UPDATE)
+    pCfg->update = TD_ROW_DISCARD_UPDATE;
 
   // update cacheLastRow
   if (pCfg->cacheLastRow != 0) {
@@ -597,6 +601,7 @@ static void tsdbFreeRepo(STsdbRepo *pRepo) {
     tsdbFreeFS(pRepo->fs);
     tsdbFreeBufPool(pRepo->pPool);
     tsdbFreeMeta(pRepo->tsdbMeta);
+    tsdbFreeMergeBuf(pRepo->mergeBuf);
     // tsdbFreeMemTable(pRepo->mem);
     // tsdbFreeMemTable(pRepo->imem);
     tsem_destroy(&(pRepo->readyToCommit));
