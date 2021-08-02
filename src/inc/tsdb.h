@@ -240,6 +240,7 @@ typedef struct {
   int32_t   minRows;
   int32_t   firstSeekTimeUs;
   uint32_t  numOfRowsInMemTable;
+  uint32_t  numOfSmallBlocks;
   SArray   *dataBlockInfos;
 } STableBlockDist;
 
