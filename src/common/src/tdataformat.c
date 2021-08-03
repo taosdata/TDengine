@@ -22,7 +22,7 @@
 static void tdMergeTwoDataCols(SDataCols *target, SDataCols *src1, int *iter1, int limit1, SDataCols *src2, int *iter2,
                                int limit2, int tRows, bool forceSetNull);
 
-void tdAllocMemForCol(SDataCol *pCol, int maxPoints) {
+int tdAllocMemForCol(SDataCol *pCol, int maxPoints) {
   int spaceNeeded = pCol->bytes * maxPoints;
   if(IS_VAR_DATA_TYPE(pCol->type)) {
     spaceNeeded += sizeof(VarDataOffsetT) * maxPoints;
@@ -30,8 +30,10 @@ void tdAllocMemForCol(SDataCol *pCol, int maxPoints) {
   if(pCol->spaceSize < spaceNeeded) {
     void* ptr = realloc(pCol->pData, spaceNeeded);
     if(ptr == NULL) {
+      ASSERT(false);
       uDebug("malloc failure, size:%" PRId64 " failed, reason:%s", (int64_t)pCol->spaceSize,
              strerror(errno));
+      return -1;
     } else {
       pCol->pData = ptr;
       pCol->spaceSize = spaceNeeded;
@@ -40,6 +42,7 @@ void tdAllocMemForCol(SDataCol *pCol, int maxPoints) {
       }
     }
   }
+  return 0;
 }
 
 /**
@@ -361,20 +364,6 @@ int tdInitDataCols(SDataCols *pCols, STSchema *pSchema) {
       pCols->cols[i].dataOff = NULL;
       pCols->cols[i].spaceSize = 0;
     }
-  } else if(schemaNCols(pSchema) < oldMaxCols){
-    //TODO: this handling should not exist, for alloc will handle it nicely
-    for(i = schemaNCols(pSchema); i < oldMaxCols; i++) {
-      tfree(pCols->cols[i].pData);
-      pCols->cols[i].spaceSize = 0;
-    }
-    pCols->maxCols = schemaNCols(pSchema);
-    pCols->cols = (SDataCol *)realloc(pCols->cols, sizeof(SDataCol) * pCols->maxCols);
-    if (pCols->cols == NULL) return -1;
-  }
-  for(i = 0; i < pCols->maxCols; i++) {
-    tfree(pCols->cols[i].pData);
-    pCols->cols[i].dataOff = NULL;
-    pCols->cols[i].spaceSize = 0;
   }
 
   if (schemaTLen(pSchema) > pCols->maxRowSize) {
@@ -386,6 +375,7 @@ int tdInitDataCols(SDataCols *pCols, STSchema *pSchema) {
 
   for (i = 0; i < schemaNCols(pSchema); i++) {
     dataColInit(pCols->cols + i, schemaColAt(pSchema, i), pCols->maxPoints);
+    tdAllocMemForCol(pCols->cols + i, pCols->maxPoints);
   }
   
   return 0;

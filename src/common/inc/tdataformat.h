@@ -325,7 +325,7 @@ typedef struct SDataCol {
 #define isAllRowsNull(pCol) ((pCol)->len == 0)
 static FORCE_INLINE void dataColReset(SDataCol *pDataCol) { pDataCol->len = 0; }
 
-void tdAllocMemForCol(SDataCol *pCol, int maxPoints);
+int tdAllocMemForCol(SDataCol *pCol, int maxPoints);
 
 void dataColInit(SDataCol *pDataCol, STColumn *pCol, int maxPoints);
 void dataColAppendVal(SDataCol *pCol, const void *value, int numOfRows, int maxPoints);
