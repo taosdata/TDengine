@@ -267,6 +267,7 @@ void dataColAppendVal(SDataCol *pCol, const void *value, int numOfRows, int maxP
 }
 
 bool isNEleNull(SDataCol *pCol, int nEle) {
+  if(isAllRowsNull(pCol)) return true;
   for (int i = 0; i < nEle; i++) {
     if (!isNull(tdGetColDataOfRow(pCol, i), pCol->type)) return false;
   }
@@ -360,6 +361,15 @@ int tdInitDataCols(SDataCols *pCols, STSchema *pSchema) {
       pCols->cols[i].dataOff = NULL;
       pCols->cols[i].spaceSize = 0;
     }
+  } else if(schemaNCols(pSchema) < oldMaxCols){
+    //TODO: this handling should not exist, for alloc will handle it nicely
+    for(i = schemaNCols(pSchema); i < oldMaxCols; i++) {
+      tfree(pCols->cols[i].pData);
+      pCols->cols[i].spaceSize = 0;
+    }
+    pCols->maxCols = schemaNCols(pSchema);
+    pCols->cols = (SDataCol *)realloc(pCols->cols, sizeof(SDataCol) * pCols->maxCols);
+    if (pCols->cols == NULL) return -1;
   }
 
   if (schemaTLen(pSchema) > pCols->maxRowSize) {
