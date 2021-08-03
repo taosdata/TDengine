@@ -29,7 +29,9 @@ typedef void* SMergeBuf;
 SDataRow tsdbMergeTwoRows(SMergeBuf *pBuf, SMemRow row1, SMemRow row2, STSchema *pSchema1, STSchema *pSchema2);
 
 static FORCE_INLINE int tsdbMergeBufMakeSureRoom(SMergeBuf *pBuf, STSchema* pSchema1, STSchema* pSchema2) {
-  return tsdbMakeRoom(pBuf, MAX(dataRowMaxBytesFromSchema(pSchema1), dataRowMaxBytesFromSchema(pSchema2)));
+  size_t len1 = dataRowMaxBytesFromSchema(pSchema1);
+  size_t len2 = dataRowMaxBytesFromSchema(pSchema2);
+  return tsdbMakeRoom(pBuf, MAX(len1, len2));
 }
 
 static FORCE_INLINE void tsdbFreeMergeBuf(SMergeBuf buf) {

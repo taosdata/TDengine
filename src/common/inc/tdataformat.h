@@ -325,7 +325,7 @@ typedef struct SDataCol {
 #define isAllRowsNull(pCol) ((pCol)->len == 0)
 static FORCE_INLINE void dataColReset(SDataCol *pDataCol) { pDataCol->len = 0; }
 
-void dataColInit(SDataCol *pDataCol, STColumn *pCol, void **pBuf, int maxPoints);
+void dataColInit(SDataCol *pDataCol, STColumn *pCol, int maxPoints);
 void dataColAppendVal(SDataCol *pCol, const void *value, int numOfRows, int maxPoints);
 void dataColSetOffset(SDataCol *pCol, int nEle);
 
@@ -358,12 +358,12 @@ typedef struct {
   int maxRowSize;
   int maxCols;    // max number of columns
   int maxPoints;  // max number of points
-  int bufSize;
+  //int bufSize;
 
   int       numOfRows;
   int       numOfCols;  // Total number of cols
   int       sversion;   // TODO: set sversion
-  void *    buf;
+  //void *    buf;
   SDataCol *cols;
 } SDataCols;
 

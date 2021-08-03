@@ -518,6 +518,15 @@ static int tsdbCheckAndDecodeColumnData(SDataCol *pDataCol, void *content, int32
     return -1;
   }
 
+  if(pDataCol->pData == NULL) {
+    pDataCol->pData = malloc(maxPoints * pDataCol->bytes);
+    ASSERT(pDataCol->pData != NULL);
+    if(IS_VAR_DATA_TYPE(pDataCol->type)) {
+      pDataCol->dataOff = malloc(maxPoints * sizeof(VarDataOffsetT));
+      ASSERT(pDataCol->dataOff != NULL);
+    }
+  }
+
   // Decode the data
   if (comp) {
     // Need to decompress
