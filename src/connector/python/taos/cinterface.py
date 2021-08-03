@@ -823,9 +823,6 @@ class CTaosInterface(object):
 
         taos_init()
 
-    def __del__(self):
-        taos_cleanup()
-
     @property
     def config(self):
         """Get current config"""
