@@ -43,8 +43,6 @@ struct SSqlInfo;
 
 typedef void (*__async_cb_func_t)(void *param, TAOS_RES *tres, int32_t numOfRows);
 
-#define __5221_BRANCH__
-
 typedef struct SNewVgroupInfo {
   int32_t    vgId;
   int8_t     inUse;
@@ -519,10 +517,8 @@ int16_t getNewResColId(SSqlCmd* pCmd);
 int32_t schemaIdxCompar(const void *lhs, const void *rhs);
 int32_t boundIdxCompar(const void *lhs, const void *rhs);
 static FORCE_INLINE int32_t getExtendedRowSize(STableDataBlocks *pBlock) {
-#ifdef __5221_BRANCH__
   ASSERT(pBlock->rowSize == pBlock->pTableMeta->tableInfo.rowSize);
-#endif
-  return pBlock->pTableMeta->tableInfo.rowSize + TD_MEM_ROW_DATA_HEAD_SIZE + pBlock->boundColumnInfo.extendedVarLen;
+  return pBlock->rowSize + TD_MEM_ROW_DATA_HEAD_SIZE + pBlock->boundColumnInfo.extendedVarLen;
 }
 
 static FORCE_INLINE void checkAndConvertMemRow(SMemRow row, int32_t dataLen, int32_t kvLen) {

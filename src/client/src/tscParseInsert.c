@@ -43,9 +43,7 @@ static int32_t parseBoundColumns(SInsertStatementParam *pInsertParam, SParsedDat
                                  char *str, char **end);
 int            initMemRowBuilder(SMemRowBuilder *pBuilder, uint32_t nRows, uint32_t nCols, uint32_t nBoundCols,
                                  int32_t allNullLen) {
-#ifdef __5221_BRANCH__
   ASSERT(nRows >= 0 && nCols > 0 && (nBoundCols <= nCols));
-#endif
   if (nRows > 0) {
     // already init(bind multiple rows by single column)
     if (pBuilder->compareStat == ROW_COMPARE_NEED && (pBuilder->rowInfo != NULL)) {
@@ -95,7 +93,6 @@ int            initMemRowBuilder(SMemRowBuilder *pBuilder, uint32_t nRows, uint3
 
   return TSDB_CODE_SUCCESS;
 }
-
 
 int tsParseTime(SStrToken *pToken, int64_t *time, char **next, char *error, int16_t timePrec) {
   int32_t   index = 0;
