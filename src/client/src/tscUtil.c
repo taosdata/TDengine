@@ -1859,6 +1859,18 @@ static int trimDataBlock(void* pDataBlock, STableDataBlocks* pTableDataBlock, SI
   return len;
 }
 
+static int32_t getRowExpandSize(STableMeta* pTableMeta) {
+  int32_t  result = TD_MEM_ROW_DATA_HEAD_SIZE;
+  int32_t  columns = tscGetNumOfColumns(pTableMeta);
+  SSchema* pSchema = tscGetTableSchema(pTableMeta);
+  for (int32_t i = 0; i < columns; i++) {
+    if (IS_VAR_DATA_TYPE((pSchema + i)->type)) {
+      result += TYPE_BYTES[TSDB_DATA_TYPE_BINARY];
+    }
+  }
+  return result;
+}
+
 static void extractTableNameList(SInsertStatementParam *pInsertParam, bool freeBlockMap) {
   pInsertParam->numOfTables = (int32_t) taosHashGetSize(pInsertParam->pTableBlockHashList);
   if (pInsertParam->pTableNameList == NULL) {
@@ -1897,6 +1909,7 @@ int32_t tscMergeTableDataBlocks(SInsertStatementParam *pInsertParam, bool freeBl
     SSubmitBlk* pBlocks = (SSubmitBlk*) pOneTableBlock->pData;
     if (pBlocks->numOfRows > 0) {
       // the maximum expanded size in byte when a row-wise data is converted to SDataRow format
+      int32_t           expandSize = isRawPayload ? getRowExpandSize(pOneTableBlock->pTableMeta) : 0;
       STableDataBlocks* dataBuf = NULL;
 
       int32_t ret = tscGetDataBlockFromList(pVnodeDataBlockHashList, pOneTableBlock->vgId, TSDB_PAYLOAD_SIZE,
@@ -1909,8 +1922,8 @@ int32_t tscMergeTableDataBlocks(SInsertStatementParam *pInsertParam, bool freeBl
         return ret;
       }
 
-      int64_t destSize =
-          dataBuf->size + pOneTableBlock->size + sizeof(STColumn) * tscGetNumOfColumns(pOneTableBlock->pTableMeta);
+      int64_t destSize = dataBuf->size + pOneTableBlock->size + pBlocks->numOfRows * expandSize +
+                         sizeof(STColumn) * tscGetNumOfColumns(pOneTableBlock->pTableMeta);
 
       if (dataBuf->nAllocSize < destSize) {
         dataBuf->nAllocSize = (uint32_t)(destSize * 1.5);
@@ -1954,7 +1967,8 @@ int32_t tscMergeTableDataBlocks(SInsertStatementParam *pInsertParam, bool freeBl
                  pBlocks->numOfRows, pBlocks->sversion, blkKeyInfo.pKeyTuple->skey, pLastKeyTuple->skey);
       }
 
-      int32_t len = pBlocks->numOfRows * getExtendedRowSize(pOneTableBlock) +
+      int32_t len = pBlocks->numOfRows *
+                        (isRawPayload ? (pOneTableBlock->rowSize + expandSize) : getExtendedRowSize(pOneTableBlock)) +
                     sizeof(STColumn) * tscGetNumOfColumns(pOneTableBlock->pTableMeta);
 
       pBlocks->tid = htonl(pBlocks->tid);

@@ -616,7 +616,7 @@ typedef void *SMemRow;
 
 #define memRowType(r) ((*(uint8_t *)(r)) & 0x01)
 
-#define memRowSetType(r, t) ((*(uint8_t *)(r)) = (((*(uint8_t *)(r)) & 0xFE) | (t)))               // lowest bit
+#define memRowSetType(r, t) ((*(uint8_t *)(r)) = (t))  // set the total byte in case of dirty memory
 #define memRowSetConvert(r) ((*(uint8_t *)(r)) = (((*(uint8_t *)(r)) & 0x7F) | SMEM_ROW_CONVERT))  // highest bit
 #define isDataRowT(t) (SMEM_ROW_DATA == (((uint8_t)(t)) & 0x01))
 #define isDataRow(r) (SMEM_ROW_DATA == memRowType(r))
