@@ -192,8 +192,12 @@ void *allocMemory(cache_t *cache, size_t size, bool chunked) {
   return ptr;
 }
 
+FORCE_INLINE cacheMutex* getItemMutexByIndex(cacheTable* pTable, uint32_t hash) {
+  return &(pTable->pCache->itemMutex[hash & hashmask(ITEM_MUTEX_HASH_POWER)]);
+}
+
 FORCE_INLINE cacheMutex* getItemMutexByKey(cacheTable* pTable, const char* key, uint8_t nkey) {
-  return &(pTable->pCache->itemMutex[pTable->hashFp(key, nkey) % ITEM_MUTEX_HASH_POWER]);
+  return &(pTable->pCache->itemMutex[pTable->hashFp(key, nkey) & hashmask(ITEM_MUTEX_HASH_POWER)]);
 }
 
 FORCE_INLINE cacheMutex* getItemMutexByItem(cacheItem* pItem) {

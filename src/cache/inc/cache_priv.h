@@ -59,12 +59,16 @@ struct cache_t {
   int powerLargest;  
 };
 
+#define hashsize(n) ((unsigned long int)1<<(n))
+#define hashmask(n) (hashsize(n)-1)
+
 void *allocMemory(cache_t *cache, size_t size, bool chunked);
+
+cacheMutex* getItemMutexByIndex(cacheTable* pTable, uint32_t hash);
 
 cacheMutex* getItemMutexByKey(cacheTable* pTable, const char* key, uint8_t nkey);
 
-#define hashsize(n) ((unsigned long int)1<<(n))
-#define hashmask(n) (hashsize(n)-1)
+cacheMutex* getItemMutexByItem(cacheItem* pItem);
 
 #ifdef __cplusplus
 }

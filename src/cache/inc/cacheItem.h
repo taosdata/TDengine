@@ -121,7 +121,7 @@ static FORCE_INLINE bool item_equal_key(cacheItem* item, const char* key, uint8_
 void cacheItemUnlink(cacheTable* pTable, cacheItem* pItem, cacheLockFlag flag);
 void cacheItemRemove(cache_t*, cacheItem*);
 void cacheItemBump(cacheTable* pTable, cacheItem* pItem, uint64_t now);
-cacheMutex* getItemMutexByItem(cacheItem*);
+
 cacheItem* cacheAllocItem(cache_t*, uint8_t nkey, uint32_t nbytes, uint64_t expireTime);
 
 #ifdef __cplusplus

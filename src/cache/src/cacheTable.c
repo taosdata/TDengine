@@ -13,7 +13,10 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <assert.h>
 #include <stdlib.h>
+#include <unistd.h>
+#include "cacheLog.h"
 #include "cacheTable.h"
 #include "cache_priv.h"
 #include "cacheItem.h"
@@ -25,6 +28,7 @@ static int        initTableBucket(cacheTableBucket* pBucket, uint32_t id);
 static cacheItem* findItemByKey(cacheTable* pTable, const char* key, uint8_t nkey, cacheItem **ppPrev);
 static void       removeTableItem(cache_t* pCache, cacheTableBucket* pBucket, cacheItem* pItem,
                                 cacheItem* pPrev, bool freeItem);
+static cacheTableBucket* getTableBucketByKey(cacheTable* pTable, const char* key, uint8_t nkey);
 
 cacheTable* cacheCreateTable(cache_t* cache, cacheTableOption* option) {
   cacheTable* pTable = calloc(1, sizeof(cacheTable));
@@ -36,7 +40,12 @@ cacheTable* cacheCreateTable(cache_t* cache, cacheTableOption* option) {
     goto error;
   }
 
-  pTable->capacity = option->initNum;
+  // init hash power CANNOT less than ITEM_MUTEX_HASH_POWER
+  if (option->initHashPower < ITEM_MUTEX_HASH_POWER) {
+    option->initHashPower = ITEM_MUTEX_HASH_POWER;
+  }
+
+  pTable->capacity = hashsize(option->initHashPower);
   pTable->pBucket = malloc(sizeof(cacheTableBucket) * pTable->capacity);
   if (pTable->pBucket == NULL) {
     goto error;
@@ -50,6 +59,9 @@ cacheTable* cacheCreateTable(cache_t* cache, cacheTableOption* option) {
   pTable->hashFp = taosGetDefaultHashFunction(option->keyType);
   pTable->option = *option;
   pTable->pCache = cache;
+  pTable->pOldBucket = NULL;
+  pTable->expanding = false;
+  pTable->expandIndex = 0;
 
   taosWLockLatch(&(cache->latch));
   if (cache->tableHead == NULL) {
@@ -85,10 +97,8 @@ static int initTableBucket(cacheTableBucket* pBucket, uint32_t id) {
 }
 
 static cacheItem* findItemByKey(cacheTable* pTable, const char* key, uint8_t nkey, cacheItem **ppPrev) {
-  cacheItem* pItem = NULL;
-  uint32_t index = pTable->hashFp(key, nkey) % pTable->capacity;
-
-  pItem = pTable->pBucket[index].head;
+  cacheItem* pItem = getTableBucketByKey(pTable, key, nkey)->head;
+  
   if (ppPrev) *ppPrev = NULL;
 
   while (pItem != NULL) {
@@ -103,6 +113,16 @@ static cacheItem* findItemByKey(cacheTable* pTable, const char* key, uint8_t nke
   }
 
   return NULL;
+}
+
+static cacheTableBucket* getTableBucketByKey(cacheTable* pTable, const char* key, uint8_t nkey) {
+  uint32_t hash = pTable->hashFp(key, nkey);
+
+  if (pTable->expanding && hash % pTable->capacity >= pTable->expandIndex) {
+    return &(pTable->pOldBucket[hash % pTable->capacity]);
+  }
+
+  return &(pTable->pBucket[hash & hashmask(pTable->option.initHashPower)]);
 }
 
 static void removeTableItem(cache_t* pCache, cacheTableBucket* pBucket, cacheItem* pItem,
@@ -120,8 +140,7 @@ static void removeTableItem(cache_t* pCache, cacheTableBucket* pBucket, cacheIte
 }
 
 int cacheTablePut(cacheTable* pTable, cacheItem* pItem) {
-  uint32_t index = pTable->hashFp(item_key(pItem), pItem->nkey) % pTable->capacity;
-  cacheTableBucket* pBucket = &(pTable->pBucket[index]);
+  cacheTableBucket* pBucket = getTableBucketByKey(pTable, item_key(pItem), pItem->nkey);
 
   cacheItem *pOldItem, *pPrev;
   pOldItem = findItemByKey(pTable, item_key(pItem), pItem->nkey, &pPrev);
@@ -147,4 +166,64 @@ void cacheTableRemove(cacheTable* pTable, const char* key, uint8_t nkey, bool fr
   pItem = findItemByKey(pTable, key, nkey, &pPrev);
 
   removeTableItem(pTable->pCache, pBucket, pItem, pPrev, freeItem);
+}
+
+void cacheTableExpand(cacheTable* pTable) {
+  assert(pTable->expanding == false);
+  assert(pTable->expandIndex == 0);
+  assert(pTable->pOldBucket == NULL);
+
+  uint32_t capacity;
+  cacheMutex* pMutex;
+  uint32_t i, newIndex;
+  cacheItem *pItem, *h_next;
+  cacheTableBucket* pBucket;
+
+  pTable->option.initHashPower += 1;
+  capacity = hashsize(pTable->option.initHashPower);
+  
+  pBucket = malloc(sizeof(cacheTableBucket) * capacity);
+  if (pBucket == NULL) {
+    cacheError("expanding bucket oom");
+    return;
+  }
+
+  memset(pBucket, 0, sizeof(cacheTableBucket) * capacity);
+  
+  for (i = 0; i < capacity; i++) {
+    initTableBucket(&(pBucket[i]), i);
+  }
+
+  // swap old and new bucket array
+  pTable->pOldBucket = pTable->pBucket;
+  pTable->pBucket = pBucket;
+  
+  pTable->expanding = true;
+  while (pTable->expandIndex < pTable->capacity) {
+    pMutex = getItemMutexByIndex(pTable, pTable->expandIndex);
+    if (cacheMutexTryLock(pMutex) != 0) {
+      // sleep and try again
+      usleep(10*1000);
+      continue;
+    }
+
+    // move old bucket item to new hash table
+    i = pTable->expandIndex;
+    pTable->expandIndex += 1;
+    for (pItem = pTable->pOldBucket[i].head; pItem; pItem = h_next) {
+      h_next = pItem->h_next;
+      newIndex = pTable->hashFp(item_key(pItem), pItem->nkey) % capacity;
+      pItem->h_next = pTable->pBucket[newIndex].head;
+      pTable->pBucket[newIndex].head = pItem;
+    }
+    pTable->pOldBucket[i].head = NULL;
+
+    cacheMutexUnlock(pMutex);
+  }
+
+  free(pTable->pOldBucket);
+
+  pTable->expandIndex = 0;
+  pTable->expanding = false;
+  pTable->capacity = capacity;
 }

@@ -43,6 +43,11 @@ struct cacheTable {
   uint32_t capacity;
 
   cacheTableBucket* pBucket;
+
+  cacheTableBucket* pOldBucket;
+
+  bool expanding;             /* expanding flag */
+  uint32_t expandIndex;       /* expand max index */
 };
 
 void cacheTableDestroy(cacheTable *pTable);
@@ -50,6 +55,8 @@ void cacheTableDestroy(cacheTable *pTable);
 int cacheTablePut(cacheTable *pTable, cacheItem* pItem);
 cacheItem* cacheTableGet(cacheTable* pTable, const char* key, uint8_t nkey);
 void cacheTableRemove(cacheTable* pTable, const char* key, uint8_t nkey, bool freeItem);
+
+void cacheTableExpand(cacheTable* pTable);
 
 #ifdef __cplusplus
 }

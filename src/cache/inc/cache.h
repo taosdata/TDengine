@@ -38,7 +38,7 @@ typedef struct cacheOption {
 typedef struct cacheTableOption {
   cache_load_func_t loadFunc; /* user defined load data function */
 
-  int initNum;                  /* table initial size */
+  int initHashPower;            /* table initial hash power */
 
   void* userData;             /* user data */
   int32_t keyType;
