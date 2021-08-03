@@ -25,7 +25,7 @@ static void tdMergeTwoDataCols(SDataCols *target, SDataCols *src1, int *iter1, i
 int tdAllocMemForCol(SDataCol *pCol, int maxPoints) {
   int spaceNeeded = pCol->bytes * maxPoints;
   if(IS_VAR_DATA_TYPE(pCol->type)) {
-    spaceNeeded += sizeof(VarDataOffsetT) * maxPoints + sizeof(VarDataLenT) * maxPoints;
+    spaceNeeded += sizeof(VarDataOffsetT) * maxPoints;
   }
   if(pCol->spaceSize < spaceNeeded) {
     void* ptr = realloc(pCol->pData, spaceNeeded);
@@ -37,10 +37,10 @@ int tdAllocMemForCol(SDataCol *pCol, int maxPoints) {
     } else {
       pCol->pData = ptr;
       pCol->spaceSize = spaceNeeded;
-      if(IS_VAR_DATA_TYPE(pCol->type)) {
-        pCol->dataOff = POINTER_SHIFT(ptr, pCol->bytes * maxPoints);
-      }
     }
+  }
+  if(IS_VAR_DATA_TYPE(pCol->type)) {
+    pCol->dataOff = POINTER_SHIFT(pCol->pData, pCol->bytes * maxPoints);
   }
   return 0;
 }
