@@ -22,6 +22,7 @@
 static void tdMergeTwoDataCols(SDataCols *target, SDataCols *src1, int *iter1, int limit1, SDataCols *src2, int *iter2,
                                int limit2, int tRows, bool forceSetNull);
 
+//TODO: change caller to use return val
 int tdAllocMemForCol(SDataCol *pCol, int maxPoints) {
   int spaceNeeded = pCol->bytes * maxPoints;
   if(IS_VAR_DATA_TYPE(pCol->type)) {
@@ -30,7 +31,6 @@ int tdAllocMemForCol(SDataCol *pCol, int maxPoints) {
   if(pCol->spaceSize < spaceNeeded) {
     void* ptr = realloc(pCol->pData, spaceNeeded);
     if(ptr == NULL) {
-      ASSERT(false);
       uDebug("malloc failure, size:%" PRId64 " failed, reason:%s", (int64_t)pCol->spaceSize,
              strerror(errno));
       return -1;
