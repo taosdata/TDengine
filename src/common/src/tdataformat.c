@@ -375,8 +375,6 @@ int tdInitDataCols(SDataCols *pCols, STSchema *pSchema) {
 
   for (i = 0; i < schemaNCols(pSchema); i++) {
     dataColInit(pCols->cols + i, schemaColAt(pSchema, i), pCols->maxPoints);
-    pCols->cols[i].spaceSize = 0;
-    tdAllocMemForCol(pCols->cols + i, pCols->maxPoints);
   }
   
   return 0;
