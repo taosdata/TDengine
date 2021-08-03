@@ -148,6 +148,9 @@ python3 ./test.py -f import_merge/importTPORestart.py
 python3 ./test.py -f import_merge/importTRestart.py
 python3 ./test.py -f import_merge/importInsertThenImport.py
 python3 ./test.py -f import_merge/importCSV.py
+python3 ./test.py -f import_merge/import_update_0.py
+python3 ./test.py -f import_merge/import_update_1.py
+python3 ./test.py -f import_merge/import_update_2.py
 #======================p1-end===============
 #======================p2-start===============
 # tools
