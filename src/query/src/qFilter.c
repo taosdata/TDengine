@@ -1408,13 +1408,13 @@ void filterDumpInfoToString(SFilterInfo *info, const char *msg, int32_t options)
       if (ctx->isrange) {      
         SFilterRangeNode *r = ctx->rs;
         while (r) {
-          char str[128] = {0};        
+          char str[256] = {0};        
           int32_t tlen = 0;
           if (FILTER_GET_FLAG(r->ra.sflag, RA_NULL)) {
             strcat(str,"(NULL)");
           } else {
             FILTER_GET_FLAG(r->ra.sflag, RA_EXCLUDE) ? strcat(str,"(") : strcat(str,"[");
-            converToStr(str + strlen(str), ctx->type, &r->ra.s, tlen, &tlen);
+            converToStr(str + strlen(str), ctx->type, &r->ra.s, tlen > 32 ? 32 : tlen, &tlen);
             FILTER_GET_FLAG(r->ra.sflag, RA_EXCLUDE) ? strcat(str,")") : strcat(str,"]");
           }
           strcat(str, " - ");
@@ -1422,7 +1422,7 @@ void filterDumpInfoToString(SFilterInfo *info, const char *msg, int32_t options)
             strcat(str, "(NULL)");
           } else {
             FILTER_GET_FLAG(r->ra.eflag, RA_EXCLUDE) ? strcat(str,"(") : strcat(str,"[");
-            converToStr(str + strlen(str), ctx->type, &r->ra.e, tlen, &tlen);
+            converToStr(str + strlen(str), ctx->type, &r->ra.e, tlen > 32 ? 32 : tlen, &tlen);
             FILTER_GET_FLAG(r->ra.eflag, RA_EXCLUDE) ? strcat(str,")") : strcat(str,"]");
           }
           qDebug("range: %s", str);        
