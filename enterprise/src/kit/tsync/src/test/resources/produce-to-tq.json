@@ -1,0 +1,60 @@
+{
+  "producer": {
+    "host": "192.168.17.156",
+    "port": 6041,
+    "user": "root",
+    "password": "tqueue",
+    "charset": "UTF-8",
+    "locale": "en_US.UTF-8",
+    "timezone": "UTC-8",
+    "serializer": "STRING"
+  },
+  "task": {
+    "topic": "tq_test",
+    "partitions": [
+      "1..10"
+    ],
+    "threads": 10
+  },
+  "message": {
+    "total": 2000000,
+    "batchTables": 1,
+    "batchValues": 1,
+    "schema": {
+      "startTime": "2020-01-01 12:00:00.000",
+      "database": {
+        "name": "test",
+        "precision": "ms"
+      },
+      "stable": {
+        "name": "weather",
+        "tables": 10000,
+        "columns": [
+          {
+            "name": "ts",
+            "type": "timestamp"
+          },
+          {
+            "name": "temperature",
+            "type": "float"
+          },
+          {
+            "name": "humidity",
+            "type": "int"
+          }
+        ],
+        "tags": [
+          {
+            "name": "loc",
+            "type": "binary",
+            "length": 5
+          },
+          {
+            "name": "groupId",
+            "type": "int"
+          }
+        ]
+      }
+    }
+  }
+}

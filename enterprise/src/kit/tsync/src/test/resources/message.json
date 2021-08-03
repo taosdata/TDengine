@@ -1,0 +1,41 @@
+{
+  "total": 100,
+  "batchTables": 10,
+  "batchValues": 10,
+  "schema": {
+    "startTime": "2021-01-01 12:00:00.123",
+    "database": {
+      "name": "test",
+      "precision": "ms"
+    },
+    "stable": {
+      "name": "weather",
+      "tables": 100,
+      "columns": [
+        {
+          "name": "ts",
+          "type": "timestamp"
+        },
+        {
+          "name": "temperature",
+          "type": "float"
+        },
+        {
+          "name": "humidity",
+          "type": "int"
+        }
+      ],
+      "tags": [
+        {
+          "name": "loc",
+          "type": "binary",
+          "length": 5
+        },
+        {
+          "name": "groupId",
+          "type": "int"
+        }
+      ]
+    }
+  }
+}

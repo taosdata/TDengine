@@ -330,7 +330,6 @@ void generatedData(TAOS* taos) {
 int main(int argc, char** argv) {
 //  taos_options(TSDB_OPTION_CONFIGDIR, "~/first/cfg");
   taos_options(TSDB_OPTION_CONFIGDIR, "/home/lisa/Documents/workspace/TDinternal/sim/tsim/cfg");
-//  taos_options(TSDB_OPTION_CONFIGDIR, "/home/lisa/Documents/workspace/TDinternal/community/sim/psim/cfg");
   taos_init();
   TAOS* conn = taos_connect("ubuntu", "root", "taosdata", 0, 0);
   if (conn == NULL) {
@@ -385,11 +384,27 @@ int main(int argc, char** argv) {
 //      TAOS_RES*  taos_query(conn, t);
 //      taos_free_result(res);
 //    }
-    executeSQL(conn, "use intp_db0", NULL);
-    executeSQL(conn, "select interp(ts), c1 from intp_tb0 where ts = 1537146000000", NULL);
+  executeSQL(conn, "use test", NULL);
+  executeSQL(conn, "select * from (select * from m1 order by ts asc limit 1)", NULL);
+//  executeSQL(conn, "select * from m1 order by ts asc limit 1", NULL);
+//  executeSQL(conn, "select count(t1.ts) + count(t1.ts) from t1,t2 where t1.ts =t2.ts", NULL);
+
+//    executeSQL(conn, "select * from (select count(*) from tm0 interval(1s)) a", NULL);
+//    executeSQL(conn, "select count(*) from m1", NULL);
+//    executeSQL(conn, "select count(k) from m2 where tbname in ('t2m0', 't2m1') and ts>=1433955690790 and "
+//                     "ts<=1433955690850 interval(10a) fill(value, 911) group by tbname", NULL);
+//   executeSQL(conn, "select stddev(col1) from test where cid = 1 and ts >=now - 1d and ts <now and col2 < 20;", NULL);
+//    executeSQL(conn, "select sum(a.k), sum(b.f) from (select count(*) k from nest_tb0 interval(30a)) a, (select count(*) f from nest_tb1 interval(30a)) b where a.ts = b.ts ;", NULL);
+//    executeSQL(conn, "select a.ts,a.k,b.ts,c.ts,c.ts,c.x from (select count(*) k from nest_tb0 interval(30a)) a, (select count(*) f from nest_tb1 interval(30a)) b, (select count(*) x from nest_tb2 interval(30a)) c where a.ts = b.ts and a.ts = c.ts", NULL);
+
+//  executeSQL(conn, "select a.ts,a.k "
+//                   "from (select count(*) k from t2m0 interval(30a)) a, (select count(*) f from t2m1 interval(30a)) b "
+//                   " where a.ts = b.ts", NULL);
+
+//    executeSQL(conn, "select count(*) k from t2m0 interval(30a)", NULL);
 //    executeSQL(conn, "select count(*) from t2m1 where ts<'2015-6-11 1:1:1.3' and ts>='2015-6-11 1:1:1' interval(20a) fill(next)", NULL);
 //    executeSQL(conn, "describe tux1", NULL);
-//    createEnvironment(conn, 2, 2, 10000, 30);
+//    createEnvironment(conn, 5, 5, 40000, 30);
     taos_close(conn);
     taos_cleanup();
     return 0;

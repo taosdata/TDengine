@@ -103,9 +103,9 @@ fi
 dockerPass="tbase125!"
 dockerinput_x64=TDengine-server-${version}-Linux-amd64.tar.gz
 
+####################### build docker image and push
 if [ "$dockerMode" == "isdocker" ];then
   cd ${scriptDir}
-  ####################### build docker image and push
   echo "ready to generate docker for community version >>>>>>>>>>>>>>>>>>>>>>>>>>>>>"
   if [ "${cpuType}" == "x64" ] ; then
     cpuType=amd64
