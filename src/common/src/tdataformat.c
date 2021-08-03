@@ -248,10 +248,9 @@ void dataColAppendVal(SDataCol *pCol, const void *value, int numOfRows, int maxP
     if (numOfRows > 0) {
       // Find the first not null value, fill all previouse values as NULL
       dataColSetNEleNull(pCol, numOfRows, maxPoints);
-    } else {
-      tdAllocMemForCol(pCol, maxPoints);
     }
   }
+  tdAllocMemForCol(pCol, maxPoints);
 
   if (IS_VAR_DATA_TYPE(pCol->type)) {
     // set offset
