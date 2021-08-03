@@ -344,10 +344,10 @@ void* taosHashGetCloneExt(SHashObj *pHashObj, const void *key, size_t keyLen, vo
       *sz = pNode->dataLen + EXT_SIZE;
       *d  = realloc(*d, *sz); 
     }
-    memcpy(*d, GET_HASH_NODE_DATA(pNode), pNode->dataLen);
+    memcpy((char *)(*d), GET_HASH_NODE_DATA(pNode), pNode->dataLen);
     // just make runtime happy 
     if ((*sz) - pNode->dataLen > 0) {
-      memset((*d) + pNode->dataLen, 0, (*sz) - pNode->dataLen);
+      memset((char *)(*d) + pNode->dataLen, 0, (*sz) - pNode->dataLen);
     } 
 
     data = GET_HASH_NODE_DATA(pNode);
