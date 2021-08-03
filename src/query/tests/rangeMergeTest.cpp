@@ -11,6 +11,10 @@
 #pragma GCC diagnostic ignored "-Wunused-variable"
 
 extern "C" {
+  extern void* filterInitRangeCtx(int32_t type, int32_t options);
+  extern int32_t filterGetRangeNum(void* h, int32_t* num);
+  extern int32_t filterGetRangeRes(void* h, SFilterRange *ra);
+  extern int32_t filterFreeRangeCtx(void* h);
   extern int32_t filterAddRange(void* h, SFilterRange* ra, int32_t optr);
 }
 

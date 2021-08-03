@@ -586,7 +586,7 @@ void convertFilterSetFromBinary(void **q, const char *buf, int32_t len, uint32_t
 
     if (bufLen < t) {
       tmp = realloc(tmp, t * TSDB_NCHAR_SIZE);
-      bufLen = t;
+      bufLen = (int32_t)t;
     }
 
     switch (tType) {

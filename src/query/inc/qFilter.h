@@ -51,13 +51,10 @@ enum {
 };
 
 enum {
-  RA_EXCLUDE = 1,
-  RA_INCLUDE = 2,
-  RA_NULL    = 4,
+  RANGE_FLG_EXCLUDE = 1,
+  RANGE_FLG_INCLUDE = 2,
+  RANGE_FLG_NULL    = 4,
 };
-
-#define RA_EMPTY (RA_EXCLUDE|RA_INCLUDE)
-#define RA_ALL (RA_EXCLUDE|RA_INCLUDE)
 
 enum {
   FI_OPTION_NO_REWRITE = 1,
@@ -232,7 +229,7 @@ typedef struct SFilterInfo {
 
 #define SIMPLE_COPY_VALUES(dst, src) *((int64_t *)dst) = *((int64_t *)src)
 #define FILTER_PACKAGE_UNIT_HASH_KEY(v, optr, idx1, idx2) do { char *_t = (char *)v; _t[0] = optr; *(uint16_t *)(_t + 1) = idx1; *(uint16_t *)(_t + 3) = idx2; } while (0)
-#define FILTER_GREATER(cr,sflag,eflag) ((cr > 0) || ((cr == 0) && (FILTER_GET_FLAG(sflag,RA_EXCLUDE) || FILTER_GET_FLAG(eflag,RA_EXCLUDE))))
+#define FILTER_GREATER(cr,sflag,eflag) ((cr > 0) || ((cr == 0) && (FILTER_GET_FLAG(sflag,RANGE_FLG_EXCLUDE) || FILTER_GET_FLAG(eflag,RANGE_FLG_EXCLUDE))))
 #define FILTER_COPY_RA(dst, src) do { (dst)->sflag = (src)->sflag; (dst)->eflag = (src)->eflag; (dst)->s = (src)->s; (dst)->e = (src)->e; } while (0)
 
 #define RESET_RANGE(ctx, r) do { (r)->next = (ctx)->rf; (ctx)->rf = r; } while (0)
@@ -243,11 +240,11 @@ typedef struct SFilterInfo {
 
 #define ERR_RET(c) do { int32_t _code = c; if (_code != TSDB_CODE_SUCCESS) { return _code; } } while (0)
 #define ERR_LRET(c,...) do { int32_t _code = c; if (_code != TSDB_CODE_SUCCESS) { qError(__VA_ARGS__); return _code; } } while (0)
-#define ERR_JRET(c) do { code = c; if (code != TSDB_CODE_SUCCESS) { goto _err_return; } } while (0)
+#define ERR_JRET(c) do { code = c; if (code != TSDB_CODE_SUCCESS) { goto _return; } } while (0)
 
 #define CHK_RETV(c) do { if (c) { return; } } while (0)
 #define CHK_RET(c, r) do { if (c) { return r; } } while (0)
-#define CHK_JMP(c) do { if (c) { goto _err_return; } } while (0)
+#define CHK_JMP(c) do { if (c) { goto _return; } } while (0)
 #define CHK_LRETV(c,...) do { if (c) { qError(__VA_ARGS__); return; } } while (0)
 #define CHK_LRET(c, r,...) do { if (c) { qError(__VA_ARGS__); return r; } } while (0)
 
@@ -291,15 +288,10 @@ typedef int32_t(*filter_desc_compare_func)(const void *, const void *);
 extern int32_t filterInitFromTree(tExprNode* tree, SFilterInfo **pinfo, uint32_t options);
 extern bool filterExecute(SFilterInfo *info, int32_t numOfRows, int8_t* p);
 extern int32_t filterSetColFieldData(SFilterInfo *info, int16_t colId, void *data);
-extern void* filterInitRangeCtx(int32_t type, int32_t options);
-extern int32_t filterGetRangeNum(void* h, int32_t* num);
-extern int32_t filterGetRangeRes(void* h, SFilterRange *ra);
-extern int32_t filterFreeRangeCtx(void* h);
 extern int32_t filterGetTimeRange(SFilterInfo *info, STimeWindow *win);
 extern int32_t filterConverNcharColumns(SFilterInfo* pFilterInfo, int32_t rows, bool *gotNchar);
 extern int32_t filterFreeNcharColumns(SFilterInfo* pFilterInfo);
 extern void filterFreeInfo(SFilterInfo *info);
-extern bool filterIsEmptyRes(SFilterInfo *info);
 extern bool filterRangeExecute(SFilterInfo *info, SDataStatis *pDataStatis, int32_t numOfCols, int32_t numOfRows);
 
 #ifdef __cplusplus

@@ -1865,9 +1865,23 @@ if $rows != 28 then
   return -1
 endi
 sql select * from stb1 where c5 in (-9999999999);
-#sql select * from stb1 where c5 in (9999999999);
-#sql select * from stb1 where c5 in (-9999999999,3,4,9999999999);
-
+if $rows != 0 then
+  return -1
+endi
+sql select * from stb1 where c5 in (9999999999);
+if $rows != 0 then
+  return -1
+endi
+sql select * from stb1 where c5 in (-9999999999,3,4,9999999999);
+if $rows != 2 then
+  return -1
+endi
+if $data00 != @21-05-05 18:19:02.000@ then
+  return -1
+endi
+if $data10 != @21-05-05 18:19:03.000@ then
+  return -1
+endi
 
 sql select * from stb3 where c1 > 3 and c1 < 2;
 if $rows != 0 then
