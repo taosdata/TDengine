@@ -178,6 +178,10 @@ python3 ./test.py -f update/merge_commit_last-0.py
 python3 ./test.py -f update/merge_commit_last.py
 python3 ./test.py -f update/bug_td2279.py
 
+
+
+# functions
+python3 ./test.py -f functions/queryTestCases.py
 #======================p2-end===============
 #======================p3-start===============
 
@@ -329,7 +333,6 @@ python3 ./test.py -f query/last_row_cache.py
 python3 ./test.py -f account/account_create.py
 python3 ./test.py -f alter/alter_table.py
 python3 ./test.py -f query/queryGroupbySort.py
-python3 ./test.py -f functions/queryTestCases.py
 python3 ./test.py -f functions/function_stateWindow.py
 python3 ./test.py -f functions/function_derivative.py
 python3 ./test.py  -f functions/function_irate.py
