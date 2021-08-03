@@ -2844,15 +2844,11 @@ int32_t tscGetTableMetaImpl(SSqlObj* pSql, STableMetaInfo *pTableMetaInfo, bool 
   tNameExtractFullName(&pTableMetaInfo->name, name);
 
   size_t len = strlen(name);
+  if (pTableMetaInfo->tableMetaCapacity != 0) {
+    memset(pTableMetaInfo->pTableMeta, 0, pTableMetaInfo->tableMetaCapacity);
+  } 
   taosHashGetCloneExt(tscTableMetaMap, name, len, NULL, (void **)&(pTableMetaInfo->pTableMeta), &pTableMetaInfo->tableMetaCapacity);
 
-  // TODO resize the tableMeta
-  //assert(size < 80 * TSDB_MAX_COLUMNS);
-  //if (!pSql->pBuf) {
-  //  if (NULL == (pSql->pBuf = tcalloc(1, 80 * TSDB_MAX_COLUMNS))) {
-  //    return TSDB_CODE_TSC_OUT_OF_MEMORY;
-  //  }
-  //}
   STableMeta* pMeta = pTableMetaInfo->pTableMeta;
   if (pMeta && pMeta->id.uid > 0) {
     // in case of child table, here only get the

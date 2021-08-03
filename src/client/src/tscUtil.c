@@ -4460,17 +4460,19 @@ int32_t tscCreateTableMetaFromSTableMeta(STableMeta** ppChild, const char* name,
   // tableMeta exists, build child table meta according to the super table meta
   // the uid need to be checked in addition to the general name of the super table.
   if (p && p->id.uid > 0 && pChild->suid == p->id.uid) {
-    pChild->sversion = p->sversion;
-    pChild->tversion = p->tversion;
 
-    memcpy(&pChild->tableInfo, &p->tableInfo, sizeof(STableComInfo));
-    int32_t totalBytes    = (pChild->tableInfo.numOfColumns + pChild->tableInfo.numOfTags) * sizeof(SSchema);
+    int32_t totalBytes    = (p->tableInfo.numOfColumns + p->tableInfo.numOfTags) * sizeof(SSchema);
     int32_t tableMetaSize =  sizeof(STableMeta)  + totalBytes;
     if (*tableMetaCapacity < tableMetaSize) {
       pChild = realloc(pChild, tableMetaSize); 
       *tableMetaCapacity = (size_t)tableMetaSize;
     }
+
+    pChild->sversion = p->sversion;
+    pChild->tversion = p->tversion;
+    memcpy(&pChild->tableInfo, &p->tableInfo, sizeof(STableComInfo));
     memcpy(pChild->schema, p->schema, totalBytes);
+
     *ppChild = pChild;
     tfree(p);
     return TSDB_CODE_SUCCESS;
