@@ -251,9 +251,10 @@ void dataColAppendVal(SDataCol *pCol, const void *value, int numOfRows, int maxP
     if (numOfRows > 0) {
       // Find the first not null value, fill all previouse values as NULL
       dataColSetNEleNull(pCol, numOfRows, maxPoints);
+    } else {
+      tdAllocMemForCol(pCol, maxPoints);
     }
   }
-  tdAllocMemForCol(pCol, maxPoints);
 
   if (IS_VAR_DATA_TYPE(pCol->type)) {
     // set offset
@@ -290,7 +291,6 @@ static FORCE_INLINE void dataColSetNullAt(SDataCol *pCol, int index) {
 }
 
 void dataColSetNEleNull(SDataCol *pCol, int nEle, int maxPoints) {
-  if(isAllRowsNull(pCol)) return;
   tdAllocMemForCol(pCol, maxPoints);
 
   if (IS_VAR_DATA_TYPE(pCol->type)) {
@@ -414,9 +414,9 @@ SDataCols *tdDupDataCols(SDataCols *pDataCols, bool keepData) {
     pRet->cols[i].offset = pDataCols->cols[i].offset;
 
     if (keepData) {
-      pRet->cols[i].len = pDataCols->cols[i].len;
-      if (pRet->cols[i].len > 0) {
+      if (pDataCols->cols[i].len > 0) {
         tdAllocMemForCol(&pRet->cols[i], pRet->maxPoints);
+        pRet->cols[i].len = pDataCols->cols[i].len;
         memcpy(pRet->cols[i].pData, pDataCols->cols[i].pData, pDataCols->cols[i].len);
         if (IS_VAR_DATA_TYPE(pRet->cols[i].type)) {
           int dataOffSize = sizeof(VarDataOffsetT) * pDataCols->maxPoints;
