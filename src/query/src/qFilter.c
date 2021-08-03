@@ -898,7 +898,7 @@ int32_t filterConvertSetFromBinary(void **q, const char *buf, int32_t len, uint3
 
     if (bufLen < t) {
       tmp = realloc(tmp, t * TSDB_NCHAR_SIZE);
-      bufLen = t;
+      bufLen = (int32_t)t;
     }
 
     bool converted = false;
@@ -1623,7 +1623,7 @@ int32_t filterInitValFieldData(SFilterInfo *info) {
         fi->data = calloc(var->nLen, tDataTypes[type].bytes);
         for (int32_t a = 0; a < var->nLen; ++a) {
           int64_t *v = taosArrayGet(var->arr, a);
-          assignVal(fi->data + a * tDataTypes[type].bytes, (char *)v, 0, type);
+          assignVal((char *)fi->data + a * tDataTypes[type].bytes, (char *)v, 0, type);
         }
 
         continue;

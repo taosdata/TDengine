@@ -253,9 +253,9 @@ typedef struct SFilterInfo {
 #define FILTER_GET_COL_FIELD_TYPE(fi) (((SSchema *)((fi)->desc))->type)
 #define FILTER_GET_COL_FIELD_SIZE(fi) (((SSchema *)((fi)->desc))->bytes)
 #define FILTER_GET_COL_FIELD_DESC(fi) ((SSchema *)((fi)->desc))
-#define FILTER_GET_COL_FIELD_DATA(fi, ri) ((fi)->data + ((SSchema *)((fi)->desc))->bytes * (ri))
+#define FILTER_GET_COL_FIELD_DATA(fi, ri) ((char *)(fi)->data + ((SSchema *)((fi)->desc))->bytes * (ri))
 #define FILTER_GET_VAL_FIELD_TYPE(fi) (((tVariant *)((fi)->desc))->nType)
-#define FILTER_GET_VAL_FIELD_DATA(fi) ((fi)->data)
+#define FILTER_GET_VAL_FIELD_DATA(fi) ((char *)(fi)->data)
 #define FILTER_GET_TYPE(fl) ((fl) & FLD_TYPE_MAX)
 
 #define FILTER_GROUP_UNIT(i, g, uid) ((i)->units + (g)->unitIdxs[uid])
