@@ -554,9 +554,8 @@ static FORCE_INLINE void initSMemRow(SMemRow row, uint8_t memRowType, STableData
 static FORCE_INLINE void convertToSDataRow(SMemRow dest, SMemRow src, SSchema *pSchema, int nCols,
                                            SParsedDataColInfo *spd) {
   ASSERT(isKvRow(src));
-
-  SDataRow dataRow = memRowDataBody(dest);
   SKVRow   kvRow = memRowKvBody(src);
+  SDataRow dataRow = memRowDataBody(dest);
 
   memRowSetType(dest, SMEM_ROW_DATA);
   dataRowSetVersion(dataRow, memRowKvVersion(src));
@@ -576,8 +575,8 @@ static FORCE_INLINE void convertToSKVRow(SMemRow dest, SMemRow src, SSchema *pSc
                                          SParsedDataColInfo *spd) {
   ASSERT(isDataRow(src));
 
-  SDataRow dataRow = memRowKvBody(src);
-  SKVRow   kvRow = memRowDataBody(dest);
+  SDataRow dataRow = memRowDataBody(src);
+  SKVRow   kvRow = memRowKvBody(dest);
 
   memRowSetType(dest, SMEM_ROW_KV);
   memRowSetKvVersion(kvRow, dataRowVersion(dataRow));
