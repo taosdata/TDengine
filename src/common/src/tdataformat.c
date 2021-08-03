@@ -371,6 +371,11 @@ int tdInitDataCols(SDataCols *pCols, STSchema *pSchema) {
     pCols->cols = (SDataCol *)realloc(pCols->cols, sizeof(SDataCol) * pCols->maxCols);
     if (pCols->cols == NULL) return -1;
   }
+  for(i = 0; i < pCols->maxCols; i++) {
+    tfree(pCols->cols[i].pData);
+    pCols->cols[i].dataOff = NULL;
+    pCols->cols[i].spaceSize = 0;
+  }
 
   if (schemaTLen(pSchema) > pCols->maxRowSize) {
     pCols->maxRowSize = schemaTLen(pSchema);
