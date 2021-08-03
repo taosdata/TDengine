@@ -614,7 +614,7 @@ typedef void *SMemRow;
 #define KVRatioData (0.75f)  // all bigint
 #define KVRatioConvert (0.9f)
 
-#define memRowType(r) ((*(uint8_t *)(r)) & 0x01U)
+#define memRowType(r) ((*(uint8_t *)(r)) & 0x01)
 
 #define memRowSetType(r, t) ((*(uint8_t *)(r)) = (((*(uint8_t *)(r)) & 0xFE) | (t)))               // lowest bit
 #define memRowSetConvert(r) ((*(uint8_t *)(r)) = (((*(uint8_t *)(r)) & 0x7F) | SMEM_ROW_CONVERT))  // highest bit

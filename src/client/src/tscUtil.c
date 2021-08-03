@@ -1843,7 +1843,6 @@ static int trimDataBlock(void* pDataBlock, STableDataBlocks* pTableDataBlock, SI
         TDRowTLenT rowTLen = memRowTLen(pDataBlock);
         pDataBlock = POINTER_SHIFT(pDataBlock, rowTLen);
         pBlock->dataLen += rowTLen;
-        ASSERT(rowTLen < memRowTLen(payload));
       } else {
         TDRowTLenT rowTLen = memRowTLen(payload);
         memcpy(pDataBlock, payload, rowTLen);
