@@ -200,7 +200,7 @@ STsdbRepoInfo *tsdbGetStatus(STsdbRepo *pRepo) { return NULL; }
 
 int tsdbGetState(STsdbRepo *repo) { return repo->state; }
 
-bool tsdbInCompact(STsdbRepo *repo) { return repo->inCompact; }
+int8_t tsdbGetCompactState(STsdbRepo *repo) { return (int8_t)(repo->compactState); }
 
 void tsdbReportStat(void *repo, int64_t *totalPoints, int64_t *totalStorage, int64_t *compStorage) {
   ASSERT(repo != NULL);
@@ -541,7 +541,7 @@ static STsdbRepo *tsdbNewRepo(STsdbCfg *pCfg, STsdbAppH *pAppH) {
 
   pRepo->state = TSDB_STATE_OK;
   pRepo->code = TSDB_CODE_SUCCESS;
-  pRepo->inCompact = false;
+  pRepo->compactState = 0;
   pRepo->config = *pCfg;
   if (pAppH) {
     pRepo->appH = *pAppH;

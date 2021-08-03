@@ -6661,19 +6661,20 @@ static SSDataBlock* hashDistinct(void* param, bool* newgroup) {
       if (isNull(val, type)) {
         continue;
       }
-
+      char* p = val;
       size_t keyLen = 0;
       if (IS_VAR_DATA_TYPE(pOperator->pExpr->base.colType)) {
         tstr* var = (tstr*)(val);
+        p = var->data;
         keyLen = varDataLen(var);
       } else {
         keyLen = bytes;
       }
 
       int dummy;
-      void* res = taosHashGet(pInfo->pSet, val, keyLen);
+      void* res = taosHashGet(pInfo->pSet, p, keyLen);
       if (res == NULL) {
-        taosHashPut(pInfo->pSet, val, keyLen, &dummy, sizeof(dummy));
+        taosHashPut(pInfo->pSet, p, keyLen, &dummy, sizeof(dummy));
         char* start = pResultColInfoData->pData + bytes * pInfo->pRes->info.rows;
         memcpy(start, val, bytes);
         pRes->info.rows += 1;
@@ -6898,7 +6899,7 @@ int32_t convertQueryMsg(SQueryTableMsg *pQueryMsg, SQueryParam* param) {
   pQueryMsg->numOfCols = htons(pQueryMsg->numOfCols);
   pQueryMsg->numOfOutput = htons(pQueryMsg->numOfOutput);
   pQueryMsg->numOfGroupCols = htons(pQueryMsg->numOfGroupCols);
-  pQueryMsg->tagCondLen = htons(pQueryMsg->tagCondLen);
+  pQueryMsg->tagCondLen = htonl(pQueryMsg->tagCondLen);
   pQueryMsg->tsBuf.tsOffset = htonl(pQueryMsg->tsBuf.tsOffset);
   pQueryMsg->tsBuf.tsLen = htonl(pQueryMsg->tsBuf.tsLen);
   pQueryMsg->tsBuf.tsNumOfBlocks = htonl(pQueryMsg->tsBuf.tsNumOfBlocks);
