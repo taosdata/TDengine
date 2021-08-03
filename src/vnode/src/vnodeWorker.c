@@ -25,7 +25,7 @@
 
 typedef enum {
   VNODE_WORKER_ACTION_CLEANUP,
-  VNODE_WORKER_ACTION_DESTROUY
+  VNODE_WORKER_ACTION_DESTROY
 } EVMWorkerAction;
 
 typedef struct {
@@ -155,7 +155,7 @@ int32_t vnodeCleanupInMWorker(SVnodeObj *pVnode) {
 
 int32_t vnodeDestroyInMWorker(SVnodeObj *pVnode) {
   vTrace("vgId:%d, will destroy in vmworker", pVnode->vgId);
-  return vnodeWriteIntoMWorker(pVnode, VNODE_WORKER_ACTION_DESTROUY, NULL);
+  return vnodeWriteIntoMWorker(pVnode, VNODE_WORKER_ACTION_DESTROY, NULL);
 }
 
 static void vnodeFreeMWorkerMsg(SVMWorkerMsg *pMsg) {
@@ -179,7 +179,7 @@ static void vnodeProcessMWorkerMsg(SVMWorkerMsg *pMsg) {
     case VNODE_WORKER_ACTION_CLEANUP:
       vnodeCleanUp(pMsg->pVnode);
       break;
-    case VNODE_WORKER_ACTION_DESTROUY:
+    case VNODE_WORKER_ACTION_DESTROY:
       vnodeDestroy(pMsg->pVnode);
       break;
     default:
@@ -188,6 +188,8 @@ static void vnodeProcessMWorkerMsg(SVMWorkerMsg *pMsg) {
 }
 
 static void *vnodeMWorkerFunc(void *param) {
+  setThreadName("vnodeMWorker");
+
   while (1) {
     SVMWorkerMsg *pMsg = NULL;
     if (taosReadQitemFromQset(tsVMWorkerQset, NULL, (void **)&pMsg, NULL) == 0) {

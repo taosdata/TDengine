@@ -13,7 +13,7 @@ import java.util.Properties;
 public class DriverAutoloadTest {
 
     private Properties properties;
-    private String host = "127.0.0.1";
+    private final String host = "127.0.0.1";
 
     @Test
     public void testRestful() throws SQLException {

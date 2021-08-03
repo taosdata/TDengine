@@ -68,6 +68,8 @@ extern "C" {
 #include "tsdbCompact.h"
 // Commit Queue
 #include "tsdbCommitQueue.h"
+
+#include "tsdbRowMergeBuf.h"
 // Main definitions
 struct STsdbRepo {
   uint8_t state;
@@ -92,7 +94,9 @@ struct STsdbRepo {
   pthread_mutex_t mutex;
   bool            repoLocked;
   int32_t         code;  // Commit code
-  bool            inCompact;  // is in compact process?
+
+  SMergeBuf       mergeBuf;  //used when update=2
+  int8_t          compactState;  // compact state: inCompact/noCompact/waitingCompact?
 };
 
 #define REPO_ID(r) (r)->config.tsdbId

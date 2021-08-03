@@ -117,6 +117,7 @@ static void httpProcessHttpData(void *param) {
   int32_t      fdNum;
 
   taosSetMaskSIGPIPE();
+  setThreadName("httpData");
 
   while (1) {
     struct epoll_event events[HTTP_MAX_EVENTS];
@@ -208,6 +209,7 @@ static void *httpAcceptHttpConnection(void *arg) {
   int32_t            totalFds = 0;
 
   taosSetMaskSIGPIPE();
+  setThreadName("httpAcceptConn");
 
   pServer->fd = taosOpenTcpServerSocket(pServer->serverIp, pServer->serverPort);
 

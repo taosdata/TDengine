@@ -72,6 +72,7 @@ DLL_EXPORT int  taos_init();
 DLL_EXPORT void  taos_cleanup(void);
 DLL_EXPORT int   taos_options(TSDB_OPTION option, const void *arg, ...);
 DLL_EXPORT TAOS *taos_connect(const char *ip, const char *user, const char *pass, const char *db, uint16_t port);
+DLL_EXPORT TAOS *taos_connect_auth(const char *ip, const char *user, const char *auth, const char *db, uint16_t port);
 DLL_EXPORT void  taos_close(TAOS *taos);
 
 const char *taos_data_type(int type);
@@ -109,22 +110,23 @@ typedef struct TAOS_MULTI_BIND {
   int            num;
 } TAOS_MULTI_BIND;
 
+DLL_EXPORT TAOS_STMT *taos_stmt_init(TAOS *taos);
+DLL_EXPORT int        taos_stmt_prepare(TAOS_STMT *stmt, const char *sql, unsigned long length);
+DLL_EXPORT int        taos_stmt_set_tbname_tags(TAOS_STMT* stmt, const char* name, TAOS_BIND* tags);
+DLL_EXPORT int        taos_stmt_set_tbname(TAOS_STMT* stmt, const char* name);
+DLL_EXPORT int        taos_stmt_set_sub_tbname(TAOS_STMT* stmt, const char* name);
 
-TAOS_STMT *taos_stmt_init(TAOS *taos);
-int        taos_stmt_prepare(TAOS_STMT *stmt, const char *sql, unsigned long length);
-int        taos_stmt_set_tbname_tags(TAOS_STMT* stmt, const char* name, TAOS_BIND* tags);
-int        taos_stmt_set_tbname(TAOS_STMT* stmt, const char* name);
-int        taos_stmt_is_insert(TAOS_STMT *stmt, int *insert);
-int        taos_stmt_num_params(TAOS_STMT *stmt, int *nums);
-int        taos_stmt_get_param(TAOS_STMT *stmt, int idx, int *type, int *bytes);
-int        taos_stmt_bind_param(TAOS_STMT *stmt, TAOS_BIND *bind);
-int        taos_stmt_bind_param_batch(TAOS_STMT* stmt, TAOS_MULTI_BIND* bind);
-int        taos_stmt_bind_single_param_batch(TAOS_STMT* stmt, TAOS_MULTI_BIND* bind, int colIdx);
-int        taos_stmt_add_batch(TAOS_STMT *stmt);
-int        taos_stmt_execute(TAOS_STMT *stmt);
-TAOS_RES * taos_stmt_use_result(TAOS_STMT *stmt);
-int        taos_stmt_close(TAOS_STMT *stmt);
-char *     taos_stmt_errstr(TAOS_STMT *stmt);
+DLL_EXPORT int        taos_stmt_is_insert(TAOS_STMT *stmt, int *insert);
+DLL_EXPORT int        taos_stmt_num_params(TAOS_STMT *stmt, int *nums);
+DLL_EXPORT int        taos_stmt_get_param(TAOS_STMT *stmt, int idx, int *type, int *bytes);
+DLL_EXPORT int        taos_stmt_bind_param(TAOS_STMT *stmt, TAOS_BIND *bind);
+DLL_EXPORT int        taos_stmt_bind_param_batch(TAOS_STMT* stmt, TAOS_MULTI_BIND* bind);
+DLL_EXPORT int        taos_stmt_bind_single_param_batch(TAOS_STMT* stmt, TAOS_MULTI_BIND* bind, int colIdx);
+DLL_EXPORT int        taos_stmt_add_batch(TAOS_STMT *stmt);
+DLL_EXPORT int        taos_stmt_execute(TAOS_STMT *stmt);
+DLL_EXPORT TAOS_RES * taos_stmt_use_result(TAOS_STMT *stmt);
+DLL_EXPORT int        taos_stmt_close(TAOS_STMT *stmt);
+DLL_EXPORT char *     taos_stmt_errstr(TAOS_STMT *stmt);
 
 DLL_EXPORT TAOS_RES *taos_query(TAOS *taos, const char *sql);
 DLL_EXPORT TAOS_ROW taos_fetch_row(TAOS_RES *res);
@@ -138,11 +140,10 @@ DLL_EXPORT int taos_select_db(TAOS *taos, const char *db);
 DLL_EXPORT int taos_print_row(char *str, TAOS_ROW row, TAOS_FIELD *fields, int num_fields);
 DLL_EXPORT void taos_stop_query(TAOS_RES *res);
 DLL_EXPORT bool taos_is_null(TAOS_RES *res, int32_t row, int32_t col);
+DLL_EXPORT int taos_fetch_block(TAOS_RES *res, TAOS_ROW *rows);
+DLL_EXPORT int taos_validate_sql(TAOS *taos, const char *sql);
 
-int taos_fetch_block(TAOS_RES *res, TAOS_ROW *rows);
-int taos_validate_sql(TAOS *taos, const char *sql);
-
-int* taos_fetch_lengths(TAOS_RES *res);
+DLL_EXPORT int* taos_fetch_lengths(TAOS_RES *res);
 
 // TAOS_RES   *taos_list_tables(TAOS *mysql, const char *wild);
 // TAOS_RES   *taos_list_dbs(TAOS *mysql, const char *wild);

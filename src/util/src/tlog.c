@@ -687,10 +687,9 @@ static void taosWriteLog(SLogBuff *tLogBuff) {
 
 static void *taosAsyncOutputLog(void *param) {
   SLogBuff *tLogBuff = (SLogBuff *)param;
+  setThreadName("log");
   
   while (1) {
-    //tsem_wait(&(tLogBuff->buffNotEmpty));
-
     taosMsleep(writeInterval);
 
     // Polling the buffer

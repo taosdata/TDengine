@@ -242,6 +242,7 @@ static void *taosAcceptTcpConnection(void *arg) {
 
   pServerObj = (SServerObj *)arg;
   tDebug("%s TCP server is ready, ip:0x%x:%hu", pServerObj->label, pServerObj->ip, pServerObj->port);
+  setThreadName("acceptTcpConn");
 
   while (1) {
     socklen_t addrlen = sizeof(caddr);
@@ -528,6 +529,10 @@ static void *taosProcessTcpData(void *param) {
   SFdObj            *pFdObj;
   struct epoll_event events[maxEvents];
   SRecvInfo          recvInfo;
+
+  char name[16] = {0};
+  snprintf(name, tListLen(name), "%s-tcp", pThreadObj->label);
+  setThreadName(name);
 
   while (1) {
     int fdNum = epoll_wait(pThreadObj->pollFd, events, maxEvents, TAOS_EPOLL_WAIT_TIME);

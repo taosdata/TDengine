@@ -583,6 +583,7 @@ void blockDistInfoToBinary(STableBlockDist* pDist, struct SBufferWriter* bw) {
   tbufWriteInt32(bw, pDist->maxRows);
   tbufWriteInt32(bw, pDist->minRows);
   tbufWriteUint32(bw, pDist->numOfRowsInMemTable);
+  tbufWriteUint32(bw, pDist->numOfSmallBlocks);
   tbufWriteUint64(bw, taosArrayGetSize(pDist->dataBlockInfos));
 
   // compress the binary string
@@ -621,6 +622,7 @@ void blockDistInfoFromBinary(const char* data, int32_t len, STableBlockDist* pDi
   pDist->maxRows     = tbufReadInt32(&br);
   pDist->minRows     = tbufReadInt32(&br);
   pDist->numOfRowsInMemTable = tbufReadUint32(&br);
+  pDist->numOfSmallBlocks = tbufReadUint32(&br);
   int64_t numSteps = tbufReadUint64(&br);
 
   bool comp = tbufReadUint8(&br);

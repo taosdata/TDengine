@@ -114,6 +114,7 @@ int32_t monStartSystem() {
 
 static void *monThreadFunc(void *param) {
   monDebug("starting to initialize monitor module ...");
+  setThreadName("monitor");
 
   while (1) {
     static int32_t accessTimes = 0;

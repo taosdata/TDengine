@@ -38,7 +38,7 @@ uint16_t tsDnodeDnodePort = 6035;  // udp/tcp
 uint16_t tsSyncPort = 6040;
 uint16_t tsArbitratorPort = 6042;
 int32_t  tsStatusInterval = 1;  // second
-int32_t  tsNumOfMnodes = 3;
+int32_t  tsNumOfMnodes = 1;
 int8_t   tsEnableVnodeBak = 1;
 int8_t   tsEnableTelemetryReporting = 1;
 int8_t   tsArbOnline = 0;
@@ -244,6 +244,19 @@ int32_t tsdbDebugFlag = 131;
 int32_t cacheDebugFlag = 131;
 int32_t cqDebugFlag = 131;
 int32_t fsDebugFlag = 135;
+
+#ifdef TD_TSZ
+//
+// lossy compress 6
+//
+char lossyColumns[32] = "";  // "float|double" means all float and double columns can be lossy compressed.  set empty can close lossy compress.
+// below option can take effect when tsLossyColumns not empty 
+double   fPrecision   = 1E-8;   // float column precision
+double   dPrecision   = 1E-16;  // double column precision
+uint32_t maxRange     = 500;    // max range
+uint32_t curRange     = 100;    // range
+char     Compressor[32] = "ZSTD_COMPRESSOR"; // ZSTD_COMPRESSOR or GZIP_COMPRESSOR 
+#endif
 
 int32_t (*monStartSystemFp)() = NULL;
 void (*monStopSystemFp)() = NULL;
@@ -1529,6 +1542,62 @@ static void doInitGlobalConfig(void) {
   cfg.ptrLength = tListLen(tsTempDir);
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosInitConfigOption(cfg);
+
+#ifdef TD_TSZ
+  // lossy compress
+  cfg.option = "lossyColumns";
+  cfg.ptr = lossyColumns;
+  cfg.valType = TAOS_CFG_VTYPE_STRING;
+  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG;
+  cfg.minValue = 0;
+  cfg.maxValue = 0;
+  cfg.ptrLength = tListLen(lossyColumns);
+  cfg.unitType = TAOS_CFG_UTYPE_NONE;
+  taosInitConfigOption(cfg);
+
+  cfg.option = "fPrecision";
+  cfg.ptr = &fPrecision;
+  cfg.valType = TAOS_CFG_VTYPE_DOUBLE;
+  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG;
+  cfg.minValue = MIN_FLOAT;
+  cfg.maxValue = MAX_FLOAT;
+  cfg.ptrLength = 0;
+  cfg.unitType = TAOS_CFG_UTYPE_NONE;
+
+  
+  taosInitConfigOption(cfg);
+
+  cfg.option = "dPrecision";
+  cfg.ptr = &dPrecision;
+  cfg.valType = TAOS_CFG_VTYPE_DOUBLE;
+  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG;
+  cfg.minValue = MIN_FLOAT;
+  cfg.maxValue = MAX_FLOAT;
+  cfg.ptrLength = 0;
+  cfg.unitType = TAOS_CFG_UTYPE_NONE;
+  taosInitConfigOption(cfg);
+
+  cfg.option = "maxRange";
+  cfg.ptr = &maxRange;
+  cfg.valType = TAOS_CFG_VTYPE_INT32;
+  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG;
+  cfg.minValue = 0;
+  cfg.maxValue = 65536;
+  cfg.ptrLength = 0;
+  cfg.unitType = TAOS_CFG_UTYPE_NONE;
+  taosInitConfigOption(cfg);
+
+  cfg.option = "range";
+  cfg.ptr = &curRange;
+  cfg.valType = TAOS_CFG_VTYPE_INT32;
+  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG;
+  cfg.minValue = 0;
+  cfg.maxValue = 65536;
+  cfg.ptrLength = 0;
+  cfg.unitType = TAOS_CFG_UTYPE_NONE;
+  taosInitConfigOption(cfg);
+#endif
+
 }
 
 void taosInitGlobalCfg() {

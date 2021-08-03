@@ -26,6 +26,8 @@ void shellQueryInterruptHandler(int32_t signum, void *sigInfo, void *context) {
 }
 
 void *cancelHandler(void *arg) {
+  setThreadName("cancelHandler");
+
   while(1) {
     if (tsem_wait(&cancelSem) != 0) {
       taosMsleep(10);
