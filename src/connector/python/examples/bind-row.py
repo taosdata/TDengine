@@ -43,12 +43,15 @@ stmt.execute()
 
 result = stmt.use_result()
 assert result.affected_rows == 2
-result.close()
+# No need to explicitly close, but ok for you
+# result.close()
 
 result = conn.query("select * from log")
 
 for row in result:
     print(row)
-result.close()
-stmt.close()
-conn.close()
+
+# No need to explicitly close, but ok for you
+# result.close()
+# stmt.close()
+# conn.close()

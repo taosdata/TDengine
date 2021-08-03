@@ -6,7 +6,8 @@ from taos.result import *
 class TaosStmt(object):
     """TDengine STMT interface"""
 
-    def __init__(self, stmt):
+    def __init__(self, stmt, conn = None):
+        self._conn = conn
         self._stmt = stmt
 
     def set_tbname(self, name):
@@ -62,8 +63,12 @@ class TaosStmt(object):
     def close(self):
         """Close stmt."""
         if self._stmt is None:
-            return None
+            return
         taos_stmt_close(self._stmt)
+        self._stmt = None
+
+    def __del__(self):
+        self.close()
 
 
 if __name__ == "__main__":

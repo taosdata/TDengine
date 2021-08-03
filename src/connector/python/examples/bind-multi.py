@@ -3,7 +3,7 @@ from taos import *
 
 conn = connect()
 
-dbname = "pytest_taos_stmt"
+dbname = "pytest_taos_stmt_multi"
 conn.execute("drop database if exists %s" % dbname)
 conn.execute("create database if not exists %s" % dbname)
 conn.select_db(dbname)

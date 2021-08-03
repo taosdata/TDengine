@@ -7,6 +7,7 @@ from .statement import TaosStmt
 from .stream import TaosStream
 from .result import *
 
+
 class TaosConnection(object):
     """TDengine connection object"""
 
@@ -52,7 +53,9 @@ class TaosConnection(object):
 
     def close(self):
         """Close current connection."""
-        return taos_close(self._conn)
+        if self._conn:
+            taos_close(self._conn)
+            self._conn = None
 
     @property
     def client_info(self):
@@ -77,15 +80,14 @@ class TaosConnection(object):
     def query(self, sql):
         # type: (str) -> TaosResult
         result = taos_query(self._conn, sql)
-        return TaosResult(result)
-    
+        return TaosResult(result, True, self)
+
     def query_a(self, sql, callback, param):
         # type: (str, async_query_callback_type, c_void_p) -> None
-        """Asynchronously query a sql with callback function
-        """
+        """Asynchronously query a sql with callback function"""
         taos_query_a(self._conn, sql, callback, param)
 
-    def subscribe(self, restart, topic, sql, interval, callback = None, param = None):
+    def subscribe(self, restart, topic, sql, interval, callback=None, param=None):
         # type: (bool, str, str, int, subscribe_callback_type, c_void_p) -> TaosSubscription
         """Create a subscription."""
         if self._conn is None:
@@ -93,7 +95,7 @@ class TaosConnection(object):
         sub = taos_subscribe(self._conn, restart, topic, sql, interval, callback, param)
         return TaosSubscription(sub, callback != None)
 
-    def statement(self, sql = None):
+    def statement(self, sql=None):
         # type: (str | None) -> TaosStmt
         if self._conn is None:
             return None
@@ -102,7 +104,7 @@ class TaosConnection(object):
             taos_stmt_prepare(stmt, sql)
 
         return TaosStmt(stmt)
-    
+
     def load_table_info(self, tables):
         # type: (str) -> None
         taos_load_table_info(self._conn, tables)
@@ -162,6 +164,9 @@ class TaosConnection(object):
     def clear_result_set(self):
         """Clear unused result set on this connection."""
         pass
+
+    def __del__(self):
+        self.close()
 
 
 if __name__ == "__main__":

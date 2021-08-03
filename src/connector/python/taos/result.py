@@ -1,11 +1,17 @@
 from .cinterface import *
+
+# from .connection import TaosConnection
 from .error import *
 
 
 class TaosResult(object):
     """TDengine result interface"""
 
-    def __init__(self, result):
+    def __init__(self, result, close_after=False, conn=None):
+        # type: (c_void_p, bool, TaosConnection) -> TaosResult
+        # to make the __del__ order right
+        self._conn = conn
+        self._close_after = close_after
         self._result = result
         self._fields = None
         self._field_count = None
@@ -72,7 +78,7 @@ class TaosResult(object):
     def field_lengths(self):
         return taos_fetch_lengths(self._result, self.field_count)
 
-    def rows_iter(self, num_of_rows = None):
+    def rows_iter(self, num_of_rows=None):
         return TaosRows(self, num_of_rows)
 
     def blocks_iter(self):
@@ -120,6 +126,7 @@ class TaosResult(object):
 
     def fetch_rows_a(self, callback, param):
         taos_fetch_rows_a(self._result, callback, param)
+
     def stop_query(self):
         return taos_stop_query(self._result)
 
@@ -130,7 +137,7 @@ class TaosResult(object):
     def errstr(self):
         return taos_errstr(self._result)
 
-    def check_error(self, errno = None, close = True):
+    def check_error(self, errno=None, close=True):
         if errno == None:
             errno = self.errno()
         if errno != 0:
@@ -138,20 +145,23 @@ class TaosResult(object):
             self.close()
             raise OperationalError(msg, errno)
 
-
     def close(self):
         """free result object."""
-        taos_free_result(self._result)
+        if self._result != None and self._close_after:
+            taos_free_result(self._result)
         self._result = None
         self._fields = None
         self._field_count = None
         self._field_lengths = None
 
+    def __del__(self):
+        self.close()
+
 
 class TaosRows:
     """TDengine result rows iterator"""
 
-    def __init__(self, result, num_of_rows = None):
+    def __init__(self, result, num_of_rows=None):
         self._result = result
         self._num_of_rows = num_of_rows
 
@@ -181,6 +191,7 @@ class TaosRows:
         """Return the rowcount of the object"""
         return self._result._row_count
 
+
 class TaosRow:
     def __init__(self, result, row):
         self._result = result
@@ -191,7 +202,7 @@ class TaosRow:
 
     def __call__(self):
         return self.as_tuple()
-    
+
     def _astuple(self):
         return self.as_tuple()
 

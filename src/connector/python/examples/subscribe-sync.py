@@ -2,7 +2,7 @@ import taos
 import random
 
 conn = taos.connect()
-dbname = "pytest_taos_subscribe_callback"
+dbname = "pytest_taos_subscribe"
 conn.execute("drop database if exists %s" % dbname)
 conn.execute("create database if not exists %s" % dbname)
 conn.select_db(dbname)
@@ -36,7 +36,7 @@ for i in range(10):
     except StopIteration:
         continue
 
-sub.close()
+# sub.close()
 
 conn.execute("drop database if exists %s" % dbname)
-conn.close()
+# conn.close()

@@ -262,3 +262,6 @@ class TaosCursor(object):
             self._description.append((ele["name"], ele["type"], None, None, None, None, False))
 
         return self._result
+
+    def __del__(self):
+        self.close()

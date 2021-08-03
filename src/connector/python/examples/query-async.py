@@ -10,6 +10,7 @@ def fetch_callback(p_param, p_result, num_of_rows):
     if num_of_rows == 0:
         print("fetching completed")
         p.contents.done = True
+        # should explicitly close the result in fetch completed or cause error
         result.close()
         return
     if num_of_rows < 0:
@@ -34,6 +35,8 @@ def query_callback(p_param, p_result, code):
     if code == 0:
         result.fetch_rows_a(fetch_callback, p_param)
     result.check_error(code)
+    # explicitly close result while query failed
+    result.close()
 
 
 class Counter(Structure):
@@ -52,7 +55,7 @@ def test_query(conn):
         print("wait query callback")
         time.sleep(1)
     print(counter)
-    conn.close()
+    # conn.close()
 
 
 if __name__ == "__main__":

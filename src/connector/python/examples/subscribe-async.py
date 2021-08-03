@@ -29,13 +29,13 @@ def test_subscribe_callback(conn):
         for i in range(10):
             conn.execute("insert into log values(now, %d)" % i)
             time.sleep(0.7)
-        sub.close()
+        # sub.close()
 
         conn.execute("drop database if exists %s" % dbname)
-        conn.close()
+        # conn.close()
     except Exception as err:
         conn.execute("drop database if exists %s" % dbname)
-        conn.close()
+        # conn.close()
         raise err
 
 

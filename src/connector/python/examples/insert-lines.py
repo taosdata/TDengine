@@ -8,22 +8,15 @@ conn.select_db(dbname)
 
 lines = [
     'st,t1=3i64,t2=4f64,t3="t3" c1=3i64,c3=L"pass",c2=false,c4=4f64 1626006833639000000ns',
-    'st,t1=4i64,t3="t4",t2=5f64,t4=5f64 c1=3i64,c3=L"pass it again",c2=true,c4=5f64,c5=5f64,c6=7u64 1626006933640000000ns',
-    'stf,t1=4i64,t3="t4",t2=5f64,t4=5f64 c1=3i64,c3=L"pass it again_stf",c2=false,c5=5f64,c6=7u64 1626006933641000000ns',
 ]
 conn.insert_lines(lines)
 print("inserted")
 
-lines = [
-    'stf,t1=5i64,t3="t4",t2=5f64,t4=5f64 c1=3i64,c3=L"pass it again_stf",c2=false,c5=5f64,c6=7u64 1626006933641000000ns',
-]
 conn.insert_lines(lines)
 
 result = conn.query("show tables")
 for row in result:
     print(row)
-result.close()
 
 
 conn.execute("drop database if exists %s" % dbname)
-conn.close()

@@ -7,5 +7,3 @@ cursor.execute("show databases")
 results = cursor.fetchall()
 for row in results:
     print(row)
-cursor.close()
-conn.close()

@@ -25,7 +25,11 @@ class TaosSubscription(object):
             return False
 
         taos_unsubscribe(self._sub, keepProgress)
+        self._sub = None
         return True
+    
+    def __del__(self):
+        self.close()
 
 
 if __name__ == "__main__":

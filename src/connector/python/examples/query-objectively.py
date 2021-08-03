@@ -9,6 +9,4 @@ for field in result.fields:
     print(field)
 for row in result:
     print(row)
-result.close()
 conn.execute("drop database pytest")
-conn.close()
