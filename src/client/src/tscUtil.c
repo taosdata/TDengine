@@ -4448,11 +4448,13 @@ CChildTableMeta* tscCreateChildMeta(STableMeta* pTableMeta) {
   return cMeta;
 }
 
-int32_t tscCreateTableMetaFromSTableMeta(STableMeta* pChild, const char* name, void* buf) {
-  assert(pChild != NULL);
+int32_t tscCreateTableMetaFromSTableMeta(STableMeta** ppChild, const char* name, size_t *tableMetaCapacity) {
+  assert(*ppChild != NULL);
 
   STableMeta* p    = NULL;
   size_t      sz   = 0;
+  STableMeta* pChild = *ppChild;
+   
   taosHashGetCloneExt(tscTableMetaMap, pChild->sTableName, strnlen(pChild->sTableName, TSDB_TABLE_FNAME_LEN), NULL, (void **)&p, &sz);
 
   // tableMeta exists, build child table meta according to the super table meta
@@ -4462,9 +4464,14 @@ int32_t tscCreateTableMetaFromSTableMeta(STableMeta* pChild, const char* name, v
     pChild->tversion = p->tversion;
 
     memcpy(&pChild->tableInfo, &p->tableInfo, sizeof(STableComInfo));
-    int32_t total = pChild->tableInfo.numOfColumns + pChild->tableInfo.numOfTags;
-
-    memcpy(pChild->schema, p->schema, sizeof(SSchema) *total);
+    int32_t totalBytes    = (pChild->tableInfo.numOfColumns + pChild->tableInfo.numOfTags) * sizeof(SSchema);
+    int32_t tableMetaSize =  sizeof(STableMeta)  + totalBytes;
+    if (*tableMetaCapacity < tableMetaSize) {
+      pChild = realloc(pChild, tableMetaSize); 
+      *tableMetaCapacity = (size_t)tableMetaSize;
+    }
+    memcpy(pChild->schema, p->schema, totalBytes);
+    *ppChild = pChild;
     tfree(p);
     return TSDB_CODE_SUCCESS;
   } else { // super table has been removed, current tableMeta is also expired. remove it here
