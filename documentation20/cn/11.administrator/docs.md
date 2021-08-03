@@ -143,7 +143,7 @@ taosd -C
 
 TDengine集群中加入一个新的dnode时，涉及集群相关的一些参数必须与已有集群的配置相同，否则不能成功加入到集群中。会进行校验的参数如下：
 
-- numOfMnodes：系统中管理节点个数。默认值：3。
+- numOfMnodes：系统中管理节点个数。默认值：3。（2.0 版本从 2.0.20.11 开始、2.1 及以上版本从 2.1.6.0 开始，numOfMnodes 默认值改为 1。）
 - mnodeEqualVnodeNum: 一个mnode等同于vnode消耗的个数。默认值：4。
 - offlineThreshold: dnode离线阈值，超过该时间将导致该dnode从集群中删除。单位为秒，默认值：86400*10（即10天）。
 - statusInterval: dnode向mnode报告状态时长。单位为秒，默认值：1。
