@@ -22,6 +22,7 @@
 #include "cacheMutex.h"
 #include "cacheTypes.h"
 #include "hashfunc.h"
+#include "tlockfree.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -35,7 +36,7 @@ typedef struct cacheTableBucket {
 
 struct cacheTable { 
   cache_t* pCache;
-  cacheMutex mutex;
+  SRWLatch     latch;
   cacheTable* next;
   cacheTableOption option;
 
@@ -57,8 +58,6 @@ void cacheTableDestroy(cacheTable *pTable);
 int cacheTablePut(cacheTable *pTable, cacheItem* pItem);
 cacheItem* cacheTableGet(cacheTable* pTable, const char* key, uint8_t nkey);
 void cacheTableRemove(cacheTable* pTable, const char* key, uint8_t nkey, bool freeItem);
-
-void cacheTableExpand(cacheTable* pTable);
 
 #ifdef __cplusplus
 }

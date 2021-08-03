@@ -27,7 +27,7 @@ TEST(cacheTest, testInsert) {
   int nBytes;
   int i = 0;
 
-  for (i = 0; i < 10240; ++i) {
+  for (i = 0; i < 10240 * 10; ++i) {
     char buf[20] = {0};
     snprintf(buf, sizeof(buf), "0123456789_%d", i);
     size_t nkey = strlen(buf);
@@ -42,8 +42,8 @@ TEST(cacheTest, testInsert) {
     ASSERT(memcmp(pData, buf, nBytes) == 0);
     free(pData);
 
-    cacheRemove(pTable, buf, nkey);
-    ASSERT(cacheGet(pTable, buf, nkey, &pData, &nBytes) == CACHE_KEY_NOT_FOUND);
+    //cacheRemove(pTable, buf, nkey);
+    //ASSERT(cacheGet(pTable, buf, nkey, &pData, &nBytes) == CACHE_KEY_NOT_FOUND);
     /*
     for (int j = 10; j >= 0 && i - j >= 0; j--) {
       snprintf(buf, sizeof(buf), "0123456789_%d", i - j);
