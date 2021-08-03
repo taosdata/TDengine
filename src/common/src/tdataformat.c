@@ -22,6 +22,24 @@
 static void tdMergeTwoDataCols(SDataCols *target, SDataCols *src1, int *iter1, int limit1, SDataCols *src2, int *iter2,
                                int limit2, int tRows, bool forceSetNull);
 
+void tdAllocMemForCol(SDataCol *pCol, int maxPoints) {
+  if(pCol->pData == NULL) {
+    pCol->pData = malloc(maxPoints * pCol->bytes);
+    pCol->spaceSize = maxPoints * pCol->bytes;
+    if(pCol->pData == NULL) {
+      uDebug("malloc failure, size:%" PRId64 " failed, reason:%s", (int64_t)pCol->spaceSize,
+             strerror(errno));
+    }
+    if(IS_VAR_DATA_TYPE(pCol->type)) {
+      pCol->dataOff = malloc(maxPoints * sizeof(VarDataOffsetT));
+      if(pCol->dataOff == NULL) {
+        uDebug("malloc failure, size:%" PRId64 " failed, reason:%s", (int64_t)(maxPoints * sizeof(VarDataOffsetT)),
+               strerror(errno));
+      }
+    }
+  }
+}
+
 /**
  * Duplicate the schema and return a new object
  */
@@ -214,9 +232,6 @@ void dataColInit(SDataCol *pDataCol, STColumn *pCol, int maxPoints) {
   pDataCol->offset = colOffset(pCol) + TD_DATA_ROW_HEAD_SIZE;
 
   pDataCol->len = 0;
-  pDataCol->spaceSize = pDataCol->bytes * maxPoints;
-  pDataCol->pData = NULL;
-  pDataCol->dataOff = NULL;
 }
 // value from timestamp should be TKEY here instead of TSKEY
 void dataColAppendVal(SDataCol *pCol, const void *value, int numOfRows, int maxPoints) {
@@ -232,14 +247,7 @@ void dataColAppendVal(SDataCol *pCol, const void *value, int numOfRows, int maxP
       // Find the first not null value, fill all previouse values as NULL
       dataColSetNEleNull(pCol, numOfRows, maxPoints);
     } else {
-      if(pCol->pData == NULL) {
-        pCol->pData = malloc(maxPoints * pCol->bytes);
-          ASSERT(pCol->pData != NULL);
-        if(IS_VAR_DATA_TYPE(pCol->type)) {
-          pCol->dataOff = malloc(maxPoints * sizeof(VarDataOffsetT));
-          ASSERT(pCol->dataOff != NULL);
-        }
-      }
+      tdAllocMemForCol(pCol, maxPoints);
     }
   }
 
@@ -277,15 +285,8 @@ static FORCE_INLINE void dataColSetNullAt(SDataCol *pCol, int index) {
 }
 
 void dataColSetNEleNull(SDataCol *pCol, int nEle, int maxPoints) {
-
-  if(pCol->pData == NULL) {
-    pCol->pData = malloc(maxPoints * pCol->bytes);
-      ASSERT(pCol->pData != NULL);
-    if(IS_VAR_DATA_TYPE(pCol->type)) {
-      pCol->dataOff = malloc(maxPoints * sizeof(VarDataOffsetT));
-      ASSERT(pCol->dataOff != NULL);
-    }
-  }
+  if(isAllRowsNull(pCol)) return;
+  tdAllocMemForCol(pCol, maxPoints);
 
   if (IS_VAR_DATA_TYPE(pCol->type)) {
     pCol->len = 0;
@@ -340,9 +341,24 @@ SDataCols *tdNewDataCols(int maxRowSize, int maxCols, int maxRows) {
 }
 
 int tdInitDataCols(SDataCols *pCols, STSchema *pSchema) {
+  int i;
+  int oldMaxCols = pCols->maxCols;
+  if(oldMaxCols > 0) {
+    for(i = 0; i < oldMaxCols; i++) {
+      if(i >= pSchema->numOfCols ||
+         (pCols->cols[i].spaceSize < pSchema->columns[i].bytes * pCols->maxPoints)) {
+        tfree(pCols->cols[i].pData);
+        tfree(pCols->cols[i].dataOff);
+      }
+    }
+  }
   if (schemaNCols(pSchema) > pCols->maxCols) {
     pCols->maxCols = schemaNCols(pSchema);
     pCols->cols = (SDataCol *)realloc(pCols->cols, sizeof(SDataCol) * pCols->maxCols);
+    for(i = oldMaxCols; i < pCols->maxCols; i++) {
+      pCols->cols[i].pData = NULL;
+      pCols->cols[i].dataOff = NULL;
+    }
     if (pCols->cols == NULL) return -1;
   }
 
@@ -353,7 +369,7 @@ int tdInitDataCols(SDataCols *pCols, STSchema *pSchema) {
   tdResetDataCols(pCols);
   pCols->numOfCols = schemaNCols(pSchema);
 
-  for (int i = 0; i < schemaNCols(pSchema); i++) {
+  for (i = 0; i < schemaNCols(pSchema); i++) {
     dataColInit(pCols->cols + i, schemaColAt(pSchema, i), pCols->maxPoints);
   }
   
@@ -392,7 +408,7 @@ SDataCols *tdDupDataCols(SDataCols *pDataCols, bool keepData) {
     pRet->cols[i].bytes = pDataCols->cols[i].bytes;
     pRet->cols[i].offset = pDataCols->cols[i].offset;
 
-    pRet->cols[i].spaceSize = pDataCols->cols[i].spaceSize;
+    pRet->cols[i].spaceSize = 0;
     pRet->cols[i].len = 0;
     pRet->cols[i].dataOff = NULL;
     pRet->cols[i].pData = NULL;
@@ -400,6 +416,7 @@ SDataCols *tdDupDataCols(SDataCols *pDataCols, bool keepData) {
     if (keepData) {
       pRet->cols[i].len = pDataCols->cols[i].len;
       if (pDataCols->cols[i].len > 0) {
+        pRet->cols[i].spaceSize = pDataCols->cols[i].spaceSize;
         pRet->cols[i].pData = malloc(pDataCols->cols[i].bytes * pDataCols->maxPoints);
         memcpy(pRet->cols[i].pData, pDataCols->cols[i].pData, pDataCols->cols[i].len);
         if (IS_VAR_DATA_TYPE(pRet->cols[i].type)) {
