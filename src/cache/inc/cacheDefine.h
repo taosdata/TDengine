@@ -33,7 +33,7 @@ extern "C" {
 
 #define ITEM_MUTEX_HASH_POWER 10
 
-#define ITEM_OVERFLOW_PER_BUCKET 5
+#define MAX_TABLE_BUCKET_HASH_POWER 32
 
 #ifdef __cplusplus
 }

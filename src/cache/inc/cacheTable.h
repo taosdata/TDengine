@@ -29,9 +29,7 @@ extern "C" {
 #endif
 
 typedef struct cacheTableBucket {
-  uint32_t num;
   cacheItem* head;
-  bool overflow;
 } cacheTableBucket;
 
 struct cacheTable { 
@@ -43,9 +41,9 @@ struct cacheTable {
 
   _hash_fn_t hashFp;
 
-  uint32_t capacity;
+  int hashPower;
+  uint64_t nNum;
 
-  uint32_t nOverflow;         /* overflow bucket num*/
   cacheTableBucket* pBucket;
 
   cacheTableBucket* pOldBucket;
