@@ -41,6 +41,7 @@ def pre_test(){
     sh '''
     killall -9 taosd ||echo "no taosd running"
     killall -9 gdb || echo "no gdb running"
+    killall -9 python3.8 || echo "no python program running"
     cd ${WKC}
     git reset --hard HEAD~10 >/dev/null
     '''
