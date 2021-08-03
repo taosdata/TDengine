@@ -8093,6 +8093,7 @@ int32_t loadAllTableMeta(SSqlObj* pSql, struct SSqlInfo* pInfo) {
   SArray* pVgroupList   = NULL;
   SArray* plist         = NULL;
   STableMeta* pTableMeta = NULL;
+  size_t    tableMetaCapacity = 0;
   SQueryInfo* pQueryInfo = tscGetQueryInfo(pCmd);
 
   pCmd->pTableMetaMap = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);
@@ -8119,18 +8120,14 @@ int32_t loadAllTableMeta(SSqlObj* pSql, struct SSqlInfo* pInfo) {
     }
   }
 
-  uint32_t maxSize = tscGetTableMetaMaxSize();
   char     name[TSDB_TABLE_FNAME_LEN] = {0};
 
-  assert(maxSize < 80 * TSDB_MAX_COLUMNS);
-  if (!pSql->pBuf) {
-    if (NULL == (pSql->pBuf = tcalloc(1, 80 * TSDB_MAX_COLUMNS))) {
-      code = TSDB_CODE_TSC_OUT_OF_MEMORY;
-      goto _end;
-    }
-  }
-
-  pTableMeta = calloc(1, maxSize);
+  //if (!pSql->pBuf) {
+  //  if (NULL == (pSql->pBuf = tcalloc(1, 80 * TSDB_MAX_COLUMNS))) {
+  //    code = TSDB_CODE_TSC_OUT_OF_MEMORY;
+  //    goto _end;
+  //  }
+  //}
 
   plist = taosArrayInit(4, POINTER_BYTES);
   pVgroupList = taosArrayInit(4, POINTER_BYTES);
@@ -8144,10 +8141,10 @@ int32_t loadAllTableMeta(SSqlObj* pSql, struct SSqlInfo* pInfo) {
     tNameExtractFullName(pname, name);
 
     size_t len = strlen(name);
-    memset(pTableMeta, 0, maxSize);
-    taosHashGetClone(tscTableMetaMap, name, len, NULL, pTableMeta);
+      
+    taosHashGetCloneExt(tscTableMetaMap, name, len, NULL,  (void **)&pTableMeta, &tableMetaCapacity);
 
-    if (pTableMeta->id.uid > 0) {
+    if (pTableMeta && pTableMeta->id.uid > 0) {
       tscDebug("0x%"PRIx64" retrieve table meta %s from local buf", pSql->self, name);
 
       // avoid mem leak, may should update pTableMeta
