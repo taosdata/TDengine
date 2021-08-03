@@ -331,6 +331,7 @@ enum OPERATOR_TYPE_E {
   OP_Distinct          = 20,
   OP_Join              = 21,
   OP_StateWindow       = 22,
+  OP_Order             = 23,
 };
 
 typedef struct SOperatorInfo {
@@ -506,7 +507,7 @@ typedef struct SStateWindowOperatorInfo {
   int32_t        start;
   char*          prevData;    // previous data 
   bool           reptScan;
-} SStateWindowOperatorInfo ;
+} SStateWindowOperatorInfo;
 
 typedef struct SDistinctOperatorInfo {
   SHashObj         *pSet;
@@ -538,6 +539,13 @@ typedef struct SMultiwayMergeInfo {
   bool                 groupMix;
   SArray              *udfInfo;
 } SMultiwayMergeInfo;
+
+// todo support the disk-based sort
+typedef struct SOrderOperatorInfo {
+  int32_t      colIndex;
+  int32_t      order;
+  SSDataBlock *pDataBlock;
+} SOrderOperatorInfo;
 
 void appendUpstream(SOperatorInfo* p, SOperatorInfo* pUpstream);
 

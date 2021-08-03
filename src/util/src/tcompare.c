@@ -286,10 +286,6 @@ int32_t taosArrayCompareString(const void* a, const void* b) {
   return compareLenPrefixedStr(x, y);
 }
 
-//static int32_t compareFindStrInArray(const void* pLeft, const void* pRight) {
-//  const SArray* arr = (const SArray*) pRight;
-//  return taosArraySearchString(arr, pLeft, taosArrayCompareString, TD_EQ) == NULL ? 0 : 1;
-//}
 static int32_t compareFindItemInSet(const void *pLeft, const void* pRight)  {
   return NULL != taosHashGet((SHashObj *)pRight, varDataVal(pLeft), varDataLen(pLeft)) ? 1 : 0;    
 }
