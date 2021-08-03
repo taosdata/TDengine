@@ -299,7 +299,7 @@ static int fillColumnsNull(STableDataBlocks* pBlock, int32_t rowNum) {
   SSchema *schema = (SSchema*)pBlock->pTableMeta->schema;
 
   for (int32_t i = 0; i < spd->numOfCols; ++i) {
-    if (!spd->cols[i].hasVal) {  // current column do not have any value to insert, set it to null
+    if (spd->cols[i].valStat == VAL_STAT_NONE) {  // current column do not have any value to insert, set it to null
       for (int32_t n = 0; n < rowNum; ++n) {
         char *ptr = pBlock->pData + sizeof(SSubmitBlk) + pBlock->rowSize * n + offset;
 
