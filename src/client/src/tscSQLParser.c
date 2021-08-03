@@ -8305,7 +8305,8 @@ static int32_t doLoadAllTableMeta(SSqlObj* pSql, SQueryInfo* pQueryInfo, SSqlNod
     tNameExtractFullName(&pTableMetaInfo->name, fname);
     STableMetaVgroupInfo* p = taosHashGet(pCmd->pTableMetaMap, fname, strnlen(fname, TSDB_TABLE_FNAME_LEN));
 
-    pTableMetaInfo->pTableMeta = tscTableMetaDup(p->pTableMeta);
+    pTableMetaInfo->pTableMeta        = tscTableMetaDup(p->pTableMeta);
+    pTableMetaInfo->tableMetaCapacity = tscGetTableMetaSize(pTableMetaInfo->pTableMeta);
     assert(pTableMetaInfo->pTableMeta != NULL);
 
     if (p->vgroupIdList != NULL) {
@@ -8405,7 +8406,8 @@ static int32_t doValidateSubquery(SSqlNode* pSqlNode, int32_t index, SSqlObj* pS
   if (pTableMetaInfo1 == NULL) {
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
   }
-  pTableMetaInfo1->pTableMeta = extractTempTableMetaFromSubquery(pSub);
+  pTableMetaInfo1->pTableMeta        = extractTempTableMetaFromSubquery(pSub);
+  pTableMetaInfo1->tableMetaCapacity = tscGetTableMetaSize(pTableMetaInfo1->pTableMeta);
 
   if (subInfo->aliasName.n > 0) {
     if (subInfo->aliasName.n >= TSDB_TABLE_FNAME_LEN) {
