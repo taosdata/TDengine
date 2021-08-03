@@ -307,7 +307,7 @@ static void taosDumpCreateTableClause(STableDef *tableDes, int numOfCols,
         FILE *fp, char* dbName);
 static void taosDumpCreateMTableClause(STableDef *tableDes, char *metric,
         int numOfCols, FILE *fp, char* dbName);
-static int32_t taosDumpTable(char *table, char *metric,
+static int32_t taosDumpTable(char *tbName, char *metric,
         FILE *fp, TAOS* taosCon, char* dbName);
 static int taosDumpTableData(FILE *fp, char *tbName,
         TAOS* taosCon, char* dbName,
@@ -340,8 +340,8 @@ struct arguments g_args = {
     false,      // schemeonly
     true,       // with_property
     false,      // avro format
-    -INT64_MAX/1000, // start_time
-    INT64_MAX/1000,  // end_time
+    -INT64_MAX, // start_time
+    INT64_MAX,  // end_time
     "ms",       // precision
     1,          // data_batch
     TSDB_MAX_SQL_LEN,   // max_sql_len
@@ -945,7 +945,7 @@ static int32_t taosSaveTableOfMetricToTempFile(
 
     int32_t  numOfThread = *totalNumOfThread;
     int      subFd = -1;
-    for (; numOfThread < maxThreads; numOfThread++) {
+    for (; numOfThread <= maxThreads; numOfThread++) {
         memset(tmpBuf, 0, MAX_FILE_NAME_LEN);
         sprintf(tmpBuf, ".tables.tmp.%d", numOfThread);
         subFd = open(tmpBuf, O_RDWR | O_CREAT | O_TRUNC, S_IRWXU | S_IRGRP | S_IXGRP | S_IROTH);
@@ -1394,7 +1394,7 @@ static int convertSchemaToAvroSchema(STableDef *stableDes, char **avroSchema)
 }
 
 static int32_t taosDumpTable(
-        char *table, char *metric,
+        char *tbName, char *metric,
         FILE *fp, TAOS* taosCon, char* dbName) {
     int count = 0;
 
@@ -1415,7 +1415,7 @@ static int32_t taosDumpTable(
            memset(tableDes, 0, sizeof(STableDef) + sizeof(SColDes) * TSDB_MAX_COLUMNS);
            */
 
-        count = taosGetTableDes(dbName, table, tableDes, taosCon, false);
+        count = taosGetTableDes(dbName, tbName, tableDes, taosCon, false);
 
         if (count < 0) {
             free(tableDes);
@@ -1426,7 +1426,7 @@ static int32_t taosDumpTable(
         taosDumpCreateMTableClause(tableDes, metric, count, fp, dbName);
 
     } else {  // dump table definition
-        count = taosGetTableDes(dbName, table, tableDes, taosCon, false);
+        count = taosGetTableDes(dbName, tbName, tableDes, taosCon, false);
 
         if (count < 0) {
             free(tableDes);
@@ -1446,7 +1446,7 @@ static int32_t taosDumpTable(
 
     int32_t ret = 0;
     if (!g_args.schemaonly) {
-        ret = taosDumpTableData(fp, table, taosCon, dbName,
+        ret = taosDumpTableData(fp, tbName, taosCon, dbName,
             jsonAvroSchema);
     }
 
