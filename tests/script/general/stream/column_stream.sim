@@ -23,7 +23,7 @@ print =============== step2
 sql create database d4 precision 'us'
 sql use d4
 sql create table t1 (ts timestamp, i int)
-sql insert into d4.t1 values(now, 1)
+sql insert into d4.t1 values(1626739200000, 1)
 
 sql create table d4.s1 as select count(cpu_taosd), count(cpu_system), avg(cpu_taosd), avg(cpu_system), sum(cpu_taosd), max(cpu_taosd), min(cpu_taosd), stddev(cpu_taosd), count(*) as c1, count(*) as c2, count(*) as c3, count(*) as c4, count(*) as c5, count(*) as c6, count(*) as c7, count(*) as c8, count(*) as c9, count(*) as c10, count(*) as c11, count(*) as c12, count(*) as c13, count(*) as c14, count(*) as c15, count(*) as c16, count(*) as c17, count(*) as c18, count(*) as c19, count(*) as c20, count(*) as c21, count(*) as c22, count(*) as c23, count(*) as c24, count(*) as c25, count(*) as c26, count(*) as c27, count(*) as c28, count(*) as c29, count(*) as c30 from log.dn_192_168_0_1 interval(5s)
 

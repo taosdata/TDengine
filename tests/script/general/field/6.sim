@@ -30,7 +30,7 @@ while $i < 5
   $x = 0
   while $x < $rowNum
     $ms = $x . m 
-    sql insert into $tb values (now + $ms , 0, 0, 0, 0, 0, 0 ) 
+    sql insert into $tb values (1626739200000 + $ms , 0, 0, 0, 0, 0, 0 ) 
     $x = $x + 1
   endw  
   $i = $i + 1
@@ -41,7 +41,7 @@ while $i < 10
   $x = 0
   while $x < $rowNum
     $ms = $x . m 
-    sql insert into $tb values (now + $ms , 1, 1, 1, 1, 1, 1  ) 
+    sql insert into $tb values (1626739200000 + $ms , 1, 1, 1, 1, 1, 1  ) 
     $x = $x + 1
   endw  
   $i = $i + 1
@@ -53,19 +53,19 @@ if $rows != $totalNum then
   return -1
 endi
 
-sql select * from $mt where ts < now + 4m
+sql select * from $mt where ts < 1626739440001
 if $rows != 50 then 
   return -1
 endi
-sql select * from $mt where ts > now + 4m
+sql select * from $mt where ts > 1626739440001
 if $rows != 150 then 
   return -1
 endi
-sql select * from $mt where ts = now + 4m
+sql select * from $mt where ts = 1626739440001
 if $rows != 0 then 
   return -1
 endi
-sql select * from $mt where ts > now + 4m and ts < now + 5m
+sql select * from $mt where ts > 1626739440001 and ts < 1626739500001
 if $rows != 10 then 
   return -1
 endi
@@ -195,545 +195,545 @@ if $rows != 100 then
 endi
 
 print =============== step9
-sql select * from $mt where ts > now + 4m and tbcol1 = 1
+sql select * from $mt where ts > 1626739440001 and tbcol1 = 1
 if $rows != 75 then 
   return -1
 endi
-sql select * from $mt where ts > now + 4m and tbcol1 <> 1
+sql select * from $mt where ts > 1626739440001 and tbcol1 <> 1
 if $rows != 75 then 
   return -1
 endi
-sql select * from $mt where ts < now + 4m and tbcol1 = 0
+sql select * from $mt where ts < 1626739440001 and tbcol1 = 0
 if $rows != 25 then 
   return -1
 endi
-sql select * from $mt where ts < now + 4m and tbcol1 <> 0
+sql select * from $mt where ts < 1626739440001 and tbcol1 <> 0
 if $rows != 25 then 
   return -1
 endi
-sql select * from $mt where ts <= now + 4m and tbcol1 = 0
+sql select * from $mt where ts <= 1626739440001 and tbcol1 = 0
 if $rows != 25 then 
   return -1
 endi
-sql select * from $mt where ts <= now + 4m and tbcol1 <> 0
+sql select * from $mt where ts <= 1626739440001 and tbcol1 <> 0
 if $rows != 25 then 
   return -1
 endi
-sql select * from $mt where ts > now + 4m and ts < now + 5m and tbcol1 <> 0
+sql select * from $mt where ts > 1626739440001 and ts < 1626739500001 and tbcol1 <> 0
 if $rows != 5 then 
   return -1
 endi
-sql select * from $mt where ts > now + 4m and tbcol1 <> 0 and ts < now + 5m
+sql select * from $mt where ts > 1626739440001 and tbcol1 <> 0 and ts < 1626739500001
 if $rows != 5 then 
   return -1
 endi
 
 print =============== step10
-sql select * from $mt where ts > now + 4m and tbcol2 = 1
+sql select * from $mt where ts > 1626739440001 and tbcol2 = 1
 if $rows != 75 then 
   return -1
 endi
-sql select * from $mt where ts > now + 4m and tbcol2 <> 1
+sql select * from $mt where ts > 1626739440001 and tbcol2 <> 1
 if $rows != 75 then 
   return -1
 endi
-sql select * from $mt where ts < now + 4m and tbcol2 = 0
+sql select * from $mt where ts < 1626739440001 and tbcol2 = 0
 if $rows != 25 then 
   return -1
 endi
-sql select * from $mt where ts < now + 4m and tbcol2 <> 0
+sql select * from $mt where ts < 1626739440001 and tbcol2 <> 0
 if $rows != 25 then 
   return -1
 endi
-sql select * from $mt where ts <= now + 4m and tbcol2 = 0
+sql select * from $mt where ts <= 1626739440001 and tbcol2 = 0
 if $rows != 25 then 
   return -1
 endi
-sql select * from $mt where ts <= now + 4m and tbcol2 <> 0
+sql select * from $mt where ts <= 1626739440001 and tbcol2 <> 0
 if $rows != 25 then 
   return -1
 endi
-sql select * from $mt where ts > now + 4m and ts < now + 5m and tbcol2 <> 0
+sql select * from $mt where ts > 1626739440001 and ts < 1626739500001 and tbcol2 <> 0
 if $rows != 5 then 
   return -1
 endi
-sql select * from $mt where ts > now + 4m and tbcol2 <> 0 and ts < now + 5m
+sql select * from $mt where ts > 1626739440001 and tbcol2 <> 0 and ts < 1626739500001
 if $rows != 5 then 
   return -1
 endi
 
 print =============== step11
-sql select * from $mt where ts > now + 4m and tbcol3 = 1
+sql select * from $mt where ts > 1626739440001 and tbcol3 = 1
 if $rows != 75 then 
   return -1
 endi
-sql select * from $mt where ts > now + 4m and tbcol3 <> 1
+sql select * from $mt where ts > 1626739440001 and tbcol3 <> 1
 if $rows != 75 then 
   return -1
 endi
-sql select * from $mt where ts < now + 4m and tbcol3 = 0
+sql select * from $mt where ts < 1626739440001 and tbcol3 = 0
 if $rows != 25 then 
   return -1
 endi
-sql select * from $mt where ts < now + 4m and tbcol3 <> 0
+sql select * from $mt where ts < 1626739440001 and tbcol3 <> 0
 if $rows != 25 then 
   return -1
 endi
-sql select * from $mt where ts <= now + 4m and tbcol3 = 0
+sql select * from $mt where ts <= 1626739440001 and tbcol3 = 0
 if $rows != 25 then 
   return -1
 endi
-sql select * from $mt where ts <= now + 4m and tbcol3 <> 0
+sql select * from $mt where ts <= 1626739440001 and tbcol3 <> 0
 if $rows != 25 then 
   return -1
 endi
-sql select * from $mt where ts > now + 4m and ts < now + 5m and tbcol3 <> 0
+sql select * from $mt where ts > 1626739440001 and ts < 1626739500001 and tbcol3 <> 0
 if $rows != 5 then 
   return -1
 endi
-sql select * from $mt where ts > now + 4m and tbcol3 <> 0 and ts < now + 5m
+sql select * from $mt where ts > 1626739440001 and tbcol3 <> 0 and ts < 1626739500001
 if $rows != 5 then 
   return -1
 endi
 
 print =============== step12
-sql select * from $mt where ts > now + 4m and tbcol4 = 1
+sql select * from $mt where ts > 1626739440001 and tbcol4 = 1
 if $rows != 75 then 
   return -1
 endi
-sql select * from $mt where ts > now + 4m and tbcol4 <> 1
+sql select * from $mt where ts > 1626739440001 and tbcol4 <> 1
 if $rows != 75 then 
   return -1
 endi
-sql select * from $mt where ts < now + 4m and tbcol4 = 0
+sql select * from $mt where ts < 1626739440001 and tbcol4 = 0
 if $rows != 25 then 
   return -1
 endi
-sql select * from $mt where ts < now + 4m and tbcol4 <> 0
+sql select * from $mt where ts < 1626739440001 and tbcol4 <> 0
 if $rows != 25 then 
   return -1
 endi
-sql select * from $mt where ts <= now + 4m and tbcol4 = 0
+sql select * from $mt where ts <= 1626739440001 and tbcol4 = 0
 if $rows != 25 then 
   return -1
 endi
-sql select * from $mt where ts <= now + 4m and tbcol4 <> 0
+sql select * from $mt where ts <= 1626739440001 and tbcol4 <> 0
 if $rows != 25 then 
   return -1
 endi
-sql select * from $mt where ts > now + 4m and ts < now + 5m and tbcol4 <> 0
+sql select * from $mt where ts > 1626739440001 and ts < 1626739500001 and tbcol4 <> 0
 if $rows != 5 then 
   return -1
 endi
-sql select * from $mt where ts > now + 4m and tbcol4 <> 0 and ts < now + 5m
+sql select * from $mt where ts > 1626739440001 and tbcol4 <> 0 and ts < 1626739500001
 if $rows != 5 then 
   return -1
 endi
 
 print =============== step13
-sql select * from $mt where ts > now + 4m and tbcol5 = 1
+sql select * from $mt where ts > 1626739440001 and tbcol5 = 1
 if $rows != 75 then 
   return -1
 endi
-sql select * from $mt where ts > now + 4m and tbcol5 <> 1
+sql select * from $mt where ts > 1626739440001 and tbcol5 <> 1
 if $rows != 75 then 
   return -1
 endi
-sql select * from $mt where ts < now + 4m and tbcol5 = 0
+sql select * from $mt where ts < 1626739440001 and tbcol5 = 0
 if $rows != 25 then 
   return -1
 endi
-sql select * from $mt where ts < now + 4m and tbcol5 <> 0
+sql select * from $mt where ts < 1626739440001 and tbcol5 <> 0
 if $rows != 25 then 
   return -1
 endi
-sql select * from $mt where ts <= now + 4m and tbcol5 = 0
+sql select * from $mt where ts <= 1626739440001 and tbcol5 = 0
 if $rows != 25 then 
   return -1
 endi
-sql select * from $mt where ts <= now + 4m and tbcol5 <> 0
+sql select * from $mt where ts <= 1626739440001 and tbcol5 <> 0
 if $rows != 25 then 
   return -1
 endi
-sql select * from $mt where ts > now + 4m and ts < now + 5m and tbcol5 <> 0
+sql select * from $mt where ts > 1626739440001 and ts < 1626739500001 and tbcol5 <> 0
 if $rows != 5 then 
   return -1
 endi
-sql select * from $mt where ts > now + 4m and tbcol5 <> 0 and ts < now + 5m
+sql select * from $mt where ts > 1626739440001 and tbcol5 <> 0 and ts < 1626739500001
 if $rows != 5 then 
   return -1
 endi
 
 print =============== step14
-sql select * from $mt where ts > now + 4m and tbcol6 = 1
+sql select * from $mt where ts > 1626739440001 and tbcol6 = 1
 if $rows != 75 then 
   return -1
 endi
-sql select * from $mt where ts > now + 4m and tbcol6 <> 1
+sql select * from $mt where ts > 1626739440001 and tbcol6 <> 1
 if $rows != 75 then 
   return -1
 endi
-sql select * from $mt where ts < now + 4m and tbcol6 = 0
+sql select * from $mt where ts < 1626739440001 and tbcol6 = 0
 if $rows != 25 then 
   return -1
 endi
-sql select * from $mt where ts < now + 4m and tbcol6 <> 0
+sql select * from $mt where ts < 1626739440001 and tbcol6 <> 0
 if $rows != 25 then 
   return -1
 endi
-sql select * from $mt where ts <= now + 4m and tbcol6 = 0
+sql select * from $mt where ts <= 1626739440001 and tbcol6 = 0
 if $rows != 25 then 
   return -1
 endi
-sql select * from $mt where ts <= now + 4m and tbcol6 <> 0
+sql select * from $mt where ts <= 1626739440001 and tbcol6 <> 0
 if $rows != 25 then 
   return -1
 endi
-sql select * from $mt where ts > now + 4m and ts < now + 5m and tbcol6 <> 0
+sql select * from $mt where ts > 1626739440001 and ts < 1626739500001 and tbcol6 <> 0
 if $rows != 5 then 
   return -1
 endi
-sql select * from $mt where ts > now + 4m and tbcol6 <> 0 and ts < now + 5m
+sql select * from $mt where ts > 1626739440001 and tbcol6 <> 0 and ts < 1626739500001
 if $rows != 5 then 
   return -1
 endi
 
 print =============== step15
-sql select * from $mt where ts > now + 4m and tbcol2 = 1 and tbcol1 = 1
+sql select * from $mt where ts > 1626739440001 and tbcol2 = 1 and tbcol1 = 1
 if $rows != 75 then 
   return -1
 endi
-sql select * from $mt where ts > now + 4m and tbcol2 <> 1 and tbcol1 <> 1
+sql select * from $mt where ts > 1626739440001 and tbcol2 <> 1 and tbcol1 <> 1
 if $rows != 75 then 
   return -1
 endi
-sql select * from $mt where ts < now + 4m and tbcol2 = 0 and tbcol1 = 0
+sql select * from $mt where ts < 1626739440001 and tbcol2 = 0 and tbcol1 = 0
 if $rows != 25 then 
   return -1
 endi
-sql select * from $mt where ts < now + 4m and tbcol2 <> 0 and tbcol1 <> 0
+sql select * from $mt where ts < 1626739440001 and tbcol2 <> 0 and tbcol1 <> 0
 if $rows != 25 then 
   return -1
 endi
-sql select * from $mt where ts <= now + 4m and tbcol2 = 0 and tbcol1 = 0
+sql select * from $mt where ts <= 1626739440001 and tbcol2 = 0 and tbcol1 = 0
 if $rows != 25 then 
   return -1
 endi
-sql select * from $mt where ts <= now + 4m and tbcol2 <> 0 and tbcol1 <> 0
+sql select * from $mt where ts <= 1626739440001 and tbcol2 <> 0 and tbcol1 <> 0
 if $rows != 25 then 
   return -1
 endi
-sql select * from $mt where ts > now + 4m and ts < now + 5m and tbcol2 <> 0 and tbcol1 <> 0
+sql select * from $mt where ts > 1626739440001 and ts < 1626739500001 and tbcol2 <> 0 and tbcol1 <> 0
 if $rows != 5 then 
   return -1
 endi
-sql select * from $mt where ts > now + 4m and tbcol2 <> 0 and ts < now + 5m and ts < now + 5m and tbcol1 <> 0
+sql select * from $mt where ts > 1626739440001 and tbcol2 <> 0 and ts < 1626739500001 and ts < 1626739500001 and tbcol1 <> 0
 if $rows != 5 then 
   return -1
 endi
 
 print =============== step16
-sql select * from $mt where ts > now + 4m and tbcol3 = 1 and tbcol2 = 1
+sql select * from $mt where ts > 1626739440001 and tbcol3 = 1 and tbcol2 = 1
 if $rows != 75 then 
   return -1
 endi
-sql select * from $mt where ts > now + 4m and tbcol3 <> 1 and tbcol2 <> 1
+sql select * from $mt where ts > 1626739440001 and tbcol3 <> 1 and tbcol2 <> 1
 if $rows != 75 then 
   return -1
 endi
-sql select * from $mt where ts < now + 4m and tbcol3 = 0 and tbcol2 = 0
+sql select * from $mt where ts < 1626739440001 and tbcol3 = 0 and tbcol2 = 0
 if $rows != 25 then 
   return -1
 endi
-sql select * from $mt where ts < now + 4m and tbcol3 <> 0 and tbcol2 <> 0
+sql select * from $mt where ts < 1626739440001 and tbcol3 <> 0 and tbcol2 <> 0
 if $rows != 25 then 
   return -1
 endi
-sql select * from $mt where ts <= now + 4m and tbcol3 = 0 and tbcol2 = 0
+sql select * from $mt where ts <= 1626739440001 and tbcol3 = 0 and tbcol2 = 0
 if $rows != 25 then 
   return -1
 endi
-sql select * from $mt where ts <= now + 4m and tbcol3 <> 0 and tbcol2 <> 0
+sql select * from $mt where ts <= 1626739440001 and tbcol3 <> 0 and tbcol2 <> 0
 if $rows != 25 then 
   return -1
 endi
-sql select * from $mt where ts > now + 4m and ts < now + 5m and tbcol3 <> 0 and tbcol2 <> 0
+sql select * from $mt where ts > 1626739440001 and ts < 1626739500001 and tbcol3 <> 0 and tbcol2 <> 0
 if $rows != 5 then 
   return -1
 endi
-sql select * from $mt where ts > now + 4m and tbcol3 <> 0 and ts < now + 5m and ts < now + 5m and tbcol2 <> 0
+sql select * from $mt where ts > 1626739440001 and tbcol3 <> 0 and ts < 1626739500001 and ts < 1626739500001 and tbcol2 <> 0
 if $rows != 5 then 
   return -1
 endi
 
 print =============== step17
-sql select * from $mt where ts > now + 4m and tbcol3 = 1 and tbcol4 = 1
+sql select * from $mt where ts > 1626739440001 and tbcol3 = 1 and tbcol4 = 1
 if $rows != 75 then 
   return -1
 endi
-sql select * from $mt where ts > now + 4m and tbcol3 <> 1 and tbcol4 <> 1
+sql select * from $mt where ts > 1626739440001 and tbcol3 <> 1 and tbcol4 <> 1
 if $rows != 75 then 
   return -1
 endi
-sql select * from $mt where ts < now + 4m and tbcol3 = 0 and tbcol4 = 0
+sql select * from $mt where ts < 1626739440001 and tbcol3 = 0 and tbcol4 = 0
 if $rows != 25 then 
   return -1
 endi
-sql select * from $mt where ts < now + 4m and tbcol3 <> 0 and tbcol4 <> 0
+sql select * from $mt where ts < 1626739440001 and tbcol3 <> 0 and tbcol4 <> 0
 if $rows != 25 then 
   return -1
 endi
-sql select * from $mt where ts <= now + 4m and tbcol3 = 0 and tbcol4 = 0
+sql select * from $mt where ts <= 1626739440001 and tbcol3 = 0 and tbcol4 = 0
 if $rows != 25 then 
   return -1
 endi
-sql select * from $mt where ts <= now + 4m and tbcol3 <> 0 and tbcol4 <> 0
+sql select * from $mt where ts <= 1626739440001 and tbcol3 <> 0 and tbcol4 <> 0
 if $rows != 25 then 
   return -1
 endi
-sql select * from $mt where ts > now + 4m and ts < now + 5m and tbcol3 <> 0 and tbcol4 <> 0
+sql select * from $mt where ts > 1626739440001 and ts < 1626739500001 and tbcol3 <> 0 and tbcol4 <> 0
 if $rows != 5 then 
   return -1
 endi
-sql select * from $mt where ts > now + 4m and tbcol3 <> 0 and ts < now + 5m and ts < now + 5m and tbcol4 <> 0
+sql select * from $mt where ts > 1626739440001 and tbcol3 <> 0 and ts < 1626739500001 and ts < 1626739500001 and tbcol4 <> 0
 if $rows != 5 then 
   return -1
 endi
 
 print =============== step18
-sql select * from $mt where ts > now + 4m and tbcol5 = 1 and tbcol4 = 1
+sql select * from $mt where ts > 1626739440001 and tbcol5 = 1 and tbcol4 = 1
 if $rows != 75 then 
   return -1
 endi
-sql select * from $mt where ts > now + 4m and tbcol5 <> 1 and tbcol4 <> 1
+sql select * from $mt where ts > 1626739440001 and tbcol5 <> 1 and tbcol4 <> 1
 if $rows != 75 then 
   return -1
 endi
-sql select * from $mt where ts < now + 4m and tbcol5 = 0 and tbcol4 = 0
+sql select * from $mt where ts < 1626739440001 and tbcol5 = 0 and tbcol4 = 0
 if $rows != 25 then 
   return -1
 endi
-sql select * from $mt where ts < now + 4m and tbcol5 <> 0 and tbcol4 <> 0
+sql select * from $mt where ts < 1626739440001 and tbcol5 <> 0 and tbcol4 <> 0
 if $rows != 25 then 
   return -1
 endi
-sql select * from $mt where ts <= now + 4m and tbcol5 = 0 and tbcol4 = 0
+sql select * from $mt where ts <= 1626739440001 and tbcol5 = 0 and tbcol4 = 0
 if $rows != 25 then 
   return -1
 endi
-sql select * from $mt where ts <= now + 4m and tbcol5 <> 0 and tbcol4 <> 0
+sql select * from $mt where ts <= 1626739440001 and tbcol5 <> 0 and tbcol4 <> 0
 if $rows != 25 then 
   return -1
 endi
-sql select * from $mt where ts > now + 4m and ts < now + 5m and tbcol5 <> 0 and tbcol4 <> 0
+sql select * from $mt where ts > 1626739440001 and ts < 1626739500001 and tbcol5 <> 0 and tbcol4 <> 0
 if $rows != 5 then 
   return -1
 endi
-sql select * from $mt where ts > now + 4m and tbcol5 <> 0 and ts < now + 5m and ts < now + 5m and tbcol4 <> 0
+sql select * from $mt where ts > 1626739440001 and tbcol5 <> 0 and ts < 1626739500001 and ts < 1626739500001 and tbcol4 <> 0
 if $rows != 5 then 
   return -1
 endi
 
 print =============== step19
-sql select * from $mt where ts > now + 4m and tbcol5 = 1 and tbcol6 = 1
+sql select * from $mt where ts > 1626739440001 and tbcol5 = 1 and tbcol6 = 1
 if $rows != 75 then 
   return -1
 endi
-sql select * from $mt where ts > now + 4m and tbcol5 <> 1 and tbcol6 <> 1
+sql select * from $mt where ts > 1626739440001 and tbcol5 <> 1 and tbcol6 <> 1
 if $rows != 75 then 
   return -1
 endi
-sql select * from $mt where ts < now + 4m and tbcol5 = 0 and tbcol6 = 0
+sql select * from $mt where ts < 1626739440001 and tbcol5 = 0 and tbcol6 = 0
 if $rows != 25 then 
   return -1
 endi
-sql select * from $mt where ts < now + 4m and tbcol5 <> 0 and tbcol6 <> 0
+sql select * from $mt where ts < 1626739440001 and tbcol5 <> 0 and tbcol6 <> 0
 if $rows != 25 then 
   return -1
 endi
-sql select * from $mt where ts <= now + 4m and tbcol5 = 0 and tbcol6 = 0
+sql select * from $mt where ts <= 1626739440001 and tbcol5 = 0 and tbcol6 = 0
 if $rows != 25 then 
   return -1
 endi
-sql select * from $mt where ts <= now + 4m and tbcol5 <> 0 and tbcol6 <> 0
+sql select * from $mt where ts <= 1626739440001 and tbcol5 <> 0 and tbcol6 <> 0
 if $rows != 25 then 
   return -1
 endi
-sql select * from $mt where ts > now + 4m and ts < now + 5m and tbcol5 <> 0 and tbcol6 <> 0
+sql select * from $mt where ts > 1626739440001 and ts < 1626739500001 and tbcol5 <> 0 and tbcol6 <> 0
 if $rows != 5 then 
   return -1
 endi
-sql select * from $mt where ts > now + 4m and tbcol5 <> 0 and ts < now + 5m and ts < now + 5m and tbcol6 <> 0
+sql select * from $mt where ts > 1626739440001 and tbcol5 <> 0 and ts < 1626739500001 and ts < 1626739500001 and tbcol6 <> 0
 if $rows != 5 then 
   return -1
 endi
 
 print =============== step20
-sql select * from $mt where ts > now + 4m and tbcol1 = 1 and tbcol2 = 1 and tbcol3 = 1
+sql select * from $mt where ts > 1626739440001 and tbcol1 = 1 and tbcol2 = 1 and tbcol3 = 1
 if $rows != 75 then 
   return -1
 endi
-sql select * from $mt where ts > now + 4m and tbcol1 <> 1 and tbcol2 <> 1  and tbcol3 <> 1
+sql select * from $mt where ts > 1626739440001 and tbcol1 <> 1 and tbcol2 <> 1  and tbcol3 <> 1
 if $rows != 75 then 
   return -1
 endi
-sql select * from $mt where ts < now + 4m and tbcol1 = 0 and tbcol2 = 0 and tbcol3 = 0
+sql select * from $mt where ts < 1626739440001 and tbcol1 = 0 and tbcol2 = 0 and tbcol3 = 0
 if $rows != 25 then 
   return -1
 endi
-sql select * from $mt where ts < now + 4m and tbcol1 <> 0 and tbcol2 <> 0 and tbcol3 <> 0
+sql select * from $mt where ts < 1626739440001 and tbcol1 <> 0 and tbcol2 <> 0 and tbcol3 <> 0
 if $rows != 25 then 
   return -1
 endi
-sql select * from $mt where ts <= now + 4m and tbcol1 = 0 and tbcol2 = 0 and tbcol3 = 0
+sql select * from $mt where ts <= 1626739440001 and tbcol1 = 0 and tbcol2 = 0 and tbcol3 = 0
 if $rows != 25 then 
   return -1
 endi
-sql select * from $mt where ts <= now + 4m and tbcol1 <> 0 and tbcol2 <> 0 and tbcol3 <> 0
+sql select * from $mt where ts <= 1626739440001 and tbcol1 <> 0 and tbcol2 <> 0 and tbcol3 <> 0
 if $rows != 25 then 
   return -1
 endi
-sql select * from $mt where ts > now + 4m and ts < now + 5m and tbcol1 <> 0 and tbcol2 <> 0  and tbcol3 <> 0
+sql select * from $mt where ts > 1626739440001 and ts < 1626739500001 and tbcol1 <> 0 and tbcol2 <> 0  and tbcol3 <> 0
 if $rows != 5 then 
   return -1
 endi
-sql select * from $mt where ts > now + 4m and tbcol1 <> 0 and ts < now + 5m and ts < now + 5m and tbcol2 <> 0  and tbcol3 <> 0
+sql select * from $mt where ts > 1626739440001 and tbcol1 <> 0 and ts < 1626739500001 and ts < 1626739500001 and tbcol2 <> 0  and tbcol3 <> 0
 if $rows != 5 then 
   return -1
 endi
 
 print =============== step21
-sql select * from $mt where ts > now + 4m and tbcol4 = 1 and tbcol2 = 1 and tbcol3 = 1
+sql select * from $mt where ts > 1626739440001 and tbcol4 = 1 and tbcol2 = 1 and tbcol3 = 1
 if $rows != 75 then 
   return -1
 endi
-sql select * from $mt where ts > now + 4m and tbcol4 <> 1 and tbcol2 <> 1  and tbcol3 <> 1
+sql select * from $mt where ts > 1626739440001 and tbcol4 <> 1 and tbcol2 <> 1  and tbcol3 <> 1
 if $rows != 75 then 
   return -1
 endi
-sql select * from $mt where ts < now + 4m and tbcol4 = 0 and tbcol2 = 0 and tbcol3 = 0
+sql select * from $mt where ts < 1626739440001 and tbcol4 = 0 and tbcol2 = 0 and tbcol3 = 0
 if $rows != 25 then 
   return -1
 endi
-sql select * from $mt where ts < now + 4m and tbcol4 <> 0 and tbcol2 <> 0 and tbcol3 <> 0
+sql select * from $mt where ts < 1626739440001 and tbcol4 <> 0 and tbcol2 <> 0 and tbcol3 <> 0
 if $rows != 25 then 
   return -1
 endi
-sql select * from $mt where ts <= now + 4m and tbcol4 = 0 and tbcol2 = 0 and tbcol3 = 0
+sql select * from $mt where ts <= 1626739440001 and tbcol4 = 0 and tbcol2 = 0 and tbcol3 = 0
 if $rows != 25 then 
   return -1
 endi
-sql select * from $mt where ts <= now + 4m and tbcol4 <> 0 and tbcol2 <> 0 and tbcol3 <> 0
+sql select * from $mt where ts <= 1626739440001 and tbcol4 <> 0 and tbcol2 <> 0 and tbcol3 <> 0
 if $rows != 25 then 
   return -1
 endi
-sql select * from $mt where ts > now + 4m and ts < now + 5m and tbcol4 <> 0 and tbcol2 <> 0  and tbcol3 <> 0
+sql select * from $mt where ts > 1626739440001 and ts < 1626739500001 and tbcol4 <> 0 and tbcol2 <> 0  and tbcol3 <> 0
 if $rows != 5 then 
   return -1
 endi
-sql select * from $mt where ts > now + 4m and tbcol4 <> 0 and ts < now + 5m and ts < now + 5m and tbcol2 <> 0  and tbcol3 <> 0
+sql select * from $mt where ts > 1626739440001 and tbcol4 <> 0 and ts < 1626739500001 and ts < 1626739500001 and tbcol2 <> 0  and tbcol3 <> 0
 if $rows != 5 then 
   return -1
 endi
 
 print =============== step22
-sql select * from $mt where ts > now + 4m and tbcol4 = 1 and tbcol2 = 1 and tbcol3 = 1 and tbcol1 = 1
+sql select * from $mt where ts > 1626739440001 and tbcol4 = 1 and tbcol2 = 1 and tbcol3 = 1 and tbcol1 = 1
 if $rows != 75 then 
   return -1
 endi
-sql select * from $mt where ts > now + 4m and tbcol4 <> 1 and tbcol2 <> 1  and tbcol3 <> 1 and tbcol1 <> 1
+sql select * from $mt where ts > 1626739440001 and tbcol4 <> 1 and tbcol2 <> 1  and tbcol3 <> 1 and tbcol1 <> 1
 if $rows != 75 then 
   return -1
 endi
-sql select * from $mt where ts < now + 4m and tbcol4 = 0 and tbcol2 = 0 and tbcol3 = 0 and tbcol1 = 0
+sql select * from $mt where ts < 1626739440001 and tbcol4 = 0 and tbcol2 = 0 and tbcol3 = 0 and tbcol1 = 0
 if $rows != 25 then 
   return -1
 endi
-sql select * from $mt where ts < now + 4m and tbcol4 <> 0 and tbcol2 <> 0 and tbcol3 <> 0 and tbcol1 <> 0
+sql select * from $mt where ts < 1626739440001 and tbcol4 <> 0 and tbcol2 <> 0 and tbcol3 <> 0 and tbcol1 <> 0
 if $rows != 25 then 
   return -1
 endi
-sql select * from $mt where ts <= now + 4m and tbcol4 = 0 and tbcol2 = 0 and tbcol3 = 0 and tbcol1 = 0
+sql select * from $mt where ts <= 1626739440001 and tbcol4 = 0 and tbcol2 = 0 and tbcol3 = 0 and tbcol1 = 0
 if $rows != 25 then 
   return -1
 endi
-sql select * from $mt where ts <= now + 4m and tbcol4 <> 0 and tbcol2 <> 0 and tbcol3 <> 0 and tbcol1 <> 0
+sql select * from $mt where ts <= 1626739440001 and tbcol4 <> 0 and tbcol2 <> 0 and tbcol3 <> 0 and tbcol1 <> 0
 if $rows != 25 then 
   return -1
 endi
-sql select * from $mt where ts > now + 4m and ts < now + 5m and tbcol4 <> 0 and tbcol2 <> 0  and tbcol3 <> 0 and tbcol1 <> 0
+sql select * from $mt where ts > 1626739440001 and ts < 1626739500001 and tbcol4 <> 0 and tbcol2 <> 0  and tbcol3 <> 0 and tbcol1 <> 0
 if $rows != 5 then 
   return -1
 endi
-sql select * from $mt where ts > now + 4m and tbcol4 <> 0 and ts < now + 5m and ts < now + 5m and tbcol2 <> 0  and tbcol3 <> 0 and tbcol1 <> 0
+sql select * from $mt where ts > 1626739440001 and tbcol4 <> 0 and ts < 1626739500001 and ts < 1626739500001 and tbcol2 <> 0  and tbcol3 <> 0 and tbcol1 <> 0
 if $rows != 5 then 
   return -1
 endi
 
 print =============== step23
-sql select * from $mt where ts > now + 4m and tbcol4 = 1 and tbcol2 = 1 and tbcol3 = 1 and tbcol1 = 1 and tbcol5 = 1
+sql select * from $mt where ts > 1626739440001 and tbcol4 = 1 and tbcol2 = 1 and tbcol3 = 1 and tbcol1 = 1 and tbcol5 = 1
 if $rows != 75 then 
   return -1
 endi
-sql select * from $mt where ts > now + 4m and tbcol4 <> 1 and tbcol2 <> 1  and tbcol3 <> 1 and tbcol1 <> 1 and tbcol5 <> 1
+sql select * from $mt where ts > 1626739440001 and tbcol4 <> 1 and tbcol2 <> 1  and tbcol3 <> 1 and tbcol1 <> 1 and tbcol5 <> 1
 if $rows != 75 then 
   return -1
 endi
-sql select * from $mt where ts < now + 4m and tbcol4 = 0 and tbcol2 = 0 and tbcol3 = 0 and tbcol1 = 0 and tbcol5 = 0
+sql select * from $mt where ts < 1626739440001 and tbcol4 = 0 and tbcol2 = 0 and tbcol3 = 0 and tbcol1 = 0 and tbcol5 = 0
 if $rows != 25 then 
   return -1
 endi
-sql select * from $mt where ts < now + 4m and tbcol4 <> 0 and tbcol2 <> 0 and tbcol3 <> 0 and tbcol1 <> 0 and tbcol5 <> 0
+sql select * from $mt where ts < 1626739440001 and tbcol4 <> 0 and tbcol2 <> 0 and tbcol3 <> 0 and tbcol1 <> 0 and tbcol5 <> 0
 if $rows != 25 then 
   return -1
 endi
-sql select * from $mt where ts <= now + 4m and tbcol4 = 0 and tbcol2 = 0 and tbcol3 = 0 and tbcol1 = 0 and tbcol5 = 0
+sql select * from $mt where ts <= 1626739440001 and tbcol4 = 0 and tbcol2 = 0 and tbcol3 = 0 and tbcol1 = 0 and tbcol5 = 0
 if $rows != 25 then 
   return -1
 endi
-sql select * from $mt where ts <= now + 4m and tbcol4 <> 0 and tbcol2 <> 0 and tbcol3 <> 0 and tbcol1 <> 0 and tbcol5 <> 0
+sql select * from $mt where ts <= 1626739440001 and tbcol4 <> 0 and tbcol2 <> 0 and tbcol3 <> 0 and tbcol1 <> 0 and tbcol5 <> 0
 if $rows != 25 then 
   return -1
 endi
-sql select * from $mt where ts > now + 4m and ts < now + 5m and tbcol4 <> 0 and tbcol2 <> 0  and tbcol3 <> 0 and tbcol1 <> 0 and tbcol5 <> 0
+sql select * from $mt where ts > 1626739440001 and ts < 1626739500001 and tbcol4 <> 0 and tbcol2 <> 0  and tbcol3 <> 0 and tbcol1 <> 0 and tbcol5 <> 0
 if $rows != 5 then 
   return -1
 endi
-sql select * from $mt where ts > now + 4m and tbcol4 <> 0 and ts < now + 5m and ts < now + 5m and tbcol2 <> 0  and tbcol3 <> 0 and tbcol1 <> 0 and tbcol5 <> 0
+sql select * from $mt where ts > 1626739440001 and tbcol4 <> 0 and ts < 1626739500001 and ts < 1626739500001 and tbcol2 <> 0  and tbcol3 <> 0 and tbcol1 <> 0 and tbcol5 <> 0
 if $rows != 5 then 
   return -1
 endi
 
 print =============== step24
-sql select * from $mt where ts > now + 4m and tbcol4 = 1 and tbcol2 = 1 and tbcol3 = 1 and tbcol1 = 1 and tbcol5 = 1 and tbcol6 = 1
+sql select * from $mt where ts > 1626739440001 and tbcol4 = 1 and tbcol2 = 1 and tbcol3 = 1 and tbcol1 = 1 and tbcol5 = 1 and tbcol6 = 1
 if $rows != 75 then 
   return -1
 endi
-sql select * from $mt where ts > now + 4m and tbcol4 <> 1 and tbcol2 <> 1  and tbcol3 <> 1 and tbcol1 <> 1 and tbcol5 <> 1 and tbcol6 <> 1
+sql select * from $mt where ts > 1626739440001 and tbcol4 <> 1 and tbcol2 <> 1  and tbcol3 <> 1 and tbcol1 <> 1 and tbcol5 <> 1 and tbcol6 <> 1
 if $rows != 75 then 
   return -1
 endi
-sql select * from $mt where ts < now + 4m and tbcol4 = 0 and tbcol2 = 0 and tbcol3 = 0 and tbcol1 = 0 and tbcol5 = 0 and tbcol6 = 0
+sql select * from $mt where ts < 1626739440001 and tbcol4 = 0 and tbcol2 = 0 and tbcol3 = 0 and tbcol1 = 0 and tbcol5 = 0 and tbcol6 = 0
 if $rows != 25 then 
   return -1
 endi
-sql select * from $mt where ts < now + 4m and tbcol4 <> 0 and tbcol2 <> 0 and tbcol3 <> 0 and tbcol1 <> 0 and tbcol5 <> 0 and tbcol6 <> 0
+sql select * from $mt where ts < 1626739440001 and tbcol4 <> 0 and tbcol2 <> 0 and tbcol3 <> 0 and tbcol1 <> 0 and tbcol5 <> 0 and tbcol6 <> 0
 if $rows != 25 then 
   return -1
 endi
-sql select * from $mt where ts <= now + 4m and tbcol4 = 0 and tbcol2 = 0 and tbcol3 = 0 and tbcol1 = 0 and tbcol5 = 0 and tbcol6 = 0
+sql select * from $mt where ts <= 1626739440001 and tbcol4 = 0 and tbcol2 = 0 and tbcol3 = 0 and tbcol1 = 0 and tbcol5 = 0 and tbcol6 = 0
 if $rows != 25 then 
   return -1
 endi
-sql select * from $mt where ts <= now + 4m and tbcol4 <> 0 and tbcol2 <> 0 and tbcol3 <> 0 and tbcol1 <> 0 and tbcol5 <> 0 and tbcol6 <> 0
+sql select * from $mt where ts <= 1626739440001 and tbcol4 <> 0 and tbcol2 <> 0 and tbcol3 <> 0 and tbcol1 <> 0 and tbcol5 <> 0 and tbcol6 <> 0
 if $rows != 25 then 
   return -1
 endi
-sql select * from $mt where ts > now + 4m and ts < now + 5m and tbcol4 <> 0 and tbcol2 <> 0  and tbcol3 <> 0 and tbcol1 <> 0 and tbcol5 <> 0 and tbcol6 <> 0
+sql select * from $mt where ts > 1626739440001 and ts < 1626739500001 and tbcol4 <> 0 and tbcol2 <> 0  and tbcol3 <> 0 and tbcol1 <> 0 and tbcol5 <> 0 and tbcol6 <> 0
 if $rows != 5 then 
   return -1
 endi
-sql select * from $mt where ts > now + 4m and tbcol4 <> 0 and ts < now + 5m and ts < now + 5m and tbcol2 <> 0  and tbcol3 <> 0 and tbcol1 <> 0 and tbcol5 <> 0 and tbcol6 <> 0
+sql select * from $mt where ts > 1626739440001 and tbcol4 <> 0 and ts < 1626739500001 and ts < 1626739500001 and tbcol2 <> 0  and tbcol3 <> 0 and tbcol1 <> 0 and tbcol5 <> 0 and tbcol6 <> 0
 if $rows != 5 then 
   return -1
 endi
@@ -783,43 +783,43 @@ if $data00 != 100 then
 endi
 
 print =============== step27
-sql select count(tbcol1), avg(tbcol1), sum(tbcol1), min(tbcol1), max(tbcol1), first(tbcol1), last(tbcol1) from $mt where ts < now + 4m
+sql select count(tbcol1), avg(tbcol1), sum(tbcol1), min(tbcol1), max(tbcol1), first(tbcol1), last(tbcol1) from $mt where ts < 1626739440001
 print $data00 $data01 $data02 $data03 $data04 $data05 $data06 
 if $data00 != 50 then 
   return -1
 endi
 
-sql select count(tbcol1), avg(tbcol1), sum(tbcol1), min(tbcol1), max(tbcol1), first(tbcol1), last(tbcol1) from $mt where ts < now + 4m and tbcol1 = 1
+sql select count(tbcol1), avg(tbcol1), sum(tbcol1), min(tbcol1), max(tbcol1), first(tbcol1), last(tbcol1) from $mt where ts < 1626739440001 and tbcol1 = 1
 print $data00 $data01 $data02 $data03 $data04 $data05 $data06 
 if $data00 != 25 then 
   return -1
 endi
 
-sql select count(tbcol1), avg(tbcol1), sum(tbcol1), min(tbcol1), max(tbcol1), first(tbcol1), last(tbcol1) from $mt where ts < now + 4m and tbcol1 = 1 and tbcol2 = 1 
+sql select count(tbcol1), avg(tbcol1), sum(tbcol1), min(tbcol1), max(tbcol1), first(tbcol1), last(tbcol1) from $mt where ts < 1626739440001 and tbcol1 = 1 and tbcol2 = 1 
 print $data00 $data01 $data02 $data03 $data04 $data05 $data06 
 if $data00 != 25 then 
   return -1
 endi
 
-sql select count(tbcol1), avg(tbcol1), sum(tbcol1), min(tbcol1), max(tbcol1), first(tbcol1), last(tbcol1) from $mt where ts < now + 4m and tbcol1 = 1 and tbcol2 = 1 and tbcol3 = 1
+sql select count(tbcol1), avg(tbcol1), sum(tbcol1), min(tbcol1), max(tbcol1), first(tbcol1), last(tbcol1) from $mt where ts < 1626739440001 and tbcol1 = 1 and tbcol2 = 1 and tbcol3 = 1
 print $data00 $data01 $data02 $data03 $data04 $data05 $data06 
 if $data00 != 25 then 
   return -1
 endi
 
-sql select count(tbcol1), avg(tbcol1), sum(tbcol1), min(tbcol1), max(tbcol1), first(tbcol1), last(tbcol1) from $mt where ts < now + 4m and tbcol1 = 1 and tbcol2 = 1 and tbcol3 = 1 and tbcol4 = 1
+sql select count(tbcol1), avg(tbcol1), sum(tbcol1), min(tbcol1), max(tbcol1), first(tbcol1), last(tbcol1) from $mt where ts < 1626739440001 and tbcol1 = 1 and tbcol2 = 1 and tbcol3 = 1 and tbcol4 = 1
 print $data00 $data01 $data02 $data03 $data04 $data05 $data06 
 if $data00 != 25 then 
   return -1
 endi
 
-sql select count(tbcol1), avg(tbcol1), sum(tbcol1), min(tbcol1), max(tbcol1), first(tbcol1), last(tbcol1) from $mt where ts < now + 4m and tbcol1 = 1 and tbcol2 = 1 and tbcol3 = 1 and tbcol4 = 1 and tbcol5 = 1
+sql select count(tbcol1), avg(tbcol1), sum(tbcol1), min(tbcol1), max(tbcol1), first(tbcol1), last(tbcol1) from $mt where ts < 1626739440001 and tbcol1 = 1 and tbcol2 = 1 and tbcol3 = 1 and tbcol4 = 1 and tbcol5 = 1
 print $data00 $data01 $data02 $data03 $data04 $data05 $data06 
 if $data00 != 25 then 
   return -1
 endi
 
-sql select count(tbcol1), avg(tbcol1), sum(tbcol1), min(tbcol1), max(tbcol1), first(tbcol1), last(tbcol1) from $mt where ts < now + 4m and tbcol1 = 1 and tbcol2 = 1 and tbcol3 = 1 and tbcol4 = 1 and tbcol5 = 1 and tbcol6 = 1
+sql select count(tbcol1), avg(tbcol1), sum(tbcol1), min(tbcol1), max(tbcol1), first(tbcol1), last(tbcol1) from $mt where ts < 1626739440001 and tbcol1 = 1 and tbcol2 = 1 and tbcol3 = 1 and tbcol4 = 1 and tbcol5 = 1 and tbcol6 = 1
 print $data00 $data01 $data02 $data03 $data04 $data05 $data06 
 if $data00 != 25 then 
   return -1
@@ -900,43 +900,43 @@ if $data00 != 100 then
 endi
 
 print =============== step30
-sql select count(tbcol1), avg(tbcol1), sum(tbcol1), min(tbcol1), max(tbcol1), first(tbcol1), last(tbcol1) from $mt where ts < now + 4m group by tgcol2
+sql select count(tbcol1), avg(tbcol1), sum(tbcol1), min(tbcol1), max(tbcol1), first(tbcol1), last(tbcol1) from $mt where ts < 1626739440001 group by tgcol2
 print $data00 $data01 $data02 $data03 $data04 $data05 $data06 
 if $data00 != 25 then 
   return -1
 endi
 
-sql select count(tbcol1), avg(tbcol1), sum(tbcol1), min(tbcol1), max(tbcol1), first(tbcol1), last(tbcol1) from $mt where ts < now + 4m and tbcol1 = 1 group by tgcol2
+sql select count(tbcol1), avg(tbcol1), sum(tbcol1), min(tbcol1), max(tbcol1), first(tbcol1), last(tbcol1) from $mt where ts < 1626739440001 and tbcol1 = 1 group by tgcol2
 print $data00 $data01 $data02 $data03 $data04 $data05 $data06 
 if $data00 != 25 then 
   return -1
 endi
 
-sql select count(tbcol1), avg(tbcol1), sum(tbcol1), min(tbcol1), max(tbcol1), first(tbcol1), last(tbcol1) from $mt where ts < now + 4m and tbcol1 = 1 and tbcol2 = 1  group by tgcol2
+sql select count(tbcol1), avg(tbcol1), sum(tbcol1), min(tbcol1), max(tbcol1), first(tbcol1), last(tbcol1) from $mt where ts < 1626739440001 and tbcol1 = 1 and tbcol2 = 1  group by tgcol2
 print $data00 $data01 $data02 $data03 $data04 $data05 $data06 
 if $data00 != 25 then 
   return -1
 endi
 
-sql select count(tbcol1), avg(tbcol1), sum(tbcol1), min(tbcol1), max(tbcol1), first(tbcol1), last(tbcol1) from $mt where ts < now + 4m and tbcol1 = 1 and tbcol2 = 1 and tbcol3 = 1 group by tgcol2
+sql select count(tbcol1), avg(tbcol1), sum(tbcol1), min(tbcol1), max(tbcol1), first(tbcol1), last(tbcol1) from $mt where ts < 1626739440001 and tbcol1 = 1 and tbcol2 = 1 and tbcol3 = 1 group by tgcol2
 print $data00 $data01 $data02 $data03 $data04 $data05 $data06 
 if $data00 != 25 then 
   return -1
 endi
 
-sql select count(tbcol1), avg(tbcol1), sum(tbcol1), min(tbcol1), max(tbcol1), first(tbcol1), last(tbcol1) from $mt where ts < now + 4m and tbcol1 = 1 and tbcol2 = 1 and tbcol3 = 1 and tbcol4 = 1 group by tgcol2
+sql select count(tbcol1), avg(tbcol1), sum(tbcol1), min(tbcol1), max(tbcol1), first(tbcol1), last(tbcol1) from $mt where ts < 1626739440001 and tbcol1 = 1 and tbcol2 = 1 and tbcol3 = 1 and tbcol4 = 1 group by tgcol2
 print $data00 $data01 $data02 $data03 $data04 $data05 $data06 
 if $data00 != 25 then 
   return -1
 endi
 
-sql select count(tbcol1), avg(tbcol1), sum(tbcol1), min(tbcol1), max(tbcol1), first(tbcol1), last(tbcol1) from $mt where ts < now + 4m and tbcol1 = 1 and tbcol2 = 1 and tbcol3 = 1 and tbcol4 = 1  and tbcol5 = 1 group by tgcol2
+sql select count(tbcol1), avg(tbcol1), sum(tbcol1), min(tbcol1), max(tbcol1), first(tbcol1), last(tbcol1) from $mt where ts < 1626739440001 and tbcol1 = 1 and tbcol2 = 1 and tbcol3 = 1 and tbcol4 = 1  and tbcol5 = 1 group by tgcol2
 print $data00 $data01 $data02 $data03 $data04 $data05 $data06 
 if $data00 != 25 then 
   return -1
 endi
 
-sql select count(tbcol1), avg(tbcol1), sum(tbcol1), min(tbcol1), max(tbcol1), first(tbcol1), last(tbcol1) from $mt where ts < now + 4m and tbcol1 = 1 and tbcol2 = 1 and tbcol3 = 1 and tbcol4 = 1  and tbcol5 = 1 and tbcol6 = 1 group by tgcol2
+sql select count(tbcol1), avg(tbcol1), sum(tbcol1), min(tbcol1), max(tbcol1), first(tbcol1), last(tbcol1) from $mt where ts < 1626739440001 and tbcol1 = 1 and tbcol2 = 1 and tbcol3 = 1 and tbcol4 = 1  and tbcol5 = 1 and tbcol6 = 1 group by tgcol2
 print $data00 $data01 $data02 $data03 $data04 $data05 $data06 
 if $data00 != 25 then 
   return -1

@@ -30,7 +30,7 @@ while $i < 5
   $x = 0
   while $x < $rowNum
     $ms = $x . m 
-    sql insert into $tb values (now + $ms , '0' ) 
+    sql insert into $tb values (1626739200000 + $ms , '0' ) 
     $x = $x + 1
   endw  
   $i = $i + 1
@@ -41,7 +41,7 @@ while $i < 10
   $x = 0
   while $x < $rowNum
     $ms = $x . m 
-    sql insert into $tb values (now + $ms , '1' ) 
+    sql insert into $tb values (1626739200000 + $ms , '1' ) 
     $x = $x + 1
   endw  
   $i = $i + 1
@@ -55,14 +55,14 @@ if $rows != 100 then
   return -1
 endi
 
-sql select * from $mt where ts > now + 4m and tbcol = '1'
+sql select * from $mt where ts > 1626739440001 and tbcol = '1'
 if $rows != 75 then
   return -1
 endi
 
 print select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from $mt where tbcol = '1'
 sql_error select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from $mt where tbcol = '1' group by tgcol 
-sql_error select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from $mt where ts < now + 4m and tbcol = '1' group by tgcol 
+sql_error select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from $mt where ts < 1626739440001 and tbcol = '1' group by tgcol 
 sql_error select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from $mt where tbcol = '1' interval(1d) group by tgcol 
 
 #can't filter binary fields

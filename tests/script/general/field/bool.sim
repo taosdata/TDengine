@@ -30,7 +30,7 @@ while $i < 5
   $x = 0
   while $x < $rowNum
     $ms = $x . m 
-    sql insert into $tb values (now + $ms , 0 ) 
+    sql insert into $tb values (1626739200000 + $ms , 0 ) 
     $x = $x + 1
   endw  
   $i = $i + 1
@@ -41,7 +41,7 @@ while $i < 10
   $x = 0
   while $x < $rowNum
     $ms = $x . m 
-    sql insert into $tb values (now + $ms , 1 ) 
+    sql insert into $tb values (1626739200000 + $ms , 1 ) 
     $x = $x + 1
   endw  
   $i = $i + 1
@@ -82,35 +82,35 @@ if $rows != 100 then
 endi
 
 print =============== step3
-sql select * from $mt where ts > now + 4m and tbcol = true
+sql select * from $mt where ts > 1626739440001 and tbcol = true
 if $rows != 75 then 
   return -1
 endi
-sql select * from $mt where ts > now + 4m and tbcol <> true
+sql select * from $mt where ts > 1626739440001 and tbcol <> true
 if $rows != 75 then 
   return -1
 endi
-sql select * from $mt where ts < now + 4m and tbcol = false
+sql select * from $mt where ts < 1626739440001 and tbcol = false
 if $rows != 25 then 
   return -1
 endi
-sql select * from $mt where ts < now + 4m and tbcol <> false
+sql select * from $mt where ts < 1626739440001 and tbcol <> false
 if $rows != 25 then 
   return -1
 endi
-sql select * from $mt where ts <= now + 4m and tbcol = false
+sql select * from $mt where ts <= 1626739440001 and tbcol = false
 if $rows != 25 then 
   return -1
 endi
-sql select * from $mt where ts <= now + 4m and tbcol <> false
+sql select * from $mt where ts <= 1626739440001 and tbcol <> false
 if $rows != 25 then 
   return -1
 endi
-sql select * from $mt where ts > now + 4m and ts < now + 5m and tbcol <> false
+sql select * from $mt where ts > 1626739440001 and ts < 1626739500001 and tbcol <> false
 if $rows != 5 then 
   return -1
 endi
-sql select * from $mt where ts > now + 4m and tbcol <> false and ts < now + 5m
+sql select * from $mt where ts > 1626739440001 and tbcol <> false and ts < 1626739500001
 if $rows != 5 then 
   return -1
 endi
@@ -137,7 +137,7 @@ if $data00 != 100 then
 endi
 
 print =============== step7
-sql select count(tbcol), first(tbcol), last(tbcol) from $mt where ts < now + 4m and tbcol = true group by tgcol
+sql select count(tbcol), first(tbcol), last(tbcol) from $mt where ts < 1626739440001 and tbcol = true group by tgcol
 print $data00 $data01 $data02 $data03 $data04 $data05 $data06 
 if $data00 != 25 then 
   return -1

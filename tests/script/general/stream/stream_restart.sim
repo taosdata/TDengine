@@ -37,7 +37,7 @@ while $i < $tbNum
   $y = 0
   while $y < $rowNum
     $ms = $x . s
-    sql insert into $tb values (now + $ms , $y , $y ) 
+    sql insert into $tb values (1626739200000 + $ms , $y , $y ) 
     $x = $x + 1
 	$y = $y + 1
   endw 
