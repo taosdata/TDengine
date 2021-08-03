@@ -255,10 +255,12 @@ int tscBuildQueryStreamDesc(void *pMsg, STscObj *pObj) {
     pQdesc->qId = htobe64(pSql->res.qId);
     pQdesc->sqlObjId = htobe64(pSql->self);
     pQdesc->pid = pHeartbeat->pid;
-    if (pSql->cmd.pQueryInfo->stableQuery == true) {
-      pQdesc->numOfSub = pSql->subState.numOfSub;
-    } else {
-      pQdesc->numOfSub = 1;
+    pQdesc->stableQuery = pSql->cmd.pQueryInfo->stableQuery;
+    pQdesc->numOfSub = (pSql->subState.numOfSub <= TSDB_MAX_SUBQUERY_NUM) ? pSql->subState.numOfSub : TSDB_MAX_SUBQUERY_NUM;
+
+    for (int i = 0; i < pQdesc->numOfSub; ++i) {
+      pQdesc->subSqlStates[i] = pSql->subState.states[i];
+      pQdesc->subSqlObjIds[i] = htobe64(pSql->pSubs[i]->self);
     }
     pQdesc->numOfSub = htonl(pQdesc->numOfSub);
 

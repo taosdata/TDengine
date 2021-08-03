@@ -2141,7 +2141,7 @@ int tscAllocPayload(SSqlCmd* pCmd, int size) {
       pCmd->payload = b;
       pCmd->allocSize = size;
     }
-    
+
     memset(pCmd->payload, 0, pCmd->allocSize);
   }
 

@@ -32,7 +32,8 @@
 #define CONN_KEEP_TIME  (tsShellActivityTimer * 3)
 #define CONN_CHECK_TIME (tsShellActivityTimer * 2)
 #define QUERY_ID_SIZE   20
-#define QUERY_OBJ_ID_SIZE   10
+#define QUERY_OBJ_ID_SIZE   18
+#define SUBQUERY_INFO_SIZE   6
 #define QUERY_STREAM_SAVE_SIZE 20
 
 static SCacheObj *tsMnodeConnCache = NULL;
@@ -380,9 +381,27 @@ static int32_t mnodeGetQueryMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pC
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
   cols++;
 
+  pShow->bytes[cols] = 1;
+  pSchema[cols].type = TSDB_DATA_TYPE_BOOL;
+  strcpy(pSchema[cols].name, "stable_query");
+  pSchema[cols].bytes = htons(pShow->bytes[cols]);
+  cols++;
+
   pShow->bytes[cols] = 4;
   pSchema[cols].type = TSDB_DATA_TYPE_INT;
   strcpy(pSchema[cols].name, "sub_queries");
+  pSchema[cols].bytes = htons(pShow->bytes[cols]);
+  cols++;
+
+  pShow->bytes[cols] = SUBQUERY_INFO_SIZE * TSDB_MAX_SUBQUERY_NUM + VARSTR_HEADER_SIZE;
+  pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
+  strcpy(pSchema[cols].name, "sub_query_states");
+  pSchema[cols].bytes = htons(pShow->bytes[cols]);
+  cols++;
+
+  pShow->bytes[cols] = (SUBQUERY_INFO_SIZE + QUERY_OBJ_ID_SIZE) * TSDB_MAX_SUBQUERY_NUM + VARSTR_HEADER_SIZE;
+  pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
+  strcpy(pSchema[cols].name, "sub_query_obj_ids ");
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
   cols++;
 
@@ -459,12 +478,8 @@ static int32_t mnodeRetrieveQueries(SShowObj *pShow, char *data, int32_t rows, v
       pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
       *(int64_t *)pWrite = htobe64(pDesc->useconds);
       cols++;
-      /*
-      pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-      *(int64_t *)pWrite = htobe64(pDesc->sqlObjId);
-      cols++;
-      */
-      snprintf(str, tListLen(str), "0x%08" PRIx64, htobe64(pDesc->sqlObjId));
+
+      snprintf(str, tListLen(str), "0x%" PRIx64, htobe64(pDesc->sqlObjId));
       pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
       STR_WITH_MAXSIZE_TO_VARSTR(pWrite, str, pShow->bytes[cols]);
       cols++;
@@ -480,7 +495,40 @@ static int32_t mnodeRetrieveQueries(SShowObj *pShow, char *data, int32_t rows, v
       cols++;
 
       pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+      *(bool *)pWrite = pDesc->stableQuery;
+      cols++;
+
+      pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
       *(int32_t *)pWrite = htonl(pDesc->numOfSub);
+      cols++;
+
+      char subQInfo[(SUBQUERY_INFO_SIZE + QUERY_OBJ_ID_SIZE) * TSDB_MAX_SUBQUERY_NUM] = {0};
+      char *p;
+      int32_t idx, len;
+
+      p = subQInfo;
+      for (idx = 0; idx < htonl(pDesc->numOfSub); ++idx) {
+        len = snprintf(p, SUBQUERY_INFO_SIZE, "[%d]%d ", idx, pDesc->subSqlStates[idx]);
+        p += MIN(len, SUBQUERY_INFO_SIZE);
+      }
+      if (idx == 0) {
+        snprintf(p, sizeof(subQInfo), "N/A");
+      }
+      pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+      STR_WITH_MAXSIZE_TO_VARSTR(pWrite, subQInfo, pShow->bytes[cols]);
+      cols++;
+
+      p = subQInfo;
+      for (idx = 0; idx < htonl(pDesc->numOfSub); ++idx) {
+        len = snprintf(p, SUBQUERY_INFO_SIZE + QUERY_OBJ_ID_SIZE, "[%d]0x%" PRIx64 " ",
+                      idx, htobe64(pDesc->subSqlObjIds[idx]));
+        p += MIN(len, SUBQUERY_INFO_SIZE + QUERY_OBJ_ID_SIZE);
+      }
+      if (idx == 0) {
+        snprintf(p, sizeof(subQInfo), "N/A");
+      }
+      pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+      STR_WITH_MAXSIZE_TO_VARSTR(pWrite, subQInfo, pShow->bytes[cols]);
       cols++;
 
       pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
