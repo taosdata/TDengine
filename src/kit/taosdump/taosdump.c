@@ -1666,10 +1666,7 @@ static int32_t taosDumpStable(char *table, FILE *fp,
         exit(-1);
     }
 
-    for (int i = 0; i < count; i++) {
-
-        //taosDumpCreateTableClause(stableDes, count, fp, dbName);
-    }
+    taosDumpCreateTableClause(stableDes, count, fp, dbName);
 
     free(stableDes);
     return 0;
