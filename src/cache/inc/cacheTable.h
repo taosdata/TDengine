@@ -37,6 +37,7 @@ typedef struct cacheTableBucket {
 struct cacheTable { 
   cache_t* pCache;
   SRWLatch     latch;
+  cacheMutex mutex;
   cacheTable* next;
   cacheTableOption option;
 

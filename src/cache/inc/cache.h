@@ -62,6 +62,9 @@ typedef struct cacheTable cacheTable;
 struct cacheItem;
 typedef struct cacheItem cacheItem;
 
+struct cacheIterator;
+typedef struct cacheIterator cacheIterator;
+
 cache_t* cacheCreate(cacheOption* options);
 
 void  cacheDestroy(cache_t*);
@@ -74,6 +77,11 @@ int cachePut(cacheTable*, const char* key, uint8_t nkey, const char* value, uint
 int cacheGet(cacheTable*, const char* key, uint8_t nkey, char** data, int* nbytes);
 
 void cacheRemove(cacheTable* pTable, const char* key, uint8_t nkey);
+
+cacheIterator* cacheTableGetIterator(cacheTable*);
+bool cacheTableIterateNext(cacheIterator*);
+
+void cacheTableIteratorFinal(cacheIterator*);
 
 #ifdef __cplusplus
 }

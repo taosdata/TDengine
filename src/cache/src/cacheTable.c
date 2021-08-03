@@ -44,6 +44,10 @@ cacheTable* cacheCreateTable(cache_t* cache, cacheTableOption* option) {
     option->initHashPower = ITEM_MUTEX_HASH_POWER;
   }
 
+  if (cacheMutexInit(&(pTable->mutex)) != 0) {
+    goto error;
+  }
+
   pTable->capacity = hashsize(option->initHashPower);
   pTable->pBucket = malloc(sizeof(cacheTableBucket) * pTable->capacity);
   if (pTable->pBucket == NULL) {
@@ -144,6 +148,7 @@ static void checkExpandTable(cacheTable* pTable) {
 
   pTable->expanding = true;
   taosWUnLockLatch(&(pTable->latch));
+  cacheMutexLock(&(pTable->mutex));
   pthread_t thread;
   pthread_create(&thread, NULL, expandTableThread, pTable);
 }
@@ -214,7 +219,7 @@ static void expandCacheTable(cacheTable* pTable) {
   assert(pTable->expanding == true);
   assert(pTable->expandIndex == 0);
   assert(pTable->pOldBucket == NULL);
-
+  
   uint32_t capacity;
   cacheMutex* pMutex;
   uint32_t i, newIndex;
@@ -230,6 +235,7 @@ static void expandCacheTable(cacheTable* pTable) {
   pBucket = malloc(sizeof(cacheTableBucket) * capacity);
   if (pBucket == NULL) {
     cacheError("expanding bucket oom");
+    cacheMutexUnlock(&(pTable->mutex));
     return;
   }
 
@@ -276,6 +282,8 @@ static void expandCacheTable(cacheTable* pTable) {
     cacheMutexUnlock(pMutex);
   }
   
+  cacheMutexUnlock(&(pTable->mutex));
+
   taosWLockLatch(&(pTable->latch));
   free(pTable->pOldBucket);
   pTable->expandIndex = 0;  
@@ -286,4 +294,96 @@ static void expandCacheTable(cacheTable* pTable) {
 
   cacheInfo("end expandCacheTable");
   //cacheInfo("end expandCacheTable, old capacity: %ld, new capacity: %ld", pTable->capacity, capacity);
+}
+
+typedef struct cacheIterator {
+  cacheTable* pTable;
+  cacheItem* pItem;
+  cacheItem* pNext;
+  uint32_t bucketIndex;
+  bool bucketLocked;
+} cacheIterator;
+
+cacheIterator* cacheTableGetIterator(cacheTable* pTable) {
+  cacheIterator* pIter = calloc(1, sizeof(cacheIterator));
+  if (pIter == NULL) {
+    return NULL;
+  }
+
+  cacheMutexLock(&(pTable->mutex));
+  pIter->pTable = pTable;
+  pIter->pItem  = pIter->pNext = NULL;
+  pIter->bucketIndex = 0;
+  pIter->bucketLocked = false;
+  return pIter;
+}
+
+bool cacheTableIterateNext(cacheIterator* pIter) {
+  cacheTable* pTable = pIter->pTable;
+  cacheMutex* pMutex = NULL;
+  cacheTableBucket* pBucket = NULL;
+
+  if (pIter->pItem) {
+    itemDecrRef(pIter->pItem);
+    pIter->pItem = NULL;
+  }
+  
+  while (pIter->bucketIndex < pTable->capacity && pIter->pItem == NULL) {
+    pBucket = &(pTable->pBucket[pIter->bucketIndex]);
+
+    if (pIter->bucketLocked) {
+      // if the bucket has been locked, it means item is not the first item in the bucket
+      if (pIter->pNext != NULL) {
+        pIter->pItem = pIter->pNext;        
+        pIter->pNext = pIter->pItem->h_next;
+      } else {
+        // the bucket has been traversed, move to the next bucket
+        pMutex = getItemMutexByIndex(pTable, pIter->bucketIndex);
+        cacheMutexUnlock(pMutex);
+        pIter->bucketLocked = false;
+        pIter->bucketIndex += 1;
+      }
+
+      continue;
+    }
+
+    pMutex = getItemMutexByIndex(pTable, pIter->bucketIndex);
+    cacheMutexLock(pMutex);
+    pIter->bucketLocked = true;
+    
+    // empty bucket, move to the next bucket
+    if (pBucket->head == NULL) {
+      cacheMutexUnlock(pMutex);
+      pIter->bucketLocked = false;
+      pIter->bucketIndex += 1;
+      continue;
+    }
+
+    pIter->pItem = pBucket->head;
+    pIter->pNext = pIter->pItem->h_next;
+  }
+
+  if (pIter->pItem) {
+    itemIncrRef(pIter->pItem);
+    return true;
+  }
+
+  return false;
+}
+
+void cacheTableIteratorFinal(cacheIterator* pIter) {
+  cacheTable* pTable = pIter->pTable;
+
+  if (pIter->pItem) {
+    itemIncrRef(pIter->pItem);
+  }
+
+  if (pIter->bucketLocked) {    
+    assert(pIter->bucketIndex == pTable->capacity);
+    cacheMutex* pMutex = getItemMutexByIndex(pTable, pIter->bucketIndex - 1);
+    cacheMutexUnlock(pMutex);
+  }
+
+  cacheMutexUnlock(&(pTable->mutex));
+  free(pIter);
 }
