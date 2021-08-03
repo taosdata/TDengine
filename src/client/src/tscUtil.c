@@ -3541,8 +3541,8 @@ SSqlObj* createSubqueryObj(SSqlObj* pSql, int16_t tableIndex, __async_cb_func_t 
   }
 
   if (pQueryInfo->fillType != TSDB_FILL_NONE) {
-    //just make memory memory sanitizer happy
-    //refator later
+    //just make memory memory sanitizer happy  
+    //refactor later
     pNewQueryInfo->fillVal = calloc(1, pQueryInfo->fieldsInfo.numOfOutput * sizeof(int64_t));
     if (pNewQueryInfo->fillVal == NULL) {
       terrno = TSDB_CODE_TSC_OUT_OF_MEMORY;
@@ -4579,6 +4579,21 @@ int32_t tscGetColFilterSerializeLen(SQueryInfo* pQueryInfo) {
     }
   }
   return len;
+}
+
+int32_t tscGetTagFilterSerializeLen(SQueryInfo* pQueryInfo) {
+  // serialize tag column query condition
+  if (pQueryInfo->tagCond.pCond != NULL && taosArrayGetSize(pQueryInfo->tagCond.pCond) > 0) {
+    STagCond* pTagCond = &pQueryInfo->tagCond;
+
+    STableMetaInfo *pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
+    STableMeta * pTableMeta = pTableMetaInfo->pTableMeta;
+    SCond *pCond = tsGetSTableQueryCond(pTagCond, pTableMeta->id.uid);
+    if (pCond != NULL && pCond->cond != NULL) {
+      return pCond->len;
+    }
+  }
+  return 0;
 }
 
 int32_t tscCreateQueryFromQueryInfo(SQueryInfo* pQueryInfo, SQueryAttr* pQueryAttr, void* addr) {
