@@ -24,6 +24,14 @@
 #include "cacheTypes.h"
 #include "hash.h"
 
+typedef struct cacheIterator {
+  cacheTable* pTable;
+  cacheItem* pItem;
+  cacheItem* pNext;
+  uint32_t bucketIndex;
+  bool bucketLocked;
+} cacheIterator;
+
 static int        initTableBucket(cacheTableBucket* pBucket);
 static cacheItem* findItemByKey(cacheTable* pTable, const char* key, uint8_t nkey, cacheItem **ppPrev);
 static void       removeTableItem(cache_t* pCache, cacheTable* pTable, cacheTableBucket* pBucket, 
@@ -119,12 +127,14 @@ static cacheItem* findItemByKey(cacheTable* pTable, const char* key, uint8_t nke
 }
 
 static cacheTableBucket* getTableBucketByKey(cacheTable* pTable, const char* key, uint8_t nkey) {
+  assert(pTable != NULL);
   uint32_t hash = pTable->hashFp(key, nkey);
-  uint32_t index = hash % pTable->capacity;
+  uint32_t index = 0;
   cacheTableBucket* pBucket = NULL;
 
   taosWLockLatch(&(pTable->latch));
-  if (pTable->expanding && index >= pTable->expandIndex) {
+  if (pTable->expanding && (index = hash % pTable->capacity) >= pTable->expandIndex) {
+    assert(pTable->pOldBucket != NULL);
     pBucket = &(pTable->pOldBucket[index]);
   } else {
     pBucket = &(pTable->pBucket[hash & hashmask(pTable->option.initHashPower)]);
@@ -146,7 +156,6 @@ static void checkExpandTable(cacheTable* pTable) {
     return;
   }
 
-  pTable->expanding = true;
   taosWUnLockLatch(&(pTable->latch));
   cacheMutexLock(&(pTable->mutex));
   pthread_t thread;
@@ -216,7 +225,7 @@ static void* expandTableThread(void *arg) {
 }
 
 static void expandCacheTable(cacheTable* pTable) {
-  assert(pTable->expanding == true);
+  assert(pTable->expanding == false);
   assert(pTable->expandIndex == 0);
   assert(pTable->pOldBucket == NULL);
   
@@ -246,9 +255,13 @@ static void expandCacheTable(cacheTable* pTable) {
   }
 
   // swap old and new bucket array
+  taosWLockLatch(&(pTable->latch));
   pTable->pOldBucket = pTable->pBucket;
   pTable->pBucket = pBucket;
-  
+  pTable->expanding = true;
+  pTable->expandIndex = 0;
+  taosWUnLockLatch(&(pTable->latch));
+
   pTable->nOverflow = 0;
   while (pTable->expandIndex < pTable->capacity) {
     pMutex = getItemMutexByIndex(pTable, pTable->expandIndex);
@@ -295,14 +308,6 @@ static void expandCacheTable(cacheTable* pTable) {
   cacheInfo("end expandCacheTable");
   //cacheInfo("end expandCacheTable, old capacity: %ld, new capacity: %ld", pTable->capacity, capacity);
 }
-
-typedef struct cacheIterator {
-  cacheTable* pTable;
-  cacheItem* pItem;
-  cacheItem* pNext;
-  uint32_t bucketIndex;
-  bool bucketLocked;
-} cacheIterator;
 
 cacheIterator* cacheTableGetIterator(cacheTable* pTable) {
   cacheIterator* pIter = calloc(1, sizeof(cacheIterator));
