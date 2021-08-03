@@ -335,6 +335,7 @@ SDataCols *tdNewDataCols(int maxRowSize, int maxCols, int maxRows) {
     int i;
     for(i = 0; i < maxCols; i++) {
       pCols->cols[i].spaceSize = 0;
+      pCols->cols[i].len = 0;
       pCols->cols[i].pData = NULL;
       pCols->cols[i].dataOff = NULL;
     }
@@ -407,21 +408,13 @@ SDataCols *tdDupDataCols(SDataCols *pDataCols, bool keepData) {
     pRet->cols[i].bytes = pDataCols->cols[i].bytes;
     pRet->cols[i].offset = pDataCols->cols[i].offset;
 
-    pRet->cols[i].spaceSize = 0;
-    pRet->cols[i].len = 0;
-    pRet->cols[i].dataOff = NULL;
-    pRet->cols[i].pData = NULL;
-
     if (keepData) {
       pRet->cols[i].len = pDataCols->cols[i].len;
-      if (pDataCols->cols[i].len > 0) {
-        int spaceSize = pDataCols->cols[i].bytes * pDataCols->maxPoints;
-        pRet->cols[i].spaceSize = spaceSize;
-        pRet->cols[i].pData = malloc(spaceSize);
+      if (pRet->cols[i].len > 0) {
+        tdAllocMemForCol(&pRet->cols[i], pRet->maxPoints);
         memcpy(pRet->cols[i].pData, pDataCols->cols[i].pData, pDataCols->cols[i].len);
         if (IS_VAR_DATA_TYPE(pRet->cols[i].type)) {
           int dataOffSize = sizeof(VarDataOffsetT) * pDataCols->maxPoints;
-          pRet->cols[i].dataOff = malloc(dataOffSize);
           memcpy(pRet->cols[i].dataOff, pDataCols->cols[i].dataOff, dataOffSize);
         }
       }
