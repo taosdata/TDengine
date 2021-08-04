@@ -16,11 +16,9 @@ python3 ./test.py -f insert/nchar.py
 #python3 ./test.py -f insert/nchar-boundary.py
 python3 ./test.py -f insert/nchar-unicode.py
 python3 ./test.py -f insert/multi.py
-python3 ./test.py -f insert/randomNullCommit.py
 python3 insert/retentionpolicy.py
 python3 ./test.py -f insert/alterTableAndInsert.py
 python3 ./test.py -f insert/insertIntoTwoTables.py
-python3 ./test.py -f insert/before_1970.py
 python3 ./test.py -f insert/special_character_show.py
 python3 bug2265.py
 python3 ./test.py -f insert/bug3654.py
@@ -30,7 +28,7 @@ python3 ./test.py -f insert/modify_column.py
 python3 ./test.py -f insert/line_insert.py
 
 #table
-python3 ./test.py -f table/alter_wal0.py
+
 python3 ./test.py -f table/column_name.py
 python3 ./test.py -f table/column_num.py
 python3 ./test.py -f table/db_table.py
@@ -44,7 +42,7 @@ python3 ./test.py -f table/del_stable.py
 
 #stable
 python3 ./test.py -f stable/insert.py
-python3 test.py -f tools/taosdemoAllTest/taosdemoTestInsertWithJsonStmt.py 
+
 
 # tag
 python3 ./test.py -f tag_lite/filter.py
@@ -64,8 +62,6 @@ python3 ./test.py -f tag_lite/change.py
 python3 ./test.py -f tag_lite/column.py
 python3 ./test.py -f tag_lite/commit.py
 python3 ./test.py -f tag_lite/create.py
-python3 ./test.py -f tag_lite/datatype.py
-python3 ./test.py -f tag_lite/datatype-without-alter.py
 python3 ./test.py -f tag_lite/delete.py
 python3 ./test.py -f tag_lite/double.py
 python3 ./test.py -f tag_lite/float.py
@@ -176,9 +172,6 @@ python3 ./test.py -f update/allow_update-0.py
 python3 ./test.py -f update/append_commit_data.py
 python3 ./test.py -f update/append_commit_last-0.py
 python3 ./test.py -f update/append_commit_last.py
-python3 ./test.py -f update/merge_commit_data.py
-
-python3 ./test.py -f update/merge_commit_data2.py
 python3 ./test.py -f update/merge_commit_data2_update0.py
 python3 ./test.py -f update/merge_commit_last-0.py
 python3 ./test.py -f update/merge_commit_last.py
@@ -225,8 +218,6 @@ python3 ./test.py -f query/bug1471.py
 python3 ./test.py -f query/bug1874.py
 python3 ./test.py -f query/bug1875.py
 python3 ./test.py -f query/bug1876.py
-python3 ./test.py -f query/bug2218.py
-python3 ./test.py -f query/bug2117.py
 python3 ./test.py -f query/bug2118.py
 python3 ./test.py -f query/bug2143.py
 python3 ./test.py -f query/sliding.py
@@ -260,8 +251,6 @@ python3 test.py -f query/nestedQuery/queryWithSpread.py
 python3 ./test.py -f stream/metric_1.py
 python3 ./test.py -f stream/metric_n.py
 python3 ./test.py -f stream/new.py
-python3 ./test.py -f stream/stream1.py
-python3 ./test.py -f stream/stream2.py
 #python3 ./test.py -f stream/parser.py
 python3 ./test.py -f stream/history.py
 python3 ./test.py -f stream/sys.py
@@ -376,9 +365,21 @@ python3 test.py -f alter/alter_cacheLastRow.py
 python3 ./test.py -f query/querySession.py 
 python3 test.py -f  alter/alter_create_exception.py
 python3 ./test.py -f insert/flushwhiledrop.py
-
+python3 ./test.py -f tag_lite/datatype-without-alter.py
+python3 test.py -f tools/taosdemoAllTest/taosdemoTestInsertWithJsonStmt.py 
 #======================p4-end===============
-python3 test.py -f  tools/taosdemoAllTest/pytest.py
+#======================p5-start===============
+python3 ./test.py -f insert/randomNullCommit.py
+python3 ./test.py -f tag_lite/datatype.py
+python3 ./test.py -f table/alter_wal0.py
+python3 ./test.py -f insert/before_1970.py
+python3 ./test.py -f update/merge_commit_data.py
+python3 ./test.py -f update/merge_commit_data2.py
+python3 ./test.py -f stream/stream1.py
+python3 ./test.py -f stream/stream2.py
+python3 ./test.py -f query/bug2218.py
+python3 ./test.py -f query/bug2117.py
+#======================p5-end===============
 
 
 

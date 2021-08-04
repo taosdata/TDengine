@@ -250,6 +250,8 @@ pipeline {
                 date
                 cd ${WKC}/tests
                 ./test-all.sh b2fq
+                cd ${WKC}/tests
+                ./test-all.sh p5
                 date
                 '''
             }         
@@ -293,8 +295,6 @@ pipeline {
               cd ${WKC}/tests
               ./test-all.sh b4fq
               cd ${WKC}/tests
-              ./test-all.sh p4
-              cd ${WKC}/tests
               ./test-all.sh full jdbc
               cd ${WKC}/tests
               ./test-all.sh full unit
@@ -336,7 +336,7 @@ pipeline {
               sh '''
               date
               cd ${WKC}/tests
-              ./test-all.sh b7fq
+              ./test-all.sh p4
               date'''              
             }
           }

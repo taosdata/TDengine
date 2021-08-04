@@ -254,7 +254,6 @@ if [ "$2" != "jdbc" ] && [ "$2" != "python" ] && [ "$2" != "unit" ]  && [ "$2" !
     echo "### run TSIM b1 test ###"
     runSimCaseOneByOnefq b1 0
     runSimCaseOneByOnefq b4 0
-    runSimCaseOneByOnefq b7 0
   elif [ "$1" == "b2" ]; then
     echo "### run TSIM b2 test ###"
     runSimCaseOneByOnefq b2 0
@@ -281,9 +280,6 @@ if [ "$2" != "jdbc" ] && [ "$2" != "python" ] && [ "$2" != "unit" ]  && [ "$2" !
   elif [ "$1" == "b6fq" ]; then
     echo "### run TSIM b6 test ###"
     runSimCaseOneByOnefq b6 1
-  elif [ "$1" == "b7fq" ]; then
-    echo "### run TSIM b7 test ###"
-    runSimCaseOneByOnefq b7 1
   elif [ "$1" == "smoke" ] || [ -z "$1" ]; then
     echo "### run TSIM smoke test ###"
     runSimCaseOneByOne basicSuite.sim
@@ -357,6 +353,9 @@ if [ "$2" != "sim" ] && [ "$2" != "jdbc" ] && [ "$2" != "unit" ]  && [ "$2" != "
   elif [ "$1" == "p4" ]; then
     echo "### run Python_4 test ###"
     runPyCaseOneByOnefq p4 1
+  elif [ "$1" == "p5" ]; then
+    echo "### run Python_5 test ###"
+    runPyCaseOneByOnefq p5 1
   elif [ "$1" == "b2" ] || [ "$1" == "b3" ]; then
     exit $(($totalFailed + $totalPyFailed))
   elif [ "$1" == "smoke" ] || [ -z "$1" ]; then

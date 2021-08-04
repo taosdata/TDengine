@@ -89,22 +89,17 @@ cd ../../../debug; make
 ./test.sh -f general/db/nosuchfile.sim
 ./test.sh -f general/parser/function.sim
 ./test.sh -f unique/cluster/vgroup100.sim
-
+./test.sh -f unique/big/tcp.sim
 #======================b1-end===============
 #======================b2-start===============
 
-
-./test.sh -f general/wal/sync.sim
-./test.sh -f general/wal/kill.sim
 ./test.sh -f general/wal/maxtables.sim
-
 ./test.sh -f general/user/authority.sim
 ./test.sh -f general/user/monitor.sim
 ./test.sh -f general/user/pass_alter.sim
 ./test.sh -f general/user/pass_len.sim
 ./test.sh -f general/user/user_create.sim
 ./test.sh -f general/user/user_len.sim
-
 ./test.sh -f general/vector/metrics_field.sim
 ./test.sh -f general/vector/metrics_mix.sim
 ./test.sh -f general/vector/metrics_query.sim
@@ -116,25 +111,6 @@ cd ../../../debug; make
 ./test.sh -f general/vector/table_mix.sim
 ./test.sh -f general/vector/table_query.sim
 ./test.sh -f general/vector/table_time.sim
-
-./test.sh -f unique/account/account_create.sim
-./test.sh -f unique/account/account_delete.sim
-./test.sh -f unique/account/account_len.sim
-./test.sh -f unique/account/authority.sim
-./test.sh -f unique/account/basic.sim
-./test.sh -f unique/account/paras.sim
-./test.sh -f unique/account/pass_alter.sim
-./test.sh -f unique/account/pass_len.sim
-./test.sh -f unique/account/usage.sim
-./test.sh -f unique/account/user_create.sim
-./test.sh -f unique/account/user_len.sim
-
-./test.sh -f unique/big/maxvnodes.sim
-./test.sh -f unique/big/tcp.sim
-
-./test.sh -f unique/cluster/alter.sim
-./test.sh -f unique/cluster/cache.sim
-
 
 #======================b2-end===============
 #======================b3-start===============
@@ -194,58 +170,12 @@ cd ../../../debug; make
 ./test.sh -f unique/stable/replica2_vnode3.sim
 ./test.sh -f unique/stable/replica3_dnode6.sim
 ./test.sh -f unique/stable/replica3_vnode3.sim
-
+./test.sh -f unique/account/usage.sim
+./test.sh -f general/wal/sync.sim
+./test.sh -f unique/big/maxvnodes.sim
+./test.sh -f unique/cluster/alter.sim
 #======================b3-end===============
 #======================b4-start===============
-
-./test.sh -f unique/http/admin.sim
-./test.sh -f unique/http/opentsdb.sim
-
-./test.sh -f unique/import/replica2.sim
-./test.sh -f unique/import/replica3.sim
-
-./test.sh -f general/alter/cached_schema_after_alter.sim
-./test.sh -f general/alter/count.sim
-./test.sh -f general/alter/dnode.sim
-./test.sh -f general/alter/import.sim
-./test.sh -f general/alter/insert1.sim
-./test.sh -f general/alter/insert2.sim
-./test.sh -f general/alter/metrics.sim
-./test.sh -f general/alter/table.sim
-
-./test.sh -f general/cache/new_metrics.sim
-./test.sh -f general/cache/restart_metrics.sim
-./test.sh -f general/cache/restart_table.sim
-
-./test.sh -f general/connection/connection.sim  
-
-./test.sh -f general/column/commit.sim
-./test.sh -f general/column/metrics.sim
-./test.sh -f general/column/table.sim
-
-./test.sh -f general/compress/commitlog.sim
-./test.sh -f general/compress/compress.sim
-./test.sh -f general/compress/compress2.sim
-./test.sh -f general/compress/uncompress.sim
-
-./test.sh -f general/stable/disk.sim
-./test.sh -f general/stable/dnode3.sim
-./test.sh -f general/stable/metrics.sim
-./test.sh -f general/stable/refcount.sim
-./test.sh -f general/stable/show.sim
-./test.sh -f general/stable/values.sim
-./test.sh -f general/stable/vnode3.sim
-
-./test.sh -f unique/column/replica3.sim
-./test.sh -f issue/TD-2713.sim
-./test.sh -f general/parser/select_distinct_tag.sim
-./test.sh -f unique/mnode/mgmt30.sim
-./test.sh -f issue/TD-2677.sim
-./test.sh -f issue/TD-2680.sim
-./test.sh -f unique/dnode/lossdata.sim
-
-#======================b4-end===============
-#======================b5-start===============
 
 ./test.sh -f unique/dnode/alternativeRole.sim
 ./test.sh -f unique/dnode/balance1.sim
@@ -269,9 +199,20 @@ cd ../../../debug; make
 ./test.sh -f general/db/alter_tables_d2.sim
 ./test.sh -f general/db/alter_tables_v1.sim
 ./test.sh -f general/db/alter_tables_v4.sim
-
-#======================b5-end===============
-#======================b6-start===============
+./test.sh -f general/wal/kill.sim
+./test.sh -f unique/account/account_create.sim
+./test.sh -f unique/account/account_delete.sim
+./test.sh -f unique/account/account_len.sim
+./test.sh -f unique/account/authority.sim
+./test.sh -f unique/account/basic.sim
+./test.sh -f unique/account/paras.sim
+./test.sh -f unique/account/pass_alter.sim
+./test.sh -f unique/account/pass_len.sim
+./test.sh -f unique/account/user_create.sim
+./test.sh -f unique/account/user_len.sim
+./test.sh -f unique/cluster/cache.sim
+#======================b4-end===============
+#======================b5-start===============
 
 ./test.sh -f unique/dnode/reason.sim
 ./test.sh -f unique/dnode/remove1.sim
@@ -303,7 +244,7 @@ cd ../../../debug; make
 ./test.sh -f unique/dnode/m2.sim
 ./test.sh -f unique/dnode/m3.sim
 ./test.sh -f unique/dnode/offline3.sim
-./test.sh -f general/wal/kill.sim
+
 ./test.sh -f general/wal/maxtables.sim
 
 ./test.sh -f general/import/basic.sim
@@ -313,9 +254,21 @@ cd ../../../debug; make
 ./test.sh -f unique/cluster/balance1.sim
 ./test.sh -f unique/cluster/balance2.sim
 ./test.sh -f unique/cluster/balance3.sim
-
-#======================b6-end===============
-#======================b7-start===============
+./test.sh -f unique/mnode/mgmt30.sim
+./test.sh -f unique/import/replica2.sim
+./test.sh -f unique/import/replica3.sim
+./test.sh -f unique/http/opentsdb.sim
+./test.sh -f unique/http/admin.sim
+./test.sh -f unique/column/replica3.sim
+./test.sh -f issue/TD-2713.sim
+./test.sh -f general/parser/select_distinct_tag.sim
+./test.sh -f issue/TD-2677.sim
+./test.sh -f issue/TD-2680.sim
+./test.sh -f unique/dnode/lossdata.sim
+./test.sh -f general/stable/values.sim
+./test.sh -f general/stable/vnode3.sim
+#======================b5-end===============
+#======================b6-start===============
 
 ./test.sh -f general/compute/avg.sim
 ./test.sh -f general/compute/bottom.sim
@@ -404,5 +357,33 @@ cd ../../../debug; make
 ./test.sh -f general/parser/between_and.sim
 ./test.sh -f general/parser/last_cache.sim
 ./test.sh -f unique/big/balance.sim
+./test.sh -f general/alter/cached_schema_after_alter.sim
+./test.sh -f general/alter/count.sim
+./test.sh -f general/alter/dnode.sim
+./test.sh -f general/alter/import.sim
+./test.sh -f general/alter/insert1.sim
+./test.sh -f general/alter/insert2.sim
+./test.sh -f general/alter/metrics.sim
+./test.sh -f general/alter/table.sim
 
-#======================b7-end===============
+./test.sh -f general/cache/new_metrics.sim
+./test.sh -f general/cache/restart_metrics.sim
+./test.sh -f general/cache/restart_table.sim
+
+./test.sh -f general/connection/connection.sim  
+
+./test.sh -f general/column/commit.sim
+./test.sh -f general/column/metrics.sim
+./test.sh -f general/column/table.sim
+
+./test.sh -f general/compress/commitlog.sim
+./test.sh -f general/compress/compress.sim
+./test.sh -f general/compress/compress2.sim
+./test.sh -f general/compress/uncompress.sim
+
+./test.sh -f general/stable/disk.sim
+./test.sh -f general/stable/dnode3.sim
+./test.sh -f general/stable/metrics.sim
+./test.sh -f general/stable/refcount.sim
+./test.sh -f general/stable/show.sim
+#======================b6-end===============
