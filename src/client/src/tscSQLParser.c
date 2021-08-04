@@ -900,6 +900,7 @@ int32_t tscValidateSqlInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
         SSqlNode* pSqlNode = taosArrayGetP(pInfo->list, i);
 
         tscTrace("0x%"PRIx64" start to parse the %dth subclause, total:%"PRIzu, pSql->self, i, size);
+
 //        normalizeSqlNode(pSqlNode); // normalize the column name in each function
         if ((code = validateSqlNode(pSql, pSqlNode, pQueryInfo)) != TSDB_CODE_SUCCESS) {
           return code;
@@ -2028,7 +2029,6 @@ static SUdfInfo* isValidUdf(SArray* pUdfInfo, const char* name, int32_t len) {
     tscError("udfinfo is null");
     return NULL;
   }
-  
   size_t t = taosArrayGetSize(pUdfInfo);
   for(int32_t i = 0; i < t; ++i) {
     SUdfInfo* pUdf = taosArrayGet(pUdfInfo, i);
@@ -6078,10 +6078,12 @@ int32_t setAlterTableInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
 
     SSchema* pSchema = tscGetTableTagSchema(pTableMetaInfo->pTableMeta);
     int16_t numOfTags = tscGetNumOfTags(pTableMetaInfo->pTableMeta);
-    int16_t i;
+    int32_t numOfCols = tscGetNumOfColumns(pTableMetaInfo->pTableMeta);
+    int32_t tagIndex = columnIndex.columnIndex - numOfCols;
+    assert(tagIndex>=0);
     uint32_t nLen = 0;
-    for (i = 0; i < numOfTags; ++i) {
-      nLen += (i != columnIndex.columnIndex) ? pSchema[i].bytes : pItem->bytes;
+    for (int i = 0; i < numOfTags; ++i) {
+      nLen += (i != tagIndex) ? pSchema[i].bytes : pItem->bytes;
     }
     if (nLen >= TSDB_MAX_TAGS_LEN) {
       return invalidOperationMsg(pMsg, msg24);
@@ -8455,6 +8457,7 @@ int32_t validateSqlNode(SSqlObj* pSql, SSqlNode* pSqlNode, SQueryInfo* pQueryInf
   const char* msg6 = "not support stddev/percentile/interp in the outer query yet";
   const char* msg7 = "derivative/twa/irate requires timestamp column exists in subquery";
   const char* msg8 = "condition missing for join query";
+  const char* msg9 = "not support 3 level select";
 
   int32_t code = TSDB_CODE_SUCCESS;
 
@@ -8485,6 +8488,13 @@ int32_t validateSqlNode(SSqlObj* pSql, SSqlNode* pSqlNode, SQueryInfo* pQueryInf
     // parse the subquery in the first place
     int32_t numOfSub = (int32_t)taosArrayGetSize(pSqlNode->from->list);
     for (int32_t i = 0; i < numOfSub; ++i) {
+      // check if there is 3 level select
+      SRelElementPair* subInfo = taosArrayGet(pSqlNode->from->list, i);
+      SSqlNode* p = taosArrayGetP(subInfo->pSubquery, 0);
+      if (p->from->type == SQL_NODE_FROM_SUBQUERY){
+        return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg9);
+      }
+
       code = doValidateSubquery(pSqlNode, i, pSql, pQueryInfo, tscGetErrorMsgPayload(pCmd));
       if (code != TSDB_CODE_SUCCESS) {
         return code;

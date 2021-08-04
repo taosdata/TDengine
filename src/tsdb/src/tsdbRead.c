@@ -2696,7 +2696,7 @@ static void destroyHelper(void* param) {
   free(param);
 }
 
-static bool loadBlockOfActiveTable(STsdbQueryHandle* pQueryHandle) {
+static bool  loadBlockOfActiveTable(STsdbQueryHandle* pQueryHandle) {
   if (pQueryHandle->checkFiles) {
     // check if the query range overlaps with the file data block
     bool exists = true;
@@ -2708,6 +2708,7 @@ static bool loadBlockOfActiveTable(STsdbQueryHandle* pQueryHandle) {
     }
 
     if (exists) {
+      tsdbRetrieveDataBlock((TsdbQueryHandleT) pQueryHandle, NULL);
       if (pQueryHandle->currentLoadExternalRows && pQueryHandle->window.skey == pQueryHandle->window.ekey) {
         SColumnInfoData* pColInfo = taosArrayGet(pQueryHandle->pColumns, 0);
         assert(*(int64_t*)pColInfo->pData == pQueryHandle->window.skey);
