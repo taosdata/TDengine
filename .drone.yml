@@ -191,6 +191,7 @@ steps:
     branch:
     - develop
     - master
+    - 2.0
 
 
 depends_on:
