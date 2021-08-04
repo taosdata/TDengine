@@ -108,7 +108,7 @@ class TDTestCase:
         tdSql.error(sql3)
         tdSql.execute("alter stable stt modify tag tg1 binary(16337)")
         tdSql.execute(sql3)
-        res = tdSql.getResult(sql3)
+        res = tdSql.getResult("select tg1,tg2,tg3 from tt")
         if res == [(tags, 'tg2', 'tg3')]:
             tdLog.info(" alter tag check has pass!")
         else:
