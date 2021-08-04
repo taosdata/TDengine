@@ -1035,6 +1035,8 @@ static void tsdbRemoveTableFromMeta(STsdbRepo *pRepo, STable *pTable, bool rmFro
       }
     }
   }
+  pMeta->maxCols = maxCols;
+  pMeta->maxRowBytes = maxRowBytes;
 
   if (lock) tsdbUnlockRepoMeta(pRepo);
   tsdbDebug("vgId:%d table %s uid %" PRIu64 " is removed from meta", REPO_ID(pRepo), TABLE_CHAR_NAME(pTable), TABLE_UID(pTable));
