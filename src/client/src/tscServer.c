@@ -2844,7 +2844,7 @@ int32_t tscGetTableMetaImpl(SSqlObj* pSql, STableMetaInfo *pTableMetaInfo, bool 
   tNameExtractFullName(&pTableMetaInfo->name, name);
 
   size_t len = strlen(name);
-  // just make runtime happy
+   // just make runtime happy
   if (pTableMetaInfo->tableMetaCapacity != 0 && pTableMetaInfo->pTableMeta != NULL) {
     memset(pTableMetaInfo->pTableMeta, 0, pTableMetaInfo->tableMetaCapacity);
   } 
