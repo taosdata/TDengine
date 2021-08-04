@@ -159,6 +159,10 @@ void cacheRemove(cacheTable* pTable, const char* key, uint8_t nkey) {
 
   cacheTableRemove(pTable, key, nkey, true);
 
+  if (pTable->option.delFunc) {
+    pTable->option.delFunc(pTable->option.userData, key, nkey);
+  }
+
   cacheMutexUnlock(mutex);
 }
 
@@ -186,6 +190,7 @@ void *allocMemory(cache_t *cache, size_t size, bool chunked) {
     pItem->next = cache->chunkItemHead;
     if (cache->chunkItemHead) cache->chunkItemHead->prev = pItem;
     cache->chunkItemHead = pItem;
+    item_set_chunked(pItem);
   }
   taosWUnLockLatch(&(cache->latch));
 

@@ -142,12 +142,5 @@ static void freeCacheItem(cache_t* pCache, cacheItem* pItem) {
 }
 
 static cacheItem* allocChunkItem(cache_t* pCache, size_t nTotal) {
-  cacheItem* pItem = allocMemory(pCache, nTotal, true);
-  if (pItem == NULL) {
-    return pItem;
-  }
-
-  item_set_chunked(pItem);
-
-  return pItem;
+  return allocMemory(pCache, nTotal, true);
 }
