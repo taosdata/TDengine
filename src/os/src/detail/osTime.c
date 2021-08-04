@@ -86,6 +86,7 @@ static int32_t parseTimeWithTz(char* timestr, int64_t* time, int32_t timePrec, c
 static int32_t parseLocaltime(char* timestr, int64_t* time, int32_t timePrec);
 static int32_t parseLocaltimeWithDst(char* timestr, int64_t* time, int32_t timePrec);
 static char* forwardToTimeStringEnd(char* str);
+static bool checkTzPresent(char *str, int32_t len);
 
 static int32_t (*parseLocaltimeFp[]) (char* timestr, int64_t* time, int32_t timePrec) = {
   parseLocaltime,
@@ -96,17 +97,23 @@ int32_t taosGetTimestampSec() { return (int32_t)time(NULL); }
 
 int32_t taosParseTime(char* timestr, int64_t* time, int32_t len, int32_t timePrec, int8_t day_light) {
   /* parse datatime string in with tz */
-  char *seg = forwardToTimeStringEnd(timestr);
-  int32_t seg_len = len - (int32_t)(seg - timestr);
   if (strnchr(timestr, 'T', len, false) != NULL) {
     return parseTimeWithTz(timestr, time, timePrec, 'T');
-  } else if (strnchr(timestr, ' ', len, false) != NULL &&
-             (strnchr(seg, 'Z', seg_len, false) != NULL || strnchr(seg, 'z', seg_len, false) != NULL ||
-              strnchr(seg, '+', seg_len, false) != NULL || strnchr(seg, '-', seg_len, false) != NULL)) {
-    return parseTimeWithTz(timestr, time, timePrec, ' ');
+  } else if (checkTzPresent(timestr, len)) {
+    return parseTimeWithTz(timestr, time, timePrec, 0);
   } else {
     return (*parseLocaltimeFp[day_light])(timestr, time, timePrec);
   }
+}
+
+bool checkTzPresent(char *str, int32_t len) {
+  char *seg = forwardToTimeStringEnd(str);
+  int32_t seg_len = len - (int32_t)(seg - str);
+
+  return (strnchr(seg, 'Z', seg_len, false) != NULL ||
+          strnchr(seg, 'z', seg_len, false) != NULL ||
+          strnchr(seg, '+', seg_len, false) != NULL ||
+          strnchr(seg, '-', seg_len, false) != NULL);
 }
 
 char* forwardToTimeStringEnd(char* str) {
@@ -238,8 +245,8 @@ int32_t parseTimeWithTz(char* timestr, int64_t* time, int32_t timePrec, char del
   char* str;
   if (delim == 'T') {
     str = strptime(timestr, "%Y-%m-%dT%H:%M:%S", &tm);
-  } else if (delim == ' ') {
-    str = strptime(timestr, "%Y-%m-%d%n%H:%M:%S", &tm);
+  } else if (delim == 0) {
+    str = strptime(timestr, "%Y-%m-%d %H:%M:%S", &tm);
   } else {
     str = NULL;
   }
