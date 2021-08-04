@@ -900,6 +900,7 @@ int32_t tscValidateSqlInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
         SSqlNode* pSqlNode = taosArrayGetP(pInfo->list, i);
 
         tscTrace("0x%"PRIx64" start to parse the %dth subclause, total:%"PRIzu, pSql->self, i, size);
+
 //        normalizeSqlNode(pSqlNode); // normalize the column name in each function
         if ((code = validateSqlNode(pSql, pSqlNode, pQueryInfo)) != TSDB_CODE_SUCCESS) {
           return code;
@@ -1288,34 +1289,30 @@ int32_t parseSlidingClause(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SStrToken* pSl
   STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
   STableComInfo tinfo = tscGetTableInfo(pTableMetaInfo->pTableMeta);
 
+  SInterval* pInterval = &pQueryInfo->interval;
   if (pSliding->n == 0) {
-    pQueryInfo->interval.slidingUnit = pQueryInfo->interval.intervalUnit;
-    pQueryInfo->interval.sliding = pQueryInfo->interval.interval;
+    pInterval->slidingUnit = pInterval->intervalUnit;
+    pInterval->sliding     = pInterval->interval;
     return TSDB_CODE_SUCCESS;
   }
 
-  if (pQueryInfo->interval.intervalUnit == 'n' || pQueryInfo->interval.intervalUnit == 'y') {
+  if (pInterval->intervalUnit == 'n' || pInterval->intervalUnit == 'y') {
     return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg3);
   }
 
-  parseAbsoluteDuration(pSliding->z, pSliding->n, &pQueryInfo->interval.sliding, tinfo.precision);
+  parseAbsoluteDuration(pSliding->z, pSliding->n, &pInterval->sliding, &pInterval->slidingUnit, tinfo.precision);
 
-  if (pQueryInfo->interval.sliding <
-      convertTimePrecision(tsMinSlidingTime, TSDB_TIME_PRECISION_MILLI, tinfo.precision)) {
+  if (pInterval->sliding < convertTimePrecision(tsMinSlidingTime, TSDB_TIME_PRECISION_MILLI, tinfo.precision)) {
     return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg0);
   }
 
-  if (pQueryInfo->interval.sliding > pQueryInfo->interval.interval) {
+  if (pInterval->sliding > pInterval->interval) {
     return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg1);
   }
 
-  if ((pQueryInfo->interval.interval != 0) && (pQueryInfo->interval.interval/pQueryInfo->interval.sliding > INTERVAL_SLIDING_FACTOR)) {
+  if ((pInterval->interval != 0) && (pInterval->interval/pInterval->sliding > INTERVAL_SLIDING_FACTOR)) {
     return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg2);
   }
-
-//  if (pQueryInfo->interval.sliding != pQueryInfo->interval.interval && pSql->pStream == NULL) {
-//    return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg4);
-//  }
 
   return TSDB_CODE_SUCCESS;
 }
@@ -8092,6 +8089,7 @@ int32_t loadAllTableMeta(SSqlObj* pSql, struct SSqlInfo* pInfo) {
   SArray* pVgroupList   = NULL;
   SArray* plist         = NULL;
   STableMeta* pTableMeta = NULL;
+  size_t    tableMetaCapacity = 0;
   SQueryInfo* pQueryInfo = tscGetQueryInfo(pCmd);
 
   pCmd->pTableMetaMap = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);
@@ -8118,18 +8116,14 @@ int32_t loadAllTableMeta(SSqlObj* pSql, struct SSqlInfo* pInfo) {
     }
   }
 
-  uint32_t maxSize = tscGetTableMetaMaxSize();
   char     name[TSDB_TABLE_FNAME_LEN] = {0};
 
-  assert(maxSize < 80 * TSDB_MAX_COLUMNS);
-  if (!pSql->pBuf) {
-    if (NULL == (pSql->pBuf = tcalloc(1, 80 * TSDB_MAX_COLUMNS))) {
-      code = TSDB_CODE_TSC_OUT_OF_MEMORY;
-      goto _end;
-    }
-  }
-
-  pTableMeta = calloc(1, maxSize);
+  //if (!pSql->pBuf) {
+  //  if (NULL == (pSql->pBuf = tcalloc(1, 80 * TSDB_MAX_COLUMNS))) {
+  //    code = TSDB_CODE_TSC_OUT_OF_MEMORY;
+  //    goto _end;
+  //  }
+  //}
 
   plist = taosArrayInit(4, POINTER_BYTES);
   pVgroupList = taosArrayInit(4, POINTER_BYTES);
@@ -8143,16 +8137,16 @@ int32_t loadAllTableMeta(SSqlObj* pSql, struct SSqlInfo* pInfo) {
     tNameExtractFullName(pname, name);
 
     size_t len = strlen(name);
-    memset(pTableMeta, 0, maxSize);
-    taosHashGetClone(tscTableMetaMap, name, len, NULL, pTableMeta);
+      
+    taosHashGetCloneExt(tscTableMetaMap, name, len, NULL,  (void **)&pTableMeta, &tableMetaCapacity);
 
-    if (pTableMeta->id.uid > 0) {
+    if (pTableMeta && pTableMeta->id.uid > 0) {
       tscDebug("0x%"PRIx64" retrieve table meta %s from local buf", pSql->self, name);
 
       // avoid mem leak, may should update pTableMeta
       void* pVgroupIdList = NULL;
       if (pTableMeta->tableType == TSDB_CHILD_TABLE) {
-        code = tscCreateTableMetaFromSTableMeta(pTableMeta, name, pSql->pBuf);
+        code = tscCreateTableMetaFromSTableMeta((STableMeta **)(&pTableMeta), name, &tableMetaCapacity);
 
         // create the child table meta from super table failed, try load it from mnode
         if (code != TSDB_CODE_SUCCESS) {
@@ -8307,7 +8301,8 @@ static int32_t doLoadAllTableMeta(SSqlObj* pSql, SQueryInfo* pQueryInfo, SSqlNod
     tNameExtractFullName(&pTableMetaInfo->name, fname);
     STableMetaVgroupInfo* p = taosHashGet(pCmd->pTableMetaMap, fname, strnlen(fname, TSDB_TABLE_FNAME_LEN));
 
-    pTableMetaInfo->pTableMeta = tscTableMetaDup(p->pTableMeta);
+    pTableMetaInfo->pTableMeta        = tscTableMetaDup(p->pTableMeta);
+    pTableMetaInfo->tableMetaCapacity = tscGetTableMetaSize(pTableMetaInfo->pTableMeta);
     assert(pTableMetaInfo->pTableMeta != NULL);
 
     if (p->vgroupIdList != NULL) {
@@ -8407,7 +8402,8 @@ static int32_t doValidateSubquery(SSqlNode* pSqlNode, int32_t index, SSqlObj* pS
   if (pTableMetaInfo1 == NULL) {
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
   }
-  pTableMetaInfo1->pTableMeta = extractTempTableMetaFromSubquery(pSub);
+  pTableMetaInfo1->pTableMeta        = extractTempTableMetaFromSubquery(pSub);
+  pTableMetaInfo1->tableMetaCapacity = tscGetTableMetaSize(pTableMetaInfo1->pTableMeta);
 
   if (subInfo->aliasName.n > 0) {
     if (subInfo->aliasName.n >= TSDB_TABLE_FNAME_LEN) {
@@ -8456,6 +8452,7 @@ int32_t validateSqlNode(SSqlObj* pSql, SSqlNode* pSqlNode, SQueryInfo* pQueryInf
   const char* msg6 = "not support stddev/percentile/interp in the outer query yet";
   const char* msg7 = "derivative/twa/irate requires timestamp column exists in subquery";
   const char* msg8 = "condition missing for join query";
+  const char* msg9 = "not support 3 level select";
 
   int32_t code = TSDB_CODE_SUCCESS;
 
@@ -8486,6 +8483,13 @@ int32_t validateSqlNode(SSqlObj* pSql, SSqlNode* pSqlNode, SQueryInfo* pQueryInf
     // parse the subquery in the first place
     int32_t numOfSub = (int32_t)taosArrayGetSize(pSqlNode->from->list);
     for (int32_t i = 0; i < numOfSub; ++i) {
+      // check if there is 3 level select
+      SRelElementPair* subInfo = taosArrayGet(pSqlNode->from->list, i);
+      SSqlNode* p = taosArrayGetP(subInfo->pSubquery, 0);
+      if (p->from->type == SQL_NODE_FROM_SUBQUERY){
+        return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg9);
+      }
+
       code = doValidateSubquery(pSqlNode, i, pSql, pQueryInfo, tscGetErrorMsgPayload(pCmd));
       if (code != TSDB_CODE_SUCCESS) {
         return code;
@@ -8766,8 +8770,8 @@ int32_t validateSqlNode(SSqlObj* pSql, SSqlNode* pSqlNode, SQueryInfo* pQueryInf
 #if 0
   SQueryNode* p = qCreateQueryPlan(pQueryInfo);
   char* s = queryPlanToString(p);
+  printf("%s\n", s);
   tfree(s);
-
   qDestroyQueryPlan(p);
 #endif
 
