@@ -41,6 +41,8 @@ steps:
   - cd debug
   - cmake .. -DCPUTYPE=aarch64 > /dev/null
   - make 
+  - uname -a 
+  - lsb_release -a 
   trigger:
     event:
       - pull_request
