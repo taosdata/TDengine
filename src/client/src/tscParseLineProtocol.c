@@ -458,9 +458,9 @@ int32_t loadTableMeta(TAOS* taos, char* tableName, SSmlSTableSchema* schema, SSm
   schema->tagHash = taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, false);
   schema->fieldHash = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, false);
 
-  uint32_t size = tscGetTableMetaMaxSize();
-  STableMeta* tableMeta = calloc(1, size);
-  taosHashGetClone(tscTableMetaMap, fullTableName, strlen(fullTableName), NULL, tableMeta);
+  size_t size = 0; 
+  STableMeta* tableMeta = NULL; 
+  taosHashGetCloneExt(tscTableMetaMap, fullTableName, strlen(fullTableName), NULL, (void **)&tableMeta, &size);
 
   tstrncpy(schema->sTableName, tableName, strlen(tableName)+1);
   schema->precision = tableMeta->tableInfo.precision;
