@@ -5885,9 +5885,9 @@ int32_t setAlterTableInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
     tVariantListItem* pItem = taosArrayGet(pVarList, 1);
     SSchema* pTagsSchema = tscGetTableColumnSchema(pTableMetaInfo->pTableMeta, columnIndex.columnIndex);
 
-    if (pItem->pVar.nLen > pTagsSchema->bytes * TSDB_NCHAR_SIZE) {
+    if ((IS_VAR_DATA_TYPE(pTagsSchema->type)) && (pItem->pVar.nLen > pTagsSchema->bytes * TSDB_NCHAR_SIZE)) {
       return invalidOperationMsg(pMsg, msg14);
-    }
+    }    
 
     pAlterSQL->tagData.data = calloc(1, pTagsSchema->bytes * TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE);
 
