@@ -1374,18 +1374,19 @@ void tscResetSqlCmd(SSqlCmd* pCmd, bool clearCachedMeta) {
   pCmd->insertParam.tagData.dataLen = 0;
 
   tscFreeQueryInfo(pCmd, clearCachedMeta);
+  pCmd->pTableMetaMap = tscCleanupTableMetaMap(pCmd->pTableMetaMap);
 
-  if (pCmd->pTableMetaMap != NULL) {
-    STableMetaVgroupInfo* p = taosHashIterate(pCmd->pTableMetaMap, NULL);
-    while (p) {
-      taosArrayDestroy(p->vgroupIdList);
-      tfree(p->pTableMeta);
-      p = taosHashIterate(pCmd->pTableMetaMap, p);
-    }
-
-    taosHashCleanup(pCmd->pTableMetaMap);
-    pCmd->pTableMetaMap = NULL;
-  }
+//  if (pCmd->pTableMetaMap != NULL) {
+//    STableMetaVgroupInfo* p = taosHashIterate(pCmd->pTableMetaMap, NULL);
+//    while (p) {
+//      taosArrayDestroy(p->vgroupIdList);
+//      tfree(p->pTableMeta);
+//      p = taosHashIterate(pCmd->pTableMetaMap, p);
+//    }
+//
+//    taosHashCleanup(pCmd->pTableMetaMap);
+//    pCmd->pTableMetaMap = NULL;
+//  }
 }
 
 void* tscCleanupTableMetaMap(SHashObj* pTableMetaMap) {
@@ -3845,9 +3846,10 @@ static void tscSubqueryCompleteCallback(void* param, TAOS_RES* tres, int code) {
     SSqlCmd* pParentCmd = &pParentSql->cmd;
     STableMetaInfo* pTableMetaInfo = tscGetTableMetaInfoFromCmd(pParentCmd, 0);
     tscRemoveTableMetaBuf(pTableMetaInfo, pParentSql->self);
+    tscResetSqlCmd(pParentCmd, true);
 
-    pParentCmd->pTableMetaMap = tscCleanupTableMetaMap(pParentCmd->pTableMetaMap);
-    pParentCmd->pTableMetaMap = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);
+//    pParentCmd->pTableMetaMap = tscCleanupTableMetaMap(pParentCmd->pTableMetaMap);
+//    pParentCmd->pTableMetaMap = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);
 
     pParentSql->res.code = TSDB_CODE_SUCCESS;
     pParentSql->retry++;
