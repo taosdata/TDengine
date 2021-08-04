@@ -15,6 +15,7 @@ TDengine是一个高效的存储、查询、分析时序大数据的平台，专
 * [命令行程序TAOS](/getting-started#console)：访问TDengine的简便方式
 * [极速体验](/getting-started#demo)：运行示例程序，快速体验高效的数据插入、查询
 * [支持平台列表](/getting-started#platforms)：TDengine服务器和客户端支持的平台列表
+* [Kubernetes部署](https://taosdata.github.io/TDengine-Operator/zh/index.html)：TDengine在Kubernetes环境进行部署的详细说明
 
 ## [整体架构](/architecture)
 
@@ -41,7 +42,7 @@ TDengine是一个高效的存储、查询、分析时序大数据的平台，专
 * [数据写入](/taos-sql#insert)：支持单表单条、多条、多表多条写入，支持历史数据写入
 * [数据查询](/taos-sql#select)：支持时间段、值过滤、排序、查询结果手动分页等
 * [SQL函数](/taos-sql#functions)：支持各种聚合函数、选择函数、计算函数，如avg, min, diff等
-* [时间维度聚合](/taos-sql#aggregation)：将表中数据按照时间段进行切割后聚合，降维处理
+* [窗口切分聚合](/taos-sql#aggregation)：将表中数据按照时间段等方式进行切割后聚合，降维处理
 * [边界限制](/taos-sql#limitation)：库、表、SQL等边界限制条件
 * [错误码](/taos-sql/error-code)：TDengine 2.0 错误码以及对应的十进制码
 
@@ -62,7 +63,7 @@ TDengine是一个高效的存储、查询、分析时序大数据的平台，专
 ## [高级功能](/advanced-features)
 
 * [连续查询(Continuous Query)](/advanced-features#continuous-query)：基于滑动窗口，定时自动的对数据流进行查询计算
-* [数据订阅(Publisher/Subscriber)](/advanced-features#subscribe)：象典型的消息队列，应用可订阅接收到的最新数据
+* [数据订阅(Publisher/Subscriber)](/advanced-features#subscribe)：类似典型的消息队列，应用可订阅接收到的最新数据
 * [缓存(Cache)](/advanced-features#cache)：每个设备最新的数据都会缓存在内存中，可快速获取
 * [报警监测](/advanced-features#alert)：根据配置规则，自动监测超限行为数据，并主动推送
 
@@ -80,7 +81,7 @@ TDengine是一个高效的存储、查询、分析时序大数据的平台，专
 ## [与其他工具的连接](/connections)
 
 * [Grafana](/connections#grafana)：获取并可视化保存在TDengine的数据
-* [Matlab](/connections#matlab)：通过配置Matlab的JDBC数据源访问保存在TDengine的数据
+* [MATLAB](/connections#matlab)：通过配置MATLAB的JDBC数据源访问保存在TDengine的数据
 * [R](/connections#r)：通过配置R的JDBC数据源访问保存在TDengine的数据
 * [IDEA Database](https://www.taosdata.com/blog/2020/08/27/1767.html)：通过IDEA 数据库管理工具可视化使用 TDengine
 
@@ -105,6 +106,7 @@ TDengine是一个高效的存储、查询、分析时序大数据的平台，专
 * [数据导入](/administrator#import)：可按脚本文件导入，也可按数据文件导入
 * [数据导出](/administrator#export)：从shell按表导出，也可用taosdump工具做各种导出
 * [系统监控](/administrator#status)：检查系统现有的连接、查询、流式计算，日志和事件等
+* [性能优化](/administrator#optimize)：对长期运行的系统进行维护优化，保障性能表现
 * [文件目录结构](/administrator#directories)：TDengine数据文件、配置文件等所在目录
 * [参数限制与保留关键字](/administrator#keywords)：TDengine的参数限制与保留关键字列表
 
@@ -117,9 +119,9 @@ TDengine是一个高效的存储、查询、分析时序大数据的平台，专
 ## 常用工具
 
 * [TDengine样例导入工具](https://www.taosdata.com/blog/2020/01/18/1166.html)
-* [TDengine性能对比测试工具](https://www.taosdata.com/blog/2020/01/18/1166.html)
+* [TDengine写入性能测试工具](https://www.taosdata.com/blog/2020/01/18/1166.html)
 * [IDEA数据库管理工具可视化使用TDengine](https://www.taosdata.com/blog/2020/08/27/1767.html)
-* [基于eletron开发的跨平台TDengine图形化管理工具](https://github.com/skye0207/TDengineGUI)
+* [基于Electron开发的跨平台TDengine图形化管理工具](https://github.com/skye0207/TDengineGUI)
 * [DataX，支持TDengine的离线数据采集/同步工具](https://github.com/wgzhao/DataX)（文档：[读取插件](https://github.com/wgzhao/DataX/blob/master/docs/src/main/sphinx/reader/tdenginereader.md)、[写入插件](https://github.com/wgzhao/DataX/blob/master/docs/src/main/sphinx/writer/tdenginewriter.md)）
 
 ## TDengine与其他数据库的对比测试

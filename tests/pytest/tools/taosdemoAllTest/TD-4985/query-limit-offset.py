@@ -176,7 +176,6 @@ class TDTestCase:
         tdSql.checkData(0, 1, 5)
         tdSql.checkData(1, 1, 6)
         tdSql.checkData(2, 1, 7)
-
         os.system("rm -rf tools/taosdemoAllTest/TD-4985/query-limit-offset.py.sql")
 
     def stop(self):

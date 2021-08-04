@@ -25,7 +25,7 @@ class TDTestCase:
 
         self.tables = 10
         self.rows = 20
-        self.columns = 50
+        self.columns = 5
         self.perfix = 't'
         self.ts = 1601481600000
     
@@ -34,7 +34,7 @@ class TDTestCase:
         sql = "create table st(ts timestamp, "
         for i in range(self.columns - 1):
             sql += "c%d int, " % (i + 1)
-        sql += "c50 int) tags(t1 int)"
+        sql += "c5 int) tags(t1 int)"
         tdSql.execute(sql)
         
         for i in range(self.tables):
@@ -141,28 +141,56 @@ class TDTestCase:
     def run(self):
         tdSql.prepare()
         
-        print("============== last_row_cache_0.sim")
+        print("============== Step1:  last_row_cache_0.sim")
         tdSql.execute("create database test1 cachelast 0")
         tdSql.execute("use test1")
         self.insertData()
         self.executeQueries()
         self.insertData2()
         self.executeQueries2()
-        
-        print("============== alter last cache")
+
+        print("============== Step2: alter database test1 cachelast 1")
         tdSql.execute("alter database test1 cachelast 1")                
         self.executeQueries2()
+        
+        print("============== Step3: alter database test1 cachelast 2")
+        tdSql.execute("alter database test1 cachelast 2")                
+        self.executeQueries2()
+
+        print("============== Step4: alter database test1 cachelast 3")
+        tdSql.execute("alter database test1 cachelast 3")                
+        self.executeQueries2()                
+
+        
+        print("============== Step5: alter database test1 cachelast 0 and restart taosd")
+        tdSql.execute("alter database test1 cachelast 0")                
+        self.executeQueries2()
         tdDnodes.stop(1)
         tdDnodes.start(1)
         self.executeQueries2()
 
-        tdSql.execute("alter database test1 cachelast 0")        
+        print("============== Step6: alter database test1 cachelast 1 and restart taosd")
+        tdSql.execute("alter database test1 cachelast 1")        
         self.executeQueries2()
         tdDnodes.stop(1)
         tdDnodes.start(1)
         self.executeQueries2()
 
-        print("============== last_row_cache_1.sim")
+        print("============== Step7: alter database test1 cachelast 2 and restart taosd")
+        tdSql.execute("alter database test1 cachelast 2")        
+        self.executeQueries2()
+        tdDnodes.stop(1)
+        tdDnodes.start(1)
+        self.executeQueries2()
+
+        print("============== Step8: alter database test1 cachelast 3 and restart taosd")
+        tdSql.execute("alter database test1 cachelast 3")        
+        self.executeQueries2()
+        tdDnodes.stop(1)
+        tdDnodes.start(1)
+        self.executeQueries2()
+
+        print("============== Step9: create database test2 cachelast 1")
         tdSql.execute("create database test2 cachelast 1")
         tdSql.execute("use test2")
         self.insertData()
@@ -173,17 +201,53 @@ class TDTestCase:
         tdDnodes.start(1)
         self.executeQueries2()
         
+        print("============== Step8: alter database test2 cachelast 0")
         tdSql.execute("alter database test2 cachelast 0")        
-        self.executeQueries2()
-        tdDnodes.stop(1)
-        tdDnodes.start(1)
+        self.executeQueries2()                
+
+        print("============== Step9: alter database test2 cachelast 1")
+        tdSql.execute("alter database test2 cachelast 1")        
         self.executeQueries2()
 
+        print("============== Step10: alter database test2 cachelast 2")
+        tdSql.execute("alter database test2 cachelast 2")        
+        self.executeQueries2()                
+
+        print("============== Step11: alter database test2 cachelast 3")
+        tdSql.execute("alter database test2 cachelast 3")        
+        self.executeQueries2()
+
+        print("============== Step12: alter database test2 cachelast 0 and restart taosd")
+        tdSql.execute("alter database test2 cachelast 0")        
+        self.executeQueries2() 
+        tdDnodes.stop(1)
+        tdDnodes.start(1)
+        self.executeQueries2()               
+
+        print("============== Step13: alter database test2 cachelast 1 and restart taosd")
         tdSql.execute("alter database test2 cachelast 1")        
         self.executeQueries2()
         tdDnodes.stop(1)
         tdDnodes.start(1)
         self.executeQueries2()
+
+        print("============== Step14: alter database test2 cachelast 2 and restart taosd")
+        tdSql.execute("alter database test2 cachelast 2")        
+        self.executeQueries2()
+        tdDnodes.stop(1)
+        tdDnodes.start(1)
+        self.executeQueries2()                
+
+        print("============== Step15: alter database test2 cachelast 3 and restart taosd")
+        tdSql.execute("alter database test2 cachelast 3")        
+        self.executeQueries2()
+        tdDnodes.stop(1)
+        tdDnodes.start(1)
+        self.executeQueries2()
+        
+        print("============== Step16: select last_row(*) from st group by tbname")
+        tdSql.query("select last_row(*) from st group by tbname")
+        tdSql.checkRows(10)        
 
     def stop(self):
         tdSql.close()

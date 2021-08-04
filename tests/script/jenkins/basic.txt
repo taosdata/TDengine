@@ -74,7 +74,7 @@ cd ../../../debug; make
 ./test.sh -f general/parser/where.sim
 ./test.sh -f general/parser/slimit.sim
 ./test.sh -f general/parser/select_with_tags.sim
-./test.sh -f general/parser/interp.sim
+#./test.sh -f general/parser/interp.sim
 ./test.sh -f general/parser/tags_dynamically_specifiy.sim
 ./test.sh -f general/parser/groupby.sim
 ./test.sh -f general/parser/set_tag_vals.sim
@@ -424,6 +424,10 @@ cd ../../../debug; make
 ./test.sh -f general/parser/stableOp.sim
 ./test.sh -f general/parser/timestamp.sim
 ./test.sh -f general/parser/sliding.sim
+./test.sh -f general/parser/having.sim
+./test.sh -f general/parser/having_child.sim
+./test.sh -f general/parser/between_and.sim
+./test.sh -f general/parser/last_cache.sim
 ./test.sh -f unique/big/balance.sim
 
 #======================b7-end===============

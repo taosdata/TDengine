@@ -112,9 +112,6 @@
                         <include>**/*Test.java</include>
                     </includes>
                     <excludes>
-                        <exclude>**/TimestampPrecisionInNanoInJniTest.java</exclude>
-                        <exclude>**/NanoSecondTimestampJNITest.java</exclude>
-                        <exclude>**/NanoSecondTimestampRestfulTest.java</exclude>
                         <exclude>**/AppMemoryLeakTest.java</exclude>
                         <exclude>**/AuthenticationTest.java</exclude>
                         <exclude>**/ConnectMultiTaosdByRestfulWithDifferentTokenTest.java</exclude>
@@ -125,6 +122,7 @@
                         <exclude>**/TSDBJNIConnectorTest.java</exclude>
                         <exclude>**/TaosInfoMonitorTest.java</exclude>
                         <exclude>**/UnsignedNumberJniTest.java</exclude>
+                        <exclude>**/TimeZoneTest.java</exclude>
                     </excludes>
                     <testFailureIgnore>true</testFailureIgnore>
                 </configuration>

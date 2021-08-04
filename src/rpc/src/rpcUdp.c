@@ -195,6 +195,8 @@ static void *taosRecvUdpData(void *param) {
   tDebug("%s UDP thread is created, index:%d", pConn->label, pConn->index);
   char *msg = pConn->buffer;
 
+  setThreadName("recvUdpData");
+
   while (1) {
     dataLen = recvfrom(pConn->fd, pConn->buffer, RPC_MAX_UDP_SIZE, 0, (struct sockaddr *)&sourceAdd, &addLen);
     if (dataLen <= 0) {

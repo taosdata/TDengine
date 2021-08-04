@@ -1,4 +1,4 @@
 var TDengineConnection = require('./nodetaos/connection.js')
-module.exports.connect = function (connection=null) {
+module.exports.connect = function (connection={}) {
   return new TDengineConnection(connection);
 }

@@ -122,6 +122,7 @@ class taosdemoPerformace:
         return buildPath
 
     def insertData(self):
+
         buildPath = self.getBuildPath()
         if (buildPath == ""):
             tdLog.exit("taosdemo not found!")

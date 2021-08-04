@@ -17,7 +17,7 @@
 #include "os.h"
 #include "tulog.h"
 
-#ifndef TAOS_OS_FUNC_SOCKET
+#if !(defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32))
 
 int32_t taosSetNonblocking(SOCKET sock, int32_t on) {
   int32_t flags = 0;
@@ -65,7 +65,7 @@ void taosSetMaskSIGPIPE() {
 
 #endif
 
-#ifndef TAOS_OS_FUNC_SOCKET_SETSOCKETOPT
+#if !(defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32) || defined(_TD_DARWIN_32))
 
 int32_t taosSetSockOpt(SOCKET socketfd, int32_t level, int32_t optname, void *optval, int32_t optlen) {
   return setsockopt(socketfd, level, optname, optval, (socklen_t)optlen);
@@ -74,9 +74,10 @@ int32_t taosSetSockOpt(SOCKET socketfd, int32_t level, int32_t optname, void *op
 int32_t taosGetSockOpt(SOCKET socketfd, int32_t level, int32_t optname, void *optval, int32_t* optlen) {
   return getsockopt(socketfd, level, optname, optval, (socklen_t *)optlen);
 } 
+
 #endif
 
-#ifndef TAOS_OS_FUNC_SOCKET_INET
+#if !( (defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)) && defined(_MSC_VER) )
 
 uint32_t taosInetAddr(char *ipAddr) {
   return inet_addr(ipAddr);

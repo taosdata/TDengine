@@ -427,13 +427,23 @@ char *taosIpStr(uint32_t ipInt) {
 }
 
 FORCE_INLINE float taos_align_get_float(const char* pBuf) {
-  float fv = 0; 
-  *(int32_t*)(&fv) = *(int32_t*)pBuf;
+#if __STDC_VERSION__ >= 201112L
+  static_assert(sizeof(float) == sizeof(uint32_t), "sizeof(float) must equal to sizeof(uint32_t)");
+#else
+  assert(sizeof(float) == sizeof(uint32_t));
+#endif
+  float fv = 0;
+  memcpy(&fv, pBuf, sizeof(fv)); // in ARM, return *((const float*)(pBuf)) may cause problem
   return fv; 
 }
 
 FORCE_INLINE double taos_align_get_double(const char* pBuf) {
-  double dv = 0; 
-  *(int64_t*)(&dv) = *(int64_t*)pBuf;
+#if __STDC_VERSION__ >= 201112L
+  static_assert(sizeof(double) == sizeof(uint64_t), "sizeof(double) must equal to sizeof(uint64_t)");
+#else
+  assert(sizeof(double) == sizeof(uint64_t));
+#endif
+  double dv = 0;
+  memcpy(&dv, pBuf, sizeof(dv)); // in ARM, return *((const double*)(pBuf)) may cause problem
   return dv; 
 }

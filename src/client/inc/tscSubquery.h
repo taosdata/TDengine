@@ -48,6 +48,8 @@ void tscLockByThread(int64_t *lockedBy);
 
 void tscUnlockByThread(int64_t *lockedBy);
 
+int tsInsertInitialCheck(SSqlObj *pSql);
+
 #ifdef __cplusplus
 }
 #endif

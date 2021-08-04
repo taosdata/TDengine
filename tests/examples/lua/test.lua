@@ -110,7 +110,25 @@ else
    end
 end
 
-function callback(t)
+function async_query_callback(res)
+   if res.code ~=0 then
+      print("async_query_callback--- failed:"..res.error)
+      return
+   else
+
+   if(res.affected == 3) then
+      print("async_query_callback, insert records--- pass")
+   else
+      print("async_query_callback, insert records---failed: expect 3 affected records, actually affected "..res.affected)
+   end 
+
+   end
+end
+
+driver.query_a(conn,"INSERT INTO therm1 VALUES ('2019-09-01 00:00:00.005', 100),('2019-09-01 00:00:00.006', 101),('2019-09-01 00:00:00.007', 102)", async_query_callback)
+
+
+function stream_callback(t)
    print("------------------------")
    print("continuous query result:")
    for key, value in pairs(t) do
@@ -119,7 +137,7 @@ function callback(t)
 end
 
 local stream
-res = driver.open_stream(conn,"SELECT COUNT(*) as count, AVG(degree) as avg, MAX(degree) as max, MIN(degree) as min FROM thermometer interval(2s) sliding(2s);)",0,callback)
+res = driver.open_stream(conn,"SELECT COUNT(*) as count, AVG(degree) as avg, MAX(degree) as max, MIN(degree) as min FROM thermometer interval(2s) sliding(2s);)",0, stream_callback)
 if res.code ~=0 then
    print("open stream--- failed:"..res.error)
    return
@@ -146,4 +164,5 @@ while loop_index < 30 do
 end
 
 driver.close_stream(stream)
+
 driver.close(conn)

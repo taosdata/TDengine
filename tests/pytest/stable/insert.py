@@ -72,6 +72,9 @@ class TDTestCase:
         tdSql.query("describe db.stb")
         tdSql.checkRows(3)
 
+        tdSql.error("drop stable if exists db.dev_01")
+        tdSql.error("drop stable if exists db.dev_02")
+
         tdSql.execute("alter stable db.stb add tag t1 int")
         tdSql.query("describe db.stb")
         tdSql.checkRows(4)
@@ -80,6 +83,13 @@ class TDTestCase:
         tdSql.query("show stables")
         tdSql.checkRows(1)
 
+        tdSql.error("drop stable if exists db.dev_001")
+        tdSql.error("drop stable if exists db.dev_002")
+        
+        for i in range(10):
+            tdSql.execute("drop stable if exists db.stb")
+            tdSql.query("show stables")
+            tdSql.checkRows(1)
 
     def stop(self):
         tdSql.close()

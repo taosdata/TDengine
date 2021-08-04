@@ -2,16 +2,18 @@
 
 echo "Executing deploy.sh"
 
-if [ $# != 4 ]; then 
+if [ $# != 4 ]; then
   echo "argument list need input : "
   echo "  -n nodeName"
   echo "  -i nodePort"
   exit 1
 fi
 
+UNAME_BIN=`which uname`
+OS_TYPE=`$UNAME_BIN`
 NODE_NAME=
 NODE=
-while getopts "n:i:" arg 
+while getopts "n:i:" arg
 do
   case $arg in
     n)
@@ -29,7 +31,7 @@ done
 SCRIPT_DIR=`dirname $0`
 cd $SCRIPT_DIR/../
 SCRIPT_DIR=`pwd`
-echo "SCRIPT_DIR: $SCRIPT_DIR" 
+echo "SCRIPT_DIR: $SCRIPT_DIR"
 
 IN_TDINTERNAL="community"
 if [[ "$SCRIPT_DIR" == *"$IN_TDINTERNAL"* ]]; then
@@ -41,10 +43,16 @@ fi
 TAOS_DIR=`pwd`
 TAOSD_DIR=`find . -name "taosd"|grep bin|head -n1`
 
-if [[ "$TAOSD_DIR" == *"$IN_TDINTERNAL"* ]]; then
-  BIN_DIR=`find . -name "taosd"|grep bin|head -n1|cut -d '/' --fields=2,3`
+if [[ "$OS_TYPE" != "Darwin" ]]; then
+  cut_opt="--field="
 else
-  BIN_DIR=`find . -name "taosd"|grep bin|head -n1|cut -d '/' --fields=2`
+  cut_opt="-f "
+fi
+
+if [[ "$TAOSD_DIR" == *"$IN_TDINTERNAL"* ]]; then
+  BIN_DIR=`find . -name "taosd"|grep bin|head -n1|cut -d '/' ${cut_opt}2,3`
+else
+  BIN_DIR=`find . -name "taosd"|grep bin|head -n1|cut -d '/' ${cut_opt}2`
 fi
 
 BUILD_DIR=$TAOS_DIR/$BIN_DIR/build

@@ -23,7 +23,7 @@ TDengine是涛思数据专为物联网、车联网、工业互联网、IT运维�
 
 TDengine是一个高效的存储、查询、分析时序大数据的平台，专为物联网、车联网、工业互联网、运维监测等优化而设计。您可以像使用关系型数据库MySQL一样来使用它，但建议您在使用前仔细阅读一遍下面的文档，特别是 [数据模型](https://www.taosdata.com/cn/documentation/architecture) 与 [数据建模](https://www.taosdata.com/cn/documentation/model)。除本文档之外，欢迎 [下载产品白皮书](https://www.taosdata.com/downloads/TDengine%20White%20Paper.pdf)。
 
-# 生成
+# 构建
 
 TDengine目前2.0版服务器仅能在Linux系统上安装和运行，后续会支持Windows、macOS等系统。客户端可以在Windows或Linux上安装和运行。任何OS的应用也可以选择RESTful接口连接服务器taosd。CPU支持X64/ARM64/MIPS64/Alpha64，后续会支持ARM32、RISC-V等CPU架构。用户可根据需求选择通过[源码](https://www.taosdata.com/cn/getting-started/#通过源码安装)或者[安装包](https://www.taosdata.com/cn/getting-started/#通过安装包安装)来安装。本快速指南仅适用于通过源码安装。
 
@@ -107,7 +107,7 @@ Go 连接器和 Grafana 插件在其他独立仓库，如果安装它们的话�
 git submodule update --init --recursive
 ```
 
-## 生成 TDengine
+## 构建 TDengine
 
 ### Linux 系统
 
@@ -116,7 +116,13 @@ mkdir debug && cd debug
 cmake .. && cmake --build .
 ```
 
-在X86-64、X86、arm64 和 arm32 平台上，TDengine 生成脚本可以自动检测机器架构。也可以手动配置 CPUTYPE 参数来指定 CPU 类型，如 aarch64 或 aarch32 等。
+您可以选择使用 Jemalloc 作为内存分配器，替代默认的 glibc：
+```bash
+apt install autoconf
+cmake .. -DJEMALLOC_ENABLED=true
+```
+
+在X86-64、X86、arm64、arm32 和 mips64 平台上，TDengine 生成脚本可以自动检测机器架构。也可以手动配置 CPUTYPE 参数来指定 CPU 类型，如 aarch64 或 aarch32 等。
 
 aarch64：
 
@@ -128,6 +134,12 @@ aarch32：
 
 ```bash
 cmake .. -DCPUTYPE=aarch32 && cmake --build .
+```
+
+mips64：
+
+```bash
+cmake .. -DCPUTYPE=mips64 && cmake --build .
 ```
 
 ### Windows 系统
@@ -173,9 +185,10 @@ cmake .. && cmake --build .
 
 # 安装
 
-如果你不想安装，可以直接在shell中运行。生成完成后，安装 TDengine：
+生成完成后，安装 TDengine（下文给出的指令以 Linux 为例，如果是在 Windows 下，那么对应的指令会是 `nmake install`）：
+
 ```bash
-make install
+sudo make install
 ```
 
 用户可以在[文件目录结构](https://www.taosdata.com/cn/documentation/administrator#directories)中了解更多在操作系统中生成的目录或文件。
@@ -183,7 +196,7 @@ make install
 安装成功后，在终端中启动 TDengine 服务：
 
 ```bash
-taosd
+sudo systemctl start taosd
 ```
 
 用户可以使用 TDengine Shell 来连接 TDengine 服务，在终端中，输入：
@@ -196,7 +209,7 @@ taos
 
 ## 快速运行
 
-TDengine 生成后，在终端执行以下命令：
+如果不希望以服务方式运行 TDengine，也可以在终端中直接运行它。也即在生成完成后，执行以下命令（在 Windows 下，生成的可执行文件会带有 .exe 后缀，例如会名为 taosd.exe ）：
 
 ```bash
 ./build/bin/taosd -c test/cfg

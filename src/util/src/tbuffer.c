@@ -14,12 +14,27 @@
  */
 
 #include "os.h"
-#include <stdlib.h>
-#include <memory.h>
-#include <assert.h>
 #include "tbuffer.h"
 #include "exception.h"
-#include <taoserror.h>
+#include "taoserror.h"
+
+typedef union Un4B {
+  uint32_t ui;
+  float     f;
+} Un4B;
+#if __STDC_VERSION__ >= 201112L
+static_assert(sizeof(Un4B) == sizeof(uint32_t), "sizeof(Un4B) must equal to sizeof(uint32_t)");
+static_assert(sizeof(Un4B) == sizeof(float), "sizeof(Un4B) must equal to sizeof(float)");
+#endif
+
+typedef union Un8B {
+  uint64_t ull;
+  double     d;
+} Un8B;
+#if __STDC_VERSION__ >= 201112L
+static_assert(sizeof(Un8B) == sizeof(uint64_t), "sizeof(Un8B) must equal to sizeof(uint64_t)");
+static_assert(sizeof(Un8B) == sizeof(double), "sizeof(Un8B) must equal to sizeof(double)");
+#endif
 
 ////////////////////////////////////////////////////////////////////////////////
 // reader functions
@@ -178,13 +193,21 @@ uint64_t tbufReadUint64( SBufferReader* buf ) {
 }
 
 float tbufReadFloat( SBufferReader* buf ) {
-  uint32_t ret = tbufReadUint32( buf );
-  return *(float*)( &ret );
+  Un4B _un;
+  tbufReadToBuffer( buf, &_un, sizeof(_un) );
+  if( buf->endian ) {
+    _un.ui = ntohl( _un.ui );
+  }
+  return _un.f;
 }
 
 double tbufReadDouble(SBufferReader* buf) {
-  uint64_t ret = tbufReadUint64( buf );
-  return *(double*)( &ret );
+  Un8B _un;
+  tbufReadToBuffer( buf, &_un, sizeof(_un) );
+  if( buf->endian ) {
+    _un.ull = htobe64( _un.ull );
+  }
+  return _un.d;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -384,17 +407,37 @@ void tbufWriteUint64At( SBufferWriter* buf, size_t pos, uint64_t data ) {
 }
 
 void tbufWriteFloat( SBufferWriter* buf, float data ) {
-  tbufWriteUint32( buf, *(uint32_t*)(&data) );
+  Un4B _un;
+  _un.f = data;
+  if( buf->endian ) {
+    _un.ui = htonl( _un.ui );
+  }
+  tbufWrite( buf, &_un, sizeof(_un) );
 }
 
 void tbufWriteFloatAt( SBufferWriter* buf, size_t pos, float data ) {
-  tbufWriteUint32At( buf, pos, *(uint32_t*)(&data) );
+  Un4B _un;
+  _un.f = data;
+  if( buf->endian ) {
+    _un.ui = htonl( _un.ui );
+  }
+  tbufWriteAt( buf, pos, &_un, sizeof(_un) );
 }
 
 void tbufWriteDouble( SBufferWriter* buf, double data ) {
-  tbufWriteUint64( buf, *(uint64_t*)(&data) );
+  Un8B _un;
+  _un.d = data;
+  if( buf->endian ) {
+    _un.ull = htobe64( _un.ull );
+  }
+  tbufWrite( buf, &_un, sizeof(_un) );
 }
 
 void tbufWriteDoubleAt( SBufferWriter* buf, size_t pos, double data ) {
-  tbufWriteUint64At( buf, pos, *(uint64_t*)(&data) );
+  Un8B _un;
+  _un.d = data;
+  if( buf->endian ) {
+    _un.ull = htobe64( _un.ull );
+  }
+  tbufWriteAt( buf, pos, &_un, sizeof(_un) );
 }

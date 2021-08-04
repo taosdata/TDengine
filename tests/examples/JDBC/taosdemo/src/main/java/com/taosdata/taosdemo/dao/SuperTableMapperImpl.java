@@ -2,13 +2,14 @@ package com.taosdata.taosdemo.dao;
 
 import com.taosdata.taosdemo.domain.SuperTableMeta;
 import com.taosdata.taosdemo.utils.SqlSpeller;
-import org.apache.log4j.Logger;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 import javax.sql.DataSource;
 
 public class SuperTableMapperImpl implements SuperTableMapper {
-    private static final Logger logger = Logger.getLogger(SuperTableMapperImpl.class);
+    private static final Logger logger = LogManager.getLogger(SuperTableMapperImpl.class);
     private JdbcTemplate jdbcTemplate;
 
     public SuperTableMapperImpl(DataSource dataSource) {

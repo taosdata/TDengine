@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 #include <limits.h>
 #include <taosdef.h>
+#include <tcompare.h>
 #include <iostream>
 
 #include "os.h"
@@ -8,12 +9,14 @@
 #include "tskiplist.h"
 #include "tutil.h"
 
+#if 0
 namespace {
 
 char* getkey(const void* data) { return (char*)(data); }
 
 void doubleSkipListTest() {
-  SSkipList* pSkipList = tSkipListCreate(10, TSDB_DATA_TYPE_DOUBLE, sizeof(double), 0, false, true, getkey);
+  SSkipList* pSkipList = tSkipListCreate(10, TSDB_DATA_TYPE_DOUBLE, sizeof(double),
+                                         getKeyComparFunc(TSDB_DATA_TYPE_DOUBLE), false, getkey);
 
   double  doubleVal[1000] = {0};
   int32_t size = 20000;
@@ -25,18 +28,15 @@ void doubleSkipListTest() {
       doubleVal[i] = i * 0.997;
     }
 
-    int32_t level = 0;
-    int32_t size = 0;
+//    int32_t level = 0;
+    size = 0;
 
-    tSkipListNewNodeInfo(pSkipList, &level, &size);
-    auto d = (SSkipListNode*)calloc(1, size + sizeof(double) * 2);
-    d->level = level;
+    //    tSkipListNewNodeInfo(pSkipList, &level, &size);
+    //    auto d = (SSkipListNode*)calloc(1, size + sizeof(double) * 2);
+    //    d->level = level;
 
-    double* key = (double*)SL_GET_NODE_KEY(pSkipList, d);
-    key[0] = i * 0.997;
-    key[1] = i * 0.997;
-
-    tSkipListPut(pSkipList, d);
+    double key = 0.997;
+    tSkipListPut(pSkipList, &key);
   }
 
   printf("the first level of skip list is:\n");
@@ -70,7 +70,8 @@ void doubleSkipListTest() {
 }
 
 void randKeyTest() {
-  SSkipList* pSkipList = tSkipListCreate(10, TSDB_DATA_TYPE_INT, sizeof(int32_t), 0, false, true, getkey);
+  SSkipList* pSkipList = tSkipListCreate(10, TSDB_DATA_TYPE_INT, sizeof(int32_t), getKeyComparFunc(TSDB_DATA_TYPE_INT),
+      false, getkey);
 
   int32_t size = 200000;
   srand(time(NULL));
@@ -375,3 +376,5 @@ TEST(testCase, skiplist_test) {
 
       free(pKeys);*/
 }
+
+#endif

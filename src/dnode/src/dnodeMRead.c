@@ -155,6 +155,8 @@ static void *dnodeProcessMReadQueue(void *param) {
   int32_t    type;
   void *     unUsed;
 
+  setThreadName("dnodeMReadQ");
+
   while (1) {
     if (taosReadQitemFromQset(tsMReadQset, &type, (void **)&pRead, &unUsed) == 0) {
       dDebug("qset:%p, mnode read got no message from qset, exiting", tsMReadQset);
