@@ -992,7 +992,7 @@ int32_t tsParseValues(char **str, STableDataBlocks *pDataBlock, int maxRows, SIn
     index = 0;
     sToken = tStrGetToken(*str, &index, false);
     if (sToken.n == 0 || sToken.type != TK_RP) {
-      return tscSQLSyntaxErrMsg(pCmd->payload, ") expected", *str);
+      return tscSQLSyntaxErrMsg(pInsertParam->msg, ") expected", *str);
     }
     
     *str += index;
