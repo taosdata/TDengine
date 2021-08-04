@@ -261,11 +261,20 @@ int tfsMkdirRecurAt(const char *rname, int level, int id) {
       // Try to create upper
       char *s = strdup(rname);
 
-      if (tfsMkdirRecurAt(dirname(s), level, id) < 0) {
-        tfree(s);
+      // Make a copy of dirname(s) because the implementation of 'dirname' differs on different platforms.
+      // Some platform may modify the contents of the string passed into dirname(). Others may return a pointer to
+      // internal static storage space that will be overwritten by next call. For case like that, we should not use
+      // the pointer directly in this recursion.
+      // See https://developer.apple.com/library/archive/documentation/System/Conceptual/ManPages_iPhoneOS/man3/dirname.3.html
+      char *dir = strdup(dirname(s));
+
+      if (tfsMkdirRecurAt(dir, level, id) < 0) {
+        free(s);
+        free(dir);
         return -1;
       }
-      tfree(s);
+      free(s);
+      free(dir);
 
       if (tfsMkdirAt(rname, level, id) < 0) {
         return -1;
