@@ -169,7 +169,7 @@ python3 test.py -f tools/taosdemoTestQuery.py
 # nano support
 python3 test.py -f tools/taosdemoAllTest/taosdemoTestSupportNanoInsert.py
 python3 test.py -f tools/taosdemoAllTest/taosdemoTestSupportNanoQuery.py
-python3 test.py -f tools/taosdemoAllTest/taosdemoTestSupportNanosubscribe.py
+#python3 test.py -f tools/taosdemoAllTest/taosdemoTestSupportNanosubscribe.py
 python3 test.py -f tools/taosdemoAllTest/taosdemoTestInsertTime_step.py
 python3 test.py -f tools/taosdumpTestNanoSupport.py
 
