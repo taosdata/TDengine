@@ -775,7 +775,7 @@ public abstract class AbstractDatabaseMetaData extends WrapperImpl implements Da
         ColumnMetaData col7 = new ColumnMetaData();
         col7.setColIndex(7);
         col7.setColName("COLUMN_SIZE");
-        col7.setColType(TSDBConstants.TSDB_DATA_TYPE_NCHAR);
+        col7.setColType(TSDBConstants.TSDB_DATA_TYPE_INT);
         return col7;
     }
 
@@ -790,7 +790,7 @@ public abstract class AbstractDatabaseMetaData extends WrapperImpl implements Da
         ColumnMetaData col9 = new ColumnMetaData();
         col9.setColIndex(9);
         col9.setColName("DECIMAL_DIGITS");
-        col9.setColType(TSDBConstants.TSDB_DATA_TYPE_NCHAR);
+        col9.setColType(TSDBConstants.TSDB_DATA_TYPE_INT);
         return col9;
     }
 
@@ -798,7 +798,7 @@ public abstract class AbstractDatabaseMetaData extends WrapperImpl implements Da
         ColumnMetaData col10 = new ColumnMetaData();
         col10.setColIndex(10);
         col10.setColName("NUM_PREC_RADIX");
-        col10.setColType(TSDBConstants.TSDB_DATA_TYPE_NCHAR);
+        col10.setColType(TSDBConstants.TSDB_DATA_TYPE_INT);
         return col10;
     }
 
@@ -806,7 +806,7 @@ public abstract class AbstractDatabaseMetaData extends WrapperImpl implements Da
         ColumnMetaData col11 = new ColumnMetaData();
         col11.setColIndex(11);
         col11.setColName("NULLABLE");
-        col11.setColType(TSDBConstants.TSDB_DATA_TYPE_NCHAR);
+        col11.setColType(TSDBConstants.TSDB_DATA_TYPE_INT);
         return col11;
     }
 
@@ -830,7 +830,7 @@ public abstract class AbstractDatabaseMetaData extends WrapperImpl implements Da
         ColumnMetaData col14 = new ColumnMetaData();
         col14.setColIndex(14);
         col14.setColName("SQL_DATA_TYPE");
-        col14.setColType(TSDBConstants.TSDB_DATA_TYPE_NCHAR);
+        col14.setColType(TSDBConstants.TSDB_DATA_TYPE_INT);
         return col14;
     }
 
@@ -838,7 +838,7 @@ public abstract class AbstractDatabaseMetaData extends WrapperImpl implements Da
         ColumnMetaData col15 = new ColumnMetaData();
         col15.setColIndex(15);
         col15.setColName("SQL_DATETIME_SUB");
-        col15.setColType(TSDBConstants.TSDB_DATA_TYPE_NCHAR);
+        col15.setColType(TSDBConstants.TSDB_DATA_TYPE_INT);
         return col15;
     }
 
@@ -846,7 +846,7 @@ public abstract class AbstractDatabaseMetaData extends WrapperImpl implements Da
         ColumnMetaData col16 = new ColumnMetaData();
         col16.setColIndex(16);
         col16.setColName("CHAR_OCTET_LENGTH");
-        col16.setColType(TSDBConstants.TSDB_DATA_TYPE_NCHAR);
+        col16.setColType(TSDBConstants.TSDB_DATA_TYPE_INT);
         return col16;
     }
 
@@ -854,7 +854,7 @@ public abstract class AbstractDatabaseMetaData extends WrapperImpl implements Da
         ColumnMetaData col17 = new ColumnMetaData();
         col17.setColIndex(17);
         col17.setColName("ORDINAL_POSITION");
-        col17.setColType(TSDBConstants.TSDB_DATA_TYPE_NCHAR);
+        col17.setColType(TSDBConstants.TSDB_DATA_TYPE_INT);
         return col17;
     }
 
