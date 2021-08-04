@@ -2845,10 +2845,8 @@ int32_t tscGetTableMetaImpl(SSqlObj* pSql, STableMetaInfo *pTableMetaInfo, bool 
 
   size_t len = strlen(name);
   // just make runtime happy
-  if (pTableMetaInfo->tableMetaCapacity != 0) {
-    if (pTableMetaInfo->pTableMeta != NULL) {
-      memset(pTableMetaInfo->pTableMeta, 0, pTableMetaInfo->tableMetaCapacity);
-    }
+  if (pTableMetaInfo->tableMetaCapacity != 0 && pTableMetaInfo->pTableMeta != NULL) {
+    memset(pTableMetaInfo->pTableMeta, 0, pTableMetaInfo->tableMetaCapacity);
   } 
   taosHashGetCloneExt(tscTableMetaMap, name, len, NULL, (void **)&(pTableMetaInfo->pTableMeta), &pTableMetaInfo->tableMetaCapacity);
   
