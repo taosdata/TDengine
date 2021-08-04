@@ -304,7 +304,7 @@ def taos_subscribe(connection, restart, topic, sql, interval, callback=None, par
             1 if restart else 0,
             c_char_p(topic.encode("utf-8")),
             c_char_p(sql.encode("utf-8")),
-            callback or c_void_p(None),
+            callback or None,
             param,
             interval,
         )
@@ -312,6 +312,7 @@ def taos_subscribe(connection, restart, topic, sql, interval, callback=None, par
 
 
 _libtaos.taos_consume.restype = c_void_p
+_libtaos.taos_consume.argstype = c_void_p,
 
 
 def taos_consume(sub):
@@ -320,6 +321,7 @@ def taos_consume(sub):
 
 
 _libtaos.taos_unsubscribe.restype = None
+_libtaos.taos_unsubscribe.argstype = c_void_p, c_int
 
 
 def taos_unsubscribe(sub, keep_progress):

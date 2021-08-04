@@ -10,7 +10,7 @@ conn.execute("create table if not exists log(ts timestamp, n int)")
 for i in range(10):
     conn.execute("insert into log values(now, %d)" % i)
 
-sub = conn.subscribe(True, "test", "select * from log", 1000)
+sub = conn.subscribe(False, "test", "select * from log", 1000)
 print("# consume from begin")
 for ts, n in sub.consume():
     print(ts, n)
@@ -21,6 +21,15 @@ for i in range(5):
     result = sub.consume()
     for ts, n in result:
         print(ts, n)
+
+sub.close(True)
+print("# keep progress consume")
+sub = conn.subscribe(False, "test", "select * from log", 1000)
+result = sub.consume()
+rows = result.fetch_all()
+# consume from latest subscription needs root privilege(for /var/lib/taos).
+assert result.row_count == 0
+print("## consumed ", len(rows), "rows")
 
 print("# consume with a stop condition")
 for i in range(10):
@@ -35,6 +44,8 @@ for i in range(10):
             break
     except StopIteration:
         continue
+
+sub.close()
 
 # sub.close()
 

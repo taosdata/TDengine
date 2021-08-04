@@ -111,7 +111,7 @@ class TaosResult(object):
         if self._fields == None:
             self._fields = taos_fetch_fields(self._result)
         buffer = [[] for i in range(len(self._fields))]
-        self._rowcount = 0
+        self._row_count = 0
         while True:
             block, num_of_fields = taos_fetch_block(self._result, self._fields)
             errno = taos_errno(self._result)
@@ -119,7 +119,7 @@ class TaosResult(object):
                 raise ProgrammingError(taos_errstr(self._result), errno)
             if num_of_fields == 0:
                 break
-            self._rowcount += num_of_fields
+            self._row_count += num_of_fields
             for i in range(len(self._fields)):
                 buffer[i].extend(block[i])
         return list(map(tuple, zip(*buffer)))
