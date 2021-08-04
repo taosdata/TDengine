@@ -393,15 +393,9 @@ static int32_t mnodeGetQueryMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pC
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
   cols++;
 
-  pShow->bytes[cols] = SUBQUERY_INFO_SIZE * TSDB_MAX_SUBQUERY_NUM + VARSTR_HEADER_SIZE;
+  pShow->bytes[cols] = TSDB_SHOW_SUBQUERY_LEN + VARSTR_HEADER_SIZE;
   pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
-  strcpy(pSchema[cols].name, "sub_query_states");
-  pSchema[cols].bytes = htons(pShow->bytes[cols]);
-  cols++;
-
-  pShow->bytes[cols] = (SUBQUERY_INFO_SIZE + QUERY_OBJ_ID_SIZE) * TSDB_MAX_SUBQUERY_NUM + VARSTR_HEADER_SIZE;
-  pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
-  strcpy(pSchema[cols].name, "sub_query_obj_ids ");
+  strcpy(pSchema[cols].name, "sub_query_info");
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
   cols++;
 
@@ -502,33 +496,8 @@ static int32_t mnodeRetrieveQueries(SShowObj *pShow, char *data, int32_t rows, v
       *(int32_t *)pWrite = htonl(pDesc->numOfSub);
       cols++;
 
-      char subQInfo[(SUBQUERY_INFO_SIZE + QUERY_OBJ_ID_SIZE) * TSDB_MAX_SUBQUERY_NUM] = {0};
-      char *p;
-      int32_t idx, len;
-
-      p = subQInfo;
-      for (idx = 0; idx < htonl(pDesc->numOfSub); ++idx) {
-        len = snprintf(p, SUBQUERY_INFO_SIZE, "[%d]%d ", idx, pDesc->subSqlStates[idx]);
-        p += MIN(len, SUBQUERY_INFO_SIZE);
-      }
-      if (idx == 0) {
-        snprintf(p, sizeof(subQInfo), "N/A");
-      }
       pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-      STR_WITH_MAXSIZE_TO_VARSTR(pWrite, subQInfo, pShow->bytes[cols]);
-      cols++;
-
-      p = subQInfo;
-      for (idx = 0; idx < htonl(pDesc->numOfSub); ++idx) {
-        len = snprintf(p, SUBQUERY_INFO_SIZE + QUERY_OBJ_ID_SIZE, "[%d]0x%" PRIx64 " ",
-                      idx, htobe64(pDesc->subSqlObjIds[idx]));
-        p += MIN(len, SUBQUERY_INFO_SIZE + QUERY_OBJ_ID_SIZE);
-      }
-      if (idx == 0) {
-        snprintf(p, sizeof(subQInfo), "N/A");
-      }
-      pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-      STR_WITH_MAXSIZE_TO_VARSTR(pWrite, subQInfo, pShow->bytes[cols]);
+      STR_WITH_MAXSIZE_TO_VARSTR(pWrite, pDesc->subSqlInfo, pShow->bytes[cols]);
       cols++;
 
       pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;

@@ -223,6 +223,7 @@ do { \
 #define TSDB_IPv4ADDR_LEN      	  16
 #define TSDB_FILENAME_LEN         128
 #define TSDB_SHOW_SQL_LEN         512
+#define TSDB_SHOW_SUBQUERY_LEN    1000
 #define TSDB_SLOW_QUERY_SQL_LEN   512
 
 #define TSDB_STEP_NAME_LEN        32
@@ -339,7 +340,6 @@ do { \
 #define PRIMARYKEY_TIMESTAMP_COL_INDEX  0
 
 #define TSDB_MAX_RPC_THREADS            5
-#define TSDB_MAX_SUBQUERY_NUM          10
 
 #define TSDB_QUERY_TYPE_NON_TYPE               0x00u     // none type
 #define TSDB_QUERY_TYPE_FREE_RESOURCE          0x01u     // free qhandle at vnode
