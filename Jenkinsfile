@@ -83,13 +83,13 @@ def pre_test(){
         }
       else if(env.CHANGE_TARGET == '2.0'){
         sh '''
-        cd ${WKC}
+        cd ${WK}
         git checkout 2.0
         '''
       } 
       else{
         sh '''
-        cd ${WKC}
+        cd ${WK}
         git checkout develop
         '''
       } 
