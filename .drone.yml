@@ -23,6 +23,7 @@ steps:
     branch:
     - develop
     - master
+    - 2.0
 ---
 kind: pipeline
 name: test_arm64
@@ -48,6 +49,7 @@ steps:
     branch:
     - develop
     - master
+    - 2.0
 ---
 kind: pipeline
 name: test_arm
@@ -73,6 +75,7 @@ steps:
     branch:
     - develop
     - master
+    - 2.0
 
 ---
 kind: pipeline
@@ -100,6 +103,7 @@ steps:
     branch:
     - develop
     - master
+    - 2.0
 ---
 kind: pipeline
 name: build_xenial
@@ -125,6 +129,7 @@ steps:
     branch:
     - develop
     - master
+    - 2.0
 
 ---
 kind: pipeline
@@ -150,6 +155,7 @@ steps:
     branch:
     - develop
     - master
+    - 2.0
 ---
 kind: pipeline
 name: build_centos7
@@ -173,6 +179,7 @@ steps:
     branch:
     - develop
     - master
+    - 2.0
 
 ---
 kind: pipeline
@@ -191,6 +198,7 @@ steps:
     branch:
     - develop
     - master
+    - 2.0
 
 
 depends_on:
