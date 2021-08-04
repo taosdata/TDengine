@@ -61,7 +61,12 @@ _libtaos.taos_consume.restype = ctypes.c_void_p
 _libtaos.taos_fetch_lengths.restype = ctypes.POINTER(ctypes.c_int)
 _libtaos.taos_free_result.restype = None
 _libtaos.taos_query.restype = ctypes.POINTER(ctypes.c_void_p)
-_libtaos.taos_stmt_errstr.restype = c_char_p
+try:
+    _libtaos.taos_stmt_errstr.restype = c_char_p
+except AttributeError:
+    None
+finally:
+    None
 
 
 _libtaos.taos_options.restype = None
@@ -615,8 +620,11 @@ def taos_stmt_close(stmt):
         raise StatementError(msg=taos_stmt_errstr(stmt), errno=res)
 
 
-_libtaos.taos_stmt_errstr.restype = c_char_p
-_libtaos.taos_stmt_errstr.argstype = (c_void_p,)
+try:
+    _libtaos.taos_stmt_errstr.restype = c_char_p
+    _libtaos.taos_stmt_errstr.argstype = (c_void_p,)
+except AttributeError:
+    print("WARNING: libtaos(%s) does not support taos_stmt_errstr" % taos_get_client_info())
 
 
 def taos_stmt_errstr(stmt):
@@ -628,9 +636,12 @@ def taos_stmt_errstr(stmt):
     if err:
         return err.value.decode("utf-8")
 
+try:
+    _libtaos.taos_stmt_set_tbname.restype = c_int
+    _libtaos.taos_stmt_set_tbname.argstype = (c_void_p, c_char_p)
+except AttributeError:
+    print("WARNING: libtaos(%s) does not support taos_stmt_set_tbname" % taos_get_client_info())
 
-_libtaos.taos_stmt_set_tbname.restype = c_int
-_libtaos.taos_stmt_set_tbname.argstype = (c_void_p, c_char_p)
 
 
 def taos_stmt_set_tbname(stmt, name):
@@ -642,9 +653,12 @@ def taos_stmt_set_tbname(stmt, name):
     if res != 0:
         raise StatementError(msg=taos_stmt_errstr(stmt), errno=res)
 
+try:
+    _libtaos.taos_stmt_set_tbname_tags.restype = c_int
+    _libtaos.taos_stmt_set_tbname_tags.argstype = (c_void_p, c_char_p, c_void_p)
+except AttributeError:
+    print("WARNING: libtaos(%s) does not support taos_stmt_set_tbname_tags" % taos_get_client_info())
 
-_libtaos.taos_stmt_set_tbname_tags.restype = c_int
-_libtaos.taos_stmt_set_tbname_tags.argstype = (c_void_p, c_char_p, c_void_p)
 
 
 def taos_stmt_set_tbname_tags(stmt, name, tags):
@@ -706,9 +720,12 @@ def taos_stmt_bind_param(stmt, bind):
     if res != 0:
         raise StatementError(msg=taos_stmt_errstr(stmt), errno=res)
 
+try:
+    _libtaos.taos_stmt_bind_param_batch.restype = c_int
+    _libtaos.taos_stmt_bind_param_batch.argstype = (c_void_p, c_void_p)
+except AttributeError:
+    print("WARNING: libtaos(%s) does not support taos_stmt_bind_param_batch" % taos_get_client_info())
 
-_libtaos.taos_stmt_bind_param_batch.restype = c_int
-_libtaos.taos_stmt_bind_param_batch.argstype = (c_void_p, c_void_p)
 
 
 def taos_stmt_bind_param_batch(stmt, bind):
@@ -723,9 +740,11 @@ def taos_stmt_bind_param_batch(stmt, bind):
     if res != 0:
         raise StatementError(msg=taos_stmt_errstr(stmt), errno=res)
 
-
-_libtaos.taos_stmt_bind_param_batch.restype = c_int
-_libtaos.taos_stmt_bind_param_batch.argstype = (c_void_p, c_void_p, c_int)
+try:
+    _libtaos.taos_stmt_bind_single_param_batch.restype = c_int
+    _libtaos.taos_stmt_bind_single_param_batch.argstype = (c_void_p, c_void_p, c_int)
+except AttributeError:
+    print("WARNING: libtaos(%s) does not support taos_stmt_bind_single_param_batch" % taos_get_client_info())
 
 
 def taos_stmt_bind_single_param_batch(stmt, bind, col):
@@ -782,9 +801,13 @@ def taos_stmt_use_result(stmt):
         raise StatementError(taos_stmt_errstr(stmt))
     return result
 
+try:
+    _libtaos.taos_insert_lines.restype = c_int
+    _libtaos.taos_insert_lines.argstype = c_void_p, c_void_p, c_int
+except AttributeError:
+    print("WARNING: libtaos(%s) does not support insert_lines" % taos_get_client_info())
 
-_libtaos.taos_insert_lines.restype = c_int
-_libtaos.taos_insert_lines.argstype = c_void_p, c_void_p, c_int
+
 
 
 def taos_insert_lines(connection, lines):
