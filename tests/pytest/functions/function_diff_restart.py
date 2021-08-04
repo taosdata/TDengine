@@ -97,6 +97,12 @@ class TDTestCase:
 
         tdSql.query("select diff(col6) from test1")
         tdSql.checkRows(10)
+
+        tdSql.query("select diff(col) from st group by tbname")
+        tdSql.checkRows(185)
+
+        tdSql.error("select diff(col) from st group by dev") 
+        tdSql.error("select diff(col) from st group by col") 
         
     def stop(self):
         tdSql.close()

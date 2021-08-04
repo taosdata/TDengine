@@ -27,7 +27,7 @@
 #include "tutil.h"
 #include <taos.h>
 
-#define TSDB_SUPPORT_NANOSECOND 0
+#define TSDB_SUPPORT_NANOSECOND 1
 
 #define MAX_FILE_NAME_LEN       256             // max file name length on linux is 255
 #define COMMAND_SIZE            65536
@@ -1481,6 +1481,8 @@ static void* taosDumpOutWorkThreadFp(void *arg)
     STableRecord    tableRecord;
     int fd;
 
+    setThreadName("dumpOutWorkThrd");
+
     char tmpBuf[4096] = {0};
     sprintf(tmpBuf, ".tables.tmp.%d", pThread->threadIndex);
     fd = open(tmpBuf, O_RDWR | O_CREAT, S_IRWXU | S_IRGRP | S_IXGRP | S_IROTH);
@@ -2581,6 +2583,8 @@ static int taosDumpInOneFile(TAOS* taos, FILE* fp, char* fcharset,
 static void* taosDumpInWorkThreadFp(void *arg)
 {
     SThreadParaObj *pThread = (SThreadParaObj*)arg;
+    setThreadName("dumpInWorkThrd");
+
     for (int32_t f = 0; f < g_tsSqlFileNum; ++f) {
         if (f % pThread->totalThreads == pThread->threadIndex) {
             char *SQLFileName = g_tsDumpInSqlFiles[f];

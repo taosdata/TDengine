@@ -4,7 +4,7 @@
     <modelVersion>4.0.0</modelVersion>
     <groupId>com.taosdata</groupId>
     <artifactId>taosdemo</artifactId>
-    <version>2.0</version>
+    <version>2.0.1</version>
     <name>taosdemo</name>
     <packaging>jar</packaging>
     <description>Demo project for TDengine</description>
@@ -81,20 +81,20 @@
         <dependency>
             <groupId>mysql</groupId>
             <artifactId>mysql-connector-java</artifactId>
-            <version>5.1.47</version>
+            <version>8.0.16</version>
             <scope>test</scope>
         </dependency>
         <!-- log4j -->
         <dependency>
-            <groupId>log4j</groupId>
-            <artifactId>log4j</artifactId>
-            <version>1.2.17</version>
+            <groupId>org.apache.logging.log4j</groupId>
+            <artifactId>log4j-core</artifactId>
+            <version>2.14.1</version>
         </dependency>
         <!-- junit -->
         <dependency>
             <groupId>junit</groupId>
             <artifactId>junit</artifactId>
-            <version>4.12</version>
+            <version>4.13.1</version>
             <scope>test</scope>
         </dependency>
         <!-- lombok -->

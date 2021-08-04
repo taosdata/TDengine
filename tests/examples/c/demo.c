@@ -116,12 +116,12 @@ void Test(TAOS *taos, char *qstr, int index)  {
   int         rows = 0;
   int         num_fields = taos_field_count(result);
   TAOS_FIELD *fields = taos_fetch_fields(result);
-  char        temp[1024];
 
   printf("num_fields = %d\n", num_fields);
   printf("select * from table, result:\n");
   // fetch the records row by row
   while ((row = taos_fetch_row(result))) {
+    char temp[1024] = {0};
     rows++;
     taos_print_row(temp, row, fields, num_fields);
     printf("%s\n", temp);

@@ -8,7 +8,8 @@ import com.taosdata.taosdemo.service.SqlExecuteTask;
 import com.taosdata.taosdemo.service.SubTableService;
 import com.taosdata.taosdemo.service.SuperTableService;
 import com.taosdata.taosdemo.service.data.SuperTableMetaGenerator;
-import org.apache.log4j.Logger;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
 
 import javax.sql.DataSource;
 import java.io.IOException;
@@ -20,7 +21,7 @@ import java.util.Map;
 
 public class TaosDemoApplication {
 
-    private static final Logger logger = Logger.getLogger(TaosDemoApplication.class);
+    private static final Logger logger = LogManager.getLogger(TaosDemoApplication.class);
 
     public static void main(String[] args) throws IOException {
         // 读配置参数

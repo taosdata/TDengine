@@ -1,5 +1,21 @@
 #!/bin/bash
 
+branch=
+if [ x$1 != x ];then
+        branch=$1
+        echo "Testing branch: $branch"
+else
+        echo "Please enter branch name as a parameter"
+        exit 1
+fi
+jemalloc=
+if [ x$2 != x ];then
+		jemalloc=jemalloc
+        echo "Building TDengine using jemalloc"
+else
+        echo "Building TDengine using glibc"
+fi
+
 today=`date +"%Y%m%d"`
 WORK_DIR=/home/ubuntu/pxiao
 PERFORMANCE_TEST_REPORT=$WORK_DIR/TDengine/tests/performance-test-report-$today.log
@@ -40,8 +56,8 @@ function buildTDengine {
 
 	git remote update > /dev/null
 	git reset --hard HEAD
-	git checkout master
-	REMOTE_COMMIT=`git rev-parse --short remotes/origin/master`
+	git checkout $branch
+	REMOTE_COMMIT=`git rev-parse --short remotes/origin/$branch`
 	LOCAL_COMMIT=`git rev-parse --short @`
 
 	echo " LOCAL: $LOCAL_COMMIT"
@@ -53,9 +69,20 @@ function buildTDengine {
 		git pull > /dev/null 2>&1
 
 		LOCAL_COMMIT=`git rev-parse --short @`
+		if [ $jemalloc = "jemalloc" ];then
+			echo "git submodule update --init --recursive"
+			git submodule update --init --recursive
+		fi
+		
 		cd debug
 		rm -rf *
-		cmake .. > /dev/null
+
+		if [ $jemalloc = "jemalloc" ];then
+			echo "cmake .. -DJEMALLOC_ENABLED=true > /dev/null"
+			cmake .. -DJEMALLOC_ENABLED=true > /dev/null
+		else
+			cmake .. > /dev/null
+		fi
 		make && make install > /dev/null		
 	fi
 }
@@ -95,7 +122,8 @@ function sendReport {
 
 	sed -i 's/\x1b\[[0-9;]*m//g' $PERFORMANCE_TEST_REPORT
 	BODY_CONTENT=`cat $PERFORMANCE_TEST_REPORT`
-	echo -e "From: <support@taosdata.com>\nto: ${receiver}\nsubject: Query Performace Report ${today}, commit ID: ${LOCAL_COMMIT}\n\n${today}:\n${BODY_CONTENT}" | \
+	
+	echo -e "From: <support@taosdata.com>\nto: ${receiver}\nsubject: Query Performace Report ${branch} ${jemalloc} ${today}, commit ID: ${LOCAL_COMMIT}\n\n${today}:\n${BODY_CONTENT}" | \
 	(cat - && uuencode $PERFORMANCE_TEST_REPORT performance-test-report-$today.log) | \
 	/usr/sbin/ssmtp "${receiver}" && echo "Report Sent!"
 }

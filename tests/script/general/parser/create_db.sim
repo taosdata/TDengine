@@ -102,7 +102,7 @@ print create_db.sim case5: db_meta_data test
 # cfg params
 $replica = 1 # max=3
 $days = 10
-$keep = 365
+$keep = 365,365,365
 $rows_db = 1000
 $cache = 16 # 16MB
 $ablocks = 100 
@@ -150,6 +150,73 @@ sql_error create database $db day 3651
 
 # keep [1, infinity]
 sql_error create database $db keep 0
+sql_error create database $db keep 0,0,0
+sql_error create database $db keep 3,3,3
+sql_error create database $db keep 11.0
+sql_error create database $db keep 11.0,11.0,11.0
+sql_error create database $db keep "11","11","11"
+sql_error create database $db keep "11"
+sql_error create database $db keep 13,12,11
+sql_error create database $db keep 11,12,11
+sql_error create database $db keep 12,11,12
+sql_error create database $db keep 8
+sql_error create database $db keep 12,11
+sql_error create database $db keep 365001,365001,365001
+sql create database dbk0 keep 19
+sql show databases
+if $rows != 1 then
+  return -1
+endi
+if $data07 != 19,19,19 then 
+ return -1
+endi
+sql drop database dbk0
+sql create database dbka keep 19,20
+sql show databases
+if $rows != 1 then
+  return -1
+endi
+if $data07 != 19,20,20 then 
+ return -1
+endi
+sql drop database dbka
+
+sql create database dbk1 keep 11,11,11
+sql show databases
+if $rows != 1 then
+  return -1
+endi
+if $data07 != 11,11,11 then 
+ return -1
+endi
+sql drop database dbk1
+sql create database dbk2 keep 11,12,13
+sql show databases
+if $rows != 1 then
+  return -1
+endi
+if $data07 != 11,12,13 then 
+ return -1
+endi
+sql drop database dbk2
+sql create database dbk3 keep 11,11,13
+sql show databases
+if $rows != 1 then
+  return -1
+endi
+if $data07 != 11,11,13 then 
+ return -1
+endi
+sql drop database dbk3
+sql create database dbk4 keep 11,13,13
+sql show databases
+if $rows != 1 then
+  return -1
+endi
+if $data07 != 11,13,13 then 
+ return -1
+endi
+sql drop database dbk4
 #sql_error create database $db keep 3651
 
 # rows [200, 10000]
@@ -170,7 +237,42 @@ sql_error create database $db ctime 29
 sql_error create database $db ctime 40961
 
 # wal {0, 2}
-#sql_error create database $db wal 0
+sql create database testwal wal 0
+sql show databases
+if $rows != 1 then
+  return -1
+endi
+
+sql show databases
+print wallevel $data12_testwal
+if $data12_testwal != 0 then 
+  return -1
+endi
+sql drop database testwal
+
+sql create database testwal wal 1
+sql show databases
+if $rows != 1 then
+  return -1
+endi
+sql show databases
+print wallevel $data12_testwal
+if $data12_testwal != 1 then 
+  return -1
+endi
+sql drop database testwal
+
+sql create database testwal wal 2
+sql show databases
+if $rows != 1 then
+  return -1
+endi
+print wallevel $data12_testwal
+if $data12_testwal != 2 then 
+  return -1
+endi
+sql drop database testwal
+
 sql_error create database $db wal -1
 sql_error create database $db wal 3
 

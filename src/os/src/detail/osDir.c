@@ -28,7 +28,7 @@ void taosRemoveDir(char *rootDir) {
   struct dirent *de = NULL;
   while ((de = readdir(dir)) != NULL) {
     if (strcmp(de->d_name, ".") == 0 || strcmp(de->d_name, "..") == 0) continue;
-     
+
     char filename[1024];
     snprintf(filename, 1023, "%s/%s", rootDir, de->d_name);
     if (de->d_type & DT_DIR) {
@@ -45,33 +45,21 @@ void taosRemoveDir(char *rootDir) {
   uInfo("dir:%s is removed", rootDir);
 }
 
+bool taosDirExist(const char* dirname) {
+  return access(dirname, F_OK) == 0;
+}
+
 int taosMkDir(const char *path, mode_t mode) {
   int code = mkdir(path, 0755);
   if (code < 0 && errno == EEXIST) code = 0;
   return code;
 }
 
-
-#ifndef TAOS_OS_FUNC_DIR
-
-int32_t taosRename(char* oldName, char *newName) {
-  int32_t code = rename(oldName, newName);
-  if (code < 0) {
-    uError("failed to rename file %s to %s, reason:%s", oldName, newName, strerror(errno));
-  } else {
-    uTrace("successfully to rename file %s to %s", oldName, newName);
-  }
-
-  return code;
-}
-
-#endif
-
 void taosRemoveOldLogFiles(char *rootDir, int32_t keepDays) {
   DIR *dir = opendir(rootDir);
   if (dir == NULL) return;
 
-  int64_t sec = taosGetTimestampSec();
+  int64_t        sec = taosGetTimestampSec();
   struct dirent *de = NULL;
 
   while ((de = readdir(dir)) != NULL) {

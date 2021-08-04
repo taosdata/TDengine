@@ -53,9 +53,9 @@
 #include "taoserror.h"
 #include "tutil.h"
 
-#define STMT_IFACE_ENABLED  0
-#define NANO_SECOND_ENABLED  0
-#define SET_THREADNAME_ENABLED  0
+#define STMT_IFACE_ENABLED  1
+#define NANO_SECOND_ENABLED  1
+#define SET_THREADNAME_ENABLED  1
 
 #if SET_THREADNAME_ENABLED == 0
 #define setThreadName(name)
@@ -1413,6 +1413,7 @@ static char *rand_float_str()
     if (cursor > (MAX_PREPARED_RAND - 1)) cursor = 0;
     return g_randfloat_buff + (cursor * FLOAT_BUFF_LEN);
 }
+
 
 static float rand_float()
 {

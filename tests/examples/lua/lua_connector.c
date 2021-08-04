@@ -13,6 +13,11 @@ struct cb_param{
   void * stream;
 };
 
+struct async_query_callback_param{
+  lua_State* state;
+  int callback;
+};
+
 static int l_connect(lua_State *L){
   TAOS *    taos=NULL;
   const char* host;
@@ -56,6 +61,7 @@ static int l_connect(lua_State *L){
   lua_settop(L,0);
 
   taos_init();
+  
   lua_newtable(L);
   int table_index = lua_gettop(L);
 
@@ -174,6 +180,58 @@ static int l_query(lua_State *L){
   }
 
   lua_setfield(L, table_index, "item");
+  return 1;
+}
+
+void async_query_callback(void *param, TAOS_RES *result, int code){
+  struct async_query_callback_param* p = (struct async_query_callback_param*) param;
+
+  //printf("\nin c,numfields:%d\n", numFields);
+  //printf("\nin c, code:%d\n", code);
+
+  lua_State *L = p->state;
+  lua_rawgeti(L, LUA_REGISTRYINDEX, p->callback);
+  lua_newtable(L);
+  int table_index = lua_gettop(L);
+  if( code < 0){
+    printf("failed, reason:%s\n", taos_errstr(result));
+    lua_pushinteger(L, -1);
+    lua_setfield(L, table_index, "code");    
+    lua_pushstring(L,"something is wrong");// taos_errstr(taos));
+    lua_setfield(L, table_index, "error");    
+  }else{
+    //printf("success to async query.\n");
+    const int affectRows = taos_affected_rows(result);
+    //printf(" affect rows:%d\r\n", affectRows);
+    lua_pushinteger(L, 0);
+    lua_setfield(L, table_index, "code");
+    lua_pushinteger(L, affectRows);
+    lua_setfield(L, table_index, "affected");
+  }
+  
+  lua_call(L, 1, 0);
+}
+
+static int l_async_query(lua_State *L){
+  int r = luaL_ref(L, LUA_REGISTRYINDEX);
+  TAOS *    taos = (TAOS*)lua_topointer(L,1);
+  const char * sqlstr = lua_tostring(L,2);
+  // int stime = luaL_checknumber(L,3);
+
+  lua_newtable(L);
+  int table_index = lua_gettop(L);
+
+  struct async_query_callback_param *p = malloc(sizeof(struct async_query_callback_param));
+  p->state = L;
+  p->callback=r;
+  // printf("r:%d, L:%d\n",r,L);
+  taos_query_a(taos,sqlstr,async_query_callback,p);
+
+  lua_pushnumber(L, 0);
+  lua_setfield(L, table_index, "code");
+  lua_pushstring(L, "ok");
+  lua_setfield(L, table_index, "error");
+  
   return 1;
 }
 
@@ -307,6 +365,7 @@ static int l_close(lua_State *L){
 static const struct luaL_Reg lib[] = {
     {"connect", l_connect},
     {"query", l_query},
+    {"query_a",l_async_query},
     {"close", l_close},
     {"open_stream", l_open_stream},
     {"close_stream", l_close_stream},

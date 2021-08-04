@@ -32,7 +32,7 @@
 #define TSDB_FILE_SET_CLOSED(f) (TSDB_FILE_FD(f) = -1)
 #define TSDB_FILE_LEVEL(tf) TFILE_LEVEL(TSDB_FILE_F(tf))
 #define TSDB_FILE_ID(tf) TFILE_ID(TSDB_FILE_F(tf))
-#define TSDB_FILE_FSYNC(tf) fsync(TSDB_FILE_FD(tf))
+#define TSDB_FILE_FSYNC(tf) taosFsync(TSDB_FILE_FD(tf))
 #define TSDB_FILE_STATE(tf) ((tf)->state)
 #define TSDB_FILE_SET_STATE(tf, s) ((tf)->state = (s))
 #define TSDB_FILE_IS_OK(tf) (TSDB_FILE_STATE(tf) == TSDB_FILE_STATE_OK)
@@ -350,8 +350,8 @@ static FORCE_INLINE int tsdbCopyDFileSet(SDFileSet* pSrc, SDFileSet* pDest) {
 }
 
 static FORCE_INLINE void tsdbGetFidKeyRange(int days, int8_t precision, int fid, TSKEY* minKey, TSKEY* maxKey) {
-  *minKey = fid * days * tsMsPerDay[precision];
-  *maxKey = *minKey + days * tsMsPerDay[precision] - 1;
+  *minKey = fid * days * tsTickPerDay[precision];
+  *maxKey = *minKey + days * tsTickPerDay[precision] - 1;
 }
 
 static FORCE_INLINE bool tsdbFSetIsOk(SDFileSet* pSet) {

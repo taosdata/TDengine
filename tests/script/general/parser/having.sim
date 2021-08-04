@@ -1,6 +1,6 @@
 system sh/stop_dnodes.sh
 system sh/deploy.sh -n dnode1 -i 1
-system sh/cfg.sh -n dnode1 -c walLevel -v 0
+system sh/cfg.sh -n dnode1 -c walLevel -v 1
 system sh/cfg.sh -n dnode1 -c maxtablesPerVnode -v 2
 system sh/exec.sh -n dnode1 -s start
 
@@ -141,9 +141,7 @@ if $data30 != 4 then
 endi
 
 sql_error select top(f1,2) from st2 group by f1 having count(f2) > 0;
-
 sql_error select top(f1,2) from st2 group by f1 having count(f2) > 0;
-
 sql_error select top(f1,2) from st2 group by f1 having avg(f1) > 0;
 
 sql select avg(f1),count(f1) from st2 group by f1 having avg(f1) > 2;
@@ -1837,5 +1835,8 @@ if $data04 != 1 then
 endi
 
 sql_error select top(f1,2) from tb1 group by f1 having count(f1) > 0;
+sql_error select count(*) from tb1 group by f1 having last(*) > 0;
+
+print bug for select count(*) k from tb1 group by f1 having k > 0;
 
 system sh/exec.sh -n dnode1 -s stop -x SIGINT

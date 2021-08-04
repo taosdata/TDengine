@@ -40,3 +40,5 @@ class FieldType(object):
     # Timestamp precision definition
     C_TIMESTAMP_MILLI = 0
     C_TIMESTAMP_MICRO = 1
+    C_TIMESTAMP_NANO = 2
+    C_TIMESTAMP_UNKNOWN = 3

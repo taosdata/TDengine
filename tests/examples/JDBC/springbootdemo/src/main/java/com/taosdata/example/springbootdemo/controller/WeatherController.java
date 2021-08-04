@@ -45,7 +45,7 @@ public class WeatherController {
      * @return
      */
     @PostMapping("/{temperature}/{humidity}")
-    public int saveWeather(@PathVariable float temperature, @PathVariable int humidity) {
+    public int saveWeather(@PathVariable float temperature, @PathVariable float humidity) {
         return weatherService.save(temperature, humidity);
     }
 

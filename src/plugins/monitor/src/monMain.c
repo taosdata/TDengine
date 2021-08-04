@@ -114,6 +114,7 @@ int32_t monStartSystem() {
 
 static void *monThreadFunc(void *param) {
   monDebug("starting to initialize monitor module ...");
+  setThreadName("monitor");
 
   while (1) {
     static int32_t accessTimes = 0;
@@ -184,11 +185,17 @@ static void *monThreadFunc(void *param) {
 static void monBuildMonitorSql(char *sql, int32_t cmd) {
   memset(sql, 0, SQL_LENGTH);
 
+#ifdef _STORAGE
+  char *keepValue = "30,30,30";
+#else
+  char *keepValue = "30";
+#endif
+
   if (cmd == MON_CMD_CREATE_DB) {
     snprintf(sql, SQL_LENGTH,
-             "create database if not exists %s replica 1 days 10 keep 30 cache %d "
+             "create database if not exists %s replica 1 days 10 keep %s cache %d "
              "blocks %d precision 'us'",
-             tsMonitorDbName, TSDB_MIN_CACHE_BLOCK_SIZE, TSDB_MIN_TOTAL_BLOCKS);
+             tsMonitorDbName, keepValue, TSDB_MIN_CACHE_BLOCK_SIZE, TSDB_MIN_TOTAL_BLOCKS);
   } else if (cmd == MON_CMD_CREATE_MT_DN) {
     snprintf(sql, SQL_LENGTH,
              "create table if not exists %s.dn(ts timestamp"
@@ -416,4 +423,14 @@ void monExecuteSQL(char *sql) {
 
   monDebug("execute sql:%s", sql);
   taos_query_a(tsMonitor.conn, sql, monExecSqlCb, "sql");
+}
+
+void monExecuteSQLWithResultCallback(char *sql, MonExecuteSQLCbFP callback, void* param) {
+  if (tsMonitor.conn == NULL) {
+    callback(param, NULL, TSDB_CODE_MON_CONNECTION_INVALID);
+    return;
+  }
+
+  monDebug("execute sql:%s", sql);
+  taos_query_a(tsMonitor.conn, sql, callback, param);
 }

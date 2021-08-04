@@ -7,11 +7,16 @@ taos_connect_auth
 taos_close
 taos_stmt_init
 taos_stmt_prepare
+taos_stmt_set_tbname_tags
+taos_stmt_set_tbname
+taos_stmt_is_insert
+taos_stmt_num_params
 taos_stmt_bind_param
 taos_stmt_add_batch
 taos_stmt_execute
 taos_stmt_use_result
 taos_stmt_close
+taos_stmt_errstr
 taos_query
 taos_fetch_row
 taos_result_precision
@@ -37,6 +42,4 @@ taos_consume
 taos_unsubscribe
 taos_open_stream
 taos_close_stream
-taos_fetch_block
 taos_load_table_info
-

@@ -32,7 +32,7 @@ TDengine提供了丰富的应用程序开发接口，其中包括C/C++、Java、
 
 **Linux**
 
-**1.   从涛思官网（https://www.taosdata.com/cn/all-downloads/）下载**
+**1.   从[涛思官网](https://www.taosdata.com/cn/all-downloads/)下载**
 
 * X64硬件环境：TDengine-client-2.x.x.x-Linux-x64.tar.gz
 
@@ -56,7 +56,7 @@ TDengine提供了丰富的应用程序开发接口，其中包括C/C++、Java、
 ​    *taos.tar.gz*：应用驱动安装包
 ​    *driver*：TDengine应用驱动driver
 ​    *connector*: 各种编程语言连接器（go/grafanaplugin/nodejs/python/JDBC）
-​    *examples*: 各种编程语言的示例程序(c/C#/go/JDBC/matlab/python/R)
+​    *examples*: 各种编程语言的示例程序(c/C#/go/JDBC/MATLAB/python/R)
 
 运行install_client.sh进行安装
 
@@ -68,7 +68,7 @@ TDengine提供了丰富的应用程序开发接口，其中包括C/C++、Java、
 
 **Windows x64/x86**
 
-**1.   从涛思官网（https://www.taosdata.com/cn/all-downloads/）下载 ：**
+**1.   从[涛思官网](https://www.taosdata.com/cn/all-downloads/)下载 ：**
 
 * X64硬件环境：TDengine-client-2.X.X.X-Windows-x64.exe
 
@@ -213,7 +213,7 @@ C/C++的API类似于MySQL的C API。应用程序使用时，需要包含TDengine
 
 - `int taos_result_precision(TAOS_RES *res)`
 
-  返回结果集时间戳字段的精度，`0` 代表毫秒，`1` 代表微秒，`2` 代表纳秒。
+  返回结果集时间戳字段的精度，`0` 代表毫秒，`1` 代表微秒。
 
 - `TAOS_ROW taos_fetch_row(TAOS_RES *res)`
 
@@ -259,7 +259,7 @@ typedef struct taosField {
 
   获取最近一次API调用失败的原因,返回值为字符串。
 
-- `char *taos_errno(TAOS_RES *res)`
+- `int taos_errno(TAOS_RES *res)`
 
   获取最近一次API调用失败的原因，返回值为错误代码。
 
@@ -291,9 +291,27 @@ typedef struct taosField {
 
 TDengine的异步API均采用非阻塞调用模式。应用程序可以用多线程同时打开多张表，并可以同时对每张打开的表进行查询或者插入操作。需要指出的是，**客户端应用必须确保对同一张表的操作完全串行化**，即对同一个表的插入或查询操作未完成时（未返回时），不能够执行第二个插入或查询操作。
 
-### 参数绑定API
+<a class="anchor" id="stmt"></a>
+### 参数绑定 API
 
-除了直接调用 `taos_query` 进行查询，TDengine也提供了支持参数绑定的Prepare API，与 MySQL 一样，这些API目前也仅支持用问号`?`来代表待绑定的参数，具体如下：
+除了直接调用 `taos_query` 进行查询，TDengine 也提供了支持参数绑定的 Prepare API，与 MySQL 一样，这些 API 目前也仅支持用问号 `?` 来代表待绑定的参数。
+
+从 2.1.1.0 和 2.1.2.0 版本开始，TDengine 大幅改进了参数绑定接口对数据写入（INSERT）场景的支持。这样在通过参数绑定接口写入数据时，就避免了 SQL 语法解析的资源消耗，从而在绝大多数情况下显著提升写入性能。此时的典型操作步骤如下：
+1. 调用 `taos_stmt_init` 创建参数绑定对象；
+2. 调用 `taos_stmt_prepare` 解析 INSERT 语句；
+3. 如果 INSERT 语句中预留了表名但没有预留 TAGS，那么调用 `taos_stmt_set_tbname` 来设置表名；
+4. 如果 INSERT 语句中既预留了表名又预留了 TAGS（例如 INSERT 语句采取的是自动建表的方式），那么调用 `taos_stmt_set_tbname_tags` 来设置表名和 TAGS 的值；
+5. 调用 `taos_stmt_bind_param_batch` 以多列的方式设置 VALUES 的值，或者调用 `taos_stmt_bind_param` 以单行的方式设置 VALUES 的值；
+6. 调用 `taos_stmt_add_batch` 把当前绑定的参数加入批处理；
+7. 可以重复第 3～6 步，为批处理加入更多的数据行；
+8. 调用 `taos_stmt_execute` 执行已经准备好的批处理指令；
+9. 执行完毕，调用 `taos_stmt_close` 释放所有资源。
+
+说明：如果 `taos_stmt_execute` 执行成功，假如不需要改变 SQL 语句的话，那么是可以复用 `taos_stmt_prepare` 的解析结果，直接进行第 3～6 步绑定新数据的。但如果执行出错，那么并不建议继续在当前的环境上下文下继续工作，而是建议释放资源，然后从 `taos_stmt_init` 步骤重新开始。
+
+除 C/C++ 语言外，TDengine 的 Java 语言 JNI Connector 也提供参数绑定接口支持，具体请另外参见：[参数绑定接口的 Java 用法](https://www.taosdata.com/cn/documentation/connector/java#stmt-java)。
+
+接口相关的具体函数如下（也可以参考 [apitest.c](https://github.com/taosdata/TDengine/blob/develop/tests/examples/c/apitest.c) 文件中使用对应函数的方式）：
 
 - `TAOS_STMT* taos_stmt_init(TAOS *taos)`
 
@@ -301,11 +319,12 @@ TDengine的异步API均采用非阻塞调用模式。应用程序可以用多线
 
 - `int taos_stmt_prepare(TAOS_STMT *stmt, const char *sql, unsigned long length)`
 
-  解析一条sql语句，将解析结果和参数信息绑定到stmt上，如果参数length大于0，将使用此参数作为sql语句的长度，如等于0，将自动判断sql语句的长度。
+  解析一条 SQL 语句，将解析结果和参数信息绑定到 stmt 上，如果参数 length 大于 0，将使用此参数作为 SQL 语句的长度，如等于 0，将自动判断 SQL 语句的长度。
 
 - `int taos_stmt_bind_param(TAOS_STMT *stmt, TAOS_BIND *bind)`
 
-  进行参数绑定，bind指向一个数组，需保证此数组的元素数量和顺序与sql语句中的参数完全一致。TAOS_BIND 的使用方法与 MySQL中的 MYSQL_BIND 一致，具体定义如下：
+  不如 `taos_stmt_bind_param_batch` 效率高，但可以支持非 INSERT 类型的 SQL 语句。  
+  进行参数绑定，bind 指向一个数组（代表所要绑定的一行数据），需保证此数组中的元素数量和顺序与 SQL 语句中的参数完全一致。TAOS_BIND 的使用方法与 MySQL 中的 MYSQL_BIND 一致，具体定义如下：
 
 ```c
 typedef struct TAOS_BIND {
@@ -319,9 +338,35 @@ typedef struct TAOS_BIND {
 } TAOS_BIND;
 ```
 
+- `int taos_stmt_set_tbname(TAOS_STMT* stmt, const char* name)`
+
+  （2.1.1.0 版本新增，仅支持用于替换 INSERT 语句中的参数值）  
+  当 SQL 语句中的表名使用了 `?` 占位时，可以使用此函数绑定一个具体的表名。
+
+- `int taos_stmt_set_tbname_tags(TAOS_STMT* stmt, const char* name, TAOS_BIND* tags)`
+
+  （2.1.2.0 版本新增，仅支持用于替换 INSERT 语句中的参数值）  
+  当 SQL 语句中的表名和 TAGS 都使用了 `?` 占位时，可以使用此函数绑定具体的表名和具体的 TAGS 取值。最典型的使用场景是使用了自动建表功能的 INSERT 语句（目前版本不支持指定具体的 TAGS 列）。tags 参数中的列数量需要与 SQL 语句中要求的 TAGS 数量完全一致。
+
+- `int taos_stmt_bind_param_batch(TAOS_STMT* stmt, TAOS_MULTI_BIND* bind)`
+
+  （2.1.1.0 版本新增，仅支持用于替换 INSERT 语句中的参数值）  
+  以多列的方式传递待绑定的数据，需要保证这里传递的数据列的顺序、列的数量与 SQL 语句中的 VALUES 参数完全一致。TAOS_MULTI_BIND 的具体定义如下：
+
+```c
+typedef struct TAOS_MULTI_BIND {
+  int          buffer_type;
+  void *       buffer;
+  uintptr_t    buffer_length;
+  int32_t *    length;
+  char *       is_null;
+  int          num;             // 列的个数，即 buffer 中的参数个数
+} TAOS_MULTI_BIND;
+```
+
 - `int taos_stmt_add_batch(TAOS_STMT *stmt)`
 
-  将当前绑定的参数加入批处理中，调用此函数后，可以再次调用`taos_stmt_bind_param`绑定新的参数。需要注意，此函数仅支持 insert/import 语句，如果是select等其他SQL语句，将返回错误。
+  将当前绑定的参数加入批处理中，调用此函数后，可以再次调用 `taos_stmt_bind_param` 或 `taos_stmt_bind_param_batch` 绑定新的参数。需要注意，此函数仅支持 INSERT/IMPORT 语句，如果是 SELECT 等其他 SQL 语句，将返回错误。
 
 - `int taos_stmt_execute(TAOS_STMT *stmt)`
 
@@ -329,11 +374,16 @@ typedef struct TAOS_BIND {
 
 - `TAOS_RES* taos_stmt_use_result(TAOS_STMT *stmt)`
 
-  获取语句的结果集。结果集的使用方式与非参数化调用时一致，使用完成后，应对此结果集调用 `taos_free_result`以释放资源。
+  获取语句的结果集。结果集的使用方式与非参数化调用时一致，使用完成后，应对此结果集调用 `taos_free_result` 以释放资源。
 
 - `int taos_stmt_close(TAOS_STMT *stmt)`
 
   执行完毕，释放所有资源。
+
+- `char * taos_stmt_errstr(TAOS_STMT *stmt)`
+
+  （2.1.3.0 版本新增）  
+  用于在其他 stmt API 返回错误（返回错误码或空指针）时获取错误信息。
 
 ### 连续查询接口
 
@@ -345,11 +395,11 @@ TDengine提供时间驱动的实时流式计算API。可以每隔一指定的时
     * taos：已经建立好的数据库连接
     * sql：SQL查询语句（仅能使用查询语句）
     * fp：用户定义的回调函数指针，每次流式计算完成后，TDengine将查询的结果（TAOS_ROW）、查询状态（TAOS_RES）、用户定义参数（PARAM）传递给回调函数，在回调函数内，用户可以使用taos_num_fields获取结果集列数，taos_fetch_fields获取结果集每列数据的类型。
-    * stime：是流式计算开始的时间，如果是0，表示从现在开始，如果不为零，表示从指定的时间开始计算（UTC时间从1970/1/1算起的毫秒数）
+    * stime：是流式计算开始的时间。如果是“64位整数最小值”，表示从现在开始；如果不为“64位整数最小值”，表示从指定的时间开始计算（UTC时间从1970/1/1算起的毫秒数）。
     * param：是应用提供的用于回调的一个参数，回调时，提供给应用
     * callback: 第二个回调函数，会在连续查询自动停止时被调用。
 
-  返回值为NULL，表示创建成功，返回值不为空，表示成功。
+  返回值为NULL，表示创建失败；返回值不为空，表示成功。
 
 - `void taos_close_stream (TAOS_STREAM *tstr)`
 
@@ -377,10 +427,14 @@ TDengine提供时间驱动的实时流式计算API。可以每隔一指定的时
     * res：查询结果集，注意结果集中可能没有记录
     * param：调用 `taos_subscribe`时客户程序提供的附加参数
     * code：错误码
+  
+  **注意**：在这个回调函数里不可以做耗时过长的处理，尤其是对于返回的结果集中数据较多的情况，否则有可能导致客户端阻塞等异常状态。如果必须进行复杂计算，则建议在另外的线程中进行处理。
 
 * `TAOS_RES *taos_consume(TAOS_SUB *tsub)`
 
   同步模式下，该函数用来获取订阅的结果。 用户应用程序将其置于一个循环之中。 如两次调用`taos_consume`的间隔小于订阅的轮询周期，API将会阻塞，直到时间间隔超过此周期。 如果数据库有新记录到达，该API将返回该最新的记录，否则返回一个没有记录的空结果集。 如果返回值为 `NULL`，说明系统出错。 异步模式下，用户程序不应调用此API。
+
+  **注意**：在调用 `taos_consume()` 之后，用户应用应确保尽快调用 `taos_fetch_row()` 或 `taos_fetch_block()` 来处理订阅结果，否则服务端会持续缓存查询结果数据等待客户端读取，极端情况下会导致服务端内存消耗殆尽，影响服务稳定性。
 
 * `void taos_unsubscribe(TAOS_SUB *tsub, int keepProgress)`
 
@@ -503,6 +557,13 @@ c1.close()
 conn.close()
 ```
 
+#### 关于纳秒 (nanosecond) 在 Python 连接器中的说明
+
+由于目前 Python 对 nanosecond 支持的不完善(参见链接 1. 2. )，目前的实现方式是在 nanosecond 精度时返回整数，而不是 ms 和 us 返回的 datetime 类型，应用开发者需要自行处理，建议使用 pandas 的 to_datetime()。未来如果 Python 正式完整支持了纳秒，涛思数据可能会修改相关接口。
+
+1. https://stackoverflow.com/questions/10611328/parsing-datetime-strings-containing-nanoseconds
+2. https://www.python.org/dev/peps/pep-0564/
+
 #### 帮助信息
 
 用户可通过python的帮助信息直接查看模块的使用信息，或者参考tests/examples/python中的示例程序。以下为部分常用类和方法：
@@ -515,7 +576,7 @@ conn.close()
 - _TDengineCursor_ 类
 
   参考python中help(taos.TDengineCursor)。
-  这个类对应客户端进行的写入、查询操作。在客户端多线程的场景下，这个游标实例必须保持线程独享，不能夸线程共享使用，否则会导致返回结果出现错误。
+  这个类对应客户端进行的写入、查询操作。在客户端多线程的场景下，这个游标实例必须保持线程独享，不能跨线程共享使用，否则会导致返回结果出现错误。
 
 - _connect_ 方法
 
@@ -534,7 +595,9 @@ conn.close()
 
 ## <a class="anchor" id="restful"></a>RESTful Connector
 
-为支持各种不同类型平台的开发，TDengine提供符合REST设计标准的API，即RESTful API。为最大程度降低学习成本，不同于其他数据库RESTful API的设计方法，TDengine直接通过HTTP POST 请求BODY中包含的SQL语句来操作数据库，仅需要一个URL。RESTful连接器的使用参见[视频教程](https://www.taosdata.com/blog/2020/11/11/1965.html)。
+为支持各种不同类型平台的开发，TDengine 提供符合 REST 设计标准的 API，即 RESTful API。为最大程度降低学习成本，不同于其他数据库 RESTful API 的设计方法，TDengine 直接通过 HTTP POST 请求 BODY 中包含的 SQL 语句来操作数据库，仅需要一个 URL。RESTful 连接器的使用参见[视频教程](https://www.taosdata.com/blog/2020/11/11/1965.html)。
+
+注意：与标准连接器的一个区别是，RESTful 接口是无状态的，因此 `USE db_name` 指令没有效果，所有对表名、超级表名的引用都需要指定数据库名前缀。
 
 ### HTTP请求格式 
 
@@ -738,7 +801,7 @@ HTTP请求URL采用`sqlutc`时，返回结果集的时间戳将采用UTC时间�
 
 下面仅列出一些与RESTful接口有关的配置参数，其他系统参数请看配置文件里的说明。注意：配置修改后，需要重启taosd服务才能生效
 
-- httpPort: 对外提供RESTful服务的端口号，默认绑定到6041
+- 对外提供RESTful服务的端口号，默认绑定到 6041（实际取值是 serverPort + 11，因此可以通过修改 serverPort 参数的设置来修改）
 - httpMaxThreads: 启动的线程数量，默认为2（2.0.17版本开始，默认值改为CPU核数的一半向下取整）
 - restfulRowLimit: 返回结果集（JSON格式）的最大条数，默认值为10240
 - httpEnableCompress: 是否支持压缩，默认不支持，目前TDengine仅支持gzip压缩格式
@@ -752,7 +815,7 @@ C#连接器支持的系统有：Linux 64/Windows x64/Windows x86
 
 * 应用驱动安装请参考[安装连接器驱动步骤](https://www.taosdata.com/cn/documentation/connector#driver)。
 * .NET接口文件﻿TDengineDrivercs.cs和参考程序示例TDengineTest.cs均位于Windows客户端install_directory/examples/C#目录下。
-* 在Windows系统上，C#应用程序可以使用TDengine的原生C接口来执行所有数据库操作，后续版本将提供ORM（dapper）框架驱动。
+* 在Windows系统上，C#应用程序可以使用TDengine的原生C接口来执行所有数据库操作，后续版本将提供ORM（Dapper）框架驱动。
 
 ### 安装验证
 
@@ -844,11 +907,15 @@ go env -w GOPROXY=https://goproxy.io,direct
 
   sql.Open内置的方法，Close closes the statement.	
 
+### 其他代码示例
+
+[Consume Messages from Kafka](https://github.com/taosdata/go-demo-kafka) 是一个通过 Go 语言实现消费 Kafka 队列写入 TDengine 的示例程序，也可以作为通过 Go 连接 TDengine 的写法参考。
+
 ## <a class="anchor" id="nodejs"></a>Node.js Connector
 
 Node.js连接器支持的系统有：
 
-| **CPU类型**  | x64（64bit） |          |          | aarch64  | aarch32  |
+|**CPU类型**  | x64（64bit） |          |          | aarch64  | aarch32  |
 | ------------ | ------------ | -------- | -------- | -------- | -------- |
 | **OS类型**   | Linux        | Win64    | Win32    | Linux    | Linux    |
 | **支持与否** | **支持**     | **支持** | **支持** | **支持** | **支持** |

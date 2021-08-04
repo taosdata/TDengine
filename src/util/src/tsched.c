@@ -108,39 +108,51 @@ void *taosInitScheduler(int queueSize, int numOfThreads, const char *label) {
 
 void *taosInitSchedulerWithInfo(int queueSize, int numOfThreads, const char *label, void *tmrCtrl) {
   SSchedQueue* pSched = taosInitScheduler(queueSize, numOfThreads, label);
-  
+
   if (tmrCtrl != NULL && pSched != NULL) {
     pSched->pTmrCtrl = tmrCtrl;
     taosTmrReset(taosDumpSchedulerStatus, DUMP_SCHEDULER_TIME_WINDOW, pSched, pSched->pTmrCtrl, &pSched->pTimer);
   }
-  
+
   return pSched;
 }
 
-void *taosProcessSchedQueue(void *param) {
+void *taosProcessSchedQueue(void *scheduler) {
   SSchedMsg    msg;
-  SSchedQueue *pSched = (SSchedQueue *)param;
+  SSchedQueue *pSched = (SSchedQueue *)scheduler;
+  int ret = 0;
+
+  char name[16] = {0};
+  snprintf(name, tListLen(name), "%s-taskQ", pSched->label);
+  setThreadName(name);
 
   while (1) {
-    if (tsem_wait(&pSched->fullSem) != 0) {
-      uError("wait %s fullSem failed(%s)", pSched->label, strerror(errno));
+    if ((ret = tsem_wait(&pSched->fullSem)) != 0) {
+      uFatal("wait %s fullSem failed(%s)", pSched->label, strerror(errno));
+      exit(ret);
     }
     if (pSched->stop) {
       break;
     }
 
-    if (pthread_mutex_lock(&pSched->queueMutex) != 0)
-      uError("lock %s queueMutex failed(%s)", pSched->label, strerror(errno));
+    if ((ret = pthread_mutex_lock(&pSched->queueMutex)) != 0) {
+      uFatal("lock %s queueMutex failed(%s)", pSched->label, strerror(errno));
+      exit(ret);
+    }
 
     msg = pSched->queue[pSched->fullSlot];
     memset(pSched->queue + pSched->fullSlot, 0, sizeof(SSchedMsg));
     pSched->fullSlot = (pSched->fullSlot + 1) % pSched->queueSize;
 
-    if (pthread_mutex_unlock(&pSched->queueMutex) != 0)
-      uError("unlock %s queueMutex failed(%s)", pSched->label, strerror(errno));
+    if ((ret = pthread_mutex_unlock(&pSched->queueMutex)) != 0) {
+      uFatal("unlock %s queueMutex failed(%s)", pSched->label, strerror(errno));
+      exit(ret);
+    }
 
-    if (tsem_post(&pSched->emptySem) != 0)
-      uError("post %s emptySem failed(%s)", pSched->label, strerror(errno));
+    if ((ret = tsem_post(&pSched->emptySem)) != 0) {
+      uFatal("post %s emptySem failed(%s)", pSched->label, strerror(errno));
+      exit(ret);
+    }
 
     if (msg.fp)
       (*(msg.fp))(&msg);
@@ -151,30 +163,37 @@ void *taosProcessSchedQueue(void *param) {
   return NULL;
 }
 
-int taosScheduleTask(void *qhandle, SSchedMsg *pMsg) {
-  SSchedQueue *pSched = (SSchedQueue *)qhandle;
+void taosScheduleTask(void *queueScheduler, SSchedMsg *pMsg) {
+  SSchedQueue *pSched = (SSchedQueue *)queueScheduler;
+  int ret = 0;
+
   if (pSched == NULL) {
     uError("sched is not ready, msg:%p is dropped", pMsg);
-    return 0;
+    return;
   }
 
-  if (tsem_wait(&pSched->emptySem) != 0) {
-    uError("wait %s emptySem failed(%s)", pSched->label, strerror(errno));
+  if ((ret = tsem_wait(&pSched->emptySem)) != 0) {
+    uFatal("wait %s emptySem failed(%s)", pSched->label, strerror(errno));
+    exit(ret);
   }
 
-  if (pthread_mutex_lock(&pSched->queueMutex) != 0)
-    uError("lock %s queueMutex failed(%s)", pSched->label, strerror(errno));
+  if ((ret = pthread_mutex_lock(&pSched->queueMutex)) != 0) {
+    uFatal("lock %s queueMutex failed(%s)", pSched->label, strerror(errno));
+    exit(ret);
+  }
 
   pSched->queue[pSched->emptySlot] = *pMsg;
   pSched->emptySlot = (pSched->emptySlot + 1) % pSched->queueSize;
 
-  if (pthread_mutex_unlock(&pSched->queueMutex) != 0)
-    uError("unlock %s queueMutex failed(%s)", pSched->label, strerror(errno));
+  if ((ret = pthread_mutex_unlock(&pSched->queueMutex)) != 0) {
+    uFatal("unlock %s queueMutex failed(%s)", pSched->label, strerror(errno));
+    exit(ret);
+  }
 
-  if (tsem_post(&pSched->fullSem) != 0) 
-    uError("post %s fullSem failed(%s)", pSched->label, strerror(errno));
-
-  return 0;
+  if ((ret = tsem_post(&pSched->fullSem)) != 0) {
+    uFatal("post %s fullSem failed(%s)", pSched->label, strerror(errno));
+    exit(ret);
+  }
 }
 
 void taosCleanUpScheduler(void *param) {

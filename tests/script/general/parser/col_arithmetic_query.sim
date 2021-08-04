@@ -193,7 +193,7 @@ if $data02 != 0.000000000 then
   return -1
 endi
 
-if $data03 != 0.000000000 then
+if $data03 != NULL then
   return -1
 endi
 
@@ -414,6 +414,7 @@ if $rows != 1 then
 endi
 
 if $data00 != 0.204545455 then
+  print expect 0.204545455, actual: $data00
   return -1
 endi
 
@@ -443,7 +444,7 @@ if $data02 != 8.077777778 then
   return -1
 endi
 
-if $data03 != inf then
+if $data03 != NULL then
   return -1
 endi
 

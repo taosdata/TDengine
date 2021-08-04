@@ -193,3 +193,7 @@ endi
 if $data04 != 1 then
   return -1
 endi
+
+print ===============>safty check TD-4927
+sql select first(ts, c1) from sr_stb where ts<1 group by t1;
+sql select first(ts, c1) from sr_stb where ts>0 and ts<1;

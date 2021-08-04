@@ -13,8 +13,10 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <texpr.h>
 #include "os.h"
 
+#include "texpr.h"
 #include "exception.h"
 #include "taosdef.h"
 #include "taosmsg.h"
@@ -145,25 +147,25 @@ static void doExprTreeDestroy(tExprNode **pExpr, void (*fp)(void *)) {
   *pExpr = NULL;
 }
 
-bool exprTreeApplayFilter(tExprNode *pExpr, const void *pItem, SExprTraverseSupp *param) {
+bool exprTreeApplyFilter(tExprNode *pExpr, const void *pItem, SExprTraverseSupp *param) {
   tExprNode *pLeft  = pExpr->_node.pLeft;
   tExprNode *pRight = pExpr->_node.pRight;
 
   //non-leaf nodes, recursively traverse the expression tree in the post-root order
   if (pLeft->nodeType == TSQL_NODE_EXPR && pRight->nodeType == TSQL_NODE_EXPR) {
     if (pExpr->_node.optr == TSDB_RELATION_OR) {  // or
-      if (exprTreeApplayFilter(pLeft, pItem, param)) {
+      if (exprTreeApplyFilter(pLeft, pItem, param)) {
         return true;
       }
 
       // left child does not satisfy the query condition, try right child
-      return exprTreeApplayFilter(pRight, pItem, param);
+      return exprTreeApplyFilter(pRight, pItem, param);
     } else {  // and
-      if (!exprTreeApplayFilter(pLeft, pItem, param)) {
+      if (!exprTreeApplyFilter(pLeft, pItem, param)) {
         return false;
       }
 
-      return exprTreeApplayFilter(pRight, pItem, param);
+      return exprTreeApplyFilter(pRight, pItem, param);
     }
   }
 
@@ -463,3 +465,66 @@ tExprNode* exprTreeFromTableName(const char* tbnameCond) {
   CLEANUP_EXECUTE_TO(anchor, false);
   return expr;
 }
+
+void buildFilterSetFromBinary(void **q, const char *buf, int32_t len) {
+  SBufferReader br = tbufInitReader(buf, len, false); 
+  uint32_t type  = tbufReadUint32(&br);     
+  SHashObj *pObj = taosHashInit(256, taosGetDefaultHashFunction(type), true, false);
+  
+  taosHashSetEqualFp(pObj, taosGetDefaultEqualFunction(type)); 
+  
+  int dummy = -1;
+  int32_t sz = tbufReadInt32(&br);
+  for (int32_t i = 0; i < sz; i++) {
+    if (type == TSDB_DATA_TYPE_BOOL || IS_SIGNED_NUMERIC_TYPE(type)) {
+      int64_t val = tbufReadInt64(&br); 
+      taosHashPut(pObj, (char *)&val, sizeof(val),  &dummy, sizeof(dummy));
+    } else if (IS_UNSIGNED_NUMERIC_TYPE(type)) {
+      uint64_t val = tbufReadUint64(&br); 
+      taosHashPut(pObj, (char *)&val, sizeof(val),  &dummy, sizeof(dummy));
+    }
+    else if (type == TSDB_DATA_TYPE_TIMESTAMP) {
+      int64_t val = tbufReadInt64(&br); 
+      taosHashPut(pObj, (char *)&val, sizeof(val),  &dummy, sizeof(dummy));
+    } else if (type == TSDB_DATA_TYPE_DOUBLE || type == TSDB_DATA_TYPE_FLOAT) {
+      double  val = tbufReadDouble(&br);
+      taosHashPut(pObj, (char *)&val, sizeof(val), &dummy, sizeof(dummy));
+    } else if (type == TSDB_DATA_TYPE_BINARY) {
+      size_t  t = 0;
+      const char *val = tbufReadBinary(&br, &t);
+      taosHashPut(pObj, (char *)val, t, &dummy, sizeof(dummy));
+    } else if (type == TSDB_DATA_TYPE_NCHAR) {
+      size_t  t = 0;
+      const char *val = tbufReadBinary(&br, &t);      
+      taosHashPut(pObj, (char *)val, t, &dummy, sizeof(dummy));
+    }
+  } 
+  *q = (void *)pObj;
+}
+
+tExprNode* exprdup(tExprNode* pNode) {
+  if (pNode == NULL) {
+    return NULL;
+  }
+
+  tExprNode* pCloned = calloc(1, sizeof(tExprNode));
+  if (pNode->nodeType == TSQL_NODE_EXPR) {
+    tExprNode* pLeft  = exprdup(pNode->_node.pLeft);
+    tExprNode* pRight = exprdup(pNode->_node.pRight);
+
+    pCloned->_node.pLeft  = pLeft;
+    pCloned->_node.pRight = pRight;
+    pCloned->_node.optr  = pNode->_node.optr;
+    pCloned->_node.hasPK = pNode->_node.hasPK;
+  } else if (pNode->nodeType == TSQL_NODE_VALUE) {
+    pCloned->pVal = calloc(1, sizeof(tVariant));
+    tVariantAssign(pCloned->pVal, pNode->pVal);
+  } else if (pNode->nodeType == TSQL_NODE_COL) {
+    pCloned->pSchema = calloc(1, sizeof(SSchema));
+    *pCloned->pSchema = *pNode->pSchema;
+  }
+
+  pCloned->nodeType = pNode->nodeType;
+  return pCloned;
+}
+

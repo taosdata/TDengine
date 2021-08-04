@@ -98,7 +98,7 @@ int32_t tfFsync(int64_t tfd) {
   if (p == NULL) return -1;
 
   int32_t fd = (int32_t)(uintptr_t)p;
-  int32_t code = fsync(fd);
+  int32_t code = taosFsync(fd);
 
   taosReleaseRef(tsFileRsetId, tfd);
   return code;
