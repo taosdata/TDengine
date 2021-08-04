@@ -65,7 +65,14 @@ int32_t mnodeProcessWrite(SMnodeMsg *pMsg) {
     return TSDB_CODE_MND_MSG_NOT_PROCESSED;
   }
 
-  int32_t code = mnodeInitMsg(pMsg);
+  int32_t code = grantCheck(TSDB_GRANT_TIME);
+  if (code != TSDB_CODE_SUCCESS) {
+    mError("msg:%p, app:%p type:%s not processed, reason:%s", pMsg, pMsg->rpcMsg.ahandle, taosMsg[pMsg->rpcMsg.msgType],
+           tstrerror(code));
+    return code;
+  }
+
+  code = mnodeInitMsg(pMsg);
   if (code != TSDB_CODE_SUCCESS) {
     mError("msg:%p, app:%p type:%s not processed, reason:%s", pMsg, pMsg->rpcMsg.ahandle, taosMsg[pMsg->rpcMsg.msgType],
            tstrerror(code));
