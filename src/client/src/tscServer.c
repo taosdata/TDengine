@@ -2840,43 +2840,22 @@ int32_t getMultiTableMetaFromMnode(SSqlObj *pSql, SArray* pNameList, SArray* pVg
 int32_t tscGetTableMetaImpl(SSqlObj* pSql, STableMetaInfo *pTableMetaInfo, bool autocreate, bool onlyLocal) {
   assert(tIsValidName(&pTableMetaInfo->name));
 
-  uint32_t size = tscGetTableMetaMaxSize();
-  if (pTableMetaInfo->pTableMeta == NULL) {
-    pTableMetaInfo->pTableMeta    = calloc(1, size);
-    pTableMetaInfo->tableMetaSize = size;
-  } else if (pTableMetaInfo->tableMetaSize < size) {
-    char *tmp = realloc(pTableMetaInfo->pTableMeta, size);
-    if (tmp == NULL) {
-      return TSDB_CODE_TSC_OUT_OF_MEMORY;
-    }
-    pTableMetaInfo->pTableMeta = (STableMeta *)tmp;
-  }
-
-  memset(pTableMetaInfo->pTableMeta, 0, size);
-  pTableMetaInfo->tableMetaSize = size;
-
-  pTableMetaInfo->pTableMeta->tableType = -1;
-  pTableMetaInfo->pTableMeta->tableInfo.numOfColumns  = -1;
-
   char name[TSDB_TABLE_FNAME_LEN] = {0};
   tNameExtractFullName(&pTableMetaInfo->name, name);
 
   size_t len = strlen(name);
-  taosHashGetClone(tscTableMetaMap, name, len, NULL, pTableMetaInfo->pTableMeta);
-
-  // TODO resize the tableMeta
-  assert(size < 80 * TSDB_MAX_COLUMNS);
-  if (!pSql->pBuf) {
-    if (NULL == (pSql->pBuf = tcalloc(1, 80 * TSDB_MAX_COLUMNS))) {
-      return TSDB_CODE_TSC_OUT_OF_MEMORY;
-    }
-  }
+  if (pTableMetaInfo->tableMetaCapacity != 0) {
+    if (pTableMetaInfo->pTableMeta != NULL) {
+      memset(pTableMetaInfo->pTableMeta, 0, pTableMetaInfo->tableMetaCapacity);
+    } 
+  } 
+  taosHashGetCloneExt(tscTableMetaMap, name, len, NULL, (void **)&(pTableMetaInfo->pTableMeta), &pTableMetaInfo->tableMetaCapacity);
 
   STableMeta* pMeta = pTableMetaInfo->pTableMeta;
-  if (pMeta->id.uid > 0) {
+  if (pMeta && pMeta->id.uid > 0) {
     // in case of child table, here only get the
     if (pMeta->tableType == TSDB_CHILD_TABLE) {
-      int32_t code = tscCreateTableMetaFromSTableMeta(pTableMetaInfo->pTableMeta, name, pSql->pBuf);
+      int32_t code = tscCreateTableMetaFromSTableMeta(&pTableMetaInfo->pTableMeta, name, &pTableMetaInfo->tableMetaCapacity);
       if (code != TSDB_CODE_SUCCESS) {
         return getTableMetaFromMnode(pSql, pTableMetaInfo, autocreate);
       }

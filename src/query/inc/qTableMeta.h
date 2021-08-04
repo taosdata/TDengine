@@ -71,7 +71,8 @@ typedef struct STableMeta {
 
 typedef struct STableMetaInfo {
   STableMeta    *pTableMeta;      // table meta, cached in client side and acquired by name
-  uint32_t       tableMetaSize;
+  uint32_t      tableMetaSize;
+  size_t        tableMetaCapacity; 
   SVgroupsInfo  *vgroupList;
   SArray        *pVgroupTables;   // SArray<SVgroupTableInfo>
 
