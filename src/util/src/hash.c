@@ -18,7 +18,7 @@
 #include "tulog.h"
 #include "taosdef.h"
 
-#define EXT_SIZE 1024 
+#define EXT_SIZE 0 
 
 #define HASH_NEED_RESIZE(_h) ((_h)->size >= (_h)->capacity * HASH_DEFAULT_LOAD_FACTOR)
 

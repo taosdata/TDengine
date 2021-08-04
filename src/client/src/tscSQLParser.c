@@ -8122,19 +8122,13 @@ int32_t loadAllTableMeta(SSqlObj* pSql, struct SSqlInfo* pInfo) {
 
   char     name[TSDB_TABLE_FNAME_LEN] = {0};
 
-  //if (!pSql->pBuf) {
-  //  if (NULL == (pSql->pBuf = tcalloc(1, 80 * TSDB_MAX_COLUMNS))) {
-  //    code = TSDB_CODE_TSC_OUT_OF_MEMORY;
-  //    goto _end;
-  //  }
-  //}
-
   plist = taosArrayInit(4, POINTER_BYTES);
   pVgroupList = taosArrayInit(4, POINTER_BYTES);
 
   taosArraySort(tableNameList, tnameComparFn);
   taosArrayRemoveDuplicate(tableNameList, tnameComparFn, NULL);
 
+  STableMeta* pSTMeta = (STableMeta *)(pSql->pBuf);
   size_t numOfTables = taosArrayGetSize(tableNameList);
   for (int32_t i = 0; i < numOfTables; ++i) {
     SName* pname = taosArrayGet(tableNameList, i);
@@ -8150,7 +8144,7 @@ int32_t loadAllTableMeta(SSqlObj* pSql, struct SSqlInfo* pInfo) {
       // avoid mem leak, may should update pTableMeta
       void* pVgroupIdList = NULL;
       if (pTableMeta->tableType == TSDB_CHILD_TABLE) {
-        code = tscCreateTableMetaFromSTableMeta((STableMeta **)(&pTableMeta), name, &tableMetaCapacity);
+        code = tscCreateTableMetaFromSTableMeta((STableMeta **)(&pTableMeta), name, &tableMetaCapacity, (STableMeta **)(&pSTMeta));
 
         // create the child table meta from super table failed, try load it from mnode
         if (code != TSDB_CODE_SUCCESS) {
