@@ -41,6 +41,7 @@ def pre_test(){
     sh '''
     killall -9 taosd ||echo "no taosd running"
     killall -9 gdb || echo "no gdb running"
+    killall -9 python3.8 || echo "no python program running"
     cd ${WKC}
     git reset --hard HEAD~10 >/dev/null
     '''
@@ -223,24 +224,27 @@ pipeline {
           steps {
             pre_test()
             catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
-                sh '''
-                cd ${WKC}/tests/pytest
-                ./crash_gen.sh -a -p -t 4 -s 2000
-                '''
+                timeout(time: 60, unit: 'MINUTES'){
+                  sh '''
+                  cd ${WKC}/tests/pytest
+                  ./crash_gen.sh -a -p -t 4 -s 2000
+                  '''
+                }
             }
-
-            sh '''
-            cd ${WKC}/tests/pytest
-            rm -rf /var/lib/taos/*
-            rm -rf /var/log/taos/*
-            ./handle_crash_gen_val_log.sh
-            '''
-            sh '''
-            cd ${WKC}/tests/pytest
-            rm -rf /var/lib/taos/*
-            rm -rf /var/log/taos/*
-            ./handle_taosd_val_log.sh
-            '''
+            timeout(time: 60, unit: 'MINUTES'){
+              sh '''
+              cd ${WKC}/tests/pytest
+              rm -rf /var/lib/taos/*
+              rm -rf /var/log/taos/*
+              ./handle_crash_gen_val_log.sh
+              '''
+              sh '''
+              cd ${WKC}/tests/pytest
+              rm -rf /var/lib/taos/*
+              rm -rf /var/log/taos/*
+              ./handle_taosd_val_log.sh
+              '''
+            }
             timeout(time: 45, unit: 'MINUTES'){
                 sh '''
                 date
