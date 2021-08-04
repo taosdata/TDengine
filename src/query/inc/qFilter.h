@@ -31,6 +31,7 @@ extern "C" {
 #define FILTER_DEFAULT_GROUP_UNIT_SIZE 2
 
 #define FILTER_DUMMY_EMPTY_OPTR  127
+#define FILTER_DUMMY_RANGE_OPTR  126
 
 #define MAX_NUM_STR_SIZE 40
 
@@ -96,6 +97,8 @@ typedef struct SFilterColRange {
 } SFilterColRange;
 
 typedef bool (*rangeCompFunc) (const void *, const void *, const void *, const void *, __compar_fn_t);
+typedef int32_t(*filter_desc_compare_func)(const void *, const void *);
+typedef bool(*filter_exec_func)(void *, int32_t, int8_t*);
 
 typedef struct SFilterRangeCompare {
   int64_t s;
@@ -178,16 +181,28 @@ typedef struct SFilterColCtx {
 } SFilterColCtx;
 
 typedef struct SFilterCompare {
-  __compar_fn_t pCompareFunc;
   int32_t       type;
   uint8_t       optr;
+  uint8_t       optr2;
 } SFilterCompare;
 
 typedef struct SFilterUnit {
   SFilterCompare  compare;
   SFilterFieldId  left;
   SFilterFieldId  right;
+  SFilterFieldId  right2;
 } SFilterUnit;
+
+typedef struct SFilterComUnit {
+  __compar_fn_t func;
+  rangeCompFunc rfunc;
+  void *colData;
+  void *valData;
+  void *valData2;
+  int32_t dataType;
+  uint16_t dataSize;
+  uint16_t optr;
+} SFilterComUnit;
 
 typedef struct SFilterPCtx {
   SHashObj *valHash;
@@ -195,19 +210,23 @@ typedef struct SFilterPCtx {
 } SFilterPCtx;
 
 typedef struct SFilterInfo {
-  uint32_t      options;
-  uint32_t      status;  
-  uint16_t      unitSize;
-  uint16_t      unitNum;
-  uint16_t      groupNum;
-  uint16_t      colRangeNum;
-  SFilterFields fields[FLD_TYPE_MAX];
-  SFilterGroup *groups;
-  SFilterUnit  *units;
-  uint8_t      *unitRes;    // result
-  uint8_t      *unitFlags;  // got result
+  uint32_t          options;
+  uint32_t          status;  
+  uint16_t          unitSize;
+  uint16_t          unitNum;
+  uint16_t          groupNum;
+  uint16_t          colRangeNum;
+  SFilterFields     fields[FLD_TYPE_MAX];
+  SFilterGroup     *groups;
+  uint16_t         *cgroups;
+  SFilterUnit      *units;
+  SFilterComUnit   *cunits;
+  uint8_t          *unitRes;    // result
+  uint8_t          *unitFlags;  // got result
   SFilterRangeCtx **colRange;
-  SFilterPCtx   pctx;
+  filter_exec_func  func;
+  
+  SFilterPCtx       pctx;
 } SFilterInfo;
 
 #define COL_FIELD_SIZE (sizeof(SFilterField) + 2 * sizeof(int64_t))
@@ -264,9 +283,11 @@ typedef struct SFilterInfo {
 #define FILTER_UNIT_DATA_TYPE(u) ((u)->compare.type)
 #define FILTER_UNIT_COL_DESC(i, u) FILTER_GET_COL_FIELD_DESC(FILTER_UNIT_LEFT_FIELD(i, u))
 #define FILTER_UNIT_COL_DATA(i, u, ri) FILTER_GET_COL_FIELD_DATA(FILTER_UNIT_LEFT_FIELD(i, u), ri)
+#define FILTER_UNIT_COL_SIZE(i, u) FILTER_GET_COL_FIELD_SIZE(FILTER_UNIT_LEFT_FIELD(i, u))
 #define FILTER_UNIT_VAL_DATA(i, u) FILTER_GET_VAL_FIELD_DATA(FILTER_UNIT_RIGHT_FIELD(i, u))
 #define FILTER_UNIT_COL_IDX(u) ((u)->left.idx)
 #define FILTER_UNIT_OPTR(u) ((u)->compare.optr)
+#define FILTER_UNIT_COMP_FUNC(u) ((u)->compare.func)
 
 #define FILTER_UNIT_CLR_F(i) memset((i)->unitFlags, 0, (i)->unitNum * sizeof(*info->unitFlags)) 
 #define FILTER_UNIT_SET_F(i, idx) (i)->unitFlags[idx] = 1
@@ -282,7 +303,9 @@ typedef struct SFilterInfo {
 
 #define FILTER_ADD_CTX_TO_GRES(gres, idx, ctx) do { if ((gres)->colCtxs == NULL) { (gres)->colCtxs = taosArrayInit(gres->colNum, sizeof(SFilterColCtx)); } SFilterColCtx cCtx = {idx, ctx}; taosArrayPush((gres)->colCtxs, &cCtx); } while (0) 
 
-typedef int32_t(*filter_desc_compare_func)(const void *, const void *);
+
+#define FILTER_ALL_RES(i) FILTER_GET_FLAG((i)->status, FI_STATUS_ALL)
+#define FILTER_EMPTY_RES(i) FILTER_GET_FLAG((i)->status, FI_STATUS_EMPTY)
 
 
 extern int32_t filterInitFromTree(tExprNode* tree, SFilterInfo **pinfo, uint32_t options);
