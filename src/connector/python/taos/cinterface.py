@@ -820,7 +820,7 @@ def taos_insert_lines(connection, lines):
     p_lines = lines_type(*lines)
     errno = _libtaos.taos_insert_lines(connection, p_lines, num_of_lines)
     if errno != 0:
-        raise LinesError(taos_errstr(), errno)
+        raise LinesError("insert lines error", errno)
 
 
 class CTaosInterface(object):
