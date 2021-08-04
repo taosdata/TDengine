@@ -379,6 +379,7 @@ python3 test.py -f alter/alter_cacheLastRow.py
 python3 ./test.py -f query/querySession.py 
 python3 test.py -f  alter/alter_create_exception.py
 python3 ./test.py -f insert/flushwhiledrop.py
+python3 ./test.py -f insert/schemalessInsert.py
 
 #======================p4-end===============
 python3 test.py -f  tools/taosdemoAllTest/pytest.py
