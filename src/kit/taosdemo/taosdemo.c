@@ -5093,7 +5093,9 @@ static int getRowDataFromSample(
 
 static int64_t generateStbRowData(
         SSuperTable* stbInfo,
-        char* recBuf, int64_t timestamp)
+        char* recBuf,
+        int64_t remainderBufLen,
+        int64_t timestamp)
 {
     int64_t   dataLen = 0;
     char  *pstr = recBuf;
@@ -5121,6 +5123,7 @@ static int64_t generateStbRowData(
             rand_string(buf, stbInfo->columns[i].dataLen);
             dataLen += snprintf(pstr + dataLen, maxLen - dataLen, "\'%s\',", buf);
             tmfree(buf);
+
         } else {
             char *tmp;
 
@@ -5177,6 +5180,9 @@ static int64_t generateStbRowData(
             tstrncpy(pstr + dataLen, ",", 2);
             dataLen += 1;
         }
+
+        if (dataLen > (remainderBufLen - (DOUBLE_BUFF_LEN + 1)))
+            return 0;
     }
 
     dataLen -= 1;
@@ -5383,7 +5389,7 @@ static int32_t generateDataTailWithoutStb(
 
     int32_t k = 0;
     for (k = 0; k < batch;) {
-        char data[MAX_DATA_SIZE];
+        char *data = pstr;
         memset(data, 0, MAX_DATA_SIZE);
 
         int64_t retLen = 0;
@@ -5407,7 +5413,7 @@ static int32_t generateDataTailWithoutStb(
         if (len > remainderBufLen)
             break;
 
-        pstr += sprintf(pstr, "%s", data);
+        pstr += retLen;
         k++;
         len += retLen;
         remainderBufLen -= retLen;
@@ -5463,14 +5469,14 @@ static int32_t generateStbDataTail(
 
     int32_t k;
     for (k = 0; k < batch;) {
-        char data[MAX_DATA_SIZE];
-        memset(data, 0, MAX_DATA_SIZE);
+        char *data = pstr;
 
         int64_t lenOfRow = 0;
 
         if (tsRand) {
             if (superTblInfo->disorderRatio > 0) {
                 lenOfRow = generateStbRowData(superTblInfo, data,
+                        remainderBufLen,
                         startTime + getTSRandTail(
                             superTblInfo->timeStampStep, k,
                             superTblInfo->disorderRatio,
@@ -5478,6 +5484,7 @@ static int32_t generateStbDataTail(
                         );
             } else {
                 lenOfRow = generateStbRowData(superTblInfo, data,
+                        remainderBufLen,
                         startTime + superTblInfo->timeStampStep * k
                         );
             }
@@ -5490,11 +5497,15 @@ static int32_t generateStbDataTail(
                     pSamplePos);
         }
 
+        if (lenOfRow == 0) {
+            data[0] = '\0';
+            break;
+        }
         if ((lenOfRow + 1) > remainderBufLen) {
             break;
         }
 
-        pstr += snprintf(pstr , lenOfRow + 1, "%s", data);
+        pstr += lenOfRow;
         k++;
         len += lenOfRow;
         remainderBufLen -= lenOfRow;
@@ -6246,7 +6257,7 @@ static int32_t generateStbProgressiveData(
     assert(buffer != NULL);
     char *pstr = buffer;
 
-    memset(buffer, 0, *pRemainderBufLen);
+    memset(pstr, 0, *pRemainderBufLen);
 
     int64_t headLen = generateStbSQLHead(
             superTblInfo,
@@ -6640,7 +6651,7 @@ static void* syncWriteProgressive(threadInfo *pThreadInfo) {
                 return NULL;
             }
 
-            int64_t remainderBufLen = maxSqlLen;
+            int64_t remainderBufLen = maxSqlLen - 2000;
             char *pstr = pThreadInfo->buffer;
 
             int len = snprintf(pstr,
@@ -6822,10 +6833,14 @@ static void callBack(void *param, TAOS_RES *res, int code) {
                 && rand_num < pThreadInfo->superTblInfo->disorderRatio) {
             int64_t d = pThreadInfo->lastTs
                 - (taosRandom() % pThreadInfo->superTblInfo->disorderRange + 1);
-            generateStbRowData(pThreadInfo->superTblInfo, data, d);
+            generateStbRowData(pThreadInfo->superTblInfo, data,
+                    MAX_DATA_SIZE,
+                    d);
         } else {
             generateStbRowData(pThreadInfo->superTblInfo,
-                    data, pThreadInfo->lastTs += 1000);
+                    data,
+                    MAX_DATA_SIZE,
+                    pThreadInfo->lastTs += 1000);
         }
         pstr += sprintf(pstr, "%s", data);
         pThreadInfo->counter++;
@@ -7050,6 +7065,7 @@ static void startMultiThreadInsertData(int threads, char* db_name,
     for (int i = 0; i < threads; i++) {
         threadInfo *pThreadInfo = infos + i;
         pThreadInfo->threadID = i;
+
         tstrncpy(pThreadInfo->db_name, db_name, TSDB_DB_NAME_LEN);
         pThreadInfo->time_precision = timePrec;
         pThreadInfo->superTblInfo = superTblInfo;

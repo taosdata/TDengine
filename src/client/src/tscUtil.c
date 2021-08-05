@@ -1658,6 +1658,7 @@ int32_t tscCopyDataBlockToPayload(SSqlObj* pSql, STableDataBlocks* pDataBlock) {
 
     pTableMetaInfo->pTableMeta    = tscTableMetaDup(pDataBlock->pTableMeta);
     pTableMetaInfo->tableMetaSize = tscGetTableMetaSize(pDataBlock->pTableMeta);
+    pTableMetaInfo->tableMetaCapacity =  (size_t)(pTableMetaInfo->tableMetaSize);
   }
 
   /*
@@ -3415,6 +3416,8 @@ STableMetaInfo* tscAddTableMetaInfo(SQueryInfo* pQueryInfo, SName* name, STableM
   } else {
     pTableMetaInfo->tableMetaSize = tscGetTableMetaSize(pTableMeta);
   }
+  pTableMetaInfo->tableMetaCapacity = (size_t)(pTableMetaInfo->tableMetaSize);
+  
 
   if (vgroupList != NULL) {
     pTableMetaInfo->vgroupList = tscVgroupInfoClone(vgroupList);
@@ -4447,24 +4450,36 @@ CChildTableMeta* tscCreateChildMeta(STableMeta* pTableMeta) {
   return cMeta;
 }
 
-int32_t tscCreateTableMetaFromSTableMeta(STableMeta* pChild, const char* name, void* buf) {
-  assert(pChild != NULL && buf != NULL);
+int32_t tscCreateTableMetaFromSTableMeta(STableMeta** ppChild, const char* name, size_t *tableMetaCapacity) {
+  assert(*ppChild != NULL);
 
-  STableMeta* p = buf;
-  taosHashGetClone(tscTableMetaMap, pChild->sTableName, strnlen(pChild->sTableName, TSDB_TABLE_FNAME_LEN), NULL, p);
+  STableMeta* p    = NULL;
+  size_t      sz   = 0;
+  STableMeta* pChild = *ppChild;
+   
+  taosHashGetCloneExt(tscTableMetaMap, pChild->sTableName, strnlen(pChild->sTableName, TSDB_TABLE_FNAME_LEN), NULL, (void **)&p, &sz);
 
   // tableMeta exists, build child table meta according to the super table meta
   // the uid need to be checked in addition to the general name of the super table.
-  if (p->id.uid > 0 && pChild->suid == p->id.uid) {
+  if (p && p->id.uid > 0 && pChild->suid == p->id.uid) {
+
+    int32_t totalBytes    = (p->tableInfo.numOfColumns + p->tableInfo.numOfTags) * sizeof(SSchema);
+    int32_t tableMetaSize =  sizeof(STableMeta)  + totalBytes;
+    if (*tableMetaCapacity < tableMetaSize) {
+      pChild = realloc(pChild, tableMetaSize); 
+      *tableMetaCapacity = (size_t)tableMetaSize;
+    }
+
     pChild->sversion = p->sversion;
     pChild->tversion = p->tversion;
-
     memcpy(&pChild->tableInfo, &p->tableInfo, sizeof(STableComInfo));
-    int32_t total = pChild->tableInfo.numOfColumns + pChild->tableInfo.numOfTags;
+    memcpy(pChild->schema, p->schema, totalBytes);
 
-    memcpy(pChild->schema, p->schema, sizeof(SSchema) *total);
+    *ppChild = pChild;
+    tfree(p);
     return TSDB_CODE_SUCCESS;
   } else { // super table has been removed, current tableMeta is also expired. remove it here
+    tfree(p);
     taosHashRemove(tscTableMetaMap, name, strnlen(name, TSDB_TABLE_FNAME_LEN));
     return -1;
   }
@@ -4685,6 +4700,21 @@ int32_t tscGetColFilterSerializeLen(SQueryInfo* pQueryInfo) {
     }
   }
   return len;
+}
+
+int32_t tscGetTagFilterSerializeLen(SQueryInfo* pQueryInfo) {
+  // serialize tag column query condition
+  if (pQueryInfo->tagCond.pCond != NULL && taosArrayGetSize(pQueryInfo->tagCond.pCond) > 0) {
+    STagCond* pTagCond = &pQueryInfo->tagCond;
+
+    STableMetaInfo *pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
+    STableMeta * pTableMeta = pTableMetaInfo->pTableMeta;
+    SCond *pCond = tsGetSTableQueryCond(pTagCond, pTableMeta->id.uid);
+    if (pCond != NULL && pCond->cond != NULL) {
+      return pCond->len;
+    }
+  }
+  return 0;
 }
 
 int32_t tscCreateQueryFromQueryInfo(SQueryInfo* pQueryInfo, SQueryAttr* pQueryAttr, void* addr) {
