@@ -101,7 +101,7 @@ fi
 
 # docker parameters
 dockerPass="tbase125!"
-dockerinput_x64=TDengine-server-${version}-beta-Linux-amd64.tar.gz
+dockerinput_x64=TDengine-server-${version}-Linux-amd64.tar.gz
 
 ####################### build docker image and push
 if [ "$dockerMode" == "isdocker" ];then
@@ -109,6 +109,7 @@ if [ "$dockerMode" == "isdocker" ];then
   echo "ready to generate docker for community version >>>>>>>>>>>>>>>>>>>>>>>>>>>>>"
   if [ "${cpuType}" == "x64" ] ; then
     cpuType=amd64
+    verType=stable
     # cd ${communityDir}/packaging/docker
     cp -f ${comunityArchiveDir}/${dockerinput}  ${comunityArchiveDir}/${dockerinput_x64}
     bash generate_docker.sh     $version $dockerPass  $branchName $verType $cpuType ${dockerinput_x64}
