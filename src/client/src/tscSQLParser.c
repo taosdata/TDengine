@@ -7557,6 +7557,7 @@ int32_t doCheckForStream(SSqlObj* pSql, SSqlInfo* pInfo) {
   const char* msg7 = "time interval is required";
   const char* msg8 = "the first column should be primary timestamp column";
   const char* msg9 = "Continuous query do not support sub query";
+  const char* msg10 = "illegal number of columns";
 
   SSqlCmd*    pCmd = &pSql->cmd;
   SQueryInfo* pQueryInfo = tscGetQueryInfo(pCmd);
@@ -7596,6 +7597,10 @@ int32_t doCheckForStream(SSqlObj* pSql, SSqlInfo* pInfo) {
   code = tscGetTableMeta(pSql, pTableMetaInfo);
   if (code != TSDB_CODE_SUCCESS) {
     return code;
+  }
+
+  if (taosArrayGetSize(pSqlNode->pSelNodeList) <= 1) {
+    return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg10);
   }
 
   if (validateSelectNodeList(&pSql->cmd, pQueryInfo, pSqlNode->pSelNodeList, false, false, false) != TSDB_CODE_SUCCESS) {
