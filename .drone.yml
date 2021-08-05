@@ -119,7 +119,8 @@ steps:
 - name: build
   image: arm32v7/ubuntu:focal
   commands:
-  - rm -rf /tmp
+  - chown root:root /tmp 
+  - chmod 1777 /tmp
   - apt-get update 
   - apt-get install -y cmake build-essential 
   - mkdir debug
