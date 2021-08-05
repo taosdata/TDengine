@@ -207,9 +207,9 @@ class TDTestCase:
         sql = '''select distinct(t_ts) from stable_1;'''
         tdSql.query(sql)
         tdSql.checkRows(3)
-        # sql = '''select distinct(tbname) from stable_1;'''
-        # tdSql.query(sql)
-        # tdSql.checkRows(6)
+        sql = '''select distinct(tbname) from stable_1;'''
+        tdSql.query(sql)
+        tdSql.checkRows(6)
 
         tdLog.info("========== operator=2(OP_DataBlocksOptScan) ==========")
         sql = '''select last(q_int),first(q_int) from stable_1;'''
