@@ -1490,6 +1490,7 @@ void tscFreeSqlObj(SSqlObj* pSql) {
   }
 
   tscFreeSubobj(pSql);
+
   pSql->signature = NULL;
   pSql->fp = NULL;
   tfree(pSql->sqlstr);
