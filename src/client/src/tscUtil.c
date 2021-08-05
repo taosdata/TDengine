@@ -4700,6 +4700,21 @@ int32_t tscGetColFilterSerializeLen(SQueryInfo* pQueryInfo) {
   return len;
 }
 
+int32_t tscGetTagFilterSerializeLen(SQueryInfo* pQueryInfo) {
+  // serialize tag column query condition
+  if (pQueryInfo->tagCond.pCond != NULL && taosArrayGetSize(pQueryInfo->tagCond.pCond) > 0) {
+    STagCond* pTagCond = &pQueryInfo->tagCond;
+
+    STableMetaInfo *pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
+    STableMeta * pTableMeta = pTableMetaInfo->pTableMeta;
+    SCond *pCond = tsGetSTableQueryCond(pTagCond, pTableMeta->id.uid);
+    if (pCond != NULL && pCond->cond != NULL) {
+      return pCond->len;
+    }
+  }
+  return 0;
+}
+
 int32_t tscCreateQueryFromQueryInfo(SQueryInfo* pQueryInfo, SQueryAttr* pQueryAttr, void* addr) {
   memset(pQueryAttr, 0, sizeof(SQueryAttr));
 
