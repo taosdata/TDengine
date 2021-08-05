@@ -16,6 +16,7 @@ from util.log import *
 from util.cases import *
 from util.sql import *
 
+from datetime import timedelta
 
 class TDTestCase:
     def init(self, conn, logSql):
@@ -41,6 +42,16 @@ class TDTestCase:
 
         ret = tdSql.query('show mnodes')
         tdSql.checkRows(1)
+        tdSql.checkData(0, 2, "master")
+
+        role_time = tdSql.getData(0, 3)
+        create_time = tdSql.getData(0, 4)
+        time_delta = timedelta(milliseconds=100)
+
+        if create_time-time_delta < role_time < create_time+time_delta:
+            tdLog.info("role_time {} and create_time {} expected within range".format(role_time, create_time))
+        else:
+            tdLog.exit("role_time {} and create_time {} not expected within range".format(role_time, create_time))    
 
         ret = tdSql.query('show vgroups')
         tdSql.checkRows(0)        
