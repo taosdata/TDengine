@@ -32,6 +32,7 @@ steps:
 - name: build
   image: arm64v8/ubuntu:focal
   commands:
+  - debconf debconf/priority select critical
   - apt-get update 
   - apt-get install -y -qq cmake build-essential
   - mkdir debug
