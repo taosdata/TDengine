@@ -168,6 +168,7 @@ python3 test.py -f tools/taosdemoTestInterlace.py
 python3 test.py -f tools/taosdemoTestQuery.py
 
 python3 test.py -f tools/taosdumpTestNanoSupport.py
+python3 test.py -f tools/taosdumpTest_S_E_TimeZone.py
 
 # update
 python3 ./test.py -f update/allow_update.py
