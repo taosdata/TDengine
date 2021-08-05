@@ -114,40 +114,122 @@ rangeCompFunc filterGetRangeCompFunc(char sflag, char eflag) {
   return filterRangeCompii;
 }
 
-rangeCompFunc filterGetRangeCompFuncFromOptrs(uint8_t optr, uint8_t optr2) {
+rangeCompFunc gRangeCompare[] = {filterRangeCompee, filterRangeCompei, filterRangeCompie, filterRangeCompii, filterRangeCompGe,
+ filterRangeCompGi, filterRangeCompLe, filterRangeCompLi};
+
+
+int8_t filterGetRangeCompFuncFromOptrs(uint8_t optr, uint8_t optr2) {
   if (optr2) {
     assert(optr2 == TSDB_RELATION_LESS || optr2 == TSDB_RELATION_LESS_EQUAL);  
 
     if (optr == TSDB_RELATION_GREATER) {
       if (optr2 == TSDB_RELATION_LESS) {
-        return filterRangeCompee;
+        return 0;
       }
 
-      return filterRangeCompei;
+      return 1;
     }
 
     if (optr2 == TSDB_RELATION_LESS) {
-      return filterRangeCompie;
+      return 2;
     }
 
-    return filterRangeCompii;
+    return 3;
   } else {
     switch (optr) {
      case TSDB_RELATION_GREATER:
-      return filterRangeCompGe;
+      return 4;
      case TSDB_RELATION_GREATER_EQUAL:
-      return filterRangeCompGi;
+      return 5;
      case TSDB_RELATION_LESS:
-      return filterRangeCompLe;
+      return 6;
      case TSDB_RELATION_LESS_EQUAL:
-      return filterRangeCompLi;
+      return 7;
      default:
       break;
     }
   }
 
-  return NULL;
+  return -1;
 }
+
+__compar_fn_t gDataCompare[] = {compareInt32Val, compareInt8Val, compareInt16Val, compareInt64Val, compareFloatVal,
+  compareDoubleVal, compareLenPrefixedStr, compareStrPatternComp, compareFindItemInSet, compareWStrPatternComp, 
+  compareLenPrefixedWStr, compareUint8Val, compareUint16Val, compareUint32Val, compareUint64Val,
+  setCompareBytes1, setCompareBytes2, setCompareBytes4, setCompareBytes8
+};
+
+int8_t filterGetCompFuncIdx(int32_t type, int32_t optr) {
+  int8_t comparFn = 0;
+
+  if (optr == TSDB_RELATION_IN && (type != TSDB_DATA_TYPE_BINARY && type != TSDB_DATA_TYPE_NCHAR)) {
+    switch (type) {
+      case TSDB_DATA_TYPE_BOOL:
+      case TSDB_DATA_TYPE_TINYINT:  
+      case TSDB_DATA_TYPE_UTINYINT:  
+        return 15;
+      case TSDB_DATA_TYPE_SMALLINT:
+      case TSDB_DATA_TYPE_USMALLINT:
+        return 16;
+      case TSDB_DATA_TYPE_INT:
+      case TSDB_DATA_TYPE_UINT:
+      case TSDB_DATA_TYPE_FLOAT:        
+        return 17;
+      case TSDB_DATA_TYPE_BIGINT:        
+      case TSDB_DATA_TYPE_UBIGINT:        
+      case TSDB_DATA_TYPE_DOUBLE:        
+      case TSDB_DATA_TYPE_TIMESTAMP:        
+        return 18;
+      default:
+        assert(0);
+    }
+  }
+  
+  switch (type) {
+    case TSDB_DATA_TYPE_BOOL:
+    case TSDB_DATA_TYPE_TINYINT:   comparFn = 1;   break;
+    case TSDB_DATA_TYPE_SMALLINT:  comparFn = 2;  break;
+    case TSDB_DATA_TYPE_INT:       comparFn = 0;  break;
+    case TSDB_DATA_TYPE_BIGINT:
+    case TSDB_DATA_TYPE_TIMESTAMP: comparFn = 3;  break;
+    case TSDB_DATA_TYPE_FLOAT:     comparFn = 4;  break;
+    case TSDB_DATA_TYPE_DOUBLE:    comparFn = 5; break;
+    case TSDB_DATA_TYPE_BINARY: {
+      if (optr == TSDB_RELATION_LIKE) { /* wildcard query using like operator */
+        comparFn = 7;
+      } else if (optr == TSDB_RELATION_IN) {
+        comparFn = 8;
+      } else { /* normal relational comparFn */
+        comparFn = 6;
+      }
+    
+      break;
+    }
+  
+    case TSDB_DATA_TYPE_NCHAR: {
+      if (optr == TSDB_RELATION_LIKE) {
+        comparFn = 9;
+      } else if (optr == TSDB_RELATION_IN) {
+        comparFn = 8;
+      } else {
+        comparFn = 10;
+      }
+      break;
+    }
+
+    case TSDB_DATA_TYPE_UTINYINT:  comparFn = 11; break;
+    case TSDB_DATA_TYPE_USMALLINT: comparFn = 12;break;
+    case TSDB_DATA_TYPE_UINT:      comparFn = 13;break;
+    case TSDB_DATA_TYPE_UBIGINT:   comparFn = 14;break;
+
+    default:
+      comparFn = 0;
+      break;
+  }
+  
+  return comparFn;
+}
+
 
 static FORCE_INLINE int32_t filterCompareGroupCtx(const void *pLeft, const void *pRight) {
   SFilterGroupCtx *left = *((SFilterGroupCtx**)pLeft), *right = *((SFilterGroupCtx**)pRight);
@@ -1392,6 +1474,7 @@ _return:
   return code;
 }
 
+#if 0
 int32_t filterInitUnitFunc(SFilterInfo *info) {
   for (uint16_t i = 0; i < info->unitNum; ++i) {
     SFilterUnit* unit = &info->units[i];
@@ -1401,7 +1484,7 @@ int32_t filterInitUnitFunc(SFilterInfo *info) {
 
   return TSDB_CODE_SUCCESS;
 }
-
+#endif
 
 
 void filterDumpInfoToString(SFilterInfo *info, const char *msg, int32_t options) {
@@ -2406,7 +2489,7 @@ int32_t filterGenerateComInfo(SFilterInfo *info) {
   for (uint16_t i = 0; i < info->unitNum; ++i) {
     SFilterUnit *unit = &info->units[i];
 
-    info->cunits[i].func = getComparFunc(FILTER_UNIT_DATA_TYPE(unit), unit->compare.optr);
+    info->cunits[i].func = filterGetCompFuncIdx(FILTER_UNIT_DATA_TYPE(unit), unit->compare.optr);
     info->cunits[i].rfunc = filterGetRangeCompFuncFromOptrs(unit->compare.optr, unit->compare.optr2);
     info->cunits[i].optr = FILTER_UNIT_OPTR(unit);
     info->cunits[i].colData = NULL;
@@ -2500,10 +2583,10 @@ bool filterExecuteImplRange(void *pinfo, int32_t numOfRows, int8_t* p) {
   bool all = true;
   uint16_t dataSize = info->cunits[0].dataSize;
   char *colData = (char *)info->cunits[0].colData;
-  rangeCompFunc rfunc = info->cunits[0].rfunc;
+  rangeCompFunc rfunc = gRangeCompare[info->cunits[0].rfunc];
   void *valData = info->cunits[0].valData;
   void *valData2 = info->cunits[0].valData2;
-  __compar_fn_t func = info->cunits[0].func;
+  __compar_fn_t func = gDataCompare[info->cunits[0].func];
   
   for (int32_t i = 0; i < numOfRows; ++i) {
     if (isNull(colData, info->cunits[0].dataType)) {
@@ -2536,7 +2619,7 @@ bool filterExecuteImplMisc(void *pinfo, int32_t numOfRows, int8_t* p) {
       continue;
     }
 
-    p[i] = filterDoCompare(info->cunits[uidx].func, info->cunits[uidx].optr, colData, info->cunits[uidx].valData);
+    p[i] = filterDoCompare(gDataCompare[info->cunits[uidx].func], info->cunits[uidx].optr, colData, info->cunits[uidx].valData);
             
     if (p[i] == 0) {
       all = false;
@@ -2573,10 +2656,10 @@ bool filterExecuteImpl(void *pinfo, int32_t numOfRows, int8_t* p) {
               p[i] = 1;
             } else if (optr == TSDB_RELATION_ISNULL) {
               p[i] = 0;
-            } else if (cunit->rfunc) {
-              p[i] = (*cunit->rfunc)(colData, colData, cunit->valData, cunit->valData2, cunit->func);
+            } else if (cunit->rfunc >= 0) {
+              p[i] = (*gRangeCompare[cunit->rfunc])(colData, colData, cunit->valData, cunit->valData2, gDataCompare[cunit->func]);
             } else {
-              p[i] = filterDoCompare(cunit->func, cunit->optr, colData, cunit->valData);
+              p[i] = filterDoCompare(gDataCompare[cunit->func], cunit->optr, colData, cunit->valData);
             }
           
           //FILTER_UNIT_SET_R(info, uidx, p[i]);
@@ -2631,7 +2714,7 @@ int32_t filterSetExecFunc(SFilterInfo *info) {
     return TSDB_CODE_SUCCESS;
   }
 
-  if (info->cunits[0].rfunc) {
+  if (info->cunits[0].rfunc >= 0) {
     info->func = filterExecuteImplRange;
     return TSDB_CODE_SUCCESS;  
   }
@@ -2746,7 +2829,7 @@ int32_t filterInitFromTree(tExprNode* tree, SFilterInfo **pinfo, uint32_t option
       return code;
     }
 
-    ERR_JRET(filterInitUnitFunc(info));
+    //ERR_JRET(filterInitUnitFunc(info));
   }  
 
   info->unitRes = malloc(info->unitNum * sizeof(*info->unitRes));

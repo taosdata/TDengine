@@ -181,7 +181,7 @@ typedef struct SFilterColCtx {
 } SFilterColCtx;
 
 typedef struct SFilterCompare {
-  int32_t       type;
+  uint8_t       type;
   uint8_t       optr;
   uint8_t       optr2;
 } SFilterCompare;
@@ -194,14 +194,14 @@ typedef struct SFilterUnit {
 } SFilterUnit;
 
 typedef struct SFilterComUnit {
-  __compar_fn_t func;
-  rangeCompFunc rfunc;
   void *colData;
   void *valData;
   void *valData2;
-  int32_t dataType;
   uint16_t dataSize;
-  uint16_t optr;
+  uint8_t dataType;
+  uint8_t optr;
+  int8_t func;
+  int8_t rfunc;
 } SFilterComUnit;
 
 typedef struct SFilterPCtx {

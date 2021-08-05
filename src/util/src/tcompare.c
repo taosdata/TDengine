@@ -278,7 +278,7 @@ int WCSPatternMatch(const wchar_t *patterStr, const wchar_t *str, size_t size, c
   return (str[j] == 0 || j >= size) ? TSDB_PATTERN_MATCH : TSDB_PATTERN_NOMATCH;
 }
 
-static int32_t compareStrPatternComp(const void* pLeft, const void* pRight) {
+int32_t compareStrPatternComp(const void* pLeft, const void* pRight) {
   SPatternCompareInfo pInfo = {'%', '_'};
   
   char pattern[128] = {0};
@@ -306,11 +306,11 @@ int32_t taosArrayCompareString(const void* a, const void* b) {
 //  const SArray* arr = (const SArray*) pRight;
 //  return taosArraySearchString(arr, pLeft, taosArrayCompareString, TD_EQ) == NULL ? 0 : 1;
 //}
-static int32_t compareFindItemInSet(const void *pLeft, const void* pRight)  {
+int32_t compareFindItemInSet(const void *pLeft, const void* pRight)  {
   return NULL != taosHashGet((SHashObj *)pRight, varDataVal(pLeft), varDataLen(pLeft)) ? 1 : 0;    
 }
 
-static int32_t compareWStrPatternComp(const void* pLeft, const void* pRight) {
+int32_t compareWStrPatternComp(const void* pLeft, const void* pRight) {
   SPatternCompareInfo pInfo = {'%', '_'};
 
   wchar_t pattern[128] = {0};
