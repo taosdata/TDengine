@@ -463,6 +463,7 @@ static int tsdbLoadBlockDataImpl(SReadH *pReadh, SBlock *pBlock, SDataCols *pDat
     SDataCol *pDataCol = &(pDataCols->cols[dcol]);
     if (dcol != 0 && ccol >= pBlockData->numOfCols) {
       // Set current column as NULL and forward
+      // TODO: dataColSetNEleNull may fail
       dataColSetNEleNull(pDataCol, pBlock->numOfRows, pDataCols->maxPoints);
       dcol++;
       continue;
@@ -503,6 +504,7 @@ static int tsdbLoadBlockDataImpl(SReadH *pReadh, SBlock *pBlock, SDataCols *pDat
       ccol++;
     } else {
       // Set current column as NULL and forward
+      // TODO: dataColSetNEleNull may fail
       dataColSetNEleNull(pDataCol, pBlock->numOfRows, pDataCols->maxPoints);
       dcol++;
     }
@@ -608,6 +610,7 @@ static int tsdbLoadBlockDataColsImpl(SReadH *pReadh, SBlock *pBlock, SDataCols *
       }
 
       if (pBlockCol == NULL) {
+        // TODO: dataColSetNEleNull may fail
         dataColSetNEleNull(pDataCol, pBlock->numOfRows, pDataCols->maxPoints);
         continue;
       }

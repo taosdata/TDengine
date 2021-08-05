@@ -751,7 +751,6 @@ static SMemRow tsdbInsertDupKeyMerge(SMemRow row1, SMemRow row2, STsdbRepo* pRep
   memRowCpy(pMem, tmp);
 
   (*pPoints)++;
-
   *pLastRow = pMem;
   return pMem;
 }

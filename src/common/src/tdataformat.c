@@ -22,7 +22,6 @@
 static void tdMergeTwoDataCols(SDataCols *target, SDataCols *src1, int *iter1, int limit1, SDataCols *src2, int *iter2,
                                int limit2, int tRows, bool forceSetNull);
 
-//TODO: change caller to use return val
 int tdAllocMemForCol(SDataCol *pCol, int maxPoints) {
   int spaceNeeded = pCol->bytes * maxPoints;
   if(IS_VAR_DATA_TYPE(pCol->type)) {
@@ -31,7 +30,7 @@ int tdAllocMemForCol(SDataCol *pCol, int maxPoints) {
   if(pCol->spaceSize < spaceNeeded) {
     void* ptr = realloc(pCol->pData, spaceNeeded);
     if(ptr == NULL) {
-      uDebug("malloc failure, size:%" PRId64 " failed, reason:%s", (int64_t)pCol->spaceSize,
+      uDebug("malloc failure, size:%" PRId64 " failed, reason:%s", (int64_t)spaceNeeded,
              strerror(errno));
       return -1;
     } else {
@@ -239,20 +238,22 @@ void dataColInit(SDataCol *pDataCol, STColumn *pCol, int maxPoints) {
   pDataCol->len = 0;
 }
 // value from timestamp should be TKEY here instead of TSKEY
-void dataColAppendVal(SDataCol *pCol, const void *value, int numOfRows, int maxPoints) {
+int dataColAppendVal(SDataCol *pCol, const void *value, int numOfRows, int maxPoints) {
   ASSERT(pCol != NULL && value != NULL);
 
   if (isAllRowsNull(pCol)) {
     if (isNull(value, pCol->type)) {
       // all null value yet, just return
-      return;
+      return 0;
     }
 
     if (numOfRows > 0) {
       // Find the first not null value, fill all previouse values as NULL
-      dataColSetNEleNull(pCol, numOfRows, maxPoints);
+      if(dataColSetNEleNull(pCol, numOfRows, maxPoints) < 0)
+        return -1;
     } else {
-      tdAllocMemForCol(pCol, maxPoints);
+      if(tdAllocMemForCol(pCol, maxPoints) < 0)
+        return -1;
     }
   }
 
@@ -268,6 +269,7 @@ void dataColAppendVal(SDataCol *pCol, const void *value, int numOfRows, int maxP
     memcpy(POINTER_SHIFT(pCol->pData, pCol->len), value, pCol->bytes);
     pCol->len += pCol->bytes;
   }
+  return -1;
 }
 
 bool isNEleNull(SDataCol *pCol, int nEle) {
@@ -290,8 +292,10 @@ static FORCE_INLINE void dataColSetNullAt(SDataCol *pCol, int index) {
   }
 }
 
-void dataColSetNEleNull(SDataCol *pCol, int nEle, int maxPoints) {
-  tdAllocMemForCol(pCol, maxPoints);
+int dataColSetNEleNull(SDataCol *pCol, int nEle, int maxPoints) {
+  if(tdAllocMemForCol(pCol, maxPoints)){
+    return -1;
+  }
 
   if (IS_VAR_DATA_TYPE(pCol->type)) {
     pCol->len = 0;
@@ -302,6 +306,7 @@ void dataColSetNEleNull(SDataCol *pCol, int nEle, int maxPoints) {
     setNullN(pCol->pData, pCol->type, pCol->bytes, nEle);
     pCol->len = TYPE_BYTES[pCol->type] * nEle;
   }
+  return 0;
 }
 
 void dataColSetOffset(SDataCol *pCol, int nEle) {
@@ -414,7 +419,10 @@ SDataCols *tdDupDataCols(SDataCols *pDataCols, bool keepData) {
 
     if (keepData) {
       if (pDataCols->cols[i].len > 0) {
-        tdAllocMemForCol(&pRet->cols[i], pRet->maxPoints);
+        if(tdAllocMemForCol(&pRet->cols[i], pRet->maxPoints) < 0) {
+          tdFreeDataCols(pRet);
+          return NULL;
+        }
         pRet->cols[i].len = pDataCols->cols[i].len;
         memcpy(pRet->cols[i].pData, pDataCols->cols[i].pData, pDataCols->cols[i].len);
         if (IS_VAR_DATA_TYPE(pRet->cols[i].type)) {
