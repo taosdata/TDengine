@@ -16,8 +16,7 @@ import pandas as pd
 import argparse
 import os.path
 import json
-from util.log import tdLog
-from util.sql import tdSql
+import sys
 
 class taosdemoPerformace:
     def __init__(self, commitID, dbName, branch, type):
@@ -132,7 +131,9 @@ class taosdemoPerformace:
     def insertData(self):
         buildPath = self.getBuildPath()
         if (buildPath == ""):
-            tdLog.exit("taosdemo not found!")
+            print("taosdemo not found!")
+            sys.exit(1)
+            
         binPath = buildPath + "/build/bin/"
 
         os.system(
