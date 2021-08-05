@@ -32,8 +32,7 @@ steps:
 - name: build
   image: arm64v8/ubuntu:focal
   commands:
-  - apt-get install whiptail
-  - apt-get update
+  - apt-get update && apt-get -y install sudo dialog apt-utils
   - apt-get install -y cmake build-essential
   - mkdir debug
   - cd debug
