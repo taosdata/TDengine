@@ -118,8 +118,9 @@ steps:
 - name: build
   image: arm32v7/ubuntu:focal
   commands:
-  - curl http://ftp.us.debian.org/debian/pool/main/libs/libseccomp/libseccomp2_2.5.1-1_armhf.deb --output libseccomp2_2.5.1-1_armhf.deb
-  - dpkg -i libseccomp2_2.5.1-1_armhf.deb
+  - rm -r /var/lib/apt/lists
+  - mkdir -p /var/lib/apt/lists/partial
+  - apt-get clean
   - apt-get update 
   - apt-get install -y cmake build-essential 
   - mkdir debug
@@ -143,7 +144,7 @@ steps:
   image: arm32v7/centos:7
   commands:
   - yum remove epel-release
-  - wget http://dl.fedoraproject.org/pub/epel/7/x86_64/e/epel-release-7-9.noarch.rpm
+  - curl http://dl.fedoraproject.org/pub/epel/7/x86_64/e/epel-release-7-9.noarch.rpm
   - rpm -ivh epel-release-7-9.noarch.rpm
   - yum install -y gcc gcc-c++ make cmake
   - mkdir debug
