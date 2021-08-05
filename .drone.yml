@@ -226,5 +226,4 @@ steps:
 
 
 depends_on:
-- test_arm64
 - test_amd64
