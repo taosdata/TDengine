@@ -32,6 +32,7 @@ steps:
 - name: build
   image: arm64v8/ubuntu:focal
   commands:
+  - apt-get install dialog
   - apt-get update
   - apt-get install -y cmake build-essential
   - mkdir debug
@@ -76,8 +77,8 @@ steps:
 - name: build
   image: arm32v7/ubuntu:focal
   commands:
-  - apt-get update
-  - apt-get install -y cmake build-essential --security-opt seccomp:unconfined
+  - apt-get update --security-opt seccomp:unconfined
+  - apt-get install -y cmake build-essential 
   - mkdir debug
   - cd debug
   - cmake .. -DCPUTYPE=aarch32 > /dev/null
