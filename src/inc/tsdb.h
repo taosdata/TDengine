@@ -94,7 +94,7 @@ STsdbRepo *tsdbOpenRepo(STsdbCfg *pCfg, STsdbAppH *pAppH);
 int        tsdbCloseRepo(STsdbRepo *repo, int toCommit);
 int32_t    tsdbConfigRepo(STsdbRepo *repo, STsdbCfg *pCfg);
 int        tsdbGetState(STsdbRepo *repo);
-bool       tsdbInCompact(STsdbRepo *repo);
+int8_t     tsdbGetCompactState(STsdbRepo *repo);
 // --------- TSDB TABLE DEFINITION
 typedef struct {
   uint64_t uid;  // the unique table ID
@@ -240,6 +240,7 @@ typedef struct {
   int32_t   minRows;
   int32_t   firstSeekTimeUs;
   uint32_t  numOfRowsInMemTable;
+  uint32_t  numOfSmallBlocks;
   SArray   *dataBlockInfos;
 } STableBlockDist;
 

@@ -94,8 +94,9 @@ struct STsdbRepo {
   pthread_mutex_t mutex;
   bool            repoLocked;
   int32_t         code;  // Commit code
+
   SMergeBuf       mergeBuf;  //used when update=2
-  bool            inCompact;  // is in compact process?
+  int8_t          compactState;  // compact state: inCompact/noCompact/waitingCompact?
 };
 
 #define REPO_ID(r) (r)->config.tsdbId

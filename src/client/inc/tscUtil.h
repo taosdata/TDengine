@@ -340,10 +340,11 @@ STableMeta* createSuperTableMeta(STableMetaMsg* pChild);
 uint32_t tscGetTableMetaSize(STableMeta* pTableMeta);
 CChildTableMeta* tscCreateChildMeta(STableMeta* pTableMeta);
 uint32_t tscGetTableMetaMaxSize();
-int32_t tscCreateTableMetaFromSTableMeta(STableMeta* pChild, const char* name, void* buf);
+int32_t tscCreateTableMetaFromSTableMeta(STableMeta** pChild, const char* name, size_t *tableMetaCapacity);
 STableMeta* tscTableMetaDup(STableMeta* pTableMeta);
 SVgroupsInfo* tscVgroupsInfoDup(SVgroupsInfo* pVgroupsInfo);
 
+int32_t tscGetTagFilterSerializeLen(SQueryInfo* pQueryInfo);
 int32_t tscGetColFilterSerializeLen(SQueryInfo* pQueryInfo);
 int32_t tscCreateQueryFromQueryInfo(SQueryInfo* pQueryInfo, SQueryAttr* pQueryAttr, void* addr);
 void* createQInfoFromQueryNode(SQueryInfo* pQueryInfo, STableGroupInfo* pTableGroupInfo, SOperatorInfo* pOperator, char* sql, void* addr, int32_t stage, uint64_t qId);

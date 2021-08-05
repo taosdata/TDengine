@@ -108,8 +108,6 @@ int tsParseTime(SStrToken *pToken, int64_t *time, char **next, char *error, int1
   int64_t   useconds = 0;
   char *    pTokenEnd = *next;
 
-  index = 0;
-
   if (pToken->type == TK_NOW) {
     useconds = taosGetTimestamp(timePrec);
   } else if (strncmp(pToken->z, "0", 1) == 0 && pToken->n == 1) {
@@ -154,7 +152,8 @@ int tsParseTime(SStrToken *pToken, int64_t *time, char **next, char *error, int1
       return tscInvalidOperationMsg(error, "value expected in timestamp", sToken.z);
     }
 
-    if (parseAbsoluteDuration(valueToken.z, valueToken.n, &interval, timePrec) != TSDB_CODE_SUCCESS) {
+    char unit = 0;
+    if (parseAbsoluteDuration(valueToken.z, valueToken.n, &interval, &unit, timePrec) != TSDB_CODE_SUCCESS) {
       return TSDB_CODE_TSC_INVALID_OPERATION;
     }
 
