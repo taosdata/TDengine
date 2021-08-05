@@ -250,6 +250,7 @@ def taos_query(connection, sql):
         errno = taos_errno(res)
         if errno != 0:
             errstr = taos_errstr(res)
+            taos_free_result(res)
             raise ProgrammingError(errstr, errno)
         return res
     except AttributeError:
