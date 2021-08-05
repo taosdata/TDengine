@@ -877,7 +877,9 @@ typedef struct {
   uint64_t sqlObjId;
   int32_t  pid;
   char     fqdn[TSDB_FQDN_LEN];
+  bool     stableQuery;
   int32_t  numOfSub;
+  char     subSqlInfo[TSDB_SHOW_SUBQUERY_LEN]; //include subqueries' index, Obj IDs and states(C-complete/I-imcomplete)
 } SQueryDesc;
 
 typedef struct {

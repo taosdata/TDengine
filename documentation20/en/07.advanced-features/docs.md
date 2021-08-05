@@ -17,7 +17,7 @@ The continuous query provided by TDengine differs from the time window calculati
 The following is an example of the smart meter scenario to introduce the specific use of continuous query. Suppose we create a STables and sub-tables through the following SQL statement:
 
 ```sql
-create table meters (ts timestamp, current float, voltage int, phase float) tags (location binary(64), groupdId int);
+create table meters (ts timestamp, current float, voltage int, phase float) tags (location binary(64), groupId int);
 create table D1001 using meters tags ("Beijing.Chaoyang", 2);
 create table D1002 using meters tags ("Beijing.Haidian", 2);
 ...
