@@ -32,7 +32,9 @@ steps:
 - name: build
   image: arm64v8/ubuntu:focal
   commands:
-  - apt-get update && apt-get -y install sudo dialog apt-utils
+  - DEBIAN_FRONTEND=noninteractive 
+  - apt-get autoremove
+  - apt-get update 
   - apt-get install -y cmake build-essential
   - mkdir debug
   - cd debug
@@ -76,7 +78,6 @@ steps:
 - name: build
   image: arm32v7/ubuntu:focal
   commands:
-  - wget http://http.us.debian.org/debian/pool/main/libs/libseccomp/libseccomp2_2.5.1-1_armhf.deb && dpkg -i || apt install wget 
   - apt-get update 
   - apt-get install -y cmake build-essential 
   - mkdir debug
