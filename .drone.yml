@@ -45,6 +45,48 @@ steps:
     - master
 ---
 kind: pipeline
+name: test_arm64_centos7
+
+platform:
+  os: linux
+  arch: arm64
+
+steps:
+- name: build
+  image: arm64v8/centos:7
+  commands:
+  - yum install -y gcc gcc-c++ make cmake git
+  - mkdir debug
+  - cd debug
+  - cmake .. -DCPUTYPE=aarch64 > /dev/null
+  - make 
+  when:
+    branch:
+    - develop
+    - master
+---
+kind: pipeline
+name: test_arm64_centos8
+
+platform:
+  os: linux
+  arch: arm64
+
+steps:
+- name: build
+  image: arm64v8/centos:8
+  commands:
+  - yum install -y gcc gcc-c++ make cmake git
+  - mkdir debug
+  - cd debug
+  - cmake .. -DCPUTYPE=aarch64 > /dev/null
+  - make 
+  when:
+    branch:
+    - develop
+    - master
+---
+kind: pipeline
 name: test_arm_bionic
 
 platform:
@@ -80,6 +122,27 @@ steps:
   - rm -rf /tmp
   - apt-get update 
   - apt-get install -y cmake build-essential 
+  - mkdir debug
+  - cd debug
+  - cmake .. -DCPUTYPE=aarch32 > /dev/null
+  - make 
+  when:
+    branch:
+    - develop
+    - master
+---
+kind: pipeline
+name: test_arm_centos7
+
+platform:
+  os: linux
+  arch: arm
+
+steps:
+- name: build
+  image: arm32v7/centos:7
+  commands:
+  - yum install -y gcc gcc-c++ make cmake
   - mkdir debug
   - cd debug
   - cmake .. -DCPUTYPE=aarch32 > /dev/null
