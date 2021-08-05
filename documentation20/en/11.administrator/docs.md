@@ -132,7 +132,7 @@ The SQL creates a database demo, each data file stores 10 days of data, the memo
 
 When adding a new dnode to the TDengine cluster, some parameters related to the cluster must be the same as the configuration of the existing cluster, otherwise it cannot be successfully added to the cluster. The parameters that will be verified are as follows:
 
-- numOfMnodes: the number of management nodes in the system. Default: 3.
+- numOfMnodes: the number of management nodes in the system. Default: 3. (Since version 2.0.20.11 and version 2.1.6.0, the default value of "numOfMnodes" has been changed to 1.)
 - balance: whether to enable load balancing. 0: No, 1: Yes. Default: 1.
 - mnodeEqualVnodeNum: an mnode is equal to the number of vnodes consumed. Default: 4.
 - offlineThreshold: the threshold for a dnode to be offline, exceed which the dnode will be removed from the cluster. The unit is seconds, and the default value is 86400*10 (that is, 10 days).

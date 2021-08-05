@@ -34,9 +34,8 @@ public class QueryDataTest {
 
             String createTableSql = "create table " + stbName + "(ts timestamp, name binary(64))";
             statement.executeUpdate(createTableSql);
-
         } catch (SQLException e) {
-            return;
+            e.printStackTrace();
         }
     }
 

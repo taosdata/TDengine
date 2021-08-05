@@ -148,6 +148,9 @@ python3 ./test.py -f import_merge/importTPORestart.py
 python3 ./test.py -f import_merge/importTRestart.py
 python3 ./test.py -f import_merge/importInsertThenImport.py
 python3 ./test.py -f import_merge/importCSV.py
+python3 ./test.py -f import_merge/import_update_0.py
+python3 ./test.py -f import_merge/import_update_1.py
+python3 ./test.py -f import_merge/import_update_2.py
 #======================p1-end===============
 #======================p2-start===============
 # tools
@@ -254,6 +257,7 @@ python3 ./test.py -f query/nestedQuery/queryWithOrderLimit.py
 python3 ./test.py -f query/nestquery_last_row.py
 python3 ./test.py -f query/queryCnameDisplay.py
 python3 ./test.py -f query/operator_cost.py
+python3 ./test.py -f query/long_where_query.py
 python3 test.py -f query/nestedQuery/queryWithSpread.py
 
 #stream
@@ -376,6 +380,7 @@ python3 test.py -f alter/alter_cacheLastRow.py
 python3 ./test.py -f query/querySession.py 
 python3 test.py -f  alter/alter_create_exception.py
 python3 ./test.py -f insert/flushwhiledrop.py
+python3 ./test.py -f insert/schemalessInsert.py
 
 #======================p4-end===============
 python3 test.py -f  tools/taosdemoAllTest/pytest.py
