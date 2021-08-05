@@ -1251,7 +1251,7 @@ static int tsdbEncodeTable(void **buf, STable *pTable) {
     tlen += taosEncodeFixedU64(buf, TABLE_SUID(pTable));
     tlen += tdEncodeKVRow(buf, pTable->tagVal);
   } else {
-    tlen += taosEncodeFixedU8(buf, taosArrayGetSize(pTable->schema));
+    tlen += taosEncodeFixedU8(buf, (uint8_t)taosArrayGetSize(pTable->schema));
     for (int i = 0; i < taosArrayGetSize(pTable->schema); i++) {
       STSchema *pSchema = taosArrayGetP(pTable->schema, i);
       tlen += tdEncodeSchema(buf, pSchema);
