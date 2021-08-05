@@ -1482,8 +1482,6 @@ void tscFreeSqlObj(SSqlObj* pSql) {
   tscFreeMetaSqlObj(&pSql->metaRid);
   tscFreeMetaSqlObj(&pSql->svgroupRid);
 
-  tscFreeSubobj(pSql);
-
   SSqlCmd* pCmd = &pSql->cmd;
   int32_t cmd = pCmd->command;
   if (cmd < TSDB_SQL_INSERT || cmd == TSDB_SQL_RETRIEVE_GLOBALMERGE || cmd == TSDB_SQL_RETRIEVE_EMPTY_RESULT ||
@@ -1491,6 +1489,7 @@ void tscFreeSqlObj(SSqlObj* pSql) {
     tscRemoveFromSqlList(pSql);
   }
 
+  tscFreeSubobj(pSql);
   pSql->signature = NULL;
   pSql->fp = NULL;
   tfree(pSql->sqlstr);

@@ -264,15 +264,19 @@ int tscBuildQueryStreamDesc(void *pMsg, STscObj *pObj) {
       snprintf(p, remainLen, "N/A");
     } else {
       int32_t len;
+      if (pSql->pSubs != NULL && pSql->subState.states != NULL) {
       for (int32_t i = 0; i < pQdesc->numOfSub; ++i) {
+	SSqlObj* psub = pSql->pSubs[i];
+        int64_t self = (psub != NULL)? psub->self:0;	
         len = snprintf(p, remainLen, "[%d]0x%" PRIx64 "(%c) ", i,
-                        pSql->pSubs[i]->self,
+                        self,
                         pSql->subState.states[i] ? 'C' : 'I');
         if (len > remainLen) {
           break;
         }
         remainLen -= len;
         p += len;
+      }
       }
     }
     pQdesc->numOfSub = htonl(pQdesc->numOfSub);
