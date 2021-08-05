@@ -80,6 +80,7 @@ class TDTestCase:
 
         # merge result files
         sleep(5)
+
         os.system("cat subscribe_res0.txt* > all_subscribe_res0.txt")
         os.system("cat subscribe_res1.txt* > all_subscribe_res1.txt")
         os.system("cat subscribe_res2.txt* > all_subscribe_res2.txt")
