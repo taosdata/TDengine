@@ -140,7 +140,7 @@ steps:
 - name: build
   image: arm32v7/centos:7
   commands:
-  - rpm -ivh http://mirror.centos.org/altarch/7/os/armhfp/Packages/	centos-userland-release-7-9.2009.0.el7.centos.armv7hl.rpm
+  - rpm -ivh http://mirror.centos.org/altarch/7/os/armhfp/Packages/centos-userland-release-7-9.2009.0.el7.centos.armv7hl.rpm
   - yum install -y gcc gcc-c++ make cmake
   - mkdir debug
   - cd debug
