@@ -397,7 +397,7 @@ static int32_t getDuration(int64_t val, char unit, int64_t* result, int32_t time
  * n - Months (30 days)
  * y - Years (365 days)
  */
-int32_t parseAbsoluteDuration(char* token, int32_t tokenlen, int64_t* duration, int32_t timePrecision) {
+int32_t parseAbsoluteDuration(char* token, int32_t tokenlen, int64_t* duration, char* unit, int32_t timePrecision) {
   errno = 0;
   char* endPtr = NULL;
 
@@ -408,12 +408,12 @@ int32_t parseAbsoluteDuration(char* token, int32_t tokenlen, int64_t* duration, 
   }
 
   /* natual month/year are not allowed in absolute duration */
-  char unit = token[tokenlen - 1];
-  if (unit == 'n' || unit == 'y') {
+  *unit = token[tokenlen - 1];
+  if (*unit == 'n' || *unit == 'y') {
     return -1;
   }
 
-  return getDuration(timestamp, unit, duration, timePrecision);
+  return getDuration(timestamp, *unit, duration, timePrecision);
 }
 
 int32_t parseNatualDuration(const char* token, int32_t tokenLen, int64_t* duration, char* unit, int32_t timePrecision) {
