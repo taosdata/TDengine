@@ -3736,7 +3736,8 @@ static int32_t doExtractColumnFilterInfo(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, 
     if (pRight->tokenId != TK_SET || !serializeExprListToVariant(pRight->Expr.paramList, &pVal, colType, timePrecision)) {
       return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg);
     }
-    pColumnFilter->pz  = (int64_t)calloc(1, pVal->nLen + 1);
+
+    pColumnFilter->pz  = (int64_t)calloc(1, pVal->nLen);
     pColumnFilter->len = pVal->nLen;
     pColumnFilter->filterstr = 1;
     memcpy((char *)(pColumnFilter->pz), (char *)(pVal->pz), pVal->nLen);
@@ -8772,13 +8773,13 @@ int32_t validateSqlNode(SSqlObj* pSql, SSqlNode* pSqlNode, SQueryInfo* pQueryInf
     tfree(p);
   }
 
-#if 0
+//#if 0
   SQueryNode* p = qCreateQueryPlan(pQueryInfo);
   char* s = queryPlanToString(p);
   printf("%s\n", s);
   tfree(s);
   qDestroyQueryPlan(p);
-#endif
+//#endif
 
   return TSDB_CODE_SUCCESS;  // Does not build query message here
 }
