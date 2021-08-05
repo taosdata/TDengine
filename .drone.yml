@@ -1,6 +1,6 @@
 ---
 kind: pipeline
-name: test_arm64
+name: test_arm64_bionic
 
 platform:
   os: linux
@@ -22,7 +22,7 @@ steps:
     - master
 ---
 kind: pipeline
-name: test_arm64
+name: test_arm64_focal
 
 platform:
   os: linux
@@ -44,7 +44,7 @@ steps:
     - master
 ---
 kind: pipeline
-name: test_arm
+name: test_arm_bionic
 
 platform:
   os: linux
@@ -52,7 +52,7 @@ platform:
 
 steps:
 - name: build
-  image: arm32v7/ubuntu:focal
+  image: arm32v7/ubuntu:bionic
   commands:
   - apt-get update
   - apt-get install -y cmake build-essential
@@ -66,7 +66,7 @@ steps:
     - master
 ---
 kind: pipeline
-name: test_arm
+name: test_arm_focal
 
 platform:
   os: linux
@@ -74,7 +74,7 @@ platform:
 
 steps:
 - name: build
-  image: arm32v7/ubuntu:bionic
+  image: arm32v7/ubuntu:focal
   commands:
   - apt-get update
   - apt-get install -y cmake build-essential
