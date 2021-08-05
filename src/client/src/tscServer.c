@@ -501,6 +501,15 @@ static void doProcessMsgFromServer(SSchedMsg* pSchedMsg) {
       pRes->code = rpcMsg->code;
     }
     rpcMsg->code = (pRes->code == TSDB_CODE_SUCCESS) ? (int32_t)pRes->numOfRows : pRes->code;
+    if (pRes->code == TSDB_CODE_RPC_FQDN_ERROR) {
+      if (pEpSet) {
+        char buf[TSDB_FQDN_LEN + 64] = {0}; 
+        tscAllocPayload(pCmd, sizeof(buf)); 
+        sprintf(tscGetErrorMsgPayload(pCmd), "%s\"%s\"", tstrerror(pRes->code),pEpSet->fqdn[(pEpSet->inUse)%(pEpSet->numOfEps)]);
+      } else {
+        sprintf(tscGetErrorMsgPayload(pCmd), "%s", tstrerror(pRes->code));
+      } 
+    }
     (*pSql->fp)(pSql->param, pSql, rpcMsg->code);
   }
 
