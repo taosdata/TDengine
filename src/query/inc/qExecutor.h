@@ -508,13 +508,21 @@ typedef struct SStateWindowOperatorInfo {
   bool           reptScan;
 } SStateWindowOperatorInfo ;
 
+typedef struct SDistinctDataInfo {
+  int32_t index;
+  int32_t type;
+  int32_t bytes;
+} SDistinctDataInfo; 
+
 typedef struct SDistinctOperatorInfo {
   SHashObj         *pSet;
   SSDataBlock      *pRes;
   bool              recordNullVal;  //has already record the null value, no need to try again
   int64_t           threshold;
   int64_t           outputCapacity;
-  int32_t           colIndex; 
+  int32_t           totalBytes; 
+  char*             buf;
+  SArray*           pDistinctDataInfo; 
 } SDistinctOperatorInfo;
 
 struct SGlobalMerger;

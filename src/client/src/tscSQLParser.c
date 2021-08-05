@@ -1948,10 +1948,10 @@ bool isValidDistinctSql(SQueryInfo* pQueryInfo) {
       && (pQueryInfo->type & TSDB_QUERY_TYPE_TABLE_QUERY)  != TSDB_QUERY_TYPE_TABLE_QUERY) {
     return false;
   }
-  if (tscNumOfExprs(pQueryInfo) == 1){
-    return true;
-  } 
-  return false;
+  //if (tscNumOfExprs(pQueryInfo) == 1){
+  //  return true;
+  //} 
+  return true;
 }
 
 static bool hasNoneUserDefineExpr(SQueryInfo* pQueryInfo) {
