@@ -31,10 +31,28 @@ system sh/cfg.sh -n dnode4 -c maxTablesPerVnode -v 4
 
 print ========= start dnodes
 system sh/exec.sh -n dnode1 -s start
-sleep 3000
 sql connect
 sql create dnode $hostname2
 system sh/exec.sh -n dnode2 -s start
+
+$x = 0
+step1: 
+	$x = $x + 1
+	sleep 1000
+	if $x == 10 then
+		return -1
+	endi
+
+sql show dnodes
+print dnode1 $data4_1
+print dnode2 $data4_2
+
+if $data4_1 != ready then
+  goto step1
+endi
+if $data4_2 != ready then
+  goto step1
+endi
 
 $loop = 0
 begin:
@@ -53,7 +71,6 @@ begin:
 	sql insert into t13 values(now, 1 )
 	sql create table t14 (ts timestamp, i int)
 	sql insert into t14 values(now, 1 )
-	sleep 1200
 
 	sql create table t21 (ts timestamp, i int)
 	sql insert into t21 values(now, 1 )
@@ -63,7 +80,6 @@ begin:
 	sql insert into t23 values(now, 1 )
 	sql create table t24 (ts timestamp, i int)
 	sql insert into t24 values(now, 1 )
-	sleep 1200
 
 	sql create table t31 (ts timestamp, i int)
 	sql insert into t31 values(now, 1 )
@@ -73,7 +89,6 @@ begin:
 	sql insert into t33 values(now, 1 )
 	sql create table t34 (ts timestamp, i int)
 	sql insert into t34 values(now, 1 )
-	sleep 1200
 
 	sql create table t41 (ts timestamp, i int)
 	sql insert into t41 values(now, 1 )
@@ -83,7 +98,6 @@ begin:
 	sql insert into t43 values(now, 1 )
 	sql create table t44 (ts timestamp, i int)
 	sql insert into t44 values(now, 1 )
-	sleep 1200
 
 	sql create table t51 (ts timestamp, i int)
 	sql insert into t51 values(now, 1 )
@@ -93,7 +107,6 @@ begin:
 	sql insert into t53 values(now, 1 )
 	sql create table t54 (ts timestamp, i int)
 	sql insert into t54 values(now, 1 )
-	sleep 1200
 
 	sql create table t61 (ts timestamp, i int)
 	sql insert into t61 values(now, 1 )
@@ -103,7 +116,6 @@ begin:
 	sql insert into t63 values(now, 1 )
 	sql create table t64 (ts timestamp, i int)
 	sql insert into t64 values(now, 1 )
-	sleep 1200
 
 	sql create table t71 (ts timestamp, i int)
 	sql insert into t71 values(now, 1 )
@@ -113,7 +125,6 @@ begin:
 	sql insert into t73 values(now, 1 )
 	sql create table t74 (ts timestamp, i int)
 	sql insert into t74 values(now, 1 )
-	sleep 1200
 
 	sql create table t81 (ts timestamp, i int)
 	sql insert into t81 values(now, 1 )
@@ -123,7 +134,6 @@ begin:
 	sql insert into t83 values(now, 1 )
 	sql create table t84 (ts timestamp, i int)
 	sql insert into t84 values(now, 1 )
-	sleep 1200
 
 	sql show dnodes
 	print dnode1 openVnodes $data2_1
@@ -138,29 +148,36 @@ begin:
 	print ======== step2 $loop
 	
 	system sh/exec.sh -n dnode2 -s stop
-	sleep 1000
 	print ==> drop database $db 
 	sql drop database $db 
 	
 	print ======== step3 $loop
 	sleep 2000
 	system sh/exec.sh -n dnode2 -s start
-	sleep 15000
 
-	sql show dnodes
+
+	$x = 0
+	step3: 
+		$x = $x + 1
+		sleep 1000
+		if $x == 10 then
+			return -1
+		endi
+
+	sql show dnodes -x step3
 	print dnode1 openVnodes $data2_1 $data4_1
 	print dnode2 openVnodes $data2_2 $data4_2
 	if $data2_1 != 0 then
-		return -1
+		goto step3
 	endi
 	if $data2_2 != 0 then
-		return -1
+		goto step3
 	endi
 	if $data4_1 != ready then
-		return -1
+		goto step3
 	endi
 	if $data4_2 != ready then
-		return -1
+		goto step3
 	endi
 	
 	print ===> test times : $loop
@@ -171,7 +188,7 @@ begin:
 	$loop = $loop + 1
 
 	sql reset query cache
-	sleep 1000
+	sleep 100
 	
 goto begin
   

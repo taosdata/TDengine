@@ -1,5 +1,6 @@
 #!/bin/bash
 ulimit -c unlimited
+#======================p1-start===============
 
 python3 ./test.py -f insert/basic.py
 python3 ./test.py -f insert/int.py
@@ -20,7 +21,13 @@ python3 insert/retentionpolicy.py
 python3 ./test.py -f insert/alterTableAndInsert.py
 python3 ./test.py -f insert/insertIntoTwoTables.py
 python3 ./test.py -f insert/before_1970.py
+python3 ./test.py -f insert/special_character_show.py
 python3 bug2265.py
+python3 ./test.py -f insert/bug3654.py
+python3 ./test.py -f insert/insertDynamicColBeforeVal.py
+python3 ./test.py -f insert/in_function.py
+python3 ./test.py -f insert/modify_column.py
+python3 ./test.py -f insert/line_insert.py
 
 #table
 python3 ./test.py -f table/alter_wal0.py
@@ -28,13 +35,16 @@ python3 ./test.py -f table/column_name.py
 python3 ./test.py -f table/column_num.py
 python3 ./test.py -f table/db_table.py
 python3 ./test.py -f table/create_sensitive.py
-#python3 ./test.py -f table/tablename-boundary.py
+python3 ./test.py -f table/tablename-boundary.py
 python3 ./test.py  -f table/max_table_length.py
 python3 ./test.py -f table/alter_column.py
 python3 ./test.py -f table/boundary.py
 python3 ./test.py -f table/create.py
 python3 ./test.py -f table/del_stable.py
 
+#stable
+python3 ./test.py -f stable/insert.py
+python3 test.py -f tools/taosdemoAllTest/taosdemoTestInsertWithJsonStmt.py 
 
 # tag
 python3 ./test.py -f tag_lite/filter.py
@@ -65,8 +75,10 @@ python3 ./test.py -f tag_lite/int.py
 python3 ./test.py -f tag_lite/set.py
 python3 ./test.py -f tag_lite/smallint.py
 python3 ./test.py -f tag_lite/tinyint.py
+python3 ./test.py -f tag_lite/timestamp.py
 
 #python3 ./test.py -f dbmgmt/database-name-boundary.py
+python3 test.py -f dbmgmt/nanoSecondCheck.py
 
 python3 ./test.py -f import_merge/importBlock1HO.py
 python3 ./test.py -f import_merge/importBlock1HPO.py
@@ -136,12 +148,64 @@ python3 ./test.py -f import_merge/importTPORestart.py
 python3 ./test.py -f import_merge/importTRestart.py
 python3 ./test.py -f import_merge/importInsertThenImport.py
 python3 ./test.py -f import_merge/importCSV.py
+python3 ./test.py -f import_merge/import_update_0.py
+python3 ./test.py -f import_merge/import_update_1.py
+python3 ./test.py -f import_merge/import_update_2.py
+#======================p1-end===============
+#======================p2-start===============
+# tools
+python3 test.py -f tools/taosdumpTest.py
+python3 test.py -f tools/taosdumpTest2.py
+
+python3 test.py -f tools/taosdemoTest.py
+python3 test.py -f tools/taosdemoTestWithoutMetric.py
+python3 test.py -f tools/taosdemoTestWithJson.py
+python3 test.py -f tools/taosdemoTestLimitOffset.py
+python3 test.py -f tools/taosdemoTestTblAlt.py
+python3 test.py -f tools/taosdemoTestSampleData.py
+python3 test.py -f tools/taosdemoTestInterlace.py
+python3 test.py -f tools/taosdemoTestQuery.py
+
+# nano support
+python3 test.py -f tools/taosdemoAllTest/taosdemoTestSupportNanoInsert.py
+python3 test.py -f tools/taosdemoAllTest/taosdemoTestSupportNanoQuery.py
+python3 test.py -f tools/taosdemoAllTest/taosdemoTestSupportNanosubscribe.py
+python3 test.py -f tools/taosdemoAllTest/taosdemoTestInsertTime_step.py
+python3 test.py -f tools/taosdumpTestNanoSupport.py
+
+# update
+python3 ./test.py -f update/allow_update.py
+python3 ./test.py -f update/allow_update-0.py
+python3 ./test.py -f update/append_commit_data.py
+python3 ./test.py -f update/append_commit_last-0.py
+python3 ./test.py -f update/append_commit_last.py
+python3 ./test.py -f update/merge_commit_data.py
+
+python3 ./test.py -f update/merge_commit_data2.py
+python3 ./test.py -f update/merge_commit_data2_update0.py
+python3 ./test.py -f update/merge_commit_last-0.py
+python3 ./test.py -f update/merge_commit_last.py
+python3 ./test.py -f update/bug_td2279.py
+
+#======================p2-end===============
+#======================p3-start===============
+
+
 # user
 python3 ./test.py -f user/user_create.py
 python3 ./test.py -f user/pass_len.py
 
 # stable
 python3 ./test.py -f stable/query_after_reset.py
+
+# perfbenchmark
+python3 ./test.py -f perfbenchmark/bug3433.py
+#python3 ./test.py -f perfbenchmark/bug3589.py
+python3 ./test.py -f perfbenchmark/taosdemoInsert.py
+
+#taosdemo
+python3 test.py -f tools/taosdemoAllTest/taosdemoTestInsertWithJson.py 
+python3 test.py -f tools/taosdemoAllTest/taosdemoTestQueryWithJson.py
 
 #query
 python3 ./test.py -f query/filter.py
@@ -166,6 +230,7 @@ python3 ./test.py -f query/bug1875.py
 python3 ./test.py -f query/bug1876.py
 python3 ./test.py -f query/bug2218.py
 python3 ./test.py -f query/bug2117.py
+python3 ./test.py -f query/bug2118.py
 python3 ./test.py -f query/bug2143.py
 python3 ./test.py -f query/sliding.py
 python3 ./test.py -f query/unionAllTest.py
@@ -173,33 +238,90 @@ python3 ./test.py -f query/bug2281.py
 python3 ./test.py -f query/bug2119.py
 python3 ./test.py -f query/isNullTest.py
 python3 ./test.py -f query/queryWithTaosdKilled.py
+python3 ./test.py -f query/floatCompare.py
+python3 ./test.py -f query/query1970YearsAf.py
+python3 ./test.py -f query/bug3351.py
+python3 ./test.py -f query/bug3375.py
+python3 ./test.py -f query/queryJoin10tables.py
+python3 ./test.py -f query/queryStddevWithGroupby.py
+python3 ./test.py -f query/querySecondtscolumnTowherenow.py
+python3 ./test.py -f query/queryFilterTswithDateUnit.py
+python3 ./test.py -f query/queryTscomputWithNow.py
+python3 ./test.py -f query/queryStableJoin.py
+python3 ./test.py -f query/computeErrorinWhere.py
+python3 ./test.py -f query/queryTsisNull.py
+python3 ./test.py -f query/subqueryFilter.py
+python3 ./test.py -f query/nestedQuery/queryInterval.py
+python3 ./test.py -f query/queryStateWindow.py
+python3 ./test.py -f query/nestedQuery/queryWithOrderLimit.py
+python3 ./test.py -f query/nestquery_last_row.py
+python3 ./test.py -f query/queryCnameDisplay.py
+python3 ./test.py -f query/operator_cost.py
+python3 ./test.py -f query/long_where_query.py
+python3 test.py -f query/nestedQuery/queryWithSpread.py
 
 #stream
 python3 ./test.py -f stream/metric_1.py
+python3 ./test.py -f stream/metric_n.py
 python3 ./test.py -f stream/new.py
 python3 ./test.py -f stream/stream1.py
 python3 ./test.py -f stream/stream2.py
 #python3 ./test.py -f stream/parser.py
 python3 ./test.py -f stream/history.py
+python3 ./test.py -f stream/sys.py
+python3 ./test.py -f stream/table_1.py
+python3 ./test.py -f stream/table_n.py
+python3 ./test.py -f stream/showStreamExecTimeisNull.py
+python3 ./test.py -f stream/cqSupportBefore1970.py
 
 #alter table
 python3 ./test.py -f alter/alter_table_crash.py
+python3 ./test.py -f alter/alterTabAddTagWithNULL.py
+python3 ./test.py -f alter/alterTimestampColDataProcess.py
 
 # client
 python3 ./test.py -f client/client.py
 python3 ./test.py -f client/version.py
 python3 ./test.py -f client/alterDatabase.py
 python3 ./test.py -f client/noConnectionErrorTest.py
+# python3 test.py -f client/change_time_1_1.py
+# python3 test.py -f client/change_time_1_2.py
 
 # Misc
 python3 testCompress.py
 python3 testNoCompress.py
 python3 testMinTablesPerVnode.py
 
+
+python3 queryCount.py
+python3 ./test.py -f query/queryGroupbyWithInterval.py
+python3 client/twoClients.py
+python3 test.py -f query/queryInterval.py
+python3 test.py -f query/queryFillTest.py
+
+# subscribe
+python3 test.py -f subscribe/singlemeter.py
+#python3 test.py -f subscribe/stability.py  
+python3 test.py -f subscribe/supertable.py
+
+# topic
+python3 ./test.py -f topic/topicQuery.py
+
+#======================p3-end===============
+#======================p4-start===============
+
+python3 ./test.py -f update/merge_commit_data-0.py
+# wal
+python3 ./test.py -f wal/addOldWalTest.py
+python3 ./test.py -f wal/sdbComp.py 
+
+# function
+python3 ./test.py -f functions/all_null_value.py
 # functions
 python3 ./test.py -f functions/function_avg.py -r 1
 python3 ./test.py -f functions/function_bottom.py -r 1
 python3 ./test.py -f functions/function_count.py -r 1
+python3 ./test.py -f functions/function_count_last_stab.py
 python3 ./test.py -f functions/function_diff.py -r 1
 python3 ./test.py -f functions/function_first.py -r 1
 python3 ./test.py -f functions/function_last.py -r 1
@@ -213,39 +335,60 @@ python3 ./test.py -f functions/function_spread.py -r 1
 python3 ./test.py -f functions/function_stddev.py -r 1
 python3 ./test.py -f functions/function_sum.py -r 1
 python3 ./test.py -f functions/function_top.py -r 1
-#python3 ./test.py -f functions/function_twa.py -r 1
+python3 ./test.py -f functions/function_twa.py -r 1
 python3 ./test.py -f functions/function_twa_test2.py
-python3 queryCount.py
-python3 ./test.py -f query/queryGroupbyWithInterval.py
-python3 client/twoClients.py
-python3 test.py -f query/queryInterval.py
-python3 test.py -f query/queryFillTest.py
+python3 ./test.py -f functions/function_stddev_td2555.py
+python3 ./test.py -f functions/showOfflineThresholdIs864000.py
+python3 ./test.py -f insert/metadataUpdate.py
+python3 ./test.py -f query/last_cache.py
+python3 ./test.py -f query/last_row_cache.py
+python3 ./test.py -f account/account_create.py
+python3 ./test.py -f alter/alter_table.py
+python3 ./test.py -f query/queryGroupbySort.py
+python3 ./test.py -f functions/queryTestCases.py
+python3 ./test.py -f functions/function_stateWindow.py
+python3 ./test.py -f functions/function_derivative.py
+python3 ./test.py  -f functions/function_irate.py
 
-# tools
-python3 test.py -f tools/taosdemoTest.py
-python3 test.py -f tools/taosdumpTest.py
-python3 test.py -f tools/lowaTest.py
-python3 test.py -f tools/taosdemoTest2.py
+python3 ./test.py -f insert/unsignedInt.py
+python3 ./test.py -f insert/unsignedBigint.py
+python3 ./test.py -f insert/unsignedSmallint.py
+python3 ./test.py -f insert/unsignedTinyint.py
+python3 ./test.py -f insert/insertFromCSV.py
+python3 ./test.py -f query/filterAllUnsignedIntTypes.py
 
-# subscribe
-python3 test.py -f subscribe/singlemeter.py
-#python3 test.py -f subscribe/stability.py
-python3 test.py -f subscribe/supertable.py
+python3 ./test.py -f tag_lite/unsignedInt.py
+python3 ./test.py -f tag_lite/unsignedBigint.py
+python3 ./test.py -f tag_lite/unsignedSmallint.py
+python3 ./test.py -f tag_lite/unsignedTinyint.py
+
+python3 ./test.py -f functions/function_percentile2.py
+python3 ./test.py -f insert/boundary2.py
+python3 ./test.py -f insert/insert_locking.py
+python3 ./test.py -f alter/alter_debugFlag.py
+python3 ./test.py -f query/queryBetweenAnd.py
+python3 ./test.py -f tag_lite/alter_tag.py
 
 
-# update
-python3 ./test.py -f update/allow_update.py
-python3 ./test.py -f update/allow_update-0.py
-python3 ./test.py -f update/append_commit_data.py
-python3 ./test.py -f update/append_commit_last-0.py
-python3 ./test.py -f update/append_commit_last.py
-python3 ./test.py -f update/merge_commit_data.py
-python3 ./test.py -f update/merge_commit_data-0.py
-python3 ./test.py -f update/merge_commit_data2.py
-python3 ./test.py -f update/merge_commit_data2_update0.py
-python3 ./test.py -f update/merge_commit_last-0.py
-python3 ./test.py -f update/merge_commit_last.py
-python3 ./test.py -f update/bug_td2279.py
+python3 test.py -f tools/taosdemoAllTest/TD-4985/query-limit-offset.py
+python3 test.py -f tools/taosdemoAllTest/TD-5213/insert4096columns_not_use_taosdemo.py
+python3 test.py -f tools/taosdemoAllTest/TD-5213/insertSigcolumnsNum4096.py
+python3 ./test.py -f tag_lite/drop_auto_create.py
+python3 test.py -f insert/insert_before_use_db.py
+python3 test.py -f alter/alter_keep.py
+python3 test.py -f alter/alter_cacheLastRow.py
+python3 ./test.py -f query/querySession.py 
+python3 test.py -f  alter/alter_create_exception.py
+python3 ./test.py -f insert/flushwhiledrop.py
+python3 ./test.py -f insert/schemalessInsert.py
 
-# wal
-python3 ./test.py -f wal/addOldWalTest.py
+#======================p4-end===============
+python3 test.py -f  tools/taosdemoAllTest/pytest.py
+
+
+
+
+
+
+
+

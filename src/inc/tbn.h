@@ -31,6 +31,7 @@ void    bnReset();
 int32_t bnAllocVnodes(struct SVgObj *pVgroup);
 int32_t bnAlterDnode(struct SDnodeObj *pDnode, int32_t vnodeId, int32_t dnodeId);
 int32_t bnDropDnode(struct SDnodeObj *pDnode);
+int32_t bnDnodeCanCreateMnode(struct SDnodeObj *pDnode);
 
 #ifdef __cplusplus
 }

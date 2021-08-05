@@ -28,7 +28,14 @@ endi
 print ============== step2
 system sh/exec.sh -n dnode2 -s start
 sql create dnode $hostname2
-sleep 8000
+
+$x = 0
+step2: 
+	$x = $x + 1
+	sleep 1000
+	if $x == 10 then
+		return -1
+	endi
 
 sql show mnodes
 $dnode1Role = $data2_1
@@ -39,19 +46,26 @@ print dnode2 ==> $dnode2Role
 print dnode3 ==> $dnode3Role
 
 if $dnode1Role != master then
-  return -1
+  goto step2
 endi
 if $dnode2Role != slave then
-  return -1
+  goto step2
 endi
 if $dnode3Role != null then
-  return -1
+  goto step2
 endi
 
 print ============== step3
 system sh/exec.sh -n dnode3 -s start
 sql create dnode $hostname3
-sleep 8000
+
+$x = 0
+step3: 
+	$x = $x + 1
+	sleep 1000
+	if $x == 10 then
+		return -1
+	endi
 
 sql show mnodes
 $dnode1Role = $data2_1
@@ -62,18 +76,25 @@ print dnode2 ==> $dnode2Role
 print dnode3 ==> $dnode3Role
 
 if $dnode1Role != master then
-  return -1
+  goto step3
 endi
 if $dnode2Role != slave then
-  return -1
+  goto step3
 endi
 if $dnode3Role != slave then
-  return -1
+  goto step3
 endi
 
 print ============== step4
 sql drop dnode $hostname2
-sleep 8000
+
+$x = 0
+step4: 
+	$x = $x + 1
+	sleep 1000
+	if $x == 10 then
+		return -1
+	endi
 
 sql show mnodes
 $dnode1Role = $data2_1
@@ -84,25 +105,30 @@ print dnode2 ==> $dnode2Role
 print dnode3 ==> $dnode3Role
 
 if $dnode1Role != master then
-  return -1
+  goto step4
 endi
 if $dnode2Role != null then
-  return -1
+  goto step4
 endi
 if $dnode3Role != slave then
-  return -1
+  goto step4
 endi
 
 system sh/exec.sh -n dnode2 -s stop
-sleep 3000
-
 system sh/deploy.sh -n dnode2 -i 2
 system sh/cfg.sh -n dnode2 -c numOfMnodes -v 3
 system sh/exec.sh -n dnode2 -s start
 
 print ============== step5
 sql create dnode $hostname2
-sleep 8000
+
+$x = 0
+step5: 
+	$x = $x + 1
+	sleep 1000
+	if $x == 10 then
+		return -1
+	endi
 
 sql show mnodes
 $dnode1Role = $data2_1
@@ -113,20 +139,26 @@ print dnode2 ==> $dnode2Role
 print dnode3 ==> $dnode3Role
 
 if $dnode1Role != master then
-  return -1
+  goto step5
 endi
 if $dnode2Role != slave then
-  return -1
+  goto step5
 endi
 if $dnode3Role != slave then
-  return -1
+  goto step5
 endi
 
 print ============== step6
 system sh/exec.sh -n dnode1 -s stop
-sleep 10000
+$x = 0
+step6: 
+	$x = $x + 1
+	sleep 1000
+	if $x == 10 then
+		return -1
+	endi
 
-sql show mnodes
+sql show mnodes -x step6
 $dnode1Role = $data2_1
 $dnode2Role = $data2_4
 $dnode3Role = $data2_3
@@ -135,7 +167,7 @@ print dnode2 ==> $dnode2Role
 print dnode3 ==> $dnode3Role
 
 if $dnode1Role != offline then
-  return -1
+  goto step6
 endi
 #if $dnode2Role != master then
 #  return -1
@@ -146,9 +178,15 @@ endi
 
 print ============== step7
 sql drop dnode $hostname1
-sleep 8000
+$x = 0
+step7: 
+	$x = $x + 1
+	sleep 1000
+	if $x == 10 then
+		return -1
+	endi
 
-sql show mnodes
+sql show mnodes -x step7
 $dnode1Role = $data2_1
 $dnode2Role = $data2_2
 $dnode3Role = $data2_3
@@ -157,7 +195,7 @@ print dnode2 ==> $dnode2Role
 print dnode3 ==> $dnode3Role
 
 if $dnode1Role != null then
-  return -1
+  goto step7
 endi
 #if $dnode2Role != master then
 #  return -1

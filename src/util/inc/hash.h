@@ -32,17 +32,18 @@ typedef void (*_hash_free_fn_t)(void *param);
 
 typedef struct SHashNode {
   struct SHashNode *next;
-  uint32_t          hashVal;  // the hash value of key
-  uint32_t          keyLen;   // length of the key
-  size_t            dataLen;  // length of data
-  int8_t            count;    // reference count
-  int8_t            removed;  // flag to indicate removed
+  uint32_t          hashVal;     // the hash value of key
+  uint32_t          dataLen;     // length of data
+  uint32_t          keyLen;      // length of the key
+  int8_t            removed;     // flag to indicate removed
+  int8_t            count;       // reference count
   char              data[];
 } SHashNode;
 
 #define GET_HASH_NODE_KEY(_n)  ((char*)(_n) + sizeof(SHashNode) + (_n)->dataLen)
 #define GET_HASH_NODE_DATA(_n) ((char*)(_n) + sizeof(SHashNode))
 #define GET_HASH_PNODE(_n) ((char*)(_n) - sizeof(SHashNode));
+
 typedef enum SHashLockTypeE {
   HASH_NO_LOCK     = 0,
   HASH_ENTRY_LOCK  = 1,
@@ -60,6 +61,7 @@ typedef struct SHashObj {
   size_t          size;         // number of elements in hash table
   _hash_fn_t      hashFp;       // hash function
   _hash_free_fn_t freeFp;       // hash node free callback function
+  _equal_fn_t     equalFp;       // equal function
 
   SRWLatch        lock;         // read-write spin lock
   SHashLockTypeE  type;         // lock type
@@ -76,6 +78,15 @@ typedef struct SHashObj {
  * @return
  */
 SHashObj *taosHashInit(size_t capacity, _hash_fn_t fn, bool update, SHashLockTypeE type);
+
+
+/**
+ * set equal func of the hash table  
+ * @param pHashObj    
+ * @param equalFp       
+ * @return
+ */
+void taosHashSetEqualFp(SHashObj *pHashObj, _equal_fn_t fp);
 
 /**
  * return the size of hash table
@@ -112,11 +123,20 @@ void *taosHashGet(SHashObj *pHashObj, const void *key, size_t keyLen);
  * @param keyLen
  * @param fp
  * @param d
- * @param dsize
  * @return
  */
-void* taosHashGetCB(SHashObj *pHashObj, const void *key, size_t keyLen, void (*fp)(void *), void* d, size_t dsize);
+void* taosHashGetClone(SHashObj *pHashObj, const void *key, size_t keyLen, void (*fp)(void *), void* d);
 
+/**
+ * @param pHashObj
+ * @param key
+ * @param keyLen
+ * @param fp
+ * @param d
+ * @param sz 
+ * @return
+ */
+void* taosHashGetCloneExt(SHashObj *pHashObj, const void *key, size_t keyLen, void (*fp)(void *), void** d, size_t *sz);
 /**
  * remove item with the specified key
  * @param pHashObj
@@ -129,15 +149,13 @@ int32_t taosHashRemoveWithData(SHashObj *pHashObj, const void *key, size_t keyLe
 
 int32_t taosHashCondTraverse(SHashObj *pHashObj, bool (*fp)(void *, void *), void *param);
 
+void taosHashClear(SHashObj *pHashObj);
+
 /**
  * clean up hash table
  * @param handle
  */
 void taosHashCleanup(SHashObj *pHashObj);
-
-/*
-void *SHashMutableIterator* taosHashCreateIter(SHashObj *pHashObj, void *);
-*/
 
 /**
  *
@@ -149,6 +167,7 @@ int32_t taosHashGetMaxOverflowLinkLength(const SHashObj *pHashObj);
 size_t taosHashGetMemSize(const SHashObj *pHashObj);
 
 void *taosHashIterate(SHashObj *pHashObj, void *p);
+
 void  taosHashCancelIterate(SHashObj *pHashObj, void *p);
 
 #ifdef __cplusplus

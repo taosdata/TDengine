@@ -27,11 +27,30 @@ system sh/cfg.sh -n dnode4 -c walLevel -v 2
 
 print ========= start dnode1
 system sh/exec.sh -n dnode1 -s start
-sleep 3000
 sql connect
 
 sql create dnode $hostname2
 system sh/exec.sh -n dnode2 -s start
+$x = 0
+step1: 
+	$x = $x + 1
+	sleep 1000
+	if $x == 10 then
+		return -1
+	endi
+
+sql show dnodes
+print dnode1 $data4_1
+print dnode2 $data4_2
+print dnode3 $data4_3
+print dnode4 $data4_4
+
+if $data4_1 != ready then
+  goto step1
+endi
+if $data4_2 != ready then
+  goto step1
+endi
 
 sql create database ir2db replica 2 days 7
 sql use ir2db
@@ -96,9 +115,22 @@ endi
 
 print ================== dnode restart
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
-sleep 5000
 system sh/exec.sh -n dnode1 -s start
-sleep 5000
+
+$x = 0
+a1: 
+	$x = $x + 1
+	sleep 1000
+	if $x == 40 then
+	  return -1
+	endi
+
+sql show vgroups 
+print online vnodes $data03
+if $data03 != 2 then
+	goto a1
+endi
+
 sql select * from tb;
 if $rows != 14 then 
   return -1
@@ -163,9 +195,22 @@ endi
 
 print ================= step10
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
-sleep 5000
 system sh/exec.sh -n dnode1 -s start
-sleep 5000
+
+$x = 0
+a2: 
+	$x = $x + 1
+	sleep 1000
+	if $x == 40 then
+	  return -1
+	endi
+
+sql show vgroups 
+print online vnodes $data03
+if $data03 != 2 then
+	goto a2
+endi
+
 sql select * from tb;
 print $rows
 if $rows != 35 then 
@@ -193,9 +238,20 @@ endi
 
 print ================= step13
 system sh/exec.sh -n dnode2 -s stop -x SIGINT
-sleep 5000
 system sh/exec.sh -n dnode2 -s start
-sleep 5000
+$x = 0
+a3: 
+	$x = $x + 1
+	sleep 1000
+	if $x == 40 then
+	  return -1
+	endi
+
+sql show vgroups 
+print online vnodes $data03
+if $data03 != 2 then
+	goto a3
+endi
 
 print ================= step14
 #1520000000000
@@ -214,12 +270,24 @@ endi
 
 print ================= step15
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
-sleep 5000
 system sh/exec.sh -n dnode1 -s start
-sleep 5000
+$x = 0
+a4: 
+	$x = $x + 1
+	sleep 1000
+	if $x == 40 then
+	  return -1
+	endi
 
+sql show vgroups 
+print online vnodes $data03
+if $data03 != 2 then
+	goto a4
+endi
+
+sql select * from tb;
 if $rows != 52 then 
-  return -1
+  goto a4
 endi
 
 system sh/exec.sh -n dnode1 -s stop  -x SIGINT

@@ -23,6 +23,7 @@ extern "C" {
 #include "os.h"
 #include "taosdef.h"
 #include "tarray.h"
+#include "tfunctional.h"
 
 #define MAX_SKIP_LIST_LEVEL 15
 #define SKIP_LIST_RECORD_PERFORMANCE 0
@@ -30,12 +31,16 @@ extern "C" {
 // For key property setting
 #define SL_ALLOW_DUP_KEY (uint8_t)0x0    // Allow duplicate key exists (for tag index usage)
 #define SL_DISCARD_DUP_KEY (uint8_t)0x1  // Discard duplicate key (for data update=0 case)
-#define SL_UPDATE_DUP_KEY (uint8_t)0x2   // Update duplicate key by remove/insert (for data update=1 case)
+#define SL_UPDATE_DUP_KEY (uint8_t)0x2   // Update duplicate key by remove/insert (for data update!=0 case)
+
 // For thread safety setting
 #define SL_THREAD_SAFE (uint8_t)0x4
 
 typedef char *SSkipListKey;
 typedef char *(*__sl_key_fn_t)(const void *);
+
+typedef void (*sl_patch_row_fn_t)(void * pDst, const void * pSrc);
+typedef void* (*iter_next_fn_t)(void *iter);
 
 typedef struct SSkipListNode {
   uint8_t        level;
@@ -95,7 +100,14 @@ typedef struct tSkipListState {
   uint64_t nTotalElapsedTimeForInsert;
 } tSkipListState;
 
+typedef enum {
+  SSkipListPutSuccess    = 0,
+  SSkipListPutEarlyStop  = 1,
+  SSkipListPutSkipOne    = 2
+} SSkipListPutStatus;
+
 typedef struct SSkipList {
+  unsigned int      seed;
   __compar_fn_t     comparFn;
   __sl_key_fn_t     keyFn;
   pthread_rwlock_t *lock;
@@ -110,6 +122,7 @@ typedef struct SSkipList {
 #if SKIP_LIST_RECORD_PERFORMANCE
   tSkipListState state;  // skiplist state
 #endif
+  tGenericSavedFunc* insertHandleFn;
 } SSkipList;
 
 typedef struct SSkipListIterator {
@@ -117,7 +130,7 @@ typedef struct SSkipListIterator {
   SSkipListNode *cur;
   int32_t        step;          // the number of nodes that have been checked already
   int32_t        order;         // order of the iterator
-  SSkipListNode *next;          // next points to the true qualified node in skip list
+  SSkipListNode *next;          // next points to the true qualified node in skiplist
 } SSkipListIterator;
 
 #define SL_IS_THREAD_SAFE(s) (((s)->flags) & SL_THREAD_SAFE)
@@ -131,7 +144,7 @@ SSkipList *tSkipListCreate(uint8_t maxLevel, uint8_t keyType, uint16_t keyLen, _
                            __sl_key_fn_t fn);
 void       tSkipListDestroy(SSkipList *pSkipList);
 SSkipListNode *    tSkipListPut(SSkipList *pSkipList, void *pData);
-void               tSkipListPutBatch(SSkipList *pSkipList, void **ppData, int ndata);
+void               tSkipListPutBatchByIter(SSkipList *pSkipList, void *iter, iter_next_fn_t iterate);
 SArray *           tSkipListGet(SSkipList *pSkipList, SSkipListKey pKey);
 void               tSkipListPrint(SSkipList *pSkipList, int16_t nlevel);
 SSkipListIterator *tSkipListCreateIter(SSkipList *pSkipList);

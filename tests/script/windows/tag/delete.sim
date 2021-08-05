@@ -1,5 +1,5 @@
 sql connect
-sleep 3000
+sleep 2000
 print ======================== dnode1 start
 
 sql show databases
@@ -409,7 +409,7 @@ sql alter table $mt drop tag tgcol3
 sql alter table $mt drop tag tgcol4
 sql alter table $mt drop tag tgcol6
 
-sleep 5000
+sleep 3000
 
 print =============== step2
 $i = 2

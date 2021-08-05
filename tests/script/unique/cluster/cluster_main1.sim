@@ -48,11 +48,11 @@ print ============== step1: start dnode1/dnode2/dnode3
 system sh/exec.sh -n dnode1 -s start
 system sh/exec.sh -n dnode2 -s start
 system sh/exec.sh -n dnode3 -s start
-sleep 3000
+sleep 2000
 sql connect
 sql create dnode $hostname2
 sql create dnode $hostname3
-sleep 3000
+sleep 2000
 
 print ============== step2: create db1 with replica 3
 $replica = 3
@@ -92,17 +92,17 @@ print select count(*) from $stb
 sql select count(*) from $stb
 print data00 $data00
 if $data00 < 1000 then
-  sleep 3000
+  sleep 2000
   goto wait_subsim_insert_data
 endi
 
 print wait for a while to let clients start insert data
-sleep 5000    
+sleep 3000
 
 print ============== step4-1: add dnode4/dnode5 into cluster
 sql create dnode $hostname4
 sql create dnode $hostname5
-sleep 5000
+sleep 3000
 
 $loop_cnt = 0
 loop_cluster_do:
@@ -116,7 +116,7 @@ print ============== step6: stop dnode1
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
 sleep 10000
 #sql drop dnode $hostname1
-#sleep 5000
+#sleep 3000
 #system rm -rf ../../../sim/dnode1/data
 #sleep 20000
 print ============== step6-1: restart dnode1
@@ -138,7 +138,7 @@ print $data0_9  $data1_9  $data2_9  $data3_9  $data4_9
 
 print ============== step7: stop dnode2 
 system sh/exec.sh -n dnode2 -s stop -x SIGINT
-sleep 5000
+sleep 3000
 
 sql show mnodes
 print show mnodes

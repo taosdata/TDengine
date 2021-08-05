@@ -271,23 +271,23 @@ static int32_t bnRetrieveScores(SShowObj *pShow, char *data, int32_t rows, void 
     cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    *(float *)pWrite = systemScore;
+    *(float *)pWrite = (float)systemScore;
     cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    *(float *)pWrite = pDnode->customScore;
+    *(float *)pWrite = (float)pDnode->customScore;
     cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    *(float *)pWrite = (int32_t)moduleScore;
+    *(float *)pWrite = (float)moduleScore;
     cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    *(float *)pWrite = (int32_t)vnodeScore;
+    *(float *)pWrite = (float)vnodeScore;
     cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    *(float *)pWrite = (int32_t)(vnodeScore + moduleScore + pDnode->customScore + systemScore);
+    *(float *)pWrite = (float)(vnodeScore + moduleScore + pDnode->customScore + systemScore);
     cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
@@ -299,7 +299,7 @@ static int32_t bnRetrieveScores(SShowObj *pShow, char *data, int32_t rows, void 
     cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    STR_TO_VARSTR(pWrite, mnodeGetDnodeStatusStr(pDnode->status));
+    STR_TO_VARSTR(pWrite, dnodeStatus[pDnode->status]);
     cols++;
 
     numOfRows++;

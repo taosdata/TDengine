@@ -25,7 +25,7 @@ class TDTestCase:
         tdLog.debug("start to execute %s" % __file__)
         tdSql.init(conn.cursor(), logSql)
         
-        self.types = ["tinyint", "smallint", "int", "bigint", "float", "double", "bool", "binary(10)", "nchar(10)"]
+        self.types = ["tinyint", "smallint", "int", "bigint", "float", "double", "bool", "binary(10)", "nchar(10)", "tinyint unsigned", "smallint unsigned", "int unsigned", "bigint unsigned"]
         self.ts = 1537146000000
 
     def checkNullValue(self, result):

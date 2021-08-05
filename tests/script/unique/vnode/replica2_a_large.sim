@@ -29,14 +29,14 @@ print ============== step0: start tarbitrator
 system sh/exec_tarbitrator.sh -s start
 
 system sh/exec.sh -n dnode1 -s start
-sleep 3000
+sleep 2000
 sql connect
 
 sql create dnode $hostname2
 sql create dnode $hostname3
 system sh/exec.sh -n dnode2 -s start -t
 system sh/exec.sh -n dnode3 -s start -t
-sleep 3000
+sleep 2000
 
 print ========= step1
 sql create database db replica 2 
@@ -56,7 +56,7 @@ $lastRows = $rows
 print ======== step2
 #run_back unique/vnode/back_insert_many.sim
 run_back unique/vnode/back_insert.sim
-sleep 3000
+sleep 2000
 
 print ======== step3
 

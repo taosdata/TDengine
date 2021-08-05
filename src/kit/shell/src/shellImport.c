@@ -223,6 +223,8 @@ static void shellSourceFile(TAOS *con, char *fptr) {
 void* shellImportThreadFp(void *arg)
 {
   ShellThreadObj *pThread = (ShellThreadObj*)arg;
+  setThreadName("shellImportThrd");
+
   for (int f = 0; f < shellSQLFileNum; ++f) {
     if (f % pThread->totalThreads == pThread->threadIndex) {
       char *SQLFileName = shellSQLFiles[f];
@@ -233,15 +235,15 @@ void* shellImportThreadFp(void *arg)
   return NULL;
 }
 
-static void shellRunImportThreads(SShellArguments* args)
+static void shellRunImportThreads(SShellArguments* _args)
 {
   pthread_attr_t thattr;
-  ShellThreadObj *threadObj = (ShellThreadObj *)calloc(args->threadNum, sizeof(ShellThreadObj));
-  for (int t = 0; t < args->threadNum; ++t) {
+  ShellThreadObj *threadObj = (ShellThreadObj *)calloc(_args->threadNum, sizeof(ShellThreadObj));
+  for (int t = 0; t < _args->threadNum; ++t) {
     ShellThreadObj *pThread = threadObj + t;
     pThread->threadIndex = t;
-    pThread->totalThreads = args->threadNum;
-    pThread->taos = taos_connect(args->host, args->user, args->password, args->database, tsDnodeShellPort);
+    pThread->totalThreads = _args->threadNum;
+    pThread->taos = taos_connect(_args->host, _args->user, _args->password, _args->database, tsDnodeShellPort);
     if (pThread->taos == NULL) {
       fprintf(stderr, "ERROR: thread:%d failed connect to TDengine, error:%s\n", pThread->threadIndex, "null taos"/*taos_errstr(pThread->taos)*/);
       exit(0);
@@ -256,18 +258,18 @@ static void shellRunImportThreads(SShellArguments* args)
     }
   }
 
-  for (int t = 0; t < args->threadNum; ++t) {
+  for (int t = 0; t < _args->threadNum; ++t) {
     pthread_join(threadObj[t].threadID, NULL);
   }
 
-  for (int t = 0; t < args->threadNum; ++t) {
+  for (int t = 0; t < _args->threadNum; ++t) {
     taos_close(threadObj[t].taos);
   }
   free(threadObj);
 }
 
-void source_dir(TAOS* con, SShellArguments* args) {
-  shellGetDirectoryFileList(args->dir);
+void source_dir(TAOS* con, SShellArguments* _args) {
+  shellGetDirectoryFileList(_args->dir);
   int64_t start = taosGetTimestampMs();
 
   if (shellTablesSQLFile[0] != 0) {
@@ -276,7 +278,7 @@ void source_dir(TAOS* con, SShellArguments* args) {
     fprintf(stdout, "import %s finished, time spent %.2f seconds\n", shellTablesSQLFile, (end - start) / 1000.0);
   }
 
-  shellRunImportThreads(args);
+  shellRunImportThreads(_args);
   int64_t end = taosGetTimestampMs();
-  fprintf(stdout, "import %s finished, time spent %.2f seconds\n", args->dir, (end - start) / 1000.0);
+  fprintf(stdout, "import %s finished, time spent %.2f seconds\n", _args->dir, (end - start) / 1000.0);
 }

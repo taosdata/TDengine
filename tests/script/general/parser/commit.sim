@@ -1,10 +1,10 @@
 system sh/stop_dnodes.sh
 
 system sh/deploy.sh -n dnode1 -i 1
-system sh/cfg.sh -n dnode1 -c walLevel -v 0
+system sh/cfg.sh -n dnode1 -c walLevel -v 1
 system sh/cfg.sh -n dnode1 -c maxTablesperVnode -v 100
 system sh/exec.sh -n dnode1 -s start
-sleep 500
+sleep 100
 sql connect
 
 $dbPrefix = sc_db
@@ -68,7 +68,7 @@ while $loop <= $loops
   while $i < 10
     sql select count(*) from $stb where t1 = $i 
     if $data00 != $rowNum then
-      print expect $rowNum, actual: $data00
+      print expect $rowNum , actual: $data00
       return -1
     endi
     $i = $i + 1
@@ -82,12 +82,12 @@ endw
 
 print ================== restart server to commit data into disk
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
-sleep 3000
-system sh/exec.sh -n dnode1 -s start
 sleep 500
+system sh/exec.sh -n dnode1 -s start
+sleep 100
 print ================== server restart completed
 sql connect
-sleep 500
+sleep 100
 
 print ====== select from table and check num of rows returned
 sql use $db

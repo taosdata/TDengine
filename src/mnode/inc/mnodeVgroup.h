@@ -32,6 +32,7 @@ void    mnodeDropAllDbVgroups(SDbObj *pDropDb);
 void    mnodeSendDropAllDbVgroupsMsg(SDbObj *pDropDb);
 void    mnodeDropAllDnodeVgroups(SDnodeObj *pDropDnode);
 //void  mnodeUpdateAllDbVgroups(SDbObj *pAlterDb);
+int32_t mnodeCompactVgroups();
 
 void *  mnodeGetNextVgroup(void *pIter, SVgObj **pVgroup);
 void    mnodeCancelGetNextVgroup(void *pIter);
@@ -44,14 +45,19 @@ void    mnodeDropVgroup(SVgObj *pVgroup, void *ahandle);
 void    mnodeAlterVgroup(SVgObj *pVgroup, void *ahandle);
 int32_t mnodeGetAvailableVgroup(struct SMnodeMsg *pMsg, SVgObj **pVgroup, int32_t *sid);
 
-void    mnodeAddTableIntoVgroup(SVgObj *pVgroup, SCTableObj *pTable);
+int32_t mnodeAddTableIntoVgroup(SVgObj *pVgroup, SCTableObj *pTable, bool needCheck);
 void    mnodeRemoveTableFromVgroup(SVgObj *pVgroup, SCTableObj *pTable);
 void    mnodeSendDropVnodeMsg(int32_t vgId, SRpcEpSet *epSet, void *ahandle);
 void    mnodeSendCreateVgroupMsg(SVgObj *pVgroup, void *ahandle);
-void    mnodeSendAlterVgroupMsg(SVgObj *pVgroup);
+void    mnodeSendAlterVgroupMsg(SVgObj *pVgroup,SMnodeMsg *pMsg);
+void    mnodeSendSyncVgroupMsg(SVgObj *pVgroup);
+void    mnodeSendCompactVgroupMsg(SVgObj *pVgroup);
 
 SRpcEpSet mnodeGetEpSetFromVgroup(SVgObj *pVgroup);
 SRpcEpSet mnodeGetEpSetFromIp(char *ep);
+
+int32_t mnodeGetVgidVer(int8_t *vver);
+void    mnodeSetVgidVer(int8_t *cver, uint64_t iver);
 
 #ifdef __cplusplus
 }

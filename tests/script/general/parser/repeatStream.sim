@@ -1,9 +1,0 @@
-$i = 1
-$repeats = 5
-while $i <= $repeats
-  print ====== repeat: $i
-  run general/parser/stream.sim
-  $i = $i + 1
-endw
-
-system sh/exec.sh -n dnode1 -s stop -x SIGINT

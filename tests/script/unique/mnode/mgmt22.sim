@@ -9,7 +9,6 @@ system sh/cfg.sh -n dnode3 -c numOfMnodes -v 2
 
 print ============== step1
 system sh/exec.sh -n dnode1 -s start
-sleep 3000
 sql connect
 
 sql show mnodes
@@ -26,8 +25,8 @@ sql create dnode $hostname2
 $x = 0
 show2: 
 	$x = $x + 1
-	sleep 2000
-	if $x == 10 then 
+	sleep 1000
+	if $x == 20 then 
 		return -1
 	endi
 	
@@ -47,7 +46,7 @@ print should not drop master
 
 print ============== step4
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
-sleep 5000
+sleep 3000
 sql_error show mnodes
 print error of no master
 
@@ -64,8 +63,8 @@ sql connect
 $x = 0
 show6: 
 	$x = $x + 1
-	sleep 2000
-	if $x == 10 then 
+	sleep 1000
+	if $x == 20 then 
 		return -1
 	endi
 	
@@ -82,13 +81,12 @@ endi
 print ============== step7
 system sh/exec.sh -n dnode3 -s start
 sql create dnode $hostname3
-sleep 5000
 
 $x = 0
 show7: 
 	$x = $x + 1
-	sleep 2000
-	if $x == 10 then 
+	sleep 1000
+	if $x == 20 then 
 		return -1
 	endi
 	

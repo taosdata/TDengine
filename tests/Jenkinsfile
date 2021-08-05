@@ -1,18 +1,44 @@
 def pre_test(){
-    catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
-                sh '''
-                sudo rmtaos
-                '''
-    }
+   
+    sh '''
+    sudo rmtaos||echo 'no taosd installed'
+    '''
     sh '''
     cd ${WKC}
     git reset --hard
-    git checkout ${BRANCH}
+    git checkout $BRANCH_NAME
     git pull
     git submodule update
     cd ${WK}
     git reset --hard
-    git checkout ${BRANCH}
+    git checkout $BRANCH_NAME
+    git pull
+    export TZ=Asia/Harbin
+    date
+    rm -rf ${WK}/debug
+    mkdir debug
+    cd debug
+    cmake  .. > /dev/null
+    make > /dev/null
+    make install > /dev/null
+    pip3 install ${WKC}/src/connector/python
+    '''
+    return 1
+}
+def pre_test_p(){
+   
+    sh '''
+    sudo rmtaos||echo 'no taosd installed'
+    '''
+    sh '''
+    cd ${WKC}
+    git reset --hard
+    git checkout $BRANCH_NAME
+    git pull
+    git submodule update
+    cd ${WK}
+    git reset --hard
+    git checkout $BRANCH_NAME
     git pull
     export TZ=Asia/Harbin
     date
@@ -22,49 +48,48 @@ def pre_test(){
     cmake .. > /dev/null
     make > /dev/null
     make install > /dev/null
+    pip3 install ${WKC}/src/connector/python
     '''
     return 1
 }
 pipeline {
   agent none
   environment{
-      BRANCH = 'develop'
-      WK = '/var/lib/jenkins/workspace/TDinternal'
-      WKC= '/var/lib/jenkins/workspace/TDinternal/community'
+    
+      WK = '/data/lib/jenkins/workspace/TDinternal'
+      WKC= '/data/lib/jenkins/workspace/TDinternal/community'
   }
 
   stages {
       stage('Parallel test stage') {
       parallel {
         stage('pytest') {
-          agent{label '184'}
+          agent{label 'slad1'}
           steps {
-            pre_test()
+            pre_test_p()
             sh '''
             cd ${WKC}/tests
+            find pytest -name '*'sql|xargs rm -rf
             ./test-all.sh pytest
             date'''
           }
         }
         stage('test_b1') {
-          agent{label 'master'}
+          agent{label 'slad2'}
           steps {
             pre_test()
-            catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
-                sh '''
-                cd ${WKC}/tests/pytest
-                python3 concurrent_inquiry.py -c 1
-                '''
-            }
+            
             sh '''
             cd ${WKC}/tests
             ./test-all.sh b1
             date'''
+            
+            
           }
         }
 
         stage('test_crash_gen') {
-          agent{label "185"}
+          agent{label "slad3"}
           steps {
             pre_test()
             sh '''
@@ -79,22 +104,87 @@ pipeline {
             catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
                 sh '''
                 cd ${WKC}/tests/pytest
+                rm -rf /var/lib/taos/*
+                rm -rf /var/log/taos/*
                 ./handle_crash_gen_val_log.sh
                 '''
             }
+            catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
+                sh '''
+                cd ${WKC}/tests/pytest
+                rm -rf /var/lib/taos/*
+                rm -rf /var/log/taos/*
+                ./handle_taosd_val_log.sh
+                '''
+            }
+            
+            sh'''
+            nohup taosd >/dev/null & 
+            sleep 10
+            '''
+            catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
+                sh '''
+                cd ${WKC}/tests/gotest
+                bash batchtest.sh
+                '''
+            }
+            catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
+                sh '''
+                cd ${WKC}/tests/examples/python/PYTHONConnectorChecker
+                python3 PythonChecker.py
+                '''
+            }
+            catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
+                sh '''
+                cd ${WKC}/tests/examples/JDBC/JDBCDemo/
+                mvn clean package >/dev/null 
+                java -jar target/JdbcRestfulDemo-jar-with-dependencies.jar
+                '''
+            }
+            catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
+                sh '''
+                cp -rf ${WKC}/tests/examples/nodejs ${JENKINS_HOME}/workspace/
+                cd ${JENKINS_HOME}/workspace/nodejs
+                node nodejsChecker.js host=localhost
+                '''
+            }
+            catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
+                sh '''
+                cd ${JENKINS_HOME}/workspace/C#NET/src/CheckC#
+                dotnet run
+                '''
+            }
             sh '''
+            pkill -9 taosd || echo 1
             cd ${WKC}/tests
             ./test-all.sh b2
             date
             '''
+            sh '''
+            cd ${WKC}/tests
+            ./test-all.sh full unit
+            date'''
           }
         }
 
         stage('test_valgrind') {
-          agent{label "186"}
+          agent{label "slad4"}
 
           steps {
             pre_test()
+            catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
+                sh '''
+                cd ${WKC}/tests/pytest
+                nohup taosd >/dev/null &
+                sleep 10
+                python3 concurrent_inquiry.py -c 1
+                
+                '''
+            }
+            sh '''
+            cd ${WKC}/tests
+            ./test-all.sh full jdbc
+            date'''
             sh '''
             cd ${WKC}/tests/pytest
             ./valgrind-test.sh 2>&1 > mem-error-out.log
@@ -104,43 +194,14 @@ pipeline {
             cd ${WKC}/tests
             ./test-all.sh b3
             date'''
+            sh '''
+            date
+            cd ${WKC}/tests
+            ./test-all.sh full example
+            date'''
           }
         }
-       stage('connector'){
-         agent{label "release"}
-         steps{
-            sh'''
-            cd ${WORKSPACE}
-            git checkout develop
-            '''
-            catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
-                sh '''
-                cd ${WORKSPACE}/tests/gotest
-                bash batchtest.sh
-                '''
-            }
-            catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
-                sh '''
-                cd ${WORKSPACE}/tests/examples/python/PYTHONConnectorChecker
-                python3 PythonChecker.py
-                '''
-            }
-            catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
-                sh '''
-                cd ${WORKSPACE}/tests/examples/JDBC/JDBCDemo/
-                mvn clean package assembly:single >/dev/null 
-                java -jar target/jdbcChecker-SNAPSHOT-jar-with-dependencies.jar -host 127.0.0.1
-                '''
-            }
-            catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
-                sh '''
-                cd ${JENKINS_HOME}/workspace/C#NET/src/CheckC#
-                dotnet run
-                '''
-            }
-          
-         }
-       }
+       
        stage('arm64_build'){
                 agent{label 'arm64'}
                 steps{
@@ -186,11 +247,11 @@ pipeline {
     }
 
   }
-  post {             
+  post {  
         success {
             emailext (
-                subject: "SUCCESSFUL: Job '${env.JOB_NAME} [${env.BUILD_NUMBER}]'",
-                body: '''<!DOCTYPE html>
+                subject: "PR-result: Job '${env.JOB_NAME} [${env.BUILD_NUMBER}]' SUCCESS",
+                body: """<!DOCTYPE html>
                 <html>
                 <head>
                 <meta charset="UTF-8">
@@ -206,29 +267,29 @@ pipeline {
                             <td>
                                 <ul>
                                 <div style="font-size:18px">
-                                    <li>构建名称>>分支：${PROJECT_NAME}</li>
+                                    <li>构建名称>>分支：${env.BRANCH_NAME}</li>
                                     <li>构建结果：<span style="color:green"> Successful </span></li>
                                     <li>构建编号：${BUILD_NUMBER}</li>
-                                    <li>触发用户：${CAUSE}</li>
-                                    <li>变更概要：${CHANGES}</li>
+                                    <li>触发用户：${env.CHANGE_AUTHOR}</li>
+                                    <li>提交信息：${env.CHANGE_TITLE}</li>
                                     <li>构建地址：<a href=${BUILD_URL}>${BUILD_URL}</a></li>
                                     <li>构建日志：<a href=${BUILD_URL}console>${BUILD_URL}console</a></li>
-                                    <li>变更集：${JELLY_SCRIPT}</li>
+                                    
                                 </div>
                                 </ul>
                             </td>
                         </tr>
                     </table></font>
                 </body>
-                </html>''',
+                </html>""",
                 to: "yqliu@taosdata.com,pxiao@taosdata.com",
                 from: "support@taosdata.com"
             )
         }
         failure {
             emailext (
-                subject: "FAILED: Job '${env.JOB_NAME} [${env.BUILD_NUMBER}]'",
-                body: '''<!DOCTYPE html>
+                subject: "PR-result: Job '${env.JOB_NAME} [${env.BUILD_NUMBER}]' FAIL",
+                body: """<!DOCTYPE html>
                 <html>
                 <head>
                 <meta charset="UTF-8">
@@ -244,21 +305,21 @@ pipeline {
                             <td>
                                 <ul>
                                 <div style="font-size:18px">
-                                    <li>构建名称>>分支：${PROJECT_NAME}</li>
-                                    <li>构建结果：<span style="color:green"> Successful </span></li>
+                                    <li>构建名称>>分支：${env.BRANCH_NAME}</li>
+                                    <li>构建结果：<span style="color:red"> Failure </span></li>
                                     <li>构建编号：${BUILD_NUMBER}</li>
-                                    <li>触发用户：${CAUSE}</li>
-                                    <li>变更概要：${CHANGES}</li>
+                                    <li>触发用户：${env.CHANGE_AUTHOR}</li>
+                                    <li>提交信息：${env.CHANGE_TITLE}</li>
                                     <li>构建地址：<a href=${BUILD_URL}>${BUILD_URL}</a></li>
                                     <li>构建日志：<a href=${BUILD_URL}console>${BUILD_URL}console</a></li>
-                                    <li>变更集：${JELLY_SCRIPT}</li>
+                                    
                                 </div>
                                 </ul>
                             </td>
                         </tr>
                     </table></font>
                 </body>
-                </html>''',
+                </html>""",
                 to: "yqliu@taosdata.com,pxiao@taosdata.com",
                 from: "support@taosdata.com"
             )

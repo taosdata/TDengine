@@ -38,7 +38,32 @@ sql create dnode $hostname4
 system sh/exec.sh -n dnode2 -s start
 system sh/exec.sh -n dnode3 -s start
 system sh/exec.sh -n dnode4 -s start
-sleep 3000
+$x = 0
+step1: 
+	$x = $x + 1
+	sleep 1000
+	if $x == 10 then
+		return -1
+	endi
+
+sql show dnodes
+print dnode1 $data4_1
+print dnode2 $data4_2
+print dnode3 $data4_3
+print dnode4 $data4_4
+
+if $data4_1 != ready then
+  goto step1
+endi
+if $data4_2 != ready then
+  goto step1
+endi
+if $data4_3 != ready then
+  goto step1
+endi
+if $data4_4 != ready then
+  goto step1
+endi
 
 sql create database d1 replica 3  
 sql create table d1.t1 (t timestamp, i int) 
@@ -81,7 +106,7 @@ sql drop dnode $hostname2
 $x = 0
 show2: 
 	$x = $x + 1
-	sleep 2000
+	sleep 1000
 	if $x == 20 then 
 	  return -1
 	endi
@@ -106,7 +131,6 @@ if $data2_4 != 2 then
 endi
 
 system sh/exec.sh -n dnode2 -s stop -x SIGINT
-sleep 5000
 print ========== step
 sql create dnode $hostname5
 system sh/exec.sh -n dnode5 -s start
@@ -114,8 +138,8 @@ system sh/exec.sh -n dnode5 -s start
 $x = 0
 show3: 
 	$x = $x + 1
-	sleep 4000
-	if $x == 15 then 
+	sleep 1000
+	if $x == 60 then 
 	  return -1
 	endi
 	
@@ -154,8 +178,8 @@ sql insert into d3.t3 values(now+5s, 31)
 $x = 0
 show4: 
 	$x = $x + 1
-	sleep 2000
-	if $x == 20 then 
+	sleep 1000
+	if $x == 30 then 
 	  return -1
 	endi
 
@@ -189,8 +213,8 @@ system sh/exec.sh -n dnode6 -s start
 $x = 0
 show5: 
 	$x = $x + 1
-	sleep 2000
-	if $x == 10 then 
+	sleep 1000
+	if $x == 20 then 
 	  return -1
 	endi
 
@@ -216,8 +240,8 @@ sql drop dnode $hostname3
 $x = 0
 show6: 
 	$x = $x + 1
-	sleep 2000
-	if $x == 20 then 
+	sleep 1000
+	if $x == 30 then 
 	  return -1
 	endi
 
@@ -245,10 +269,8 @@ if $data2_5 != 3 then
 endi
 
 system sh/exec.sh -n dnode3 -s stop -x SIGINT
-sleep 5000
-
 sql reset query cache
-sleep 1000
+sleep 100
 
 print ========== step7
 sql select * from d1.t1 order by t desc

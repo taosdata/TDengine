@@ -181,18 +181,19 @@ void writeDataImp(void *param) {
 
       if (lastMachineid != machineid) {
         lastMachineid = machineid;
-        sqlLen += sprintf(sql + sqlLen, " dev%d using devices tags(%d,'%s',%d) values",
-                          machineid, machineid, machinename, machinegroup);
+        sqlLen += sprintf(sql + sqlLen, " dev%d values",
+                          machineid);
       }
 
       sqlLen += sprintf(sql + sqlLen, "(%" PRId64 ",%d,%f)", timestamp, temperature, humidity);
       counter++;
 
       if (counter >= arguments.rowsPerRequest) {
-        TAOS_RES *result = taos_query(taos, sql);
-        int32_t   code = taos_errno(result);
+        result = taos_query(taos, sql);
+        code = taos_errno(result);
         if (code != 0) {
-          printf("thread:%d error:%d reason:%s\n", pThread->threadId, code, taos_errstr(taos));
+          printf("insert into dev%d values (%" PRId64 ",%d,%f)\n",machineid, timestamp, temperature, humidity);
+          printf("thread:%d error:%d reason:%s\n", pThread->threadId, code, taos_errstr(result));
         }
         taos_free_result(result);
 
@@ -207,9 +208,10 @@ void writeDataImp(void *param) {
   }
 
   if (counter > 0) {
-    TAOS_RES *result = taos_query(taos, sql);
-    int32_t   code = taos_errno(result);
+    result = taos_query(taos, sql);
+    code = taos_errno(result);
     if (code != 0) {
+      // printf("insert into dev%d using devices tags(%d,'%s',%d) values (%" PRId64 ",%d,%f)",machineid, machineid, machinename, machinegroup, timestamp, temperature, humidity);
       printf("thread:%d error:%d reason:%s\n", pThread->threadId, code, taos_errstr(taos));
     }
     taos_free_result(result);
@@ -246,13 +248,84 @@ void writeData() {
   taos_free_result(result);
 
   result = taos_query(taos,
-                      "create table if not exists db.devices(ts timestamp, temperature int, humidity float) "
+                      "create stable if not exists db.devices(ts timestamp, temperature int, humidity float) "
                       "tags(devid int, devname binary(16), devgroup int)");
   code = taos_errno(result);
   if (code != 0) {
     taos_error(result, taos);
   }
   taos_free_result(result);
+
+  //create tables before insert the data
+  result = taos_query(taos, "use db");
+  code = taos_errno(result);
+  if (code != 0) {
+    taos_error(result, taos);
+  }
+  taos_free_result(result);
+  
+  char *sql = calloc(1, 8*1024*1024);
+  int sqlLen = 0;
+  int lastMachineid = 0;
+  int counter = 0;
+  int totalRecords = 0;
+  for (int i = 0; i < arguments.filesNum; i++) {
+    char fileName[300];
+    sprintf(fileName, "%s/testdata%d.csv", arguments.dataDir, i);
+
+    FILE *fp = fopen(fileName, "r");
+    if (fp == NULL) {
+      printf("failed to open file %s\n", fileName);
+      exit(1);
+    }
+    printf("open file %s success\n", fileName);
+
+    char *line = NULL;
+    size_t len = 0;
+    while (!feof(fp)) {
+      free(line);
+      line = NULL;
+      len = 0;
+
+      getline(&line, &len, fp);
+      if (line == NULL) break;
+
+      if (strlen(line) < 10) continue;
+      
+      int machineid;
+      char machinename[16];
+      int machinegroup;
+      int64_t timestamp;
+      int temperature;
+      float humidity;
+      sscanf(line, "%d%s%d%" PRId64 "%d%f", &machineid, machinename, &machinegroup, &timestamp, &temperature, &humidity);
+
+      if (counter == 0) {
+        sqlLen = sprintf(sql, "create table if not exists");
+      }
+
+      if (lastMachineid != machineid) {
+        lastMachineid = machineid;
+        sqlLen += sprintf(sql + sqlLen, " dev%d using devices tags(%d,'%s',%d)", machineid, machineid, machinename, machinegroup);
+      }
+      counter++;
+
+      if (counter >= arguments.rowsPerRequest) {
+        result = taos_query(taos, sql);
+        code = taos_errno(result);
+        if (code != 0) {
+          printf("create table error:%d reason:%s\n", code, taos_errstr(result));
+        }
+        taos_free_result(result);
+
+        totalRecords += counter;
+        counter = 0;
+        lastMachineid = -1;
+        sqlLen = 0;
+      }
+    }
+    fclose(fp);    
+  }
 
   int64_t st = getTimeStampMs();
 
@@ -380,4 +453,3 @@ void readData() {
 
   free(threads);
 }
-

@@ -100,6 +100,8 @@ void mqttPublishCallback(void** unused, struct mqtt_response_publish* published)
 }
 
 void* mqttClientRefresher(void* client) {
+  setThreadName("mqttCliRefresh");
+
   while (tsMqttIsRuning) {
     mqtt_sync((struct mqtt_client*)client);
     taosMsleep(100);

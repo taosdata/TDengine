@@ -20,10 +20,14 @@
 #undef TAOS_MEM_CHECK
 
 bool simAsyncQuery = false;
+bool simExecSuccess = false;
+bool abortExecution = false;
 
-void simHandleSignal(int32_t signo) {
+void simHandleSignal(int32_t signo, void *sigInfo, void *context) {
   simSystemCleanUp();
-  exit(1);
+  abortExecution = true;
+//  runningScript->killed = true;
+//  exit(1);
 }
 
 int32_t main(int32_t argc, char *argv[]) {
@@ -31,7 +35,7 @@ int32_t main(int32_t argc, char *argv[]) {
 
   for (int32_t i = 1; i < argc; ++i) {
     if (strcmp(argv[i], "-c") == 0 && i < argc - 1) {
-      tstrncpy(configDir, argv[++i], MAX_FILE_NAME_LEN);
+      tstrncpy(configDir, argv[++i], 128);
     } else if (strcmp(argv[i], "-f") == 0 && i < argc - 1) {
       strcpy(scriptFile, argv[++i]);
     } else if (strcmp(argv[i], "-a") == 0) {
@@ -40,27 +44,35 @@ int32_t main(int32_t argc, char *argv[]) {
       printf("usage: %s [options] \n", argv[0]);
       printf("       [-c config]: config directory, default is: %s\n", configDir);
       printf("       [-f script]: script filename\n");
-      exit(0);
+      return 0;
     }
   }
 
   if (!simSystemInit()) {
     simError("failed to initialize the system");
     simSystemCleanUp();
-    exit(1);
+    return -1;
   }
 
   simInfo("simulator is running ...");
-  signal(SIGINT, simHandleSignal);
+  taosSetSignal(SIGINT, simHandleSignal);
 
   SScript *script = simParseScript(scriptFile);
   if (script == NULL) {
     simError("parse script file:%s failed", scriptFile);
-    exit(-1);
+    return -1;
+  }
+
+  if (abortExecution) {
+    simError("execute abort");
+    return -1;
   }
 
   simScriptList[++simScriptPos] = script;
   simExecuteScript(script);
 
-  return 0;
+  int32_t ret = simExecSuccess ? 0 : -1;
+  simInfo("execute result %d", ret);
+
+  return ret;
 }

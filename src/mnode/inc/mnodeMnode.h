@@ -50,6 +50,7 @@ char*   mnodeGetMnodeMasterEp();
 void    mnodeGetMnodeInfos(void *mnodes);
 void    mnodeUpdateMnodeEpSet(SMInfos *pMnodes);
 
+int32_t mnodeCompactMnodes();
 #ifdef __cplusplus
 }
 #endif

@@ -1,4 +1,4 @@
-sleep 500
+sleep 100
 sql connect
 
 $dbPrefix = lr_db
@@ -15,6 +15,9 @@ $db = $dbPrefix . $i
 $stb = $stbPrefix . $i
 
 sql use $db
+
+print ========>TD-3231 last_row with group by column error
+sql_error select last_row(c1) from $stb group by c1;
 
 ##### select lastrow from STable with two vnodes, timestamp decreases from tables in vnode0 to tables in vnode1
 sql select last_row(*) from $stb

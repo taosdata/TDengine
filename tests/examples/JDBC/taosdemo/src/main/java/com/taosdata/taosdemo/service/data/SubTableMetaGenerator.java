@@ -27,4 +27,16 @@ public class SubTableMetaGenerator {
         return subTableMetaList;
     }
 
+    public static SubTableMeta generate(SuperTableMeta superTableMeta, String tableName) {
+        SubTableMeta subTableMeta = new SubTableMeta();
+        // create table xxx.xxx using xxx tags(...)
+        subTableMeta.setDatabase(superTableMeta.getDatabase());
+        subTableMeta.setName(tableName);
+        subTableMeta.setSupertable(superTableMeta.getName());
+        subTableMeta.setFields(superTableMeta.getFields());
+        List<TagValue> tagValues = TagValueGenerator.generate(superTableMeta.getTags());
+        subTableMeta.setTags(tagValues);
+        return subTableMeta;
+    }
+
 }

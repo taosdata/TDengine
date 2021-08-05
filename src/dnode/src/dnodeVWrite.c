@@ -52,14 +52,14 @@ int32_t dnodeInitVWrite() {
 void dnodeCleanupVWrite() {
   for (int32_t i = 0; i < tsVWriteWP.max; ++i) {
     SVWriteWorker *pWorker = tsVWriteWP.worker + i;
-    if (pWorker->thread) {
-      taosQsetThreadResume(pWorker->qset);
+    if (taosCheckPthreadValid(pWorker->thread)) {
+      if (pWorker->qset) taosQsetThreadResume(pWorker->qset);
     }
   }
 
   for (int32_t i = 0; i < tsVWriteWP.max; ++i) {
     SVWriteWorker *pWorker = tsVWriteWP.worker + i;
-    if (pWorker->thread) {
+    if (taosCheckPthreadValid(pWorker->thread)) {
       pthread_join(pWorker->thread, NULL);
       taosFreeQall(pWorker->qall);
       taosCloseQset(pWorker->qset);
@@ -85,7 +85,7 @@ void dnodeDispatchToVWriteQueue(SRpcMsg *pRpcMsg) {
   pMsg->vgId = htonl(pMsg->vgId);
   pMsg->contLen = htonl(pMsg->contLen);
 
-  void *pVnode = vnodeAcquire(pMsg->vgId);
+  void *pVnode = vnodeAcquireNotClose(pMsg->vgId);
   if (pVnode == NULL) {
     code = TSDB_CODE_VND_INVALID_VGROUP_ID;
   } else {
@@ -102,6 +102,7 @@ void dnodeDispatchToVWriteQueue(SRpcMsg *pRpcMsg) {
   }
 
   vnodeRelease(pVnode);
+  rpcFreeCont(pRpcMsg->pCont);
 }
 
 void *dnodeAllocVWriteQueue(void *pVnode) {
@@ -187,7 +188,10 @@ static void *dnodeProcessVWriteQueue(void *wparam) {
   int32_t        numOfMsgs;
   int32_t        qtype;
 
+  taosBlockSIGPIPE();
   dDebug("dnode vwrite worker:%d is running", pWorker->workerId);
+
+  setThreadName("dnodeWriteQ");
 
   while (1) {
     numOfMsgs = taosReadAllQitemsFromQset(pWorker->qset, pWorker->qall, &pVnode);
@@ -200,13 +204,14 @@ static void *dnodeProcessVWriteQueue(void *wparam) {
     for (int32_t i = 0; i < numOfMsgs; ++i) {
       taosGetQitem(pWorker->qall, &qtype, (void **)&pWrite);
       dTrace("msg:%p, app:%p type:%s will be processed in vwrite queue, qtype:%s hver:%" PRIu64, pWrite,
-             pWrite->rpcMsg.ahandle, taosMsg[pWrite->pHead->msgType], qtypeStr[qtype], pWrite->pHead->version);
+             pWrite->rpcMsg.ahandle, taosMsg[pWrite->walHead.msgType], qtypeStr[qtype], pWrite->walHead.version);
 
-      pWrite->code = vnodeProcessWrite(pVnode, pWrite->pHead, qtype, &pWrite->rspRet);
-      if (pWrite->code <= 0) pWrite->processedCount = 1;
-      if (pWrite->code == 0 && pWrite->pHead->msgType != TSDB_MSG_TYPE_SUBMIT) forceFsync = true;
+      pWrite->code = vnodeProcessWrite(pVnode, &pWrite->walHead, qtype, pWrite);
+      if (pWrite->code <= 0) atomic_add_fetch_32(&pWrite->processedCount, 1);
+      if (pWrite->code > 0) pWrite->code = 0;
+      if (pWrite->code == 0 && pWrite->walHead.msgType != TSDB_MSG_TYPE_SUBMIT) forceFsync = true;
 
-      dTrace("msg:%p is processed in vwrite queue, result:%s", pWrite, tstrerror(pWrite->code));
+      dTrace("msg:%p is processed in vwrite queue, code:0x%x", pWrite, pWrite->code);
     }
 
     walFsync(vnodeGetWal(pVnode), forceFsync);
@@ -219,7 +224,7 @@ static void *dnodeProcessVWriteQueue(void *wparam) {
         dnodeSendRpcVWriteRsp(pVnode, pWrite, pWrite->code);
       } else {
         if (qtype == TAOS_QTYPE_FWD) {
-          vnodeConfirmForward(pVnode, pWrite->pHead->version, 0);
+          vnodeConfirmForward(pVnode, pWrite->walHead.version, pWrite->code, pWrite->walHead.msgType != TSDB_MSG_TYPE_SUBMIT);
         }
         if (pWrite->rspRet.rsp) {
           rpcFreeCont(pWrite->rspRet.rsp);

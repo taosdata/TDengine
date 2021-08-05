@@ -2,6 +2,7 @@ build/
 .vscode/
 .idea/
 cmake-build-debug/
+cmake-build-release/
 cscope.out
 .DS_Store
 debug/
@@ -27,7 +28,6 @@ tests/hdfs/
 nmake/
 sln/
 hdfs/
-c/
 taoshebei/
 taosdalipu/
 Target/
@@ -68,6 +68,8 @@ CMakeError.log
 *.o
 version.c
 taos.rc
+src/connector/jdbc/.classpath
+src/connector/jdbc/.project
 src/connector/jdbc/.settings/
 tests/comparisonTest/cassandra/cassandratest/.classpath
 tests/comparisonTest/cassandra/cassandratest/.project
@@ -79,3 +81,15 @@ tests/comparisonTest/opentsdb/opentsdbtest/.settings/
 tests/examples/JDBC/JDBCDemo/.classpath
 tests/examples/JDBC/JDBCDemo/.project
 tests/examples/JDBC/JDBCDemo/.settings/
+
+# Emacs
+# -*- mode: gitignore; -*-
+*~
+\#*\#
+/.emacs.desktop
+/.emacs.desktop.lock
+*.elc
+auto-save-list
+tramp
+.\#*
+TAGS

@@ -20,7 +20,6 @@
 #include "tlog.h"
 #include "ttimer.h"
 #include "tutil.h"
-#include "tsystem.h"
 #include "tscUtil.h"
 #include "tsclient.h"
 #include "dnode.h"
@@ -79,8 +78,8 @@ int32_t monInitSystem() {
     strcpy(tsMonitor.ep, tsLocalEp);
   }
 
-  int len = strlen(tsMonitor.ep);
-  for (int i = 0; i < len; ++i) {
+  int32_t len = (int32_t)strlen(tsMonitor.ep);
+  for (int32_t i = 0; i < len; ++i) {
     if (tsMonitor.ep[i] == ':' || tsMonitor.ep[i] == '-' || tsMonitor.ep[i] == '.') {
       tsMonitor.ep[i] = '_';
     }
@@ -104,7 +103,9 @@ int32_t monInitSystem() {
 }
 
 int32_t monStartSystem() {
-  taos_init();
+  if (taos_init()) {
+    return -1;
+  }
   tsMonitor.start = 1;
   monExecuteSQLFp = monExecuteSQL;
   monInfo("monitor module start");
@@ -113,6 +114,7 @@ int32_t monStartSystem() {
 
 static void *monThreadFunc(void *param) {
   monDebug("starting to initialize monitor module ...");
+  setThreadName("monitor");
 
   while (1) {
     static int32_t accessTimes = 0;
@@ -148,7 +150,7 @@ static void *monThreadFunc(void *param) {
     }
 
     if (tsMonitor.state == MON_STATE_NOT_INIT) {
-      int code = 0;
+      int32_t code = 0;
 
       for (; tsMonitor.cmdIndex < MON_CMD_MAX; ++tsMonitor.cmdIndex) {
         monBuildMonitorSql(tsMonitor.sql, tsMonitor.cmdIndex);
@@ -183,11 +185,17 @@ static void *monThreadFunc(void *param) {
 static void monBuildMonitorSql(char *sql, int32_t cmd) {
   memset(sql, 0, SQL_LENGTH);
 
+#ifdef _STORAGE
+  char *keepValue = "30,30,30";
+#else
+  char *keepValue = "30";
+#endif
+
   if (cmd == MON_CMD_CREATE_DB) {
     snprintf(sql, SQL_LENGTH,
-             "create database if not exists %s replica 1 days 10 keep 30 cache %d "
+             "create database if not exists %s replica 1 days 10 keep %s cache %d "
              "blocks %d precision 'us'",
-             tsMonitorDbName, TSDB_MIN_CACHE_BLOCK_SIZE, TSDB_MIN_TOTAL_BLOCKS);
+             tsMonitorDbName, keepValue, TSDB_MIN_CACHE_BLOCK_SIZE, TSDB_MIN_TOTAL_BLOCKS);
   } else if (cmd == MON_CMD_CREATE_MT_DN) {
     snprintf(sql, SQL_LENGTH,
              "create table if not exists %s.dn(ts timestamp"
@@ -246,7 +254,10 @@ void monStopSystem() {
 void monCleanupSystem() {
   tsMonitor.quiting = 1;
   monStopSystem();
-  pthread_join(tsMonitor.thread, NULL);
+  if (taosCheckPthreadValid(tsMonitor.thread)) {
+    pthread_join(tsMonitor.thread, NULL);
+  }
+
   if (tsMonitor.conn != NULL) {
     taos_close(tsMonitor.conn);
     tsMonitor.conn = NULL;
@@ -288,7 +299,7 @@ static int32_t monBuildCpuSql(char *sql) {
 
 // unit is GB
 static int32_t monBuildDiskSql(char *sql) {
-  return sprintf(sql, ", %f, %d", (tsTotalDataDirGB - tsAvailDataDirGB), (int32_t)tsTotalDataDirGB);
+  return sprintf(sql, ", %f, %d", tsUsedDataDirGB, (int32_t)tsTotalDataDirGB);
 }
 
 // unit is Kb
@@ -330,7 +341,7 @@ static void monSaveSystemInfo() {
   pos += monBuildReqSql(sql + pos);
 
   void *res = taos_query(tsMonitor.conn, tsMonitor.sql);
-  int   code = taos_errno(res);
+  int32_t code = taos_errno(res);
   taos_free_result(res);
 
   if (code != 0) {
@@ -412,4 +423,14 @@ void monExecuteSQL(char *sql) {
 
   monDebug("execute sql:%s", sql);
   taos_query_a(tsMonitor.conn, sql, monExecSqlCb, "sql");
+}
+
+void monExecuteSQLWithResultCallback(char *sql, MonExecuteSQLCbFP callback, void* param) {
+  if (tsMonitor.conn == NULL) {
+    callback(param, NULL, TSDB_CODE_MON_CONNECTION_INVALID);
+    return;
+  }
+
+  monDebug("execute sql:%s", sql);
+  taos_query_a(tsMonitor.conn, sql, callback, param);
 }

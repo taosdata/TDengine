@@ -88,6 +88,7 @@ typedef struct STSBuf {
   STSList   tsData;  // uncompressed raw ts data
   uint64_t  numOfTotal;
   bool      autoDelete;
+  bool      remainOpen;
   int32_t   tsOrder;  // order of timestamp in ts comp buffer
   STSCursor cur;
 } STSBuf;
@@ -111,13 +112,11 @@ STSBuf* tsBufClone(STSBuf* pTSBuf);
 
 STSGroupBlockInfo* tsBufGetGroupBlockInfo(STSBuf* pTSBuf, int32_t id);
 
-void tsBufFlush(STSBuf* pTSBuf);
-
+void    tsBufFlush(STSBuf* pTSBuf);
 void    tsBufResetPos(STSBuf* pTSBuf);
-STSElem tsBufGetElem(STSBuf* pTSBuf);
-
 bool    tsBufNextPos(STSBuf* pTSBuf);
 
+STSElem tsBufGetElem(STSBuf* pTSBuf);
 STSElem tsBufGetElemStartPos(STSBuf* pTSBuf, int32_t id, tVariant* tag);
 
 STSCursor tsBufGetCursor(STSBuf* pTSBuf);

@@ -272,7 +272,7 @@ static int rpcHashConn(void *handle, char *fqdn, uint16_t port, int8_t connType)
 }
 
 static void rpcLockCache(int64_t *lockedBy) {
-  int64_t tid = taosGetPthreadId();
+  int64_t tid = taosGetSelfPthreadId();
   int     i = 0;
   while (atomic_val_compare_exchange_64(lockedBy, 0, tid) != 0) {
     if (++i % 100 == 0) {
@@ -282,7 +282,7 @@ static void rpcLockCache(int64_t *lockedBy) {
 }
 
 static void rpcUnlockCache(int64_t *lockedBy) {
-  int64_t tid = taosGetPthreadId();
+  int64_t tid = taosGetSelfPthreadId();
   if (atomic_val_compare_exchange_64(lockedBy, tid, 0) != tid) {
     assert(false);
   }

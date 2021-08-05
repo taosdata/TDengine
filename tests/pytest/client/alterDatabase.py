@@ -35,10 +35,9 @@ class TDTestCase:
         tdSql.execute("alter database db keep 365,365,365")
         tdSql.query("show databases")
         tdSql.checkData(0, 7, "365,365,365")
-
-        tdSql.execute("alter database db quorum 2")
-        tdSql.query("show databases")
-        tdSql.checkData(0, 5, 2)
+        
+        tdSql.error("alter database db quorum 2")
+        
 
         tdSql.execute("alter database db blocks 100")
         tdSql.query("show databases")

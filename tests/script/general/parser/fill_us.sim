@@ -1,9 +1,9 @@
 system sh/stop_dnodes.sh
 
 system sh/deploy.sh -n dnode1 -i 1
-system sh/cfg.sh -n dnode1 -c walLevel -v 0
+system sh/cfg.sh -n dnode1 -c walLevel -v 1
 system sh/exec.sh -n dnode1 -s start
-sleep 500
+sleep 100
 sql connect
 
 $dbPrefix = m_fl_db
@@ -959,14 +959,14 @@ endi
 if $data31 != 9.000000000 then
   return -1
 endi
-if $data41 != null then
+if $data41 != NULL then
   print ===== $data41
   return -1
 endi
 if $data51 != 16.000000000 then
   return -1
 endi
-if $data61 != null then
+if $data61 != NULL then
    print ===== $data61
   return -1
 endi

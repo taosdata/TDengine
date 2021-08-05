@@ -12,9 +12,8 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
-#include <stdlib.h>
-#include <string.h>
 
+#include "os.h"
 #include "tlist.h"
 
 SList *tdListNew(int eleSize) {
@@ -38,11 +37,13 @@ void tdListEmpty(SList *list) {
   list->numOfEles = 0;
 }
 
-void tdListFree(SList *list) {
+void *tdListFree(SList *list) {
   if (list) {
     tdListEmpty(list);
     free(list);
   }
+
+  return NULL;
 }
 
 void tdListPrependNode(SList *list, SListNode *node) {

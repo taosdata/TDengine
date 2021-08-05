@@ -60,7 +60,7 @@ class TDTestCase:
 
         tdLog.info("================= step4")
         tdDnodes.stop(1)
-        tdLog.sleep(5)
+        #tdLog.sleep(5)
         tdDnodes.start(1)
 
         tdLog.info("================= step5")

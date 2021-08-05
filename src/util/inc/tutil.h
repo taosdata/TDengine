@@ -26,6 +26,7 @@ extern "C" {
 #include "taosdef.h"
 
 int32_t strdequote(char *src);
+int32_t strRmquote(char *z, int32_t len);
 size_t  strtrim(char *src);
 char *  strnchr(char *haystack, char needle, int32_t len, bool skipquote);
 char ** strsplit(char *src, const char *delim, int32_t *num);

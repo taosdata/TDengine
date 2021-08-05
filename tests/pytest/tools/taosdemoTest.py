@@ -23,9 +23,10 @@ class TDTestCase:
     def init(self, conn, logSql):
         tdLog.debug("start to execute %s" % __file__)
         tdSql.init(conn.cursor(), logSql)
-        
-        self.numberOfTables = 10000
+
+        self.numberOfTables = 1000
         self.numberOfRecords = 100
+
     def getBuildPath(self):
         selfPath = os.path.dirname(os.path.realpath(__file__))
 
@@ -35,31 +36,37 @@ class TDTestCase:
             projPath = selfPath[:selfPath.find("tests")]
 
         for root, dirs, files in os.walk(projPath):
-            if ("taosd" in files):
+            if ("taosdemo" in files):
                 rootRealPath = os.path.dirname(os.path.realpath(root))
                 if ("packaging" not in rootRealPath):
-                    buildPath = root[:len(root)-len("/build/bin")]
+                    buildPath = root[:len(root) - len("/build/bin")]
                     break
         return buildPath
+
     def run(self):
         tdSql.prepare()
         buildPath = self.getBuildPath()
         if (buildPath == ""):
-            tdLog.exit("taosd not found!")
+            tdLog.exit("taosdemo not found!")
         else:
-            tdLog.info("taosd found in %s" % buildPath)
-        binPath = buildPath+ "/build/bin/"
-        os.system("yes | %staosdemo -t %d -n %d" % (binPath,self.numberOfTables, self.numberOfRecords))
+            tdLog.info("taosdemo found in %s" % buildPath)
+        binPath = buildPath + "/build/bin/"
+        os.system("%staosdemo -y -t %d -n %d -b INT,INT,INT,INT" %
+                  (binPath, self.numberOfTables, self.numberOfRecords))
 
         tdSql.execute("use test")
         tdSql.query("select count(*) from meters")
         tdSql.checkData(0, 0, self.numberOfTables * self.numberOfRecords)
 
-        tdSql.query("select sum(f1) from test.meters interval(1h) sliding(30m)")
+        tdSql.query(
+            "select sum(c1) from test.meters interval(1h) sliding(30m)")
         tdSql.checkRows(2)
 
-        tdSql.query("select apercentile(f1, 1) from test.meters interval(10s)")
-        tdSql.checkRows(11)
+        tdSql.query(
+            "select apercentile(c1, 1) from test.meters interval(100s)")
+        tdSql.checkRows(1)
+
+        tdSql.error("select loc, count(loc) from test.meters")
 
     def stop(self):
         tdSql.close()

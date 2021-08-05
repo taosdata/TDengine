@@ -33,10 +33,8 @@
  ***********************************************************************
  */
 
+#include "os.h"
 #include "tmd5.h"
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
 #include "taosdef.h"
 
 /* forward declaration */

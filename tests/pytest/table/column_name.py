@@ -88,10 +88,9 @@ class TDTestCase:
         # TSIM:
         # TSIM: print =============== step4
         tdLog.info('=============== step4')
-        # TSIM: sql create table $tb (ts timestamp,
-        # a0123456789012345678901234567890123456789 int)
+        # TSIM: sql create table $tb (ts timestamp, a0123456789012345678901234567890123456789 int)
         getMaxColNum = "grep -w '#define TSDB_COL_NAME_LEN' ../../src/inc/taosdef.h|awk '{print $3}'"
-        boundary = int(subprocess.check_output(getMaxColNum, shell=True))
+        boundary = int(subprocess.check_output(getMaxColNum, shell=True)) - 1
         tdLog.info("get max column name length is %d" % boundary)
         chars = string.ascii_uppercase + string.ascii_lowercase
 
