@@ -140,9 +140,7 @@ steps:
 - name: build
   image: arm32v7/centos:7
   commands:
-  - yum remove epel-release
-  - curl -O http://dl.fedoraproject.org/pub/epel/7/x86_64/e/epel-release-7-9.noarch.rpm
-  - rpm -ivh epel-release-7-9.noarch.rpm
+  - yum install yum-plugin-ovl
   - yum install -y gcc gcc-c++ make cmake
   - mkdir debug
   - cd debug
