@@ -32,7 +32,7 @@ steps:
 - name: build
   image: arm64v8/ubuntu:focal
   commands:
-  - echo 'debconf debconf/frontend select Noninteractive' | debconf-set-selections
+  - export DEBIAN_FRONTEND=envvar
   - apt-get update 
   - apt-get install -y -qq cmake build-essential
   - mkdir debug
