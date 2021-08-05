@@ -2498,20 +2498,27 @@ static FORCE_INLINE bool filterExecuteImplNotNull(void *pinfo, int32_t numOfRows
 bool filterExecuteImplRange(void *pinfo, int32_t numOfRows, int8_t* p) {
   SFilterInfo *info = (SFilterInfo *)pinfo;
   bool all = true;
+  uint16_t dataSize = info->cunits[0].dataSize;
+  char *colData = (char *)info->cunits[0].colData;
+  rangeCompFunc rfunc = info->cunits[0].rfunc;
+  void *valData = info->cunits[0].valData;
+  void *valData2 = info->cunits[0].valData2;
+  __compar_fn_t func = info->cunits[0].func;
   
   for (int32_t i = 0; i < numOfRows; ++i) {
-    uint16_t uidx = info->groups[0].unitIdxs[0];
-    void *colData = (char *)info->cunits[uidx].colData + info->cunits[uidx].dataSize * i;
-    if (isNull(colData, info->cunits[uidx].dataType)) {
+    if (isNull(colData, info->cunits[0].dataType)) {
       all = false;
+      colData += dataSize;
       continue;
     }
 
-    p[i] = (*info->cunits[uidx].rfunc)(colData, colData, info->cunits[uidx].valData, info->cunits[uidx].valData2, info->cunits[uidx].func);
+    p[i] = (*rfunc)(colData, colData, valData, valData2, func);
             
     if (p[i] == 0) {
       all = false;
     }
+    
+    colData += dataSize;
   }
 
   return all;
@@ -2548,26 +2555,28 @@ bool filterExecuteImpl(void *pinfo, int32_t numOfRows, int8_t* p) {
     //FILTER_UNIT_CLR_F(info);
   
     for (uint32_t g = 0; g < info->groupNum; ++g) {
-      for (uint32_t u = 0; u < info->groups[g].unitNum; ++u) {
-        uint16_t uidx = info->groups[g].unitIdxs[u];
-        void *colData = (char *)info->cunits[uidx].colData + info->cunits[uidx].dataSize * i;
+      SFilterGroup *group = &info->groups[g];
+      for (uint32_t u = 0; u < group->unitNum; ++u) {
+        uint16_t uidx = group->unitIdxs[u];
+        SFilterComUnit *cunit = &info->cunits[uidx];
+        void *colData = (char *)cunit->colData + cunit->dataSize * i;
       
         //if (FILTER_UNIT_GET_F(info, uidx)) {
         //  p[i] = FILTER_UNIT_GET_R(info, uidx);
         //} else {
-          uint8_t optr = info->cunits[uidx].optr;
+          uint8_t optr = cunit->optr;
 
-          if (isNull(colData, info->cunits[uidx].dataType)) {
+          if (isNull(colData, cunit->dataType)) {
             p[i] = optr == TSDB_RELATION_ISNULL ? true : false;
           } else {
             if (optr == TSDB_RELATION_NOTNULL) {
               p[i] = 1;
             } else if (optr == TSDB_RELATION_ISNULL) {
               p[i] = 0;
-            } else if (info->cunits[uidx].rfunc) {
-              p[i] = (*info->cunits[uidx].rfunc)(colData, colData, info->cunits[uidx].valData, info->cunits[uidx].valData2, info->cunits[uidx].func);
+            } else if (cunit->rfunc) {
+              p[i] = (*cunit->rfunc)(colData, colData, cunit->valData, cunit->valData2, cunit->func);
             } else {
-              p[i] = filterDoCompare(info->cunits[uidx].func, info->cunits[uidx].optr, colData, info->cunits[uidx].valData);
+              p[i] = filterDoCompare(cunit->func, cunit->optr, colData, cunit->valData);
             }
           
           //FILTER_UNIT_SET_R(info, uidx, p[i]);
