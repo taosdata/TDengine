@@ -110,10 +110,15 @@ bool checkTzPresent(char *str, int32_t len) {
   char *seg = forwardToTimeStringEnd(str);
   int32_t seg_len = len - (int32_t)(seg - str);
 
-  return (strnchr(seg, 'Z', seg_len, false) != NULL ||
-          strnchr(seg, 'z', seg_len, false) != NULL ||
-          strnchr(seg, '+', seg_len, false) != NULL ||
-          strnchr(seg, '-', seg_len, false) != NULL);
+  char *c = &seg[seg_len - 1];
+  for (int i = 0; i < seg_len; ++i) {
+    if (*c == 'Z' || *c  == 'z' || *c == '+' || *c == '-') {
+      return true;
+    }
+    c--;
+  }
+  return false;
+
 }
 
 char* forwardToTimeStringEnd(char* str) {
