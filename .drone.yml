@@ -140,7 +140,7 @@ steps:
 - name: build
   image: arm32v7/centos:7
   commands:
-  - yum install yum-plugin-ovl
+  - yum -y update && yum clean all
   - yum install -y gcc gcc-c++ make cmake
   - mkdir debug
   - cd debug
