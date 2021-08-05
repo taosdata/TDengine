@@ -6317,8 +6317,8 @@ static void printStatPerThread(threadInfo *pThreadInfo)
             pThreadInfo->threadID,
             pThreadInfo->totalInsertRows,
             pThreadInfo->totalAffectedRows,
-            (pThreadInfo->totalDelay/1000.0)?
-            (double)(pThreadInfo->totalAffectedRows/(pThreadInfo->totalDelay/1000.0)):
+            (pThreadInfo->totalDelay)?
+            (double)(pThreadInfo->totalAffectedRows/(pThreadInfo->totalDelay/1000000.0)):
             FLT_MAX);
 }
 
@@ -6714,11 +6714,11 @@ static void* syncWriteProgressive(threadInfo *pThreadInfo) {
             start_time +=  generated * timeStampStep;
             pThreadInfo->totalInsertRows += generated;
 
-            startTs = taosGetTimestampMs();
+            startTs = taosGetTimestampUs();
 
             int32_t affectedRows = execInsert(pThreadInfo, generated);
 
-            endTs = taosGetTimestampMs();
+            endTs = taosGetTimestampUs();
             uint64_t delay = endTs - startTs;
             performancePrint("%s() LN%d, insert execution time is %"PRId64"ms\n",
                     __func__, __LINE__, delay);
@@ -7255,11 +7255,15 @@ static void startMultiThreadInsertData(int threads, char* db_name,
         }
     }
 
-    fprintf(stderr, "insert delay, avg: %10.2fms, max: %"PRIu64"ms, min: %"PRIu64"ms\n\n",
-            avgDelay, maxDelay, minDelay);
+    fprintf(stderr, "insert delay, avg: %10.2fms, max: %10.2fms, min: %10.2fms\n\n",
+            (double)avgDelay/1000.0,
+            (double)maxDelay/1000.0,
+            (double)minDelay/1000.0);
     if (g_fpOfInsertResult) {
-        fprintf(g_fpOfInsertResult, "insert delay, avg:%10.2fms, max: %"PRIu64"ms, min: %"PRIu64"ms\n\n",
-                avgDelay, maxDelay, minDelay);
+        fprintf(g_fpOfInsertResult, "insert delay, avg:%10.2fms, max: %10.2fms, min: %10.2fms\n\n",
+            (double)avgDelay/1000.0,
+            (double)maxDelay/1000.0,
+            (double)minDelay/1000.0);
     }
 
     //taos_close(taos);
