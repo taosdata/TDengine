@@ -76,7 +76,8 @@ steps:
 - name: build
   image: arm32v7/ubuntu:focal
   commands:
-  - apt-get update --security-opt seccomp:unconfined
+  - wget http://http.us.debian.org/debian/pool/main/libs/libseccomp/libseccomp2_2.5.1-1_armhf.deb && dpkg -i || apt install wget 
+  - apt-get update 
   - apt-get install -y cmake build-essential 
   - mkdir debug
   - cd debug
