@@ -5183,7 +5183,7 @@ static int64_t generateStbRowData(
             dataLen += 1;
         }
 
-        if (dataLen > remainderBufLen)
+        if (dataLen > (remainderBufLen - (DOUBLE_BUFF_LEN + 1)))
             return 0;
     }
 
