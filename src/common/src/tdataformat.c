@@ -357,8 +357,9 @@ int tdInitDataCols(SDataCols *pCols, STSchema *pSchema) {
   int oldMaxCols = pCols->maxCols;
   if (schemaNCols(pSchema) > oldMaxCols) {
     pCols->maxCols = schemaNCols(pSchema);
-    pCols->cols = (SDataCol *)realloc(pCols->cols, sizeof(SDataCol) * pCols->maxCols);
-    if (pCols->cols == NULL) return -1;
+    void* ptr = (SDataCol *)realloc(pCols->cols, sizeof(SDataCol) * pCols->maxCols);
+    if (ptr == NULL) return -1;
+    pCols->cols = ptr;
     for(i = oldMaxCols; i < pCols->maxCols; i++) {
       pCols->cols[i].pData = NULL;
       pCols->cols[i].dataOff = NULL;
