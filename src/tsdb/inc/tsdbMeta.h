@@ -106,9 +106,9 @@ static FORCE_INLINE STSchema* tsdbGetTableSchemaImpl(STable* pTable, bool lock, 
 
   if (lock) TSDB_RLOCK_TABLE(pDTable);
   if (_version < 0) {  // get the latest version of schema
-    pTSchema = *(STSchema **)taosArrayGetLast(pTable->schema);
+    pTSchema = *(STSchema **)taosArrayGetLast(pDTable->schema);
   } else {  // get the schema with version
-    void* ptr = taosArraySearch(pTable->schema, &_version, tsdbCompareSchemaVersion, TD_EQ);
+    void* ptr = taosArraySearch(pDTable->schema, &_version, tsdbCompareSchemaVersion, TD_EQ);
     if (ptr == NULL) {
       terrno = TSDB_CODE_TDB_IVD_TB_SCHEMA_VERSION;
       goto _exit;
