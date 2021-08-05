@@ -118,9 +118,8 @@ steps:
 - name: build
   image: arm32v7/ubuntu:focal
   commands:
-  - rm -r /var/lib/apt/lists
-  - mkdir -p /var/lib/apt/lists/partial
-  - apt-get clean
+  - gpg --no-default-keyring --keyring ./key.gpg --verify Release.gpg Release
+  - gpg --list-packets Release.gpg
   - apt-get update 
   - apt-get install -y cmake build-essential 
   - mkdir debug
