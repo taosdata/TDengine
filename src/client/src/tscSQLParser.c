@@ -8773,13 +8773,13 @@ int32_t validateSqlNode(SSqlObj* pSql, SSqlNode* pSqlNode, SQueryInfo* pQueryInf
     tfree(p);
   }
 
-//#if 0
+#if 0
   SQueryNode* p = qCreateQueryPlan(pQueryInfo);
   char* s = queryPlanToString(p);
   printf("%s\n", s);
   tfree(s);
   qDestroyQueryPlan(p);
-//#endif
+#endif
 
   return TSDB_CODE_SUCCESS;  // Does not build query message here
 }
