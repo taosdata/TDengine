@@ -42,14 +42,14 @@ int tsdbInitReadH(SReadH *pReadh, STsdbRepo *pRepo) {
     return -1;
   }
 
-  pReadh->pDCols[0] = tdNewDataCols(0, 0, pCfg->maxRowsPerFileBlock);
+  pReadh->pDCols[0] = tdNewDataCols(0, pCfg->maxRowsPerFileBlock);
   if (pReadh->pDCols[0] == NULL) {
     terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
     tsdbDestroyReadH(pReadh);
     return -1;
   }
 
-  pReadh->pDCols[1] = tdNewDataCols(0, 0, pCfg->maxRowsPerFileBlock);
+  pReadh->pDCols[1] = tdNewDataCols(0, pCfg->maxRowsPerFileBlock);
   if (pReadh->pDCols[1] == NULL) {
     terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
     tsdbDestroyReadH(pReadh);
@@ -463,8 +463,9 @@ static int tsdbLoadBlockDataImpl(SReadH *pReadh, SBlock *pBlock, SDataCols *pDat
     SDataCol *pDataCol = &(pDataCols->cols[dcol]);
     if (dcol != 0 && ccol >= pBlockData->numOfCols) {
       // Set current column as NULL and forward
-      // TODO: dataColSetNEleNull may fail
-      dataColSetNEleNull(pDataCol, pBlock->numOfRows, pDataCols->maxPoints);
+      // TODO: tdAllocMemForCol may fail
+      tdAllocMemForCol(pDataCol, pDataCols->maxPoints);
+      dataColSetNEleNull(pDataCol, pBlock->numOfRows);
       dcol++;
       continue;
     }
@@ -504,8 +505,9 @@ static int tsdbLoadBlockDataImpl(SReadH *pReadh, SBlock *pBlock, SDataCols *pDat
       ccol++;
     } else {
       // Set current column as NULL and forward
-      // TODO: dataColSetNEleNull may fail
-      dataColSetNEleNull(pDataCol, pBlock->numOfRows, pDataCols->maxPoints);
+      // TODO: tdAllocMemForCol may fail
+      tdAllocMemForCol(pDataCol, pDataCols->maxPoints);
+      dataColSetNEleNull(pDataCol, pBlock->numOfRows);
       dcol++;
     }
   }
@@ -610,8 +612,9 @@ static int tsdbLoadBlockDataColsImpl(SReadH *pReadh, SBlock *pBlock, SDataCols *
       }
 
       if (pBlockCol == NULL) {
-        // TODO: dataColSetNEleNull may fail
-        dataColSetNEleNull(pDataCol, pBlock->numOfRows, pDataCols->maxPoints);
+        // TODO: tdAllocMemForCol may fail
+        tdAllocMemForCol(pDataCol, pDataCols->maxPoints);
+        dataColSetNEleNull(pDataCol, pBlock->numOfRows);
         continue;
       }
 

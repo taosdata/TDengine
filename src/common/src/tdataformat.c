@@ -247,13 +247,10 @@ int dataColAppendVal(SDataCol *pCol, const void *value, int numOfRows, int maxPo
       return 0;
     }
 
+    if(tdAllocMemForCol(pCol, maxPoints) < 0) return -1;
     if (numOfRows > 0) {
       // Find the first not null value, fill all previouse values as NULL
-      if(dataColSetNEleNull(pCol, numOfRows, maxPoints) < 0)
-        return -1;
-    } else {
-      if(tdAllocMemForCol(pCol, maxPoints) < 0)
-        return -1;
+      dataColSetNEleNull(pCol, numOfRows);
     }
   }
 
@@ -269,13 +266,21 @@ int dataColAppendVal(SDataCol *pCol, const void *value, int numOfRows, int maxPo
     memcpy(POINTER_SHIFT(pCol->pData, pCol->len), value, pCol->bytes);
     pCol->len += pCol->bytes;
   }
-  return -1;
+  return 0;
+}
+
+static FORCE_INLINE const void *tdGetColDataOfRowUnsafe(SDataCol *pCol, int row) {
+  if (IS_VAR_DATA_TYPE(pCol->type)) {
+    return POINTER_SHIFT(pCol->pData, pCol->dataOff[row]);
+  } else {
+    return POINTER_SHIFT(pCol->pData, TYPE_BYTES[pCol->type] * row);
+  }
 }
 
 bool isNEleNull(SDataCol *pCol, int nEle) {
   if(isAllRowsNull(pCol)) return true;
   for (int i = 0; i < nEle; i++) {
-    if (!isNull(tdGetColDataOfRow(pCol, i), pCol->type)) return false;
+    if (!isNull(tdGetColDataOfRowUnsafe(pCol, i), pCol->type)) return false;
   }
   return true;
 }
@@ -292,11 +297,7 @@ static FORCE_INLINE void dataColSetNullAt(SDataCol *pCol, int index) {
   }
 }
 
-int dataColSetNEleNull(SDataCol *pCol, int nEle, int maxPoints) {
-  if(tdAllocMemForCol(pCol, maxPoints)){
-    return -1;
-  }
-
+void dataColSetNEleNull(SDataCol *pCol, int nEle) {
   if (IS_VAR_DATA_TYPE(pCol->type)) {
     pCol->len = 0;
     for (int i = 0; i < nEle; i++) {
@@ -306,7 +307,6 @@ int dataColSetNEleNull(SDataCol *pCol, int nEle, int maxPoints) {
     setNullN(pCol->pData, pCol->type, pCol->bytes, nEle);
     pCol->len = TYPE_BYTES[pCol->type] * nEle;
   }
-  return 0;
 }
 
 void dataColSetOffset(SDataCol *pCol, int nEle) {
@@ -323,7 +323,7 @@ void dataColSetOffset(SDataCol *pCol, int nEle) {
   }
 }
 
-SDataCols *tdNewDataCols(int maxRowSize, int maxCols, int maxRows) {
+SDataCols *tdNewDataCols(int maxCols, int maxRows) {
   SDataCols *pCols = (SDataCols *)calloc(1, sizeof(SDataCols));
   if (pCols == NULL) {
     uDebug("malloc failure, size:%" PRId64 " failed, reason:%s", (int64_t)sizeof(SDataCols), strerror(errno));
@@ -331,6 +331,9 @@ SDataCols *tdNewDataCols(int maxRowSize, int maxCols, int maxRows) {
   }
 
   pCols->maxPoints = maxRows;
+  pCols->maxCols = maxCols;
+  pCols->numOfRows = 0;
+  pCols->numOfCols = 0;
 
   if (maxCols > 0) {
     pCols->cols = (SDataCol *)calloc(maxCols, sizeof(SDataCol));
@@ -347,12 +350,7 @@ SDataCols *tdNewDataCols(int maxRowSize, int maxCols, int maxRows) {
       pCols->cols[i].pData = NULL;
       pCols->cols[i].dataOff = NULL;
     }
-
-    pCols->maxCols = maxCols;
   }
-
-  pCols->maxRowSize = maxRowSize;
-
 
   return pCols;
 }
@@ -370,10 +368,6 @@ int tdInitDataCols(SDataCols *pCols, STSchema *pSchema) {
       pCols->cols[i].dataOff = NULL;
       pCols->cols[i].spaceSize = 0;
     }
-  }
-
-  if (schemaTLen(pSchema) > pCols->maxRowSize) {
-    pCols->maxRowSize = schemaTLen(pSchema);
   }
 
   tdResetDataCols(pCols);
@@ -404,7 +398,7 @@ SDataCols *tdFreeDataCols(SDataCols *pCols) {
 }
 
 SDataCols *tdDupDataCols(SDataCols *pDataCols, bool keepData) {
-  SDataCols *pRet = tdNewDataCols(pDataCols->maxRowSize, pDataCols->maxCols, pDataCols->maxPoints);
+  SDataCols *pRet = tdNewDataCols(pDataCols->maxCols, pDataCols->maxPoints);
   if (pRet == NULL) return NULL;
 
   pRet->numOfCols = pDataCols->numOfCols;
@@ -593,7 +587,7 @@ static void tdMergeTwoDataCols(SDataCols *target, SDataCols *src1, int *iter1, i
       if ((key1 > key2) || (key1 == key2 && !TKEY_IS_DELETED(tkey2))) {
         for (int i = 0; i < src2->numOfCols; i++) {
           ASSERT(target->cols[i].type == src2->cols[i].type);
-          if (src2->cols[i].len > 0 && (forceSetNull || (!forceSetNull && !isNull(src2->cols[i].pData, src2->cols[i].type)))) {
+          if (src2->cols[i].len > 0 && (forceSetNull || (!isNull(src2->cols[i].pData, src2->cols[i].type)))) {
             dataColAppendVal(&(target->cols[i]), tdGetColDataOfRow(src2->cols + i, *iter2), target->numOfRows,
                              target->maxPoints);
           }
