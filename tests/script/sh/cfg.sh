@@ -1,6 +1,6 @@
 #!/bin/bash
 
-if [ $# != 6 ]; then 
+if [ $# != 6 ]; then
   echo "argument list need input : "
   echo "  -n nodeName"
   echo "  -c configName"
@@ -8,10 +8,12 @@ if [ $# != 6 ]; then
   exit 1
 fi
 
+UNAME_BIN=`which uname`
+OS_TYPE=`$UNAME_BIN`
 NODE_NAME=
 CONFIG_NAME=
 CONFIG_VALUE=
-while getopts "n:v:c:" arg 
+while getopts "n:v:c:" arg
 do
   case $arg in
     n)
@@ -43,10 +45,16 @@ fi
 TAOS_DIR=`pwd`
 TAOSD_DIR=`find . -name "taosd"|grep bin|head -n1`
 
-if [[ "$TAOSD_DIR" == *"$IN_TDINTERNAL"* ]]; then
-  BIN_DIR=`find . -name "taosd"|grep bin|head -n1|cut -d '/' --fields=2,3`
+if [[ "$OS_TYPE" != "Darwin" ]]; then
+  cut_opt="--field="
 else
-  BIN_DIR=`find . -name "taosd"|grep bin|head -n1|cut -d '/' --fields=2`
+  cut_opt="-f "
+fi
+
+if [[ "$TAOSD_DIR" == *"$IN_TDINTERNAL"* ]]; then
+  BIN_DIR=`find . -name "taosd"|grep bin|head -n1|cut -d '/' ${cut_opt}2,3`
+else
+  BIN_DIR=`find . -name "taosd"|grep bin|head -n1|cut -d '/' ${cut_opt}2`
 fi
 
 BUILD_DIR=$TAOS_DIR/$BIN_DIR/build
@@ -56,7 +64,7 @@ SIM_DIR=$TAOS_DIR/sim
 NODE_DIR=$SIM_DIR/$NODE_NAME
 TAOS_CFG=$NODE_DIR/cfg/taos.cfg
 TAOS_FLAG=$SIM_DIR/tsim/flag
-if [ -f "$TAOS_FLAG" ] ; then 
+if [ -f "$TAOS_FLAG" ] ; then
   TAOS_CFG=/etc/taos/taos.cfg
 fi
 

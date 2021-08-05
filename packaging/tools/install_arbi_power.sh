@@ -38,11 +38,11 @@ initd_mod=0
 service_mod=2
 if pidof systemd &> /dev/null; then
     service_mod=0
-elif $(which service &> /dev/null); then    
+elif $(which service &> /dev/null); then
     service_mod=1
-    service_config_dir="/etc/init.d" 
+    service_config_dir="/etc/init.d"
     if $(which chkconfig &> /dev/null); then
-         initd_mod=1 
+         initd_mod=1
     elif $(which insserv &> /dev/null); then
         initd_mod=2
     elif $(which update-rc.d &> /dev/null); then
@@ -50,7 +50,7 @@ elif $(which service &> /dev/null); then
     else
         service_mod=2
     fi
-else 
+else
     service_mod=2
 fi
 
@@ -82,7 +82,7 @@ elif echo $osinfo | grep -qwi "fedora" ; then
   os_type=2
 else
   echo " osinfo: ${osinfo}"
-  echo " This is an officially unverified linux system," 
+  echo " This is an officially unverified linux system,"
   echo " if there are any problems with the installation and operation, "
   echo " please feel free to contact taosdata.com for support."
   os_type=1
@@ -99,7 +99,7 @@ function install_main_path() {
     #create install main dir and all sub dir
     ${csudo} rm -rf ${install_main_dir}    || :
     ${csudo} mkdir -p ${install_main_dir}
-    ${csudo} mkdir -p ${install_main_dir}/bin  
+    ${csudo} mkdir -p ${install_main_dir}/bin
     #${csudo} mkdir -p ${install_main_dir}/include
     ${csudo} mkdir -p ${install_main_dir}/init.d
 }
@@ -115,23 +115,76 @@ function install_bin() {
     [ -x ${install_main_dir}/bin/tarbitrator ] && ${csudo} ln -s ${install_main_dir}/bin/tarbitrator ${bin_link_dir}/tarbitrator || :
 }
 
+function install_jemalloc() {
+    jemalloc_dir=${script_dir}/jemalloc
+
+    if [ -d ${jemalloc_dir} ]; then
+        ${csudo} /usr/bin/install -c -d /usr/local/bin
+
+        if [ -f ${jemalloc_dir}/bin/jemalloc-config ]; then
+            ${csudo} /usr/bin/install -c -m 755 ${jemalloc_dir}/bin/jemalloc-config /usr/local/bin
+        fi
+        if [ -f ${jemalloc_dir}/bin/jemalloc.sh ]; then
+            ${csudo} /usr/bin/install -c -m 755 ${jemalloc_dir}/bin/jemalloc.sh /usr/local/bin
+        fi
+        if [ -f ${jemalloc_dir}/bin/jeprof ]; then
+            ${csudo} /usr/bin/install -c -m 755 ${jemalloc_dir}/bin/jeprof /usr/local/bin
+        fi
+        if [ -f ${jemalloc_dir}/include/jemalloc/jemalloc.h ]; then
+            ${csudo} /usr/bin/install -c -d /usr/local/include/jemalloc
+            ${csudo} /usr/bin/install -c -m 644 ${jemalloc_dir}/include/jemalloc/jemalloc.h /usr/local/include/jemalloc
+        fi
+        if [ -f ${jemalloc_dir}/lib/libjemalloc.so.2 ]; then
+            ${csudo} /usr/bin/install -c -d /usr/local/lib
+            ${csudo} /usr/bin/install -c -m 755 ${jemalloc_dir}/lib/libjemalloc.so.2 /usr/local/lib
+            ${csudo} ln -sf libjemalloc.so.2 /usr/local/lib/libjemalloc.so
+            ${csudo} /usr/bin/install -c -d /usr/local/lib
+            if [ -f ${jemalloc_dir}/lib/libjemalloc.a ]; then
+                ${csudo} /usr/bin/install -c -m 755 ${jemalloc_dir}/lib/libjemalloc.a /usr/local/lib
+            fi
+            if [ -f ${jemalloc_dir}/lib/libjemalloc_pic.a ]; then
+                ${csudo} /usr/bin/install -c -m 755 ${jemalloc_dir}/lib/libjemalloc_pic.a /usr/local/lib
+            fi
+            if [ -f ${jemalloc_dir}/lib/libjemalloc_pic.a ]; then
+                ${csudo} /usr/bin/install -c -d /usr/local/lib/pkgconfig
+                ${csudo} /usr/bin/install -c -m 644 ${jemalloc_dir}/lib/pkgconfig/jemalloc.pc /usr/local/lib/pkgconfig
+            fi
+        fi
+        if [ -f ${jemalloc_dir}/share/doc/jemalloc/jemalloc.html ]; then
+            ${csudo} /usr/bin/install -c -d /usr/local/share/doc/jemalloc
+            ${csudo} /usr/bin/install -c -m 644 ${jemalloc_dir}/share/doc/jemalloc/jemalloc.html /usr/local/share/doc/jemalloc
+        fi
+        if [ -f ${jemalloc_dir}/share/man/man3/jemalloc.3 ]; then
+            ${csudo} /usr/bin/install -c -d /usr/local/share/man/man3
+            ${csudo} /usr/bin/install -c -m 644 ${jemalloc_dir}/share/man/man3/jemalloc.3 /usr/local/share/man/man3
+        fi
+
+        if [ -d /etc/ld.so.conf.d ]; then
+            ${csudo} echo "/usr/local/lib" > /etc/ld.so.conf.d/jemalloc.conf
+            ${csudo} ldconfig
+        else
+            echo "/etc/ld.so.conf.d not found!"
+        fi
+    fi
+}
+
 function install_header() {
     ${csudo} rm -f ${inc_link_dir}/taos.h ${inc_link_dir}/taoserror.h    || :
-    ${csudo} cp -f ${script_dir}/inc/* ${install_main_dir}/include && ${csudo} chmod 644 ${install_main_dir}/include/*    
+    ${csudo} cp -f ${script_dir}/inc/* ${install_main_dir}/include && ${csudo} chmod 644 ${install_main_dir}/include/*
     ${csudo} ln -s ${install_main_dir}/include/taos.h ${inc_link_dir}/taos.h
     ${csudo} ln -s ${install_main_dir}/include/taoserror.h ${inc_link_dir}/taoserror.h
 }
 
 function clean_service_on_sysvinit() {
     #restart_config_str="taos:2345:respawn:${service_config_dir}/taosd start"
-    #${csudo} sed -i "\|${restart_config_str}|d" /etc/inittab || :    
-       
+    #${csudo} sed -i "\|${restart_config_str}|d" /etc/inittab || :
+
     if pidof tarbitrator &> /dev/null; then
         ${csudo} service tarbitratord stop || :
     fi
 
     if ((${initd_mod}==1)); then
-      if [ -e ${service_config_dir}/tarbitratord ]; then 
+      if [ -e ${service_config_dir}/tarbitratord ]; then
         ${csudo} chkconfig --del tarbitratord || :
       fi
     elif ((${initd_mod}==2)); then
@@ -142,10 +195,10 @@ function clean_service_on_sysvinit() {
       if [ -e ${service_config_dir}/tarbitratord ]; then
         ${csudo} update-rc.d -f tarbitratord remove || :
       fi
-    fi    
+    fi
 
     ${csudo} rm -f ${service_config_dir}/tarbitratord || :
-    
+
     if $(which init &> /dev/null); then
         ${csudo} init q || :
     fi
@@ -164,10 +217,10 @@ function install_service_on_sysvinit() {
         ${csudo} cp -f ${script_dir}/init.d/tarbitratord.rpm ${install_main_dir}/init.d/tarbitratord
         ${csudo} cp    ${script_dir}/init.d/tarbitratord.rpm ${service_config_dir}/tarbitratord && ${csudo} chmod a+x ${service_config_dir}/tarbitratord
     fi
-    
+
     #restart_config_str="power:2345:respawn:${service_config_dir}/powerd start"
     #${csudo} grep -q -F "$restart_config_str" /etc/inittab || ${csudo} bash -c "echo '${restart_config_str}' >> /etc/inittab"
-    
+
     if ((${initd_mod}==1)); then
         ${csudo} chkconfig --add tarbitratord || :
         ${csudo} chkconfig --level 2345 tarbitratord on || :
@@ -205,6 +258,7 @@ function install_service_on_systemd() {
     ${csudo} bash -c "echo '[Service]'                               >> ${tarbitratord_service_config}"
     ${csudo} bash -c "echo 'Type=simple'                             >> ${tarbitratord_service_config}"
     ${csudo} bash -c "echo 'ExecStart=/usr/bin/tarbitrator'          >> ${tarbitratord_service_config}"
+    ${csudo} bash -c "echo 'TimeoutStopSec=1000000s'                 >> ${tarbitratord_service_config}"
     ${csudo} bash -c "echo 'LimitNOFILE=infinity'                    >> ${tarbitratord_service_config}"
     ${csudo} bash -c "echo 'LimitNPROC=infinity'                     >> ${tarbitratord_service_config}"
     ${csudo} bash -c "echo 'LimitCORE=infinity'                      >> ${tarbitratord_service_config}"
@@ -244,12 +298,13 @@ function update_PowerDB() {
         fi
         sleep 1
     fi
-    
+
     install_main_path
     #install_header
     install_bin
     install_service
-		
+    install_jemalloc
+
     echo
     #echo -e "${GREEN_DARK}To configure PowerDB ${NC}: edit /etc/taos/taos.cfg"
     if ((${service_mod}==0)); then
@@ -258,7 +313,7 @@ function update_PowerDB() {
         echo -e "${GREEN_DARK}To start arbitrator     ${NC}: ${csudo} service tarbitratord start${NC}"
     else
         echo -e "${GREEN_DARK}To start arbitrator     ${NC}: ./tarbitrator${NC}"
-    fi                
+    fi
     echo
     echo -e "\033[44;32;1mPowerDB's arbitrator is updated successfully!${NC}"
 }
@@ -266,11 +321,13 @@ function update_PowerDB() {
 function install_PowerDB() {
     # Start to install
     echo -e "${GREEN}Start to install PowerDB's arbitrator ...${NC}"
-    
-    install_main_path	   
+
+    install_main_path
     #install_header
     install_bin
     install_service
+    install_jemalloc
+
     echo
     #echo -e "${GREEN_DARK}To configure PowerDB ${NC}: edit /etc/taos/taos.cfg"
     if ((${service_mod}==0)); then

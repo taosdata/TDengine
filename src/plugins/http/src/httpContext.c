@@ -35,20 +35,24 @@ static void httpRemoveContextFromEpoll(HttpContext *pContext) {
   HttpThread *pThread = pContext->pThread;
   if (pContext->fd >= 0) {
     epoll_ctl(pThread->pollFd, EPOLL_CTL_DEL, pContext->fd, NULL);
-    int32_t fd = atomic_val_compare_exchange_32(&pContext->fd, pContext->fd, -1);
+#ifdef WINDOWS
+    SOCKET fd = atomic_val_compare_exchange_32(&pContext->fd, pContext->fd, -1);
+#else
+    SOCKET fd = atomic_val_compare_exchange_64(&pContext->fd, pContext->fd, -1);
+#endif
     taosCloseSocket(fd);
   }
 }
 
 static void httpDestroyContext(void *data) {
   HttpContext *pContext = *(HttpContext **)data;
-  if (pContext->fd > 0) taosClose(pContext->fd);
+  if (pContext->fd > 0) taosCloseSocket(pContext->fd);
 
   HttpThread *pThread = pContext->pThread;
   httpRemoveContextFromEpoll(pContext);
   httpReleaseSession(pContext);
   atomic_sub_fetch_32(&pThread->numOfContexts, 1);
-  
+
   httpDebug("context:%p, is destroyed, refCount:%d data:%p thread:%s numOfContexts:%d", pContext, pContext->refCount,
             data, pContext->pThread->label, pContext->pThread->numOfContexts);
   pContext->pThread = 0;
@@ -100,15 +104,13 @@ const char *httpContextStateStr(HttpContextState state) {
   }
 }
 
-void httpNotifyContextClose(HttpContext *pContext) { 
-  shutdown(pContext->fd, SHUT_WR); 
-}
+void httpNotifyContextClose(HttpContext *pContext) { shutdown(pContext->fd, SHUT_WR); }
 
 bool httpAlterContextState(HttpContext *pContext, HttpContextState srcState, HttpContextState destState) {
   return (atomic_val_compare_exchange_32(&pContext->state, srcState, destState) == srcState);
 }
 
-HttpContext *httpCreateContext(int32_t fd) {
+HttpContext *httpCreateContext(SOCKET fd) {
   HttpContext *pContext = calloc(1, sizeof(HttpContext));
   if (pContext == NULL) return NULL;
 
@@ -123,8 +125,8 @@ HttpContext *httpCreateContext(int32_t fd) {
   pContext->ppContext = ppContext;
   httpDebug("context:%p, fd:%d, is created, data:%p", pContext, fd, ppContext);
 
-  // set the ref to 0 
-  taosCacheRelease(tsHttpServer.contextCache, (void**)&ppContext, false);
+  // set the ref to 0
+  taosCacheRelease(tsHttpServer.contextCache, (void **)&ppContext, false);
 
   return pContext;
 }
@@ -144,17 +146,20 @@ HttpContext *httpGetContext(void *ptr) {
   return NULL;
 }
 
-void httpReleaseContext(HttpContext *pContext, bool clearRes) {
+void httpReleaseContext(HttpContext *pContext/*, bool clearRes*/) {
   int32_t refCount = atomic_sub_fetch_32(&pContext->refCount, 1);
   if (refCount < 0) {
     httpError("context:%p, is already released, refCount:%d", pContext, refCount);
     return;
   }
-
+  /*
   if (clearRes) {
-    httpClearParser(pContext->parser);
+    if (pContext->parser) {
+      httpClearParser(pContext->parser);
+    }
+    memset(&pContext->singleCmd, 0, sizeof(HttpSqlCmd));
   }
-
+  */
   HttpContext **ppContext = pContext->ppContext;
   httpTrace("context:%p, is released, data:%p refCount:%d", pContext, ppContext, refCount);
 
@@ -174,7 +179,6 @@ bool httpInitContext(HttpContext *pContext) {
   pContext->encodeMethod = NULL;
   memset(&pContext->singleCmd, 0, sizeof(HttpSqlCmd));
 
-
   httpTrace("context:%p, fd:%d, parsed:%d", pContext, pContext->fd, pContext->parsed);
   return true;
 }
@@ -184,9 +188,9 @@ void httpCloseContextByApp(HttpContext *pContext) {
   pContext->parsed = false;
   bool keepAlive = true;
 
-  if (parser->httpVersion == HTTP_VERSION_10 && parser->keepAlive != HTTP_KEEPALIVE_ENABLE) {
+  if (parser && parser->httpVersion == HTTP_VERSION_10 && parser->keepAlive != HTTP_KEEPALIVE_ENABLE) {
     keepAlive = false;
-  } else if (parser->httpVersion != HTTP_VERSION_10 && parser->keepAlive == HTTP_KEEPALIVE_DISABLE) {
+  } else if (parser && parser->httpVersion != HTTP_VERSION_10 && parser->keepAlive == HTTP_KEEPALIVE_DISABLE) {
     keepAlive = false;
   } else {
   }
@@ -213,7 +217,7 @@ void httpCloseContextByApp(HttpContext *pContext) {
               httpContextStateStr(pContext->state), pContext->state);
   }
 
-  httpReleaseContext(pContext, true);
+  httpReleaseContext(pContext/*, true*/);
 }
 
 void httpCloseContextByServer(HttpContext *pContext) {
@@ -231,5 +235,5 @@ void httpCloseContextByServer(HttpContext *pContext) {
 
   pContext->parsed = false;
   httpRemoveContextFromEpoll(pContext);
-  httpReleaseContext(pContext, true);
+  httpReleaseContext(pContext/*, true*/);
 }

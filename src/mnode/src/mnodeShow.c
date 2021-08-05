@@ -109,6 +109,7 @@ static char *mnodeGetShowType(int32_t showType) {
     case TSDB_MGMT_TABLE_VNODES:  return "show vnodes";
     case TSDB_MGMT_TABLE_CLUSTER: return "show clusters";
     case TSDB_MGMT_TABLE_STREAMTABLES : return "show streamtables";
+    case TSDB_MGMT_TABLE_TP:      return "show topics";
     default:                      return "undefined";
   }
 }
@@ -128,7 +129,7 @@ static int32_t mnodeProcessShowMsg(SMnodeMsg *pMsg) {
   SShowObj *pShow = calloc(1, showObjSize);
   pShow->type       = pShowMsg->type;
   pShow->payloadLen = htons(pShowMsg->payloadLen);
-  tstrncpy(pShow->db, pShowMsg->db, TSDB_DB_NAME_LEN);
+  tstrncpy(pShow->db, pShowMsg->db, TSDB_ACCT_ID_LEN + TSDB_DB_NAME_LEN);
   memcpy(pShow->payload, pShowMsg->payload, pShow->payloadLen);
 
   pShow = mnodePutShowObj(pShow);
@@ -218,7 +219,7 @@ static int32_t mnodeProcessRetrieveMsg(SMnodeMsg *pMsg) {
   }
 
   pRsp->numOfRows = htonl(rowsRead);
-  pRsp->precision = htonl(TSDB_TIME_PRECISION_MILLI);  // millisecond time precision
+  pRsp->precision = (int16_t)htonl(TSDB_TIME_PRECISION_MILLI);  // millisecond time precision
 
   pMsg->rpcRsp.rsp = pRsp;
   pMsg->rpcRsp.len = size;
@@ -252,10 +253,6 @@ static int32_t mnodeProcessHeartBeatMsg(SMnodeMsg *pMsg) {
     
   int32_t connId = htonl(pHBMsg->connId);
   SConnObj *pConn = mnodeAccquireConn(connId, connInfo.user, connInfo.clientIp, connInfo.clientPort);
-  if (pConn == NULL) {
-    pHBMsg->pid = htonl(pHBMsg->pid);
-    pConn = mnodeCreateConn(connInfo.user, connInfo.clientIp, connInfo.clientPort, pHBMsg->pid, pHBMsg->appName);
-  }
 
   if (pConn == NULL) {
     // do not close existing links, otherwise
@@ -280,8 +277,11 @@ static int32_t mnodeProcessHeartBeatMsg(SMnodeMsg *pMsg) {
     }
   }
 
-  pRsp->onlineDnodes = htonl(mnodeGetOnlineDnodesNum());
-  pRsp->totalDnodes = htonl(mnodeGetDnodesNum());
+  int32_t    onlineDnodes = 0, totalDnodes = 0;
+  mnodeGetOnlineAndTotalDnodesNum(&onlineDnodes, &totalDnodes);
+
+  pRsp->onlineDnodes = htonl(onlineDnodes);
+  pRsp->totalDnodes = htonl(totalDnodes);
   mnodeGetMnodeEpSetForShell(&pRsp->epSet, false);
 
   pMsg->rpcRsp.rsp = pRsp;
@@ -350,6 +350,8 @@ static int32_t mnodeProcessConnectMsg(SMnodeMsg *pMsg) {
   pConnectRsp->superAuth = pUser->superAuth;
   
   mnodeGetMnodeEpSetForShell(&pConnectRsp->epSet, false);
+
+  dnodeGetClusterId(pConnectRsp->clusterId);
 
 connect_over:
   if (code != TSDB_CODE_SUCCESS) {

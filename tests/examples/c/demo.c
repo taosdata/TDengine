@@ -61,14 +61,12 @@ int main(int argc, char *argv[]) {
     return 0;
   }
 
-  // init TAOS
-  taos_init();
   TAOS *taos = taos_connect(argv[1], "root", "taosdata", NULL, 0);
   if (taos == NULL) {
     printf("failed to connect to server, reason:%s\n", "null taos"/*taos_errstr(taos)*/);
     exit(1);
   }
-  for (int i = 0; i < 4000000; i++) {
+  for (int i = 0; i < 100; i++) {
     Test(taos, qstr, i);
   }
   taos_close(taos);
@@ -86,23 +84,22 @@ void Test(TAOS *taos, char *qstr, int index)  {
 
   int i = 0;
   for (i = 0; i < 10; ++i) {
-    sprintf(qstr, "insert into m1 values (%" PRId64 ", %d, %d, %d, %d, %f, %lf, '%s')", 1546300800000 + i * 1000, i, i, i, i*10000000, i*1.0, i*2.0, "hello");
+    sprintf(qstr, "insert into m1 values (%" PRId64 ", %d, %d, %d, %d, %f, %lf, '%s')", (uint64_t)(1546300800000 + i * 1000), i, i, i, i*10000000, i*1.0, i*2.0, "hello");
     printf("qstr: %s\n", qstr);
     
     // note: how do you wanna do if taos_query returns non-NULL
     // if (taos_query(taos, qstr)) {
     //   printf("insert row: %i, reason:%s\n", i, taos_errstr(taos));
     // }
-    TAOS_RES *result = taos_query(taos, qstr);
-    if (result) {
-      printf("insert row: %i\n", i);
-    } else {
-      printf("failed to insert row: %i, reason:%s\n", i, "null result"/*taos_errstr(result)*/);
-      taos_free_result(result);
+    TAOS_RES *result1 = taos_query(taos, qstr);
+    if (result1 == NULL || taos_errno(result1) != 0) {
+      printf("failed to insert row, reason:%s\n", taos_errstr(result1));    
+      taos_free_result(result1);
       exit(1);
+    } else {
+      printf("insert row: %i\n", i);
     }
-    taos_free_result(result);
-
+    taos_free_result(result1);
   }
   printf("success to insert rows, total %d rows\n", i);
 
@@ -119,12 +116,12 @@ void Test(TAOS *taos, char *qstr, int index)  {
   int         rows = 0;
   int         num_fields = taos_field_count(result);
   TAOS_FIELD *fields = taos_fetch_fields(result);
-  char        temp[1024];
 
   printf("num_fields = %d\n", num_fields);
   printf("select * from table, result:\n");
   // fetch the records row by row
   while ((row = taos_fetch_row(result))) {
+    char temp[1024] = {0};
     rows++;
     taos_print_row(temp, row, fields, num_fields);
     printf("%s\n", temp);

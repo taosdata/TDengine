@@ -88,6 +88,8 @@ class TDTestCase:
         except Exception as e:
             tdLog.info(repr(e))
         
+        
+        time.sleep(5)
         tdSql.query("show streams")
         tdSql.checkRows(1)
         tdSql.checkData(0, 2, 's0')
@@ -146,6 +148,7 @@ class TDTestCase:
         except Exception as e:
             tdLog.info(repr(e))
 
+        time.sleep(5)
         tdSql.query("show streams")
         tdSql.checkRows(2)
         tdSql.checkData(0, 2, 's1')

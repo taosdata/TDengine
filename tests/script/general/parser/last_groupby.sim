@@ -1,0 +1,99 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/cfg.sh -n dnode1 -c walLevel -v 0
+system sh/cfg.sh -n dnode1 -c maxtablesPerVnode -v 2
+system sh/exec.sh -n dnode1 -s start
+
+sleep 100
+sql connect
+print ======================== dnode1 start
+
+$db = testdb
+
+sql create database $db
+sql use $db
+
+sql create stable st2 (ts timestamp, f1 int, f2 float, f3 double, f4 bigint, f5 smallint, f6 tinyint, f7 bool, f8 binary(10), f9 nchar(10)) tags (id1 int, id2 float, id3 nchar(10), id4 double, id5 smallint, id6 bigint, id7 binary(10))
+
+sql create table tb1 using st2 tags (1,1.0,"1",1.0,1,1,"1");
+ 
+sql insert into tb1 values (now-200s,1,1.0,1.0,1,1,1,true,"1","1")
+sql insert into tb1 values (now-100s,2,2.0,2.0,2,2,2,true,"2","2")
+sql insert into tb1 values (now,3,3.0,3.0,3,3,3,true,"3","3")
+sql insert into tb1 values (now+100s,4,4.0,4.0,4,4,4,true,"4","4")
+sql insert into tb1 values (now+200s,4,4.0,4.0,4,4,4,true,"4","4")
+sql insert into tb1 values (now+300s,4,4.0,4.0,4,4,4,true,"4","4")
+sql insert into tb1 values (now+400s,4,4.0,4.0,4,4,4,true,"4","4")
+sql insert into tb1 values (now+500s,4,4.0,4.0,4,4,4,true,"4","4")
+
+sql select f1,last(*) from st2 group by f1;
+
+if $rows != 4 then
+  return -1
+endi
+
+if $data00 != 1 then 
+  return -1
+endi
+
+if $data02 != 1 then 
+  print $data02
+  return -1
+endi
+if $data03 != 1.00000 then 
+  return -1
+endi
+if $data04 != 1.000000000 then 
+  return -1
+endi
+if $data05 != 1 then 
+  return -1
+endi
+if $data06 != 1 then 
+  return -1
+endi
+if $data07 != 1 then 
+  return -1
+endi
+if $data08 != 1 then 
+  return -1
+endi
+if $data09 != 1 then 
+  return -1
+endi
+
+sql select f1,last(f1,st2.*) from st2 group by f1;
+if $rows != 4 then
+  return -1
+endi
+
+if $data00 != 1 then 
+  return -1
+endi
+
+if $data01 != 1 then 
+  return -1
+endi
+if $data03 != 1 then 
+  return -1
+endi
+if $data04 != 1.00000 then 
+  return -1
+endi
+if $data05 != 1.000000000 then 
+  return -1
+endi
+if $data06 != 1 then 
+  return -1
+endi
+if $data07 != 1 then 
+  return -1
+endi
+if $data08 != 1 then 
+  return -1
+endi
+if $data09 != 1 then 
+  return -1
+endi
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

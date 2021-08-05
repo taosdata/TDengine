@@ -3,8 +3,11 @@
 #include <cassert>
 #include <iostream>
 
-#include "tsqlfunction.h"
+#include "qAggMain.h"
 #include "tcompare.h"
+
+#pragma GCC diagnostic ignored "-Wunused-function"
+#pragma GCC diagnostic ignored "-Wunused-variable"
 
 TEST(testCase, patternMatchTest) {
   SPatternCompareInfo info = PATTERN_COMPARE_INFO_INITIALIZER;

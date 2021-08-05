@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_TSCJOINPROCESS_H
-#define TDENGINE_TSCJOINPROCESS_H
+#ifndef TDENGINE_TSCSUBQUERY_H
+#define TDENGINE_TSCSUBQUERY_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -33,6 +33,7 @@ SJoinSupporter* tscCreateJoinSupporter(SSqlObj* pSql, int32_t index);
 void tscHandleMasterJoinQuery(SSqlObj* pSql);
 
 int32_t tscHandleMasterSTableQuery(SSqlObj *pSql);
+int32_t tscHandleFirstRoundStableQuery(SSqlObj *pSql);
 
 int32_t tscHandleMultivnodeInsert(SSqlObj *pSql);
 
@@ -43,8 +44,14 @@ TAOS_ROW doSetResultRowData(SSqlObj *pSql);
 
 char *getArithmeticInputSrc(void *param, const char *name, int32_t colId);
 
+void tscLockByThread(int64_t *lockedBy);
+
+void tscUnlockByThread(int64_t *lockedBy);
+
+int tsInsertInitialCheck(SSqlObj *pSql);
+
 #ifdef __cplusplus
 }
 #endif
 
-#endif  // TDENGINE_TSCJOINPROCESS_H
+#endif  // TDENGINE_TSCSUBQUERY_H

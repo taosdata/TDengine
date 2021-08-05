@@ -1,12 +1,10 @@
 system sh/stop_dnodes.sh
-sleep 3000
 system sh/deploy.sh -n dnode1 -i 1
 system sh/cfg.sh -n dnode1 -c wallevel -v 0
 system sh/cfg.sh -n dnode1 -c http -v 1
 system sh/cfg.sh -n dnode1 -c httpEnableRecordSql -v 1
 system sh/exec.sh -n dnode1 -s start
 
-sleep 3000
 sql connect
 
 print ============================ dnode1 start
@@ -41,14 +39,14 @@ print ===============  step3 - query data
 
 system_content curl -H 'Authorization: Taosd /KfeAzX/f9na8qdtNZmtONryp201ma04bEl8LcvLUd7a8qdtNZmtONryp201ma04' -d 'select * from d1.table_rest' 127.0.0.1:7111/rest/sql
 print curl 127.0.0.1:7111/rest/sql -----> $system_content
-if $system_content != @{"status":"succ","head":["ts","i"],"data":[["2017-12-25 21:28:41.022",1],["2017-12-25 21:28:42.022",2],["2017-12-25 21:28:43.022",3],["2017-12-25 21:28:44.022",4],["2017-12-25 21:28:45.022",5],["2017-12-25 21:28:46.022",6],["2017-12-25 21:28:47.022",7],["2017-12-25 21:28:48.022",8],["2017-12-25 21:28:49.022",9],["2017-12-25 21:28:50.022",10]],"rows":10}@ then
+if $system_content != @{"status":"succ","head":["ts","i"],"column_meta":[["ts",9,8],["i",4,4]],"data":[["2017-12-25 21:28:41.022",1],["2017-12-25 21:28:42.022",2],["2017-12-25 21:28:43.022",3],["2017-12-25 21:28:44.022",4],["2017-12-25 21:28:45.022",5],["2017-12-25 21:28:46.022",6],["2017-12-25 21:28:47.022",7],["2017-12-25 21:28:48.022",8],["2017-12-25 21:28:49.022",9],["2017-12-25 21:28:50.022",10]],"rows":10}@ then
   return -1
 endi
 
 print ===============  step4 - insert data
 system_content curl -H 'Authorization: Taosd /KfeAzX/f9na8qdtNZmtONryp201ma04bEl8LcvLUd7a8qdtNZmtONryp201ma04' -d "insert into d1.table_rest values('2017-12-25 21:28:51.022', 11)" 127.0.0.1:7111/rest/sql
 print curl 127.0.0.1:7111/rest/sql -----> $system_content
-if $system_content != @{"status":"succ","head":["affected_rows"],"data":[[1]],"rows":1}@ then
+if $system_content != @{"status":"succ","head":["affected_rows"],"column_meta":[["affected_rows",4,4]],"data":[[1]],"rows":1}@ then
   return -1
 endi
 
@@ -56,7 +54,7 @@ print ===============  step5 - query data
 
 system_content curl -H 'Authorization: Taosd /KfeAzX/f9na8qdtNZmtONryp201ma04bEl8LcvLUd7a8qdtNZmtONryp201ma04' -d 'select * from d1.table_rest' 127.0.0.1:7111/rest/sql
 print curl 127.0.0.1:7111/rest/sql -----> $system_content
-if $system_content != @{"status":"succ","head":["ts","i"],"data":[["2017-12-25 21:28:41.022",1],["2017-12-25 21:28:42.022",2],["2017-12-25 21:28:43.022",3],["2017-12-25 21:28:44.022",4],["2017-12-25 21:28:45.022",5],["2017-12-25 21:28:46.022",6],["2017-12-25 21:28:47.022",7],["2017-12-25 21:28:48.022",8],["2017-12-25 21:28:49.022",9],["2017-12-25 21:28:50.022",10],["2017-12-25 21:28:51.022",11]],"rows":11}@ then
+if $system_content != @{"status":"succ","head":["ts","i"],"column_meta":[["ts",9,8],["i",4,4]],"data":[["2017-12-25 21:28:41.022",1],["2017-12-25 21:28:42.022",2],["2017-12-25 21:28:43.022",3],["2017-12-25 21:28:44.022",4],["2017-12-25 21:28:45.022",5],["2017-12-25 21:28:46.022",6],["2017-12-25 21:28:47.022",7],["2017-12-25 21:28:48.022",8],["2017-12-25 21:28:49.022",9],["2017-12-25 21:28:50.022",10],["2017-12-25 21:28:51.022",11]],"rows":11}@ then
   return -1
 endi
 

@@ -6,13 +6,16 @@
 #include "taos.h"
 #include "tsdb.h"
 
+#pragma GCC diagnostic ignored "-Wwrite-strings"
+#pragma GCC diagnostic ignored "-Wunused-function"
+#pragma GCC diagnostic ignored "-Wunused-variable"
+#pragma GCC diagnostic ignored "-Wunused-but-set-variable"
+#pragma GCC diagnostic ignored "-Wsign-compare"
+
 #include "../../client/inc/tscUtil.h"
 #include "tutil.h"
 #include "tvariant.h"
 #include "ttokendef.h"
-
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wwrite-strings"
 
 namespace {
 int32_t testValidateName(char* name) {
@@ -21,28 +24,28 @@ int32_t testValidateName(char* name) {
   token.n = strlen(name);
   token.type = 0;
 
-  tSQLGetToken(name, &token.type);
+  tGetToken(name, &token.type);
   return tscValidateName(&token);
 }
 }
 
 static void _init_tvariant_bool(tVariant* t) {
-  t->i64Key = TSDB_FALSE;
+  t->i64 = TSDB_FALSE;
   t->nType = TSDB_DATA_TYPE_BOOL;
 }
 
 static void _init_tvariant_tinyint(tVariant* t) {
-  t->i64Key = -27;
+  t->i64 = -27;
   t->nType = TSDB_DATA_TYPE_TINYINT;
 }
 
 static void _init_tvariant_int(tVariant* t) {
-  t->i64Key = -23997659;
+  t->i64 = -23997659;
   t->nType = TSDB_DATA_TYPE_INT;
 }
 
 static void _init_tvariant_bigint(tVariant* t) {
-  t->i64Key = -3333333333333;
+  t->i64 = -3333333333333;
   t->nType = TSDB_DATA_TYPE_BIGINT;
 }
 
@@ -99,47 +102,47 @@ TEST(testCase, db_table_name) {
   EXPECT_EQ(testValidateName(t4), TSDB_CODE_SUCCESS);
 
   char t5[] = "table.'def'";
-  EXPECT_EQ(testValidateName(t5), TSDB_CODE_TSC_INVALID_SQL);
+  EXPECT_EQ(testValidateName(t5), TSDB_CODE_TSC_INVALID_OPERATION);
 
   char t6[] = "'table'.'def'";
-  EXPECT_EQ(testValidateName(t6), TSDB_CODE_TSC_INVALID_SQL);
+  EXPECT_EQ(testValidateName(t6), TSDB_CODE_TSC_INVALID_OPERATION);
 
   char t7[] = "'_ab1234'.'def'";
   EXPECT_EQ(testValidateName(t7), TSDB_CODE_SUCCESS);
   printf("%s\n", t7);
 
   char t8[] = "'_ab&^%1234'.'def'";
-  EXPECT_EQ(testValidateName(t8), TSDB_CODE_TSC_INVALID_SQL);
+  EXPECT_EQ(testValidateName(t8), TSDB_CODE_TSC_INVALID_OPERATION);
 
   char t9[] = "'_123'.'gtest中文'";
-  EXPECT_EQ(testValidateName(t9), TSDB_CODE_TSC_INVALID_SQL);
+  EXPECT_EQ(testValidateName(t9), TSDB_CODE_TSC_INVALID_OPERATION);
 
   char t10[] = "abc.'gtest中文'";
-  EXPECT_EQ(testValidateName(t10), TSDB_CODE_TSC_INVALID_SQL);
+  EXPECT_EQ(testValidateName(t10), TSDB_CODE_TSC_INVALID_OPERATION);
 
   char t10_1[] = "abc.'中文gtest'";
-  EXPECT_EQ(testValidateName(t10_1), TSDB_CODE_TSC_INVALID_SQL);
+  EXPECT_EQ(testValidateName(t10_1), TSDB_CODE_TSC_INVALID_OPERATION);
   
   char t11[] = "'192.168.0.1'.abc";
-  EXPECT_EQ(testValidateName(t11), TSDB_CODE_TSC_INVALID_SQL);
+  EXPECT_EQ(testValidateName(t11), TSDB_CODE_TSC_INVALID_OPERATION);
 
   char t12[] = "192.168.0.1.abc";
-  EXPECT_EQ(testValidateName(t12), TSDB_CODE_TSC_INVALID_SQL);
+  EXPECT_EQ(testValidateName(t12), TSDB_CODE_TSC_INVALID_OPERATION);
 
   char t13[] = "abc.";
-  EXPECT_EQ(testValidateName(t13), TSDB_CODE_TSC_INVALID_SQL);
+  EXPECT_EQ(testValidateName(t13), TSDB_CODE_TSC_INVALID_OPERATION);
 
   char t14[] = ".abc";
-  EXPECT_EQ(testValidateName(t14), TSDB_CODE_TSC_INVALID_SQL);
+  EXPECT_EQ(testValidateName(t14), TSDB_CODE_TSC_INVALID_OPERATION);
 
   char t15[] = ".'abc'";
-  EXPECT_EQ(testValidateName(t15), TSDB_CODE_TSC_INVALID_SQL);
+  EXPECT_EQ(testValidateName(t15), TSDB_CODE_TSC_INVALID_OPERATION);
 
   char t16[] = ".abc'";
-  EXPECT_EQ(testValidateName(t16), TSDB_CODE_TSC_INVALID_SQL);
+  EXPECT_EQ(testValidateName(t16), TSDB_CODE_TSC_INVALID_OPERATION);
 
   char t17[] = "123a.\"abc\"";
-  EXPECT_EQ(testValidateName(t17), TSDB_CODE_TSC_INVALID_SQL);
+  EXPECT_EQ(testValidateName(t17), TSDB_CODE_TSC_INVALID_OPERATION);
   printf("%s\n", t17);
 
   char t18[] = "a.\"abc\"";
@@ -147,13 +150,13 @@ TEST(testCase, db_table_name) {
   printf("%s\n", t18);
 
   char t19[] = "'_ab1234'.'def'.'ab123'";
-  EXPECT_EQ(testValidateName(t19), TSDB_CODE_TSC_INVALID_SQL);
+  EXPECT_EQ(testValidateName(t19), TSDB_CODE_TSC_INVALID_OPERATION);
 
   char t20[] = "'_ab1234*&^'";
-  EXPECT_EQ(testValidateName(t20), TSDB_CODE_TSC_INVALID_SQL);
+  EXPECT_EQ(testValidateName(t20), TSDB_CODE_TSC_INVALID_OPERATION);
 
   char t21[] = "'1234_abc'";
-  EXPECT_EQ(testValidateName(t21), TSDB_CODE_TSC_INVALID_SQL);
+  EXPECT_EQ(testValidateName(t21), TSDB_CODE_TSC_INVALID_OPERATION);
 
 
   // =======Containing capital letters=================
@@ -167,10 +170,10 @@ TEST(testCase, db_table_name) {
   EXPECT_EQ(testValidateName(t32), TSDB_CODE_SUCCESS);
 
   char t33[] = "'ABC.def";
-  EXPECT_EQ(testValidateName(t33), TSDB_CODE_TSC_INVALID_SQL);
+  EXPECT_EQ(testValidateName(t33), TSDB_CODE_TSC_INVALID_OPERATION);
 
   char t33_0[] = "abc.DEF'";
-  EXPECT_EQ(testValidateName(t33_0), TSDB_CODE_TSC_INVALID_SQL);
+  EXPECT_EQ(testValidateName(t33_0), TSDB_CODE_TSC_INVALID_OPERATION);
   
   char t34[] = "'ABC.def'";
   //int32_t tmp0 = testValidateName(t34);
@@ -193,136 +196,136 @@ TEST(testCase, db_table_name) {
 
   // do not use key words 
   char t39[] = "table.'DEF'";
-  EXPECT_EQ(testValidateName(t39), TSDB_CODE_TSC_INVALID_SQL);
+  EXPECT_EQ(testValidateName(t39), TSDB_CODE_TSC_INVALID_OPERATION);
 
   char t40[] = "'table'.'DEF'";
-  EXPECT_EQ(testValidateName(t40), TSDB_CODE_TSC_INVALID_SQL);
+  EXPECT_EQ(testValidateName(t40), TSDB_CODE_TSC_INVALID_OPERATION);
 
   char t41[] = "'_abXYZ1234'.'deFF'";
   EXPECT_EQ(testValidateName(t41), TSDB_CODE_SUCCESS);
 
   char t42[] = "'_abDEF&^%1234'.'DIef'";
-  EXPECT_EQ(testValidateName(t42), TSDB_CODE_TSC_INVALID_SQL);
+  EXPECT_EQ(testValidateName(t42), TSDB_CODE_TSC_INVALID_OPERATION);
 
   char t43[] = "'_123'.'Gtest中文'";
-  EXPECT_EQ(testValidateName(t43), TSDB_CODE_TSC_INVALID_SQL);
+  EXPECT_EQ(testValidateName(t43), TSDB_CODE_TSC_INVALID_OPERATION);
 
   char t44[] = "'aABC'.'Gtest中文'";
-  EXPECT_EQ(testValidateName(t44), TSDB_CODE_TSC_INVALID_SQL);
+  EXPECT_EQ(testValidateName(t44), TSDB_CODE_TSC_INVALID_OPERATION);
   
   char t45[] = "'ABC'.";
-  EXPECT_EQ(testValidateName(t45), TSDB_CODE_TSC_INVALID_SQL);
+  EXPECT_EQ(testValidateName(t45), TSDB_CODE_TSC_INVALID_OPERATION);
 
   char t46[] = ".'ABC'";
-  EXPECT_EQ(testValidateName(t46), TSDB_CODE_TSC_INVALID_SQL);
+  EXPECT_EQ(testValidateName(t46), TSDB_CODE_TSC_INVALID_OPERATION);
 
   char t47[] = "a.\"aTWc\"";
   EXPECT_EQ(testValidateName(t47), TSDB_CODE_SUCCESS);
 
  // ================has space =================
   char t60[] = " ABC ";
-  EXPECT_EQ(testValidateName(t60), TSDB_CODE_TSC_INVALID_SQL);
+  EXPECT_EQ(testValidateName(t60), TSDB_CODE_TSC_INVALID_OPERATION);
 
   char t60_1[] = "   ABC ";
-  EXPECT_EQ(testValidateName(t60_1), TSDB_CODE_TSC_INVALID_SQL);
+  EXPECT_EQ(testValidateName(t60_1), TSDB_CODE_TSC_INVALID_OPERATION);
 
   char t61[] = "' ABC '";
-  EXPECT_EQ(testValidateName(t61), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(testValidateName(t61), TSDB_CODE_TSC_INVALID_OPERATION);
 
   char t61_1[] = "'  ABC '";
-  EXPECT_EQ(testValidateName(t61_1), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(testValidateName(t61_1), TSDB_CODE_TSC_INVALID_OPERATION);
 
   char t62[] = " ABC . def ";
-  EXPECT_EQ(testValidateName(t62), TSDB_CODE_TSC_INVALID_SQL);
+  EXPECT_EQ(testValidateName(t62), TSDB_CODE_TSC_INVALID_OPERATION);
 
   char t63[] = "' ABC . def ";
-  EXPECT_EQ(testValidateName(t63), TSDB_CODE_TSC_INVALID_SQL);
+  EXPECT_EQ(testValidateName(t63), TSDB_CODE_TSC_INVALID_OPERATION);
 
   char t63_0[] = "  abc . DEF ' ";
-  EXPECT_EQ(testValidateName(t63_0), TSDB_CODE_TSC_INVALID_SQL);
+  EXPECT_EQ(testValidateName(t63_0), TSDB_CODE_TSC_INVALID_OPERATION);
   
   char t64[] = " '  ABC .  def ' ";
   //int32_t tmp1 = testValidateName(t64);
-  EXPECT_EQ(testValidateName(t64), TSDB_CODE_TSC_INVALID_SQL);
+  EXPECT_EQ(testValidateName(t64), TSDB_CODE_TSC_INVALID_OPERATION);
 
   char t65[] = " ' ABC  '. def ";
-  EXPECT_EQ(testValidateName(t65), TSDB_CODE_TSC_INVALID_SQL);
+  EXPECT_EQ(testValidateName(t65), TSDB_CODE_TSC_INVALID_OPERATION);
 
   char t66[] = "' ABC '.'  DEF '";
-  EXPECT_EQ(testValidateName(t66), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(testValidateName(t66), TSDB_CODE_TSC_INVALID_OPERATION);
 
   char t67[] = "abc . '  DEF  '";
-  EXPECT_EQ(testValidateName(t67), TSDB_CODE_TSC_INVALID_SQL);
+  EXPECT_EQ(testValidateName(t67), TSDB_CODE_TSC_INVALID_OPERATION);
 
   char t68[] = "'  abc '.'   DEF '";
-  EXPECT_EQ(testValidateName(t68), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(testValidateName(t68), TSDB_CODE_TSC_INVALID_OPERATION);
 
   // do not use key words 
   char t69[] = "table.'DEF'";
-  EXPECT_EQ(testValidateName(t69), TSDB_CODE_TSC_INVALID_SQL);
+  EXPECT_EQ(testValidateName(t69), TSDB_CODE_TSC_INVALID_OPERATION);
 
   char t70[] = "'table'.'DEF'";
-  EXPECT_EQ(testValidateName(t70), TSDB_CODE_TSC_INVALID_SQL);
+  EXPECT_EQ(testValidateName(t70), TSDB_CODE_TSC_INVALID_OPERATION);
 
   char t71[] = "'_abXYZ1234  '.' deFF  '";
-  EXPECT_EQ(testValidateName(t71), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(testValidateName(t71), TSDB_CODE_TSC_INVALID_OPERATION);
 
   char t72[] = "'_abDEF&^%1234'.'  DIef'";
-  EXPECT_EQ(testValidateName(t72), TSDB_CODE_TSC_INVALID_SQL);
+  EXPECT_EQ(testValidateName(t72), TSDB_CODE_TSC_INVALID_OPERATION);
 
   char t73[] = "'_123'.'  Gtest中文'";
-  EXPECT_EQ(testValidateName(t73), TSDB_CODE_TSC_INVALID_SQL);
+  EXPECT_EQ(testValidateName(t73), TSDB_CODE_TSC_INVALID_OPERATION);
 
   char t74[] = "' aABC'.'Gtest中文'";
-  EXPECT_EQ(testValidateName(t74), TSDB_CODE_TSC_INVALID_SQL);
+  EXPECT_EQ(testValidateName(t74), TSDB_CODE_TSC_INVALID_OPERATION);
   
   char t75[] = "' ABC '.";
-  EXPECT_EQ(testValidateName(t75), TSDB_CODE_TSC_INVALID_SQL);
+  EXPECT_EQ(testValidateName(t75), TSDB_CODE_TSC_INVALID_OPERATION);
 
   char t76[] = ".' ABC'";
-  EXPECT_EQ(testValidateName(t76), TSDB_CODE_TSC_INVALID_SQL);
+  EXPECT_EQ(testValidateName(t76), TSDB_CODE_TSC_INVALID_OPERATION);
 
   char t77[] = " a . \"aTWc\" ";
-  EXPECT_EQ(testValidateName(t77), TSDB_CODE_TSC_INVALID_SQL);
+  EXPECT_EQ(testValidateName(t77), TSDB_CODE_TSC_INVALID_OPERATION);
 
   char t78[] = "  a.\"aTWc  \"";
-  EXPECT_EQ(testValidateName(t78), TSDB_CODE_TSC_INVALID_SQL);
+  EXPECT_EQ(testValidateName(t78), TSDB_CODE_TSC_INVALID_OPERATION);
 
 
   // ===============muti string by space ===================
   // There's no such case.
   //char t160[] = "A BC";
-  //EXPECT_EQ(testValidateName(t160), TSDB_CODE_TSC_INVALID_SQL);
+  //EXPECT_EQ(testValidateName(t160), TSDB_CODE_TSC_INVALID_OPERATION);
   //printf("end:%s\n", t160);
 
   // There's no such case.
   //char t161[] = "' A BC '";
-  //EXPECT_EQ(testValidateName(t161), TSDB_CODE_TSC_INVALID_SQL);
+  //EXPECT_EQ(testValidateName(t161), TSDB_CODE_TSC_INVALID_OPERATION);
 
   char t162[] = " AB C . de f ";
-  EXPECT_EQ(testValidateName(t162), TSDB_CODE_TSC_INVALID_SQL);
+  EXPECT_EQ(testValidateName(t162), TSDB_CODE_TSC_INVALID_OPERATION);
 
   char t163[] = "' AB C . de f ";
-  EXPECT_EQ(testValidateName(t163), TSDB_CODE_TSC_INVALID_SQL);
+  EXPECT_EQ(testValidateName(t163), TSDB_CODE_TSC_INVALID_OPERATION);
 
   char t163_0[] = "  ab c . DE F ' ";
-  EXPECT_EQ(testValidateName(t163_0), TSDB_CODE_TSC_INVALID_SQL);
+  EXPECT_EQ(testValidateName(t163_0), TSDB_CODE_TSC_INVALID_OPERATION);
   
   char t164[] = " '  AB C .  de f ' ";
   //int32_t tmp2 = testValidateName(t164);
-  EXPECT_EQ(testValidateName(t164), TSDB_CODE_TSC_INVALID_SQL);
+  EXPECT_EQ(testValidateName(t164), TSDB_CODE_TSC_INVALID_OPERATION);
 
   char t165[] = " ' A BC  '. de f ";
-  EXPECT_EQ(testValidateName(t165), TSDB_CODE_TSC_INVALID_SQL);
+  EXPECT_EQ(testValidateName(t165), TSDB_CODE_TSC_INVALID_OPERATION);
 
   char t166[] = "' AB C '.'  DE  F '";
-  EXPECT_EQ(testValidateName(t166), TSDB_CODE_TSC_INVALID_SQL);
+  EXPECT_EQ(testValidateName(t166), TSDB_CODE_TSC_INVALID_OPERATION);
 
   char t167[] = "ab  c . '  D  EF  '";
-  EXPECT_EQ(testValidateName(t167), TSDB_CODE_TSC_INVALID_SQL);
+  EXPECT_EQ(testValidateName(t167), TSDB_CODE_TSC_INVALID_OPERATION);
 
   char t168[] = "'  a bc '.'   DE  F '";
-  EXPECT_EQ(testValidateName(t168), TSDB_CODE_TSC_INVALID_SQL);
+  EXPECT_EQ(testValidateName(t168), TSDB_CODE_TSC_INVALID_OPERATION);
   
 }
 
@@ -446,19 +449,19 @@ TEST(testCase, tvariant_convert) {
   _init_tvariant_bool(&t);
 
   EXPECT_EQ(tVariantTypeSetType(&t, TSDB_DATA_TYPE_BOOL), 0);
-  EXPECT_EQ(t.i64Key, 0);
+  EXPECT_EQ(t.i64, 0);
 
   _init_tvariant_bool(&t);
   EXPECT_EQ(tVariantTypeSetType(&t, TSDB_DATA_TYPE_TINYINT), 0);
-  EXPECT_EQ(t.i64Key, 0);
+  EXPECT_EQ(t.i64, 0);
 
   _init_tvariant_bool(&t);
   EXPECT_EQ(tVariantTypeSetType(&t, TSDB_DATA_TYPE_SMALLINT), 0);
-  EXPECT_EQ(t.i64Key, 0);
+  EXPECT_EQ(t.i64, 0);
 
   _init_tvariant_bool(&t);
   EXPECT_EQ(tVariantTypeSetType(&t, TSDB_DATA_TYPE_BIGINT), 0);
-  EXPECT_EQ(t.i64Key, 0);
+  EXPECT_EQ(t.i64, 0);
 
   _init_tvariant_bool(&t);
   EXPECT_EQ(tVariantTypeSetType(&t, TSDB_DATA_TYPE_FLOAT), 0);
@@ -481,23 +484,23 @@ TEST(testCase, tvariant_convert) {
   // 2. tinyint to other data types
   _init_tvariant_tinyint(&t);
   EXPECT_EQ(tVariantTypeSetType(&t, TSDB_DATA_TYPE_BOOL), 0);
-  EXPECT_EQ(t.i64Key, 1);
+  EXPECT_EQ(t.i64, 1);
 
   _init_tvariant_tinyint(&t);
   EXPECT_EQ(tVariantTypeSetType(&t, TSDB_DATA_TYPE_TINYINT), 0);
-  EXPECT_EQ(t.i64Key, -27);
+  EXPECT_EQ(t.i64, -27);
 
   _init_tvariant_tinyint(&t);
   EXPECT_EQ(tVariantTypeSetType(&t, TSDB_DATA_TYPE_SMALLINT), 0);
-  EXPECT_EQ(t.i64Key, -27);
+  EXPECT_EQ(t.i64, -27);
 
   _init_tvariant_tinyint(&t);
   EXPECT_EQ(tVariantTypeSetType(&t, TSDB_DATA_TYPE_INT), 0);
-  EXPECT_EQ(t.i64Key, -27);
+  EXPECT_EQ(t.i64, -27);
 
   _init_tvariant_tinyint(&t);
   EXPECT_EQ(tVariantTypeSetType(&t, TSDB_DATA_TYPE_BIGINT), 0);
-  EXPECT_EQ(t.i64Key, -27);
+  EXPECT_EQ(t.i64, -27);
 
   _init_tvariant_tinyint(&t);
   EXPECT_EQ(tVariantTypeSetType(&t, TSDB_DATA_TYPE_FLOAT), 0);
@@ -521,7 +524,7 @@ TEST(testCase, tvariant_convert) {
   // types//////////////////////////////////////////////////////////////////
   _init_tvariant_int(&t);
   EXPECT_EQ(tVariantTypeSetType(&t, TSDB_DATA_TYPE_BOOL), 0);
-  EXPECT_EQ(t.i64Key, 1);
+  EXPECT_EQ(t.i64, 1);
 
   _init_tvariant_int(&t);
   EXPECT_EQ(tVariantTypeSetType(&t, TSDB_DATA_TYPE_TINYINT), 0);
@@ -531,11 +534,11 @@ TEST(testCase, tvariant_convert) {
 
   _init_tvariant_int(&t);
   EXPECT_EQ(tVariantTypeSetType(&t, TSDB_DATA_TYPE_INT), 0);
-  EXPECT_EQ(t.i64Key, -23997659);
+  EXPECT_EQ(t.i64, -23997659);
 
   _init_tvariant_int(&t);
   EXPECT_EQ(tVariantTypeSetType(&t, TSDB_DATA_TYPE_BIGINT), 0);
-  EXPECT_EQ(t.i64Key, -23997659);
+  EXPECT_EQ(t.i64, -23997659);
 
   _init_tvariant_int(&t);
   EXPECT_EQ(tVariantTypeSetType(&t, TSDB_DATA_TYPE_FLOAT), 0);
@@ -559,7 +562,7 @@ TEST(testCase, tvariant_convert) {
   // type//////////////////////////////////////////////////////////////////////////////
   _init_tvariant_bigint(&t);
   EXPECT_EQ(tVariantTypeSetType(&t, TSDB_DATA_TYPE_BOOL), 0);
-  EXPECT_EQ(t.i64Key, 1);
+  EXPECT_EQ(t.i64, 1);
 
   _init_tvariant_bigint(&t);
   EXPECT_EQ(tVariantTypeSetType(&t, TSDB_DATA_TYPE_TINYINT), 0);
@@ -572,7 +575,7 @@ TEST(testCase, tvariant_convert) {
 
   _init_tvariant_bigint(&t);
   EXPECT_EQ(tVariantTypeSetType(&t, TSDB_DATA_TYPE_BIGINT), 0);
-  EXPECT_EQ(t.i64Key, -3333333333333);
+  EXPECT_EQ(t.i64, -3333333333333);
 
   _init_tvariant_bigint(&t);
   EXPECT_EQ(tVariantTypeSetType(&t, TSDB_DATA_TYPE_FLOAT), 0);
@@ -596,11 +599,11 @@ TEST(testCase, tvariant_convert) {
   // types////////////////////////////////////////////////////////////////////////
   _init_tvariant_float(&t);
   EXPECT_EQ(tVariantTypeSetType(&t, TSDB_DATA_TYPE_BOOL), 0);
-  EXPECT_EQ(t.i64Key, 1);
+  EXPECT_EQ(t.i64, 1);
 
   _init_tvariant_float(&t);
   EXPECT_EQ(tVariantTypeSetType(&t, TSDB_DATA_TYPE_BIGINT), 0);
-  EXPECT_EQ(t.i64Key, -8991212199);
+  EXPECT_EQ(t.i64, -8991212199);
 
   _init_tvariant_float(&t);
   EXPECT_EQ(tVariantTypeSetType(&t, TSDB_DATA_TYPE_FLOAT), 0);
@@ -626,14 +629,14 @@ TEST(testCase, tvariant_convert) {
   t.nLen = strlen(t.pz);
   t.nType = TSDB_DATA_TYPE_BINARY;
   EXPECT_EQ(tVariantTypeSetType(&t, TSDB_DATA_TYPE_BOOL), 0);
-  EXPECT_EQ(t.i64Key, 1);
+  EXPECT_EQ(t.i64, 1);
 
   _init_tvariant_binary(&t);
   EXPECT_EQ(tVariantTypeSetType(&t, TSDB_DATA_TYPE_BOOL), -1);
 
   _init_tvariant_binary(&t);
   EXPECT_EQ(tVariantTypeSetType(&t, TSDB_DATA_TYPE_BIGINT), 0);
-  EXPECT_EQ(t.i64Key, 200000);
+  EXPECT_EQ(t.i64, 200000);
 
   _init_tvariant_binary(&t);
   EXPECT_EQ(tVariantTypeSetType(&t, TSDB_DATA_TYPE_FLOAT), 0);
@@ -659,14 +662,14 @@ TEST(testCase, tvariant_convert) {
   t.nLen = wcslen(t.wpz);
   t.nType = TSDB_DATA_TYPE_NCHAR;
   EXPECT_EQ(tVariantTypeSetType(&t, TSDB_DATA_TYPE_BOOL), 0);
-  EXPECT_EQ(t.i64Key, 0);
+  EXPECT_EQ(t.i64, 0);
 
   _init_tvariant_nchar(&t);
   EXPECT_LE(tVariantTypeSetType(&t, TSDB_DATA_TYPE_BOOL), 0);
 
   _init_tvariant_nchar(&t);
   EXPECT_EQ(tVariantTypeSetType(&t, TSDB_DATA_TYPE_BIGINT), 0);
-  EXPECT_EQ(t.i64Key, -2000000);
+  EXPECT_EQ(t.i64, -2000000);
 
   _init_tvariant_nchar(&t);
   EXPECT_EQ(tVariantTypeSetType(&t, TSDB_DATA_TYPE_FLOAT), 0);
@@ -691,32 +694,32 @@ TEST(testCase, tGetToken_Test) {
   char* s = ".123 ";
   uint32_t type = 0;
 
-  int32_t len = tSQLGetToken(s, &type);
+  int32_t len = tGetToken(s, &type);
   EXPECT_EQ(type, TK_FLOAT);
   EXPECT_EQ(len, strlen(s) - 1);
 
   char s1[] = "1.123e10 ";
-  len = tSQLGetToken(s1, &type);
+  len = tGetToken(s1, &type);
   EXPECT_EQ(type, TK_FLOAT);
   EXPECT_EQ(len, strlen(s1) - 1);
 
   char s4[] = "0xff ";
-  len = tSQLGetToken(s4, &type);
+  len = tGetToken(s4, &type);
   EXPECT_EQ(type, TK_HEX);
   EXPECT_EQ(len, strlen(s4) - 1);
 
   // invalid data type
   char s2[] = "e10 ";
-  len = tSQLGetToken(s2, &type);
+  len = tGetToken(s2, &type);
   EXPECT_FALSE(type == TK_FLOAT);
 
   char s3[] = "1.1.1.1";
-  len = tSQLGetToken(s3, &type);
+  len = tGetToken(s3, &type);
   EXPECT_EQ(type, TK_IPTOKEN);
   EXPECT_EQ(len, strlen(s3));
 
   char s5[] = "0x ";
-  len = tSQLGetToken(s5, &type);
+  len = tGetToken(s5, &type);
   EXPECT_FALSE(type == TK_HEX);
 }
 
@@ -732,34 +735,34 @@ static SStrToken createStrToken(char* s) {
 TEST(testCase, isValidNumber_test) {
   SStrToken t1 = createStrToken("123abc");
 
-  EXPECT_EQ(isValidNumber(&t1), TK_ILLEGAL);
+  EXPECT_EQ(tGetNumericStringType(&t1), TK_ILLEGAL);
 
   t1 = createStrToken("0xabc");
-  EXPECT_EQ(isValidNumber(&t1), TK_HEX);
+  EXPECT_EQ(tGetNumericStringType(&t1), TK_HEX);
 
   t1 = createStrToken("0b11101");
-  EXPECT_EQ(isValidNumber(&t1), TK_BIN);
+  EXPECT_EQ(tGetNumericStringType(&t1), TK_BIN);
 
   t1 = createStrToken(".134abc");
-  EXPECT_EQ(isValidNumber(&t1), TK_ILLEGAL);
+  EXPECT_EQ(tGetNumericStringType(&t1), TK_ILLEGAL);
 
   t1 = createStrToken("1e1 ");
-  EXPECT_EQ(isValidNumber(&t1), TK_ILLEGAL);
+  EXPECT_EQ(tGetNumericStringType(&t1), TK_ILLEGAL);
 
   t1 = createStrToken("1+2");
-  EXPECT_EQ(isValidNumber(&t1), TK_ILLEGAL);
+  EXPECT_EQ(tGetNumericStringType(&t1), TK_ILLEGAL);
 
   t1 = createStrToken("-0x123");
-  EXPECT_EQ(isValidNumber(&t1), TK_HEX);
+  EXPECT_EQ(tGetNumericStringType(&t1), TK_HEX);
 
   t1 = createStrToken("-1");
-  EXPECT_EQ(isValidNumber(&t1), TK_INTEGER);
+  EXPECT_EQ(tGetNumericStringType(&t1), TK_INTEGER);
 
   t1 = createStrToken("-0b1110");
-  EXPECT_EQ(isValidNumber(&t1), TK_BIN);
+  EXPECT_EQ(tGetNumericStringType(&t1), TK_BIN);
 
   t1 = createStrToken("-.234");
-  EXPECT_EQ(isValidNumber(&t1), TK_FLOAT);
+  EXPECT_EQ(tGetNumericStringType(&t1), TK_FLOAT);
 }
 
 TEST(testCase, getTempFilePath_test) {

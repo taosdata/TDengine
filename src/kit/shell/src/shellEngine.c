@@ -37,6 +37,13 @@ char      PROMPT_HEADER[] = "power> ";
 
 char      CONTINUE_PROMPT[] = "    -> ";
 int       prompt_size = 7;
+#elif (_TD_TQ_ == true)
+char      CLIENT_VERSION[] = "Welcome to the TQ shell from %s, Client Version:%s\n"
+                             "Copyright (c) 2020 by TQ, Inc. All rights reserved.\n\n";
+char      PROMPT_HEADER[] = "tq> ";
+
+char      CONTINUE_PROMPT[] = "    -> ";
+int       prompt_size = 4;
 #else
 char      CLIENT_VERSION[] = "Welcome to the TDengine shell from %s, Client Version:%s\n"
                              "Copyright (c) 2020 by TAOS Data, Inc. All rights reserved.\n\n";
@@ -46,7 +53,7 @@ char      CONTINUE_PROMPT[] = "   -> ";
 int       prompt_size = 6;
 #endif
 
-TAOS_RES *result = NULL;
+int64_t result = 0;
 SShellHistory   history;
 
 #define DEFAULT_MAX_BINARY_DISPLAY_WIDTH 30
@@ -56,34 +63,38 @@ extern TAOS *taos_connect_auth(const char *ip, const char *user, const char *aut
 /*
  * FUNCTION: Initialize the shell.
  */
-TAOS *shellInit(SShellArguments *args) {
+TAOS *shellInit(SShellArguments *_args) {
   printf("\n");
   printf(CLIENT_VERSION, tsOsName, taos_get_client_info());
   fflush(stdout);
 
   // set options before initializing
-  if (args->timezone != NULL) {
-    taos_options(TSDB_OPTION_TIMEZONE, args->timezone);
+  if (_args->timezone != NULL) {
+    taos_options(TSDB_OPTION_TIMEZONE, _args->timezone);
   }
 
-  if (args->is_use_passwd) {
-    if (args->password == NULL) args->password = getpass("Enter password: ");
+  if (_args->is_use_passwd) {
+    if (_args->password == NULL) _args->password = getpass("Enter password: ");
   } else {
-    args->password = TSDB_DEFAULT_PASS;
+    _args->password = TSDB_DEFAULT_PASS;
   }
 
-  if (args->user == NULL) {
-    args->user = TSDB_DEFAULT_USER;
+  if (_args->user == NULL) {
+    _args->user = TSDB_DEFAULT_USER;
   }
 
-  taos_init();
+  if (taos_init()) {
+    printf("failed to init taos\n");
+    fflush(stdout);
+    return NULL;
+  }
 
   // Connect to the database.
   TAOS *con = NULL;
-  if (args->auth == NULL) {
-    con = taos_connect(args->host, args->user, args->password, args->database, args->port);
+  if (_args->auth == NULL) {
+    con = taos_connect(_args->host, _args->user, _args->password, _args->database, _args->port);
   } else {
-    con = taos_connect_auth(args->host, args->user, args->auth, args->database, args->port);
+    con = taos_connect_auth(_args->host, _args->user, _args->auth, _args->database, _args->port);
   }
 
   if (con == NULL) {
@@ -96,14 +107,14 @@ TAOS *shellInit(SShellArguments *args) {
   read_history();
 
   // Check if it is temperory run
-  if (args->commands != NULL || args->file[0] != 0) {
-    if (args->commands != NULL) {
-      printf("%s%s\n", PROMPT_HEADER, args->commands);
-      shellRunCommand(con, args->commands);
+  if (_args->commands != NULL || _args->file[0] != 0) {
+    if (_args->commands != NULL) {
+      printf("%s%s\n", PROMPT_HEADER, _args->commands);
+      shellRunCommand(con, _args->commands);
     }
 
-    if (args->file[0] != 0) {
-      source_file(con, args->file);
+    if (_args->file[0] != 0) {
+      source_file(con, _args->file);
     }
 
     taos_close(con);
@@ -112,8 +123,14 @@ TAOS *shellInit(SShellArguments *args) {
   }
 
 #ifndef WINDOWS
-  if (args->dir[0] != 0) {
-    source_dir(con, args);
+  if (_args->dir[0] != 0) {
+    source_dir(con, _args);
+    taos_close(con);
+    exit(EXIT_SUCCESS);
+  }
+
+  if (_args->check != 0) {
+    shellCheck(con, _args);
     taos_close(con);
     exit(EXIT_SUCCESS);
   }
@@ -121,7 +138,6 @@ TAOS *shellInit(SShellArguments *args) {
 
   return con;
 }
-
 
 static bool isEmptyCommand(const char* cmd) {
   for (char c = *cmd++; c != 0; c = *cmd++) {
@@ -239,7 +255,7 @@ int32_t shellRunCommand(TAOS* con, char* command) {
 
     if (quote == c) {
       quote = 0;
-    } else if (c == '\'' || c == '"') {
+    } else if (quote == 0 && (c == '\'' || c == '"')) {
       quote = c;
     }
 
@@ -259,6 +275,14 @@ int32_t shellRunCommand(TAOS* con, char* command) {
   return shellRunSingleCommand(con, cmd);
 }
 
+
+void freeResultWithRid(int64_t rid) {
+  SSqlObj* pSql = taosAcquireRef(tscObjRef, rid);
+  if(pSql){
+    taos_free_result(pSql);
+    taosReleaseRef(tscObjRef, rid);
+  }
+}
 
 void shellRunCommandOnServer(TAOS *con, char command[]) {
   int64_t   st, et;
@@ -300,21 +324,24 @@ void shellRunCommandOnServer(TAOS *con, char command[]) {
     return;
   }
 
+  int64_t oresult = atomic_load_64(&result);
+
   if (regex_match(command, "^\\s*use\\s+[a-zA-Z0-9_]+\\s*;\\s*$", REG_EXTENDED | REG_ICASE)) {
     fprintf(stdout, "Database changed.\n\n");
     fflush(stdout);
 
-    atomic_store_ptr(&result, 0);
-    taos_free_result(pSql);
+    atomic_store_64(&result, 0);
+    freeResultWithRid(oresult);
     return;
   }
 
   if (!tscIsUpdateQuery(pSql)) {  // select and show kinds of commands
-    int error_no = 0;
+    int error_no = 0;    
+  
     int numOfRows = shellDumpResult(pSql, fname, &error_no, printMode);
     if (numOfRows < 0) {
-      atomic_store_ptr(&result, 0);
-      taos_free_result(pSql);
+      atomic_store_64(&result, 0);
+      freeResultWithRid(oresult);
       return;
     }
 
@@ -327,7 +354,7 @@ void shellRunCommandOnServer(TAOS *con, char command[]) {
   } else {
     int num_rows_affacted = taos_affected_rows(pSql);
     et = taosGetTimestampUs();
-    printf("Query OK, %d row(s) affected (%.6fs)\n", num_rows_affacted, (et - st) / 1E6);
+    printf("Query OK, %d of %d row(s) in database (%.6fs)\n", num_rows_affacted, num_rows_affacted, (et - st) / 1E6);
   }
 
   printf("\n");
@@ -336,8 +363,8 @@ void shellRunCommandOnServer(TAOS *con, char command[]) {
     wordfree(&full_path);
   }
 
-  atomic_store_ptr(&result, 0);
-  taos_free_result(pSql);
+  atomic_store_64(&result, 0);
+  freeResultWithRid(oresult);
 }
 
 /* Function to do regular expression check */
@@ -377,10 +404,16 @@ static char* formatTimestamp(char* buf, int64_t val, int precision) {
   }
 
   time_t tt;
-  if (precision == TSDB_TIME_PRECISION_MICRO) {
+  int32_t ms = 0;
+  if (precision == TSDB_TIME_PRECISION_NANO) {
+    tt = (time_t)(val / 1000000000);
+    ms = val % 1000000000;
+  } else if (precision == TSDB_TIME_PRECISION_MICRO) {
     tt = (time_t)(val / 1000000);
+    ms = val % 1000000;
   } else {
     tt = (time_t)(val / 1000);
+    ms = val % 1000;
   }
 
 /* comment out as it make testcases like select_with_tags.sim fail.
@@ -394,14 +427,26 @@ static char* formatTimestamp(char* buf, int64_t val, int precision) {
 #ifdef WINDOWS
   if (tt < 0) tt = 0;
 #endif
+  if (tt <= 0 && ms < 0) {
+    tt--;
+    if (precision == TSDB_TIME_PRECISION_NANO) {
+      ms += 1000000000;
+    } else if (precision == TSDB_TIME_PRECISION_MICRO) {
+      ms += 1000000;
+    } else {
+      ms += 1000;
+    }
+  }
 
   struct tm* ptm = localtime(&tt);
-  size_t pos = strftime(buf, 32, "%Y-%m-%d %H:%M:%S", ptm);
+  size_t pos = strftime(buf, 35, "%Y-%m-%d %H:%M:%S", ptm);
 
-  if (precision == TSDB_TIME_PRECISION_MICRO) {
-    sprintf(buf + pos, ".%06d", (int)(val % 1000000));
+  if (precision == TSDB_TIME_PRECISION_NANO) {
+    sprintf(buf + pos, ".%09d", ms);
+  } else if (precision == TSDB_TIME_PRECISION_MICRO) {
+    sprintf(buf + pos, ".%06d", ms);
   } else {
-    sprintf(buf + pos, ".%03d", (int)(val % 1000));
+    sprintf(buf + pos, ".%03d", ms);
   }
 
   return buf;
@@ -460,7 +505,7 @@ static int dumpResultToFile(const char* fname, TAOS_RES* tres) {
 
   wordexp_t full_path;
 
-  if (wordexp(fname, &full_path, 0) != 0) {
+  if (wordexp((char *)fname, &full_path, 0) != 0) {
     fprintf(stderr, "ERROR: invalid file name: %s\n", fname);
     return -1;
   }
@@ -501,7 +546,7 @@ static int dumpResultToFile(const char* fname, TAOS_RES* tres) {
     row = taos_fetch_row(tres);
   } while( row != NULL);
 
-  result = NULL;
+  result = 0;
   fclose(fp);
 
   return numOfRows;
@@ -593,14 +638,26 @@ static void printField(const char* val, TAOS_FIELD* field, int width, int32_t le
     case TSDB_DATA_TYPE_TINYINT:
       printf("%*d", width, *((int8_t *)val));
       break;
+    case TSDB_DATA_TYPE_UTINYINT:
+      printf("%*u", width, *((uint8_t *)val));
+      break;
     case TSDB_DATA_TYPE_SMALLINT:
       printf("%*d", width, *((int16_t *)val));
+      break;
+    case TSDB_DATA_TYPE_USMALLINT:
+      printf("%*u", width, *((uint16_t *)val));
       break;
     case TSDB_DATA_TYPE_INT:
       printf("%*d", width, *((int32_t *)val));
       break;
+    case TSDB_DATA_TYPE_UINT:
+      printf("%*u", width, *((uint32_t *)val));
+      break;
     case TSDB_DATA_TYPE_BIGINT:
       printf("%*" PRId64, width, *((int64_t *)val));
+      break;
+    case TSDB_DATA_TYPE_UBIGINT:
+      printf("%*" PRIu64, width, *((uint64_t *)val));
       break;
     case TSDB_DATA_TYPE_FLOAT:
       printf("%*.5f", width, GET_FLOAT_VAL(val));
@@ -622,6 +679,17 @@ static void printField(const char* val, TAOS_FIELD* field, int width, int32_t le
 }
 
 
+bool isSelectQuery(TAOS_RES* tres) {
+  char *sql = tscGetSqlStr(tres);
+
+  if (regex_match(sql, "^[\t ]*select[ \t]*", REG_EXTENDED | REG_ICASE)) {
+    return true;
+  }
+
+  return false;
+}
+
+
 static int verticalPrintResult(TAOS_RES* tres) {
   TAOS_ROW row = taos_fetch_row(tres);
   if (row == NULL) {
@@ -640,18 +708,33 @@ static int verticalPrintResult(TAOS_RES* tres) {
     }
   }
 
+  uint64_t resShowMaxNum = UINT64_MAX;
+
+  if (args.commands == NULL && args.file[0] == 0 && isSelectQuery(tres) && !tscIsQueryWithLimit(tres)) {
+    resShowMaxNum = DEFAULT_RES_SHOW_NUM;
+  }
+
   int numOfRows = 0;
-  do {
-    printf("*************************** %d.row ***************************\n", numOfRows + 1);
-    int32_t* length = taos_fetch_lengths(tres);
-    for (int i = 0; i < num_fields; i++) {
-      TAOS_FIELD* field = fields + i;
+  int showMore = 1;
+  do {  
+    if (numOfRows < resShowMaxNum) {
+      printf("*************************** %d.row ***************************\n", numOfRows + 1);
 
-      int padding = (int)(maxColNameLen - strlen(field->name));
-      printf("%*.s%s: ", padding, " ", field->name);
+      int32_t* length = taos_fetch_lengths(tres);
 
-      printField((const char*)row[i], field, 0, length[i], precision);
-      putchar('\n');
+      for (int i = 0; i < num_fields; i++) {
+        TAOS_FIELD* field = fields + i;
+
+        int padding = (int)(maxColNameLen - strlen(field->name));
+        printf("%*.s%s: ", padding, " ", field->name);
+
+        printField((const char*)row[i], field, 0, length[i], precision);
+        putchar('\n');
+      }
+    } else if (showMore) {
+        printf("[100 Rows showed, and more rows are fetching but will not be showed. You can ctrl+c to stop or wait.]\n");
+        printf("[You can add limit statement to get more or redirect results to specific file to get all.]\n");
+        showMore = 0;
     }
 
     numOfRows++;
@@ -669,15 +752,19 @@ static int calcColWidth(TAOS_FIELD* field, int precision) {
       return MAX(5, width); // 'false'
 
     case TSDB_DATA_TYPE_TINYINT:
+    case TSDB_DATA_TYPE_UTINYINT:
       return MAX(4, width); // '-127'
 
     case TSDB_DATA_TYPE_SMALLINT:
+    case TSDB_DATA_TYPE_USMALLINT:
       return MAX(6, width); // '-32767'
 
     case TSDB_DATA_TYPE_INT:
+    case TSDB_DATA_TYPE_UINT:
       return MAX(11, width); // '-2147483648'
 
     case TSDB_DATA_TYPE_BIGINT:
+    case TSDB_DATA_TYPE_UBIGINT:
       return MAX(21, width); // '-9223372036854775807'
 
     case TSDB_DATA_TYPE_FLOAT:
@@ -705,6 +792,8 @@ static int calcColWidth(TAOS_FIELD* field, int precision) {
     case TSDB_DATA_TYPE_TIMESTAMP:
       if (args.is_raw_time) {
         return MAX(14, width);
+      } if (precision == TSDB_TIME_PRECISION_NANO) {
+        return MAX(29, width);
       } else if (precision == TSDB_TIME_PRECISION_MICRO) {
         return MAX(26, width); // '2020-01-01 00:00:00.000000'
       } else {
@@ -754,16 +843,31 @@ static int horizontalPrintResult(TAOS_RES* tres) {
 
   printHeader(fields, width, num_fields);
 
+  uint64_t resShowMaxNum = UINT64_MAX;
+
+  if (args.commands == NULL && args.file[0] == 0 && isSelectQuery(tres) && !tscIsQueryWithLimit(tres)) {
+    resShowMaxNum = DEFAULT_RES_SHOW_NUM;
+  }
+
   int numOfRows = 0;
+  int showMore = 1;
+ 
   do {
     int32_t* length = taos_fetch_lengths(tres);
-    for (int i = 0; i < num_fields; i++) {
-      putchar(' ');
-      printField((const char*)row[i], fields + i, width[i], length[i], precision);
-      putchar(' ');
-      putchar('|');
+    if (numOfRows < resShowMaxNum) {
+      for (int i = 0; i < num_fields; i++) {
+        putchar(' ');
+        printField((const char*)row[i], fields + i, width[i], length[i], precision);
+        putchar(' ');
+        putchar('|');
+      }
+      putchar('\n');
+    } else if (showMore) {
+        printf("[100 Rows showed, and more rows are fetching but will not be showed. You can ctrl+c to stop or wait.]\n");
+        printf("[You can add limit statement to show more or redirect results to specific file to get all.]\n");
+        showMore = 0;
     }
-    putchar('\n');
+    
     numOfRows++;
     row = taos_fetch_row(tres);
   } while(row != NULL);

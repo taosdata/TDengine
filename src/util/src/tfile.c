@@ -54,12 +54,12 @@ static int64_t tfOpenImp(int32_t fd) {
 }
 
 int64_t tfOpen(const char *pathname, int32_t flags) {
-  int32_t fd = open(pathname, flags);
+  int32_t fd = open(pathname, flags | O_BINARY);
   return tfOpenImp(fd);
 }
 
 int64_t tfOpenM(const char *pathname, int32_t flags, mode_t mode) {
-  int32_t fd = open(pathname, flags, mode);
+  int32_t fd = open(pathname, flags | O_BINARY, mode);
   return tfOpenImp(fd);
 }
 
@@ -98,7 +98,7 @@ int32_t tfFsync(int64_t tfd) {
   if (p == NULL) return -1;
 
   int32_t fd = (int32_t)(uintptr_t)p;
-  int32_t code = fsync(fd);
+  int32_t code = taosFsync(fd);
 
   taosReleaseRef(tsFileRsetId, tfd);
   return code;

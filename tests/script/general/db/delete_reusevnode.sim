@@ -5,7 +5,6 @@ system sh/deploy.sh -n dnode1 -i 1
 
 print ========= start dnodes
 system sh/exec.sh -n dnode1 -s start
-sleep 3000
 sql connect
 
 print ======== step1 
@@ -38,7 +37,6 @@ if $rows != 0 then
 endi 
 
 system sh/stop_dnodes.sh
-sleep 3000
 
 system sh/deploy.sh -n dnode1 -i 1
 print ========= start dnodes

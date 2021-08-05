@@ -16,32 +16,36 @@
 #ifndef TDENGINE_QPERCENTILE_H
 #define TDENGINE_QPERCENTILE_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include "qExtbuffer.h"
 #include "qResultbuf.h"
 #include "qTsbuf.h"
 
 typedef struct MinMaxEntry {
   union {
-    double  dMinVal;
-    int32_t iMinVal;
-    int64_t i64MinVal;
+    double   dMinVal;
+    int64_t  i64MinVal;
+    uint64_t u64MinVal;
   };
   union {
     double  dMaxVal;
-    int32_t iMaxVal;
     int64_t i64MaxVal;
+    int64_t u64MaxVal;
   };
 } MinMaxEntry;
 
 typedef struct {
-  int32_t   size;
-  int32_t   pageId;
+  int32_t    size;
+  int32_t    pageId;
   tFilePage *data;
 } SSlotInfo;
 
 typedef struct tMemBucketSlot {
-  SSlotInfo      info;
-  MinMaxEntry    range;
+  SSlotInfo   info;
+  MinMaxEntry range;
 } tMemBucketSlot;
 
 struct tMemBucket;
@@ -52,16 +56,16 @@ typedef struct tMemBucket {
   int16_t       type;
   int16_t       bytes;
   int32_t       total;
-  int32_t       elemPerPage;   // number of elements for each object
-  int32_t       maxCapacity;   // maximum allowed number of elements that can be sort directly to get the result
-  int32_t       bufPageSize;   // disk page size
-  MinMaxEntry   range;           // value range
-  int32_t       times;         // count that has been checked for deciding the correct data value buckets.
+  int32_t       elemPerPage;  // number of elements for each object
+  int32_t       maxCapacity;  // maximum allowed number of elements that can be sort directly to get the result
+  int32_t       bufPageSize;  // disk page size
+  MinMaxEntry   range;        // value range
+  int32_t       times;        // count that has been checked for deciding the correct data value buckets.
   __compar_fn_t comparFn;
 
-  tMemBucketSlot *pSlots;
+  tMemBucketSlot *     pSlots;
   SDiskbasedResultBuf *pBuffer;
-  __perc_hash_func_t hashFunc;
+  __perc_hash_func_t   hashFunc;
 } tMemBucket;
 
 tMemBucket *tMemBucketCreate(int16_t nElemSize, int16_t dataType, double minval, double maxval);
@@ -73,3 +77,7 @@ int32_t tMemBucketPut(tMemBucket *pBucket, const void *data, size_t size);
 double getPercentile(tMemBucket *pMemBucket, double percent);
 
 #endif  // TDENGINE_QPERCENTILE_H
+
+#ifdef __cplusplus
+}
+#endif

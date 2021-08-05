@@ -56,6 +56,34 @@ class TDTestCase:
         tdSql.query(sql)
         tdSql.checkRows(6)
 
+        tdSql.execute("create table stb(ts timestamp, options binary(7), city binary(10)) tags(type int)")
+        tdSql.execute("insert into tb1 using stb tags(1) values(%d, 'option1', 'beijing')" % self.ts)
+        tdSql.execute("insert into tb2 using stb tags(2) values(%d, 'option2', 'shanghai')" % self.ts)
+
+        tdSql.query("select options from stb where type = 1 limit 1 union all select options from stb where type = 2 limit 1")
+        tdSql.checkData(0, 0, "option1")
+        tdSql.checkData(1, 0, "option2")
+
+        tdSql.query("select 'dc' as options from stb where type = 1 limit 1 union all select 'ad' as options from stb where type = 2 limit 1")
+        tdSql.checkData(0, 0, "dc")
+        tdSql.checkData(1, 0, "ad")
+
+        tdSql.query("select 'dc' as options from stb where type = 1 limit 1 union all select 'adc' as options from stb where type = 2 limit 1")
+        tdSql.checkData(0, 0, "dc")
+        tdSql.checkData(1, 0, "adc")
+
+        tdSql.error("select 'dc' as options from stb where type = 1 limit 1 union all select 'ad' as city from stb where type = 2 limit 1")
+
+        # for defect https://jira.taosdata.com:18080/browse/TD-4017
+        tdSql.execute("alter table stb add column col int")
+        tdSql.execute("insert into tb1 values(%d, 'option1', 'beijing', 10)" % (self.ts + 1000))
+
+        tdSql.query("select 'dc' as options from stb where col > 10 limit 1")
+        tdSql.checkRows(0)
+
+        tdSql.query("select 'dcs' as options from stb where col > 200 limit 1 union all select 'aaa' as options from stb limit 10")
+        tdSql.checkData(0, 0, 'aaa')
+
     def stop(self):
         tdSql.close()
         tdLog.success("%s successfully executed" % __file__)

@@ -39,6 +39,29 @@ class TDTestCase:
         except Exception as e:
             tdLog.exit(e)
 
+        # case for defect: https://jira.taosdata.com:18080/browse/TD-2560
+        tdSql.execute("create table db.tb02 using st tags(2)")
+        tdSql.execute("create table db.tb03 using st tags(3)")
+        tdSql.execute("create table db.tb04 using st tags(4)")
+
+        tdSql.query("show tables like 'tb%' ")
+        tdSql.checkRows(4)
+
+        tdSql.query("show tables like 'tb0%' ")
+        tdSql.checkRows(3)
+
+        tdSql.execute("create table db.st0 (ts timestamp, i int) tags(j int)")
+        tdSql.execute("create table db.st1 (ts timestamp, i int, c2 int) tags(j int, loc nchar(20))")
+
+        tdSql.query("show stables like 'st%' ")
+        tdSql.checkRows(3)
+        
+        # case for defect: https://jira.taosdata.com:18080/browse/TD-2693
+        tdSql.execute("create database db2")
+        tdSql.execute("use db2")
+        tdSql.execute("create table stb(ts timestamp, c int) tags(t int)")
+        tdSql.error("insert into db2.tb6 using db2.stb tags(1) values(now 1) tb2 using db2. tags( )values(now 2)")
+        
     def stop(self):
         tdSql.close()
         tdLog.success("%s successfully executed" % __file__)

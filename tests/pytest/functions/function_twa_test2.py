@@ -39,6 +39,10 @@ class TDTestCase:
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 5.5)
 
+        tdSql.query("select twa(c) from t1")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 5.5)
+
         tdSql.query("select twa(c) from t1 where ts >= '2018-09-17 09:00:00.000' and ts <= '2018-09-17 09:01:30.000' interval(10s)")
         tdSql.checkRows(10)
         tdSql.checkData(0, 1, 1.49995)
@@ -115,6 +119,35 @@ class TDTestCase:
         tdSql.checkData(1, 1, 0.0005)
         tdSql.checkData(2, 1, -1.5)
         tdSql.checkData(3, 1, -2)
+
+        #TD-2533 twa+interval with large records 
+        tdSql.execute("create table t4(ts timestamp, c int)") 
+        sql = 'insert into t4 values '       
+        for i in range(20000):
+            sql = sql + '(%d, %d)' % (self.ts + i * 500, i + 1)
+            if i % 2000 == 0:
+                tdSql.execute(sql)
+                sql = 'insert into t4 values ' 
+        tdSql.execute(sql)
+        tdSql.query('select twa(c) from t4 interval(10s)')
+        tdSql.checkData(0,1,10.999)
+
+        # Test case: https://jira.taosdata.com:18080/browse/TD-2624
+        tdSql.execute("create database test keep 7300")
+        tdSql.execute("use test")
+        tdSql.execute("create table st(ts timestamp, k int)")
+        tdSql.execute("insert into st values('2011-01-02 18:42:45.326', -1)")
+        tdSql.execute("insert into st values('2020-07-30 17:44:06.283', 0)")
+        tdSql.execute("insert into st values('2020-07-30 17:44:19.578', 9999999)")
+        tdSql.execute("insert into st values('2020-07-30 17:46:06.417', NULL)")
+        tdSql.execute("insert into st values('2020-11-09 18:42:25.538', 0)")
+        tdSql.execute("insert into st values('2020-12-29 17:43:11.641', 0)")
+        tdSql.execute("insert into st values('2020-12-29 18:43:17.129', 0)")
+        tdSql.execute("insert into st values('2020-12-29 18:46:19.109', NULL)")
+        tdSql.execute("insert into st values('2021-01-03 18:40:40.065', 0)")
+
+        tdSql.query("select twa(k),first(ts) as taos1  from st where k <50 interval(17s)")
+        tdSql.checkRows(6)
 
     def stop(self):
         tdSql.close()

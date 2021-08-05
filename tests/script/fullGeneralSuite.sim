@@ -33,6 +33,7 @@ run general/compute/percentile.sim
 run general/compute/stddev.sim
 run general/compute/sum.sim
 run general/compute/top.sim
+run general/compute/block_dist.sim
 run general/db/alter_option.sim
 run general/db/alter_tables_d2.sim
 run general/db/alter_tables_v1.sim
@@ -104,6 +105,7 @@ run general/parser/import_commit2.sim
 run general/parser/import_commit3.sim
 run general/parser/insert_tb.sim
 run general/parser/first_last.sim
+run general/parser/line_insert.sim
 #unsupport run general/parser/import_file.sim
 run general/parser/lastrow.sim
 run general/parser/nchar.sim
@@ -130,12 +132,12 @@ run general/parser/join.sim
 run general/parser/join_multivnode.sim
 run general/parser/select_with_tags.sim
 run general/parser/groupby.sim
+run general/parser/top_groupby.sim
 run general/parser/tags_dynamically_specifiy.sim
 run general/parser/set_tag_vals.sim
 #unsupport run general/parser/repeatAlter.sim
 #unsupport run general/parser/slimit_alter_tags.sim
-#unsupport run general/parser/stream_on_sys.sim
-#unsupport run general/parser/repeatStream.sim
+run general/parser/precision_ns.sim
 run general/stable/disk.sim
 run general/stable/dnode3.sim
 run general/stable/metrics.sim
@@ -213,9 +215,6 @@ run general/vector/table_time.sim
 run general/stream/restart_stream.sim
 run general/stream/stream_3.sim
 run general/stream/stream_restart.sim
-run general/stream/table_1.sim
-run general/stream/table_n.sim
-run general/stream/metrics_n.sim
 run general/stream/table_del.sim
 run general/stream/metrics_del.sim
 run general/stream/table_replica1_vnoden.sim

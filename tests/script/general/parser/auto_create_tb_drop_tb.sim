@@ -4,7 +4,7 @@ system sh/cfg.sh -n dnode1 -c walLevel -v 1
 system sh/cfg.sh -n dnode1 -c maxTablesPerVnode -v 4
 system sh/cfg.sh -n dnode1 -c ctime -v 30
 system sh/exec.sh -n dnode1 -s start
-sleep 500
+sleep 100
 sql connect
 
 $dbPrefix = db
@@ -49,7 +49,7 @@ while $t < $tbNum
 endw
 print ====== tables created
 
-sleep 500
+sleep 100
 
 sql drop table tb2
 $x = 0

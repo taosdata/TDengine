@@ -66,6 +66,14 @@ class TDTestCase:
             "alter table dt add column tbcol8 nchar(20)")
         tdSql.execute(
             "alter table dt add column tbcol9 binary(20)")
+        tdSql.execute(
+            "alter table dt add column tbcol10 tinyint unsigned")
+        tdSql.execute(
+            "alter table dt add column tbcol11 int unsigned")
+        tdSql.execute(
+            "alter table dt add column tbcol12 smallint unsigned")
+        tdSql.execute(
+            "alter table dt add column tbcol13 bigint unsigned")
 
         # restart taosd
         tdDnodes.forcestop(1)

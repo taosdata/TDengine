@@ -25,7 +25,9 @@ int32_t dnodeInitCfg();
 void    dnodeCleanupCfg();
 void    dnodeUpdateCfg(SDnodeCfg *cfg);
 int32_t dnodeGetDnodeId();
+void    dnodeGetClusterId(char *clusterId);
 void    dnodeGetCfg(int32_t *dnodeId, char *clusterId);
+void    dnodeSetDropped();
 
 #ifdef __cplusplus
 }

@@ -44,20 +44,21 @@ int32_t httpWriteBufByFd(struct HttpContext* pContext, const char* buf, int32_t 
   int32_t writeLen = 0;
 
   do {
-    if (pContext->fd > 2){
+    if (pContext->fd > 2) {
       len = (int32_t)taosSend(pContext->fd, buf + writeLen, (size_t)(sz - writeLen), MSG_NOSIGNAL);
-    }
-    else {
+    } else {
       return sz;
     }
 
     if (len < 0) {
-      httpDebug("context:%p, fd:%d, socket write errno:%d:%s, times:%d", pContext, pContext->fd, errno, strerror(errno), countWait);
+      httpDebug("context:%p, fd:%d, socket write errno:%d:%s, times:%d", pContext, pContext->fd, errno, strerror(errno),
+                countWait);
       if (++countWait > HTTP_WRITE_RETRY_TIMES) break;
       taosMsleep(HTTP_WRITE_WAIT_TIME_MS);
       continue;
     } else if (len == 0) {
-      httpDebug("context:%p, fd:%d, socket write errno:%d:%s, connect already closed", pContext, pContext->fd, errno, strerror(errno));
+      httpDebug("context:%p, fd:%d, socket write errno:%d:%s, connect already closed", pContext, pContext->fd, errno,
+                strerror(errno));
       break;
     } else {
       countWait = 0;
@@ -80,7 +81,7 @@ int32_t httpWriteBuf(struct HttpContext* pContext, const char* buf, int32_t sz) 
   return writeSz;
 }
 
-int32_t httpWriteBufNoTrace(struct HttpContext *pContext, const char *buf, int32_t sz) {
+int32_t httpWriteBufNoTrace(struct HttpContext* pContext, const char* buf, int32_t sz) {
   int32_t writeSz = httpWriteBufByFd(pContext, buf, sz);
   if (writeSz != sz) {
     httpError("context:%p, fd:%d, dataSize:%d, writeSize:%d, failed to send response", pContext, pContext->fd, sz,
@@ -92,8 +93,8 @@ int32_t httpWriteBufNoTrace(struct HttpContext *pContext, const char *buf, int32
 
 int32_t httpWriteJsonBufBody(JsonBuf* buf, bool isTheLast) {
   int32_t remain = 0;
-  char sLen[24];
-  uint64_t srcLen = (uint64_t) (buf->lst - buf->buf);
+  char    sLen[24];
+  int32_t srcLen = (int32_t)(buf->lst - buf->buf);
 
   if (buf->pContext->fd <= 0) {
     httpTrace("context:%p, fd:%d, write json body error", buf->pContext, buf->pContext->fd);
@@ -113,21 +114,21 @@ int32_t httpWriteJsonBufBody(JsonBuf* buf, bool isTheLast) {
       httpTrace("context:%p, fd:%d, no data need dump", buf->pContext, buf->pContext->fd);
       return 0;  // there is no data to dump.
     } else {
-      int32_t len = sprintf(sLen, "%" PRIx64 "\r\n", srcLen);
-      httpTrace("context:%p, fd:%d, write body, chunkSize:%" PRIu64 ", response:\n%s", buf->pContext, buf->pContext->fd,
-                srcLen, buf->buf);
+      int32_t len = sprintf(sLen, "%x\r\n", srcLen);
+      httpTrace("context:%p, fd:%d, write body, chunkSize:%d, response:\n%s", buf->pContext, buf->pContext->fd, srcLen,
+                buf->buf);
       httpWriteBufNoTrace(buf->pContext, sLen, len);
-      remain = httpWriteBufNoTrace(buf->pContext, buf->buf, (int32_t)srcLen);
+      remain = httpWriteBufNoTrace(buf->pContext, buf->buf, srcLen);
     }
   } else {
-    char compressBuf[JSON_BUFFER_SIZE] = {0};
+    char    compressBuf[JSON_BUFFER_SIZE] = {0};
     int32_t compressBufLen = JSON_BUFFER_SIZE;
     int32_t ret = httpGzipCompress(buf->pContext, buf->buf, srcLen, compressBuf, &compressBufLen, isTheLast);
     if (ret == 0) {
       if (compressBufLen > 0) {
         int32_t len = sprintf(sLen, "%x\r\n", compressBufLen);
-        httpTrace("context:%p, fd:%d, write body, chunkSize:%" PRIu64 ", compressSize:%d, last:%d, response:\n%s",
-                  buf->pContext, buf->pContext->fd, srcLen, compressBufLen, isTheLast, buf->buf);
+        httpTrace("context:%p, fd:%d, write body, chunkSize:%d, compressSize:%d, last:%d, response:\n%s", buf->pContext,
+                  buf->pContext->fd, srcLen, compressBufLen, isTheLast, buf->buf);
         httpWriteBufNoTrace(buf->pContext, sLen, len);
         remain = httpWriteBufNoTrace(buf->pContext, (const char*)compressBuf, compressBufLen);
       } else {
@@ -136,7 +137,7 @@ int32_t httpWriteJsonBufBody(JsonBuf* buf, bool isTheLast) {
         remain = 0;  // there is no data to dump.
       }
     } else {
-      httpError("context:%p, fd:%d, failed to compress data, chunkSize:%" PRIu64 ", last:%d, error:%d, response:\n%s",
+      httpError("context:%p, fd:%d, failed to compress data, chunkSize:%d, last:%d, error:%d, response:\n%s",
                 buf->pContext, buf->pContext->fd, srcLen, isTheLast, ret, buf->buf);
       remain = 0;
     }
@@ -154,8 +155,8 @@ void httpWriteJsonBufHead(JsonBuf* buf) {
     buf->pContext->fd = -1;
   }
 
-  char msg[1024] = {0};
-  int32_t  len = -1;
+  char    msg[1024] = {0};
+  int32_t len = -1;
 
   if (buf->pContext->parser->acceptEncodingGzip == 0 || !tsHttpEnableCompress) {
     len = sprintf(msg, httpRespTemplate[HTTP_RESPONSE_CHUNKED_UN_COMPRESS], httpVersionStr[buf->pContext->parser->httpVersion],
@@ -255,42 +256,100 @@ void httpJsonInt64(JsonBuf* buf, int64_t num) {
   buf->lst += snprintf(buf->lst, MAX_NUM_STR_SZ, "%" PRId64, num);
 }
 
-void httpJsonTimestamp(JsonBuf* buf, int64_t t, bool us) {
-  char ts[35] = {0};
-  struct tm *ptm;
-  int32_t precision = 1000;
-  if (us) {
-    precision = 1000000;
+void httpJsonUInt64(JsonBuf* buf, uint64_t num) {
+  httpJsonItemToken(buf);
+  httpJsonTestBuf(buf, MAX_NUM_STR_SZ);
+  buf->lst += snprintf(buf->lst, MAX_NUM_STR_SZ, "%" PRIu64, num);
+}
+
+void httpJsonTimestamp(JsonBuf* buf, int64_t t, int32_t timePrecision) {
+  char       ts[35] = {0};
+  
+  int32_t fractionLen;
+  char* format = NULL;
+  time_t quot = 0;
+  int64_t mod = 0;
+
+  switch (timePrecision) {
+    case TSDB_TIME_PRECISION_MILLI: {
+      quot = t / 1000;
+      fractionLen = 5;
+      format = ".%03" PRId64;
+      mod = t % 1000;
+      break;
+    }
+
+    case TSDB_TIME_PRECISION_MICRO: {
+      quot = t / 1000000;
+      fractionLen = 8;
+      format = ".%06" PRId64;
+      mod = t % 1000000;
+      break;
+    }
+
+    case TSDB_TIME_PRECISION_NANO: {
+      quot = t / 1000000000;
+      fractionLen = 11;
+      format = ".%09" PRId64;
+      mod = t % 1000000000;
+      break;
+    }
+
+    default:
+      fractionLen = 0;
+      assert(false);
   }
 
-  time_t tt = t / precision;
-  ptm = localtime(&tt);
-  int32_t length = (int32_t) strftime(ts, 35, "%Y-%m-%d %H:%M:%S", ptm);
-  if (us) {
-    length += snprintf(ts + length, 8, ".%06" PRId64, t % precision);
-  } else {
-    length += snprintf(ts + length, 5, ".%03" PRId64, t % precision);
-  }
+  struct tm ptm = {0};
+  localtime_r(&quot, &ptm);
+  int32_t length = (int32_t)strftime(ts, 35, "%Y-%m-%d %H:%M:%S", &ptm);
+  length += snprintf(ts + length, fractionLen, format, mod);
 
   httpJsonString(buf, ts, length);
 }
 
-void httpJsonUtcTimestamp(JsonBuf* buf, int64_t t, bool us) {
-  char ts[40] = {0};
-  struct tm *ptm;
-  int32_t precision = 1000;
-  if (us) {
-    precision = 1000000;
+void httpJsonUtcTimestamp(JsonBuf* buf, int64_t t, int32_t timePrecision) {
+  char       ts[40] = {0};
+  struct tm* ptm;
+
+  int32_t fractionLen;
+  char* format = NULL;
+  time_t quot = 0;
+  long mod = 0;
+
+  switch (timePrecision) {
+    case TSDB_TIME_PRECISION_MILLI: {
+      quot = t / 1000;
+      fractionLen = 5;
+      format = ".%03" PRId64;
+      mod = t % 1000;
+      break;
+    }
+
+    case TSDB_TIME_PRECISION_MICRO: {
+      quot = t / 1000000;
+      fractionLen = 8;
+      format = ".%06" PRId64;
+      mod = t % 1000000;
+      break;
+    }
+
+    case TSDB_TIME_PRECISION_NANO: {
+      quot = t / 1000000000;
+      fractionLen = 11;
+      format = ".%09" PRId64;
+      mod = t % 1000000000;
+      break;
+    }
+
+    default:
+      fractionLen = 0;
+      assert(false);
   }
 
-  time_t tt = t / precision;
-  ptm = localtime(&tt);
+  ptm = localtime(&quot);
   int32_t length = (int32_t)strftime(ts, 40, "%Y-%m-%dT%H:%M:%S", ptm);
-  if (us) {
-    length += snprintf(ts + length, 8, ".%06" PRId64, t % precision);
-  } else {
-    length += snprintf(ts + length, 5, ".%03" PRId64, t % precision);
-  }
+  length += snprintf(ts + length, fractionLen, format, mod);
   length += (int32_t)strftime(ts + length, 40 - length, "%z", ptm);
 
   httpJsonString(buf, ts, length);
@@ -300,6 +359,12 @@ void httpJsonInt(JsonBuf* buf, int32_t num) {
   httpJsonItemToken(buf);
   httpJsonTestBuf(buf, MAX_NUM_STR_SZ);
   buf->lst += snprintf(buf->lst, MAX_NUM_STR_SZ, "%d", num);
+}
+
+void httpJsonUInt(JsonBuf* buf, uint32_t num) {
+  httpJsonItemToken(buf);
+  httpJsonTestBuf(buf, MAX_NUM_STR_SZ);
+  buf->lst += snprintf(buf->lst, MAX_NUM_STR_SZ, "%u", num);
 }
 
 void httpJsonFloat(JsonBuf* buf, float num) {

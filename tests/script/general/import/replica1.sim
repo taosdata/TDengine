@@ -27,7 +27,7 @@ system sh/cfg.sh -n dnode4 -c walLevel -v 2
 
 print ========= start dnode1
 system sh/exec.sh -n dnode1 -s start
-sleep 3000
+sleep 2000
 sql connect
 
 sql create database ir1db days 7
@@ -93,9 +93,9 @@ endi
 
 print ================== dnode restart
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
-sleep 5000
+sleep 3000
 system sh/exec.sh -n dnode1 -s start
-sleep 5000
+sleep 3000
 
 sql use ir1db
 sql select * from tb;
@@ -162,9 +162,9 @@ endi
 
 print ================= step10
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
-sleep 5000
+sleep 3000
 system sh/exec.sh -n dnode1 -s start
-sleep 5000
+sleep 3000
 
 sql use ir1db
 sql select * from tb;

@@ -24,6 +24,17 @@ class TDTestCase:
         tdSql.init(conn.cursor(), logSql)
 
     def run(self):
+        tdSql.query("show users")
+        rows = tdSql.queryRows
+
+        tdSql.execute("create user test PASS 'test' ")
+        tdSql.query("show users")
+        tdSql.checkRows(rows + 1)
+
+        tdSql.error("create user tdenginetdenginetdengine PASS 'test' ")
+
+        tdSql.error("create user tdenginet PASS '1234512345123456' ")
+
         try:
             tdSql.execute("create account a&cc PASS 'pass123'")
         except Exception as e:
@@ -31,6 +42,7 @@ class TDTestCase:
             return
 
         tdLog.exit("drop built-in user is error.")
+        
 
     def stop(self):
         tdSql.close()

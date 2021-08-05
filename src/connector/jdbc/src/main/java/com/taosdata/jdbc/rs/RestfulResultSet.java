@@ -1,1180 +1,666 @@
 package com.taosdata.jdbc.rs;
 
-import com.taosdata.jdbc.TSDBConstants;
-import org.apache.commons.lang3.StringUtils;
+import com.alibaba.fastjson.JSONArray;
+import com.alibaba.fastjson.JSONObject;
+import com.google.common.primitives.Ints;
+import com.google.common.primitives.Longs;
+import com.google.common.primitives.Shorts;
+import com.taosdata.jdbc.*;
+import com.taosdata.jdbc.enums.TimestampPrecision;
+import com.taosdata.jdbc.enums.TimestampFormat;
+import com.taosdata.jdbc.utils.Utils;
 
-import java.io.InputStream;
-import java.io.Reader;
 import java.math.BigDecimal;
-import java.net.URL;
 import java.sql.*;
+import java.time.Instant;
+import java.time.ZoneOffset;
+import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Calendar;
-import java.util.Map;
+import java.util.List;
 
-public class RestfulResultSet implements ResultSet {
-    private boolean isClosed = false;
+public class RestfulResultSet extends AbstractResultSet implements ResultSet {
+
+    private final Statement statement;
+    // data
+    private final List<List<Object>> resultSet = new ArrayList<>();
+    // meta
+    private final List<String> columnNames = new ArrayList<>();
+    private final List<Field> columns = new ArrayList<>();
+    private final RestfulResultSetMetaData metaData;
+
+    private volatile boolean isClosed;
     private int pos = -1;
-    private ArrayList<ArrayList<String>> data;
-    private ArrayList<String> fields;
 
-    public RestfulResultSet(String str, String fieldData) {
-        data = new ArrayList<>();
-        str = str.substring(2, str.length() - 2);
-        ArrayList<String> strTemp = new ArrayList<>(Arrays.asList(str.split("],\\[")));
-        for (String s : strTemp) {
-            ArrayList<String> curr = new ArrayList<>(Arrays.asList(s.split(",")));
-            data.add(curr);
+    /**
+     * 由一个result的Json构造结果集，对应执行show databases, show tables等这些语句，返回结果集，但无法获取结果集对应的meta，统一当成String处理
+     *
+     * @param resultJson: 包含data信息的结果集，有sql返回的结果集
+     ***/
+    public RestfulResultSet(String database, Statement statement, JSONObject resultJson) throws SQLException {
+        this.statement = statement;
+
+        // get head
+        JSONArray head = resultJson.getJSONArray("head");
+        // get column metadata
+        JSONArray columnMeta = resultJson.getJSONArray("column_meta");
+        // get row data
+        JSONArray data = resultJson.getJSONArray("data");
+        // get rows
+        Integer rows = resultJson.getInteger("rows");
+
+        // parse column_meta
+        if (columnMeta != null) {
+            parseColumnMeta_new(columnMeta);
+        } else {
+            parseColumnMeta_old(head, data, rows);
         }
-        if (!StringUtils.isBlank(fieldData)) {
-            fields = new ArrayList<>();
-            fieldData = fieldData.substring(2, fieldData.length() - 2);
-            ArrayList<String> fieldTemp = new ArrayList<>(Arrays.asList(fieldData.split("],\\[")));
-            for (String s : fieldTemp) {
-                String curr = Arrays.asList(s.split(",")).get(0);
-                fields.add(curr.substring(1, curr.length() - 1)); // 去掉双引号
+        this.metaData = new RestfulResultSetMetaData(database, columns, this);
+
+        if (data == null || data.isEmpty())
+            return;
+        // parse row data
+        for (int rowIndex = 0; rowIndex < data.size(); rowIndex++) {
+            List<Object> row = new ArrayList<>();
+            JSONArray jsonRow = data.getJSONArray(rowIndex);
+            for (int colIndex = 0; colIndex < this.metaData.getColumnCount(); colIndex++) {
+                row.add(parseColumnData(jsonRow, colIndex, columns.get(colIndex).taos_type));
+            }
+            resultSet.add(row);
+        }
+    }
+
+    /***
+     * use this method after TDengine-2.0.18.0 to parse column meta, restful add column_meta in resultSet
+     * @Param columnMeta
+     */
+    private void parseColumnMeta_new(JSONArray columnMeta) throws SQLException {
+        columnNames.clear();
+        columns.clear();
+        for (int colIndex = 0; colIndex < columnMeta.size(); colIndex++) {
+            JSONArray col = columnMeta.getJSONArray(colIndex);
+            String col_name = col.getString(0);
+            int taos_type = col.getInteger(1);
+            int col_type = TSDBConstants.taosType2JdbcType(taos_type);
+            int col_length = col.getInteger(2);
+            columnNames.add(col_name);
+            columns.add(new Field(col_name, col_type, col_length, "", taos_type));
+        }
+    }
+
+    /**
+     * use this method before TDengine-2.0.18.0 to parse column meta
+     */
+    private void parseColumnMeta_old(JSONArray head, JSONArray data, int rows) {
+        columnNames.clear();
+        columns.clear();
+        for (int colIndex = 0; colIndex < head.size(); colIndex++) {
+            String col_name = head.getString(colIndex);
+            columnNames.add(col_name);
+
+            int col_type = Types.NULL;
+            int col_length = 0;
+            int taos_type = TSDBConstants.TSDB_DATA_TYPE_NULL;
+
+            JSONArray row0Json = data.getJSONArray(0);
+            if (colIndex < row0Json.size()) {
+                Object value = row0Json.get(colIndex);
+                if (value instanceof Boolean) {
+                    col_type = Types.BOOLEAN;
+                    col_length = 1;
+                    taos_type = TSDBConstants.TSDB_DATA_TYPE_BOOL;
+                }
+                if (value instanceof Byte || value instanceof Short || value instanceof Integer || value instanceof Long) {
+                    col_type = Types.BIGINT;
+                    col_length = 8;
+                    taos_type = TSDBConstants.TSDB_DATA_TYPE_BIGINT;
+                }
+                if (value instanceof Float || value instanceof Double || value instanceof BigDecimal) {
+                    col_type = Types.DOUBLE;
+                    col_length = 8;
+                    taos_type = TSDBConstants.TSDB_DATA_TYPE_DOUBLE;
+                }
+                if (value instanceof String) {
+                    col_type = Types.NCHAR;
+                    col_length = ((String) value).length();
+                    taos_type = TSDBConstants.TSDB_DATA_TYPE_NCHAR;
+                }
+            }
+            columns.add(new Field(col_name, col_type, col_length, "", taos_type));
+        }
+    }
+
+    private Object parseColumnData(JSONArray row, int colIndex, int taosType) throws SQLException {
+        switch (taosType) {
+            case TSDBConstants.TSDB_DATA_TYPE_NULL:
+                return null;
+            case TSDBConstants.TSDB_DATA_TYPE_BOOL:
+                return row.getBoolean(colIndex);
+            case TSDBConstants.TSDB_DATA_TYPE_TINYINT:
+                return row.getByte(colIndex);
+            case TSDBConstants.TSDB_DATA_TYPE_SMALLINT:
+                return row.getShort(colIndex);
+            case TSDBConstants.TSDB_DATA_TYPE_INT:
+                return row.getInteger(colIndex);
+            case TSDBConstants.TSDB_DATA_TYPE_BIGINT:
+                return row.getLong(colIndex);
+            case TSDBConstants.TSDB_DATA_TYPE_FLOAT:
+                return row.getFloat(colIndex);
+            case TSDBConstants.TSDB_DATA_TYPE_DOUBLE:
+                return row.getDouble(colIndex);
+            case TSDBConstants.TSDB_DATA_TYPE_TIMESTAMP:
+                return parseTimestampColumnData(row, colIndex);
+            case TSDBConstants.TSDB_DATA_TYPE_BINARY:
+                return row.getString(colIndex) == null ? null : row.getString(colIndex).getBytes();
+            case TSDBConstants.TSDB_DATA_TYPE_NCHAR:
+                return row.getString(colIndex) == null ? null : row.getString(colIndex);
+            default:
+                return row.get(colIndex);
+        }
+    }
+
+    private Timestamp parseTimestampColumnData(JSONArray row, int colIndex) throws SQLException {
+        if (row.get(colIndex) == null)
+            return null;
+        String tsFormatUpperCase = this.statement.getConnection().getClientInfo(TSDBDriver.PROPERTY_KEY_TIMESTAMP_FORMAT).toUpperCase();
+        TimestampFormat timestampFormat = TimestampFormat.valueOf(tsFormatUpperCase);
+        switch (timestampFormat) {
+            case TIMESTAMP: {
+                Long value = row.getLong(colIndex);
+                //TODO: this implementation has bug if the timestamp bigger than 9999_9999_9999_9
+                if (value < 1_0000_0000_0000_0L)
+                    return new Timestamp(value);
+                long epochSec = value / 1000_000L;
+                long nanoAdjustment = value % 1000_000L * 1000L;
+                return Timestamp.from(Instant.ofEpochSecond(epochSec, nanoAdjustment));
+            }
+            case UTC: {
+                String value = row.getString(colIndex);
+                long epochSec = Timestamp.valueOf(value.substring(0, 19).replace("T", " ")).getTime() / 1000;
+                int fractionalSec = Integer.parseInt(value.substring(20, value.length() - 5));
+                long nanoAdjustment;
+                if (value.length() > 31) {
+                    // ns timestamp: yyyy-MM-ddTHH:mm:ss.SSSSSSSSS+0x00
+                    nanoAdjustment = fractionalSec;
+                } else if (value.length() > 28) {
+                    // ms timestamp: yyyy-MM-ddTHH:mm:ss.SSSSSS+0x00
+                    nanoAdjustment = fractionalSec * 1000L;
+                } else {
+                    // ms timestamp: yyyy-MM-ddTHH:mm:ss.SSS+0x00
+                    nanoAdjustment = fractionalSec * 1000_000L;
+                }
+                ZoneOffset zoneOffset = ZoneOffset.of(value.substring(value.length() - 5));
+                Instant instant = Instant.ofEpochSecond(epochSec, nanoAdjustment).atOffset(zoneOffset).toInstant();
+                return Timestamp.from(instant);
+            }
+            case STRING:
+            default: {
+                String value = row.getString(colIndex);
+                TimestampPrecision precision = Utils.guessTimestampPrecision(value);
+                if (precision == TimestampPrecision.MS) {
+                    // ms timestamp: yyyy-MM-dd HH:mm:ss.SSS
+                    return row.getTimestamp(colIndex);
+                }
+                if (precision == TimestampPrecision.US) {
+                    // us timestamp: yyyy-MM-dd HH:mm:ss.SSSSSS
+                    long epochSec = Timestamp.valueOf(value.substring(0, 19)).getTime() / 1000;
+                    long nanoAdjustment = Integer.parseInt(value.substring(20)) * 1000L;
+                    return Timestamp.from(Instant.ofEpochSecond(epochSec, nanoAdjustment));
+                }
+                if (precision == TimestampPrecision.NS) {
+                    // ms timestamp: yyyy-MM-dd HH:mm:ss.SSSSSSSSS
+                    long epochSec = Timestamp.valueOf(value.substring(0, 19)).getTime() / 1000;
+                    long nanoAdjustment = Integer.parseInt(value.substring(20));
+                    return Timestamp.from(Instant.ofEpochSecond(epochSec, nanoAdjustment));
+                }
+                throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNKNOWN_TIMESTAMP_PRECISION);
+            }
+        }
+    }
+
+    public static class Field {
+        String name;
+        int type;
+        int length;
+        String note;
+        int taos_type;
+
+        public Field(String name, int type, int length, String note, int taos_type) {
+            this.name = name;
+            this.type = type;
+            this.length = length;
+            this.note = note;
+            this.taos_type = taos_type;
+        }
+
+    }
+
+    @Override
+    public boolean next() throws SQLException {
+        if (isClosed())
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_RESULTSET_CLOSED);
+        pos++;
+        return pos <= resultSet.size() - 1;
+    }
+
+    @Override
+    public void close() throws SQLException {
+        synchronized (RestfulResultSet.class) {
+            this.isClosed = true;
+        }
+    }
+
+    @Override
+    public String getString(int columnIndex) throws SQLException {
+        checkAvailability(columnIndex, resultSet.get(pos).size());
+
+        Object value = resultSet.get(pos).get(columnIndex - 1);
+        if (value == null)
+            return null;
+        if (value instanceof byte[])
+            return new String((byte[]) value);
+        return value.toString();
+    }
+
+    @Override
+    public boolean getBoolean(int columnIndex) throws SQLException {
+        checkAvailability(columnIndex, resultSet.get(pos).size());
+
+        Object value = resultSet.get(pos).get(columnIndex - 1);
+        if (value == null) {
+            wasNull = true;
+            return false;
+        }
+        wasNull = false;
+        if (value instanceof Boolean)
+            return (boolean) value;
+        return Boolean.parseBoolean(value.toString());
+    }
+
+    @Override
+    public byte getByte(int columnIndex) throws SQLException {
+        checkAvailability(columnIndex, resultSet.get(pos).size());
+
+        Object value = resultSet.get(pos).get(columnIndex - 1);
+        if (value == null) {
+            wasNull = true;
+            return 0;
+        }
+        wasNull = false;
+        long valueAsLong = Long.parseLong(value.toString());
+        if (valueAsLong == Byte.MIN_VALUE)
+            return 0;
+        if (valueAsLong < Byte.MIN_VALUE || valueAsLong > Byte.MAX_VALUE)
+            throwRangeException(value.toString(), columnIndex, Types.TINYINT);
+
+        return (byte) valueAsLong;
+    }
+
+    private void throwRangeException(String valueAsString, int columnIndex, int jdbcType) throws SQLException {
+        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_NUMERIC_VALUE_OUT_OF_RANGE,
+                "'" + valueAsString + "' in column '" + columnIndex + "' is outside valid range for the jdbcType " + TSDBConstants.jdbcType2TaosTypeName(jdbcType));
+    }
+
+    @Override
+    public short getShort(int columnIndex) throws SQLException {
+        checkAvailability(columnIndex, resultSet.get(pos).size());
+
+        Object value = resultSet.get(pos).get(columnIndex - 1);
+        if (value == null) {
+            wasNull = true;
+            return 0;
+        }
+        wasNull = false;
+        long valueAsLong = Long.parseLong(value.toString());
+        if (valueAsLong == Short.MIN_VALUE)
+            return 0;
+        if (valueAsLong < Short.MIN_VALUE || valueAsLong > Short.MAX_VALUE)
+            throwRangeException(value.toString(), columnIndex, Types.SMALLINT);
+        return (short) valueAsLong;
+    }
+
+    @Override
+    public int getInt(int columnIndex) throws SQLException {
+        checkAvailability(columnIndex, resultSet.get(pos).size());
+
+        Object value = resultSet.get(pos).get(columnIndex - 1);
+        if (value == null) {
+            wasNull = true;
+            return 0;
+        }
+        wasNull = false;
+        long valueAsLong = Long.parseLong(value.toString());
+        if (valueAsLong == Integer.MIN_VALUE)
+            return 0;
+        if (valueAsLong < Integer.MIN_VALUE || valueAsLong > Integer.MAX_VALUE)
+            throwRangeException(value.toString(), columnIndex, Types.INTEGER);
+        return (int) valueAsLong;
+    }
+
+    @Override
+    public long getLong(int columnIndex) throws SQLException {
+        checkAvailability(columnIndex, resultSet.get(pos).size());
+
+        Object value = resultSet.get(pos).get(columnIndex - 1);
+        if (value == null) {
+            wasNull = true;
+            return 0;
+        }
+
+        wasNull = false;
+        if (value instanceof Timestamp) {
+            return ((Timestamp) value).getTime();
+        }
+        long valueAsLong = 0;
+        try {
+            valueAsLong = Long.parseLong(value.toString());
+            if (valueAsLong == Long.MIN_VALUE)
+                return 0;
+        } catch (NumberFormatException e) {
+            throwRangeException(value.toString(), columnIndex, Types.BIGINT);
+        }
+        return valueAsLong;
+    }
+
+    @Override
+    public float getFloat(int columnIndex) throws SQLException {
+        checkAvailability(columnIndex, resultSet.get(pos).size());
+
+        Object value = resultSet.get(pos).get(columnIndex - 1);
+        if (value == null) {
+            wasNull = true;
+            return 0;
+        }
+        wasNull = false;
+        if (value instanceof Float)
+            return (float) value;
+        if (value instanceof Double)
+            return new Float((Double) value);
+        return Float.parseFloat(value.toString());
+    }
+
+    @Override
+    public double getDouble(int columnIndex) throws SQLException {
+        checkAvailability(columnIndex, resultSet.get(pos).size());
+
+        Object value = resultSet.get(pos).get(columnIndex - 1);
+        if (value == null) {
+            wasNull = true;
+            return 0;
+        }
+        wasNull = false;
+        if (value instanceof Double || value instanceof Float)
+            return (double) value;
+        return Double.parseDouble(value.toString());
+    }
+
+    @Override
+    public byte[] getBytes(int columnIndex) throws SQLException {
+        checkAvailability(columnIndex, resultSet.get(pos).size());
+
+        Object value = resultSet.get(pos).get(columnIndex - 1);
+        if (value == null)
+            return null;
+        if (value instanceof byte[])
+            return (byte[]) value;
+        if (value instanceof String)
+            return ((String) value).getBytes();
+        if (value instanceof Long)
+            return Longs.toByteArray((long) value);
+        if (value instanceof Integer)
+            return Ints.toByteArray((int) value);
+        if (value instanceof Short)
+            return Shorts.toByteArray((short) value);
+        if (value instanceof Byte)
+            return new byte[]{(byte) value};
+        if (value instanceof Timestamp) {
+            return Utils.formatTimestamp((Timestamp) value).getBytes();
+        }
+
+        return value.toString().getBytes();
+    }
+
+    @Override
+    public Date getDate(int columnIndex) throws SQLException {
+        checkAvailability(columnIndex, resultSet.get(pos).size());
+
+        Object value = resultSet.get(pos).get(columnIndex - 1);
+        if (value == null)
+            return null;
+        if (value instanceof Timestamp)
+            return new Date(((Timestamp) value).getTime());
+        return Utils.parseDate(value.toString());
+    }
+
+    @Override
+    public Time getTime(int columnIndex) throws SQLException {
+        checkAvailability(columnIndex, resultSet.get(pos).size());
+
+        Object value = resultSet.get(pos).get(columnIndex - 1);
+        if (value == null)
+            return null;
+        if (value instanceof Timestamp)
+            return new Time(((Timestamp) value).getTime());
+        Time time = null;
+        try {
+            time = Utils.parseTime(value.toString());
+        } catch (DateTimeParseException ignored) {
+        }
+        return time;
+    }
+
+    @Override
+    public Timestamp getTimestamp(int columnIndex) throws SQLException {
+        checkAvailability(columnIndex, resultSet.get(pos).size());
+
+        Object value = resultSet.get(pos).get(columnIndex - 1);
+        if (value == null)
+            return null;
+        if (value instanceof Timestamp)
+            return (Timestamp) value;
+        if (value instanceof Long) {
+            if (1_0000_0000_0000_0L > (long) value)
+                return Timestamp.from(Instant.ofEpochMilli((long) value));
+            long epochSec = (long) value / 1000_000L;
+            long nanoAdjustment = (long) value % 1000_000L * 1000;
+            return Timestamp.from(Instant.ofEpochSecond(epochSec, nanoAdjustment));
+        }
+        Timestamp ret;
+        try {
+            ret = Utils.parseTimestamp(value.toString());
+        } catch (Exception e) {
+            ret = null;
+        }
+        return ret;
+    }
+
+    @Override
+    public ResultSetMetaData getMetaData() throws SQLException {
+        if (isClosed())
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_RESULTSET_CLOSED);
+        return this.metaData;
+    }
+
+    @Override
+    public Object getObject(int columnIndex) throws SQLException {
+        checkAvailability(columnIndex, resultSet.get(pos).size());
+
+        return resultSet.get(pos).get(columnIndex - 1);
+    }
+
+    @Override
+    public int findColumn(String columnLabel) throws SQLException {
+        if (isClosed())
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_RESULTSET_CLOSED);
+
+        int columnIndex = columnNames.indexOf(columnLabel);
+        if (columnIndex == -1)
+            throw new SQLException("cannot find Column in resultSet");
+        return columnIndex + 1;
+    }
+
+    @Override
+    public BigDecimal getBigDecimal(int columnIndex) throws SQLException {
+        checkAvailability(columnIndex, resultSet.get(pos).size());
+
+        Object value = resultSet.get(pos).get(columnIndex - 1);
+        if (value == null)
+            return null;
+
+        if (value instanceof Long || value instanceof Integer || value instanceof Short || value instanceof Byte)
+            return new BigDecimal(Long.parseLong(value.toString()));
+        if (value instanceof Double || value instanceof Float)
+            return BigDecimal.valueOf(Double.parseDouble(value.toString()));
+        if (value instanceof Timestamp)
+            return new BigDecimal(((Timestamp) value).getTime());
+        BigDecimal ret;
+        try {
+            ret = new BigDecimal(value.toString());
+        } catch (Exception e) {
+            ret = null;
+        }
+        return ret;
+    }
+
+    @Override
+    public boolean isBeforeFirst() throws SQLException {
+        if (isClosed())
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_RESULTSET_CLOSED);
+        return this.pos == -1 && this.resultSet.size() != 0;
+    }
+
+    @Override
+    public boolean isAfterLast() throws SQLException {
+        if (isClosed())
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_RESULTSET_CLOSED);
+
+        return this.pos >= resultSet.size() && this.resultSet.size() != 0;
+    }
+
+    @Override
+    public boolean isFirst() throws SQLException {
+        if (isClosed())
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_RESULTSET_CLOSED);
+        return this.pos == 0;
+    }
+
+    @Override
+    public boolean isLast() throws SQLException {
+        if (isClosed())
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_RESULTSET_CLOSED);
+        if (this.resultSet.size() == 0)
+            return false;
+        return this.pos == (this.resultSet.size() - 1);
+    }
+
+    @Override
+    public void beforeFirst() throws SQLException {
+        if (isClosed())
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_RESULTSET_CLOSED);
+
+        synchronized (this) {
+            if (this.resultSet.size() > 0) {
+                this.pos = -1;
             }
         }
     }
 
     @Override
-    public boolean next() throws SQLException {
-        if (isClosed) throw new SQLException(TSDBConstants.WrapErrMsg("Result is Closed!!!"));
-        if (pos < data.size() - 1) {
-            pos++;
-            return true;
-        }
-        return false;
-    }
-
-    @Override
-    public void close() throws SQLException {
-        this.isClosed = true;
-    }
-
-    @Override
-    public boolean wasNull() throws SQLException {
-        return data.isEmpty();
-    }
-
-    @Override
-    public String getString(int columnIndex) throws SQLException {
-        if (columnIndex > data.get(pos).size()) {
-            throw new SQLException(TSDBConstants.WrapErrMsg("Column Index out of range, " + columnIndex + " > " + data.get(pos).size()));
-        }
-        return data.get(pos).get(columnIndex - 1);
-    }
-
-    @Override
-    public boolean getBoolean(int columnIndex) throws SQLException {
-        String result = getString(columnIndex);
-        if (!(result.equals("true") || result.equals("false"))) {
-            throw new SQLException("not boolean value");
-        }
-        return result.equals("true");
-    }
-
-    @Override
-    public byte getByte(int columnIndex) throws SQLException {
-        //TODO: SQLFeature Not Supported
-        throw new SQLFeatureNotSupportedException();
-    }
-
-    @Override
-    public short getShort(int columnIndex) throws SQLException {
-        return Short.parseShort(getString(columnIndex));
-    }
-
-    @Override
-    public int getInt(int columnIndex) throws SQLException {
-        String result = getString(columnIndex);
-        return Integer.parseInt(result);
-    }
-
-    @Override
-    public long getLong(int columnIndex) throws SQLException {
-        String result = getString(columnIndex);
-        return Long.parseLong(result);
-    }
-
-    @Override
-    public float getFloat(int columnIndex) throws SQLException {
-        String result = getString(columnIndex);
-        return Float.parseFloat(result);
-    }
-
-    @Override
-    public double getDouble(int columnIndex) throws SQLException {
-        String result = getString(columnIndex);
-        return Double.parseDouble(result);
-    }
-
-    @Override
-    public BigDecimal getBigDecimal(int columnIndex, int scale) throws SQLException {
-        //TODO: SQLFeature Not Supported
-        throw new SQLFeatureNotSupportedException();
-    }
-
-    @Override
-    public byte[] getBytes(int columnIndex) throws SQLException {
-        //TODO: SQLFeature Not Supported
-        throw new SQLFeatureNotSupportedException();
-    }
-
-    @Override
-    public Date getDate(int columnIndex) throws SQLException {
-        //TODO: SQLFeature Not Supported
-        throw new SQLFeatureNotSupportedException();
-    }
-
-    @Override
-    public Time getTime(int columnIndex) throws SQLException {
-        //TODO: SQLFeature Not Supported
-        throw new SQLFeatureNotSupportedException();
-    }
-
-    @Override
-    public Timestamp getTimestamp(int columnIndex) throws SQLException {
-        String strDate = getString(columnIndex);
-        strDate = strDate.substring(1, strDate.length() - 1);
-        return Timestamp.valueOf(strDate);
-    }
-
-    @Override
-    public InputStream getAsciiStream(int columnIndex) throws SQLException {
-        //TODO: SQLFeature Not Supported
-        throw new SQLFeatureNotSupportedException();
-    }
-
-    @Override
-    public InputStream getUnicodeStream(int columnIndex) throws SQLException {
-        //TODO: SQLFeature Not Supported
-        throw new SQLFeatureNotSupportedException();
-    }
-
-    @Override
-    public InputStream getBinaryStream(int columnIndex) throws SQLException {
-        //TODO: SQLFeature Not Supported
-        throw new SQLFeatureNotSupportedException();
-    }
-
-    @Override
-    public String getString(String columnLabel) throws SQLException {
-        return getString(findColumn(columnLabel) + 1);
-    }
-
-    @Override
-    public boolean getBoolean(String columnLabel) throws SQLException {
-        return Boolean.parseBoolean(getString(columnLabel));
-    }
-
-    @Override
-    public byte getByte(String columnLabel) throws SQLException {
-        return 0;
-    }
-
-    @Override
-    public short getShort(String columnLabel) throws SQLException {
-        return Short.parseShort(getString(columnLabel));
-    }
-
-    @Override
-    public int getInt(String columnLabel) throws SQLException {
-        return Integer.parseInt(getString(columnLabel));
-    }
-
-    @Override
-    public long getLong(String columnLabel) throws SQLException {
-        return Long.parseLong(getString(columnLabel));
-    }
-
-    @Override
-    public float getFloat(String columnLabel) throws SQLException {
-        String result = getString(columnLabel);
-        return Float.parseFloat(result);
-    }
-
-    @Override
-    public double getDouble(String columnLabel) throws SQLException {
-        return Double.parseDouble(getString(columnLabel));
-    }
-
-    @Override
-    public BigDecimal getBigDecimal(String columnLabel, int scale) throws SQLException {
-        return null;
-    }
-
-    @Override
-    public byte[] getBytes(String columnLabel) throws SQLException {
-        return new byte[0];
-    }
-
-    @Override
-    public Date getDate(String columnLabel) throws SQLException {
-        return null;
-    }
-
-    @Override
-    public Time getTime(String columnLabel) throws SQLException {
-        return null;
-    }
-
-    @Override
-    public Timestamp getTimestamp(String columnLabel) throws SQLException {
-        return Timestamp.valueOf(getString(columnLabel));
-    }
-
-    @Override
-    public InputStream getAsciiStream(String columnLabel) throws SQLException {
-        return null;
-    }
-
-    @Override
-    public InputStream getUnicodeStream(String columnLabel) throws SQLException {
-        return null;
-    }
-
-    @Override
-    public InputStream getBinaryStream(String columnLabel) throws SQLException {
-        return null;
-    }
-
-    @Override
-    public SQLWarning getWarnings() throws SQLException {
-        return null;
-        //TODO: SQLFeature Not Supported
-//        throw new SQLFeatureNotSupportedException();
-    }
-
-    @Override
-    public void clearWarnings() throws SQLException {
-        return;
-        //TODO: SQLFeature Not Supported
-//        throw new SQLFeatureNotSupportedException();
-    }
-
-    @Override
-    public String getCursorName() throws SQLException {
-        //TODO: SQLFeature Not Supported
-        throw new SQLFeatureNotSupportedException();
-    }
-
-    @Override
-    public ResultSetMetaData getMetaData() throws SQLException {
-        return new RestfulResultSetMetaData(fields);
-    }
-
-    @Override
-    public Object getObject(int columnIndex) throws SQLException {
-//        return null;
-        //TODO: SQLFeature Not Supported
-        throw new SQLFeatureNotSupportedException();
-    }
-
-    @Override
-    public Object getObject(String columnLabel) throws SQLException {
-//        return null;
-        //TODO: SQLFeature Not Supported
-        throw new SQLFeatureNotSupportedException();
-    }
-
-    @Override
-    public int findColumn(String columnLabel) throws SQLException {
-        return fields.indexOf(columnLabel);
-    }
-
-    @Override
-    public Reader getCharacterStream(int columnIndex) throws SQLException {
-        //TODO: SQLFeature Not Supported
-        throw new SQLFeatureNotSupportedException();
-    }
-
-    @Override
-    public Reader getCharacterStream(String columnLabel) throws SQLException {
-        //TODO: SQLFeature Not Supported
-        throw new SQLFeatureNotSupportedException();
-    }
-
-    @Override
-    public BigDecimal getBigDecimal(int columnIndex) throws SQLException {
-        //TODO: SQLFeature Not Supported
-        throw new SQLFeatureNotSupportedException();
-    }
-
-    @Override
-    public BigDecimal getBigDecimal(String columnLabel) throws SQLException {
-        //TODO: SQLFeature Not Supported
-        throw new SQLFeatureNotSupportedException();
-    }
-
-    @Override
-    public boolean isBeforeFirst() throws SQLException {
-        //TODO: SQLFeature Not Supported
-        throw new SQLFeatureNotSupportedException();
-    }
-
-    @Override
-    public boolean isAfterLast() throws SQLException {
-        //TODO: SQLFeature Not Supported
-        throw new SQLFeatureNotSupportedException();
-    }
-
-    @Override
-    public boolean isFirst() throws SQLException {
-        //TODO: SQLFeature Not Supported
-        throw new SQLFeatureNotSupportedException();
-    }
-
-    @Override
-    public boolean isLast() throws SQLException {
-        //TODO: SQLFeature Not Supported
-        throw new SQLFeatureNotSupportedException();
-    }
-
-    @Override
-    public void beforeFirst() throws SQLException {
-        //TODO: SQLFeature Not Supported
-        throw new SQLFeatureNotSupportedException();
-    }
-
-    @Override
     public void afterLast() throws SQLException {
-        //TODO: SQLFeature Not Supported
-        throw new SQLFeatureNotSupportedException();
+        if (isClosed())
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_RESULTSET_CLOSED);
+        synchronized (this) {
+            if (this.resultSet.size() > 0) {
+                this.pos = this.resultSet.size();
+            }
+        }
     }
 
     @Override
     public boolean first() throws SQLException {
-        //TODO: SQLFeature Not Supported
-        throw new SQLFeatureNotSupportedException();
+        if (isClosed())
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_RESULTSET_CLOSED);
+
+        if (this.resultSet.size() == 0)
+            return false;
+
+        synchronized (this) {
+            this.pos = 0;
+        }
+        return true;
     }
 
     @Override
     public boolean last() throws SQLException {
-        //TODO: SQLFeature Not Supported
-        throw new SQLFeatureNotSupportedException();
+        if (isClosed())
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_RESULTSET_CLOSED);
+        if (this.resultSet.size() == 0)
+            return false;
+        synchronized (this) {
+            this.pos = this.resultSet.size() - 1;
+        }
+        return true;
     }
 
     @Override
     public int getRow() throws SQLException {
-        //TODO: SQLFeature Not Supported
-        throw new SQLFeatureNotSupportedException();
+        if (isClosed())
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_RESULTSET_CLOSED);
+        int row;
+        synchronized (this) {
+            if (this.pos < 0 || this.pos >= this.resultSet.size())
+                return 0;
+            row = this.pos + 1;
+        }
+        return row;
     }
 
     @Override
     public boolean absolute(int row) throws SQLException {
-        //TODO: SQLFeature Not Supported
-        throw new SQLFeatureNotSupportedException();
+        if (isClosed())
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_RESULTSET_CLOSED);
+
+        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
     }
 
     @Override
     public boolean relative(int rows) throws SQLException {
-        //TODO: SQLFeature Not Supported
-        throw new SQLFeatureNotSupportedException();
+        if (isClosed())
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_RESULTSET_CLOSED);
+
+        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
     }
 
     @Override
     public boolean previous() throws SQLException {
-        //TODO: SQLFeature Not Supported
-        throw new SQLFeatureNotSupportedException();
-    }
+        if (isClosed())
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_RESULTSET_CLOSED);
 
-    @Override
-    public void setFetchDirection(int direction) throws SQLException {
-        //TODO: SQLFeature Not Supported
-        throw new SQLFeatureNotSupportedException();
-    }
-
-    @Override
-    public int getFetchDirection() throws SQLException {
-        //TODO: SQLFeature Not Supported
-        throw new SQLFeatureNotSupportedException();
-    }
-
-    @Override
-    public void setFetchSize(int rows) throws SQLException {
-        //TODO: SQLFeature Not Supported
-        throw new SQLFeatureNotSupportedException();
-    }
-
-    @Override
-    public int getFetchSize() throws SQLException {
-        //TODO: SQLFeature Not Supported
-        throw new SQLFeatureNotSupportedException();
-    }
-
-    @Override
-    public int getType() throws SQLException {
-        //TODO: SQLFeature Not Supported
-        throw new SQLFeatureNotSupportedException();
-    }
-
-    @Override
-    public int getConcurrency() throws SQLException {
-        //TODO: SQLFeature Not Supported
-        throw new SQLFeatureNotSupportedException();
-    }
-
-    @Override
-    public boolean rowUpdated() throws SQLException {
-        //TODO: SQLFeature Not Supported
-        throw new SQLFeatureNotSupportedException();
-    }
-
-    @Override
-    public boolean rowInserted() throws SQLException {
-        //TODO: SQLFeature Not Supported
-        throw new SQLFeatureNotSupportedException();
-    }
-
-    @Override
-    public boolean rowDeleted() throws SQLException {
-        //TODO: SQLFeature Not Supported
-        throw new SQLFeatureNotSupportedException();
-    }
-
-    @Override
-    public void updateNull(int columnIndex) throws SQLException {
-        //TODO: SQLFeature Not Supported
-        throw new SQLFeatureNotSupportedException();
-    }
-
-    @Override
-    public void updateBoolean(int columnIndex, boolean x) throws SQLException {
-        //TODO: SQLFeature Not Supported
-        throw new SQLFeatureNotSupportedException();
-    }
-
-    @Override
-    public void updateByte(int columnIndex, byte x) throws SQLException {
-        //TODO: SQLFeature Not Supported
-        throw new SQLFeatureNotSupportedException();
-    }
-
-    @Override
-    public void updateShort(int columnIndex, short x) throws SQLException {
-        //TODO: SQLFeature Not Supported
-        throw new SQLFeatureNotSupportedException();
-    }
-
-    @Override
-    public void updateInt(int columnIndex, int x) throws SQLException {
-        //TODO: SQLFeature Not Supported
-        throw new SQLFeatureNotSupportedException();
-    }
-
-    @Override
-    public void updateLong(int columnIndex, long x) throws SQLException {
-        //TODO: SQLFeature Not Supported
-        throw new SQLFeatureNotSupportedException();
-    }
-
-    @Override
-    public void updateFloat(int columnIndex, float x) throws SQLException {
-        //TODO: SQLFeature Not Supported
-        throw new SQLFeatureNotSupportedException();
-    }
-
-    @Override
-    public void updateDouble(int columnIndex, double x) throws SQLException {
-        //TODO: SQLFeature Not Supported
-        throw new SQLFeatureNotSupportedException();
-    }
-
-    @Override
-    public void updateBigDecimal(int columnIndex, BigDecimal x) throws SQLException {
-        //TODO: SQLFeature Not Supported
-        throw new SQLFeatureNotSupportedException();
-    }
-
-    @Override
-    public void updateString(int columnIndex, String x) throws SQLException {
-        //TODO: SQLFeature Not Supported
-        throw new SQLFeatureNotSupportedException();
-    }
-
-    @Override
-    public void updateBytes(int columnIndex, byte[] x) throws SQLException {
-        //TODO: SQLFeature Not Supported
-        throw new SQLFeatureNotSupportedException();
-    }
-
-    @Override
-    public void updateDate(int columnIndex, Date x) throws SQLException {
-        //TODO: SQLFeature Not Supported
-        throw new SQLFeatureNotSupportedException();
-    }
-
-    @Override
-    public void updateTime(int columnIndex, Time x) throws SQLException {
-        //TODO: SQLFeature Not Supported
-        throw new SQLFeatureNotSupportedException();
-    }
-
-    @Override
-    public void updateTimestamp(int columnIndex, Timestamp x) throws SQLException {
-        //TODO: SQLFeature Not Supported
-        throw new SQLFeatureNotSupportedException();
-    }
-
-    @Override
-    public void updateAsciiStream(int columnIndex, InputStream x, int length) throws SQLException {
-        //TODO: SQLFeature Not Supported
-        throw new SQLFeatureNotSupportedException();
-    }
-
-    @Override
-    public void updateBinaryStream(int columnIndex, InputStream x, int length) throws SQLException {
-        //TODO: SQLFeature Not Supported
-        throw new SQLFeatureNotSupportedException();
-    }
-
-    @Override
-    public void updateCharacterStream(int columnIndex, Reader x, int length) throws SQLException {
-        //TODO: SQLFeature Not Supported
-        throw new SQLFeatureNotSupportedException();
-    }
-
-    @Override
-    public void updateObject(int columnIndex, Object x, int scaleOrLength) throws SQLException {
-        //TODO: SQLFeature Not Supported
-        throw new SQLFeatureNotSupportedException();
-    }
-
-    @Override
-    public void updateObject(int columnIndex, Object x) throws SQLException {
-        //TODO: SQLFeature Not Supported
-        throw new SQLFeatureNotSupportedException();
-    }
-
-    @Override
-    public void updateNull(String columnLabel) throws SQLException {
-        //TODO: SQLFeature Not Supported
-        throw new SQLFeatureNotSupportedException();
-    }
-
-    @Override
-    public void updateBoolean(String columnLabel, boolean x) throws SQLException {
-        //TODO: SQLFeature Not Supported
-        throw new SQLFeatureNotSupportedException();
-    }
-
-    @Override
-    public void updateByte(String columnLabel, byte x) throws SQLException {
-        //TODO: SQLFeature Not Supported
-        throw new SQLFeatureNotSupportedException();
-    }
-
-    @Override
-    public void updateShort(String columnLabel, short x) throws SQLException {
-        //TODO: SQLFeature Not Supported
-        throw new SQLFeatureNotSupportedException();
-    }
-
-    @Override
-    public void updateInt(String columnLabel, int x) throws SQLException {
-        //TODO: SQLFeature Not Supported
-        throw new SQLFeatureNotSupportedException();
-    }
-
-    @Override
-    public void updateLong(String columnLabel, long x) throws SQLException {
-        //TODO: SQLFeature Not Supported
-        throw new SQLFeatureNotSupportedException();
-    }
-
-    @Override
-    public void updateFloat(String columnLabel, float x) throws SQLException {
-        //TODO: SQLFeature Not Supported
-        throw new SQLFeatureNotSupportedException();
-    }
-
-    @Override
-    public void updateDouble(String columnLabel, double x) throws SQLException {
-        //TODO: SQLFeature Not Supported
-        throw new SQLFeatureNotSupportedException();
-    }
-
-    @Override
-    public void updateBigDecimal(String columnLabel, BigDecimal x) throws SQLException {
-        //TODO: SQLFeature Not Supported
-        throw new SQLFeatureNotSupportedException();
-    }
-
-    @Override
-    public void updateString(String columnLabel, String x) throws SQLException {
-        //TODO: SQLFeature Not Supported
-        throw new SQLFeatureNotSupportedException();
-    }
-
-    @Override
-    public void updateBytes(String columnLabel, byte[] x) throws SQLException {
-        //TODO: SQLFeature Not Supported
-        throw new SQLFeatureNotSupportedException();
-    }
-
-    @Override
-    public void updateDate(String columnLabel, Date x) throws SQLException {
-        //TODO: SQLFeature Not Supported
-        throw new SQLFeatureNotSupportedException();
-    }
-
-    @Override
-    public void updateTime(String columnLabel, Time x) throws SQLException {
-        //TODO: SQLFeature Not Supported
-        throw new SQLFeatureNotSupportedException();
-    }
-
-    @Override
-    public void updateTimestamp(String columnLabel, Timestamp x) throws SQLException {
-        //TODO: SQLFeature Not Supported
-        throw new SQLFeatureNotSupportedException();
-    }
-
-    @Override
-    public void updateAsciiStream(String columnLabel, InputStream x, int length) throws SQLException {
-        //TODO: SQLFeature Not Supported
-        throw new SQLFeatureNotSupportedException();
-    }
-
-    @Override
-    public void updateBinaryStream(String columnLabel, InputStream x, int length) throws SQLException {
-        //TODO: SQLFeature Not Supported
-        throw new SQLFeatureNotSupportedException();
-    }
-
-    @Override
-    public void updateCharacterStream(String columnLabel, Reader reader, int length) throws SQLException {
-        //TODO: SQLFeature Not Supported
-        throw new SQLFeatureNotSupportedException();
-    }
-
-    @Override
-    public void updateObject(String columnLabel, Object x, int scaleOrLength) throws SQLException {
-        //TODO: SQLFeature Not Supported
-        throw new SQLFeatureNotSupportedException();
-    }
-
-    @Override
-    public void updateObject(String columnLabel, Object x) throws SQLException {
-        //TODO: SQLFeature Not Supported
-        throw new SQLFeatureNotSupportedException();
-    }
-
-    @Override
-    public void insertRow() throws SQLException {
-        //TODO: SQLFeature Not Supported
-        throw new SQLFeatureNotSupportedException();
-    }
-
-    @Override
-    public void updateRow() throws SQLException {
-        //TODO: SQLFeature Not Supported
-        throw new SQLFeatureNotSupportedException();
-    }
-
-    @Override
-    public void deleteRow() throws SQLException {
-        //TODO: SQLFeature Not Supported
-        throw new SQLFeatureNotSupportedException();
-    }
-
-    @Override
-    public void refreshRow() throws SQLException {
-        //TODO: SQLFeature Not Supported
-        throw new SQLFeatureNotSupportedException();
-    }
-
-    @Override
-    public void cancelRowUpdates() throws SQLException {
-        //TODO: SQLFeature Not Supported
-        throw new SQLFeatureNotSupportedException();
-    }
-
-    @Override
-    public void moveToInsertRow() throws SQLException {
-        //TODO: SQLFeature Not Supported
-        throw new SQLFeatureNotSupportedException();
-    }
-
-    @Override
-    public void moveToCurrentRow() throws SQLException {
-        //TODO: SQLFeature Not Supported
-        throw new SQLFeatureNotSupportedException();
-    }
-
-    @Override
-    public Statement getStatement() throws SQLException {
-        //TODO: SQLFeature Not Supported
-        throw new SQLFeatureNotSupportedException();
-    }
-
-    @Override
-    public Object getObject(int columnIndex, Map<String, Class<?>> map) throws SQLException {
-        //TODO: SQLFeature Not Supported
-        throw new SQLFeatureNotSupportedException();
-    }
-
-    @Override
-    public Ref getRef(int columnIndex) throws SQLException {
-        //TODO: SQLFeature Not Supported
-        throw new SQLFeatureNotSupportedException();
-    }
-
-    @Override
-    public Blob getBlob(int columnIndex) throws SQLException {
-        return null;
-    }
-
-    @Override
-    public Clob getClob(int columnIndex) throws SQLException {
-        //TODO: SQLFeature Not Supported
-        throw new SQLFeatureNotSupportedException();
-    }
-
-    @Override
-    public Array getArray(int columnIndex) throws SQLException {
-        //TODO: SQLFeature Not Supported
-        throw new SQLFeatureNotSupportedException();
-    }
-
-    @Override
-    public Object getObject(String columnLabel, Map<String, Class<?>> map) throws SQLException {
-        //TODO: SQLFeature Not Supported
-        throw new SQLFeatureNotSupportedException();
-    }
-
-    @Override
-    public Ref getRef(String columnLabel) throws SQLException {
-        //TODO: SQLFeature Not Supported
-        throw new SQLFeatureNotSupportedException();
-    }
-
-    @Override
-    public Blob getBlob(String columnLabel) throws SQLException {
-        //TODO: SQLFeature Not Supported
-        throw new SQLFeatureNotSupportedException();
-    }
-
-    @Override
-    public Clob getClob(String columnLabel) throws SQLException {
-        //TODO: SQLFeature Not Supported
-        throw new SQLFeatureNotSupportedException();
-    }
-
-    @Override
-    public Array getArray(String columnLabel) throws SQLException {
-        //TODO: SQLFeature Not Supported
-        throw new SQLFeatureNotSupportedException();
-    }
-
-    @Override
-    public Date getDate(int columnIndex, Calendar cal) throws SQLException {
-        //TODO: SQLFeature Not Supported
-        throw new SQLFeatureNotSupportedException();
-    }
-
-    @Override
-    public Date getDate(String columnLabel, Calendar cal) throws SQLException {
-        //TODO: SQLFeature Not Supported
-        throw new SQLFeatureNotSupportedException();
-    }
-
-    @Override
-    public Time getTime(int columnIndex, Calendar cal) throws SQLException {
-        //TODO: SQLFeature Not Supported
-        throw new SQLFeatureNotSupportedException();
-    }
-
-    @Override
-    public Time getTime(String columnLabel, Calendar cal) throws SQLException {
-        //TODO: SQLFeature Not Supported
-        throw new SQLFeatureNotSupportedException();
-    }
-
-    @Override
-    public Timestamp getTimestamp(int columnIndex, Calendar cal) throws SQLException {
-        //TODO: SQLFeature Not Supported
-        throw new SQLFeatureNotSupportedException();
-    }
-
-    @Override
-    public Timestamp getTimestamp(String columnLabel, Calendar cal) throws SQLException {
-        //TODO: SQLFeature Not Supported
-        throw new SQLFeatureNotSupportedException();
-    }
-
-    @Override
-    public URL getURL(int columnIndex) throws SQLException {
-        //TODO: SQLFeature Not Supported
-        throw new SQLFeatureNotSupportedException();
-    }
-
-    @Override
-    public URL getURL(String columnLabel) throws SQLException {
-        //TODO: SQLFeature Not Supported
-        throw new SQLFeatureNotSupportedException();
-    }
-
-    @Override
-    public void updateRef(int columnIndex, Ref x) throws SQLException {
-        //TODO: SQLFeature Not Supported
-        throw new SQLFeatureNotSupportedException();
-    }
-
-    @Override
-    public void updateRef(String columnLabel, Ref x) throws SQLException {
-        //TODO: SQLFeature Not Supported
-        throw new SQLFeatureNotSupportedException();
-    }
-
-    @Override
-    public void updateBlob(int columnIndex, Blob x) throws SQLException {
-        //TODO: SQLFeature Not Supported
-        throw new SQLFeatureNotSupportedException();
-    }
-
-    @Override
-    public void updateBlob(String columnLabel, Blob x) throws SQLException {
-        //TODO: SQLFeature Not Supported
-        throw new SQLFeatureNotSupportedException();
-    }
-
-    @Override
-    public void updateClob(int columnIndex, Clob x) throws SQLException {
-        //TODO: SQLFeature Not Supported
-        throw new SQLFeatureNotSupportedException();
-    }
-
-    @Override
-    public void updateClob(String columnLabel, Clob x) throws SQLException {
-        //TODO: SQLFeature Not Supported
-        throw new SQLFeatureNotSupportedException();
-    }
-
-    @Override
-    public void updateArray(int columnIndex, Array x) throws SQLException {
-        //TODO: SQLFeature Not Supported
-        throw new SQLFeatureNotSupportedException();
-    }
-
-    @Override
-    public void updateArray(String columnLabel, Array x) throws SQLException {
-        //TODO: SQLFeature Not Supported
-        throw new SQLFeatureNotSupportedException();
-    }
-
-    @Override
-    public RowId getRowId(int columnIndex) throws SQLException {
-        //TODO: SQLFeature Not Supported
-        throw new SQLFeatureNotSupportedException();
-    }
-
-    @Override
-    public RowId getRowId(String columnLabel) throws SQLException {
-        return null;
-    }
-
-    @Override
-    public void updateRowId(int columnIndex, RowId x) throws SQLException {
-        //TODO: SQLFeature Not Supported
-        throw new SQLFeatureNotSupportedException();
-    }
-
-    @Override
-    public void updateRowId(String columnLabel, RowId x) throws SQLException {
-        //TODO: SQLFeature Not Supported
-        throw new SQLFeatureNotSupportedException();
-    }
-
-    @Override
-    public int getHoldability() throws SQLException {
-//        return 0;
-        //TODO: SQLFeature Not Supported
-        throw new SQLFeatureNotSupportedException();
-    }
-
-    @Override
-    public boolean isClosed() throws SQLException {
-        return false;
-        //TODO: SQLFeature Not Supported
-//        throw new SQLFeatureNotSupportedException();
-    }
-
-    @Override
-    public void updateNString(int columnIndex, String nString) throws SQLException {
-        //TODO: SQLFeature Not Supported
-        throw new SQLFeatureNotSupportedException();
-    }
-
-    @Override
-    public void updateNString(String columnLabel, String nString) throws SQLException {
-        //TODO: SQLFeature Not Supported
-        throw new SQLFeatureNotSupportedException();
-    }
-
-    @Override
-    public void updateNClob(int columnIndex, NClob nClob) throws SQLException {
-        //TODO: SQLFeature Not Supported
-        throw new SQLFeatureNotSupportedException();
-    }
-
-    @Override
-    public void updateNClob(String columnLabel, NClob nClob) throws SQLException {
-        //TODO: SQLFeature Not Supported
-        throw new SQLFeatureNotSupportedException();
-    }
-
-    @Override
-    public NClob getNClob(int columnIndex) throws SQLException {
-        //TODO: SQLFeature Not Supported
-        throw new SQLFeatureNotSupportedException();
-    }
-
-    @Override
-    public NClob getNClob(String columnLabel) throws SQLException {
-        //TODO: SQLFeature Not Supported
-        throw new SQLFeatureNotSupportedException();
-    }
-
-    @Override
-    public SQLXML getSQLXML(int columnIndex) throws SQLException {
-        //TODO: SQLFeature Not Supported
-        throw new SQLFeatureNotSupportedException();
-    }
-
-    @Override
-    public SQLXML getSQLXML(String columnLabel) throws SQLException {
-        //TODO: SQLFeature Not Supported
-        throw new SQLFeatureNotSupportedException();
-    }
-
-    @Override
-    public void updateSQLXML(int columnIndex, SQLXML xmlObject) throws SQLException {
-        //TODO: SQLFeature Not Supported
-        throw new SQLFeatureNotSupportedException();
-    }
-
-    @Override
-    public void updateSQLXML(String columnLabel, SQLXML xmlObject) throws SQLException {
-        //TODO: SQLFeature Not Supported
-        throw new SQLFeatureNotSupportedException();
+        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
     }
 
     @Override
     public String getNString(int columnIndex) throws SQLException {
-        //TODO: SQLFeature Not Supported
-        throw new SQLFeatureNotSupportedException();
+        return getString(columnIndex);
     }
 
     @Override
-    public String getNString(String columnLabel) throws SQLException {
-        //TODO: SQLFeature Not Supported
-        throw new SQLFeatureNotSupportedException();
+    public Statement getStatement() throws SQLException {
+        if (isClosed())
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_RESULTSET_CLOSED);
+
+        return this.statement;
     }
 
     @Override
-    public Reader getNCharacterStream(int columnIndex) throws SQLException {
-        //TODO: SQLFeature Not Supported
-        throw new SQLFeatureNotSupportedException();
+    public Timestamp getTimestamp(int columnIndex, Calendar cal) throws SQLException {
+        //TODO：did not use the specified timezone in cal
+        return getTimestamp(columnIndex);
     }
 
     @Override
-    public Reader getNCharacterStream(String columnLabel) throws SQLException {
-        //TODO: SQLFeature Not Supported
-        throw new SQLFeatureNotSupportedException();
+    public boolean isClosed() throws SQLException {
+        return isClosed;
     }
 
-    @Override
-    public void updateNCharacterStream(int columnIndex, Reader x, long length) throws SQLException {
-        //TODO: SQLFeature Not Supported
-        throw new SQLFeatureNotSupportedException();
-    }
-
-    @Override
-    public void updateNCharacterStream(String columnLabel, Reader reader, long length) throws SQLException {
-        //TODO: SQLFeature Not Supported
-        throw new SQLFeatureNotSupportedException();
-    }
-
-    @Override
-    public void updateAsciiStream(int columnIndex, InputStream x, long length) throws SQLException {
-        //TODO: SQLFeature Not Supported
-        throw new SQLFeatureNotSupportedException();
-    }
-
-    @Override
-    public void updateBinaryStream(int columnIndex, InputStream x, long length) throws SQLException {
-        //TODO: SQLFeature Not Supported
-        throw new SQLFeatureNotSupportedException();
-    }
-
-    @Override
-    public void updateCharacterStream(int columnIndex, Reader x, long length) throws SQLException {
-        //TODO: SQLFeature Not Supported
-        throw new SQLFeatureNotSupportedException();
-    }
-
-    @Override
-    public void updateAsciiStream(String columnLabel, InputStream x, long length) throws SQLException {
-        //TODO: SQLFeature Not Supported
-        throw new SQLFeatureNotSupportedException();
-    }
-
-    @Override
-    public void updateBinaryStream(String columnLabel, InputStream x, long length) throws SQLException {
-        //TODO: SQLFeature Not Supported
-        throw new SQLFeatureNotSupportedException();
-    }
-
-    @Override
-    public void updateCharacterStream(String columnLabel, Reader reader, long length) throws SQLException {
-        //TODO: SQLFeature Not Supported
-        throw new SQLFeatureNotSupportedException();
-    }
-
-    @Override
-    public void updateBlob(int columnIndex, InputStream inputStream, long length) throws SQLException {
-        //TODO: SQLFeature Not Supported
-        throw new SQLFeatureNotSupportedException();
-    }
-
-    @Override
-    public void updateBlob(String columnLabel, InputStream inputStream, long length) throws SQLException {
-        //TODO: SQLFeature Not Supported
-        throw new SQLFeatureNotSupportedException();
-    }
-
-    @Override
-    public void updateClob(int columnIndex, Reader reader, long length) throws SQLException {
-        //TODO: SQLFeature Not Supported
-        throw new SQLFeatureNotSupportedException();
-    }
-
-    @Override
-    public void updateClob(String columnLabel, Reader reader, long length) throws SQLException {
-        //TODO: SQLFeature Not Supported
-        throw new SQLFeatureNotSupportedException();
-    }
-
-    @Override
-    public void updateNClob(int columnIndex, Reader reader, long length) throws SQLException {
-        //TODO: SQLFeature Not Supported
-        throw new SQLFeatureNotSupportedException();
-    }
-
-    @Override
-    public void updateNClob(String columnLabel, Reader reader, long length) throws SQLException {
-        //TODO: SQLFeature Not Supported
-        throw new SQLFeatureNotSupportedException();
-    }
-
-    @Override
-    public void updateNCharacterStream(int columnIndex, Reader x) throws SQLException {
-        //TODO: SQLFeature Not Supported
-        throw new SQLFeatureNotSupportedException();
-    }
-
-    @Override
-    public void updateNCharacterStream(String columnLabel, Reader reader) throws SQLException {
-        //TODO: SQLFeature Not Supported
-        throw new SQLFeatureNotSupportedException();
-    }
-
-    @Override
-    public void updateAsciiStream(int columnIndex, InputStream x) throws SQLException {
-        //TODO: SQLFeature Not Supported
-        throw new SQLFeatureNotSupportedException();
-    }
-
-    @Override
-    public void updateBinaryStream(int columnIndex, InputStream x) throws SQLException {
-        //TODO: SQLFeature Not Supported
-        throw new SQLFeatureNotSupportedException();
-    }
-
-    @Override
-    public void updateCharacterStream(int columnIndex, Reader x) throws SQLException {
-        //TODO: SQLFeature Not Supported
-        throw new SQLFeatureNotSupportedException();
-    }
-
-    @Override
-    public void updateAsciiStream(String columnLabel, InputStream x) throws SQLException {
-        //TODO: SQLFeature Not Supported
-        throw new SQLFeatureNotSupportedException();
-    }
-
-    @Override
-    public void updateBinaryStream(String columnLabel, InputStream x) throws SQLException {
-        //TODO: SQLFeature Not Supported
-        throw new SQLFeatureNotSupportedException();
-    }
-
-    @Override
-    public void updateCharacterStream(String columnLabel, Reader reader) throws SQLException {
-        //TODO: SQLFeature Not Supported
-        throw new SQLFeatureNotSupportedException();
-    }
-
-    @Override
-    public void updateBlob(int columnIndex, InputStream inputStream) throws SQLException {
-        //TODO: SQLFeature Not Supported
-        throw new SQLFeatureNotSupportedException();
-    }
-
-    @Override
-    public void updateBlob(String columnLabel, InputStream inputStream) throws SQLException {
-        //TODO: SQLFeature Not Supported
-        throw new SQLFeatureNotSupportedException();
-    }
-
-    @Override
-    public void updateClob(int columnIndex, Reader reader) throws SQLException {
-        //TODO: SQLFeature Not Supported
-        throw new SQLFeatureNotSupportedException();
-    }
-
-    @Override
-    public void updateClob(String columnLabel, Reader reader) throws SQLException {
-        //TODO: SQLFeature Not Supported
-        throw new SQLFeatureNotSupportedException();
-    }
-
-    @Override
-    public void updateNClob(int columnIndex, Reader reader) throws SQLException {
-        //TODO: SQLFeature Not Supported
-        throw new SQLFeatureNotSupportedException();
-    }
-
-    @Override
-    public void updateNClob(String columnLabel, Reader reader) throws SQLException {
-        //TODO: SQLFeature Not Supported
-        throw new SQLFeatureNotSupportedException();
-    }
-
-    @Override
-    public <T> T getObject(int columnIndex, Class<T> type) throws SQLException {
-        //TODO: SQLFeature Not Supported
-        throw new SQLFeatureNotSupportedException();
-    }
-
-    @Override
-    public <T> T getObject(String columnLabel, Class<T> type) throws SQLException {
-        //TODO: SQLFeature Not Supported
-        throw new SQLFeatureNotSupportedException();
-    }
-
-    @Override
-    public <T> T unwrap(Class<T> iface) throws SQLException {
-        //TODO: SQLFeature Not Supported
-        throw new SQLFeatureNotSupportedException();
-    }
-
-    @Override
-    public boolean isWrapperFor(Class<?> iface) throws SQLException {
-        //TODO: SQLFeature Not Supported
-        throw new SQLFeatureNotSupportedException();
-    }
 }

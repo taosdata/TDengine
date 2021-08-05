@@ -46,7 +46,9 @@ int32_t taosSetNonblocking(SOCKET sock, int32_t on) {
   return 0;
 }
 
+void taosIgnSIGPIPE() {}
 void taosBlockSIGPIPE() {}
+void taosSetMaskSIGPIPE() {}
 
 int32_t taosSetSockOpt(SOCKET socketfd, int32_t level, int32_t optname, void *optval, int32_t optlen) {
   if (level == SOL_SOCKET && optname == TCP_KEEPCNT) {
@@ -68,7 +70,8 @@ int32_t taosSetSockOpt(SOCKET socketfd, int32_t level, int32_t optname, void *op
   return setsockopt(socketfd, level, optname, optval, optlen);
 }
 
-#ifdef TAOS_OS_FUNC_SOCKET_INET
+#ifdef _MSC_VER
+//#if _MSC_VER >= 1900
 
 uint32_t taosInetAddr(char *ipAddr) {
   uint32_t value;
@@ -85,5 +88,12 @@ const char *taosInetNtoa(struct in_addr ipInt) {
   static char tmpDstStr[16];
   return inet_ntop(AF_INET, &ipInt, tmpDstStr, INET6_ADDRSTRLEN);
 }
+
+//#endif
+#endif
+
+#if defined(_TD_GO_DLL_)
+
+uint64_t htonll(uint64_t val) { return (((uint64_t)htonl(val)) << 32) + htonl(val >> 32); }
 
 #endif

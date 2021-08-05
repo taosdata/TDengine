@@ -19,12 +19,16 @@
 
 extern char configDir[];
 
+void printVersion() {
+  printf("version: %s\n", version);
+}
+
 void printHelp() {
   char indent[10] = "        ";
   printf("taos shell is used to test the TDengine database\n");
 
   printf("%s%s\n", indent, "-h");
-  printf("%s%s%s\n", indent, indent, "TDengine server IP address to connect. The default host is localhost.");
+  printf("%s%s%s\n", indent, indent, "TDengine server FQDN to connect. The default host is localhost.");
   printf("%s%s\n", indent, "-p");
   printf("%s%s%s\n", indent, indent, "The password to use when connecting to the server.");
   printf("%s%s\n", indent, "-P");
@@ -48,9 +52,11 @@ void printHelp() {
   printf("%s%s\n", indent, "-t");
   printf("%s%s%s\n", indent, indent, "Time zone of the shell, default is local.");
   printf("%s%s\n", indent, "-n");
-  printf("%s%s%s\n", indent, indent, "Net role when network connectivity test, default is startup, options: client|server|rpc|startup.");
+  printf("%s%s%s\n", indent, indent, "Net role when network connectivity test, default is startup, options: client|server|rpc|startup|sync.");
   printf("%s%s\n", indent, "-l");
   printf("%s%s%s\n", indent, indent, "Packet length used for net test, default is 1000 bytes.");
+  printf("%s%s\n", indent, "-V");
+  printf("%s%s%s\n", indent, indent, "Print program version.");
 
   exit(EXIT_SUCCESS);
 }
@@ -69,6 +75,9 @@ void shellParseArgument(int argc, char *argv[], SShellArguments *arguments) {
     // for password
     else if (strcmp(argv[i], "-p") == 0) {
       arguments->is_use_passwd = true;
+      if (i < argc - 1 && argv[i + 1][0] != '-') {
+        arguments->password = argv[++i];
+      }
     }
     // for management port
     else if (strcmp(argv[i], "-P") == 0) {
@@ -145,7 +154,6 @@ void shellParseArgument(int argc, char *argv[], SShellArguments *arguments) {
         exit(EXIT_FAILURE);
       }
     }
-    // For time zone
     else if (strcmp(argv[i], "-n") == 0) {
       if (i < argc - 1) {
         arguments->netTestRole = argv[++i];
@@ -154,7 +162,6 @@ void shellParseArgument(int argc, char *argv[], SShellArguments *arguments) {
         exit(EXIT_FAILURE);
       }
     }
-    // For time zone
     else if (strcmp(argv[i], "-l") == 0) {
       if (i < argc - 1) {
         arguments->pktLen = atoi(argv[++i]);
@@ -163,10 +170,14 @@ void shellParseArgument(int argc, char *argv[], SShellArguments *arguments) {
         exit(EXIT_FAILURE);
       }
     }
+    else if (strcmp(argv[i], "-V") == 0) {
+      printVersion();
+      exit(EXIT_SUCCESS);
+    }
     // For temperory command TODO
     else if (strcmp(argv[i], "--help") == 0) {
       printHelp();
-      exit(EXIT_FAILURE);
+      exit(EXIT_SUCCESS);
     } else {
       fprintf(stderr, "wrong options\n");
       printHelp();
@@ -188,15 +199,19 @@ void updateBuffer(Command *cmd) {
 }
 
 int isReadyGo(Command *cmd) {
-  char total[MAX_COMMAND_SIZE];
+  char *total = malloc(MAX_COMMAND_SIZE);
   memset(total, 0, MAX_COMMAND_SIZE);
   sprintf(total, "%s%s", cmd->buffer, cmd->command);
 
   char *reg_str =
       "(^.*;\\s*$)|(^\\s*$)|(^\\s*exit\\s*$)|(^\\s*q\\s*$)|(^\\s*quit\\s*$)|(^"
       "\\s*clear\\s*$)";
-  if (regex_match(total, reg_str, REG_EXTENDED | REG_ICASE)) return 1;
+  if (regex_match(total, reg_str, REG_EXTENDED | REG_ICASE)) {
+    free(total);
+    return 1;
+  }
 
+  free(total);
   return 0;
 }
 
@@ -210,7 +225,7 @@ void insertChar(Command *cmd, char c) {
   cmd->command[cmd->cursorOffset++] = c;
 }
 
-void shellReadCommand(TAOS *con, char command[]) {
+int32_t shellReadCommand(TAOS *con, char command[]) {
   Command cmd;
   memset(&cmd, 0, sizeof(cmd));
   cmd.buffer = (char *)calloc(1, MAX_COMMAND_SIZE);
@@ -230,7 +245,7 @@ void shellReadCommand(TAOS *con, char command[]) {
           cmd.buffer = NULL;
           free(cmd.command);
           cmd.command = NULL;
-          return;
+          return 0;
         } else {
           shellPrintContinuePrompt();
           updateBuffer(&cmd);
@@ -240,6 +255,8 @@ void shellReadCommand(TAOS *con, char command[]) {
         insertChar(&cmd, c);
     }
   }
+
+  return 0;
 }
 
 void *shellLoopQuery(void *arg) {
@@ -247,12 +264,17 @@ void *shellLoopQuery(void *arg) {
   char *command = malloc(MAX_COMMAND_SIZE);
   if (command == NULL) return NULL;
 
+  int32_t err = 0;
+  
   do {
     memset(command, 0, MAX_COMMAND_SIZE);
     shellPrintPrompt();
 
     // Read command from shell.
-    shellReadCommand(con, command);
+    err = shellReadCommand(con, command);
+    if (err) {
+      break;
+    }    
   } while (shellRunCommand(con, command) == 0);
 
   return NULL;

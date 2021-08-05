@@ -3,7 +3,7 @@ system sh/deploy.sh -n dnode1 -i 1
 system sh/cfg.sh -n dnode1 -c wallevel -v 0
 system sh/exec.sh -n dnode1 -s start
 
-sleep 3000
+sleep 2000
 sql connect
 
 print ============= step1

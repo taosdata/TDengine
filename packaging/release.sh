@@ -1,17 +1,17 @@
 #!/bin/bash
 #
-# Generate the deb package for ubunt, or rpm package for centos, or tar.gz package for other linux os
+# Generate the deb package for ubuntu, or rpm package for centos, or tar.gz package for other linux os
 
 set -e
 #set -x
 
-# releash.sh  -v [cluster | edge]  
-#             -c [aarch32 | aarch64 | x64 | x86 | mips64 ...] 
+# release.sh  -v [cluster | edge]
+#             -c [aarch32 | aarch64 | x64 | x86 | mips64 ...]
 #             -o [Linux | Kylin | Alpine | Raspberrypi | Darwin | Windows | Ningsi60 | Ningsi80 |...]
 #             -V [stable | beta]
 #             -l [full | lite]
 #             -s [static | dynamic]
-#             -d [taos | power]
+#             -d [taos | power | tq ]
 #             -n [2.0.0.3]
 #             -m [2.0.0.0]
 
@@ -22,11 +22,12 @@ cpuType=x64      # [aarch32 | aarch64 | x64 | x86 | mips64 ...]
 osType=Linux     # [Linux | Kylin | Alpine | Raspberrypi | Darwin | Windows | Ningsi60 | Ningsi80 |...]
 pagMode=full     # [full | lite]
 soMode=dynamic   # [static | dynamic]
-dbName=taos      # [taos | power]
+dbName=taos      # [taos | power | tq]
+allocator=glibc  # [glibc | jemalloc]
 verNumber=""
-verNumberComp="2.0.0.0"
+verNumberComp="1.0.0.0"
 
-while getopts "hv:V:c:o:l:s:d:n:m:" arg
+while getopts "hv:V:c:o:l:s:d:a:n:m:" arg
 do
   case $arg in
     v)
@@ -53,6 +54,10 @@ do
       #echo "dbName=$OPTARG"
       dbName=$(echo $OPTARG)
       ;;
+    a)
+      #echo "allocator=$OPTARG"
+      allocator=$(echo $OPTARG)
+      ;;
     n)
       #echo "verNumber=$OPTARG"
       verNumber=$(echo $OPTARG)
@@ -71,20 +76,21 @@ do
       echo "                  -o [Linux | Kylin | Alpine | Raspberrypi | Darwin | Windows | Ningsi60 | Ningsi80 |...] "
       echo "                  -V [stable | beta] "
       echo "                  -l [full | lite] "
+      echo "                  -a [glibc | jemalloc] "
       echo "                  -s [static | dynamic] "
-      echo "                  -d [taos | power] "
+      echo "                  -d [taos | power | tq ] "
       echo "                  -n [version number] "
       echo "                  -m [compatible version number] "
       exit 0
       ;;
-    ?) #unknow option 
+    ?) #unknow option
       echo "unkonw argument"
       exit 1
       ;;
   esac
 done
 
-echo "verMode=${verMode} verType=${verType} cpuType=${cpuType} osType=${osType} pagMode=${pagMode} soMode=${soMode} dbName=${dbName} verNumber=${verNumber} verNumberComp=${verNumberComp}"
+echo "verMode=${verMode} verType=${verType} cpuType=${cpuType} osType=${osType} pagMode=${pagMode} soMode=${soMode} dbName=${dbName} allocator=${allocator} verNumber=${verNumber} verNumberComp=${verNumberComp}"
 
 curr_dir=$(pwd)
 
@@ -118,7 +124,7 @@ function vercomp () {
     echo 0
     exit 0
   fi
-  
+
   local IFS=.
   local i ver1=($1) ver2=($2)
 
@@ -164,7 +170,7 @@ if [[ "$verMode" == "cluster" ]]; then
 else
   gitinfoOfInternal=NULL
 fi
-  
+
 cd ${curr_dir}
 
 # 2. cmake executable file
@@ -180,12 +186,18 @@ else
 fi
 cd ${compile_dir}
 
+if [[ "$allocator" == "jemalloc" ]]; then
+    allocator_macro="-DJEMALLOC_ENABLED=true"
+else
+    allocator_macro=""
+fi
+
 # check support cpu type
 if [[ "$cpuType" == "x64" ]] || [[ "$cpuType" == "aarch64" ]] || [[ "$cpuType" == "aarch32" ]] || [[ "$cpuType" == "mips64" ]] ; then
   if [ "$verMode" != "cluster" ]; then
-    cmake ../    -DCPUTYPE=${cpuType} -DOSTYPE=${osType} -DSOMODE=${soMode} -DDBNAME=${dbName} -DVERTYPE=${verType} -DVERDATE="${build_time}" -DGITINFO=${gitinfo} -DGITINFOI=${gitinfoOfInternal} -DVERNUMBER=${verNumber} -DVERCOMPATIBLE=${verNumberComp} -DPAGMODE=${pagMode}
+    cmake ../    -DCPUTYPE=${cpuType} -DOSTYPE=${osType} -DSOMODE=${soMode} -DDBNAME=${dbName} -DVERTYPE=${verType} -DVERDATE="${build_time}" -DGITINFO=${gitinfo} -DGITINFOI=${gitinfoOfInternal} -DVERNUMBER=${verNumber} -DVERCOMPATIBLE=${verNumberComp} -DPAGMODE=${pagMode} ${allocator_macro}
   else
-    cmake ../../ -DCPUTYPE=${cpuType} -DOSTYPE=${osType} -DSOMODE=${soMode} -DDBNAME=${dbName} -DVERTYPE=${verType} -DVERDATE="${build_time}" -DGITINFO=${gitinfo} -DGITINFOI=${gitinfoOfInternal} -DVERNUMBER=${verNumber} -DVERCOMPATIBLE=${verNumberComp}
+    cmake ../../ -DCPUTYPE=${cpuType} -DOSTYPE=${osType} -DSOMODE=${soMode} -DDBNAME=${dbName} -DVERTYPE=${verType} -DVERDATE="${build_time}" -DGITINFO=${gitinfo} -DGITINFOI=${gitinfoOfInternal} -DVERNUMBER=${verNumber} -DVERCOMPATIBLE=${verNumberComp} ${allocator_macro}
   fi
 else
   echo "input cpuType=${cpuType} error!!!"
@@ -199,9 +211,9 @@ cd ${curr_dir}
 # 3. Call the corresponding script for packaging
 if [ "$osType" != "Darwin" ]; then
   if [[ "$verMode" != "cluster" ]] && [[ "$cpuType" == "x64" ]] && [[ "$dbName" == "taos" ]]; then
-    ret='0'    
+    ret='0'
     command -v dpkg >/dev/null 2>&1 || { ret='1'; }
-    if [ "$ret" -eq 0 ]; then  
+    if [ "$ret" -eq 0 ]; then
       echo "====do deb package for the ubuntu system===="
       output_dir="${top_dir}/debs"
       if [ -d ${output_dir} ]; then
@@ -214,9 +226,9 @@ if [ "$osType" != "Darwin" ]; then
       echo "==========dpkg command not exist, so not release deb package!!!"
     fi
 
-    ret='0'    
+    ret='0'
     command -v rpmbuild >/dev/null 2>&1 || { ret='1'; }
-    if [ "$ret" -eq 0 ]; then  
+    if [ "$ret" -eq 0 ]; then
       echo "====do rpm package for the centos system===="
       output_dir="${top_dir}/rpms"
       if [ -d ${output_dir} ]; then
@@ -229,16 +241,20 @@ if [ "$osType" != "Darwin" ]; then
       echo "==========rpmbuild command not exist, so not release rpm package!!!"
     fi
   fi
-	
+
   echo "====do tar.gz package for all systems===="
   cd ${script_dir}/tools
-  
-  if [[ "$dbName" == "taos" ]]; then  
-    ${csudo} ./makepkg.sh    ${compile_dir} ${verNumber} "${build_time}" ${cpuType} ${osType} ${verMode} ${verType} ${pagMode}
+
+  if [[ "$dbName" == "taos" ]]; then
+    ${csudo} ./makepkg.sh    ${compile_dir} ${verNumber} "${build_time}" ${cpuType} ${osType} ${verMode} ${verType} ${pagMode} ${verNumberComp}
     ${csudo} ./makeclient.sh ${compile_dir} ${verNumber} "${build_time}" ${cpuType} ${osType} ${verMode} ${verType} ${pagMode}
     ${csudo} ./makearbi.sh   ${compile_dir} ${verNumber} "${build_time}" ${cpuType} ${osType} ${verMode} ${verType} ${pagMode}
+  elif [[ "$dbName" == "tq" ]]; then
+    ${csudo} ./makepkg_tq.sh    ${compile_dir} ${verNumber} "${build_time}" ${cpuType} ${osType} ${verMode} ${verType} ${pagMode} ${dbName} ${verNumberComp}
+    ${csudo} ./makeclient_tq.sh ${compile_dir} ${verNumber} "${build_time}" ${cpuType} ${osType} ${verMode} ${verType} ${pagMode} ${dbName}
+    ${csudo} ./makearbi_tq.sh   ${compile_dir} ${verNumber} "${build_time}" ${cpuType} ${osType} ${verMode} ${verType} ${pagMode}
   else
-    ${csudo} ./makepkg_power.sh    ${compile_dir} ${verNumber} "${build_time}" ${cpuType} ${osType} ${verMode} ${verType} ${pagMode} ${dbName}
+    ${csudo} ./makepkg_power.sh    ${compile_dir} ${verNumber} "${build_time}" ${cpuType} ${osType} ${verMode} ${verType} ${pagMode} ${dbName} ${verNumberComp}
     ${csudo} ./makeclient_power.sh ${compile_dir} ${verNumber} "${build_time}" ${cpuType} ${osType} ${verMode} ${verType} ${pagMode} ${dbName}
     ${csudo} ./makearbi_power.sh   ${compile_dir} ${verNumber} "${build_time}" ${cpuType} ${osType} ${verMode} ${verType} ${pagMode}
   fi

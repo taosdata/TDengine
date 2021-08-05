@@ -21,7 +21,6 @@ system sh/cfg.sh -n dnode5 -c maxTablesPerVnode -v 1000
 
 print =============== prepare data
 system sh/exec.sh -n dnode1 -s start
-sleep 3000
 sql connect
 
 $i = 0
@@ -92,8 +91,8 @@ system sh/exec.sh -n dnode2 -s start
 $x = 0
 show1: 
 	$x = $x + 1
-	sleep 3000
-	if $x == 10 then 
+	sleep 1000
+	if $x == 30 then 
 		return -1
 	endi
 	
@@ -108,7 +107,7 @@ if $data2_2 != 2 then
 endi
 
 sql reset query cache
-sleep 1000
+sleep 100
 
 sql select count(*) from t10
 print select count(*) from t10 $data00 expect $rowNum 
@@ -143,7 +142,6 @@ endi
 print ========== step2
 sql create dnode $hostname3
 system sh/exec.sh -n dnode3 -s start
-sleep 10000
 
 print ========== step3
 sql drop dnode $hostname2
@@ -151,8 +149,8 @@ sql drop dnode $hostname2
 $x = 0
 show3: 
 	$x = $x + 1
-	sleep 3000
-	if $x == 10 then 
+	sleep 1000
+	if $x == 30 then 
 		return -1
 	endi
 	
@@ -171,10 +169,9 @@ if $data2_3 != 2 then
 endi
 
 system sh/exec.sh -n dnode2 -s stop -x SIGINT
-sleep 5000
 
 sql reset query cache
-sleep 1000
+sleep 100
 
 sql select count(*) from t10
 print select count(*) from t10 $data00 expect $rowNum 
@@ -212,8 +209,8 @@ sql drop dnode $hostname3
 $x = 0
 show4: 
 	$x = $x + 1
-	sleep 3000
-	if $x == 10 then 
+	sleep 1000
+	if $x == 30 then 
 		return -1
 	endi
 	
@@ -228,10 +225,9 @@ if $data2_3 != null then
 endi
 
 system sh/exec.sh -n dnode3 -s stop -x SIGINT
-sleep 5000
 
 sql reset query cache
-sleep 1000
+sleep 100
 
 sql select count(*) from t10
 print select count(*) from t10 $data00 expect $rowNum 
@@ -267,14 +263,31 @@ print ========== step5
 system sh/exec.sh -n dnode4 -s start
 sql create dnode $hostname4
 
-sleep 3000
+$x = 0
+step5: 
+	$x = $x + 1
+	sleep 1000
+	if $x == 10 then
+		return -1
+	endi
+
+sql show dnodes
+print dnode1 $data4_1
+print dnode2 $data4_2
+print dnode3 $data4_3
+print dnode4 $data4_4
+
+if $data4_4 != ready then
+  goto step5
+endi
+
 sql alter database db replica 2
 
 $x = 0
 show5: 
 	$x = $x + 1
-	sleep 3000
-	if $x == 10 then 
+	sleep 1000
+	if $x == 30 then 
 		return -1
 	endi
 	
@@ -289,7 +302,7 @@ if $data2_4 != 4 then
 endi
 
 sql reset query cache
-sleep 1000
+sleep 100
 
 sql select count(*) from t10
 print select count(*) from t10 $data00 expect $rowNum 
@@ -321,16 +334,14 @@ if $data00 != $totalNum then
   goto show5
 endi
 
-
 print ========== step6
-sleep 3000
 sql alter database db replica 1
 
 $x = 0
 show6: 
 	$x = $x + 1
-	sleep 3000
-	if $x == 10 then 
+	sleep 1000
+	if $x == 30 then 
 		return -1
 	endi
 	
@@ -345,7 +356,7 @@ if $data2_4 != 2 then
 endi
 
 sql reset query cache
-sleep 1000
+sleep 100
 
 sql select count(*) from t10
 print select count(*) from t10 $data00 expect $rowNum 

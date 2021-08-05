@@ -1,15 +1,27 @@
 package com.taosdata.jdbc.rs;
 
+import com.taosdata.jdbc.TSDBConstants;
+import com.taosdata.jdbc.WrapperImpl;
+
 import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
+import java.sql.Timestamp;
+import java.sql.Types;
+import java.util.Collections;
 import java.util.List;
 
-public class RestfulResultSetMetaData implements ResultSetMetaData {
+public class RestfulResultSetMetaData extends WrapperImpl implements ResultSetMetaData {
 
-    private List<String> fields;
+    private final String database;
+    private final List<RestfulResultSet.Field> fields;
 
-    public RestfulResultSetMetaData(List<String> fields) {
-        this.fields = fields;
+    public RestfulResultSetMetaData(String database, List<RestfulResultSet.Field> fields, RestfulResultSet resultSet) {
+        this.database = database;
+        this.fields = fields == null ? Collections.emptyList() : fields;
+    }
+
+    public List<RestfulResultSet.Field> getFields() {
+        return fields;
     }
 
     @Override
@@ -29,7 +41,7 @@ public class RestfulResultSetMetaData implements ResultSetMetaData {
 
     @Override
     public boolean isSearchable(int column) throws SQLException {
-        return false;
+        return true;
     }
 
     @Override
@@ -39,67 +51,100 @@ public class RestfulResultSetMetaData implements ResultSetMetaData {
 
     @Override
     public int isNullable(int column) throws SQLException {
-        return 0;
+        if (column == 1)
+            return ResultSetMetaData.columnNoNulls;
+        return ResultSetMetaData.columnNullable;
     }
 
     @Override
     public boolean isSigned(int column) throws SQLException {
-        return false;
+        int type = this.fields.get(column - 1).type;
+        switch (type) {
+            case Types.TINYINT:
+            case Types.SMALLINT:
+            case Types.INTEGER:
+            case Types.BIGINT:
+            case Types.FLOAT:
+            case Types.DOUBLE:
+                return true;
+            default:
+                return false;
+        }
     }
 
     @Override
     public int getColumnDisplaySize(int column) throws SQLException {
-        return 0;
+        return this.fields.get(column - 1).length;
     }
 
     @Override
     public String getColumnLabel(int column) throws SQLException {
-        return fields.get(column - 1);
+        return fields.get(column - 1).name;
     }
 
     @Override
     public String getColumnName(int column) throws SQLException {
-        return null;
+        return fields.get(column - 1).name;
     }
 
     @Override
     public String getSchemaName(int column) throws SQLException {
-        return null;
+        return "";
     }
 
     @Override
     public int getPrecision(int column) throws SQLException {
-        return 0;
+        int type = this.fields.get(column - 1).type;
+        switch (type) {
+            case Types.FLOAT:
+                return 5;
+            case Types.DOUBLE:
+                return 9;
+            case Types.BINARY:
+            case Types.NCHAR:
+                return this.fields.get(column - 1).length;
+            default:
+                return 0;
+        }
     }
 
     @Override
     public int getScale(int column) throws SQLException {
-        return 0;
+        int type = this.fields.get(column - 1).type;
+        switch (type) {
+            case Types.FLOAT:
+                return 5;
+            case Types.DOUBLE:
+                return 9;
+            default:
+                return 0;
+        }
     }
 
     @Override
     public String getTableName(int column) throws SQLException {
-        return null;
+        return "";
     }
 
     @Override
     public String getCatalogName(int column) throws SQLException {
-        return null;
+        return this.database;
     }
 
     @Override
     public int getColumnType(int column) throws SQLException {
-        return 0;
+        return this.fields.get(column - 1).type;
     }
 
     @Override
     public String getColumnTypeName(int column) throws SQLException {
-        return null;
+        int taosType = fields.get(column - 1).taos_type;
+        return TSDBConstants.taosType2JdbcTypeName(taosType);
     }
 
     @Override
     public boolean isReadOnly(int column) throws SQLException {
-        return false;
+        return true;
     }
 
     @Override
@@ -114,16 +159,29 @@ public class RestfulResultSetMetaData implements ResultSetMetaData {
 
     @Override
     public String getColumnClassName(int column) throws SQLException {
-        return null;
+        int type = this.fields.get(column - 1).type;
+        String columnClassName = "";
+        switch (type) {
+            case Types.BOOLEAN:
+                return Boolean.class.getName();
+            case Types.TINYINT:
+            case Types.SMALLINT:
+                return Short.class.getName();
+            case Types.INTEGER:
+                return Integer.class.getName();
+            case Types.BIGINT:
+                return Long.class.getName();
+            case Types.FLOAT:
+                return Float.class.getName();
+            case Types.DOUBLE:
+                return Double.class.getName();
+            case Types.TIMESTAMP:
+                return Timestamp.class.getName();
+            case Types.BINARY:
+            case Types.NCHAR:
+                return String.class.getName();
+        }
+        return columnClassName;
     }
 
-    @Override
-    public <T> T unwrap(Class<T> iface) throws SQLException {
-        return null;
-    }
-
-    @Override
-    public boolean isWrapperFor(Class<?> iface) throws SQLException {
-        return false;
-    }
 }

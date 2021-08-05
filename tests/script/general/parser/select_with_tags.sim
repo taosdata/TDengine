@@ -1,10 +1,10 @@
 system sh/stop_dnodes.sh
 
 system sh/deploy.sh -n dnode1 -i 1
-system sh/cfg.sh -n dnode1 -c walLevel -v 0
+system sh/cfg.sh -n dnode1 -c walLevel -v 1
 system sh/cfg.sh -n dnode1 -c maxtablespervnode -v 4
 system sh/exec.sh -n dnode1 -s start
-sleep 500
+sleep 100
 sql connect
 
 $dbPrefix = select_tags_db
@@ -26,7 +26,7 @@ sql drop database if exists $db -x step1
 step1:
 sql create database if not exists $db keep 36500
 sql use $db
-sql create table $mt (ts timestamp, c1 int, c2 float, c3 bigint, c4 smallint, c5 tinyint, c6 double, c7 bool, c8 binary(10), c9 nchar(9)) TAGS(t1 int, t2 binary(12))
+sql create table $mt (ts timestamp, c1 int, c2 float, c3 bigint, c4 smallint, c5 tinyint, c6 double, c7 bool, c8 binary(10), c9 nchar(9)) TAGS(t1 int, t2 binary(12), t3 int)
 
 $i = 0
 $j = 1
@@ -36,7 +36,7 @@ while $i < $tbNum
   $tg2 = ' . abc
   $tg2 = $tg2 . $i
   $tg2 = $tg2 . '
-  sql create table $tb using $mt tags( $i , $tg2 )
+  sql create table $tb using $mt tags( $i , $tg2 , 123 )
 
   $x = 0
   while $x < $rowNum
@@ -68,6 +68,27 @@ endw
 
 sleep 100
 
+
+#======================= only check first table tag, TD-4827
+sql select count(*) from $mt where t1 in (0)  
+if $rows != 1 then 
+  return -1
+endi
+if $data00 != $rowNum then  
+  return -1;
+endi
+
+$secTag = ' . abc  
+$secTag = $secTag . 0
+$secTag = $secTag . '
+sql select count(*) from $mt where t2 =$secTag  and t1 in (0)   
+if $rows != 1 then 
+  return -1
+endi
+if $data00 != $rowNum then  
+  return -1;
+endi
+
 #================================
 sql select ts from select_tags_mt0
 print $rows
@@ -85,6 +106,7 @@ if $data00 != @70-01-01 08:01:40.000@ then
 endi
 
 if $data01 != @select_tags_tb0@ then
+   print expect: select_tags_tb0, actual: $data01
    return -1
 endi
 
@@ -159,32 +181,41 @@ if $data03 != @abc15@ then
    return -1
 endi
 
-sql select top(c1, 100), tbname, t1, t2 from select_tags_mt0;
-if $rows != 100 then
+sql select top(c6, 3) from select_tags_mt0 interval(10a)
+sql select top(c3,10) from select_tags_mt0 interval(10a) group by tbname,t1,t2
+sql select top(c6, 3) from select_tags_mt0 interval(10a) group by tbname;
+
+sql select top(c6, 10) from select_tags_mt0 interval(10a);
+if $rows != 12800 then
+  return -1
+endi
+
+sql select top(c1, 80), tbname, t1, t2 from select_tags_mt0;
+if $rows != 80 then
    return -1
 endi
 
-if $data00 != @70-01-01 08:03:30.100@ then
+if $data00 != @70-01-01 08:03:40.100@ then
    return -1
 endi
 
-if $data10 != @70-01-01 08:03:30.200@ then
+if $data10 != @70-01-01 08:03:40.200@ then
    return -1
 endi
 
-if $data01 != 110 then
+if $data01 != 111 then
    return -1
 endi
 
-if $data02 != @select_tags_tb11@ then
+if $data02 != @select_tags_tb12@ then
    return -1
 endi
 
-if $data03 != 11 then
+if $data03 != 12 then
    return -1
 endi
 
-if $data04 != @abc11@ then
+if $data04 != @abc12@ then
    return -1
 endi
 
@@ -217,8 +248,8 @@ if $data04 != @abc12@ then
    return -1
 endi
 
-sql select bottom(c1, 100), tbname, t1, t2 from select_tags_mt0;
-if $rows != 100 then
+sql select bottom(c1, 72), tbname, t1, t2 from select_tags_mt0;
+if $rows != 72 then
    return -1
 endi
 
@@ -804,7 +835,46 @@ if $row != 1 then
    return -1
 endi
 
-print ======= selectivity + tags+ group by + tags + filter + interval + join===========
+print TODO ======= selectivity + tags+ group by + tags + filter + interval + join===========
+
+print ==========================mix tag columns and group by columns======================
+sql select top(c1, 100), tbname from select_tags_mt0 where tbname in ('select_tags_tb0', 'select_tags_tb1') group by t3
+if $rows != 100 then
+  return -1
+endi
+
+if $data00 != @70-01-01 08:01:40.094@ then
+  print expect: 70-01-01 08:01:40.094, actual: $data00
+  return -1
+endi
+
+if $data01 != 94 then
+  return -1
+endi
+
+if $data02 != @select_tags_tb0@ then
+  return -1
+endi
+
+if $data03 != 123 then
+  return -1
+endi
+
+if $data10 != @70-01-01 08:01:40.095@ then
+  return -1
+endi
+
+if $data11 != 95 then
+  return -1
+endi
+
+if $data12 != @select_tags_tb0@ then
+  return -1
+endi
+
+if $data13 != 123 then
+  return -1
+endi
 
 
 print ======error sql=============================================
@@ -813,8 +883,6 @@ sql_error select first(ts), first(c1),tbname from select_tags_mt0;
 sql_error select first(ts), last(ts), tbname from select_tags_mt0;
 sql_error select last_row(*), first(ts), tbname, t1, t2 from select_tags_mt0;
 sql_error select tbname, last_row(*), t1, first(ts) from select_tags_mt0;
-sql_error select first(ts), tbname from select_tags_tb0;
-sql_error select last_row(*), t1 from select_tags_tb0;
 sql_error select count(*), tbname from select_tags_mt0;
 sql_error select sum(c2), tbname from select_tags_mt0;
 sql_error select avg(c3), tbname from select_tags_mt0;
@@ -840,10 +908,16 @@ sql_error select tbname, t1 from select_tags_mt0 interval(1y);
 #valid sql: select first(c1), last(c2), count(*) from select_tags_mt0 group by tbname, t1;
 #valid sql: select first(c1), tbname, t1 from select_tags_mt0 group by t2;
 
+print ==================================>TD-4231
+sql_error select t1,tbname from select_tags_mt0 where c1<0
+sql_error select t1,tbname from select_tags_mt0 where c1<0 and tbname in ('select_tags_tb12')
+
+sql select tbname from select_tags_mt0 where tbname in ('select_tags_tb12');
+
 sql_error select first(c1), last(c2), t1 from select_tags_mt0 group by tbname;
 sql_error select first(c1), last(c2), tbname, t2 from select_tags_mt0 group by tbname;
 sql_error select first(c1), count(*), t2, t1, tbname from select_tags_mt0 group by tbname;
-# this sql is valid: select first(c1), t2 from select_tags_mt0 group by tbname;
+#valid sql: select first(c1), t2 from select_tags_mt0 group by tbname;
 
 #sql select first(ts), tbname from select_tags_mt0 group by tbname;
 #sql select count(c1) from select_tags_mt0 where c1=99 group by tbname;

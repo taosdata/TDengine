@@ -1,8 +1,27 @@
 #!/bin/bash
 
+
+branch=
+if [ x$1 != x ];then
+        branch=$1
+        echo "Testing branch: $branch"
+else
+        echo "Please enter branch name as a parameter"
+        exit 1
+fi
+
+type=
+if [ x$2 != x ];then
+    	type=jemalloc
+        echo "Building TDengine using jemalloc"
+else
+		type=glibc
+        echo "Building TDengine using glibc"
+fi
+
 today=`date +"%Y%m%d"`
-WORK_DIR=/home/ubuntu/pxiao
-PERFORMANCE_TEST_REPORT=$WORK_DIR/TDengine/tests/performance-test-report-$today.log
+WORK_DIR=/root/pxiao
+PERFORMANCE_TEST_REPORT=$WORK_DIR/TDengine/tests/performance-report-$branch-$type-$today.log
 
 # Coloured Echoes                                                                                                       #
 function red_echo      { echo -e "\033[31m$@\033[0m";   }                                                               #
@@ -39,57 +58,63 @@ function buildTDengine {
 	cd $WORK_DIR/TDengine
 
 	git remote update > /dev/null
-	REMOTE_COMMIT=`git rev-parse --short remotes/origin/develop`
+	git reset --hard HEAD
+	git checkout $branch
+	REMOTE_COMMIT=`git rev-parse --short remotes/origin/$branch`
 	LOCAL_COMMIT=`git rev-parse --short @`
 
 	echo " LOCAL: $LOCAL_COMMIT"
 	echo "REMOTE: $REMOTE_COMMIT"
 	if [ "$LOCAL_COMMIT" == "$REMOTE_COMMIT" ]; then
 		echo "repo up-to-date"
-	else
-		echo "repo need to pull"
-		git pull > /dev/null
-
-		LOCAL_COMMIT=`git rev-parse --short @`
-		cd debug
-		rm -rf *
-		cmake .. > /dev/null
-		make > /dev/null
-		make install
 	fi
+
+	git pull > /dev/null 2>&1
+	if [ $type = "jemalloc" ];then
+		echo "git submodule update --init --recursive"
+		git submodule update --init --recursive
+	fi
+	LOCAL_COMMIT=`git rev-parse --short @`
+	cd debug
+	rm -rf *
+	if [ $type = "jemalloc" ];then
+		echo "cmake .. -DJEMALLOC_ENABLED=true > /dev/null"
+		cmake .. -DJEMALLOC_ENABLED=true > /dev/null
+	else
+		cmake .. > /dev/null
+	fi
+	make > /dev/null 2>&1	
+	make install > /dev/null 2>&1
+	echo "Build TDengine on remote server"	
+	ssh perftest "./buildTDengine.sh $branch > /dev/null"
 }
 
 function runQueryPerfTest {
 	[ -f $PERFORMANCE_TEST_REPORT ] && rm $PERFORMANCE_TEST_REPORT
-	nohup $WORK_DIR/TDengine/debug/build/bin/taosd -c /etc/taosperf/ > /dev/null 2>&1 &
-	echoInfo "Run Performance Test"
-	cd $WORK_DIR/TDengine/tests/pytest
+	nohup $WORK_DIR/TDengine/debug/build/bin/taosd -c /etc/perf/ > /dev/null 2>&1 &
+	echoInfo "Wait TDengine to start"
+	sleep 60
+	echoInfo "Run Performance Test"	
+	cd $WORK_DIR/TDengine/tests/pytest	
+
+	python3 query/queryPerformance.py -c $LOCAL_COMMIT -b $branch -T $type | tee -a $PERFORMANCE_TEST_REPORT
+
+	python3 insert/insertFromCSVPerformance.py -c $LOCAL_COMMIT -b $branch -T $type | tee -a $PERFORMANCE_TEST_REPORT
 	
-	python3 query/queryPerformance.py -c $LOCAL_COMMIT | tee -a $PERFORMANCE_TEST_REPORT
-
-	python3 insert/insertFromCSVPerformance.py -c $LOCAL_COMMIT | tee -a $PERFORMANCE_TEST_REPORT
-
-	yes | taosdemo -c /etc/taosperf/ -d taosdemo_insert_test -t 1000 -n 1000 > taosdemoperf.txt
-
-	CREATETABLETIME=`grep 'Spent' taosdemoperf.txt | awk 'NR==1{print $2}'`
-	INSERTRECORDSTIME=`grep 'Spent' taosdemoperf.txt | awk 'NR==2{print $2}'`
-	REQUESTSPERSECOND=`grep 'Spent' taosdemoperf.txt | awk 'NR==2{print $13}'`
-	
-	python3 tools/taosdemoPerformance.py -c $LOCAL_COMMIT -t $CREATETABLETIME -i $INSERTRECORDSTIME -r $REQUESTSPERSECOND | tee -a $PERFORMANCE_TEST_REPORT
-	[ -f taosdemoperf.txt ] && rm taosdemoperf.txt
+	python3 tools/taosdemoPerformance.py -c $LOCAL_COMMIT -b $branch -T $type | tee -a $PERFORMANCE_TEST_REPORT
 }
 
 
 function sendReport {
 	echo "send report"
-	receiver="pxiao@taosdata.com"
+	receiver="develop@taosdata.com"
 	mimebody="MIME-Version: 1.0\nContent-Type: text/html; charset=utf-8\n"
 
 	cd $TDENGINE_DIR
 
 	sed -i 's/\x1b\[[0-9;]*m//g' $PERFORMANCE_TEST_REPORT
 	BODY_CONTENT=`cat $PERFORMANCE_TEST_REPORT`
-	echo -e "From: <support@taosdata.com>\nto: ${receiver}\nsubject: Query Performace Report ${today}, commit ID: ${LOCAL_COMMIT}\n\n${today}:\n${BODY_CONTENT}" | \
+	echo -e "From: <support@taosdata.com>\nto: ${receiver}\nsubject: Query Performace Report ${branch} ${jemalloc} commit ID: ${LOCAL_COMMIT}\n\n${today}:\n${BODY_CONTENT}" | \
 	(cat - && uuencode $PERFORMANCE_TEST_REPORT performance-test-report-$today.log) | \
 	/usr/sbin/ssmtp "${receiver}" && echo "Report Sent!"
 }
@@ -98,6 +123,7 @@ function sendReport {
 stopTaosd
 buildTDengine
 runQueryPerfTest
+stopTaosd
 
 echoInfo "Send Report"
 sendReport

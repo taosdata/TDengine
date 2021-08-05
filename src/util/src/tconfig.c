@@ -20,7 +20,7 @@
 #include "tconfig.h"
 #include "tglobal.h"
 #include "tulog.h"
-#include "tsystem.h"
+#include "tsocket.h"
 #include "tutil.h"
 
 SGlobalCfg tsGlobalConfig[TSDB_CFG_MAX_NUM] = {{0}};
@@ -61,6 +61,24 @@ static void taosReadFloatConfig(SGlobalCfg *cfg, char *input_value) {
   }
 }
 
+static void taosReadDoubleConfig(SGlobalCfg *cfg, char *input_value) {
+  double  value = atof(input_value);
+  double *option = (double *)cfg->ptr;
+  if (value < cfg->minValue || value > cfg->maxValue) {
+    uError("config option:%s, input value:%s, out of range[%f, %f], use default value:%f",
+           cfg->option, input_value, cfg->minValue, cfg->maxValue, *option);
+  } else {
+    if (cfg->cfgStatus <= TAOS_CFG_CSTATUS_FILE) {
+      *option = value;
+      cfg->cfgStatus = TAOS_CFG_CSTATUS_FILE;
+    } else {
+      uWarn("config option:%s, input value:%s, is configured by %s, use %f", cfg->option, input_value,
+            tsCfgStatusStr[cfg->cfgStatus], *option);
+    }
+  }
+}
+
+
 static void taosReadInt32Config(SGlobalCfg *cfg, char *input_value) {
   int32_t  value = atoi(input_value);
   int32_t *option = (int32_t *)cfg->ptr;
@@ -95,32 +113,73 @@ static void taosReadInt16Config(SGlobalCfg *cfg, char *input_value) {
   }
 }
 
-static void taosReadDirectoryConfig(SGlobalCfg *cfg, char *input_value) {
+static void taosReadUInt16Config(SGlobalCfg *cfg, char *input_value) {
+  int32_t  value = atoi(input_value);
+  uint16_t *option = (uint16_t *)cfg->ptr;
+  if (value < cfg->minValue || value > cfg->maxValue) {
+    uError("config option:%s, input value:%s, out of range[%f, %f], use default value:%d",
+           cfg->option, input_value, cfg->minValue, cfg->maxValue, *option);
+  } else {
+    if (cfg->cfgStatus <= TAOS_CFG_CSTATUS_FILE) {
+      *option = (uint16_t)value;
+      cfg->cfgStatus = TAOS_CFG_CSTATUS_FILE;
+    } else {
+      uWarn("config option:%s, input value:%s, is configured by %s, use %d", cfg->option, input_value,
+            tsCfgStatusStr[cfg->cfgStatus], *option);
+    }
+  }
+}
+
+static void taosReadInt8Config(SGlobalCfg *cfg, char *input_value) {
+  int32_t  value = atoi(input_value);
+  int8_t *option = (int8_t *)cfg->ptr;
+  if (value < cfg->minValue || value > cfg->maxValue) {
+    uError("config option:%s, input value:%s, out of range[%f, %f], use default value:%d",
+           cfg->option, input_value, cfg->minValue, cfg->maxValue, *option);
+  } else {
+    if (cfg->cfgStatus <= TAOS_CFG_CSTATUS_FILE) {
+      *option = (int8_t)value;
+      cfg->cfgStatus = TAOS_CFG_CSTATUS_FILE;
+    } else {
+      uWarn("config option:%s, input value:%s, is configured by %s, use %d", cfg->option, input_value,
+            tsCfgStatusStr[cfg->cfgStatus], *option);
+    }
+  }
+}
+
+static bool taosReadDirectoryConfig(SGlobalCfg *cfg, char *input_value) {
   int   length = (int)strlen(input_value);
   char *option = (char *)cfg->ptr;
   if (length <= 0 || length > cfg->ptrLength) {
-    uError("config option:%s, input value:%s, length out of range[0, %d], use default value:%s",
-           cfg->option, input_value, cfg->ptrLength, option);
+    uError("config option:%s, input value:%s, length out of range[0, %d], use default value:%s", cfg->option,
+           input_value, cfg->ptrLength, option);
+    return false;
   } else {
     if (cfg->cfgStatus <= TAOS_CFG_CSTATUS_FILE) {
       wordexp_t full_path;
       if (0 != wordexp(input_value, &full_path, 0)) {
         printf("\nconfig dir: %s wordexp fail! reason:%s\n", input_value, strerror(errno));
         wordfree(&full_path);
-        return;
+        return false;
       }
-      
+
       if (full_path.we_wordv != NULL && full_path.we_wordv[0] != NULL) {
         strcpy(option, full_path.we_wordv[0]);
       }
-      
+
       wordfree(&full_path);
+
+      char tmp[PATH_MAX] = {0};
+      if (realpath(option, tmp) != NULL) {
+        strcpy(option, tmp);
+      }
 
       int code = taosMkDir(option, 0755);
       if (code != 0) {
         terrno = TAOS_SYSTEM_ERROR(errno);
-        uError("config option:%s, input value:%s, directory not exist, create fail:%s",
-             cfg->option, input_value, strerror(errno)); 
+        uError("config option:%s, input value:%s, directory not exist, create fail:%s", cfg->option, input_value,
+               strerror(errno));
+        return false;
       }
       cfg->cfgStatus = TAOS_CFG_CSTATUS_FILE;
     } else {
@@ -128,6 +187,8 @@ static void taosReadDirectoryConfig(SGlobalCfg *cfg, char *input_value) {
             tsCfgStatusStr[cfg->cfgStatus], option);
     }
   }
+
+  return true;
 }
 
 static void taosReadIpStrConfig(SGlobalCfg *cfg, char *input_value) {
@@ -197,21 +258,30 @@ SGlobalCfg *taosGetConfigOption(const char *option) {
   return NULL;
 }
 
-static void taosReadConfigOption(const char *option, char *value) {
+static void taosReadConfigOption(const char *option, char *value, char *value2, char *value3) {
   for (int i = 0; i < tsGlobalConfigNum; ++i) {
     SGlobalCfg *cfg = tsGlobalConfig + i;
     if (!(cfg->cfgType & TSDB_CFG_CTYPE_B_CONFIG)) continue;
     if (strcasecmp(cfg->option, option) != 0) continue;
 
     switch (cfg->valType) {
+      case TAOS_CFG_VTYPE_INT8:
+        taosReadInt8Config(cfg, value);
+        break;
       case TAOS_CFG_VTYPE_INT16:
         taosReadInt16Config(cfg, value);
         break;
       case TAOS_CFG_VTYPE_INT32:
         taosReadInt32Config(cfg, value);
         break;
+      case TAOS_CFG_VTYPE_UINT16:
+        taosReadUInt16Config(cfg, value);
+        break;
       case TAOS_CFG_VTYPE_FLOAT:
         taosReadFloatConfig(cfg, value);
+        break;
+      case TAOS_CFG_VTYPE_DOUBLE:
+        taosReadDoubleConfig(cfg, value);
         break;
       case TAOS_CFG_VTYPE_STRING:
         taosReadStringConfig(cfg, value);
@@ -221,6 +291,11 @@ static void taosReadConfigOption(const char *option, char *value) {
         break;
       case TAOS_CFG_VTYPE_DIRECTORY:
         taosReadDirectoryConfig(cfg, value);
+        break;
+      case TAOS_CFG_VTYPE_DATA_DIRCTORY:
+        if (taosReadDirectoryConfig(cfg, value)) {
+          taosReadDataDirCfg(value, value2, value3);
+        }
         break;
       default:
         uError("config option:%s, input value:%s, can't be recognized", option, value);
@@ -258,6 +333,9 @@ void taosReadGlobalLogCfg() {
     #ifdef _TD_POWER_
     printf("configDir:%s not there, use default value: /etc/power", configDir);
     strcpy(configDir, "/etc/power");
+	#elif (_TD_TQ_ == true)
+    printf("configDir:%s not there, use default value: /etc/tq", configDir);
+    strcpy(configDir, "/etc/tq");
     #else
     printf("configDir:%s not there, use default value: /etc/taos", configDir);
     strcpy(configDir, "/etc/taos");
@@ -273,7 +351,8 @@ void taosReadGlobalLogCfg() {
     printf("\nconfig file:%s not found, all variables are set to default\n", fileName);
     return;
   }
-  
+
+  ssize_t _bytes = 0;
   size_t len = 1024;
   line = calloc(1, len);
   
@@ -283,7 +362,12 @@ void taosReadGlobalLogCfg() {
     option = value = NULL;
     olen = vlen = 0;
 
-    tgetline(&line, &len, fp);
+    _bytes = tgetline(&line, &len, fp);
+    if (_bytes < 0)
+    {
+      break;
+    }
+
     line[len - 1] = 0;
 
     paGetToken(line, &option, &olen);
@@ -302,8 +386,8 @@ void taosReadGlobalLogCfg() {
 }
 
 bool taosReadGlobalCfg() {
-  char * line, *option, *value, *value1;
-  int    olen, vlen, vlen1;
+  char * line, *option, *value, *value2, *value3;
+  int    olen, vlen, vlen2, vlen3;
   char   fileName[PATH_MAX] = {0};
 
   sprintf(fileName, "%s/taos.cfg", configDir);
@@ -319,17 +403,23 @@ bool taosReadGlobalCfg() {
       return false;
     }
   }
-  
+
+  ssize_t _bytes = 0;
   size_t len = 1024;
   line = calloc(1, len);
   
   while (!feof(fp)) {
     memset(line, 0, len);
 
-    option = value = NULL;
-    olen = vlen = 0;
+    option = value = value2 = value3 = NULL;
+    olen = vlen = vlen2 = vlen3 = 0;
 
-    tgetline(&line, &len, fp);
+    _bytes = tgetline(&line, &len, fp);
+    if (_bytes < 0)
+    {
+      break;
+    }
+
     line[len - 1] = 0;
     
     paGetToken(line, &option, &olen);
@@ -340,11 +430,14 @@ bool taosReadGlobalCfg() {
     if (vlen == 0) continue;
     value[vlen] = 0;
 
-    // For dataDir, the format is:
-    // dataDir    /mnt/disk1    0
-    paGetToken(value + vlen + 1, &value1, &vlen1);
-    
-    taosReadConfigOption(option, value);
+    paGetToken(value + vlen + 1, &value2, &vlen2);
+    if (vlen2 != 0) {
+      value2[vlen2] = 0;
+      paGetToken(value2 + vlen2 + 1, &value3, &vlen3);
+      if (vlen3 != 0) value3[vlen3] = 0;
+    }
+
+    taosReadConfigOption(option, value, value2, value3);
   }
 
   fclose(fp);
@@ -376,14 +469,23 @@ void taosPrintGlobalCfg() {
     blank[blankLen] = 0;
 
     switch (cfg->valType) {
+      case TAOS_CFG_VTYPE_INT8:
+        uInfo(" %s:%s%d%s", cfg->option, blank, *((int8_t *)cfg->ptr), tsGlobalUnit[cfg->unitType]);
+        break;
       case TAOS_CFG_VTYPE_INT16:
         uInfo(" %s:%s%d%s", cfg->option, blank, *((int16_t *)cfg->ptr), tsGlobalUnit[cfg->unitType]);
         break;
       case TAOS_CFG_VTYPE_INT32:
         uInfo(" %s:%s%d%s", cfg->option, blank, *((int32_t *)cfg->ptr), tsGlobalUnit[cfg->unitType]);
         break;
+      case TAOS_CFG_VTYPE_UINT16:
+        uInfo(" %s:%s%d%s", cfg->option, blank, *((uint16_t *)cfg->ptr), tsGlobalUnit[cfg->unitType]);
+        break;
       case TAOS_CFG_VTYPE_FLOAT:
         uInfo(" %s:%s%f%s", cfg->option, blank, *((float *)cfg->ptr), tsGlobalUnit[cfg->unitType]);
+        break;
+      case TAOS_CFG_VTYPE_DOUBLE:
+        uInfo(" %s:%s%f%s", cfg->option, blank, *((double *)cfg->ptr), tsGlobalUnit[cfg->unitType]);
         break;
       case TAOS_CFG_VTYPE_STRING:
       case TAOS_CFG_VTYPE_IPSTR:
@@ -396,6 +498,8 @@ void taosPrintGlobalCfg() {
   }
 
   taosPrintOsInfo();
+  taosPrintDataDirCfg();
+  uInfo("==================================");
 }
 
 static void taosDumpCfg(SGlobalCfg *cfg) {
@@ -408,11 +512,17 @@ static void taosDumpCfg(SGlobalCfg *cfg) {
     blank[blankLen] = 0;
 
     switch (cfg->valType) {
+      case TAOS_CFG_VTYPE_INT8:
+        printf(" %s:%s%d%s\n", cfg->option, blank, *((int8_t *)cfg->ptr), tsGlobalUnit[cfg->unitType]);
+        break;
       case TAOS_CFG_VTYPE_INT16:
         printf(" %s:%s%d%s\n", cfg->option, blank, *((int16_t *)cfg->ptr), tsGlobalUnit[cfg->unitType]);
         break;
       case TAOS_CFG_VTYPE_INT32:
         printf(" %s:%s%d%s\n", cfg->option, blank, *((int32_t *)cfg->ptr), tsGlobalUnit[cfg->unitType]);
+        break;
+      case TAOS_CFG_VTYPE_UINT16:
+        printf(" %s:%s%d%s\n", cfg->option, blank, *((uint16_t *)cfg->ptr), tsGlobalUnit[cfg->unitType]);
         break;
       case TAOS_CFG_VTYPE_FLOAT:
         printf(" %s:%s%f%s\n", cfg->option, blank, *((float *)cfg->ptr), tsGlobalUnit[cfg->unitType]);

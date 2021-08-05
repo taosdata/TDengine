@@ -1,1 +1,2 @@
 com.taosdata.jdbc.TSDBDriver
+com.taosdata.jdbc.rs.RestfulDriver

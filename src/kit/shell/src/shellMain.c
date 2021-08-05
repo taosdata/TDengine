@@ -19,15 +19,33 @@
 #include "tnettest.h"
 
 pthread_t pid;
+static tsem_t cancelSem;
 
-void shellQueryInterruptHandler(int signum) {
+void shellQueryInterruptHandler(int32_t signum, void *sigInfo, void *context) {
+  tsem_post(&cancelSem);
+}
+
+void *cancelHandler(void *arg) {
+  setThreadName("cancelHandler");
+
+  while(1) {
+    if (tsem_wait(&cancelSem) != 0) {
+      taosMsleep(10);
+      continue;
+    }
+
 #ifdef LINUX
-  void* pResHandle = atomic_val_compare_exchange_64(&result, result, 0);
-  taos_stop_query(pResHandle);
+    int64_t rid = atomic_val_compare_exchange_64(&result, result, 0);
+    SSqlObj* pSql = taosAcquireRef(tscObjRef, rid);
+    taos_stop_query(pSql);
+    taosReleaseRef(tscObjRef, rid);
 #else
-  printf("\nReceive ctrl+c or other signal, quit shell.\n");
-  exit(0);
+    printf("\nReceive ctrl+c or other signal, quit shell.\n");
+    exit(0);
 #endif
+  }
+  
+  return NULL;
 }
 
 int checkVersion() {
@@ -94,7 +112,10 @@ int main(int argc, char* argv[]) {
   }
 
   if (args.netTestRole && args.netTestRole[0] != 0) {
-    taos_init();
+    if (taos_init()) {
+      printf("Failed to init taos");
+      exit(EXIT_FAILURE);
+    }
     taosNetTest(args.netTestRole, args.host, args.port, args.pktLen);
     exit(0);
   }
@@ -105,13 +126,19 @@ int main(int argc, char* argv[]) {
     exit(EXIT_FAILURE);
   }
 
+  if (tsem_init(&cancelSem, 0, 0) != 0) {
+    printf("failed to create cancel semphore\n");
+    exit(EXIT_FAILURE);
+  }
+
+  pthread_t spid;
+  pthread_create(&spid, NULL, cancelHandler, NULL);
+
   /* Interrupt handler. */
-  struct sigaction act;
-  memset(&act, 0, sizeof(struct sigaction));
-  
-  act.sa_handler = shellQueryInterruptHandler;
-  sigaction(SIGTERM, &act, NULL);
-  sigaction(SIGINT, &act, NULL);
+  taosSetSignal(SIGTERM, shellQueryInterruptHandler);
+  taosSetSignal(SIGINT, shellQueryInterruptHandler);
+  taosSetSignal(SIGHUP, shellQueryInterruptHandler);
+  taosSetSignal(SIGABRT, shellQueryInterruptHandler);
 
   /* Get grant information */
   shellGetGrantInfo(con);

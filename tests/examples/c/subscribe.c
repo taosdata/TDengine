@@ -14,8 +14,6 @@ void print_result(TAOS_RES* res, int blockFetch) {
   int         num_fields = taos_num_fields(res);
   TAOS_FIELD* fields = taos_fetch_fields(res);
   int         nRows = 0;
-  char        buf[4096];
-
   
   if (blockFetch) {
     nRows = taos_fetch_block(res, &row);
@@ -25,6 +23,7 @@ void print_result(TAOS_RES* res, int blockFetch) {
     //}
   } else {
     while ((row = taos_fetch_row(res))) {
+      char buf[4096] = {0};
       taos_print_row(buf, row, fields, num_fields);
       puts(buf);
       nRows++;
@@ -215,9 +214,6 @@ int main(int argc, char *argv[]) {
       continue;
     }
   }
-
-  // init TAOS
-  taos_init();
 
   TAOS* taos = taos_connect(host, user, passwd, "", 0);
   if (taos == NULL) {

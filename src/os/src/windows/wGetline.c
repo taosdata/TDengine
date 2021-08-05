@@ -22,6 +22,7 @@ General Public License for more details.  */
 #include <stdio.h>
 #include <assert.h>
 #include <errno.h>
+#include <stdint.h>
 
 #if STDC_HEADERS
 #include <stdlib.h>
@@ -40,10 +41,10 @@ null terminator), or -1 on error or EOF.  On a -1 return, the caller
 should check feof(), if not then errno has been set to indicate
 the error.  */
 
-int getstr(char **lineptr, size_t *n, FILE *stream, char terminator, int offset) {
-  int   nchars_avail; /* Allocated but unused chars in *LINEPTR.  */
-  char *read_pos;     /* Where we're reading into *LINEPTR. */
-  int   ret;
+int32_t getstr(char **lineptr, size_t *n, FILE *stream, char terminator, int32_t offset) {
+  int32_t nchars_avail; /* Allocated but unused chars in *LINEPTR.  */
+  char *  read_pos;     /* Where we're reading into *LINEPTR. */
+  int32_t ret;
 
   if (!lineptr || !n || !stream) {
     errno = EINVAL;
@@ -59,12 +60,12 @@ int getstr(char **lineptr, size_t *n, FILE *stream, char terminator, int offset)
     }
   }
 
-  nchars_avail = (int)(*n - offset);
+  nchars_avail = (int32_t)(*n - offset);
   read_pos = *lineptr + offset;
 
   for (;;) {
-    int          save_errno;
-    register int c = getc(stream);
+    int32_t          save_errno;
+    register int32_t c = getc(stream);
 
     save_errno = errno;
 
@@ -79,7 +80,7 @@ int getstr(char **lineptr, size_t *n, FILE *stream, char terminator, int offset)
       else
         *n += MIN_CHUNK;
 
-      nchars_avail = (int)(*n + *lineptr - read_pos);
+      nchars_avail = (int32_t)(*n + *lineptr - read_pos);
       *lineptr = realloc(*lineptr, *n);
       if (!*lineptr) {
         errno = ENOMEM;
@@ -115,10 +116,8 @@ int getstr(char **lineptr, size_t *n, FILE *stream, char terminator, int offset)
   /* Done - NUL terminate and return the number of chars read.  */
   *read_pos = '\0';
 
-  ret = (int)(read_pos - (*lineptr + offset));
+  ret = (int32_t)(read_pos - (*lineptr + offset));
   return ret;
 }
 
-int taosGetlineImp(char **lineptr, size_t *n, FILE *stream) { 
-  return getstr(lineptr, n, stream, '\n', 0);
-}
+int32_t tgetline(char **lineptr, size_t *n, FILE *stream) { return getstr(lineptr, n, stream, '\n', 0); }

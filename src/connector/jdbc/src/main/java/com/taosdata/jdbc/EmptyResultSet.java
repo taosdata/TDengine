@@ -23,7 +23,7 @@ import java.util.Calendar;
 import java.util.Map;
 
 /*
- * TDengine only supports a subset of the standard SQL, thus this implemetation of the
+ * TDengine only supports a subset of the standard SQL, thus this implementation of the
  * standard JDBC API contains more or less some adjustments customized for certain
  * compatibility needs.
  */
@@ -326,7 +326,7 @@ public class EmptyResultSet implements ResultSet {
 
     @Override
     public int getFetchDirection() throws SQLException {
-        return 0;
+        return ResultSet.FETCH_FORWARD;
     }
 
     @Override
@@ -341,12 +341,12 @@ public class EmptyResultSet implements ResultSet {
 
     @Override
     public int getType() throws SQLException {
-        return 0;
+        return ResultSet.TYPE_FORWARD_ONLY;
     }
 
     @Override
     public int getConcurrency() throws SQLException {
-        return 0;
+        return ResultSet.CONCUR_READ_ONLY;
     }
 
     @Override
@@ -746,7 +746,7 @@ public class EmptyResultSet implements ResultSet {
 
     @Override
     public int getHoldability() throws SQLException {
-        return 0;
+        return ResultSet.CLOSE_CURSORS_AT_COMMIT;
     }
 
     @Override
