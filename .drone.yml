@@ -116,9 +116,9 @@ platform:
 
 steps:
 - name: build
-  image: arm32v7/ubuntu:focal
+  image: arm32v7/ubuntu:20.04
   commands:
-  - apt-key del 1F3045A5DF7587C3
+  - apt-get update ||echo 1
   - apt-get install -y cmake build-essential 
   - mkdir debug
   - cd debug
