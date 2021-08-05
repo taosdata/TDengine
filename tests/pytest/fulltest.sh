@@ -29,6 +29,10 @@ python3 ./test.py -f insert/in_function.py
 python3 ./test.py -f insert/modify_column.py
 python3 ./test.py -f insert/line_insert.py
 
+# timezone 
+
+python3 ./test.py -f TimeZone/TestCaseTimeZone.py
+
 #table
 python3 ./test.py -f table/alter_wal0.py
 python3 ./test.py -f table/column_name.py
