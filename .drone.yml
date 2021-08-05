@@ -154,29 +154,6 @@ steps:
     branch:
     - develop
     - master
-
----
-
-kind: pipeline
-name: darwin
-platform:
-  os: darwin
-  arch: amd64
-
-steps:
-- name: build
-  image: gcc
-  commands:
-  - apt-get update
-  - apt-get install -y gcc cmake build-essential
-  - mkdir debug
-  - cd debug
-  - cmake .. 
-  - make 
-  when:
-    branch:
-    - develop
-    - master
 ---
 kind: pipeline
 name: test_amd64
