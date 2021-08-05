@@ -74,7 +74,7 @@ SColumnFilterInfo* tFilterInfoDup(const SColumnFilterInfo* src, int32_t numOfFil
       size_t len = (size_t) pFilter[j].len + 1 * TSDB_NCHAR_SIZE;
       pFilter[j].pz = (int64_t) calloc(1, len);
 
-      memcpy((char*)pFilter[j].pz, (char*)src[j].pz, pFilter[j].len);
+      memcpy((char*)pFilter[j].pz, (char*)src[j].pz, (size_t) pFilter[j].len);
     }
   }
 
