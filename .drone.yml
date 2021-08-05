@@ -77,7 +77,7 @@ steps:
   image: arm32v7/ubuntu:focal
   commands:
   - apt-get update
-  - apt-get install -y cmake build-essential
+  - apt-get install -y cmake build-essential --security-opt seccomp:unconfined
   - mkdir debug
   - cd debug
   - cmake .. -DCPUTYPE=aarch32 > /dev/null
