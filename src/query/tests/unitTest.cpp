@@ -1,6 +1,4 @@
-#include "os.h"
 #include <gtest/gtest.h>
-#include <cassert>
 #include <iostream>
 
 #include "taos.h"

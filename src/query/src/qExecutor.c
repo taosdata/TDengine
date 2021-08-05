@@ -5214,7 +5214,76 @@ SOperatorInfo *createMultiwaySortOperatorInfo(SQueryRuntimeEnv *pRuntimeEnv, SEx
   return pOperator;
 }
 
-SOperatorInfo *createOrderOperatorInfo(SQueryRuntimeEnv *pRuntimeEnv, SExprInfo* pExpr, int32_t numOfOutput, int32_t numOfRows) {
+static int32_t doMergeSDatablock(SSDataBlock* pDest, SSDataBlock* pSrc) {
+  assert(pSrc != NULL && pDest != NULL && pDest->info.numOfCols == pSrc->info.numOfCols);
+
+  int32_t numOfCols = pSrc->info.numOfCols;
+  for(int32_t i = 0; i < numOfCols; ++i) {
+    SColumnInfoData* pCol2 = taosArrayGet(pDest->pDataBlock->pData, i);
+    SColumnInfoData* pCol1 = taosArrayGet(pSrc->pDataBlock->pData, i);
+
+    int32_t newSize = (pDest->info.rows + pSrc->info.rows) * pCol2->info.bytes;
+    char* tmp = realloc(pCol2->pData, newSize);
+    if (tmp != NULL) {
+      pCol2->pData = tmp;
+      int32_t offset = pCol2->info.bytes * pDest->info.rows;
+      memcpy(pCol2->pData + offset, pCol1->pData, pSrc->info.rows * pCol2->info.bytes);
+    } else {
+      return TSDB_CODE_VND_OUT_OF_MEMORY;
+    }
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static SSDataBlock* doSort(void* param, bool* newgroup) {
+  SOperatorInfo* pOperator = (SOperatorInfo*) param;
+  if (pOperator->status == OP_EXEC_DONE) {
+    return NULL;
+  }
+
+  SOrderOperatorInfo* pInfo = pOperator->info;
+
+  SSDataBlock* pBlock = NULL;
+  while(1) {
+    publishOperatorProfEvent(pOperator->upstream[0], QUERY_PROF_BEFORE_OPERATOR_EXEC);
+    pBlock = pOperator->upstream[0]->exec(pOperator->upstream[0], newgroup);
+    publishOperatorProfEvent(pOperator->upstream[0], QUERY_PROF_AFTER_OPERATOR_EXEC);
+
+    // start to flush data into disk and try do multiway merge sort
+    if (pBlock == NULL) {
+      setQueryStatus(pOperator->pRuntimeEnv, QUERY_COMPLETED);
+      pOperator->status = OP_EXEC_DONE;
+      break;
+    }
+
+    int32_t code = doMergeSDatablock(pInfo->pDataBlock, pBlock);
+    if (code != TSDB_CODE_SUCCESS) {
+      // todo handle error
+    }
+  }
+
+  int32_t numOfCols = pInfo->pDataBlock->info.numOfCols;
+  void** pCols     = calloc(numOfCols, POINTER_BYTES);
+  SSchema* pSchema = calloc(numOfCols, sizeof(SSchema));
+
+  for(int32_t i = 0; i < numOfCols; ++i) {
+    SColumnInfoData* p1 = taosArrayGet(pInfo->pDataBlock->pDataBlock, i);
+    pCols[i] = p1->pData;
+    pSchema[i].colId = p1->info.colId;
+    pSchema[i].bytes = p1->info.bytes;
+    pSchema[i].type  = p1->info.type;
+  }
+
+  __compar_fn_t  comp = getKeyComparFunc(pSchema[pInfo->colIndex].type, pInfo->order);
+  taoscQSort(pCols, pSchema, numOfCols, pInfo->pDataBlock->info.rows, pInfo->colIndex, comp);
+
+  tfree(pCols);
+  tfree(pSchema);
+  return (pInfo->pDataBlock->info.rows > 0)? pInfo->pDataBlock:NULL;
+}
+
+SOperatorInfo *createOrderOperatorInfo(SExprInfo* pExpr, int32_t numOfOutput) {
   SOrderOperatorInfo* pInfo = calloc(1, sizeof(SOrderOperatorInfo));
 
   {
@@ -6009,106 +6078,6 @@ static SSDataBlock* doFill(void* param, bool* newgroup) {
     }
     //    return (pInfo->pRes->info.rows > 0)? pInfo->pRes:NULL;
   }
-}
-
-static int32_t doMergeSDatablock(SSDataBlock* pDest, SSDataBlock* pSrc) {
-  assert(pSrc != NULL && pDest != NULL && pDest->info.numOfCols == pSrc->info.numOfCols);
-
-  int32_t numOfCols = pSrc->info.numOfCols;
-  for(int32_t i = 0; i < numOfCols; ++i) {
-    SColumnInfoData* pCol2 = taosArrayGet(pDest->pDataBlock->pData, i);
-    SColumnInfoData* pCol1 = taosArrayGet(pSrc->pDataBlock->pData, i);
-
-    int32_t newSize = (pDest->info.rows + pSrc->info.rows) * pCol2->info.bytes;
-    char* tmp = realloc(pCol2->pData, newSize);
-    if (tmp != NULL) {
-      pCol2->pData = tmp;
-      int32_t offset = pCol2->info.bytes * pDest->info.rows;
-      memcpy(pCol2->pData + offset, pCol1->pData, pSrc->info.rows * pCol2->info.bytes);
-    } else {
-      return TSDB_CODE_VND_OUT_OF_MEMORY;
-    }
-  }
-
-  return TSDB_CODE_SUCCESS;
-}
-
-static SSDataBlock* doSort(void* param, bool* newgroup) {
-  SOperatorInfo* pOperator = (SOperatorInfo*) param;
-  if (pOperator->status == OP_EXEC_DONE) {
-    return NULL;
-  }
-
-  SOrderOperatorInfo* pInfo = pOperator->info;
-//  SSDataBlock* pRes = pInfo->pRes;
-
-//  pRes->info.rows = 0;
-  SSDataBlock* pBlock = NULL;
-  while(1) {
-    publishOperatorProfEvent(pOperator->upstream[0], QUERY_PROF_BEFORE_OPERATOR_EXEC);
-    pBlock = pOperator->upstream[0]->exec(pOperator->upstream[0], newgroup);
-    publishOperatorProfEvent(pOperator->upstream[0], QUERY_PROF_AFTER_OPERATOR_EXEC);
-
-    // start to flush data into disk and try do multiway merge sort
-    if (pBlock == NULL) {
-//      setQueryStatus(pOperator->pRuntimeEnv, QUERY_COMPLETED);
-//      pOperator->status = OP_EXEC_DONE;
-      break;
-    }
-
-    int32_t code = doMergeSDatablock(pInfo->pDataBlock, pBlock);
-    if (code != TSDB_CODE_SUCCESS) {
-//      return code;
-    }
-
-    /*SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, pInfo->colIndex);
-
-    int16_t bytes = pColInfoData->info.bytes;
-    int16_t type = pColInfoData->info.type;
-
-    // ensure the output buffer size
-    SColumnInfoData* pResultColInfoData = taosArrayGet(pRes->pDataBlock, 0);
-    if (pRes->info.rows + pBlock->info.rows > pInfo->outputCapacity) {
-      int32_t newSize = pRes->info.rows + pBlock->info.rows;
-      char* tmp = realloc(pResultColInfoData->pData, newSize * bytes);
-      if (tmp == NULL) {
-        return NULL;
-      } else {
-        pResultColInfoData->pData = tmp;
-        pInfo->outputCapacity = newSize;
-      }
-    }
-
-    for(int32_t i = 0; i < pBlock->info.rows; ++i) {
-      char* val = ((char*)pColInfoData->pData) + bytes * i;
-      if (isNull(val, type)) {
-        continue;
-      }
-
-      size_t keyLen = 0;
-      if (IS_VAR_DATA_TYPE(pOperator->pExpr->base.colType)) {
-        tstr* var = (tstr*)(val);
-        keyLen = varDataLen(var);
-      } else {
-        keyLen = bytes;
-      }
-
-      int dummy;
-      void* res = taosHashGet(pInfo->pSet, val, keyLen);
-      if (res == NULL) {
-        taosHashPut(pInfo->pSet, val, keyLen, &dummy, sizeof(dummy));
-        char* start = pResultColInfoData->pData + bytes * pInfo->pRes->info.rows;
-        memcpy(start, val, bytes);
-        pRes->info.rows += 1;
-      }
-    }
-
-    if (pRes->info.rows >= pInfo->threshold) {
-      break;
-    }*/
-  }
-
-  return (pInfo->pDataBlock->info.rows > 0)? pInfo->pDataBlock:NULL;
 }
 
 // todo set the attribute of query scan count
