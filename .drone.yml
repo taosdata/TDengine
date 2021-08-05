@@ -118,9 +118,7 @@ steps:
 - name: build
   image: arm32v7/ubuntu:focal
   commands:
-  - gpg --no-default-keyring --keyring ./key.gpg --verify Release.gpg Release
-  - gpg --list-packets Release.gpg
-  - apt-get update 
+  - apt-key del 1F3045A5DF7587C3
   - apt-get install -y cmake build-essential 
   - mkdir debug
   - cd debug
@@ -143,7 +141,7 @@ steps:
   image: arm32v7/centos:7
   commands:
   - yum remove epel-release
-  - curl http://dl.fedoraproject.org/pub/epel/7/x86_64/e/epel-release-7-9.noarch.rpm
+  - curl -O http://dl.fedoraproject.org/pub/epel/7/x86_64/e/epel-release-7-9.noarch.rpm
   - rpm -ivh epel-release-7-9.noarch.rpm
   - yum install -y gcc gcc-c++ make cmake
   - mkdir debug
