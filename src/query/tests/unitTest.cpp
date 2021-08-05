@@ -524,6 +524,64 @@ TEST(testCase, parse_time) {
 
 }
 
+/* test parse time profiling */
+TEST(testCase, parse_time_profile) {
+  taos_options(TSDB_OPTION_TIMEZONE, "GMT-8");
+  char t1[] = "2018-1-8 1:1:1.952";
+  char t2[] = "2018-1-8T1:1:1.952+0800";
+  char t3[] = "2018-1-8 1:1:1.952+0800";
+  char t4[] = "2018-1-81:1:1.952+0800";
+
+  char t5[] = "2018-1-8 1:1:1.952";
+  char t6[] = "2018-1-8T1:1:1.952+08:00";
+  char t7[] = "2018-1-8 1:1:1.952+08:00";
+  char t8[] = "2018-1-81:1:1.952+08:00";
+
+  char t9[] = "2018-1-8 1:1:1.952";
+  char t10[] = "2018-1-8T1:1:1.952Z";
+  char t11[] = "2018-1-8 1:1:1.952z";
+  char t12[] = "2018-1-81:1:1.952Z";
+
+  struct timeval start, end;
+  int64_t time = 0, time1 = 0;
+
+  int32_t total_run = 100000000;
+  long total_time_us;
+
+  gettimeofday(&start, NULL);
+  for (int i = 0; i < total_run; ++i) {
+    taosParseTime(t1, &time, strlen(t1), TSDB_TIME_PRECISION_MILLI, 0);
+  }
+  gettimeofday(&end, NULL);
+  total_time_us = ((end.tv_sec - start.tv_sec)* 1000000) + (end.tv_usec - start.tv_usec);
+  printf("[t1] The elapsed time is %f seconds in %d run, average:%fns\n", total_time_us/1000000.0, total_run, 1000*(float)total_time_us/(float)total_run);
+
+  gettimeofday(&start, NULL);
+  for (int i = 0; i < total_run; ++i) {
+    taosParseTime(t2, &time, strlen(t2), TSDB_TIME_PRECISION_MILLI, 0);
+  }
+  gettimeofday(&end, NULL);
+  total_time_us = ((end.tv_sec - start.tv_sec)* 1000000) + (end.tv_usec - start.tv_usec);
+  printf("[t2] The elapsed time is %f seconds in %d run, average:%fns\n", total_time_us/1000000.0, total_run, 1000*(float)total_time_us/(float)total_run);
+
+  gettimeofday(&start, NULL);
+  for (int i = 0; i < total_run; ++i) {
+    taosParseTime(t3, &time, strlen(t3), TSDB_TIME_PRECISION_MILLI, 0);
+  }
+  gettimeofday(&end, NULL);
+  total_time_us = ((end.tv_sec - start.tv_sec)* 1000000) + (end.tv_usec - start.tv_usec);
+  printf("[t3] The elapsed time is %f seconds in %d run, average:%fns\n", total_time_us/1000000.0, total_run, 1000*(float)total_time_us/(float)total_run);
+
+  gettimeofday(&start, NULL);
+  for (int i = 0; i < total_run; ++i) {
+    taosParseTime(t4, &time, strlen(t4), TSDB_TIME_PRECISION_MILLI, 0);
+  }
+  gettimeofday(&end, NULL);
+  total_time_us = ((end.tv_sec - start.tv_sec)* 1000000) + (end.tv_usec - start.tv_usec);
+  printf("[t4] The elapsed time is %f seconds in %d run, average:%fns\n", total_time_us/1000000.0, total_run, 1000*(float)total_time_us/(float)total_run);
+}
+
+
 TEST(testCase, tvariant_convert) {
   // 1. bool data to all other data types
   tVariant t = {0};
