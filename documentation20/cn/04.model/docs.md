@@ -33,7 +33,7 @@ USE power;
 一个物联网系统，往往存在多种类型的设备，比如对于电网，存在智能电表、变压器、母线、开关等等。为便于多表之间的聚合，使用TDengine, 需要对每个类型的数据采集点创建一超级表。以表一中的智能电表为例，可以使用如下的SQL命令创建超级表：
 
 ```mysql
-CREATE STABLE meters (ts timestamp, current float, voltage int, phase float) TAGS (location binary(64), groupdId int);
+CREATE STABLE meters (ts timestamp, current float, voltage int, phase float) TAGS (location binary(64), groupId int);
 ```
 
 **注意：**这一指令中的 STABLE 关键字，在 2.0.15 之前的版本中需写作 TABLE 。
