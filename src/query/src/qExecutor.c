@@ -5272,7 +5272,7 @@ static SSDataBlock* doSort(void* param, bool* newgroup) {
     pCols[i] = p1->pData;
     pSchema[i].colId = p1->info.colId;
     pSchema[i].bytes = p1->info.bytes;
-    pSchema[i].type  = p1->info.type;
+    pSchema[i].type  = (uint8_t) p1->info.type;
   }
 
   __compar_fn_t  comp = getKeyComparFunc(pSchema[pInfo->colIndex].type, pInfo->order);
