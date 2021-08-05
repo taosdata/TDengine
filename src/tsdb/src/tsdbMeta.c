@@ -1483,5 +1483,7 @@ static void tsdbFreeTableSchema(STable *pTable) {
       STSchema *pSchema = taosArrayGetP(pTable->schema, i);
       tdFreeSchema(pSchema);
     }
+
+    taosArrayDestroy(pTable->schema);
   }
 }
