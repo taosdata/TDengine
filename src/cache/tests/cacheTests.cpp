@@ -15,7 +15,7 @@ TEST(cacheTest, testInsert) {
   cache_t* cache = cacheCreate(&options);
 
   cacheTableOption tableOptions = (cacheTableOption) {
-    .loadFunc = NULL,
+    .loadFp = NULL,
     .initHashPower  = 10,
     .userData = NULL,
     .keyType   = TSDB_DATA_TYPE_BINARY,

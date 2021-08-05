@@ -38,9 +38,9 @@ typedef struct cacheOption {
 } cacheOption;
 
 typedef struct cacheTableOption {
-  cache_load_func_t loadFunc; /* user defined load data function */
+  cache_load_func_t loadFp; /* user defined load data function */
 
-  cache_del_func_t  delFunc;  /* user defined delete data function */
+  cache_del_func_t  delFp;  /* user defined delete data function */
 
   int initHashPower;          /* table initial hash power,in [10,32] */
 
@@ -74,6 +74,7 @@ cache_t* cacheCreate(cacheOption* options);
 void  cacheDestroy(cache_t*);
 
 cacheTable* cacheCreateTable(cache_t* cache, cacheTableOption* options);
+void cacheDestroyTable(cacheTable*);
 
 int cachePut(cacheTable*, const char* key, uint8_t nkey, const char* value, uint32_t nbytes, uint64_t expire);
 

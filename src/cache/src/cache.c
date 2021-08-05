@@ -116,13 +116,13 @@ int cacheGet(cacheTable* pTable, const char* key, uint8_t nkey, char** data, int
   }
 
   /* try to load the data from user defined function */
-  if (pTable->option.loadFunc == NULL) {
+  if (pTable->option.loadFp == NULL) {
     goto out;
   }
   char *loadValue;
   size_t loadLen = 0;
   uint64_t expire;
-  if (pTable->option.loadFunc(pTable->option.userData, key, nkey, &loadValue, &loadLen, &expire) != CACHE_OK) {
+  if (pTable->option.loadFp(pTable->option.userData, key, nkey, &loadValue, &loadLen, &expire) != CACHE_OK) {
     goto out;
   }
 
@@ -159,11 +159,15 @@ void cacheRemove(cacheTable* pTable, const char* key, uint8_t nkey) {
 
   cacheTableRemove(pTable, key, nkey, true);
 
-  if (pTable->option.delFunc) {
-    pTable->option.delFunc(pTable->option.userData, key, nkey);
+  if (pTable->option.delFp) {
+    pTable->option.delFp(pTable->option.userData, key, nkey);
   }
 
   cacheMutexUnlock(mutex);
+}
+
+void cacheDestroyTable(cacheTable* pTable) {
+
 }
 
 void *allocMemory(cache_t *cache, size_t size, bool chunked) {  

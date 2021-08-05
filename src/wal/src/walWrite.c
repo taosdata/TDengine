@@ -133,6 +133,17 @@ static int walValidateChecksum(SWalHead *pHead) {
 
 #endif
 
+int64_t walCurrentPos(twalh handle) {
+  if (handle == NULL) return -1;
+  SWal *  pWal = handle;
+
+  pthread_mutex_lock(&pWal->mutex);
+  int64_t off = tfLseek(pWal->tfd, 0, SEEK_CUR);
+  pthread_mutex_unlock(&(pWal->mutex));
+
+  return off;
+}
+
 int32_t walWrite(void *handle, SWalHead *pHead) {
   if (handle == NULL) return -1;
 
@@ -170,6 +181,44 @@ int32_t walWrite(void *handle, SWalHead *pHead) {
   ASSERT(contLen == pHead->len + sizeof(SWalHead));
 
   return code;
+}
+
+SWalHead* walRead(twalh handle, int64_t off, int32_t size) {
+  SWal *  pWal = handle;
+
+  pthread_mutex_lock(&pWal->mutex);
+  // get offset of current wal file
+  int64_t offset = tfLseek(pWal->tfd, 0, SEEK_CUR);
+  if (off + size > offset) {
+    pthread_mutex_unlock(&pWal->mutex);
+    return NULL;
+  }
+
+  void* p = calloc(1, size);
+  if (p == NULL) {
+    pthread_mutex_unlock(&pWal->mutex);
+    return NULL;
+  }
+
+  // seek to the read position
+  tfLseek(pWal->tfd, off, SEEK_SET);
+  SWalHead *pHead = p;
+
+  // read the wal record
+  int32_t ret = (int32_t)tfRead(pWal->tfd, pHead, size);
+  if (ret < size) {
+    wError("vgId:%d, fileId:%" PRId64 ", read wal record fail %s", pWal->vgId, pWal->fileId, strerror(errno));
+    free(p);
+    tfLseek(pWal->tfd, offset, SEEK_SET);
+    pthread_mutex_unlock(&pWal->mutex);
+    return NULL;
+  }
+
+  // restore offset
+  tfLseek(pWal->tfd, offset, SEEK_SET);
+  pthread_mutex_unlock(&pWal->mutex);
+
+  return pHead;
 }
 
 void walFsync(void *handle, bool forceFsync) {

@@ -108,6 +108,8 @@ int32_t  sdbGetId(void *pTable);
 uint64_t sdbGetVersion();
 bool     sdbCheckRowDeleted(void *pTable, void *pRow);
 
+SWalHead* sdbGetWal(void*, int64_t offset, int32_t size);
+
 int32_t mnodeCompactWal();
 #ifdef __cplusplus
 }
