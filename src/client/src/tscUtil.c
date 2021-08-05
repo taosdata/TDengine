@@ -1807,10 +1807,11 @@ static int trimDataBlock(void* pDataBlock, STableDataBlocks* pTableDataBlock, SI
     int32_t schemaSize = sizeof(STColumn) * numOfCols;
     pBlock->schemaLen = schemaSize;
   } else {
-    for (int32_t j = 0; j < tinfo.numOfColumns; ++j) {
-      flen += TYPE_BYTES[pSchema[j].type];
+    if (IS_RAW_PAYLOAD(insertParam->payloadType)) {
+      for (int32_t j = 0; j < tinfo.numOfColumns; ++j) {
+        flen += TYPE_BYTES[pSchema[j].type];
+      }
     }
-
     pBlock->schemaLen = 0;
   }
 
