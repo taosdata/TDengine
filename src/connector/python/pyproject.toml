@@ -1,13 +1,13 @@
 [tool.poetry]
 name = "taos"
-version = "2.0.12"
+version = "2.1.0"
 description = "TDengine connector for python"
 authors = ["Taosdata Inc. <support@taosdata.com>"]
 license = "AGPL-3.0"
 readme = "README.md"
 
 [tool.poetry.dependencies]
-python = "^2.7 || ^3.7"
+python = "^2.7 || ^3.4"
 
 [tool.poetry.dev-dependencies]
 pytest = [
