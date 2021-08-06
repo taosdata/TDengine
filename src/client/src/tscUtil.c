@@ -1428,11 +1428,12 @@ void tscFreeSubobj(SSqlObj* pSql) {
   }
 
   if (pSql->subState.states) {
+    pthread_mutex_lock(&pSql->subState.mutex);
+    tfree(pSql->subState.states);
+    pSql->subState.numOfSub = 0;
+    pthread_mutex_unlock(&pSql->subState.mutex);
     pthread_mutex_destroy(&pSql->subState.mutex);
   }
-
-  tfree(pSql->subState.states);
-  pSql->subState.numOfSub = 0;
 }
 
 /**

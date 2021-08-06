@@ -263,7 +263,8 @@ int tscBuildQueryStreamDesc(void *pMsg, STscObj *pObj) {
     if (pQdesc->numOfSub == 0) {
       snprintf(p, remainLen, "N/A");
     } else {
-      int32_t len;
+      int32_t len = 0;
+      pthread_mutex_lock(&pSql->subState.mutex);
       for (int32_t i = 0; i < pQdesc->numOfSub; ++i) {
         len = snprintf(p, remainLen, "[%d]0x%" PRIx64 "(%c) ", i,
                         pSql->pSubs[i]->self,
@@ -274,6 +275,7 @@ int tscBuildQueryStreamDesc(void *pMsg, STscObj *pObj) {
         remainLen -= len;
         p += len;
       }
+      pthread_mutex_unlock(&pSql->subState.mutex);
     }
     pQdesc->numOfSub = htonl(pQdesc->numOfSub);
 
