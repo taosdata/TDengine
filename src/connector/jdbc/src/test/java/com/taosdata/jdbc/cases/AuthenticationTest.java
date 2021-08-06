@@ -39,7 +39,7 @@ public class AuthenticationTest {
         try {
             DriverManager.getConnection("jdbc:TAOS://" + host + ":0/?user=root");
         } catch (SQLException e) {
-            Assert.assertEquals(TSDBErrorNumbers.ERROR_USER_IS_REQUIRED, e.getErrorCode());
+            Assert.assertEquals(TSDBErrorNumbers.ERROR_PASSWORD_IS_REQUIRED, e.getErrorCode());
             Assert.assertEquals("ERROR (231a): password is required", e.getMessage());
         }
     }
@@ -49,7 +49,7 @@ public class AuthenticationTest {
         try {
             DriverManager.getConnection("jdbc:TAOS-RS://" + host + ":6041/?user=root");
         } catch (SQLException e) {
-            Assert.assertEquals(TSDBErrorNumbers.ERROR_USER_IS_REQUIRED, e.getErrorCode());
+            Assert.assertEquals(TSDBErrorNumbers.ERROR_PASSWORD_IS_REQUIRED, e.getErrorCode());
             Assert.assertEquals("ERROR (231a): password is required", e.getMessage());
         }
     }
