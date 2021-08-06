@@ -4,7 +4,6 @@ from .constants import FieldType
 from .error import *
 from .precision import *
 from datetime import datetime
-from typing import Callable
 from ctypes import *
 import sys
 

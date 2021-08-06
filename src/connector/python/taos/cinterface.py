@@ -4,7 +4,10 @@ import ctypes
 import platform
 import sys
 from ctypes import *
-from typing import Any
+try:
+    from typing import Any
+except:
+    pass
 
 from .error import *
 from .bind import *
@@ -556,8 +559,11 @@ def taos_select_db(connection, db):
         raise DatabaseError("select database error", res)
 
 
-_libtaos.taos_open_stream.restype = c_void_p
-_libtaos.taos_open_stream.argstype = c_void_p, c_char_p, stream_callback_type, c_int64, c_void_p, Any
+try:
+    _libtaos.taos_open_stream.restype = c_void_p
+    _libtaos.taos_open_stream.argstype = c_void_p, c_char_p, stream_callback_type, c_int64, c_void_p, Any
+except:
+    pass
 
 
 def taos_open_stream(connection, sql, callback, stime=0, param=None, callback2=None):
