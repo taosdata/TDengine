@@ -18,7 +18,7 @@ pagMode=full        # -l [full | lite]
 verMode=all        # -v [cluster, edge ,all ] cluster is enterprise, edge is community
 versionComp=2.0.0.0
 dockerMode=""
-preEnter="no"
+preEnter="other"
 
 while getopts "hb:c:n:l:v:d:p:" arg
 do
@@ -81,32 +81,18 @@ repPath=$workPath/TDinternal
 communityDir=$workPath/TDinternal/community
 releaseBranch=release/ver-${version}
 
-# new workdir
-if [ ! -d $repPath ]; then
-    cd ${workPath} && git clone git@github.com:taosdata/TDinternal.git --recursive --recurse-submodules
-else
-    rm -rf $repPath
-    echo " delete latest $repPath "
-    sleep 10
-    cd ${workPath}  &&  git clone git@github.com:taosdata/TDinternal.git --recursive --recurse-submodules
-fi
+# # new workdir
+# if [ ! -d $repPath ]; then
+#     cd ${workPath} && git clone git@github.com:taosdata/TDinternal.git --recursive --recurse-submodules
+# else
+#     rm -rf $repPath
+#     echo " delete latest $repPath "
+#     sleep 10
+#     cd ${workPath}  &&  git clone git@github.com:taosdata/TDinternal.git --recursive --recurse-submodules
+# fi
 
 
-# new branch
-
-cd ${repPath}
-if git rev-parse --verify remotes/origin/release/ver-${version} ; then
-    git checkout -f ${branchName} && git pull origin ${branchName} --no-edit 
-    git fetch && git checkout  ${releaseBranch}  && git pull origin ${releaseBranch} --no-edit 
-else
-    git checkout -f ${branchName} && git pull origin ${branchName} --no-edit 
-    git fetch && git checkout -b ${releaseBranch} 
-    sed -i "7s/.*TD_VER_NUMBER.*/  SET(TD_VER_NUMBER \""$version"\")/"  ${repPath}/community/cmake/version.inc
-    sed -i "3s/version.*/version: \'"$version"\'/"  ${repPath}/community/snap/snapcraft.yaml
-    sed -i "75s/.*libtaos.so.*/      - usr\/lib\/libtaos.so.$version/"   ${repPath}/community/snap/snapcraft.yaml
-    git push --set-upstream origin ${releaseBranch}
-fi
-
+# new master branch
 cd ${communityDir}
 if git rev-parse --verify remotes/origin/release/ver-${version} ; then
     git checkout -f ${branchName} && git pull origin ${branchName} --no-edit 
@@ -117,7 +103,20 @@ else
     sed -i "7s/.*TD_VER_NUMBER.*/  SET(TD_VER_NUMBER \""$version"\")/" ${repPath}/community/cmake/version.inc
     sed -i "3s/version.*/version: \'"$version"\'/"  ${repPath}/community/snap/snapcraft.yaml
     sed -i "75s/.*libtaos.so.*/      - usr\/lib\/libtaos.so.$version/"   ${repPath}/community/snap/snapcraft.yaml
+    git add ${repPath}/community/snap/snapcraft.yaml 
+    git  add ${repPath}/community/cmake/version.inc
+    git commit -m 'change version number'
+    git push --set-upstream origin ${releaseBranch}
+fi
 
+# new develop branch
+cd ${repPath}
+if git rev-parse --verify remotes/origin/release/ver-${version} ; then
+    git checkout -f ${branchName} && git pull origin ${branchName} --no-edit 
+    git fetch && git checkout  ${releaseBranch}  && git pull origin ${releaseBranch} --no-edit 
+else
+    git checkout -f ${branchName} && git pull origin ${branchName} --no-edit 
+    git fetch && git checkout -b ${releaseBranch} 
     git push --set-upstream origin ${releaseBranch}
 fi
 
