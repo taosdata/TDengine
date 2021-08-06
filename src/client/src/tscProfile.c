@@ -18,11 +18,11 @@
 #include "tsclient.h"
 #include "tsocket.h"
 #include "ttimer.h"
-#include "tutil.h"
 #include "taosmsg.h"
 #include "tcq.h"
 
 #include "taos.h"
+#include "tscUtil.h"
 
 void  tscSaveSlowQueryFp(void *handle, void *tmrId);
 TAOS *tscSlowQueryConn = NULL;
@@ -255,13 +255,19 @@ int tscBuildQueryStreamDesc(void *pMsg, STscObj *pObj) {
     pQdesc->sqlObjId = htobe64(pSql->self);
     pQdesc->pid      = pHeartbeat->pid;
     pQdesc->numOfSub = pSql->subState.numOfSub;
-    pQdesc->stableQuery = pSql->cmd.pQueryInfo->stableQuery;
 
     char *p = pQdesc->subSqlInfo;
     int32_t remainLen = sizeof(pQdesc->subSqlInfo);
     if (pQdesc->numOfSub == 0) {
       snprintf(p, remainLen, "N/A");
     } else {
+      SQueryInfo* pQueryInfo = tscGetQueryInfo(&pSql->cmd);
+      if (pQueryInfo != NULL) {
+        pQdesc->stableQuery = (pQueryInfo->stableQuery)?1:0;
+      } else {
+        pQdesc->stableQuery = 0;
+      }
+
       if (pSql->pSubs != NULL && pSql->subState.states != NULL) {
         for (int32_t i = 0; i < pQdesc->numOfSub; ++i) {
           SSqlObj *psub = pSql->pSubs[i];
