@@ -246,7 +246,8 @@ def taos_query(connection, sql):
 
     """
     try:
-        res = cast(_libtaos.taos_query(connection, c_char_p(sql.encode("utf-8"))), c_void_p)
+        ptr = c_char_p(sql.encode("utf-8"))
+        res = c_void_p(_libtaos.taos_query(connection, ptr))
         errno = taos_errno(res)
         if errno != 0:
             errstr = taos_errstr(res)
