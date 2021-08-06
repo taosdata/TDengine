@@ -305,6 +305,7 @@ int32_t qRetrieveQueryResultInfo(qinfo_t qinfo, bool* buildRes, void* pRspContex
 
 int32_t qDumpRetrieveResult(qinfo_t qinfo, SRetrieveTableRsp **pRsp, int32_t *contLen, bool* continueExec) {
   SQInfo *pQInfo = (SQInfo *)qinfo;
+  int32_t compLen = 0;
 
   if (pQInfo == NULL || !isValidQInfo(pQInfo)) {
     return TSDB_CODE_QRY_INVALID_QHANDLE;
@@ -337,10 +338,17 @@ int32_t qDumpRetrieveResult(qinfo_t qinfo, SRetrieveTableRsp **pRsp, int32_t *co
   }
 
   (*pRsp)->precision = htons(pQueryAttr->precision);
+  (*pRsp)->compressed = NEEDTO_COMPRESS_QUERY(pQueryAttr->resultRowSize * s);
+
   if (GET_NUM_OF_RESULTS(&(pQInfo->runtimeEnv)) > 0 && pQInfo->code == TSDB_CODE_SUCCESS) {
-    doDumpQueryResult(pQInfo, (*pRsp)->data);
+    doDumpQueryResult(pQInfo, (*pRsp)->data, (*pRsp)->compressed, &compLen);
   } else {
     setQueryStatus(pRuntimeEnv, QUERY_OVER);
+  }
+
+  if ((*pRsp)->compressed && compLen != 0) {
+    *contLen = *contLen - pQueryAttr->resultRowSize * s + compLen;
+    *pRsp = (SRetrieveTableRsp *)rpcReallocCont(*pRsp, *contLen);
   }
 
   pQInfo->rspContext = NULL;
