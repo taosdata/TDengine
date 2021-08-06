@@ -271,6 +271,19 @@ public class InsertSpecialCharacterJniTest {
     }
 
     @Test
+    public void testSingleQuotaEscape() throws SQLException {
+        String query = "select * from ?.t? where ? < ? and ts >= ? and ? is not null";
+        try (PreparedStatement pstmt = conn.prepareStatement(query)) {
+            pstmt.setString(1, dbName);
+            pstmt.setInt(2, 1);
+            pstmt.setString(3, "ts");
+            pstmt.setTimestamp(4, new Timestamp(System.currentTimeMillis()));
+            pstmt.setTimestamp(5, new Timestamp(0));
+            pstmt.setString(6, "f1");
+        }
+    }
+
+    @Test
     public void testCase10() throws SQLException {
         final long now = System.currentTimeMillis();
 
