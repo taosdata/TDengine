@@ -13,7 +13,7 @@ set -e
 # set parameters by default value
 branchName=master   # -b [develop | master
 cpuType=x64         # -c [aarch32 | aarch64 | x64 ...]
-version="2.1.4.1"   # -n [2.1.*.* | 2.0.*.* ]
+version="2.1.5.0"   # -n [2.1.*.* | 2.0.*.* ]
 pagMode=full        # -l [full | lite] 
 verMode=all        # -v [cluster, edge ,all ] cluster is enterprise, edge is community
 versionComp=2.0.0.0
@@ -78,8 +78,8 @@ if [ "$branchName" == "master" ];then
   dockerim=tdengine/tdengine
 elif [ "$branchName" == "develop" ];then
   branchName=develop
-  verType=beta
-  tagVal=ver-${version}-beta
+  verType=preRelease
+  tagVal=ver-${version}-preRelease
   dockerinput=TDengine-server-${version}-${verType}-Linux-$cpuType.tar.gz  
   dockerim=tdengine/tdengine-beta
 fi
@@ -103,27 +103,27 @@ fi
 dockerPass="tbase125!"
 dockerinput_x64=TDengine-server-${version}-Linux-amd64.tar.gz
 
-####################### build docker image and push
-if [ "$dockerMode" == "isdocker" ];then
-  cd ${scriptDir}
-  echo "ready to generate docker for community version >>>>>>>>>>>>>>>>>>>>>>>>>>>>>"
-  if [ "${cpuType}" == "x64" ] ; then
-    cpuType=amd64
-    # cd ${communityDir}/packaging/docker
-    cp -f ${comunityArchiveDir}/${dockerinput}  ${comunityArchiveDir}/${dockerinput_x64}
-    bash generate_docker.sh     $version $dockerPass  $branchName $verType $cpuType ${dockerinput_x64}
-    # echo ">>>>>>>>>>>>> check whether the docker image has been published"
-    # docker pull ${dockerim}:${version}
-    # docker tag ${dockerim}:$version ${dockerim}:latest
-    # docker push tdengine/tdengine:latest
-  elif [[ "${cpuType}" == "aarch64" ]] || [[ "${cpuType}" == "aarch32" ]]; then
-    # cd $communityDir/packaging/docker
-    echo `pwd`
-    bash generate_docker.sh    $version $dockerPass  $branchName $verType $cpuType ${dockerinput}
+# ####################### build docker image and push
+# if [ "$dockerMode" == "isdocker" ];then
+#   cd ${scriptDir}
+#   echo "ready to generate docker for community version >>>>>>>>>>>>>>>>>>>>>>>>>>>>>"
+#   if [ "${cpuType}" == "x64" ] ; then
+#     cpuType=amd64
+#     # cd ${communityDir}/packaging/docker
+#     cp -f ${comunityArchiveDir}/${dockerinput}  ${comunityArchiveDir}/${dockerinput_x64}
+#     bash generate_docker.sh     $version $dockerPass  $branchName $verType $cpuType ${dockerinput_x64}
+#     # echo ">>>>>>>>>>>>> check whether the docker image has been published"
+#     # docker pull ${dockerim}:${version}
+#     # docker tag ${dockerim}:$version ${dockerim}:latest
+#     # docker push tdengine/tdengine:latest
+#   elif [[ "${cpuType}" == "aarch64" ]] || [[ "${cpuType}" == "aarch32" ]]; then
+#     # cd $communityDir/packaging/docker
+#     echo `pwd`
+#     bash generate_docker.sh    $version $dockerPass  $branchName $verType $cpuType ${dockerinput}
   
-    # echo ">>>>>>>>>>>>> check whether the docker image has been published"
-    # docker pull ${dockerim}-${cpuType}:${version}
-    # docker tag ${dockerim}-${cpuType}:$version ${dockerim}-${cpuType}:latest
-    # docker push tdengine/tdengine-aarch64:latest
-  fi
-fi
+#     # echo ">>>>>>>>>>>>> check whether the docker image has been published"
+#     # docker pull ${dockerim}-${cpuType}:${version}
+#     # docker tag ${dockerim}-${cpuType}:$version ${dockerim}-${cpuType}:latest
+#     # docker push tdengine/tdengine-aarch64:latest
+#   fi
+# fi

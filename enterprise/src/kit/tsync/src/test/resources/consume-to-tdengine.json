@@ -1,0 +1,68 @@
+{
+  "consumer": {
+    "host": "192.168.17.156",
+    "port": 6041,
+    "user": "root",
+    "password": "tqueue",
+    "charset": "UTF-8",
+    "locale": "en_US.UTF-8",
+    "timezone": "UTC-8",
+    "serializer": "STRING"
+  },
+  "task": {
+    "topic": "tq_test",
+    "partitions": [
+      "1..10"
+    ],
+    "threads": 10
+  },
+  "destination": {
+    "taosd": {
+      "host": "192.168.17.82",
+      "port": 6041,
+      "user": "root",
+      "password": "taosdata",
+      "charset": "UTF-8",
+      "locale": "en_US.UTF-8",
+      "timezone": "UTC-8"
+    },
+    "strategy": {
+      "pollingInterval": 10,
+      "schemaMissing": "CREATE"
+    },
+    "schema": {
+      "database": {
+        "name": "test",
+        "precision": "ms"
+      },
+      "stable": {
+        "name": "weather",
+        "columns": [
+          {
+            "name": "ts",
+            "type": "timestamp"
+          },
+          {
+            "name": "temperature",
+            "type": "float"
+          },
+          {
+            "name": "humidity",
+            "type": "int"
+          }
+        ],
+        "tags": [
+          {
+            "name": "loc",
+            "type": "binary",
+            "length": 5
+          },
+          {
+            "name": "groupId",
+            "type": "int"
+          }
+        ]
+      }
+    }
+  }
+}

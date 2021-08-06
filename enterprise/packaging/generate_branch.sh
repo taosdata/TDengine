@@ -18,8 +18,9 @@ pagMode=full        # -l [full | lite]
 verMode=all        # -v [cluster, edge ,all ] cluster is enterprise, edge is community
 versionComp=2.0.0.0
 dockerMode=""
+preEnter="no"
 
-while getopts "hb:c:n:l:v:d:" arg
+while getopts "hb:c:n:l:v:d:p:" arg
 do
   case $arg in
     c)
@@ -46,13 +47,18 @@ do
       #echo "dockerMode=$OPTARG"
       dockerMode=$(echo $OPTARG)
       ;;
+    p)
+      #echo "preEnter=$OPTARG"
+      preEnter=$(echo $OPTARG)
+      ;;
     h)
       echo "Usage: `basename $0` -b [develop | master] "
       echo "                          -c [aarch32 | aarch64 | x64 ...] "
       echo "                          -n [version number: 2.1.*.* | 2.0.*.* ]      "
       echo "                          -l [full | lite]  "
       echo "                          -v [cluster, edge ,all] cluster is enterprise, edge is community  "
-      echo "                          -d [isdocker ]   "
+      echo "                          -d [isdocker | other ]   "
+      echo "                          -p [pre | other ]   "
       exit 0
       ;;
     ?) #unknow option
@@ -65,22 +71,24 @@ done
 
 
 # new workPath
-workPath=/home/ubuntu/workroom/jenkins
+workPath=/home/ubuntu/workroom/jenkins/
 if [ ! -d $workPath ]; then
     mkdir -p $workPath
 fi
 
 #reposisitory path
-repPath=$workPath/TDinternal/
+repPath=$workPath/TDinternal
 communityDir=$workPath/TDinternal/community
 releaseBranch=release/ver-${version}
+
+# new workdir
 if [ ! -d $repPath ]; then
     cd ${workPath} && git clone git@github.com:taosdata/TDinternal.git --recursive --recurse-submodules
 else
     rm -rf $repPath
     echo " delete latest $repPath "
     sleep 10
-    cd ${workpath} && git clone git@github.com:taosdata/TDinternal.git --recursive --recurse-submodules
+    cd ${workPath}  &&  git clone git@github.com:taosdata/TDinternal.git --recursive --recurse-submodules
 fi
 
 
@@ -95,7 +103,7 @@ else
     git fetch && git checkout -b ${releaseBranch} 
     sed -i "7s/.*TD_VER_NUMBER.*/  SET(TD_VER_NUMBER \""$version"\")/"  ${repPath}/community/cmake/version.inc
     sed -i "3s/version.*/version: \'"$version"\'/"  ${repPath}/community/snap/snapcraft.yaml
-    sed -i "75s/.*libtaos.so.*/      - usr\/lib\/libtaos.so.$ver/"   ${repPath}/community/snap/snapcraft.yaml
+    sed -i "75s/.*libtaos.so.*/      - usr\/lib\/libtaos.so.$version/"   ${repPath}/community/snap/snapcraft.yaml
     git push --set-upstream origin ${releaseBranch}
 fi
 
@@ -108,22 +116,31 @@ else
     git fetch && git checkout -b ${releaseBranch} 
     sed -i "7s/.*TD_VER_NUMBER.*/  SET(TD_VER_NUMBER \""$version"\")/" ${repPath}/community/cmake/version.inc
     sed -i "3s/version.*/version: \'"$version"\'/"  ${repPath}/community/snap/snapcraft.yaml
-    sed -i "75s/.*libtaos.so.*/      - usr\/lib\/libtaos.so.$ver/"   ${repPath}/community/snap/snapcraft.yaml
+    sed -i "75s/.*libtaos.so.*/      - usr\/lib\/libtaos.so.$version/"   ${repPath}/community/snap/snapcraft.yaml
 
     git push --set-upstream origin ${releaseBranch}
 fi
 
 #  packaging x64/aarch32/aarch64 
 
-cd ${repPath}/enterprise/packaging
-./new_ver_release.sh -b ${branchName} -c ${cpuType} -n ${version} -v ${verMode} -d ${dockerMode}
 
-# manifest docker 
-cd ${communityDir}/packaging/docker 
-
-if [ ${branchName} == "master" ];then
-    ./dockerManifest.sh -n ${version} -p tbase125! -V stable
-elif [ ${branchName} == "develop" ];then
-    ./dockerManifest.sh -n ${version} -p tbase125! -V beta
+if [ "${preEnter}" != "pre" ];then
+    cd ${repPath}/enterprise/packaging
+    ./new_ver_release.sh -b ${branchName} -c ${cpuType} -n ${version} -v ${verMode} -d ${dockerMode}
+elif [ "${preEnter}" == "pre" ];then
+    cd ${repPath}/enterprise/packaging
+    ./new_ver_release_pre.sh -b ${branchName} -c ${cpuType} -n ${version} -v ${verMode} -d ${dockerMode}
 fi
+
+
+
+
+# # manifest docker 
+# cd ${communityDir}/packaging/docker 
+
+# if [ ${branchName} == "master" ];then
+#     ./dockerManifest.sh -n ${version} -p tbase125! -V stable
+# elif [ ${branchName} == "develop" ];then
+#     ./dockerManifest.sh -n ${version} -p tbase125! -V beta
+# fi
 

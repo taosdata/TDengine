@@ -219,12 +219,15 @@ static void *tpProcessCreateTp(void *param) {
   void *        taos = NULL;
   SDbObj *      pDb = NULL;
   int32_t       code = 0;
-  SCreateDbMsg *pCreate = pMsg->rpcMsg.pCont;
+  char db[TSDB_ACCT_ID_LEN + TSDB_DB_NAME_LEN] = {0};
 
+  SCreateDbMsg *pCreate = pMsg->rpcMsg.pCont;
   pDb = mnodeGetDb(pCreate->db);
+
+  tstrncpy(db, pCreate->db, sizeof(pCreate->db));
   if (pDb != NULL) {
     if (pDb->cfg.dbType != TSDB_DB_TYPE_TOPIC) {
-      mError("topic:%s, db already exist but type is not topic", pCreate->db);
+      mError("topic:%s, db already exist but type is not topic", db);
       code = TSDB_CODE_MND_DB_ALREADY_EXIST;
       mnodeDecDbRef(pDb);
       pDb = NULL;
@@ -232,11 +235,11 @@ static void *tpProcessCreateTp(void *param) {
     }
 
     if (pCreate->ignoreExist) {
-      mDebug("topic:%s, db already exist, ignore exist is set", pCreate->db);
+      mDebug("topic:%s, db already exist, ignore exist is set", db);
       mnodeDecDbRef(pDb);
       pDb = NULL;
     } else {
-      mError("topic:%s, db already exist, ignore exist not set", pCreate->db);
+      mError("topic:%s, db already exist, ignore exist not set", db);
       code = TSDB_CODE_MND_TOPIC_ALREADY_EXIST;
       mnodeDecDbRef(pDb);
       pDb = NULL;
@@ -245,7 +248,7 @@ static void *tpProcessCreateTp(void *param) {
   }
 
   int16_t partitions = htons(pCreate->partitions);
-  mDebug("topic:%s, start to create, partitions:%d", pCreate->db, partitions);
+  mDebug("topic:%s, start to create, partitions:%d", db, partitions);
 
   if (partitions == -1) {
     partitions = TSDB_DEFAULT_DB_PARTITON_OPTION;
@@ -286,7 +289,7 @@ static void *tpProcessCreateTp(void *param) {
     goto ctp_over;
   }
 
-  mInfo("topic:%s, all table created", pCreate->db);
+  mInfo("topic:%s, all table created", db);
 
 ctp_over:
   taos_close(taos);
@@ -303,7 +306,7 @@ ctp_over:
 
   dnodeSendRpcMWriteRsp(pMsg, code);
 
-  mDebug("topic:%s, create topic thread finished", pCreate->db);
+  mDebug("topic:%s, create topic thread finished", db);
   return NULL;
 }
 
@@ -314,10 +317,13 @@ static void *tpProcessAlterTp(void *param) {
   SAlterDbMsg *pAlter = pMsg->rpcMsg.pCont;
   int32_t      partitions = htons(pAlter->partitions);
   int32_t      code = 0;
+  char db[TSDB_ACCT_ID_LEN + TSDB_DB_NAME_LEN] = {0};
+
+  tstrncpy(db, pAlter->db, sizeof(pAlter->db));
 
   pDb = mnodeGetDb(pAlter->db);
   if (pDb == NULL || pDb->cfg.dbType != TSDB_DB_TYPE_TOPIC) {
-    mError("topic:%s, failed to alter, invalid topic", pAlter->db);
+    mError("topic:%s, failed to alter, invalid topic", db);
     code = TSDB_CODE_MND_INVALID_TOPIC;
     goto atp_over;
   }
@@ -330,7 +336,7 @@ static void *tpProcessAlterTp(void *param) {
 
   int32_t oldPartitons = pDb->cfg.partitions;
   pDb->cfg.partitions = partitions;
-  mDebug("topic:%s, start to alter, partitions:%d, old:%d", pAlter->db, partitions, oldPartitons);
+  mDebug("topic:%s, start to alter, partitions:%d, old:%d", db, partitions, oldPartitons);
 
   taos = taos_connect(NULL, "monitor", tsInternalPass, "", 0);
   if (taos == NULL) {
@@ -351,7 +357,7 @@ static void *tpProcessAlterTp(void *param) {
   tpCreateTopicCtable(taos, mnodeGetDbStr(pAlter->db), partitions);
   tpDropTopicCtable(taos, mnodeGetDbStr(pAlter->db), oldPartitons, partitions);
 
-  mInfo("topic:%s, all table updated, partitions:%d", pAlter->db, partitions);
+  mInfo("topic:%s, all table updated, partitions:%d", db, partitions);
 
 atp_over:
   taos_close(taos);
@@ -366,7 +372,7 @@ atp_over:
 
   dnodeSendRpcMWriteRsp(pMsg, code);
 
-  mDebug("topic:%s, alter topic thread finished", pAlter->db);
+  mDebug("topic:%s, alter topic thread finished", db);
   return NULL;
 }
 
@@ -377,17 +383,22 @@ static void *tpProcessDropTp(void *param) {
   SDropDbMsg *pDrop = pMsg->rpcMsg.pCont;
   void *      taos = NULL;
 
-  mDebug("topic:%s, start to drop", pDrop->db);
+  //not change msg protocal between client/server, actually, db max length is (TSDB_ACCT_ID_LEN + TSDB_DB_NAME_LEN)
+  //just make runtime happy
+  char db[TSDB_TABLE_FNAME_LEN] = {0};
+  tstrncpy(db, pDrop->db, sizeof(pDrop->db));
+
+  mDebug("topic:%s, start to drop", db);
   pDb = mnodeGetDb(pDrop->db);
   if (pDb == NULL) {
     if (pDrop->ignoreNotExists) {
-      mDebug("topic:%s, tp already exist, ignore exist is set", pDrop->db);
+      mDebug("topic:%s, tp already exist, ignore exist is set", db);
       goto dtp_over;
     } 
   }
 
   if (pDb == NULL || pDb->cfg.dbType != TSDB_DB_TYPE_TOPIC) {
-    mError("topic:%s, failed to drop, invalid topic", pDrop->db);
+    mError("topic:%s, failed to drop, invalid topic", db);
     code = TSDB_CODE_MND_INVALID_TOPIC;
     goto dtp_over;
   }
@@ -406,7 +417,7 @@ static void *tpProcessDropTp(void *param) {
     goto dtp_over;
   }
 
-  mInfo("topic:%s, drop success", pDrop->db);
+  mInfo("topic:%s, drop success", db);
 
 dtp_over:
   taos_close(taos);
@@ -416,7 +427,7 @@ dtp_over:
 
   dnodeSendRpcMWriteRsp(pMsg, code);
 
-  mDebug("topic:%s, drop topic thread finished", pDrop->db);
+  mDebug("topic:%s, drop topic thread finished", db);
   return NULL;
 }
 
@@ -560,16 +571,16 @@ void tpUpdateTs(int32_t vgId, int64_t *seq, void *pMsg) {
     int32_t rows = 0;
     int64_t sec = (int64_t)taosGetTimestampSec() * 1000000L;
     while (rows < numOfRows && rowOffset < blockTotalLen) {
-      SDataRow *pRow = (SDataRow *)((char *)pBlock->data + rowOffset);
+      SMemRow *pRow = (SMemRow *)((char *)pBlock->data + rowOffset);
 
-      rowOffset += dataRowLen(pRow);
+      rowOffset += memRowTLen(pRow);
       rows++;
 
       if ((*seq)++ < sec) {
         *seq = sec;
       }
 
-      dataRowTKey(pRow) = *seq;
+      memRowSetTKey(pRow, *seq);
       mTrace("vgId:%d, sec:%" PRId64 ", seq:%" PRId64, vgId, sec, *seq);
     }
   }
