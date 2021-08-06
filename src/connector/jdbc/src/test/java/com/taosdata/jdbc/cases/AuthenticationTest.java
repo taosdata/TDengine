@@ -1,5 +1,7 @@
 package com.taosdata.jdbc.cases;
 
+import com.taosdata.jdbc.TSDBErrorNumbers;
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -11,6 +13,26 @@ public class AuthenticationTest {
     private static final String user = "root";
     private static final String password = "taos?data";
     private Connection conn;
+
+    @Test
+    public void connectWithoutUserByJni() {
+        try {
+            DriverManager.getConnection("jdbc:TAOS://" + host + ":0/?");
+        } catch (SQLException e) {
+            Assert.assertEquals(TSDBErrorNumbers.ERROR_USER_IS_REQUIRED, e.getErrorCode());
+            Assert.assertEquals("ERROR (0x2339): user is required", e.getMessage());
+        }
+    }
+
+    @Test
+    public void connectWithoutUserByRestful() {
+        try {
+            DriverManager.getConnection("jdbc:TAOS-RS://" + host + ":6041/?");
+        } catch (SQLException e) {
+            Assert.assertEquals(TSDBErrorNumbers.ERROR_USER_IS_REQUIRED, e.getErrorCode());
+            Assert.assertEquals("ERROR (0x2339): user is required", e.getMessage());
+        }
+    }
 
     @Test
     public void test() {
