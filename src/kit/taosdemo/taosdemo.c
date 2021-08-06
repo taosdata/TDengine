@@ -77,7 +77,7 @@ extern char configDir[];
 #define COL_BUFFER_LEN      ((TSDB_COL_NAME_LEN + 15) * TSDB_MAX_COLUMNS)
 
 #define MAX_USERNAME_SIZE  64
-#define MAX_PASSWORD_SIZE  64
+#define MAX_PASSWORD_SIZE  16
 #define MAX_HOSTNAME_SIZE  253      // https://man7.org/linux/man-pages/man7/hostname.7.html
 #define MAX_TB_NAME_SIZE   64
 #define MAX_DATA_SIZE      (16*TSDB_MAX_COLUMNS)+20     // max record len: 16*MAX_COLUMNS, timestamp string and ,('') need extra space
@@ -216,7 +216,7 @@ typedef struct SArguments_S {
     uint16_t port;
     uint16_t iface;
     char *   user;
-    char *   password;
+    char     password[MAX_PASSWORD_SIZE];
     char *   database;
     int      replica;
     char *   tb_prefix;
@@ -709,24 +709,24 @@ static void printHelp() {
     printf("%s%s%s%s\n", indent, "-u", indent,
             "The TDengine user name to use when connecting to the server. Default is 'root'.");
 #ifdef _TD_POWER_
-    printf("%s%s%s%s\n", indent, "-P", indent,
+    printf("%s%s%s%s\n", indent, "-p", indent,
             "The password to use when connecting to the server. Default is 'powerdb'.");
     printf("%s%s%s%s\n", indent, "-c", indent,
             "Configuration directory. Default is '/etc/power/'.");
 #elif (_TD_TQ_ == true)
-    printf("%s%s%s%s\n", indent, "-P", indent,
+    printf("%s%s%s%s\n", indent, "-p", indent,
             "The password to use when connecting to the server. Default is 'tqueue'.");
     printf("%s%s%s%s\n", indent, "-c", indent,
             "Configuration directory. Default is '/etc/tq/'.");
 #else
-    printf("%s%s%s%s\n", indent, "-P", indent,
+    printf("%s%s%s%s\n", indent, "-p", indent,
             "The password to use when connecting to the server. Default is 'taosdata'.");
     printf("%s%s%s%s\n", indent, "-c", indent,
             "Configuration directory. Default is '/etc/taos/'.");
 #endif
     printf("%s%s%s%s\n", indent, "-h", indent,
             "The host to connect to TDengine. Default is localhost.");
-    printf("%s%s%s%s\n", indent, "-p", indent,
+    printf("%s%s%s%s\n", indent, "-P", indent,
             "The TCP/IP port number to use for the connection. Default is 0.");
     printf("%s%s%s%s\n", indent, "-I", indent,
 #if STMT_IFACE_ENABLED == 1
@@ -826,11 +826,11 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
                 exit(EXIT_FAILURE);
             }
             arguments->host = argv[++i];
-        } else if (strcmp(argv[i], "-p") == 0) {
+        } else if (strcmp(argv[i], "-P") == 0) {
             if ((argc == i+1) ||
                     (!isStringNumber(argv[i+1]))) {
                 printHelp();
-                errorPrint("%s", "\n\t-p need a number following!\n");
+                errorPrint("%s", "\n\t-P need a number following!\n");
                 exit(EXIT_FAILURE);
             }
             arguments->port = atoi(argv[++i]);
@@ -860,13 +860,13 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
                 exit(EXIT_FAILURE);
             }
             arguments->user = argv[++i];
-        } else if (strcmp(argv[i], "-P") == 0) {
-            if (argc == i+1) {
-                printHelp();
-                errorPrint("%s", "\n\t-P need a valid string following!\n");
-                exit(EXIT_FAILURE);
+        } else if (strncmp(argv[i], "-p", 2) == 0) {
+            if (strlen(argv[i]) == 2) {
+                printf("Enter password:");
+                scanf("%s", arguments->password);
+            } else {
+                tstrncpy(arguments->password, (char *)(argv[i] + 2), MAX_PASSWORD_SIZE);
             }
-            arguments->password = argv[++i];
         } else if (strcmp(argv[i], "-o") == 0) {
             if (argc == i+1) {
                 printHelp();
@@ -1065,7 +1065,7 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
             arguments->debug_print = true;
         } else if (strcmp(argv[i], "-gg") == 0) {
             arguments->verbose_print = true;
-        } else if (strcmp(argv[i], "-pp") == 0) {
+        } else if (strcmp(argv[i], "-PP") == 0) {
             arguments->performance_print = true;
         } else if (strcmp(argv[i], "-O") == 0) {
             if ((argc == i+1) ||
