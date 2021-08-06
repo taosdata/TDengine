@@ -3,17 +3,17 @@
 
 ## <a class="anchor" id="grafana"></a>Grafana
 
-TDengine能够与开源数据可视化系统[Grafana](https://www.grafana.com/)快速集成搭建数据监测报警系统，整个过程无需任何代码开发，TDengine中数据表中内容可以在仪表盘(DashBoard)上进行可视化展现。
+TDengine 能够与开源数据可视化系统 [Grafana](https://www.grafana.com/)快速集成搭建数据监测报警系统，整个过程无需任何代码开发，TDengine 中数据表中内容可以在仪表盘(DashBoard)上进行可视化展现。
 
 ### 安装Grafana
 
-目前TDengine支持Grafana 5.2.4以上的版本。用户可以根据当前的操作系统，到Grafana官网下载安装包，并执行安装。下载地址如下：https://grafana.com/grafana/download。
+目前 TDengine 支持 Grafana 6.2 以上的版本。用户可以根据当前的操作系统，到 Grafana 官网下载安装包，并执行安装。下载地址如下：https://grafana.com/grafana/download。
 
 ### 配置Grafana
 
-TDengine的Grafana插件在安装包的/usr/local/taos/connector/grafanaplugin目录下。
+TDengine 的 Grafana 插件在安装包的 /usr/local/taos/connector/grafanaplugin 目录下。
 
-以CentOS 7.2操作系统为例，将grafanaplugin目录拷贝到/var/lib/grafana/plugins目录下，重新启动grafana即可。
+以 CentOS 7.2 操作系统为例，将 grafanaplugin 目录拷贝到 /var/lib/grafana/plugins 目录下，重新启动 grafana 即可。
 
 ```bash
 sudo cp -rf /usr/local/taos/connector/grafanaplugin /var/lib/grafana/plugins/tdengine
