@@ -7599,10 +7599,6 @@ int32_t doCheckForStream(SSqlObj* pSql, SSqlInfo* pInfo) {
     return code;
   }
 
-  if (taosArrayGetSize(pSqlNode->pSelNodeList) <= 1) {
-    return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg10);
-  }
-
   if (validateSelectNodeList(&pSql->cmd, pQueryInfo, pSqlNode->pSelNodeList, false, false, false) != TSDB_CODE_SUCCESS) {
     return TSDB_CODE_TSC_INVALID_OPERATION;
   }
@@ -7648,7 +7644,9 @@ int32_t doCheckForStream(SSqlObj* pSql, SSqlInfo* pInfo) {
     return TSDB_CODE_TSC_INVALID_OPERATION;
   }
 
-  pCmd->numOfCols = pQueryInfo->fieldsInfo.numOfOutput;
+  if (pQueryInfo->fieldsInfo.numOfOutput <= 1) {
+    return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg10);
+  }
 
   if (validateSqlFunctionInStreamSql(pCmd, pQueryInfo) != TSDB_CODE_SUCCESS) {
     return TSDB_CODE_TSC_INVALID_OPERATION;
