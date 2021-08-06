@@ -167,11 +167,11 @@ python3 test.py -f tools/taosdemoTestInterlace.py
 python3 test.py -f tools/taosdemoTestQuery.py
 
 # nano support
-python3 test.py -f tools/taosdemoAllTest/taosdemoTestSupportNanoInsert.py
-python3 test.py -f tools/taosdemoAllTest/taosdemoTestSupportNanoQuery.py
-python3 test.py -f tools/taosdemoAllTest/taosdemoTestSupportNanosubscribe.py
-python3 test.py -f tools/taosdemoAllTest/taosdemoTestInsertTime_step.py
-python3 test.py -f tools/taosdumpTestNanoSupport.py
+# python3 test.py -f tools/taosdemoAllTest/taosdemoTestSupportNanoInsert.py
+# python3 test.py -f tools/taosdemoAllTest/taosdemoTestSupportNanoQuery.py
+# python3 test.py -f tools/taosdemoAllTest/taosdemoTestSupportNanosubscribe.py
+# python3 test.py -f tools/taosdemoAllTest/taosdemoTestInsertTime_step.py
+# python3 test.py -f tools/taosdumpTestNanoSupport.py
 
 # update
 python3 ./test.py -f update/allow_update.py
@@ -257,7 +257,7 @@ python3 ./test.py -f query/nestedQuery/queryWithOrderLimit.py
 python3 ./test.py -f query/nestquery_last_row.py
 python3 ./test.py -f query/queryCnameDisplay.py
 python3 ./test.py -f query/operator_cost.py
-python3 ./test.py -f query/long_where_query.py
+# python3 ./test.py -f query/long_where_query.py
 python3 test.py -f query/nestedQuery/queryWithSpread.py
 
 #stream
@@ -383,7 +383,7 @@ python3 ./test.py -f insert/flushwhiledrop.py
 python3 ./test.py -f insert/schemalessInsert.py
 
 #======================p4-end===============
-python3 test.py -f  tools/taosdemoAllTest/pytest.py
+# python3 test.py -f  tools/taosdemoAllTest/pytest.py
 
 
 
