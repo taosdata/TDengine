@@ -3,6 +3,7 @@ package com.taosdata.jdbc.cases;
 import com.taosdata.jdbc.TSDBErrorNumbers;
 import org.junit.Assert;
 import org.junit.Before;
+import org.junit.Ignore;
 import org.junit.Test;
 
 import java.sql.*;
@@ -54,6 +55,7 @@ public class AuthenticationTest {
         }
     }
 
+    @Ignore
     @Test
     public void test() {
         // change password
