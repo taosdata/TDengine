@@ -536,6 +536,7 @@ typedef struct SRetrieveTableRsp {
   int16_t precision;
   int64_t offset;     // updated offset value for multi-vnode projection query
   int64_t useconds;
+  int8_t  compressed;
   char    data[];
 } SRetrieveTableRsp;
 

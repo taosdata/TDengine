@@ -4193,7 +4193,15 @@ static void updateNumOfRowsInResultRows(SQueryRuntimeEnv* pRuntimeEnv, SQLFuncti
   }
 }
 
-static void doCopyQueryResultToMsg(SQInfo *pQInfo, int32_t numOfRows, char *data) {
+static int32_t compressQueryColData(SColumnInfoData *pColRes, int32_t numOfRows, char *data, int8_t compressed) {
+  int32_t colLen = pColRes->info.bytes * numOfRows;
+  int32_t colCompLen = (*(tDataTypes[pColRes->info.type].compFunc))(pColRes->pData, colLen, numOfRows, data,
+                                                                 colLen + COMP_OVERFLOW_BYTES, compressed, NULL, 0);
+  data += colCompLen;
+  return colCompLen;
+}
+
+static void doCopyQueryResultToMsg(SQInfo *pQInfo, int32_t numOfRows, char *data, int8_t compressed, int32_t *compLen) {
   SQueryRuntimeEnv* pRuntimeEnv = &pQInfo->runtimeEnv;
   SQueryAttr *pQueryAttr = pRuntimeEnv->pQueryAttr;
 
@@ -4202,14 +4210,22 @@ static void doCopyQueryResultToMsg(SQInfo *pQInfo, int32_t numOfRows, char *data
   if (pQueryAttr->pExpr2 == NULL) {
     for (int32_t col = 0; col < pQueryAttr->numOfOutput; ++col) {
       SColumnInfoData* pColRes = taosArrayGet(pRes->pDataBlock, col);
-      memmove(data, pColRes->pData, pColRes->info.bytes * pRes->info.rows);
-      data += pColRes->info.bytes * pRes->info.rows;
+      if (compressed) {
+        *compLen += compressQueryColData(pColRes, pRes->info.rows, data, compressed);
+      } else {
+        memmove(data, pColRes->pData, pColRes->info.bytes * pRes->info.rows);
+        data += pColRes->info.bytes * pRes->info.rows;
+      }
     }
   } else {
     for (int32_t col = 0; col < pQueryAttr->numOfExpr2; ++col) {
       SColumnInfoData* pColRes = taosArrayGet(pRes->pDataBlock, col);
-      memmove(data, pColRes->pData, pColRes->info.bytes * numOfRows);
-      data += pColRes->info.bytes * numOfRows;
+      if (compressed) {
+        *compLen += compressQueryColData(pColRes, numOfRows, data, compressed);
+      } else {
+        memmove(data, pColRes->pData, pColRes->info.bytes * numOfRows);
+        data += pColRes->info.bytes * numOfRows;
+      }
     }
   }
 
@@ -8695,7 +8711,7 @@ void freeQInfo(SQInfo *pQInfo) {
   tfree(pQInfo);
 }
 
-int32_t doDumpQueryResult(SQInfo *pQInfo, char *data) {
+int32_t doDumpQueryResult(SQInfo *pQInfo, char *data, int8_t compressed, int32_t *compLen) {
   // the remained number of retrieved rows, not the interpolated result
   SQueryRuntimeEnv* pRuntimeEnv = &pQInfo->runtimeEnv;
   SQueryAttr *pQueryAttr = pQInfo->runtimeEnv.pQueryAttr;
@@ -8738,7 +8754,7 @@ int32_t doDumpQueryResult(SQInfo *pQInfo, char *data) {
       setQueryStatus(pRuntimeEnv, QUERY_OVER);
     }
   } else {
-    doCopyQueryResultToMsg(pQInfo, (int32_t)pRuntimeEnv->outputBuf->info.rows, data);
+    doCopyQueryResultToMsg(pQInfo, (int32_t)pRuntimeEnv->outputBuf->info.rows, data, compressed, compLen);
   }
 
   qDebug("QInfo:0x%"PRIx64" current numOfRes rows:%d, total:%" PRId64, pQInfo->qId,
