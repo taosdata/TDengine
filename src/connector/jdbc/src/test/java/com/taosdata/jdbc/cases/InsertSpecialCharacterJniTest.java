@@ -272,6 +272,25 @@ public class InsertSpecialCharacterJniTest {
 
     @Test
     public void testSingleQuotaEscape() throws SQLException {
+        final long now = System.currentTimeMillis();
+        final String sql = "insert into t? using ? tags(?) values(?, ?, ?) t? using " + tbname2 + " tags(?) values(?,?,?) ";
+        try (PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            // t1
+            pstmt.setInt(1, 1);
+            pstmt.setString(2, tbname2);
+            pstmt.setString(3, special_character_str_5);
+            pstmt.setTimestamp(4, new Timestamp(now));
+            pstmt.setBytes(5, special_character_str_5.getBytes());
+            // t2
+            pstmt.setInt(7, 2);
+            pstmt.setString(8, special_character_str_5);
+            pstmt.setTimestamp(9, new Timestamp(now));
+            pstmt.setString(11, special_character_str_5);
+
+            int ret = pstmt.executeUpdate();
+            Assert.assertEquals(2, ret);
+        }
+
         String query = "select * from ?.t? where ? < ? and ts >= ? and ? is not null";
         try (PreparedStatement pstmt = conn.prepareStatement(query)) {
             pstmt.setString(1, dbName);
