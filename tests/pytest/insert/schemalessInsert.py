@@ -787,7 +787,7 @@ class TDTestCase:
             case no id when stb exist
         """
         self.cleanStb()
-        input_sql, stb_name = self.genFullTypeSql(t0="f", c0="f")
+        input_sql, stb_name = self.genFullTypeSql(tb_name="sub_table_0123456", t0="f", c0="f")
         self.resCmp(input_sql, stb_name)
         input_sql, stb_name = self.genFullTypeSql(stb_name=stb_name, id_noexist_tag=True, t0="f", c0="f")
         self.resCmp(input_sql, stb_name, condition='where tbname like "t_%"')
