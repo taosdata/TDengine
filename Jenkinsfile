@@ -52,12 +52,18 @@ def pre_test(){
         git checkout master
         '''
         }
-      else {
+      else if(env.CHANGE_TARGET == '2.0'){
+        sh '''
+        cd ${WKC}
+        git checkout 2.0
+        '''
+      } 
+      else{
         sh '''
         cd ${WKC}
         git checkout develop
         '''
-      } 
+      }
     }
     sh'''
     cd ${WKC}
@@ -75,7 +81,13 @@ def pre_test(){
         git checkout master
         '''
         }
-      else {
+      else if(env.CHANGE_TARGET == '2.0'){
+        sh '''
+        cd ${WK}
+        git checkout 2.0
+        '''
+      } 
+      else{
         sh '''
         cd ${WK}
         git checkout develop

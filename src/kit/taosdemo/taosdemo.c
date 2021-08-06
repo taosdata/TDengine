@@ -5182,7 +5182,7 @@ static int64_t generateStbRowData(
             dataLen += 1;
         }
 
-        if (dataLen > remainderBufLen)
+        if (dataLen > (remainderBufLen - (DOUBLE_BUFF_LEN + 1)))
             return 0;
     }
 
@@ -6317,8 +6317,8 @@ static void printStatPerThread(threadInfo *pThreadInfo)
             pThreadInfo->threadID,
             pThreadInfo->totalInsertRows,
             pThreadInfo->totalAffectedRows,
-            (pThreadInfo->totalDelay/1000.0)?
-            (double)(pThreadInfo->totalAffectedRows/(pThreadInfo->totalDelay/1000.0)):
+            (pThreadInfo->totalDelay)?
+            (double)(pThreadInfo->totalAffectedRows/((double)pThreadInfo->totalDelay/1000000.0)):
             FLT_MAX);
 }
 
@@ -6538,7 +6538,7 @@ static void* syncWriteInterlace(threadInfo *pThreadInfo) {
         verbosePrint("[%d] %s() LN%d, buffer=%s\n",
                 pThreadInfo->threadID, __func__, __LINE__, pThreadInfo->buffer);
 
-        startTs = taosGetTimestampMs();
+        startTs = taosGetTimestampUs();
 
         if (recOfBatch == 0) {
             errorPrint("[%d] %s() LN%d Failed to insert records of batch %d\n",
@@ -6554,10 +6554,10 @@ static void* syncWriteInterlace(threadInfo *pThreadInfo) {
         }
         int64_t affectedRows = execInsert(pThreadInfo, recOfBatch);
 
-        endTs = taosGetTimestampMs();
+        endTs = taosGetTimestampUs();
         uint64_t delay = endTs - startTs;
-        performancePrint("%s() LN%d, insert execution time is %"PRIu64"ms\n",
-                __func__, __LINE__, delay);
+        performancePrint("%s() LN%d, insert execution time is %10.2f ms\n",
+                __func__, __LINE__, delay / 1000.0);
         verbosePrint("[%d] %s() LN%d affectedRows=%"PRId64"\n",
                 pThreadInfo->threadID,
                 __func__, __LINE__, affectedRows);
@@ -6714,14 +6714,14 @@ static void* syncWriteProgressive(threadInfo *pThreadInfo) {
             start_time +=  generated * timeStampStep;
             pThreadInfo->totalInsertRows += generated;
 
-            startTs = taosGetTimestampMs();
+            startTs = taosGetTimestampUs();
 
             int32_t affectedRows = execInsert(pThreadInfo, generated);
 
-            endTs = taosGetTimestampMs();
+            endTs = taosGetTimestampUs();
             uint64_t delay = endTs - startTs;
-            performancePrint("%s() LN%d, insert execution time is %"PRId64"ms\n",
-                    __func__, __LINE__, delay);
+            performancePrint("%s() LN%d, insert execution time is %10.f ms\n",
+                    __func__, __LINE__, delay/1000.0);
             verbosePrint("[%d] %s() LN%d affectedRows=%d\n",
                     pThreadInfo->threadID,
                     __func__, __LINE__, affectedRows);
@@ -7255,11 +7255,15 @@ static void startMultiThreadInsertData(int threads, char* db_name,
         }
     }
 
-    fprintf(stderr, "insert delay, avg: %10.2fms, max: %"PRIu64"ms, min: %"PRIu64"ms\n\n",
-            avgDelay, maxDelay, minDelay);
+    fprintf(stderr, "insert delay, avg: %10.2fms, max: %10.2fms, min: %10.2fms\n\n",
+            (double)avgDelay/1000.0,
+            (double)maxDelay/1000.0,
+            (double)minDelay/1000.0);
     if (g_fpOfInsertResult) {
-        fprintf(g_fpOfInsertResult, "insert delay, avg:%10.2fms, max: %"PRIu64"ms, min: %"PRIu64"ms\n\n",
-                avgDelay, maxDelay, minDelay);
+        fprintf(g_fpOfInsertResult, "insert delay, avg:%10.2fms, max: %10.2fms, min: %10.2fms\n\n",
+            (double)avgDelay/1000.0,
+            (double)maxDelay/1000.0,
+            (double)minDelay/1000.0);
     }
 
     //taos_close(taos);
