@@ -74,7 +74,7 @@ cd ../../../debug; make
 ./test.sh -f general/parser/where.sim
 ./test.sh -f general/parser/slimit.sim
 ./test.sh -f general/parser/select_with_tags.sim
-#./test.sh -f general/parser/interp.sim
+./test.sh -f general/parser/interp.sim
 ./test.sh -f general/parser/tags_dynamically_specifiy.sim
 ./test.sh -f general/parser/groupby.sim
 ./test.sh -f general/parser/set_tag_vals.sim

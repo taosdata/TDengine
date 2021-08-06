@@ -206,7 +206,6 @@ typedef struct SQueryAttr {
 
   bool             stableQuery;      // super table query or not
   bool             topBotQuery;      // TODO used bitwise flag
-  bool             interpQuery;      // denote if this is an interp query
   bool             groupbyColumn;    // denote if this is a groupby normal column query
   bool             hasTagResults;    // if there are tag values in final result or not
   bool             timeWindowInterpo;// if the time window start/end required interpolation
