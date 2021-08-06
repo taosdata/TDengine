@@ -6319,7 +6319,7 @@ static void printStatPerThread(threadInfo *pThreadInfo)
             pThreadInfo->totalInsertRows,
             pThreadInfo->totalAffectedRows,
             (pThreadInfo->totalDelay)?
-            (double)(pThreadInfo->totalAffectedRows/(pThreadInfo->totalDelay/1000000.0)):
+            (double)(pThreadInfo->totalAffectedRows/((double)pThreadInfo->totalDelay/1000000.0)):
             FLT_MAX);
 }
 
@@ -6539,7 +6539,7 @@ static void* syncWriteInterlace(threadInfo *pThreadInfo) {
         verbosePrint("[%d] %s() LN%d, buffer=%s\n",
                 pThreadInfo->threadID, __func__, __LINE__, pThreadInfo->buffer);
 
-        startTs = taosGetTimestampMs();
+        startTs = taosGetTimestampUs();
 
         if (recOfBatch == 0) {
             errorPrint("[%d] %s() LN%d Failed to insert records of batch %d\n",
@@ -6555,10 +6555,10 @@ static void* syncWriteInterlace(threadInfo *pThreadInfo) {
         }
         int64_t affectedRows = execInsert(pThreadInfo, recOfBatch);
 
-        endTs = taosGetTimestampMs();
+        endTs = taosGetTimestampUs();
         uint64_t delay = endTs - startTs;
-        performancePrint("%s() LN%d, insert execution time is %"PRIu64"ms\n",
-                __func__, __LINE__, delay);
+        performancePrint("%s() LN%d, insert execution time is %10.2f ms\n",
+                __func__, __LINE__, delay / 1000.0);
         verbosePrint("[%d] %s() LN%d affectedRows=%"PRId64"\n",
                 pThreadInfo->threadID,
                 __func__, __LINE__, affectedRows);
@@ -6721,8 +6721,8 @@ static void* syncWriteProgressive(threadInfo *pThreadInfo) {
 
             endTs = taosGetTimestampUs();
             uint64_t delay = endTs - startTs;
-            performancePrint("%s() LN%d, insert execution time is %"PRId64"ms\n",
-                    __func__, __LINE__, delay);
+            performancePrint("%s() LN%d, insert execution time is %10.f ms\n",
+                    __func__, __LINE__, delay/1000.0);
             verbosePrint("[%d] %s() LN%d affectedRows=%d\n",
                     pThreadInfo->threadID,
                     __func__, __LINE__, affectedRows);
