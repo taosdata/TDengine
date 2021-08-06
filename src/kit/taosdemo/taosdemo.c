@@ -2890,7 +2890,8 @@ static int createSuperTable(
         TAOS * taos, char* dbName,
         SSuperTable*  superTbl) {
 
-    char command[1024] = "\0";
+    char *command = calloc(1, BUFFER_SIZE);
+    assert(command);
 
     char cols[COL_BUFFER_LEN] = "\0";
     int colIndex;
@@ -2901,6 +2902,7 @@ static int createSuperTable(
     if (superTbl->columnCount == 0) {
         errorPrint("%s() LN%d, super table column count is %d\n",
                 __func__, __LINE__, superTbl->columnCount);
+        free(command);
         return -1;
     }
 
@@ -2963,6 +2965,7 @@ static int createSuperTable(
             taos_close(taos);
             errorPrint("%s() LN%d, config error data type : %s\n",
                     __func__, __LINE__, dataType);
+            free(command);
             exit(-1);
         }
     }
@@ -2975,6 +2978,7 @@ static int createSuperTable(
         errorPrint("%s() LN%d, Failed when calloc, size:%d",
                 __func__, __LINE__, len+1);
         taos_close(taos);
+        free(command);
         exit(-1);
     }
 
@@ -2985,6 +2989,7 @@ static int createSuperTable(
     if (superTbl->tagCount == 0) {
         errorPrint("%s() LN%d, super table tag count is %d\n",
                 __func__, __LINE__, superTbl->tagCount);
+        free(command);
         return -1;
     }
 
@@ -3050,6 +3055,7 @@ static int createSuperTable(
             taos_close(taos);
             errorPrint("%s() LN%d, config error tag type : %s\n",
                     __func__, __LINE__, dataType);
+            free(command);
             exit(-1);
         }
     }
@@ -3059,15 +3065,18 @@ static int createSuperTable(
 
     superTbl->lenOfTagOfOneRow = lenOfTagOfOneRow;
 
-    snprintf(command, 1024,
+    snprintf(command, BUFFER_SIZE,
             "create table if not exists %s.%s (ts timestamp%s) tags %s",
             dbName, superTbl->sTblName, cols, tags);
     if (0 != queryDbExec(taos, command, NO_INSERT_TYPE, false)) {
         errorPrint( "create supertable %s failed!\n\n",
                 superTbl->sTblName);
+        free(command);
         return -1;
     }
+
     debugPrint("create supertable %s success!\n\n", superTbl->sTblName);
+    free(command);
     return 0;
 }
 
@@ -7679,7 +7688,7 @@ static void *superTableQuery(void *sarg) {
         st = taosGetTimestampMs();
         for (int i = pThreadInfo->start_table_from; i <= pThreadInfo->end_table_to; i++) {
             for (int j = 0; j < g_queryInfo.superQueryInfo.sqlCount; j++) {
-                memset(sqlstr,0,sizeof(sqlstr));
+                memset(sqlstr, 0, BUFFER_SIZE);
                 replaceChildTblName(g_queryInfo.superQueryInfo.sql[j], sqlstr, i);
                 if (g_queryInfo.superQueryInfo.result[j][0] != '\0') {
                     sprintf(pThreadInfo->filePath, "%s-%d",
@@ -7994,7 +8003,7 @@ static void *superSubscribe(void *sarg) {
                 pThreadInfo->end_table_to, i);
         sprintf(topic, "taosdemo-subscribe-%"PRIu64"-%"PRIu64"",
                 i, pThreadInfo->querySeq);
-        memset(subSqlStr, 0, sizeof(subSqlStr));
+        memset(subSqlStr, 0, BUFFER_SIZE);
         replaceChildTblName(
                 g_queryInfo.superQueryInfo.sql[pThreadInfo->querySeq],
                 subSqlStr, i);
@@ -8399,9 +8408,7 @@ static void setParaFromArg() {
         tstrncpy(g_Dbs.user, g_args.user, MAX_USERNAME_SIZE);
     }
 
-    if (g_args.password) {
-        tstrncpy(g_Dbs.password, g_args.password, MAX_PASSWORD_SIZE);
-    }
+    tstrncpy(g_Dbs.password, g_args.password, MAX_PASSWORD_SIZE);
 
     if (g_args.port) {
         g_Dbs.port = g_args.port;
