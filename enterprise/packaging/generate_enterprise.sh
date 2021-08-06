@@ -4,12 +4,14 @@ version=$1
 versionComp=$2
 branchName=$3
 verType=$4
+cpuType=$5
+
 
 scriptDir=`pwd`
 topDir=$scriptDir/../..         # TDinternal
 communityDir=$topDir/community
+archiveDir=/nas/TDengine/v$version/enterprise  # version’package directory
 enterpriseDir=$topDir/enterprise
-archiveDir=$scriptDir/../release
 allocator=jemalloc              # glibc  or  jemalloc, default is jemalloc
 
 if [ ! -d $archiveDir ]; then
@@ -17,33 +19,37 @@ if [ ! -d $archiveDir ]; then
 fi
 
 echo "generate enterprise package>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>"
+# cd $communityDir
+# # git checkout $branchName
+# # git checkout -- .
+# # git pull
+# # git checkout -- .
+# rm -rf release/*
+
+# cd $enterpriseDir
+# # git checkout $branchName
+# # git checkout -- .
+# # git pull
+
 cd $communityDir
-# git checkout $branchName
-# git checkout -- .
-# git pull
-# git checkout -- .
 rm -rf release/*
+rm -rf debs/*
+rm -rf rpms/*
+git submodule update --init --recursive
+./packaging/release.sh -v cluster -a $allocator -n $version -m $versionComp -V $verType -c $cpuType
 
-cd $enterpriseDir
-# git checkout $branchName
-# git checkout -- .
-# git pull
+# if [ ! -d  "$archiveDir/v$version" ]; then
+#   mkdir -p "$archiveDir/v$version"
+# fi
 
-cd $communityDir
-./packaging/release.sh -v cluster -a $allocator -n $version -m $versionComp -V $verType
+cd $archiveDir
 
-if [ ! -d  "$archiveDir/v$version" ]; then
-  mkdir -p "$archiveDir/v$version"
-fi
+# if [ ! -d enterprise ]; then
+#     mkdir enterprise
+# fi
 
-cd $archiveDir/v$version
-
-if [ ! -d enterprise ]; then
-    mkdir enterprise
-fi
-
-cd enterprise
-cp $communityDir/release/* ./
+# cd enterprise
+cp  -f $communityDir/release/* ./
 
 #echo "build new version branch >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>"
 #cd $enterpriseDir
@@ -51,4 +57,3 @@ cp $communityDir/release/* ./
 #git checkout -b release/v$version
 #git merge master
 #git push origin release/v$version
-
