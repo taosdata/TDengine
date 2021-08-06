@@ -280,6 +280,9 @@ public class InsertSpecialCharacterJniTest {
             pstmt.setTimestamp(4, new Timestamp(System.currentTimeMillis()));
             pstmt.setTimestamp(5, new Timestamp(0));
             pstmt.setString(6, "f1");
+
+            ResultSet rs = pstmt.executeQuery();
+            Assert.assertNotNull(rs);
         }
     }
 
