@@ -63,9 +63,5 @@ public class SqlSyntaxValidator {
         return sql.trim().toLowerCase().startsWith("use");
     }
 
-    public static boolean isSelectSql(String sql) {
-        return sql.trim().toLowerCase().startsWith("select");
-    }
-
 
 }
