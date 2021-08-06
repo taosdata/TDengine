@@ -112,7 +112,7 @@ steps:
 - name: build
   image: arm64v8/centos:8
   commands:
-  - dnf install -y gcc gcc-c++ make cmake epel-release git
+  - dnf install -y gcc gcc-c++ make cmake epel-release git libarchive
   - mkdir debug
   - cd debug
   - cmake .. -DCPUTYPE=aarch64 > /dev/null
