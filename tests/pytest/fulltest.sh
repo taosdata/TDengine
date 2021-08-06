@@ -167,11 +167,11 @@ python3 test.py -f tools/taosdemoTestInterlace.py
 python3 test.py -f tools/taosdemoTestQuery.py
 
 # nano support
-#python3 test.py -f tools/taosdemoAllTest/taosdemoTestSupportNanoInsert.py
-#python3 test.py -f tools/taosdemoAllTest/taosdemoTestSupportNanoQuery.py
-#python3 test.py -f tools/taosdemoAllTest/taosdemoTestSupportNanosubscribe.py
-#python3 test.py -f tools/taosdemoAllTest/taosdemoTestInsertTime_step.py
-#python3 test.py -f tools/taosdumpTestNanoSupport.py
+python3 test.py -f tools/taosdemoAllTest/NanoTestCase/taosdemoTestSupportNanoInsert.py
+python3 test.py -f tools/taosdemoAllTest/NanoTestCase/taosdemoTestSupportNanoQuery.py
+python3 test.py -f tools/taosdemoAllTest/NanoTestCase/taosdemoTestSupportNanosubscribe.py
+python3 test.py -f tools/taosdemoAllTest/NanoTestCase/taosdemoTestInsertTime_step.py
+python3 test.py -f tools/taosdemoAllTest/NanoTestCase/taosdumpTestNanoSupport.py
 
 # update
 python3 ./test.py -f update/allow_update.py
@@ -382,7 +382,7 @@ python3 ./test.py -f insert/flushwhiledrop.py
 python3 ./test.py -f insert/schemalessInsert.py
 
 #======================p4-end===============
-# python3 test.py -f  tools/taosdemoAllTest/pytest.py
+
 
 
 
