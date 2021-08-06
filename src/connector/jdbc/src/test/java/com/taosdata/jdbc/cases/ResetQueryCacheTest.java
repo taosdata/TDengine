@@ -1,9 +1,7 @@
 package com.taosdata.jdbc.cases;
 
-import org.junit.Assert;
 import org.junit.Test;
 
-import java.nio.charset.StandardCharsets;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.SQLException;
@@ -17,7 +15,7 @@ public class ResetQueryCacheTest {
     @Test
     public void jni() throws SQLException {
         // given
-        Connection connection = DriverManager.getConnection("jdbc:TAOS://127.0.0.1:0/?timezone=UTC-8&charset=UTF-8&locale=en_US.UTF-8");
+        Connection connection = DriverManager.getConnection("jdbc:TAOS://127.0.0.1:0/?user=root&password=taosdata&timezone=UTC-8&charset=UTF-8&locale=en_US.UTF-8");
         Statement statement = connection.createStatement();
 
         // when
@@ -34,7 +32,7 @@ public class ResetQueryCacheTest {
     @Test
     public void restful() throws SQLException {
         // given
-        Connection connection = DriverManager.getConnection("jdbc:TAOS-RS://127.0.0.1:6041/?timezone=UTC-8&charset=UTF-8&locale=en_US.UTF-8");
+        Connection connection = DriverManager.getConnection("jdbc:TAOS-RS://127.0.0.1:6041/?user=root&password=taosdata&timezone=UTC-8&charset=UTF-8&locale=en_US.UTF-8");
         Statement statement = connection.createStatement();
 
         // when
