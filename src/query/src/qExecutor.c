@@ -5290,7 +5290,7 @@ SOperatorInfo *createOrderOperatorInfo(SExprInfo* pExpr, int32_t numOfOutput) {
       SSDataBlock* pDataBlock = calloc(1, sizeof(SSDataBlock));
       pDataBlock->pDataBlock = taosArrayInit(numOfOutput, sizeof(SColumnInfoData));
       for(int32_t i = 0; i < numOfOutput; ++i) {
-        SColumnInfoData col = {0};
+        SColumnInfoData col = {{0}};
         col.info.bytes = pExpr->base.resBytes;
         col.info.colId = pExpr->base.resColId;
         col.info.type  = pExpr->base.resType;
