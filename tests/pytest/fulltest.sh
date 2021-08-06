@@ -383,7 +383,7 @@ python3 ./test.py -f insert/flushwhiledrop.py
 python3 ./test.py -f insert/schemalessInsert.py
 
 #======================p4-end===============
-# python3 test.py -f  tools/taosdemoAllTest/pytest.py
+
 
 
 
