@@ -6616,7 +6616,7 @@ static bool initMultiDistinctInfo(SDistinctOperatorInfo *pInfo, SOperatorInfo* p
     pInfo->totalBytes += pOperator->pExpr[i].base.colBytes;      
   }
   for (int i = 0; i < pOperator->numOfOutput; i++) {
-    int numOfBlock =  taosArrayGetSize(pBlock->pDataBlock);
+    int numOfBlock = (int)(taosArrayGetSize(pBlock->pDataBlock));
     assert(i < numOfBlock);
     for (int j = 0; j < numOfBlock; j++) {
       SColumnInfoData* pColDataInfo = taosArrayGet(pBlock->pDataBlock, j);
@@ -6626,7 +6626,7 @@ static bool initMultiDistinctInfo(SDistinctOperatorInfo *pInfo, SOperatorInfo* p
       }
     }
   }
-  pInfo->totalBytes += strlen(MULTI_KEY_DELIM) * (pOperator->numOfOutput);
+  pInfo->totalBytes += (int32_t)strlen(MULTI_KEY_DELIM) * (pOperator->numOfOutput);
   pInfo->buf        =  calloc(1, pInfo->totalBytes);
   return  taosArrayGetSize(pInfo->pDistinctDataInfo) == pOperator->numOfOutput ? true : false;
 } 
