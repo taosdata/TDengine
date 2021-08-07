@@ -5981,7 +5981,7 @@ static int32_t prepareStbStmtBind(
         int64_t startTime, int32_t recSeq,
         bool isColumn)
 {
-    char *bindBuffer = calloc(1, g_args.len_of_binary);
+    char *bindBuffer = calloc(1, DOUBLE_BUFF_LEN); // g_args.len_of_binary);
     if (bindBuffer == NULL) {
         errorPrint("%s() LN%d, Failed to allocate %d bind buffer\n",
                 __func__, __LINE__, g_args.len_of_binary);
