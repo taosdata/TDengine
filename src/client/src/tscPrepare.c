@@ -377,15 +377,16 @@ int32_t fillTablesColumnsNull(SSqlObj* pSql) {
 static FORCE_INLINE int doBindParam(STableDataBlocks* pBlock, SMemRow row, SParamInfo* param, TAOS_BIND* bind,
                                     int32_t rowNum, int32_t toffset, int16_t colId) {
   SMemRowBuilder* pBuilder = &pBlock->rowBuilder;
-  if (bind->buffer_type != param->type) {
-    tscError("column type mismatch");
-    return TSDB_CODE_TSC_INVALID_VALUE;
-  }
 
   if (bind->is_null != NULL && *(bind->is_null)) {
     // setNull(row + param->offset, param->type, param->bytes);
     tscAppendMemRowColVal(row, getNullValue(param->type), true, colId, param->type, toffset, pBuilder, rowNum);
     return TSDB_CODE_SUCCESS;
+  }
+
+  if (bind->buffer_type != param->type) {
+    tscError("column type mismatch");
+    return TSDB_CODE_TSC_INVALID_VALUE;
   }
 
   switch (param->type) {
