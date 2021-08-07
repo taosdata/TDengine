@@ -256,17 +256,20 @@ int tscBuildQueryStreamDesc(void *pMsg, STscObj *pObj) {
     pQdesc->pid      = pHeartbeat->pid;
     pQdesc->numOfSub = pSql->subState.numOfSub;
 
+    // todo race condition
+    pQdesc->stableQuery = 0;
+
     char *p = pQdesc->subSqlInfo;
     int32_t remainLen = sizeof(pQdesc->subSqlInfo);
     if (pQdesc->numOfSub == 0) {
       snprintf(p, remainLen, "N/A");
     } else {
-      SQueryInfo* pQueryInfo = tscGetQueryInfo(&pSql->cmd);
-      if (pQueryInfo != NULL) {
-        pQdesc->stableQuery = (pQueryInfo->stableQuery)?1:0;
-      } else {
-        pQdesc->stableQuery = 0;
-      }
+//      SQueryInfo* pQueryInfo = tscGetQueryInfo(&pSql->cmd);
+//      if (pQueryInfo != NULL) {
+//        pQdesc->stableQuery = (pQueryInfo->stableQuery)?1:0;
+//      } else {
+//        pQdesc->stableQuery = 0;
+//      }
 
       if (pSql->pSubs != NULL && pSql->subState.states != NULL) {
         for (int32_t i = 0; i < pQdesc->numOfSub; ++i) {
