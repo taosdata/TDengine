@@ -684,10 +684,9 @@ static int insertStmtBindParam(STscStmt* stmt, TAOS_BIND* bind) {
     if (pCmd->insertParam.pTableBlockHashList == NULL) {
       pCmd->insertParam.pTableBlockHashList = taosHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, false);
     }
-
-    int32_t ret = tscGetDataBlockFromList(pCmd->insertParam.pTableBlockHashList, pTableMeta->id.uid, TSDB_PAYLOAD_SIZE,
-                                          sizeof(SSubmitBlk), pTableMeta->tableInfo.rowSize, &pTableMetaInfo->name,
-                                          pTableMeta, &pBlock, NULL);
+    int32_t ret =
+        tscGetDataBlockFromList(pCmd->insertParam.pTableBlockHashList, pTableMeta->id.uid, TSDB_PAYLOAD_SIZE, sizeof(SSubmitBlk),
+                                pTableMeta->tableInfo.rowSize, &pTableMetaInfo->name, pTableMeta, &pBlock, NULL,true);
     if (ret != 0) {
       return ret;
     }
@@ -755,7 +754,7 @@ static int insertStmtBindParam(STscStmt* stmt, TAOS_BIND* bind) {
 
     code = tscGetDataBlockFromList(pCmd->insertParam.pTableBlockHashList, pTableMeta->id.uid, TSDB_PAYLOAD_SIZE,
                                    sizeof(SSubmitBlk), pTableMeta->tableInfo.rowSize, &pTableMetaInfo->name, pTableMeta,
-                                   &pBlock, NULL);
+                                   &pBlock, NULL,true);
     if (code != 0) {
       return code;
     }
@@ -845,7 +844,7 @@ static int insertStmtBindParamBatch(STscStmt* stmt, TAOS_MULTI_BIND* bind, int c
 
     code = tscGetDataBlockFromList(pCmd->insertParam.pTableBlockHashList, pTableMeta->id.uid, TSDB_PAYLOAD_SIZE,
                                    sizeof(SSubmitBlk), pTableMeta->tableInfo.rowSize, &pTableMetaInfo->name, pTableMeta,
-                                   &pBlock, NULL);
+                                   &pBlock, NULL,true);
     if (code != 0) {
       return code;
     }
@@ -978,7 +977,7 @@ static int insertStmtBindParamBatch(STscStmt* stmt, TAOS_MULTI_BIND* bind, int c
     if (TSDB_CODE_SUCCESS !=
         (code = tscGetDataBlockFromList(pCmd->insertParam.pTableBlockHashList, pTableMeta->id.uid, TSDB_PAYLOAD_SIZE,
                                         sizeof(SSubmitBlk), pTableMeta->tableInfo.rowSize, &pTableMetaInfo->name,
-                                        pTableMeta, &pBlock, NULL))) {
+                                        pTableMeta, &pBlock, NULL,true))) {
       return code;
     }
   }
@@ -1138,7 +1137,7 @@ static int insertStmtExecute(STscStmt* stmt) {
 
   int32_t ret = tscGetDataBlockFromList(pCmd->insertParam.pTableBlockHashList, pTableMeta->id.uid, TSDB_PAYLOAD_SIZE,
                                         sizeof(SSubmitBlk), pTableMeta->tableInfo.rowSize, &pTableMetaInfo->name,
-                                        pTableMeta, &pBlock, NULL);
+                                        pTableMeta, &pBlock, NULL,true);
   assert(ret == 0);
   pBlock->size = sizeof(SSubmitBlk) + pCmd->batchSize * getExtendedRowSize(pBlock);  // pBlock->rowSize;
   SSubmitBlk* pBlk = (SSubmitBlk*) pBlock->pData;
@@ -1701,7 +1700,7 @@ int taos_stmt_set_tbname_tags(TAOS_STMT* stmt, const char* name, TAOS_BIND* tags
     STableDataBlocks* pBlock = NULL;
     code = tscGetDataBlockFromList(pCmd->insertParam.pTableBlockHashList, pTableMeta->id.uid, TSDB_PAYLOAD_SIZE,
                                    sizeof(SSubmitBlk), pTableMeta->tableInfo.rowSize, &pTableMetaInfo->name, pTableMeta,
-                                   &pBlock, NULL);
+                                   &pBlock, NULL,true);
     if (code != TSDB_CODE_SUCCESS) {
       STMT_RET(code);
     }
@@ -2009,7 +2008,7 @@ int taos_stmt_get_param(TAOS_STMT *stmt, int idx, int *type, int *bytes) {
 
     int32_t ret = tscGetDataBlockFromList(pCmd->insertParam.pTableBlockHashList, pTableMeta->id.uid, TSDB_PAYLOAD_SIZE,
                                           sizeof(SSubmitBlk), pTableMeta->tableInfo.rowSize, &pTableMetaInfo->name,
-                                          pTableMeta, &pBlock, NULL);
+                                          pTableMeta, &pBlock, NULL,true);
     if (ret != 0) {
       STMT_RET(ret);
     }

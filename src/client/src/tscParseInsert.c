@@ -1456,7 +1456,7 @@ int tsParseInsertSql(SSqlObj *pSql) {
         STableDataBlocks *dataBuf = NULL;
         int32_t ret = tscGetDataBlockFromList(pInsertParam->pTableBlockHashList, pTableMeta->id.uid, TSDB_DEFAULT_PAYLOAD_SIZE,
                                               sizeof(SSubmitBlk), tinfo.rowSize, &pTableMetaInfo->name, pTableMeta,
-                                              &dataBuf, NULL);
+                                              &dataBuf, NULL,true);
         if (ret != TSDB_CODE_SUCCESS) {
           goto _clean;
         }
@@ -1476,7 +1476,7 @@ int tsParseInsertSql(SSqlObj *pSql) {
         STableDataBlocks *dataBuf = NULL;
         int32_t ret = tscGetDataBlockFromList(pInsertParam->pTableBlockHashList, pTableMeta->id.uid, TSDB_DEFAULT_PAYLOAD_SIZE,
                                               sizeof(SSubmitBlk), tinfo.rowSize, &pTableMetaInfo->name, pTableMeta,
-                                              &dataBuf, NULL);
+                                              &dataBuf, NULL,true);
         if (ret != TSDB_CODE_SUCCESS) {
           goto _clean;
         }
@@ -1692,7 +1692,7 @@ static void parseFileSendDataBlock(void *param, TAOS_RES *tres, int32_t numOfRow
   STableDataBlocks *pTableDataBlock = NULL;
   int32_t ret = tscGetDataBlockFromList(pInsertParam->pTableBlockHashList, pTableMeta->id.uid, TSDB_PAYLOAD_SIZE,
                                         sizeof(SSubmitBlk), tinfo.rowSize, &pTableMetaInfo->name, pTableMeta,
-                                        &pTableDataBlock, NULL);
+                                        &pTableDataBlock, NULL,true);
   if (ret != TSDB_CODE_SUCCESS) {
     pParentSql->res.code = TSDB_CODE_TSC_OUT_OF_MEMORY;
     goto _error;

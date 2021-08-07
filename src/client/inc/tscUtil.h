@@ -106,7 +106,8 @@ typedef struct SBlockKeyInfo {
 
 int32_t converToStr(char *str, int type, void *buf, int32_t bufSize, int32_t *len);
 
-int32_t tscCreateDataBlock(size_t initialSize, int32_t rowSize, int32_t startOffset, SName* name, STableMeta* pTableMeta, STableDataBlocks** dataBlocks);
+int32_t tscCreateDataBlock(size_t initialSize, int32_t rowSize, int32_t startOffset, SName* name,
+                           STableMeta* pTableMeta, STableDataBlocks** dataBlocks, bool isSetBoundColumn);
 void tscDestroyDataBlock(STableDataBlocks* pDataBlock, bool removeMeta);
 void    tscSortRemoveDataBlockDupRowsRaw(STableDataBlocks* dataBuf);
 int     tscSortRemoveDataBlockDupRows(STableDataBlocks* dataBuf, SBlockKeyInfo* pBlkKeyInfo);
@@ -124,8 +125,9 @@ void*   tscDestroyBlockHashTable(SHashObj* pBlockHashTable, bool removeMeta);
 
 int32_t tscCopyDataBlockToPayload(SSqlObj* pSql, STableDataBlocks* pDataBlock);
 int32_t tscMergeTableDataBlocks(SInsertStatementParam *pInsertParam, bool freeBlockMap);
-int32_t tscGetDataBlockFromList(SHashObj* pHashList, int64_t id, int32_t size, int32_t startOffset, int32_t rowSize, SName* pName, STableMeta* pTableMeta,
-                                STableDataBlocks** dataBlocks, SArray* pBlockList);
+int32_t tscGetDataBlockFromList(SHashObj* pHashList, int64_t id, int32_t size, int32_t startOffset, int32_t rowSize,
+                                SName* pName, STableMeta* pTableMeta, STableDataBlocks** dataBlocks, SArray* pBlockList,
+                                bool isSetBoundColumn);
 
 /**
  * for the projection query on metric or point interpolation query on metric,

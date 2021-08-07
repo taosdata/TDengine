@@ -1708,7 +1708,7 @@ SQueryInfo* tscGetQueryInfo(SSqlCmd* pCmd) {
  * @return
  */
 int32_t tscCreateDataBlock(size_t defaultSize, int32_t rowSize, int32_t startOffset, SName* name,
-                           STableMeta* pTableMeta, STableDataBlocks** dataBlocks) {
+                           STableMeta* pTableMeta, STableDataBlocks** dataBlocks, bool isSetBoundColumn) {
   STableDataBlocks* dataBuf = (STableDataBlocks*)calloc(1, sizeof(STableDataBlocks));
   if (dataBuf == NULL) {
     tscError("failed to allocated memory, reason:%s", strerror(errno));
@@ -1735,9 +1735,11 @@ int32_t tscCreateDataBlock(size_t defaultSize, int32_t rowSize, int32_t startOff
   //Here we keep the tableMeta to avoid it to be remove by other threads.
   dataBuf->pTableMeta = tscTableMetaDup(pTableMeta);
 
-  SParsedDataColInfo* pColInfo = &dataBuf->boundColumnInfo;
-  SSchema* pSchema = tscGetTableSchema(dataBuf->pTableMeta);
-  tscSetBoundColumnInfo(pColInfo, pSchema, dataBuf->pTableMeta->tableInfo.numOfColumns);
+  if (isSetBoundColumn) {
+    SParsedDataColInfo* pColInfo = &dataBuf->boundColumnInfo;
+    SSchema*            pSchema = tscGetTableSchema(dataBuf->pTableMeta);
+    tscSetBoundColumnInfo(pColInfo, pSchema, dataBuf->pTableMeta->tableInfo.numOfColumns);
+  }
 
   dataBuf->ordered  = true;
   dataBuf->prevTS   = INT64_MIN;
@@ -1757,8 +1759,8 @@ int32_t tscCreateDataBlock(size_t defaultSize, int32_t rowSize, int32_t startOff
 }
 
 int32_t tscGetDataBlockFromList(SHashObj* pHashList, int64_t id, int32_t size, int32_t startOffset, int32_t rowSize,
-                                SName* name, STableMeta* pTableMeta, STableDataBlocks** dataBlocks,
-                                SArray* pBlockList) {
+                                SName* name, STableMeta* pTableMeta, STableDataBlocks** dataBlocks, SArray* pBlockList,
+                                bool isSetBoundColumn) {
   *dataBlocks = NULL;
   STableDataBlocks** t1 = (STableDataBlocks**)taosHashGet(pHashList, (const char*)&id, sizeof(id));
   if (t1 != NULL) {
@@ -1766,7 +1768,8 @@ int32_t tscGetDataBlockFromList(SHashObj* pHashList, int64_t id, int32_t size, i
   }
 
   if (*dataBlocks == NULL) {
-    int32_t ret = tscCreateDataBlock((size_t)size, rowSize, startOffset, name, pTableMeta, dataBlocks);
+    int32_t ret =
+        tscCreateDataBlock((size_t)size, rowSize, startOffset, name, pTableMeta, dataBlocks, isSetBoundColumn);
     if (ret != TSDB_CODE_SUCCESS) {
       return ret;
     }
@@ -1875,7 +1878,7 @@ int32_t tscMergeTableDataBlocks(SInsertStatementParam *pInsertParam, bool freeBl
       // combine the payload belongs to the same vgroup
       code = tscGetDataBlockFromList(pVnodeDataBlockHashList, pOneTableBlock->vgId, TSDB_PAYLOAD_SIZE, INSERT_HEAD_SIZE,
                                      0, &pOneTableBlock->tableName, pOneTableBlock->pTableMeta, &dataBuf,
-                                     pVnodeDataBlockList);
+                                     pVnodeDataBlockList,false);
       if (code != TSDB_CODE_SUCCESS) {
         tscError("0x%" PRIx64 " failed to prepare the data block buffer for merging table data, code:%d",
                  pInsertParam->objectId, code);
