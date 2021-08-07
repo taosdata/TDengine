@@ -71,7 +71,9 @@ int checkVersion() {
 // Global configurations
 SShellArguments args = {
   .host = NULL,
+#ifndef TD_WINDOWS
   .password = NULL,
+#endif
   .user = NULL,
   .database = NULL,
   .timezone = NULL,
