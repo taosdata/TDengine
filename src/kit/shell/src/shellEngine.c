@@ -65,14 +65,14 @@ extern TAOS *taos_connect_auth(const char *ip, const char *user, const char *aut
  */
 TAOS *shellInit(SShellArguments *_args) {
   printf("\n");
-#ifndef WINDOWS
-  printf(CLIENT_VERSION, tsOsName, taos_get_client_info());
-#else
   if (!_args->is_use_passwd) {
+#ifdef TD_WINDOWS
     strcpy(tsOsName, "Windows");
+#elif defined(TD_DARWIN)
+    strcpy(tsOsName, "Darwin");
+#endif
     printf(CLIENT_VERSION, tsOsName, taos_get_client_info());
   }
-#endif
 
   fflush(stdout);
 
@@ -81,11 +81,7 @@ TAOS *shellInit(SShellArguments *_args) {
     taos_options(TSDB_OPTION_TIMEZONE, _args->timezone);
   }
 
-  if (_args->is_use_passwd) {
-#ifndef TD_WINDOWS
-    if (_args->password == NULL) _args->password = getpass("Enter password: ");
-#endif
-  } else {
+  if (!_args->is_use_passwd) {
     _args->password = TSDB_DEFAULT_PASS;
   }
 
