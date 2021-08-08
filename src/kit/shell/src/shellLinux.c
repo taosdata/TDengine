@@ -170,7 +170,9 @@ static void parse_password(
             printf(LINUXCLIENT_VERSION, tsOsName, taos_get_client_info());
             if (strlen(argv[i]) == 2) {
                 printf("Enter password: ");
-                scanf("%s", g_password);
+                if (scanf("%20s", g_password) > 1) {
+                    fprintf(stderr, "password reading error\n");
+                }
                 getchar();
             } else {
                 tstrncpy(g_password, (char *)(argv[i] + 2), MAX_PASSWORD_SIZE);
