@@ -38,13 +38,13 @@ public class SqlSyntaxValidator {
         return false;
     }
 
-    public static boolean isValidForExecute(String sql) {
-        for (String prefix : SQL) {
-            if (sql.trim().toLowerCase().startsWith(prefix))
-                return true;
-        }
-        return false;
-    }
+//    public static boolean isValidForExecute(String sql) {
+//        for (String prefix : SQL) {
+//            if (sql.trim().toLowerCase().startsWith(prefix))
+//                return true;
+//        }
+//        return false;
+//    }
 
     public static boolean isDatabaseUnspecifiedQuery(String sql) {
         for (String databaseObj : databaseUnspecifiedShow) {
