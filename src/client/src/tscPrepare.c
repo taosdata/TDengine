@@ -795,7 +795,6 @@ static int insertStmtBindParam(STscStmt* stmt, TAOS_BIND* bind) {
     SParamInfo* param = &pBlock->params[j];
     int32_t     toffset = -1;
     int16_t     colId = -1;
-    // TODO: Can we put colId from param?
     tscGetMemRowAppendInfo(pSchema, memRowType, spd, param->idx, &toffset, &colId);
     ASSERT(toffset >= 0 && colId >= 0);
     if (TSDB_CODE_SUCCESS != (code = doBindParam(pBlock, data, param, &bind[param->idx], 0, toffset, colId))) {
