@@ -864,7 +864,9 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
         } else if (strncmp(argv[i], "-p", 2) == 0) {
             if (strlen(argv[i]) == 2) {
                 printf("Enter password:");
-                scanf("%s", arguments->password);
+                if (scanf("%s", arguments->password) > 1) {
+                    fprintf(stderr, "password read error!\n");
+                }
             } else {
                 tstrncpy(arguments->password, (char *)(argv[i] + 2), MAX_PASSWORD_SIZE);
             }

@@ -561,7 +561,9 @@ static void parse_password(
         if (strncmp(argv[i], "-p", 2) == 0) {
             if (strlen(argv[i]) == 2) {
                 printf("Enter password: ");
-                scanf("%s", arguments->password);
+                if(scanf("%20s", arguments->password) > 1) {
+                    errorPrint("%s() LN%d, password read error!\n", __func__, __LINE__);
+                }
             } else {
                 tstrncpy(arguments->password, (char *)(argv[i] + 2), MAX_PASSWORD_SIZE);
             }

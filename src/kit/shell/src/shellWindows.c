@@ -84,7 +84,9 @@ void shellParseArgument(int argc, char *argv[], SShellArguments *arguments) {
         printf(WINCLIENT_VERSION, tsOsName, taos_get_client_info());
         if (strlen(argv[i]) == 2) {
             printf("Enter password: ");
-            scanf("%s", g_password);
+            if (scanf("%s", g_password) > 1) {
+                fprintf(stderr, "password read error!\n");
+            }
             getchar();
         } else {
             tstrncpy(g_password, (char *)(argv[i] + 2), MAX_PASSWORD_SIZE);
