@@ -62,8 +62,8 @@ public class RestfulStatement extends AbstractStatement {
     public boolean execute(String sql) throws SQLException {
         if (isClosed())
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
-        if (!SqlSyntaxValidator.isValidForExecute(sql))
-            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_INVALID_FOR_EXECUTE, "not a valid sql for execute: " + sql);
+//        if (!SqlSyntaxValidator.isValidForExecute(sql))
+//            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_INVALID_FOR_EXECUTE, "not a valid sql for execute: " + sql);
 
         //如果执行了use操作应该将当前Statement的catalog设置为新的database
         boolean result = true;
