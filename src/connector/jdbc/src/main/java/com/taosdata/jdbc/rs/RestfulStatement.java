@@ -62,18 +62,22 @@ public class RestfulStatement extends AbstractStatement {
     public boolean execute(String sql) throws SQLException {
         if (isClosed())
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
-//        if (!SqlSyntaxValidator.isValidForExecute(sql))
-//            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_INVALID_FOR_EXECUTE, "not a valid sql for execute: " + sql);
 
         //如果执行了use操作应该将当前Statement的catalog设置为新的database
+        String timestampFormat = conn.getClientInfo(TSDBDriver.PROPERTY_KEY_TIMESTAMP_FORMAT);
+        String url;
+        switch (timestampFormat) {
+            case "TIMESTAMP":
+                url = "http://" + conn.getHost() + ":" + conn.getPort() + "/rest/sqlt";
+                break;
+            case "UTC":
+                url = "http://" + conn.getHost() + ":" + conn.getPort() + "/rest/sqlutc";
+                break;
+            default:
+                url = "http://" + conn.getHost() + ":" + conn.getPort() + "/rest/sql";
+        }
+
         boolean result = true;
-        String url = "http://" + conn.getHost() + ":" + conn.getPort() + "/rest/sql";
-        if (conn.getClientInfo(TSDBDriver.PROPERTY_KEY_TIMESTAMP_FORMAT).equals("TIMESTAMP")) {
-            url = "http://" + conn.getHost() + ":" + conn.getPort() + "/rest/sqlt";
-        }
-        if (conn.getClientInfo(TSDBDriver.PROPERTY_KEY_TIMESTAMP_FORMAT).equals("UTC")) {
-            url = "http://" + conn.getHost() + ":" + conn.getPort() + "/rest/sqlutc";
-        }
 
         if (SqlSyntaxValidator.isUseSql(sql)) {
             HttpClientPoolUtil.execute(url, sql, this.conn.getToken());

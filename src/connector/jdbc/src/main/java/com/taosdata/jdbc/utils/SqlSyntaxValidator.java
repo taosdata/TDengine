@@ -16,8 +16,7 @@ package com.taosdata.jdbc.utils;
 
 public class SqlSyntaxValidator {
 
-    private static final String[] SQL = {"select", "insert", "import", "create", "use", "alter", "drop", "set", "show", "describe", "reset"};
-    private static final String[] updateSQL = {"insert", "import", "create", "use", "alter", "drop", "set"};
+    private static final String[] updateSQL = {"insert", "import", "create", "use", "alter", "drop", "set", "reset"};
     private static final String[] querySQL = {"select", "show", "describe"};
 
     private static final String[] databaseUnspecifiedShow = {"databases", "dnodes", "mnodes", "variables"};
@@ -37,14 +36,6 @@ public class SqlSyntaxValidator {
         }
         return false;
     }
-
-//    public static boolean isValidForExecute(String sql) {
-//        for (String prefix : SQL) {
-//            if (sql.trim().toLowerCase().startsWith(prefix))
-//                return true;
-//        }
-//        return false;
-//    }
 
     public static boolean isDatabaseUnspecifiedQuery(String sql) {
         for (String databaseObj : databaseUnspecifiedShow) {
