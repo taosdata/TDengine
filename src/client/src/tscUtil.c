@@ -1809,6 +1809,8 @@ static int trimDataBlock(void* pDataBlock, STableDataBlocks* pTableDataBlock, SI
 
     int32_t schemaSize = sizeof(STColumn) * numOfCols;
     pBlock->schemaLen = schemaSize;
+  } else {
+    pBlock->schemaLen = 0;
   }
 
   pBlock->dataLen = 0;

@@ -477,15 +477,8 @@ int tsParseOneRow(char **str, STableDataBlocks *pDataBlocks, int16_t timePrec, i
   int32_t             dataLen = pBuilder->dataRowInitLen;
   int32_t             kvLen = pBuilder->kvRowInitLen;
   bool                isParseBindParam = false;
-  // void *              rowBody = memRowDataBody(row);
 
   initSMemRow(row, pBuilder->memRowType, pDataBlocks, spd->numOfBound);
-
-  // FPAppendColVal fpAppendColVal = tscAppendDataRowColValEx;
-  // if (isKvRowT(pBuilder->memRowType)) {
-  //   rowBody = memRowKvBody(row);
-  //   fpAppendColVal = tscAppendKvRowColValEx;
-  // }
 
   // 1. set the parsed value from sql string
   for (int i = 0; i < spd->numOfBound; ++i) {
@@ -557,7 +550,6 @@ int tsParseOneRow(char **str, STableDataBlocks *pDataBlocks, int16_t timePrec, i
     bool    isPrimaryKey = (colIndex == PRIMARYKEY_TIMESTAMP_COL_INDEX);
     int32_t toffset = -1;
     int16_t colId = -1;
-    // TODO: Can we put colId from param?
     tscGetMemRowAppendInfo(schema, pBuilder->memRowType, spd, i, &toffset, &colId);
 
     int32_t ret = tsParseOneColumnKV(pSchema, &sToken, row, pInsertParam->msg, str, isPrimaryKey, timePrec, toffset,
@@ -566,12 +558,14 @@ int tsParseOneRow(char **str, STableDataBlocks *pDataBlocks, int16_t timePrec, i
       return ret;
     }
 
-    if (isPrimaryKey && tsCheckTimestamp(pDataBlocks, memRowTuple(row)) != TSDB_CODE_SUCCESS) {
-      tscInvalidOperationMsg(pInsertParam->msg, "client time/server time can not be mixed up", sToken.z);
-      return TSDB_CODE_TSC_INVALID_TIME_STAMP;
+    if (isPrimaryKey) {
+      TSKEY tsKey = memRowKey(row);
+      if (tsCheckTimestamp(pDataBlocks, (const char *)&tsKey) != TSDB_CODE_SUCCESS) {
+        tscInvalidOperationMsg(pInsertParam->msg, "client time/server time can not be mixed up", sToken.z);
+        return TSDB_CODE_TSC_INVALID_TIME_STAMP;
+      }
     }
   }
-
   if (!isParseBindParam) {
     // 2. check and set convert flag
     if (pBuilder->compareStat == ROW_COMPARE_NEED) {

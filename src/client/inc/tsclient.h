@@ -190,7 +190,6 @@ static FORCE_INLINE void tscAppendMemRowColVal(SMemRow row, const void *value, b
                                                int8_t colType, int32_t toffset, SMemRowBuilder *pBuilder,
                                                int32_t rowNum) {
   tdAppendMemRowColVal(row, value, isCopyVarData, colId, colType, toffset);
-  // TODO: When nBoundCols/nCols > 0.5,
   if (pBuilder->compareStat == ROW_COMPARE_NEED) {
     SMemRowInfo *pRowInfo = pBuilder->rowInfo + rowNum;
     tdGetColAppendDeltaLen(value, colType, &pRowInfo->dataLen, &pRowInfo->kvLen);
@@ -202,7 +201,6 @@ static FORCE_INLINE void tscAppendMemRowColValEx(SMemRow row, const void *value,
                                                  int8_t colType, int32_t toffset, int32_t *dataLen, int32_t *kvLen,
                                                  uint8_t compareStat) {
   tdAppendMemRowColVal(row, value, isCopyVarData, colId, colType, toffset);
-  // TODO: When nBoundCols/nCols > 0.5,
   if (compareStat == ROW_COMPARE_NEED) {
     tdGetColAppendDeltaLen(value, colType, dataLen, kvLen);
   }
@@ -211,13 +209,11 @@ static FORCE_INLINE void tscAppendMemRowColValEx(SMemRow row, const void *value,
 static FORCE_INLINE void tscAppendDataRowColValEx(SDataRow row, const void *value, bool isCopyVarData, int16_t colId,
                                                   int8_t colType, int32_t toffset, int32_t *dataLen, int32_t *kvLen) {
   tdAppendDataColVal(row, value, isCopyVarData, colType, toffset);
-  // TODO: When nBoundCols/nCols > 0.5,
   tdGetColAppendDeltaLen(value, colType, dataLen, kvLen);
 }
 static FORCE_INLINE void tscAppendKvRowColValEx(SKVRow row, const void *value, bool isCopyVarData, int16_t colId,
                                                 int8_t colType, int32_t toffset, int32_t *dataLen, int32_t *kvLen) {
   tdAppendKvColVal(row, value, isCopyVarData, colId, colType, toffset);
-  // TODO: When nBoundCols/nCols > 0.5,
   tdGetColAppendDeltaLen(value, colType, dataLen, kvLen);
 }
 typedef void (*FPAppendColVal)(SKVRow row, const void *value, bool isCopyVarData, int16_t colId, int8_t colType,
@@ -563,8 +559,8 @@ static FORCE_INLINE void convertToSDataRow(SMemRow dest, SMemRow src, SSchema *p
                                            SParsedDataColInfo *spd) {
   ASSERT(isKvRow(src));
 
-  SDataRow dataRow = memRowDataBody(dest);
   SKVRow   kvRow = memRowKvBody(src);
+  SDataRow dataRow = memRowDataBody(dest);
 
   memRowSetType(dest, SMEM_ROW_DATA);
   dataRowSetVersion(dataRow, memRowKvVersion(src));
@@ -584,8 +580,8 @@ static FORCE_INLINE void convertToSKVRow(SMemRow dest, SMemRow src, SSchema *pSc
                                          SParsedDataColInfo *spd) {
   ASSERT(isDataRow(src));
 
-  SDataRow dataRow = memRowKvBody(src);
-  SKVRow   kvRow = memRowDataBody(dest);
+  SDataRow dataRow = memRowDataBody(src);
+  SKVRow   kvRow = memRowKvBody(dest);
 
   memRowSetType(dest, SMEM_ROW_KV);
   memRowSetKvVersion(kvRow, dataRowVersion(dataRow));
@@ -594,8 +590,8 @@ static FORCE_INLINE void convertToSKVRow(SMemRow dest, SMemRow src, SSchema *pSc
 
   int32_t toffset = 0, kvOffset = 0;
   for (int i = 0; i < nCols; ++i) {
-    SSchema *schema = pSchema + i;
     if ((spd->cols + i)->valStat == VAL_STAT_YES) {
+      SSchema *schema = pSchema + i;
       toffset = (spd->cols + i)->toffset;
       void *val = tdGetRowDataOfCol(dataRow, schema->type, toffset + TD_DATA_ROW_HEAD_SIZE);
       tdAppendKvColVal(kvRow, val, true, schema->colId, schema->type, kvOffset);
