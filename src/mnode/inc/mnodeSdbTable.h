@@ -16,8 +16,6 @@
 #ifndef TDENGINE_MNODE_SDB_TABLE_H
 #define TDENGINE_MNODE_SDB_TABLE_H
 
-#include "mnodeSdb.h"
-
 typedef enum mnodeSdbTableType {
   SDB_TABLE_HASH_TABLE,
   SDB_TABLE_LRU_CACHE,
@@ -31,7 +29,7 @@ struct SSdbRow;
 
 typedef struct mnodeSdbTableOption {
   int32_t   hashSessions;
-  ESdbKey   keyType;
+  int       keyType;
   mnodeSdbTableType tableType;
   void* userData;
 } mnodeSdbTableOption ;
@@ -40,11 +38,11 @@ mnodeSdbTable* mnodeSdbTableInit(mnodeSdbTableOption);
 void mnodeSdbTableClear(mnodeSdbTable *pTable);
 
 void *mnodeSdbTableGet(mnodeSdbTable *pTable, const void *key, size_t keyLen);
-void mnodeSdbTablePut(mnodeSdbTable *pTable, SSdbRow* pRow);
+void mnodeSdbTablePut(mnodeSdbTable *pTable, struct SSdbRow* pRow);
 
-void mnodeSdbTableSyncWalPos(mnodeSdbTable *pTable, SWalHead*, int64_t off);
+void mnodeSdbTableSyncWalPos(mnodeSdbTable *pTable, void*, int64_t off);
 
-void mnodeSdbTableRemove(mnodeSdbTable *pTable, const SSdbRow* pRow);
+void mnodeSdbTableRemove(mnodeSdbTable *pTable, const struct SSdbRow* pRow);
 
 void *mnodeSdbTableIterate(mnodeSdbTable *pTable, void *p);
 void* mnodeSdbTableIterValue(mnodeSdbTable *pTable,void *p);

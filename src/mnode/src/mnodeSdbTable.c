@@ -16,14 +16,10 @@
 #define _DEFAULT_SOURCE
 #include "os.h"
 #include "cache.h"
-#include "mnodeSdb.h"
-#include "mnodeSdbTable.h"
-
-#define USE_HASH_TABLE
-
-#ifdef USE_HASH_TABLE
 #include "hash.h"
-#endif
+#include "mnodeSdb.h"
+#include "twal.h"
+#include "mnodeSdbTable.h"
 
 struct mnodeSdbHashTable;
 typedef struct mnodeSdbHashTable mnodeSdbHashTable;
@@ -127,7 +123,8 @@ void mnodeSdbTablePut(mnodeSdbTable *pTable, SSdbRow* pRow) {
   pTable->putFp(pTable, pRow);
 }
 
-void mnodeSdbTableSyncWalPos(mnodeSdbTable *pTable, SWalHead* pHead, int64_t off) {
+void mnodeSdbTableSyncWalPos(mnodeSdbTable *pTable, void* head, int64_t off) {
+  SWalHead* pHead = (SWalHead*)head;
   if (pTable->syncFp) {
     pTable->syncFp(pTable, pHead, off);
   }
@@ -166,7 +163,7 @@ static mnodeSdbCacheTable* cacheInit(mnodeSdbTable* pTable, mnodeSdbTableOption 
       .factor = 1.2,
       .hotPercent = 30,
       .warmPercent = 30,
-      .limit = 1024,
+      .limit = 1024 * 1024,
     };
     pTable->pCache = cacheCreate(&opt);
     assert(pTable->pCache);
@@ -184,6 +181,12 @@ static mnodeSdbCacheTable* cacheInit(mnodeSdbTable* pTable, mnodeSdbTableOption 
     .keyType = options.keyType,
   };
 
+  _hash_fn_t hashFp = taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT);
+  if (options.keyType == SDB_KEY_STRING || options.keyType == SDB_KEY_VAR_STRING) {
+    hashFp = taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY);
+  }
+
+  pCache->pWalTable = taosHashInit(options.hashSessions, hashFp, true, HASH_ENTRY_LOCK);
   pCache->pTable = cacheCreateTable(pTable->pCache, &tableOpt);
 
   pTable->getFp  = sdbCacheGet;

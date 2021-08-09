@@ -897,7 +897,7 @@ int64_t sdbOpenTable(SSdbTableDesc *pDesc) {
   mnodeSdbTableOption options = (mnodeSdbTableOption) {
     .hashSessions = pTable->hashSessions,
     .keyType      = pTable->keyType,
-    .tableType    = SDB_TABLE_HASH_TABLE,
+    .tableType    = pDesc->tableType,
   };
   pTable->iHandle = mnodeSdbTableInit(options);
 

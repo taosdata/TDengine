@@ -118,6 +118,7 @@ int32_t mnodeInitFuncs() {
     .maxRowSize   = tsFuncUpdateSize,
     .refCountPos  = (int32_t)((int8_t *)(&tObj.refCount) - (int8_t *)&tObj),
     .keyType      = SDB_KEY_STRING,
+    .tableType    = SDB_TABLE_HASH_TABLE,
     .fpInsert     = mnodeFuncActionInsert,
     .fpDelete     = mnodeFuncActionDelete,
     .fpUpdate     = mnodeFuncActionUpdate,

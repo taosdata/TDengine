@@ -21,6 +21,7 @@ extern "C" {
 #endif
 
 #include "mnode.h"
+#include "mnodeSdbTable.h"
 #include "twal.h"
 
 typedef enum {
@@ -71,6 +72,8 @@ typedef struct {
   int32_t   refCountPos;
   ESdbTable id;
   ESdbKey   keyType;
+  mnodeSdbTableType tableType;
+
   int32_t (*fpInsert)(SSdbRow *pRow);
   int32_t (*fpDelete)(SSdbRow *pRow);
   int32_t (*fpUpdate)(SSdbRow *pRow);

@@ -157,6 +157,7 @@ int32_t mnodeInitUsers() {
     .maxRowSize   = tsUserUpdateSize,
     .refCountPos  = (int32_t)((int8_t *)(&tObj.refCount) - (int8_t *)&tObj),
     .keyType      = SDB_KEY_STRING,
+    .tableType    = SDB_TABLE_HASH_TABLE,
     .fpInsert     = mnodeUserActionInsert,
     .fpDelete     = mnodeUserActionDelete,
     .fpUpdate     = mnodeUserActionUpdate,

@@ -177,6 +177,7 @@ int32_t mnodeInitDnodes() {
     .maxRowSize   = tsDnodeUpdateSize,
     .refCountPos  = (int32_t)((int8_t *)(&tObj.refCount) - (int8_t *)&tObj),
     .keyType      = SDB_KEY_AUTO,
+    .tableType    = SDB_TABLE_HASH_TABLE,
     .fpInsert     = mnodeDnodeActionInsert,
     .fpDelete     = mnodeDnodeActionDelete,
     .fpUpdate     = mnodeDnodeActionUpdate,
