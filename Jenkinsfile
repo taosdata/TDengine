@@ -52,18 +52,12 @@ def pre_test(){
         git checkout master
         '''
         }
-      else if(env.CHANGE_TARGET == '2.0'){
-        sh '''
-        cd ${WKC}
-        git checkout 2.0
-        '''
-      } 
-      else{
+      else {
         sh '''
         cd ${WKC}
         git checkout develop
         '''
-      }
+      } 
     }
     sh'''
     cd ${WKC}
@@ -81,13 +75,7 @@ def pre_test(){
         git checkout master
         '''
         }
-      else if(env.CHANGE_TARGET == '2.0'){
-        sh '''
-        cd ${WK}
-        git checkout 2.0
-        '''
-      } 
-      else{
+      else {
         sh '''
         cd ${WK}
         git checkout develop
@@ -107,7 +95,7 @@ def pre_test(){
     make > /dev/null
     make install > /dev/null
     cd ${WKC}/tests
-    pip3 install ${WKC}/src/connector/python/
+    pip3 install ${WKC}/src/connector/python
     '''
     return 1
 }
@@ -125,6 +113,9 @@ pipeline {
           agent{label 'master'}
           when {
               changeRequest()
+              not {
+                changelog '.*\\[ci skip\\].*'
+            }
           }
           steps {
             script{
@@ -173,6 +164,9 @@ pipeline {
                expression {
                     env.skipstage != 0
               }
+              not {
+                changelog '.*\\[ci skip\\].*'
+            }
           }
       parallel {
         stage('python_1_s1') {
