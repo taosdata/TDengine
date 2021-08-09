@@ -4314,6 +4314,10 @@ static bool isValidExpr(tSqlExpr* pLeft, tSqlExpr* pRight, int32_t optr) {
     return false;
   }
 
+  if (pLeft->tokenId >= TK_BOOL && pLeft->tokenId <= TK_BINARY && (optr == TK_NOTNULL || optr == TK_ISNULL)) {
+    return false;
+  }
+
   return true;
 }
 

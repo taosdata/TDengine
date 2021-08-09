@@ -1054,7 +1054,7 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
 
     SCond *pCond = tsGetSTableQueryCond(pTagCond, pTableMeta->id.uid);
     if (pCond != NULL && pCond->cond != NULL) {
-      pQueryMsg->tagCondLen = htonl(pCond->len);
+      pQueryMsg->tagCondLen = htons(pCond->len);
       memcpy(pMsg, pCond->cond, pCond->len);
 
       pMsg += pCond->len;
