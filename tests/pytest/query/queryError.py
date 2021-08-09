@@ -51,7 +51,7 @@ class TDTestCase:
         tdSql.error("select last_row as latest from st")
 
         # query distinct on normal colnum
-        tdSql.error("select distinct tagtype from st")
+        #tdSql.error("select distinct tagtype from st")
 
         # query .. order by non-time field
         tdSql.error("select * from st order by name")

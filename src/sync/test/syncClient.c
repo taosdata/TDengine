@@ -48,8 +48,6 @@ void *sendRequest(void *param) {
   SInfo * pInfo = (SInfo *)param;
   SRpcMsg rpcMsg = {0};
 
-  setThreadName("sendCliReq");
-
   uDebug("thread:%d, start to send request", pInfo->index);
 
   while (pInfo->numOfReqs == 0 || pInfo->num < pInfo->numOfReqs) {

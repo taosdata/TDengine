@@ -273,7 +273,7 @@ void tscVgroupTableCopy(SVgroupTableInfo* info, SVgroupTableInfo* pInfo);
 
 int  tscGetSTableVgroupInfo(SSqlObj* pSql, SQueryInfo* pQueryInfo);
 int  tscGetTableMeta(SSqlObj* pSql, STableMetaInfo* pTableMetaInfo);
-int  tscGetTableMetaEx(SSqlObj* pSql, STableMetaInfo* pTableMetaInfo, bool createIfNotExists);
+int  tscGetTableMetaEx(SSqlObj *pSql, STableMetaInfo *pTableMetaInfo, bool createIfNotExists, bool onlyLocal);
 int32_t tscGetUdfFromNode(SSqlObj *pSql, SQueryInfo* pQueryInfo);
 
 void tscResetForNextRetrieve(SSqlRes* pRes);
@@ -340,10 +340,12 @@ STableMeta* createSuperTableMeta(STableMetaMsg* pChild);
 uint32_t tscGetTableMetaSize(STableMeta* pTableMeta);
 CChildTableMeta* tscCreateChildMeta(STableMeta* pTableMeta);
 uint32_t tscGetTableMetaMaxSize();
-int32_t tscCreateTableMetaFromSTableMeta(STableMeta* pChild, const char* name, void* buf);
+int32_t tscCreateTableMetaFromSTableMeta(STableMeta** pChild, const char* name, size_t *tableMetaCapacity);
 STableMeta* tscTableMetaDup(STableMeta* pTableMeta);
 SVgroupsInfo* tscVgroupsInfoDup(SVgroupsInfo* pVgroupsInfo);
 
+int32_t tscGetTagFilterSerializeLen(SQueryInfo* pQueryInfo);
+int32_t tscGetColFilterSerializeLen(SQueryInfo* pQueryInfo);
 int32_t tscCreateQueryFromQueryInfo(SQueryInfo* pQueryInfo, SQueryAttr* pQueryAttr, void* addr);
 void* createQInfoFromQueryNode(SQueryInfo* pQueryInfo, STableGroupInfo* pTableGroupInfo, SOperatorInfo* pOperator, char* sql, void* addr, int32_t stage, uint64_t qId);
 
@@ -353,6 +355,8 @@ char* strdup_throw(const char* str);
 
 bool vgroupInfoIdentical(SNewVgroupInfo *pExisted, SVgroupMsg* src);
 SNewVgroupInfo createNewVgroupInfo(SVgroupMsg *pVgroupMsg);
+
+void tscRemoveTableMetaBuf(STableMetaInfo* pTableMetaInfo, uint64_t id);
 
 #ifdef __cplusplus
 }

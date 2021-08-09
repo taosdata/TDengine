@@ -216,7 +216,7 @@ typedef struct SQueryAttr {
   bool             simpleAgg;
   bool             pointInterpQuery; // point interpolation query
   bool             needReverseScan;  // need reverse scan
-  bool             distinctTag;      // distinct tag query
+  bool             distinct;         // distinct  query or not
   bool             stateWindow;       // window State on sub/normal table
   bool             createFilterOperator; // if filter operator is needed
   int32_t          interBufSize;     // intermediate buffer sizse
@@ -514,6 +514,7 @@ typedef struct SDistinctOperatorInfo {
   bool              recordNullVal;  //has already record the null value, no need to try again
   int64_t           threshold;
   int64_t           outputCapacity;
+  int32_t           colIndex; 
 } SDistinctOperatorInfo;
 
 struct SGlobalMerger;

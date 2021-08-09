@@ -199,7 +199,7 @@ bool gcBuildQueryJson(HttpContext *pContext, HttpSqlCmd *cmd, TAOS_RES *result, 
 
     for (int32_t i = dataFields; i >= 0; i--) {
       httpJsonItemToken(jsonBuf);
-      if (row[i] == NULL) {
+      if (row == NULL || i >= num_fields || row[i] == NULL) {
         httpJsonOriginString(jsonBuf, "null", 4);
         continue;
       }

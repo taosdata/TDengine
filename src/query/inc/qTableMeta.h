@@ -60,7 +60,7 @@ typedef struct STableComInfo {
 typedef struct STableMeta {
   int32_t        vgId;
   STableId       id;
-  uint8_t        tableType;
+  int8_t         tableType;
   char           sTableName[TSDB_TABLE_FNAME_LEN];  // super table name
   uint64_t       suid;       // super table id
   int16_t        sversion;
@@ -71,7 +71,8 @@ typedef struct STableMeta {
 
 typedef struct STableMetaInfo {
   STableMeta    *pTableMeta;      // table meta, cached in client side and acquired by name
-  uint32_t       tableMetaSize;
+  uint32_t      tableMetaSize;
+  size_t        tableMetaCapacity; 
   SVgroupsInfo  *vgroupList;
   SArray        *pVgroupTables;   // SArray<SVgroupTableInfo>
 
@@ -121,7 +122,8 @@ typedef struct SQueryInfo {
   int64_t          vgroupLimit;    // table limit in case of super table projection query + global order + limit
 
   int32_t          udColumnId;    // current user-defined constant output field column id, monotonically decreases from TSDB_UD_COLUMN_INDEX
-  bool             distinctTag;   // distinct tag or not
+  bool             distinct;   // distinct tag or not
+  bool             onlyHasTagCond;
   int32_t          round;         // 0/1/....
   int32_t          bufLen;
   char*            buf;

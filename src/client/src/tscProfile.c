@@ -16,6 +16,7 @@
 #include "os.h"
 #include "tscLog.h"
 #include "tsclient.h"
+#include "tsocket.h"
 #include "ttimer.h"
 #include "tutil.h"
 #include "taosmsg.h"
@@ -228,7 +229,7 @@ int tscBuildQueryStreamDesc(void *pMsg, STscObj *pObj) {
   SHeartBeatMsg *pHeartbeat = pMsg;
   int allocedQueriesNum = pHeartbeat->numOfQueries;
   int allocedStreamsNum = pHeartbeat->numOfStreams;
-  
+
   pHeartbeat->numOfQueries = 0;
   SQueryDesc *pQdesc = (SQueryDesc *)pHeartbeat->pData;
 
@@ -252,6 +253,31 @@ int tscBuildQueryStreamDesc(void *pMsg, STscObj *pObj) {
     //pQdesc->useconds = htobe64(pSql->res.useconds);
     pQdesc->useconds = htobe64(now - pSql->stime);
     pQdesc->qId = htobe64(pSql->res.qId);
+    pQdesc->sqlObjId = htobe64(pSql->self);
+    pQdesc->pid = pHeartbeat->pid;
+    pQdesc->stableQuery = pSql->cmd.pQueryInfo->stableQuery;
+    pQdesc->numOfSub = pSql->subState.numOfSub;
+
+    char *p = pQdesc->subSqlInfo;
+    int32_t remainLen = sizeof(pQdesc->subSqlInfo);
+    if (pQdesc->numOfSub == 0) {
+      snprintf(p, remainLen, "N/A");
+    } else {
+      int32_t len;
+      for (int32_t i = 0; i < pQdesc->numOfSub; ++i) {
+        len = snprintf(p, remainLen, "[%d]0x%" PRIx64 "(%c) ", i,
+                        pSql->pSubs[i]->self,
+                        pSql->subState.states[i] ? 'C' : 'I');
+        if (len > remainLen) {
+          break;
+        }
+        remainLen -= len;
+        p += len;
+      }
+    }
+    pQdesc->numOfSub = htonl(pQdesc->numOfSub);
+
+    taosGetFqdn(pQdesc->fqdn);
 
     pHeartbeat->numOfQueries++;
     pQdesc++;

@@ -10,8 +10,8 @@
     "result_file": "./insert_res.txt",
     "confirm_parameter_prompt": "no",
     "insert_interval": 0,
-    "interlace_rows": 0,
-    "num_of_records_per_req": 1000,
+    "interlace_rows": 10000,
+    "num_of_records_per_req": 10000,
     "max_sql_len": 10240000000, 
     "databases": [{
         "dbinfo": {
@@ -40,7 +40,7 @@
             "auto_create_table": "no",
             "batch_create_tbl_num": 10,
             "data_source": "rand",
-            "insert_mode": "taosc",
+            "insert_mode": "stmt",
             "insert_rows": 1000,
             "childtable_limit": 0,
             "childtable_offset":0,
@@ -55,7 +55,7 @@
             "sample_format": "csv",
             "sample_file": "./sample.csv",
             "tags_file": "",
-            "columns": [{"type": "INT"}, {"type": "DOUBLE", "count":1004}, {"type": "BINARY", "len": 16, "count":3}, {"type": "BINARY", "len": 32, "count":6}],
+            "columns": [{"type": "INT"}, {"type": "DOUBLE", "count":1005}, {"type": "BINARY", "len": 16, "count":3075}, {"type": "BINARY", "len": 32, "count":6}],
             "tags": [{"type": "TINYINT", "count":2}, {"type": "BINARY", "len": 16, "count":7}]
         }]
     }]

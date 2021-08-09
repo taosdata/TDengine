@@ -489,7 +489,7 @@ typedef struct {
   int16_t     numOfCols;        // the number of columns will be load from vnode
   SInterval   interval;
   SSessionWindow sw;            // session window
-  uint16_t    tagCondLen;       // tag length in current query
+  uint32_t    tagCondLen;       // tag length in current query
   uint32_t    tbnameCondLen;    // table name filter condition string length
   int16_t     numOfGroupCols;   // num of group by columns
   int16_t     orderByIdx;
@@ -809,7 +809,7 @@ typedef struct SMultiTableMeta {
   int32_t       contLen;
   uint8_t       compressed;      // denote if compressed or not
   uint32_t      rawLen;          // size before compress
-  uint8_t       metaClone;         // make meta clone after retrieve meta from mnode
+  uint8_t       metaClone;       // make meta clone after retrieve meta from mnode
   char          meta[];
 } SMultiTableMeta;
 
@@ -874,6 +874,12 @@ typedef struct {
   int64_t  useconds;
   int64_t  stime;
   uint64_t qId;
+  uint64_t sqlObjId;
+  int32_t  pid;
+  char     fqdn[TSDB_FQDN_LEN];
+  bool     stableQuery;
+  int32_t  numOfSub;
+  char     subSqlInfo[TSDB_SHOW_SUBQUERY_LEN]; //include subqueries' index, Obj IDs and states(C-complete/I-imcomplete)
 } SQueryDesc;
 
 typedef struct {

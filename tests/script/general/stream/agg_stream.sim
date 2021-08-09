@@ -20,7 +20,7 @@ print =============== step2
 sql create database d4 precision 'us'
 sql use d4
 sql create table t1 (ts timestamp, i int)
-sql insert into d4.t1 values(now, 1)
+sql insert into d4.t1 values(1626739200000, 1)
 
 sql create table d4.s001 as select count(cpu_taosd), count(cpu_system), avg(cpu_taosd), avg(cpu_system), sum(cpu_taosd), max(cpu_taosd), min(cpu_taosd) from log.dn_192_168_0_1 interval(5s)
 sql create table d4.s002 as select count(mem_taosd), count(mem_system), avg(mem_taosd), avg(mem_system), sum(mem_taosd), max(mem_taosd), min(mem_taosd) from log.dn_192_168_0_1 interval(5s)

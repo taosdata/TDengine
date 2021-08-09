@@ -213,7 +213,7 @@ public class RestfulResultSet extends AbstractResultSet implements ResultSet {
                     long nanoAdjustment = Integer.parseInt(value.substring(20));
                     return Timestamp.from(Instant.ofEpochSecond(epochSec, nanoAdjustment));
                 }
-                throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNKNOWN_TIMESTAMP_PERCISION);
+                throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNKNOWN_TIMESTAMP_PRECISION);
             }
         }
     }

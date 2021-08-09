@@ -165,7 +165,7 @@ Note:
 - **Create tables in batches**
 
    ```mysql
-   CREATE TABLE [IF NOT EXISTS] tb_name1 USING stb_name TAGS (tag_value1, ...) tb_name2 USING stb_name TAGS (tag_value2, ...) ...;
+   CREATE TABLE [IF NOT EXISTS] tb_name1 USING stb_name TAGS (tag_value1, ...) [IF NOT EXISTS] tb_name2 USING stb_name TAGS (tag_value2, ...) ...;
    ```
    Create a large number of data tables in batches faster. (Server side 2.0. 14 and above)
    
@@ -1132,7 +1132,7 @@ TDengine supports aggregations over data, they are listed below:
     ```
     Function: Return the difference between the max value and the min value of a column in statistics /STable.
     
-    Return Data Type: Same as applicable fields.
+    Return Data Type: Double.
     
     Applicable Fields: All types except binary, nchar, bool.
     

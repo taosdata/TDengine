@@ -1290,7 +1290,7 @@ static void tsdbLoadAndMergeFromCache(SDataCols *pDataCols, int *iter, SCommitIt
           ASSERT(pSchema != NULL);
         }
 
-        tdAppendMemRowToDataCol(row, pSchema, pTarget);
+        tdAppendMemRowToDataCol(row, pSchema, pTarget, true);
       }
 
       tSkipListIterNext(pCommitIter->pIter);
@@ -1302,7 +1302,7 @@ static void tsdbLoadAndMergeFromCache(SDataCols *pDataCols, int *iter, SCommitIt
             ASSERT(pSchema != NULL);
           }
 
-          tdAppendMemRowToDataCol(row, pSchema, pTarget);
+          tdAppendMemRowToDataCol(row, pSchema, pTarget, update == TD_ROW_OVERWRITE_UPDATE);
         }
       } else {
         ASSERT(!isRowDel);

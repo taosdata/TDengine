@@ -238,9 +238,15 @@ int32_t shellReadCommand(TAOS *con, char *command) {
             updateBuffer(&cmd);
           }
           break;
+        case 11:  // Ctrl + K;
+          clearLineAfter(&cmd);
+          break;
         case 12:  // Ctrl + L;
           system("clear");
           showOnScreen(&cmd);
+          break;
+        case 21:  // Ctrl + U
+          clearLineBefore(&cmd);
           break;
       }
     } else if (c == '\033') {

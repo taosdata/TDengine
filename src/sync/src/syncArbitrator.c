@@ -30,7 +30,7 @@
 extern void    syncProcessTestMsg(SSyncMsg *pMsg, SOCKET connFd);
 static void    arbSignalHandler(int32_t signum, void *sigInfo, void *context);
 static void    arbProcessIncommingConnection(SOCKET connFd, uint32_t sourceIp);
-static void    arbProcessBrokenLink(int64_t rid);
+static void    arbProcessBrokenLink(int64_t rid, int32_t closedByApp);
 static int32_t arbProcessPeerMsg(int64_t rid, void *buffer);
 static tsem_t  tsArbSem;
 static void *  tsArbTcpPool;
@@ -147,10 +147,10 @@ static void arbProcessIncommingConnection(SOCKET connFd, uint32_t sourceIp) {
   return;
 }
 
-static void arbProcessBrokenLink(int64_t rid) {
+static void arbProcessBrokenLink(int64_t rid, int32_t closedByApp) {
   SNodeConn *pNode = (SNodeConn *)rid;
 
-  sDebug("%s, TCP link is broken since %s, close connection", pNode->id, strerror(errno));
+  sDebug("%s, TCP link is broken since %s, closedByApp:%d", pNode->id, strerror(errno), closedByApp);
   tfree(pNode);
 }
 

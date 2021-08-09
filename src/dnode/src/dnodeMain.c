@@ -40,8 +40,9 @@
 #include "dnodeShell.h"
 #include "dnodeTelemetry.h"
 #include "module.h"
-#include "qScript.h"
 #include "mnode.h"
+#include "qScript.h"
+#include "tcache.h"
 #include "tscompression.h"
 
 #if !defined(_MODULE) || !defined(_TD_LINUX)
@@ -208,6 +209,7 @@ void dnodeCleanUpSystem() {
     dnodeCleanupComponents();
     taos_cleanup();
     taosCloseLog();
+    taosStopCacheRefreshWorker();
   }
 }
 
@@ -320,12 +322,12 @@ static int32_t dnodeInitStorage() {
 
 static void dnodeCleanupStorage() {
   // storage destroy
-  tfsDestroy(); 
+  tfsDestroy();
 
- #ifdef TD_TSZ 
+ #ifdef TD_TSZ
   // compress destroy
   tsCompressExit();
- #endif 
+ #endif
 }
 
 bool  dnodeIsFirstDeploy() {

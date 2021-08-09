@@ -29,6 +29,10 @@ python3 ./test.py -f insert/in_function.py
 python3 ./test.py -f insert/modify_column.py
 python3 ./test.py -f insert/line_insert.py
 
+# timezone 
+
+python3 ./test.py -f TimeZone/TestCaseTimeZone.py
+
 #table
 python3 ./test.py -f table/alter_wal0.py
 python3 ./test.py -f table/column_name.py
@@ -44,6 +48,7 @@ python3 ./test.py -f table/del_stable.py
 
 #stable
 python3 ./test.py -f stable/insert.py
+python3 test.py -f tools/taosdemoAllTest/taosdemoTestInsertWithJsonStmt.py 
 
 # tag
 python3 ./test.py -f tag_lite/filter.py
@@ -147,6 +152,9 @@ python3 ./test.py -f import_merge/importTPORestart.py
 python3 ./test.py -f import_merge/importTRestart.py
 python3 ./test.py -f import_merge/importInsertThenImport.py
 python3 ./test.py -f import_merge/importCSV.py
+python3 ./test.py -f import_merge/import_update_0.py
+python3 ./test.py -f import_merge/import_update_1.py
+python3 ./test.py -f import_merge/import_update_2.py
 #======================p1-end===============
 #======================p2-start===============
 # tools
@@ -162,7 +170,12 @@ python3 test.py -f tools/taosdemoTestSampleData.py
 python3 test.py -f tools/taosdemoTestInterlace.py
 python3 test.py -f tools/taosdemoTestQuery.py
 
-
+# nano support
+python3 test.py -f tools/taosdemoAllTest/NanoTestCase/taosdemoTestSupportNanoInsert.py
+python3 test.py -f tools/taosdemoAllTest/NanoTestCase/taosdemoTestSupportNanoQuery.py
+python3 test.py -f tools/taosdemoAllTest/NanoTestCase/taosdemoTestSupportNanosubscribe.py
+python3 test.py -f tools/taosdemoAllTest/NanoTestCase/taosdemoTestInsertTime_step.py
+python3 test.py -f tools/taosdemoAllTest/NanoTestCase/taosdumpTestNanoSupport.py
 
 # update
 python3 ./test.py -f update/allow_update.py
@@ -193,6 +206,10 @@ python3 ./test.py -f stable/query_after_reset.py
 python3 ./test.py -f perfbenchmark/bug3433.py
 #python3 ./test.py -f perfbenchmark/bug3589.py
 python3 ./test.py -f perfbenchmark/taosdemoInsert.py
+
+#taosdemo
+python3 test.py -f tools/taosdemoAllTest/taosdemoTestInsertWithJson.py 
+python3 test.py -f tools/taosdemoAllTest/taosdemoTestQueryWithJson.py
 
 #query
 python3 ./test.py -f query/filter.py
@@ -234,6 +251,7 @@ python3 ./test.py -f query/queryStddevWithGroupby.py
 python3 ./test.py -f query/querySecondtscolumnTowherenow.py
 python3 ./test.py -f query/queryFilterTswithDateUnit.py
 python3 ./test.py -f query/queryTscomputWithNow.py
+python3 ./test.py -f query/queryStableJoin.py
 python3 ./test.py -f query/computeErrorinWhere.py
 python3 ./test.py -f query/queryTsisNull.py
 python3 ./test.py -f query/subqueryFilter.py
@@ -242,6 +260,8 @@ python3 ./test.py -f query/queryStateWindow.py
 python3 ./test.py -f query/nestedQuery/queryWithOrderLimit.py
 python3 ./test.py -f query/nestquery_last_row.py
 python3 ./test.py -f query/queryCnameDisplay.py
+python3 ./test.py -f query/operator_cost.py
+# python3 ./test.py -f query/long_where_query.py
 python3 test.py -f query/nestedQuery/queryWithSpread.py
 
 #stream
@@ -353,15 +373,26 @@ python3 ./test.py -f alter/alter_debugFlag.py
 python3 ./test.py -f query/queryBetweenAnd.py
 python3 ./test.py -f tag_lite/alter_tag.py
 
-# python3 test.py -f tools/taosdemoAllTest/taosdemoTestInsertWithJson.py 
-python3 test.py -f tools/taosdemoAllTest/taosdemoTestQueryWithJson.py
+
 python3 test.py -f tools/taosdemoAllTest/TD-4985/query-limit-offset.py
+python3 test.py -f tools/taosdemoAllTest/TD-5213/insert4096columns_not_use_taosdemo.py
+python3 test.py -f tools/taosdemoAllTest/TD-5213/insertSigcolumnsNum4096.py
 python3 ./test.py -f tag_lite/drop_auto_create.py
 python3 test.py -f insert/insert_before_use_db.py
 python3 test.py -f alter/alter_keep.py
 python3 test.py -f alter/alter_cacheLastRow.py
 python3 ./test.py -f query/querySession.py 
 python3 test.py -f  alter/alter_create_exception.py
-
 python3 ./test.py -f insert/flushwhiledrop.py
+python3 ./test.py -f insert/schemalessInsert.py
+
 #======================p4-end===============
+
+
+
+
+
+
+
+
+

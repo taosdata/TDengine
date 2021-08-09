@@ -1628,8 +1628,8 @@ int taos_stmt_set_tbname_tags(TAOS_STMT* stmt, const char* name, TAOS_BIND* tags
   if (pStmt->mtb.subSet && taosHashGetSize(pStmt->mtb.pTableHash) > 0) {
     STableMetaInfo* pTableMetaInfo = tscGetTableMetaInfoFromCmd(pCmd, 0);
     STableMeta* pTableMeta = pTableMetaInfo->pTableMeta;
-    char sTableName[TSDB_TABLE_FNAME_LEN];
-    strncpy(sTableName, pTableMeta->sTableName, sizeof(sTableName));
+    char sTableName[TSDB_TABLE_FNAME_LEN] = {0};
+    tstrncpy(sTableName, pTableMeta->sTableName, sizeof(sTableName));
 
     SStrToken tname = {0};
     tname.type = TK_STRING;
@@ -1640,7 +1640,7 @@ int taos_stmt_set_tbname_tags(TAOS_STMT* stmt, const char* name, TAOS_BIND* tags
 
     memcpy(&pTableMetaInfo->name, &fullname, sizeof(fullname));
 
-    code = tscGetTableMeta(pSql, pTableMetaInfo);
+    code = tscGetTableMetaEx(pSql, pTableMetaInfo, false, true);
     if (code != TSDB_CODE_SUCCESS) {
       STMT_RET(code);
     }
@@ -1773,7 +1773,9 @@ int taos_stmt_close(TAOS_STMT* stmt) {
       }
       tscDestroyDataBlock(pStmt->mtb.lastBlock, rmMeta);
       pStmt->mtb.pTableBlockHashList = tscDestroyBlockHashTable(pStmt->mtb.pTableBlockHashList, rmMeta);
-      taosHashCleanup(pStmt->pSql->cmd.insertParam.pTableBlockHashList);
+      if (pStmt->pSql){
+        taosHashCleanup(pStmt->pSql->cmd.insertParam.pTableBlockHashList);
+      }
       pStmt->pSql->cmd.insertParam.pTableBlockHashList = NULL;
       taosArrayDestroy(pStmt->mtb.tags);
       tfree(pStmt->mtb.sqlstr);

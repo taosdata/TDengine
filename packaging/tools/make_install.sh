@@ -421,7 +421,7 @@ function install_service() {
 }
 
 function update_TDengine() {
-    echo -e "${GREEN}Start to update TDEngine...${NC}"
+    echo -e "${GREEN}Start to update TDengine...${NC}"
     # Stop the service if running
 
     if [ "$osType" != "Darwin" ]; then

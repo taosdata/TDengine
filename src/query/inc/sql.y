@@ -80,7 +80,7 @@ cmd ::= SHOW SCORES.     { setShowOptions(pInfo, TSDB_MGMT_TABLE_SCORES, 0, 0); 
 cmd ::= SHOW GRANTS.     { setShowOptions(pInfo, TSDB_MGMT_TABLE_GRANTS, 0, 0);   }
 
 cmd ::= SHOW VNODES.                { setShowOptions(pInfo, TSDB_MGMT_TABLE_VNODES, 0, 0); }
-cmd ::= SHOW VNODES IPTOKEN(X).     { setShowOptions(pInfo, TSDB_MGMT_TABLE_VNODES, &X, 0); }
+cmd ::= SHOW VNODES ids(X).     { setShowOptions(pInfo, TSDB_MGMT_TABLE_VNODES, &X, 0); }
 
 
 %type dbPrefix {SStrToken}
@@ -479,7 +479,7 @@ tagitem(A) ::= PLUS(X) FLOAT(Y).  {
 //////////////////////// The SELECT statement /////////////////////////////////
 %type select {SSqlNode*}
 %destructor select {destroySqlNode($$);}
-select(A) ::= SELECT(T) selcollist(W) from(X) where_opt(Y) interval_opt(K) session_option(H) windowstate_option(D) fill_opt(F) sliding_opt(S) groupby_opt(P) having_opt(N) orderby_opt(Z) slimit_opt(G) limit_opt(L). {
+select(A) ::= SELECT(T) selcollist(W) from(X) where_opt(Y) interval_opt(K) sliding_opt(S) session_option(H) windowstate_option(D) fill_opt(F)groupby_opt(P) having_opt(N) orderby_opt(Z) slimit_opt(G) limit_opt(L). {
   A = tSetQuerySqlNode(&T, W, X, Y, P, Z, &K, &H, &D, &S, F, &L, &G, N);
 }
 

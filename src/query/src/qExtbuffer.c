@@ -391,11 +391,18 @@ int32_t columnValueAscendingComparator(char *f1, char *f2, int32_t type, int32_t
 
     };
     case TSDB_DATA_TYPE_NCHAR: { // todo handle the var string compare
-      int32_t ret = tasoUcs4Compare(f1, f2, bytes);
-      if (ret == 0) {
-        return 0;
+      int32_t len1 = varDataLen(f1);
+      int32_t len2 = varDataLen(f2);
+
+      if (len1 != len2) {
+        return len1 > len2 ? 1 : -1;
+      } else {
+        int32_t ret = tasoUcs4Compare(varDataVal(f1), varDataVal(f2), len1);
+        if (ret == 0) {
+          return 0;
+        }
+        return (ret < 0) ? -1 : 1;
       }
-      return (ret < 0) ? -1 : 1;
     };
     case TSDB_DATA_TYPE_UTINYINT:  DEFAULT_COMP(GET_UINT8_VAL(f1), GET_UINT8_VAL(f2));
     case TSDB_DATA_TYPE_USMALLINT: DEFAULT_COMP(GET_UINT16_VAL(f1), GET_UINT16_VAL(f2));

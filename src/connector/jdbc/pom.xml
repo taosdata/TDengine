@@ -3,7 +3,7 @@
     <modelVersion>4.0.0</modelVersion>
     <groupId>com.taosdata.jdbc</groupId>
     <artifactId>taos-jdbcdriver</artifactId>
-    <version>2.0.33</version>
+    <version>2.0.34</version>
     <packaging>jar</packaging>
     <name>JDBCDriver</name>
     <url>https://github.com/taosdata/TDengine/tree/master/src/connector/jdbc</url>
@@ -113,7 +113,6 @@
                     </includes>
                     <excludes>
                         <exclude>**/AppMemoryLeakTest.java</exclude>
-                        <exclude>**/AuthenticationTest.java</exclude>
                         <exclude>**/ConnectMultiTaosdByRestfulWithDifferentTokenTest.java</exclude>
                         <exclude>**/DatetimeBefore1970Test.java</exclude>
                         <exclude>**/FailOverTest.java</exclude>
@@ -122,6 +121,7 @@
                         <exclude>**/TSDBJNIConnectorTest.java</exclude>
                         <exclude>**/TaosInfoMonitorTest.java</exclude>
                         <exclude>**/UnsignedNumberJniTest.java</exclude>
+                        <exclude>**/TimeZoneTest.java</exclude>
                     </excludes>
                     <testFailureIgnore>true</testFailureIgnore>
                 </configuration>

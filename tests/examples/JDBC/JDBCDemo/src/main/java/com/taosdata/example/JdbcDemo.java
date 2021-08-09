@@ -43,6 +43,7 @@ public class JdbcDemo {
             if (connection != null)
                 System.out.println("[ OK ] Connection established.");
         } catch (ClassNotFoundException | SQLException e) {
+            System.out.println("[ ERROR! ] Connection establish failed.");
             e.printStackTrace();
         }
     }
@@ -68,7 +69,7 @@ public class JdbcDemo {
     }
 
     private void insert() {
-        final String sql = "insert into  " + dbName + "." + tbName + " (ts, temperature, humidity) values(now, 20.5, 34)";
+        final String sql = "insert into " + dbName + "." + tbName + " (ts, temperature, humidity) values(now, 20.5, 34)";
         exuete(sql);
     }
 
@@ -91,13 +92,15 @@ public class JdbcDemo {
     /************************************************************************/
 
     private void executeQuery(String sql) {
+        long start = System.currentTimeMillis();
         try (Statement statement = connection.createStatement()) {
-            long start = System.currentTimeMillis();
             ResultSet resultSet = statement.executeQuery(sql);
             long end = System.currentTimeMillis();
             printSql(sql, true, (end - start));
             printResult(resultSet);
         } catch (SQLException e) {
+            long end = System.currentTimeMillis();
+            printSql(sql, false, (end - start));
             e.printStackTrace();
         }
     }
@@ -120,12 +123,14 @@ public class JdbcDemo {
     }
 
     private void exuete(String sql) {
+        long start = System.currentTimeMillis();
         try (Statement statement = connection.createStatement()) {
-            long start = System.currentTimeMillis();
             boolean execute = statement.execute(sql);
             long end = System.currentTimeMillis();
-            printSql(sql, execute, (end - start));
+            printSql(sql, true, (end - start));
         } catch (SQLException e) {
+            long end = System.currentTimeMillis();
+            printSql(sql, false, (end - start));
             e.printStackTrace();
 
         }
