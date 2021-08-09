@@ -14,15 +14,15 @@
  */
 
 #include <string.h>
-#include "cache_priv.h"
+#include "cachePriv.h"
 #include "cacheLog.h"
 #include "cacheItem.h"
 #include "cacheSlab.h"
 #include "cacheTable.h"
 
 static int check_cache_options(cacheOption* options);
-static int cachePutDataIntoCache(cacheTable* pTable, const char* key, uint8_t nkey, 
-                                const char* value, uint32_t nbytes, cacheItem** ppItem, uint64_t expire);
+static int cachePutDataIntoCache(cacheTable* pTable, const void* key, uint8_t nkey, 
+                                const void* value, uint32_t nbytes, cacheItem** ppItem, uint64_t expire);
 static int cacheInitItemMutex(cache_t*);
 static void cacheFreeChunkItems(cache_t*);
 static void cacheFreeMemory(cache_t*);
@@ -77,7 +77,7 @@ void  cacheDestroy(cache_t* pCache) {
   free(pCache);
 }
 
-int cachePut(cacheTable* pTable, const char* key, uint8_t nkey, const char* value, uint32_t nbytes, uint64_t expire) {
+int cachePut(cacheTable* pTable, const void* key, uint8_t nkey, const void* value, uint32_t nbytes, uint64_t expire) {
   cacheMutex* pMutex = getItemMutexByKey(pTable, key, nkey);
   cacheMutexLock(pMutex);
 
@@ -88,12 +88,13 @@ int cachePut(cacheTable* pTable, const char* key, uint8_t nkey, const char* valu
   return ret;
 }
 
-int cacheGet(cacheTable* pTable, const char* key, uint8_t nkey, char** data, int* nbytes) {
+void* cacheGet(cacheTable* pTable, const void* key, uint8_t nkey, int* nbytes) {
   cacheMutex *pMutex = getItemMutexByKey(pTable, key, nkey);
   cacheMutexLock(pMutex);
 
-  *data = NULL;
-  *nbytes = 0;
+  if (nbytes) {
+    *nbytes = 0;
+  }
   /* first find the key in the cache table */
   cacheItem* pItem = cacheTableGet(pTable, key, nkey);
   if (pItem) {
@@ -107,7 +108,7 @@ int cacheGet(cacheTable* pTable, const char* key, uint8_t nkey, char** data, int
       pItem = NULL;
     } else if (cacheItemIsNeverExpired(pItem)) {      
       /* never expired item refCount == 1 */
-      assert(pItem->refCount == 2);
+      assert(itemRef(pItem) == 2);
       pItem->lastTime = now;    
     } else {
       cacheItemBump(pTable, pItem, now);      
@@ -137,23 +138,21 @@ int cacheGet(cacheTable* pTable, const char* key, uint8_t nkey, char** data, int
 out:
   if (pItem == NULL) {
     cacheMutexUnlock(pMutex);
-    return CACHE_KEY_NOT_FOUND;
+    return NULL;
   }
-  *data = malloc(pItem->nbytes);
-  if (*data == NULL) {
-    cacheMutexUnlock(pMutex);
-    return CACHE_OOM;
+
+  if (nbytes) {
+    *nbytes = pItem->nbytes;
   }
-  memcpy(*data, item_data(pItem), pItem->nbytes);
-  *nbytes = pItem->nbytes;
+
   itemDecrRef(pItem);
 
   cacheMutexUnlock(pMutex);
 
-  return CACHE_OK;
+  return item_data(pItem);
 }
 
-void cacheRemove(cacheTable* pTable, const char* key, uint8_t nkey) {
+void cacheRemove(cacheTable* pTable, const void* key, uint8_t nkey) {
   cacheMutex* mutex = getItemMutexByKey(pTable, key, nkey);
   cacheMutexLock(mutex);
 
@@ -205,7 +204,7 @@ FORCE_INLINE cacheMutex* getItemMutexByIndex(cacheTable* pTable, uint32_t hash) 
   return &(pTable->pCache->itemMutex[hash & hashmask(ITEM_MUTEX_HASH_POWER)]);
 }
 
-FORCE_INLINE cacheMutex* getItemMutexByKey(cacheTable* pTable, const char* key, uint8_t nkey) {
+FORCE_INLINE cacheMutex* getItemMutexByKey(cacheTable* pTable, const void* key, uint8_t nkey) {
   return &(pTable->pCache->itemMutex[pTable->hashFp(key, nkey) & hashmask(ITEM_MUTEX_HASH_POWER)]);
 }
 
@@ -227,15 +226,13 @@ err:
   return -1;
 }
 
-static int cachePutDataIntoCache(cacheTable* pTable, const char* key, uint8_t nkey, const char* value,
+static int cachePutDataIntoCache(cacheTable* pTable, const void* key, uint8_t nkey, const void* value,
                                 uint32_t nbytes, cacheItem** ppItem, uint64_t expire) {
-  cacheItem* pItem = cacheAllocItem(pTable->pCache, nkey, nbytes, expire);
+  cacheItem* pItem = cacheAllocItem(pTable, nkey, nbytes, expire);
   if (pItem == NULL) {
     return CACHE_OOM;
   }
 
-  pItem->nkey = nkey;
-  pItem->nbytes = nbytes;
   memcpy(item_key(pItem), key, nkey);
   memcpy(item_data(pItem), value, nbytes);
   pItem->lastTime = taosGetTimestamp(TSDB_TIME_PRECISION_MILLI);

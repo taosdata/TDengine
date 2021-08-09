@@ -66,7 +66,7 @@ void *allocMemory(cache_t *cache, size_t size, bool chunked);
 
 cacheMutex* getItemMutexByIndex(cacheTable* pTable, uint32_t hash);
 
-cacheMutex* getItemMutexByKey(cacheTable* pTable, const char* key, uint8_t nkey);
+cacheMutex* getItemMutexByKey(cacheTable* pTable, const void* key, uint8_t nkey);
 
 cacheMutex* getItemMutexByItem(cacheItem* pItem);
 

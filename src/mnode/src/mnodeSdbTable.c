@@ -57,9 +57,9 @@ static void* sdbCacheIterValue(mnodeSdbTable *pTable,void *p);
 static void sdbCacheCancelIterate(mnodeSdbTable *pTable, void *p);
 static void sdbCacheFreeValue(mnodeSdbTable *pTable, void *p);
 
-static int loadCacheDataFromWal(void*, const char* key, uint8_t nkey, char** value, size_t *len, uint64_t *pExpire);
+static int loadCacheDataFromWal(void*, const void* key, uint8_t nkey, char** value, size_t *len, uint64_t *pExpire);
 
-static int delCacheData(void*, const char* key, uint8_t nkey);
+static int delCacheData(void*, const void* key, uint8_t nkey);
 
 typedef void* (*sdb_table_get_func_t)(mnodeSdbTable *pTable, const void *key, size_t keyLen);
 typedef void (*sdb_table_put_func_t)(mnodeSdbTable *pTable, SSdbRow* pRow);
@@ -200,11 +200,9 @@ static mnodeSdbCacheTable* cacheInit(mnodeSdbTable* pTable, mnodeSdbTableOption 
 }
 
 static void *sdbCacheGet(mnodeSdbTable *pTable, const void *key, size_t keyLen) {
-  char* p;
   int nBytes;
   mnodeSdbCacheTable* pCache = pTable->iHandle;
-  cacheGet(pCache->pTable, key, keyLen, &p, &nBytes);
-  return p;
+  return cacheGet(pCache->pTable, key, keyLen, &nBytes);
 }
 
 static void sdbCachePut(mnodeSdbTable *pTable, SSdbRow* pRow) {
@@ -239,16 +237,13 @@ static void* sdbCacheIterate(mnodeSdbTable *pTable, void *p) {
 }
 
 static void* sdbCacheIterValue(mnodeSdbTable *pTable,void *pIter) {
-  char* p;
   int nBytes;
   mnodeSdbCacheTable* pCache = pTable->iHandle;
   walRecord* pRecord = (walRecord*)pIter;
   if (pRecord == NULL) {
     return NULL;
   }
-  cacheGet(pCache->pTable, pRecord->key, pRecord->keyLen, &p, &nBytes);
-
-  return p;
+  return cacheGet(pCache->pTable, pRecord->key, pRecord->keyLen, &nBytes);
 }
 
 static void sdbCacheCancelIterate(mnodeSdbTable *pTable, void* pIter) {
@@ -279,7 +274,7 @@ static void sdbCacheSyncWal(mnodeSdbTable *pTable, SWalHead* pHead, int64_t off)
   pthread_mutex_unlock(&pCache->mutex);
 }
 
-static int loadCacheDataFromWal(void* userData, const char* key, uint8_t nkey, char** value, size_t *len, uint64_t *pExpire) {
+static int loadCacheDataFromWal(void* userData, const void* key, uint8_t nkey, char** value, size_t *len, uint64_t *pExpire) {
   mnodeSdbCacheTable* pCache = (mnodeSdbCacheTable*)userData;
   pthread_mutex_lock(&pCache->mutex);
   walRecord* pRecord = taosHashGet(pCache->pWalTable, key, nkey);
@@ -304,7 +299,7 @@ static int loadCacheDataFromWal(void* userData, const char* key, uint8_t nkey, c
   return 0;
 }
 
-static int delCacheData(void* userData, const char* key, uint8_t nkey) {
+static int delCacheData(void* userData, const void* key, uint8_t nkey) {
   mnodeSdbCacheTable* pCache = (mnodeSdbCacheTable*)userData;
   pthread_mutex_lock(&pCache->mutex);
   walRecord* pRecord = taosHashGet(pCache->pWalTable, key, nkey);
@@ -411,5 +406,5 @@ static void *sdbTableGetObjKeyAndSize(mnodeSdbTable *pTable, void *key, int32_t*
 }
 
 static int calcHashPower(mnodeSdbTableOption options) {
-  return 1024;
+  return 10;
 }

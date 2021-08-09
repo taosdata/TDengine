@@ -13,7 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "cache_priv.h"
+#include "cachePriv.h"
 #include "cacheItem.h"
 #include "cacheDefine.h"
 #include "cacheLog.h"
@@ -326,11 +326,12 @@ static int pullFromLru(cache_t *cache, int slabId, int curLru, uint64_t totalByt
       continue;
     }
 
-    if (itemIncrRef(search) != 2) {
-      search->refCount = 1;
+    /* only one item and user ref count, can release the item safely */
+    if (itemIncrRef(search) == 2 && itemUserDataRef(search) <= 1) {
+      setItemRef(search, 1);
       cacheItemUnlink(search->pTable, search, 0);
       cacheMutexTryUnlock(pMutex);
-      removed++;      
+      removed++;
       continue;
     }
 

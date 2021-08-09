@@ -18,7 +18,8 @@
 
 #include <stdint.h>
 #include <string.h>
-#include "cache_priv.h"
+#include "cachePriv.h"
+#include "cacheTable.h"
 #include "cacheTypes.h"
 #include "osAtomic.h"
 #include "osDef.h"
@@ -49,8 +50,11 @@ struct cacheItem {
 
   uint64_t          expireTime;   /* expire time, 0 means no expire time */
   uint64_t          lastTime;     /* last access time */
+
+  uint8_t           refCnt;
+
   uint8_t           nkey;         /* key length */
-  uint8_t           refCount;     /* reference count */
+  
   uint32_t          nbytes;       /* size of data */
 
   char              data[];
@@ -83,23 +87,40 @@ struct cacheItem {
 /* return the slab lru list array index in [0,MAX_NUMBER_OF_SLAB_LRU] */
 #define item_slablru_id(item)   ((item)->slabLruId)
 
-#define item_key(item)  (((char*)&((item)->data)) + sizeof(unsigned int))
+#define item_data(item)  (char*)&((item)->data)
 
-#define item_data(item) (((char*)&((item)->data)) + sizeof(unsigned int) + (item)->nkey + 1)
+#define item_key(item) (((char*)&((item)->data) + (item)->nbytes + 1))
 
 #define item_len(item) ((item)->nbytes)
 
-/* item totalBytes = sizeof(cacheItem) + key size + data size */
+/* item totalBytes = sizeof(cacheItem) + key size + data size + 1(for '\0' between data and key) */
 static size_t FORCE_INLINE cacheItemTotalBytes(uint8_t nkey, uint32_t nbytes) {
-  return sizeof(cacheItem) + nkey + nbytes;
+  return sizeof(cacheItem) + nkey + nbytes + 1;
+}
+
+/* item in user part ref count */
+static FORCE_INLINE int32_t itemUserDataRef(cacheItem* pItem) {
+  return (pItem->pTable->option.refOffset < 0) ? 0 : *((int32_t*)(item_data(pItem) + pItem->pTable->option.refOffset));
+}
+
+static FORCE_INLINE uint8_t* itemRefPtr(cacheItem* pItem) {
+  return &(pItem->refCnt);
+}
+
+static FORCE_INLINE uint8_t itemRef(cacheItem* pItem) {
+  return *itemRefPtr(pItem);
+}
+
+static FORCE_INLINE void setItemRef(cacheItem* pItem, uint8_t cnt) {
+  *itemRefPtr(pItem) = cnt;
 }
 
 static FORCE_INLINE uint8_t itemIncrRef(cacheItem* pItem) { 
-  return atomic_add_fetch_32(&(pItem->refCount), 1);
+  return atomic_add_fetch_32(itemRefPtr(pItem), 1);
 }
 
 static FORCE_INLINE uint8_t itemDecrRef(cacheItem* pItem) { 
-  return atomic_sub_fetch_32(&(pItem->refCount), 1);
+  return atomic_sub_fetch_32(itemRefPtr(pItem), 1);
 }
 
 static FORCE_INLINE bool cacheItemIsNeverExpired(cacheItem* pItem) {
@@ -110,7 +131,7 @@ static bool FORCE_INLINE cacheItemIsExpired(cacheItem* pItem, uint64_t now) {
   return (pItem->expireTime != 0) && (now - pItem->lastTime >= pItem->expireTime);
 }
 
-static FORCE_INLINE bool item_equal_key(cacheItem* item, const char* key, uint8_t nkey) {
+static FORCE_INLINE bool item_equal_key(cacheItem* item, const void* key, uint8_t nkey) {
   if (item->nkey != nkey) {
     return false;
   }
@@ -122,7 +143,7 @@ void cacheItemUnlink(cacheTable* pTable, cacheItem* pItem, cacheLockFlag flag);
 void cacheItemRemove(cache_t*, cacheItem*);
 void cacheItemBump(cacheTable* pTable, cacheItem* pItem, uint64_t now);
 
-cacheItem* cacheAllocItem(cache_t*, uint8_t nkey, uint32_t nbytes, uint64_t expireTime);
+cacheItem* cacheAllocItem(cacheTable*, uint8_t nkey, uint32_t nbytes, uint64_t expireTime);
 
 #ifdef __cplusplus
 }

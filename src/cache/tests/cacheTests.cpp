@@ -4,6 +4,11 @@
 
 #include "cache.h"
 
+typedef struct testData {
+  char value[20];
+  uint16_t refCnt;
+} testData;
+
 TEST(cacheTest, testInsert) {
   cacheOption options = (cacheOption) {
     .limit = 1024 * 1024,
@@ -14,33 +19,39 @@ TEST(cacheTest, testInsert) {
 
   cache_t* cache = cacheCreate(&options);
 
+  testData data, *value;
   cacheTableOption tableOptions = (cacheTableOption) {
     .loadFp = NULL,
     .initHashPower  = 10,
+    .refOffset = (int32_t)((char *)&(data.refCnt) - (char *)&data),
     .userData = NULL,
-    .keyType   = TSDB_DATA_TYPE_BINARY,
+    .keyType   = TSDB_DATA_TYPE_BINARY,    
+    //tsChildTableUpdateSize = (int32_t)((int8_t *)tObj.updateEnd - (int8_t *)&tObj.info.type);
   };
 
   cacheTable* pTable = cacheCreateTable(cache, &tableOptions);
 
-  char *pData;
   int nBytes;
   int i = 0;
 
-  for (i = 0; i < 5000; ++i) {
+  for (i = 0; i < 15000; ++i) {
     char buf[20] = {0};
+    
     snprintf(buf, sizeof(buf), "0123456789_%d", i);
     size_t nkey = strlen(buf);
-    int err = cachePut(pTable, buf, nkey, buf, nkey, 3600);
+    
+    memcpy(data.value, buf, nkey);
+    data.refCnt = 0;
+
+    int err = cachePut(pTable, buf, nkey, (char*)&data, sizeof(testData), 3600);
 
     printf("\nhas push key %s %s\n", buf, err == CACHE_OK ? "success" : "fail");
 
-    int ret = cacheGet(pTable, buf, nkey, &pData, &nBytes);
-    ASSERT(ret == CACHE_OK);
+    value = (testData*)cacheGet(pTable, buf, nkey, &nBytes);
+    ASSERT(value != NULL);
     
-    ASSERT_EQ(nkey, nBytes);
-    ASSERT(memcmp(pData, buf, nBytes) == 0);
-    free(pData);
+    ASSERT_EQ(sizeof(testData), nBytes);
+    ASSERT(memcmp(&data.value, value->value, sizeof(char) * 20) == 0);
 
     //cacheRemove(pTable, buf, nkey);
     //ASSERT(cacheGet(pTable, buf, nkey, &pData, &nBytes) == CACHE_KEY_NOT_FOUND);

@@ -16,7 +16,7 @@
 #include <assert.h>
 #include <string.h>
 #include "cacheTable.h"
-#include "cache_priv.h"
+#include "cachePriv.h"
 #include "cacheLru.h"
 #include "cacheItem.h"
 #include "cacheSlab.h"
@@ -25,7 +25,8 @@ static void freeCacheItem(cache_t* pCache, cacheItem* pItem);
 static cacheItem* allocChunkItem(cache_t* pCache, size_t nTotal);
 static void updateItemInColdLruList(cacheItem* pItem, uint64_t now);
 
-cacheItem* cacheAllocItem(cache_t* cache, uint8_t nkey, uint32_t nbytes, uint64_t expireTime) {
+cacheItem* cacheAllocItem(cacheTable* pTable, uint8_t nkey, uint32_t nbytes, uint64_t expireTime) {
+  cache_t* cache = pTable->pCache;
   size_t ntotal = cacheItemTotalBytes(nkey, nbytes);
   uint32_t id = cacheSlabId(cache, ntotal);
   cacheItem* pItem = NULL;
@@ -41,6 +42,10 @@ cacheItem* cacheAllocItem(cache_t* cache, uint8_t nkey, uint32_t nbytes, uint64_
   }
 
   memset(pItem, 0, sizeof(cacheItem));
+
+  pItem->pTable = pTable;
+  pItem->nkey = nkey;
+  pItem->nbytes = nbytes;
 
   itemIncrRef(pItem);
   item_set_used(pItem);
@@ -73,7 +78,7 @@ void cacheItemUnlink(cacheTable* pTable, cacheItem* pItem, cacheLockFlag flag) {
 
 void cacheItemRemove(cache_t* pCache, cacheItem* pItem) {
   assert(item_is_used(pItem));
-  assert(pItem->refCount > 0);
+  assert(itemRef(pItem) > 0);
 
   if (itemDecrRef(pItem) == 0) {
     freeCacheItem(pCache, pItem);
@@ -122,7 +127,7 @@ static void updateItemInColdLruList(cacheItem* pItem, uint64_t now) {
 }
 
 static void freeCacheItem(cache_t* pCache, cacheItem* pItem) {
-  assert(pItem->refCount == 0);
+  assert(itemRef(pItem) == 0);
   assert(item_is_used(pItem));
   cacheSlabLruClass* pLru = &(pCache->lruArray[item_slablru_id(pItem)]);
   assert(pLru->head != pItem);
@@ -143,4 +148,8 @@ static void freeCacheItem(cache_t* pCache, cacheItem* pItem) {
 
 static cacheItem* allocChunkItem(cache_t* pCache, size_t nTotal) {
   return allocMemory(pCache, nTotal, true);
+}
+
+FORCE_INLINE cacheItem* cacheItemByData(void* data) {
+  return (cacheItem*)(data - offsetof(cacheItem, data));
 }

@@ -24,8 +24,8 @@
 extern "C" {
 #endif
 
-typedef int (*cache_load_func_t)(void*, const char* key, uint8_t nkey, char** value, size_t *len, uint64_t *pExpire);
-typedef int (*cache_del_func_t)(void*, const char* key, uint8_t nkey);
+typedef int (*cache_load_func_t)(void*, const void* key, uint8_t nkey, char** value, size_t *len, uint64_t *pExpire);
+typedef int (*cache_del_func_t)(void*, const void* key, uint8_t nkey);
 
 typedef struct cacheOption {
   size_t limit;               /* size limit */
@@ -38,11 +38,13 @@ typedef struct cacheOption {
 } cacheOption;
 
 typedef struct cacheTableOption {
-  cache_load_func_t loadFp; /* user defined load data function */
+  cache_load_func_t loadFp;   /* user defined load data function */
 
-  cache_del_func_t  delFp;  /* user defined delete data function */
+  cache_del_func_t  delFp;    /* user defined delete data function */
 
   int initHashPower;          /* table initial hash power,in [10,32] */
+
+  int32_t refOffset;          /* offset of refcount in item data,-1 means no refcount in item data */
 
   void* userData;             /* user data */
   int32_t keyType;
@@ -76,12 +78,14 @@ void  cacheDestroy(cache_t*);
 cacheTable* cacheCreateTable(cache_t* cache, cacheTableOption* options);
 void cacheDestroyTable(cacheTable*);
 
-int cachePut(cacheTable*, const char* key, uint8_t nkey, const char* value, uint32_t nbytes, uint64_t expire);
+int cachePut(cacheTable*, const void* key, uint8_t nkey, const void* value, uint32_t nbytes, uint64_t expire);
 
-/* data MUST be free by user */
-int cacheGet(cacheTable*, const char* key, uint8_t nkey, char** data, int* nbytes);
+void* cacheGet(cacheTable*, const void* key, uint8_t nkey, int* nbytes);
 
-void cacheRemove(cacheTable* pTable, const char* key, uint8_t nkey);
+/* get cacheItem pointer by item data */
+cacheItem* cacheItemByData(void* data);
+
+void cacheRemove(cacheTable* pTable, const void* key, uint8_t nkey);
 
 cacheIterator* cacheTableGetIterator(cacheTable*);
 bool cacheTableIterateNext(cacheIterator*);

@@ -18,7 +18,7 @@
 #include <unistd.h>
 #include "cacheLog.h"
 #include "cacheTable.h"
-#include "cache_priv.h"
+#include "cachePriv.h"
 #include "cacheItem.h"
 #include "cacheSlab.h"
 #include "cacheTypes.h"
@@ -33,10 +33,10 @@ typedef struct cacheIterator {
 } cacheIterator;
 
 static int        initTableBucket(cacheTableBucket* pBucket);
-static cacheItem* findItemByKey(cacheTable* pTable, const char* key, uint8_t nkey, cacheItem **ppPrev);
+static cacheItem* findItemByKey(cacheTable* pTable, const void* key, uint8_t nkey, cacheItem **ppPrev);
 static void       removeTableItem(cache_t* pCache, cacheTable* pTable, cacheTableBucket* pBucket, 
                                 cacheItem* pItem, cacheItem* pPrev, bool freeItem);
-static cacheTableBucket* getTableBucketByKey(cacheTable* pTable, const char* key, uint8_t nkey);
+static cacheTableBucket* getTableBucketByKey(cacheTable* pTable, const void* key, uint8_t nkey);
 static void       checkExpandTable(cacheTable* pTable);
 static void*      expandTableThread(void *arg);
 static void       expandCacheTable(cacheTable* pTable);
@@ -111,7 +111,7 @@ static int initTableBucket(cacheTableBucket* pBucket) {
   return 0;
 }
 
-static cacheItem* findItemByKey(cacheTable* pTable, const char* key, uint8_t nkey, cacheItem **ppPrev) {
+static cacheItem* findItemByKey(cacheTable* pTable, const void* key, uint8_t nkey, cacheItem **ppPrev) {
   cacheItem* pItem = getTableBucketByKey(pTable, key, nkey)->head;
   
   if (ppPrev) *ppPrev = NULL;
@@ -130,7 +130,7 @@ static cacheItem* findItemByKey(cacheTable* pTable, const char* key, uint8_t nke
   return NULL;
 }
 
-static cacheTableBucket* getTableBucketByKey(cacheTable* pTable, const char* key, uint8_t nkey) {
+static cacheTableBucket* getTableBucketByKey(cacheTable* pTable, const void* key, uint8_t nkey) {
   assert(pTable != NULL);
   uint32_t hash = pTable->hashFp(key, nkey);
   uint32_t index = 0;
@@ -235,18 +235,17 @@ int cacheTablePut(cacheTable* pTable, cacheItem* pItem) {
   pItem->h_next = pBucket->head;
   pBucket->head = pItem;
   pTable->nNum += 1;
-  pItem->pTable = pTable;
 
   checkExpandTable(pTable);
 
   return CACHE_OK;
 }
 
-cacheItem* cacheTableGet(cacheTable* pTable, const char* key, uint8_t nkey) {  
+cacheItem* cacheTableGet(cacheTable* pTable, const void* key, uint8_t nkey) {  
   return findItemByKey(pTable, key, nkey, NULL);
 }
 
-void cacheTableRemove(cacheTable* pTable, const char* key, uint8_t nkey, bool freeItem) {
+void cacheTableRemove(cacheTable* pTable, const void* key, uint8_t nkey, bool freeItem) {
   uint32_t index = pTable->hashFp(key, nkey) & hashmask(pTable->hashPower);
   cacheTableBucket* pBucket = &(pTable->pBucket[index]);
 

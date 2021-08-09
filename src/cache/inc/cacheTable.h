@@ -55,8 +55,8 @@ struct cacheTable {
 void cacheTableDestroy(cacheTable *pTable);
 
 int cacheTablePut(cacheTable *pTable, cacheItem* pItem);
-cacheItem* cacheTableGet(cacheTable* pTable, const char* key, uint8_t nkey);
-void cacheTableRemove(cacheTable* pTable, const char* key, uint8_t nkey, bool freeItem);
+cacheItem* cacheTableGet(cacheTable* pTable, const void* key, uint8_t nkey);
+void cacheTableRemove(cacheTable* pTable, const void* key, uint8_t nkey, bool freeItem);
 
 #ifdef __cplusplus
 }
