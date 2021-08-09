@@ -38,6 +38,8 @@ sql_error select * from stb1 where c9 > 'nuLl';
 sql_error select * from (select * from stb1 where c7=true) a, (select * from stb1 where c1 > 30) b;
 sql_error select a.ts,a.c1,a.c8 from (select * from stb1 where c7=true) a, (select * from stb1 where c1 > 30) b where a.ts=b.ts and a.c1 > 50 or b.c1 < 60;
 sql_error select a.ts,a.c1,a.c8 from (select * from stb1 where c7=true) a, (select * from stb1 where c1 > 30) b where a.ts=b.ts and ((a.c1 > 50 and a.c1 < 60) or (b.c2 > 60));
+sql_error select * from stb1 where 'c2' is null;
+sql_error select * from stb1 where 'c2' is not null;
 
 sql select * from stb1 where c2 > 3.0 or c2 < 60;
 if $rows != 28 then
