@@ -47,7 +47,6 @@ class TDTestCase:
         else:
             tdLog.info("taosd found in %s" % buildPath)
         binPath = buildPath + "/build/bin/"
-
         # insert: create one  or mutiple tables per sql and insert multiple rows per sql
         # insert data from a special timestamp
         # check stable stb0
@@ -90,7 +89,6 @@ class TDTestCase:
         os.system(
             "%staosdemo -f tools/taosdemoAllTest/NanoTestCase/taosdemoTestNanoDatabaseNow.json -y " %
             binPath)
-
         tdSql.execute("use nsdb2")
         tdSql.query("show stables")
         tdSql.checkData(0, 4, 100)
