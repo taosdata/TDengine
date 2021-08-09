@@ -188,7 +188,7 @@ bool httpMallocMultiCmds(HttpContext *pContext, int32_t cmdSize, int32_t bufferS
 bool httpReMallocMultiCmdsSize(HttpContext *pContext, int32_t cmdSize) {
   HttpSqlCmds *multiCmds = pContext->multiCmds;
 
-  if (cmdSize <= 0 && cmdSize > HTTP_MAX_CMD_SIZE) {
+  if (cmdSize <= 0 || cmdSize > HTTP_MAX_CMD_SIZE) {
     httpError("context:%p, fd:%d, user:%s, mulitcmd size:%d large then %d", pContext, pContext->fd, pContext->user,
               cmdSize, HTTP_MAX_CMD_SIZE);
     return false;
