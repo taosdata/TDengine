@@ -37,11 +37,11 @@ while $i < $tbNum
   $tb = $tbPrefix . $i
   sql create table $tb using $mt tags( $i )
   
-  $x = -1440
+  $x = -400
   $y = 0
   while $y < $rowNum
     $ms = $x . m 
-    sql insert into $tb values (now $ms , $y , $y ) 
+    sql insert into $tb values (1626739200000 $ms , $y , $y ) 
     $x = $x + 1
 	$y = $y + 1
   endw 
@@ -143,14 +143,14 @@ $st = $stPrefix . la
 sql create table $st as select last(tbcol) from $mt interval(1d)
 
 print =============== step11 wh
-sql select count(tbcol) from $mt where ts < now + 4m interval(1d)
-print select count(tbcol) from $mt where ts < now + 4m interval(1d) ===> $data00 $data01
+sql select count(tbcol) from $mt where ts < 1626739440001 interval(1d)
+print select count(tbcol) from $mt where ts < 1626739440000 interval(1d) ===> $data00 $data01
 if $data01 != 200 then 
   return -1
 endi
 
 $st = $stPrefix . wh
-#sql create table $st as select count(tbcol) from $mt where ts < now + 4m interval(1d)
+#sql create table $st as select count(tbcol) from $mt where ts < 1626739200000 + 4m interval(1d)
 
 print =============== step12 as
 sql select count(tbcol) from $mt interval(1d)

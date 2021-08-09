@@ -1182,7 +1182,7 @@ static int32_t mnodeGetVnodeMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pC
 
   pShow->bytes[cols] = 4;
   pSchema[cols].type = TSDB_DATA_TYPE_INT;
-  strcpy(pSchema[cols].name, "vnode");
+  strcpy(pSchema[cols].name, "vgId");
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
   cols++;
 
@@ -1244,8 +1244,10 @@ static int32_t mnodeRetrieveVnodes(SShowObj *pShow, char *data, int32_t rows, vo
           cols++;
 
           pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-          strcpy(pWrite, syncRole[pVgid->role]);
+          STR_TO_VARSTR(pWrite, syncRole[pVgid->role]);
           cols++;
+
+          numOfRows++;
         }
       }
 

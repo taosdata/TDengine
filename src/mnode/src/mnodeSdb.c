@@ -230,6 +230,7 @@ void sdbUpdateMnodeRoles() {
     SMnodeObj *pMnode = mnodeGetMnode(roles.nodeId[i]);
     if (pMnode != NULL) {
       if (pMnode->role != roles.role[i]) {
+        pMnode->roleTime = taosGetTimestampMs();
         bnNotify();
       }
 

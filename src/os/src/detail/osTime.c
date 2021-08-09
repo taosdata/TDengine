@@ -72,34 +72,53 @@ int64_t user_mktime64(const unsigned int year0, const unsigned int mon0,
 
 // ==== mktime() kernel code =================//
 static int64_t m_deltaUtc = 0;
-void deltaToUtcInitOnce() {  
+void deltaToUtcInitOnce() {
   struct tm tm = {0};
-  
+
   (void)strptime("1970-01-01 00:00:00", (const char *)("%Y-%m-%d %H:%M:%S"), &tm);
   m_deltaUtc = (int64_t)mktime(&tm);
-  //printf("====delta:%lld\n\n", seconds);	
+  //printf("====delta:%lld\n\n", seconds);
   return;
 }
 
 static int64_t parseFraction(char* str, char** end, int32_t timePrec);
-static int32_t parseTimeWithTz(char* timestr, int64_t* time, int32_t timePrec);
+static int32_t parseTimeWithTz(char* timestr, int64_t* time, int32_t timePrec, char delim);
 static int32_t parseLocaltime(char* timestr, int64_t* time, int32_t timePrec);
 static int32_t parseLocaltimeWithDst(char* timestr, int64_t* time, int32_t timePrec);
+static char* forwardToTimeStringEnd(char* str);
+static bool checkTzPresent(char *str, int32_t len);
 
 static int32_t (*parseLocaltimeFp[]) (char* timestr, int64_t* time, int32_t timePrec) = {
   parseLocaltime,
   parseLocaltimeWithDst
-}; 
+};
 
 int32_t taosGetTimestampSec() { return (int32_t)time(NULL); }
 
 int32_t taosParseTime(char* timestr, int64_t* time, int32_t len, int32_t timePrec, int8_t day_light) {
   /* parse datatime string in with tz */
   if (strnchr(timestr, 'T', len, false) != NULL) {
-    return parseTimeWithTz(timestr, time, timePrec);
+    return parseTimeWithTz(timestr, time, timePrec, 'T');
+  } else if (checkTzPresent(timestr, len)) {
+    return parseTimeWithTz(timestr, time, timePrec, 0);
   } else {
     return (*parseLocaltimeFp[day_light])(timestr, time, timePrec);
   }
+}
+
+bool checkTzPresent(char *str, int32_t len) {
+  char *seg = forwardToTimeStringEnd(str);
+  int32_t seg_len = len - (int32_t)(seg - str);
+
+  char *c = &seg[seg_len - 1];
+  for (int i = 0; i < seg_len; ++i) {
+    if (*c == 'Z' || *c  == 'z' || *c == '+' || *c == '-') {
+      return true;
+    }
+    c--;
+  }
+  return false;
+
 }
 
 char* forwardToTimeStringEnd(char* str) {
@@ -187,6 +206,13 @@ int32_t parseTimezone(char* str, int64_t* tzOffset) {
     i += 2;
   }
 
+  //return error if there're illegal charaters after min(2 Digits)
+  char *minStr = &str[i];
+  if (minStr[1] != '\0' && minStr[2] != '\0') {
+      return -1;
+  }
+
+
   int64_t minute = strnatoi(&str[i], 2);
   if (minute > 59) {
     return -1;
@@ -213,14 +239,23 @@ int32_t parseTimezone(char* str, int64_t* tzOffset) {
  * 2013-04-12T15:52:01+0800
  * 2013-04-12T15:52:01.123+0800
  */
-int32_t parseTimeWithTz(char* timestr, int64_t* time, int32_t timePrec) {
+int32_t parseTimeWithTz(char* timestr, int64_t* time, int32_t timePrec, char delim) {
 
   int64_t factor = (timePrec == TSDB_TIME_PRECISION_MILLI) ? 1000 :
                              (timePrec == TSDB_TIME_PRECISION_MICRO ? 1000000 : 1000000000);
   int64_t tzOffset = 0;
 
   struct tm tm = {0};
-  char*     str = strptime(timestr, "%Y-%m-%dT%H:%M:%S", &tm);
+
+  char* str;
+  if (delim == 'T') {
+    str = strptime(timestr, "%Y-%m-%dT%H:%M:%S", &tm);
+  } else if (delim == 0) {
+    str = strptime(timestr, "%Y-%m-%d %H:%M:%S", &tm);
+  } else {
+    str = NULL;
+  }
+
   if (str == NULL) {
     return -1;
   }
@@ -236,7 +271,7 @@ int32_t parseTimeWithTz(char* timestr, int64_t* time, int32_t timePrec) {
   int64_t fraction = 0;
   str = forwardToTimeStringEnd(timestr);
 
-  if (str[0] == 'Z' || str[0] == 'z') {
+  if ((str[0] == 'Z' || str[0] == 'z') && str[1] == '\0') {
     /* utc time, no millisecond, return directly*/
     *time = seconds * factor;
   } else if (str[0] == '.') {
@@ -249,6 +284,8 @@ int32_t parseTimeWithTz(char* timestr, int64_t* time, int32_t timePrec) {
 
     char seg = str[0];
     if (seg != 'Z' && seg != 'z' && seg != '+' && seg != '-') {
+      return -1;
+    } else if ((seg == 'Z' || seg == 'z') && str[1] != '\0') {
       return -1;
     } else if (seg == '+' || seg == '-') {
       // parse the timezone
@@ -397,7 +434,7 @@ static int32_t getDuration(int64_t val, char unit, int64_t* result, int32_t time
  * n - Months (30 days)
  * y - Years (365 days)
  */
-int32_t parseAbsoluteDuration(char* token, int32_t tokenlen, int64_t* duration, int32_t timePrecision) {
+int32_t parseAbsoluteDuration(char* token, int32_t tokenlen, int64_t* duration, char* unit, int32_t timePrecision) {
   errno = 0;
   char* endPtr = NULL;
 
@@ -408,12 +445,12 @@ int32_t parseAbsoluteDuration(char* token, int32_t tokenlen, int64_t* duration, 
   }
 
   /* natual month/year are not allowed in absolute duration */
-  char unit = token[tokenlen - 1];
-  if (unit == 'n' || unit == 'y') {
+  *unit = token[tokenlen - 1];
+  if (*unit == 'n' || *unit == 'y') {
     return -1;
   }
 
-  return getDuration(timestamp, unit, duration, timePrecision);
+  return getDuration(timestamp, *unit, duration, timePrecision);
 }
 
 int32_t parseNatualDuration(const char* token, int32_t tokenLen, int64_t* duration, char* unit, int32_t timePrecision) {
