@@ -154,6 +154,9 @@ pipeline {
             }
             if (sh(script: "git log -1 --pretty=%B | fgrep -ie '[skip ci]' -e '[ci skip]'", returnStatus: true) == 0) {
               currentBuild.result = 'SUCCESS'
+              sh'''
+              git log -1 --pretty=%B | fgrep -ie '[skip ci]' -e '[ci skip]
+              '''
               currentBuild.getRawBuild().getExecutor().interrupt(Result.SUCCESS)
             }
           }
