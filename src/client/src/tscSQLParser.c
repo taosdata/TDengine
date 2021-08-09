@@ -3218,7 +3218,7 @@ int32_t setShowInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
   pCmd->command = TSDB_SQL_SHOW;
 
   const char* msg1 = "invalid name";
-  const char* msg2 = "pattern filter string too long";
+  const char* msg2 = "wildcard string should be less than %d characters";
   const char* msg3 = "database name too long";
   const char* msg4 = "invalid ip address";
   const char* msg5 = "database name is empty";
@@ -3262,8 +3262,10 @@ int32_t setShowInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
         return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg6);
       }
 
-      if (!tscValidateTableNameLength(pCmd->payloadLen)) {
-        return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg2);
+      if (pPattern->n > tsMaxWildCardsLen){
+        char tmp[64] = {0};
+        sprintf(tmp, msg2, tsMaxWildCardsLen);
+        return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), tmp);
       }
     }
   } else if (showType == TSDB_MGMT_TABLE_VNODES) {
