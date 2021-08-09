@@ -1636,6 +1636,8 @@ void tscFetchDatablockForSubquery(SSqlObj* pSql) {
       continue;
     }
 
+
+
     SSqlRes* pRes1 = &pSql1->res;
     if (pRes1->row >= pRes1->numOfRows) {
       subquerySetState(pSql1, &pSql->subState, i, 0);

@@ -518,6 +518,8 @@ static int tsdbCheckAndDecodeColumnData(SDataCol *pDataCol, void *content, int32
     return -1;
   }
 
+  tdAllocMemForCol(pDataCol, maxPoints);
+
   // Decode the data
   if (comp) {
     // Need to decompress

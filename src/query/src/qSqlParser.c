@@ -166,7 +166,8 @@ tSqlExpr *tSqlExprCreateIdValue(SStrToken *pToken, int32_t optrType) {
     // use nanosecond by default
     // TODO set value after getting database precision
     if (pToken) {
-      int32_t ret = parseAbsoluteDuration(pToken->z, pToken->n, &pSqlExpr->value.i64, TSDB_TIME_PRECISION_NANO);
+      char unit = 0;
+      int32_t ret = parseAbsoluteDuration(pToken->z, pToken->n, &pSqlExpr->value.i64, &unit, TSDB_TIME_PRECISION_NANO);
       if (ret != TSDB_CODE_SUCCESS) {
         terrno = TSDB_CODE_TSC_SQL_SYNTAX_ERROR;
       }

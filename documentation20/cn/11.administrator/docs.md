@@ -143,7 +143,7 @@ taosd -C
 
 TDengine集群中加入一个新的dnode时，涉及集群相关的一些参数必须与已有集群的配置相同，否则不能成功加入到集群中。会进行校验的参数如下：
 
-- numOfMnodes：系统中管理节点个数。默认值：3。
+- numOfMnodes：系统中管理节点个数。默认值：3。（2.0 版本从 2.0.20.11 开始、2.1 及以上版本从 2.1.6.0 开始，numOfMnodes 默认值改为 1。）
 - mnodeEqualVnodeNum: 一个mnode等同于vnode消耗的个数。默认值：4。
 - offlineThreshold: dnode离线阈值，超过该时间将导致该dnode从集群中删除。单位为秒，默认值：86400*10（即10天）。
 - statusInterval: dnode向mnode报告状态时长。单位为秒，默认值：1。
@@ -427,7 +427,7 @@ TDengine启动后，会自动创建一个监测数据库log，并自动将服务
 COMPACT VNODES IN (vg_id1, vg_id2, ...)
 ```
 
-COMPACT 命令对指定的一个或多个 VGroup 启动碎片重整，系统会通过任务队列尽快安排重整操作的具体执行。COMPACT 指令所需的 VGroup id，可以通过 `SHOW VGROUPS;` 指令的输出结果获取；而且在 `SHOW VGROUPS;` 中会有一个 compacting 列，值为 1 时表示对应的 VGroup 正在进行碎片重整，为 0 时则表示并没有处于重整状态。
+COMPACT 命令对指定的一个或多个 VGroup 启动碎片重整，系统会通过任务队列尽快安排重整操作的具体执行。COMPACT 指令所需的 VGroup id，可以通过 `SHOW VGROUPS;` 指令的输出结果获取；而且在 `SHOW VGROUPS;` 中会有一个 compacting 列，值为 2 时表示对应的 VGroup 处于排队等待进行重整的状态，值为 1 时表示正在进行碎片重整，为 0 时则表示并没有处于重整状态（未要求进行重整或已经完成重整）。
 
 需要注意的是，碎片重整操作会大幅消耗磁盘 I/O。因此在重整进行期间，有可能会影响节点的写入和查询性能，甚至在极端情况下导致短时间的阻写。
 
