@@ -6,7 +6,7 @@ node {
 }
 
 def skipstage=0
-
+def skipbuild=0
 def abortPreviousBuilds() {
   def currentJobName = env.JOB_NAME
   def currentBuildNumber = env.BUILD_NUMBER.toInteger()
@@ -161,6 +161,7 @@ pipeline {
           
           script{
             env.skipstage=sh(script:"cd ${WORKSPACE}.tes && git --no-pager diff --name-only FETCH_HEAD ${env.CHANGE_TARGET}|grep -v -E '.*md|//src//connector|Jenkinsfile|test-all.sh' || echo 0 ",returnStdout:true) 
+     
           }
           println env.skipstage
           sh'''
