@@ -19,6 +19,7 @@
 #include "wchar.h"
 #include "tarray.h"
 
+static void dataColSetNEleNull(SDataCol *pCol, int nEle);
 static void tdMergeTwoDataCols(SDataCols *target, SDataCols *src1, int *iter1, int limit1, SDataCols *src2, int *iter2,
                                int limit2, int tRows, bool forceSetNull);
 
@@ -297,7 +298,7 @@ static FORCE_INLINE void dataColSetNullAt(SDataCol *pCol, int index) {
   }
 }
 
-void dataColSetNEleNull(SDataCol *pCol, int nEle) {
+static void dataColSetNEleNull(SDataCol *pCol, int nEle) {
   if (IS_VAR_DATA_TYPE(pCol->type)) {
     pCol->len = 0;
     for (int i = 0; i < nEle; i++) {
