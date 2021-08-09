@@ -87,7 +87,6 @@ static uint8_t convertRelationalOperator(SStrToken *pToken);
 
 static int32_t validateSelectNodeList(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SArray* pSelNodeList, bool isSTable, bool joinQuery, bool timeWindowQuery);
 
-static bool validateIpAddress(const char* ip, size_t size);
 static bool hasUnsupportFunctionsForSTableQuery(SSqlCmd* pCmd, SQueryInfo* pQueryInfo);
 static bool functionCompatibleCheck(SQueryInfo* pQueryInfo, bool joinQuery, bool twQuery);
 
@@ -3220,7 +3219,6 @@ int32_t setShowInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
   const char* msg1 = "invalid name";
   const char* msg2 = "pattern filter string too long";
   const char* msg3 = "database name too long";
-  const char* msg4 = "invalid ip address";
   const char* msg5 = "database name is empty";
   const char* msg6 = "pattern string is empty";
 
@@ -3268,17 +3266,11 @@ int32_t setShowInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
     }
   } else if (showType == TSDB_MGMT_TABLE_VNODES) {
     if (pShowInfo->prefix.type == 0) {
-      return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), "No specified ip of dnode");
+      return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), "No specified dnode ep");
     }
 
-    // show vnodes may be ip addr of dnode in payload
-    SStrToken* pDnodeIp = &pShowInfo->prefix;
-    if (pDnodeIp->n >= TSDB_IPv4ADDR_LEN) {  // ip addr is too long
-      return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg3);
-    }
-
-    if (!validateIpAddress(pDnodeIp->z, pDnodeIp->n)) {
-      return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg4);
+    if (pShowInfo->prefix.type == TK_STRING) {
+      pShowInfo->prefix.n = strdequote(pShowInfo->prefix.z);
     }
   } 
   return TSDB_CODE_SUCCESS;
@@ -3330,16 +3322,6 @@ static int32_t setCompactVnodeInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
   pCmd->command = pInfo->type;
 
   return TSDB_CODE_SUCCESS;
-}
-bool validateIpAddress(const char* ip, size_t size) {
-  char tmp[128] = {0};  // buffer to build null-terminated string
-  assert(size < 128);
-
-  strncpy(tmp, ip, size);
-
-  in_addr_t epAddr = taosInetAddr(tmp);
-
-  return epAddr != INADDR_NONE;
 }
 
 int32_t tscTansformFuncForSTableQuery(SQueryInfo* pQueryInfo) {

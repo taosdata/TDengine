@@ -37,8 +37,12 @@ class TDTestCase:
 
         ret = tdSql.query('show dnodes')
 
-        ret = tdSql.execute('alter dnode "%s" debugFlag 135' % tdSql.getData(0,0))
-        tdLog.info('alter dnode "%s" debugFlag 135 -> ret: %d' % (tdSql.getData(0, 0), ret))
+        dnodeId = tdSql.getData(0, 0);
+        dnodeEndpoint = tdSql.getData(0, 1);
+
+        ret = tdSql.execute('alter dnode "%s" debugFlag 135' % dnodeId)
+        tdLog.info('alter dnode "%s" debugFlag 135 -> ret: %d' % (dnodeId, ret))
+
 
         ret = tdSql.query('show mnodes')
         tdSql.checkRows(1)
@@ -56,6 +60,13 @@ class TDTestCase:
         ret = tdSql.query('show vgroups')
         tdSql.checkRows(0)        
 
+        tdSql.execute('create stable st (ts timestamp, f int) tags(t int)')
+        tdSql.execute('create table ct1 using st tags(1)');
+        tdSql.execute('create table ct2 using st tags(2)');
+        ret = tdSql.query('show vnodes "{}"'.format(dnodeEndpoint))
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 2)
+        tdSql.checkData(0, 1, "master")
 
     def stop(self):
         tdSql.close()
