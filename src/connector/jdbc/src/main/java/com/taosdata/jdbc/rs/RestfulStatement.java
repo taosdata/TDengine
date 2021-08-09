@@ -88,7 +88,7 @@ public class RestfulStatement extends AbstractStatement {
     }
 
     private String getUrl() throws SQLException {
-        TimestampFormat timestampFormat = TimestampFormat.valueOf(conn.getClientInfo(TSDBDriver.PROPERTY_KEY_TIMESTAMP_FORMAT));
+        TimestampFormat timestampFormat = TimestampFormat.valueOf(conn.getClientInfo(TSDBDriver.PROPERTY_KEY_TIMESTAMP_FORMAT).trim().toUpperCase());
         String url;
         switch (timestampFormat) {
             case TIMESTAMP:
