@@ -157,6 +157,7 @@ pipeline {
               sh'''
               git log -1 --pretty=%B | fgrep -ie '[skip ci]' -e '[ci skip]
               '''
+              
               currentBuild.getRawBuild().getExecutor().interrupt(Result.SUCCESS)
             }
           }
