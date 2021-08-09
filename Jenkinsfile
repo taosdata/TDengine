@@ -149,10 +149,12 @@ pipeline {
             if(env.skipstage != 0 )
             {
               println env.skipstage
-              currentBuild.result = 'NOT_BUILT'
+              currentBuild.result = 'SUCCESS'
+              currentBuild.getRawBuild().getExecutor().interrupt(Result.SUCCESS)
             }
             if (sh(script: "git log -1 --pretty=%B | fgrep -ie '[skip ci]' -e '[ci skip]'", returnStatus: true) == 0) {
-              currentBuild.result = 'NOT_BUILT'
+              currentBuild.result = 'SUCCESS'
+              currentBuild.getRawBuild().getExecutor().interrupt(Result.SUCCESS)
             }
           }
           println env.skipstage
