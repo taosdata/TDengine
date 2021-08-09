@@ -116,8 +116,7 @@ bool metricsProcessRequest(HttpContext* pContext) {
   {
     const int8_t numTiers = 3;
     SFSMeta      fsMeta;
-    STierMeta    tierMetas[numTiers];
-    memset(tierMetas, 0, 3 * sizeof(STierMeta));
+    STierMeta* tierMetas = calloc(numTiers, sizeof(STierMeta));
     tfsUpdateInfo(&fsMeta, tierMetas, numTiers);
     {
       char* keyDiskUsed = "disk_used";
@@ -138,6 +137,7 @@ bool metricsProcessRequest(HttpContext* pContext) {
       }
       httpJsonToken(jsonBuf, JsonArrEnd);
     }
+    free(tierMetas);
   }
 
   {
