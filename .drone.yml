@@ -23,18 +23,16 @@ steps:
     branch:
     - develop
     - master
-    - 2.0
 ---
 kind: pipeline
-name: test_arm64
+name: test_arm64_bionic
 
 platform:
   os: linux
   arch: arm64
-
 steps:
 - name: build
-  image: gcc
+  image: arm64v8/ubuntu:bionic
   commands:
   - apt-get update
   - apt-get install -y cmake build-essential
@@ -52,7 +50,84 @@ steps:
     - 2.0
 ---
 kind: pipeline
-name: test_arm
+name: test_arm64_focal
+
+platform:
+  os: linux
+  arch: arm64
+
+steps:
+- name: build
+  image: arm64v8/ubuntu:focal
+  commands:
+  - echo 'debconf debconf/frontend select Noninteractive' | debconf-set-selections
+  - apt-get update 
+  - apt-get install -y -qq cmake build-essential
+  - mkdir debug
+  - cd debug
+  - cmake .. -DCPUTYPE=aarch64 > /dev/null
+  - make 
+  trigger:
+    event:
+      - pull_request
+  when:
+    branch:
+    - develop
+    - master
+    - 2.0
+---
+kind: pipeline
+name: test_arm64_centos7
+
+platform:
+  os: linux
+  arch: arm64
+
+steps:
+- name: build
+  image: arm64v8/centos:7
+  commands:
+  - yum install -y gcc gcc-c++ make cmake git
+  - mkdir debug
+  - cd debug
+  - cmake .. -DCPUTYPE=aarch64 > /dev/null
+  - make 
+  trigger:
+    event:
+      - pull_request
+  when:
+    branch:
+    - develop
+    - master
+    - 2.0
+---
+kind: pipeline
+name: test_arm64_centos8
+
+platform:
+  os: linux
+  arch: arm64
+
+steps:
+- name: build
+  image: arm64v8/centos:8
+  commands:
+  - dnf install -y gcc gcc-c++ make cmake epel-release git libarchive
+  - mkdir debug
+  - cd debug
+  - cmake .. -DCPUTYPE=aarch64 > /dev/null
+  - make 
+  trigger:
+    event:
+      - pull_request
+  when:
+    branch:
+    - develop
+    - master
+    - 2.0
+---
+kind: pipeline
+name: test_arm_bionic
 
 platform:
   os: linux
@@ -75,8 +150,6 @@ steps:
     branch:
     - develop
     - master
-    - 2.0
-
 ---
 kind: pipeline
 name: build_trusty
@@ -103,7 +176,6 @@ steps:
     branch:
     - develop
     - master
-    - 2.0
 ---
 kind: pipeline
 name: build_xenial
@@ -129,7 +201,6 @@ steps:
     branch:
     - develop
     - master
-    - 2.0
 
 ---
 kind: pipeline
@@ -155,7 +226,6 @@ steps:
     branch:
     - develop
     - master
-    - 2.0
 ---
 kind: pipeline
 name: build_centos7
@@ -179,28 +249,4 @@ steps:
     branch:
     - develop
     - master
-    - 2.0
 
----
-kind: pipeline
-name: goodbye
-
-platform:
-  os: linux
-  arch: amd64
-
-steps:
-- name: 64-bit
-  image: alpine
-  commands:
-  - echo 64-bit is good.
-  when:
-    branch:
-    - develop
-    - master
-    - 2.0
-
-
-depends_on:
-- test_arm64
-- test_amd64
