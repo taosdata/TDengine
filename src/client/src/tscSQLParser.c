@@ -3260,6 +3260,12 @@ int32_t setShowInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
         return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg6);
       }
 
+      if (pPattern->n > tsMaxWildCardsLen){
+        char tmp[64] = {0};
+        sprintf(tmp, msg1, tsMaxWildCardsLen);
+        return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), tmp);
+      }
+
       if (!tscValidateTableNameLength(pCmd->payloadLen)) {
         return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg2);
       }
