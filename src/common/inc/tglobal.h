@@ -41,6 +41,7 @@ extern char     tsArbitrator[];
 extern int8_t   tsArbOnline;
 extern int64_t  tsArbOnlineTimestamp;
 extern int32_t  tsDnodeId;
+extern int64_t  tsDnodeStartTime;
 
 // common
 extern int      tsRpcTimer;

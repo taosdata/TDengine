@@ -31,6 +31,21 @@ bool metricsProcessRequest(HttpContext* pContext) {
 
   httpJsonToken(jsonBuf, JsonObjStt);
   {
+      int32_t dnodeId = dnodeGetDnodeId();
+      char* keyDnodeId = "dnode_id";
+      httpJsonPairIntVal(jsonBuf, keyDnodeId, strlen(keyDnodeId), dnodeId);
+  }
+
+  {
+     if (tsDnodeStartTime != 0) {
+       int64_t now = taosGetTimestampMs();
+       int64_t upTime = now-tsDnodeStartTime;
+       char* keyUpTime = "up_time";
+       httpJsonPairInt64Val(jsonBuf, keyUpTime, strlen(keyUpTime), upTime);
+     }
+  }
+
+  {
     int32_t cpuCores = taosGetCpuCores();
     char* keyCpuCores = "cpu_cores";
     httpJsonPairIntVal(jsonBuf, keyCpuCores, strlen(keyCpuCores), cpuCores);
