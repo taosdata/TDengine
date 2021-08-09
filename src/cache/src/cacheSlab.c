@@ -326,8 +326,13 @@ static int pullFromLru(cache_t *cache, int slabId, int curLru, uint64_t totalByt
       continue;
     }
 
-    /* only one item and user ref count, can release the item safely */
-    if (itemIncrRef(search) == 2 && itemUserDataRef(search) <= 1) {
+    /* if item user data has been locked by more then one, continue */
+    if (itemUserDataRef(search) > 1) {
+      continue;
+    }
+
+    /* only one item ref count, can release the item safely */
+    if (itemIncrRef(search) == 2) {
       setItemRef(search, 1);
       cacheItemUnlink(search->pTable, search, 0);
       cacheMutexTryUnlock(pMutex);
