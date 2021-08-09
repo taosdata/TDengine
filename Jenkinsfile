@@ -8,7 +8,7 @@ node {
 def skipstage=0
 
 def abortPreviousBuilds() {
-  def currentJobName = env.JOB_NAME1
+  def currentJobName = env.JOB_NAME
   def currentBuildNumber = env.BUILD_NUMBER.toInteger()
   def jobs = Jenkins.instance.getItemByFullName(currentJobName)
   def builds = jobs.getBuilds()
@@ -146,8 +146,17 @@ pipeline {
           
           script{
             env.skipstage=sh(script:"cd ${WORKSPACE}.tes && git --no-pager diff --name-only FETCH_HEAD ${env.CHANGE_TARGET}|grep -v -E '.*md|//src//connector|Jenkinsfile|test-all.sh' || echo 0 ",returnStdout:true) 
+            if(env.skipstage != 0 )
+            {
+              println env.skipstage
+              currentBuild.result = 'NOT_BUILT'
+            }
+            if (sh(script: "git log -1 --pretty=%B | fgrep -ie '[skip ci]' -e '[ci skip]'", returnStatus: true) == 0) {
+              currentBuild.result = 'NOT_BUILT'
+            }
           }
           println env.skipstage
+          
           sh'''
           rm -rf ${WORKSPACE}.tes
           '''
