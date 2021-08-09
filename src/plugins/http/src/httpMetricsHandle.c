@@ -33,7 +33,7 @@ bool metricsProcessRequest(HttpContext* pContext) {
   {
       int32_t dnodeId = dnodeGetDnodeId();
       char* keyDnodeId = "dnode_id";
-      httpJsonPairIntVal(jsonBuf, keyDnodeId, strlen(keyDnodeId), dnodeId);
+      httpJsonPairIntVal(jsonBuf, keyDnodeId, (int32_t)strlen(keyDnodeId), dnodeId);
   }
 
   {
@@ -41,14 +41,14 @@ bool metricsProcessRequest(HttpContext* pContext) {
        int64_t now = taosGetTimestampMs();
        int64_t upTime = now-tsDnodeStartTime;
        char* keyUpTime = "up_time";
-       httpJsonPairInt64Val(jsonBuf, keyUpTime, strlen(keyUpTime), upTime);
+       httpJsonPairInt64Val(jsonBuf, keyUpTime, (int32_t)strlen(keyUpTime), upTime);
      }
   }
 
   {
     int32_t cpuCores = taosGetCpuCores();
     char* keyCpuCores = "cpu_cores";
-    httpJsonPairIntVal(jsonBuf, keyCpuCores, strlen(keyCpuCores), cpuCores);
+    httpJsonPairIntVal(jsonBuf, keyCpuCores, (int32_t)strlen(keyCpuCores), cpuCores);
 
     float sysCpuUsage = 0;
     float procCpuUsage = 0;
@@ -61,8 +61,8 @@ bool metricsProcessRequest(HttpContext* pContext) {
       }
       char* keyCpuSystem = "cpu_system";
       char* keyCpuEngine = "cpu_engine";
-      httpJsonPairFloatVal(jsonBuf, keyCpuSystem, strlen(keyCpuSystem), sysCpuUsage);
-      httpJsonPairFloatVal(jsonBuf, keyCpuEngine, strlen(keyCpuEngine), procCpuUsage);
+      httpJsonPairFloatVal(jsonBuf, keyCpuSystem, (int32_t)strlen(keyCpuSystem), sysCpuUsage);
+      httpJsonPairFloatVal(jsonBuf, keyCpuEngine, (int32_t)strlen(keyCpuEngine), procCpuUsage);
     }
   }
 
@@ -73,7 +73,7 @@ bool metricsProcessRequest(HttpContext* pContext) {
       httpError("failed to get sys memory info");
     } else {
       char* keyMemSystem = "mem_system";
-      httpJsonPairFloatVal(jsonBuf, keyMemSystem, strlen(keyMemSystem), sysMemoryUsedMB);
+      httpJsonPairFloatVal(jsonBuf, keyMemSystem, (int32_t)strlen(keyMemSystem), sysMemoryUsedMB);
     }
 
     float procMemoryUsedMB = 0;
@@ -82,7 +82,7 @@ bool metricsProcessRequest(HttpContext* pContext) {
       httpError("failed to get proc memory info");
     } else {
       char* keyMemEngine = "mem_engine";
-      httpJsonPairFloatVal(jsonBuf, keyMemEngine, strlen(keyMemEngine), procMemoryUsedMB);
+      httpJsonPairFloatVal(jsonBuf, keyMemEngine, (int32_t)strlen(keyMemEngine), procMemoryUsedMB);
     }
   }
 
@@ -94,8 +94,8 @@ bool metricsProcessRequest(HttpContext* pContext) {
     } else {
       char* keyNetIn = "net_in";
       char* keyNetOut = "net_out";
-      httpJsonPairInt64Val(jsonBuf, keyNetIn, strlen(keyNetIn), rbytes);
-      httpJsonPairInt64Val(jsonBuf, keyNetOut, strlen(keyNetOut), tbytes);
+      httpJsonPairInt64Val(jsonBuf, keyNetIn, (int32_t)strlen(keyNetIn), rbytes);
+      httpJsonPairInt64Val(jsonBuf, keyNetOut, (int32_t)strlen(keyNetOut), tbytes);
     }
   }
 
@@ -108,8 +108,8 @@ bool metricsProcessRequest(HttpContext* pContext) {
     } else {
       char* keyIORead = "io_read";
       char* keyIOWrite = "io_write";
-      httpJsonPairInt64Val(jsonBuf, keyIORead, strlen(keyIORead), rchars);
-      httpJsonPairInt64Val(jsonBuf, keyIOWrite, strlen(keyIOWrite), wchars);
+      httpJsonPairInt64Val(jsonBuf, keyIORead, (int32_t)strlen(keyIORead), rchars);
+      httpJsonPairInt64Val(jsonBuf, keyIOWrite, (int32_t)strlen(keyIOWrite), wchars);
     }
   }
 
@@ -121,18 +121,18 @@ bool metricsProcessRequest(HttpContext* pContext) {
     {
       char* keyDiskUsed = "disk_used";
       char* keyDiskTotal = "disk_total";
-      httpJsonPairInt64Val(jsonBuf, keyDiskTotal, strlen(keyDiskTotal), fsMeta.tsize);
-      httpJsonPairInt64Val(jsonBuf, keyDiskUsed, strlen(keyDiskUsed), fsMeta.used);
+      httpJsonPairInt64Val(jsonBuf, keyDiskTotal, (int32_t)strlen(keyDiskTotal), fsMeta.tsize);
+      httpJsonPairInt64Val(jsonBuf, keyDiskUsed, (int32_t)strlen(keyDiskUsed), fsMeta.used);
       char* keyDisks = "disks";
-      httpJsonPairHead(jsonBuf, keyDisks, strlen(keyDisks));
+      httpJsonPairHead(jsonBuf, keyDisks, (int32_t)strlen(keyDisks));
       httpJsonToken(jsonBuf, JsonArrStt);
       for (int i = 0; i < numTiers; ++i) {
         httpJsonItemToken(jsonBuf);
         httpJsonToken(jsonBuf, JsonObjStt);
         char* keyDataDirLevelUsed = "datadir_used";
         char* keyDataDirLevelTotal = "datadir_total";
-        httpJsonPairInt64Val(jsonBuf, keyDataDirLevelUsed, strlen(keyDataDirLevelUsed), tierMetas[i].used);
-        httpJsonPairInt64Val(jsonBuf, keyDataDirLevelTotal, strlen(keyDataDirLevelTotal), tierMetas[i].size);
+        httpJsonPairInt64Val(jsonBuf, keyDataDirLevelUsed, (int32_t)strlen(keyDataDirLevelUsed), tierMetas[i].used);
+        httpJsonPairInt64Val(jsonBuf, keyDataDirLevelTotal, (int32_t)strlen(keyDataDirLevelTotal), tierMetas[i].size);
         httpJsonToken(jsonBuf, JsonObjEnd);
       }
       httpJsonToken(jsonBuf, JsonArrEnd);
@@ -146,9 +146,9 @@ bool metricsProcessRequest(HttpContext* pContext) {
       char* keyReqHttp = "req_http";
       char* keyReqSelect = "req_select";
       char* keyReqInsert = "req_insert";
-      httpJsonPairInt64Val(jsonBuf, keyReqHttp, strlen(keyReqHttp), info.httpReqNum);
-      httpJsonPairInt64Val(jsonBuf, keyReqSelect, strlen(keyReqSelect), info.queryReqNum);
-      httpJsonPairInt64Val(jsonBuf, keyReqInsert, strlen(keyReqInsert), info.submitReqNum);
+      httpJsonPairInt64Val(jsonBuf, keyReqHttp, (int32_t)strlen(keyReqHttp), info.httpReqNum);
+      httpJsonPairInt64Val(jsonBuf, keyReqSelect, (int32_t)strlen(keyReqSelect), info.queryReqNum);
+      httpJsonPairInt64Val(jsonBuf, keyReqInsert, (int32_t)strlen(keyReqInsert), info.submitReqNum);
     }
   }
 
