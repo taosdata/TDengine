@@ -142,6 +142,9 @@ pipeline {
           sh'''
           git fetch origin +refs/pull/${CHANGE_ID}/merge
           git checkout -qf FETCH_HEAD
+          cd ${WORKSPACE}.tes
+          git --no-pager diff --name-only FETCH_HEAD ${env.CHANGE_TARGET}|grep -v -E '.*md|//src//connector|Jenkinsfile|test-all.sh'
+          git log -1 --pretty=%B | fgrep -ie '[skip ci]' -e '[ci skip]
           '''     
           
           script{
@@ -157,7 +160,6 @@ pipeline {
               sh'''
               git log -1 --pretty=%B | fgrep -ie '[skip ci]' -e '[ci skip]
               '''
-              
               currentBuild.getRawBuild().getExecutor().interrupt(Result.SUCCESS)
             }
           }
