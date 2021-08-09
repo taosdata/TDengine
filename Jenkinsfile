@@ -146,8 +146,19 @@ pipeline {
           
           script{
             env.skipstage=sh(script:"cd ${WORKSPACE}.tes && git --no-pager diff --name-only FETCH_HEAD ${env.CHANGE_TARGET}|grep -v -E '.*md|//src//connector|Jenkinsfile|test-all.sh' || echo 0 ",returnStdout:true) 
+            if(env.skipstage == 0 )
+            {
+              println env.skipstage
+              currentBuild.result = 'SUCCESS'
+              currentBuild.getRawBuild().getExecutor().interrupt(Result.SUCCESS)
+            }
+            if (sh(script: "git log -1 --pretty=%B | fgrep -ie '[skip ci]' -e '[ci skip]'", returnStatus: true) == 0) {
+              currentBuild.result = 'SUCCESS'
+              currentBuild.getRawBuild().getExecutor().interrupt(Result.SUCCESS)
+            }
           }
           println env.skipstage
+          
           sh'''
           rm -rf ${WORKSPACE}.tes
           '''
