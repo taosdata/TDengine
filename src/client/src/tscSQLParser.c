@@ -88,7 +88,6 @@ static uint8_t convertRelationalOperator(SStrToken *pToken);
 
 static int32_t validateSelectNodeList(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SArray* pSelNodeList, bool isSTable, bool joinQuery, bool timeWindowQuery);
 
-static bool validateIpAddress(const char* ip, size_t size);
 static bool hasUnsupportFunctionsForSTableQuery(SSqlCmd* pCmd, SQueryInfo* pQueryInfo);
 static bool functionCompatibleCheck(SQueryInfo* pQueryInfo, bool joinQuery, bool twQuery);
 
@@ -3225,7 +3224,6 @@ int32_t setShowInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
   const char* msg1 = "invalid name";
   const char* msg2 = "pattern filter string too long";
   const char* msg3 = "database name too long";
-  const char* msg4 = "invalid ip address";
   const char* msg5 = "database name is empty";
   const char* msg6 = "pattern string is empty";
 
@@ -3273,17 +3271,11 @@ int32_t setShowInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
     }
   } else if (showType == TSDB_MGMT_TABLE_VNODES) {
     if (pShowInfo->prefix.type == 0) {
-      return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), "No specified ip of dnode");
+      return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), "No specified dnode ep");
     }
 
-    // show vnodes may be ip addr of dnode in payload
-    SStrToken* pDnodeIp = &pShowInfo->prefix;
-    if (pDnodeIp->n >= TSDB_IPv4ADDR_LEN) {  // ip addr is too long
-      return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg3);
-    }
-
-    if (!validateIpAddress(pDnodeIp->z, pDnodeIp->n)) {
-      return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg4);
+    if (pShowInfo->prefix.type == TK_STRING) {
+      pShowInfo->prefix.n = strdequote(pShowInfo->prefix.z);
     }
   } 
   return TSDB_CODE_SUCCESS;
@@ -3335,16 +3327,6 @@ static int32_t setCompactVnodeInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
   pCmd->command = pInfo->type;
 
   return TSDB_CODE_SUCCESS;
-}
-bool validateIpAddress(const char* ip, size_t size) {
-  char tmp[128] = {0};  // buffer to build null-terminated string
-  assert(size < 128);
-
-  strncpy(tmp, ip, size);
-
-  in_addr_t epAddr = taosInetAddr(tmp);
-
-  return epAddr != INADDR_NONE;
 }
 
 int32_t tscTansformFuncForSTableQuery(SQueryInfo* pQueryInfo) {
@@ -4482,15 +4464,17 @@ static int32_t validateNullExpr(tSqlExpr* pExpr, STableMeta* pTableMeta, int32_t
 
 // check for like expression
 static int32_t validateLikeExpr(tSqlExpr* pExpr, STableMeta* pTableMeta, int32_t index, char* msgBuf) {
-  const char* msg1 = "wildcard string should be less than 20 characters";
+  const char* msg1 = "wildcard string should be less than %d characters";
   const char* msg2 = "illegal column type for like";
 
   tSqlExpr* pLeft  = pExpr->pLeft;
   tSqlExpr* pRight = pExpr->pRight;
 
   if (pExpr->tokenId == TK_LIKE) {
-    if (pRight->value.nLen > TSDB_PATTERN_STRING_MAX_LEN) {
-      return invalidOperationMsg(msgBuf, msg1);
+    if (pRight->value.nLen > tsMaxWildCardsLen) {
+      char tmp[64] = {0};
+      sprintf(tmp, msg1, tsMaxWildCardsLen);
+      return invalidOperationMsg(msgBuf, tmp);
     }
 
     SSchema* pSchema = tscGetTableSchema(pTableMeta);
@@ -7838,6 +7822,8 @@ int32_t doCheckForStream(SSqlObj* pSql, SSqlInfo* pInfo) {
   const char* msg6 = "from missing in subclause";
   const char* msg7 = "time interval is required";
   const char* msg8 = "the first column should be primary timestamp column";
+  const char* msg9 = "Continuous query do not support sub query";
+  const char* msg10 = "illegal number of columns";
 
   SSqlCmd*    pCmd = &pSql->cmd;
   SQueryInfo* pQueryInfo = tscGetQueryInfo(pCmd);
@@ -7858,7 +7844,11 @@ int32_t doCheckForStream(SSqlObj* pSql, SSqlInfo* pInfo) {
   if (pFromInfo == NULL || taosArrayGetSize(pFromInfo->list) == 0) {
     return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg6);
   }
-  
+
+  if (pFromInfo->type == SQL_NODE_FROM_SUBQUERY){
+      return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg9);
+  }
+
   SRelElementPair* p1 = taosArrayGet(pFromInfo->list, 0);
   SStrToken srcToken = {.z = p1->tableName.z, .n = p1->tableName.n, .type = TK_STRING};
   if (tscValidateName(&srcToken) != TSDB_CODE_SUCCESS) {
@@ -7920,7 +7910,9 @@ int32_t doCheckForStream(SSqlObj* pSql, SSqlInfo* pInfo) {
     return TSDB_CODE_TSC_INVALID_OPERATION;
   }
 
-  pCmd->numOfCols = pQueryInfo->fieldsInfo.numOfOutput;
+  if (pQueryInfo->fieldsInfo.numOfOutput <= 1) {
+    return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg10);
+  }
 
   if (validateSqlFunctionInStreamSql(pCmd, pQueryInfo) != TSDB_CODE_SUCCESS) {
     return TSDB_CODE_TSC_INVALID_OPERATION;
