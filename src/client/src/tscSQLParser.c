@@ -7558,6 +7558,8 @@ int32_t doCheckForStream(SSqlObj* pSql, SSqlInfo* pInfo) {
   const char* msg6 = "from missing in subclause";
   const char* msg7 = "time interval is required";
   const char* msg8 = "the first column should be primary timestamp column";
+  const char* msg9 = "Continuous query do not support sub query";
+  const char* msg10 = "illegal number of columns";
 
   SSqlCmd*    pCmd = &pSql->cmd;
   SQueryInfo* pQueryInfo = tscGetQueryInfo(pCmd);
@@ -7578,7 +7580,11 @@ int32_t doCheckForStream(SSqlObj* pSql, SSqlInfo* pInfo) {
   if (pFromInfo == NULL || taosArrayGetSize(pFromInfo->list) == 0) {
     return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg6);
   }
-  
+
+  if (pFromInfo->type == SQL_NODE_FROM_SUBQUERY){
+      return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg9);
+  }
+
   SRelElementPair* p1 = taosArrayGet(pFromInfo->list, 0);
   SStrToken srcToken = {.z = p1->tableName.z, .n = p1->tableName.n, .type = TK_STRING};
   if (tscValidateName(&srcToken) != TSDB_CODE_SUCCESS) {
@@ -7640,7 +7646,9 @@ int32_t doCheckForStream(SSqlObj* pSql, SSqlInfo* pInfo) {
     return TSDB_CODE_TSC_INVALID_OPERATION;
   }
 
-  pCmd->numOfCols = pQueryInfo->fieldsInfo.numOfOutput;
+  if (pQueryInfo->fieldsInfo.numOfOutput <= 1) {
+    return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg10);
+  }
 
   if (validateSqlFunctionInStreamSql(pCmd, pQueryInfo) != TSDB_CODE_SUCCESS) {
     return TSDB_CODE_TSC_INVALID_OPERATION;
