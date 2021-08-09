@@ -8,7 +8,7 @@ node {
 def skipstage=0
 
 def abortPreviousBuilds() {
-  def currentJobName = env.JOB_NAME
+  def currentJobName = env.JOB_NAME1
   def currentBuildNumber = env.BUILD_NUMBER.toInteger()
   def jobs = Jenkins.instance.getItemByFullName(currentJobName)
   def builds = jobs.getBuilds()
