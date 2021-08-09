@@ -8483,7 +8483,7 @@ int32_t validateSqlNode(SSqlObj* pSql, SSqlNode* pSqlNode, SQueryInfo* pQueryInf
   }
 
   if (pSqlNode->from->type == SQL_NODE_FROM_SUBQUERY) {
-    clearAllTableMetaInfo(pQueryInfo, false);
+    clearAllTableMetaInfo(pQueryInfo, false, pSql->self);
     pQueryInfo->numOfTables = 0;
 
     // parse the subquery in the first place

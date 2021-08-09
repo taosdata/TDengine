@@ -2718,17 +2718,10 @@ void tscHandleSubqueryError(SRetrieveSupport *trsupport, SSqlObj *pSql, int numO
     int32_t code = pParentSql->res.code;
     if ((code == TSDB_CODE_TDB_INVALID_TABLE_ID || code == TSDB_CODE_VND_INVALID_VGROUP_ID) && pParentSql->retry < pParentSql->maxRetry) {
       // remove the cached tableMeta and vgroup id list, and then parse the sql again
-      SSqlCmd* pParentCmd = &pParentSql->cmd;
-      STableMetaInfo* pTableMetaInfo = tscGetTableMetaInfoFromCmd(pParentCmd, 0);
-      tscRemoveTableMetaBuf(pTableMetaInfo, pParentSql->self);
-      tscResetSqlCmd(pParentCmd, true);
+      tscResetSqlCmd( &pParentSql->cmd, true, pParentSql->self);
 
-//      pParentCmd->pTableMetaMap = tscCleanupTableMetaMap(pParentCmd->pTableMetaMap);
-//      pParentCmd->pTableMetaMap = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);
-
-      pParentSql->res.code = TSDB_CODE_SUCCESS;
       pParentSql->retry++;
-
+      pParentSql->res.code = TSDB_CODE_SUCCESS;
       tscDebug("0x%"PRIx64" retry parse sql and send query, prev error: %s, retry:%d", pParentSql->self,
           tstrerror(code), pParentSql->retry);
 
@@ -3143,7 +3136,7 @@ static void multiVnodeInsertFinalize(void* param, TAOS_RES* tres, int numOfRows)
         numOfFailed += 1;
 
         // clean up tableMeta in cache
-        tscFreeQueryInfo(&pSql->cmd, false);
+        tscFreeQueryInfo(&pSql->cmd, false, pSql->self);
         SQueryInfo* pQueryInfo = tscGetQueryInfoS(&pSql->cmd);
         STableMetaInfo* pMasterTableMetaInfo = tscGetTableMetaInfoFromCmd(&pParentObj->cmd, 0);
         tscAddTableMetaInfo(pQueryInfo, &pMasterTableMetaInfo->name, NULL, NULL, NULL, NULL);
@@ -3165,7 +3158,7 @@ static void multiVnodeInsertFinalize(void* param, TAOS_RES* tres, int numOfRows)
     }
 
     pParentObj->res.code = TSDB_CODE_SUCCESS;
-    tscResetSqlCmd(&pParentObj->cmd, false);
+    tscResetSqlCmd(&pParentObj->cmd, false, pParentObj->self);
 
     // in case of insert, redo parsing the sql string and build new submit data block for two reasons:
     // 1. the table Id(tid & uid) may have been update, the submit block needs to be updated accordingly.

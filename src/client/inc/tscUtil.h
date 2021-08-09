@@ -220,7 +220,7 @@ void       tscExprDestroy(SArray* pExprInfo);
 
 int32_t createProjectionExpr(SQueryInfo* pQueryInfo, STableMetaInfo* pTableMetaInfo, SExprInfo*** pExpr, int32_t* num);
 
-void clearAllTableMetaInfo(SQueryInfo* pQueryInfo, bool removeMeta);
+void clearAllTableMetaInfo(SQueryInfo* pQueryInfo, bool removeMeta, uint64_t id);
 
 SColumn* tscColumnClone(const SColumn* src);
 void tscColumnCopy(SColumn* pDest, const SColumn* pSrc);
@@ -318,7 +318,7 @@ void tscPrintSelNodeList(SSqlObj* pSql, int32_t subClauseIndex);
 bool hasMoreVnodesToTry(SSqlObj *pSql);
 bool hasMoreClauseToTry(SSqlObj* pSql);
 
-void tscFreeQueryInfo(SSqlCmd* pCmd, bool removeMeta);
+void tscFreeQueryInfo(SSqlCmd* pCmd, bool removeCachedMeta, uint64_t id);
 
 void tscTryQueryNextVnode(SSqlObj *pSql, __async_cb_func_t fp);
 void tscTryQueryNextClause(SSqlObj* pSql, __async_cb_func_t fp);
@@ -356,7 +356,7 @@ char* strdup_throw(const char* str);
 bool vgroupInfoIdentical(SNewVgroupInfo *pExisted, SVgroupMsg* src);
 SNewVgroupInfo createNewVgroupInfo(SVgroupMsg *pVgroupMsg);
 
-void tscRemoveTableMetaBuf(STableMetaInfo* pTableMetaInfo, uint64_t id);
+void tscRemoveCachedTableMeta(STableMetaInfo* pTableMetaInfo, uint64_t id);
 
 #ifdef __cplusplus
 }
