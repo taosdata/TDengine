@@ -145,12 +145,8 @@ pipeline {
           '''     
           
           script{  
-            skipbuild=2     
+            skipbuild='2'     
             skipbuild=sh(script: "git log -1 --pretty=%B | fgrep -ie '[skip ci]' -e '[ci skip]' && echo 1 || echo 2", returnStdout:true)
-            sh'''
-            git log -1 --pretty=%B || echo aaa
-            git log -1 --pretty=%B | fgrep -ie '[skip ci]' -e '[ci skip]' || echo bbb
-            '''
             println skipbuild
           }
           sh'''
@@ -173,7 +169,6 @@ pipeline {
         stage('python_1_s1') {
           agent any
           steps {
-            println skipbuild
             pre_test()
             timeout(time: 45, unit: 'MINUTES'){
               sh '''
