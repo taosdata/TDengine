@@ -147,6 +147,7 @@ pipeline {
           script{
             env.skipstage=sh(script:"cd ${WORKSPACE}.tes && git --no-pager diff --name-only FETCH_HEAD ${env.CHANGE_TARGET}|grep -v -E '.*md|//src//connector|Jenkinsfile|test-all.sh' || echo 0 ",returnStdout:true) 
             env.skipbuild=sh(script: "git log -1 --pretty=%B | fgrep -ie '[skip ci]' -e '[ci skip]'", returnStatus: true)
+            println env.skipbuild
           }
           println env.skipstage
           sh'''
@@ -161,7 +162,7 @@ pipeline {
               changeRequest()
                expression {
                     env.skipstage != 0
-                    env.skipbuild ==1
+                    env.skipbuild == 1
               }
           }
       parallel {
