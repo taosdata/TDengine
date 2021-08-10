@@ -339,6 +339,11 @@ void tscTableMetaCallBack(void *param, TAOS_RES *res, int code) {
   const char* msg = (sub->cmd.command == TSDB_SQL_STABLEVGROUP)? "vgroup-list":"multi-tableMeta";
   if (code != TSDB_CODE_SUCCESS) {
     tscError("0x%"PRIx64" get %s failed, code:%s", pSql->self, msg, tstrerror(code));
+    if (code == TSDB_CODE_RPC_FQDN_ERROR) {
+      size_t sz = strlen(tscGetErrorMsgPayload(&sub->cmd));
+      tscAllocPayload(&pSql->cmd, (int)sz + 1); 
+      memcpy(tscGetErrorMsgPayload(&pSql->cmd), tscGetErrorMsgPayload(&sub->cmd), sz);
+    } 
     goto _error;
   }
 

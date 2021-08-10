@@ -61,6 +61,7 @@ typedef struct SJoinSupporter {
   uint64_t        uid;            // query table uid
   SArray*         colList;        // previous query information, no need to use this attribute, and the corresponding attribution
   SArray*         exprList;
+  SArray*         colCond;
   SFieldInfo      fieldsInfo;
   STagCond        tagCond;
   SGroupbyExpr    groupInfo;       // group by info
@@ -244,8 +245,9 @@ SCond* tsGetSTableQueryCond(STagCond* pCond, uint64_t uid);
 void   tsSetSTableQueryCond(STagCond* pTagCond, uint64_t uid, SBufferWriter* bw);
 
 int32_t tscTagCondCopy(STagCond* dest, const STagCond* src);
+int32_t tscColCondCopy(SArray** dest, const SArray* src, uint64_t uid, int16_t tidx);
 void tscTagCondRelease(STagCond* pCond);
-
+void tscColCondRelease(SArray** pCond);
 void tscGetSrcColumnInfo(SSrcColumnInfo* pColInfo, SQueryInfo* pQueryInfo);
 
 bool tscShouldBeFreed(SSqlObj* pSql);
@@ -355,6 +357,7 @@ char* strdup_throw(const char* str);
 
 bool vgroupInfoIdentical(SNewVgroupInfo *pExisted, SVgroupMsg* src);
 SNewVgroupInfo createNewVgroupInfo(SVgroupMsg *pVgroupMsg);
+STblCond* tsGetTableFilter(SArray* filters, uint64_t uid, int16_t idx);
 
 void tscRemoveCachedTableMeta(STableMetaInfo* pTableMetaInfo, uint64_t id);
 

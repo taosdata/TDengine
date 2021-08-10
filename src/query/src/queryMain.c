@@ -103,6 +103,12 @@ int32_t qCreateQueryInfo(void* tsdb, int32_t vgId, SQueryTableMsg* pQueryMsg, qi
     }
   }
 
+  if (param.colCond != NULL) {
+    if ((code = createQueryFilter(param.colCond, pQueryMsg->colCondLen, &param.pFilters)) != TSDB_CODE_SUCCESS) {
+      goto _over;
+    }
+  }
+
   param.pGroupbyExpr = createGroupbyExprFromMsg(pQueryMsg, param.pGroupColIndex, &code);
   if ((param.pGroupbyExpr == NULL && pQueryMsg->numOfGroupCols != 0) || code != TSDB_CODE_SUCCESS) {
     goto _over;
@@ -162,13 +168,19 @@ int32_t qCreateQueryInfo(void* tsdb, int32_t vgId, SQueryTableMsg* pQueryMsg, qi
 
   assert(pQueryMsg->stableQuery == isSTableQuery);
   (*pQInfo) = createQInfoImpl(pQueryMsg, param.pGroupbyExpr, param.pExprs, param.pSecExprs, &tableGroupInfo,
-                              param.pTagColumnInfo, vgId, param.sql, qId, param.pUdfInfo);
+                              param.pTagColumnInfo, param.pFilters, vgId, param.sql, qId, param.pUdfInfo);
 
   param.sql    = NULL;
   param.pExprs = NULL;
   param.pSecExprs = NULL;
   param.pGroupbyExpr = NULL;
   param.pTagColumnInfo = NULL;
+  param.pFilters = NULL;
+
+  if ((*pQInfo) == NULL) {
+    code = TSDB_CODE_QRY_OUT_OF_MEMORY;
+    goto _over;
+  }
   param.pUdfInfo = NULL;
 
   code = initQInfo(&pQueryMsg->tsBuf, tsdb, NULL, *pQInfo, &param, (char*)pQueryMsg, pQueryMsg->prevResultLen, NULL);
@@ -178,6 +190,8 @@ int32_t qCreateQueryInfo(void* tsdb, int32_t vgId, SQueryTableMsg* pQueryMsg, qi
     taosArrayDestroy(param.pGroupbyExpr->columnInfo);
   }
 
+  tfree(param.colCond);
+  
   destroyUdfInfo(param.pUdfInfo);
 
   taosArrayDestroy(param.pTableIdList);
@@ -189,6 +203,8 @@ int32_t qCreateQueryInfo(void* tsdb, int32_t vgId, SQueryTableMsg* pQueryMsg, qi
     SColumnInfo* column = pQueryMsg->tableCols + i;
     freeColumnFilterInfo(column->flist.filterInfo, column->flist.numOfFilters);
   }
+
+  filterFreeInfo(param.pFilters);
 
   //pQInfo already freed in initQInfo, but *pQInfo may not pointer to null;
   if (code != TSDB_CODE_SUCCESS) {
