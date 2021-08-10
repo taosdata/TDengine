@@ -328,11 +328,10 @@ static FORCE_INLINE void dataColReset(SDataCol *pDataCol) { pDataCol->len = 0; }
 int tdAllocMemForCol(SDataCol *pCol, int maxPoints);
 
 void dataColInit(SDataCol *pDataCol, STColumn *pCol, int maxPoints);
-void dataColAppendVal(SDataCol *pCol, const void *value, int numOfRows, int maxPoints);
+int dataColAppendVal(SDataCol *pCol, const void *value, int numOfRows, int maxPoints);
 void dataColSetOffset(SDataCol *pCol, int nEle);
 
 bool isNEleNull(SDataCol *pCol, int nEle);
-void dataColSetNEleNull(SDataCol *pCol, int nEle, int maxPoints);
 
 // Get the data pointer from a column-wised data
 static FORCE_INLINE const void *tdGetColDataOfRow(SDataCol *pCol, int row) {
@@ -357,13 +356,11 @@ static FORCE_INLINE int32_t dataColGetNEleLen(SDataCol *pDataCol, int rows) {
 }
 
 typedef struct {
-  int maxRowSize;
-  int maxCols;    // max number of columns
-  int maxPoints;  // max number of points
-
-  int       numOfRows;
-  int       numOfCols;  // Total number of cols
-  int       sversion;   // TODO: set sversion
+  int      maxCols;    // max number of columns
+  int      maxPoints;  // max number of points
+  int      numOfRows;
+  int      numOfCols;  // Total number of cols
+  int      sversion;   // TODO: set sversion
   SDataCol *cols;
 } SDataCols;
 
@@ -407,7 +404,7 @@ static FORCE_INLINE TSKEY dataColsKeyLast(SDataCols *pCols) {
   }
 }
 
-SDataCols *tdNewDataCols(int maxRowSize, int maxCols, int maxRows);
+SDataCols *tdNewDataCols(int maxCols, int maxRows);
 void       tdResetDataCols(SDataCols *pCols);
 int        tdInitDataCols(SDataCols *pCols, STSchema *pSchema);
 SDataCols *tdDupDataCols(SDataCols *pCols, bool keepData);
