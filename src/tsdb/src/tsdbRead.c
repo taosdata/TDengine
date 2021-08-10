@@ -670,7 +670,7 @@ static STableGroupInfo* trimTableGroup(STimeWindow* window, STableGroupInfo* pGr
     SArray* px = taosArrayInit(4, sizeof(STableKeyInfo));
     for (int32_t j = 0; j < numOfTables; ++j) {
       STableKeyInfo* pInfo = (STableKeyInfo*)taosArrayGet(oneGroup, j);
-      if (window->skey <= pInfo->lastKey) {
+      if (window->skey <= pInfo->lastKey && ((STable*)pInfo->pTable)->lastKey != TSKEY_INITIAL_VAL) {
         taosArrayPush(px, pInfo);
         pNew->numOfTables += 1;
         break;
@@ -690,6 +690,18 @@ static STableGroupInfo* trimTableGroup(STimeWindow* window, STableGroupInfo* pGr
 
 TsdbQueryHandleT tsdbQueryRowsInExternalWindow(STsdbRepo *tsdb, STsdbQueryCond* pCond, STableGroupInfo *groupList, uint64_t qId, SMemRef* pRef) {
   STableGroupInfo* pNew = trimTableGroup(&pCond->twindow, groupList);
+
+  if (pNew->numOfTables == 0) {
+    tsdbDebug("update query time range to invalidate time window");
+
+    assert(taosArrayGetSize(pNew->pGroupList) == 0);
+    bool asc = ASCENDING_TRAVERSE(pCond->order);
+    if (asc) {
+      pCond->twindow.ekey = pCond->twindow.skey - 1;
+    } else {
+      pCond->twindow.skey = pCond->twindow.ekey - 1;
+    }
+  }
 
   STsdbQueryHandle *pQueryHandle = (STsdbQueryHandle*) tsdbQueryTables(tsdb, pCond, pNew, qId, pRef);
   pQueryHandle->loadExternalRow = true;
