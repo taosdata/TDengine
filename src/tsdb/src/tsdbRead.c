@@ -39,6 +39,12 @@ enum {
   TSDB_QUERY_TYPE_LAST     = 2,
 };
 
+enum {
+  TSDB_CACHED_TYPE_NONE    = 0,
+  TSDB_CACHED_TYPE_LASTROW = 1,
+  TSDB_CACHED_TYPE_LAST    = 2,
+};
+
 typedef struct SQueryFilePos {
   int32_t fid;
   int32_t slot;
@@ -2751,10 +2757,11 @@ bool tsdbNextDataBlock(TsdbQueryHandleT pHandle) {
   int64_t stime = taosGetTimestampUs();
   int64_t elapsedTime = stime;
 
+  // TODO refactor: remove "type"
   if (pQueryHandle->type == TSDB_QUERY_TYPE_LAST) {
-    if (pQueryHandle->cachelastrow == 1) {
+    if (pQueryHandle->cachelastrow == TSDB_CACHED_TYPE_LASTROW) {
       return loadCachedLastRow(pQueryHandle);
-    } else if (pQueryHandle->cachelastrow == 2) {
+    } else if (pQueryHandle->cachelastrow == TSDB_CACHED_TYPE_LAST) {
       return loadCachedLast(pQueryHandle);
     }
   }
@@ -2960,7 +2967,7 @@ out:
 }
 
 bool isTsdbCacheLastRow(TsdbQueryHandleT* pQueryHandle) {
-  return ((STsdbQueryHandle *)pQueryHandle)->cachelastrow > 0;
+  return ((STsdbQueryHandle *)pQueryHandle)->cachelastrow > TSDB_CACHED_TYPE_NONE;
 }
 
 int32_t checkForCachedLastRow(STsdbQueryHandle* pQueryHandle, STableGroupInfo *groupList) {
@@ -2978,9 +2985,9 @@ int32_t checkForCachedLastRow(STsdbQueryHandle* pQueryHandle, STableGroupInfo *g
   if (((STable*)pInfo->pTable)->lastRow) {
     code = tsdbGetCachedLastRow(pInfo->pTable, NULL, &key);
     if (code != TSDB_CODE_SUCCESS) {
-      pQueryHandle->cachelastrow = 0;
+      pQueryHandle->cachelastrow = TSDB_CACHED_TYPE_NONE;
     } else {
-      pQueryHandle->cachelastrow = 1;
+      pQueryHandle->cachelastrow = TSDB_CACHED_TYPE_LASTROW;
     }
   }
 
@@ -3000,12 +3007,11 @@ int32_t checkForCachedLast(STsdbQueryHandle* pQueryHandle) {
   int32_t code = 0;
   
   if (pQueryHandle->pTsdb && atomic_load_8(&pQueryHandle->pTsdb->hasCachedLastColumn)){
-    pQueryHandle->cachelastrow = 2;
+    pQueryHandle->cachelastrow = TSDB_CACHED_TYPE_LAST;
   }
 
   // update the tsdb query time range
   if (pQueryHandle->cachelastrow) {
-    pQueryHandle->window      = TSWINDOW_INITIALIZER;
     pQueryHandle->checkFiles  = false;
     pQueryHandle->activeIndex = -1;  // start from -1
   }
