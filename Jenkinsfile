@@ -144,8 +144,9 @@ pipeline {
           git checkout -qf FETCH_HEAD
           '''     
           
-          script{           
-            skipbuild=sh(script: "git log -1 --pretty=%B | fgrep -ie '[skip ci]' -e '[ci skip]'|| echo 0", returnStdout:true)
+          script{  
+            skipbuild=1        
+            skipbuild=sh(script: "git log -1 --pretty=%B | fgrep -ie '[skip ci]' -e '[ci skip]' && echo 1 || echo 0", returnStdout:true)
             println skipbuild
           }
           sh'''
@@ -158,7 +159,9 @@ pipeline {
         //only build pr
         when {
               changeRequest()
-              
+              expression{
+                skipbuild == 1
+              }
           }
       parallel {
         stage('python_1_s1') {
