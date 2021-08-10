@@ -110,7 +110,7 @@ int64_t  sdbGetNumOfRows(void *pTable);
 int32_t  sdbGetId(void *pTable);
 uint64_t sdbGetVersion();
 bool     sdbCheckRowDeleted(void *pTable, void *pRow);
-
+void *    sdbGetObjKey(ESdbKey keyType, void *key);
 SWalHead* sdbGetWal(void*, int64_t offset, int32_t size);
 
 int32_t mnodeCompactWal();

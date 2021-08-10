@@ -146,8 +146,8 @@ bool sdbIsServing() {
   return tsSdbMgmt.status == SDB_STATUS_SERVING; 
 }
 
-static void *sdbGetObjKey(SSdbTable *pTable, void *key) {
-  if (pTable->keyType == SDB_KEY_VAR_STRING) {
+void *sdbGetObjKey(ESdbKey keyType, void *key) {
+  if (keyType == SDB_KEY_VAR_STRING) {
     return *(char **)key;
   }
 
@@ -170,7 +170,7 @@ static char *sdbGetKeyStr(SSdbTable *pTable, void *key) {
 }
 
 static char *sdbGetRowStr(SSdbTable *pTable, void *key) {
-  return sdbGetKeyStr(pTable, sdbGetObjKey(pTable, key));
+  return sdbGetKeyStr(pTable, sdbGetObjKey(pTable->keyType, key));
 }
 
 static void *sdbGetTableFromId(int32_t tableId) {
@@ -526,7 +526,7 @@ static void *sdbGetRowMeta(SSdbTable *pTable, void *key) {
 }
 
 static void *sdbGetRowMetaFromObj(SSdbTable *pTable, void *key) {
-  return sdbGetRowMeta(pTable, sdbGetObjKey(pTable, key));
+  return sdbGetRowMeta(pTable, sdbGetObjKey(pTable->keyType, key));
 }
 
 void *sdbGetRow(void *tparam, void *key) {
@@ -539,7 +539,7 @@ void *sdbGetRow(void *tparam, void *key) {
 }
 
 static void *sdbGetRowFromObj(SSdbTable *pTable, void *key) {
-  return sdbGetRow(pTable, sdbGetObjKey(pTable, key));
+  return sdbGetRow(pTable, sdbGetObjKey(pTable->keyType, key));
 }
 
 static int32_t sdbInsertHash(SSdbTable *pTable, SSdbRow *pRow) {
