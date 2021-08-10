@@ -5,7 +5,7 @@ node {
     git url: 'https://github.com/taosdata/TDengine.git'
 }
 
-def skipstage=0
+
 def skipbuild=0
 def abortPreviousBuilds() {
   def currentJobName = env.JOB_NAME
@@ -144,12 +144,10 @@ pipeline {
           git checkout -qf FETCH_HEAD
           '''     
           
-          script{
-            env.skipstage=sh(script:"cd ${WORKSPACE}.tes && git --no-pager diff --name-only FETCH_HEAD ${env.CHANGE_TARGET}|grep -v -E '.*md|//src//connector|Jenkinsfile|test-all.sh' || echo 0 ",returnStdout:true) 
+          script{           
             env.skipbuild=sh(script: "git log -1 --pretty=%B | fgrep -ie '[skip ci]' -e '[ci skip]'|| echo 0", returnStdout:true)
             println env.skipbuild
           }
-          println env.skipstage
           sh'''
           rm -rf ${WORKSPACE}.tes
           '''
@@ -161,9 +159,7 @@ pipeline {
         when {
               changeRequest()
                expression {
-                    env.skipstage != 0
                     env.skipbuild == 1
-
               }
           }
       parallel {
