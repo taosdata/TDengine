@@ -150,7 +150,6 @@ steps:
     branch:
     - develop
     - master
-    - 2.0
 ---
 kind: pipeline
 name: build_trusty
@@ -177,7 +176,6 @@ steps:
     branch:
     - develop
     - master
-    - 2.0
 ---
 kind: pipeline
 name: build_xenial
@@ -203,7 +201,6 @@ steps:
     branch:
     - develop
     - master
-    - 2.0
 
 ---
 kind: pipeline
@@ -229,7 +226,6 @@ steps:
     branch:
     - develop
     - master
-    - 2.0
 ---
 kind: pipeline
 name: build_centos7
@@ -253,4 +249,4 @@ steps:
     branch:
     - develop
     - master
-    - 2.0
+
