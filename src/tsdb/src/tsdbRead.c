@@ -670,7 +670,7 @@ static STableGroupInfo* trimTableGroup(STimeWindow* window, STableGroupInfo* pGr
     SArray* px = taosArrayInit(4, sizeof(STableKeyInfo));
     for (int32_t j = 0; j < numOfTables; ++j) {
       STableKeyInfo* pInfo = (STableKeyInfo*)taosArrayGet(oneGroup, j);
-      if (window->skey <= pInfo->lastKey && ((STable*)pInfo->pTable)->lastKey != TSKEY_INITIAL_VAL) {
+      if (window->skey <= pInfo->lastKey) {
         taosArrayPush(px, pInfo);
         pNew->numOfTables += 1;
         break;
