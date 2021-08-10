@@ -145,8 +145,8 @@ pipeline {
           '''     
           
           script{  
-            skipbuild=0      
-            skipbuild=sh(script: "git log -1 --pretty=%B | fgrep -ie '[skip ci]' -e '[ci skip]' && echo 1 || echo 0", returnStdout:true)
+            skipbuild=2     
+            skipbuild=sh(script: "git log -1 --pretty=%B | fgrep -ie '[skip ci]' -e '[ci skip]' && echo 1 || echo 2", returnStdout:true)
             sh'''
             git log -1 --pretty=%B || echo aaa
             git log -1 --pretty=%B | fgrep -ie '[skip ci]' -e '[ci skip]' || echo bbb
@@ -165,7 +165,7 @@ pipeline {
           allOf {
               changeRequest()
               expression{
-                return skipbuild == 0
+                return skipbuild == 2
               }
            }
           }
