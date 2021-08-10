@@ -162,10 +162,12 @@ pipeline {
       stage('Parallel test stage') {
         //only build pr
         when {
+          allOf {
               changeRequest()
               expression{
                 return skipbuild == 0
               }
+           }
           }
       parallel {
         stage('python_1_s1') {
