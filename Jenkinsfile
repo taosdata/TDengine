@@ -4,7 +4,9 @@ properties([pipelineTriggers([githubPush()])])
 node {
     git url: 'https://github.com/taosdata/TDengine.git'
 }
+
 def skipbuild=0
+
 def abortPreviousBuilds() {
   def currentJobName = env.JOB_NAME
   def currentBuildNumber = env.BUILD_NUMBER.toInteger()
@@ -146,6 +148,7 @@ pipeline {
             skipbuild='2'     
             skipbuild=sh(script: "git log -2 --pretty=%B | fgrep -ie '[skip ci]' -e '[ci skip]' && echo 1 || echo 2", returnStdout:true)
             println skipbuild
+
           }
           sh'''
           rm -rf ${WORKSPACE}.tes
@@ -160,6 +163,7 @@ pipeline {
               changeRequest()
               expression{
                 return skipbuild.trim() == '2'
+
               }
            }
           }

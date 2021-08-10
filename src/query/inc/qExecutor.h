@@ -252,8 +252,10 @@ typedef struct SQueryAttr {
   int32_t          numOfFilterCols;
   int64_t*         fillVal;
   SOrderedPrjQueryInfo prjInfo;        // limit value for each vgroup, only available in global order projection query.
-  SSingleColumnFilterInfo* pFilterInfo;
 
+  SSingleColumnFilterInfo* pFilterInfo;
+  SFilterInfo     *pFilters;
+  
   void*            tsdb;
   SMemRef          memRef;
   STableGroupInfo  tableGroupInfo;       // table <tid, last_key> list  SArray<STableKeyInfo>
@@ -382,6 +384,7 @@ typedef struct SQInfo {
 typedef struct SQueryParam {
   char            *sql;
   char            *tagCond;
+  char            *colCond;
   char            *tbnameCond;
   char            *prevResult;
   SArray          *pTableIdList;
@@ -389,6 +392,8 @@ typedef struct SQueryParam {
   SSqlExpr       **pSecExpr;
   SExprInfo       *pExprs;
   SExprInfo       *pSecExprs;
+
+  SFilterInfo     *pFilters;
 
   SColIndex       *pGroupColIndex;
   SColumnInfo     *pTagColumnInfo;
@@ -573,6 +578,7 @@ SSDataBlock* doSLimit(void* param, bool* newgroup);
 
 int32_t doCreateFilterInfo(SColumnInfo* pCols, int32_t numOfCols, int32_t numOfFilterCols, SSingleColumnFilterInfo** pFilterInfo, uint64_t qId);
 void doSetFilterColumnInfo(SSingleColumnFilterInfo* pFilterInfo, int32_t numOfFilterCols, SSDataBlock* pBlock);
+void doSetFilterColInfo(SFilterInfo     *pFilters, SSDataBlock* pBlock);
 bool doFilterDataBlock(SSingleColumnFilterInfo* pFilterInfo, int32_t numOfFilterCols, int32_t numOfRows, int8_t* p);
 void doCompactSDataBlock(SSDataBlock* pBlock, int32_t numOfRows, int8_t* p);
 
@@ -594,9 +600,11 @@ int32_t createQueryFunc(SQueriedTableInfo* pTableInfo, int32_t numOfOutput, SExp
 int32_t createIndirectQueryFuncExprFromMsg(SQueryTableMsg *pQueryMsg, int32_t numOfOutput, SExprInfo **pExprInfo,
                                            SSqlExpr **pExpr, SExprInfo *prevExpr, SUdfInfo *pUdfInfo);
 
+int32_t createQueryFilter(char *data, uint16_t len, SFilterInfo** pFilters);
+
 SGroupbyExpr *createGroupbyExprFromMsg(SQueryTableMsg *pQueryMsg, SColIndex *pColIndex, int32_t *code);
 SQInfo *createQInfoImpl(SQueryTableMsg *pQueryMsg, SGroupbyExpr *pGroupbyExpr, SExprInfo *pExprs,
-                        SExprInfo *pSecExprs, STableGroupInfo *pTableGroupInfo, SColumnInfo* pTagCols, int32_t vgId, char* sql, uint64_t qId, SUdfInfo* pUdfInfo);
+                        SExprInfo *pSecExprs, STableGroupInfo *pTableGroupInfo, SColumnInfo* pTagCols, SFilterInfo* pFilters, int32_t vgId, char* sql, uint64_t qId, SUdfInfo* pUdfInfo);
 
 int32_t initQInfo(STsBufInfo* pTsBufInfo, void* tsdb, void* sourceOptr, SQInfo* pQInfo, SQueryParam* param, char* start,
                   int32_t prevResultLen, void* merger);
