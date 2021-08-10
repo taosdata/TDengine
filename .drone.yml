@@ -23,6 +23,7 @@ steps:
     branch:
     - develop
     - master
+    - 2.0
 ---
 kind: pipeline
 name: test_arm64_bionic
