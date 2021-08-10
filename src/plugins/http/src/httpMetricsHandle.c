@@ -31,9 +31,21 @@ bool metricsProcessRequest(HttpContext* pContext) {
 
   httpJsonToken(jsonBuf, JsonObjStt);
   {
+    char* keyDisks = "tags";
+    httpJsonPairHead(jsonBuf, keyDisks, (int32_t)strlen(keyDisks));
+    httpJsonToken(jsonBuf, JsonArrStt);
+    {
+      httpJsonItemToken(jsonBuf);
+      httpJsonToken(jsonBuf, JsonObjStt);
+      char* keyTagName = "name";
+      char* keyTagValue = "value";
+      httpJsonPairOriginString(jsonBuf, keyTagName, (int32_t)strlen(keyTagName), "dnode_id",
+                               (int32_t)strlen("dnode_id"));
       int32_t dnodeId = dnodeGetDnodeId();
-      char* keyDnodeId = "dnode_id";
-      httpJsonPairIntVal(jsonBuf, keyDnodeId, (int32_t)strlen(keyDnodeId), dnodeId);
+      httpJsonPairIntVal(jsonBuf, keyTagValue, (int32_t)strlen(keyTagValue), dnodeId);
+      httpJsonToken(jsonBuf, JsonObjEnd);
+    }
+    httpJsonToken(jsonBuf, JsonArrEnd);
   }
 
   {
