@@ -145,8 +145,12 @@ pipeline {
           '''     
           
           script{  
-            skipbuild=1        
+            skipbuild=0      
             skipbuild=sh(script: "git log -1 --pretty=%B | fgrep -ie '[skip ci]' -e '[ci skip]' && echo 1 || echo 0", returnStdout:true)
+            sh'''
+            git log -1 --pretty=%B
+            git log -1 --pretty=%B | fgrep -ie '[skip ci]' -e '[ci skip]
+            ''''
             println skipbuild
           }
           sh'''
@@ -160,11 +164,12 @@ pipeline {
         when {
               changeRequest()
               expression{
-                skipbuild == 1
+                skipbuild == 0
               }
           }
       parallel {
         stage('python_1_s1') {
+          agent any
           steps {
             println skipbuild
             pre_test()
@@ -179,6 +184,7 @@ pipeline {
           }
         }
         stage('python_2_s5') {
+          agent any
           steps {
             
             pre_test()
@@ -192,6 +198,7 @@ pipeline {
           }
         }
         stage('python_3_s6') {
+          agent any
           steps {     
             timeout(time: 45, unit: 'MINUTES'){       
               pre_test()
@@ -204,6 +211,7 @@ pipeline {
           }
         }
         stage('test_b1_s2') {
+          agent any
           steps {     
             timeout(time: 45, unit: 'MINUTES'){       
               pre_test()
@@ -216,6 +224,7 @@ pipeline {
         }
 
         stage('test_crash_gen_s3') {
+          agent any
           steps {
             pre_test()
             catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
@@ -253,6 +262,7 @@ pipeline {
         }
 
         stage('test_valgrind_s4') {
+          agent any
           steps {
             pre_test()
             catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
@@ -277,6 +287,7 @@ pipeline {
           }
         }
         stage('test_b4_s7') {
+          agent any
           steps {     
             timeout(time: 45, unit: 'MINUTES'){       
               pre_test()
@@ -295,6 +306,7 @@ pipeline {
           }
         }
         stage('test_b5_s8') {
+          agent any
           steps {     
             timeout(time: 45, unit: 'MINUTES'){       
               pre_test()
@@ -307,6 +319,7 @@ pipeline {
           }
         }
         stage('test_b6_s9') {
+          agent any
           steps {     
             timeout(time: 45, unit: 'MINUTES'){       
               pre_test()
@@ -319,6 +332,7 @@ pipeline {
           }
         }
         stage('test_b7_s10') {
+          agent any
           steps {     
             timeout(time: 45, unit: 'MINUTES'){       
               pre_test()
