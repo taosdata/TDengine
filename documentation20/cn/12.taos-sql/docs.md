@@ -1215,6 +1215,37 @@ TDengine支持针对数据的聚合查询。提供支持的聚合和选择函数
     Query OK, 1 row(s) in set (0.001042s)
     ```
 
+- **INTERP**
+    ```mysql
+    SELECT INTERP(field_name) FROM { tb_name | stb_name } WHERE ts='timestamp' [FILL ({ VALUE | PREV | NULL | LINEAR})];
+    ```
+    功能说明：返回表/超级表的指定时间截面、指定字段的记录。
+
+    返回结果数据类型：同应用的字段。
+
+    应用字段：所有字段。
+
+    适用于：**表、超级表**。
+
+    说明：（从 2.0.15.0 版本开始新增此函数）INTERP 必须指定时间断面，如果该时间断面不存在直接对应的数据，那么会根据 FILL 参数的设定进行插值。其中，条件语句里面可以附带更多的筛选条件，例如标签、tbname。
+
+    限制：INTERP 目前不支持 FILL(NEXT)。
+
+    示例：
+    ```mysql
+    taos> select interp(*) from meters where ts='2017-7-14 10:42:00.005' fill(prev);
+           interp(ts)        | interp(f1)  | interp(f2)  | interp(f3)  |
+    ====================================================================
+     2017-07-14 10:42:00.005 |           5 |           9 |           6 |
+    Query OK, 1 row(s) in set (0.002912s)
+    
+    taos> select interp(*) from meters where tbname in ('t1') and ts='2017-7-14 10:42:00.005' fill(prev);
+           interp(ts)        | interp(f1)  | interp(f2)  | interp(f3)  |
+    ====================================================================
+     2017-07-14 10:42:00.005 |           5 |           6 |           7 |
+    Query OK, 1 row(s) in set (0.002005s)
+    ```
+
 ### 计算函数
 
 - **DIFF**
