@@ -14,6 +14,8 @@
  *****************************************************************************/
 package com.taosdata.jdbc;
 
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.sql.*;
 import java.util.*;
 import java.util.logging.Logger;
@@ -126,6 +128,11 @@ public class TSDBDriver extends AbstractDriver {
         if (props == null) {
             return null;
         }
+
+        if (!props.containsKey(TSDBDriver.PROPERTY_KEY_USER))
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_USER_IS_REQUIRED);
+        if (!props.containsKey(TSDBDriver.PROPERTY_KEY_PASSWORD))
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_PASSWORD_IS_REQUIRED);
 
         try {
             TSDBJNIConnector.init((String) props.get(PROPERTY_KEY_CONFIG_DIR), (String) props.get(PROPERTY_KEY_LOCALE),

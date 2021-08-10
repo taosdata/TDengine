@@ -29,6 +29,8 @@ public class BatchInsertTest {
     public void before() {
         try {
             Properties properties = new Properties();
+            properties.setProperty(TSDBDriver.PROPERTY_KEY_USER, "root");
+            properties.setProperty(TSDBDriver.PROPERTY_KEY_PASSWORD, "taosdata");
             properties.setProperty(TSDBDriver.PROPERTY_KEY_CHARSET, "UTF-8");
             properties.setProperty(TSDBDriver.PROPERTY_KEY_LOCALE, "en_US.UTF-8");
             properties.setProperty(TSDBDriver.PROPERTY_KEY_TIME_ZONE, "UTC-8");
