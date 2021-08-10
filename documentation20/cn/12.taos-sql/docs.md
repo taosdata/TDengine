@@ -435,6 +435,17 @@ INSERT INTO
     INSERT INTO d1001 FILE '/tmp/csvfile.csv';
     ```
 
+- **插入来自文件的数据记录，并自动建表**  
+    从 2.1.5.0 版本开始，支持在插入来自 CSV 文件的数据时，以超级表为模板来自动创建不存在的数据表。例如：  
+    ```mysql
+    INSERT INTO d21001 USING meters TAGS ('Beijing.Chaoyang', 2) FILE '/tmp/csvfile.csv';
+    ```
+    也可以在一条语句中向多个表以自动建表的方式插入记录。例如：  
+    ```mysql
+    INSERT INTO d21001 USING meters TAGS ('Beijing.Chaoyang', 2) FILE '/tmp/csvfile_21001.csv'
+                d21002 USING meters (groupId) TAGS (2) FILE '/tmp/csvfile_21002.csv';
+    ```
+
 **历史记录写入**：可使用IMPORT或者INSERT命令，IMPORT的语法，功能与INSERT完全一样。
 
 **说明：**针对 insert 类型的 SQL 语句，我们采用的流式解析策略，在发现后面的错误之前，前面正确的部分 SQL 仍会执行。下面的 SQL 中，INSERT 语句是无效的，但是 d1001 仍会被创建。
