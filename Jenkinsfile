@@ -179,7 +179,7 @@ pipeline {
           }
       parallel {
         stage('python_1_s1') {
-          agent any
+          agent {label 'tt'}
           steps {
             
             pre_test()
@@ -194,7 +194,7 @@ pipeline {
           }
         }
         stage('python_2_s5') {
-          agent any
+          agent {label 'tt'}
           steps {
             
             pre_test()
@@ -208,7 +208,7 @@ pipeline {
           }
         }
         stage('python_3_s6') {
-          agent any
+          agent {label 'tt'}
           steps {     
             timeout(time: 45, unit: 'MINUTES'){       
               pre_test()
@@ -221,7 +221,7 @@ pipeline {
           }
         }
         stage('test_b1_s2') {
-          agent any
+          agent {label 'tt'}
           steps {     
             timeout(time: 45, unit: 'MINUTES'){       
               pre_test()
@@ -234,7 +234,7 @@ pipeline {
         }
 
         stage('test_crash_gen_s3') {
-          agent any
+          agent {label 'tt'}
           
           steps {
             pre_test()
@@ -273,7 +273,7 @@ pipeline {
         }
 
         stage('test_valgrind_s4') {
-          agent any
+          agent {label 'tt'}
 
           steps {
             pre_test()
@@ -299,7 +299,7 @@ pipeline {
           }
         }
         stage('test_b4_s7') {
-          agent any
+          agent {label 'tt'}
           steps {     
             timeout(time: 45, unit: 'MINUTES'){       
               pre_test()
@@ -318,7 +318,7 @@ pipeline {
           }
         }
         stage('test_b5_s8') {
-          agent any
+          agent {label 'tt'}
           steps {     
             timeout(time: 45, unit: 'MINUTES'){       
               pre_test()
@@ -331,7 +331,7 @@ pipeline {
           }
         }
         stage('test_b6_s9') {
-          agent any
+          agent {label 'tt'}
           steps {     
             timeout(time: 45, unit: 'MINUTES'){       
               pre_test()
@@ -344,7 +344,7 @@ pipeline {
           }
         }
         stage('test_b7_s10') {
-          agent any
+          agent {label 'tt'}
           steps {     
             timeout(time: 45, unit: 'MINUTES'){       
               pre_test()
