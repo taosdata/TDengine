@@ -6,7 +6,7 @@ node {
 }
 
 def skipstage=0
-def skipbuild=0
+
 def abortPreviousBuilds() {
   def currentJobName = env.JOB_NAME
   def currentBuildNumber = env.BUILD_NUMBER.toInteger()
@@ -125,7 +125,6 @@ pipeline {
           agent{label 'master'}
           when {
               changeRequest()
-              
           }
           steps {
             script{
@@ -159,8 +158,6 @@ pipeline {
           
           script{
             env.skipstage=sh(script:"cd ${WORKSPACE}.tes && git --no-pager diff --name-only FETCH_HEAD ${env.CHANGE_TARGET}|grep -v -E '.*md|//src//connector|Jenkinsfile|test-all.sh' || echo 0 ",returnStdout:true) 
-            env.skipbuild=sh(script: "git log -1 --pretty=%B | fgrep -ie '[skip ci]' -e '[ci skip]'", returnStatus: true)
-
           }
           println env.skipstage
           sh'''
@@ -175,7 +172,6 @@ pipeline {
               changeRequest()
                expression {
                     env.skipstage != 0
-                    env.skipbuild ==1
               }
           }
       parallel {
