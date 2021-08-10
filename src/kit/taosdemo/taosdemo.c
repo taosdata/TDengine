@@ -75,6 +75,7 @@ extern char configDir[];
 #define BUFFER_SIZE         TSDB_MAX_ALLOWED_SQL_LEN
 #define COND_BUF_LEN        (BUFFER_SIZE - 30)
 #define COL_BUFFER_LEN      ((TSDB_COL_NAME_LEN + 15) * TSDB_MAX_COLUMNS)
+
 #define MAX_USERNAME_SIZE  64
 #define MAX_PASSWORD_SIZE  16
 #define MAX_HOSTNAME_SIZE  253      // https://man7.org/linux/man-pages/man7/hostname.7.html
@@ -1412,6 +1413,7 @@ static char *rand_float_str()
     if (cursor > (MAX_PREPARED_RAND - 1)) cursor = 0;
     return g_randfloat_buff + (cursor * FLOAT_BUFF_LEN);
 }
+
 
 static float rand_float()
 {

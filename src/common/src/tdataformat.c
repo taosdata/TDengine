@@ -517,6 +517,7 @@ void tdAppendMemRowToDataCol(SMemRow row, STSchema *pSchema, SDataCols *pCols, b
   }
 }
 
+//TODO: refactor this fuction make eliminate aditional memory copy
 int tdMergeDataCols(SDataCols *target, SDataCols *source, int rowsToMerge, int *pOffset, bool forceSetNull) {
   ASSERT(rowsToMerge > 0 && rowsToMerge <= source->numOfRows);
   ASSERT(target->numOfCols == source->numOfCols);

@@ -133,7 +133,6 @@ class taosdemoPerformace:
         if (buildPath == ""):
             print("taosdemo not found!")
             sys.exit(1)
-            
         binPath = buildPath + "/build/bin/"
 
         os.system(
