@@ -100,13 +100,16 @@ void* cacheGet(cacheTable* pTable, const void* key, uint8_t nkey, int* nbytes) {
   if (pItem) {
     itemIncrRef(pItem);
     uint64_t now = taosGetTimestamp(TSDB_TIME_PRECISION_MILLI);
+    #if 0
     if (cacheItemIsExpired(pItem, now)) { /* is item expired? */
       /* cacheItemUnlink make ref == 1 */
       cacheItemUnlink(pTable, pItem, CACHE_LOCK_LRU);
       /* cacheItemRemove make ref == 0 then free item */
       cacheItemRemove(pTable->pCache, pItem);
       pItem = NULL;
-    } else if (cacheItemIsNeverExpired(pItem)) {      
+    } else
+    #endif
+    if (cacheItemIsNeverExpired(pItem)) {      
       /* never expired item refCount == 1 */
       assert(itemRef(pItem) == 2);
       pItem->lastTime = now;    

@@ -70,6 +70,8 @@ typedef struct {
   int32_t   hashSessions;
   int32_t   maxRowSize;
   int32_t   refCountPos;
+  int32_t   cacheDataLen;
+  int       (*afterLoadFp)(void*,void* value, int32_t nBytes, void* pRet);
   ESdbTable id;
   ESdbKey   keyType;
   mnodeSdbTableType tableType;

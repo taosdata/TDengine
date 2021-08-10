@@ -98,6 +98,8 @@ static int32_t mnodeChangeSuperTableColumn(SMnodeMsg *pMsg);
 static int32_t mnodeChangeSuperTableTag(SMnodeMsg *pMsg);
 static int32_t mnodeChangeNormalTableColumn(SMnodeMsg *pMsg);
 
+static int mnodeAfterLoadCTable(void* userData,void* value, int32_t nBytes, void* pRet);
+
 static void mnodeDestroyChildTable(SCTableObj *pTable) {
   tfree(pTable->info.tableId);
   tfree(pTable->schema);
@@ -388,6 +390,45 @@ static int32_t mnodeChildTableActionRestored() {
   return 0;
 }
 
+static int mnodeAfterLoadCTable(void* userData,void* value, int32_t nBytes, void* pRet) {
+  SCTableObj* pTable = (SCTableObj*)pRet;
+
+  SSdbRow row = {.rowSize = nBytes, .rowData = value, .pTable = userData};
+  
+  int32_t len = (int32_t)strlen(row.rowData);
+  if (len >= TSDB_TABLE_FNAME_LEN) {
+    return TSDB_CODE_MND_INVALID_TABLE_ID;
+  }
+  pTable->info.tableId = strdup(row.rowData);
+  len++;
+
+  memcpy((char *)pTable + sizeof(char *), (char *)row.rowData + len, tsChildTableUpdateSize);
+  len += tsChildTableUpdateSize;
+
+  if (pTable->info.type != TSDB_CHILD_TABLE) {
+    int32_t schemaSize = pTable->numOfColumns * sizeof(SSchema);
+    pTable->schema = (SSchema *)malloc(schemaSize);
+    if (pTable->schema == NULL) {
+      mnodeDestroyChildTable(pTable);
+      return TSDB_CODE_MND_INVALID_TABLE_TYPE;
+    }
+    memcpy(pTable->schema, (char *)row.rowData + len, schemaSize);
+    len += schemaSize;
+
+    if (pTable->sqlLen != 0) {
+      pTable->sql = malloc(pTable->sqlLen);
+      if (pTable->sql == NULL) {
+        mnodeDestroyChildTable(pTable);
+        return TSDB_CODE_MND_OUT_OF_MEMORY;
+      }
+      memcpy(pTable->sql, (char *)row.rowData + len, pTable->sqlLen);
+    }
+  }
+
+  pTable->superTable = mnodeGetSuperTableByUid(pTable->suid);
+  return 0;
+}
+
 static int32_t mnodeInitChildTables() {
   SCTableObj tObj;
   tsChildTableUpdateSize = (int32_t)((int8_t *)tObj.updateEnd - (int8_t *)&tObj.info.type);
@@ -398,6 +439,8 @@ static int32_t mnodeInitChildTables() {
     .hashSessions = TSDB_DEFAULT_CTABLES_HASH_SIZE,
     .maxRowSize   = sizeof(SCTableObj) + sizeof(SSchema) * (TSDB_MAX_TAGS + TSDB_MAX_COLUMNS + 16) + TSDB_TABLE_FNAME_LEN + TSDB_CQ_SQL_SIZE,
     .refCountPos  = (int32_t)((int8_t *)(&tObj.refCount) - (int8_t *)&tObj),
+    .cacheDataLen = sizeof(SCTableObj),
+    .afterLoadFp  = mnodeAfterLoadCTable,
     .keyType      = SDB_KEY_VAR_STRING,
     .tableType    = SDB_TABLE_HASH_TABLE,
     .fpInsert     = mnodeChildTableActionInsert,
@@ -606,6 +649,7 @@ static int32_t mnodeInitSuperTables() {
     .hashSessions = TSDB_DEFAULT_STABLES_HASH_SIZE,
     .maxRowSize   = sizeof(SSTableObj) + sizeof(SSchema) * (TSDB_MAX_TAGS + TSDB_MAX_COLUMNS + 16) + TSDB_TABLE_FNAME_LEN,
     .refCountPos  = (int32_t)((int8_t *)(&tObj.refCount) - (int8_t *)&tObj),
+    .cacheDataLen = sizeof(SSTableObj),
     .keyType      = SDB_KEY_VAR_STRING,
     .tableType    = SDB_TABLE_HASH_TABLE,
     .fpInsert     = mnodeSuperTableActionInsert,

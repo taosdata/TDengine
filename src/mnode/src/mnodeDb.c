@@ -180,6 +180,7 @@ int32_t mnodeInitDbs() {
     .hashSessions = TSDB_DEFAULT_DBS_HASH_SIZE,
     .maxRowSize   = tsDbUpdateSize,
     .refCountPos  = (int32_t)((int8_t *)(&tObj.refCount) - (int8_t *)&tObj),
+    .cacheDataLen = sizeof(SDbObj),
     .keyType      = SDB_KEY_STRING,
     .tableType    = SDB_TABLE_HASH_TABLE,
     .fpInsert     = mnodeDbActionInsert,

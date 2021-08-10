@@ -145,6 +145,7 @@ int32_t mnodeInitMnodes() {
     .hashSessions = TSDB_DEFAULT_MNODES_HASH_SIZE,
     .maxRowSize   = tsMnodeUpdateSize,
     .refCountPos  = (int32_t)((int8_t *)(&tObj.refCount) - (int8_t *)&tObj),
+    .cacheDataLen = sizeof(SMnodeObj),
     .keyType      = SDB_KEY_INT,
     .tableType    = SDB_TABLE_HASH_TABLE,
     .fpInsert     = mnodeMnodeActionInsert,

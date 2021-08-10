@@ -17,8 +17,8 @@
 #define TDENGINE_MNODE_SDB_TABLE_H
 
 typedef enum mnodeSdbTableType {
-  SDB_TABLE_HASH_TABLE,
-  SDB_TABLE_LRU_CACHE,
+  SDB_TABLE_HASH_TABLE  = 0,
+  SDB_TABLE_CACHE_TABLE   = 1,
 } mnodeSdbTableType;
 
 struct mnodeSdbTable;
@@ -28,10 +28,17 @@ struct SWalHead;
 struct SSdbRow;
 
 typedef struct mnodeSdbTableOption {
-  int32_t   hashSessions;
-  int       keyType;
+  int32_t           hashSessions;
+  int               keyType;  
   mnodeSdbTableType tableType;
-  void* userData;
+  void*             userData;
+
+  /* only used in SDB_TABLE_CACHE_TABLE */
+  int       (*afterLoadFp)(void*,void* value, int32_t nBytes, void* pRet);
+  //int (*delFp)(void*, const void* key, uint8_t nkey);
+
+  int32_t           cacheDataLen; /* only used in SDB_TABLE_CACHE_TABLE */
+  int32_t           expireTime; /* item expire time,only used in SDB_TABLE_CACHE_TABLE */
 } mnodeSdbTableOption ;
 
 mnodeSdbTable* mnodeSdbTableInit(mnodeSdbTableOption);
@@ -40,7 +47,7 @@ void mnodeSdbTableClear(mnodeSdbTable *pTable);
 void *mnodeSdbTableGet(mnodeSdbTable *pTable, const void *key, size_t keyLen);
 void mnodeSdbTablePut(mnodeSdbTable *pTable, struct SSdbRow* pRow);
 
-void mnodeSdbTableSyncWalPos(mnodeSdbTable *pTable, void*, int64_t off);
+void mnodeSdbTableSyncWal(mnodeSdbTable *pTable, void*, void*, int64_t off);
 
 void mnodeSdbTableRemove(mnodeSdbTable *pTable, const struct SSdbRow* pRow);
 

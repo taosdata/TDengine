@@ -117,6 +117,7 @@ int32_t mnodeInitFuncs() {
     .hashSessions = TSDB_DEFAULT_USERS_HASH_SIZE,
     .maxRowSize   = tsFuncUpdateSize,
     .refCountPos  = (int32_t)((int8_t *)(&tObj.refCount) - (int8_t *)&tObj),
+    .cacheDataLen = sizeof(SFuncObj),
     .keyType      = SDB_KEY_STRING,
     .tableType    = SDB_TABLE_HASH_TABLE,
     .fpInsert     = mnodeFuncActionInsert,

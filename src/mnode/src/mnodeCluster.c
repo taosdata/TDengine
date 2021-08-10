@@ -92,6 +92,7 @@ int32_t mnodeInitCluster() {
     .hashSessions = TSDB_DEFAULT_CLUSTER_HASH_SIZE,
     .maxRowSize   = tsClusterUpdateSize,
     .refCountPos  = (int32_t)((int8_t *)(&tObj.refCount) - (int8_t *)&tObj),
+    .cacheDataLen = sizeof(SClusterObj),
     .keyType      = SDB_KEY_STRING,
     .tableType    = SDB_TABLE_HASH_TABLE,
     .fpInsert     = mnodeClusterActionInsert,

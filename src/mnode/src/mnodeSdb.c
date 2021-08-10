@@ -683,7 +683,9 @@ static int32_t sdbProcessWrite(void *wparam, void *hparam, int32_t qtype, void *
   }
 
   if (action == SDB_ACTION_INSERT || action == SDB_ACTION_UPDATE) {
-    mnodeSdbTableSyncWalPos(pTable->iHandle, pHead, tsSdbMgmt.offset);
+    SSdbRow row = {.rowSize = pHead->len, .rowData = pHead->cont, .pTable = pTable};
+    (*pTable->fpDecode)(&row);
+    mnodeSdbTableSyncWal(pTable->iHandle, pHead, &row, tsSdbMgmt.offset);
   }
 
   tsSdbMgmt.offset += pHead->len + sizeof(SWalHead);
@@ -899,6 +901,8 @@ int64_t sdbOpenTable(SSdbTableDesc *pDesc) {
     .hashSessions = pTable->hashSessions,
     .keyType      = pTable->keyType,
     .tableType    = pDesc->tableType,
+    .cacheDataLen = pDesc->cacheDataLen,
+    .userData     = pTable,
   };
   pTable->iHandle = mnodeSdbTableInit(options);
 

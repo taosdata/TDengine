@@ -156,6 +156,7 @@ int32_t mnodeInitUsers() {
     .hashSessions = TSDB_DEFAULT_USERS_HASH_SIZE,
     .maxRowSize   = tsUserUpdateSize,
     .refCountPos  = (int32_t)((int8_t *)(&tObj.refCount) - (int8_t *)&tObj),
+    .cacheDataLen = sizeof(SUserObj),
     .keyType      = SDB_KEY_STRING,
     .tableType    = SDB_TABLE_HASH_TABLE,
     .fpInsert     = mnodeUserActionInsert,

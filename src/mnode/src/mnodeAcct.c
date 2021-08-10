@@ -105,6 +105,7 @@ int32_t mnodeInitAccts() {
     .hashSessions = TSDB_DEFAULT_ACCOUNTS_HASH_SIZE,
     .maxRowSize   = tsAcctUpdateSize,
     .refCountPos  = (int32_t)((int8_t *)(&tObj.refCount) - (int8_t *)&tObj),
+    .cacheDataLen = sizeof(SAcctObj),
     .keyType      = SDB_KEY_STRING,
     .tableType    = SDB_TABLE_HASH_TABLE,
     .fpInsert     = mnodeAcctActionInsert,

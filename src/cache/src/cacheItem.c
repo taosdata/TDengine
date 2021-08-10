@@ -86,6 +86,8 @@ void cacheItemRemove(cache_t* pCache, cacheItem* pItem) {
 }
 
 void cacheItemBump(cacheTable* pTable, cacheItem* pItem, uint64_t now) {
+  pItem->lastTime = now;
+
   if (item_is_active(pItem)) {
     /* already is active item, return */
     return;
@@ -100,8 +102,7 @@ void cacheItemBump(cacheTable* pTable, cacheItem* pItem, uint64_t now) {
   /* already mark as fetched, mark it as active */
   item_set_actived(pItem);
 
-  if (item_slablru_id(pItem) != CACHE_LRU_COLD) {
-    pItem->lastTime = now;
+  if (item_slablru_id(pItem) != CACHE_LRU_COLD) {    
     return;
   }
 
