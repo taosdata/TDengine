@@ -444,6 +444,7 @@ typedef struct SQueryMetaInfo_S {
 typedef struct SThreadInfo_S {
     TAOS *    taos;
     TAOS_STMT *stmt;
+    int64_t     *bind_ts;
     int       threadID;
     char      db_name[TSDB_DB_NAME_LEN];
     uint32_t  time_precision;
@@ -5065,10 +5066,15 @@ static void postFreeResource() {
             }
 #if STMT_IFACE_ENABLED == 1
             if (g_Dbs.db[i].superTbls[j].sampleBindArray) {
-                for (int c = 0; c < MAX_SAMPLES_ONCE_FROM_FILE; c++) {
+                for (int k = 0; k < MAX_SAMPLES_ONCE_FROM_FILE; k++) {
                     uintptr_t *tmp = (uintptr_t *)(*(uintptr_t *)(
                                 g_Dbs.db[i].superTbls[j].sampleBindArray
-                                + sizeof(uintptr_t *) * c));
+                                + sizeof(uintptr_t *) * k));
+                    for (int c = 1; c < g_Dbs.db[i].superTbls[j].columnCount + 1; c++) {
+                        TAOS_BIND *bind = (TAOS_BIND *)((char *)tmp + (sizeof(TAOS_BIND) * c));
+                        if (bind)
+                            tmfree(bind->buffer);
+                    }
                     tmfree((char *)tmp);
                 }
             }
@@ -5741,8 +5747,9 @@ static int64_t generateInterlaceDataWithoutStb(
 }
 
 #if STMT_IFACE_ENABLED == 1
-static int32_t prepareStmtBindArrayByType(TAOS_BIND *bind,
-        char *dataType, int32_t dataLen, char **ptr,
+static int32_t prepareStmtBindArrayByType(
+        TAOS_BIND *bind,
+        char *dataType, int32_t dataLen,
         int32_t timePrec,
         char *value)
 {
@@ -5753,13 +5760,15 @@ static int32_t prepareStmtBindArrayByType(TAOS_BIND *bind,
                     (uint32_t)TSDB_MAX_BINARY_LEN);
             return -1;
         }
-        char *bind_binary = (char *)*ptr;
+        char *bind_binary;
 
         bind->buffer_type = TSDB_DATA_TYPE_BINARY;
         if (value) {
+            bind_binary = calloc(1, strlen(value) + 1);
             strncpy(bind_binary, value, strlen(value));
             bind->buffer_length = strlen(bind_binary);
         } else {
+            bind_binary = calloc(1, dataLen + 1);
             rand_string(bind_binary, dataLen);
             bind->buffer_length = dataLen;
         }
@@ -5767,8 +5776,6 @@ static int32_t prepareStmtBindArrayByType(TAOS_BIND *bind,
         bind->length = &bind->buffer_length;
         bind->buffer = bind_binary;
         bind->is_null = NULL;
-
-        *ptr += bind->buffer_length;
     } else if (0 == strncasecmp(dataType,
                 "NCHAR", strlen("NCHAR"))) {
         if (dataLen > TSDB_MAX_BINARY_LEN) {
@@ -5776,12 +5783,14 @@ static int32_t prepareStmtBindArrayByType(TAOS_BIND *bind,
                     (uint32_t)TSDB_MAX_BINARY_LEN);
             return -1;
         }
-        char *bind_nchar = (char *)*ptr;
+        char *bind_nchar;
 
         bind->buffer_type = TSDB_DATA_TYPE_NCHAR;
         if (value) {
+            bind_nchar = calloc(1, strlen(value) + 1);
             strncpy(bind_nchar, value, strlen(value));
         } else {
+            bind_nchar = calloc(1, dataLen + 1);
             rand_string(bind_nchar, dataLen);
         }
 
@@ -5789,11 +5798,9 @@ static int32_t prepareStmtBindArrayByType(TAOS_BIND *bind,
         bind->buffer = bind_nchar;
         bind->length = &bind->buffer_length;
         bind->is_null = NULL;
-
-        *ptr += bind->buffer_length;
     } else if (0 == strncasecmp(dataType,
                 "INT", strlen("INT"))) {
-        int32_t *bind_int = (int32_t *)*ptr;
+        int32_t *bind_int = malloc(sizeof(int32_t));
 
         if (value) {
             *bind_int = atoi(value);
@@ -5805,11 +5812,9 @@ static int32_t prepareStmtBindArrayByType(TAOS_BIND *bind,
         bind->buffer = bind_int;
         bind->length = &bind->buffer_length;
         bind->is_null = NULL;
-
-        *ptr += bind->buffer_length;
     } else if (0 == strncasecmp(dataType,
                 "BIGINT", strlen("BIGINT"))) {
-        int64_t *bind_bigint = (int64_t *)*ptr;
+        int64_t *bind_bigint = malloc(sizeof(int64_t));
 
         if (value) {
             *bind_bigint = atoll(value);
@@ -5821,11 +5826,9 @@ static int32_t prepareStmtBindArrayByType(TAOS_BIND *bind,
         bind->buffer = bind_bigint;
         bind->length = &bind->buffer_length;
         bind->is_null = NULL;
-
-        *ptr += bind->buffer_length;
     }  else if (0 == strncasecmp(dataType,
                 "FLOAT", strlen("FLOAT"))) {
-        float   *bind_float = (float *) *ptr;
+        float *bind_float = malloc(sizeof(float));
 
         if (value) {
             *bind_float = (float)atof(value);
@@ -5837,11 +5840,9 @@ static int32_t prepareStmtBindArrayByType(TAOS_BIND *bind,
         bind->buffer = bind_float;
         bind->length = &bind->buffer_length;
         bind->is_null = NULL;
-
-        *ptr += bind->buffer_length;
     }  else if (0 == strncasecmp(dataType,
                 "DOUBLE", strlen("DOUBLE"))) {
-        double  *bind_double = (double *)*ptr;
+        double *bind_double = malloc(sizeof(double));
 
         if (value) {
             *bind_double = atof(value);
@@ -5853,11 +5854,9 @@ static int32_t prepareStmtBindArrayByType(TAOS_BIND *bind,
         bind->buffer = bind_double;
         bind->length = &bind->buffer_length;
         bind->is_null = NULL;
-
-        *ptr += bind->buffer_length;
     }  else if (0 == strncasecmp(dataType,
                 "SMALLINT", strlen("SMALLINT"))) {
-        int16_t *bind_smallint = (int16_t *)*ptr;
+        int16_t *bind_smallint = malloc(sizeof(int16_t));
 
         if (value) {
             *bind_smallint = (int16_t)atoi(value);
@@ -5869,11 +5868,9 @@ static int32_t prepareStmtBindArrayByType(TAOS_BIND *bind,
         bind->buffer = bind_smallint;
         bind->length = &bind->buffer_length;
         bind->is_null = NULL;
-
-        *ptr += bind->buffer_length;
     }  else if (0 == strncasecmp(dataType,
                 "TINYINT", strlen("TINYINT"))) {
-        int8_t  *bind_tinyint = (int8_t *)*ptr;
+        int8_t *bind_tinyint = malloc(sizeof(int8_t));
 
         if (value) {
             *bind_tinyint = (int8_t)atoi(value);
@@ -5885,22 +5882,28 @@ static int32_t prepareStmtBindArrayByType(TAOS_BIND *bind,
         bind->buffer = bind_tinyint;
         bind->length = &bind->buffer_length;
         bind->is_null = NULL;
-        *ptr += bind->buffer_length;
     }  else if (0 == strncasecmp(dataType,
                 "BOOL", strlen("BOOL"))) {
-        int8_t  *bind_bool = (int8_t *)*ptr;
+        int8_t *bind_bool = malloc(sizeof(int8_t));
 
-        *bind_bool = rand_bool();
+        if (value) {
+            if (strncasecmp(value, "true", 4)) {
+                *bind_bool = true;
+            } else {
+                *bind_bool = false;
+            }
+        } else {
+            *bind_bool = rand_bool();
+        }
         bind->buffer_type = TSDB_DATA_TYPE_BOOL;
         bind->buffer_length = sizeof(int8_t);
         bind->buffer = bind_bool;
         bind->length = &bind->buffer_length;
         bind->is_null = NULL;
 
-        *ptr += bind->buffer_length;
     }  else if (0 == strncasecmp(dataType,
                 "TIMESTAMP", strlen("TIMESTAMP"))) {
-        int64_t *bind_ts2 = (int64_t *) *ptr;
+        int64_t *bind_ts2 = malloc(sizeof(int64_t));
 
         if (value) {
             if (strchr(value, ':') && strchr(value, '-')) {
@@ -5930,8 +5933,6 @@ static int32_t prepareStmtBindArrayByType(TAOS_BIND *bind,
         bind->buffer = bind_ts2;
         bind->length = &bind->buffer_length;
         bind->is_null = NULL;
-
-        *ptr += bind->buffer_length;
     }  else {
         errorPrint( "No support data type: %s\n", dataType);
         return -1;
@@ -5968,15 +5969,11 @@ static int32_t prepareStmtWithoutStb(
     int32_t k = 0;
     for (k = 0; k < batch;) {
         /* columnCount + 1 (ts) */
-        char data[MAX_DATA_SIZE];
-        memset(data, 0, MAX_DATA_SIZE);
 
-        char *ptr = data;
         TAOS_BIND *bind = (TAOS_BIND *)(bindArray + 0);
 
-        int64_t *bind_ts;
+        int64_t *bind_ts = pThreadInfo->bind_ts;
 
-        bind_ts = (int64_t *)ptr;
         bind->buffer_type = TSDB_DATA_TYPE_TIMESTAMP;
 
         if (g_args.disorderRatio) {
@@ -5992,8 +5989,6 @@ static int32_t prepareStmtWithoutStb(
         bind->length = &bind->buffer_length;
         bind->is_null = NULL;
 
-        ptr += bind->buffer_length;
-
         for (int i = 0; i < g_args.num_of_CPR; i ++) {
             bind = (TAOS_BIND *)((char *)bindArray
                     + (sizeof(TAOS_BIND) * (i + 1)));
@@ -6001,7 +5996,6 @@ static int32_t prepareStmtWithoutStb(
                         bind,
                         data_type[i],
                         g_args.len_of_binary,
-                        &ptr,
                         pThreadInfo->time_precision,
                         NULL)) {
                 return -1;
@@ -6042,10 +6036,6 @@ static int32_t prepareStbStmtBindTag(
         return -1;
     }
 
-    char data[MAX_DATA_SIZE];
-    memset(data, 0, MAX_DATA_SIZE);
-    char *ptr = data;
-
     TAOS_BIND *tag;
 
     for (int t = 0; t < stbInfo->tagCount; t ++) {
@@ -6054,7 +6044,6 @@ static int32_t prepareStbStmtBindTag(
                     tag,
                     stbInfo->tags[t].dataType,
                     stbInfo->tags[t].dataLen,
-                    &ptr,
                     timePrec,
                     NULL)) {
             free(bindBuffer);
@@ -6067,6 +6056,7 @@ static int32_t prepareStbStmtBindTag(
 }
 
 static int32_t prepareStbStmtBindRand(
+        int64_t *ts,
         char *bindArray, SSuperTable *stbInfo,
         int64_t startTime, int32_t recSeq,
         int32_t timePrec)
@@ -6078,19 +6068,14 @@ static int32_t prepareStbStmtBindRand(
         return -1;
     }
 
-    char data[MAX_DATA_SIZE];
-    memset(data, 0, MAX_DATA_SIZE);
-    char *ptr = data;
-
     TAOS_BIND *bind;
 
     for (int i = 0; i < stbInfo->columnCount + 1; i ++) {
         bind = (TAOS_BIND *)((char *)bindArray + (sizeof(TAOS_BIND) * i));
 
         if (i == 0) {
-            int64_t *bind_ts;
+            int64_t *bind_ts = ts;
 
-            bind_ts = (int64_t *)ptr;
             bind->buffer_type = TSDB_DATA_TYPE_TIMESTAMP;
             if (stbInfo->disorderRatio) {
                 *bind_ts = startTime + getTSRandTail(
@@ -6105,12 +6090,10 @@ static int32_t prepareStbStmtBindRand(
             bind->length = &bind->buffer_length;
             bind->is_null = NULL;
 
-            ptr += bind->buffer_length;
         } else if ( -1 == prepareStmtBindArrayByType(
                     bind,
                     stbInfo->columns[i-1].dataType,
                     stbInfo->columns[i-1].dataLen,
-                    &ptr,
                     timePrec,
                     NULL)) {
             tmfree(bindBuffer);
@@ -6123,78 +6106,32 @@ static int32_t prepareStbStmtBindRand(
 }
 
 static int32_t prepareStbStmtBindWithSample(
+        int64_t *ts,
         char *bindArray, SSuperTable *stbInfo,
         int64_t startTime, int32_t recSeq,
         int32_t timePrec,
         int64_t samplePos)
 {
-    char *bindBuffer = calloc(1, DOUBLE_BUFF_LEN); // g_args.len_of_binary);
-    if (bindBuffer == NULL) {
-        errorPrint("%s() LN%d, Failed to allocate %d bind buffer\n",
-                __func__, __LINE__, g_args.len_of_binary);
-        return -1;
-    }
-
-    char data[MAX_DATA_SIZE];
-    memset(data, 0, MAX_DATA_SIZE);
-    char *ptr = data;
-
     TAOS_BIND *bind;
 
-    int cursor = 0;
+    bind = (TAOS_BIND *)bindArray;
 
-    for (int i = 0; i < stbInfo->columnCount + 1; i ++) {
-        bind = (TAOS_BIND *)((char *)bindArray + (sizeof(TAOS_BIND) * i));
+    int64_t *bind_ts = ts;
 
-        if (i == 0) {
-            int64_t *bind_ts;
-
-            bind_ts = (int64_t *)ptr;
-            bind->buffer_type = TSDB_DATA_TYPE_TIMESTAMP;
-            if (stbInfo->disorderRatio) {
-                *bind_ts = startTime + getTSRandTail(
-                        stbInfo->timeStampStep, recSeq,
-                        stbInfo->disorderRatio,
-                        stbInfo->disorderRange);
-            } else {
-                *bind_ts = startTime + stbInfo->timeStampStep * recSeq;
-            }
-            bind->buffer_length = sizeof(int64_t);
-            bind->buffer = bind_ts;
-            bind->length = &bind->buffer_length;
-            bind->is_null = NULL;
-
-            ptr += bind->buffer_length;
-        } else {
-            char *restStr = stbInfo->sampleDataBuf
-                + stbInfo->lenOfOneRow * samplePos + cursor;
-            int lengthOfRest = strlen(restStr);
-
-            int index = 0;
-            for (index = 0; index < lengthOfRest; index ++) {
-                if (restStr[index] == ',') {
-                    break;
-                }
-            }
-
-            memset(bindBuffer, 0, DOUBLE_BUFF_LEN);
-            strncpy(bindBuffer, restStr, index);
-            cursor += index + 1; // skip ',' too
-
-            if ( -1 == prepareStmtBindArrayByType(
-                        bind,
-                        stbInfo->columns[i-1].dataType,
-                        stbInfo->columns[i-1].dataLen,
-                        &ptr,
-                        timePrec,
-                        bindBuffer)) {
-                free(bindBuffer);
-                return -1;
-            }
-        }
+    bind->buffer_type = TSDB_DATA_TYPE_TIMESTAMP;
+    if (stbInfo->disorderRatio) {
+        *bind_ts = startTime + getTSRandTail(
+                stbInfo->timeStampStep, recSeq,
+                stbInfo->disorderRatio,
+                stbInfo->disorderRange);
+    } else {
+        *bind_ts = startTime + stbInfo->timeStampStep * recSeq;
     }
+    bind->buffer_length = sizeof(int64_t);
+    bind->buffer = bind_ts;
+    bind->length = &bind->buffer_length;
+    bind->is_null = NULL;
 
-    free(bindBuffer);
     return 0;
 }
 
@@ -6273,7 +6210,9 @@ static int32_t prepareStbStmtRand(
     uint32_t k;
     for (k = 0; k < batch;) {
         /* columnCount + 1 (ts) */
-        if (-1 == prepareStbStmtBindRand(bindArray, stbInfo,
+        if (-1 == prepareStbStmtBindRand(
+                    pThreadInfo->bind_ts,
+                    bindArray, stbInfo,
                     startTime, k,
                     pThreadInfo->time_precision
                     /* is column */)) {
@@ -6374,30 +6313,24 @@ static int32_t prepareStbStmtWithSample(
         }
     }
 
-    char *bindArray = calloc(1, sizeof(TAOS_BIND) * (stbInfo->columnCount + 1));
-    if (bindArray == NULL) {
-        errorPrint("%s() LN%d, Failed to allocate %d bind params\n",
-                __func__, __LINE__, (stbInfo->columnCount + 1));
-        return -1;
-    }
-
     uint32_t k;
     for (k = 0; k < batch;) {
+        char *bindArray = (char *)(*((uintptr_t *)
+                    (stbInfo->sampleBindArray + (sizeof(char *)) * (*pSamplePos))));
         /* columnCount + 1 (ts) */
         if (-1 == prepareStbStmtBindWithSample(
+                    pThreadInfo->bind_ts,
                     bindArray, stbInfo,
                     startTime, k,
                     pThreadInfo->time_precision,
                     *pSamplePos
                     /* is column */)) {
-            free(bindArray);
             return -1;
         }
         ret = taos_stmt_bind_param(stmt, (TAOS_BIND *)bindArray);
         if (0 != ret) {
             errorPrint("%s() LN%d, stmt_bind_param() failed! reason: %s\n",
                     __func__, __LINE__, taos_stmt_errstr(stmt));
-            free(bindArray);
             return -1;
         }
         // if msg > 3MB, break
@@ -6405,7 +6338,6 @@ static int32_t prepareStbStmtWithSample(
         if (0 != ret) {
             errorPrint("%s() LN%d, stmt_add_batch() failed! reason: %s\n",
                     __func__, __LINE__, taos_stmt_errstr(stmt));
-            free(bindArray);
             return -1;
         }
 
@@ -6422,11 +6354,8 @@ static int32_t prepareStbStmtWithSample(
         }
     }
 
-    free(bindArray);
     return k;
 }
-
-
 #endif
 
 static int32_t generateStbProgressiveData(
@@ -7135,16 +7064,13 @@ static int convertHostToServAddr(char *host, uint16_t port, struct sockaddr_in *
 #if STMT_IFACE_ENABLED == 1
 static int parseSampleFileToStmt(SSuperTable *stbInfo, uint32_t timePrec)
 {
-    // TODO:
-    stbInfo->sampleBindArray = calloc(sizeof(char *), MAX_SAMPLES_ONCE_FROM_FILE);
-    assert(stbInfo->sampleBindArray);
-
-    char *bindBuffer = calloc(1, DOUBLE_BUFF_LEN); // g_args.len_of_binary);
-    if (bindBuffer == NULL) {
-        errorPrint("%s() LN%d, Failed to allocate %d bind buffer\n",
-                __func__, __LINE__, g_args.len_of_binary);
+    stbInfo->sampleBindArray = calloc(1, sizeof(char *) * MAX_SAMPLES_ONCE_FROM_FILE);
+    if (stbInfo->sampleBindArray == NULL) {
+        errorPrint("%s() LN%d, Failed to allocate %"PRIu64" bind array buffer\n",
+                __func__, __LINE__, sizeof(char *) * MAX_SAMPLES_ONCE_FROM_FILE);
         return -1;
     }
+
 
     for (int i=0; i < MAX_SAMPLES_ONCE_FROM_FILE; i++) {
         char *bindArray = calloc(1, sizeof(TAOS_BIND) * (stbInfo->columnCount + 1));
@@ -7154,9 +7080,6 @@ static int parseSampleFileToStmt(SSuperTable *stbInfo, uint32_t timePrec)
             return -1;
         }
 
-        char data[MAX_DATA_SIZE];
-        memset(data, 0, MAX_DATA_SIZE);
-        char *ptr = data;
 
         TAOS_BIND *bind;
         int cursor = 0;
@@ -7165,16 +7088,11 @@ static int parseSampleFileToStmt(SSuperTable *stbInfo, uint32_t timePrec)
             bind = (TAOS_BIND *)((char *)bindArray + (sizeof(TAOS_BIND) * c));
 
             if (c == 0) {
-                int64_t *bind_ts;
-
-                bind_ts = (int64_t *)ptr;
                 bind->buffer_type = TSDB_DATA_TYPE_TIMESTAMP;
                 bind->buffer_length = sizeof(int64_t);
-                bind->buffer = bind_ts;
+                bind->buffer = NULL; //bind_ts;
                 bind->length = &bind->buffer_length;
                 bind->is_null = NULL;
-
-                ptr += bind->buffer_length;
             } else {
                 char *restStr = stbInfo->sampleDataBuf
                     + stbInfo->lenOfOneRow * i + cursor;
@@ -7187,26 +7105,31 @@ static int parseSampleFileToStmt(SSuperTable *stbInfo, uint32_t timePrec)
                     }
                 }
 
-                memset(bindBuffer, 0, DOUBLE_BUFF_LEN);
+                char *bindBuffer = calloc(1, index + 1);
+                if (bindBuffer == NULL) {
+                    errorPrint("%s() LN%d, Failed to allocate %d bind buffer\n",
+                            __func__, __LINE__, DOUBLE_BUFF_LEN);
+                    return -1;
+                }
+
                 strncpy(bindBuffer, restStr, index);
                 cursor += index + 1; // skip ',' too
 
-                if ( -1 == prepareStmtBindArrayByType(
+                if (-1 == prepareStmtBindArrayByType(
                             bind,
                             stbInfo->columns[c-1].dataType,
                             stbInfo->columns[c-1].dataLen,
-                            &ptr,
                             timePrec,
                             bindBuffer)) {
                     free(bindBuffer);
                     return -1;
                 }
+                free(bindBuffer);
             }
         }
         *((uintptr_t *)(stbInfo->sampleBindArray + (sizeof(char *)) * i)) = (uintptr_t)bindArray;
     }
 
-    free(bindBuffer);
     return 0;
 }
 #endif
@@ -7461,6 +7384,7 @@ static void startMultiThreadInsertData(int threads, char* db_name,
                     free(stmtBuffer);
                     exit(-1);
                 }
+                pThreadInfo->bind_ts = malloc(sizeof(int64_t));
             }
 #endif
         } else {
@@ -7505,11 +7429,10 @@ static void startMultiThreadInsertData(int threads, char* db_name,
     for (int i = 0; i < threads; i++) {
         threadInfo *pThreadInfo = infos + i;
 
-        tsem_destroy(&(pThreadInfo->lock_sem));
-
 #if STMT_IFACE_ENABLED == 1
         if (pThreadInfo->stmt) {
             taos_stmt_close(pThreadInfo->stmt);
+            tmfree((char *)pThreadInfo->bind_ts);
         }
 #endif
         tsem_destroy(&(pThreadInfo->lock_sem));
