@@ -35,7 +35,6 @@ typedef struct mnodeSdbTableOption {
 
   /* only used in SDB_TABLE_CACHE_TABLE */
   int       (*afterLoadFp)(void*,void* value, int32_t nBytes, void* pRet);
-  //int (*delFp)(void*, const void* key, uint8_t nkey);
 
   int32_t           cacheDataLen; /* only used in SDB_TABLE_CACHE_TABLE */
   int32_t           expireTime; /* item expire time,only used in SDB_TABLE_CACHE_TABLE */
@@ -44,7 +43,7 @@ typedef struct mnodeSdbTableOption {
 mnodeSdbTable* mnodeSdbTableInit(mnodeSdbTableOption);
 void mnodeSdbTableClear(mnodeSdbTable *pTable);
 
-void *mnodeSdbTableGet(mnodeSdbTable *pTable, const void *key, size_t keyLen);
+int  mnodeSdbTableGet(mnodeSdbTable *pTable, const void *key, size_t keyLen, void** pRet);
 void mnodeSdbTablePut(mnodeSdbTable *pTable, struct SSdbRow* pRow);
 
 void mnodeSdbTableSyncWal(mnodeSdbTable *pTable, void*, void*, int64_t off);
@@ -52,7 +51,7 @@ void mnodeSdbTableSyncWal(mnodeSdbTable *pTable, void*, void*, int64_t off);
 void mnodeSdbTableRemove(mnodeSdbTable *pTable, const struct SSdbRow* pRow);
 
 void *mnodeSdbTableIterate(mnodeSdbTable *pTable, void *p);
-void* mnodeSdbTableIterValue(mnodeSdbTable *pTable,void *p);
+int  mnodeSdbTableIterValue(mnodeSdbTable *pTable,void *p, void** pRet);
 void mnodeSdbTableCancelIterate(mnodeSdbTable *pTable, void *p);
 
 void mnodeSdbTableFreeValue(mnodeSdbTable *pTable, void *p);

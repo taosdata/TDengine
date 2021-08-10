@@ -392,6 +392,7 @@ static int32_t mnodeChildTableActionRestored() {
 
 static int mnodeAfterLoadCTable(void* userData,void* value, int32_t nBytes, void* pRet) {
   SCTableObj* pTable = (SCTableObj*)pRet;
+  memset(pTable, 0, sizeof(SCTableObj));
 
   SSdbRow row = {.rowSize = nBytes, .rowData = value, .pTable = userData};
   

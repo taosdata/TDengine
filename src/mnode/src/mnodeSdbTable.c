@@ -32,24 +32,24 @@ static int   calcHashPower(mnodeSdbTableOption options);
 
 // hash table functions
 static mnodeSdbHashTable* hashTableInit(mnodeSdbTable* table, mnodeSdbTableOption options);
-static void *hashTableGet(mnodeSdbTable *pTable, const void *key, size_t keyLen);
+static int  hashTableGet(mnodeSdbTable *pTable, const void *key, size_t keyLen, void** pRet);
 static void hashTablePut(mnodeSdbTable *pTable, SSdbRow* pRow);
 static void hashTableRemove(mnodeSdbTable *pTable, const void *key, size_t keyLen);
 static void hashTableClear(mnodeSdbTable *pTable);
 static void* hashTableIterate(mnodeSdbTable *pTable, void *p);
 static void hashTableCancelIterate(mnodeSdbTable *pTable, void *p);
-static void* hashTableIterValue(mnodeSdbTable *pTable,void *p);
+static int  hashTableIterValue(mnodeSdbTable *pTable,void *p, void** pRet);
 static void hashTableFreeValue(mnodeSdbTable *pTable, void *p);
 
 // lru cache functions
 static mnodeSdbCacheTable* cacheInit(mnodeSdbTable* table, mnodeSdbTableOption options);
 static void sdbCacheSyncWal(mnodeSdbTable *pTable, SWalHead*, SSdbRow*,int64_t off);
-static void *sdbCacheGet(mnodeSdbTable *pTable, const void *key, size_t keyLen);
+static int  sdbCacheGet(mnodeSdbTable *pTable, const void *key, size_t keyLen, void** pRet);
 static void sdbCachePut(mnodeSdbTable *pTable, SSdbRow* pRow);
 static void sdbCacheRemove(mnodeSdbTable *pTable, const void *key, size_t keyLen);
 static void sdbCacheClear(mnodeSdbTable *pTable);
 static void* sdbCacheIterate(mnodeSdbTable *pTable, void *p);
-static void* sdbCacheIterValue(mnodeSdbTable *pTable,void *p);
+static int  sdbCacheIterValue(mnodeSdbTable *pTable,void *p, void** pRet);
 static void sdbCacheCancelIterate(mnodeSdbTable *pTable, void *p);
 static void sdbCacheFreeValue(mnodeSdbTable *pTable, void *p);
 
@@ -57,12 +57,12 @@ static int loadCacheDataFromWal(void*, const void* key, uint8_t nkey, char** val
 
 static int delCacheData(void*, const void* key, uint8_t nkey);
 
-typedef void* (*sdb_table_get_func_t)(mnodeSdbTable *pTable, const void *key, size_t keyLen);
+typedef int (*sdb_table_get_func_t)(mnodeSdbTable *pTable, const void *key, size_t keyLen, void** pRet);
 typedef void (*sdb_table_put_func_t)(mnodeSdbTable *pTable, SSdbRow* pRow);
 typedef void (*sdb_table_del_func_t)(mnodeSdbTable *pTable, const void *key, size_t keyLen);
 typedef void (*sdb_table_clear_func_t)(mnodeSdbTable *pTable);
 typedef void* (*sdb_table_iter_func_t)(mnodeSdbTable *pTable, void *p);
-typedef void* (*sdb_table_iter_val_func_t)(mnodeSdbTable *pTable,void *p);
+typedef int  (*sdb_table_iter_val_func_t)(mnodeSdbTable *pTable,void *p, void**);
 typedef void (*sdb_table_cancel_iter_func_t)(mnodeSdbTable *pTable, void *p);
 typedef void (*sdb_table_sync_wal_func_t)(mnodeSdbTable *pTable, SWalHead*, SSdbRow*,int64_t off);
 typedef void (*sdb_table_free_val_func_t)(mnodeSdbTable *pTable, void *p);
@@ -115,8 +115,8 @@ mnodeSdbTable* mnodeSdbTableInit(mnodeSdbTableOption options) {
   return pTable;
 }
 
-void *mnodeSdbTableGet(mnodeSdbTable *pTable, const void *key, size_t keyLen) {
-  return pTable->getFp(pTable, key, keyLen);
+int mnodeSdbTableGet(mnodeSdbTable *pTable, const void *key, size_t keyLen, void** pRet) {
+  return pTable->getFp(pTable, key, keyLen, pRet);
 }
 
 void mnodeSdbTablePut(mnodeSdbTable *pTable, SSdbRow* pRow) {
@@ -149,8 +149,8 @@ void *mnodeSdbTableIterate(mnodeSdbTable *pTable, void *p) {
   return pTable->iterFp(pTable, p);
 }
 
-void* mnodeSdbTableIterValue(mnodeSdbTable *pTable, void *p) {
-  return pTable->iterValFp(pTable, p);
+int  mnodeSdbTableIterValue(mnodeSdbTable *pTable,void *p, void** pRet) {
+  return pTable->iterValFp(pTable, p, pRet);
 }
 
 void mnodeSdbTableCancelIterate(mnodeSdbTable *pTable, void *p) {
@@ -203,10 +203,12 @@ static mnodeSdbCacheTable* cacheInit(mnodeSdbTable* pTable, mnodeSdbTableOption 
   return pCache;
 }
 
-static void *sdbCacheGet(mnodeSdbTable *pTable, const void *key, size_t keyLen) {
+static int  sdbCacheGet(mnodeSdbTable *pTable, const void *key, size_t keyLen, void** pRet) {
+  assert(pRet != NULL);
   int nBytes;
   mnodeSdbCacheTable* pCache = pTable->iHandle;
-  return cacheGet(pCache->pTable, key, keyLen, &nBytes);
+  *pRet = cacheGet(pCache->pTable, key, keyLen, &nBytes);
+  return *pRet != NULL ? 0 : -1;
 }
 
 static void sdbCachePut(mnodeSdbTable *pTable, SSdbRow* pRow) {
@@ -236,14 +238,17 @@ static void* sdbCacheIterate(mnodeSdbTable *pTable, void *p) {
   return taosHashIterate(pCache->pWalTable, p);
 }
 
-static void* sdbCacheIterValue(mnodeSdbTable *pTable,void *pIter) {
+static int  sdbCacheIterValue(mnodeSdbTable *pTable,void *pIter, void** pRet) {
   int nBytes;
   mnodeSdbCacheTable* pCache = pTable->iHandle;
   walRecord* pRecord = (walRecord*)pIter;
+  *pRet = NULL;
   if (pRecord == NULL) {
-    return NULL;
+    return -1;
   }
-  return cacheGet(pCache->pTable, pRecord->key, pRecord->keyLen, &nBytes);
+
+  *pRet = cacheGet(pCache->pTable, pRecord->key, pRecord->keyLen, &nBytes);
+  return *pRet != NULL ? 0 : -1;
 }
 
 static void sdbCacheCancelIterate(mnodeSdbTable *pTable, void* pIter) {
@@ -356,13 +361,16 @@ static mnodeSdbHashTable* hashTableInit(mnodeSdbTable* table, mnodeSdbTableOptio
   return pTable;
 }
 
-static void *hashTableGet(mnodeSdbTable *pTable, const void *key, size_t keyLen) {
+static int  hashTableGet(mnodeSdbTable *pTable, const void *key, size_t keyLen, void** pRet) {
+  assert(pRet != NULL);
+
   mnodeSdbHashTable* pHash = (mnodeSdbHashTable*)pTable->iHandle;
   pthread_mutex_lock(&pHash->mutex);
-  void* p = taosHashGet(pHash->pTable, key, keyLen);
+  void *p = taosHashGet(pHash->pTable, key, keyLen);
+  *pRet = (p != NULL) ? *(void**)p : NULL;
   pthread_mutex_unlock(&pHash->mutex);
 
-  return p;
+  return *pRet != NULL ? 0 : -1;
 }
 
 static void hashTablePut(mnodeSdbTable *pTable, SSdbRow* pRow) {
@@ -397,8 +405,9 @@ static void* hashTableIterate(mnodeSdbTable *pTable, void *p) {
   return taosHashIterate(pHash->pTable, p);
 }
 
-static void* hashTableIterValue(mnodeSdbTable *pTable,void *p) {
-  return p;
+static int  hashTableIterValue(mnodeSdbTable *pTable,void *p, void** pRet) {
+  *pRet = (p != NULL) ? *(void**)p : NULL;
+  return p != NULL ? 0 : -1;
 }
 
 static void hashTableCancelIterate(mnodeSdbTable *pTable, void *pIter) {

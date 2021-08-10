@@ -519,10 +519,10 @@ static void *sdbGetRowMeta(SSdbTable *pTable, void *key) {
     keySize = (int32_t)strlen((char *)key);
   }
 
-  void **ppRow = (void **)mnodeSdbTableGet(pTable->iHandle, key, keySize);
-  if (ppRow != NULL) return *ppRow;
+  void* pRow = NULL;
+  mnodeSdbTableGet(pTable->iHandle, key, keySize, &pRow);
 
-  return NULL;
+  return pRow;
 }
 
 static void *sdbGetRowMetaFromObj(SSdbTable *pTable, void *key) {
@@ -859,14 +859,15 @@ void *sdbFetchRow(void *tparam, void *pIter, void **ppRow) {
   pIter = mnodeSdbTableIterate(pTable->iHandle, pIter);
   if (pIter == NULL) return NULL;
 
-  void **ppMetaRow = mnodeSdbTableIterValue(pTable->iHandle, pIter);
-  if (ppMetaRow == NULL) {
+  void *pMetaRow;
+  mnodeSdbTableIterValue(pTable->iHandle, pIter, &pMetaRow);
+  if (pMetaRow == NULL) {
     mnodeSdbTableCancelIterate(pTable->iHandle, pIter);
     return NULL;
   }
 
-  *ppRow = *ppMetaRow;
-  sdbIncRef(pTable, *ppMetaRow);
+  *ppRow = pMetaRow;
+  sdbIncRef(pTable, pMetaRow);
 
   return pIter;
 }
@@ -931,12 +932,13 @@ static void sdbCloseTableObj(void *handle) {
 
   void *pIter = mnodeSdbTableIterate(pTable->iHandle, NULL);
   while (pIter) {
-    void **ppRow = mnodeSdbTableIterValue(pTable->iHandle, pIter);
+    void *pRow = NULL;
+    mnodeSdbTableIterValue(pTable->iHandle, pIter, &pRow);
     pIter = mnodeSdbTableIterate(pTable->iHandle, pIter);
-    if (ppRow == NULL) continue;
+    if (pRow == NULL) continue;
 
     SSdbRow row = {
-      .pObj = *ppRow,
+      .pObj = pRow,
       .pTable = pTable,
     };
 
