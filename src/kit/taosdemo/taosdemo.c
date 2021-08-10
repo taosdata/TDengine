@@ -296,7 +296,7 @@ typedef struct SSuperTable_S {
 
     char*        sampleDataBuf;
 #if STMT_IFACE_ENABLED == 1
-    void        *sampleBindArray;
+    char*        sampleBindArray;
 #endif
     //int          sampleRowCount;
     //int          sampleUsePos;
@@ -7283,7 +7283,7 @@ static int parseSampleFileToStmt(SSuperTable *stbInfo, uint32_t timePrec)
     stbInfo->sampleBindArray = calloc(1, sizeof(char *) * MAX_SAMPLES_ONCE_FROM_FILE);
     if (stbInfo->sampleBindArray == NULL) {
         errorPrint("%s() LN%d, Failed to allocate %"PRIu64" bind array buffer\n",
-                __func__, __LINE__, sizeof(char *) * MAX_SAMPLES_ONCE_FROM_FILE);
+                __func__, __LINE__, (uint64_t)sizeof(char *) * MAX_SAMPLES_ONCE_FROM_FILE);
         return -1;
     }
 
