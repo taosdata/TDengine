@@ -466,6 +466,7 @@ static void taosNetTestRpc(char *host, int32_t startPort, int32_t pkgLen) {
       sendpkgLen = pkgLen;
     }
 
+    tsRpcForceTcp = 1;
     int32_t ret = taosNetCheckRpc(host, port, sendpkgLen, spi, NULL);
     if (ret < 0) {
       printf("failed to test TCP port:%d\n", port);
@@ -479,6 +480,7 @@ static void taosNetTestRpc(char *host, int32_t startPort, int32_t pkgLen) {
       sendpkgLen = pkgLen;
     }
 
+    tsRpcForceTcp = 0;
     ret = taosNetCheckRpc(host, port, pkgLen, spi, NULL);
     if (ret < 0) {
       printf("failed to test UDP port:%d\n", port);
