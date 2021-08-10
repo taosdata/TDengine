@@ -145,8 +145,8 @@ pipeline {
           '''     
           
           script{           
-            env.skipbuild=sh(script: "git log -1 --pretty=%B | fgrep -ie '[skip ci]' -e '[ci skip]'|| echo 0", returnStdout:true)
-            println env.skipbuild
+            skipbuild=sh(script: "git log -1 --pretty=%B | fgrep -ie '[skip ci]' -e '[ci skip]'|| echo 0", returnStdout:true)
+            println skipbuild
           }
           sh'''
           rm -rf ${WORKSPACE}.tes
@@ -159,7 +159,7 @@ pipeline {
         when {
               changeRequest()
                expression {
-                    env.skipbuild == 1
+                    skipbuild == 1
               }
           }
       parallel {
