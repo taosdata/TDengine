@@ -722,7 +722,7 @@ static int tsdbInitCommitH(SCommitH *pCommith, STsdbRepo *pRepo) {
     return -1;
   }
 
-  pCommith->pDataCols = tdNewDataCols(0, 0, pCfg->maxRowsPerFileBlock);
+  pCommith->pDataCols = tdNewDataCols(0, pCfg->maxRowsPerFileBlock);
   if (pCommith->pDataCols == NULL) {
     terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
     tsdbDestroyCommitH(pCommith);
@@ -920,7 +920,6 @@ int tsdbWriteBlockImpl(STsdbRepo *pRepo, STable *pTable, SDFile *pDFile, SDataCo
     SDataCol * pDataCol = pDataCols->cols + ncol;
     SBlockCol *pBlockCol = pBlockData->cols + nColsNotAllNull;
 
-    // if (isNEleNull(pDataCol, rowsToWrite)) {  // all data to commit are NULL, just ignore it
     if (isAllRowsNull(pDataCol)) {  // all data to commit are NULL, just ignore it
       continue;
     }
@@ -1277,6 +1276,7 @@ static void tsdbLoadAndMergeFromCache(SDataCols *pDataCols, int *iter, SCommitIt
 
     if (key1 < key2) {
       for (int i = 0; i < pDataCols->numOfCols; i++) {
+        //TODO: dataColAppendVal may fail
         dataColAppendVal(pTarget->cols + i, tdGetColDataOfRow(pDataCols->cols + i, *iter), pTarget->numOfRows,
                          pTarget->maxPoints);
       }
@@ -1308,6 +1308,7 @@ static void tsdbLoadAndMergeFromCache(SDataCols *pDataCols, int *iter, SCommitIt
         ASSERT(!isRowDel);
 
         for (int i = 0; i < pDataCols->numOfCols; i++) {
+          //TODO: dataColAppendVal may fail
           dataColAppendVal(pTarget->cols + i, tdGetColDataOfRow(pDataCols->cols + i, *iter), pTarget->numOfRows,
                            pTarget->maxPoints);
         }
