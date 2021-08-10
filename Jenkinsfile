@@ -34,7 +34,7 @@ def abort_previous(){
 }
 def pre_test(){
     
-    
+    sh'hostname'
     sh '''
     sudo rmtaos || echo "taosd has not installed"
     '''
@@ -164,7 +164,6 @@ pipeline {
           }
       parallel {
         stage('python_1_s1') {
-          agent{label 'p1'}
           steps {
             
             pre_test()
@@ -179,7 +178,6 @@ pipeline {
           }
         }
         stage('python_2_s5') {
-          agent{label 'p2'}
           steps {
             
             pre_test()
@@ -193,7 +191,6 @@ pipeline {
           }
         }
         stage('python_3_s6') {
-          agent{label 'p3'}
           steps {     
             timeout(time: 45, unit: 'MINUTES'){       
               pre_test()
@@ -206,7 +203,6 @@ pipeline {
           }
         }
         stage('test_b1_s2') {
-          agent{label 'b1'}
           steps {     
             timeout(time: 45, unit: 'MINUTES'){       
               pre_test()
@@ -219,8 +215,6 @@ pipeline {
         }
 
         stage('test_crash_gen_s3') {
-          agent{label "b2"}
-          
           steps {
             pre_test()
             catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
@@ -258,8 +252,6 @@ pipeline {
         }
 
         stage('test_valgrind_s4') {
-          agent{label "b3"}
-
           steps {
             pre_test()
             catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
@@ -284,7 +276,6 @@ pipeline {
           }
         }
         stage('test_b4_s7') {
-          agent{label 'b4'}
           steps {     
             timeout(time: 45, unit: 'MINUTES'){       
               pre_test()
@@ -303,7 +294,6 @@ pipeline {
           }
         }
         stage('test_b5_s8') {
-          agent{label 'b5'}
           steps {     
             timeout(time: 45, unit: 'MINUTES'){       
               pre_test()
@@ -316,7 +306,6 @@ pipeline {
           }
         }
         stage('test_b6_s9') {
-          agent{label 'b6'}
           steps {     
             timeout(time: 45, unit: 'MINUTES'){       
               pre_test()
@@ -329,7 +318,6 @@ pipeline {
           }
         }
         stage('test_b7_s10') {
-          agent{label 'b7'}
           steps {     
             timeout(time: 45, unit: 'MINUTES'){       
               pre_test()
