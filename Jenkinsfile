@@ -164,7 +164,7 @@ pipeline {
         when {
               changeRequest()
               expression{
-                skipbuild == 0
+                skipbuild == 1
               }
           }
       parallel {
