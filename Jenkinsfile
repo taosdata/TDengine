@@ -165,7 +165,7 @@ pipeline {
           allOf {
               changeRequest()
               expression{
-                return skipbuild.trim() == 2
+                return skipbuild.trim() == '2'
               }
            }
           }
