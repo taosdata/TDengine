@@ -281,7 +281,7 @@ int WCSPatternMatch(const wchar_t *patterStr, const wchar_t *str, size_t size, c
 int32_t compareStrPatternComp(const void* pLeft, const void* pRight) {
   SPatternCompareInfo pInfo = {'%', '_'};
 
-  assert(varDataLen(pRight) < TSDB_MAX_FIELD_LEN);
+  assert(varDataLen(pRight) <= TSDB_MAX_FIELD_LEN);
   char *pattern = calloc(varDataLen(pRight) + 1, sizeof(char));
   memcpy(pattern, varDataVal(pRight), varDataLen(pRight));
 
@@ -314,7 +314,7 @@ int32_t compareFindItemInSet(const void *pLeft, const void* pRight)  {
 int32_t compareWStrPatternComp(const void* pLeft, const void* pRight) {
   SPatternCompareInfo pInfo = {'%', '_'};
 
-  assert(varDataLen(pRight) < TSDB_MAX_FIELD_LEN * TSDB_NCHAR_SIZE);
+  assert(varDataLen(pRight) <= TSDB_MAX_FIELD_LEN * TSDB_NCHAR_SIZE);
   wchar_t *pattern = calloc(varDataLen(pRight) + 1, sizeof(wchar_t));
 
   memcpy(pattern, varDataVal(pRight), varDataLen(pRight));
