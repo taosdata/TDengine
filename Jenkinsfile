@@ -148,9 +148,9 @@ pipeline {
             skipbuild=0      
             skipbuild=sh(script: "git log -1 --pretty=%B | fgrep -ie '[skip ci]' -e '[ci skip]' && echo 1 || echo 0", returnStdout:true)
             sh'''
-            git log -1 --pretty=%B
-            git log -1 --pretty=%B | fgrep -ie '[skip ci]' -e '[ci skip]
-            ''''
+            git log -1 --pretty=%B || echo aaa
+            git log -1 --pretty=%B | fgrep -ie '[skip ci]' -e '[ci skip]‘ || echo bbb
+            '''
             println skipbuild
           }
           sh'''
