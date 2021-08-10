@@ -158,14 +158,12 @@ pipeline {
         //only build pr
         when {
               changeRequest()
-               expression {
-                    skipbuild == 1
-              }
+              
           }
       parallel {
         stage('python_1_s1') {
           steps {
-            
+            println skipbuild
             pre_test()
             timeout(time: 45, unit: 'MINUTES'){
               sh '''
