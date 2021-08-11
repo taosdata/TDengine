@@ -4,10 +4,6 @@ properties([pipelineTriggers([githubPush()])])
 node {
     git url: 'https://github.com/taosdata/TDengine.git'
 }
-
-
-def skipbuild=0
-
 def abortPreviousBuilds() {
   def currentJobName = env.JOB_NAME
   def currentBuildNumber = env.BUILD_NUMBER.toInteger()
@@ -114,12 +110,10 @@ def pre_test(){
 
 pipeline {
   agent none
-  
   environment{
       WK = '/var/lib/jenkins/workspace/TDinternal'
       WKC= '/var/lib/jenkins/workspace/TDinternal/community'
   }
-  
   stages {
       stage('pre_build'){
           agent{label 'master'}
@@ -158,20 +152,16 @@ pipeline {
           git fetch origin +refs/pull/${CHANGE_ID}/merge
           git checkout -qf FETCH_HEAD
           '''     
-          
-
           script{  
             skipbuild='2'     
             skipbuild=sh(script: "git log -2 --pretty=%B | fgrep -ie '[skip ci]' -e '[ci skip]' && echo 1 || echo 2", returnStdout:true)
             println skipbuild
-
           }
           sh'''
           rm -rf ${WORKSPACE}.tes
           '''
           }
       }
-    
       stage('Parallel test stage') {
         //only build pr
         when {
@@ -237,7 +227,6 @@ pipeline {
             }
           }
         }
-
         stage('test_crash_gen_s3') {
           agent{label " slave3 || slave13 "}
           
@@ -272,11 +261,9 @@ pipeline {
                 ./test-all.sh b2fq
                 date
                 '''
-            }         
-            
+            }                     
           }
         }
-
         stage('test_valgrind_s4') {
           agent{label " slave4 || slave14 "}
 
