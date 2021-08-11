@@ -732,7 +732,7 @@ extern char Compressor [];
 //   -----------------  main ----------------------
 //
 int main(int argc, char *argv[]) {
-  printf("welcome to use taospack tools v1.4\n");
+  printf("welcome to use taospack tools v1.5\n");
 
   //printf(" sizeof(int)=%d\n",  (int)sizeof(int));
   //printf(" sizeof(long)=%d\n", (int)sizeof(long));
