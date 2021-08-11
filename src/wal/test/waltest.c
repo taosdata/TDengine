@@ -31,7 +31,7 @@ int writeToQueue(void *pVnode, void *data, int type, void *pMsg) {
   if (pHead->version > ver)
     ver = pHead->version;
 
-  walWrite(pWal, pHead);
+  walWrite(pWal, pHead, NULL);
 
   return 0;
 }
@@ -104,7 +104,7 @@ int main(int argc, char *argv[]) {
     for (int k=0; k<rows; ++k) {
       pHead->version = ++ver;
       pHead->len = size;
-      walWrite(pWal, pHead);
+      walWrite(pWal, pHead, NULL);
     }
        
     printf("renew a wal, i:%d\n", i);

@@ -62,6 +62,7 @@ typedef struct SSdbTable {
   char      name[SDB_TABLE_LEN];
   ESdbTable id;
   ESdbKey   keyType;
+  mnodeSdbTableType tableType;
   int32_t   hashSessions;
   int32_t   maxRowSize;
   int32_t   refCountPos;
@@ -85,7 +86,6 @@ typedef struct {
   uint64_t   version;
   int64_t    sync;
   void *     wal;
-  int64_t    offset;  /* current wal write offset */
   SSyncCfg   cfg;
   int32_t    queuedMsg;
   int32_t    numOfTables;
@@ -460,7 +460,6 @@ int32_t sdbInit() {
   }
 
   tsSdbMgmt.status = SDB_STATUS_SERVING;
-  tsSdbMgmt.offset = -1;
 
   if (tsCompactMnodeWal) {
     mnodeCompactWal();
@@ -632,9 +631,9 @@ static int32_t sdbPerformUpdateAction(SWalHead *pHead, SSdbTable *pTable) {
   return sdbUpdateHash(pTable, &row);
 }
 
-static int32_t sdbProcessWrite(void *wparam, void *hparam, int32_t qtype, void *unused) {
+static int32_t sdbProcessWrite(void *wparam, void *hparam, int32_t qtype, void *tparam) {
   SSdbRow *pRow = wparam;
-  SWalHead *pHead = hparam;
+  SWalHead *pHead = hparam;  
   int32_t tableId = pHead->msgType / 10;
   int32_t action = pHead->msgType % 10;
 
@@ -648,10 +647,6 @@ static int32_t sdbProcessWrite(void *wparam, void *hparam, int32_t qtype, void *
   }
 
   pthread_mutex_lock(&tsSdbMgmt.mutex);
-  
-  if (tsSdbMgmt.offset == -1) {
-    tsSdbMgmt.offset = walCurrentPos(tsSdbMgmt.wal);
-  }
 
   if (pHead->version == 0) {
     // assign version
@@ -681,19 +676,26 @@ static int32_t sdbProcessWrite(void *wparam, void *hparam, int32_t qtype, void *
     }
   }
 
-  int32_t code = walWrite(tsSdbMgmt.wal, pHead);
+  SWalHeadInfo headInfo;
+  int32_t code;
+  if (tparam != NULL) {
+    headInfo = *(SWalHeadInfo*)tparam;
+    code = walWrite(tsSdbMgmt.wal, pHead, NULL);    
+  } else {
+    code = walWrite(tsSdbMgmt.wal, pHead, &headInfo);
+  }
+
   if (code < 0) {
     pthread_mutex_unlock(&tsSdbMgmt.mutex);
     return code;
   }
 
-  if (action == SDB_ACTION_INSERT || action == SDB_ACTION_UPDATE) {
+  if (action == SDB_ACTION_INSERT || action == SDB_ACTION_UPDATE) {  
     SSdbRow row = {.rowSize = pHead->len, .rowData = pHead->cont, .pTable = pTable};
     (*pTable->fpDecode)(&row);
-    mnodeSdbTableSyncWal(pTable->iHandle, pHead, &row, tsSdbMgmt.offset);
-  }
 
-  tsSdbMgmt.offset += pHead->len + sizeof(SWalHead);
+    mnodeSdbTableSyncWal(pTable->iHandle, pHead, &row, &headInfo);
+  }
 
   pthread_mutex_unlock(&tsSdbMgmt.mutex);
 
@@ -820,14 +822,6 @@ int32_t sdbDeleteRow(SSdbRow *pRow) {
   }
 }
 
-SWalHead* sdbGetWal(void* userData, int64_t offset, int32_t size) {
-  (void)userData;
-  pthread_mutex_lock(&tsSdbMgmt.mutex);
-  SWalHead* pHead = walRead(tsSdbMgmt.wal, offset, size);
-  pthread_mutex_unlock(&tsSdbMgmt.mutex);
-  return pHead;
-}
-
 int32_t sdbUpdateRow(SSdbRow *pRow) {
   SSdbTable *pTable = pRow->pTable;
   if (pTable == NULL) return TSDB_CODE_MND_SDB_INVALID_TABLE_TYPE;
@@ -891,6 +885,7 @@ int64_t sdbOpenTable(SSdbTableDesc *pDesc) {
 
   tstrncpy(pTable->name, pDesc->name, SDB_TABLE_LEN);
   pTable->keyType      = pDesc->keyType;
+  pTable->tableType    = pDesc->tableType;
   pTable->id           = pDesc->id;
   pTable->hashSessions = pDesc->hashSessions;
   pTable->maxRowSize   = pDesc->maxRowSize;
@@ -908,6 +903,7 @@ int64_t sdbOpenTable(SSdbTableDesc *pDesc) {
     .keyType      = pTable->keyType,
     .tableType    = pDesc->tableType,
     .cacheDataLen = pDesc->cacheDataLen,
+    .expireTime   = pDesc->expireTime,
     .userData     = pTable,
   };
   pTable->iHandle = mnodeSdbTableInit(options);
@@ -934,23 +930,27 @@ static void sdbCloseTableObj(void *handle) {
   
   tsSdbMgmt.numOfTables--;
   tsSdbMgmt.tableList[pTable->id] = NULL;
+  
+  if (pTable->tableType == SDB_TABLE_HASH_TABLE) {
+    void *pIter = mnodeSdbTableIterate(pTable->iHandle, NULL);
+    while (pIter) {
+      void *pRow = NULL;
+      mnodeSdbTableIterValue(pTable->iHandle, pIter, &pRow);
+      pIter = mnodeSdbTableIterate(pTable->iHandle, pIter);
+      if (pRow == NULL) continue;
 
-  void *pIter = mnodeSdbTableIterate(pTable->iHandle, NULL);
-  while (pIter) {
-    void *pRow = NULL;
-    mnodeSdbTableIterValue(pTable->iHandle, pIter, &pRow);
-    pIter = mnodeSdbTableIterate(pTable->iHandle, pIter);
-    if (pRow == NULL) continue;
+      SSdbRow row = {
+        .pObj = pRow,
+        .pTable = pTable,
+      };
 
-    SSdbRow row = {
-      .pObj = pRow,
-      .pTable = pTable,
-    };
-
-    (*pTable->fpDestroy)(&row);
+      (*pTable->fpDestroy)(&row);
+    }
+    mnodeSdbTableCancelIterate(pTable->iHandle, pIter);
+  } else {
+    
   }
-
-  mnodeSdbTableCancelIterate(pTable->iHandle, pIter);
+  
   mnodeSdbTableClear(pTable->iHandle);
   pTable->iHandle = NULL;
 

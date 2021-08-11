@@ -39,6 +39,7 @@ cacheItem* cacheAllocItem(cacheTable* pTable, uint8_t nkey, uint32_t nbytes, uin
 
   if (pItem == NULL) {
     return NULL;
+    //pItem = malloc(ntotal);
   }
 
   memset(pItem, 0, sizeof(cacheItem));

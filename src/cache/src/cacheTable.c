@@ -149,6 +149,7 @@ static cacheTableBucket* getTableBucketByKey(cacheTable* pTable, const void* key
 }
 
 static void checkExpandTable(cacheTable* pTable) {
+  return;
   taosWLockLatch(&(pTable->latch));
   if (pTable->expanding) {
     taosWUnLockLatch(&(pTable->latch));

@@ -71,6 +71,7 @@ typedef struct {
   int32_t   maxRowSize;
   int32_t   refCountPos;
   int32_t   cacheDataLen;
+  int32_t   expireTime;
   int       (*afterLoadFp)(void*,void* value, int32_t nBytes, void* pRet);
   ESdbTable id;
   ESdbKey   keyType;
@@ -114,7 +115,6 @@ uint64_t sdbGetVersion();
 bool     sdbCheckRowDeleted(void *pTable, void *pRow);
 void *    sdbGetObjKey(ESdbKey keyType, void *key);
 void     sdbFreeObj(void*, void*);
-SWalHead* sdbGetWal(void*, int64_t offset, int32_t size);
 
 int32_t mnodeCompactWal();
 #ifdef __cplusplus

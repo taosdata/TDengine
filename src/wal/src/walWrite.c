@@ -137,6 +137,8 @@ int64_t walCurrentPos(twalh handle) {
   if (handle == NULL) return -1;
   SWal *  pWal = handle;
 
+  if (!tfValid(pWal->tfd)) return 0;
+
   pthread_mutex_lock(&pWal->mutex);
   int64_t off = tfLseek(pWal->tfd, 0, SEEK_CUR);
   pthread_mutex_unlock(&(pWal->mutex));
@@ -144,7 +146,7 @@ int64_t walCurrentPos(twalh handle) {
   return off;
 }
 
-int32_t walWrite(void *handle, SWalHead *pHead) {
+int32_t walWrite(void *handle, SWalHead *pHead, SWalHeadInfo* pHeadInfo) {
   if (handle == NULL) return -1;
 
   SWal *  pWal = handle;
@@ -155,6 +157,11 @@ int32_t walWrite(void *handle, SWalHead *pHead) {
   if (pWal->level == TAOS_WAL_NOLOG) return 0;
   if (pHead->version <= pWal->version) return 0;
 
+  if (pHeadInfo) {
+    strcpy(pHeadInfo->name, pWal->name);
+    pHeadInfo->offset = walCurrentPos(pWal);
+    pHeadInfo->len = pHead->len + sizeof(SWalHead);
+  }
   pHead->signature = WAL_SIGNATURE;
 #if defined(WAL_CHECKSUM_WHOLE)
   walUpdateChecksum(pHead);
@@ -181,44 +188,6 @@ int32_t walWrite(void *handle, SWalHead *pHead) {
   ASSERT(contLen == pHead->len + sizeof(SWalHead));
 
   return code;
-}
-
-SWalHead* walRead(twalh handle, int64_t off, int32_t size) {
-  SWal *  pWal = handle;
-
-  pthread_mutex_lock(&pWal->mutex);
-  // get offset of current wal file
-  int64_t offset = tfLseek(pWal->tfd, 0, SEEK_CUR);
-  if (off + size > offset) {
-    pthread_mutex_unlock(&pWal->mutex);
-    return NULL;
-  }
-
-  void* p = calloc(1, size);
-  if (p == NULL) {
-    pthread_mutex_unlock(&pWal->mutex);
-    return NULL;
-  }
-
-  // seek to the read position
-  tfLseek(pWal->tfd, off, SEEK_SET);
-  SWalHead *pHead = p;
-
-  // read the wal record
-  int32_t ret = (int32_t)tfRead(pWal->tfd, pHead, size);
-  if (ret < size) {
-    wError("vgId:%d, fileId:%" PRId64 ", read wal record fail %s", pWal->vgId, pWal->fileId, strerror(errno));
-    free(p);
-    tfLseek(pWal->tfd, offset, SEEK_SET);
-    pthread_mutex_unlock(&pWal->mutex);
-    return NULL;
-  }
-
-  // restore offset
-  tfLseek(pWal->tfd, offset, SEEK_SET);
-  pthread_mutex_unlock(&pWal->mutex);
-
-  return pHead;
 }
 
 void walFsync(void *handle, bool forceFsync) {
@@ -377,8 +346,13 @@ static int32_t walRestoreWalFile(SWal *pWal, void *pVnode, FWalWrite writeFp, ch
   int32_t   code = TSDB_CODE_SUCCESS;
   int64_t   offset = 0;
   SWalHead *pHead = buffer;
+  SWalHeadInfo headInfo;
+
+  strcpy(headInfo.name, name);
 
   while (1) {
+    headInfo.offset = offset;
+  
     int32_t ret = (int32_t)tfRead(tfd, pHead, sizeof(SWalHead));
     if (ret == 0) break;
 
@@ -473,6 +447,7 @@ static int32_t walRestoreWalFile(SWal *pWal, void *pVnode, FWalWrite writeFp, ch
     }
 
 #endif
+    
     offset = offset + sizeof(SWalHead) + pHead->len;
 
     wTrace("vgId:%d, restore wal, fileId:%" PRId64 " hver:%" PRIu64 " wver:%" PRIu64 " len:%d offset:%" PRId64,
@@ -480,8 +455,9 @@ static int32_t walRestoreWalFile(SWal *pWal, void *pVnode, FWalWrite writeFp, ch
 
     pWal->version = pHead->version;
 
+    headInfo.len = sizeof(SWalHead) + pHead->len;
     //wInfo("writeFp: %ld", offset);
-    (*writeFp)(pVnode, pHead, TAOS_QTYPE_WAL, NULL);
+    (*writeFp)(pVnode, pHead, TAOS_QTYPE_WAL, &headInfo);
   }
 
   tfClose(tfd);

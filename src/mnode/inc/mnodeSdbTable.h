@@ -26,6 +26,7 @@ typedef struct mnodeSdbTable mnodeSdbTable;
 
 struct SWalHead;
 struct SSdbRow;
+struct SWalHeadInfo;
 
 typedef struct mnodeSdbTableOption {
   int32_t           hashSessions;
@@ -41,12 +42,13 @@ typedef struct mnodeSdbTableOption {
 } mnodeSdbTableOption ;
 
 mnodeSdbTable* mnodeSdbTableInit(mnodeSdbTableOption);
+
 void mnodeSdbTableClear(mnodeSdbTable *pTable);
 
 int  mnodeSdbTableGet(mnodeSdbTable *pTable, const void *key, size_t keyLen, void** pRet);
 void mnodeSdbTablePut(mnodeSdbTable *pTable, struct SSdbRow* pRow);
 
-void mnodeSdbTableSyncWal(mnodeSdbTable *pTable, void*, void*, int64_t off);
+void mnodeSdbTableSyncWal(mnodeSdbTable *pTable, void*, void*, void*);
 
 void mnodeSdbTableRemove(mnodeSdbTable *pTable, const struct SSdbRow* pRow);
 

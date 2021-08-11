@@ -31,6 +31,12 @@ typedef enum {
 } EWalKeep;
 
 typedef struct {
+  char      name[200];
+  int64_t   offset;
+  int32_t   len;
+} SWalHeadInfo;
+
+typedef struct {
   int8_t   msgType;
   int8_t   sver;
   int8_t   reserved[2];
@@ -61,8 +67,8 @@ int32_t  walRenew(twalh);
 int64_t  walCurrentPos(twalh);
 void     walRemoveOneOldFile(twalh);
 void     walRemoveAllOldFiles(twalh);
-int32_t  walWrite(twalh, SWalHead *);
-SWalHead*  walRead(twalh, int64_t off, int32_t size);
+int32_t  walWrite(twalh, SWalHead *, SWalHeadInfo*);
+void     walHeadInfo(twalh, SWalHeadInfo);
 void     walFsync(twalh, bool forceFsync);
 int32_t  walRestore(twalh, void *pVnode, FWalWrite writeFp);
 int32_t  walGetWalFile(twalh, char *fileName, int64_t *fileId);
