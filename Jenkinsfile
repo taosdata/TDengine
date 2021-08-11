@@ -135,19 +135,25 @@ pipeline {
           rm -rf ${WORKSPACE}.tes
           cp -r ${WORKSPACE} ${WORKSPACE}.tes
           cd ${WORKSPACE}.tes
-          
+          git fetch
           '''
           script {
             if (env.CHANGE_TARGET == 'master') {
               sh '''
+              cd ${WK}
               git checkout master
-              git pull origin master
               '''
               }
-            else {
+            else if(env.CHANGE_TARGET == '2.0'){
               sh '''
+              cd ${WK}
+              git checkout 2.0
+              '''
+            } 
+            else{
+              sh '''
+              cd ${WK}
               git checkout develop
-              git pull origin develop
               '''
             } 
           }
