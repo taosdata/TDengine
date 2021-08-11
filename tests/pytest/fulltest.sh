@@ -29,6 +29,10 @@ python3 ./test.py -f insert/in_function.py
 python3 ./test.py -f insert/modify_column.py
 python3 ./test.py -f insert/line_insert.py
 
+# timezone 
+
+python3 ./test.py -f TimeZone/TestCaseTimeZone.py
+
 #table
 python3 ./test.py -f table/alter_wal0.py
 python3 ./test.py -f table/column_name.py
@@ -339,6 +343,7 @@ python3 ./test.py -f functions/function_twa.py -r 1
 python3 ./test.py -f functions/function_twa_test2.py
 python3 ./test.py -f functions/function_stddev_td2555.py
 python3 ./test.py -f functions/showOfflineThresholdIs864000.py
+python3 ./test.py -f functions/function_interp.py
 python3 ./test.py -f insert/metadataUpdate.py
 python3 ./test.py -f query/last_cache.py
 python3 ./test.py -f query/last_row_cache.py

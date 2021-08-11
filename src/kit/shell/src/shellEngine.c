@@ -104,7 +104,6 @@ TAOS *shellInit(SShellArguments *_args) {
   }
 
   if (con == NULL) {
-    printf("taos connect failed, reason: %s.\n\n", tstrerror(terrno));
     fflush(stdout);
     return con;
   }
