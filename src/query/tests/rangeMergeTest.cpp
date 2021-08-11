@@ -330,7 +330,7 @@ void intDataTest() {
     filterAddRange(h, ra + i, TSDB_RELATION_AND);
   }
   filterGetRangeNum(h, &num);
-  ASSERT_EQ(num, 0);
+  ASSERT_EQ(num, 1);
   filterFreeRangeCtx(h);
 
 
