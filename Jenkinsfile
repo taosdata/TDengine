@@ -140,19 +140,16 @@ pipeline {
           script {
             if (env.CHANGE_TARGET == 'master') {
               sh '''
-              cd ${WK}
               git checkout master
               '''
               }
             else if(env.CHANGE_TARGET == '2.0'){
               sh '''
-              cd ${WK}
               git checkout 2.0
               '''
             } 
             else{
               sh '''
-              cd ${WK}
               git checkout develop
               '''
             } 
