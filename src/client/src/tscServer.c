@@ -525,6 +525,7 @@ static void doProcessMsgFromServer(SSchedMsg* pSchedMsg) {
 }
 
 void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcEpSet *pEpSet) {
+  int64_t st = taosGetTimestampUs();
   SSchedMsg schedMsg = {0};
 
   schedMsg.fp = doProcessMsgFromServer;
@@ -543,6 +544,11 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcEpSet *pEpSet) {
   schedMsg.msg = NULL;
 
   taosScheduleTask(tscQhandle, &schedMsg);
+
+  int64_t et = taosGetTimestampUs();
+  if (et - st > 100) {
+    tscDebug("add message to task queue, elapsed time:%"PRId64, et - st);
+  }
 }
 
 int doBuildAndSendMsg(SSqlObj *pSql) {
