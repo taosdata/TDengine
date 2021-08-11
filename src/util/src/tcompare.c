@@ -280,25 +280,26 @@ int WCSPatternMatch(const wchar_t *patterStr, const wchar_t *str, size_t size, c
 
 int32_t compareStrPatternComp(const void* pLeft, const void* pRight) {
   SPatternCompareInfo pInfo = {'%', '_'};
-  
-  char pattern[128] = {0};
+
+  assert(varDataLen(pRight) <= TSDB_MAX_FIELD_LEN);
+  char *pattern = calloc(varDataLen(pRight) + 1, sizeof(char));
   memcpy(pattern, varDataVal(pRight), varDataLen(pRight));
-  assert(varDataLen(pRight) < 128);
 
   size_t sz = varDataLen(pLeft);
-  char *buf = malloc(sz + 1); 
-  memcpy(buf, varDataVal(pLeft), sz); 
+  char *buf = malloc(sz + 1);
+  memcpy(buf, varDataVal(pLeft), sz);
   buf[sz] = 0;
 
   int32_t ret = patternMatch(pattern, buf, sz, &pInfo);
   free(buf);
+  free(pattern);
   return (ret == TSDB_PATTERN_MATCH) ? 0 : 1;
 }
 
 int32_t taosArrayCompareString(const void* a, const void* b) {
   const char* x = *(const char**)a;
   const char* y = *(const char**)b;
-  
+
   return compareLenPrefixedStr(x, y);
 }
 
@@ -307,19 +308,19 @@ int32_t taosArrayCompareString(const void* a, const void* b) {
 //  return taosArraySearchString(arr, pLeft, taosArrayCompareString, TD_EQ) == NULL ? 0 : 1;
 //}
 int32_t compareFindItemInSet(const void *pLeft, const void* pRight)  {
-  return NULL != taosHashGet((SHashObj *)pRight, varDataVal(pLeft), varDataLen(pLeft)) ? 1 : 0;    
+  return NULL != taosHashGet((SHashObj *)pRight, varDataVal(pLeft), varDataLen(pLeft)) ? 1 : 0;
 }
 
 int32_t compareWStrPatternComp(const void* pLeft, const void* pRight) {
   SPatternCompareInfo pInfo = {'%', '_'};
 
-  wchar_t pattern[128] = {0};
-  assert(TSDB_PATTERN_STRING_MAX_LEN < 128);
+  assert(varDataLen(pRight) <= TSDB_MAX_FIELD_LEN * TSDB_NCHAR_SIZE);
+  wchar_t *pattern = calloc(varDataLen(pRight) + 1, sizeof(wchar_t));
 
   memcpy(pattern, varDataVal(pRight), varDataLen(pRight));
-  assert(varDataLen(pRight) < 128);
-  
+
   int32_t ret = WCSPatternMatch(pattern, varDataVal(pLeft), varDataLen(pLeft)/TSDB_NCHAR_SIZE, &pInfo);
+  free(pattern);
   return (ret == TSDB_PATTERN_MATCH) ? 0 : 1;
 }
 
