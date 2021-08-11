@@ -30,6 +30,18 @@ typedef struct SCompSupporter {
   int32_t           order;
 } SCompSupporter;
 
+int32_t getRowNumForMultioutput(SQueryAttr* pQueryAttr, bool topBottomQuery, bool stable) {
+  if (pQueryAttr && (!stable)) {
+    for (int16_t i = 0; i < pQueryAttr->numOfOutput; ++i) {
+      if (pQueryAttr->pExpr1[i].base.functionId == TSDB_FUNC_TOP || pQueryAttr->pExpr1[i].base.functionId == TSDB_FUNC_BOTTOM) {
+        return pQueryAttr->pExpr1[i].base.param[0].i64;
+      }
+    }
+  }
+
+  return 1;
+}
+
 int32_t getOutputInterResultBufSize(SQueryAttr* pQueryAttr) {
   int32_t size = 0;
 
