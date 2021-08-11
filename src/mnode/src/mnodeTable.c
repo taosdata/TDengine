@@ -104,7 +104,8 @@ static void mnodeDestroyChildTable(SCTableObj *pTable) {
   tfree(pTable->info.tableId);
   tfree(pTable->schema);
   tfree(pTable->sql);
-  tfree(pTable);
+  //tfree(pTable);
+  sdbFreeObj(tsChildTableSdb, pTable);
 }
 
 static char* mnodeGetTableShowPattern(SShowObj *pShow) {

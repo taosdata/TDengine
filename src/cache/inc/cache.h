@@ -87,6 +87,8 @@ cacheItem* cacheItemByData(void* data);
 
 void cacheRemove(cacheTable* pTable, const void* key, uint8_t nkey);
 
+void cacheFreeItem(cacheTable* pTable, cacheItem*);
+
 cacheIterator* cacheTableGetIterator(cacheTable*);
 bool cacheTableIterateNext(cacheIterator*);
 

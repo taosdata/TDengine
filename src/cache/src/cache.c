@@ -168,6 +168,10 @@ void cacheRemove(cacheTable* pTable, const void* key, uint8_t nkey) {
   cacheMutexUnlock(mutex);
 }
 
+void cacheFreeItem(cacheTable* pTable, cacheItem* pItem) {
+  cacheRemove(pTable, item_key(pItem), pItem->nkey);
+}
+
 void cacheDestroyTable(cacheTable* pTable) {
 
 }

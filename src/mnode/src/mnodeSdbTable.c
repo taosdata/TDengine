@@ -215,8 +215,9 @@ static void sdbCachePut(mnodeSdbTable *pTable, SSdbRow* pRow) {
   // put data in cache in sdbCacheSyncWal
 }
 
-static void sdbCacheFreeValue(mnodeSdbTable *pTable, void *p) {
-  free(p);
+static void sdbCacheFreeValue(mnodeSdbTable *pTable, void *pObj) {
+  mnodeSdbCacheTable* pCache = pTable->iHandle;
+  cacheFreeItem(pCache->pTable, cacheItemByData(pObj));
 }
 
 static void sdbCacheRemove(mnodeSdbTable *pTable, const void *key, size_t keyLen) {
@@ -326,12 +327,14 @@ static int loadCacheDataFromWal(void* userData, const void* key, uint8_t nkey, c
 }
 
 static int delCacheData(void* userData, const void* key, uint8_t nkey) {
-  mnodeSdbCacheTable* pCache = (mnodeSdbCacheTable*)userData;
+  mnodeSdbTable* pTable = (mnodeSdbTable*)userData;
+  mnodeSdbCacheTable* pCache = (mnodeSdbCacheTable*)pTable->iHandle;
+
   pthread_mutex_lock(&pCache->mutex);
   walRecord* pRecord = taosHashGet(pCache->pWalTable, key, nkey);
   if (pRecord) {
-    taosHashRemove(pCache->pWalTable, key, nkey);
     free(pRecord->key);
+    taosHashRemove(pCache->pWalTable, key, nkey);
   }
   pthread_mutex_unlock(&pCache->mutex);
   return 0;
@@ -384,7 +387,7 @@ static void hashTablePut(mnodeSdbTable *pTable, SSdbRow* pRow) {
 }
 
 static void hashTableFreeValue(mnodeSdbTable *pTable, void *p) {
-  // nothing to do
+  tfree(p);
 }
 
 static void hashTableRemove(mnodeSdbTable *pTable, const void *key, size_t keyLen) {

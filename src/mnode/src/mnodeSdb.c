@@ -146,6 +146,11 @@ bool sdbIsServing() {
   return tsSdbMgmt.status == SDB_STATUS_SERVING; 
 }
 
+void sdbFreeObj(void* tparam, void* pObj) {
+  SSdbTable *pTable = tparam;
+  mnodeSdbTableFreeValue(pTable->iHandle, pObj);
+}
+
 void *sdbGetObjKey(ESdbKey keyType, void *key) {
   if (keyType == SDB_KEY_VAR_STRING) {
     return *(char **)key;
