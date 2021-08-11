@@ -245,7 +245,6 @@ typedef struct SArguments_S {
     uint32_t disorderRatio;               // 0: no disorder, >0: x%
     int      disorderRange;               // ms, us or ns. accordig to database precision
     uint32_t method_of_delete;
-    char **  arg_list;
     uint64_t totalInsertRows;
     uint64_t totalAffectedRows;
     bool     demo_mode;                  // use default column name and semi-random data
@@ -637,7 +636,6 @@ SArguments g_args = {
     0,               // disorderRatio
     1000,            // disorderRange
     1,               // method_of_delete
-    NULL,            // arg_list
     0,               // totalInsertRows;
     0,               // totalAffectedRows;
     true,            // demo_mode;
@@ -6408,6 +6406,9 @@ static void* syncWriteInterlace(threadInfo *pThreadInfo) {
     bool flagSleep = true;
     uint64_t sleepTimeTotal = 0;
 
+    int percentComplete = 0;
+    int64_t totalRows = insertRows * pThreadInfo->ntables;
+
     while(pThreadInfo->totalInsertRows < pThreadInfo->ntables * insertRows) {
         if ((flagSleep) && (insert_interval)) {
             st = taosGetTimestampMs();
@@ -6584,6 +6585,11 @@ static void* syncWriteInterlace(threadInfo *pThreadInfo) {
 
         pThreadInfo->totalAffectedRows += affectedRows;
 
+        int currentPercent = pThreadInfo->totalAffectedRows * 100 / totalRows;
+        if (currentPercent > percentComplete ) {
+            printf("[%d]:%d%%\n", pThreadInfo->threadID, currentPercent);
+            percentComplete = currentPercent;
+        }
         int64_t  currentPrintTime = taosGetTimestampMs();
         if (currentPrintTime - lastPrintTime > 30*1000) {
             printf("thread[%d] has currently inserted rows: %"PRIu64 ", affected rows: %"PRIu64 "\n",
@@ -6605,6 +6611,8 @@ static void* syncWriteInterlace(threadInfo *pThreadInfo) {
             }
         }
     }
+    if (percentComplete < 100)
+        printf("[%d]:%d%%\n", pThreadInfo->threadID, percentComplete);
 
 free_of_interlace:
     tmfree(pThreadInfo->buffer);
@@ -6641,6 +6649,9 @@ static void* syncWriteProgressive(threadInfo *pThreadInfo) {
     pThreadInfo->totalAffectedRows = 0;
 
     pThreadInfo->samplePos = 0;
+
+    int percentComplete = 0;
+    int64_t totalRows = insertRows * pThreadInfo->ntables;
 
     for (uint64_t tableSeq = pThreadInfo->start_table_from;
             tableSeq <= pThreadInfo->end_table_to;
@@ -6747,6 +6758,11 @@ static void* syncWriteProgressive(threadInfo *pThreadInfo) {
 
             pThreadInfo->totalAffectedRows += affectedRows;
 
+            int currentPercent = pThreadInfo->totalAffectedRows * 100 / totalRows;
+            if (currentPercent > percentComplete ) {
+                printf("[%d]:%d%%\n", pThreadInfo->threadID, currentPercent);
+                percentComplete = currentPercent;
+            }
             int64_t  currentPrintTime = taosGetTimestampMs();
             if (currentPrintTime - lastPrintTime > 30*1000) {
                 printf("thread[%d] has currently inserted rows: %"PRId64 ", affected rows: %"PRId64 "\n",
@@ -6769,6 +6785,8 @@ static void* syncWriteProgressive(threadInfo *pThreadInfo) {
                     __func__, __LINE__, pThreadInfo->samplePos);
         }
     } // tableSeq
+    if (percentComplete < 100)
+        printf("[%d]:%d%%\n", pThreadInfo->threadID, percentComplete);
 
 free_of_progressive:
     tmfree(pThreadInfo->buffer);
