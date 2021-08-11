@@ -32,6 +32,7 @@ void    mnodeDropAllDbVgroups(SDbObj *pDropDb);
 void    mnodeSendDropAllDbVgroupsMsg(SDbObj *pDropDb);
 void    mnodeDropAllDnodeVgroups(SDnodeObj *pDropDnode);
 //void  mnodeUpdateAllDbVgroups(SDbObj *pAlterDb);
+int32_t mnodeCompactVgroups();
 
 void *  mnodeGetNextVgroup(void *pIter, SVgObj **pVgroup);
 void    mnodeCancelGetNextVgroup(void *pIter);
@@ -48,8 +49,9 @@ int32_t mnodeAddTableIntoVgroup(SVgObj *pVgroup, SCTableObj *pTable, bool needCh
 void    mnodeRemoveTableFromVgroup(SVgObj *pVgroup, SCTableObj *pTable);
 void    mnodeSendDropVnodeMsg(int32_t vgId, SRpcEpSet *epSet, void *ahandle);
 void    mnodeSendCreateVgroupMsg(SVgObj *pVgroup, void *ahandle);
-void    mnodeSendAlterVgroupMsg(SVgObj *pVgroup);
+void    mnodeSendAlterVgroupMsg(SVgObj *pVgroup,SMnodeMsg *pMsg);
 void    mnodeSendSyncVgroupMsg(SVgObj *pVgroup);
+void    mnodeSendCompactVgroupMsg(SVgObj *pVgroup);
 
 SRpcEpSet mnodeGetEpSetFromVgroup(SVgObj *pVgroup);
 SRpcEpSet mnodeGetEpSetFromIp(char *ep);

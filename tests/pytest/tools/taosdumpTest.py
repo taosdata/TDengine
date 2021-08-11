@@ -28,6 +28,13 @@ class TDTestCase:
         self.numberOfTables = 10000
         self.numberOfRecords = 100
 
+    def checkCommunity(self):
+        selfPath = os.path.dirname(os.path.realpath(__file__))
+        if ("community" in selfPath):
+            return False
+        else:
+            return True
+
     def getBuildPath(self):
         selfPath = os.path.dirname(os.path.realpath(__file__))
 
@@ -80,13 +87,14 @@ class TDTestCase:
 
         os.system("%staosdump --databases db -o ./taosdumptest/tmp1" % binPath)
         os.system(
-            "%staosdump --databases db1 -N -o ./taosdumptest/tmp2" %
+            "%staosdump --databases db1 -o ./taosdumptest/tmp2" %
             binPath)
 
         tdSql.execute("drop database db")
         tdSql.execute("drop database db1")
         tdSql.query("show databases")
         tdSql.checkRows(0)
+
         os.system("%staosdump -i ./taosdumptest/tmp1" % binPath)
         os.system("%staosdump -i ./taosdumptest/tmp2" % binPath)
 
@@ -95,6 +103,9 @@ class TDTestCase:
         tdSql.checkRows(2)
         dbresult = tdSql.queryResult
         # 6--days,7--keep0,keep1,keep, 12--block,
+
+        isCommunity = self.checkCommunity()
+        print("iscommunity: %d" % isCommunity)
         for i in range(len(dbresult)):
             if dbresult[i][0] == 'db':
                 print(dbresult[i])
@@ -102,12 +113,18 @@ class TDTestCase:
                 print(type(dbresult[i][7]))
                 print(type(dbresult[i][9]))
                 assert dbresult[i][6] == 11
-                assert dbresult[i][7] == "3649,3649,3649"
+                if isCommunity:
+                    assert dbresult[i][7] == "3649"
+                else:
+                    assert dbresult[i][7] == "3649,3649,3649"
                 assert dbresult[i][9] == 8
             if dbresult[i][0] == 'db1':
-                assert dbresult[i][6] == 10
-                assert dbresult[i][7] == "3650,3650,3650"
-                assert dbresult[i][9] == 6
+                assert dbresult[i][6] == 12
+                if isCommunity:
+                    assert dbresult[i][7] == "3640"
+                else:
+                    assert dbresult[i][7] == "3640,3640,3640"
+                assert dbresult[i][9] == 7
 
         tdSql.query("show stables")
         tdSql.checkRows(1)

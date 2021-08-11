@@ -99,9 +99,8 @@ taosd -C
 下面仅仅列出一些重要的配置参数，更多的参数请看配置文件里的说明。各个参数的详细介绍及作用请看前述章节，而且这些参数的缺省配置都是工作的，一般无需设置。**注意：配置修改后，需要重启*taosd*服务才能生效。**
 
 - firstEp: taosd启动时，主动连接的集群中首个dnode的end point, 默认值为localhost:6030。
-- fqdn：数据节点的FQDN，缺省为操作系统配置的第一个hostname。如果习惯IP地址访问，可设置为该节点的IP地址。
-- serverPort：taosd启动后，对外服务的端口号，默认值为6030。
-- httpPort: RESTful服务使用的端口号，所有的HTTP请求（TCP）都需要向该接口发起查询/写入请求, 默认值为6041。
+- fqdn：数据节点的FQDN，缺省为操作系统配置的第一个hostname。如果习惯IP地址访问，可设置为该节点的IP地址。这个参数值的长度需要控制在 96 个字符以内。
+- serverPort：taosd启动后，对外服务的端口号，默认值为6030。（RESTful服务使用的端口号是在此基础上+11，即默认值为6041。）
 - dataDir: 数据文件目录，所有的数据文件都将写入该目录。默认值：/var/lib/taos。
 - logDir：日志文件目录，客户端和服务器的运行日志文件将写入该目录。默认值：/var/log/taos。
 - arbitrator：系统中裁决器的end point, 缺省值为空。
@@ -115,22 +114,24 @@ taosd -C
 - queryBufferSize: 为所有并发查询占用保留的内存大小。计算规则可以根据实际应用可能的最大并发数和表的数字相乘，再乘 170 。单位为 MB（2.0.15 以前的版本中，此参数的单位是字节）。
 - ratioOfQueryCores: 设置查询线程的最大数量。最小值0 表示只有1个查询线程；最大值2表示最大建立2倍CPU核数的查询线程。默认为1，表示最大和CPU核数相等的查询线程。该值可以为小数，即0.5表示最大建立CPU核数一半的查询线程。
 
-**注意：**对于端口，TDengine会使用从serverPort起13个连续的TCP和UDP端口号，请务必在防火墙打开。因此如果是缺省配置，需要打开从6030到6042共13个端口，而且必须TCP和UDP都打开。
+**注意：**对于端口，TDengine会使用从serverPort起13个连续的TCP和UDP端口号，请务必在防火墙打开。因此如果是缺省配置，需要打开从6030到6042共13个端口，而且必须TCP和UDP都打开。（详细的端口情况请参见 [TDengine 2.0 端口说明](https://www.taosdata.com/cn/documentation/faq#port)）
 
-不同应用场景的数据往往具有不同的数据特征，比如保留天数、副本数、采集频次、记录大小、采集点的数量、压缩等都可完全不同。为获得在存储上的最高效率，TDengine提供如下存储相关的系统配置参数：
+不同应用场景的数据往往具有不同的数据特征，比如保留天数、副本数、采集频次、记录大小、采集点的数量、压缩等都可完全不同。为获得在存储上的最高效率，TDengine提供如下存储相关的系统配置参数（既可以作为 create database 指令的参数，也可以写在 taos.cfg 配置文件中用来设定创建新数据库时所采用的默认值）：
 
-- days：一个数据文件存储数据的时间跨度，单位为天，默认值：10。
-- keep：数据库中数据保留的天数，单位为天，默认值：3650。（可通过 alter database 修改）
-- minRows：文件块中记录的最小条数，单位为条，默认值：100。
-- maxRows：文件块中记录的最大条数，单位为条，默认值：4096。
-- comp：文件压缩标志位，0：关闭；1：一阶段压缩；2：两阶段压缩。默认值：2。（可通过 alter database 修改）
-- walLevel：WAL级别。1：写wal，但不执行fsync；2：写wal, 而且执行fsync。默认值：1。
+- days：一个数据文件存储数据的时间跨度。单位为天，默认值：10。
+- keep：数据库中数据保留的天数。单位为天，默认值：3650。（可通过 alter database 修改）
+- minRows：文件块中记录的最小条数。单位为条，默认值：100。
+- maxRows：文件块中记录的最大条数。单位为条，默认值：4096。
+- comp：文件压缩标志位。0：关闭；1：一阶段压缩；2：两阶段压缩。默认值：2。（可通过 alter database 修改）
+- wal：WAL级别。1：写wal，但不执行fsync；2：写wal, 而且执行fsync。默认值：1。（在 taos.cfg 中参数名需要写作 walLevel）
 - fsync：当wal设置为2时，执行fsync的周期。设置为0，表示每次写入，立即执行fsync。单位为毫秒，默认值：3000。
-- cache：内存块的大小，单位为兆字节（MB），默认值：16。
+- cache：内存块的大小。单位为兆字节（MB），默认值：16。
 - blocks：每个VNODE（TSDB）中有多少cache大小的内存块。因此一个VNODE的用的内存大小粗略为（cache * blocks）。单位为块，默认值：4。（可通过 alter database 修改）
-- replica：副本个数，取值范围：1-3。单位为个，默认值：1。（可通过 alter database 修改）
-- precision：时间戳精度标识，ms表示毫秒，us表示微秒。默认值：ms。
-- cacheLast：是否在内存中缓存子表 last_row，0：关闭；1：开启。默认值：0。（可通过 alter database 修改）（从 2.0.11 版本开始支持此参数）
+- replica：副本个数。取值范围：1-3，单位为个，默认值：1。（可通过 alter database 修改）
+- quorum：多副本环境下指令执行的确认数要求。取值范围：1、2，单位为个，默认值：1。（可通过 alter database 修改）
+- precision：时间戳精度标识。ms表示毫秒，us表示微秒，默认值：ms。（2.1.2.0 版本之前、2.0.20.7 版本之前在 taos.cfg 文件中不支持此参数。）
+- cacheLast：是否在内存中缓存子表的最近数据。0：关闭；1：缓存子表最近一行数据；2：缓存子表每一列的最近的非NULL值；3：同时打开缓存最近行和列功能。默认值：0。（可通过 alter database 修改）（从 2.1.2.0 版本开始此参数支持 0～3 的取值范围，在此之前取值只能是 [0, 1]；而 2.0.11.0 之前的版本在 SQL 指令中不支持此参数。）（2.1.2.0 版本之前、2.0.20.7 版本之前在 taos.cfg 文件中不支持此参数。）
+- update：是否允许更新。0：不允许；1：允许。默认值：0。
 
 对于一个应用场景，可能有多种数据特征的数据并存，最佳的设计是将具有相同数据特征的表放在一个库里，这样一个应用有多个库，而每个库可以配置不同的存储参数，从而保证系统有最优的性能。TDengine允许应用在创建库时指定上述存储参数，如果指定，该参数就将覆盖对应的系统配置参数。举例，有下述SQL：
 
@@ -142,15 +143,18 @@ taosd -C
 
 TDengine集群中加入一个新的dnode时，涉及集群相关的一些参数必须与已有集群的配置相同，否则不能成功加入到集群中。会进行校验的参数如下：
 
-- numOfMnodes：系统中管理节点个数。默认值：3。
-- balance：是否启动负载均衡。0：否，1：是。默认值：1。
+- numOfMnodes：系统中管理节点个数。默认值：3。（2.0 版本从 2.0.20.11 开始、2.1 及以上版本从 2.1.6.0 开始，numOfMnodes 默认值改为 1。）
 - mnodeEqualVnodeNum: 一个mnode等同于vnode消耗的个数。默认值：4。
 - offlineThreshold: dnode离线阈值，超过该时间将导致该dnode从集群中删除。单位为秒，默认值：86400*10（即10天）。
 - statusInterval: dnode向mnode报告状态时长。单位为秒，默认值：1。
 - maxTablesPerVnode: 每个vnode中能够创建的最大表个数。默认值：1000000。
 - maxVgroupsPerDb: 每个数据库中能够使用的最大vgroup个数。
 - arbitrator: 系统中裁决器的end point，缺省为空。
-- timezone、locale、charset 的配置见客户端配置。
+- timezone、locale、charset 的配置见客户端配置。（2.0.20.0 及以上的版本里，集群中加入新节点已不要求 locale 和 charset 参数取值一致）
+- balance：是否启用负载均衡。0：否，1：是。默认值：1。
+- flowctrl：是否启用非阻塞流控。0：否，1：是。默认值：1。
+- slaveQuery：是否启用 slave vnode 参与查询。0：否，1：是。默认值：1。
+- adjustMaster：是否启用 vnode master 负载均衡。0：否，1：是。默认值：1。
 
 为方便调试，可通过SQL语句临时调整每个dnode的日志配置，系统重启后会失效：
 
@@ -414,6 +418,19 @@ TDengine启动后，会自动创建一个监测数据库log，并自动将服务
 
 这些监测信息的采集缺省是打开的，但可以修改配置文件里的选项enableMonitor将其关闭或打开。
 
+<a class="anchor" id="optimize"></a>
+## 性能优化
+
+因数据行 [update](https://www.taosdata.com/cn/documentation/faq#update)、表删除、数据过期等原因，TDengine 的磁盘存储文件有可能出现数据碎片，影响查询操作的性能表现。从 2.1.3.0 版本开始，新增 SQL 指令 COMPACT 来启动碎片重整过程：
+
+```mysql
+COMPACT VNODES IN (vg_id1, vg_id2, ...)
+```
+
+COMPACT 命令对指定的一个或多个 VGroup 启动碎片重整，系统会通过任务队列尽快安排重整操作的具体执行。COMPACT 指令所需的 VGroup id，可以通过 `SHOW VGROUPS;` 指令的输出结果获取；而且在 `SHOW VGROUPS;` 中会有一个 compacting 列，值为 1 时表示对应的 VGroup 正在进行碎片重整，为 0 时则表示并没有处于重整状态。
+
+需要注意的是，碎片重整操作会大幅消耗磁盘 I/O。因此在重整进行期间，有可能会影响节点的写入和查询性能，甚至在极端情况下导致短时间的阻写。
+
 ## <a class="anchor" id="directories"></a>文件目录结构
 
 安装TDengine后，默认会在操作系统中生成下列目录或文件：
@@ -445,7 +462,7 @@ TDengine的所有可执行文件默认存放在 _/usr/local/taos/bin_ 目录下�
 - 数据库名：不能包含“.”以及特殊字符，不能超过 32 个字符
 - 表名：不能包含“.”以及特殊字符，与所属数据库名一起，不能超过 192 个字符
 - 表的列名：不能包含特殊字符，不能超过 64 个字符
-- 数据库名、表名、列名，都不能以数字开头
+- 数据库名、表名、列名，都不能以数字开头，合法的可用字符集是“英文字符、数字和下划线”
 - 表的列数：不能超过 1024 列
 - 记录的最大长度：包括时间戳 8 byte，不能超过 16KB（每个 BINARY/NCHAR 类型的列还会额外占用 2 个 byte 的存储位置）
 - 单条 SQL 语句默认最大字符串长度：65480 byte
@@ -461,43 +478,44 @@ TDengine的所有可执行文件默认存放在 _/usr/local/taos/bin_ 目录下�
 
 目前 TDengine 有将近 200 个内部保留关键字，这些关键字无论大小写均不可以用作库名、表名、STable 名、数据列名及标签列名等。这些关键字列表如下：
 
-| 关键字列表 |             |              |            |           |
-| ---------- | ----------- | ------------ | ---------- | --------- |
-| ABLOCKS    | CONNECTIONS | GT           | MNODES     | SLIDING   |
-| ABORT      | COPY        | ID           | MODULES    | SLIMIT    |
-| ACCOUNT    | COUNT       | IF           | NCHAR      | SMALLINT  |
-| ACCOUNTS   | CREATE      | IGNORE       | NE         | SPREAD    |
-| ADD        | CTIME       | IMMEDIATE    | NONE       | STABLE    |
-| AFTER      | DATABASE    | IMPORT       | NOT        | STABLES   |
-| ALL        | DATABASES   | IN           | NOTNULL    | STAR      |
-| ALTER      | DAYS        | INITIALLY    | NOW        | STATEMENT |
-| AND        | DEFERRED    | INSERT       | OF         | STDDEV    |
-| AS         | DELIMITERS  | INSTEAD      | OFFSET     | STREAM    |
-| ASC        | DESC        | INTEGER      | OR         | STREAMS   |
-| ATTACH     | DESCRIBE    | INTERVAL     | ORDER      | STRING    |
-| AVG        | DETACH      | INTO         | PASS       | SUM       |
-| BEFORE     | DIFF        | IP           | PERCENTILE | TABLE     |
-| BEGIN      | DISTINCT    | IS           | PLUS       | TABLES    |
-| BETWEEN    | DIVIDE      | ISNULL       | PRAGMA     | TAG       |
-| BIGINT     | DNODE       | JOIN         | PREV       | TAGS      |
-| BINARY     | DNODES      | KEEP         | PRIVILEGE  | TBLOCKS   |
-| BITAND     | DOT         | KEY          | QUERIES    | TBNAME    |
-| BITNOT     | DOUBLE      | KILL         | QUERY      | TIMES     |
-| BITOR      | DROP        | LAST         | RAISE      | TIMESTAMP |
-| BOOL       | EACH        | LE           | REM        | TINYINT   |
-| BOTTOM     | END         | LEASTSQUARES | REPLACE    | TOP       |
-| BY         | EQ          | LIKE         | REPLICA    | TRIGGER   |
-| CACHE      | EXISTS      | LIMIT        | RESET      | UMINUS    |
-| CASCADE    | EXPLAIN     | LINEAR       | RESTRICT   | UPLUS     |
-| CHANGE     | FAIL        | LOCAL        | ROW        | USE       |
-| CLOG       | FILL        | LP           | ROWS       | USER      |
-| CLUSTER    | FIRST       | LSHIFT       | RP         | USERS     |
-| COLON      | FLOAT       | LT           | RSHIFT     | USING     |
-| COLUMN     | FOR         | MATCH        | SCORES     | VALUES    |
-| COMMA      | FROM        | MAX          | SELECT     | VARIABLE  |
-| COMP       | GE          | METRIC       | SEMI       | VGROUPS   |
-| CONCAT     | GLOB        | METRICS      | SET        | VIEW      |
-| CONFIGS    | GRANTS      | MIN          | SHOW       | WAVG      |
-| CONFLICT   | GROUP       | MINUS        | SLASH      | WHERE     |
-| CONNECTION |             |              |            |           |
+|  关键字列表  |              |              |              |              |
+| ------------ | ------------ | ------------ | ------------ | ------------ |
+| ABORT        | CREATE       | IGNORE       | NULL         | STAR         |
+| ACCOUNT      | CTIME        | IMMEDIATE    | OF           | STATE        |
+| ACCOUNTS     | DATABASE     | IMPORT       | OFFSET       | STATEMENT    |
+| ADD          | DATABASES    | IN           | OR           | STATE_WINDOW |
+| AFTER        | DAYS         | INITIALLY    | ORDER        | STORAGE      |
+| ALL          | DBS          | INSERT       | PARTITIONS   | STREAM       |
+| ALTER        | DEFERRED     | INSTEAD      | PASS         | STREAMS      |
+| AND          | DELIMITERS   | INT          | PLUS         | STRING       |
+| AS           | DESC         | INTEGER      | PPS          | SYNCDB       |
+| ASC          | DESCRIBE     | INTERVAL     | PRECISION    | TABLE        |
+| ATTACH       | DETACH       | INTO         | PREV         | TABLES       |
+| BEFORE       | DISTINCT     | IS           | PRIVILEGE    | TAG          |
+| BEGIN        | DIVIDE       | ISNULL       | QTIME        | TAGS         |
+| BETWEEN      | DNODE        | JOIN         | QUERIES      | TBNAME       |
+| BIGINT       | DNODES       | KEEP         | QUERY        | TIMES        |
+| BINARY       | DOT          | KEY          | QUORUM       | TIMESTAMP    |
+| BITAND       | DOUBLE       | KILL         | RAISE        | TINYINT      |
+| BITNOT       | DROP         | LE           | REM          | TOPIC        |
+| BITOR        | EACH         | LIKE         | REPLACE      | TOPICS       |
+| BLOCKS       | END          | LIMIT        | REPLICA      | TRIGGER      |
+| BOOL         | EQ           | LINEAR       | RESET        | TSERIES      |
+| BY           | EXISTS       | LOCAL        | RESTRICT     | UMINUS       |
+| CACHE        | EXPLAIN      | LP           | ROW          | UNION        |
+| CACHELAST    | FAIL         | LSHIFT       | RP           | UNSIGNED     |
+| CASCADE      | FILE         | LT           | RSHIFT       | UPDATE       |
+| CHANGE       | FILL         | MATCH        | SCORES       | UPLUS        |
+| CLUSTER      | FLOAT        | MAXROWS      | SELECT       | USE          |
+| COLON        | FOR          | MINROWS      | SEMI         | USER         |
+| COLUMN       | FROM         | MINUS        | SESSION      | USERS        |
+| COMMA        | FSYNC        | MNODES       | SET          | USING        |
+| COMP         | GE           | MODIFY       | SHOW         | VALUES       |
+| COMPACT      | GLOB         | MODULES      | SLASH        | VARIABLE     |
+| CONCAT       | GRANTS       | NCHAR        | SLIDING      | VARIABLES    |
+| CONFLICT     | GROUP        | NE           | SLIMIT       | VGROUPS      |
+| CONNECTION   | GT           | NONE         | SMALLINT     | VIEW         |
+| CONNECTIONS  | HAVING       | NOT          | SOFFSET      | VNODES       |
+| CONNS        | ID           | NOTNULL      | STABLE       | WAL          |
+| COPY         | IF           | NOW          | STABLES      | WHERE        |
 

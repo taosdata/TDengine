@@ -16,7 +16,7 @@ import taos
 from util.log import *
 from util.cases import *
 from util.sql import *
-import numpy as np
+#import numpy as np
 
 
 class TDTestCase:

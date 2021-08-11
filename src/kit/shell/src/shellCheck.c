@@ -104,6 +104,8 @@ static void shellFreeTbnames() {
 static void *shellCheckThreadFp(void *arg) {
   ShellThreadObj *pThread = (ShellThreadObj *)arg;
 
+  setThreadName("shellCheckThrd");
+
   int32_t interval = tbNum / pThread->totalThreads + 1;
   int32_t start = pThread->threadIndex * interval;
   int32_t end = (pThread->threadIndex + 1) * interval;
@@ -142,21 +144,21 @@ static void *shellCheckThreadFp(void *arg) {
     taos_free_result(pSql);
   }
 
-  fsync(fileno(fp));
+  taosFsync(fileno(fp));
   fclose(fp);
 
   return NULL;
 }
 
-static void shellRunCheckThreads(TAOS *con, SShellArguments *args) {
+static void shellRunCheckThreads(TAOS *con, SShellArguments *_args) {
   pthread_attr_t  thattr;
-  ShellThreadObj *threadObj = (ShellThreadObj *)calloc(args->threadNum, sizeof(ShellThreadObj));
-  for (int t = 0; t < args->threadNum; ++t) {
+  ShellThreadObj *threadObj = (ShellThreadObj *)calloc(_args->threadNum, sizeof(ShellThreadObj));
+  for (int t = 0; t < _args->threadNum; ++t) {
     ShellThreadObj *pThread = threadObj + t;
     pThread->threadIndex = t;
-    pThread->totalThreads = args->threadNum;
+    pThread->totalThreads = _args->threadNum;
     pThread->taos = con;
-    pThread->db = args->database;
+    pThread->db = _args->database;
 
     pthread_attr_init(&thattr);
     pthread_attr_setdetachstate(&thattr, PTHREAD_CREATE_JOINABLE);
@@ -167,31 +169,31 @@ static void shellRunCheckThreads(TAOS *con, SShellArguments *args) {
     }
   }
 
-  for (int t = 0; t < args->threadNum; ++t) {
+  for (int t = 0; t < _args->threadNum; ++t) {
     pthread_join(threadObj[t].threadID, NULL);
   }
 
-  for (int t = 0; t < args->threadNum; ++t) {
+  for (int t = 0; t < _args->threadNum; ++t) {
     taos_close(threadObj[t].taos);
   }
   free(threadObj);
 }
 
-void shellCheck(TAOS *con, SShellArguments *args) {
+void shellCheck(TAOS *con, SShellArguments *_args) {
   int64_t start = taosGetTimestampMs();
 
-  if (shellUseDb(con, args->database) != 0) {
+  if (shellUseDb(con, _args->database) != 0) {
     shellFreeTbnames();
     return;
   }
 
-  if (shellShowTables(con, args->database) != 0) {
+  if (shellShowTables(con, _args->database) != 0) {
     shellFreeTbnames();
     return;
   }
 
-  fprintf(stdout, "total %d tables will be checked by %d threads\n", tbNum, args->threadNum);
-  shellRunCheckThreads(con, args);
+  fprintf(stdout, "total %d tables will be checked by %d threads\n", tbNum, _args->threadNum);
+  shellRunCheckThreads(con, _args);
 
   int64_t end = taosGetTimestampMs();
   fprintf(stdout, "total %d tables checked, failed:%d, time spent %.2f seconds\n", checkedNum, errorNum,

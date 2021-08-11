@@ -61,6 +61,8 @@ static void vnodeProcessBackupMsg(SVBackupMsg *pMsg) {
 }
 
 static void *vnodeBackupFunc(void *param) {
+  setThreadName("vnodeBackup");
+
   while (1) {
     SVBackupMsg *pMsg = NULL;
     if (taosReadQitemFromQset(tsVBackupQset, NULL, (void **)&pMsg, NULL) == 0) {

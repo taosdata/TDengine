@@ -47,11 +47,16 @@
  *
  */
 
-#include "lz4.h"
 #include "os.h"
+#include "lz4.h"
+#ifdef TD_TSZ  
+  #include "td_sz.h"
+#endif
 #include "taosdef.h"
 #include "tscompression.h"
 #include "tulog.h"
+#include "tglobal.h"
+
 
 static const int TEST_NUMBER = 1;
 #define is_bigendian() ((*(char *)&TEST_NUMBER) == 0)
@@ -60,6 +65,39 @@ static const int TEST_NUMBER = 1;
 #define safeInt64Add(a, b) (((a >= 0) && (b <= INT64_MAX - a)) || ((a < 0) && (b >= INT64_MIN - a)))
 #define ZIGZAG_ENCODE(T, v) ((u##T)((v) >> (sizeof(T) * 8 - 1))) ^ (((u##T)(v)) << 1)  // zigzag encode
 #define ZIGZAG_DECODE(T, v) ((v) >> 1) ^ -((T)((v)&1))                                 // zigzag decode
+
+#ifdef TD_TSZ
+bool lossyFloat  = false;
+bool lossyDouble = false;
+
+// init call
+int tsCompressInit(){
+  // config 
+  if(lossyColumns[0] == 0){
+    lossyFloat = false;
+    lossyDouble = false;
+    return 0;
+  }
+
+  lossyFloat  = strstr(lossyColumns, "float") != NULL;
+  lossyDouble = strstr(lossyColumns, "double") != NULL;
+
+  if(lossyFloat == false && lossyDouble == false)
+        return 0;
+  
+  tdszInit(fPrecision, dPrecision, maxRange, curRange, Compressor);
+  if(lossyFloat)
+     uInfo("lossy compression float  is opened. ");
+  if(lossyDouble)
+     uInfo("lossy compression double is opened. ");
+  return 1;
+}
+// exit call
+void tsCompressExit(){
+   tdszExit();
+}
+
+#endif
 
 /*
  * Compress Integer (Simple8B).
@@ -121,7 +159,7 @@ int tsCompressINTImp(const char *const input, const int nelements, char *const o
           break;
       }
       // Get difference.
-      if (!safeInt64Add(curr_value, -prev_value)) goto _copy_and_exit;
+      if (!safeInt64Add(curr_value, -prev_value_tmp)) goto _copy_and_exit;
 
       int64_t diff = curr_value - prev_value_tmp;
       // Zigzag encode the value.
@@ -410,6 +448,7 @@ int tsCompressStringImp(const char *const input, int inputSize, char *const outp
 
 int tsDecompressStringImp(const char *const input, int compressedSize, char *const output, int outputSize) {
   // compressedSize is the size of data after compression.
+  
   if (input[0] == 1) {
     /* It is compressed by LZ4 algorithm */
     const int decompressed_size = LZ4_decompress_safe(input + 1, output, compressedSize - 1, outputSize);
@@ -441,6 +480,10 @@ int tsCompressTimestampImp(const char *const input, const int nelements, char *c
   int64_t *istream = (int64_t *)input;
 
   int64_t  prev_value = istream[0];
+  if(prev_value >= 0x8000000000000000) {
+     uWarn("compression timestamp is over signed long long range. ts = 0x%"PRIx64" \n", prev_value);
+     goto _exit_over;
+  }
   int64_t  prev_delta = -prev_value;
   uint8_t  flags = 0, flag1 = 0, flag2 = 0;
   uint64_t dd1 = 0, dd2 = 0;
@@ -886,3 +929,72 @@ int tsDecompressFloatImp(const char *const input, const int nelements, char *con
 
   return nelements * FLOAT_BYTES;
 }
+
+#ifdef TD_TSZ  
+//
+//   ----------  float double lossy  -----------
+//
+int tsCompressFloatLossyImp(const char * input, const int nelements, char *const output){
+  // compress with sz 
+  int compressedSize = tdszCompress(SZ_FLOAT, input, nelements, output + 1);
+  unsigned char algo = ALGO_SZ_LOSSY << 1;
+  if (compressedSize == 0 || compressedSize >= nelements*sizeof(float)){
+    // compressed error or large than original
+    output[0] = MODE_NOCOMPRESS | algo;
+    memcpy(output + 1, input, nelements * sizeof(float));
+    compressedSize = 1 + nelements * sizeof(float);
+  } else {
+    // compressed successfully
+    output[0] = MODE_COMPRESS | algo;
+    compressedSize += 1;
+  }
+
+  return compressedSize;
+}
+
+int tsDecompressFloatLossyImp(const char * input, int compressedSize, const int nelements, char *const output){
+  int decompressedSize  = 0;
+  if( HEAD_MODE(input[0]) == MODE_NOCOMPRESS){
+    // orginal so memcpy directly
+    decompressedSize = nelements * sizeof(float);
+    memcpy(output, input + 1, decompressedSize);
+
+    return decompressedSize;
+  } 
+
+  // decompressed with sz
+  return tdszDecompress(SZ_FLOAT, input + 1, compressedSize - 1, nelements, output);
+}
+
+int tsCompressDoubleLossyImp(const char * input, const int nelements, char *const output){
+   // compress with sz 
+  int compressedSize = tdszCompress(SZ_DOUBLE, input, nelements, output + 1);
+  unsigned char algo = ALGO_SZ_LOSSY << 1;
+  if (compressedSize == 0 || compressedSize >= nelements*sizeof(double)) {
+    // compressed error or large than original
+    output[0] = MODE_NOCOMPRESS | algo;
+    memcpy(output + 1, input, nelements * sizeof(double));
+    compressedSize = 1 + nelements * sizeof(double);
+  } else {
+    // compressed successfully
+    output[0] = MODE_COMPRESS | algo;
+    compressedSize += 1;
+  }
+
+  return compressedSize; 
+}
+
+int tsDecompressDoubleLossyImp(const char * input, int compressedSize, const int nelements, char *const output){
+  int decompressedSize  = 0;
+  if( HEAD_MODE(input[0]) == MODE_NOCOMPRESS){
+    // orginal so memcpy directly
+    decompressedSize = nelements * sizeof(double);
+    memcpy(output, input + 1, decompressedSize);
+
+    return decompressedSize;
+  } 
+
+  // decompressed with sz
+  return tdszDecompress(SZ_DOUBLE, input + 1, compressedSize - 1, nelements, output);
+}
+#endif

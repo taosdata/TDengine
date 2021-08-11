@@ -18,7 +18,7 @@ def pre_test(){
     rm -rf ${WK}/debug
     mkdir debug
     cd debug
-    cmake -DMEMORY_SANITIZER=true .. > /dev/null
+    cmake  .. > /dev/null
     make > /dev/null
     make install > /dev/null
     pip3 install ${WKC}/src/connector/python/ || echo 0
@@ -163,7 +163,7 @@ pipeline {
                 '''
             }
             sh '''
-            pkill -9  taosd 
+            pkill -9 taosd || echo 1
             cd ${WKC}/tests
             ./test-all.sh b2
             date

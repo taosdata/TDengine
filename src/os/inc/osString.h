@@ -20,35 +20,30 @@
 extern "C" {
 #endif
 
-#ifndef TAOS_OS_FUNC_STRING_STRDUP
-  #define taosStrdupImp(str) strdup(str)
-  #define taosStrndupImp(str, size) strndup(str, size)
-#endif
-
-#ifndef TAOS_OS_FUNC_STRING_GETLINE
-  #define taosGetlineImp(lineptr, n, stream) getline(lineptr, n , stream)
-#else 
-  int taosGetlineImp(char **lineptr, size_t *n, FILE *stream);
-#endif
-
-#ifndef TAOS_OS_FUNC_STRING_WCHAR
+#if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
+  #define tstrdup(str) _strdup(str)
+  #define tstrndup(str, size) _strndup(str, size)  
+  int32_t tgetline(char **lineptr, size_t *n, FILE *stream);
+  int32_t twcslen(const wchar_t *wcs);
+#else
+  #define tstrdup(str) strdup(str)
+  #define tstrndup(str, size) strndup(str, size)
+  #define tgetline(lineptr, n, stream) getline(lineptr, n, stream)
   #define twcslen wcslen
-#endif  
+#endif
 
-#define tstrncpy(dst, src, size)   \
-  do {                             \
-    strncpy((dst), (src), (size)); \
-    (dst)[(size)-1] = 0;           \
+#define tstrncpy(dst, src, size) \
+  do {                              \
+    strncpy((dst), (src), (size));  \
+    (dst)[(size)-1] = 0;            \
   } while (0)
 
-#ifndef TAOS_OS_FUNC_STRING_STR2INT64
-  int64_t tsosStr2int64(char *str);
-#endif  
+int64_t taosStr2int64(char *str);
 
 // USE_LIBICONV
 int32_t taosUcs4ToMbs(void *ucs4, int32_t ucs4_max_len, char *mbs);
-bool    taosMbsToUcs4(char *mbs, size_t mbs_len, char *ucs4, int32_t ucs4_max_len, int *len);
-int     tasoUcs4Compare(void *f1_ucs4, void *f2_ucs4, int bytes);
+bool    taosMbsToUcs4(char *mbs, size_t mbs_len, char *ucs4, int32_t ucs4_max_len, int32_t *len);
+int32_t tasoUcs4Compare(void *f1_ucs4, void *f2_ucs4, int32_t bytes);
 bool    taosValidateEncodec(const char *encodec);
 char *  taosCharsetReplace(char *charsetstr);
 

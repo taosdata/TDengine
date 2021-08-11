@@ -107,11 +107,11 @@ TDengine采取的是Master-Slave模式进行同步，与流行的RAFT一致性�
 
 ![replica-forward.png](page://images/architecture/replica-forward.png)
 
-1. 应用对写请求做基本的合法性检查，通过，则给改请求包打上一个版本号(version, 单调递增）
+1. 应用对写请求做基本的合法性检查，通过，则给该请求包打上一个版本号(version, 单调递增）
 2. 应用将打上版本号的写请求封装一个WAL Head, 写入WAL(Write Ahead Log)
-3. 应用调用API syncForwardToPeer，如多vnode B是slave状态，sync模块将包含WAL Head的数据包通过Forward消息发送给vnode B，否则就不转发。
+3. 应用调用API syncForwardToPeer，如果vnode B是slave状态，sync模块将包含WAL Head的数据包通过Forward消息发送给vnode B，否则就不转发。
 4. vnode B收到Forward消息后，调用回调函数writeToCache, 交给应用处理
-5. vnode B应用在写入成功后，都需要调用syncAckForward通知sync模块已经写入成功。
+5. vnode B应用在写入成功后，都需要调用syncConfirmForward通知sync模块已经写入成功。
 6. 如果quorum大于1，vnode B需要等待应用的回复确认，收到确认后，vnode B发送Forward Response消息给node A。
 7. 如果quorum大于1，vnode A需要等待vnode B或其他副本对Forward消息的确认。
 8. 如果quorum大于1，vnode A收到quorum-1条确认消息后，调用回调函数confirmForward，通知应用写入成功。
@@ -140,7 +140,7 @@ TDengine采取的是Master-Slave模式进行同步，与流行的RAFT一致性�
 
 整个数据恢复流程分为两大步骤，第一步，先恢复archived data(file), 然后恢复wal。具体流程如下：
 
-![replica-forward.png](page://images/architecture/replica-forward.png)
+![replica-restore.png](page://images/architecture/replica-restore.png)
 
 1. 通过已经建立的TCP连接，发送sync req给master节点
 2. master收到sync req后，以client的身份，向vnode B主动建立一新的专用于同步的TCP连接（syncFd)
@@ -219,7 +219,7 @@ Arbitrator的程序tarbitrator.c在复制模块的同一目录, 编译整个系�
 
 不同之处：
 
-- 选举流程不一样：Raft里任何一个节点是candidate时，主动向其他节点发出vote request, 如果超过半数回答Yes, 这个candidate就成为Leader,开始一个新的term. 而TDengine的实现里，节点上线、离线或角色改变都会触发状态消息在节点组类传播，等节点组里状态稳定一致之后才触发选举流程，因为状态稳定一致，基于同样的状态信息，每个节点做出的决定会是一致的，一旦某个节点符合成为master的条件，无需其他节点认可，它会自动将自己设为master。TDengine里，任何一个节点检测到其他节点或自己的角色发生改变，就会给节点组内其他节点进行广播的。Raft里不存在这样的机制，因此需要投票来解决。
+- 选举流程不一样：Raft里任何一个节点是candidate时，主动向其他节点发出vote request，如果超过半数回答Yes，这个candidate就成为Leader，开始一个新的term。而TDengine的实现里，节点上线、离线或角色改变都会触发状态消息在节点组内传播，等节点组里状态稳定一致之后才触发选举流程，因为状态稳定一致，基于同样的状态信息，每个节点做出的决定会是一致的，一旦某个节点符合成为master的条件，无需其他节点认可，它会自动将自己设为master。TDengine里，任何一个节点检测到其他节点或自己的角色发生改变，就会向节点组内其他节点进行广播。Raft里不存在这样的机制，因此需要投票来解决。
 - 对WAL的一条记录，Raft用term + index来做唯一标识。但TDengine只用version（类似index)，在TDengine实现里，仅仅用version是完全可行的, 因为TDengine的选举机制，没有term的概念。
 
 如果整个虚拟节点组全部宕机，重启，但不是所有虚拟节点都上线，这个时候TDengine是不会选出master的，因为未上线的节点有可能有最高version的数据。而RAFT协议，只要超过半数上线，就会选出Leader。

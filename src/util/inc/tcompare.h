@@ -27,6 +27,13 @@ extern "C" {
 #define TSDB_PATTERN_NOWILDCARDMATCH 2
 #define TSDB_PATTERN_STRING_MAX_LEN 20
 
+#define FLT_COMPAR_TOL_FACTOR    4
+#define FLT_EQUAL(_x, _y)        (fabs((_x) - (_y)) <= (FLT_COMPAR_TOL_FACTOR * FLT_EPSILON))
+#define FLT_GREATER(_x, _y)      (!FLT_EQUAL((_x), (_y)) && ((_x) > (_y)))
+#define FLT_LESS(_x, _y)         (!FLT_EQUAL((_x), (_y)) && ((_x) < (_y)))
+#define FLT_GREATEREQUAL(_x, _y) (FLT_EQUAL((_x), (_y)) || ((_x) > (_y)))
+#define FLT_LESSEQUAL(_x, _y)    (FLT_EQUAL((_x), (_y)) || ((_x) < (_y)))
+
 #define PATTERN_COMPARE_INFO_INITIALIZER { '%', '_' }
 
 typedef struct SPatternCompareInfo {

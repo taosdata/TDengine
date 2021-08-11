@@ -39,7 +39,7 @@ public class WeatherService {
         return weatherMapper.select(limit, offset);
     }
 
-    public int save(float temperature, int humidity) {
+    public int save(float temperature, float humidity) {
         Weather weather = new Weather();
         weather.setTemperature(temperature);
         weather.setHumidity(humidity);

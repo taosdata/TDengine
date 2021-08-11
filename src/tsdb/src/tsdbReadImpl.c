@@ -42,14 +42,14 @@ int tsdbInitReadH(SReadH *pReadh, STsdbRepo *pRepo) {
     return -1;
   }
 
-  pReadh->pDCols[0] = tdNewDataCols(0, 0, pCfg->maxRowsPerFileBlock);
+  pReadh->pDCols[0] = tdNewDataCols(0, pCfg->maxRowsPerFileBlock);
   if (pReadh->pDCols[0] == NULL) {
     terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
     tsdbDestroyReadH(pReadh);
     return -1;
   }
 
-  pReadh->pDCols[1] = tdNewDataCols(0, 0, pCfg->maxRowsPerFileBlock);
+  pReadh->pDCols[1] = tdNewDataCols(0, pCfg->maxRowsPerFileBlock);
   if (pReadh->pDCols[1] == NULL) {
     terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
     tsdbDestroyReadH(pReadh);
@@ -244,6 +244,7 @@ int tsdbLoadBlockInfo(SReadH *pReadh, void *pTarget) {
 
 int tsdbLoadBlockData(SReadH *pReadh, SBlock *pBlock, SBlockInfo *pBlkInfo) {
   ASSERT(pBlock->numOfSubBlocks > 0);
+  int8_t update = pReadh->pRepo->config.update;
 
   SBlock *iBlock = pBlock;
   if (pBlock->numOfSubBlocks > 1) {
@@ -258,7 +259,7 @@ int tsdbLoadBlockData(SReadH *pReadh, SBlock *pBlock, SBlockInfo *pBlkInfo) {
   for (int i = 1; i < pBlock->numOfSubBlocks; i++) {
     iBlock++;
     if (tsdbLoadBlockDataImpl(pReadh, iBlock, pReadh->pDCols[1]) < 0) return -1;
-    if (tdMergeDataCols(pReadh->pDCols[0], pReadh->pDCols[1], pReadh->pDCols[1]->numOfRows) < 0) return -1;
+    if (tdMergeDataCols(pReadh->pDCols[0], pReadh->pDCols[1], pReadh->pDCols[1]->numOfRows, NULL, update != TD_ROW_PARTIAL_UPDATE) < 0) return -1;
   }
 
   ASSERT(pReadh->pDCols[0]->numOfRows == pBlock->numOfRows);
@@ -270,6 +271,7 @@ int tsdbLoadBlockData(SReadH *pReadh, SBlock *pBlock, SBlockInfo *pBlkInfo) {
 
 int tsdbLoadBlockDataCols(SReadH *pReadh, SBlock *pBlock, SBlockInfo *pBlkInfo, int16_t *colIds, int numOfColsIds) {
   ASSERT(pBlock->numOfSubBlocks > 0);
+  int8_t update = pReadh->pRepo->config.update;
 
   SBlock *iBlock = pBlock;
   if (pBlock->numOfSubBlocks > 1) {
@@ -284,7 +286,7 @@ int tsdbLoadBlockDataCols(SReadH *pReadh, SBlock *pBlock, SBlockInfo *pBlkInfo, 
   for (int i = 1; i < pBlock->numOfSubBlocks; i++) {
     iBlock++;
     if (tsdbLoadBlockDataColsImpl(pReadh, iBlock, pReadh->pDCols[1], colIds, numOfColsIds) < 0) return -1;
-    if (tdMergeDataCols(pReadh->pDCols[0], pReadh->pDCols[1], pReadh->pDCols[1]->numOfRows) < 0) return -1;
+    if (tdMergeDataCols(pReadh->pDCols[0], pReadh->pDCols[1], pReadh->pDCols[1]->numOfRows, NULL, update != TD_ROW_PARTIAL_UPDATE) < 0) return -1;
   }
 
   ASSERT(pReadh->pDCols[0]->numOfRows == pBlock->numOfRows);
@@ -461,7 +463,7 @@ static int tsdbLoadBlockDataImpl(SReadH *pReadh, SBlock *pBlock, SDataCols *pDat
     SDataCol *pDataCol = &(pDataCols->cols[dcol]);
     if (dcol != 0 && ccol >= pBlockData->numOfCols) {
       // Set current column as NULL and forward
-      dataColSetNEleNull(pDataCol, pBlock->numOfRows, pDataCols->maxPoints);
+      dataColReset(pDataCol);
       dcol++;
       continue;
     }
@@ -501,7 +503,7 @@ static int tsdbLoadBlockDataImpl(SReadH *pReadh, SBlock *pBlock, SDataCols *pDat
       ccol++;
     } else {
       // Set current column as NULL and forward
-      dataColSetNEleNull(pDataCol, pBlock->numOfRows, pDataCols->maxPoints);
+      dataColReset(pDataCol);
       dcol++;
     }
   }
@@ -515,6 +517,8 @@ static int tsdbCheckAndDecodeColumnData(SDataCol *pDataCol, void *content, int32
     terrno = TSDB_CODE_TDB_FILE_CORRUPTED;
     return -1;
   }
+
+  tdAllocMemForCol(pDataCol, maxPoints);
 
   // Decode the data
   if (comp) {
@@ -604,7 +608,7 @@ static int tsdbLoadBlockDataColsImpl(SReadH *pReadh, SBlock *pBlock, SDataCols *
       }
 
       if (pBlockCol == NULL) {
-        dataColSetNEleNull(pDataCol, pBlock->numOfRows, pDataCols->maxPoints);
+        dataColReset(pDataCol);
         continue;
       }
 

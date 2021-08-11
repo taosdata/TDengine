@@ -37,6 +37,13 @@ char      PROMPT_HEADER[] = "power> ";
 
 char      CONTINUE_PROMPT[] = "    -> ";
 int       prompt_size = 7;
+#elif (_TD_TQ_ == true)
+char      CLIENT_VERSION[] = "Welcome to the TQ shell from %s, Client Version:%s\n"
+                             "Copyright (c) 2020 by TQ, Inc. All rights reserved.\n\n";
+char      PROMPT_HEADER[] = "tq> ";
+
+char      CONTINUE_PROMPT[] = "    -> ";
+int       prompt_size = 4;
 #else
 char      CLIENT_VERSION[] = "Welcome to the TDengine shell from %s, Client Version:%s\n"
                              "Copyright (c) 2020 by TAOS Data, Inc. All rights reserved.\n\n";
@@ -56,24 +63,24 @@ extern TAOS *taos_connect_auth(const char *ip, const char *user, const char *aut
 /*
  * FUNCTION: Initialize the shell.
  */
-TAOS *shellInit(SShellArguments *args) {
+TAOS *shellInit(SShellArguments *_args) {
   printf("\n");
   printf(CLIENT_VERSION, tsOsName, taos_get_client_info());
   fflush(stdout);
 
   // set options before initializing
-  if (args->timezone != NULL) {
-    taos_options(TSDB_OPTION_TIMEZONE, args->timezone);
+  if (_args->timezone != NULL) {
+    taos_options(TSDB_OPTION_TIMEZONE, _args->timezone);
   }
 
-  if (args->is_use_passwd) {
-    if (args->password == NULL) args->password = getpass("Enter password: ");
+  if (_args->is_use_passwd) {
+    if (_args->password == NULL) _args->password = getpass("Enter password: ");
   } else {
-    args->password = TSDB_DEFAULT_PASS;
+    _args->password = TSDB_DEFAULT_PASS;
   }
 
-  if (args->user == NULL) {
-    args->user = TSDB_DEFAULT_USER;
+  if (_args->user == NULL) {
+    _args->user = TSDB_DEFAULT_USER;
   }
 
   if (taos_init()) {
@@ -84,10 +91,10 @@ TAOS *shellInit(SShellArguments *args) {
 
   // Connect to the database.
   TAOS *con = NULL;
-  if (args->auth == NULL) {
-    con = taos_connect(args->host, args->user, args->password, args->database, args->port);
+  if (_args->auth == NULL) {
+    con = taos_connect(_args->host, _args->user, _args->password, _args->database, _args->port);
   } else {
-    con = taos_connect_auth(args->host, args->user, args->auth, args->database, args->port);
+    con = taos_connect_auth(_args->host, _args->user, _args->auth, _args->database, _args->port);
   }
 
   if (con == NULL) {
@@ -100,14 +107,14 @@ TAOS *shellInit(SShellArguments *args) {
   read_history();
 
   // Check if it is temperory run
-  if (args->commands != NULL || args->file[0] != 0) {
-    if (args->commands != NULL) {
-      printf("%s%s\n", PROMPT_HEADER, args->commands);
-      shellRunCommand(con, args->commands);
+  if (_args->commands != NULL || _args->file[0] != 0) {
+    if (_args->commands != NULL) {
+      printf("%s%s\n", PROMPT_HEADER, _args->commands);
+      shellRunCommand(con, _args->commands);
     }
 
-    if (args->file[0] != 0) {
-      source_file(con, args->file);
+    if (_args->file[0] != 0) {
+      source_file(con, _args->file);
     }
 
     taos_close(con);
@@ -116,14 +123,14 @@ TAOS *shellInit(SShellArguments *args) {
   }
 
 #ifndef WINDOWS
-  if (args->dir[0] != 0) {
-    source_dir(con, args);
+  if (_args->dir[0] != 0) {
+    source_dir(con, _args);
     taos_close(con);
     exit(EXIT_SUCCESS);
   }
 
-  if (args->check != 0) {
-    shellCheck(con, args);
+  if (_args->check != 0) {
+    shellCheck(con, _args);
     taos_close(con);
     exit(EXIT_SUCCESS);
   }
@@ -398,7 +405,10 @@ static char* formatTimestamp(char* buf, int64_t val, int precision) {
 
   time_t tt;
   int32_t ms = 0;
-  if (precision == TSDB_TIME_PRECISION_MICRO) {
+  if (precision == TSDB_TIME_PRECISION_NANO) {
+    tt = (time_t)(val / 1000000000);
+    ms = val % 1000000000;
+  } else if (precision == TSDB_TIME_PRECISION_MICRO) {
     tt = (time_t)(val / 1000000);
     ms = val % 1000000;
   } else {
@@ -419,7 +429,9 @@ static char* formatTimestamp(char* buf, int64_t val, int precision) {
 #endif
   if (tt <= 0 && ms < 0) {
     tt--;
-    if (precision == TSDB_TIME_PRECISION_MICRO) {
+    if (precision == TSDB_TIME_PRECISION_NANO) {
+      ms += 1000000000;
+    } else if (precision == TSDB_TIME_PRECISION_MICRO) {
       ms += 1000000;
     } else {
       ms += 1000;
@@ -427,9 +439,11 @@ static char* formatTimestamp(char* buf, int64_t val, int precision) {
   }
 
   struct tm* ptm = localtime(&tt);
-  size_t pos = strftime(buf, 32, "%Y-%m-%d %H:%M:%S", ptm);
+  size_t pos = strftime(buf, 35, "%Y-%m-%d %H:%M:%S", ptm);
 
-  if (precision == TSDB_TIME_PRECISION_MICRO) {
+  if (precision == TSDB_TIME_PRECISION_NANO) {
+    sprintf(buf + pos, ".%09d", ms);
+  } else if (precision == TSDB_TIME_PRECISION_MICRO) {
     sprintf(buf + pos, ".%06d", ms);
   } else {
     sprintf(buf + pos, ".%03d", ms);
@@ -778,6 +792,8 @@ static int calcColWidth(TAOS_FIELD* field, int precision) {
     case TSDB_DATA_TYPE_TIMESTAMP:
       if (args.is_raw_time) {
         return MAX(14, width);
+      } if (precision == TSDB_TIME_PRECISION_NANO) {
+        return MAX(29, width);
       } else if (precision == TSDB_TIME_PRECISION_MICRO) {
         return MAX(26, width); // '2020-01-01 00:00:00.000000'
       } else {

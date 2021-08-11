@@ -34,6 +34,7 @@ typedef int (*__compar_fn_t) (const void *, const void *);
 #define elePtrAt(base, size, idx) (void *)((char *)(base) + (size) * (idx))
 
 typedef int32_t (*__ext_compar_fn_t)(const void *p1, const void *p2, const void *param);
+typedef void (*__ext_swap_fn_t)(void *p1, void *p2, const void *param);
 
 /**
  * quick sort, with the compare function requiring additional parameters support
@@ -58,6 +59,38 @@ void taosqsort(void *src, size_t numOfElem, size_t size, const void* param, __ex
  * @return
  */
 void *taosbsearch(const void *key, const void *base, size_t nmemb, size_t size, __compar_fn_t fn, int flags);
+
+/**
+ * adjust heap
+ *
+ * @param base: the start address of array
+ * @param size: size of every item in array
+ * @param start: the first index
+ * @param end: the last index
+ * @param parcompar: parameters for compare function
+ * @param compar: user defined compare function
+ * @param parswap: parameters for swap function
+ * @param swap: user defined swap function, the default swap function doswap will be used if swap is NULL
+ * @param maxroot: if heap is max root heap
+ * @return
+ */
+void taosheapadjust(void *base, int32_t size, int32_t start, int32_t end, const void *parcompar, __ext_compar_fn_t compar, const void *parswap, __ext_swap_fn_t swap, bool maxroot);
+
+/**
+ * sort heap to make sure it is a max/min root heap
+ *
+ * @param base: the start address of array
+ * @param size: size of every item in array
+ * @param len: the length of array
+ * @param parcompar: parameters for compare function
+ * @param compar: user defined compare function
+ * @param parswap: parameters for swap function
+ * @param swap: user defined swap function, the default swap function doswap will be used if swap is NULL
+ * @param maxroot: if heap is max root heap
+ * @return
+ */
+void taosheapsort(void *base, int32_t size, int32_t len, const void *parcompar, __ext_compar_fn_t compar, const void *parswap, __ext_swap_fn_t swap, bool maxroot);
+
 
 #ifdef __cplusplus
 }
