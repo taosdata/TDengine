@@ -25,7 +25,7 @@ function stopTaosd {
 function dohavecore(){
   corefile=`find $corepath -mmin 1`  
   core_file=`echo $corefile|cut -d " " -f2`
-  proc=`echo $corefile|cut -d "_" -f3`
+  proc=`file $core_file|awk -F "execfn:"  '/execfn:/{print $2}'|tr -d \' |awk '{print $1}'|tr -d \,`
   if [ -n "$corefile" ];then
     echo 'taosd or taos has generated core'
     rm case.log
@@ -46,7 +46,7 @@ function dohavecore(){
       fi
     fi
     if [[ $1 == 1 ]];then
-      echo '\n'|gdb /usr/local/taos/bin/$proc $core_file -ex "bt 10" -ex quit
+      echo '\n'|gdb $proc $core_file -ex "bt 10" -ex quit
       exit 8
     fi
   fi
