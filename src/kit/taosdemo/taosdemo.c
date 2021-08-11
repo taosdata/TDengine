@@ -679,7 +679,7 @@ static FILE *          g_fpOfInsertResult = NULL;
 
 ///////////////////////////////////////////////////
 
-static void ERROR_EXIT(const char *msg) { perror(msg); exit(-1); }
+static void ERROR_EXIT(const char *msg) { errorPrint("%s", msg); exit(-1); }
 
 #ifndef TAOSDEMO_COMMIT_SHA1
 #define TAOSDEMO_COMMIT_SHA1 "unknown"
@@ -1140,8 +1140,7 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
     }
 
     if (0 == columnCount) {
-        perror("data type error!");
-        exit(-1);
+        ERROR_EXIT("data type error!");
     }
     g_args.num_of_CPR = columnCount;
 
@@ -2428,14 +2427,14 @@ static int postProceSql(char *host, struct sockaddr_in *pServAddr, uint16_t port
 #endif
         debugPrint("%s() LN%d, sockfd=%d\n", __func__, __LINE__, sockfd);
         free(request_buf);
-        ERROR_EXIT("ERROR opening socket");
+        ERROR_EXIT("opening socket");
     }
 
     int retConn = connect(sockfd, (struct sockaddr *)pServAddr, sizeof(struct sockaddr));
     debugPrint("%s() LN%d connect() return %d\n", __func__, __LINE__, retConn);
     if (retConn < 0) {
         free(request_buf);
-        ERROR_EXIT("ERROR connecting");
+        ERROR_EXIT("connecting");
     }
 
     memset(base64_buf, 0, INPUT_BUF_LEN);
@@ -2468,7 +2467,7 @@ static int postProceSql(char *host, struct sockaddr_in *pServAddr, uint16_t port
             auth, strlen(sqlstr), sqlstr);
     if (r >= req_buf_len) {
         free(request_buf);
-        ERROR_EXIT("ERROR too long request");
+        ERROR_EXIT("too long request");
     }
     verbosePrint("%s() LN%d: Request:\n%s\n", __func__, __LINE__, request_buf);
 
@@ -2481,7 +2480,7 @@ static int postProceSql(char *host, struct sockaddr_in *pServAddr, uint16_t port
         bytes = write(sockfd, request_buf + sent, req_str_len - sent);
 #endif
         if (bytes < 0)
-            ERROR_EXIT("ERROR writing message to socket");
+            ERROR_EXIT("writing message to socket");
         if (bytes == 0)
             break;
         sent+=bytes;
@@ -2498,7 +2497,7 @@ static int postProceSql(char *host, struct sockaddr_in *pServAddr, uint16_t port
 #endif
         if (bytes < 0) {
             free(request_buf);
-            ERROR_EXIT("ERROR reading response from socket");
+            ERROR_EXIT("reading response from socket");
         }
         if (bytes == 0)
             break;
@@ -2507,7 +2506,7 @@ static int postProceSql(char *host, struct sockaddr_in *pServAddr, uint16_t port
 
     if (received == resp_len) {
         free(request_buf);
-        ERROR_EXIT("ERROR storing complete response from socket");
+        ERROR_EXIT("storing complete response from socket");
     }
 
     response_buf[RESP_BUF_LEN - 1] = '\0';
@@ -2670,8 +2669,8 @@ static int calcRowLen(SSuperTable*  superTbls) {
         }  else if (strcasecmp(dataType, "TIMESTAMP") == 0) {
             lenOfOneRow += TIMESTAMP_BUFF_LEN;
         } else {
-            printf("get error data type : %s\n", dataType);
-            exit(-1);
+            errorPrint("get error data type : %s\n", dataType);
+            exit(EXIT_FAILURE);
         }
     }
 
@@ -2701,8 +2700,8 @@ static int calcRowLen(SSuperTable*  superTbls) {
         } else if (strcasecmp(dataType, "DOUBLE") == 0) {
             lenOfTagOfOneRow += superTbls->tags[tagIndex].dataLen + DOUBLE_BUFF_LEN;
         } else {
-            printf("get error tag type : %s\n", dataType);
-            exit(-1);
+            errorPrint("get error tag type : %s\n", dataType);
+            exit(EXIT_FAILURE);
         }
     }
 
@@ -2740,7 +2739,7 @@ static int getChildNameOfSuperTableWithLimitAndOffset(TAOS * taos,
         taos_close(taos);
         errorPrint("%s() LN%d, failed to run command %s\n",
                 __func__, __LINE__, command);
-        exit(-1);
+        exit(EXIT_FAILURE);
     }
 
     int64_t childTblCount = (limit < 0)?10000:limit;
@@ -2751,7 +2750,7 @@ static int getChildNameOfSuperTableWithLimitAndOffset(TAOS * taos,
             taos_free_result(res);
             taos_close(taos);
             errorPrint("%s() LN%d, failed to allocate memory!\n", __func__, __LINE__);
-            exit(-1);
+            exit(EXIT_FAILURE);
         }
     }
 
@@ -2762,7 +2761,7 @@ static int getChildNameOfSuperTableWithLimitAndOffset(TAOS * taos,
         if (0 == strlen((char *)row[0])) {
             errorPrint("%s() LN%d, No.%"PRId64" table return empty name\n",
                     __func__, __LINE__, count);
-            exit(-1);
+            exit(EXIT_FAILURE);
         }
 
         tstrncpy(pTblName, (char *)row[0], len[0]+1);
@@ -2778,12 +2777,12 @@ static int getChildNameOfSuperTableWithLimitAndOffset(TAOS * taos,
                         (size_t)((childTblCount-count)*TSDB_TABLE_NAME_LEN));
             } else {
                 // exit, if allocate more memory failed
-                errorPrint("%s() LN%d, realloc fail for save child table name of %s.%s\n",
-                        __func__, __LINE__, dbName, sTblName);
                 tmfree(childTblName);
                 taos_free_result(res);
                 taos_close(taos);
-                exit(-1);
+                errorPrint("%s() LN%d, realloc fail for save child table name of %s.%s\n",
+                        __func__, __LINE__, dbName, sTblName);
+                exit(EXIT_FAILURE);
             }
         }
         pTblName = childTblName + count * TSDB_TABLE_NAME_LEN;
@@ -2967,10 +2966,10 @@ static int createSuperTable(
             lenOfOneRow += TIMESTAMP_BUFF_LEN;
         } else {
             taos_close(taos);
+            free(command);
             errorPrint("%s() LN%d, config error data type : %s\n",
                     __func__, __LINE__, dataType);
-            free(command);
-            exit(-1);
+            exit(EXIT_FAILURE);
         }
     }
 
@@ -2979,11 +2978,11 @@ static int createSuperTable(
     // save for creating child table
     superTbl->colsOfCreateChildTable = (char*)calloc(len+20, 1);
     if (NULL == superTbl->colsOfCreateChildTable) {
-        errorPrint("%s() LN%d, Failed when calloc, size:%d",
-                __func__, __LINE__, len+1);
         taos_close(taos);
         free(command);
-        exit(-1);
+        errorPrint("%s() LN%d, Failed when calloc, size:%d",
+                __func__, __LINE__, len+1);
+        exit(EXIT_FAILURE);
     }
 
     snprintf(superTbl->colsOfCreateChildTable, len+20, "(ts timestamp%s)", cols);
@@ -3057,10 +3056,10 @@ static int createSuperTable(
             lenOfTagOfOneRow += superTbl->tags[tagIndex].dataLen + DOUBLE_BUFF_LEN;
         } else {
             taos_close(taos);
+            free(command);
             errorPrint("%s() LN%d, config error tag type : %s\n",
                     __func__, __LINE__, dataType);
-            free(command);
-            exit(-1);
+            exit(EXIT_FAILURE);
         }
     }
 
@@ -3246,7 +3245,7 @@ static void* createTable(void *sarg)
     pThreadInfo->buffer = calloc(buff_len, 1);
     if (pThreadInfo->buffer == NULL) {
         errorPrint("%s() LN%d, Memory allocated failed!\n", __func__, __LINE__);
-        exit(-1);
+        exit(EXIT_FAILURE);
     }
 
     int len = 0;
@@ -3266,10 +3265,10 @@ static void* createTable(void *sarg)
                     pThreadInfo->cols);
         } else {
             if (stbInfo == NULL) {
+                free(pThreadInfo->buffer);
                 errorPrint("%s() LN%d, use metric, but super table info is NULL\n",
                         __func__, __LINE__);
-                free(pThreadInfo->buffer);
-                exit(-1);
+                exit(EXIT_FAILURE);
             } else {
                 if (0 == len) {
                     batchNum = 0;
@@ -3277,17 +3276,23 @@ static void* createTable(void *sarg)
                     len += snprintf(pThreadInfo->buffer + len,
                             buff_len - len, "create table ");
                 }
+
                 char* tagsValBuf = NULL;
                 if (0 == stbInfo->tagSource) {
                     tagsValBuf = generateTagValuesForStb(stbInfo, i);
                 } else {
+                    if (0 == stbInfo->tagSampleCount) {
+                        free(pThreadInfo->buffer);
+                        ERROR_EXIT("use sample file for tag, but has no content!\n");
+                    }
                     tagsValBuf = getTagValueFromTagSample(
                             stbInfo,
                             i % stbInfo->tagSampleCount);
                 }
+
                 if (NULL == tagsValBuf) {
                     free(pThreadInfo->buffer);
-                    return NULL;
+                    ERROR_EXIT("use metric, but tag buffer is NULL\n");
                 }
                 len += snprintf(pThreadInfo->buffer + len,
                         buff_len - len,
@@ -3340,8 +3345,7 @@ static int startMultiThreadCreateChildTable(
     threadInfo *infos = calloc(1, threads * sizeof(threadInfo));
 
     if ((NULL == pids) || (NULL == infos)) {
-        printf("malloc failed\n");
-        exit(-1);
+        ERROR_EXIT("createChildTable malloc failed\n");
     }
 
     if (threads < 1) {
@@ -5262,7 +5266,7 @@ static int64_t generateData(char *recBuf, char **data_type,
             if (s == NULL) {
                 errorPrint("%s() LN%d, memory allocation %d bytes failed\n",
                         __func__, __LINE__, lenOfBinary + 1);
-                exit(-1);
+                exit(EXIT_FAILURE);
             }
             rand_string(s, lenOfBinary);
             pstr += sprintf(pstr, ",\"%s\"", s);
@@ -5272,7 +5276,7 @@ static int64_t generateData(char *recBuf, char **data_type,
             if (s == NULL) {
                 errorPrint("%s() LN%d, memory allocation %d bytes failed\n",
                         __func__, __LINE__, lenOfBinary + 1);
-                exit(-1);
+                exit(EXIT_FAILURE);
             }
             rand_string(s, lenOfBinary);
             pstr += sprintf(pstr, ",\"%s\"", s);
@@ -5280,8 +5284,7 @@ static int64_t generateData(char *recBuf, char **data_type,
         }
 
         if (strlen(recBuf) > MAX_DATA_SIZE) {
-            perror("column length too long, abort");
-            exit(-1);
+            ERROR_EXIT("column length too long, abort");
         }
     }
 
@@ -5369,7 +5372,7 @@ static int32_t execInsert(threadInfo *pThreadInfo, uint32_t k)
                         __func__, __LINE__, taos_stmt_errstr(pThreadInfo->stmt));
 
                 fprintf(stderr, "\n\033[31m === Please reduce batch number if WAL size exceeds limit. ===\033[0m\n\n");
-                exit(-1);
+                exit(EXIT_FAILURE);
             }
             affectedRows = k;
             break;
@@ -7365,7 +7368,7 @@ static void startMultiThreadInsertData(int threads, char* db_name,
 #endif
         } else {
             errorPrint("Not support precision: %s\n", precision);
-            exit(-1);
+            exit(EXIT_FAILURE);
         }
     }
 
@@ -7396,7 +7399,7 @@ static void startMultiThreadInsertData(int threads, char* db_name,
         if (0 != prepareSampleDataForSTable(stbInfo)) {
             errorPrint("%s() LN%d, prepare sample data for stable failed!\n",
                     __func__, __LINE__);
-            exit(-1);
+            exit(EXIT_FAILURE);
         }
     }
 
@@ -7406,7 +7409,7 @@ static void startMultiThreadInsertData(int threads, char* db_name,
     if (NULL == taos0) {
         errorPrint("%s() LN%d, connect to server fail , reason: %s\n",
                 __func__, __LINE__, taos_errstr(NULL));
-        exit(-1);
+        exit(EXIT_FAILURE);
     }
 
     int64_t ntables = 0;
@@ -7458,9 +7461,9 @@ static void startMultiThreadInsertData(int threads, char* db_name,
         stbInfo->childTblName = (char*)calloc(1,
                 limit * TSDB_TABLE_NAME_LEN);
         if (stbInfo->childTblName == NULL) {
-            errorPrint("%s() LN%d, alloc memory failed!\n", __func__, __LINE__);
             taos_close(taos0);
-            exit(-1);
+            errorPrint("%s() LN%d, alloc memory failed!\n", __func__, __LINE__);
+            exit(EXIT_FAILURE);
         }
 
         int64_t childTblCount;
@@ -7492,7 +7495,7 @@ static void startMultiThreadInsertData(int threads, char* db_name,
             && (stbInfo->iface == REST_IFACE)) {
         if (convertHostToServAddr(
                     g_Dbs.host, g_Dbs.port, &(g_Dbs.serv_addr)) != 0) {
-            exit(-1);
+            ERROR_EXIT("convert host to server address");
         }
     }
 
@@ -7566,12 +7569,12 @@ static void startMultiThreadInsertData(int threads, char* db_name,
                     g_Dbs.host, g_Dbs.user,
                     g_Dbs.password, db_name, g_Dbs.port);
             if (NULL == pThreadInfo->taos) {
+                free(infos);
                 errorPrint(
                         "%s() LN%d, connect to server fail from insert sub thread, reason: %s\n",
                         __func__, __LINE__,
                         taos_errstr(NULL));
-                free(infos);
-                exit(-1);
+                exit(EXIT_FAILURE);
             }
 
 #if STMT_IFACE_ENABLED == 1
@@ -7582,23 +7585,23 @@ static void startMultiThreadInsertData(int threads, char* db_name,
 
                 pThreadInfo->stmt = taos_stmt_init(pThreadInfo->taos);
                 if (NULL == pThreadInfo->stmt) {
+                    free(pids);
+                    free(infos);
                     errorPrint(
                             "%s() LN%d, failed init stmt, reason: %s\n",
                             __func__, __LINE__,
                             taos_errstr(NULL));
-                    free(pids);
-                    free(infos);
-                    exit(-1);
+                    exit(EXIT_FAILURE);
                 }
 
                 int ret = taos_stmt_prepare(pThreadInfo->stmt, stmtBuffer, 0);
                 if (ret != 0){
-                    errorPrint("failed to execute taos_stmt_prepare. return 0x%x. reason: %s\n",
-                            ret, taos_stmt_errstr(pThreadInfo->stmt));
                     free(pids);
                     free(infos);
                     free(stmtBuffer);
-                    exit(-1);
+                    errorPrint("failed to execute taos_stmt_prepare. return 0x%x. reason: %s\n",
+                            ret, taos_stmt_errstr(pThreadInfo->stmt));
+                    exit(EXIT_FAILURE);
                 }
                 pThreadInfo->bind_ts = malloc(sizeof(int64_t));
             }
@@ -8192,7 +8195,7 @@ static int queryTestProcess() {
     if (taos == NULL) {
         errorPrint( "Failed to connect to TDengine, reason:%s\n",
                 taos_errstr(NULL));
-        exit(-1);
+        exit(EXIT_FAILURE);
     }
 
     if (0 != g_queryInfo.superQueryInfo.sqlCount) {
@@ -8212,7 +8215,7 @@ static int queryTestProcess() {
     if (0 == strncasecmp(g_queryInfo.queryMode, "rest", strlen("rest"))) {
         if (convertHostToServAddr(
                     g_queryInfo.host, g_queryInfo.port, &g_queryInfo.serv_addr) != 0)
-            exit(-1);
+            ERROR_EXIT("convert host to server address");
     }
 
     pthread_t  *pids  = NULL;
@@ -8416,10 +8419,10 @@ static void *superSubscribe(void *sarg) {
     setThreadName("superSub");
 
     if (pThreadInfo->ntables > MAX_QUERY_SQL_COUNT) {
+        free(subSqlStr);
         errorPrint("The table number(%"PRId64") of the thread is more than max query sql count: %d\n",
                 pThreadInfo->ntables, MAX_QUERY_SQL_COUNT);
-        free(subSqlStr);
-        exit(-1);
+        exit(EXIT_FAILURE);
     }
 
     if (pThreadInfo->taos == NULL) {
@@ -8685,7 +8688,7 @@ static int subscribeTestProcess() {
     if (taos == NULL) {
         errorPrint( "Failed to connect to TDengine, reason:%s\n",
                 taos_errstr(NULL));
-        exit(-1);
+        exit(EXIT_FAILURE);
     }
 
     if (0 != g_queryInfo.superQueryInfo.sqlCount) {
@@ -8714,7 +8717,7 @@ static int subscribeTestProcess() {
             errorPrint("%s() LN%d, sepcified query sqlCount %d.\n",
                     __func__, __LINE__,
                     g_queryInfo.specifiedQueryInfo.sqlCount);
-            exit(-1);
+            exit(EXIT_FAILURE);
         }
 
         pids  = calloc(
@@ -8729,7 +8732,7 @@ static int subscribeTestProcess() {
                 sizeof(threadInfo));
         if ((NULL == pids) || (NULL == infos)) {
             errorPrint("%s() LN%d, malloc failed for create threads\n", __func__, __LINE__);
-            exit(-1);
+            exit(EXIT_FAILURE);
         }
 
         for (int i = 0; i < g_queryInfo.specifiedQueryInfo.sqlCount; i++) {
@@ -8766,7 +8769,7 @@ static int subscribeTestProcess() {
                 errorPrint("%s() LN%d, malloc failed for create threads\n",
                         __func__, __LINE__);
                 // taos_close(taos);
-                exit(-1);
+                exit(EXIT_FAILURE);
             }
 
             int64_t ntables = g_queryInfo.superQueryInfo.childTblCount;
@@ -8969,8 +8972,7 @@ static int regexMatch(const char *s, const char *reg, int cflags) {
 
     /* Compile regular expression */
     if (regcomp(&regex, reg, cflags) != 0) {
-        printf("Fail to compile regex\n");
-        exit(-1);
+        ERROR_EXIT("Fail to compile regex\n");
     }
 
     /* Execute regular expression */
@@ -8983,9 +8985,9 @@ static int regexMatch(const char *s, const char *reg, int cflags) {
         return 0;
     } else {
         regerror(reti, &regex, msgbuf, sizeof(msgbuf));
-        printf("Regex match failed: %s\n", msgbuf);
         regfree(&regex);
-        exit(-1);
+        printf("Regex match failed: %s\n", msgbuf);
+        exit(EXIT_FAILURE);
     }
 
     return 0;
@@ -9103,10 +9105,10 @@ static void queryResult() {
             g_Dbs.db[0].dbName,
             g_Dbs.port);
     if (pThreadInfo->taos == NULL) {
+        free(pThreadInfo);
         errorPrint( "Failed to connect to TDengine, reason:%s\n",
                 taos_errstr(NULL));
-        free(pThreadInfo);
-        exit(-1);
+        exit(EXIT_FAILURE);
     }
 
     tstrncpy(pThreadInfo->filePath, g_Dbs.resultFile, MAX_FILE_NAME_LEN);
