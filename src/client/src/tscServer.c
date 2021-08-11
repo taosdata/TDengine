@@ -2628,25 +2628,30 @@ int tscProcessQueryRsp(SSqlObj *pSql) {
   return 0;
 }
 
-static void decompressQueryColData(SSqlRes *pRes, SQueryInfo* pQueryInfo, char *data, int8_t compressed) {
+static void decompressQueryColData(SSqlRes *pRes, SQueryInfo* pQueryInfo, char *data, int8_t compressed, int compLen) {
   int32_t decompLen = 0;
   int32_t numOfCols = pQueryInfo->fieldsInfo.numOfOutput;
+  int32_t *compSizes = tcalloc(numOfCols, sizeof(int32_t));
+  char *pData = data;
+  compSizes = (int32_t *)(pData + compLen);
 
   TAOS_FIELD *pField = tscFieldInfoGetField(&pQueryInfo->fieldsInfo, numOfCols - 1);
   int16_t     offset = tscFieldInfoGetOffset(pQueryInfo, numOfCols - 1);
   char       *outputBuf = tcalloc(pRes->numOfRows, (pField->bytes + offset));
 
   char *p = outputBuf;
-  int32_t bufOffset = 0, compSize = 0;
+  int32_t bufOffset = 0;
   for(int32_t i = 0; i < numOfCols; ++i) {
     SInternalField* pInfo = (SInternalField*)TARRAY_GET_ELEM(pQueryInfo->fieldsInfo.internalField, i);
     bufOffset = pInfo->field.bytes * pRes->numOfRows;
-    int32_t flen = (*(tDataTypes[pInfo->field.type].decompFunc))(data, compSize, pRes->numOfRows, p, bufOffset,
+    int32_t flen = (*(tDataTypes[pInfo->field.type].decompFunc))(pData, compSizes[i], pRes->numOfRows, p, bufOffset,
                                                                compressed, NULL, 0);
     p += flen;
     decompLen +=flen;
+    pData += compSizes[i];
   }
   tfree(outputBuf);
+  tfree(compSizes);
 }
 
 int tscProcessRetrieveRspFromNode(SSqlObj *pSql) {
@@ -2676,7 +2681,8 @@ int tscProcessRetrieveRspFromNode(SSqlObj *pSql) {
 
   //Decompress col data if compressed from server
   if (pRes->compressed) {
-    decompressQueryColData(pRes, pQueryInfo, pRes->data, pRes->compressed);
+    int32_t compLen = htonl(pRetrieve->compLen);
+    decompressQueryColData(pRes, pQueryInfo, pRes->data, pRes->compressed, compLen);
   }
 
   STableMetaInfo *pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);

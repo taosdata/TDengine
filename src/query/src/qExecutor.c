@@ -4027,7 +4027,7 @@ static void doCopyQueryResultToMsg(SQInfo *pQInfo, int32_t numOfRows, char *data
   int32_t numOfCols = pQueryAttr->pExpr2 ? pQueryAttr->numOfExpr2 : pQueryAttr->numOfOutput;
 
   if (compressed) {
-    compSizes = tmalloc(numOfCols);
+    compSizes = tcalloc(numOfCols, sizeof(int32_t));
   }
 
   if (pQueryAttr->pExpr2 == NULL) {
