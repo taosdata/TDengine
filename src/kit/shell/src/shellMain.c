@@ -118,7 +118,7 @@ int main(int argc, char* argv[]) {
       printf("Failed to init taos");
       exit(EXIT_FAILURE);
     }
-    taosNetTest(args.netTestRole, args.host, args.port, args.pktLen, args.pktLen, args.pktType);
+    taosNetTest(args.netTestRole, args.host, args.port, args.pktLen, args.pktNum, args.pktType);
     exit(0);
   }
 

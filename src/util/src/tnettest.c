@@ -552,7 +552,7 @@ static void taosNetTestSpeed(char *host, int32_t port, int32_t pkgLen,
                              int32_t pkgNum, char *pkgType) {
   char    spi = 0;
 
-  uInfo("check spend, host:%s port:%d pkgLen:%d pkgNum:%d pkgType:%s\\n", host, port, pkgLen, pkgNum, pkgType);
+  uInfo("check spend, host:%s port:%d pkgLen:%d pkgNum:%d pkgType:%s", host, port, pkgLen, pkgNum, pkgType);
 
   SRpcEpSet epSet;
   SRpcMsg   reqMsg;
@@ -579,9 +579,9 @@ static void taosNetTestSpeed(char *host, int32_t port, int32_t pkgLen,
   }
 
   int32_t totalSucc = 0;
-  int64_t startT = taosGetTimestampUs();
+  uint64_t startT = taosGetTimestampUs();
   for (int32_t i = 1; i <= pkgNum; i++) {
-    int64_t startTime = taosGetTimestampUs();
+    uint64_t startTime = taosGetTimestampUs();
 
     memset(&epSet, 0, sizeof(SRpcEpSet));
     epSet.inUse = 0;
@@ -609,13 +609,13 @@ static void taosNetTestSpeed(char *host, int32_t port, int32_t pkgLen,
 
     rpcFreeCont(rspMsg.pCont);
 
-    int64_t endTime = taosGetTimestampUs();
-    int32_t el = endTime - startTime;
-    printf("progress: %5d/%d, status: %d, cost: %10d ms, speed: %10.2lf KB/s\n", i, pkgNum, code, el, pkgLen/(el/1000.0)/1024);
+    uint64_t endTime = taosGetTimestampUs();
+    uint64_t el = endTime - startTime;
+    printf("progress: %5d/%d, status: %d, cost: %8" PRId64 " ms, speed: %8.2lf KB/s\n", i, pkgNum, code, el, pkgLen/(el/1000000.0)/1024);
   }
   int64_t endT = taosGetTimestampUs();
-  int32_t elT = endT - startT;
-  printf("total: %5d/%d, cost: %10d ms, speed: %10.2lf KB/s\n", totalSucc, pkgNum, elT, pkgLen * totalSucc/(elT/1000.0)/1024);
+  uint64_t elT = endT - startT;
+  printf("total: %5d/%d, cost: %8" PRId64 " ms, speed: %8.2lf KB/s\n", totalSucc, pkgNum, elT, pkgLen * totalSucc/(elT/1000000.0)/1024);
 
   rpcClose(pRpcConn);
 
