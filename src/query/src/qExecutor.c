@@ -4023,26 +4023,42 @@ static void doCopyQueryResultToMsg(SQInfo *pQInfo, int32_t numOfRows, char *data
 
   SSDataBlock* pRes = pRuntimeEnv->outputBuf;
 
+  int32_t *compSizes = NULL;
+  int32_t numOfCols = pQueryAttr->pExpr2 ? pQueryAttr->numOfExpr2 : pQueryAttr->numOfOutput;
+
+  if (compressed) {
+    compSizes = tmalloc(numOfCols);
+  }
+
   if (pQueryAttr->pExpr2 == NULL) {
-    for (int32_t col = 0; col < pQueryAttr->numOfOutput; ++col) {
+    for (int32_t col = 0; col < numOfCols; ++col) {
       SColumnInfoData* pColRes = taosArrayGet(pRes->pDataBlock, col);
       if (compressed) {
-        *compLen += compressQueryColData(pColRes, pRes->info.rows, data, compressed);
+        compSizes[col] = compressQueryColData(pColRes, pRes->info.rows, data, compressed);
+        *compLen += compSizes[col];
       } else {
         memmove(data, pColRes->pData, pColRes->info.bytes * pRes->info.rows);
         data += pColRes->info.bytes * pRes->info.rows;
       }
     }
   } else {
-    for (int32_t col = 0; col < pQueryAttr->numOfExpr2; ++col) {
+    for (int32_t col = 0; col < numOfCols; ++col) {
       SColumnInfoData* pColRes = taosArrayGet(pRes->pDataBlock, col);
       if (compressed) {
-        *compLen += compressQueryColData(pColRes, numOfRows, data, compressed);
+        compSizes[col] = compressQueryColData(pColRes, numOfRows, data, compressed);
+        *compLen += compSizes[col];
       } else {
         memmove(data, pColRes->pData, pColRes->info.bytes * numOfRows);
         data += pColRes->info.bytes * numOfRows;
       }
     }
+  }
+
+  if (compressed) {
+    memmove(data, (char *)compSizes, numOfCols * sizeof(int32_t));
+    data += numOfCols * sizeof(int32_t);
+
+    tfree(compSizes);
   }
 
   int32_t numOfTables = (int32_t) taosHashGetSize(pRuntimeEnv->pTableRetrieveTsMap);
