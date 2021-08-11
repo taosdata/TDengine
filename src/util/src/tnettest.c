@@ -570,11 +570,14 @@ static void taosNetTestSpeed(char *host, int32_t port, int32_t pkgLen,
   // record config
   int32_t compressTmp = tsCompressMsgSize;
   int32_t maxUdpSize  = tsRpcMaxUdpSize;
+  int32_t forceTcp  = tsRpcForceTcp;
 
   tsCompressMsgSize = -1;
   if (0 == strcmp("TCP", pkgType)){
+    tsRpcForceTcp = 1;
     tsRpcMaxUdpSize = 0;            // force tcp
   } else {
+    tsRpcForceTcp = 0;
     tsRpcMaxUdpSize = INT_MAX;
   }
 
@@ -622,6 +625,7 @@ static void taosNetTestSpeed(char *host, int32_t port, int32_t pkgLen,
   // return config
   tsCompressMsgSize = compressTmp;
   tsRpcMaxUdpSize = maxUdpSize;
+  tsRpcForceTcp = forceTcp;
 }
 
 void taosNetTest(char *role, char *host, int32_t port, int32_t pkgLen,
