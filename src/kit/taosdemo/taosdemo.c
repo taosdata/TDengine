@@ -1009,6 +1009,7 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
                     exit(EXIT_FAILURE);
                 }
                 arguments->datatype[0] = argv[i];
+                arguments->datatype[1] = NULL;
             } else {
                 // more than one col
                 int index = 0;
