@@ -366,9 +366,11 @@ int32_t qDumpRetrieveResult(qinfo_t qinfo, SRetrieveTableRsp **pRsp, int32_t *co
   }
 
   if ((*pRsp)->compressed && compLen != 0) {
-    *contLen = *contLen - pQueryAttr->resultRowSize * s + compLen;
+    int32_t numOfCols = pQueryAttr->pExpr2 ? pQueryAttr->numOfExpr2 : pQueryAttr->numOfOutput;
+    *contLen = *contLen - pQueryAttr->resultRowSize * s + compLen + numOfCols * sizeof(int32_t);
     *pRsp = (SRetrieveTableRsp *)rpcReallocCont(*pRsp, *contLen);
   }
+  (*pRsp)->compLen = htonl(compLen);
 
   pQInfo->rspContext = NULL;
   pQInfo->dataReady  = QUERY_RESULT_NOT_READY;
