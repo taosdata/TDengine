@@ -83,6 +83,8 @@ SShellArguments args = {
   .threadNum = 5,
   .commands = NULL,
   .pktLen = 1000,
+  .pktNum = 100,
+  .pktType = "TCP",
   .netTestRole = NULL
 };
 
@@ -116,7 +118,7 @@ int main(int argc, char* argv[]) {
       printf("Failed to init taos");
       exit(EXIT_FAILURE);
     }
-    taosNetTest(args.netTestRole, args.host, args.port, args.pktLen);
+    taosNetTest(args.netTestRole, args.host, args.port, args.pktLen, args.pktLen, args.pktType);
     exit(0);
   }
 

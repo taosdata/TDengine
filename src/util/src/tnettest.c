@@ -27,6 +27,10 @@
 #include "syncMsg.h"
 
 #define MAX_PKG_LEN (64 * 1000)
+#define MAX_SPEED_PKG_LEN (1024 * 1024)
+#define MIN_SPEED_PKG_LEN 1024
+#define MAX_SPEED_PKG_NUM 10000
+#define MIN_SPEED_PKG_NUM 10
 #define BUFFER_SIZE (MAX_PKG_LEN + 1024)
 
 extern int32_t tsRpcMaxUdpSize;
@@ -544,12 +548,93 @@ static void taosNetTestServer(char *host, int32_t startPort, int32_t pkgLen) {
   }
 }
 
-void taosNetTest(char *role, char *host, int32_t port, int32_t pkgLen) {
+static void taosNetTestSpeed(char *host, int32_t port, int32_t pkgLen,
+                             int32_t pkgNum, char *pkgType) {
+  char    spi = 0;
+
+  uInfo("check spend, host:%s port:%d pkgLen:%d pkgNum:%d pkgType:%s\\n", host, port, pkgLen, pkgNum, pkgType);
+
+  SRpcEpSet epSet;
+  SRpcMsg   reqMsg;
+  SRpcMsg   rspMsg;
+  void *    pRpcConn;
+
+  char secretEncrypt[32] = {0};
+
+  pRpcConn = taosNetInitRpc(secretEncrypt, spi);
+  if (NULL == pRpcConn) {
+    uError("failed to init client rpc");
+    return;
+  }
+
+  memset(&epSet, 0, sizeof(SRpcEpSet));
+  epSet.inUse = 0;
+  epSet.numOfEps = 1;
+  epSet.port[0] = port;
+  strcpy(epSet.fqdn[0], host);
+
+  reqMsg.msgType = TSDB_MSG_TYPE_NETWORK_TEST;
+  reqMsg.pCont = rpcMallocCont(pkgLen);
+  reqMsg.contLen = pkgLen;
+  reqMsg.code = 0;
+  reqMsg.handle = NULL;   // rpc handle returned to app
+  reqMsg.ahandle = NULL;  // app handle set by client
+  strcpy(reqMsg.pCont, "nettest speed");
+
+  // record config
+  int32_t compressTmp = tsCompressMsgSize;
+  int32_t maxUdpSize  = tsRpcMaxUdpSize;
+
+  tsCompressMsgSize = -1;
+  if (0 == strcmp("TCP", pkgType)){
+    tsRpcMaxUdpSize = 0;            // force tcp
+  } else {
+    tsRpcMaxUdpSize = INT_MAX;
+  }
+
+  int32_t totalSucc = 0;
+  int64_t startT = taosGetTimestampMs();
+  for (int32_t i = 0; i < pkgNum; i++) {
+    int64_t startTime = taosGetTimestampMs();
+    rpcSendRecv(pRpcConn, &epSet, &reqMsg, &rspMsg);
+
+    int code = 0;
+    if ((rspMsg.code != 0) || (rspMsg.msgType != TSDB_MSG_TYPE_NETWORK_TEST + 1)) {
+      uError("ret code 0x%x %s", rspMsg.code, tstrerror(rspMsg.code));
+      code = -1;
+    }else{
+      totalSucc ++;
+    }
+
+    int64_t endTime = taosGetTimestampMs();
+    int32_t el = endTime - startTime;
+    printf("progress: %5d/%d, status: %d, cost: %10d ms, speed: %10.2lf KB/s\n", i, pkgNum, code, el, pkgLen/(el/1000.0)/1024);
+  }
+  int64_t endT = taosGetTimestampMs();
+  int32_t elT = endT - startT;
+  printf("total: %5d/%d, cost: %10d ms, speed: %10.2lf KB/s\n", totalSucc, pkgNum, elT, pkgLen * totalSucc/(elT/1000.0)/1024);
+  rpcFreeCont(rspMsg.pCont);
+  rpcClose(pRpcConn);
+
+  // return config
+  tsCompressMsgSize = compressTmp;
+  tsRpcMaxUdpSize = maxUdpSize;
+}
+
+void taosNetTest(char *role, char *host, int32_t port, int32_t pkgLen,
+                 int32_t pkgNum, char *pkgType) {
   tscEmbedded = 1;
   if (host == NULL) host = tsLocalFqdn;
   if (port == 0) port = tsServerPort;
-  if (pkgLen <= 10) pkgLen = 1000;
-  if (pkgLen > MAX_PKG_LEN) pkgLen = MAX_PKG_LEN;
+  if (0 == strcmp("speed", role){
+    if (pkgLen <= MIN_SPEED_PKG_LEN) pkgLen = MIN_SPEED_PKG_LEN;
+    if (pkgLen > MAX_SPEED_PKG_LEN) pkgLen = MAX_SPEED_PKG_LEN;
+    if (pkgNum <= MIN_SPEED_PKG_NUM) pkgLen = MIN_SPEED_PKG_NUM;
+    if (pkgNum > MAX_SPEED_PKG_NUM) pkgLen = MAX_SPEED_PKG_NUM;
+  }else{
+    if (pkgLen <= 10) pkgLen = 1000;
+    if (pkgLen > MAX_PKG_LEN) pkgLen = MAX_PKG_LEN;
+  }
 
   if (0 == strcmp("client", role)) {
     taosNetTestClient(host, port, pkgLen);
@@ -562,7 +647,10 @@ void taosNetTest(char *role, char *host, int32_t port, int32_t pkgLen) {
     taosNetCheckSync(host, port);
   } else if (0 == strcmp("startup", role)) {
     taosNetTestStartup(host, port);
-  } else {
+  } else if (0 == strcmp("speed", role)) {
+    tscEmbedded = 0;
+    taosNetTestSpeed(host, port, pkgLen, pkgNum, pkgType);
+  }else {
     taosNetTestStartup(host, port);
   }
 

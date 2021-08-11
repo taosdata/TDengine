@@ -50,6 +50,8 @@ static struct argp_option options[] = {
   {"timezone",   't', "TIMEZONE",   0,                   "Time zone of the shell, default is local."},
   {"netrole",    'n', "NETROLE",    0,                   "Net role when network connectivity test, default is startup, options: client|server|rpc|startup|sync."},
   {"pktlen",     'l', "PKTLEN",     0,                   "Packet length used for net test, default is 1000 bytes."},
+  {"pktnum",     'N', "PKTNUM",     0,                   "Packet numbers used for net test, default is 100."},
+  {"pkttype",    'S', "PKTTYPE",    0,                   "Packet type used for net test, default is TCP."},
   {0}};
 
 static error_t parse_opt(int key, char *arg, struct argp_state *state) {
@@ -147,6 +149,17 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
         fprintf(stderr, "Invalid packet length\n");
         return -1;
       }
+      break;
+    case 'N':
+      if (arg) {
+        arguments->pktNum = atoi(arg);
+      } else {
+        fprintf(stderr, "Invalid packet number\n");
+        return -1;
+      }
+      break;
+    case 'S':
+      arguments->pktType = arg;
       break;
     case OPT_ABORT:
       arguments->abort = 1;
