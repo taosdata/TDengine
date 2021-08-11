@@ -35,6 +35,8 @@ extern "C" {
 
 #define MAX_NUM_STR_SIZE 40
 
+#define FILTER_RM_UNIT_MIN_ROWS 1024
+
 enum {
   FLD_TYPE_COLUMN = 1,
   FLD_TYPE_VALUE = 2,  
@@ -68,6 +70,12 @@ enum {
   FI_STATUS_EMPTY = 2,
   FI_STATUS_REWRITE = 4,
   FI_STATUS_CLONED = 8,
+};
+
+enum {
+  FI_STATUS_BLK_ALL = 1,
+  FI_STATUS_BLK_EMPTY = 2,
+  FI_STATUS_BLK_ACTIVE = 4,
 };
 
 enum {
@@ -197,6 +205,7 @@ typedef struct SFilterComUnit {
   void *colData;
   void *valData;
   void *valData2;
+  uint16_t colId;
   uint16_t dataSize;
   uint8_t dataType;
   uint8_t optr;
@@ -224,7 +233,11 @@ typedef struct SFilterInfo {
   uint8_t          *unitRes;    // result
   uint8_t          *unitFlags;  // got result
   SFilterRangeCtx **colRange;
-  filter_exec_func  func;
+  filter_exec_func  func;          
+  uint8_t           blkFlag;
+  uint16_t          blkGroupNum;
+  uint16_t         *blkUnits;
+  int8_t           *blkUnitRes;
   
   SFilterPCtx       pctx;
 } SFilterInfo;

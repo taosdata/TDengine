@@ -2540,6 +2540,153 @@ int32_t filterUpdateComUnits(SFilterInfo *info) {
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t filterRmUnitByRange(SFilterInfo *info, SDataStatis *pDataStatis, int32_t numOfCols, int32_t numOfRows) {
+  int32_t rmUnit = 0;
+
+  memset(info->blkUnitRes, 0, sizeof(*info->blkUnitRes) * info->unitNum);
+  
+  for (int32_t k = 0; k < info->unitNum; ++k) {
+    int32_t index = -1;
+    SFilterComUnit *cunit = &info->cunits[k];
+
+    if (FILTER_NO_MERGE_DATA_TYPE(cunit->dataType)) {
+      continue;
+    }
+
+    for(int32_t i = 0; i < numOfCols; ++i) {
+      if (pDataStatis[i].colId == cunit->colId) {
+        index = i;
+        break;
+      }
+    }
+
+    if (index == -1) {
+      continue;
+    }
+
+    if (pDataStatis[index].numOfNull <= 0) {
+      if (cunit->optr == TSDB_RELATION_ISNULL) {
+        info->blkUnitRes[k] = -1;
+        rmUnit = 1;
+        continue;
+      }
+
+      if (cunit->optr == TSDB_RELATION_NOTNULL) {
+        info->blkUnitRes[k] = 1;
+        rmUnit = 1;
+        continue;
+      }
+    } else {
+      if (pDataStatis[index].numOfNull == numOfRows) {
+        if (cunit->optr == TSDB_RELATION_ISNULL) {
+          info->blkUnitRes[k] = 1;
+          rmUnit = 1;
+          continue;
+        }
+        
+        info->blkUnitRes[k] = -1;
+        rmUnit = 1;
+        continue;
+      }
+    }
+
+    if (cunit->optr == TSDB_RELATION_ISNULL || cunit->optr == TSDB_RELATION_NOTNULL) {
+      continue;
+    }
+
+    SDataStatis* pDataBlockst = &pDataStatis[index];
+    void *minVal, *maxVal;
+
+    if (cunit->dataType == TSDB_DATA_TYPE_FLOAT) {
+      float minv = (float)(*(double *)(&pDataBlockst->min));
+      float maxv = (float)(*(double *)(&pDataBlockst->max));
+       
+      minVal = &minv;
+      maxVal = &maxv;
+    } else {
+      minVal = &pDataBlockst->min;
+      maxVal = &pDataBlockst->max;
+    }
+
+    bool minRes = false, maxRes = false;
+
+    if (cunit->rfunc >= 0) {
+      minRes = (*gRangeCompare[cunit->rfunc])(minVal, minVal, cunit->valData, cunit->valData2, gDataCompare[cunit->func]);
+      maxRes = (*gRangeCompare[cunit->rfunc])(maxVal, maxVal, cunit->valData, cunit->valData2, gDataCompare[cunit->func]);
+    } else {
+      minRes = filterDoCompare(gDataCompare[cunit->func], cunit->optr, minVal, cunit->valData);
+      maxRes = filterDoCompare(gDataCompare[cunit->func], cunit->optr, maxVal, cunit->valData);
+    }
+
+    if (minRes && maxRes) {
+      info->blkUnitRes[k] = 1;
+      rmUnit = 1;
+    } else if ((!minRes) && (!maxRes)) {
+      info->blkUnitRes[k] = -1;
+      rmUnit = 1;
+    }
+  }
+
+  CHK_RET(rmUnit == 0, TSDB_CODE_SUCCESS);
+
+  info->blkGroupNum = info->groupNum;
+  
+  uint16_t *unitNum = info->blkUnits;
+  uint16_t *unitIdx = unitNum + 1;
+  int32_t all = 0, empty = 0;
+  
+  for (uint32_t g = 0; g < info->groupNum; ++g) {
+    SFilterGroup *group = &info->groups[g];
+    *unitNum = group->unitNum;
+    all = 0; 
+    empty = 0;
+    
+    for (uint32_t u = 0; u < group->unitNum; ++u) {
+      uint16_t uidx = group->unitIdxs[u];
+      if (info->blkUnitRes[u] == 1) {
+        --(*unitNum);
+        all = 1;
+        continue;
+      } else if (info->blkUnitRes[u] == -1) {
+        *unitNum = 0;
+        empty = 1;
+        break;
+      }
+
+      *(unitIdx++) = uidx;
+    }
+
+    if (*unitNum == 0) {
+      --info->blkGroupNum;
+      assert(empty || all);
+      
+      if (empty) {
+        FILTER_SET_FLAG(info->blkFlag, FI_STATUS_BLK_EMPTY);
+      } else {
+        FILTER_SET_FLAG(info->blkFlag, FI_STATUS_BLK_ALL);
+        goto _return;
+      }
+      
+      continue;
+    }
+
+    unitNum = unitIdx;
+    ++unitIdx;
+  }
+
+  if (info->blkGroupNum) {
+    FILTER_CLR_FLAG(info->blkFlag, FI_STATUS_BLK_EMPTY);
+    FILTER_SET_FLAG(info->blkFlag, FI_STATUS_BLK_ACTIVE);
+  }
+
+_return:
+
+  qDebug("Block Filter Result:%s", FILTER_GET_FLAG(info->blkFlag, FI_STATUS_BLK_EMPTY) ? "EMPTY" : (FILTER_GET_FLAG(info->blkFlag, FI_STATUS_BLK_ALL) ? "ALL" : "FILTER"));
+
+  return TSDB_CODE_SUCCESS;
+}
+
+
 
 static FORCE_INLINE bool filterExecuteImplAll(void *info, int32_t numOfRows, int8_t* p) {
   return true;
@@ -2880,16 +3027,17 @@ bool filterRangeExecute(SFilterInfo *info, SDataStatis *pDataStatis, int32_t num
 
     // no statistics data, load the true data block
     if (index == -1) {
-      return true;
+      break;
     }
 
     // not support pre-filter operation on binary/nchar data type
     if (FILTER_NO_MERGE_DATA_TYPE(ctx->type)) {
-      return true;
+      break;
     }
 
     if ((pDataStatis[index].numOfNull <= 0) && (ctx->isnull && !ctx->notnull && !ctx->isrange)) {
-      return false;
+      ret = false;
+      break;
     }
     
     // all data in current column are NULL, no need to check its boundary value
@@ -2897,7 +3045,8 @@ bool filterRangeExecute(SFilterInfo *info, SDataStatis *pDataStatis, int32_t num
 
       // if isNULL query exists, load the null data column
       if ((ctx->notnull || ctx->isrange) && (!ctx->isnull)) {
-        return false;
+        ret = false;
+        break;
       }
 
       continue;
@@ -2927,6 +3076,12 @@ bool filterRangeExecute(SFilterInfo *info, SDataStatis *pDataStatis, int32_t num
     }
     
     CHK_RET(!ret, ret);
+  }
+
+  info->blkFlag = 0;
+
+  if (ret && numOfRows >= FILTER_RM_UNIT_MIN_ROWS) {
+    filterRmUnitByRange(info, pDataStatis, numOfCols, numOfRows);
   }
 
   return ret;
