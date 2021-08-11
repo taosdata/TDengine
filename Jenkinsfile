@@ -428,6 +428,5 @@ pipeline {
                 from: "support@taosdata.com"
             )
         }
-    }
-   
+    } 
 }
