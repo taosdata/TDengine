@@ -1133,8 +1133,8 @@ static void rpcNotifyClient(SRpcReqContext *pContext, SRpcMsg *pMsg) {
   } else {
     // for asynchronous API 
     SRpcEpSet *pEpSet = NULL;
-    if (pContext->epSet.inUse != pContext->oldInUse || pContext->redirect) 
-      pEpSet = &pContext->epSet;  
+    //if (pContext->epSet.inUse != pContext->oldInUse || pContext->redirect) 
+    pEpSet = &pContext->epSet;  
 
     (*pRpc->cfp)(pMsg, pEpSet);  
   }
