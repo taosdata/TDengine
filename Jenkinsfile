@@ -181,7 +181,7 @@ pipeline {
           }
       parallel {
         stage('python_1_s1') {
-          agent {label 'tt'}
+          agent{label " slave1 && slave11 "}
           steps {
             
             pre_test()
@@ -196,7 +196,7 @@ pipeline {
           }
         }
         stage('python_2_s5') {
-          agent {label 'tt'}
+          agent{label " slave5 && slave15 "}
           steps {
             
             pre_test()
@@ -210,7 +210,7 @@ pipeline {
           }
         }
         stage('python_3_s6') {
-          agent {label 'tt'}
+          agent{label " slave6 && slave16 "}
           steps {     
             timeout(time: 45, unit: 'MINUTES'){       
               pre_test()
@@ -223,7 +223,7 @@ pipeline {
           }
         }
         stage('test_b1_s2') {
-          agent {label 'tt'}
+          agent{label " slave2 && slave12 "}
           steps {     
             timeout(time: 45, unit: 'MINUTES'){       
               pre_test()
@@ -236,7 +236,7 @@ pipeline {
         }
 
         stage('test_crash_gen_s3') {
-          agent {label 'tt'}
+          agent{label " slave3 && slave13 "}
           
           steps {
             pre_test()
@@ -275,7 +275,7 @@ pipeline {
         }
 
         stage('test_valgrind_s4') {
-          agent {label 'tt'}
+          agent{label " slave4 && slave14 "}
 
           steps {
             pre_test()
@@ -301,7 +301,7 @@ pipeline {
           }
         }
         stage('test_b4_s7') {
-          agent {label 'tt'}
+          agent{label " slave7 && slave17 "}
           steps {     
             timeout(time: 45, unit: 'MINUTES'){       
               pre_test()
@@ -320,7 +320,7 @@ pipeline {
           }
         }
         stage('test_b5_s8') {
-          agent {label 'tt'}
+          agent{label " slave8 && slave18 "}
           steps {     
             timeout(time: 45, unit: 'MINUTES'){       
               pre_test()
@@ -333,7 +333,7 @@ pipeline {
           }
         }
         stage('test_b6_s9') {
-          agent {label 'tt'}
+          agent{label " slave9 && slave19 "}
           steps {     
             timeout(time: 45, unit: 'MINUTES'){       
               pre_test()
@@ -346,7 +346,7 @@ pipeline {
           }
         }
         stage('test_b7_s10') {
-          agent {label 'tt'}
+          agent{label " slave10 && slave20 "}
           steps {     
             timeout(time: 45, unit: 'MINUTES'){       
               pre_test()
