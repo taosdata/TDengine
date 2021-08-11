@@ -611,11 +611,11 @@ static void taosNetTestSpeed(char *host, int32_t port, int32_t pkgLen,
 
     uint64_t endTime = taosGetTimestampUs();
     uint64_t el = endTime - startTime;
-    printf("progress: %5d/%d, status: %d, cost: %8" PRId64 " ms, speed: %8.2lf KB/s\n", i, pkgNum, code, el, pkgLen/(el/1000000.0)/1024);
+    printf("progress: %5d/%d, status: %d, cost: %10.2lf ms, speed: %10.2lf MB/s\n", i, pkgNum, code, el/1000.0, pkgLen/(el/1000000.0)/1024.0/1024.0);
   }
   int64_t endT = taosGetTimestampUs();
   uint64_t elT = endT - startT;
-  printf("total: %5d/%d, cost: %8" PRId64 " ms, speed: %8.2lf KB/s\n", totalSucc, pkgNum, elT, pkgLen * totalSucc/(elT/1000000.0)/1024);
+  printf("total succ: %5d/%d, cost: %10.2lf ms, speed: %10.2lf MB/s\n", totalSucc, pkgNum, elT/1000.0, pkgLen * totalSucc/(elT/1000000.0)/1024.0/1024.0);
 
   rpcClose(pRpcConn);
 
