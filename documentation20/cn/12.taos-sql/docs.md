@@ -435,6 +435,17 @@ INSERT INTO
     INSERT INTO d1001 FILE '/tmp/csvfile.csv';
     ```
 
+- **插入来自文件的数据记录，并自动建表**  
+    从 2.1.5.0 版本开始，支持在插入来自 CSV 文件的数据时，以超级表为模板来自动创建不存在的数据表。例如：  
+    ```mysql
+    INSERT INTO d21001 USING meters TAGS ('Beijing.Chaoyang', 2) FILE '/tmp/csvfile.csv';
+    ```
+    也可以在一条语句中向多个表以自动建表的方式插入记录。例如：  
+    ```mysql
+    INSERT INTO d21001 USING meters TAGS ('Beijing.Chaoyang', 2) FILE '/tmp/csvfile_21001.csv'
+                d21002 USING meters (groupId) TAGS (2) FILE '/tmp/csvfile_21002.csv';
+    ```
+
 **历史记录写入**：可使用IMPORT或者INSERT命令，IMPORT的语法，功能与INSERT完全一样。
 
 **说明：**针对 insert 类型的 SQL 语句，我们采用的流式解析策略，在发现后面的错误之前，前面正确的部分 SQL 仍会执行。下面的 SQL 中，INSERT 语句是无效的，但是 d1001 仍会被创建。
@@ -1213,6 +1224,37 @@ TDengine支持针对数据的聚合查询。提供支持的聚合和选择函数
     =======================
                 10.30000 |
     Query OK, 1 row(s) in set (0.001042s)
+    ```
+
+- **INTERP**
+    ```mysql
+    SELECT INTERP(field_name) FROM { tb_name | stb_name } WHERE ts='timestamp' [FILL ({ VALUE | PREV | NULL | LINEAR})];
+    ```
+    功能说明：返回表/超级表的指定时间截面、指定字段的记录。
+
+    返回结果数据类型：同应用的字段。
+
+    应用字段：所有字段。
+
+    适用于：**表、超级表**。
+
+    说明：（从 2.0.15.0 版本开始新增此函数）INTERP 必须指定时间断面，如果该时间断面不存在直接对应的数据，那么会根据 FILL 参数的设定进行插值。其中，条件语句里面可以附带更多的筛选条件，例如标签、tbname。
+
+    限制：INTERP 目前不支持 FILL(NEXT)。
+
+    示例：
+    ```mysql
+    taos> select interp(*) from meters where ts='2017-7-14 10:42:00.005' fill(prev);
+           interp(ts)        | interp(f1)  | interp(f2)  | interp(f3)  |
+    ====================================================================
+     2017-07-14 10:42:00.005 |           5 |           9 |           6 |
+    Query OK, 1 row(s) in set (0.002912s)
+    
+    taos> select interp(*) from meters where tbname in ('t1') and ts='2017-7-14 10:42:00.005' fill(prev);
+           interp(ts)        | interp(f1)  | interp(f2)  | interp(f3)  |
+    ====================================================================
+     2017-07-14 10:42:00.005 |           5 |           6 |           7 |
+    Query OK, 1 row(s) in set (0.002005s)
     ```
 
 ### 计算函数

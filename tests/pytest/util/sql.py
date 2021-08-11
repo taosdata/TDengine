@@ -81,6 +81,22 @@ class TDSql:
             return self.queryResult
         return self.queryRows
 
+    def getVariable(self, search_attr):
+        '''
+            get variable of search_attr access "show variables"
+        '''
+        try:
+            sql = 'show variables'
+            param_list = self.query(sql, row_tag=True)
+            for param in param_list:
+                if param[0] == search_attr:
+                    return param[1], param_list
+        except Exception as e:
+            caller = inspect.getframeinfo(inspect.stack()[1][0])
+            args = (caller.filename, caller.lineno, sql, repr(e))
+            tdLog.notice("%s(%d) failed: sql:%s, %s" % args)
+            raise Exception(repr(e))
+
     def getColNameList(self, sql, col_tag=None):
         self.sql = sql
         try:
