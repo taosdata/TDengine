@@ -167,11 +167,11 @@ python3 test.py -f tools/taosdemoTestInterlace.py
 python3 test.py -f tools/taosdemoTestQuery.py
 
 # nano support
-#python3 test.py -f tools/taosdemoAllTest/taosdemoTestSupportNanoInsert.py
-#python3 test.py -f tools/taosdemoAllTest/taosdemoTestSupportNanoQuery.py
-#python3 test.py -f tools/taosdemoAllTest/taosdemoTestSupportNanosubscribe.py
-#python3 test.py -f tools/taosdemoAllTest/taosdemoTestInsertTime_step.py
-#python3 test.py -f tools/taosdumpTestNanoSupport.py
+python3 test.py -f tools/taosdemoAllTest/NanoTestCase/taosdemoTestSupportNanoInsert.py
+python3 test.py -f tools/taosdemoAllTest/NanoTestCase/taosdemoTestSupportNanoQuery.py
+python3 test.py -f tools/taosdemoAllTest/NanoTestCase/taosdemoTestSupportNanosubscribe.py
+python3 test.py -f tools/taosdemoAllTest/NanoTestCase/taosdemoTestInsertTime_step.py
+python3 test.py -f tools/taosdemoAllTest/NanoTestCase/taosdumpTestNanoSupport.py
 
 # update
 python3 ./test.py -f update/allow_update.py
@@ -338,6 +338,7 @@ python3 ./test.py -f functions/function_twa.py -r 1
 python3 ./test.py -f functions/function_twa_test2.py
 python3 ./test.py -f functions/function_stddev_td2555.py
 python3 ./test.py -f functions/showOfflineThresholdIs864000.py
+python3 ./test.py -f functions/function_interp.py
 python3 ./test.py -f insert/metadataUpdate.py
 python3 ./test.py -f query/last_cache.py
 python3 ./test.py -f query/last_row_cache.py
@@ -380,9 +381,10 @@ python3 ./test.py -f query/querySession.py
 python3 test.py -f  alter/alter_create_exception.py
 python3 ./test.py -f insert/flushwhiledrop.py
 python3 ./test.py -f insert/schemalessInsert.py
+python3 ./test.py -f alter/alterColMultiTimes.py 
 
 #======================p4-end===============
-# python3 test.py -f  tools/taosdemoAllTest/pytest.py
+
 
 
 
