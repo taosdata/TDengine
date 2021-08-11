@@ -4,9 +4,6 @@ properties([pipelineTriggers([githubPush()])])
 node {
     git url: 'https://github.com/taosdata/TDengine.git'
 }
-
-def skipbuild=0
-
 def abortPreviousBuilds() {
   def currentJobName = env.JOB_NAME
   def currentBuildNumber = env.BUILD_NUMBER.toInteger()
@@ -33,7 +30,6 @@ def abort_previous(){
   milestone(buildNumber)
 }
 def pre_test(){
-    
     sh'hostname'
     sh '''
     sudo rmtaos || echo "taosd has not installed"
@@ -52,12 +48,18 @@ def pre_test(){
         git checkout master
         '''
         }
-      else {
+      else if(env.CHANGE_TARGET == '2.0'){
+        sh '''
+        cd ${WKC}
+        git checkout 2.0
+        '''
+      } 
+      else{
         sh '''
         cd ${WKC}
         git checkout develop
         '''
-      } 
+      }
     }
     sh'''
     cd ${WKC}
@@ -75,7 +77,13 @@ def pre_test(){
         git checkout master
         '''
         }
-      else {
+      else if(env.CHANGE_TARGET == '2.0'){
+        sh '''
+        cd ${WK}
+        git checkout 2.0
+        '''
+      } 
+      else{
         sh '''
         cd ${WK}
         git checkout develop
@@ -95,19 +103,17 @@ def pre_test(){
     make > /dev/null
     make install > /dev/null
     cd ${WKC}/tests
-    pip3 install ${WKC}/src/connector/python
+    pip3 install ${WKC}/src/connector/python/
     '''
     return 1
 }
 
 pipeline {
   agent none
-  
   environment{
       WK = '/var/lib/jenkins/workspace/TDinternal'
       WKC= '/var/lib/jenkins/workspace/TDinternal/community'
   }
-  
   stages {
       stage('pre_build'){
           agent{label 'master'}
@@ -123,19 +129,22 @@ pipeline {
           rm -rf ${WORKSPACE}.tes
           cp -r ${WORKSPACE} ${WORKSPACE}.tes
           cd ${WORKSPACE}.tes
-          
+          git fetch
           '''
           script {
             if (env.CHANGE_TARGET == 'master') {
               sh '''
               git checkout master
-              git pull origin master
               '''
               }
-            else {
+            else if(env.CHANGE_TARGET == '2.0'){
+              sh '''
+              git checkout 2.0
+              '''
+            } 
+            else{
               sh '''
               git checkout develop
-              git pull origin develop
               '''
             } 
           }
@@ -143,34 +152,31 @@ pipeline {
           git fetch origin +refs/pull/${CHANGE_ID}/merge
           git checkout -qf FETCH_HEAD
           '''     
-          
           script{  
             skipbuild='2'     
             skipbuild=sh(script: "git log -2 --pretty=%B | fgrep -ie '[skip ci]' -e '[ci skip]' && echo 1 || echo 2", returnStdout:true)
             println skipbuild
-
           }
           sh'''
           rm -rf ${WORKSPACE}.tes
           '''
           }
       }
-    
       stage('Parallel test stage') {
         //only build pr
         when {
-          allOf {
+          allOf{
               changeRequest()
-              expression{
+               expression{
                 return skipbuild.trim() == '2'
-
               }
-           }
+            }
           }
       parallel {
         stage('python_1_s1') {
-          agent any
+          agent{label " slave1 || slave11 "}
           steps {
+            
             pre_test()
             timeout(time: 55, unit: 'MINUTES'){
               sh '''
@@ -183,7 +189,7 @@ pipeline {
           }
         }
         stage('python_2_s5') {
-          agent any
+          agent{label " slave5 || slave15 "}
           steps {
             
             pre_test()
@@ -197,7 +203,7 @@ pipeline {
           }
         }
         stage('python_3_s6') {
-          agent any
+          agent{label " slave6 || slave16 "}
           steps {     
             timeout(time: 55, unit: 'MINUTES'){       
               pre_test()
@@ -210,7 +216,7 @@ pipeline {
           }
         }
         stage('test_b1_s2') {
-          agent any
+          agent{label " slave2 || slave12 "}
           steps {     
             timeout(time: 55, unit: 'MINUTES'){       
               pre_test()
@@ -221,9 +227,9 @@ pipeline {
             }
           }
         }
-
         stage('test_crash_gen_s3') {
-          agent any
+          agent{label " slave3 || slave13 "}
+          
           steps {
             pre_test()
             catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
@@ -255,13 +261,12 @@ pipeline {
                 ./test-all.sh b2fq
                 date
                 '''
-            }         
-            
+            }                     
           }
         }
-
         stage('test_valgrind_s4') {
-          agent any
+          agent{label " slave4 || slave14 "}
+
           steps {
             pre_test()
             catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
@@ -286,7 +291,7 @@ pipeline {
           }
         }
         stage('test_b4_s7') {
-          agent any
+          agent{label " slave7 || slave17 "}
           steps {     
             timeout(time: 55, unit: 'MINUTES'){       
               pre_test()
@@ -305,7 +310,7 @@ pipeline {
           }
         }
         stage('test_b5_s8') {
-          agent any
+          agent{label " slave8 || slave18 "}
           steps {     
             timeout(time: 55, unit: 'MINUTES'){       
               pre_test()
@@ -318,7 +323,7 @@ pipeline {
           }
         }
         stage('test_b6_s9') {
-          agent any
+          agent{label " slave9 || slave19 "}
           steps {     
             timeout(time: 55, unit: 'MINUTES'){       
               pre_test()
@@ -331,7 +336,7 @@ pipeline {
           }
         }
         stage('test_b7_s10') {
-          agent any
+          agent{label " slave10 || slave20 "}
           steps {     
             timeout(time: 55, unit: 'MINUTES'){       
               pre_test()
@@ -423,6 +428,5 @@ pipeline {
                 from: "support@taosdata.com"
             )
         }
-    }
-   
+    } 
 }
