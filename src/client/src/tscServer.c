@@ -2681,7 +2681,7 @@ int tscProcessQueryRsp(SSqlObj *pSql) {
 static void decompressQueryColData(SSqlRes *pRes, SQueryInfo* pQueryInfo, char *data, int8_t compressed, int compLen) {
   int32_t decompLen = 0;
   int32_t numOfCols = pQueryInfo->fieldsInfo.numOfOutput;
-  int32_t *compSizes = tcalloc(numOfCols, sizeof(int32_t));
+  int32_t *compSizes;
   char *pData = data;
   compSizes = (int32_t *)(pData + compLen);
 
@@ -2701,7 +2701,6 @@ static void decompressQueryColData(SSqlRes *pRes, SQueryInfo* pQueryInfo, char *
     pData += compSizes[i];
   }
   tfree(outputBuf);
-  tfree(compSizes);
 }
 
 int tscProcessRetrieveRspFromNode(SSqlObj *pSql) {
