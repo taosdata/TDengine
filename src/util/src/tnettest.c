@@ -567,20 +567,6 @@ static void taosNetTestSpeed(char *host, int32_t port, int32_t pkgLen,
     return;
   }
 
-  memset(&epSet, 0, sizeof(SRpcEpSet));
-  epSet.inUse = 0;
-  epSet.numOfEps = 1;
-  epSet.port[0] = port;
-  strcpy(epSet.fqdn[0], host);
-
-  reqMsg.msgType = TSDB_MSG_TYPE_NETWORK_TEST;
-  reqMsg.pCont = rpcMallocCont(pkgLen);
-  reqMsg.contLen = pkgLen;
-  reqMsg.code = 0;
-  reqMsg.handle = NULL;   // rpc handle returned to app
-  reqMsg.ahandle = NULL;  // app handle set by client
-  strcpy(reqMsg.pCont, "nettest speed");
-
   // record config
   int32_t compressTmp = tsCompressMsgSize;
   int32_t maxUdpSize  = tsRpcMaxUdpSize;
@@ -596,6 +582,21 @@ static void taosNetTestSpeed(char *host, int32_t port, int32_t pkgLen,
   int64_t startT = taosGetTimestampMs();
   for (int32_t i = 0; i < pkgNum; i++) {
     int64_t startTime = taosGetTimestampMs();
+
+    memset(&epSet, 0, sizeof(SRpcEpSet));
+    epSet.inUse = 0;
+    epSet.numOfEps = 1;
+    epSet.port[0] = port;
+    strcpy(epSet.fqdn[0], host);
+
+    reqMsg.msgType = TSDB_MSG_TYPE_NETWORK_TEST;
+    reqMsg.pCont = rpcMallocCont(pkgLen);
+    reqMsg.contLen = pkgLen;
+    reqMsg.code = 0;
+    reqMsg.handle = NULL;   // rpc handle returned to app
+    reqMsg.ahandle = NULL;  // app handle set by client
+    strcpy(reqMsg.pCont, "nettest speed");
+
     rpcSendRecv(pRpcConn, &epSet, &reqMsg, &rspMsg);
 
     int code = 0;
@@ -606,6 +607,8 @@ static void taosNetTestSpeed(char *host, int32_t port, int32_t pkgLen,
       totalSucc ++;
     }
 
+    rpcFreeCont(rspMsg.pCont);
+
     int64_t endTime = taosGetTimestampMs();
     int32_t el = endTime - startTime;
     printf("progress: %5d/%d, status: %d, cost: %10d ms, speed: %10.2lf KB/s\n", i, pkgNum, code, el, pkgLen/(el/1000.0)/1024);
@@ -613,7 +616,7 @@ static void taosNetTestSpeed(char *host, int32_t port, int32_t pkgLen,
   int64_t endT = taosGetTimestampMs();
   int32_t elT = endT - startT;
   printf("total: %5d/%d, cost: %10d ms, speed: %10.2lf KB/s\n", totalSucc, pkgNum, elT, pkgLen * totalSucc/(elT/1000.0)/1024);
-  rpcFreeCont(rspMsg.pCont);
+
   rpcClose(pRpcConn);
 
   // return config
