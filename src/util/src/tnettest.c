@@ -626,7 +626,7 @@ void taosNetTest(char *role, char *host, int32_t port, int32_t pkgLen,
   tscEmbedded = 1;
   if (host == NULL) host = tsLocalFqdn;
   if (port == 0) port = tsServerPort;
-  if (0 == strcmp("speed", role){
+  if (0 == strcmp("speed", role)){
     if (pkgLen <= MIN_SPEED_PKG_LEN) pkgLen = MIN_SPEED_PKG_LEN;
     if (pkgLen > MAX_SPEED_PKG_LEN) pkgLen = MAX_SPEED_PKG_LEN;
     if (pkgNum <= MIN_SPEED_PKG_NUM) pkgLen = MIN_SPEED_PKG_NUM;
