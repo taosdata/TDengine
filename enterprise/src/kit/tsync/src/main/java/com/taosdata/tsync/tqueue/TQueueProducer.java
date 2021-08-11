@@ -19,14 +19,14 @@ import java.util.concurrent.atomic.AtomicLong;
 public class TQueueProducer<T> extends TQueueBase {
     private static final Logger logger = LoggerFactory.getLogger(TQueueProducer.class);
 
-    private ExecutorService threadPool = Executors.newCachedThreadPool();
-    private Map<Integer, AtomicLong> partitionOffsets = new HashMap<>();
-    private Serializer<T> serializer;
+    private final ExecutorService threadPool = Executors.newCachedThreadPool();
+    private final Map<Integer, AtomicLong> partitionOffsets = new HashMap<>();
+    private final Serializer<T> serializer;
 
     public TQueueProducer(Properties properties) {
         // establish connection to TQueue
         super(properties);
-        this.serializer = new TQueueStringSerializer();
+        this.serializer = new TQueueStringSerializer<>();
 
         // init topic-partition offset
         for (String topic : topics.keySet()) {

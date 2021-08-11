@@ -18,16 +18,16 @@ import java.util.Objects;
 
 public class ConsumeToFileJobTest {
 
-    private JSONObject consumeToFileConfigJSON;
+    private JSONObject consumeToFileJSON;
 
     @Test
-    public void testConsumeToFile() {
+    public void test() {
         // given
-        ConfigurationRepository configurationRepository = ConfigurationRepository.getInstance();
         JobService jobService = new ConsumeToFileJobServiceImpl();
 
         // when build
-        Job job = JobFactory.build(ConfigurationType.CONSUME_TO_FILE, consumeToFileConfigJSON, configurationRepository);
+        ConfigurationRepository configurationRepository = ConfigurationRepository.getInstance();
+        Job job = JobFactory.build(ConfigurationType.CONSUME_TO_FILE, consumeToFileJSON, configurationRepository);
         // then
         Assert.assertEquals(JobStatus.INIT, job.getStatus());
 
@@ -49,8 +49,8 @@ public class ConsumeToFileJobTest {
 
     @Before
     public void before() throws IOException {
-        // read consume-to-file.json
+        // read consume-to-net.json
         String consumeConfigStr = IOUtils.toString(Objects.requireNonNull(getClass().getClassLoader().getResourceAsStream("consume-to-file.json")));
-        consumeToFileConfigJSON = JSONObject.parseObject(consumeConfigStr);
+        consumeToFileJSON = JSONObject.parseObject(consumeConfigStr);
     }
 }

@@ -15,10 +15,10 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
-public class ConsumeToNetRunnableTask implements Runnable, Countable {
+public class ConsumeToNetRunnableTask implements Runnable, Countable, Stoppable {
 
     private static final Logger logger = LoggerFactory.getLogger(ConsumeToNetRunnableTask.class);
-    private static AtomicLong count = new AtomicLong(0);
+    private static final AtomicLong count = new AtomicLong(0);
 
     private TQueueConsumer consumer;
     private String topic;
@@ -30,8 +30,14 @@ public class ConsumeToNetRunnableTask implements Runnable, Countable {
 
     private volatile boolean isClosed;
 
+    @Override
     public void shutdown() {
         this.isClosed = true;
+    }
+
+    @Override
+    public long getCount() {
+        return count.get();
     }
 
     @Override
@@ -64,7 +70,7 @@ public class ConsumeToNetRunnableTask implements Runnable, Countable {
                     obj.put("partition", partition);
                     obj.put("message", message);
 
-                    logger.trace(String.format("count: %d,topic: %s, partition: %d, offset: %d, value = %s", count.incrementAndGet(), topic, partition, offset, message));
+                    logger.debug(String.format("count: %d, topic: %s, partition: %d, offset: %d, value = %s", count.incrementAndGet(), topic, partition, offset, message));
                     trySendToNet(socket, obj.toJSONString());
                 }
             }
@@ -112,8 +118,4 @@ public class ConsumeToNetRunnableTask implements Runnable, Countable {
         this.port = port;
     }
 
-    @Override
-    public long getCount() {
-        return count.get();
-    }
 }

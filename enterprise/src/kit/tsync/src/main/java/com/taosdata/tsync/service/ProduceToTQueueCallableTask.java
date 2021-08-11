@@ -86,7 +86,7 @@ public class ProduceToTQueueCallableTask implements Callable<Long> {
                         logger.error("message is too long");
                         continue;
                     }
-                    logger.trace(message);
+                    logger.debug(message);
                     ProducerRecord<String> record = new ProducerRecord<>(topic, partitionId, message);
                     try {
                         producer.send(record);

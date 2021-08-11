@@ -1,5 +1,6 @@
 package com.taosdata.tsync.tqueue;
 
+import com.alibaba.fastjson.JSONObject;
 import com.taosdata.tsync.entity.ConsumerRecord;
 import com.taosdata.tsync.entity.TopicPartition;
 import com.taosdata.tsync.enums.TQueueConstants;
@@ -14,13 +15,14 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.locks.ReentrantLock;
 
 public class TQueueConsumer extends TQueueBase {
     private static final Logger logger = LoggerFactory.getLogger(TQueueConsumer.class);
     private static final long STARTED_OFFSET = 0;
     private static final long INVALID_OFFSET = -1;
 
-    private final Object LOCK = new Object();
+    private final ReentrantLock LOCK = new ReentrantLock(true);
     private String topic;
     private int partition;
     private volatile int cur_topic_partition_hash;
@@ -95,7 +97,7 @@ public class TQueueConsumer extends TQueueBase {
      * @param partition
      * @return
      */
-    public long assign(String topic, int partition) throws TQueueException {
+    public long assign(String topic, int partition) {
         int hashCode = TopicPartition.hashCode(topic, partition);
         // return current offset if topicPartition already assigned
         if (hashCode == TopicPartition.hashCode(this.topic, this.partition))
@@ -188,12 +190,25 @@ public class TQueueConsumer extends TQueueBase {
         }
 
         List<ConsumerRecord> records;
-        synchronized (LOCK) {
+
+        LOCK.lock();
+        try {
             records = fetchRows();
             if (!records.isEmpty()) {
-                long currentOffset = records.get(records.size() - 1).offset();
-                this.partitionOffsets.get(cur_topic_partition_hash).getAndSet(currentOffset);
+                long currentOffset = this.partitionOffsets.get(cur_topic_partition_hash).get();
+
+                long firstOffsetOfRows = records.get(0).offset();
+                long lastOffsetOfRows = records.get(records.size() - 1).offset();
+                if (lastOffsetOfRows <= currentOffset) {
+                    logger.error("consumed batch rows with error lastOffsetOfRows: " + lastOffsetOfRows + " < currentOffset: " + currentOffset);
+                } else {
+                    if (currentOffset + 1 != firstOffsetOfRows)
+                        logger.warn("consumed batch rows with discontinuous firstOffsetOfRows(" + firstOffsetOfRows + ") != currentOffset(" + currentOffset + ") + 1");
+                    this.partitionOffsets.get(cur_topic_partition_hash).getAndSet(lastOffsetOfRows);
+                }
             }
+        } finally {
+            LOCK.unlock();
         }
 
         return records;
@@ -204,42 +219,41 @@ public class TQueueConsumer extends TQueueBase {
 
         final String sql = "select * from " + topic + ".p" + partition + " where off > ? order by off asc";
         try (PreparedStatement pstmt = connection.prepareStatement(sql)) {
-            pstmt.setLong(1, partitionOffsets.get(cur_topic_partition_hash).get());
+            long currentOffset = partitionOffsets.get(cur_topic_partition_hash).get();
+            pstmt.setLong(1, currentOffset);
             ResultSet rs = pstmt.executeQuery();
             while (rs.next()) {
                 long offset = Utils.toMicroSecond(rs.getTimestamp(1));
-                long ts = rs.getTimestamp(2).getTime();
+                long ts = Utils.toMicroSecond(rs.getTimestamp(2));
                 byte[] message = rs.getBytes(3);
-                ConsumerRecord consumerRecord = new ConsumerRecord(topic, partition, offset, ts, message);
-                records.add(consumerRecord);
+
+                if (offset <= currentOffset) {
+                    logger.error("consumed one row with an error Offset: " + offset + " < currentOffset: " + currentOffset + ", row: " + tqResultSetToJSONObject(rs).toJSONString());
+                } else {
+                    ConsumerRecord consumerRecord = new ConsumerRecord(topic, partition, offset, ts, message);
+                    records.add(consumerRecord);
+                }
             }
         } catch (SQLException e) {
             e.printStackTrace();
             logger.error(e.getMessage());
             throw new TQueueException(e.getMessage());
         }
+
         return records;
     }
 
-
-//    public List<ConsumerRecord> pollAndMark() throws TQueueException {
-//        if (topic == null || partition == 0) {
-//            String message = "topic: " + topic + ", partition: " + partition + " is invalid";
-//            logger.error(message);
-//            throw new TQueueException(message);
-//        }
-//
-//        List<ConsumerRecord> records;
-//        synchronized (LOCK) {
-//            records = fetchRows();
-//            if (records.isEmpty())
-//                return records;
-//            long currentOffset = records.get(records.size() - 1).offset();
-//            writeOffset(topic, partition, currentOffset);
-//            this.partitionOffsets.get(cur_topic_partition_hash).getAndSet(currentOffset);
-//        }
-//        return records;
-//    }
+    private JSONObject tqResultSetToJSONObject(ResultSet rs) {
+        JSONObject row = new JSONObject();
+        try {
+            row.put("off", rs.getTimestamp(1));
+            row.put("ts", rs.getTimestamp(2));
+            row.put("content", rs.getString(3));
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return row;
+    }
 
 
 }

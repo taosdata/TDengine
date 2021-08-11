@@ -55,16 +55,18 @@ public class ConsumeToTDengineRunnableTask implements Runnable, Countable {
     }
 
     private void doWriteToTDengine() throws Exception {
+        int messageCount = 0;
         for (int partitionId : partitionsToWrite) {
             consumer.assign(topic, partitionId);
             List<ConsumerRecord> records = consumer.poll();
             for (ConsumerRecord record : records) {
                 String message = new String(record.value(), StandardCharsets.UTF_8);
-                logger.trace("count: " + count.incrementAndGet() + ", topic: " + record.topic() + ", partition: " + record.partition() + ", offset: " + record.offset() + ", value: " + message);
+                logger.debug("count: " + count.incrementAndGet() + ", topic: " + record.topic() + ", partition: " + record.partition() + ", offset: " + record.offset() + ", value: " + message);
                 tryExecuteSQL(message);
+                messageCount++;
             }
         }
-        if (pollingInterval > 0)
+        if (messageCount == 0 && pollingInterval > 0)
             TimeUnit.MILLISECONDS.sleep(pollingInterval);
     }
 

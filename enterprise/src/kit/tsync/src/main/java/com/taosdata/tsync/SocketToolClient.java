@@ -9,7 +9,6 @@ import java.net.Socket;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
-import java.util.stream.IntStream;
 
 public class SocketToolClient {
     private static int DEFAULT_THREAD = 1;
