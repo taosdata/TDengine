@@ -27,10 +27,10 @@
 #include "syncMsg.h"
 
 #define MAX_PKG_LEN (64 * 1000)
-#define MAX_SPEED_PKG_LEN (1024 * 1024)
+#define MAX_SPEED_PKG_LEN (1024 * 1024 * 1024)
 #define MIN_SPEED_PKG_LEN 1024
 #define MAX_SPEED_PKG_NUM 10000
-#define MIN_SPEED_PKG_NUM 10
+#define MIN_SPEED_PKG_NUM 1
 #define BUFFER_SIZE (MAX_PKG_LEN + 1024)
 
 extern int32_t tsRpcMaxUdpSize;
@@ -579,9 +579,9 @@ static void taosNetTestSpeed(char *host, int32_t port, int32_t pkgLen,
   }
 
   int32_t totalSucc = 0;
-  int64_t startT = taosGetTimestampMs();
-  for (int32_t i = 0; i < pkgNum; i++) {
-    int64_t startTime = taosGetTimestampMs();
+  int64_t startT = taosGetTimestampUs();
+  for (int32_t i = 1; i <= pkgNum; i++) {
+    int64_t startTime = taosGetTimestampUs();
 
     memset(&epSet, 0, sizeof(SRpcEpSet));
     epSet.inUse = 0;
@@ -609,11 +609,11 @@ static void taosNetTestSpeed(char *host, int32_t port, int32_t pkgLen,
 
     rpcFreeCont(rspMsg.pCont);
 
-    int64_t endTime = taosGetTimestampMs();
+    int64_t endTime = taosGetTimestampUs();
     int32_t el = endTime - startTime;
     printf("progress: %5d/%d, status: %d, cost: %10d ms, speed: %10.2lf KB/s\n", i, pkgNum, code, el, pkgLen/(el/1000.0)/1024);
   }
-  int64_t endT = taosGetTimestampMs();
+  int64_t endT = taosGetTimestampUs();
   int32_t elT = endT - startT;
   printf("total: %5d/%d, cost: %10d ms, speed: %10.2lf KB/s\n", totalSucc, pkgNum, elT, pkgLen * totalSucc/(elT/1000.0)/1024);
 
@@ -632,8 +632,8 @@ void taosNetTest(char *role, char *host, int32_t port, int32_t pkgLen,
   if (0 == strcmp("speed", role)){
     if (pkgLen <= MIN_SPEED_PKG_LEN) pkgLen = MIN_SPEED_PKG_LEN;
     if (pkgLen > MAX_SPEED_PKG_LEN) pkgLen = MAX_SPEED_PKG_LEN;
-    if (pkgNum <= MIN_SPEED_PKG_NUM) pkgLen = MIN_SPEED_PKG_NUM;
-    if (pkgNum > MAX_SPEED_PKG_NUM) pkgLen = MAX_SPEED_PKG_NUM;
+    if (pkgNum <= MIN_SPEED_PKG_NUM) pkgNum = MIN_SPEED_PKG_NUM;
+    if (pkgNum > MAX_SPEED_PKG_NUM) pkgNum = MAX_SPEED_PKG_NUM;
   }else{
     if (pkgLen <= 10) pkgLen = 1000;
     if (pkgLen > MAX_PKG_LEN) pkgLen = MAX_PKG_LEN;
