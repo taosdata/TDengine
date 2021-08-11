@@ -548,39 +548,49 @@ static void taosNetTestServer(char *host, int32_t startPort, int32_t pkgLen) {
   }
 }
 
-static void taosNetTestSpeed(char *host, int32_t port, int32_t pkgLen,
-                             int32_t pkgNum, char *pkgType) {
-  char    spi = 0;
-
-  uInfo("check spend, host:%s port:%d pkgLen:%d pkgNum:%d pkgType:%s", host, port, pkgLen, pkgNum, pkgType);
-
-  SRpcEpSet epSet;
-  SRpcMsg   reqMsg;
-  SRpcMsg   rspMsg;
-  void *    pRpcConn;
-
-  char secretEncrypt[32] = {0};
-
-  pRpcConn = taosNetInitRpc(secretEncrypt, spi);
-  if (NULL == pRpcConn) {
-    uError("failed to init client rpc");
-    return;
+static void taosNetTestFqdn(char *host) {
+  int code = 0;
+  uint64_t startTime = taosGetTimestampUs();
+  uint32_t ip = taosGetIpv4FromFqdn(host);
+  if (ip == 0xffffffff) {
+    uError("failed to get IP address from %s since %s", host, strerror(errno));
+    code = -1;
   }
+  uint64_t endTime = taosGetTimestampUs();
+  uint64_t el = endTime - startTime;
+  printf("check convert fqdn spend, statuw: %d\tcost: %" PRIu64 " us\n", code, el);
+  return;
+}
 
+static void taosNetCheckSpeed(char *host, int32_t port, int32_t pkgLen,
+                              int32_t pkgNum, char *pkgType) {
   // record config
   int32_t compressTmp = tsCompressMsgSize;
   int32_t maxUdpSize  = tsRpcMaxUdpSize;
   int32_t forceTcp  = tsRpcForceTcp;
 
-  tsCompressMsgSize = -1;
-  if (0 == strcmp("TCP", pkgType)){
+  if (0 == strcmp("tcp", pkgType)){
     tsRpcForceTcp = 1;
     tsRpcMaxUdpSize = 0;            // force tcp
   } else {
     tsRpcForceTcp = 0;
     tsRpcMaxUdpSize = INT_MAX;
   }
+  tsCompressMsgSize = -1;
 
+  SRpcEpSet epSet;
+  SRpcMsg   reqMsg;
+  SRpcMsg   rspMsg;
+  void *    pRpcConn;
+  char secretEncrypt[32] = {0};
+  char    spi = 0;
+  pRpcConn = taosNetInitRpc(secretEncrypt, spi);
+  if (NULL == pRpcConn) {
+    uError("failed to init client rpc");
+    return;
+  }
+
+  printf("check net spend, host:%s port:%d pkgLen:%d pkgNum:%d pkgType:%s\n", host, port, pkgLen, pkgNum, pkgType);
   int32_t totalSucc = 0;
   uint64_t startT = taosGetTimestampUs();
   for (int32_t i = 1; i <= pkgNum; i++) {
@@ -626,6 +636,18 @@ static void taosNetTestSpeed(char *host, int32_t port, int32_t pkgLen,
   tsCompressMsgSize = compressTmp;
   tsRpcMaxUdpSize = maxUdpSize;
   tsRpcForceTcp = forceTcp;
+  return;
+}
+
+static void taosNetTestSpeed(char *host, int32_t port, int32_t pkgLen,
+                             int32_t pkgNum, char *pkgType) {
+  if (0 == strcmp("fqdn", pkgType)){
+    taosNetTestFqdn(host);
+    return;
+  }
+
+  taosNetCheckSpeed(host, port, pkgLen, pkgNum, pkgType);
+  return;
 }
 
 void taosNetTest(char *role, char *host, int32_t port, int32_t pkgLen,
@@ -656,7 +678,8 @@ void taosNetTest(char *role, char *host, int32_t port, int32_t pkgLen,
     taosNetTestStartup(host, port);
   } else if (0 == strcmp("speed", role)) {
     tscEmbedded = 0;
-    taosNetTestSpeed(host, port, pkgLen, pkgNum, pkgType);
+    char type[10] = {0};
+    taosNetTestSpeed(host, port, pkgLen, pkgNum, strtolower(type, pkgType));
   }else {
     taosNetTestStartup(host, port);
   }
