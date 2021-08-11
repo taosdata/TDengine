@@ -502,13 +502,26 @@ static void doProcessMsgFromServer(SSchedMsg* pSchedMsg) {
     }
     rpcMsg->code = (pRes->code == TSDB_CODE_SUCCESS) ? (int32_t)pRes->numOfRows : pRes->code;
     if (pRes->code == TSDB_CODE_RPC_FQDN_ERROR) {
+
+      tscAllocPayload(pCmd, TSDB_FQDN_LEN + 64); 
+      // handle three situation 
+      // 1. epset retry, only return last failure ep   
+      // 2. no epset retry, like 'taos -h invalidFqdn', return invalidFqdn 
+      // 3. other situation, not expected 
       if (pEpSet) {
-        char buf[TSDB_FQDN_LEN + 64] = {0}; 
-        tscAllocPayload(pCmd, sizeof(buf)); 
         sprintf(tscGetErrorMsgPayload(pCmd), "%s\"%s\"", tstrerror(pRes->code),pEpSet->fqdn[(pEpSet->inUse)%(pEpSet->numOfEps)]);
+      } else if (pCmd->command >= TSDB_SQL_MGMT) {
+        SRpcEpSet tEpset;
+
+        SRpcCorEpSet *pCorEpSet = pSql->pTscObj->tscCorMgmtEpSet;
+        taosCorBeginRead(&pCorEpSet->version); 
+        tEpset = pCorEpSet->epSet;   
+        taosCorEndRead(&pCorEpSet->version); 
+
+        sprintf(tscGetErrorMsgPayload(pCmd), "%s\"%s\"", tstrerror(pRes->code),tEpset.fqdn[(tEpset.inUse)%(tEpset.numOfEps)]);
       } else {
         sprintf(tscGetErrorMsgPayload(pCmd), "%s", tstrerror(pRes->code));
-      } 
+      }
     }
     (*pSql->fp)(pSql->param, pSql, rpcMsg->code);
   }
