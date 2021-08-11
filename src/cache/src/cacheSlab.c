@@ -32,7 +32,7 @@ static int  slabGrowArray(cache_t *cache, cacheSlabClass *pSlab);
 static void splitSlabPageIntoFreelist(cache_t *cache,char *ptr, uint32_t id);
 static int moveItemFromLru(cache_t *cache, int id, int curLru, uint64_t totalBytes, uint8_t flags,
                            cacheMutex *pMutex, uint32_t* moveToLru,  cacheItem* search, cacheItem** pItem);
-static int pullFromLru(cache_t *cache, int origId, int curLru, uint64_t total_bytes, uint8_t flags);
+static int pullFromLru(cache_t *cache, cacheMutex* pMutex, int origId, int curLru, uint64_t total_bytes, uint8_t flags);
 
 int cacheSlabInit(cache_t *cache) {
   // init pSlab class
@@ -99,7 +99,7 @@ uint32_t cacheSlabId(cache_t *cache, size_t size) {
   return i;
 }
 
-cacheItem* cacheSlabAllocItem(cache_t *cache, size_t ntotal, uint32_t slabId) {
+cacheItem* cacheSlabAllocItem(cache_t *cache, cacheMutex* pMutex, size_t ntotal, uint32_t slabId) {
   cacheItem *pItem = NULL;
   int i;
 
@@ -109,9 +109,9 @@ cacheItem* cacheSlabAllocItem(cache_t *cache, size_t ntotal, uint32_t slabId) {
       break;
     }
 
-    if (pullFromLru(cache, slabId, CACHE_LRU_COLD, 0, LRU_PULL_EVICT) <= 0) {  /* try to pull pItem fom cold list */
+    if (pullFromLru(cache, pMutex, slabId, CACHE_LRU_COLD, 0, LRU_PULL_EVICT) <= 0) {  /* try to pull pItem fom cold list */
       /* pull pItem from cold list failed, try to pull pItem from hot list */
-      if (pullFromLru(cache, slabId, CACHE_LRU_HOT, 0, 0) <= 0) {
+      if (pullFromLru(cache, pMutex, slabId, CACHE_LRU_HOT, 0, 0) <= 0) {
         break;
       }
     }
@@ -295,7 +295,7 @@ static int moveItemFromLru(cache_t *cache, int lruId, int curLru, uint64_t total
   return removed;
 }
 
-static int pullFromLru(cache_t *cache, int slabId, int curLru, uint64_t totalBytes, uint8_t flags) {
+static int pullFromLru(cache_t *cache, cacheMutex* pLockedMutex, int slabId, int curLru, uint64_t totalBytes, uint8_t flags) {
   cacheItem* pItem = NULL;
   cacheItem* search;
   cacheItem* prev;
@@ -322,7 +322,7 @@ static int pullFromLru(cache_t *cache, int slabId, int curLru, uint64_t totalByt
     pMutex = getItemMutexByItem(search);
   
     /* hash bucket has been locked by other thread */
-    if (cacheMutexTryLock(pMutex) != 0) {
+    if (pMutex != pLockedMutex && cacheMutexTryLock(pMutex) != 0) {
       continue;
     }
 
@@ -335,7 +335,7 @@ static int pullFromLru(cache_t *cache, int slabId, int curLru, uint64_t totalByt
     if (itemIncrRef(search) == 2) {
       setItemRef(search, 1);
       cacheItemUnlink(search->pTable, search, 0);
-      cacheMutexTryUnlock(pMutex);
+      if (pMutex != pLockedMutex) cacheMutexTryUnlock(pMutex);
       removed++;
       continue;
     }
@@ -346,7 +346,7 @@ static int pullFromLru(cache_t *cache, int slabId, int curLru, uint64_t totalByt
       cacheItemUnlink(search->pTable, search, 0);
       /* refcnt 1 -> 0 -> freeCacheItem */
       //cacheItemRemove(cache, search);     
-      cacheMutexTryUnlock(pMutex);
+      if (pMutex != pLockedMutex) cacheMutexTryUnlock(pMutex);
       removed++;
       continue;
     }
@@ -369,7 +369,7 @@ static int pullFromLru(cache_t *cache, int slabId, int curLru, uint64_t totalByt
     }
 
     cacheItemRemove(cache, pItem);
-    cacheMutexTryUnlock(pMutex);
+    if (pMutex != pLockedMutex) cacheMutexTryUnlock(pMutex);
   }
 
   return removed;

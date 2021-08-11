@@ -100,7 +100,7 @@ static size_t FORCE_INLINE cacheItemTotalBytes(uint8_t nkey, uint32_t nbytes) {
 
 /* item in user part ref count */
 static FORCE_INLINE int32_t itemUserDataRef(cacheItem* pItem) {
-  return (pItem->pTable->option.refOffset < 0) ? 0 : *((int32_t*)(item_data(pItem) + pItem->pTable->option.refOffset));
+  return (pItem->pTable->option.refOffset <= 0) ? 0 : *((int32_t*)(item_data(pItem) + pItem->pTable->option.refOffset));
 }
 
 static FORCE_INLINE uint8_t* itemRefPtr(cacheItem* pItem) {
@@ -143,7 +143,7 @@ void cacheItemUnlink(cacheTable* pTable, cacheItem* pItem, cacheLockFlag flag);
 void cacheItemRemove(cache_t*, cacheItem*);
 void cacheItemBump(cacheTable* pTable, cacheItem* pItem, uint64_t now);
 
-cacheItem* cacheAllocItem(cacheTable*, uint8_t nkey, uint32_t nbytes, uint64_t expireTime);
+cacheItem* cacheAllocItem(cacheTable*, cacheMutex* pMutex, uint8_t nkey, uint32_t nbytes, uint64_t expireTime);
 
 #ifdef __cplusplus
 }

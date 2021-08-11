@@ -172,16 +172,25 @@ static void checkExpandTable(cacheTable* pTable) {
   }
 
   taosWUnLockLatch(&(pTable->latch));
-  cacheMutexLock(&(pTable->mutex));
+
   pthread_t thread;
-  pthread_create(&thread, NULL, expandTableThread, pTable);
+  pthread_attr_t thAttr;
+  
+  pthread_attr_init(&thAttr);
+  pthread_attr_setdetachstate(&thAttr, PTHREAD_CREATE_DETACHED);
+
+  cacheMutexLock(&(pTable->mutex));
+
+  pthread_create(&thread, &thAttr, expandTableThread, pTable);
+  
+  pthread_attr_destroy(&thAttr);
 }
 
 static int prepareExpandTable(cacheTable* pTable) {
   assert(pTable->expanding == false);
   assert(pTable->expandIndex == 0);
   assert(pTable->pOldBucket == NULL);
-  
+
   uint32_t capacity, i;
 
   capacity = hashsize(pTable->hashPower + 1);
@@ -257,6 +266,7 @@ void cacheTableRemove(cacheTable* pTable, const void* key, uint8_t nkey, bool fr
 }
 
 static void* expandTableThread(void *arg) {
+  setThreadName("expandCacheTableWorker");
   cacheTable* pTable = (cacheTable*)arg;
   expandCacheTable(pTable);
   return NULL;

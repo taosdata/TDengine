@@ -22,7 +22,7 @@
 
 static int check_cache_options(cacheOption* options);
 static int cachePutDataIntoCache(cacheTable* pTable, const void* key, uint8_t nkey, 
-                                const void* value, uint32_t nbytes, cacheItem** ppItem, uint64_t expire);
+                                const void* value, uint32_t nbytes, cacheMutex* pMutex, cacheItem** ppItem, uint64_t expire);
 static int cacheInitItemMutex(cache_t*);
 static void cacheFreeChunkItems(cache_t*);
 static void cacheFreeMemory(cache_t*);
@@ -81,7 +81,7 @@ int cachePut(cacheTable* pTable, const void* key, uint8_t nkey, const void* valu
   cacheMutex* pMutex = getItemMutexByKey(pTable, key, nkey);
   cacheMutexLock(pMutex);
 
-  int ret = cachePutDataIntoCache(pTable,key,nkey,value,nbytes,NULL, expire);
+  int ret = cachePutDataIntoCache(pTable,key,nkey,value,nbytes, pMutex, NULL, expire);
 
   cacheMutexUnlock(pMutex);
 
@@ -131,7 +131,7 @@ void* cacheGet(cacheTable* pTable, const void* key, uint8_t nkey, int* nbytes) {
   }
 
   /* TODO: save in the cache if access only one time? */
-  int ret = cachePutDataIntoCache(pTable,key,nkey,loadValue,loadLen,&pItem, expire);
+  int ret = cachePutDataIntoCache(pTable,key,nkey,loadValue,loadLen,pMutex, &pItem, expire);
   free(loadValue);
   if (ret != CACHE_OK) {
     goto out;
@@ -234,11 +234,13 @@ err:
 }
 
 static int cachePutDataIntoCache(cacheTable* pTable, const void* key, uint8_t nkey, const void* value,
-                                uint32_t nbytes, cacheItem** ppItem, uint64_t expire) {
-  cacheItem* pItem = cacheAllocItem(pTable, nkey, nbytes, expire);
+                                uint32_t nbytes, cacheMutex* pMutex, cacheItem** ppItem, uint64_t expire) {
+  cacheItem* pItem = cacheAllocItem(pTable, pMutex, nkey, nbytes, expire);
   if (pItem == NULL) {
     return CACHE_OOM;
   }
+
+  assert(pItem->nkey >= nkey && pItem->nbytes >= nbytes);
 
   memcpy(item_key(pItem), key, nkey);
   memcpy(item_data(pItem), value, nbytes);

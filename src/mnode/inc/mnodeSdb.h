@@ -72,7 +72,7 @@ typedef struct {
   int32_t   refCountPos;
   int32_t   cacheDataLen;
   int32_t   expireTime;
-  int       (*afterLoadFp)(void*,void* value, int32_t nBytes, void* pRet);
+  int       (*afterLoadFp)(void*,void* value, int32_t nBytes, void* pHead, void* pRet);
   ESdbTable id;
   ESdbKey   keyType;
   mnodeSdbTableType tableType;

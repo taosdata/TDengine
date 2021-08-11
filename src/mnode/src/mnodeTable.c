@@ -98,7 +98,7 @@ static int32_t mnodeChangeSuperTableColumn(SMnodeMsg *pMsg);
 static int32_t mnodeChangeSuperTableTag(SMnodeMsg *pMsg);
 static int32_t mnodeChangeNormalTableColumn(SMnodeMsg *pMsg);
 
-static int mnodeAfterLoadCTable(void* userData,void* value, int32_t nBytes, void* pRet);
+static int mnodeAfterLoadCTable(void* userData,void* value, int32_t nBytes, void* pArg, void* pRet);
 
 static void mnodeDestroyChildTable(SCTableObj *pTable) {
   tfree(pTable->info.tableId);
@@ -391,11 +391,12 @@ static int32_t mnodeChildTableActionRestored() {
   return 0;
 }
 
-static int mnodeAfterLoadCTable(void* userData,void* value, int32_t nBytes, void* pRet) {
+static int mnodeAfterLoadCTable(void* userData,void* value, int32_t nBytes, void* pArg, void* pRet) {
+  SWalHead* pHead = (SWalHead*)pArg;
   SCTableObj* pTable = (SCTableObj*)pRet;
   memset(pTable, 0, sizeof(SCTableObj));
 
-  SSdbRow row = {.rowSize = nBytes, .rowData = value, .pTable = userData};
+  SSdbRow row = {.rowSize = pHead->len, .rowData = pHead->cont, .pTable = userData};
   
   int32_t len = (int32_t)strlen(row.rowData);
   if (len >= TSDB_TABLE_FNAME_LEN) {

@@ -690,11 +690,14 @@ static int32_t sdbProcessWrite(void *wparam, void *hparam, int32_t qtype, void *
     return code;
   }
 
-  if (action == SDB_ACTION_INSERT || action == SDB_ACTION_UPDATE) {  
-    SSdbRow row = {.rowSize = pHead->len, .rowData = pHead->cont, .pTable = pTable};
-    (*pTable->fpDecode)(&row);
-
-    mnodeSdbTableSyncWal(pTable->iHandle, pHead, &row, &headInfo);
+  if (pTable->tableType == SDB_TABLE_CACHE_TABLE && (action == SDB_ACTION_INSERT || action == SDB_ACTION_UPDATE)) {  
+    if (pRow == NULL) {
+      SSdbRow row = {.rowSize = pHead->len, .rowData = pHead->cont, .pTable = pTable};
+      (*pTable->fpDecode)(&row);
+      mnodeSdbTableSyncWal(pTable->iHandle, pHead, &row, &headInfo);
+    } else {
+      mnodeSdbTableSyncWal(pTable->iHandle, pHead, pRow, &headInfo);
+    }    
   }
 
   pthread_mutex_unlock(&tsSdbMgmt.mutex);
@@ -904,6 +907,7 @@ int64_t sdbOpenTable(SSdbTableDesc *pDesc) {
     .tableType    = pDesc->tableType,
     .cacheDataLen = pDesc->cacheDataLen,
     .expireTime   = pDesc->expireTime,
+    .afterLoadFp  = pDesc->afterLoadFp,
     .userData     = pTable,
   };
   pTable->iHandle = mnodeSdbTableInit(options);

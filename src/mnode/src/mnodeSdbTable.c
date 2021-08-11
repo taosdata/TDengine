@@ -213,7 +213,7 @@ static mnodeSdbCacheTable* cacheInit(mnodeSdbTable* pTable, mnodeSdbTableOption 
   return pCache;
 }
 
-static int  sdbCacheGet(mnodeSdbTable *pTable, const void *key, size_t keyLen, void** pRet) {
+static int sdbCacheGet(mnodeSdbTable *pTable, const void *key, size_t keyLen, void** pRet) {
   assert(pRet != NULL);
   int nBytes;
   mnodeSdbCacheTable* pCache = pTable->iHandle;
@@ -363,9 +363,7 @@ static int loadCacheDataFromWal(void* userData, const void* key, uint8_t nkey, c
   SWalHead* pHead = readWal(pTable, 0, pRecord->offset, pRecord->size);
   if (pHead == NULL) {
     return -1;
-  }
-
-  assert(pTable->options.cacheDataLen >= pHead->len);
+  }  
 
   char* p = calloc(1, pTable->options.cacheDataLen);
   if (p == NULL) {
@@ -373,10 +371,8 @@ static int loadCacheDataFromWal(void* userData, const void* key, uint8_t nkey, c
     return -1;
   }
 
-  memcpy(p, pHead->cont, pHead->len);
-
   if (pTable->options.afterLoadFp) {
-    pTable->options.afterLoadFp(pTable->options.userData, pRecord->key, pRecord->keyLen, p);
+    pTable->options.afterLoadFp(pTable->options.userData, pRecord->key, pRecord->keyLen, pHead, p);
   }
   
   *value = p;
