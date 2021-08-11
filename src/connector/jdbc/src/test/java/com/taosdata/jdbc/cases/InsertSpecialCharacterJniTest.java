@@ -270,6 +270,41 @@ public class InsertSpecialCharacterJniTest {
         }
     }
 
+    @Ignore
+    @Test
+    public void testSingleQuotaEscape() throws SQLException {
+        final long now = System.currentTimeMillis();
+        final String sql = "insert into t? using ? tags(?) values(?, ?, ?) t? using " + tbname2 + " tags(?) values(?,?,?) ";
+        try (PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            // t1
+            pstmt.setInt(1, 1);
+            pstmt.setString(2, tbname2);
+            pstmt.setString(3, special_character_str_5);
+            pstmt.setTimestamp(4, new Timestamp(now));
+            pstmt.setBytes(5, special_character_str_5.getBytes());
+            // t2
+            pstmt.setInt(7, 2);
+            pstmt.setString(8, special_character_str_5);
+            pstmt.setTimestamp(9, new Timestamp(now));
+            pstmt.setString(11, special_character_str_5);
+
+            int ret = pstmt.executeUpdate();
+            Assert.assertEquals(2, ret);
+        }
+
+        String query = "select * from ?.t? where ? < ? and ts >= ? and f1 is not null";
+        try (PreparedStatement pstmt = conn.prepareStatement(query)) {
+            pstmt.setString(1, dbName);
+            pstmt.setInt(2, 1);
+            pstmt.setString(3, "ts");
+            pstmt.setTimestamp(4, new Timestamp(System.currentTimeMillis()));
+            pstmt.setTimestamp(5, new Timestamp(0));
+
+            ResultSet rs = pstmt.executeQuery();
+            Assert.assertNotNull(rs);
+        }
+    }
+
     @Test
     public void testCase10() throws SQLException {
         final long now = System.currentTimeMillis();
@@ -293,13 +328,12 @@ public class InsertSpecialCharacterJniTest {
             Assert.assertEquals(2, ret);
         }
         //query t1
-        String query = "select * from ?.t? where ts < ? and ts >= ? and ? is not null";
+        String query = "select * from ?.t? where ts < ? and ts >= ? and f1 is not null";
         try (PreparedStatement pstmt = conn.prepareStatement(query)) {
             pstmt.setString(1, dbName);
             pstmt.setInt(2, 1);
             pstmt.setTimestamp(3, new Timestamp(System.currentTimeMillis()));
             pstmt.setTimestamp(4, new Timestamp(0));
-            pstmt.setString(5, "f1");
 
             ResultSet rs = pstmt.executeQuery();
             rs.next();
@@ -311,12 +345,11 @@ public class InsertSpecialCharacterJniTest {
             Assert.assertNull(f2);
         }
         // query t2
-        query = "select * from t? where ts < ? and ts >= ? and ? is not null";
+        query = "select * from t? where ts < ? and ts >= ? and f2 is not null";
         try (PreparedStatement pstmt = conn.prepareStatement(query)) {
             pstmt.setInt(1, 2);
             pstmt.setTimestamp(2, new Timestamp(System.currentTimeMillis()));
             pstmt.setTimestamp(3, new Timestamp(0));
-            pstmt.setString(4, "f2");
 
             ResultSet rs = pstmt.executeQuery();
             rs.next();
