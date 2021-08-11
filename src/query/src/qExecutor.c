@@ -4009,11 +4009,11 @@ static void updateNumOfRowsInResultRows(SQueryRuntimeEnv* pRuntimeEnv, SQLFuncti
   }
 }
 
-static int32_t compressQueryColData(SColumnInfoData *pColRes, int32_t numOfRows, char *data, int8_t compressed) {
+static int32_t compressQueryColData(SColumnInfoData *pColRes, int32_t numOfRows, char **data, int8_t compressed) {
   int32_t colLen = pColRes->info.bytes * numOfRows;
-  int32_t colCompLen = (*(tDataTypes[pColRes->info.type].compFunc))(pColRes->pData, colLen, numOfRows, data,
+  int32_t colCompLen = (*(tDataTypes[pColRes->info.type].compFunc))(pColRes->pData, colLen, numOfRows, *data,
                                                                  colLen + COMP_OVERFLOW_BYTES, compressed, NULL, 0);
-  data += colCompLen;
+  *data += colCompLen;
   return colCompLen;
 }
 
@@ -4034,7 +4034,7 @@ static void doCopyQueryResultToMsg(SQInfo *pQInfo, int32_t numOfRows, char *data
     for (int32_t col = 0; col < numOfCols; ++col) {
       SColumnInfoData* pColRes = taosArrayGet(pRes->pDataBlock, col);
       if (compressed) {
-        compSizes[col] = compressQueryColData(pColRes, pRes->info.rows, data, compressed);
+        compSizes[col] = compressQueryColData(pColRes, pRes->info.rows, &data, compressed);
         *compLen += compSizes[col];
       } else {
         memmove(data, pColRes->pData, pColRes->info.bytes * pRes->info.rows);
@@ -4045,7 +4045,7 @@ static void doCopyQueryResultToMsg(SQInfo *pQInfo, int32_t numOfRows, char *data
     for (int32_t col = 0; col < numOfCols; ++col) {
       SColumnInfoData* pColRes = taosArrayGet(pRes->pDataBlock, col);
       if (compressed) {
-        compSizes[col] = compressQueryColData(pColRes, numOfRows, data, compressed);
+        compSizes[col] = compressQueryColData(pColRes, numOfRows, &data, compressed);
         *compLen += compSizes[col];
       } else {
         memmove(data, pColRes->pData, pColRes->info.bytes * numOfRows);
