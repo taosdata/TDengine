@@ -168,7 +168,7 @@ pipeline {
           steps {
             
             pre_test()
-            timeout(time: 45, unit: 'MINUTES'){
+            timeout(time: 55, unit: 'MINUTES'){
               sh '''
               date
               cd ${WKC}/tests
@@ -183,7 +183,7 @@ pipeline {
           steps {
             
             pre_test()
-            timeout(time: 45, unit: 'MINUTES'){
+            timeout(time: 55, unit: 'MINUTES'){
                 sh '''
                 date
                 cd ${WKC}/tests
@@ -195,7 +195,7 @@ pipeline {
         stage('python_3_s6') {
           agent{label 'p3'}
           steps {     
-            timeout(time: 45, unit: 'MINUTES'){       
+            timeout(time: 55, unit: 'MINUTES'){       
               pre_test()
               sh '''
               date
@@ -208,7 +208,7 @@ pipeline {
         stage('test_b1_s2') {
           agent{label 'b1'}
           steps {     
-            timeout(time: 45, unit: 'MINUTES'){       
+            timeout(time: 55, unit: 'MINUTES'){       
               pre_test()
               sh '''
               cd ${WKC}/tests
@@ -245,7 +245,7 @@ pipeline {
               ./handle_taosd_val_log.sh
               '''
             }
-            timeout(time: 45, unit: 'MINUTES'){
+            timeout(time: 55, unit: 'MINUTES'){
                 sh '''
                 date
                 cd ${WKC}/tests
@@ -269,7 +269,7 @@ pipeline {
                 ./handle_val_log.sh
                 '''
             }     
-            timeout(time: 45, unit: 'MINUTES'){      
+            timeout(time: 55, unit: 'MINUTES'){      
               sh '''
               date
               cd ${WKC}/tests
@@ -286,7 +286,7 @@ pipeline {
         stage('test_b4_s7') {
           agent{label 'b4'}
           steps {     
-            timeout(time: 45, unit: 'MINUTES'){       
+            timeout(time: 55, unit: 'MINUTES'){       
               pre_test()
               sh '''
               date
@@ -305,7 +305,7 @@ pipeline {
         stage('test_b5_s8') {
           agent{label 'b5'}
           steps {     
-            timeout(time: 45, unit: 'MINUTES'){       
+            timeout(time: 55, unit: 'MINUTES'){       
               pre_test()
               sh '''
               date
@@ -318,7 +318,7 @@ pipeline {
         stage('test_b6_s9') {
           agent{label 'b6'}
           steps {     
-            timeout(time: 45, unit: 'MINUTES'){       
+            timeout(time: 55, unit: 'MINUTES'){       
               pre_test()
               sh '''
               date
@@ -331,7 +331,7 @@ pipeline {
         stage('test_b7_s10') {
           agent{label 'b7'}
           steps {     
-            timeout(time: 45, unit: 'MINUTES'){       
+            timeout(time: 55, unit: 'MINUTES'){       
               pre_test()
               sh '''
               date
