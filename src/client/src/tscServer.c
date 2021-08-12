@@ -2663,6 +2663,8 @@ static void decompressQueryColData(SSqlRes *pRes, SQueryInfo* pQueryInfo, char *
   }
 
   int32_t tailLen = pRes->rspLen - sizeof(SRetrieveTableRsp) - decompLen;
+  /* Skip compSizes */ 
+  pData += numOfCols * sizeof(int32_t);
   memmove(data + decompLen, pData, tailLen);
   memmove(data, outputBuf, decompLen);
 
