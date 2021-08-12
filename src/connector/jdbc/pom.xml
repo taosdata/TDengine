@@ -113,7 +113,6 @@
                     </includes>
                     <excludes>
                         <exclude>**/AppMemoryLeakTest.java</exclude>
-                        <exclude>**/AuthenticationTest.java</exclude>
                         <exclude>**/ConnectMultiTaosdByRestfulWithDifferentTokenTest.java</exclude>
                         <exclude>**/DatetimeBefore1970Test.java</exclude>
                         <exclude>**/FailOverTest.java</exclude>
