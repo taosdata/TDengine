@@ -991,7 +991,7 @@ static void doInitGlobalConfig(void) {
   cfg.valType = TAOS_CFG_VTYPE_INT32;
   cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_CLIENT | TSDB_CFG_CTYPE_B_SHOW;
   cfg.minValue = 0;
-  cfg.maxValue = TSDB_MAX_ALLOWED_SQL_LEN;
+  cfg.maxValue = TSDB_MAX_FIELD_LEN;
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_BYTE;
   taosInitConfigOption(cfg);
