@@ -333,6 +333,7 @@ enum OPERATOR_TYPE_E {
   OP_StateWindow       = 22,
   OP_AllTimeWindow     = 23,
   OP_AllMultiTableTimeInterval = 24,
+  OP_Order             = 25,
 };
 
 typedef struct SOperatorInfo {
@@ -539,6 +540,13 @@ typedef struct SMultiwayMergeInfo {
   bool                 groupMix;
   SArray              *udfInfo;
 } SMultiwayMergeInfo;
+
+// todo support the disk-based sort
+typedef struct SOrderOperatorInfo {
+  int32_t      colIndex;
+  int32_t      order;
+  SSDataBlock *pDataBlock;
+} SOrderOperatorInfo;
 
 void appendUpstream(SOperatorInfo* p, SOperatorInfo* pUpstream);
 

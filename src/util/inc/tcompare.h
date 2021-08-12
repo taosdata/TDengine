@@ -47,7 +47,7 @@ int WCSPatternMatch(const wchar_t *pattern, const wchar_t *str, size_t size, con
 
 int32_t doCompare(const char* a, const char* b, int32_t type, size_t size);
 
-__compar_fn_t getKeyComparFunc(int32_t keyType);
+__compar_fn_t getKeyComparFunc(int32_t keyType, int32_t order);
 
 __compar_fn_t getComparFunc(int32_t type, int32_t optr);
 
