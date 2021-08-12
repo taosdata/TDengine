@@ -3468,6 +3468,7 @@ void filterPrepare(void* expr, void* param) {
         SArray *arr = (SArray *)(pCond->arr);
         for (size_t i = 0; i < taosArrayGetSize(arr); i++) {
           char* p = taosArrayGetP(arr, i);
+          strtolower(varDataVal(p), varDataVal(p));
           taosHashPut(pObj, varDataVal(p),varDataLen(p), &dummy, sizeof(dummy));
         }
      } else {
