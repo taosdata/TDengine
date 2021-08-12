@@ -2029,12 +2029,11 @@ int32_t validateSelectNodeList(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SArray* pS
   const char* msg1 = "too many items in selection clause";
   const char* msg2 = "functions or others can not be mixed up";
   const char* msg3 = "not support query expression";
-  const char* msg4 = "not support distinct mixed with proj";
+  const char* msg4 = "not support distinct mixed with proj/agg func";
   const char* msg5 = "invalid function name";
-  const char* msg6 = "not support distinct mixed with agg function";
-  const char* msg7 = "not support distinct mixed with join"; 
-  const char* msg8 = "not support distinct mixed with groupby";
-  const char* msg9 = "not support distinct in nest query";
+  const char* msg6 = "not support distinct mixed with join"; 
+  const char* msg7 = "not support distinct mixed with groupby";
+  const char* msg8 = "not support distinct in nest query";
 
   // too many result columns not support order by in query
   if (taosArrayGetSize(pSelNodeList) > TSDB_MAX_COLUMNS) {
@@ -2047,20 +2046,21 @@ int32_t validateSelectNodeList(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SArray* pS
 
   bool hasDistinct = false;
   bool hasAgg      = false; 
-  size_t numOfExpr = taosArrayGetSize(pSelNodeList);
+  size_t  numOfExpr = taosArrayGetSize(pSelNodeList);
   int32_t distIdx = -1; 
   for (int32_t i = 0; i < numOfExpr; ++i) {
     int32_t outputIndex = (int32_t)tscNumOfExprs(pQueryInfo);
     tSqlExprItem* pItem = taosArrayGet(pSelNodeList, i);
-     
     if (hasDistinct == false) {
-       hasDistinct = (pItem->distinct == true); 
-       distIdx = i;
-    }
+      hasDistinct = (pItem->distinct == true);
+      distIdx     =  hasDistinct ? i : -1;
+    } 
 
     int32_t type = pItem->pNode->type;
     if (type == SQL_NODE_SQLFUNCTION) {
-      hasAgg = true;
+      hasAgg = true; 
+      if (hasDistinct)  break;
+
       pItem->pNode->functionId = isValidFunction(pItem->pNode->Expr.operand.z, pItem->pNode->Expr.operand.n);
       SUdfInfo* pUdfInfo = NULL;
       if (pItem->pNode->functionId < 0) {
@@ -2100,20 +2100,17 @@ int32_t validateSelectNodeList(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SArray* pS
   //TODO(dengyihao), refactor as function     
   //handle distinct func mixed with other func 
   if (hasDistinct == true) {
-    if (distIdx != 0) {
+    if (distIdx != 0 || hasAgg) {
       return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg4);
     } 
-    if (hasAgg) {
+    if (joinQuery) {
       return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg6);
     }
-    if (joinQuery) {
+    if (pQueryInfo->groupbyExpr.numOfGroupCols  != 0) {
       return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg7);
     }
-    if (pQueryInfo->groupbyExpr.numOfGroupCols  != 0) {
-      return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg8);
-    }
     if (pQueryInfo->pDownstream != NULL) {
-      return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg9);
+      return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg8);
     }
     pQueryInfo->distinct = true;
   }
