@@ -558,7 +558,7 @@ static void taosNetTestFqdn(char *host) {
   }
   uint64_t endTime = taosGetTimestampUs();
   uint64_t el = endTime - startTime;
-  printf("check convert fqdn spend, statuw: %d\tcost: %" PRIu64 " us\n", code, el);
+  printf("check convert fqdn spend, status: %d\tcost: %" PRIu64 " us\n", code, el);
   return;
 }
 
@@ -590,7 +590,7 @@ static void taosNetCheckSpeed(char *host, int32_t port, int32_t pkgLen,
     return;
   }
 
-  printf("check net spend, host:%s port:%d pkgLen:%d pkgNum:%d pkgType:%s\n", host, port, pkgLen, pkgNum, pkgType);
+  printf("check net spend, host:%s port:%d pkgLen:%d pkgNum:%d pkgType:%s\n\n", host, port, pkgLen, pkgNum, pkgType);
   int32_t totalSucc = 0;
   uint64_t startT = taosGetTimestampUs();
   for (int32_t i = 1; i <= pkgNum; i++) {
