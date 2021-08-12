@@ -73,6 +73,14 @@ int32_t tsMaxBinaryDisplayWidth = 30;
  */
 int32_t tsCompressMsgSize = -1;
 
+/* denote if server needs to compress the retrieved column data before adding to the rpc response message body.
+ * 0: disable column data compression
+ * 1: enable  column data compression
+ * This option is default to disabled. Once enabled, compression will be conducted if any column has size more
+ * than QUERY_COMP_THRESHOLD. Otherwise, no further compression is needed.
+ */
+int32_t tsCompressColData = 0;
+
 // client
 int32_t tsMaxSQLStringLen = TSDB_MAX_ALLOWED_SQL_LEN;
 int8_t  tsTscEnableRecordSql = 0;
@@ -970,6 +978,16 @@ static void doInitGlobalConfig(void) {
   cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_CLIENT | TSDB_CFG_CTYPE_B_SHOW;
   cfg.minValue = -1;
   cfg.maxValue = 100000000.0f;
+  cfg.ptrLength = 0;
+  cfg.unitType = TAOS_CFG_UTYPE_NONE;
+  taosInitConfigOption(cfg);
+
+  cfg.option = "compressColData";
+  cfg.ptr = &tsCompressColData;
+  cfg.valType = TAOS_CFG_VTYPE_INT8;
+  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
+  cfg.minValue = 0;
+  cfg.maxValue = 1;
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosInitConfigOption(cfg);
