@@ -303,7 +303,6 @@ typedef struct {
   int16_t        numOfCols;
   int16_t        precision;
   bool           completed;
-  bool           compressed;
   int32_t        code;
   int32_t        numOfGroups;
   SResRec *      pGroupRec;
