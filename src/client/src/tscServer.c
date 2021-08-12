@@ -2694,7 +2694,7 @@ static void decompressQueryColData(SSqlRes *pRes, SQueryInfo* pQueryInfo, char *
   for(int32_t i = 0; i < numOfCols; ++i) {
     SInternalField* pInfo = (SInternalField*)TARRAY_GET_ELEM(pQueryInfo->fieldsInfo.internalField, i);
     bufOffset = pInfo->field.bytes * pRes->numOfRows;
-    int32_t flen = (*(tDataTypes[pInfo->field.type].decompFunc))(pData, compSizes[i], pRes->numOfRows, p, bufOffset,
+    int32_t flen = (*(tDataTypes[pInfo->field.type].decompFunc))(pData, htonl(compSizes[i]), pRes->numOfRows, p, bufOffset,
                                                                compressed, NULL, 0);
     p += flen;
     decompLen +=flen;
