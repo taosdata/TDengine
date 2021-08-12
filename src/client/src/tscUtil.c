@@ -1796,101 +1796,6 @@ int32_t tscGetDataBlockFromList(SHashObj* pHashList, int64_t id, int32_t size, i
   return TSDB_CODE_SUCCESS;
 }
 
-static SMemRow tdGenMemRowFromBuilder(SMemRowBuilder* pBuilder) {
-  SSchema* pSchema = pBuilder->pSchema;
-  char*    p = (char*)pBuilder->buf;
-  int      toffset = 0;
-  uint16_t nCols = pBuilder->nCols;
-
-  uint8_t  memRowType = payloadType(p);
-  uint16_t nColsBound = payloadNCols(p);
-  if (pBuilder->nCols <= 0 || nColsBound <= 0) {
-    return NULL;
-  }
-  char*    pVals = POINTER_SHIFT(p, payloadValuesOffset(p));
-  SMemRow* memRow = (SMemRow)pBuilder->pDataBlock;
-  memRowSetType(memRow, memRowType);
-
-  // ----------------- Raw payload structure for row:
-  /* |<------------ Head ------------->|<----------- body of column data tuple ------------------->|
-   * |                                 |<----------------- flen ------------->|<--- value part --->|
-   * |SMemRowType| dataTLen |  nCols   |  colId  | colType | offset   |  ...  | value |...|...|... |
-   * +-----------+----------+----------+--------------------------------------|--------------------|
-   * | uint8_t   | uint32_t | uint16_t | int16_t | uint8_t | uint16_t |  ...  |.......|...|...|... |
-   * +-----------+----------+----------+--------------------------------------+--------------------|
-   *  1. offset in column data tuple starts from the value part in case of uint16_t overflow.
-   *  2. dataTLen: total length including the header and body.
-   */
-
-  if (memRowType == SMEM_ROW_DATA) {
-    SDataRow trow = (SDataRow)memRowDataBody(memRow);
-    dataRowSetLen(trow, (TDRowLenT)(TD_DATA_ROW_HEAD_SIZE + pBuilder->flen));
-    dataRowSetVersion(trow, pBuilder->sversion);
-
-    p = (char*)payloadBody(pBuilder->buf);
-    uint16_t i = 0, j = 0;
-    while (j < nCols) {
-      if (i >= nColsBound) {
-        break;
-      }
-      int16_t colId = payloadColId(p);
-      if (colId == pSchema[j].colId) {
-        // ASSERT(payloadColType(p) == pSchema[j].type);
-        tdAppendColVal(trow, POINTER_SHIFT(pVals, payloadColOffset(p)), pSchema[j].type, toffset);
-        toffset += TYPE_BYTES[pSchema[j].type];
-        p = payloadNextCol(p);
-        ++i;
-        ++j;
-      } else if (colId < pSchema[j].colId) {
-        p = payloadNextCol(p);
-        ++i;
-      } else {
-        tdAppendColVal(trow, getNullValue(pSchema[j].type), pSchema[j].type, toffset);
-        toffset += TYPE_BYTES[pSchema[j].type];
-        ++j;
-      }
-    }
-
-    while (j < nCols) {
-      tdAppendColVal(trow, getNullValue(pSchema[j].type), pSchema[j].type, toffset);
-      toffset += TYPE_BYTES[pSchema[j].type];
-      ++j;
-    }
-
-    #if 0 // no need anymore
-    while (i < nColsBound) {
-      p = payloadNextCol(p);
-      ++i;
-    }
-    #endif
-
-  } else if (memRowType == SMEM_ROW_KV) {
-    SKVRow   kvRow = (SKVRow)memRowKvBody(memRow);
-    kvRowSetLen(kvRow, (TDRowLenT)(TD_KV_ROW_HEAD_SIZE + sizeof(SColIdx) * nColsBound));
-    kvRowSetNCols(kvRow, nColsBound);
-    memRowSetKvVersion(memRow, pBuilder->sversion);
-
-    p = (char*)payloadBody(pBuilder->buf);
-    int i = 0;
-    while (i < nColsBound) {
-      int16_t colId = payloadColId(p);
-      uint8_t colType = payloadColType(p);
-      tdAppendKvColVal(kvRow, POINTER_SHIFT(pVals,payloadColOffset(p)), colId, colType, &toffset);
-      //toffset += sizeof(SColIdx);
-      p = payloadNextCol(p);
-      ++i;
-    }
-
-  } else {
-    ASSERT(0);
-  }
-  int32_t rowTLen = memRowTLen(memRow);
-  pBuilder->pDataBlock = (char*)pBuilder->pDataBlock + rowTLen;  // next row
-  pBuilder->pSubmitBlk->dataLen += rowTLen;
-
-  return memRow;
-}
-
 // Erase the empty space reserved for binary data
 static int trimDataBlock(void* pDataBlock, STableDataBlocks* pTableDataBlock, SInsertStatementParam* insertParam,
                          SBlockKeyTuple* blkKeyTuple) {
@@ -1922,10 +1827,11 @@ static int trimDataBlock(void* pDataBlock, STableDataBlocks* pTableDataBlock, SI
     int32_t schemaSize = sizeof(STColumn) * numOfCols;
     pBlock->schemaLen = schemaSize;
   } else {
-    for (int32_t j = 0; j < tinfo.numOfColumns; ++j) {
-      flen += TYPE_BYTES[pSchema[j].type];
+    if (IS_RAW_PAYLOAD(insertParam->payloadType)) {
+      for (int32_t j = 0; j < tinfo.numOfColumns; ++j) {
+        flen += TYPE_BYTES[pSchema[j].type];
+      }
     }
-
     pBlock->schemaLen = 0;
   }
 
@@ -1952,18 +1858,19 @@ static int trimDataBlock(void* pDataBlock, STableDataBlocks* pTableDataBlock, SI
       pBlock->dataLen += memRowTLen(memRow);
     }
   } else {
-    SMemRowBuilder rowBuilder;
-    rowBuilder.pSchema = pSchema;
-    rowBuilder.sversion = pTableMeta->sversion;
-    rowBuilder.flen = flen;
-    rowBuilder.nCols = tinfo.numOfColumns;
-    rowBuilder.pDataBlock = pDataBlock;
-    rowBuilder.pSubmitBlk = pBlock;
-    rowBuilder.buf = p;
-
     for (int32_t i = 0; i < numOfRows; ++i) {
-      rowBuilder.buf = (blkKeyTuple + i)->payloadAddr;
-      tdGenMemRowFromBuilder(&rowBuilder);
+      char* payload = (blkKeyTuple + i)->payloadAddr;
+      if (isNeedConvertRow(payload)) {
+        convertSMemRow(pDataBlock, payload, pTableDataBlock);
+        TDRowTLenT rowTLen = memRowTLen(pDataBlock);
+        pDataBlock = POINTER_SHIFT(pDataBlock, rowTLen);
+        pBlock->dataLen += rowTLen;
+      } else {
+        TDRowTLenT rowTLen = memRowTLen(payload);
+        memcpy(pDataBlock, payload, rowTLen);
+        pDataBlock = POINTER_SHIFT(pDataBlock, rowTLen);
+        pBlock->dataLen += rowTLen;
+      }
     }
   }
 
@@ -1976,9 +1883,9 @@ static int trimDataBlock(void* pDataBlock, STableDataBlocks* pTableDataBlock, SI
 
 static int32_t getRowExpandSize(STableMeta* pTableMeta) {
   int32_t  result = TD_MEM_ROW_DATA_HEAD_SIZE;
-  int32_t columns = tscGetNumOfColumns(pTableMeta);
+  int32_t  columns = tscGetNumOfColumns(pTableMeta);
   SSchema* pSchema = tscGetTableSchema(pTableMeta);
-  for(int32_t i = 0; i < columns; i++) {
+  for (int32_t i = 0; i < columns; i++) {
     if (IS_VAR_DATA_TYPE((pSchema + i)->type)) {
       result += TYPE_BYTES[TSDB_DATA_TYPE_BINARY];
     }
@@ -2024,7 +1931,7 @@ int32_t tscMergeTableDataBlocks(SInsertStatementParam *pInsertParam, bool freeBl
     SSubmitBlk* pBlocks = (SSubmitBlk*) pOneTableBlock->pData;
     if (pBlocks->numOfRows > 0) {
       // the maximum expanded size in byte when a row-wise data is converted to SDataRow format
-      int32_t expandSize = getRowExpandSize(pOneTableBlock->pTableMeta);
+      int32_t           expandSize = isRawPayload ? getRowExpandSize(pOneTableBlock->pTableMeta) : 0;
       STableDataBlocks* dataBuf = NULL;
 
       int32_t ret = tscGetDataBlockFromList(pVnodeDataBlockHashList, pOneTableBlock->vgId, TSDB_PAYLOAD_SIZE,
@@ -2037,7 +1944,8 @@ int32_t tscMergeTableDataBlocks(SInsertStatementParam *pInsertParam, bool freeBl
         return ret;
       }
 
-      int64_t destSize = dataBuf->size + pOneTableBlock->size + pBlocks->numOfRows * expandSize + sizeof(STColumn) * tscGetNumOfColumns(pOneTableBlock->pTableMeta);
+      int64_t destSize = dataBuf->size + pOneTableBlock->size + pBlocks->numOfRows * expandSize +
+                         sizeof(STColumn) * tscGetNumOfColumns(pOneTableBlock->pTableMeta);
 
       if (dataBuf->nAllocSize < destSize) {
         dataBuf->nAllocSize = (uint32_t)(destSize * 1.5);
@@ -2081,7 +1989,9 @@ int32_t tscMergeTableDataBlocks(SInsertStatementParam *pInsertParam, bool freeBl
                  pBlocks->numOfRows, pBlocks->sversion, blkKeyInfo.pKeyTuple->skey, pLastKeyTuple->skey);
       }
 
-      int32_t len = pBlocks->numOfRows * (pOneTableBlock->rowSize + expandSize) + sizeof(STColumn) * tscGetNumOfColumns(pOneTableBlock->pTableMeta);
+      int32_t len = pBlocks->numOfRows *
+                        (isRawPayload ? (pOneTableBlock->rowSize + expandSize) : getExtendedRowSize(pOneTableBlock)) +
+                    sizeof(STColumn) * tscGetNumOfColumns(pOneTableBlock->pTableMeta);
 
       pBlocks->tid = htonl(pBlocks->tid);
       pBlocks->uid = htobe64(pBlocks->uid);
@@ -4533,14 +4443,16 @@ CChildTableMeta* tscCreateChildMeta(STableMeta* pTableMeta) {
   return cMeta;
 }
 
-int32_t tscCreateTableMetaFromSTableMeta(STableMeta** ppChild, const char* name, size_t *tableMetaCapacity) {
+int32_t tscCreateTableMetaFromSTableMeta(STableMeta** ppChild, const char* name, size_t *tableMetaCapacity, STableMeta**ppSTable) {
   assert(*ppChild != NULL);
-
-  STableMeta* p    = NULL;
-  size_t      sz   = 0;
+  STableMeta* p      = *ppSTable;
   STableMeta* pChild = *ppChild;
-   
+  size_t sz = (p != NULL) ? tscGetTableMetaSize(p) : 0; //ppSTableBuf actually capacity may larger than sz, dont care 
+  if (p != NULL && sz != 0) {
+    memset((char *)p, 0, sz);
+  }
   taosHashGetCloneExt(tscTableMetaMap, pChild->sTableName, strnlen(pChild->sTableName, TSDB_TABLE_FNAME_LEN), NULL, (void **)&p, &sz);
+  *ppSTable = p; 
 
   // tableMeta exists, build child table meta according to the super table meta
   // the uid need to be checked in addition to the general name of the super table.
@@ -4559,10 +4471,8 @@ int32_t tscCreateTableMetaFromSTableMeta(STableMeta** ppChild, const char* name,
     memcpy(pChild->schema, p->schema, totalBytes);
 
     *ppChild = pChild;
-    tfree(p);
     return TSDB_CODE_SUCCESS;
   } else { // super table has been removed, current tableMeta is also expired. remove it here
-    tfree(p);
     taosHashRemove(tscTableMetaMap, name, strnlen(name, TSDB_TABLE_FNAME_LEN));
     return -1;
   }
