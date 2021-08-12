@@ -1,51 +1,49 @@
 package com.taosdata.jdbc.cases;
 
-import com.taosdata.jdbc.TSDBDriver;
-import org.junit.After;
-import org.junit.Before;
 import org.junit.Test;
 
-import java.sql.*;
-import java.util.Properties;
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.SQLException;
+import java.sql.Statement;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 
 public class ResetQueryCacheTest {
 
-    static Connection connection;
-    static Statement statement;
-    static String host = "127.0.0.1";
+    @Test
+    public void jni() throws SQLException {
+        // given
+        Connection connection = DriverManager.getConnection("jdbc:TAOS://127.0.0.1:0/?user=root&password=taosdata&timezone=UTC-8&charset=UTF-8&locale=en_US.UTF-8");
+        Statement statement = connection.createStatement();
 
-    @Before
-    public void init() {
-        try {
-            Properties properties = new Properties();
-            properties.setProperty(TSDBDriver.PROPERTY_KEY_CHARSET, "UTF-8");
-            properties.setProperty(TSDBDriver.PROPERTY_KEY_LOCALE, "en_US.UTF-8");
-            properties.setProperty(TSDBDriver.PROPERTY_KEY_TIME_ZONE, "UTC-8");
-            connection = DriverManager.getConnection("jdbc:TAOS://" + host + ":0/", properties);
-            statement = connection.createStatement();
-        } catch (SQLException e) {
-            return;
-        }
+        // when
+        boolean execute = statement.execute("reset query cache");
+
+        // then
+        assertFalse(execute);
+        assertEquals(0, statement.getUpdateCount());
+
+        statement.close();
+        connection.close();
     }
 
     @Test
-    public void testResetQueryCache() throws SQLException {
-        String resetSql = "reset query cache";
-        statement.execute(resetSql);
-    }
+    public void restful() throws SQLException {
+        // given
+        Connection connection = DriverManager.getConnection("jdbc:TAOS-RS://127.0.0.1:6041/?user=root&password=taosdata&timezone=UTC-8&charset=UTF-8&locale=en_US.UTF-8");
+        Statement statement = connection.createStatement();
 
-    @After
-    public void close() {
-        try {
-            if (statement != null)
-                statement.close();
-            if (connection != null)
-                connection.close();
-        } catch (SQLException e) {
-            e.printStackTrace();
-        }
+        // when
+        boolean execute = statement.execute("reset query cache");
+
+        // then
+        assertFalse(execute);
+        assertEquals(0, statement.getUpdateCount());
+
+        statement.close();
+        connection.close();
     }
 
 }

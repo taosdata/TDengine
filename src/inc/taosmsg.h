@@ -490,6 +490,7 @@ typedef struct {
   SInterval   interval;
   SSessionWindow sw;            // session window
   uint16_t    tagCondLen;       // tag length in current query
+  uint16_t    colCondLen;       // column length in current query
   uint32_t    tbnameCondLen;    // table name filter condition string length
   int16_t     numOfGroupCols;   // num of group by columns
   int16_t     orderByIdx;
@@ -877,7 +878,9 @@ typedef struct {
   uint64_t sqlObjId;
   int32_t  pid;
   char     fqdn[TSDB_FQDN_LEN];
+  bool     stableQuery;
   int32_t  numOfSub;
+  char     subSqlInfo[TSDB_SHOW_SUBQUERY_LEN]; //include subqueries' index, Obj IDs and states(C-complete/I-imcomplete)
 } SQueryDesc;
 
 typedef struct {

@@ -16,7 +16,7 @@ package com.taosdata.jdbc;
 
 public class ColumnMetaData {
 
-    private int colType = 0;
+    private int colType = 0;         //taosType
     private String colName = null;
     private int colSize = -1;
     private int colIndex = 0;

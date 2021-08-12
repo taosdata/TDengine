@@ -1,12 +1,11 @@
+# encoding:UTF-8
+
 """Constants in TDengine python
 """
 
-from .dbapi import *
-
-
 class FieldType(object):
-    """TDengine Field Types
-    """
+    """TDengine Field Types"""
+
     # type_code
     C_NULL = 0
     C_BOOL = 1
@@ -34,9 +33,9 @@ class FieldType(object):
     C_INT_UNSIGNED_NULL = 4294967295
     C_BIGINT_NULL = -9223372036854775808
     C_BIGINT_UNSIGNED_NULL = 18446744073709551615
-    C_FLOAT_NULL = float('nan')
-    C_DOUBLE_NULL = float('nan')
-    C_BINARY_NULL = bytearray([int('0xff', 16)])
+    C_FLOAT_NULL = float("nan")
+    C_DOUBLE_NULL = float("nan")
+    C_BINARY_NULL = bytearray([int("0xff", 16)])
     # Timestamp precision definition
     C_TIMESTAMP_MILLI = 0
     C_TIMESTAMP_MICRO = 1

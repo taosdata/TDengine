@@ -796,6 +796,7 @@ static void issueTsCompQuery(SSqlObj* pSql, SJoinSupporter* pSupporter, SSqlObj*
   STimeWindow window = pQueryInfo->window;
   tscInitQueryInfo(pQueryInfo);
 
+  pQueryInfo->colCond = pSupporter->colCond;
   pQueryInfo->window = window;
   TSDB_QUERY_CLEAR_TYPE(pQueryInfo->type, TSDB_QUERY_TYPE_TAG_FILTER_QUERY);
   TSDB_QUERY_SET_TYPE(pQueryInfo->type, TSDB_QUERY_TYPE_MULTITABLE_QUERY);
@@ -1635,6 +1636,8 @@ void tscFetchDatablockForSubquery(SSqlObj* pSql) {
       continue;
     }
 
+
+
     SSqlRes* pRes1 = &pSql1->res;
     if (pRes1->row >= pRes1->numOfRows) {
       subquerySetState(pSql1, &pSql->subState, i, 0);
@@ -1880,6 +1883,9 @@ int32_t tscCreateJoinSubquery(SSqlObj *pSql, int16_t tableIndex, SJoinSupporter 
     
     if (UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo)) { // return the tableId & tag
       SColumnIndex colIndex = {0};
+
+      pSupporter->colCond = pNewQueryInfo->colCond;
+      pNewQueryInfo->colCond = NULL;
 
       STagCond* pTagCond = &pSupporter->tagCond;
       assert(pTagCond->joinInfo.hasJoin);
@@ -2313,6 +2319,11 @@ int32_t tscHandleFirstRoundStableQuery(SSqlObj *pSql) {
 
   // add the tag filter cond
   if (tscTagCondCopy(&pNewQueryInfo->tagCond, &pQueryInfo->tagCond) != 0) {
+    terrno = TSDB_CODE_TSC_OUT_OF_MEMORY;
+    goto _error;
+  }
+
+  if (tscColCondCopy(&pNewQueryInfo->colCond, pQueryInfo->colCond, pTableMetaInfo->pTableMeta->id.uid, 0) != 0) {
     terrno = TSDB_CODE_TSC_OUT_OF_MEMORY;
     goto _error;
   }

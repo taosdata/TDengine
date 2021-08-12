@@ -34,6 +34,7 @@ extern "C" {
 
 #define TSWINDOW_INITIALIZER ((STimeWindow) {INT64_MIN, INT64_MAX})
 #define TSWINDOW_DESC_INITIALIZER ((STimeWindow) {INT64_MAX, INT64_MIN})
+#define IS_TSWINDOW_SPECIFIED(win) (((win).skey != INT64_MIN) || ((win).ekey != INT64_MAX))
 
 #define TSKEY_INITIAL_VAL    INT64_MIN
 
@@ -223,6 +224,7 @@ do { \
 #define TSDB_IPv4ADDR_LEN      	  16
 #define TSDB_FILENAME_LEN         128
 #define TSDB_SHOW_SQL_LEN         512
+#define TSDB_SHOW_SUBQUERY_LEN    1000
 #define TSDB_SLOW_QUERY_SQL_LEN   512
 
 #define TSDB_STEP_NAME_LEN        32

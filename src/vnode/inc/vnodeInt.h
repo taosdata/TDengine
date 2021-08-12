@@ -26,6 +26,7 @@ extern "C" {
 #include "vnode.h"
 
 extern int32_t vDebugFlag;
+extern int32_t vNumOfExistedQHandle;   // current initialized and existed query handle in current dnode
 
 #define vFatal(...) { if (vDebugFlag & DEBUG_FATAL) { taosPrintLog("VND FATAL ", __FILE__, __LINE__, 255, __VA_ARGS__); }}
 #define vError(...) { if (vDebugFlag & DEBUG_ERROR) { taosPrintLog("VND ERROR ", __FILE__, __LINE__, 255, __VA_ARGS__); }}
