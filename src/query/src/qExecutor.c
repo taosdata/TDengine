@@ -223,6 +223,7 @@ static void destroySFillOperatorInfo(void* param, int32_t numOfOutput);
 static void destroyGroupbyOperatorInfo(void* param, int32_t numOfOutput);
 static void destroyProjectOperatorInfo(void* param, int32_t numOfOutput);
 static void destroyTagScanOperatorInfo(void* param, int32_t numOfOutput);
+static void destroyOrderOperatorInfo(void* param, int32_t numOfOutput);
 static void destroySWindowOperatorInfo(void* param, int32_t numOfOutput);
 static void destroyStateWindowOperatorInfo(void* param, int32_t numOfOutput);
 static void destroyAggOperatorInfo(void* param, int32_t numOfOutput);
@@ -2036,6 +2037,7 @@ static int32_t setupQueryRuntimeEnv(SQueryRuntimeEnv *pRuntimeEnv, int32_t numOf
         }
         break;
       }
+
       case OP_StateWindow: {
         pRuntimeEnv->proot = createStatewindowOperatorInfo(pRuntimeEnv, pRuntimeEnv->proot, pQueryAttr->pExpr1, pQueryAttr->numOfOutput); 
         int32_t opType = pRuntimeEnv->proot->upstream[0]->operatorType;
@@ -2052,24 +2054,20 @@ static int32_t setupQueryRuntimeEnv(SQueryRuntimeEnv *pRuntimeEnv, int32_t numOf
 
       case OP_Filter: {  // todo refactor
         int32_t numOfFilterCols = 0;
-//        if (pQueryAttr->numOfFilterCols > 0) {
-//          pRuntimeEnv->proot = createFilterOperatorInfo(pRuntimeEnv, pRuntimeEnv->proot, pQueryAttr->pExpr1,
-//                                                        pQueryAttr->numOfOutput, pQueryAttr->tableCols, pQueryAttr->numOfFilterCols);
-//        } else {
-          if (pQueryAttr->stableQuery) {
-            SColumnInfo* pColInfo =
-                extractColumnFilterInfo(pQueryAttr->pExpr3, pQueryAttr->numOfExpr3, &numOfFilterCols);
-            pRuntimeEnv->proot = createFilterOperatorInfo(pRuntimeEnv, pRuntimeEnv->proot, pQueryAttr->pExpr3,
-                                                          pQueryAttr->numOfExpr3, pColInfo, numOfFilterCols);
-            freeColumnInfo(pColInfo, pQueryAttr->numOfExpr3);
-          } else {
-            SColumnInfo* pColInfo =
-                extractColumnFilterInfo(pQueryAttr->pExpr1, pQueryAttr->numOfOutput, &numOfFilterCols);
-            pRuntimeEnv->proot = createFilterOperatorInfo(pRuntimeEnv, pRuntimeEnv->proot, pQueryAttr->pExpr1,
-                                                          pQueryAttr->numOfOutput, pColInfo, numOfFilterCols);
-            freeColumnInfo(pColInfo, pQueryAttr->numOfOutput);
-          }
-//        }
+        if (pQueryAttr->stableQuery) {
+          SColumnInfo* pColInfo =
+              extractColumnFilterInfo(pQueryAttr->pExpr3, pQueryAttr->numOfExpr3, &numOfFilterCols);
+          pRuntimeEnv->proot = createFilterOperatorInfo(pRuntimeEnv, pRuntimeEnv->proot, pQueryAttr->pExpr3,
+                                                        pQueryAttr->numOfExpr3, pColInfo, numOfFilterCols);
+          freeColumnInfo(pColInfo, pQueryAttr->numOfExpr3);
+        } else {
+          SColumnInfo* pColInfo =
+              extractColumnFilterInfo(pQueryAttr->pExpr1, pQueryAttr->numOfOutput, &numOfFilterCols);
+          pRuntimeEnv->proot = createFilterOperatorInfo(pRuntimeEnv, pRuntimeEnv->proot, pQueryAttr->pExpr1,
+                                                        pQueryAttr->numOfOutput, pColInfo, numOfFilterCols);
+          freeColumnInfo(pColInfo, pQueryAttr->numOfOutput);
+        }
+
         break;
       }
 
@@ -2081,11 +2079,12 @@ static int32_t setupQueryRuntimeEnv(SQueryRuntimeEnv *pRuntimeEnv, int32_t numOf
 
       case OP_MultiwayMergeSort: {
         bool groupMix = true;
-        if(pQueryAttr->slimit.offset != 0 || pQueryAttr->slimit.limit != -1) {
+        if (pQueryAttr->slimit.offset != 0 || pQueryAttr->slimit.limit != -1) {
           groupMix = false;
         }
+
         pRuntimeEnv->proot = createMultiwaySortOperatorInfo(pRuntimeEnv, pQueryAttr->pExpr1, pQueryAttr->numOfOutput,
-            4096, merger, groupMix); // TODO hack it
+                                                            4096, merger, groupMix);  // TODO hack it
         break;
       }
 
@@ -2103,6 +2102,11 @@ static int32_t setupQueryRuntimeEnv(SQueryRuntimeEnv *pRuntimeEnv, int32_t numOf
 
       case OP_Distinct: {
         pRuntimeEnv->proot = createDistinctOperatorInfo(pRuntimeEnv, pRuntimeEnv->proot, pQueryAttr->pExpr1, pQueryAttr->numOfOutput);
+        break;
+      }
+
+      case OP_Order: {
+        pRuntimeEnv->proot = createOrderOperatorInfo(pRuntimeEnv, pRuntimeEnv->proot, pQueryAttr->pExpr1, pQueryAttr->numOfOutput);
         break;
       }
 
@@ -5213,8 +5217,8 @@ static int32_t doMergeSDatablock(SSDataBlock* pDest, SSDataBlock* pSrc) {
 
   int32_t numOfCols = pSrc->info.numOfCols;
   for(int32_t i = 0; i < numOfCols; ++i) {
-    SColumnInfoData* pCol2 = taosArrayGet(pDest->pDataBlock->pData, i);
-    SColumnInfoData* pCol1 = taosArrayGet(pSrc->pDataBlock->pData, i);
+    SColumnInfoData* pCol2 = taosArrayGet(pDest->pDataBlock, i);
+    SColumnInfoData* pCol1 = taosArrayGet(pSrc->pDataBlock, i);
 
     int32_t newSize = (pDest->info.rows + pSrc->info.rows) * pCol2->info.bytes;
     char* tmp = realloc(pCol2->pData, newSize);
@@ -5227,6 +5231,7 @@ static int32_t doMergeSDatablock(SSDataBlock* pDest, SSDataBlock* pSrc) {
     }
   }
 
+  pDest->info.rows += pSrc->info.rows;
   return TSDB_CODE_SUCCESS;
 }
 
@@ -5277,7 +5282,7 @@ static SSDataBlock* doSort(void* param, bool* newgroup) {
   return (pInfo->pDataBlock->info.rows > 0)? pInfo->pDataBlock:NULL;
 }
 
-SOperatorInfo *createOrderOperatorInfo(SExprInfo* pExpr, int32_t numOfOutput) {
+SOperatorInfo *createOrderOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorInfo* upstream, SExprInfo* pExpr, int32_t numOfOutput) {
   SOrderOperatorInfo* pInfo = calloc(1, sizeof(SOrderOperatorInfo));
 
   {
@@ -5292,17 +5297,20 @@ SOperatorInfo *createOrderOperatorInfo(SExprInfo* pExpr, int32_t numOfOutput) {
       }
 
       pDataBlock->info.numOfCols = numOfOutput;
+      pInfo->pDataBlock = pDataBlock;
   }
 
   SOperatorInfo* pOperator = calloc(1, sizeof(SOperatorInfo));
-  pOperator->name          = "Order";
+  pOperator->name          = "InMemoryOrder";
   pOperator->operatorType  = OP_Order;
   pOperator->blockingOptr  = true;
   pOperator->status        = OP_IN_EXECUTING;
   pOperator->info          = pInfo;
   pOperator->exec          = doSort;
-  pOperator->cleanup       = NULL;
+  pOperator->cleanup       = destroyOrderOperatorInfo;
+  pOperator->pRuntimeEnv   = pRuntimeEnv;
 
+  appendUpstream(pOperator, upstream);
   return pOperator;
 }
 
@@ -6197,6 +6205,11 @@ static void destroyTagScanOperatorInfo(void* param, int32_t numOfOutput) {
   pInfo->pRes = destroyOutputBuf(pInfo->pRes);
 }
 
+static void destroyOrderOperatorInfo(void* param, int32_t numOfOutput) {
+  SOrderOperatorInfo* pInfo = (SOrderOperatorInfo*) param;
+  pInfo->pDataBlock = destroyOutputBuf(pInfo->pDataBlock);
+}
+
 static void destroyConditionOperatorInfo(void* param, int32_t numOfOutput) {
   SFilterOperatorInfo* pInfo = (SFilterOperatorInfo*) param;
   doDestroyFilterInfo(pInfo->pFilterInfo, pInfo->numOfFilterCols);
@@ -6494,7 +6507,6 @@ SOperatorInfo* createFillOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorIn
   pOperator->numOfOutput  = numOfOutput;
   pOperator->info         = pInfo;
   pOperator->pRuntimeEnv  = pRuntimeEnv;
-
   pOperator->exec         = doFill;
   pOperator->cleanup      = destroySFillOperatorInfo;
 

@@ -421,7 +421,6 @@ typedef struct STableScanInfo {
   int32_t        *rowCellInfoOffset;
   SExprInfo      *pExpr;
   SSDataBlock     block;
-  bool            loadExternalRows; // load external rows (prev & next rows)
   int32_t         numOfOutput;
   int64_t         elapsedTime;
 
@@ -579,6 +578,7 @@ SOperatorInfo* createFilterOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperator
                                         int32_t numOfOutput, SColumnInfo* pCols, int32_t numOfFilter);
 
 SOperatorInfo* createJoinOperatorInfo(SOperatorInfo** pUpstream, int32_t numOfUpstream, SSchema* pSchema, int32_t numOfOutput);
+SOperatorInfo *createOrderOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorInfo* upstream, SExprInfo* pExpr, int32_t numOfOutput);
 
 SSDataBlock* doGlobalAggregate(void* param, bool* newgroup);
 SSDataBlock* doMultiwayMergeSort(void* param, bool* newgroup);

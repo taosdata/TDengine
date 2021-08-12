@@ -557,10 +557,9 @@ SArray* createExecOperatorPlan(SQueryAttr* pQueryAttr) {
   int32_t op = 0;
 
   if (onlyQueryTags(pQueryAttr)) {  // do nothing for tags query
-    if (onlyQueryTags(pQueryAttr)) {
-      op = OP_TagScan;
-      taosArrayPush(plan, &op);
-    }
+    op = OP_TagScan;
+    taosArrayPush(plan, &op);
+
     if (pQueryAttr->distinct) {
       op = OP_Distinct;
       taosArrayPush(plan, &op);
@@ -643,8 +642,14 @@ SArray* createExecOperatorPlan(SQueryAttr* pQueryAttr) {
         taosArrayPush(plan, &op);
       }
     }
+
+    // outer query order by support
+    int32_t orderColId = pQueryAttr->order.orderColId;
+    if (pQueryAttr->vgId == 0 && orderColId != PRIMARYKEY_TIMESTAMP_COL_INDEX && orderColId != INT32_MIN) {
+      op = OP_Order;
+      taosArrayPush(plan, &op);
+    }
   }
- 
 
   if (pQueryAttr->limit.limit > 0 || pQueryAttr->limit.offset > 0) {
     op = OP_Limit;
