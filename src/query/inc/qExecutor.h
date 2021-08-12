@@ -43,7 +43,7 @@ typedef int32_t (*__block_search_fn_t)(char* data, int32_t num, int64_t key, int
 
 #define GET_NUM_OF_RESULTS(_r) (((_r)->outputBuf) == NULL? 0:((_r)->outputBuf)->info.rows)
 
-#define QUERY_COMP_THRESHOLD 60
+#define QUERY_COMP_THRESHOLD 16
 #define NEEDTO_COMPRESS_QUERY(size) ((size) > QUERY_COMP_THRESHOLD ? 1 : 0)
 
 enum {
@@ -614,6 +614,7 @@ int32_t buildArithmeticExprFromMsg(SExprInfo *pArithExprInfo, void *pQueryMsg);
 
 bool isQueryKilled(SQInfo *pQInfo);
 int32_t checkForQueryBuf(size_t numOfTables);
+bool checkNeedToCompressQueryCol(SQInfo *pQInfo);
 bool doBuildResCheck(SQInfo* pQInfo);
 void setQueryStatus(SQueryRuntimeEnv *pRuntimeEnv, int8_t status);
 

@@ -4010,9 +4010,9 @@ static void updateNumOfRowsInResultRows(SQueryRuntimeEnv* pRuntimeEnv, SQLFuncti
 }
 
 static int32_t compressQueryColData(SColumnInfoData *pColRes, int32_t numOfRows, char *data, int8_t compressed) {
-  int32_t colLen = pColRes->info.bytes * numOfRows;
-  return (*(tDataTypes[pColRes->info.type].compFunc))(pColRes->pData, colLen, numOfRows, data,
-                                                                 colLen + COMP_OVERFLOW_BYTES, compressed, NULL, 0);
+  int32_t colSize = pColRes->info.bytes * numOfRows;
+  return (*(tDataTypes[pColRes->info.type].compFunc))(pColRes->pData, colSize, numOfRows, data,
+                                                                 colSize + COMP_OVERFLOW_BYTES, compressed, NULL, 0);
 }
 
 static void doCopyQueryResultToMsg(SQInfo *pQInfo, int32_t numOfRows, char *data, int8_t compressed, int32_t *compLen) {
@@ -8315,6 +8315,26 @@ int32_t checkForQueryBuf(size_t numOfTables) {
 
   // disable query processing if the value of tsQueryBufferSize is zero.
   return TSDB_CODE_QRY_NOT_ENOUGH_BUFFER;
+}
+
+bool checkNeedToCompressQueryCol(SQInfo *pQInfo) {
+  SQueryRuntimeEnv* pRuntimeEnv = &pQInfo->runtimeEnv;
+  SQueryAttr *pQueryAttr = pRuntimeEnv->pQueryAttr;
+
+  SSDataBlock* pRes = pRuntimeEnv->outputBuf;
+
+  int32_t numOfRows = pQueryAttr->pExpr2 ? GET_NUM_OF_RESULTS(pRuntimeEnv) : pRes->info.rows;
+  int32_t numOfCols = pQueryAttr->pExpr2 ? pQueryAttr->numOfExpr2 : pQueryAttr->numOfOutput;
+
+  for (int32_t col = 0; col < numOfCols; ++col) {
+    SColumnInfoData* pColRes = taosArrayGet(pRes->pDataBlock, col);
+    int32_t colSize = pColRes->info.bytes * numOfRows;
+    if (NEEDTO_COMPRESS_QUERY(colSize)) {
+      return true;
+    }
+  }
+
+  return false;
 }
 
 void releaseQueryBuf(size_t numOfTables) {
