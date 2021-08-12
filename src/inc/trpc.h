@@ -53,7 +53,7 @@ typedef struct SRpcMsg {
   int     contLen;
   int32_t code;
   void   *handle;   // rpc handle returned to app
-  void   *ahandle;  // app handle set by client
+  void   *ahandle;  // app handle set by client    SqlObj
 } SRpcMsg;
 
 typedef struct SRpcInit {

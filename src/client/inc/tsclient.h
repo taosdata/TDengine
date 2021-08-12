@@ -276,7 +276,7 @@ typedef struct SSqlObj {
   void            *signature;
   int64_t          owner;        // owner of sql object, by which it is executed
   STscObj         *pTscObj;
-  int64_t          rpcRid;
+  int64_t          rpcRid;       // pContext->rid 发送的body 的引用id
   __async_cb_func_t  fp;
   __async_cb_func_t  fetchFp;
   void            *param;

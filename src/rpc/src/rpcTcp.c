@@ -25,7 +25,7 @@
 typedef struct SFdObj {
   void              *signature;
   SOCKET             fd;          // TCP socket FD
-  void              *thandle;     // handle from upper layer, like TAOS
+  void              *thandle;     // handle from upper layer, like TAOS   链接 SRpcConn
   uint32_t           ip;
   uint16_t           port;
   int16_t            closedByApp; // 1: already closed by App

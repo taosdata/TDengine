@@ -3574,7 +3574,7 @@ void tscInitResForMerge(SSqlRes* pRes) {
 }
 
 void registerSqlObj(SSqlObj* pSql) {
-  taosAcquireRef(tscRefId, pSql->pTscObj->rid);
+  taosAcquireRef(tscRefId, pSql->pTscObj->rid); //因为pSql创建的时候pSql->pTscObj = pObj; 所以这里增加pObj的引用个数
   pSql->self = taosAddRef(tscObjRef, pSql);
 
   int32_t num   = atomic_add_fetch_32(&pSql->pTscObj->numOfObj, 1);

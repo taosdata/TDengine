@@ -30,9 +30,9 @@ typedef struct {
   uint32_t ip; 
   uint16_t port;
   int      connType;
-  void    *shandle;
-  void    *thandle;
-  void    *chandle;
+  void    *shandle;       // SRpcInfo
+  void    *thandle;       // SRpcConn
+  void    *chandle;       // SFdObj
 } SRecvInfo;
 
 #pragma pack(push, 1)
