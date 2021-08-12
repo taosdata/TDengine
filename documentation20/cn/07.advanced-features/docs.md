@@ -17,7 +17,7 @@ TDengine提供的连续查询与普通流计算中的时间窗口计算具有以
 下面以智能电表场景为例介绍连续查询的具体使用方法。假设我们通过下列SQL语句创建了超级表和子表：
 
 ```sql
-create table meters (ts timestamp, current float, voltage int, phase float) tags (location binary(64), groupdId int);
+create table meters (ts timestamp, current float, voltage int, phase float) tags (location binary(64), groupId int);
 create table D1001 using meters tags ("Beijing.Chaoyang", 2);
 create table D1002 using meters tags ("Beijing.Haidian", 2);
 ...

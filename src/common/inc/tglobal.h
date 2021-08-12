@@ -41,6 +41,7 @@ extern char     tsArbitrator[];
 extern int8_t   tsArbOnline;
 extern int64_t  tsArbOnlineTimestamp;
 extern int32_t  tsDnodeId;
+extern int64_t  tsDnodeStartTime;
 
 // common
 extern int      tsRpcTimer;
@@ -71,6 +72,7 @@ extern int8_t   tsKeepOriginalColumnName;
 
 // client
 extern int32_t tsMaxSQLStringLen;
+extern int32_t tsMaxWildCardsLen;
 extern int8_t  tsTscEnableRecordSql;
 extern int32_t tsMaxNumOfOrderedResults;
 extern int32_t tsMinSlidingTime;
