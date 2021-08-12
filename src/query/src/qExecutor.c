@@ -5302,6 +5302,7 @@ SOperatorInfo *createOrderOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorI
       }
 
       pDataBlock->info.numOfCols = numOfOutput;
+      pInfo->order = pOrderVal->order;
       pInfo->pDataBlock = pDataBlock;
   }
 
