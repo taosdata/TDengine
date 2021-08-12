@@ -72,7 +72,7 @@ typedef struct {
 typedef struct {
   SRpcInfo *pRpc;       // associated SRpcInfo
   SRpcEpSet epSet;      // ip list provided by app
-  void     *ahandle;    // handle provided by app
+  void     *ahandle;    // handle provided by app    sqlObj
   struct SRpcConn *pConn; // pConn allocated
   char      msgType;    // message type
   uint8_t  *pCont;      // content provided by app
@@ -110,8 +110,8 @@ typedef struct SRpcConn {
   uint16_t  inTranId;       // transcation ID for incoming msg
   uint8_t   outType;        // message type for outgoing request
   uint8_t   inType;         // message type for incoming request  
-  void     *chandle;  // handle passed by TCP/UDP connection layer
-  void     *ahandle;  // handle provided by upper app layter
+  void     *chandle;  // handle passed by TCP/UDP connection layer    FdObj* (TCP)  SRpcConn(UDP)
+  void     *ahandle;  // handle provided by upper app layter          sqlObj*
   int       retry;    // number of retry for sending request
   int       tretry;   // total retry
   void     *pTimer;   // retry timer to monitor the response

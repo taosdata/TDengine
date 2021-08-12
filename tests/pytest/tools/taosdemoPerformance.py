@@ -16,13 +16,14 @@ import pandas as pd
 import argparse
 import os.path
 import json
-from util.log import tdLog
-from util.sql import tdSql
+import sys
 
 class taosdemoPerformace:
-    def __init__(self, commitID, dbName):
+    def __init__(self, commitID, dbName, branch, type):
         self.commitID = commitID
         self.dbName = dbName
+        self.branch = branch
+        self.type = type
         self.host = "127.0.0.1"
         self.user = "root"
         self.password = "taosdata"
@@ -33,6 +34,12 @@ class taosdemoPerformace:
             self.password,
             self.config)
         self.insertDB = "insertDB"
+        self.host2 = "192.168.1.179"    
+        self.conn2 = taos.connect(
+            host = self.host2,
+            user = self.user,
+            password = self.password,
+            config = self.config)
 
     def generateJson(self):
         db = {
@@ -122,12 +129,11 @@ class taosdemoPerformace:
         return buildPath
 
     def insertData(self):
-
         buildPath = self.getBuildPath()
         if (buildPath == ""):
-            tdLog.exit("taosdemo not found!")
-        else:
-            tdLog.info("taosdemo found in %s" % buildPath)
+            print("taosdemo not found!")
+            sys.exit(1)
+            
         binPath = buildPath + "/build/bin/"
 
         os.system(
@@ -153,11 +159,11 @@ class taosdemoPerformace:
         os.system("[ -f taosdemoperf.txt ] && rm taosdemoperf.txt")
 
     def createTablesAndStoreData(self):
-        cursor = self.conn.cursor()
+        cursor = self.conn2.cursor()
 
         cursor.execute("create database if not exists %s" % self.dbName)
         cursor.execute("use %s" % self.dbName)
-        cursor.execute("create table if not exists taosdemo_perf (ts timestamp, create_table_time float, insert_records_time float, records_per_second float, commit_id binary(50), avg_delay float, max_delay float, min_delay float)")
+        cursor.execute("create table if not exists taosdemo_perf (ts timestamp, create_table_time float, insert_records_time float, records_per_second float, commit_id binary(50), avg_delay float, max_delay float, min_delay float, branch binary(50), type binary(20))")
         print("==================== taosdemo performance ====================")
         print("create tables time: %f" % float(self.createTableTime))
         print("insert records time: %f" % float(self.insertRecordsTime))
@@ -165,19 +171,14 @@ class taosdemoPerformace:
         print("avg delay: %f" % float(self.avgDelay))
         print("max delay: %f" % float(self.maxDelay))
         print("min delay: %f" % float(self.minDelay))
-        cursor.execute(
-            "insert into taosdemo_perf values(now, %f, %f, %f, '%s', %f, %f, %f)" %
-            (float(
-                self.createTableTime), float(
-                self.insertRecordsTime), float(
-                self.recordsPerSecond), self.commitID, float(
-                    self.avgDelay), float(
-                        self.maxDelay), float(
-                            self.minDelay)))
-        cursor.execute("drop database if exists %s" % self.insertDB)
-
+        cursor.execute("insert into taosdemo_perf values(now, %f, %f, %f, '%s', %f, %f, %f, '%s', '%s')" %
+            (float(self.createTableTime), float(self.insertRecordsTime), float(self.recordsPerSecond), 
+            self.commitID, float(self.avgDelay), float(self.maxDelay), float(self.minDelay), self.branch, self.type))
         cursor.close()
 
+        cursor1 = self.conn.cursor()
+        cursor1.execute("drop database if exists %s" % self.insertDB)
+        cursor1.close()
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -194,9 +195,22 @@ if __name__ == '__main__':
         default='perf',
         type=str,
         help='Database name to be created (default: perf)')
-
+    parser.add_argument(
+        '-b',
+        '--git-branch',
+        action='store',
+        default='master',
+        type=str,
+        help='git branch (default: master)')
+    parser.add_argument(
+        '-T',
+        '--build-type',
+        action='store',
+        default='glibc',
+        type=str,
+        help='build type (default: glibc)')
     args = parser.parse_args()
 
-    perftest = taosdemoPerformace(args.commit_id, args.database_name)
+    perftest = taosdemoPerformace(args.commit_id, args.database_name, args.git_branch, args.build_type)
     perftest.insertData()
     perftest.createTablesAndStoreData()

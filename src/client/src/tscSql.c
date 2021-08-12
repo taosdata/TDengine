@@ -96,7 +96,7 @@ static SSqlObj *taosConnectImpl(const char *ip, const char *user, const char *pa
   snprintf(rpcKey, sizeof(rpcKey), "%s:%s:%s:%d", user, pass, ip, port);
  
   void *pRpcObj = NULL;
-  if (tscAcquireRpc(rpcKey, user, secretEncrypt, &pRpcObj) != 0) {
+  if (tscAcquireRpc(rpcKey, user, secretEncrypt, &pRpcObj) != 0) {  // 这里会创建client的rpc 的epool，处理线程等
     terrno = TSDB_CODE_RPC_NETWORK_UNAVAIL;
     return NULL;
   }
@@ -196,6 +196,11 @@ TAOS *taos_connect_internal(const char *ip, const char *user, const char *pass, 
 
     if (pSql->res.code != TSDB_CODE_SUCCESS) {
       terrno = pSql->res.code;
+      if (terrno ==TSDB_CODE_RPC_FQDN_ERROR) {
+        printf("taos connect failed, reason: %s\n\n", taos_errstr(pSql));
+      } else {
+        printf("taos connect failed, reason: %s.\n\n", tstrerror(terrno));
+      }
       taos_free_result(pSql);
       taos_close(pObj);
       return NULL;
@@ -643,7 +648,7 @@ char *taos_errstr(TAOS_RES *tres) {
     return (char*) tstrerror(terrno);
   }
 
-  if (hasAdditionalErrorInfo(pSql->res.code, &pSql->cmd)) {
+  if (hasAdditionalErrorInfo(pSql->res.code, &pSql->cmd) || pSql->res.code == TSDB_CODE_RPC_FQDN_ERROR) {
     return pSql->cmd.payload;
   } else {
     return (char*)tstrerror(pSql->res.code);
