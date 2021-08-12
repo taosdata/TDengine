@@ -502,12 +502,11 @@ static void doProcessMsgFromServer(SSchedMsg* pSchedMsg) {
     }
     rpcMsg->code = (pRes->code == TSDB_CODE_SUCCESS) ? (int32_t)pRes->numOfRows : pRes->code;
     if (pRes->code == TSDB_CODE_RPC_FQDN_ERROR) {
-
       tscAllocPayload(pCmd, TSDB_FQDN_LEN + 64); 
       // handle three situation 
       // 1. epset retry, only return last failure ep   
       // 2. no epset retry, like 'taos -h invalidFqdn', return invalidFqdn 
-      // 3. other situation, not expected 
+      // 3. other situation, no expected 
       if (pEpSet) {
         sprintf(tscGetErrorMsgPayload(pCmd), "%s\"%s\"", tstrerror(pRes->code),pEpSet->fqdn[(pEpSet->inUse)%(pEpSet->numOfEps)]);
       } else if (pCmd->command >= TSDB_SQL_MGMT) {
