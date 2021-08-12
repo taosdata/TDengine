@@ -1940,20 +1940,6 @@ static void addPrimaryTsColIntoResult(SQueryInfo* pQueryInfo, SSqlCmd* pCmd) {
   pQueryInfo->type |= TSDB_QUERY_TYPE_PROJECTION_QUERY;
 }
 
-bool isValidDistinctSql(SQueryInfo* pQueryInfo) {
-  if (pQueryInfo == NULL) {
-    return false;
-  }
-  if ((pQueryInfo->type & TSDB_QUERY_TYPE_STABLE_QUERY)  != TSDB_QUERY_TYPE_STABLE_QUERY 
-      && (pQueryInfo->type & TSDB_QUERY_TYPE_TABLE_QUERY)  != TSDB_QUERY_TYPE_TABLE_QUERY) {
-    return false;
-  }
-  //if (tscNumOfExprs(pQueryInfo) == 1){
-  //  return true;
-  //} 
-  return true;
-}
-
 static bool hasNoneUserDefineExpr(SQueryInfo* pQueryInfo) {
   size_t numOfExprs = taosArrayGetSize(pQueryInfo->exprList);
   for (int32_t i = 0; i < numOfExprs; ++i) {
@@ -2043,7 +2029,7 @@ int32_t validateSelectNodeList(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SArray* pS
   const char* msg1 = "too many items in selection clause";
   const char* msg2 = "functions or others can not be mixed up";
   const char* msg3 = "not support query expression";
-  const char* msg4 = "invalid distinct query";
+  const char* msg4 = "not support distinct mixed with proj";
   const char* msg5 = "invalid function name";
   const char* msg6 = "not support distinct mixed with agg function";
   const char* msg7 = "not support distinct mixed with join"; 
@@ -2062,12 +2048,14 @@ int32_t validateSelectNodeList(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SArray* pS
   bool hasDistinct = false;
   bool hasAgg      = false; 
   size_t numOfExpr = taosArrayGetSize(pSelNodeList);
+  int32_t distIdx = -1; 
   for (int32_t i = 0; i < numOfExpr; ++i) {
     int32_t outputIndex = (int32_t)tscNumOfExprs(pQueryInfo);
     tSqlExprItem* pItem = taosArrayGet(pSelNodeList, i);
      
     if (hasDistinct == false) {
        hasDistinct = (pItem->distinct == true); 
+       distIdx = i;
     }
 
     int32_t type = pItem->pNode->type;
@@ -2112,9 +2100,9 @@ int32_t validateSelectNodeList(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SArray* pS
   //TODO(dengyihao), refactor as function     
   //handle distinct func mixed with other func 
   if (hasDistinct == true) {
-    if (!isValidDistinctSql(pQueryInfo) ) {
+    if (distIdx != 0) {
       return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg4);
-    }
+    } 
     if (hasAgg) {
       return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg6);
     }
