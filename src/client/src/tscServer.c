@@ -2678,11 +2678,11 @@ int tscProcessQueryRsp(SSqlObj *pSql) {
   return 0;
 }
 
-static void decompressQueryColData(SSqlRes *pRes, SQueryInfo* pQueryInfo, char *data, int8_t compressed, int compLen) {
+static void decompressQueryColData(SSqlRes *pRes, SQueryInfo* pQueryInfo, char **data, int8_t compressed, int compLen) {
   int32_t decompLen = 0;
   int32_t numOfCols = pQueryInfo->fieldsInfo.numOfOutput;
   int32_t *compSizes;
-  char *pData = data;
+  char    *pData = *data;
   compSizes = (int32_t *)(pData + compLen);
 
   TAOS_FIELD *pField = tscFieldInfoGetField(&pQueryInfo->fieldsInfo, numOfCols - 1);
@@ -2710,13 +2710,13 @@ static void decompressQueryColData(SSqlRes *pRes, SQueryInfo* pQueryInfo, char *
     return;
   } else {
     pRes->pRsp = new_rsp;
+    *data = ((SRetrieveTableRsp *)pRes->pRsp)->data;
+    pData = *data + compLen + numOfCols * sizeof(int32_t);
   }
 
   int32_t tailLen = pRes->rspLen - sizeof(SRetrieveTableRsp) - decompLen;
-  /* Skip compSizes */ 
-  pData += numOfCols * sizeof(int32_t);
-  memmove(data + decompLen, pData, tailLen);
-  memmove(data, outputBuf, decompLen);
+  memmove(*data + decompLen, pData, tailLen);
+  memmove(*data, outputBuf, decompLen);
 
   tfree(outputBuf);
 }
@@ -2740,7 +2740,7 @@ int tscProcessRetrieveRspFromNode(SSqlObj *pSql) {
   pRes->completed  = (pRetrieve->completed == 1);
   pRes->compressed = (pRetrieve->compressed == 1);
   pRes->data       = pRetrieve->data;
-  
+
   SQueryInfo* pQueryInfo = tscGetQueryInfo(pCmd);
   if (tscCreateResPointerInfo(pRes, pQueryInfo) != TSDB_CODE_SUCCESS) {
     return pRes->code;
@@ -2749,7 +2749,7 @@ int tscProcessRetrieveRspFromNode(SSqlObj *pSql) {
   //Decompress col data if compressed from server
   if (pRes->compressed) {
     int32_t compLen = htonl(pRetrieve->compLen);
-    decompressQueryColData(pRes, pQueryInfo, pRes->data, pRes->compressed, compLen);
+    decompressQueryColData(pRes, pQueryInfo, &pRes->data, pRes->compressed, compLen);
   }
 
   STableMetaInfo *pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
@@ -2764,10 +2764,10 @@ int tscProcessRetrieveRspFromNode(SSqlObj *pSql) {
 
   if (pSql->pSubscription != NULL) {
     int32_t numOfCols = pQueryInfo->fieldsInfo.numOfOutput;
-    
+
     TAOS_FIELD *pField = tscFieldInfoGetField(&pQueryInfo->fieldsInfo, numOfCols - 1);
     int16_t     offset = tscFieldInfoGetOffset(pQueryInfo, numOfCols - 1);
-    
+
     char* p = pRes->data + (pField->bytes + offset) * pRes->numOfRows;
 
     int32_t numOfTables = htonl(*(int32_t*)p);
