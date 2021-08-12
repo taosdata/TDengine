@@ -179,7 +179,9 @@ int32_t getResultDataInfo(int32_t dataType, int32_t dataBytes, int32_t functionI
 
   if (functionId == TSDB_FUNC_TS || functionId == TSDB_FUNC_TS_DUMMY || functionId == TSDB_FUNC_TAG_DUMMY ||
       functionId == TSDB_FUNC_DIFF || functionId == TSDB_FUNC_PRJ || functionId == TSDB_FUNC_TAGPRJ ||
-      functionId == TSDB_FUNC_TAG || functionId == TSDB_FUNC_INTERP) {
+      functionId == TSDB_FUNC_TAG || functionId == TSDB_FUNC_INTERP || functionId == TSDB_FUNC_CEIL ||
+      functionId == TSDB_FUNC_FLOOR || functionId == TSDB_FUNC_ROUND)
+  {
     *type = (int16_t)dataType;
     *bytes = (int16_t)dataBytes;
 
@@ -405,13 +407,19 @@ int32_t getResultDataInfo(int32_t dataType, int32_t dataBytes, int32_t functionI
 
 // TODO use hash table
 int32_t isValidFunction(const char* name, int32_t len) {
-  for(int32_t i = 0; i <= TSDB_FUNC_BLKINFO; ++i) {
+  for(int32_t i = 0; i <= TSDB_FUNC_ROUND; ++i) {
     int32_t nameLen = (int32_t) strlen(aAggs[i].name);
     if (len != nameLen) {
       continue;
     }
 
-    if (strncasecmp(aAggs[i].name, name, len) == 0) {
+    if (strncasecmp(aAggs[i].name, name, len) == 0 &&
+        aAggs[i].init != NULL &&
+        aAggs[i].xFunction != NULL &&
+        aAggs[i].xFinalize != NULL &&
+        aAggs[i].mergeFunc != NULL &&
+        aAggs[i].dataReqFunc != NULL)
+    {
       return i;
     }
   }
@@ -4168,6 +4176,425 @@ void blockinfo_func_finalizer(SQLFunctionCtx* pCtx) {
   doFinalizer(pCtx);
 }
 
+void setTagCtxList(SQLFunctionCtx *pCtx)
+{
+  if (pCtx && pCtx->tagInfo.numOfTagCols > 0 && pCtx->ptsList) {
+    int32_t  delta = 4;
+    void    *data = GET_INPUT_DATA_LIST(pCtx);
+    void    *pData = data;
+
+    char **p = calloc(pCtx->tagInfo.numOfTagCols, POINTER_BYTES);
+    if (p == NULL) {
+      return;
+    }
+
+    for (int32_t j = 0; j < pCtx->tagInfo.numOfTagCols; ++j) {
+      p[j] = pCtx->tagInfo.pTagCtxList[j]->pOutput;
+    }
+
+    switch(pCtx->inputType) {
+    case TSDB_DATA_TYPE_INT:
+      delta = sizeof(int32_t);
+      break;
+    case TSDB_DATA_TYPE_TIMESTAMP:
+    case TSDB_DATA_TYPE_BIGINT:
+      delta = sizeof(int64_t);
+      break;
+    case TSDB_DATA_TYPE_DOUBLE:
+      delta = sizeof(double);
+      break;
+    case TSDB_DATA_TYPE_FLOAT:
+      delta = sizeof(float);
+      break;
+    case TSDB_DATA_TYPE_SMALLINT:
+      delta = sizeof(int16_t);
+      break;
+    case TSDB_DATA_TYPE_TINYINT:
+      delta = sizeof(int8_t);
+      break;
+    default:
+      free(p);
+      return;
+    }
+
+    for (int32_t j = 0; j < pCtx->size; ++j) {
+      if (pCtx->hasNull && isNull((const char*) ((char *) pData + j * delta), pCtx->inputType)) {
+        continue;
+      }
+
+      for (int32_t k = 0; k < pCtx->tagInfo.numOfTagCols; ++k) {
+        memcpy(p[k], &pCtx->ptsList[j], (size_t)pCtx->tagInfo.pTagCtxList[k]->outputBytes);
+        p[k] += pCtx->tagInfo.pTagCtxList[k]->outputBytes;
+      }
+    }
+
+    free(p);
+  }
+}
+
+static void ceil_function(SQLFunctionCtx *pCtx) {
+  void *data = GET_INPUT_DATA_LIST(pCtx);
+
+  int32_t notNullElems = 0;
+
+  int32_t step = GET_FORWARD_DIRECTION_FACTOR(pCtx->order);
+  int32_t i = (pCtx->order == TSDB_ORDER_ASC) ? 0 : pCtx->size - 1;
+
+  switch (pCtx->inputType) {
+    case TSDB_DATA_TYPE_INT: {
+      int32_t *pData = (int32_t *)data;
+      int32_t *pOutput = (int32_t *)pCtx->pOutput;
+
+      for (; i < pCtx->size && i >= 0; i += step) {
+        if (pCtx->hasNull && isNull((const char*) &pData[i], pCtx->inputType)) {
+          continue;
+        }
+
+        *pOutput++ = (int32_t) ceil((double) pData[i]);
+
+        notNullElems++;
+      }
+      setTagCtxList(pCtx);
+      break;
+    };
+    case TSDB_DATA_TYPE_BIGINT: {
+      int64_t *pData = (int64_t *)data;
+      int64_t *pOutput = (int64_t *)pCtx->pOutput;
+
+      for (; i < pCtx->size && i >= 0; i += step) {
+        if (pCtx->hasNull && isNull((const char*) &pData[i], pCtx->inputType)) {
+          continue;
+        }
+
+        *pOutput++ = (int64_t) ceil((double) pData[i]);
+
+        notNullElems++;
+      }
+      setTagCtxList(pCtx);
+      break;
+    }
+    case TSDB_DATA_TYPE_DOUBLE: {
+      double *pData = (double *)data;
+      double *pOutput = (double *)pCtx->pOutput;
+
+      for (; i < pCtx->size && i >= 0; i += step) {
+        if (pCtx->hasNull && isNull((const char*) &pData[i], pCtx->inputType)) {
+          continue;
+        }
+
+        SET_DOUBLE_VAL(pOutput, ceil(pData[i]));
+        pOutput++;
+
+        notNullElems++;
+      }
+      setTagCtxList(pCtx);
+      break;
+    }
+    case TSDB_DATA_TYPE_FLOAT: {
+      float *pData = (float *)data;
+      float *pOutput = (float *)pCtx->pOutput;
+
+      for (; i < pCtx->size && i >= 0; i += step) {
+        if (pCtx->hasNull && isNull((const char*) &pData[i], pCtx->inputType)) {
+          continue;
+        }
+
+        *pOutput++ = (float) ceil((double) pData[i]);
+
+        notNullElems++;
+      }
+      setTagCtxList(pCtx);
+      break;
+    }
+    case TSDB_DATA_TYPE_SMALLINT: {
+      int16_t *pData = (int16_t *)data;
+      int16_t *pOutput = (int16_t *)pCtx->pOutput;
+
+      for (; i < pCtx->size && i >= 0; i += step) {
+        if (pCtx->hasNull && isNull((const char*) &pData[i], pCtx->inputType)) {
+          continue;
+        }
+
+        *pOutput++ = (int16_t) ceil((double) pData[i]);
+
+        notNullElems++;
+      }
+      setTagCtxList(pCtx);
+      break;
+    }
+
+    case TSDB_DATA_TYPE_TINYINT: {
+      int8_t *pData = (int8_t *)data;
+      int8_t *pOutput = (int8_t *)pCtx->pOutput;
+
+      for (; i < pCtx->size && i >= 0; i += step) {
+        if (pCtx->hasNull && isNull((char *)&pData[i], pCtx->inputType)) {
+          continue;
+        }
+
+        *pOutput++ = (int8_t) ceil((double) pData[i]);
+
+        notNullElems++;
+      }
+      setTagCtxList(pCtx);
+      break;
+    }
+    default:
+      qError("error input type");
+  }
+
+  if (notNullElems <= 0) {
+    /*
+     * current block may be null value
+     */
+    assert(pCtx->hasNull);
+  } else {
+    GET_RES_INFO(pCtx)->numOfRes += notNullElems;
+  }
+}
+
+static void floor_function(SQLFunctionCtx *pCtx) {
+  void *data = GET_INPUT_DATA_LIST(pCtx);
+
+  int32_t notNullElems = 0;
+
+  int32_t step = GET_FORWARD_DIRECTION_FACTOR(pCtx->order);
+  int32_t i = (pCtx->order == TSDB_ORDER_ASC) ? 0 : pCtx->size - 1;
+
+  switch (pCtx->inputType) {
+    case TSDB_DATA_TYPE_INT: {
+      int32_t *pData = (int32_t *)data;
+      int32_t *pOutput = (int32_t *)pCtx->pOutput;
+
+      for (; i < pCtx->size && i >= 0; i += step) {
+        if (pCtx->hasNull && isNull((const char*) &pData[i], pCtx->inputType)) {
+          continue;
+        }
+
+        *pOutput++ = (int32_t) floor((double) pData[i]);
+
+        notNullElems++;
+      }
+      setTagCtxList(pCtx);
+      break;
+    };
+    case TSDB_DATA_TYPE_BIGINT: {
+      int64_t *pData = (int64_t *)data;
+      int64_t *pOutput = (int64_t *)pCtx->pOutput;
+
+      for (; i < pCtx->size && i >= 0; i += step) {
+        if (pCtx->hasNull && isNull((const char*) &pData[i], pCtx->inputType)) {
+          continue;
+        }
+
+        *pOutput++ = (int64_t) floor((double) pData[i]);
+
+        notNullElems++;
+      }
+      setTagCtxList(pCtx);
+      break;
+    }
+    case TSDB_DATA_TYPE_DOUBLE: {
+      double *pData = (double *)data;
+      double *pOutput = (double *)pCtx->pOutput;
+
+      for (; i < pCtx->size && i >= 0; i += step) {
+        if (pCtx->hasNull && isNull((const char*) &pData[i], pCtx->inputType)) {
+          continue;
+        }
+
+        SET_DOUBLE_VAL(pOutput, floor(pData[i]));
+        pOutput++;
+
+        notNullElems++;
+      }
+      setTagCtxList(pCtx);
+      break;
+    }
+    case TSDB_DATA_TYPE_FLOAT: {
+      float *pData = (float *)data;
+      float *pOutput = (float *)pCtx->pOutput;
+
+      for (; i < pCtx->size && i >= 0; i += step) {
+        if (pCtx->hasNull && isNull((const char*) &pData[i], pCtx->inputType)) {
+          continue;
+        }
+
+        *pOutput++ = (float) floor((double) pData[i]);
+
+        notNullElems++;
+      }
+      setTagCtxList(pCtx);
+      break;
+    }
+    case TSDB_DATA_TYPE_SMALLINT: {
+      int16_t *pData = (int16_t *)data;
+      int16_t *pOutput = (int16_t *)pCtx->pOutput;
+
+      for (; i < pCtx->size && i >= 0; i += step) {
+        if (pCtx->hasNull && isNull((const char*) &pData[i], pCtx->inputType)) {
+          continue;
+        }
+
+        *pOutput++ = (int16_t) floor((double) pData[i]);
+
+        notNullElems++;
+      }
+      setTagCtxList(pCtx);
+      break;
+    }
+
+    case TSDB_DATA_TYPE_TINYINT: {
+      int8_t *pData = (int8_t *)data;
+      int8_t *pOutput = (int8_t *)pCtx->pOutput;
+
+      for (; i < pCtx->size && i >= 0; i += step) {
+        if (pCtx->hasNull && isNull((char *)&pData[i], pCtx->inputType)) {
+          continue;
+        }
+
+        *pOutput++ = (int8_t) floor((double) pData[i]);
+
+        notNullElems++;
+      }
+      setTagCtxList(pCtx);
+      break;
+    }
+    default:
+      qError("error input type");
+  }
+
+  if (notNullElems <= 0) {
+    /*
+     * current block may be null value
+     */
+    assert(pCtx->hasNull);
+  } else {
+    GET_RES_INFO(pCtx)->numOfRes += notNullElems;
+  }
+}
+
+static void round_function(SQLFunctionCtx *pCtx) {
+  void *data = GET_INPUT_DATA_LIST(pCtx);
+
+  int32_t notNullElems = 0;
+
+  int32_t step = GET_FORWARD_DIRECTION_FACTOR(pCtx->order);
+  int32_t i = (pCtx->order == TSDB_ORDER_ASC) ? 0 : pCtx->size - 1;
+
+  switch (pCtx->inputType) {
+    case TSDB_DATA_TYPE_INT: {
+      int32_t *pData = (int32_t *)data;
+      int32_t *pOutput = (int32_t *)pCtx->pOutput;
+
+      for (; i < pCtx->size && i >= 0; i += step) {
+        if (pCtx->hasNull && isNull((const char*) &pData[i], pCtx->inputType)) {
+          continue;
+        }
+
+        *pOutput++ = (int32_t) round((double) pData[i]);
+
+        notNullElems++;
+      }
+      setTagCtxList(pCtx);
+      break;
+    };
+    case TSDB_DATA_TYPE_BIGINT: {
+      int64_t *pData = (int64_t *)data;
+      int64_t *pOutput = (int64_t *)pCtx->pOutput;
+
+      for (; i < pCtx->size && i >= 0; i += step) {
+        if (pCtx->hasNull && isNull((const char*) &pData[i], pCtx->inputType)) {
+          continue;
+        }
+
+        *pOutput++ = (int64_t) round((double) pData[i]);
+
+        notNullElems++;
+      }
+      setTagCtxList(pCtx);
+      break;
+    }
+    case TSDB_DATA_TYPE_DOUBLE: {
+      double *pData = (double *)data;
+      double *pOutput = (double *)pCtx->pOutput;
+
+      for (; i < pCtx->size && i >= 0; i += step) {
+        if (pCtx->hasNull && isNull((const char*) &pData[i], pCtx->inputType)) {
+          continue;
+        }
+
+        SET_DOUBLE_VAL(pOutput, round(pData[i]));
+        pOutput++;
+
+        notNullElems++;
+      }
+      setTagCtxList(pCtx);
+      break;
+    }
+    case TSDB_DATA_TYPE_FLOAT: {
+      float *pData = (float *)data;
+      float *pOutput = (float *)pCtx->pOutput;
+
+      for (; i < pCtx->size && i >= 0; i += step) {
+        if (pCtx->hasNull && isNull((const char*) &pData[i], pCtx->inputType)) {
+          continue;
+        }
+
+        *pOutput++ = (float) round((double) pData[i]);
+
+        notNullElems++;
+      }
+      setTagCtxList(pCtx);
+      break;
+    }
+    case TSDB_DATA_TYPE_SMALLINT: {
+      int16_t *pData = (int16_t *)data;
+      int16_t *pOutput = (int16_t *)pCtx->pOutput;
+
+      for (; i < pCtx->size && i >= 0; i += step) {
+        if (pCtx->hasNull && isNull((const char*) &pData[i], pCtx->inputType)) {
+          continue;
+        }
+
+        *pOutput++ = (int16_t) round((double) pData[i]);
+
+        notNullElems++;
+      }
+      setTagCtxList(pCtx);
+      break;
+    }
+
+    case TSDB_DATA_TYPE_TINYINT: {
+      int8_t *pData = (int8_t *)data;
+      int8_t *pOutput = (int8_t *)pCtx->pOutput;
+
+      for (; i < pCtx->size && i >= 0; i += step) {
+        if (pCtx->hasNull && isNull((char *)&pData[i], pCtx->inputType)) {
+          continue;
+        }
+
+        *pOutput++ = (int8_t) round((double) pData[i]);
+
+        notNullElems++;
+      }
+      setTagCtxList(pCtx);
+      break;
+    }
+    default:
+      qError("error input type");
+  }
+
+  if (notNullElems <= 0) {
+    /*
+     * current block may be null value
+     */
+    assert(pCtx->hasNull);
+  } else {
+    GET_RES_INFO(pCtx)->numOfRes += notNullElems;
+  }
+}
+
 /////////////////////////////////////////////////////////////////////////////////////////////
 /*
  * function compatible list.
@@ -4590,7 +5017,7 @@ SAggFunctionInfo aAggs[] = {{
                               dataBlockRequired,
                           },
                           {
-                                // 33
+                              // 33
                               "_block_dist",   // return table id and the corresponding tags for join match and subscribe
                               TSDB_FUNC_BLKINFO,
                               TSDB_FUNC_BLKINFO,
@@ -4600,4 +5027,88 @@ SAggFunctionInfo aAggs[] = {{
                               blockinfo_func_finalizer,
                               block_func_merge,
                               dataBlockRequired,
+                          },
+                          {
+                              // TODO 34
+                              "histogram",
+                              TSDB_FUNC_HISTOGRAM,
+                              TSDB_FUNC_HISTOGRAM,
+                              TSDB_FUNCSTATE_MO | TSDB_FUNCSTATE_STABLE | TSDB_FUNCSTATE_NEED_TS,
+                              NULL,
+                              NULL,
+                              NULL,
+                              NULL,
+                              NULL
+                          },
+                          {
+                              // TODO 35
+                              "hll",
+                              TSDB_FUNC_HLL,
+                              TSDB_FUNC_HLL,
+                              TSDB_FUNCSTATE_MO | TSDB_FUNCSTATE_STABLE | TSDB_FUNCSTATE_NEED_TS,
+                              NULL,
+                              NULL,
+                              NULL,
+                              NULL,
+                              NULL
+                          },
+                          {
+                              // TODO 36
+                              "mode",
+                              TSDB_FUNC_MODE,
+                              TSDB_FUNC_MODE,
+                              TSDB_FUNCSTATE_MO | TSDB_FUNCSTATE_STABLE | TSDB_FUNCSTATE_NEED_TS,
+                              NULL,
+                              NULL,
+                              NULL,
+                              NULL,
+                              NULL
+                          },
+                          {
+                              // TODO 37
+                              "sample",
+                              TSDB_FUNC_SAMPLE,
+                              TSDB_FUNC_SAMPLE,
+                              TSDB_FUNCSTATE_MO | TSDB_FUNCSTATE_STABLE | TSDB_FUNCSTATE_NEED_TS,
+                              NULL,
+                              NULL,
+                              NULL,
+                              NULL,
+                              NULL
+                          },
+                          {
+                              // 38
+                              "ceil",
+                              TSDB_FUNC_CEIL,
+                              TSDB_FUNC_CEIL,
+                              TSDB_FUNCSTATE_MO | TSDB_FUNCSTATE_STABLE | TSDB_FUNCSTATE_NEED_TS | TSDB_FUNCSTATE_SCALAR,
+                              function_setup,
+                              ceil_function,
+                              doFinalizer,
+                              noop1,
+                              dataBlockRequired
+                          },
+                          {
+                              // 39
+                              "floor",
+                              TSDB_FUNC_FLOOR,
+                              TSDB_FUNC_FLOOR,
+                              TSDB_FUNCSTATE_MO | TSDB_FUNCSTATE_STABLE | TSDB_FUNCSTATE_NEED_TS | TSDB_FUNCSTATE_SCALAR,
+                              function_setup,
+                              floor_function,
+                              doFinalizer,
+                              noop1,
+                              dataBlockRequired
+                          },
+                          {
+                              // 40
+                              "round",
+                              TSDB_FUNC_ROUND,
+                              TSDB_FUNC_ROUND,
+                              TSDB_FUNCSTATE_MO | TSDB_FUNCSTATE_STABLE | TSDB_FUNCSTATE_NEED_TS | TSDB_FUNCSTATE_SCALAR,
+                              function_setup,
+                              round_function,
+                              doFinalizer,
+                              noop1,
+                              dataBlockRequired
                           }};

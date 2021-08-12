@@ -2540,6 +2540,9 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
     case TSDB_FUNC_MAX:
     case TSDB_FUNC_DIFF:
     case TSDB_FUNC_DERIVATIVE:
+    case TSDB_FUNC_CEIL:
+    case TSDB_FUNC_FLOOR:
+    case TSDB_FUNC_ROUND:
     case TSDB_FUNC_STDDEV:
     case TSDB_FUNC_LEASTSQR: {
       // 1. valid the number of parameters
@@ -6159,7 +6162,9 @@ int32_t validateFunctionsInIntervalOrGroupbyQuery(SSqlCmd* pCmd, SQueryInfo* pQu
     }
 
     int32_t f = pExpr->base.functionId;
-    if ((f == TSDB_FUNC_PRJ && pExpr->base.numOfParams == 0) || f == TSDB_FUNC_DIFF || f == TSDB_FUNC_ARITHM || f == TSDB_FUNC_DERIVATIVE) {
+    if ((f == TSDB_FUNC_PRJ && pExpr->base.numOfParams == 0) || f == TSDB_FUNC_DIFF || f == TSDB_FUNC_ARITHM || f == TSDB_FUNC_DERIVATIVE ||
+        f == TSDB_FUNC_CEIL || f == TSDB_FUNC_FLOOR || f == TSDB_FUNC_ROUND)
+    {
       isProjectionFunction = true;
       break;
     }
@@ -6761,6 +6766,7 @@ static int32_t checkUpdateTagPrjFunctions(SQueryInfo* pQueryInfo, char* msg) {
   const char* msg2 = "aggregation function should not be mixed up with projection";
 
   bool    tagTsColExists = false;
+  int16_t numOfScalar = 0;
   int16_t numOfSelectivity = 0;
   int16_t numOfAggregation = 0;
 
@@ -6794,6 +6800,8 @@ static int32_t checkUpdateTagPrjFunctions(SQueryInfo* pQueryInfo, char* msg) {
 
     if ((aAggs[functionId].status & TSDB_FUNCSTATE_SELECTIVITY) != 0) {
       numOfSelectivity++;
+    } else if ((aAggs[functionId].status & TSDB_FUNCSTATE_SCALAR) != 0) {
+      numOfScalar++;
     } else {
       numOfAggregation++;
     }
@@ -6809,14 +6817,14 @@ static int32_t checkUpdateTagPrjFunctions(SQueryInfo* pQueryInfo, char* msg) {
     /*
      *  if numOfSelectivity equals to 0, it is a super table projection query
      */
-    if (numOfSelectivity == 1) {
+    if (numOfSelectivity == 1 || numOfScalar == 1) {
       doUpdateSqlFunctionForTagPrj(pQueryInfo);
       int32_t code = doUpdateSqlFunctionForColPrj(pQueryInfo);
       if (code != TSDB_CODE_SUCCESS) {
         return code;
       }
 
-    } else if (numOfSelectivity > 1) {
+    } else if (numOfSelectivity > 1 || numOfScalar > 1) {
       /*
        * If more than one selectivity functions exist, all the selectivity functions must be last_row.
        * Otherwise, return with error code.
@@ -6848,7 +6856,7 @@ static int32_t checkUpdateTagPrjFunctions(SQueryInfo* pQueryInfo, char* msg) {
         return invalidOperationMsg(msg, msg2);
       }
 
-      if (numOfAggregation > 0 || numOfSelectivity > 0) {
+      if (numOfAggregation > 0 || numOfScalar > 0 || numOfSelectivity > 0) {
         // clear the projection type flag
         pQueryInfo->type &= (~TSDB_QUERY_TYPE_PROJECTION_QUERY);
         int32_t code = doUpdateSqlFunctionForColPrj(pQueryInfo);

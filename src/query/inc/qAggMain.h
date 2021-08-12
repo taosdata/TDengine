@@ -88,6 +88,7 @@ extern "C" {
 #define TSDB_FUNCSTATE_OF           0x10u   // outer forward
 #define TSDB_FUNCSTATE_NEED_TS      0x20u   // timestamp is required during query processing
 #define TSDB_FUNCSTATE_SELECTIVITY  0x40u   // selectivity functions, can exists along with tag columns
+#define TSDB_FUNCSTATE_SCALAR       0x80u
 
 #define TSDB_BASE_FUNC_SO TSDB_FUNCSTATE_SO | TSDB_FUNCSTATE_STREAM | TSDB_FUNCSTATE_STABLE | TSDB_FUNCSTATE_OF
 #define TSDB_BASE_FUNC_MO TSDB_FUNCSTATE_MO | TSDB_FUNCSTATE_STREAM | TSDB_FUNCSTATE_STABLE | TSDB_FUNCSTATE_OF
