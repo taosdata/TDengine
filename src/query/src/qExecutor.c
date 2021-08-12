@@ -4032,9 +4032,10 @@ static void doCopyQueryResultToMsg(SQInfo *pQInfo, int32_t numOfRows, char *data
     for (int32_t col = 0; col < numOfCols; ++col) {
       SColumnInfoData* pColRes = taosArrayGet(pRes->pDataBlock, col);
       if (compressed) {
-        compSizes[col] = htonl(compressQueryColData(pColRes, pRes->info.rows, data, compressed));
+        compSizes[col] = compressQueryColData(pColRes, pRes->info.rows, data, compressed);
         data += compSizes[col];
         *compLen += compSizes[col];
+        compSizes[col] = htonl(compSizes[col]);
       } else {
         memmove(data, pColRes->pData, pColRes->info.bytes * pRes->info.rows);
         data += pColRes->info.bytes * pRes->info.rows;
@@ -4047,6 +4048,7 @@ static void doCopyQueryResultToMsg(SQInfo *pQInfo, int32_t numOfRows, char *data
         compSizes[col] = htonl(compressQueryColData(pColRes, numOfRows, data, compressed));
         data += compSizes[col];
         *compLen += compSizes[col];
+        compSizes[col] = htonl(compSizes[col]);
       } else {
         memmove(data, pColRes->pData, pColRes->info.bytes * numOfRows);
         data += pColRes->info.bytes * numOfRows;
