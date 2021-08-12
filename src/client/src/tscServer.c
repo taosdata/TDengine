@@ -2690,16 +2690,32 @@ static void decompressQueryColData(SSqlRes *pRes, SQueryInfo* pQueryInfo, char *
   char       *outputBuf = tcalloc(pRes->numOfRows, (pField->bytes + offset));
 
   char *p = outputBuf;
-  int32_t bufOffset = 0;
-  for(int32_t i = 0; i < numOfCols; ++i) {
+  int32_t bufOffset;
+  for (int32_t i = 0; i < numOfCols; ++i) {
     SInternalField* pInfo = (SInternalField*)TARRAY_GET_ELEM(pQueryInfo->fieldsInfo.internalField, i);
     bufOffset = pInfo->field.bytes * pRes->numOfRows;
+
     int32_t flen = (*(tDataTypes[pInfo->field.type].decompFunc))(pData, htonl(compSizes[i]), pRes->numOfRows, p, bufOffset,
                                                                compressed, NULL, 0);
+
     p += flen;
     decompLen +=flen;
-    pData += htonl(compSizes[i];
+    pData += htonl(compSizes[i]);
   }
+  /* Resize rsp as decompressed data will occupy more space */
+  pRes->rspLen = pRes->rspLen - (compLen + numOfCols * sizeof(int32_t)) + decompLen;
+  char *new_rsp = (char *)realloc(pRes->pRsp, pRes->rspLen);
+  if (new_rsp == NULL) {
+    pRes->code = TSDB_CODE_TSC_OUT_OF_MEMORY;
+    return;
+  } else {
+    pRes->pRsp = new_rsp;
+  }
+
+  int32_t tailLen = pRes->rspLen - sizeof(SRetrieveTableRsp) - decompLen;
+  memmove(data + decompLen, pData, tailLen);
+  memmove(data, outputBuf, decompLen);
+
   tfree(outputBuf);
 }
 
