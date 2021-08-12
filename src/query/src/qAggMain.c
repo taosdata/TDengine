@@ -3708,27 +3708,59 @@ static void interp_function_impl(SQLFunctionCtx *pCtx) {
       }
     } else {
       // no data generated yet
-      if (pCtx->size == 1) {
+      if (pCtx->size < 1) {
         return;
       }
 
       // check the timestamp in input buffer
       TSKEY skey = GET_TS_DATA(pCtx, 0);
-      TSKEY ekey = GET_TS_DATA(pCtx, 1);
-
-      // no data generated yet
-      if (!(skey < pCtx->startTs && ekey > pCtx->startTs)) {
-        return;
-      }
-
-      assert(pCtx->start.key == INT64_MIN && skey < pCtx->startTs && ekey > pCtx->startTs);
 
       if (type == TSDB_FILL_PREV) {
+        if (skey > pCtx->startTs) {
+          return;
+        }
+
+        if (pCtx->size > 1) {
+          TSKEY ekey = GET_TS_DATA(pCtx, 1);
+          if (ekey > skey && ekey <= pCtx->startTs) {
+            skey = ekey;
+          }
+        }
         assignVal(pCtx->pOutput, pCtx->pInput, pCtx->outputBytes, pCtx->inputType);
       } else if (type == TSDB_FILL_NEXT) {
-        char* val = ((char*)pCtx->pInput) + pCtx->inputBytes;
+        TSKEY ekey = skey;
+        char* val = NULL;
+        
+        if (ekey < pCtx->startTs) {
+          if (pCtx->size > 1) {
+            ekey = GET_TS_DATA(pCtx, 1);
+            if (ekey < pCtx->startTs) {
+              return;
+            }
+
+            val = ((char*)pCtx->pInput) + pCtx->inputBytes;            
+          } else {
+            return;
+          }
+        } else {
+          val = (char*)pCtx->pInput;
+        }
+        
         assignVal(pCtx->pOutput, val, pCtx->outputBytes, pCtx->inputType);
       } else if (type == TSDB_FILL_LINEAR) {
+        if (pCtx->size <= 1) {
+          return;
+        }
+      
+        TSKEY ekey = GET_TS_DATA(pCtx, 1);
+      
+        // no data generated yet
+        if (!(skey < pCtx->startTs && ekey > pCtx->startTs)) {
+          return;
+        }
+        
+        assert(pCtx->start.key == INT64_MIN && skey < pCtx->startTs && ekey > pCtx->startTs);
+        
         char *start = GET_INPUT_DATA(pCtx, 0);
         char *end = GET_INPUT_DATA(pCtx, 1);
 
@@ -4047,9 +4079,9 @@ void block_func_merge(SQLFunctionCtx* pCtx) {
   STableBlockDist info = {0};
   int32_t len = *(int32_t*) pCtx->pInput;
   blockDistInfoFromBinary(((char*)pCtx->pInput) + sizeof(int32_t), len, &info);
-
   SResultRowCellInfo *pResInfo = GET_RES_INFO(pCtx);
   mergeTableBlockDist(pResInfo, &info);
+  taosArrayDestroy(info.dataBlockInfos); 
 
   pResInfo->numOfRes = 1;
   pResInfo->hasResult = DATA_SET_FLAG;

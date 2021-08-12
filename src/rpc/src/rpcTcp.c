@@ -397,7 +397,11 @@ void *taosOpenTcpClientConnection(void *shandle, void *thandle, uint32_t ip, uin
   SThreadObj *pThreadObj = pClientObj->pThreadObj[index];
 
   SOCKET fd = taosOpenTcpClientSocket(ip, port, pThreadObj->ip);
+#if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
+  if (fd == (SOCKET)-1) return NULL;
+#else
   if (fd <= 0) return NULL;
+#endif
 
   struct sockaddr_in sin;
   uint16_t localPort = 0;
