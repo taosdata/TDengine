@@ -8323,6 +8323,10 @@ bool checkNeedToCompressQueryCol(SQInfo *pQInfo) {
 
   SSDataBlock* pRes = pRuntimeEnv->outputBuf;
 
+  if (GET_NUM_OF_RESULTS(&(pQInfo->runtimeEnv)) <= 0) {
+    return false;
+  }
+
   int32_t numOfRows = pQueryAttr->pExpr2 ? GET_NUM_OF_RESULTS(pRuntimeEnv) : pRes->info.rows;
   int32_t numOfCols = pQueryAttr->pExpr2 ? pQueryAttr->numOfExpr2 : pQueryAttr->numOfOutput;
 
