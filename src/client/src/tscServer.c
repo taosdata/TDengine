@@ -2698,7 +2698,7 @@ static void decompressQueryColData(SSqlRes *pRes, SQueryInfo* pQueryInfo, char *
                                                                compressed, NULL, 0);
     p += flen;
     decompLen +=flen;
-    pData += compSizes[i];
+    pData += htonl(compSizes[i];
   }
   tfree(outputBuf);
 }
