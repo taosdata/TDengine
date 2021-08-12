@@ -5,7 +5,6 @@ node {
     git url: 'https://github.com/taosdata/TDengine.git'
 }
 
-
 def skipbuild=0
 
 def abortPreviousBuilds() {
@@ -107,19 +106,17 @@ def pre_test(){
     make > /dev/null
     make install > /dev/null
     cd ${WKC}/tests
-    pip3 install ${WKC}/src/connector/python
+    pip3 install ${WKC}/src/connector/python/
     '''
     return 1
 }
 
 pipeline {
   agent none
-  
   environment{
       WK = '/var/lib/jenkins/workspace/TDinternal'
       WKC= '/var/lib/jenkins/workspace/TDinternal/community'
   }
-  
   stages {
       stage('pre_build'){
           agent{label 'master'}
@@ -158,7 +155,6 @@ pipeline {
           git fetch origin +refs/pull/${CHANGE_ID}/merge
           git checkout -qf FETCH_HEAD
           '''     
-          
 
           script{  
             skipbuild='2'     
@@ -171,7 +167,6 @@ pipeline {
           '''
           }
       }
-    
       stage('Parallel test stage') {
         //only build pr
         when {
@@ -237,7 +232,6 @@ pipeline {
             }
           }
         }
-
         stage('test_crash_gen_s3') {
           agent{label " slave3 || slave13 "}
           
@@ -272,11 +266,9 @@ pipeline {
                 ./test-all.sh b2fq
                 date
                 '''
-            }         
-            
+            }                     
           }
         }
-
         stage('test_valgrind_s4') {
           agent{label " slave4 || slave14 "}
 
@@ -441,6 +433,5 @@ pipeline {
                 from: "support@taosdata.com"
             )
         }
-    }
-   
+    } 
 }
