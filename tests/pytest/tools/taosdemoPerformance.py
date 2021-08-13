@@ -63,7 +63,7 @@ class taosdemoPerformace:
             "batch_create_tbl_num": 10,
             "insert_mode": "taosc",
             "insert_rows": self.numOfRows,
-            "interlace_rows": 100,
+            "interlace_rows": 0,
             "max_sql_len": 1024000,
             "disorder_ratio": 0,
             "disorder_range": 1000,
@@ -172,7 +172,6 @@ class taosdemoPerformace:
         cursor.execute("create database if not exists %s" % self.dbName)
         cursor.execute("use %s" % self.dbName)
         cursor.execute("create table if not exists taosdemo_perf (ts timestamp, create_table_time float, insert_records_time float, records_per_second float, commit_id binary(50), avg_delay float, max_delay float, min_delay float, branch binary(50), type binary(20), numoftables int, numofrows int, numofint int, numofdouble int, numofbinary int)")
-        print("==================== taosdemo performance ====================")
         print("create tables time: %f" % float(self.createTableTime))
         print("insert records time: %f" % float(self.insertRecordsTime))
         print("records per second: %f" % float(self.recordsPerSecond))
