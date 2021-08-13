@@ -123,7 +123,7 @@ static void walUpdateChecksum(SWalHead *pHead) {
 static int walValidateChecksum(SWalHead *pHead) {
   if (pHead->sver == 0) { // for compatible with wal before sver 1
     return taosCheckChecksumWhole((uint8_t *)pHead, sizeof(*pHead));
-  } else if (pHead->sver == 2 || pHead->sver == 1) {
+  } else if (pHead->sver >= 1) {
     uint32_t cksum = pHead->cksum;
     pHead->cksum = 0;
     return taosCheckChecksum((uint8_t *)pHead, sizeof(*pHead) + pHead->len, cksum);
@@ -282,7 +282,7 @@ static int32_t walSkipCorruptedRecord(SWal *pWal, SWalHead *pHead, int64_t tfd, 
       return TSDB_CODE_SUCCESS;
     }
 
-    if (pHead->sver == 2 || pHead->sver == 1) {
+    if (pHead->sver >= 1) {
       if (tfRead(tfd, pHead->cont, pHead->len) < pHead->len) {
 	wError("vgId:%d, read to end of corrupted wal file, offset:%" PRId64, pWal->vgId, pos);
 	return TSDB_CODE_WAL_FILE_CORRUPTED;
@@ -364,7 +364,7 @@ static int walSMemRowCheck(SWalHead *pHead) {
 
     SWalHead *pWalHead = (SWalHead *)calloc(sizeof(SWalHead) + pHead->len + nTotalRows * sizeof(uint8_t), 1);
     if (pWalHead == NULL) {
-      return TSDB_CODE_WAL_OUT_OF_MEMORY;
+      return -1;
     }
 
     memcpy(pWalHead, pHead, sizeof(SWalHead) + sizeof(SSubmitMsg));
@@ -461,7 +461,7 @@ static int32_t walRestoreWalFile(SWal *pWal, void *pVnode, FWalWrite writeFp, ch
       continue;
     }
 
-    if ((pHead->sver == 2 || pHead->sver == 1) && !walValidateChecksum(pHead)) {
+    if ((pHead->sver >= 1) && !walValidateChecksum(pHead)) {
       wError("vgId:%d, file:%s, wal whole cksum is messed up, hver:%" PRIu64 " len:%d offset:%" PRId64, pWal->vgId, name,
              pHead->version, pHead->len, offset);
       code = walSkipCorruptedRecord(pWal, pHead, tfd, &offset);
@@ -517,6 +517,7 @@ static int32_t walRestoreWalFile(SWal *pWal, void *pVnode, FWalWrite writeFp, ch
     if (0 != walSMemRowCheck(pHead)) {
       wError("vgId:%d, restore wal, fileId:%" PRId64 " hver:%" PRIu64 " wver:%" PRIu64 " len:%d offset:%" PRId64,
              pWal->vgId, fileId, pHead->version, pWal->version, pHead->len, offset);
+      return TAOS_SYSTEM_ERROR(errno);
     }
     (*writeFp)(pVnode, pHead, TAOS_QTYPE_WAL, NULL);
   }
