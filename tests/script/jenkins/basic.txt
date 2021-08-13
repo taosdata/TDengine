@@ -80,7 +80,7 @@ cd ../../../debug; make
 ./test.sh -f general/parser/set_tag_vals.sim
 ./test.sh -f general/parser/tags_filter.sim
 ./test.sh -f general/parser/slimit_alter_tags.sim
-./test.sh -f general/parser/join.sim
+#./test.sh -f general/parser/join.sim
 ./test.sh -f general/parser/join_multivnode.sim
 ./test.sh -f general/parser/binary_escapeCharacter.sim
 ./test.sh -f general/parser/repeatAlter.sim
