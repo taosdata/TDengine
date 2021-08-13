@@ -25,116 +25,101 @@ class TDTestCase:
 
     def tb_all_query(self, num, sql="tb_all", where=""):
         tdSql.query(
-            f"select distinct(ts2) from {sql} {where}")
+            f"select distinct ts2 from {sql} {where}")
         tdSql.checkRows(num)
         tdSql.query(
-            f"select distinct(cint) from {sql} {where}")
+            f"select distinct cint from {sql} {where}")
         tdSql.checkRows(num)
         tdSql.query(
-            f"select distinct(cbigint) from {sql} {where}")
+            f"select distinct cbigint from {sql} {where}")
         tdSql.checkRows(num)
         tdSql.query(
-            f"select distinct(csmallint) from {sql} {where}")
+            f"select distinct csmallint from {sql} {where}")
         tdSql.checkRows(num)
         tdSql.query(
-            f"select distinct(ctinyint) from {sql} {where}")
+            f"select distinct ctinyint from {sql} {where}")
         tdSql.checkRows(num)
         tdSql.query(
-            f"select distinct(cfloat) from {sql} {where}")
+            f"select distinct cfloat from {sql} {where}")
         tdSql.checkRows(num)
         tdSql.query(
-            f"select distinct(cdouble) from {sql} {where}")
+            f"select distinct cdouble from {sql} {where}")
         tdSql.checkRows(num)
         tdSql.query(
-            f"select distinct(cbool) from {sql} {where}")
+            f"select distinct cbool from {sql} {where}")
         if num < 2:
             tdSql.checkRows(num)
         else:
             tdSql.checkRows(2)
         tdSql.query(
-            f"select distinct(cbinary) from {sql} {where}")
+            f"select distinct cbinary from {sql} {where}")
         tdSql.checkRows(num)
         tdSql.query(
-            f"select distinct(cnchar) from {sql} {where}")
+            f"select distinct cnchar from {sql} {where}")
         tdSql.checkRows(num)
 
         tdSql.query(
-            f"select distinct(ts2) as a from {sql} {where}")
+            f"select distinct ts2 as a from {sql} {where}")
         tdSql.checkRows(num)
         tdSql.query(
-            f"select distinct(cint) as a from {sql} {where}")
+            f"select distinct cint as a from {sql} {where}")
         tdSql.checkRows(num)
         tdSql.query(
-            f"select distinct(cbigint) as a from {sql} {where}")
+            f"select distinct cbigint as a from {sql} {where}")
         tdSql.checkRows(num)
         tdSql.query(
-            f"select distinct(csmallint) as a from {sql} {where}")
+            f"select distinct csmallint as a from {sql} {where}")
         tdSql.checkRows(num)
         tdSql.query(
-            f"select distinct(ctinyint) as a from {sql} {where}")
+            f"select distinct ctinyint as a from {sql} {where}")
         tdSql.checkRows(num)
         tdSql.query(
-            f"select distinct(cfloat) as a from {sql} {where}")
+            f"select distinct cfloat as a from {sql} {where}")
         tdSql.checkRows(num)
         tdSql.query(
-            f"select distinct(cdouble) as a from {sql} {where}")
+            f"select distinct cdouble  as a from {sql} {where}")
         tdSql.checkRows(num)
         tdSql.query(
-            f"select distinct(cbool) as a from {sql} {where}")
+            f"select distinct cbool as a from {sql} {where}")
         if num < 2:
             tdSql.checkRows(num)
         else:
             tdSql.checkRows(2)
         tdSql.query(
-            f"select distinct(cbinary) as a from {sql} {where}")
+            f"select distinct cbinary as a from {sql} {where}")
         tdSql.checkRows(num)
         tdSql.query(
-            f"select distinct(cnchar) as a from {sql} {where}")
+            f"select distinct cnchar as a from {sql} {where}")
         tdSql.checkRows(num)
 
 
     def tb_all_query_sub(self, num, sql="tb_all", where="",colName = "c1"):
         tdSql.query(
-            f"select distinct({colName}) from {sql} {where}")
+            f"select distinct {colName} from {sql} {where}")
         tdSql.checkRows(num)
     
     def errorCheck(self, sql='tb_all'):
-        tdSql.error(f"select distinct() from {sql}")
         tdSql.error(f"select distinct from {sql}")
-        tdSql.error(f"distinct ts2 from {sql}")
-        tdSql.error(f"distinct(ts2) from {sql}")      
+        tdSql.error(f"distinct ts2 from {sql}")     
         tdSql.error(f"distinct c1 from")
-        tdSql.error(f"distinct(c1) from")
-        tdSql.error(f"select distinct(ts2), avg(cint) from {sql}")
         tdSql.error(f"select distinct ts2, avg(cint) from {sql}")
 
         ## the following line is going to core dump 
-        #tdSql.error(f"select avg(cint), distinct(ts2)  from {sql}")
         #tdSql.error(f"select avg(cint), distinct ts2  from {sql}")
 
-        tdSql.error(f"select distinct(ts2), cint from {sql}")
-        tdSql.error(f"select distinct ts2, cint from {sql}")
-        tdSql.error(f"select distinct(ts2) from {sql} group by cint")
         tdSql.error(f"select distinct ts2 from {sql} group by cint")
-        tdSql.error(f"select distinct(ts2) from {sql} intervasl(1s)")
         tdSql.error(f"select distinct ts2 from {sql} interval(1s)")
-        tdSql.error(f"select distinct(ts2) from {sql} slimit 1 soffset 1")
         tdSql.error(f"select distinct ts2 from {sql} slimit 1 soffset 1")
-        tdSql.error(f"select distinct(ts2) from {sql} slimit 1")
         tdSql.error(f"select distinct ts2 from {sql} slimit 1")
 
         ##order by is not supported but not being prohibited
-        #tdSql.error(f"select distinct(ts2) from {sql} order by desc")
         #tdSql.error(f"select distinct ts2 from {sql} order by desc")
-        #tdSql.error(f"select distinct(ts2) from {sql} order by asc")
         #tdSql.error(f"select distinct ts2 from {sql} order by asc")
 
         ##distinct should not use on first ts, but it can be applied
-        #tdSql.error(f"select distinct(ts) from {sql}")
         #tdSql.error(f"select distinct ts from {sql}")
 
         ##distinct should not be used in inner query, but error did not occur
-        # tdSql.error(f"select distinct(ts2) from (select distinct ts2 from {sql})")
         # tdSql.error(f"select distinct ts2 from (select distinct ts2 from {sql})")
 
 
@@ -208,7 +193,7 @@ class TDTestCase:
         tdSql.prepare()
 
         tdLog.notice(
-            "==============phase1 distinct(col1) with no values==========")
+            "==============phase1 distinct col1 with no values==========")
         tdSql.execute("create stable if not exists stb_all (ts timestamp, ts2 timestamp, cint int, cbigint bigint, csmallint smallint, ctinyint tinyint,cfloat float, cdouble double, cbool bool, cbinary binary(32), cnchar nchar(32)) tags(tint int)")    
         tdSql.execute(
             "create table if not exists tb_all using stb_all tags(1)")
@@ -218,7 +203,7 @@ class TDTestCase:
             "==============phase1 finished ==========\n\n\n")
 
         tdLog.notice(
-            "==============phase2 distinct(col1) all values are null==========")
+            "==============phase2 distinct col1 all values are null==========")
         tdSql.execute(
             "insert into tb_all values(now,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL)")
         tdSql.execute(
