@@ -5016,6 +5016,9 @@ static SSDataBlock* doBlockInfoScan(void* param, bool* newgroup) {
   tableBlockDist.numOfTables     = (int32_t)pOperator->pRuntimeEnv->tableqinfoGroupInfo.numOfTables;
 
   int32_t numRowSteps = tsMaxRowsInFileBlock / TSDB_BLOCK_DIST_STEP_ROWS;
+  if (tsMaxRowsInFileBlock % TSDB_BLOCK_DIST_STEP_ROWS != 0) {
+    ++numRowSteps;
+  }
   tableBlockDist.dataBlockInfos  = taosArrayInit(numRowSteps, sizeof(SFileBlockInfo));
   taosArraySetSize(tableBlockDist.dataBlockInfos, numRowSteps);
   tableBlockDist.maxRows = INT_MIN;
