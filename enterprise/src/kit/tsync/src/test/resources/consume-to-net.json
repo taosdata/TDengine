@@ -14,7 +14,8 @@
     "partitions": [
       "1..10"
     ],
-    "threads": 10
+    "threads": 10,
+    "startOffset": 1628765329000005
   },
   "destination": {
     "net": {

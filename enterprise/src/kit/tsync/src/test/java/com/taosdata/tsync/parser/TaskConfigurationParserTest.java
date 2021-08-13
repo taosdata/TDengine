@@ -34,6 +34,8 @@ public class TaskConfigurationParserTest {
         Assert.assertEquals(1000, partitions[999]);
 
         Assert.assertEquals(10, configuration.getThreads());
+
+        Assert.assertEquals(1628747171000000L, configuration.getStartOffset());
     }
 
     @Before

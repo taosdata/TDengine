@@ -2,6 +2,7 @@ package com.taosdata.tsync.service;
 
 import com.taosdata.jdbc.TSDBDriver;
 import com.taosdata.tsync.entity.ConsumerRecord;
+import com.taosdata.tsync.exceptions.TQueueException;
 import com.taosdata.tsync.tqueue.TQueueConsumer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -24,6 +25,7 @@ public class ConsumeToTDengineRunnableTask implements Runnable, Countable {
     private TQueueConsumer consumer;
     private Connection taosdConnection;
     private int pollingInterval;
+    private long startOffset;
 
     @Override
     public void run() {
@@ -33,6 +35,14 @@ public class ConsumeToTDengineRunnableTask implements Runnable, Countable {
         } catch (SQLException e) {
             e.printStackTrace();
         }
+
+        partitionsToWrite.forEach(partition -> {
+            try {
+                consumer.assign(topic, partition, startOffset);
+            } catch (TQueueException e) {
+                e.printStackTrace();
+            }
+        });
 
         while (!Thread.currentThread().isInterrupted()) {
             try {
@@ -99,5 +109,7 @@ public class ConsumeToTDengineRunnableTask implements Runnable, Countable {
         this.pollingInterval = pollingInterval;
     }
 
-
+    public void setStartOffset(long startOffset) {
+        this.startOffset = startOffset;
+    }
 }

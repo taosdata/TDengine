@@ -14,6 +14,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.stream.IntStream;
 
 public class ConsumeToNetRunnableTask implements Runnable, Countable, Stoppable {
 
@@ -24,7 +25,7 @@ public class ConsumeToNetRunnableTask implements Runnable, Countable, Stoppable 
     private String topic;
     private int[] partitionsToWrite;
     private int pollingInterval;
-
+    private long startOffset;
     private String host;
     private int port;
 
@@ -43,6 +44,14 @@ public class ConsumeToNetRunnableTask implements Runnable, Countable, Stoppable 
     @Override
     public void run() {
         logger.info("consume topic:" + topic + ", partitions: " + Arrays.toString(partitionsToWrite) + " to net [" + host + ":" + port + "]");
+        IntStream.of(partitionsToWrite).forEach(partition -> {
+            try {
+                consumer.assign(topic, partition, startOffset);
+            } catch (TQueueException e) {
+                e.printStackTrace();
+            }
+        });
+
         try {
             Socket socket = new Socket(host, port);
             while (!isClosed && !Thread.currentThread().isInterrupted()) {
@@ -118,4 +127,7 @@ public class ConsumeToNetRunnableTask implements Runnable, Countable, Stoppable 
         this.port = port;
     }
 
+    public void setStartOffset(long startOffset) {
+        this.startOffset = startOffset;
+    }
 }

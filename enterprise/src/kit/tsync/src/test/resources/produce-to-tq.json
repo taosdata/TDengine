@@ -17,35 +17,41 @@
     "threads": 10
   },
   "message": {
-    "total": 20,
-    "batchTables": 5,
-    "batchValues": 2,
+    "total": 10000000,
+    "batchTables": 10,
+    "batchValues": 1,
     "schema": {
-      "startTime": "2020-01-01 00:00:00.000",
+      "startTime":"2021-01-02 12:00:00.000",
       "database": {
-        "name": "test",
+        "name": "td_db_1",
         "precision": "ms"
       },
       "stable": {
         "name": "weather",
-        "tables": 10,
+        "tables": 1000000,
         "columns": [
-          {
-            "name": "ts",
-            "type": "timestamp"
-          },
-          {
-            "name": "f1",
-            "type": "nchar",
-            "length": 10
-          }
+          {"name": "ts", "type": "timestamp"},
+          {"name": "c1", "type": "bool"},
+          {"name": "c2", "type": "tinyint"},
+          {"name": "c3", "type": "smallint"},
+          {"name": "c4", "type": "int"},
+          {"name": "c5", "type": "bigint"},
+          {"name": "c6", "type": "float"},
+          {"name": "c7", "type": "double"},
+          {"name": "c8", "type": "binary", "length":32},
+          {"name": "c9", "type": "nchar",  "length":8},
+          {"name": "c10", "type": "timestamp"}
         ],
         "tags": [
-          {
-            "name": "loc",
-            "type": "binary",
-            "length": 5
-          }
+          {"name": "t1", "type": "bool"},
+          {"name": "t2", "type": "tinyint"},
+          {"name": "t3", "type": "smallint"},
+          {"name": "t4", "type": "int"},
+          {"name": "t5", "type": "bigint"},
+          {"name": "t6", "type": "float"},
+          {"name": "t7", "type": "double"},
+          {"name": "t8", "type": "binary", "length":32},
+          {"name": "t9", "type": "nchar",  "length":8}
         ]
       }
     }

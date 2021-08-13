@@ -46,4 +46,9 @@ public class ConsumeToNetRunnableTaskFactory {
         instance.setPort(port);
         return this;
     }
+
+    public ConsumeToNetRunnableTaskFactory setStartOffset(long startOffset) {
+        instance.setStartOffset(startOffset);
+        return this;
+    }
 }

@@ -56,6 +56,7 @@ public class ConsumeToNetJobServiceImpl extends AbstractRunnableJobService {
             logger.error(errorMsg);
             throw new TsyncException(errorMsg);
         }
+        long startOffset = taskConfiguration.getStartOffset();
 
         // 3. polling interval
         StrategyConfiguration strategy = (StrategyConfiguration) configuration.findFirst(ConfigurationType.STRATEGY);
@@ -80,6 +81,7 @@ public class ConsumeToNetJobServiceImpl extends AbstractRunnableJobService {
                     .setPollingInterval(pollingInterval)
                     .setHost(host)
                     .setPort(port)
+                    .setStartOffset(startOffset)
                     .build();
         }).collect(Collectors.toList());
 

@@ -5,12 +5,15 @@ import com.taosdata.tsync.enums.ConfigurationType;
 
 public class TaskConfiguration extends Configuration {
     public static final int DEFAULT_THREADS = 1;
+    public static final long DEFAULT_START_OFFSET = 0L;
+
     public static final int MAX_PARTITION_INDEX = 1000;
     public static final int MIN_PARTITION_INDEX = 1;
 
     private int threads;
     private String topic;
     private int[] partitions;
+    private long startOffset;
 
     public TaskConfiguration() {
         super(ConfigurationType.TASK);
@@ -40,5 +43,13 @@ public class TaskConfiguration extends Configuration {
 
     public void setPartitions(int[] partitions) {
         this.partitions = partitions;
+    }
+
+    public long getStartOffset() {
+        return startOffset;
+    }
+
+    public void setStartOffset(long startOffset) {
+        this.startOffset = startOffset;
     }
 }

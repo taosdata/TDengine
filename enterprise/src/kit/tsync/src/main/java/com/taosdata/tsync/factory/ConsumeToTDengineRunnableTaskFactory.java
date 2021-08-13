@@ -43,4 +43,8 @@ public class ConsumeToTDengineRunnableTaskFactory {
         return this;
     }
 
+    public ConsumeToTDengineRunnableTaskFactory setStartOffset(long startOffset) {
+        instance.setStartOffset(startOffset);
+        return this;
+    }
 }

@@ -131,7 +131,7 @@ public class TQueueConsumer extends TQueueBase {
      * @return
      * @throws TQueueException
      */
-    private long assign(String topic, int partition, long offset) throws TQueueException {
+    public long assign(String topic, int partition, long offset) throws TQueueException {
         int hashCode = TopicPartition.hashCode(topic, partition);
         // return current offset if topicPartition already assigned
         if (hashCode == TopicPartition.hashCode(this.topic, this.partition))
