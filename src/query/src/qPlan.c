@@ -566,10 +566,18 @@ SArray* createExecOperatorPlan(SQueryAttr* pQueryAttr) {
     }
   } else if (pQueryAttr->interval.interval > 0) {
     if (pQueryAttr->stableQuery) {
-      op = OP_MultiTableTimeInterval;
+      if (pQueryAttr->pointInterpQuery) {
+        op = OP_AllMultiTableTimeInterval;
+      } else {
+        op = OP_MultiTableTimeInterval;
+      }
       taosArrayPush(plan, &op);
-    } else {
-      op = OP_TimeWindow;
+    } else {      
+      if (pQueryAttr->pointInterpQuery) {
+        op = OP_AllTimeWindow;
+      } else {
+        op = OP_TimeWindow;
+      }
       taosArrayPush(plan, &op);
 
       if (pQueryAttr->pExpr2 != NULL) {
@@ -577,7 +585,7 @@ SArray* createExecOperatorPlan(SQueryAttr* pQueryAttr) {
         taosArrayPush(plan, &op);
       }
 
-      if (pQueryAttr->fillType != TSDB_FILL_NONE && (!pQueryAttr->pointInterpQuery)) {
+      if (pQueryAttr->fillType != TSDB_FILL_NONE) {
         op = OP_Fill;
         taosArrayPush(plan, &op);
       }

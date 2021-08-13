@@ -953,6 +953,8 @@ TDengine支持针对数据的聚合查询。提供支持的聚合和选择函数
 
 ### 选择函数
 
+在使用所有的选择函数的时候，可以同时指定输出 ts 列或标签列（包括 tbname），这样就可以方便地知道被选出的值是源于哪个数据行的。
+
 - **MIN**
     ```mysql
     SELECT MIN(field_name) FROM {tb_name | stb_name} [WHERE clause];
