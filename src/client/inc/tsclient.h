@@ -447,7 +447,7 @@ void tscSetResRawPtrRv(SSqlRes* pRes, SQueryInfo* pQueryInfo, SSDataBlock* pBloc
 void handleDownstreamOperator(SSqlObj** pSqlList, int32_t numOfUpstream, SQueryInfo* px, SSqlObj* pParent);
 void destroyTableNameList(SInsertStatementParam* pInsertParam);
 
-void tscResetSqlCmd(SSqlCmd *pCmd, bool removeMeta);
+void tscResetSqlCmd(SSqlCmd *pCmd, bool removeMeta, uint64_t id);
 
 /**
  * free query result of the sql object

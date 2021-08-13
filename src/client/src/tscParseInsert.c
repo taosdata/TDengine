@@ -1595,7 +1595,7 @@ int tsParseSql(SSqlObj *pSql, bool initial) {
     if (pSql->parseRetry < 1 && (ret == TSDB_CODE_TSC_SQL_SYNTAX_ERROR || ret == TSDB_CODE_TSC_INVALID_OPERATION)) {
       tscDebug("0x%"PRIx64 " parse insert sql statement failed, code:%s, clear meta cache and retry ", pSql->self, tstrerror(ret));
 
-      tscResetSqlCmd(pCmd, true);
+      tscResetSqlCmd(pCmd, true, pSql->self);
       pSql->parseRetry++;
 
       if ((ret = tsInsertInitialCheck(pSql)) == TSDB_CODE_SUCCESS) {
@@ -1612,7 +1612,7 @@ int tsParseSql(SSqlObj *pSql, bool initial) {
     if (ret == TSDB_CODE_TSC_INVALID_OPERATION && pSql->parseRetry < 1 && sqlInfo.type == TSDB_SQL_SELECT) {
       tscDebug("0x%"PRIx64 " parse query sql statement failed, code:%s, clear meta cache and retry ", pSql->self, tstrerror(ret));
 
-      tscResetSqlCmd(pCmd, true);
+      tscResetSqlCmd(pCmd, true, pSql->self);
       pSql->parseRetry++;
 
       ret = tscValidateSqlInfo(pSql, &sqlInfo);

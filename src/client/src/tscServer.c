@@ -525,6 +525,7 @@ static void doProcessMsgFromServer(SSchedMsg* pSchedMsg) {
 }
 
 void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcEpSet *pEpSet) {
+  int64_t st = taosGetTimestampUs();
   SSchedMsg schedMsg = {0};
 
   schedMsg.fp = doProcessMsgFromServer;
@@ -543,6 +544,11 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcEpSet *pEpSet) {
   schedMsg.msg = NULL;
 
   taosScheduleTask(tscQhandle, &schedMsg);
+
+  int64_t et = taosGetTimestampUs();
+  if (et - st > 100) {
+    tscDebug("add message to task queue, elapsed time:%"PRId64, et - st);
+  }
 }
 
 int doBuildAndSendMsg(SSqlObj *pSql) {
@@ -897,15 +903,15 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   }
 
   SQueryInfo *pQueryInfo = tscGetQueryInfo(pCmd);
+  STableMetaInfo *pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
+  STableMeta * pTableMeta = pTableMetaInfo->pTableMeta;
 
   SQueryAttr query = {{0}};
   tscCreateQueryFromQueryInfo(pQueryInfo, &query, pSql);
+  query.vgId = pTableMeta->vgId;
 
   SArray* tableScanOperator = createTableScanPlan(&query);
   SArray* queryOperator = createExecOperatorPlan(&query);
-
-  STableMetaInfo *pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
-  STableMeta * pTableMeta = pTableMetaInfo->pTableMeta;
 
   SQueryTableMsg *pQueryMsg = (SQueryTableMsg *)pCmd->payload;
   tstrncpy(pQueryMsg->version, version, tListLen(pQueryMsg->version));
@@ -2269,6 +2275,10 @@ int tscProcessMultiTableMetaRsp(SSqlObj *pSql) {
     pMsg = buf;
   }
 
+  if (pParentCmd->pTableMetaMap == NULL) {
+    pParentCmd->pTableMetaMap = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);
+  }
+
   for (int32_t i = 0; i < pMultiMeta->numOfTables; i++) {
     STableMetaMsg *pMetaMsg = (STableMetaMsg *)pMsg;
     int32_t code = tableMetaMsgConvert(pMetaMsg);
@@ -2605,7 +2615,7 @@ int tscProcessDropDbRsp(SSqlObj *pSql) {
 
 int tscProcessDropTableRsp(SSqlObj *pSql) {
   STableMetaInfo *pTableMetaInfo = tscGetTableMetaInfoFromCmd(&pSql->cmd, 0);
-  tscRemoveTableMetaBuf(pTableMetaInfo, pSql->self);
+  tscRemoveCachedTableMeta(pTableMetaInfo, pSql->self);
   tfree(pTableMetaInfo->pTableMeta);
   return 0;
 }
@@ -2990,13 +3000,11 @@ int tscRenewTableMeta(SSqlObj *pSql, int32_t tableIndex) {
              tscGetNumOfTags(pTableMeta), tscGetNumOfColumns(pTableMeta), pTableMeta->id.uid);
   }
 
+
   // remove stored tableMeta info in hash table
-  tscRemoveTableMetaBuf(pTableMetaInfo, pSql->self);
+  tscResetSqlCmd(pCmd, true, pSql->self);
 
-  pCmd->pTableMetaMap = tscCleanupTableMetaMap(pCmd->pTableMetaMap);
-  pCmd->pTableMetaMap = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);
-
-  SArray* pNameList = taosArrayInit(1, POINTER_BYTES);
+  SArray* pNameList  = taosArrayInit(1, POINTER_BYTES);
   SArray* vgroupList = taosArrayInit(1, POINTER_BYTES);
 
   char* n = strdup(name);
