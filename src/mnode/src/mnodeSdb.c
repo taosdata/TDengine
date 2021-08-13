@@ -104,7 +104,10 @@ typedef struct {
 } SSdbWorkerPool;
 
 int32_t tsSdbRid;
+
 extern void *     tsMnodeTmr;
+extern int32_t tsMnodeCTableCacheMBSize;
+
 static void *     tsSdbTmr;
 static SSdbMgmt   tsSdbMgmt = {0};
 static taos_qset  tsSdbWQset;
@@ -910,6 +913,15 @@ int64_t sdbOpenTable(SSdbTableDesc *pDesc) {
     .afterLoadFp  = pDesc->afterLoadFp,
     .userData     = pTable,
   };
+
+  if (pDesc->id == SDB_TABLE_CTABLE && options.tableType == SDB_TABLE_CACHE_TABLE) {
+    if (tsMnodeCTableCacheMBSize == 0) {
+      options.tableType = SDB_TABLE_HASH_TABLE;
+    } else {
+      options.cacheLimitMBSize = tsMnodeCTableCacheMBSize;
+    }
+  }
+
   pTable->iHandle = mnodeSdbTableInit(options);
 
   tsSdbMgmt.numOfTables++;

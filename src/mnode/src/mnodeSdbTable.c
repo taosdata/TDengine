@@ -174,7 +174,7 @@ static mnodeSdbCacheTable* cacheInit(mnodeSdbTable* pTable, mnodeSdbTableOption 
       .factor = 1.2,
       .hotPercent = 30,
       .warmPercent = 30,
-      .limit = 1024 * 1024,
+      .limit = (size_t)(1024 * 1024) * options.cacheLimitMBSize,
     };
     pTable->pCache = cacheCreate(&opt);
     assert(pTable->pCache);

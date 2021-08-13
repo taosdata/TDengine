@@ -34,6 +34,8 @@ typedef struct mnodeSdbTableOption {
   mnodeSdbTableType tableType;
   void*             userData;
 
+  int32_t           cacheLimitMBSize;
+
   /* only used in SDB_TABLE_CACHE_TABLE */
   int       (*afterLoadFp)(void*,void* value, int32_t nBytes, void* pHead, void* pRet);
 
