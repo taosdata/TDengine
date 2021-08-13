@@ -2705,7 +2705,7 @@ static void destroyHelper(void* param) {
   free(param);
 }
 
-static bool loadBlockOfActiveTable(STsdbQueryHandle* pQueryHandle) {
+static bool  loadBlockOfActiveTable(STsdbQueryHandle* pQueryHandle) {
   if (pQueryHandle->checkFiles) {
     // check if the query range overlaps with the file data block
     bool exists = true;

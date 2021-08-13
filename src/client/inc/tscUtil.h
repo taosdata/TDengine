@@ -342,7 +342,7 @@ STableMeta* createSuperTableMeta(STableMetaMsg* pChild);
 uint32_t tscGetTableMetaSize(STableMeta* pTableMeta);
 CChildTableMeta* tscCreateChildMeta(STableMeta* pTableMeta);
 uint32_t tscGetTableMetaMaxSize();
-int32_t tscCreateTableMetaFromSTableMeta(STableMeta** pChild, const char* name, size_t *tableMetaCapacity);
+int32_t tscCreateTableMetaFromSTableMeta(STableMeta** ppChild, const char* name, size_t *tableMetaCapacity, STableMeta **ppStable);
 STableMeta* tscTableMetaDup(STableMeta* pTableMeta);
 SVgroupsInfo* tscVgroupsInfoDup(SVgroupsInfo* pVgroupsInfo);
 

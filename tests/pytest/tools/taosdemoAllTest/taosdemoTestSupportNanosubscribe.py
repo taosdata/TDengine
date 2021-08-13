@@ -103,7 +103,6 @@ class TDTestCase:
 
         os.system("cat subscribe_res0.txt* > all_subscribe_res0.txt")
         subTimes0 = self.subTimes("all_subscribe_res0.txt")
-        print("pass")
         self.assertCheck("all_subscribe_res0.txt",subTimes0 ,202)
 
         

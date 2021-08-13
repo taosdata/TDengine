@@ -206,7 +206,7 @@ TDengine 缺省的时间戳是毫秒精度，但通过在 CREATE DATABASE 时传
 
     显示当前数据库下的所有数据表信息。
 
-    说明：可在like中使用通配符进行名称的匹配，这一通配符字符串最长不能超过24字节。
+    说明：可在 like 中使用通配符进行名称的匹配，这一通配符字符串最长不能超过 20 字节。（ 从 2.1.6.1 版本开始，通配符字符串的长度放宽到了 100 字节，并可以通过 taos.cfg 中的 maxWildCardsLength 参数来配置这一长度限制。但不建议使用太长的通配符字符串，将有可能严重影响 LIKE 操作的执行性能。）
 
     通配符匹配：1）'%'（百分号）匹配0到任意个字符；2）'\_'下划线匹配单个任意字符。
 
@@ -433,6 +433,17 @@ INSERT INTO
     那么通过如下指令可以把这个文件中的数据写入子表中：  
     ```mysql
     INSERT INTO d1001 FILE '/tmp/csvfile.csv';
+    ```
+
+- **插入来自文件的数据记录，并自动建表**  
+    从 2.1.5.0 版本开始，支持在插入来自 CSV 文件的数据时，以超级表为模板来自动创建不存在的数据表。例如：  
+    ```mysql
+    INSERT INTO d21001 USING meters TAGS ('Beijing.Chaoyang', 2) FILE '/tmp/csvfile.csv';
+    ```
+    也可以在一条语句中向多个表以自动建表的方式插入记录。例如：  
+    ```mysql
+    INSERT INTO d21001 USING meters TAGS ('Beijing.Chaoyang', 2) FILE '/tmp/csvfile_21001.csv'
+                d21002 USING meters (groupId) TAGS (2) FILE '/tmp/csvfile_21002.csv';
     ```
 
 **历史记录写入**：可使用IMPORT或者INSERT命令，IMPORT的语法，功能与INSERT完全一样。
@@ -942,6 +953,8 @@ TDengine支持针对数据的聚合查询。提供支持的聚合和选择函数
 
 ### 选择函数
 
+在使用所有的选择函数的时候，可以同时指定输出 ts 列或标签列（包括 tbname），这样就可以方便地知道被选出的值是源于哪个数据行的。
+
 - **MIN**
     ```mysql
     SELECT MIN(field_name) FROM {tb_name | stb_name} [WHERE clause];
@@ -1213,6 +1226,37 @@ TDengine支持针对数据的聚合查询。提供支持的聚合和选择函数
     =======================
                 10.30000 |
     Query OK, 1 row(s) in set (0.001042s)
+    ```
+
+- **INTERP**
+    ```mysql
+    SELECT INTERP(field_name) FROM { tb_name | stb_name } WHERE ts='timestamp' [FILL ({ VALUE | PREV | NULL | LINEAR})];
+    ```
+    功能说明：返回表/超级表的指定时间截面、指定字段的记录。
+
+    返回结果数据类型：同应用的字段。
+
+    应用字段：所有字段。
+
+    适用于：**表、超级表**。
+
+    说明：（从 2.0.15.0 版本开始新增此函数）INTERP 必须指定时间断面，如果该时间断面不存在直接对应的数据，那么会根据 FILL 参数的设定进行插值。其中，条件语句里面可以附带更多的筛选条件，例如标签、tbname。
+
+    限制：INTERP 目前不支持 FILL(NEXT)。
+
+    示例：
+    ```mysql
+    taos> select interp(*) from meters where ts='2017-7-14 10:42:00.005' fill(prev);
+           interp(ts)        | interp(f1)  | interp(f2)  | interp(f3)  |
+    ====================================================================
+     2017-07-14 10:42:00.005 |           5 |           9 |           6 |
+    Query OK, 1 row(s) in set (0.002912s)
+    
+    taos> select interp(*) from meters where tbname in ('t1') and ts='2017-7-14 10:42:00.005' fill(prev);
+           interp(ts)        | interp(f1)  | interp(f2)  | interp(f3)  |
+    ====================================================================
+     2017-07-14 10:42:00.005 |           5 |           6 |           7 |
+    Query OK, 1 row(s) in set (0.002005s)
     ```
 
 ### 计算函数
