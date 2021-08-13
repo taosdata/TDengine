@@ -466,7 +466,7 @@ static STsdbQueryHandle* tsdbQueryTablesImpl(STsdbRepo* tsdb, STsdbQueryCond* pC
   STsdbMeta* pMeta = tsdbGetMeta(tsdb);
   assert(pMeta != NULL);
 
-  pQueryHandle->pDataCols = tdNewDataCols(pMeta->maxRowBytes, pMeta->maxCols, pQueryHandle->pTsdb->config.maxRowsPerFileBlock);
+  pQueryHandle->pDataCols = tdNewDataCols(pMeta->maxCols, pQueryHandle->pTsdb->config.maxRowsPerFileBlock);
   if (pQueryHandle->pDataCols == NULL) {
     tsdbError("%p failed to malloc buf for pDataCols, %"PRIu64, pQueryHandle, pQueryHandle->qId);
     terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
@@ -1234,7 +1234,6 @@ static int32_t doCopyRowsFromFileBlock(STsdbQueryHandle* pQueryHandle, int32_t c
 static void moveDataToFront(STsdbQueryHandle* pQueryHandle, int32_t numOfRows, int32_t numOfCols);
 static void doCheckGeneratedBlockRange(STsdbQueryHandle* pQueryHandle);
 static void copyAllRemainRowsFromFileBlock(STsdbQueryHandle* pQueryHandle, STableCheckInfo* pCheckInfo, SDataBlockInfo* pBlockInfo, int32_t endPos);
-static TSKEY extractFirstTraverseKey(STableCheckInfo* pCheckInfo, int32_t order, int32_t update);
 
 static int32_t handleDataMergeIfNeeded(STsdbQueryHandle* pQueryHandle, SBlock* pBlock, STableCheckInfo* pCheckInfo){
   SQueryFilePos* cur = &pQueryHandle->cur;
@@ -1244,7 +1243,6 @@ static int32_t handleDataMergeIfNeeded(STsdbQueryHandle* pQueryHandle, SBlock* p
   int32_t code = TSDB_CODE_SUCCESS;
 
   /*bool hasData = */ initTableMemIterator(pQueryHandle, pCheckInfo);
-
   assert(cur->pos >= 0 && cur->pos <= binfo.rows);
 
   key = extractFirstTraverseKey(pCheckInfo, pQueryHandle->order, pCfg->update);
@@ -1254,7 +1252,6 @@ static int32_t handleDataMergeIfNeeded(STsdbQueryHandle* pQueryHandle, SBlock* p
   } else {
     tsdbDebug("%p no data in mem, 0x%"PRIx64, pQueryHandle, pQueryHandle->qId);
   }
-
 
   if ((ASCENDING_TRAVERSE(pQueryHandle->order) && (key != TSKEY_INITIAL_VAL && key <= binfo.window.ekey)) ||
       (!ASCENDING_TRAVERSE(pQueryHandle->order) && (key != TSKEY_INITIAL_VAL && key >= binfo.window.skey))) {
@@ -1449,7 +1446,7 @@ static int doBinarySearchKey(char* pValue, int num, TSKEY key, int order) {
   return midPos;
 }
 
-int32_t doCopyRowsFromFileBlock(STsdbQueryHandle* pQueryHandle, int32_t capacity, int32_t numOfRows, int32_t start, int32_t end) {
+static int32_t doCopyRowsFromFileBlock(STsdbQueryHandle* pQueryHandle, int32_t capacity, int32_t numOfRows, int32_t start, int32_t end) {
   char* pData = NULL;
   int32_t step = ASCENDING_TRAVERSE(pQueryHandle->order)? 1 : -1;
 
@@ -1484,7 +1481,7 @@ int32_t doCopyRowsFromFileBlock(STsdbQueryHandle* pQueryHandle, int32_t capacity
       pData = (char*)pColInfo->pData + (capacity - numOfRows - num) * pColInfo->info.bytes;
     }
 
-    if (pColInfo->info.colId == src->colId) {
+    if (!isAllRowsNull(src) && pColInfo->info.colId == src->colId) {
       if (pColInfo->info.type != TSDB_DATA_TYPE_BINARY && pColInfo->info.type != TSDB_DATA_TYPE_NCHAR) {
         memmove(pData, (char*)src->pData + bytes * start, bytes * num);
       } else {  // handle the var-string
@@ -2696,7 +2693,7 @@ static void destroyHelper(void* param) {
   free(param);
 }
 
-static bool loadBlockOfActiveTable(STsdbQueryHandle* pQueryHandle) {
+static bool  loadBlockOfActiveTable(STsdbQueryHandle* pQueryHandle) {
   if (pQueryHandle->checkFiles) {
     // check if the query range overlaps with the file data block
     bool exists = true;
@@ -2708,6 +2705,7 @@ static bool loadBlockOfActiveTable(STsdbQueryHandle* pQueryHandle) {
     }
 
     if (exists) {
+      tsdbRetrieveDataBlock((TsdbQueryHandleT*) pQueryHandle, NULL);
       if (pQueryHandle->currentLoadExternalRows && pQueryHandle->window.skey == pQueryHandle->window.ekey) {
         SColumnInfoData* pColInfo = taosArrayGet(pQueryHandle->pColumns, 0);
         assert(*(int64_t*)pColInfo->pData == pQueryHandle->window.skey);

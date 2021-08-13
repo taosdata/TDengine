@@ -61,6 +61,7 @@ typedef struct SJoinSupporter {
   uint64_t        uid;            // query table uid
   SArray*         colList;        // previous query information, no need to use this attribute, and the corresponding attribution
   SArray*         exprList;
+  SArray*         colCond;
   SFieldInfo      fieldsInfo;
   STagCond        tagCond;
   SGroupbyExpr    groupInfo;       // group by info
@@ -244,8 +245,9 @@ SCond* tsGetSTableQueryCond(STagCond* pCond, uint64_t uid);
 void   tsSetSTableQueryCond(STagCond* pTagCond, uint64_t uid, SBufferWriter* bw);
 
 int32_t tscTagCondCopy(STagCond* dest, const STagCond* src);
+int32_t tscColCondCopy(SArray** dest, const SArray* src, uint64_t uid, int16_t tidx);
 void tscTagCondRelease(STagCond* pCond);
-
+void tscColCondRelease(SArray** pCond);
 void tscGetSrcColumnInfo(SSrcColumnInfo* pColInfo, SQueryInfo* pQueryInfo);
 
 bool tscShouldBeFreed(SSqlObj* pSql);
@@ -340,10 +342,11 @@ STableMeta* createSuperTableMeta(STableMetaMsg* pChild);
 uint32_t tscGetTableMetaSize(STableMeta* pTableMeta);
 CChildTableMeta* tscCreateChildMeta(STableMeta* pTableMeta);
 uint32_t tscGetTableMetaMaxSize();
-int32_t tscCreateTableMetaFromSTableMeta(STableMeta* pChild, const char* name, void* buf);
+int32_t tscCreateTableMetaFromSTableMeta(STableMeta** ppChild, const char* name, size_t *tableMetaCapacity, STableMeta **ppStable);
 STableMeta* tscTableMetaDup(STableMeta* pTableMeta);
 SVgroupsInfo* tscVgroupsInfoDup(SVgroupsInfo* pVgroupsInfo);
 
+int32_t tscGetTagFilterSerializeLen(SQueryInfo* pQueryInfo);
 int32_t tscGetColFilterSerializeLen(SQueryInfo* pQueryInfo);
 int32_t tscCreateQueryFromQueryInfo(SQueryInfo* pQueryInfo, SQueryAttr* pQueryAttr, void* addr);
 void* createQInfoFromQueryNode(SQueryInfo* pQueryInfo, STableGroupInfo* pTableGroupInfo, SOperatorInfo* pOperator, char* sql, void* addr, int32_t stage, uint64_t qId);
@@ -354,6 +357,7 @@ char* strdup_throw(const char* str);
 
 bool vgroupInfoIdentical(SNewVgroupInfo *pExisted, SVgroupMsg* src);
 SNewVgroupInfo createNewVgroupInfo(SVgroupMsg *pVgroupMsg);
+STblCond* tsGetTableFilter(SArray* filters, uint64_t uid, int16_t idx);
 
 void tscRemoveTableMetaBuf(STableMetaInfo* pTableMetaInfo, uint64_t id);
 

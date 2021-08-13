@@ -25,7 +25,7 @@ sql create table $tb (ts timestamp, tbcol int)
   $x = 0
   while $x < $rowNum
     $ms = $x . m 
-    sql insert into $tb values (now + $ms , $x ) 
+    sql insert into $tb values (1626739200000 + $ms , $x ) 
     $x = $x + 1
   endw  
  
@@ -111,18 +111,18 @@ if $rows != 0 then
 endi
 
 print =============== step3
-sql select * from $tb where ts < now + 4m
+sql select * from $tb where ts < 1626739440001
 if $rows != 5 then 
   return -1
 endi
 
-sql select * from $tb where tbcol = 10 and ts < now + 4m
-print  select * from $tb where tbcol = 10 and ts < now + 4m
+sql select * from $tb where tbcol = 10 and ts < 1626739440001
+print  select * from $tb where tbcol = 10 and ts < 1626739440001
 if $rows != 0 then 
   return -1
 endi
 
-sql select * from $tb where tbcol = 4 and ts < now + 4m order by ts desc
+sql select * from $tb where tbcol = 4 and ts < 1626739440001 order by ts desc
 if $rows != 1 then 
   return -1
 endi
@@ -130,7 +130,7 @@ if $data01 != 4 then
   return -1
 endi
 
-sql select * from $tb where tbcol < 10  and ts < now + 4m order by ts desc
+sql select * from $tb where tbcol < 10  and ts < 1626739440001 order by ts desc
 if $rows != 5 then 
   return -1
 endi
@@ -138,7 +138,7 @@ if $data01 != 4 then
   return -1
 endi
 
-sql select * from $tb where tbcol < 10 and ts > now + 4m and ts < now + 5m order by ts desc
+sql select * from $tb where tbcol < 10 and ts > 1626739440001 and ts < 1626739500001 order by ts desc
 print $rows $data00 $data01
 if $rows != 1 then 
   return -1
@@ -183,27 +183,27 @@ sql select count(*) from $tb where tbcol < 10 and tbcol > 5 order by ts asc -x s
 step4:
 
 print =============== step5
-sql select count(*) from $tb where ts < now + 4m
+sql select count(*) from $tb where ts < 1626739440001
 if $data00 != 5 then 
   return -1
 endi
 
-#sql select count(*) from $tb where tbcol = 10 and ts < now + 4m
+#sql select count(*) from $tb where tbcol = 10 and ts < 1626739440001
 #if $data00 != 0 then 
 #  return -1
 #endi
 
-sql select count(*) from $tb where tbcol = 4 and ts < now + 4m
+sql select count(*) from $tb where tbcol = 4 and ts < 1626739440001
 if $data00 != 1 then 
   return -1
 endi
 
-sql select count(*) from $tb where tbcol < 10  and ts < now + 4m
+sql select count(*) from $tb where tbcol < 10  and ts < 1626739440001
 if $data00 != 5 then 
   return -1
 endi
 
-sql select count(*) from $tb where tbcol < 10 and ts > now + 4m and ts < now + 5m
+sql select count(*) from $tb where tbcol < 10 and ts > 1626739440001 and ts < 1626739500001
 if $data00 != 1 then 
   return -1
 endi

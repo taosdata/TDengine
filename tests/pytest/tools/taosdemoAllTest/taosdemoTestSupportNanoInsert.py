@@ -120,7 +120,7 @@ class TDTestCase:
         os.system("rm -rf tools/taosdemoAllTest/taosdemoTestSupportNano*.py.sql")
 
         # taosdemo test insert with command and parameter , detals show taosdemo --help
-        os.system("%staosdemo  -u root -P taosdata -p 6030  -a 1  -m pre -n 10 -T 20 -t 60 -o res.txt -y " % binPath)
+        os.system("%staosdemo  -u root -ptaosdata -P 6030  -a 1  -m pre -n 10 -T 20 -t 60 -o res.txt -y " % binPath)
         tdSql.query("select count(*) from test.meters")
         tdSql.checkData(0, 0, 600)
         # check taosdemo -s

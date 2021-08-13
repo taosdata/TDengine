@@ -19,6 +19,22 @@
 #include "tarray.h"
 #include "hash.h"
 
+int32_t setCompareBytes1(const void *pLeft, const void *pRight) {
+  return NULL != taosHashGet((SHashObj *)pRight, pLeft, 1) ? 1 : 0;    
+}
+
+int32_t setCompareBytes2(const void *pLeft, const void *pRight) {
+  return NULL != taosHashGet((SHashObj *)pRight, pLeft, 2) ? 1 : 0;    
+}
+
+int32_t setCompareBytes4(const void *pLeft, const void *pRight) {
+  return NULL != taosHashGet((SHashObj *)pRight, pLeft, 4) ? 1 : 0;    
+}
+
+int32_t setCompareBytes8(const void *pLeft, const void *pRight) {
+  return NULL != taosHashGet((SHashObj *)pRight, pLeft, 8) ? 1 : 0;    
+}
+
 int32_t compareInt32Val(const void *pLeft, const void *pRight) {
   int32_t left = GET_INT32_VAL(pLeft), right = GET_INT32_VAL(pRight);
   if (left > right) return 1;
@@ -48,21 +64,21 @@ int32_t compareInt8Val(const void *pLeft, const void *pRight) {
 }
 
 int32_t compareUint32Val(const void *pLeft, const void *pRight) {
-  int32_t left = GET_UINT32_VAL(pLeft), right = GET_UINT32_VAL(pRight);
+  uint32_t left = GET_UINT32_VAL(pLeft), right = GET_UINT32_VAL(pRight);
   if (left > right) return 1;
   if (left < right) return -1;
   return 0;
 }
 
 int32_t compareUint64Val(const void *pLeft, const void *pRight) {
-  int64_t left = GET_UINT64_VAL(pLeft), right = GET_UINT64_VAL(pRight);
+  uint64_t left = GET_UINT64_VAL(pLeft), right = GET_UINT64_VAL(pRight);
   if (left > right) return 1;
   if (left < right) return -1;
   return 0;
 }
 
 int32_t compareUint16Val(const void *pLeft, const void *pRight) {
-  int16_t left = GET_UINT16_VAL(pLeft), right = GET_UINT16_VAL(pRight);
+  uint16_t left = GET_UINT16_VAL(pLeft), right = GET_UINT16_VAL(pRight);
   if (left > right) return 1;
   if (left < right) return -1;
   return 0;
@@ -262,27 +278,28 @@ int WCSPatternMatch(const wchar_t *patterStr, const wchar_t *str, size_t size, c
   return (str[j] == 0 || j >= size) ? TSDB_PATTERN_MATCH : TSDB_PATTERN_NOMATCH;
 }
 
-static int32_t compareStrPatternComp(const void* pLeft, const void* pRight) {
+int32_t compareStrPatternComp(const void* pLeft, const void* pRight) {
   SPatternCompareInfo pInfo = {'%', '_'};
-  
-  char pattern[128] = {0};
+
+  assert(varDataLen(pRight) <= TSDB_MAX_FIELD_LEN);
+  char *pattern = calloc(varDataLen(pRight) + 1, sizeof(char));
   memcpy(pattern, varDataVal(pRight), varDataLen(pRight));
-  assert(varDataLen(pRight) < 128);
 
   size_t sz = varDataLen(pLeft);
-  char *buf = malloc(sz + 1); 
-  memcpy(buf, varDataVal(pLeft), sz); 
+  char *buf = malloc(sz + 1);
+  memcpy(buf, varDataVal(pLeft), sz);
   buf[sz] = 0;
 
   int32_t ret = patternMatch(pattern, buf, sz, &pInfo);
   free(buf);
+  free(pattern);
   return (ret == TSDB_PATTERN_MATCH) ? 0 : 1;
 }
 
 int32_t taosArrayCompareString(const void* a, const void* b) {
   const char* x = *(const char**)a;
   const char* y = *(const char**)b;
-  
+
   return compareLenPrefixedStr(x, y);
 }
 
@@ -290,25 +307,48 @@ int32_t taosArrayCompareString(const void* a, const void* b) {
 //  const SArray* arr = (const SArray*) pRight;
 //  return taosArraySearchString(arr, pLeft, taosArrayCompareString, TD_EQ) == NULL ? 0 : 1;
 //}
-static int32_t compareFindItemInSet(const void *pLeft, const void* pRight)  {
-  return NULL != taosHashGet((SHashObj *)pRight, varDataVal(pLeft), varDataLen(pLeft)) ? 1 : 0;    
+int32_t compareFindItemInSet(const void *pLeft, const void* pRight)  {
+  return NULL != taosHashGet((SHashObj *)pRight, varDataVal(pLeft), varDataLen(pLeft)) ? 1 : 0;
 }
 
-static int32_t compareWStrPatternComp(const void* pLeft, const void* pRight) {
+int32_t compareWStrPatternComp(const void* pLeft, const void* pRight) {
   SPatternCompareInfo pInfo = {'%', '_'};
 
-  wchar_t pattern[128] = {0};
-  assert(TSDB_PATTERN_STRING_MAX_LEN < 128);
+  assert(varDataLen(pRight) <= TSDB_MAX_FIELD_LEN * TSDB_NCHAR_SIZE);
+  wchar_t *pattern = calloc(varDataLen(pRight) + 1, sizeof(wchar_t));
 
   memcpy(pattern, varDataVal(pRight), varDataLen(pRight));
-  assert(varDataLen(pRight) < 128);
-  
+
   int32_t ret = WCSPatternMatch(pattern, varDataVal(pLeft), varDataLen(pLeft)/TSDB_NCHAR_SIZE, &pInfo);
+  free(pattern);
   return (ret == TSDB_PATTERN_MATCH) ? 0 : 1;
 }
 
 __compar_fn_t getComparFunc(int32_t type, int32_t optr) {
   __compar_fn_t comparFn = NULL;
+
+  if (optr == TSDB_RELATION_IN && (type != TSDB_DATA_TYPE_BINARY && type != TSDB_DATA_TYPE_NCHAR)) {
+    switch (type) {
+      case TSDB_DATA_TYPE_BOOL:
+      case TSDB_DATA_TYPE_TINYINT:  
+      case TSDB_DATA_TYPE_UTINYINT:  
+        return setCompareBytes1;
+      case TSDB_DATA_TYPE_SMALLINT:
+      case TSDB_DATA_TYPE_USMALLINT:
+        return setCompareBytes2;
+      case TSDB_DATA_TYPE_INT:
+      case TSDB_DATA_TYPE_UINT:
+      case TSDB_DATA_TYPE_FLOAT:        
+        return setCompareBytes4;
+      case TSDB_DATA_TYPE_BIGINT:        
+      case TSDB_DATA_TYPE_UBIGINT:        
+      case TSDB_DATA_TYPE_DOUBLE:        
+      case TSDB_DATA_TYPE_TIMESTAMP:        
+        return setCompareBytes8;
+      default:
+        assert(0);
+    }
+  }
   
   switch (type) {
     case TSDB_DATA_TYPE_BOOL:
@@ -334,6 +374,8 @@ __compar_fn_t getComparFunc(int32_t type, int32_t optr) {
     case TSDB_DATA_TYPE_NCHAR: {
       if (optr == TSDB_RELATION_LIKE) {
         comparFn = compareWStrPatternComp;
+      } else if (optr == TSDB_RELATION_IN) {
+        comparFn = compareFindItemInSet;
       } else {
         comparFn = compareLenPrefixedWStr;
       }
