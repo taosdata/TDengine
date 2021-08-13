@@ -25,6 +25,7 @@
 #include "tutil.h"
 #include "tlocale.h"
 #include "ttimezone.h"
+#include "tcompare.h"
 
 // TSDB
 bool tsdbForceKeepFile = false;
@@ -78,6 +79,7 @@ int32_t tsCompressMsgSize = -1;
 
 // client
 int32_t tsMaxSQLStringLen = TSDB_MAX_ALLOWED_SQL_LEN;
+int32_t tsMaxWildCardsLen = TSDB_PATTERN_STRING_MAX_LEN;
 int8_t  tsTscEnableRecordSql = 0;
 
 // the maximum number of results for projection query on super table that are returned from
@@ -987,6 +989,16 @@ static void doInitGlobalConfig(void) {
   cfg.unitType = TAOS_CFG_UTYPE_BYTE;
   taosInitConfigOption(cfg);
 
+  cfg.option = "maxWildCardsLength";
+  cfg.ptr = &tsMaxWildCardsLen;
+  cfg.valType = TAOS_CFG_VTYPE_INT32;
+  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_CLIENT | TSDB_CFG_CTYPE_B_SHOW;
+  cfg.minValue = 0;
+  cfg.maxValue = TSDB_MAX_FIELD_LEN;
+  cfg.ptrLength = 0;
+  cfg.unitType = TAOS_CFG_UTYPE_BYTE;
+  taosInitConfigOption(cfg);
+
   cfg.option = "maxNumOfOrderedRes";
   cfg.ptr = &tsMaxNumOfOrderedResults;
   cfg.valType = TAOS_CFG_VTYPE_INT32;
@@ -1534,6 +1546,7 @@ static void doInitGlobalConfig(void) {
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosInitConfigOption(cfg);
 
+  assert(tsGlobalConfigNum <= TSDB_CFG_MAX_NUM);
 #ifdef TD_TSZ
   // lossy compress
   cfg.option = "lossyColumns";
