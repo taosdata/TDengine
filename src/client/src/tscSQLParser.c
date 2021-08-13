@@ -8647,7 +8647,7 @@ static STableMeta* extractTempTableMetaFromSubquery(SQueryInfo* pUpstream) {
 
     n += 1;
   }
-
+  info->numOfColumns = n;
   return meta;
 }
 
