@@ -164,6 +164,10 @@ void taosKillSystem() {
   exit(0);
 }
 
+int32_t taosGetCpuCores() {
+  return sysconf(_SC_NPROCESSORS_ONLN);
+}
+
 void taosGetSystemInfo() {
   // taosGetProcInfos();
 
@@ -185,9 +189,22 @@ void taosGetSystemInfo() {
   taosGetSystemLocale();
 }
 
+bool taosReadProcIO(int64_t *rchars, int64_t *wchars) {
+  if (rchars) *rchars = 0;
+  if (wchars) *wchars = 0;
+  return true;
+}
+
 bool taosGetProcIO(float *readKB, float *writeKB) {
   *readKB = 0;
   *writeKB = 0;
+  return true;
+}
+
+bool taosGetCardInfo(int64_t *bytes, int64_t *rbytes, int64_t *tbytes) {
+  if (bytes) *bytes = 0;
+  if (rbytes) *rbytes = 0;
+  if (tbytes) *tbytes = 0;
   return true;
 }
 
