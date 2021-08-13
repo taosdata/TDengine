@@ -32,7 +32,7 @@ typedef enum {
 
 typedef struct {
   int8_t   msgType;
-  int8_t   sver;
+  int8_t   sver;  // sver 2 for WAL SDataRow/SMemRow compatibility
   int8_t   reserved[2];
   int32_t  len;
   uint64_t version;
