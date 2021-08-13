@@ -1113,7 +1113,7 @@ void taoscQSort(void** pCols, SSchema* pSchema, int32_t numOfCols, int32_t numOf
 
   for(int32_t i = 0; i < numOfRows; ++i) {
     char* dest = buf + size * i;
-    memcpy(dest, pCols[index] + bytes * i, bytes);
+    memcpy(dest, ((char*) pCols[index]) + bytes * i, bytes);
     *(int32_t*)(dest+bytes) = i;
   }
 
@@ -1128,7 +1128,7 @@ void taoscQSort(void** pCols, SSchema* pSchema, int32_t numOfCols, int32_t numOf
     if (i == index) {
       for(int32_t j = 0; j < numOfRows; ++j){
         char* src  = buf + (j * size);
-        char* dest = pCols[i] + (j * bytes1);
+        char* dest = ((char*)pCols[i]) + (j * bytes1);
         memcpy(dest, src, bytes1);
       }
     } else {
@@ -1144,7 +1144,7 @@ void taoscQSort(void** pCols, SSchema* pSchema, int32_t numOfCols, int32_t numOf
       memcpy(p, pCols[i], bytes1 * numOfRows);
 
       for(int32_t j = 0; j < numOfRows; ++j){
-        char* dest = pCols[i] + bytes1 * j;
+        char* dest = ((char*)pCols[i]) + bytes1 * j;
 
         int32_t newPos = *(int32_t*)(buf + (j * size) + bytes);
         char* src = p + (newPos * bytes1);
