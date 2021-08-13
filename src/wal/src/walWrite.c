@@ -366,7 +366,7 @@ static int walSMemRowCheck(SWalHead *pHead) {
     if (pWalHead == NULL) {
       return TSDB_CODE_WAL_OUT_OF_MEMORY;
     }
-    // len should be updated
+
     memcpy(pWalHead, pHead, sizeof(SWalHead) + sizeof(SSubmitMsg));
 
     SSubmitMsg *pDestMsg = (SSubmitMsg *)pWalHead->cont;
@@ -386,7 +386,7 @@ static int walSMemRowCheck(SWalHead *pHead) {
 
     memcpy(pHead, pWalHead, sizeof(SWalHead) + pWalHead->len);
     tfree(pWalHead);
-    }
+  }
   return 0;
 }
 
