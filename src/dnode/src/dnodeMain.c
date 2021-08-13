@@ -166,7 +166,6 @@ int32_t dnodeInitSystem() {
   taosInitGlobalCfg();
   taosReadGlobalLogCfg();
   taosSetCoreDump();
-  taosInitNotes();
   dnodeInitTmr();
 
   if (dnodeCreateDir(tsLogDir) < 0) {
@@ -187,6 +186,8 @@ int32_t dnodeInitSystem() {
   }
 
   dInfo("start to initialize TDengine");
+
+  taosInitNotes();
 
   if (dnodeInitComponents() != 0) {
     return -1;
