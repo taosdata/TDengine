@@ -714,6 +714,12 @@ class TDTestCase:
                 tdSql.execute(f"insert into db.t{i} values ({nowtime-j*10}, {1000-j}, {round(random.random()*j,3)})")
             tdSql.execute(f"insert into db.t{i} (ts) values ({nowtime-10000}) ")
 
+        ########### TD-5933  verify the bug of "function stddev with interval return 0 rows" is fixed ##########
+        stddevAndIntervalSql=f"select last(*) from t0 where ts>={nowtime-10000}  interval(10a) fill(next) limit 10"
+        tdSql.query(stddevAndIntervalSql)
+        tdSql.checkRows(10)
+
+        ########## TD-5978 verify the bug of "when start row is null, result by fill(next) is 0 " is fixed ##########
         fillsql=f"select last(*) from t0 where ts>={nowtime-10000} and ts<{nowtime}  interval(10a) fill(next) limit 10"
         tdSql.query(fillsql)
         fillResult=False
@@ -724,7 +730,7 @@ class TDTestCase:
         else:
             tdLog.exit("fill(next) is wrong")
 
-
+        pass
 
     def run(self):
 
