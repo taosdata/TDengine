@@ -5109,21 +5109,27 @@ static int64_t generateStbRowData(
     int64_t   dataLen = 0;
     char  *pstr = recBuf;
     int64_t maxLen = MAX_DATA_SIZE;
+    int tmpLen;
 
     dataLen += snprintf(pstr + dataLen, maxLen - dataLen,
             "(%" PRId64 ",", timestamp);
 
     for (int i = 0; i < stbInfo->columnCount; i++) {
         if ((0 == strncasecmp(stbInfo->columns[i].dataType,
-                        "BINARY", strlen("BINARY")))
+                        "BINARY", 6))
                 || (0 == strncasecmp(stbInfo->columns[i].dataType,
-                        "NCHAR", strlen("NCHAR")))) {
+                        "NCHAR", 5))) {
             if (stbInfo->columns[i].dataLen > TSDB_MAX_BINARY_LEN) {
                 errorPrint( "binary or nchar length overflow, max size:%u\n",
                         (uint32_t)TSDB_MAX_BINARY_LEN);
                 return -1;
             }
 
+            if ((stbInfo->columns[i].dataLen + 1) >
+                    /* need count 3 extra chars \', \', and , */
+                    (remainderBufLen - dataLen - 3)) {
+                return 0;
+            }
             char* buf = (char*)calloc(stbInfo->columns[i].dataLen+1, 1);
             if (NULL == buf) {
                 errorPrint( "calloc failed! size:%d\n", stbInfo->columns[i].dataLen);
@@ -5137,19 +5143,20 @@ static int64_t generateStbRowData(
             char *tmp;
 
             if (0 == strncasecmp(stbInfo->columns[i].dataType,
-                        "INT", strlen("INT"))) {
+                        "INT", 3)) {
                 if ((g_args.demo_mode) && (i == 1)) {
                     tmp = demo_voltage_int_str();
                 } else {
                     tmp = rand_int_str();
                 }
-                tstrncpy(pstr + dataLen, tmp, INT_BUFF_LEN);
+                tmpLen = strlen(tmp);
+                tstrncpy(pstr + dataLen, tmp, min(tmpLen + 1, INT_BUFF_LEN));
             } else if (0 == strncasecmp(stbInfo->columns[i].dataType,
-                        "BIGINT", strlen("BIGINT"))) {
+                        "BIGINT", 6)) {
                 tmp = rand_bigint_str();
                 tstrncpy(pstr + dataLen, tmp, BIGINT_BUFF_LEN);
             }  else if (0 == strncasecmp(stbInfo->columns[i].dataType,
-                        "FLOAT", strlen("FLOAT"))) {
+                        "FLOAT", 5)) {
                 if (g_args.demo_mode) {
                     if (i == 0) {
                         tmp = demo_current_float_str();
@@ -5159,27 +5166,33 @@ static int64_t generateStbRowData(
                 } else {
                     tmp = rand_float_str();
                 }
-                tstrncpy(pstr + dataLen, tmp, FLOAT_BUFF_LEN);
+                tmpLen = strlen(tmp);
+                tstrncpy(pstr + dataLen, tmp, min(tmpLen +1, FLOAT_BUFF_LEN));
             }  else if (0 == strncasecmp(stbInfo->columns[i].dataType,
-                        "DOUBLE", strlen("DOUBLE"))) {
+                        "DOUBLE", 6)) {
                 tmp = rand_double_str();
-                tstrncpy(pstr + dataLen, tmp, DOUBLE_BUFF_LEN);
+                tmpLen = strlen(tmp);
+                tstrncpy(pstr + dataLen, tmp, min(tmpLen +1, DOUBLE_BUFF_LEN));
             }  else if (0 == strncasecmp(stbInfo->columns[i].dataType,
-                        "SMALLINT", strlen("SMALLINT"))) {
+                        "SMALLINT", 8)) {
                 tmp = rand_smallint_str();
-                tstrncpy(pstr + dataLen, tmp, SMALLINT_BUFF_LEN);
+                tmpLen = strlen(tmp);
+                tstrncpy(pstr + dataLen, tmp, min(tmpLen + 1, SMALLINT_BUFF_LEN));
             }  else if (0 == strncasecmp(stbInfo->columns[i].dataType,
-                        "TINYINT", strlen("TINYINT"))) {
+                        "TINYINT", 7)) {
                 tmp = rand_tinyint_str();
-                tstrncpy(pstr + dataLen, tmp, TINYINT_BUFF_LEN);
+                tmpLen = strlen(tmp);
+                tstrncpy(pstr + dataLen, tmp, min(tmpLen +1, TINYINT_BUFF_LEN));
             }  else if (0 == strncasecmp(stbInfo->columns[i].dataType,
-                        "BOOL", strlen("BOOL"))) {
+                        "BOOL", 4)) {
                 tmp = rand_bool_str();
-                tstrncpy(pstr + dataLen, tmp, BOOL_BUFF_LEN);
+                tmpLen = strlen(tmp);
+                tstrncpy(pstr + dataLen, tmp, min(tmpLen +1, BOOL_BUFF_LEN));
             }  else if (0 == strncasecmp(stbInfo->columns[i].dataType,
-                        "TIMESTAMP", strlen("TIMESTAMP"))) {
+                        "TIMESTAMP", 9)) {
                 tmp = rand_int_str();
-                tstrncpy(pstr + dataLen, tmp, INT_BUFF_LEN);
+                tmpLen = strlen(tmp);
+                tstrncpy(pstr + dataLen, tmp, min(tmpLen +1, INT_BUFF_LEN));
             }  else {
                 errorPrint( "Not support data type: %s\n", stbInfo->columns[i].dataType);
                 return -1;
@@ -5190,7 +5203,7 @@ static int64_t generateStbRowData(
             dataLen += 1;
         }
 
-        if (dataLen > (remainderBufLen - (DOUBLE_BUFF_LEN + 1)))
+        if (dataLen > (remainderBufLen - (128)))
             return 0;
     }
 
