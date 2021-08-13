@@ -1,5 +1,5 @@
 const taos = require('../tdengine');
-var conn = taos.connect({host:"127.0.0.1", user:"root", password:"taosdata", config:"/etc/taos",port:10});
+var conn = taos.connect();
 var c1 = conn.cursor();
 let stime = new Date();
 let interval = 1000;

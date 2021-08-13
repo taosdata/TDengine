@@ -28,8 +28,9 @@ typedef struct {
   int            bufBlockSize;
   int            tBufBlocks;
   int            nBufBlocks;
+  int            nRecycleBlocks;
   int64_t        index;
-  SList*         bufBlockList;
+  SList*         bufBlockList;  
 } STsdbBufPool;
 
 #define TSDB_BUFFER_RESERVE 1024  // Reseve 1K as commit threshold
@@ -39,5 +40,7 @@ void          tsdbFreeBufPool(STsdbBufPool* pBufPool);
 int           tsdbOpenBufPool(STsdbRepo* pRepo);
 void          tsdbCloseBufPool(STsdbRepo* pRepo);
 SListNode*    tsdbAllocBufBlockFromPool(STsdbRepo* pRepo);
+int           tsdbExpandPool(STsdbRepo* pRepo, int32_t oldTotalBlocks);
+void          tsdbRecycleBufferBlock(STsdbBufPool* pPool, SListNode *pNode);
 
 #endif /* _TD_TSDB_BUFFER_H_ */

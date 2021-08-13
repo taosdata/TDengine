@@ -25,6 +25,8 @@ void    mnodeCleanupCluster();
 void    mnodeUpdateClusterId();
 const char* mnodeGetClusterId();
 
+int32_t mnodeCompactCluster();
+
 #ifdef __cplusplus
 }
 #endif

@@ -7,6 +7,7 @@ import com.taosdata.jdbc.utils.HttpClientPoolUtil;
 
 import java.io.UnsupportedEncodingException;
 import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.sql.*;
 import java.util.Properties;
 import java.util.logging.Logger;
@@ -40,8 +41,13 @@ public class RestfulDriver extends AbstractDriver {
 
         String loginUrl = "http://" + host + ":" + port + "/rest/login/" + props.getProperty(TSDBDriver.PROPERTY_KEY_USER) + "/" + props.getProperty(TSDBDriver.PROPERTY_KEY_PASSWORD) + "";
         try {
-            String user = URLEncoder.encode(props.getProperty(TSDBDriver.PROPERTY_KEY_USER), "UTF-8");
-            String password = URLEncoder.encode(props.getProperty(TSDBDriver.PROPERTY_KEY_PASSWORD), "UTF-8");
+            if (!props.containsKey(TSDBDriver.PROPERTY_KEY_USER))
+                throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_USER_IS_REQUIRED);
+            if (!props.containsKey(TSDBDriver.PROPERTY_KEY_PASSWORD))
+                throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_PASSWORD_IS_REQUIRED);
+
+            String user = URLEncoder.encode(props.getProperty(TSDBDriver.PROPERTY_KEY_USER), StandardCharsets.UTF_8.displayName());
+            String password = URLEncoder.encode(props.getProperty(TSDBDriver.PROPERTY_KEY_PASSWORD), StandardCharsets.UTF_8.displayName());
             loginUrl = "http://" + props.getProperty(TSDBDriver.PROPERTY_KEY_HOST) + ":" + props.getProperty(TSDBDriver.PROPERTY_KEY_PORT) + "/rest/login/" + user + "/" + password + "";
         } catch (UnsupportedEncodingException e) {
             e.printStackTrace();

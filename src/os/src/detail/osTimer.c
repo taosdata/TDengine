@@ -18,7 +18,7 @@
 #include "ttimer.h"
 #include "tulog.h"
 
-#ifndef TAOS_OS_FUNC_TIMER
+#if !(defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32) || defined(_TD_DARWIN_64))
 
 static void taosDeleteTimer(void *tharg) {
   timer_t *pTimer = tharg;
@@ -37,6 +37,8 @@ static void *taosProcessAlarmSignal(void *tharg) {
   void (*callback)(int) = tharg;
 
   struct sigevent sevent = {{0}};
+
+  setThreadName("tmr");
 
   #ifdef _ALPINE
     sevent.sigev_notify = SIGEV_THREAD;
@@ -101,45 +103,6 @@ void taosUninitTimer() {
 
   uDebug("join timer thread:0x%08" PRIx64, taosGetPthreadId(timerThread));
   pthread_join(timerThread, NULL);
-}
-
-#endif
-
-#ifndef TAOS_OS_FUNC_TIMER_SLEEP
-/*
-  to make taosMsleep work,
-   signal SIGALRM shall be blocked in the calling thread,
-
-  sigset_t set;
-  sigemptyset(&set);
-  sigaddset(&set, SIGALRM);
-  pthread_sigmask(SIG_BLOCK, &set, NULL);
-*/
-void taosMsleep(int mseconds) {
-#ifdef __APPLE__
-  taos_block_sigalrm();
-#endif // __APPLE__
-#if 1
-  usleep(mseconds * 1000);
-#else
-  struct timeval timeout;
-  int            seconds, useconds;
-
-  seconds = mseconds / 1000;
-  useconds = (mseconds % 1000) * 1000;
-  timeout.tv_sec = seconds;
-  timeout.tv_usec = useconds;
-
-  /* sigset_t set; */
-  /* sigemptyset(&set); */
-  /* sigaddset(&set, SIGALRM); */
-  /* pthread_sigmask(SIG_BLOCK, &set, NULL); */
-
-  select(0, NULL, NULL, NULL, &timeout);
-
-/* pthread_sigmask(SIG_UNBLOCK, &set, NULL); */
-#endif
-
 }
 
 #endif

@@ -16,7 +16,6 @@ TDengine 的 JDBC 驱动实现尽可能与关系型数据库驱动保持一致�
 
 * TDengine 目前不支持针对单条数据记录的删除操作。
 * 目前不支持事务操作。
-* 目前不支持表间的 union 操作。
 * 目前不支持嵌套查询（nested query）。
 * 对每个 Connection 的实例，至多只能有一个打开的 ResultSet 实例；如果在 ResultSet 还没关闭的情况下执行了新的查询，taos-jdbcdriver 会自动关闭上一个 ResultSet。
 
@@ -50,6 +49,7 @@ TDengine 的 JDBC 驱动实现尽可能与关系型数据库驱动保持一致�
 </tr>
 </table>
 
+注意：与 JNI 方式不同，RESTful 接口是无状态的，因此 `USE db_name` 指令没有效果，RESTful 下所有对表名、超级表名的引用都需要指定数据库名前缀。
 
 ## 如何获取 taos-jdbcdriver
 
@@ -267,7 +267,9 @@ while(resultSet.next()){
 > 查询和操作关系型数据库一致，使用下标获取返回字段内容时从 1 开始，建议使用字段名称获取。
 
 ### 处理异常
+
 在报错后，通过SQLException可以获取到错误的信息和错误码：
+
 ```java
 try (Statement statement = connection.createStatement()) {
     // executeQuery
@@ -280,10 +282,89 @@ try (Statement statement = connection.createStatement()) {
     e.printStackTrace();
 }
 ```
+
 JDBC连接器可能报错的错误码包括3种：JDBC driver本身的报错（错误码在0x2301到0x2350之间），JNI方法的报错（错误码在0x2351到0x2400之间），TDengine其他功能模块的报错。
 具体的错误码请参考：
 * https://github.com/taosdata/TDengine/blob/develop/src/connector/jdbc/src/main/java/com/taosdata/jdbc/TSDBErrorNumbers.java
 * https://github.com/taosdata/TDengine/blob/develop/src/inc/taoserror.h
+
+### <a class="anchor" id="stmt-java"></a>通过参数绑定写入数据
+
+从 2.1.2.0 版本开始，TDengine 的 **JDBC-JNI** 实现大幅改进了参数绑定方式对数据写入（INSERT）场景的支持。采用这种方式写入数据时，能避免 SQL 语法解析的资源消耗，从而在很多情况下显著提升写入性能。（注意：**JDBC-RESTful** 实现并不提供参数绑定这种使用方式。）
+
+```java
+Statement stmt = conn.createStatement();
+Random r = new Random();
+
+// INSERT 语句中，VALUES 部分允许指定具体的数据列；如果采取自动建表，则 TAGS 部分需要设定全部 TAGS 列的参数值：
+TSDBPreparedStatement s = (TSDBPreparedStatement) conn.prepareStatement("insert into ? using weather_test tags (?, ?) (ts, c1, c2) values(?, ?, ?)");
+
+// 设定数据表名：
+s.setTableName("w1");
+// 设定 TAGS 取值：
+s.setTagInt(0, r.nextInt(10));
+s.setTagString(1, "Beijing");
+
+int numOfRows = 10;
+
+// VALUES 部分以逐列的方式进行设置：
+ArrayList<Long> ts = new ArrayList<>();
+for (int i = 0; i < numOfRows; i++){
+    ts.add(System.currentTimeMillis() + i);
+}
+s.setTimestamp(0, ts);
+
+ArrayList<Integer> s1 = new ArrayList<>();
+for (int i = 0; i < numOfRows; i++){
+    s1.add(r.nextInt(100));
+}
+s.setInt(1, s1);
+
+ArrayList<String> s2 = new ArrayList<>();
+for (int i = 0; i < numOfRows; i++){
+    s2.add("test" + r.nextInt(100));
+}
+s.setString(2, s2, 10);
+
+// AddBatch 之后，缓存并未清空。为避免混乱，并不推荐在 ExecuteBatch 之前再次绑定新一批的数据：
+s.columnDataAddBatch();
+// 执行绑定数据后的语句：
+s.columnDataExecuteBatch();
+// 执行语句后清空缓存。在清空之后，可以复用当前的对象，绑定新的一批数据（可以是新表名、新 TAGS 值、新 VALUES 值）：
+s.columnDataClearBatch();
+// 执行完毕，释放资源：
+s.columnDataCloseBatch();
+```
+
+用于设定 TAGS 取值的方法总共有：
+```java
+public void setTagNull(int index, int type)
+public void setTagBoolean(int index, boolean value)
+public void setTagInt(int index, int value)
+public void setTagByte(int index, byte value)
+public void setTagShort(int index, short value)
+public void setTagLong(int index, long value)
+public void setTagTimestamp(int index, long value)
+public void setTagFloat(int index, float value)
+public void setTagDouble(int index, double value)
+public void setTagString(int index, String value)
+public void setTagNString(int index, String value)
+```
+
+用于设定 VALUES 数据列的取值的方法总共有：
+```java
+public void setInt(int columnIndex, ArrayList<Integer> list) throws SQLException
+public void setFloat(int columnIndex, ArrayList<Float> list) throws SQLException
+public void setTimestamp(int columnIndex, ArrayList<Long> list) throws SQLException
+public void setLong(int columnIndex, ArrayList<Long> list) throws SQLException
+public void setDouble(int columnIndex, ArrayList<Double> list) throws SQLException
+public void setBoolean(int columnIndex, ArrayList<Boolean> list) throws SQLException
+public void setByte(int columnIndex, ArrayList<Byte> list) throws SQLException
+public void setShort(int columnIndex, ArrayList<Short> list) throws SQLException
+public void setString(int columnIndex, ArrayList<String> list, int size) throws SQLException
+public void setNString(int columnIndex, ArrayList<String> list, int size) throws SQLException
+```
+其中 setString 和 setNString 都要求用户在 size 参数里声明表定义中对应列的列宽。
 
 ### <a class="anchor" id="subscribe"></a>订阅
 
@@ -447,12 +528,13 @@ Query OK, 1 row(s) in set (0.000141s)
 
 
 
-## TAOS-JDBCDriver 版本以及支持的 TDengine 版本和 JDK 版本
+## <a class="anchor" id="version"></a>TAOS-JDBCDriver 版本以及支持的 TDengine 版本和 JDK 版本
 
 | taos-jdbcdriver 版本 | TDengine 版本     | JDK 版本 |
 | -------------------- | ----------------- | -------- |
-| 2.0.22              | 2.0.18.0 及以上     | 1.8.x    |
-| 2.0.12 - 2.0.21     | 2.0.8.0 - 2.0.17.0 | 1.8.x    |
+| 2.0.31              | 2.1.3.0 及以上      | 1.8.x    |
+| 2.0.22 - 2.0.30    | 2.0.18.0 - 2.1.2.x | 1.8.x    |
+| 2.0.12 - 2.0.21     | 2.0.8.0 - 2.0.17.x | 1.8.x    |
 | 2.0.4 - 2.0.11       | 2.0.0.0 - 2.0.7.x | 1.8.x    |
 | 1.0.3                | 1.6.1.x 及以上    | 1.8.x    |
 | 1.0.2                | 1.6.1.x 及以上    | 1.8.x    |
@@ -471,7 +553,7 @@ TDengine 目前支持时间戳、数字、字符、布尔类型，与 Java 对�
 | BIGINT            | java.lang.Long     |
 | FLOAT             | java.lang.Float    |
 | DOUBLE            | java.lang.Double   |
-| SMALLINT	    | java.lang.Short    |
+| SMALLINT          | java.lang.Short    |
 | TINYINT           | java.lang.Byte     |
 | BOOL              | java.lang.Boolean  |
 | BINARY            | byte array         |

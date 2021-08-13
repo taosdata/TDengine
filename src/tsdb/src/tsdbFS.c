@@ -33,8 +33,11 @@ static int  tsdbScanDataDir(STsdbRepo *pRepo);
 static bool tsdbIsTFileInFS(STsdbFS *pfs, const TFILE *pf);
 static int  tsdbRestoreCurrent(STsdbRepo *pRepo);
 static int  tsdbComparTFILE(const void *arg1, const void *arg2);
-static void tsdbScanAndTryFixDFilesHeader(STsdbRepo *pRepo);
+static void tsdbScanAndTryFixDFilesHeader(STsdbRepo *pRepo, int32_t *nExpired);
+static int  tsdbProcessExpiredFS(STsdbRepo *pRepo);
+static int  tsdbCreateMeta(STsdbRepo *pRepo);
 
+// For backward compatibility
 // ================== CURRENT file header info
 static int tsdbEncodeFSHeader(void **buf, SFSHeader *pHeader) {
   int tlen = 0;
@@ -212,6 +215,8 @@ STsdbFS *tsdbNewFS(STsdbCfg *pCfg) {
     return NULL;
   }
 
+  pfs->intxn = false;
+
   pfs->nstatus = tsdbNewFSStatus(maxFSet);
   if (pfs->nstatus == NULL) {
     tsdbFreeFS(pfs);
@@ -234,22 +239,84 @@ void *tsdbFreeFS(STsdbFS *pfs) {
   return NULL;
 }
 
+static int tsdbProcessExpiredFS(STsdbRepo *pRepo) {
+  tsdbStartFSTxn(pRepo, 0, 0);
+  if (tsdbCreateMeta(pRepo) < 0) {
+    tsdbError("vgId:%d failed to create meta since %s", REPO_ID(pRepo), tstrerror(terrno));
+    return -1;
+  }
+
+  if (tsdbApplyRtn(pRepo) < 0) {
+    tsdbEndFSTxnWithError(REPO_FS(pRepo));
+    tsdbError("vgId:%d failed to apply rtn since %s", REPO_ID(pRepo), tstrerror(terrno));
+    return -1;
+  }
+  if (tsdbEndFSTxn(pRepo) < 0) {
+    tsdbError("vgId:%d failed to end fs txn since %s", REPO_ID(pRepo), tstrerror(terrno));
+    return -1;
+  }
+  return 0;
+}
+
+static int tsdbCreateMeta(STsdbRepo *pRepo) {
+  STsdbFS *pfs = REPO_FS(pRepo);
+  SMFile * pOMFile = pfs->cstatus->pmf;
+  SMFile   mf;
+  SDiskID  did;
+
+  if (pOMFile != NULL) {
+    // keep the old meta file
+    tsdbUpdateMFile(pfs, pOMFile);
+    return 0;
+  }
+
+  // Create a new meta file
+  did.level = TFS_PRIMARY_LEVEL;
+  did.id = TFS_PRIMARY_ID;
+  tsdbInitMFile(&mf, did, REPO_ID(pRepo), FS_TXN_VERSION(REPO_FS(pRepo)));
+
+  if (tsdbCreateMFile(&mf, true) < 0) {
+    tsdbError("vgId:%d failed to create META file since %s", REPO_ID(pRepo), tstrerror(terrno));
+    return -1;
+  }
+
+  tsdbInfo("vgId:%d meta file %s is created", REPO_ID(pRepo), TSDB_FILE_FULL_NAME(&mf));
+
+  if (tsdbUpdateMFileHeader(&mf) < 0) {
+    tsdbError("vgId:%d failed to update META file header since %s, revert it", REPO_ID(pRepo), tstrerror(terrno));
+    tsdbApplyMFileChange(&mf, pOMFile);
+    return -1;
+  }
+
+  TSDB_FILE_FSYNC(&mf);
+  tsdbCloseMFile(&mf);
+  tsdbUpdateMFile(pfs, &mf);
+
+  return 0;
+}
+
 int tsdbOpenFS(STsdbRepo *pRepo) {
   STsdbFS *pfs = REPO_FS(pRepo);
   char     current[TSDB_FILENAME_LEN] = "\0";
+  int      nExpired = 0;
 
   ASSERT(pfs != NULL);
 
   tsdbGetTxnFname(REPO_ID(pRepo), TSDB_TXN_CURR_FILE, current);
 
+  tsdbGetRtnSnap(pRepo, &pRepo->rtn);
   if (access(current, F_OK) == 0) {
     if (tsdbOpenFSFromCurrent(pRepo) < 0) {
       tsdbError("vgId:%d failed to open FS since %s", REPO_ID(pRepo), tstrerror(terrno));
       return -1;
     }
 
-    tsdbScanAndTryFixDFilesHeader(pRepo);
+    tsdbScanAndTryFixDFilesHeader(pRepo, &nExpired);
+    if (nExpired > 0) {
+      tsdbProcessExpiredFS(pRepo);
+    }
   } else {
+    // should skip expired fileset inside of the function
     if (tsdbRestoreCurrent(pRepo) < 0) {
       tsdbError("vgId:%d failed to restore current file since %s", REPO_ID(pRepo), tstrerror(terrno));
       return -1;
@@ -390,7 +457,7 @@ static int tsdbSaveFSStatus(SFSStatus *pStatus, int vid) {
   }
 
   // fsync, close and rename
-  if (fsync(fd) < 0) {
+  if (taosFsync(fd) < 0) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     close(fd);
     remove(tfname);
@@ -705,7 +772,7 @@ int tsdbLoadMetaCache(STsdbRepo *pRepo, bool recoverMeta) {
   int64_t   maxBufSize = 0;
   SMFInfo   minfo;
 
-  taosHashEmpty(pfs->metaCache);
+  taosHashClear(pfs->metaCache);
 
   // No meta file, just return
   if (pfs->cstatus->pmf == NULL) return 0;
@@ -957,10 +1024,10 @@ static int tsdbRestoreMeta(STsdbRepo *pRepo) {
         regfree(&regex);
         return -1;
       } else {
-        uint32_t version = 0;
+        uint32_t _version = 0;
         if (strcmp(bname, "meta") != 0) {
-          sscanf(bname, "meta-ver%" PRIu32, &version);
-          pfs->cstatus->meta.version = version;
+          sscanf(bname, "meta-ver%" PRIu32, &_version);
+          pfs->cstatus->meta.version = _version;
         }
 
         pfs->cstatus->pmf = &(pfs->cstatus->mf);
@@ -980,6 +1047,26 @@ static int tsdbRestoreMeta(STsdbRepo *pRepo) {
           tfsClosedir(tdir);
           regfree(&regex);
           return -1;
+        }
+
+        if (tsdbForceKeepFile) {
+          struct stat tfstat;
+
+          // Get real file size
+          if (fstat(pfs->cstatus->pmf->fd, &tfstat) < 0) {
+            terrno = TAOS_SYSTEM_ERROR(errno);
+            tsdbCloseMFile(pfs->cstatus->pmf);
+            tfsClosedir(tdir);
+            regfree(&regex);
+            return -1;
+          }
+
+          if (pfs->cstatus->pmf->info.size != tfstat.st_size) {
+            int64_t tfsize = pfs->cstatus->pmf->info.size;
+            pfs->cstatus->pmf->info.size = tfstat.st_size;
+            tsdbInfo("vgId:%d file %s header size is changed from %" PRId64 " to %" PRId64, REPO_ID(pRepo),
+                     TSDB_FILE_FULL_NAME(pfs->cstatus->pmf), tfsize, pfs->cstatus->pmf->info.size);
+          }
         }
 
         tsdbCloseMFile(pfs->cstatus->pmf);
@@ -1103,12 +1190,17 @@ static int tsdbRestoreDFileSet(STsdbRepo *pRepo) {
       int         tvid, tfid;
       TSDB_FILE_T ttype;
       uint32_t    tversion;
-      char        bname[TSDB_FILENAME_LEN];
+      char        _bname[TSDB_FILENAME_LEN];
 
-      tfsbasename(pf, bname);
-      tsdbParseDFilename(bname, &tvid, &tfid, &ttype, &tversion);
+      tfsbasename(pf, _bname);
+      tsdbParseDFilename(_bname, &tvid, &tfid, &ttype, &tversion);
 
       ASSERT(tvid == REPO_ID(pRepo));
+
+      if (tfid < pRepo->rtn.minFid) {  // skip file expired
+        ++index;
+        continue;
+      }
 
       if (ftype == 0) {
         fset.fid = tfid;
@@ -1139,6 +1231,24 @@ static int tsdbRestoreDFileSet(STsdbRepo *pRepo) {
                   tstrerror(terrno));
         taosArrayDestroy(fArray);
         return -1;
+      }
+
+      if (tsdbForceKeepFile) {
+        struct stat tfstat;
+
+        // Get real file size
+        if (fstat(pDFile->fd, &tfstat) < 0) {
+          terrno = TAOS_SYSTEM_ERROR(errno);
+          taosArrayDestroy(fArray);
+          return -1;
+        }
+
+        if (pDFile->info.size != tfstat.st_size) {
+          int64_t tfsize = pDFile->info.size;
+          pDFile->info.size = tfstat.st_size;
+          tsdbInfo("vgId:%d file %s header size is changed from %" PRId64 " to %" PRId64, REPO_ID(pRepo),
+                   TSDB_FILE_FULL_NAME(pDFile), tfsize, pDFile->info.size);
+        }
       }
 
       tsdbCloseDFile(pDFile);
@@ -1206,7 +1316,7 @@ static int tsdbComparTFILE(const void *arg1, const void *arg2) {
   }
 }
 
-static void tsdbScanAndTryFixDFilesHeader(STsdbRepo *pRepo) {
+static void tsdbScanAndTryFixDFilesHeader(STsdbRepo *pRepo, int32_t *nExpired) {
   STsdbFS *  pfs = REPO_FS(pRepo);
   SFSStatus *pStatus = pfs->cstatus;
   SDFInfo    info;
@@ -1214,7 +1324,9 @@ static void tsdbScanAndTryFixDFilesHeader(STsdbRepo *pRepo) {
   for (size_t i = 0; i < taosArrayGetSize(pStatus->df); i++) {
     SDFileSet fset;
     tsdbInitDFileSetEx(&fset, (SDFileSet *)taosArrayGet(pStatus->df, i));
-
+    if (fset.fid < pRepo->rtn.minFid) {
+      ++*nExpired;
+    }
     tsdbDebug("vgId:%d scan DFileSet %d header", REPO_ID(pRepo), fset.fid);
 
     if (tsdbOpenDFileSet(&fset, O_RDWR) < 0) {

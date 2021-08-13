@@ -24,18 +24,23 @@ typedef struct STable {
   tstr*          name;  // NOTE: there a flexible string here
   uint64_t       suid;
   struct STable* pSuper;  // super table pointer
-  uint8_t        numOfSchemas;
-  STSchema*      schema[TSDB_MAX_TABLE_SCHEMAS];
+  SArray*        schema;
   STSchema*      tagSchema;
   SKVRow         tagVal;
   SSkipList*     pIndex;         // For TSDB_SUPER_TABLE, it is the skiplist index
   void*          eventHandler;   // TODO
   void*          streamHandler;  // TODO
   TSKEY          lastKey;
-  SDataRow       lastRow;
+  SMemRow        lastRow;
   char*          sql;
   void*          cqhandle;
   SRWLatch       latch;  // TODO: implementa latch functions
+
+  SDataCol      *lastCols;
+  int16_t        maxColNum;
+  int16_t        restoreColumnNum;
+  bool           hasRestoreLastColumn;
+  int            lastColSVersion;
   T_REF_DECLARE()
 } STable;
 
@@ -69,7 +74,7 @@ void       tsdbFreeMeta(STsdbMeta* pMeta);
 int        tsdbOpenMeta(STsdbRepo* pRepo);
 int        tsdbCloseMeta(STsdbRepo* pRepo);
 STable*    tsdbGetTableByUid(STsdbMeta* pMeta, uint64_t uid);
-STSchema*  tsdbGetTableSchemaByVersion(STable* pTable, int16_t version);
+STSchema*  tsdbGetTableSchemaByVersion(STable* pTable, int16_t _version);
 int        tsdbWLockRepoMeta(STsdbRepo* pRepo);
 int        tsdbRLockRepoMeta(STsdbRepo* pRepo);
 int        tsdbUnlockRepoMeta(STsdbRepo* pRepo);
@@ -78,6 +83,11 @@ void       tsdbUnRefTable(STable* pTable);
 void       tsdbUpdateTableSchema(STsdbRepo* pRepo, STable* pTable, STSchema* pSchema, bool insertAct);
 int        tsdbRestoreTable(STsdbRepo* pRepo, void* cont, int contLen);
 void       tsdbOrgMeta(STsdbRepo* pRepo);
+int        tsdbInitColIdCacheWithSchema(STable* pTable, STSchema* pSchema);
+int16_t    tsdbGetLastColumnsIndexByColId(STable* pTable, int16_t colId);
+int        tsdbUpdateLastColSchema(STable *pTable, STSchema *pNewSchema);
+STSchema*  tsdbGetTableLatestSchema(STable *pTable);
+void       tsdbFreeLastColumns(STable* pTable);
 
 static FORCE_INLINE int tsdbCompareSchemaVersion(const void *key1, const void *key2) {
   if (*(int16_t *)key1 < schemaVersion(*(STSchema **)key2)) {
@@ -89,17 +99,16 @@ static FORCE_INLINE int tsdbCompareSchemaVersion(const void *key1, const void *k
   }
 }
 
-static FORCE_INLINE STSchema* tsdbGetTableSchemaImpl(STable* pTable, bool lock, bool copy, int16_t version) {
+static FORCE_INLINE STSchema* tsdbGetTableSchemaImpl(STable* pTable, bool lock, bool copy, int16_t _version) {
   STable*   pDTable = (TABLE_TYPE(pTable) == TSDB_CHILD_TABLE) ? pTable->pSuper : pTable;
   STSchema* pSchema = NULL;
   STSchema* pTSchema = NULL;
 
   if (lock) TSDB_RLOCK_TABLE(pDTable);
-  if (version < 0) {  // get the latest version of schema
-    pTSchema = pDTable->schema[pDTable->numOfSchemas - 1];
+  if (_version < 0) {  // get the latest version of schema
+    pTSchema = *(STSchema **)taosArrayGetLast(pDTable->schema);
   } else {  // get the schema with version
-    void* ptr = taosbsearch(&version, pDTable->schema, pDTable->numOfSchemas, sizeof(STSchema*),
-                            tsdbCompareSchemaVersion, TD_EQ);
+    void* ptr = taosArraySearch(pDTable->schema, &_version, tsdbCompareSchemaVersion, TD_EQ);
     if (ptr == NULL) {
       terrno = TSDB_CODE_TDB_IVD_TB_SCHEMA_VERSION;
       goto _exit;
@@ -137,7 +146,7 @@ static FORCE_INLINE STSchema *tsdbGetTableTagSchema(STable *pTable) {
 }
 
 static FORCE_INLINE TSKEY tsdbGetTableLastKeyImpl(STable* pTable) {
-  ASSERT(pTable->lastRow == NULL || pTable->lastKey == dataRowKey(pTable->lastRow));
+  ASSERT((pTable->lastRow == NULL) || (pTable->lastKey == memRowKey(pTable->lastRow)));
   return pTable->lastKey;
 }
 

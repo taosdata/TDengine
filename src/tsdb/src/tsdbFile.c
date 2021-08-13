@@ -410,7 +410,7 @@ int tsdbUpdateDFileHeader(SDFile *pDFile) {
 
 int tsdbLoadDFileHeader(SDFile *pDFile, SDFInfo *pInfo) {
   char     buf[TSDB_FILE_HEAD_SIZE] = "\0";
-  uint32_t version;
+  uint32_t _version;
 
   ASSERT(TSDB_FILE_OPENED(pDFile));
 
@@ -428,7 +428,7 @@ int tsdbLoadDFileHeader(SDFile *pDFile, SDFInfo *pInfo) {
   }
 
   void *pBuf = buf;
-  pBuf = taosDecodeFixedU32(pBuf, &version);
+  pBuf = taosDecodeFixedU32(pBuf, &_version);
   pBuf = tsdbDecodeDFInfo(pBuf, pInfo);
   return 0;
 }
@@ -660,12 +660,12 @@ int tsdbScanAndTryFixDFileSet(STsdbRepo *pRepo, SDFileSet *pSet) {
   return 0;
 }
 
-int tsdbParseDFilename(const char *fname, int *vid, int *fid, TSDB_FILE_T *ftype, uint32_t *version) {
+int tsdbParseDFilename(const char *fname, int *vid, int *fid, TSDB_FILE_T *ftype, uint32_t *_version) {
   char *p = NULL;
-  *version = 0;
+  *_version = 0;
   *ftype = TSDB_FILE_MAX;
 
-  sscanf(fname, "v%df%d.%m[a-z]-ver%" PRIu32, vid, fid, &p, version);
+  sscanf(fname, "v%df%d.%m[a-z]-ver%" PRIu32, vid, fid, &p, _version);
   for (TSDB_FILE_T i = 0; i < TSDB_FILE_MAX; i++) {
     if (strcmp(p, TSDB_FNAME_SUFFIX[i]) == 0) {
       *ftype = i;

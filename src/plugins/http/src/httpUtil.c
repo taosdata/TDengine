@@ -188,13 +188,17 @@ bool httpMallocMultiCmds(HttpContext *pContext, int32_t cmdSize, int32_t bufferS
 bool httpReMallocMultiCmdsSize(HttpContext *pContext, int32_t cmdSize) {
   HttpSqlCmds *multiCmds = pContext->multiCmds;
 
-  if (cmdSize > HTTP_MAX_CMD_SIZE) {
+  if (cmdSize <= 0 || cmdSize > HTTP_MAX_CMD_SIZE) {
     httpError("context:%p, fd:%d, user:%s, mulitcmd size:%d large then %d", pContext, pContext->fd, pContext->user,
               cmdSize, HTTP_MAX_CMD_SIZE);
     return false;
   }
 
-  multiCmds->cmds = (HttpSqlCmd *)realloc(multiCmds->cmds, (size_t)cmdSize * sizeof(HttpSqlCmd));
+  HttpSqlCmd *new_cmds = (HttpSqlCmd *)realloc(multiCmds->cmds, (size_t)cmdSize * sizeof(HttpSqlCmd));
+  if (new_cmds == NULL && multiCmds->cmds) {
+    free(multiCmds->cmds);
+  }
+  multiCmds->cmds = new_cmds;
   if (multiCmds->cmds == NULL) {
     httpError("context:%p, fd:%d, user:%s, malloc cmds:%d error", pContext, pContext->fd, pContext->user, cmdSize);
     return false;
@@ -208,13 +212,17 @@ bool httpReMallocMultiCmdsSize(HttpContext *pContext, int32_t cmdSize) {
 bool httpReMallocMultiCmdsBuffer(HttpContext *pContext, int32_t bufferSize) {
   HttpSqlCmds *multiCmds = pContext->multiCmds;
 
-  if (bufferSize > HTTP_MAX_BUFFER_SIZE) {
+  if (bufferSize <= 0 || bufferSize > HTTP_MAX_BUFFER_SIZE) {
     httpError("context:%p, fd:%d, user:%s, mulitcmd buffer size:%d large then %d", pContext, pContext->fd,
               pContext->user, bufferSize, HTTP_MAX_BUFFER_SIZE);
     return false;
   }
 
-  multiCmds->buffer = (char *)realloc(multiCmds->buffer, (size_t)bufferSize);
+  char *new_buffer = (char *)realloc(multiCmds->buffer, (size_t)bufferSize);
+  if (new_buffer == NULL && multiCmds->buffer) {
+    free(multiCmds->buffer);
+  }
+  multiCmds->buffer = new_buffer;
   if (multiCmds->buffer == NULL) {
     httpError("context:%p, fd:%d, user:%s, malloc buffer:%d error", pContext, pContext->fd, pContext->user, bufferSize);
     return false;
@@ -237,6 +245,11 @@ void httpFreeMultiCmds(HttpContext *pContext) {
 JsonBuf *httpMallocJsonBuf(HttpContext *pContext) {
   if (pContext->jsonBuf == NULL) {
     pContext->jsonBuf = (JsonBuf *)malloc(sizeof(JsonBuf));
+    if (pContext->jsonBuf == NULL) {
+      return NULL;
+    }
+
+    memset(pContext->jsonBuf, 0, sizeof(JsonBuf));
   }
 
   if (!pContext->jsonBuf->pContext) {

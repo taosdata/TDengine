@@ -4,7 +4,7 @@ import sys
 from util.log import *
 from util.cases import *
 from util.sql import *
-
+import time
 
 class TDTestCase:
     def init(self, conn, logSql):
@@ -112,6 +112,7 @@ class TDTestCase:
             # TSIM: endw
         # TSIM:
         # TSIM: print =============== step2
+        time.sleep(1)
         tdLog.info('=============== step2')
         # TSIM: sleep 100
         # TSIM: sql select * from $tb

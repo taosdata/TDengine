@@ -142,7 +142,7 @@ if $rows != 300 then
 endi
 
 if $data00 != @70-01-01 08:01:40.990@ then
-  print expect 0, actual: $data00
+  print expect 70-01-01 08:01:40.990, actual: $data00
   return -1
 endi
 

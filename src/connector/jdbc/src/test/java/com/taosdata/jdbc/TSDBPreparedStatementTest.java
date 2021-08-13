@@ -297,7 +297,6 @@ public class TSDBPreparedStatementTest {
         }
     }
 
-    /*
     @Test
     public void executeTest() throws SQLException {
         Statement stmt = conn.createStatement();
@@ -586,7 +585,6 @@ public class TSDBPreparedStatementTest {
         }
         Assert.assertEquals(numOfRows, rows);
     }
-     */
 
     @Test(expected = SQLException.class)
     public void createTwoSameDbTest() throws SQLException {

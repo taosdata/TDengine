@@ -20,7 +20,6 @@
 extern "C" {
 #endif
 
-// TAOS_OS_FUNC_SYSINFO
 typedef struct {
   int64_t tsize;
   int64_t used;
@@ -28,6 +27,7 @@ typedef struct {
 } SysDiskSize;
 
 int32_t taosGetDiskSize(char *dataDir, SysDiskSize *diskSize);
+
 void taosGetSystemInfo();
 bool taosGetProcIO(float *readKB, float *writeKB);
 bool taosGetBandSpeed(float *bandSpeedKb);
@@ -42,7 +42,6 @@ void taosKillSystem();
 bool taosGetSystemUid(char *uid);
 char *taosGetCmdlineByPID(int pid);
 
-// TAOS_OS_FUNC_SYSINFO_CORE
 void taosSetCoreDump();
 
 #ifdef __cplusplus

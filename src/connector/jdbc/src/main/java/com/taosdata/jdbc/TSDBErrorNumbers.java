@@ -29,6 +29,9 @@ public class TSDBErrorNumbers {
     public static final int ERROR_UNKNOWN_TIMESTAMP_PRECISION = 0x2316;     // unknown timestamp precision
     public static final int ERROR_RESTFul_Client_Protocol_Exception = 0x2317;
     public static final int ERROR_RESTFul_Client_IOException = 0x2318;
+    public static final int ERROR_USER_IS_REQUIRED = 0x2319;        // user is required
+    public static final int ERROR_PASSWORD_IS_REQUIRED = 0x231a;    // password is required
+
 
     public static final int ERROR_UNKNOWN = 0x2350;    //unknown error
 
@@ -67,6 +70,8 @@ public class TSDBErrorNumbers {
         errorNumbers.add(ERROR_UNKNOWN_TAOS_TYPE);
         errorNumbers.add(ERROR_UNKNOWN_TIMESTAMP_PRECISION);
         errorNumbers.add(ERROR_RESTFul_Client_IOException);
+        errorNumbers.add(ERROR_USER_IS_REQUIRED);
+        errorNumbers.add(ERROR_PASSWORD_IS_REQUIRED);
 
         errorNumbers.add(ERROR_RESTFul_Client_Protocol_Exception);
 

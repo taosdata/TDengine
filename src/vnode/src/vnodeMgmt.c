@@ -93,7 +93,7 @@ static void vnodeIncRef(void *ptNode) {
 void *vnodeAcquire(int32_t vgId) {
   SVnodeObj *pVnode = NULL;
   if (tsVnodesHash != NULL) {
-    taosHashGetClone(tsVnodesHash, &vgId, sizeof(int32_t), vnodeIncRef, &pVnode, sizeof(void *));
+    taosHashGetClone(tsVnodesHash, &vgId, sizeof(int32_t), vnodeIncRef, &pVnode);
   }
 
   if (pVnode == NULL) {
@@ -162,6 +162,7 @@ static void vnodeBuildVloadMsg(SVnodeObj *pVnode, SStatusMsg *pStatus) {
   pLoad->status = pVnode->status;
   pLoad->role = pVnode->role;
   pLoad->replica = pVnode->syncCfg.replica;  
+  pLoad->compact = (pVnode->tsdb != NULL) ? tsdbGetCompactState(pVnode->tsdb) : 0; 
 }
 
 int32_t vnodeGetVnodeList(int32_t vnodeList[], int32_t *numOfVnodes) {

@@ -31,7 +31,14 @@ void osInit() {
   strcpy(tsDataDir, "C:/PowerDB/data");
   strcpy(tsLogDir, "C:/PowerDB/log");
   strcpy(tsScriptDir, "C:/PowerDB/script");
-
+#elif (_TD_TQ_ == true)
+  if (configDir[0] == 0) {
+    strcpy(configDir, "C:/TQ/cfg");
+  }
+  strcpy(tsVnodeDir, "C:/TQ/data");
+  strcpy(tsDataDir, "C:/TQ/data");
+  strcpy(tsLogDir, "C:/TQ/log");
+  strcpy(tsScriptDir, "C:/TQ/script");
 #else
   if (configDir[0] == 0) {
     strcpy(configDir, "C:/TDengine/cfg");
