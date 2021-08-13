@@ -62,34 +62,34 @@ void calc_i32_i32_add(void *left, void *right, int32_t numLeft, int32_t numRight
 double getVectorDoubleValue(void *src, int32_t srcType, int32_t index) {
   switch (srcType) {
     case TSDB_DATA_TYPE_TINYINT: {
-      return *((int8_t*)src + index);
+      return (double)(*((int8_t*)src + index));
     }
     case TSDB_DATA_TYPE_UTINYINT: {
-      return *((uint8_t*)src + index);
+      return (double)(*((uint8_t*)src + index));
     }
     case TSDB_DATA_TYPE_SMALLINT: {
-      return *((int16_t*)src + index);
+      return (double)(*((int16_t*)src + index));
     }
     case TSDB_DATA_TYPE_USMALLINT: {
-      return *((uint16_t*)src + index);
+      return (double)(*((uint16_t*)src + index));
     }
     case TSDB_DATA_TYPE_INT: {
-      return *((int32_t*)src + index);
+      return (double)(*((int32_t*)src + index));
     }
     case TSDB_DATA_TYPE_UINT: {
-      return *((uint32_t*)src + index);
+      return (double)(*((uint32_t*)src + index));
     }
     case TSDB_DATA_TYPE_BIGINT: {
-      return *((int64_t*)src + index);
+      return (double)(*((int64_t*)src + index));
     }
     case TSDB_DATA_TYPE_UBIGINT: {
-      return *((uint64_t*)src + index);
+      return (double)(*((uint64_t*)src + index));
     }
     case TSDB_DATA_TYPE_FLOAT: {
-      return *((float*)src + index);
+      return (double)(*((float*)src + index));
     }
     case TSDB_DATA_TYPE_DOUBLE: {
-      return *((double*)src + index);
+      return (double)(*((double*)src + index));
     }
     default:
       assert(0);
