@@ -715,7 +715,7 @@ class TDTestCase:
             tdSql.execute(f"insert into db.t{i} (ts) values ({nowtime-10000}) ")
 
         ########### TD-5933  verify the bug of "function stddev with interval return 0 rows" is fixed ##########
-        stddevAndIntervalSql=f"select last(*) from t0 where ts>={nowtime-10000}  interval(10a) fill(next) limit 10"
+        stddevAndIntervalSql=f"select last(*) from t0 where ts>={nowtime-10000}  interval(10a) limit 10"
         tdSql.query(stddevAndIntervalSql)
         tdSql.checkRows(10)
 
