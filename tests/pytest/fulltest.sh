@@ -284,7 +284,7 @@ python3 ./test.py -f alter/alterTabAddTagWithNULL.py
 python3 ./test.py -f alter/alterTimestampColDataProcess.py
 
 # client
-python3 ./test.py -f client/client.py
+#python3 ./test.py -f client/client.py
 python3 ./test.py -f client/version.py
 python3 ./test.py -f client/alterDatabase.py
 python3 ./test.py -f client/noConnectionErrorTest.py
@@ -386,6 +386,7 @@ python3 ./test.py -f query/querySession.py
 python3 test.py -f  alter/alter_create_exception.py
 python3 ./test.py -f insert/flushwhiledrop.py
 python3 ./test.py -f insert/schemalessInsert.py
+python3 ./test.py -f alter/alterColMultiTimes.py 
 
 #======================p4-end===============
 
