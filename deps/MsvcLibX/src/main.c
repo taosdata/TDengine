@@ -68,6 +68,7 @@ int BreakArgLine(LPSTR pszCmdLine, char ***pppszArg) {
   int iString = FALSE;	/* TRUE = string mode; FALSE = non-string mode */
   int nBackslash = 0;
   char **ppszArg;
+  char **ppszArg1;
   int iArg = FALSE;	/* TRUE = inside an argument; FALSE = between arguments */
 
   ppszArg = (char **)malloc((argc+1)*sizeof(char *));
@@ -89,7 +90,10 @@ int BreakArgLine(LPSTR pszCmdLine, char ***pppszArg) {
     if ((!iArg) && (c != ' ') && (c != '\t')) { /* Beginning of a new argument */
       iArg = TRUE;
       ppszArg[argc++] = pszCopy+j;
-      ppszArg = (char **)realloc(ppszArg, (argc+1)*sizeof(char *));
+      ppszArg1 = (char **)realloc(ppszArg, (argc+1)*sizeof(char *));
+      if(ppszArg1 == NULL && ppszArg != NULL)
+            free(ppszArg); 
+      ppszArg = ppszArg1;
       if (!ppszArg) return -1;
       pszCopy[j] = c0 = '\0';
     }
@@ -212,14 +216,14 @@ int _initU(void) {
     fprintf(stderr, "Warning: Can't convert the argument line to UTF-8\n");
     _acmdln[0] = '\0';
   }
-  realloc(_acmdln, n+1); /* Resize the memory block to fit the UTF-8 line */
+  //realloc(_acmdln, n+1); /* Resize the memory block to fit the UTF-8 line */
   /* Should not fail since we make it smaller */
 
   /* Record the console code page, to allow converting the output accordingly */
   codePage = GetConsoleOutputCP();
 
   return 0;
-}
+}ß
 
 #endif /* defined(_WIN32) */
 

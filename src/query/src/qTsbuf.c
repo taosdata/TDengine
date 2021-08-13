@@ -223,8 +223,11 @@ static STSGroupBlockInfoEx* addOneGroupInfo(STSBuf* pTSBuf, int32_t id) {
 static void shrinkBuffer(STSList* ptsData) {
   // shrink tmp buffer size if it consumes too many memory compared to the pre-defined size
   if (ptsData->allocSize >= ptsData->threshold * 2) {
-    ptsData->rawBuf = realloc(ptsData->rawBuf, MEM_BUF_SIZE);
-    ptsData->allocSize = MEM_BUF_SIZE;
+    char* rawBuf = realloc(ptsData->rawBuf, MEM_BUF_SIZE);
+    if(rawBuf) {
+      ptsData->rawBuf = rawBuf;
+      ptsData->allocSize = MEM_BUF_SIZE;
+    }
   }
 }
 

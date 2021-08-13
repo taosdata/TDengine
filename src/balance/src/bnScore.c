@@ -117,7 +117,8 @@ void bnCleanupDnodes() {
 static void bnCheckDnodesSize(int32_t dnodesNum) {
   if (tsBnDnodes.maxSize <= dnodesNum) {
     tsBnDnodes.maxSize = dnodesNum * 2;
-    tsBnDnodes.list = realloc(tsBnDnodes.list, tsBnDnodes.maxSize * sizeof(SDnodeObj *));
+    SDnodeObj** list1 = realloc(tsBnDnodes.list, tsBnDnodes.maxSize * sizeof(SDnodeObj *));
+    if(list1) tsBnDnodes.list = list1;
   }
 }
 

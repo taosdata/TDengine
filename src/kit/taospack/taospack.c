@@ -148,7 +148,10 @@ float* read_float(const char* inFile, int* pcount){
     //printf(" buff=%s float=%.50f \n ", buf, floats[fi]);
     if ( ++fi == malloc_cnt ) {
       malloc_cnt += 100000;
-      floats = realloc(floats, malloc_cnt*sizeof(float));
+      float* floats1 = realloc(floats, malloc_cnt*sizeof(float));
+      if(floats1 == NULL)
+         break;
+      floats = floats1;   
     }
     memset(buf, 0, sizeof(buf));
   }
