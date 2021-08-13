@@ -94,6 +94,7 @@ double getVectorDoubleValue(void *src, int32_t srcType, int32_t index) {
     default:
       assert(0);
   }
+  return 0;
 }
 
 void *getVectorValueAddr(void *src, int32_t srcType, int32_t index) {
@@ -131,6 +132,7 @@ void *getVectorValueAddr(void *src, int32_t srcType, int32_t index) {
     default:
       assert(0);
   }
+  return src;
 }
 
 void vectorAdd(void *left, int32_t len1, int32_t _left_type, void *right, int32_t len2, int32_t _right_type, void *out, int32_t _ord) {
