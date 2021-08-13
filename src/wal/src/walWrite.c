@@ -375,15 +375,18 @@ static int walSMemRowCheck(SWalHead *pHead) {
     int32_t     lenExpand = 0;
     for (int32_t i = 0; i < numOfBlocks; ++i) {
       expandSubmitBlk(pDestBlks, pSrcBlks, &lenExpand);
+      pDestBlks = POINTER_SHIFT(pDestBlks, htonl(pDestBlks->dataLen) + sizeof(SSubmitBlk));
+      pSrcBlks = POINTER_SHIFT(pSrcBlks, htonl(pSrcBlks->dataLen) + sizeof(SSubmitBlk));
     }
     if (lenExpand > 0) {
-      pDestMsg->length = htonl(htonl(pDestMsg->length) + lenExpand);
+      pDestMsg->header.contLen = htonl(pDestMsg->length) + lenExpand;
+      pDestMsg->length = htonl(pDestMsg->header.contLen);
       pWalHead->len = pWalHead->len + lenExpand;
     }
 
     memcpy(pHead, pWalHead, sizeof(SWalHead) + pWalHead->len);
     tfree(pWalHead);
-  }
+    }
   return 0;
 }
 
@@ -511,12 +514,10 @@ static int32_t walRestoreWalFile(SWal *pWal, void *pVnode, FWalWrite writeFp, ch
     pWal->version = pHead->version;
 
     // wInfo("writeFp: %ld", offset);
-
     if (0 != walSMemRowCheck(pHead)) {
       wError("vgId:%d, restore wal, fileId:%" PRId64 " hver:%" PRIu64 " wver:%" PRIu64 " len:%d offset:%" PRId64,
              pWal->vgId, fileId, pHead->version, pWal->version, pHead->len, offset);
     }
-
     (*writeFp)(pVnode, pHead, TAOS_QTYPE_WAL, NULL);
   }
 
