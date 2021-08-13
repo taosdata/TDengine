@@ -71,8 +71,8 @@ public class ConsumeToTDengineJobServiceImpl extends AbstractRunnableJobService 
 
         // arrange threads to partitions
         int threadSize = taskConfiguration.getThreads();
-
         List<Integer[]> threadIndex2PartitionList = Utils.divideArrayIntoGroups(partitions, threadSize);
+        long startOffset = taskConfiguration.getStartOffset();
 
         int actualThreads = threadIndex2PartitionList.size();
         if (threadSize > actualThreads) {
@@ -110,6 +110,7 @@ public class ConsumeToTDengineJobServiceImpl extends AbstractRunnableJobService 
                     .setTopic(topic)
                     .setTaosdConnection(connection)
                     .setPollingInterval(pollingInterval)
+                    .setStartOffset(startOffset)
                     .build();
             return runnable;
         }).collect(Collectors.toList());

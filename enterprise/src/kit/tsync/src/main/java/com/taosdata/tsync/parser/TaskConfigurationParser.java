@@ -49,6 +49,14 @@ public class TaskConfigurationParser implements ConfigurationParser {
             Integer threads = configJSON.getInteger("threads");
             config.setThreads(threads);
         }
+
+        if (configJSON.containsKey("startOffset")) {
+            long startOffset = configJSON.getLongValue("startOffset");
+            config.setStartOffset(startOffset);
+        } else {
+            logger.warn("use default startOffset: " + TaskConfiguration.DEFAULT_START_OFFSET);
+            config.setStartOffset(TaskConfiguration.DEFAULT_START_OFFSET);
+        }
         return config;
     }
 

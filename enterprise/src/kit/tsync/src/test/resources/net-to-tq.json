@@ -5,7 +5,7 @@
     }
   },
   "producer": {
-    "host": "192.168.17.82",
+    "host": "192.168.1.139",
     "port": 6041,
     "user": "root",
     "password": "tqueue",
