@@ -223,7 +223,7 @@ int _initU(void) {
   codePage = GetConsoleOutputCP();
 
   return 0;
-}ß
+}
 
 #endif /* defined(_WIN32) */
 
