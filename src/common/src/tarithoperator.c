@@ -239,9 +239,9 @@ void vectorDivide(void *left, int32_t len1, int32_t _left_type, void *right, int
         SET_DOUBLE_NULL(output);                                                                       
         continue;                                                                                   
       }                                                                                             
-      double v, z = 0.0;                                                                            
+      double v, u = 0.0;                                                                            
       GET_TYPED_DATA(v, double, _right_type, getVectorValueAddr(right,_right_type,i));                                
-      if (getComparFunc(TSDB_DATA_TYPE_DOUBLE, 0)(&v, &z) == 0) {                                   
+      if (getComparFunc(TSDB_DATA_TYPE_DOUBLE, 0)(&v, &u) == 0) {                                   
         SET_DOUBLE_NULL(output);                                                                       
         continue;                                                                                   
       }                                                                                             
@@ -253,9 +253,9 @@ void vectorDivide(void *left, int32_t len1, int32_t _left_type, void *right, int
         SET_DOUBLE_NULL(output);                                                                       
         continue;                                                                                   
       }                                                                                             
-      double v, z = 0.0;                                                                            
+      double v, u = 0.0;                                                                            
       GET_TYPED_DATA(v, double, _right_type, getVectorValueAddr(right,_right_type,i));                                
-      if (getComparFunc(TSDB_DATA_TYPE_DOUBLE, 0)(&v, &z) == 0) {                                   
+      if (getComparFunc(TSDB_DATA_TYPE_DOUBLE, 0)(&v, &u) == 0) {                                   
         SET_DOUBLE_NULL(output);                                                                       
         continue;                                                                                   
       }                                                                                             
@@ -267,9 +267,9 @@ void vectorDivide(void *left, int32_t len1, int32_t _left_type, void *right, int
         SET_DOUBLE_NULL(output);                                                                       
         continue;                                                                                   
       }                                                                                             
-      double v, z = 0.0;                                                                            
+      double v, u = 0.0;                                                                            
       GET_TYPED_DATA(v, double, _right_type, getVectorValueAddr(right,_right_type,0));                                
-      if (getComparFunc(TSDB_DATA_TYPE_DOUBLE, 0)(&v, &z) == 0) {                                   
+      if (getComparFunc(TSDB_DATA_TYPE_DOUBLE, 0)(&v, &u) == 0) {                                   
         SET_DOUBLE_NULL(output);                                                                       
         continue;                                                                                   
       }                                                                                             
@@ -288,9 +288,9 @@ void vectorRemainder(void *left, int32_t len1, int32_t _left_type, void *right, 
         SET_DOUBLE_NULL(output);                                                                       
         continue;                                                                                   
       }                                                                                             
-      double v, z = 0.0;                                                                            
+      double v, u = 0.0;                                                                            
       GET_TYPED_DATA(v, double, _right_type, getVectorValueAddr(right,_right_type,i));                                
-      if (getComparFunc(TSDB_DATA_TYPE_DOUBLE, 0)(&v, &z) == 0) {                                   
+      if (getComparFunc(TSDB_DATA_TYPE_DOUBLE, 0)(&v, &u) == 0) {                                   
         SET_DOUBLE_NULL(output);                                                                       
         continue;                                                                                   
       }                                                                                             
@@ -302,9 +302,9 @@ void vectorRemainder(void *left, int32_t len1, int32_t _left_type, void *right, 
         SET_DOUBLE_NULL(output);                                                                       
         continue;                                                                                   
       }                                                                                             
-      double v, z = 0.0;                                                                            
+      double v, u = 0.0;                                                                            
       GET_TYPED_DATA(v, double, _right_type, getVectorValueAddr(right,_right_type,i));                                
-      if (getComparFunc(TSDB_DATA_TYPE_DOUBLE, 0)(&v, &z) == 0) {                                   
+      if (getComparFunc(TSDB_DATA_TYPE_DOUBLE, 0)(&v, &u) == 0) {                                   
         SET_DOUBLE_NULL(output);                                                                       
         continue;                                                                                   
       }                                                                                             
@@ -316,9 +316,9 @@ void vectorRemainder(void *left, int32_t len1, int32_t _left_type, void *right, 
         SET_DOUBLE_NULL(output);                                                                       
         continue;                                                                                   
       }                                                                                             
-      double v, z = 0.0;                                                                            
+      double v, u = 0.0;                                                                            
       GET_TYPED_DATA(v, double, _right_type, getVectorValueAddr(right,_right_type,0));                                
-      if (getComparFunc(TSDB_DATA_TYPE_DOUBLE, 0)(&v, &z) == 0) {                                   
+      if (getComparFunc(TSDB_DATA_TYPE_DOUBLE, 0)(&v, &u) == 0) {                                   
         SET_DOUBLE_NULL(output);                                                                       
         continue;                                                                                   
       }                                                                                             
