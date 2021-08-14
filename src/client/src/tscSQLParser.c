@@ -1944,20 +1944,6 @@ static void addPrimaryTsColIntoResult(SQueryInfo* pQueryInfo, SSqlCmd* pCmd) {
   pQueryInfo->type |= TSDB_QUERY_TYPE_PROJECTION_QUERY;
 }
 
-bool isValidDistinctSql(SQueryInfo* pQueryInfo) {
-  if (pQueryInfo == NULL) {
-    return false;
-  }
-  if ((pQueryInfo->type & TSDB_QUERY_TYPE_STABLE_QUERY)  != TSDB_QUERY_TYPE_STABLE_QUERY 
-      && (pQueryInfo->type & TSDB_QUERY_TYPE_TABLE_QUERY)  != TSDB_QUERY_TYPE_TABLE_QUERY) {
-    return false;
-  }
-  if (tscNumOfExprs(pQueryInfo) == 1){
-    return true;
-  } 
-  return false;
-}
-
 static bool hasNoneUserDefineExpr(SQueryInfo* pQueryInfo) {
   size_t numOfExprs = taosArrayGetSize(pQueryInfo->exprList);
   for (int32_t i = 0; i < numOfExprs; ++i) {
@@ -2047,8 +2033,11 @@ int32_t validateSelectNodeList(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SArray* pS
   const char* msg1 = "too many items in selection clause";
   const char* msg2 = "functions or others can not be mixed up";
   const char* msg3 = "not support query expression";
-  const char* msg4 = "only support distinct one column or tag";
+  const char* msg4 = "not support distinct mixed with proj/agg func";
   const char* msg5 = "invalid function name";
+  const char* msg6 = "not support distinct mixed with join"; 
+  const char* msg7 = "not support distinct mixed with groupby";
+  const char* msg8 = "not support distinct in nest query";
 
   // too many result columns not support order by in query
   if (taosArrayGetSize(pSelNodeList) > TSDB_MAX_COLUMNS) {
@@ -2060,17 +2049,22 @@ int32_t validateSelectNodeList(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SArray* pS
   }
 
   bool hasDistinct = false;
-  size_t numOfExpr = taosArrayGetSize(pSelNodeList);
+  bool hasAgg      = false; 
+  size_t  numOfExpr = taosArrayGetSize(pSelNodeList);
+  int32_t distIdx = -1; 
   for (int32_t i = 0; i < numOfExpr; ++i) {
     int32_t outputIndex = (int32_t)tscNumOfExprs(pQueryInfo);
     tSqlExprItem* pItem = taosArrayGet(pSelNodeList, i);
-     
     if (hasDistinct == false) {
-       hasDistinct = (pItem->distinct == true); 
-    }
+      hasDistinct = (pItem->distinct == true);
+      distIdx     =  hasDistinct ? i : -1;
+    } 
 
     int32_t type = pItem->pNode->type;
     if (type == SQL_NODE_SQLFUNCTION) {
+      hasAgg = true; 
+      if (hasDistinct)  break;
+
       pItem->pNode->functionId = isValidFunction(pItem->pNode->Expr.operand.z, pItem->pNode->Expr.operand.n);
       SUdfInfo* pUdfInfo = NULL;
       if (pItem->pNode->functionId < 0) {
@@ -2106,9 +2100,21 @@ int32_t validateSelectNodeList(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SArray* pS
     }
   }
 
+  
+  //TODO(dengyihao), refactor as function     
+  //handle distinct func mixed with other func 
   if (hasDistinct == true) {
-    if (!isValidDistinctSql(pQueryInfo) ) {
+    if (distIdx != 0 || hasAgg) {
       return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg4);
+    } 
+    if (joinQuery) {
+      return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg6);
+    }
+    if (pQueryInfo->groupbyExpr.numOfGroupCols  != 0) {
+      return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg7);
+    }
+    if (pQueryInfo->pDownstream != NULL) {
+      return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg8);
     }
     pQueryInfo->distinct = true;
   }
@@ -8682,12 +8688,12 @@ static int32_t doValidateSubquery(SSqlNode* pSqlNode, int32_t index, SSqlObj* pS
   pSub->pUdfInfo = pUdfInfo;
   pSub->udfCopy = true;
 
+  pSub->pDownstream = pQueryInfo;
   int32_t code = validateSqlNode(pSql, p, pSub);
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }
 
-  pSub->pDownstream = pQueryInfo;
 
   // create dummy table meta info
   STableMetaInfo* pTableMetaInfo1 = calloc(1, sizeof(STableMetaInfo));
@@ -8795,6 +8801,7 @@ int32_t validateSqlNode(SSqlObj* pSql, SSqlNode* pSqlNode, SQueryInfo* pQueryInf
     if (validateGroupbyNode(pQueryInfo, pSqlNode->pGroupby, pCmd) != TSDB_CODE_SUCCESS) {
       return TSDB_CODE_TSC_INVALID_OPERATION;
     }
+    
 
     if (validateSelectNodeList(pCmd, pQueryInfo, pSqlNode->pSelNodeList, false, timeWindowQuery, true) !=
         TSDB_CODE_SUCCESS) {

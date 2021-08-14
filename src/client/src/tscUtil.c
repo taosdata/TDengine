@@ -1522,7 +1522,6 @@ void tscFreeSqlObj(SSqlObj* pSql) {
   tscFreeSqlResult(pSql);
   tscResetSqlCmd(pCmd, false, pSql->self);
 
-  memset(pCmd->payload, 0, (size_t)pCmd->allocSize);
   tfree(pCmd->payload);
   pCmd->allocSize = 0;
 
@@ -3617,7 +3616,8 @@ SSqlObj* createSubqueryObj(SSqlObj* pSql, int16_t tableIndex, __async_cb_func_t 
   pNewQueryInfo->prjOffset = pQueryInfo->prjOffset;
   pNewQueryInfo->numOfTables = 0;
   pNewQueryInfo->pTableMetaInfo = NULL;
-  pNewQueryInfo->bufLen = pQueryInfo->bufLen;
+  pNewQueryInfo->bufLen   =  pQueryInfo->bufLen;
+  pNewQueryInfo->distinct =  pQueryInfo->distinct;
 
   pNewQueryInfo->buf = malloc(pQueryInfo->bufLen);
   if (pNewQueryInfo->buf == NULL) {
