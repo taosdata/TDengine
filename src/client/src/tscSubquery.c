@@ -2397,6 +2397,10 @@ int32_t tscHandleFirstRoundStableQuery(SSqlObj *pSql) {
         } else {
           SSchema ss = {.type = (uint8_t)pCol->info.type, .bytes = pCol->info.bytes, .colId = (int16_t)pCol->columnIndex};
           tscColumnListInsert(pNewQueryInfo->colList, pCol->columnIndex, pCol->tableUid, &ss);
+          int32_t ti = tscColumnExists(pNewQueryInfo->colList, pCol->columnIndex, pCol->tableUid);
+          assert(ti >= 0);
+          SColumn* x = taosArrayGetP(pNewQueryInfo->colList, ti);
+          tscColumnCopy(x, pCol);
         }
       }
     }
