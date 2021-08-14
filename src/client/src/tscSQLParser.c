@@ -3218,7 +3218,7 @@ int32_t setShowInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
   pCmd->command = TSDB_SQL_SHOW;
 
   const char* msg1 = "invalid name";
-  const char* msg2 = "pattern filter string too long";
+  const char* msg2 = "wildcard string should be less than %d characters";
   const char* msg3 = "database name too long";
   const char* msg4 = "invalid ip address";
   const char* msg5 = "database name is empty";
@@ -3262,8 +3262,10 @@ int32_t setShowInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
         return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg6);
       }
 
-      if (!tscValidateTableNameLength(pCmd->payloadLen)) {
-        return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg2);
+      if (pPattern->n > tsMaxWildCardsLen){
+        char tmp[64] = {0};
+        sprintf(tmp, msg2, tsMaxWildCardsLen);
+        return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), tmp);
       }
     }
   } else if (showType == TSDB_MGMT_TABLE_VNODES) {
@@ -4253,11 +4255,15 @@ static bool isValidExpr(tSqlExpr* pLeft, tSqlExpr* pRight, int32_t optr) {
   if (pRight == NULL) {
     return true;
   }
-  
+
   if (pLeft->tokenId >= TK_BOOL && pLeft->tokenId <= TK_BINARY && pRight->tokenId >= TK_BOOL && pRight->tokenId <= TK_BINARY) {
     return false;
   }
 
+  if (pLeft->tokenId >= TK_BOOL && pLeft->tokenId <= TK_BINARY && (optr == TK_NOTNULL || optr == TK_ISNULL)) {
+    return false;
+  }
+  
   return true;
 }
 
@@ -4390,15 +4396,17 @@ static int32_t validateNullExpr(tSqlExpr* pExpr, char* msgBuf) {
 
 // check for like expression
 static int32_t validateLikeExpr(tSqlExpr* pExpr, STableMeta* pTableMeta, int32_t index, char* msgBuf) {
-  const char* msg1 = "wildcard string should be less than 20 characters";
+  const char* msg1 = "wildcard string should be less than %d characters";
   const char* msg2 = "illegal column name";
 
   tSqlExpr* pLeft  = pExpr->pLeft;
   tSqlExpr* pRight = pExpr->pRight;
 
   if (pExpr->tokenId == TK_LIKE) {
-    if (pRight->value.nLen > TSDB_PATTERN_STRING_MAX_LEN) {
-      return invalidOperationMsg(msgBuf, msg1);
+    if (pRight->value.nLen > tsMaxWildCardsLen) {
+      char tmp[64] = {0};
+      sprintf(tmp, msg1, tsMaxWildCardsLen);
+      return invalidOperationMsg(msgBuf, tmp);
     }
 
     SSchema* pSchema = tscGetTableSchema(pTableMeta);

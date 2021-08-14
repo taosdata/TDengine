@@ -2706,7 +2706,7 @@ static void getIntermediateBufInfo(SQueryRuntimeEnv* pRuntimeEnv, int32_t* ps, i
   SQueryAttr* pQueryAttr = pRuntimeEnv->pQueryAttr;
   int32_t MIN_ROWS_PER_PAGE = 4;
 
-  *rowsize = (int32_t)(pQueryAttr->resultRowSize * GET_ROW_PARAM_FOR_MULTIOUTPUT(pQueryAttr, pQueryAttr->topBotQuery, pQueryAttr->stableQuery));
+  *rowsize = (int32_t)(pQueryAttr->resultRowSize * getRowNumForMultioutput(pQueryAttr, pQueryAttr->topBotQuery, pQueryAttr->stableQuery));
   int32_t overhead = sizeof(tFilePage);
 
   // one page contains at least two rows
@@ -3630,7 +3630,7 @@ void updateOutputBuf(SOptrBasicInfo* pBInfo, int32_t *bufCapacity, int32_t numOf
     // re-estabilish output buffer pointer.
     int32_t functionId = pBInfo->pCtx[i].functionId;
     if (functionId == TSDB_FUNC_TOP || functionId == TSDB_FUNC_BOTTOM || functionId == TSDB_FUNC_DIFF || functionId == TSDB_FUNC_DERIVATIVE) {
-      pBInfo->pCtx[i].ptsOutputBuf = pBInfo->pCtx[0].pOutput;
+      pBInfo->pCtx[i].ptsOutputBuf = pBInfo->pCtx[i-1].pOutput;
     }
   }
 }
@@ -5024,6 +5024,9 @@ static SSDataBlock* doBlockInfoScan(void* param, bool* newgroup) {
   tableBlockDist.numOfTables     = (int32_t)pOperator->pRuntimeEnv->tableqinfoGroupInfo.numOfTables;
 
   int32_t numRowSteps = tsMaxRowsInFileBlock / TSDB_BLOCK_DIST_STEP_ROWS;
+  if (tsMaxRowsInFileBlock % TSDB_BLOCK_DIST_STEP_ROWS != 0) {
+    ++numRowSteps;
+  }
   tableBlockDist.dataBlockInfos  = taosArrayInit(numRowSteps, sizeof(SFileBlockInfo));
   taosArraySetSize(tableBlockDist.dataBlockInfos, numRowSteps);
   tableBlockDist.maxRows = INT_MIN;
@@ -5298,7 +5301,7 @@ SOperatorInfo* createGlobalAggregateOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, 
   SMultiwayMergeInfo* pInfo = calloc(1, sizeof(SMultiwayMergeInfo));
 
   pInfo->resultRowFactor =
-      (int32_t)(GET_ROW_PARAM_FOR_MULTIOUTPUT(pRuntimeEnv->pQueryAttr, pRuntimeEnv->pQueryAttr->topBotQuery, false));
+      (int32_t)(getRowNumForMultioutput(pRuntimeEnv->pQueryAttr, pRuntimeEnv->pQueryAttr->topBotQuery, false));
 
   pRuntimeEnv->scanFlag = MERGE_STAGE;  // TODO init when creating pCtx
 
@@ -6327,7 +6330,7 @@ SOperatorInfo* createAggregateOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOpera
   SAggOperatorInfo* pInfo = calloc(1, sizeof(SAggOperatorInfo));
 
   SQueryAttr* pQueryAttr = pRuntimeEnv->pQueryAttr;
-  int32_t numOfRows = (int32_t)(GET_ROW_PARAM_FOR_MULTIOUTPUT(pQueryAttr, pQueryAttr->topBotQuery, pQueryAttr->stableQuery));
+  int32_t numOfRows = (int32_t)(getRowNumForMultioutput(pQueryAttr, pQueryAttr->topBotQuery, pQueryAttr->stableQuery));
 
   pInfo->binfo.pRes = createOutputBuf(pExpr, numOfOutput, numOfRows);
   pInfo->binfo.pCtx = createSQLFunctionCtx(pRuntimeEnv, pExpr, numOfOutput, &pInfo->binfo.rowCellInfoOffset);
@@ -6701,7 +6704,7 @@ SOperatorInfo* createGroupbyOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperato
   SQueryAttr *pQueryAttr = pRuntimeEnv->pQueryAttr;
 
   pQueryAttr->resultRowSize = (pQueryAttr->resultRowSize *
-      (int32_t)(GET_ROW_PARAM_FOR_MULTIOUTPUT(pQueryAttr, pQueryAttr->topBotQuery, pQueryAttr->stableQuery)));
+      (int32_t)(getRowNumForMultioutput(pQueryAttr, pQueryAttr->topBotQuery, pQueryAttr->stableQuery)));
 
   pInfo->binfo.pRes = createOutputBuf(pExpr, numOfOutput, pRuntimeEnv->resultInfo.capacity);
   initResultRowInfo(&pInfo->binfo.resultRowInfo, 8, TSDB_DATA_TYPE_INT);

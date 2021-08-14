@@ -39,7 +39,6 @@
 #define GET_QID(_r)  (((SQInfo*)((_r)->qinfo))->qId)
 
 #define curTimeWindowIndex(_winres)        ((_winres)->curIndex)
-#define GET_ROW_PARAM_FOR_MULTIOUTPUT(_q, tbq, sq) (((tbq) && (!(sq)))? (_q)->pExpr1[1].base.param[0].i64:1)
 
 int32_t getOutputInterResultBufSize(SQueryAttr* pQueryAttr);
 
@@ -60,6 +59,7 @@ SResultRowCellInfo* getResultCell(const SResultRow* pRow, int32_t index, int32_t
 
 void* destroyQueryFuncExpr(SExprInfo* pExprInfo, int32_t numOfExpr);
 void* freeColumnInfo(SColumnInfo* pColumnInfo, int32_t numOfCols);
+int32_t getRowNumForMultioutput(SQueryAttr* pQueryAttr, bool topBottomQuery, bool stable);
 
 static FORCE_INLINE SResultRow *getResultRow(SResultRowInfo *pResultRowInfo, int32_t slot) {
   assert(pResultRowInfo != NULL && slot >= 0 && slot < pResultRowInfo->size);
@@ -70,7 +70,7 @@ static FORCE_INLINE char* getPosInResultPage(SQueryAttr* pQueryAttr, tFilePage* 
                                              int32_t offset) {
   assert(rowOffset >= 0 && pQueryAttr != NULL);
 
-  int32_t numOfRows = (int32_t)GET_ROW_PARAM_FOR_MULTIOUTPUT(pQueryAttr, pQueryAttr->topBotQuery, pQueryAttr->stableQuery);
+  int32_t numOfRows = (int32_t)getRowNumForMultioutput(pQueryAttr, pQueryAttr->topBotQuery, pQueryAttr->stableQuery);
   return ((char *)page->data) + rowOffset + offset * numOfRows;
 }
 

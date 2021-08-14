@@ -339,6 +339,7 @@ python3 ./test.py -f functions/function_twa.py -r 1
 python3 ./test.py -f functions/function_twa_test2.py
 python3 ./test.py -f functions/function_stddev_td2555.py
 python3 ./test.py -f functions/showOfflineThresholdIs864000.py
+python3 ./test.py -f functions/function_interp.py
 python3 ./test.py -f insert/metadataUpdate.py
 python3 ./test.py -f query/last_cache.py
 python3 ./test.py -f query/last_row_cache.py
@@ -381,7 +382,9 @@ python3 ./test.py -f query/querySession.py
 python3 test.py -f  alter/alter_create_exception.py
 python3 ./test.py -f insert/flushwhiledrop.py
 python3 ./test.py -f insert/schemalessInsert.py
-python3 ./test.py -f alter/alterColMultiTimes.py 
+python3 ./test.py -f alter/alterColMultiTimes.py
+python3 ./test.py -f query/queryWildcardLength.py
+python3 ./test.py -f query/queryTbnameUpperLower.py
 
 #======================p4-end===============
 

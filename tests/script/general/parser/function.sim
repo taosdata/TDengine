@@ -1148,3 +1148,35 @@ endi
 
 
 sql select derivative(test_column_alias_name, 1s, 0) from (select avg(k) test_column_alias_name from t1 interval(1s));
+
+sql create table smeters (ts timestamp, current float, voltage int) tags (t1 int);
+sql create table smeter1 using smeters tags (1);
+sql insert into smeter1 values ('2021-08-08 10:10:10', 10, 2);
+sql insert into smeter1 values ('2021-08-08 10:10:12', 10, 2);
+sql insert into smeter1 values ('2021-08-08 10:10:14', 20, 1);
+
+sql select stddev(voltage) from smeters where ts>='2021-08-08 10:10:10.000' and ts < '2021-08-08 10:10:20.000'  and current=10 interval(1000a);
+if $rows != 2 then
+  return -1
+endi
+if $data00 != @21-08-08 10:10:10.000@ then
+  return -1
+endi
+if $data01 != 0.000000000 then
+  return -1
+endi
+if $data10 != @21-08-08 10:10:12.000@ then
+  return -1
+endi
+if $data11 != 0.000000000 then
+  return -1
+endi
+
+sql select stddev(voltage) from smeters where ts>='2021-08-08 10:10:10.000' and ts < '2021-08-08 10:10:20.000'  and current=10;
+if $rows != 1 then
+  return -1
+endi
+if $data00 != 0.000000000 then
+  return -1
+endi
+
