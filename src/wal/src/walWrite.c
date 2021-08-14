@@ -388,7 +388,7 @@ static int walSMemRowCheck(SWalHead *pHead) {
       }
       pBlk = (SSubmitBlk *)POINTER_SHIFT(pBlk, sizeof(SSubmitBlk) + dataLen);
     }
-
+    ASSERT(nTotalRows >= 0);
     SWalHead *pWalHead = (SWalHead *)calloc(sizeof(SWalHead) + pHead->len + nTotalRows * sizeof(uint8_t), 1);
     if (pWalHead == NULL) {
       return -1;
@@ -544,6 +544,8 @@ static int32_t walRestoreWalFile(SWal *pWal, void *pVnode, FWalWrite writeFp, ch
     if (0 != walSMemRowCheck(pHead)) {
       wError("vgId:%d, restore wal, fileId:%" PRId64 " hver:%" PRIu64 " wver:%" PRIu64 " len:%d offset:%" PRId64,
              pWal->vgId, fileId, pHead->version, pWal->version, pHead->len, offset);
+      tfClose(tfd);
+      tfree(buffer);
       return TAOS_SYSTEM_ERROR(errno);
     }
     (*writeFp)(pVnode, pHead, TAOS_QTYPE_WAL, NULL);
