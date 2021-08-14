@@ -625,8 +625,10 @@ static void setResRawPtrImpl(SSqlRes* pRes, SInternalField* pInfo, int32_t i, bo
 
   } else if (convertNchar && pInfo->field.type == TSDB_DATA_TYPE_NCHAR) {
     // convert unicode to native code in a temporary buffer extra one byte for terminated symbol
-    pRes->buffer[i] = realloc(pRes->buffer[i], pInfo->field.bytes * pRes->numOfRows);
-
+    char* buffer = realloc(pRes->buffer[i], pInfo->field.bytes * pRes->numOfRows);
+    if(buffer == NULL)
+       return ;
+    pRes->buffer[i] = buffer;
     // string terminated char for binary data
     memset(pRes->buffer[i], 0, pInfo->field.bytes * pRes->numOfRows);
 
@@ -4363,6 +4365,7 @@ int32_t tscCreateTableMetaFromSTableMeta(STableMeta** ppChild, const char* name,
   STableMeta* p    = NULL;
   size_t      sz   = 0;
   STableMeta* pChild = *ppChild;
+  STableMeta* pChild1;
    
   taosHashGetCloneExt(tscTableMetaMap, pChild->sTableName, strnlen(pChild->sTableName, TSDB_TABLE_FNAME_LEN), NULL, (void **)&p, &sz);
 
@@ -4373,7 +4376,10 @@ int32_t tscCreateTableMetaFromSTableMeta(STableMeta** ppChild, const char* name,
     int32_t totalBytes    = (p->tableInfo.numOfColumns + p->tableInfo.numOfTags) * sizeof(SSchema);
     int32_t tableMetaSize =  sizeof(STableMeta)  + totalBytes;
     if (*tableMetaCapacity < tableMetaSize) {
-      pChild = realloc(pChild, tableMetaSize); 
+      pChild1 = realloc(pChild, tableMetaSize);
+      if(pChild1 == NULL) 
+        return -1;
+      pChild = pChild1; 
       *tableMetaCapacity = (size_t)tableMetaSize;
     }
 

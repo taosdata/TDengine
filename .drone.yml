@@ -15,7 +15,7 @@ steps:
   - mkdir debug
   - cd debug
   - cmake .. 
-  - make 
+  - make -j4 
   trigger:
     event:
       - pull_request
@@ -23,6 +23,7 @@ steps:
     branch:
     - develop
     - master
+    - 2.0
 ---
 kind: pipeline
 name: test_arm64_bionic
@@ -39,7 +40,7 @@ steps:
   - mkdir debug
   - cd debug
   - cmake .. -DCPUTYPE=aarch64 > /dev/null
-  - make 
+  - make -j4 
   trigger:
     event:
       - pull_request
@@ -66,7 +67,7 @@ steps:
   - mkdir debug
   - cd debug
   - cmake .. -DCPUTYPE=aarch64 > /dev/null
-  - make 
+  - make -j4 
   trigger:
     event:
       - pull_request
@@ -91,7 +92,7 @@ steps:
   - mkdir debug
   - cd debug
   - cmake .. -DCPUTYPE=aarch64 > /dev/null
-  - make 
+  - make -j4 
   trigger:
     event:
       - pull_request
@@ -116,7 +117,7 @@ steps:
   - mkdir debug
   - cd debug
   - cmake .. -DCPUTYPE=aarch64 > /dev/null
-  - make 
+  - make -j4 
   trigger:
     event:
       - pull_request
@@ -142,7 +143,7 @@ steps:
   - mkdir debug
   - cd debug
   - cmake .. -DCPUTYPE=aarch32 > /dev/null
-  - make 
+  - make -j4 
   trigger:
     event:
       - pull_request
@@ -150,6 +151,7 @@ steps:
     branch:
     - develop
     - master
+    - 2.0
 ---
 kind: pipeline
 name: build_trusty
@@ -168,7 +170,7 @@ steps:
   - mkdir debug
   - cd debug
   - cmake .. 
-  - make 
+  - make -j4 
   trigger:
     event:
       - pull_request
@@ -176,6 +178,7 @@ steps:
     branch:
     - develop
     - master
+    - 2.0
 ---
 kind: pipeline
 name: build_xenial
@@ -193,7 +196,7 @@ steps:
   - mkdir debug
   - cd debug
   - cmake .. 
-  - make 
+  - make -j4 
   trigger:
     event:
       - pull_request
@@ -201,7 +204,7 @@ steps:
     branch:
     - develop
     - master
-
+    - 2.0
 ---
 kind: pipeline
 name: build_bionic
@@ -218,7 +221,7 @@ steps:
   - mkdir debug
   - cd debug
   - cmake .. 
-  - make 
+  - make -j4 
   trigger:
     event:
       - pull_request
@@ -226,6 +229,7 @@ steps:
     branch:
     - develop
     - master
+    - 2.0
 ---
 kind: pipeline
 name: build_centos7
@@ -241,7 +245,7 @@ steps:
   - mkdir debug
   - cd debug
   - cmake .. 
-  - make 
+  - make -j4 
   trigger:
     event:
       - pull_request
@@ -249,4 +253,4 @@ steps:
     branch:
     - develop
     - master
-
+    - 2.0
