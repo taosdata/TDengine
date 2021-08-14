@@ -358,13 +358,13 @@ int32_t compareWStrPatternComp(const void* pLeft, const void* pRight) {
   SPatternCompareInfo pInfo = {'%', '_'};
 
   assert(varDataLen(pRight) <= TSDB_MAX_FIELD_LEN * TSDB_NCHAR_SIZE);
-  wchar_t *pattern = calloc(varDataLen(pRight) + 1, sizeof(wchar_t));
 
+  wchar_t *pattern = calloc(varDataLen(pRight) + 1, sizeof(wchar_t));
   memcpy(pattern, varDataVal(pRight), varDataLen(pRight));
-  assert(varDataLen(pRight) < 128);
 
   int32_t ret = WCSPatternMatch(pattern, varDataVal(pLeft), varDataLen(pLeft)/TSDB_NCHAR_SIZE, &pInfo);
   free(pattern);
+
   return (ret == TSDB_PATTERN_MATCH) ? 0 : 1;
 }
 

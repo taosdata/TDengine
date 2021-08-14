@@ -22,10 +22,10 @@ extern "C" {
 
 #include "os.h"
 
-#define TSDB_PATTERN_MATCH 0
-#define TSDB_PATTERN_NOMATCH 1
-#define TSDB_PATTERN_NOWILDCARDMATCH 2
-#define TSDB_PATTERN_STRING_MAX_LEN 100
+#define TSDB_PATTERN_MATCH               0
+#define TSDB_PATTERN_NOMATCH             1
+#define TSDB_PATTERN_NOWILDCARDMATCH     2
+#define TSDB_PATTERN_STRING_DEFAULT_LEN  100
 
 #define FLT_COMPAR_TOL_FACTOR    4
 #define FLT_EQUAL(_x, _y)        (fabs((_x) - (_y)) <= (FLT_COMPAR_TOL_FACTOR * FLT_EPSILON))
