@@ -1208,7 +1208,6 @@ void handleDownstreamOperator(SSqlObj** pSqlObjList, int32_t numOfUpstream, SQue
     createInputDataFilterInfo(px, numOfCol1, &numOfFilterCols, &pFilterInfo);
 
     SOperatorInfo* pSourceOperator = createDummyInputOperator(pSqlObjList[0], pSchema, numOfCol1, pFilterInfo, numOfFilterCols);
-
     pOutput->precision = pSqlObjList[0]->res.precision;
 
     SSchema* schema = NULL;
