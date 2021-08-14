@@ -3222,7 +3222,7 @@ int32_t setShowInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
   pCmd->command = TSDB_SQL_SHOW;
 
   const char* msg1 = "invalid name";
-  const char* msg2 = "pattern filter string too long";
+  const char* msg2 = "wildcard string should be less than %d characters";
   const char* msg3 = "database name too long";
   const char* msg5 = "database name is empty";
   const char* msg6 = "pattern string is empty";
@@ -3265,8 +3265,10 @@ int32_t setShowInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
         return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg6);
       }
 
-      if (!tscValidateTableNameLength(pCmd->payloadLen)) {
-        return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg2);
+      if (pPattern->n > tsMaxWildCardsLen){
+        char tmp[64] = {0};
+        sprintf(tmp, msg2, tsMaxWildCardsLen);
+        return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), tmp);
       }
     }
   } else if (showType == TSDB_MGMT_TABLE_VNODES) {
@@ -3723,7 +3725,8 @@ static int32_t doExtractColumnFilterInfo(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, 
     if (pRight->tokenId != TK_SET || !serializeExprListToVariant(pRight->Expr.paramList, &pVal, colType, timePrecision)) {
       return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg);
     }
-    pColumnFilter->pz  = (int64_t)calloc(1, pVal->nLen + 1);
+
+    pColumnFilter->pz  = (int64_t)calloc(1, pVal->nLen);
     pColumnFilter->len = pVal->nLen;
     pColumnFilter->filterstr = 1;
     memcpy((char *)(pColumnFilter->pz), (char *)(pVal->pz), pVal->nLen);
@@ -4291,7 +4294,7 @@ static bool isValidExpr(tSqlExpr* pLeft, tSqlExpr* pRight, int32_t optr) {
   if (pRight == NULL) {
     return true;
   }
-  
+
   if (pLeft->tokenId >= TK_BOOL && pLeft->tokenId <= TK_BINARY && pRight->tokenId >= TK_BOOL && pRight->tokenId <= TK_BINARY) {
     return false;
   }
@@ -5744,36 +5747,41 @@ static void setDefaultOrderInfo(SQueryInfo* pQueryInfo) {
   pQueryInfo->order.order = TSDB_ORDER_ASC;
   if (isTopBottomQuery(pQueryInfo)) {
     pQueryInfo->order.orderColId = PRIMARYKEY_TIMESTAMP_COL_INDEX;
-  } else { // in case of select tbname from super_table, the defualt order column can not be the primary ts column
-    pQueryInfo->order.orderColId = INT32_MIN;
+  } else { // in case of select tbname from super_table, the default order column can not be the primary ts column
+    pQueryInfo->order.orderColId = INT32_MIN;  // todo define a macro
   }
 
   /* for super table query, set default ascending order for group output */
   if (UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo)) {
     pQueryInfo->groupbyExpr.orderType = TSDB_ORDER_ASC;
   }
+
+  if (pQueryInfo->distinct) {
+    pQueryInfo->order.order = TSDB_ORDER_ASC;
+    pQueryInfo->order.orderColId = PRIMARYKEY_TIMESTAMP_COL_INDEX;
+  }
 }
 
 int32_t validateOrderbyNode(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SSqlNode* pSqlNode, SSchema* pSchema) {
-  const char* msg0 = "only support order by primary timestamp";
-  const char* msg1 = "invalid column name";
-  const char* msg2 = "order by primary timestamp, first tag or groupby column in groupby clause allowed";
-  const char* msg3 = "invalid column in order by clause, only primary timestamp or first tag in groupby clause allowed";
+  const char* msg0 = "only one column allowed in orderby";
+  const char* msg1 = "invalid column name in orderby clause";
+  const char* msg2 = "too many order by columns";
+  const char* msg3 = "only primary timestamp/tbname/first tag in groupby clause allowed";
+  const char* msg4 = "only tag in groupby clause allowed in order clause";
+  const char* msg5 = "only primary timestamp/column in top/bottom function allowed as order column";
+  const char* msg6 = "only primary timestamp allowed as the second order column";
+  const char* msg7 = "only primary timestamp/column in groupby clause allowed as order column";
+  const char* msg8 = "only column in groupby clause allowed as order column";
 
   setDefaultOrderInfo(pQueryInfo);
   STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
 
-
-  if (pQueryInfo->distinct == true) {
-    pQueryInfo->order.order = TSDB_ORDER_ASC;
-    pQueryInfo->order.orderColId = 0; 
-    return TSDB_CODE_SUCCESS;
-  }
-  if (pSqlNode->pSortOrder == NULL) {
+  if (pQueryInfo->distinct || pSqlNode->pSortOrder == NULL) {
     return TSDB_CODE_SUCCESS;
   }
 
-  SArray* pSortorder = pSqlNode->pSortOrder;
+  char* pMsgBuf = tscGetErrorMsgPayload(pCmd);
+  SArray* pSortOrder = pSqlNode->pSortOrder;
 
   /*
    * for table query, there is only one or none order option is allowed, which is the
@@ -5781,19 +5789,19 @@ int32_t validateOrderbyNode(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SSqlNode* pSq
    *
    * for super table query, the order option must be less than 3.
    */
-  size_t size = taosArrayGetSize(pSortorder);
-  if (UTIL_TABLE_IS_NORMAL_TABLE(pTableMetaInfo)) {
+  size_t size = taosArrayGetSize(pSortOrder);
+  if (UTIL_TABLE_IS_NORMAL_TABLE(pTableMetaInfo) || UTIL_TABLE_IS_TMP_TABLE(pTableMetaInfo)) {
     if (size > 1) {
-      return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg0);
+      return invalidOperationMsg(pMsgBuf, msg0);
     }
   } else {
     if (size > 2) {
-      return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg3);
+      return invalidOperationMsg(pMsgBuf, msg2);
     }
   }
 
   // handle the first part of order by
-  tVariant* pVar = taosArrayGet(pSortorder, 0);
+  tVariant* pVar = taosArrayGet(pSortOrder, 0);
 
   // e.g., order by 1 asc, return directly with out further check.
   if (pVar->nType >= TSDB_DATA_TYPE_TINYINT && pVar->nType <= TSDB_DATA_TYPE_BIGINT) {
@@ -5805,7 +5813,7 @@ int32_t validateOrderbyNode(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SSqlNode* pSq
 
   if (UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo)) {  // super table query
     if (getColumnIndexByName(&columnName, pQueryInfo, &index, tscGetErrorMsgPayload(pCmd)) != TSDB_CODE_SUCCESS) {
-      return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg1);
+      return invalidOperationMsg(pMsgBuf, msg1);
     }
 
     bool orderByTags = false;
@@ -5817,7 +5825,7 @@ int32_t validateOrderbyNode(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SSqlNode* pSq
       
       // it is a tag column
       if (pQueryInfo->groupbyExpr.columnInfo == NULL) {
-        return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg2);
+        return invalidOperationMsg(pMsgBuf, msg4);
       }
       SColIndex* pColIndex = taosArrayGet(pQueryInfo->groupbyExpr.columnInfo, 0);
       if (relTagIndex == pColIndex->colIndex) {
@@ -5838,13 +5846,14 @@ int32_t validateOrderbyNode(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SSqlNode* pSq
         orderByGroupbyCol = true;
       }
     }
+
     if (!(orderByTags || orderByTS || orderByGroupbyCol) && !isTopBottomQuery(pQueryInfo)) {
-      return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg3);
+      return invalidOperationMsg(pMsgBuf, msg3);
     } else {  // order by top/bottom result value column is not supported in case of interval query.
       assert(!(orderByTags && orderByTS && orderByGroupbyCol));
     }
 
-    size_t s = taosArrayGetSize(pSortorder);
+    size_t s = taosArrayGetSize(pSortOrder);
     if (s == 1) {
       if (orderByTags) {
         pQueryInfo->groupbyExpr.orderIndex = index.columnIndex - tscGetNumOfColumns(pTableMetaInfo->pTableMeta);
@@ -5863,7 +5872,7 @@ int32_t validateOrderbyNode(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SSqlNode* pSq
 
         pExpr = tscExprGet(pQueryInfo, 1);
         if (pExpr->base.colInfo.colIndex != index.columnIndex && index.columnIndex != PRIMARYKEY_TIMESTAMP_COL_INDEX) {
-          return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg2);
+          return invalidOperationMsg(pMsgBuf, msg5);
         }
 
         tVariantListItem* p1 = taosArrayGet(pSqlNode->pSortOrder, 0);
@@ -5881,9 +5890,7 @@ int32_t validateOrderbyNode(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SSqlNode* pSq
           addPrimaryTsColIntoResult(pQueryInfo, pCmd);
         }
       }
-    }
-
-    if (s == 2) {
+    } else {
       tVariantListItem *pItem = taosArrayGet(pSqlNode->pSortOrder, 0);
       if (orderByTags) {
         pQueryInfo->groupbyExpr.orderIndex = index.columnIndex - tscGetNumOfColumns(pTableMetaInfo->pTableMeta);
@@ -5900,22 +5907,23 @@ int32_t validateOrderbyNode(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SSqlNode* pSq
       tVariant* pVar2 = &pItem->pVar;
       SStrToken cname = {pVar2->nLen, pVar2->nType, pVar2->pz};
       if (getColumnIndexByName(&cname, pQueryInfo, &index, tscGetErrorMsgPayload(pCmd)) != TSDB_CODE_SUCCESS) {
-        return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg1);
+        return invalidOperationMsg(pMsgBuf, msg1);
       }
 
       if (index.columnIndex != PRIMARYKEY_TIMESTAMP_COL_INDEX) {
-        return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg2);
+        return invalidOperationMsg(pMsgBuf, msg6);
       } else {
-        tVariantListItem* p1 = taosArrayGet(pSortorder, 1);
+        tVariantListItem* p1 = taosArrayGet(pSortOrder, 1);
         pQueryInfo->order.order = p1->sortOrder;
         pQueryInfo->order.orderColId = PRIMARYKEY_TIMESTAMP_COL_INDEX;
       }
     }
 
-  } else {  // meter query
-    if (getColumnIndexByName(&columnName, pQueryInfo, &index, tscGetErrorMsgPayload(pCmd)) != TSDB_CODE_SUCCESS) {
-      return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg1);
+  } else if (UTIL_TABLE_IS_NORMAL_TABLE(pTableMetaInfo) || UTIL_TABLE_IS_CHILD_TABLE(pTableMetaInfo)) { // check order by clause for normal table & temp table
+    if (getColumnIndexByName(&columnName, pQueryInfo, &index, pMsgBuf) != TSDB_CODE_SUCCESS) {
+      return invalidOperationMsg(pMsgBuf, msg1);
     }
+
     if (index.columnIndex != PRIMARYKEY_TIMESTAMP_COL_INDEX && !isTopBottomQuery(pQueryInfo)) {
       bool validOrder = false;
       SArray *columnInfo = pQueryInfo->groupbyExpr.columnInfo;
@@ -5923,21 +5931,24 @@ int32_t validateOrderbyNode(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SSqlNode* pSq
         SColIndex* pColIndex = taosArrayGet(columnInfo, 0);
         validOrder = (pColIndex->colIndex == index.columnIndex);
       }
+
       if (!validOrder) {
-        return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg2);
+        return invalidOperationMsg(pMsgBuf, msg7);
       }
+
       tVariantListItem* p1 = taosArrayGet(pSqlNode->pSortOrder, 0);
       pQueryInfo->groupbyExpr.orderIndex = pSchema[index.columnIndex].colId;
       pQueryInfo->groupbyExpr.orderType = p1->sortOrder;
-
     }
 
     if (isTopBottomQuery(pQueryInfo)) {
-      bool validOrder = false;
       SArray *columnInfo = pQueryInfo->groupbyExpr.columnInfo;
       if (columnInfo != NULL && taosArrayGetSize(columnInfo) > 0) {
         SColIndex* pColIndex = taosArrayGet(columnInfo, 0);
-        validOrder = (pColIndex->colIndex == index.columnIndex);
+
+        if (pColIndex->colIndex == index.columnIndex) {
+          return invalidOperationMsg(pMsgBuf, msg8);
+        }
       } else {
         /* order of top/bottom query in interval is not valid  */
         SExprInfo* pExpr = tscExprGet(pQueryInfo, 0);
@@ -5945,13 +5956,8 @@ int32_t validateOrderbyNode(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SSqlNode* pSq
 
         pExpr = tscExprGet(pQueryInfo, 1);
         if (pExpr->base.colInfo.colIndex != index.columnIndex && index.columnIndex != PRIMARYKEY_TIMESTAMP_COL_INDEX) {
-          return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg2);
+          return invalidOperationMsg(pMsgBuf, msg5);
         }
-        validOrder = true;
-      }
-
-      if (!validOrder) {
-        return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg2);
       }
 
       tVariantListItem* pItem = taosArrayGet(pSqlNode->pSortOrder, 0);
@@ -5959,6 +5965,18 @@ int32_t validateOrderbyNode(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SSqlNode* pSq
 
       pQueryInfo->order.orderColId = pSchema[index.columnIndex].colId;
       return TSDB_CODE_SUCCESS;
+    }
+
+    tVariantListItem* pItem = taosArrayGet(pSqlNode->pSortOrder, 0);
+    pQueryInfo->order.order = pItem->sortOrder;
+    pQueryInfo->order.orderColId = pSchema[index.columnIndex].colId;
+  } else {
+    // handle the temp table order by clause. You can order by any single column in case of the temp table, created by
+    // inner subquery.
+    assert(UTIL_TABLE_IS_TMP_TABLE(pTableMetaInfo) && taosArrayGetSize(pSqlNode->pSortOrder) == 1);
+
+    if (getColumnIndexByName(&columnName, pQueryInfo, &index, pMsgBuf) != TSDB_CODE_SUCCESS) {
+      return invalidOperationMsg(pMsgBuf, msg1);
     }
 
     tVariantListItem* pItem = taosArrayGet(pSqlNode->pSortOrder, 0);
@@ -8397,19 +8415,13 @@ int32_t loadAllTableMeta(SSqlObj* pSql, struct SSqlInfo* pInfo) {
 
   char     name[TSDB_TABLE_FNAME_LEN] = {0};
 
-  //if (!pSql->pBuf) {
-  //  if (NULL == (pSql->pBuf = tcalloc(1, 80 * TSDB_MAX_COLUMNS))) {
-  //    code = TSDB_CODE_TSC_OUT_OF_MEMORY;
-  //    goto _end;
-  //  }
-  //}
-
   plist = taosArrayInit(4, POINTER_BYTES);
   pVgroupList = taosArrayInit(4, POINTER_BYTES);
 
   taosArraySort(tableNameList, tnameComparFn);
   taosArrayRemoveDuplicate(tableNameList, tnameComparFn, NULL);
 
+  STableMeta* pSTMeta = (STableMeta *)(pSql->pBuf);
   size_t numOfTables = taosArrayGetSize(tableNameList);
   for (int32_t i = 0; i < numOfTables; ++i) {
     SName* pname = taosArrayGet(tableNameList, i);
@@ -8425,7 +8437,8 @@ int32_t loadAllTableMeta(SSqlObj* pSql, struct SSqlInfo* pInfo) {
       // avoid mem leak, may should update pTableMeta
       void* pVgroupIdList = NULL;
       if (pTableMeta->tableType == TSDB_CHILD_TABLE) {
-        code = tscCreateTableMetaFromSTableMeta((STableMeta **)(&pTableMeta), name, &tableMetaCapacity);
+        code = tscCreateTableMetaFromSTableMeta((STableMeta **)(&pTableMeta), name, &tableMetaCapacity, (STableMeta **)(&pSTMeta));
+        pSql->pBuf = (void *)pSTMeta; 
 
         // create the child table meta from super table failed, try load it from mnode
         if (code != TSDB_CODE_SUCCESS) {
@@ -8733,8 +8746,7 @@ int32_t validateSqlNode(SSqlObj* pSql, SSqlNode* pSqlNode, SQueryInfo* pQueryInf
   const char* msg8 = "condition missing for join query";
   const char* msg9 = "not support 3 level select";
 
-  int32_t code = TSDB_CODE_SUCCESS;
-
+  int32_t  code = TSDB_CODE_SUCCESS;
   SSqlCmd* pCmd = &pSql->cmd;
 
   STableMetaInfo  *pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
@@ -8756,7 +8768,7 @@ int32_t validateSqlNode(SSqlObj* pSql, SSqlNode* pSqlNode, SQueryInfo* pQueryInf
   }
 
   if (pSqlNode->from->type == SQL_NODE_FROM_SUBQUERY) {
-    clearAllTableMetaInfo(pQueryInfo, false);
+    clearAllTableMetaInfo(pQueryInfo, false, pSql->self);
     pQueryInfo->numOfTables = 0;
 
     // parse the subquery in the first place
@@ -9025,8 +9037,6 @@ int32_t validateSqlNode(SSqlObj* pSql, SSqlNode* pSqlNode, SQueryInfo* pQueryInf
     pQueryInfo->simpleAgg = isSimpleAggregateRv(pQueryInfo);
     pQueryInfo->onlyTagQuery = onlyTagPrjFunction(pQueryInfo);
     pQueryInfo->groupbyColumn = tscGroupbyColumn(pQueryInfo);
-    //pQueryInfo->globalMerge = tscIsTwoStageSTableQuery(pQueryInfo, 0);
-
     pQueryInfo->arithmeticOnAgg   = tsIsArithmeticQueryOnAggResult(pQueryInfo);
     pQueryInfo->orderProjectQuery = tscOrderedProjectionQueryOnSTable(pQueryInfo, 0);
 
