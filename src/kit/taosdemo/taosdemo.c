@@ -1340,8 +1340,8 @@ static char *rand_bool_str(){
 static int32_t rand_bool(){
     static int cursor;
     cursor++;
-    cursor = cursor % MAX_PREPARED_RAND;
-    return g_randint[cursor] % 2;
+    if (cursor > (MAX_PREPARED_RAND - 1)) cursor = 0;
+    return g_randint[cursor % MAX_PREPARED_RAND] % 2;
 }
 
 static char *rand_tinyint_str()
@@ -1356,8 +1356,8 @@ static int32_t rand_tinyint()
 {
     static int cursor;
     cursor++;
-    cursor = cursor % MAX_PREPARED_RAND;
-    return g_randint[cursor] % 128;
+    if (cursor > (MAX_PREPARED_RAND - 1)) cursor = 0;
+    return g_randint[cursor % MAX_PREPARED_RAND] % 128;
 }
 
 static char *rand_smallint_str()
@@ -1372,8 +1372,8 @@ static int32_t rand_smallint()
 {
     static int cursor;
     cursor++;
-    cursor = cursor % MAX_PREPARED_RAND;
-    return g_randint[cursor] % 32767;
+    if (cursor > (MAX_PREPARED_RAND - 1)) cursor = 0;
+    return g_randint[cursor % MAX_PREPARED_RAND] % 32767;
 }
 
 static char *rand_int_str()
@@ -1388,8 +1388,8 @@ static int32_t rand_int()
 {
     static int cursor;
     cursor++;
-    cursor = cursor % MAX_PREPARED_RAND;
-    return g_randint[cursor];
+    if (cursor > (MAX_PREPARED_RAND - 1)) cursor = 0;
+    return g_randint[cursor % MAX_PREPARED_RAND];
 }
 
 static char *rand_bigint_str()
@@ -1404,8 +1404,8 @@ static int64_t rand_bigint()
 {
     static int cursor;
     cursor++;
-    cursor = cursor % MAX_PREPARED_RAND;
-    return g_randbigint[cursor];
+    if (cursor > (MAX_PREPARED_RAND - 1)) cursor = 0;
+    return g_randbigint[cursor % MAX_PREPARED_RAND];
 }
 
 static char *rand_float_str()
@@ -1421,8 +1421,8 @@ static float rand_float()
 {
     static int cursor;
     cursor++;
-    cursor = cursor % MAX_PREPARED_RAND;
-    return g_randfloat[cursor];
+    if (cursor > (MAX_PREPARED_RAND - 1)) cursor = 0;
+    return g_randfloat[cursor % MAX_PREPARED_RAND];
 }
 
 static char *demo_current_float_str()
@@ -1437,8 +1437,9 @@ static float UNUSED_FUNC demo_current_float()
 {
     static int cursor;
     cursor++;
-    cursor = cursor % MAX_PREPARED_RAND;
-    return (float)(9.8 + 0.04 * (g_randint[cursor] % 10) + g_randfloat[cursor]/1000000000);
+    if (cursor > (MAX_PREPARED_RAND - 1)) cursor = 0;
+    return (float)(9.8 + 0.04 * (g_randint[cursor % MAX_PREPARED_RAND] % 10)
+            + g_randfloat[cursor % MAX_PREPARED_RAND]/1000000000);
 }
 
 static char *demo_voltage_int_str()
@@ -1453,8 +1454,8 @@ static int32_t UNUSED_FUNC demo_voltage_int()
 {
     static int cursor;
     cursor++;
-    cursor = cursor % MAX_PREPARED_RAND;
-    return 215 + g_randint[cursor] % 10;
+    if (cursor > (MAX_PREPARED_RAND - 1)) cursor = 0;
+    return 215 + g_randint[cursor % MAX_PREPARED_RAND] % 10;
 }
 
 static char *demo_phase_float_str() {
@@ -1467,8 +1468,9 @@ static char *demo_phase_float_str() {
 static float UNUSED_FUNC demo_phase_float(){
     static int cursor;
     cursor++;
-    cursor = cursor % MAX_PREPARED_RAND;
-    return (float)((115 + g_randint[cursor] % 10 + g_randfloat[cursor]/1000000000)/360);
+    if (cursor > (MAX_PREPARED_RAND - 1)) cursor = 0;
+    return (float)((115 + g_randint[cursor % MAX_PREPARED_RAND] % 10
+                + g_randfloat[cursor % MAX_PREPARED_RAND]/1000000000)/360);
 }
 
 #if 0
