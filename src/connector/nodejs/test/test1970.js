@@ -93,7 +93,7 @@ c1.execute("select * from "+dbname+"."+tbname);
 var d = c1.fetchall();
 console.log(c1.fields);
 for (let i=0 ; i<d.length;i++)
-console.log(d[i][0]);
+console.log(d[i][0].valueOf());
 
 
 setTimeout(function () {
