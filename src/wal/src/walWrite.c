@@ -352,7 +352,7 @@ static bool walIsSDataRow(void *pBlkData, int nRows, int32_t dataLen) {
       SMemRow  memRow = pBlkData;
       SKVRow   kvRow = memRowKvBody(memRow);
       int      nCols = kvRowNCols(kvRow);
-      uint16_t calcTsOffset = (uint16_t)(TD_MEM_ROW_KV_HEAD_SIZE + sizeof(SColIdx) * nCols);
+      uint16_t calcTsOffset = (uint16_t)(TD_KV_ROW_HEAD_SIZE + sizeof(SColIdx) * nCols);
       uint16_t realTsOffset = (kvRowColIdx(kvRow))->offset;
       if (calcTsOffset == realTsOffset) {
         kvLen += memRowKvTLen(memRow);
