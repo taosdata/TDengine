@@ -2774,12 +2774,13 @@ void filterRowsInDataBlock(SQueryRuntimeEnv* pRuntimeEnv, SSingleColumnFilterInf
 void filterColRowsInDataBlock(SQueryRuntimeEnv* pRuntimeEnv, SSDataBlock* pBlock, bool ascQuery) {
  int32_t numOfRows = pBlock->info.rows;
 
- int8_t *p = calloc(numOfRows, sizeof(int8_t));
+ int8_t *p = NULL;
  bool    all = true;
 
  if (pRuntimeEnv->pTsBuf != NULL) {
-   SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, 0);
-
+   SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, 0);   
+   p = calloc(numOfRows, sizeof(int8_t));
+   
    TSKEY* k = (TSKEY*) pColInfoData->pData;
    for (int32_t i = 0; i < numOfRows; ++i) {
      int32_t offset = ascQuery? i:(numOfRows - i - 1);
@@ -2802,11 +2803,16 @@ void filterColRowsInDataBlock(SQueryRuntimeEnv* pRuntimeEnv, SSDataBlock* pBlock
    // save the cursor status
    pRuntimeEnv->current->cur = tsBufGetCursor(pRuntimeEnv->pTsBuf);
  } else {
-   all = filterExecute(pRuntimeEnv->pQueryAttr->pFilters, numOfRows, p);
+   all = filterExecute(pRuntimeEnv->pQueryAttr->pFilters, numOfRows, &p, pBlock->pBlockStatis, pRuntimeEnv->pQueryAttr->numOfCols);
  }
 
  if (!all) {
-   doCompactSDataBlock(pBlock, numOfRows, p);
+   if (p) {
+     doCompactSDataBlock(pBlock, numOfRows, p);
+   } else {
+     pBlock->info.rows = 0;
+     pBlock->pBlockStatis = NULL;  // clean the block statistics info
+   }
  }
 
  tfree(p);
@@ -2852,15 +2858,6 @@ void doSetFilterColumnInfo(SSingleColumnFilterInfo* pFilterInfo, int32_t numOfFi
         break;
       }
     }
-  }
-}
-
-
-void doSetFilterColInfo(SFilterInfo     * pFilters, SSDataBlock* pBlock) {
-  for (int32_t j = 0; j < pBlock->info.numOfCols; ++j) {
-    SColumnInfoData* pColInfo = taosArrayGet(pBlock->pDataBlock, j);
-
-    filterSetColFieldData(pFilters, pColInfo->info.colId, pColInfo->pData);
   }
 }
 
@@ -3003,7 +3000,7 @@ int32_t loadDataBlockOnDemand(SQueryRuntimeEnv* pRuntimeEnv, STableScanInfo* pTa
     }
 
     if (pQueryAttr->pFilters != NULL) {
-      doSetFilterColInfo(pQueryAttr->pFilters, pBlock);
+      filterSetColFieldData(pQueryAttr->pFilters, pBlock->info.numOfCols, pBlock->pDataBlock);
     }
     
     if (pQueryAttr->pFilters != NULL || pRuntimeEnv->pTsBuf != NULL) {
