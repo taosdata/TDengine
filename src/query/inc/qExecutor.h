@@ -44,7 +44,7 @@ typedef int32_t (*__block_search_fn_t)(char* data, int32_t num, int64_t key, int
 #define GET_NUM_OF_RESULTS(_r) (((_r)->outputBuf) == NULL? 0:((_r)->outputBuf)->info.rows)
 
 //TODO: may need to fine tune this threshold
-#define QUERY_COMP_THRESHOLD 1024 * 512
+#define QUERY_COMP_THRESHOLD (1024 * 512)
 #define NEEDTO_COMPRESS_QUERY(size) ((size) > QUERY_COMP_THRESHOLD ? 1 : 0)
 
 enum {
