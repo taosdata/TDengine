@@ -3533,8 +3533,10 @@ SSqlObj* createSubqueryObj(SSqlObj* pSql, int16_t tableIndex, __async_cb_func_t 
   pNewQueryInfo->numOfTables = 0;
   pNewQueryInfo->pTableMetaInfo = NULL;
   pNewQueryInfo->bufLen = pQueryInfo->bufLen;
-
   pNewQueryInfo->buf = malloc(pQueryInfo->bufLen);
+
+
+  pNewQueryInfo->distinct =  pQueryInfo->distinct;
   if (pNewQueryInfo->buf == NULL) {
     terrno = TSDB_CODE_TSC_OUT_OF_MEMORY;
     goto _error;
