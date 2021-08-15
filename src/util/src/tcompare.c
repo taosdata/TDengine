@@ -152,11 +152,18 @@ int32_t compareLenPrefixedStr(const void *pLeft, const void *pRight) {
 int32_t compareLenPrefixedWStr(const void *pLeft, const void *pRight) {
   int32_t len1 = varDataLen(pLeft);
   int32_t len2 = varDataLen(pRight);
-  
+
   if (len1 != len2) {
     return len1 > len2? 1:-1;
   } else {
-    int32_t ret = wcsncmp(varDataVal(pLeft), varDataVal(pRight), len1/TSDB_NCHAR_SIZE);
+    char pLeftTerm[len1 + 1];
+    char pRightTerm[len2 + 1];
+    memset(pLeftTerm, 0, len1 + 1);
+    memset(pRightTerm, 0, len2 + 1);
+    memcpy(pLeftTerm, varDataVal(pLeft), len1);
+    memcpy(pRightTerm, varDataVal(pRight), len2);
+
+    int32_t ret = wcsncmp((void *)pLeftTerm, (void *)pRightTerm, len1/TSDB_NCHAR_SIZE);
     if (ret == 0) {
       return 0;
     } else {
