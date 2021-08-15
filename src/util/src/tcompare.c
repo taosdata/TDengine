@@ -475,7 +475,16 @@ int32_t doCompare(const char* f1, const char* f2, int32_t type, size_t size) {
         return t1->len > t2->len? 1:-1;
       }
 
-      int32_t ret = wcsncmp((wchar_t*) t1->data, (wchar_t*) t2->data, t2->len/TSDB_NCHAR_SIZE);
+      char *t1_term = (char *)tcalloc(t1->len + 1, sizeof(char));
+      char *t2_term = (char *)tcalloc(t2->len + 1, sizeof(char));
+      memcpy(t1_term, t1->data, t1->len);
+      memcpy(t2_term, t2->data, t2->len);
+
+      int32_t ret = wcsncmp((wchar_t*) t1_term, (wchar_t*) t2_term, t2->len/TSDB_NCHAR_SIZE);
+
+      tfree(t1_term);
+      tfree(t2_term);
+
       if (ret == 0) {
         return ret;
       }
