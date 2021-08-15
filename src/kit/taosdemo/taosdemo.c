@@ -77,7 +77,7 @@ extern char configDir[];
 #define COL_BUFFER_LEN      ((TSDB_COL_NAME_LEN + 15) * TSDB_MAX_COLUMNS)
 
 #define MAX_USERNAME_SIZE  64
-#define MAX_PASSWORD_SIZE  16
+#define MAX_PASSWORD_SIZE  20
 #define MAX_HOSTNAME_SIZE  253      // https://man7.org/linux/man-pages/man7/hostname.7.html
 #define MAX_TB_NAME_SIZE   64
 #define MAX_DATA_SIZE      (16*TSDB_MAX_COLUMNS)+20     // max record len: 16*MAX_COLUMNS, timestamp string and ,('') need extra space
@@ -867,7 +867,9 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
         } else if (strncmp(argv[i], "-p", 2) == 0) {
             if (strlen(argv[i]) == 2) {
                 printf("Enter password:");
-                scanf("%s", arguments->password);
+                if (scanf("%s", arguments->password) > 1) {
+                    fprintf(stderr, "password read error!\n");
+                }
             } else {
                 tstrncpy(arguments->password, (char *)(argv[i] + 2), MAX_PASSWORD_SIZE);
             }
