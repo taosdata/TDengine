@@ -162,8 +162,44 @@ print ===> $data10
 if $data10 != 0 then 
   return -1
 endi
+sql select ts, floor(c2) from $tb
+sql select c2, floor(c2) from $tb
+sql select c2, c3, floor(c2) from $tb
+sql select ts, c2, c3, floor(c2) from $tb
+
 sql select floor(c2), floor(c6) from $tb
-sql select floor(c2) from $mt
+
+sql select ts, floor(c2), floor(c6) from $tb
+sql select c2, floor(c2), floor(c6) from $tb
+sql select c2, c3, floor(c2), floor(c6) from $tb
+sql select ts, c2, c3, floor(c2), floor(c6) from $tb
+
+sql select ceil(c2), floor(c2), round(c2) from $tb
+
+sql select ts, ceil(c2), floor(c2), round(c2) from $tb
+sql select c2, ceil(c2), floor(c2), round(c2) from $tb
+sql select c2, c3, ceil(c2), floor(c2), round(c2) from $tb
+sql select ts, c2, c3, ceil(c2), floor(c2), round(c2) from $tb
+
+sql select ts, floor(c2) from $mt
+sql select c2, floor(c2) from $mt
+sql select c2, c3, floor(c2) from $mt
+sql select ts, c2, c3, floor(c2) from $mt
+
+sql select floor(c2), floor(c6) from $mt
+
+sql select ts, floor(c2), floor(c6) from $mt
+sql select c2, floor(c2), floor(c6) from $mt
+sql select c2, c3, floor(c2), floor(c6) from $mt
+sql select ts, c2, c3, floor(c2), floor(c6) from $mt
+
+sql select ceil(c2), floor(c2), round(c2) from $mt
+
+sql select ts, ceil(c2), floor(c2), round(c2) from $mt
+sql select c2, ceil(c2), floor(c2), round(c2) from $mt
+sql select c2, c3, ceil(c2), floor(c2), round(c2) from $mt
+sql select ts, c2, c3, ceil(c2), floor(c2), round(c2) from $mt
+
 sql_error select floor(c7) from $tb
 sql_error select floor(c8) from $tb
 sql_error select floor(c9) from $tb

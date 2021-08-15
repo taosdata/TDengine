@@ -70,14 +70,14 @@ extern "C" {
 #define TSDB_FUNC_DERIVATIVE   32
 #define TSDB_FUNC_BLKINFO      33
 
+#define TSDB_FUNC_CEIL         34
+#define TSDB_FUNC_FLOOR        35
+#define TSDB_FUNC_ROUND        36
 
-#define TSDB_FUNC_HISTOGRAM    34
-#define TSDB_FUNC_HLL          35
-#define TSDB_FUNC_MODE         36
-#define TSDB_FUNC_SAMPLE       37
-#define TSDB_FUNC_CEIL         38
-#define TSDB_FUNC_FLOOR        39
-#define TSDB_FUNC_ROUND        40
+#define TSDB_FUNC_HISTOGRAM    37
+#define TSDB_FUNC_HLL          38
+#define TSDB_FUNC_MODE         39
+#define TSDB_FUNC_SAMPLE       40
 #define TSDB_FUNC_MAVG         41
 #define TSDB_FUNC_CSUM         42
 

@@ -3483,6 +3483,7 @@ static bool functionCompatibleCheck(SQueryInfo* pQueryInfo, bool joinQuery, bool
   int32_t scalarUdf = 0;
   int32_t prjNum = 0;
   int32_t aggNum = 0;
+  int32_t scalNum = 0;
 
   size_t numOfExpr = tscNumOfExprs(pQueryInfo);
   assert(numOfExpr > 0);
@@ -3514,6 +3515,10 @@ static bool functionCompatibleCheck(SQueryInfo* pQueryInfo, bool joinQuery, bool
       ++prjNum;
     }
 
+    if (functionId == TSDB_FUNC_CEIL || functionId == TSDB_FUNC_FLOOR || functionId == TSDB_FUNC_ROUND) {
+      ++scalNum;
+    }
+
     if (functionId == TSDB_FUNC_PRJ && (pExpr1->base.colInfo.colId == PRIMARYKEY_TIMESTAMP_COL_INDEX || TSDB_COL_IS_UD_COL(pExpr1->base.colInfo.flag))) {
       continue;
     }
@@ -3535,15 +3540,19 @@ static bool functionCompatibleCheck(SQueryInfo* pQueryInfo, bool joinQuery, bool
     }
   }
 
-  aggNum = (int32_t)size - prjNum - aggUdf - scalarUdf;
+  aggNum = (int32_t)size - prjNum - scalNum - aggUdf - scalarUdf;
 
   assert(aggNum >= 0);
 
-  if (aggUdf > 0 && (prjNum > 0 || aggNum > 0 || scalarUdf > 0)) {
+  if (aggUdf > 0 && (prjNum > 0 || aggNum > 0 || scalNum > 0 || scalarUdf > 0)) {
     return false;
   }
 
-  if (scalarUdf > 0 && aggNum > 0) {
+  if (scalarUdf > 0 && (aggNum > 0 || scalNum > 0)) {
+    return false;
+  }
+
+  if (aggNum > 0 && scalNum > 0) {
     return false;
   }
 
@@ -6818,13 +6827,21 @@ static int32_t checkUpdateTagPrjFunctions(SQueryInfo* pQueryInfo, char* msg) {
      *  if numOfSelectivity equals to 0, it is a super table projection query
      */
     if (numOfSelectivity == 1 || numOfScalar == 1) {
+      if (numOfSelectivity == numOfScalar) {
+        return TSDB_CODE_TSC_INVALID_OPERATION;
+      }
+
       doUpdateSqlFunctionForTagPrj(pQueryInfo);
       int32_t code = doUpdateSqlFunctionForColPrj(pQueryInfo);
-      if (code != TSDB_CODE_SUCCESS) {
+      if (numOfSelectivity == 1 && code != TSDB_CODE_SUCCESS) {
         return code;
       }
 
     } else if (numOfSelectivity > 1 || numOfScalar > 1) {
+      if (numOfSelectivity > 1 && numOfScalar > 1) {
+        return TSDB_CODE_TSC_INVALID_OPERATION;
+      }
+
       /*
        * If more than one selectivity functions exist, all the selectivity functions must be last_row.
        * Otherwise, return with error code.
@@ -6846,7 +6863,7 @@ static int32_t checkUpdateTagPrjFunctions(SQueryInfo* pQueryInfo, char* msg) {
 
       doUpdateSqlFunctionForTagPrj(pQueryInfo);
       int32_t code = doUpdateSqlFunctionForColPrj(pQueryInfo);
-      if (code != TSDB_CODE_SUCCESS) {
+      if (numOfSelectivity == 1 && code != TSDB_CODE_SUCCESS) {
         return code;
       }
     }
@@ -6856,7 +6873,7 @@ static int32_t checkUpdateTagPrjFunctions(SQueryInfo* pQueryInfo, char* msg) {
         return invalidOperationMsg(msg, msg2);
       }
 
-      if (numOfAggregation > 0 || numOfScalar > 0 || numOfSelectivity > 0) {
+      if (numOfAggregation > 0 || numOfSelectivity > 0) {
         // clear the projection type flag
         pQueryInfo->type &= (~TSDB_QUERY_TYPE_PROJECTION_QUERY);
         int32_t code = doUpdateSqlFunctionForColPrj(pQueryInfo);

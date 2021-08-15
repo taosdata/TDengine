@@ -413,13 +413,7 @@ int32_t isValidFunction(const char* name, int32_t len) {
       continue;
     }
 
-    if (strncasecmp(aAggs[i].name, name, len) == 0 &&
-        aAggs[i].init != NULL &&
-        aAggs[i].xFunction != NULL &&
-        aAggs[i].xFinalize != NULL &&
-        aAggs[i].mergeFunc != NULL &&
-        aAggs[i].dataReqFunc != NULL)
-    {
+    if (strncasecmp(aAggs[i].name, name, len) == 0) {
       return i;
     }
   }
@@ -4613,8 +4607,8 @@ int32_t functionCompatList[] = {
     4,         -1,       -1,         1,        1,      1,          1,           1,        1,     -1,
     //  tag,    colprj,   tagprj,    arithmetic, diff, first_dist, last_dist,   stddev_dst, interp    rate    irate
     1,          1,        1,         1,       -1,      1,          1,           1,          5,        1,      1,
-    // tid_tag, derivative, blk_info
-    6,          8,        7,
+    // tid_tag, derivative, blk_info, histogram,hll,   mode,       sample,      ceil,     floor,      round
+    6,          8,        7,        -1,       -1,     -1,         -1,           1,        1,          1
 };
 
 SAggFunctionInfo aAggs[] = {{
@@ -5029,55 +5023,7 @@ SAggFunctionInfo aAggs[] = {{
                               dataBlockRequired,
                           },
                           {
-                              // TODO 34
-                              "histogram",
-                              TSDB_FUNC_HISTOGRAM,
-                              TSDB_FUNC_HISTOGRAM,
-                              TSDB_FUNCSTATE_MO | TSDB_FUNCSTATE_STABLE | TSDB_FUNCSTATE_NEED_TS,
-                              NULL,
-                              NULL,
-                              NULL,
-                              NULL,
-                              NULL
-                          },
-                          {
-                              // TODO 35
-                              "hll",
-                              TSDB_FUNC_HLL,
-                              TSDB_FUNC_HLL,
-                              TSDB_FUNCSTATE_MO | TSDB_FUNCSTATE_STABLE | TSDB_FUNCSTATE_NEED_TS,
-                              NULL,
-                              NULL,
-                              NULL,
-                              NULL,
-                              NULL
-                          },
-                          {
-                              // TODO 36
-                              "mode",
-                              TSDB_FUNC_MODE,
-                              TSDB_FUNC_MODE,
-                              TSDB_FUNCSTATE_MO | TSDB_FUNCSTATE_STABLE | TSDB_FUNCSTATE_NEED_TS,
-                              NULL,
-                              NULL,
-                              NULL,
-                              NULL,
-                              NULL
-                          },
-                          {
-                              // TODO 37
-                              "sample",
-                              TSDB_FUNC_SAMPLE,
-                              TSDB_FUNC_SAMPLE,
-                              TSDB_FUNCSTATE_MO | TSDB_FUNCSTATE_STABLE | TSDB_FUNCSTATE_NEED_TS,
-                              NULL,
-                              NULL,
-                              NULL,
-                              NULL,
-                              NULL
-                          },
-                          {
-                              // 38
+                              // 34
                               "ceil",
                               TSDB_FUNC_CEIL,
                               TSDB_FUNC_CEIL,
@@ -5089,7 +5035,7 @@ SAggFunctionInfo aAggs[] = {{
                               dataBlockRequired
                           },
                           {
-                              // 39
+                              // 35
                               "floor",
                               TSDB_FUNC_FLOOR,
                               TSDB_FUNC_FLOOR,
@@ -5101,7 +5047,7 @@ SAggFunctionInfo aAggs[] = {{
                               dataBlockRequired
                           },
                           {
-                              // 40
+                              // 36
                               "round",
                               TSDB_FUNC_ROUND,
                               TSDB_FUNC_ROUND,
