@@ -161,7 +161,7 @@ int32_t compareLenPrefixedWStr(const void *pLeft, const void *pRight) {
     memcpy(pLeftTerm, varDataVal(pLeft), len1);
     memcpy(pRightTerm, varDataVal(pRight), len2);
 
-    int32_t ret = wcsncmp((void *)pLeftTerm, (void *)pRightTerm, len1/TSDB_NCHAR_SIZE);
+    int32_t ret = wcsncmp((wchar_t*) pLeftTerm, (wchar_t*) pRightTerm, len1/TSDB_NCHAR_SIZE);
 
     tfree(pLeftTerm);
     tfree(pRightTerm);
