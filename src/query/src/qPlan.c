@@ -32,8 +32,8 @@ typedef struct SJoinCond {
   SColumn *colCond[2];
 } SJoinCond;
 
-static SQueryNode* createQueryNode(int32_t type, const char* name, SQueryNode** prev,
-                                   int32_t numOfPrev, SExprInfo** pExpr, int32_t numOfOutput, SQueryTableInfo* pTableInfo,
+static SQueryNode* createQueryNode(int32_t type, const char* name, SQueryNode** prev, int32_t numOfPrev,
+                                   SExprInfo** pExpr, int32_t numOfOutput, SQueryTableInfo* pTableInfo,
                                    void* pExtInfo) {
   SQueryNode* pNode = calloc(1, sizeof(SQueryNode));
 
@@ -112,8 +112,8 @@ static SQueryNode* doAddTableColumnNode(SQueryInfo* pQueryInfo, STableMetaInfo* 
   }
 
   STimeWindow* window = &pQueryInfo->window;
-  SQueryNode*  pNode = createQueryNode(QNODE_TABLESCAN, "TableScan", NULL, 0, NULL, 0,
-      info, window);
+  SQueryNode*  pNode = createQueryNode(QNODE_TABLESCAN, "TableScan", NULL, 0, NULL, 0, info, window);
+
   if (pQueryInfo->projectionQuery) {
     int32_t numOfOutput = (int32_t) taosArrayGetSize(pExprs);
     pNode = createQueryNode(QNODE_PROJECT, "Projection", &pNode, 1, pExprs->pData, numOfOutput, info, NULL);
@@ -146,39 +146,41 @@ static SQueryNode* doAddTableColumnNode(SQueryInfo* pQueryInfo, STableMetaInfo* 
 }
 
 static SQueryNode* doCreateQueryPlanForOneTableImpl(SQueryInfo* pQueryInfo, SQueryNode* pNode, SQueryTableInfo* info,
-    SArray* pExprs) {
-    // check for aggregation
-    if (pQueryInfo->interval.interval > 0) {
-      int32_t numOfOutput = (int32_t) taosArrayGetSize(pExprs);
+                                                    SArray* pExprs) {
+  // check for aggregation
+  if (pQueryInfo->interval.interval > 0) {
+    int32_t numOfOutput = (int32_t)taosArrayGetSize(pExprs);
 
-      pNode = createQueryNode(QNODE_TIMEWINDOW, "TimeWindowAgg", &pNode, 1, pExprs->pData, numOfOutput, info,
-                              &pQueryInfo->interval);
-    } else if (pQueryInfo->groupbyColumn) {
-      int32_t numOfOutput = (int32_t) taosArrayGetSize(pExprs);
-      pNode = createQueryNode(QNODE_GROUPBY, "Groupby", &pNode, 1, pExprs->pData, numOfOutput, info,
-                              &pQueryInfo->groupbyExpr);
-    } else if (pQueryInfo->sessionWindow.gap > 0) {
-      pNode = createQueryNode(QNODE_SESSIONWINDOW, "SessionWindowAgg", &pNode, 1, NULL, 0, info, NULL);
-    } else if (pQueryInfo->simpleAgg) {
-      int32_t numOfOutput = (int32_t) taosArrayGetSize(pExprs);
-      pNode = createQueryNode(QNODE_AGGREGATE, "Aggregate", &pNode, 1, pExprs->pData, numOfOutput, info, NULL);
+    pNode = createQueryNode(QNODE_TIMEWINDOW, "TimeWindowAgg", &pNode, 1, pExprs->pData, numOfOutput, info,
+                            &pQueryInfo->interval);
+    if (pQueryInfo->groupbyExpr.numOfGroupCols != 0) {
+      pNode = createQueryNode(QNODE_GROUPBY, "Groupby", &pNode, 1, pExprs->pData, numOfOutput, info, &pQueryInfo->groupbyExpr);
     }
+  } else if (pQueryInfo->groupbyColumn) {
+    int32_t numOfOutput = (int32_t)taosArrayGetSize(pExprs);
+    pNode = createQueryNode(QNODE_GROUPBY, "Groupby", &pNode, 1, pExprs->pData, numOfOutput, info,
+                            &pQueryInfo->groupbyExpr);
+  } else if (pQueryInfo->sessionWindow.gap > 0) {
+    pNode = createQueryNode(QNODE_SESSIONWINDOW, "SessionWindowAgg", &pNode, 1, NULL, 0, info, NULL);
+  } else if (pQueryInfo->simpleAgg) {
+    int32_t numOfOutput = (int32_t)taosArrayGetSize(pExprs);
+    pNode = createQueryNode(QNODE_AGGREGATE, "Aggregate", &pNode, 1, pExprs->pData, numOfOutput, info, NULL);
+  }
 
-    if (pQueryInfo->havingFieldNum > 0 || pQueryInfo->arithmeticOnAgg) {
-      int32_t numOfExpr = (int32_t) taosArrayGetSize(pQueryInfo->exprList1);
-      pNode =
-          createQueryNode(QNODE_PROJECT, "Projection", &pNode, 1, pQueryInfo->exprList1->pData, numOfExpr, info, NULL);
-    }
+  if (pQueryInfo->havingFieldNum > 0 || pQueryInfo->arithmeticOnAgg) {
+    int32_t numOfExpr = (int32_t)taosArrayGetSize(pQueryInfo->exprList1);
+    pNode =
+        createQueryNode(QNODE_PROJECT, "Projection", &pNode, 1, pQueryInfo->exprList1->pData, numOfExpr, info, NULL);
+  }
 
-    if (pQueryInfo->fillType != TSDB_FILL_NONE) {
-      SFillEssInfo* pInfo = calloc(1, sizeof(SFillEssInfo));
-      pInfo->fillType = pQueryInfo->fillType;
-      pInfo->val = calloc(pNode->numOfOutput, sizeof(int64_t));
-      memcpy(pInfo->val, pQueryInfo->fillVal, pNode->numOfOutput);
+  if (pQueryInfo->fillType != TSDB_FILL_NONE) {
+    SFillEssInfo* pInfo = calloc(1, sizeof(SFillEssInfo));
+    pInfo->fillType = pQueryInfo->fillType;
+    pInfo->val = calloc(pNode->numOfOutput, sizeof(int64_t));
+    memcpy(pInfo->val, pQueryInfo->fillVal, pNode->numOfOutput);
 
-      pNode = createQueryNode(QNODE_FILL, "Fill", &pNode, 1, NULL, 0, info, pInfo);
-    }
-
+    pNode = createQueryNode(QNODE_FILL, "Fill", &pNode, 1, NULL, 0, info, pInfo);
+  }
 
   if (pQueryInfo->limit.limit != -1 || pQueryInfo->limit.offset != 0) {
     pNode = createQueryNode(QNODE_LIMIT, "Limit", &pNode, 1, NULL, 0, info, &pQueryInfo->limit);
@@ -330,7 +332,7 @@ static int32_t doPrintPlan(char* buf, SQueryNode* pQueryNode, int32_t level, int
   switch(pQueryNode->info.type) {
     case QNODE_TABLESCAN: {
       STimeWindow* win = (STimeWindow*)pQueryNode->pExtInfo;
-      len1 = sprintf(buf + len, "%s #0x%" PRIx64 ") time_range: %" PRId64 " - %" PRId64 "\n",
+      len1 = sprintf(buf + len, "%s #%" PRIu64 ") time_range: %" PRId64 " - %" PRId64 "\n",
                      pQueryNode->tableInfo.tableName, pQueryNode->tableInfo.id.uid, win->skey, win->ekey);
       len += len1;
       break;
@@ -401,8 +403,8 @@ static int32_t doPrintPlan(char* buf, SQueryNode* pQueryNode, int32_t level, int
       len += len1;
 
       SInterval* pInterval = pQueryNode->pExtInfo;
-      len1 = sprintf(buf + len, "interval:%" PRId64 "(%c), sliding:%" PRId64 "(%c), offset:%" PRId64 "\n",
-                     pInterval->interval, pInterval->intervalUnit, pInterval->sliding, pInterval->slidingUnit,
+      len1 = sprintf(buf + len, "interval:%" PRId64 "(%s), sliding:%" PRId64 "(%s), offset:%" PRId64 "\n",
+                     pInterval->interval, TSDB_TIME_PRECISION_MILLI_STR, pInterval->sliding, TSDB_TIME_PRECISION_MILLI_STR,
                      pInterval->offset);
       len += len1;
 
@@ -555,20 +557,27 @@ SArray* createExecOperatorPlan(SQueryAttr* pQueryAttr) {
   int32_t op = 0;
 
   if (onlyQueryTags(pQueryAttr)) {  // do nothing for tags query
-    if (onlyQueryTags(pQueryAttr)) {
-      op = OP_TagScan;
-      taosArrayPush(plan, &op);
-    }
+    op = OP_TagScan;
+    taosArrayPush(plan, &op);
+
     if (pQueryAttr->distinct) {
       op = OP_Distinct;
       taosArrayPush(plan, &op);
     }
   } else if (pQueryAttr->interval.interval > 0) {
     if (pQueryAttr->stableQuery) {
-      op = OP_MultiTableTimeInterval;
+      if (pQueryAttr->pointInterpQuery) {
+        op = OP_AllMultiTableTimeInterval;
+      } else {
+        op = OP_MultiTableTimeInterval;
+      }
       taosArrayPush(plan, &op);
-    } else {
-      op = OP_TimeWindow;
+    } else {      
+      if (pQueryAttr->pointInterpQuery) {
+        op = OP_AllTimeWindow;
+      } else {
+        op = OP_TimeWindow;
+      }
       taosArrayPush(plan, &op);
 
       if (pQueryAttr->pExpr2 != NULL) {
@@ -576,7 +585,7 @@ SArray* createExecOperatorPlan(SQueryAttr* pQueryAttr) {
         taosArrayPush(plan, &op);
       }
 
-      if (pQueryAttr->fillType != TSDB_FILL_NONE && (!pQueryAttr->pointInterpQuery)) {
+      if (pQueryAttr->fillType != TSDB_FILL_NONE) {
         op = OP_Fill;
         taosArrayPush(plan, &op);
       }
@@ -641,8 +650,14 @@ SArray* createExecOperatorPlan(SQueryAttr* pQueryAttr) {
         taosArrayPush(plan, &op);
       }
     }
+
+    // outer query order by support
+    int32_t orderColId = pQueryAttr->order.orderColId;
+    if (pQueryAttr->vgId == 0 && orderColId != PRIMARYKEY_TIMESTAMP_COL_INDEX && orderColId != INT32_MIN) {
+      op = OP_Order;
+      taosArrayPush(plan, &op);
+    }
   }
- 
 
   if (pQueryAttr->limit.limit > 0 || pQueryAttr->limit.offset > 0) {
     op = OP_Limit;

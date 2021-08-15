@@ -268,7 +268,7 @@ void httpJsonTimestamp(JsonBuf* buf, int64_t t, int32_t timePrecision) {
   int32_t fractionLen;
   char* format = NULL;
   time_t quot = 0;
-  long mod = 0;
+  int64_t mod = 0;
 
   switch (timePrecision) {
     case TSDB_TIME_PRECISION_MILLI: {

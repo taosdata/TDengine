@@ -293,13 +293,12 @@ public class InsertSpecialCharacterRestfulTest {
             Assert.assertEquals(2, ret);
         }
         //query t1
-        String query = "select * from ?.t? where ts < ? and ts >= ? and ? is not null";
+        String query = "select * from ?.t? where ts < ? and ts >= ? and f1 is not null";
         try (PreparedStatement pstmt = conn.prepareStatement(query)) {
             pstmt.setString(1, dbName);
             pstmt.setInt(2, 1);
             pstmt.setTimestamp(3, new Timestamp(System.currentTimeMillis()));
             pstmt.setTimestamp(4, new Timestamp(0));
-            pstmt.setString(5, "f1");
 
             ResultSet rs = pstmt.executeQuery();
             rs.next();
@@ -311,12 +310,11 @@ public class InsertSpecialCharacterRestfulTest {
             Assert.assertNull(f2);
         }
         // query t2
-        query = "select * from t? where ts < ? and ts >= ? and ? is not null";
+        query = "select * from t? where ts < ? and ts >= ? and f2 is not null";
         try (PreparedStatement pstmt = conn.prepareStatement(query)) {
             pstmt.setInt(1, 2);
             pstmt.setTimestamp(2, new Timestamp(System.currentTimeMillis()));
             pstmt.setTimestamp(3, new Timestamp(0));
-            pstmt.setString(4, "f2");
 
             ResultSet rs = pstmt.executeQuery();
             rs.next();

@@ -79,7 +79,7 @@ class TDTestCase:
 
 
         # merge result files
-        sleep(10)
+        sleep(5)
         os.system("cat subscribe_res0.txt* > all_subscribe_res0.txt")
         os.system("cat subscribe_res1.txt* > all_subscribe_res1.txt")
         os.system("cat subscribe_res2.txt* > all_subscribe_res2.txt")
@@ -99,11 +99,10 @@ class TDTestCase:
         # insert extral data     
         tdSql.execute("use subnsdb")
         tdSql.execute("insert into tb0_0 values(now,100.1000,'subtest1',now-1s)")
-        sleep(1)   
+        sleep(15)   
 
         os.system("cat subscribe_res0.txt* > all_subscribe_res0.txt")
         subTimes0 = self.subTimes("all_subscribe_res0.txt")
-        print("pass")
         self.assertCheck("all_subscribe_res0.txt",subTimes0 ,202)
 
         

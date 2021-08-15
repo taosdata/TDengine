@@ -126,7 +126,7 @@ taos> source <filename>;
 $ taosdemo
 ```
 
-该命令将在数据库 test 下面自动创建一张超级表 meters，该超级表下有 1 万张表，表名为 "d0" 到 "d9999"，每张表有 1 万条记录，每条记录有 (ts, current, voltage, phase) 四个字段，时间戳从 "2017-07-14 10:40:00 000" 到 "2017-07-14 10:40:09 999"，每张表带有标签 location 和 groupdId，groupdId 被设置为 1 到 10， location 被设置为 "beijing" 或者 "shanghai"。
+该命令将在数据库 test 下面自动创建一张超级表 meters，该超级表下有 1 万张表，表名为 "d0" 到 "d9999"，每张表有 1 万条记录，每条记录有 (ts, current, voltage, phase) 四个字段，时间戳从 "2017-07-14 10:40:00 000" 到 "2017-07-14 10:40:09 999"，每张表带有标签 location 和 groupId，groupId 被设置为 1 到 10， location 被设置为 "beijing" 或者 "shanghai"。
 
 执行这条命令大概需要几分钟，最后共插入 1 亿条记录。
 
@@ -150,10 +150,10 @@ taos> select avg(current), max(voltage), min(phase) from test.meters;
 taos> select count(*) from test.meters where location="beijing";
 ```
 
-- 查询 groupdId=10 的所有记录的平均值、最大值、最小值等：
+- 查询 groupId=10 的所有记录的平均值、最大值、最小值等：
 
 ```mysql
-taos> select avg(current), max(voltage), min(phase) from test.meters where groupdId=10;
+taos> select avg(current), max(voltage), min(phase) from test.meters where groupId=10;
 ```
 
 - 对表 d10 按 10s 进行平均值、最大值和最小值聚合统计：
