@@ -18,7 +18,58 @@
 #include "ttype.h"
 #include "tutil.h"
 #include "tarithoperator.h"
+#include "tcompare.h"
 
+//GET_TYPED_DATA(v, double, _right_type, (char *)&((right)[i]));                                
+#define ARRAY_LIST_OP_DIV(left, right, _left_type, _right_type, len1, len2, out, op, _res_type, _ord) \
+  {                                                                                                   \
+    int32_t i = ((_ord) == TSDB_ORDER_ASC) ? 0 : MAX(len1, len2) - 1;                                 \
+    int32_t step = ((_ord) == TSDB_ORDER_ASC) ? 1 : -1;                                               \
+                                                                                                      \
+    if ((len1) == (len2)) {                                                                           \
+      for (; i < (len2) && i >= 0; i += step, (out) += 1) {                                           \
+        if (isNull((char *)&((left)[i]), _left_type) || isNull((char *)&((right)[i]), _right_type)) { \
+          SET_DOUBLE_NULL(out);                                                                       \
+          continue;                                                                                   \
+        }                                                                                             \
+        double v, z = 0.0;                                                                            \
+        GET_TYPED_DATA(v, double, _right_type, (char *)&((right)[i]));                                \
+        if (getComparFunc(TSDB_DATA_TYPE_DOUBLE, 0)(&v, &z) == 0) {                                   \
+          SET_DOUBLE_NULL(out);                                                                       \
+          continue;                                                                                   \
+        }                                                                                             \
+        *(out) = (double)(left)[i] op(right)[i];                                                      \
+      }                                                                                               \
+    } else if ((len1) == 1) {                                                                         \
+      for (; i >= 0 && i < (len2); i += step, (out) += 1) {                                           \
+        if (isNull((char *)(left), _left_type) || isNull((char *)&(right)[i], _right_type)) {         \
+          SET_DOUBLE_NULL(out);                                                                       \
+          continue;                                                                                   \
+        }                                                                                             \
+        double v, z = 0.0;                                                                            \
+        GET_TYPED_DATA(v, double, _right_type, (char *)&((right)[i]));                                \
+        if (getComparFunc(TSDB_DATA_TYPE_DOUBLE, 0)(&v, &z) == 0) {                                   \
+          SET_DOUBLE_NULL(out);                                                                       \
+          continue;                                                                                   \
+        }                                                                                             \
+        *(out) = (double)(left)[0] op(right)[i];                                                      \
+      }                                                                                               \
+    } else if ((len2) == 1) {                                                                         \
+      for (; i >= 0 && i < (len1); i += step, (out) += 1) {                                           \
+        if (isNull((char *)&(left)[i], _left_type) || isNull((char *)(right), _right_type)) {         \
+          SET_DOUBLE_NULL(out);                                                                       \
+          continue;                                                                                   \
+        }                                                                                             \
+        double v, z = 0.0;                                                                            \
+        GET_TYPED_DATA(v, double, _right_type, (char *)&((right)[0]));                                \
+        if (getComparFunc(TSDB_DATA_TYPE_DOUBLE, 0)(&v, &z) == 0) {                                   \
+          SET_DOUBLE_NULL(out);                                                                       \
+          continue;                                                                                   \
+        }                                                                                             \
+        *(out) = (double)(left)[i] op(right)[0];                                                      \
+      }                                                                                               \
+    }                                                                                                 \
+  } 
 #define ARRAY_LIST_OP(left, right, _left_type, _right_type, len1, len2, out, op, _res_type, _ord)     \
   {                                                                                                   \
     int32_t i = ((_ord) == TSDB_ORDER_ASC) ? 0 : MAX(len1, len2) - 1;                                 \
@@ -62,6 +113,12 @@
           SET_DOUBLE_NULL(out);                                                                       \
           continue;                                                                                   \
         }                                                                                             \
+        double v, z = 0.0;                                                                            \
+        GET_TYPED_DATA(v, double, _right_type, (char *)&((right)[i]));                                \
+        if (getComparFunc(TSDB_DATA_TYPE_DOUBLE, 0)(&v, &z) == 0) {                                   \
+          SET_DOUBLE_NULL(out);                                                                       \
+          continue;                                                                                   \
+        }                                                                                             \
         *(out) = (double)(left)[i] - ((int64_t)(((double)(left)[i]) / (right)[i])) * (right)[i];      \
       }                                                                                               \
     } else if (len1 == 1) {                                                                           \
@@ -70,11 +127,23 @@
           SET_DOUBLE_NULL(out);                                                                       \
           continue;                                                                                   \
         }                                                                                             \
+        double v, z = 0.0;                                                                            \
+        GET_TYPED_DATA(v, double, _right_type, (char *)&((right)[i]));                                \
+        if (getComparFunc(TSDB_DATA_TYPE_DOUBLE, 0)(&v, &z) == 0) {                                   \
+          SET_DOUBLE_NULL(out);                                                                       \
+          continue;                                                                                   \
+        }                                                                                             \
         *(out) = (double)(left)[0] - ((int64_t)(((double)(left)[0]) / (right)[i])) * (right)[i];      \
       }                                                                                               \
     } else if ((len2) == 1) {                                                                         \
       for (; i >= 0 && i < len1; i += step, (out) += 1) {                                             \
         if (isNull((char *)&((left)[i]), _left_type) || isNull((char *)(right), _right_type)) {       \
+          SET_DOUBLE_NULL(out);                                                                       \
+          continue;                                                                                   \
+        }                                                                                             \
+        double v, z = 0.0;                                                                            \
+        GET_TYPED_DATA(v, double, _right_type, (char *)&((right)[0]));                                \
+        if (getComparFunc(TSDB_DATA_TYPE_DOUBLE, 0)(&v, &z) == 0) {                                   \
           SET_DOUBLE_NULL(out);                                                                       \
           continue;                                                                                   \
         }                                                                                             \
@@ -90,7 +159,7 @@
 #define ARRAY_LIST_MULTI(left, right, _left_type, _right_type, len1, len2, out, _ord) \
   ARRAY_LIST_OP(left, right, _left_type, _right_type, len1, len2, out, *, TSDB_DATA_TYPE_DOUBLE, _ord)
 #define ARRAY_LIST_DIV(left, right, _left_type, _right_type, len1, len2, out, _ord) \
-  ARRAY_LIST_OP(left, right, _left_type, _right_type, len1, len2, out, /, TSDB_DATA_TYPE_DOUBLE, _ord)
+  ARRAY_LIST_OP_DIV(left, right, _left_type, _right_type, len1, len2, out, /, TSDB_DATA_TYPE_DOUBLE, _ord)
 #define ARRAY_LIST_REM(left, right, _left_type, _right_type, len1, len2, out, _ord) \
   ARRAY_LIST_OP_REM(left, right, _left_type, _right_type, len1, len2, out, %, TSDB_DATA_TYPE_DOUBLE, _ord)
 
@@ -2569,6 +2638,7 @@ _arithmetic_operator_fn_t getArithmeticOperatorFn(int32_t arithmeticOptr) {
     case TSDB_BINARY_OP_REMAINDER:
       return vectorRemainder;
     default:
+      assert(0);
       return NULL;
   }
 }

@@ -45,6 +45,7 @@ extern int32_t  tsDnodeId;
 // common
 extern int      tsRpcTimer;
 extern int      tsRpcMaxTime;
+extern int      tsRpcForceTcp; // all commands go to tcp protocol if this is enabled
 extern int32_t  tsMaxConnections;
 extern int32_t  tsMaxShellConns;
 extern int32_t  tsShellActivityTimer;
@@ -69,6 +70,7 @@ extern int8_t   tsKeepOriginalColumnName;
 
 // client
 extern int32_t tsMaxSQLStringLen;
+extern int32_t tsMaxWildCardsLen;
 extern int8_t  tsTscEnableRecordSql;
 extern int32_t tsMaxNumOfOrderedResults;
 extern int32_t tsMinSlidingTime;
@@ -142,16 +144,19 @@ extern int32_t tsMonitorInterval;
 extern int8_t tsEnableStream;
 
 // internal
+extern int8_t  tsCompactMnodeWal;
 extern int8_t  tsPrintAuth;
 extern int8_t  tscEmbedded;
 extern char    configDir[];
 extern char    tsVnodeDir[];
 extern char    tsDnodeDir[];
 extern char    tsMnodeDir[];
+extern char    tsMnodeBakDir[];
+extern char    tsMnodeTmpDir[];
 extern char    tsDataDir[];
 extern char    tsLogDir[];
 extern char    tsScriptDir[];
-extern int64_t tsMsPerDay[3];
+extern int64_t tsTickPerDay[3];
 
 // system info
 extern char    tsOsName[];
@@ -200,6 +205,16 @@ extern uint32_t qDebugFlag;
 extern int32_t wDebugFlag;
 extern int32_t cqDebugFlag;
 extern int32_t debugFlag;
+
+#ifdef TD_TSZ
+// lossy 
+extern char lossyColumns[];
+extern double fPrecision;
+extern double dPrecision;
+extern uint32_t maxRange;
+extern uint32_t curRange;
+extern char Compressor[];
+#endif
 
 typedef struct {
   char dir[TSDB_FILENAME_LEN];

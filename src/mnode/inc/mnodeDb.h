@@ -40,6 +40,9 @@ void    mnodeIncDbRef(SDbObj *pDb);
 void    mnodeDecDbRef(SDbObj *pDb);
 bool    mnodeCheckIsMonitorDB(char *db, char *monitordb);
 void    mnodeDropAllDbs(SAcctObj *pAcct);
+int     mnodeInsertAlterDbRow(SDbObj *pDb, void *pMsg);
+
+int32_t mnodeCompactDbs();
 
 // util func
 void mnodeAddSuperTableIntoDb(SDbObj *pDb);

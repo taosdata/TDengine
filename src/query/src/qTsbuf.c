@@ -223,8 +223,11 @@ static STSGroupBlockInfoEx* addOneGroupInfo(STSBuf* pTSBuf, int32_t id) {
 static void shrinkBuffer(STSList* ptsData) {
   // shrink tmp buffer size if it consumes too many memory compared to the pre-defined size
   if (ptsData->allocSize >= ptsData->threshold * 2) {
-    ptsData->rawBuf = realloc(ptsData->rawBuf, MEM_BUF_SIZE);
-    ptsData->allocSize = MEM_BUF_SIZE;
+    char* rawBuf = realloc(ptsData->rawBuf, MEM_BUF_SIZE);
+    if(rawBuf) {
+      ptsData->rawBuf = rawBuf;
+      ptsData->allocSize = MEM_BUF_SIZE;
+    }
   }
 }
 
@@ -494,7 +497,7 @@ void tsBufFlush(STSBuf* pTSBuf) {
       .magic = TS_COMP_FILE_MAGIC, .numOfGroup = pTSBuf->numOfGroups, .tsOrder = pTSBuf->tsOrder};
   STSBufUpdateHeader(pTSBuf, &header);
   
-  fsync(fileno(pTSBuf->f));
+  taosFsync(fileno(pTSBuf->f));
 }
 
 static int32_t tsBufFindGroupById(STSGroupBlockInfoEx* pGroupInfoEx, int32_t numOfGroups, int32_t id) {
@@ -827,34 +830,31 @@ int32_t tsBufMerge(STSBuf* pDestBuf, const STSBuf* pSrcBuf) {
   
   int64_t offset = getDataStartOffset();
   int32_t size = (int32_t)pSrcBuf->fileSize - (int32_t)offset;
-
-  int64_t rc = taosFSendFile(pDestBuf->f, pSrcBuf->f, &offset, size);
+  int64_t written = taosFSendFile(pDestBuf->f, pSrcBuf->f, &offset, size);
   
-  if (rc == -1) {
-//    tscError("failed to merge tsBuf from:%s to %s, reason:%s\n", pSrcBuf->path, pDestBuf->path, strerror(errno));
-    return -1;
-  }
-  
-  if (rc != size) {
-//    tscError("failed to merge tsBuf from:%s to %s, reason:%s\n", pSrcBuf->path, pDestBuf->path, strerror(errno));
+  if (written == -1 || written != size) {
     return -1;
   }
   
   pDestBuf->numOfTotal += pSrcBuf->numOfTotal;
-  
+
   int32_t oldSize = pDestBuf->fileSize;
-  
+
+  // file meta data may be cached, close and reopen the file for accurate file size.
+  fclose(pDestBuf->f);
+  pDestBuf->f = fopen(pDestBuf->path, "rb+");
+  if (pDestBuf->f == NULL) {
+    return -1;
+  }
+
   struct stat fileStat;
   if (fstat(fileno(pDestBuf->f), &fileStat) != 0) {
     return -1;  
   }
   pDestBuf->fileSize = (uint32_t)fileStat.st_size;
-  
+
   assert(pDestBuf->fileSize == oldSize + size);
-  
-//  tscDebug("tsBuf merge success, %p, path:%s, fd:%d, file size:%d, numOfGroups:%d, autoDelete:%d", pDestBuf,
-//           pDestBuf->path, fileno(pDestBuf->f), pDestBuf->fileSize, pDestBuf->numOfGroups, pDestBuf->autoDelete);
-  
+
   return 0;
 }
 
@@ -894,7 +894,7 @@ STSBuf* tsBufCreateFromCompBlocks(const char* pData, int32_t numOfBlocks, int32_
     return NULL;
   }
   
-  if (fsync(fileno(pTSBuf->f)) == -1) {
+  if (taosFsync(fileno(pTSBuf->f)) == -1) {
     qError("fsync failed, errno:%d", errno);
     tsBufDestroy(pTSBuf);
     return NULL;

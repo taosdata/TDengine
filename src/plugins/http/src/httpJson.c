@@ -262,42 +262,94 @@ void httpJsonUInt64(JsonBuf* buf, uint64_t num) {
   buf->lst += snprintf(buf->lst, MAX_NUM_STR_SZ, "%" PRIu64, num);
 }
 
-void httpJsonTimestamp(JsonBuf* buf, int64_t t, bool us) {
+void httpJsonTimestamp(JsonBuf* buf, int64_t t, int32_t timePrecision) {
   char       ts[35] = {0};
-  struct tm* ptm;
-  int32_t    precision = 1000;
-  if (us) {
-    precision = 1000000;
+  
+  int32_t fractionLen;
+  char* format = NULL;
+  time_t quot = 0;
+  int64_t mod = 0;
+
+  switch (timePrecision) {
+    case TSDB_TIME_PRECISION_MILLI: {
+      quot = t / 1000;
+      fractionLen = 5;
+      format = ".%03" PRId64;
+      mod = t % 1000;
+      break;
+    }
+
+    case TSDB_TIME_PRECISION_MICRO: {
+      quot = t / 1000000;
+      fractionLen = 8;
+      format = ".%06" PRId64;
+      mod = t % 1000000;
+      break;
+    }
+
+    case TSDB_TIME_PRECISION_NANO: {
+      quot = t / 1000000000;
+      fractionLen = 11;
+      format = ".%09" PRId64;
+      mod = t % 1000000000;
+      break;
+    }
+
+    default:
+      fractionLen = 0;
+      assert(false);
   }
 
-  time_t tt = t / precision;
-  ptm = localtime(&tt);
-  int32_t length = (int32_t)strftime(ts, 35, "%Y-%m-%d %H:%M:%S", ptm);
-  if (us) {
-    length += snprintf(ts + length, 8, ".%06" PRId64, t % precision);
-  } else {
-    length += snprintf(ts + length, 5, ".%03" PRId64, t % precision);
-  }
+  struct tm ptm = {0};
+  localtime_r(&quot, &ptm);
+  int32_t length = (int32_t)strftime(ts, 35, "%Y-%m-%d %H:%M:%S", &ptm);
+  length += snprintf(ts + length, fractionLen, format, mod);
 
   httpJsonString(buf, ts, length);
 }
 
-void httpJsonUtcTimestamp(JsonBuf* buf, int64_t t, bool us) {
+void httpJsonUtcTimestamp(JsonBuf* buf, int64_t t, int32_t timePrecision) {
   char       ts[40] = {0};
   struct tm* ptm;
-  int32_t    precision = 1000;
-  if (us) {
-    precision = 1000000;
+
+  int32_t fractionLen;
+  char* format = NULL;
+  time_t quot = 0;
+  long mod = 0;
+
+  switch (timePrecision) {
+    case TSDB_TIME_PRECISION_MILLI: {
+      quot = t / 1000;
+      fractionLen = 5;
+      format = ".%03" PRId64;
+      mod = t % 1000;
+      break;
+    }
+
+    case TSDB_TIME_PRECISION_MICRO: {
+      quot = t / 1000000;
+      fractionLen = 8;
+      format = ".%06" PRId64;
+      mod = t % 1000000;
+      break;
+    }
+
+    case TSDB_TIME_PRECISION_NANO: {
+      quot = t / 1000000000;
+      fractionLen = 11;
+      format = ".%09" PRId64;
+      mod = t % 1000000000;
+      break;
+    }
+
+    default:
+      fractionLen = 0;
+      assert(false);
   }
 
-  time_t tt = t / precision;
-  ptm = localtime(&tt);
+  ptm = localtime(&quot);
   int32_t length = (int32_t)strftime(ts, 40, "%Y-%m-%dT%H:%M:%S", ptm);
-  if (us) {
-    length += snprintf(ts + length, 8, ".%06" PRId64, t % precision);
-  } else {
-    length += snprintf(ts + length, 5, ".%03" PRId64, t % precision);
-  }
+  length += snprintf(ts + length, fractionLen, format, mod);
   length += (int32_t)strftime(ts + length, 40 - length, "%z", ptm);
 
   httpJsonString(buf, ts, length);

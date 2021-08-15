@@ -31,6 +31,8 @@ typedef struct {
 #define TFS_UNDECIDED_ID -1
 #define TFS_PRIMARY_LEVEL 0
 #define TFS_PRIMARY_ID 0
+#define TFS_MIN_LEVEL 0
+#define TFS_MAX_LEVEL (TSDB_MAX_TIERS - 1)
 
 // FS APIs ====================================
 typedef struct {

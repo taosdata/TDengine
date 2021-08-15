@@ -110,7 +110,13 @@ mkdir debug && cd debug
 cmake .. && cmake --build .
 ```
 
-TDengine build script can detect the host machine's architecture on X86-64, X86, arm64 and arm32 platform.
+You can use Jemalloc as memory allocator instead of glibc:
+```
+apt install autoconf
+cmake .. -DJEMALLOC_ENABLED=true
+```
+
+TDengine build script can detect the host machine's architecture on X86-64, X86, arm64, arm32 and mips64 platform.
 You can also specify CPUTYPE option like aarch64 or aarch32 too if the detection result is not correct:
 
 aarch64:
@@ -123,13 +129,18 @@ aarch32:
 cmake .. -DCPUTYPE=aarch32 && cmake --build .
 ```
 
+mips64:
+```bash
+cmake .. -DCPUTYPE=mips64 && cmake --build .
+```
+
 ### On Windows platform
 
 If you use the Visual Studio 2013, please open a command window by executing "cmd.exe".
-Please specify "x86_amd64" for 64 bits Windows or specify "x86" is for 32 bits Windows when you execute vcvarsall.bat.
+Please specify "amd64" for 64 bits Windows or specify "x86" is for 32 bits Windows when you execute vcvarsall.bat.
 ```cmd
 mkdir debug && cd debug
-"C:\Program Files (x86)\Microsoft Visual Studio 12.0\VC\vcvarsall.bat" < x86_amd64 | x86 >
+"C:\Program Files (x86)\Microsoft Visual Studio 12.0\VC\vcvarsall.bat" < amd64 | x86 >
 cmake .. -G "NMake Makefiles"
 nmake
 ```
@@ -164,7 +175,7 @@ cmake .. && cmake --build .
 
 # Installing
 
-After building successfully, TDengine can be installed by:
+After building successfully, TDengine can be installed by: (On Windows platform, the following command should be `nmake install`)
 ```bash
 sudo make install
 ```
@@ -186,7 +197,7 @@ If TDengine shell connects the server successfully, welcome messages and version
 
 ## Quick Run
 
-If you don't want to run TDengine as a service, you can run it in current shell. For example, to quickly start a TDengine server after building, run the command below in terminal:
+If you don't want to run TDengine as a service, you can run it in current shell. For example, to quickly start a TDengine server after building, run the command below in terminal: (We take Linux as an example, command on Windows will be `taosd.exe`)
 ```bash
 ./build/bin/taosd -c test/cfg
 ```

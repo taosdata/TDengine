@@ -195,6 +195,8 @@ static void *syncProcessTcpData(void *param) {
   SConnObj *  pConn = NULL;
   struct epoll_event events[maxEvents];
 
+  setThreadName("syncTcpData");
+
   void *buffer = malloc(pInfo->bufferSize);
   taosBlockSIGPIPE();
 
@@ -257,6 +259,7 @@ static void *syncAcceptPeerTcpConnection(void *argv) {
   SPoolInfo *pInfo = &pPool->info;
 
   taosBlockSIGPIPE();
+  setThreadName("acceptTcpConn");
 
   while (1) {
     struct sockaddr_in clientAddr;

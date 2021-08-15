@@ -33,7 +33,8 @@ typedef enum {
   SDB_TABLE_VGROUP  = 6,
   SDB_TABLE_STABLE  = 7,
   SDB_TABLE_CTABLE  = 8,
-  SDB_TABLE_MAX     = 9
+  SDB_TABLE_FUNC    = 9,
+  SDB_TABLE_MAX     = 10
 } ESdbTable;
 
 typedef enum {
@@ -92,6 +93,7 @@ void    sdbUpdateMnodeRoles();
 int32_t sdbGetReplicaNum();
 
 int32_t sdbInsertRow(SSdbRow *pRow);
+int32_t sdbInsertCompactRow(SSdbRow *pRow);
 int32_t sdbDeleteRow(SSdbRow *pRow);
 int32_t sdbUpdateRow(SSdbRow *pRow);
 int32_t sdbInsertRowToQueue(SSdbRow *pRow);
@@ -106,6 +108,7 @@ int32_t  sdbGetId(void *pTable);
 uint64_t sdbGetVersion();
 bool     sdbCheckRowDeleted(void *pTable, void *pRow);
 
+int32_t mnodeCompactWal();
 #ifdef __cplusplus
 }
 #endif

@@ -199,7 +199,7 @@ int32_t walRestore(void *handle, void *pVnode, FWalWrite writeFp) {
     snprintf(walName, sizeof(pWal->name), "%s/%s%" PRId64, pWal->path, WAL_PREFIX, fileId);
 
     wInfo("vgId:%d, file:%s, will be restored", pWal->vgId, walName);
-    int32_t code = walRestoreWalFile(pWal, pVnode, writeFp, walName, fileId);
+    code = walRestoreWalFile(pWal, pVnode, writeFp, walName, fileId);
     if (code != TSDB_CODE_SUCCESS) {
       wError("vgId:%d, file:%s, failed to restore since %s", pWal->vgId, walName, tstrerror(code));
       continue;
@@ -430,6 +430,8 @@ static int32_t walRestoreWalFile(SWal *pWal, void *pVnode, FWalWrite writeFp, ch
            pWal->vgId, fileId, pHead->version, pWal->version, pHead->len, offset);
 
     pWal->version = pHead->version;
+
+    //wInfo("writeFp: %ld", offset);
     (*writeFp)(pVnode, pHead, TAOS_QTYPE_WAL, NULL);
   }
 

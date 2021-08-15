@@ -424,24 +424,42 @@ static int32_t tsdbSyncRecvDFileSetArray(SSyncH *pSynch) {
         }
 
         if (tsdbSendDecision(pSynch, false) < 0) {
-          tsdbError("vgId:%d, filed to send decision since %s", REPO_ID(pRepo), tstrerror(terrno));
+          tsdbError("vgId:%d, failed to send decision since %s", REPO_ID(pRepo), tstrerror(terrno));
           return -1;
         }
       } else {
         // Need to copy from remote
-        tsdbInfo("vgId:%d, fileset:%d will be received", REPO_ID(pRepo), pSynch->pdf->fid);
-
-        // Notify remote to send there file here
-        if (tsdbSendDecision(pSynch, true) < 0) {
-          tsdbError("vgId:%d, failed to send decision since %s", REPO_ID(pRepo), tstrerror(terrno));
-          return -1;
+        int fidLevel = tsdbGetFidLevel(pSynch->pdf->fid, &(pSynch->rtn));
+        if (fidLevel < 0) {  // expired fileset
+          tsdbInfo("vgId:%d, fileset:%d will be skipped as expired", REPO_ID(pRepo), pSynch->pdf->fid);
+          if (tsdbSendDecision(pSynch, false) < 0) {
+            tsdbError("vgId:%d, failed to send decision since %s", REPO_ID(pRepo), tstrerror(terrno));
+            return -1;
+          }
+          // Move forward
+          if (tsdbRecvDFileSetInfo(pSynch) < 0) {
+            tsdbError("vgId:%d, failed to recv fileset since %s", REPO_ID(pRepo), tstrerror(terrno));
+            return -1;
+          }
+          if (pLSet) {
+            pLSet = tsdbFSIterNext(&fsiter);
+          }
+          // Next loop
+          continue;
+        } else {
+          tsdbInfo("vgId:%d, fileset:%d will be received", REPO_ID(pRepo), pSynch->pdf->fid);
+          // Notify remote to send there file here
+          if (tsdbSendDecision(pSynch, true) < 0) {
+            tsdbError("vgId:%d, failed to send decision since %s", REPO_ID(pRepo), tstrerror(terrno));
+            return -1;
+          }
         }
 
         // Create local files and copy from remote
         SDiskID   did;
         SDFileSet fset;
 
-        tfsAllocDisk(tsdbGetFidLevel(pSynch->pdf->fid, &(pSynch->rtn)), &(did.level), &(did.id));
+        tfsAllocDisk(fidLevel, &(did.level), &(did.id));
         if (did.level == TFS_UNDECIDED_LEVEL) {
           terrno = TSDB_CODE_TDB_NO_AVAIL_DISK;
           tsdbError("vgId:%d, failed allc disk since %s", REPO_ID(pRepo), tstrerror(terrno));
@@ -547,6 +565,13 @@ static bool tsdbIsTowFSetSame(SDFileSet *pSet1, SDFileSet *pSet2) {
 static int32_t tsdbSyncSendDFileSet(SSyncH *pSynch, SDFileSet *pSet) {
   STsdbRepo *pRepo = pSynch->pRepo;
   bool toSend = false;
+
+  // skip expired fileset
+  if (pSet && tsdbGetFidLevel(pSet->fid, &(pSynch->rtn)) < 0) {
+    tsdbInfo("vgId:%d, don't sync send since fileset:%d smaller than minFid:%d", REPO_ID(pRepo), pSet->fid,
+             pSynch->rtn.minFid);
+    return 0;
+  }
 
   if (tsdbSendDFileSetInfo(pSynch, pSet) < 0) {
     tsdbError("vgId:%d, failed to send fileset:%d info since %s", REPO_ID(pRepo), pSet ? pSet->fid : -1, tstrerror(terrno));

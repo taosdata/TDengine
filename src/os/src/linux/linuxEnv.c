@@ -25,6 +25,13 @@ void osInit() {
   strcpy(tsDataDir, "/var/lib/power");
   strcpy(tsLogDir, "/var/log/power");
   strcpy(tsScriptDir, "/etc/power");
+#elif (_TD_TQ_ == true)
+	if (configDir[0] == 0) {
+	  strcpy(configDir, "/etc/tq");
+	}
+	strcpy(tsDataDir, "/var/lib/tq");
+	strcpy(tsLogDir, "/var/log/tq");
+	strcpy(tsScriptDir, "/etc/tq");
 #else
   if (configDir[0] == 0) {
     strcpy(configDir, "/etc/taos");
@@ -40,9 +47,8 @@ void osInit() {
   strcpy(tsOsName, "Linux");
 }
 
-char cmdline[1024];
-
 char* taosGetCmdlineByPID(int pid) {
+  static char cmdline[1024];
   sprintf(cmdline, "/proc/%d/cmdline", pid);
   FILE* f = fopen(cmdline, "r");
   if (f) {

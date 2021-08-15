@@ -186,13 +186,11 @@ bool restBuildSqlJson(HttpContext *pContext, HttpSqlCmd *cmd, TAOS_RES *result, 
           break;
         case TSDB_DATA_TYPE_TIMESTAMP:
           if (timestampFormat == REST_TIMESTAMP_FMT_LOCAL_STRING) {
-            httpJsonTimestamp(jsonBuf, *((int64_t *)row[i]),
-                              taos_result_precision(result) == TSDB_TIME_PRECISION_MICRO);
+            httpJsonTimestamp(jsonBuf, *((int64_t *)row[i]), taos_result_precision(result));
           } else if (timestampFormat == REST_TIMESTAMP_FMT_TIMESTAMP) {
             httpJsonInt64(jsonBuf, *((int64_t *)row[i]));
           } else {
-            httpJsonUtcTimestamp(jsonBuf, *((int64_t *)row[i]),
-                                 taos_result_precision(result) == TSDB_TIME_PRECISION_MICRO);
+            httpJsonUtcTimestamp(jsonBuf, *((int64_t *)row[i]), taos_result_precision(result));
           }
           break;
         default:

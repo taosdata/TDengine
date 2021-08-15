@@ -1,6 +1,6 @@
 system sh/stop_dnodes.sh
 system sh/deploy.sh -n dnode1 -i 1
-system sh/cfg.sh -n dnode1 -c walLevel -v 0
+system sh/cfg.sh -n dnode1 -c walLevel -v 1
 system sh/cfg.sh -n dnode1 -c maxtablesPerVnode -v 2
 system sh/exec.sh -n dnode1 -s start
 
@@ -306,41 +306,11 @@ endi
 
 sql_error select avg(f1),count(f1),sum(f1),twa(f1) from tb1 group by tbname having twa(f1) > 0;
 
-sql select avg(f1),count(f1),sum(f1),twa(f1) from tb1 group by f1 having twa(f1) > 3;
-if $rows != 1 then
-  return -1
-endi
-if $data00 != 4.000000000 then 
-  return -1
-endi
-if $data01 != 2 then 
-  return -1
-endi
-if $data02 != 8 then 
-  return -1
-endi
-if $data03 != 4.000000000 then 
-  return -1
-endi
+sql_error select avg(f1),count(f1),sum(f1),twa(f1) from tb1 group by f1 having twa(f1) > 3;
 
 sql_error select avg(f1),count(f1),sum(f1),twa(f1) from tb1 group by tbname having sum(f1) > 0;
 
-sql select avg(f1),count(f1),sum(f1),twa(f1) from tb1 group by f1 having sum(f1) = 4;
-if $rows != 1 then
-  return -1
-endi
-if $data00 != 2.000000000 then 
-  return -1
-endi
-if $data01 != 2 then 
-  return -1
-endi
-if $data02 != 4 then 
-  return -1
-endi
-if $data03 != 2.000000000 then 
-  return -1
-endi
+sql_error select avg(f1),count(f1),sum(f1),twa(f1) from tb1 group by f1 having sum(f1) = 4;
 
 sql select avg(f1),count(f1),sum(f1) from tb1 group by f1 having sum(f1) > 0;
 if $rows != 4 then
@@ -1460,8 +1430,7 @@ if $data03 != 0.000000000 then
   return -1
 endi
 
-sql_error select avg(f1),spread(f1,f2,tb1.f1) from tb1 group by f1 having avg(f1) < 0 and avg(f1) = 3;
-
+#sql_error select avg(f1),spread(f1,f2,tb1.f1) from tb1 group by f1 having avg(f1) < 0 and avg(f1) = 3;
 sql_error select avg(f1),spread(f1,f2,tb1.f1) from tb1 group by id1 having avg(f1) < 2;
 
 sql select avg(f1),spread(f1,f2,tb1.f1) from tb1 where f1 > 0 group by f1 having avg(f1) > 0;
