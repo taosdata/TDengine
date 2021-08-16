@@ -3831,6 +3831,9 @@ void executeQuery(SSqlObj* pSql, SQueryInfo* pQueryInfo) {
       pNew->sqlstr    = strdup(pSql->sqlstr);
       pNew->fp        = tscSubqueryCompleteCallback;
       pNew->maxRetry  = pSql->maxRetry;
+
+      pNew->cmd.resColumnId = TSDB_RES_COL_ID;
+      
       tsem_init(&pNew->rspSem, 0, 0);
 
       SRetrieveSupport* ps = calloc(1, sizeof(SRetrieveSupport));  // todo use object id
