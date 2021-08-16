@@ -5778,6 +5778,7 @@ int32_t validateOrderbyNode(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SSqlNode* pSq
   const char* msg6 = "only primary timestamp allowed as the second order column";
   const char* msg7 = "only primary timestamp/column in groupby clause allowed as order column";
   const char* msg8 = "only column in groupby clause allowed as order column";
+  const char* msg9 = "orderby column must projected in subquery";
 
   setDefaultOrderInfo(pQueryInfo);
   STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
@@ -5893,7 +5894,18 @@ int32_t validateOrderbyNode(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SSqlNode* pSq
 
         // orderby ts query on super table
         if (tscOrderedProjectionQueryOnSTable(pQueryInfo, 0)) {
-          addPrimaryTsColIntoResult(pQueryInfo, pCmd);
+           bool found = false; 
+           for (int32_t i = 0; i < tscNumOfExprs(pQueryInfo); ++i) {
+             SExprInfo* pExpr = tscExprGet(pQueryInfo, i);
+             if (pExpr->base.functionId == TSDB_FUNC_PRJ && pExpr->base.colInfo.colId == PRIMARYKEY_TIMESTAMP_COL_INDEX) {
+               found = true;
+               break;
+             }
+           }
+           if (!found && pQueryInfo->pDownstream) {
+              return invalidOperationMsg(pMsgBuf, msg9);
+           }
+           addPrimaryTsColIntoResult(pQueryInfo, pCmd);
         }
       }
     } else {
