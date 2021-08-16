@@ -56,6 +56,8 @@ typedef struct SShellArguments {
   int   abort;
   int   port;
   int   pktLen;
+  int   pktNum;
+  char* pktType;
   char* netTestRole;
 } SShellArguments;
 

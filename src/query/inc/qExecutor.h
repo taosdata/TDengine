@@ -515,13 +515,21 @@ typedef struct SStateWindowOperatorInfo {
   bool           reptScan;
 } SStateWindowOperatorInfo;
 
+typedef struct SDistinctDataInfo {
+  int32_t index;
+  int32_t type;
+  int32_t bytes;
+} SDistinctDataInfo; 
+
 typedef struct SDistinctOperatorInfo {
   SHashObj         *pSet;
   SSDataBlock      *pRes;
   bool              recordNullVal;  //has already record the null value, no need to try again
   int64_t           threshold;
   int64_t           outputCapacity;
-  int32_t           colIndex; 
+  int32_t           totalBytes; 
+  char*             buf;
+  SArray*           pDistinctDataInfo; 
 } SDistinctOperatorInfo;
 
 struct SGlobalMerger;
@@ -590,7 +598,6 @@ SSDataBlock* doSLimit(void* param, bool* newgroup);
 
 int32_t doCreateFilterInfo(SColumnInfo* pCols, int32_t numOfCols, int32_t numOfFilterCols, SSingleColumnFilterInfo** pFilterInfo, uint64_t qId);
 void doSetFilterColumnInfo(SSingleColumnFilterInfo* pFilterInfo, int32_t numOfFilterCols, SSDataBlock* pBlock);
-void doSetFilterColInfo(SFilterInfo     *pFilters, SSDataBlock* pBlock);
 bool doFilterDataBlock(SSingleColumnFilterInfo* pFilterInfo, int32_t numOfFilterCols, int32_t numOfRows, int8_t* p);
 void doCompactSDataBlock(SSDataBlock* pBlock, int32_t numOfRows, int8_t* p);
 

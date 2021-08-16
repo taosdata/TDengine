@@ -821,17 +821,22 @@ static void doSetupSDataBlock(SSqlRes* pRes, SSDataBlock* pBlock, SFilterInfo* p
   // filter data if needed
   if (pFilterInfo) {
     //doSetFilterColumnInfo(pFilterInfo, numOfFilterCols, pBlock); 
-    doSetFilterColInfo(pFilterInfo, pBlock);
+    filterSetColFieldData(pFilterInfo, pBlock->info.numOfCols, pBlock->pDataBlock);
     bool gotNchar = false;
     filterConverNcharColumns(pFilterInfo, pBlock->info.rows, &gotNchar);
-    int8_t* p = calloc(pBlock->info.rows, sizeof(int8_t));
+    int8_t* p = NULL;
     //bool all = doFilterDataBlock(pFilterInfo, numOfFilterCols, pBlock->info.rows, p);
-    bool all = filterExecute(pFilterInfo, pBlock->info.rows, p);
+    bool all = filterExecute(pFilterInfo, pBlock->info.rows, &p, NULL, 0);
     if (gotNchar) {
       filterFreeNcharColumns(pFilterInfo);
     }
     if (!all) {
-      doCompactSDataBlock(pBlock, pBlock->info.rows, p);
+      if (p) {
+        doCompactSDataBlock(pBlock, pBlock->info.rows, p);
+      } else {
+        pBlock->info.rows = 0;
+        pBlock->pBlockStatis = NULL;  // clean the block statistics info
+      }
     }
 
     tfree(p);
@@ -1522,7 +1527,6 @@ void tscFreeSqlObj(SSqlObj* pSql) {
   tscFreeSqlResult(pSql);
   tscResetSqlCmd(pCmd, false, pSql->self);
 
-  memset(pCmd->payload, 0, (size_t)pCmd->allocSize);
   tfree(pCmd->payload);
   pCmd->allocSize = 0;
 
@@ -3617,7 +3621,8 @@ SSqlObj* createSubqueryObj(SSqlObj* pSql, int16_t tableIndex, __async_cb_func_t 
   pNewQueryInfo->prjOffset = pQueryInfo->prjOffset;
   pNewQueryInfo->numOfTables = 0;
   pNewQueryInfo->pTableMetaInfo = NULL;
-  pNewQueryInfo->bufLen = pQueryInfo->bufLen;
+  pNewQueryInfo->bufLen   =  pQueryInfo->bufLen;
+  pNewQueryInfo->distinct =  pQueryInfo->distinct;
 
   pNewQueryInfo->buf = malloc(pQueryInfo->bufLen);
   if (pNewQueryInfo->buf == NULL) {
