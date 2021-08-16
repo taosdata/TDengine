@@ -3616,19 +3616,32 @@ void updateOutputBuf(SOptrBasicInfo* pBInfo, int32_t *bufCapacity, int32_t numOf
   }
 
   char *tsbuf = NULL;
+  int16_t tsFuncIndex = -1;
+  for (int32_t i = 0; i < pDataBlock->info.numOfCols; ++i) {
+    SColumnInfoData* pColInfo = taosArrayGet(pDataBlock->pDataBlock, i);
+
+    // find the ts  output data pointer
+    int32_t functionId = pBInfo->pCtx[i].functionId;
+    if (functionId == TSDB_FUNC_PRJ && pColInfo->info.type == TSDB_DATA_TYPE_TIMESTAMP) {
+      tsbuf = pColInfo->pData + pColInfo->info.bytes * pDataBlock->info.rows;
+      tsFuncIndex = i;
+      break;
+    }
+  }
+
   for (int32_t i = 0; i < pDataBlock->info.numOfCols; ++i) {
     SColumnInfoData *pColInfo = taosArrayGet(pDataBlock->pDataBlock, i);
     pBInfo->pCtx[i].pOutput = pColInfo->pData + pColInfo->info.bytes * pDataBlock->info.rows;
 
     // re-estabilish output buffer pointer.
     int32_t functionId = pBInfo->pCtx[i].functionId;
-    if (functionId == TSDB_FUNC_PRJ && pColInfo->info.type == TSDB_DATA_TYPE_TIMESTAMP){
-      tsbuf = pBInfo->pCtx[i].pOutput;
-    }
-    else if ((i > 0) &&
+    if ((i > 0) &&
              (functionId == TSDB_FUNC_TOP || functionId == TSDB_FUNC_BOTTOM || functionId == TSDB_FUNC_DIFF || functionId == TSDB_FUNC_DERIVATIVE)) {
         pBInfo->pCtx[i].ptsOutputBuf = pBInfo->pCtx[i-1].pOutput;
         pBInfo->pCtx[i].ptsOriOutputBuf = tsbuf;
+        if(tsFuncIndex != -1) {
+          pBInfo->pCtx[tsFuncIndex].functionId = TSDB_FUNC_TS_DUMMY;  // to avoid query data
+        }
     }
   }
 }
