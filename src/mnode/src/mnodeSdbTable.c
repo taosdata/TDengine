@@ -375,7 +375,6 @@ static void sdbCacheSyncWal(mnodeSdbTable *pTable, bool restore, SWalHead* pHead
     pTable->options.freeFp(pRow->pObj);
   }
 
-
   free(pRow->pObj);
 }
 
