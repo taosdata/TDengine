@@ -5613,11 +5613,13 @@ int32_t validateOrderbyNode(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SSqlNode* pSq
         pQueryInfo->groupbyExpr.orderType = p1->sortOrder;
         pQueryInfo->order.orderColId = pSchema[index.columnIndex].colId;
       } else if (isTopBottomQuery(pQueryInfo)) {
+        int32_t topBotIndex = tscGetTopBotQueryExprIndex(pQueryInfo);
+        assert(topBotIndex >= 1);
         /* order of top/bottom query in interval is not valid  */
-        SExprInfo* pExpr = tscExprGet(pQueryInfo, 0);
+        SExprInfo* pExpr = tscExprGet(pQueryInfo, topBotIndex-1);
         assert(pExpr->base.functionId == TSDB_FUNC_TS);
 
-        pExpr = tscExprGet(pQueryInfo, 1);
+        pExpr = tscExprGet(pQueryInfo, topBotIndex);
         if (pExpr->base.colInfo.colIndex != index.columnIndex && index.columnIndex != PRIMARYKEY_TIMESTAMP_COL_INDEX) {
           return invalidOperationMsg(pMsgBuf, msg2);
         }
@@ -5706,11 +5708,13 @@ int32_t validateOrderbyNode(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SSqlNode* pSq
         SColIndex* pColIndex = taosArrayGet(columnInfo, 0);
         validOrder = (pColIndex->colIndex == index.columnIndex);
       } else {
+        int32_t topBotIndex = tscGetTopBotQueryExprIndex(pQueryInfo);
+        assert(topBotIndex >= 1);
         /* order of top/bottom query in interval is not valid  */
-        SExprInfo* pExpr = tscExprGet(pQueryInfo, 0);
+        SExprInfo* pExpr = tscExprGet(pQueryInfo, topBotIndex-1);
         assert(pExpr->base.functionId == TSDB_FUNC_TS);
 
-        pExpr = tscExprGet(pQueryInfo, 1);
+        pExpr = tscExprGet(pQueryInfo, topBotIndex);
         if (pExpr->base.colInfo.colIndex != index.columnIndex && index.columnIndex != PRIMARYKEY_TIMESTAMP_COL_INDEX) {
           return invalidOperationMsg(pMsgBuf, msg2);
         }

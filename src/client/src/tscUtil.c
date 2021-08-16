@@ -369,6 +369,27 @@ bool tscGroupbyColumn(SQueryInfo* pQueryInfo) {
   return false;
 }
 
+int32_t tscGetTopBotQueryExprIndex(SQueryInfo* pQueryInfo) {
+  size_t numOfExprs = tscNumOfExprs(pQueryInfo);
+
+  for (int32_t i = 0; i < numOfExprs; ++i) {
+    SExprInfo* pExpr = tscExprGet(pQueryInfo, i);
+    if (pExpr == NULL) {
+      continue;
+    }
+
+    if (pExpr->base.functionId == TSDB_FUNC_TS) {
+      continue;
+    }
+
+    if (pExpr->base.functionId == TSDB_FUNC_TOP || pExpr->base.functionId == TSDB_FUNC_BOTTOM) {
+      return i;
+    }
+  }
+
+  return -1;
+}
+
 bool tscIsTopBotQuery(SQueryInfo* pQueryInfo) {
   size_t numOfExprs = tscNumOfExprs(pQueryInfo);
 
