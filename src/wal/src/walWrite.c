@@ -457,7 +457,7 @@ static int32_t walRestoreWalFile(SWal *pWal, void *pVnode, FWalWrite writeFp, ch
 
     headInfo.len = sizeof(SWalHead) + pHead->len;
     //wInfo("writeFp: %ld", offset);
-    (*writeFp)(pVnode, pHead, TAOS_QTYPE_WAL, &headInfo);
+    (*writeFp)(pVnode, pHead, TAOS_QTYPE_WAL, NULL, &headInfo);
   }
 
   tfClose(tfd);

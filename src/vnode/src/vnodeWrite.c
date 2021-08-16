@@ -50,7 +50,7 @@ int32_t vnodeInitWrite(void) {
 
 void vnodeCleanupWrite() {}
 
-int32_t vnodeProcessWrite(void *vparam, void *wparam, int32_t qtype, void *rparam) {
+int32_t vnodeProcessWrite(void *vparam, void *wparam, int32_t qtype, void *rparam, void* headInfo) {
   int32_t    code = 0;
   SVnodeObj *pVnode = vparam;
   SWalHead * pHead = wparam;

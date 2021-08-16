@@ -55,7 +55,7 @@ typedef struct {
 } SWalCfg;
 
 typedef void *  twalh;  // WAL HANDLE
-typedef int32_t FWalWrite(void *ahandle, void *pHead, int32_t qtype, void *pMsg);
+typedef int32_t FWalWrite(void *ahandle, void *pHead, int32_t qtype, void *pMsg, void* headInfo);
 
 int32_t  walInit();
 void     walCleanUp();

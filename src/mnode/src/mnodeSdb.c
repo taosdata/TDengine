@@ -115,7 +115,7 @@ static taos_qall  tsSdbWQall;
 static taos_queue tsSdbWQueue;
 static SSdbWorkerPool tsSdbPool;
 
-static int32_t sdbProcessWrite(void *pRow, void *pHead, int32_t qtype, void *unused);
+static int32_t sdbProcessWrite(void *pRow, void *pHead, int32_t qtype, void *unused, void* headInfo);
 static int32_t sdbWriteFwdToQueue(int32_t vgId, void *pHead, int32_t qtype, void *rparam);
 static int32_t sdbWriteRowToQueue(SSdbRow *pRow, int32_t action);
 static void    sdbFreeFromQueue(SSdbRow *pRow);
@@ -634,7 +634,7 @@ static int32_t sdbPerformUpdateAction(SWalHead *pHead, SSdbTable *pTable, SSdbRo
   return sdbUpdateHash(pTable, pRow);
 }
 
-static int32_t sdbProcessWrite(void *wparam, void *hparam, int32_t qtype, void *tparam) {
+static int32_t sdbProcessWrite(void *wparam, void *hparam, int32_t qtype, void *tparam, void* pHeadInfo) {
   SSdbRow *pRow = wparam;
   SWalHead *pHead = hparam;  
   int32_t tableId = pHead->msgType / 10;
@@ -681,8 +681,9 @@ static int32_t sdbProcessWrite(void *wparam, void *hparam, int32_t qtype, void *
 
   SWalHeadInfo headInfo;
   int32_t code;
-  if (tparam != NULL) {
-    headInfo = *(SWalHeadInfo*)tparam;
+  bool restore = pHeadInfo != NULL;
+  if (pHeadInfo != NULL) {
+    headInfo = *(SWalHeadInfo*)pHeadInfo;
     code = walWrite(tsSdbMgmt.wal, pHead, NULL);    
   } else {
     code = walWrite(tsSdbMgmt.wal, pHead, &headInfo);
@@ -728,7 +729,7 @@ static int32_t sdbProcessWrite(void *wparam, void *hparam, int32_t qtype, void *
     SSdbRow row;
     code = sdbPerformInsertAction(pHead, pTable, &row);
     if (code == 0 && pTable->tableType == SDB_TABLE_CACHE_TABLE) {
-      mnodeSdbTableSyncWal(pTable->iHandle, pHead, &row, &headInfo);
+      mnodeSdbTableSyncWal(pTable->iHandle, restore, pHead, &row, &headInfo);
     }
     return code;
   } else if (action == SDB_ACTION_DELETE) {
@@ -741,7 +742,7 @@ static int32_t sdbProcessWrite(void *wparam, void *hparam, int32_t qtype, void *
     SSdbRow row;
     code = sdbPerformUpdateAction(pHead, pTable, &row);
     if (code == 0 && pTable->tableType == SDB_TABLE_CACHE_TABLE) {
-      mnodeSdbTableSyncWal(pTable->iHandle, pHead, &row, &headInfo);
+      mnodeSdbTableSyncWal(pTable->iHandle, restore, pHead, &row, &headInfo);
     }
     return code;
   } else {
@@ -1157,7 +1158,7 @@ static void *sdbWorkerFp(void *pWorker) {
       sdbTrace("vgId:1, msg:%p, row:%p hver:%" PRIu64 ", will be processed in sdb queue", pRow->pMsg, pRow->pObj,
                pRow->pHead.version);
 
-      pRow->code = sdbProcessWrite((qtype == TAOS_QTYPE_RPC) ? pRow : NULL, &pRow->pHead, qtype, NULL);
+      pRow->code = sdbProcessWrite((qtype == TAOS_QTYPE_RPC) ? pRow : NULL, &pRow->pHead, qtype, NULL, NULL);
       if (pRow->code > 0) pRow->code = 0;
 
       sdbTrace("vgId:1, msg:%p is processed in sdb queue, code:%x", pRow->pMsg, pRow->code);

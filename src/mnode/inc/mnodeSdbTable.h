@@ -50,7 +50,7 @@ void mnodeSdbTableClear(mnodeSdbTable *pTable);
 int  mnodeSdbTableGet(mnodeSdbTable *pTable, const void *key, size_t keyLen, void** pRet);
 void mnodeSdbTablePut(mnodeSdbTable *pTable, struct SSdbRow* pRow);
 
-void mnodeSdbTableSyncWal(mnodeSdbTable *pTable, void*, void*, void*);
+void mnodeSdbTableSyncWal(mnodeSdbTable *pTable, bool, void*, void*, void*);
 
 void mnodeSdbTableRemove(mnodeSdbTable *pTable, const struct SSdbRow* pRow);
 

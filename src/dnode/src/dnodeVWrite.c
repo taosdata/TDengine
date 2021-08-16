@@ -206,7 +206,7 @@ static void *dnodeProcessVWriteQueue(void *wparam) {
       dTrace("msg:%p, app:%p type:%s will be processed in vwrite queue, qtype:%s hver:%" PRIu64, pWrite,
              pWrite->rpcMsg.ahandle, taosMsg[pWrite->walHead.msgType], qtypeStr[qtype], pWrite->walHead.version);
 
-      pWrite->code = vnodeProcessWrite(pVnode, &pWrite->walHead, qtype, pWrite);
+      pWrite->code = vnodeProcessWrite(pVnode, &pWrite->walHead, qtype, pWrite, NULL);
       if (pWrite->code <= 0) atomic_add_fetch_32(&pWrite->processedCount, 1);
       if (pWrite->code > 0) pWrite->code = 0;
       if (pWrite->code == 0 && pWrite->walHead.msgType != TSDB_MSG_TYPE_SUBMIT) forceFsync = true;
