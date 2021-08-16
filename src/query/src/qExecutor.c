@@ -1327,6 +1327,16 @@ void doTimeWindowInterpolation(SOperatorInfo* pOperator, SOptrBasicInfo* pInfo, 
 
         pCtx[k].end.key = curTs;
         pCtx[k].end.val = v2;
+
+        if (pColInfo->info.type == TSDB_DATA_TYPE_BINARY || pColInfo->info.type == TSDB_DATA_TYPE_NCHAR) {
+          if (prevRowIndex == -1) {
+            pCtx[k].start.ptr = (char *)pRuntimeEnv->prevRow[index];
+          } else {
+            pCtx[k].start.ptr = (char *)pColInfo->pData + prevRowIndex * pColInfo->info.bytes;
+          }
+          
+          pCtx[k].end.ptr = (char *)pColInfo->pData + curRowIndex * pColInfo->info.bytes;
+        }
       }
     } else if (functionId == TSDB_FUNC_TWA) {
       SPoint point1 = (SPoint){.key = prevTs,    .val = &v1};
