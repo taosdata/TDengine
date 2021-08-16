@@ -1,6 +1,72 @@
 #  Java Connector
 
-TDengine 提供了遵循 JDBC 标准（3.0）API 规范的 `taos-jdbcdriver` 实现，可在 maven 的中央仓库 [Sonatype Repository][1] 搜索下载。
+## 安装
+
+Java连接器支持的系统有： Linux 64/Windows x64/Windows x86。
+
+**安装前准备：**
+
+- 已安装TDengine服务器端
+- 已安装好TDengine应用驱动，具体请参照 [安装连接器驱动步骤](https://www.taosdata.com/cn/documentation/connector#driver) 章节
+
+TDengine 为了方便 Java 应用使用，提供了遵循 JDBC 标准(3.0)API 规范的 `taos-jdbcdriver` 实现。目前可以通过 [Sonatype Repository](https://search.maven.org/artifact/com.taosdata.jdbc/taos-jdbcdriver) 搜索并下载。
+
+由于 TDengine 的应用驱动是使用C语言开发的，使用 taos-jdbcdriver 驱动包时需要依赖系统对应的本地函数库。
+
+- libtaos.so 在 Linux 系统中成功安装 TDengine 后，依赖的本地函数库 libtaos.so 文件会被自动拷贝至 /usr/lib/libtaos.so，该目录包含在 Linux 自动扫描路径上，无需单独指定。
+
+- taos.dll 在 Windows 系统中安装完客户端之后，驱动包依赖的 taos.dll 文件会自动拷贝到系统默认搜索路径 C:/Windows/System32 下，同样无需要单独指定。
+
+注意：在 Windows 环境开发时需要安装 TDengine 对应的 [windows 客户端](https://www.taosdata.com/cn/all-downloads/#TDengine-Windows-Client)，Linux 服务器安装完 TDengine 之后默认已安装 client，也可以单独安装 [Linux 客户端](https://www.taosdata.com/cn/getting-started/#快速上手) 连接远程 TDengine Server。
+
+### 如何获取 TAOS-JDBCDriver
+
+**maven仓库**
+
+目前 taos-jdbcdriver 已经发布到 [Sonatype Repository](https://search.maven.org/artifact/com.taosdata.jdbc/taos-jdbcdriver) 仓库，且各大仓库都已同步。
+
+- [sonatype](https://search.maven.org/artifact/com.taosdata.jdbc/taos-jdbcdriver)
+- [mvnrepository](https://mvnrepository.com/artifact/com.taosdata.jdbc/taos-jdbcdriver)
+- [maven.aliyun](https://maven.aliyun.com/mvn/search)
+
+maven 项目中使用如下 pom.xml 配置即可：
+```xml-dtd
+<dependency>
+ <groupId>com.taosdata.jdbc</groupId>
+ <artifactId>taos-jdbcdriver</artifactId>
+ <version>2.0.18</version>
+</dependency>
+```
+**源码编译打包**
+
+下载 TDengine 源码之后，进入 taos-jdbcdriver 源码目录 `src/connector/jdbc` 执行 `mvn clean package -Dmaven.test.skip=true` 即可生成相应 jar 包。
+
+### 示例程序
+
+示例程序源码位于install_directory/examples/JDBC，有如下目录：
+
+JDBCDemo                JDBC示例源程序
+
+JDBCConnectorChecker    JDBC安装校验源程序及jar包
+
+Springbootdemo          springboot示例源程序
+
+SpringJdbcTemplate      SpringJDBC模板
+ 
+
+### 安装验证
+
+运行如下指令：
+
+```Bash
+cd {install_directory}/examples/JDBC/JDBCConnectorChecker
+java -jar JDBCConnectorChecker.jar -host <fqdn>
+```
+
+验证通过将打印出成功信息。
+
+
+## Java连接器的使用
 
 `taos-jdbcdriver` 的实现包括 2 种形式： JDBC-JNI 和 JDBC-RESTful（taos-jdbcdriver-2.0.18 开始支持 JDBC-RESTful）。 JDBC-JNI 通过调用客户端 libtaos.so（或 taos.dll ）的本地方法实现， JDBC-RESTful 则在内部封装了 RESTful 接口实现。
 
@@ -20,7 +86,7 @@ TDengine 的 JDBC 驱动实现尽可能与关系型数据库驱动保持一致�
 * 对每个 Connection 的实例，至多只能有一个打开的 ResultSet 实例；如果在 ResultSet 还没关闭的情况下执行了新的查询，taos-jdbcdriver 会自动关闭上一个 ResultSet。
 
 
-## JDBC-JNI和JDBC-RESTful的对比
+### JDBC-JNI和JDBC-RESTful的对比
 
 <table >
 <tr align="center"><th>对比项</th><th>JDBC-JNI</th><th>JDBC-RESTful</th></tr>
@@ -51,33 +117,34 @@ TDengine 的 JDBC 驱动实现尽可能与关系型数据库驱动保持一致�
 
 注意：与 JNI 方式不同，RESTful 接口是无状态的，因此 `USE db_name` 指令没有效果，RESTful 下所有对表名、超级表名的引用都需要指定数据库名前缀。
 
-## 如何获取 taos-jdbcdriver
+### <a class="anchor" id="version"></a>TAOS-JDBCDriver 版本以及支持的 TDengine 版本和 JDK 版本
 
-### maven 仓库
+| taos-jdbcdriver 版本 | TDengine 版本     | JDK 版本 |
+| -------------------- | ----------------- | -------- |
+| 2.0.31              | 2.1.3.0 及以上      | 1.8.x    |
+| 2.0.22 - 2.0.30    | 2.0.18.0 - 2.1.2.x | 1.8.x    |
+| 2.0.12 - 2.0.21     | 2.0.8.0 - 2.0.17.x | 1.8.x    |
+| 2.0.4 - 2.0.11       | 2.0.0.0 - 2.0.7.x | 1.8.x    |
+| 1.0.3                | 1.6.1.x 及以上    | 1.8.x    |
+| 1.0.2                | 1.6.1.x 及以上    | 1.8.x    |
+| 1.0.1                | 1.6.1.x 及以上    | 1.8.x    |
 
-目前 taos-jdbcdriver 已经发布到 [Sonatype Repository][1] 仓库，且各大仓库都已同步。
+### TDengine DataType 和 Java DataType
 
-* [sonatype][8]
-* [mvnrepository][9]
-* [maven.aliyun][10]
+TDengine 目前支持时间戳、数字、字符、布尔类型，与 Java 对应类型转换如下：
 
-maven 项目中使用如下 pom.xml 配置即可：
-
-```xml
-<dependency>
-  <groupId>com.taosdata.jdbc</groupId>
-  <artifactId>taos-jdbcdriver</artifactId>
-  <version>2.0.18</version>
-</dependency>
-```
-
-### 源码编译打包
-
-下载 [TDengine][3] 源码之后，进入 taos-jdbcdriver 源码目录 `src/connector/jdbc` 执行 `mvn clean package -Dmaven.test.skip=true` 即可生成相应 jar 包。
-
-
-
-## JDBC的使用说明
+| TDengine DataType | Java DataType      |
+| ----------------- | ------------------ |
+| TIMESTAMP         | java.sql.Timestamp |
+| INT               | java.lang.Integer  |
+| BIGINT            | java.lang.Long     |
+| FLOAT             | java.lang.Float    |
+| DOUBLE            | java.lang.Double   |
+| SMALLINT          | java.lang.Short    |
+| TINYINT           | java.lang.Byte     |
+| BOOL              | java.lang.Boolean  |
+| BINARY            | byte array         |
+| NCHAR             | java.lang.String   |
 
 ### 获取连接
 
@@ -112,12 +179,12 @@ Connection conn = DriverManager.getConnection(jdbcUrl);
 **注意**：使用 JDBC-JNI 的 driver，taos-jdbcdriver 驱动包时需要依赖系统对应的本地函数库。
 
 * libtaos.so
-  在 linux 系统中成功安装 TDengine 后，依赖的本地函数库 libtaos.so 文件会被自动拷贝至 /usr/lib/libtaos.so，该目录包含在 Linux 自动扫描路径上，无需单独指定。
+  在 Linux 系统中成功安装 TDengine 后，依赖的本地函数库 libtaos.so 文件会被自动拷贝至 /usr/lib/libtaos.so，该目录包含在 Linux 自动扫描路径上，无需单独指定。
 
 * taos.dll
-  在 windows 系统中安装完客户端之后，驱动包依赖的 taos.dll 文件会自动拷贝到系统默认搜索路径 C:/Windows/System32 下，同样无需要单独指定。
+  在 Windows 系统中安装完客户端之后，驱动包依赖的 taos.dll 文件会自动拷贝到系统默认搜索路径 C:/Windows/System32 下，同样无需要单独指定。
 
-> 在 windows 环境开发时需要安装 TDengine 对应的 [windows 客户端][14]，Linux 服务器安装完 TDengine 之后默认已安装 client，也可以单独安装 [Linux 客户端][15] 连接远程 TDengine Server。
+> 在 Windows 环境开发时需要安装 TDengine 对应的 [windows 客户端][14]，Linux 服务器安装完 TDengine 之后默认已安装 client，也可以单独安装 [Linux 客户端][15] 连接远程 TDengine Server。
 
 JDBC-JNI 的使用请参见[视频教程](https://www.taosdata.com/blog/2020/11/11/1955.html)。
 
@@ -166,8 +233,7 @@ properties 中的配置参数如下：
 
 #### 使用客户端配置文件建立连接
 
-当使用 JDBC-JNI 连接 TDengine 集群时，可以使用客户端配置文件，在客户端配置文件中指定集群的 firstEp、secondEp参数。
-如下所示：
+当使用 JDBC-JNI 连接 TDengine 集群时，可以使用客户端配置文件，在客户端配置文件中指定集群的 firstEp、secondEp参数。如下所示：
 
 1. 在 Java 应用中不指定 hostname 和 port
 
@@ -214,7 +280,7 @@ TDengine 中，只要保证 firstEp 和 secondEp 中一个节点有效，就可�
 
 例如：在 url 中指定了 password 为 taosdata，在 Properties 中指定了 password 为 taosdemo，那么，JDBC 会使用 url 中的 password 建立连接。
 
-> 更多详细配置请参考[客户端配置][13]
+> 更多详细配置请参考[客户端配置](https://www.taosdata.com/cn/documentation/administrator/#client)
 
 ### 创建数据库和表
 
@@ -242,8 +308,8 @@ int affectedRows = stmt.executeUpdate("insert into tb values(now, 23, 10.3) (now
 System.out.println("insert " + affectedRows + " rows.");
 ```
 
-> now 为系统内部函数，默认为服务器当前时间。
-> `now + 1s` 代表服务器当前时间往后加 1 秒，数字后面代表时间单位：a(毫秒), s(秒), m(分), h(小时), d(天)，w(周), n(月), y(年)。
+> now 为系统内部函数，默认为客户端所在计算机当前时间。
+> `now + 1s` 代表客户端当前时间往后加 1 秒，数字后面代表时间单位：a(毫秒)，s(秒)，m(分)，h(小时)，d(天)，w(周)，n(月)，y(年)。
 
 ### 查询数据
 
@@ -464,7 +530,7 @@ conn.close();
 ```
 
 > 通过 HikariDataSource.getConnection() 获取连接后，使用完成后需要调用 close() 方法，实际上它并不会关闭连接，只是放回连接池中。
-> 更多 HikariCP 使用问题请查看[官方说明][5]
+> 更多 HikariCP 使用问题请查看[官方说明](https://github.com/brettwooldridge/HikariCP)
 
 **Druid**
 
@@ -505,13 +571,13 @@ public static void main(String[] args) throws Exception {
 }
 ```
 
-> 更多 druid 使用问题请查看[官方说明][6]
+> 更多 druid 使用问题请查看[官方说明](https://github.com/alibaba/druid)
 
 **注意事项**
 * TDengine `v1.6.4.1` 版本开始提供了一个专门用于心跳检测的函数 `select server_status()`，所以在使用连接池时推荐使用 `select server_status()` 进行 Validation Query。
 
 如下所示，`select server_status()` 执行成功会返回 `1`。
-```shell
+```sql
 taos> select server_status();
 server_status()|
 ================
@@ -521,43 +587,10 @@ Query OK, 1 row(s) in set (0.000141s)
 
 
 
-## 与框架使用
+## 在框架中使用
 
-* Spring JdbcTemplate 中使用 taos-jdbcdriver，可参考 [SpringJdbcTemplate][11]
-* Springboot + Mybatis 中使用，可参考 [springbootdemo][12]
-
-
-
-## <a class="anchor" id="version"></a>TAOS-JDBCDriver 版本以及支持的 TDengine 版本和 JDK 版本
-
-| taos-jdbcdriver 版本 | TDengine 版本     | JDK 版本 |
-| -------------------- | ----------------- | -------- |
-| 2.0.31              | 2.1.3.0 及以上      | 1.8.x    |
-| 2.0.22 - 2.0.30    | 2.0.18.0 - 2.1.2.x | 1.8.x    |
-| 2.0.12 - 2.0.21     | 2.0.8.0 - 2.0.17.x | 1.8.x    |
-| 2.0.4 - 2.0.11       | 2.0.0.0 - 2.0.7.x | 1.8.x    |
-| 1.0.3                | 1.6.1.x 及以上    | 1.8.x    |
-| 1.0.2                | 1.6.1.x 及以上    | 1.8.x    |
-| 1.0.1                | 1.6.1.x 及以上    | 1.8.x    |
-
-
-
-## TDengine DataType 和 Java DataType
-
-TDengine 目前支持时间戳、数字、字符、布尔类型，与 Java 对应类型转换如下：
-
-| TDengine DataType | Java DataType      |
-| ----------------- | ------------------ |
-| TIMESTAMP         | java.sql.Timestamp |
-| INT               | java.lang.Integer  |
-| BIGINT            | java.lang.Long     |
-| FLOAT             | java.lang.Float    |
-| DOUBLE            | java.lang.Double   |
-| SMALLINT          | java.lang.Short    |
-| TINYINT           | java.lang.Byte     |
-| BOOL              | java.lang.Boolean  |
-| BINARY            | byte array         |
-| NCHAR             | java.lang.String   |
+* Spring JdbcTemplate 中使用 taos-jdbcdriver，可参考 [SpringJdbcTemplate](https://github.com/taosdata/TDengine/tree/develop/tests/examples/JDBC/SpringJdbcTemplate)
+* Springboot + Mybatis 中使用，可参考 [springbootdemo](https://github.com/taosdata/TDengine/tree/develop/tests/examples/JDBC/springbootdemo)
 
 
 
@@ -567,7 +600,7 @@ TDengine 目前支持时间戳、数字、字符、布尔类型，与 Java 对�
 
   **原因**：程序没有找到依赖的本地函数库 taos。
 
-  **解决方法**：windows 下可以将 C:\TDengine\driver\taos.dll 拷贝到 C:\Windows\System32\ 目录下，linux 下将建立如下软链 `ln -s /usr/local/taos/driver/libtaos.so.x.x.x.x /usr/lib/libtaos.so` 即可。
+  **解决方法**：Windows 下可以将 C:\TDengine\driver\taos.dll 拷贝到 C:\Windows\System32\ 目录下，Linux 下将建立如下软链 `ln -s /usr/local/taos/driver/libtaos.so.x.x.x.x /usr/lib/libtaos.so` 即可。
 
 * java.lang.UnsatisfiedLinkError: taos.dll Can't load AMD 64 bit on a IA 32-bit platform
 
@@ -575,21 +608,5 @@ TDengine 目前支持时间戳、数字、字符、布尔类型，与 Java 对�
 
   **解决方法**：重新安装 64 位 JDK。
 
-* 其它问题请参考 [Issues][7]
-
-[1]: https://search.maven.org/artifact/com.taosdata.jdbc/taos-jdbcdriver
-[2]: https://mvnrepository.com/artifact/com.taosdata.jdbc/taos-jdbcdriver
-[3]: https://github.com/taosdata/TDengine
-[4]: https://www.taosdata.com/blog/2019/12/03/jdbcdriver%e6%89%be%e4%b8%8d%e5%88%b0%e5%8a%a8%e6%80%81%e9%93%be%e6%8e%a5%e5%ba%93/
-[5]: https://github.com/brettwooldridge/HikariCP
-[6]: https://github.com/alibaba/druid
-[7]: https://github.com/taosdata/TDengine/issues
-[8]: https://search.maven.org/artifact/com.taosdata.jdbc/taos-jdbcdriver
-[9]: https://mvnrepository.com/artifact/com.taosdata.jdbc/taos-jdbcdriver
-[10]: https://maven.aliyun.com/mvn/search
-[11]: https://github.com/taosdata/TDengine/tree/develop/tests/examples/JDBC/SpringJdbcTemplate
-[12]: https://github.com/taosdata/TDengine/tree/develop/tests/examples/JDBC/springbootdemo
-[13]: https://www.taosdata.com/cn/documentation/administrator/#client
-[14]: https://www.taosdata.com/cn/all-downloads/#TDengine-Windows-Client
-[15]: https://www.taosdata.com/cn/getting-started/#%E5%AE%A2%E6%88%B7%E7%AB%AF
+* 其它问题请参考 [Issues](https://github.com/taosdata/TDengine/issues)
 
