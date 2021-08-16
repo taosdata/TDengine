@@ -1940,20 +1940,6 @@ static void addPrimaryTsColIntoResult(SQueryInfo* pQueryInfo, SSqlCmd* pCmd) {
   pQueryInfo->type |= TSDB_QUERY_TYPE_PROJECTION_QUERY;
 }
 
-bool isValidDistinctSql(SQueryInfo* pQueryInfo) {
-  if (pQueryInfo == NULL) {
-    return false;
-  }
-  if ((pQueryInfo->type & TSDB_QUERY_TYPE_STABLE_QUERY)  != TSDB_QUERY_TYPE_STABLE_QUERY 
-      && (pQueryInfo->type & TSDB_QUERY_TYPE_TABLE_QUERY)  != TSDB_QUERY_TYPE_TABLE_QUERY) {
-    return false;
-  }
-  if (tscNumOfExprs(pQueryInfo) == 1){
-    return true;
-  } 
-  return false;
-}
-
 static bool hasNoneUserDefineExpr(SQueryInfo* pQueryInfo) {
   size_t numOfExprs = taosArrayGetSize(pQueryInfo->exprList);
   for (int32_t i = 0; i < numOfExprs; ++i) {
@@ -2043,9 +2029,11 @@ int32_t validateSelectNodeList(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SArray* pS
   const char* msg1 = "too many items in selection clause";
   const char* msg2 = "functions or others can not be mixed up";
   const char* msg3 = "not support query expression";
-  const char* msg4 = "only support distinct one column or tag";
+  const char* msg4 = "not support distinct mixed with proj/agg func";
   const char* msg5 = "invalid function name";
-  const char* msg6 = "_block_dist not support subquery, only support stable/table";
+  const char* msg6 = "not support distinct mixed with join"; 
+  const char* msg7 = "not support distinct mixed with groupby";
+  const char* msg8 = "not support distinct in nest query";
 
   // too many result columns not support order by in query
   if (taosArrayGetSize(pSelNodeList) > TSDB_MAX_COLUMNS) {
@@ -2056,18 +2044,25 @@ int32_t validateSelectNodeList(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SArray* pS
     pQueryInfo->colList = taosArrayInit(4, POINTER_BYTES);
   }
 
+  
   bool hasDistinct = false;
+  bool hasAgg      = false; 
   size_t numOfExpr = taosArrayGetSize(pSelNodeList);
+  int32_t distIdx = -1; 
   for (int32_t i = 0; i < numOfExpr; ++i) {
     int32_t outputIndex = (int32_t)tscNumOfExprs(pQueryInfo);
     tSqlExprItem* pItem = taosArrayGet(pSelNodeList, i);
      
     if (hasDistinct == false) {
        hasDistinct = (pItem->distinct == true); 
+       distIdx     =  hasDistinct ? i : -1;
     }
 
     int32_t type = pItem->pNode->type;
     if (type == SQL_NODE_SQLFUNCTION) {
+      hasAgg = true; 
+      if (hasDistinct)  break;
+
       pItem->pNode->functionId = isValidFunction(pItem->pNode->Expr.operand.z, pItem->pNode->Expr.operand.n);
 
       if (pItem->pNode->functionId == TSDB_FUNC_BLKINFO && taosArrayGetSize(pQueryInfo->pUpstream) > 0) {
@@ -2108,10 +2103,22 @@ int32_t validateSelectNodeList(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SArray* pS
     }
   }
 
+  //TODO(dengyihao), refactor as function     
+  //handle distinct func mixed with other func 
   if (hasDistinct == true) {
-    if (!isValidDistinctSql(pQueryInfo) ) {
+    if (distIdx != 0 || hasAgg) {
       return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg4);
+    } 
+    if (joinQuery) {
+      return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg6);
     }
+    if (pQueryInfo->groupbyExpr.numOfGroupCols  != 0) {
+      return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg7);
+    }
+    if (pQueryInfo->pDownstream != NULL) {
+      return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg8);
+     }
+    
     pQueryInfo->distinct = true;
   }
   
@@ -5512,6 +5519,7 @@ int32_t validateOrderbyNode(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SSqlNode* pSq
   const char* msg1 = "invalid column name";
   const char* msg2 = "order by primary timestamp, first tag or groupby column in groupby clause allowed";
   const char* msg3 = "invalid column in order by clause, only primary timestamp or first tag in groupby clause allowed";
+  const char* msg4 = "orderby column must projected in subquery";
 
   setDefaultOrderInfo(pQueryInfo);
   STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
@@ -5627,6 +5635,17 @@ int32_t validateOrderbyNode(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SSqlNode* pSq
 
         // orderby ts query on super table
         if (tscOrderedProjectionQueryOnSTable(pQueryInfo, 0)) {
+          bool found = false; 
+          for (int32_t i = 0; i < tscNumOfExprs(pQueryInfo); ++i) {
+            SExprInfo* pExpr = tscExprGet(pQueryInfo, i);
+            if (pExpr->base.functionId == TSDB_FUNC_PRJ && pExpr->base.colInfo.colId == PRIMARYKEY_TIMESTAMP_COL_INDEX) {
+              found = true;
+              break;
+            }
+          }
+          if (!found && pQueryInfo->pDownstream) {
+            return invalidOperationMsg(pMsgBuf, msg4);
+          }
           addPrimaryTsColIntoResult(pQueryInfo, pCmd);
         }
       }
@@ -8422,6 +8441,7 @@ static int32_t doValidateSubquery(SSqlNode* pSqlNode, int32_t index, SSqlObj* pS
   pSub->pUdfInfo = pUdfInfo;
   pSub->udfCopy = true;
 
+  pSub->pDownstream = pQueryInfo;
   int32_t code = validateSqlNode(pSql, p, pSub);
   if (code != TSDB_CODE_SUCCESS) {
     return code;
