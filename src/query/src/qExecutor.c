@@ -3657,14 +3657,17 @@ void copyTsColoum(SSDataBlock* pRes, SQLFunctionCtx* pCtx, int32_t numOfOutput) 
       tsNum++;
     }
   }
-  
+
   if (!needCopyTs) return;
   if (tsNum < 2) return;
   if (src == NULL) return;
 
-  for (int32_t col = 0; col < numOfOutput; ++col) {
-    SColumnInfoData* pColRes = taosArrayGet(pRes->pDataBlock, col);
-    memcpy(pColRes->pData, src, pColRes->info.bytes * pRes->info.rows);
+  for (int32_t i = 0; i < numOfOutput; i++) {
+    int32_t functionId = pCtx[i].functionId;
+    if(functionId == TSDB_FUNC_TS_DUMMY) {
+      SColumnInfoData* pColRes = taosArrayGet(pRes->pDataBlock, i);
+      memcpy(pColRes->pData, src, pColRes->info.bytes * pRes->info.rows);
+    }
   }
 }
 
