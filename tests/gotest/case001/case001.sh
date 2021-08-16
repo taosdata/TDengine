@@ -15,8 +15,8 @@ script_dir="$(dirname $(readlink -f $0))"
 ###### step 3: start build
 cd $script_dir
 rm -f go.*
-go mod init demotest
-go mod tidy
-go build 
+go mod init demotest > /dev/null 2>&1
+go mod tidy > /dev/null 2>&1
+go build  > /dev/null 2>&1
 sleep 1s
 ./demotest -h $1 -p $2
