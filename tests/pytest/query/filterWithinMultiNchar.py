@@ -28,12 +28,18 @@ class TDTestCase:
 
         print("==============step1")
         tdSql.execute(
-            "create stable t6 (ts timestamp,val int,flow nchar(36)) tags(dev nchar(36),gr nchar(36))")
-        tdSql.execute("insert into t6004 using t6 (dev,gr) tags ('b50c79bc-b102-48e6-bda1-4212263e46d0','b50c79bc-b102-48e6-bda1-4212263e46d0') values(now,1,'b50c79bc-b102-48e6-bda1-4212263e46d0')")
+            "create stable t6 (ts timestamp,val int,flow nchar(36)) tags(dev nchar(36),dev1 nchar(36),dev2 nchar(36))")
+        tdSql.execute("insert into t6004 using t6 (dev,dev1,dev2) tags ('b50c79bc-b102-48e6-bda1-4212263e46d0','b50c79bc-b102-48e6-bda1-4212263e46d0', 'b50c79bc-b102-48e6-bda1-4212263e46d0') values(now,1,'b50c79bc-b102-48e6-bda1-4212263e46d0')")
 
 
-        print("==============step2")    
+        print("==============step2")
         tdSql.query("select * from t6 where dev='b50c79bc-b102-48e6-bda1-4212263e46d0'")
+        tdSql.checkRows(1)
+
+        tdSql.query("select * from t6 where dev1='b50c79bc-b102-48e6-bda1-4212263e46d0'")
+        tdSql.checkRows(1)
+
+        tdSql.query("select * from t6 where dev2='b50c79bc-b102-48e6-bda1-4212263e46d0'")
         tdSql.checkRows(1)
 
     def stop(self):
