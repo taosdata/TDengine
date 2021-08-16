@@ -173,7 +173,7 @@ void cacheFreeItem(cacheTable* pTable, cacheItem* pItem) {
 }
 
 void cacheDestroyTable(cacheTable* pTable) {
-
+  cacheTableDestroy(pTable);
 }
 
 void *allocMemory(cache_t *cache, size_t size, bool chunked) {  

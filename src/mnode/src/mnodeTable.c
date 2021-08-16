@@ -100,7 +100,14 @@ static int32_t mnodeChangeNormalTableColumn(SMnodeMsg *pMsg);
 
 static int mnodeAfterLoadCTable(void* userData,void* value, int32_t nBytes, void* pArg, void* pRet);
 
-static void mnodeDestroyChildTable(SCTableObj *pTable) {
+static void mnodeFreeChildTableItem(void* pArg) {
+  SCTableObj* pTable = (SCTableObj*)pArg;
+  tfree(pTable->info.tableId);
+  tfree(pTable->schema);
+  tfree(pTable->sql);
+}
+
+static void mnodeDestroyChildTable(SCTableObj* pTable) {
   tfree(pTable->info.tableId);
   tfree(pTable->schema);
   tfree(pTable->sql);
@@ -445,9 +452,9 @@ static int32_t mnodeInitChildTables() {
     .cacheDataLen = sizeof(SCTableObj),
     .expireTime   = 3600,
     .afterLoadFp  = mnodeAfterLoadCTable,
+    .freeFp       = mnodeFreeChildTableItem,
     .keyType      = SDB_KEY_VAR_STRING,
     .tableType    = SDB_TABLE_CACHE_TABLE,
-    //.tableType    = SDB_TABLE_HASH_TABLE,
     .fpInsert     = mnodeChildTableActionInsert,
     .fpDelete     = mnodeChildTableActionDelete,
     .fpUpdate     = mnodeChildTableActionUpdate,

@@ -26,6 +26,7 @@ extern "C" {
 
 typedef int (*cache_load_func_t)(void*, const void* key, uint8_t nkey, char** value, size_t *len, uint64_t *pExpire);
 typedef int (*cache_del_func_t)(void*, const void* key, uint8_t nkey);
+typedef void (*cache_free_func_t)(void*);
 
 typedef struct cacheOption {
   size_t limit;               /* size limit */
@@ -41,6 +42,8 @@ typedef struct cacheTableOption {
   cache_load_func_t loadFp;   /* user defined load data function */
 
   cache_del_func_t  delFp;    /* user defined delete data function */
+
+  cache_free_func_t freeFp;   /* user defined free item function */
 
   int initHashPower;          /* table initial hash power,in [10,32] */
 

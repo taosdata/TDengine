@@ -125,6 +125,10 @@ mnodeSdbTable* mnodeSdbTableInit(mnodeSdbTableOption options) {
   return pTable;
 }
 
+static void mnodeSdbTableDestroy(mnodeSdbTable* pTable) {
+  free(pTable);
+}
+
 int mnodeSdbTableGet(mnodeSdbTable *pTable, const void *key, size_t keyLen, void** pRet) {
   return pTable->getFp(pTable, key, keyLen, pRet);
 }
@@ -189,6 +193,7 @@ static mnodeSdbCacheTable* cacheInit(mnodeSdbTable* pTable, mnodeSdbTableOption 
     .userData = pTable,
     .loadFp = loadCacheDataFromWal,
     .delFp  = delCacheData,
+    .freeFp = options.freeFp,
     .keyType = options.keyType,
   };
 
@@ -240,8 +245,26 @@ static void sdbCacheClear(mnodeSdbTable *pTable) {
   mnodeSdbCacheTable* pCache = pTable->iHandle;
   pthread_mutex_destroy(&pCache->mutex);
   cacheDestroyTable(pCache->pTable);
-  taosHashClear(pCache->pWalTable);
+
+  // free pWalTable
+  void *pIter = taosHashIterate(pCache->pWalTable, NULL);
+  while (pIter) {
+    walRecord *pWal = (walRecord*)pIter;
+    pIter = taosHashIterate(pCache->pWalTable, pIter);
+    free(pWal->key);
+  }
+  taosHashCancelIterate(pCache->pWalTable, pIter);
+
+  taosHashCleanup(pCache->pWalTable);
+
   free(pCache);
+
+  if (pTable->pCache) {
+    cacheDestroy(pTable->pCache);
+    pTable->pCache = NULL;
+  }
+
+  mnodeSdbTableDestroy(pTable);
 }
 
 static void* sdbCacheIterate(mnodeSdbTable *pTable, void *p) {
@@ -347,7 +370,12 @@ static void sdbCacheSyncWal(mnodeSdbTable *pTable, bool restore, SWalHead* pHead
   pthread_mutex_unlock(&pCache->mutex);
 
   if (!restore) {
-    cachePut(pCache->pTable, key, keySize, pRow->pObj, pTable->options.cacheDataLen, pTable->options.expireTime);
+    int ret = cachePut(pCache->pTable, key, keySize, pRow->pObj, pTable->options.cacheDataLen, pTable->options.expireTime);
+    if (ret != CACHE_OK && pTable->options.freeFp) {
+      pTable->options.freeFp(pRow->pObj);
+    }
+  } else if (pTable->options.freeFp) {
+    pTable->options.freeFp(pRow->pObj);
   }
 
   free(pRow->pObj);
@@ -460,6 +488,9 @@ static void hashTableClear(mnodeSdbTable *pTable) {
   mnodeSdbHashTable* pHash = (mnodeSdbHashTable*)pTable->iHandle;
   taosHashCleanup(pHash->pTable);
   pthread_mutex_destroy(&pHash->mutex);
+
+  mnodeSdbTableDestroy(pTable);
+  free(pHash);
 }
 
 static void* hashTableIterate(mnodeSdbTable *pTable, void *p) {

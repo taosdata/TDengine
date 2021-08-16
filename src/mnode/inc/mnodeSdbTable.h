@@ -38,6 +38,7 @@ typedef struct mnodeSdbTableOption {
 
   /* only used in SDB_TABLE_CACHE_TABLE */
   int       (*afterLoadFp)(void*,void* value, int32_t nBytes, void* pHead, void* pRet);
+  void      (*freeFp)(void*);
 
   int32_t           cacheDataLen; /* only used in SDB_TABLE_CACHE_TABLE */
   int32_t           expireTime; /* item expire time,only used in SDB_TABLE_CACHE_TABLE */

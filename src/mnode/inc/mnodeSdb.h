@@ -73,6 +73,7 @@ typedef struct {
   int32_t   cacheDataLen;
   int32_t   expireTime;
   int       (*afterLoadFp)(void*,void* value, int32_t nBytes, void* pHead, void* pRet);
+  void      (*freeFp)(void*);
   ESdbTable id;
   ESdbKey   keyType;
   mnodeSdbTableType tableType;

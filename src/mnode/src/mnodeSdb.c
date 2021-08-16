@@ -912,6 +912,7 @@ int64_t sdbOpenTable(SSdbTableDesc *pDesc) {
     .cacheDataLen = pDesc->cacheDataLen,
     .expireTime   = pDesc->expireTime,
     .afterLoadFp  = pDesc->afterLoadFp,
+    .freeFp       = pDesc->freeFp,
     .userData     = pTable,
   };
 
@@ -948,7 +949,7 @@ static void sdbCloseTableObj(void *handle) {
   tsSdbMgmt.numOfTables--;
   tsSdbMgmt.tableList[pTable->id] = NULL;
   
-  if (pTable->tableType == SDB_TABLE_HASH_TABLE) {
+  if (pTable->tableType == SDB_TABLE_HASH_TABLE) {    
     void *pIter = mnodeSdbTableIterate(pTable->iHandle, NULL);
     while (pIter) {
       void *pRow = NULL;
@@ -965,7 +966,9 @@ static void sdbCloseTableObj(void *handle) {
     }
     mnodeSdbTableCancelIterate(pTable->iHandle, pIter);
   } else {
-    
+    // do not iterator to free value in SDB_TABLE_CACHE_TABLE case,
+    // cause it will load the data from disk
+    // free data in mnodeSdbTableClear directly
   }
   
   mnodeSdbTableClear(pTable->iHandle);

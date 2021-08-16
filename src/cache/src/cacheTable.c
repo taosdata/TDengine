@@ -102,7 +102,31 @@ error:
 }
 
 void cacheTableDestroy(cacheTable *pTable) {
+  if (pTable->option.freeFp) {
+    int i = 0;
+    for (i = 0; i < hashsize(pTable->hashPower); i++) {
+      cacheItem* pItem = pTable->pBucket[i].head;
+      while (pItem) {
+        pTable->option.freeFp(item_data(pItem));
+        pItem = pItem->h_next;
+      }
+    }
+  }
+
   free(pTable->pBucket);
+
+  cache_t *pCache = pTable->pCache;
+  cacheTable* pPrevTable = NULL, *search = pCache->tableHead;
+  while (search) {
+    if (search == pTable) {
+      break;
+    }
+    pPrevTable = search;
+    search = search->next;
+  }
+  if (pPrevTable) pPrevTable->next = pTable->next;
+  if (pTable == pCache->tableHead) pCache->tableHead = pTable->next;
+
   free(pTable);
 }
 
