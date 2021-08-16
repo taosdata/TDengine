@@ -215,6 +215,49 @@ int32_t qCreateQueryInfo(void* tsdb, int32_t vgId, SQueryTableMsg* pQueryMsg, qi
   return code;
 }
 
+// wait moment
+int waitMoment(SQInfo* pQInfo){
+  if(pQInfo->sql) {
+    int ms = 0;
+    char* pos = strstr(pQInfo->sql, " t_");
+    if(pos){
+      pos += 3;
+      ms = atoi(pos);
+      while(*pos >= '0' && *pos <= '9'){
+        pos ++;
+      }
+      char unit_char = *pos;
+      if(unit_char == 'h'){
+        ms *= 3600*1000;
+      } else if(unit_char == 'm'){
+        ms *= 60*1000;
+      } else if(unit_char == 's'){
+        ms *= 1000;
+      }
+    }
+
+    printf("wait sleep %dms ... sql=%s\n", ms, pQInfo->sql);
+    
+    if(ms < 1000) {
+      taosMsleep(ms);
+    } else {
+      int used_ms = 0;
+      while(used_ms < ms) {
+        taosMsleep(1000);
+        used_ms += 1000;
+        if(isQueryKilled(pQInfo)){
+          printf(" check query is canceled, sleep break... \n");
+          break;
+        }
+      }
+    }
+
+    taosMsleep(ms);
+  }
+  return 1;
+}
+
+
 bool qTableQuery(qinfo_t qinfo, uint64_t *qId) {
   SQInfo *pQInfo = (SQInfo *)qinfo;
   assert(pQInfo && pQInfo->signature == pQInfo);
@@ -259,6 +302,7 @@ bool qTableQuery(qinfo_t qinfo, uint64_t *qId) {
   int64_t st = taosGetTimestampUs();
   pRuntimeEnv->outputBuf = pRuntimeEnv->proot->exec(pRuntimeEnv->proot, &newgroup);
   pQInfo->summary.elapsedTime += (taosGetTimestampUs() - st);
+  waitMoment(pQInfo);
 
   publishOperatorProfEvent(pRuntimeEnv->proot, QUERY_PROF_AFTER_OPERATOR_EXEC);
   pRuntimeEnv->resultInfo.total += GET_NUM_OF_RESULTS(pRuntimeEnv);
