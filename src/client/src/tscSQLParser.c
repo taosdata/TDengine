@@ -7052,6 +7052,10 @@ static int32_t checkUpdateTagPrjFunctions(SQueryInfo* pQueryInfo, char* msg) {
       continue;
     }
 
+    if(functionId == TSDB_FUNC_DERIVATIVE){     // to avoid ts function id was modufied below
+      tagTsColExists = false;
+    }
+
     if (functionId < 0) {
       SUdfInfo* pUdfInfo = taosArrayGet(pQueryInfo->pUdfInfo, -1 * functionId - 1);
       if (pUdfInfo->funcType == TSDB_UDF_TYPE_AGGREGATE) {
