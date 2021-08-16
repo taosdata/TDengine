@@ -227,24 +227,21 @@ pipeline {
               sh '''
                 rm -rf /var/lib/taos/*
                 rm -rf /var/log/taos/*
-                nohup taosd >/dev/null 
+                nohup taosd >/dev/null &
                 sleep 10
               '''
               sh '''
               cd ${WKC}/tests/examples/nodejs
-              git clean -dfx
-              npm install td2.0-connector
+              npm install td2.0-connector > /dev/null 2>&1
               node nodejsChecker.js host=localhost
               '''
               sh '''
                 cd ${WKC}/tests/examples/C#/taosdemo
-                git clean -dfx
                 mcs -out:taosdemo *.cs
-                ./taosdemo
+                echo '' |./taosdemo
               '''
               sh '''
                 cd ${WKC}/tests/gotest
-                git clean -dfx
                 bash batchtest.sh
               '''
               sh '''
