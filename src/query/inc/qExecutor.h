@@ -595,6 +595,7 @@ int32_t getNumOfResult(SQueryRuntimeEnv *pRuntimeEnv, SQLFunctionCtx* pCtx, int3
 void finalizeQueryResult(SOperatorInfo* pOperator, SQLFunctionCtx* pCtx, SResultRowInfo* pResultRowInfo, int32_t* rowCellInfoOffset);
 void updateOutputBuf(SOptrBasicInfo* pBInfo, int32_t *bufCapacity, int32_t numOfInputRows);
 void clearOutputBuf(SOptrBasicInfo* pBInfo, int32_t *bufCapacity);
+void copyTsColoum(SSDataBlock* pRes, SQLFunctionCtx* pCtx, int32_t numOfOutput);
 
 void freeParam(SQueryParam *param);
 int32_t convertQueryMsg(SQueryTableMsg *pQueryMsg, SQueryParam* param);

@@ -2024,7 +2024,7 @@ static SQLFunctionCtx* createSQLFunctionCtx(SQueryRuntimeEnv* pRuntimeEnv, SExpr
 
     if (functionId == TSDB_FUNC_TOP || functionId == TSDB_FUNC_BOTTOM || functionId == TSDB_FUNC_DIFF) {
       int32_t f = pExpr[0].base.functionId;
-      assert(f == TSDB_FUNC_TS || f == TSDB_FUNC_TS_DUMMY || f == TSDB_FUNC_PRJ);
+      assert(f == TSDB_FUNC_TS || f == TSDB_FUNC_TS_DUMMY);
 
       pCtx->param[2].i64 = pQueryAttr->order.order;
       pCtx->param[2].nType = TSDB_DATA_TYPE_BIGINT;
@@ -3615,19 +3615,6 @@ void updateOutputBuf(SOptrBasicInfo* pBInfo, int32_t *bufCapacity, int32_t numOf
     }
   }
 
-  char *tsbuf = NULL;
-  int16_t tsFuncIndex = -1;
-  for (int32_t i = 0; i < pDataBlock->info.numOfCols; ++i) {
-    SColumnInfoData* pColInfo = taosArrayGet(pDataBlock->pDataBlock, i);
-
-    // find the ts  output data pointer
-    int32_t functionId = pBInfo->pCtx[i].functionId;
-    if (functionId == TSDB_FUNC_PRJ && pColInfo->info.type == TSDB_DATA_TYPE_TIMESTAMP) {
-      tsbuf = pColInfo->pData + pColInfo->info.bytes * pDataBlock->info.rows;
-      tsFuncIndex = i;
-      break;
-    }
-  }
 
   for (int32_t i = 0; i < pDataBlock->info.numOfCols; ++i) {
     SColumnInfoData *pColInfo = taosArrayGet(pDataBlock->pDataBlock, i);
@@ -3635,13 +3622,8 @@ void updateOutputBuf(SOptrBasicInfo* pBInfo, int32_t *bufCapacity, int32_t numOf
 
     // re-estabilish output buffer pointer.
     int32_t functionId = pBInfo->pCtx[i].functionId;
-    if ((i > 0) &&
-             (functionId == TSDB_FUNC_TOP || functionId == TSDB_FUNC_BOTTOM || functionId == TSDB_FUNC_DIFF || functionId == TSDB_FUNC_DERIVATIVE)) {
-        pBInfo->pCtx[i].ptsOutputBuf = pBInfo->pCtx[i-1].pOutput;
-        pBInfo->pCtx[i].ptsOriOutputBuf = tsbuf;
-        if(tsFuncIndex != -1) {
-          pBInfo->pCtx[tsFuncIndex].functionId = TSDB_FUNC_TS_DUMMY;  // to avoid query data
-        }
+    if (functionId == TSDB_FUNC_TOP || functionId == TSDB_FUNC_BOTTOM || functionId == TSDB_FUNC_DIFF || functionId == TSDB_FUNC_DERIVATIVE){
+      if (i > 0) pBInfo->pCtx[i].ptsOutputBuf = pBInfo->pCtx[i-1].pOutput;
     }
   }
 }
@@ -3659,7 +3641,34 @@ void clearOutputBuf(SOptrBasicInfo* pBInfo, int32_t *bufCapacity) {
   }
 }
 
+void copyTsColoum(SSDataBlock* pRes, SQLFunctionCtx* pCtx, int32_t numOfOutput) {
+  bool    needCopyTs = false;
+  int32_t tsNum = 0;
+  for (int32_t i = 0; i < numOfOutput; i++) {
+    int32_t functionId = pCtx[i].functionId;
+    if (functionId == TSDB_FUNC_DIFF || functionId == TSDB_FUNC_DERIVATIVE) {
+      needCopyTs = true;
+    }else if(functionId == TSDB_FUNC_TS_COMP) {
+      tsNum++;
+    }
+  }
 
+  char *src = NULL;
+  for (int32_t col = 0; col < numOfOutput; ++col) {
+    SColumnInfoData* pColRes = taosArrayGet(pRes->pDataBlock, col);
+    if (strlen(pColRes->pData) != 0) {
+      src = pColRes->pData;     // find ts data
+    }
+  }
+  if (!needCopyTs) return;
+  if (tsNum < 2) return;
+  if (src == NULL) return;
+
+  for (int32_t col = 0; col < numOfOutput; ++col) {
+    SColumnInfoData* pColRes = taosArrayGet(pRes->pDataBlock, col);
+    memcpy(pColRes->pData, src, pColRes->info.bytes * pRes->info.rows);
+  }
+}
 
 void initCtxOutputBuffer(SQLFunctionCtx* pCtx, int32_t size) {
   for (int32_t j = 0; j < size; ++j) {
@@ -5635,6 +5644,7 @@ static SSDataBlock* doProjectOperation(void* param, bool* newgroup) {
     if (pRes->info.rows >= 1000/*pRuntimeEnv->resultInfo.threshold*/) {
       break;
     }
+    copyTsColoum(pRes, pInfo->pCtx, pOperator->numOfOutput);
   }
 
   clearNumOfRes(pInfo->pCtx, pOperator->numOfOutput);
