@@ -2024,7 +2024,7 @@ static SQLFunctionCtx* createSQLFunctionCtx(SQueryRuntimeEnv* pRuntimeEnv, SExpr
 
     if (functionId == TSDB_FUNC_TOP || functionId == TSDB_FUNC_BOTTOM || functionId == TSDB_FUNC_DIFF) {
       int32_t f = pExpr[0].base.functionId;
-      assert(f == TSDB_FUNC_TS || f == TSDB_FUNC_TS_DUMMY);
+      assert(f == TSDB_FUNC_TS || f == TSDB_FUNC_TS_DUMMY || f == TSDB_FUNC_PRJ);
 
       pCtx->param[2].i64 = pQueryAttr->order.order;
       pCtx->param[2].nType = TSDB_DATA_TYPE_BIGINT;
