@@ -75,13 +75,14 @@ if [ "$branchName" == "2.0" ];then
   verType=stable
   tagVal=ver-${version}
   dockerinput=TDengine-server-${version}-Linux-$cpuType.tar.gz
+  dockerinput_x64=TDengine-server-${version}-Linux-amd64.tar.gz
   dockerim=tdengine/tdengine
-elif [ "$branchName" == "master"  ];then
+elif [ "$branchName" == "master" ];then
   branchName=master
   verType=beta
   tagVal=ver-${version}-beta
   dockerinput=TDengine-server-${version}-${verType}-Linux-$cpuType.tar.gz  
-  docrsion}-${verType}-Linux-amd64.tar.gz
+  dockerinput_x64=TDengine-server-${version}-${verType}-Linux-amd64.tar.gz
   dockerim=tdengine/tdengine-beta
 fi
 
