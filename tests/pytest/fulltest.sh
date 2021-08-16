@@ -285,7 +285,7 @@ python3 ./test.py -f alter/alterTabAddTagWithNULL.py
 python3 ./test.py -f alter/alterTimestampColDataProcess.py
 
 # client
-#python3 ./test.py -f client/client.py
+python3 ./test.py -f client/client.py
 python3 ./test.py -f client/version.py
 python3 ./test.py -f client/alterDatabase.py
 python3 ./test.py -f client/noConnectionErrorTest.py
