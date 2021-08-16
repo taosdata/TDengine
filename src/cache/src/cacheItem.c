@@ -25,7 +25,7 @@ static void freeCacheItem(cache_t* pCache, cacheItem* pItem);
 static cacheItem* allocChunkItem(cache_t* pCache, size_t nTotal);
 static void updateItemInColdLruList(cacheItem* pItem, uint64_t now);
 
-cacheItem* cacheAllocItem(cacheTable* pTable, cacheMutex* pMutex, uint8_t nkey, uint32_t nbytes, uint64_t expireTime) {
+cacheItem* cacheAllocItem(cacheTable* pTable, cacheMutex* pMutex, uint8_t nkey, uint32_t nbytes, bool noEvict, uint64_t expireTime) {
   cache_t* cache = pTable->pCache;
   size_t ntotal = cacheItemTotalBytes(nkey, nbytes);
   uint32_t id = cacheSlabId(cache, ntotal);
@@ -34,7 +34,7 @@ cacheItem* cacheAllocItem(cacheTable* pTable, cacheMutex* pMutex, uint8_t nkey, 
   if (ntotal > cache->slabs[cache->powerLargest - 1]->size) { /* chunk pItem */
     pItem = allocChunkItem(cache, ntotal);
   } else {
-    pItem = cacheSlabAllocItem(cache, pMutex, ntotal, id);
+    pItem = cacheSlabAllocItem(cache, pMutex, ntotal, id, noEvict);
   }
 
   if (pItem == NULL) {

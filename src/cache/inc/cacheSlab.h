@@ -51,7 +51,7 @@ void cacheSlabDestroy(cache_t *);
 
 uint32_t cacheSlabId(cache_t *cache, size_t size);
 
-cacheItem* cacheSlabAllocItem(cache_t *cache, cacheMutex* pMutex, size_t ntotal, uint32_t id);
+cacheItem* cacheSlabAllocItem(cache_t *cache, cacheMutex* pMutex, size_t ntotal, uint32_t id, bool noEvict);
 
 void cacheSlabFreeItem(cache_t *cache, cacheItem* item, cacheLockFlag flag);
 

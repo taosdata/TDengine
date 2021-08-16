@@ -143,7 +143,7 @@ void cacheItemUnlink(cacheTable* pTable, cacheItem* pItem, cacheLockFlag flag);
 void cacheItemRemove(cache_t*, cacheItem*);
 void cacheItemBump(cacheTable* pTable, cacheItem* pItem, uint64_t now);
 
-cacheItem* cacheAllocItem(cacheTable*, cacheMutex* pMutex, uint8_t nkey, uint32_t nbytes, uint64_t expireTime);
+cacheItem* cacheAllocItem(cacheTable*, cacheMutex* pMutex, uint8_t nkey, uint32_t nbytes, bool noEvict, uint64_t expireTime);
 
 #ifdef __cplusplus
 }

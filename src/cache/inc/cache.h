@@ -81,7 +81,7 @@ void  cacheDestroy(cache_t*);
 cacheTable* cacheCreateTable(cache_t* cache, cacheTableOption* options);
 void cacheDestroyTable(cacheTable*);
 
-int cachePut(cacheTable*, const void* key, uint8_t nkey, const void* value, uint32_t nbytes, uint64_t expire);
+int cachePut(cacheTable*, const void* key, uint8_t nkey, const void* value, uint32_t nbytes, bool noEvict, uint64_t expire);
 
 void* cacheGet(cacheTable*, const void* key, uint8_t nkey, int* nbytes);
 

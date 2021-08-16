@@ -99,13 +99,13 @@ uint32_t cacheSlabId(cache_t *cache, size_t size) {
   return i;
 }
 
-cacheItem* cacheSlabAllocItem(cache_t *cache, cacheMutex* pMutex, size_t ntotal, uint32_t slabId) {
+cacheItem* cacheSlabAllocItem(cache_t *cache, cacheMutex* pMutex, size_t ntotal, uint32_t slabId, bool noEvict) {
   cacheItem *pItem = NULL;
   int i;
 
   for (i = 0; i < 10; ++i) {
     pItem = doAllocItem(cache, ntotal, slabId);
-    if (pItem) {
+    if (pItem || noEvict) {
       break;
     }
 

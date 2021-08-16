@@ -43,7 +43,7 @@ TEST(cacheTest, testInsert) {
     memcpy(data.value, buf, nkey);
     data.refCnt = 0;
 
-    int err = cachePut(pTable, buf, nkey, (char*)&data, sizeof(testData), 3600);
+    int err = cachePut(pTable, buf, nkey, (char*)&data, sizeof(testData), false, 3600);
 
     printf("\nhas push key %s %s\n", buf, err == CACHE_OK ? "success" : "fail");
 
