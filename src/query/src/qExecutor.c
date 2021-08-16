@@ -3644,22 +3644,20 @@ void clearOutputBuf(SOptrBasicInfo* pBInfo, int32_t *bufCapacity) {
 void copyTsColoum(SSDataBlock* pRes, SQLFunctionCtx* pCtx, int32_t numOfOutput) {
   bool    needCopyTs = false;
   int32_t tsNum = 0;
+  char *src = NULL;
   for (int32_t i = 0; i < numOfOutput; i++) {
     int32_t functionId = pCtx[i].functionId;
     if (functionId == TSDB_FUNC_DIFF || functionId == TSDB_FUNC_DERIVATIVE) {
       needCopyTs = true;
-    }else if(functionId == TSDB_FUNC_TS_COMP) {
+    }else if(functionId == TSDB_FUNC_TS_DUMMY) {
+      SColumnInfoData* pColRes = taosArrayGet(pRes->pDataBlock, i);
+      if (strlen(pColRes->pData) != 0) {
+        src = pColRes->pData;     // find ts data
+      }
       tsNum++;
     }
   }
-
-  char *src = NULL;
-  for (int32_t col = 0; col < numOfOutput; ++col) {
-    SColumnInfoData* pColRes = taosArrayGet(pRes->pDataBlock, col);
-    if (strlen(pColRes->pData) != 0) {
-      src = pColRes->pData;     // find ts data
-    }
-  }
+  
   if (!needCopyTs) return;
   if (tsNum < 2) return;
   if (src == NULL) return;
