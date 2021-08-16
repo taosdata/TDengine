@@ -12,7 +12,7 @@ IN_TDINTERNAL="community"
 
 function stopTaosd {
 	echo "Stop taosd"
-  sudo systemctl stop taosd
+  sudo systemctl stop taosd || echo 'no sudo or systemctl or stop fail'
   PID=`ps -ef|grep -w taosd | grep -v grep | awk '{print $2}'`
 	while [ -n "$PID" ]
 	do
@@ -24,9 +24,9 @@ function stopTaosd {
 
 function dohavecore(){
   corefile=`find $corepath -mmin 1`  
-  core_file=`echo $corefile|cut -d " " -f2`
-  proc=`echo $corefile|cut -d "_" -f3`
   if [ -n "$corefile" ];then
+    core_file=`echo $corefile|cut -d " " -f2`
+    proc=`file $core_file|awk -F "execfn:"  '/execfn:/{print $2}'|tr -d \' |awk '{print $1}'|tr -d \,`
     echo 'taosd or taos has generated core'
     rm case.log
     if [[ "$tests_dir" == *"$IN_TDINTERNAL"* ]] && [[ $1 == 1 ]]; then
@@ -46,7 +46,7 @@ function dohavecore(){
       fi
     fi
     if [[ $1 == 1 ]];then
-      echo '\n'|gdb /usr/local/taos/bin/$proc $core_file -ex "bt 10" -ex quit
+      echo '\n'|gdb $proc $core_file -ex "bt 10" -ex quit
       exit 8
     fi
   fi
