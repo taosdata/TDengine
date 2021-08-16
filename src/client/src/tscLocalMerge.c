@@ -396,7 +396,16 @@ void tscCreateLocalMerger(tExtMemBuffer **pMemBuffer, int32_t numOfBuffer, tOrde
   
   if (pQueryInfo->fillType != TSDB_FILL_NONE) {
     SFillColInfo* pFillCol = createFillColInfo(pQueryInfo);
-    pReducer->pFillInfo = taosCreateFillInfo(pQueryInfo->order.order, revisedSTime, pQueryInfo->groupbyExpr.numOfGroupCols,
+    // support sql like: select selective_function, tag1... where ... group by tag3... fill(not fill none)
+    // the group by expr columns and select tags are different
+    int32_t numOfCols = tscNumOfFields(pQueryInfo);
+    int32_t numOfTags = 0;
+    for (int32_t i = 0; i < numOfCols; ++i) {
+      if (TSDB_COL_IS_TAG(pFillCol[i].flag)) {
+        numOfTags++;
+      }
+    }
+    pReducer->pFillInfo = taosCreateFillInfo(pQueryInfo->order.order, revisedSTime, numOfTags,
                                            4096, (int32_t)pQueryInfo->fieldsInfo.numOfOutput, pQueryInfo->interval.sliding, pQueryInfo->interval.slidingUnit,
                                            tinfo.precision, pQueryInfo->fillType, pFillCol, pSql);
   }
