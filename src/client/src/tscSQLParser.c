@@ -2872,7 +2872,7 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
 
         const int32_t TS_COLUMN_INDEX = PRIMARYKEY_TIMESTAMP_COL_INDEX;
         SColumnList   ids = createColumnList(1, index.tableIndex, TS_COLUMN_INDEX);
-        insertResultField(pQueryInfo, TS_COLUMN_INDEX, &ids, TSDB_KEYSIZE, TSDB_DATA_TYPE_TIMESTAMP,
+        insertResultField(pQueryInfo, colIndex, &ids, TSDB_KEYSIZE, TSDB_DATA_TYPE_TIMESTAMP,
                           aAggs[TSDB_FUNC_TS].name, pExpr);
 
         colIndex += 1;  // the first column is ts
@@ -7052,7 +7052,8 @@ static int32_t checkUpdateTagPrjFunctions(SQueryInfo* pQueryInfo, char* msg) {
       continue;
     }
 
-    if(functionId == TSDB_FUNC_DERIVATIVE){     // to avoid ts function id was modufied below
+    if(functionId == TSDB_FUNC_DERIVATIVE || functionId == TSDB_FUNC_DIFF ||
+        functionId == TSDB_FUNC_TOP ||functionId == TSDB_FUNC_BOTTOM ){     // to avoid ts function id was modufied below
       tagTsColExists = false;
     }
 
