@@ -296,22 +296,17 @@ python3 ./test.py -f client/noConnectionErrorTest.py
 python3 testCompress.py
 python3 testNoCompress.py
 python3 testMinTablesPerVnode.py
-
-
 python3 queryCount.py
 python3 ./test.py -f query/queryGroupbyWithInterval.py
 python3 client/twoClients.py
 python3 test.py -f query/queryInterval.py
 python3 test.py -f query/queryFillTest.py
-
 # subscribe
 python3 test.py -f subscribe/singlemeter.py
 #python3 test.py -f subscribe/stability.py  
 python3 test.py -f subscribe/supertable.py
-
 # topic
 python3 ./test.py -f topic/topicQuery.py
-
 #======================p3-end===============
 #======================p4-start===============
 
@@ -374,8 +369,6 @@ python3 ./test.py -f insert/insert_locking.py
 python3 ./test.py -f alter/alter_debugFlag.py
 python3 ./test.py -f query/queryBetweenAnd.py
 python3 ./test.py -f tag_lite/alter_tag.py
-
-
 python3 test.py -f tools/taosdemoAllTest/TD-4985/query-limit-offset.py
 python3 test.py -f tools/taosdemoAllTest/TD-5213/insert4096columns_not_use_taosdemo.py
 python3 test.py -f tools/taosdemoAllTest/TD-5213/insertSigcolumnsNum4096.py
