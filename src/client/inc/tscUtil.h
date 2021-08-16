@@ -29,15 +29,16 @@ extern "C" {
 #include "tsched.h"
 #include "tsclient.h"
 
-#define UTIL_TABLE_IS_SUPER_TABLE(metaInfo)  \
+#define UTIL_TABLE_IS_SUPER_TABLE(metaInfo) \
   (((metaInfo)->pTableMeta != NULL) && ((metaInfo)->pTableMeta->tableType == TSDB_SUPER_TABLE))
+
 #define UTIL_TABLE_IS_CHILD_TABLE(metaInfo) \
   (((metaInfo)->pTableMeta != NULL) && ((metaInfo)->pTableMeta->tableType == TSDB_CHILD_TABLE))
-  
-#define UTIL_TABLE_IS_NORMAL_TABLE(metaInfo)\
-  (!(UTIL_TABLE_IS_SUPER_TABLE(metaInfo) || UTIL_TABLE_IS_CHILD_TABLE(metaInfo)))
 
-#define UTIL_TABLE_IS_TMP_TABLE(metaInfo)  \
+#define UTIL_TABLE_IS_NORMAL_TABLE(metaInfo) \
+  (!(UTIL_TABLE_IS_SUPER_TABLE(metaInfo) || UTIL_TABLE_IS_CHILD_TABLE(metaInfo) || UTIL_TABLE_IS_TMP_TABLE(metaInfo)))
+
+#define UTIL_TABLE_IS_TMP_TABLE(metaInfo) \
   (((metaInfo)->pTableMeta != NULL) && ((metaInfo)->pTableMeta->tableType == TSDB_TEMP_TABLE))
 
 #pragma pack(push,1)
@@ -221,7 +222,7 @@ void       tscExprDestroy(SArray* pExprInfo);
 
 int32_t createProjectionExpr(SQueryInfo* pQueryInfo, STableMetaInfo* pTableMetaInfo, SExprInfo*** pExpr, int32_t* num);
 
-void clearAllTableMetaInfo(SQueryInfo* pQueryInfo, bool removeMeta);
+void clearAllTableMetaInfo(SQueryInfo* pQueryInfo, bool removeMeta, uint64_t id);
 
 SColumn* tscColumnClone(const SColumn* src);
 void tscColumnCopy(SColumn* pDest, const SColumn* pSrc);
@@ -320,7 +321,7 @@ void tscPrintSelNodeList(SSqlObj* pSql, int32_t subClauseIndex);
 bool hasMoreVnodesToTry(SSqlObj *pSql);
 bool hasMoreClauseToTry(SSqlObj* pSql);
 
-void tscFreeQueryInfo(SSqlCmd* pCmd, bool removeMeta);
+void tscFreeQueryInfo(SSqlCmd* pCmd, bool removeCachedMeta, uint64_t id);
 
 void tscTryQueryNextVnode(SSqlObj *pSql, __async_cb_func_t fp);
 void tscTryQueryNextClause(SSqlObj* pSql, __async_cb_func_t fp);
@@ -359,7 +360,7 @@ bool vgroupInfoIdentical(SNewVgroupInfo *pExisted, SVgroupMsg* src);
 SNewVgroupInfo createNewVgroupInfo(SVgroupMsg *pVgroupMsg);
 STblCond* tsGetTableFilter(SArray* filters, uint64_t uid, int16_t idx);
 
-void tscRemoveTableMetaBuf(STableMetaInfo* pTableMetaInfo, uint64_t id);
+void tscRemoveCachedTableMeta(STableMetaInfo* pTableMetaInfo, uint64_t id);
 
 #ifdef __cplusplus
 }

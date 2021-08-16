@@ -77,7 +77,7 @@ extern char configDir[];
 #define COL_BUFFER_LEN      ((TSDB_COL_NAME_LEN + 15) * TSDB_MAX_COLUMNS)
 
 #define MAX_USERNAME_SIZE  64
-#define MAX_PASSWORD_SIZE  16
+#define MAX_PASSWORD_SIZE  20
 #define MAX_HOSTNAME_SIZE  253      // https://man7.org/linux/man-pages/man7/hostname.7.html
 #define MAX_TB_NAME_SIZE   64
 #define MAX_DATA_SIZE      (16*TSDB_MAX_COLUMNS)+20     // max record len: 16*MAX_COLUMNS, timestamp string and ,('') need extra space
@@ -867,7 +867,9 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
         } else if (strncmp(argv[i], "-p", 2) == 0) {
             if (strlen(argv[i]) == 2) {
                 printf("Enter password:");
-                scanf("%s", arguments->password);
+                if (scanf("%s", arguments->password) > 1) {
+                    fprintf(stderr, "password read error!\n");
+                }
             } else {
                 tstrncpy(arguments->password, (char *)(argv[i] + 2), MAX_PASSWORD_SIZE);
             }
@@ -1340,8 +1342,8 @@ static char *rand_bool_str(){
 static int32_t rand_bool(){
     static int cursor;
     cursor++;
-    cursor = cursor % MAX_PREPARED_RAND;
-    return g_randint[cursor] % 2;
+    if (cursor > (MAX_PREPARED_RAND - 1)) cursor = 0;
+    return g_randint[cursor % MAX_PREPARED_RAND] % 2;
 }
 
 static char *rand_tinyint_str()
@@ -1356,8 +1358,8 @@ static int32_t rand_tinyint()
 {
     static int cursor;
     cursor++;
-    cursor = cursor % MAX_PREPARED_RAND;
-    return g_randint[cursor] % 128;
+    if (cursor > (MAX_PREPARED_RAND - 1)) cursor = 0;
+    return g_randint[cursor % MAX_PREPARED_RAND] % 128;
 }
 
 static char *rand_smallint_str()
@@ -1372,8 +1374,8 @@ static int32_t rand_smallint()
 {
     static int cursor;
     cursor++;
-    cursor = cursor % MAX_PREPARED_RAND;
-    return g_randint[cursor] % 32767;
+    if (cursor > (MAX_PREPARED_RAND - 1)) cursor = 0;
+    return g_randint[cursor % MAX_PREPARED_RAND] % 32767;
 }
 
 static char *rand_int_str()
@@ -1388,8 +1390,8 @@ static int32_t rand_int()
 {
     static int cursor;
     cursor++;
-    cursor = cursor % MAX_PREPARED_RAND;
-    return g_randint[cursor];
+    if (cursor > (MAX_PREPARED_RAND - 1)) cursor = 0;
+    return g_randint[cursor % MAX_PREPARED_RAND];
 }
 
 static char *rand_bigint_str()
@@ -1404,8 +1406,8 @@ static int64_t rand_bigint()
 {
     static int cursor;
     cursor++;
-    cursor = cursor % MAX_PREPARED_RAND;
-    return g_randbigint[cursor];
+    if (cursor > (MAX_PREPARED_RAND - 1)) cursor = 0;
+    return g_randbigint[cursor % MAX_PREPARED_RAND];
 }
 
 static char *rand_float_str()
@@ -1421,8 +1423,8 @@ static float rand_float()
 {
     static int cursor;
     cursor++;
-    cursor = cursor % MAX_PREPARED_RAND;
-    return g_randfloat[cursor];
+    if (cursor > (MAX_PREPARED_RAND - 1)) cursor = 0;
+    return g_randfloat[cursor % MAX_PREPARED_RAND];
 }
 
 static char *demo_current_float_str()
@@ -1437,8 +1439,9 @@ static float UNUSED_FUNC demo_current_float()
 {
     static int cursor;
     cursor++;
-    cursor = cursor % MAX_PREPARED_RAND;
-    return (float)(9.8 + 0.04 * (g_randint[cursor] % 10) + g_randfloat[cursor]/1000000000);
+    if (cursor > (MAX_PREPARED_RAND - 1)) cursor = 0;
+    return (float)(9.8 + 0.04 * (g_randint[cursor % MAX_PREPARED_RAND] % 10)
+            + g_randfloat[cursor % MAX_PREPARED_RAND]/1000000000);
 }
 
 static char *demo_voltage_int_str()
@@ -1453,8 +1456,8 @@ static int32_t UNUSED_FUNC demo_voltage_int()
 {
     static int cursor;
     cursor++;
-    cursor = cursor % MAX_PREPARED_RAND;
-    return 215 + g_randint[cursor] % 10;
+    if (cursor > (MAX_PREPARED_RAND - 1)) cursor = 0;
+    return 215 + g_randint[cursor % MAX_PREPARED_RAND] % 10;
 }
 
 static char *demo_phase_float_str() {
@@ -1467,8 +1470,9 @@ static char *demo_phase_float_str() {
 static float UNUSED_FUNC demo_phase_float(){
     static int cursor;
     cursor++;
-    cursor = cursor % MAX_PREPARED_RAND;
-    return (float)((115 + g_randint[cursor] % 10 + g_randfloat[cursor]/1000000000)/360);
+    if (cursor > (MAX_PREPARED_RAND - 1)) cursor = 0;
+    return (float)((115 + g_randint[cursor % MAX_PREPARED_RAND] % 10
+                + g_randfloat[cursor % MAX_PREPARED_RAND]/1000000000)/360);
 }
 
 #if 0
@@ -5818,6 +5822,7 @@ static int32_t prepareStmtBindArrayByType(
     } else if (0 == strncasecmp(dataType,
                 "INT", strlen("INT"))) {
         int32_t *bind_int = malloc(sizeof(int32_t));
+        assert(bind_int);
 
         if (value) {
             *bind_int = atoi(value);
@@ -5832,6 +5837,7 @@ static int32_t prepareStmtBindArrayByType(
     } else if (0 == strncasecmp(dataType,
                 "BIGINT", strlen("BIGINT"))) {
         int64_t *bind_bigint = malloc(sizeof(int64_t));
+        assert(bind_bigint);
 
         if (value) {
             *bind_bigint = atoll(value);
@@ -5846,6 +5852,7 @@ static int32_t prepareStmtBindArrayByType(
     }  else if (0 == strncasecmp(dataType,
                 "FLOAT", strlen("FLOAT"))) {
         float *bind_float = malloc(sizeof(float));
+        assert(bind_float);
 
         if (value) {
             *bind_float = (float)atof(value);
@@ -5860,6 +5867,7 @@ static int32_t prepareStmtBindArrayByType(
     }  else if (0 == strncasecmp(dataType,
                 "DOUBLE", strlen("DOUBLE"))) {
         double *bind_double = malloc(sizeof(double));
+        assert(bind_double);
 
         if (value) {
             *bind_double = atof(value);
@@ -5874,6 +5882,7 @@ static int32_t prepareStmtBindArrayByType(
     }  else if (0 == strncasecmp(dataType,
                 "SMALLINT", strlen("SMALLINT"))) {
         int16_t *bind_smallint = malloc(sizeof(int16_t));
+        assert(bind_smallint);
 
         if (value) {
             *bind_smallint = (int16_t)atoi(value);
@@ -5888,6 +5897,7 @@ static int32_t prepareStmtBindArrayByType(
     }  else if (0 == strncasecmp(dataType,
                 "TINYINT", strlen("TINYINT"))) {
         int8_t *bind_tinyint = malloc(sizeof(int8_t));
+        assert(bind_tinyint);
 
         if (value) {
             *bind_tinyint = (int8_t)atoi(value);
@@ -5902,6 +5912,7 @@ static int32_t prepareStmtBindArrayByType(
     }  else if (0 == strncasecmp(dataType,
                 "BOOL", strlen("BOOL"))) {
         int8_t *bind_bool = malloc(sizeof(int8_t));
+        assert(bind_bool);
 
         if (value) {
             if (strncasecmp(value, "true", 4)) {
@@ -5921,6 +5932,7 @@ static int32_t prepareStmtBindArrayByType(
     }  else if (0 == strncasecmp(dataType,
                 "TIMESTAMP", strlen("TIMESTAMP"))) {
         int64_t *bind_ts2 = malloc(sizeof(int64_t));
+        assert(bind_ts2);
 
         if (value) {
             if (strchr(value, ':') && strchr(value, '-')) {
@@ -5935,6 +5947,7 @@ static int32_t prepareStmtBindArrayByType(
                 if (TSDB_CODE_SUCCESS != taosParseTime(
                             value, &tmpEpoch, strlen(value),
                             timePrec, 0)) {
+                    free(bind_ts2);
                     errorPrint("Input %s, time format error!\n", value);
                     return -1;
                 }
@@ -6259,7 +6272,7 @@ static int32_t prepareStbStmtBindTag(
     char *bindBuffer = calloc(1, DOUBLE_BUFF_LEN); // g_args.len_of_binary);
     if (bindBuffer == NULL) {
         errorPrint("%s() LN%d, Failed to allocate %d bind buffer\n",
-                __func__, __LINE__, g_args.len_of_binary);
+                __func__, __LINE__, DOUBLE_BUFF_LEN);
         return -1;
     }
 
@@ -6291,7 +6304,7 @@ static int32_t prepareStbStmtBindRand(
     char *bindBuffer = calloc(1, DOUBLE_BUFF_LEN); // g_args.len_of_binary);
     if (bindBuffer == NULL) {
         errorPrint("%s() LN%d, Failed to allocate %d bind buffer\n",
-                __func__, __LINE__, g_args.len_of_binary);
+                __func__, __LINE__, DOUBLE_BUFF_LEN);
         return -1;
     }
 
