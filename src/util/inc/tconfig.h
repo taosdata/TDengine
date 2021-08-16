@@ -77,6 +77,7 @@ typedef struct {
 extern SGlobalCfg tsGlobalConfig[];
 extern int32_t    tsGlobalConfigNum;
 extern char *     tsCfgStatusStr[];
+extern bool       tsdbForceKeepFile;
 
 void taosReadGlobalLogCfg();
 bool taosReadGlobalCfg();
