@@ -225,6 +225,29 @@ pipeline {
             timeout(time: 55, unit: 'MINUTES'){       
               pre_test()
               sh '''
+                rm -rf /var/lib/taos/*
+                rm -rf /var/log/taos/*
+                nohup taosd >/dev/null 
+                sleep 10
+              '''
+              sh '''
+              cd ${WKC}/tests/examples/nodejs
+              git clean -dfx
+              npm install td2.0-connector
+              node nodejsChecker.js host=localhost
+              '''
+              sh '''
+                cd ${WKC}/tests/examples/C#/taosdemo
+                git clean -dfx
+                mcs -out:taosdemo *.cs
+                ./taosdemo
+              '''
+              sh '''
+                cd ${WKC}/tests/gotest
+                git clean -dfx
+                bash batchtest.sh
+              '''
+              sh '''
               cd ${WKC}/tests
               ./test-all.sh b1fq
               date'''

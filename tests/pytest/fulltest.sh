@@ -296,22 +296,17 @@ python3 ./test.py -f client/noConnectionErrorTest.py
 python3 testCompress.py
 python3 testNoCompress.py
 python3 testMinTablesPerVnode.py
-
-
 python3 queryCount.py
 python3 ./test.py -f query/queryGroupbyWithInterval.py
 python3 client/twoClients.py
 python3 test.py -f query/queryInterval.py
 python3 test.py -f query/queryFillTest.py
-
 # subscribe
 python3 test.py -f subscribe/singlemeter.py
 #python3 test.py -f subscribe/stability.py  
 python3 test.py -f subscribe/supertable.py
-
 # topic
 python3 ./test.py -f topic/topicQuery.py
-
 #======================p3-end===============
 #======================p4-start===============
 
