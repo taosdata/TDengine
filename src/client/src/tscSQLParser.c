@@ -7052,8 +7052,7 @@ static int32_t checkUpdateTagPrjFunctions(SQueryInfo* pQueryInfo, char* msg) {
       continue;
     }
 
-    if(functionId == TSDB_FUNC_DERIVATIVE || functionId == TSDB_FUNC_DIFF ||
-        functionId == TSDB_FUNC_TOP ||functionId == TSDB_FUNC_BOTTOM ){     // to avoid ts function id was modufied below
+    if(functionId == TSDB_FUNC_DERIVATIVE || functionId == TSDB_FUNC_DIFF){     // to avoid ts function id was modufied below
       tagTsColExists = false;
     }
 
