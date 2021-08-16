@@ -206,6 +206,12 @@ static int32_t fillResultImpl(SFillInfo* pFillInfo, void** data, int32_t outputR
     } else {
       assert(pFillInfo->currentKey == ts);
       initBeforeAfterDataBuf(pFillInfo, prev);
+      if (pFillInfo->type == TSDB_FILL_NEXT && (pFillInfo->index + 1) < pFillInfo->numOfRows) {
+        initBeforeAfterDataBuf(pFillInfo, next);
+        ++pFillInfo->index;
+        copyCurrentRowIntoBuf(pFillInfo, srcData, *next);
+        --pFillInfo->index;
+      }
 
       // assign rows to dst buffer
       for (int32_t i = 0; i < pFillInfo->numOfCols; ++i) {
@@ -227,6 +233,12 @@ static int32_t fillResultImpl(SFillInfo* pFillInfo, void** data, int32_t outputR
           } else if (pFillInfo->type == TSDB_FILL_LINEAR) {
             assignVal(output, src, pCol->col.bytes, pCol->col.type);
             memcpy(*prev + pCol->col.offset, src, pCol->col.bytes);
+          } else if (pFillInfo->type == TSDB_FILL_NEXT) {
+            if (*next) {
+              assignVal(output, *next + pCol->col.offset, pCol->col.bytes, pCol->col.type);
+            } else {
+              setNull(output, pCol->col.type, pCol->col.bytes);
+            }
           } else {
             assignVal(output, (char*)&pCol->fillVal.i, pCol->col.bytes, pCol->col.type);
           }

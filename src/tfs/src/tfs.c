@@ -101,7 +101,7 @@ int tfsInit(SDiskCfg *pDiskCfg, int ndisk) {
     return -1;
   }
 
-  tfsUpdateInfo(NULL);
+  tfsUpdateInfo(NULL, NULL, 0);
   for (int level = 0; level < TFS_NLEVEL(); level++) {
     tfsPosNextId(TFS_TIER_AT(level));
   }
@@ -119,7 +119,7 @@ void tfsDestroy() {
   }
 }
 
-void tfsUpdateInfo(SFSMeta *pFSMeta) {
+void tfsUpdateInfo(SFSMeta *pFSMeta, STierMeta *tierMetas, int8_t numTiers) {
   SFSMeta   fsMeta;
   STierMeta tierMeta;
 
@@ -130,11 +130,16 @@ void tfsUpdateInfo(SFSMeta *pFSMeta) {
   memset(pFSMeta, 0, sizeof(*pFSMeta));
 
   for (int level = 0; level < TFS_NLEVEL(); level++) {
+    STierMeta *pTierMeta = &tierMeta;
+    if (tierMetas && level < numTiers) {
+      pTierMeta = tierMetas + level;
+    }
+
     STier *pTier = TFS_TIER_AT(level);
-    tfsUpdateTierInfo(pTier, &tierMeta);
-    pFSMeta->tsize += tierMeta.size;
-    pFSMeta->avail += tierMeta.free;
-    pFSMeta->used += tierMeta.used;
+    tfsUpdateTierInfo(pTier, pTierMeta);
+    pFSMeta->tsize += pTierMeta->size;
+    pFSMeta->avail += pTierMeta->free;
+    pFSMeta->used += pTierMeta->used;
   }
 
   tfsLock();
@@ -595,7 +600,7 @@ void taosGetDisk() {
   SFSMeta      fsMeta;
 
   if (tscEmbedded) {
-    tfsUpdateInfo(&fsMeta);
+    tfsUpdateInfo(&fsMeta, NULL, 0);
     tsTotalDataDirGB = (float)(fsMeta.tsize / unit);
     tsUsedDataDirGB = (float)(fsMeta.used / unit);
     tsAvailDataDirGB = (float)(fsMeta.avail / unit);
