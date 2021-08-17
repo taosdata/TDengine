@@ -1232,13 +1232,12 @@ static int32_t mnodeRetrieveVnodes(SShowObj *pShow, char *data, int32_t rows, vo
 
   pDnode = (SDnodeObj *)(pShow->pIter);
   if (pDnode != NULL) {
-    void *pIter = NULL;
     SVgObj *pVgroup;
     while (1) {
-      pIter = mnodeGetNextVgroup(pIter, &pVgroup);
+      pShow->pVgIter = mnodeGetNextVgroup(pShow->pVgIter, &pVgroup);
       if (pVgroup == NULL) break;
 
-      for (int32_t i = pShow->index; i < pVgroup->numOfVnodes && numOfRows < rows; ++i) {
+      for (int32_t i = 0; i < pVgroup->numOfVnodes && numOfRows < rows; ++i) {
         SVnodeGid *pVgid = &pVgroup->vnodeGid[i];
         if (pVgid->pDnode == pDnode) {
           cols = 0;
@@ -1251,8 +1250,8 @@ static int32_t mnodeRetrieveVnodes(SShowObj *pShow, char *data, int32_t rows, vo
           STR_TO_VARSTR(pWrite, syncRole[pVgid->role]);
           cols++;
           numOfRows++;
+          
         }
-        pShow->index = i;
       }
       if (numOfRows >= rows) {
         break;
