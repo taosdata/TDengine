@@ -207,7 +207,6 @@ steps:
     - develop
     - master
 
-
 ---
 kind: pipeline
 name: build_bionic
