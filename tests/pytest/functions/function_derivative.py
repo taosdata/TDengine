@@ -54,6 +54,19 @@ class TDTestCase:
                 tdSql.query("select derivative(col, 10s, 0) from stb group by tbname")
                 tdSql.checkRows(10)
 
+                tdSql.query("select ts,derivative(col, 10s, 1),ts from stb group by tbname")
+                tdSql.checkRows(4)
+                tdSql.checkData(0, 0, self.ts + 10000)
+                tdSql.checkData(0, 1, self.ts + 10000)
+                tdSql.checkData(0, 3, self.ts + 10000)
+                tdSql.checkData(3, 0, self.ts + 70000)
+                tdSql.checkData(3, 1, self.ts + 70000)
+                tdSql.checkData(3, 3, self.ts + 70000)
+
+                tdSql.query("select ts from(select ts,derivative(col, 10s, 0) from stb group by tbname")
+
+                tdSql.checkData(0, 1, 1)
+
                 tdSql.error("select derivative(col, 10s, 0) from tb1 group by tbname")
 
                 tdSql.query("select derivative(col, 10s, 1) from tb1")

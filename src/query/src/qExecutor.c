@@ -5590,6 +5590,7 @@ static SSDataBlock* doProjectOperation(void* param, bool* newgroup) {
 
     pRes->info.rows = getNumOfResult(pRuntimeEnv, pInfo->pCtx, pOperator->numOfOutput);
     if (pRes->info.rows >= pRuntimeEnv->resultInfo.threshold) {
+      copyTsColoum(pRes, pInfo->pCtx, pOperator->numOfOutput);
       clearNumOfRes(pInfo->pCtx, pOperator->numOfOutput);
       return pRes;
     }
@@ -5615,8 +5616,7 @@ static SSDataBlock* doProjectOperation(void* param, bool* newgroup) {
     if (*newgroup) {
       if (pRes->info.rows > 0) {
         pProjectInfo->existDataBlock = pBlock;
-        clearNumOfRes(pInfo->pCtx, pOperator->numOfOutput);
-        return pInfo->pRes;
+        break;
       } else { // init output buffer for a new group data
         for (int32_t j = 0; j < pOperator->numOfOutput; ++j) {
           aAggs[pInfo->pCtx[j].functionId].xFinalize(&pInfo->pCtx[j]);
@@ -5645,9 +5645,8 @@ static SSDataBlock* doProjectOperation(void* param, bool* newgroup) {
     if (pRes->info.rows >= 1000/*pRuntimeEnv->resultInfo.threshold*/) {
       break;
     }
-    copyTsColoum(pRes, pInfo->pCtx, pOperator->numOfOutput);
   }
-
+  copyTsColoum(pRes, pInfo->pCtx, pOperator->numOfOutput);
   clearNumOfRes(pInfo->pCtx, pOperator->numOfOutput);
   return (pInfo->pRes->info.rows > 0)? pInfo->pRes:NULL;
 }
