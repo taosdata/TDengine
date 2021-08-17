@@ -2038,6 +2038,7 @@ int32_t validateSelectNodeList(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SArray* pS
   const char* msg6 = "not support distinct mixed with join"; 
   const char* msg7 = "not support distinct mixed with groupby";
   const char* msg8 = "not support distinct in nest query";
+  const char* msg9 = "_block_dist not support subquery, only support stable/table";
 
   // too many result columns not support order by in query
   if (taosArrayGetSize(pSelNodeList) > TSDB_MAX_COLUMNS) {
@@ -2066,6 +2067,11 @@ int32_t validateSelectNodeList(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SArray* pS
       if (hasDistinct)  break;
 
       pItem->pNode->functionId = isValidFunction(pItem->pNode->Expr.operand.z, pItem->pNode->Expr.operand.n);
+
+      if (pItem->pNode->functionId == TSDB_FUNC_BLKINFO && taosArrayGetSize(pQueryInfo->pUpstream) > 0) {
+        return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg9);
+      }
+
       SUdfInfo* pUdfInfo = NULL;
       if (pItem->pNode->functionId < 0) {
         pUdfInfo = isValidUdf(pQueryInfo->pUdfInfo, pItem->pNode->Expr.operand.z, pItem->pNode->Expr.operand.n);
