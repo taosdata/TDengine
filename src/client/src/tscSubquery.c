@@ -2034,7 +2034,7 @@ void tscHandleMasterJoinQuery(SSqlObj* pSql) {
   tscAsyncResultOnError(pSql);
 }
 
-static void doCleanupSubqueries(SSqlObj *pSql, int32_t numOfSubs) {
+void doCleanupSubqueries(SSqlObj *pSql, int32_t numOfSubs) {
   assert(numOfSubs <= pSql->subState.numOfSub && numOfSubs >= 0);
   
   for(int32_t i = 0; i < numOfSubs; ++i) {
