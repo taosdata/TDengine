@@ -956,11 +956,14 @@ static int tsdbAddTableToMeta(STsdbRepo *pRepo, STable *pTable, bool addIdx, boo
     goto _err;
   }
 
+//TODO: remove maxCol and maxRowBytes statistics
+#if 0
   if (TABLE_TYPE(pTable) != TSDB_CHILD_TABLE) {
     STSchema *pSchema = tsdbGetTableSchemaImpl(pTable, false, false, -1);
     if (schemaNCols(pSchema) > pMeta->maxCols) pMeta->maxCols = schemaNCols(pSchema);
     if (schemaTLen(pSchema) > pMeta->maxRowBytes) pMeta->maxRowBytes = schemaTLen(pSchema);
   }
+#endif
 
   if (lock && tsdbUnlockRepoMeta(pRepo) < 0) return -1;
   if (TABLE_TYPE(pTable) == TSDB_STREAM_TABLE && addIdx) {
