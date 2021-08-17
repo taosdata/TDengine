@@ -852,7 +852,8 @@ SMemRow mergeTwoMemRows(void *buffer, SMemRow row1, SMemRow row2, STSchema *pSch
     int16_t k;
     for (k = 0; k < nKvNCols; ++k) {
       SColInfo *pColInfo = taosArrayGet(stashRow, k);
-      tdAppendKvColVal(kvRow, pColInfo->colVal, pColInfo->colId, pColInfo->colType, &toffset);
+      tdAppendKvColVal(kvRow, pColInfo->colVal, true, pColInfo->colId, pColInfo->colType, toffset);
+      toffset += sizeof(SColIdx);
     }
     ASSERT(kvLen == memRowTLen(tRow));
   }

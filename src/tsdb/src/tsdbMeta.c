@@ -732,6 +732,7 @@ void tsdbUpdateTableSchema(STsdbRepo *pRepo, STable *pTable, STSchema *pSchema) 
   TSDB_WLOCK_TABLE(pSTable);
   tsdbAddSchema(pSTable, pSchema);
 
+
   if (schemaNCols(pSchema) > pMeta->maxCols) pMeta->maxCols = schemaNCols(pSchema);
   if (schemaTLen(pSchema) > pMeta->maxRowBytes) pMeta->maxRowBytes = schemaTLen(pSchema);
   TSDB_WUNLOCK_TABLE(pSTable);
@@ -1251,6 +1252,7 @@ static int tsdbEncodeTable(void **buf, STable *pTable) {
     tlen += taosEncodeFixedU64(buf, TABLE_SUID(pTable));
     tlen += tdEncodeKVRow(buf, pTable->tagVal);
   } else {
+
     //encode 0 for compatibility and flag for new version
     tlen += taosEncodeFixedU8(buf, (uint8_t)0);
 #if 0
@@ -1291,6 +1293,7 @@ static void *tsdbDecodeTable(void *buf, STable **pRTable) {
   } else {
     uint8_t nSchemas;
     buf = taosDecodeFixedU8(buf, &nSchemas);
+
     //kept for compatibility
     for (int i = 0; i < nSchemas; i++) {
       STSchema *pSchema;
@@ -1494,6 +1497,7 @@ int tsdbAddSchema(STable *pTable, STSchema *pSchema) {
       return -1;
     }
   }
+
   if(taosArrayGetSize(pTable->schema) != 0 &&
       schemaVersion(pSchema) <= schemaVersion(*(STSchema **) taosArrayGetLast(pTable->schema))
       ) {
@@ -1503,6 +1507,7 @@ int tsdbAddSchema(STable *pTable, STSchema *pSchema) {
 
   /*ASSERT(taosArrayGetSize(pTable->schema) == 0 ||*/
          /*schemaVersion(pSchema) > schemaVersion(*(STSchema **)taosArrayGetLast(pTable->schema)));*/
+
 
   if (taosArrayPush(pTable->schema, &pSchema) == NULL) {
     terrno = TAOS_SYSTEM_ERROR(errno);

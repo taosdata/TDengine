@@ -155,6 +155,7 @@ python3 ./test.py -f import_merge/importCSV.py
 python3 ./test.py -f import_merge/import_update_0.py
 python3 ./test.py -f import_merge/import_update_1.py
 python3 ./test.py -f import_merge/import_update_2.py
+python3 ./test.py -f update/merge_commit_data.py
 #======================p1-end===============
 #======================p2-start===============
 # tools
@@ -183,7 +184,7 @@ python3 ./test.py -f update/allow_update-0.py
 python3 ./test.py -f update/append_commit_data.py
 python3 ./test.py -f update/append_commit_last-0.py
 python3 ./test.py -f update/append_commit_last.py
-python3 ./test.py -f update/merge_commit_data.py
+
 
 python3 ./test.py -f update/merge_commit_data2.py
 python3 ./test.py -f update/merge_commit_data2_update0.py
@@ -212,6 +213,7 @@ python3 test.py -f tools/taosdemoAllTest/taosdemoTestInsertWithJson.py
 python3 test.py -f tools/taosdemoAllTest/taosdemoTestQueryWithJson.py
 
 #query
+#python3 test.py -f query/distinctOneColTb.py 
 python3 ./test.py -f query/filter.py
 python3 ./test.py -f query/filterCombo.py
 python3 ./test.py -f query/queryNormal.py
@@ -295,22 +297,17 @@ python3 ./test.py -f client/noConnectionErrorTest.py
 python3 testCompress.py
 python3 testNoCompress.py
 python3 testMinTablesPerVnode.py
-
-
 python3 queryCount.py
 python3 ./test.py -f query/queryGroupbyWithInterval.py
 python3 client/twoClients.py
 python3 test.py -f query/queryInterval.py
 python3 test.py -f query/queryFillTest.py
-
 # subscribe
 python3 test.py -f subscribe/singlemeter.py
 #python3 test.py -f subscribe/stability.py  
 python3 test.py -f subscribe/supertable.py
-
 # topic
 python3 ./test.py -f topic/topicQuery.py
-
 #======================p3-end===============
 #======================p4-start===============
 
@@ -343,6 +340,7 @@ python3 ./test.py -f functions/function_twa.py -r 1
 python3 ./test.py -f functions/function_twa_test2.py
 python3 ./test.py -f functions/function_stddev_td2555.py
 python3 ./test.py -f functions/showOfflineThresholdIs864000.py
+python3 ./test.py -f functions/function_interp.py
 python3 ./test.py -f insert/metadataUpdate.py
 python3 ./test.py -f query/last_cache.py
 python3 ./test.py -f query/last_row_cache.py
@@ -372,8 +370,6 @@ python3 ./test.py -f insert/insert_locking.py
 python3 ./test.py -f alter/alter_debugFlag.py
 python3 ./test.py -f query/queryBetweenAnd.py
 python3 ./test.py -f tag_lite/alter_tag.py
-
-
 python3 test.py -f tools/taosdemoAllTest/TD-4985/query-limit-offset.py
 python3 test.py -f tools/taosdemoAllTest/TD-5213/insert4096columns_not_use_taosdemo.py
 python3 test.py -f tools/taosdemoAllTest/TD-5213/insertSigcolumnsNum4096.py

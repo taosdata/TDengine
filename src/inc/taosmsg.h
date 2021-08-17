@@ -471,6 +471,7 @@ typedef struct {
 
   bool        stableQuery;      // super table query or not
   bool        topBotQuery;      // TODO used bitwise flag
+  bool        interpQuery;      // interp query or not
   bool        groupbyColumn;    // denote if this is a groupby normal column query
   bool        hasTagResults;    // if there are tag values in final result or not
   bool        timeWindowInterpo;// if the time window start/end required interpolation
@@ -535,6 +536,8 @@ typedef struct SRetrieveTableRsp {
   int16_t precision;
   int64_t offset;     // updated offset value for multi-vnode projection query
   int64_t useconds;
+  int8_t  compressed;
+  int32_t compLen;
   char    data[];
 } SRetrieveTableRsp;
 
@@ -878,7 +881,7 @@ typedef struct {
   uint64_t sqlObjId;
   int32_t  pid;
   char     fqdn[TSDB_FQDN_LEN];
-  bool     stableQuery;
+  uint8_t  stableQuery;
   int32_t  numOfSub;
   char     subSqlInfo[TSDB_SHOW_SUBQUERY_LEN]; //include subqueries' index, Obj IDs and states(C-complete/I-imcomplete)
 } SQueryDesc;
