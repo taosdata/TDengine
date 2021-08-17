@@ -3767,8 +3767,7 @@ static void tscSubqueryCompleteCallback(void* param, TAOS_RES* tres, int code) {
 
     SSqlObj *userSql = ((SRetrieveSupport*)pParentSql->param)->pParentSql;
 
-    doCleanupSubqueries(userSql, userSql->subState.numOfSub);
-    userSql->subState.numOfSub = 0;
+    tscFreeSubobj(userSql);
 
     pParentSql->res.code = TSDB_CODE_SUCCESS;
     pParentSql->retry++;
@@ -3815,6 +3814,7 @@ void executeQuery(SSqlObj* pSql, SQueryInfo* pQueryInfo) {
     pSql->subState.numOfSub = (int32_t) taosArrayGetSize(pQueryInfo->pUpstream);
     assert(pSql->pSubs == NULL);
     pSql->pSubs = calloc(pSql->subState.numOfSub, POINTER_BYTES);
+    assert(pSql->subState.states == NULL);
     pSql->subState.states = calloc(pSql->subState.numOfSub, sizeof(int8_t));
     code = pthread_mutex_init(&pSql->subState.mutex, NULL);
 

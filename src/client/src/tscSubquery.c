@@ -2731,8 +2731,7 @@ void tscHandleSubqueryError(SRetrieveSupport *trsupport, SSqlObj *pSql, int numO
 
       SSqlObj *userSql = ((SRetrieveSupport*)pParentSql->param)->pParentSql;
 
-      doCleanupSubqueries(userSql, userSql->subState.numOfSub);
-      userSql->subState.numOfSub = 0;
+      tscFreeSubobj(userSql);
 
       pParentSql->res.code = TSDB_CODE_SUCCESS;
       pParentSql->retry++;
