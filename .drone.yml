@@ -326,8 +326,6 @@ steps:
     branch:
     - develop
     - master
-    event:
-     exclude:
-      - push 
+
 depends_on:
 - test_amd64
