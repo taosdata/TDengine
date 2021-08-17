@@ -521,7 +521,7 @@ int ResolveLinksA(const char *path, char *buf, size_t bufsize) {
 /* Normally defined in stdlib.h. Output buf must contain PATH_MAX bytes */
 char *realpathU(const char *path, char *outbuf) {
   char *pOutbuf = outbuf;
-  char *pOutbuf1;
+  char *pOutbuf1 = NULL;
   char *pPath1 = NULL;
   char *pPath2 = NULL;
   int iErr;
