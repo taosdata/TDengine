@@ -3645,15 +3645,16 @@ void copyTsColoum(SSDataBlock* pRes, SQLFunctionCtx* pCtx, int32_t numOfOutput) 
   bool    needCopyTs = false;
   int32_t tsNum = 0;
   char *src = NULL;
+  int32_t preFunctionId = TSDB_FUNC_TS_DUMMY;
   for (int32_t i = 0; i < numOfOutput; i++) {
     int32_t functionId = pCtx[i].functionId;
     if (functionId == TSDB_FUNC_DIFF || functionId == TSDB_FUNC_DERIVATIVE) {
       needCopyTs = true;
-    }else if(functionId == TSDB_FUNC_TS_DUMMY) {
-      SColumnInfoData* pColRes = taosArrayGet(pRes->pDataBlock, i);
-      if (strlen(pColRes->pData) != 0) {
-        src = pColRes->pData;     // find ts data
+      if (i > 0  && pCtx[i-1].functionId == TSDB_FUNC_TS_DUMMY){
+        SColumnInfoData* pColRes = taosArrayGet(pRes->pDataBlock, i - 1); // find ts data
+        src = pColRes->pData;
       }
+    }else if(functionId == TSDB_FUNC_TS_DUMMY) {
       tsNum++;
     }
   }
