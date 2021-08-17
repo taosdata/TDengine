@@ -1,68 +1,13 @@
 ---
 kind: pipeline
-name: test_amd64
-
-platform:
-  os: linux
-  arch: amd64
-
-steps:
-- name: build
-  image: gcc
-  commands:
-  - gcc -v
-  - apt-get update
-  - apt-get install -y cmake build-essential git 
-  - mkdir debug
-  - cd debug
-  - cmake .. 
-  - make 
-  - gcc -v
-  when:
-    branch:
-    - develop
-    - master
-
-- name: smoke_test
-  image: python:3.8
-  commands:
-  - pip3 install psutil
-  - pip3 install guppy3
-  - pip3 install src/connector/python/linux/python3/
-  - cd tests
-  - ./test-all.sh smoke
-  when:
-    branch:
-    - develop
-    - master
-
-
-- name: crash_gen
-  image: python:3.8
-  commands:
-  - pip3 install requests
-  - pip3 install src/connector/python/linux/python3/
-  - pip3 install psutil
-  - pip3 install guppy3
-  - cd tests/pytest 
-  - ./crash_gen.sh -a -p -t 4 -s 200
-  when:
-    branch:
-    - develop
-    - master
-
-
----
-kind: pipeline
-name: test_arm64
+name: test_arm64_bionic
 
 platform:
   os: linux
   arch: arm64
-
 steps:
 - name: build
-  image: gcc
+  image: arm64v8/ubuntu:bionic
   commands:
   - apt-get update
   - apt-get install -y cmake build-essential
@@ -76,7 +21,72 @@ steps:
     - master
 ---
 kind: pipeline
-name: test_arm
+name: test_arm64_focal
+
+platform:
+  os: linux
+  arch: arm64
+
+steps:
+- name: build
+  image: arm64v8/ubuntu:focal
+  commands:
+  - echo 'debconf debconf/frontend select Noninteractive' | debconf-set-selections
+  - apt-get update 
+  - apt-get install -y -qq cmake build-essential
+  - mkdir debug
+  - cd debug
+  - cmake .. -DCPUTYPE=aarch64 > /dev/null
+  - make 
+  when:
+    branch:
+    - develop
+    - master
+---
+kind: pipeline
+name: test_arm64_centos7
+
+platform:
+  os: linux
+  arch: arm64
+
+steps:
+- name: build
+  image: arm64v8/centos:7
+  commands:
+  - yum install -y gcc gcc-c++ make cmake git
+  - mkdir debug
+  - cd debug
+  - cmake .. -DCPUTYPE=aarch64 > /dev/null
+  - make 
+  when:
+    branch:
+    - develop
+    - master
+---
+kind: pipeline
+name: test_arm64_centos8
+
+platform:
+  os: linux
+  arch: arm64
+
+steps:
+- name: build
+  image: arm64v8/centos:8
+  commands:
+  - yum install -y gcc gcc-c++ make cmake git
+  - mkdir debug
+  - cd debug
+  - cmake .. -DCPUTYPE=aarch64 > /dev/null
+  - make 
+  when:
+    branch:
+    - develop
+    - master
+---
+kind: pipeline
+name: test_arm_bionic
 
 platform:
   os: linux
@@ -84,7 +94,7 @@ platform:
 
 steps:
 - name: build
-  image: arm32v7/ubuntu
+  image: arm32v7/ubuntu:bionic
   commands:
   - apt-get update
   - apt-get install -y cmake build-essential
@@ -96,7 +106,51 @@ steps:
     branch:
     - develop
     - master
+---
+kind: pipeline
+name: test_arm_focal
 
+platform:
+  os: linux
+  arch: arm
+
+steps:
+- name: build
+  image: arm32v7/ubuntu:20.04
+  commands:
+  - apt-get update ||echo 1
+  - apt-get install -y cmake build-essential 
+  - mkdir debug
+  - cd debug
+  - cmake .. -DCPUTYPE=aarch32 > /dev/null
+  - make 
+  when:
+    branch:
+    - develop
+    - master
+---
+kind: pipeline
+name: test_arm_centos7
+
+platform:
+  os: linux
+  arch: arm
+
+steps:
+- name: build
+  image: arm32v7/centos:7
+  commands:
+  - yum remove epel-release
+  - rpm -ivh http://mirror.centos.org/altarch/7/os/armhfp/Packages/centos-userland-release-7-9.2009.0.el7.centos.armv7hl.rpm
+  - yum install -y gcc gcc-c++ make cmake
+  - mkdir debug
+  - cd debug
+  - cmake .. -DCPUTYPE=aarch32 > /dev/null
+  - make 
+  when:
+    branch:
+    - develop
+    - master
 ---
 kind: pipeline
 name: build_trusty
@@ -164,25 +218,54 @@ steps:
     branch:
     - develop
     - master
-
 ---
-
 kind: pipeline
-name: darwin
+name: test_amd64
+
 platform:
-  os: darwin
+  os: linux
   arch: amd64
 
 steps:
 - name: build
   image: gcc
   commands:
+  - gcc -v
   - apt-get update
-  - apt-get install -y gcc cmake build-essential
+  - apt-get install -y cmake build-essential git 
   - mkdir debug
   - cd debug
   - cmake .. 
   - make 
+  - gcc -v
+  when:
+    branch:
+    - develop
+    - master
+
+- name: smoke_test
+  image: python:3.8
+  commands:
+  - pip3 install psutil
+  - pip3 install guppy3
+  - pip3 install src/connector/python/linux/python3/
+  - cd tests
+  - ./test-all.sh smoke
+  when:
+    branch:
+    - develop
+    - master
+
+
+- name: crash_gen
+  image: python:3.8
+  commands:
+  - pip3 install requests
+  - pip3 install src/connector/python/linux/python3/
+  - pip3 install psutil
+  - pip3 install guppy3
+  - cd tests/pytest 
+  - ./crash_gen.sh -a -p -t 4 -s 200
   when:
     branch:
     - develop
@@ -207,5 +290,4 @@ steps:
 
 
 depends_on:
-- test_arm64
 - test_amd64
