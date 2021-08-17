@@ -155,6 +155,7 @@ python3 ./test.py -f import_merge/importCSV.py
 python3 ./test.py -f import_merge/import_update_0.py
 python3 ./test.py -f import_merge/import_update_1.py
 python3 ./test.py -f import_merge/import_update_2.py
+python3 ./test.py -f update/merge_commit_data.py
 #======================p1-end===============
 #======================p2-start===============
 # tools
@@ -183,7 +184,7 @@ python3 ./test.py -f update/allow_update-0.py
 python3 ./test.py -f update/append_commit_data.py
 python3 ./test.py -f update/append_commit_last-0.py
 python3 ./test.py -f update/append_commit_last.py
-python3 ./test.py -f update/merge_commit_data.py
+
 
 python3 ./test.py -f update/merge_commit_data2.py
 python3 ./test.py -f update/merge_commit_data2_update0.py
