@@ -3765,16 +3765,16 @@ static void tscSubqueryCompleteCallback(void* param, TAOS_RES* tres, int code) {
     pParentCmd->pTableMetaMap = tscCleanupTableMetaMap(pParentCmd->pTableMetaMap);
     pParentCmd->pTableMetaMap = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);
 
+    SSqlObj *userSql = ((SRetrieveSupport*)pParentSql->param)->pParentSql;
+
+    doCleanupSubqueries(userSql, userSql->subState.numOfSub);
+    userSql->subState.numOfSub = 0;
+
     pParentSql->res.code = TSDB_CODE_SUCCESS;
     pParentSql->retry++;
 
     tscDebug("0x%"PRIx64" retry parse sql and send query, prev error: %s, retry:%d", pParentSql->self,
              tstrerror(code), pParentSql->retry);
-
-    SSqlObj *userSql = ((SRetrieveSupport*)pParentSql->param)->pParentSql;
-
-    doCleanupSubqueries(userSql, userSql->subState.numOfSub);
-    userSql->subState.numOfSub = 0;
     
     code = tsParseSql(userSql, true);
     if (code == TSDB_CODE_TSC_ACTION_IN_PROGRESS) {
