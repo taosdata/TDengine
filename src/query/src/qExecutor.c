@@ -52,7 +52,6 @@
    (_dst).ekey = (_src).ekey;\
 } while (0)
 
-#define GROUPBY_MULTI_COLUMN_DELIM "-"
 
 enum {
   TS_JOIN_TS_EQUAL       = 0,
@@ -1675,17 +1674,18 @@ static bool initGroupbyInfo(const SSDataBlock *pSDataBlock, const SGroupbyExpr *
       }
     }
   }
-  pInfo->totalBytes += (int32_t)strlen(GROUPBY_MULTI_COLUMN_DELIM) * pGroupbyExpr->numOfGroupCols;
+  pInfo->totalBytes += (int32_t)strlen(MULTI_KEY_DELIM) * pGroupbyExpr->numOfGroupCols;
   
   return true;
 }
 
-static void buildGroupbyKeyBuf(const SSDataBlock *pSDataBlock, SGroupbyOperatorInfo *pInfo, int32_t rowId, char **buf, bool *isNullKey) {
+static void buildGroupbyKeyBuf(const SSDataBlock *pSDataBlock, SGroupbyOperatorInfo *pInfo, int32_t rowId, char **buf) {
   char *p = calloc(1, pInfo->totalBytes);
-  if (p == NULL) { *buf = NULL; return; } 
-
+  if (p == NULL) { 
+    *buf = NULL; 
+    return; 
+  } 
   *buf  = p;
-  *isNullKey = true;
   for (int32_t i = 0; i < taosArrayGetSize(pInfo->pGroupbyDataInfo); i++) {
     SGroupbyDataInfo *pDataInfo = taosArrayGet(pInfo->pGroupbyDataInfo, i); 
 
@@ -1703,24 +1703,27 @@ static void buildGroupbyKeyBuf(const SSDataBlock *pSDataBlock, SGroupbyOperatorI
       memcpy(p, val, pDataInfo->bytes);
       p += pDataInfo->bytes;
     }
-    memcpy(p, GROUPBY_MULTI_COLUMN_DELIM, strlen(GROUPBY_MULTI_COLUMN_DELIM));
-    p += strlen(GROUPBY_MULTI_COLUMN_DELIM);
-    *isNullKey = false; 
+
+    memcpy(p, MULTI_KEY_DELIM, strlen(MULTI_KEY_DELIM));
+    p += strlen(MULTI_KEY_DELIM);
   }  
 }
 static bool isGroupbyKeyEqual(void *a, void *b, void *ext) {
   SGroupbyOperatorInfo *pInfo = (SGroupbyOperatorInfo *)ext;
-
+  if (memcmp(a, b, pInfo->totalBytes) == 0) {
+    return true;
+  }
   int32_t offset = 0; 
   for (int32_t i = 0; i < taosArrayGetSize(pInfo->pGroupbyDataInfo); i++) {
     SGroupbyDataInfo *pDataInfo = taosArrayGet(pInfo->pGroupbyDataInfo, i); 
+
     char *k1 = (char *)a + offset;
     char *k2 = (char *)b + offset;     
     if (getComparFunc(pDataInfo->type, 0)(k1, k2) != 0) {
        return false;  
     }
     offset += pDataInfo->bytes; 
-    offset += (int32_t)strlen(GROUPBY_MULTI_COLUMN_DELIM);
+    offset += (int32_t)strlen(MULTI_KEY_DELIM);
   }
   return true;
 }
@@ -1747,11 +1750,9 @@ static void doHashGroupbyAgg(SOperatorInfo* pOperator, SGroupbyOperatorInfo *pIn
   char *key = NULL;
   int16_t num = 0;
   int32_t type = 0;
-  bool isNullKey = false;
   for (int32_t j = 0; j < pSDataBlock->info.rows; ++j) {
-    buildGroupbyKeyBuf(pSDataBlock, pInfo, j, &key, &isNullKey);
-    if (isNullKey)  { continue;}
-    if (key == NULL) { /* handle malloc failure*/}
+    buildGroupbyKeyBuf(pSDataBlock, pInfo, j, &key);
+    if (!key)  { continue;}
     if (pInfo->prevData == NULL) {
       // first row of  
       pInfo->prevData = key;  
@@ -1781,20 +1782,19 @@ static void doHashGroupbyAgg(SOperatorInfo* pOperator, SGroupbyOperatorInfo *pIn
   }
 
   if (num > 0) {
-    buildGroupbyKeyBuf(pSDataBlock, pInfo, pSDataBlock->info.rows - num, &key, &isNullKey);
-    tfree(pInfo->prevData);
-    pInfo->prevData = key;
-     
-    if (pQueryAttr->stableQuery && pQueryAttr->stabledev && (pRuntimeEnv->prevResult != NULL)) {
-      setParamForStableStddevByColData(pRuntimeEnv, pInfo->binfo.pCtx, pOperator->numOfOutput, pOperator->pExpr, pInfo);
+    buildGroupbyKeyBuf(pSDataBlock, pInfo, pSDataBlock->info.rows - num, &key);
+    if (key) {
+      tfree(pInfo->prevData);
+      pInfo->prevData = key;
+      if (pQueryAttr->stableQuery && pQueryAttr->stabledev && (pRuntimeEnv->prevResult != NULL)) {
+        setParamForStableStddevByColData(pRuntimeEnv, pInfo->binfo.pCtx, pOperator->numOfOutput, pOperator->pExpr, pInfo);
+      }
+      int32_t ret = setGroupResultOutputBuf(pRuntimeEnv, &(pInfo->binfo), pOperator->numOfOutput, pInfo->prevData, type, pInfo->totalBytes, item->groupIndex);
+      if (ret != TSDB_CODE_SUCCESS) {  // null data, too many state code
+        longjmp(pRuntimeEnv->env, TSDB_CODE_QRY_APP_ERROR);
+      }
+      doApplyFunctions(pRuntimeEnv, pInfo->binfo.pCtx, &w, pSDataBlock->info.rows - num, num, tsList, pSDataBlock->info.rows, pOperator->numOfOutput);
     }
-
-    int32_t ret = setGroupResultOutputBuf(pRuntimeEnv, &(pInfo->binfo), pOperator->numOfOutput, pInfo->prevData, type, pInfo->totalBytes, item->groupIndex);
-    if (ret != TSDB_CODE_SUCCESS) {  // null data, too many state code
-      longjmp(pRuntimeEnv->env, TSDB_CODE_QRY_APP_ERROR);
-    }
-
-    doApplyFunctions(pRuntimeEnv, pInfo->binfo.pCtx, &w, pSDataBlock->info.rows - num, num, tsList, pSDataBlock->info.rows, pOperator->numOfOutput);
   }
   tfree(pInfo->prevData);
 }

@@ -3555,7 +3555,7 @@ int32_t validateGroupbyNode(SQueryInfo* pQueryInfo, SArray* pList, SSqlCmd* pCmd
   const char* msg4 = "join query does not support group by";
   const char* msg5 = "not allowed column type for group by";
   const char* msg6 = "tags not allowed for table query";
-  //const char* msg7 = "not support group by expression";
+  const char* msg7 = "not support group by primary key";
   //const char* msg8 = "normal column can only locate at the end of group by clause";
 
   // todo : handle two tables situation
@@ -3638,8 +3638,11 @@ int32_t validateGroupbyNode(SQueryInfo* pQueryInfo, SArray* pList, SSqlCmd* pCmd
       tscColumnListInsert(pTableMetaInfo->tagColList, index.columnIndex, pTableMeta->id.uid, pSchema);
     } else {
       // check if the column type is valid, here only support the bool/tinyint/smallint/bigint group by
-      if (pSchema->type == TSDB_DATA_TYPE_TIMESTAMP || pSchema->type == TSDB_DATA_TYPE_FLOAT || pSchema->type == TSDB_DATA_TYPE_DOUBLE) {
+      if (pSchema->type == TSDB_DATA_TYPE_FLOAT || pSchema->type == TSDB_DATA_TYPE_DOUBLE) {
         return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg5);
+      }
+      if (index.columnIndex == PRIMARYKEY_TIMESTAMP_COL_INDEX) {
+        return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg7);
       }
 
       tscColumnListInsert(pQueryInfo->colList, index.columnIndex, pTableMeta->id.uid, pSchema);
