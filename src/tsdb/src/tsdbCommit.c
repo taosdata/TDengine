@@ -536,7 +536,7 @@ static int tsdbCompactMetaFile(STsdbRepo *pRepo, STsdbFS *pfs, SMFile *pMFile) {
   code = 0;
 
 _err:
-  TSDB_FILE_FSYNC(&mf);
+  if (code == 0) TSDB_FILE_FSYNC(&mf);
   tsdbCloseMFile(&mf);
   tsdbCloseMFile(pMFile);
 

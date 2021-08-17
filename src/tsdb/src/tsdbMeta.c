@@ -746,7 +746,10 @@ void tsdbUpdateTableSchema(STsdbRepo *pRepo, STable *pTable, STSchema *pSchema, 
   TSDB_WUNLOCK_TABLE(pCTable);
 
   if (insertAct) {
-    ASSERT(tsdbInsertNewTableAction(pRepo, pCTable) == 0);
+    if (tsdbInsertNewTableAction(pRepo, pCTable) != 0) {
+      tsdbError("vgId:%d table %s tid %d uid %" PRIu64 " tsdbInsertNewTableAction fail", REPO_ID(pRepo), TABLE_CHAR_NAME(pTable),
+            TABLE_TID(pTable), TABLE_UID(pTable));
+    }
   }
 }
 
