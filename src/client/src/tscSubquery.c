@@ -2735,18 +2735,23 @@ void tscHandleSubqueryError(SRetrieveSupport *trsupport, SSqlObj *pSql, int numO
       tscDebug("0x%"PRIx64" retry parse sql and send query, prev error: %s, retry:%d", pParentSql->self,
           tstrerror(code), pParentSql->retry);
 
-      code = tsParseSql(pParentSql, true);
+      SSqlObj *userSql = ((SRetrieveSupport*)pParentSql->param)->pParentSql;
+
+      code = tsParseSql(userSql, true);
       if (code == TSDB_CODE_TSC_ACTION_IN_PROGRESS) {
         return;
       }
 
       if (code != TSDB_CODE_SUCCESS) {
-        pParentSql->res.code = code;
-        tscAsyncResultOnError(pParentSql);
+        userSql->res.code = code;
+        tscAsyncResultOnError(userSql);
         return;
       }
 
-      executeQuery(pParentSql, pQueryInfo);
+      doCleanupSubqueries(userSql, userSql->subState.numOfSub);
+
+      pQueryInfo = tscGetQueryInfo(&userSql->cmd);
+      executeQuery(userSql, pQueryInfo);
     } else {
       (*pParentSql->fp)(pParentSql->param, pParentSql, pParentSql->res.code);
     }
