@@ -56,12 +56,12 @@ class TDTestCase:
 
                 tdSql.query("select ts,derivative(col, 10s, 1),ts from stb group by tbname")
                 tdSql.checkRows(4)
-                tdSql.checkData(0, 0, self.ts + 10000)
-                tdSql.checkData(0, 1, self.ts + 10000)
-                tdSql.checkData(0, 3, self.ts + 10000)
-                tdSql.checkData(3, 0, self.ts + 70000)
-                tdSql.checkData(3, 1, self.ts + 70000)
-                tdSql.checkData(3, 3, self.ts + 70000)
+                tdSql.checkData(0, 0, "2018-09-17 09:00:10.000")
+                tdSql.checkData(0, 1, "2018-09-17 09:00:10.000")
+                tdSql.checkData(0, 3, "2018-09-17 09:00:10.000")
+                tdSql.checkData(3, 0, "2018-09-17 09:01:20.000")
+                tdSql.checkData(3, 1, "2018-09-17 09:01:20.000")
+                tdSql.checkData(3, 3, "2018-09-17 09:01:20.000")
 
                 tdSql.query("select ts from(select ts,derivative(col, 10s, 0) from stb group by tbname")
 
