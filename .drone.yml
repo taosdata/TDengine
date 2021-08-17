@@ -288,9 +288,7 @@ steps:
     branch:
     - develop
     - master
-    event:
-     exclude:
-      - push 
+
 
 
 - name: crash_gen
