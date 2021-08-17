@@ -8,14 +8,13 @@
 
 <a class="anchor" id="model_table1"></a>
 
-<figure><table>
+<table>
 <thead><tr>
     <th style="text-align:center;">设备ID</th>
     <th style="text-align:center;">时间戳</th>
     <th style="text-align:center;" colspan="3">采集量</th>
     <th style="text-align:center;" colspan="2">标签</th>
     </tr>
-
 <tr>
 <th style="text-align:center;">Device ID</th>
 <th style="text-align:center;">Time Stamp</th>
@@ -100,7 +99,7 @@
 <td style="text-align:center;">2</td>
 </tr>
 </tbody>
-</table></figure>
+</table>
 
 <center> 表1：智能电表数据示例</center>
 
