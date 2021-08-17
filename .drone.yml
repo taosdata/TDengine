@@ -20,7 +20,8 @@ steps:
     - develop
     - master
     event:
-    - pull_request  
+     exclude:
+     - push  
 ---
 kind: pipeline
 name: test_arm64_focal
@@ -45,7 +46,8 @@ steps:
     - develop
     - master
     event:
-    - pull_request 
+     exclude:
+      - push 
 ---
 kind: pipeline
 name: test_arm64_centos7
@@ -68,7 +70,8 @@ steps:
     - develop
     - master
     event:
-    - pull_request 
+     exclude:
+      - push 
 ---
 kind: pipeline
 name: test_arm64_centos8
@@ -91,7 +94,8 @@ steps:
     - develop
     - master
     event:
-    - pull_request 
+     exclude:
+      - push 
 ---
 kind: pipeline
 name: test_arm_bionic
@@ -115,7 +119,8 @@ steps:
     - develop
     - master
     event:
-    - pull_request 
+     exclude:
+      - push 
 ---
 kind: pipeline
 name: test_arm_focal
@@ -139,7 +144,8 @@ steps:
     - develop
     - master
     event:
-    - pull_request 
+     exclude:
+      - push 
 ---
 kind: pipeline
 name: test_arm_centos7
@@ -164,7 +170,8 @@ steps:
     - develop
     - master
     event:
-    - pull_request 
+     exclude:
+      - push 
 ---
 kind: pipeline
 name: build_trusty
@@ -189,7 +196,8 @@ steps:
     - develop
     - master
     event:
-    - pull_request 
+     exclude:
+      - push 
 ---
 kind: pipeline
 name: build_xenial
@@ -213,7 +221,8 @@ steps:
     - develop
     - master
     event:
-    - pull_request 
+     exclude:
+      - push 
 
 ---
 kind: pipeline
@@ -237,7 +246,8 @@ steps:
     - develop
     - master
     event:
-    - pull_request 
+     exclude:
+      - push 
 ---
 kind: pipeline
 name: test_amd64
@@ -263,7 +273,8 @@ steps:
     - develop
     - master
     event:
-    - pull_request 
+     exclude:
+      - push 
 
 - name: smoke_test
   image: python:3.8
@@ -278,7 +289,8 @@ steps:
     - develop
     - master
     event:
-    - pull_request 
+     exclude:
+      - push 
 
 
 - name: crash_gen
@@ -295,7 +307,8 @@ steps:
     - develop
     - master
     event:
-    - pull_request 
+     exclude:
+      - push 
 ---
 kind: pipeline
 name: goodbye-1
@@ -314,6 +327,7 @@ steps:
     - develop
     - master
     event:
-    - pull_request 
+     exclude:
+      - push 
 depends_on:
 - test_amd64
