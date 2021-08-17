@@ -134,6 +134,13 @@ cd ../../../debug; make
 
 ./test.sh -f unique/cluster/alter.sim
 ./test.sh -f unique/cluster/cache.sim
+./test.sh -f unique/http/admin.sim
+./test.sh -f unique/http/opentsdb.sim
+
+./test.sh -f unique/import/replica2.sim
+./test.sh -f unique/import/replica3.sim
+
+./test.sh -f general/alter/cached_schema_after_alter.sim
 
 
 #======================b2-end===============
@@ -198,13 +205,7 @@ cd ../../../debug; make
 #======================b3-end===============
 #======================b4-start===============
 
-./test.sh -f unique/http/admin.sim
-./test.sh -f unique/http/opentsdb.sim
 
-./test.sh -f unique/import/replica2.sim
-./test.sh -f unique/import/replica3.sim
-
-./test.sh -f general/alter/cached_schema_after_alter.sim
 ./test.sh -f general/alter/count.sim
 ./test.sh -f general/alter/dnode.sim
 ./test.sh -f general/alter/import.sim
