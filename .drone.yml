@@ -19,6 +19,8 @@ steps:
     branch:
     - develop
     - master
+    event:
+    - pull_request  
 ---
 kind: pipeline
 name: test_arm64_focal
@@ -42,6 +44,8 @@ steps:
     branch:
     - develop
     - master
+    event:
+    - pull_request 
 ---
 kind: pipeline
 name: test_arm64_centos7
@@ -63,6 +67,8 @@ steps:
     branch:
     - develop
     - master
+    event:
+    - pull_request 
 ---
 kind: pipeline
 name: test_arm64_centos8
@@ -84,6 +90,8 @@ steps:
     branch:
     - develop
     - master
+    event:
+    - pull_request 
 ---
 kind: pipeline
 name: test_arm_bionic
@@ -106,6 +114,8 @@ steps:
     branch:
     - develop
     - master
+    event:
+    - pull_request 
 ---
 kind: pipeline
 name: test_arm_focal
@@ -116,7 +126,7 @@ platform:
 
 steps:
 - name: build
-  image: arm32v7/ubuntu:20.04
+  image: arm32v7/ubuntu:groovy
   commands:
   - apt-get update ||echo 1
   - apt-get install -y cmake build-essential 
@@ -128,6 +138,8 @@ steps:
     branch:
     - develop
     - master
+    event:
+    - pull_request 
 ---
 kind: pipeline
 name: test_arm_centos7
@@ -151,6 +163,8 @@ steps:
     branch:
     - develop
     - master
+    event:
+    - pull_request 
 ---
 kind: pipeline
 name: build_trusty
@@ -174,6 +188,8 @@ steps:
     branch:
     - develop
     - master
+    event:
+    - pull_request 
 
 ---
 kind: pipeline
@@ -197,6 +213,8 @@ steps:
     branch:
     - develop
     - master
+    event:
+    - pull_request 
 
 ---
 kind: pipeline
@@ -219,6 +237,8 @@ steps:
     branch:
     - develop
     - master
+    event:
+    - pull_request 
 ---
 kind: pipeline
 name: test_amd64
@@ -243,6 +263,8 @@ steps:
     branch:
     - develop
     - master
+    event:
+    - pull_request 
 
 - name: smoke_test
   image: python:3.8
@@ -256,6 +278,8 @@ steps:
     branch:
     - develop
     - master
+    event:
+    - pull_request 
 
 
 - name: crash_gen
@@ -271,6 +295,8 @@ steps:
     branch:
     - develop
     - master
+    event:
+    - pull_request 
 ---
 kind: pipeline
 name: goodbye-1
@@ -288,6 +314,8 @@ steps:
     branch:
     - develop
     - master
+    event:
+    - pull_request 
 
 
 depends_on:
