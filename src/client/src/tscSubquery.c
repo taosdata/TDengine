@@ -2050,6 +2050,19 @@ void doCleanupSubqueries(SSqlObj *pSql, int32_t numOfSubs) {
   }
 }
 
+void tscFreeRetrieveSupporters(SSqlObj *pSql) {  
+  for(int32_t i = 0; i < pSql->subState.numOfSub; ++i) {
+    SSqlObj* pSub = pSql->pSubs[i];
+    assert(pSub != NULL);
+    
+    SRetrieveSupport* pSupport = pSub->param;
+    
+    tfree(pSupport->localBuffer);
+    tfree(pSub->param);
+  }
+}
+
+
 void tscLockByThread(int64_t *lockedBy) {
   int64_t tid = taosGetSelfPthreadId();
   int     i = 0;
@@ -2730,6 +2743,8 @@ void tscHandleSubqueryError(SRetrieveSupport *trsupport, SSqlObj *pSql, int numO
       pParentCmd->pTableMetaMap = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);
 
       SSqlObj *userSql = ((SRetrieveSupport*)pParentSql->param)->pParentSql;
+
+      tscFreeRetrieveSupporters(pParentSql);
 
       tscFreeSubobj(userSql);      
       tfree(userSql->pSubs);
