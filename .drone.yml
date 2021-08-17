@@ -183,7 +183,6 @@ steps:
     branch:
     - develop
     - master
-
 ---
 kind: pipeline
 name: build_xenial
