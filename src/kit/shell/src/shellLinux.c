@@ -48,7 +48,7 @@ static struct argp_option options[] = {
   {"check",      'k', "CHECK",      0,                   "Check tables."},
   {"database",   'd', "DATABASE",   0,                   "Database to use when connecting to the server."},
   {"timezone",   't', "TIMEZONE",   0,                   "Time zone of the shell, default is local."},
-  {"netrole",    'n', "NETROLE",    0,                   "Net role when network connectivity test, default is startup, options: client|server|rpc|startup|sync."},
+  {"netrole",    'n', "NETROLE",    0,                   "Net role when network connectivity test, default is startup, options: client|server|rpc|startup|sync|speen|fqdn."},
   {"pktlen",     'l', "PKTLEN",     0,                   "Packet length used for net test, default is 1000 bytes."},
   {"pktnum",     'N', "PKTNUM",     0,                   "Packet numbers used for net test, default is 100."},
   {"pkttype",    'S', "PKTTYPE",    0,                   "Packet type used for net test, default is TCP."},
