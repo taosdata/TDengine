@@ -1243,10 +1243,11 @@ static int tsdbRestoreMeta(STsdbRepo *pRepo) {
         tsdbCloseMFile(pfs->cstatus->pmf);
       }
     } else if (code == REG_NOMATCH) {
-      // Not match
+      // Not match, do nothing
+#if 0
       tsdbInfo("vgId:%d invalid file %s exists, remove it", REPO_ID(pRepo), TFILE_NAME(pf));
       tfsremove(pf);
-      continue;
+#endif
     } else {
       // Has other error
       tsdbError("vgId:%d failed to restore meta file while run regexec since %s", REPO_ID(pRepo), strerror(code));
@@ -1339,10 +1340,11 @@ static int tsdbRestoreSchema(STsdbRepo *pRepo) {
         tsdbCloseSFile(pfs->cstatus->psf);
       }
     } else if (code == REG_NOMATCH) {
-      // Not match
+      // Not match, do nothing
+#if 0
       tsdbInfo("vgId:%d invalid file %s exists, remove it", REPO_ID(pRepo), TFILE_NAME(pf));
       tfsremove(pf);
-      continue;
+#endif
     } else {
       // Has other error
       tsdbError("vgId:%d failed to restore schema file while run regexec since %s", REPO_ID(pRepo), strerror(code));

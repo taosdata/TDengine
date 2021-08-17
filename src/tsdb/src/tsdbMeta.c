@@ -956,13 +956,11 @@ static int tsdbAddTableToMeta(STsdbRepo *pRepo, STable *pTable, bool addIdx, boo
     goto _err;
   }
 
-#if 0
   if (TABLE_TYPE(pTable) != TSDB_CHILD_TABLE) {
     STSchema *pSchema = tsdbGetTableSchemaImpl(pTable, false, false, -1);
     if (schemaNCols(pSchema) > pMeta->maxCols) pMeta->maxCols = schemaNCols(pSchema);
     if (schemaTLen(pSchema) > pMeta->maxRowBytes) pMeta->maxRowBytes = schemaTLen(pSchema);
   }
-#endif
 
   if (lock && tsdbUnlockRepoMeta(pRepo) < 0) return -1;
   if (TABLE_TYPE(pTable) == TSDB_STREAM_TABLE && addIdx) {
@@ -1252,7 +1250,6 @@ static int tsdbEncodeTable(void **buf, STable *pTable) {
     tlen += taosEncodeFixedU64(buf, TABLE_SUID(pTable));
     tlen += tdEncodeKVRow(buf, pTable->tagVal);
   } else {
-
     //encode 0 for compatibility and flag for new version
     tlen += taosEncodeFixedU8(buf, (uint8_t)0);
 #if 0

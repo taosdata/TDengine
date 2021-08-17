@@ -54,7 +54,7 @@ typedef struct {
 #define TSDB_COMMIT_DEFAULT_ROWS(ch) TSDB_DEFAULT_BLOCK_ROWS(TSDB_COMMIT_REPO(ch)->config.maxRowsPerFileBlock)
 #define TSDB_COMMIT_TXN_VERSION(ch) FS_TXN_VERSION(REPO_FS(TSDB_COMMIT_REPO(ch)))
 
-static int tsdbCommitSchema(STsdbRepo *pRepo);
+static int  tsdbCommitSchema(STsdbRepo *pRepo);
 static int  tsdbCommitMeta(STsdbRepo *pRepo);
 static int  tsdbUpdateMetaRecord(STsdbFS *pfs, SMFile *pMFile, uint64_t uid, void *cont, int contLen);
 static int  tsdbDropMetaRecord(STsdbFS *pfs, SMFile *pMFile, uint64_t uid);
@@ -274,12 +274,14 @@ static int tsdbCommitSchema(STsdbRepo *pRepo) {
   SListNode* pNode   = NULL;
   SDiskID    did;
 
-  /*ASSERT(pOSFile != NULL || listNEles(pMem->schemaCache) > 0);*/
+#if 0
+  ASSERT(pOSFile != NULL || listNEles(pMem->schemaCache) > 0);
 
-  /*if (listNEles(pMem->schemaCache) <= 0) {*/
-    /*tsdbUpdateSFile(pfs, pOSFile);*/
-    /*return 0;*/
-  /*}*/
+  if (listNEles(pMem->schemaCache) <= 0) {
+    tsdbUpdateSFile(pfs, pOSFile);
+    return 0;
+  }
+#endif
 
   if(pOSFile == NULL) {
     did.level = TFS_PRIMARY_LEVEL;
