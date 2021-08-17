@@ -196,14 +196,20 @@ int32_t mnodeInitDnodes() {
   mnodeAddWriteMsgHandle(TSDB_MSG_TYPE_CM_CREATE_DNODE, mnodeProcessCreateDnodeMsg);
   mnodeAddWriteMsgHandle(TSDB_MSG_TYPE_CM_DROP_DNODE, mnodeProcessDropDnodeMsg); 
   mnodeAddWriteMsgHandle(TSDB_MSG_TYPE_CM_CONFIG_DNODE, mnodeProcessCfgDnodeMsg);
+
   mnodeAddPeerRspHandle(TSDB_MSG_TYPE_MD_CONFIG_DNODE_RSP, mnodeProcessCfgDnodeMsgRsp);
   mnodeAddPeerMsgHandle(TSDB_MSG_TYPE_DM_STATUS, mnodeProcessDnodeStatusMsg);
+
   mnodeAddShowMetaHandle(TSDB_MGMT_TABLE_MODULE, mnodeGetModuleMeta);
   mnodeAddShowRetrieveHandle(TSDB_MGMT_TABLE_MODULE, mnodeRetrieveModules);
+
   mnodeAddShowMetaHandle(TSDB_MGMT_TABLE_VARIABLES, mnodeGetConfigMeta);
   mnodeAddShowRetrieveHandle(TSDB_MGMT_TABLE_VARIABLES, mnodeRetrieveConfigs);
+
   mnodeAddShowMetaHandle(TSDB_MGMT_TABLE_VNODES, mnodeGetVnodeMeta);
   mnodeAddShowRetrieveHandle(TSDB_MGMT_TABLE_VNODES, mnodeRetrieveVnodes);
+  mnodeAddShowFreeIterHandle(TSDB_MGMT_TABLE_VNODES, mnodeCancelGetNextVgroup);
+
   mnodeAddShowMetaHandle(TSDB_MGMT_TABLE_DNODE, mnodeGetDnodeMeta);
   mnodeAddShowRetrieveHandle(TSDB_MGMT_TABLE_DNODE, mnodeRetrieveDnodes);
   mnodeAddShowFreeIterHandle(TSDB_MGMT_TABLE_DNODE, mnodeCancelGetNextDnode);
