@@ -60,6 +60,7 @@ extern char     tsLocale[];
 extern char     tsCharset[];            // default encode string
 extern int8_t   tsEnableCoreFile;
 extern int32_t  tsCompressMsgSize;
+extern int32_t  tsCompressColData;
 extern int32_t  tsMaxNumOfDistinctResults;
 extern char     tsTempDir[];
 
