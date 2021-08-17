@@ -196,7 +196,7 @@ not_compact_enough:
 /* Normally defined in stdlib.h. Output buf must contain PATH_MAX bytes */
 char *realpath(const char *path, char *outbuf) {
   char *pOutbuf = outbuf;
-  char *pOutbuf1;
+  char *pOutbuf1 = NULL;
   int iErr;
   const char *pc;
 
