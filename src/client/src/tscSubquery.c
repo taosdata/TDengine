@@ -2744,6 +2744,7 @@ void tscHandleSubqueryError(SRetrieveSupport *trsupport, SSqlObj *pSql, int numO
       SSqlObj *userSql = ((SRetrieveSupport*)pParentSql->param)->pParentSql;
 
       tscFreeRetrieveSup(pParentSql);
+      tscFreeRetrieveSup(userSql);
 
       tscFreeSubobj(userSql);      
       tfree(userSql->pSubs);
