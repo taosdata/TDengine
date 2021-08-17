@@ -3767,7 +3767,7 @@ static void tscSubqueryCompleteCallback(void* param, TAOS_RES* tres, int code) {
 
     SSqlObj *userSql = ((SRetrieveSupport*)pParentSql->param)->pParentSql;
 
-    tscFreeRetrieveSupporters(pParentSql);
+    tscFreeRetrieveSup(pParentSql);
 
     tscFreeSubobj(userSql);    
     tfree(userSql->pSubs);
