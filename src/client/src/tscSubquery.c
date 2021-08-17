@@ -2749,6 +2749,7 @@ void tscHandleSubqueryError(SRetrieveSupport *trsupport, SSqlObj *pSql, int numO
       }
 
       doCleanupSubqueries(userSql, userSql->subState.numOfSub);
+      userSql->subState.numOfSub = 0;
 
       pQueryInfo = tscGetQueryInfo(&userSql->cmd);
       executeQuery(userSql, pQueryInfo);
