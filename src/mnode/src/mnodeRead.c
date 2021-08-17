@@ -50,6 +50,9 @@ int32_t mnodeProcessRead(SMnodeMsg *pMsg) {
   if (!sdbIsMaster()) {
     SMnodeRsp *rpcRsp = &pMsg->rpcRsp;
     SRpcEpSet *epSet = rpcMallocCont(sizeof(SRpcEpSet));
+    if (!epSet) {
+      return TSDB_CODE_MND_OUT_OF_MEMORY;
+    }
     mnodeGetMnodeEpSetForShell(epSet, true);
     rpcRsp->rsp = epSet;
     rpcRsp->len = sizeof(SRpcEpSet);

@@ -48,9 +48,8 @@ typedef struct SDnodeObj {
   int32_t    dnodeId;
   int32_t    openVnodes;
   int64_t    createdTime;
-  int32_t    resever0;         // from dnode status msg, config information
+  int64_t    lastAccess;
   int32_t    customScore;      // config by user
-  uint32_t   lastAccess;
   uint16_t   numOfCores;       // from dnode status msg
   uint16_t   dnodePort;
   char       dnodeFqdn[TSDB_FQDN_LEN];
@@ -128,8 +127,8 @@ typedef struct {
 typedef struct {
   int32_t    dnodeId;
   int8_t     role;
-  int8_t     reserved[3];
-  SDnodeObj* pDnode;
+  int8_t     vver[3];  // To ensure compatibility, 3 bits are used to represent the remainder of 64 bit version
+  SDnodeObj *pDnode;
 } SVnodeGid;
 
 typedef struct SVgObj {
@@ -138,13 +137,15 @@ typedef struct SVgObj {
   int64_t        createdTime;
   int32_t        lbDnodeId;
   int32_t        lbTime;
-  char           dbName[TSDB_ACCT_LEN + TSDB_DB_NAME_LEN];
+  char           dbName[TSDB_ACCT_ID_LEN + TSDB_DB_NAME_LEN];
   int8_t         inUse;
   int8_t         accessState;
   int8_t         status;
   int8_t         reserved0[4];
   SVnodeGid      vnodeGid[TSDB_MAX_REPLICA];
-  int8_t         reserved1[12];
+  int32_t        vgCfgVersion;
+  int8_t         compact;
+  int8_t         reserved1[8];
   int8_t         updateEnd[4];
   int32_t        refCount;
   int32_t        numOfTables;
@@ -160,7 +161,7 @@ typedef struct {
   int32_t totalBlocks;
   int32_t maxTables;
   int32_t daysPerFile;
-  int32_t daysToKeep;
+  int32_t daysToKeep0;
   int32_t daysToKeep1;
   int32_t daysToKeep2;
   int32_t minRowsPerFileBlock;
@@ -173,15 +174,18 @@ typedef struct {
   int8_t  replications;
   int8_t  quorum;
   int8_t  update;
-  int8_t  reserved[11];
+  int8_t  cacheLastRow;
+  int8_t  dbType;
+  int16_t partitions;
+  int8_t  reserved[7];
 } SDbCfg;
 
 typedef struct SDbObj {
-  char    name[TSDB_ACCT_LEN + TSDB_DB_NAME_LEN];
+  char    name[TSDB_ACCT_ID_LEN + TSDB_DB_NAME_LEN];
   int8_t  reserved0[4];
   char    acct[TSDB_USER_LEN];
   int64_t createdTime;
-  int32_t cfgVersion;
+  int32_t dbCfgVersion;
   SDbCfg  cfg;
   int8_t  status;
   int8_t  reserved1[11];
@@ -209,6 +213,23 @@ typedef struct SUserObj {
   int32_t           refCount;
   struct SAcctObj * pAcct;
 } SUserObj;
+
+typedef struct SFuncObj {
+  char              name[TSDB_FUNC_NAME_LEN];
+  char              path[128];
+  int32_t           contLen;
+  char              cont[TSDB_FUNC_CODE_LEN];
+  int32_t           funcType;
+  int32_t           bufSize;
+  int64_t           createdTime;
+  uint8_t           resType;
+  int16_t           resBytes;
+  int64_t           sig;         // partial md5 sign
+  int16_t           type;        // [lua script|so|js]
+  int8_t            reserved[64];
+  int8_t            updateEnd[4];
+  int32_t           refCount;
+} SFuncObj;
 
 typedef struct {
   int64_t totalStorage;  // Total storage wrtten from this account
@@ -245,7 +266,7 @@ typedef struct SAcctObj {
 } SAcctObj;
 
 typedef struct {
-  char     db[TSDB_DB_NAME_LEN];
+  char     db[TSDB_ACCT_ID_LEN + TSDB_DB_NAME_LEN];
   int8_t   type;
   int16_t  numOfColumns;
   int32_t  index;
@@ -254,10 +275,10 @@ typedef struct {
   void *   pIter;
   void **  ppShow;
   int16_t  offset[TSDB_MAX_COLUMNS];
-  int16_t  bytes[TSDB_MAX_COLUMNS];
+  int32_t  bytes[TSDB_MAX_COLUMNS];
   int32_t  numOfReads;
   int8_t   maxReplica;
-  int8_t   reserved0[0];
+  int8_t   reserved0[1];
   uint16_t payloadLen;
   char     payload[];
 } SShowObj;

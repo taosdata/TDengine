@@ -16,7 +16,6 @@
 #define _DEFAULT_SOURCE
 #include "os.h"
 #include "tgrant.h"
-#include "tbn.h"
 #include "tglobal.h"
 #include "tconfig.h"
 #include "tutil.h"
@@ -29,6 +28,7 @@
 #include "mnodeDef.h"
 #include "mnodeInt.h"
 #include "mnodeDnode.h"
+#include "mnodeDb.h"
 #include "mnodeMnode.h"
 #include "mnodeSdb.h"
 #include "mnodeShow.h"
@@ -38,7 +38,7 @@
 #include "mnodePeer.h"
 #include "mnodeCluster.h"
 
-int32_t tsAccessSquence = 0;
+int64_t        tsAccessSquence = 0;
 int64_t        tsDnodeRid = -1;
 static void *  tsDnodeSdb = NULL;
 static int32_t tsDnodeUpdateSize = 0;
@@ -63,7 +63,6 @@ static int32_t mnodeGetVnodeMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pC
 static int32_t mnodeRetrieveVnodes(SShowObj *pShow, char *data, int32_t rows, void *pConn);
 static int32_t mnodeGetDnodeMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn);
 static int32_t mnodeRetrieveDnodes(SShowObj *pShow, char *data, int32_t rows, void *pConn);
-static char*   mnodeGetDnodeAlternativeRoleStr(int32_t alternativeRole);
 static void    mnodeUpdateDnodeEps();
 
 static char* offlineReason[] = {
@@ -101,10 +100,12 @@ static int32_t mnodeDnodeActionInsert(SSdbRow *pRow) {
     pDnode->offlineReason = TAOS_DN_OFF_STATUS_NOT_RECEIVED;
   }
 
+  pDnode->customScore = 0;
+
   dnodeUpdateEp(pDnode->dnodeId, pDnode->dnodeEp, pDnode->dnodeFqdn, &pDnode->dnodePort);
   mnodeUpdateDnodeEps();
 
-  mInfo("dnode:%d, fqdn:%s ep:%s port:%d, do insert action", pDnode->dnodeId, pDnode->dnodeFqdn, pDnode->dnodeEp, pDnode->dnodePort);
+  mInfo("dnode:%d, fqdn:%s ep:%s port:%d is created", pDnode->dnodeId, pDnode->dnodeFqdn, pDnode->dnodeEp, pDnode->dnodePort);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -149,7 +150,7 @@ static int32_t mnodeDnodeActionDecode(SSdbRow *pRow) {
 }
 
 static int32_t mnodeDnodeActionRestored() {
-  int32_t numOfRows = sdbGetNumOfRows(tsDnodeSdb);
+  int64_t numOfRows = sdbGetNumOfRows(tsDnodeSdb);
   if (numOfRows <= 0 && dnodeIsFirstDeploy()) {
     mInfo("dnode first deploy, create dnode:%s", tsLocalEp);
     mnodeCreateDnode(tsLocalEp, NULL);
@@ -166,7 +167,7 @@ static int32_t mnodeDnodeActionRestored() {
 
 int32_t mnodeInitDnodes() {
   SDnodeObj tObj;
-  tsDnodeUpdateSize = (int8_t *)tObj.updateEnd - (int8_t *)&tObj;
+  tsDnodeUpdateSize = (int32_t)((int8_t *)tObj.updateEnd - (int8_t *)&tObj);
   pthread_mutex_init(&tsDnodeEpsMutex, NULL);
 
   SSdbTableDesc desc = {
@@ -174,7 +175,7 @@ int32_t mnodeInitDnodes() {
     .name         = "dnodes",
     .hashSessions = TSDB_DEFAULT_DNODES_HASH_SIZE,
     .maxRowSize   = tsDnodeUpdateSize,
-    .refCountPos  = (int8_t *)(&tObj.refCount) - (int8_t *)&tObj,
+    .refCountPos  = (int32_t)((int8_t *)(&tObj.refCount) - (int8_t *)&tObj),
     .keyType      = SDB_KEY_AUTO,
     .fpInsert     = mnodeDnodeActionInsert,
     .fpDelete     = mnodeDnodeActionDelete,
@@ -228,7 +229,7 @@ void mnodeCancelGetNextDnode(void *pIter) {
 }
 
 int32_t mnodeGetDnodesNum() {
-  return sdbGetNumOfRows(tsDnodeSdb);
+  return (int32_t)sdbGetNumOfRows(tsDnodeSdb);
 }
 
 int32_t mnodeGetOnlinDnodesCpuCoreNum() {
@@ -262,6 +263,28 @@ int32_t mnodeGetOnlineDnodesNum() {
   }
 
   return onlineDnodes;
+}
+
+void mnodeGetOnlineAndTotalDnodesNum(int32_t *onlineNum, int32_t *totalNum) {
+  SDnodeObj *pDnode = NULL;
+  void *     pIter = NULL;
+  int32_t    onlineDnodes = 0, totalDnodes = 0;
+
+  while (1) {
+    pIter = mnodeGetNextDnode(pIter, &pDnode);
+    if (pDnode == NULL) break;
+    if (pDnode->status != TAOS_DN_STATUS_OFFLINE) ++onlineDnodes;
+    ++totalDnodes;
+    mnodeDecDnodeRef(pDnode);
+  }
+
+  if (onlineNum) {
+    *onlineNum = onlineDnodes;
+  }
+
+  if (totalNum) {
+    *totalNum = totalDnodes;
+  }
 }
 
 void *mnodeGetDnode(int32_t dnodeId) {
@@ -376,10 +399,6 @@ static int32_t mnodeCheckClusterCfgPara(const SClusterCfg *clusterCfg) {
     mError("\"numOfMnodes\"[%d - %d] cfg parameters inconsistent", clusterCfg->numOfMnodes, htonl(tsNumOfMnodes));
     return TAOS_DN_OFF_NUM_OF_MNODES_NOT_MATCH;
   }
-  if (clusterCfg->enableBalance != htonl(tsEnableBalance)) {
-    mError("\"balance\"[%d - %d] cfg parameters inconsistent", clusterCfg->enableBalance, htonl(tsEnableBalance));
-    return TAOS_DN_OFF_ENABLE_BALANCE_NOT_MATCH;
-  }
   if (clusterCfg->mnodeEqualVnodeNum != htonl(tsMnodeEqualVnodeNum)) {
     mError("\"mnodeEqualVnodeNum\"[%d - %d] cfg parameters inconsistent", clusterCfg->mnodeEqualVnodeNum,
            htonl(tsMnodeEqualVnodeNum));
@@ -412,7 +431,7 @@ static int32_t mnodeCheckClusterCfgPara(const SClusterCfg *clusterCfg) {
 
   int64_t checkTime = 0;
   char    timestr[32] = "1970-01-01 00:00:00.00";
-  (void)taosParseTime(timestr, &checkTime, strlen(timestr), TSDB_TIME_PRECISION_MILLI, 0);
+  (void)taosParseTime(timestr, &checkTime, (int32_t)strlen(timestr), TSDB_TIME_PRECISION_MILLI, 0);
   if ((0 != strncasecmp(clusterCfg->timezone, tsTimezone, strlen(tsTimezone))) &&
       (checkTime != clusterCfg->checkTime)) {
     mError("\"timezone\"[%s - %s] [%" PRId64 " - %" PRId64 "] cfg parameters inconsistent", clusterCfg->timezone,
@@ -420,13 +439,30 @@ static int32_t mnodeCheckClusterCfgPara(const SClusterCfg *clusterCfg) {
     return TAOS_DN_OFF_TIME_ZONE_NOT_MATCH;
   }
 
-  if (0 != strncasecmp(clusterCfg->locale, tsLocale, strlen(tsLocale))) {
-    mError("\"locale\"[%s - %s]  cfg parameters inconsistent", clusterCfg->locale, tsLocale);
-    return TAOS_DN_OFF_LOCALE_NOT_MATCH;
+  // if (0 != strncasecmp(clusterCfg->locale, tsLocale, strlen(tsLocale))) {
+  //   mError("\"locale\"[%s - %s]  cfg parameters inconsistent", clusterCfg->locale, tsLocale);
+  //   return TAOS_DN_OFF_LOCALE_NOT_MATCH;
+  // }
+  // if (0 != strncasecmp(clusterCfg->charset, tsCharset, strlen(tsCharset))) {
+  //   mError("\"charset\"[%s - %s] cfg parameters inconsistent.", clusterCfg->charset, tsCharset);
+  //   return TAOS_DN_OFF_CHARSET_NOT_MATCH;
+  // }
+
+  if (clusterCfg->enableBalance != tsEnableBalance) {
+    mError("\"balance\"[%d - %d] cfg parameters inconsistent", clusterCfg->enableBalance, tsEnableBalance);
+    return TAOS_DN_OFF_ENABLE_BALANCE_NOT_MATCH;
   }
-  if (0 != strncasecmp(clusterCfg->charset, tsCharset, strlen(tsCharset))) {
-    mError("\"charset\"[%s - %s] cfg parameters inconsistent.", clusterCfg->charset, tsCharset);
-    return TAOS_DN_OFF_CHARSET_NOT_MATCH;
+  if (clusterCfg->flowCtrl != tsEnableFlowCtrl) {
+    mError("\"flowCtrl\"[%d - %d] cfg parameters inconsistent", clusterCfg->flowCtrl, tsEnableFlowCtrl);
+    return TAOS_DN_OFF_FLOW_CTRL_NOT_MATCH;
+  }
+  if (clusterCfg->slaveQuery != tsEnableSlaveQuery) {
+    mError("\"slaveQuery\"[%d - %d] cfg parameters inconsistent", clusterCfg->slaveQuery, tsEnableSlaveQuery);
+    return TAOS_DN_OFF_SLAVE_QUERY_NOT_MATCH;
+  }
+  if (clusterCfg->adjustMaster != tsEnableAdjustMaster) {
+    mError("\"adjustMaster\"[%d - %d] cfg parameters inconsistent", clusterCfg->adjustMaster, tsEnableAdjustMaster);
+    return TAOS_DN_OFF_ADJUST_MASTER_NOT_MATCH;
   }
 
   return 0;
@@ -487,13 +523,13 @@ static int32_t mnodeProcessDnodeStatusMsg(SMnodeMsg *pMsg) {
   pStatus->lastReboot   = htonl(pStatus->lastReboot);
   pStatus->numOfCores   = htons(pStatus->numOfCores);
 
-  uint32_t version = htonl(pStatus->version);
-  if (version != tsVersion) {
+  uint32_t _version = htonl(pStatus->version);
+  if (_version != tsVersion) {
     pDnode = mnodeGetDnodeByEp(pStatus->dnodeEp);
     if (pDnode != NULL && pDnode->status != TAOS_DN_STATUS_READY) {
       pDnode->offlineReason = TAOS_DN_OFF_VERSION_NOT_MATCH;
     }
-    mError("dnode:%d, status msg version:%d not equal with cluster:%d", pStatus->dnodeId, version, tsVersion);
+    mError("dnode:%d, status msg version:%d not equal with cluster:%d", pStatus->dnodeId, _version, tsVersion);
     return TSDB_CODE_MND_INVALID_MSG_VERSION;
   }
 
@@ -532,7 +568,7 @@ static int32_t mnodeProcessDnodeStatusMsg(SMnodeMsg *pMsg) {
              mnodeGetClusterId());
       return TSDB_CODE_MND_INVALID_CLUSTER_ID;
     } else {
-      mTrace("dnode:%d, status received, access times %d openVnodes:%d:%d", pDnode->dnodeId, pDnode->lastAccess,
+      mTrace("dnode:%d, status received, access times %" PRId64 " openVnodes:%d:%d", pDnode->dnodeId, pDnode->lastAccess,
              htons(pStatus->openVnodes), pDnode->openVnodes);
     }
   }
@@ -557,7 +593,9 @@ static int32_t mnodeProcessDnodeStatusMsg(SMnodeMsg *pMsg) {
   for (int32_t j = 0; j < openVnodes; ++j) {
     SVnodeLoad *pVload = &pStatus->load[j];
     pVload->vgId = htonl(pVload->vgId);
-    pVload->cfgVersion = htonl(pVload->cfgVersion);
+    pVload->dbCfgVersion = htonl(pVload->dbCfgVersion);
+    pVload->vgCfgVersion = htonl(pVload->vgCfgVersion);
+    pVload->vnodeVersion = htobe64(pVload->vnodeVersion);
 
     SVgObj *pVgroup = mnodeGetVgroup(pVload->vgId);
     if (pVgroup == NULL) {
@@ -589,6 +627,12 @@ static int32_t mnodeProcessDnodeStatusMsg(SMnodeMsg *pMsg) {
     pDnode->status = TAOS_DN_STATUS_READY;
     pDnode->offlineReason = TAOS_DN_OFF_ONLINE;
     bnCheckModules();
+    bnNotify();
+  }
+
+  int32_t numOfMnodes = mnodeGetMnodesNum();
+  if (numOfMnodes < tsNumOfMnodes && numOfMnodes < mnodeGetOnlineDnodesNum()
+      && bnDnodeCanCreateMnode(pDnode)) {
     bnNotify();
   }
 
@@ -624,9 +668,9 @@ static int32_t mnodeCreateDnode(char *ep, SMnodeMsg *pMsg) {
 
   char *temp = strchr(dnodeEp, ':');
   if (!temp) {
-    int len = strlen(dnodeEp);
+    int32_t len = (int32_t)strlen(dnodeEp);
     if (dnodeEp[len - 1] == ';') dnodeEp[len - 1] = 0;
-    len = strlen(dnodeEp);
+    len = (int32_t)strlen(dnodeEp);
     snprintf(dnodeEp + len, TSDB_EP_LEN - len, ":%d", tsServerPort);
   }
   ep = dnodeEp;
@@ -686,6 +730,10 @@ int32_t mnodeDropDnode(SDnodeObj *pDnode, void *pMsg) {
 static int32_t mnodeDropDnodeByEp(char *ep, SMnodeMsg *pMsg) {
   SDnodeObj *pDnode = mnodeGetDnodeByEp(ep);
   if (pDnode == NULL) {
+    if (strspn(ep, "0123456789 ;") != strlen(ep)) {
+      return TSDB_CODE_MND_DNODE_NOT_EXIST;
+    }
+
     int32_t dnodeId = (int32_t)strtol(ep, NULL, 10);
     pDnode = mnodeGetDnode(dnodeId);
     if (pDnode == NULL) {
@@ -698,6 +746,14 @@ static int32_t mnodeDropDnodeByEp(char *ep, SMnodeMsg *pMsg) {
     mError("dnode:%d, can't drop dnode:%s which is master", pDnode->dnodeId, ep);
     mnodeDecDnodeRef(pDnode);
     return TSDB_CODE_MND_NO_REMOVE_MASTER;
+  }
+
+  int32_t maxReplica = mnodeGetDbMaxReplica();
+  int32_t dnodesNum = mnodeGetDnodesNum();
+  if (dnodesNum <= maxReplica) {
+    mError("dnode:%d, can't drop dnode:%s, #dnodes: %d, replia: %d", pDnode->dnodeId, ep, dnodesNum, maxReplica);
+    mnodeDecDnodeRef(pDnode);
+    return TSDB_CODE_MND_NO_ENOUGH_DNODES;
   }
 
   mInfo("dnode:%d, start to drop it", pDnode->dnodeId);
@@ -745,7 +801,7 @@ static int32_t mnodeGetDnodeMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pC
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
   cols++;
 
-  pShow->bytes[cols] = 40 + VARSTR_HEADER_SIZE;
+  pShow->bytes[cols] = TSDB_EP_LEN + VARSTR_HEADER_SIZE;
   pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
   strcpy(pSchema[cols].name, "end_point");
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
@@ -796,6 +852,10 @@ static int32_t mnodeGetDnodeMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pC
   }
 
   pShow->numOfRows = mnodeGetDnodesNum();
+  if (tsArbitrator[0] != 0) {
+    pShow->numOfRows++;
+  }
+
   pShow->rowSize = pShow->offset[cols - 1] + pShow->bytes[cols - 1];
   pShow->pIter = NULL;
 
@@ -807,7 +867,7 @@ static int32_t mnodeGetDnodeMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pC
 static int32_t mnodeRetrieveDnodes(SShowObj *pShow, char *data, int32_t rows, void *pConn) {
   int32_t    numOfRows = 0;
   int32_t    cols      = 0;
-  SDnodeObj *pDnode   = NULL;
+  SDnodeObj *pDnode    = NULL;
   char      *pWrite;
 
   while (numOfRows < rows) {
@@ -833,12 +893,12 @@ static int32_t mnodeRetrieveDnodes(SShowObj *pShow, char *data, int32_t rows, vo
     cols++;
     
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;  
-    char* status = mnodeGetDnodeStatusStr(pDnode->status);
+    char* status = dnodeStatus[pDnode->status];
     STR_TO_VARSTR(pWrite, status);
     cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;  
-    char* role = mnodeGetDnodeAlternativeRoleStr(pDnode->alternativeRole);
+    char* role = dnodeRoles[pDnode->alternativeRole];
     STR_TO_VARSTR(pWrite, role);
     cols++;
 
@@ -850,8 +910,47 @@ static int32_t mnodeRetrieveDnodes(SShowObj *pShow, char *data, int32_t rows, vo
     STR_TO_VARSTR(pWrite, offlineReason[pDnode->offlineReason]);
     cols++;
 
-     numOfRows++;
+    numOfRows++;
     mnodeDecDnodeRef(pDnode);
+  }
+
+  if (tsArbitrator[0] != 0) {
+    cols = 0;
+
+    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+    *(int16_t *)pWrite = 0;
+    cols++;
+
+    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+    STR_WITH_MAXSIZE_TO_VARSTR(pWrite, tsArbitrator, pShow->bytes[cols]);
+    cols++;
+
+    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+    *(int16_t *)pWrite = 0;
+    cols++;
+
+    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+    *(int16_t *)pWrite = 0;
+    cols++;
+
+    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+    char *status = dnodeStatus[tsArbOnline > 0 ? TAOS_DN_STATUS_READY : TAOS_DN_STATUS_OFFLINE];
+    STR_TO_VARSTR(pWrite, status);
+    cols++;
+
+    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+    STR_TO_VARSTR(pWrite, "arb");
+    cols++;
+
+    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+    *(int64_t *)pWrite = tsArbOnlineTimestamp;
+    cols++;
+
+    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+    STR_TO_VARSTR(pWrite, "-");
+    cols++;
+
+    numOfRows++;
   }
 
   mnodeVacuumResult(data, pShow->numOfColumns, numOfRows, rows, pShow);
@@ -1031,6 +1130,11 @@ static int32_t mnodeRetrieveConfigs(SShowObj *pShow, char *data, int32_t rows, v
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
     switch (cfg->valType) {
+      case TAOS_CFG_VTYPE_INT8:
+        t = snprintf(varDataVal(pWrite), TSDB_CFG_VALUE_LEN, "%d", *((int8_t *)cfg->ptr));
+        varDataSetLen(pWrite, t);
+        numOfRows++;
+        break;
       case TAOS_CFG_VTYPE_INT16:
         t = snprintf(varDataVal(pWrite), TSDB_CFG_VALUE_LEN, "%d", *((int16_t *)cfg->ptr));
         varDataSetLen(pWrite, t);
@@ -1042,6 +1146,7 @@ static int32_t mnodeRetrieveConfigs(SShowObj *pShow, char *data, int32_t rows, v
         numOfRows++;
         break;
       case TAOS_CFG_VTYPE_FLOAT:
+      case TAOS_CFG_VTYPE_DOUBLE:
         t = snprintf(varDataVal(pWrite), TSDB_CFG_VALUE_LEN, "%f", *((float *)cfg->ptr));
         varDataSetLen(pWrite, t);
         numOfRows++;
@@ -1154,21 +1259,44 @@ static int32_t mnodeRetrieveVnodes(SShowObj *pShow, char *data, int32_t rows, vo
   return numOfRows;
 }
 
-char* mnodeGetDnodeStatusStr(int32_t dnodeStatus) {
-  switch (dnodeStatus) {
-    case TAOS_DN_STATUS_OFFLINE:   return "offline";
-    case TAOS_DN_STATUS_DROPPING:  return "dropping";
-    case TAOS_DN_STATUS_BALANCING: return "balancing";
-    case TAOS_DN_STATUS_READY:     return "ready";
-    default:                       return "undefined";
-  }
-}
+char* dnodeStatus[] = {
+  "offline",
+  "dropping",
+  "balancing",
+  "ready",
+  "undefined"
+};
 
-static char* mnodeGetDnodeAlternativeRoleStr(int32_t alternativeRole) {
-  switch (alternativeRole) {
-    case TAOS_DN_ALTERNATIVE_ROLE_ANY: return "any";
-    case TAOS_DN_ALTERNATIVE_ROLE_MNODE: return "mnode";
-    case TAOS_DN_ALTERNATIVE_ROLE_VNODE: return "vnode";
-    default:return "any";
+char* dnodeRoles[] = {
+  "any",
+  "mnode",
+  "vnode",
+  "any"
+};
+
+int32_t mnodeCompactDnodes() {
+  SDnodeObj *pDnode = NULL;
+  void *     pIter = NULL;
+
+  mInfo("start to compact dnodes table...");
+
+  while (1) {
+    pIter = mnodeGetNextDnode(pIter, &pDnode);
+    if (pDnode == NULL) break;
+
+    SSdbRow row = {
+      .type    = SDB_OPER_GLOBAL,
+      .pTable  = tsDnodeSdb,
+      .pObj    = pDnode,
+      .rowSize = sizeof(SDnodeObj),
+    };
+
+    mInfo("compact dnode %d", pDnode->dnodeId);
+    
+    sdbInsertCompactRow(&row);
   }
+
+  mInfo("end to compact dnodes table...");
+
+  return 0;
 }

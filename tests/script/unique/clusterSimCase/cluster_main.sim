@@ -88,8 +88,8 @@ sql connect
 print ============== step1: add dnode2/dnode3 into cluster
 sql create dnode $hostname2
 sql create dnode $hostname3
-sleep 3000
-sleep 3000
+sleep 2000
+sleep 2000
 print ============== step3: start back client-01.sim
 #run_back unique/clusterSimCase/client-01.sim
 #run_back unique/clusterSimCase/client-02.sim
@@ -142,7 +142,7 @@ if $vg2Dnode2Status != master then
 endi
 
 
-sleep 3000
+sleep 2000
 print ============== step3: restart dnode3
 system sh/exec.sh -n dnode3 -s start
 
@@ -174,7 +174,7 @@ if $vg2Dnode2Status != master then
   goto wait_vgroup_chang_1
 endi
 
-sleep 3000
+sleep 2000
 print ============== step4: stop dnode2
 system sh/exec.sh -n dnode2 -s stop -x SIGINT
 
@@ -207,7 +207,7 @@ if $vg2Dnode2Status != offline then
 endi
 
 
-sleep 3000
+sleep 2000
 print ============== step5: restart dnode2
 system sh/exec.sh -n dnode2 -s start
 
@@ -239,7 +239,7 @@ if $vg2Dnode3Status != master then
   goto wait_vgroup_chang_3
 endi
 
-sleep 3000
+sleep 2000
 print **** **** **** (loop_cnt: $loop_cnt ) end, continue...... **** **** **** ****
 $loop_cnt = $loop_cnt + 1
 if $loop_cnt == 50 then

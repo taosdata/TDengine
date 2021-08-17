@@ -23,7 +23,7 @@ system sh/cfg.sh -n dnode4 -c wallevel -v 2
 print ========== step1
 system sh/exec.sh -n dnode1 -s start
 sql connect
-sleep 3000
+sleep 2000
 
 print ========== step2
 sql create dnode $hostname2
@@ -36,7 +36,7 @@ system sh/exec.sh -n dnode4 -s start
 $x = 0
 show2: 
 	$x = $x + 1
-	sleep 3000
+	sleep 2000
 	if $x == 10 then 
 		return -1
 	endi
@@ -71,7 +71,7 @@ sql insert into d1.t1 values(now+5s, 31)
 $x = 0
 show3: 
 	$x = $x + 1
-	sleep 3000
+	sleep 2000
 	if $x == 10 then 
 		return -1
 	endi

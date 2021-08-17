@@ -12,7 +12,7 @@ static double getCurTime() {
 }
 
 typedef struct {
-  TSDB_REPO_T *pRepo;
+  STsdbRepo *pRepo;
   bool       isAscend;
   int        tid;
   uint64_t   uid;
@@ -55,10 +55,10 @@ static int insertData(SInsertInfo *pInfo) {
       for (int j = 0; j < schemaNCols(pInfo->pSchema); j++) {
         STColumn *pTCol = schemaColAt(pInfo->pSchema, j);
         if (j == 0) {  // Just for timestamp
-          tdAppendColVal(row, (void *)(&start_time), pTCol->type, pTCol->bytes, pTCol->offset);
+          tdAppendColVal(row, (void *)(&start_time), pTCol->type, pTCol->offset);
         } else {  // For int
           int val = 10;
-          tdAppendColVal(row, (void *)(&val), pTCol->type, pTCol->bytes, pTCol->offset);
+          tdAppendColVal(row, (void *)(&val), pTCol->type, pTCol->offset);
         }
       }
       pBlock->dataLen += dataRowLen(row);
@@ -143,7 +143,7 @@ TEST(TsdbTest, testInsertSpeed) {
   // Create and open repository
   tsdbSetCfg(&tsdbCfg, 1, 16, 4, -1, -1, -1, -1, -1, -1, -1);
   tsdbCreateRepo(rootDir, &tsdbCfg);
-  TSDB_REPO_T *repo = tsdbOpenRepo(rootDir, NULL);
+  STsdbRepo *repo = tsdbOpenRepo(rootDir, NULL);
   ASSERT_NE(repo, nullptr);
 
   // Create table

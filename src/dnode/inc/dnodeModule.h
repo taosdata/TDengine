@@ -23,8 +23,7 @@ extern "C" {
 
 int32_t dnodeInitModules();
 void    dnodeCleanupModules();
-bool    dnodeStartMnode(SMInfos *pMinfos);
-void    dnodeProcessModuleStatus(uint32_t moduleStatus);
+int32_t dnodeStartMnode(SMInfos *pMinfos);
 
 #ifdef __cplusplus
 }

@@ -26,7 +26,7 @@ typedef struct {
   char widthOnScreen;
 } UTFCodeInfo;
 
-int countPrefixOnes(char c) {
+int countPrefixOnes(unsigned char c) {
   unsigned char mask = 127;
   mask = ~mask;
   int ret = 0;
@@ -48,7 +48,7 @@ void getPrevCharSize(const char *str, int pos, int *size, int *width) {
   while (--pos >= 0) {
     *size += 1;
 
-    if (str[pos] > 0 || countPrefixOnes(str[pos]) > 1) break;
+    if (str[pos] > 0 || countPrefixOnes((unsigned char )str[pos]) > 1) break;
   }
 
   int rc = mbtowc(&wc, str + pos, MB_CUR_MAX);
@@ -100,6 +100,28 @@ void backspaceChar(Command *cmd) {
     cmd->endOffset -= width;
     showOnScreen(cmd);
   }
+}
+
+void clearLineBefore(Command *cmd) {
+  assert(cmd->cursorOffset <= cmd->commandSize && cmd->endOffset >= cmd->screenOffset);
+
+  clearScreen(cmd->endOffset + prompt_size, cmd->screenOffset + prompt_size);
+  memmove(cmd->command, cmd->command + cmd->cursorOffset,
+          cmd->commandSize - cmd->cursorOffset);
+  cmd->commandSize -= cmd->cursorOffset;
+  cmd->cursorOffset = 0;
+  cmd->screenOffset = 0;
+  cmd->endOffset = cmd->commandSize;
+  showOnScreen(cmd);
+}
+
+void clearLineAfter(Command *cmd) {
+  assert(cmd->cursorOffset <= cmd->commandSize && cmd->endOffset >= cmd->screenOffset);
+
+  clearScreen(cmd->endOffset + prompt_size, cmd->screenOffset + prompt_size);
+  cmd->commandSize -= cmd->endOffset - cmd->cursorOffset;
+  cmd->endOffset = cmd->cursorOffset;
+  showOnScreen(cmd);
 }
 
 void deleteChar(Command *cmd) {
@@ -238,7 +260,7 @@ void resetCommand(Command *cmd, const char s[]) {
   clearScreen(cmd->endOffset + prompt_size, cmd->screenOffset + prompt_size);
   memset(cmd->buffer, 0, MAX_COMMAND_SIZE);
   memset(cmd->command, 0, MAX_COMMAND_SIZE);
-  strcpy(cmd->command, s);
+  strncpy(cmd->command, s, MAX_COMMAND_SIZE);
   int size = 0;
   int width = 0;
   getMbSizeInfo(s, &size, &width);

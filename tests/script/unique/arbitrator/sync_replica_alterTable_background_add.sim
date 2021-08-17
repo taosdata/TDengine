@@ -14,6 +14,9 @@ sql alter table $stb add column f1 float
 $tblNum = $totalTableNum
 $alterTblNum = 10
 
+sql reset query cache 
+sleep 100
+
 $i = 1
 while $i < $alterTblNum
   $tb = tb . $i

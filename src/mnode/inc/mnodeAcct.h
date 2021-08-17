@@ -35,6 +35,8 @@ void    mnodeDropDbFromAcct(SAcctObj *pAcct, SDbObj *pDb);
 void    mnodeAddUserToAcct(SAcctObj *pAcct, SUserObj *pUser);
 void    mnodeDropUserFromAcct(SAcctObj *pAcct, SUserObj *pUser);
 
+int32_t mnodeCompactAccts();
+
 #ifdef __cplusplus
 }
 #endif

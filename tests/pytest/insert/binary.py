@@ -4,6 +4,8 @@ import sys
 from util.log import *
 from util.cases import *
 from util.sql import *
+import subprocess
+import os
 
 
 class TDTestCase:
@@ -50,6 +52,10 @@ class TDTestCase:
         tdLog.info('==> $data00')
         tdLog.info("tdSql.checkData(0, 0, '34567')")
         tdSql.checkData(0, 0, '34567')
+        tdLog.info("insert into tb values (now+4a, \"'';\")")
+        config_dir = subprocess.check_output(str("ps -ef |grep dnode1|grep -v grep |awk '{print $NF}'"), stderr=subprocess.STDOUT, shell=True).decode('utf-8').replace('\n', '')
+        result = ''.join(os.popen(r"""taos  -s "insert into db.tb values (now+4a, \"'';\")" -c %s"""%(config_dir)).readlines())
+        if "Query OK" not in result: tdLog.exit("err:insert '';")            
         tdLog.info('drop database db')
         tdSql.execute('drop database db')
         tdLog.info('show databases')

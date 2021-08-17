@@ -30,6 +30,8 @@ static taos_queue  tsVMgmtQueue = NULL;
 static void *  dnodeProcessMgmtQueue(void *param);
 static int32_t dnodeProcessCreateVnodeMsg(SRpcMsg *pMsg);
 static int32_t dnodeProcessAlterVnodeMsg(SRpcMsg *pMsg);
+static int32_t dnodeProcessSyncVnodeMsg(SRpcMsg *pMsg);
+static int32_t dnodeProcessCompactVnodeMsg(SRpcMsg *pMsg);
 static int32_t dnodeProcessDropVnodeMsg(SRpcMsg *pMsg);
 static int32_t dnodeProcessAlterStreamMsg(SRpcMsg *pMsg);
 static int32_t dnodeProcessConfigDnodeMsg(SRpcMsg *pMsg);
@@ -39,6 +41,8 @@ static int32_t (*dnodeProcessMgmtMsgFp[TSDB_MSG_TYPE_MAX])(SRpcMsg *pMsg);
 int32_t dnodeInitVMgmt() {
   dnodeProcessMgmtMsgFp[TSDB_MSG_TYPE_MD_CREATE_VNODE] = dnodeProcessCreateVnodeMsg;
   dnodeProcessMgmtMsgFp[TSDB_MSG_TYPE_MD_ALTER_VNODE]  = dnodeProcessAlterVnodeMsg;
+  dnodeProcessMgmtMsgFp[TSDB_MSG_TYPE_MD_SYNC_VNODE]   = dnodeProcessSyncVnodeMsg;
+  dnodeProcessMgmtMsgFp[TSDB_MSG_TYPE_MD_COMPACT_VNODE]= dnodeProcessCompactVnodeMsg;
   dnodeProcessMgmtMsgFp[TSDB_MSG_TYPE_MD_DROP_VNODE]   = dnodeProcessDropVnodeMsg;
   dnodeProcessMgmtMsgFp[TSDB_MSG_TYPE_MD_ALTER_STREAM] = dnodeProcessAlterStreamMsg;
   dnodeProcessMgmtMsgFp[TSDB_MSG_TYPE_MD_CONFIG_DNODE] = dnodeProcessConfigDnodeMsg;
@@ -99,6 +103,8 @@ static void *dnodeProcessMgmtQueue(void *wparam) {
   int32_t      qtype;
   void *       handle;
 
+  setThreadName("dnodeMgmtQ");
+
   while (1) {
     if (taosReadQitemFromQset(pPool->qset, &qtype, (void **)&pMgmt, &handle) == 0) {
       dDebug("qdnode mgmt got no message from qset:%p, , exit", pPool->qset);
@@ -129,7 +135,8 @@ static void *dnodeProcessMgmtQueue(void *wparam) {
 static SCreateVnodeMsg* dnodeParseVnodeMsg(SRpcMsg *rpcMsg) {
   SCreateVnodeMsg *pCreate = rpcMsg->pCont;
   pCreate->cfg.vgId                = htonl(pCreate->cfg.vgId);
-  pCreate->cfg.cfgVersion          = htonl(pCreate->cfg.cfgVersion);
+  pCreate->cfg.dbCfgVersion        = htonl(pCreate->cfg.dbCfgVersion);
+  pCreate->cfg.vgCfgVersion        = htonl(pCreate->cfg.vgCfgVersion);
   pCreate->cfg.maxTables           = htonl(pCreate->cfg.maxTables);
   pCreate->cfg.cacheBlockSize      = htonl(pCreate->cfg.cacheBlockSize);
   pCreate->cfg.totalBlocks         = htonl(pCreate->cfg.totalBlocks);
@@ -142,7 +149,7 @@ static SCreateVnodeMsg* dnodeParseVnodeMsg(SRpcMsg *rpcMsg) {
   pCreate->cfg.fsyncPeriod         = htonl(pCreate->cfg.fsyncPeriod);
   pCreate->cfg.commitTime          = htonl(pCreate->cfg.commitTime);
 
-  for (int32_t j = 0; j < pCreate->cfg.replications; ++j) {
+  for (int32_t j = 0; j < pCreate->cfg.vgReplica; ++j) {
     pCreate->nodes[j].nodeId = htonl(pCreate->nodes[j].nodeId);
   }
 
@@ -151,7 +158,6 @@ static SCreateVnodeMsg* dnodeParseVnodeMsg(SRpcMsg *rpcMsg) {
 
 static int32_t dnodeProcessCreateVnodeMsg(SRpcMsg *rpcMsg) {
   SCreateVnodeMsg *pCreate = dnodeParseVnodeMsg(rpcMsg);
-
   void *pVnode = vnodeAcquire(pCreate->cfg.vgId);
   if (pVnode != NULL) {
     dDebug("vgId:%d, already exist, return success", pCreate->cfg.vgId);
@@ -166,16 +172,29 @@ static int32_t dnodeProcessCreateVnodeMsg(SRpcMsg *rpcMsg) {
 static int32_t dnodeProcessAlterVnodeMsg(SRpcMsg *rpcMsg) {
   SAlterVnodeMsg *pAlter = dnodeParseVnodeMsg(rpcMsg);
 
-  void *pVnode = vnodeAcquire(pAlter->cfg.vgId);
+  void *pVnode = vnodeAcquireNotClose(pAlter->cfg.vgId);
   if (pVnode != NULL) {
     dDebug("vgId:%d, alter vnode msg is received", pAlter->cfg.vgId);
     int32_t code = vnodeAlter(pVnode, pAlter);
     vnodeRelease(pVnode);
     return code;
   } else {
-    dError("vgId:%d, vnode not exist, can't alter it", pAlter->cfg.vgId);
+    dInfo("vgId:%d, vnode not exist, can't alter it", pAlter->cfg.vgId);
     return TSDB_CODE_VND_INVALID_VGROUP_ID;
   }
+}
+
+static int32_t dnodeProcessSyncVnodeMsg(SRpcMsg *rpcMsg) {
+  SSyncVnodeMsg *pSyncVnode = rpcMsg->pCont;
+  pSyncVnode->vgId = htonl(pSyncVnode->vgId);
+
+  return vnodeSync(pSyncVnode->vgId);
+}
+
+static int32_t dnodeProcessCompactVnodeMsg(SRpcMsg *rpcMsg) {
+  SCompactVnodeMsg *pCompactVnode = rpcMsg->pCont;
+  pCompactVnode->vgId = htonl(pCompactVnode->vgId);
+  return vnodeCompact(pCompactVnode->vgId);
 }
 
 static int32_t dnodeProcessDropVnodeMsg(SRpcMsg *rpcMsg) {
@@ -213,7 +232,5 @@ static int32_t dnodeProcessCreateMnodeMsg(SRpcMsg *pMsg) {
     dDebug("mnode index:%d, mnode:%d:%s", i, pCfg->mnodes.mnodeInfos[i].mnodeId, pCfg->mnodes.mnodeInfos[i].mnodeEp);
   }
 
-  dnodeStartMnode(&pCfg->mnodes);
-
-  return TSDB_CODE_SUCCESS;
+  return dnodeStartMnode(&pCfg->mnodes);
 }

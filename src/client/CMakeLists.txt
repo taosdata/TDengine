@@ -1,4 +1,4 @@
-CMAKE_MINIMUM_REQUIRED(VERSION 2.8)
+CMAKE_MINIMUM_REQUIRED(VERSION 2.8...3.20)
 PROJECT(TDengine)
 
 INCLUDE_DIRECTORIES(inc)
@@ -11,18 +11,44 @@ IF (TD_LINUX)
 
   # set the static lib name
   ADD_LIBRARY(taos_static STATIC ${SRC})
-  TARGET_LINK_LIBRARIES(taos_static common query trpc tutil pthread m rt)
+  TARGET_LINK_LIBRARIES(taos_static common query trpc tutil pthread m rt ${VAR_TSZ})
   SET_TARGET_PROPERTIES(taos_static PROPERTIES OUTPUT_NAME "taos_static")
   SET_TARGET_PROPERTIES(taos_static PROPERTIES CLEAN_DIRECT_OUTPUT 1)
 
   # generate dynamic library (*.so)
   ADD_LIBRARY(taos SHARED ${SRC})
   TARGET_LINK_LIBRARIES(taos common query trpc tutil pthread m rt)
+  IF (TD_LINUX_64)
+    TARGET_LINK_LIBRARIES(taos lua)
+  ENDIF ()
+
   SET_TARGET_PROPERTIES(taos PROPERTIES CLEAN_DIRECT_OUTPUT 1)
 
   #set version of .so
   #VERSION    so version
   #SOVERSION  api version
+  #MESSAGE(STATUS "build version ${TD_VER_NUMBER}")
+  SET_TARGET_PROPERTIES(taos PROPERTIES VERSION ${TD_VER_NUMBER} SOVERSION 1)
+
+  ADD_SUBDIRECTORY(tests)
+
+ELSEIF (TD_DARWIN)
+  INCLUDE_DIRECTORIES(${TD_COMMUNITY_DIR}/deps/jni/linux)
+
+  # set the static lib name
+  ADD_LIBRARY(taos_static STATIC ${SRC})
+  TARGET_LINK_LIBRARIES(taos_static common query trpc tutil pthread m lua)
+  SET_TARGET_PROPERTIES(taos_static PROPERTIES OUTPUT_NAME "taos_static")
+  SET_TARGET_PROPERTIES(taos_static PROPERTIES CLEAN_DIRECT_OUTPUT 1)
+
+  # generate dynamic library (*.dylib)
+  ADD_LIBRARY(taos SHARED ${SRC})
+  TARGET_LINK_LIBRARIES(taos common query trpc tutil pthread m lua)
+  SET_TARGET_PROPERTIES(taos PROPERTIES CLEAN_DIRECT_OUTPUT 1)
+
+  #set version of .dylib
+  #VERSION    dylib version
+  #SOVERSION  dylib version
   #MESSAGE(STATUS "build version ${TD_VER_NUMBER}")
   SET_TARGET_PROPERTIES(taos PROPERTIES VERSION ${TD_VER_NUMBER} SOVERSION 1)
 
@@ -42,19 +68,19 @@ ELSEIF (TD_WINDOWS)
   IF (NOT TD_GODLL)
     SET_TARGET_PROPERTIES(taos PROPERTIES LINK_FLAGS /DEF:${TD_COMMUNITY_DIR}/src/client/src/taos.def)
   ENDIF ()
-  TARGET_LINK_LIBRARIES(taos trpc tutil query)
+  TARGET_LINK_LIBRARIES(taos trpc tutil query lua)
 
 ELSEIF (TD_DARWIN)
   SET(CMAKE_MACOSX_RPATH 1)
   INCLUDE_DIRECTORIES(${TD_COMMUNITY_DIR}/deps/jni/linux)
 
   ADD_LIBRARY(taos_static STATIC ${SRC})
-  TARGET_LINK_LIBRARIES(taos_static trpc tutil pthread m)
+  TARGET_LINK_LIBRARIES(taos_static query trpc tutil pthread m lua)
   SET_TARGET_PROPERTIES(taos_static PROPERTIES OUTPUT_NAME "taos_static")
 
   # generate dynamic library (*.dylib)
   ADD_LIBRARY(taos SHARED ${SRC})
-  TARGET_LINK_LIBRARIES(taos trpc tutil pthread m)
+  TARGET_LINK_LIBRARIES(taos query trpc tutil pthread m lua)
 
   SET_TARGET_PROPERTIES(taos PROPERTIES CLEAN_DIRECT_OUTPUT 1)
 

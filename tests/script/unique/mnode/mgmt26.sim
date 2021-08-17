@@ -90,7 +90,7 @@ print ============== step5
 system sh/exec.sh -n dnode2 -s stop
 system sh/deploy.sh -n dnode2 -i 2
 system sh/cfg.sh -n dnode2 -c numOfMnodes -v 2
-sleep 5000
+sleep 3000
 system sh/exec.sh -n dnode2 -s start
 sql create dnode $hostname2
 sleep 6000

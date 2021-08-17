@@ -1,3 +1,17 @@
+/*
+ * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
+ *
+ * This program is free software: you can use, redistribute, and/or modify
+ * it under the terms of the GNU Affero General Public License, version 3
+ * or later ("AGPL"), as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
 
 #include "os.h"
 #include "tkey.h"
@@ -141,26 +155,26 @@ void generate_key(unsigned char* key) {
   }
 }
 
-void print_key_set(key_set key_set) {
+void print_key_set(key_set _key_set) {
   int i;
   printf("K: \n");
   for (i = 0; i < 8; i++) {
-    printf("%02X : ", key_set.k[i]);
-    print_char_as_binary(key_set.k[i]);
+    printf("%02X : ", _key_set.k[i]);
+    print_char_as_binary(_key_set.k[i]);
     printf("\n");
   }
   printf("\nC: \n");
 
   for (i = 0; i < 4; i++) {
-    printf("%02X : ", key_set.c[i]);
-    print_char_as_binary(key_set.c[i]);
+    printf("%02X : ", _key_set.c[i]);
+    print_char_as_binary(_key_set.c[i]);
     printf("\n");
   }
   printf("\nD: \n");
 
   for (i = 0; i < 4; i++) {
-    printf("%02X : ", key_set.d[i]);
-    print_char_as_binary(key_set.d[i]);
+    printf("%02X : ", _key_set.d[i]);
+    print_char_as_binary(_key_set.d[i]);
     printf("\n");
   }
   printf("\n");

@@ -43,10 +43,12 @@ int32_t dnodeInitServer() {
 
   dnodeProcessReqMsgFp[TSDB_MSG_TYPE_MD_CREATE_VNODE] = dnodeDispatchToVMgmtQueue; 
   dnodeProcessReqMsgFp[TSDB_MSG_TYPE_MD_ALTER_VNODE]  = dnodeDispatchToVMgmtQueue; 
+  dnodeProcessReqMsgFp[TSDB_MSG_TYPE_MD_SYNC_VNODE]  = dnodeDispatchToVMgmtQueue;
   dnodeProcessReqMsgFp[TSDB_MSG_TYPE_MD_DROP_VNODE]   = dnodeDispatchToVMgmtQueue;
   dnodeProcessReqMsgFp[TSDB_MSG_TYPE_MD_ALTER_STREAM] = dnodeDispatchToVMgmtQueue;
   dnodeProcessReqMsgFp[TSDB_MSG_TYPE_MD_CONFIG_DNODE] = dnodeDispatchToVMgmtQueue;
-  dnodeProcessReqMsgFp[TSDB_MSG_TYPE_MD_CREATE_MNODE] = dnodeDispatchToVMgmtQueue;
+  dnodeProcessReqMsgFp[TSDB_MSG_TYPE_MD_CREATE_MNODE] = dnodeDispatchToVMgmtQueue; 
+  dnodeProcessReqMsgFp[TSDB_MSG_TYPE_MD_COMPACT_VNODE] = dnodeDispatchToVMgmtQueue; 
 
   dnodeProcessReqMsgFp[TSDB_MSG_TYPE_DM_CONFIG_TABLE] = dnodeDispatchToMPeerQueue;
   dnodeProcessReqMsgFp[TSDB_MSG_TYPE_DM_CONFIG_VNODE] = dnodeDispatchToMPeerQueue;
@@ -60,7 +62,7 @@ int32_t dnodeInitServer() {
   rpcInit.label        = "DND-S";
   rpcInit.numOfThreads = 1;
   rpcInit.cfp          = dnodeProcessReqMsgFromDnode;
-  rpcInit.sessions     = TSDB_MAX_VNODES;
+  rpcInit.sessions     = TSDB_MAX_VNODES << 4;
   rpcInit.connType     = TAOS_CONN_SERVER;
   rpcInit.idleTime     = tsShellActivityTimer * 1000;
 
@@ -90,7 +92,10 @@ static void dnodeProcessReqMsgFromDnode(SRpcMsg *pMsg, SRpcEpSet *pEpSet) {
   };
 
   if (pMsg->pCont == NULL) return;
-  if (pMsg->msgType == TSDB_MSG_TYPE_NETWORK_TEST) return dnodeSendStartupStep(pMsg);
+  if (pMsg->msgType == TSDB_MSG_TYPE_NETWORK_TEST) {
+    dnodeSendStartupStep(pMsg);
+    return;
+  }
 
   if (dnodeGetRunStatus() != TSDB_RUN_STATUS_RUNING) {
     rspMsg.code = TSDB_CODE_APP_NOT_READY;
@@ -123,7 +128,7 @@ int32_t dnodeInitClient() {
   rpcInit.label        = "DND-C";
   rpcInit.numOfThreads = 1;
   rpcInit.cfp          = dnodeProcessRspFromDnode;
-  rpcInit.sessions     = TSDB_MAX_VNODES;
+  rpcInit.sessions     = TSDB_MAX_VNODES << 4;
   rpcInit.connType     = TAOS_CONN_CLIENT;
   rpcInit.idleTime     = tsShellActivityTimer * 1000;
   rpcInit.user         = "t";

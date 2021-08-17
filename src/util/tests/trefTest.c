@@ -14,18 +14,18 @@ typedef struct {
   int     refNum;
   int     steps;
   int     rsetId;
-  int64_t rid;
+  int64_t*rid;
   void  **p;
 } SRefSpace;
 
 void iterateRefs(int rsetId) {
   int  count = 0;
 
-  void *p = taosIterateRef(rsetId, NULL);
+  void *p = taosIterateRef(rsetId, 0);
   while (p) {
     // process P
     count++;
-    p = taosIterateRef(rsetId, p);
+    p = taosIterateRef(rsetId, (int64_t) p);
   }    
 
   printf(" %d ", count); 
@@ -34,7 +34,6 @@ void iterateRefs(int rsetId) {
 void *addRef(void *param) {
   SRefSpace *pSpace = (SRefSpace *)param;
   int id;
-  int64_t rid;
 
   for (int i=0; i < pSpace->steps; ++i) {
     printf("a");
@@ -51,8 +50,7 @@ void *addRef(void *param) {
        
 void *removeRef(void *param) {
   SRefSpace *pSpace = (SRefSpace *)param;
-  int id;
-  int64_t rid;
+  int id, code;
 
   for (int i=0; i < pSpace->steps; ++i) {
     printf("d");
@@ -71,16 +69,15 @@ void *removeRef(void *param) {
 void *acquireRelease(void *param) {
   SRefSpace *pSpace = (SRefSpace *)param;
   int id;
-  int64_t rid;
 
   for (int i=0; i < pSpace->steps; ++i) {
     printf("a");
     
     id = random() % pSpace->refNum; 
-    void *p = taosAcquireRef(pSpace->rsetId, pSpace->p[id]);
+    void *p = taosAcquireRef(pSpace->rsetId, (int64_t) pSpace->p[id]);
     if (p) {
       usleep(id % 5 + 1);
-      taosReleaseRef(pSpace->rsetId, pSpace->p[id]);
+      taosReleaseRef(pSpace->rsetId, (int64_t) pSpace->p[id]);
     }
   }  
 
@@ -103,6 +100,7 @@ void *openRefSpace(void *param) {
   } 
 
   pSpace->p = (void **) calloc(sizeof(void *), pSpace->refNum);
+  pSpace->rid = calloc(pSpace->refNum, sizeof(int64_t));
 
   pthread_attr_t thattr;
   pthread_attr_init(&thattr);

@@ -1,0 +1,439 @@
+{
+    "filetype":"subscribe",
+    "cfgdir": "/etc/taos",
+    "host": "127.0.0.1",
+    "port": 6030,
+    "user": "root",
+    "password": "taosdata",
+    "databases": "db",
+    "confirm_parameter_prompt": "no",
+    "specified_table_query":
+      {
+       "concurrent":1, 
+       "mode":"async", 
+       "interval":0, 
+       "restart":"no", 
+       "keepProgress":"no",
+       "sqls": [
+        {
+          "sql": "select * from stb00_0", 
+          "result": "./subscribe_res1.txt"
+        },
+        {
+            "sql": "select * from stb00_1",
+            "result": "./subscribe_res0.txt"
+        },
+        {
+            "sql": "select * from stb00_2",
+            "result": "./subscribe_res0.txt"
+        },
+        {
+            "sql": "select * from stb00_3",
+            "result": "./subscribe_res0.txt"
+        },
+        {
+            "sql": "select * from stb00_4",
+            "result": "./subscribe_res0.txt"
+        },
+        {
+            "sql": "select * from stb00_5",
+            "result": "./subscribe_res0.txt"
+        },
+        {
+            "sql": "select * from stb00_6",
+            "result": "./subscribe_res0.txt"
+        },
+        {
+            "sql": "select * from stb00_7",
+            "result": "./subscribe_res0.txt"
+        },
+        {
+            "sql": "select * from stb00_8",
+            "result": "./subscribe_res0.txt"
+        },
+        {
+            "sql": "select * from stb00_9",
+            "result": "./subscribe_res0.txt"
+        },
+        {
+            "sql": "select * from stb00_10 ",
+            "result": "./subscribe_res0.txt"
+        },
+        {
+            "sql": "select * from stb00_11 ",
+            "result": "./subscribe_res0.txt"
+        },
+        {
+            "sql": "select * from stb00_12 ",
+            "result": "./subscribe_res0.txt"
+        },
+        {
+            "sql": "select * from stb00_13 ",
+            "result": "./subscribe_res0.txt"
+        },
+        {
+            "sql": "select * from stb00_14 ",
+            "result": "./subscribe_res0.txt"
+        },
+        {
+            "sql": "select * from stb00_15 ",
+            "result": "./subscribe_res0.txt"
+        },
+        {
+            "sql": "select * from stb00_16 ",
+            "result": "./subscribe_res0.txt"
+        },
+        {
+            "sql": "select * from stb00_17 ",
+            "result": "./subscribe_res0.txt"
+        },
+        {
+            "sql": "select * from stb00_18 ",
+            "result": "./subscribe_res0.txt"
+        },
+        {
+            "sql": "select * from stb00_19 ",
+            "result": "./subscribe_res0.txt"
+        },
+        {
+            "sql": "select * from stb00_20 ",
+            "result": "./subscribe_res0.txt"
+        },
+        {
+            "sql": "select * from stb00_21 ",
+            "result": "./subscribe_res0.txt"
+        },
+        {
+            "sql": "select * from stb00_22 ",
+            "result": "./subscribe_res0.txt"
+        },
+        {
+            "sql": "select * from stb00_23 ",
+            "result": "./subscribe_res0.txt"
+        },
+        {
+            "sql": "select * from stb00_24 ",
+            "result": "./subscribe_res0.txt"
+        },
+        {
+            "sql": "select * from stb00_25 ",
+            "result": "./subscribe_res0.txt"
+        },
+        {
+            "sql": "select * from stb00_26 ",
+            "result": "./subscribe_res0.txt"
+        },
+        {
+            "sql": "select * from stb00_27 ",
+            "result": "./subscribe_res0.txt"
+        },
+        {
+            "sql": "select * from stb00_28 ",
+            "result": "./subscribe_res0.txt"
+        },
+        {
+            "sql": "select * from stb00_29 ",
+            "result": "./subscribe_res0.txt"
+        },
+        {
+            "sql": "select * from stb00_30 ",
+            "result": "./subscribe_res0.txt"
+        },
+        {
+            "sql": "select * from stb00_31 ",
+            "result": "./subscribe_res0.txt"
+        },
+        {
+            "sql": "select * from stb00_32 ",
+            "result": "./subscribe_res0.txt"
+        },
+        {
+            "sql": "select * from stb00_33 ",
+            "result": "./subscribe_res0.txt"
+        },
+        {
+            "sql": "select * from stb00_34 ",
+            "result": "./subscribe_res0.txt"
+        },
+        {
+            "sql": "select * from stb00_35 ",
+            "result": "./subscribe_res0.txt"
+        },
+        {
+            "sql": "select * from stb00_36 ",
+            "result": "./subscribe_res0.txt"
+        },
+        {
+            "sql": "select * from stb00_37 ",
+            "result": "./subscribe_res0.txt"
+        },
+        {
+            "sql": "select * from stb00_38 ",
+            "result": "./subscribe_res0.txt"
+        },
+        {
+            "sql": "select * from stb00_39 ",
+            "result": "./subscribe_res0.txt"
+        },
+        {
+            "sql": "select * from stb00_40 ",
+            "result": "./subscribe_res0.txt"
+        },
+        {
+            "sql": "select * from stb00_41 ",
+            "result": "./subscribe_res0.txt"
+        },
+        {
+            "sql": "select * from stb00_42 ",
+            "result": "./subscribe_res0.txt"
+        },
+        {
+            "sql": "select * from stb00_43 ",
+            "result": "./subscribe_res0.txt"
+        },
+        {
+            "sql": "select * from stb00_44 ",
+            "result": "./subscribe_res0.txt"
+        },
+        {
+            "sql": "select * from stb00_45 ",
+            "result": "./subscribe_res0.txt"
+        },
+        {
+            "sql": "select * from stb00_46 ",
+            "result": "./subscribe_res0.txt"
+        },
+        {
+            "sql": "select * from stb00_47 ",
+            "result": "./subscribe_res0.txt"
+        },
+        {
+            "sql": "select * from stb00_48 ",
+            "result": "./subscribe_res0.txt"
+        },
+        {
+            "sql": "select * from stb00_49 ",
+            "result": "./subscribe_res0.txt"
+        },
+        {
+            "sql": "select * from stb00_50 ",
+            "result": "./subscribe_res0.txt"
+        },
+        {
+            "sql": "select * from stb00_51 ",
+            "result": "./subscribe_res0.txt"
+        },
+        {
+            "sql": "select * from stb00_52 ",
+            "result": "./subscribe_res0.txt"
+        },
+        {
+            "sql": "select * from stb00_53 ",
+            "result": "./subscribe_res0.txt"
+        },
+        {
+            "sql": "select * from stb00_54 ",
+            "result": "./subscribe_res0.txt"
+        },
+        {
+            "sql": "select * from stb00_55 ",
+            "result": "./subscribe_res0.txt"
+        },
+        {
+            "sql": "select * from stb00_56 ",
+            "result": "./subscribe_res0.txt"
+        },
+        {
+            "sql": "select * from stb00_57 ",
+            "result": "./subscribe_res0.txt"
+        },
+        {
+            "sql": "select * from stb00_58 ",
+            "result": "./subscribe_res0.txt"
+        },
+        {
+            "sql": "select * from stb00_59 ",
+            "result": "./subscribe_res0.txt"
+        },
+        {
+            "sql": "select * from stb00_60",
+            "result": "./subscribe_res0.txt"
+        },
+        {
+            "sql": "select * from stb00_61",
+            "result": "./subscribe_res0.txt"
+        },
+        {
+            "sql": "select * from stb00_62",
+            "result": "./subscribe_res0.txt"
+        },
+        {
+            "sql": "select * from stb00_63",
+            "result": "./subscribe_res0.txt"
+        },
+        {
+            "sql": "select * from stb00_64",
+            "result": "./subscribe_res0.txt"
+        },
+        {
+            "sql": "select * from stb00_65",
+            "result": "./subscribe_res0.txt"
+        },
+        {
+            "sql": "select * from stb00_66",
+            "result": "./subscribe_res0.txt"
+        },
+        {
+            "sql": "select * from stb00_67",
+            "result": "./subscribe_res0.txt"
+        },
+        {
+            "sql": "select * from stb00_68",
+            "result": "./subscribe_res0.txt"
+        },
+        {
+            "sql": "select * from stb00_69",
+            "result": "./subscribe_res0.txt"
+        },
+        {
+            "sql": "select * from stb00_70 ",
+            "result": "./subscribe_res0.txt"
+        },
+        {
+            "sql": "select * from stb00_71 ",
+            "result": "./subscribe_res0.txt"
+        },
+        {
+            "sql": "select * from stb00_72 ",
+            "result": "./subscribe_res0.txt"
+        },
+        {
+            "sql": "select * from stb00_73 ",
+            "result": "./subscribe_res0.txt"
+        },
+        {
+            "sql": "select * from stb00_74 ",
+            "result": "./subscribe_res0.txt"
+        },
+        {
+            "sql": "select * from stb00_75 ",
+            "result": "./subscribe_res0.txt"
+        },
+        {
+            "sql": "select * from stb00_76 ",
+            "result": "./subscribe_res0.txt"
+        },
+        {
+            "sql": "select * from stb00_77 ",
+            "result": "./subscribe_res0.txt"
+        },
+        {
+            "sql": "select * from stb00_78 ",
+            "result": "./subscribe_res0.txt"
+        },
+        {
+            "sql": "select * from stb00_79 ",
+            "result": "./subscribe_res0.txt"
+        },
+        {
+            "sql": "select * from stb00_80 ",
+            "result": "./subscribe_res0.txt"
+        },
+        {
+            "sql": "select * from stb00_81 ",
+            "result": "./subscribe_res0.txt"
+        },
+        {
+            "sql": "select * from stb00_82 ",
+            "result": "./subscribe_res0.txt"
+        },
+        {
+            "sql": "select * from stb00_83 ",
+            "result": "./subscribe_res0.txt"
+        },
+        {
+            "sql": "select * from stb00_84 ",
+            "result": "./subscribe_res0.txt"
+        },
+        {
+            "sql": "select * from stb00_85 ",
+            "result": "./subscribe_res0.txt"
+        },
+        {
+            "sql": "select * from stb00_86 ",
+            "result": "./subscribe_res0.txt"
+        },
+        {
+            "sql": "select * from stb00_87 ",
+            "result": "./subscribe_res0.txt"
+        },
+        {
+            "sql": "select * from stb00_88 ",
+            "result": "./subscribe_res0.txt"
+        },
+        {
+            "sql": "select * from stb00_89 ",
+            "result": "./subscribe_res0.txt"
+        },
+        {
+            "sql": "select * from stb00_90 ",
+            "result": "./subscribe_res0.txt"
+        },
+        {
+            "sql": "select * from stb00_91 ",
+            "result": "./subscribe_res0.txt"
+        },
+        {
+            "sql": "select * from stb00_92 ",
+            "result": "./subscribe_res0.txt"
+        },
+        {
+            "sql": "select * from stb00_93 ",
+            "result": "./subscribe_res0.txt"
+        },
+        {
+            "sql": "select * from stb00_94 ",
+            "result": "./subscribe_res0.txt"
+        },
+        {
+            "sql": "select * from stb00_95 ",
+            "result": "./subscribe_res0.txt"
+        },
+        {
+            "sql": "select * from stb00_96 ",
+            "result": "./subscribe_res0.txt"
+        },
+        {
+            "sql": "select * from stb00_97 ",
+            "result": "./subscribe_res0.txt"
+        },
+        {
+            "sql": "select * from stb00_98 ",
+            "result": "./subscribe_res0.txt"
+        },
+        {
+            "sql": "select * from stb00_99 ",
+            "result": "./subscribe_res0.txt"
+
+        },
+        {
+            "sql": "select * from stb00_99 ",
+            "result": "./subscribe_res0.txt"
+
+        }]
+      },
+      "super_table_query": 
+      {
+       "stblname": "stb0",
+       "threads":2, 
+       "mode":"sync", 
+       "interval":0, 
+       "restart":"no", 
+       "keepProgress":"no",
+       "sqls": [
+        {
+          "sql": "select * from xxxx where ts >= '2021-02-25 10:00:01.000' ", 
+          "result": "./subscribe_res2.txt"
+        }]
+      }
+}

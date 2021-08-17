@@ -2,10 +2,10 @@ system sh/stop_dnodes.sh
 
 
 system sh/deploy.sh -n dnode1 -i 1
-system sh/cfg.sh -n dnode1 -c walLevel -v 0
+system sh/cfg.sh -n dnode1 -c walLevel -v 1
 system sh/exec.sh -n dnode1 -s start
 
-sleep 500
+sleep 100
 sql connect
 print ======================== dnode1 start
 
@@ -99,7 +99,7 @@ $i_binary2 = varchar(20) # illegal string
 $i_bool = boolean
 $nchar = nchar # nchar with unspecified length
 print ========== create_mt.sim case4: illegal data types in tags test
-sql_error create table $mt (ts timestamp, col int) tags (tag1 timestamp )
+##sql_error create table $mt (ts timestamp, col int) tags (tag1 timestamp )
 sql_error create table $mt (ts timestamp, col int) tags (tag1 $i_ts )
 sql_error create table $mt (ts timestamp, col int) tags (tag1 $i_binary )
 sql_error create table $mt (ts timestamp, col int) tags (tag1 $i_bigint )
@@ -126,8 +126,7 @@ $tb_ = table
 $tbs = tables
 $db_ = database
 $dbs = databases
-$mt_ = metric
-$mts = metrics
+$ses = session
 $int = int
 $bint = bigint
 $binary = binary
@@ -145,8 +144,7 @@ sql_error create table $mt (ts timestamp, col1 int) tags ( $tb_ int)
 sql_error create table $mt (ts timestamp, col1 int) tags ( $tbs int)
 sql_error create table $mt (ts timestamp, col1 int) tags ( $db_ int)
 sql_error create table $mt (ts timestamp, col1 int) tags ( $dbs int) 
-sql_error create table $mt (ts timestamp, col1 int) tags ( $mt_ int)
-sql_error create table $mt (ts timestamp, col1 int) tags ( $mts int) 
+sql_error create table $mt (ts timestamp, col1 int) tags ( $ses int)
 sql_error create table $mt (ts timestamp, col1 int) tags ( $int int)
 sql_error create table $mt (ts timestamp, col1 int) tags ( $bint int)
 sql_error create table $mt (ts timestamp, col1 int) tags ( $binary int)

@@ -146,7 +146,7 @@ char *simGetVariable(SScript *script, char *varName, int32_t varLen) {
 int32_t simExecuteExpression(SScript *script, char *exp) {
   char *  op1, *op2, *var1, *var2, *var3, *rest;
   int32_t op1Len, op2Len, var1Len, var2Len, var3Len, val0, val1;
-  char    t0[512], t1[512], t2[512], t3[1024];
+  char    t0[1024], t1[1024], t2[1024], t3[2048];
   int32_t result;
 
   rest = paGetToken(exp, &var1, &var1Len);
@@ -292,17 +292,46 @@ bool simExecuteRunBackCmd(SScript *script, char *option) {
   if (pthread_create(&newScript->bgPid, NULL, simExecuteScript, (void *)newScript) != 0) {
     sprintf(script->error, "lineNum:%d. create background thread failed", script->lines[script->linePos].lineNum);
     return false;
+  } else {
+    simDebug("script:%s, background thread:0x%08" PRIx64 " is created", newScript->fileName,
+             taosGetPthreadId(newScript->bgPid));
   }
 
   script->linePos++;
   return true;
 }
 
+void simReplaceShToBat(char *dst) {
+  char* sh = strstr(dst, ".sh");
+  if (sh != NULL) {
+    int32_t dstLen = (int32_t)strlen(dst);
+    char *end = dst + dstLen;
+    *(end + 1) = 0;
+
+    for (char *p = end; p >= sh; p--) {
+      *(p + 1) = *p;
+    }
+
+    sh[0] = '.';
+    sh[1] = 'b';
+    sh[2] = 'a';
+    sh[3] = 't';
+    sh[4] = ' ';
+  }
+
+  simDebug("system cmd is %s", dst);
+}
+
 bool simExecuteSystemCmd(SScript *script, char *option) {
   char buf[4096] = {0};
 
+#ifndef WINDOWS
   sprintf(buf, "cd %s; ", tsScriptDir);
   simVisuallizeOption(script, option, buf + strlen(buf));
+#else
+  sprintf(buf, "%s%s", tsScriptDir, option);
+  simReplaceShToBat(buf);
+#endif
 
   simLogSql(buf, true);
   int32_t code = system(buf);
@@ -311,9 +340,7 @@ bool simExecuteSystemCmd(SScript *script, char *option) {
     simError("script:%s, failed to execute %s , code %d, errno:%d %s, repeatTimes:%d", script->fileName, buf, code,
              errno, strerror(errno), repeatTimes);
     taosMsleep(1000);
-#ifdef LINUX
-    signal(SIGCHLD, SIG_DFL);
-#endif
+    taosDflSignal(SIGCHLD);
     if (repeatTimes++ >= 10) {
       exit(0);
     }
@@ -448,7 +475,6 @@ void simCloseNativeConnect(SScript *script) {
 
   simDebug("script:%s, taos:%p closed", script->fileName, script->taos);
   taos_close(script->taos);
-  taosMsleep(1200);
 
   script->taos = NULL;
 }
@@ -619,8 +645,12 @@ bool simCreateRestFulConnect(SScript *script, char *user, char *pass) {
 bool simCreateNativeConnect(SScript *script, char *user, char *pass) {
   simCloseTaosdConnect(script);
   void *taos = NULL;
-  taosMsleep(2000);
   for (int32_t attempt = 0; attempt < 10; ++attempt) {
+    if (abortExecution) {
+      script->killed = true;
+      return false;
+    }
+
     taos = taos_connect(NULL, user, pass, NULL, tsDnodeShellPort);
     if (taos == NULL) {
       simDebug("script:%s, user:%s connect taosd failed:%s, attempt:%d", script->fileName, user, taos_errstr(NULL),
@@ -671,6 +701,11 @@ bool simExecuteNativeSqlCommand(SScript *script, char *rest, bool isSlow) {
   TAOS_RES *pSql = NULL;
 
   for (int32_t attempt = 0; attempt < 10; ++attempt) {
+    if (abortExecution) {
+      script->killed = true;
+      return false;
+    }
+
     simLogSql(rest, false);
     pSql = taos_query(script->taos, rest);
     ret = taos_errno(pSql);
@@ -744,14 +779,26 @@ bool simExecuteNativeSqlCommand(SScript *script, char *rest, bool isSlow) {
             case TSDB_DATA_TYPE_TINYINT:
               sprintf(value, "%d", *((int8_t *)row[i]));
               break;
+            case TSDB_DATA_TYPE_UTINYINT:
+              sprintf(value, "%u", *((uint8_t*)row[i]));
+              break;
             case TSDB_DATA_TYPE_SMALLINT:
               sprintf(value, "%d", *((int16_t *)row[i]));
+              break;
+            case TSDB_DATA_TYPE_USMALLINT:
+              sprintf(value, "%u", *((uint16_t *)row[i]));
               break;
             case TSDB_DATA_TYPE_INT:
               sprintf(value, "%d", *((int32_t *)row[i]));
               break;
+            case TSDB_DATA_TYPE_UINT:
+              sprintf(value, "%u", *((uint32_t *)row[i]));
+              break;
             case TSDB_DATA_TYPE_BIGINT:
               sprintf(value, "%" PRId64, *((int64_t *)row[i]));
+              break;
+            case TSDB_DATA_TYPE_UBIGINT:
+              sprintf(value, "%" PRIu64, *((uint64_t *)row[i]));
               break;
             case TSDB_DATA_TYPE_FLOAT:
               sprintf(value, "%.5f", GET_FLOAT_VAL(row[i]));
@@ -761,13 +808,25 @@ bool simExecuteNativeSqlCommand(SScript *script, char *rest, bool isSlow) {
               break;
             case TSDB_DATA_TYPE_BINARY:
             case TSDB_DATA_TYPE_NCHAR:
+              if (length[i] < 0 || length[i] > 1 << 20) {
+                fprintf(stderr, "Invalid length(%d) of BINARY or NCHAR\n", length[i]);
+                exit(-1);
+              }
+
               memset(value, 0, MAX_QUERY_VALUE_LEN);
               memcpy(value, row[i], length[i]);
               value[length[i]] = 0;
               // snprintf(value, fields[i].bytes, "%s", (char *)row[i]);
               break;
-            case TSDB_DATA_TYPE_TIMESTAMP:
-              tt = *(int64_t *)row[i] / 1000;
+            case TSDB_DATA_TYPE_TIMESTAMP: {
+              int32_t precision = taos_result_precision(pSql);
+              if (precision == TSDB_TIME_PRECISION_MILLI) {
+                tt = (*(int64_t *)row[i]) / 1000;
+              } else if (precision == TSDB_TIME_PRECISION_MICRO) {
+                tt = (*(int64_t *)row[i]) / 1000000;
+              } else {
+                tt = (*(int64_t *)row[i]) / 1000000000;
+              }
               /* comment out as it make testcases like select_with_tags.sim fail.
                 but in windows, this may cause the call to localtime crash if tt < 0,
                 need to find a better solution.
@@ -782,9 +841,16 @@ bool simExecuteNativeSqlCommand(SScript *script, char *rest, bool isSlow) {
 
               tp = localtime(&tt);
               strftime(timeStr, 64, "%y-%m-%d %H:%M:%S", tp);
-              sprintf(value, "%s.%03d", timeStr, (int32_t)(*((int64_t *)row[i]) % 1000));
+              if (precision == TSDB_TIME_PRECISION_MILLI) {
+                sprintf(value, "%s.%03d", timeStr, (int32_t)(*((int64_t *)row[i]) % 1000));
+              } else if (precision == TSDB_TIME_PRECISION_MICRO) {
+                sprintf(value, "%s.%06d", timeStr, (int32_t)(*((int64_t *)row[i]) % 1000000));
+              } else {
+                sprintf(value, "%s.%09d", timeStr, (int32_t)(*((int64_t *)row[i]) % 1000000000));                
+              }
 
               break;
+            }
             default:
               break;
           }  // end of switch
@@ -1005,4 +1071,50 @@ bool simExecuteSqlErrorCmd(SScript *script, char *rest) {
           tstrerror(ret));
 
   return false;
+}
+
+bool simExecuteLineInsertCmd(SScript *script, char *rest) {
+  char buf[TSDB_MAX_BINARY_LEN];
+
+  simVisuallizeOption(script, rest, buf);
+  rest = buf;
+
+  SCmdLine *line = &script->lines[script->linePos];
+
+  simInfo("script:%s, %s", script->fileName, rest);
+  simLogSql(buf, true);
+  char *  lines[] = {rest};
+  int32_t ret = taos_insert_lines(script->taos, lines, 1);
+  if (ret == TSDB_CODE_SUCCESS) {
+    simDebug("script:%s, taos:%p, %s executed. success.", script->fileName, script->taos, rest);
+    script->linePos++;
+    return true;
+  } else {
+    sprintf(script->error, "lineNum: %d. line: %s failed, ret:%d:%s", line->lineNum, rest,
+            ret & 0XFFFF, tstrerror(ret));
+    return false;
+  }
+}
+
+bool simExecuteLineInsertErrorCmd(SScript *script, char *rest) {
+  char buf[TSDB_MAX_BINARY_LEN];
+
+  simVisuallizeOption(script, rest, buf);
+  rest = buf;
+
+  SCmdLine *line = &script->lines[script->linePos];
+
+  simInfo("script:%s, %s", script->fileName, rest);
+  simLogSql(buf, true);
+  char *  lines[] = {rest};
+  int32_t ret = taos_insert_lines(script->taos, lines, 1);
+  if (ret == TSDB_CODE_SUCCESS) {
+    sprintf(script->error, "script:%s, taos:%p, %s executed. expect failed, but success.", script->fileName, script->taos, rest);
+    script->linePos++;
+    return false;
+  } else {
+    simDebug("lineNum: %d. line: %s failed, ret:%d:%s. Expect failed, so success", line->lineNum, rest,
+            ret & 0XFFFF, tstrerror(ret));
+    return true;
+  }
 }

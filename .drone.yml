@@ -190,7 +190,6 @@ steps:
     - master
     event:
     - pull_request 
-
 ---
 kind: pipeline
 name: build_xenial

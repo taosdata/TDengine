@@ -19,5 +19,5 @@ if __name__ == "__main__":
     mExec.init()
     exitCode = mExec.run()
 
-    print("Exiting with code: {}".format(exitCode))
+    print("\nCrash_Gen is now exiting with status code: {}".format(exitCode))
     sys.exit(exitCode)

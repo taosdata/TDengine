@@ -1,4 +1,4 @@
-CMAKE_MINIMUM_REQUIRED(VERSION 2.8)
+CMAKE_MINIMUM_REQUIRED(VERSION 2.8...3.20)
 PROJECT(TDengine)
 
 IF (TD_LINUX)
@@ -6,8 +6,16 @@ IF (TD_LINUX)
 
   LIST(APPEND WALTEST_SRC ./waltest.c)
   ADD_EXECUTABLE(waltest ${WALTEST_SRC})
-  TARGET_LINK_LIBRARIES(waltest twal osdetail tutil)
+  TARGET_LINK_LIBRARIES(waltest twal os tutil)
 
 ENDIF ()
 
+IF (TD_DARWIN)
+  INCLUDE_DIRECTORIES(../inc)
+
+  LIST(APPEND WALTEST_SRC ./waltest.c)
+  ADD_EXECUTABLE(waltest ${WALTEST_SRC})
+  TARGET_LINK_LIBRARIES(waltest twal os tutil)
+
+ENDIF ()
 

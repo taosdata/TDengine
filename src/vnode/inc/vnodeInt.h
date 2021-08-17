@@ -26,6 +26,7 @@ extern "C" {
 #include "vnode.h"
 
 extern int32_t vDebugFlag;
+extern int32_t vNumOfExistedQHandle;   // current initialized and existed query handle in current dnode
 
 #define vFatal(...) { if (vDebugFlag & DEBUG_FATAL) { taosPrintLog("VND FATAL ", 255, __VA_ARGS__); }}
 #define vError(...) { if (vDebugFlag & DEBUG_ERROR) { taosPrintLog("VND ERROR ", 255, __VA_ARGS__); }}
@@ -37,14 +38,21 @@ extern int32_t vDebugFlag;
 typedef struct {
   int32_t  vgId;      // global vnode group ID
   int32_t  refCount;  // reference count
+  int64_t  queuedWMsgSize;
   int32_t  queuedWMsg;
   int32_t  queuedRMsg;
   int32_t  flowctrlLevel;
+  int8_t   preClose;  // drop and close switch
+  int8_t   reserved[3];
+  int64_t  sequence;  // for topic
   int8_t   status;
   int8_t   role;
   int8_t   accessState;
   int8_t   isFull;
   int8_t   isCommiting;
+  int8_t   dbReplica;
+  int8_t   dropped;
+  int8_t   dbType;
   uint64_t version;   // current version
   uint64_t cversion;  // version while commit start
   uint64_t fversion;  // version on saved data file
@@ -56,15 +64,15 @@ typedef struct {
   int64_t  sync;
   void *   events;
   void *   cq;  // continuous query
-  int32_t  cfgVersion;
+  int32_t  dbCfgVersion;
+  int32_t  vgCfgVersion;
   STsdbCfg tsdbCfg;
   SSyncCfg syncCfg;
   SWalCfg  walCfg;
   void *   qMgmt;
   char *   rootDir;
   tsem_t   sem;
-  int8_t   dropped;
-  char     db[TSDB_ACCT_LEN + TSDB_DB_NAME_LEN];
+  char     db[TSDB_ACCT_ID_LEN + TSDB_DB_NAME_LEN];
   pthread_mutex_t statusMutex;
 } SVnodeObj;
 

@@ -1,4 +1,4 @@
-CMAKE_MINIMUM_REQUIRED(VERSION 2.8)
+CMAKE_MINIMUM_REQUIRED(VERSION 2.8...3.20)
 PROJECT(TDengine)
 
 INCLUDE_DIRECTORIES(${TD_COMMUNITY_DIR}/src/client/inc)
@@ -9,14 +9,21 @@ IF (TD_LINUX)
   AUX_SOURCE_DIRECTORY(./src SRC)
   LIST(REMOVE_ITEM SRC ./src/shellWindows.c)
   LIST(REMOVE_ITEM SRC ./src/shellDarwin.c)
-  ADD_EXECUTABLE(shell ${SRC})  
-  
+  ADD_EXECUTABLE(shell ${SRC})
+
+IF (TD_LINUX_64 AND JEMALLOC_ENABLED)
+  ADD_DEFINITIONS(-DTD_JEMALLOC_ENABLED -I${CMAKE_BINARY_DIR}/build/include -L${CMAKE_BINARY_DIR}/build/lib -Wl,-rpath,${CMAKE_BINARY_DIR}/build/lib -ljemalloc)
+  SET(LINK_JEMALLOC "-L${CMAKE_BINARY_DIR}/build/lib -ljemalloc")
+ELSE ()
+  SET(LINK_JEMALLOC "")
+ENDIF ()
+
   IF (TD_SOMODE_STATIC)
-    TARGET_LINK_LIBRARIES(shell taos_static)
+      TARGET_LINK_LIBRARIES(shell taos_static lua ${LINK_JEMALLOC})
   ELSE ()
-    TARGET_LINK_LIBRARIES(shell taos)
+      TARGET_LINK_LIBRARIES(shell taos lua ${LINK_JEMALLOC})
   ENDIF ()
-  
+
   SET_TARGET_PROPERTIES(shell PROPERTIES OUTPUT_NAME taos)
 ELSEIF (TD_WINDOWS)
   LIST(APPEND SRC ./src/shellEngine.c)
@@ -27,7 +34,7 @@ ELSEIF (TD_WINDOWS)
 
   IF (TD_POWER)
     SET_TARGET_PROPERTIES(shell PROPERTIES OUTPUT_NAME power)
-  ELSE ()   
+  ELSE ()
     SET_TARGET_PROPERTIES(shell PROPERTIES OUTPUT_NAME taos)
   ENDIF ()
 ELSEIF (TD_DARWIN)
@@ -36,8 +43,12 @@ ELSEIF (TD_DARWIN)
   LIST(APPEND SRC ./src/shellDarwin.c)
   LIST(APPEND SRC ./src/shellCommand.c)
   LIST(APPEND SRC ./src/shellImport.c)
+  LIST(APPEND SRC ./src/shellCheck.c)
   ADD_EXECUTABLE(shell ${SRC})
-  TARGET_LINK_LIBRARIES(shell taos_static)
+  # linking with dylib
+  TARGET_LINK_LIBRARIES(shell taos)
+  # linking taos statically
+  # TARGET_LINK_LIBRARIES(shell taos_static)
   SET_TARGET_PROPERTIES(shell PROPERTIES OUTPUT_NAME taos)
 ENDIF ()
 

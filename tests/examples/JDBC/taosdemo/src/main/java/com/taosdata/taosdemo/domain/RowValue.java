@@ -8,7 +8,6 @@ import java.util.List;
 public class RowValue {
     private List<FieldValue> fields;
 
-
     public RowValue(List<FieldValue> fields) {
         this.fields = fields;
     }

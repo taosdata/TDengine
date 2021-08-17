@@ -61,7 +61,7 @@ class TDTestCase:
         tdLog.info("================= step5")
         tdDnodes.stop(1)
         tdDnodes.start(1)
-        tdLog.sleep(10)
+        #tdLog.sleep(10)
 
         tdLog.info("================= step6")
         tdLog.info("import 100 sequential data again")

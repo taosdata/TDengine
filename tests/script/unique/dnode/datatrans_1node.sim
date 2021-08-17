@@ -1,0 +1,53 @@
+
+system sh/stop_dnodes.sh
+
+system sh/deploy.sh -n dnode1 -i 1
+system sh/cfg.sh -n dnode1 -c wallevel -v 2
+system sh/exec.sh -n dnode1 -s start
+
+sleep 2000
+sql connect
+
+print =============== step1
+sql drop database -x step1
+step1:
+sql create database db
+sql use db
+sql create table m1 (ts timestamp, speed int)
+
+print =============== step 2
+$x = 0
+while $x < 10
+  $cc = $x * 60000
+  $ms = 1601481600000 + $cc
+  
+  sql insert into m1 values ($ms , $x ) 
+  $x = $x + 1
+endw 
+
+sql select * from m1
+
+print $rows points data are retrieved
+if $rows != 10 then 
+  return -1
+endi
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT
+
+print =============== step 3
+system sh/move_dnode.sh dnode1 dnode2
+system sh/exec.sh -n dnode2 -s start
+
+
+print =============== step 4
+sleep 2000
+sql connect
+
+sql select * from db.m1
+
+print $rows points data are retrieved
+if $rows != 10 then 
+  return -1
+endi
+
+system sh/exec.sh -n dnode2 -s stop -x SIGINT

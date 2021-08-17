@@ -72,7 +72,7 @@ endi
 sleep 100
 
 system sh/exec.sh -n dnode2 -s stop  -x SIGINT
-sleep 5000
+sleep 3000
 
 print =============== step2
 sql select count(*) from $mt -x step2
@@ -84,7 +84,7 @@ sql select count(tbcol) from $mt  -x step21
 step21:
 
 system sh/exec.sh -n dnode2 -s start
-sleep 5000
+sleep 3000
 
 print =============== step3
 sql select count(tbcol) as c from $mt where ts <= 1519833840000

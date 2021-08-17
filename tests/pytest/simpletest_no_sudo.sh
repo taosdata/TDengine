@@ -4,7 +4,7 @@
 #	2. No files are needed outside the development tree, everything is done in the local source code directory
 
 # First we need to set up a path for Python to find our own TAOS modules, so that "import" can work.
-export PYTHONPATH=$(pwd)/../../src/connector/python/linux/python3
+export PYTHONPATH=$(pwd)/../../src/connector/python
 
 # Then let us set up the library path so that our compiled SO file can be loaded by Python
 export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$(pwd)/../../build/build/lib

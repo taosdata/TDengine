@@ -1,0 +1,202 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/deploy.sh -n dnode2 -i 2
+system sh/deploy.sh -n dnode3 -i 3
+system sh/deploy.sh -n dnode4 -i 4
+
+system sh/cfg.sh -n dnode1 -c numOfMnodes -v 1
+system sh/cfg.sh -n dnode2 -c numOfMnodes -v 1
+system sh/cfg.sh -n dnode3 -c numOfMnodes -v 1
+system sh/cfg.sh -n dnode4 -c numOfMnodes -v 1
+
+system sh/cfg.sh -n dnode1 -c walLevel -v 2
+system sh/cfg.sh -n dnode2 -c walLevel -v 2
+system sh/cfg.sh -n dnode3 -c walLevel -v 2
+system sh/cfg.sh -n dnode4 -c walLevel -v 2
+
+system sh/cfg.sh -n dnode1 -c balanceInterval -v 10
+system sh/cfg.sh -n dnode2 -c balanceInterval -v 10
+system sh/cfg.sh -n dnode3 -c balanceInterval -v 10
+system sh/cfg.sh -n dnode4 -c balanceInterval -v 10
+
+system sh/cfg.sh -n dnode1 -c role -v 1
+system sh/cfg.sh -n dnode2 -c role -v 2
+system sh/cfg.sh -n dnode3 -c role -v 2
+system sh/cfg.sh -n dnode4 -c role -v 2
+
+system sh/cfg.sh -n dnode1 -c arbitrator -v $arbitrator
+system sh/cfg.sh -n dnode2 -c arbitrator -v $arbitrator
+system sh/cfg.sh -n dnode3 -c arbitrator -v $arbitrator
+system sh/cfg.sh -n dnode4 -c arbitrator -v $arbitrator
+
+print ============== step0
+system sh/exec_tarbitrator.sh -s start
+
+print ============== step1
+system sh/exec.sh -n dnode1 -s start
+sql connect
+sql create dnode $hostname2
+sql create dnode $hostname3
+system sh/exec.sh -n dnode2 -s start
+system sh/exec.sh -n dnode3 -s start
+
+$x = 0
+step1: 
+	$x = $x + 1
+	sleep 1000
+	if $x == 10 then
+		return -1
+	endi
+
+sql show dnodes
+print dnode1 $data4_1
+print dnode2 $data4_2
+print dnode3 $data4_3
+
+if $data4_1 != ready then
+  goto step1
+endi
+if $data4_2 != ready then
+  goto step1
+endi
+if $data4_3 != ready then
+  goto step1
+endi
+
+sql show mnodes
+print mnode1 $data2_1
+print mnode1 $data2_2
+print mnode1 $data2_3
+if $data2_1 != master then
+  goto step1
+endi
+
+print ============== step2
+sql show dnodes
+if $rows != 4 then
+  return -1
+endi
+
+print $data00 $data01 $data02 $data03 $data04 $data05 $data06 $data07
+print $data10 $data11 $data12 $data13 $data14 $data15 $data16 $data17
+print $data20 $data21 $data22 $data23 $data24 $data25 $data26 $data27
+print $data30 $data31 $data32 $data33 $data34 $data35 $data36 $data37
+
+if $data30 != 0 then
+  return -1
+endi
+
+if $data32 != 0 then
+  return -1
+endi
+
+if $data33 != 0 then
+  return -1
+endi
+
+if $data34 != ready then
+  return -1
+endi
+
+if $data35 != arb then
+  return -1
+endi
+
+if $data37 != - then
+  return -1
+endi
+
+print ============== step4
+system sh/exec_tarbitrator.sh -s stop
+
+$x = 0
+step4: 
+	$x = $x + 1
+	sleep 1000
+	if $x == 20 then
+		return -1
+	endi
+
+sql show dnodes
+if $rows != 4 then
+  return -1
+endi
+
+print $data00 $data01 $data02 $data03 $data04 $data05 $data06 $data07
+print $data10 $data11 $data12 $data13 $data14 $data15 $data16 $data17
+print $data20 $data21 $data22 $data23 $data24 $data25 $data26 $data27
+print $data30 $data31 $data32 $data33 $data34 $data35 $data36 $data37
+
+if $data30 != 0 then
+  return -1
+endi
+
+if $data32 != 0 then
+  return -1
+endi
+
+if $data33 != 0 then
+  return -1
+endi
+
+if $data34 != offline then
+  goto step4
+endi
+
+if $data35 != arb then
+  return -1
+endi
+
+if $data37 != - then
+  return -1
+endi
+
+print ============== step5
+system sh/exec_tarbitrator.sh -s start
+
+$x = 0
+step5: 
+	$x = $x + 1
+	sleep 1000
+	if $x == 20 then
+		return -1
+	endi
+
+sql show dnodes
+if $rows != 4 then
+  return -1
+endi
+
+print $data00 $data01 $data02 $data03 $data04 $data05 $data06 $data07
+print $data10 $data11 $data12 $data13 $data14 $data15 $data16 $data17
+print $data20 $data21 $data22 $data23 $data24 $data25 $data26 $data27
+print $data30 $data31 $data32 $data33 $data34 $data35 $data36 $data37
+
+if $data30 != 0 then
+  return -1
+endi
+
+if $data32 != 0 then
+  return -1
+endi
+
+if $data33 != 0 then
+  return -1
+endi
+
+if $data34 != ready then
+  goto step5
+endi
+
+if $data35 != arb then
+  return -1
+endi
+
+if $data37 != - then
+  return -1
+endi
+
+system sh/exec.sh -n dnode1 -s stop  -x SIGINT
+system sh/exec.sh -n dnode2 -s stop  -x SIGINT
+system sh/exec.sh -n dnode3 -s stop  -x SIGINT
+system sh/exec.sh -n dnode4 -s stop  -x SIGINT

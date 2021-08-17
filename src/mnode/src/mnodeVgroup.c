@@ -60,6 +60,7 @@ static int32_t mnodeGetVgroupMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *p
 static int32_t mnodeRetrieveVgroups(SShowObj *pShow, char *data, int32_t rows, void *pConn);
 static void    mnodeProcessCreateVnodeRsp(SRpcMsg *rpcMsg);
 static void    mnodeProcessAlterVnodeRsp(SRpcMsg *rpcMsg);
+static void    mnodeProcessCompactVnodeRsp(SRpcMsg *rpcMsg);
 static void    mnodeProcessDropVnodeRsp(SRpcMsg *rpcMsg);
 static int32_t mnodeProcessVnodeCfgMsg(SMnodeMsg *pMsg) ;
 static void    mnodeSendDropVgroupMsg(SVgObj *pVgroup, void *ahandle);
@@ -120,7 +121,7 @@ static int32_t mnodeVgroupActionDelete(SSdbRow *pRow) {
   SVgObj *pVgroup = pRow->pObj;
 
   if (pVgroup->pDb == NULL) {
-    mError("vgId:%d, db:%s is not exist while insert into hash", pVgroup->vgId, pVgroup->dbName);
+    mError("vgId:%d, db:%s is not exist while delete from hash", pVgroup->vgId, pVgroup->dbName);
     return TSDB_CODE_MND_VGROUP_NOT_EXIST;
   }
 
@@ -184,6 +185,7 @@ static int32_t mnodeVgroupActionEncode(SSdbRow *pRow) {
   for (int32_t i = 0; i < TSDB_MAX_REPLICA; ++i) {
     pTmpVgroup->vnodeGid[i].pDnode = NULL;
     pTmpVgroup->vnodeGid[i].role = 0;
+    memset(pTmpVgroup->vnodeGid[i].vver, 0, sizeof(pTmpVgroup->vnodeGid[i].vver));
   }
 
   pRow->rowSize = tsVgUpdateSize;
@@ -205,14 +207,14 @@ static int32_t mnodeVgroupActionRestored() {
 
 int32_t mnodeInitVgroups() {
   SVgObj tObj;
-  tsVgUpdateSize = (int8_t *)tObj.updateEnd - (int8_t *)&tObj;
+  tsVgUpdateSize = (int32_t)((int8_t *)tObj.updateEnd - (int8_t *)&tObj);
 
   SSdbTableDesc desc = {
     .id           = SDB_TABLE_VGROUP,
     .name         = "vgroups",
     .hashSessions = TSDB_DEFAULT_VGROUPS_HASH_SIZE,
     .maxRowSize   = tsVgUpdateSize,
-    .refCountPos  = (int8_t *)(&tObj.refCount) - (int8_t *)&tObj,
+    .refCountPos  = (int32_t)((int8_t *)(&tObj.refCount) - (int8_t *)&tObj),
     .keyType      = SDB_KEY_AUTO,
     .fpInsert     = mnodeVgroupActionInsert,
     .fpDelete     = mnodeVgroupActionDelete,
@@ -235,6 +237,7 @@ int32_t mnodeInitVgroups() {
   mnodeAddShowFreeIterHandle(TSDB_MGMT_TABLE_VGROUP, mnodeCancelGetNextVgroup);
   mnodeAddPeerRspHandle(TSDB_MSG_TYPE_MD_CREATE_VNODE_RSP, mnodeProcessCreateVnodeRsp);
   mnodeAddPeerRspHandle(TSDB_MSG_TYPE_MD_ALTER_VNODE_RSP, mnodeProcessAlterVnodeRsp);
+  mnodeAddPeerRspHandle(TSDB_MSG_TYPE_MD_COMPACT_VNODE_RSP, mnodeProcessCompactVnodeRsp);
   mnodeAddPeerRspHandle(TSDB_MSG_TYPE_MD_DROP_VNODE_RSP, mnodeProcessDropVnodeRsp);
   mnodeAddPeerMsgHandle(TSDB_MSG_TYPE_DM_CONFIG_VNODE, mnodeProcessVnodeCfgMsg);
 
@@ -244,11 +247,11 @@ int32_t mnodeInitVgroups() {
 }
 
 void mnodeIncVgroupRef(SVgObj *pVgroup) {
-  return sdbIncRef(tsVgroupSdb, pVgroup); 
+  sdbIncRef(tsVgroupSdb, pVgroup); 
 }
 
 void mnodeDecVgroupRef(SVgObj *pVgroup) { 
-  return sdbDecRef(tsVgroupSdb, pVgroup); 
+  sdbDecRef(tsVgroupSdb, pVgroup); 
 }
 
 SVgObj *mnodeGetVgroup(int32_t vgId) {
@@ -256,6 +259,8 @@ SVgObj *mnodeGetVgroup(int32_t vgId) {
 }
 
 void mnodeUpdateVgroup(SVgObj *pVgroup) {
+  pVgroup->vgCfgVersion++;
+
   SSdbRow row = {
     .type   = SDB_OPER_GLOBAL,
     .pTable = tsVgroupSdb,
@@ -266,7 +271,7 @@ void mnodeUpdateVgroup(SVgObj *pVgroup) {
   if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_MND_ACTION_IN_PROGRESS) {
     mError("vgId:%d, failed to update vgroup", pVgroup->vgId);
   }
-  mnodeSendAlterVgroupMsg(pVgroup);
+  mnodeSendAlterVgroupMsg(pVgroup,NULL);
 }
 
 /*
@@ -315,9 +320,10 @@ void mnodeUpdateVgroupStatus(SVgObj *pVgroup, SDnodeObj *pDnode, SVnodeLoad *pVl
   for (int32_t i = 0; i < pVgroup->numOfVnodes; ++i) {
     SVnodeGid *pVgid = &pVgroup->vnodeGid[i];
     if (pVgid->pDnode == pDnode) {
-      mTrace("dnode:%d, receive status from dnode, vgId:%d status:%s last:%s", pDnode->dnodeId, pVgroup->vgId,
-             syncRole[pVload->role], syncRole[pVgid->role]);
+      mTrace("vgId:%d, receive vnode status from dnode:%d, status:%s last:%s vver:%" PRIu64, pVgroup->vgId,
+             pDnode->dnodeId, syncRole[pVload->role], syncRole[pVgid->role], pVload->vnodeVersion);
       pVgid->role = pVload->role;
+      mnodeSetVgidVer(pVgid->vver, pVload->vnodeVersion);
       if (pVload->role == TAOS_SYNC_ROLE_MASTER) {
         pVgroup->inUse = i;
       }
@@ -339,12 +345,14 @@ void mnodeUpdateVgroupStatus(SVgObj *pVgroup, SDnodeObj *pDnode, SVnodeLoad *pVl
     pVgroup->pointsWritten = htobe64(pVload->pointsWritten);
   }
 
-  if (pVload->cfgVersion != pVgroup->pDb->cfgVersion || pVload->replica != pVgroup->numOfVnodes) {
-    mError("dnode:%d, vgId:%d, vnode cfgVersion:%d repica:%d not match with mnode cfgVersion:%d replica:%d",
-           pDnode->dnodeId, pVload->vgId, pVload->cfgVersion, pVload->replica, pVgroup->pDb->cfgVersion,
-           pVgroup->numOfVnodes);
-    mnodeSendAlterVgroupMsg(pVgroup);
+  if (pVload->dbCfgVersion != pVgroup->pDb->dbCfgVersion || pVload->replica != pVgroup->numOfVnodes ||
+      pVload->vgCfgVersion != pVgroup->vgCfgVersion) {
+    mError("dnode:%d, vgId:%d, vnode cfgVersion:%d:%d repica:%d not match with mnode cfgVersion:%d:%d replica:%d",
+           pDnode->dnodeId, pVload->vgId, pVload->dbCfgVersion, pVload->vgCfgVersion, pVload->replica,
+           pVgroup->pDb->dbCfgVersion, pVgroup->vgCfgVersion, pVgroup->numOfVnodes);
+    mnodeSendAlterVgroupMsg(pVgroup,NULL);
   }
+  pVgroup->compact = pVload->compact; 
 }
 
 static int32_t mnodeAllocVgroupIdPool(SVgObj *pInputVgroup) {
@@ -362,6 +370,11 @@ static int32_t mnodeAllocVgroupIdPool(SVgObj *pInputVgroup) {
     maxIdPoolSize = MAX(maxIdPoolSize, idPoolSize);
   }
 
+  // create one table each vnode
+  if (pDb->cfg.dbType == TSDB_DB_TYPE_TOPIC) {
+    maxIdPoolSize = 1;
+  }
+
   // new vgroup
   if (pInputVgroup->idPool == NULL) {
     pInputVgroup->idPool = taosInitIdPool(maxIdPoolSize);
@@ -372,6 +385,11 @@ static int32_t mnodeAllocVgroupIdPool(SVgObj *pInputVgroup) {
       mDebug("vgId:%d, init idPool for vgroup, size:%d", pInputVgroup->vgId, maxIdPoolSize);
       return TSDB_CODE_SUCCESS;
     }
+  }
+
+  // create one table each vnode
+  if (pDb->cfg.dbType == TSDB_DB_TYPE_TOPIC) {
+    return TSDB_CODE_SUCCESS;
   }
 
   // realloc all vgroups in db
@@ -428,6 +446,7 @@ int32_t mnodeGetAvailableVgroup(SMnodeMsg *pMsg, SVgObj **ppVgroup, int32_t *pSi
       mDebug("msg:%p, app:%p db:%s, no enough sid in vgId:%d", pMsg, pMsg->rpcMsg.ahandle, pDb->name, pVgroup->vgId);
       continue;
     }
+    mTrace("vgId:%d, alloc tid:%d", pVgroup->vgId, sid);
 
     *pSid = sid;
     *ppVgroup = pVgroup;
@@ -442,6 +461,10 @@ int32_t mnodeGetAvailableVgroup(SMnodeMsg *pMsg, SVgObj **ppVgroup, int32_t *pSi
     maxVgroupsPerDb = mnodeGetOnlinDnodesCpuCoreNum();
     maxVgroupsPerDb = MAX(maxVgroupsPerDb, TSDB_MIN_VNODES_PER_DB);
     maxVgroupsPerDb = MIN(maxVgroupsPerDb, TSDB_MAX_VNODES_PER_DB);
+  }
+
+  if (pDb->cfg.dbType == TSDB_DB_TYPE_TOPIC) {
+    maxVgroupsPerDb = TSDB_MAX_DB_PARTITON_OPTION;
   }
 
   int32_t code = TSDB_CODE_MND_NO_ENOUGH_DNODES;
@@ -488,6 +511,7 @@ int32_t mnodeGetAvailableVgroup(SMnodeMsg *pMsg, SVgObj **ppVgroup, int32_t *pSi
   pDb->vgListIndex = 0;
   pthread_mutex_unlock(&pDb->mutex);
 
+  mTrace("vgId:%d, alloc tid:%d", pVgroup->vgId, sid);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -529,6 +553,20 @@ static int32_t mnodeCreateVgroupCb(SMnodeMsg *pMsg, int32_t code) {
            tstrerror(code));
     SSdbRow desc = {.type = SDB_OPER_GLOBAL, .pObj = pVgroup, .pTable = tsVgroupSdb};
     sdbDeleteRow(&desc);
+
+    if (pMsg->pBatchMasterMsg) {
+      ++pMsg->pBatchMasterMsg->received;
+      pMsg->pBatchMasterMsg->code = pMsg->code;
+      if (pMsg->pBatchMasterMsg->successed + pMsg->pBatchMasterMsg->received
+          >= pMsg->pBatchMasterMsg->expected) {
+        dnodeSendRpcMWriteRsp(pMsg->pBatchMasterMsg, pMsg->code);
+      }
+
+      mnodeDestroySubMsg(pMsg);
+
+      return TSDB_CODE_MND_ACTION_IN_PROGRESS;
+    }
+
     return code;
   } else {
     mInfo("msg:%p, app:%p vgId:%d, is created in sdb, db:%s replica:%d", pMsg, pMsg->rpcMsg.ahandle, pVgroup->vgId,
@@ -560,7 +598,7 @@ int32_t mnodeCreateVgroup(SMnodeMsg *pMsg) {
   SDbObj *pDb = pMsg->pDb;
 
   SVgObj *pVgroup = (SVgObj *)calloc(1, sizeof(SVgObj));
-  tstrncpy(pVgroup->dbName, pDb->name, TSDB_ACCT_LEN + TSDB_DB_NAME_LEN);
+  tstrncpy(pVgroup->dbName, pDb->name, TSDB_ACCT_ID_LEN + TSDB_DB_NAME_LEN);
   pVgroup->numOfVnodes = pDb->cfg.replications;
   pVgroup->createdTime = taosGetTimestampMs();
   pVgroup->accessState = TSDB_VN_ALL_ACCCESS;
@@ -656,7 +694,7 @@ static int32_t mnodeGetVgroupMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *p
 
   pShow->bytes[cols] = 4;
   pSchema[cols].type = TSDB_DATA_TYPE_INT;
-  strcpy(pSchema[cols].name, "onlineVnodes");
+  strcpy(pSchema[cols].name, "onlines");
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
   cols++;
 
@@ -671,17 +709,24 @@ static int32_t mnodeGetVgroupMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *p
   for (int32_t i = 0; i < pShow->maxReplica; ++i) {
     pShow->bytes[cols] = 2;
     pSchema[cols].type = TSDB_DATA_TYPE_SMALLINT;
-    snprintf(pSchema[cols].name, TSDB_COL_NAME_LEN, "v%dDnode", i + 1);
+    snprintf(pSchema[cols].name, TSDB_COL_NAME_LEN, "v%d_dnode", i + 1);
     pSchema[cols].bytes = htons(pShow->bytes[cols]);
     cols++;
 
     pShow->bytes[cols] = 9 + VARSTR_HEADER_SIZE;
     pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
-    snprintf(pSchema[cols].name, TSDB_COL_NAME_LEN, "v%dStatus", i + 1);
+    snprintf(pSchema[cols].name, TSDB_COL_NAME_LEN, "v%d_status", i + 1);
     pSchema[cols].bytes = htons(pShow->bytes[cols]);
     cols++;
   }
 
+  pShow->bytes[cols] = 4;
+  pSchema[cols].type = TSDB_DATA_TYPE_INT;
+  strcpy(pSchema[cols].name, "compacting");
+  pSchema[cols].bytes = htons(pShow->bytes[cols]);
+  cols++;
+  
+  
   pMeta->numOfColumns = htons(cols);
   pShow->numOfColumns = cols;
 
@@ -785,7 +830,11 @@ static int32_t mnodeRetrieveVgroups(SShowObj *pShow, char *data, int32_t rows, v
       STR_WITH_MAXSIZE_TO_VARSTR(pWrite, role, pShow->bytes[cols]);
       cols++;
     }
-
+      
+    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+    *(int8_t *)pWrite = pVgroup->compact; 
+    cols++;
+    
     mnodeDecVgroupRef(pVgroup);
     numOfRows++;
   }
@@ -799,26 +848,37 @@ static int32_t mnodeRetrieveVgroups(SShowObj *pShow, char *data, int32_t rows, v
   return numOfRows;
 }
 
-void mnodeAddTableIntoVgroup(SVgObj *pVgroup, SCTableObj *pTable) {
+int32_t mnodeAddTableIntoVgroup(SVgObj *pVgroup, SCTableObj *pTable, bool needCheck) {
   int32_t idPoolSize = taosIdPoolMaxSize(pVgroup->idPool);
   if (pTable->tid > idPoolSize) {
     mnodeAllocVgroupIdPool(pVgroup);
   }
 
   if (pTable->tid >= 1) {
-    taosIdPoolMarkStatus(pVgroup->idPool, pTable->tid);
-    pVgroup->numOfTables++;
-    // The create vgroup message may be received later than the create table message
-    // and the writing order in sdb is therefore uncertain
-    // which will cause the reference count of the vgroup to be incorrect when restarting
-    // mnodeIncVgroupRef(pVgroup);
+    if (taosIdPoolMarkStatus(pVgroup->idPool, pTable->tid) || !needCheck) {
+      pVgroup->numOfTables++;
+      mTrace("table:%s, vgId:%d tid:%d, mark tid used, uid:%" PRIu64, pTable->info.tableId, pTable->vgId, pTable->tid,
+             pTable->uid);
+      // The create vgroup message may be received later than the create table message
+      // and the writing order in sdb is therefore uncertain
+      // which will cause the reference count of the vgroup to be incorrect when restarting
+      // mnodeIncVgroupRef(pVgroup);
+    } else {
+      mError("table:%s, vgId:%d tid:%d, failed to mark tid, uid:%" PRIu64, pTable->info.tableId, pTable->vgId,
+             pTable->tid, pTable->uid);
+      return -1;
+    }
   }
+
+  return 0;
 }
 
 void mnodeRemoveTableFromVgroup(SVgObj *pVgroup, SCTableObj *pTable) {
   if (pTable->tid >= 1) {
     taosFreeId(pVgroup->idPool, pTable->tid);
     pVgroup->numOfTables--;
+    mTrace("table:%s, vgId:%d tid:%d, put tid back uid:%" PRIu64, pTable->info.tableId, pTable->vgId, pTable->tid,
+           pTable->uid);
     // The create vgroup message may be received later than the create table message
     // and the writing order in sdb is therefore uncertain
     // which will cause the reference count of the vgroup to be incorrect when restarting
@@ -840,14 +900,15 @@ static SCreateVnodeMsg *mnodeBuildVnodeMsg(SVgObj *pVgroup) {
 
   SVnodeCfg *pCfg = &pVnode->cfg;
   pCfg->vgId                = htonl(pVgroup->vgId);
-  pCfg->cfgVersion          = htonl(pDb->cfgVersion);
+  pCfg->dbCfgVersion        = htonl(pDb->dbCfgVersion);
+  pCfg->vgCfgVersion        = htonl(pVgroup->vgCfgVersion);
   pCfg->cacheBlockSize      = htonl(pDb->cfg.cacheBlockSize);
   pCfg->totalBlocks         = htonl(pDb->cfg.totalBlocks);
   pCfg->maxTables           = htonl(maxTables + 1);
   pCfg->daysPerFile         = htonl(pDb->cfg.daysPerFile);
-  pCfg->daysToKeep          = htonl(pDb->cfg.daysToKeep);
-  pCfg->daysToKeep1         = htonl(pDb->cfg.daysToKeep1);
-  pCfg->daysToKeep2         = htonl(pDb->cfg.daysToKeep2);  
+  pCfg->daysToKeep          = htonl(pDb->cfg.daysToKeep2);        //FROM DB TO VNODE MAP:
+  pCfg->daysToKeep1         = htonl(pDb->cfg.daysToKeep0);        //keep0,keep1,keep2 in SQL is mapped to keep1,keep2,keep in vnode
+  pCfg->daysToKeep2         = htonl(pDb->cfg.daysToKeep1);        //user,client,mnode use keep0,keep1,keep2; vnode use keep1,keep2,keep
   pCfg->minRowsPerFileBlock = htonl(pDb->cfg.minRowsPerFileBlock);
   pCfg->maxRowsPerFileBlock = htonl(pDb->cfg.maxRowsPerFileBlock);
   pCfg->fsyncPeriod         = htonl(pDb->cfg.fsyncPeriod);
@@ -855,10 +916,13 @@ static SCreateVnodeMsg *mnodeBuildVnodeMsg(SVgObj *pVgroup) {
   pCfg->precision           = pDb->cfg.precision;
   pCfg->compression         = pDb->cfg.compression;
   pCfg->walLevel            = pDb->cfg.walLevel;
-  pCfg->replications        = (int8_t) pVgroup->numOfVnodes;
+  pCfg->vgReplica           = (int8_t) pVgroup->numOfVnodes;
   pCfg->wals                = 3;
   pCfg->quorum              = pDb->cfg.quorum;
   pCfg->update              = pDb->cfg.update;
+  pCfg->cacheLastRow        = pDb->cfg.cacheLastRow;
+  pCfg->dbReplica           = pDb->cfg.replications;
+  pCfg->dbType              = pDb->cfg.dbType;
   
   SVnodeDesc *pNodes = pVnode->nodes;
   for (int32_t j = 0; j < pVgroup->numOfVnodes; ++j) {
@@ -894,10 +958,10 @@ SRpcEpSet mnodeGetEpSetFromIp(char *ep) {
   return epSet;
 }
 
-static void mnodeSendAlterVnodeMsg(SVgObj *pVgroup, SRpcEpSet *epSet) {
+static void mnodeSendAlterVnodeMsg(SVgObj *pVgroup, SRpcEpSet *epSet, SMnodeMsg *pMsg) {
   SAlterVnodeMsg *pAlter = mnodeBuildVnodeMsg(pVgroup);
   SRpcMsg rpcMsg = {
-    .ahandle = NULL,
+    .ahandle = pMsg,
     .pCont   = pAlter,
     .contLen = pAlter ? sizeof(SAlterVnodeMsg) : 0,
     .code    = 0,
@@ -906,17 +970,78 @@ static void mnodeSendAlterVnodeMsg(SVgObj *pVgroup, SRpcEpSet *epSet) {
   dnodeSendMsgToDnode(epSet, &rpcMsg);
 }
 
-void mnodeSendAlterVgroupMsg(SVgObj *pVgroup) {
+void mnodeSendAlterVgroupMsg(SVgObj *pVgroup,SMnodeMsg *pMsg) {
   mDebug("vgId:%d, send alter all vnodes msg, numOfVnodes:%d db:%s", pVgroup->vgId, pVgroup->numOfVnodes,
          pVgroup->dbName);
+  if (pMsg) {
+    pMsg->pVgroup = pVgroup;
+    mnodeIncVgroupRef(pVgroup);
+  }
   for (int32_t i = 0; i < pVgroup->numOfVnodes; ++i) {
     SRpcEpSet epSet = mnodeGetEpSetFromIp(pVgroup->vnodeGid[i].pDnode->dnodeEp);
     mDebug("vgId:%d, index:%d, send alter vnode msg to dnode %s", pVgroup->vgId, i,
            pVgroup->vnodeGid[i].pDnode->dnodeEp);
-    mnodeSendAlterVnodeMsg(pVgroup, &epSet);
+    mnodeSendAlterVnodeMsg(pVgroup, &epSet,pMsg);
   }
 }
 
+static SSyncVnodeMsg *mnodeBuildSyncVnodeMsg(int32_t vgId) {
+  SSyncVnodeMsg *pSyncVnode = rpcMallocCont(sizeof(SSyncVnodeMsg));
+  if (pSyncVnode == NULL) return NULL;
+
+  pSyncVnode->vgId = htonl(vgId);
+  return pSyncVnode;
+}
+
+
+static void mnodeSendSyncVnodeMsg(SVgObj *pVgroup, SRpcEpSet *epSet) {
+  SSyncVnodeMsg *pSyncVnode = mnodeBuildSyncVnodeMsg(pVgroup->vgId);
+  SRpcMsg rpcMsg = {
+    .ahandle = NULL,
+    .pCont   = pSyncVnode,
+    .contLen = pSyncVnode ? sizeof(SSyncVnodeMsg) : 0,
+    .code    = 0,
+    .msgType = TSDB_MSG_TYPE_MD_SYNC_VNODE
+  };
+
+  dnodeSendMsgToDnode(epSet, &rpcMsg);
+}
+static void mnodeSendCompactVnodeMsg(SVgObj *pVgroup, SRpcEpSet *epSet) {
+  SCompactVnodeMsg *pCompactVnode = mnodeBuildSyncVnodeMsg(pVgroup->vgId);
+  SRpcMsg rpcMsg = {
+    .ahandle = NULL,
+    .pCont   = pCompactVnode,
+    .contLen = pCompactVnode ? sizeof(SCompactVnodeMsg) : 0,
+    .code    = 0,
+    .msgType = TSDB_MSG_TYPE_MD_COMPACT_VNODE
+  };
+
+  dnodeSendMsgToDnode(epSet, &rpcMsg);
+}
+
+void mnodeSendSyncVgroupMsg(SVgObj *pVgroup) {
+  mDebug("vgId:%d, send sync all vnodes msg, numOfVnodes:%d db:%s", pVgroup->vgId, pVgroup->numOfVnodes,
+         pVgroup->dbName);
+  for (int32_t i = 0; i < pVgroup->numOfVnodes; ++i) {
+    if (pVgroup->vnodeGid[i].role != TAOS_SYNC_ROLE_SLAVE) continue;
+    SRpcEpSet epSet = mnodeGetEpSetFromIp(pVgroup->vnodeGid[i].pDnode->dnodeEp);
+    mDebug("vgId:%d, index:%d, send sync vnode msg to dnode %s", pVgroup->vgId, i,
+           pVgroup->vnodeGid[i].pDnode->dnodeEp);
+    mnodeSendSyncVnodeMsg(pVgroup, &epSet);
+  }
+}
+
+void mnodeSendCompactVgroupMsg(SVgObj *pVgroup) {
+  mDebug("vgId:%d, send compact all vnodes msg, numOfVnodes:%d db:%s", pVgroup->vgId, pVgroup->numOfVnodes, pVgroup->dbName);
+  for (int32_t i = 0; i < pVgroup->numOfVnodes; ++i) {
+    //if (pVgroup->vnodeGid[i].role != TAOS_SYNC_ROLE_SLAVE) continue; //TODO(yihaoDeng): compact slave or not ? 
+    SRpcEpSet epSet = mnodeGetEpSetFromIp(pVgroup->vnodeGid[i].pDnode->dnodeEp);
+    mDebug("vgId:%d, index:%d, send compact vnode msg to dnode %s", pVgroup->vgId, i,
+           pVgroup->vnodeGid[i].pDnode->dnodeEp);
+    mnodeSendCompactVnodeMsg(pVgroup, &epSet);
+  }
+
+}
 static void mnodeSendCreateVnodeMsg(SVgObj *pVgroup, SRpcEpSet *epSet, void *ahandle) {
   SCreateVnodeMsg *pCreate = mnodeBuildVnodeMsg(pVgroup);
   SRpcMsg rpcMsg = {
@@ -941,7 +1066,30 @@ void mnodeSendCreateVgroupMsg(SVgObj *pVgroup, void *ahandle) {
 }
 
 static void mnodeProcessAlterVnodeRsp(SRpcMsg *rpcMsg) {
-  mDebug("alter vnode rsp received");
+  mDebug("alter vnode rsp is received, handle:%p", rpcMsg->ahandle);
+  if (rpcMsg->ahandle == NULL) return;
+
+  SMnodeMsg *mnodeMsg = rpcMsg->ahandle;
+  mnodeMsg->received++;
+  if (rpcMsg->code == TSDB_CODE_SUCCESS) {
+    mnodeMsg->code = rpcMsg->code;
+    mnodeMsg->successed++;
+  }
+
+  SVgObj *pVgroup = mnodeMsg->pVgroup;
+  mDebug("vgId:%d, alter vnode rsp received, result:%s received:%d successed:%d expected:%d, thandle:%p ahandle:%p",
+         pVgroup->vgId, tstrerror(rpcMsg->code), mnodeMsg->received, mnodeMsg->successed, mnodeMsg->expected,
+         mnodeMsg->rpcMsg.handle, rpcMsg->ahandle);
+
+  if (mnodeMsg->received != mnodeMsg->expected) return;
+
+  int32_t code = mnodeInsertAlterDbRow(pVgroup->pDb, mnodeMsg);
+  if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_MND_ACTION_IN_PROGRESS) {
+    dnodeSendRpcMWriteRsp(mnodeMsg, code);
+  }
+}
+static void mnodeProcessCompactVnodeRsp(SRpcMsg *rpcMsg) {
+  mDebug("compact vnode rsp received");
 }
 
 static void mnodeProcessCreateVnodeRsp(SRpcMsg *rpcMsg) {
@@ -978,6 +1126,20 @@ static void mnodeProcessCreateVnodeRsp(SRpcMsg *rpcMsg) {
     if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_MND_ACTION_IN_PROGRESS) {
       mnodeMsg->pVgroup = NULL;
       mnodeDestroyVgroup(pVgroup);
+
+      if (mnodeMsg->pBatchMasterMsg) {
+        ++mnodeMsg->pBatchMasterMsg->received;
+        mnodeMsg->pBatchMasterMsg->code = code;
+        if (mnodeMsg->pBatchMasterMsg->successed + mnodeMsg->pBatchMasterMsg->received
+            >= mnodeMsg->pBatchMasterMsg->expected) {
+          dnodeSendRpcMWriteRsp(mnodeMsg->pBatchMasterMsg, code);
+        }
+
+        mnodeDestroySubMsg(mnodeMsg);
+
+        return;
+      }
+
       dnodeSendRpcMWriteRsp(mnodeMsg, code);
     }
   } else {
@@ -987,6 +1149,20 @@ static void mnodeProcessCreateVnodeRsp(SRpcMsg *rpcMsg) {
       .pObj   = pVgroup
     };
     sdbDeleteRow(&row);
+
+    if (mnodeMsg->pBatchMasterMsg) {
+      ++mnodeMsg->pBatchMasterMsg->received;
+      mnodeMsg->pBatchMasterMsg->code = mnodeMsg->code;
+      if (mnodeMsg->pBatchMasterMsg->successed + mnodeMsg->pBatchMasterMsg->received
+          >= mnodeMsg->pBatchMasterMsg->expected) {
+        dnodeSendRpcMWriteRsp(mnodeMsg->pBatchMasterMsg, mnodeMsg->code);
+      }
+
+      mnodeDestroySubMsg(mnodeMsg);
+
+      return;
+    }
+
     dnodeSendRpcMWriteRsp(mnodeMsg, mnodeMsg->code);
   }
 }
@@ -1173,4 +1349,42 @@ void mnodeSendDropAllDbVgroupsMsg(SDbObj *pDropDb) {
   }
 
   mInfo("db:%s, all vgroups:%d drop msg is sent to dnode", pDropDb->name, numOfVgroups);
+}
+
+int32_t mnodeGetVgidVer(int8_t *cver) {
+  int32_t iver = ((int32_t)cver[0]) * 10000 + ((int32_t)cver[1]) * 100 + (int32_t)cver[2];
+  return iver;
+}
+
+void mnodeSetVgidVer(int8_t *cver, uint64_t iver) {
+  cver[0] = (int8_t)((int32_t)(iver % 1000000) / 10000);
+  cver[1] = (int8_t)((int32_t)(iver % 100000) / 100);
+  cver[2] = (int8_t)(iver % 100);
+}
+
+int32_t mnodeCompactVgroups() {
+  void *pIter = NULL;
+  SVgObj *pVgroup = NULL;
+
+  mInfo("start to compact vgroups table...");
+
+  while (1) {
+    pIter = mnodeGetNextVgroup(pIter, &pVgroup);
+    if (pVgroup == NULL) break;
+
+    SSdbRow row = {
+      .type     = SDB_OPER_GLOBAL,
+      .pTable   = tsVgroupSdb,
+      .pObj     = pVgroup,
+      .rowSize  = sizeof(SVgObj),
+    };
+
+    mInfo("compact vgroups %d", pVgroup->vgId);
+    
+    sdbInsertCompactRow(&row);
+  }
+
+  mInfo("end to compact vgroups table...");
+
+  return 0; 
 }
