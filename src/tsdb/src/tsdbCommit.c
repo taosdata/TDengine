@@ -14,6 +14,8 @@
  */
 #include "tsdbint.h"
 
+extern int32_t tsTsdbMetaCompactRatio;
+
 #define TSDB_MAX_SUBBLOCKS 8
 static FORCE_INLINE int TSDB_KEY_FID(TSKEY key, int32_t days, int8_t precision) {
   if (key < 0) {
@@ -339,7 +341,7 @@ static int tsdbCommitMeta(STsdbRepo *pRepo) {
   tsdbCloseMFile(&mf);
   tsdbUpdateMFile(pfs, &mf);
 
-  if (tsdbCompactMetaFile(pRepo, pfs, &mf) < 0) {
+  if (tsTsdbMetaCompactRatio > 0 && tsdbCompactMetaFile(pRepo, pfs, &mf) < 0) {
     tsdbError("compact meta file error");
   }
 
@@ -455,8 +457,9 @@ static int tsdbDropMetaRecord(STsdbFS *pfs, SMFile *pMFile, uint64_t uid) {
 static int tsdbCompactMetaFile(STsdbRepo *pRepo, STsdbFS *pfs, SMFile *pMFile) {
   float delPercent = (float)(pMFile->info.nDels) / (float)(pMFile->info.nRecords);
   float tombPercent = (float)(pMFile->info.tombSize) / (float)(pMFile->info.size);
+  float compactRatio = (float)(tsTsdbMetaCompactRatio)/100;
 
-  if (delPercent < 0.33 && tombPercent < 0.33) {
+  if (delPercent < compactRatio && tombPercent < compactRatio) {
     return 0;
   }
 
@@ -465,8 +468,8 @@ static int tsdbCompactMetaFile(STsdbRepo *pRepo, STsdbFS *pfs, SMFile *pMFile) {
     return -1;
   }
 
-  tsdbInfo("begin compact tsdb meta file, nDels:%" PRId64 ",nRecords:%" PRId64 ",tombSize:%" PRId64 ",size:%" PRId64,
-    pMFile->info.nDels,pMFile->info.nRecords,pMFile->info.tombSize,pMFile->info.size);
+  tsdbInfo("begin compact tsdb meta file, ratio:%d, nDels:%" PRId64 ",nRecords:%" PRId64 ",tombSize:%" PRId64 ",size:%" PRId64,
+    tsTsdbMetaCompactRatio, pMFile->info.nDels,pMFile->info.nRecords,pMFile->info.tombSize,pMFile->info.size);
 
   SMFile mf;
   SDiskID did;
