@@ -2737,6 +2737,9 @@ void tscHandleSubqueryError(SRetrieveSupport *trsupport, SSqlObj *pSql, int numO
 
       SSqlObj *userSql = ((SRetrieveSupport*)pParentSql->param)->pParentSql;
 
+      doCleanupSubqueries(userSql, userSql->subState.numOfSub);
+      userSql->subState.numOfSub = 0;
+
       code = tsParseSql(userSql, true);
       if (code == TSDB_CODE_TSC_ACTION_IN_PROGRESS) {
         return;
@@ -2747,9 +2750,6 @@ void tscHandleSubqueryError(SRetrieveSupport *trsupport, SSqlObj *pSql, int numO
         tscAsyncResultOnError(userSql);
         return;
       }
-
-      doCleanupSubqueries(userSql, userSql->subState.numOfSub);
-      userSql->subState.numOfSub = 0;
 
       pQueryInfo = tscGetQueryInfo(&userSql->cmd);
       executeQuery(userSql, pQueryInfo);

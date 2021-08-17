@@ -3773,6 +3773,9 @@ static void tscSubqueryCompleteCallback(void* param, TAOS_RES* tres, int code) {
 
     SSqlObj *userSql = ((SRetrieveSupport*)pParentSql->param)->pParentSql;
 
+    doCleanupSubqueries(userSql, userSql->subState.numOfSub);
+    userSql->subState.numOfSub = 0;
+    
     code = tsParseSql(userSql, true);
     if (code == TSDB_CODE_TSC_ACTION_IN_PROGRESS) {
       return;
@@ -3786,9 +3789,6 @@ static void tscSubqueryCompleteCallback(void* param, TAOS_RES* tres, int code) {
 
     SQueryInfo *pQueryInfo = tscGetQueryInfo(&userSql->cmd);
 
-    doCleanupSubqueries(userSql, userSql->subState.numOfSub);
-    userSql->subState.numOfSub = 0;
-    
     executeQuery(userSql, pQueryInfo);
     return;
   }
