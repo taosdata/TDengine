@@ -41,7 +41,6 @@ enum {
 static int32_t tscAllocateMemIfNeed(STableDataBlocks *pDataBlock, int32_t rowSize, int32_t *numOfRows);
 static int32_t parseBoundColumns(SInsertStatementParam *pInsertParam, SParsedDataColInfo *pColInfo, SSchema *pSchema,
                                  char *str, char **end);
-
 int initMemRowBuilder(SMemRowBuilder *pBuilder, uint32_t nRows, uint32_t nCols, uint32_t nBoundCols,
                       int32_t allNullLen) {
 #ifdef __5221_BRANCH__
@@ -418,6 +417,7 @@ int32_t tsParseOneColumn(SSchema *pSchema, SStrToken *pToken, char *payload, cha
 
   return TSDB_CODE_SUCCESS;
 }
+
 /*
  * The server time/client time should not be mixed up in one sql string
  * Do not employ sort operation is not involved if server time is used.
@@ -566,6 +566,7 @@ int tsParseOneRow(char **str, STableDataBlocks *pDataBlocks, int16_t timePrec, i
       }
     }
   }
+
   if (!isParseBindParam) {
     // 2. check and set convert flag
     if (pBuilder->compareStat == ROW_COMPARE_NEED) {
@@ -576,7 +577,7 @@ int tsParseOneRow(char **str, STableDataBlocks *pDataBlocks, int16_t timePrec, i
     if ((spd->numOfBound < spd->numOfCols) && isDataRow(row) && !isNeedConvertRow(row)) {
       SDataRow dataRow = memRowDataBody(row);
       for (int32_t i = 0; i < spd->numOfCols; ++i) {
-        if (spd->cols[i].valStat == VAL_STAT_NO) {
+        if (spd->cols[i].valStat == VAL_STAT_NONE) {
           tdAppendDataColVal(dataRow, getNullValue(schema[i].type), true, schema[i].type, spd->cols[i].toffset);
         }
       }
@@ -636,13 +637,11 @@ int32_t tsParseValues(char **str, STableDataBlocks *pDataBlock, int maxRows, SIn
 
   int32_t extendedRowSize = getExtendedRowSize(pDataBlock);
 
-  // When consume by rows, we just assign 1 row to store the info.
   if (TSDB_CODE_SUCCESS !=
       (code = initMemRowBuilder(&pDataBlock->rowBuilder, 0, tinfo.numOfColumns, pDataBlock->boundColumnInfo.numOfBound,
                                 pDataBlock->boundColumnInfo.allNullLen))) {
     return code;
   }
-
   while (1) {
     index = 0;
     sToken = tStrGetToken(*str, &index, false);
@@ -672,9 +671,7 @@ int32_t tsParseValues(char **str, STableDataBlocks *pDataBlock, int maxRows, SIn
     index = 0;
     sToken = tStrGetToken(*str, &index, false);
     if (sToken.n == 0 || sToken.type != TK_RP) {
-      tscSQLSyntaxErrMsg(pInsertParam->msg, ") expected", *str);
-      code = TSDB_CODE_TSC_SQL_SYNTAX_ERROR;
-      return code;
+      return tscSQLSyntaxErrMsg(pInsertParam->msg, ") expected", *str);
     }
     
     *str += index;
@@ -838,8 +835,7 @@ int tscSortRemoveDataBlockDupRows(STableDataBlocks *dataBuf, SBlockKeyInfo *pBlk
   return 0;
 }
 
-static int32_t doParseInsertStatement(SInsertStatementParam *pInsertParam, char **str, STableDataBlocks *dataBuf,
-                                      int32_t *totalNum) {
+static int32_t doParseInsertStatement(SInsertStatementParam *pInsertParam, char **str, STableDataBlocks* dataBuf, int32_t *totalNum) {  
   int32_t maxNumOfRows;
   int32_t code = tscAllocateMemIfNeed(dataBuf, getExtendedRowSize(dataBuf), &maxNumOfRows);
   if (TSDB_CODE_SUCCESS != code) {
@@ -1179,7 +1175,7 @@ static int32_t parseBoundColumns(SInsertStatementParam *pInsertParam, SParsedDat
   pColInfo->numOfBound = 0;
   memset(pColInfo->boundedColumns, 0, sizeof(int32_t) * nCols);
   for (int32_t i = 0; i < nCols; ++i) {
-    pColInfo->cols[i].valStat = VAL_STAT_NO;
+    pColInfo->cols[i].valStat = VAL_STAT_NONE;
   }
 
   int32_t code = TSDB_CODE_SUCCESS;
@@ -1218,12 +1214,12 @@ static int32_t parseBoundColumns(SInsertStatementParam *pInsertParam, SParsedDat
     int32_t nScanned = 0, t = lastColIdx + 1;
     while (t < nCols) {
       if (strncmp(sToken.z, pSchema[t].name, sToken.n) == 0 && strlen(pSchema[t].name) == sToken.n) {
-        if (pColInfo->cols[t].valStat == VAL_STAT_YES) {
+        if (pColInfo->cols[t].valStat == VAL_STAT_HAS) {
           code = tscInvalidOperationMsg(pInsertParam->msg, "duplicated column name", sToken.z);
           goto _clean;
         }
 
-        pColInfo->cols[t].valStat = VAL_STAT_YES;
+        pColInfo->cols[t].valStat = VAL_STAT_HAS;
         pColInfo->boundedColumns[pColInfo->numOfBound] = t;
         ++pColInfo->numOfBound;
         findColumnIndex = true;
@@ -1241,12 +1237,12 @@ static int32_t parseBoundColumns(SInsertStatementParam *pInsertParam, SParsedDat
       int32_t nRemain = nCols - nScanned;
       while (t < nRemain) {
         if (strncmp(sToken.z, pSchema[t].name, sToken.n) == 0 && strlen(pSchema[t].name) == sToken.n) {
-          if (pColInfo->cols[t].valStat == VAL_STAT_YES) {
+          if (pColInfo->cols[t].valStat == VAL_STAT_HAS) {
             code = tscInvalidOperationMsg(pInsertParam->msg, "duplicated column name", sToken.z);
             goto _clean;
           }
 
-          pColInfo->cols[t].valStat = VAL_STAT_YES;
+          pColInfo->cols[t].valStat = VAL_STAT_HAS;
           pColInfo->boundedColumns[pColInfo->numOfBound] = t;
           ++pColInfo->numOfBound;
           findColumnIndex = true;
@@ -1481,7 +1477,7 @@ int tsParseInsertSql(SSqlObj *pSql) {
           goto _clean;
         }
 
-        if (dataBuf->boundColumnInfo.cols[0].valStat == VAL_STAT_NO) {
+        if (dataBuf->boundColumnInfo.cols[0].valStat == VAL_STAT_NONE) {
           code = tscInvalidOperationMsg(pInsertParam->msg, "primary timestamp column can not be null", NULL);
           goto _clean;
         }
@@ -1568,7 +1564,7 @@ int tsParseSql(SSqlObj *pSql, bool initial) {
     if (pSql->parseRetry < 1 && (ret == TSDB_CODE_TSC_SQL_SYNTAX_ERROR || ret == TSDB_CODE_TSC_INVALID_OPERATION)) {
       tscDebug("0x%"PRIx64 " parse insert sql statement failed, code:%s, clear meta cache and retry ", pSql->self, tstrerror(ret));
 
-      tscResetSqlCmd(pCmd, true);
+      tscResetSqlCmd(pCmd, true, pSql->self);
       pSql->parseRetry++;
 
       if ((ret = tsInsertInitialCheck(pSql)) == TSDB_CODE_SUCCESS) {
@@ -1585,7 +1581,7 @@ int tsParseSql(SSqlObj *pSql, bool initial) {
     if (ret == TSDB_CODE_TSC_INVALID_OPERATION && pSql->parseRetry < 1 && sqlInfo.type == TSDB_SQL_SELECT) {
       tscDebug("0x%"PRIx64 " parse query sql statement failed, code:%s, clear meta cache and retry ", pSql->self, tstrerror(ret));
 
-      tscResetSqlCmd(pCmd, true);
+      tscResetSqlCmd(pCmd, true, pSql->self);
       pSql->parseRetry++;
 
       ret = tscValidateSqlInfo(pSql, &sqlInfo);

@@ -90,9 +90,10 @@ typedef struct SBoundColumn {
   uint8_t valStat;  // denote if current column bound or not(0 means has val, 1 means no val)
 } SBoundColumn;
 typedef enum {
-  VAL_STAT_YES = 0x0,  // 0 means has val
-  VAL_STAT_NO = 0x01,  // 1 means no val
+  VAL_STAT_HAS = 0x0,    // 0 means has val
+  VAL_STAT_NONE = 0x01,  // 1 means no val
 } EValStat;
+
 typedef struct {
   uint16_t schemaColIdx;
   uint16_t boundIdx;
@@ -104,12 +105,11 @@ typedef enum _COL_ORDER_STATUS {
   ORDER_STATUS_ORDERED = 1,
   ORDER_STATUS_DISORDERED = 2,
 } EOrderStatus;
-
 typedef struct SParsedDataColInfo {
   int16_t        numOfCols;
   int16_t        numOfBound;
-  uint16_t       flen;            // TODO: get from STSchema
-  uint16_t       allNullLen;      // TODO: get from STSchema
+  uint16_t       flen;        // TODO: get from STSchema
+  uint16_t       allNullLen;  // TODO: get from STSchema
   uint16_t       extendedVarLen;
   int32_t *      boundedColumns;  // bound column idx according to schema
   SBoundColumn * cols;
@@ -205,21 +205,6 @@ static FORCE_INLINE void tscAppendMemRowColValEx(SMemRow row, const void *value,
     tdGetColAppendDeltaLen(value, colType, dataLen, kvLen);
   }
 }
-
-static FORCE_INLINE void tscAppendDataRowColValEx(SDataRow row, const void *value, bool isCopyVarData, int16_t colId,
-                                                  int8_t colType, int32_t toffset, int32_t *dataLen, int32_t *kvLen) {
-  tdAppendDataColVal(row, value, isCopyVarData, colType, toffset);
-  tdGetColAppendDeltaLen(value, colType, dataLen, kvLen);
-}
-static FORCE_INLINE void tscAppendKvRowColValEx(SKVRow row, const void *value, bool isCopyVarData, int16_t colId,
-                                                int8_t colType, int32_t toffset, int32_t *dataLen, int32_t *kvLen) {
-  tdAppendKvColVal(row, value, isCopyVarData, colId, colType, toffset);
-  tdGetColAppendDeltaLen(value, colType, dataLen, kvLen);
-}
-typedef void (*FPAppendColVal)(SKVRow row, const void *value, bool isCopyVarData, int16_t colId, int8_t colType,
-                               int32_t toffset, int32_t *dataLen, int32_t *kvLen);
-
-int tranferRowKVToData(SMemRowBuilder *pBuilder, SMemRow rowKV, SMemRow rowData, TDRowTLenT destLen);
 
 typedef struct STableDataBlocks {
   SName       tableName;
@@ -456,7 +441,7 @@ void tscSetResRawPtrRv(SSqlRes* pRes, SQueryInfo* pQueryInfo, SSDataBlock* pBloc
 void handleDownstreamOperator(SSqlObj** pSqlList, int32_t numOfUpstream, SQueryInfo* px, SSqlObj* pParent);
 void destroyTableNameList(SInsertStatementParam* pInsertParam);
 
-void tscResetSqlCmd(SSqlCmd *pCmd, bool removeMeta);
+void tscResetSqlCmd(SSqlCmd *pCmd, bool removeMeta, uint64_t id);
 
 /**
  * free query result of the sql object
@@ -524,11 +509,10 @@ int16_t getNewResColId(SSqlCmd* pCmd);
 int32_t schemaIdxCompar(const void *lhs, const void *rhs);
 int32_t boundIdxCompar(const void *lhs, const void *rhs);
 static FORCE_INLINE int32_t getExtendedRowSize(STableDataBlocks *pBlock) {
-#ifdef __5221_BRANCH__
   ASSERT(pBlock->rowSize == pBlock->pTableMeta->tableInfo.rowSize);
-#endif
-  return pBlock->pTableMeta->tableInfo.rowSize + TD_MEM_ROW_DATA_HEAD_SIZE + pBlock->boundColumnInfo.extendedVarLen;
+  return pBlock->rowSize + TD_MEM_ROW_DATA_HEAD_SIZE + pBlock->boundColumnInfo.extendedVarLen;
 }
+
 static FORCE_INLINE void checkAndConvertMemRow(SMemRow row, int32_t dataLen, int32_t kvLen) {
   if (isDataRow(row)) {
     if (kvLen < (dataLen * KVRatioConvert)) {
@@ -590,7 +574,7 @@ static FORCE_INLINE void convertToSKVRow(SMemRow dest, SMemRow src, SSchema *pSc
 
   int32_t toffset = 0, kvOffset = 0;
   for (int i = 0; i < nCols; ++i) {
-    if ((spd->cols + i)->valStat == VAL_STAT_YES) {
+    if ((spd->cols + i)->valStat == VAL_STAT_HAS) {
       SSchema *schema = pSchema + i;
       toffset = (spd->cols + i)->toffset;
       void *val = tdGetRowDataOfCol(dataRow, schema->type, toffset + TD_DATA_ROW_HEAD_SIZE);
@@ -882,7 +866,8 @@ static FORCE_INLINE int32_t tsParseOneColumnKV(SSchema *pSchema, SStrToken *pTok
         // if the converted output len is over than pColumnModel->bytes, return error: 'Argument list too long'
         int32_t output = 0;
         char *  rowEnd = memRowEnd(row);
-        if (!taosMbsToUcs4(pToken->z, pToken->n, (char*)varDataVal(rowEnd), pSchema->bytes - VARSTR_HEADER_SIZE, &output)) {
+        if (!taosMbsToUcs4(pToken->z, pToken->n, (char *)varDataVal(rowEnd), pSchema->bytes - VARSTR_HEADER_SIZE,
+                           &output)) {
           char buf[512] = {0};
           snprintf(buf, tListLen(buf), "%s", strerror(errno));
           return tscInvalidOperationMsg(msg, buf, pToken->z);

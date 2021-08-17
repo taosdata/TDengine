@@ -296,7 +296,7 @@ static int tsdbCompactMeta(STsdbRepo *pRepo) {
       return -1;
     }
 
-    pComph->pDataCols = tdNewDataCols(0, 0, pCfg->maxRowsPerFileBlock);
+    pComph->pDataCols = tdNewDataCols(0, pCfg->maxRowsPerFileBlock);
     if (pComph->pDataCols == NULL) {
       terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
       tsdbDestroyCompactH(pComph);

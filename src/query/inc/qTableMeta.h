@@ -3,6 +3,7 @@
 
 #include "tsdb.h"  //todo tsdb should not be here
 #include "qSqlparser.h"
+#include "qFilter.h"
 
 typedef struct SFieldInfo {
   int16_t      numOfOutput;   // number of column in result
@@ -15,6 +16,14 @@ typedef struct SCond {
   int32_t  len;  // length of tag query condition data
   char *   cond;
 } SCond;
+
+typedef struct STblCond {
+  uint64_t uid;
+  int16_t  idx;  //table index
+  int32_t  len;  // length of tag query condition data
+  char *   cond;
+} STblCond;
+
 
 typedef struct SJoinNode {
   uint64_t uid;
@@ -89,6 +98,11 @@ typedef struct STableMetaInfo {
 struct   SQInfo;      // global merge operator
 struct   SQueryAttr;     // query object
 
+typedef struct STableFilter {
+  uint64_t uid;
+  SFilterInfo info;
+} STableFilter;
+
 typedef struct SQueryInfo {
   int16_t          command;       // the command may be different for each subclause, so keep it seperately.
   uint32_t         type;          // query/insert type
@@ -106,8 +120,11 @@ typedef struct SQueryInfo {
   SLimitVal        slimit;
   STagCond         tagCond;
 
+  SArray *         colCond;
+
   SOrderVal        order;
   int16_t          numOfTables;
+  int16_t          curTableIdx;
   STableMetaInfo **pTableMetaInfo;
   struct STSBuf   *tsBuf;
 

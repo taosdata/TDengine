@@ -300,7 +300,7 @@ static int fillColumnsNull(STableDataBlocks* pBlock, int32_t rowNum) {
   SSchema *schema = (SSchema*)pBlock->pTableMeta->schema;
 
   for (int32_t i = 0; i < spd->numOfCols; ++i) {
-    if (spd->cols[i].valStat == VAL_STAT_NO) {  // current column do not have any value to insert, set it to null
+    if (spd->cols[i].valStat == VAL_STAT_NONE) {  // current column do not have any value to insert, set it to null
       for (int32_t n = 0; n < rowNum; ++n) {
         char *ptr = pBlock->pData + sizeof(SSubmitBlk) + pBlock->rowSize * n + offset;
 
@@ -334,7 +334,7 @@ static int fillColumnsNull(STableDataBlocks* pBlock, int32_t rowNum) {
     if (isDataRow(row) && !isNeedConvertRow(row)) {
       SDataRow dataRow = memRowDataBody(row);
       for (int32_t i = 0; i < spd->numOfCols; ++i) {
-        if (spd->cols[i].valStat == VAL_STAT_NO) {
+        if (spd->cols[i].valStat == VAL_STAT_NONE) {
           tdAppendDataColVal(dataRow, getNullValue(schema[i].type), true, schema[i].type, spd->cols[i].toffset);
         }
       }
@@ -1681,7 +1681,7 @@ int taos_stmt_set_tbname_tags(TAOS_STMT* stmt, const char* name, TAOS_BIND* tags
   if (taosHashGetSize(pCmd->insertParam.pTableBlockHashList) > 0) {
     SHashObj* hashList = pCmd->insertParam.pTableBlockHashList;
     pCmd->insertParam.pTableBlockHashList = NULL;
-    tscResetSqlCmd(pCmd, false);
+    tscResetSqlCmd(pCmd, false, pSql->self);
     pCmd->insertParam.pTableBlockHashList = hashList;
   }
 

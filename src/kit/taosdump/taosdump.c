@@ -206,9 +206,9 @@ static struct argp_option options[] = {
     {"host", 'h', "HOST",    0,  "Server host dumping data from. Default is localhost.", 0},
     {"user", 'u', "USER",    0,  "User name used to connect to server. Default is root.", 0},
 #ifdef _TD_POWER_
-    {"password", 'p', "PASSWORD",    0,  "User password to connect to server. Default is powerdb.", 0},
+    {"password", 'p', 0,    0,  "User password to connect to server. Default is powerdb.", 0},
 #else
-    {"password", 'p', "PASSWORD",    0,  "User password to connect to server. Default is taosdata.", 0},
+    {"password", 'p', 0,    0,  "User password to connect to server. Default is taosdata.", 0},
 #endif
     {"port", 'P', "PORT",        0,  "Port to connect", 0},
     {"cversion",      'v', "CVERION",     0,  "client version", 0},
@@ -231,8 +231,8 @@ static struct argp_option options[] = {
     {"schemaonly", 's', 0, 0,  "Only dump schema.", 2},
     {"without-property", 'N', 0, 0,  "Dump schema without properties.", 2},
     {"avro", 'V', 0, 0,  "Dump apache avro format data file. By default, dump sql command sequence.", 2},
-    {"start-time",    'S', "START_TIME",  0,  "Start time to dump. Either epoch or ISO8601/RFC3339 format is acceptable. ISO8601 format example: 2017-10-01T18:00:00.000+0800 or 2017-10-0100:00:00.000+0800 or '2017-10-01 00:00:00.000+0800'",  4},
-    {"end-time",      'E', "END_TIME",    0,  "End time to dump. Either epoch or ISO8601/RFC3339 format is acceptable. ISO8601 format example: 2017-10-01T18:00:00.000+0800 or 2017-10-0100:00:00.000+0800 or '2017-10-01 00:00:00.000+0800'",  5},
+    {"start-time",    'S', "START_TIME",  0,  "Start time to dump. Either epoch or ISO8601/RFC3339 format is acceptable. ISO8601 format example: 2017-10-01T00:00:00.000+0800 or 2017-10-0100:00:00:000+0800 or '2017-10-01 00:00:00.000+0800'",  4},
+    {"end-time",      'E', "END_TIME",    0,  "End time to dump. Either epoch or ISO8601/RFC3339 format is acceptable. ISO8601 format example: 2017-10-01T00:00:00.000+0800 or 2017-10-0100:00:00.000+0800 or '2017-10-01 00:00:00.000+0800'",  5},
 #if TSDB_SUPPORT_NANOSECOND == 1
     {"precision",  'C', "PRECISION",  0,  "Specify precision for converting human-readable time to epoch. Valid value is one of ms, us, and ns. Default is ms.", 6},
 #else
@@ -248,12 +248,14 @@ static struct argp_option options[] = {
     {0}
 };
 
+#define MAX_PASSWORD_SIZE   20
+
 /* Used by main to communicate with parse_opt. */
 typedef struct arguments {
     // connection option
     char    *host;
     char    *user;
-    char    *password;
+    char    password[MAX_PASSWORD_SIZE];
     uint16_t port;
     char     cversion[12];
     uint16_t mysqlFlag;
@@ -376,7 +378,6 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
             g_args.user = arg;
             break;
         case 'p':
-            g_args.password = arg;
             break;
         case 'P':
             g_args.port = atoi(arg);
@@ -554,6 +555,23 @@ static void parse_precision_first(
     }
 }
 
+static void parse_password(
+        int argc, char *argv[], SArguments *arguments) {
+    for (int i = 1; i < argc; i++) {
+        if (strncmp(argv[i], "-p", 2) == 0) {
+            if (strlen(argv[i]) == 2) {
+                printf("Enter password: ");
+                if(scanf("%20s", arguments->password) > 1) {
+                    errorPrint("%s() LN%d, password read error!\n", __func__, __LINE__);
+                }
+            } else {
+                tstrncpy(arguments->password, (char *)(argv[i] + 2), MAX_PASSWORD_SIZE);
+            }
+            argv[i] = "";
+        }
+    }
+}
+
 static void parse_timestamp(
         int argc, char *argv[], SArguments *arguments) {
     for (int i = 1; i < argc; i++) {
@@ -616,9 +634,10 @@ int main(int argc, char *argv[]) {
     int ret = 0;
     /* Parse our arguments; every option seen by parse_opt will be
        reflected in arguments. */
-    if (argc > 2) {
+    if (argc > 1) {
         parse_precision_first(argc, argv, &g_args);
         parse_timestamp(argc, argv, &g_args);
+        parse_password(argc, argv, &g_args);
     }
 
     argp_parse(&argp, argc, argv, 0, 0, &g_args);
