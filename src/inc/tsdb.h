@@ -188,6 +188,7 @@ typedef struct {
   int32_t      maxTables;
   STableData **tData;
   SList *      actList;
+  SList *      schemaCache;
   SList *      extraBuffList;
   SList *      bufBlockList;
   int64_t      pointsAdd;   // TODO

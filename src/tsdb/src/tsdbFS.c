@@ -36,6 +36,7 @@ static int  tsdbComparTFILE(const void *arg1, const void *arg2);
 static void tsdbScanAndTryFixDFilesHeader(STsdbRepo *pRepo, int32_t *nExpired);
 static int  tsdbProcessExpiredFS(STsdbRepo *pRepo);
 static int  tsdbCreateMeta(STsdbRepo *pRepo);
+static int  tsdbCreateSchemaFile(STsdbRepo *pRepo);
 
 // ================== CURRENT file header info
 static int tsdbEncodeFSHeader(void **buf, SFSHeader *pHeader) {
@@ -104,21 +105,29 @@ static void *tsdbDecodeDFileSetArray(void *buf, SArray *pArray) {
 
 static int tsdbEncodeFSStatus(void **buf, SFSStatus *pStatus) {
   ASSERT(pStatus->pmf);
+  ASSERT(pStatus->psf);
 
   int tlen = 0;
 
   tlen += tsdbEncodeSMFile(buf, pStatus->pmf);
+  tlen += tsdbEncodeSSFile(buf, pStatus->psf);
   tlen += tsdbEncodeDFileSetArray(buf, pStatus->df);
 
   return tlen;
 }
 
-static void *tsdbDecodeFSStatus(void *buf, SFSStatus *pStatus) {
+static void *tsdbDecodeFSStatus(void *buf, SFSStatus *pStatus, int vCurrent) {
   tsdbResetFSStatus(pStatus);
 
   pStatus->pmf = &(pStatus->mf);
+  pStatus->psf = &(pStatus->sf);
 
   buf = tsdbDecodeSMFile(buf, pStatus->pmf);
+  if(vCurrent == 0) {
+    pStatus->psf = NULL;
+  } else {
+    buf = tsdbDecodeSSFile(buf, pStatus->psf);
+  }
   buf = tsdbDecodeDFileSetArray(buf, pStatus->df);
 
   return buf;
@@ -160,7 +169,15 @@ static void tsdbResetFSStatus(SFSStatus *pStatus) {
   TSDB_FILE_SET_CLOSED(&(pStatus->mf));
 
   pStatus->pmf = NULL;
+  pStatus->psf = NULL;
   taosArrayClear(pStatus->df);
+}
+
+static void tsdbSetStatusSFile(SFSStatus *pStatus, const SSFile *pSFile) {
+  ASSERT(pStatus->psf == NULL);
+
+  pStatus->psf = &(pStatus->sf);
+  tsdbInitSFileEx(pStatus->psf, (SSFile *)pSFile);
 }
 
 static void tsdbSetStatusMFile(SFSStatus *pStatus, const SMFile *pMFile) {
@@ -245,6 +262,11 @@ static int tsdbProcessExpiredFS(STsdbRepo *pRepo) {
     return -1;
   }
 
+  if (tsdbCreateSchemaFile(pRepo) < 0) {
+    tsdbError("vgId:%d failed to create schema since %s", REPO_ID(pRepo), tstrerror(terrno));
+    return -1;
+  }
+
   if (tsdbApplyRtn(pRepo) < 0) {
     tsdbEndFSTxnWithError(REPO_FS(pRepo));
     tsdbError("vgId:%d failed to apply rtn since %s", REPO_ID(pRepo), tstrerror(terrno));
@@ -254,6 +276,41 @@ static int tsdbProcessExpiredFS(STsdbRepo *pRepo) {
     tsdbError("vgId:%d failed to end fs txn since %s", REPO_ID(pRepo), tstrerror(terrno));
     return -1;
   }
+  return 0;
+}
+
+static int tsdbCreateSchemaFile(STsdbRepo *pRepo) {
+  STsdbFS *pfs = REPO_FS(pRepo);
+  SSFile  *pOSFile = pfs->cstatus->psf;
+  SSFile  sf;
+  SDiskID did;
+
+  if (pOSFile != NULL) {
+    tsdbUpdateSFile(pfs, pOSFile);
+    return 0;
+  }
+
+  did.level = TFS_PRIMARY_LEVEL;
+  did.id = TFS_PRIMARY_ID;
+  tsdbInitSFile(&sf, did, REPO_ID(pRepo), FS_TXN_VERSION(REPO_FS(pRepo)));
+
+  if (tsdbCreateSFile(&sf, true) < 0) {
+    tsdbError("vgId:%d failed to create SCHEMA file since %s", REPO_ID(pRepo), tstrerror(terrno));
+    return -1;
+  }
+
+  tsdbInfo("vgId:%d meta file %s is created", REPO_ID(pRepo), TSDB_FILE_FULL_NAME(&sf));
+
+  if (tsdbUpdateSFileHeader(&sf) < 0) {
+    tsdbError("vgId:%d failed to update SCHEMA file header since %s, revert it", REPO_ID(pRepo), tstrerror(terrno));
+    tsdbApplySFileChange(&sf, pOSFile);
+    return -1;
+  }
+
+  TSDB_FILE_FSYNC(&sf);
+  tsdbCloseSFile(&sf);
+  tsdbUpdateSFile(pfs, &sf);
+
   return 0;
 }
 
@@ -333,6 +390,11 @@ int tsdbOpenFS(STsdbRepo *pRepo) {
     return -1;
   }
 
+  if ((!(pRepo->state & TSDB_STATE_BAD_META)) && tsdbLoadSchema(pRepo) < 0) {
+    tsdbError("vgId:%d failed to open FS while loading schema since %s", REPO_ID(pRepo), tstrerror(terrno));
+    return -1;
+  }
+
   return 0;
 }
 
@@ -391,7 +453,13 @@ int tsdbEndFSTxnWithError(STsdbFS *pfs) {
   return 0;
 }
 
-void tsdbUpdateMFile(STsdbFS *pfs, const SMFile *pMFile) { tsdbSetStatusMFile(pfs->nstatus, pMFile); }
+void tsdbUpdateSFile(STsdbFS* pfs, const SSFile *pSSFile) {
+  tsdbSetStatusSFile(pfs->nstatus, pSSFile);
+}
+
+void tsdbUpdateMFile(STsdbFS *pfs, const SMFile *pMFile) {
+  tsdbSetStatusMFile(pfs->nstatus, pMFile);
+}
 
 int tsdbUpdateDFileSet(STsdbFS *pfs, const SDFileSet *pSet) { return tsdbAddDFileSetToStatus(pfs->nstatus, pSet); }
 
@@ -414,6 +482,7 @@ static int tsdbSaveFSStatus(SFSStatus *pStatus, int vid) {
 
   fsheader.version = TSDB_FS_VERSION;
   if (pStatus->pmf == NULL) {
+    ASSERT(pStatus->psf == NULL);
     ASSERT(taosArrayGetSize(pStatus->df) == 0);
     fsheader.len = 0;
   } else {
@@ -483,6 +552,8 @@ static void tsdbApplyFSTxnOnDisk(SFSStatus *pFrom, SFSStatus *pTo) {
 
   // Apply meta file change
   (void)tsdbApplyMFileChange(pFrom->pmf, pTo->pmf);
+  // Apply schema file change
+  (void)tsdbApplySFileChange(pFrom->psf, pTo->psf);
 
   // Apply SDFileSet change
   if (ifrom >= sizeFrom) {
@@ -687,10 +758,6 @@ static int tsdbOpenFSFromCurrent(STsdbRepo *pRepo) {
   ptr = tsdbDecodeFSHeader(ptr, &fsheader);
   ptr = tsdbDecodeFSMeta(ptr, &(pStatus->meta));
 
-  if (fsheader.version != TSDB_FS_VERSION) {
-    // TODO: handle file version change
-  }
-
   if (fsheader.len > 0) {
     if (tsdbMakeRoom(&buffer, fsheader.len) < 0) {
       goto _err;
@@ -716,7 +783,7 @@ static int tsdbOpenFSFromCurrent(STsdbRepo *pRepo) {
     }
 
     ptr = buffer;
-    ptr = tsdbDecodeFSStatus(ptr, pStatus);
+    ptr = tsdbDecodeFSStatus(ptr, pStatus, fsheader.version);
   } else {
     tsdbResetFSStatus(pStatus);
   }
@@ -739,6 +806,11 @@ static int tsdbScanAndTryFixFS(STsdbRepo *pRepo) {
   STsdbFS *  pfs = REPO_FS(pRepo);
   SFSStatus *pStatus = pfs->cstatus;
 
+  if (tsdbScanAndTryFixSFile(pRepo) < 0) {
+    tsdbError("vgId:%d failed to fix SFile since %s", REPO_ID(pRepo), tstrerror(terrno));
+    return -1;
+  }
+
   if (tsdbScanAndTryFixMFile(pRepo) < 0) {
     tsdbError("vgId:%d failed to fix MFile since %s", REPO_ID(pRepo), tstrerror(terrno));
     return -1;
@@ -750,7 +822,7 @@ static int tsdbScanAndTryFixFS(STsdbRepo *pRepo) {
     SDFileSet *pSet = (SDFileSet *)taosArrayGet(pStatus->df, i);
 
     if (tsdbScanAndTryFixDFileSet(pRepo, pSet) < 0) {
-      tsdbError("vgId:%d failed to fix MFile since %s", REPO_ID(pRepo), tstrerror(terrno));
+      tsdbError("vgId:%d failed to fix DFileSet since %s", REPO_ID(pRepo), tstrerror(terrno));
       return -1;
     }
   }
@@ -761,6 +833,99 @@ static int tsdbScanAndTryFixFS(STsdbRepo *pRepo) {
   return 0;
 }
 
+int tsdbLoadSchema(STsdbRepo *pRepo) {
+  STsdbFS     *pfs       = REPO_FS(pRepo);
+  SSFile      sf;
+  SSFile      *pSFile    = &sf;
+  void        *pBuf      = NULL;
+  SSchemaHead rInfo;
+  int64_t     bufSize = sizeof(SSchemaHead);
+  SSFInfo     sInfo;
+
+  if (pfs->cstatus->psf == NULL) return 0;
+
+  sf = pfs->cstatus->sf;
+
+  if (tsdbOpenSFile(pSFile, O_RDONLY) < 0) {
+    return -1;
+  }
+
+  if (tsdbLoadSFileHeader(pSFile, &sInfo) < 0) {
+    tsdbCloseSFile(pSFile);
+    return -1;
+  }
+  pBuf = malloc((size_t)bufSize);
+  if (pBuf == NULL) {
+    terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
+    tsdbCloseSFile(pSFile);
+    return -1;
+  }
+
+  while(true) {
+    int64_t tsize = tsdbReadSFile(pSFile, pBuf, sizeof(SSchemaHead));
+    if (tsize == 0) break;
+
+    if (tsize < 0) {
+      tsdbError("vgId:%d failed to read SCHEMA file since %s", REPO_ID(pRepo), tstrerror(terrno));
+      return -1;
+    }
+
+    if (tsize < sizeof(SSchemaHead)) {
+      tsdbError("vgId:%d failed to read %" PRIzu " bytes from file %s", REPO_ID(pRepo), sizeof(SSchemaHead), TSDB_FILE_FULL_NAME(pSFile));
+      terrno = TSDB_CODE_TDB_FILE_CORRUPTED;
+      tsdbCloseSFile(pSFile);
+      return -1;
+    }
+    tsdbDecodeSchemaHead(pBuf, &rInfo);
+
+    if(bufSize < rInfo.size) {
+      void* ptr = realloc(pBuf, rInfo.size);
+      if(ptr == NULL) {
+        free(pBuf);
+        terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
+        tsdbCloseSFile(pSFile);
+        return -1;
+      }
+      pBuf = ptr;
+    }
+
+    int nread = (int)tsdbReadSFile(pSFile, pBuf, rInfo.size);
+    if (nread < 0) {
+      tsdbError("vgId:%d failed to read file %s since %s", REPO_ID(pRepo), TSDB_FILE_FULL_NAME(pSFile),
+                tstrerror(terrno));
+      tfree(pBuf);
+      tsdbCloseSFile(pSFile);
+      return -1;
+    }
+
+    if(nread < rInfo.size) {
+      tsdbError("vgId:%d failed to read file %s since file corrupted, expected read:%" PRIu32 " actual read:%d",
+                REPO_ID(pRepo), TSDB_FILE_FULL_NAME(pSFile), rInfo.size, nread);
+      terrno = TSDB_CODE_TDB_FILE_CORRUPTED;
+      tfree(pBuf);
+      tsdbCloseSFile(pSFile);
+      return -1;
+    }
+
+    STSchema *pSchema = NULL;
+    tdDecodeSchema(pBuf, &pSchema);
+    if(pSchema != NULL) {
+      STable *pTable = tsdbGetTableByUid(pRepo->tsdbMeta, rInfo.uid);
+      STable *pSTable = (TABLE_TYPE(pTable) == TSDB_CHILD_TABLE) ? pTable->pSuper : pTable;
+      if(tsdbAddSchema(pSTable, pSchema) < 0) {
+        free(pSchema);
+        tsdbCloseSFile(pSFile);
+        tfree(pBuf);
+        return -1;
+      }
+    }
+  }
+
+  tsdbCloseSFile(pSFile);
+  tfree(pBuf);
+  return 0;
+}
+
 int tsdbLoadMetaCache(STsdbRepo *pRepo, bool recoverMeta) {
   char      tbuf[128];
   STsdbFS * pfs = REPO_FS(pRepo);
@@ -768,8 +933,8 @@ int tsdbLoadMetaCache(STsdbRepo *pRepo, bool recoverMeta) {
   SMFile *  pMFile = &mf;
   void *    pBuf = NULL;
   SKVRecord rInfo;
-  int64_t   maxBufSize = 0;
-  SMFInfo   minfo;
+  int64_t   bufSize = 0;
+  SMFInfo   mInfo;
 
   taosHashClear(pfs->metaCache);
 
@@ -782,7 +947,7 @@ int tsdbLoadMetaCache(STsdbRepo *pRepo, bool recoverMeta) {
     return -1;
   }
 
-  if (tsdbLoadMFileHeader(pMFile, &minfo) < 0) {
+  if (tsdbLoadMFileHeader(pMFile, &mInfo) < 0) {
     tsdbCloseMFile(pMFile);
     return -1;
   }
@@ -826,7 +991,7 @@ int tsdbLoadMetaCache(STsdbRepo *pRepo, bool recoverMeta) {
         return -1;
       }
 
-      maxBufSize = MAX(maxBufSize, rInfo.size);
+      bufSize = MAX(bufSize, rInfo.size);
 
       if (tsdbSeekMFile(pMFile, rInfo.size, SEEK_CUR) < 0) {
         tsdbError("vgId:%d failed to lseek file %s since %s", REPO_ID(pRepo), TSDB_FILE_FULL_NAME(pMFile),
@@ -843,7 +1008,7 @@ int tsdbLoadMetaCache(STsdbRepo *pRepo, bool recoverMeta) {
   }
 
   if (recoverMeta) {
-    pBuf = malloc((size_t)maxBufSize);
+    pBuf = malloc((size_t)bufSize);
     if (pBuf == NULL) {
       terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
       tsdbCloseMFile(pMFile);
@@ -922,6 +1087,11 @@ static int tsdbScanRootDir(STsdbRepo *pRepo) {
       continue;
     }
 
+    if (pfs->cstatus->psf && tfsIsSameFile(pf, &(pfs->cstatus->psf->f))) {
+      continue;
+    }
+
+    continue;
     (void)tfsremove(pf);
     tsdbDebug("vgId:%d invalid file %s is removed", REPO_ID(pRepo), TFILE_NAME(pf));
   }
@@ -1069,6 +1239,102 @@ static int tsdbRestoreMeta(STsdbRepo *pRepo) {
     tsdbInfo("vgId:%d meta file %s is restored", REPO_ID(pRepo), TSDB_FILE_FULL_NAME(pfs->cstatus->pmf));
   } else {
     tsdbInfo("vgId:%d no meta file is restored", REPO_ID(pRepo));
+  }
+
+  tfsClosedir(tdir);
+  regfree(&regex);
+  return 0;
+}
+
+static int tsdbRestoreSchema(STsdbRepo *pRepo) {
+  char         rootDir[TSDB_FILENAME_LEN];
+  char         bname[TSDB_FILENAME_LEN];
+  TDIR *       tdir = NULL;
+  const TFILE *pf = NULL;
+  const char * pattern = "^schema(-ver[0-9]+)?$";
+  regex_t      regex;
+  STsdbFS *    pfs = REPO_FS(pRepo);
+
+  regcomp(&regex, pattern, REG_EXTENDED);
+
+  tsdbInfo("vgId:%d try to restore schema", REPO_ID(pRepo));
+
+  tsdbGetRootDir(REPO_ID(pRepo), rootDir);
+
+  tdir = tfsOpendir(rootDir);
+  if (tdir == NULL) {
+    tsdbError("vgId:%d failed to open dir %s since %s", REPO_ID(pRepo), rootDir, tstrerror(terrno));
+    regfree(&regex);
+    return -1;
+  }
+
+  while ((pf = tfsReaddir(tdir))) {
+    tfsbasename(pf, bname);
+
+    if (strcmp(bname, "data") == 0) {
+      // Skip the data/ directory
+      continue;
+    }
+
+    if (strcmp(bname, tsdbTxnFname[TSDB_TXN_TEMP_FILE]) == 0) {
+      // Skip current.t file
+      tsdbInfo("vgId:%d file %s exists, remove it", REPO_ID(pRepo), TFILE_NAME(pf));
+      (void)tfsremove(pf);
+      continue;
+    }
+
+    int code = regexec(&regex, bname, 0, NULL, 0);
+    if (code == 0) {
+      // Match
+      if (pfs->cstatus->psf != NULL) {
+        tsdbError("vgId:%d failed to restore schema since two file exists, file1 %s and file2 %s", REPO_ID(pRepo),
+                  TSDB_FILE_FULL_NAME(pfs->cstatus->psf), TFILE_NAME(pf));
+        terrno = TSDB_CODE_TDB_FILE_CORRUPTED;
+        tfsClosedir(tdir);
+        regfree(&regex);
+        return -1;
+      } else {
+
+        pfs->cstatus->psf = &(pfs->cstatus->sf);
+        pfs->cstatus->psf->f = *pf;
+        TSDB_FILE_SET_CLOSED(pfs->cstatus->psf);
+
+        if (tsdbOpenSFile(pfs->cstatus->psf, O_RDONLY) < 0) {
+          tsdbError("vgId:%d failed to restore schema since %s", REPO_ID(pRepo), tstrerror(terrno));
+          tfsClosedir(tdir);
+          regfree(&regex);
+          return -1;
+        }
+
+        if (tsdbLoadSFileHeader(pfs->cstatus->psf, &(pfs->cstatus->psf->info)) < 0) {
+          tsdbError("vgId:%d failed to restore meta since %s", REPO_ID(pRepo), tstrerror(terrno));
+          tsdbCloseSFile(pfs->cstatus->psf);
+          tfsClosedir(tdir);
+          regfree(&regex);
+          return -1;
+        }
+
+        tsdbCloseSFile(pfs->cstatus->psf);
+      }
+    } else if (code == REG_NOMATCH) {
+      // Not match
+      tsdbInfo("vgId:%d invalid file %s exists, remove it", REPO_ID(pRepo), TFILE_NAME(pf));
+      tfsremove(pf);
+      continue;
+    } else {
+      // Has other error
+      tsdbError("vgId:%d failed to restore schema file while run regexec since %s", REPO_ID(pRepo), strerror(code));
+      terrno = TAOS_SYSTEM_ERROR(code);
+      tfsClosedir(tdir);
+      regfree(&regex);
+      return -1;
+    }
+  }
+
+  if (pfs->cstatus->psf) {
+    tsdbInfo("vgId:%d schema file %s is restored", REPO_ID(pRepo), TSDB_FILE_FULL_NAME(pfs->cstatus->psf));
+  } else {
+    tsdbInfo("vgId:%d no schema file is restored", REPO_ID(pRepo));
   }
 
   tfsClosedir(tdir);
@@ -1229,6 +1495,12 @@ static int tsdbRestoreDFileSet(STsdbRepo *pRepo) {
 static int tsdbRestoreCurrent(STsdbRepo *pRepo) {
   // Loop to recover mfile
   if (tsdbRestoreMeta(pRepo) < 0) {
+    tsdbError("vgId:%d failed to restore current since %s", REPO_ID(pRepo), tstrerror(terrno));
+    return -1;
+  }
+
+  // Loop to recover sfile
+  if (tsdbRestoreSchema(pRepo) < 0) {
     tsdbError("vgId:%d failed to restore current since %s", REPO_ID(pRepo), tstrerror(terrno));
     return -1;
   }

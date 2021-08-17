@@ -16,6 +16,9 @@
 #ifndef _TS_TSDB_FILE_H_
 #define _TS_TSDB_FILE_H_
 
+#include "os.h"
+#include "tfs.h"
+
 #define TSDB_FILE_HEAD_SIZE 512
 #define TSDB_FILE_DELIMITER 0xF00AFA0F
 #define TSDB_FILE_INIT_MAGIC 0xFFFFFFFF
@@ -38,7 +41,130 @@
 #define TSDB_FILE_IS_OK(tf) (TSDB_FILE_STATE(tf) == TSDB_FILE_STATE_OK)
 #define TSDB_FILE_IS_BAD(tf) (TSDB_FILE_STATE(tf) == TSDB_FILE_STATE_BAD)
 
-typedef enum { TSDB_FILE_HEAD = 0, TSDB_FILE_DATA, TSDB_FILE_LAST, TSDB_FILE_MAX, TSDB_FILE_META } TSDB_FILE_T;
+typedef enum {
+  TSDB_FILE_HEAD = 0,
+  TSDB_FILE_DATA,
+  TSDB_FILE_LAST,
+  TSDB_FILE_MAX,
+  TSDB_FILE_META,
+  TSDB_FILE_SCHEMA
+} TSDB_FILE_T;
+
+// =============== SSFile
+typedef struct {
+  int64_t size;
+  int64_t nRecords;
+  uint32_t maxVersion;
+  uint32_t magic;
+} SSFInfo;
+
+typedef struct {
+  SSFInfo info;
+  TFILE f;
+  int fd;
+  uint8_t state;
+} SSFile;
+
+void  tsdbInitSFile(SSFile* pSFile, SDiskID did, int vid, uint32_t ver);
+void  tsdbInitSFileEx(SSFile* pSFile, const SSFile* pOSFile);
+int   tsdbEncodeSSFile(void** buf, SSFile* pSFile);
+void* tsdbDecodeSSFile(void *buf, SSFile* pSFile);
+int   tsdbEncodeSSFileEx(void** buf, SSFile* pSFile);
+void* tsdbDecodeSSFileEx(void* buf, SSFile* pSFile);
+int   tsdbApplySFileChange(SSFile* from, SSFile* to);
+int   tsdbCreateSFile(SSFile* pSFile, bool updateHeader);
+int   tsdbUpdateSFileHeader(SSFile* pSFile);
+int   tsdbLoadSFileHeader(SSFile* pSFile, SSFInfo* pInfo);
+int   tsdbScanAndTryFixSFile(STsdbRepo* pRepo);
+int   tsdbEncodeSFInfo(void** buf, SSFInfo* pInfo);
+void* tsdbDecodeSFInfo(void* buf, SSFInfo* pInfo);
+
+static FORCE_INLINE void tsdbSetSFileInfo(SSFile *pSFile, SSFInfo* pInfo) { pSFile->info = *pInfo; }
+
+static FORCE_INLINE int tsdbOpenSFile(SSFile* pSFile, int flags) {
+  ASSERT(TSDB_FILE_CLOSED(pSFile));
+
+  pSFile->fd = open(TSDB_FILE_FULL_NAME(pSFile), flags);
+  if (pSFile->fd < 0) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    return -1;
+  }
+
+  return 0;
+}
+
+static FORCE_INLINE void tsdbCloseSFile(SSFile* pSFile) {
+  if (TSDB_FILE_OPENED(pSFile)) {
+    close(pSFile->fd);
+    TSDB_FILE_SET_CLOSED(pSFile);
+  }
+}
+
+static FORCE_INLINE int64_t tsdbSeekSFile(SSFile *pSFile, int64_t offset, int whence) {
+  ASSERT(TSDB_FILE_OPENED(pSFile));
+
+  int64_t loffset = taosLSeek(TSDB_FILE_FD(pSFile), offset, whence);
+  if (loffset < 0) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    return -1;
+  }
+
+  return loffset;
+}
+
+static FORCE_INLINE int64_t tsdbWriteSFile(SSFile* pSFile, void* buf, int64_t nbyte) {
+  ASSERT(TSDB_FILE_OPENED(pSFile));
+
+  int64_t nwrite = taosWrite(pSFile->fd, buf, nbyte);
+  if (nwrite < nbyte) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    return -1;
+  }
+
+  return nwrite;
+}
+
+static FORCE_INLINE void tsdbUpdateSFileMagic(SSFile* pSFile, void* pCksum) {
+  pSFile->info.magic = taosCalcChecksum(pSFile->info.magic, (uint8_t*)pCksum, sizeof(TSCKSUM));
+}
+
+static FORCE_INLINE int tsdbAppendSFile(SSFile* pSFile, void* buf, int64_t nbyte, int64_t* offset) {
+  ASSERT(TSDB_FILE_OPENED(pSFile));
+
+  int64_t toffset;
+
+  if ((toffset = tsdbSeekSFile(pSFile, 0, SEEK_END)) < 0) {
+    return -1;
+  }
+
+  ASSERT(pSFile->info.size == toffset);
+
+  if (offset) {
+    *offset = toffset;
+  }
+
+  if (tsdbWriteSFile(pSFile, buf, nbyte) < 0) {
+    return -1;
+  }
+
+  pSFile->info.size += nbyte;
+
+  return (int)nbyte;
+}
+
+static FORCE_INLINE int tsdbRemoveSFile(SSFile* pSFile) { return tfsremove(TSDB_FILE_F(pSFile)); }
+
+static FORCE_INLINE int64_t tsdbReadSFile(SSFile* pSFile, void* buf, int64_t nbyte) {
+  ASSERT(TSDB_FILE_OPENED(pSFile));
+
+  int64_t nread = taosRead(pSFile->fd, buf, nbyte);
+  if (nread < 0) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    return -1;
+  }
+
+  return nread;
+}
 
 // =============== SMFile
 typedef struct {

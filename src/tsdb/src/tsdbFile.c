@@ -20,14 +20,275 @@ static const char *TSDB_FNAME_SUFFIX[] = {
     "data",  // TSDB_FILE_DATA
     "last",  // TSDB_FILE_LAST
     "",      // TSDB_FILE_MAX
-    "meta"   // TSDB_FILE_META
+    "meta",  // TSDB_FILE_META
+    "schema" // TSDB_FILE_SCHEMA
 };
 
 static void  tsdbGetFilename(int vid, int fid, uint32_t ver, TSDB_FILE_T ftype, char *fname);
+static int   tsdbRollBackSFile(SSFile *pSFile);
 static int   tsdbRollBackMFile(SMFile *pMFile);
 static int   tsdbEncodeDFInfo(void **buf, SDFInfo *pInfo);
 static void *tsdbDecodeDFInfo(void *buf, SDFInfo *pInfo);
 static int   tsdbRollBackDFile(SDFile *pDFile);
+
+// ============== SSFile
+void tsdbInitSFile(SSFile* pSFile, SDiskID did, int vid, uint32_t ver) {
+  char fname[TSDB_FILENAME_LEN];
+
+  TSDB_FILE_SET_STATE(pSFile, TSDB_FILE_STATE_OK);
+
+  memset(&(pSFile->info), 0, sizeof(pSFile->info));
+  pSFile->info.magic = TSDB_FILE_INIT_MAGIC;
+
+  tsdbGetFilename(vid, 0, ver, TSDB_FILE_SCHEMA, fname);
+  tfsInitFile(TSDB_FILE_F(pSFile), did.level, did.id, fname);
+}
+
+void tsdbInitSFileEx(SSFile* pSFile, const SSFile* pOSFile) {
+  *pSFile = *pOSFile;
+  TSDB_FILE_SET_CLOSED(pSFile);
+}
+
+int tsdbEncodeSSFile(void **buf, SSFile *pSFile) {
+  int tlen = 0;
+
+  tlen += tsdbEncodeSFInfo(buf, &(pSFile->info));
+  tlen += tfsEncodeFile(buf, &(pSFile->f));
+
+  return tlen;
+}
+
+void *tsdbDecodeSSFile(void *buf, SSFile *pSFile) {
+  buf = tsdbDecodeSFInfo(buf, &(pSFile->info));
+  buf = tfsDecodeFile(buf, &(pSFile->f));
+  TSDB_FILE_SET_CLOSED(pSFile);
+
+  return buf;
+}
+
+int tsdbEncodeSSFileEx(void **buf, SSFile *pSFile) {
+  int tlen = 0;
+  tlen += tsdbEncodeSFInfo(buf, &(pSFile->info));
+  tlen += taosEncodeString(buf, TSDB_FILE_FULL_NAME(pSFile));
+
+  return tlen;
+}
+
+void *tsdbDecodeSSFileEx(void *buf, SSFile *pSFile) {
+  char *aname;
+  buf = tsdbDecodeSFInfo(buf, &(pSFile->info));
+  buf = taosDecodeString(buf, &aname);
+  strncpy(TSDB_FILE_FULL_NAME(pSFile), aname, TSDB_FILENAME_LEN);
+  TSDB_FILE_SET_CLOSED(pSFile);
+
+  tfree(aname);
+
+  return buf;
+}
+
+int tsdbApplySFileChange(SSFile *from, SSFile *to) {
+  if (from == NULL && to == NULL) return 0;
+
+  if (from != NULL) {
+    if(to == NULL) {
+      return tsdbRemoveSFile(from);
+    } else {
+      if (tfsIsSameFile(TSDB_FILE_F(from), TSDB_FILE_F(to))) {
+        if (from->info.size > to->info.size) {
+          tsdbRollBackSFile(to);
+        }
+      } else {
+        return tsdbRemoveSFile(from);
+      }
+    }
+  }
+
+  return 0;
+}
+
+int tsdbCreateSFile(SSFile *pSFile, bool updateHeader) {
+  ASSERT(pSFile->info.size == 0 && pSFile->info.magic == TSDB_FILE_INIT_MAGIC);
+
+  pSFile->fd = open(TSDB_FILE_FULL_NAME(pSFile), O_WRONLY | O_CREAT | O_TRUNC | O_BINARY, 0755);
+  if (pSFile->fd < 0) {
+    if(errno == ENOENT) {
+      char *s = strdup(TFILE_REL_NAME(&(pSFile->f)));
+      if (tfsMkdirRecurAt(dirname(s), TSDB_FILE_LEVEL(pSFile), TSDB_FILE_ID(pSFile)) < 0) {
+        tfree(s);
+        return -1;
+      }
+      tfree(s);
+
+      pSFile->fd = open(TSDB_FILE_FULL_NAME(pSFile), O_WRONLY | O_CREAT | O_TRUNC | O_BINARY, 0755);
+      if(pSFile->fd < 0) {
+        terrno = TAOS_SYSTEM_ERROR(errno);
+        return -1;
+      }
+    } else {
+      terrno = TAOS_SYSTEM_ERROR(errno);
+      return -1;
+    }
+  }
+
+  if (!updateHeader) {
+    return 0;
+  }
+
+  pSFile->info.size += TSDB_FILE_HEAD_SIZE;
+
+  if (tsdbUpdateSFileHeader(pSFile) < 0) {
+    tsdbCloseSFile(pSFile);
+    tsdbRemoveSFile(pSFile);
+    return -1;
+  }
+
+  return 0;
+}
+
+int tsdbUpdateSFileHeader(SSFile *pSFile) {
+  char buf[TSDB_FILE_HEAD_SIZE] = "\0";
+
+  if (tsdbSeekSFile(pSFile, 0, SEEK_SET) < 0) {
+    return -1;
+  }
+
+  void *ptr = buf;
+  tsdbEncodeSFInfo(&ptr, TSDB_FILE_INFO(pSFile));
+
+  taosCalcChecksumAppend(0, (uint8_t *)buf, TSDB_FILE_HEAD_SIZE);
+  if (tsdbWriteSFile(pSFile, buf,TSDB_FILE_HEAD_SIZE) < 0) {
+    return -1;
+  }
+
+  return 0;
+}
+
+int tsdbLoadSFileHeader(SSFile *pSFile, SSFInfo *pInfo) {
+  char buf[TSDB_FILE_HEAD_SIZE] = "\0";
+
+  ASSERT(TSDB_FILE_OPENED(pSFile));
+
+  if (tsdbSeekSFile(pSFile, 0, SEEK_SET) < 0) {
+    return -1;
+  }
+
+  if (tsdbReadSFile(pSFile, buf, TSDB_FILE_HEAD_SIZE) < 0) {
+    return -1;
+  }
+
+  if (!taosCheckChecksumWhole((uint8_t *)buf, TSDB_FILE_HEAD_SIZE)) {
+    terrno = TSDB_CODE_TDB_FILE_CORRUPTED;
+    return -1;
+  }
+
+  tsdbDecodeSFInfo(buf, pInfo);
+  return 0;
+}
+
+int tsdbScanAndTryFixSFile(STsdbRepo *pRepo) {
+  SSFile *    pSFile = pRepo->fs->cstatus->psf;
+  struct stat sfstat;
+  SSFile      sf;
+
+  if (pSFile == NULL) {
+    return 0;
+  }
+
+  tsdbInitSFileEx(&sf, pSFile);
+
+  if (access(TSDB_FILE_FULL_NAME(pSFile), F_OK) != 0) {
+    tsdbError("vgId:%d schema file %s not exist, report to upper layer to fix it", REPO_ID(pRepo),
+        TSDB_FILE_FULL_NAME(pSFile));
+    pRepo->state |= TSDB_STATE_BAD_META;
+    TSDB_FILE_SET_STATE(pSFile, TSDB_FILE_STATE_BAD);
+    return 0;
+  }
+
+  if(stat(TSDB_FILE_FULL_NAME(&sf), &sfstat) < 0) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    return -1;
+  }
+
+  if (pSFile->info.size < sfstat.st_size) {
+    if(tsdbOpenSFile(&sf, O_WRONLY) < 0) {
+      return -1;
+    }
+
+    if (taosFtruncate(sf.fd, sf.info.size) < 0) {
+      terrno = TAOS_SYSTEM_ERROR(errno);
+      tsdbCloseSFile(&sf);
+      return -1;
+    }
+
+    if (tsdbUpdateSFileHeader(&sf) < 0) {
+      tsdbCloseSFile(&sf);
+      return -1;
+    }
+
+    tsdbCloseSFile(&sf);
+    tsdbInfo("vgId:%d file %s is truncated from %" PRId64 " to %" PRId64, REPO_ID(pRepo), TSDB_FILE_FULL_NAME(pSFile),
+        sfstat.st_size, pSFile->info.size
+        );
+  } else if (pSFile->info.size > sfstat.st_size) {
+    tsdbError("vgId:%d schema file %s has wrong size %" PRId64 " expected %" PRId64 ", report to upper layer to fix it",
+        REPO_ID(pRepo), TSDB_FILE_FULL_NAME(pSFile), sfstat.st_size, pSFile->info.size
+        );
+    pRepo->state |= TSDB_STATE_BAD_META;
+    TSDB_FILE_SET_STATE(pSFile, TSDB_FILE_STATE_BAD);
+    terrno = TSDB_CODE_TDB_FILE_CORRUPTED;
+    return 0;
+  } else {
+    tsdbDebug("vgId:%d schema file %s passes the scan", REPO_ID(pRepo), TSDB_FILE_FULL_NAME(pSFile));
+  }
+
+  return 0;
+}
+
+int tsdbEncodeSFInfo(void **buf, SSFInfo *pInfo) {
+  int tlen = 0;
+
+  tlen += taosEncodeVariantI64(buf, pInfo->size);
+  tlen += taosEncodeVariantI64(buf, pInfo->nRecords);
+  tlen += taosEncodeVariantU32(buf, pInfo->maxVersion);
+  tlen += taosEncodeFixedU32(buf, pInfo->magic);
+
+  return tlen;
+}
+
+void *tsdbDecodeSFInfo(void *buf, SSFInfo *pInfo) {
+  buf = taosDecodeVariantI64(buf, &(pInfo->size));
+  buf = taosDecodeVariantI64(buf, &(pInfo->nRecords));
+  buf = taosDecodeVariantU32(buf, &(pInfo->maxVersion));
+  buf = taosDecodeFixedU32(buf, &(pInfo->magic));
+
+  return buf;
+}
+
+static int tsdbRollBackSFile(SSFile *pSFile) {
+  SSFile sf;
+
+  tsdbInitSFileEx(&sf, pSFile);
+
+  if (tsdbOpenSFile(&sf, O_WRONLY) < 0) {
+    return -1;
+  }
+
+  if (taosFtruncate(TSDB_FILE_FD(&sf), pSFile->info.size) < 0) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    tsdbCloseSFile(&sf);
+    return -1;
+  } 
+
+  if (tsdbUpdateSFileHeader(&sf) < 0) {
+    tsdbCloseSFile(&sf);
+    return -1;
+  }
+  
+  TSDB_FILE_FSYNC(&sf);
+
+  tsdbCloseSFile(&sf);
+  return 0;
+}
 
 // ============== SMFile
 void tsdbInitMFile(SMFile *pMFile, SDiskID did, int vid, uint32_t ver) {
@@ -198,7 +459,7 @@ int tsdbScanAndTryFixMFile(STsdbRepo *pRepo) {
   tsdbInitMFileEx(&mf, pMFile);
 
   if (access(TSDB_FILE_FULL_NAME(pMFile), F_OK) != 0) {
-    tsdbError("vgId:%d meta file %s not exit, report to upper layer to fix it", REPO_ID(pRepo),
+    tsdbError("vgId:%d meta file %s not exist, report to upper layer to fix it", REPO_ID(pRepo),
               TSDB_FILE_FULL_NAME(pMFile));
     pRepo->state |= TSDB_STATE_BAD_META;
     TSDB_FILE_SET_STATE(pMFile, TSDB_FILE_STATE_BAD);
@@ -440,7 +701,7 @@ static int tsdbScanAndTryFixDFile(STsdbRepo *pRepo, SDFile *pDFile) {
   tsdbInitDFileEx(&df, pDFile);
 
   if (access(TSDB_FILE_FULL_NAME(pDFile), F_OK) != 0) {
-    tsdbError("vgId:%d data file %s not exit, report to upper layer to fix it", REPO_ID(pRepo),
+    tsdbError("vgId:%d data file %s not exist, report to upper layer to fix it", REPO_ID(pRepo),
               TSDB_FILE_FULL_NAME(pDFile));
     pRepo->state |= TSDB_STATE_BAD_DATA;
     TSDB_FILE_SET_STATE(pDFile, TSDB_FILE_STATE_BAD);

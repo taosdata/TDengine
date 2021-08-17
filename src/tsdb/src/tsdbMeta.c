@@ -39,11 +39,11 @@ static int     tsdbEncodeTable(void **buf, STable *pTable);
 static void *  tsdbDecodeTable(void *buf, STable **pRTable);
 static int     tsdbGetTableEncodeSize(int8_t act, STable *pTable);
 static void *  tsdbInsertTableAct(STsdbRepo *pRepo, int8_t act, void *buf, STable *pTable);
+static int      tsdbInsertSchemaToCache(STsdbRepo *pRepo, STable *pTable, STSchema* pSchema);
 static int     tsdbRemoveTableFromStore(STsdbRepo *pRepo, STable *pTable);
 static int     tsdbRmTableFromMeta(STsdbRepo *pRepo, STable *pTable);
 static int     tsdbAdjustMetaTables(STsdbRepo *pRepo, int tid);
 static int     tsdbCheckTableTagVal(SKVRow *pKVRow, STSchema *pSchema);
-static int     tsdbAddSchema(STable *pTable, STSchema *pSchema);
 static void    tsdbFreeTableSchema(STable *pTable);
 
 // ------------------ OUTER FUNCTIONS ------------------
@@ -137,12 +137,15 @@ int tsdbCreateTable(STsdbRepo *repo, STableCfg *pCfg) {
     if (pBuf == NULL) goto _err;
     void *tBuf = tsdbInsertTableAct(pRepo, TSDB_UPDATE_META, pBuf, super);
     ASSERT(POINTER_DISTANCE(tBuf, pBuf) == tlen);
+    tsdbInsertSchemaToCache(pRepo, super, pCfg->schema);
   }
   tlen = tsdbGetTableEncodeSize(TSDB_UPDATE_META, table);
   pBuf = tsdbAllocBytes(pRepo, tlen);
   if (pBuf == NULL) goto _err;
   void *tBuf = tsdbInsertTableAct(pRepo, TSDB_UPDATE_META, pBuf, table);
   ASSERT(POINTER_DISTANCE(tBuf, pBuf) == tlen);
+
+  tsdbInsertSchemaToCache(pRepo, table, pCfg->schema);
 
   if (tsdbCheckCommit(pRepo) < 0) return -1;
 
@@ -719,26 +722,22 @@ int tsdbUpdateLastColSchema(STable *pTable, STSchema *pNewSchema) {
   return 0;
 }
 
-void tsdbUpdateTableSchema(STsdbRepo *pRepo, STable *pTable, STSchema *pSchema, bool insertAct) {
+void tsdbUpdateTableSchema(STsdbRepo *pRepo, STable *pTable, STSchema *pSchema) {
   ASSERT(TABLE_TYPE(pTable) != TSDB_STREAM_TABLE && TABLE_TYPE(pTable) != TSDB_SUPER_TABLE);
   STsdbMeta *pMeta = pRepo->tsdbMeta;
 
-  STable *pCTable = (TABLE_TYPE(pTable) == TSDB_CHILD_TABLE) ? pTable->pSuper : pTable;
-  ASSERT(schemaVersion(pSchema) > schemaVersion(*(STSchema **)taosArrayGetLast(pCTable->schema)));
+  STable *pSTable = (TABLE_TYPE(pTable) == TSDB_CHILD_TABLE) ? pTable->pSuper : pTable;
+  ASSERT(schemaVersion(pSchema) > schemaVersion(*(STSchema **)taosArrayGetLast(pSTable->schema)));
 
-  TSDB_WLOCK_TABLE(pCTable);
-  tsdbAddSchema(pCTable, pSchema);
+  TSDB_WLOCK_TABLE(pSTable);
+  tsdbAddSchema(pSTable, pSchema);
 
   if (schemaNCols(pSchema) > pMeta->maxCols) pMeta->maxCols = schemaNCols(pSchema);
   if (schemaTLen(pSchema) > pMeta->maxRowBytes) pMeta->maxRowBytes = schemaTLen(pSchema);
-  TSDB_WUNLOCK_TABLE(pCTable);
+  TSDB_WUNLOCK_TABLE(pSTable);
 
-  if (insertAct) {
-    int   tlen = tsdbGetTableEncodeSize(TSDB_UPDATE_META, pCTable);
-    void *buf = tsdbAllocBytes(pRepo, tlen);
-    ASSERT(buf != NULL);
-    tsdbInsertTableAct(pRepo, TSDB_UPDATE_META, buf, pCTable);
-  }
+  //TODO: handling error
+  tsdbInsertSchemaToCache(pRepo, pTable, pSchema);
 }
 
 int tsdbRestoreTable(STsdbRepo *pRepo, void *cont, int contLen) {
@@ -956,11 +955,13 @@ static int tsdbAddTableToMeta(STsdbRepo *pRepo, STable *pTable, bool addIdx, boo
     goto _err;
   }
 
+#if 0
   if (TABLE_TYPE(pTable) != TSDB_CHILD_TABLE) {
     STSchema *pSchema = tsdbGetTableSchemaImpl(pTable, false, false, -1);
     if (schemaNCols(pSchema) > pMeta->maxCols) pMeta->maxCols = schemaNCols(pSchema);
     if (schemaTLen(pSchema) > pMeta->maxRowBytes) pMeta->maxRowBytes = schemaTLen(pSchema);
   }
+#endif
 
   if (lock && tsdbUnlockRepoMeta(pRepo) < 0) return -1;
   if (TABLE_TYPE(pTable) == TSDB_STREAM_TABLE && addIdx) {
@@ -1250,11 +1251,15 @@ static int tsdbEncodeTable(void **buf, STable *pTable) {
     tlen += taosEncodeFixedU64(buf, TABLE_SUID(pTable));
     tlen += tdEncodeKVRow(buf, pTable->tagVal);
   } else {
+    //encode 0 for compatibility and flag for new version
+    tlen += taosEncodeFixedU8(buf, (uint8_t)0);
+#if 0
     tlen += taosEncodeFixedU8(buf, (uint8_t)taosArrayGetSize(pTable->schema));
     for (int i = 0; i < taosArrayGetSize(pTable->schema); i++) {
       STSchema *pSchema = taosArrayGetP(pTable->schema, i);
       tlen += tdEncodeSchema(buf, pSchema);
     }
+#endif
 
     if (TABLE_TYPE(pTable) == TSDB_SUPER_TABLE) {
       tlen += tdEncodeSchema(buf, pTable->tagSchema);
@@ -1286,10 +1291,14 @@ static void *tsdbDecodeTable(void *buf, STable **pRTable) {
   } else {
     uint8_t nSchemas;
     buf = taosDecodeFixedU8(buf, &nSchemas);
+    //kept for compatibility
     for (int i = 0; i < nSchemas; i++) {
       STSchema *pSchema;
       buf = tdDecodeSchema(buf, &pSchema);
-      tsdbAddSchema(pTable, pSchema);
+      if(tsdbAddSchema(pTable, pSchema) < 0) {
+        tsdbFreeTable(pTable);
+        return NULL;
+      }
     }
 
     if (TABLE_TYPE(pTable) == TSDB_SUPER_TABLE) {
@@ -1329,6 +1338,29 @@ static int tsdbGetTableEncodeSize(int8_t act, STable *pTable) {
   }
 
   return tlen;
+}
+
+static int tsdbInsertSchemaToCache(STsdbRepo *pRepo, STable *pTable, STSchema* pSchema) {
+  
+  int tlen = tdEncodeSchema(NULL, pSchema);
+  void *buf = tsdbAllocBytes(pRepo, tlen + sizeof(SSchemaHead) + sizeof(SListNode));
+  if(buf == NULL) {
+    return -1;
+  }
+
+  SListNode *pNode = (SListNode *)buf;
+  pNode->prev = pNode->next = NULL;
+
+  SSchemaHead *pHead = (SSchemaHead *)(pNode->data);
+  pHead->size = tlen;
+  pHead->uid = TABLE_UID(pTable);
+  pHead->version = pSchema->version;
+
+  void *pContent = POINTER_SHIFT(pHead, sizeof(SSchemaHead));
+  tdEncodeSchema(&pContent, pSchema);
+  tdListAppendNode(pRepo->mem->schemaCache, pNode);
+
+  return 0;
 }
 
 static void *tsdbInsertTableAct(STsdbRepo *pRepo, int8_t act, void *buf, STable *pTable) {
@@ -1452,7 +1484,7 @@ static int tsdbCheckTableTagVal(SKVRow *pKVRow, STSchema *pSchema) {
   return 0;
 }
 
-static int tsdbAddSchema(STable *pTable, STSchema *pSchema) {
+int tsdbAddSchema(STable *pTable, STSchema *pSchema) {
   ASSERT(TABLE_TYPE(pTable) != TSDB_CHILD_TABLE);
 
   if (pTable->schema == NULL) {
@@ -1462,9 +1494,15 @@ static int tsdbAddSchema(STable *pTable, STSchema *pSchema) {
       return -1;
     }
   }
+  if(taosArrayGetSize(pTable->schema) != 0 &&
+      schemaVersion(pSchema) <= schemaVersion(*(STSchema **) taosArrayGetLast(pTable->schema))
+      ) {
+    free(pSchema);
+    return 0;
+  }
 
-  ASSERT(taosArrayGetSize(pTable->schema) == 0 ||
-         schemaVersion(pSchema) > schemaVersion(*(STSchema **)taosArrayGetLast(pTable->schema)));
+  /*ASSERT(taosArrayGetSize(pTable->schema) == 0 ||*/
+         /*schemaVersion(pSchema) > schemaVersion(*(STSchema **)taosArrayGetLast(pTable->schema)));*/
 
   if (taosArrayPush(pTable->schema, &pSchema) == NULL) {
     terrno = TAOS_SYSTEM_ERROR(errno);

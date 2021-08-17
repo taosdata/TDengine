@@ -29,11 +29,19 @@ typedef struct {
   int64_t  size;
 } SKVRecord;
 
+typedef struct {
+  uint64_t uid;
+  uint32_t version;
+  uint32_t size;
+} SSchemaHead;
+
 #define TSDB_DEFAULT_BLOCK_ROWS(maxRows) ((maxRows)*4 / 5)
 
 void  tsdbGetRtnSnap(STsdbRepo *pRepo, SRtn *pRtn);
 int   tsdbEncodeKVRecord(void **buf, SKVRecord *pRecord);
 void *tsdbDecodeKVRecord(void *buf, SKVRecord *pRecord);
+int   tsdbEncodeSchemaHead(void **buf, SSchemaHead *pSchemaHead);
+void *tsdbDecodeSchemaHead(void *buf, SSchemaHead *pSchemaHead);
 void *tsdbCommitData(STsdbRepo *pRepo);
 int   tsdbApplyRtnOnFSet(STsdbRepo *pRepo, SDFileSet *pSet, SRtn *pRtn);
 int tsdbWriteBlockInfoImpl(SDFile *pHeadf, STable *pTable, SArray *pSupA, SArray *pSubA, void **ppBuf, SBlockIdx *pIdx);

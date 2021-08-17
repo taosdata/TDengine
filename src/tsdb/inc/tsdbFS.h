@@ -16,7 +16,7 @@
 #ifndef _TD_TSDB_FS_H_
 #define _TD_TSDB_FS_H_
 
-#define TSDB_FS_VERSION 0
+#define TSDB_FS_VERSION 1
 
 // ================== CURRENT file header info
 typedef struct {
@@ -36,6 +36,8 @@ typedef struct {
   STsdbFSMeta meta;  // FS meta
   SMFile*     pmf;   // meta file pointer
   SMFile      mf;    // meta file
+  SSFile*     psf;
+  SSFile      sf;
   SArray*     df;    // data file array
 } SFSStatus;
 
@@ -66,21 +68,23 @@ typedef struct {
 #define TSDB_FS_ITER_FORWARD TSDB_ORDER_ASC
 #define TSDB_FS_ITER_BACKWARD TSDB_ORDER_DESC
 
-STsdbFS *tsdbNewFS(STsdbCfg *pCfg);
-void *   tsdbFreeFS(STsdbFS *pfs);
-int      tsdbOpenFS(STsdbRepo *pRepo);
-void     tsdbCloseFS(STsdbRepo *pRepo);
-void     tsdbStartFSTxn(STsdbRepo *pRepo, int64_t pointsAdd, int64_t storageAdd);
-int      tsdbEndFSTxn(STsdbRepo *pRepo);
-int      tsdbEndFSTxnWithError(STsdbFS *pfs);
-void     tsdbUpdateFSTxnMeta(STsdbFS *pfs, STsdbFSMeta *pMeta);
-void     tsdbUpdateMFile(STsdbFS *pfs, const SMFile *pMFile);
-int      tsdbUpdateDFileSet(STsdbFS *pfs, const SDFileSet *pSet);
+STsdbFS*   tsdbNewFS(STsdbCfg *pCfg);
+void*      tsdbFreeFS(STsdbFS *pfs);
+int        tsdbOpenFS(STsdbRepo *pRepo);
+void       tsdbCloseFS(STsdbRepo *pRepo);
+void       tsdbStartFSTxn(STsdbRepo *pRepo, int64_t pointsAdd, int64_t storageAdd);
+int        tsdbEndFSTxn(STsdbRepo *pRepo);
+int        tsdbEndFSTxnWithError(STsdbFS *pfs);
+void       tsdbUpdateFSTxnMeta(STsdbFS *pfs, STsdbFSMeta *pMeta);
+void       tsdbUpdateSFile(STsdbFS *pfs, const SSFile *pSFile);
+void       tsdbUpdateMFile(STsdbFS *pfs, const SMFile *pMFile);
+int        tsdbUpdateDFileSet(STsdbFS *pfs, const SDFileSet *pSet);
 
 void       tsdbFSIterInit(SFSIter *pIter, STsdbFS *pfs, int direction);
 void       tsdbFSIterSeek(SFSIter *pIter, int fid);
-SDFileSet *tsdbFSIterNext(SFSIter *pIter);
+SDFileSet* tsdbFSIterNext(SFSIter *pIter);
 int        tsdbLoadMetaCache(STsdbRepo *pRepo, bool recoverMeta);
+int        tsdbLoadSchema(STsdbRepo *pRepo);
 
 static FORCE_INLINE int tsdbRLockFS(STsdbFS* pFs) {
   int code = pthread_rwlock_rdlock(&(pFs->lock));

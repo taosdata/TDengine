@@ -128,6 +128,7 @@ int tsdbUnRefMemTable(STsdbRepo *pRepo, SMemTable *pMemTable) {
     }
 
     tdListDiscard(pMemTable->actList);
+    tdListDiscard(pMemTable->schemaCache);
     tdListDiscard(pMemTable->bufBlockList);
     tsdbFreeMemTable(pMemTable);
   }
@@ -485,6 +486,12 @@ static SMemTable* tsdbNewMemTable(STsdbRepo *pRepo) {
     goto _err;
   }
 
+  pMemTable->schemaCache = tdListNew(0);
+  if (pMemTable->schemaCache == NULL) {
+    terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
+    goto _err;
+  }
+
   pMemTable->bufBlockList = tdListNew(sizeof(STsdbBufBlock*));
   if (pMemTable->bufBlockList == NULL) {
     terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
@@ -504,10 +511,12 @@ static void tsdbFreeMemTable(SMemTable* pMemTable) {
   if (pMemTable) {
     ASSERT((pMemTable->bufBlockList == NULL) ? true : (listNEles(pMemTable->bufBlockList) == 0));
     ASSERT((pMemTable->actList == NULL) ? true : (listNEles(pMemTable->actList) == 0));
+    ASSERT((pMemTable->schemaCache == NULL) ? true : (listNEles(pMemTable->schemaCache) == 0));
 
     tdListFree(pMemTable->extraBuffList);
     tdListFree(pMemTable->bufBlockList);
     tdListFree(pMemTable->actList);
+    tdListFree(pMemTable->schemaCache);
     tfree(pMemTable->tData);
     free(pMemTable);
   }
@@ -941,7 +950,7 @@ static int tsdbCheckTableSchema(STsdbRepo *pRepo, SSubmitBlk *pBlock, STable *pT
       }
 
       tdDestroyTSchemaBuilder(&schemaBuilder);
-      tsdbUpdateTableSchema(pRepo, pTable, pNSchema, true);
+      tsdbUpdateTableSchema(pRepo, pTable, pNSchema);
     } else {
       tsdbDebug(
           "vgId:%d table %s tid %d uid %" PRIu64 " schema version %d is out of data, client version %d, reconfigure...",

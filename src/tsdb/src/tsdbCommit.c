@@ -54,6 +54,7 @@ typedef struct {
 #define TSDB_COMMIT_DEFAULT_ROWS(ch) TSDB_DEFAULT_BLOCK_ROWS(TSDB_COMMIT_REPO(ch)->config.maxRowsPerFileBlock)
 #define TSDB_COMMIT_TXN_VERSION(ch) FS_TXN_VERSION(REPO_FS(TSDB_COMMIT_REPO(ch)))
 
+static int tsdbCommitSchema(STsdbRepo *pRepo);
 static int  tsdbCommitMeta(STsdbRepo *pRepo);
 static int  tsdbUpdateMetaRecord(STsdbFS *pfs, SMFile *pMFile, uint64_t uid, void *cont, int contLen);
 static int  tsdbDropMetaRecord(STsdbFS *pfs, SMFile *pMFile, uint64_t uid);
@@ -95,6 +96,12 @@ void *tsdbCommitData(STsdbRepo *pRepo) {
   // Commit to update meta file
   if (tsdbCommitMeta(pRepo) < 0) {
     tsdbError("vgId:%d error occurs while committing META data since %s", REPO_ID(pRepo), tstrerror(terrno));
+    goto _err;
+  }
+
+  // Commit to update SCHEMA file
+  if (tsdbCommitSchema(pRepo) < 0) {
+    tsdbError("vgId:%d error occurs while committing SCHEMA data since %s", REPO_ID(pRepo), tstrerror(terrno));
     goto _err;
   }
 
@@ -258,7 +265,65 @@ int tsdbWriteBlockIdx(SDFile *pHeadf, SArray *pIdxA, void **ppBuf) {
 
   return 0;
 }
+// =================== Commit Schema Data
+static int tsdbCommitSchema(STsdbRepo *pRepo) {
+  STsdbFS*   pfs     = REPO_FS(pRepo);
+  SMemTable* pMem    = pRepo->imem;
+  SSFile*    pOSFile = pfs->cstatus->psf;
+  SSFile     sf;
+  SListNode* pNode   = NULL;
+  SDiskID    did;
 
+  /*ASSERT(pOSFile != NULL || listNEles(pMem->schemaCache) > 0);*/
+
+  /*if (listNEles(pMem->schemaCache) <= 0) {*/
+    /*tsdbUpdateSFile(pfs, pOSFile);*/
+    /*return 0;*/
+  /*}*/
+
+  if(pOSFile == NULL) {
+    did.level = TFS_PRIMARY_LEVEL;
+    did.id    = TFS_PRIMARY_ID;
+    tsdbInitSFile(&sf, did, REPO_ID(pRepo), FS_TXN_VERSION(REPO_FS(pRepo)));
+
+    if(tsdbCreateSFile(&sf, true) < 0) {
+        tsdbError("vgId:%d failed to create SCHEMA file since %s", REPO_ID(pRepo), tstrerror(terrno));
+        return -1;
+    }
+
+    tsdbInfo("vgId:%d schema file %s is created to commit", REPO_ID(pRepo), TSDB_FILE_FULL_NAME(&sf));
+  } else {
+    tsdbInitSFileEx(&sf, pOSFile);
+    if(tsdbOpenSFile(&sf, O_WRONLY) < 0) {
+      tsdbError("vgId:%d failed to open SCHEMA file since %s", REPO_ID(pRepo), tstrerror(terrno));
+      return -1;
+    }
+  }
+
+  SSchemaHead head = {0};
+  while ((pNode = tdListPopHead(pMem->schemaCache)) != NULL) {
+    SSchemaHead *pHead = (SSchemaHead *)pNode->data;
+    int size = pHead->size + sizeof(SSchemaHead);
+    if(tsdbAppendSFile(&sf, (void *)pHead, size, NULL) < size) {
+      tsdbError("vgId:%d failed to update SCHEMA record, uid %" PRIu64 " since %s", REPO_ID(pRepo), head.uid,
+                tstrerror(terrno));
+      tsdbCloseSFile(&sf);
+      tsdbApplySFileChange(&sf, pOSFile);
+      return -1;
+    }
+  }
+
+  if (tsdbUpdateSFileHeader(&sf) < 0) {
+    tsdbError("vgId:%d failed to update Schema file header since %s, revert it", REPO_ID(pRepo), tstrerror(terrno));
+    tsdbApplySFileChange(&sf, pOSFile);
+    return -1;
+  }
+
+  TSDB_FILE_FSYNC(&sf);
+  tsdbCloseSFile(&sf);
+  tsdbUpdateSFile(pfs, &sf);
+  return 0;
+}
 
 // =================== Commit Meta Data
 static int tsdbCommitMeta(STsdbRepo *pRepo) {
@@ -339,6 +404,23 @@ static int tsdbCommitMeta(STsdbRepo *pRepo) {
   tsdbUpdateMFile(pfs, &mf);
 
   return 0;
+}
+
+int tsdbEncodeSchemaHead(void **buf, SSchemaHead* pHead) {
+  int tlen = 0;
+  tlen += taosEncodeFixedU64(buf, pHead->uid);
+  tlen += taosEncodeFixedU32(buf, pHead->version);
+  tlen += taosEncodeFixedU32(buf, pHead->size);
+
+  return tlen;
+}
+
+void *tsdbDecodeSchemaHead(void *buf, SSchemaHead* pHead) {
+  buf = taosDecodeFixedU64(buf, &(pHead->uid));
+  buf = taosDecodeFixedU32(buf, &(pHead->version));
+  buf = taosDecodeFixedU32(buf, &(pHead->size));
+
+  return buf;
 }
 
 int tsdbEncodeKVRecord(void **buf, SKVRecord *pRecord) {
@@ -522,10 +604,10 @@ static int tsdbCommitTSData(STsdbRepo *pRepo) {
 static void tsdbStartCommit(STsdbRepo *pRepo) {
   SMemTable *pMem = pRepo->imem;
 
-  ASSERT(pMem->numOfRows > 0 || listNEles(pMem->actList) > 0);
+  ASSERT(pMem->numOfRows > 0 || listNEles(pMem->actList) > 0 || listNEles(pMem->schemaCache) > 0);
 
-  tsdbInfo("vgId:%d start to commit! keyFirst %" PRId64 " keyLast %" PRId64 " numOfRows %" PRId64 " meta rows: %d",
-           REPO_ID(pRepo), pMem->keyFirst, pMem->keyLast, pMem->numOfRows, listNEles(pMem->actList));
+  tsdbInfo("vgId:%d start to commit! keyFirst %" PRId64 " keyLast %" PRId64 " numOfRows %" PRId64 " meta rows: %d schema rows: %d",
+           REPO_ID(pRepo), pMem->keyFirst, pMem->keyLast, pMem->numOfRows, listNEles(pMem->actList), listNEles(pMem->schemaCache));
 
   tsdbStartFSTxn(pRepo, pMem->pointsAdd, pMem->storageAdd);
 

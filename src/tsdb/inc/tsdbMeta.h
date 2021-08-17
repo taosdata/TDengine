@@ -80,7 +80,7 @@ int        tsdbRLockRepoMeta(STsdbRepo* pRepo);
 int        tsdbUnlockRepoMeta(STsdbRepo* pRepo);
 void       tsdbRefTable(STable* pTable);
 void       tsdbUnRefTable(STable* pTable);
-void       tsdbUpdateTableSchema(STsdbRepo* pRepo, STable* pTable, STSchema* pSchema, bool insertAct);
+void       tsdbUpdateTableSchema(STsdbRepo* pRepo, STable* pTable, STSchema* pSchema);
 int        tsdbRestoreTable(STsdbRepo* pRepo, void* cont, int contLen);
 void       tsdbOrgMeta(STsdbRepo* pRepo);
 int        tsdbInitColIdCacheWithSchema(STable* pTable, STSchema* pSchema);
@@ -88,6 +88,7 @@ int16_t    tsdbGetLastColumnsIndexByColId(STable* pTable, int16_t colId);
 int        tsdbUpdateLastColSchema(STable *pTable, STSchema *pNewSchema);
 STSchema*  tsdbGetTableLatestSchema(STable *pTable);
 void       tsdbFreeLastColumns(STable* pTable);
+int        tsdbAddSchema(STable *pTable, STSchema *pSchema);
 
 static FORCE_INLINE int tsdbCompareSchemaVersion(const void *key1, const void *key2) {
   if (*(int16_t *)key1 < schemaVersion(*(STSchema **)key2)) {
