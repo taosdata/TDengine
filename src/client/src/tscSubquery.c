@@ -2054,11 +2054,8 @@ void tscFreeRetrieveSupporters(SSqlObj *pSql) {
   for(int32_t i = 0; i < pSql->subState.numOfSub; ++i) {
     SSqlObj* pSub = pSql->pSubs[i];
     assert(pSub != NULL);
-    
-    SRetrieveSupport* pSupport = pSub->param;
-    
-    tfree(pSupport->localBuffer);
-    tfree(pSub->param);
+
+    tscFreeRetrieveSup(pSub);
   }
 }
 
