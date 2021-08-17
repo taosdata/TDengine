@@ -2562,7 +2562,7 @@ int32_t tscHandleMasterSTableQuery(SSqlObj *pSql) {
   return TSDB_CODE_SUCCESS;
 }
 
-static void tscFreeRetrieveSup(SSqlObj *pSql) {
+void tscFreeRetrieveSup(SSqlObj *pSql) {
   SRetrieveSupport *trsupport = pSql->param;
 
   void* p = atomic_val_compare_exchange_ptr(&pSql->param, trsupport, 0);
