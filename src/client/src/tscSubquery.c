@@ -2050,16 +2050,6 @@ void doCleanupSubqueries(SSqlObj *pSql, int32_t numOfSubs) {
   }
 }
 
-void tscFreeRetrieveSupporters(SSqlObj *pSql) {  
-  for(int32_t i = 0; i < pSql->subState.numOfSub; ++i) {
-    SSqlObj* pSub = pSql->pSubs[i];
-    assert(pSub != NULL);
-
-    tscFreeRetrieveSup(pSub);
-  }
-}
-
-
 void tscLockByThread(int64_t *lockedBy) {
   int64_t tid = taosGetSelfPthreadId();
   int     i = 0;
@@ -2585,6 +2575,18 @@ static void tscFreeRetrieveSup(SSqlObj *pSql) {
   tfree(trsupport->localBuffer);
   tfree(trsupport);
 }
+
+void tscFreeRetrieveSupporters(SSqlObj *pSql) {  
+  for(int32_t i = 0; i < pSql->subState.numOfSub; ++i) {
+    SSqlObj* pSub = pSql->pSubs[i];
+    assert(pSub != NULL);
+
+    tscFreeRetrieveSup(pSub);
+  }
+}
+
+
+
 
 static void tscRetrieveFromDnodeCallBack(void *param, TAOS_RES *tres, int numOfRows);
 static void tscHandleSubqueryError(SRetrieveSupport *trsupport, SSqlObj *pSql, int numOfRows);
