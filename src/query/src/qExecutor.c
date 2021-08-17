@@ -3645,7 +3645,6 @@ void copyTsColoum(SSDataBlock* pRes, SQLFunctionCtx* pCtx, int32_t numOfOutput) 
   bool    needCopyTs = false;
   int32_t tsNum = 0;
   char *src = NULL;
-  int32_t preFunctionId = TSDB_FUNC_TS_DUMMY;
   for (int32_t i = 0; i < numOfOutput; i++) {
     int32_t functionId = pCtx[i].functionId;
     if (functionId == TSDB_FUNC_DIFF || functionId == TSDB_FUNC_DERIVATIVE) {
