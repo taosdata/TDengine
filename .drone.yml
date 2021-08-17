@@ -316,7 +316,5 @@ steps:
     - master
     event:
     - pull_request 
-
-
 depends_on:
 - test_amd64
