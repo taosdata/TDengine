@@ -45,7 +45,7 @@ system sh/exec_tarbitrator.sh -s start
 
 print ============== step1: start dnode1, only deploy mnode
 system sh/exec.sh -n dnode1 -s start
-sleep 3000
+sleep 2000
 sql connect
 
 print ============== step2: start dnode2/dnode3/dnode4 and add into cluster , then create database with replica 3, and create table, insert data
@@ -55,7 +55,7 @@ system sh/exec.sh -n dnode4 -s start
 sql create dnode $hostname2
 sql create dnode $hostname3
 sql create dnode $hostname4
-sleep 3000
+sleep 2000
 
 $sleepTimer = 3000
 
@@ -106,7 +106,7 @@ if $loopCnt == 10 then
 endi
 
 sql show dnodes
-if $rows != 4 then
+if $rows != 5 then
   sleep 2000
   goto wait_dnode4_offline_0
 endi
@@ -167,7 +167,7 @@ if $loopCnt == 10 then
 endi
 
 sql show dnodes
-if $rows != 4 then
+if $rows != 5 then
   sleep 2000
   goto wait_dnode4_reready
 endi
@@ -227,7 +227,7 @@ if $loopCnt == 10 then
 endi
 
 sql show dnodes
-if $rows != 4 then
+if $rows != 5 then
   sleep 2000
   goto wait_dnode3_offline
 endi
@@ -267,7 +267,7 @@ if $loopCnt == 10 then
 endi
 
 sql show dnodes
-if $rows != 4 then
+if $rows != 5 then
   sleep 2000
   goto wait_dnode3_reready
 endi
@@ -343,7 +343,7 @@ if $loopCnt == 10 then
 endi
 
 sql show dnodes
-if $rows != 4 then
+if $rows != 5 then
   sleep 2000
   goto wait_dnode2_offline
 endi
@@ -383,7 +383,7 @@ if $loopCnt == 10 then
 endi
 
 sql show dnodes
-if $rows != 4 then
+if $rows != 5 then
   sleep 2000
   goto wait_dnode2_reready
 endi

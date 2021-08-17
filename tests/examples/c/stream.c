@@ -54,9 +54,6 @@ int main(int argc, char *argv[])
     exit(0);
   } 
 
-  // init TAOS
-  taos_init();
-
   strcpy(db_name, argv[2]);
   strcpy(tbl_name, argv[3]);
   

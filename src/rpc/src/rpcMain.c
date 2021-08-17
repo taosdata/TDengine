@@ -142,7 +142,6 @@ static int32_t tsRpcNum = 0;
 #define RPC_CONN_UDPC   1
 #define RPC_CONN_TCPS   2
 #define RPC_CONN_TCPC   3
-#define RPC_CONN_TCP    2
 
 void *(*taosInitConn[])(uint32_t ip, uint16_t port, char *label, int threads, void *fp, void *shandle) = {
     taosInitUdpConnection,
@@ -247,8 +246,12 @@ void *rpcOpen(const SRpcInit *pInit) {
 
   if(pInit->label) tstrncpy(pRpc->label, pInit->label, sizeof(pRpc->label));
   pRpc->connType = pInit->connType;
+  if (pRpc->connType == TAOS_CONN_CLIENT) {
+    pRpc->numOfThreads = pInit->numOfThreads;
+  } else {
+    pRpc->numOfThreads = pInit->numOfThreads>TSDB_MAX_RPC_THREADS ? TSDB_MAX_RPC_THREADS:pInit->numOfThreads;
+  }
   pRpc->idleTime = pInit->idleTime;
-  pRpc->numOfThreads = pInit->numOfThreads>TSDB_MAX_RPC_THREADS ? TSDB_MAX_RPC_THREADS:pInit->numOfThreads;
   pRpc->localPort = pInit->localPort;
   pRpc->afp = pInit->afp;
   pRpc->sessions = pInit->sessions+1;
@@ -292,7 +295,7 @@ void *rpcOpen(const SRpcInit *pInit) {
       return NULL;
     }
   } else {
-    pRpc->pCache = rpcOpenConnCache(pRpc->sessions, rpcCloseConn, pRpc->tmrCtrl, pRpc->idleTime); 
+    pRpc->pCache = rpcOpenConnCache(pRpc->sessions, rpcCloseConn, pRpc->tmrCtrl, pRpc->idleTime * 20); 
     if ( pRpc->pCache == NULL ) {
       tError("%s failed to init connection cache", pRpc->label);
       rpcClose(pRpc);
@@ -313,7 +316,7 @@ void *rpcOpen(const SRpcInit *pInit) {
     return NULL;
   }
 
-  tDebug("%s rpc is openned, threads:%d sessions:%d", pRpc->label, pRpc->numOfThreads, pInit->sessions);
+  tDebug("%s rpc is opened, threads:%d sessions:%d", pRpc->label, pRpc->numOfThreads, pInit->sessions);
 
   return pRpc;
 }
@@ -396,7 +399,7 @@ void rpcSendRequest(void *shandle, const SRpcEpSet *pEpSet, SRpcMsg *pMsg, int64
   pContext->oldInUse = pEpSet->inUse;
 
   pContext->connType = RPC_CONN_UDPC; 
-  if (contLen > tsRpcMaxUdpSize) pContext->connType = RPC_CONN_TCPC;
+  if (contLen > tsRpcMaxUdpSize || tsRpcForceTcp ) pContext->connType = RPC_CONN_TCPC;
 
   // connection type is application specific. 
   // for TDengine, all the query, show commands shall have TCP connection
@@ -404,9 +407,9 @@ void rpcSendRequest(void *shandle, const SRpcEpSet *pEpSet, SRpcMsg *pMsg, int64
   if (type == TSDB_MSG_TYPE_QUERY || type == TSDB_MSG_TYPE_CM_RETRIEVE
     || type == TSDB_MSG_TYPE_FETCH || type == TSDB_MSG_TYPE_CM_STABLE_VGROUP
     || type == TSDB_MSG_TYPE_CM_TABLES_META || type == TSDB_MSG_TYPE_CM_TABLE_META
-    || type == TSDB_MSG_TYPE_CM_SHOW )
+    || type == TSDB_MSG_TYPE_CM_SHOW || type == TSDB_MSG_TYPE_DM_STATUS)
     pContext->connType = RPC_CONN_TCPC;
-  
+
   pContext->rid = taosAddRef(tsRpcRefId, pContext);
   if (pRid) *pRid = pContext->rid;
 
@@ -467,7 +470,7 @@ void rpcSendResponse(const SRpcMsg *pRsp) {
   taosTmrStopA(&pConn->pTimer);
 
   // set the idle timer to monitor the activity
-  taosTmrReset(rpcProcessIdleTimer, pRpc->idleTime, pConn, pRpc->tmrCtrl, &pConn->pIdleTimer);
+  taosTmrReset(rpcProcessIdleTimer, pRpc->idleTime * 30, pConn, pRpc->tmrCtrl, &pConn->pIdleTimer);
   rpcSendMsgToPeer(pConn, msg, msgLen);
 
   // if not set to secured, set it expcet NOT_READY case, since client wont treat it as secured
@@ -576,7 +579,7 @@ static void rpcFreeMsg(void *msg) {
 static SRpcConn *rpcOpenConn(SRpcInfo *pRpc, char *peerFqdn, uint16_t peerPort, int8_t connType) {
   SRpcConn *pConn;
 
-  uint32_t peerIp = taosGetIpFromFqdn(peerFqdn);
+  uint32_t peerIp = taosGetIpv4FromFqdn(peerFqdn);
   if (peerIp == 0xFFFFFFFF) {
     tError("%s, failed to resolve FQDN:%s", pRpc->label, peerFqdn); 
     terrno = TSDB_CODE_RPC_FQDN_ERROR; 
@@ -959,6 +962,11 @@ static SRpcConn *rpcProcessMsgHead(SRpcInfo *pRpc, SRecvInfo *pRecv, SRpcReqCont
     terrno = TSDB_CODE_RPC_INVALID_SESSION_ID; return NULL;
   }
 
+  if (rpcIsReq(pHead->msgType) && htonl(pHead->msgVer) != tsVersion >> 8) {
+    tDebug("%s sid:%d, invalid client version:%x/%x %s", pRpc->label, sid, htonl(pHead->msgVer), tsVersion, taosMsg[pHead->msgType]);
+    terrno = TSDB_CODE_RPC_INVALID_VERSION; return NULL;
+  }
+
   pConn = rpcGetConnObj(pRpc, sid, pRecv);
   if (pConn == NULL) {
     tDebug("%s %p, failed to get connection obj(%s)", pRpc->label, (void *)pHead->ahandle, tstrerror(terrno)); 
@@ -989,8 +997,8 @@ static SRpcConn *rpcProcessMsgHead(SRpcInfo *pRpc, SRecvInfo *pRecv, SRpcReqCont
     }
 
     if ( rpcIsReq(pHead->msgType) ) {
-      terrno = rpcProcessReqHead(pConn, pHead);
       pConn->connType = pRecv->connType;
+      terrno = rpcProcessReqHead(pConn, pHead);
 
       // stop idle timer
       taosTmrStopA(&pConn->pIdleTimer);  
@@ -1009,6 +1017,13 @@ static SRpcConn *rpcProcessMsgHead(SRpcInfo *pRpc, SRecvInfo *pRecv, SRpcReqCont
   return pConn;
 }
 
+static void doRpcReportBrokenLinkToServer(void *param, void *id) {
+   SRpcMsg *pRpcMsg = (SRpcMsg *)(param); 
+   SRpcConn *pConn  = (SRpcConn *)(pRpcMsg->handle);
+   SRpcInfo *pRpc   = pConn->pRpc; 
+   (*(pRpc->cfp))(pRpcMsg, NULL);
+   free(pRpcMsg);
+}
 static void rpcReportBrokenLinkToServer(SRpcConn *pConn) {
   SRpcInfo *pRpc = pConn->pRpc;
   if (pConn->pReqMsg == NULL) return;
@@ -1017,16 +1032,20 @@ static void rpcReportBrokenLinkToServer(SRpcConn *pConn) {
   rpcAddRef(pRpc);
   tDebug("%s, notify the server app, connection is gone", pConn->info);
 
-  SRpcMsg rpcMsg;
-  rpcMsg.pCont = pConn->pReqMsg;     // pReqMsg is re-used to store the APP context from server
-  rpcMsg.contLen = pConn->reqMsgLen; // reqMsgLen is re-used to store the APP context length
-  rpcMsg.ahandle = pConn->ahandle;
-  rpcMsg.handle = pConn;
-  rpcMsg.msgType = pConn->inType;
-  rpcMsg.code = TSDB_CODE_RPC_NETWORK_UNAVAIL; 
+  SRpcMsg *rpcMsg = malloc(sizeof(SRpcMsg));
+  rpcMsg->pCont = pConn->pReqMsg;     // pReqMsg is re-used to store the APP context from server
+  rpcMsg->contLen = pConn->reqMsgLen; // reqMsgLen is re-used to store the APP context length
+  rpcMsg->ahandle = pConn->ahandle;
+  rpcMsg->handle = pConn;
+  rpcMsg->msgType = pConn->inType;
+  rpcMsg->code = TSDB_CODE_RPC_NETWORK_UNAVAIL; 
   pConn->pReqMsg = NULL;
   pConn->reqMsgLen = 0;
-  if (pRpc->cfp) (*(pRpc->cfp))(&rpcMsg, NULL);
+  if (pRpc->cfp) {
+    taosTmrStart(doRpcReportBrokenLinkToServer, 0, rpcMsg, pRpc->tmrCtrl);
+  } else {
+    free(rpcMsg);
+  }
 }
 
 static void rpcProcessBrokenLink(SRpcConn *pConn) {
@@ -1043,7 +1062,7 @@ static void rpcProcessBrokenLink(SRpcConn *pConn) {
     pConn->pReqMsg = NULL;
     taosTmrStart(rpcProcessConnError, 0, pContext, pRpc->tmrCtrl);
   }
-
+   
   if (pConn->inType) rpcReportBrokenLinkToServer(pConn); 
 
   rpcReleaseConn(pConn);
@@ -1170,7 +1189,7 @@ static void rpcProcessIncomingMsg(SRpcConn *pConn, SRpcHead *pHead, SRpcReqConte
       }
       rpcSendReqToServer(pRpc, pContext);
       rpcFreeCont(rpcMsg.pCont);
-    } else if (pHead->code == TSDB_CODE_RPC_NOT_READY || pHead->code == TSDB_CODE_APP_NOT_READY) {
+    } else if (pHead->code == TSDB_CODE_RPC_NOT_READY || pHead->code == TSDB_CODE_APP_NOT_READY || pHead->code == TSDB_CODE_DND_EXITING) {
       pContext->code = pHead->code;
       rpcProcessConnError(pContext, NULL);
       rpcFreeCont(rpcMsg.pCont);
@@ -1212,6 +1231,7 @@ static void rpcSendReqHead(SRpcConn *pConn) {
   pHead = (SRpcHead *)msg;
   pHead->version = 1;
   pHead->msgType = pConn->outType;
+  pHead->msgVer = htonl(tsVersion >> 8);
   pHead->spi = pConn->spi;
   pHead->encrypt = 0;
   pHead->tranId = pConn->outTranId;
@@ -1272,7 +1292,7 @@ static void rpcSendReqToServer(SRpcInfo *pRpc, SRpcReqContext *pContext) {
   SRpcConn *pConn = rpcSetupConnToServer(pContext);
   if (pConn == NULL) {
     pContext->code = terrno;
-    taosTmrStart(rpcProcessConnError, 0, pContext, pRpc->tmrCtrl);
+    taosTmrStart(rpcProcessConnError, 1, pContext, pRpc->tmrCtrl);
     return;
   }
 
@@ -1282,6 +1302,7 @@ static void rpcSendReqToServer(SRpcInfo *pRpc, SRpcReqContext *pContext) {
 
   // set the message header  
   pHead->version = 1;
+  pHead->msgVer = htonl(tsVersion >> 8);
   pHead->msgType = msgType;
   pHead->encrypt = 0;
   pConn->tranId++;
@@ -1346,7 +1367,7 @@ static void rpcProcessConnError(void *param, void *id) {
   
   tDebug("%s %p, connection error happens", pRpc->label, pContext->ahandle);
 
-  if (pContext->numOfTry >= pContext->epSet.numOfEps) {
+  if (pContext->numOfTry >= pContext->epSet.numOfEps || pContext->msgType == TSDB_MSG_TYPE_FETCH) {
     rpcMsg.msgType = pContext->msgType+1;
     rpcMsg.ahandle = pContext->ahandle;
     rpcMsg.code = pContext->code;
@@ -1384,7 +1405,7 @@ static void rpcProcessRetryTimer(void *param, void *tmrId) {
         pConn->pContext->code = TSDB_CODE_RPC_NETWORK_UNAVAIL;
         pConn->pContext->pConn = NULL;
         pConn->pReqMsg = NULL;
-        taosTmrStart(rpcProcessConnError, 0, pConn->pContext, pRpc->tmrCtrl);
+        taosTmrStart(rpcProcessConnError, 1, pConn->pContext, pRpc->tmrCtrl);
         rpcReleaseConn(pConn);
       }
     }
@@ -1450,7 +1471,7 @@ static int32_t rpcCompressRpcMsg(char* pCont, int32_t contLen) {
    * only the compressed size is less than the value of contLen - overhead, the compression is applied
    * The first four bytes is set to 0, the second four bytes are utilized to keep the original length of message
    */
-  if (compLen < contLen - overhead) {
+  if (compLen > 0 && compLen < contLen - overhead) {
     SRpcComp *pComp = (SRpcComp *)pCont;
     pComp->reserved = 0; 
     pComp->contLen = htonl(contLen); 
@@ -1561,6 +1582,7 @@ static int rpcCheckAuthentication(SRpcConn *pConn, char *msg, int msgLen) {
     // for response, if code is auth failure, it shall bypass the auth process
     code = htonl(pHead->code);
     if (code == TSDB_CODE_RPC_INVALID_TIME_STAMP || code == TSDB_CODE_RPC_AUTH_FAILURE ||
+        code == TSDB_CODE_RPC_INVALID_VERSION ||
         code == TSDB_CODE_RPC_AUTH_REQUIRED || code == TSDB_CODE_MND_INVALID_USER || code == TSDB_CODE_RPC_NOT_READY) {
       pHead->msgLen = (int32_t)htonl((uint32_t)pHead->msgLen);
       // tTrace("%s, dont check authentication since code is:0x%x", pConn->info, code);
@@ -1598,7 +1620,7 @@ static int rpcCheckAuthentication(SRpcConn *pConn, char *msg, int msgLen) {
 }
 
 static void rpcLockConn(SRpcConn *pConn) {
-  int64_t tid = taosGetPthreadId();
+  int64_t tid = taosGetSelfPthreadId();
   int     i = 0;
   while (atomic_val_compare_exchange_64(&(pConn->lockedBy), 0, tid) != 0) {
     if (++i % 1000 == 0) {
@@ -1608,7 +1630,7 @@ static void rpcLockConn(SRpcConn *pConn) {
 }
 
 static void rpcUnlockConn(SRpcConn *pConn) {
-  int64_t tid = taosGetPthreadId();
+  int64_t tid = taosGetSelfPthreadId();
   if (atomic_val_compare_exchange_64(&(pConn->lockedBy), tid, 0) != tid) {
     assert(false);
   }

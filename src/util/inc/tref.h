@@ -52,6 +52,8 @@ void *taosIterateRef(int rsetId, int64_t rid);
 // return the number of references in system
 int  taosListRef();  
 
+#define RID_VALID(x) ((x) > 0)
+
 /* sample code to iterate the refs 
 
 void demoIterateRefs(int rsetId) {

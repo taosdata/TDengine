@@ -90,7 +90,7 @@ system sh/exec_tarbitrator.sh -s start
 
 print ============== step1: start dnode1
 system sh/exec.sh -n dnode1 -s start
-sleep 3000
+sleep 2000
 sql connect
 
 print ============== step2: start dnode2~7 and add into cluster 
@@ -115,7 +115,7 @@ if $loopCnt == 10 then
   return -1
 endi
 sql show dnodes
-if $rows != 7 then
+if $rows != 8 then
   sleep 2000
   goto wait_dnode_created
 endi
@@ -172,7 +172,7 @@ print $data0_4  $data1_4  $data2_4  $data3_4  $data4_4
 print $data0_5  $data1_5  $data2_5  $data3_5  $data4_5
 print $data0_6  $data1_6  $data2_6  $data3_6  $data4_6
 print $data0_7  $data1_7  $data2_7  $data3_7  $data4_7
-if $rows != 2 then
+if $rows != 3 then
   sleep 2000
   goto wait_dnode_offline_overtime_dropped
 endi

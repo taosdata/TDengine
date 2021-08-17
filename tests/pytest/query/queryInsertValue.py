@@ -45,7 +45,7 @@ class TDTestCase:
         tdSql.query("select * from st")
         tdSql.checkRows(1)
 
-        tdSql.execute("alter table st add column length int")
+        tdSql.execute("alter table st add column len int")
         tdSql.execute("insert into t1 values(now, 1, 2)")
         tdSql.query("select last(*) from st")
         tdSql.checkData(0, 2, 2);

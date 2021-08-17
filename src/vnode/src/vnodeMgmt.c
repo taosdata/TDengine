@@ -17,6 +17,7 @@
 #include "os.h"
 #include "dnode.h"
 #include "vnodeStatus.h"
+#include "vnodeBackup.h"
 #include "vnodeWorker.h"
 #include "vnodeRead.h"
 #include "vnodeWrite.h"
@@ -29,6 +30,7 @@ static void    vnodeCleanupHash(void);
 static void    vnodeIncRef(void *ptNode);
 
 static SStep tsVnodeSteps[] = {
+  {"vnode-backup", vnodeInitBackup,    vnodeCleanupBackup},
   {"vnode-worker", vnodeInitMWorker,    vnodeCleanupMWorker},
   {"vnode-write",  vnodeInitWrite,      vnodeCleanupWrite},
   {"vnode-read",   vnodeInitRead,       vnodeCleanupRead},
@@ -89,15 +91,18 @@ static void vnodeIncRef(void *ptNode) {
 }
 
 void *vnodeAcquire(int32_t vgId) {
-  SVnodeObj **ppVnode = taosHashGetCB(tsVnodesHash, &vgId, sizeof(int32_t), vnodeIncRef, NULL, sizeof(void *));
+  SVnodeObj *pVnode = NULL;
+  if (tsVnodesHash != NULL) {
+    taosHashGetClone(tsVnodesHash, &vgId, sizeof(int32_t), vnodeIncRef, &pVnode);
+  }
 
-  if (ppVnode == NULL || *ppVnode == NULL) {
+  if (pVnode == NULL) {
     terrno = TSDB_CODE_VND_INVALID_VGROUP_ID;
     vDebug("vgId:%d, not exist", vgId);
     return NULL;
   }
 
-  return *ppVnode;
+  return pVnode;
 }
 
 void vnodeRelease(void *vparam) {
@@ -105,7 +110,9 @@ void vnodeRelease(void *vparam) {
   if (vparam == NULL) return;
 
   int32_t refCount = atomic_sub_fetch_32(&pVnode->refCount, 1);
-  vTrace("vgId:%d, release vnode, refCount:%d pVnode:%p", pVnode->vgId, refCount, pVnode);
+  int32_t vgId = pVnode->vgId;
+
+  vTrace("vgId:%d, release vnode, refCount:%d pVnode:%p", vgId, refCount, pVnode);
   assert(refCount >= 0);
 
   if (refCount > 0) {
@@ -113,11 +120,23 @@ void vnodeRelease(void *vparam) {
       tsem_post(&pVnode->sem);
     }
   } else {
-    vDebug("vgId:%d, vnode will be destroyed, refCount:%d pVnode:%p", pVnode->vgId, refCount, pVnode);
+    vDebug("vgId:%d, vnode will be destroyed, refCount:%d pVnode:%p", vgId, refCount, pVnode);
     vnodeDestroyInMWorker(pVnode);
     int32_t count = taosHashGetSize(tsVnodesHash);
-    vDebug("vgId:%d, vnode is destroyed, vnodes:%d", pVnode->vgId, count);
+    vDebug("vgId:%d, vnode is destroyed, vnodes:%d", vgId, count);
   }
+}
+
+void *vnodeAcquireNotClose(int32_t vgId) {
+  SVnodeObj *pVnode = vnodeAcquire(vgId);
+  if (pVnode != NULL  && pVnode->preClose == 1) {
+    vnodeRelease(pVnode);
+    terrno = TSDB_CODE_VND_INVALID_VGROUP_ID;
+    vDebug("vgId:%d, not exist, pre closing", vgId);
+    return NULL;
+  }
+
+  return pVnode;
 }
 
 static void vnodeBuildVloadMsg(SVnodeObj *pVnode, SStatusMsg *pStatus) {
@@ -125,7 +144,7 @@ static void vnodeBuildVloadMsg(SVnodeObj *pVnode, SStatusMsg *pStatus) {
   int64_t compStorage = 0;
   int64_t pointsWritten = 0;
 
-  if (!vnodeInReadyStatus(pVnode)) return;
+  if (vnodeInClosingStatus(pVnode)) return;
   if (pStatus->openVnodes >= TSDB_MAX_VNODES) return;
 
   if (pVnode->tsdb) {
@@ -134,13 +153,16 @@ static void vnodeBuildVloadMsg(SVnodeObj *pVnode, SStatusMsg *pStatus) {
 
   SVnodeLoad *pLoad = &pStatus->load[pStatus->openVnodes++];
   pLoad->vgId = htonl(pVnode->vgId);
-  pLoad->cfgVersion = htonl(pVnode->cfgVersion);
+  pLoad->dbCfgVersion = htonl(pVnode->dbCfgVersion);
+  pLoad->vgCfgVersion = htonl(pVnode->vgCfgVersion);
   pLoad->totalStorage = htobe64(totalStorage);
   pLoad->compStorage = htobe64(compStorage);
   pLoad->pointsWritten = htobe64(pointsWritten);
+  pLoad->vnodeVersion = htobe64(pVnode->version);
   pLoad->status = pVnode->status;
   pLoad->role = pVnode->role;
   pLoad->replica = pVnode->syncCfg.replica;  
+  pLoad->compact = (pVnode->tsdb != NULL) ? tsdbGetCompactState(pVnode->tsdb) : 0; 
 }
 
 int32_t vnodeGetVnodeList(int32_t vnodeList[], int32_t *numOfVnodes) {
@@ -180,7 +202,7 @@ void vnodeBuildStatusMsg(void *param) {
 void vnodeSetAccess(SVgroupAccess *pAccess, int32_t numOfVnodes) {
   for (int32_t i = 0; i < numOfVnodes; ++i) {
     pAccess[i].vgId = htonl(pAccess[i].vgId);
-    SVnodeObj *pVnode = vnodeAcquire(pAccess[i].vgId);
+    SVnodeObj *pVnode = vnodeAcquireNotClose(pAccess[i].vgId);
     if (pVnode != NULL) {
       pVnode->accessState = pAccess[i].accessState;
       if (pVnode->accessState != TSDB_VN_ALL_ACCCESS) {

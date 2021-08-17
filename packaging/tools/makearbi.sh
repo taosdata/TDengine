@@ -47,23 +47,27 @@ mkdir -p ${install_dir}/init.d && cp ${init_file_tarbitrator_rpm} ${install_dir}
 
 cd ${release_dir} 
 
-if [ "$verMode" == "cluster" ]; then
-  pkg_name=${install_dir}-${osType}-${cpuType}
-elif [ "$verMode" == "edge" ]; then
-  pkg_name=${install_dir}-${osType}-${cpuType}
-else
-  echo "unknow verMode, nor cluster or edge"
-  exit 1
-fi
+#  install_dir has been distinguishes  cluster from  edege, so comments this code
+pkg_name=${install_dir}-${osType}-${cpuType}
 
-if [ "$verType" == "beta" ]; then
-  pkg_name=${pkg_name}-${verType}
-elif [ "$verType" == "stable" ]; then 
-  pkg_name=${pkg_name} 
+# if [ "$verMode" == "cluster" ]; then
+#   pkg_name=${install_dir}-${osType}-${cpuType}
+# elif [ "$verMode" == "edge" ]; then
+#   pkg_name=${install_dir}-${osType}-${cpuType}
+# else
+#   echo "unknow verMode, nor cluster or edge"
+#   exit 1
+# fi
+
+if [[ "$verType" == "beta" ]] || [[ "$verType" == "preRelease" ]]; then
+  pkg_name=${install_dir}-${verType}-${osType}-${cpuType} 
+elif [ "$verType" == "stable" ]; then
+  pkg_name=${pkg_name}
 else
   echo "unknow verType, nor stabel or beta"
   exit 1
 fi
+
 
 tar -zcv -f "$(basename ${pkg_name}).tar.gz" $(basename ${install_dir}) --remove-files || :
 exitcode=$?

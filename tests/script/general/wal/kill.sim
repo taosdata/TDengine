@@ -13,62 +13,62 @@ sql create table t1 (ts timestamp, i int)
 sql insert into t1 values(now, 1);
 
 print ===============  step3
-sleep 3000
+sleep 2000
 sql select * from t1;
 print rows: $rows
 if $rows != 1 then
   return -1
 endi
 system sh/exec.sh -n dnode1 -s stop -x SIGKILL
-sleep 3000
+sleep 2000
 
 print ===============  step4
 system sh/exec.sh -n dnode1 -s start -x SIGKILL
-sleep 3000
+sleep 2000
 sql select * from t1;
 print rows: $rows
 if $rows != 1 then
   return -1
 endi
 system sh/exec.sh -n dnode1 -s stop -x SIGKILL
-sleep 3000
+sleep 2000
 
 print ===============  step5
 system sh/exec.sh -n dnode1 -s start -x SIGKILL
-sleep 3000
+sleep 2000
 sql select * from t1;
 print rows: $rows
 if $rows != 1 then
   return -1
 endi
 system sh/exec.sh -n dnode1 -s stop -x SIGKILL
-sleep 3000
+sleep 2000
 
 print ===============  step6
 system sh/exec.sh -n dnode1 -s start -x SIGKILL
-sleep 3000
+sleep 2000
 sql select * from t1;
 print rows: $rows
 if $rows != 1 then
   return -1
 endi
 system sh/exec.sh -n dnode1 -s stop -x SIGKILL
-sleep 3000
+sleep 2000
 
 print ===============  step7
 system sh/exec.sh -n dnode1 -s start -x SIGKILL
-sleep 3000
+sleep 2000
 sql select * from t1;
 print rows: $rows
 if $rows != 1 then
   return -1
 endi
 system sh/exec.sh -n dnode1 -s stop -x SIGKILL
-sleep 3000
+sleep 2000
 
 print ===============  step8
 system sh/exec.sh -n dnode1 -s start -x SIGKILL
-sleep 3000
+sleep 2000
 sql select * from t1;
 print rows: $rows
 if $rows != 1 then

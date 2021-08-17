@@ -74,14 +74,13 @@ class TDTestCase:
             # TSIM: while $x < $rowNum
             while (x < rowNum):
                 # TSIM: $ms = $x . m
-                ms = "%dm" % x
-                # TSIM: sql insert into $tb values (now + $ms , $x )
+                ms = x * 60000
                 tdLog.info(
-                    'insert into %s values (now + %s , %d )' %
-                    (tb, ms, x))
+                    "insert into %s values (%d, %d)" %
+                    (tb, 1605045600000 + ms, x))
                 tdSql.execute(
-                    'insert into %s values (now + %s , %d )' %
-                    (tb, ms, x))
+                    "insert into %s values (%d, %d)" %
+                    (tb, 1605045600000 + ms, x))
                 # TSIM: $x = $x + 1
                 x = x + 1
                 # TSIM: endw
@@ -102,14 +101,13 @@ class TDTestCase:
             # TSIM: while $x < $rowNum
             while (x < rowNum):
                 # TSIM: $ms = $x . m
-                ms = "%dm" % x
-                # TSIM: sql insert into $tb values (now + $ms , $x )
+                ms = x * 60000
                 tdLog.info(
-                    'insert into %s values (now + %s , %d )' %
-                    (tb, ms, x))
+                    "insert into %s values (%d, %d)" %
+                    (tb, 1605045600000 + ms, x))
                 tdSql.execute(
-                    'insert into %s values (now + %s , %d )' %
-                    (tb, ms, x))
+                    "insert into %s values (%d, %d)" %
+                    (tb, 1605045600000 + ms, x))
                 # TSIM: $x = $x + 1
                 x = x + 1
                 # TSIM: endw
@@ -128,36 +126,36 @@ class TDTestCase:
         # TSIM: return -1
         # TSIM: endi
         # TSIM:
-        # TSIM: sql select * from $mt where ts < now + 4m
-        tdLog.info('select * from %s where ts < now + 4m' % (mt))
-        tdSql.query('select * from %s where ts < now + 4m' % (mt))
+        # TSIM: sql select * from $mt where ts < 1605045600000 + 240001
+        tdLog.info('select * from %s where ts < 1605045600000 + 240001' % (mt))
+        tdSql.query('select * from %s where ts < 1605045600000 + 240001' % (mt))
         # TSIM: if $rows != 50 then
         tdLog.info('tdSql.checkRow(50)')
         tdSql.checkRows(50)
         # TSIM: return -1
         # TSIM: endi
-        # TSIM: sql select * from $mt where ts > now + 4m
-        tdLog.info('select * from %s where ts > now + 4m' % (mt))
-        tdSql.query('select * from %s where ts > now + 4m' % (mt))
+        # TSIM: sql select * from $mt where ts > 1605045600000 + 240001
+        tdLog.info('select * from %s where ts > 1605045600000 + 240001' % (mt))
+        tdSql.query('select * from %s where ts > 1605045600000 + 240001' % (mt))
         # TSIM: if $rows != 150 then
         tdLog.info('tdSql.checkRow(150)')
         tdSql.checkRows(150)
         # TSIM: return -1
         # TSIM: endi
-        # TSIM: sql select * from $mt where ts = now + 4m
-        tdLog.info('select * from %s where ts = now + 4m' % (mt))
-        tdSql.query('select * from %s where ts = now + 4m' % (mt))
+        # TSIM: sql select * from $mt where ts = 1605045600000 + 240001
+        tdLog.info('select * from %s where ts = 1605045600000 + 240001' % (mt))
+        tdSql.query('select * from %s where ts = 1605045600000 + 240001' % (mt))
         # TSIM: if $rows != 0 then
         tdLog.info('tdSql.checkRow(0)')
         tdSql.checkRows(0)
         # TSIM: return -1
         # TSIM: endi
-        # TSIM: sql select * from $mt where ts > now + 4m and ts < now + 5m
+        # TSIM: sql select * from $mt where ts > 1605045600000 + 240001 and ts < 1605045600000 + 300001
         tdLog.info(
-            'select * from %s where ts > now + 4m and ts < now + 5m' %
+            'select * from %s where ts > 1605045600000 + 240001 and ts < 1605045600000 + 300001' %
             (mt))
         tdSql.query(
-            'select * from %s where ts > now + 4m and ts < now + 5m' %
+            'select * from %s where ts > 1605045600000 + 240001 and ts < 1605045600000 + 300001' %
             (mt))
         # TSIM: if $rows != 10 then
         tdLog.info('tdSql.checkRow(10)')
@@ -269,98 +267,98 @@ class TDTestCase:
         # TSIM:
         # TSIM: print =============== step5
         tdLog.info('=============== step5')
-        # TSIM: sql select * from $mt where ts > now + 4m and tgcol = '1'
+        # TSIM: sql select * from $mt where ts > 1605045600000 + 240001 and tgcol = '1'
         tdLog.info(
-            'select * from %s where ts > now + 4m and tgcol = "1"' %
+            'select * from %s where ts > 1605045600000 + 240001 and tgcol = "1"' %
             (mt))
         tdSql.query(
-            'select * from %s where ts > now + 4m and tgcol = "1"' %
+            'select * from %s where ts > 1605045600000 + 240001 and tgcol = "1"' %
             (mt))
         # TSIM: if $rows != 75 then
         tdLog.info('tdSql.checkRow(75)')
         tdSql.checkRows(75)
         # TSIM: return -1
         # TSIM: endi
-        # TSIM: sql select * from $mt where ts > now + 4m and tgcol <> '1'
+        # TSIM: sql select * from $mt where ts > 1605045600000 + 240001 and tgcol <> '1'
         tdLog.info(
-            'select * from %s where ts > now + 4m and tgcol <> "1"' %
+            'select * from %s where ts > 1605045600000 + 240001 and tgcol <> "1"' %
             (mt))
         tdSql.query(
-            'select * from %s where ts > now + 4m and tgcol <> "1"' %
+            'select * from %s where ts > 1605045600000 + 240001 and tgcol <> "1"' %
             (mt))
         # TSIM: if $rows != 75 then
         tdLog.info('tdSql.checkRow(75)')
         tdSql.checkRows(75)
         # TSIM: return -1
         # TSIM: endi
-        # TSIM: sql select * from $mt where ts < now + 4m and tgcol = '0'
+        # TSIM: sql select * from $mt where ts < 1605045600000 + 240001 and tgcol = '0'
         tdLog.info(
-            'select * from %s where ts < now + 4m and tgcol = "0"' %
+            'select * from %s where ts < 1605045600000 + 240001 and tgcol = "0"' %
             (mt))
         tdSql.query(
-            'select * from %s where ts < now + 4m and tgcol = "0"' %
+            'select * from %s where ts < 1605045600000 + 240001 and tgcol = "0"' %
             (mt))
         # TSIM: if $rows != 25 then
         tdLog.info('tdSql.checkRow(25)')
         tdSql.checkRows(25)
         # TSIM: return -1
         # TSIM: endi
-        # TSIM: sql select * from $mt where ts < now + 4m and tgcol <> '0'
+        # TSIM: sql select * from $mt where ts < 1605045600000 + 240001 and tgcol <> '0'
         tdLog.info(
-            'select * from %s where ts < now + 4m and tgcol <> "0"' %
+            'select * from %s where ts < 1605045600000 + 240001 and tgcol <> "0"' %
             (mt))
         tdSql.query(
-            'select * from %s where ts < now + 4m and tgcol <> "0"' %
+            'select * from %s where ts < 1605045600000 + 240001 and tgcol <> "0"' %
             (mt))
         # TSIM: if $rows != 25 then
         tdLog.info('tdSql.checkRow(25)')
         tdSql.checkRows(25)
         # TSIM: return -1
         # TSIM: endi
-        # TSIM: sql select * from $mt where ts <= now + 4m and tgcol = '0'
+        # TSIM: sql select * from $mt where ts <= 1605045600000 + 240001 and tgcol = '0'
         tdLog.info(
-            'select * from %s where ts <= now + 4m and tgcol = "0"' %
+            'select * from %s where ts <= 1605045600000 + 240001 and tgcol = "0"' %
             (mt))
         tdSql.query(
-            'select * from %s where ts <= now + 4m and tgcol = "0"' %
+            'select * from %s where ts <= 1605045600000 + 240001 and tgcol = "0"' %
             (mt))
         # TSIM: if $rows != 25 then
         tdLog.info('tdSql.checkRow(25)')
         tdSql.checkRows(25)
         # TSIM: return -1
         # TSIM: endi
-        # TSIM: sql select * from $mt where ts <= now + 4m and tgcol <> '0'
+        # TSIM: sql select * from $mt where ts <= 1605045600000 + 240001 and tgcol <> '0'
         tdLog.info(
-            'select * from %s where ts <= now + 4m and tgcol <> "0"' %
+            'select * from %s where ts <= 1605045600000 + 240001 and tgcol <> "0"' %
             (mt))
         tdSql.query(
-            'select * from %s where ts <= now + 4m and tgcol <> "0"' %
+            'select * from %s where ts <= 1605045600000 + 240001 and tgcol <> "0"' %
             (mt))
         # TSIM: if $rows != 25 then
         tdLog.info('tdSql.checkRow(25)')
         tdSql.checkRows(25)
         # TSIM: return -1
         # TSIM: endi
-        # TSIM: sql select * from $mt where ts > now + 4m and ts < now + 5m and
+        # TSIM: sql select * from $mt where ts > 1605045600000 + 240001 and ts < 1605045600000 + 300001 and
         # tgcol <> '0'
         tdLog.info(
-            'select * from %s where ts > now + 4m and ts < now + 5m and tgcol <> "0"' %
+            'select * from %s where ts > 1605045600000 + 240001 and ts < 1605045600000 + 300001 and tgcol <> "0"' %
             (mt))
         tdSql.query(
-            'select * from %s where ts > now + 4m and ts < now + 5m and tgcol <> "0"' %
+            'select * from %s where ts > 1605045600000 + 240001 and ts < 1605045600000 + 300001 and tgcol <> "0"' %
             (mt))
         # TSIM: if $rows != 5 then
         tdLog.info('tdSql.checkRow(5)')
         tdSql.checkRows(5)
         # TSIM: return -1
         # TSIM: endi
-        # TSIM: sql select * from $mt where ts > now + 4m and tgcol <> '0' and
-        # ts < now + 5m
+        # TSIM: sql select * from $mt where ts > 1605045600000 + 240001 and tgcol <> '0' and
+        # ts < 1605045600000 + 300001
         tdLog.info(
-            'select * from %s where ts > now + 4m and tgcol <> "0" and ts < now + 5m' %
+            'select * from %s where ts > 1605045600000 + 240001 and tgcol <> "0" and ts < 1605045600000 + 300001' %
             (mt))
         tdSql.query(
-            'select * from %s where ts > now + 4m and tgcol <> "0" and ts < now + 5m' %
+            'select * from %s where ts > 1605045600000 + 240001 and tgcol <> "0" and ts < 1605045600000 + 300001' %
             (mt))
         # TSIM: if $rows != 5 then
         tdLog.info('tdSql.checkRow(5)')
@@ -370,98 +368,98 @@ class TDTestCase:
         # TSIM:
         # TSIM: print =============== step6
         tdLog.info('=============== step6')
-        # TSIM: sql select * from $mt where ts > now + 4m and tgcol2 = '1'
+        # TSIM: sql select * from $mt where ts > 1605045600000 + 240001 and tgcol2 = '1'
         tdLog.info(
-            'select * from %s where ts > now + 4m and tgcol2 = "1"' %
+            'select * from %s where ts > 1605045600000 + 240001 and tgcol2 = "1"' %
             (mt))
         tdSql.query(
-            'select * from %s where ts > now + 4m and tgcol2 = "1"' %
+            'select * from %s where ts > 1605045600000 + 240001 and tgcol2 = "1"' %
             (mt))
         # TSIM: if $rows != 75 then
         tdLog.info('tdSql.checkRow(75)')
         tdSql.checkRows(75)
         # TSIM: return -1
         # TSIM: endi
-        # TSIM: sql select * from $mt where ts > now + 4m and tgcol2 <> '1'
+        # TSIM: sql select * from $mt where ts > 1605045600000 + 240001 and tgcol2 <> '1'
         tdLog.info(
-            'select * from %s where ts > now + 4m and tgcol2 <> "1"' %
+            'select * from %s where ts > 1605045600000 + 240001 and tgcol2 <> "1"' %
             (mt))
         tdSql.query(
-            'select * from %s where ts > now + 4m and tgcol2 <> "1"' %
+            'select * from %s where ts > 1605045600000 + 240001 and tgcol2 <> "1"' %
             (mt))
         # TSIM: if $rows != 75 then
         tdLog.info('tdSql.checkRow(75)')
         tdSql.checkRows(75)
         # TSIM: return -1
         # TSIM: endi
-        # TSIM: sql select * from $mt where ts < now + 4m and tgcol2 = '0'
+        # TSIM: sql select * from $mt where ts < 1605045600000 + 240001 and tgcol2 = '0'
         tdLog.info(
-            'select * from %s where ts < now + 4m and tgcol2 = "0"' %
+            'select * from %s where ts < 1605045600000 + 240001 and tgcol2 = "0"' %
             (mt))
         tdSql.query(
-            'select * from %s where ts < now + 4m and tgcol2 = "0"' %
+            'select * from %s where ts < 1605045600000 + 240001 and tgcol2 = "0"' %
             (mt))
         # TSIM: if $rows != 25 then
         tdLog.info('tdSql.checkRow(25)')
         tdSql.checkRows(25)
         # TSIM: return -1
         # TSIM: endi
-        # TSIM: sql select * from $mt where ts < now + 4m and tgcol2 <> '0'
+        # TSIM: sql select * from $mt where ts < 1605045600000 + 240001 and tgcol2 <> '0'
         tdLog.info(
-            'select * from %s where ts < now + 4m and tgcol2 <> "0"' %
+            'select * from %s where ts < 1605045600000 + 240001 and tgcol2 <> "0"' %
             (mt))
         tdSql.query(
-            'select * from %s where ts < now + 4m and tgcol2 <> "0"' %
+            'select * from %s where ts < 1605045600000 + 240001 and tgcol2 <> "0"' %
             (mt))
         # TSIM: if $rows != 25 then
         tdLog.info('tdSql.checkRow(25)')
         tdSql.checkRows(25)
         # TSIM: return -1
         # TSIM: endi
-        # TSIM: sql select * from $mt where ts <= now + 4m and tgcol2 = '0'
+        # TSIM: sql select * from $mt where ts <= 1605045600000 + 240001 and tgcol2 = '0'
         tdLog.info(
-            'select * from %s where ts <= now + 4m and tgcol2 = "0"' %
+            'select * from %s where ts <= 1605045600000 + 240001 and tgcol2 = "0"' %
             (mt))
         tdSql.query(
-            'select * from %s where ts <= now + 4m and tgcol2 = "0"' %
+            'select * from %s where ts <= 1605045600000 + 240001 and tgcol2 = "0"' %
             (mt))
         # TSIM: if $rows != 25 then
         tdLog.info('tdSql.checkRow(25)')
         tdSql.checkRows(25)
         # TSIM: return -1
         # TSIM: endi
-        # TSIM: sql select * from $mt where ts <= now + 4m and tgcol2 <> '0'
+        # TSIM: sql select * from $mt where ts <= 1605045600000 + 240001 and tgcol2 <> '0'
         tdLog.info(
-            'select * from %s where ts <= now + 4m and tgcol2 <> "0"' %
+            'select * from %s where ts <= 1605045600000 + 240001 and tgcol2 <> "0"' %
             (mt))
         tdSql.query(
-            'select * from %s where ts <= now + 4m and tgcol2 <> "0"' %
+            'select * from %s where ts <= 1605045600000 + 240001 and tgcol2 <> "0"' %
             (mt))
         # TSIM: if $rows != 25 then
         tdLog.info('tdSql.checkRow(25)')
         tdSql.checkRows(25)
         # TSIM: return -1
         # TSIM: endi
-        # TSIM: sql select * from $mt where ts > now + 4m and ts < now + 5m and
+        # TSIM: sql select * from $mt where ts > 1605045600000 + 240001 and ts < 1605045600000 + 300001 and
         # tgcol2 <> '0'
         tdLog.info(
-            'select * from %s where ts > now + 4m and ts < now + 5m and tgcol2 <> "0"' %
+            'select * from %s where ts > 1605045600000 + 240001 and ts < 1605045600000 + 300001 and tgcol2 <> "0"' %
             (mt))
         tdSql.query(
-            'select * from %s where ts > now + 4m and ts < now + 5m and tgcol2 <> "0"' %
+            'select * from %s where ts > 1605045600000 + 240001 and ts < 1605045600000 + 300001 and tgcol2 <> "0"' %
             (mt))
         # TSIM: if $rows != 5 then
         tdLog.info('tdSql.checkRow(5)')
         tdSql.checkRows(5)
         # TSIM: return -1
         # TSIM: endi
-        # TSIM: sql select * from $mt where ts > now + 4m and tgcol2 <> '0' and
-        # ts < now + 5m
+        # TSIM: sql select * from $mt where ts > 1605045600000 + 240001 and tgcol2 <> '0' and
+        # ts < 1605045600000 + 300001
         tdLog.info(
-            'select * from %s where ts > now + 4m and tgcol2 <> "0" and ts < now + 5m' %
+            'select * from %s where ts > 1605045600000 + 240001 and tgcol2 <> "0" and ts < 1605045600000 + 300001' %
             (mt))
         tdSql.query(
-            'select * from %s where ts > now + 4m and tgcol2 <> "0" and ts < now + 5m' %
+            'select * from %s where ts > 1605045600000 + 240001 and tgcol2 <> "0" and ts < 1605045600000 + 300001' %
             (mt))
         # TSIM: if $rows != 5 then
         tdLog.info('tdSql.checkRow(5)')
@@ -471,104 +469,104 @@ class TDTestCase:
         # TSIM:
         # TSIM: print =============== step7
         tdLog.info('=============== step7')
-        # TSIM: sql select * from $mt where ts > now + 4m and tgcol2 = '1' and
+        # TSIM: sql select * from $mt where ts > 1605045600000 + 240001 and tgcol2 = '1' and
         # tgcol = '1'
         tdLog.info(
-            'select * from %s where ts > now + 4m and tgcol2 = "1" and tgcol = "1"' %
+            'select * from %s where ts > 1605045600000 + 240001 and tgcol2 = "1" and tgcol = "1"' %
             (mt))
         tdSql.query(
-            'select * from %s where ts > now + 4m and tgcol2 = "1" and tgcol = "1"' %
+            'select * from %s where ts > 1605045600000 + 240001 and tgcol2 = "1" and tgcol = "1"' %
             (mt))
         # TSIM: if $rows != 75 then
         tdLog.info('tdSql.checkRow(75)')
         tdSql.checkRows(75)
         # TSIM: return -1
         # TSIM: endi
-        # TSIM: sql select * from $mt where ts > now + 4m and tgcol2 <> '1' and
+        # TSIM: sql select * from $mt where ts > 1605045600000 + 240001 and tgcol2 <> '1' and
         # tgcol <> '1'
         tdLog.info(
-            'select * from %s where ts > now + 4m and tgcol2 <> "1" and tgcol <> "1"' %
+            'select * from %s where ts > 1605045600000 + 240001 and tgcol2 <> "1" and tgcol <> "1"' %
             (mt))
         tdSql.query(
-            'select * from %s where ts > now + 4m and tgcol2 <> "1" and tgcol <> "1"' %
+            'select * from %s where ts > 1605045600000 + 240001 and tgcol2 <> "1" and tgcol <> "1"' %
             (mt))
         # TSIM: if $rows != 75 then
         tdLog.info('tdSql.checkRow(75)')
         tdSql.checkRows(75)
         # TSIM: return -1
         # TSIM: endi
-        # TSIM: sql select * from $mt where ts < now + 4m and tgcol2 = '0' and
+        # TSIM: sql select * from $mt where ts < 1605045600000 + 240001 and tgcol2 = '0' and
         # tgcol = '0'
         tdLog.info(
-            'select * from %s where ts < now + 4m and tgcol2 = "0" and tgcol = "0"' %
+            'select * from %s where ts < 1605045600000 + 240001 and tgcol2 = "0" and tgcol = "0"' %
             (mt))
         tdSql.query(
-            'select * from %s where ts < now + 4m and tgcol2 = "0" and tgcol = "0"' %
+            'select * from %s where ts < 1605045600000 + 240001 and tgcol2 = "0" and tgcol = "0"' %
             (mt))
         # TSIM: if $rows != 25 then
         tdLog.info('tdSql.checkRow(25)')
         tdSql.checkRows(25)
         # TSIM: return -1
         # TSIM: endi
-        # TSIM: sql select * from $mt where ts < now + 4m and tgcol2 <> '0' and
+        # TSIM: sql select * from $mt where ts < 1605045600000 + 240001 and tgcol2 <> '0' and
         # tgcol <> '0'
         tdLog.info(
-            'select * from %s where ts < now + 4m and tgcol2 <> "0" and tgcol <> "0"' %
+            'select * from %s where ts < 1605045600000 + 240001 and tgcol2 <> "0" and tgcol <> "0"' %
             (mt))
         tdSql.query(
-            'select * from %s where ts < now + 4m and tgcol2 <> "0" and tgcol <> "0"' %
+            'select * from %s where ts < 1605045600000 + 240001 and tgcol2 <> "0" and tgcol <> "0"' %
             (mt))
         # TSIM: if $rows != 25 then
         tdLog.info('tdSql.checkRow(25)')
         tdSql.checkRows(25)
         # TSIM: return -1
         # TSIM: endi
-        # TSIM: sql select * from $mt where ts <= now + 4m and tgcol2 = '0' and
+        # TSIM: sql select * from $mt where ts <= 1605045600000 + 240001 and tgcol2 = '0' and
         # tgcol = '0'
         tdLog.info(
-            'select * from %s where ts <= now + 4m and tgcol2 = "0" and tgcol = "0"' %
+            'select * from %s where ts <= 1605045600000 + 240001 and tgcol2 = "0" and tgcol = "0"' %
             (mt))
         tdSql.query(
-            'select * from %s where ts <= now + 4m and tgcol2 = "0" and tgcol = "0"' %
+            'select * from %s where ts <= 1605045600000 + 240001 and tgcol2 = "0" and tgcol = "0"' %
             (mt))
         # TSIM: if $rows != 25 then
         tdLog.info('tdSql.checkRow(25)')
         tdSql.checkRows(25)
         # TSIM: return -1
         # TSIM: endi
-        # TSIM: sql select * from $mt where ts <= now + 4m and tgcol2 <> '0'
+        # TSIM: sql select * from $mt where ts <= 1605045600000 + 240001 and tgcol2 <> '0'
         # and tgcol <> '0'
         tdLog.info(
-            'select * from %s where ts <= now + 4m and tgcol2 <> "0" and tgcol <> "0"' %
+            'select * from %s where ts <= 1605045600000 + 240001 and tgcol2 <> "0" and tgcol <> "0"' %
             (mt))
         tdSql.query(
-            'select * from %s where ts <= now + 4m and tgcol2 <> "0" and tgcol <> "0"' %
+            'select * from %s where ts <= 1605045600000 + 240001 and tgcol2 <> "0" and tgcol <> "0"' %
             (mt))
         # TSIM: if $rows != 25 then
         tdLog.info('tdSql.checkRow(25)')
         tdSql.checkRows(25)
         # TSIM: return -1
         # TSIM: endi
-        # TSIM: sql select * from $mt where ts > now + 4m and ts < now + 5m and
+        # TSIM: sql select * from $mt where ts > 1605045600000 + 240001 and ts < 1605045600000 + 300001 and
         # tgcol2 <> '0' and tgcol <> '0'
         tdLog.info(
-            'select * from %s where ts > now + 4m and ts < now + 5m and tgcol2 <> "0" and tgcol <> "0"' %
+            'select * from %s where ts > 1605045600000 + 240001 and ts < 1605045600000 + 300001 and tgcol2 <> "0" and tgcol <> "0"' %
             (mt))
         tdSql.query(
-            'select * from %s where ts > now + 4m and ts < now + 5m and tgcol2 <> "0" and tgcol <> "0"' %
+            'select * from %s where ts > 1605045600000 + 240001 and ts < 1605045600000 + 300001 and tgcol2 <> "0" and tgcol <> "0"' %
             (mt))
         # TSIM: if $rows != 5 then
         tdLog.info('tdSql.checkRow(5)')
         tdSql.checkRows(5)
         # TSIM: return -1
         # TSIM: endi
-        # TSIM: sql select * from $mt where ts > now + 4m and tgcol2 <> '0' and
-        # ts < now + 5m and ts < now + 5m and tgcol <> '0'
+        # TSIM: sql select * from $mt where ts > 1605045600000 + 240001 and tgcol2 <> '0' and
+        # ts < 1605045600000 + 300001 and ts < 1605045600000 + 300001 and tgcol <> '0'
         tdLog.info(
-            'select * from %s where ts > now + 4m and tgcol2 <> "0" and ts < now + 5m and ts < now + 5m and tgcol <> "0"' %
+            'select * from %s where ts > 1605045600000 + 240001 and tgcol2 <> "0" and ts < 1605045600000 + 300001 and ts < 1605045600000 + 300001 and tgcol <> "0"' %
             (mt))
         tdSql.query(
-            'select * from %s where ts > now + 4m and tgcol2 <> "0" and ts < now + 5m and ts < now + 5m and tgcol <> "0"' %
+            'select * from %s where ts > 1605045600000 + 240001 and tgcol2 <> "0" and ts < 1605045600000 + 300001 and ts < 1605045600000 + 300001 and tgcol <> "0"' %
             (mt))
         # TSIM: if $rows != 5 then
         tdLog.info('tdSql.checkRow(5)')
@@ -648,12 +646,12 @@ class TDTestCase:
         # TSIM: print =============== step10
         tdLog.info('=============== step10')
         # TSIM: sql select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol),
-        # max(tbcol), first(tbcol), last(tbcol) from $mt where ts < now + 4m
+        # max(tbcol), first(tbcol), last(tbcol) from $mt where ts < 1605045600000 + 240001
         tdLog.info(
-            'select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from %s where ts < now + 4m' %
+            'select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from %s where ts < 1605045600000 + 240001' %
             (mt))
         tdSql.query(
-            'select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from %s where ts < now + 4m' %
+            'select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from %s where ts < 1605045600000 + 240001' %
             (mt))
         # TSIM: print $data00 $data01 $data02 $data03 $data04 $data05 $data06
         tdLog.info('$data00 $data01 $data02 $data03 $data04 $data05 $data06')
@@ -738,13 +736,13 @@ class TDTestCase:
         # TSIM: print =============== step13
         tdLog.info('=============== step13')
         # TSIM: sql select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol),
-        # max(tbcol), first(tbcol), last(tbcol) from $mt where ts < now + 4m
+        # max(tbcol), first(tbcol), last(tbcol) from $mt where ts < 1605045600000 + 240001
         # group by tgcol
         tdLog.info(
-            'select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from %s where ts < now + 4m group by tgcol' %
+            'select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from %s where ts < 1605045600000 + 240001 group by tgcol' %
             (mt))
         tdSql.query(
-            'select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from %s where ts < now + 4m group by tgcol' %
+            'select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from %s where ts < 1605045600000 + 240001 group by tgcol' %
             (mt))
         # TSIM: print $data00 $data01 $data02 $data03 $data04 $data05 $data06
         tdLog.info('$data00 $data01 $data02 $data03 $data04 $data05 $data06')

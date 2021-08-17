@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# Generate rpm package for centos 
+# Generate rpm package for centos
 
 set -e
 # set -x
@@ -60,7 +60,7 @@ ${csudo} rpmbuild --define="_version ${tdengine_ver}" --define="_topdir ${pkg_di
 
 # copy rpm package to output_dir, and modify package name, then clean temp dir
 #${csudo} cp -rf RPMS/* ${output_dir}
-cp_rpm_package ${pkg_dir}/RPMS 
+cp_rpm_package ${pkg_dir}/RPMS
 
 
 if [ "$verMode" == "cluster" ]; then
@@ -73,8 +73,8 @@ else
 fi
 
 if [ "$verType" == "beta" ]; then
-  rpmname=${rpmname}-${verType}".rpm"
-elif [ "$verType" == "stable" ]; then 
+  rpmname="TDengine-server-"${tdengine_ver}-${verType}-${osType}-${cpuType}".rpm"
+elif [ "$verType" == "stable" ]; then
   rpmname=${rpmname}".rpm"
 else
   echo "unknow verType, nor stabel or beta"

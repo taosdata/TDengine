@@ -18,7 +18,6 @@
 #include "ttimer.h"
 #include "tqueue.h"
 #include "mnode.h"
-#include "dnodeVMgmt.h"
 #include "dnodeMInfos.h"
 #include "dnodeMWrite.h"
 
@@ -61,7 +60,7 @@ int32_t dnodeInitMWrite() {
 void dnodeCleanupMWrite() {
   for (int32_t i = 0; i < tsMWriteWP.maxNum; ++i) {
     SMWriteWorker *pWorker = tsMWriteWP.worker + i;
-    if (pWorker->thread) {
+    if (taosCheckPthreadValid(pWorker->thread)) {
       taosQsetThreadResume(tsMWriteQset);
     }
     dDebug("dnode mwrite worker:%d is closed", i);
@@ -70,7 +69,7 @@ void dnodeCleanupMWrite() {
   for (int32_t i = 0; i < tsMWriteWP.maxNum; ++i) {
     SMWriteWorker *pWorker = tsMWriteWP.worker + i;
     dDebug("dnode mwrite worker:%d start to join", i);
-    if (pWorker->thread) {
+    if (taosCheckPthreadValid(pWorker->thread)) {
       pthread_join(pWorker->thread, NULL);
     }
     dDebug("dnode mwrite worker:%d join success", i);
@@ -125,6 +124,8 @@ void dnodeDispatchToMWriteQueue(SRpcMsg *pMsg) {
            taosMsg[pWrite->rpcMsg.msgType], tsMWriteQueue);
     taosWriteQitem(tsMWriteQueue, TAOS_QTYPE_RPC, pWrite);
   }
+
+  rpcFreeCont(pMsg->pCont);
 }
 
 static void dnodeFreeMWriteMsg(SMnodeMsg *pWrite) {
@@ -144,6 +145,14 @@ void dnodeSendRpcMWriteRsp(void *pMsg, int32_t code) {
     return;
   }
 
+  dTrace("msg:%p, app:%p type:%s master:%p will be responsed", pWrite, pWrite->rpcMsg.ahandle,
+         taosMsg[pWrite->rpcMsg.msgType], pWrite->pBatchMasterMsg);
+  if (pWrite->pBatchMasterMsg && pWrite != pWrite->pBatchMasterMsg) {
+    dError("msg:%p, app:%p type:%s master:%p sub message should not response!", pWrite, pWrite->rpcMsg.ahandle,
+           taosMsg[pWrite->rpcMsg.msgType], pWrite->pBatchMasterMsg);
+    return;
+  }
+
   SRpcMsg rpcRsp = {
     .handle  = pWrite->rpcMsg.handle,
     .pCont   = pWrite->rpcRsp.rsp,
@@ -159,7 +168,9 @@ static void *dnodeProcessMWriteQueue(void *param) {
   SMnodeMsg *pWrite;
   int32_t    type;
   void *     unUsed;
-  
+
+  setThreadName("dnodeMWriteQ");
+
   while (1) {
     if (taosReadQitemFromQset(tsMWriteQset, &type, (void **)&pWrite, &unUsed) == 0) {
       dDebug("qset:%p, mnode write got no message from qset, exiting", tsMWriteQset);
@@ -183,7 +194,19 @@ void dnodeReprocessMWriteMsg(void *pMsg) {
     dDebug("msg:%p, app:%p type:%s is redirected for mnode not running, retry times:%d", pWrite, pWrite->rpcMsg.ahandle,
            taosMsg[pWrite->rpcMsg.msgType], pWrite->retry);
 
-    dnodeSendRedirectMsg(pMsg, true);
+    if (pWrite->pBatchMasterMsg) {
+      ++pWrite->pBatchMasterMsg->received;
+      if (pWrite->pBatchMasterMsg->successed + pWrite->pBatchMasterMsg->received
+	  >= pWrite->pBatchMasterMsg->expected) {
+        dnodeSendRedirectMsg(&pWrite->pBatchMasterMsg->rpcMsg, true);
+        dnodeFreeMWriteMsg(pWrite->pBatchMasterMsg);
+      }
+
+      mnodeDestroySubMsg(pWrite);
+
+      return;
+    }
+    dnodeSendRedirectMsg(&pWrite->rpcMsg, true);
     dnodeFreeMWriteMsg(pWrite);
   } else {
     dDebug("msg:%p, app:%p type:%s is reput into mwrite queue:%p, retry times:%d", pWrite, pWrite->rpcMsg.ahandle,

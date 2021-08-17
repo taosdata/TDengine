@@ -21,9 +21,12 @@ extern "C" {
 #endif
 
 #include "os.h"
+#include "talgo.h"
 
 #define TARRAY_MIN_SIZE 8
 #define TARRAY_GET_ELEM(array, index) ((void*)((char*)((array)->pData) + (index) * (array)->elemSize))
+#define TARRAY_ELEM_IDX(array, ele)   (POINTER_DISTANCE(ele, (array)->pData) / (array)->elemSize)
+#define TARRAY_GET_START(array)       ((array)->pData)
 
 typedef struct SArray {
   size_t size;
@@ -44,9 +47,44 @@ void* taosArrayInit(size_t size, size_t elemSize);
  *
  * @param pArray
  * @param pData
+ * @param nEles
  * @return
  */
-void* taosArrayPush(SArray* pArray, void* pData);
+void *taosArrayAddBatch(SArray *pArray, const void *pData, int nEles);
+
+/**
+ *
+ * @param pArray
+ * @param pData           position array list
+ * @param numOfElems      the number of removed position
+ */
+void taosArrayRemoveBatch(SArray *pArray, const int32_t* pData, int32_t numOfElems);
+
+/**
+ *
+ * @param pArray
+ * @param comparFn
+ * @param fp
+ */
+void taosArrayRemoveDuplicate(SArray *pArray, __compar_fn_t comparFn, void (*fp)(void*));
+
+/**
+ *  add all element from the source array list into the destination
+ * @param pArray
+ * @param pInput
+ * @return
+ */
+void* taosArrayAddAll(SArray* pArray, const SArray* pInput);
+
+/**
+ *
+ * @param pArray
+ * @param pData
+ * @return
+ */
+static FORCE_INLINE void* taosArrayPush(SArray* pArray, const void* pData) {
+  return taosArrayAddBatch(pArray, pData, 1);
+}
 
 /**
  *
@@ -85,12 +123,28 @@ void* taosArrayGetLast(const SArray* pArray);
 size_t taosArrayGetSize(const SArray* pArray);
 
 /**
+ * set the size of array
+ * @param pArray
+ * @param size size of the array
+ * @return
+ */
+void taosArraySetSize(SArray* pArray, size_t size);
+
+/**
  * insert data into array
  * @param pArray
  * @param index
  * @param pData
  */
 void* taosArrayInsert(SArray* pArray, size_t index, void* pData);
+
+/**
+ * set data in array
+ * @param pArray
+ * @param index
+ * @param pData
+ */
+void taosArraySet(SArray* pArray, size_t index, void* pData);
 
 /**
  * remove data entry of the given index
@@ -104,13 +158,13 @@ void taosArrayRemove(SArray* pArray, size_t index);
  * @param pDst
  * @param pSrc
  */
-void taosArrayCopy(SArray* pDst, const SArray* pSrc);
+SArray* taosArrayFromList(const void* src, size_t size, size_t elemSize);
 
 /**
  * clone a new array
  * @param pSrc
  */
-SArray* taosArrayClone(const SArray* pSrc);
+SArray* taosArrayDup(const SArray* pSrc);
 
 /**
  * clear the array (remove all element)
@@ -122,7 +176,7 @@ void taosArrayClear(SArray* pArray);
  * destroy array list
  * @param pArray
  */
-void taosArrayDestroy(SArray* pArray);
+void* taosArrayDestroy(SArray* pArray);
 
 /**
  *
@@ -136,7 +190,7 @@ void taosArrayDestroyEx(SArray* pArray, void (*fp)(void*));
  * @param pArray
  * @param compar
  */
-void taosArraySort(SArray* pArray, int (*compar)(const void*, const void*));
+void taosArraySort(SArray* pArray, __compar_fn_t comparFn);
 
 /**
  * sort string array
@@ -150,17 +204,30 @@ void taosArraySortString(SArray* pArray, __compar_fn_t comparFn);
  * @param compar
  * @param key
  */
-void* taosArraySearch(const SArray* pArray, const void* key, __compar_fn_t comparFn);
+void* taosArraySearch(const SArray* pArray, const void* key, __compar_fn_t comparFn, int flags);
 
 /**
  * search the array
  * @param pArray
  * @param key
  */
-char* taosArraySearchString(const SArray* pArray, const char* key, __compar_fn_t comparFn);
+char* taosArraySearchString(const SArray* pArray, const char* key, __compar_fn_t comparFn, int flags);
+
+
+/**
+ * sort the pointer data in the array
+ * @param pArray
+ * @param compar 
+ * @param param  
+ * @return
+ */
+
+void taosArraySortPWithExt(SArray* pArray, __ext_compar_fn_t fn, const void *param);
 
 #ifdef __cplusplus
 }
 #endif
+
+
 
 #endif  // TDENGINE_TAOSARRAY_H

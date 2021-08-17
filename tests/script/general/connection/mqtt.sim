@@ -10,7 +10,7 @@ system sh/cfg.sh -n dnode1 -c mqtt -v 1
 
 system sh/exec.sh -n dnode1 -s start
 
-sleep 3000
+sleep 2000
 sql connect
 sql create database mqttdb;
 sql create table mqttdb.devices(ts timestamp, value double) tags(name binary(32), model binary(32), serial binary(16), param binary(16), unit binary(16));

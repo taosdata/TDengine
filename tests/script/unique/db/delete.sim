@@ -18,13 +18,12 @@ system sh/cfg.sh -n dnode3 -c maxTablesPerVnode -v 1000
 
 print ========= start dnodes
 system sh/exec.sh -n dnode1 -s start
-sleep 3000
 sql connect
 sql create dnode $hostname2
 sql create dnode $hostname3
 system sh/exec.sh -n dnode2 -s start
 system sh/exec.sh -n dnode3 -s start
-sleep 3000
+sleep 2000
 
 print ======== step1 
 sql create database db replica 3 blocks 3
@@ -38,8 +37,6 @@ while $i < 2000
   $i = $i + 1
 endw 
 
-sleep 2500
-
 sql show db.vgroups
 if $rows != 2 then 
   return -1
@@ -52,7 +49,7 @@ if $rows != 0 then
   return -1
 endi 
 
-sleep 3000
+sleep 2000
 sql show dnodes
 print dnode1 openVnodes $data2_1
 print dnode2 openVnodes $data2_2
@@ -73,7 +70,6 @@ system sh/exec.sh -n dnode1 -s stop  -x SIGINT
 system sh/exec.sh -n dnode2 -s stop  -x SIGINT
 system sh/exec.sh -n dnode3 -s stop  -x SIGINT
 
-sleep 5000
 system sh/exec.sh -n dnode1 -s start
 system sh/exec.sh -n dnode2 -s start
 system sh/exec.sh -n dnode3 -s start
@@ -92,7 +88,6 @@ if $data2_1 != master then
   goto step3
 endi
 
-sleep 1000
 
 system sh/exec.sh -n dnode1 -s stop  -x SIGINT
 system sh/exec.sh -n dnode2 -s stop  -x SIGINT

@@ -23,6 +23,8 @@
 static SBnThread tsBnThread;
 
 static void *bnThreadFunc(void *arg) {
+  setThreadName("balance");
+
   while (1) {
     pthread_mutex_lock(&tsBnThread.mutex);
     if (tsBnThread.stop) {
@@ -31,7 +33,10 @@ static void *bnThreadFunc(void *arg) {
     }
 
     pthread_cond_wait(&tsBnThread.cond, &tsBnThread.mutex);
+    mDebug("balance thread wakes up to work");
     bool updateSoon = bnStart();
+    mDebug("balance thread finished this poll, updateSoon:%d", updateSoon);
+    
     bnStartTimer(updateSoon ? 1000 : -1);
     pthread_mutex_unlock(&(tsBnThread.mutex));
   }
@@ -53,7 +58,7 @@ int32_t bnInitThread() {
   pthread_attr_destroy(&thattr);
 
   if (ret != 0) {
-    mError("failed to create balance thread since %s", strerror(errno));
+    mError("failed to create balance thread since %s", strerror(ret));
     return -1;
   }
 
@@ -99,12 +104,12 @@ static void bnProcessTimer(void *handle, void *tmrId) {
   if (tsBnThread.stop) return;
 
   tsBnThread.timer = NULL;
-  tsAccessSquence++;
-
-  bnCheckStatus();
   bnStartTimer(-1);
+  bnCheckStatus();
 
   if (handle == NULL) {
+    ++tsAccessSquence;
+
     if (tsAccessSquence % tsBalanceInterval == 0) {
       mDebug("balance function is scheduled by timer");
       bnPostSignal();
@@ -116,17 +121,17 @@ static void bnProcessTimer(void *handle, void *tmrId) {
   }
 }
 
-void bnStartTimer(int64_t mseconds) {
+void bnStartTimer(int32_t mseconds) {
   if (tsBnThread.stop) return;
 
-  bool updateSoon = (mseconds != -1);
-  if (updateSoon) {
-    taosTmrReset(bnProcessTimer, mseconds, (void *)mseconds, tsMnodeTmr, &tsBnThread.timer);
+  if (mseconds != -1) {
+    mTrace("balance function will be called after %d ms", mseconds);
+    taosTmrReset(bnProcessTimer, mseconds, (void *)(int64_t)mseconds, tsMnodeTmr, &tsBnThread.timer);
   } else {
     taosTmrReset(bnProcessTimer, tsStatusInterval * 1000, NULL, tsMnodeTmr, &tsBnThread.timer);
   }
 }
 
 void bnNotify() {
-  bnStartTimer(500); 
+  bnStartTimer(500);
 }

@@ -1,291 +1,171 @@
 package com.taosdata.jdbc.rs;
 
 import com.alibaba.fastjson.JSON;
+import com.alibaba.fastjson.JSONArray;
 import com.alibaba.fastjson.JSONObject;
-import com.taosdata.jdbc.TSDBConstants;
-import com.taosdata.jdbc.rs.util.HttpClientPoolUtil;
+import com.taosdata.jdbc.AbstractStatement;
+import com.taosdata.jdbc.TSDBDriver;
+import com.taosdata.jdbc.TSDBError;
+import com.taosdata.jdbc.TSDBErrorNumbers;
+import com.taosdata.jdbc.utils.HttpClientPoolUtil;
 import com.taosdata.jdbc.utils.SqlSyntaxValidator;
 
-import java.sql.*;
-import java.util.Arrays;
-import java.util.List;
+import java.sql.Connection;
+import java.sql.ResultSet;
+import java.sql.SQLException;
 
-public class RestfulStatement implements Statement {
+public class RestfulStatement extends AbstractStatement {
 
     private boolean closed;
     private String database;
     private final RestfulConnection conn;
 
-    public RestfulStatement(RestfulConnection c, String database) {
-        this.conn = c;
+    private volatile RestfulResultSet resultSet;
+    private volatile int affectedRows;
+
+    public RestfulStatement(RestfulConnection conn, String database) {
+        this.conn = conn;
         this.database = database;
     }
 
     @Override
     public ResultSet executeQuery(String sql) throws SQLException {
         if (isClosed())
-            throw new SQLException("statement already closed");
-        if (!SqlSyntaxValidator.isSelectSql(sql))
-            throw new SQLException("not a select sql for executeQuery: " + sql);
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
+        if (!SqlSyntaxValidator.isValidForExecuteQuery(sql))
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_INVALID_FOR_EXECUTE_QUERY, "not a valid sql for executeQuery: " + sql);
 
-        final String url = "http://" + conn.getHost() + ":" + conn.getPort() + "/rest/sql";
-        String result = HttpClientPoolUtil.execute(url, sql);
-        String fields = "";
-        List<String> words = Arrays.asList(sql.split(" "));
-        if (words.get(0).equalsIgnoreCase("select")) {
-            int index = 0;
-            if (words.contains("from")) {
-                index = words.indexOf("from");
-            }
-            if (words.contains("FROM")) {
-                index = words.indexOf("FROM");
-            }
-            fields = HttpClientPoolUtil.execute(url, "DESCRIBE " + words.get(index + 1));
-        }
-
-        JSONObject jsonObject = JSON.parseObject(result);
-        if (jsonObject.getString("status").equals("error")) {
-            throw new SQLException(TSDBConstants.WrapErrMsg("SQL execution error: " +
-                    jsonObject.getString("desc") + "\n" +
-                    "error code: " + jsonObject.getString("code")));
-        }
-        String dataStr = jsonObject.getString("data");
-        if ("use".equalsIgnoreCase(fields.split(" ")[0])) {
-            return new RestfulResultSet(dataStr, "");
-        }
-
-        JSONObject jsonField = JSON.parseObject(fields);
-        if (jsonField == null) {
-            return new RestfulResultSet(dataStr, "");
-        }
-        if (jsonField.getString("status").equals("error")) {
-            throw new SQLException(TSDBConstants.WrapErrMsg("SQL execution error: " +
-                    jsonField.getString("desc") + "\n" +
-                    "error code: " + jsonField.getString("code")));
-        }
-        String fieldData = jsonField.getString("data");
-
-        return new RestfulResultSet(dataStr, fieldData);
+        return executeOneQuery(sql);
     }
 
     @Override
     public int executeUpdate(String sql) throws SQLException {
         if (isClosed())
-            throw new SQLException("statement already closed");
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
         if (!SqlSyntaxValidator.isValidForExecuteUpdate(sql))
-            throw new SQLException("not a valid sql for executeUpdate: " + sql);
-
-        if (this.database == null)
-            throw new SQLException("Database not specified or available");
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_INVALID_FOR_EXECUTE_UPDATE, "not a valid sql for executeUpdate: " + sql);
 
         final String url = "http://" + conn.getHost() + ":" + conn.getPort() + "/rest/sql";
-        HttpClientPoolUtil.execute(url, "use " + conn.getDatabase());
-        String result = HttpClientPoolUtil.execute(url, sql);
-        JSONObject jsonObject = JSON.parseObject(result);
-        if (jsonObject.getString("status").equals("error")) {
-            throw new SQLException(TSDBConstants.WrapErrMsg("SQL execution error: " +
-                    jsonObject.getString("desc") + "\n" +
-                    "error code: " + jsonObject.getString("code")));
-        }
-        return Integer.parseInt(jsonObject.getString("rows"));
+
+        return executeOneUpdate(url, sql);
     }
 
     @Override
     public void close() throws SQLException {
-        this.closed = true;
-    }
-
-    @Override
-    public int getMaxFieldSize() throws SQLException {
-        return 0;
-    }
-
-    @Override
-    public void setMaxFieldSize(int max) throws SQLException {
-
-    }
-
-    @Override
-    public int getMaxRows() throws SQLException {
-        return 0;
-    }
-
-    @Override
-    public void setMaxRows(int max) throws SQLException {
-
-    }
-
-    @Override
-    public void setEscapeProcessing(boolean enable) throws SQLException {
-
-    }
-
-    @Override
-    public int getQueryTimeout() throws SQLException {
-        return 0;
-    }
-
-    @Override
-    public void setQueryTimeout(int seconds) throws SQLException {
-
-    }
-
-    @Override
-    public void cancel() throws SQLException {
-
-    }
-
-    @Override
-    public SQLWarning getWarnings() throws SQLException {
-        //TODO: getWarnings not Implemented
-        return null;
-    }
-
-    @Override
-    public void clearWarnings() throws SQLException {
-
-    }
-
-    @Override
-    public void setCursorName(String name) throws SQLException {
-
+        synchronized (RestfulStatement.class) {
+            if (!isClosed())
+                this.closed = true;
+        }
     }
 
     @Override
     public boolean execute(String sql) throws SQLException {
-        if (isClosed()) {
-            throw new SQLException("Invalid method call on a closed statement.");
-        }
-        //如果执行了use操作应该将当前Statement的catalog设置为新的database
-        if (SqlSyntaxValidator.isUseSql(sql)) {
-            this.database = sql.trim().replace("use", "").trim();
-        }
-        if (this.database == null)
-            throw new SQLException("Database not specified or available");
+        if (isClosed())
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
+        if (!SqlSyntaxValidator.isValidForExecute(sql))
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_INVALID_FOR_EXECUTE, "not a valid sql for execute: " + sql);
 
-        final String url = "http://" + conn.getHost() + ":" + conn.getPort() + "/rest/sql";
-        // use database
-        HttpClientPoolUtil.execute(url, "use " + conn.getDatabase());
-        // execute sql
-        String result = HttpClientPoolUtil.execute(url, sql);
-        // parse result
+        //如果执行了use操作应该将当前Statement的catalog设置为新的database
+        boolean result = true;
+        String url = "http://" + conn.getHost() + ":" + conn.getPort() + "/rest/sql";
+        if (conn.getClientInfo(TSDBDriver.PROPERTY_KEY_TIMESTAMP_FORMAT).equals("TIMESTAMP")) {
+            url = "http://" + conn.getHost() + ":" + conn.getPort() + "/rest/sqlt";
+        }
+        if (conn.getClientInfo(TSDBDriver.PROPERTY_KEY_TIMESTAMP_FORMAT).equals("UTC")) {
+            url = "http://" + conn.getHost() + ":" + conn.getPort() + "/rest/sqlutc";
+        }
+
+        if (SqlSyntaxValidator.isUseSql(sql)) {
+            HttpClientPoolUtil.execute(url, sql, this.conn.getToken());
+            this.database = sql.trim().replace("use", "").trim();
+            this.conn.setCatalog(this.database);
+            result = false;
+        } else if (SqlSyntaxValidator.isDatabaseUnspecifiedQuery(sql)) {
+            executeOneQuery(sql);
+        } else if (SqlSyntaxValidator.isDatabaseUnspecifiedUpdate(sql)) {
+            executeOneUpdate(url, sql);
+            result = false;
+        } else {
+            if (SqlSyntaxValidator.isValidForExecuteQuery(sql)) {
+                executeQuery(sql);
+            } else {
+                executeUpdate(sql);
+                result = false;
+            }
+        }
+
+        return result;
+    }
+
+    private ResultSet executeOneQuery(String sql) throws SQLException {
+        if (!SqlSyntaxValidator.isValidForExecuteQuery(sql))
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_INVALID_FOR_EXECUTE_QUERY, "not a valid sql for executeQuery: " + sql);
+
+        // row data
+        String url = "http://" + conn.getHost() + ":" + conn.getPort() + "/rest/sql";
+        String timestampFormat = conn.getClientInfo(TSDBDriver.PROPERTY_KEY_TIMESTAMP_FORMAT);
+        if ("TIMESTAMP".equalsIgnoreCase(timestampFormat))
+            url = "http://" + conn.getHost() + ":" + conn.getPort() + "/rest/sqlt";
+        if ("UTC".equalsIgnoreCase(timestampFormat))
+            url = "http://" + conn.getHost() + ":" + conn.getPort() + "/rest/sqlutc";
+
+        String result = HttpClientPoolUtil.execute(url, sql, this.conn.getToken());
+        JSONObject resultJson = JSON.parseObject(result);
+        if (resultJson.getString("status").equals("error")) {
+            throw TSDBError.createSQLException(resultJson.getInteger("code"), resultJson.getString("desc"));
+        }
+        this.resultSet = new RestfulResultSet(database, this, resultJson);
+        this.affectedRows = 0;
+        return resultSet;
+    }
+
+    private int executeOneUpdate(String url, String sql) throws SQLException {
+        if (!SqlSyntaxValidator.isValidForExecuteUpdate(sql))
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_INVALID_FOR_EXECUTE_UPDATE, "not a valid sql for executeUpdate: " + sql);
+
+        String result = HttpClientPoolUtil.execute(url, sql, this.conn.getToken());
         JSONObject jsonObject = JSON.parseObject(result);
         if (jsonObject.getString("status").equals("error")) {
-            throw new SQLException(TSDBConstants.WrapErrMsg("SQL execution error: " +
-                    jsonObject.getString("desc") + "\n" +
-                    "error code: " + jsonObject.getString("code")));
+            throw TSDBError.createSQLException(jsonObject.getInteger("code"), jsonObject.getString("desc"));
         }
-        return true;
+        this.resultSet = null;
+        this.affectedRows = getAffectedRows(jsonObject);
+        return this.affectedRows;
+    }
+
+    private int getAffectedRows(JSONObject jsonObject) throws SQLException {
+        // create ... SQLs should return 0 , and Restful result is this:
+        // {"status": "succ", "head": ["affected_rows"], "data": [[0]], "rows": 1}
+        JSONArray head = jsonObject.getJSONArray("head");
+        if (head.size() != 1 || !"affected_rows".equals(head.getString(0)))
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_INVALID_VARIABLE);
+        JSONArray data = jsonObject.getJSONArray("data");
+        if (data != null)
+            return data.getJSONArray(0).getInteger(0);
+
+        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_INVALID_VARIABLE);
     }
 
     @Override
     public ResultSet getResultSet() throws SQLException {
-        return null;
+        if (isClosed())
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
+        return resultSet;
     }
 
     @Override
     public int getUpdateCount() throws SQLException {
-        return 0;
-    }
+        if (isClosed())
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
 
-    @Override
-    public boolean getMoreResults() throws SQLException {
-        return false;
-    }
-
-    @Override
-    public void setFetchDirection(int direction) throws SQLException {
-
-    }
-
-    @Override
-    public int getFetchDirection() throws SQLException {
-        return 0;
-    }
-
-    @Override
-    public void setFetchSize(int rows) throws SQLException {
-
-    }
-
-    @Override
-    public int getFetchSize() throws SQLException {
-        return 0;
-    }
-
-    @Override
-    public int getResultSetConcurrency() throws SQLException {
-        return 0;
-    }
-
-    @Override
-    public int getResultSetType() throws SQLException {
-        return 0;
-    }
-
-    @Override
-    public void addBatch(String sql) throws SQLException {
-
-    }
-
-    @Override
-    public void clearBatch() throws SQLException {
-
-    }
-
-    @Override
-    public int[] executeBatch() throws SQLException {
-        return new int[0];
+        return this.affectedRows;
     }
 
     @Override
     public Connection getConnection() throws SQLException {
-        return null;
-    }
-
-    @Override
-    public boolean getMoreResults(int current) throws SQLException {
-        return false;
-    }
-
-    @Override
-    public ResultSet getGeneratedKeys() throws SQLException {
-        return null;
-    }
-
-    @Override
-    public int executeUpdate(String sql, int autoGeneratedKeys) throws SQLException {
-        return 0;
-    }
-
-    @Override
-    public int executeUpdate(String sql, int[] columnIndexes) throws SQLException {
-        return 0;
-    }
-
-    @Override
-    public int executeUpdate(String sql, String[] columnNames) throws SQLException {
-        return 0;
-    }
-
-    @Override
-    public boolean execute(String sql, int autoGeneratedKeys) throws SQLException {
-        return false;
-    }
-
-    @Override
-    public boolean execute(String sql, int[] columnIndexes) throws SQLException {
-        return false;
-    }
-
-    @Override
-    public boolean execute(String sql, String[] columnNames) throws SQLException {
-        return false;
-    }
-
-    @Override
-    public int getResultSetHoldability() throws SQLException {
-        return 0;
+        if (isClosed())
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
+        return this.conn;
     }
 
     @Override
@@ -293,37 +173,5 @@ public class RestfulStatement implements Statement {
         return closed;
     }
 
-    @Override
-    public void setPoolable(boolean poolable) throws SQLException {
 
-    }
-
-    @Override
-    public boolean isPoolable() throws SQLException {
-        return false;
-    }
-
-    @Override
-    public void closeOnCompletion() throws SQLException {
-
-    }
-
-    @Override
-    public boolean isCloseOnCompletion() throws SQLException {
-        return false;
-    }
-
-    @Override
-    public <T> T unwrap(Class<T> iface) throws SQLException {
-        try {
-            return iface.cast(this);
-        } catch (ClassCastException cce) {
-            throw new SQLException("Unable to unwrap to " + iface.toString());
-        }
-    }
-
-    @Override
-    public boolean isWrapperFor(Class<?> iface) throws SQLException {
-        return iface.isInstance(this);
-    }
 }

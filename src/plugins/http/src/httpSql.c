@@ -64,7 +64,7 @@ void httpProcessMultiSqlRetrieveCallBackImp(void *param, TAOS_RES *result, int32
     }
 
     taos_free_result(result);
-    
+
     if (singleCmd->cmdReturnType == HTTP_CMD_RETURN_TYPE_WITH_RETURN && encode->stopJsonFp) {
       (encode->stopJsonFp)(pContext, singleCmd);
     }
@@ -82,7 +82,7 @@ void httpProcessMultiSqlCallBackImp(void *param, TAOS_RES *result, int32_t code,
   HttpContext *pContext = (HttpContext *)param;
   if (pContext == NULL) return;
 
-  HttpSqlCmds *multiCmds = pContext->multiCmds;
+  HttpSqlCmds *     multiCmds = pContext->multiCmds;
   HttpEncodeMethod *encode = pContext->encodeMethod;
 
   HttpSqlCmd *singleCmd = multiCmds->cmds + multiCmds->pos;
@@ -181,7 +181,7 @@ void httpProcessMultiSql(HttpContext *pContext) {
   char *sql = httpGetCmdsString(pContext, cmd->sql);
   httpTraceL("context:%p, fd:%d, user:%s, process pos:%d, start query, sql:%s", pContext, pContext->fd, pContext->user,
              multiCmds->pos, sql);
-  nPrintHttp(sql);
+  nPrintHttp("%s", sql);
   taos_query_a(pContext->session->taos, sql, httpProcessMultiSqlCallBack, (void *)pContext);
 }
 
@@ -263,14 +263,14 @@ void httpProcessSingleSqlCallBackImp(void *param, TAOS_RES *result, int32_t code
 
   if (code != TSDB_CODE_SUCCESS) {
     SSqlObj *pObj = (SSqlObj *)result;
-    if (code == TSDB_CODE_TSC_INVALID_SQL) {
+    if (code == TSDB_CODE_TSC_INVALID_OPERATION) {
       terrno = code;
       httpError("context:%p, fd:%d, user:%s, query error, code:%s, sqlObj:%p, error:%s", pContext, pContext->fd,
                 pContext->user, tstrerror(code), pObj, taos_errstr(pObj));
       httpSendTaosdInvalidSqlErrorResp(pContext, taos_errstr(pObj));
     } else {
-      httpError("context:%p, fd:%d, user:%s, query error, code:%s, sqlObj:%p", pContext, pContext->fd,
-                pContext->user, tstrerror(code), pObj);
+      httpError("context:%p, fd:%d, user:%s, query error, code:%s, sqlObj:%p", pContext, pContext->fd, pContext->user,
+                tstrerror(code), pObj);
       httpSendErrorResp(pContext, code);
     }
     taos_free_result(result);
@@ -329,7 +329,7 @@ void httpProcessSingleSqlCmd(HttpContext *pContext) {
   }
 
   httpTraceL("context:%p, fd:%d, user:%s, start query, sql:%s", pContext, pContext->fd, pContext->user, sql);
-  nPrintHttp(sql);
+  nPrintHttp("%s", sql);
   taos_query_a(pSession->taos, sql, httpProcessSingleSqlCallBack, (void *)pContext);
 }
 
@@ -376,12 +376,14 @@ void httpExecCmd(HttpContext *pContext) {
       httpCloseContextByApp(pContext);
       break;
   }
+
+  memset(&pContext->singleCmd, 0, sizeof(HttpSqlCmd));
 }
 
 void httpProcessRequestCb(void *param, TAOS_RES *result, int32_t code) {
   HttpContext *pContext = param;
   taos_free_result(result);
-  
+
   if (pContext == NULL) return;
 
   if (code < 0) {
@@ -421,3 +423,65 @@ void httpProcessRequest(HttpContext *pContext) {
     httpExecCmd(pContext);
   }
 }
+
+int32_t httpCheckAllocEscapeSql(char *oldSql, char **newSql)
+{
+  char *pos;
+
+  if (oldSql == NULL || newSql == NULL) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  /* bad sql clause */
+  pos = strstr(oldSql, "%%");
+  if (pos) {
+    httpError("bad sql:%s", oldSql);
+    return TSDB_CODE_HTTP_REQUEST_JSON_ERROR;
+  }
+
+  pos = strchr(oldSql, '%');
+  if (pos == NULL) {
+    httpDebug("sql:%s", oldSql);
+    *newSql = oldSql;
+    return TSDB_CODE_SUCCESS;
+  }
+
+  *newSql = (char *) calloc(1, (strlen(oldSql) << 1) + 1);
+  if (newSql == NULL) {
+    httpError("failed to allocate for new sql, old sql:%s", oldSql);
+    return TSDB_CODE_HTTP_NO_ENOUGH_MEMORY;
+  }
+
+  char *src = oldSql;
+  char *dst = *newSql;
+  size_t sqlLen = strlen(src);
+
+  while (1) {
+    memcpy(dst, src, pos - src + 1);
+    dst += pos - src + 1;
+    *dst++ = '%';
+
+    if (pos + 1 >= oldSql + sqlLen) {
+      break;
+    }
+
+    src = ++pos;
+    pos = strchr(pos, '%');
+    if (pos == NULL) {
+      memcpy(dst, src, strlen(src));
+      break;
+    }
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+void httpCheckFreeEscapedSql(char *oldSql, char *newSql)
+{
+  if (oldSql && newSql) {
+    if (oldSql != newSql) {
+      free(newSql);
+    }
+  }
+}
+

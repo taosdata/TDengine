@@ -44,10 +44,10 @@ typedef struct {
 #define listNEles(l) (l)->numOfEles
 #define listEleSize(l) (l)->eleSize
 #define isListEmpty(l) ((l)->numOfEles == 0)
-#define listNodeFree(n) free(n);
+#define listNodeFree(n) free(n)
 
 SList *    tdListNew(int eleSize);
-void       tdListFree(SList *list);
+void *     tdListFree(SList *list);
 void       tdListEmpty(SList *list);
 void       tdListPrependNode(SList *list, SListNode *node);
 void       tdListAppendNode(SList *list, SListNode *node);

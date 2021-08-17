@@ -16,16 +16,40 @@
 #ifndef _TODBC_FLEX_H_
 #define _TODBC_FLEX_H_
 
+#include <sql.h>
+#include <sqlext.h>
+
+// TSDB predefined field types
+// TINYINT SMALLINT INT BIGINT FLOAT DOUBLE BOOL TIMESTAMP BINARY NCHAR
+
+typedef struct map_tsdb_type_s           map_tsdb_type_t;
+struct map_tsdb_type_s {
+  SQLSMALLINT      tsdb_tinyint;
+  SQLSMALLINT      tsdb_smallint;
+  SQLSMALLINT      tsdb_int;
+  SQLSMALLINT      tsdb_bigint;
+  SQLULEN          tsdb_bigint_size;
+  SQLSMALLINT      tsdb_float;
+  SQLSMALLINT      tsdb_double;
+  SQLSMALLINT      tsdb_bool;
+  SQLSMALLINT      tsdb_timestamp;
+  SQLSMALLINT      tsdb_binary;
+  SQLSMALLINT      tsdb_nchar;
+};
+
 typedef struct conn_val_s              conn_val_t;
 struct conn_val_s {
-    char                *key;
-    char                *dsn;
-    char                *uid;
-    char                *pwd;
-    char                *db;
-    char                *server;
-    char                *svr_enc;
-    char                *cli_enc;
+  char                *dsn;
+  char                *uid;
+  char                *pwd;
+  char                *db;
+  char                *server;
+  char                *enc_local;
+  char                *enc_char;
+  char                *enc_wchar;
+  char                *enc_db;
+
+  map_tsdb_type_t      tsdb_map;
 };
 
 

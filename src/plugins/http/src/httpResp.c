@@ -50,9 +50,16 @@ static void httpSendErrorRespImp(HttpContext *pContext, int32_t httpCode, char *
   char head[512] = {0};
   char body[512] = {0};
 
+  int8_t httpVersion = 0;
+  int8_t keepAlive = 0;
+  if (pContext->parser != NULL) {
+    httpVersion = pContext->parser->httpVersion;
+    keepAlive = pContext->parser->keepAlive;
+  }
+
   int32_t bodyLen = sprintf(body, httpRespTemplate[HTTP_RESPONSE_JSON_ERROR], errNo, desc);
-  int32_t headLen = sprintf(head, httpRespTemplate[HTTP_RESPONSE_ERROR], httpVersionStr[pContext->parser->httpVersion],
-                            httpCode, httpCodeStr, httpKeepAliveStr[pContext->parser->keepAlive], bodyLen);
+  int32_t headLen = sprintf(head, httpRespTemplate[HTTP_RESPONSE_ERROR], httpVersionStr[httpVersion], httpCode,
+                            httpCodeStr, httpKeepAliveStr[keepAlive], bodyLen);
 
   httpWriteBuf(pContext, head, headLen);
   httpWriteBuf(pContext, body, bodyLen);
@@ -60,83 +67,83 @@ static void httpSendErrorRespImp(HttpContext *pContext, int32_t httpCode, char *
 }
 
 void httpSendErrorResp(HttpContext *pContext, int32_t errNo) {
-  int32_t httpCode = 500;
+  int32_t httpCode = HTTP_CODE_INTERNAL_SERVER_ERROR;
   if (errNo == TSDB_CODE_SUCCESS)
-    httpCode = 200;
+    httpCode = HTTP_CODE_OK;
   else if (errNo == TSDB_CODE_HTTP_SERVER_OFFLINE)
-    httpCode = 404;
+    httpCode = HTTP_CODE_NOT_FOUND;
   else if (errNo == TSDB_CODE_HTTP_UNSUPPORT_URL)
-    httpCode = 404;
-  else if (errNo == TSDB_CODE_HTTP_INVLALID_URL)
-    httpCode = 404;
+    httpCode = HTTP_CODE_BAD_REQUEST;
+  else if (errNo == TSDB_CODE_HTTP_INVALID_URL)
+    httpCode = HTTP_CODE_BAD_REQUEST;
   else if (errNo == TSDB_CODE_HTTP_NO_ENOUGH_MEMORY)
-    httpCode = 507;
+    httpCode = HTTP_CODE_INSUFFICIENT_STORAGE;
   else if (errNo == TSDB_CODE_HTTP_REQUSET_TOO_BIG)
-    httpCode = 413;
+    httpCode = HTTP_CODE_PAYLOAD_TOO_LARGE;
   else if (errNo == TSDB_CODE_HTTP_NO_AUTH_INFO)
-    httpCode = 401;
+    httpCode = HTTP_CODE_UNAUTHORIZED;
   else if (errNo == TSDB_CODE_HTTP_NO_MSG_INPUT)
-    httpCode = 400;
+    httpCode = HTTP_CODE_BAD_REQUEST;
   else if (errNo == TSDB_CODE_HTTP_NO_SQL_INPUT)
-    httpCode = 400;
+    httpCode = HTTP_CODE_BAD_REQUEST;
   else if (errNo == TSDB_CODE_HTTP_NO_EXEC_USEDB)
-    httpCode = 400;
+    httpCode = HTTP_CODE_BAD_REQUEST;
   else if (errNo == TSDB_CODE_HTTP_SESSION_FULL)
-    httpCode = 421;
+    httpCode = HTTP_CODE_INTERNAL_SERVER_ERROR;
   else if (errNo == TSDB_CODE_HTTP_GEN_TAOSD_TOKEN_ERR)
-    httpCode = 507;
+    httpCode = HTTP_CODE_INTERNAL_SERVER_ERROR;
   else if (errNo == TSDB_CODE_HTTP_INVALID_MULTI_REQUEST)
-    httpCode = 400;
+    httpCode = HTTP_CODE_BAD_REQUEST;
   else if (errNo == TSDB_CODE_HTTP_CREATE_GZIP_FAILED)
-    httpCode = 507;
+    httpCode = HTTP_CODE_INTERNAL_SERVER_ERROR;
   else if (errNo == TSDB_CODE_HTTP_FINISH_GZIP_FAILED)
-    httpCode = 507;
+    httpCode = HTTP_CODE_INTERNAL_SERVER_ERROR;
   else if (errNo == TSDB_CODE_HTTP_INVALID_VERSION)
-    httpCode = 406;
+    httpCode = HTTP_CODE_HTTP_VER_NOT_SUPPORTED;
   else if (errNo == TSDB_CODE_HTTP_INVALID_CONTENT_LENGTH)
-    httpCode = 406;
+    httpCode = HTTP_CODE_LENGTH_REQUIRED;
   else if (errNo == TSDB_CODE_HTTP_INVALID_AUTH_TYPE)
-    httpCode = 406;
+    httpCode = HTTP_CODE_UNAUTHORIZED;
   else if (errNo == TSDB_CODE_HTTP_INVALID_AUTH_FORMAT)
-    httpCode = 406;
+    httpCode = HTTP_CODE_UNAUTHORIZED;
   else if (errNo == TSDB_CODE_HTTP_INVALID_BASIC_AUTH)
-    httpCode = 406;
+    httpCode = HTTP_CODE_UNAUTHORIZED;
   else if (errNo == TSDB_CODE_HTTP_INVALID_TAOSD_AUTH)
-    httpCode = 406;
+    httpCode = HTTP_CODE_UNAUTHORIZED;
   else if (errNo == TSDB_CODE_HTTP_PARSE_METHOD_FAILED)
-    httpCode = 406;
+    httpCode = HTTP_CODE_BAD_REQUEST;
   else if (errNo == TSDB_CODE_HTTP_PARSE_TARGET_FAILED)
-    httpCode = 406;
+    httpCode = HTTP_CODE_BAD_REQUEST;
   else if (errNo == TSDB_CODE_HTTP_PARSE_VERSION_FAILED)
-    httpCode = 406;
+    httpCode = HTTP_CODE_BAD_REQUEST;
   else if (errNo == TSDB_CODE_HTTP_PARSE_SP_FAILED)
-    httpCode = 406;
+    httpCode = HTTP_CODE_BAD_REQUEST;
   else if (errNo == TSDB_CODE_HTTP_PARSE_STATUS_FAILED)
-    httpCode = 406;
+    httpCode = HTTP_CODE_BAD_REQUEST;
   else if (errNo == TSDB_CODE_HTTP_PARSE_PHRASE_FAILED)
-    httpCode = 406;
+    httpCode = HTTP_CODE_BAD_REQUEST;
   else if (errNo == TSDB_CODE_HTTP_PARSE_CRLF_FAILED)
-    httpCode = 406;
+    httpCode = HTTP_CODE_BAD_REQUEST;
   else if (errNo == TSDB_CODE_HTTP_PARSE_HEADER_FAILED)
-    httpCode = 406;
+    httpCode = HTTP_CODE_BAD_REQUEST;
   else if (errNo == TSDB_CODE_HTTP_PARSE_HEADER_KEY_FAILED)
-    httpCode = 406;
+    httpCode = HTTP_CODE_BAD_REQUEST;
   else if (errNo == TSDB_CODE_HTTP_PARSE_HEADER_VAL_FAILED)
-    httpCode = 406;
+    httpCode = HTTP_CODE_BAD_REQUEST;
   else if (errNo == TSDB_CODE_HTTP_PARSE_CHUNK_SIZE_FAILED)
-    httpCode = 406;
+    httpCode = HTTP_CODE_BAD_REQUEST;
   else if (errNo == TSDB_CODE_HTTP_PARSE_CHUNK_FAILED)
-    httpCode = 406;
+    httpCode = HTTP_CODE_BAD_REQUEST;
   else if (errNo == TSDB_CODE_HTTP_PARSE_END_FAILED)
-    httpCode = 406;
+    httpCode = HTTP_CODE_BAD_REQUEST;
   else if (errNo == TSDB_CODE_HTTP_PARSE_INVALID_STATE)
-    httpCode = 406;
+    httpCode = HTTP_CODE_BAD_REQUEST;
   else if (errNo == TSDB_CODE_HTTP_PARSE_ERROR_STATE)
-    httpCode = 406;
+    httpCode = HTTP_CODE_BAD_REQUEST;
   else
-    httpCode = 400;
+    httpCode = HTTP_CODE_BAD_REQUEST;
 
-  if (pContext->parser->httpCode != 0) {
+  if (pContext->parser && pContext->parser->httpCode != 0) {
     httpCode = pContext->parser->httpCode;
   }
 
@@ -145,7 +152,7 @@ void httpSendErrorResp(HttpContext *pContext, int32_t errNo) {
 }
 
 void httpSendTaosdInvalidSqlErrorResp(HttpContext *pContext, char *errMsg) {
-  int32_t httpCode = 400;
+  int32_t httpCode = HTTP_CODE_BAD_REQUEST;
   char    temp[512] = {0};
   int32_t len = sprintf(temp, "invalid SQL: %s", errMsg);
 
@@ -153,20 +160,28 @@ void httpSendTaosdInvalidSqlErrorResp(HttpContext *pContext, char *errMsg) {
     if (temp[i] == '\"') {
       temp[i] = '\'';
     } else if (temp[i] == '\n') {
-        temp[i] = ' ';
-    } else {}
+      temp[i] = ' ';
+    } else {
+    }
   }
 
-  httpSendErrorRespImp(pContext, httpCode, "Bad Request", TSDB_CODE_TSC_INVALID_SQL & 0XFFFF, temp);
+  httpSendErrorRespImp(pContext, httpCode, "Bad Request", TSDB_CODE_TSC_INVALID_OPERATION & 0XFFFF, temp);
 }
 
 void httpSendSuccResp(HttpContext *pContext, char *desc) {
   char head[1024] = {0};
   char body[1024] = {0};
 
+  int8_t httpVersion = 0;
+  int8_t keepAlive = 0;
+  if (pContext->parser != NULL) {
+    httpVersion = pContext->parser->httpVersion;
+    keepAlive = pContext->parser->keepAlive;
+  }
+
   int32_t bodyLen = sprintf(body, httpRespTemplate[HTTP_RESPONSE_JSON_OK], TSDB_CODE_SUCCESS, desc);
-  int32_t headLen = sprintf(head, httpRespTemplate[HTTP_RESPONSE_OK], httpVersionStr[pContext->parser->httpVersion],
-                            httpKeepAliveStr[pContext->parser->keepAlive], bodyLen);
+  int32_t headLen = sprintf(head, httpRespTemplate[HTTP_RESPONSE_OK], httpVersionStr[httpVersion],
+                            httpKeepAliveStr[keepAlive], bodyLen);
 
   httpWriteBuf(pContext, head, headLen);
   httpWriteBuf(pContext, body, bodyLen);
@@ -177,9 +192,16 @@ void httpSendOptionResp(HttpContext *pContext, char *desc) {
   char head[1024] = {0};
   char body[1024] = {0};
 
+  int8_t httpVersion = 0;
+  int8_t keepAlive = 0;
+  if (pContext->parser != NULL) {
+    httpVersion = pContext->parser->httpVersion;
+    keepAlive = pContext->parser->keepAlive;
+  }
+
   int32_t bodyLen = sprintf(body, httpRespTemplate[HTTP_RESPONSE_JSON_OK], TSDB_CODE_SUCCESS, desc);
-  int32_t headLen = sprintf(head, httpRespTemplate[HTTP_RESPONSE_OPTIONS], httpVersionStr[pContext->parser->httpVersion],
-                            httpKeepAliveStr[pContext->parser->keepAlive], bodyLen);
+  int32_t headLen = sprintf(head, httpRespTemplate[HTTP_RESPONSE_OPTIONS], httpVersionStr[httpVersion],
+                            httpKeepAliveStr[keepAlive], bodyLen);
 
   httpWriteBuf(pContext, head, headLen);
   httpWriteBuf(pContext, body, bodyLen);

@@ -20,7 +20,7 @@
 extern "C" {
 #endif
 
-#define TSDB_CFG_MAX_NUM    110
+#define TSDB_CFG_MAX_NUM    116  // 110 + 6 with lossy option
 #define TSDB_CFG_PRINT_LEN  23
 #define TSDB_CFG_OPTION_LEN 24
 #define TSDB_CFG_VALUE_LEN  41
@@ -32,6 +32,9 @@ extern "C" {
 #define TSDB_CFG_CTYPE_B_OPTION    16U  // can be configured by taos_options function
 #define TSDB_CFG_CTYPE_B_NOT_PRINT 32U  // such as password
 
+#define MAX_FLOAT    100000
+#define MIN_FLOAT    0
+
 enum {
   TAOS_CFG_CSTATUS_NONE,     // not configured
   TAOS_CFG_CSTATUS_DEFAULT,  // use system default value
@@ -41,12 +44,16 @@ enum {
 };
 
 enum {
+  TAOS_CFG_VTYPE_INT8,
   TAOS_CFG_VTYPE_INT16,
   TAOS_CFG_VTYPE_INT32,
+  TAOS_CFG_VTYPE_UINT16,
   TAOS_CFG_VTYPE_FLOAT,
   TAOS_CFG_VTYPE_STRING,
   TAOS_CFG_VTYPE_IPSTR,
   TAOS_CFG_VTYPE_DIRECTORY,
+  TAOS_CFG_VTYPE_DATA_DIRCTORY,
+  TAOS_CFG_VTYPE_DOUBLE,
 };
 
 enum {

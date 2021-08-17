@@ -36,21 +36,29 @@ static int32_t  walInitObj(SWal *pWal);
 static void     walFreeObj(void *pWal);
 
 int32_t walInit() {
+  int32_t code = 0;
   tsWal.refId = taosOpenRef(TSDB_MIN_VNODES, walFreeObj);
 
-  int32_t code = walCreateThread();
+  code = pthread_mutex_init(&tsWal.mutex, NULL);
+  if (code) {
+    wError("failed to init wal mutex since %s", tstrerror(code));
+    return code;
+  }
+
+  code = walCreateThread();
   if (code != TSDB_CODE_SUCCESS) {
     wError("failed to init wal module since %s", tstrerror(code));
     return code;
   }
 
-  wInfo("wal module is initialized, refId:%d", tsWal.refId);
+  wInfo("wal module is initialized, rsetId:%d", tsWal.refId);
   return code;
 }
 
 void walCleanUp() {
   walStopThread();
   taosCloseRef(tsWal.refId);
+  pthread_mutex_destroy(&tsWal.mutex);
   wInfo("wal module is cleaned up");
 }
 
@@ -104,7 +112,7 @@ int32_t walAlter(void *handle, SWalCfg *pCfg) {
 
   pWal->level = pCfg->walLevel;
   pWal->fsyncPeriod = pCfg->fsyncPeriod;
-  pWal->fsyncSeq = pCfg->fsyncPeriod % 1000;
+  pWal->fsyncSeq = pCfg->fsyncPeriod / 1000;
   if (pWal->fsyncSeq <= 0) pWal->fsyncSeq = 1;
 
   return TSDB_CODE_SUCCESS;
@@ -183,10 +191,16 @@ static void walFsyncAll() {
 }
 
 static void *walThreadFunc(void *param) {
+  int stop = 0;
+  setThreadName("wal");
   while (1) {
     walUpdateSeq();
     walFsyncAll();
-    if (tsWal.stop) break;
+
+    pthread_mutex_lock(&tsWal.mutex);
+    stop = tsWal.stop;
+    pthread_mutex_unlock(&tsWal.mutex);
+    if (stop) break;
   }
 
   return NULL;
@@ -203,14 +217,17 @@ static int32_t walCreateThread() {
   }
 
   pthread_attr_destroy(&thAttr);
-  wDebug("wal thread is launched");
+  wDebug("wal thread is launched, thread:0x%08" PRIx64, taosGetPthreadId(tsWal.thread));
 
   return TSDB_CODE_SUCCESS;
 }
 
 static void walStopThread() {
+  pthread_mutex_lock(&tsWal.mutex);
   tsWal.stop = 1;
-  if (tsWal.thread) {
+  pthread_mutex_unlock(&tsWal.mutex);
+
+  if (taosCheckPthreadValid(tsWal.thread)) {
     pthread_join(tsWal.thread, NULL);
   }
 

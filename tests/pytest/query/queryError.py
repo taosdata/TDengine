@@ -51,10 +51,19 @@ class TDTestCase:
         tdSql.error("select last_row as latest from st")
 
         # query distinct on normal colnum
-        tdSql.error("select distinct tagtype from st")
+        #tdSql.error("select distinct tagtype from st")
 
         # query .. order by non-time field
         tdSql.error("select * from st order by name")
+
+        # TD-2133
+        tdSql.error("select diff(tagtype),bottom(tagtype,1) from dev_001")
+
+        # TD-2190
+        tdSql.error("select min(tagtype),max(tagtype) from dev_002 interval(1n) fill(prev)")
+
+        # TD-2208
+        tdSql.error("select diff(tagtype),top(tagtype,1) from dev_001")
 
     def stop(self):
         tdSql.close()

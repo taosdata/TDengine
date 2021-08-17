@@ -57,17 +57,18 @@ int32_t dnodeStepInit(SStep *pSteps, int32_t stepSize) {
 
     int32_t code = (*pStep->initFp)();
     if (code != 0) {
-      dDebug("step:%s will init", pStep->name);
+      dDebug("step:%s will cleanup", pStep->name);
       taosStepCleanupImp(pSteps, step);
       return code;
     }
+    dInfo("step:%s is initialized", pStep->name);
 
-    dnodeReportStep(pStep->name, "Initialization complete", step + 1 >= stepSize);
+    dnodeReportStep(pStep->name, "Initialization complete", 0);
   }
 
   return 0;
 }
 
-void dnodeStepCleanup(SStep *pSteps, int32_t stepSize) { 
-  return taosStepCleanupImp(pSteps, stepSize - 1);
+void dnodeStepCleanup(SStep *pSteps, int32_t stepSize) {
+  taosStepCleanupImp(pSteps, stepSize - 1);
 }

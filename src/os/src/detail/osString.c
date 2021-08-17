@@ -17,17 +17,17 @@
 #include "os.h"
 #include "tglobal.h"
 
-#ifndef TAOS_OS_FUNC_STRING_STR2INT64
-int64_t tsosStr2int64(char *str) {
+int64_t taosStr2int64(char *str) {
   char *endptr = NULL;
   return strtoll(str, &endptr, 10);
 }
-#endif
 
-#ifndef TAOS_OS_FUNC_STRING_WCHAR
-int tasoUcs4Compare(void *f1_ucs4, void *f2_ucs4, int bytes) {
+#if !(defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32))
+
+int32_t tasoUcs4Compare(void *f1_ucs4, void *f2_ucs4, int32_t bytes) {
   return wcsncmp((wchar_t *)f1_ucs4, (wchar_t *)f2_ucs4, bytes / TSDB_NCHAR_SIZE);
 }
+
 #endif
 
 #ifdef USE_LIBICONV
@@ -46,7 +46,7 @@ int32_t taosUcs4ToMbs(void *ucs4, int32_t ucs4_max_len, char *mbs) {
   return (int32_t)(ucs4_max_len - outLen);
 }
 
-bool taosMbsToUcs4(char *mbs, size_t mbsLength, char *ucs4, int32_t ucs4_max_len, size_t *len) {
+bool taosMbsToUcs4(char *mbs, size_t mbsLength, char *ucs4, int32_t ucs4_max_len, int32_t *len) {
   memset(ucs4, 0, ucs4_max_len);
   iconv_t cd = iconv_open(DEFAULT_UNICODE_ENCODEC, tsCharset);
   size_t  ucs4_input_len = mbsLength;
@@ -58,7 +58,10 @@ bool taosMbsToUcs4(char *mbs, size_t mbsLength, char *ucs4, int32_t ucs4_max_len
 
   iconv_close(cd);
   if (len != NULL) {
-    *len = ucs4_max_len - outLeft;
+    *len = (int32_t)(ucs4_max_len - outLeft);
+    if (*len < 0) {
+      return false;
+    }
   }
 
   return true;
@@ -92,7 +95,7 @@ int32_t taosUcs4ToMbs(void *ucs4, int32_t ucs4_max_len, char *mbs) {
   return len;
 }
 
-bool taosMbsToUcs4(char *mbs, size_t mbsLength, char *ucs4, int32_t ucs4_max_len, size_t *len) {
+bool taosMbsToUcs4(char *mbs, size_t mbsLength, char *ucs4, int32_t ucs4_max_len, int32_t *len) {
   memset(ucs4, 0, ucs4_max_len);
   mbstate_t state = {0};
   int32_t retlen = mbsnrtowcs((wchar_t *)ucs4, (const char **)&mbs, mbsLength, ucs4_max_len / 4, &state);

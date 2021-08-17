@@ -20,6 +20,8 @@
 
 typedef uint32_t (*_hash_fn_t)(const char *, uint32_t);
 
+typedef int32_t (*_equal_fn_t)(const void *a, const void *b, size_t sz); 
+
 /**
  * murmur hash algorithm
  * @key  usually string
@@ -36,9 +38,14 @@ uint32_t MurmurHash3_32(const char *key, uint32_t len);
  * @return
  */
 uint32_t taosIntHash_32(const char *key, uint32_t len);
-
 uint32_t taosIntHash_64(const char *key, uint32_t len);
 
+
+int32_t  taosFloatEqual(const void *a, const void *b, size_t sz);
+int32_t  taosDoubleEqual(const void *a,const void *b, size_t sz); 
+
 _hash_fn_t taosGetDefaultHashFunction(int32_t type);
+
+_equal_fn_t taosGetDefaultEqualFunction(int32_t type);
 
 #endif //TDENGINE_HASHUTIL_H

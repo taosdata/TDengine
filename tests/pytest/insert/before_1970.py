@@ -41,7 +41,7 @@ class TDTestCase:
         #TODO : should add more testcases
         tdSql.execute("insert into test values('1930-12-12 01:19:20.345', 1);")
         tdSql.execute("insert into test values('1969-12-30 23:59:59.999', 2);")
-        tdSql.execute("insert into test values(-3600, 3);")
+        tdSql.execute("insert into test values(-3600001, 3);")
         tdSql.execute("insert into test values('2020-10-20 14:02:53.770', 4);")
         print("==============insert data")
 
@@ -61,11 +61,11 @@ class TDTestCase:
         print("==============step4")
         tdSql.execute("use demo;")
         tdSql.query("select * from test;")
-        # print(tdSql.queryResult)
+        print(tdSql.queryResult)
         tdSql.checkRows(4)
         tdSql.checkData(0,0,'1930-12-12 01:19:20.345000')
         tdSql.checkData(1,0,'1969-12-30 23:59:59.999000')
-        tdSql.checkData(2,0,'1970-01-01 07:00:00.000000')
+        tdSql.checkData(2,0,'1970-01-01 06:59:59.999000')
         tdSql.checkData(3,0,'2020-10-20 14:02:53.770000')
         print("==============check data")
 

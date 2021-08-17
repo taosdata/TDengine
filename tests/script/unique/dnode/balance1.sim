@@ -33,7 +33,6 @@ system sh/cfg.sh -n dnode4 -c maxTablesPerVnode -v 4
 print ========== step1
 system sh/exec.sh -n dnode1 -s start
 sql connect
-sleep 3000
 
 sql create database d1 
 sql create table d1.t1 (t timestamp, i int) 
@@ -50,15 +49,14 @@ if $data2_1 != 1 then
 endi
 
 print ========== step2
-sleep 2000
 sql create dnode $hostname2
 system sh/exec.sh -n dnode2 -s start
 
 $x = 0
 show2: 
 	$x = $x + 1
-	sleep 2000
-	if $x == 10 then
+	sleep 1000
+	if $x == 20 then
 		return -1
 	endi
 	
@@ -124,8 +122,8 @@ system sh/exec.sh -n dnode3 -s start
 $x = 0
 show5: 
 	$x = $x + 1
-	sleep 3000
-	if $x == 20 then 
+	sleep 1000
+	if $x == 30 then 
 		return -1
 	endi
 	
@@ -174,8 +172,8 @@ system sh/exec.sh -n dnode4 -s start
 $x = 0
 show7: 
 	$x = $x + 1
-	sleep 2000
-	if $x == 10 then
+	sleep 1000
+	if $x == 20 then
 	  return -1
 	endi
 	
@@ -258,7 +256,7 @@ endi
 system sh/exec.sh -n dnode3 -s stop -x SIGINT
 
 sql reset query cache
-sleep 1000
+sleep 100
 
 print ========== step10
 sql select * from d1.t1 order by t desc

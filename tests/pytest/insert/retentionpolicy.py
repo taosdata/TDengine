@@ -44,7 +44,8 @@ class TDTestRetetion:
             caller = inspect.getframeinfo(inspect.stack()[1][0])
             args = (caller.filename, caller.lineno, sql, self.queryRows, expectRows)
             os.system("sudo timedatectl set-ntp true")
-            time.sleep(40)
+            os.system("date -s '%s'"%(datetime.datetime.now()+datetime.timedelta(hours=1)))
+            time.sleep(5)
             tdLog.exit("%s(%d) failed: sql:%s, queryRows:%d != expect:%d" % args)
 
     def run(self):
@@ -63,23 +64,20 @@ class TDTestRetetion:
         tdLog.info("=============== step2")
         tdDnodes.stop(1)
         os.system("sudo timedatectl set-ntp false")
-        os.system("sudo date -s $(date -d \"${DATE} 2 days\" \"+%Y%m%d\")")
+        os.system("date -s '%s'"%(datetime.datetime.now()+datetime.timedelta(hours=48)))
         tdDnodes.start(1)
         cmd = 'insert into test values(now,5);'
         tdDnodes.stop(1)
         tdDnodes.start(1)
         
         tdLog.info(cmd)
+        ttime = datetime.datetime.now()
         tdSql.execute(cmd)
         self.queryRows=tdSql.query('select * from test')
-        if self.queryRows==4:
-            self.checkRows(4,cmd)
-            return 0
-        else:
-            self.checkRows(5,cmd)
+        self.checkRows(3,cmd)
         tdLog.info("=============== step3")
         tdDnodes.stop(1)
-        os.system("sudo date -s $(date -d \"${DATE} 2 days\" \"+%Y%m%d\")")
+        os.system("date -s '%s'"%(datetime.datetime.now()+datetime.timedelta(hours=48)))
         tdDnodes.start(1)
         tdLog.info(cmd)
         tdSql.execute(cmd)
@@ -91,7 +89,7 @@ class TDTestRetetion:
         tdLog.info(cmd)
         tdSql.execute(cmd)
         self.queryRows=tdSql.query('select * from test')
-        self.checkRows(6,cmd)
+        self.checkRows(3,cmd)
         tdLog.info("=============== step4")
         tdDnodes.stop(1)
         tdDnodes.start(1)
@@ -99,18 +97,36 @@ class TDTestRetetion:
         tdLog.info(cmd)
         tdSql.execute(cmd)
         self.queryRows=tdSql.query('select * from test')
-        self.checkRows(7,cmd)
+        self.checkRows(4,cmd)
 
         tdLog.info("=============== step5")
         tdDnodes.stop(1)
         tdDnodes.start(1)
         cmd='select * from test where ts > now-1d'
         self.queryRows=tdSql.query('select * from test where ts > now-1d')
-        self.checkRows(1,cmd)
+        self.checkRows(2,cmd)
+
+        tdLog.info("=============== step6")
+        tdDnodes.stop(1)
+        os.system("date -s '%s'"%(ttime + datetime.timedelta(seconds=(72*60*60-7))))
+        tdDnodes.start(1)
+        while datetime.datetime.now() < (ttime + datetime.timedelta(seconds=(72*60*60-1))):
+            time.sleep(0.001)
+        cmd = 'select * from test'
+        self.queryRows=tdSql.query(cmd)
+        self.checkRows(4,cmd)
+        while datetime.datetime.now() <= (ttime + datetime.timedelta(hours=72)):
+            time.sleep(0.001)
+        time.sleep(0.01)
+        cmd = 'select * from test'
+        self.queryRows=tdSql.query(cmd)
+        print(tdSql.queryResult)
+        self.checkRows(3,cmd)
 
     def stop(self):
         os.system("sudo timedatectl set-ntp true")
-        time.sleep(40)
+        os.system("date -s '%s'"%(datetime.datetime.now()+datetime.timedelta(hours=1)))
+        time.sleep(5)
         tdSql.close()
         tdLog.success("%s successfully executed" % __file__)
 

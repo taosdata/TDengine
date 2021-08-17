@@ -1,8 +1,5 @@
 run general/stream/stream_3.sim
 run general/stream/stream_restart.sim
-run general/stream/table_1.sim
-run general/stream/table_n.sim
-run general/stream/metrics_n.sim
 run general/stream/table_del.sim
 run general/stream/metrics_del.sim
 run general/stream/table_replica1_vnoden.sim

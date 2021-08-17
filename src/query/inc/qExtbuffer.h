@@ -77,13 +77,13 @@ typedef struct tFilePagesItem {
 
 typedef struct SSchemaEx {
   struct SSchema field;
-  int16_t        offset;
+  int32_t        offset;
 } SSchemaEx;
 
 typedef struct SColumnModel {
   int32_t    capacity;
   int32_t    numOfCols;
-  int16_t    rowSize;
+  int32_t    rowSize;
   SSchemaEx *pFields;
 } SColumnModel;
 
@@ -236,6 +236,11 @@ int32_t compare_a(tOrderDescriptor *, int32_t numOfRow1, int32_t s1, char *data1
 
 int32_t compare_d(tOrderDescriptor *, int32_t numOfRow1, int32_t s1, char *data1, int32_t numOfRow2, int32_t s2,
                   char *data2);
+
+struct SSDataBlock;
+int32_t compare_aRv(struct SSDataBlock* pBlock, SArray* colIndex, int32_t numOfCols, int32_t rowIndex, char** buffer, int32_t order);
+
+int32_t columnValueAscendingComparator(char *f1, char *f2, int32_t type, int32_t bytes);
 
 #ifdef __cplusplus
 }

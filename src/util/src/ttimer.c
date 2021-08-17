@@ -18,8 +18,9 @@
 #include "tsched.h"
 #include "ttimer.h"
 #include "tutil.h"
+#include "monotonic.h"
 
-extern int32_t tscEmbedded;
+extern int8_t tscEmbedded;
 
 #define tmrFatal(...) { if (tmrDebugFlag & DEBUG_FATAL) { taosPrintLog("TMR FATAL ", tscEmbedded ? 255 : tmrDebugFlag, __VA_ARGS__); }}
 #define tmrError(...) { if (tmrDebugFlag & DEBUG_ERROR) { taosPrintLog("TMR ERROR ", tscEmbedded ? 255 : tmrDebugFlag, __VA_ARGS__); }}
@@ -119,7 +120,7 @@ static void timerDecRef(tmr_obj_t* timer) {
 }
 
 static void lockTimerList(timer_list_t* list) {
-  int64_t tid = taosGetPthreadId();
+  int64_t tid = taosGetSelfPthreadId();
   int       i = 0;
   while (atomic_val_compare_exchange_64(&(list->lockedBy), 0, tid) != 0) {
     if (++i % 1000 == 0) {
@@ -129,7 +130,7 @@ static void lockTimerList(timer_list_t* list) {
 }
 
 static void unlockTimerList(timer_list_t* list) {
-  int64_t tid = taosGetPthreadId();
+  int64_t tid = taosGetSelfPthreadId();
   if (atomic_val_compare_exchange_64(&(list->lockedBy), tid, 0) != tid) {
     assert(false);
     tmrError("%" PRId64 " trying to unlock a timer list not locked by current thread.", tid);
@@ -186,6 +187,10 @@ static void removeTimer(uintptr_t id) {
   unlockTimerList(list);
 }
 
+static int64_t getMonotonicMs(void) {
+  return (int64_t) getMonotonicUs() / 1000;
+}
+
 static void addToWheel(tmr_obj_t* timer, uint32_t delay) {
   timerAddRef(timer);
   // select a wheel for the timer, we are not an accurate timer,
@@ -201,7 +206,7 @@ static void addToWheel(tmr_obj_t* timer, uint32_t delay) {
 
   time_wheel_t* wheel = wheels + timer->wheel;
   timer->prev = NULL;
-  timer->expireAt = taosGetTimestampMs() + delay;
+  timer->expireAt = getMonotonicMs() + delay;
 
   pthread_mutex_lock(&wheel->mutex);
 
@@ -257,7 +262,7 @@ static bool removeFromWheel(tmr_obj_t* timer) {
 
 static void processExpiredTimer(void* handle, void* arg) {
   tmr_obj_t* timer = (tmr_obj_t*)handle;
-  timer->executedBy = taosGetPthreadId();
+  timer->executedBy = taosGetSelfPthreadId();
   uint8_t state = atomic_val_compare_exchange_8(&timer->state, TIMER_STATE_WAITING, TIMER_STATE_EXPIRED);
   if (state == TIMER_STATE_WAITING) {
     const char* fmt = "%s timer[id=%" PRIuPTR ", fp=%p, param=%p] execution start.";
@@ -334,7 +339,7 @@ tmr_h taosTmrStart(TAOS_TMR_CALLBACK fp, int mseconds, void* param, void* handle
 }
 
 static void taosTimerLoopFunc(int signo) {
-  int64_t now = taosGetTimestampMs();
+  int64_t now = getMonotonicMs();
 
   for (int i = 0; i < tListLen(wheels); i++) {
     // `expried` is a temporary expire list.
@@ -406,7 +411,7 @@ static bool doStopTimer(tmr_obj_t* timer, uint8_t state) {
     return false;
   }
 
-  if (timer->executedBy == taosGetPthreadId()) {
+  if (timer->executedBy == taosGetSelfPthreadId()) {
     // taosTmrReset is called in the timer callback, should do nothing in this
     // case to avoid dead lock. note taosTmrReset must be the last statement
     // of the callback funtion, will be a bug otherwise.
@@ -501,7 +506,7 @@ static void taosTmrModuleInit(void) {
 
   pthread_mutex_init(&tmrCtrlMutex, NULL);
 
-  int64_t now = taosGetTimestampMs();
+  int64_t now = getMonotonicMs();
   for (int i = 0; i < tListLen(wheels); i++) {
     time_wheel_t* wheel = wheels + i;
     if (pthread_mutex_init(&wheel->mutex, NULL) != 0) {
@@ -532,6 +537,9 @@ static void taosTmrModuleInit(void) {
 }
 
 void* taosTmrInit(int maxNumOfTmrs, int resolution, int longest, const char* label) {
+  const char* ret = monotonicInit();
+  tmrDebug("ttimer monotonic clock source:%s", ret);
+
   pthread_once(&tmrModuleInit, taosTmrModuleInit);
 
   pthread_mutex_lock(&tmrCtrlMutex);

@@ -31,14 +31,18 @@ enum _TSDB_DB_STATUS {
 int32_t mnodeInitDbs();
 void    mnodeCleanupDbs();
 int64_t mnodeGetDbNum();
+int32_t mnodeGetDbMaxReplica();
 SDbObj *mnodeGetDb(char *db);
-SDbObj *mnodeGetDbByTableId(char *db);
+SDbObj *mnodeGetDbByTableName(char *db);
 void *  mnodeGetNextDb(void *pIter, SDbObj **pDb);
 void    mnodeCancelGetNextDb(void *pIter);
 void    mnodeIncDbRef(SDbObj *pDb);
 void    mnodeDecDbRef(SDbObj *pDb);
 bool    mnodeCheckIsMonitorDB(char *db, char *monitordb);
 void    mnodeDropAllDbs(SAcctObj *pAcct);
+int     mnodeInsertAlterDbRow(SDbObj *pDb, void *pMsg);
+
+int32_t mnodeCompactDbs();
 
 // util func
 void mnodeAddSuperTableIntoDb(SDbObj *pDb);

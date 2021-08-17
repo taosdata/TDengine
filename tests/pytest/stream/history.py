@@ -48,10 +48,14 @@ class TDTestCase:
         tdSql.execute("insert into car3 values('2019-01-01 00:00:01.389', 1)")
         tdSql.execute("insert into car4 values('2019-01-01 00:00:01.829', 1)")
 
+        tdSql.error("create table strm as select count(*) from cars")
+
         tdSql.execute("create table strm as select count(*) from cars interval(4s)")
         tdSql.waitedQuery("select * from strm", 2, 100)
         tdSql.checkData(0, 1, 11)
         tdSql.checkData(1, 1, 2)
+
+
 
 
     def stop(self):
