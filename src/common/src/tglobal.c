@@ -151,6 +151,11 @@ int32_t tsMinTablePerVnode = TSDB_TABLES_STEP;
 int32_t tsMaxTablePerVnode = TSDB_DEFAULT_TABLES;
 int32_t tsTableIncStepPerVnode = TSDB_TABLES_STEP;
 
+// tsdb config 
+
+// For backward compatibility
+bool tsdbForceKeepFile = false;
+
 // balance
 int8_t  tsEnableBalance = 1;
 int8_t  tsAlternativeRole = 0;

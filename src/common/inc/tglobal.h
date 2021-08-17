@@ -107,6 +107,9 @@ extern int32_t tsQuorum;
 extern int8_t  tsUpdate;
 extern int8_t  tsCacheLastRow;
 
+//tsdb 
+extern bool tsdbForceKeepFile;
+
 // balance
 extern int8_t  tsEnableBalance;
 extern int8_t  tsAlternativeRole;
