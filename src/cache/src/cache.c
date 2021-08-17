@@ -98,7 +98,6 @@ void* cacheGet(cacheTable* pTable, const void* key, uint8_t nkey, int* nbytes) {
   /* first find the key in the cache table */
   cacheItem* pItem = cacheTableGet(pTable, key, nkey);
   if (pItem) {
-    itemIncrRef(pItem);
     uint64_t now = taosGetTimestamp(TSDB_TIME_PRECISION_MILLI);
     #if 0
     if (cacheItemIsExpired(pItem, now)) { /* is item expired? */
@@ -136,7 +135,6 @@ void* cacheGet(cacheTable* pTable, const void* key, uint8_t nkey, int* nbytes) {
   if (ret != CACHE_OK) {
     goto out;
   }
-  itemIncrRef(pItem);
 
 out:
   if (pItem == NULL) {
@@ -144,15 +142,23 @@ out:
     return NULL;
   }
 
+  // when get item from cache, incr the refcount
+  // user will call cacheItemUnlock when end of use
+  // the item ref count protect the item from evict when in use
+  itemIncrRef(pItem);
   if (nbytes) {
     *nbytes = pItem->nbytes;
   }
 
-  itemDecrRef(pItem);
-
   cacheMutexUnlock(pMutex);
 
   return item_data(pItem);
+}
+
+void cacheItemUnlock(void* data) {
+  cacheItem* pItem = cacheItemByData(data);
+  assert(itemRef(pItem) > 1);
+  itemDecrRef(pItem);
 }
 
 void cacheRemove(cacheTable* pTable, const void* key, uint8_t nkey) {

@@ -47,6 +47,7 @@ static void hashTableFreeValue(mnodeSdbTable *pTable, void *p);
 static mnodeSdbCacheTable* cacheInit(mnodeSdbTable* table, mnodeSdbTableOption options);
 static void sdbCacheSyncWal(mnodeSdbTable *pTable, bool restore, SWalHead*, SSdbRow*, SWalHeadInfo*);
 static int  sdbCacheGet(mnodeSdbTable *pTable, const void *key, size_t keyLen, void** pRet);
+static void sdbCacheUnlockData(void* p);
 static void sdbCachePut(mnodeSdbTable *pTable, SSdbRow* pRow);
 static void sdbCacheRemove(mnodeSdbTable *pTable, const void *key, size_t keyLen);
 static void sdbCacheClear(mnodeSdbTable *pTable);
@@ -60,6 +61,7 @@ static int loadCacheDataFromWal(void*, const void* key, uint8_t nkey, char** val
 static int delCacheData(void*, const void* key, uint8_t nkey);
 
 typedef int (*sdb_table_get_func_t)(mnodeSdbTable *pTable, const void *key, size_t keyLen, void** pRet);
+typedef void (*sdb_table_unlock_func_t)(void*);
 typedef void (*sdb_table_put_func_t)(mnodeSdbTable *pTable, SSdbRow* pRow);
 typedef void (*sdb_table_del_func_t)(mnodeSdbTable *pTable, const void *key, size_t keyLen);
 typedef void (*sdb_table_clear_func_t)(mnodeSdbTable *pTable);
@@ -103,6 +105,7 @@ struct mnodeSdbTable {
 
   sdb_table_get_func_t getFp;
   sdb_table_put_func_t putFp;
+  sdb_table_unlock_func_t unlockFp;
   sdb_table_del_func_t delFp;
   sdb_table_clear_func_t clearFp;
   sdb_table_iter_func_t iterFp;
@@ -131,6 +134,10 @@ static void mnodeSdbTableDestroy(mnodeSdbTable* pTable) {
 
 int mnodeSdbTableGet(mnodeSdbTable *pTable, const void *key, size_t keyLen, void** pRet) {
   return pTable->getFp(pTable, key, keyLen, pRet);
+}
+
+void mnodeSdbUnlockData(mnodeSdbTable *pTable, void* p) {
+  if (pTable->unlockFp) pTable->unlockFp(p);
 }
 
 void mnodeSdbTablePut(mnodeSdbTable *pTable, SSdbRow* pRow) {
@@ -207,6 +214,7 @@ static mnodeSdbCacheTable* cacheInit(mnodeSdbTable* pTable, mnodeSdbTableOption 
 
   pTable->getFp  = sdbCacheGet;
   pTable->putFp  = sdbCachePut;
+  pTable->unlockFp = sdbCacheUnlockData;
   pTable->syncFp = sdbCacheSyncWal;
   pTable->delFp  = sdbCacheRemove;
   pTable->clearFp = sdbCacheClear;
@@ -224,6 +232,10 @@ static int sdbCacheGet(mnodeSdbTable *pTable, const void *key, size_t keyLen, vo
   mnodeSdbCacheTable* pCache = pTable->iHandle;
   *pRet = cacheGet(pCache->pTable, key, keyLen, &nBytes);
   return *pRet != NULL ? 0 : -1;
+}
+
+static void sdbCacheUnlockData(void* p) {
+  cacheItemUnlock(p);
 }
 
 static void sdbCachePut(mnodeSdbTable *pTable, SSdbRow* pRow) {

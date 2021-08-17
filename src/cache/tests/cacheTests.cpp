@@ -53,6 +53,7 @@ TEST(cacheTest, testInsert) {
     ASSERT_EQ(sizeof(testData), nBytes);
     ASSERT(memcmp(&data.value, value->value, sizeof(char) * 20) == 0);
 
+    cacheItemUnlock(value);
     //cacheRemove(pTable, buf, nkey);
     //ASSERT(cacheGet(pTable, buf, nkey, &pData, &nBytes) == CACHE_KEY_NOT_FOUND);
     /*

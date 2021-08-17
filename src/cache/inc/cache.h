@@ -88,6 +88,8 @@ void* cacheGet(cacheTable*, const void* key, uint8_t nkey, int* nbytes);
 /* get cacheItem pointer by item data */
 cacheItem* cacheItemByData(void* data);
 
+void cacheItemUnlock(void* data);
+
 void cacheRemove(cacheTable* pTable, const void* key, uint8_t nkey);
 
 void cacheFreeItem(cacheTable* pTable, cacheItem*);

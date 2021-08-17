@@ -508,6 +508,8 @@ void sdbDecRef(void *tparam, void *pRow) {
   SSdbTable *pTable = tparam;
   int32_t *  pRefCount = (int32_t *)((char *)pRow + pTable->refCountPos);
   int32_t    refCount = atomic_sub_fetch_32(pRefCount, 1);
+  mnodeSdbUnlockData(pTable->iHandle, pRow);
+
   sdbTrace("vgId:1, sdb:%s, dec ref to row:%p:%s:%d", pTable->name, pRow, sdbGetRowStr(pTable, pRow), refCount);
 
   int32_t *updateEnd = (int32_t *)((char *)pRow + pTable->refCountPos - 4);

@@ -326,26 +326,33 @@ static int pullFromLru(cache_t *cache, cacheMutex* pLockedMutex, int slabId, int
       continue;
     }
 
+#if 0
     /* if item user data has been locked by more then one, continue */
     if (itemUserDataRef(search) > 1) {
       continue;
     }
-
-    /* only one item ref count, can release the item safely */
-    if (itemIncrRef(search) == 2) {
+#endif
+    
+    uint8_t refCnt = itemIncrRef(search);
+    /*
+    // only one item ref count, can release the item safely
+    if (refCnt == 2) {
       setItemRef(search, 1);
       cacheItemUnlink(search->pTable, search, 0);
       if (pMutex != pLockedMutex) cacheMutexTryUnlock(pMutex);
       removed++;
       continue;
     }
+    */
 
-    /* is pItem expired? */
-    if (cacheItemIsExpired(search, now)) {
+    assert(refCnt >= 2);
+
+    /* is item expired and no other thread reference to it ? */
+    if (cacheItemIsExpired(search, now) && refCnt == 2) {
       /* refcnt 2 -> 1 */
       cacheItemUnlink(search->pTable, search, 0);
       /* refcnt 1 -> 0 -> freeCacheItem */
-      //cacheItemRemove(cache, search);     
+      cacheItemRemove(cache, search);
       if (pMutex != pLockedMutex) cacheMutexTryUnlock(pMutex);
       removed++;
       continue;

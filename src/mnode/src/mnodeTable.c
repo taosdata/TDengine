@@ -398,6 +398,7 @@ static int32_t mnodeChildTableActionRestored() {
   return 0;
 }
 
+// init the loaded data from disk
 static int mnodeAfterLoadCTable(void* userData,void* value, int32_t nBytes, void* pArg, void* pRet) {
   SWalHead* pHead = (SWalHead*)pArg;
   SCTableObj* pTable = (SCTableObj*)pRet;

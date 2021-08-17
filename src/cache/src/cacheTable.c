@@ -417,7 +417,7 @@ void cacheTableIteratorFinal(cacheIterator* pIter) {
   cacheTable* pTable = pIter->pTable;
 
   if (pIter->pItem) {
-    itemIncrRef(pIter->pItem);
+    itemDecrRef(pIter->pItem);
   }
 
   if (pIter->bucketLocked) {    
