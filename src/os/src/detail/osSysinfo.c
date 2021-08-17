@@ -277,7 +277,7 @@ static void taosGetSystemLocale() {  // get and set default locale
   }
 }
 
-static int32_t taosGetCpuCores() { return (int32_t)sysconf(_SC_NPROCESSORS_ONLN); }
+int32_t taosGetCpuCores() { return (int32_t)sysconf(_SC_NPROCESSORS_ONLN); }
 
 bool taosGetCpuUsage(float *sysCpuUsage, float *procCpuUsage) {
   static uint64_t lastSysUsed = 0;
@@ -332,7 +332,7 @@ int32_t taosGetDiskSize(char *dataDir, SysDiskSize *diskSize) {
   }
 }
 
-static bool taosGetCardInfo(int64_t *bytes) {
+bool taosGetCardInfo(int64_t *bytes, int64_t *rbytes, int64_t *tbytes) {
   *bytes = 0;
   FILE *fp = fopen(tsSysNetFile, "r");
   if (fp == NULL) {
@@ -347,9 +347,9 @@ static bool taosGetCardInfo(int64_t *bytes) {
   while (!feof(fp)) {
     memset(line, 0, len);
 
-    int64_t rbytes = 0;
+    int64_t o_rbytes = 0;
     int64_t rpackts = 0;
-    int64_t tbytes = 0;
+    int64_t o_tbytes = 0;
     int64_t tpackets = 0;
     int64_t nouse1 = 0;
     int64_t nouse2 = 0;
@@ -374,8 +374,10 @@ static bool taosGetCardInfo(int64_t *bytes) {
     sscanf(line,
            "%s %" PRId64 " %" PRId64 " %" PRId64 " %" PRId64 " %" PRId64 " %" PRId64 " %" PRId64 " %" PRId64 " %" PRId64
            " %" PRId64,
-           nouse0, &rbytes, &rpackts, &nouse1, &nouse2, &nouse3, &nouse4, &nouse5, &nouse6, &tbytes, &tpackets);
-    *bytes += (rbytes + tbytes);
+           nouse0, &o_rbytes, &rpackts, &nouse1, &nouse2, &nouse3, &nouse4, &nouse5, &nouse6, &o_tbytes, &tpackets);
+    if (rbytes) *rbytes = o_rbytes;
+    if (tbytes) *tbytes = o_tbytes;
+    *bytes += (o_rbytes + o_tbytes);
   }
 
   tfree(line);
@@ -390,7 +392,7 @@ bool taosGetBandSpeed(float *bandSpeedKb) {
   int64_t        curBytes = 0;
   time_t         curTime = time(NULL);
 
-  if (!taosGetCardInfo(&curBytes)) {
+  if (!taosGetCardInfo(&curBytes, NULL, NULL)) {
     return false;
   }
 
@@ -420,7 +422,7 @@ bool taosGetBandSpeed(float *bandSpeedKb) {
   return true;
 }
 
-static bool taosReadProcIO(int64_t *readbyte, int64_t *writebyte) {
+bool taosReadProcIO(int64_t *rchars, int64_t *wchars) {
   FILE *fp = fopen(tsProcIOFile, "r");
   if (fp == NULL) {
     uError("open file:%s failed", tsProcIOFile);
@@ -441,10 +443,10 @@ static bool taosReadProcIO(int64_t *readbyte, int64_t *writebyte) {
       break;
     }
     if (strstr(line, "rchar:") != NULL) {
-      sscanf(line, "%s %" PRId64, tmp, readbyte);
+      sscanf(line, "%s %" PRId64, tmp, rchars);
       readIndex++;
     } else if (strstr(line, "wchar:") != NULL) {
-      sscanf(line, "%s %" PRId64, tmp, writebyte);
+      sscanf(line, "%s %" PRId64, tmp, wchars);
       readIndex++;
     } else {
     }

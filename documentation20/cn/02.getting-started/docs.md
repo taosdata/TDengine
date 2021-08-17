@@ -126,7 +126,7 @@ taos> source <filename>;
 $ taosdemo
 ```
 
-该命令将在数据库 test 下面自动创建一张超级表 meters，该超级表下有 1 万张表，表名为 "d0" 到 "d9999"，每张表有 1 万条记录，每条记录有 (ts, current, voltage, phase) 四个字段，时间戳从 "2017-07-14 10:40:00 000" 到 "2017-07-14 10:40:09 999"，每张表带有标签 location 和 groupdId，groupdId 被设置为 1 到 10， location 被设置为 "beijing" 或者 "shanghai"。
+该命令将在数据库 test 下面自动创建一张超级表 meters，该超级表下有 1 万张表，表名为 "d0" 到 "d9999"，每张表有 1 万条记录，每条记录有 (ts, current, voltage, phase) 四个字段，时间戳从 "2017-07-14 10:40:00 000" 到 "2017-07-14 10:40:09 999"，每张表带有标签 location 和 groupId，groupId 被设置为 1 到 10， location 被设置为 "beijing" 或者 "shanghai"。
 
 执行这条命令大概需要几分钟，最后共插入 1 亿条记录。
 
@@ -150,10 +150,10 @@ taos> select avg(current), max(voltage), min(phase) from test.meters;
 taos> select count(*) from test.meters where location="beijing";
 ```
 
-- 查询 groupdId=10 的所有记录的平均值、最大值、最小值等：
+- 查询 groupId=10 的所有记录的平均值、最大值、最小值等：
 
 ```mysql
-taos> select avg(current), max(voltage), min(phase) from test.meters where groupdId=10;
+taos> select avg(current), max(voltage), min(phase) from test.meters where groupId=10;
 ```
 
 - 对表 d10 按 10s 进行平均值、最大值和最小值聚合统计：
@@ -179,17 +179,15 @@ taos> select avg(current), max(voltage), min(phase) from test.d10 interval(10s);
 |                | **CentOS 6/7/8** | **Ubuntu 16/18/20** | **Other Linux** | **统信 UOS** | **银河/中标麒麟** | **凝思 V60/V80** | **华为 EulerOS** |
 | -------------- | --------------------- | ------------------------ | --------------- | --------------- | ------------------------- | --------------------- | --------------------- |
 | X64            | ●                     | ●                        |                 | ○               | ●                         | ●                     | ●                     |
-| 树莓派 ARM32    |                       | ●                        | ●               |                 |                           |                       |                       |
 | 龙芯 MIPS64     |                       |                          | ●               |                 |                           |                       |                       |
-| 鲲鹏 ARM64    |                       | ○                        | ○               |                 | ●                         |                       |                       |
-| 申威 Alpha64  |                       |                          | ○               | ●               |                           |                       |                       |
+| 鲲鹏 ARM64      |                       | ○                        | ○               |                 | ●                         |                       |                       |
+| 申威 Alpha64    |                       |                          | ○               | ●               |                           |                       |                       |
 | 飞腾 ARM64      |                       | ○ 优麒麟                  |                 |                 |                           |                       |                       |
 | 海光 X64        | ●                     | ●                        | ●               | ○               | ●                         | ●                     |                       |
-| 瑞芯微 ARM64/32 |                       |                          | ○               |                 |                           |                       |                       |
-| 全志 ARM64/32   |                       |                          | ○               |                 |                           |                       |                       |
-| 炬力 ARM64/32   |                       |                          | ○               |                 |                           |                       |                       |
-| TI ARM32       |                       |                          | ○               |                 |                           |                       |                       |
-| 华为云 ARM64   |                       |                          |                 |                 |                           |                       | ●                     |
+| 瑞芯微 ARM64    |                       |                          | ○               |                 |                           |                       |                       |
+| 全志 ARM64      |                       |                          | ○               |                 |                           |                       |                       |
+| 炬力 ARM64      |                       |                          | ○               |                 |                           |                       |                       |
+| 华为云 ARM64    |                       |                          |                 |                 |                           |                       | ●                     |
 
 注： ● 表示经过官方测试验证， ○ 表示非官方测试验证。
 

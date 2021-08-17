@@ -32,7 +32,7 @@ Replace the database operating in the current connection with “power”, other
 An IoT system often has many types of devices, such as smart meters, transformers, buses, switches, etc. for power grids. In order to facilitate aggregation among multiple tables, using TDengine, it is necessary to create a STable for each type of data collection point. Taking the smart meter in Table 1 as an example, you can use the following SQL command to create a STable:
 
 ```mysql
-CREATE STABLE meters (ts timestamp, current float, voltage int, phase float) TAGS (location binary(64), groupdId int);
+CREATE STABLE meters (ts timestamp, current float, voltage int, phase float) TAGS (location binary(64), groupId int);
 ```
 
 **Note:** The STABLE keyword in this instruction needs to be written as TABLE in versions before 2.0.15.

@@ -69,12 +69,12 @@ void taosStringBuilderAppendNull(SStringBuilder* sb) { taosStringBuilderAppendSt
 
 void taosStringBuilderAppendInteger(SStringBuilder* sb, int64_t v) {
   char   buf[64];
-  size_t len = sprintf(buf, "%" PRId64, v);
-  taosStringBuilderAppendStringLen(sb, buf, len);
+  size_t len = snprintf(buf, sizeof(buf), "%" PRId64, v);
+  taosStringBuilderAppendStringLen(sb, buf, MIN(len, sizeof(buf)));
 }
 
 void taosStringBuilderAppendDouble(SStringBuilder* sb, double v) {
-  char   buf[64];
-  size_t len = sprintf(buf, "%.9lf", v);
-  taosStringBuilderAppendStringLen(sb, buf, len);
+  char   buf[512];
+  size_t len = snprintf(buf, sizeof(buf), "%.9lf", v);
+  taosStringBuilderAppendStringLen(sb, buf, MIN(len, sizeof(buf)));
 }

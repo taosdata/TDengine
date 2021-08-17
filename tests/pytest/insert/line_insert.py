@@ -42,18 +42,18 @@ class TDTestCase:
                     "stf,t1=4i64,t3=\"t4\",t2=5f64,t4=5f64 c1=3i64,c3=L\"passitagin_stf\",c2=false,c5=5f64,c6=7u64 1626006933641000000ns"
                 ]
 
-        code = self._conn.insertLines(lines)
-        print("insertLines result {}".format(code))
+        code = self._conn.insert_lines(lines)
+        print("insert_lines result {}".format(code))
 
         lines2 = [  "stg,t1=3i64,t2=4f64,t3=\"t3\" c1=3i64,c3=L\"passit\",c2=false,c4=4f64 1626006833639000000ns",
                     "stg,t1=4i64,t3=\"t4\",t2=5f64,t4=5f64 c1=3i64,c3=L\"passitagin\",c2=true,c4=5f64,c5=5f64 1626006833640000000ns"
                 ]
         
-        code = self._conn.insertLines([ lines2[0] ])
-        print("insertLines result {}".format(code))
+        code = self._conn.insert_lines([ lines2[0] ])
+        print("insert_lines result {}".format(code))
 
-        self._conn.insertLines([ lines2[1] ])
-        print("insertLines result {}".format(code))
+        self._conn.insert_lines([ lines2[1] ])
+        print("insert_lines result {}".format(code))
 
         tdSql.query("select * from st")
         tdSql.checkRows(4)
@@ -73,10 +73,12 @@ class TDTestCase:
         tdSql.query("describe stf")
         tdSql.checkData(2, 2, 14)
 
-        self._conn.insertLines([
+        self._conn.insert_lines([
                                 "sth,t1=4i64,t2=5f64,t4=5f64,ID=\"childtable\" c1=3i64,c3=L\"passitagin_stf\",c2=false,c5=5f64,c6=7u64 1626006933641ms",
                                 "sth,t1=4i64,t2=5f64,t4=5f64 c1=3i64,c3=L\"passitagin_stf\",c2=false,c5=5f64,c6=7u64 1626006933654ms"                    
                                 ])
+        tdSql.execute('reset query cache')
+
         tdSql.query('select tbname, * from sth')
         tdSql.checkRows(2)
 

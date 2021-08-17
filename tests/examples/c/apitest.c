@@ -359,7 +359,7 @@ void verify_prepare(TAOS* taos) {
     v.v8 = (int64_t)(i * 8);
     v.f4 = (float)(i * 40);
     v.f8 = (double)(i * 80);
-    for (int j = 0; j < sizeof(v.bin) - 1; ++j) {
+    for (int j = 0; j < sizeof(v.bin); ++j) {
       v.bin[j] = (char)(i + '0');
     }
 
@@ -556,7 +556,7 @@ void verify_prepare2(TAOS* taos) {
     v.v8[i] = (int64_t)(i * 8);
     v.f4[i] = (float)(i * 40);
     v.f8[i] = (double)(i * 80);
-    for (int j = 0; j < sizeof(v.bin[0]) - 1; ++j) {
+    for (int j = 0; j < sizeof(v.bin[0]); ++j) {
       v.bin[i][j] = (char)(i + '0');
     }    
     strcpy(v.blob[i], "一二三四五六七八九十");
@@ -808,7 +808,7 @@ void verify_prepare3(TAOS* taos) {
     v.v8[i] = (int64_t)(i * 8);
     v.f4[i] = (float)(i * 40);
     v.f8[i] = (double)(i * 80);
-    for (int j = 0; j < sizeof(v.bin[0]) - 1; ++j) {
+    for (int j = 0; j < sizeof(v.bin[0]); ++j) {
       v.bin[i][j] = (char)(i + '0');
     }    
     strcpy(v.blob[i], "一二三四五六七八九十");
@@ -1031,7 +1031,7 @@ int main(int argc, char *argv[]) {
   info = taos_get_client_info(taos);
   printf("client info: %s\n", info);
 
-  printf("************  verify shemaless  *************\n");
+  printf("************  verify schema-less  *************\n");
   verify_schema_less(taos);
 
 
@@ -1049,14 +1049,12 @@ int main(int argc, char *argv[]) {
 
   printf("************ verify prepare2 *************\n");
   verify_prepare2(taos);
-
   printf("************ verify prepare3 *************\n");
   verify_prepare3(taos);
-
+  
   printf("************ verify stream  *************\n");
   verify_stream(taos);
   printf("done\n");
-
   taos_close(taos);
   taos_cleanup();
 }

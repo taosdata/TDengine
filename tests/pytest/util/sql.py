@@ -65,7 +65,7 @@ class TDSql:
             self.queryResult = None
             tdLog.info("sql:%s, expect error occured" % (sql))
 
-    def query(self, sql):
+    def query(self, sql, row_tag=None):
         self.sql = sql
         try:
             self.cursor.execute(sql)
@@ -77,21 +77,43 @@ class TDSql:
             args = (caller.filename, caller.lineno, sql, repr(e))
             tdLog.notice("%s(%d) failed: sql:%s, %s" % args)
             raise Exception(repr(e))
+        if row_tag:
+            return self.queryResult
         return self.queryRows
 
-    def getColNameList(self, sql):
-        self.sql = sql
+    def getVariable(self, search_attr):
+        '''
+            get variable of search_attr access "show variables"
+        '''
         try:
-            col_name_list = []
-            self.cursor.execute(sql)
-            self.queryCols = self.cursor.description
-            for query_col in self.queryCols:
-                col_name_list.append(query_col[0])
+            sql = 'show variables'
+            param_list = self.query(sql, row_tag=True)
+            for param in param_list:
+                if param[0] == search_attr:
+                    return param[1], param_list
         except Exception as e:
             caller = inspect.getframeinfo(inspect.stack()[1][0])
             args = (caller.filename, caller.lineno, sql, repr(e))
             tdLog.notice("%s(%d) failed: sql:%s, %s" % args)
             raise Exception(repr(e))
+
+    def getColNameList(self, sql, col_tag=None):
+        self.sql = sql
+        try:
+            col_name_list = []
+            col_type_list = []
+            self.cursor.execute(sql)
+            self.queryCols = self.cursor.description
+            for query_col in self.queryCols:
+                col_name_list.append(query_col[0])
+                col_type_list.append(query_col[1])
+        except Exception as e:
+            caller = inspect.getframeinfo(inspect.stack()[1][0])
+            args = (caller.filename, caller.lineno, sql, repr(e))
+            tdLog.notice("%s(%d) failed: sql:%s, %s" % args)
+            raise Exception(repr(e))
+        if col_tag:
+            return col_name_list, col_type_list
         return col_name_list
 
     def waitedQuery(self, sql, expectRows, timeout):
@@ -197,6 +219,19 @@ class TDSql:
         self.checkRowCol(row, col)
         return self.queryResult[row][col]
 
+    def getResult(self, sql):
+        self.sql = sql
+        try:
+            self.cursor.execute(sql)
+            self.queryResult = self.cursor.fetchall()
+        except Exception as e:
+            caller = inspect.getframeinfo(inspect.stack()[1][0])
+            args = (caller.filename, caller.lineno, sql, repr(e))
+            tdLog.notice("%s(%d) failed: sql:%s, %s" % args)
+            raise Exception(repr(e))
+        return self.queryResult
+
+        
     def executeTimes(self, sql, times):
         for i in range(times):
             try:
@@ -231,6 +266,22 @@ class TDSql:
             caller = inspect.getframeinfo(inspect.stack()[1][0])
             args = (caller.filename, caller.lineno, self.sql, col_name_list, expect_col_name_list)
             tdLog.exit("%s(%d) failed: sql:%s, col_name_list:%s != expect_col_name_list:%s" % args)
+
+    def checkEqual(self, elm, expect_elm):
+        if elm == expect_elm:
+            tdLog.info("sql:%s, elm:%s == expect_elm:%s" % (self.sql, elm, expect_elm))
+        else:
+            caller = inspect.getframeinfo(inspect.stack()[1][0])
+            args = (caller.filename, caller.lineno, self.sql, elm, expect_elm)
+            tdLog.exit("%s(%d) failed: sql:%s, elm:%s != expect_elm:%s" % args)
+
+    def checkNotEqual(self, elm, expect_elm):
+        if elm != expect_elm:
+            tdLog.info("sql:%s, elm:%s != expect_elm:%s" % (self.sql, elm, expect_elm))
+        else:
+            caller = inspect.getframeinfo(inspect.stack()[1][0])
+            args = (caller.filename, caller.lineno, self.sql, elm, expect_elm)
+            tdLog.exit("%s(%d) failed: sql:%s, elm:%s == expect_elm:%s" % args)
 
     def taosdStatus(self, state):
         tdLog.sleep(5)

@@ -25,7 +25,7 @@ typedef struct {
   uint32_t  serverIp;
   int16_t   port;
   int32_t   bufferSize;
-  void    (*processBrokenLink)(int64_t handleId);
+  void    (*processBrokenLink)(int64_t handleId, int32_t closedByApp);
   int32_t (*processIncomingMsg)(int64_t handleId, void *buffer);
   void    (*processIncomingConn)(SOCKET fd, uint32_t ip);
 } SPoolInfo;

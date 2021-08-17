@@ -157,5 +157,45 @@ int main(int argc, char* argv[]) {
     return -1;
   }
 
+  //Duplicate key check;
+  char* lines_003_1[] = {
+      "std,id=\"std_3_1\",t1=4i64,Id=\"std\",t2=true c1=true 1626006834s"
+  };
+
+  code = taos_insert_lines(taos, lines_003_1 , sizeof(lines_003_1)/sizeof(char*));
+  if (0 == code) {
+    printf("taos_insert_lines() lines_003_1 return code:%d (%s)\n", code, (char*)tstrerror(code));
+    return -1;
+  }
+
+  char* lines_003_2[] = {
+      "std,id=\"std_3_2\",tag1=4i64,Tag2=true,tAg3=2,TaG2=\"dup!\" c1=true 1626006834s"
+  };
+
+  code = taos_insert_lines(taos, lines_003_2 , sizeof(lines_003_2)/sizeof(char*));
+  if (0 == code) {
+    printf("taos_insert_lines() lines_003_2 return code:%d (%s)\n", code, (char*)tstrerror(code));
+    return -1;
+  }
+
+  char* lines_003_3[] = {
+      "std,id=\"std_3_3\",tag1=4i64 field1=true,Field2=2,FIElD1=\"dup!\",fIeLd4=true 1626006834s"
+  };
+
+  code = taos_insert_lines(taos, lines_003_3 , sizeof(lines_003_3)/sizeof(char*));
+  if (0 == code) {
+    printf("taos_insert_lines() lines_003_3 return code:%d (%s)\n", code, (char*)tstrerror(code));
+    return -1;
+  }
+
+  char* lines_003_4[] = {
+      "std,id=\"std_3_4\",tag1=4i64,dupkey=4i16,tag2=T field1=true,dUpkEy=1e3f32,field2=\"1234\" 1626006834s"
+  };
+
+  code = taos_insert_lines(taos, lines_003_4 , sizeof(lines_003_4)/sizeof(char*));
+  if (0 == code) {
+    printf("taos_insert_lines() lines_003_4 return code:%d (%s)\n", code, (char*)tstrerror(code));
+    return -1;
+  }
   return 0;
 }
