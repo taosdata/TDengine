@@ -75,4 +75,9 @@ sleep 100
 run general/parser/limit_tb.sim
 run general/parser/limit_stb.sim
 
+print ========> TD-6017
+sql use $db
+sql select * from (select ts, top(c1, 5) from $tb where ts >= $ts0 order by ts desc limit 3 offset 1)
+sql select * from (select ts, top(c1, 5) from $stb where ts >= $ts0 order by ts desc limit 3 offset 1)
+
 system sh/exec.sh -n dnode1 -s stop -x SIGINT

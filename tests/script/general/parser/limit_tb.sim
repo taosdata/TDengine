@@ -355,6 +355,10 @@ sql select top(c1, 1) from $tb where ts >= $ts0 and ts <= $tsu limit 5 offset 1
 if $rows != 0 then
   return -1
 endi
+
+print ========> TD-6017
+sql select * from (select ts, top(c1, 5) from $tb where ts >= $ts0 and ts <= $tsu order by ts desc limit 3 offset 1)
+
 sql select top(c1, 5) from $tb where ts >= $ts0 and ts <= $tsu order by ts desc limit 3 offset 1
 print select top(c1, 5) from $tb where ts >= $ts0 and ts <= $tsu order by ts desc limit 3 offset 1
 print $data00 $data01
