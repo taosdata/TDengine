@@ -31,7 +31,7 @@ USE power;
 
 ## <a class="anchor" id="create-stable"></a>创建超级表
 
-一个物联网系统，往往存在多种类型的设备，比如对于电网，存在智能电表、变压器、母线、开关等等。为便于多表之间的聚合，使用TDengine, 需要对每个类型的数据采集点创建一个超级表。以表1中的智能电表为例，可以使用如下的SQL命令创建超级表：
+一个物联网系统，往往存在多种类型的设备，比如对于电网，存在智能电表、变压器、母线、开关等等。为便于多表之间的聚合，使用TDengine, 需要对每个类型的数据采集点创建一个超级表。以[表1](https://www.taosdata.com/cn/documentation/architecture#model_table1)中的智能电表为例，可以使用如下的SQL命令创建超级表：
 
 ```mysql
 CREATE STABLE meters (ts timestamp, current float, voltage int, phase float) TAGS (location binary(64), groupId int);
@@ -47,7 +47,7 @@ CREATE STABLE meters (ts timestamp, current float, voltage int, phase float) TAG
 
 ## <a class="anchor" id="create-table"></a>创建表
 
-TDengine对每个数据采集点需要独立建表。与标准的关系型数据库一样，一张表有表名，Schema，但除此之外，还可以带有一到多个标签。创建时，需要使用超级表做模板，同时指定标签的具体值。以表1中的智能电表为例，可以使用如下的SQL命令建表：
+TDengine对每个数据采集点需要独立建表。与标准的关系型数据库一样，一张表有表名，Schema，但除此之外，还可以带有一到多个标签。创建时，需要使用超级表做模板，同时指定标签的具体值。以[表1](https://www.taosdata.com/cn/documentation/architecture#model_table1)中的智能电表为例，可以使用如下的SQL命令建表：
 
 ```mysql
 CREATE TABLE d1001 USING meters TAGS ("Beijing.Chaoyang", 2);
