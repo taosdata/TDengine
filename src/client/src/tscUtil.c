@@ -3767,7 +3767,8 @@ static void tscSubqueryCompleteCallback(void* param, TAOS_RES* tres, int code) {
 
     SSqlObj *userSql = ((SRetrieveSupport*)pParentSql->param)->pParentSql;
 
-    tscFreeSubobj(userSql);
+    tscFreeSubobj(userSql);    
+    tfree(pSql->pSubs);
 
     pParentSql->res.code = TSDB_CODE_SUCCESS;
     pParentSql->retry++;
