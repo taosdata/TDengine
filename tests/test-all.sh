@@ -179,6 +179,9 @@ function runPyCaseOneByOnefq() {
         start_time=`date +%s`
         date +%F\ %T | tee -a pytest-out.log
         echo -n $case
+        if [[ $1 =~ full ]] ; then
+          line=$line" -s"
+        fi
         $line > case.log 2>&1 && \
           echo -e "${GREEN} success${NC}" | tee -a pytest-out.log || \
           echo -e "${RED} failed${NC}" | tee -a pytest-out.log 
