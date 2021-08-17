@@ -3787,6 +3787,7 @@ static void tscSubqueryCompleteCallback(void* param, TAOS_RES* tres, int code) {
     SQueryInfo *pQueryInfo = tscGetQueryInfo(&userSql->cmd);
 
     doCleanupSubqueries(userSql, userSql->subState.numOfSub);
+    userSql->subState.numOfSub = 0;
     
     executeQuery(userSql, pQueryInfo);
     return;
@@ -4934,4 +4935,3 @@ void tscRemoveTableMetaBuf(STableMetaInfo* pTableMetaInfo, uint64_t id) {
   taosHashRemove(tscTableMetaMap, fname, len);
   tscDebug("0x%"PRIx64" remove table meta %s, numOfRemain:%d", id, fname, (int32_t) taosHashGetSize(tscTableMetaMap));
 }
-                                    
