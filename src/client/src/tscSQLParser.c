@@ -4524,7 +4524,7 @@ static int32_t handleExprInQueryCond(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSql
        */
       tSqlExprDestroy(*pExpr);
     } else {
-      ret = setExprToCond(&pCondExpr->pTimewindow, *pExpr, msg3, parentOptr, pQueryInfo->msg);
+      ret = setExprToCond(&pCondExpr->pTimewindow, *pExpr, msg3, parentOptr, pCmd->payload);
     }
 
     *pExpr = NULL;  // remove this expression
@@ -4562,7 +4562,7 @@ static int32_t handleExprInQueryCond(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSql
         }
 
         pQueryInfo->type |= TSDB_QUERY_TYPE_JOIN_QUERY;
-        ret = setExprToCond(&pCondExpr->pJoinExpr, *pExpr, NULL, parentOptr, pQueryInfo->msg);
+        ret = setExprToCond(&pCondExpr->pJoinExpr, *pExpr, NULL, parentOptr, pCmd->payload);
         *pExpr = NULL;
       } else {
         // do nothing
@@ -4580,7 +4580,7 @@ static int32_t handleExprInQueryCond(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSql
       return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg5);
     }
 
-    ret = setExprToCond(&pCondExpr->pColumnCond, *pExpr, NULL, parentOptr, pQueryInfo->msg);
+    ret = setExprToCond(&pCondExpr->pColumnCond, *pExpr, NULL, parentOptr, pCmd->payload);
     *pExpr = NULL;  // remove it from expr tree
   }
 
