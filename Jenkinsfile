@@ -5,7 +5,7 @@ node {
     git url: 'https://github.com/taosdata/TDengine.git'
 }
 
-def skipstage=0
+def skipbuild=0
 
 def abortPreviousBuilds() {
   def currentJobName = env.JOB_NAME
@@ -33,8 +33,7 @@ def abort_previous(){
   milestone(buildNumber)
 }
 def pre_test(){
-    
-    
+    sh'hostname'
     sh '''
     sudo rmtaos || echo "taosd has not installed"
     '''
@@ -52,12 +51,18 @@ def pre_test(){
         git checkout master
         '''
         }
-      else {
+      else if(env.CHANGE_TARGET == '2.0'){
+        sh '''
+        cd ${WKC}
+        git checkout 2.0
+        '''
+      } 
+      else{
         sh '''
         cd ${WKC}
         git checkout develop
         '''
-      } 
+      }
     }
     sh'''
     cd ${WKC}
@@ -75,7 +80,13 @@ def pre_test(){
         git checkout master
         '''
         }
-      else {
+      else if(env.CHANGE_TARGET == '2.0'){
+        sh '''
+        cd ${WK}
+        git checkout 2.0
+        '''
+      } 
+      else{
         sh '''
         cd ${WK}
         git checkout develop
@@ -95,19 +106,17 @@ def pre_test(){
     make > /dev/null
     make install > /dev/null
     cd ${WKC}/tests
-    pip3 install ${WKC}/src/connector/python
+    pip3 install ${WKC}/src/connector/python/
     '''
     return 1
 }
 
 pipeline {
   agent none
-  
   environment{
       WK = '/var/lib/jenkins/workspace/TDinternal'
       WKC= '/var/lib/jenkins/workspace/TDinternal/community'
   }
-  
   stages {
       stage('pre_build'){
           agent{label 'master'}
@@ -123,19 +132,22 @@ pipeline {
           rm -rf ${WORKSPACE}.tes
           cp -r ${WORKSPACE} ${WORKSPACE}.tes
           cd ${WORKSPACE}.tes
-          
+          git fetch
           '''
           script {
             if (env.CHANGE_TARGET == 'master') {
               sh '''
               git checkout master
-              git pull origin master
               '''
               }
-            else {
+            else if(env.CHANGE_TARGET == '2.0'){
+              sh '''
+              git checkout 2.0
+              '''
+            } 
+            else{
               sh '''
               git checkout develop
-              git pull origin develop
               '''
             } 
           }
@@ -143,32 +155,34 @@ pipeline {
           git fetch origin +refs/pull/${CHANGE_ID}/merge
           git checkout -qf FETCH_HEAD
           '''     
-          
-          script{
-            env.skipstage=sh(script:"cd ${WORKSPACE}.tes && git --no-pager diff --name-only FETCH_HEAD ${env.CHANGE_TARGET}|grep -v -E '.*md|//src//connector|Jenkinsfile|test-all.sh' || echo 0 ",returnStdout:true) 
+
+          script{  
+            skipbuild='2'     
+            skipbuild=sh(script: "git log -2 --pretty=%B | fgrep -ie '[skip ci]' -e '[ci skip]' && echo 1 || echo 2", returnStdout:true)
+            println skipbuild
           }
-          println env.skipstage
           sh'''
           rm -rf ${WORKSPACE}.tes
           '''
           }
       }
-    
       stage('Parallel test stage') {
         //only build pr
         when {
+          allOf{
               changeRequest()
-               expression {
-                    env.skipstage != 0
+               expression{
+                return skipbuild.trim() == '2'
               }
+            }
           }
       parallel {
         stage('python_1_s1') {
-          agent{label 'p1'}
+          agent{label " slave1 || slave11 "}
           steps {
             
             pre_test()
-            timeout(time: 45, unit: 'MINUTES'){
+            timeout(time: 55, unit: 'MINUTES'){
               sh '''
               date
               cd ${WKC}/tests
@@ -179,11 +193,11 @@ pipeline {
           }
         }
         stage('python_2_s5') {
-          agent{label 'p2'}
+          agent{label " slave5 || slave15 "}
           steps {
             
             pre_test()
-            timeout(time: 45, unit: 'MINUTES'){
+            timeout(time: 55, unit: 'MINUTES'){
                 sh '''
                 date
                 cd ${WKC}/tests
@@ -193,9 +207,9 @@ pipeline {
           }
         }
         stage('python_3_s6') {
-          agent{label 'p3'}
+          agent{label " slave6 || slave16 "}
           steps {     
-            timeout(time: 45, unit: 'MINUTES'){       
+            timeout(time: 55, unit: 'MINUTES'){       
               pre_test()
               sh '''
               date
@@ -206,10 +220,30 @@ pipeline {
           }
         }
         stage('test_b1_s2') {
-          agent{label 'b1'}
+          agent{label " slave2 || slave12 "}
           steps {     
-            timeout(time: 45, unit: 'MINUTES'){       
+            timeout(time: 55, unit: 'MINUTES'){       
               pre_test()
+              sh '''
+                rm -rf /var/lib/taos/*
+                rm -rf /var/log/taos/*
+                nohup taosd >/dev/null &
+                sleep 10
+              '''
+              sh '''
+              cd ${WKC}/tests/examples/nodejs
+              npm install td2.0-connector > /dev/null 2>&1
+              node nodejsChecker.js host=localhost
+              '''
+              sh '''
+                cd ${WKC}/tests/examples/C#/taosdemo
+                mcs -out:taosdemo *.cs > /dev/null 2>&1
+                echo '' |./taosdemo
+              '''
+              sh '''
+                cd ${WKC}/tests/gotest
+                bash batchtest.sh
+              '''
               sh '''
               cd ${WKC}/tests
               ./test-all.sh b1fq
@@ -217,9 +251,8 @@ pipeline {
             }
           }
         }
-
         stage('test_crash_gen_s3') {
-          agent{label "b2"}
+          agent{label " slave3 || slave13 "}
           
           steps {
             pre_test()
@@ -245,20 +278,18 @@ pipeline {
               ./handle_taosd_val_log.sh
               '''
             }
-            timeout(time: 45, unit: 'MINUTES'){
+            timeout(time: 55, unit: 'MINUTES'){
                 sh '''
                 date
                 cd ${WKC}/tests
                 ./test-all.sh b2fq
                 date
                 '''
-            }         
-            
+            }                     
           }
         }
-
         stage('test_valgrind_s4') {
-          agent{label "b3"}
+          agent{label " slave4 || slave14 "}
 
           steps {
             pre_test()
@@ -269,7 +300,7 @@ pipeline {
                 ./handle_val_log.sh
                 '''
             }     
-            timeout(time: 45, unit: 'MINUTES'){      
+            timeout(time: 55, unit: 'MINUTES'){      
               sh '''
               date
               cd ${WKC}/tests
@@ -284,9 +315,9 @@ pipeline {
           }
         }
         stage('test_b4_s7') {
-          agent{label 'b4'}
+          agent{label " slave7 || slave17 "}
           steps {     
-            timeout(time: 45, unit: 'MINUTES'){       
+            timeout(time: 55, unit: 'MINUTES'){       
               pre_test()
               sh '''
               date
@@ -303,9 +334,9 @@ pipeline {
           }
         }
         stage('test_b5_s8') {
-          agent{label 'b5'}
+          agent{label " slave8 || slave18 "}
           steps {     
-            timeout(time: 45, unit: 'MINUTES'){       
+            timeout(time: 55, unit: 'MINUTES'){       
               pre_test()
               sh '''
               date
@@ -316,9 +347,9 @@ pipeline {
           }
         }
         stage('test_b6_s9') {
-          agent{label 'b6'}
+          agent{label " slave9 || slave19 "}
           steps {     
-            timeout(time: 45, unit: 'MINUTES'){       
+            timeout(time: 55, unit: 'MINUTES'){       
               pre_test()
               sh '''
               date
@@ -329,9 +360,9 @@ pipeline {
           }
         }
         stage('test_b7_s10') {
-          agent{label 'b7'}
+          agent{label " slave10 || slave20 "}
           steps {     
-            timeout(time: 45, unit: 'MINUTES'){       
+            timeout(time: 55, unit: 'MINUTES'){       
               pre_test()
               sh '''
               date
@@ -421,6 +452,5 @@ pipeline {
                 from: "support@taosdata.com"
             )
         }
-    }
-   
+    } 
 }
