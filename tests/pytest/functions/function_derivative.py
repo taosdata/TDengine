@@ -63,9 +63,9 @@ class TDTestCase:
                 tdSql.checkData(3, 1, "2018-09-17 09:01:20.000")
                 tdSql.checkData(3, 3, "2018-09-17 09:01:20.000")
 
-                tdSql.query("select ts from(select ts,derivative(col, 10s, 0) from stb group by tbname")
+                tdSql.query("select ts from(select ts,derivative(col, 10s, 0) from stb group by tbname)")
 
-                tdSql.checkData(0, 1, 1)
+                tdSql.checkData(0, 0, "2018-09-17 09:00:10.000")
 
                 tdSql.error("select derivative(col, 10s, 0) from tb1 group by tbname")
 
