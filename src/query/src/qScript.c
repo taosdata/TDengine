@@ -342,6 +342,7 @@ int32_t scriptEnvPoolInit() {
     env->lua_state = createLuaEnv(); 
     tdListAppend(pool->scriptEnvs, (void *)(&env));  
   }
+
   pool->mSize = size;
   pool->cSize = size;
   return 0;  
@@ -377,9 +378,11 @@ ScriptEnv* getScriptEnvFromPool() {
     return NULL;
   }  
   SListNode *pNode = tdListPopHead(pool->scriptEnvs);
-  tdListNodeGetData(pool->scriptEnvs, pNode, (void *)(&pEnv));
-  listNodeFree(pNode); 
-  
+  if (pNode){
+    tdListNodeGetData(pool->scriptEnvs, pNode, (void *)(&pEnv));
+    listNodeFree(pNode);
+  }
+
   pool->cSize--;
   pthread_mutex_unlock(&pool->mutex); 
   return pEnv; 

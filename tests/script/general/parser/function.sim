@@ -783,7 +783,7 @@ endi
 sql create stable st1 (ts timestamp, f1 int, f2 int) tags (id int);
 sql create table tb1 using st1 tags(1);
 
-sql insert into tb1 values (now, 1, 1);
+sql insert into tb1 values ('2021-07-02 00:00:00', 1, 1);
 
 sql select stddev(f1) from st1 group by f1;
 
@@ -1148,3 +1148,21 @@ endi
 
 
 sql select derivative(test_column_alias_name, 1s, 0) from (select avg(k) test_column_alias_name from t1 interval(1s));
+
+sql create table smeters (ts timestamp, current float, voltage int);
+sql insert into smeters values ('2021-08-08 10:10:10', 10, 1);
+sql insert into smeters values ('2021-08-08 10:10:12', 10, 2);
+
+sql select stddev(voltage) from smeters where ts>='2021-08-08 10:10:10.000' and ts < '2021-08-08 10:10:20.000'  and current=10 interval(1000a);
+if $rows != 2 then
+  return -1
+endi
+if $data00 != @21-08-08 10:10:10.000@ then
+  return -1
+endi
+if $data10 != @21-08-08 10:10:12.000@ then
+  return -1
+endi
+
+
+

@@ -397,7 +397,11 @@ void *taosOpenTcpClientConnection(void *shandle, void *thandle, uint32_t ip, uin
   SThreadObj *pThreadObj = pClientObj->pThreadObj[index];
 
   SOCKET fd = taosOpenTcpClientSocket(ip, port, pThreadObj->ip);
+#if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
+  if (fd == (SOCKET)-1) return NULL;
+#else
   if (fd <= 0) return NULL;
+#endif
 
   struct sockaddr_in sin;
   uint16_t localPort = 0;
@@ -529,10 +533,9 @@ static void *taosProcessTcpData(void *param) {
   SFdObj            *pFdObj;
   struct epoll_event events[maxEvents];
   SRecvInfo          recvInfo;
-  char               name[16];
 
-  memset(name, 0, sizeof(name));
-  snprintf(name, 16, "%s-tcpData", pThreadObj->label);
+  char name[16] = {0};
+  snprintf(name, tListLen(name), "%s-tcp", pThreadObj->label);
   setThreadName(name);
 
   while (1) {

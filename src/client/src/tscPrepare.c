@@ -299,7 +299,7 @@ static int fillColumnsNull(STableDataBlocks* pBlock, int32_t rowNum) {
   SSchema *schema = (SSchema*)pBlock->pTableMeta->schema;
 
   for (int32_t i = 0; i < spd->numOfCols; ++i) {
-    if (!spd->cols[i].hasVal) {  // current column do not have any value to insert, set it to null
+    if (spd->cols[i].valStat == VAL_STAT_NONE) {  // current column do not have any value to insert, set it to null
       for (int32_t n = 0; n < rowNum; ++n) {
         char *ptr = pBlock->pData + sizeof(SSubmitBlk) + pBlock->rowSize * n + offset;
 
@@ -1628,8 +1628,8 @@ int taos_stmt_set_tbname_tags(TAOS_STMT* stmt, const char* name, TAOS_BIND* tags
   if (pStmt->mtb.subSet && taosHashGetSize(pStmt->mtb.pTableHash) > 0) {
     STableMetaInfo* pTableMetaInfo = tscGetTableMetaInfoFromCmd(pCmd, 0);
     STableMeta* pTableMeta = pTableMetaInfo->pTableMeta;
-    char sTableName[TSDB_TABLE_FNAME_LEN];
-    strncpy(sTableName, pTableMeta->sTableName, sizeof(sTableName));
+    char sTableName[TSDB_TABLE_FNAME_LEN] = {0};
+    tstrncpy(sTableName, pTableMeta->sTableName, sizeof(sTableName));
 
     SStrToken tname = {0};
     tname.type = TK_STRING;
@@ -1694,7 +1694,7 @@ int taos_stmt_set_tbname_tags(TAOS_STMT* stmt, const char* name, TAOS_BIND* tags
   if (taosHashGetSize(pCmd->insertParam.pTableBlockHashList) > 0) {
     SHashObj* hashList = pCmd->insertParam.pTableBlockHashList;
     pCmd->insertParam.pTableBlockHashList = NULL;
-    tscResetSqlCmd(pCmd, false);
+    tscResetSqlCmd(pCmd, false, pSql->self);
     pCmd->insertParam.pTableBlockHashList = hashList;
   }
 
@@ -1773,7 +1773,9 @@ int taos_stmt_close(TAOS_STMT* stmt) {
       }
       tscDestroyDataBlock(pStmt->mtb.lastBlock, rmMeta);
       pStmt->mtb.pTableBlockHashList = tscDestroyBlockHashTable(pStmt->mtb.pTableBlockHashList, rmMeta);
-      taosHashCleanup(pStmt->pSql->cmd.insertParam.pTableBlockHashList);
+      if (pStmt->pSql){
+        taosHashCleanup(pStmt->pSql->cmd.insertParam.pTableBlockHashList);
+      }
       pStmt->pSql->cmd.insertParam.pTableBlockHashList = NULL;
       taosArrayDestroy(pStmt->mtb.tags);
       tfree(pStmt->mtb.sqlstr);

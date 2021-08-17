@@ -16,6 +16,7 @@
 #include "tskiplist.h"
 #include "os.h"
 #include "tcompare.h"
+#include "tdataformat.h"
 #include "tulog.h"
 #include "tutil.h"
 
@@ -30,6 +31,7 @@ static SSkipListNode *tSkipListNewNode(uint8_t level);
 #define tSkipListFreeNode(n) tfree((n))
 static SSkipListNode *tSkipListPutImpl(SSkipList *pSkipList, void *pData, SSkipListNode **direction, bool isForward,
                                        bool hasDup);
+
 
 static FORCE_INLINE int     tSkipListWLock(SSkipList *pSkipList);
 static FORCE_INLINE int     tSkipListRLock(SSkipList *pSkipList);
@@ -52,7 +54,7 @@ SSkipList *tSkipListCreate(uint8_t maxLevel, uint8_t keyType, uint16_t keyLen, _
   pSkipList->keyFn = fn;
   pSkipList->seed = rand();
   if (comparFn == NULL) {
-    pSkipList->comparFn = getKeyComparFunc(keyType);
+    pSkipList->comparFn = getKeyComparFunc(keyType, TSDB_ORDER_ASC);
   } else {
     pSkipList->comparFn = comparFn;
   }
@@ -80,6 +82,7 @@ SSkipList *tSkipListCreate(uint8_t maxLevel, uint8_t keyType, uint16_t keyLen, _
 #if SKIP_LIST_RECORD_PERFORMANCE
   pSkipList->state.nTotalMemSize += sizeof(SSkipList);
 #endif
+  pSkipList->insertHandleFn = NULL;
 
   return pSkipList;
 }
@@ -96,6 +99,8 @@ void tSkipListDestroy(SSkipList *pSkipList) {
     pNode = SL_NODE_GET_FORWARD_POINTER(pNode, 0);
     tSkipListFreeNode(pTemp);
   }
+
+  tfree(pSkipList->insertHandleFn);
 
   tSkipListUnlock(pSkipList);
   if (pSkipList->lock != NULL) {
@@ -124,8 +129,7 @@ SSkipListNode *tSkipListPut(SSkipList *pSkipList, void *pData) {
   return pNode;
 }
 
-// Put a batch of data into skiplist. The batch of data must be in ascending order
-void tSkipListPutBatch(SSkipList *pSkipList, void **ppData, int ndata) {
+void tSkipListPutBatchByIter(SSkipList *pSkipList, void *iter, iter_next_fn_t iterate) {
   SSkipListNode *backward[MAX_SKIP_LIST_LEVEL] = {0};
   SSkipListNode *forward[MAX_SKIP_LIST_LEVEL] = {0};
   bool           hasDup = false;
@@ -135,17 +139,21 @@ void tSkipListPutBatch(SSkipList *pSkipList, void **ppData, int ndata) {
 
   tSkipListWLock(pSkipList);
 
+  void* pData = iterate(iter);
+  if(pData == NULL) return;
+
   // backward to put the first data
-  hasDup = tSkipListGetPosToPut(pSkipList, backward, ppData[0]);
-  tSkipListPutImpl(pSkipList, ppData[0], backward, false, hasDup);
+  hasDup = tSkipListGetPosToPut(pSkipList, backward, pData);
+
+  tSkipListPutImpl(pSkipList, pData, backward, false, hasDup);
 
   for (int level = 0; level < pSkipList->maxLevel; level++) {
     forward[level] = SL_NODE_GET_BACKWARD_POINTER(backward[level], level);
   }
 
   // forward to put the rest of data
-  for (int idata = 1; idata < ndata; idata++) {
-    pDataKey = pSkipList->keyFn(ppData[idata]);
+  while ((pData = iterate(iter)) != NULL) {
+    pDataKey = pSkipList->keyFn(pData);
     hasDup = false;
 
     // Compare max key
@@ -186,9 +194,8 @@ void tSkipListPutBatch(SSkipList *pSkipList, void **ppData, int ndata) {
       }
     }
 
-    tSkipListPutImpl(pSkipList, ppData[idata], forward, true, hasDup);
+    tSkipListPutImpl(pSkipList, pData, forward, true, hasDup);
   }
-
   tSkipListUnlock(pSkipList);
 }
 
@@ -661,18 +668,40 @@ static SSkipListNode *tSkipListPutImpl(SSkipList *pSkipList, void *pData, SSkipL
   uint8_t        dupMode = SL_DUP_MODE(pSkipList);
   SSkipListNode *pNode = NULL;
 
-  if (hasDup && (dupMode == SL_DISCARD_DUP_KEY || dupMode == SL_UPDATE_DUP_KEY)) {
+  if (hasDup && (dupMode != SL_ALLOW_DUP_KEY)) {
     if (dupMode == SL_UPDATE_DUP_KEY) {
       if (isForward) {
         pNode = SL_NODE_GET_FORWARD_POINTER(direction[0], 0);
       } else {
         pNode = SL_NODE_GET_BACKWARD_POINTER(direction[0], 0);
       }
-      atomic_store_ptr(&(pNode->pData), pData);
+      if (pSkipList->insertHandleFn) {
+        pSkipList->insertHandleFn->args[0] = pData;
+        pSkipList->insertHandleFn->args[1] = pNode->pData;
+        pData = genericInvoke(pSkipList->insertHandleFn);
+      }
+      if(pData) {
+        atomic_store_ptr(&(pNode->pData), pData);
+      }
+    } else {
+      //for compatiblity, duplicate key inserted when update=0 should be also calculated as affected rows!
+      if(pSkipList->insertHandleFn) {
+        pSkipList->insertHandleFn->args[0] = NULL;
+        pSkipList->insertHandleFn->args[1] = NULL;
+        genericInvoke(pSkipList->insertHandleFn);
+      }
     }
   } else {
     pNode = tSkipListNewNode(getSkipListRandLevel(pSkipList));
     if (pNode != NULL) {
+      // insertHandleFn will be assigned only for timeseries data,
+      // in which case, pData is pointed to an memory to be freed later;
+      // while for metadata, the mem alloc will not be called.
+      if (pSkipList->insertHandleFn) {
+        pSkipList->insertHandleFn->args[0] = pData;
+        pSkipList->insertHandleFn->args[1] = NULL;
+        pData = genericInvoke(pSkipList->insertHandleFn);
+      }
       pNode->pData = pData;
 
       tSkipListDoInsert(pSkipList, direction, pNode, isForward);

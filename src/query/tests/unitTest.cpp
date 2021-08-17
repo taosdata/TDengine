@@ -1,6 +1,4 @@
-#include "os.h"
 #include <gtest/gtest.h>
-#include <cassert>
 #include <iostream>
 
 #include "taos.h"
@@ -407,10 +405,55 @@ TEST(testCase, parse_time) {
   taosParseTime(t41, &time, strlen(t41), TSDB_TIME_PRECISION_MILLI, 0);
   EXPECT_EQ(time, 852048000999);
 
-  int64_t k = timezone;
   char    t42[] = "1997-1-1T0:0:0.999999999Z";
   taosParseTime(t42, &time, strlen(t42), TSDB_TIME_PRECISION_MILLI, 0);
   EXPECT_EQ(time, 852048000999 - timezone * MILLISECOND_PER_SECOND);
+
+  // "%Y-%m-%d %H:%M:%S" format with TimeZone appendix is also treated as legal
+  // and TimeZone will be processed
+  char t60[] = "2017-4-3 1:1:2.980";
+  char t61[] = "2017-4-3 2:1:2.98+9:00";
+  taosParseTime(t60, &time, strlen(t60), TSDB_TIME_PRECISION_MILLI, 0);
+  taosParseTime(t61, &time1, strlen(t61), TSDB_TIME_PRECISION_MILLI, 0);
+  EXPECT_EQ(time, time1);
+
+  char t62[] = "2017-4-3 2:1:2.98+09:00";
+  taosParseTime(t62, &time, strlen(t62), TSDB_TIME_PRECISION_MILLI, 0);
+  taosParseTime(t61, &time1, strlen(t61), TSDB_TIME_PRECISION_MILLI, 0);
+  EXPECT_EQ(time, time1);
+
+  char t63[] = "2017-4-3 2:1:2.98+0900";
+  taosParseTime(t63, &time, strlen(t63), TSDB_TIME_PRECISION_MILLI, 0);
+  taosParseTime(t62, &time1, strlen(t62), TSDB_TIME_PRECISION_MILLI, 0);
+  EXPECT_EQ(time, time1);
+
+  char t64[] = "2017-4-2 17:1:2.98Z";
+  taosParseTime(t63, &time, strlen(t63), TSDB_TIME_PRECISION_MILLI, 0);
+  taosParseTime(t64, &time1, strlen(t64), TSDB_TIME_PRECISION_MILLI, 0);
+  EXPECT_EQ(time, time1);
+
+  // "%Y-%m-%d%H:%M:%S" format with TimeZone appendix is also treated as legal
+  // and TimeZone will be processed
+  char t80[] = "2017-4-51:1:2.980";
+  char t81[] = "2017-4-52:1:2.98+9:00";
+  taosParseTime(t80, &time, strlen(t80), TSDB_TIME_PRECISION_MILLI, 0);
+  taosParseTime(t81, &time1, strlen(t81), TSDB_TIME_PRECISION_MILLI, 0);
+  EXPECT_EQ(time, time1);
+
+  char t82[] = "2017-4-52:1:2.98+09:00";
+  taosParseTime(t82, &time, strlen(t82), TSDB_TIME_PRECISION_MILLI, 0);
+  taosParseTime(t81, &time1, strlen(t81), TSDB_TIME_PRECISION_MILLI, 0);
+  EXPECT_EQ(time, time1);
+
+  char t83[] = "2017-4-52:1:2.98+0900";
+  taosParseTime(t83, &time, strlen(t83), TSDB_TIME_PRECISION_MILLI, 0);
+  taosParseTime(t82, &time1, strlen(t82), TSDB_TIME_PRECISION_MILLI, 0);
+  EXPECT_EQ(time, time1);
+
+  char t84[] = "2017-4-417:1:2.98Z";
+  taosParseTime(t83, &time, strlen(t83), TSDB_TIME_PRECISION_MILLI, 0);
+  taosParseTime(t84, &time1, strlen(t84), TSDB_TIME_PRECISION_MILLI, 0);
+  EXPECT_EQ(time, time1);
 
   ////////////////////////////////////////////////////////////////////
   // illegal timestamp format
@@ -430,8 +473,7 @@ TEST(testCase, parse_time) {
   EXPECT_EQ(taosParseTime(t19, &time, strlen(t19), TSDB_TIME_PRECISION_MILLI, 0), -1);
 
   char t20[] = "2017-12-31 9:0:0.1+12:99";
-  EXPECT_EQ(taosParseTime(t20, &time, strlen(t20), TSDB_TIME_PRECISION_MILLI, 0), 0);
-  EXPECT_EQ(time, 1514682000100);
+  EXPECT_EQ(taosParseTime(t20, &time, strlen(t20), TSDB_TIME_PRECISION_MILLI, 0), -1);
 
   char t21[] = "2017-12-31T9:0:0.1+12:99";
   EXPECT_EQ(taosParseTime(t21, &time, strlen(t21), TSDB_TIME_PRECISION_MILLI, 0), -1);
@@ -441,7 +483,102 @@ TEST(testCase, parse_time) {
 
   char t23[] = "2017-12-31T9:0:0.1+13:1";
   EXPECT_EQ(taosParseTime(t23, &time, strlen(t23), TSDB_TIME_PRECISION_MILLI, 0), 0);
+
+  char t24[] = "2017-12-31T9:0:0.1+13:001";
+  EXPECT_EQ(taosParseTime(t24, &time, strlen(t24), TSDB_TIME_PRECISION_MILLI, 0), -1);
+
+  char t25[] = "2017-12-31T9:0:0.1+13:00abc";
+  EXPECT_EQ(taosParseTime(t25, &time, strlen(t25), TSDB_TIME_PRECISION_MILLI, 0), -1);
+
+  char t26[] = "2017-12-31T9:0:0.1+13001";
+  EXPECT_EQ(taosParseTime(t26, &time, strlen(t26), TSDB_TIME_PRECISION_MILLI, 0), -1);
+
+  char t27[] = "2017-12-31T9:0:0.1+1300abc";
+  EXPECT_EQ(taosParseTime(t27, &time, strlen(t27), TSDB_TIME_PRECISION_MILLI, 0), -1);
+
+  char t28[] = "2017-12-31T9:0:0Z+12:00";
+  EXPECT_EQ(taosParseTime(t28, &time, strlen(t28), TSDB_TIME_PRECISION_MILLI, 0), -1);
+
+  char t29[] = "2017-12-31T9:0:0.123Z+12:00";
+  EXPECT_EQ(taosParseTime(t29, &time, strlen(t29), TSDB_TIME_PRECISION_MILLI, 0), -1);
+
+  char t65[] = "2017-12-31 9:0:0.1+13:001";
+  EXPECT_EQ(taosParseTime(t65, &time, strlen(t65), TSDB_TIME_PRECISION_MILLI, 0), -1);
+
+  char t66[] = "2017-12-31 9:0:0.1+13:00abc";
+  EXPECT_EQ(taosParseTime(t66, &time, strlen(t66), TSDB_TIME_PRECISION_MILLI, 0), -1);
+
+  char t67[] = "2017-12-31 9:0:0.1+13001";
+  EXPECT_EQ(taosParseTime(t67, &time, strlen(t67), TSDB_TIME_PRECISION_MILLI, 0), -1);
+
+  char t68[] = "2017-12-31 9:0:0.1+1300abc";
+  EXPECT_EQ(taosParseTime(t68, &time, strlen(t68), TSDB_TIME_PRECISION_MILLI, 0), -1);
+
+  char t69[] = "2017-12-31 9:0:0Z+12:00";
+  EXPECT_EQ(taosParseTime(t69, &time, strlen(t69), TSDB_TIME_PRECISION_MILLI, 0), -1);
+
+  char t70[] = "2017-12-31 9:0:0.123Z+12:00";
+  EXPECT_EQ(taosParseTime(t70, &time, strlen(t70), TSDB_TIME_PRECISION_MILLI, 0), -1);
+
 }
+
+/* test parse time profiling */
+TEST(testCase, parse_time_profile) {
+  taos_options(TSDB_OPTION_TIMEZONE, "GMT-8");
+  char t1[] = "2018-1-8 1:1:1.952";
+  char t2[] = "2018-1-8T1:1:1.952+0800";
+  char t3[] = "2018-1-8 1:1:1.952+0800";
+  char t4[] = "2018-1-81:1:1.952+0800";
+
+  char t5[] = "2018-1-8 1:1:1.952";
+  char t6[] = "2018-1-8T1:1:1.952+08:00";
+  char t7[] = "2018-1-8 1:1:1.952+08:00";
+  char t8[] = "2018-1-81:1:1.952+08:00";
+
+  char t9[] = "2018-1-8 1:1:1.952";
+  char t10[] = "2018-1-8T1:1:1.952Z";
+  char t11[] = "2018-1-8 1:1:1.952z";
+  char t12[] = "2018-1-81:1:1.952Z";
+
+  struct timeval start, end;
+  int64_t time = 0, time1 = 0;
+
+  int32_t total_run = 100000000;
+  long total_time_us;
+
+  gettimeofday(&start, NULL);
+  for (int i = 0; i < total_run; ++i) {
+    taosParseTime(t1, &time, strlen(t1), TSDB_TIME_PRECISION_MILLI, 0);
+  }
+  gettimeofday(&end, NULL);
+  total_time_us = ((end.tv_sec - start.tv_sec)* 1000000) + (end.tv_usec - start.tv_usec);
+  printf("[t1] The elapsed time is %f seconds in %d run, average:%fns\n", total_time_us/1000000.0, total_run, 1000*(float)total_time_us/(float)total_run);
+
+  gettimeofday(&start, NULL);
+  for (int i = 0; i < total_run; ++i) {
+    taosParseTime(t2, &time, strlen(t2), TSDB_TIME_PRECISION_MILLI, 0);
+  }
+  gettimeofday(&end, NULL);
+  total_time_us = ((end.tv_sec - start.tv_sec)* 1000000) + (end.tv_usec - start.tv_usec);
+  printf("[t2] The elapsed time is %f seconds in %d run, average:%fns\n", total_time_us/1000000.0, total_run, 1000*(float)total_time_us/(float)total_run);
+
+  gettimeofday(&start, NULL);
+  for (int i = 0; i < total_run; ++i) {
+    taosParseTime(t3, &time, strlen(t3), TSDB_TIME_PRECISION_MILLI, 0);
+  }
+  gettimeofday(&end, NULL);
+  total_time_us = ((end.tv_sec - start.tv_sec)* 1000000) + (end.tv_usec - start.tv_usec);
+  printf("[t3] The elapsed time is %f seconds in %d run, average:%fns\n", total_time_us/1000000.0, total_run, 1000*(float)total_time_us/(float)total_run);
+
+  gettimeofday(&start, NULL);
+  for (int i = 0; i < total_run; ++i) {
+    taosParseTime(t4, &time, strlen(t4), TSDB_TIME_PRECISION_MILLI, 0);
+  }
+  gettimeofday(&end, NULL);
+  total_time_us = ((end.tv_sec - start.tv_sec)* 1000000) + (end.tv_usec - start.tv_usec);
+  printf("[t4] The elapsed time is %f seconds in %d run, average:%fns\n", total_time_us/1000000.0, total_run, 1000*(float)total_time_us/(float)total_run);
+}
+
 
 TEST(testCase, tvariant_convert) {
   // 1. bool data to all other data types

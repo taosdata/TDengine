@@ -322,8 +322,6 @@ For scenarios with higher data consistency requirements, asynchronous data repli
 
 With synchronous replication, performance of system will decrease and latency will increase. Because metadata needs strong consistent, the default for data synchronization between mnodes is synchronous replication.
 
-Note: synchronous replication between vnodes is only supported in Enterprise Edition
-
 ## <a class="anchor" id="persistence"></a> Caching and Persistence
 
 ### Caching

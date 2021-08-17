@@ -35,8 +35,6 @@ void *addRef(void *param) {
   SRefSpace *pSpace = (SRefSpace *)param;
   int id;
 
-  setThreadName("addRef");
-
   for (int i=0; i < pSpace->steps; ++i) {
     printf("a");
     id = random() % pSpace->refNum; 
@@ -53,8 +51,6 @@ void *addRef(void *param) {
 void *removeRef(void *param) {
   SRefSpace *pSpace = (SRefSpace *)param;
   int id, code;
-
-  setThreadName("removeRef");
 
   for (int i=0; i < pSpace->steps; ++i) {
     printf("d");
@@ -73,8 +69,6 @@ void *removeRef(void *param) {
 void *acquireRelease(void *param) {
   SRefSpace *pSpace = (SRefSpace *)param;
   int id;
-
-  setThreadName("acquireRelease");
 
   for (int i=0; i < pSpace->steps; ++i) {
     printf("a");
@@ -96,8 +90,6 @@ void myfree(void *p) {
 
 void *openRefSpace(void *param) {
   SRefSpace *pSpace = (SRefSpace *)param;
-
-  setThreadName("openRefSpace");
 
   printf("c");
   pSpace->rsetId = taosOpenRef(50, myfree);
