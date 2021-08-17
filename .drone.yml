@@ -245,9 +245,7 @@ steps:
     branch:
     - develop
     - master
-    event:
-     exclude:
-      - push 
+
 ---
 kind: pipeline
 name: test_amd64
@@ -272,9 +270,7 @@ steps:
     branch:
     - develop
     - master
-    event:
-     exclude:
-      - push 
+
 
 - name: smoke_test
   image: python:3.8
