@@ -2,7 +2,7 @@ import hudson.model.Result
 import jenkins.model.CauseOfInterruption
 properties([pipelineTriggers([githubPush()])])
 node {
-    git url: 'https://github.com/liuyq-617/TDengine.git'
+    git url: 'https://github.com/taosdata/TDengine.git'
 }
 
 def skipbuild=0
@@ -22,18 +22,6 @@ def abortPreviousBuilds() {
       continue;
     }
 
-    build.doStop()
-  }
-}
-//停止之前相同的分支
-abortPreviousBuilds()
-def pre_test(){
-    catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
-                sh '''
-                sudo rmtaos
-                '''
-    }
-
     build.doKill()    //doTerm(),doKill(),doTerm()
   }
 }
@@ -50,7 +38,9 @@ def pre_test(){
     sudo rmtaos || echo "taosd has not installed"
     '''
     sh '''
-    
+    killall -9 taosd ||echo "no taosd running"
+    killall -9 gdb || echo "no gdb running"
+    killall -9 python3.8 || echo "no python program running"
     cd ${WKC}
     git reset --hard HEAD~10 >/dev/null
     '''
@@ -141,8 +131,9 @@ pipeline {
           sh'''
           rm -rf ${WORKSPACE}.tes
           cp -r ${WORKSPACE} ${WORKSPACE}.tes
+          scp -rp ${WORKSPACE} root@114.112.118.22:./
           cd ${WORKSPACE}.tes
-          scp -rp ${WORKSPACE}.tes root@114.112.118.11:./
+          
           git fetch
           '''
           script {
@@ -191,7 +182,7 @@ pipeline {
         stage('python_1_s1') {
           agent{label " slave1 || slave11 "}
           steps {
-            abortPreviousBuilds()
+            
             pre_test()
             timeout(time: 55, unit: 'MINUTES'){
               sh '''
