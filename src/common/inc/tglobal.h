@@ -41,6 +41,7 @@ extern char     tsArbitrator[];
 extern int8_t   tsArbOnline;
 extern int64_t  tsArbOnlineTimestamp;
 extern int32_t  tsDnodeId;
+extern int64_t  tsDnodeStartTime;
 
 // common
 extern int      tsRpcTimer;
@@ -59,6 +60,7 @@ extern char     tsLocale[];
 extern char     tsCharset[];            // default encode string
 extern int8_t   tsEnableCoreFile;
 extern int32_t  tsCompressMsgSize;
+extern int32_t  tsMaxNumOfDistinctResults;
 extern char     tsTempDir[];
 
 //query buffer management

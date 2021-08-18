@@ -23,7 +23,7 @@ sudo cp -rf /usr/local/taos/connector/grafanaplugin /var/lib/grafana/plugins/tde
 
 #### 配置数据源
 
-用户可以直接通过 localhost:3000 的网址，登录 Grafana 服务器(用户名/密码:admin/admin)，通过左侧 `Configuration -> Data Sources` 可以添加数据源，如下图所示：
+用户可以直接通过 localhost:3000 的网址，登录 Grafana 服务器（用户名/密码：admin/admin），通过左侧 `Configuration -> Data Sources` 可以添加数据源，如下图所示：
 
 ![img](page://images/connections/add_datasource1.jpg)
 
@@ -35,7 +35,7 @@ sudo cp -rf /usr/local/taos/connector/grafanaplugin /var/lib/grafana/plugins/tde
 
 ![img](page://images/connections/add_datasource3.jpg)
 
-* Host： TDengine 集群的中任意一台服务器的 IP 地址与 TDengine RESTful 接口的端口号(6041)，默认 http://localhost:6041
+* Host： TDengine 集群的中任意一台服务器的 IP 地址与 TDengine RESTful 接口的端口号(6041)，默认 http://localhost:6041 。
 * User：TDengine 用户名。
 * Password：TDengine 用户密码。
 
@@ -140,13 +140,13 @@ conn<-dbConnect(drv,"jdbc:TSDB://192.168.0.1:0/?user=root&password=taosdata","ro
 
 
 -	dbWriteTable(conn, "test", iris, overwrite=FALSE, append=TRUE)：将数据框iris写入表test中，overwrite必须设置为false，append必须设为TRUE,且数据框iris要与表test的结构一致。
--	dbGetQuery(conn, "select count(*) from test")：查询语句
+-	dbGetQuery(conn, "select count(*) from test")：查询语句。
 -	dbSendUpdate(conn, "use db")：执行任何非查询sql语句。例如dbSendUpdate(conn, "use db")， 写入数据dbSendUpdate(conn, "insert into t1 values(now, 99)")等。
--	dbReadTable(conn, "test")：读取表test中数据
--	dbDisconnect(conn)：关闭连接
--	dbRemoveTable(conn, "test")：删除表test
+-	dbReadTable(conn, "test")：读取表test中数据。
+-	dbDisconnect(conn)：关闭连接。
+-	dbRemoveTable(conn, "test")：删除表test。
 
 TDengine客户端暂不支持如下函数：
-- dbExistsTable(conn, "test")：是否存在表test
-- dbListTables(conn)：显示连接中的所有表
+- dbExistsTable(conn, "test")：是否存在表test。
+- dbListTables(conn)：显示连接中的所有表。
 

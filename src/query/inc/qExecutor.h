@@ -333,6 +333,9 @@ enum OPERATOR_TYPE_E {
   OP_Distinct          = 20,
   OP_Join              = 21,
   OP_StateWindow       = 22,
+  OP_AllTimeWindow     = 23,
+  OP_AllMultiTableTimeInterval = 24,
+  OP_Order             = 25,
 };
 
 typedef struct SOperatorInfo {
@@ -420,7 +423,6 @@ typedef struct STableScanInfo {
   int32_t        *rowCellInfoOffset;
   SExprInfo      *pExpr;
   SSDataBlock     block;
-  bool            loadExternalRows; // load external rows (prev & next rows)
   int32_t         numOfOutput;
   int64_t         elapsedTime;
 
@@ -511,7 +513,13 @@ typedef struct SStateWindowOperatorInfo {
   int32_t        start;
   char*          prevData;    // previous data 
   bool           reptScan;
-} SStateWindowOperatorInfo ;
+} SStateWindowOperatorInfo;
+
+typedef struct SDistinctDataInfo {
+  int32_t index;
+  int32_t type;
+  int32_t bytes;
+} SDistinctDataInfo; 
 
 typedef struct SDistinctOperatorInfo {
   SHashObj         *pSet;
@@ -519,7 +527,9 @@ typedef struct SDistinctOperatorInfo {
   bool              recordNullVal;  //has already record the null value, no need to try again
   int64_t           threshold;
   int64_t           outputCapacity;
-  int32_t           colIndex; 
+  int32_t           totalBytes; 
+  char*             buf;
+  SArray*           pDistinctDataInfo; 
 } SDistinctOperatorInfo;
 
 struct SGlobalMerger;
@@ -544,6 +554,13 @@ typedef struct SMultiwayMergeInfo {
   SArray              *udfInfo;
 } SMultiwayMergeInfo;
 
+// todo support the disk-based sort
+typedef struct SOrderOperatorInfo {
+  int32_t      colIndex;
+  int32_t      order;
+  SSDataBlock *pDataBlock;
+} SOrderOperatorInfo;
+
 void appendUpstream(SOperatorInfo* p, SOperatorInfo* pUpstream);
 
 SOperatorInfo* createDataBlocksOptScanInfo(void* pTsdbQueryHandle, SQueryRuntimeEnv* pRuntimeEnv, int32_t repeatTime, int32_t reverseTime);
@@ -554,11 +571,13 @@ SOperatorInfo* createAggregateOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOpera
 SOperatorInfo* createProjectOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorInfo* upstream, SExprInfo* pExpr, int32_t numOfOutput);
 SOperatorInfo* createLimitOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorInfo* upstream);
 SOperatorInfo* createTimeIntervalOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorInfo* upstream, SExprInfo* pExpr, int32_t numOfOutput);
+SOperatorInfo* createAllTimeIntervalOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorInfo* upstream, SExprInfo* pExpr, int32_t numOfOutput);
 SOperatorInfo* createSWindowOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorInfo* upstream, SExprInfo* pExpr, int32_t numOfOutput);
 SOperatorInfo* createFillOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorInfo* upstream, SExprInfo* pExpr, int32_t numOfOutput);
 SOperatorInfo* createGroupbyOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorInfo* upstream, SExprInfo* pExpr, int32_t numOfOutput);
 SOperatorInfo* createMultiTableAggOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorInfo* upstream, SExprInfo* pExpr, int32_t numOfOutput);
 SOperatorInfo* createMultiTableTimeIntervalOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorInfo* upstream, SExprInfo* pExpr, int32_t numOfOutput);
+SOperatorInfo* createAllMultiTableTimeIntervalOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorInfo* upstream, SExprInfo* pExpr, int32_t numOfOutput);
 SOperatorInfo* createTagScanOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SExprInfo* pExpr, int32_t numOfOutput);
 SOperatorInfo* createDistinctOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorInfo* upstream, SExprInfo* pExpr, int32_t numOfOutput);
 SOperatorInfo* createTableBlockInfoScanOperator(void* pTsdbQueryHandle, SQueryRuntimeEnv* pRuntimeEnv);
@@ -571,6 +590,7 @@ SOperatorInfo* createFilterOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperator
                                         int32_t numOfOutput, SColumnInfo* pCols, int32_t numOfFilter);
 
 SOperatorInfo* createJoinOperatorInfo(SOperatorInfo** pUpstream, int32_t numOfUpstream, SSchema* pSchema, int32_t numOfOutput);
+SOperatorInfo* createOrderOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorInfo* upstream, SExprInfo* pExpr, int32_t numOfOutput, SOrderVal* pOrderVal);
 
 SSDataBlock* doGlobalAggregate(void* param, bool* newgroup);
 SSDataBlock* doMultiwayMergeSort(void* param, bool* newgroup);
@@ -578,7 +598,6 @@ SSDataBlock* doSLimit(void* param, bool* newgroup);
 
 int32_t doCreateFilterInfo(SColumnInfo* pCols, int32_t numOfCols, int32_t numOfFilterCols, SSingleColumnFilterInfo** pFilterInfo, uint64_t qId);
 void doSetFilterColumnInfo(SSingleColumnFilterInfo* pFilterInfo, int32_t numOfFilterCols, SSDataBlock* pBlock);
-void doSetFilterColInfo(SFilterInfo     *pFilters, SSDataBlock* pBlock);
 bool doFilterDataBlock(SSingleColumnFilterInfo* pFilterInfo, int32_t numOfFilterCols, int32_t numOfRows, int8_t* p);
 void doCompactSDataBlock(SSDataBlock* pBlock, int32_t numOfRows, int8_t* p);
 

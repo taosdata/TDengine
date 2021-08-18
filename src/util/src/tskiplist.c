@@ -54,7 +54,7 @@ SSkipList *tSkipListCreate(uint8_t maxLevel, uint8_t keyType, uint16_t keyLen, _
   pSkipList->keyFn = fn;
   pSkipList->seed = rand();
   if (comparFn == NULL) {
-    pSkipList->comparFn = getKeyComparFunc(keyType);
+    pSkipList->comparFn = getKeyComparFunc(keyType, TSDB_ORDER_ASC);
   } else {
     pSkipList->comparFn = comparFn;
   }
