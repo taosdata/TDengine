@@ -301,7 +301,7 @@ static int tsdbCreateSchemaFile(STsdbRepo *pRepo) {
     return -1;
   }
 
-  tsdbInfo("vgId:%d meta file %s is created", REPO_ID(pRepo), TSDB_FILE_FULL_NAME(&sf));
+  tsdbInfo("vgId:%d SCHEMA file %s is created", REPO_ID(pRepo), TSDB_FILE_FULL_NAME(&sf));
 
   if (tsdbUpdateSFileHeader(&sf) < 0) {
     tsdbError("vgId:%d failed to update SCHEMA file header since %s, revert it", REPO_ID(pRepo), tstrerror(terrno));
@@ -1554,6 +1554,8 @@ static int tsdbRestoreCurrent(STsdbRepo *pRepo) {
     if(tsdbCreateSchemaFile(pRepo) < 0) {
       return -1;
     }
+    pRepo->fs->cstatus->sf = pRepo->fs->nstatus->sf;
+    pRepo->fs->cstatus->psf = pRepo->fs->nstatus->psf;
   }
   ASSERT(pRepo->fs->cstatus->psf != NULL);
 
