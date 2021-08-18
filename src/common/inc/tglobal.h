@@ -41,6 +41,7 @@ extern char     tsArbitrator[];
 extern int8_t   tsArbOnline;
 extern int64_t  tsArbOnlineTimestamp;
 extern int32_t  tsDnodeId;
+extern int64_t  tsDnodeStartTime;
 
 // common
 extern int      tsRpcTimer;
@@ -59,6 +60,8 @@ extern char     tsLocale[];
 extern char     tsCharset[];            // default encode string
 extern int8_t   tsEnableCoreFile;
 extern int32_t  tsCompressMsgSize;
+extern int32_t  tsCompressColData;
+extern int32_t  tsMaxNumOfDistinctResults;
 extern char     tsTempDir[];
 
 //query buffer management
@@ -70,6 +73,7 @@ extern int8_t   tsKeepOriginalColumnName;
 
 // client
 extern int32_t tsMaxSQLStringLen;
+extern int32_t tsMaxWildCardsLen;
 extern int8_t  tsTscEnableRecordSql;
 extern int32_t tsMaxNumOfOrderedResults;
 extern int32_t tsMinSlidingTime;
@@ -204,6 +208,16 @@ extern uint32_t qDebugFlag;
 extern int32_t wDebugFlag;
 extern int32_t cqDebugFlag;
 extern int32_t debugFlag;
+
+#ifdef TD_TSZ
+// lossy 
+extern char lossyColumns[];
+extern double fPrecision;
+extern double dPrecision;
+extern uint32_t maxRange;
+extern uint32_t curRange;
+extern char Compressor[];
+#endif
 
 typedef struct {
   char dir[TSDB_FILENAME_LEN];

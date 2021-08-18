@@ -808,6 +808,11 @@ bool simExecuteNativeSqlCommand(SScript *script, char *rest, bool isSlow) {
               break;
             case TSDB_DATA_TYPE_BINARY:
             case TSDB_DATA_TYPE_NCHAR:
+              if (length[i] < 0 || length[i] > 1 << 20) {
+                fprintf(stderr, "Invalid length(%d) of BINARY or NCHAR\n", length[i]);
+                exit(-1);
+              }
+
               memset(value, 0, MAX_QUERY_VALUE_LEN);
               memcpy(value, row[i], length[i]);
               value[length[i]] = 0;

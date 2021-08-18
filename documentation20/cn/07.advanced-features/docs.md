@@ -17,7 +17,7 @@ TDengine提供的连续查询与普通流计算中的时间窗口计算具有以
 下面以智能电表场景为例介绍连续查询的具体使用方法。假设我们通过下列SQL语句创建了超级表和子表：
 
 ```sql
-create table meters (ts timestamp, current float, voltage int, phase float) tags (location binary(64), groupdId int);
+create table meters (ts timestamp, current float, voltage int, phase float) tags (location binary(64), groupId int);
 create table D1001 using meters tags ("Beijing.Chaoyang", 2);
 create table D1002 using meters tags ("Beijing.Haidian", 2);
 ...
@@ -138,7 +138,7 @@ select * from meters where ts > now - 1d and current > 10;
 
 订阅的`topic`实际上是它的名字，因为订阅功能是在客户端API中实现的，所以没必要保证它全局唯一，但需要它在一台客户端机器上唯一。
 
-如果名`topic`的订阅不存在，参数`restart`没有意义；但如果用户程序创建这个订阅后退出，当它再次启动并重新使用这个`topic`时，`restart`就会被用于决定是从头开始读取数据，还是接续上次的位置进行读取。本例中，如果`restart`是 **true**（非零值），用户程序肯定会读到所有数据。但如果这个订阅之前就存在了，并且已经读取了一部分数据，且`restart`是 **false**（**0**），用户程序就不会读到之前已经读取的数据了。
+如果名为`topic`的订阅不存在，参数`restart`没有意义；但如果用户程序创建这个订阅后退出，当它再次启动并重新使用这个`topic`时，`restart`就会被用于决定是从头开始读取数据，还是接续上次的位置进行读取。本例中，如果`restart`是 **true**（非零值），用户程序肯定会读到所有数据。但如果这个订阅之前就存在了，并且已经读取了一部分数据，且`restart`是 **false**（**0**），用户程序就不会读到之前已经读取的数据了。
 
 `taos_subscribe`的最后一个参数是以毫秒为单位的轮询周期。在同步模式下，如果前后两次调用`taos_consume`的时间间隔小于此时间，`taos_consume`会阻塞，直到间隔超过此时间。异步模式下，这个时间是两次调用回调函数的最小时间间隔。
 
@@ -179,7 +179,8 @@ void print_result(TAOS_RES* res, int blockFetch) {
 　　} else {
 　　　　while ((row = taos_fetch_row(res))) {
 　　　　　　char temp[256];
-　　　　　　taos_print_row(temp, row, fields, num_fields);puts(temp);
+　　　　　　taos_print_row(temp, row, fields, num_fields);
+　　　　　　puts(temp);
 　　　　　　nRows++;
 　　　　}
 　　}
@@ -211,14 +212,14 @@ taos_unsubscribe(tsub, keep);
 
 则可以在示例代码所在目录执行以下命令来编译并启动示例程序：
 
-```shell
+```bash
 $ make
 $ ./subscribe -sql='select * from meters where current > 10;'
 ```
 
 示例程序启动后，打开另一个终端窗口，启动 TDengine 的 shell 向 **D1001** 插入一条电流为 12A 的数据：
 
-```shell
+```sql
 $ taos
 > use test;
 > insert into D1001 values(now, 12, 220, 1);
@@ -313,7 +314,7 @@ public class SubscribeDemo {
 
 运行示例程序，首先，它会消费符合查询条件的所有历史数据：
 
-```shell
+```bash
 # java -jar subscribe.jar 
 
 ts: 1597464000000	current: 12.0	voltage: 220	phase: 1	location: Beijing.Chaoyang	groupid : 2
@@ -333,16 +334,16 @@ taos> insert into d1001 values("2020-08-15 12:40:00.000", 12.4, 220, 1);
 
 因为这条数据的电流大于10A，示例程序会将其消费：
 
-```shell
+```
 ts: 1597466400000	current: 12.4	voltage: 220	phase: 1	location: Beijing.Chaoyang	groupid: 2
 ```
 
 
 ## <a class="anchor" id="cache"></a>缓存（Cache）
 
-TDengine采用时间驱动缓存管理策略（First-In-First-Out，FIFO），又称为写驱动的缓存管理机制。这种策略有别于读驱动的数据缓存模式（Least-Recent-Use，LRU），直接将最近写入的数据保存在系统的缓存中。当缓存达到临界值的时候，将最早的数据批量写入磁盘。一般意义上来说，对于物联网数据的使用，用户最为关心最近产生的数据，即当前状态。TDengine充分利用了这一特性，将最近到达的（当前状态）数据保存在缓存中。
+TDengine采用时间驱动缓存管理策略（First-In-First-Out，FIFO），又称为写驱动的缓存管理机制。这种策略有别于读驱动的数据缓存模式（Least-Recent-Used，LRU），直接将最近写入的数据保存在系统的缓存中。当缓存达到临界值的时候，将最早的数据批量写入磁盘。一般意义上来说，对于物联网数据的使用，用户最为关心最近产生的数据，即当前状态。TDengine充分利用了这一特性，将最近到达的（当前状态）数据保存在缓存中。
 
-TDengine通过查询函数向用户提供毫秒级的数据获取能力。直接将最近到达的数据保存在缓存中，可以更加快速地响应用户针对最近一条或一批数据的查询分析，整体上提供更快的数据库查询响应能力。从这个意义上来说，可通过设置合适的配置参数将TDengine作为数据缓存来使用，而不需要再部署额外的缓存系统，可有效地简化系统架构，降低运维的成本。需要注意的是，TDengine重启以后系统的缓存将被清空，之前缓存的数据均会被批量写入磁盘，缓存的数据将不会像专门的Key-value缓存系统再将之前缓存的数据重新加载到缓存中。
+TDengine通过查询函数向用户提供毫秒级的数据获取能力。直接将最近到达的数据保存在缓存中，可以更加快速地响应用户针对最近一条或一批数据的查询分析，整体上提供更快的数据库查询响应能力。从这个意义上来说，可通过设置合适的配置参数将TDengine作为数据缓存来使用，而不需要再部署额外的缓存系统，可有效地简化系统架构，降低运维的成本。需要注意的是，TDengine重启以后系统的缓存将被清空，之前缓存的数据均会被批量写入磁盘，缓存的数据将不会像专门的key-value缓存系统再将之前缓存的数据重新加载到缓存中。
 
 TDengine分配固定大小的内存空间作为缓存空间，缓存空间可根据应用的需求和硬件资源配置。通过适当的设置缓存空间，TDengine可以提供极高性能的写入和查询的支持。TDengine中每个虚拟节点（virtual node）创建时分配独立的缓存池。每个虚拟节点管理自己的缓存池，不同虚拟节点间不共享缓存池。每个虚拟节点内部所属的全部表共享该虚拟节点的缓存池。
 

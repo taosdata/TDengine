@@ -928,3 +928,1322 @@ endi
 if $data44 != @18-11-25 19:06:00.000@ then
   return -1
 endi
+
+
+
+
+
+
+
+sql select interp(pav) from ap1 where ts> '2021-07-25 02:19:54' and ts<'2021-07-25 02:20:00' interval(1s) fill(linear);
+if $rows != 6 then
+  return -1
+endi
+if $data00 != @21-07-25 02:19:54.000@  then
+  return -1
+endi
+if $data01 != NULL  then
+  return -1
+endi
+if $data10 != @21-07-25 02:19:55.000@  then
+  return -1
+endi
+if $data11 != 3.31818 then
+  return -1
+endi
+if $data20 != @21-07-25 02:19:56.000@  then
+  return -1
+endi
+if $data21 != 3.77273 then
+  return -1
+endi
+if $data30 != @21-07-25 02:19:57.000@  then
+  return -1
+endi
+if $data31 != 4.50000 then
+  return -1
+endi
+if $data40 != @21-07-25 02:19:58.000@  then
+  return -1
+endi
+if $data41 != 7.50000 then
+  return -1
+endi
+if $data50 != @21-07-25 02:19:59.000@  then
+  return -1
+endi
+if $data51 != 9.87500 then
+  return -1
+endi
+
+sql select interp(pav) from ap1 where ts> '2021-07-25 02:19:54' and ts<'2021-07-25 02:20:00' interval(1s) fill(value, 1);
+if $rows != 6 then
+  return -1
+endi
+if $data00 != @21-07-25 02:19:54.000@  then
+  return -1
+endi
+if $data01 != 1.00000  then
+  return -1
+endi
+if $data10 != @21-07-25 02:19:55.000@  then
+  return -1
+endi
+if $data11 != 1.00000 then
+  return -1
+endi
+if $data20 != @21-07-25 02:19:56.000@  then
+  return -1
+endi
+if $data21 != 1.00000 then
+  return -1
+endi
+if $data30 != @21-07-25 02:19:57.000@  then
+  return -1
+endi
+if $data31 != 1.00000 then
+  return -1
+endi
+if $data40 != @21-07-25 02:19:58.000@  then
+  return -1
+endi
+if $data41 != 1.00000 then
+  return -1
+endi
+if $data50 != @21-07-25 02:19:59.000@  then
+  return -1
+endi
+if $data51 != 1.00000 then
+  return -1
+endi
+
+sql select interp(pav) from ap1 where ts> '2021-07-25 02:19:54' and ts<'2021-07-25 02:20:00' interval(1s) fill(NULL);
+if $rows != 6 then
+  return -1
+endi
+if $data00 != @21-07-25 02:19:54.000@  then
+  return -1
+endi
+if $data01 != NULL  then
+  return -1
+endi
+if $data10 != @21-07-25 02:19:55.000@  then
+  return -1
+endi
+if $data11 != NULL then
+  return -1
+endi
+if $data20 != @21-07-25 02:19:56.000@  then
+  return -1
+endi
+if $data21 != NULL then
+  return -1
+endi
+if $data30 != @21-07-25 02:19:57.000@  then
+  return -1
+endi
+if $data31 != NULL then
+  return -1
+endi
+if $data40 != @21-07-25 02:19:58.000@  then
+  return -1
+endi
+if $data41 != NULL then
+  return -1
+endi
+if $data50 != @21-07-25 02:19:59.000@  then
+  return -1
+endi
+if $data51 != NULL then
+  return -1
+endi
+
+sql select interp(pav) from ap1 where ts> '2021-07-25 02:19:54' and ts<'2021-07-25 02:20:00' interval(1s) fill(prev);
+if $rows != 6 then
+  return -1
+endi
+if $data00 != @21-07-25 02:19:54.000@  then
+  return -1
+endi
+if $data01 != NULL  then
+  return -1
+endi
+if $data10 != @21-07-25 02:19:55.000@  then
+  return -1
+endi
+if $data11 != 3.00000 then
+  return -1
+endi
+if $data20 != @21-07-25 02:19:56.000@  then
+  return -1
+endi
+if $data21 != 3.00000 then
+  return -1
+endi
+if $data30 != @21-07-25 02:19:57.000@  then
+  return -1
+endi
+if $data31 != 4.00000 then
+  return -1
+endi
+if $data40 != @21-07-25 02:19:58.000@  then
+  return -1
+endi
+if $data41 != 7.00000 then
+  return -1
+endi
+if $data50 != @21-07-25 02:19:59.000@  then
+  return -1
+endi
+if $data51 != 9.00000 then
+  return -1
+endi
+
+sql select interp(pav) from ap1 where ts> '2021-07-25 02:19:54' and ts<'2021-07-25 02:20:00' interval(1s) fill(next);
+if $rows != 6 then
+  return -1
+endi
+if $data00 != @21-07-25 02:19:54.000@  then
+  return -1
+endi
+if $data01 != 1.00000  then
+  return -1
+endi
+if $data10 != @21-07-25 02:19:55.000@  then
+  return -1
+endi
+if $data11 != 4.00000 then
+  return -1
+endi
+if $data20 != @21-07-25 02:19:56.000@  then
+  return -1
+endi
+if $data21 != 4.00000 then
+  return -1
+endi
+if $data30 != @21-07-25 02:19:57.000@  then
+  return -1
+endi
+if $data31 != 5.00000 then
+  return -1
+endi
+if $data40 != @21-07-25 02:19:58.000@  then
+  return -1
+endi
+if $data41 != 8.00000 then
+  return -1
+endi
+if $data50 != @21-07-25 02:19:59.000@  then
+  return -1
+endi
+if $data51 != 10.00000 then
+  return -1
+endi
+
+
+sql select interp(pav) from ap1 where ts> '2021-07-25 02:19:54' and ts<'2021-07-25 02:19:56' interval(1s) fill(linear);
+if $rows != 0 then
+  return -1
+endi
+sql select interp(pav) from ap1 where ts> '2021-07-25 02:19:54' and ts<'2021-07-25 02:19:56' interval(1s) fill(prev);
+if $rows != 2 then
+  return -1
+endi
+if $data00 != @21-07-25 02:19:54.000@  then
+  return -1
+endi
+if $data01 != NULL  then
+  return -1
+endi
+if $data10 != @21-07-25 02:19:55.000@  then
+  return -1
+endi
+if $data11 != 3.00000 then
+  return -1
+endi
+
+sql select interp(pav) from ap1 where ts> '2021-07-25 02:19:54' and ts<'2021-07-25 02:19:56' interval(1s) fill(next);
+if $rows != 2 then
+  return -1
+endi
+if $data00 != @21-07-25 02:19:54.000@  then
+  return -1
+endi
+if $data01 != 1.00000  then
+  return -1
+endi
+if $data10 != @21-07-25 02:19:55.000@  then
+  return -1
+endi
+if $data11 != NULL then
+  return -1
+endi
+
+sql select interp(pav) from ap1 where ts> '2021-07-25 02:19:54' and ts<'2021-07-25 02:19:57' interval(1s) fill(linear);
+if $rows != 3 then
+  return -1
+endi
+if $data00 != @21-07-25 02:19:54.000@  then
+  return -1
+endi
+if $data01 != NULL  then
+  return -1
+endi
+if $data10 != @21-07-25 02:19:55.000@  then
+  return -1
+endi
+if $data11 != 3.31818 then
+  return -1
+endi
+if $data20 != @21-07-25 02:19:56.000@  then
+  return -1
+endi
+if $data21 != 3.77273 then
+  return -1
+endi
+
+sql select interp(pav) from ap1 where ts> '2021-07-25 02:19:54' and ts<'2021-07-25 02:19:57' interval(1s) fill(prev);
+if $rows != 3 then
+  return -1
+endi
+if $data00 != @21-07-25 02:19:54.000@  then
+  return -1
+endi
+if $data01 != NULL  then
+  return -1
+endi
+if $data10 != @21-07-25 02:19:55.000@  then
+  return -1
+endi
+if $data11 != 3.00000 then
+  return -1
+endi
+if $data20 != @21-07-25 02:19:56.000@  then
+  return -1
+endi
+if $data21 != 3.00000 then
+  return -1
+endi
+
+sql select interp(pav) from ap1 where ts> '2021-07-25 02:19:54' and ts<'2021-07-25 02:19:57' interval(1s) fill(next);
+if $rows != 3 then
+  return -1
+endi
+if $data00 != @21-07-25 02:19:54.000@  then
+  return -1
+endi
+if $data01 != 1.00000  then
+  return -1
+endi
+if $data10 != @21-07-25 02:19:55.000@  then
+  return -1
+endi
+if $data11 != 4.00000 then
+  return -1
+endi
+if $data20 != @21-07-25 02:19:56.000@  then
+  return -1
+endi
+if $data21 != 4.00000 then
+  return -1
+endi
+
+sql select interp(pav) from ap1 where ts> '2021-07-25 02:19:54' and ts<='2021-07-25 02:20:03' interval(1s) fill(linear);
+if $rows != 10 then
+  return -1
+endi
+if $data00 != @21-07-25 02:19:54.000@  then
+  return -1
+endi
+if $data01 != NULL  then
+  return -1
+endi
+if $data10 != @21-07-25 02:19:55.000@  then
+  return -1
+endi
+if $data11 != 3.31818 then
+  return -1
+endi
+if $data20 != @21-07-25 02:19:56.000@  then
+  return -1
+endi
+if $data21 != 3.77273 then
+  return -1
+endi
+if $data30 != @21-07-25 02:19:57.000@  then
+  return -1
+endi
+if $data31 != 4.50000 then
+  return -1
+endi
+if $data40 != @21-07-25 02:19:58.000@  then
+  return -1
+endi
+if $data41 != 7.50000 then
+  return -1
+endi
+if $data50 != @21-07-25 02:19:59.000@  then
+  return -1
+endi
+if $data51 != 9.87500 then
+  return -1
+endi
+if $data60 != @21-07-25 02:20:00.000@  then
+  return -1
+endi
+if $data61 != NULL then
+  return -1
+endi
+if $data70 != @21-07-25 02:20:01.000@  then
+  return -1
+endi
+if $data71 != NULL then
+  return -1
+endi
+if $data80 != @21-07-25 02:20:02.000@  then
+  return -1
+endi
+if $data81 != NULL then
+  return -1
+endi
+if $data90 != @21-07-25 02:20:03.000@  then
+  return -1
+endi
+if $data91 != NULL then
+  return -1
+endi
+
+sql select interp(pav) from ap1 where ts> '2021-07-25 02:19:54' and ts<='2021-07-25 02:20:03' interval(1s) fill(prev);
+if $rows != 10 then
+  return -1
+endi
+if $data00 != @21-07-25 02:19:54.000@  then
+  return -1
+endi
+if $data01 != NULL  then
+  return -1
+endi
+if $data10 != @21-07-25 02:19:55.000@  then
+  return -1
+endi
+if $data11 != 3.00000 then
+  return -1
+endi
+if $data20 != @21-07-25 02:19:56.000@  then
+  return -1
+endi
+if $data21 != 3.00000 then
+  return -1
+endi
+if $data30 != @21-07-25 02:19:57.000@  then
+  return -1
+endi
+if $data31 != 4.00000 then
+  return -1
+endi
+if $data40 != @21-07-25 02:19:58.000@  then
+  return -1
+endi
+if $data41 != 7.00000 then
+  return -1
+endi
+if $data50 != @21-07-25 02:19:59.000@  then
+  return -1
+endi
+if $data51 != 9.00000 then
+  return -1
+endi
+if $data60 != @21-07-25 02:20:00.000@  then
+  return -1
+endi
+if $data61 != 14.00000 then
+  return -1
+endi
+if $data70 != @21-07-25 02:20:01.000@  then
+  return -1
+endi
+if $data71 != 14.00000 then
+  return -1
+endi
+if $data80 != @21-07-25 02:20:02.000@  then
+  return -1
+endi
+if $data81 != 14.00000 then
+  return -1
+endi
+if $data90 != @21-07-25 02:20:03.000@  then
+  return -1
+endi
+if $data91 != 14.00000 then
+  return -1
+endi
+
+sql select interp(pav) from ap1 where ts> '2021-07-25 02:19:54' and ts<='2021-07-25 02:20:03' interval(1s) fill(next);
+if $rows != 10 then
+  return -1
+endi
+if $data00 != @21-07-25 02:19:54.000@  then
+  return -1
+endi
+if $data01 != 1.00000  then
+  return -1
+endi
+if $data10 != @21-07-25 02:19:55.000@  then
+  return -1
+endi
+if $data11 != 4.00000 then
+  return -1
+endi
+if $data20 != @21-07-25 02:19:56.000@  then
+  return -1
+endi
+if $data21 != 4.00000 then
+  return -1
+endi
+if $data30 != @21-07-25 02:19:57.000@  then
+  return -1
+endi
+if $data31 != 5.00000 then
+  return -1
+endi
+if $data40 != @21-07-25 02:19:58.000@  then
+  return -1
+endi
+if $data41 != 8.00000 then
+  return -1
+endi
+if $data50 != @21-07-25 02:19:59.000@  then
+  return -1
+endi
+if $data51 != 10.00000 then
+  return -1
+endi
+if $data60 != @21-07-25 02:20:00.000@  then
+  return -1
+endi
+if $data61 != NULL then
+  return -1
+endi
+if $data70 != @21-07-25 02:20:01.000@  then
+  return -1
+endi
+if $data71 != NULL then
+  return -1
+endi
+if $data80 != @21-07-25 02:20:02.000@  then
+  return -1
+endi
+if $data81 != NULL then
+  return -1
+endi
+if $data90 != @21-07-25 02:20:03.000@  then
+  return -1
+endi
+if $data91 != NULL then
+  return -1
+endi
+
+sql select interp(pav) from ap1 where ts> '2021-07-25 02:19:54' and ts<='2021-07-25 02:20:05' interval(1s) fill(linear);
+if $rows != 12 then
+  return -1
+endi
+if $data00 != @21-07-25 02:19:54.000@  then
+  return -1
+endi
+if $data01 != NULL  then
+  return -1
+endi
+if $data10 != @21-07-25 02:19:55.000@  then
+  return -1
+endi
+if $data11 != 3.31818 then
+  return -1
+endi
+if $data20 != @21-07-25 02:19:56.000@  then
+  return -1
+endi
+if $data21 != 3.77273 then
+  return -1
+endi
+if $data30 != @21-07-25 02:19:57.000@  then
+  return -1
+endi
+if $data31 != 4.50000 then
+  return -1
+endi
+if $data40 != @21-07-25 02:19:58.000@  then
+  return -1
+endi
+if $data41 != 7.50000 then
+  return -1
+endi
+if $data50 != @21-07-25 02:19:59.000@  then
+  return -1
+endi
+if $data51 != 9.87500 then
+  return -1
+endi
+if $data60 != @21-07-25 02:20:00.000@  then
+  return -1
+endi
+if $data61 != 14.11765 then
+  return -1
+endi
+if $data70 != @21-07-25 02:20:01.000@  then
+  return -1
+endi
+if $data71 != 15.29412 then
+  return -1
+endi
+
+sql select interp(pav) from ap1 where ts> '2021-07-25 02:19:54' and ts<='2021-07-25 02:20:05' interval(1s) fill(prev);
+if $rows != 12 then
+  return -1
+endi
+if $data00 != @21-07-25 02:19:54.000@  then
+  return -1
+endi
+if $data01 != NULL  then
+  return -1
+endi
+if $data10 != @21-07-25 02:19:55.000@  then
+  return -1
+endi
+if $data11 != 3.00000 then
+  return -1
+endi
+if $data20 != @21-07-25 02:19:56.000@  then
+  return -1
+endi
+if $data21 != 3.00000 then
+  return -1
+endi
+if $data30 != @21-07-25 02:19:57.000@  then
+  return -1
+endi
+if $data31 != 4.00000 then
+  return -1
+endi
+if $data40 != @21-07-25 02:19:58.000@  then
+  return -1
+endi
+if $data41 != 7.00000 then
+  return -1
+endi
+if $data50 != @21-07-25 02:19:59.000@  then
+  return -1
+endi
+if $data51 != 9.00000 then
+  return -1
+endi
+if $data60 != @21-07-25 02:20:00.000@  then
+  return -1
+endi
+if $data61 != 14.00000 then
+  return -1
+endi
+if $data70 != @21-07-25 02:20:01.000@  then
+  return -1
+endi
+if $data71 != 14.00000 then
+  return -1
+endi
+if $data80 != @21-07-25 02:20:02.000@  then
+  return -1
+endi
+if $data81 != 14.00000 then
+  return -1
+endi
+if $data90 != @21-07-25 02:20:03.000@  then
+  return -1
+endi
+if $data91 != 14.00000 then
+  return -1
+endi
+
+sql select interp(pav) from ap1 where ts> '2021-07-25 02:19:54' and ts<='2021-07-25 02:20:05' interval(1s) fill(next);
+if $rows != 12 then
+  return -1
+endi
+if $data00 != @21-07-25 02:19:54.000@  then
+  return -1
+endi
+if $data01 != 1.00000  then
+  return -1
+endi
+if $data10 != @21-07-25 02:19:55.000@  then
+  return -1
+endi
+if $data11 != 4.00000 then
+  return -1
+endi
+if $data20 != @21-07-25 02:19:56.000@  then
+  return -1
+endi
+if $data21 != 4.00000 then
+  return -1
+endi
+if $data30 != @21-07-25 02:19:57.000@  then
+  return -1
+endi
+if $data31 != 5.00000 then
+  return -1
+endi
+if $data40 != @21-07-25 02:19:58.000@  then
+  return -1
+endi
+if $data41 != 8.00000 then
+  return -1
+endi
+if $data50 != @21-07-25 02:19:59.000@  then
+  return -1
+endi
+if $data51 != 10.00000 then
+  return -1
+endi
+if $data60 != @21-07-25 02:20:00.000@  then
+  return -1
+endi
+if $data61 != 20.00000 then
+  return -1
+endi
+if $data70 != @21-07-25 02:20:01.000@  then
+  return -1
+endi
+if $data71 != 20.00000 then
+  return -1
+endi
+if $data80 != @21-07-25 02:20:02.000@  then
+  return -1
+endi
+if $data81 != 20.00000 then
+  return -1
+endi
+if $data90 != @21-07-25 02:20:03.000@  then
+  return -1
+endi
+if $data91 != 20.00000 then
+  return -1
+endi
+
+sql select interp(pav) from ap1 where ts> '2021-07-25 02:20:02' and ts<='2021-07-25 02:20:05' interval(1s) fill(value, 1);
+if $rows != 4 then
+  return -1
+endi
+if $data00 != @21-07-25 02:20:02.000@  then
+  return -1
+endi
+if $data01 != 1.00000  then
+  return -1
+endi
+if $data10 != @21-07-25 02:20:03.000@  then
+  return -1
+endi
+if $data11 != 1.00000 then
+  return -1
+endi
+if $data20 != @21-07-25 02:20:04.000@  then
+  return -1
+endi
+if $data21 != 1.00000 then
+  return -1
+endi
+if $data30 != @21-07-25 02:20:05.000@  then
+  return -1
+endi
+if $data31 != 20.00000 then
+  return -1
+endi
+
+sql select interp(pav) from ap1 where ts> '2021-07-25 02:20:02' and ts<='2021-07-25 02:20:05' interval(1s) fill(null);
+if $rows != 4 then
+  return -1
+endi
+if $data00 != @21-07-25 02:20:02.000@  then
+  return -1
+endi
+if $data01 != NULL  then
+  return -1
+endi
+if $data10 != @21-07-25 02:20:03.000@  then
+  return -1
+endi
+if $data11 != NULL then
+  return -1
+endi
+if $data20 != @21-07-25 02:20:04.000@  then
+  return -1
+endi
+if $data21 != NULL then
+  return -1
+endi
+if $data30 != @21-07-25 02:20:05.000@  then
+  return -1
+endi
+if $data31 != 20.00000 then
+  return -1
+endi
+
+
+sql select interp(pav) from ap1 where ts> '2021-07-25 02:19:54' and ts<='2021-07-25 02:20:25' interval(1s) fill(linear);
+if $rows != 32 then
+  return -1
+endi
+if $data00 != @21-07-25 02:19:54.000@  then
+  return -1
+endi
+if $data01 != NULL  then
+  return -1
+endi
+if $data10 != @21-07-25 02:19:55.000@  then
+  return -1
+endi
+if $data11 != 3.31818 then
+  return -1
+endi
+if $data20 != @21-07-25 02:19:56.000@  then
+  return -1
+endi
+if $data21 != 3.77273 then
+  return -1
+endi
+if $data30 != @21-07-25 02:19:57.000@  then
+  return -1
+endi
+if $data31 != 4.50000 then
+  return -1
+endi
+if $data40 != @21-07-25 02:19:58.000@  then
+  return -1
+endi
+if $data41 != 7.50000 then
+  return -1
+endi
+if $data50 != @21-07-25 02:19:59.000@  then
+  return -1
+endi
+if $data51 != 9.87500 then
+  return -1
+endi
+if $data60 != @21-07-25 02:20:00.000@  then
+  return -1
+endi
+if $data61 != 14.11765 then
+  return -1
+endi
+if $data70 != @21-07-25 02:20:01.000@  then
+  return -1
+endi
+if $data71 != 15.29412 then
+  return -1
+endi
+
+sql select interp(pav) from ap1 where ts> '2021-07-25 02:19:54' and ts<='2021-07-25 02:20:25' interval(1s) fill(prev);
+if $rows != 32 then
+  return -1
+endi
+if $data00 != @21-07-25 02:19:54.000@  then
+  return -1
+endi
+if $data01 != NULL  then
+  return -1
+endi
+if $data10 != @21-07-25 02:19:55.000@  then
+  return -1
+endi
+if $data11 != 3.00000 then
+  return -1
+endi
+if $data20 != @21-07-25 02:19:56.000@  then
+  return -1
+endi
+if $data21 != 3.00000 then
+  return -1
+endi
+if $data30 != @21-07-25 02:19:57.000@  then
+  return -1
+endi
+if $data31 != 4.00000 then
+  return -1
+endi
+if $data40 != @21-07-25 02:19:58.000@  then
+  return -1
+endi
+if $data41 != 7.00000 then
+  return -1
+endi
+if $data50 != @21-07-25 02:19:59.000@  then
+  return -1
+endi
+if $data51 != 9.00000 then
+  return -1
+endi
+if $data60 != @21-07-25 02:20:00.000@  then
+  return -1
+endi
+if $data61 != 14.00000 then
+  return -1
+endi
+if $data70 != @21-07-25 02:20:01.000@  then
+  return -1
+endi
+if $data71 != 14.00000 then
+  return -1
+endi
+if $data80 != @21-07-25 02:20:02.000@  then
+  return -1
+endi
+if $data81 != 14.00000 then
+  return -1
+endi
+if $data90 != @21-07-25 02:20:03.000@  then
+  return -1
+endi
+if $data91 != 14.00000 then
+  return -1
+endi
+
+sql select interp(pav) from ap1 where ts> '2021-07-25 02:19:54' and ts<='2021-07-25 02:20:25' interval(1s) fill(next);
+if $rows != 32 then
+  return -1
+endi
+if $data00 != @21-07-25 02:19:54.000@  then
+  return -1
+endi
+if $data01 != 1.00000  then
+  return -1
+endi
+if $data10 != @21-07-25 02:19:55.000@  then
+  return -1
+endi
+if $data11 != 4.00000 then
+  return -1
+endi
+if $data20 != @21-07-25 02:19:56.000@  then
+  return -1
+endi
+if $data21 != 4.00000 then
+  return -1
+endi
+if $data30 != @21-07-25 02:19:57.000@  then
+  return -1
+endi
+if $data31 != 5.00000 then
+  return -1
+endi
+if $data40 != @21-07-25 02:19:58.000@  then
+  return -1
+endi
+if $data41 != 8.00000 then
+  return -1
+endi
+if $data50 != @21-07-25 02:19:59.000@  then
+  return -1
+endi
+if $data51 != 10.00000 then
+  return -1
+endi
+if $data60 != @21-07-25 02:20:00.000@  then
+  return -1
+endi
+if $data61 != 20.00000 then
+  return -1
+endi
+if $data70 != @21-07-25 02:20:01.000@  then
+  return -1
+endi
+if $data71 != 20.00000 then
+  return -1
+endi
+if $data80 != @21-07-25 02:20:02.000@  then
+  return -1
+endi
+if $data81 != 20.00000 then
+  return -1
+endi
+if $data90 != @21-07-25 02:20:03.000@  then
+  return -1
+endi
+if $data91 != 20.00000 then
+  return -1
+endi
+
+
+sql select interp(pav) from ap1 where ts> '2021-07-25 02:19:54' and ts<='2021-07-25 02:25:00' interval(1s) fill(linear);
+if $rows != 307 then
+  return -1
+endi
+if $data00 != @21-07-25 02:19:54.000@  then
+  return -1
+endi
+if $data01 != NULL  then
+  return -1
+endi
+if $data10 != @21-07-25 02:19:55.000@  then
+  return -1
+endi
+if $data11 != 3.31818 then
+  return -1
+endi
+if $data20 != @21-07-25 02:19:56.000@  then
+  return -1
+endi
+if $data21 != 3.77273 then
+  return -1
+endi
+if $data30 != @21-07-25 02:19:57.000@  then
+  return -1
+endi
+if $data31 != 4.50000 then
+  return -1
+endi
+if $data40 != @21-07-25 02:19:58.000@  then
+  return -1
+endi
+if $data41 != 7.50000 then
+  return -1
+endi
+if $data50 != @21-07-25 02:19:59.000@  then
+  return -1
+endi
+if $data51 != 9.87500 then
+  return -1
+endi
+if $data60 != @21-07-25 02:20:00.000@  then
+  return -1
+endi
+if $data61 != 14.11765 then
+  return -1
+endi
+if $data70 != @21-07-25 02:20:01.000@  then
+  return -1
+endi
+if $data71 != 15.29412 then
+  return -1
+endi
+
+sql select interp(pav) from ap1 where ts> '2021-07-25 02:19:54' and ts<='2021-07-25 02:25:00' interval(1s) fill(prev);
+if $rows != 307 then
+  return -1
+endi
+if $data00 != @21-07-25 02:19:54.000@  then
+  return -1
+endi
+if $data01 != NULL  then
+  return -1
+endi
+if $data10 != @21-07-25 02:19:55.000@  then
+  return -1
+endi
+if $data11 != 3.00000 then
+  return -1
+endi
+if $data20 != @21-07-25 02:19:56.000@  then
+  return -1
+endi
+if $data21 != 3.00000 then
+  return -1
+endi
+if $data30 != @21-07-25 02:19:57.000@  then
+  return -1
+endi
+if $data31 != 4.00000 then
+  return -1
+endi
+if $data40 != @21-07-25 02:19:58.000@  then
+  return -1
+endi
+if $data41 != 7.00000 then
+  return -1
+endi
+if $data50 != @21-07-25 02:19:59.000@  then
+  return -1
+endi
+if $data51 != 9.00000 then
+  return -1
+endi
+if $data60 != @21-07-25 02:20:00.000@  then
+  return -1
+endi
+if $data61 != 14.00000 then
+  return -1
+endi
+if $data70 != @21-07-25 02:20:01.000@  then
+  return -1
+endi
+if $data71 != 14.00000 then
+  return -1
+endi
+if $data80 != @21-07-25 02:20:02.000@  then
+  return -1
+endi
+if $data81 != 14.00000 then
+  return -1
+endi
+if $data90 != @21-07-25 02:20:03.000@  then
+  return -1
+endi
+if $data91 != 14.00000 then
+  return -1
+endi
+
+sql select interp(pav) from ap1 where ts> '2021-07-25 02:19:54' and ts<='2021-07-25 02:25:00' interval(1s) fill(next);
+if $rows != 307 then
+  return -1
+endi
+if $data00 != @21-07-25 02:19:54.000@  then
+  return -1
+endi
+if $data01 != 1.00000  then
+  return -1
+endi
+if $data10 != @21-07-25 02:19:55.000@  then
+  return -1
+endi
+if $data11 != 4.00000 then
+  return -1
+endi
+if $data20 != @21-07-25 02:19:56.000@  then
+  return -1
+endi
+if $data21 != 4.00000 then
+  return -1
+endi
+if $data30 != @21-07-25 02:19:57.000@  then
+  return -1
+endi
+if $data31 != 5.00000 then
+  return -1
+endi
+if $data40 != @21-07-25 02:19:58.000@  then
+  return -1
+endi
+if $data41 != 8.00000 then
+  return -1
+endi
+if $data50 != @21-07-25 02:19:59.000@  then
+  return -1
+endi
+if $data51 != 10.00000 then
+  return -1
+endi
+if $data60 != @21-07-25 02:20:00.000@  then
+  return -1
+endi
+if $data61 != 20.00000 then
+  return -1
+endi
+if $data70 != @21-07-25 02:20:01.000@  then
+  return -1
+endi
+if $data71 != 20.00000 then
+  return -1
+endi
+if $data80 != @21-07-25 02:20:02.000@  then
+  return -1
+endi
+if $data81 != 20.00000 then
+  return -1
+endi
+if $data90 != @21-07-25 02:20:03.000@  then
+  return -1
+endi
+if $data91 != 20.00000 then
+  return -1
+endi
+
+sql select interp(pav) from ap1 where ts> '2021-07-25 02:19:54' and ts<='2021-07-25 03:25:00' interval(1s) fill(linear);
+if $rows != 3907 then
+  return -1
+endi
+if $data00 != @21-07-25 02:19:54.000@  then
+  return -1
+endi
+if $data01 != NULL  then
+  return -1
+endi
+if $data10 != @21-07-25 02:19:55.000@  then
+  return -1
+endi
+if $data11 != 3.31818 then
+  return -1
+endi
+if $data20 != @21-07-25 02:19:56.000@  then
+  return -1
+endi
+if $data21 != 3.77273 then
+  return -1
+endi
+if $data30 != @21-07-25 02:19:57.000@  then
+  return -1
+endi
+if $data31 != 4.50000 then
+  return -1
+endi
+if $data40 != @21-07-25 02:19:58.000@  then
+  return -1
+endi
+if $data41 != 7.50000 then
+  return -1
+endi
+if $data50 != @21-07-25 02:19:59.000@  then
+  return -1
+endi
+if $data51 != 9.87500 then
+  return -1
+endi
+if $data60 != @21-07-25 02:20:00.000@  then
+  return -1
+endi
+if $data61 != 14.11765 then
+  return -1
+endi
+if $data70 != @21-07-25 02:20:01.000@  then
+  return -1
+endi
+if $data71 != 15.29412 then
+  return -1
+endi
+
+
+sql select interp(pav) from ap1 where ts> '2021-07-25 02:19:54' and ts<='2021-07-25 03:25:00' interval(1s) fill(prev);
+if $rows != 3907 then
+  return -1
+endi
+if $data00 != @21-07-25 02:19:54.000@  then
+  return -1
+endi
+if $data01 != NULL  then
+  return -1
+endi
+if $data10 != @21-07-25 02:19:55.000@  then
+  return -1
+endi
+if $data11 != 3.00000 then
+  return -1
+endi
+if $data20 != @21-07-25 02:19:56.000@  then
+  return -1
+endi
+if $data21 != 3.00000 then
+  return -1
+endi
+if $data30 != @21-07-25 02:19:57.000@  then
+  return -1
+endi
+if $data31 != 4.00000 then
+  return -1
+endi
+if $data40 != @21-07-25 02:19:58.000@  then
+  return -1
+endi
+if $data41 != 7.00000 then
+  return -1
+endi
+if $data50 != @21-07-25 02:19:59.000@  then
+  return -1
+endi
+if $data51 != 9.00000 then
+  return -1
+endi
+if $data60 != @21-07-25 02:20:00.000@  then
+  return -1
+endi
+if $data61 != 14.00000 then
+  return -1
+endi
+if $data70 != @21-07-25 02:20:01.000@  then
+  return -1
+endi
+if $data71 != 14.00000 then
+  return -1
+endi
+if $data80 != @21-07-25 02:20:02.000@  then
+  return -1
+endi
+if $data81 != 14.00000 then
+  return -1
+endi
+if $data90 != @21-07-25 02:20:03.000@  then
+  return -1
+endi
+if $data91 != 14.00000 then
+  return -1
+endi
+
+sql select interp(pav) from ap1 where ts> '2021-07-25 02:19:54' and ts<='2021-07-25 03:25:00' interval(1s) fill(next);
+if $rows != 3907 then
+  return -1
+endi
+if $data00 != @21-07-25 02:19:54.000@  then
+  return -1
+endi
+if $data01 != 1.00000  then
+  return -1
+endi
+if $data10 != @21-07-25 02:19:55.000@  then
+  return -1
+endi
+if $data11 != 4.00000 then
+  return -1
+endi
+if $data20 != @21-07-25 02:19:56.000@  then
+  return -1
+endi
+if $data21 != 4.00000 then
+  return -1
+endi
+if $data30 != @21-07-25 02:19:57.000@  then
+  return -1
+endi
+if $data31 != 5.00000 then
+  return -1
+endi
+if $data40 != @21-07-25 02:19:58.000@  then
+  return -1
+endi
+if $data41 != 8.00000 then
+  return -1
+endi
+if $data50 != @21-07-25 02:19:59.000@  then
+  return -1
+endi
+if $data51 != 10.00000 then
+  return -1
+endi
+if $data60 != @21-07-25 02:20:00.000@  then
+  return -1
+endi
+if $data61 != 20.00000 then
+  return -1
+endi
+if $data70 != @21-07-25 02:20:01.000@  then
+  return -1
+endi
+if $data71 != 20.00000 then
+  return -1
+endi
+if $data80 != @21-07-25 02:20:02.000@  then
+  return -1
+endi
+if $data81 != 20.00000 then
+  return -1
+endi
+if $data90 != @21-07-25 02:20:03.000@  then
+  return -1
+endi
+if $data91 != 20.00000 then
+  return -1
+endi
+
+sql select interp(pav) from ap1 where ts> '2021-07-25 02:19:54' and ts<'2021-07-25 02:20:07' interval(1s);
+if $rows != 1 then
+  return -1
+endi
+if $data00 != @21-07-25 02:20:05.000@  then
+  return -1
+endi
+if $data01 != 20.00000  then
+  return -1
+endi
+

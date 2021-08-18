@@ -27,6 +27,10 @@
 #include "syncMsg.h"
 
 #define MAX_PKG_LEN (64 * 1000)
+#define MAX_SPEED_PKG_LEN (1024 * 1024 * 1024)
+#define MIN_SPEED_PKG_LEN 1024
+#define MAX_SPEED_PKG_NUM 10000
+#define MIN_SPEED_PKG_NUM 1
 #define BUFFER_SIZE (MAX_PKG_LEN + 1024)
 
 extern int32_t tsRpcMaxUdpSize;
@@ -50,7 +54,9 @@ static void *taosNetBindUdpPort(void *sarg) {
   struct sockaddr_in server_addr;
   struct sockaddr_in clientAddr;
 
-   if ((serverSocket = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) < 0) {
+  setThreadName("netBindUdpPort");
+
+  if ((serverSocket = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) < 0) {
     uError("failed to create UDP socket since %s", strerror(errno));
     return NULL;
   }
@@ -106,12 +112,14 @@ static void *taosNetBindTcpPort(void *sarg) {
   struct sockaddr_in server_addr;
   struct sockaddr_in clientAddr;
 
- STestInfo *pinfo = sarg;
+  STestInfo *pinfo = sarg;
   int32_t    port = pinfo->port;
   SOCKET     serverSocket;
   int32_t    addr_len = sizeof(clientAddr);
   SOCKET     client;
   char       buffer[BUFFER_SIZE];
+
+  setThreadName("netBindTcpPort");
 
   if ((serverSocket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) < 0) {
     uError("failed to create TCP socket since %s", strerror(errno));
@@ -462,6 +470,7 @@ static void taosNetTestRpc(char *host, int32_t startPort, int32_t pkgLen) {
       sendpkgLen = pkgLen;
     }
 
+    tsRpcForceTcp = 1;
     int32_t ret = taosNetCheckRpc(host, port, sendpkgLen, spi, NULL);
     if (ret < 0) {
       printf("failed to test TCP port:%d\n", port);
@@ -475,6 +484,7 @@ static void taosNetTestRpc(char *host, int32_t startPort, int32_t pkgLen) {
       sendpkgLen = pkgLen;
     }
 
+    tsRpcForceTcp = 0;
     ret = taosNetCheckRpc(host, port, pkgLen, spi, NULL);
     if (ret < 0) {
       printf("failed to test UDP port:%d\n", port);
@@ -538,12 +548,111 @@ static void taosNetTestServer(char *host, int32_t startPort, int32_t pkgLen) {
   }
 }
 
-void taosNetTest(char *role, char *host, int32_t port, int32_t pkgLen) {
+static void taosNetTestFqdn(char *host) {
+  int code = 0;
+  uint64_t startTime = taosGetTimestampUs();
+  uint32_t ip = taosGetIpv4FromFqdn(host);
+  if (ip == 0xffffffff) {
+    uError("failed to get IP address from %s since %s", host, strerror(errno));
+    code = -1;
+  }
+  uint64_t endTime = taosGetTimestampUs();
+  uint64_t el = endTime - startTime;
+  printf("check convert fqdn spend, status: %d\tcost: %" PRIu64 " us\n", code, el);
+  return;
+}
+
+static void taosNetCheckSpeed(char *host, int32_t port, int32_t pkgLen,
+                              int32_t pkgNum, char *pkgType) {
+  // record config
+  int32_t compressTmp = tsCompressMsgSize;
+  int32_t maxUdpSize  = tsRpcMaxUdpSize;
+  int32_t forceTcp  = tsRpcForceTcp;
+
+  if (0 == strcmp("tcp", pkgType)){
+    tsRpcForceTcp = 1;
+    tsRpcMaxUdpSize = 0;            // force tcp
+  } else {
+    tsRpcForceTcp = 0;
+    tsRpcMaxUdpSize = INT_MAX;
+  }
+  tsCompressMsgSize = -1;
+
+  SRpcEpSet epSet;
+  SRpcMsg   reqMsg;
+  SRpcMsg   rspMsg;
+  void *    pRpcConn;
+  char secretEncrypt[32] = {0};
+  char    spi = 0;
+  pRpcConn = taosNetInitRpc(secretEncrypt, spi);
+  if (NULL == pRpcConn) {
+    uError("failed to init client rpc");
+    return;
+  }
+
+  printf("check net spend, host:%s port:%d pkgLen:%d pkgNum:%d pkgType:%s\n\n", host, port, pkgLen, pkgNum, pkgType);
+  int32_t totalSucc = 0;
+  uint64_t startT = taosGetTimestampUs();
+  for (int32_t i = 1; i <= pkgNum; i++) {
+    uint64_t startTime = taosGetTimestampUs();
+
+    memset(&epSet, 0, sizeof(SRpcEpSet));
+    epSet.inUse = 0;
+    epSet.numOfEps = 1;
+    epSet.port[0] = port;
+    strcpy(epSet.fqdn[0], host);
+
+    reqMsg.msgType = TSDB_MSG_TYPE_NETWORK_TEST;
+    reqMsg.pCont = rpcMallocCont(pkgLen);
+    reqMsg.contLen = pkgLen;
+    reqMsg.code = 0;
+    reqMsg.handle = NULL;   // rpc handle returned to app
+    reqMsg.ahandle = NULL;  // app handle set by client
+    strcpy(reqMsg.pCont, "nettest speed");
+
+    rpcSendRecv(pRpcConn, &epSet, &reqMsg, &rspMsg);
+
+    int code = 0;
+    if ((rspMsg.code != 0) || (rspMsg.msgType != TSDB_MSG_TYPE_NETWORK_TEST + 1)) {
+      uError("ret code 0x%x %s", rspMsg.code, tstrerror(rspMsg.code));
+      code = -1;
+    }else{
+      totalSucc ++;
+    }
+
+    rpcFreeCont(rspMsg.pCont);
+
+    uint64_t endTime = taosGetTimestampUs();
+    uint64_t el = endTime - startTime;
+    printf("progress:%5d/%d\tstatus:%d\tcost:%8.2lf ms\tspeed:%8.2lf MB/s\n", i, pkgNum, code, el/1000.0, pkgLen/(el/1000000.0)/1024.0/1024.0);
+  }
+  int64_t endT = taosGetTimestampUs();
+  uint64_t elT = endT - startT;
+  printf("\ntotal succ:%5d/%d\tcost:%8.2lf ms\tspeed:%8.2lf MB/s\n", totalSucc, pkgNum, elT/1000.0, pkgLen/(elT/1000000.0)/1024.0/1024.0*totalSucc);
+
+  rpcClose(pRpcConn);
+
+  // return config
+  tsCompressMsgSize = compressTmp;
+  tsRpcMaxUdpSize = maxUdpSize;
+  tsRpcForceTcp = forceTcp;
+  return;
+}
+
+void taosNetTest(char *role, char *host, int32_t port, int32_t pkgLen,
+                 int32_t pkgNum, char *pkgType) {
   tscEmbedded = 1;
   if (host == NULL) host = tsLocalFqdn;
   if (port == 0) port = tsServerPort;
-  if (pkgLen <= 10) pkgLen = 1000;
-  if (pkgLen > MAX_PKG_LEN) pkgLen = MAX_PKG_LEN;
+  if (0 == strcmp("speed", role)){
+    if (pkgLen <= MIN_SPEED_PKG_LEN) pkgLen = MIN_SPEED_PKG_LEN;
+    if (pkgLen > MAX_SPEED_PKG_LEN) pkgLen = MAX_SPEED_PKG_LEN;
+    if (pkgNum <= MIN_SPEED_PKG_NUM) pkgNum = MIN_SPEED_PKG_NUM;
+    if (pkgNum > MAX_SPEED_PKG_NUM) pkgNum = MAX_SPEED_PKG_NUM;
+  }else{
+    if (pkgLen <= 10) pkgLen = 1000;
+    if (pkgLen > MAX_PKG_LEN) pkgLen = MAX_PKG_LEN;
+  }
 
   if (0 == strcmp("client", role)) {
     taosNetTestClient(host, port, pkgLen);
@@ -556,7 +665,13 @@ void taosNetTest(char *role, char *host, int32_t port, int32_t pkgLen) {
     taosNetCheckSync(host, port);
   } else if (0 == strcmp("startup", role)) {
     taosNetTestStartup(host, port);
-  } else {
+  } else if (0 == strcmp("speed", role)) {
+    tscEmbedded = 0;
+    char type[10] = {0};
+    taosNetCheckSpeed(host, port, pkgLen, pkgNum, strtolower(type, pkgType));
+  }else if (0 == strcmp("fqdn", role)) {
+    taosNetTestFqdn(host);
+  }else {
     taosNetTestStartup(host, port);
   }
 

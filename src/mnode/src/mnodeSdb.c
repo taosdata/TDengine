@@ -227,6 +227,7 @@ void sdbUpdateMnodeRoles() {
     SMnodeObj *pMnode = mnodeGetMnode(roles.nodeId[i]);
     if (pMnode != NULL) {
       if (pMnode->role != roles.role[i]) {
+        pMnode->roleTime = taosGetTimestampMs();
         bnNotify();
       }
 
@@ -1113,6 +1114,7 @@ static void *sdbWorkerFp(void *pWorker) {
   void *   unUsed;
 
   taosBlockSIGPIPE();
+  setThreadName("sdbWorker");
 
   while (1) {
     int32_t numOfMsgs = taosReadAllQitemsFromQset(tsSdbWQset, tsSdbWQall, &unUsed);

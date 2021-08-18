@@ -40,8 +40,10 @@
 #include "dnodeShell.h"
 #include "dnodeTelemetry.h"
 #include "module.h"
-#include "qScript.h"
 #include "mnode.h"
+#include "qScript.h"
+#include "tcache.h"
+#include "tscompression.h"
 
 #if !defined(_MODULE) || !defined(_TD_LINUX)
 int32_t moduleStart() { return 0; }
@@ -164,7 +166,6 @@ int32_t dnodeInitSystem() {
   taosInitGlobalCfg();
   taosReadGlobalLogCfg();
   taosSetCoreDump();
-  taosInitNotes();
   dnodeInitTmr();
 
   if (dnodeCreateDir(tsLogDir) < 0) {
@@ -186,6 +187,8 @@ int32_t dnodeInitSystem() {
 
   dInfo("start to initialize TDengine");
 
+  taosInitNotes();
+
   if (dnodeInitComponents() != 0) {
     return -1;
   }
@@ -193,6 +196,7 @@ int32_t dnodeInitSystem() {
   dnodeSetRunStatus(TSDB_RUN_STATUS_RUNING);
   moduleStart();
 
+  tsDnodeStartTime = taosGetTimestampMs();
   dnodeReportStep("TDengine", "initialized successfully", 1);
   dInfo("TDengine is initialized successfully");
 
@@ -207,6 +211,7 @@ void dnodeCleanUpSystem() {
     dnodeCleanupComponents();
     taos_cleanup();
     taosCloseLog();
+    taosStopCacheRefreshWorker();
   }
 }
 
@@ -236,6 +241,12 @@ static void dnodeCheckDataDirOpenned(char *dir) {
 }
 
 static int32_t dnodeInitStorage() {
+#ifdef TD_TSZ
+  // compress module init
+  tsCompressInit();
+#endif
+
+  // storage module init
   if (tsDiskCfgNum == 1 && dnodeCreateDir(tsDataDir) < 0) {
     dError("failed to create dir: %s, reason: %s", tsDataDir, strerror(errno));
     return -1;
@@ -311,7 +322,15 @@ static int32_t dnodeInitStorage() {
   return 0;
 }
 
-static void dnodeCleanupStorage() { tfsDestroy(); }
+static void dnodeCleanupStorage() {
+  // storage destroy
+  tfsDestroy();
+
+ #ifdef TD_TSZ
+  // compress destroy
+  tsCompressExit();
+ #endif
+}
 
 bool  dnodeIsFirstDeploy() {
   return strcmp(tsFirst, tsLocalEp) == 0;

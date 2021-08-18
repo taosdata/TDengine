@@ -101,13 +101,17 @@ char *httpGetStatusDesc(int32_t statusCode) {
 }
 
 static void httpCleanupString(HttpString *str) {
-  free(str->str);
-  str->str = NULL;
-  str->pos = 0;
-  str->size = 0;
+  if (str->str) {
+    free(str->str);
+    str->str = NULL;
+    str->pos = 0;
+    str->size = 0;
+  }
 }
 
 static int32_t httpAppendString(HttpString *str, const char *s, int32_t len) {
+  char *new_str = NULL;
+
   if (str->size == 0) {
     str->pos = 0;
     str->size = len + 1;
@@ -115,7 +119,16 @@ static int32_t httpAppendString(HttpString *str, const char *s, int32_t len) {
   } else if (str->pos + len + 1 >= str->size) {
     str->size += len;
     str->size *= 4;
-    str->str = realloc(str->str, str->size);
+
+    new_str = realloc(str->str, str->size);
+    if (new_str == NULL && str->str) {
+      // if str->str was not NULL originally,
+      // the old allocated memory was left unchanged,
+      // see man 3 realloc
+      free(str->str);
+    }
+
+    str->str = new_str;
   } else {
   }
 
@@ -317,7 +330,7 @@ static int32_t httpOnParseHeaderField(HttpParser *parser, const char *key, const
 
 static int32_t httpOnBody(HttpParser *parser, const char *chunk, int32_t len) {
   HttpContext *pContext = parser->pContext;
-  HttpString * buf = &parser->body;
+  HttpString *buf = &parser->body;
   if (parser->parseCode != TSDB_CODE_SUCCESS) return -1;
 
   if (buf->size <= 0) {
@@ -326,6 +339,7 @@ static int32_t httpOnBody(HttpParser *parser, const char *chunk, int32_t len) {
   }
 
   int32_t newSize = buf->pos + len + 1;
+  char *newStr = NULL;
   if (newSize >= buf->size) {
     if (buf->size >= HTTP_BUFFER_SIZE) {
       httpError("context:%p, fd:%d, failed parse body, exceeding buffer size %d", pContext, pContext->fd, buf->size);
@@ -336,7 +350,12 @@ static int32_t httpOnBody(HttpParser *parser, const char *chunk, int32_t len) {
     newSize = MAX(newSize, HTTP_BUFFER_INIT);
     newSize *= 4;
     newSize = MIN(newSize, HTTP_BUFFER_SIZE);
-    buf->str = realloc(buf->str, newSize);
+    newStr = realloc(buf->str, newSize);
+    if (newStr == NULL && buf->str) {
+      free(buf->str);
+    }
+
+    buf->str = newStr;
     buf->size = newSize;
 
     if (buf->str == NULL) {
@@ -374,13 +393,20 @@ static HTTP_PARSER_STATE httpTopStack(HttpParser *parser) {
 
 static int32_t httpPushStack(HttpParser *parser, HTTP_PARSER_STATE state) {
   HttpStack *stack = &parser->stacks;
+  int8_t *newStacks = NULL;
   if (stack->size == 0) {
     stack->pos = 0;
     stack->size = 32;
     stack->stacks = malloc(stack->size * sizeof(int8_t));
   } else if (stack->pos + 1 > stack->size) {
     stack->size *= 2;
-    stack->stacks = realloc(stack->stacks, stack->size * sizeof(int8_t));
+
+    newStacks = realloc(stack->stacks, stack->size * sizeof(int8_t));
+    if (newStacks == NULL && stack->stacks) {
+      free(stack->stacks);
+    }
+
+    stack->stacks = newStacks;
   } else {
   }
 
@@ -744,6 +770,15 @@ static int32_t httpParserOnSp(HttpParser *parser, HTTP_PARSER_STATE state, const
   return ok;
 }
 
+static int32_t httpParserOnOptionalSp(HttpParser *parser, HTTP_PARSER_STATE state, const char c, int32_t *again) {
+  int32_t ok = 0;
+  if (c != ' ') {
+    *again = 1;
+    httpPopStack(parser);
+  }
+  return ok;
+}
+
 static int32_t httpParserOnStatusCode(HttpParser *parser, HTTP_PARSER_STATE state, const char c, int32_t *again) {
   HttpContext *pContext = parser->pContext;
   int32_t      ok = 0;
@@ -867,7 +902,7 @@ static int32_t httpParserOnHeader(HttpParser *parser, HTTP_PARSER_STATE state, c
       }
       httpPushStack(parser, HTTP_PARSER_CRLF);
       httpPushStack(parser, HTTP_PARSER_HEADER_VAL);
-      httpPushStack(parser, HTTP_PARSER_SP);
+      httpPushStack(parser, HTTP_PARSER_OPTIONAL_SP);
       httpPushStack(parser, HTTP_PARSER_HEADER_KEY);
       break;
     }
@@ -1059,6 +1094,10 @@ static int32_t httpParseChar(HttpParser *parser, const char c, int32_t *again) {
     }
     if (state == HTTP_PARSER_SP) {
       ok = httpParserOnSp(parser, state, c, again);
+      break;
+    }
+    if (state == HTTP_PARSER_OPTIONAL_SP) {
+      ok = httpParserOnOptionalSp(parser, state, c, again);
       break;
     }
     if (state == HTTP_PARSER_STATUS_CODE) {

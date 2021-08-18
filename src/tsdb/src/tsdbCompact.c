@@ -58,6 +58,7 @@ static int  tsdbCompactFSetImpl(SCompactH *pComph);
 static int  tsdbWriteBlockToRightFile(SCompactH *pComph, STable *pTable, SDataCols *pDataCols, void **ppBuf,
                                       void **ppCBuf);
 
+enum { TSDB_NO_COMPACT, TSDB_IN_COMPACT, TSDB_WAITING_COMPACT};
 int tsdbCompact(STsdbRepo *pRepo) { return tsdbAsyncCompact(pRepo); }
 
 void *tsdbCompactImpl(STsdbRepo *pRepo) {
@@ -89,16 +90,21 @@ _err:
 }
 
 static int tsdbAsyncCompact(STsdbRepo *pRepo) {
+  if (pRepo->compactState != TSDB_NO_COMPACT) {
+    tsdbInfo("vgId:%d not compact tsdb again ", REPO_ID(pRepo));
+    return 0; 
+  } 
+  pRepo->compactState = TSDB_WAITING_COMPACT;   
   tsem_wait(&(pRepo->readyToCommit));
   return tsdbScheduleCommit(pRepo, COMPACT_REQ);
 }
 
 static void tsdbStartCompact(STsdbRepo *pRepo) {
-  ASSERT(!pRepo->inCompact);
+  assert(pRepo->compactState != TSDB_IN_COMPACT);
   tsdbInfo("vgId:%d start to compact!", REPO_ID(pRepo));
   tsdbStartFSTxn(pRepo, 0, 0);
   pRepo->code = TSDB_CODE_SUCCESS;
-  pRepo->inCompact = true;
+  pRepo->compactState = TSDB_IN_COMPACT;
 }
 
 static void tsdbEndCompact(STsdbRepo *pRepo, int eno) {
@@ -107,7 +113,7 @@ static void tsdbEndCompact(STsdbRepo *pRepo, int eno) {
   } else {
     tsdbEndFSTxn(pRepo);
   }
-  pRepo->inCompact = false;
+  pRepo->compactState = TSDB_NO_COMPACT;
   tsdbInfo("vgId:%d compact over, %s", REPO_ID(pRepo), (eno == TSDB_CODE_SUCCESS) ? "succeed" : "failed");
   tsem_post(&(pRepo->readyToCommit));
 }
@@ -290,7 +296,7 @@ static int tsdbCompactMeta(STsdbRepo *pRepo) {
       return -1;
     }
 
-    pComph->pDataCols = tdNewDataCols(0, 0, pCfg->maxRowsPerFileBlock);
+    pComph->pDataCols = tdNewDataCols(0, pCfg->maxRowsPerFileBlock);
     if (pComph->pDataCols == NULL) {
       terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
       tsdbDestroyCompactH(pComph);
@@ -455,7 +461,7 @@ static int tsdbCompactMeta(STsdbRepo *pRepo) {
             if (pReadh->pDCols[0]->numOfRows - ridx == 0) break;
             int rowsToMerge = MIN(pReadh->pDCols[0]->numOfRows - ridx, defaultRows - pComph->pDataCols->numOfRows);
 
-            tdMergeDataCols(pComph->pDataCols, pReadh->pDCols[0], rowsToMerge, &ridx);
+            tdMergeDataCols(pComph->pDataCols, pReadh->pDCols[0], rowsToMerge, &ridx, pCfg->update != TD_ROW_PARTIAL_UPDATE);
 
             if (pComph->pDataCols->numOfRows < defaultRows) {
               break;

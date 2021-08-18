@@ -105,6 +105,7 @@ run general/parser/import_commit2.sim
 run general/parser/import_commit3.sim
 run general/parser/insert_tb.sim
 run general/parser/first_last.sim
+run general/parser/line_insert.sim
 #unsupport run general/parser/import_file.sim
 run general/parser/lastrow.sim
 run general/parser/nchar.sim

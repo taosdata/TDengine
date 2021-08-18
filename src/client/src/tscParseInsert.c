@@ -41,17 +41,57 @@ enum {
 static int32_t tscAllocateMemIfNeed(STableDataBlocks *pDataBlock, int32_t rowSize, int32_t *numOfRows);
 static int32_t parseBoundColumns(SInsertStatementParam *pInsertParam, SParsedDataColInfo *pColInfo, SSchema *pSchema,
                                  char *str, char **end);
-
-static int32_t tscToDouble(SStrToken *pToken, double *value, char **endPtr) {
-  errno = 0;
-  *value = strtold(pToken->z, endPtr);
-  
-  // not a valid integer number, return error
-  if ((*endPtr - pToken->z) != pToken->n) {
-    return TK_ILLEGAL;
+int            initMemRowBuilder(SMemRowBuilder *pBuilder, uint32_t nRows, uint32_t nCols, uint32_t nBoundCols,
+                                 int32_t allNullLen) {
+  ASSERT(nRows >= 0 && nCols > 0 && (nBoundCols <= nCols));
+  if (nRows > 0) {
+    // already init(bind multiple rows by single column)
+    if (pBuilder->compareStat == ROW_COMPARE_NEED && (pBuilder->rowInfo != NULL)) {
+      return TSDB_CODE_SUCCESS;
+    }
   }
 
-  return pToken->type;
+  if (nBoundCols == 0) {  // file input
+    pBuilder->memRowType = SMEM_ROW_DATA;
+    pBuilder->compareStat = ROW_COMPARE_NO_NEED;
+    return TSDB_CODE_SUCCESS;
+  } else {
+    float boundRatio = ((float)nBoundCols / (float)nCols);
+
+    if (boundRatio < KVRatioKV) {
+      pBuilder->memRowType = SMEM_ROW_KV;
+      pBuilder->compareStat = ROW_COMPARE_NO_NEED;
+      return TSDB_CODE_SUCCESS;
+    } else if (boundRatio > KVRatioData) {
+      pBuilder->memRowType = SMEM_ROW_DATA;
+      pBuilder->compareStat = ROW_COMPARE_NO_NEED;
+      return TSDB_CODE_SUCCESS;
+    }
+    pBuilder->compareStat = ROW_COMPARE_NEED;
+
+    if (boundRatio < KVRatioPredict) {
+      pBuilder->memRowType = SMEM_ROW_KV;
+    } else {
+      pBuilder->memRowType = SMEM_ROW_DATA;
+    }
+  }
+
+  pBuilder->dataRowInitLen = TD_MEM_ROW_DATA_HEAD_SIZE + allNullLen;
+  pBuilder->kvRowInitLen = TD_MEM_ROW_KV_HEAD_SIZE + nBoundCols * sizeof(SColIdx);
+
+  if (nRows > 0) {
+    pBuilder->rowInfo = tcalloc(nRows, sizeof(SMemRowInfo));
+    if (pBuilder->rowInfo == NULL) {
+      return TSDB_CODE_TSC_OUT_OF_MEMORY;
+    }
+
+    for (int i = 0; i < nRows; ++i) {
+      (pBuilder->rowInfo + i)->dataLen = pBuilder->dataRowInitLen;
+      (pBuilder->rowInfo + i)->kvLen = pBuilder->kvRowInitLen;
+    }
+  }
+
+  return TSDB_CODE_SUCCESS;
 }
 
 int tsParseTime(SStrToken *pToken, int64_t *time, char **next, char *error, int16_t timePrec) {
@@ -60,8 +100,6 @@ int tsParseTime(SStrToken *pToken, int64_t *time, char **next, char *error, int1
   int64_t   interval;
   int64_t   useconds = 0;
   char *    pTokenEnd = *next;
-
-  index = 0;
 
   if (pToken->type == TK_NOW) {
     useconds = taosGetTimestamp(timePrec);
@@ -107,7 +145,8 @@ int tsParseTime(SStrToken *pToken, int64_t *time, char **next, char *error, int1
       return tscInvalidOperationMsg(error, "value expected in timestamp", sToken.z);
     }
 
-    if (parseAbsoluteDuration(valueToken.z, valueToken.n, &interval, timePrec) != TSDB_CODE_SUCCESS) {
+    char unit = 0;
+    if (parseAbsoluteDuration(valueToken.z, valueToken.n, &interval, &unit, timePrec) != TSDB_CODE_SUCCESS) {
       return TSDB_CODE_TSC_INVALID_OPERATION;
     }
 
@@ -124,10 +163,6 @@ int tsParseTime(SStrToken *pToken, int64_t *time, char **next, char *error, int1
   return TSDB_CODE_SUCCESS;
 }
 
-static bool isNullStr(SStrToken* pToken) {
-  return (pToken->type == TK_NULL) || ((pToken->type == TK_STRING) && (pToken->n != 0) &&
-                                       (strncasecmp(TSDB_DATA_NULL_STR_L, pToken->z, pToken->n) == 0));
-}
 int32_t tsParseOneColumn(SSchema *pSchema, SStrToken *pToken, char *payload, char *msg, char **str, bool primaryKey,
                          int16_t timePrec) {
   int64_t iv;
@@ -414,30 +449,40 @@ int32_t tsCheckTimestamp(STableDataBlocks *pDataBlocks, const char *start) {
   return TSDB_CODE_SUCCESS;
 }
 
-int tsParseOneRow(char **str, STableDataBlocks *pDataBlocks, int16_t timePrec, int32_t *len,
-                  char *tmpTokenBuf, SInsertStatementParam* pInsertParam) {
-  int32_t    index = 0;
-  SStrToken  sToken = {0};
-  char      *payload = pDataBlocks->pData + pDataBlocks->size;
+int tsParseOneRow(char **str, STableDataBlocks *pDataBlocks, int16_t timePrec, int32_t *len, char *tmpTokenBuf,
+                  SInsertStatementParam *pInsertParam) {
+  int32_t   index = 0;
+  SStrToken sToken = {0};
+
+  char *row = pDataBlocks->pData + pDataBlocks->size;  // skip the SSubmitBlk header
 
   SParsedDataColInfo *spd = &pDataBlocks->boundColumnInfo;
-  SSchema *schema = tscGetTableSchema(pDataBlocks->pTableMeta);
+  STableMeta *        pTableMeta = pDataBlocks->pTableMeta;
+  SSchema *           schema = tscGetTableSchema(pTableMeta);
+  SMemRowBuilder *    pBuilder = &pDataBlocks->rowBuilder;
+  int32_t             dataLen = pBuilder->dataRowInitLen;
+  int32_t             kvLen = pBuilder->kvRowInitLen;
+  bool                isParseBindParam = false;
+
+  initSMemRow(row, pBuilder->memRowType, pDataBlocks, spd->numOfBound);
 
   // 1. set the parsed value from sql string
-  int32_t rowSize = 0;
   for (int i = 0; i < spd->numOfBound; ++i) {
     // the start position in data block buffer of current value in sql
     int32_t colIndex = spd->boundedColumns[i];
 
-    char    *start = payload + spd->cols[colIndex].offset;
-    SSchema *pSchema = &schema[colIndex];
-    rowSize += pSchema->bytes;
+    char *start = row + spd->cols[colIndex].offset;
+
+    SSchema *pSchema = &schema[colIndex];  // get colId here
 
     index = 0;
     sToken = tStrGetToken(*str, &index, true);
     *str += index;
 
     if (sToken.type == TK_QUESTION) {
+      if (!isParseBindParam) {
+        isParseBindParam = true;
+      }
       if (pInsertParam->insertType != TSDB_QUERY_TYPE_STMT_INSERT) {
         return tscSQLSyntaxErrMsg(pInsertParam->msg, "? only allowed in binding insertion", *str);
       }
@@ -453,7 +498,8 @@ int tsParseOneRow(char **str, STableDataBlocks *pDataBlocks, int16_t timePrec, i
 
     int16_t type = sToken.type;
     if ((type != TK_NOW && type != TK_INTEGER && type != TK_STRING && type != TK_FLOAT && type != TK_BOOL &&
-         type != TK_NULL && type != TK_HEX && type != TK_OCT && type != TK_BIN) || (sToken.n == 0) || (type == TK_RP)) {
+         type != TK_NULL && type != TK_HEX && type != TK_OCT && type != TK_BIN) ||
+        (sToken.n == 0) || (type == TK_RP)) {
       return tscSQLSyntaxErrMsg(pInsertParam->msg, "invalid data or symbol", sToken.z);
     }
 
@@ -467,10 +513,10 @@ int tsParseOneRow(char **str, STableDataBlocks *pDataBlocks, int16_t timePrec, i
       if (sToken.n >= TSDB_MAX_BYTES_PER_ROW) {
         return tscSQLSyntaxErrMsg(pInsertParam->msg, "too long string", sToken.z);
       }
-      
+
       for (uint32_t k = 1; k < sToken.n - 1; ++k) {
         if (sToken.z[k] == '\\' || (sToken.z[k] == delim && sToken.z[k + 1] == delim)) {
-            tmpTokenBuf[j] = sToken.z[k + 1];
+          tmpTokenBuf[j] = sToken.z[k + 1];
 
           cnt++;
           j++;
@@ -488,47 +534,71 @@ int tsParseOneRow(char **str, STableDataBlocks *pDataBlocks, int16_t timePrec, i
     }
 
     bool    isPrimaryKey = (colIndex == PRIMARYKEY_TIMESTAMP_COL_INDEX);
-    int32_t ret = tsParseOneColumn(pSchema, &sToken, start, pInsertParam->msg, str, isPrimaryKey, timePrec);
+    int32_t toffset = -1;
+    int16_t colId = -1;
+    tscGetMemRowAppendInfo(schema, pBuilder->memRowType, spd, i, &toffset, &colId);
+
+    int32_t ret = tsParseOneColumnKV(pSchema, &sToken, row, pInsertParam->msg, str, isPrimaryKey, timePrec, toffset,
+                                     colId, &dataLen, &kvLen, pBuilder->compareStat);
     if (ret != TSDB_CODE_SUCCESS) {
       return ret;
     }
 
-    if (isPrimaryKey && tsCheckTimestamp(pDataBlocks, start) != TSDB_CODE_SUCCESS) {
-      tscInvalidOperationMsg(pInsertParam->msg, "client time/server time can not be mixed up", sToken.z);
-      return TSDB_CODE_TSC_INVALID_TIME_STAMP;
+    if (isPrimaryKey) {
+      TSKEY tsKey = memRowKey(row);
+      if (tsCheckTimestamp(pDataBlocks, (const char *)&tsKey) != TSDB_CODE_SUCCESS) {
+        tscInvalidOperationMsg(pInsertParam->msg, "client time/server time can not be mixed up", sToken.z);
+        return TSDB_CODE_TSC_INVALID_TIME_STAMP;
+      }
     }
   }
 
-  // 2. set the null value for the columns that do not assign values
-  if (spd->numOfBound < spd->numOfCols) {
-    char *ptr = payload;
+  if (!isParseBindParam) {
+    // 2. check and set convert flag
+    if (pBuilder->compareStat == ROW_COMPARE_NEED) {
+      checkAndConvertMemRow(row, dataLen, kvLen);
+    }
 
-    for (int32_t i = 0; i < spd->numOfCols; ++i) {
-      if (!spd->cols[i].hasVal) {  // current column do not have any value to insert, set it to null
-        if (schema[i].type == TSDB_DATA_TYPE_BINARY) {
-          varDataSetLen(ptr, sizeof(int8_t));
-          *(uint8_t*) varDataVal(ptr) = TSDB_DATA_BINARY_NULL;
-        } else if (schema[i].type == TSDB_DATA_TYPE_NCHAR) {
-          varDataSetLen(ptr, sizeof(int32_t));
-          *(uint32_t*) varDataVal(ptr) = TSDB_DATA_NCHAR_NULL;
-        } else {
-          setNull(ptr, schema[i].type, schema[i].bytes);
+    // 3. set the null value for the columns that do not assign values
+    if ((spd->numOfBound < spd->numOfCols) && isDataRow(row) && !isNeedConvertRow(row)) {
+      SDataRow dataRow = memRowDataBody(row);
+      for (int32_t i = 0; i < spd->numOfCols; ++i) {
+        if (spd->cols[i].valStat == VAL_STAT_NONE) {
+          tdAppendDataColVal(dataRow, getNullValue(schema[i].type), true, schema[i].type, spd->cols[i].toffset);
         }
       }
-      
-      ptr += schema[i].bytes;
     }
-
-    rowSize = (int32_t)(ptr - payload);
   }
 
-  *len = rowSize;
+  *len = getExtendedRowSize(pDataBlocks);
+
   return TSDB_CODE_SUCCESS;
 }
 
 static int32_t rowDataCompar(const void *lhs, const void *rhs) {
   TSKEY left = *(TSKEY *)lhs;
   TSKEY right = *(TSKEY *)rhs;
+
+  if (left == right) {
+    return 0;
+  } else {
+    return left > right ? 1 : -1;
+  }
+}
+int32_t schemaIdxCompar(const void *lhs, const void *rhs) {
+  uint16_t left = *(uint16_t *)lhs;
+  uint16_t right = *(uint16_t *)rhs;
+
+  if (left == right) {
+    return 0;
+  } else {
+    return left > right ? 1 : -1;
+  }
+}
+
+int32_t boundIdxCompar(const void *lhs, const void *rhs) {
+  uint16_t left = *(uint16_t *)POINTER_SHIFT(lhs, sizeof(uint16_t));
+  uint16_t right = *(uint16_t *)POINTER_SHIFT(rhs, sizeof(uint16_t));
 
   if (left == right) {
     return 0;
@@ -551,21 +621,28 @@ int32_t tsParseValues(char **str, STableDataBlocks *pDataBlock, int maxRows, SIn
   
   int32_t  precision = tinfo.precision;
 
+  int32_t extendedRowSize = getExtendedRowSize(pDataBlock);
+
+  if (TSDB_CODE_SUCCESS !=
+      (code = initMemRowBuilder(&pDataBlock->rowBuilder, 0, tinfo.numOfColumns, pDataBlock->boundColumnInfo.numOfBound,
+                                pDataBlock->boundColumnInfo.allNullLen))) {
+    return code;
+  }
   while (1) {
     index = 0;
     sToken = tStrGetToken(*str, &index, false);
     if (sToken.n == 0 || sToken.type != TK_LP) break;
 
     *str += index;
-    if ((*numOfRows) >= maxRows || pDataBlock->size + tinfo.rowSize >= pDataBlock->nAllocSize) {
+    if ((*numOfRows) >= maxRows || pDataBlock->size + extendedRowSize >= pDataBlock->nAllocSize) {
       int32_t tSize;
-      code = tscAllocateMemIfNeed(pDataBlock, tinfo.rowSize, &tSize);
+      code = tscAllocateMemIfNeed(pDataBlock, extendedRowSize, &tSize);
       if (code != TSDB_CODE_SUCCESS) {  //TODO pass the correct error code to client
         strcpy(pInsertParam->msg, "client out of memory");
         return TSDB_CODE_TSC_OUT_OF_MEMORY;
       }
 
-      ASSERT(tSize > maxRows);
+      ASSERT(tSize >= maxRows);
       maxRows = tSize;
     }
 
@@ -580,9 +657,7 @@ int32_t tsParseValues(char **str, STableDataBlocks *pDataBlock, int maxRows, SIn
     index = 0;
     sToken = tStrGetToken(*str, &index, false);
     if (sToken.n == 0 || sToken.type != TK_RP) {
-      tscSQLSyntaxErrMsg(pInsertParam->msg, ") expected", *str);
-      code = TSDB_CODE_TSC_SQL_SYNTAX_ERROR;
-      return code;
+      return tscSQLSyntaxErrMsg(pInsertParam->msg, ") expected", *str);
     }
     
     *str += index;
@@ -601,18 +676,37 @@ int32_t tsParseValues(char **str, STableDataBlocks *pDataBlock, int maxRows, SIn
 void tscSetBoundColumnInfo(SParsedDataColInfo *pColInfo, SSchema *pSchema, int32_t numOfCols) {
   pColInfo->numOfCols = numOfCols;
   pColInfo->numOfBound = numOfCols;
-
+  pColInfo->orderStatus = ORDER_STATUS_ORDERED;  // default is ORDERED for non-bound mode
   pColInfo->boundedColumns = calloc(pColInfo->numOfCols, sizeof(int32_t));
   pColInfo->cols = calloc(pColInfo->numOfCols, sizeof(SBoundColumn));
+  pColInfo->colIdxInfo = NULL;
+  pColInfo->flen = 0;
+  pColInfo->allNullLen = 0;
 
+  int32_t nVar = 0;
   for (int32_t i = 0; i < pColInfo->numOfCols; ++i) {
+    uint8_t type = pSchema[i].type;
     if (i > 0) {
       pColInfo->cols[i].offset = pSchema[i - 1].bytes + pColInfo->cols[i - 1].offset;
+      pColInfo->cols[i].toffset = pColInfo->flen;
     }
-
-    pColInfo->cols[i].hasVal = true;
+    pColInfo->flen += TYPE_BYTES[type];
+    switch (type) {
+      case TSDB_DATA_TYPE_BINARY:
+        pColInfo->allNullLen += (VARSTR_HEADER_SIZE + CHAR_BYTES);
+        ++nVar;
+        break;
+      case TSDB_DATA_TYPE_NCHAR:
+        pColInfo->allNullLen += (VARSTR_HEADER_SIZE + TSDB_NCHAR_SIZE);
+        ++nVar;
+        break;
+      default:
+        break;
+    }
     pColInfo->boundedColumns[i] = i;
   }
+  pColInfo->allNullLen += pColInfo->flen;
+  pColInfo->extendedVarLen = (uint16_t)(nVar * sizeof(VarDataOffsetT));
 }
 
 int32_t tscAllocateMemIfNeed(STableDataBlocks *pDataBlock, int32_t rowSize, int32_t * numOfRows) {
@@ -643,7 +737,7 @@ int32_t tscAllocateMemIfNeed(STableDataBlocks *pDataBlock, int32_t rowSize, int3
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t tsSetBlockInfo(SSubmitBlk *pBlocks, const STableMeta *pTableMeta, int32_t numOfRows) {
+int32_t FORCE_INLINE tsSetBlockInfo(SSubmitBlk *pBlocks, const STableMeta *pTableMeta, int32_t numOfRows) {
   pBlocks->tid = pTableMeta->id.tid;
   pBlocks->uid = pTableMeta->id.uid;
   pBlocks->sversion = pTableMeta->sversion;
@@ -657,7 +751,7 @@ static int32_t tsSetBlockInfo(SSubmitBlk *pBlocks, const STableMeta *pTableMeta,
 }
 
 // data block is disordered, sort it in ascending order
-void tscSortRemoveDataBlockDupRows(STableDataBlocks *dataBuf) {
+void tscSortRemoveDataBlockDupRowsRaw(STableDataBlocks *dataBuf) {
   SSubmitBlk *pBlocks = (SSubmitBlk *)dataBuf->pData;
 
   // size is less than the total size, since duplicated rows may be removed yet.
@@ -701,11 +795,80 @@ void tscSortRemoveDataBlockDupRows(STableDataBlocks *dataBuf) {
   dataBuf->prevTS = INT64_MIN;
 }
 
-static int32_t doParseInsertStatement(SInsertStatementParam *pInsertParam, char **str, STableDataBlocks* dataBuf, int32_t *totalNum) {
-  STableComInfo tinfo = tscGetTableInfo(dataBuf->pTableMeta);
-  
+// data block is disordered, sort it in ascending order
+int tscSortRemoveDataBlockDupRows(STableDataBlocks *dataBuf, SBlockKeyInfo *pBlkKeyInfo) {
+  SSubmitBlk *pBlocks = (SSubmitBlk *)dataBuf->pData;
+  int16_t     nRows = pBlocks->numOfRows;
+
+  // size is less than the total size, since duplicated rows may be removed yet.
+
+  // if use server time, this block must be ordered
+  if (dataBuf->tsSource == TSDB_USE_SERVER_TS) {
+    assert(dataBuf->ordered);
+  }
+  // allocate memory
+  size_t nAlloc = nRows * sizeof(SBlockKeyTuple);
+  if (pBlkKeyInfo->pKeyTuple == NULL || pBlkKeyInfo->maxBytesAlloc < nAlloc) {
+    size_t nRealAlloc = nAlloc + 10 * sizeof(SBlockKeyTuple);
+    char * tmp = trealloc(pBlkKeyInfo->pKeyTuple, nRealAlloc);
+    if (tmp == NULL) {
+      return TSDB_CODE_TSC_OUT_OF_MEMORY;
+    }
+    pBlkKeyInfo->pKeyTuple = (SBlockKeyTuple *)tmp;
+    pBlkKeyInfo->maxBytesAlloc = (int32_t)nRealAlloc;
+  }
+  memset(pBlkKeyInfo->pKeyTuple, 0, nAlloc);
+
+  int32_t         extendedRowSize = getExtendedRowSize(dataBuf);
+  SBlockKeyTuple *pBlkKeyTuple = pBlkKeyInfo->pKeyTuple;
+  char *          pBlockData = pBlocks->data;
+  int             n = 0;
+  while (n < nRows) {
+    pBlkKeyTuple->skey = memRowKey(pBlockData);
+    pBlkKeyTuple->payloadAddr = pBlockData;
+
+    // next loop
+    pBlockData += extendedRowSize;
+    ++pBlkKeyTuple;
+    ++n;
+  }
+
+  if (!dataBuf->ordered) {
+    pBlkKeyTuple = pBlkKeyInfo->pKeyTuple;
+    qsort(pBlkKeyTuple, nRows, sizeof(SBlockKeyTuple), rowDataCompar);
+
+    pBlkKeyTuple = pBlkKeyInfo->pKeyTuple;
+    int32_t i = 0;
+    int32_t j = 1;
+    while (j < nRows) {
+      TSKEY ti = (pBlkKeyTuple + i)->skey;
+      TSKEY tj = (pBlkKeyTuple + j)->skey;
+
+      if (ti == tj) {
+        ++j;
+        continue;
+      }
+
+      int32_t nextPos = (++i);
+      if (nextPos != j) {
+        memmove(pBlkKeyTuple + nextPos, pBlkKeyTuple + j, sizeof(SBlockKeyTuple));
+      }
+      ++j;
+    }
+
+    dataBuf->ordered = true;
+    pBlocks->numOfRows = i + 1;
+  }
+
+  dataBuf->size = sizeof(SSubmitBlk) + pBlocks->numOfRows * extendedRowSize;
+  dataBuf->prevTS = INT64_MIN;
+
+  return 0;
+}
+
+static int32_t doParseInsertStatement(SInsertStatementParam *pInsertParam, char **str, STableDataBlocks* dataBuf, int32_t *totalNum) {  
   int32_t maxNumOfRows;
-  int32_t code = tscAllocateMemIfNeed(dataBuf, tinfo.rowSize, &maxNumOfRows);
+  int32_t code = tscAllocateMemIfNeed(dataBuf, getExtendedRowSize(dataBuf), &maxNumOfRows);
   if (TSDB_CODE_SUCCESS != code) {
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
   }
@@ -991,7 +1154,7 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql, char** boundC
       return TSDB_CODE_TSC_SQL_SYNTAX_ERROR;
     }
 
-    code = tscGetTableMetaEx(pSql, pTableMetaInfo, true);
+    code = tscGetTableMetaEx(pSql, pTableMetaInfo, true, false);
     if (TSDB_CODE_TSC_ACTION_IN_PROGRESS == code) {
       return code;
     }
@@ -1002,7 +1165,7 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql, char** boundC
     }
 
     sql = sToken.z;
-    code = tscGetTableMetaEx(pSql, pTableMetaInfo, false);
+    code = tscGetTableMetaEx(pSql, pTableMetaInfo, false, false);
     if (pInsertParam->sql == NULL) {
       assert(code == TSDB_CODE_TSC_ACTION_IN_PROGRESS);
     }
@@ -1038,11 +1201,12 @@ static int32_t validateDataSource(SInsertStatementParam *pInsertParam, int32_t t
 
 static int32_t parseBoundColumns(SInsertStatementParam *pInsertParam, SParsedDataColInfo* pColInfo, SSchema* pSchema,
     char* str, char **end) {
-  pColInfo->numOfBound = 0;
+  int32_t nCols = pColInfo->numOfCols;
 
-  memset(pColInfo->boundedColumns, 0, sizeof(int32_t) * pColInfo->numOfCols);
-  for(int32_t i = 0; i < pColInfo->numOfCols; ++i) {
-    pColInfo->cols[i].hasVal = false;
+  pColInfo->numOfBound = 0;
+  memset(pColInfo->boundedColumns, 0, sizeof(int32_t) * nCols);
+  for (int32_t i = 0; i < nCols; ++i) {
+    pColInfo->cols[i].valStat = VAL_STAT_NONE;
   }
 
   int32_t code = TSDB_CODE_SUCCESS;
@@ -1056,6 +1220,8 @@ static int32_t parseBoundColumns(SInsertStatementParam *pInsertParam, SParsedDat
     goto _clean;
   }
 
+  bool    isOrdered = true;
+  int32_t lastColIdx = -1;  // last column found
   while (1) {
     index = 0;
     sToken = tStrGetToken(str, &index, false);
@@ -1076,18 +1242,48 @@ static int32_t parseBoundColumns(SInsertStatementParam *pInsertParam, SParsedDat
     bool findColumnIndex = false;
 
     // todo speedup by using hash list
-    for (int32_t t = 0; t < pColInfo->numOfCols; ++t) {
+    int32_t nScanned = 0, t = lastColIdx + 1;
+    while (t < nCols) {
       if (strncmp(sToken.z, pSchema[t].name, sToken.n) == 0 && strlen(pSchema[t].name) == sToken.n) {
-        if (pColInfo->cols[t].hasVal == true) {
+        if (pColInfo->cols[t].valStat == VAL_STAT_HAS) {
           code = tscInvalidOperationMsg(pInsertParam->msg, "duplicated column name", sToken.z);
           goto _clean;
         }
 
-        pColInfo->cols[t].hasVal = true;
+        pColInfo->cols[t].valStat = VAL_STAT_HAS;
         pColInfo->boundedColumns[pColInfo->numOfBound] = t;
-        pColInfo->numOfBound += 1;
+        ++pColInfo->numOfBound;
         findColumnIndex = true;
+        if (isOrdered && (lastColIdx > t)) {
+          isOrdered = false;
+        }
+        lastColIdx = t;
         break;
+      }
+      ++t;
+      ++nScanned;
+    }
+    if (!findColumnIndex) {
+      t = 0;
+      int32_t nRemain = nCols - nScanned;
+      while (t < nRemain) {
+        if (strncmp(sToken.z, pSchema[t].name, sToken.n) == 0 && strlen(pSchema[t].name) == sToken.n) {
+          if (pColInfo->cols[t].valStat == VAL_STAT_HAS) {
+            code = tscInvalidOperationMsg(pInsertParam->msg, "duplicated column name", sToken.z);
+            goto _clean;
+          }
+
+          pColInfo->cols[t].valStat = VAL_STAT_HAS;
+          pColInfo->boundedColumns[pColInfo->numOfBound] = t;
+          ++pColInfo->numOfBound;
+          findColumnIndex = true;
+          if (isOrdered && (lastColIdx > t)) {
+            isOrdered = false;
+          }
+          lastColIdx = t;
+          break;
+        }
+        ++t;
       }
     }
 
@@ -1097,10 +1293,32 @@ static int32_t parseBoundColumns(SInsertStatementParam *pInsertParam, SParsedDat
     }
   }
 
-  memset(&pColInfo->boundedColumns[pColInfo->numOfBound], 0 , sizeof(int32_t) * (pColInfo->numOfCols - pColInfo->numOfBound));
+  pColInfo->orderStatus = isOrdered ? ORDER_STATUS_ORDERED : ORDER_STATUS_DISORDERED;
+
+  if (!isOrdered) {
+    pColInfo->colIdxInfo = tcalloc(pColInfo->numOfBound, sizeof(SBoundIdxInfo));
+    if (pColInfo->colIdxInfo == NULL) {
+      code = TSDB_CODE_TSC_OUT_OF_MEMORY;
+      goto _clean;
+    }
+    SBoundIdxInfo *pColIdx = pColInfo->colIdxInfo;
+    for (uint16_t i = 0; i < pColInfo->numOfBound; ++i) {
+      pColIdx[i].schemaColIdx = (uint16_t)pColInfo->boundedColumns[i];
+      pColIdx[i].boundIdx = i;
+    }
+    qsort(pColIdx, pColInfo->numOfBound, sizeof(SBoundIdxInfo), schemaIdxCompar);
+    for (uint16_t i = 0; i < pColInfo->numOfBound; ++i) {
+      pColIdx[i].finalIdx = i;
+    }
+    qsort(pColIdx, pColInfo->numOfBound, sizeof(SBoundIdxInfo), boundIdxCompar);
+  }
+
+  memset(&pColInfo->boundedColumns[pColInfo->numOfBound], 0,
+         sizeof(int32_t) * (pColInfo->numOfCols - pColInfo->numOfBound));
+
   return TSDB_CODE_SUCCESS;
 
-  _clean:
+_clean:
   pInsertParam->sql = NULL;
   return code;
 }
@@ -1290,7 +1508,7 @@ int tsParseInsertSql(SSqlObj *pSql) {
           goto _clean;
         }
 
-        if (dataBuf->boundColumnInfo.cols[0].hasVal == false) {
+        if (dataBuf->boundColumnInfo.cols[0].valStat == VAL_STAT_NONE) {
           code = tscInvalidOperationMsg(pInsertParam->msg, "primary timestamp column can not be null", NULL);
           goto _clean;
         }
@@ -1358,7 +1576,6 @@ int tsInsertInitialCheck(SSqlObj *pSql) {
 int tsParseSql(SSqlObj *pSql, bool initial) {
   int32_t ret = TSDB_CODE_SUCCESS;
   SSqlCmd* pCmd = &pSql->cmd;
-
   if (!initial) {
     tscDebug("0x%"PRIx64" resume to parse sql: %s", pSql->self, pCmd->insertParam.sql);
   }
@@ -1378,7 +1595,7 @@ int tsParseSql(SSqlObj *pSql, bool initial) {
     if (pSql->parseRetry < 1 && (ret == TSDB_CODE_TSC_SQL_SYNTAX_ERROR || ret == TSDB_CODE_TSC_INVALID_OPERATION)) {
       tscDebug("0x%"PRIx64 " parse insert sql statement failed, code:%s, clear meta cache and retry ", pSql->self, tstrerror(ret));
 
-      tscResetSqlCmd(pCmd, true);
+      tscResetSqlCmd(pCmd, true, pSql->self);
       pSql->parseRetry++;
 
       if ((ret = tsInsertInitialCheck(pSql)) == TSDB_CODE_SUCCESS) {
@@ -1395,7 +1612,7 @@ int tsParseSql(SSqlObj *pSql, bool initial) {
     if (ret == TSDB_CODE_TSC_INVALID_OPERATION && pSql->parseRetry < 1 && sqlInfo.type == TSDB_SQL_SELECT) {
       tscDebug("0x%"PRIx64 " parse query sql statement failed, code:%s, clear meta cache and retry ", pSql->self, tstrerror(ret));
 
-      tscResetSqlCmd(pCmd, true);
+      tscResetSqlCmd(pCmd, true, pSql->self);
       pSql->parseRetry++;
 
       ret = tscValidateSqlInfo(pSql, &sqlInfo);
@@ -1494,18 +1711,24 @@ static void parseFileSendDataBlock(void *param, TAOS_RES *tres, int32_t numOfRow
   }
 
   STableDataBlocks *pTableDataBlock = NULL;
-  int32_t           ret =
-      tscGetDataBlockFromList(pInsertParam->pTableBlockHashList, pTableMeta->id.uid, TSDB_PAYLOAD_SIZE, sizeof(SSubmitBlk),
-                              tinfo.rowSize, &pTableMetaInfo->name, pTableMeta, &pTableDataBlock, NULL);
+  int32_t ret = tscGetDataBlockFromList(pInsertParam->pTableBlockHashList, pTableMeta->id.uid, TSDB_PAYLOAD_SIZE,
+                                        sizeof(SSubmitBlk), tinfo.rowSize, &pTableMetaInfo->name, pTableMeta,
+                                        &pTableDataBlock, NULL);
   if (ret != TSDB_CODE_SUCCESS) {
     pParentSql->res.code = TSDB_CODE_TSC_OUT_OF_MEMORY;
     goto _error;
   }
 
-  tscAllocateMemIfNeed(pTableDataBlock, tinfo.rowSize, &maxRows);
+  tscAllocateMemIfNeed(pTableDataBlock, getExtendedRowSize(pTableDataBlock), &maxRows);
   tokenBuf = calloc(1, TSDB_MAX_BYTES_PER_ROW);
   if (tokenBuf == NULL) {
     code = TSDB_CODE_TSC_OUT_OF_MEMORY;
+    goto _error;
+  }
+
+  if (TSDB_CODE_SUCCESS !=
+      (ret = initMemRowBuilder(&pTableDataBlock->rowBuilder, 0, tinfo.numOfColumns, pTableDataBlock->numOfParams,
+                               pTableDataBlock->boundColumnInfo.allNullLen))) {
     goto _error;
   }
 
@@ -1557,7 +1780,7 @@ static void parseFileSendDataBlock(void *param, TAOS_RES *tres, int32_t numOfRow
       pParentSql->fp = pParentSql->fetchFp;
 
       // all data has been sent to vnode, call user function
-      int32_t v = (code != TSDB_CODE_SUCCESS) ? code : (int32_t)pParentSql->res.numOfRows;
+      int32_t v = (int32_t)pParentSql->res.numOfRows;
       (*pParentSql->fp)(pParentSql->param, pParentSql, v);
       return;
     }

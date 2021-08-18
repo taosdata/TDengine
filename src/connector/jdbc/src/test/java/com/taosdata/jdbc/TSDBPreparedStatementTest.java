@@ -2,7 +2,6 @@ package com.taosdata.jdbc;
 
 import org.junit.*;
 
-import java.io.IOException;
 import java.math.BigDecimal;
 import java.sql.*;
 import java.util.ArrayList;
@@ -26,7 +25,7 @@ public class TSDBPreparedStatementTest {
         long ts = System.currentTimeMillis();
         pstmt_insert.setTimestamp(1, new Timestamp(ts));
         pstmt_insert.setInt(2, 2);
-        pstmt_insert.setLong(3, 3l);
+        pstmt_insert.setLong(3, 3L);
         pstmt_insert.setFloat(4, 3.14f);
         pstmt_insert.setDouble(5, 3.1415);
         pstmt_insert.setShort(6, (short) 6);
@@ -53,8 +52,8 @@ public class TSDBPreparedStatementTest {
             Assert.assertEquals(ts, rs.getTimestamp(1).getTime());
             Assert.assertEquals(2, rs.getInt(2));
             Assert.assertEquals(2, rs.getInt("f1"));
-            Assert.assertEquals(3l, rs.getLong(3));
-            Assert.assertEquals(3l, rs.getLong("f2"));
+            Assert.assertEquals(3L, rs.getLong(3));
+            Assert.assertEquals(3L, rs.getLong("f2"));
             Assert.assertEquals(3.14f, rs.getFloat(4), 0.0);
             Assert.assertEquals(3.14f, rs.getFloat("f3"), 0.0);
             Assert.assertEquals(3.1415, rs.getDouble(5), 0.0);
@@ -312,14 +311,14 @@ public class TSDBPreparedStatementTest {
             Random r = new Random();
             s.setTableName("weather_test");
 
-            ArrayList<Long> ts = new ArrayList<Long>();
+            ArrayList<Long> ts = new ArrayList<>();
             for (int i = 0; i < numOfRows; i++) {
                 ts.add(System.currentTimeMillis() + i);
             }
             s.setTimestamp(0, ts);
 
             int random = 10 + r.nextInt(5);
-            ArrayList<String> s2 = new ArrayList<String>();
+            ArrayList<String> s2 = new ArrayList<>();
             for (int i = 0; i < numOfRows; i++) {
                 if (i % random == 0) {
                     s2.add(null);
@@ -330,7 +329,7 @@ public class TSDBPreparedStatementTest {
             s.setNString(1, s2, 4);
 
             random = 10 + r.nextInt(5);
-            ArrayList<Float> s3 = new ArrayList<Float>();
+            ArrayList<Float> s3 = new ArrayList<>();
             for (int i = 0; i < numOfRows; i++) {
                 if (i % random == 0) {
                     s3.add(null);
@@ -341,7 +340,7 @@ public class TSDBPreparedStatementTest {
             s.setFloat(2, s3);
 
             random = 10 + r.nextInt(5);
-            ArrayList<Double> s4 = new ArrayList<Double>();
+            ArrayList<Double> s4 = new ArrayList<>();
             for (int i = 0; i < numOfRows; i++) {
                 if (i % random == 0) {
                     s4.add(null);
@@ -352,7 +351,7 @@ public class TSDBPreparedStatementTest {
             s.setDouble(3, s4);
 
             random = 10 + r.nextInt(5);
-            ArrayList<Long> ts2 = new ArrayList<Long>();
+            ArrayList<Long> ts2 = new ArrayList<>();
             for (int i = 0; i < numOfRows; i++) {
                 if (i % random == 0) {
                     ts2.add(null);
@@ -379,13 +378,13 @@ public class TSDBPreparedStatementTest {
                 if (i % random == 0) {
                     sb.add(null);
                 } else {
-                    sb.add(i % 2 == 0 ? true : false);
+                    sb.add(i % 2 == 0);
                 }
             }
             s.setBoolean(6, sb);
 
             random = 10 + r.nextInt(5);
-            ArrayList<String> s5 = new ArrayList<String>();
+            ArrayList<String> s5 = new ArrayList<>();
             for (int i = 0; i < numOfRows; i++) {
                 if (i % random == 0) {
                     s5.add(null);
@@ -424,14 +423,14 @@ public class TSDBPreparedStatementTest {
             Random r = new Random();
             s.setTableName("weather_test");
 
-            ArrayList<Long> ts = new ArrayList<Long>();
+            ArrayList<Long> ts = new ArrayList<>();
             for (int i = 0; i < numOfRows; i++) {
                 ts.add(System.currentTimeMillis() + i);
             }
             s.setTimestamp(0, ts);
 
             int random = 10 + r.nextInt(5);
-            ArrayList<String> s2 = new ArrayList<String>();
+            ArrayList<String> s2 = new ArrayList<>();
             for (int i = 0; i < numOfRows; i++) {
                 if (i % random == 0) {
                     s2.add(null);
@@ -442,7 +441,7 @@ public class TSDBPreparedStatementTest {
             s.setNString(1, s2, 4);
 
             random = 10 + r.nextInt(5);
-            ArrayList<String> s3 = new ArrayList<String>();
+            ArrayList<String> s3 = new ArrayList<>();
             for (int i = 0; i < numOfRows; i++) {
                 if (i % random == 0) {
                     s3.add(null);
@@ -471,7 +470,7 @@ public class TSDBPreparedStatementTest {
     public void bindDataWithSingleTagTest() throws SQLException {
         Statement stmt = conn.createStatement();
 
-        String types[] = new String[]{"tinyint", "smallint", "int", "bigint", "bool", "float", "double", "binary(10)", "nchar(10)"};
+        String[] types = new String[]{"tinyint", "smallint", "int", "bigint", "bool", "float", "double", "binary(10)", "nchar(10)"};
 
         for (String type : types) {
             stmt.execute("drop table if exists weather_test");
@@ -510,21 +509,21 @@ public class TSDBPreparedStatementTest {
             }
 
 
-            ArrayList<Long> ts = new ArrayList<Long>();
+            ArrayList<Long> ts = new ArrayList<>();
             for (int i = 0; i < numOfRows; i++) {
                 ts.add(System.currentTimeMillis() + i);
             }
             s.setTimestamp(0, ts);
 
             int random = 10 + r.nextInt(5);
-            ArrayList<String> s2 = new ArrayList<String>();
+            ArrayList<String> s2 = new ArrayList<>();
             for (int i = 0; i < numOfRows; i++) {
                 s2.add("分支" + i % 4);
             }
             s.setNString(1, s2, 10);
 
             random = 10 + r.nextInt(5);
-            ArrayList<String> s3 = new ArrayList<String>();
+            ArrayList<String> s3 = new ArrayList<>();
             for (int i = 0; i < numOfRows; i++) {
                 s3.add("test" + i % 4);
             }
@@ -561,13 +560,13 @@ public class TSDBPreparedStatementTest {
         s.setTagString(1, "test");
 
 
-        ArrayList<Long> ts = new ArrayList<Long>();
+        ArrayList<Long> ts = new ArrayList<>();
         for (int i = 0; i < numOfRows; i++) {
             ts.add(System.currentTimeMillis() + i);
         }
         s.setTimestamp(0, ts);
 
-        ArrayList<String> s2 = new ArrayList<String>();
+        ArrayList<String> s2 = new ArrayList<>();
         for (int i = 0; i < numOfRows; i++) {
             s2.add("test" + i % 4);
         }
@@ -788,7 +787,7 @@ public class TSDBPreparedStatementTest {
     public void setBigDecimal() throws SQLException {
         // given
         long ts = System.currentTimeMillis();
-        BigDecimal bigDecimal = new BigDecimal(3.14444);
+        BigDecimal bigDecimal = new BigDecimal("3.14444");
 
         // when
         pstmt_insert.setTimestamp(1, new Timestamp(ts));
@@ -999,7 +998,7 @@ public class TSDBPreparedStatementTest {
         long ts = System.currentTimeMillis();
         pstmt_insert.setTimestamp(1, new Timestamp(ts));
         pstmt_insert.setInt(2, 2);
-        pstmt_insert.setLong(3, 3l);
+        pstmt_insert.setLong(3, 3L);
         pstmt_insert.setFloat(4, 3.14f);
         pstmt_insert.setDouble(5, 3.1415);
         pstmt_insert.setShort(6, (short) 6);

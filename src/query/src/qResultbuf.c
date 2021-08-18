@@ -78,8 +78,9 @@ static char* doDecompressData(void* data, int32_t srcSize, int32_t *dst, SDiskba
   }
 
   *dst = tsDecompressString(data, srcSize, 1, pResultBuf->assistBuf, pResultBuf->pageSize, ONE_STAGE_COMP, NULL, 0);
-
-  memcpy(data, pResultBuf->assistBuf, *dst);
+  if (*dst > 0) {
+    memcpy(data, pResultBuf->assistBuf, *dst);
+  }
   return data;
 }
 

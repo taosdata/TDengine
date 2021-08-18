@@ -34,7 +34,7 @@ static char doc[] = "";
 static char args_doc[] = "";
 static struct argp_option options[] = {
   {"host",       'h', "HOST",       0,                   "TDengine server FQDN to connect. The default host is localhost."},
-  {"password",   'p', "PASSWORD",   OPTION_ARG_OPTIONAL, "The password to use when connecting to the server."},
+  {"password",   'p', 0,   0,                   "The password to use when connecting to the server."},
   {"port",       'P', "PORT",       0,                   "The TCP/IP port number to use for the connection."},
   {"user",       'u', "USER",       0,                   "The user name to use when connecting to the server."},
   {"auth",       'A', "Auth",       0,                   "The auth string to use when connecting to the server."},
@@ -48,8 +48,10 @@ static struct argp_option options[] = {
   {"check",      'k', "CHECK",      0,                   "Check tables."},
   {"database",   'd', "DATABASE",   0,                   "Database to use when connecting to the server."},
   {"timezone",   't', "TIMEZONE",   0,                   "Time zone of the shell, default is local."},
-  {"netrole",    'n', "NETROLE",    0,                   "Net role when network connectivity test, default is startup, options: client|server|rpc|startup|sync."},
+  {"netrole",    'n', "NETROLE",    0,                   "Net role when network connectivity test, default is startup, options: client|server|rpc|startup|sync|speen|fqdn."},
   {"pktlen",     'l', "PKTLEN",     0,                   "Packet length used for net test, default is 1000 bytes."},
+  {"pktnum",     'N', "PKTNUM",     0,                   "Packet numbers used for net test, default is 100."},
+  {"pkttype",    'S', "PKTTYPE",    0,                   "Packet type used for net test, default is TCP."},
   {0}};
 
 static error_t parse_opt(int key, char *arg, struct argp_state *state) {
@@ -63,8 +65,6 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
       arguments->host = arg;
       break;
     case 'p':
-      arguments->is_use_passwd = true;
-      if (arg) arguments->password = arg;
       break;
     case 'P':
       if (arg) {
@@ -148,6 +148,17 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
         return -1;
       }
       break;
+    case 'N':
+      if (arg) {
+        arguments->pktNum = atoi(arg);
+      } else {
+        fprintf(stderr, "Invalid packet number\n");
+        return -1;
+      }
+      break;
+    case 'S':
+      arguments->pktType = arg;
+      break;
     case OPT_ABORT:
       arguments->abort = 1;
       break;
@@ -160,12 +171,41 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
 /* Our argp parser. */
 static struct argp argp = {options, parse_opt, args_doc, doc};
 
+char      LINUXCLIENT_VERSION[] = "Welcome to the TDengine shell from %s, Client Version:%s\n"
+                             "Copyright (c) 2020 by TAOS Data, Inc. All rights reserved.\n\n";
+char g_password[MAX_PASSWORD_SIZE];
+
+static void parse_password(
+        int argc, char *argv[], SShellArguments *arguments) {
+    for (int i = 1; i < argc; i++) {
+        if (strncmp(argv[i], "-p", 2) == 0) {
+            strcpy(tsOsName, "Linux");
+            printf(LINUXCLIENT_VERSION, tsOsName, taos_get_client_info());
+            if (strlen(argv[i]) == 2) {
+                printf("Enter password: ");
+                if (scanf("%20s", g_password) > 1) {
+                    fprintf(stderr, "password reading error\n");
+                }
+                getchar();
+            } else {
+                tstrncpy(g_password, (char *)(argv[i] + 2), MAX_PASSWORD_SIZE);
+            }
+            arguments->password = g_password;
+            arguments->is_use_passwd = true;
+        }
+    }
+}
+
 void shellParseArgument(int argc, char *argv[], SShellArguments *arguments) {
   static char verType[32] = {0};
   sprintf(verType, "version: %s\n", version);
 
   argp_program_version = verType;
-  
+
+  if (argc > 1) {
+    parse_password(argc, argv, arguments);
+  }
+
   argp_parse(&argp, argc, argv, 0, 0, arguments);
   if (arguments->abort) {
     #ifndef _ALPINE
@@ -238,9 +278,15 @@ int32_t shellReadCommand(TAOS *con, char *command) {
             updateBuffer(&cmd);
           }
           break;
+        case 11:  // Ctrl + K;
+          clearLineAfter(&cmd);
+          break;
         case 12:  // Ctrl + L;
           system("clear");
           showOnScreen(&cmd);
+          break;
+        case 21:  // Ctrl + U;
+          clearLineBefore(&cmd);
           break;
       }
     } else if (c == '\033') {
@@ -335,6 +381,8 @@ void *shellLoopQuery(void *arg) {
   }
 
   TAOS *con = (TAOS *)arg;
+
+  setThreadName("shellLoopQuery");
 
   pthread_cleanup_push(cleanup_handler, NULL);
 

@@ -36,7 +36,6 @@ public class TSDBJNIConnector {
 
     static {
         System.loadLibrary("taos");
-        System.out.println("java.library.path:" + System.getProperty("java.library.path"));
     }
 
     public boolean isClosed() {
@@ -80,7 +79,8 @@ public class TSDBJNIConnector {
 
         this.taos = this.connectImp(host, port, dbName, user, password);
         if (this.taos == TSDBConstants.JNI_NULL_POINTER) {
-            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_JNI_CONNECTION_NULL);
+            String errMsg = this.getErrMsg(0);
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_JNI_CONNECTION_NULL, errMsg);
         }
         // invoke connectImp only here
         taosInfo.conn_open_increment();
@@ -348,4 +348,13 @@ public class TSDBJNIConnector {
     }
 
     private native int closeStmt(long stmt, long con);
+
+    public void insertLines(String[] lines) throws SQLException {
+        int code = insertLinesImp(lines, this.taos);
+        if (code != TSDBConstants.JNI_SUCCESS) {
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNKNOWN, "failed to insertLines");
+        }
+    }
+
+    private native int insertLinesImp(String[] lines, long conn);
 }

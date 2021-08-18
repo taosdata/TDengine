@@ -142,14 +142,17 @@ tSqlExpr *tSqlExprCreateIdValue(SStrToken *pToken, int32_t optrType) {
   }
 
   if (optrType == TK_NULL) {
-    pToken->type = TSDB_DATA_TYPE_NULL;
-    tVariantCreate(&pSqlExpr->value, pToken);
+    if (pToken){
+      pToken->type = TSDB_DATA_TYPE_NULL;
+      tVariantCreate(&pSqlExpr->value, pToken);
+    }
     pSqlExpr->tokenId = optrType;
     pSqlExpr->type    = SQL_NODE_VALUE;
   } else if (optrType == TK_INTEGER || optrType == TK_STRING || optrType == TK_FLOAT || optrType == TK_BOOL) {
-    toTSDBType(pToken->type);
-
-    tVariantCreate(&pSqlExpr->value, pToken);
+    if (pToken) {
+      toTSDBType(pToken->type);
+      tVariantCreate(&pSqlExpr->value, pToken);
+    }
     pSqlExpr->tokenId = optrType;
     pSqlExpr->type    = SQL_NODE_VALUE;
   } else if (optrType == TK_NOW) {
@@ -162,9 +165,12 @@ tSqlExpr *tSqlExprCreateIdValue(SStrToken *pToken, int32_t optrType) {
   } else if (optrType == TK_VARIABLE) {
     // use nanosecond by default
     // TODO set value after getting database precision
-    int32_t ret = parseAbsoluteDuration(pToken->z, pToken->n, &pSqlExpr->value.i64, TSDB_TIME_PRECISION_NANO);
-    if (ret != TSDB_CODE_SUCCESS) {
-      terrno = TSDB_CODE_TSC_SQL_SYNTAX_ERROR;
+    if (pToken) {
+      char unit = 0;
+      int32_t ret = parseAbsoluteDuration(pToken->z, pToken->n, &pSqlExpr->value.i64, &unit, TSDB_TIME_PRECISION_NANO);
+      if (ret != TSDB_CODE_SUCCESS) {
+        terrno = TSDB_CODE_TSC_SQL_SYNTAX_ERROR;
+      }
     }
 
     pSqlExpr->flags  |= 1 << EXPR_FLAG_NS_TIMESTAMP;
@@ -340,8 +346,9 @@ static FORCE_INLINE int32_t tStrTokenCompare(SStrToken* left, SStrToken* right) 
   return (left->type == right->type && left->n == right->n && strncasecmp(left->z, right->z, left->n) == 0) ? 0 : 1;
 }
 
+// this function is not used for temporary
 int32_t tSqlExprCompare(tSqlExpr *left, tSqlExpr *right) {
-  if ((left == NULL && right) || (left && right == NULL)) {
+  if ((left == NULL && right) || (left && right == NULL) || (left == NULL && right == NULL)) {
     return 1;
   }
 
@@ -416,6 +423,9 @@ tSqlExpr *tSqlExprClone(tSqlExpr *pSrc) {
     pExpr->pRight = tSqlExprClone(pSrc->pRight);
   }
 
+  memset(&pExpr->value, 0, sizeof(pExpr->value));
+  tVariantAssign(&pExpr->value, &pSrc->value);
+
   //we don't clone paramList now because clone is only used for between/and
   assert(pSrc->Expr.paramList == NULL);
   return pExpr;
@@ -471,9 +481,7 @@ static void doDestroySqlExprNode(tSqlExpr *pExpr) {
     return;
   }
 
-  if (pExpr->tokenId == TK_STRING) {
-    tVariantDestroy(&pExpr->value);
-  }
+  tVariantDestroy(&pExpr->value);
 
   tSqlExprListDestroy(pExpr->Expr.paramList);
   free(pExpr);
@@ -712,9 +720,8 @@ void tSetColumnType(TAOS_FIELD *pField, SStrToken *type) {
     } else {
       int32_t bytes = -(int32_t)(type->type);
       if (bytes > (TSDB_MAX_NCHAR_LEN - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE) {
-        // we have to postpone reporting the error because it cannot be done here
-        // as pField->bytes is int16_t, use 'TSDB_MAX_NCHAR_LEN + 1' to avoid overflow
-        bytes = TSDB_MAX_NCHAR_LEN + 1;
+        // overflowed. set bytes to -1 so that error can be reported
+        bytes = -1;
       } else {
         bytes = bytes * TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE;
       }
@@ -727,8 +734,8 @@ void tSetColumnType(TAOS_FIELD *pField, SStrToken *type) {
     } else {
       int32_t bytes = -(int32_t)(type->type);
       if (bytes > TSDB_MAX_BINARY_LEN - VARSTR_HEADER_SIZE) {
-        // refer comment for NCHAR above
-        bytes = TSDB_MAX_BINARY_LEN + 1;
+        // overflowed. set bytes to -1 so that error can be reported
+        bytes = -1;
       } else {
         bytes += VARSTR_HEADER_SIZE;
       }
@@ -948,6 +955,8 @@ void SqlInfoDestroy(SSqlInfo *pInfo) {
     taosArrayDestroy(pInfo->pAlterInfo->pAddColumns);
     tfree(pInfo->pAlterInfo->tagData.data);
     tfree(pInfo->pAlterInfo);
+  } else if (pInfo->type == TSDB_SQL_COMPACT_VNODE) {
+    tSqlExprListDestroy(pInfo->list); 
   } else {
     if (pInfo->pMiscInfo != NULL) {
       taosArrayDestroy(pInfo->pMiscInfo->a);

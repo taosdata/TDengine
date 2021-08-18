@@ -22,7 +22,8 @@ TDengine 的安装非常简单，从下载到安装成功仅仅只要几秒钟�
 
 具体的安装过程，请参见 [TDengine 多种安装包的安装和卸载](https://www.taosdata.com/blog/2019/08/09/566.html) 以及 [视频教程](https://www.taosdata.com/blog/2020/11/11/1941.html)。
 
-## <a class="anchor" id="start"></a>轻松启动
+<a class="anchor" id="start"></a>
+## 轻松启动
 
 安装成功后，用户可使用 `systemctl` 命令来启动 TDengine 的服务进程。
 
@@ -30,7 +31,7 @@ TDengine 的安装非常简单，从下载到安装成功仅仅只要几秒钟�
 $ systemctl start taosd
 ```
 
-检查服务是否正常工作。
+检查服务是否正常工作：
 ```bash
 $ systemctl status taosd
 ```
@@ -40,20 +41,20 @@ $ systemctl status taosd
 **注意：**  
 
 - systemctl 命令需要 _root_ 权限来运行，如果您非 _root_ 用户，请在命令前添加 sudo 。
-- 为更好的获得产品反馈，改善产品，TDengine 会采集基本的使用信息，但您可以修改系统配置文件 taos.cfg 里的配置参数 telemetryReporting, 将其设为 0，就可将其关闭。
+- 为更好的获得产品反馈，改善产品，TDengine 会采集基本的使用信息，但您可以修改系统配置文件 taos.cfg 里的配置参数 telemetryReporting，将其设为 0，就可将其关闭。
 - TDengine 采用 FQDN (一般就是 hostname )作为节点的 ID，为保证正常运行，需要给运行 taosd 的服务器配置好 hostname，在客户端应用运行的机器配置好 DNS 服务或 hosts 文件，保证 FQDN 能够解析。
 - `systemctl stop taosd` 指令在执行后并不会马上停止 TDengine 服务，而是会等待系统中必要的落盘工作正常完成。在数据量很大的情况下，这可能会消耗较长时间。
 
-* TDengine 支持在使用 [`systemd`](https://en.wikipedia.org/wiki/Systemd) 做进程服务管理的 linux 系统上安装，用 `which systemctl` 命令来检测系统中是否存在 `systemd` 包:
+* TDengine 支持在使用 [`systemd`](https://en.wikipedia.org/wiki/Systemd) 做进程服务管理的 Linux 系统上安装，用 `which systemctl` 命令来检测系统中是否存在 `systemd` 包:
 
   ```bash
   $ which systemctl
   ```
 
-  如果系统中不支持 systemd，也可以用手动运行 /usr/local/taos/bin/taosd 方式启动 TDengine 服务。
+  如果系统中不支持 `systemd`，也可以用手动运行 /usr/local/taos/bin/taosd 方式启动 TDengine 服务。
 
-  
-## <a class="anchor" id="console"></a>TDengine 命令行程序
+<a class="anchor" id="console"></a>
+## TDengine 命令行程序
 
 执行 TDengine 命令行程序，您只要在 Linux 终端执行 `taos` 即可。
 
@@ -83,14 +84,14 @@ select * from t;
 Query OK, 2 row(s) in set (0.003128s)
 ```
 
-除执行 SQL 语句外，系统管理员还可以从 TDengine 终端检查系统运行状态，添加删除用户账号等。
+除执行 SQL 语句外，系统管理员还可以从 TDengine 终端进行检查系统运行状态、添加删除用户账号等操作。
 
-### 命令行参数
+**命令行参数**
 
 您可通过配置命令行参数来改变 TDengine 终端的行为。以下为常用的几个命令行参数：
 
-- -c, --config-dir: 指定配置文件目录，默认为 _/etc/taos_
-- -h, --host: 指定服务的 FQDN 地址（也可以使用 IP），默认为连接本地服务
+- -c, --config-dir: 指定配置文件目录，默认为 `/etc/taos`
+- -h, --host: 指定服务的 FQDN 地址或 IP 地址，默认为连接本地服务
 - -s, --commands: 在不进入终端的情况下运行 TDengine 命令
 - -u, --user: 连接 TDengine 服务器的用户名，缺省为 root
 - -p, --password: 连接TDengine服务器的密码，缺省为 taosdata
@@ -99,10 +100,10 @@ Query OK, 2 row(s) in set (0.003128s)
 示例：
 
 ```bash
-$ taos -h 192.168.0.1 -s "use db; show tables;"
+$ taos -h h1.taos.com -s "use db; show tables;"
 ```
 
-### 运行 SQL 命令脚本
+**运行 SQL 命令脚本**
 
 TDengine 终端可以通过 `source` 命令来运行 SQL 命令脚本.
 
@@ -110,13 +111,14 @@ TDengine 终端可以通过 `source` 命令来运行 SQL 命令脚本.
 taos> source <filename>;
 ```
 
-### Shell 小技巧
+**Shell 小技巧**
 
 - 可以使用上下光标键查看历史输入的指令
-- 修改用户密码，在 shell 中使用 alter user 指令
+- 修改用户密码：在 shell 中使用 `alter user` 命令，缺省密码为 taosdata
 - ctrl+c 中止正在进行中的查询
-- 执行 `RESET QUERY CACHE` 清空本地缓存的表 schema
-
+- 执行 `RESET QUERY CACHE` 可清除本地缓存的表 schema
+- 批量执行 SQL 语句。可以将一系列的 shell 命令（以英文 ; 结尾，每个 SQL 语句为一行）按行存放在文件里，在 shell 里执行命令 `source <file-name>` 自动执行该文件里所有的 SQL 语句
+- 输入 q 回车，退出 taos shell
 
 ## <a class="anchor" id="demo"></a>TDengine 极速体验
 
@@ -126,7 +128,7 @@ taos> source <filename>;
 $ taosdemo
 ```
 
-该命令将在数据库 test 下面自动创建一张超级表 meters，该超级表下有 1 万张表，表名为 "t0" 到 "t9999"，每张表有 1 万条记录，每条记录有 (ts, current, voltage, phase) 四个字段，时间戳从 "2017-07-14 10:40:00 000" 到 "2017-07-14 10:40:09 999"，每张表带有标签 location 和 groupdId，groupdId 被设置为 1 到 10， location 被设置为 "beijing" 或者 "shanghai"。
+该命令将在数据库 test 下面自动创建一张超级表 meters，该超级表下有 1 万张表，表名为 "d0" 到 "d9999"，每张表有 1 万条记录，每条记录有 (ts, current, voltage, phase) 四个字段，时间戳从 "2017-07-14 10:40:00 000" 到 "2017-07-14 10:40:09 999"，每张表带有标签 location 和 groupId，groupId 被设置为 1 到 10， location 被设置为 "beijing" 或者 "shanghai"。
 
 执行这条命令大概需要几分钟，最后共插入 1 亿条记录。
 
@@ -150,16 +152,16 @@ taos> select avg(current), max(voltage), min(phase) from test.meters;
 taos> select count(*) from test.meters where location="beijing";
 ```
 
-- 查询 groupdId=10 的所有记录的平均值、最大值、最小值等：
+- 查询 groupId=10 的所有记录的平均值、最大值、最小值等：
 
 ```mysql
-taos> select avg(current), max(voltage), min(phase) from test.meters where groupdId=10;
+taos> select avg(current), max(voltage), min(phase) from test.meters where groupId=10;
 ```
 
-- 对表 t10 按 10s 进行平均值、最大值和最小值聚合统计：
+- 对表 d10 按 10s 进行平均值、最大值和最小值聚合统计：
 
 ```mysql
-taos> select avg(current), max(voltage), min(phase) from test.t10 interval(10s);
+taos> select avg(current), max(voltage), min(phase) from test.d10 interval(10s);
 ```
 
 **Note:** taosdemo 命令本身带有很多选项，配置表的数目、记录条数等等，请执行 `taosdemo --help` 详细列出。您可以设置不同参数进行体验。
@@ -179,17 +181,15 @@ taos> select avg(current), max(voltage), min(phase) from test.t10 interval(10s);
 |                | **CentOS 6/7/8** | **Ubuntu 16/18/20** | **Other Linux** | **统信 UOS** | **银河/中标麒麟** | **凝思 V60/V80** | **华为 EulerOS** |
 | -------------- | --------------------- | ------------------------ | --------------- | --------------- | ------------------------- | --------------------- | --------------------- |
 | X64            | ●                     | ●                        |                 | ○               | ●                         | ●                     | ●                     |
-| 树莓派 ARM32    |                       | ●                        | ●               |                 |                           |                       |                       |
 | 龙芯 MIPS64     |                       |                          | ●               |                 |                           |                       |                       |
-| 鲲鹏 ARM64    |                       | ○                        | ○               |                 | ●                         |                       |                       |
-| 申威 Alpha64  |                       |                          | ○               | ●               |                           |                       |                       |
+| 鲲鹏 ARM64      |                       | ○                        | ○               |                 | ●                         |                       |                       |
+| 申威 Alpha64    |                       |                          | ○               | ●               |                           |                       |                       |
 | 飞腾 ARM64      |                       | ○ 优麒麟                  |                 |                 |                           |                       |                       |
 | 海光 X64        | ●                     | ●                        | ●               | ○               | ●                         | ●                     |                       |
-| 瑞芯微 ARM64/32 |                       |                          | ○               |                 |                           |                       |                       |
-| 全志 ARM64/32   |                       |                          | ○               |                 |                           |                       |                       |
-| 炬力 ARM64/32   |                       |                          | ○               |                 |                           |                       |                       |
-| TI ARM32       |                       |                          | ○               |                 |                           |                       |                       |
-| 华为云 ARM64   |                       |                          |                 |                 |                           |                       | ●                     |
+| 瑞芯微 ARM64    |                       |                          | ○               |                 |                           |                       |                       |
+| 全志 ARM64      |                       |                          | ○               |                 |                           |                       |                       |
+| 炬力 ARM64      |                       |                          | ○               |                 |                           |                       |                       |
+| 华为云 ARM64    |                       |                          |                 |                 |                           |                       | ●                     |
 
 注： ● 表示经过官方测试验证， ○ 表示非官方测试验证。
 

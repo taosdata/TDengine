@@ -187,19 +187,19 @@ class TDTestCase:
             "select * from t9 where t9.ts > '1969-12-31 22:00:00.000' and t9.ts <'1970-01-01 02:00:00.000' "
         )
         tdSql.checkRows(719)
-        
+
         tdSql.query(
             "select * from t0,t1 where t0.ts=t1.ts and t1.ts >= '1970-01-01 00:00:00.000' "
         )
         tdSql.checkRows(680)
-        
+
         tdSql.query(
-            "select diff(col1) from t0 where t0.ts >= '1970-01-01 00:00:00.000' "
+            "select diff(c1) from t0 where t0.ts >= '1970-01-01 00:00:00.000' "
         )
         tdSql.checkRows(679)
 
         tdSql.query(
-            "select t0,col1 from stb2 where stb2.ts < '1970-01-01 00:00:00.000' order by ts"
+            "select t0,c1 from stb2 where stb2.ts < '1970-01-01 00:00:00.000' order by ts"
         )
         tdSql.checkRows(43200)
 

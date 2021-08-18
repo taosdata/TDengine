@@ -101,7 +101,7 @@ class TDTestCase:
         # tdSql.query(f"select * from t1 where c2 between {pow(10,38)*3.4} and {pow(10,38)*3.4+1}")
         # tdSql.checkRows(1)
         tdSql.query(f"select * from t2 where c2 between {-3.4*10**38-1} and {-3.4*10**38}")
-        tdSql.checkRows(0)
+        tdSql.checkRows(2)
         tdSql.error(f"select * from t2 where c2 between null and {-3.4*10**38}")
         # tdSql.checkRows(3)
 

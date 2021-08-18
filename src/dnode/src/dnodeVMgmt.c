@@ -103,6 +103,8 @@ static void *dnodeProcessMgmtQueue(void *wparam) {
   int32_t      qtype;
   void *       handle;
 
+  setThreadName("dnodeMgmtQ");
+
   while (1) {
     if (taosReadQitemFromQset(pPool->qset, &qtype, (void **)&pMgmt, &handle) == 0) {
       dDebug("qdnode mgmt got no message from qset:%p, , exit", pPool->qset);

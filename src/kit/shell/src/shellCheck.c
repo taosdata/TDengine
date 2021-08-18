@@ -104,6 +104,8 @@ static void shellFreeTbnames() {
 static void *shellCheckThreadFp(void *arg) {
   ShellThreadObj *pThread = (ShellThreadObj *)arg;
 
+  setThreadName("shellCheckThrd");
+
   int32_t interval = tbNum / pThread->totalThreads + 1;
   int32_t start = pThread->threadIndex * interval;
   int32_t end = (pThread->threadIndex + 1) * interval;

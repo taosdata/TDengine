@@ -105,7 +105,6 @@ class TDTestCase:
         # 6--days,7--keep0,keep1,keep, 12--block,
 
         isCommunity = self.checkCommunity()
-
         print("iscommunity: %d" % isCommunity)
         for i in range(len(dbresult)):
             if dbresult[i][0] == 'db':

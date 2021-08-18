@@ -160,22 +160,23 @@ class TDTestCase:
         tdSql.checkData(0,9,9.000000000)
         tdSql.checkData(0,10,'2020-09-13 20:26:40.009')
 
+        # incorrect result, not support nest > 2
         sql = '''select last_row(*) from 
                 ((select * from table_0) union all
                  (select * from table_1) union all
                  (select * from table_2));'''
-        tdSql.query(sql)
-        tdSql.checkRows(1)
-        tdSql.checkData(0,1,self.num-1)
-        tdSql.checkData(0,2,self.num-1)
-        tdSql.checkData(0,3,self.num-1)
-        tdSql.checkData(0,4,self.num-1)
-        tdSql.checkData(0,5,'False')
-        tdSql.checkData(0,6,'binary.9')
-        tdSql.checkData(0,7,'nchar.9')
-        tdSql.checkData(0,8,9.00000)
-        tdSql.checkData(0,9,9.000000000)
-        tdSql.checkData(0,10,'2020-09-13 20:26:40.009')
+        tdSql.error(sql)
+        #tdSql.checkRows(1)
+        #tdSql.checkData(0,1,self.num-1)
+        #tdSql.checkData(0,2,self.num-1)
+        #tdSql.checkData(0,3,self.num-1)
+        #tdSql.checkData(0,4,self.num-1)
+        #tdSql.checkData(0,5,'False')
+        #tdSql.checkData(0,6,'binary.9')
+        #tdSql.checkData(0,7,'nchar.9')
+        #tdSql.checkData(0,8,9.00000)
+        #tdSql.checkData(0,9,9.000000000)
+        #tdSql.checkData(0,10,'2020-09-13 20:26:40.009')
 
         # bug 5055
         # sql = '''select last_row(*) from 
@@ -189,18 +190,18 @@ class TDTestCase:
                 ((select last_row(*) from table_0) union all
                  (select last_row(*) from table_1) union all
                  (select last_row(*) from table_2));'''
-        tdSql.query(sql)
-        tdSql.checkRows(1)
-        tdSql.checkData(0,1,self.num-1)
-        tdSql.checkData(0,2,self.num-1)
-        tdSql.checkData(0,3,self.num-1)
-        tdSql.checkData(0,4,self.num-1)
-        tdSql.checkData(0,5,'False')
-        tdSql.checkData(0,6,'binary.9')
-        tdSql.checkData(0,7,'nchar.9')
-        tdSql.checkData(0,8,9.00000)
-        tdSql.checkData(0,9,9.000000000)
-        tdSql.checkData(0,10,'2020-09-13 20:26:40.009')
+        tdSql.error(sql)
+        #tdSql.checkRows(1)
+        #tdSql.checkData(0,1,self.num-1)
+        #tdSql.checkData(0,2,self.num-1)
+        #tdSql.checkData(0,3,self.num-1)
+        #tdSql.checkData(0,4,self.num-1)
+        #tdSql.checkData(0,5,'False')
+        #tdSql.checkData(0,6,'binary.9')
+        #tdSql.checkData(0,7,'nchar.9')
+        #tdSql.checkData(0,8,9.00000)
+        #tdSql.checkData(0,9,9.000000000)
+        #tdSql.checkData(0,10,'2020-09-13 20:26:40.009')
 
         # bug 5055
         # sql = '''select last_row(*) from 
@@ -214,18 +215,18 @@ class TDTestCase:
                 ((select * from table_0 limit 5 offset 5) union all
                  (select * from table_1 limit 5 offset 5) union all
                  (select * from regular_table_1 limit 5 offset 5));'''
-        tdSql.query(sql)
-        tdSql.checkRows(1)
-        tdSql.checkData(0,1,self.num-1)
-        tdSql.checkData(0,2,self.num-1)
-        tdSql.checkData(0,3,self.num-1)
-        tdSql.checkData(0,4,self.num-1)
-        tdSql.checkData(0,5,'False')
-        tdSql.checkData(0,6,'binary.9')
-        tdSql.checkData(0,7,'nchar.9')
-        tdSql.checkData(0,8,9.00000)
-        tdSql.checkData(0,9,9.000000000)
-        tdSql.checkData(0,10,'2020-09-13 20:26:40.009')
+        tdSql.error(sql)
+        #tdSql.checkRows(1)
+        #tdSql.checkData(0,1,self.num-1)
+        #tdSql.checkData(0,2,self.num-1)
+        #tdSql.checkData(0,3,self.num-1)
+        #tdSql.checkData(0,4,self.num-1)
+        #tdSql.checkData(0,5,'False')
+        #tdSql.checkData(0,6,'binary.9')
+        #tdSql.checkData(0,7,'nchar.9')
+        #tdSql.checkData(0,8,9.00000)
+        #tdSql.checkData(0,9,9.000000000)
+        #tdSql.checkData(0,10,'2020-09-13 20:26:40.009')
 
 
         sql = '''select last_row(*)  from 
