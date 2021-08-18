@@ -20,8 +20,9 @@ public class ImportTest {
     @BeforeClass
     public static void before() {
         try {
-            Class.forName("com.taosdata.jdbc.TSDBDriver");
             Properties properties = new Properties();
+            properties.setProperty(TSDBDriver.PROPERTY_KEY_USER, "root");
+            properties.setProperty(TSDBDriver.PROPERTY_KEY_PASSWORD, "taosdata");
             properties.setProperty(TSDBDriver.PROPERTY_KEY_CHARSET, "UTF-8");
             properties.setProperty(TSDBDriver.PROPERTY_KEY_LOCALE, "en_US.UTF-8");
             properties.setProperty(TSDBDriver.PROPERTY_KEY_TIME_ZONE, "UTC-8");
@@ -33,8 +34,6 @@ public class ImportTest {
             stmt.close();
 
             ts = System.currentTimeMillis();
-        } catch (ClassNotFoundException e) {
-            e.printStackTrace();
         } catch (SQLException e) {
             e.printStackTrace();
         }
@@ -47,7 +46,6 @@ public class ImportTest {
             for (int i = 0; i < 50; i++) {
                 ts++;
                 int row = stmt.executeUpdate("import into " + dbName + "." + tName + " values (" + ts + ", " + (100 + i) + ", " + i + ")");
-                System.out.println("import into " + dbName + "." + tName + " values (" + ts + ", " + (100 + i) + ", " + i + ")\t" + row);
                 assertEquals(1, row);
             }
         }
@@ -84,7 +82,6 @@ public class ImportTest {
                 long t = (++ts) + a;
                 sqlBuilder.append("(").append(t).append(",").append((100 + i)).append(",").append(i).append(") ");
             }
-            System.out.println(sqlBuilder.toString());
             int rows = stmt.executeUpdate(sqlBuilder.toString());
             assertEquals(50, rows);
         } catch (SQLException e) {

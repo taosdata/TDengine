@@ -20,7 +20,7 @@ import java.util.Properties;
 public class TSDBConnection extends AbstractConnection {
 
     private TSDBJNIConnector connector;
-    private TSDBDatabaseMetaData databaseMetaData;
+    private final TSDBDatabaseMetaData databaseMetaData;
     private boolean batchFetch;
 
     public Boolean getBatchFetch() {

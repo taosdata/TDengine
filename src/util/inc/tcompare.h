@@ -22,10 +22,17 @@ extern "C" {
 
 #include "os.h"
 
-#define TSDB_PATTERN_MATCH 0
-#define TSDB_PATTERN_NOMATCH 1
-#define TSDB_PATTERN_NOWILDCARDMATCH 2
-#define TSDB_PATTERN_STRING_MAX_LEN 20
+#define TSDB_PATTERN_MATCH               0
+#define TSDB_PATTERN_NOMATCH             1
+#define TSDB_PATTERN_NOWILDCARDMATCH     2
+#define TSDB_PATTERN_STRING_DEFAULT_LEN  100
+
+#define FLT_COMPAR_TOL_FACTOR    4
+#define FLT_EQUAL(_x, _y)        (fabs((_x) - (_y)) <= (FLT_COMPAR_TOL_FACTOR * FLT_EPSILON))
+#define FLT_GREATER(_x, _y)      (!FLT_EQUAL((_x), (_y)) && ((_x) > (_y)))
+#define FLT_LESS(_x, _y)         (!FLT_EQUAL((_x), (_y)) && ((_x) < (_y)))
+#define FLT_GREATEREQUAL(_x, _y) (FLT_EQUAL((_x), (_y)) || ((_x) > (_y)))
+#define FLT_LESSEQUAL(_x, _y)    (FLT_EQUAL((_x), (_y)) || ((_x) < (_y)))
 
 #define PATTERN_COMPARE_INFO_INITIALIZER { '%', '_' }
 
@@ -40,7 +47,7 @@ int WCSPatternMatch(const wchar_t *pattern, const wchar_t *str, size_t size, con
 
 int32_t doCompare(const char* a, const char* b, int32_t type, size_t size);
 
-__compar_fn_t getKeyComparFunc(int32_t keyType);
+__compar_fn_t getKeyComparFunc(int32_t keyType, int32_t order);
 
 __compar_fn_t getComparFunc(int32_t type, int32_t optr);
 

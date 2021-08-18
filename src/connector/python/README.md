@@ -5,12 +5,13 @@
 ## Install
 
 ```sh
-pip install git+https://github.com/taosdata/TDengine-connector-python
+git clone --depth 1 https://github.com/taosdata/TDengine.git
+pip install ./TDengine/src/connector/python
 ```
 
 ## Source Code
 
-[TDengine] connector for Python source code is hosted on [GitHub](https://github.com/taosdata/TDengine-connector-python).
+[TDengine] connector for Python source code is hosted on [GitHub](https://github.com/taosdata/TDengine/tree/develop/src/connector/python).
 
 ## License - AGPL
 

@@ -16,6 +16,13 @@
 #ifndef _TD_TSDB_READ_IMPL_H_
 #define _TD_TSDB_READ_IMPL_H_
 
+#include "tfs.h"
+#include "tsdb.h"
+#include "os.h"
+#include "tsdbFile.h"
+#include "tskiplist.h"
+#include "tsdbMeta.h"
+
 typedef struct SReadH SReadH;
 
 typedef struct {

@@ -2,6 +2,7 @@ build/
 .vscode/
 .idea/
 cmake-build-debug/
+cmake-build-release/
 cscope.out
 .DS_Store
 debug/
@@ -67,6 +68,8 @@ CMakeError.log
 *.o
 version.c
 taos.rc
+src/connector/jdbc/.classpath
+src/connector/jdbc/.project
 src/connector/jdbc/.settings/
 tests/comparisonTest/cassandra/cassandratest/.classpath
 tests/comparisonTest/cassandra/cassandratest/.project

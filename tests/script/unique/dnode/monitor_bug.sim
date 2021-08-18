@@ -19,7 +19,7 @@ sleep 3000
 
 sql show dnodes
 print dnode1 openVnodes $data2_1
-if $data2_1 != 1 then
+if $data2_1 > 2 then
 	return -1
 endi
 
@@ -41,7 +41,7 @@ print dnode2 openVnodes $data2_2
 if $data2_1 != 0 then
 	goto show2
 endi
-if $data2_2 != 1 then
+if $data2_2 > 2 then
 	goto show2
 endi
 
@@ -55,7 +55,7 @@ print $data30
 print $data40
 print $data50
 
-if $rows != 4 then
+if $rows > 5 then
 	return -1
 endi
 

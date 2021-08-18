@@ -18,6 +18,8 @@
 #include "tulog.h"
 #include "taosdef.h"
 
+#define EXT_SIZE 1024 
+
 #define HASH_NEED_RESIZE(_h) ((_h)->size >= (_h)->capacity * HASH_DEFAULT_LOAD_FACTOR)
 
 #define DO_FREE_HASH_NODE(_n) \
@@ -73,10 +75,10 @@ static FORCE_INLINE int32_t taosHashCapacity(int32_t length) {
   return i;
 }
 
-static FORCE_INLINE SHashNode *doSearchInEntryList(SHashEntry *pe, const void *key, size_t keyLen, uint32_t hashVal) {
+static FORCE_INLINE SHashNode *doSearchInEntryList(SHashObj *pHashObj, SHashEntry *pe, const void *key, size_t keyLen, uint32_t hashVal) {
   SHashNode *pNode = pe->next;
   while (pNode) {
-    if ((pNode->keyLen == keyLen) && (memcmp(GET_HASH_NODE_KEY(pNode), key, keyLen) == 0) && pNode->removed == 0) {
+    if ((pNode->keyLen == keyLen) && ((*(pHashObj->equalFp))(GET_HASH_NODE_KEY(pNode), key, keyLen) == 0) && pNode->removed == 0) {
       assert(pNode->hashVal == hashVal);
       break;
     }
@@ -145,6 +147,14 @@ static FORCE_INLINE SHashNode *doUpdateHashNode(SHashObj *pHashObj, SHashEntry* 
 static void pushfrontNodeInEntryList(SHashEntry *pEntry, SHashNode *pNode);
 
 /**
+ * Check whether the hash table is empty or not.
+ *
+ * @param pHashObj the hash table object
+ * @return if the hash table is empty or not
+ */
+static FORCE_INLINE bool taosHashTableEmpty(const SHashObj *pHashObj);
+
+/**
  * Get the next element in hash table for iterator
  * @param pIter
  * @return
@@ -165,8 +175,8 @@ SHashObj *taosHashInit(size_t capacity, _hash_fn_t fn, bool update, SHashLockTyp
   // the max slots is not defined by user
   pHashObj->capacity = taosHashCapacity((int32_t)capacity);
   assert((pHashObj->capacity & (pHashObj->capacity - 1)) == 0);
-
-  pHashObj->hashFp = fn;
+  pHashObj->equalFp = memcmp;
+  pHashObj->hashFp  = fn;
   pHashObj->type = type;
   pHashObj->enableUpdate = update;
 
@@ -189,7 +199,22 @@ SHashObj *taosHashInit(size_t capacity, _hash_fn_t fn, bool update, SHashLockTyp
   return pHashObj;
 }
 
-int32_t taosHashGetSize(const SHashObj *pHashObj) { return (int32_t)((pHashObj == NULL) ? 0 : pHashObj->size); }
+void taosHashSetEqualFp(SHashObj *pHashObj, _equal_fn_t fp) {
+  if (pHashObj != NULL && fp != NULL) {
+    pHashObj->equalFp = fp;
+  } 
+} 
+
+int32_t taosHashGetSize(const SHashObj *pHashObj) {
+  if (!pHashObj) {
+    return 0;
+  }
+  return (int32_t)atomic_load_64(&pHashObj->size);
+}
+
+static FORCE_INLINE bool taosHashTableEmpty(const SHashObj *pHashObj) {
+  return taosHashGetSize(pHashObj) == 0;
+}
 
 int32_t taosHashPut(SHashObj *pHashObj, const void *key, size_t keyLen, void *data, size_t size) {
   uint32_t   hashVal = (*pHashObj->hashFp)(key, (uint32_t)keyLen);
@@ -223,7 +248,7 @@ int32_t taosHashPut(SHashObj *pHashObj, const void *key, size_t keyLen, void *da
 
   SHashNode* prev = NULL;
   while (pNode) {
-    if ((pNode->keyLen == keyLen) && (memcmp(GET_HASH_NODE_KEY(pNode), key, keyLen) == 0) && pNode->removed == 0) {
+    if ((pNode->keyLen == keyLen) && ((*(pHashObj->equalFp))(GET_HASH_NODE_KEY(pNode), key, keyLen) == 0) && pNode->removed == 0) {
       assert(pNode->hashVal == hashVal);
       break;
     }
@@ -271,11 +296,11 @@ int32_t taosHashPut(SHashObj *pHashObj, const void *key, size_t keyLen, void *da
 }
 
 void *taosHashGet(SHashObj *pHashObj, const void *key, size_t keyLen) {
-  return taosHashGetClone(pHashObj, key, keyLen, NULL, NULL, 0);
+  return taosHashGetClone(pHashObj, key, keyLen, NULL, NULL);
 }
-
-void* taosHashGetClone(SHashObj *pHashObj, const void *key, size_t keyLen, void (*fp)(void *), void* d, size_t dsize) {
-  if (pHashObj->size <= 0 || keyLen == 0 || key == NULL) {
+//TODO(yihaoDeng), merge with taosHashGetClone
+void* taosHashGetCloneExt(SHashObj *pHashObj, const void *key, size_t keyLen, void (*fp)(void *), void** d, size_t *sz) {
+  if (taosHashTableEmpty(pHashObj) || keyLen == 0 || key == NULL) {
     return NULL;
   }
 
@@ -306,7 +331,69 @@ void* taosHashGetClone(SHashObj *pHashObj, const void *key, size_t keyLen, void 
     assert(pe->next == NULL);
   }
 
-  SHashNode *pNode = doSearchInEntryList(pe, key, keyLen, hashVal);
+  SHashNode *pNode = doSearchInEntryList(pHashObj, pe, key, keyLen, hashVal);
+  if (pNode != NULL) {
+    if (fp != NULL) {
+      fp(GET_HASH_NODE_DATA(pNode));
+    }
+     
+    if (*d == NULL) {
+      *sz =  pNode->dataLen + EXT_SIZE;
+      *d  =  calloc(1, *sz);   
+    } else if (*sz < pNode->dataLen){
+      *sz = pNode->dataLen + EXT_SIZE;
+      *d  = realloc(*d, *sz); 
+    }
+    memcpy((char *)(*d), GET_HASH_NODE_DATA(pNode), pNode->dataLen);
+    // just make runtime happy 
+    if ((*sz) - pNode->dataLen > 0) {
+      memset((char *)(*d) + pNode->dataLen, 0, (*sz) - pNode->dataLen);
+    } 
+
+    data = GET_HASH_NODE_DATA(pNode);
+  }
+
+  if (pHashObj->type == HASH_ENTRY_LOCK) {
+    taosRUnLockLatch(&pe->latch);
+  }
+
+  __rd_unlock(&pHashObj->lock, pHashObj->type);
+  return data;
+}
+
+void* taosHashGetClone(SHashObj *pHashObj, const void *key, size_t keyLen, void (*fp)(void *), void* d) {
+  if (taosHashTableEmpty(pHashObj) || keyLen == 0 || key == NULL) {
+    return NULL;
+  }
+
+  uint32_t hashVal = (*pHashObj->hashFp)(key, (uint32_t)keyLen);
+
+  // only add the read lock to disable the resize process
+  __rd_lock(&pHashObj->lock, pHashObj->type);
+
+  int32_t     slot = HASH_INDEX(hashVal, pHashObj->capacity);
+  SHashEntry *pe = pHashObj->hashList[slot];
+
+  // no data, return directly
+  if (atomic_load_32(&pe->num) == 0) {
+    __rd_unlock(&pHashObj->lock, pHashObj->type);
+    return NULL;
+  }
+
+  char *data = NULL;
+
+  // lock entry
+  if (pHashObj->type == HASH_ENTRY_LOCK) {
+    taosRLockLatch(&pe->latch);
+  }
+
+  if (pe->num > 0) {
+    assert(pe->next != NULL);
+  } else {
+    assert(pe->next == NULL);
+  }
+
+  SHashNode *pNode = doSearchInEntryList(pHashObj, pe, key, keyLen, hashVal);
   if (pNode != NULL) {
     if (fp != NULL) {
       fp(GET_HASH_NODE_DATA(pNode));
@@ -332,7 +419,7 @@ int32_t taosHashRemove(SHashObj *pHashObj, const void *key, size_t keyLen) {
 }
 
 int32_t taosHashRemoveWithData(SHashObj *pHashObj, const void *key, size_t keyLen, void *data, size_t dsize) {
-  if (pHashObj == NULL || pHashObj->size <= 0) {
+  if (pHashObj == NULL || taosHashTableEmpty(pHashObj)) {
     return -1;
   }
 
@@ -362,7 +449,7 @@ int32_t taosHashRemoveWithData(SHashObj *pHashObj, const void *key, size_t keyLe
   SHashNode *prevNode = NULL;
 
   while (pNode) {
-    if ((pNode->keyLen == keyLen) && (memcmp(GET_HASH_NODE_KEY(pNode), key, keyLen) == 0) && pNode->removed == 0) 
+    if ((pNode->keyLen == keyLen) && ((*(pHashObj->equalFp))(GET_HASH_NODE_KEY(pNode), key, keyLen) == 0) && pNode->removed == 0) 
       break;
 
     prevNode = pNode;
@@ -399,7 +486,7 @@ int32_t taosHashRemoveWithData(SHashObj *pHashObj, const void *key, size_t keyLe
 }
 
 int32_t taosHashCondTraverse(SHashObj *pHashObj, bool (*fp)(void *, void *), void *param) {
-  if (pHashObj == NULL || pHashObj->size == 0) {
+  if (pHashObj == NULL || taosHashTableEmpty(pHashObj)) {
     return 0;
   }
 
@@ -472,7 +559,7 @@ int32_t taosHashCondTraverse(SHashObj *pHashObj, bool (*fp)(void *, void *), voi
   return 0;
 }
 
-void taosHashEmpty(SHashObj *pHashObj) {
+void taosHashClear(SHashObj *pHashObj) {
   if (pHashObj == NULL) {
     return;
   }
@@ -511,7 +598,7 @@ void taosHashCleanup(SHashObj *pHashObj) {
     return;
   }
 
-  taosHashEmpty(pHashObj);
+  taosHashClear(pHashObj);
   tfree(pHashObj->hashList);
 
   // destroy mem block
@@ -529,7 +616,7 @@ void taosHashCleanup(SHashObj *pHashObj) {
 
 // for profile only
 int32_t taosHashGetMaxOverflowLinkLength(const SHashObj *pHashObj) {
-  if (pHashObj == NULL || pHashObj->size == 0) {
+  if (pHashObj == NULL || taosHashTableEmpty(pHashObj)) {
     return 0;
   }
 

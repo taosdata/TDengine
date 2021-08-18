@@ -66,31 +66,32 @@ int   tsdbTakeMemSnapshot(STsdbRepo* pRepo, SMemSnapshot* pSnapshot, SArray* pAT
 void  tsdbUnTakeMemSnapShot(STsdbRepo* pRepo, SMemSnapshot* pSnapshot);
 void* tsdbAllocBytes(STsdbRepo* pRepo, int bytes);
 int   tsdbAsyncCommit(STsdbRepo* pRepo);
+int   tsdbSyncCommitConfig(STsdbRepo* pRepo);
 int   tsdbLoadDataFromCache(STable* pTable, SSkipListIterator* pIter, TSKEY maxKey, int maxRowsToRead, SDataCols* pCols,
                             TKEY* filterKeys, int nFilterKeys, bool keepDup, SMergeInfo* pMergeInfo);
 void* tsdbCommitData(STsdbRepo* pRepo);
 
-static FORCE_INLINE SDataRow tsdbNextIterRow(SSkipListIterator* pIter) {
+static FORCE_INLINE SMemRow tsdbNextIterRow(SSkipListIterator* pIter) {
   if (pIter == NULL) return NULL;
 
   SSkipListNode* node = tSkipListIterGet(pIter);
   if (node == NULL) return NULL;
 
-  return (SDataRow)SL_GET_NODE_DATA(node);
+  return (SMemRow)SL_GET_NODE_DATA(node);
 }
 
 static FORCE_INLINE TSKEY tsdbNextIterKey(SSkipListIterator* pIter) {
-  SDataRow row = tsdbNextIterRow(pIter);
+  SMemRow row = tsdbNextIterRow(pIter);
   if (row == NULL) return TSDB_DATA_TIMESTAMP_NULL;
 
-  return dataRowKey(row);
+  return memRowKey(row);
 }
 
 static FORCE_INLINE TKEY tsdbNextIterTKey(SSkipListIterator* pIter) {
-  SDataRow row = tsdbNextIterRow(pIter);
+  SMemRow row = tsdbNextIterRow(pIter);
   if (row == NULL) return TKEY_NULL;
 
-  return dataRowTKey(row);
+  return memRowTKey(row);
 }
 
 #endif /* _TD_TSDB_MEMTABLE_H_ */

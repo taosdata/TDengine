@@ -43,7 +43,7 @@ static void    syncProcessSyncRequest(char *pMsg, SSyncPeer *pPeer);
 static void    syncRecoverFromMaster(SSyncPeer *pPeer);
 static void    syncCheckPeerConnection(void *param, void *tmrId);
 static int32_t syncSendPeersStatusMsgToPeer(SSyncPeer *pPeer, char ack, int8_t type, uint16_t tranId);
-static void    syncProcessBrokenLink(int64_t rid);
+static void    syncProcessBrokenLink(int64_t rid, int32_t closedByApp);
 static int32_t syncProcessPeerMsg(int64_t rid, void *buffer);
 static void    syncProcessIncommingConnection(SOCKET connFd, uint32_t sourceIp);
 static void    syncRemovePeer(SSyncPeer *pPeer);
@@ -389,17 +389,17 @@ int32_t syncForwardToPeer(int64_t rid, void *data, void *mhandle, int32_t qtype,
   return code;
 }
 
-void syncConfirmForward(int64_t rid, uint64_t version, int32_t code, bool force) {
+void syncConfirmForward(int64_t rid, uint64_t _version, int32_t code, bool force) {
   SSyncNode *pNode = syncAcquireNode(rid);
   if (pNode == NULL) return;
 
   SSyncPeer *pPeer = pNode->pMaster;
   if (pPeer && (pNode->quorum > 1 || force)) {
     SFwdRsp rsp;
-    syncBuildSyncFwdRsp(&rsp, pNode->vgId, version, code);
+    syncBuildSyncFwdRsp(&rsp, pNode->vgId, _version, code);
 
     if (taosWriteMsg(pPeer->peerFd, &rsp, sizeof(SFwdRsp)) == sizeof(SFwdRsp)) {
-      sTrace("%s, forward-rsp is sent, code:0x%x hver:%" PRIu64, pPeer->id, code, version);
+      sTrace("%s, forward-rsp is sent, code:0x%x hver:%" PRIu64, pPeer->id, code, _version);
     } else {
       sDebug("%s, failed to send forward-rsp, restart", pPeer->id);
       syncRestartConnection(pPeer);
@@ -1308,7 +1308,7 @@ static void syncProcessIncommingConnection(SOCKET connFd, uint32_t sourceIp) {
   pthread_mutex_unlock(&pNode->mutex);
 }
 
-static void syncProcessBrokenLink(int64_t rid) {
+static void syncProcessBrokenLink(int64_t rid, int32_t closedByApp) {
   SSyncPeer *pPeer = syncAcquirePeer(rid);
   if (pPeer == NULL) return;
 
@@ -1316,9 +1316,10 @@ static void syncProcessBrokenLink(int64_t rid) {
 
   pthread_mutex_lock(&pNode->mutex);
 
-  sDebug("%s, TCP link is broken since %s, pfd:%d sfd:%d", pPeer->id, strerror(errno), pPeer->peerFd, pPeer->syncFd);
+  sDebug("%s, TCP link is broken since %s, pfd:%d sfd:%d closedByApp:%d",
+         pPeer->id, strerror(errno), pPeer->peerFd, pPeer->syncFd, closedByApp);
   pPeer->peerFd = -1;
-  if (pPeer->isArb) {
+  if (!closedByApp && pPeer->isArb) {
     tsArbOnline = 0;
   }
 
@@ -1328,14 +1329,14 @@ static void syncProcessBrokenLink(int64_t rid) {
   syncReleasePeer(pPeer);
 }
 
-static int32_t syncSaveFwdInfo(SSyncNode *pNode, uint64_t version, void *mhandle) {
+static int32_t syncSaveFwdInfo(SSyncNode *pNode, uint64_t _version, void *mhandle) {
   SSyncFwds *pSyncFwds = pNode->pSyncFwds;
   int64_t    time = taosGetTimestampMs();
 
   if (pSyncFwds->fwds >= SYNC_MAX_FWDS) {
     // pSyncFwds->first = (pSyncFwds->first + 1) % SYNC_MAX_FWDS;
     // pSyncFwds->fwds--;
-    sError("vgId:%d, failed to save fwd info, hver:%" PRIu64 " fwds:%d", pNode->vgId, version, pSyncFwds->fwds);
+    sError("vgId:%d, failed to save fwd info, hver:%" PRIu64 " fwds:%d", pNode->vgId, _version, pSyncFwds->fwds);
     return TSDB_CODE_SYN_TOO_MANY_FWDINFO;
   }
 
@@ -1345,12 +1346,12 @@ static int32_t syncSaveFwdInfo(SSyncNode *pNode, uint64_t version, void *mhandle
 
   SFwdInfo *pFwdInfo = pSyncFwds->fwdInfo + pSyncFwds->last;
   memset(pFwdInfo, 0, sizeof(SFwdInfo));
-  pFwdInfo->version = version;
+  pFwdInfo->version = _version;
   pFwdInfo->mhandle = mhandle;
   pFwdInfo->time = time;
 
   pSyncFwds->fwds++;
-  sTrace("vgId:%d, fwd info is saved, hver:%" PRIu64 " fwds:%d ", pNode->vgId, version, pSyncFwds->fwds);
+  sTrace("vgId:%d, fwd info is saved, hver:%" PRIu64 " fwds:%d ", pNode->vgId, _version, pSyncFwds->fwds);
 
   return 0;
 }

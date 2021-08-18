@@ -33,9 +33,9 @@
  * If *stringp is NULL, strsep returns NULL.
  */
 char *strsep(char **stringp, const char *delim) {
-  char *s;
+  char *      s;
   const char *spanp;
-  int c, sc;
+  int32_t     c, sc;
   char *tok;
   if ((s = *stringp) == NULL)
     return (NULL);
@@ -75,13 +75,13 @@ char *getpass(const char *prefix) {
   return passwd;
 }
 
-int twcslen(const wchar_t *wcs) {
-  int *wstr = (int *)wcs;
+int32_t twcslen(const wchar_t *wcs) {
+  int32_t *wstr = (int32_t *)wcs;
   if (NULL == wstr) {
     return 0;
   }
 
-  int n = 0;
+  int32_t n = 0;
   while (1) {
     if (0 == *wstr++) {
       break;
@@ -92,8 +92,8 @@ int twcslen(const wchar_t *wcs) {
   return n;
 }
 
-int tasoUcs4Compare(void *f1_ucs4, void *f2_ucs4, int bytes) {
-  for (int i = 0; i < bytes; ++i) {
+int32_t tasoUcs4Compare(void *f1_ucs4, void *f2_ucs4, int32_t bytes) {
+  for (int32_t i = 0; i < bytes; ++i) {
     int32_t f1 = *(int32_t *)((char *)f1_ucs4 + i * 4);
     int32_t f2 = *(int32_t *)((char *)f2_ucs4 + i * 4);
 
@@ -126,7 +126,6 @@ int tasoUcs4Compare(void *f1_ucs4, void *f2_ucs4, int bytes) {
   return ret;
 #endif
 }
-
 
 /* Copy memory to memory until the specified number of bytes
 has been copied, return pointer to following byte.

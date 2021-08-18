@@ -176,6 +176,7 @@ function install_bin() {
         [ -x ${install_main_dir}/bin/remove_client.sh ] && ${csudo} ln -s ${install_main_dir}/bin/remove_client.sh ${bin_link_dir}/rmtaos  || :
     fi
 }
+
 function install_jemalloc() {
     if [ "$osType" != "Darwin" ]; then
         /usr/bin/install -c -d /usr/local/bin
@@ -420,7 +421,7 @@ function install_service() {
 }
 
 function update_TDengine() {
-    echo -e "${GREEN}Start to update TDEngine...${NC}"
+    echo -e "${GREEN}Start to update TDengine...${NC}"
     # Stop the service if running
 
     if [ "$osType" != "Darwin" ]; then

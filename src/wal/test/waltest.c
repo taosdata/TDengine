@@ -19,6 +19,7 @@
 #include "tglobal.h"
 #include "tlog.h"
 #include "twal.h"
+#include "tfile.h"
 
 int64_t  ver = 0;
 void    *pWal = NULL;
@@ -36,7 +37,7 @@ int writeToQueue(void *pVnode, void *data, int type, void *pMsg) {
 }
 
 int main(int argc, char *argv[]) {
-  char path[128] = "/home/jhtao/test/wal";
+  char path[128] = "/tmp/wal";
   int  level = 2;
   int  total = 5;
   int  rows = 10000;
@@ -72,9 +73,11 @@ int main(int argc, char *argv[]) {
       printf("  [-h help]: print out this help\n\n");
       exit(0);
     }
-  } 
+  }
 
   taosInitLog("wal.log", 100000, 10);
+  tfInit();
+  walInit();
 
   SWalCfg walCfg = {0};
   walCfg.walLevel = level;
@@ -122,13 +125,13 @@ int main(int argc, char *argv[]) {
 
     printf("index:%" PRId64 " wal:%s\n", index, name);
     if (code == 0) break;
-
-    index++;
   }
 
   getchar();
 
   walClose(pWal);
+  walCleanUp();
+  tfCleanup();
 
   return 0;
 }

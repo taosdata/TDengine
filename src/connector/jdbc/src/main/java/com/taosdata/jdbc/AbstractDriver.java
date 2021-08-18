@@ -58,7 +58,7 @@ public abstract class AbstractDriver implements Driver {
                         value = parameterValuePair.substring(indexOfEqual + 1);
                     }
                 }
-                if ((value != null && value.length() > 0) && (parameter != null && parameter.length() > 0)) {
+                if (value != null && value.length() > 0 && parameter.length() > 0) {
                     urlProps.setProperty(parameter, value);
                 }
             }
@@ -87,7 +87,7 @@ public abstract class AbstractDriver implements Driver {
             url = url.substring(0, indexOfColon);
         }
         // parse host
-        if (url != null && url.length() > 0 && url.trim().length() > 0) {
+        if (url.length() > 0 && url.trim().length() > 0) {
             urlProps.setProperty(TSDBDriver.PROPERTY_KEY_HOST, url);
         }
         return urlProps;

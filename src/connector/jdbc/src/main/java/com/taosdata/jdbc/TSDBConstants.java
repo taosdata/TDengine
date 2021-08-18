@@ -54,10 +54,11 @@ public abstract class TSDBConstants {
     public static final int TSDB_DATA_TYPE_USMALLINT = 12;      //unsigned smallint
     public static final int TSDB_DATA_TYPE_UINT = 13;           //unsigned int
     public static final int TSDB_DATA_TYPE_UBIGINT = 14;        //unsigned bigint
+
     // nchar column max length
     public static final int maxFieldSize = 16 * 1024;
 
-    // precision for data types
+    // precision for data types, this is used for metadata
     public static final int BOOLEAN_PRECISION = 1;
     public static final int TINYINT_PRECISION = 4;
     public static final int SMALLINT_PRECISION = 6;
@@ -67,9 +68,13 @@ public abstract class TSDBConstants {
     public static final int DOUBLE_PRECISION = 22;
     public static final int TIMESTAMP_MS_PRECISION = 23;
     public static final int TIMESTAMP_US_PRECISION = 26;
-    // scale for data types
+    // scale for data types, this is used for metadata
     public static final int FLOAT_SCALE = 31;
     public static final int DOUBLE_SCALE = 31;
+
+    public static final String DEFAULT_PRECISION = "ms";
+
+    public static final boolean DEFAULT_BATCH_ERROR_IGNORE = false;
 
     public static int typeName2JdbcType(String type) {
         switch (type.toUpperCase()) {
@@ -124,8 +129,9 @@ public abstract class TSDBConstants {
                 return Types.TIMESTAMP;
             case TSDBConstants.TSDB_DATA_TYPE_NCHAR:
                 return Types.NCHAR;
+            default:
+                throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNKNOWN_TAOS_TYPE, "unknown taos type: " + taosType + " in tdengine");
         }
-        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNKNOWN_TAOS_TYPE_IN_TDENGINE);
     }
 
     public static String taosType2JdbcTypeName(int taosType) throws SQLException {
@@ -155,7 +161,7 @@ public abstract class TSDBConstants {
             case TSDBConstants.TSDB_DATA_TYPE_NCHAR:
                 return "NCHAR";
             default:
-                throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNKNOWN_TAOS_TYPE_IN_TDENGINE);
+                throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNKNOWN_TAOS_TYPE, "unknown taos type: " + taosType + " in tdengine");
         }
     }
 
@@ -182,7 +188,7 @@ public abstract class TSDBConstants {
             case Types.NCHAR:
                 return TSDBConstants.TSDB_DATA_TYPE_NCHAR;
         }
-        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNKNOWN_SQL_TYPE_IN_TDENGINE);
+        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNKNOWN_SQL_TYPE_IN_TDENGINE, "unknown sql type: " + jdbcType + " in tdengine");
     }
 
     public static String jdbcType2TaosTypeName(int jdbcType) throws SQLException {
@@ -208,7 +214,7 @@ public abstract class TSDBConstants {
             case Types.NCHAR:
                 return "NCHAR";
             default:
-                throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNKNOWN_SQL_TYPE_IN_TDENGINE);
+                throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNKNOWN_SQL_TYPE_IN_TDENGINE, "unknown sql type: " + jdbcType + " in tdengine");
         }
     }
 

@@ -17723,3 +17723,389 @@
    fun:_PyFunction_Vectorcall
    fun:_PyEval_EvalFrameDefault
 }
+{
+   <insert_a_suppression_name_here>
+   Memcheck:Leak
+   match-leak-kinds: definite
+   fun:malloc
+   fun:__libc_alloc_buffer_allocate
+   fun:alloc_buffer_allocate
+   fun:__resolv_conf_allocate
+   fun:__resolv_conf_load
+   fun:__resolv_conf_get_current
+   fun:__res_vinit
+   fun:maybe_init
+   fun:context_get
+   fun:__resolv_context_get
+   fun:gaih_inet.constprop.7
+   fun:getaddrinfo
+   fun:taosGetFqdn
+   fun:taosCheckGlobalCfg
+   fun:taos_init_imp
+}
+{
+   <insert_a_suppression_name_here>
+   Memcheck:Leak
+   match-leak-kinds: definite
+   fun:malloc
+   obj:/usr/bin/python3.8
+   fun:PyTuple_Pack
+   obj:/usr/bin/python3.8
+   fun:PyObject_GetItem
+   fun:_PyEval_EvalFrameDefault
+   obj:/usr/bin/python3.8
+   fun:_PyEval_EvalFrameDefault
+   fun:_PyEval_EvalCodeWithName
+   obj:/usr/bin/python3.8
+   fun:_PyEval_EvalFrameDefault
+   fun:_PyEval_EvalCodeWithName
+}
+{
+   <insert_a_suppression_name_here>
+   Memcheck:Leak
+   match-leak-kinds: definite
+   fun:malloc
+   obj:/usr/bin/python3.8
+   fun:_PyObject_MakeTpCall
+   fun:_PyEval_EvalFrameDefault
+   obj:/usr/bin/python3.8
+   fun:_PyEval_EvalFrameDefault
+   obj:/usr/bin/python3.8
+   fun:_PyEval_EvalFrameDefault
+   fun:_PyEval_EvalFrameDefault
+   obj:/usr/bin/python3.8
+   fun:_PyEval_EvalFrameDefault
+   fun:_PyEval_EvalCodeWithName
+}
+{
+   <insert_a_suppression_name_here>
+   Memcheck:Leak
+   match-leak-kinds: definite
+   fun:malloc
+   fun:PyCode_NewWithPosOnlyArgs
+   fun:PyCode_New
+   obj:/usr/local/lib/python3.8/dist-packages/pandas/_libs/tslibs/parsing.cpython-38-x86_64-linux-gnu.so
+   obj:/usr/local/lib/python3.8/dist-packages/pandas/_libs/tslibs/parsing.cpython-38-x86_64-linux-gnu.so
+   fun:PyModule_ExecDef
+   obj:/usr/bin/python3.8
+   obj:/usr/bin/python3.8
+   fun:PyVectorcall_Call
+   fun:_PyEval_EvalFrameDefault
+   fun:_PyEval_EvalCodeWithName
+   fun:_PyFunction_Vectorcall
+}
+{
+   <insert_a_suppression_name_here>
+   Memcheck:Leak
+   match-leak-kinds: definite
+   fun:malloc
+   obj:/usr/bin/python3.8
+   fun:_PyObject_MakeTpCall
+   fun:_PyEval_EvalFrameDefault
+   obj:/usr/local/lib/python3.8
+   fun:_PyEval_EvalFrameDefault
+   obj:/usr/bin/python3.8
+   fun:_PyEval_EvalFrameDefault
+   fun:_PyEval_EvalCodeWithName
+   obj:/usr/bin/python3.8
+   fun:PyVectorcall_Call
+   fun:_PyEval_EvalFrameDefault
+   fun:_PyEval_EvalCodeWithName
+}
+{
+   <insert_a_suppression_name_here>
+   Memcheck:Leak
+   match-leak-kinds: definite
+   fun:malloc
+   obj:/usr/bin/python3.8
+   fun:PyTuple_New
+   obj:/usr/bin/python3.8
+   obj:/usr/bin/python3.8
+   obj:/usr/bin/python3.8
+   obj:/usr/bin/python3.8
+   obj:/usr/bin/python3.8
+   obj:/usr/bin/python3.8
+   obj:/usr/bin/python3.8
+   fun:_PyEval_EvalFrameDefault
+   fun:_PyEval_EvalCodeWithName
+}
+{
+   <insert_a_suppression_name_here>
+   Memcheck:Leak
+   match-leak-kinds: definite
+   fun:malloc
+   obj:/usr/bin/python3.8
+   fun:PyTuple_New
+   fun:_PyEval_EvalCodeWithName
+   fun:_PyFunction_Vectorcall
+   fun:_PyEval_EvalFrameDefault
+   fun:_PyEval_EvalCodeWithName
+   fun:_PyFunction_Vectorcall
+   fun:_PyEval_EvalFrameDefault
+   fun:_PyFunction_Vectorcall
+   fun:_PyEval_EvalFrameDefault
+   fun:_PyFunction_Vectorcall
+}
+{
+   <insert_a_suppression_name_here>
+   Memcheck:Leak
+   match-leak-kinds: definite
+   fun:malloc
+   obj:/usr/bin/python3.8
+   fun:_PyObject_MakeTpCall
+   fun:_PyEval_EvalFrameDefault
+   fun:_PyFunction_Vectorcall
+   obj:/usr/bin/python3.8
+   obj:/usr/bin/python3.8
+   fun:_PyObject_MakeTpCall
+   fun:_PyEval_EvalFrameDefault
+   obj:/usr/bin/python3.8
+   fun:_PyEval_EvalFrameDefault
+   obj:/usr/bin/python3.8
+}
+{
+   <insert_a_suppression_name_here>
+   Memcheck:Leak
+   match-leak-kinds: definite
+   fun:malloc
+   obj:/usr/bin/python3.8                      
+   obj:/usr/bin/python3.8                      
+   fun:_PyEval_EvalFrameDefault
+   fun:_PyFunction_Vectorcall     
+   fun:_PyEval_EvalFrameDefault   
+   fun:_PyEval_EvalCodeWithName   
+   fun:_PyFunction_Vectorcall     
+   fun:_PyEval_EvalFrameDefault   
+   fun:_PyFunction_Vectorcall     
+   fun:_PyEval_EvalFrameDefault   
+   fun:_PyEval_EvalCodeWithName   
+}
+{
+   <insert_a_suppression_name_here>
+   Memcheck:Leak
+   match-leak-kinds: definite
+   fun: malloc
+   obj:/usr/bin/python3.8
+   fun:PyTuple_Pack
+   obj:/usr/local/lib/python3.8/dist-packages/pandas/_libs/interval.cpython-38-x86_64-linux-gnu.so
+   fun:PyModule_ExecDef
+   obj:/usr/bin/python3.8
+   obj:/usr/bin/python3.8
+   fun:PyVectorcall_Call
+   fun:_PyEval_EvalFrameDefault
+   fun:_PyEval_EvalCodeWithName
+   fun:_PyFunction_Vectorcall
+   fun:_PyEval_EvalFrameDefault
+}
+{
+   <insert_a_suppression_name_here>
+   Memcheck:Leak
+   match-leak-kinds: definite
+   fun: malloc
+   obj:/usr/bin/python3.8
+   fun:_PyObject_MakeTpCall
+   fun:_PyEval_EvalFrameDefault
+   obj:/usr/bin/python3.8
+   fun:_PyEval_EvalFrameDefault
+   obj:/usr/bin/python3.8
+   fun:_PyEval_EvalFrameDefault
+   fun:_PyEval_EvalCodeWithName
+   obj:/usr/bin/python3.8
+   fun:_PyEval_EvalFrameDefault
+   fun:_PyEval_EvalCodeWithName
+}
+{
+   <insert_a_suppression_name_here>
+   Memcheck:Leak
+   match-leak-kinds: definite
+   fun:malloc
+   obj:/usr/bin/python3.8
+   fun:_PyObject_MakeTpCall
+   obj:/usr/bin/python3.8
+   fun:PyObject_CallFunctionObjArgs
+   obj:/usr/bin/python3.8
+   obj:/usr/bin/python3.8
+   fun:PyObject_GetAttr
+   fun:_PyEval_EvalFrameDefault
+   fun:_PyEval_EvalCodeWithName
+   fun:_PyFunction_Vectorcall
+   fun:_PyEval_EvalFrameDefault
+}
+{
+   <insert_a_suppression_name_here>
+   Memcheck:Leak
+   match-leak-kinds: definite
+   fun:malloc
+   obj:/usr/bin/python3.8
+   fun:_PyObject_MakeTpCall
+   fun:_PyEval_EvalFrameDefault
+   obj:/usr/bin/python3.8)
+   fun:_PyEval_EvalFrameDefault
+   obj:/usr/bin/python3.8)
+   fun:_PyEval_EvalFrameDefault
+   fun:_PyEval_EvalCodeWithName
+   obj:/usr/bin/python3.8)
+   fun:_PyEval_EvalFrameDefault
+   fun:_PyEval_EvalCodeWithName
+}
+{
+   <insert_a_suppression_name_here>
+   Memcheck:Leak
+   match-leak-kinds: definite
+   fun:malloc
+   obj:/usr/bin/python3.8)
+   fun:PyTuple_Pack
+   obj:/usr/local/lib/python3.8/dist-packages/pandas/_libs/interval.cpython-38-x86_64-linux-gnu.so
+   fun:PyModule_ExecDef
+   obj:/usr/bin/python3.8)
+   obj:/usr/bin/python3.8)
+   fun:PyVectorcall_Call
+   fun:_PyEval_EvalFrameDefault
+   fun:_PyEval_EvalCodeWithName
+   fun:_PyFunction_Vectorcall
+   fun:_PyEval_EvalFrameDefault
+}
+{
+   <insert_a_suppression_name_here>
+   Memcheck:Leak
+   match-leak-kinds: definite
+   fun:malloc
+   obj:/usr/bin/python3.8
+   fun:PyTuple_Pack
+   obj:/usr/local/lib/python3.8/dist-packages/pandas/_libs/tslibs/np_datetime.cpython-38-x86_64-linux-gnu.so
+   fun:PyModule_ExecDef
+   obj:/usr/bin/python3.8
+   obj:/usr/bin/python3.8
+   fun:PyVectorcall_Call
+   fun:_PyEval_EvalFrameDefault
+   fun:_PyEval_EvalCodeWithName
+   fun:_PyFunction_Vectorcall
+   fun:_PyEval_EvalFrameDefault
+}
+{
+   <insert_a_suppression_name_here>
+   Memcheck:Leak
+   match-leak-kinds: definite
+   fun:malloc
+   obj:/usr/bin/python3.8
+   fun:PyTuple_Pack
+   obj:/usr/local/lib/python3.8/dist-packages/pandas/_libs/tslibs/ccalendar.cpython-38-x86_64-linux-gnu.so
+   fun:PyModule_ExecDef
+   obj:/usr/bin/python3.8
+   obj:/usr/bin/python3.8
+   fun:PyVectorcall_Call
+   fun:_PyEval_EvalFrameDefault
+   fun:_PyEval_EvalCodeWithName
+   fun:_PyFunction_Vectorcall
+   fun:_PyEval_EvalFrameDefault
+}
+{
+   <insert_a_suppression_name_here>
+   Memcheck:Leak
+   match-leak-kinds: definite
+   fun:malloc
+   obj:/usr/bin/python3.8
+   fun:_PyObject_MakeTpCall
+   fun:_PyEval_EvalFrameDefault
+   obj:/usr/bin/python3.8
+   fun:_PyEval_EvalFrameDefault
+   obj:/usr/bin/python3.8
+   fun:_PyEval_EvalFrameDefault
+   fun:_PyEval_EvalCodeWithName
+   obj:/usr/bin/python3.8
+   fun:_PyEval_EvalFrameDefault
+   fun:_PyEval_EvalCodeWithName
+}
+{
+   <insert_a_suppression_name_here>
+   Memcheck:Leak
+   match-leak-kinds: definite
+   fun:malloc
+   obj:/usr/bin/python3.8
+   fun:PyTuple_Pack
+   obj:/usr/local/lib/python3.8/dist-packages/pandas/_libs/interval.cpython-38-x86_64-linux-gnu.so
+   fun:PyModule_ExecDef
+   obj:/usr/bin/python3.8
+   obj:/usr/bin/python3.8
+   fun:PyVectorcall_Call
+   fun:_PyEval_EvalFrameDefault
+   fun:_PyEval_EvalCodeWithName
+   fun:_PyFunction_Vectorcall
+   fun:_PyEval_EvalFrameDefault
+}
+{
+   <insert_a_suppression_name_here>
+   Memcheck:Leak
+   match-leak-kinds: definite
+   fun:malloc
+   obj:/usr/bin/python3.8
+   fun:PyTuple_Pack
+   obj:/usr/local/lib/python3.8/dist-packages/pandas/_libs/hashtable.cpython-38-x86_64-linux-gnu.so
+   obj:/usr/local/lib/python3.8/dist-packages/pandas/_libs/hashtable.cpython-38-x86_64-linux-gnu.so
+   fun:PyModule_ExecDef
+   obj:/usr/bin/python3.8
+   obj:/usr/bin/python3.8
+   fun:PyVectorcall_Call
+   fun:_PyEval_EvalFrameDefault
+   fun:_PyEval_EvalCodeWithName
+   fun:_PyFunction_Vectorcall
+}
+{
+   <insert_a_suppression_name_here>
+   Memcheck:Leak
+   match-leak-kinds: definite
+   ...
+   obj:/usr/local/lib/python3.8/dist-packages/pandas/*
+   ...
+}
+{
+   <insert_a_suppression_name_here>
+   Memcheck:Leak
+   match-leak-kinds: definite
+   fun:malloc
+   obj:/usr/bin/python3.8
+   fun:PyTuple_New
+   fun:_PyEval_EvalCodeWithName
+   fun:_PyFunction_Vectorcall
+   fun:_PyEval_EvalFrameDefault
+   fun:_PyEval_EvalCodeWithName
+   fun:_PyFunction_Vectorcall
+   fun:_PyEval_EvalFrameDefault
+   fun:_PyEval_EvalCodeWithName
+   obj:/usr/bin/python3.8
+   fun:_PyEval_EvalFrameDefault
+}
+{
+   <insert_a_suppression_name_here>
+   Memcheck:Leak
+   match-leak-kinds: definite
+   fun:malloc
+   obj:/usr/bin/python3.8
+   fun:PyTuple_New
+   obj:/usr/bin/python3.8
+   obj:/usr/bin/python3.8
+   fun:_PyObject_MakeTpCall
+   fun:_PyEval_EvalFrameDefault
+   fun:_PyFunction_Vectorcall
+   fun:_PyEval_EvalFrameDefault
+   obj:/usr/bin/python3.8
+   fun:PyObject_GetAttr
+   fun:_PyEval_EvalFrameDefault
+}
+{
+   <insert_a_suppression_name_here>
+   Memcheck:Leak
+   match-leak-kinds: definite
+   fun:malloc
+   obj:/usr/bin/python3.8
+   fun:PyTuple_New
+   obj:/usr/bin/python3.8
+   obj:/usr/bin/python3.8
+   obj:/usr/bin/python3.8
+   obj:/usr/bin/python3.8
+   obj:/usr/bin/python3.8
+   obj:/usr/bin/python3.8
+   fun:_PyEval_EvalFrameDefault
+   fun:_PyEval_EvalCodeWithName
+   fun:_PyFunction_Vectorcall
+}

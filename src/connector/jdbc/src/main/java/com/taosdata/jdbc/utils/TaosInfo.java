@@ -7,9 +7,9 @@ import java.util.concurrent.atomic.AtomicLong;
 public class TaosInfo implements TaosInfoMBean {
 
     private static volatile TaosInfo instance;
-    private AtomicLong connect_open = new AtomicLong();
-    private AtomicLong connect_close = new AtomicLong();
-    private AtomicLong statement_count = new AtomicLong();
+    private final AtomicLong connect_open = new AtomicLong();
+    private final AtomicLong connect_close = new AtomicLong();
+    private final AtomicLong statement_count = new AtomicLong();
 
     static {
         try {

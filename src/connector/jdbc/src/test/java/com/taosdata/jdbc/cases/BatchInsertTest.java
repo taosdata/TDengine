@@ -29,6 +29,8 @@ public class BatchInsertTest {
     public void before() {
         try {
             Properties properties = new Properties();
+            properties.setProperty(TSDBDriver.PROPERTY_KEY_USER, "root");
+            properties.setProperty(TSDBDriver.PROPERTY_KEY_PASSWORD, "taosdata");
             properties.setProperty(TSDBDriver.PROPERTY_KEY_CHARSET, "UTF-8");
             properties.setProperty(TSDBDriver.PROPERTY_KEY_LOCALE, "en_US.UTF-8");
             properties.setProperty(TSDBDriver.PROPERTY_KEY_TIME_ZONE, "UTC-8");
@@ -60,7 +62,6 @@ public class BatchInsertTest {
             final int index = i;
             executorService.execute(() -> {
                 try {
-                    long startTime = System.currentTimeMillis();
                     Statement statement = connection.createStatement(); // get statement
                     StringBuilder sb = new StringBuilder();
                     sb.append("INSERT INTO " + tablePrefix + index + " VALUES");
@@ -73,8 +74,6 @@ public class BatchInsertTest {
                     }
                     statement.addBatch(sb.toString());
                     statement.executeBatch();
-                    long endTime = System.currentTimeMillis();
-                    System.out.println("Thread " + index + " takes " + (endTime - startTime) + " microseconds");
                     connection.commit();
                     statement.close();
                 } catch (Exception e) {

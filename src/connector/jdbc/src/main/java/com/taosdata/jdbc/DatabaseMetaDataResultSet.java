@@ -15,10 +15,12 @@
 package com.taosdata.jdbc;
 
 import java.math.BigDecimal;
-import java.sql.*;
+import java.sql.ResultSetMetaData;
+import java.sql.SQLException;
+import java.sql.Statement;
+import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.Calendar;
-import java.util.Iterator;
 import java.util.List;
 
 /*
@@ -66,71 +68,61 @@ public class DatabaseMetaDataResultSet extends AbstractResultSet {
     @Override
     public String getString(int columnIndex) throws SQLException {
         int colType = columnMetaDataList.get(columnIndex - 1).getColType();
-        int nativeType = TSDBConstants.jdbcType2TaosType(colType);
-        return rowCursor.getString(columnIndex, nativeType);
+        return rowCursor.getString(columnIndex, colType);
     }
 
     @Override
     public boolean getBoolean(int columnIndex) throws SQLException {
         int colType = columnMetaDataList.get(columnIndex - 1).getColType();
-        int nativeType = TSDBConstants.jdbcType2TaosType(colType);
-        return rowCursor.getBoolean(columnIndex, nativeType);
+        return rowCursor.getBoolean(columnIndex, colType);
     }
 
     @Override
     public byte getByte(int columnIndex) throws SQLException {
         int colType = columnMetaDataList.get(columnIndex - 1).getColType();
-        int nativeType = TSDBConstants.jdbcType2TaosType(colType);
-        return (byte) rowCursor.getInt(columnIndex, nativeType);
+        return (byte) rowCursor.getInt(columnIndex, colType);
     }
 
     @Override
     public short getShort(int columnIndex) throws SQLException {
         int colType = columnMetaDataList.get(columnIndex - 1).getColType();
-        int nativeType = TSDBConstants.jdbcType2TaosType(colType);
-        return (short) rowCursor.getInt(columnIndex, nativeType);
+        return (short) rowCursor.getInt(columnIndex, colType);
     }
 
     @Override
     public int getInt(int columnIndex) throws SQLException {
         int colType = columnMetaDataList.get(columnIndex - 1).getColType();
-        int nativeType = TSDBConstants.jdbcType2TaosType(colType);
-        return rowCursor.getInt(columnIndex, nativeType);
+        return rowCursor.getInt(columnIndex, colType);
     }
 
     @Override
     public long getLong(int columnIndex) throws SQLException {
         int colType = columnMetaDataList.get(columnIndex - 1).getColType();
-        int nativeType = TSDBConstants.jdbcType2TaosType(colType);
-        return rowCursor.getLong(columnIndex, nativeType);
+        return rowCursor.getLong(columnIndex, colType);
     }
 
     @Override
     public float getFloat(int columnIndex) throws SQLException {
         int colType = columnMetaDataList.get(columnIndex - 1).getColType();
-        int nativeType = TSDBConstants.jdbcType2TaosType(colType);
-        return rowCursor.getFloat(columnIndex, nativeType);
+        return rowCursor.getFloat(columnIndex, colType);
     }
 
     @Override
     public double getDouble(int columnIndex) throws SQLException {
         int colType = columnMetaDataList.get(columnIndex - 1).getColType();
-        int nativeType = TSDBConstants.jdbcType2TaosType(colType);
-        return rowCursor.getDouble(columnIndex, nativeType);
+        return rowCursor.getDouble(columnIndex, colType);
     }
 
     @Override
     public byte[] getBytes(int columnIndex) throws SQLException {
         int colType = columnMetaDataList.get(columnIndex - 1).getColType();
-        int nativeType = TSDBConstants.jdbcType2TaosType(colType);
-        return (rowCursor.getString(columnIndex, nativeType)).getBytes();
+        return (rowCursor.getString(columnIndex, colType)).getBytes();
     }
 
     @Override
     public Timestamp getTimestamp(int columnIndex) throws SQLException {
         int colType = columnMetaDataList.get(columnIndex - 1).getColType();
-        int nativeType = TSDBConstants.jdbcType2TaosType(colType);
-        return rowCursor.getTimestamp(columnIndex,nativeType);
+        return rowCursor.getTimestamp(columnIndex, colType);
     }
 
     @Override
@@ -145,9 +137,7 @@ public class DatabaseMetaDataResultSet extends AbstractResultSet {
 
     @Override
     public int findColumn(String columnLabel) throws SQLException {
-        Iterator<ColumnMetaData> colMetaDataIt = this.columnMetaDataList.iterator();
-        while (colMetaDataIt.hasNext()) {
-            ColumnMetaData colMetaData = colMetaDataIt.next();
+        for (ColumnMetaData colMetaData : this.columnMetaDataList) {
             if (colMetaData.getColName() != null && colMetaData.getColName().equals(columnLabel)) {
                 return colMetaData.getColIndex();
             }
@@ -158,8 +148,7 @@ public class DatabaseMetaDataResultSet extends AbstractResultSet {
     @Override
     public BigDecimal getBigDecimal(int columnIndex) throws SQLException {
         int colType = columnMetaDataList.get(columnIndex - 1).getColType();
-        int nativeType = TSDBConstants.jdbcType2TaosType(colType);
-        double value = rowCursor.getDouble(columnIndex, nativeType);
+        double value = rowCursor.getDouble(columnIndex, colType);
         return new BigDecimal(value);
     }
 

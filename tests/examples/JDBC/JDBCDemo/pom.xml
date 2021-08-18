@@ -9,11 +9,15 @@
     <version>SNAPSHOT</version>
     <packaging>jar</packaging>
 
+    <properties>
+        <project.assembly.dir>src/main/resources/assembly</project.assembly.dir>
+    </properties>
+
     <dependencies>
         <dependency>
             <groupId>com.taosdata.jdbc</groupId>
             <artifactId>taos-jdbcdriver</artifactId>
-            <version>2.0.22</version>
+            <version>2.0.31</version>
         </dependency>
     </dependencies>
 
@@ -22,20 +26,60 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-assembly-plugin</artifactId>
-                <version>3.1.0</version>
-                <configuration>
-                    <archive>
-                        <manifest>
-                            <mainClass>com.taosdata.example.JDBCDemo</mainClass>
-                        </manifest>
-                    </archive>
-                    <descriptorRefs>
-                        <descriptorRef>jar-with-dependencies</descriptorRef>
-                    </descriptorRefs>
-                </configuration>
+                <version>3.3.0</version>
                 <executions>
+                    <!-- jdbcDemo -->
                     <execution>
-                        <id>make-assembly</id>
+                        <id>JdbcDemo</id>
+                        <configuration>
+                            <finalName>JdbcDemo</finalName>
+                            <archive>
+                                <manifest>
+                                    <mainClass>com.taosdata.example.JdbcDemo</mainClass>
+                                </manifest>
+                            </archive>
+                            <descriptorRefs>
+                                <descriptorRef>jar-with-dependencies</descriptorRef>
+                            </descriptorRefs>
+                        </configuration>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>single</goal>
+                        </goals>
+                    </execution>
+
+                    <execution>
+                        <id>JdbcRestfulDemo</id>
+                        <configuration>
+                            <finalName>JdbcRestfulDemo</finalName>
+                            <archive>
+                                <manifest>
+                                    <mainClass>com.taosdata.example.JdbcRestfulDemo</mainClass>
+                                </manifest>
+                            </archive>
+                            <descriptorRefs>
+                                <descriptorRef>jar-with-dependencies</descriptorRef>
+                            </descriptorRefs>
+                        </configuration>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>single</goal>
+                        </goals>
+                    </execution>
+
+                    <execution>
+                        <id>SubscribeDemo</id>
+                        <configuration>
+                            <finalName>SubscribeDemo</finalName>
+                            <archive>
+                                <manifest>
+                                    <mainClass>com.taosdata.example.SubscribeDemo</mainClass>
+                                </manifest>
+                            </archive>
+                            <descriptorRefs>
+                                <descriptorRef>jar-with-dependencies</descriptorRef>
+                            </descriptorRefs>
+                        </configuration>
                         <phase>package</phase>
                         <goals>
                             <goal>single</goal>

@@ -339,11 +339,11 @@ public class TSDBResultSet extends AbstractResultSet implements ResultSet {
                 case TSDBConstants.TSDB_DATA_TYPE_SMALLINT:
                 case TSDBConstants.TSDB_DATA_TYPE_INT:
                 case TSDBConstants.TSDB_DATA_TYPE_BIGINT:
-                    res = new BigDecimal(Long.valueOf(this.rowData.getObject(columnIndex).toString()));
+                    res = new BigDecimal(Long.parseLong(this.rowData.getObject(columnIndex).toString()));
                     break;
                 case TSDBConstants.TSDB_DATA_TYPE_FLOAT:
                 case TSDBConstants.TSDB_DATA_TYPE_DOUBLE:
-                    res = new BigDecimal(Double.valueOf(this.rowData.getObject(columnIndex).toString()));
+                    res = BigDecimal.valueOf(Double.parseDouble(this.rowData.getObject(columnIndex).toString()));
                     break;
                 case TSDBConstants.TSDB_DATA_TYPE_TIMESTAMP:
                     return new BigDecimal(((Timestamp) this.rowData.getObject(columnIndex)).getTime());

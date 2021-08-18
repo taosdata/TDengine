@@ -36,23 +36,20 @@ public class TSDBResultSetBlockData {
     private int rowIndex = 0;
 
     private List<ColumnMetaData> columnMetaDataList;
-    private ArrayList<Object> colData = null;
+    private ArrayList<Object> colData;
 
     public TSDBResultSetBlockData(List<ColumnMetaData> colMeta, int numOfCols) {
         this.columnMetaDataList = colMeta;
-        this.colData = new ArrayList<Object>(numOfCols);
+        this.colData = new ArrayList<>(numOfCols);
     }
 
     public TSDBResultSetBlockData() {
-        this.colData = new ArrayList<Object>();
+        this.colData = new ArrayList<>();
     }
 
     public void clear() {
         int size = this.colData.size();
-        if (this.colData != null) {
-            this.colData.clear();
-        }
-
+        this.colData.clear();
         setNumOfCols(size);
     }
 
@@ -69,7 +66,7 @@ public class TSDBResultSetBlockData {
     }
 
     public void setNumOfCols(int numOfCols) {
-        this.colData = new ArrayList<Object>(numOfCols);
+        this.colData = new ArrayList<>(numOfCols);
         this.colData.addAll(Collections.nCopies(numOfCols, null));
     }
 
@@ -166,15 +163,10 @@ public class TSDBResultSetBlockData {
         }
     }
 
-    
 
     /**
      * The original type may not be a string type, but will be converted to by
      * calling this method
-     *
-     * @param col column index
-     * @return
-     * @throws SQLException
      */
     public String getString(int col) throws SQLException {
         Object obj = get(col);
@@ -387,7 +379,7 @@ public class TSDBResultSetBlockData {
                     return null;
                 }
 
-                return (long) val;
+                return val;
             }
 
             case TSDBConstants.TSDB_DATA_TYPE_FLOAT: {

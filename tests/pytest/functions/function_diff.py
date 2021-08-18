@@ -26,7 +26,20 @@ class TDTestCase:
 
         self.rowNum = 10
         self.ts = 1537146000000
-        
+        self.perfix = 'dev'
+        self.tables = 10
+
+    def insertData(self):
+        print("==============step1")
+        tdSql.execute(
+            "create table if not exists st (ts timestamp, col int) tags(dev nchar(50))")
+
+        for i in range(self.tables):
+            tdSql.execute("create table %s%d using st tags(%d)" % (self.perfix, i, i))
+            rows = 15 + i
+            for j in range(rows):
+                tdSql.execute("insert into %s%d values(%d, %d)" %(self.perfix, i, self.ts + i * 20 * 10000 + j * 10000, j))
+
     def run(self):
         tdSql.prepare()
 
@@ -99,6 +112,15 @@ class TDTestCase:
 
         tdSql.query("select diff(col6) from test1")
         tdSql.checkRows(10)
+
+        self.insertData()
+
+        tdSql.query("select diff(col) from st group by tbname")
+        tdSql.checkRows(185)
+
+        tdSql.error("select diff(col) from st group by dev")        
+
+        tdSql.error("select diff(col) from st group by col")
         
     def stop(self):
         tdSql.close()

@@ -13,7 +13,6 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <tschemautil.h>
 #include "os.h"
 #include "taosmsg.h"
 #include "tscLog.h"
@@ -38,8 +37,8 @@ static int64_t getDelayValueAfterTimewindowClosed(SSqlStream* pStream, int64_t l
 
 static bool isProjectStream(SQueryInfo* pQueryInfo) {
   for (int32_t i = 0; i < pQueryInfo->fieldsInfo.numOfOutput; ++i) {
-    SSqlExpr *pExpr = tscSqlExprGet(pQueryInfo, i);
-    if (pExpr->functionId != TSDB_FUNC_PRJ) {
+    SExprInfo *pExpr = tscExprGet(pQueryInfo, i);
+    if (pExpr->base.functionId != TSDB_FUNC_PRJ) {
       return false;
     }
   }
@@ -54,9 +53,7 @@ static int64_t tscGetRetryDelayTime(SSqlStream* pStream, int64_t slidingTime, in
 
   if (pStream->interval.intervalUnit != 'n' && pStream->interval.intervalUnit != 'y') {
     // change to ms
-    if (prec == TSDB_TIME_PRECISION_MICRO) {
-      slidingTime = slidingTime / 1000;
-    }
+    slidingTime = convertTimePrecision(slidingTime, pStream->precision, TSDB_TIME_PRECISION_MILLI);
 
     if (slidingTime < retryDelta) {
       return slidingTime;
@@ -90,12 +87,12 @@ static void doLaunchQuery(void* param, TAOS_RES* tres, int32_t code) {
     return;
   }
 
-  SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(&pSql->cmd, 0);
+  SQueryInfo *pQueryInfo = tscGetQueryInfo(&pSql->cmd);
   STableMetaInfo *pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
 
   code = tscGetTableMeta(pSql, pTableMetaInfo);
   if (code == 0 && UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo)) {
-    code = tscGetSTableVgroupInfo(pSql, 0);
+    code = tscGetSTableVgroupInfo(pSql, pQueryInfo);
   }
 
   if (code == TSDB_CODE_TSC_ACTION_IN_PROGRESS) {
@@ -103,7 +100,7 @@ static void doLaunchQuery(void* param, TAOS_RES* tres, int32_t code) {
   }
 
   if (UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo) && (pTableMetaInfo->pVgroupTables == NULL) && (pTableMetaInfo->vgroupList == NULL || pTableMetaInfo->vgroupList->numOfVgroups <= 0)) {
-    tscDebug("%p empty vgroup list", pSql);
+    tscDebug("0x%"PRIx64" empty vgroup list", pSql->self);
     pTableMetaInfo->vgroupList = tscVgroupInfoClear(pTableMetaInfo->vgroupList);
     code = TSDB_CODE_TSC_APP_ERROR;
   }
@@ -111,15 +108,14 @@ static void doLaunchQuery(void* param, TAOS_RES* tres, int32_t code) {
   // failed to get table Meta or vgroup list, retry in 10sec.
   if (code == TSDB_CODE_SUCCESS) {
     tscTansformFuncForSTableQuery(pQueryInfo);
-    
-    
+
     tscDebug("0x%"PRIx64" stream:%p, start stream query on:%s QueryInfo->skey=%"PRId64" ekey=%"PRId64" ", pSql->self, pStream, tNameGetTableName(&pTableMetaInfo->name), pQueryInfo->window.skey, pQueryInfo->window.ekey);
 
     pQueryInfo->command = TSDB_SQL_SELECT;
-    
+
     pSql->fp = tscProcessStreamQueryCallback;
     pSql->fetchFp = tscProcessStreamQueryCallback;
-    tscDoQuery(pSql);
+    executeQuery(pSql, pQueryInfo);
     tscIncStreamExecutionCount(pStream);
   } else {
     setRetryInfo(pStream, code);
@@ -141,11 +137,12 @@ static void tscProcessStreamTimer(void *handle, void *tmrId) {
 
   pStream->numOfRes = 0;  // reset the numOfRes.
   SSqlObj *pSql = pStream->pSql;
+
   // pSql ==  NULL  maybe killStream already called
   if(pSql == NULL) {
     return ;
   }
-  SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(&pSql->cmd, 0);
+  SQueryInfo* pQueryInfo = tscGetQueryInfo(&pSql->cmd);
   tscDebug("0x%"PRIx64" add into timer", pSql->self);
 
   if (pStream->isProject) {
@@ -163,11 +160,7 @@ static void tscProcessStreamTimer(void *handle, void *tmrId) {
     pQueryInfo->window.skey = pStream->stime;
     int64_t etime = taosGetTimestamp(pStream->precision);
     // delay to wait all data in last time window
-    if (pStream->precision == TSDB_TIME_PRECISION_MICRO) {
-      etime -= tsMaxStreamComputDelay * 1000l;
-    } else {
-      etime -= tsMaxStreamComputDelay;
-    }
+    etime -= convertTimePrecision(tsMaxStreamComputDelay, TSDB_TIME_PRECISION_MILLI, pStream->precision);
     if (etime > pStream->etime) {
       etime = pStream->etime;
     } else if (pStream->interval.intervalUnit != 'y' && pStream->interval.intervalUnit != 'n') {
@@ -184,8 +177,8 @@ static void tscProcessStreamTimer(void *handle, void *tmrId) {
       int64_t timer = pStream->interval.sliding;
       if (pStream->interval.intervalUnit == 'y' || pStream->interval.intervalUnit == 'n') {
         timer = 86400 * 1000l;
-      } else if (pStream->precision == TSDB_TIME_PRECISION_MICRO) {
-        timer /= 1000l;
+      } else {
+        timer = convertTimePrecision(timer, pStream->precision, TSDB_TIME_PRECISION_MILLI);
       }
       tscSetRetryTimer(pStream, pSql, timer);
       return;
@@ -205,20 +198,20 @@ static void tscProcessStreamQueryCallback(void *param, TAOS_RES *tres, int numOf
   SSqlStream *pStream = (SSqlStream *)param;
   if (tres == NULL || numOfRows < 0) {
     int64_t retryDelay = tscGetRetryDelayTime(pStream, pStream->interval.sliding, pStream->precision);
-    tscError("0x%"PRIx64" stream:%p, query data failed, code:0x%08x, retry in %" PRId64 "ms", pStream->pSql->self, pStream, numOfRows,
-             retryDelay);
+    tscError("0x%"PRIx64" stream:%p, query data failed, code:0x%08x, retry in %" PRId64 "ms", pStream->pSql->self,
+        pStream, numOfRows, retryDelay);
 
-    STableMetaInfo* pTableMetaInfo = tscGetTableMetaInfoFromCmd(&pStream->pSql->cmd, 0, 0);
+    STableMetaInfo* pTableMetaInfo = tscGetTableMetaInfoFromCmd(&pStream->pSql->cmd, 0);
 
     char name[TSDB_TABLE_FNAME_LEN] = {0};
     tNameExtractFullName(&pTableMetaInfo->name, name);
 
-    taosHashRemove(tscTableMetaInfo, name, strnlen(name, TSDB_TABLE_FNAME_LEN));
+    taosHashRemove(tscTableMetaMap, name, strnlen(name, TSDB_TABLE_FNAME_LEN));
 
     tfree(pTableMetaInfo->pTableMeta);
 
     tscFreeSqlResult(pStream->pSql);
-    tscFreeSubobj(pStream->pSql);    
+    tscFreeSubobj(pStream->pSql);
     tfree(pStream->pSql->pSubs);
     pStream->pSql->subState.numOfSub = 0;
 
@@ -235,7 +228,7 @@ static void tscProcessStreamQueryCallback(void *param, TAOS_RES *tres, int numOf
 static void tscStreamFillTimeGap(SSqlStream* pStream, TSKEY ts) {
 #if 0
   SSqlObj *   pSql = pStream->pSql;
-  SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(&pSql->cmd, 0);
+  SQueryInfo* pQueryInfo = tscGetQueryInfo(&pSql->cmd);
   
   if (pQueryInfo->fillType != TSDB_FILL_SET_VALUE && pQueryInfo->fillType != TSDB_FILL_NULL) {
     return;
@@ -278,13 +271,14 @@ static void tscProcessStreamRetrieveResult(void *param, TAOS_RES *res, int numOf
 
   if (pSql == NULL || numOfRows < 0) {
     int64_t retryDelayTime = tscGetRetryDelayTime(pStream, pStream->interval.sliding, pStream->precision);
-    tscError("0x%"PRIx64" stream:%p, retrieve data failed, code:0x%08x, retry in %" PRId64 "ms", pSql->self, pStream, numOfRows, retryDelayTime);
+    tscError("stream:%p, retrieve data failed, code:0x%08x, retry in %" PRId64 " ms", pStream, numOfRows, retryDelayTime);
   
     tscSetRetryTimer(pStream, pStream->pSql, retryDelayTime);
     return;
   }
 
-  STableMetaInfo *pTableMetaInfo = tscGetTableMetaInfoFromCmd(&pSql->cmd, 0, 0);
+  SQueryInfo* pQueryInfo = tscGetQueryInfo(&pSql->cmd);
+  STableMetaInfo *pTableMetaInfo = pQueryInfo->pTableMetaInfo[0];
 
   if (numOfRows > 0) { // when reaching here the first execution of stream computing is successful.
     for(int32_t i = 0; i < numOfRows; ++i) {
@@ -324,6 +318,10 @@ static void tscProcessStreamRetrieveResult(void *param, TAOS_RES *res, int numOf
              pStream->numOfRes);
 
     tfree(pTableMetaInfo->pTableMeta);
+    if (pQueryInfo->pQInfo != NULL) {
+      qDestroyQueryInfo(pQueryInfo->pQInfo);
+      pQueryInfo->pQInfo = NULL;
+    }
 
     tscFreeSqlResult(pSql);
     tscFreeSubobj(pSql);    
@@ -360,7 +358,7 @@ static void tscSetRetryTimer(SSqlStream *pStream, SSqlObj *pSql, int64_t timer) 
       return;
     }
   
-    tscDebug("0x%"PRIx64" stream:%p, next start at %" PRId64 ", in %" PRId64 "ms. delay:%" PRId64 "ms qrange %" PRId64 "-%" PRId64, pStream->pSql->self, pStream,
+    tscDebug("0x%"PRIx64" stream:%p, next start at %" PRId64 "(ts window ekey), in %" PRId64 " ms. delay:%" PRId64 "ms qrange %" PRId64 "-%" PRId64, pStream->pSql->self, pStream,
              now + timer, timer, delay, pStream->stime, etime);
   } else {
     tscDebug("0x%"PRIx64" stream:%p, next start at %" PRId64 " - %" PRId64 " end, in %" PRId64 "ms. delay:%" PRId64 "ms qrange %" PRId64 "-%" PRId64, pStream->pSql->self, pStream,
@@ -374,9 +372,8 @@ static void tscSetRetryTimer(SSqlStream *pStream, SSqlObj *pSql, int64_t timer) 
 }
 
 static int64_t getLaunchTimeDelay(const SSqlStream* pStream) {
-  int64_t maxDelay =
-      (pStream->precision == TSDB_TIME_PRECISION_MICRO) ? tsMaxStreamComputDelay * 1000L : tsMaxStreamComputDelay;
-  
+  int64_t maxDelay = convertTimePrecision(tsMaxStreamComputDelay, TSDB_TIME_PRECISION_MILLI, pStream->precision);
+
   int64_t delayDelta = maxDelay;
   if (pStream->interval.intervalUnit != 'n' && pStream->interval.intervalUnit != 'y') {
     delayDelta = (int64_t)(pStream->interval.sliding * tsStreamComputDelayRatio);
@@ -421,7 +418,6 @@ static void tscSetNextLaunchTimer(SSqlStream *pStream, SSqlObj *pSql) {
     }
   } else {
     int64_t stime = taosTimeTruncate(pStream->stime - 1, &pStream->interval, pStream->precision);
-    //int64_t stime = taosGetIntervalStartTimestamp(pStream->stime - 1, pStream->interval.interval, pStream->interval.interval, pStream->interval.intervalUnit, pStream->precision);
     if (stime >= pStream->etime) {
       tscDebug("0x%"PRIx64" stream:%p, stime:%" PRId64 " is larger than end time: %" PRId64 ", stop the stream", pStream->pSql->self, pStream,
                pStream->stime, pStream->etime);
@@ -444,18 +440,16 @@ static void tscSetNextLaunchTimer(SSqlStream *pStream, SSqlObj *pSql) {
 
   timer += getLaunchTimeDelay(pStream);
   
-  if (pStream->precision == TSDB_TIME_PRECISION_MICRO) {
-    timer = timer / 1000L;
-  }
+  timer = convertTimePrecision(timer, pStream->precision, TSDB_TIME_PRECISION_MILLI);
 
   tscSetRetryTimer(pStream, pSql, timer);
 }
 
 static int32_t tscSetSlidingWindowInfo(SSqlObj *pSql, SSqlStream *pStream) {
   int64_t minIntervalTime =
-      (pStream->precision == TSDB_TIME_PRECISION_MICRO) ? tsMinIntervalTime * 1000L : tsMinIntervalTime;
+      convertTimePrecision(tsMinIntervalTime, TSDB_TIME_PRECISION_MILLI, pStream->precision);
   
-  SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(&pSql->cmd, 0);
+  SQueryInfo* pQueryInfo = tscGetQueryInfo(&pSql->cmd);
 
   if (!pStream->isProject && pQueryInfo->interval.interval == 0) {
     sprintf(pSql->cmd.payload, "the interval value is 0");
@@ -477,7 +471,7 @@ static int32_t tscSetSlidingWindowInfo(SSqlObj *pSql, SSqlStream *pStream) {
   }
 
   int64_t minSlidingTime =
-      (pStream->precision == TSDB_TIME_PRECISION_MICRO) ? tsMinSlidingTime * 1000L : tsMinSlidingTime;
+      convertTimePrecision(tsMinSlidingTime, TSDB_TIME_PRECISION_MILLI, pStream->precision);
 
   if (pQueryInfo->interval.intervalUnit != 'n' && pQueryInfo->interval.intervalUnit!= 'y' && pQueryInfo->interval.sliding < minSlidingTime) {
     tscWarn("0x%"PRIx64" stream:%p, original sliding value:%" PRId64 " too small, reset to:%" PRId64, pSql->self, pStream,
@@ -505,7 +499,7 @@ static int32_t tscSetSlidingWindowInfo(SSqlObj *pSql, SSqlStream *pStream) {
 }
 
 static int64_t tscGetStreamStartTimestamp(SSqlObj *pSql, SSqlStream *pStream, int64_t stime) {
-  SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(&pSql->cmd, 0);
+  SQueryInfo* pQueryInfo = tscGetQueryInfo(&pSql->cmd);
   
   if (pStream->isProject) {
     // no data in table, flush all data till now to destination meter, 10sec delay
@@ -525,7 +519,7 @@ static int64_t tscGetStreamStartTimestamp(SSqlObj *pSql, SSqlStream *pStream, in
       } else {
         return stime;
       }
-      
+
       stime = taosTimeTruncate(stime, &pStream->interval, pStream->precision);
     } else {
       int64_t newStime = taosTimeTruncate(stime, &pStream->interval, pStream->precision);
@@ -545,13 +539,12 @@ static int64_t tscGetLaunchTimestamp(const SSqlStream *pStream) {
     timer = pStream->stime - now;
   }
 
-  int64_t startDelay =
-      (pStream->precision == TSDB_TIME_PRECISION_MICRO) ? tsStreamCompStartDelay * 1000L : tsStreamCompStartDelay;
-  
+  int64_t startDelay = convertTimePrecision(tsStreamCompStartDelay, TSDB_TIME_PRECISION_MILLI, pStream->precision);
+
   timer += getLaunchTimeDelay(pStream);
   timer += startDelay;
   
-  return (pStream->precision == TSDB_TIME_PRECISION_MICRO) ? timer / 1000L : timer;
+  return convertTimePrecision(timer, pStream->precision, TSDB_TIME_PRECISION_MILLI);
 }
 
 static void tscCreateStream(void *param, TAOS_RES *res, int code) {
@@ -567,7 +560,7 @@ static void tscCreateStream(void *param, TAOS_RES *res, int code) {
     return;
   }
 
-  SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, 0);
+  SQueryInfo* pQueryInfo = tscGetQueryInfo(pCmd);
   STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
   STableComInfo tinfo = tscGetTableInfo(pTableMetaInfo->pTableMeta);
   
@@ -709,7 +702,10 @@ TAOS_STREAM *taos_open_stream_withname(TAOS *taos, const char* dstTable, const c
   pSql->maxRetry = TSDB_MAX_REPLICA;
   tscSetStreamDestTable(pStream, dstTable);
 
-  pSql->sqlstr = calloc(1, strlen(sqlstr) + 1);
+  pSql->pStream  = pStream;
+  pSql->param    = pStream;
+  pSql->maxRetry = TSDB_MAX_REPLICA;
+  pSql->sqlstr   = calloc(1, strlen(sqlstr) + 1);
   if (pSql->sqlstr == NULL) {
     tscError("0x%"PRIx64" failed to malloc sql string buffer", pSql->self);
     tscFreeSqlObj(pSql);
@@ -718,9 +714,14 @@ TAOS_STREAM *taos_open_stream_withname(TAOS *taos, const char* dstTable, const c
   }
 
   strtolower(pSql->sqlstr, sqlstr);
+  pSql->fp      = tscCreateStream;
+  pSql->fetchFp = tscCreateStream;
+  pSql->cmd.resColumnId = TSDB_RES_COL_ID;
 
-  tscDebugL("%p SQL: %s", pSql, pSql->sqlstr);
   tsem_init(&pSql->rspSem, 0, 0);
+  registerSqlObj(pSql);
+
+  tscDebugL("0x%"PRIx64" SQL: %s", pSql->self, pSql->sqlstr);
 
   pSql->fp      = cbParseSql;
   pSql->fetchFp = cbParseSql;

@@ -93,7 +93,7 @@ static void vnodeIncRef(void *ptNode) {
 void *vnodeAcquire(int32_t vgId) {
   SVnodeObj *pVnode = NULL;
   if (tsVnodesHash != NULL) {
-    taosHashGetClone(tsVnodesHash, &vgId, sizeof(int32_t), vnodeIncRef, &pVnode, sizeof(void *));
+    taosHashGetClone(tsVnodesHash, &vgId, sizeof(int32_t), vnodeIncRef, &pVnode);
   }
 
   if (pVnode == NULL) {
@@ -110,7 +110,9 @@ void vnodeRelease(void *vparam) {
   if (vparam == NULL) return;
 
   int32_t refCount = atomic_sub_fetch_32(&pVnode->refCount, 1);
-  vTrace("vgId:%d, release vnode, refCount:%d pVnode:%p", pVnode->vgId, refCount, pVnode);
+  int32_t vgId = pVnode->vgId;
+
+  vTrace("vgId:%d, release vnode, refCount:%d pVnode:%p", vgId, refCount, pVnode);
   assert(refCount >= 0);
 
   if (refCount > 0) {
@@ -118,10 +120,10 @@ void vnodeRelease(void *vparam) {
       tsem_post(&pVnode->sem);
     }
   } else {
-    vDebug("vgId:%d, vnode will be destroyed, refCount:%d pVnode:%p", pVnode->vgId, refCount, pVnode);
+    vDebug("vgId:%d, vnode will be destroyed, refCount:%d pVnode:%p", vgId, refCount, pVnode);
     vnodeDestroyInMWorker(pVnode);
     int32_t count = taosHashGetSize(tsVnodesHash);
-    vDebug("vgId:%d, vnode is destroyed, vnodes:%d", pVnode->vgId, count);
+    vDebug("vgId:%d, vnode is destroyed, vnodes:%d", vgId, count);
   }
 }
 
@@ -160,6 +162,7 @@ static void vnodeBuildVloadMsg(SVnodeObj *pVnode, SStatusMsg *pStatus) {
   pLoad->status = pVnode->status;
   pLoad->role = pVnode->role;
   pLoad->replica = pVnode->syncCfg.replica;  
+  pLoad->compact = (pVnode->tsdb != NULL) ? tsdbGetCompactState(pVnode->tsdb) : 0; 
 }
 
 int32_t vnodeGetVnodeList(int32_t vnodeList[], int32_t *numOfVnodes) {

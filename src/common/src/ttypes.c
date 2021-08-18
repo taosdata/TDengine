@@ -38,7 +38,11 @@ const int32_t TYPE_BYTES[15] = {
 
 #define DO_STATICS(__sum, __min, __max, __minIndex, __maxIndex, _list, _index) \
   do {                                                                         \
-    (__sum) += (_list)[(_index)];                                              \
+    if (_list[(_index)] >= (INT64_MAX - (__sum))) {                            \
+      __sum = INT64_MAX;                                                       \
+    } else {                                                                   \
+      (__sum) += (_list)[(_index)];                                            \
+    }                                                                          \
     if ((__min) > (_list)[(_index)]) {                                         \
       (__min) = (_list)[(_index)];                                             \
       (__minIndex) = (_index);                                                 \
@@ -405,7 +409,7 @@ bool isValidDataType(int32_t type) {
   return type >= TSDB_DATA_TYPE_NULL && type <= TSDB_DATA_TYPE_UBIGINT;
 }
 
-void setVardataNull(char* val, int32_t type) {
+void setVardataNull(void* val, int32_t type) {
   if (type == TSDB_DATA_TYPE_BINARY) {
     varDataSetLen(val, sizeof(int8_t));
     *(uint8_t*) varDataVal(val) = TSDB_DATA_BINARY_NULL;
@@ -417,105 +421,107 @@ void setVardataNull(char* val, int32_t type) {
   }
 }
 
-void setNull(char *val, int32_t type, int32_t bytes) { setNullN(val, type, bytes, 1); }
+void setNull(void *val, int32_t type, int32_t bytes) { setNullN(val, type, bytes, 1); }
 
-void setNullN(char *val, int32_t type, int32_t bytes, int32_t numOfElems) {
+void setNullN(void *val, int32_t type, int32_t bytes, int32_t numOfElems) {
   switch (type) {
     case TSDB_DATA_TYPE_BOOL:
       for (int32_t i = 0; i < numOfElems; ++i) {
-        *(uint8_t *)(val + i * tDataTypes[type].bytes) = TSDB_DATA_BOOL_NULL;
+        *(uint8_t *)(POINTER_SHIFT(val, i * tDataTypes[type].bytes)) = TSDB_DATA_BOOL_NULL;
       }
       break;
     case TSDB_DATA_TYPE_TINYINT:
       for (int32_t i = 0; i < numOfElems; ++i) {
-        *(uint8_t *)(val + i * tDataTypes[type].bytes) = TSDB_DATA_TINYINT_NULL;
+        *(uint8_t *)(POINTER_SHIFT(val, i * tDataTypes[type].bytes)) = TSDB_DATA_TINYINT_NULL;
       }
       break;
     case TSDB_DATA_TYPE_SMALLINT:
       for (int32_t i = 0; i < numOfElems; ++i) {
-        *(uint16_t *)(val + i * tDataTypes[type].bytes) = TSDB_DATA_SMALLINT_NULL;
+        *(uint16_t *)(POINTER_SHIFT(val, i * tDataTypes[type].bytes)) = TSDB_DATA_SMALLINT_NULL;
       }
       break;
     case TSDB_DATA_TYPE_INT:
       for (int32_t i = 0; i < numOfElems; ++i) {
-        *(uint32_t *)(val + i * tDataTypes[type].bytes) = TSDB_DATA_INT_NULL;
+        *(uint32_t *)(POINTER_SHIFT(val, i * tDataTypes[type].bytes)) = TSDB_DATA_INT_NULL;
       }
       break;
     case TSDB_DATA_TYPE_BIGINT:
     case TSDB_DATA_TYPE_TIMESTAMP:
       for (int32_t i = 0; i < numOfElems; ++i) {
-        *(uint64_t *)(val + i * tDataTypes[type].bytes) = TSDB_DATA_BIGINT_NULL;
+        *(uint64_t *)(POINTER_SHIFT(val, i * tDataTypes[type].bytes)) = TSDB_DATA_BIGINT_NULL;
       }
       break;
     case TSDB_DATA_TYPE_UTINYINT:
       for (int32_t i = 0; i < numOfElems; ++i) {
-        *(uint8_t *)(val + i * tDataTypes[type].bytes) = TSDB_DATA_UTINYINT_NULL;
+        *(uint8_t *)(POINTER_SHIFT(val, i * tDataTypes[type].bytes)) = TSDB_DATA_UTINYINT_NULL;
       }
       break;
     case TSDB_DATA_TYPE_USMALLINT:
       for (int32_t i = 0; i < numOfElems; ++i) {
-        *(uint16_t *)(val + i * tDataTypes[type].bytes) = TSDB_DATA_USMALLINT_NULL;
+        *(uint16_t *)(POINTER_SHIFT(val, i * tDataTypes[type].bytes)) = TSDB_DATA_USMALLINT_NULL;
       }
       break;
     case TSDB_DATA_TYPE_UINT:
       for (int32_t i = 0; i < numOfElems; ++i) {
-        *(uint32_t *)(val + i * tDataTypes[type].bytes) = TSDB_DATA_UINT_NULL;
+        *(uint32_t *)(POINTER_SHIFT(val, i * tDataTypes[type].bytes)) = TSDB_DATA_UINT_NULL;
       }
       break;
     case TSDB_DATA_TYPE_UBIGINT:
       for (int32_t i = 0; i < numOfElems; ++i) {
-        *(uint64_t *)(val + i * tDataTypes[type].bytes) = TSDB_DATA_UBIGINT_NULL;
+        *(uint64_t *)(POINTER_SHIFT(val, i * tDataTypes[type].bytes)) = TSDB_DATA_UBIGINT_NULL;
       }
       break;
     case TSDB_DATA_TYPE_FLOAT:
       for (int32_t i = 0; i < numOfElems; ++i) {
-        *(uint32_t *)(val + i * tDataTypes[type].bytes) = TSDB_DATA_FLOAT_NULL;
+        *(uint32_t *)(POINTER_SHIFT(val, i * tDataTypes[type].bytes)) = TSDB_DATA_FLOAT_NULL;
       }
       break;
     case TSDB_DATA_TYPE_DOUBLE:
       for (int32_t i = 0; i < numOfElems; ++i) {
-        *(uint64_t *)(val + i * tDataTypes[type].bytes) = TSDB_DATA_DOUBLE_NULL;
+        *(uint64_t *)(POINTER_SHIFT(val, i * tDataTypes[type].bytes)) = TSDB_DATA_DOUBLE_NULL;
       }
       break;
     case TSDB_DATA_TYPE_NCHAR:
     case TSDB_DATA_TYPE_BINARY:
       for (int32_t i = 0; i < numOfElems; ++i) {
-        setVardataNull(val + i * bytes, type);
+        setVardataNull(POINTER_SHIFT(val, i * bytes), type);
       }
       break;
     default: {
       for (int32_t i = 0; i < numOfElems; ++i) {
-        *(uint32_t *)(val + i * tDataTypes[TSDB_DATA_TYPE_INT].bytes) = TSDB_DATA_INT_NULL;
+        *(uint32_t *)(POINTER_SHIFT(val, i * tDataTypes[TSDB_DATA_TYPE_INT].bytes)) = TSDB_DATA_INT_NULL;
       }
       break;
     }
   }
 }
 
-static uint8_t   nullBool     = TSDB_DATA_BOOL_NULL;
-static uint8_t   nullTinyInt  = TSDB_DATA_TINYINT_NULL;
-static uint16_t  nullSmallInt = TSDB_DATA_SMALLINT_NULL;
-static uint32_t  nullInt      = TSDB_DATA_INT_NULL;
-static uint64_t  nullBigInt   = TSDB_DATA_BIGINT_NULL;
-static uint32_t  nullFloat    = TSDB_DATA_FLOAT_NULL;
-static uint64_t  nullDouble   = TSDB_DATA_DOUBLE_NULL;
-static uint8_t   nullTinyIntu = TSDB_DATA_UTINYINT_NULL;
-static uint16_t  nullSmallIntu = TSDB_DATA_USMALLINT_NULL;
-static uint32_t  nullIntu     = TSDB_DATA_UINT_NULL;
-static uint64_t  nullBigIntu  = TSDB_DATA_UBIGINT_NULL;
+static uint8_t      nullBool = TSDB_DATA_BOOL_NULL;
+static uint8_t      nullTinyInt = TSDB_DATA_TINYINT_NULL;
+static uint16_t     nullSmallInt = TSDB_DATA_SMALLINT_NULL;
+static uint32_t     nullInt = TSDB_DATA_INT_NULL;
+static uint64_t     nullBigInt = TSDB_DATA_BIGINT_NULL;
+static uint32_t     nullFloat = TSDB_DATA_FLOAT_NULL;
+static uint64_t     nullDouble = TSDB_DATA_DOUBLE_NULL;
+static uint8_t      nullTinyIntu = TSDB_DATA_UTINYINT_NULL;
+static uint16_t     nullSmallIntu = TSDB_DATA_USMALLINT_NULL;
+static uint32_t     nullIntu = TSDB_DATA_UINT_NULL;
+static uint64_t     nullBigIntu = TSDB_DATA_UBIGINT_NULL;
+static SBinaryNullT nullBinary = {1, TSDB_DATA_BINARY_NULL};
+static SNCharNullT  nullNchar = {4, TSDB_DATA_NCHAR_NULL};
 
-static union {
-  tstr str;
-  char pad[sizeof(tstr) + 4];
-} nullBinary = {.str = {.len = 1}}, nullNchar = {.str = {.len = 4}};
+// static union {
+//   tstr str;
+//   char pad[sizeof(tstr) + 4];
+// } nullBinary = {.str = {.len = 1}}, nullNchar = {.str = {.len = 4}};
 
-static void *nullValues[] = {
+static const void *nullValues[] = {
     &nullBool,     &nullTinyInt,   &nullSmallInt, &nullInt,    &nullBigInt,
     &nullFloat,    &nullDouble,    &nullBinary,   &nullBigInt, &nullNchar,
     &nullTinyIntu, &nullSmallIntu, &nullIntu,     &nullBigIntu,
 };
 
-void *getNullValue(int32_t type) {
+const void *getNullValue(int32_t type) {
   assert(type >= TSDB_DATA_TYPE_BOOL && type <= TSDB_DATA_TYPE_UBIGINT);
   return nullValues[type - 1];
 }
@@ -632,7 +638,15 @@ int32_t tStrToInteger(const char* z, int16_t type, int32_t n, int64_t* value, bo
   }
 
   // the string may be overflow according to errno
-  *value = issigned? strtoll(z, &endPtr, radix):strtoull(z, &endPtr, radix);
+  if (!issigned) {
+    const char *p = z;
+    while(*p != 0 && *p == ' ') p++;   
+    if (*p != 0 && *p == '-') { return -1;}
+
+    *value = strtoull(z, &endPtr, radix);
+  } else {
+    *value = strtoll(z, &endPtr, radix);
+  }
 
   // not a valid integer number, return error
   if (endPtr - z != n || errno == ERANGE) {
