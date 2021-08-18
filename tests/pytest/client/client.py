@@ -35,6 +35,8 @@ class TDTestCase:
         ret = tdSql.query('select server_status() as result')
         tdSql.checkData(0, 0, 1)
 
+        time.sleep(1)
+
         ret = tdSql.query('show dnodes')
 
         dnodeId = tdSql.getData(0, 0);
@@ -43,6 +45,7 @@ class TDTestCase:
         ret = tdSql.execute('alter dnode "%s" debugFlag 135' % dnodeId)
         tdLog.info('alter dnode "%s" debugFlag 135 -> ret: %d' % (dnodeId, ret))
 
+        time.sleep(1)
 
         ret = tdSql.query('show mnodes')
         tdSql.checkRows(1)
@@ -63,6 +66,9 @@ class TDTestCase:
         tdSql.execute('create stable st (ts timestamp, f int) tags(t int)')
         tdSql.execute('create table ct1 using st tags(1)');
         tdSql.execute('create table ct2 using st tags(2)');
+
+        time.sleep(3)
+
         ret = tdSql.query('show vnodes "{}"'.format(dnodeEndpoint))
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 2)

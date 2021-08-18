@@ -19,6 +19,13 @@ TDengine 的 Grafana 插件在安装包的 /usr/local/taos/connector/grafanaplug
 sudo cp -rf /usr/local/taos/connector/grafanaplugin /var/lib/grafana/plugins/tdengine
 ```
 
+Grafana 8.x 版本会对插件进行签名检查，因此还需要在 grafana.ini 文件中增加如下行，才能正确使用插件：
+```
+[plugins]
+enable_alpha = true
+allow_loading_unsigned_plugins = taosdata-tdengine-datasource
+```
+
 ### 使用 Grafana
 
 #### 配置数据源
@@ -64,7 +71,7 @@ sudo cp -rf /usr/local/taos/connector/grafanaplugin /var/lib/grafana/plugins/tde
 
 #### 导入 Dashboard
 
-在 Grafana 插件目录 /usr/local/taos/connector/grafana/tdengine/dashboard/ 下提供了一个 `tdengine-grafana.json` 可导入的 dashboard。
+在 Grafana 插件目录 /usr/local/taos/connector/grafanaplugin/dashboard 下提供了一个 `tdengine-grafana.json` 可导入的 dashboard。
 
 点击左侧 `Import` 按钮，并上传 `tdengine-grafana.json` 文件：
 

@@ -12,7 +12,7 @@ IN_TDINTERNAL="community"
 
 function stopTaosd {
 	echo "Stop taosd"
-  sudo systemctl stop taosd
+  sudo systemctl stop taosd || echo 'no sudo or systemctl or stop fail'
   PID=`ps -ef|grep -w taosd | grep -v grep | awk '{print $2}'`
 	while [ -n "$PID" ]
 	do
@@ -179,6 +179,9 @@ function runPyCaseOneByOnefq() {
         start_time=`date +%s`
         date +%F\ %T | tee -a pytest-out.log
         echo -n $case
+        if [[ $1 =~ full ]] ; then
+          line=$line" -s"
+        fi
         $line > case.log 2>&1 && \
           echo -e "${GREEN} success${NC}" | tee -a pytest-out.log || \
           echo -e "${RED} failed${NC}" | tee -a pytest-out.log 
