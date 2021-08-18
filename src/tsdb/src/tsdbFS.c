@@ -913,6 +913,10 @@ int tsdbLoadSchema(STsdbRepo *pRepo) {
     tdDecodeSchema(pBuf, &pSchema);
     if(pSchema != NULL) {
       STable *pTable = tsdbGetTableByUid(pRepo->tsdbMeta, rInfo.uid);
+      if(pTable == NULL) {
+        free(pSchema);
+        continue;
+      }
       STable *pSTable = (TABLE_TYPE(pTable) == TSDB_CHILD_TABLE) ? pTable->pSuper : pTable;
       if(tsdbAddSchema(pSTable, pSchema) < 0) {
         free(pSchema);
