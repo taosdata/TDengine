@@ -1550,7 +1550,7 @@ static int tsdbRestoreCurrent(STsdbRepo *pRepo) {
     return -1;
   }
 
-  if (pRepo->fs->cstatus->psf == NULL) {
+  if (pRepo->fs->cstatus->pmf && !pRepo->fs->cstatus->psf) {
     if(tsdbCreateSchemaFile(pRepo) < 0) {
       return -1;
     }
@@ -1558,7 +1558,6 @@ static int tsdbRestoreCurrent(STsdbRepo *pRepo) {
     pRepo->fs->cstatus->psf = pRepo->fs->nstatus->psf;
     pRepo->fs->nstatus->psf = NULL;
   }
-  ASSERT(pRepo->fs->cstatus->psf != NULL);
 
   // Loop to recover dfile set
   if (tsdbRestoreDFileSet(pRepo) < 0) {
