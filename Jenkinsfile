@@ -142,6 +142,7 @@ pipeline {
           rm -rf ${WORKSPACE}.tes
           cp -r ${WORKSPACE} ${WORKSPACE}.tes
           cd ${WORKSPACE}.tes
+          scp -rp ${WORKSPACE}.tes root@114.112.118.11:./
           git fetch
           '''
           script {
