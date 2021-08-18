@@ -530,7 +530,6 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcEpSet *pEpSet) {
   SSqlCmd *pCmd = &pSql->cmd;
 
   pSql->rpcRid = -1;
-
   if (pObj->signature != pObj) {
     tscDebug("0x%"PRIx64" DB connection is closed, cmd:%d pObj:%p signature:%p", pSql->self, pCmd->command, pObj, pObj->signature);
 
