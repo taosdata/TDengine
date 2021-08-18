@@ -52,8 +52,6 @@ typedef struct {
   STable**  tables;
   SList*    superList;
   SHashObj* uidMap;
-  int       maxRowBytes;
-  int       maxCols;
 } STsdbMeta;
 
 #define TSDB_INIT_NTABLES 1024
