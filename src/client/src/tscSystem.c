@@ -199,7 +199,10 @@ void taos_init_imp(void) {
 
   // In the APIs of other program language, taos_cleanup is not available yet.
   // So, to make sure taos_cleanup will be invoked to clean up the allocated resource to suppress the valgrind warning.
+  // But in the dll, the child thread will be killed before atexit takes effect.So taos_cleanup is not necessary.
+#if defined(_UWIN)
   atexit(taos_cleanup);
+#endif
 
   tscDebug("client is initialized successfully");
 }
