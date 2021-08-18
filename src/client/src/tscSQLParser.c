@@ -3994,7 +3994,13 @@ static int32_t getColQueryCondExpr(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSqlEx
       UNUSED(code);
       // TODO: more error handling
     } END_TRY
-    
+
+    if (tbufTell(&bw) >= TSDB_MAX_WHERE_LEN ) {
+      char tmp[64] = {0};
+      sprintf(tmp, "where condition string should be less than %d characters", TSDB_MAX_WHERE_LEN);
+      return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), tmp);
+    }
+
     // add to required table column list
     STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, i);
     int64_t uid = pTableMetaInfo->pTableMeta->id.uid;
@@ -5238,7 +5244,13 @@ static int32_t getTagQueryCondExpr(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SCondE
       UNUSED(code);
       // TODO: more error handling
     } END_TRY
-    
+
+    if (tbufTell(&bw) >= TSDB_MAX_WHERE_LEN ) {
+      char tmp[64] = {0};
+      sprintf(tmp, "where condition string should be less than %d characters", TSDB_MAX_WHERE_LEN);
+      return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), tmp);
+    }
+
     // add to required table column list
     STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, i);
     int64_t uid = pTableMetaInfo->pTableMeta->id.uid;
