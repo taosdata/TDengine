@@ -2717,10 +2717,19 @@ void tscHandleSubqueryError(SRetrieveSupport *trsupport, SSqlObj *pSql, int numO
   if (!TSDB_QUERY_HAS_TYPE(pQueryInfo->type, TSDB_QUERY_TYPE_JOIN_SEC_STAGE)) {
 
     int32_t code = pParentSql->res.code;
-    SSqlObj *userSql = ((SRetrieveSupport*)pParentSql->param)->pParentSql;
+    SSqlObj *userSql = NULL;
+    if (pParentSql->param) {
+      userSql = ((SRetrieveSupport*)pParentSql->param)->pParentSql;
+    }
+
+    if (userSql == NULL) {
+      userSql = pParentSql;
+    }
 
     if ((code == TSDB_CODE_TDB_INVALID_TABLE_ID || code == TSDB_CODE_VND_INVALID_VGROUP_ID) && userSql->retry < userSql->maxRetry) {
-      tscFreeRetrieveSup(pParentSql);
+      if (userSql != pParentSql) {
+        tscFreeRetrieveSup(pParentSql);
+      }
 
       tscFreeSubobj(userSql);      
       tfree(userSql->pSubs);
