@@ -49,7 +49,7 @@ class TDTestCase:
         else:
             tdLog.info("taosd found in %s" % buildPath)
         binPath = buildPath + "/build/bin/"
-        taosdemoCmd = "%staosdemo -f tools/insert-interlace.json -pp 2>&1 | grep sleep | wc -l" % binPath
+        taosdemoCmd = "%staosdemo -f tools/insert-interlace.json -PP 2>&1 | grep sleep | wc -l" % binPath
         sleepTimes = subprocess.check_output(
             taosdemoCmd, shell=True).decode("utf-8")
         print("sleep times: %d" % int(sleepTimes))

@@ -16,8 +16,10 @@ steps:
   - mkdir debug
   - cd debug
   - cmake .. 
-  - make 
-  - gcc -v
+  - make -j4 
+  trigger:
+    event:
+      - pull_request
   when:
     branch:
     - develop
@@ -54,7 +56,32 @@ steps:
 
 ---
 kind: pipeline
-name: test_arm64
+name: test_arm64_bionic
+
+platform:
+  os: linux
+  arch: arm64
+steps:
+- name: build
+  image: arm64v8/ubuntu:bionic
+  commands:
+  - apt-get update
+  - apt-get install -y cmake build-essential
+  - mkdir debug
+  - cd debug
+  - cmake .. -DCPUTYPE=aarch64 > /dev/null
+  - make -j4 
+  trigger:
+    event:
+      - pull_request
+  when:
+    branch:
+    - develop
+    - master
+    - 2.0
+---
+kind: pipeline
+name: test_arm64_focal
 
 platform:
   os: linux
@@ -62,21 +89,76 @@ platform:
 
 steps:
 - name: build
-  image: gcc
+  image: arm64v8/ubuntu:focal
   commands:
-  - apt-get update
-  - apt-get install -y cmake build-essential
+  - echo 'debconf debconf/frontend select Noninteractive' | debconf-set-selections
+  - apt-get update 
+  - apt-get install -y -qq cmake build-essential
   - mkdir debug
   - cd debug
   - cmake .. -DCPUTYPE=aarch64 > /dev/null
-  - make 
+  - make -j4 
+  trigger:
+    event:
+      - pull_request
   when:
     branch:
     - develop
     - master
+    - 2.0
 ---
 kind: pipeline
-name: test_arm
+name: test_arm64_centos7
+
+platform:
+  os: linux
+  arch: arm64
+
+steps:
+- name: build
+  image: arm64v8/centos:7
+  commands:
+  - yum install -y gcc gcc-c++ make cmake git
+  - mkdir debug
+  - cd debug
+  - cmake .. -DCPUTYPE=aarch64 > /dev/null
+  - make -j4 
+  trigger:
+    event:
+      - pull_request
+  when:
+    branch:
+    - develop
+    - master
+    - 2.0
+---
+kind: pipeline
+name: test_arm64_centos8
+
+platform:
+  os: linux
+  arch: arm64
+
+steps:
+- name: build
+  image: arm64v8/centos:8
+  commands:
+  - dnf install -y gcc gcc-c++ make cmake epel-release git libarchive
+  - mkdir debug
+  - cd debug
+  - cmake .. -DCPUTYPE=aarch64 > /dev/null
+  - make -j4 
+  trigger:
+    event:
+      - pull_request
+  when:
+    branch:
+    - develop
+    - master
+    - 2.0
+---
+kind: pipeline
+name: test_arm_bionic
 
 platform:
   os: linux
@@ -91,12 +173,14 @@ steps:
   - mkdir debug
   - cd debug
   - cmake .. -DCPUTYPE=aarch32 > /dev/null
-  - make 
+  - make -j4 
+  trigger:
+    event:
+      - pull_request
   when:
     branch:
     - develop
     - master
-
 ---
 kind: pipeline
 name: build_trusty
@@ -115,7 +199,10 @@ steps:
   - mkdir debug
   - cd debug
   - cmake .. 
-  - make 
+  - make -j4 
+  trigger:
+    event:
+      - pull_request
   when:
     branch:
     - develop
@@ -137,7 +224,10 @@ steps:
   - mkdir debug
   - cd debug
   - cmake .. 
-  - make 
+  - make -j4 
+  trigger:
+    event:
+      - pull_request
   when:
     branch:
     - develop
@@ -159,7 +249,10 @@ steps:
   - mkdir debug
   - cd debug
   - cmake .. 
-  - make 
+  - make -j4 
+  trigger:
+    event:
+      - pull_request
   when:
     branch:
     - develop
@@ -182,30 +275,11 @@ steps:
   - mkdir debug
   - cd debug
   - cmake .. 
-  - make 
+  - make -j4 
+  trigger:
+    event:
+      - pull_request
   when:
     branch:
     - develop
     - master
----
-kind: pipeline
-name: goodbye-1
-
-platform:
-  os: linux
-  arch: amd64
-
-steps:
-- name: 64-bit
-  image: alpine
-  commands:
-  - echo 64-bit is good
-  when:
-    branch:
-    - develop
-    - master
-
-
-depends_on:
-- test_arm64
-- test_amd64
