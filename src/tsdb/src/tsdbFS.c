@@ -38,8 +38,10 @@ static int  tsdbProcessExpiredFS(STsdbRepo *pRepo);
 static int  tsdbCreateMeta(STsdbRepo *pRepo);
 static int  tsdbCreateSchemaFile(STsdbRepo *pRepo);
 
+
 // For backward compatibility
 extern bool tsdbForceKeepFile;
+
 // ================== CURRENT file header info
 static int tsdbEncodeFSHeader(void **buf, SFSHeader *pHeader) {
   int tlen = 0;

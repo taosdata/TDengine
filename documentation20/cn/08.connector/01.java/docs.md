@@ -88,7 +88,7 @@ TDengine 的 JDBC 驱动实现尽可能与关系型数据库驱动保持一致�
 
 ### JDBC-JNI和JDBC-RESTful的对比
 
-<table >
+<table>
 <tr align="center"><th>对比项</th><th>JDBC-JNI</th><th>JDBC-RESTful</th></tr>
 <tr align="center">
 	<td>支持的操作系统</td>

@@ -1230,7 +1230,7 @@ TDengine支持针对数据的聚合查询。提供支持的聚合和选择函数
 
 - **INTERP**
     ```mysql
-    SELECT INTERP(field_name) FROM { tb_name | stb_name } WHERE ts='timestamp' [FILL ({ VALUE | PREV | NULL | LINEAR})];
+    SELECT INTERP(field_name) FROM { tb_name | stb_name } WHERE ts='timestamp' [FILL ({ VALUE | PREV | NULL | LINEAR | NEXT})];
     ```
     功能说明：返回表/超级表的指定时间截面、指定字段的记录。
 
@@ -1241,8 +1241,6 @@ TDengine支持针对数据的聚合查询。提供支持的聚合和选择函数
     适用于：**表、超级表**。
 
     说明：（从 2.0.15.0 版本开始新增此函数）INTERP 必须指定时间断面，如果该时间断面不存在直接对应的数据，那么会根据 FILL 参数的设定进行插值。其中，条件语句里面可以附带更多的筛选条件，例如标签、tbname。
-
-    限制：INTERP 目前不支持 FILL(NEXT)。
 
     示例：
     ```mysql
