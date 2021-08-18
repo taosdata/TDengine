@@ -52,8 +52,6 @@ int tsInsertInitialCheck(SSqlObj *pSql);
 
 void doCleanupSubqueries(SSqlObj *pSql, int32_t numOfSubs);
 
-void tscFreeRetrieveSupporters(SSqlObj *pSql);
-
 void tscFreeRetrieveSup(SSqlObj *pSql);
 
 

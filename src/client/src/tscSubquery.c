@@ -2040,11 +2040,8 @@ void doCleanupSubqueries(SSqlObj *pSql, int32_t numOfSubs) {
   for(int32_t i = 0; i < numOfSubs; ++i) {
     SSqlObj* pSub = pSql->pSubs[i];
     assert(pSub != NULL);
-    
-    SRetrieveSupport* pSupport = pSub->param;
-    
-    tfree(pSupport->localBuffer);
-    tfree(pSupport);
+
+    tscFreeRetrieveSup(pSub);
     
     taos_free_result(pSub);
   }
@@ -2576,18 +2573,6 @@ void tscFreeRetrieveSup(SSqlObj *pSql) {
   tfree(trsupport);
 }
 
-void tscFreeRetrieveSupporters(SSqlObj *pSql) {  
-  for(int32_t i = 0; i < pSql->subState.numOfSub; ++i) {
-    SSqlObj* pSub = pSql->pSubs[i];
-    assert(pSub != NULL);
-
-    tscFreeRetrieveSup(pSub);
-  }
-}
-
-
-
-
 static void tscRetrieveFromDnodeCallBack(void *param, TAOS_RES *tres, int numOfRows);
 static void tscHandleSubqueryError(SRetrieveSupport *trsupport, SSqlObj *pSql, int numOfRows);
 
@@ -2732,30 +2717,21 @@ void tscHandleSubqueryError(SRetrieveSupport *trsupport, SSqlObj *pSql, int numO
   if (!TSDB_QUERY_HAS_TYPE(pQueryInfo->type, TSDB_QUERY_TYPE_JOIN_SEC_STAGE)) {
 
     int32_t code = pParentSql->res.code;
-    if ((code == TSDB_CODE_TDB_INVALID_TABLE_ID || code == TSDB_CODE_VND_INVALID_VGROUP_ID) && pParentSql->retry < pParentSql->maxRetry) {
-      // remove the cached tableMeta and vgroup id list, and then parse the sql again
-      SSqlCmd* pParentCmd = &pParentSql->cmd;
-      STableMetaInfo* pTableMetaInfo = tscGetTableMetaInfoFromCmd(pParentCmd, 0);
-      tscRemoveTableMetaBuf(pTableMetaInfo, pParentSql->self);
+    SSqlObj *userSql = ((SRetrieveSupport*)pParentSql->param)->pParentSql;
 
-      pParentCmd->pTableMetaMap = tscCleanupTableMetaMap(pParentCmd->pTableMetaMap);
-      pParentCmd->pTableMetaMap = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);
-
-      SSqlObj *userSql = ((SRetrieveSupport*)pParentSql->param)->pParentSql;
-
+    if ((code == TSDB_CODE_TDB_INVALID_TABLE_ID || code == TSDB_CODE_VND_INVALID_VGROUP_ID) && userSql->retry < userSql->maxRetry) {
       tscFreeRetrieveSup(pParentSql);
-      tscFreeRetrieveSup(userSql);
 
       tscFreeSubobj(userSql);      
       tfree(userSql->pSubs);
 
-      pParentSql->res.code = TSDB_CODE_SUCCESS;
-      pParentSql->retry++;
+      userSql->res.code = TSDB_CODE_SUCCESS;
+      userSql->retry++;
 
-      tscDebug("0x%"PRIx64" retry parse sql and send query, prev error: %s, retry:%d", pParentSql->self,
-          tstrerror(code), pParentSql->retry);
+      tscDebug("0x%"PRIx64" retry parse sql and send query, prev error: %s, retry:%d", userSql->self,
+          tstrerror(code), userSql->retry);
 
-      tscResetSqlCmd(&userSql->cmd, false);
+      tscResetSqlCmd(&userSql->cmd, true);
       code = tsParseSql(userSql, true);
       if (code == TSDB_CODE_TSC_ACTION_IN_PROGRESS) {
         return;

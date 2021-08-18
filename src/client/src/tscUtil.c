@@ -3758,29 +3758,26 @@ static void tscSubqueryCompleteCallback(void* param, TAOS_RES* tres, int code) {
     // todo refactor
     tscDebug("0x%"PRIx64" all subquery response received, retry", pParentSql->self);
 
-    SSqlCmd* pParentCmd = &pParentSql->cmd;
-    STableMetaInfo* pTableMetaInfo = tscGetTableMetaInfoFromCmd(pParentCmd, 0);
-    tscRemoveTableMetaBuf(pTableMetaInfo, pParentSql->self);
-
-    pParentCmd->pTableMetaMap = tscCleanupTableMetaMap(pParentCmd->pTableMetaMap);
-    pParentCmd->pTableMetaMap = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);
-
     SSqlObj *userSql = ((SRetrieveSupport*)pParentSql->param)->pParentSql;
 
     tscFreeRetrieveSup(pParentSql);
-    tscFreeRetrieveSup(userSql);
+
+    if (code && !((code == TSDB_CODE_TDB_INVALID_TABLE_ID || code == TSDB_CODE_VND_INVALID_VGROUP_ID) && userSql->retry < userSql->maxRetry)) {
+      tscAsyncResultOnError(pParentSql);
+      return;
+    }
 
     tscFreeSubobj(userSql);    
     tfree(userSql->pSubs);
 
-    pParentSql->res.code = TSDB_CODE_SUCCESS;
-    pParentSql->retry++;
+    userSql->res.code = TSDB_CODE_SUCCESS;
+    userSql->retry++;
 
-    tscDebug("0x%"PRIx64" retry parse sql and send query, prev error: %s, retry:%d", pParentSql->self,
-             tstrerror(code), pParentSql->retry);
+    tscDebug("0x%"PRIx64" retry parse sql and send query, prev error: %s, retry:%d", userSql->self,
+             tstrerror(code), userSql->retry);
 
     
-    tscResetSqlCmd(&userSql->cmd, false);
+    tscResetSqlCmd(&userSql->cmd, true);
     
     code = tsParseSql(userSql, true);
     if (code == TSDB_CODE_TSC_ACTION_IN_PROGRESS) {
