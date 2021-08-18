@@ -51,20 +51,18 @@ int            initMemRowBuilder(SMemRowBuilder *pBuilder, uint32_t nRows, uint3
     }
   }
 
+  // default compareStat is  ROW_COMPARE_NO_NEED
   if (nBoundCols == 0) {  // file input
     pBuilder->memRowType = SMEM_ROW_DATA;
-    // pBuilder->compareStat = ROW_COMPARE_NO_NEED;
     return TSDB_CODE_SUCCESS;
   } else {
     float boundRatio = ((float)nBoundCols / (float)nCols);
 
     if (boundRatio < KVRatioKV) {
       pBuilder->memRowType = SMEM_ROW_KV;
-      // pBuilder->compareStat = ROW_COMPARE_NO_NEED;
       return TSDB_CODE_SUCCESS;
     } else if (boundRatio > KVRatioData) {
       pBuilder->memRowType = SMEM_ROW_DATA;
-      // pBuilder->compareStat = ROW_COMPARE_NO_NEED;
       return TSDB_CODE_SUCCESS;
     }
     pBuilder->compareStat = ROW_COMPARE_NEED;
@@ -672,7 +670,6 @@ int32_t tsParseValues(char **str, STableDataBlocks *pDataBlock, int maxRows, SIn
   }
 }
 
-#if 1
 void tscSetBoundColumnInfo(SParsedDataColInfo *pColInfo, SSchema *pSchema, int32_t numOfCols) {
   pColInfo->numOfCols = numOfCols;
   pColInfo->numOfBound = numOfCols;
@@ -708,30 +705,6 @@ void tscSetBoundColumnInfo(SParsedDataColInfo *pColInfo, SSchema *pSchema, int32
   pColInfo->allNullLen += pColInfo->flen;
   pColInfo->extendedVarLen = (uint16_t)(nVar * sizeof(VarDataOffsetT));
 }
-#endif
-
-#if 0
-void tscSetBoundColumnInfo(SParsedDataColInfo *pColInfo, SSchema *pSchema, int32_t numOfCols) {
-  pColInfo->numOfCols = numOfCols;
-  pColInfo->numOfBound = numOfCols;
-  pColInfo->orderStatus = ORDER_STATUS_ORDERED;  // default is ORDERED for non-bound mode
-
-  pColInfo->boundedColumns = calloc(pColInfo->numOfCols, sizeof(int32_t));
-  pColInfo->cols = calloc(pColInfo->numOfCols, sizeof(SBoundColumn));
-  pColInfo->colIdxInfo = NULL;
-  pColInfo->flen = 0;
-  pColInfo->allNullLen = 0;
-  
-  for (int32_t i = 0; i < pColInfo->numOfCols; ++i) {
-    if (i > 0) {
-      pColInfo->cols[i].offset = pSchema[i - 1].bytes + pColInfo->cols[i - 1].offset;
-    }
-
-    pColInfo->cols[i].valStat = VAL_STAT_HAS;
-    pColInfo->boundedColumns[i] = i;
-  }
-}
-#endif
 
 int32_t tscAllocateMemIfNeed(STableDataBlocks *pDataBlock, int32_t rowSize, int32_t * numOfRows) {
   size_t    remain = pDataBlock->nAllocSize - pDataBlock->size;
@@ -1720,8 +1693,7 @@ static void parseFileSendDataBlock(void *param, TAOS_RES *tres, int32_t numOfRow
   STableMeta *    pTableMeta = pTableMetaInfo->pTableMeta;
   STableComInfo   tinfo = tscGetTableInfo(pTableMeta);
 
-  SInsertStatementParam* pInsertParam = &pCmd->insertParam;
-  // pInsertParam->payloadType = PAYLOAD_TYPE_RAW;
+  SInsertStatementParam *pInsertParam = &pCmd->insertParam;
   destroyTableNameList(pInsertParam);
 
   pInsertParam->pDataBlocks = tscDestroyBlockArrayList(pInsertParam->pDataBlocks);

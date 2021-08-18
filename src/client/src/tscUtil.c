@@ -1744,7 +1744,6 @@ int32_t tscCreateDataBlock(size_t defaultSize, int32_t rowSize, int32_t startOff
   dataBuf->tsSource = -1;
   dataBuf->vgId     = dataBuf->pTableMeta->vgId;
 
-
   tNameAssign(&dataBuf->tableName, name);
 
   assert(defaultSize > 0 && pTableMeta != NULL && dataBuf->pTableMeta != NULL);
