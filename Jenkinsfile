@@ -1,9 +1,5 @@
 import hudson.model.Result
 import jenkins.model.CauseOfInterruption
-properties([pipelineTriggers([githubPush()])])
-node {
-    git url: 'https://github.com/taosdata/TDinternal.git'
-}
 
 def skipbuild=0
 
