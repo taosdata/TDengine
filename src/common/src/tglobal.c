@@ -27,6 +27,8 @@
 #include "ttimezone.h"
 #include "tcompare.h"
 
+// tsdb
+bool tsdbForceKeepFile = false;
 // cluster
 char     tsFirst[TSDB_EP_LEN] = {0};
 char     tsSecond[TSDB_EP_LEN] = {0};

@@ -39,7 +39,7 @@ static int  tsdbCreateMeta(STsdbRepo *pRepo);
 static int  tsdbCreateSchemaFile(STsdbRepo *pRepo);
 
 // For backward compatibility
-bool tsdbForceKeepFile = false;
+extern bool tsdbForceKeepFile;
 // ================== CURRENT file header info
 static int tsdbEncodeFSHeader(void **buf, SFSHeader *pHeader) {
   int tlen = 0;
@@ -107,7 +107,7 @@ static void *tsdbDecodeDFileSetArray(void *buf, SArray *pArray) {
 
 static int tsdbEncodeFSStatus(void **buf, SFSStatus *pStatus) {
   ASSERT(pStatus->pmf);
-  ASSERT(pStatus->psf);
+  ASSERT(pStatus->psf != NULL);
 
   int tlen = 0;
 
@@ -909,14 +909,13 @@ int tsdbLoadSchema(STsdbRepo *pRepo) {
       return -1;
     }
 
+    STable *pTable = tsdbGetTableByUid(pRepo->tsdbMeta, rInfo.uid);
+    if(pTable == NULL) {
+      continue;
+    }
     STSchema *pSchema = NULL;
     tdDecodeSchema(pBuf, &pSchema);
     if(pSchema != NULL) {
-      STable *pTable = tsdbGetTableByUid(pRepo->tsdbMeta, rInfo.uid);
-      if(pTable == NULL) {
-        free(pSchema);
-        continue;
-      }
       STable *pSTable = (TABLE_TYPE(pTable) == TSDB_CHILD_TABLE) ? pTable->pSuper : pTable;
       if(tsdbAddSchema(pSTable, pSchema) < 0) {
         free(pSchema);
@@ -1556,6 +1555,7 @@ static int tsdbRestoreCurrent(STsdbRepo *pRepo) {
       return -1;
     }
   }
+  ASSERT(pRepo->fs->cstatus->psf != NULL);
 
   // Loop to recover dfile set
   if (tsdbRestoreDFileSet(pRepo) < 0) {
