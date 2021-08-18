@@ -77,6 +77,7 @@ struct mnodeSdbHashTable {
 };
 
 typedef struct walRecord {
+  int16_t idx;
   int64_t offset;
   int32_t size;
   void* key;
@@ -99,7 +100,8 @@ struct mnodeSdbTable {
   void* iHandle;
 
   cache_t* pCache;    /* only used in lru cache */
-  walFileInfo walInfo[20];
+  int16_t walSize;
+  walFileInfo *walInfo;
 
   mnodeSdbTableOption options;
 
@@ -211,6 +213,9 @@ static mnodeSdbCacheTable* cacheInit(mnodeSdbTable* pTable, mnodeSdbTableOption 
 
   pCache->pWalTable = taosHashInit(options.hashSessions, hashFp, true, HASH_ENTRY_LOCK);
   pCache->pTable = cacheCreateTable(pTable->pCache, &tableOpt);
+  
+  pTable->walSize = 1;
+  pTable->walInfo = calloc(pTable->walSize, sizeof(walFileInfo));
 
   pTable->getFp  = sdbCacheGet;
   pTable->putFp  = sdbCachePut;
@@ -276,7 +281,9 @@ static void sdbCacheClear(mnodeSdbTable *pTable) {
     pTable->pCache = NULL;
   }
 
-  mnodeSdbTableDestroy(pTable);
+  free(pTable->walInfo);
+
+  mnodeSdbTableDestroy(pTable);  
 }
 
 static void* sdbCacheIterate(mnodeSdbTable *pTable, void *p) {
@@ -302,11 +309,12 @@ static void sdbCacheCancelIterate(mnodeSdbTable *pTable, void* pIter) {
   taosHashCancelIterate(pCache->pWalTable, pIter);
 }
 
-static void initCacheWalInfo(mnodeSdbTable *pTable, SWalHeadInfo* pHeadInfo) {
+static int16_t initCacheWalInfo(mnodeSdbTable *pTable, SWalHeadInfo* pHeadInfo) {
   int i = 0;
-  for (i = 0; i < 20; i++) {
+
+  for (i = 0; i < pTable->walSize; i++) {
     if (strcmp(pTable->walInfo[i].name, pHeadInfo->name) == 0) {
-      break;
+      return i;
     }
     if (strlen(pTable->walInfo[i].name) == 0) {
       strcpy(pTable->walInfo[i].name, pHeadInfo->name);
@@ -314,10 +322,26 @@ static void initCacheWalInfo(mnodeSdbTable *pTable, SWalHeadInfo* pHeadInfo) {
       pTable->walInfo[i].tfd = tfOpen(pHeadInfo->name, O_RDONLY);
       if (!tfValid(pTable->walInfo[i].tfd)) {
         sdbError("open wal file %s for read error since %s", pHeadInfo->name, strerror(errno));
+        return -1;
       }
-      break;
+
+      return i;
     }
   }
+
+  int16_t oldWal = pTable->walSize;
+  pTable->walSize *= 2;
+  void* p = realloc(pTable->walInfo, pTable->walSize * sizeof(walFileInfo));
+  if (!p) {
+    sdbError("realloc for walFileInfo fail");
+    return -1;
+  }
+  pTable->walInfo = p;
+  strcpy(pTable->walInfo[oldWal].name, pHeadInfo->name);
+  pTable->walInfo[oldWal].idx = oldWal;
+  pTable->walInfo[oldWal].tfd = tfOpen(pHeadInfo->name, O_RDONLY);
+
+  return oldWal;
 }
 
 SWalHead* readWal(mnodeSdbTable *pTable, int idx, int64_t offset, int32_t size) {
@@ -357,18 +381,21 @@ static void sdbCacheSyncWal(mnodeSdbTable *pTable, bool restore, SWalHead* pHead
   
   pthread_mutex_lock(&pCache->mutex);
 
-  initCacheWalInfo(pTable, pHeadInfo);
+  int16_t idx = initCacheWalInfo(pTable, pHeadInfo);
+  assert(idx != -1);
 
   walRecord* pRecord = taosHashGet(pCache->pWalTable, key, keySize);
   if (pRecord) {
     pRecord->offset = off;
     pRecord->size = sizeof(SWalHead) + pHead->len;
+    pRecord->idx = idx;
   } else {
     walRecord wal = (walRecord) {
         .offset = off,
         .size   = sizeof(SWalHead) + pHead->len,
         .key    = calloc(1, keySize),
         .keyLen = keySize,
+        .idx    = idx,
     };
     if (wal.key == NULL) {
       pthread_mutex_unlock(&pCache->mutex);
@@ -399,7 +426,7 @@ static int loadCacheDataFromWal(void* userData, const void* key, uint8_t nkey, c
     return -1;
   }
   
-  SWalHead* pHead = readWal(pTable, 0, pRecord->offset, pRecord->size);
+  SWalHead* pHead = readWal(pTable, pRecord->idx, pRecord->offset, pRecord->size);
   if (pHead == NULL) {
     return -1;
   }  
