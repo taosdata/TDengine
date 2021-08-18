@@ -107,7 +107,7 @@ static void *tsdbDecodeDFileSetArray(void *buf, SArray *pArray) {
 
 static int tsdbEncodeFSStatus(void **buf, SFSStatus *pStatus) {
   ASSERT(pStatus->pmf);
-  ASSERT(pStatus->psf != NULL);
+  ASSERT(pStatus->psf);
 
   int tlen = 0;
 
@@ -418,7 +418,7 @@ void tsdbStartFSTxn(STsdbRepo *pRepo, int64_t pointsAdd, int64_t storageAdd) {
     pfs->nstatus->meta.version = pfs->cstatus->meta.version + 1;
   }
   pfs->nstatus->meta.totalPoints = pfs->cstatus->meta.totalPoints + pointsAdd;
-  pfs->nstatus->meta.totalStorage = pfs->cstatus->meta.totalStorage += storageAdd;
+  pfs->nstatus->meta.totalStorage = pfs->cstatus->meta.totalStorage + storageAdd;
 }
 
 void tsdbUpdateFSTxnMeta(STsdbFS *pfs, STsdbFSMeta *pMeta) { pfs->nstatus->meta = *pMeta; }
@@ -1556,6 +1556,7 @@ static int tsdbRestoreCurrent(STsdbRepo *pRepo) {
     }
     pRepo->fs->cstatus->sf = pRepo->fs->nstatus->sf;
     pRepo->fs->cstatus->psf = pRepo->fs->nstatus->psf;
+    pRepo->fs->nstatus->psf = NULL;
   }
   ASSERT(pRepo->fs->cstatus->psf != NULL);
 
