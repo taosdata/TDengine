@@ -1554,7 +1554,7 @@ static int tsdbRestoreCurrent(STsdbRepo *pRepo) {
       return -1;
     }
     pRepo->fs->cstatus->sf = pRepo->fs->nstatus->sf;
-    pRepo->fs->cstatus->psf = pRepo->fs->nstatus->psf;
+    pRepo->fs->cstatus->psf = &(pRepo->fs->cstatus->sf);
     pRepo->fs->nstatus->psf = NULL;
   }
 
