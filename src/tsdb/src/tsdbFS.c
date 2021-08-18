@@ -1552,17 +1552,9 @@ static int tsdbRestoreCurrent(STsdbRepo *pRepo) {
   }
 
   if (pRepo->fs->cstatus->psf == NULL) {
-    SDiskID    did;
-    SSFile     sf;
-    did.level = TFS_PRIMARY_LEVEL;
-    did.id    = TFS_PRIMARY_ID;
-    tsdbInitSFile(&sf, did, REPO_ID(pRepo), FS_TXN_VERSION(REPO_FS(pRepo)));
-
-    if(tsdbCreateSFile(&sf, true) < 0) {
-        tsdbError("vgId:%d failed to create SCHEMA file since %s", REPO_ID(pRepo), tstrerror(terrno));
-        return -1;
+    if(tsdbCreateSchemaFile(pRepo) < 0) {
+      return -1;
     }
-    tsdbUpdateSFile(pRepo->fs, &sf);
   }
 
   // Loop to recover dfile set
