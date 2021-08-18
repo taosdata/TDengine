@@ -389,7 +389,37 @@ class TDTestCase:
         tdSql.checkRows(3)
         tdSql.checkEqual(self.queryLastC10(query_sql, True), 11)
 
+        ## select from (condition_A or condition_B) where condition_A or condition_B
+        query_sql = f'select c10 from (select * from {tb_name} where c1 >1 or c2 >=3) where c1 =2 or c4 = 2'
+        tdSql.query(query_sql)
+        tdSql.checkRows(2)
+        tdSql.checkEqual(self.queryLastC10(query_sql, True), 3)
 
+        ## select from (condition_A or condition_B and like and in) where condition_A or condition_B or like and in
+        query_sql = f'select c10 from (select * from {tb_name} where c1 >1 or c2 = 2 and c7 like "binar_" and c4 in (3, 5)) where c1 != 2 or c3 = 1 or c8 like "ncha_" and c9 in (true)'
+        tdSql.query(query_sql)
+        tdSql.checkRows(7)
+        tdSql.checkEqual(self.queryLastC10(query_sql, True), 10)
+
+        ## select count avg sum from (condition_A or condition_B and like and in) where condition_A or condition_B or like and in interval
+        query_sql = f'select count(*), avg(c6), sum(c3) from (select * from {tb_name} where c1 >1 or c2 = 2 and c7 like "binar_" and c4 in (3, 5)) where c1 != 2 or c3 = 1 or c8 like "ncha_" and c9 in (true) interval(8d)'
+        res = tdSql.query(query_sql, True)
+        tdSql.checkRows(3)
+        tdSql.checkEqual(int(res[0][1]), 3)
+        tdSql.checkEqual(int(res[0][2]), 1)
+        tdSql.checkEqual(int(res[0][3]), 10)
+        tdSql.checkEqual(int(res[1][1]), 3)
+        tdSql.checkEqual(int(res[1][2]), 3)
+        tdSql.checkEqual(int(res[1][3]), 3)
+        tdSql.checkEqual(int(res[2][1]), 1)
+        tdSql.checkEqual(int(res[2][2]), 1)
+        tdSql.checkEqual(int(res[2][3]), 1)
+
+        ## cname
+        query_sql = f'select c10 from (select * from {tb_name} where c1 >1 or c2 = 2 and c7 like "binar_" and c4 in (3, 5)) a where a.c1 != 2 or a.c3 = 1 or a.c8 like "ncha_" and a.c9 in (true)'
+        tdSql.query(query_sql)
+        tdSql.checkRows(7)
+        tdSql.checkEqual(self.queryLastC10(query_sql, True), 10)
 
         # tb_name1 = tdCom.getLongName(8, "letters")
         # tb_name2 = tdCom.getLongName(8, "letters")
