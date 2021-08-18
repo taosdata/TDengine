@@ -369,6 +369,27 @@ bool tscGroupbyColumn(SQueryInfo* pQueryInfo) {
   return false;
 }
 
+int32_t tscGetTopBotQueryExprIndex(SQueryInfo* pQueryInfo) {
+  size_t numOfExprs = tscNumOfExprs(pQueryInfo);
+
+  for (int32_t i = 0; i < numOfExprs; ++i) {
+    SExprInfo* pExpr = tscExprGet(pQueryInfo, i);
+    if (pExpr == NULL) {
+      continue;
+    }
+
+    if (pExpr->base.functionId == TSDB_FUNC_TS) {
+      continue;
+    }
+
+    if (pExpr->base.functionId == TSDB_FUNC_TOP || pExpr->base.functionId == TSDB_FUNC_BOTTOM) {
+      return i;
+    }
+  }
+
+  return -1;
+}
+
 bool tscIsTopBotQuery(SQueryInfo* pQueryInfo) {
   size_t numOfExprs = tscNumOfExprs(pQueryInfo);
 
@@ -625,8 +646,10 @@ static void setResRawPtrImpl(SSqlRes* pRes, SInternalField* pInfo, int32_t i, bo
 
   } else if (convertNchar && pInfo->field.type == TSDB_DATA_TYPE_NCHAR) {
     // convert unicode to native code in a temporary buffer extra one byte for terminated symbol
-    pRes->buffer[i] = realloc(pRes->buffer[i], pInfo->field.bytes * pRes->numOfRows);
-
+    char* buffer = realloc(pRes->buffer[i], pInfo->field.bytes * pRes->numOfRows);
+    if(buffer == NULL)
+       return ;
+    pRes->buffer[i] = buffer;
     // string terminated char for binary data
     memset(pRes->buffer[i], 0, pInfo->field.bytes * pRes->numOfRows);
 
@@ -1206,7 +1229,6 @@ void handleDownstreamOperator(SSqlObj** pSqlObjList, int32_t numOfUpstream, SQue
     createInputDataFilterInfo(px, numOfCol1, &numOfFilterCols, &pFilterInfo);
 
     SOperatorInfo* pSourceOperator = createDummyInputOperator(pSqlObjList[0], pSchema, numOfCol1, pFilterInfo, numOfFilterCols);
-
     pOutput->precision = pSqlObjList[0]->res.precision;
 
     SSchema* schema = NULL;
@@ -1502,7 +1524,6 @@ void tscFreeSqlObj(SSqlObj* pSql) {
   tscFreeSqlResult(pSql);
   tscResetSqlCmd(pCmd, false);
 
-  memset(pCmd->payload, 0, (size_t)pCmd->allocSize);
   tfree(pCmd->payload);
   pCmd->allocSize = 0;
 
@@ -3532,8 +3553,10 @@ SSqlObj* createSubqueryObj(SSqlObj* pSql, int16_t tableIndex, __async_cb_func_t 
   pNewQueryInfo->numOfTables = 0;
   pNewQueryInfo->pTableMetaInfo = NULL;
   pNewQueryInfo->bufLen = pQueryInfo->bufLen;
-
   pNewQueryInfo->buf = malloc(pQueryInfo->bufLen);
+
+
+  pNewQueryInfo->distinct =  pQueryInfo->distinct;
   if (pNewQueryInfo->buf == NULL) {
     terrno = TSDB_CODE_TSC_OUT_OF_MEMORY;
     goto _error;
@@ -3830,6 +3853,9 @@ void executeQuery(SSqlObj* pSql, SQueryInfo* pQueryInfo) {
       pNew->sqlstr    = strdup(pSql->sqlstr);
       pNew->fp        = tscSubqueryCompleteCallback;
       pNew->maxRetry  = pSql->maxRetry;
+
+      pNew->cmd.resColumnId = TSDB_RES_COL_ID;
+      
       tsem_init(&pNew->rspSem, 0, 0);
 
       SRetrieveSupport* ps = calloc(1, sizeof(SRetrieveSupport));  // todo use object id
@@ -4364,6 +4390,7 @@ int32_t tscCreateTableMetaFromSTableMeta(STableMeta** ppChild, const char* name,
   STableMeta* p    = NULL;
   size_t      sz   = 0;
   STableMeta* pChild = *ppChild;
+  STableMeta* pChild1;
    
   taosHashGetCloneExt(tscTableMetaMap, pChild->sTableName, strnlen(pChild->sTableName, TSDB_TABLE_FNAME_LEN), NULL, (void **)&p, &sz);
 
@@ -4374,7 +4401,10 @@ int32_t tscCreateTableMetaFromSTableMeta(STableMeta** ppChild, const char* name,
     int32_t totalBytes    = (p->tableInfo.numOfColumns + p->tableInfo.numOfTags) * sizeof(SSchema);
     int32_t tableMetaSize =  sizeof(STableMeta)  + totalBytes;
     if (*tableMetaCapacity < tableMetaSize) {
-      pChild = realloc(pChild, tableMetaSize); 
+      pChild1 = realloc(pChild, tableMetaSize);
+      if(pChild1 == NULL) 
+        return -1;
+      pChild = pChild1; 
       *tableMetaCapacity = (size_t)tableMetaSize;
     }
 

@@ -2397,6 +2397,10 @@ int32_t tscHandleFirstRoundStableQuery(SSqlObj *pSql) {
         } else {
           SSchema ss = {.type = (uint8_t)pCol->info.type, .bytes = pCol->info.bytes, .colId = (int16_t)pCol->columnIndex};
           tscColumnListInsert(pNewQueryInfo->colList, pCol->columnIndex, pCol->tableUid, &ss);
+          int32_t ti = tscColumnExists(pNewQueryInfo->colList, pCol->columnIndex, pCol->tableUid);
+          assert(ti >= 0);
+          SColumn* x = taosArrayGetP(pNewQueryInfo->colList, ti);
+          tscColumnCopy(x, pCol);
         }
       }
     }
@@ -2812,7 +2816,6 @@ static void tscAllDataRetrievedFromDnode(SRetrieveSupport *trsupport, SSqlObj* p
       pParentSql->self, pState->numOfSub, pState->numOfRetrievedRows);
   
   SQueryInfo *pPQueryInfo = tscGetQueryInfo(&pParentSql->cmd);
-  tscClearInterpInfo(pPQueryInfo);
   
   code = tscCreateGlobalMerger(trsupport->pExtMemBuffer, pState->numOfSub, pDesc, pPQueryInfo, &pParentSql->res.pMerger, pParentSql->self);
   pParentSql->res.code = code;

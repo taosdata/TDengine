@@ -59,6 +59,7 @@ extern char     tsLocale[];
 extern char     tsCharset[];            // default encode string
 extern int8_t   tsEnableCoreFile;
 extern int32_t  tsCompressMsgSize;
+extern int32_t  tsMaxNumOfDistinctResults;
 extern char     tsTempDir[];
 
 //query buffer management
@@ -70,6 +71,7 @@ extern int8_t   tsKeepOriginalColumnName;
 
 // client
 extern int32_t tsMaxSQLStringLen;
+extern int32_t tsMaxWildCardsLen;
 extern int8_t  tsTscEnableRecordSql;
 extern int32_t tsMaxNumOfOrderedResults;
 extern int32_t tsMinSlidingTime;
