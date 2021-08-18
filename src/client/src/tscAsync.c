@@ -339,6 +339,11 @@ void tscTableMetaCallBack(void *param, TAOS_RES *res, int code) {
   const char* msg = (sub->cmd.command == TSDB_SQL_STABLEVGROUP)? "vgroup-list":"multi-tableMeta";
   if (code != TSDB_CODE_SUCCESS) {
     tscError("0x%"PRIx64" get %s failed, code:%s", pSql->self, msg, tstrerror(code));
+    if (code == TSDB_CODE_RPC_FQDN_ERROR) {
+      size_t sz = strlen(tscGetErrorMsgPayload(&sub->cmd));
+      tscAllocPayload(&pSql->cmd, (int)sz + 1); 
+      memcpy(tscGetErrorMsgPayload(&pSql->cmd), tscGetErrorMsgPayload(&sub->cmd), sz);
+    } 
     goto _error;
   }
 
@@ -346,7 +351,7 @@ void tscTableMetaCallBack(void *param, TAOS_RES *res, int code) {
   if (pSql->pStream == NULL) {
     SQueryInfo *pQueryInfo = tscGetQueryInfo(pCmd);
 
-    if (TSDB_QUERY_HAS_TYPE(pQueryInfo->type, TSDB_QUERY_TYPE_INSERT)) {
+    if (pQueryInfo != NULL && TSDB_QUERY_HAS_TYPE(pQueryInfo->type, TSDB_QUERY_TYPE_INSERT)) {
       tscDebug("0x%" PRIx64 " continue parse sql after get table-meta", pSql->self);
 
       code = tsParseSql(pSql, false);
@@ -376,7 +381,6 @@ void tscTableMetaCallBack(void *param, TAOS_RES *res, int code) {
     } else {
       if (pSql->retryReason != TSDB_CODE_SUCCESS) {
         tscDebug("0x%" PRIx64 " update cached table-meta, re-validate sql statement and send query again", pSql->self);
-        tscResetSqlCmd(pCmd, false);
         pSql->retryReason = TSDB_CODE_SUCCESS;
       } else {
         tscDebug("0x%" PRIx64 " cached table-meta, continue validate sql statement and send query", pSql->self);

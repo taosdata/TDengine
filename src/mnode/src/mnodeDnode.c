@@ -298,7 +298,7 @@ void *mnodeGetDnodeByEp(char *ep) {
   while (1) {
     pIter = mnodeGetNextDnode(pIter, &pDnode);
     if (pDnode == NULL) break;
-    if (strcmp(ep, pDnode->dnodeEp) == 0) {
+    if (strncasecmp(ep, pDnode->dnodeEp, TSDB_EP_LEN) == 0) {
       mnodeCancelGetNextDnode(pIter);
       return pDnode;
     }
@@ -1181,7 +1181,7 @@ static int32_t mnodeGetVnodeMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pC
 
   pShow->bytes[cols] = 4;
   pSchema[cols].type = TSDB_DATA_TYPE_INT;
-  strcpy(pSchema[cols].name, "vnode");
+  strcpy(pSchema[cols].name, "vgId");
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
   cols++;
 
@@ -1199,7 +1199,12 @@ static int32_t mnodeGetVnodeMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pC
 
   SDnodeObj *pDnode = NULL;
   if (pShow->payloadLen > 0 ) {
-    pDnode = mnodeGetDnodeByEp(pShow->payload);
+    char ep[TSDB_EP_LEN] = {0}; 
+    // not use tstrncpy to make runtime happy   
+    uint16_t len = (pShow->payloadLen + 1) > TSDB_EP_LEN ? TSDB_EP_LEN :(pShow->payloadLen + 1);
+    strncpy(ep, pShow->payload, len - 1);
+
+    pDnode = mnodeGetDnodeByEp(ep);
   } else {
     void *pIter = mnodeGetNextDnode(NULL, (SDnodeObj **)&pDnode);
     mnodeCancelGetNextDnode(pIter);
@@ -1243,8 +1248,10 @@ static int32_t mnodeRetrieveVnodes(SShowObj *pShow, char *data, int32_t rows, vo
           cols++;
 
           pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-          strcpy(pWrite, syncRole[pVgid->role]);
+          STR_TO_VARSTR(pWrite, syncRole[pVgid->role]);
           cols++;
+
+          numOfRows++;
         }
       }
 

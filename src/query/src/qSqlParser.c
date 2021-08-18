@@ -423,6 +423,9 @@ tSqlExpr *tSqlExprClone(tSqlExpr *pSrc) {
     pExpr->pRight = tSqlExprClone(pSrc->pRight);
   }
 
+  memset(&pExpr->value, 0, sizeof(pExpr->value));
+  tVariantAssign(&pExpr->value, &pSrc->value);
+
   //we don't clone paramList now because clone is only used for between/and
   assert(pSrc->Expr.paramList == NULL);
   return pExpr;
@@ -478,9 +481,7 @@ static void doDestroySqlExprNode(tSqlExpr *pExpr) {
     return;
   }
 
-  if (pExpr->tokenId == TK_STRING) {
-    tVariantDestroy(&pExpr->value);
-  }
+  tVariantDestroy(&pExpr->value);
 
   tSqlExprListDestroy(pExpr->Expr.paramList);
   free(pExpr);
@@ -954,6 +955,8 @@ void SqlInfoDestroy(SSqlInfo *pInfo) {
     taosArrayDestroy(pInfo->pAlterInfo->pAddColumns);
     tfree(pInfo->pAlterInfo->tagData.data);
     tfree(pInfo->pAlterInfo);
+  } else if (pInfo->type == TSDB_SQL_COMPACT_VNODE) {
+    tSqlExprListDestroy(pInfo->list); 
   } else {
     if (pInfo->pMiscInfo != NULL) {
       taosArrayDestroy(pInfo->pMiscInfo->a);

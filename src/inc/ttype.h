@@ -47,7 +47,8 @@ typedef struct {
 
 
 // this data type is internally used only in 'in' query to hold the values
-#define TSDB_DATA_TYPE_ARRAY      (1000)
+#define TSDB_DATA_TYPE_POINTER_ARRAY      (1000)
+#define TSDB_DATA_TYPE_VALUE_ARRAY      (1001)
 
 #define GET_TYPED_DATA(_v, _finalType, _type, _data) \
   do {                                               \
@@ -181,6 +182,8 @@ typedef struct tDataTypeDescriptor {
   int16_t nameLen;
   int32_t bytes;
   char *  name;
+  int64_t minValue;
+  int64_t maxValue;
   int (*compFunc)(const char *const input, int inputSize, const int nelements, char *const output, int outputSize,
                   char algorithm, char *const buffer, int bufferSize);
   int (*decompFunc)(const char *const input, int compressedSize, const int nelements, char *const output,
@@ -200,6 +203,9 @@ const void *getNullValue(int32_t type);
 
 void assignVal(char *val, const char *src, int32_t len, int32_t type);
 void tsDataSwap(void *pLeft, void *pRight, int32_t type, int32_t size, void* buf);
+void operateVal(void *dst, void *s1, void *s2, int32_t optr, int32_t type);
+void* getDataMin(int32_t type);
+void* getDataMax(int32_t type);
 
 int32_t tStrToInteger(const char* z, int16_t type, int32_t n, int64_t* value, bool issigned);
 

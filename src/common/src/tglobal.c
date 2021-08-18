@@ -25,6 +25,7 @@
 #include "tutil.h"
 #include "tlocale.h"
 #include "ttimezone.h"
+#include "tcompare.h"
 
 // cluster
 char     tsFirst[TSDB_EP_LEN] = {0};
@@ -45,6 +46,7 @@ int8_t   tsArbOnline = 0;
 int64_t  tsArbOnlineTimestamp = TSDB_ARB_DUMMY_TIME;
 char     tsEmail[TSDB_FQDN_LEN] = {0};
 int32_t  tsDnodeId = 0;
+int64_t  tsDnodeStartTime = 0;
 
 // common
 int32_t tsRpcTimer       = 300;
@@ -73,8 +75,17 @@ int32_t tsMaxBinaryDisplayWidth = 30;
  */
 int32_t tsCompressMsgSize = -1;
 
+/* denote if server needs to compress the retrieved column data before adding to the rpc response message body.
+ * 0: disable column data compression
+ * 1: enable  column data compression
+ * This option is default to disabled. Once enabled, compression will be conducted if any column has size more
+ * than QUERY_COMP_THRESHOLD. Otherwise, no further compression is needed.
+ */
+int32_t tsCompressColData = 0;
+
 // client
 int32_t tsMaxSQLStringLen = TSDB_MAX_ALLOWED_SQL_LEN;
+int32_t tsMaxWildCardsLen = TSDB_PATTERN_STRING_MAX_LEN;
 int8_t  tsTscEnableRecordSql = 0;
 
 // the maximum number of results for projection query on super table that are returned from
@@ -83,6 +94,9 @@ int32_t tsMaxNumOfOrderedResults = 100000;
 
 // 10 ms for sliding time, the value will changed in case of time precision changed
 int32_t tsMinSlidingTime = 10;
+
+// the maxinum number of distict query result   
+int32_t tsMaxNumOfDistinctResults  = 1000 * 10000;
 
 // 1 us for interval time range, changed accordingly
 int32_t tsMinIntervalTime = 1;
@@ -541,6 +555,17 @@ static void doInitGlobalConfig(void) {
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosInitConfigOption(cfg);
 
+  cfg.option = "maxNumOfDistinctRes";
+  cfg.ptr = &tsMaxNumOfDistinctResults;
+  cfg.valType = TAOS_CFG_VTYPE_INT32;
+  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW | TSDB_CFG_CTYPE_B_CLIENT;
+  cfg.minValue = 10*10000;
+  cfg.maxValue = 10000*10000;
+  cfg.ptrLength = 0;
+  cfg.unitType = TAOS_CFG_UTYPE_NONE;
+  taosInitConfigOption(cfg);
+  
+
   cfg.option = "numOfMnodes";
   cfg.ptr = &tsNumOfMnodes;
   cfg.valType = TAOS_CFG_VTYPE_INT32;
@@ -974,12 +999,32 @@ static void doInitGlobalConfig(void) {
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosInitConfigOption(cfg);
 
+  cfg.option = "compressColData";
+  cfg.ptr = &tsCompressColData;
+  cfg.valType = TAOS_CFG_VTYPE_INT8;
+  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
+  cfg.minValue = 0;
+  cfg.maxValue = 1;
+  cfg.ptrLength = 0;
+  cfg.unitType = TAOS_CFG_UTYPE_NONE;
+  taosInitConfigOption(cfg);
+
   cfg.option = "maxSQLLength";
   cfg.ptr = &tsMaxSQLStringLen;
   cfg.valType = TAOS_CFG_VTYPE_INT32;
   cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_CLIENT | TSDB_CFG_CTYPE_B_SHOW;
   cfg.minValue = TSDB_MAX_SQL_LEN;
   cfg.maxValue = TSDB_MAX_ALLOWED_SQL_LEN;
+  cfg.ptrLength = 0;
+  cfg.unitType = TAOS_CFG_UTYPE_BYTE;
+  taosInitConfigOption(cfg);
+
+  cfg.option = "maxWildCardsLength";
+  cfg.ptr = &tsMaxWildCardsLen;
+  cfg.valType = TAOS_CFG_VTYPE_INT32;
+  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_CLIENT | TSDB_CFG_CTYPE_B_SHOW;
+  cfg.minValue = 0;
+  cfg.maxValue = TSDB_MAX_FIELD_LEN;
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_BYTE;
   taosInitConfigOption(cfg);
@@ -1531,6 +1576,7 @@ static void doInitGlobalConfig(void) {
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosInitConfigOption(cfg);
 
+  assert(tsGlobalConfigNum <= TSDB_CFG_MAX_NUM);
 #ifdef TD_TSZ
   // lossy compress
   cfg.option = "lossyColumns";
