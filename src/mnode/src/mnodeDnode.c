@@ -298,7 +298,7 @@ void *mnodeGetDnodeByEp(char *ep) {
   while (1) {
     pIter = mnodeGetNextDnode(pIter, &pDnode);
     if (pDnode == NULL) break;
-    if (strcmp(ep, pDnode->dnodeEp) == 0) {
+    if (strncasecmp(ep, pDnode->dnodeEp, TSDB_EP_LEN) == 0) {
       mnodeCancelGetNextDnode(pIter);
       return pDnode;
     }
@@ -1199,7 +1199,12 @@ static int32_t mnodeGetVnodeMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pC
 
   SDnodeObj *pDnode = NULL;
   if (pShow->payloadLen > 0 ) {
-    pDnode = mnodeGetDnodeByEp(pShow->payload);
+    char ep[TSDB_EP_LEN] = {0}; 
+    // not use tstrncpy to make runtime happy   
+    uint16_t len = (pShow->payloadLen + 1) > TSDB_EP_LEN ? TSDB_EP_LEN :(pShow->payloadLen + 1);
+    strncpy(ep, pShow->payload, len - 1);
+
+    pDnode = mnodeGetDnodeByEp(ep);
   } else {
     void *pIter = mnodeGetNextDnode(NULL, (SDnodeObj **)&pDnode);
     mnodeCancelGetNextDnode(pIter);

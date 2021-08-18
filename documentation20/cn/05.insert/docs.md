@@ -4,7 +4,7 @@ TDengine支持多种接口写入数据，包括SQL, Prometheus, Telegraf, EMQ MQ
 
 ## <a class="anchor" id="sql"></a>SQL写入
 
-应用通过C/C++, JDBC, GO, 或Python Connector 执行SQL insert语句来插入数据，用户还可以通过TAOS Shell，手动输入SQL insert语句插入数据。比如下面这条insert 就将一条记录写入到表d1001中：
+应用通过C/C++、JDBC、GO、C#或Python Connector 执行SQL insert语句来插入数据，用户还可以通过TAOS Shell，手动输入SQL insert语句插入数据。比如下面这条insert 就将一条记录写入到表d1001中：
 ```mysql
 INSERT INTO d1001 VALUES (1538548685000, 10.3, 219, 0.31);
 ```
@@ -23,20 +23,20 @@ INSERT INTO d1001 VALUES (1538548685000, 10.3, 219, 0.31) (1538548695000, 12.6, 
 **Tips:** 
 
 - 要提高写入效率，需要批量写入。一批写入的记录条数越多，插入效率就越高。但一条记录不能超过16K，一条SQL语句总长度不能超过64K（可通过参数maxSQLLength配置，最大可配置为1M）。
-- TDengine支持多线程同时写入，要进一步提高写入速度，一个客户端需要打开20个以上的线程同时写。但线程数达到一定数量后，无法再提高，甚至还会下降，因为线程切频繁切换，带来额外开销。
-- 对同一张表，如果新插入记录的时间戳已经存在，默认（没有使用 UPDATE 1 创建数据库）新记录将被直接抛弃，也就是说，在一张表里，时间戳必须是唯一的。如果应用自动生成记录，很有可能生成的时间戳是一样的，这样，成功插入的记录条数会小于应用插入的记录条数。如果在创建数据库时使用 UPDATE 1 选项，插入相同时间戳的新记录将覆盖原有记录。
-- 写入的数据的时间戳必须大于当前时间减去配置参数keep的时间。如果keep配置为3650天，那么无法写入比3650天还老的数据。写入数据的时间戳也不能大于当前时间加配置参数days。如果days配置为2，那么无法写入比当前时间还晚2天的数据。
+- TDengine支持多线程同时写入，要进一步提高写入速度，一个客户端需要打开20个以上的线程同时写。但线程数达到一定数量后，无法再提高，甚至还会下降，因为线程频繁切换，带来额外开销。
+- 对同一张表，如果新插入记录的时间戳已经存在，默认情形下（UPDATE=0）新记录将被直接抛弃，也就是说，在一张表里，时间戳必须是唯一的。如果应用自动生成记录，很有可能生成的时间戳是一样的，这样，成功插入的记录条数会小于应用插入的记录条数。如果在创建数据库时使用了 UPDATE 1 选项，插入相同时间戳的新记录将覆盖原有记录。
+- 写入的数据的时间戳必须大于当前时间减去配置参数keep的时间。如果keep配置为3650天，那么无法写入比3650天还早的数据。写入数据的时间戳也不能大于当前时间加配置参数days。如果days为2，那么无法写入比当前时间还晚2天的数据。
 
 ## <a class="anchor" id="prometheus"></a>Prometheus直接写入
 
-[Prometheus](https://www.prometheus.io/)作为Cloud Native Computing Fundation毕业的项目，在性能监控以及K8S性能监控领域有着非常广泛的应用。TDengine提供一个小工具[Bailongma](https://github.com/taosdata/Bailongma)，只需在Prometheus做简单配置，无需任何代码，就可将Prometheus采集的数据直接写入TDengine，并按规则在TDengine自动创建库和相关表项。博文[用Docker容器快速搭建一个Devops监控Demo](https://www.taosdata.com/blog/2020/02/03/1189.html)即是采用bailongma将Prometheus和Telegraf的数据写入TDengine中的示例，可以参考。
+[Prometheus](https://www.prometheus.io/)作为Cloud Native Computing Fundation毕业的项目，在性能监控以及K8S性能监控领域有着非常广泛的应用。TDengine提供一个小工具[Bailongma](https://github.com/taosdata/Bailongma)，只需对Prometheus做简单配置，无需任何代码，就可将Prometheus采集的数据直接写入TDengine，并按规则在TDengine自动创建库和相关表项。博文[用Docker容器快速搭建一个Devops监控Demo](https://www.taosdata.com/blog/2020/02/03/1189.html)即是采用Bailongma将Prometheus和Telegraf的数据写入TDengine中的示例，可以参考。
 
 ### 从源代码编译blm_prometheus
 
 用户需要从github下载[Bailongma](https://github.com/taosdata/Bailongma)的源码，使用Golang语言编译器编译生成可执行文件。在开始编译前，需要准备好以下条件：
 - Linux操作系统的服务器
 - 安装好Golang, 1.10版本以上
-- 对应的TDengine版本。因为用到了TDengine的客户端动态链接库，因此需要安装好和服务端相同版本的TDengine程序；比如服务端版本是TDengine 2.0.0, 则在bailongma所在的linux服务器（可以与TDengine在同一台服务器，或者不同服务器）
+- 对应的TDengine版本。因为用到了TDengine的客户端动态链接库，因此需要安装好和服务端相同版本的TDengine程序；比如服务端版本是TDengine 2.0.0, 则在Bailongma所在的Linux服务器（可以与TDengine在同一台服务器，或者不同服务器）
 
 Bailongma项目中有一个文件夹blm_prometheus，存放了prometheus的写入API程序。编译过程如下：
 ```bash
@@ -54,13 +54,13 @@ go build
 
 参考Prometheus的[配置文档](https://prometheus.io/docs/prometheus/latest/configuration/configuration/)，在Prometheus的配置文件中的<remote_write>部分，增加以下配置
 
-- url: bailongma API服务提供的URL, 参考下面的blm_prometheus启动示例章节
+- url: bailongma API服务提供的URL，参考下面的blm_prometheus启动示例章节
 
 启动Prometheus后，可以通过taos客户端查询确认数据是否成功写入。
 
 ### 启动blm_prometheus程序
 blm_prometheus程序有以下选项，在启动blm_prometheus程序时可以通过设定这些选项来设定blm_prometheus的配置。
-```sh
+```bash
 --tdengine-name
 如果TDengine安装在一台具备域名的服务器上，也可以通过配置TDengine的域名来访问TDengine。在K8S环境下，可以配置成TDengine所运行的service name
 
@@ -126,7 +126,7 @@ select * from apiserver_request_latencies_bucket;
 
 - Linux操作系统的服务器
 - 安装好Golang, 1.10版本以上
-- 对应的TDengine版本。因为用到了TDengine的客户端动态链接库，因此需要安装好和服务端相同版本的TDengine程序；比如服务端版本是TDengine 2.0.0, 则在bailongma所在的linux服务器（可以与TDengine在同一台服务器，或者不同服务器）
+- 对应的TDengine版本。因为用到了TDengine的客户端动态链接库，因此需要安装好和服务端相同版本的TDengine程序；比如服务端版本是TDengine 2.0.0, 则在Bailongma所在的Linux服务器（可以与TDengine在同一台服务器，或者不同服务器）
 
 Bailongma项目中有一个文件夹blm_telegraf，存放了Telegraf的写入API程序。编译过程如下：
 
@@ -147,9 +147,9 @@ go build
 
 在output plugins部分，增加[[outputs.http]]配置项：
 
-- url： bailongma API服务提供的URL, 参考下面的启动示例章节
-- data_format: "json"
-- json_timestamp_units:      "1ms"
+- url：Bailongma API服务提供的URL，参考下面的启动示例章节
+- data_format："json"
+- json_timestamp_units："1ms"
 
 在agent部分：
 
@@ -161,7 +161,7 @@ go build
 ### 启动blm_telegraf程序
 blm_telegraf程序有以下选项，在启动blm_telegraf程序时可以通过设定这些选项来设定blm_telegraf的配置。
 
-```sh
+```bash
 --host
 TDengine服务端的IP地址，缺省值为空
 
@@ -221,18 +221,16 @@ telegraf产生的数据格式如下：
 }
 ```
 
-其中，name字段为telegraf采集的时序数据的名称，tags字段为该时序数据的标签。blm_telegraf会以时序数据的名称在TDengine中自动创建一个超级表，并将tags字段中的标签转换成TDengine的tag值，Timestamp作为时间戳，fields字段中的值作为该时序数据的值。因此在TDengine的客户端中，可以通过以下指令查到这个数据是否成功写入。
+其中，name字段为telegraf采集的时序数据的名称，tags字段为该时序数据的标签。blm_telegraf会以时序数据的名称在TDengine中自动创建一个超级表，并将tags字段中的标签转换成TDengine的tag值，timestamp作为时间戳，fields字段中的值作为该时序数据的值。因此在TDengine的客户端中，可以通过以下指令查到这个数据是否成功写入。
 
 ```mysql
 use telegraf;
 select * from cpu;
 ```
 
-MQTT是一流行的物联网数据传输协议，TDengine 可以很方便的接入 MQTT Broker 接受的数据并写入到 TDengine。
-
 ## <a class="anchor" id="emq"></a>EMQ Broker 直接写入
 
-[EMQ](https://github.com/emqx/emqx)是一开源的MQTT Broker软件，无需任何代码，只需要在EMQ Dashboard里使用“规则”做简单配置，即可将MQTT的数据直接写入TDengine。EMQ X 支持通过 发送到 Web 服务 的方式保存数据到 TDengine，也在企业版上提供原生的 TDengine 驱动实现直接保存。详细使用方法请参考[EMQ 官方文档](https://docs.emqx.io/broker/latest/cn/rule/rule-example.html#%E4%BF%9D%E5%AD%98%E6%95%B0%E6%8D%AE%E5%88%B0-tdengine)。
+MQTT是流行的物联网数据传输协议，[EMQ](https://github.com/emqx/emqx)是一开源的MQTT Broker软件，无需任何代码，只需要在EMQ Dashboard里使用“规则”做简单配置，即可将MQTT的数据直接写入TDengine。EMQ X 支持通过 发送到 Web 服务的方式保存数据到 TDEngine，也在企业版上提供原生的 TDEngine 驱动实现直接保存。详细使用方法请参考 [EMQ 官方文档](https://docs.emqx.io/broker/latest/cn/rule/rule-example.html#%E4%BF%9D%E5%AD%98%E6%95%B0%E6%8D%AE%E5%88%B0-tdengine)。
 
 ## <a class="anchor" id="hivemq"></a>HiveMQ Broker 直接写入
 
