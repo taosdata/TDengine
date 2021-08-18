@@ -27,6 +27,9 @@ typedef struct {
   bool       mfChanged;
   SMFile *   pmf;
   SMFile     mf;
+  bool       sfChanged;
+  SSFile *   psf;
+  SSFile     sf;
   SDFileSet  df;
   SDFileSet *pdf;
 } SSyncH;
@@ -39,11 +42,15 @@ static int32_t tsdbSyncSendMeta(SSyncH *pSynch);
 static int32_t tsdbSyncRecvMeta(SSyncH *pSynch);
 static int32_t tsdbSendMetaInfo(SSyncH *pSynch);
 static int32_t tsdbRecvMetaInfo(SSyncH *pSynch);
+static int32_t tsdbSyncSendSchema(SSyncH *pSynch);
+static int32_t tsdbSyncRecvSchema(SSyncH *pSynch);
+static int32_t tsdbSendSchemaInfo(SSyncH *pSynch);
+static int32_t tsdbRecvSchemaInfo(SSyncH *pSynch);
 static int32_t tsdbSendDecision(SSyncH *pSynch, bool toSend);
 static int32_t tsdbRecvDecision(SSyncH *pSynch, bool *toSend);
 static int32_t tsdbSyncSendDFileSetArray(SSyncH *pSynch);
 static int32_t tsdbSyncRecvDFileSetArray(SSyncH *pSynch);
-static bool    tsdbIsTowFSetSame(SDFileSet *pSet1, SDFileSet *pSet2);
+static bool    tsdbIsTwoFSetSame(SDFileSet *pSet1, SDFileSet *pSet2);
 static int32_t tsdbSyncSendDFileSet(SSyncH *pSynch, SDFileSet *pSet);
 static int32_t tsdbSendDFileSetInfo(SSyncH *pSynch, SDFileSet *pSet);
 static int32_t tsdbRecvDFileSetInfo(SSyncH *pSynch);
@@ -61,6 +68,12 @@ int32_t tsdbSyncSend(void *tsdb, SOCKET socketFd) {
     tsdbError("vgId:%d, failed to send metafile since %s", REPO_ID(pRepo), tstrerror(terrno));
     goto _err;
   }
+
+  if (tsdbSyncSendSchema(&synch) < 0) {
+    tsdbError("vgId:%d, failed to send schema file since %s", REPO_ID(pRepo), tstrerror(terrno));
+    goto _err;
+  }
+
 
   if (tsdbSyncSendDFileSetArray(&synch) < 0) {
     tsdbError("vgId:%d, failed to send filesets since %s", REPO_ID(pRepo), tstrerror(terrno));
@@ -90,6 +103,11 @@ int32_t tsdbSyncRecv(void *tsdb, SOCKET socketFd) {
 
   if (tsdbSyncRecvMeta(&synch) < 0) {
     tsdbError("vgId:%d, failed to recv metafile since %s", REPO_ID(pRepo), tstrerror(terrno));
+    goto _err;
+  }
+
+  if (tsdbSyncRecvSchema(&synch) < 0) {
+    tsdbError("vgId:%d, failed to recv schema file since %s", REPO_ID(pRepo), tstrerror(terrno));
     goto _err;
   }
 
@@ -327,6 +345,211 @@ static int32_t tsdbRecvMetaInfo(SSyncH *pSynch) {
   return 0;
 }
 
+static int32_t tsdbSyncSendSchema(SSyncH *pSynch) {
+  STsdbRepo *pRepo = pSynch->pRepo;
+  bool       toSendSchema = false;
+  SSFile     sf;
+
+  // Send meta info to remote
+  tsdbInfo("vgId:%d, schema info will be sent", REPO_ID(pRepo));
+  if (tsdbSendSchemaInfo(pSynch) < 0) {
+    tsdbError("vgId:%d, failed to send schema info since %s", REPO_ID(pRepo), tstrerror(terrno));
+    return -1;
+  }
+
+  if (pRepo->fs->cstatus->psf == NULL) {
+    // No meta file, not need to wait to retrieve meta file
+    tsdbInfo("vgId:%d, schema file not exist, no need to send", REPO_ID(pRepo));
+    return 0;
+  }
+
+  if (tsdbRecvDecision(pSynch, &toSendSchema) < 0) {
+    tsdbError("vgId:%d, failed to recv decision while send meta since %s", REPO_ID(pRepo), tstrerror(terrno));
+    return -1;
+  }
+
+  if (toSendSchema) {
+    tsdbInitSFileEx(&sf, pRepo->fs->cstatus->psf);
+    if (tsdbOpenSFile(&sf, O_RDONLY) < 0) {
+      tsdbError("vgId:%d, failed to open file while send metafile since %s", REPO_ID(pRepo), tstrerror(terrno));
+      return -1;
+    }
+
+    int64_t writeLen = sf.info.size;
+    tsdbInfo("vgId:%d, schema file:%s will be sent, size:%" PRId64, REPO_ID(pRepo), sf.f.aname, writeLen);
+
+    int64_t ret = taosSendFile(pSynch->socketFd, TSDB_FILE_FD(&sf), 0, writeLen);
+    if (ret != writeLen) {
+      terrno = TAOS_SYSTEM_ERROR(errno);
+      tsdbError("vgId:%d, failed to send metafile since %s, ret:%" PRId64 " writeLen:%" PRId64, REPO_ID(pRepo),
+                tstrerror(terrno), ret, writeLen);
+      tsdbCloseSFile(&sf);
+      return -1;
+    }
+
+    tsdbCloseSFile(&sf);
+    tsdbInfo("vgId:%d, schema file is sent", REPO_ID(pRepo));
+  } else {
+    tsdbInfo("vgId:%d, schema file is same, no need to send", REPO_ID(pRepo));
+  }
+
+  return 0;
+}
+
+static int32_t tsdbSyncRecvSchema(SSyncH *pSynch) {
+  STsdbRepo *pRepo = pSynch->pRepo;
+  SSFile *   pLSFile = pRepo->fs->cstatus->psf;
+
+  // Recv meta info from remote
+  if (tsdbRecvSchemaInfo(pSynch) < 0) {
+    tsdbError("vgId:%d, failed to recv schema info since %s", REPO_ID(pRepo), tstrerror(terrno));
+    return -1;
+  }
+
+  // No meta file, do nothing (rm local meta file)
+  if (pSynch->psf == NULL) {
+    if (pLSFile == NULL) {
+      pSynch->sfChanged = false;
+    } else {
+      pSynch->sfChanged = true;
+    }
+    tsdbInfo("vgId:%d, schema file not exist in remote, no need to recv", REPO_ID(pRepo));
+    return 0;
+  }
+
+  if (pLSFile == NULL || pSynch->psf->info.size != pLSFile->info.size ||
+      pSynch->psf->info.magic != pLSFile->info.magic || TSDB_FILE_IS_BAD(pLSFile)) {
+    // Local has no schema file or has a different schema file, need to copy from remote
+    pSynch->sfChanged = true;
+
+    if (tsdbSendDecision(pSynch, true) < 0) {
+      tsdbError("vgId:%d, failed to send decision while recv schema file since %s", REPO_ID(pRepo), tstrerror(terrno));
+      return -1;
+    }
+
+    tsdbInfo("vgId:%d, schema file will be received", REPO_ID(pRepo));
+
+    // Recv from remote
+    SSFile  sf;
+    SDiskID did = {.level = TFS_PRIMARY_LEVEL, .id = TFS_PRIMARY_ID};
+    tsdbInitSFile(&sf, did, REPO_ID(pRepo), FS_TXN_VERSION(REPO_FS(pRepo)));
+    if (tsdbCreateSFile(&sf, false) < 0) {
+      tsdbError("vgId:%d, failed to create file while recv schema file since %s", REPO_ID(pRepo), tstrerror(terrno));
+      return -1;
+    }
+
+    tsdbInfo("vgId:%d, schema file:%s is created", REPO_ID(pRepo), sf.f.aname);
+
+    int64_t readLen = pSynch->psf->info.size;
+    int64_t ret = taosCopyFds(pSynch->socketFd, TSDB_FILE_FD(&sf), readLen);
+    if (ret != readLen) {
+      terrno = TAOS_SYSTEM_ERROR(errno);
+      tsdbError("vgId:%d, failed to recv schema file since %s, ret:%" PRId64 " readLen:%" PRId64, REPO_ID(pRepo),
+                tstrerror(terrno), ret, readLen);
+      tsdbCloseSFile(&sf);
+      tsdbRemoveSFile(&sf);
+      return -1;
+    }
+
+    tsdbInfo("vgId:%d, schema file is received, size:%" PRId64, REPO_ID(pRepo), readLen);
+
+    sf.info = pSynch->psf->info;
+    tsdbCloseSFile(&sf);
+    tsdbUpdateSFile(REPO_FS(pRepo), &sf);
+  } else {
+    pSynch->sfChanged = false;
+    tsdbInfo("vgId:%d, schmea file is same, no need to recv", REPO_ID(pRepo));
+    if (tsdbSendDecision(pSynch, false) < 0) {
+      tsdbError("vgId:%d, failed to send decision while recv schema file since %s", REPO_ID(pRepo), tstrerror(terrno));
+      return -1;
+    }
+    tsdbUpdateSFile(REPO_FS(pRepo), pLSFile);
+  }
+
+  return 0;
+}
+
+static int32_t tsdbSendSchemaInfo(SSyncH *pSynch) {
+  STsdbRepo *pRepo = pSynch->pRepo;
+  uint32_t   tlen = 0;
+  SSFile *   pSFile = pRepo->fs->cstatus->psf;
+
+  if (pSFile) {
+    tlen = tlen + tsdbEncodeSSFileEx(NULL, pSFile) + sizeof(TSCKSUM);
+  }
+
+  if (tsdbMakeRoom((void **)(&SYNC_BUFFER(pSynch)), tlen + sizeof(tlen)) < 0) {
+    tsdbError("vgId:%d, failed to makeroom while send schema info since %s", REPO_ID(pRepo), tstrerror(terrno));
+    return -1;
+  }
+
+  void *ptr = SYNC_BUFFER(pSynch);
+  taosEncodeFixedU32(&ptr, tlen);
+  void *tptr = ptr;
+  if (pSFile) {
+    tsdbEncodeSSFileEx(&ptr, pSFile);
+    taosCalcChecksumAppend(0, (uint8_t *)tptr, tlen);
+  }
+
+  int32_t writeLen = tlen + sizeof(uint32_t);
+  int32_t ret = taosWriteMsg(pSynch->socketFd, SYNC_BUFFER(pSynch), writeLen);
+  if (ret != writeLen) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    tsdbError("vgId:%d, failed to send schema info since %s, ret:%d writeLen:%d", REPO_ID(pRepo), tstrerror(terrno), ret,
+              writeLen);
+    return -1;
+  }
+
+  tsdbInfo("vgId:%d, schema info is sent, tlen:%d, writeLen:%d", REPO_ID(pRepo), tlen, writeLen);
+  return 0;
+}
+
+static int32_t tsdbRecvSchemaInfo(SSyncH *pSynch) {
+  STsdbRepo *pRepo = pSynch->pRepo;
+  uint32_t   tlen = 0;
+  char       buf[64] = {0};
+
+  int32_t readLen = sizeof(uint32_t);
+  int32_t ret = taosReadMsg(pSynch->socketFd, buf, readLen);
+  if (ret != readLen) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    tsdbError("vgId:%d, failed to recv schema len, ret:%d readLen:%d", REPO_ID(pRepo), ret, readLen);
+    return -1;
+  }
+
+  taosDecodeFixedU32(buf, &tlen);
+
+  tsdbInfo("vgId:%d, schema len is received, readLen:%d, tlen:%d", REPO_ID(pRepo), readLen, tlen);
+  if (tlen == 0) {
+    pSynch->psf = NULL;
+    return 0;
+  }
+
+  if (tsdbMakeRoom((void **)(&SYNC_BUFFER(pSynch)), tlen) < 0) {
+    tsdbError("vgId:%d, failed to makeroom while recv metainfo since %s", REPO_ID(pRepo), tstrerror(terrno));
+    return -1;
+  }
+
+  ret = taosReadMsg(pSynch->socketFd, SYNC_BUFFER(pSynch), tlen);
+  if (ret != tlen) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    tsdbError("vgId:%d, failed to recv schema info, ret:%d tlen:%d", REPO_ID(pRepo), ret, tlen);
+    return -1;
+  }
+
+  tsdbInfo("vgId:%d, schema info is received, tlen:%d", REPO_ID(pRepo), tlen);
+  if (!taosCheckChecksumWhole((uint8_t *)SYNC_BUFFER(pSynch), tlen)) {
+    terrno = TSDB_CODE_TDB_MESSED_MSG;
+    tsdbError("vgId:%d, failed to checksum while recv schema info since %s", REPO_ID(pRepo), tstrerror(terrno));
+    return -1;
+  }
+
+  pSynch->psf = &(pSynch->sf);
+  tsdbDecodeSSFileEx(SYNC_BUFFER(pSynch), pSynch->psf);
+
+  return 0;
+}
+
 static int32_t tsdbSendDecision(SSyncH *pSynch, bool toSend) {
   STsdbRepo *pRepo = pSynch->pRepo;
   uint8_t    decision = toSend;
@@ -413,7 +636,7 @@ static int32_t tsdbSyncRecvDFileSetArray(SSyncH *pSynch) {
                pSynch->pdf != NULL ? pSynch->pdf->fid : -1);
       pLSet = tsdbFSIterNext(&fsiter);
     } else {
-      if (pLSet && pSynch->pdf && pLSet->fid == pSynch->pdf->fid && tsdbIsTowFSetSame(pLSet, pSynch->pdf) &&
+      if (pLSet && pSynch->pdf && pLSet->fid == pSynch->pdf->fid && tsdbIsTwoFSetSame(pLSet, pSynch->pdf) &&
           tsdbFSetIsOk(pLSet)) {
         // Just keep local files and notify remote not to send
         tsdbInfo("vgId:%d, fileset:%d is same and no need to recv", REPO_ID(pRepo), pLSet->fid);
@@ -549,7 +772,7 @@ static int32_t tsdbSyncRecvDFileSetArray(SSyncH *pSynch) {
   return 0;
 }
 
-static bool tsdbIsTowFSetSame(SDFileSet *pSet1, SDFileSet *pSet2) {
+static bool tsdbIsTwoFSetSame(SDFileSet *pSet1, SDFileSet *pSet2) {
   for (TSDB_FILE_T ftype = 0; ftype < TSDB_FILE_MAX; ftype++) {
     SDFile *pDFile1 = TSDB_DFILE_IN_SET(pSet1, ftype);
     SDFile *pDFile2 = TSDB_DFILE_IN_SET(pSet2, ftype);

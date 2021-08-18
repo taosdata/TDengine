@@ -174,22 +174,23 @@ int64_t syncStart(const SSyncInfo *pInfo) {
   tstrncpy(pNode->path, pInfo->path, sizeof(pNode->path));
   pthread_mutex_init(&pNode->mutex, NULL);
 
-  pNode->getWalInfoFp = pInfo->getWalInfoFp;
-  pNode->writeToCacheFp = pInfo->writeToCacheFp;
-  pNode->notifyRoleFp = pInfo->notifyRoleFp;
-  pNode->confirmForward = pInfo->confirmForward;
+  pNode->getWalInfoFp     = pInfo->getWalInfoFp;
+  pNode->writeToCacheFp   = pInfo->writeToCacheFp;
+  pNode->notifyRoleFp     = pInfo->notifyRoleFp;
+  pNode->confirmForward   = pInfo->confirmForward;
   pNode->notifyFlowCtrlFp = pInfo->notifyFlowCtrlFp;
-  pNode->startSyncFileFp = pInfo->startSyncFileFp;
-  pNode->stopSyncFileFp = pInfo->stopSyncFileFp;
-  pNode->getVersionFp = pInfo->getVersionFp;
-  pNode->sendFileFp = pInfo->sendFileFp;
-  pNode->recvFileFp = pInfo->recvFileFp;
+  pNode->startSyncFileFp  = pInfo->startSyncFileFp;
+  pNode->stopSyncFileFp   = pInfo->stopSyncFileFp;
+  pNode->getVersionFp     = pInfo->getVersionFp;
+  pNode->sendFileFp       = pInfo->sendFileFp;
+  pNode->recvFileFp       = pInfo->recvFileFp;
 
   pNode->selfIndex = -1;
-  pNode->vgId = pInfo->vgId;
-  pNode->replica = pCfg->replica;
-  pNode->quorum = pCfg->quorum;
-  pNode->pTsdb = pInfo->pTsdb;
+  pNode->vgId      = pInfo->vgId;
+  pNode->replica   = pCfg->replica;
+  pNode->quorum    = pCfg->quorum;
+  pNode->pTsdb     = pInfo->pTsdb;
+
   if (pNode->quorum > pNode->replica) pNode->quorum = pNode->replica;
 
   pNode->refCount = 1;

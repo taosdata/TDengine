@@ -395,7 +395,7 @@ int32_t vnodeOpen(int32_t vgId) {
   tstrncpy(syncInfo.path, walRootDir, TSDB_FILENAME_LEN);
   syncInfo.getWalInfoFp = vnodeGetWalInfo;
   syncInfo.writeToCacheFp = vnodeWriteToCache;
-  syncInfo.confirmForward = vnodeConfirmForard; 
+  syncInfo.confirmForward = vnodeConfirmForard;
   syncInfo.notifyRoleFp = vnodeNotifyRole;
   syncInfo.notifyFlowCtrlFp = vnodeCtrlFlow;
   syncInfo.startSyncFileFp = vnodeStartSyncFile;
