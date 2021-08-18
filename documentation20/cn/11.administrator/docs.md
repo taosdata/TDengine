@@ -230,7 +230,7 @@ taosd -C
 | 1     | days             | 天       | 一个数据文件存储数据的时间跨度                               |                                                  | 10         |
 | 2     | keep             | 天       | （可通过 alter database 修改<!-- REPLACE_OPEN_TO_ENTERPRISE__KEEP_PARAM_DESCRIPTION_IN_PARAM_LIST -->）数据库中数据保留的天数。                            | 3650       |
 | 3     | cache            | MB       | 内存块的大小                                                 |                                                  | 16         |
-| 4     | blocks           |          | （可通过 alter database 修改）每个 VNODE（TSDB）中有多少个 cache 大小的内存块。因此一个 VNODE 使用的内存大小粗略为（cache * blocks）。                  |                                                  | 4          |
+| 4     | blocks           |          | （可通过 alter database 修改）每个 VNODE（TSDB）中有多少个 cache 大小的内存块。因此一个 VNODE 使用的内存大小粗略为（cache * blocks）。                  |                                                  | 6          |
 | 5     | quorum           |          | （可通过 alter database 修改）多副本环境下指令执行的确认数要求   | 1-2                                              | 1          |
 | 6     | minRows          |          | 文件块中记录的最小条数                                       |                                                  | 100        |
 | 7     | maxRows          |          | 文件块中记录的最大条数                                       |                                                  | 4096       |
