@@ -549,6 +549,14 @@ static int32_t sdbInsertHash(SSdbTable *pTable, SSdbRow *pRow) {
   }
 
   pthread_mutex_lock(&pTable->mutex);
+  void **ppRow = (void **)taosHashGet(pTable->iHandle, key, keySize);
+  if (ppRow) {
+    SSdbRow row = {
+      .pObj = *ppRow,
+      .pTable = pTable,
+    };
+    (*pTable->fpDestroy)(&row);
+  }
   taosHashPut(pTable->iHandle, key, keySize, &pRow->pObj, sizeof(int64_t));
   pthread_mutex_unlock(&pTable->mutex);
 
