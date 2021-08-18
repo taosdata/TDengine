@@ -219,6 +219,9 @@ int32_t qCreateQueryInfo(void* tsdb, int32_t vgId, SQueryTableMsg* pQueryMsg, qi
 int waitMoment(SQInfo* pQInfo){
   if(pQInfo->sql) {
     int ms = 0;
+    char* pcnt = strstr(pQInfo->sql, " count(*)");
+    if(pcnt) return 0;
+    
     char* pos = strstr(pQInfo->sql, " t_");
     if(pos){
       pos += 3;
@@ -603,4 +606,88 @@ void** qReleaseQInfo(void* pMgmt, void* pQInfo, bool freeHandle) {
 
   taosCacheRelease(pQueryMgmt->qinfoPool, pQInfo, freeHandle);
   return 0;
+}
+
+//kill by qid
+int32_t qKillQueryByQId(void* pMgmt, int64_t qId, int32_t waitMs, int32_t waitCount) {
+  int32_t error = TSDB_CODE_SUCCESS;
+  void** handle = qAcquireQInfo(pMgmt, qId);
+  if(handle == NULL) return terrno;
+
+  SQInfo* pQInfo = (SQInfo*)(*handle);
+  if (pQInfo == NULL || !isValidQInfo(pQInfo)) {
+    return TSDB_CODE_QRY_INVALID_QHANDLE;
+  }
+
+  qDebug("QInfo:0x%"PRIx64" query killed by qid.", pQInfo->qId);
+  setQueryKilled(pQInfo);
+
+  // wait query stop
+  int32_t loop = 0;
+  while (pQInfo->owner != 0) {
+    taosMsleep(waitMs);
+    if(loop++ > waitCount){
+      error = TSDB_CODE_FAILED;
+      break;
+    }
+  }
+
+  return error;
+}
+
+int compareLongQuery(const void* p1, const void* p2) {
+  // sort desc 
+  SLongQuery* plq1 = (SLongQuery*)p1;
+  SLongQuery* plq2 = (SLongQuery*)p2;
+  if(plq1->timeMs == plq2->timeMs) {
+    return 0;
+  } else if(plq1->timeMs > plq2->timeMs) {
+    return -1;
+  } else {
+    return 1;
+  }
+}
+
+// util
+void* qObtainLongQuery(void* param, int32_t longMs){
+  SQueryMgmt* qMgmt =  (SQueryMgmt*)param;
+  if(qMgmt == NULL || qMgmt->qinfoPool == NULL) return NULL;
+  SArray* qids = taosArrayInit(4, sizeof(int64_t*));
+  
+  SHashObj* pHashTable = qMgmt->qinfoPool->pHashTable;
+  if(pHashTable == NULL || pHashTable->hashList == NULL) return NULL;
+
+  SQInfo * qInfo = (SQInfo*)taosHashIterate(pHashTable, NULL);
+  while(qInfo){
+    // judge long query
+    SMemTable* imem = qInfo->runtimeEnv.pQueryAttr->memRef.snapshot.imem;
+    if(imem == NULL || imem->commitedMs == 0) continue;
+    int64_t now = taosGetTimestampMs();
+    if(imem->commitedMs > now) continue; // weird, so skip
+
+    int32_t passMs = now - imem->commitedMs;
+    if(passMs < longMs) {
+      continue;
+    }
+
+    // push
+    SLongQuery* plq = (SLongQuery*)malloc(sizeof(SLongQuery));
+    plq->timeMs = passMs;
+    plq->qId = qInfo->qId;
+    taosArrayPush(qids, plq);
+
+    // next
+    qInfo = (SQInfo*)taosHashIterate(pHashTable, qInfo);
+  }
+
+  size_t cnt = taosArrayGetSize(qids);
+  if(cnt == 0) {
+    taosArrayDestroyEx(qids, free);
+    return NULL;
+  } 
+  if(cnt > 1) {
+    taosArraySort(qids, compareLongQuery);
+  }
+
+  return qids;   
 }

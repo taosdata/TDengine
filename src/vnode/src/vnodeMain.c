@@ -562,3 +562,9 @@ static int32_t vnodeProcessTsdbStatus(void *arg, int32_t status, int32_t eno) {
 
   return 0;
 }
+
+// get qmgmt
+void* vnodeGetqMgmt(void* pVnode){
+  if(pVnode == NULL) return NULL;
+  return ((SVnodeObj*)pVnode)->qMgmt;
+}

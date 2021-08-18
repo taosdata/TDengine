@@ -76,6 +76,9 @@ void* qGetResultRetrieveMsg(qinfo_t qinfo);
  */
 int32_t qKillQuery(qinfo_t qinfo);
 
+//kill by qid 
+int32_t qKillQueryByQId(void* pMgmt, int64_t qId, int32_t waitMs, int32_t waitCount);
+
 int32_t qQueryCompleted(qinfo_t qinfo);
 
 /**
@@ -93,6 +96,15 @@ void** qAcquireQInfo(void* pMgmt, uint64_t key);
 void** qReleaseQInfo(void* pMgmt, void* pQInfo, bool freeHandle);
 bool checkQIdEqual(void *qHandle, uint64_t qId);
 int64_t genQueryId(void);
+
+// util
+
+typedef struct {
+  int64_t qId;
+  int32_t timeMs;
+} SLongQuery;
+// return SArray* include SLongQuery*
+void* qObtainLongQuery(void* qMgmt, int32_t longMs);
 
 #ifdef __cplusplus
 }

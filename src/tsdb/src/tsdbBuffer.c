@@ -14,11 +14,9 @@
  */
 
 #include "tsdbint.h"
+#include "tsdbHealth.h"
 
 #define POOL_IS_EMPTY(b) (listNEles((b)->bufBlockList) == 0)
-
-static STsdbBufBlock *tsdbNewBufBlock(int bufBlockSize);
-static void           tsdbFreeBufBlock(STsdbBufBlock *pBufBlock);
 
 // ---------------- INTERNAL FUNCTIONS ----------------
 STsdbBufPool *tsdbNewBufPool() {
@@ -120,6 +118,14 @@ SListNode *tsdbAllocBufBlockFromPool(STsdbRepo *pRepo) {
   STsdbBufPool *pBufPool = pRepo->pPool;
 
   while (POOL_IS_EMPTY(pBufPool)) {
+    // supply new Block 
+    if(tsdbInsertNewBlock(pRepo) > 0) {
+      break;
+    } else {
+      // no newBlock, kill query free
+      tsdbUrgeQueryFree(pRepo);
+    }
+
     pRepo->repoLocked = false;
     pthread_cond_wait(&(pBufPool->poolNotEmpty), &(pRepo->mutex));
     pRepo->repoLocked = true;
@@ -139,7 +145,7 @@ SListNode *tsdbAllocBufBlockFromPool(STsdbRepo *pRepo) {
 }
 
 // ---------------- LOCAL FUNCTIONS ----------------
-static STsdbBufBlock *tsdbNewBufBlock(int bufBlockSize) {
+STsdbBufBlock *tsdbNewBufBlock(int bufBlockSize) {
   STsdbBufBlock *pBufBlock = (STsdbBufBlock *)malloc(sizeof(*pBufBlock) + bufBlockSize);
   if (pBufBlock == NULL) {
     terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
@@ -157,7 +163,7 @@ _err:
   return NULL;
 }
 
-static void tsdbFreeBufBlock(STsdbBufBlock *pBufBlock) { tfree(pBufBlock); }
+ void tsdbFreeBufBlock(STsdbBufBlock *pBufBlock) { tfree(pBufBlock); }
 
 int tsdbExpandPool(STsdbRepo* pRepo, int32_t oldTotalBlocks) {
   if (oldTotalBlocks == pRepo->config.totalBlocks) {

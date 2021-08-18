@@ -43,4 +43,8 @@ SListNode*    tsdbAllocBufBlockFromPool(STsdbRepo* pRepo);
 int           tsdbExpandPool(STsdbRepo* pRepo, int32_t oldTotalBlocks);
 void          tsdbRecycleBufferBlock(STsdbBufPool* pPool, SListNode *pNode);
 
+// health cite
+STsdbBufBlock *tsdbNewBufBlock(int bufBlockSize);
+void tsdbFreeBufBlock(STsdbBufBlock *pBufBlock);
+
 #endif /* _TD_TSDB_BUFFER_H_ */
