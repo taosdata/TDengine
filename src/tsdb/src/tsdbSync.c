@@ -931,6 +931,7 @@ static int tsdbReload(STsdbRepo *pRepo, bool isMfChanged) {
   pRepo->tsdbMeta = tsdbNewMeta(REPO_CFG(pRepo));
   tsdbOpenMeta(pRepo);
   tsdbLoadMetaCache(pRepo, true);
+  tsdbLoadSchema(pRepo);
   // }
 
   tsdbUnRefMemTable(pRepo, pRepo->mem);
