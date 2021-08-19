@@ -53,14 +53,6 @@
 #include "taoserror.h"
 #include "tutil.h"
 
-#define STMT_IFACE_ENABLED  1
-#define NANO_SECOND_ENABLED  1
-#define SET_THREADNAME_ENABLED  1
-
-#if SET_THREADNAME_ENABLED == 0
-#define setThreadName(name)
-#endif
-
 #define REQ_EXTRA_BUF_LEN   1024
 #define RESP_BUF_LEN        4096
 
@@ -295,9 +287,7 @@ typedef struct SSuperTable_S {
     uint64_t     lenOfTagOfOneRow;
 
     char*        sampleDataBuf;
-#if STMT_IFACE_ENABLED == 1
     char*        sampleBindArray;
-#endif
     //int          sampleRowCount;
     //int          sampleUsePos;
 
@@ -733,11 +723,7 @@ static void printHelp() {
     printf("%s%s%s%s\n", indent, "-P", indent,
             "The TCP/IP port number to use for the connection. Default is 0.");
     printf("%s%s%s%s\n", indent, "-I", indent,
-#if STMT_IFACE_ENABLED == 1
             "The interface (taosc, rest, and stmt) taosdemo uses. Default is 'taosc'.");
-#else
-    "The interface (taosc, rest) taosdemo uses. Default is 'taosc'.");
-#endif
     printf("%s%s%s%s\n", indent, "-d", indent,
             "Destination database. Default is 'test'.");
     printf("%s%s%s%s\n", indent, "-a", indent,
@@ -849,10 +835,8 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
                 arguments->iface = TAOSC_IFACE;
             } else if (0 == strcasecmp(argv[i], "rest")) {
                 arguments->iface = REST_IFACE;
-#if STMT_IFACE_ENABLED == 1
             } else if (0 == strcasecmp(argv[i], "stmt")) {
                 arguments->iface = STMT_IFACE;
-#endif
             } else {
                 errorPrint("%s", "\n\t-I need a valid string following!\n");
                 exit(EXIT_FAILURE);
@@ -1694,9 +1678,7 @@ static int printfInsertMeta() {
         }
         if (g_Dbs.db[i].dbCfg.precision[0] != 0) {
             if ((0 == strncasecmp(g_Dbs.db[i].dbCfg.precision, "ms", 2))
-#if NANO_SECOND_ENABLED == 1
                     || (0 == strncasecmp(g_Dbs.db[i].dbCfg.precision, "us", 2))
-#endif
                     || (0 == strncasecmp(g_Dbs.db[i].dbCfg.precision, "ns", 2))) {
                 printf("  precision:             \033[33m%s\033[0m\n",
                         g_Dbs.db[i].dbCfg.precision);
@@ -1887,9 +1869,7 @@ static void printfInsertMetaToFile(FILE* fp) {
         }
         if (g_Dbs.db[i].dbCfg.precision[0] != 0) {
             if ((0 == strncasecmp(g_Dbs.db[i].dbCfg.precision, "ms", 2))
-#if NANO_SECOND_ENABLED == 1
                     || (0 == strncasecmp(g_Dbs.db[i].dbCfg.precision, "ns", 2))
-#endif
                     || (0 == strncasecmp(g_Dbs.db[i].dbCfg.precision, "us", 2))) {
                 fprintf(fp, "  precision:             %s\n",
                         g_Dbs.db[i].dbCfg.precision);
@@ -2092,10 +2072,8 @@ static char* formatTimestamp(char* buf, int64_t val, int precision) {
     time_t tt;
     if (precision == TSDB_TIME_PRECISION_MICRO) {
         tt = (time_t)(val / 1000000);
-#if NANO_SECOND_ENABLED == 1
     } if (precision == TSDB_TIME_PRECISION_NANO) {
         tt = (time_t)(val / 1000000000);
-#endif
     } else {
         tt = (time_t)(val / 1000);
     }
@@ -2117,10 +2095,8 @@ static char* formatTimestamp(char* buf, int64_t val, int precision) {
 
     if (precision == TSDB_TIME_PRECISION_MICRO) {
         sprintf(buf + pos, ".%06d", (int)(val % 1000000));
-#if NANO_SECOND_ENABLED == 1
     } else if (precision == TSDB_TIME_PRECISION_NANO) {
         sprintf(buf + pos, ".%09d", (int)(val % 1000000000));
-#endif
     } else {
         sprintf(buf + pos, ".%03d", (int)(val % 1000));
     }
@@ -3181,10 +3157,8 @@ int createDatabasesAndStables(char *command) {
                         " fsync %d", g_Dbs.db[i].dbCfg.fsync);
             }
             if ((0 == strncasecmp(g_Dbs.db[i].dbCfg.precision, "ms", 2))
-#if NANO_SECOND_ENABLED == 1
                     || (0 == strncasecmp(g_Dbs.db[i].dbCfg.precision,
                             "ns", 2))
-#endif
                     || (0 == strncasecmp(g_Dbs.db[i].dbCfg.precision,
                             "us", 2))) {
                 dataLen += snprintf(command + dataLen, BUFFER_SIZE - dataLen,
@@ -4263,10 +4237,8 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
                     g_Dbs.db[i].superTbls[j].iface= TAOSC_IFACE;
                 } else if (0 == strcasecmp(stbIface->valuestring, "rest")) {
                     g_Dbs.db[i].superTbls[j].iface= REST_IFACE;
-#if STMT_IFACE_ENABLED == 1
                 } else if (0 == strcasecmp(stbIface->valuestring, "stmt")) {
                     g_Dbs.db[i].superTbls[j].iface= STMT_IFACE;
-#endif
                 } else {
                     errorPrint("%s() LN%d, failed to read json, insert_mode %s not recognized\n",
                             __func__, __LINE__, stbIface->valuestring);
@@ -5075,7 +5047,6 @@ static void postFreeResource() {
                 free(g_Dbs.db[i].superTbls[j].sampleDataBuf);
                 g_Dbs.db[i].superTbls[j].sampleDataBuf = NULL;
             }
-#if STMT_IFACE_ENABLED == 1
             if (g_Dbs.db[i].superTbls[j].sampleBindArray) {
                 for (int k = 0; k < MAX_SAMPLES_ONCE_FROM_FILE; k++) {
                     uintptr_t *tmp = (uintptr_t *)(*(uintptr_t *)(
@@ -5090,7 +5061,6 @@ static void postFreeResource() {
                 }
             }
             tmfree((char *)g_Dbs.db[i].superTbls[j].sampleBindArray);
-#endif
 
             if (0 != g_Dbs.db[i].superTbls[j].tagDataBuf) {
                 free(g_Dbs.db[i].superTbls[j].tagDataBuf);
@@ -5383,7 +5353,6 @@ static int32_t execInsert(threadInfo *pThreadInfo, uint32_t k)
             }
             break;
 
-#if STMT_IFACE_ENABLED == 1
         case STMT_IFACE:
             debugPrint("%s() LN%d, stmt=%p",
                     __func__, __LINE__, pThreadInfo->stmt);
@@ -5396,7 +5365,6 @@ static int32_t execInsert(threadInfo *pThreadInfo, uint32_t k)
             }
             affectedRows = k;
             break;
-#endif
 
         default:
             errorPrint("%s() LN%d: unknown insert mode: %d\n",
@@ -5769,7 +5737,6 @@ static int64_t generateInterlaceDataWithoutStb(
     return k;
 }
 
-#if STMT_IFACE_ENABLED == 1
 static int32_t prepareStmtBindArrayByType(
         TAOS_BIND *bind,
         char *dataType, int32_t dataLen,
@@ -6604,7 +6571,6 @@ static int32_t prepareStbStmtWithSample(
 
     return k;
 }
-#endif
 
 static int32_t generateStbProgressiveData(
         SSuperTable *stbInfo,
@@ -6805,7 +6771,6 @@ static void* syncWriteInterlace(threadInfo *pThreadInfo) {
             int32_t generated;
             if (stbInfo) {
                 if (stbInfo->iface == STMT_IFACE) {
-#if STMT_IFACE_ENABLED == 1
                     if (sourceRand) {
                         generated = prepareStbStmtRand(
                                 pThreadInfo,
@@ -6825,9 +6790,6 @@ static void* syncWriteInterlace(threadInfo *pThreadInfo) {
                                 startTime,
                                 &(pThreadInfo->samplePos));
                     }
-#else
-                    generated = -1;
-#endif
                 } else {
                     generated = generateStbInterlaceData(
                             pThreadInfo,
@@ -6845,16 +6807,12 @@ static void* syncWriteInterlace(threadInfo *pThreadInfo) {
                             pThreadInfo->threadID,
                             __func__, __LINE__,
                             tableName, batchPerTbl, startTime);
-#if STMT_IFACE_ENABLED == 1
                     generated = prepareStmtWithoutStb(
                             pThreadInfo,
                             tableName,
                             batchPerTbl,
                             insertRows, i,
                             startTime);
-#else
-                    generated = -1;
-#endif
                 } else {
                     generated = generateInterlaceDataWithoutStb(
                             tableName, batchPerTbl,
@@ -7067,7 +7025,6 @@ static void* syncWriteProgressive(threadInfo *pThreadInfo) {
             int32_t generated;
             if (stbInfo) {
                 if (stbInfo->iface == STMT_IFACE) {
-#if STMT_IFACE_ENABLED == 1
                     if (sourceRand) {
                         generated = prepareStbStmtRand(
                                 pThreadInfo,
@@ -7086,9 +7043,6 @@ static void* syncWriteProgressive(threadInfo *pThreadInfo) {
                                 insertRows, i, start_time,
                                 &(pThreadInfo->samplePos));
                     }
-#else
-                    generated = -1;
-#endif
                 } else {
                     generated = generateStbProgressiveData(
                             stbInfo,
@@ -7100,16 +7054,12 @@ static void* syncWriteProgressive(threadInfo *pThreadInfo) {
                 }
             } else {
                 if (g_args.iface == STMT_IFACE) {
-#if STMT_IFACE_ENABLED == 1
                     generated = prepareStmtWithoutStb(
                             pThreadInfo,
                             tableName,
                             g_args.num_of_RPR,
                             insertRows, i,
                             start_time);
-#else
-                    generated = -1;
-#endif
                 } else {
                     generated = generateProgressiveDataWithoutStb(
                             tableName,
@@ -7329,7 +7279,6 @@ static int convertHostToServAddr(char *host, uint16_t port, struct sockaddr_in *
     return 0;
 }
 
-#if STMT_IFACE_ENABLED == 1
 static int parseSampleFileToStmt(SSuperTable *stbInfo, uint32_t timePrec)
 {
     stbInfo->sampleBindArray = calloc(1, sizeof(char *) * MAX_SAMPLES_ONCE_FROM_FILE);
@@ -7400,7 +7349,6 @@ static int parseSampleFileToStmt(SSuperTable *stbInfo, uint32_t timePrec)
 
     return 0;
 }
-#endif
 
 static void startMultiThreadInsertData(int threads, char* db_name,
         char* precision, SSuperTable* stbInfo) {
@@ -7411,10 +7359,8 @@ static void startMultiThreadInsertData(int threads, char* db_name,
             timePrec = TSDB_TIME_PRECISION_MILLI;
         } else if (0 == strncasecmp(precision, "us", 2)) {
             timePrec = TSDB_TIME_PRECISION_MICRO;
-#if NANO_SECOND_ENABLED == 1
         } else if (0 == strncasecmp(precision, "ns", 2)) {
             timePrec = TSDB_TIME_PRECISION_NANO;
-#endif
         } else {
             errorPrint("Not support precision: %s\n", precision);
             exit(EXIT_FAILURE);
@@ -7557,7 +7503,6 @@ static void startMultiThreadInsertData(int threads, char* db_name,
     memset(pids, 0, threads * sizeof(pthread_t));
     memset(infos, 0, threads * sizeof(threadInfo));
 
-#if STMT_IFACE_ENABLED == 1
     char *stmtBuffer = calloc(1, BUFFER_SIZE);
     assert(stmtBuffer);
     if ((g_args.iface == STMT_IFACE)
@@ -7598,7 +7543,6 @@ static void startMultiThreadInsertData(int threads, char* db_name,
             parseSampleFileToStmt(stbInfo, timePrec);
         }
     }
-#endif
 
     for (int i = 0; i < threads; i++) {
         threadInfo *pThreadInfo = infos + i;
@@ -7626,7 +7570,6 @@ static void startMultiThreadInsertData(int threads, char* db_name,
                 exit(EXIT_FAILURE);
             }
 
-#if STMT_IFACE_ENABLED == 1
             if ((g_args.iface == STMT_IFACE)
                     || ((stbInfo)
                         && (stbInfo->iface == STMT_IFACE))) {
@@ -7654,7 +7597,6 @@ static void startMultiThreadInsertData(int threads, char* db_name,
                 }
                 pThreadInfo->bind_ts = malloc(sizeof(int64_t));
             }
-#endif
         } else {
             pThreadInfo->taos = NULL;
         }
@@ -7680,9 +7622,7 @@ static void startMultiThreadInsertData(int threads, char* db_name,
         }
     }
 
-#if STMT_IFACE_ENABLED == 1
     free(stmtBuffer);
-#endif
 
     for (int i = 0; i < threads; i++) {
         pthread_join(pids[i], NULL);
@@ -7697,12 +7637,10 @@ static void startMultiThreadInsertData(int threads, char* db_name,
     for (int i = 0; i < threads; i++) {
         threadInfo *pThreadInfo = infos + i;
 
-#if STMT_IFACE_ENABLED == 1
         if (pThreadInfo->stmt) {
             taos_stmt_close(pThreadInfo->stmt);
             tmfree((char *)pThreadInfo->bind_ts);
         }
-#endif
         tsem_destroy(&(pThreadInfo->lock_sem));
         taos_close(pThreadInfo->taos);
 
