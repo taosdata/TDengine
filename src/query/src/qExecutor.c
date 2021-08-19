@@ -7079,6 +7079,10 @@ static SSDataBlock* doTagScan(void* param, bool* newgroup) {
     qDebug("QInfo:0x%"PRIx64" create tag values results completed, rows:%d", GET_QID(pRuntimeEnv), count);
   }
 
+  if (pOperator->status == OP_EXEC_DONE) {
+    setQueryStatus(pOperator->pRuntimeEnv, QUERY_COMPLETED);
+  }
+
   pRes->info.rows = count;
   return (pRes->info.rows == 0)? NULL:pInfo->pRes;
 }
