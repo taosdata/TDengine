@@ -158,6 +158,7 @@ extern char    tsDataDir[];
 extern char    tsLogDir[];
 extern char    tsScriptDir[];
 extern int64_t tsTickPerDay[3];
+extern int32_t tsTopicBianryLen;
 
 // system info
 extern char    tsOsName[];
