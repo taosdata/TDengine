@@ -626,7 +626,7 @@ SArguments g_args = {
         "INT",           // datatype
         "FLOAT",         // datatype. DEFAULT_DATATYPE_NUM is 3
     },
-    16,              // len_of_binary
+    64,              // len_of_binary
     4,               // num_of_CPR
     10,              // num_of_connections/thread
     0,               // insert_interval
@@ -866,10 +866,12 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
             arguments->user = argv[++i];
         } else if (strncmp(argv[i], "-p", 2) == 0) {
             if (strlen(argv[i]) == 2) {
-                printf("Enter password:");
+                printf("Enter password: ");
+                taosSetConsoleEcho(false);
                 if (scanf("%s", arguments->password) > 1) {
                     fprintf(stderr, "password read error!\n");
                 }
+                taosSetConsoleEcho(true);
             } else {
                 tstrncpy(arguments->password, (char *)(argv[i] + 2), MAX_PASSWORD_SIZE);
             }
@@ -2600,7 +2602,7 @@ static char* generateTagValuesForStb(SSuperTable* stbInfo, int64_t tableSeq) {
             if ((g_args.demo_mode) && (i == 0)) {
                 dataLen += snprintf(dataBuf + dataLen,
                         TSDB_MAX_SQL_LEN - dataLen,
-                        "%"PRId64",", tableSeq % 10);
+                        "%"PRId64",", (tableSeq % 10) + 1);
             } else {
                 dataLen += snprintf(dataBuf + dataLen,
                         TSDB_MAX_SQL_LEN - dataLen,
