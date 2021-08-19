@@ -738,12 +738,13 @@ static void printHelp() {
             "Query mode -- 0: SYNC, 1: ASYNC. Default is SYNC.");
     printf("%s%s%s%s\n", indent, "-b", indent,
             "The data_type of columns, default: FLOAT, INT, FLOAT.");
-    printf("%s%s%s%s\n", indent, "-w", indent,
-            "The length of data_type 'BINARY' or 'NCHAR'. Default is 16");
+    printf("%s%s%s%s%d\n", indent, "-w", indent,
+            "The length of data_type 'BINARY' or 'NCHAR'. Default is ",
+            g_args.len_of_binary);
     printf("%s%s%s%s%d%s%d\n", indent, "-l", indent,
-            "The number of columns per record. Default is ",
+            "The number of columns per record. Demo mode by default is ",
             DEFAULT_DATATYPE_NUM,
-            ". Max values is ",
+            " (float, int, float). Max values is ",
             MAX_NUM_COLUMNS);
     printf("%s%s%s%s\n", indent, indent, indent,
             "All of the new column(s) type is INT. If use -b to specify column type, -l will be ignored.");
