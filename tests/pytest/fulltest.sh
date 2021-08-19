@@ -353,6 +353,9 @@ python3 ./test.py -f functions/queryTestCases.py
 python3 ./test.py -f functions/function_stateWindow.py
 python3 ./test.py -f functions/function_derivative.py
 python3 ./test.py  -f functions/function_irate.py
+python3 ./test.py  -f functions/function_ceil.py
+python3 ./test.py  -f functions/function_floor.py
+python3 ./test.py  -f functions/function_round.py
 
 python3 ./test.py -f insert/unsignedInt.py
 python3 ./test.py -f insert/unsignedBigint.py
