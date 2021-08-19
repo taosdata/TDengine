@@ -24,19 +24,12 @@
 #include "tsdbHealth.h"
 #include "ttimer.h"
 
-#include "../../vnode/inc/vnodeInt.h"
-// get qmgmt
-void* vnodeGetqMgmt(void* pVnode){
-  if(pVnode == NULL) return NULL;
-  return ((SVnodeObj*)pVnode)->qMgmt;
-}
-
 // return malloc new block count 
 int32_t tsdbInsertNewBlock(STsdbRepo * pRepo) {
   STsdbBufPool *pPool = pRepo->pPool;
   int32_t cnt = 0;
 
-  if(enoughIdleMemory() && allowNewBlock(pRepo)) {
+  if(tsdbIdleMemEnough() && tsdbAllowNewBlock(pRepo)) {
     STsdbBufBlock *pBufBlock = tsdbNewBufBlock(pPool->bufBlockSize);
     if (pBufBlock) {
       if (tsdbLockRepo(pRepo) >= 0) {
@@ -57,36 +50,10 @@ int32_t tsdbInsertNewBlock(STsdbRepo * pRepo) {
 // switch anther thread to run
 void cbKillQueryFree(void* param1, void* param2) {
   STsdbRepo* pRepo =  (STsdbRepo*)param1;
-  int32_t longMs = 2000; // TODO config to taos.cfg
-  
   // vnode
-  void* vnodeObj = pRepo->appH.appH;
-  if(vnodeObj == NULL) return ;
-
-  // qMgmt
-  void* qMgmt = vnodeGetqMgmt(vnodeObj);
-  if(qMgmt == NULL) return ;
-
-  // qid top list
-  SArray *qids = (SArray*)qObtainLongQuery(qMgmt, longMs);
-  if(qids == NULL) return ;
-
-  // kill Query
-  size_t cnt = taosArrayGetSize(qids);
-  int64_t qId = 0;
-  for(size_t i=0; i < cnt; i++) {
-    qId = *(int64_t*)taosArrayGetP(qids, i);
-    qKillQueryByQId(qMgmt, qId, 100, 50); // wait 50*100 ms 
-    // notify wait
-    pthread_cond_signal(&pRepo->pPool->poolNotEmpty);
-    // check break condition 
-    if(enoughIdleMemory() && allowNewBlock(pRepo)) {
-      break;
-    }
+  if(pRepo->appH.notifyStatus) {
+    pRepo->appH.notifyStatus(pRepo->appH.appH, TSDB_STATUS_COMMIT_NOBLOCK, TSDB_CODE_SUCCESS);
   }
-
-  // free qids
-  taosArrayDestroyEx(qids, free);
 }
 
 // return true do free , false do nothing
@@ -96,7 +63,7 @@ bool tsdbUrgeQueryFree(STsdbRepo * pRepo) {
   return hTimer != NULL;
 }
 
-bool enoughIdleMemory(){
+bool tsdbIdleMemEnough() {
   // TODO config to taos.cfg
   int32_t lowestRate = 20;  // below 20% idle memory, return not enough memory
   float  memoryUsedMB = 0;
@@ -122,7 +89,7 @@ bool enoughIdleMemory(){
   return true;
 }
 
-bool allowNewBlock(STsdbRepo* pRepo){
+bool tsdbAllowNewBlock(STsdbRepo* pRepo) {
   //TODO config to taos.cfg
   int32_t nElasticBlocks = 10;
   STsdbBufPool* pPool = pRepo->pPool;

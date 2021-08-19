@@ -628,8 +628,7 @@ int32_t qKillQueryByQId(void* pMgmt, int64_t qId, int32_t waitMs, int32_t waitCo
   if (pQInfo == NULL || !isValidQInfo(pQInfo)) {
     return TSDB_CODE_QRY_INVALID_QHANDLE;
   }
-
-  qDebug("QInfo:0x%"PRIx64" query killed by qid.", pQInfo->qId);
+  qWarn("QId:0x%"PRIx64" query killed becase no memory commit.", pQInfo->qId);
   setQueryKilled(pQInfo);
 
   // wait query stop
@@ -645,6 +644,13 @@ int32_t qKillQueryByQId(void* pMgmt, int64_t qId, int32_t waitMs, int32_t waitCo
   return error;
 }
 
+// local struct
+typedef struct {
+  int64_t qId;
+  int32_t timeMs;
+} SLongQuery;
+
+// compare
 int compareLongQuery(const void* p1, const void* p2) {
   // sort desc 
   SLongQuery* plq1 = (SLongQuery*)p1;
@@ -658,7 +664,7 @@ int compareLongQuery(const void* p1, const void* p2) {
   }
 }
 
-// util
+// longquery
 void* qObtainLongQuery(void* param, int32_t longMs){
   SQueryMgmt* qMgmt =  (SQueryMgmt*)param;
   if(qMgmt == NULL || qMgmt->qinfoPool == NULL) return NULL;
@@ -700,4 +706,30 @@ void* qObtainLongQuery(void* param, int32_t longMs){
   }
 
   return qids;   
+}
+
+//solve tsdb no block to commit
+bool qSolveCommitNoBlock(void* pRepo, void* pMgmt) {
+  SQueryMgmt *pQueryMgmt = pMgmt;
+  int32_t longMs = 2000; // TODO config to taos.cfg
+
+  // qid top list
+  SArray *qids = (SArray*)qObtainLongQuery(pQueryMgmt, longMs);
+  if(qids == NULL) return false;
+
+  // kill Query
+  size_t cnt = taosArrayGetSize(qids);
+  SLongQuery* plq;
+  for(size_t i=0; i < cnt; i++) {
+    plq = (SLongQuery* )taosArrayGetP(qids, i);
+    qKillQueryByQId(pMgmt, plq->qId, 100, 50); // wait 50*100 ms 
+
+    // check break condition 
+    if(tsdbIdleMemEnough() && tsdbAllowNewBlock(pRepo)) {
+      break;
+    }
+  }
+  // free qids
+  taosArrayDestroyEx(qids, free);
+  return true;
 }
