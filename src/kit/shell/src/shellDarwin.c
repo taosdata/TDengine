@@ -81,19 +81,25 @@ void shellParseArgument(int argc, char *argv[], SShellArguments *arguments) {
       }
     }
       // for password
-    else if (strncmp(argv[i], "-p", 2) == 0) {
+    else if ((strncmp(argv[i], "-p", 2) == 0)
+            || (strncmp(argv[i], "--password", 10) == 0)) {
         strcpy(tsOsName, "Darwin");
         printf(DARWINCLIENT_VERSION, tsOsName, taos_get_client_info());
-        if (strlen(argv[i]) == 2) {
+        if ((strlen(argv[i]) == 2)
+                  || (strncmp(argv[i], "--password", 10) == 0)) {
             printf("Enter password: ");
+            taosSetConsoleEcho(false);
             if (scanf("%s", g_password) > 1) {
                 fprintf(stderr, "password read error\n");
             }
+            taosSetConsoleEcho(true);
             getchar();
         } else {
             tstrncpy(g_password, (char *)(argv[i] + 2), SHELL_MAX_PASSWORD_LEN);
         }
         arguments->password = g_password;
+        strcpy(argv[i], "");
+        argc -= 1;
     }
     // for management port
     else if (strcmp(argv[i], "-P") == 0) {
