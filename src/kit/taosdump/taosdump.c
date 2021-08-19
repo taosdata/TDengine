@@ -248,14 +248,12 @@ static struct argp_option options[] = {
     {0}
 };
 
-#define MAX_PASSWORD_SIZE   20
-
 /* Used by main to communicate with parse_opt. */
 typedef struct arguments {
     // connection option
     char    *host;
     char    *user;
-    char    password[MAX_PASSWORD_SIZE];
+    char    password[SHELL_MAX_PASSWORD_LEN];
     uint16_t port;
     char     cversion[12];
     uint16_t mysqlFlag;
@@ -567,7 +565,8 @@ static void parse_password(
                 }
                 taosSetConsoleEcho(true);
             } else {
-                tstrncpy(arguments->password, (char *)(argv[i] + 2), MAX_PASSWORD_SIZE);
+                tstrncpy(arguments->password, (char *)(argv[i] + 2),
+                        SHELL_MAX_PASSWORD_LEN);
             }
             argv[i] = "";
         }

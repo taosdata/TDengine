@@ -66,7 +66,7 @@ void printHelp() {
 
 char      DARWINCLIENT_VERSION[] = "Welcome to the TDengine shell from %s, Client Version:%s\n"
                              "Copyright (c) 2020 by TAOS Data, Inc. All rights reserved.\n\n";
-char g_password[MAX_PASSWORD_SIZE];
+char g_password[SHELL_MAX_PASSWORD_LEN];
 
 void shellParseArgument(int argc, char *argv[], SShellArguments *arguments) {
   wordexp_t full_path;
@@ -91,7 +91,7 @@ void shellParseArgument(int argc, char *argv[], SShellArguments *arguments) {
             }
             getchar();
         } else {
-            tstrncpy(g_password, (char *)(argv[i] + 2), MAX_PASSWORD_SIZE);
+            tstrncpy(g_password, (char *)(argv[i] + 2), SHELL_MAX_PASSWORD_LEN);
         }
         arguments->password = g_password;
     }

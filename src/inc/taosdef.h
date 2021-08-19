@@ -88,6 +88,8 @@ extern const int32_t TYPE_BYTES[15];
 #define TSDB_DEFAULT_PASS               "taosdata"
 #endif
 
+#define SHELL_MAX_PASSWORD_LEN          20
+
 #define TSDB_TRUE   1
 #define TSDB_FALSE  0
 #define TSDB_OK     0
