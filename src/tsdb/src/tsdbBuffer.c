@@ -67,6 +67,7 @@ int tsdbOpenBufPool(STsdbRepo *pRepo) {
   pPool->bufBlockSize = pCfg->cacheBlockSize * 1024 * 1024; // MB
   pPool->tBufBlocks = pCfg->totalBlocks;
   pPool->nBufBlocks = 0;
+  pPool->nElasticBlocks = 0;
   pPool->index = 0;
   pPool->nRecycleBlocks = 0;
 
@@ -199,10 +200,13 @@ err:
   return err;
 }
 
-void tsdbRecycleBufferBlock(STsdbBufPool* pPool, SListNode *pNode) {
+void tsdbRecycleBufferBlock(STsdbBufPool* pPool, SListNode *pNode, bool bELastic) {
   STsdbBufBlock *pBufBlock = NULL;
   tdListNodeGetData(pPool->bufBlockList, pNode, (void *)(&pBufBlock));
   tsdbFreeBufBlock(pBufBlock);
   free(pNode);
-  pPool->nBufBlocks--;
+  if(bELastic)
+    pPool->nElasticBlocks--;
+  else
+    pPool->nBufBlocks--;
 }

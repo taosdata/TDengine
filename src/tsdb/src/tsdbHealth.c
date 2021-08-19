@@ -32,16 +32,13 @@ int32_t tsdbInsertNewBlock(STsdbRepo * pRepo) {
   if(tsdbIdleMemEnough() && tsdbAllowNewBlock(pRepo)) {
     STsdbBufBlock *pBufBlock = tsdbNewBufBlock(pPool->bufBlockSize);
     if (pBufBlock) {
-      if (tsdbLockRepo(pRepo) >= 0) {
         if (tdListAppend(pPool->bufBlockList, (void *)(&pBufBlock)) < 0) {
           // append error
           tsdbFreeBufBlock(pBufBlock);
         } else {
-          pPool->nRecycleBlocks ++;
+          pPool->nElasticBlocks ++;
           cnt ++ ; 
         }
-        tsdbUnlockRepo(pRepo);  
-      }
     }
  } 
  return cnt;
@@ -91,13 +88,11 @@ bool tsdbIdleMemEnough() {
 
 bool tsdbAllowNewBlock(STsdbRepo* pRepo) {
   //TODO config to taos.cfg
-  int32_t nElasticBlocks = 10;
+  int32_t nMaxElastic = 3;
   STsdbBufPool* pPool = pRepo->pPool;
-  int32_t nOverBlocks = pPool->nBufBlocks - pRepo->config.totalBlocks;
-  if(nOverBlocks > nElasticBlocks) {
-    tsdbWarn("tsdbHealth allowNewBlock forbid. nOverBlocks(%d) > nElasticBlocks(%d)", nOverBlocks, nElasticBlocks);
+  if(pPool->nElasticBlocks >= nMaxElastic) {
+    tsdbWarn("tsdbAllowNewBlock return fasle. nElasticBlock(%d) >= MaxElasticBlocks(%d)", pPool->nElasticBlocks, nMaxElastic);
     return false;
   }
-
   return true;
 }
