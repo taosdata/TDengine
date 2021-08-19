@@ -264,6 +264,35 @@ int tsdbWriteBlockIdx(SDFile *pHeadf, SArray *pIdxA, void **ppBuf) {
 
 
 // =================== Commit Meta Data
+static int tsdbInitCommitMetaFile(STsdbRepo *pRepo, SMFile* pMf, bool open) {
+  STsdbFS *  pfs = REPO_FS(pRepo);
+  SMFile *   pOMFile = pfs->cstatus->pmf;
+  SDiskID    did;
+
+  // Create/Open a meta file or open the existing file
+  if (pOMFile == NULL) {
+    // Create a new meta file
+    did.level = TFS_PRIMARY_LEVEL;
+    did.id = TFS_PRIMARY_ID;
+    tsdbInitMFile(pMf, did, REPO_ID(pRepo), FS_TXN_VERSION(REPO_FS(pRepo)));
+
+    if (open && tsdbCreateMFile(pMf, true) < 0) {
+      tsdbError("vgId:%d failed to create META file since %s", REPO_ID(pRepo), tstrerror(terrno));
+      return -1;
+    }
+
+    tsdbInfo("vgId:%d meta file %s is created to commit", REPO_ID(pRepo), TSDB_FILE_FULL_NAME(pMf));
+  } else {
+    tsdbInitMFileEx(pMf, pOMFile);
+    if (open && tsdbOpenMFile(pMf, O_WRONLY) < 0) {
+      tsdbError("vgId:%d failed to open META file since %s", REPO_ID(pRepo), tstrerror(terrno));
+      return -1;
+    }
+  }
+
+  return 0;
+}
+
 static int tsdbCommitMeta(STsdbRepo *pRepo) {
   STsdbFS *  pfs = REPO_FS(pRepo);
   SMemTable *pMem = pRepo->imem;
@@ -272,34 +301,25 @@ static int tsdbCommitMeta(STsdbRepo *pRepo) {
   SActObj *  pAct = NULL;
   SActCont * pCont = NULL;
   SListNode *pNode = NULL;
-  SDiskID    did;
 
   ASSERT(pOMFile != NULL || listNEles(pMem->actList) > 0);
 
   if (listNEles(pMem->actList) <= 0) {
     // no meta data to commit, just keep the old meta file
     tsdbUpdateMFile(pfs, pOMFile);
+    if (tsTsdbMetaCompactRatio > 0) {
+      if (tsdbInitCommitMetaFile(pRepo, &mf, false) < 0) {
+        return -1;
+      }
+      int ret = tsdbCompactMetaFile(pRepo, pfs, &mf);
+      if (ret < 0) tsdbError("compact meta file error");
+
+      return ret;
+    }
     return 0;
   } else {
-    // Create/Open a meta file or open the existing file
-    if (pOMFile == NULL) {
-      // Create a new meta file
-      did.level = TFS_PRIMARY_LEVEL;
-      did.id = TFS_PRIMARY_ID;
-      tsdbInitMFile(&mf, did, REPO_ID(pRepo), FS_TXN_VERSION(REPO_FS(pRepo)), false);
-
-      if (tsdbCreateMFile(&mf, true) < 0) {
-        tsdbError("vgId:%d failed to create META file since %s", REPO_ID(pRepo), tstrerror(terrno));
-        return -1;
-      }
-
-      tsdbInfo("vgId:%d meta file %s is created to commit", REPO_ID(pRepo), TSDB_FILE_FULL_NAME(&mf));
-    } else {
-      tsdbInitMFileEx(&mf, pOMFile);
-      if (tsdbOpenMFile(&mf, O_WRONLY) < 0) {
-        tsdbError("vgId:%d failed to open META file since %s", REPO_ID(pRepo), tstrerror(terrno));
-        return -1;
-      }
+    if (tsdbInitCommitMetaFile(pRepo, &mf, true) < 0) {
+      return -1;
     }
   }
 
@@ -477,7 +497,7 @@ static int tsdbCompactMetaFile(STsdbRepo *pRepo, STsdbFS *pfs, SMFile *pMFile) {
   // first create tmp meta file
   did.level = TFS_PRIMARY_LEVEL;
   did.id = TFS_PRIMARY_ID;
-  tsdbInitMFile(&mf, did, REPO_ID(pRepo), FS_TXN_VERSION(REPO_FS(pRepo)), true);
+  tsdbInitMFile(&mf, did, REPO_ID(pRepo), FS_TXN_VERSION(REPO_FS(pRepo)) + 1);
 
   if (tsdbCreateMFile(&mf, true) < 0) {
     tsdbError("vgId:%d failed to create META file since %s", REPO_ID(pRepo), tstrerror(terrno));
@@ -542,6 +562,7 @@ _err:
 
   if (code == 0) {
     // rename meta.tmp -> meta
+    tsdbInfo("vgId:%d meta file rename %s -> %s", REPO_ID(pRepo), TSDB_FILE_FULL_NAME(&mf), TSDB_FILE_FULL_NAME(pMFile));
     taosRename(mf.f.aname,pMFile->f.aname);
     tstrncpy(mf.f.aname, pMFile->f.aname, TSDB_FILENAME_LEN);
     tstrncpy(mf.f.rname, pMFile->f.rname, TSDB_FILENAME_LEN);

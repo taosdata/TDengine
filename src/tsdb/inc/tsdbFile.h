@@ -38,7 +38,7 @@
 #define TSDB_FILE_IS_OK(tf) (TSDB_FILE_STATE(tf) == TSDB_FILE_STATE_OK)
 #define TSDB_FILE_IS_BAD(tf) (TSDB_FILE_STATE(tf) == TSDB_FILE_STATE_BAD)
 
-typedef enum { TSDB_FILE_HEAD = 0, TSDB_FILE_DATA, TSDB_FILE_LAST, TSDB_FILE_MAX, TSDB_FILE_META, TSDB_FILE_META_TMP} TSDB_FILE_T;
+typedef enum { TSDB_FILE_HEAD = 0, TSDB_FILE_DATA, TSDB_FILE_LAST, TSDB_FILE_MAX, TSDB_FILE_META } TSDB_FILE_T;
 
 // =============== SMFile
 typedef struct {
@@ -56,7 +56,7 @@ typedef struct {
   uint8_t state;
 } SMFile;
 
-void  tsdbInitMFile(SMFile* pMFile, SDiskID did, int vid, uint32_t ver, bool tmp);
+void  tsdbInitMFile(SMFile* pMFile, SDiskID did, int vid, uint32_t ver);
 void  tsdbInitMFileEx(SMFile* pMFile, const SMFile* pOMFile);
 int   tsdbEncodeSMFile(void** buf, SMFile* pMFile);
 void* tsdbDecodeSMFile(void* buf, SMFile* pMFile);
