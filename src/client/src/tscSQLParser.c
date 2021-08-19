@@ -4884,10 +4884,6 @@ static void cleanQueryExpr(SCondExpr* pCondExpr) {
     tSqlExprDestroy(pCondExpr->pTableCond);
   }
 
-  if (pCondExpr->pTagCond) {
-    tSqlExprDestroy(pCondExpr->pTagCond);
-  }
-
   if (pCondExpr->pColumnCond) {
     tSqlExprDestroy(pCondExpr->pColumnCond);
   }
