@@ -47,7 +47,8 @@ class TaosTimestamp extends Date {
       super(Math.floor(date / 1000));
       this.precisionExtras = date % 1000;
     } else if (precision === 2) {
-      super(parseInt(date / 1000000));
+      // use BigInt to fix: 1623254400999999999 / 1000000 = 1623254401000 which not expected
+      super(parseInt(BigInt(date) / 1000000n));
       // use BigInt to fix: 1625801548423914405 % 1000000 = 914496 which not expected (914405)
       this.precisionExtras = parseInt(BigInt(date) % 1000000n);
     } else {

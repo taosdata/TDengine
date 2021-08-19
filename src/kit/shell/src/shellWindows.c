@@ -19,6 +19,9 @@
 
 extern char configDir[];
 
+char      WINCLIENT_VERSION[] = "Welcome to the TDengine shell from %s, Client Version:%s\n"
+                             "Copyright (c) 2020 by TAOS Data, Inc. All rights reserved.\n\n";
+
 void printVersion() {
   printf("version: %s\n", version);
 }
@@ -61,6 +64,8 @@ void printHelp() {
   exit(EXIT_SUCCESS);
 }
 
+char g_password[MAX_PASSWORD_SIZE];
+
 void shellParseArgument(int argc, char *argv[], SShellArguments *arguments) {
   for (int i = 1; i < argc; i++) {
     // for host
@@ -73,11 +78,20 @@ void shellParseArgument(int argc, char *argv[], SShellArguments *arguments) {
       }
     }
     // for password
-    else if (strcmp(argv[i], "-p") == 0) {
-      arguments->is_use_passwd = true;
-      if (i < argc - 1 && argv[i + 1][0] != '-') {
-        arguments->password = argv[++i];
-      }
+    else if (strncmp(argv[i], "-p", 2) == 0) {
+        arguments->is_use_passwd = true;
+        strcpy(tsOsName, "Windows");
+        printf(WINCLIENT_VERSION, tsOsName, taos_get_client_info());
+        if (strlen(argv[i]) == 2) {
+            printf("Enter password: ");
+            if (scanf("%s", g_password) > 1) {
+                fprintf(stderr, "password read error!\n");
+            }
+            getchar();
+        } else {
+            tstrncpy(g_password, (char *)(argv[i] + 2), MAX_PASSWORD_SIZE);
+        }
+        arguments->password = g_password;
     }
     // for management port
     else if (strcmp(argv[i], "-P") == 0) {
@@ -104,7 +118,7 @@ void shellParseArgument(int argc, char *argv[], SShellArguments *arguments) {
         exit(EXIT_FAILURE);
       }
     } else if (strcmp(argv[i], "-c") == 0) {
-      if (i < argc - 1) {   
+      if (i < argc - 1) {
         char *tmp = argv[++i];
         if (strlen(tmp) >= TSDB_FILENAME_LEN) {
           fprintf(stderr, "config file path: %s overflow max len %d\n", tmp, TSDB_FILENAME_LEN - 1);
@@ -265,7 +279,7 @@ void *shellLoopQuery(void *arg) {
   if (command == NULL) return NULL;
 
   int32_t err = 0;
-  
+
   do {
     memset(command, 0, MAX_COMMAND_SIZE);
     shellPrintPrompt();
@@ -274,7 +288,7 @@ void *shellLoopQuery(void *arg) {
     err = shellReadCommand(con, command);
     if (err) {
       break;
-    }    
+    }
   } while (shellRunCommand(con, command) == 0);
 
   return NULL;

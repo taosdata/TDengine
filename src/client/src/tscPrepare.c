@@ -299,7 +299,7 @@ static int fillColumnsNull(STableDataBlocks* pBlock, int32_t rowNum) {
   SSchema *schema = (SSchema*)pBlock->pTableMeta->schema;
 
   for (int32_t i = 0; i < spd->numOfCols; ++i) {
-    if (!spd->cols[i].hasVal) {  // current column do not have any value to insert, set it to null
+    if (spd->cols[i].valStat == VAL_STAT_NONE) {  // current column do not have any value to insert, set it to null
       for (int32_t n = 0; n < rowNum; ++n) {
         char *ptr = pBlock->pData + sizeof(SSubmitBlk) + pBlock->rowSize * n + offset;
 
@@ -1527,8 +1527,9 @@ int taos_stmt_prepare(TAOS_STMT* stmt, const char* sql, unsigned long length) {
   pCmd->insertParam.insertType = TSDB_QUERY_TYPE_STMT_INSERT;
   pCmd->insertParam.objectId = pSql->self;
 
-  pSql->sqlstr = realloc(pSql->sqlstr, sqlLen + 1);
-
+  char* sqlstr = realloc(pSql->sqlstr, sqlLen + 1);
+  if(sqlstr == NULL && pSql->sqlstr) free(pSql->sqlstr);  
+  pSql->sqlstr = sqlstr;
   if (pSql->sqlstr == NULL) {
     tscError("%p failed to malloc sql string buffer", pSql);
     STMT_RET(TSDB_CODE_TSC_OUT_OF_MEMORY);

@@ -466,7 +466,7 @@ static STsdbQueryHandle* tsdbQueryTablesImpl(STsdbRepo* tsdb, STsdbQueryCond* pC
   STsdbMeta* pMeta = tsdbGetMeta(tsdb);
   assert(pMeta != NULL);
 
-  pQueryHandle->pDataCols = tdNewDataCols(pMeta->maxRowBytes, pMeta->maxCols, pQueryHandle->pTsdb->config.maxRowsPerFileBlock);
+  pQueryHandle->pDataCols = tdNewDataCols(pMeta->maxCols, pQueryHandle->pTsdb->config.maxRowsPerFileBlock);
   if (pQueryHandle->pDataCols == NULL) {
     tsdbError("%p failed to malloc buf for pDataCols, %"PRIu64, pQueryHandle, pQueryHandle->qId);
     terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
@@ -690,6 +690,18 @@ static STableGroupInfo* trimTableGroup(STimeWindow* window, STableGroupInfo* pGr
 
 TsdbQueryHandleT tsdbQueryRowsInExternalWindow(STsdbRepo *tsdb, STsdbQueryCond* pCond, STableGroupInfo *groupList, uint64_t qId, SMemRef* pRef) {
   STableGroupInfo* pNew = trimTableGroup(&pCond->twindow, groupList);
+
+  if (pNew->numOfTables == 0) {
+    tsdbDebug("update query time range to invalidate time window");
+
+    assert(taosArrayGetSize(pNew->pGroupList) == 0);
+    bool asc = ASCENDING_TRAVERSE(pCond->order);
+    if (asc) {
+      pCond->twindow.ekey = pCond->twindow.skey - 1;
+    } else {
+      pCond->twindow.skey = pCond->twindow.ekey - 1;
+    }
+  }
 
   STsdbQueryHandle *pQueryHandle = (STsdbQueryHandle*) tsdbQueryTables(tsdb, pCond, pNew, qId, pRef);
   pQueryHandle->loadExternalRow = true;
@@ -1446,7 +1458,7 @@ static int doBinarySearchKey(char* pValue, int num, TSKEY key, int order) {
   return midPos;
 }
 
-int32_t doCopyRowsFromFileBlock(STsdbQueryHandle* pQueryHandle, int32_t capacity, int32_t numOfRows, int32_t start, int32_t end) {
+static int32_t doCopyRowsFromFileBlock(STsdbQueryHandle* pQueryHandle, int32_t capacity, int32_t numOfRows, int32_t start, int32_t end) {
   char* pData = NULL;
   int32_t step = ASCENDING_TRAVERSE(pQueryHandle->order)? 1 : -1;
 
@@ -1481,7 +1493,7 @@ int32_t doCopyRowsFromFileBlock(STsdbQueryHandle* pQueryHandle, int32_t capacity
       pData = (char*)pColInfo->pData + (capacity - numOfRows - num) * pColInfo->info.bytes;
     }
 
-    if (pColInfo->info.colId == src->colId) {
+    if (!isAllRowsNull(src) && pColInfo->info.colId == src->colId) {
       if (pColInfo->info.type != TSDB_DATA_TYPE_BINARY && pColInfo->info.type != TSDB_DATA_TYPE_NCHAR) {
         memmove(pData, (char*)src->pData + bytes * start, bytes * num);
       } else {  // handle the var-string
@@ -3468,6 +3480,7 @@ void filterPrepare(void* expr, void* param) {
         SArray *arr = (SArray *)(pCond->arr);
         for (size_t i = 0; i < taosArrayGetSize(arr); i++) {
           char* p = taosArrayGetP(arr, i);
+          strtolower(varDataVal(p), varDataVal(p));
           taosHashPut(pObj, varDataVal(p),varDataLen(p), &dummy, sizeof(dummy));
         }
      } else {

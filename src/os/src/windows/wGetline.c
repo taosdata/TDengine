@@ -81,11 +81,13 @@ int32_t getstr(char **lineptr, size_t *n, FILE *stream, char terminator, int32_t
         *n += MIN_CHUNK;
 
       nchars_avail = (int32_t)(*n + *lineptr - read_pos);
-      *lineptr = realloc(*lineptr, *n);
-      if (!*lineptr) {
+      char* lineptr1 = realloc(*lineptr, *n);
+      if (!lineptr1) {
         errno = ENOMEM;
         return -1;
       }
+      *lineptr = lineptr1;
+
       read_pos = *n - nchars_avail + *lineptr;
       assert((*lineptr + *n) == (read_pos + nchars_avail));
     }
