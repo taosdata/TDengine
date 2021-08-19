@@ -456,6 +456,7 @@ static int32_t mnodeInitChildTables() {
     .freeFp       = mnodeFreeChildTableItem,
     .keyType      = SDB_KEY_VAR_STRING,
     .tableType    = SDB_TABLE_CACHE_TABLE,
+    //.tableType    = SDB_TABLE_HASH_TABLE,
     .fpInsert     = mnodeChildTableActionInsert,
     .fpDelete     = mnodeChildTableActionDelete,
     .fpUpdate     = mnodeChildTableActionUpdate,

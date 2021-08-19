@@ -409,9 +409,11 @@ static void sdbCacheSyncWal(mnodeSdbTable *pTable, bool restore, SWalHead* pHead
   pthread_mutex_unlock(&pCache->mutex);
 
   // in restore state,do not evict item,it will make starup slow
-  int ret = cachePut(pCache->pTable, key, keySize, pRow->pObj, pTable->options.cacheDataLen, restore, pTable->options.expireTime);
-  if (ret != CACHE_OK && pTable->options.freeFp) {
-    pTable->options.freeFp(pRow->pObj);
+  if (!restore) {
+    int ret = cachePut(pCache->pTable, key, keySize, pRow->pObj, pTable->options.cacheDataLen, restore, pTable->options.expireTime);
+    if (ret != CACHE_OK && pTable->options.freeFp) {
+      pTable->options.freeFp(pRow->pObj);
+    }
   }
 
   free(pRow->pObj);

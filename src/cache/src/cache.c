@@ -157,8 +157,7 @@ out:
 
 void cacheItemUnlock(void* data) {
   cacheItem* pItem = cacheItemByData(data);
-  assert(itemRef(pItem) > 1);
-  itemDecrRef(pItem);
+  if (itemRef(pItem) > 1) itemDecrRef(pItem);
 }
 
 void cacheRemove(cacheTable* pTable, const void* key, uint8_t nkey) {
