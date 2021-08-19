@@ -64,7 +64,7 @@ void printHelp() {
   exit(EXIT_SUCCESS);
 }
 
-char g_password[MAX_PASSWORD_SIZE];
+char g_password[SHELL_MAX_PASSWORD_LEN];
 
 void shellParseArgument(int argc, char *argv[], SShellArguments *arguments) {
   for (int i = 1; i < argc; i++) {
@@ -89,7 +89,7 @@ void shellParseArgument(int argc, char *argv[], SShellArguments *arguments) {
             }
             getchar();
         } else {
-            tstrncpy(g_password, (char *)(argv[i] + 2), MAX_PASSWORD_SIZE);
+            tstrncpy(g_password, (char *)(argv[i] + 2), SHELL_MAX_PASSWORD_LEN);
         }
         arguments->password = g_password;
     }
