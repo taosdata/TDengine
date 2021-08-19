@@ -1290,7 +1290,7 @@ static void *tsdbDecodeTable(void *buf, STable **pRTable) {
     buf = taosDecodeFixedU64(buf, &TABLE_SUID(pTable));
     buf = tdDecodeKVRow(buf, &(pTable->tagVal));
   } else {
-    uint32_t nSchemas;
+    uint32_t nSchemas = 0;
     buf = taosDecodeFixedU8(buf, (uint8_t *)&nSchemas);
     if(nSchemas == 0) {
       buf = taosDecodeFixedU32(buf, &nSchemas);
