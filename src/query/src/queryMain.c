@@ -371,7 +371,7 @@ int32_t qDumpRetrieveResult(qinfo_t qinfo, SRetrieveTableRsp **pRsp, int32_t *co
     int32_t compSize  = compLen + numOfCols * sizeof(int32_t);
     *contLen = *contLen - origSize + compSize;
     *pRsp = (SRetrieveTableRsp *)rpcReallocCont(*pRsp, *contLen);
-    qDebug("QInfo:0x%"PRIx64" compress col data, uncompressed size:%d, compressed size:%d, ratio:%.2f\n",
+    qDebug("QInfo:0x%"PRIx64" compress col data, uncompressed size:%d, compressed size:%d, ratio:%.2f",
         pQInfo->qId, origSize, compSize, (float)origSize / (float)compSize);
   }
   (*pRsp)->compLen = htonl(compLen);
