@@ -38,6 +38,14 @@ int taos_check_res(TAOS_RES *res, const char *cmd) {
 }
 
 
+char  *default_tsdb_server  = "localhost";
+char  *default_tsdb_usrname = "root";
+char  *default_tsdb_passwd  = "taosdata";
+char  *default_tsdb_port    = "6030";
+char  *default_db_name      = "detail";
+char  *default_stable_name  = "ms";
+
+
 int main(int argc, char *argv[])
 {
     int               opt, np, n, i, retcode;
@@ -45,13 +53,13 @@ int main(int argc, char *argv[])
     int               verbose      = 0;
     uint32_t          flags        = 0;
     MS3Record        *msr          = NULL;
-    const char       *file_name    = NULL;
-    const char       *tsdb_server  = "localhost";
-    const char       *tsdb_usrname = "root";
-    const char       *tsdb_passwd  = "taosdata";
-    const char       *tsdb_port    = "6030";
-    const char       *db_name      = "detail";
-    const char       *stable_name  = "ms";
+    char             *file_name    = NULL;
+    char             *tsdb_server  = NULL;
+    char             *tsdb_usrname = NULL;
+    char             *tsdb_passwd  = NULL;
+    char             *tsdb_port    = NULL;
+    char             *db_name      = NULL;
+    char             *stable_name  = NULL;
     TAOS             *taos         = NULL;
     TAOS_RES         *res          = NULL;
     char             *cp;
@@ -70,7 +78,7 @@ int main(int argc, char *argv[])
                 "Usage: %s -i filename[ -s tsdb_server "
                 "-u user -p password -P port "
                 "-d db_name -S stable_name]\r\n", argv[0]);
-        exit(1);
+        goto failed;
     } 
 
     while ((opt = getopt(argc, argv, "i:s:u:p:P:d:S:")) != -1) {   
@@ -101,23 +109,49 @@ int main(int argc, char *argv[])
                         "Usage: %s -i filename[ -s tsdb_server "
                         "-u user -p password -P port "
                         "-d db_name -S stable_name]\r\n", argv[0]);
-                exit(1);
+                goto failed;
         }
     }
 
     if (file_name == NULL || file_name[0] == '\0') {
-        fprintf(stderr, "the option -i was missing!\r\n");
-        exit(1);
+        fprintf(stderr, "Usage: %s -i filename[ -s tsdb_server "
+                        "-u user -p password -P port "
+                        "-d db_name -S stable_name]\r\n", argv[0]);
+        goto failed;
     }
 
-    fprintf(stderr, "################################################################\r\n");
-    fprintf(stderr, "# File Name:                       %s\r\n", file_name);
-    fprintf(stderr, "# Server:                          %s\r\n", tsdb_server);
-    fprintf(stderr, "# User:                            %s\r\n", tsdb_usrname);
-    fprintf(stderr, "# Server Port:                     %s\r\n", tsdb_port);
-    fprintf(stderr, "# Database Name:                   %s\r\n", db_name);
-    fprintf(stderr, "# Super Table Name:                %s\r\n", stable_name);
-    fprintf(stderr, "################################################################\r\n");
+    if (tsdb_server == NULL) {
+        tsdb_server = default_tsdb_server;
+    }
+
+    if (tsdb_usrname == NULL) {
+        tsdb_usrname = default_tsdb_usrname;
+    }
+
+    if (tsdb_passwd == NULL) {
+        tsdb_passwd = default_tsdb_passwd;
+    }
+
+    if (tsdb_port == NULL) {
+        tsdb_port = default_tsdb_port;
+    }
+
+    if (db_name == NULL) {
+        db_name = default_db_name;
+    }
+
+    if (stable_name == NULL) {
+        stable_name = default_stable_name;
+    }
+
+    fprintf(stdout, "################################################################\r\n");
+    fprintf(stdout, "# File Name:                       %s\r\n", file_name);
+    fprintf(stdout, "# Server:                          %s\r\n", tsdb_server);
+    fprintf(stdout, "# User:                            %s\r\n", tsdb_usrname);
+    fprintf(stdout, "# Server Port:                     %s\r\n", tsdb_port);
+    fprintf(stdout, "# Database Name:                   %s\r\n", db_name);
+    fprintf(stdout, "# Super Table Name:                %s\r\n", stable_name);
+    fprintf(stdout, "################################################################\r\n");
 
     act.sa_handler = handler;
     sigemptyset(&act.sa_mask);
@@ -137,7 +171,7 @@ int main(int argc, char *argv[])
     }
  
     // create database
-    np = snprintf(cmd, sizeof(cmd), "create database if not exists %s;", db_name);
+    np = snprintf(cmd, sizeof(cmd), "create database if not exists %s precision 'us';", db_name);
     if (np <= 0) {
         fprintf(stderr, "fnprintf error cmd: %s\r\n", cmd);
         status = 1;
@@ -208,9 +242,9 @@ int main(int argc, char *argv[])
 
         samples += npts;
 
-        start_time = (int64_t) round(msr->starttime * 0.001 * 0.001);
+        start_time = (int64_t) round(msr->starttime * 0.001);
         idata = (int32_t *) msr->datasamples;
-        n = (int) round(1000.0 / msr->samprate);
+        n = (int) round(1000000.0 / msr->samprate);
 
 #if 0
         gettimeofday(&sys_time, NULL);
@@ -322,6 +356,34 @@ failed:
 
     if (taos) {
         taos_close(taos);
+    }
+
+    if (file_name) {
+        free(file_name);
+    }
+
+    if (tsdb_server && tsdb_server != default_tsdb_server) {
+        free(tsdb_server);
+    }
+
+    if (tsdb_usrname && tsdb_usrname != default_tsdb_usrname) {
+        free(tsdb_usrname);
+    }
+
+    if (tsdb_passwd && tsdb_passwd != default_tsdb_passwd) {
+        free(tsdb_passwd);
+    }
+
+    if (tsdb_port && tsdb_port != default_tsdb_port) {
+        free(tsdb_port);
+    }
+
+    if (db_name && db_name != default_db_name) {
+        free(db_name);
+    }
+
+    if (stable_name && stable_name != default_stable_name) {
+        free(stable_name);
     }
  
     return status;

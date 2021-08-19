@@ -29,8 +29,10 @@ int main(int argc, char *argv[])
     const char       *passwd    = "taosdata";
     const char       *port      = "6030";
     const char       *db_name   = "detail";
-    const char       *tb_name;
+    const char       *tb_name   = NULL;
     const char       *of_name   = NULL;
+    const char       *start_time = NULL;
+    const char       *end_time  = NULL;
     FILE             *fp        = NULL;
     TAOS             *taos      = NULL;
     TAOS_RES         *res       = NULL;
@@ -38,14 +40,16 @@ int main(int argc, char *argv[])
     char              cmd[MAX_TSQL_LEN];
     char              timestr[64];
     int64_t           samples, time;
+    nstime_t          ns_start_time = 0;
+    nstime_t          ns_end_time = 0;
     struct sigaction  act;
 
     if (argc < 2) {
-        fprintf(stderr, "Usage: %s -t tb_name[ -h host -u user -p passwd -P port -d db_name] -o outfile\r\n", argv[0]);
+        fprintf(stderr, "Usage: %s -t tb_name[ -h host -u user -p passwd -P port -d db_name -s start_time -e end_time] -o outfile\r\n", argv[0]);
         exit(1);
     } 
 
-    while ((opt = getopt(argc, argv, "t:h:u:p:P:o:")) != -1) {   
+    while ((opt = getopt(argc, argv, "t:h:u:p:P:d:s:e:o:")) != -1) {   
         switch (opt) {
             case 't':
                 tb_name = strdup(optarg);
@@ -68,8 +72,14 @@ int main(int argc, char *argv[])
             case 'o':
                 of_name = strdup(optarg);
                 break;
+            case 's':
+                start_time = strdup(optarg);
+                break;
+            case 'e':
+                end_time = strdup(optarg);
+                break;
             default:
-                fprintf(stderr, "Usage: %s -i url -o outfile\r\n", argv[0]);
+                fprintf(stderr, "Usage: %s -t tb_name[ -h host -u user -p passwd -P port -d db_name -s start_time -e end_time] -o outfile\r\n", argv[0]);
                 exit(1);
         }
     }
@@ -82,6 +92,33 @@ int main(int argc, char *argv[])
     if (of_name == NULL || of_name[0] == '\0') {
         fprintf(stderr, "the option -o was missing!\r\n");
         exit(1);
+    }
+
+    if (start_time) {
+        ns_start_time = ms_timestr2nstime(start_time);
+        if (ns_start_time == NSTERROR) {
+            fprintf(stderr, "invalid start time: %s\r\n", start_time);
+            exit(1);
+        }
+
+        ns_start_time /= 1000000;
+    }
+
+    if (end_time) {
+        ns_end_time = ms_timestr2nstime(end_time);
+        if (ns_end_time == NSTERROR) {
+            fprintf(stderr, "invalid end time: %s\r\n", end_time);
+            exit(1);
+        }
+
+        ns_end_time /= 1000000;
+    }
+
+    if (start_time && end_time) {
+        if (ns_end_time < ns_start_time) {
+            fprintf(stderr, "end time must >= start time\r\n");
+            exit(1);
+        }
     }
 
     act.sa_handler = handler;
@@ -111,7 +148,16 @@ int main(int argc, char *argv[])
     taos_select_db(taos, db_name);
 
     // get data
-    np = snprintf(cmd, sizeof(cmd), "select * from %s;", tb_name);
+    if (ns_start_time && ns_end_time) {
+        np = snprintf(cmd, sizeof(cmd), "select * from %s where ts >= '%s' and ts < '%s';", tb_name, start_time, end_time);
+    } else if (ns_start_time) {
+        np = snprintf(cmd, sizeof(cmd), "select * from %s where ts >= '%s';", tb_name, start_time);
+    } else if (ns_end_time) {
+        np = snprintf(cmd, sizeof(cmd), "select * from %s where ts < '%s';", tb_name, end_time);
+    } else {
+        np = snprintf(cmd, sizeof(cmd), "select * from %s;", tb_name);
+    }
+
     if (np <= 0) {
         fprintf(stderr, "fnprintf error cmd: %s\r\n", cmd);
         goto failed;
@@ -137,7 +183,7 @@ int main(int argc, char *argv[])
     taos_free_result(res);
 
 failed:
-    fprintf(stderr, "done, inserted %ld record(s)\r\n", samples);
+    fprintf(stderr, "done, got %ld record(s)\r\n", samples);
  
     if (taos) {
         taos_close(taos);

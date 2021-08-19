@@ -204,8 +204,8 @@ void Pick(
             charFunctClippedTest = 0.0; // AJL 20091214
             if (mem->mean_stdDev_xRec[k] <= DOUBLE_MIN_VALUE) {
                 if (mem->enableTriggering && error1_not_printed) {
-                    sprintf(message_str, "WARNING: %s: mem->mean_stdDev_xRec[k] <= Float.MIN_VALUE (this should not happen! - dead trace?)\n", channel_id);
-                    info(message_str);
+                    //sprintf(message_str, "WARNING: %s: mem->mean_stdDev_xRec[k] <= Float.MIN_VALUE (this should not happen! - dead trace?)\n", channel_id);
+                    //info(message_str);
                     error1_not_printed = FALSE_INT;
                 }
             } else {
