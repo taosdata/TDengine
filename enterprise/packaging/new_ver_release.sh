@@ -70,17 +70,19 @@ communityDir=${scriptDir}/../../community
 comunityArchiveDir=/nas/TDengine/v$version/community   # community version’package directory
 
 
-if [ "$branchName" == "master" ];then
-  branchName=master
+if [ "$branchName" == "2.0" ];then
+  branchName=2.0
   verType=stable
   tagVal=ver-${version}
   dockerinput=TDengine-server-${version}-Linux-$cpuType.tar.gz
+  dockerinput_x64=TDengine-server-${version}-Linux-amd64.tar.gz
   dockerim=tdengine/tdengine
-elif [ "$branchName" == "develop" ];then
-  branchName=develop
+elif [ "$branchName" == "master" ];then
+  branchName=master
   verType=beta
   tagVal=ver-${version}-beta
   dockerinput=TDengine-server-${version}-${verType}-Linux-$cpuType.tar.gz  
+  dockerinput_x64=TDengine-server-${version}-${verType}-Linux-amd64.tar.gz
   dockerim=tdengine/tdengine-beta
 fi
 
@@ -101,7 +103,7 @@ fi
 
 # docker parameters
 dockerPass="tbase125!"
-dockerinput_x64=TDengine-server-${version}-Linux-amd64.tar.gz
+
 
 ####################### build docker image and push
 if [ "$dockerMode" == "isdocker" ];then
