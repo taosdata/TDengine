@@ -46,6 +46,16 @@ class TDTestCase:
         self.insertData(tb_name)
         return tb_name
 
+    def initStb(self):
+        tdCom.cleanTb()
+        tb_name = tdCom.getLongName(8, "letters")
+        tdSql.execute(
+            f"CREATE TABLE {tb_name} (ts timestamp, c1 tinyint, c2 smallint, c3 int, c4 bigint, c5 float, c6 double, c7 binary(100), c8 nchar(200), c9 bool, c10 int) tags (t1 tinyint, t2 smallint, t3 int, t4 bigint, t5 float, t6 double, t7 binary(100), t8 nchar(200), t9 bool, t10 int)")
+        tdSql.execute(
+            f'CREATE TABLE {tb_name}_sub using {tb_name} tags (1, 1, 1, 3, 1.1, 1.1, "binary", "nchar", true, 1)')
+        self.insertData(f'{tb_name}_sub')
+        return tb_name
+
     def queryLastC10(self, query_sql, multi=False):
         if multi:
             res = tdSql.query(query_sql.replace('c10', 'last(*)'), True)
@@ -120,18 +130,7 @@ class TDTestCase:
         tdSql.checkRows(10)
         tdSql.checkEqual(self.queryLastC10(query_sql), 11)
 
-    def checkTbColTypeOperator(self):
-        '''
-            Ordinary table full column type and operator
-        '''
-        tb_name = self.initTb()
-        self.queryFullColType(tb_name)
-
-    def checkTbMultiExpression(self):
-        '''
-            Ordinary table multiExpression
-        '''
-        tb_name = self.initTb()
+    def queryMultiExpression(self, tb_name):
         ## condition_A and condition_B or condition_C (> < >=)
         query_sql = f'select * from {tb_name} where c1 > 2 and c2 < 4 or c3 >= 4'
         tdSql.query(query_sql)
@@ -209,12 +208,8 @@ class TDTestCase:
         tdSql.query(query_sql)
         tdSql.checkRows(2)
         tdSql.checkEqual(self.queryLastC10(query_sql), 5)
-
-    def checkTbMultiIn(self):
-        '''
-            Ordinary table multiIn
-        '''
-        tb_name = self.initTb()
+        
+    def queryMultiIn(self, tb_name):
         ## in and in
         query_sql = f'select * from {tb_name} where c7 in ("binary") and c8 in ("nchar")'
         tdSql.query(query_sql)
@@ -275,11 +270,7 @@ class TDTestCase:
         tdSql.checkRows(1)
         tdSql.checkEqual(self.queryLastC10(query_sql), 4)
 
-    def checkTbMultiLike(self):
-        '''
-            Ordinary table multiLike
-        '''
-        tb_name = self.initTb()
+    def queryMultiLike(self, tb_name):
         ## like and like
         query_sql = f'select * from {tb_name} where c7 like "bi%" and c8 like ("ncha_")'
         tdSql.query(query_sql)
@@ -340,11 +331,7 @@ class TDTestCase:
         tdSql.checkRows(2)
         tdSql.checkEqual(self.queryLastC10(query_sql), 9)
 
-    def checkTbPreCal(self):
-        '''
-            Ordinary table precal
-        '''
-        tb_name = self.initTb()
+    def queryPreCal(self, tb_name):
         ## avg sum condition_A or condition_B
         query_sql = f'select avg(c3), sum(c3) from {tb_name} where c10 = 5 or c8 is Null'
         res = tdSql.query(query_sql, True)[0]
@@ -377,29 +364,24 @@ class TDTestCase:
         tdSql.checkEqual(int(res[1][1]), 2)
         tdSql.checkEqual(int(res[1][2]), 2)
 
-    def queryMultiTb(self):
-        '''
-            test "or" in multi ordinary table
-        '''
-        tdCom.cleanTb()
-        tb_name = self.initTb()
+    def queryMultiTb(self, tb_name):
         ## select from (condition_A or condition_B)
         query_sql = f'select c10 from (select * from {tb_name} where c1 >1 or c2 >=3)'
-        tdSql.query(query_sql)
+        res = tdSql.query(query_sql, True)
         tdSql.checkRows(3)
-        tdSql.checkEqual(self.queryLastC10(query_sql, True), 11)
+        tdSql.checkEqual(int(res[2][0]), 11)
 
         ## select from (condition_A or condition_B) where condition_A or condition_B
         query_sql = f'select c10 from (select * from {tb_name} where c1 >1 or c2 >=3) where c1 =2 or c4 = 2'
-        tdSql.query(query_sql)
+        res = tdSql.query(query_sql, True)
         tdSql.checkRows(2)
-        tdSql.checkEqual(self.queryLastC10(query_sql, True), 3)
+        tdSql.checkEqual(int(res[1][0]), 3)
 
         ## select from (condition_A or condition_B and like and in) where condition_A or condition_B or like and in
         query_sql = f'select c10 from (select * from {tb_name} where c1 >1 or c2 = 2 and c7 like "binar_" and c4 in (3, 5)) where c1 != 2 or c3 = 1 or c8 like "ncha_" and c9 in (true)'
-        tdSql.query(query_sql)
+        res = tdSql.query(query_sql, True)
         tdSql.checkRows(7)
-        tdSql.checkEqual(self.queryLastC10(query_sql, True), 10)
+        tdSql.checkEqual(int(res[6][0]), 10)
 
         ## select count avg sum from (condition_A or condition_B and like and in) where condition_A or condition_B or like and in interval
         query_sql = f'select count(*), avg(c6), sum(c3) from (select * from {tb_name} where c1 >1 or c2 = 2 and c7 like "binar_" and c4 in (3, 5)) where c1 != 2 or c3 = 1 or c8 like "ncha_" and c9 in (true) interval(8d)'
@@ -415,12 +397,103 @@ class TDTestCase:
         tdSql.checkEqual(int(res[2][2]), 1)
         tdSql.checkEqual(int(res[2][3]), 1)
 
-        ## cname
+        # cname
         query_sql = f'select c10 from (select * from {tb_name} where c1 >1 or c2 = 2 and c7 like "binar_" and c4 in (3, 5)) a where a.c1 != 2 or a.c3 = 1 or a.c8 like "ncha_" and a.c9 in (true)'
-        tdSql.query(query_sql)
+        res = tdSql.query(query_sql, True)
         tdSql.checkRows(7)
-        tdSql.checkEqual(self.queryLastC10(query_sql, True), 10)
+        tdSql.checkEqual(int(res[6][0]), 10)
 
+        # ## multi cname
+        query_sql = f'select b.c10 from (select * from {tb_name} where c9 = true or c2 = 2) a, (select * from {tb_name} where c7 like "binar_" or c4 in (3, 5)) b where a.ts = b.ts'
+        res = tdSql.query(query_sql, True)
+        tdSql.checkRows(10)
+        tdSql.checkEqual(int(res[9][0]), 10)
+
+    def checkTbColTypeOperator(self):
+        '''
+            Ordinary table full column type and operator
+        '''
+        tb_name = self.initTb()
+        self.queryFullColType(tb_name)
+
+    def checkStbColTypeOperator(self):
+        '''
+            Super table full column type and operator
+        '''
+        tb_name = self.initStb()
+        self.queryFullColType(tb_name)
+
+    def checkTbMultiExpression(self):
+        '''
+            Ordinary table multiExpression
+        '''
+        tb_name = self.initTb()
+        self.queryMultiExpression(tb_name)
+
+    def checkStbMultiExpression(self):
+        '''
+            Super table multiExpression
+        '''
+        tb_name = self.initStb()
+        self.queryMultiExpression(tb_name)
+
+    def checkTbMultiIn(self):
+        '''
+            Ordinary table multiIn
+        '''
+        tb_name = self.initTb()
+        self.queryMultiIn(tb_name)
+
+    def checkStbMultiIn(self):
+        '''
+            Super table multiIn
+        '''
+        tb_name = self.initStb()
+        self.queryMultiIn(tb_name)
+
+    def checkTbMultiLike(self):
+        '''
+            Ordinary table multiLike
+        '''
+        tb_name = self.initTb()
+        self.queryMultiLike(tb_name)
+
+    def checkStbMultiLike(self):
+        '''
+            Super table multiLike
+        '''
+        tb_name = self.initStb()
+        self.queryMultiLike(tb_name)
+
+    def checkTbPreCal(self):
+        '''
+            Ordinary table precal
+        '''
+        tb_name = self.initTb()
+        self.queryPreCal(tb_name)
+
+    def checkStbPreCal(self):
+        '''
+            Super table precal
+        '''
+        tb_name = self.initStb()
+        self.queryPreCal(tb_name)
+
+    def checkMultiTb(self):
+        '''
+            test "or" in multi ordinary table
+        '''
+        tb_name = self.initTb()
+        self.queryMultiTb(tb_name)
+
+    def checkMultiStb(self):
+        '''
+            test "or" in multi super table
+        '''
+        tb_name = self.initStb()
+        self.queryMultiTb(tb_name)
+        
+        
         # tb_name1 = tdCom.getLongName(8, "letters")
         # tb_name2 = tdCom.getLongName(8, "letters")
         # tb_name3 = tdCom.getLongName(8, "letters")
@@ -450,11 +523,17 @@ class TDTestCase:
     def run(self):
         tdSql.prepare()
         self.checkTbColTypeOperator()
+        self.checkStbColTypeOperator()
         self.checkTbMultiExpression()
+        self.checkStbMultiExpression()
         self.checkTbMultiIn()
+        self.checkStbMultiIn()
         self.checkTbMultiLike()
+        self.checkStbMultiLike()
         self.checkTbPreCal()
-        self.queryMultiTb()
+        self.checkStbPreCal()
+        self.checkMultiTb()
+        self.checkMultiStb()
 
 
     def stop(self):
