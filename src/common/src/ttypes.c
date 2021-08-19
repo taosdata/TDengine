@@ -401,7 +401,8 @@ char tTokenTypeSwitcher[13] = {
     TSDB_DATA_TYPE_NCHAR,   // TK_NCHAR
 };
 
-float floatMin = -FLT_MAX, floatMax = FLT_MAX;
+// make runtime happy
+double floatMin = -FLT_MAX, floatMax = FLT_MAX;
 double doubleMin = -DBL_MAX, doubleMax = DBL_MAX;
 
 FORCE_INLINE void* getDataMin(int32_t type) {
