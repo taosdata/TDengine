@@ -301,6 +301,7 @@ uint32_t tscGetTableMetaMaxSize();
 int32_t tscCreateTableMetaFromSTableMeta(STableMeta* pChild, const char* name, void* buf);
 STableMeta* tscTableMetaDup(STableMeta* pTableMeta);
 
+int32_t tscGetColFilterSerializeLen(SQueryInfo* pQueryInfo);
 
 void* malloc_throw(size_t size);
 void* calloc_throw(size_t nmemb, size_t size);
