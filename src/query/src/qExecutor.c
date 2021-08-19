@@ -4265,6 +4265,7 @@ static void doCopyQueryResultToMsg(SQInfo *pQInfo, int32_t numOfRows, char *data
   }
 
   qDebug("QInfo:0x%"PRIx64" set %d subscribe info", pQInfo->qId, total);
+
   // Check if query is completed or not for stable query or normal table query respectively.
   if (Q_STATUS_EQUAL(pRuntimeEnv->status, QUERY_COMPLETED) && pRuntimeEnv->proot->status == OP_EXEC_DONE) {
     setQueryStatus(pRuntimeEnv, QUERY_OVER);
@@ -7077,6 +7078,10 @@ static SSDataBlock* doTagScan(void* param, bool* newgroup) {
     }
 
     qDebug("QInfo:0x%"PRIx64" create tag values results completed, rows:%d", GET_QID(pRuntimeEnv), count);
+  }
+
+  if (pOperator->status == OP_EXEC_DONE) {
+    setQueryStatus(pOperator->pRuntimeEnv, QUERY_COMPLETED);
   }
 
   pRes->info.rows = count;
