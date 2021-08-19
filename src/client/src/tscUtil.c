@@ -2989,4 +2989,20 @@ STableMeta* tscTableMetaDup(STableMeta* pTableMeta) {
   return p;
 }
 
+int32_t tscGetColFilterSerializeLen(SQueryInfo* pQueryInfo) {
+  int16_t numOfCols = (int16_t)taosArrayGetSize(pQueryInfo->colList);
+  int32_t len = 0;
+
+  for(int32_t i = 0; i < numOfCols; ++i) {
+    SColumn* pCol = taosArrayGetP(pQueryInfo->colList, i);
+    for (int32_t j = 0; j < pCol->numOfFilters; ++j) {
+      SColumnFilterInfo *pColFilter = &pCol->filterInfo[j];
+      len += sizeof(SColumnFilterInfo);
+      if (pColFilter->filterstr) {
+        len += (int32_t)pColFilter->len + 1;
+      }
+    }
+  }
+  return len;
+}
 
