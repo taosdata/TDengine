@@ -1,5 +1,9 @@
 import hudson.model.Result
 import jenkins.model.CauseOfInterruption
+properties([pipelineTriggers([githubPush()])])
+node {
+    git url: 'git@github.com:taosdata/TDinternal.git'
+}
 
 def skipbuild=0
 
@@ -123,42 +127,11 @@ pipeline {
               abort_previous()
               abortPreviousBuilds()
             }
-          sh'''
-          rm -rf ${WORKSPACE}.tes
-          cp -r ${WORKSPACE} ${WORKSPACE}.tes
-          cd ${WORKSPACE}.tes
-          git fetch
-          '''
-          script {
-            if (env.CHANGE_TARGET == 'master') {
-              sh '''
-              git checkout master
-              '''
-              }
-            else if(env.CHANGE_TARGET == '2.0'){
-              sh '''
-              git checkout 2.0
-              '''
-            } 
-            else{
-              sh '''
-              git checkout develop
-              '''
-            } 
-          }
-          sh'''
-          git fetch origin +refs/pull/${CHANGE_ID}/merge
-          git checkout -qf FETCH_HEAD
-          '''     
-
           script{  
             skipbuild='2'     
             skipbuild=sh(script: "git log -2 --pretty=%B | fgrep -ie '[skip ci]' -e '[ci skip]' && echo 1 || echo 2", returnStdout:true)
             println skipbuild
           }
-          sh'''
-          rm -rf ${WORKSPACE}.tes
-          '''
           }
       }
       stage('Parallel test stage') {
