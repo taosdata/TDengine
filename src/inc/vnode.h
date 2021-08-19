@@ -88,9 +88,6 @@ int32_t vnodeWriteToRQueue(void *pVnode, void *pCont, int32_t contLen, int8_t qt
 void    vnodeFreeFromRQueue(void *pVnode, SVReadMsg *pRead);
 int32_t vnodeProcessRead(void *pVnode, SVReadMsg *pRead);
 
-// util
-void* vnodeGetqMgmt(void* pVnode);
-
 #ifdef __cplusplus
 }
 #endif

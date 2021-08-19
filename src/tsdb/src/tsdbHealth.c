@@ -22,10 +22,14 @@
 #include "tsdbBuffer.h"
 #include "tsdbLog.h"
 #include "tsdbHealth.h"
-#include "tsdbint.h"
 #include "ttimer.h"
-#include "vnode.h"
 
+#include "../../vnode/inc/vnodeInt.h"
+// get qmgmt
+void* vnodeGetqMgmt(void* pVnode){
+  if(pVnode == NULL) return NULL;
+  return ((SVnodeObj*)pVnode)->qMgmt;
+}
 
 // return malloc new block count 
 int32_t tsdbInsertNewBlock(STsdbRepo * pRepo) {
