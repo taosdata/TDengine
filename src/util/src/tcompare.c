@@ -195,11 +195,20 @@ int32_t compareLenPrefixedStrDesc(const void* pLeft, const void* pRight) {
 int32_t compareLenPrefixedWStr(const void *pLeft, const void *pRight) {
   int32_t len1 = varDataLen(pLeft);
   int32_t len2 = varDataLen(pRight);
-  
+
   if (len1 != len2) {
     return len1 > len2? 1:-1;
   } else {
-    int32_t ret = wcsncmp(varDataVal(pLeft), varDataVal(pRight), len1/TSDB_NCHAR_SIZE);
+    char *pLeftTerm = (char *)tcalloc(len1 + 1, sizeof(char));
+    char *pRightTerm = (char *)tcalloc(len1 + 1, sizeof(char));
+    memcpy(pLeftTerm, varDataVal(pLeft), len1);
+    memcpy(pRightTerm, varDataVal(pRight), len2);
+
+    int32_t ret = wcsncmp((wchar_t*) pLeftTerm, (wchar_t*) pRightTerm, len1/TSDB_NCHAR_SIZE);
+
+    tfree(pLeftTerm);
+    tfree(pRightTerm);
+
     if (ret == 0) {
       return 0;
     } else {
@@ -509,7 +518,16 @@ int32_t doCompare(const char* f1, const char* f2, int32_t type, size_t size) {
         return t1->len > t2->len? 1:-1;
       }
 
-      int32_t ret = wcsncmp((wchar_t*) t1->data, (wchar_t*) t2->data, t2->len/TSDB_NCHAR_SIZE);
+      char *t1_term = (char *)tcalloc(t1->len + 1, sizeof(char));
+      char *t2_term = (char *)tcalloc(t2->len + 1, sizeof(char));
+      memcpy(t1_term, t1->data, t1->len);
+      memcpy(t2_term, t2->data, t2->len);
+
+      int32_t ret = wcsncmp((wchar_t*) t1_term, (wchar_t*) t2_term, t2->len/TSDB_NCHAR_SIZE);
+
+      tfree(t1_term);
+      tfree(t2_term);
+
       if (ret == 0) {
         return ret;
       }

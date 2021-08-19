@@ -52,7 +52,6 @@ JDBCConnectorChecker    JDBC安装校验源程序及jar包
 Springbootdemo          springboot示例源程序
 
 SpringJdbcTemplate      SpringJDBC模板
- 
 
 ### 安装验证
 
@@ -64,7 +63,6 @@ java -jar JDBCConnectorChecker.jar -host <fqdn>
 ```
 
 验证通过将打印出成功信息。
-
 
 ## Java连接器的使用
 
@@ -85,10 +83,9 @@ TDengine 的 JDBC 驱动实现尽可能与关系型数据库驱动保持一致�
 * 目前不支持嵌套查询（nested query）。
 * 对每个 Connection 的实例，至多只能有一个打开的 ResultSet 实例；如果在 ResultSet 还没关闭的情况下执行了新的查询，taos-jdbcdriver 会自动关闭上一个 ResultSet。
 
-
 ### JDBC-JNI和JDBC-RESTful的对比
 
-<table >
+<table>
 <tr align="center"><th>对比项</th><th>JDBC-JNI</th><th>JDBC-RESTful</th></tr>
 <tr align="center">
 	<td>支持的操作系统</td>
@@ -199,8 +196,6 @@ url中的配置参数如下：
 * locale：客户端语言环境，默认值系统当前 locale。
 * timezone：客户端使用的时区，默认值为系统当前时区。
 
-
-
 #### 指定URL和Properties获取连接
 
 除了通过指定的 URL 获取连接，还可以使用 Properties 指定建立连接时的参数，如下所示：
@@ -228,8 +223,6 @@ properties 中的配置参数如下：
 * TSDBDriver.PROPERTY_KEY_CHARSET：客户端使用的字符集，默认值为系统字符集。
 * TSDBDriver.PROPERTY_KEY_LOCALE：客户端语言环境，默认值系统当前 locale。
 * TSDBDriver.PROPERTY_KEY_TIME_ZONE：客户端使用的时区，默认值为系统当前时区。
-
-
 
 #### 使用客户端配置文件建立连接
 
@@ -484,8 +477,6 @@ conn.close();
 
 > `注意务必要将 connection 进行关闭`，否则会出现连接泄露。
 
-
-
 ## 与连接池使用
 
 **HikariCP**
@@ -530,7 +521,7 @@ conn.close();
 ```
 
 > 通过 HikariDataSource.getConnection() 获取连接后，使用完成后需要调用 close() 方法，实际上它并不会关闭连接，只是放回连接池中。
-> 更多 HikariCP 使用问题请查看[官方说明](https://github.com/brettwooldridge/HikariCP)
+> 更多 HikariCP 使用问题请查看[官方说明](https://github.com/brettwooldridge/HikariCP)。
 
 **Druid**
 
@@ -571,9 +562,9 @@ public static void main(String[] args) throws Exception {
 }
 ```
 
-> 更多 druid 使用问题请查看[官方说明](https://github.com/alibaba/druid)
+> 更多 druid 使用问题请查看[官方说明](https://github.com/alibaba/druid)。
 
-**注意事项**
+**注意事项：**
 * TDengine `v1.6.4.1` 版本开始提供了一个专门用于心跳检测的函数 `select server_status()`，所以在使用连接池时推荐使用 `select server_status()` 进行 Validation Query。
 
 如下所示，`select server_status()` 执行成功会返回 `1`。
@@ -585,14 +576,10 @@ server_status()|
 Query OK, 1 row(s) in set (0.000141s)
 ```
 
-
-
 ## 在框架中使用
 
 * Spring JdbcTemplate 中使用 taos-jdbcdriver，可参考 [SpringJdbcTemplate](https://github.com/taosdata/TDengine/tree/develop/tests/examples/JDBC/SpringJdbcTemplate)
 * Springboot + Mybatis 中使用，可参考 [springbootdemo](https://github.com/taosdata/TDengine/tree/develop/tests/examples/JDBC/springbootdemo)
-
-
 
 ## 常见问题
 

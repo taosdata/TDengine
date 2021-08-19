@@ -73,7 +73,7 @@ Raw DataSize = numOfTables * rowSizePerTable * rowsPerTable
 
 因为 TDengine 具有很好的水平扩展能力，根据总量，再根据单个物理机或虚拟机的资源，就可以轻松决定需要购置多少台物理机或虚拟机了。
 
-**立即计算 CPU、内存、存储，请参见：[资源估算方法](https://www.taosdata.com/config/config.html)**
+**立即计算 CPU、内存、存储，请参见：[资源估算方法](https://www.taosdata.com/config/config.html)。**
 
 ## <a class="anchor" id="tolerance"></a>容错和灾备
 
@@ -230,7 +230,7 @@ taosd -C
 | 1     | days             | 天       | 一个数据文件存储数据的时间跨度                               |                                                  | 10         |
 | 2     | keep             | 天       | （可通过 alter database 修改<!-- REPLACE_OPEN_TO_ENTERPRISE__KEEP_PARAM_DESCRIPTION_IN_PARAM_LIST -->）数据库中数据保留的天数。                            | 3650       |
 | 3     | cache            | MB       | 内存块的大小                                                 |                                                  | 16         |
-| 4     | blocks           |          | （可通过 alter database 修改）每个 VNODE（TSDB）中有多少个 cache 大小的内存块。因此一个 VNODE 使用的内存大小粗略为（cache * blocks）。                  |                                                  | 4          |
+| 4     | blocks           |          | （可通过 alter database 修改）每个 VNODE（TSDB）中有多少个 cache 大小的内存块。因此一个 VNODE 使用的内存大小粗略为（cache * blocks）。                  |                                                  | 6          |
 | 5     | quorum           |          | （可通过 alter database 修改）多副本环境下指令执行的确认数要求   | 1-2                                              | 1          |
 | 6     | minRows          |          | 文件块中记录的最小条数                                       |                                                  | 100        |
 | 7     | maxRows          |          | 文件块中记录的最大条数                                       |                                                  | 4096       |
@@ -433,7 +433,7 @@ SHOW USERS;
 
 显示所有用户
 
-**注意：**SQL 语法中，< >表示需要用户输入的部分，但请不要输入< >本身
+**注意：**SQL 语法中，< >表示需要用户输入的部分，但请不要输入< >本身。
 
 ## <a class="anchor" id="import"></a>数据导入
 
@@ -445,7 +445,7 @@ TDengine的shell支持source filename命令，用于批量运行文件中的SQL�
 
 **按数据文件导入**
 
-TDengine也支持在shell对已存在的表从CSV文件中进行数据导入。CSV文件只属于一张表且CSV文件中的数据格式需与要导入表的结构相同, 在导入的时候，其语法如下
+TDengine也支持在shell对已存在的表从CSV文件中进行数据导入。CSV文件只属于一张表且CSV文件中的数据格式需与要导入表的结构相同，在导入的时候，其语法如下：
 
 ```mysql
 insert into tb1 file 'path/data.csv';
@@ -487,7 +487,7 @@ Query OK, 9 row(s) affected (0.004763s)
 
 **taosdump工具导入**
 
-TDengine提供了方便的数据库导入导出工具taosdump。用户可以将taosdump从一个系统导出的数据，导入到其他系统中。具体使用方法，请参见博客：[TDengine DUMP工具使用指南](https://www.taosdata.com/blog/2020/03/09/1334.html)
+TDengine提供了方便的数据库导入导出工具taosdump。用户可以将taosdump从一个系统导出的数据，导入到其他系统中。具体使用方法，请参见博客：[TDengine DUMP工具使用指南](https://www.taosdata.com/blog/2020/03/09/1334.html)。
 
 ## <a class="anchor" id="export"></a>数据导出
 
@@ -627,7 +627,7 @@ Active: inactive (dead)
 ......
 ```
 
-卸载 TDengine，只需要执行如下命令
+卸载 TDengine，只需要执行如下命令：
 ```
 rmtaos
 ```
@@ -724,7 +724,7 @@ rmtaos
 2. 服务端命令行输入：`taos -n server -P <port>`  以服务端身份启动对端口 port 为基准端口的监听
 3. 客户端命令行输入：`taos -n client -h <fqdn of server> -P <port>`  以客户端身份启动对指定的服务器、指定的端口发送测试包
 
-服务端运行正常的话会输出以下信息
+服务端运行正常的话会输出以下信息：
 
 ```bash
 # taos -n server -P 6000
