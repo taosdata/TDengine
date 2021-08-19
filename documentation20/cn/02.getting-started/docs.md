@@ -105,7 +105,7 @@ $ taos -h h1.taos.com -s "use db; show tables;"
 
 **运行 SQL 命令脚本**
 
-TDengine 终端可以通过 `source` 命令来运行 SQL 命令脚本.
+TDengine 终端可以通过 `source` 命令来运行 SQL 命令脚本。
 
 ```mysql
 taos> source <filename>;
@@ -166,14 +166,12 @@ taos> select avg(current), max(voltage), min(phase) from test.d10 interval(10s);
 
 **Note:** taosdemo 命令本身带有很多选项，配置表的数目、记录条数等等，请执行 `taosdemo --help` 详细列出。您可以设置不同参数进行体验。
 
-
 ## 客户端和报警模块
 
 如果客户端和服务端运行在不同的电脑上，可以单独安装客户端。Linux 和 Windows 安装包可以在 [这里](https://www.taosdata.com/cn/getting-started/#客户端) 下载。
 
 报警模块的 Linux 和 Windows 安装包请在 [所有下载链接](https://www.taosdata.com/cn/all-downloads/) 页面搜索“TDengine Alert Linux”章节或“TDengine Alert Windows”章节进行下载。使用方法请参考 [报警模块的使用方法](https://github.com/taosdata/TDengine/blob/master/alert/README_cn.md)。
 
-  
 ## <a class="anchor" id="platforms"></a>支持平台列表
 
 ### TDengine 服务器支持的平台列表
@@ -192,8 +190,6 @@ taos> select avg(current), max(voltage), min(phase) from test.d10 interval(10s);
 | 华为云 ARM64    |                       |                          |                 |                 |                           |                       | ●                     |
 
 注： ● 表示经过官方测试验证， ○ 表示非官方测试验证。
-
-
 
 ### TDengine 客户端和连接器支持的平台列表
 

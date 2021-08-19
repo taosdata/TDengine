@@ -161,17 +161,17 @@ TDengine 分布式架构的逻辑结构图如下：
 
 一个完整的 TDengine 系统是运行在一到多个物理节点上的，逻辑上，它包含数据节点(dnode)、TDengine应用驱动(taosc)以及应用(app)。系统中存在一到多个数据节点，这些数据节点组成一个集群(cluster)。应用通过taosc的API与TDengine集群进行互动。下面对每个逻辑单元进行简要介绍。
 
-**物理节点(pnode):** pnode是一独立运行、拥有自己的计算、存储和网络能力的计算机，可以是安装有OS的物理机、虚拟机或Docker容器。物理节点由其配置的 FQDN(Fully Qualified Domain Name)来标识。TDengine完全依赖FQDN来进行网络通讯，如果不了解FQDN，请看博文[《一篇文章说清楚TDengine的FQDN》](https://www.taosdata.com/blog/2020/09/11/1824.html)。
+**物理节点(pnode)：** pnode是一独立运行、拥有自己的计算、存储和网络能力的计算机，可以是安装有OS的物理机、虚拟机或Docker容器。物理节点由其配置的 FQDN(Fully Qualified Domain Name)来标识。TDengine完全依赖FQDN来进行网络通讯，如果不了解FQDN，请看博文[《一篇文章说清楚TDengine的FQDN》](https://www.taosdata.com/blog/2020/09/11/1824.html)。
 
-**数据节点(dnode):** dnode 是 TDengine 服务器侧执行代码 taosd 在物理节点上的一个运行实例，一个工作的系统必须有至少一个数据节点。dnode包含零到多个逻辑的虚拟节点(vnode)，零或者至多一个逻辑的管理节点(mnode)。dnode在系统中的唯一标识由实例的End Point (EP)决定。EP是dnode所在物理节点的FQDN (Fully Qualified Domain Name)和系统所配置的网络端口号(Port)的组合。通过配置不同的端口，一个物理节点(一台物理机、虚拟机或容器）可以运行多个实例，或有多个数据节点。
+**数据节点(dnode)：** dnode 是 TDengine 服务器侧执行代码 taosd 在物理节点上的一个运行实例，一个工作的系统必须有至少一个数据节点。dnode包含零到多个逻辑的虚拟节点(vnode)，零或者至多一个逻辑的管理节点(mnode)。dnode在系统中的唯一标识由实例的End Point (EP)决定。EP是dnode所在物理节点的FQDN (Fully Qualified Domain Name)和系统所配置的网络端口号(Port)的组合。通过配置不同的端口，一个物理节点(一台物理机、虚拟机或容器）可以运行多个实例，或有多个数据节点。
 
-**虚拟节点(vnode)**: 为更好的支持数据分片、负载均衡，防止数据过热或倾斜，数据节点被虚拟化成多个虚拟节点(vnode，图中V2, V3, V4等)。每个 vnode 都是一个相对独立的工作单元，是时序数据存储的基本单元，具有独立的运行线程、内存空间与持久化存储的路径。一个 vnode 包含一定数量的表（数据采集点）。当创建一张新表时，系统会检查是否需要创建新的 vnode。一个数据节点上能创建的 vnode 的数量取决于该数据节点所在物理节点的硬件资源。一个 vnode 只属于一个DB，但一个DB可以有多个 vnode。一个 vnode 除存储的时序数据外，也保存有所包含的表的schema、标签值等。一个虚拟节点由所属的数据节点的EP，以及所属的VGroup ID在系统内唯一标识，由管理节点创建并管理。
+**虚拟节点(vnode)：** 为更好的支持数据分片、负载均衡，防止数据过热或倾斜，数据节点被虚拟化成多个虚拟节点(vnode，图中V2, V3, V4等)。每个 vnode 都是一个相对独立的工作单元，是时序数据存储的基本单元，具有独立的运行线程、内存空间与持久化存储的路径。一个 vnode 包含一定数量的表（数据采集点）。当创建一张新表时，系统会检查是否需要创建新的 vnode。一个数据节点上能创建的 vnode 的数量取决于该数据节点所在物理节点的硬件资源。一个 vnode 只属于一个DB，但一个DB可以有多个 vnode。一个 vnode 除存储的时序数据外，也保存有所包含的表的schema、标签值等。一个虚拟节点由所属的数据节点的EP，以及所属的VGroup ID在系统内唯一标识，由管理节点创建并管理。
 
-**管理节点(mnode):** 一个虚拟的逻辑单元，负责所有数据节点运行状态的监控和维护，以及节点之间的负载均衡(图中M)。同时，管理节点也负责元数据(包括用户、数据库、表、静态标签等)的存储和管理，因此也称为 Meta Node。TDengine 集群中可配置多个(开源版最多不超过3个) mnode，它们自动构建成为一个虚拟管理节点组(图中M0, M1, M2)。mnode 间采用 master/slave 的机制进行管理，而且采取强一致方式进行数据同步, 任何数据更新操作只能在 Master 上进行。mnode 集群的创建由系统自动完成，无需人工干预。每个dnode上至多有一个mnode，由所属的数据节点的EP来唯一标识。每个dnode通过内部消息交互自动获取整个集群中所有 mnode 所在的 dnode 的EP。
+**管理节点(mnode)：** 一个虚拟的逻辑单元，负责所有数据节点运行状态的监控和维护，以及节点之间的负载均衡(图中M)。同时，管理节点也负责元数据(包括用户、数据库、表、静态标签等)的存储和管理，因此也称为 Meta Node。TDengine 集群中可配置多个(开源版最多不超过3个) mnode，它们自动构建成为一个虚拟管理节点组(图中M0, M1, M2)。mnode 间采用 master/slave 的机制进行管理，而且采取强一致方式进行数据同步, 任何数据更新操作只能在 Master 上进行。mnode 集群的创建由系统自动完成，无需人工干预。每个dnode上至多有一个mnode，由所属的数据节点的EP来唯一标识。每个dnode通过内部消息交互自动获取整个集群中所有 mnode 所在的 dnode 的EP。
 
-**虚拟节点组(VGroup):** 不同数据节点上的 vnode 可以组成一个虚拟节点组(vnode group)来保证系统的高可靠。虚拟节点组内采取master/slave的方式进行管理。写操作只能在 master vnode 上进行，系统采用异步复制的方式将数据同步到 slave vnode，这样确保了一份数据在多个物理节点上有拷贝。一个 vgroup 里虚拟节点个数就是数据的副本数。如果一个DB的副本数为N，系统必须有至少N个数据节点。副本数在创建DB时通过参数 replica 可以指定，缺省为1。使用 TDengine 的多副本特性，可以不再需要昂贵的磁盘阵列等存储设备，就可以获得同样的数据高可靠性。虚拟节点组由管理节点创建、管理，并且由管理节点分配一个系统唯一的ID，VGroup ID。如果两个虚拟节点的vnode group ID相同，说明他们属于同一个组，数据互为备份。虚拟节点组里虚拟节点的个数是可以动态改变的，容许只有一个，也就是没有数据复制。VGroup ID是永远不变的，即使一个虚拟节点组被删除，它的ID也不会被收回重复利用。
+**虚拟节点组(VGroup)：** 不同数据节点上的 vnode 可以组成一个虚拟节点组(vnode group)来保证系统的高可靠。虚拟节点组内采取master/slave的方式进行管理。写操作只能在 master vnode 上进行，系统采用异步复制的方式将数据同步到 slave vnode，这样确保了一份数据在多个物理节点上有拷贝。一个 vgroup 里虚拟节点个数就是数据的副本数。如果一个DB的副本数为N，系统必须有至少N个数据节点。副本数在创建DB时通过参数 replica 可以指定，缺省为1。使用 TDengine 的多副本特性，可以不再需要昂贵的磁盘阵列等存储设备，就可以获得同样的数据高可靠性。虚拟节点组由管理节点创建、管理，并且由管理节点分配一个系统唯一的ID，VGroup ID。如果两个虚拟节点的vnode group ID相同，说明他们属于同一个组，数据互为备份。虚拟节点组里虚拟节点的个数是可以动态改变的，容许只有一个，也就是没有数据复制。VGroup ID是永远不变的，即使一个虚拟节点组被删除，它的ID也不会被收回重复利用。
 
-**TAOSC:** taosc是TDengine给应用提供的驱动程序(driver)，负责处理应用与集群的接口交互，提供C/C++语言原生接口，内嵌于JDBC、C#、Python、Go、Node.js语言连接库里。应用都是通过taosc而不是直接连接集群中的数据节点与整个集群进行交互的。这个模块负责获取并缓存元数据；将插入、查询等请求转发到正确的数据节点；在把结果返回给应用时，还需要负责最后一级的聚合、排序、过滤等操作。对于JDBC, C/C++/C#/Python/Go/Node.js接口而言，这个模块是在应用所处的物理节点上运行。同时，为支持全分布式的RESTful接口，taosc在TDengine集群的每个dnode上都有一运行实例。
+**TAOSC：** taosc是TDengine给应用提供的驱动程序(driver)，负责处理应用与集群的接口交互，提供C/C++语言原生接口，内嵌于JDBC、C#、Python、Go、Node.js语言连接库里。应用都是通过taosc而不是直接连接集群中的数据节点与整个集群进行交互的。这个模块负责获取并缓存元数据；将插入、查询等请求转发到正确的数据节点；在把结果返回给应用时，还需要负责最后一级的聚合、排序、过滤等操作。对于JDBC、C/C++、C#、Python、Go、Node.js接口而言，这个模块是在应用所处的物理节点上运行。同时，为支持全分布式的RESTful接口，taosc在TDengine集群的每个dnode上都有一运行实例。
 
 ### 节点之间的通讯
 
@@ -181,11 +181,9 @@ TDengine 分布式架构的逻辑结构图如下：
 
 **端口配置：**一个数据节点对外的端口由TDengine的系统配置参数serverPort决定，对集群内部通讯的端口是serverPort+5。为支持多线程高效的处理UDP数据，每个对内和对外的UDP连接，都需要占用5个连续的端口。
 
-集群内数据节点之间的数据复制操作占用一个TCP端口，是serverPort+10。
-
-集群数据节点对外提供RESTful服务占用一个TCP端口，是serverPort+11。
-
-集群内数据节点与Arbitrator节点之间通讯占用一个TCP端口，是serverPort+12。
+- 集群内数据节点之间的数据复制操作占用一个TCP端口，是serverPort+10。
+- 集群数据节点对外提供RESTful服务占用一个TCP端口，是serverPort+11。
+- 集群内数据节点与Arbitrator节点之间通讯占用一个TCP端口，是serverPort+12。
 
 因此一个数据节点总的端口范围为serverPort到serverPort+12，总共13个TCP/UDP端口。使用时，需要确保防火墙将这些端口打开。每个数据节点可以配置不同的serverPort。（详细的端口情况请参见 [TDengine 2.0 端口说明](https://www.taosdata.com/cn/documentation/faq#port)）
 
@@ -193,11 +191,9 @@ TDengine 分布式架构的逻辑结构图如下：
 
 **集群内部通讯：**各个数据节点之间通过TCP/UDP进行连接。一个数据节点启动时，将获取mnode所在的dnode的EP信息，然后与系统中的mnode建立起连接，交换信息。获取mnode的EP信息有三步：
 
-1：检查mnodeEpSet.json文件是否存在，如果不存在或不能正常打开获得mnode EP信息，进入第二步；
-
-2：检查系统配置文件taos.cfg，获取节点配置参数firstEp、secondEp（这两个参数指定的节点可以是不带mnode的普通节点，这样的话，节点被连接时会尝试重定向到mnode节点），如果不存在或者taos.cfg里没有这两个配置参数，或无效，进入第三步；
-
-3：将自己的EP设为mnode EP，并独立运行起来。
+1. 检查mnodeEpSet.json文件是否存在，如果不存在或不能正常打开获得mnode EP信息，进入第二步；
+2. 检查系统配置文件taos.cfg，获取节点配置参数firstEp、secondEp（这两个参数指定的节点可以是不带mnode的普通节点，这样的话，节点被连接时会尝试重定向到mnode节点），如果不存在或者taos.cfg里没有这两个配置参数，或无效，进入第三步；
+3. 将自己的EP设为mnode EP，并独立运行起来。
 
 获取mnode EP列表后，数据节点发起连接，如果连接成功，则成功加入进工作的集群，如果不成功，则尝试mnode EP列表中的下一个。如果都尝试了，但连接都仍然失败，则休眠几秒后，再进行尝试。
 
@@ -271,6 +267,7 @@ TDengine除vnode分片之外，还对时序数据按照时间段进行分区。�
 当新的数据节点被添加进集群，因为新的计算和存储被添加进来，系统也将自动启动负载均衡流程。
 
 负载均衡过程无需任何人工干预，应用也无需重启，将自动连接新的节点，完全透明。
+
 **提示：负载均衡由参数balance控制，决定开启/关闭自动负载均衡。**
 
 ## <a class="anchor" id="replication"></a>数据写入与复制流程
@@ -293,13 +290,13 @@ Master Vnode遵循下面的写入流程：
 
 ### Slave Vnode写入流程
 
-对于slave vnode, 写入流程是：
+对于slave vnode，写入流程是：
 
 ![TDengine Slave写入流程](page://images/architecture/write_slave.png)
 <center> 图 4 TDengine Slave写入流程  </center>
 
 1. slave vnode收到Master vnode转发了的数据插入请求。检查last version是否与master一致，如果一致，进入下一步。如果不一致，需要进入同步状态。
-2. 如果系统配置参数walLevel大于0，vnode将把该请求的原始数据包写入数据库日志文件WAL。如果walLevel设置为2，而且fsync设置为0，TDengine还将WAL数据立即落盘，以保证即使宕机，也能从数据库日志文件中恢复数据，避免数据的丢失；
+2. 如果系统配置参数walLevel大于0，vnode将把该请求的原始数据包写入数据库日志文件WAL。如果walLevel设置为2，而且fsync设置为0，TDengine还将WAL数据立即落盘，以保证即使宕机，也能从数据库日志文件中恢复数据，避免数据的丢失。
 3. 写入内存，更新内存中的skip list。
 
 与master vnode相比，slave vnode不存在转发环节，也不存在回复确认环节，少了两步。但写内存与WAL是完全一样的。

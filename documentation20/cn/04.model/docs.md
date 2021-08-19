@@ -11,7 +11,7 @@ TDengine采用关系型数据模型，需要建库、建表。因此对于一个
 不同类型的数据采集点往往具有不同的数据特征，包括数据采集频率的高低，数据保留时间的长短，副本的数目，数据块的大小，是否允许更新数据等等。为了在各种场景下TDengine都能最大效率的工作，TDengine建议将不同数据特征的表创建在不同的库里，因为每个库可以配置不同的存储策略。创建一个库时，除SQL标准的选项外，应用还可以指定保留时长、副本数、内存块个数、时间精度、文件块里最大最小记录条数、是否压缩、一个数据文件覆盖的天数等多种参数。比如：
 
 ```mysql
-CREATE DATABASE power KEEP 365 DAYS 10 BLOCKS 4 UPDATE 1;
+CREATE DATABASE power KEEP 365 DAYS 10 BLOCKS 6 UPDATE 1;
 ```
 上述语句将创建一个名为power的库，这个库的数据将保留365天（超过365天将被自动删除），每10天一个数据文件，内存块数为4，允许更新数据。详细的语法及参数请见 [TAOS SQL 的数据管理](https://www.taosdata.com/cn/documentation/taos-sql#management) 章节。
 
@@ -65,7 +65,7 @@ TDengine建议将数据采集点的全局唯一ID作为表名(比如设备序列
 INSERT INTO d1001 USING meters TAGS ("Beijng.Chaoyang", 2) VALUES (now, 10.2, 219, 0.32);
 ```
 
-上述SQL语句将记录 (now, 10.2, 219, 0.32) 插入表d1001。如果表d1001还未创建，则使用超级表meters做模板自动创建，同时打上标签值“Beijing.Chaoyang", 2。  
+上述SQL语句将记录 (now, 10.2, 219, 0.32) 插入表d1001。如果表d1001还未创建，则使用超级表meters做模板自动创建，同时打上标签值 `“Beijing.Chaoyang", 2`。
 
 关于自动建表的详细语法请参见 [插入记录时自动建表](https://www.taosdata.com/cn/documentation/taos-sql#auto_create_table) 章节。
 
