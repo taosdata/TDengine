@@ -866,10 +866,12 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
             arguments->user = argv[++i];
         } else if (strncmp(argv[i], "-p", 2) == 0) {
             if (strlen(argv[i]) == 2) {
-                printf("Enter password:");
+                printf("Enter password: ");
+                taosSetConsoleEcho(false);
                 if (scanf("%s", arguments->password) > 1) {
                     fprintf(stderr, "password read error!\n");
                 }
+                taosSetConsoleEcho(true);
             } else {
                 tstrncpy(arguments->password, (char *)(argv[i] + 2), MAX_PASSWORD_SIZE);
             }
