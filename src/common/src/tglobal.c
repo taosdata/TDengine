@@ -78,7 +78,7 @@ int32_t tsCompressMsgSize = -1;
 /* denote if server needs to compress the retrieved column data before adding to the rpc response message body.
  * 0: all data are compressed
  * -1: all data are not compressed
- * other values: if the any retrieved column size is greater than the tsCompressColData, all data will be compressed.
+ * other values: if any retrieved column size is greater than the tsCompressColData, all data will be compressed.
  */
 int32_t tsCompressColData = -1;
 
