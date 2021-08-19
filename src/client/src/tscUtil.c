@@ -3767,8 +3767,7 @@ static void tscSubqueryCompleteCallback(void* param, TAOS_RES* tres, int code) {
     int32_t index = ps->subqueryIndex;
     bool ret = subAndCheckDone(pSql, pParentSql, index);
 
-    tfree(ps);
-    pSql->param = NULL;
+    tscFreeRetrieveSup(pSql);
 
     if (!ret) {
       tscDebug("0x%"PRIx64" sub:0x%"PRIx64" orderOfSub:%d completed, not all subquery finished", pParentSql->self, pSql->self, index);
@@ -3778,12 +3777,13 @@ static void tscSubqueryCompleteCallback(void* param, TAOS_RES* tres, int code) {
     // todo refactor
     tscDebug("0x%"PRIx64" all subquery response received, retry", pParentSql->self);
 
-    SSqlCmd* pParentCmd = &pParentSql->cmd;
-    STableMetaInfo* pTableMetaInfo = tscGetTableMetaInfoFromCmd(pParentCmd, 0);
-    tscRemoveTableMetaBuf(pTableMetaInfo, pParentSql->self);
+    if (code && !((code == TSDB_CODE_TDB_INVALID_TABLE_ID || code == TSDB_CODE_VND_INVALID_VGROUP_ID) && pParentSql->retry < pParentSql->maxRetry)) {
+      tscAsyncResultOnError(pParentSql);
+      return;
+    }
 
-    pParentCmd->pTableMetaMap = tscCleanupTableMetaMap(pParentCmd->pTableMetaMap);
-    pParentCmd->pTableMetaMap = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);
+    tscFreeSubobj(pParentSql);    
+    tfree(pParentSql->pSubs);
 
     pParentSql->res.code = TSDB_CODE_SUCCESS;
     pParentSql->retry++;
@@ -3791,6 +3791,9 @@ static void tscSubqueryCompleteCallback(void* param, TAOS_RES* tres, int code) {
     tscDebug("0x%"PRIx64" retry parse sql and send query, prev error: %s, retry:%d", pParentSql->self,
              tstrerror(code), pParentSql->retry);
 
+    
+    tscResetSqlCmd(&pParentSql->cmd, true);
+    
     code = tsParseSql(pParentSql, true);
     if (code == TSDB_CODE_TSC_ACTION_IN_PROGRESS) {
       return;
@@ -3802,7 +3805,8 @@ static void tscSubqueryCompleteCallback(void* param, TAOS_RES* tres, int code) {
       return;
     }
 
-    SQueryInfo *pQueryInfo = tscGetQueryInfo(pParentCmd);
+    SQueryInfo *pQueryInfo = tscGetQueryInfo(&pParentSql->cmd);
+
     executeQuery(pParentSql, pQueryInfo);
     return;
   }
@@ -3825,9 +3829,11 @@ void executeQuery(SSqlObj* pSql, SQueryInfo* pQueryInfo) {
   }
 
   if (taosArrayGetSize(pQueryInfo->pUpstream) > 0) {  // nest query. do execute it firstly
+    assert(pSql->subState.numOfSub == 0);
     pSql->subState.numOfSub = (int32_t) taosArrayGetSize(pQueryInfo->pUpstream);
-
+    assert(pSql->pSubs == NULL);
     pSql->pSubs = calloc(pSql->subState.numOfSub, POINTER_BYTES);
+    assert(pSql->subState.states == NULL);
     pSql->subState.states = calloc(pSql->subState.numOfSub, sizeof(int8_t));
     code = pthread_mutex_init(&pSql->subState.mutex, NULL);
 
