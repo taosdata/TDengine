@@ -237,7 +237,7 @@ tMemBucket *tMemBucketCreate(int16_t nElemSize, int16_t dataType, double minval,
   }
 
   pBucket->elemPerPage = (pBucket->bufPageSize - sizeof(tFilePage))/pBucket->bytes;
-  pBucket->comparFn = getKeyComparFunc(pBucket->type);
+  pBucket->comparFn = getKeyComparFunc(pBucket->type, TSDB_ORDER_ASC);
 
   pBucket->hashFunc = getHashFunc(pBucket->type);
   if (pBucket->hashFunc == NULL) {

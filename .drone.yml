@@ -15,7 +15,7 @@ steps:
   - mkdir debug
   - cd debug
   - cmake .. 
-  - make 
+  - make -j4 
   trigger:
     event:
       - pull_request
@@ -39,7 +39,7 @@ steps:
   - mkdir debug
   - cd debug
   - cmake .. -DCPUTYPE=aarch64 > /dev/null
-  - make 
+  - make -j4 
   trigger:
     event:
       - pull_request
@@ -66,7 +66,7 @@ steps:
   - mkdir debug
   - cd debug
   - cmake .. -DCPUTYPE=aarch64 > /dev/null
-  - make 
+  - make -j4 
   trigger:
     event:
       - pull_request
@@ -91,7 +91,7 @@ steps:
   - mkdir debug
   - cd debug
   - cmake .. -DCPUTYPE=aarch64 > /dev/null
-  - make 
+  - make -j4 
   trigger:
     event:
       - pull_request
@@ -116,7 +116,7 @@ steps:
   - mkdir debug
   - cd debug
   - cmake .. -DCPUTYPE=aarch64 > /dev/null
-  - make 
+  - make -j4 
   trigger:
     event:
       - pull_request
@@ -142,7 +142,7 @@ steps:
   - mkdir debug
   - cd debug
   - cmake .. -DCPUTYPE=aarch32 > /dev/null
-  - make 
+  - make -j4 
   trigger:
     event:
       - pull_request
@@ -168,7 +168,7 @@ steps:
   - mkdir debug
   - cd debug
   - cmake .. 
-  - make 
+  - make -j4 
   trigger:
     event:
       - pull_request
@@ -193,7 +193,7 @@ steps:
   - mkdir debug
   - cd debug
   - cmake .. 
-  - make 
+  - make -j4 
   trigger:
     event:
       - pull_request
@@ -218,7 +218,7 @@ steps:
   - mkdir debug
   - cd debug
   - cmake .. 
-  - make 
+  - make -j4 
   trigger:
     event:
       - pull_request
@@ -241,7 +241,7 @@ steps:
   - mkdir debug
   - cd debug
   - cmake .. 
-  - make 
+  - make -j4 
   trigger:
     event:
       - pull_request

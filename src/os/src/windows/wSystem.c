@@ -30,3 +30,17 @@ void taosCloseDll(void *handle) {
 }
 
 
+int taosSetConsoleEcho(bool on)
+{
+    HANDLE hStdin = GetStdHandle(STD_INPUT_HANDLE); 
+    DWORD mode = 0;
+    GetConsoleMode(hStdin, &mode );
+    if (on) {
+        mode |= ENABLE_ECHO_INPUT;
+    } else {
+        mode &= ~ENABLE_ECHO_INPUT;
+    }
+    SetConsoleMode(hStdin, mode);
+
+    return 0;
+}

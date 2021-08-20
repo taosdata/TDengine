@@ -2404,8 +2404,8 @@ int32_t tscHandleFirstRoundStableQuery(SSqlObj *pSql) {
           SColumn* x = taosArrayGetP(pNewQueryInfo->colList, index1);
           tscColumnCopy(x, pCol);
         } else {
-          SColumn *p = tscColumnClone(pCol);
-          taosArrayPush(pNewQueryInfo->colList, &p);
+          SSchema ss = {.type = (uint8_t)pCol->info.type, .bytes = pCol->info.bytes, .colId = (int16_t)pCol->columnIndex};
+          tscColumnListInsert(pNewQueryInfo->colList, pCol->columnIndex, pCol->tableUid, &ss);
         }
       }
     }
@@ -2431,6 +2431,26 @@ int32_t tscHandleFirstRoundStableQuery(SSqlObj *pSql) {
   pSql->res.code = terrno;
   tscAsyncResultOnError(pSql);
   return terrno;
+}
+
+typedef struct SPair {
+  int32_t first;
+  int32_t second;
+} SPair;
+
+static void doSendQueryReqs(SSchedMsg* pSchedMsg) {
+  SSqlObj* pSql = pSchedMsg->ahandle;
+  SPair* p = pSchedMsg->msg;
+
+  for(int32_t i = p->first; i < p->second; ++i) {
+    SSqlObj* pSub = pSql->pSubs[i];
+    SRetrieveSupport* pSupport = pSub->param;
+
+    tscDebug("0x%"PRIx64" sub:0x%"PRIx64" launch subquery, orderOfSub:%d.", pSql->self, pSub->self, pSupport->subqueryIndex);
+    tscBuildAndSendRequest(pSub, NULL);
+  }
+
+  tfree(p);
 }
 
 int32_t tscHandleMasterSTableQuery(SSqlObj *pSql) {
@@ -2555,13 +2575,33 @@ int32_t tscHandleMasterSTableQuery(SSqlObj *pSql) {
     doCleanupSubqueries(pSql, i);
     return pRes->code;
   }
-  
-  for(int32_t j = 0; j < pState->numOfSub; ++j) {
-    SSqlObj* pSub = pSql->pSubs[j];
-    SRetrieveSupport* pSupport = pSub->param;
-    
-    tscDebug("0x%"PRIx64" sub:0x%"PRIx64" launch subquery, orderOfSub:%d.", pSql->self, pSub->self, pSupport->subqueryIndex);
-    tscBuildAndSendRequest(pSub, NULL);
+
+  // concurrently sent the query requests.
+  const int32_t MAX_REQUEST_PER_TASK = 8;
+
+  int32_t numOfTasks = (pState->numOfSub + MAX_REQUEST_PER_TASK - 1)/MAX_REQUEST_PER_TASK;
+  assert(numOfTasks >= 1);
+
+  int32_t num = (pState->numOfSub/numOfTasks) + 1;
+  tscDebug("0x%"PRIx64 " query will be sent by %d threads", pSql->self, numOfTasks);
+
+  for(int32_t j = 0; j < numOfTasks; ++j) {
+    SSchedMsg schedMsg = {0};
+    schedMsg.fp      = doSendQueryReqs;
+    schedMsg.ahandle = (void*)pSql;
+
+    schedMsg.thandle = NULL;
+    SPair* p = calloc(1, sizeof(SPair));
+    p->first  = j * num;
+
+    if (j == numOfTasks - 1) {
+      p->second = pState->numOfSub;
+    } else {
+      p->second = (j + 1) * num;
+    }
+
+    schedMsg.msg = p;
+    taosScheduleTask(tscQhandle, &schedMsg);
   }
 
   return TSDB_CODE_SUCCESS;
@@ -2727,16 +2767,10 @@ void tscHandleSubqueryError(SRetrieveSupport *trsupport, SSqlObj *pSql, int numO
     int32_t code = pParentSql->res.code;
     if ((code == TSDB_CODE_TDB_INVALID_TABLE_ID || code == TSDB_CODE_VND_INVALID_VGROUP_ID) && pParentSql->retry < pParentSql->maxRetry) {
       // remove the cached tableMeta and vgroup id list, and then parse the sql again
-      SSqlCmd* pParentCmd = &pParentSql->cmd;
-      STableMetaInfo* pTableMetaInfo = tscGetTableMetaInfoFromCmd(pParentCmd, 0);
-      tscRemoveTableMetaBuf(pTableMetaInfo, pParentSql->self);
+      tscResetSqlCmd( &pParentSql->cmd, true, pParentSql->self);
 
-      pParentCmd->pTableMetaMap = tscCleanupTableMetaMap(pParentCmd->pTableMetaMap);
-      pParentCmd->pTableMetaMap = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);
-
-      pParentSql->res.code = TSDB_CODE_SUCCESS;
       pParentSql->retry++;
-
+      pParentSql->res.code = TSDB_CODE_SUCCESS;
       tscDebug("0x%"PRIx64" retry parse sql and send query, prev error: %s, retry:%d", pParentSql->self,
           tstrerror(code), pParentSql->retry);
 
@@ -3040,7 +3074,7 @@ void tscRetrieveDataRes(void *param, TAOS_RES *tres, int code) {
   if (taos_errno(pSql) != TSDB_CODE_SUCCESS) {
     assert(code == taos_errno(pSql));
 
-    if (trsupport->numOfRetry++ < MAX_NUM_OF_SUBQUERY_RETRY && (code != TSDB_CODE_TDB_INVALID_TABLE_ID)) {
+    if (trsupport->numOfRetry++ < MAX_NUM_OF_SUBQUERY_RETRY && (code != TSDB_CODE_TDB_INVALID_TABLE_ID && code != TSDB_CODE_VND_INVALID_VGROUP_ID)) {
       tscError("0x%"PRIx64" sub:0x%"PRIx64" failed code:%s, retry:%d", pParentSql->self, pSql->self, tstrerror(code), trsupport->numOfRetry);
       
       int32_t sent = 0;
@@ -3151,7 +3185,7 @@ static void multiVnodeInsertFinalize(void* param, TAOS_RES* tres, int numOfRows)
         numOfFailed += 1;
 
         // clean up tableMeta in cache
-        tscFreeQueryInfo(&pSql->cmd, false);
+        tscFreeQueryInfo(&pSql->cmd, false, pSql->self);
         SQueryInfo* pQueryInfo = tscGetQueryInfoS(&pSql->cmd);
         STableMetaInfo* pMasterTableMetaInfo = tscGetTableMetaInfoFromCmd(&pParentObj->cmd, 0);
         tscAddTableMetaInfo(pQueryInfo, &pMasterTableMetaInfo->name, NULL, NULL, NULL, NULL);
@@ -3173,7 +3207,7 @@ static void multiVnodeInsertFinalize(void* param, TAOS_RES* tres, int numOfRows)
     }
 
     pParentObj->res.code = TSDB_CODE_SUCCESS;
-    tscResetSqlCmd(&pParentObj->cmd, false);
+    tscResetSqlCmd(&pParentObj->cmd, false, pParentObj->self);
 
     // in case of insert, redo parsing the sql string and build new submit data block for two reasons:
     // 1. the table Id(tid & uid) may have been update, the submit block needs to be updated accordingly.

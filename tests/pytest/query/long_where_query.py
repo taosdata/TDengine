@@ -287,13 +287,9 @@ class TDTestCase:
         tdLog.info(len(sql)) 
         tdSql.error(sql) 
 
-
         endTime = time.time()
         print("total time %ds" % (endTime - startTime))
-
-
-
-        os.system("rm -rf query/long_where_query.py.sql") 
+        #os.system("rm -rf query/long_where_query.py.sql")
 
 
     def stop(self):

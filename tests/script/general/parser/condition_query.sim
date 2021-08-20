@@ -1959,6 +1959,117 @@ if $rows != 14 then
   return -1
 endi
 
+sql select ts,c1 from stb4 where c1 = 200;
+if $rows != 1 then
+  return -1
+endi
+if $data00 != @21-07-10 01:00:00.199@ then
+  return -1
+endi
+
+sql select ts,c1 from stb4 where c1 != 200;
+if $rows != 5999 then
+  return -1
+endi
+
+
+
+sql select ts,c1,c2,c3,c4 from stb4 where c1 >= 200 and c2 > 500 and c3 < 800 and c4 between 33 and 37 and c4 != 35 and c2 < 555 and c1 < 339 and c1 in (331,333,335);
+if $rows != 3 then
+  return -1
+endi
+if $data00 != @21-07-10 01:00:00.330@ then
+  return -1
+endi
+if $data10 != @21-07-10 01:00:00.332@ then
+  return -1
+endi
+if $data20 != @21-07-10 01:00:00.334@ then
+  return -1
+endi
+
+sql select ts,c1,c2,c3,c4 from stb4 where c1 > -3 and c1 < 5;
+if $rows != 4 then
+  return -1
+endi
+if $data00 != @21-07-10 01:00:00.000@ then
+  return -1
+endi
+if $data10 != @21-07-10 01:00:00.001@ then
+  return -1
+endi
+if $data20 != @21-07-10 01:00:00.002@ then
+  return -1
+endi
+if $data30 != @21-07-10 01:00:00.003@ then
+  return -1
+endi
+
+sql select ts,c1,c2,c3,c4 from stb4 where c1 >= 2 and c1 < 5;
+if $rows != 3 then
+  return -1
+endi
+if $data00 != @21-07-10 01:00:00.001@ then
+  return -1
+endi
+if $data10 != @21-07-10 01:00:00.002@ then
+  return -1
+endi
+if $data20 != @21-07-10 01:00:00.003@ then
+  return -1
+endi
+
+sql select ts,c1,c2,c3,c4 from stb4 where c1 >= -3 and c1 < 1300;
+if $rows != 1299 then
+  return -1
+endi
+
+sql select ts,c1,c2,c3,c4 from stb4 where c1 >= 1298 and c1 < 1300 or c2 > 210 and c2 < 213;
+if $rows != 4 then
+  return -1
+endi
+if $data00 != @21-07-10 01:00:00.010@ then
+  return -1
+endi
+if $data10 != @21-07-10 01:00:00.011@ then
+  return -1
+endi
+if $data20 != @21-07-13 01:00:00.097@ then
+  return -1
+endi
+if $data30 != @21-07-13 01:00:00.098@ then
+  return -1
+endi
+
+sql select ts,c1,c2,c3,c4 from stb4 where c1 >= -3;
+if $rows != 6000 then
+  return -1
+endi
+
+sql select ts,c1,c2,c3,c4 from stb4 where c1 < 1400;
+if $rows != 1399 then
+  return -1
+endi
+
+sql select ts,c1,c2,c3,c4 from stb4 where c1 < 1100;
+if $rows != 1099 then
+  return -1
+endi
+
+
+sql select ts,c1,c2,c3,c4 from stb4 where c1 in(10,100, 1100,3300) and c1 != 10;
+if $rows != 3 then
+  return -1
+endi
+if $data00 != @21-07-10 01:00:00.099@ then
+  return -1
+endi
+if $data10 != @21-07-10 01:00:01.099@ then
+  return -1
+endi
+if $data20 != @21-07-16 01:00:00.899@ then
+  return -1
+endi
 
 
 print "ts test"
