@@ -768,10 +768,14 @@ static void* tsdbInsertDupKeyMergePacked(void** args) {
   return tsdbInsertDupKeyMerge(args[0], args[1], args[2], (STSchema**)&args[3], (STSchema**)&args[4], args[5], args[6], args[7]);
 }
 
-static void tsdbSetupSkipListHookFns(SSkipList* pSkipList, STsdbRepo *pRepo, STable *pTable, int32_t* pPoints, SMemRow* pLastRow) {
+static int tsdbSetupSkipListHookFns(SSkipList* pSkipList, STsdbRepo *pRepo, STable *pTable, int32_t* pPoints, SMemRow* pLastRow) {
 
   if(pSkipList->insertHandleFn == NULL) {
     tGenericSavedFunc *dupHandleSavedFunc = genericSavedFuncInit((GenericVaFunc)&tsdbInsertDupKeyMergePacked, 9);
+    if(dupHandleSavedFunc == NULL) {
+      terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
+      return -1;
+    }
     dupHandleSavedFunc->args[2] = pRepo;
     dupHandleSavedFunc->args[3] = NULL;
     dupHandleSavedFunc->args[4] = NULL;
@@ -780,6 +784,7 @@ static void tsdbSetupSkipListHookFns(SSkipList* pSkipList, STsdbRepo *pRepo, STa
   }
   pSkipList->insertHandleFn->args[6] = pPoints;
   pSkipList->insertHandleFn->args[7] = pLastRow;
+  return 0;
 }
 
 static int tsdbInsertDataToTable(STsdbRepo* pRepo, SSubmitBlk* pBlock, int32_t *pAffectedRows) {
@@ -788,7 +793,7 @@ static int tsdbInsertDataToTable(STsdbRepo* pRepo, SSubmitBlk* pBlock, int32_t *
   int32_t          points = 0;
   STable          *pTable = NULL;
   SSubmitBlkIter   blkIter = {0};
-  SMemTable       *pMemTable = NULL;
+  SMemTable       *pMemTable = pRepo->mem;
   STableData      *pTableData = NULL;
   STsdbCfg        *pCfg = &(pRepo->config);
 
@@ -796,10 +801,12 @@ static int tsdbInsertDataToTable(STsdbRepo* pRepo, SSubmitBlk* pBlock, int32_t *
   if(blkIter.row == NULL) return 0;
   TSKEY firstRowKey = memRowKey(blkIter.row);
 
-  tsdbAllocBytes(pRepo, 0);
-  pMemTable = pRepo->mem;
+  if (pMemTable == NULL) {
+    pMemTable = tsdbNewMemTable(pRepo);
+    if (pMemTable == NULL) return -1;
+    pRepo->mem = pMemTable;
+  }
 
-  ASSERT(pMemTable != NULL);
   ASSERT(pBlock->tid < pMeta->maxTables);
 
   pTable = pMeta->tables[pBlock->tid];
@@ -836,7 +843,11 @@ static int tsdbInsertDataToTable(STsdbRepo* pRepo, SSubmitBlk* pBlock, int32_t *
 
   SMemRow lastRow = NULL;
   int64_t osize = SL_SIZE(pTableData->pData);
-  tsdbSetupSkipListHookFns(pTableData->pData, pRepo, pTable, &points, &lastRow);
+  if(tsdbSetupSkipListHookFns(pTableData->pData, pRepo, pTable, &points, &lastRow) < 0) {
+      tsdbError("vgId:%d failed to insert data to table %s uid %" PRId64 " tid %d since %s", REPO_ID(pRepo),
+                TABLE_CHAR_NAME(pTable), TABLE_UID(pTable), TABLE_TID(pTable), tstrerror(terrno));
+    return -1;
+  }
   tSkipListPutBatchByIter(pTableData->pData, &blkIter, (iter_next_fn_t)tsdbGetSubmitBlkNext);
   int64_t dsize = SL_SIZE(pTableData->pData) - osize;
   (*pAffectedRows) += points;
@@ -844,11 +855,11 @@ static int tsdbInsertDataToTable(STsdbRepo* pRepo, SSubmitBlk* pBlock, int32_t *
 
   if(lastRow != NULL) {
     TSKEY lastRowKey = memRowKey(lastRow);
-    if (pMemTable->keyFirst > firstRowKey) pMemTable->keyFirst = firstRowKey;
     pMemTable->numOfRows += dsize;
-
-    if (pTableData->keyFirst > firstRowKey) pTableData->keyFirst = firstRowKey;
     pTableData->numOfRows += dsize;
+
+    if (pMemTable->keyFirst > firstRowKey) pMemTable->keyFirst = firstRowKey;
+    if (pTableData->keyFirst > firstRowKey) pTableData->keyFirst = firstRowKey;
     if (pMemTable->keyLast < lastRowKey) pMemTable->keyLast = lastRowKey;
     if (pTableData->keyLast < lastRowKey) pTableData->keyLast = lastRowKey;
     if (tsdbUpdateTableLatestInfo(pRepo, pTable, lastRow) < 0) {
