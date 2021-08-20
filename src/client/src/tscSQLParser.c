@@ -5692,7 +5692,7 @@ int32_t validateOrderbyNode(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SSqlNode* pSq
       }
 
       if (!validOrder) {
-        return invalidOperationMsg(pMsgBuf, msg2);qExecutor.h
+        return invalidOperationMsg(pMsgBuf, msg2);
       }
 
       tVariantListItem* p1 = taosArrayGet(pSqlNode->pSortOrder, 0);
