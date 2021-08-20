@@ -43,6 +43,7 @@ static int     tsdbRemoveTableFromStore(STsdbRepo *pRepo, STable *pTable);
 static int     tsdbRmTableFromMeta(STsdbRepo *pRepo, STable *pTable);
 static int     tsdbAdjustMetaTables(STsdbRepo *pRepo, int tid);
 static int     tsdbCheckTableTagVal(SKVRow *pKVRow, STSchema *pSchema);
+static int     tsdbInsertNewTableAction(STsdbRepo *pRepo, STable* pTable);
 static int     tsdbAddSchema(STable *pTable, STSchema *pSchema);
 static void    tsdbFreeTableSchema(STable *pTable);
 
@@ -128,21 +129,16 @@ int tsdbCreateTable(STsdbRepo *repo, STableCfg *pCfg) {
   tsdbUnlockRepoMeta(pRepo);
 
   // Write to memtable action
-  // TODO: refactor duplicate codes
-  int   tlen = 0;
-  void *pBuf = NULL;
   if (newSuper || superChanged) {
-    tlen = tsdbGetTableEncodeSize(TSDB_UPDATE_META, super);
-    pBuf = tsdbAllocBytes(pRepo, tlen);
-    if (pBuf == NULL) goto _err;
-    void *tBuf = tsdbInsertTableAct(pRepo, TSDB_UPDATE_META, pBuf, super);
-    ASSERT(POINTER_DISTANCE(tBuf, pBuf) == tlen);
+    // add insert new super table action
+    if (tsdbInsertNewTableAction(pRepo, super) != 0) {
+      goto _err;
+    }
   }
-  tlen = tsdbGetTableEncodeSize(TSDB_UPDATE_META, table);
-  pBuf = tsdbAllocBytes(pRepo, tlen);
-  if (pBuf == NULL) goto _err;
-  void *tBuf = tsdbInsertTableAct(pRepo, TSDB_UPDATE_META, pBuf, table);
-  ASSERT(POINTER_DISTANCE(tBuf, pBuf) == tlen);
+  // add insert new table action
+  if (tsdbInsertNewTableAction(pRepo, table) != 0) {
+    goto _err;
+  }
 
   if (tsdbCheckCommit(pRepo) < 0) return -1;
 
@@ -383,7 +379,7 @@ int tsdbUpdateTableTagValue(STsdbRepo *repo, SUpdateTableTagValMsg *pMsg) {
     tdDestroyTSchemaBuilder(&schemaBuilder);
   }
 
-  // Chage in memory
+  // Change in memory
   if (pNewSchema != NULL) { // change super table tag schema
     TSDB_WLOCK_TABLE(pTable->pSuper);
     STSchema *pOldSchema = pTable->pSuper->tagSchema;
@@ -426,6 +422,21 @@ int tsdbUpdateTableTagValue(STsdbRepo *repo, SUpdateTableTagValMsg *pMsg) {
 }
 
 // ------------------ INTERNAL FUNCTIONS ------------------
+static int tsdbInsertNewTableAction(STsdbRepo *pRepo, STable* pTable) {
+  int   tlen = 0;
+  void *pBuf = NULL;
+
+  tlen = tsdbGetTableEncodeSize(TSDB_UPDATE_META, pTable);
+  pBuf = tsdbAllocBytes(pRepo, tlen);
+  if (pBuf == NULL) {
+    return -1;
+  }
+  void *tBuf = tsdbInsertTableAct(pRepo, TSDB_UPDATE_META, pBuf, pTable);
+  ASSERT(POINTER_DISTANCE(tBuf, pBuf) == tlen);
+
+  return 0;
+}
+
 STsdbMeta *tsdbNewMeta(STsdbCfg *pCfg) {
   STsdbMeta *pMeta = (STsdbMeta *)calloc(1, sizeof(*pMeta));
   if (pMeta == NULL) {
@@ -617,6 +628,7 @@ int16_t tsdbGetLastColumnsIndexByColId(STable* pTable, int16_t colId) {
   if (pTable->lastCols == NULL) {
     return -1;
   }
+  // TODO: use binary search instead
   for (int16_t i = 0; i < pTable->maxColNum; ++i) {
     if (pTable->lastCols[i].colId == colId) {
       return i;
@@ -734,10 +746,10 @@ void tsdbUpdateTableSchema(STsdbRepo *pRepo, STable *pTable, STSchema *pSchema, 
   TSDB_WUNLOCK_TABLE(pCTable);
 
   if (insertAct) {
-    int   tlen = tsdbGetTableEncodeSize(TSDB_UPDATE_META, pCTable);
-    void *buf = tsdbAllocBytes(pRepo, tlen);
-    ASSERT(buf != NULL);
-    tsdbInsertTableAct(pRepo, TSDB_UPDATE_META, buf, pCTable);
+    if (tsdbInsertNewTableAction(pRepo, pCTable) != 0) {
+      tsdbError("vgId:%d table %s tid %d uid %" PRIu64 " tsdbInsertNewTableAction fail", REPO_ID(pRepo), TABLE_CHAR_NAME(pTable),
+            TABLE_TID(pTable), TABLE_UID(pTable));
+    }
   }
 }
 
