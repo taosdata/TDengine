@@ -17,6 +17,20 @@ void execute_simple_sql(void *taos, char *sql) {
     taos_free_result(result);
 }
 
+void print_result(TAOS_RES* res) {
+    if (res == NULL) {
+        exit(EXIT_FAILURE);
+    }
+    TAOS_ROW    row = NULL;
+    int         num_fields = taos_num_fields(res);
+    TAOS_FIELD* fields = taos_fetch_fields(res);
+    while ((row = taos_fetch_row(res))) {
+        char temp[256] = {0};
+        taos_print_row(temp, row, fields, num_fields);
+        printf("get result: %s\n", temp);
+    }
+}
+
 void taos_stmt_init_test() {
 	printf("start taos_stmt_init test \n");
     void *taos = NULL;
@@ -329,28 +343,129 @@ void taos_stmt_execute_test() {
     printf("finish taos_stmt_execute test\n");
 }
 
+void taos_stmt_use_result_query(void *taos, char *col, int type) {
+    TAOS_STMT *stmt = taos_stmt_init(taos);
+    assert(stmt != NULL);
+    char *stmt_sql = calloc(1, 1024);
+    struct {
+        int64_t c1;
+        int32_t c2;
+        int64_t c3;
+        float c4;
+        double c5;
+        char c6[8];
+        int16_t c7;
+        int8_t c8;
+        int8_t c9;
+        char c10[32];
+    } v = {0};
+    v.c1 = (int64_t)1591060628000;
+    v.c2 = (int32_t)1;
+    v.c3 = (int64_t)1;
+    v.c4 = (float)1;
+    v.c5 = (double)1;
+    strcpy(v.c6, "abcdefgh");
+    v.c7 = 1;
+    v.c8 = 1;
+    v.c9 = 1;
+    strcpy(v.c10, "一二三四五六七八");
+    uintptr_t c10len=strlen(v.c10);
+    sprintf(stmt_sql, "select * from stmt_test.t1 where %s = ?", col);
+    printf("stmt_sql: %s\n", stmt_sql);
+    assert(taos_stmt_prepare(stmt, stmt_sql, 0) == 0);
+    TAOS_BIND *params = calloc(1, sizeof(TAOS_BIND));
+    params->buffer_type = type;
+    params->is_null = NULL;
+    switch(type){
+        case TSDB_DATA_TYPE_TIMESTAMP:
+            params->buffer_length = sizeof(v.c1);
+            params->buffer = &v.c1;
+            params->length = &params->buffer_length;
+            break;
+        case TSDB_DATA_TYPE_INT:
+            params->buffer_length = sizeof(v.c2);
+            params->buffer = &v.c2;
+            params->length = &params->buffer_length;
+        case TSDB_DATA_TYPE_BIGINT:
+            params->buffer_length = sizeof(v.c3);
+            params->buffer = &v.c3;
+            params->length = &params->buffer_length;
+            break;
+        case TSDB_DATA_TYPE_FLOAT:
+            params->buffer_length = sizeof(v.c4);
+            params->buffer = &v.c4;
+            params->length = &params->buffer_length;
+        case TSDB_DATA_TYPE_DOUBLE:
+            params->buffer_length = sizeof(v.c5);
+            params->buffer = &v.c5;
+            params->length = &params->buffer_length;
+            break;
+        case TSDB_DATA_TYPE_BINARY:
+            params->buffer_length = sizeof(v.c6);
+            params->buffer = &v.c6;
+            params->length = &params->buffer_length;
+            break;
+        case TSDB_DATA_TYPE_SMALLINT:
+            params->buffer_length = sizeof(v.c7);
+            params->buffer = &v.c7;
+            params->length = &params->buffer_length;
+            break;
+        case TSDB_DATA_TYPE_TINYINT:
+            params->buffer_length = sizeof(v.c8);
+            params->buffer = &v.c8;
+            params->length = &params->buffer_length;
+        case TSDB_DATA_TYPE_BOOL:
+            params->buffer_length = sizeof(v.c9);
+            params->buffer = &v.c9;
+            params->length = &params->buffer_length;
+            break;
+        case TSDB_DATA_TYPE_NCHAR:
+            params->buffer_length = sizeof(v.c10);
+            params->buffer = &v.c10;
+            params->length = &c10len;
+            break;
+        default:
+            printf("Cannnot find type: %d\n", type);
+            break;
+
+    }
+    assert(taos_stmt_bind_param(stmt, params) == 0);
+    assert(taos_stmt_execute(stmt) == 0);
+    TAOS_RES* result = taos_stmt_use_result(stmt);
+    assert(result != NULL);
+    print_result(result);
+    assert(taos_stmt_close(stmt) == 0);
+    free(params);
+    free(stmt_sql);
+    taos_free_result(result);
+}
+
 void taos_stmt_use_result_test() {
     printf("start taos_stmt_use_result test\n");
-    TAOS_STMT *stmt = NULL;
-    assert(taos_stmt_use_result(stmt) == NULL);
     void *taos = taos_connect("127.0.0.1","root","taosdata",NULL,0);
     if(taos == NULL) {
 		printf("Cannot connect to tdengine server\n");
 		exit(EXIT_FAILURE);
 	}
+    execute_simple_sql(taos, "drop database if exists stmt_test");
+    execute_simple_sql(taos, "create database stmt_test");
+    execute_simple_sql(taos, "use stmt_test");
+    execute_simple_sql(taos, "create table super(ts timestamp, c1 int, c2 bigint, c3 float, c4 double, c5 binary(8), c6 smallint, c7 tinyint, c8 bool, c9 nchar(8), c10 timestamp) tags (t1 int, t2 bigint, t3 float, t4 double, t5 binary(8), t6 smallint, t7 tinyint, t8 bool, t9 nchar(8))");
+    execute_simple_sql(taos, "create table t1 using super tags (1, 1, 1, 1, 'abcdefgh',1,1,1,'一二三四五六七八')");
+    execute_simple_sql(taos, "insert into t1 values (1591060628000, 1, 1, 1, 1, 'abcdefgh',1,1,1,'一二三四五六七八', now)");
+    execute_simple_sql(taos, "insert into t1 values (1591060628001, 1, 1, 1, 1, 'abcdefgh',1,1,1,'一二三四五六七八', now)");
+    
+    taos_stmt_use_result_query(taos, "c1", TSDB_DATA_TYPE_INT);
+    taos_stmt_use_result_query(taos, "c2", TSDB_DATA_TYPE_BIGINT);
+    taos_stmt_use_result_query(taos, "c3", TSDB_DATA_TYPE_FLOAT);
+    taos_stmt_use_result_query(taos, "c4", TSDB_DATA_TYPE_DOUBLE);
+    taos_stmt_use_result_query(taos, "c5", TSDB_DATA_TYPE_BINARY);
+    taos_stmt_use_result_query(taos, "c6", TSDB_DATA_TYPE_SMALLINT);
+    taos_stmt_use_result_query(taos, "c7", TSDB_DATA_TYPE_TINYINT);
+    taos_stmt_use_result_query(taos, "c8", TSDB_DATA_TYPE_BOOL);
+    taos_stmt_use_result_query(taos, "c9", TSDB_DATA_TYPE_NCHAR);
+    
     printf("finish taos_stmt_use_result test\n");
-    stmt = taos_stmt_init(taos);
-    assert(stmt != NULL);
-    TAOS_RES* result = taos_stmt_use_result(stmt);
-    int rows = 0;
-    TAOS_ROW row;
-    while ((row = taos_fetch_row(result))) {
-        rows++;
-    }
-    printf("rows: %d\n", rows);
-    taos_free_result(result);
-    // assert(taos_stmt_use_result(stmt) == NULL);
-    assert(taos_stmt_close(stmt) == 0);
 }
 
 void taos_stmt_close_test() {
@@ -373,11 +488,15 @@ void test_api_reliability() {
     taos_stmt_bind_param_batch_test();
     taos_stmt_add_batch_test();
     taos_stmt_execute_test();
-    taos_stmt_use_result_test();
     taos_stmt_close_test();
+}
+
+void test_query() {
+    taos_stmt_use_result_test();
 }
 
 int main(int argc, char *argv[]) {
     test_api_reliability();
+    test_query();
     return 0;
 }
