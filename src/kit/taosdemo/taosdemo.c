@@ -5216,7 +5216,8 @@ static int64_t generateStbRowData(
                 tmpLen = strlen(tmp);
                 tstrncpy(pstr + dataLen, tmp, min(tmpLen +1, INT_BUFF_LEN));
             }  else {
-                errorPrint( "Not support data type: %s\n", stbInfo->columns[i].dataType);
+                errorPrint( "Not support data type: %s\n",
+                        stbInfo->columns[i].dataType);
                 return -1;
             }
 
@@ -5229,8 +5230,7 @@ static int64_t generateStbRowData(
             return 0;
     }
 
-    dataLen -= 1;
-    dataLen += snprintf(pstr + dataLen, maxLen - dataLen, ")");
+    tstrncpy(pstr + dataLen - 1, ")", 2);
 
     verbosePrint("%s() LN%d, dataLen:%"PRId64"\n", __func__, __LINE__, dataLen);
     verbosePrint("%s() LN%d, recBuf:\n\t%s\n", __func__, __LINE__, recBuf);
