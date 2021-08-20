@@ -5864,7 +5864,7 @@ int32_t validateOrderbyNode(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SSqlNode* pSq
         pQueryInfo->order.orderColId = pSchema[index.columnIndex].colId;
       } else if (isTopBottomQuery(pQueryInfo)) {
         /* order of top/bottom query in interval is not valid  */
-        size_t pos = tscExprTopBottomIndex(pQueryInfo);
+        int32_t pos = tscExprTopBottomIndex(pQueryInfo);
         assert(pos > 0);
         SExprInfo* pExpr = tscExprGet(pQueryInfo, pos - 1);
         assert(pExpr->base.functionId == TSDB_FUNC_TS);
@@ -5951,7 +5951,7 @@ int32_t validateOrderbyNode(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SSqlNode* pSq
         }
       } else {
         /* order of top/bottom query in interval is not valid  */
-        size_t pos = tscExprTopBottomIndex(pQueryInfo);
+        int32_t pos = tscExprTopBottomIndex(pQueryInfo);
         assert(pos > 0);
         SExprInfo* pExpr = tscExprGet(pQueryInfo, pos - 1);
         assert(pExpr->base.functionId == TSDB_FUNC_TS);

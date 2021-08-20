@@ -2427,10 +2427,12 @@ size_t tscNumOfExprs(SQueryInfo* pQueryInfo) {
   return taosArrayGetSize(pQueryInfo->exprList);
 }
 
-size_t tscExprTopBottomIndex(SQueryInfo* pQueryInfo){
+int32_t tscExprTopBottomIndex(SQueryInfo* pQueryInfo){
   size_t numOfExprs = tscNumOfExprs(pQueryInfo);
-  for(int32_t i = 0; i < numOfExprs; ++i) {
+  for(size_t i = 0; i < numOfExprs; ++i) {
     SExprInfo* pExpr = tscExprGet(pQueryInfo, i);
+    if (pExpr == NULL)
+      continue;
     if (pExpr->base.functionId == TSDB_FUNC_TOP || pExpr->base.functionId == TSDB_FUNC_BOTTOM) {
       return i;
     }
