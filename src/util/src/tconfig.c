@@ -574,7 +574,10 @@ int taos_set_config(const char *config){
 
   pthread_mutex_lock(&setConfMutex);
 
-  if (setConfFlag) return;
+  if (setConfFlag) {
+    uError("already set config");
+    return 0;
+  }
   cJSON *root = cJSON_Parse(config);
   if (root == NULL) {
     uError("failed to set config, invalid json format: %s", config);
@@ -592,4 +595,5 @@ int taos_set_config(const char *config){
   }
   setConfFlag = true;
   pthread_mutex_unlock(&setConfMutex);
+  return 0;
 }

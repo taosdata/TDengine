@@ -262,8 +262,8 @@ TEST(testCase, result_field_test) {
   taos_options(TSDB_OPTION_CONFIGDIR, "~/first/cfg");
   taos_init();
 
-  char *config = "{\"tempDir\":\"/root/tmp/\",\"sercerPort\":\"3333\"}";
-  taos_set_config(config);
+  //char *config = "{\"tempDir:\"/root/tmp/\",\"sercerPort\":\"3333\"}";
+  //taos_set_config(config);
   validateResultFields();
   stmtInsertTest();
 }
