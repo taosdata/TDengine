@@ -192,7 +192,7 @@ void vectorAdd(void *left, int32_t len1, int32_t _left_type, void *right, int32_
                                                                                                  
   if ((len1) == (len2)) {                                                                           
     for (; i < (len2) && i >= 0; i += step, output += 1) {                                           
-      if (isNull(getVectorValueAddrFnRight(left,i), _left_type) || isNull(getVectorValueAddrFnRight(right,i), _right_type)) { 
+      if (isNull(getVectorValueAddrFnLeft(left,i), _left_type) || isNull(getVectorValueAddrFnRight(right,i), _right_type)) { 
         SET_DOUBLE_NULL(output);                                                                       
         continue;                                                                                   
       }                                                                                             
@@ -200,7 +200,7 @@ void vectorAdd(void *left, int32_t len1, int32_t _left_type, void *right, int32_
     }                                                                                               
   } else if ((len1) == 1) {                                                                         
     for (; i >= 0 && i < (len2); i += step, output += 1) {                                           
-      if (isNull(getVectorValueAddrFnRight(left,0), _left_type) || isNull(getVectorValueAddrFnRight(right,i), _right_type)) {         
+      if (isNull(getVectorValueAddrFnLeft(left,0), _left_type) || isNull(getVectorValueAddrFnRight(right,i), _right_type)) {         
         SET_DOUBLE_NULL(output);                                                                       
         continue;                                                                                   
       }                                                                                             
@@ -208,7 +208,7 @@ void vectorAdd(void *left, int32_t len1, int32_t _left_type, void *right, int32_
     }                                                                                               
   } else if ((len2) == 1) {                                                                         
     for (; i >= 0 && i < (len1); i += step, output += 1) {                                           
-      if (isNull(getVectorValueAddrFnRight(left,i), _left_type) || isNull(getVectorValueAddrFnRight(right,0), _right_type)) {         
+      if (isNull(getVectorValueAddrFnLeft(left,i), _left_type) || isNull(getVectorValueAddrFnRight(right,0), _right_type)) {         
         SET_DOUBLE_NULL(output);                                                                       
         continue;                                                                                   
       }                                                                                             
