@@ -10,7 +10,8 @@ import sys
 _datetime_epoch = datetime.utcfromtimestamp(0)
 
 def _is_not_none(obj):
-    obj != None
+    return obj != None
+
 class TaosBind(ctypes.Structure):
     _fields_ = [
         ("buffer_type", c_int),
@@ -320,6 +321,14 @@ class TaosMultiBind(ctypes.Structure):
 
     def nchar(self, values):
         # type: (list[str]) -> None
+        self.num = len(values)
+        self.buffer_type = FieldType.C_NCHAR
+        is_null = [1 if v == None else 0 for v in values]
+        self.is_null = cast((c_byte * self.num)(*is_null), c_char_p)
+        
+        if sum(is_null) == self.num:
+            self.length = (c_int32 * len(values))(0 * self.num)
+            return
         if sys.version_info < (3, 0):
             _bytes = [bytes(value) if value is not None else None for value in values]
             buffer_length = max(len(b) + 1 for b in _bytes if b is not None)
@@ -347,9 +356,6 @@ class TaosMultiBind(ctypes.Structure):
             )
         self.length = (c_int32 * len(values))(*[len(b) if b is not None else 0 for b in _bytes])
         self.buffer_length = buffer_length
-        self.num = len(values)
-        self.is_null = cast((c_byte * self.num)(*[1 if v == None else 0 for v in values]), c_char_p)
-        self.buffer_type = FieldType.C_NCHAR
 
     def tinyint_unsigned(self, values):
         self.buffer_type = FieldType.C_TINYINT_UNSIGNED
