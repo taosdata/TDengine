@@ -50,10 +50,6 @@ static bool validPassword(const char* passwd) {
   return validImpl(passwd, TSDB_KEY_LEN - 1);
 }
 
-int   taos_set_config(const char *config){
-
-}
-
 static SSqlObj *taosConnectImpl(const char *ip, const char *user, const char *pass, const char *auth, const char *db,
                          uint16_t port, void (*fp)(void *, TAOS_RES *, int), void *param, TAOS **taos) {
   if (taos_init()) {
