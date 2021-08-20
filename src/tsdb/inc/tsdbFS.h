@@ -44,8 +44,9 @@ typedef struct {
 typedef struct {
   pthread_rwlock_t lock;
 
-  SFSStatus* cstatus;    // current status
-  SHashObj*  metaCache;  // meta cache
+  SFSStatus* cstatus;         // current status
+  SHashObj*  metaCache;       // meta cache
+  SHashObj*  metaCacheComp;   // meta cache for compact
   bool       intxn;
   SFSStatus* nstatus;  // new status
 } STsdbFS;

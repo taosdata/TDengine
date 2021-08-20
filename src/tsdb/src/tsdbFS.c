@@ -233,6 +233,7 @@ STsdbFS *tsdbNewFS(STsdbCfg *pCfg) {
   }
 
   pfs->intxn = false;
+  pfs->metaCacheComp = NULL;
 
   pfs->nstatus = tsdbNewFSStatus(maxFSet);
   if (pfs->nstatus == NULL) {
