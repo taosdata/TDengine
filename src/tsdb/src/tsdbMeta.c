@@ -45,7 +45,6 @@ static int     tsdbRmTableFromMeta(STsdbRepo *pRepo, STable *pTable);
 static int     tsdbAdjustMetaTables(STsdbRepo *pRepo, int tid);
 static int     tsdbCheckTableTagVal(SKVRow *pKVRow, STSchema *pSchema);
 static int     tsdbInsertNewTableAction(STsdbRepo *pRepo, STable* pTable);
-static int     tsdbAddSchema(STable *pTable, STSchema *pSchema);
 static void    tsdbFreeTableSchema(STable *pTable);
 
 // ------------------ OUTER FUNCTIONS ------------------
@@ -736,7 +735,6 @@ int tsdbUpdateLastColSchema(STable *pTable, STSchema *pNewSchema) {
 
 void tsdbUpdateTableSchema(STsdbRepo *pRepo, STable *pTable, STSchema *pSchema) {
   ASSERT(TABLE_TYPE(pTable) != TSDB_STREAM_TABLE && TABLE_TYPE(pTable) != TSDB_SUPER_TABLE);
-  STsdbMeta *pMeta = pRepo->tsdbMeta;
 
   STable *pSTable = (TABLE_TYPE(pTable) == TSDB_CHILD_TABLE) ? pTable->pSuper : pTable;
   ASSERT(schemaVersion(pSchema) > schemaVersion(*(STSchema **)taosArrayGetLast(pSTable->schema)));
