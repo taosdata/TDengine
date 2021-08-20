@@ -50,6 +50,12 @@ typedef enum {
   SDB_OPER_LOCAL  = 1
 } ESdbOper;
 
+typedef enum {
+  SDB_ACTION_INSERT = 0,
+  SDB_ACTION_DELETE = 1,
+  SDB_ACTION_UPDATE = 2
+} ESdbAction;
+
 typedef struct SSdbRow {
   ESdbOper   type;
   int32_t    processedCount;  // for sync fwd callback
@@ -114,8 +120,9 @@ int64_t  sdbGetNumOfRows(void *pTable);
 int32_t  sdbGetId(void *pTable);
 uint64_t sdbGetVersion();
 bool     sdbCheckRowDeleted(void *pTable, void *pRow);
-void *    sdbGetObjKey(ESdbKey keyType, void *key);
+void*    sdbGetObjKey(ESdbKey keyType, const void *key);
 void     sdbFreeObj(void*, void*);
+ESdbKey  sdbGetKeyTypeByTableId(ESdbTable id);
 
 int32_t mnodeCompactWal();
 #ifdef __cplusplus

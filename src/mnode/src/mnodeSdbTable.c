@@ -21,7 +21,9 @@
 #include "mnodeSdb.h"
 #include "mnodeInt.h"
 #include "twal.h"
+#include "tglobal.h"
 #include "mnodeSdbTable.h"
+#include "mnodeWalIndex.h"
 
 struct mnodeSdbHashTable;
 typedef struct mnodeSdbHashTable mnodeSdbHashTable;
@@ -29,7 +31,6 @@ typedef struct mnodeSdbHashTable mnodeSdbHashTable;
 struct mnodeSdbCacheTable;
 typedef struct mnodeSdbCacheTable mnodeSdbCacheTable;
 
-static void *sdbTableGetKeyAndSize(mnodeSdbTable *pTable, const SSdbRow* pRow, int32_t* pSize);
 static int   calcHashPower(mnodeSdbTableOption options);
 
 // hash table functions
@@ -55,6 +56,7 @@ static void* sdbCacheIterate(mnodeSdbTable *pTable, void *p);
 static int  sdbCacheIterValue(mnodeSdbTable *pTable,void *p, void** pRet);
 static void sdbCacheCancelIterate(mnodeSdbTable *pTable, void *p);
 static void sdbCacheFreeValue(mnodeSdbTable *pTable, void *p);
+static void sdbCacheReadIndex(mnodeSdbTable *pTable, void*);
 
 static int loadCacheDataFromWal(void*, const void* key, uint8_t nkey, char** value, size_t *len, uint64_t *pExpire);
 
@@ -70,6 +72,7 @@ typedef int  (*sdb_table_iter_val_func_t)(mnodeSdbTable *pTable,void *p, void**)
 typedef void (*sdb_table_cancel_iter_func_t)(mnodeSdbTable *pTable, void *p);
 typedef void (*sdb_table_sync_wal_func_t)(mnodeSdbTable *pTable, bool, SWalHead*, SSdbRow*,SWalHeadInfo*);
 typedef void (*sdb_table_free_val_func_t)(mnodeSdbTable *pTable, void *p);
+typedef void (*sdb_read_index_func_t)(mnodeSdbTable *pTable, void*);
 
 struct mnodeSdbHashTable {
   SHashObj*    pTable;
@@ -112,6 +115,7 @@ struct mnodeSdbTable {
   sdb_table_iter_val_func_t iterValFp;
   sdb_table_cancel_iter_func_t cancelIterFp;
   sdb_table_sync_wal_func_t syncFp;
+  sdb_read_index_func_t readIndexFp;
   sdb_table_free_val_func_t freeValFp;
 };
 
@@ -152,9 +156,15 @@ void mnodeSdbTableSyncWal(mnodeSdbTable *pTable, bool restore, void *wparam, voi
   }
 }
 
+void mnodeSdbTableReadIndex(mnodeSdbTable *pTable, void* p) {
+  if (pTable->readIndexFp) {
+    pTable->readIndexFp(pTable, p);
+  }
+}
+
 void mnodeSdbTableRemove(mnodeSdbTable *pTable, const SSdbRow* pRow) {
   int32_t keySize;
-  void* key = sdbTableGetKeyAndSize(pTable, pRow, &keySize);
+  void* key = sdbTableGetKeyAndSize(pTable->options.keyType, pRow->pObj, &keySize, true);
   pTable->delFp(pTable, key, keySize);
 }
 
@@ -219,6 +229,7 @@ static mnodeSdbCacheTable* cacheInit(mnodeSdbTable* pTable, mnodeSdbTableOption 
   pTable->putFp  = sdbCachePut;
   pTable->unlockFp = sdbCacheUnlockData;
   pTable->syncFp = sdbCacheSyncWal;
+  pTable->readIndexFp = sdbCacheReadIndex;
   pTable->delFp  = sdbCacheRemove;
   pTable->clearFp = sdbCacheClear;
   pTable->iterFp = sdbCacheIterate;
@@ -372,11 +383,24 @@ SWalHead* readWal(mnodeSdbTable *pTable, int idx, int64_t offset, int32_t size) 
   return pHead;
 }
 
+static void sdbCacheReadIndex(mnodeSdbTable *pTable, void* p) {
+  mnodeSdbCacheTable* pCache = pTable->iHandle;
+  walIndex *pIndex = (walIndex*)p;
+    
+  walRecord *pWal = calloc(1, sizeof(walRecord) + pIndex->keyLen);
+
+  memcpy(&(pWal->index), pIndex, sizeof(walRecord) + pIndex->keyLen);
+
+  pthread_mutex_lock(&pCache->mutex);
+  taosHashPut(pCache->pWalTable, pIndex->key, pIndex->keyLen, &pWal, sizeof(walRecord**));
+  pthread_mutex_unlock(&pCache->mutex);
+}
+
 static void sdbCacheSyncWal(mnodeSdbTable *pTable, bool restore, SWalHead* pHead, SSdbRow* pRow, SWalHeadInfo* pHeadInfo) {
   mnodeSdbCacheTable* pCache = pTable->iHandle;
   int64_t off = pHeadInfo->offset;
   int32_t keySize;
-  void* key = sdbTableGetKeyAndSize(pTable, pRow, &keySize);
+  void* key = sdbTableGetKeyAndSize(pTable->options.keyType, pRow->pObj, &keySize, true);
   
   pthread_mutex_lock(&pCache->mutex);
 
@@ -505,7 +529,7 @@ static int  hashTableGet(mnodeSdbTable *pTable, const void *key, size_t keyLen, 
 static void hashTablePut(mnodeSdbTable *pTable, SSdbRow* pRow) {
   mnodeSdbHashTable* pHash = (mnodeSdbHashTable*)pTable->iHandle;
   int32_t keySize;
-  void* key = sdbTableGetKeyAndSize(pTable, pRow, &keySize);
+  void* key = sdbTableGetKeyAndSize(pTable->options.keyType, pRow->pObj, &keySize, true);
   pthread_mutex_lock(&pHash->mutex);
   // hash table data is pRow->pObj pointer
   taosHashPut(pHash->pTable, key, keySize, &pRow->pObj, sizeof(int64_t));
@@ -547,9 +571,8 @@ static void hashTableCancelIterate(mnodeSdbTable *pTable, void *pIter) {
   taosHashCancelIterate(pHash->pTable, pIter);
 }
 
-static void *sdbTableGetKeyAndSize(mnodeSdbTable *pTable, const SSdbRow* pRow, int32_t* pSize) {
-  ESdbKey keyType = pTable->options.keyType;
-  void *  key = sdbGetObjKey(keyType, pRow->pObj);
+void *sdbTableGetKeyAndSize(int keyType, const void* pObj, int32_t* pSize, bool isObj) {
+  void*  key = isObj ? sdbGetObjKey(keyType, pObj) : (void*)pObj;
   *pSize = sizeof(int32_t);
   if (keyType == SDB_KEY_STRING || keyType == SDB_KEY_VAR_STRING) {
     *pSize =  (int32_t)strlen((char *)key);
@@ -557,7 +580,6 @@ static void *sdbTableGetKeyAndSize(mnodeSdbTable *pTable, const SSdbRow* pRow, i
 
   return key;
 }
-
 
 static int calcHashPower(mnodeSdbTableOption options) {
   return 10;

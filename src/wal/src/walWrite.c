@@ -249,6 +249,36 @@ int32_t walRestore(void *handle, void *pVnode, FWalWrite writeFp) {
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t walRestoreAt(int64_t tfd, const char* name, int64_t offset, int32_t size, FWalWrite writeFp) {
+  assert(tfValid(tfd));
+  tfLseek(tfd, offset, SEEK_SET);
+
+  void *  buffer = tmalloc(size);
+  if (buffer == NULL) {    
+    return TAOS_SYSTEM_ERROR(errno);
+  }
+  assert(size >= sizeof(SWalHead));
+
+  SWalHead *pHead = buffer;
+
+  int32_t ret = (int32_t)tfRead(tfd, pHead, size);
+
+  if (ret < size) {
+    wError("file:%s, failed to read wal body, ret:%d len:%d", name, ret, pHead->len);
+    return -1;
+  }
+
+  if (!taosCheckChecksumWhole((uint8_t *)pHead, sizeof(SWalHead))) {
+    wError("file:%s, wal head cksum is messed up, hver:%" PRIu64 " len:%d offset:%" PRId64, name,
+            pHead->version, pHead->len, offset);
+    return -1;
+  }
+
+  (*writeFp)(NULL, pHead, TAOS_QTYPE_WAL, NULL, NULL);
+  free(buffer);
+  return 0;
+}
+
 int32_t walGetWalFile(void *handle, char *fileName, int64_t *fileId) {
   if (handle == NULL) return -1;
   SWal *pWal = handle;

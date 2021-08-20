@@ -35,15 +35,10 @@
 #include "mnodeCluster.h"
 #include "mnodeSdb.h"
 #include "mnodeSdbTable.h"
+#include "mnodeWalIndex.h"
 
 #define SDB_TABLE_LEN 12
 #define MAX_QUEUED_MSG_NUM 100000
-
-typedef enum {
-  SDB_ACTION_INSERT = 0,
-  SDB_ACTION_DELETE = 1,
-  SDB_ACTION_UPDATE = 2
-} ESdbAction;
 
 typedef enum {
   SDB_STATUS_OFFLINE = 0,
@@ -154,12 +149,12 @@ void sdbFreeObj(void* tparam, void* pObj) {
   mnodeSdbTableFreeValue(pTable->iHandle, pObj);
 }
 
-void *sdbGetObjKey(ESdbKey keyType, void *key) {
+void *sdbGetObjKey(ESdbKey keyType, const void *key) {
   if (keyType == SDB_KEY_VAR_STRING) {
     return *(char **)key;
   }
 
-  return key;
+  return (void*)key;
 }
 
 static char *sdbGetKeyStr(SSdbTable *pTable, void *key) {
@@ -185,6 +180,19 @@ static void *sdbGetTableFromId(int32_t tableId) {
   return tsSdbMgmt.tableList[tableId];
 }
 
+int32_t sdbWalIndexReader(int64_t tfd, const char* name, int32_t tableId, walIndex* pIndex) {
+  SSdbTable *pTable = sdbGetTableFromId(tableId);
+  assert(pTable != NULL);
+
+  if (pTable->tableType == SDB_TABLE_HASH_TABLE) {
+    walRestoreAt(tfd, name, pIndex->offset, pIndex->size, sdbProcessWrite);
+  } else {
+    mnodeSdbTableReadIndex(pTable->iHandle, pIndex);
+  }
+
+  return 0;
+}
+
 static int32_t sdbInitWal() {
   SWalCfg walCfg = {.vgId = 1, .walLevel = TAOS_WAL_FSYNC, .keep = TAOS_WAL_KEEP, .fsyncPeriod = 0};
   char    temp[TSDB_FILENAME_LEN] = {0};
@@ -194,6 +202,16 @@ static int32_t sdbInitWal() {
     sdbError("vgId:1, failed to open wal in %s", tsMnodeDir);
     return -1;
   }
+
+  if (tsBuildMnodeWalIndex) {
+    sdbInfo("vgId:1, build sdb wal index");
+    mnodeSdbBuildWalIndex(tsSdbMgmt.wal);
+    exit(0);
+    return 0;
+  }
+  sdbRestoreFromIndex(sdbWalIndexReader);
+  sdbInfo("vgId:1, sdb wal index load success");
+  return 0;
 
   sdbInfo("vgId:1, open sdb wal for restore");
   int32_t code = walRestore(tsSdbMgmt.wal, NULL, sdbProcessWrite);
@@ -634,6 +652,13 @@ static int32_t sdbPerformUpdateAction(SWalHead *pHead, SSdbTable *pTable, SSdbRo
   *pRow = (SSdbRow){.rowSize = pHead->len, .rowData = pHead->cont, .pTable = pTable};
   (*pTable->fpDecode)(pRow);
   return sdbUpdateHash(pTable, pRow);
+}
+
+ESdbKey  sdbGetKeyTypeByTableId(ESdbTable tableId) {
+  SSdbTable *pTable = sdbGetTableFromId(tableId);
+  assert(pTable != NULL);
+
+  return pTable->keyType;
 }
 
 static int32_t sdbProcessWrite(void *wparam, void *hparam, int32_t qtype, void *tparam, void* pHeadInfo) {

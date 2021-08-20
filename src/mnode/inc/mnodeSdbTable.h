@@ -28,13 +28,6 @@ struct SWalHead;
 struct SSdbRow;
 struct SWalHeadInfo;
 
-typedef struct walIndex {
-  int64_t offset;
-  uint16_t size;
-  uint16_t keyLen;
-  char key[];
-} walIndex;
-
 typedef struct mnodeSdbTableOption {
   int32_t           hashSessions;
   int               keyType;  
@@ -62,6 +55,8 @@ void mnodeSdbUnlockData(mnodeSdbTable *pTable, void*);
 
 void mnodeSdbTableSyncWal(mnodeSdbTable *pTable, bool, void*, void*, void*);
 
+void mnodeSdbTableReadIndex(mnodeSdbTable *pTable, void*);
+
 void mnodeSdbTableRemove(mnodeSdbTable *pTable, const struct SSdbRow* pRow);
 
 void *mnodeSdbTableIterate(mnodeSdbTable *pTable, void *p);
@@ -69,5 +64,7 @@ int  mnodeSdbTableIterValue(mnodeSdbTable *pTable,void *p, void** pRet);
 void mnodeSdbTableCancelIterate(mnodeSdbTable *pTable, void *p);
 
 void mnodeSdbTableFreeValue(mnodeSdbTable *pTable, void *p);
+
+void *sdbTableGetKeyAndSize(int keyType, const void* pObj, int32_t* pSize, bool isObj);
 
 #endif // TDENGINE_MNODE_SDB_TABLE_H

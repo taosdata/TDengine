@@ -46,6 +46,8 @@ int32_t main(int32_t argc, char *argv[]) {
       tsdbForceKeepFile = true;
     } else if (strcmp(argv[i], "--compact-mnode-wal") == 0) {
       tsCompactMnodeWal = 1;
+    } else if (strcmp(argv[i], "--build-mnode-wal-index") == 0) {
+      tsBuildMnodeWalIndex = 1;
     } else if (strcmp(argv[i], "-V") == 0) {
 #ifdef _ACCT
       char *versionStr = "enterprise";
