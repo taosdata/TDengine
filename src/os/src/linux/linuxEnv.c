@@ -44,14 +44,20 @@ char cmdline[1024];
 
 char* taosGetCmdlineByPID(int pid) {
   sprintf(cmdline, "/proc/%d/cmdline", pid);
-  FILE* f = fopen(cmdline, "r");
-  if (f) {
-    size_t size;
-    size = fread(cmdline, sizeof(char), 1024, f);
-    if (size > 0) {
-      if ('\n' == cmdline[size - 1]) cmdline[size - 1] = '\0';
-    }
-    fclose(f);
+
+  int fd = open(cmdline, O_RDONLY);
+  if (fd >= 0) {
+    int n = read(fd, cmdline, sizeof(cmdline) - 1);
+    if (n < 0) n = 0;
+
+    if (n > 0 && cmdline[n - 1] == '\n') --n;
+
+    cmdline[n] = 0;
+
+    close(fd);
+  } else {
+    cmdline[0] = 0;
   }
+
   return cmdline;
 }
