@@ -1236,7 +1236,8 @@ static int tsdbEncodeTable(void **buf, STable *pTable) {
     tlen += tdEncodeKVRow(buf, pTable->tagVal);
   } else {
     //encode 0 for compatibility and flag for new version
-    tlen += taosEncodeFixedU8(buf, (uint8_t)0);
+    tlen += taosEncodeFixedU8(buf, 0);
+    tlen += taosEncodeFixedU32(buf, 0);
 #if 0
     tlen += taosEncodeFixedU8(buf, (uint8_t)taosArrayGetSize(pTable->schema));
     for (int i = 0; i < taosArrayGetSize(pTable->schema); i++) {
@@ -1273,8 +1274,11 @@ static void *tsdbDecodeTable(void *buf, STable **pRTable) {
     buf = taosDecodeFixedU64(buf, &TABLE_SUID(pTable));
     buf = tdDecodeKVRow(buf, &(pTable->tagVal));
   } else {
-    uint8_t nSchemas;
-    buf = taosDecodeFixedU8(buf, &nSchemas);
+    uint32_t nSchemas = 0;
+    buf = taosDecodeFixedU8(buf, (uint8_t *)&nSchemas);
+    if(nSchemas == 0) {
+      buf = taosDecodeFixedU32(buf, &nSchemas);
+    }
 
     //kept for compatibility
     for (int i = 0; i < nSchemas; i++) {
