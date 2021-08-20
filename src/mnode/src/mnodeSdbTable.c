@@ -77,11 +77,9 @@ struct mnodeSdbHashTable {
 };
 
 typedef struct walRecord {
-  int16_t idx;
-  int64_t offset;
-  int32_t size;
-  void* key;
-  int32_t keyLen;
+  int8_t idx;
+
+  walIndex index;
 } walRecord;
 
 struct mnodeSdbCacheTable {
@@ -266,9 +264,10 @@ static void sdbCacheClear(mnodeSdbTable *pTable) {
   // free pWalTable
   void *pIter = taosHashIterate(pCache->pWalTable, NULL);
   while (pIter) {
-    walRecord *pWal = (walRecord*)pIter;
+    walRecord **ppRecord = (walRecord**)pIter;
     pIter = taosHashIterate(pCache->pWalTable, pIter);
-    free(pWal->key);
+    if (ppRecord)
+      free(*ppRecord);
   }
   taosHashCancelIterate(pCache->pWalTable, pIter);
 
@@ -294,13 +293,13 @@ static void* sdbCacheIterate(mnodeSdbTable *pTable, void *p) {
 static int  sdbCacheIterValue(mnodeSdbTable *pTable,void *pIter, void** pRet) {
   int nBytes;
   mnodeSdbCacheTable* pCache = pTable->iHandle;
-  walRecord* pRecord = (walRecord*)pIter;
+  walRecord** ppRecord = (walRecord**)pIter;
   *pRet = NULL;
-  if (pRecord == NULL) {
+  if (ppRecord == NULL) {
     return -1;
   }
 
-  *pRet = cacheGet(pCache->pTable, pRecord->key, pRecord->keyLen, &nBytes);
+  *pRet = cacheGet(pCache->pTable, (*ppRecord)->index.key, (*ppRecord)->index.keyLen, &nBytes);
   return *pRet != NULL ? 0 : -1;
 }
 
@@ -384,26 +383,28 @@ static void sdbCacheSyncWal(mnodeSdbTable *pTable, bool restore, SWalHead* pHead
   int16_t idx = initCacheWalInfo(pTable, pHeadInfo);
   assert(idx != -1);
 
-  walRecord* pRecord = taosHashGet(pCache->pWalTable, key, keySize);
-  if (pRecord) {
-    pRecord->offset = off;
-    pRecord->size = sizeof(SWalHead) + pHead->len;
-    pRecord->idx = idx;
+  walRecord** ppRecord = (walRecord**)taosHashGet(pCache->pWalTable, key, keySize);
+  if (ppRecord) {
+    (*ppRecord)->index.offset = off;
+    (*ppRecord)->index.size = sizeof(SWalHead) + pHead->len;
+    (*ppRecord)->idx = idx;
   } else {
-    walRecord wal = (walRecord) {
-        .offset = off,
-        .size   = sizeof(SWalHead) + pHead->len,
-        .key    = calloc(1, keySize),
-        .keyLen = keySize,
-        .idx    = idx,
-    };
-    if (wal.key == NULL) {
+    walRecord *pWal = calloc(1, sizeof(walRecord) + sizeof(SWalHead) + pHead->len);
+    if (pWal == NULL) {
       pthread_mutex_unlock(&pCache->mutex);
       return;
     }
 
-    memcpy(wal.key, key, keySize);
-    taosHashPut(pCache->pWalTable, key, keySize, &wal, sizeof(walRecord));
+    *pWal = (walRecord) {
+        .index  = (walIndex) {
+          .offset = off,
+          .size   = sizeof(SWalHead) + pHead->len,
+          .keyLen = keySize,      
+        },
+        .idx    = idx,
+    };
+    memcpy(pWal->index.key, key, keySize);
+    taosHashPut(pCache->pWalTable, key, keySize, &pWal, sizeof(walRecord**));
   }
   
   pthread_mutex_unlock(&pCache->mutex);
@@ -423,12 +424,12 @@ static int loadCacheDataFromWal(void* userData, const void* key, uint8_t nkey, c
   mnodeSdbTable* pTable = (mnodeSdbTable*)userData;
   mnodeSdbCacheTable* pCache = (mnodeSdbCacheTable*)pTable->iHandle;
   pthread_mutex_lock(&pCache->mutex);
-  walRecord* pRecord = taosHashGet(pCache->pWalTable, key, nkey);  
-  if (pRecord == NULL) {
+  walRecord** ppRecord = (walRecord**)taosHashGet(pCache->pWalTable, key, nkey);  
+  if (ppRecord == NULL) {
     return -1;
   }
   
-  SWalHead* pHead = readWal(pTable, pRecord->idx, pRecord->offset, pRecord->size);
+  SWalHead* pHead = readWal(pTable, (*ppRecord)->idx, (*ppRecord)->index.offset, (*ppRecord)->index.size);
   if (pHead == NULL) {
     return -1;
   }  
@@ -440,7 +441,7 @@ static int loadCacheDataFromWal(void* userData, const void* key, uint8_t nkey, c
   }
 
   if (pTable->options.afterLoadFp) {
-    pTable->options.afterLoadFp(pTable->options.userData, pRecord->key, pRecord->keyLen, pHead, p);
+    pTable->options.afterLoadFp(pTable->options.userData, (*ppRecord)->index.key, (*ppRecord)->index.keyLen, pHead, p);
   }
   
   *value = p;
@@ -456,9 +457,9 @@ static int delCacheData(void* userData, const void* key, uint8_t nkey) {
   mnodeSdbCacheTable* pCache = (mnodeSdbCacheTable*)pTable->iHandle;
 
   pthread_mutex_lock(&pCache->mutex);
-  walRecord* pRecord = taosHashGet(pCache->pWalTable, key, nkey);
-  if (pRecord) {
-    free(pRecord->key);
+  walRecord** ppRecord = (walRecord**)taosHashGet(pCache->pWalTable, key, nkey);
+  if (ppRecord) {
+    free(*ppRecord);
     taosHashRemove(pCache->pWalTable, key, nkey);
   }
   pthread_mutex_unlock(&pCache->mutex);

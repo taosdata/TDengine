@@ -28,6 +28,13 @@ struct SWalHead;
 struct SSdbRow;
 struct SWalHeadInfo;
 
+typedef struct walIndex {
+  int64_t offset;
+  uint16_t size;
+  uint16_t keyLen;
+  char key[];
+} walIndex;
+
 typedef struct mnodeSdbTableOption {
   int32_t           hashSessions;
   int               keyType;  
