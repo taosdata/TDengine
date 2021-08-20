@@ -258,7 +258,7 @@ SGlobalCfg *taosGetConfigOption(const char *option) {
   return NULL;
 }
 
-static void taosReadConfigOption(const char *option, char *value, char *value2, char *value3) {
+void taosReadConfigOption(const char *option, char *value, char *value2, char *value3) {
   for (int i = 0; i < tsGlobalConfigNum; ++i) {
     SGlobalCfg *cfg = tsGlobalConfig + i;
     if (!(cfg->cfgType & TSDB_CFG_CTYPE_B_CONFIG)) continue;
@@ -560,40 +560,4 @@ void taosDumpGlobalCfg() {
 
     taosDumpCfg(cfg);
   }
-}
-
-
-#include "cJSON.h"
-static pthread_mutex_t setConfMutex = PTHREAD_MUTEX_INITIALIZER;
-static bool setConfFlag = false;
-int taos_set_config(const char *config){
-  if(taos_init() == false){
-    uError("failed to call taos_init");
-    return -1;
-  }
-
-  pthread_mutex_lock(&setConfMutex);
-
-  if (setConfFlag) {
-    uError("already set config");
-    return 0;
-  }
-  cJSON *root = cJSON_Parse(config);
-  if (root == NULL) {
-    uError("failed to set config, invalid json format: %s", config);
-    return -1;
-  }
-
-  int size = cJSON_GetArraySize(root);
-  for(int i = 0; i < size; i++){
-    cJSON *item = cJSON_GetArrayItem(root, i);
-    if (!item) {
-      uError("failed to read index:%d", i);
-      continue;
-    }
-    taosReadConfigOption(item->string, item->valuestring, NULL, NULL);
-  }
-  setConfFlag = true;
-  pthread_mutex_unlock(&setConfMutex);
-  return 0;
 }

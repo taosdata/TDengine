@@ -120,6 +120,41 @@ int32_t tscAcquireRpc(const char *key, const char *user, const char *secretEncry
   return 0;
 }
 
+#include "cJSON.h"
+static pthread_mutex_t setConfMutex = PTHREAD_MUTEX_INITIALIZER;
+static bool setConfFlag = false;
+int taos_set_config(const char *config){
+  if(taos_init() == false){
+    tscError("failed to call taos_init");
+    return -1;
+  }
+
+  pthread_mutex_lock(&setConfMutex);
+
+  if (setConfFlag) {
+    tscError("already set config");
+    return 0;
+  }
+  cJSON *root = cJSON_Parse(config);
+  if (root == NULL) {
+    tscError("failed to set config, invalid json format: %s", config);
+    return -1;
+  }
+
+  int size = cJSON_GetArraySize(root);
+  for(int i = 0; i < size; i++){
+    cJSON *item = cJSON_GetArrayItem(root, i);
+    if (!item) {
+      tscError("failed to read index:%d", i);
+      continue;
+    }
+    taosReadConfigOption(item->string, item->valuestring, NULL, NULL);
+  }
+  setConfFlag = true;
+  pthread_mutex_unlock(&setConfMutex);
+  return 0;
+}
+
 void taos_init_imp(void) {
   char temp[128] = {0};
   
