@@ -372,14 +372,18 @@ static int32_t applySchemaAction(TAOS* taos, SSchemaAction* action, SSmlLinesInf
       TAOS_RES* res = taos_query(taos, result); //TODO async doAsyncQuery
       code = taos_errno(res);
       if (code != TSDB_CODE_SUCCESS) {
-        tscError("SML:0x%"PRIx64" apply schema action. error : %s", info->id, taos_errstr(res));
+        tscError("SML:0x%"PRIx64" apply schema action. error: %s", info->id, taos_errstr(res));
       }
+      taos_free_result(res);
+
       if (code == TSDB_CODE_MND_FIELD_ALREAY_EXIST || code == TSDB_CODE_TSC_DUP_COL_NAMES) {
         TAOS_RES* res2 = taos_query(taos, "RESET QUERY CACHE");
         code = taos_errno(res2);
+        if (code != TSDB_CODE_SUCCESS) {
+          tscError("SML:0x%" PRIx64 " apply schema action. reset query cache. error: %s", info->id, taos_errstr(res2));
+        }
         taos_free_result(res2);
       }
-      taos_free_result(res);
       break;
     }
     case SCHEMA_ACTION_ADD_TAG: {
@@ -391,12 +395,16 @@ static int32_t applySchemaAction(TAOS* taos, SSchemaAction* action, SSmlLinesInf
       if (code != TSDB_CODE_SUCCESS) {
         tscError("SML:0x%"PRIx64" apply schema action. error : %s", info->id, taos_errstr(res));
       }
+      taos_free_result(res);
+
       if (code == TSDB_CODE_MND_TAG_ALREAY_EXIST || code == TSDB_CODE_TSC_DUP_COL_NAMES) {
         TAOS_RES* res2 = taos_query(taos, "RESET QUERY CACHE");
         code = taos_errno(res2);
+        if (code != TSDB_CODE_SUCCESS) {
+          tscError("SML:0x%" PRIx64 " apply schema action. reset query cache. error: %s", info->id, taos_errstr(res2));
+        }
         taos_free_result(res2);
       }
-      taos_free_result(res);
       break;
     }
     case SCHEMA_ACTION_CHANGE_COLUMN_SIZE: {
@@ -408,12 +416,16 @@ static int32_t applySchemaAction(TAOS* taos, SSchemaAction* action, SSmlLinesInf
       if (code != TSDB_CODE_SUCCESS) {
         tscError("SML:0x%"PRIx64" apply schema action. error : %s", info->id, taos_errstr(res));
       }
+      taos_free_result(res);
+
       if (code == TSDB_CODE_MND_INVALID_COLUMN_LENGTH) {
         TAOS_RES* res2 = taos_query(taos, "RESET QUERY CACHE");
         code = taos_errno(res2);
+        if (code != TSDB_CODE_SUCCESS) {
+          tscError("SML:0x%" PRIx64 " apply schema action. reset query cache. error: %s", info->id, taos_errstr(res2));
+        }
         taos_free_result(res2);
       }
-      taos_free_result(res);
       break;
     }
     case SCHEMA_ACTION_CHANGE_TAG_SIZE: {
@@ -425,12 +437,16 @@ static int32_t applySchemaAction(TAOS* taos, SSchemaAction* action, SSmlLinesInf
       if (code != TSDB_CODE_SUCCESS) {
         tscError("SML:0x%"PRIx64" apply schema action. error : %s", info->id, taos_errstr(res));
       }
+      taos_free_result(res);
+
       if (code == TSDB_CODE_MND_INVALID_TAG_LENGTH) {
         TAOS_RES* res2 = taos_query(taos, "RESET QUERY CACHE");
         code = taos_errno(res2);
+        if (code != TSDB_CODE_SUCCESS) {
+          tscError("SML:0x%" PRIx64 " apply schema action. reset query cache. error: %s", info->id, taos_errstr(res2));
+        }
         taos_free_result(res2);
       }
-      taos_free_result(res);
       break;
     }
     case SCHEMA_ACTION_CREATE_STABLE: {
@@ -462,12 +478,16 @@ static int32_t applySchemaAction(TAOS* taos, SSchemaAction* action, SSmlLinesInf
       if (code != TSDB_CODE_SUCCESS) {
         tscError("SML:0x%"PRIx64" apply schema action. error : %s", info->id, taos_errstr(res));
       }
+      taos_free_result(res);
+
       if (code == TSDB_CODE_MND_TABLE_ALREADY_EXIST) {
         TAOS_RES* res2 = taos_query(taos, "RESET QUERY CACHE");
         code = taos_errno(res2);
+        if (code != TSDB_CODE_SUCCESS) {
+          tscError("SML:0x%" PRIx64 " apply schema action. reset query cache. error: %s", info->id, taos_errstr(res2));
+        }
         taos_free_result(res2);
       }
-      taos_free_result(res);
       break;
     }
 
@@ -490,69 +510,11 @@ static int32_t destroySmlSTableSchema(SSmlSTableSchema* schema) {
   return 0;
 }
 
-int32_t loadTableMeta(TAOS* taos, char* tableName, SSmlSTableSchema* schema, SSmlLinesInfo* info) {
-  int32_t code = 0;
-
-  STscObj *pObj = (STscObj *)taos;
-  if (pObj == NULL || pObj->signature != pObj) {
-    terrno = TSDB_CODE_TSC_DISCONNECTED;
-    return TSDB_CODE_TSC_DISCONNECTED;
-  }
-
-  tscDebug("SML:0x%"PRIx64" load table schema. super table name: %s", info->id, tableName);
-
-  char tableNameLowerCase[TSDB_TABLE_NAME_LEN];
-  strtolower(tableNameLowerCase, tableName);
-
-  char sql[256];
-  snprintf(sql, 256, "describe %s", tableNameLowerCase);
-  TAOS_RES* res = taos_query(taos, sql);
-  code = taos_errno(res);
-  if (code != 0) {
-    tscError("SML:0x%"PRIx64" describe table failure. %s", info->id, taos_errstr(res));
-    taos_free_result(res);
-    return code;
-  }
-  taos_free_result(res);
-
-  SSqlObj* pSql = calloc(1, sizeof(SSqlObj));
-  if (pSql == NULL){
-      tscError("failed to allocate memory, reason:%s", strerror(errno));
-      code = TSDB_CODE_TSC_OUT_OF_MEMORY;
-      return code;
-  }
-  pSql->pTscObj = taos;
-  pSql->signature = pSql;
-  pSql->fp = NULL;
-
-  SStrToken tableToken = {.z=tableNameLowerCase, .n=(uint32_t)strlen(tableNameLowerCase), .type=TK_ID};
-  tGetToken(tableNameLowerCase, &tableToken.type);
-  // Check if the table name available or not
-  if (tscValidateName(&tableToken) != TSDB_CODE_SUCCESS) {
-    code = TSDB_CODE_TSC_INVALID_TABLE_ID_LENGTH;
-    sprintf(pSql->cmd.payload, "table name is invalid");
-    tscFreeSqlObj(pSql);
-    return code;
-  }
-
-  SName sname = {0};
-  if ((code = tscSetTableFullName(&sname, &tableToken, pSql)) != TSDB_CODE_SUCCESS) {
-    tscFreeSqlObj(pSql);
-    return code;
-  }
-  char  fullTableName[TSDB_TABLE_FNAME_LEN] = {0};
-  memset(fullTableName, 0, tListLen(fullTableName));
-  tNameExtractFullName(&sname, fullTableName);
-  tscFreeSqlObj(pSql);
-
+static int32_t fillDbSchema(STableMeta* tableMeta, char* tableName, SSmlSTableSchema* schema, SSmlLinesInfo* info) {
   schema->tags = taosArrayInit(8, sizeof(SSchema));
   schema->fields = taosArrayInit(64, sizeof(SSchema));
   schema->tagHash = taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, false);
   schema->fieldHash = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, false);
-
-  size_t size = 0; 
-  STableMeta* tableMeta = NULL; 
-  taosHashGetCloneExt(tscTableMetaMap, fullTableName, strlen(fullTableName), NULL, (void **)&tableMeta, &size);
 
   tstrncpy(schema->sTableName, tableName, strlen(tableName)+1);
   schema->precision = tableMeta->tableInfo.precision;
@@ -576,9 +538,92 @@ int32_t loadTableMeta(TAOS* taos, char* tableName, SSmlSTableSchema* schema, SSm
     size_t tagIndex = taosArrayGetSize(schema->tags) - 1;
     taosHashPut(schema->tagHash, field.name, strlen(field.name), &tagIndex, sizeof(tagIndex));
   }
-  tscDebug("SML:0x%"PRIx64 " load table meta succeed. table name: %s, columns number: %d, tag number: %d, precision: %d",
+  tscDebug("SML:0x%"PRIx64 " load table schema succeed. table name: %s, columns number: %d, tag number: %d, precision: %d",
            info->id, tableName, tableMeta->tableInfo.numOfColumns, tableMeta->tableInfo.numOfTags, schema->precision);
-  free(tableMeta); tableMeta = NULL;
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t retrieveTableMeta(TAOS* taos, char* tableName, STableMeta** pTableMeta, SSmlLinesInfo* info) {
+  int32_t code = 0;
+  int32_t retries = 0;
+  STableMeta* tableMeta = NULL;
+  while (retries++ < TSDB_MAX_REPLICA && tableMeta == NULL) {
+    STscObj* pObj = (STscObj*)taos;
+    if (pObj == NULL || pObj->signature != pObj) {
+      terrno = TSDB_CODE_TSC_DISCONNECTED;
+      return TSDB_CODE_TSC_DISCONNECTED;
+    }
+
+    tscDebug("SML:0x%" PRIx64 " retrieve table meta. super table name: %s", info->id, tableName);
+
+    char tableNameLowerCase[TSDB_TABLE_NAME_LEN];
+    strtolower(tableNameLowerCase, tableName);
+
+    char sql[256];
+    snprintf(sql, 256, "describe %s", tableNameLowerCase);
+    TAOS_RES* res = taos_query(taos, sql);
+    code = taos_errno(res);
+    if (code != 0) {
+      tscError("SML:0x%" PRIx64 " describe table failure. %s", info->id, taos_errstr(res));
+      taos_free_result(res);
+      return code;
+    }
+    taos_free_result(res);
+
+    SSqlObj* pSql = calloc(1, sizeof(SSqlObj));
+    if (pSql == NULL) {
+      tscError("SML:0x%" PRIx64 " failed to allocate memory, reason:%s", info->id, strerror(errno));
+      code = TSDB_CODE_TSC_OUT_OF_MEMORY;
+      return code;
+    }
+    pSql->pTscObj = taos;
+    pSql->signature = pSql;
+    pSql->fp = NULL;
+
+    SStrToken tableToken = {.z = tableNameLowerCase, .n = (uint32_t)strlen(tableNameLowerCase), .type = TK_ID};
+    tGetToken(tableNameLowerCase, &tableToken.type);
+    // Check if the table name available or not
+    if (tscValidateName(&tableToken) != TSDB_CODE_SUCCESS) {
+      code = TSDB_CODE_TSC_INVALID_TABLE_ID_LENGTH;
+      sprintf(pSql->cmd.payload, "table name is invalid");
+      tscFreeSqlObj(pSql);
+      return code;
+    }
+
+    SName sname = {0};
+    if ((code = tscSetTableFullName(&sname, &tableToken, pSql)) != TSDB_CODE_SUCCESS) {
+      tscFreeSqlObj(pSql);
+      return code;
+    }
+    char fullTableName[TSDB_TABLE_FNAME_LEN] = {0};
+    memset(fullTableName, 0, tListLen(fullTableName));
+    tNameExtractFullName(&sname, fullTableName);
+    tscFreeSqlObj(pSql);
+
+    size_t size = 0;
+    taosHashGetCloneExt(tscTableMetaMap, fullTableName, strlen(fullTableName), NULL, (void**)&tableMeta, &size);
+  }
+
+  if (tableMeta != NULL) {
+    *pTableMeta = tableMeta;
+    return TSDB_CODE_SUCCESS;
+  } else {
+    tscError("SML:0x%" PRIx64 " failed to retrieve table meta. super table name: %s", info->id, tableName);
+    return TSDB_CODE_TSC_NO_META_CACHED;
+  }
+}
+
+static int32_t loadTableSchemaFromDB(TAOS* taos, char* tableName, SSmlSTableSchema* schema, SSmlLinesInfo* info) {
+  int32_t code = 0;
+  STableMeta* tableMeta = NULL;
+  code = retrieveTableMeta(taos, tableName, &tableMeta, info);
+  if (code == TSDB_CODE_SUCCESS) {
+    assert(tableMeta != NULL);
+    fillDbSchema(tableMeta, tableName, schema, info);
+    free(tableMeta);
+    tableMeta = NULL;
+  }
+
   return code;
 }
 
@@ -590,7 +635,7 @@ static int32_t modifyDBSchemas(TAOS* taos, SArray* stableSchemas, SSmlLinesInfo*
     SSmlSTableSchema  dbSchema;
     memset(&dbSchema, 0, sizeof(SSmlSTableSchema));
 
-    code = loadTableMeta(taos, pointSchema->sTableName, &dbSchema, info);
+    code = loadTableSchemaFromDB(taos, pointSchema->sTableName, &dbSchema, info);
     if (code == TSDB_CODE_MND_INVALID_TABLE_NAME) {
       SSchemaAction schemaAction = {0};
       schemaAction.action = SCHEMA_ACTION_CREATE_STABLE;
@@ -599,7 +644,7 @@ static int32_t modifyDBSchemas(TAOS* taos, SArray* stableSchemas, SSmlLinesInfo*
       schemaAction.createSTable.tags = pointSchema->tags;
       schemaAction.createSTable.fields = pointSchema->fields;
       applySchemaAction(taos, &schemaAction, info);
-      code = loadTableMeta(taos, pointSchema->sTableName, &dbSchema, info);
+      code = loadTableSchemaFromDB(taos, pointSchema->sTableName, &dbSchema, info);
       if (code != 0) {
         tscError("SML:0x%"PRIx64" reconcile point schema failed. can not create %s", info->id, pointSchema->sTableName);
         return code;
