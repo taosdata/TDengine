@@ -59,270 +59,336 @@ void calc_i32_i32_add(void *left, void *right, int32_t numLeft, int32_t numRight
   }
 }
 
-double getVectorDoubleValue(void *src, int32_t srcType, int32_t index) {
-  switch (srcType) {
-    case TSDB_DATA_TYPE_TINYINT: {
-      return (double)(*((int8_t*)src + index));
+typedef double (*_arithmetic_getVectorDoubleValue_fn_t)(void *src, int32_t index);
+
+double getVectorDoubleValue_TINYINT(void *src, int32_t index) {
+  return (double)*((int8_t *)src + index);
+}
+double getVectorDoubleValue_UTINYINT(void *src, int32_t index) {
+  return (double)*((uint8_t *)src + index);
+}
+double getVectorDoubleValue_SMALLINT(void *src, int32_t index) {
+  return (double)*((int16_t *)src + index);
+}
+double getVectorDoubleValue_USMALLINT(void *src, int32_t index) {
+  return (double)*((uint16_t *)src + index);
+}
+double getVectorDoubleValue_INT(void *src, int32_t index) {
+  return (double)*((int32_t *)src + index);
+}
+double getVectorDoubleValue_UINT(void *src, int32_t index) {
+  return (double)*((uint32_t *)src + index);
+}
+double getVectorDoubleValue_BIGINT(void *src, int32_t index) {
+  return (double)*((int64_t *)src + index);
+}
+double getVectorDoubleValue_UBIGINT(void *src, int32_t index) {
+  return (double)*((uint64_t *)src + index);
+}
+double getVectorDoubleValue_FLOAT(void *src, int32_t index) {
+  return (double)*((float *)src + index);
+}
+double getVectorDoubleValue_DOUBLE(void *src, int32_t index) {
+  return (double)*((double *)src + index);
+}
+_arithmetic_getVectorDoubleValue_fn_t getVectorDoubleValueFn(int32_t srcType) {
+    _arithmetic_getVectorDoubleValue_fn_t p = NULL;
+    if(srcType==TSDB_DATA_TYPE_TINYINT) {
+        p = getVectorDoubleValue_TINYINT;
+    }else if(srcType==TSDB_DATA_TYPE_UTINYINT) {
+        p = getVectorDoubleValue_UTINYINT;
+    }else if(srcType==TSDB_DATA_TYPE_SMALLINT) {
+        p = getVectorDoubleValue_SMALLINT;
+    }else if(srcType==TSDB_DATA_TYPE_USMALLINT) {
+        p = getVectorDoubleValue_USMALLINT;
+    }else if(srcType==TSDB_DATA_TYPE_INT) {
+        p = getVectorDoubleValue_INT;
+    }else if(srcType==TSDB_DATA_TYPE_UINT) {
+        p = getVectorDoubleValue_UINT;
+    }else if(srcType==TSDB_DATA_TYPE_BIGINT) {
+        p = getVectorDoubleValue_BIGINT;
+    }else if(srcType==TSDB_DATA_TYPE_UBIGINT) {
+        p = getVectorDoubleValue_UBIGINT;
+    }else if(srcType==TSDB_DATA_TYPE_FLOAT) {
+        p = getVectorDoubleValue_FLOAT;
+    }else if(srcType==TSDB_DATA_TYPE_DOUBLE) {
+        p = getVectorDoubleValue_DOUBLE;
+    }else {
+        assert(0);
     }
-    case TSDB_DATA_TYPE_UTINYINT: {
-      return (double)(*((uint8_t*)src + index));
-    }
-    case TSDB_DATA_TYPE_SMALLINT: {
-      return (double)(*((int16_t*)src + index));
-    }
-    case TSDB_DATA_TYPE_USMALLINT: {
-      return (double)(*((uint16_t*)src + index));
-    }
-    case TSDB_DATA_TYPE_INT: {
-      return (double)(*((int32_t*)src + index));
-    }
-    case TSDB_DATA_TYPE_UINT: {
-      return (double)(*((uint32_t*)src + index));
-    }
-    case TSDB_DATA_TYPE_BIGINT: {
-      return (double)(*((int64_t*)src + index));
-    }
-    case TSDB_DATA_TYPE_UBIGINT: {
-      return (double)(*((uint64_t*)src + index));
-    }
-    case TSDB_DATA_TYPE_FLOAT: {
-      return (double)(*((float*)src + index));
-    }
-    case TSDB_DATA_TYPE_DOUBLE: {
-      return (double)(*((double*)src + index));
-    }
-    default:
-      assert(0);
-  }
-  return 0;
+    return p;
 }
 
-void *getVectorValueAddr(void *src, int32_t srcType, int32_t index) {
-  switch (srcType) {
-    case TSDB_DATA_TYPE_TINYINT: {
-      return (void*)((int8_t*)src + index);
+
+typedef void* (*_arithmetic_getVectorValueAddr_fn_t)(void *src, int32_t index);
+
+void* getVectorValueAddr_TINYINT(void *src, int32_t index) {
+  return (void*)((int8_t *)src + index);
+}
+void* getVectorValueAddr_UTINYINT(void *src, int32_t index) {
+  return (void*)((uint8_t *)src + index);
+}
+void* getVectorValueAddr_SMALLINT(void *src, int32_t index) {
+  return (void*)((int16_t *)src + index);
+}
+void* getVectorValueAddr_USMALLINT(void *src, int32_t index) {
+  return (void*)((uint16_t *)src + index);
+}
+void* getVectorValueAddr_INT(void *src, int32_t index) {
+  return (void*)((int32_t *)src + index);
+}
+void* getVectorValueAddr_UINT(void *src, int32_t index) {
+  return (void*)((uint32_t *)src + index);
+}
+void* getVectorValueAddr_BIGINT(void *src, int32_t index) {
+  return (void*)((int64_t *)src + index);
+}
+void* getVectorValueAddr_UBIGINT(void *src, int32_t index) {
+  return (void*)((uint64_t *)src + index);
+}
+void* getVectorValueAddr_FLOAT(void *src, int32_t index) {
+  return (void*)((float *)src + index);
+}
+void* getVectorValueAddr_DOUBLE(void *src, int32_t index) {
+  return (void*)((double *)src + index);
+}
+
+_arithmetic_getVectorValueAddr_fn_t getVectorValueAddrFn(int32_t srcType) {
+    _arithmetic_getVectorValueAddr_fn_t p = NULL;
+    if(srcType==TSDB_DATA_TYPE_TINYINT) {
+        p = getVectorValueAddr_TINYINT;
+    }else if(srcType==TSDB_DATA_TYPE_UTINYINT) {
+        p = getVectorValueAddr_UTINYINT;
+    }else if(srcType==TSDB_DATA_TYPE_SMALLINT) {
+        p = getVectorValueAddr_SMALLINT;
+    }else if(srcType==TSDB_DATA_TYPE_USMALLINT) {
+        p = getVectorValueAddr_USMALLINT;
+    }else if(srcType==TSDB_DATA_TYPE_INT) {
+        p = getVectorValueAddr_INT;
+    }else if(srcType==TSDB_DATA_TYPE_UINT) {
+        p = getVectorValueAddr_UINT;
+    }else if(srcType==TSDB_DATA_TYPE_BIGINT) {
+        p = getVectorValueAddr_BIGINT;
+    }else if(srcType==TSDB_DATA_TYPE_UBIGINT) {
+        p = getVectorValueAddr_UBIGINT;
+    }else if(srcType==TSDB_DATA_TYPE_FLOAT) {
+        p = getVectorValueAddr_FLOAT;
+    }else if(srcType==TSDB_DATA_TYPE_DOUBLE) {
+        p = getVectorValueAddr_DOUBLE;
+    }else {
+        assert(0);
     }
-    case TSDB_DATA_TYPE_UTINYINT: {
-      return (void*)((uint8_t*)src + index);
-    }
-    case TSDB_DATA_TYPE_SMALLINT: {
-      return (void*)((int16_t*)src + index);
-    }
-    case TSDB_DATA_TYPE_USMALLINT: {
-      return (void*)((uint16_t*)src + index);
-    }
-    case TSDB_DATA_TYPE_INT: {
-      return (void*)((int32_t*)src + index);
-    }
-    case TSDB_DATA_TYPE_UINT: {
-      return (void*)((uint32_t*)src + index);
-    }
-    case TSDB_DATA_TYPE_BIGINT: {
-      return (void*)((int64_t*)src + index);
-    }
-    case TSDB_DATA_TYPE_UBIGINT: {
-      return (void*)((uint64_t*)src + index);
-    }
-    case TSDB_DATA_TYPE_FLOAT: {
-      return (void*)((float*)src + index);
-    }
-    case TSDB_DATA_TYPE_DOUBLE: {
-      return (void*)((double*)src + index);
-    }
-    default:
-      assert(0);
-  }
-  return src;
+    return p;
 }
 
 void vectorAdd(void *left, int32_t len1, int32_t _left_type, void *right, int32_t len2, int32_t _right_type, void *out, int32_t _ord) {
   int32_t i = ((_ord) == TSDB_ORDER_ASC) ? 0 : MAX(len1, len2) - 1;                                 
   int32_t step = ((_ord) == TSDB_ORDER_ASC) ? 1 : -1;                                               
-  double *output=out;
+  double *output=(double*)out;
+  _arithmetic_getVectorValueAddr_fn_t getVectorValueAddrFnLeft = getVectorValueAddrFn(_left_type);
+  _arithmetic_getVectorValueAddr_fn_t getVectorValueAddrFnRight = getVectorValueAddrFn(_right_type);
+  _arithmetic_getVectorDoubleValue_fn_t getVectorDoubleValueFnLeft = getVectorDoubleValueFn(_left_type);
+  _arithmetic_getVectorDoubleValue_fn_t getVectorDoubleValueFnRight = getVectorDoubleValueFn(_right_type);
                                                                                                  
   if ((len1) == (len2)) {                                                                           
     for (; i < (len2) && i >= 0; i += step, output += 1) {                                           
-      if (isNull(getVectorValueAddr(left,_left_type,i), _left_type) || isNull(getVectorValueAddr(right,_right_type,i), _right_type)) { 
+      if (isNull(getVectorValueAddrFnRight(left,i), _left_type) || isNull(getVectorValueAddrFnRight(right,i), _right_type)) { 
         SET_DOUBLE_NULL(output);                                                                       
         continue;                                                                                   
       }                                                                                             
-      SET_DOUBLE_VAL(output,getVectorDoubleValue(left,_left_type,i) + getVectorDoubleValue(right,_right_type,i));                                                       
+      SET_DOUBLE_VAL(output,getVectorDoubleValueFnLeft(left,i) + getVectorDoubleValueFnRight(right,i));                                                       
     }                                                                                               
   } else if ((len1) == 1) {                                                                         
     for (; i >= 0 && i < (len2); i += step, output += 1) {                                           
-      if (isNull(getVectorValueAddr(left,_left_type,0), _left_type) || isNull(getVectorValueAddr(right,_right_type,i), _right_type)) {         
+      if (isNull(getVectorValueAddrFnRight(left,0), _left_type) || isNull(getVectorValueAddrFnRight(right,i), _right_type)) {         
         SET_DOUBLE_NULL(output);                                                                       
         continue;                                                                                   
       }                                                                                             
-      SET_DOUBLE_VAL(output,getVectorDoubleValue(left,_left_type,0) + getVectorDoubleValue(right,_right_type,i));                                                       
+      SET_DOUBLE_VAL(output,getVectorDoubleValueFnLeft(left,0) + getVectorDoubleValueFnRight(right,i));                                                       
     }                                                                                               
   } else if ((len2) == 1) {                                                                         
     for (; i >= 0 && i < (len1); i += step, output += 1) {                                           
-      if (isNull(getVectorValueAddr(left,_left_type,i), _left_type) || isNull(getVectorValueAddr(right,_right_type,0), _right_type)) {         
+      if (isNull(getVectorValueAddrFnRight(left,i), _left_type) || isNull(getVectorValueAddrFnRight(right,0), _right_type)) {         
         SET_DOUBLE_NULL(output);                                                                       
         continue;                                                                                   
       }                                                                                             
-      SET_DOUBLE_VAL(output,getVectorDoubleValue(left,_left_type,i) + getVectorDoubleValue(right,_right_type,0));                                                        
+      SET_DOUBLE_VAL(output,getVectorDoubleValueFnLeft(left,i) + getVectorDoubleValueFnRight(right,0));                                                        
     }                                                                                               
   }                                                                                                 
 }
 void vectorSub(void *left, int32_t len1, int32_t _left_type, void *right, int32_t len2, int32_t _right_type, void *out, int32_t _ord) {
   int32_t i = ((_ord) == TSDB_ORDER_ASC) ? 0 : MAX(len1, len2) - 1;                                 
   int32_t step = ((_ord) == TSDB_ORDER_ASC) ? 1 : -1;                                               
-  double *output=out;
+  double *output=(double*)out;
+  _arithmetic_getVectorValueAddr_fn_t getVectorValueAddrFnLeft = getVectorValueAddrFn(_left_type);
+  _arithmetic_getVectorValueAddr_fn_t getVectorValueAddrFnRight = getVectorValueAddrFn(_right_type);
+  _arithmetic_getVectorDoubleValue_fn_t getVectorDoubleValueFnLeft = getVectorDoubleValueFn(_left_type);
+  _arithmetic_getVectorDoubleValue_fn_t getVectorDoubleValueFnRight = getVectorDoubleValueFn(_right_type);
                                                                                                   
   if ((len1) == (len2)) {                                                                           
     for (; i < (len2) && i >= 0; i += step, output += 1) {                                           
-      if (isNull(getVectorValueAddr(left,_left_type,i), _left_type) || isNull(getVectorValueAddr(right,_right_type,i), _right_type)) { 
+      if (isNull(getVectorValueAddrFnLeft(left,i), _left_type) || isNull(getVectorValueAddrFnRight(right,i), _right_type)) { 
         SET_DOUBLE_NULL(output);                                                                       
         continue;                                                                                   
       }                                                                                             
-      SET_DOUBLE_VAL(output,getVectorDoubleValue(left,_left_type,i) - getVectorDoubleValue(right,_right_type,i));                                                       
+      SET_DOUBLE_VAL(output,getVectorDoubleValueFnLeft(left,i) - getVectorDoubleValueFnRight(right,i));                                                       
     }                                                                                               
   } else if ((len1) == 1) {                                                                         
     for (; i >= 0 && i < (len2); i += step, output += 1) {                                           
-      if (isNull(getVectorValueAddr(left,_left_type,0), _left_type) || isNull(getVectorValueAddr(right,_right_type,i), _right_type)) {         
+      if (isNull(getVectorValueAddrFnLeft(left,0), _left_type) || isNull(getVectorValueAddrFnRight(right,i), _right_type)) {         
         SET_DOUBLE_NULL(output);                                                                       
         continue;                                                                                   
       }                                                                                             
-      SET_DOUBLE_VAL(output,getVectorDoubleValue(left,_left_type,0) - getVectorDoubleValue(right,_right_type,i));                                                       
+      SET_DOUBLE_VAL(output,getVectorDoubleValueFnLeft(left,0) - getVectorDoubleValueFnRight(right,i));                                                       
     }                                                                                               
   } else if ((len2) == 1) {                                                                         
     for (; i >= 0 && i < (len1); i += step, output += 1) {                                           
-      if (isNull(getVectorValueAddr(left,_left_type,i), _left_type) || isNull(getVectorValueAddr(right,_right_type,0), _right_type)) {         
+      if (isNull(getVectorValueAddrFnLeft(left,i), _left_type) || isNull(getVectorValueAddrFnRight(right,0), _right_type)) {         
         SET_DOUBLE_NULL(output);                                                                       
         continue;                                                                                   
       }                                                                                             
-      SET_DOUBLE_VAL(output,getVectorDoubleValue(left,_left_type,i) - getVectorDoubleValue(right,_right_type,0));                                                        
+      SET_DOUBLE_VAL(output,getVectorDoubleValueFnLeft(left,i) - getVectorDoubleValueFnRight(right,0));                                                        
     }                                                                                               
   }                                                                                                 
 }
 void vectorMultiply(void *left, int32_t len1, int32_t _left_type, void *right, int32_t len2, int32_t _right_type, void *out, int32_t _ord) {
   int32_t i = ((_ord) == TSDB_ORDER_ASC) ? 0 : MAX(len1, len2) - 1;                                 
   int32_t step = ((_ord) == TSDB_ORDER_ASC) ? 1 : -1;                                               
-  double *output=out;
+  double *output=(double*)out;
+  _arithmetic_getVectorValueAddr_fn_t getVectorValueAddrFnLeft = getVectorValueAddrFn(_left_type);
+  _arithmetic_getVectorValueAddr_fn_t getVectorValueAddrFnRight = getVectorValueAddrFn(_right_type);
+  _arithmetic_getVectorDoubleValue_fn_t getVectorDoubleValueFnLeft = getVectorDoubleValueFn(_left_type);
+  _arithmetic_getVectorDoubleValue_fn_t getVectorDoubleValueFnRight = getVectorDoubleValueFn(_right_type);
                                                                                                   
   if ((len1) == (len2)) {                                                                           
     for (; i < (len2) && i >= 0; i += step, output += 1) {                                           
-      if (isNull(getVectorValueAddr(left,_left_type,i), _left_type) || isNull(getVectorValueAddr(right,_right_type,i), _right_type)) { 
+      if (isNull(getVectorValueAddrFnLeft(left,i), _left_type) || isNull(getVectorValueAddrFnRight(right,i), _right_type)) { 
         SET_DOUBLE_NULL(output);                                                                       
         continue;                                                                                   
       }                                                                                             
-      SET_DOUBLE_VAL(output,getVectorDoubleValue(left,_left_type,i) * getVectorDoubleValue(right,_right_type,i));    
+      SET_DOUBLE_VAL(output,getVectorDoubleValueFnLeft(left,i) * getVectorDoubleValueFnRight(right,i));    
     }                                                                                               
   } else if ((len1) == 1) {                                                                         
     for (; i >= 0 && i < (len2); i += step, output += 1) {                                           
-      if (isNull(getVectorValueAddr(left,_left_type,0), _left_type) || isNull(getVectorValueAddr(right,_right_type,i), _right_type)) {         
+      if (isNull(getVectorValueAddrFnLeft(left,0), _left_type) || isNull(getVectorValueAddrFnRight(right,i), _right_type)) {         
         SET_DOUBLE_NULL(output);                                                                       
         continue;                                                                                   
       }                                                                                             
-      SET_DOUBLE_VAL(output,getVectorDoubleValue(left,_left_type,0) * getVectorDoubleValue(right,_right_type,i));                                                       
+      SET_DOUBLE_VAL(output,getVectorDoubleValueFnLeft(left,0) * getVectorDoubleValueFnRight(right,i));                                                       
     }                                                                                               
   } else if ((len2) == 1) {                                                                         
     for (; i >= 0 && i < (len1); i += step, output += 1) {                                           
-      if (isNull(getVectorValueAddr(left,_left_type,i), _left_type) || isNull(getVectorValueAddr(right,_right_type,0), _right_type)) {         
+      if (isNull(getVectorValueAddrFnLeft(left,i), _left_type) || isNull(getVectorValueAddrFnRight(right,0), _right_type)) {         
         SET_DOUBLE_NULL(output);                                                                       
         continue;                                                                                   
       }                                                                                             
-      SET_DOUBLE_VAL(output,getVectorDoubleValue(left,_left_type,i) * getVectorDoubleValue(right,_right_type,0));                                                        
+      SET_DOUBLE_VAL(output,getVectorDoubleValueFnLeft(left,i) * getVectorDoubleValueFnRight(right,0));                                                        
     }                                                                                               
   }                                                                                                 
 }
 void vectorDivide(void *left, int32_t len1, int32_t _left_type, void *right, int32_t len2, int32_t _right_type, void *out, int32_t _ord) {                
   int32_t i = ((_ord) == TSDB_ORDER_ASC) ? 0 : MAX(len1, len2) - 1;                                 
   int32_t step = ((_ord) == TSDB_ORDER_ASC) ? 1 : -1;                                               
-  double *output=out;
+  double *output=(double*)out;
+  _arithmetic_getVectorValueAddr_fn_t getVectorValueAddrFnLeft = getVectorValueAddrFn(_left_type);
+  _arithmetic_getVectorValueAddr_fn_t getVectorValueAddrFnRight = getVectorValueAddrFn(_right_type);
+  _arithmetic_getVectorDoubleValue_fn_t getVectorDoubleValueFnLeft = getVectorDoubleValueFn(_left_type);
+  _arithmetic_getVectorDoubleValue_fn_t getVectorDoubleValueFnRight = getVectorDoubleValueFn(_right_type);
                                                                                                     
   if ((len1) == (len2)) {                                                                           
     for (; i < (len2) && i >= 0; i += step, output += 1) {                                           
-      if (isNull(getVectorValueAddr(left,_left_type,i), _left_type) || isNull(getVectorValueAddr(right,_right_type,i), _right_type)) { 
+      if (isNull(getVectorValueAddrFnLeft(left,i), _left_type) || isNull(getVectorValueAddrFnRight(right,i), _right_type)) { 
         SET_DOUBLE_NULL(output);                                                                       
         continue;                                                                                   
       }                                                                                             
-      double v, u = 0.0;                                                                            
-      GET_TYPED_DATA(v, double, _right_type, getVectorValueAddr(right,_right_type,i));                                
-      if (getComparFunc(TSDB_DATA_TYPE_DOUBLE, 0)(&v, &u) == 0) {                                   
+      double v, z = 0.0;                                                                            
+      GET_TYPED_DATA(v, double, _right_type, getVectorValueAddrFnRight(right,i));                                
+      if (getComparFunc(TSDB_DATA_TYPE_DOUBLE, 0)(&v, &z) == 0) {                                   
         SET_DOUBLE_NULL(output);                                                                       
         continue;                                                                                   
       }                                                                                             
-      SET_DOUBLE_VAL(output,getVectorDoubleValue(left,_left_type,i) /getVectorDoubleValue(right,_right_type,i));                                                       
+      SET_DOUBLE_VAL(output,getVectorDoubleValueFnLeft(left,i) /getVectorDoubleValueFnRight(right,i));                                                       
     }                                                                                               
   } else if ((len1) == 1) {                                                                         
     for (; i >= 0 && i < (len2); i += step, output += 1) {                                           
-      if (isNull(getVectorValueAddr(left,_left_type,0), _left_type) || isNull(getVectorValueAddr(right,_right_type,i), _right_type)) {         
+      if (isNull(getVectorValueAddrFnLeft(left,0), _left_type) || isNull(getVectorValueAddrFnRight(right,i), _right_type)) {         
         SET_DOUBLE_NULL(output);                                                                       
         continue;                                                                                   
       }                                                                                             
-      double v, u = 0.0;                                                                            
-      GET_TYPED_DATA(v, double, _right_type, getVectorValueAddr(right,_right_type,i));                                
-      if (getComparFunc(TSDB_DATA_TYPE_DOUBLE, 0)(&v, &u) == 0) {                                   
+      double v, z = 0.0;                                                                            
+      GET_TYPED_DATA(v, double, _right_type, getVectorValueAddrFnRight(right,i));                                
+      if (getComparFunc(TSDB_DATA_TYPE_DOUBLE, 0)(&v, &z) == 0) {                                   
         SET_DOUBLE_NULL(output);                                                                       
         continue;                                                                                   
       }                                                                                             
-      SET_DOUBLE_VAL(output,getVectorDoubleValue(left,_left_type,0) /getVectorDoubleValue(right,_right_type,i));                                                       
+      SET_DOUBLE_VAL(output,getVectorDoubleValueFnLeft(left,0) /getVectorDoubleValueFnRight(right,i));                                                       
     }                                                                                               
   } else if ((len2) == 1) {                                                                         
     for (; i >= 0 && i < (len1); i += step, output += 1) {                                           
-      if (isNull(getVectorValueAddr(left,_left_type,i), _left_type) || isNull(getVectorValueAddr(right,_right_type,0), _right_type)) {         
+      if (isNull(getVectorValueAddrFnLeft(left,i), _left_type) || isNull(getVectorValueAddrFnRight(right,0), _right_type)) {         
         SET_DOUBLE_NULL(output);                                                                       
         continue;                                                                                   
       }                                                                                             
-      double v, u = 0.0;                                                                            
-      GET_TYPED_DATA(v, double, _right_type, getVectorValueAddr(right,_right_type,0));                                
-      if (getComparFunc(TSDB_DATA_TYPE_DOUBLE, 0)(&v, &u) == 0) {                                   
+      double v, z = 0.0;                                                                            
+      GET_TYPED_DATA(v, double, _right_type, getVectorValueAddrFnRight(right,0));                                
+      if (getComparFunc(TSDB_DATA_TYPE_DOUBLE, 0)(&v, &z) == 0) {                                   
         SET_DOUBLE_NULL(output);                                                                       
         continue;                                                                                   
       }                                                                                             
-      SET_DOUBLE_VAL(output,getVectorDoubleValue(left,_left_type,i) /getVectorDoubleValue(right,_right_type,0));                                                       
+      SET_DOUBLE_VAL(output,getVectorDoubleValueFnLeft(left,i) /getVectorDoubleValueFnRight(right,0));                                                       
     }                                                                                               
   }                                                                                                 
 } 
 void vectorRemainder(void *left, int32_t len1, int32_t _left_type, void *right, int32_t len2, int32_t _right_type, void *out, int32_t _ord) {
   int32_t i = (_ord == TSDB_ORDER_ASC) ? 0 : MAX(len1, len2) - 1;                                   
   int32_t step = (_ord == TSDB_ORDER_ASC) ? 1 : -1;                                                 
-  double *output=out;
+  double *output=(double*)out;
+  _arithmetic_getVectorValueAddr_fn_t getVectorValueAddrFnLeft = getVectorValueAddrFn(_left_type);
+  _arithmetic_getVectorValueAddr_fn_t getVectorValueAddrFnRight = getVectorValueAddrFn(_right_type);
+  _arithmetic_getVectorDoubleValue_fn_t getVectorDoubleValueFnLeft = getVectorDoubleValueFn(_left_type);
+  _arithmetic_getVectorDoubleValue_fn_t getVectorDoubleValueFnRight = getVectorDoubleValueFn(_right_type);
                                                                                                     
   if (len1 == (len2)) {                                                                             
     for (; i >= 0 && i < (len2); i += step, output += 1) {                                           
-      if (isNull(getVectorValueAddr(left,_left_type,i), _left_type) || isNull(getVectorValueAddr(right,_right_type,i), _right_type)) {     
+      if (isNull(getVectorValueAddrFnLeft(left,i), _left_type) || isNull(getVectorValueAddrFnRight(right,i), _right_type)) {     
         SET_DOUBLE_NULL(output);                                                                       
         continue;                                                                                   
       }                                                                                             
-      double v, u = 0.0;                                                                            
-      GET_TYPED_DATA(v, double, _right_type, getVectorValueAddr(right,_right_type,i));                                
-      if (getComparFunc(TSDB_DATA_TYPE_DOUBLE, 0)(&v, &u) == 0) {                                   
+      double v, z = 0.0;                                                                            
+      GET_TYPED_DATA(v, double, _right_type, getVectorValueAddrFnRight(right,i));                                
+      if (getComparFunc(TSDB_DATA_TYPE_DOUBLE, 0)(&v, &z) == 0) {                                   
         SET_DOUBLE_NULL(output);                                                                       
         continue;                                                                                   
       }                                                                                             
-      SET_DOUBLE_VAL(output,getVectorDoubleValue(left,_left_type,i) - ((int64_t)(getVectorDoubleValue(left,_left_type,i) / getVectorDoubleValue(right,_right_type,i))) * getVectorDoubleValue(right,_right_type,i));      
+      SET_DOUBLE_VAL(output,getVectorDoubleValueFnLeft(left,i) - ((int64_t)(getVectorDoubleValueFnLeft(left,i) / getVectorDoubleValueFnRight(right,i))) * getVectorDoubleValueFnRight(right,i));      
     }                                                                                               
   } else if (len1 == 1) {                                                                           
     for (; i >= 0 && i < (len2); i += step, output += 1) {                                           
-      if (isNull(getVectorValueAddr(left,_left_type,0), _left_type) || isNull(getVectorValueAddr(right,_right_type,i), _right_type)) {       
+      if (isNull(getVectorValueAddrFnLeft(left,0), _left_type) || isNull(getVectorValueAddrFnRight(right,i), _right_type)) {       
         SET_DOUBLE_NULL(output);                                                                       
         continue;                                                                                   
       }                                                                                             
-      double v, u = 0.0;                                                                            
-      GET_TYPED_DATA(v, double, _right_type, getVectorValueAddr(right,_right_type,i));                                
-      if (getComparFunc(TSDB_DATA_TYPE_DOUBLE, 0)(&v, &u) == 0) {                                   
+      double v, z = 0.0;                                                                            
+      GET_TYPED_DATA(v, double, _right_type, getVectorValueAddrFnRight(right,i));                                
+      if (getComparFunc(TSDB_DATA_TYPE_DOUBLE, 0)(&v, &z) == 0) {                                   
         SET_DOUBLE_NULL(output);                                                                       
         continue;                                                                                   
       }                                                                                             
-      SET_DOUBLE_VAL(output,getVectorDoubleValue(left,_left_type,0) - ((int64_t)(getVectorDoubleValue(left,_left_type,0) / getVectorDoubleValue(right,_right_type,i))) * getVectorDoubleValue(right,_right_type,i));      
+      SET_DOUBLE_VAL(output,getVectorDoubleValueFnLeft(left,0) - ((int64_t)(getVectorDoubleValueFnLeft(left,0) / getVectorDoubleValueFnRight(right,i))) * getVectorDoubleValueFnRight(right,i));      
     }                                                                                               
   } else if ((len2) == 1) {                                                                         
     for (; i >= 0 && i < len1; i += step, output += 1) {                                             
-      if (isNull(getVectorValueAddr(left,_left_type,i), _left_type) || isNull(getVectorValueAddr(right,_right_type,0), _right_type)) {       
+      if (isNull(getVectorValueAddrFnLeft(left,i), _left_type) || isNull(getVectorValueAddrFnRight(right,0), _right_type)) {       
         SET_DOUBLE_NULL(output);                                                                       
         continue;                                                                                   
       }                                                                                             
-      double v, u = 0.0;                                                                            
-      GET_TYPED_DATA(v, double, _right_type, getVectorValueAddr(right,_right_type,0));                                
-      if (getComparFunc(TSDB_DATA_TYPE_DOUBLE, 0)(&v, &u) == 0) {                                   
+      double v, z = 0.0;                                                                            
+      GET_TYPED_DATA(v, double, _right_type, getVectorValueAddrFnRight(right,0));                                
+      if (getComparFunc(TSDB_DATA_TYPE_DOUBLE, 0)(&v, &z) == 0) {                                   
         SET_DOUBLE_NULL(output);                                                                       
         continue;                                                                                   
       }                                                                                             
-      SET_DOUBLE_VAL(output,getVectorDoubleValue(left,_left_type,i) - ((int64_t)(getVectorDoubleValue(left,_left_type,i) / getVectorDoubleValue(right,_right_type,0))) * getVectorDoubleValue(right,_right_type,0));      
+      SET_DOUBLE_VAL(output,getVectorDoubleValueFnLeft(left,i) - ((int64_t)(getVectorDoubleValueFnLeft(left,i) / getVectorDoubleValueFnRight(right,0))) * getVectorDoubleValueFnRight(right,0));      
     }                                                                                               
   }                                                                                                 
 }
