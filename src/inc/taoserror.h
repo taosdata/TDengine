@@ -103,6 +103,7 @@ int32_t* taosGetErrno();
 #define TSDB_CODE_TSC_FILE_EMPTY                TAOS_DEF_ERROR_CODE(0, 0x021A)  //"File is empty")
 #define TSDB_CODE_TSC_LINE_SYNTAX_ERROR         TAOS_DEF_ERROR_CODE(0, 0x021B)  //"Syntax error in Line")
 #define TSDB_CODE_TSC_NO_META_CACHED            TAOS_DEF_ERROR_CODE(0, 0x021C)  //"No table meta cached")
+#define TSDB_CODE_TSC_DUP_COL_NAMES             TAOS_DEF_ERROR_CODE(0, 0x021D)  //"duplicated column names")
 
 // mnode
 #define TSDB_CODE_MND_MSG_NOT_PROCESSED         TAOS_DEF_ERROR_CODE(0, 0x0300)  //"Message not processed")

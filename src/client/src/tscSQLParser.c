@@ -307,6 +307,31 @@ static int32_t invalidOperationMsg(char* dstBuffer, const char* errMsg) {
   return tscInvalidOperationMsg(dstBuffer, errMsg, NULL);
 }
 
+int32_t tscErrorMsgWithCode(int32_t code, char* dstBuffer, const char* errMsg, const char* sql) {
+  const char* msgFormat1 = "%s:%s";
+  const char* msgFormat2 = "%s:\'%s\' (%s)";
+  const char* msgFormat3 = "%s:\'%s\'";
+
+  const int32_t BACKWARD_CHAR_STEP = 0;
+
+  if (sql == NULL) {
+    assert(errMsg != NULL);
+    sprintf(dstBuffer, msgFormat1, tstrerror(code), errMsg);
+    return code;
+  }
+
+  char buf[64] = {0};  // only extract part of sql string
+  strncpy(buf, (sql - BACKWARD_CHAR_STEP), tListLen(buf) - 1);
+
+  if (errMsg != NULL) {
+    sprintf(dstBuffer, msgFormat2, tstrerror(code), buf, errMsg);
+  } else {
+    sprintf(dstBuffer, msgFormat3, tstrerror(code), buf);  // no additional information for invalid sql error
+  }
+
+  return code;
+}
+
 static int convertTimestampStrToInt64(tVariant *pVar, int32_t precision) {
   int64_t     time = 0;
   strdequote(pVar->pz);
@@ -1393,7 +1418,6 @@ static bool validateTableColumnInfo(SArray* pFieldList, SSqlCmd* pCmd) {
   const char* msg = "illegal number of columns";
   const char* msg1 = "first column must be timestamp";
   const char* msg2 = "row length exceeds max length";
-  const char* msg3 = "duplicated column names";
   const char* msg4 = "invalid data type";
   const char* msg5 = "invalid binary/nchar column length";
   const char* msg6 = "invalid column name";
@@ -1442,7 +1466,7 @@ static bool validateTableColumnInfo(SArray* pFieldList, SSqlCmd* pCmd) {
 
     // field name must be unique
     if (has(pFieldList, i + 1, pField->name) == true) {
-      invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg3);
+      tscErrorMsgWithCode(TSDB_CODE_TSC_DUP_COL_NAMES, tscGetErrorMsgPayload(pCmd), pField->name, NULL);
       return false;
     }
 
@@ -1464,8 +1488,6 @@ static bool validateTagParams(SArray* pTagsList, SArray* pFieldList, SSqlCmd* pC
 
   const char* msg1 = "invalid number of tag columns";
   const char* msg2 = "tag length too long";
-  const char* msg3 = "duplicated column names";
-  //const char* msg4 = "timestamp not allowed in tags";
   const char* msg5 = "invalid data type in tags";
   const char* msg6 = "invalid tag name";
   const char* msg7 = "invalid binary/nchar tag length";
@@ -1496,7 +1518,7 @@ static bool validateTagParams(SArray* pTagsList, SArray* pFieldList, SSqlCmd* pC
     }
 
     if (has(pTagsList, i + 1, p->name) == true) {
-      invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg3);
+      tscErrorMsgWithCode(TSDB_CODE_TSC_DUP_COL_NAMES, tscGetErrorMsgPayload(pCmd), p->name, NULL);
       return false;
     }
   }
@@ -1523,7 +1545,7 @@ static bool validateTagParams(SArray* pTagsList, SArray* pFieldList, SSqlCmd* pC
     TAOS_FIELD* p = taosArrayGet(pTagsList, i);
 
     if (has(pFieldList, 0, p->name) == true) {
-      invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg3);
+      tscErrorMsgWithCode(TSDB_CODE_TSC_DUP_COL_NAMES, tscGetErrorMsgPayload(pCmd), p->name, NULL);
       return false;
     }
   }
@@ -1535,8 +1557,6 @@ static bool validateTagParams(SArray* pTagsList, SArray* pFieldList, SSqlCmd* pC
  * tags name /column name is truncated in sql.y
  */
 bool validateOneTags(SSqlCmd* pCmd, TAOS_FIELD* pTagField) {
-  //const char* msg1 = "timestamp not allowed in tags";
-  const char* msg2 = "duplicated column names";
   const char* msg3 = "tag length too long";
   const char* msg4 = "invalid tag name";
   const char* msg5 = "invalid binary/nchar tag length";
@@ -1605,7 +1625,7 @@ bool validateOneTags(SSqlCmd* pCmd, TAOS_FIELD* pTagField) {
 
   for (int32_t i = 0; i < numOfTags + numOfCols; ++i) {
     if (strncasecmp(pTagField->name, pSchema[i].name, sizeof(pTagField->name) - 1) == 0) {
-      invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg2);
+      tscErrorMsgWithCode(TSDB_CODE_TSC_DUP_COL_NAMES, tscGetErrorMsgPayload(pCmd), pTagField->name, NULL);
       return false;
     }
   }
@@ -1615,7 +1635,6 @@ bool validateOneTags(SSqlCmd* pCmd, TAOS_FIELD* pTagField) {
 
 bool validateOneColumn(SSqlCmd* pCmd, TAOS_FIELD* pColField) {
   const char* msg1 = "too many columns";
-  const char* msg2 = "duplicated column names";
   const char* msg3 = "column length too long";
   const char* msg4 = "invalid data type";
   const char* msg5 = "invalid column name";
@@ -1665,7 +1684,7 @@ bool validateOneColumn(SSqlCmd* pCmd, TAOS_FIELD* pColField) {
   // field name must be unique
   for (int32_t i = 0; i < numOfTags + numOfCols; ++i) {
     if (strncasecmp(pColField->name, pSchema[i].name, sizeof(pColField->name) - 1) == 0) {
-      invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg2);
+      tscErrorMsgWithCode(TSDB_CODE_TSC_DUP_COL_NAMES, tscGetErrorMsgPayload(pCmd), pColField->name, NULL);
       return false;
     }
   }

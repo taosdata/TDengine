@@ -371,7 +371,10 @@ static int32_t applySchemaAction(TAOS* taos, SSchemaAction* action, SSmlLinesInf
       buildColumnDescription(action->alterSTable.field, result+n, capacity-n, &outBytes);
       TAOS_RES* res = taos_query(taos, result); //TODO async doAsyncQuery
       code = taos_errno(res);
-      if (code == TSDB_CODE_MND_FIELD_ALREAY_EXIST) {
+      if (code != TSDB_CODE_SUCCESS) {
+        tscError("SML:0x%"PRIx64" apply schema action. error : %s", info->id, taos_errstr(res));
+      }
+      if (code == TSDB_CODE_MND_FIELD_ALREAY_EXIST || code == TSDB_CODE_TSC_DUP_COL_NAMES) {
         TAOS_RES* res2 = taos_query(taos, "RESET QUERY CACHE");
         code = taos_errno(res2);
         taos_free_result(res2);
@@ -385,7 +388,10 @@ static int32_t applySchemaAction(TAOS* taos, SSchemaAction* action, SSmlLinesInf
                              result+n, capacity-n, &outBytes);
       TAOS_RES* res = taos_query(taos, result); //TODO async doAsyncQuery
       code = taos_errno(res);
-      if (code == TSDB_CODE_MND_TAG_ALREAY_EXIST) {
+      if (code != TSDB_CODE_SUCCESS) {
+        tscError("SML:0x%"PRIx64" apply schema action. error : %s", info->id, taos_errstr(res));
+      }
+      if (code == TSDB_CODE_MND_TAG_ALREAY_EXIST || code == TSDB_CODE_TSC_DUP_COL_NAMES) {
         TAOS_RES* res2 = taos_query(taos, "RESET QUERY CACHE");
         code = taos_errno(res2);
         taos_free_result(res2);
@@ -399,6 +405,9 @@ static int32_t applySchemaAction(TAOS* taos, SSchemaAction* action, SSmlLinesInf
                              capacity-n, &outBytes);
       TAOS_RES* res = taos_query(taos, result); //TODO async doAsyncQuery
       code = taos_errno(res);
+      if (code != TSDB_CODE_SUCCESS) {
+        tscError("SML:0x%"PRIx64" apply schema action. error : %s", info->id, taos_errstr(res));
+      }
       if (code == TSDB_CODE_MND_INVALID_COLUMN_LENGTH) {
         TAOS_RES* res2 = taos_query(taos, "RESET QUERY CACHE");
         code = taos_errno(res2);
@@ -413,6 +422,9 @@ static int32_t applySchemaAction(TAOS* taos, SSchemaAction* action, SSmlLinesInf
                              capacity-n, &outBytes);
       TAOS_RES* res = taos_query(taos, result); //TODO async doAsyncQuery
       code = taos_errno(res);
+      if (code != TSDB_CODE_SUCCESS) {
+        tscError("SML:0x%"PRIx64" apply schema action. error : %s", info->id, taos_errstr(res));
+      }
       if (code == TSDB_CODE_MND_INVALID_TAG_LENGTH) {
         TAOS_RES* res2 = taos_query(taos, "RESET QUERY CACHE");
         code = taos_errno(res2);
@@ -447,6 +459,9 @@ static int32_t applySchemaAction(TAOS* taos, SSchemaAction* action, SSmlLinesInf
       outBytes = snprintf(pos, freeBytes, ")");
       TAOS_RES* res = taos_query(taos, result);
       code = taos_errno(res);
+      if (code != TSDB_CODE_SUCCESS) {
+        tscError("SML:0x%"PRIx64" apply schema action. error : %s", info->id, taos_errstr(res));
+      }
       if (code == TSDB_CODE_MND_TABLE_ALREADY_EXIST) {
         TAOS_RES* res2 = taos_query(taos, "RESET QUERY CACHE");
         code = taos_errno(res2);
@@ -462,7 +477,7 @@ static int32_t applySchemaAction(TAOS* taos, SSchemaAction* action, SSmlLinesInf
 
   free(result);
   if (code != 0) {
-    tscError("SML:0x%"PRIx64 "apply schema action failure. %s", info->id, tstrerror(code));
+    tscError("SML:0x%"PRIx64 " apply schema action failure. %s", info->id, tstrerror(code));
   }
   return code;
 }
