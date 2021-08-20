@@ -300,29 +300,8 @@ class TaosMultiBind(ctypes.Structure):
         self.buffer = cast(buffer, c_void_p)
         self.num = len(values)
 
-    def binary(self, values):
+    def _str_to_buffer(self, values):
         self.num = len(values)
-        self.buffer = cast(c_char_p("".join(filter(_is_not_none, values)).encode("utf-8")), c_void_p)
-        self.length = (c_int * len(values))(*[len(value) if value is not None else 0 for value in values])
-        self.buffer_type = FieldType.C_BINARY
-        self.is_null = cast((c_byte * self.num)(*[1 if v == None else 0 for v in values]), c_char_p)
-
-    def timestamp(self, values, precision=PrecisionEnum.Milliseconds):
-        try:
-            buffer = cast(values, c_void_p)
-        except:
-            buffer_type = c_int64 * len(values)
-            buffer = buffer_type(*[_datetime_to_timestamp(value, precision) for value in values])
-
-        self.buffer_type = FieldType.C_TIMESTAMP
-        self.buffer = cast(buffer, c_void_p)
-        self.buffer_length = sizeof(c_int64)
-        self.num = len(values)
-
-    def nchar(self, values):
-        # type: (list[str]) -> None
-        self.num = len(values)
-        self.buffer_type = FieldType.C_NCHAR
         is_null = [1 if v == None else 0 for v in values]
         self.is_null = cast((c_byte * self.num)(*is_null), c_char_p)
         
@@ -356,6 +335,26 @@ class TaosMultiBind(ctypes.Structure):
             )
         self.length = (c_int32 * len(values))(*[len(b) if b is not None else 0 for b in _bytes])
         self.buffer_length = buffer_length
+    def binary(self, values):
+        self.buffer_type = FieldType.C_BINARY
+        self._str_to_buffer(values)
+
+    def timestamp(self, values, precision=PrecisionEnum.Milliseconds):
+        try:
+            buffer = cast(values, c_void_p)
+        except:
+            buffer_type = c_int64 * len(values)
+            buffer = buffer_type(*[_datetime_to_timestamp(value, precision) for value in values])
+
+        self.buffer_type = FieldType.C_TIMESTAMP
+        self.buffer = cast(buffer, c_void_p)
+        self.buffer_length = sizeof(c_int64)
+        self.num = len(values)
+
+    def nchar(self, values):
+        # type: (list[str]) -> None
+        self.buffer_type = FieldType.C_NCHAR
+        self._str_to_buffer(values)
 
     def tinyint_unsigned(self, values):
         self.buffer_type = FieldType.C_TINYINT_UNSIGNED
