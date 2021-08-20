@@ -69,7 +69,6 @@ extern char configDir[];
 #define COL_BUFFER_LEN      ((TSDB_COL_NAME_LEN + 15) * TSDB_MAX_COLUMNS)
 
 #define MAX_USERNAME_SIZE  64
-#define MAX_PASSWORD_SIZE  16
 #define MAX_HOSTNAME_SIZE  253      // https://man7.org/linux/man-pages/man7/hostname.7.html
 #define MAX_TB_NAME_SIZE   64
 #define MAX_DATA_SIZE      (16*TSDB_MAX_COLUMNS)+20     // max record len: 16*MAX_COLUMNS, timestamp string and ,('') need extra space
@@ -208,7 +207,7 @@ typedef struct SArguments_S {
     uint16_t port;
     uint16_t iface;
     char *   user;
-    char     password[MAX_PASSWORD_SIZE];
+    char     password[SHELL_MAX_PASSWORD_LEN];
     char *   database;
     int      replica;
     char *   tb_prefix;
@@ -356,7 +355,7 @@ typedef struct SDbs_S {
 
     uint16_t    port;
     char        user[MAX_USERNAME_SIZE];
-    char        password[MAX_PASSWORD_SIZE];
+    char        password[SHELL_MAX_PASSWORD_LEN];
     char        resultFile[MAX_FILE_NAME_LEN];
     bool        use_metric;
     bool        insert_only;
@@ -422,7 +421,7 @@ typedef struct SQueryMetaInfo_S {
     uint16_t     port;
     struct       sockaddr_in serv_addr;
     char         user[MAX_USERNAME_SIZE];
-    char         password[MAX_PASSWORD_SIZE];
+    char         password[SHELL_MAX_PASSWORD_LEN];
     char         dbName[TSDB_DB_NAME_LEN];
     char         queryMode[SMALL_BUFF_LEN];  // taosc, rest
 
@@ -858,7 +857,7 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
                 }
                 taosSetConsoleEcho(true);
             } else {
-                tstrncpy(arguments->password, (char *)(argv[i] + 2), MAX_PASSWORD_SIZE);
+                tstrncpy(arguments->password, (char *)(argv[i] + 2), SHELL_MAX_PASSWORD_LEN);
             }
         } else if (strcmp(argv[i], "-o") == 0) {
             if (argc == i+1) {
@@ -3780,9 +3779,9 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
 
     cJSON* password = cJSON_GetObjectItem(root, "password");
     if (password && password->type == cJSON_String && password->valuestring != NULL) {
-        tstrncpy(g_Dbs.password, password->valuestring, MAX_PASSWORD_SIZE);
+        tstrncpy(g_Dbs.password, password->valuestring, SHELL_MAX_PASSWORD_LEN);
     } else if (!password) {
-        tstrncpy(g_Dbs.password, "taosdata", MAX_PASSWORD_SIZE);
+        tstrncpy(g_Dbs.password, "taosdata", SHELL_MAX_PASSWORD_LEN);
     }
 
     cJSON* resultfile = cJSON_GetObjectItem(root, "result_file");
@@ -4516,9 +4515,9 @@ static bool getMetaFromQueryJsonFile(cJSON* root) {
 
     cJSON* password = cJSON_GetObjectItem(root, "password");
     if (password && password->type == cJSON_String && password->valuestring != NULL) {
-        tstrncpy(g_queryInfo.password, password->valuestring, MAX_PASSWORD_SIZE);
+        tstrncpy(g_queryInfo.password, password->valuestring, SHELL_MAX_PASSWORD_LEN);
     } else if (!password) {
-        tstrncpy(g_queryInfo.password, "taosdata", MAX_PASSWORD_SIZE);;
+        tstrncpy(g_queryInfo.password, "taosdata", SHELL_MAX_PASSWORD_LEN);;
     }
 
     cJSON *answerPrompt = cJSON_GetObjectItem(root, "confirm_parameter_prompt"); // yes, no,
@@ -8826,7 +8825,7 @@ static void initOfInsertMeta() {
     tstrncpy(g_Dbs.host, "127.0.0.1", MAX_HOSTNAME_SIZE);
     g_Dbs.port = 6030;
     tstrncpy(g_Dbs.user, TSDB_DEFAULT_USER, MAX_USERNAME_SIZE);
-    tstrncpy(g_Dbs.password, TSDB_DEFAULT_PASS, MAX_PASSWORD_SIZE);
+    tstrncpy(g_Dbs.password, TSDB_DEFAULT_PASS, SHELL_MAX_PASSWORD_LEN);
     g_Dbs.threadCount = 2;
 
     g_Dbs.use_metric = g_args.use_metric;
@@ -8839,7 +8838,7 @@ static void initOfQueryMeta() {
     tstrncpy(g_queryInfo.host, "127.0.0.1", MAX_HOSTNAME_SIZE);
     g_queryInfo.port = 6030;
     tstrncpy(g_queryInfo.user, TSDB_DEFAULT_USER, MAX_USERNAME_SIZE);
-    tstrncpy(g_queryInfo.password, TSDB_DEFAULT_PASS, MAX_PASSWORD_SIZE);
+    tstrncpy(g_queryInfo.password, TSDB_DEFAULT_PASS, SHELL_MAX_PASSWORD_LEN);
 }
 
 static void setParaFromArg() {
@@ -8853,7 +8852,7 @@ static void setParaFromArg() {
         tstrncpy(g_Dbs.user, g_args.user, MAX_USERNAME_SIZE);
     }
 
-    tstrncpy(g_Dbs.password, g_args.password, MAX_PASSWORD_SIZE);
+    tstrncpy(g_Dbs.password, g_args.password, SHELL_MAX_PASSWORD_LEN);
 
     if (g_args.port) {
         g_Dbs.port = g_args.port;

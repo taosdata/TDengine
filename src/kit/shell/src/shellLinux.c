@@ -47,8 +47,8 @@ static struct argp_option options[] = {
   {"thread",     'T', "THREADNUM",  0,                   "Number of threads when using multi-thread to import data."},
   {"check",      'k', "CHECK",      0,                   "Check tables."},
   {"database",   'd', "DATABASE",   0,                   "Database to use when connecting to the server."},
-  {"timezone",   't', "TIMEZONE",   0,                   "Time zone of the shell, default is local."},
-  {"netrole",    'n', "NETROLE",    0,                   "Net role when network connectivity test, default is startup, options: client|server|rpc|startup|sync."},
+  {"timezone",   'z', "TIMEZONE",   0,                   "Time zone of the shell, default is local."},
+  {"netrole",    'n', "NETROLE",    0,                   "Net role when network connectivity test, default is startup, options: client|server|rpc|startup|sync|speen|fqdn."},
   {"pktlen",     'l', "PKTLEN",     0,                   "Packet length used for net test, default is 1000 bytes."},
   {0}};
 
@@ -74,7 +74,7 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
       }
 
       break;
-    case 't':
+    case 'z':
       arguments->timezone = arg;
       break;
     case 'u':
@@ -160,22 +160,27 @@ static struct argp argp = {options, parse_opt, args_doc, doc};
 
 char      LINUXCLIENT_VERSION[] = "Welcome to the TDengine shell from %s, Client Version:%s\n"
                              "Copyright (c) 2020 by TAOS Data, Inc. All rights reserved.\n\n";
-char g_password[MAX_PASSWORD_SIZE];
+char g_password[SHELL_MAX_PASSWORD_LEN];
 
-static void parse_password(
+static void parse_args(
         int argc, char *argv[], SShellArguments *arguments) {
     for (int i = 1; i < argc; i++) {
-        if (strncmp(argv[i], "-p", 2) == 0) {
+        if ((strncmp(argv[i], "-p", 2) == 0)
+              || (strncmp(argv[i], "--password", 10) == 0)) {
             strcpy(tsOsName, "Linux");
             printf(LINUXCLIENT_VERSION, tsOsName, taos_get_client_info());
-            if (strlen(argv[i]) == 2) {
+            if ((strlen(argv[i]) == 2)
+                  || (strncmp(argv[i], "--password", 10) == 0)) {
                 printf("Enter password: ");
+                taosSetConsoleEcho(false);
                 if (scanf("%20s", g_password) > 1) {
                     fprintf(stderr, "password reading error\n");
                 }
+                taosSetConsoleEcho(true);
                 getchar();
             } else {
-                tstrncpy(g_password, (char *)(argv[i] + 2), MAX_PASSWORD_SIZE);
+                tstrncpy(g_password, (char *)(argv[i] + 2), SHELL_MAX_PASSWORD_LEN);
+                strcpy(argv[i], "-p");
             }
             arguments->password = g_password;
             arguments->is_use_passwd = true;
@@ -190,7 +195,7 @@ void shellParseArgument(int argc, char *argv[], SShellArguments *arguments) {
   argp_program_version = verType;
 
   if (argc > 1) {
-    parse_password(argc, argv, arguments);
+    parse_args(argc, argv, arguments);
   }
 
   argp_parse(&argp, argc, argv, 0, 0, arguments);
