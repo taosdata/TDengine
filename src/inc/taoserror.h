@@ -211,6 +211,9 @@ int32_t* taosGetErrno();
 #define TSDB_CODE_DND_TOO_MANY_VNODES           TAOS_DEF_ERROR_CODE(0, 0x0405)  //"Too many vnode directories")
 #define TSDB_CODE_DND_EXITING                   TAOS_DEF_ERROR_CODE(0, 0x0406)  //"Dnode is exiting"
 
+#define TSDB_CODE_MND_INVALID_TAG_LENGTH        TAOS_DEF_ERROR_CODE(0, 0x410)  //"invalid tag length")
+#define TSDB_CODE_MND_INVALID_COLUMN_LENGTH     TAOS_DEF_ERROR_CODE(0, 0x411)   //"invalid column length")
+
 // vnode
 #define TSDB_CODE_VND_ACTION_IN_PROGRESS        TAOS_DEF_ERROR_CODE(0, 0x0500)  //"Action in progress")
 #define TSDB_CODE_VND_MSG_NOT_PROCESSED         TAOS_DEF_ERROR_CODE(0, 0x0501)  //"Message not processed")
