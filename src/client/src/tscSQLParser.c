@@ -902,7 +902,7 @@ int32_t tscValidateSqlInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
 
         tscTrace("0x%"PRIx64" start to parse the %dth subclause, total:%"PRIzu, pSql->self, i, size);
 
-        if (size > 1 && pSqlNode->from->type == SQL_NODE_FROM_SUBQUERY) {
+        if (size > 1 && pSqlNode->from && pSqlNode->from->type == SQL_NODE_FROM_SUBQUERY) {
           return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg1);
         }
 
