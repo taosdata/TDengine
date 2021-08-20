@@ -397,13 +397,13 @@ class TDTestCase:
         tdSql.checkEqual(int(res[2][2]), 1)
         tdSql.checkEqual(int(res[2][3]), 1)
 
-        # cname
+        ## cname
         query_sql = f'select c10 from (select * from {tb_name} where c1 >1 or c2 = 2 and c7 like "binar_" and c4 in (3, 5)) a where a.c1 != 2 or a.c3 = 1 or a.c8 like "ncha_" and a.c9 in (true)'
         res = tdSql.query(query_sql, True)
         tdSql.checkRows(7)
         tdSql.checkEqual(int(res[6][0]), 10)
 
-        # ## multi cname
+        ## multi cname
         query_sql = f'select b.c10 from (select * from {tb_name} where c9 = true or c2 = 2) a, (select * from {tb_name} where c7 like "binar_" or c4 in (3, 5)) b where a.ts = b.ts'
         res = tdSql.query(query_sql, True)
         tdSql.checkRows(10)
