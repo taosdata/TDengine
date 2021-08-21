@@ -7283,7 +7283,7 @@ int32_t doValidateSqlNode(SSqlObj* pSql, SQuerySqlNode* pQuerySqlNode, int32_t i
     }
 
     pQuerySqlNode->pWhere = NULL;
-    if (tinfo.precision == TSDB_TIME_PRECISION_MILLI) {
+    if (tinfo.precision == TSDB_TIME_PRECISION_MILLI && (!TSWINDOW_IS_EQUAL(pQueryInfo->window, TSWINDOW_INITIALIZER))) {
       pQueryInfo->window.skey = pQueryInfo->window.skey / 1000;
       pQueryInfo->window.ekey = pQueryInfo->window.ekey / 1000;
     }
