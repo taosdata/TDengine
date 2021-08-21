@@ -35,13 +35,13 @@ select avg(voltage) from meters interval(1m) sliding(30s);
 select avg(voltage) from meters where ts > {startTime} interval(1m) sliding(30s);
 ```
 
-这样做没有问题，但TDengine提供了更简单的方法，只要在最初的查询语句前面加上 `create table {tableName} as ` 就可以了, 例如：
+这样做没有问题，但TDengine提供了更简单的方法，只要在最初的查询语句前面加上 `create table {tableName} as ` 就可以了，例如：
 
 ```sql
 create table avg_vol as select avg(voltage) from meters interval(1m) sliding(30s);
 ```
 
-会自动创建一个名为 `avg_vol` 的新表，然后每隔30秒，TDengine会增量执行 `as` 后面的 SQL 语句，并将查询结果写入这个表中，用户程序后续只要从 `avg_vol` 中查询数据即可。 例如：
+会自动创建一个名为 `avg_vol` 的新表，然后每隔30秒，TDengine会增量执行 `as` 后面的 SQL 语句，并将查询结果写入这个表中，用户程序后续只要从 `avg_vol` 中查询数据即可。例如：
 
 ```mysql
 taos> select * from avg_vol;

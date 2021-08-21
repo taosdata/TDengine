@@ -123,17 +123,15 @@ typedef struct {
   int32_t kvLen;    // len of SKVRow
 } SMemRowInfo;
 typedef struct {
-  uint8_t      memRowType;
-  uint8_t      compareStat;  // 0 unknown, 1 need compare, 2 no need
-  TDRowTLenT   dataRowInitLen;
+  uint8_t      memRowType;   // default is 0, that is SDataRow
+  uint8_t      compareStat;  // 0 no need, 1 need compare
   TDRowTLenT   kvRowInitLen;
   SMemRowInfo *rowInfo;
 } SMemRowBuilder;
 
 typedef enum {
-  ROW_COMPARE_UNKNOWN = 0,
+  ROW_COMPARE_NO_NEED = 0,
   ROW_COMPARE_NEED = 1,
-  ROW_COMPARE_NO_NEED = 2,
 } ERowCompareStat;
 
 int tsParseTime(SStrToken *pToken, int64_t *time, char **next, char *error, int16_t timePrec);

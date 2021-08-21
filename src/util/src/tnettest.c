@@ -639,17 +639,6 @@ static void taosNetCheckSpeed(char *host, int32_t port, int32_t pkgLen,
   return;
 }
 
-static void taosNetTestSpeed(char *host, int32_t port, int32_t pkgLen,
-                             int32_t pkgNum, char *pkgType) {
-  if (0 == strcmp("fqdn", pkgType)){
-    taosNetTestFqdn(host);
-    return;
-  }
-
-  taosNetCheckSpeed(host, port, pkgLen, pkgNum, pkgType);
-  return;
-}
-
 void taosNetTest(char *role, char *host, int32_t port, int32_t pkgLen,
                  int32_t pkgNum, char *pkgType) {
   tscEmbedded = 1;
@@ -679,7 +668,9 @@ void taosNetTest(char *role, char *host, int32_t port, int32_t pkgLen,
   } else if (0 == strcmp("speed", role)) {
     tscEmbedded = 0;
     char type[10] = {0};
-    taosNetTestSpeed(host, port, pkgLen, pkgNum, strtolower(type, pkgType));
+    taosNetCheckSpeed(host, port, pkgLen, pkgNum, strtolower(type, pkgType));
+  }else if (0 == strcmp("fqdn", role)) {
+    taosNetTestFqdn(host);
   }else {
     taosNetTestStartup(host, port);
   }
