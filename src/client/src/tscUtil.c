@@ -2429,7 +2429,7 @@ size_t tscNumOfExprs(SQueryInfo* pQueryInfo) {
 
 int32_t tscExprTopBottomIndex(SQueryInfo* pQueryInfo){
   size_t numOfExprs = tscNumOfExprs(pQueryInfo);
-  for(size_t i = 0; i < numOfExprs; ++i) {
+  for(int32_t i = 0; i < numOfExprs; ++i) {
     SExprInfo* pExpr = tscExprGet(pQueryInfo, i);
     if (pExpr == NULL)
       continue;
