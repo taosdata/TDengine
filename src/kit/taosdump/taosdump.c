@@ -62,6 +62,20 @@ typedef struct {
 #define errorPrint(fmt, ...) \
     do { fprintf(stderr, "\033[31m"); fprintf(stderr, "ERROR: "fmt, __VA_ARGS__); fprintf(stderr, "\033[0m"); } while(0)
 
+static bool isStringNumber(char *input)
+{
+    int len = strlen(input);
+    if (0 == len) {
+        return false;
+    }
+
+    for (int i = 0; i < len; i++) {
+        if (!isdigit(input[i]))
+            return false;
+    }
+
+    return true;
+}
 
 // -------------------------- SHOW DATABASE INTERFACE-----------------------
 enum _show_db_index {
@@ -472,6 +486,10 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
             g_args.table_batch = atoi(arg);
             break;
         case 'T':
+            if (!isStringNumber(arg)) {
+                errorPrint("%s", "\n\t-T need a number following!\n");
+                exit(EXIT_FAILURE);
+            }
             g_args.thread_num = atoi(arg);
             break;
         case OPT_ABORT:
