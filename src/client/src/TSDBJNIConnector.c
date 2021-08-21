@@ -170,6 +170,20 @@ JNIEXPORT void JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_initImp(JNIEnv *e
   jniDebug("jni initialized successfully, config directory: %s", configDir);
 }
 
+JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_setConfig(JNIEnv *env, jclass jobj, jstring config){
+  if (config == NULL) {
+    jniDebug("config value is null");
+    return -1;
+  }
+
+  const char *cfg = (*env)->GetStringUTFChars(env, config, NULL);
+  if (!cfg) {
+    return -1;
+  }
+
+  return taos_set_config(cfg);
+}
+
 JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_setOptions(JNIEnv *env, jobject jobj, jint optionIndex,
                                                                           jstring optionValue) {
   if (optionValue == NULL) {
@@ -213,7 +227,7 @@ JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_setOptions(JNIEnv
   return res;
 }
 
-JNIEXPORT jlong JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_connectImp(JNIEnv *env, jobject jobj, jstring jhost,
+JNIEXPORT jlong JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_connectImp(JNIEnv *env, jobject j obj, jstring jhost,
                                                                            jint jport, jstring jdbName, jstring juser,
                                                                            jstring jpass) {
   jlong       ret  = 0;

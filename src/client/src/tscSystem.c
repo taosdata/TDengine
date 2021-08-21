@@ -120,42 +120,6 @@ int32_t tscAcquireRpc(const char *key, const char *user, const char *secretEncry
   return 0;
 }
 
-#include "cJSON.h"
-static pthread_mutex_t setConfMutex = PTHREAD_MUTEX_INITIALIZER;
-static bool setConfFlag = false;
-int taos_set_config(const char *config){
-  if(taos_init()){
-    tscError("failed to call taos_init");
-    return -1;
-  }
-
-  pthread_mutex_lock(&setConfMutex);
-
-  if (setConfFlag) {
-    tscError("already set config");
-    return 0;
-  }
-  cJSON *root = cJSON_Parse(config);
-  if (root == NULL) {
-    tscError("failed to set config, invalid json format: %s", config);
-    return -1;
-  }
-
-  int size = cJSON_GetArraySize(root);
-  for(int i = 0; i < size; i++){
-    cJSON *item = cJSON_GetArrayItem(root, i);
-    if (!item) {
-      tscError("failed to read index:%d", i);
-      continue;
-    }
-    taosReadConfigOption(item->string, item->valuestring, NULL, NULL);
-  }
-  taosPrintGlobalCfg();
-  setConfFlag = true;
-  pthread_mutex_unlock(&setConfMutex);
-  return 0;
-}
-
 void taos_init_imp(void) {
   char temp[128] = {0};
   
@@ -470,6 +434,51 @@ int taos_options(TSDB_OPTION option, const void *arg, ...) {
 
   int ret = taos_options_imp(option, (const char*)arg);
 
+  atomic_store_32(&lock, 0);
+  return ret;
+}
+
+#include "cJSON.h"
+static int taos_set_config_imp(const char *config){
+  static bool setConfFlag = false;
+  if (setConfFlag) {
+    tscError("already set config");
+    return -1;
+  }
+  cJSON *root = cJSON_Parse(config);
+  if (root == NULL) {
+    tscError("failed to set config, invalid json format: %s", config);
+    return -1;
+  }
+
+  int size = cJSON_GetArraySize(root);
+  for(int i = 0; i < size; i++){
+    cJSON *item = cJSON_GetArrayItem(root, i);
+    if (!item) {
+      tscError("failed to read index:%d", i);
+      continue;
+    }
+    taosReadConfigOption(item->string, item->valuestring, NULL, NULL);
+  }
+  taosPrintGlobalCfg();
+  setConfFlag = true;
+}
+
+int taos_set_config(const char *config){
+  if(taos_init()){
+    tscError("failed to call taos_init");
+    return -1;
+  }
+
+  static int32_t lock = 0;
+
+  for (int i = 1; atomic_val_compare_exchange_32(&lock, 0, 1) != 0; ++i) {
+    if (i % 1000 == 0) {
+      tscInfo("haven't acquire lock after spin %d times.", i);
+      sched_yield();
+    }
+  }
+  int ret = taos_set_config_imp(config);
   atomic_store_32(&lock, 0);
   return ret;
 }
