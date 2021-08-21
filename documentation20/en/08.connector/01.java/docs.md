@@ -1,4 +1,4 @@
-# Java connection
+# Java connector
 
 ## Introduction
 
