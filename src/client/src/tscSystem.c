@@ -124,7 +124,7 @@ int32_t tscAcquireRpc(const char *key, const char *user, const char *secretEncry
 static pthread_mutex_t setConfMutex = PTHREAD_MUTEX_INITIALIZER;
 static bool setConfFlag = false;
 int taos_set_config(const char *config){
-  if(taos_init() == false){
+  if(taos_init()){
     tscError("failed to call taos_init");
     return -1;
   }
@@ -150,6 +150,7 @@ int taos_set_config(const char *config){
     }
     taosReadConfigOption(item->string, item->valuestring, NULL, NULL);
   }
+  taosPrintGlobalCfg();
   setConfFlag = true;
   pthread_mutex_unlock(&setConfMutex);
   return 0;
