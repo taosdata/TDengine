@@ -462,6 +462,7 @@ static int taos_set_config_imp(const char *config){
   }
   taosPrintGlobalCfg();
   setConfFlag = true;
+  return 0;
 }
 
 int taos_set_config(const char *config){
