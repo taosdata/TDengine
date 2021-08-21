@@ -227,7 +227,7 @@ JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_setOptions(JNIEnv
   return res;
 }
 
-JNIEXPORT jlong JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_connectImp(JNIEnv *env, jobject j obj, jstring jhost,
+JNIEXPORT jlong JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_connectImp(JNIEnv *env, jobject obj, jstring jhost,
                                                                            jint jport, jstring jdbName, jstring juser,
                                                                            jstring jpass) {
   jlong       ret  = 0;
