@@ -21,7 +21,7 @@ ENDIF ()
   IF (TD_SOMODE_STATIC)
       TARGET_LINK_LIBRARIES(shell taos_static cJson lua ${LINK_JEMALLOC})
   ELSE ()
-      TARGET_LINK_LIBRARIES(shell taos lua ${LINK_JEMALLOC})
+      TARGET_LINK_LIBRARIES(shell taos cJson lua ${LINK_JEMALLOC})
   ENDIF ()
 
   SET_TARGET_PROPERTIES(shell PROPERTIES OUTPUT_NAME taos)
