@@ -4,10 +4,12 @@
 # is required to use systemd to manage services at boot
 
 set -e
-# set -x
+set -x
 
 # -----------------------Variables definition
+#homebrew解压后文件的存放目录
 source_dir=$1
+#存放二进制文件
 binary_dir=$2
 osType=$3
 verNumber=$4
@@ -15,39 +17,42 @@ verNumber=$4
 if [ "$osType" != "Darwin" ]; then
     script_dir=$(dirname $(readlink -f "$0"))
 else
+   #解压获得的脚本所存放的目录
     script_dir=${source_dir}/packaging/tools
 fi
 
 # Dynamic directory
+
 data_dir="/var/lib/taos"
 
 if [ "$osType" != "Darwin" ]; then
     log_dir="/var/log/taos"
 else
+    #没问题
     log_dir=~/TDengine/log
 fi
 
-data_link_dir="/usr/local/taos/data"
-log_link_dir="/usr/local/taos/log"
+#data_link_dir="/usr/local/Cellar/tdengine/2.1.5.0/data"
+#log_link_dir="/usr/local/Celler/tdengine/2.1.5.0/log"
 
-cfg_install_dir="/etc/taos"
+#cfg_install_dir="/etc/taos"
 
-if [ "$osType" != "Darwin" ]; then
-    bin_link_dir="/usr/bin"
-    lib_link_dir="/usr/lib"
-    lib64_link_dir="/usr/lib64"
-    inc_link_dir="/usr/include"
-else
-    bin_link_dir="/usr/local/bin"
-    lib_link_dir="/usr/local/lib"
-    inc_link_dir="/usr/local/include"
-fi
+#if [ "$osType" != "Darwin" ]; then
+    #bin_link_dir="/usr/bin"
+    #lib_link_dir="/usr/lib"
+    #lib64_link_dir="/usr/lib64"
+    #inc_link_dir="/usr/include"
+#else
+    #bin_link_dir="/usr/local/bin"
+    #lib_link_dir="/usr/local/lib"
+    #inc_link_dir="/usr/local/include"
+#fi
 
 #install main path
-install_main_dir="/usr/local/taos"
+install_main_dir="/usr/local/Cellar/tdengine/2.1.5.0"
 
-# old bin dir
-bin_dir="/usr/local/taos/bin"
+# old bin dir 检测有没有下载TDengine
+bin_dir="/usr/local/Cellar/tdengine/2.1.5.0/bin"
 
 service_config_dir="/etc/systemd/system"
 
@@ -59,12 +64,12 @@ GREEN_UNDERLINE='\033[4;32m'
 NC='\033[0m'
 
 csudo=""
-if command -v sudo > /dev/null; then
-    csudo="sudo"
-fi
+
 
 if [ "$osType" != "Darwin" ]; then
-
+    if command -v sudo > /dev/null; then
+    csudo="sudo"
+    fi
     initd_mod=0
     service_mod=2
     if pidof systemd &> /dev/null; then
@@ -136,8 +141,8 @@ function install_main_path() {
 }
 
 function install_bin() {
-    # Remove links
-    ${csudo} rm -f ${bin_link_dir}/taos         || :
+    # Remove links（删除已有链接重新下载？）
+   # ${csudo} rm -f ${bin_link_dir}/taos         || :
 
     if [ "$osType" != "Darwin" ]; then
         ${csudo} rm -f ${bin_link_dir}/taosd    || :
@@ -146,8 +151,8 @@ function install_bin() {
         ${csudo} rm -f ${bin_link_dir}/set_core || :
     fi
 
-    ${csudo} rm -f ${bin_link_dir}/rmtaos       || :
-
+   # ${csudo} rm -f ${bin_link_dir}/rmtaos       || :
+    #复制{bin_link_dir}/build/bin/到安装路径的bin文件夹
     ${csudo} cp -r ${binary_dir}/build/bin/* ${install_main_dir}/bin
     ${csudo} cp -r ${script_dir}/taosd-dump-cfg.gdb   ${install_main_dir}/bin
 
@@ -161,22 +166,22 @@ function install_bin() {
     ${csudo} chmod 0555 ${install_main_dir}/bin/*
 
     #Make link
-    [ -x ${install_main_dir}/bin/taos ]      && ${csudo} ln -s ${install_main_dir}/bin/taos ${bin_link_dir}/taos         || :
-
+    #[ -x ${install_main_dir}/bin/taos ]      && ${csudo} ln -s ${install_main_dir}/bin/taos ${bin_link_dir}/taos         || :
+    # -x为检查是否可以执行
     if [ "$osType" != "Darwin" ]; then
         [ -x ${install_main_dir}/bin/taosd ]     && ${csudo} ln -s ${install_main_dir}/bin/taosd ${bin_link_dir}/taosd   || :
         [ -x ${install_main_dir}/bin/taosdump ]  && ${csudo} ln -s ${install_main_dir}/bin/taosdump ${bin_link_dir}/taosdump || :
         [ -x ${install_main_dir}/bin/taosdemo ]  && ${csudo} ln -s ${install_main_dir}/bin/taosdemo ${bin_link_dir}/taosdemo || :
         [ -x ${install_main_dir}/set_core.sh ]  && ${csudo} ln -s ${install_main_dir}/bin/set_core.sh ${bin_link_dir}/set_core || :
     fi
-
-    if [ "$osType" != "Darwin" ]; then
-        [ -x ${install_main_dir}/bin/remove.sh ] && ${csudo} ln -s ${install_main_dir}/bin/remove.sh ${bin_link_dir}/rmtaos  || :
-    else
-        [ -x ${install_main_dir}/bin/remove_client.sh ] && ${csudo} ln -s ${install_main_dir}/bin/remove_client.sh ${bin_link_dir}/rmtaos  || :
-    fi
+    
+    #if [ "$osType" != "Darwin" ]; then
+       # [ -x ${install_main_dir}/bin/remove.sh ] && ${csudo} ln -s ${install_main_dir}/bin/remove.sh ${bin_link_dir}/rmtaos  || :
+    #else
+       # [ -x ${install_main_dir}/bin/remove_client.sh ] && ${csudo} ln -s ${install_main_dir}/bin/remove_client.sh ${bin_link_dir}/rmtaos  || :
+    #fi
 }
-
+#不执行
 function install_jemalloc() {
     if [ "$osType" != "Darwin" ]; then
         /usr/bin/install -c -d /usr/local/bin
@@ -246,75 +251,68 @@ function install_lib() {
         fi
     else
         ${csudo} cp -Rf ${binary_dir}/build/lib/libtaos.* ${install_main_dir}/driver && ${csudo} chmod 777 ${install_main_dir}/driver/*
-        ${csudo} ln -sf ${install_main_dir}/driver/libtaos.1.dylib ${lib_link_dir}/libtaos.1.dylib
-        ${csudo} ln -sf ${lib_link_dir}/libtaos.1.dylib ${lib_link_dir}/libtaos.dylib
+        #${csudo} ln -sf ${install_main_dir}/driver/libtaos.1.dylib ${lib_link_dir}/libtaos.1.dylib
+        #${csudo} ln -sf ${lib_link_dir}/libtaos.1.dylib ${lib_link_dir}/libtaos.dylib
     fi
-
+    #Mac不执行
     install_jemalloc
 
     if [ "$osType" != "Darwin" ]; then
         ${csudo} ldconfig
     fi
 }
-
+#第一次报错位置
 function install_header() {
 
-    ${csudo} rm -f ${inc_link_dir}/taos.h ${inc_link_dir}/taoserror.h    || :
     ${csudo} cp -f ${source_dir}/src/inc/taos.h ${source_dir}/src/inc/taoserror.h ${install_main_dir}/include && ${csudo} chmod 644 ${install_main_dir}/include/*
-    ${csudo} ln -s ${install_main_dir}/include/taos.h ${inc_link_dir}/taos.h
-    ${csudo} ln -s ${install_main_dir}/include/taoserror.h ${inc_link_dir}/taoserror.h
+
 }
 
 function install_config() {
     #${csudo} rm -f ${install_main_dir}/cfg/taos.cfg     || :
 
-    if [ ! -f ${cfg_install_dir}/taos.cfg ]; then
-        ${csudo} mkdir -p ${cfg_install_dir}
-        [ -f ${script_dir}/../cfg/taos.cfg ] && ${csudo} cp ${script_dir}/../cfg/taos.cfg ${cfg_install_dir}
-        ${csudo} chmod 644 ${cfg_install_dir}/*
-    fi
+   # if [ ! -f ${cfg_install_dir}/taos.cfg ]; then
+        #${csudo} mkdir -p ${cfg_install_dir}
+        #[ -f ${script_dir}/../cfg/taos.cfg ] && ${csudo} cp ${script_dir}/../cfg/taos.cfg ${cfg_install_dir}
+       # ${csudo} chmod 644 ${cfg_install_dir}/*
+   #fi
 
     ${csudo} cp -f ${script_dir}/../cfg/taos.cfg ${install_main_dir}/cfg/taos.cfg.org
-    ${csudo} ln -s ${cfg_install_dir}/taos.cfg ${install_main_dir}/cfg
+    #${csudo} ln -s ${cfg_install_dir}/taos.cfg ${install_main_dir}/cfg
 }
+#为{install_main_dir}/log制作软链接
 
-function install_log() {
-    ${csudo} rm -rf ${log_dir}  || :
-
-    if [ "$osType" != "Darwin" ]; then
-        ${csudo} mkdir -p ${log_dir} && ${csudo} chmod 777 ${log_dir}
-    else
-        mkdir -p ${log_dir} && chmod 777 ${log_dir}
-    fi
-
-    ${csudo} ln -s ${log_dir} ${install_main_dir}/log
-}
-
+#为{install_main_dir}/data制作软链接,Mac不执行
 function install_data() {
     ${csudo} mkdir -p ${data_dir}
-    ${csudo} ln -s ${data_dir} ${install_main_dir}/data
+    #使（data_dir）目录里的内容在{install_main_dir}/data里也可以查看
+    #${csudo} ln -s ${data_dir} ${install_main_dir}/data
 }
 
 function install_connector() {
+    #将dist文件夹里的内容复制到安装路径的granfanaplugin
     if [ -d "${source_dir}/src/connector/grafanaplugin/dist" ]; then
         ${csudo} cp -rf ${source_dir}/src/connector/grafanaplugin/dist ${install_main_dir}/connector/grafanaplugin
     else
         echo "WARNING: grafanaplugin bundled dir not found, please check if want to use it!"
     fi
+    #将${source_dir}/src/connector/go里的文件复制到安装路径的connector中
     if find ${source_dir}/src/connector/go -mindepth 1 -maxdepth 1 | read; then
         ${csudo} cp -r ${source_dir}/src/connector/go ${install_main_dir}/connector
     else
         echo "WARNING: go connector not found, please check if want to use it!"
     fi
+    #同理将python文件夹里的内容复制到安装路径的connector里
     ${csudo} cp -rf ${source_dir}/src/connector/python ${install_main_dir}/connector
-
+    #cp为仅仅复制文件不复制目录，二进制目录？
+    #1｜｜2为只执行1或者2 1&&2为先执行成功1再执行2
     ${csudo} cp ${binary_dir}/build/lib/*.jar ${install_main_dir}/connector &> /dev/null && ${csudo} chmod 777 ${install_main_dir}/connector/*.jar || echo &> /dev/null
 }
-
+#复制而已
 function install_examples() {
     ${csudo} cp -rf ${source_dir}/tests/examples/* ${install_main_dir}/examples
 }
-
+#｜｜：是什么意思？？
 function clean_service_on_sysvinit() {
     #restart_config_str="taos:2345:respawn:${service_config_dir}/taosd start"
     #${csudo} sed -i "\|${restart_config_str}|d" /etc/inittab || :
@@ -487,24 +485,29 @@ function install_TDengine() {
     else
         echo -e "${GREEN}Start to install TDEngine Client ...${NC}"
     fi
-
+    #执行成功，仅创建目录结构（已修改）
     install_main_path
 
     if [ "$osType" != "Darwin" ]; then
+        
         install_data
     fi
-    install_log
+    #写入日志，直接改成写入到cellar中的log，在这里删除log
+    #install_log
+    #下载taos.h和taoserror.h到cellar的include文件里（已修改）
     install_header
+    #创建好lib文件夹啥都不安装（已修改）
     install_lib
+    #复制source_dir里的三个connector到cellar里（已修改）
     install_connector
+    #只是复制example到cellar里（无需修改）
     install_examples
-
+    #下载taosd和remove_client.sh并且做软连接指向bin_link.sh里的bin（已经删除软连接）
     install_bin
-
     if [ "$osType" != "Darwin" ]; then
         install_service
     fi
-
+    #同样为下载内容且制作软连接（修改为复制taos.cfg到cellar里）
     install_config
 
     if [ "$osType" != "Darwin" ]; then
