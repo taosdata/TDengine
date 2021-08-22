@@ -73,7 +73,7 @@ Raw DataSize = numOfTables * rowSizePerTable * rowsPerTable
 
 因为 TDengine 具有很好的水平扩展能力，根据总量，再根据单个物理机或虚拟机的资源，就可以轻松决定需要购置多少台物理机或虚拟机了。
 
-**立即计算 CPU、内存、存储，请参见：[资源估算方法](https://www.taosdata.com/config/config.html)**
+**立即计算 CPU、内存、存储，请参见：[资源估算方法](https://www.taosdata.com/config/config.html)。**
 
 ## <a class="anchor" id="tolerance"></a>容错和灾备
 
@@ -217,7 +217,7 @@ taosd -C
 | 99    | queryBufferSize         |          | **S**    | MB       | 为所有并发查询占用保留的内存大小。                           |                                                              |                                                              | 计算规则可以根据实际应用可能的最大并发数和表的数字相乘，再乘 170 。（2.0.15 以前的版本中，此参数的单位是字节） |
 | 100   | ratioOfQueryCores       |          | **S**    |          | 设置查询线程的最大数量。                                     |                                                              |                                                              | 最小值0 表示只有1个查询线程；最大值2表示最大建立2倍CPU核数的查询线程。默认为1，表示最大和CPU核数相等的查询线程。该值可以为小数，即0.5表示最大建立CPU核数一半的查询线程。 |
 | 101   | update                  |          | **S**    |          | 允许更新已存在的数据行                                         | 0 \| 1                                                       | 0                                                            | 从 2.0.8.0 版本开始                                                       |
-| 102   | cacheLast               |          | **S**    |          | 是否在内存中缓存子表的最近数据                                  | 0：关闭；1：缓存子表最近一行数据；2：缓存子表每一列的最近的非NULL值；3：同时打开缓存最近行和列功能。                                                       | 0                                                            | 2.1.2.0 版本之前、2.0.20.7 版本之前在 taos.cfg 文件中不支持此参数。                                             |
+| 102   | cacheLast               |          | **S**    |          | 是否在内存中缓存子表的最近数据                                  | 0：关闭；1：缓存子表最近一行数据；2：缓存子表每一列的最近的非NULL值；3：同时打开缓存最近行和列功能。（2.1.2.0 版本开始此参数支持 0～3 的取值范围，在此之前取值只能是 [0, 1]）                      | 0                                                            | 2.1.2.0 版本之前、2.0.20.7 版本之前在 taos.cfg 文件中不支持此参数。                                             |
 | 103   | numOfCommitThreads      | YES      | **S**    |          | 设置写入线程的最大数量                                       |                                                              |                                                              |                                                              |
 | 104   | maxWildCardsLength      |          | **C**    | bytes    | 设定 LIKE 算子的通配符字符串允许的最大长度                     | 0-16384                                                       | 100                                                          | 2.1.6.1 版本新增。                                                     |
 
@@ -230,7 +230,7 @@ taosd -C
 | 1     | days             | 天       | 一个数据文件存储数据的时间跨度                               |                                                  | 10         |
 | 2     | keep             | 天       | （可通过 alter database 修改<!-- REPLACE_OPEN_TO_ENTERPRISE__KEEP_PARAM_DESCRIPTION_IN_PARAM_LIST -->）数据库中数据保留的天数。                            | 3650       |
 | 3     | cache            | MB       | 内存块的大小                                                 |                                                  | 16         |
-| 4     | blocks           |          | （可通过 alter database 修改）每个 VNODE（TSDB）中有多少个 cache 大小的内存块。因此一个 VNODE 使用的内存大小粗略为（cache * blocks）。                  |                                                  | 4          |
+| 4     | blocks           |          | （可通过 alter database 修改）每个 VNODE（TSDB）中有多少个 cache 大小的内存块。因此一个 VNODE 使用的内存大小粗略为（cache * blocks）。                  |                                                  | 6          |
 | 5     | quorum           |          | （可通过 alter database 修改）多副本环境下指令执行的确认数要求   | 1-2                                              | 1          |
 | 6     | minRows          |          | 文件块中记录的最小条数                                       |                                                  | 100        |
 | 7     | maxRows          |          | 文件块中记录的最大条数                                       |                                                  | 4096       |
@@ -433,7 +433,7 @@ SHOW USERS;
 
 显示所有用户
 
-**注意：**SQL 语法中，< >表示需要用户输入的部分，但请不要输入< >本身
+**注意：**SQL 语法中，< >表示需要用户输入的部分，但请不要输入< >本身。
 
 ## <a class="anchor" id="import"></a>数据导入
 
@@ -445,7 +445,7 @@ TDengine的shell支持source filename命令，用于批量运行文件中的SQL�
 
 **按数据文件导入**
 
-TDengine也支持在shell对已存在的表从CSV文件中进行数据导入。CSV文件只属于一张表且CSV文件中的数据格式需与要导入表的结构相同, 在导入的时候，其语法如下
+TDengine也支持在shell对已存在的表从CSV文件中进行数据导入。CSV文件只属于一张表且CSV文件中的数据格式需与要导入表的结构相同，在导入的时候，其语法如下：
 
 ```mysql
 insert into tb1 file 'path/data.csv';
@@ -487,7 +487,7 @@ Query OK, 9 row(s) affected (0.004763s)
 
 **taosdump工具导入**
 
-TDengine提供了方便的数据库导入导出工具taosdump。用户可以将taosdump从一个系统导出的数据，导入到其他系统中。具体使用方法，请参见博客：[TDengine DUMP工具使用指南](https://www.taosdata.com/blog/2020/03/09/1334.html)
+TDengine提供了方便的数据库导入导出工具taosdump。用户可以将taosdump从一个系统导出的数据，导入到其他系统中。具体使用方法，请参见博客：[TDengine DUMP工具使用指南](https://www.taosdata.com/blog/2020/03/09/1334.html)。
 
 ## <a class="anchor" id="export"></a>数据导出
 
@@ -627,7 +627,7 @@ Active: inactive (dead)
 ......
 ```
 
-卸载 TDengine，只需要执行如下命令
+卸载 TDengine，只需要执行如下命令：
 ```
 rmtaos
 ```
@@ -724,7 +724,7 @@ rmtaos
 2. 服务端命令行输入：`taos -n server -P <port>`  以服务端身份启动对端口 port 为基准端口的监听
 3. 客户端命令行输入：`taos -n client -h <fqdn of server> -P <port>`  以客户端身份启动对指定的服务器、指定的端口发送测试包
 
-服务端运行正常的话会输出以下信息
+服务端运行正常的话会输出以下信息：
 
 ```bash
 # taos -n server -P 6000
@@ -795,6 +795,19 @@ taos -n sync -P 6042 -h <fqdn of server>
 ```
 
 用来诊断 sync 端口是否工作正常，判断服务端 sync 模块是否成功工作。另外，-P 6042 用来诊断 arbitrator 是否配置正常，判断指定服务器的 arbitrator 是否能正常工作。
+
+#### 网络速度诊断
+
+`taos -n speed -h <fqdn of server> -P 6030 -N 10 -l 10000000 -S TCP`
+
+从 2.1.7.0 版本开始，taos 工具新提供了一个网络速度诊断的模式，可以对一个正在运行中的 taosd 实例或者 `taos -n server` 方式模拟的一个服务端实例，以非压缩传输的方式进行网络测速。这个模式下可供调整的参数如下：
+
+-n：设为“speed”时，表示对网络速度进行诊断。
+-h：所要连接的服务端的 FQDN 或 ip 地址。如果不设置这一项，会使用本机 taos.cfg 文件中 FQDN 参数的设置作为默认值。
+-P：所连接服务端的网络端口。默认值为 6030。
+-N：诊断过程中使用的网络包总数。最小值是 1、最大值是 10000，默认值为 100。
+-l：单个网络包的大小（单位：字节）。最小值是 1024、最大值是 1024*1024*1024，默认值为 1000。
+-S：网络封包的类型。可以是 TCP 或 UDP，默认值为 TCP。
 
 #### 服务端日志
 

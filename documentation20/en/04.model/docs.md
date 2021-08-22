@@ -9,7 +9,7 @@ Please watch the [video tutorial](https://www.taosdata.com/blog/2020/11/11/1945.
 Different types of data collection points often have different data characteristics, including frequency of data collecting, length of data retention time, number of replicas, size of data blocks, whether to update data or not, and so on. To ensure TDengine working with great efficiency in various scenarios, TDengine suggests creating tables with different data characteristics in different databases, because each database can be configured with different storage strategies. When creating a database, in addition to SQL standard options, the application can also specify a variety of parameters such as retention duration, number of replicas, number of memory blocks, time accuracy, max and min number of records in a file block, whether it is compressed or not, and number of days a data file will be overwritten. For example:
 
 ```mysql
-CREATE DATABASE power KEEP 365 DAYS 10 BLOCKS 4 UPDATE 1;
+CREATE DATABASE power KEEP 365 DAYS 10 BLOCKS 6 UPDATE 1;
 ```
 
 The above statement will create a database named “power”. The data of this database will be kept for 365 days (it will be automatically deleted 365 days later), one data file created per 10 days, and the number of memory blocks is 4 for data updating. For detailed syntax and parameters, please refer to [Data Management section of TAOS SQL](https://www.taosdata.com/en/documentation/taos-sql#management).

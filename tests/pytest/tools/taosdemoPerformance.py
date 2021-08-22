@@ -145,26 +145,26 @@ class taosdemoPerformace:
         binPath = buildPath + "/build/bin/"
 
         os.system(
-            "%staosdemo -f %s > taosdemoperf.txt 2>&1" %
+            "%staosdemo -f %s > /dev/null 2>&1" %
             (binPath, self.generateJson()))
         self.createTableTime = self.getCMDOutput(
-            "grep 'Spent' taosdemoperf.txt | awk 'NR==1{print $2}'")
+            "grep 'Spent' insert_res.txt | awk 'NR==1{print $2}'")
         self.insertRecordsTime = self.getCMDOutput(
-            "grep 'Spent' taosdemoperf.txt | awk 'NR==2{print $2}'")
+            "grep 'Spent' insert_res.txt | awk 'NR==2{print $2}'")
         self.recordsPerSecond = self.getCMDOutput(
-            "grep 'Spent' taosdemoperf.txt | awk 'NR==2{print $16}'")
+            "grep 'Spent' insert_res.txt | awk 'NR==2{print $16}'")
         self.commitID = self.getCMDOutput("git rev-parse --short HEAD")
         delay = self.getCMDOutput(
-            "grep 'delay' taosdemoperf.txt | awk '{print $4}'")
+            "grep 'delay' insert_res.txt | awk '{print $4}'")
         self.avgDelay = delay[:-4]
         delay = self.getCMDOutput(
-            "grep 'delay' taosdemoperf.txt | awk '{print $6}'")
+            "grep 'delay' insert_res.txt | awk '{print $6}'")
         self.maxDelay = delay[:-4]
         delay = self.getCMDOutput(
-            "grep 'delay' taosdemoperf.txt | awk '{print $8}'")
+            "grep 'delay' insert_res.txt | awk '{print $8}'")
         self.minDelay = delay[:-3]
 
-        os.system("[ -f taosdemoperf.txt ] && rm taosdemoperf.txt")
+        os.system("[ -f insert_res.txt ] && rm insert_res.txt")
 
     def createTablesAndStoreData(self):
         cursor = self.conn2.cursor()
@@ -185,7 +185,7 @@ class taosdemoPerformace:
         cursor.close()
 
         cursor1 = self.conn.cursor()
-        # cursor1.execute("drop database if exists %s" % self.insertDB)
+        cursor1.execute("drop database if exists %s" % self.insertDB)
         cursor1.close()
 
 if __name__ == '__main__':

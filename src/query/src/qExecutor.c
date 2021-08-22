@@ -2951,12 +2951,13 @@ void filterRowsInDataBlock(SQueryRuntimeEnv* pRuntimeEnv, SSingleColumnFilterInf
 void filterColRowsInDataBlock(SQueryRuntimeEnv* pRuntimeEnv, SSDataBlock* pBlock, bool ascQuery) {
  int32_t numOfRows = pBlock->info.rows;
 
- int8_t *p = calloc(numOfRows, sizeof(int8_t));
+ int8_t *p = NULL;
  bool    all = true;
 
  if (pRuntimeEnv->pTsBuf != NULL) {
-   SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, 0);
-
+   SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, 0);   
+   p = calloc(numOfRows, sizeof(int8_t));
+   
    TSKEY* k = (TSKEY*) pColInfoData->pData;
    for (int32_t i = 0; i < numOfRows; ++i) {
      int32_t offset = ascQuery? i:(numOfRows - i - 1);
@@ -2979,11 +2980,16 @@ void filterColRowsInDataBlock(SQueryRuntimeEnv* pRuntimeEnv, SSDataBlock* pBlock
    // save the cursor status
    pRuntimeEnv->current->cur = tsBufGetCursor(pRuntimeEnv->pTsBuf);
  } else {
-   all = filterExecute(pRuntimeEnv->pQueryAttr->pFilters, numOfRows, p);
+   all = filterExecute(pRuntimeEnv->pQueryAttr->pFilters, numOfRows, &p, pBlock->pBlockStatis, pRuntimeEnv->pQueryAttr->numOfCols);
  }
 
  if (!all) {
-   doCompactSDataBlock(pBlock, numOfRows, p);
+   if (p) {
+     doCompactSDataBlock(pBlock, numOfRows, p);
+   } else {
+     pBlock->info.rows = 0;
+     pBlock->pBlockStatis = NULL;  // clean the block statistics info
+   }
  }
 
  tfree(p);
@@ -3029,15 +3035,6 @@ void doSetFilterColumnInfo(SSingleColumnFilterInfo* pFilterInfo, int32_t numOfFi
         break;
       }
     }
-  }
-}
-
-
-void doSetFilterColInfo(SFilterInfo     * pFilters, SSDataBlock* pBlock) {
-  for (int32_t j = 0; j < pBlock->info.numOfCols; ++j) {
-    SColumnInfoData* pColInfo = taosArrayGet(pBlock->pDataBlock, j);
-
-    filterSetColFieldData(pFilters, pColInfo->info.colId, pColInfo->pData);
   }
 }
 
@@ -3195,7 +3192,7 @@ int32_t loadDataBlockOnDemand(SQueryRuntimeEnv* pRuntimeEnv, STableScanInfo* pTa
     }
 
     if (pQueryAttr->pFilters != NULL) {
-      doSetFilterColInfo(pQueryAttr->pFilters, pBlock);
+      filterSetColFieldData(pQueryAttr->pFilters, pBlock->info.numOfCols, pBlock->pDataBlock);
     }
     
     if (pQueryAttr->pFilters != NULL || pRuntimeEnv->pTsBuf != NULL) {
@@ -4193,24 +4190,58 @@ static void updateNumOfRowsInResultRows(SQueryRuntimeEnv* pRuntimeEnv, SQLFuncti
   }
 }
 
-static void doCopyQueryResultToMsg(SQInfo *pQInfo, int32_t numOfRows, char *data) {
+static int32_t compressQueryColData(SColumnInfoData *pColRes, int32_t numOfRows, char *data, int8_t compressed) {
+  int32_t colSize = pColRes->info.bytes * numOfRows;
+  return (*(tDataTypes[pColRes->info.type].compFunc))(pColRes->pData, colSize, numOfRows, data,
+                                                                 colSize + COMP_OVERFLOW_BYTES, compressed, NULL, 0);
+}
+
+static void doCopyQueryResultToMsg(SQInfo *pQInfo, int32_t numOfRows, char *data, int8_t compressed, int32_t *compLen) {
   SQueryRuntimeEnv* pRuntimeEnv = &pQInfo->runtimeEnv;
   SQueryAttr *pQueryAttr = pRuntimeEnv->pQueryAttr;
 
   SSDataBlock* pRes = pRuntimeEnv->outputBuf;
 
+  int32_t *compSizes = NULL;
+  int32_t numOfCols = pQueryAttr->pExpr2 ? pQueryAttr->numOfExpr2 : pQueryAttr->numOfOutput;
+
+  if (compressed) {
+    compSizes = tcalloc(numOfCols, sizeof(int32_t));
+  }
+
   if (pQueryAttr->pExpr2 == NULL) {
-    for (int32_t col = 0; col < pQueryAttr->numOfOutput; ++col) {
+    for (int32_t col = 0; col < numOfCols; ++col) {
       SColumnInfoData* pColRes = taosArrayGet(pRes->pDataBlock, col);
-      memmove(data, pColRes->pData, pColRes->info.bytes * pRes->info.rows);
-      data += pColRes->info.bytes * pRes->info.rows;
+      if (compressed) {
+        compSizes[col] = compressQueryColData(pColRes, pRes->info.rows, data, compressed);
+        data += compSizes[col];
+        *compLen += compSizes[col];
+        compSizes[col] = htonl(compSizes[col]);
+      } else {
+        memmove(data, pColRes->pData, pColRes->info.bytes * pRes->info.rows);
+        data += pColRes->info.bytes * pRes->info.rows;
+      }
     }
   } else {
-    for (int32_t col = 0; col < pQueryAttr->numOfExpr2; ++col) {
+    for (int32_t col = 0; col < numOfCols; ++col) {
       SColumnInfoData* pColRes = taosArrayGet(pRes->pDataBlock, col);
-      memmove(data, pColRes->pData, pColRes->info.bytes * numOfRows);
-      data += pColRes->info.bytes * numOfRows;
+      if (compressed) {
+        compSizes[col] = htonl(compressQueryColData(pColRes, numOfRows, data, compressed));
+        data += compSizes[col];
+        *compLen += compSizes[col];
+        compSizes[col] = htonl(compSizes[col]);
+      } else {
+        memmove(data, pColRes->pData, pColRes->info.bytes * numOfRows);
+        data += pColRes->info.bytes * numOfRows;
+      }
     }
+  }
+
+  if (compressed) {
+    memmove(data, (char *)compSizes, numOfCols * sizeof(int32_t));
+    data += numOfCols * sizeof(int32_t);
+
+    tfree(compSizes);
   }
 
   int32_t numOfTables = (int32_t) taosHashGetSize(pRuntimeEnv->pTableRetrieveTsMap);
@@ -4234,6 +4265,7 @@ static void doCopyQueryResultToMsg(SQInfo *pQInfo, int32_t numOfRows, char *data
   }
 
   qDebug("QInfo:0x%"PRIx64" set %d subscribe info", pQInfo->qId, total);
+
   // Check if query is completed or not for stable query or normal table query respectively.
   if (Q_STATUS_EQUAL(pRuntimeEnv->status, QUERY_COMPLETED) && pRuntimeEnv->proot->status == OP_EXEC_DONE) {
     setQueryStatus(pRuntimeEnv, QUERY_OVER);
@@ -7048,6 +7080,10 @@ static SSDataBlock* doTagScan(void* param, bool* newgroup) {
     qDebug("QInfo:0x%"PRIx64" create tag values results completed, rows:%d", GET_QID(pRuntimeEnv), count);
   }
 
+  if (pOperator->status == OP_EXEC_DONE) {
+    setQueryStatus(pOperator->pRuntimeEnv, QUERY_COMPLETED);
+  }
+
   pRes->info.rows = count;
   return (pRes->info.rows == 0)? NULL:pInfo->pRes;
 }
@@ -8695,7 +8731,7 @@ void freeQInfo(SQInfo *pQInfo) {
   tfree(pQInfo);
 }
 
-int32_t doDumpQueryResult(SQInfo *pQInfo, char *data) {
+int32_t doDumpQueryResult(SQInfo *pQInfo, char *data, int8_t compressed, int32_t *compLen) {
   // the remained number of retrieved rows, not the interpolated result
   SQueryRuntimeEnv* pRuntimeEnv = &pQInfo->runtimeEnv;
   SQueryAttr *pQueryAttr = pQInfo->runtimeEnv.pQueryAttr;
@@ -8738,7 +8774,7 @@ int32_t doDumpQueryResult(SQInfo *pQInfo, char *data) {
       setQueryStatus(pRuntimeEnv, QUERY_OVER);
     }
   } else {
-    doCopyQueryResultToMsg(pQInfo, (int32_t)pRuntimeEnv->outputBuf->info.rows, data);
+    doCopyQueryResultToMsg(pQInfo, (int32_t)pRuntimeEnv->outputBuf->info.rows, data, compressed, compLen);
   }
 
   qDebug("QInfo:0x%"PRIx64" current numOfRes rows:%d, total:%" PRId64, pQInfo->qId,
@@ -8822,6 +8858,30 @@ int32_t checkForQueryBuf(size_t numOfTables) {
 
   // disable query processing if the value of tsQueryBufferSize is zero.
   return TSDB_CODE_QRY_NOT_ENOUGH_BUFFER;
+}
+
+bool checkNeedToCompressQueryCol(SQInfo *pQInfo) {
+  SQueryRuntimeEnv* pRuntimeEnv = &pQInfo->runtimeEnv;
+  SQueryAttr *pQueryAttr = pRuntimeEnv->pQueryAttr;
+
+  SSDataBlock* pRes = pRuntimeEnv->outputBuf;
+
+  if (GET_NUM_OF_RESULTS(&(pQInfo->runtimeEnv)) <= 0) {
+    return false;
+  }
+
+  int32_t numOfRows = pQueryAttr->pExpr2 ? GET_NUM_OF_RESULTS(pRuntimeEnv) : pRes->info.rows;
+  int32_t numOfCols = pQueryAttr->pExpr2 ? pQueryAttr->numOfExpr2 : pQueryAttr->numOfOutput;
+
+  for (int32_t col = 0; col < numOfCols; ++col) {
+    SColumnInfoData* pColRes = taosArrayGet(pRes->pDataBlock, col);
+    int32_t colSize = pColRes->info.bytes * numOfRows;
+    if (NEEDTO_COMPRESS_QUERY(colSize)) {
+      return true;
+    }
+  }
+
+  return false;
 }
 
 void releaseQueryBuf(size_t numOfTables) {
