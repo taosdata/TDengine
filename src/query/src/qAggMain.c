@@ -3790,11 +3790,37 @@ static void interp_function_impl(SQLFunctionCtx *pCtx) {
 static void interp_function(SQLFunctionCtx *pCtx) {
   // at this point, the value is existed, return directly
   if (pCtx->size > 0) {
-    // impose the timestamp check
-    TSKEY key = GET_TS_DATA(pCtx, 0);
+    bool ascQuery = (pCtx->order == TSDB_ORDER_ASC);
+    TSKEY key;
+    char *pData;
+    int32_t typedData = 0;
+    
+    if (ascQuery) {
+      key = GET_TS_DATA(pCtx, 0);
+      pData = GET_INPUT_DATA(pCtx, 0);
+    } else {
+      key = pCtx->start.key;
+      if (key == INT64_MIN) {
+        key = GET_TS_DATA(pCtx, 0);
+        pData = GET_INPUT_DATA(pCtx, 0);
+      } else {        
+        if (!(IS_NUMERIC_TYPE(pCtx->inputType) || pCtx->inputType == TSDB_DATA_TYPE_BOOL)) {
+          pData = pCtx->start.ptr;
+        } else {
+          typedData = 1;
+          pData = (char *)&pCtx->start.val;
+        }
+      }
+    }
+    
+    //if (key == pCtx->startTs && (ascQuery || !(IS_NUMERIC_TYPE(pCtx->inputType) || pCtx->inputType == TSDB_DATA_TYPE_BOOL))) {
     if (key == pCtx->startTs) {
-      char *pData = GET_INPUT_DATA(pCtx, 0);
-      assignVal(pCtx->pOutput, pData, pCtx->inputBytes, pCtx->inputType);
+      if (typedData) {
+        SET_TYPED_DATA(pCtx->pOutput, pCtx->inputType, *(double *)pData);
+      } else {
+        assignVal(pCtx->pOutput, pData, pCtx->inputBytes, pCtx->inputType);
+      }
+      
       SET_VAL(pCtx, 1, 1);
     } else {
       interp_function_impl(pCtx);

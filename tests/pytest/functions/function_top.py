@@ -117,6 +117,21 @@ class TDTestCase:
         tdSql.checkRows(2)
         tdSql.checkData(0, 1, 8.1)
         tdSql.checkData(1, 1, 9.1)
+
+        tdSql.query("select ts,top(col1, 2),ts from test1")
+        tdSql.checkRows(2)
+        tdSql.checkData(0, 0, "2018-09-17 09:00:00.008")
+        tdSql.checkData(0, 1, "2018-09-17 09:00:00.008")
+        tdSql.checkData(1, 0, "2018-09-17 09:00:00.009")
+        tdSql.checkData(1, 3, "2018-09-17 09:00:00.009")
+
+
+        tdSql.query("select ts,top(col1, 2),ts from test group by tbname")
+        tdSql.checkRows(2)
+        tdSql.checkData(0, 0, "2018-09-17 09:00:00.008")
+        tdSql.checkData(0, 1, "2018-09-17 09:00:00.008")
+        tdSql.checkData(1, 0, "2018-09-17 09:00:00.009")
+        tdSql.checkData(1, 3, "2018-09-17 09:00:00.009")
         
         #TD-2563 top + super_table + interval 
         tdSql.execute("create table meters(ts timestamp, c int) tags (d int)") 
