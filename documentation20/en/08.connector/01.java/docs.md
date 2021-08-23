@@ -1,21 +1,25 @@
 # Java connector
 
+
+
 ## Introduction
 
-The taos-jdbcdriver is implemented in two forms: JDBC-JNI and JDBC-RESTful (which supported since taos-jdbcdriver-2.0.18). JDBC-JNI is implemented by calling the local methods of libtaos.so (or taos.dll) on the client, while JDBC-RESTful encapsulates the RESTful interface implementation internally.
+The taos-jdbcdriver is implemented in two forms: JDBC-JNI and JDBC-RESTful (supported from taos-jdbcdriver-2.0.18). JDBC-JNI is implemented by calling the local methods of libtaos.so (or taos.dll) on the client, while JDBC-RESTful encapsulates the RESTful interface implementation internally.
+
+
 
 ![tdengine-connector](https://www.taosdata.com/cn/documentation20/user/pages/images/tdengine-jdbc-connector.png)
 
 The figure above shows the three ways Java applications can access the TDengine:
 
-* JDBC-JNI: The Java application uses JDBC-JNI's API on physical node1 (pnode1) and directly calls the client API (libtaos.so or taos.dll) to send write and query requests to the taosd instance on physical node2 (Pnode2).
+* JDBC-JNI: The Java application uses JDBC-JNI's API on physical node1 (pnode1) and directly calls the client API (libtaos.so or taos.dll) to send write or query requests to the taosd instance on physical node2 (pnode2).
 * RESTful: The Java application sends the SQL to the RESTful connector on physical node2 (pnode2), which then calls the client API (libtaos.so).
 * JDBC-RESTful: The Java application uses the JDBC-restful API to encapsulate SQL into a RESTful request and send it to the RESTful connector of physical node 2.
 
-In terms of implementation, the JDBC driver of TDengine is as consistent as possible with the behavior of the relational database driver. However, due to the differences between TDengine and relational database in the object and technical characteristics of services, There are some differences between taos-jdbcdriver and traditional relational database JDBC driver. The following points should be paid attention to when using:
+In terms of implementation, the JDBC driver of TDengine is as consistent as possible with the behavior of the relational database driver. However, due to the differences between TDengine and relational database in the object and technical characteristics of services, there are some differences between taos-jdbcdriver and traditional relational database JDBC driver. The following points should be watched:
 
-* Currently, you cannot delete a single data record in TDengine.
-* Transaction are not currently supported.
+* deleting a record is not supported in TDengine.
+* transaction is not supported in TDengine.
 
 ### Difference between JDBC-JNI and JDBC-restful
 
@@ -90,7 +94,7 @@ The TDengine supports the following data types and Java data types:
 
 ### Runtime Requirements
 
-To actually run TDengine's Java connector, you'll need to meet the following:
+To run TDengine's Java connector, the following requirements shall be met:
 
 1. A Linux or Windows System
 
@@ -117,7 +121,7 @@ To Java delevopers, TDengine provides `taos-jdbcdriver` according to the JDBC(3.
 </dependencies>
 ```
 
-### Obtain JDBC driver by compile source codes
+### Obtain JDBC driver by compiling source code
 
 You can download the TDengine source code and compile the latest version of the JDBC Connector.
 
@@ -181,8 +185,6 @@ The configuration parameters in the URL are as follows:
 * timestampFormat: only valid for JDBC-RESTful. 'TIMESTAMP' if you want to get a long value in a ResultSet; 'UTC' if you want to get a string in UTC date-time format in a ResultSet; 'STRING' if you want to get a local date-time format string in ResultSet. Default value is 'STRING'.
 * batchErrorIgnore: true if you want to continue executing the rest of the SQL when error happens during execute the executeBatch method in Statement; false, false if the remaining SQL statements are not executed. Default value is false.
 
-
-
 #### Establishing a connection with URL and Properties
 
 In addition to establish the connection with the specified URL, you can also use Properties to specify the parameters to set up the connection, as shown below:
@@ -214,8 +216,6 @@ The configuration parameters in properties are as follows:
 * TSDBDriver.PROPERTY_KEY_BATCH_LOAD: only valid for JDBC-RESTful. 'TIMESTAMP' if you want to get a long value in a ResultSet; 'UTC' if you want to get a string in UTC date-time format in a ResultSet; 'STRING' if you want to get a local date-time format string in ResultSet. Default value is 'STRING'.
 * TSDBDriver.PROPERTY_KEY_BATCH_ERROR_IGNORE: true if you want to continue executing the rest of the SQL when error happens during execute the executeBatch method in Statement; false, false if the remaining SQL statements are not executed. Default value is false.
 
-
-
 #### Establishing a connection with configuration file
 
 When JDBC-JNI is used to connect to the TDengine cluster, you can specify firstEp and secondEp parameters of the cluster in the client configuration file. As follows:
@@ -245,7 +245,7 @@ secondEp              cluster_node2:6030
 
 In the above example, JDBC driver uses the client configuration file to establish a connection to the hostname of 'cluster_node1', port 6030, and database name of 'test'. When the firstEp node in the cluster fails, JDBC will try to connect to the cluster using secondEp. In the TDengine, as long as one node in firstEp and secondEp is valid, the connection to the cluster can be established.
 
-**Note**: In this case, the configuration file is belongs to TDengine client which running a Java application. default file path of Linux OS is '/etc/taos/taos.cfg', and default file path of Windows OS is 'C://TDengine/cfg/taos.cfg'.
+**Note**: In this case, the configuration file belongs to TDengine client which is running inside a Java application. default file path of Linux OS is '/etc/taos/taos.cfg', and default file path of Windows OS is 'C://TDengine/cfg/taos.cfg'.
 
 #### Priority of the parameters
 
@@ -403,9 +403,9 @@ public void setNString(int columnIndex, ArrayList<String> list, int size) throws
 
 
 
-### Subscribe
+### Data Subscription
 
-#### Create
+#### Subscribe
 
 ```java
 TSDBSubscribe sub = ((TSDBConnection)conn).subscribe("topic", "select * from meters", false);
@@ -542,5 +542,4 @@ Query OK, 1 row(s) in set (0.000141s)
   **Answer**：re-install 64bit JDK.
 
 - For other questions, please refer to [Issues](https://github.com/taosdata/TDengine/issues)
-
 
