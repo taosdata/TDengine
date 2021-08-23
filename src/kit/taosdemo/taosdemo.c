@@ -2141,7 +2141,7 @@ static void xDumpFieldToFile(FILE* fp, const char* val,
             fprintf(fp, "%d", *((int32_t *)val));
             break;
         case TSDB_DATA_TYPE_BIGINT:
-            fprintf(fp, "%" PRId64, *((int64_t *)val));
+            fprintf(fp, "%"PRId64"", *((int64_t *)val));
             break;
         case TSDB_DATA_TYPE_FLOAT:
             fprintf(fp, "%.5f", GET_FLOAT_VAL(val));
@@ -5242,7 +5242,7 @@ static int64_t generateData(char *recBuf, char **data_type,
         int64_t timestamp, int lenOfBinary) {
     memset(recBuf, 0, MAX_DATA_SIZE);
     char *pstr = recBuf;
-    pstr += sprintf(pstr, "(%" PRId64, timestamp);
+    pstr += sprintf(pstr, "(%"PRId64"", timestamp);
 
     int columnCount = g_args.num_of_CPR;
 
@@ -5254,9 +5254,9 @@ static int64_t generateData(char *recBuf, char **data_type,
         } else if (strcasecmp(data_type[i % columnCount], "INT") == 0) {
             pstr += sprintf(pstr, ",%d", rand_int());
         } else if (strcasecmp(data_type[i % columnCount], "BIGINT") == 0) {
-            pstr += sprintf(pstr, ",%" PRId64, rand_bigint());
+            pstr += sprintf(pstr, ",%"PRId64"", rand_bigint());
         } else if (strcasecmp(data_type[i % columnCount], "TIMESTAMP") == 0) {
-            pstr += sprintf(pstr, ",%" PRId64, rand_bigint());
+            pstr += sprintf(pstr, ",%"PRId64"", rand_bigint());
         } else if (strcasecmp(data_type[i % columnCount], "FLOAT") == 0) {
             pstr += sprintf(pstr, ",%10.4f", rand_float());
         } else if (strcasecmp(data_type[i % columnCount], "DOUBLE") == 0) {
@@ -8069,7 +8069,7 @@ static void *specifiedTableQuery(void *sarg) {
         uint64_t  currentPrintTime = taosGetTimestampMs();
         uint64_t  endTs = taosGetTimestampMs();
         if (currentPrintTime - lastPrintTime > 30*1000) {
-            debugPrint("%s() LN%d, endTs=%"PRIu64"ms, startTs=%"PRIu64"ms\n",
+            debugPrint("%s() LN%d, endTs=%"PRIu64" ms, startTs=%"PRIu64" ms\n",
                     __func__, __LINE__, endTs, startTs);
             printf("thread[%d] has currently completed queries: %"PRIu64", QPS: %10.6f\n",
                     pThreadInfo->threadID,
