@@ -20,9 +20,9 @@ from util.log import *
 
 
 class TDSimClient:
-    def __init__(self):
+    def __init__(self, path):
         self.testCluster = False
-
+        self.path = path
         self.cfgDict = {
             "numOfLogLines": "100000000",
             "numOfThreadsPerCore": "2.0",
@@ -41,10 +41,7 @@ class TDSimClient:
             "jnidebugFlag": "135",
             "qdebugFlag": "135",
             "telemetryReporting": "0",
-            }
-    def init(self, path):
-        self.__init__()
-        self.path = path
+        }
 
     def getLogDir(self):
         self.logDir = "%s/sim/psim/log" % (self.path)
@@ -480,8 +477,8 @@ class TDDnodes:
         for i in range(len(self.dnodes)):
             self.dnodes[i].init(self.path)
 
-        self.sim = TDSimClient()
-        self.sim.init(self.path)
+        self.sim = TDSimClient(self.path)
+        # self.sim.init(self.path)
 
     def setTestCluster(self, value):
         self.testCluster = value
