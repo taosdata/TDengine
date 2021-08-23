@@ -19,13 +19,17 @@ public class SetConfigurationInJNITest {
     @Test
     public void testDebugFlag() {
         try {
+            // init
             TSDBJNIConnector.initImp(null);
             TSDBJNIConnector.setOptions(0, null);
             TSDBJNIConnector.setOptions(1, null);
             TSDBJNIConnector.setOptions(2, null);
             String tsCharset = TSDBJNIConnector.getTsCharset();
-            System.out.println(tsCharset);
+            assertEquals("", tsCharset);
 
+            TSDBJNIConnector.setConfig(debugFlagJSON);
+
+            // connect
             TSDBJNIConnector jniConnector = new TSDBJNIConnector();
             boolean connected = jniConnector.connect(host, 0, null, "root", "taosdata");
             assertTrue(connected);
