@@ -444,7 +444,6 @@ function update_TDengine() {
     fi
 
     install_main_path
-
     install_log
     install_header
     install_lib
