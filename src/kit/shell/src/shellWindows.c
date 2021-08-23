@@ -55,9 +55,13 @@ void printHelp() {
   printf("%s%s\n", indent, "-t");
   printf("%s%s%s\n", indent, indent, "Time zone of the shell, default is local.");
   printf("%s%s\n", indent, "-n");
-  printf("%s%s%s\n", indent, indent, "Net role when network connectivity test, default is startup, options: client|server|rpc|startup|sync.");
+  printf("%s%s%s\n", indent, indent, "Net role when network connectivity test, default is startup, options: client|server|rpc|startup|sync|speed|fqdn.");
   printf("%s%s\n", indent, "-l");
   printf("%s%s%s\n", indent, indent, "Packet length used for net test, default is 1000 bytes.");
+  printf("%s%s\n", indent, "-N");
+  printf("%s%s%s\n", indent, indent, "Packet numbers used for net test, default is 100.");
+  printf("%s%s\n", indent, "-S");
+  printf("%s%s%s\n", indent, indent, "Packet type used for net test, default is TCP.");
   printf("%s%s\n", indent, "-V");
   printf("%s%s%s\n", indent, indent, "Print program version.");
 
