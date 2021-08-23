@@ -416,8 +416,9 @@ int tsdbSyncRecv(void *pRepo, SOCKET socketFd);
 int tsdbCompact(STsdbRepo *pRepo);
 
 // For TSDB Health Monitor
-bool tsdbAllowNewBlock(STsdbRepo* pRepo);
-bool tsdbIdleMemEnough();
+
+// no problem return true
+bool tsdbNoProblem(STsdbRepo* pRepo);
 
 #ifdef __cplusplus
 }

@@ -18,11 +18,13 @@
 #include "tarray.h"
 #include "query.h"
 #include "tglobal.h"
+#include "tlist.h"
 #include "tsdbint.h"
 #include "tsdbBuffer.h"
 #include "tsdbLog.h"
 #include "tsdbHealth.h"
 #include "ttimer.h"
+
 
 // return malloc new block count 
 int32_t tsdbInsertNewBlock(STsdbRepo * pRepo) {
@@ -56,24 +58,28 @@ void cbKillQueryFree(void* param1, void* param2) {
 // return true do free , false do nothing
 bool tsdbUrgeQueryFree(STsdbRepo * pRepo) {
   // 1 start timer
-  tmr_h hTimer = taosTmrStart(cbKillQueryFree, 1, pRepo, NULL);
+  if(pRepo->tmrCtrl == NULL){
+    pRepo->tmrCtrl = taosTmrInit(0, 0, 0, "REPO");
+  }
+
+  tmr_h hTimer = taosTmrStart(cbKillQueryFree, 1, pRepo, pRepo->tmrCtrl);
   return hTimer != NULL;
 }
 
 bool tsdbIdleMemEnough() {
   // TODO config to taos.cfg
-  int32_t lowestRate = 20;  // below 20% idle memory, return not enough memory
+  int32_t lowestRate = 10;  // below 10% idle memory, return not enough memory
   float  memoryUsedMB = 0;
   float  memoryAvailMB;
 
-  if (true != taosGetSysMemory(&memoryUsedMB)) {
+  if (!taosGetSysMemory(&memoryUsedMB)) {
     tsdbWarn("tsdbHealth get memory error, return false.");
-    return false;
+    return true;
   }
 
   if(memoryUsedMB > tsTotalMemoryMB || tsTotalMemoryMB == 0) {
     tsdbWarn("tsdbHealth used memory(%d MB) large total memory(%d MB), return false.", (int)memoryUsedMB, (int)tsTotalMemoryMB);
-    return false;
+    return true;
   }
 
   memoryAvailMB = (float)tsTotalMemoryMB - memoryUsedMB;
@@ -88,11 +94,21 @@ bool tsdbIdleMemEnough() {
 
 bool tsdbAllowNewBlock(STsdbRepo* pRepo) {
   //TODO config to taos.cfg
-  int32_t nMaxElastic = 3;
+  int32_t nMaxElastic = 0;
   STsdbBufPool* pPool = pRepo->pPool;
   if(pPool->nElasticBlocks >= nMaxElastic) {
     tsdbWarn("tsdbAllowNewBlock return fasle. nElasticBlock(%d) >= MaxElasticBlocks(%d)", pPool->nElasticBlocks, nMaxElastic);
     return false;
   }
+  return true;
+}
+
+bool tsdbNoProblem(STsdbRepo* pRepo) {
+  if(!tsdbIdleMemEnough()) 
+     return false;
+
+  if(listNEles(pRepo->pPool->bufBlockList)) 
+     return false;
+
   return true;
 }

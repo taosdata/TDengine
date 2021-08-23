@@ -29,7 +29,7 @@
 #include "httpContext.h"
 #include "httpParser.h"
 
-static void httpDestroyContext(void *data);
+static void httpDestroyContext(void *data, void* param1);
 
 static void httpRemoveContextFromEpoll(HttpContext *pContext) {
   HttpThread *pThread = pContext->pThread;
@@ -44,7 +44,7 @@ static void httpRemoveContextFromEpoll(HttpContext *pContext) {
   }
 }
 
-static void httpDestroyContext(void *data) {
+static void httpDestroyContext(void *data, void* param1) {
   HttpContext *pContext = *(HttpContext **)data;
   if (pContext->fd > 0) taosCloseSocket(pContext->fd);
 

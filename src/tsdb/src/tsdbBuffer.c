@@ -64,6 +64,10 @@ int tsdbOpenBufPool(STsdbRepo *pRepo) {
 
   ASSERT(pPool != NULL);
 
+  // debug test
+  pCfg->cacheBlockSize = 1;
+  pCfg->totalBlocks = 4;
+
   pPool->bufBlockSize = pCfg->cacheBlockSize * 1024 * 1024; // MB
   pPool->tBufBlocks = pCfg->totalBlocks;
   pPool->nBufBlocks = 0;
@@ -119,16 +123,22 @@ SListNode *tsdbAllocBufBlockFromPool(STsdbRepo *pRepo) {
   STsdbBufPool *pBufPool = pRepo->pPool;
 
   while (POOL_IS_EMPTY(pBufPool)) {
+    tsdbWarn("vgId:%d Pool empty,nBufBlocks=%d nElastic=%d nRecycle=%d", REPO_ID(pRepo), pBufPool->nBufBlocks, pBufPool->nElasticBlocks, pBufPool->nRecycleBlocks);
     // supply new Block 
     if(tsdbInsertNewBlock(pRepo) > 0) {
+      tsdbWarn("vgId:%d Insert new block to solve.", REPO_ID(pRepo));
       break;
     } else {
       // no newBlock, kill query free
-      tsdbUrgeQueryFree(pRepo);
+      if(!tsdbUrgeQueryFree(pRepo)) {
+        tsdbWarn("vgId:%d Urge query free thread start failed.", REPO_ID(pRepo));
+      }
     }
 
     pRepo->repoLocked = false;
+    tsdbDebug("vgId:%d wait for new block...", REPO_ID(pRepo));
     pthread_cond_wait(&(pBufPool->poolNotEmpty), &(pRepo->mutex));
+    tsdbDebug("vgId:%d waited new block ok.", REPO_ID(pRepo));
     pRepo->repoLocked = true;
   }
 

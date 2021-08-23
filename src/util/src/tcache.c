@@ -140,7 +140,7 @@ static FORCE_INLINE void taosCacheReleaseNode(SCacheObj *pCacheObj, SCacheDataNo
          pCacheObj->name, pNode->key, pNode->data, pNode->size, size - 1, pCacheObj->totalSize);
 
   if (pCacheObj->freeFp) {
-    pCacheObj->freeFp(pNode->data);
+    pCacheObj->freeFp(pNode->data, NULL);
   }
 
   free(pNode);
@@ -174,7 +174,7 @@ static FORCE_INLINE STrashElem* doRemoveElemInTrashcan(SCacheObj* pCacheObj, STr
 
 static FORCE_INLINE void doDestroyTrashcanElem(SCacheObj* pCacheObj, STrashElem *pElem) {
   if (pCacheObj->freeFp) {
-    pCacheObj->freeFp(pElem->pData->data);
+    pCacheObj->freeFp(pElem->pData->data, NULL);
   }
 
   free(pElem->pData);
@@ -249,7 +249,7 @@ void *taosCachePut(SCacheObj *pCacheObj, const void *key, size_t keyLen, const v
       if (ret == 0) {
         if (T_REF_VAL_GET(p) == 0) {
           if (pCacheObj->freeFp) {
-            pCacheObj->freeFp(p->data);
+            pCacheObj->freeFp(p->data, NULL);
           }
 
           atomic_sub_fetch_64(&pCacheObj->totalSize, p->size);
@@ -458,7 +458,7 @@ void taosCacheRelease(SCacheObj *pCacheObj, void **data, bool _remove) {
                    pCacheObj->name, pNode->key, pNode->data, pNode->size, size, pCacheObj->totalSize);
 
             if (pCacheObj->freeFp) {
-              pCacheObj->freeFp(pNode->data);
+              pCacheObj->freeFp(pNode->data, NULL);
             }
 
             free(pNode);
@@ -504,6 +504,7 @@ typedef struct SHashTravSupp {
   SCacheObj* pCacheObj;
   int64_t    time;
   __cache_free_fn_t fp;
+  void* param1;
 } SHashTravSupp;
 
 static bool travHashTableEmptyFn(void* param, void* data) {
@@ -662,17 +663,17 @@ bool travHashTableFn(void* param, void* data) {
   }
 
   if (ps->fp) {
-    (ps->fp)(pNode->data);
+    (ps->fp)(pNode->data, ps->param1);
   }
 
   // do not remove element in hash table
   return true;
 }
 
-static void doCacheRefresh(SCacheObj* pCacheObj, int64_t time, __cache_free_fn_t fp) {
+static void doCacheRefresh(SCacheObj* pCacheObj, int64_t time, __cache_free_fn_t fp, void* param1) {
   assert(pCacheObj != NULL);
 
-  SHashTravSupp sup = {.pCacheObj = pCacheObj, .fp = fp, .time = time};
+  SHashTravSupp sup = {.pCacheObj = pCacheObj, .fp = fp, .time = time, .param1 = param1};
   taosHashCondTraverse(pCacheObj->pHashTable, travHashTableFn, &sup);
 }
 
@@ -736,7 +737,7 @@ void* taosCacheTimedRefresh(void *handle) {
       // refresh data in hash table
       if (elemInHash > 0) {
         int64_t now = taosGetTimestampMs();
-        doCacheRefresh(pCacheObj, now, NULL);
+        doCacheRefresh(pCacheObj, now, NULL, NULL);
       }
 
       taosTrashcanEmpty(pCacheObj, false);
@@ -753,13 +754,13 @@ void* taosCacheTimedRefresh(void *handle) {
   return NULL;
 }
 
-void taosCacheRefresh(SCacheObj *pCacheObj, __cache_free_fn_t fp) {
+void taosCacheRefresh(SCacheObj *pCacheObj, __cache_free_fn_t fp, void* param1) {
   if (pCacheObj == NULL) {
     return;
   }
 
   int64_t now = taosGetTimestampMs();
-  doCacheRefresh(pCacheObj, now, fp);
+  doCacheRefresh(pCacheObj, now, fp, param1);
 }
 
 void taosStopCacheRefreshWorker() {

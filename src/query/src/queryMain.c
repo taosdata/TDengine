@@ -35,12 +35,12 @@ typedef struct SQueryMgmt {
   bool            closed;
 } SQueryMgmt;
 
-static void queryMgmtKillQueryFn(void* handle) {
+static void queryMgmtKillQueryFn(void* handle, void* param1) {
   void** fp = (void**)handle;
   qKillQuery(*fp);
 }
 
-static void freeqinfoFn(void *qhandle) {
+static void freeqinfoFn(void *qhandle, void* param1) {
   void** handle = qhandle;
   if (handle == NULL || *handle == NULL) {
     return;
@@ -254,8 +254,6 @@ int waitMoment(SQInfo* pQInfo){
         }
       }
     }
-
-    taosMsleep(ms);
   }
   return 1;
 }
@@ -274,7 +272,7 @@ bool qTableQuery(qinfo_t qinfo, uint64_t *qId) {
   }
 
   *qId = pQInfo->qId;
-  pQInfo->startExecTs = taosGetTimestampSec();
+  pQInfo->startExecTs = taosGetTimestampMs();
 
   if (isQueryKilled(pQInfo)) {
     qDebug("QInfo:0x%"PRIx64" it is already killed, abort", pQInfo->qId);
@@ -522,7 +520,7 @@ void qQueryMgmtNotifyClosed(void* pQMgmt) {
   pQueryMgmt->closed = true;
   pthread_mutex_unlock(&pQueryMgmt->lock);
 
-  taosCacheRefresh(pQueryMgmt->qinfoPool, queryMgmtKillQueryFn);
+  taosCacheRefresh(pQueryMgmt->qinfoPool, queryMgmtKillQueryFn, NULL);
 }
 
 void qQueryMgmtReOpen(void *pQMgmt) {
@@ -641,95 +639,124 @@ int32_t qKillQueryByQId(void* pMgmt, int64_t qId, int32_t waitMs, int32_t waitCo
     }
   }
 
+  qReleaseQInfo(pMgmt, (void **)&handle, true);
   return error;
 }
 
 // local struct
 typedef struct {
   int64_t qId;
-  int32_t timeMs;
+  int64_t startExecTs;
+  int64_t commitedMs;
 } SLongQuery;
 
-// compare
-int compareLongQuery(const void* p1, const void* p2) {
+// callbark for sort compare 
+static int compareLongQuery(const void* p1, const void* p2) {
   // sort desc 
   SLongQuery* plq1 = (SLongQuery*)p1;
   SLongQuery* plq2 = (SLongQuery*)p2;
-  if(plq1->timeMs == plq2->timeMs) {
+  if(plq1->startExecTs == plq2->startExecTs) {
     return 0;
-  } else if(plq1->timeMs > plq2->timeMs) {
+  } else if(plq1->startExecTs > plq2->startExecTs) {
     return -1;
   } else {
     return 1;
   }
 }
 
-// longquery
-void* qObtainLongQuery(void* param, int32_t longMs){
-  SQueryMgmt* qMgmt =  (SQueryMgmt*)param;
-  if(qMgmt == NULL || qMgmt->qinfoPool == NULL) return NULL;
-  SArray* qids = taosArrayInit(4, sizeof(int64_t*));
+// callback for taosCacheRefresh
+static void cbFoundItem(void* handle, void* param1) {
+  SQInfo * qInfo = *(SQInfo**) handle;
+  if(qInfo == NULL) return ;
+  SArray* qids = (SArray*) param1;
+  if(qids == NULL) return ;
   
-  SHashObj* pHashTable = qMgmt->qinfoPool->pHashTable;
-  if(pHashTable == NULL || pHashTable->hashList == NULL) return NULL;
+  bool usedMem = true;
+  bool usedIMem = true;
+  SMemTable* mem = qInfo->query.memRef.snapshot.omem;
+  SMemTable* imem = qInfo->query.memRef.snapshot.imem;
+  if(mem == NULL || T_REF_VAL_GET(mem) == 0)  
+     usedMem = false;
+  if(imem == NULL || T_REF_VAL_GET(mem) == 0) 
+     usedIMem = false ;
 
-  SQInfo * qInfo = (SQInfo*)taosHashIterate(pHashTable, NULL);
-  while(qInfo){
-    // judge long query
-    SMemTable* imem = qInfo->runtimeEnv.pQueryAttr->memRef.snapshot.imem;
-    if(imem == NULL || imem->commitedMs == 0) continue;
-    int64_t now = taosGetTimestampMs();
-    if(imem->commitedMs > now) continue; // weird, so skip
+  if(!usedMem && !usedIMem) 
+     return ;
+   
+  // push to qids
+  SLongQuery* plq = (SLongQuery*)malloc(sizeof(SLongQuery));
+  plq->qId = qInfo->qId;
+  plq->startExecTs = qInfo->startExecTs;
 
-    int32_t passMs = now - imem->commitedMs;
-    if(passMs < longMs) {
-      continue;
-    }
-
-    // push
-    SLongQuery* plq = (SLongQuery*)malloc(sizeof(SLongQuery));
-    plq->timeMs = passMs;
-    plq->qId = qInfo->qId;
-    taosArrayPush(qids, plq);
-
-    // next
-    qInfo = (SQInfo*)taosHashIterate(pHashTable, qInfo);
+  // commitedMs
+  if(imem) {
+    plq->commitedMs = imem->commitedMs;
+  } else {
+    plq->commitedMs = 0;
   }
+ 
+  taosArrayPush(qids, &plq);
+}
 
+// longquery
+void* qObtainLongQuery(void* param){
+  SQueryMgmt* qMgmt =  (SQueryMgmt*)param;
+  if(qMgmt == NULL || qMgmt->qinfoPool == NULL) 
+    return NULL;
+  SArray* qids = taosArrayInit(4, sizeof(int64_t*));
+  if(qids == NULL) return NULL;
+  // Get each item
+  taosCacheRefresh(qMgmt->qinfoPool, cbFoundItem, qids);
+  
   size_t cnt = taosArrayGetSize(qids);
   if(cnt == 0) {
-    taosArrayDestroyEx(qids, free);
+    taosArrayDestroy(qids);
     return NULL;
   } 
-  if(cnt > 1) {
+  if(cnt > 1)
     taosArraySort(qids, compareLongQuery);
-  }
 
   return qids;   
 }
 
 //solve tsdb no block to commit
-bool qSolveCommitNoBlock(void* pRepo, void* pMgmt) {
+bool qFixedNoBlock(void* pRepo, void* pMgmt, int32_t longQueryMs) {
   SQueryMgmt *pQueryMgmt = pMgmt;
-  int32_t longMs = 2000; // TODO config to taos.cfg
+  bool fixed = false;
 
   // qid top list
-  SArray *qids = (SArray*)qObtainLongQuery(pQueryMgmt, longMs);
+  SArray *qids = (SArray*)qObtainLongQuery(pQueryMgmt);
   if(qids == NULL) return false;
 
   // kill Query
+  int64_t now = taosGetTimestampMs();
   size_t cnt = taosArrayGetSize(qids);
+  size_t i;
   SLongQuery* plq;
-  for(size_t i=0; i < cnt; i++) {
+  for(i=0; i < cnt; i++) {
     plq = (SLongQuery* )taosArrayGetP(qids, i);
-    qKillQueryByQId(pMgmt, plq->qId, 100, 50); // wait 50*100 ms 
-
-    // check break condition 
-    if(tsdbIdleMemEnough() && tsdbAllowNewBlock(pRepo)) {
-      break;
+    if(plq->startExecTs > now) continue;
+    if(now - plq->startExecTs >= longQueryMs) {
+      qKillQueryByQId(pMgmt, plq->qId, 100, 30); // wait 50*100 ms 
+      if(tsdbNoProblem(pRepo)) {
+        fixed = true;
+        break;
+      }
     }
   }
+  
   // free qids
-  taosArrayDestroyEx(qids, free);
-  return true;
+  for(i=0; i < cnt; i++) {
+    free(taosArrayGetP(qids, i));
+  }
+  taosArrayDestroy(qids);
+  return fixed;
+}
+
+//solve tsdb no block to commit
+bool qSolveCommitNoBlock(void* pRepo, void* pMgmt) {
+  if(qFixedNoBlock(pRepo, pMgmt, 20*1000)) {
+    return true;
+  }
+  return qFixedNoBlock(pRepo, pMgmt, 5*1000);
 }

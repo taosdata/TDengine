@@ -95,7 +95,7 @@ void httpReleaseSession(HttpContext *pContext) {
   pContext->session = NULL;
 }
 
-static void httpDestroySession(void *data) {
+static void httpDestroySession(void *data, void* param1) {
   HttpSession *session = data;
   httpDebug("session:%p:%p, is destroyed, sessionRef:%d", session, session->taos, session->refCount);
 

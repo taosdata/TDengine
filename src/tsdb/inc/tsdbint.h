@@ -97,6 +97,7 @@ struct STsdbRepo {
 
   SMergeBuf       mergeBuf;  //used when update=2
   int8_t          compactState;  // compact state: inCompact/noCompact/waitingCompact?
+  void*           tmrCtrl;
 };
 
 #define REPO_ID(r) (r)->config.tsdbId

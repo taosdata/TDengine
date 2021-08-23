@@ -19,4 +19,7 @@
 bool tsdbUrgeQueryFree(STsdbRepo* pRepo);
 int32_t tsdbInsertNewBlock(STsdbRepo* pRepo);
 
+bool tsdbIdleMemEnough();
+bool tsdbAllowNewBlock(STsdbRepo* pRepo);
+
 #endif /* _TD_TSDB_BUFFER_H_ */
