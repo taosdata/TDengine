@@ -531,7 +531,7 @@ Query OK, 1 row(s) in set (0.000141s)
 * Spring JdbcTemplate 中使用 taos-jdbcdriver，可参考 [SpringJdbcTemplate](https://github.com/taosdata/TDengine/tree/develop/tests/examples/JDBC/SpringJdbcTemplate)
 * Springboot + Mybatis 中使用，可参考 [springbootdemo](https://github.com/taosdata/TDengine/tree/develop/tests/examples/JDBC/springbootdemo)
 
-### 示例程序
+## 示例程序
 
 示例程序源码位于TDengine/test/examples/JDBC下:
 * JDBCDemo：JDBC示例源程序
