@@ -443,7 +443,7 @@ static int taos_set_config_imp(const char *config){
   static bool setConfFlag = false;
   if (setConfFlag) {
     tscError("already set config");
-    return -1;
+    return 0;
   }
   cJSON *root = cJSON_Parse(config);
   if (root == NULL) {
@@ -451,18 +451,22 @@ static int taos_set_config_imp(const char *config){
     return -1;
   }
 
+  int ret = 0;
   int size = cJSON_GetArraySize(root);
   for(int i = 0; i < size; i++){
     cJSON *item = cJSON_GetArrayItem(root, i);
     if (!item) {
       tscError("failed to read index:%d", i);
+      ret = -2;
       continue;
     }
-    taosReadConfigOption(item->string, item->valuestring, NULL, NULL);
+    if(!taosReadConfigOption(item->string, item->valuestring, NULL, NULL)){
+      ret = -2;
+    }
   }
   taosPrintGlobalCfg();
   setConfFlag = true;
-  return 0;
+  return ret;
 }
 
 int taos_set_config(const char *config){
