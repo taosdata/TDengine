@@ -659,7 +659,21 @@ static FILE *          g_fpOfInsertResult = NULL;
         fprintf(stderr, "PERF: "fmt, __VA_ARGS__); } while(0)
 
 #define errorPrint(fmt, ...) \
-    do { fprintf(stderr, " \033[31m"); fprintf(stderr, "ERROR: "fmt, __VA_ARGS__); fprintf(stderr, " \033[0m"); } while(0)
+    do {\
+        struct tm      Tm, *ptm;\
+        struct timeval timeSecs; \
+        time_t         curTime;\
+        gettimeofday(&timeSecs, NULL); \
+        curTime = timeSecs.tv_sec;\
+        ptm = localtime_r(&curTime, &Tm);\
+        fprintf(stderr, " \033[31m");\
+        fprintf(stderr, "%02d/%02d %02d:%02d:%02d.%06d %08" PRId64 " ",\
+                ptm->tm_mon + 1, ptm->tm_mday, ptm->tm_hour,\
+                ptm->tm_min, ptm->tm_sec, (int32_t)timeSecs.tv_usec,\
+                taosGetSelfPthreadId());\
+        fprintf(stderr, "ERROR: "fmt, __VA_ARGS__);\
+        fprintf(stderr, " \033[0m");\
+    } while(0)
 
 // for strncpy buffer overflow
 #define min(a, b) (((a) < (b)) ? (a) : (b))

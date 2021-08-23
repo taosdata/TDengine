@@ -190,7 +190,9 @@ static void parse_args(
                     fprintf(stderr, "password reading error\n");
                 }
                 taosSetConsoleEcho(true);
-                getchar();
+                if (EOF == getchar()) {
+                    fprintf(stderr, "getchar() return EOF\n");
+                }
             } else {
                 tstrncpy(g_password, (char *)(argv[i] + 2), SHELL_MAX_PASSWORD_LEN);
                 strcpy(argv[i], "-p");
