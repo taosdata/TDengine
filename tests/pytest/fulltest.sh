@@ -255,7 +255,7 @@ python3 ./test.py -f query/queryTsisNull.py
 python3 ./test.py -f query/subqueryFilter.py
 python3 ./test.py -f query/nestedQuery/queryInterval.py
 python3 ./test.py -f query/queryStateWindow.py
-python3 ./test.py -f query/nestedQuery/queryWithOrderLimit.py
+# python3 ./test.py -f query/nestedQuery/queryWithOrderLimit.py
 python3 ./test.py -f query/nestquery_last_row.py
 python3 ./test.py -f query/queryCnameDisplay.py
 python3 ./test.py -f query/operator_cost.py
