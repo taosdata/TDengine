@@ -478,7 +478,6 @@ class TDDnodes:
             self.dnodes[i].init(self.path)
 
         self.sim = TDSimClient(self.path)
-        # self.sim.init(self.path)
 
     def setTestCluster(self, value):
         self.testCluster = value
