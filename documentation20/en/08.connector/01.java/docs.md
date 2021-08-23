@@ -331,7 +331,7 @@ The Java connector may report three types of error codes: JDBC Driver (error cod
 
 ### Write data through parameter binding
 
-Since version 2.1.2.0, TDengine's JDBC-JNI implementation has significantly improved parameter binding support for data write (INSERT) scenarios. Data can be written in the following way, avoiding SQL parsing and significantly improving the write performance.(**Note**: parameter binding is not supported in JDBC-restful)
+Since version 2.1.2.0, TDengine's JDBC-JNI implementation has significantly improved parameter binding support for data write (INSERT) scenarios. Data can be written in the following way, avoiding SQL parsing and significantly improving the write performance.(**Note**: parameter binding is not supported in JDBC-RESTful)
 
 ```java
 Statement stmt = conn.createStatement();
