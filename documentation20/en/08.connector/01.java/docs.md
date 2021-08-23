@@ -1,14 +1,10 @@
 # Java connector
 
-
-
 ## Introduction
 
 The taos-jdbcdriver is implemented in two forms: JDBC-JNI and JDBC-RESTful (supported from taos-jdbcdriver-2.0.18). JDBC-JNI is implemented by calling the local methods of libtaos.so (or taos.dll) on the client, while JDBC-RESTful encapsulates the RESTful interface implementation internally.
 
-
-
-![tdengine-connector](https://www.taosdata.com/cn/documentation20/user/pages/images/tdengine-jdbc-connector.png)
+![tdengine-connector](page://images/tdengine-jdbc-connector.png)
 
 The figure above shows the three ways Java applications can access the TDengine:
 
@@ -69,8 +65,6 @@ INSERT INTO test.t1 USING test.weather (ts, temperature) TAGS('beijing') VALUES(
 | 1.0.2                | 1.6.1.x and above    | 1.8.x    |
 | 1.0.1                | 1.6.1.x and above    | 1.8.x    |
 
-
-
 ## DataType in TDengine and Java connector
 
 The TDengine supports the following data types and Java data types:
@@ -87,8 +81,6 @@ The TDengine supports the following data types and Java data types:
 | BOOL              | java.lang.Boolean  |
 | BINARY            | byte[]             |
 | NCHAR             | java.lang.String   |
-
-
 
 ## Install Java connector
 
@@ -131,9 +123,7 @@ You can download the TDengine source code and compile the latest version of the 
  mvn clean package -Dmaven.test.skip=true
  ```
 
-a taos-jdbcdriver-2.0.xx-dist.jar will be released in the target directory
-
-
+a taos-jdbcdriver-2.0.xx-dist.jar will be released in the target directory.
 
 ## Usage of java connector
 
@@ -165,7 +155,7 @@ Connection conn = DriverManager.getConnection(jdbcUrl);
 
 In the example above, The JDBC-JNI driver is used to establish a connection to the hostname of 'taosdemo.com', port 6030 (TDengine's default port), and database name of 'test'. This URL specifies the user name as 'root' and the password as 'taosdata'.
 
-You can also see the JDBC-JNI video tutorial: [JDBC connector of TDengine](https://www.taosdata.com/blog/2020/11/11/1955.html)
+<!-- You can also see the JDBC-JNI video tutorial: [JDBC connector of TDengine](https://www.taosdata.com/blog/2020/11/11/1955.html) -->
 
 The format of JDBC URL is: 
 
@@ -175,9 +165,9 @@ jdbc:[TAOS|TAOS-RS]://[host_name]:[port]/[database_name]?[user={user}|&password=
 
 The configuration parameters in the URL are as follows:
 
-* user: user name for logging in to the TDengine. The default value is root.
-* password: the user login password. The default value is taosdata.
-* cfgdir: directory of the client configuration file. It is valid only for JDBC-JNI. The default value is /etc/taos on Linux and C:/TDengine/cfg on Windows.
+* user: user name for logging in to the TDengine. The default value is 'root'.
+* password: the user login password. The default value is 'taosdata'.
+* cfgdir: directory of the client configuration file. It is valid only for JDBC-JNI. The default value is `/etc/taos` on Linux and `C:/TDengine/cfg` on Windows.
 * charset: character set used by the client. The default value is the system character set.
 * locale: client locale. The default value is the current system locale.
 * timezone: timezone used by the client. The default value is the current timezone of the system.
@@ -206,9 +196,9 @@ In the example above, JDBC-JNI is used to establish a connection to hostname of 
 
 The configuration parameters in properties are as follows:
 
-* TSDBDriver.PROPERTY_KEY_USER: user name for logging in to the TDengine. The default value is root.
-* TSDBDriver.PROPERTY_KEY_PASSWORD: the user login password. The default value is taosdata.
-* TSDBDriver.PROPERTY_KEY_CONFIG_DIR: directory of the client configuration file. It is valid only for JDBC-JNI. The default value is /etc/taos on Linux and C:/TDengine/cfg on Windows.
+* TSDBDriver.PROPERTY_KEY_USER: user name for logging in to the TDengine. The default value is 'root'.
+* TSDBDriver.PROPERTY_KEY_PASSWORD: the user login password. The default value is 'taosdata'.
+* TSDBDriver.PROPERTY_KEY_CONFIG_DIR: directory of the client configuration file. It is valid only for JDBC-JNI. The default value is `/etc/taos` on Linux and `C:/TDengine/cfg on Windows`.
 * TSDBDriver.PROPERTY_KEY_CHARSET: character set used by the client. The default value is the system character set.
 * TSDBDriver.PROPERTY_KEY_LOCALE: client locale. The default value is the current system locale.
 * TSDBDriver.PROPERTY_KEY_TIME_ZONE: timezone used by the client. The default value is the current timezone of the system.
@@ -259,8 +249,6 @@ For example, if you specify password as 'taosdata' in the URL and password as 't
 
 For details, see Client Configuration:[client configuration](https://www.taosdata.com/en/documentation/administrator#client)
 
-
-
 ### Create database and table
 
 ```java
@@ -273,8 +261,6 @@ stmt.executeUpdate("use db");
 stmt.executeUpdate("create table if not exists tb (ts timestamp, temperature int, humidity float)");
 ```
 
-
-
 ### Insert
 
 ```java
@@ -284,8 +270,6 @@ System.out.println("insert " + affectedRows + " rows.");
 ```
 
 **Note**: 'now' is an internal system function. The default value is the current time of the computer where the client resides. 'now + 1s' indicates that the current time on the client is added by one second. The following time units are a(millisecond), s (second), m(minute), h(hour), d(day), w(week), n(month), and y(year).
-
-
 
 ### Query
 
@@ -304,8 +288,6 @@ while(resultSet.next()){
 ```
 
 **Note**: The query is consistent with the operation of the relational database, and the index in ResultSet starts from 1.
-
-
 
 ### Handle exceptions
 
@@ -326,8 +308,6 @@ The Java connector may report three types of error codes: JDBC Driver (error cod
 
 - https://github.com/taosdata/TDengine/blob/develop/src/connector/jdbc/src/main/java/com/taosdata/jdbc/TSDBErrorNumbers.java
 - https://github.com/taosdata/TDengine/blob/develop/src/inc/taoserror.h
-
-
 
 ### Write data through parameter binding
 
@@ -401,8 +381,6 @@ public void setNString(int columnIndex, ArrayList<String> list, int size) throws
 
 **Note**: Both setString and setNString require the user to declare the column width of the corresponding column in the table definition in the size parameter.
 
-
-
 ### Data Subscription
 
 #### Subscribe
@@ -414,8 +392,8 @@ TSDBSubscribe sub = ((TSDBConnection)conn).subscribe("topic", "select * from met
 parameters:
 
 * topic: the unique topic name of the subscription. 
-* sql: a select statement .
-* restart: true if restart the subscription already exists; false if continue the previous subscription
+* sql: a select statement.
+* restart: true if restart the subscription already exists; false if continue the previous subscription.
 
 In the example above, a subscription named 'topic' is created which use the SQL statement 'select * from meters'. If the subscription already exists, it will continue with the previous query progress, rather than consuming all the data from scratch.
 
@@ -450,8 +428,6 @@ conn.close();
 The close method closes a subscription. If the parameter is true, the subscription progress information is reserved, and a subscription with the same name can be created later to continue consuming data. If false, the subscription progress is not retained.
 
 **Note**: the connection must be closed; otherwise, a connection leak may occur.
-
-
 
 ## Connection Pool
 
@@ -510,7 +486,7 @@ As of TDengine V1.6.4.1, the function select server_status() is supported specif
 
 Select server_status() returns 1 on success, as shown below.
 
-```txt
+```sql
 taos> select server_status();
 server_status()|
 ================
@@ -518,14 +494,10 @@ server_status()|
 Query OK, 1 row(s) in set (0.000141s)
 ```
 
-
-
 ## Integrated with framework
 
-- Please refer to [SpringJdbcTemplate](https://github.com/taosdata/TDengine/tree/develop/tests/examples/JDBC/SpringJdbcTemplate) if using taos-jdbcdriver in Spring JdbcTemplate
-- Please refer to [springbootdemo](https://github.com/taosdata/TDengine/tree/develop/tests/examples/JDBC/springbootdemo) if using taos-jdbcdriver in Spring JdbcTemplate
-
-
+- Please refer to [SpringJdbcTemplate](https://github.com/taosdata/TDengine/tree/develop/tests/examples/JDBC/SpringJdbcTemplate) if using taos-jdbcdriver in Spring JdbcTemplate.
+- Please refer to [springbootdemo](https://github.com/taosdata/TDengine/tree/develop/tests/examples/JDBC/springbootdemo) if using taos-jdbcdriver in Spring JdbcTemplate.
 
 ## FAQ
 
