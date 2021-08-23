@@ -317,14 +317,17 @@ Since version 2.1.2.0, TDengine's JDBC-JNI implementation has significantly impr
 Statement stmt = conn.createStatement();
 Random r = new Random();
 
+// In the INSERT statement, the VALUES clause allows you to specify a specific column; If automatic table creation is adopted, the TAGS clause needs to set the parameter values of all TAGS columns
 TSDBPreparedStatement s = (TSDBPreparedStatement) conn.prepareStatement("insert into ? using weather_test tags (?, ?) (ts, c1, c2) values(?, ?, ?)");
 
 s.setTableName("w1");
 
+// set tags
 s.setTagInt(0, r.nextInt(10));
 s.setTagString(1, "Beijing");
 int numOfRows = 10;
 
+// set values
 ArrayList<Long> ts = new ArrayList<>();
 for (int i = 0; i < numOfRows; i++){
     ts.add(System.currentTimeMillis() + i);
@@ -341,9 +344,10 @@ for (int i = 0; i < numOfRows; i++){
 }
 s.setString(2, s2, 10);
 
+// The cache is not cleared after AddBatch. Do not bind new data again before ExecuteBatch
 s.columnDataAddBatch();
 s.columnDataExecuteBatch();
-
+// Clear the cache, after which you can bind new data(including table names, tags, values):
 s.columnDataClearBatch();
 s.columnDataCloseBatch();
 ```
@@ -498,6 +502,10 @@ Query OK, 1 row(s) in set (0.000141s)
 
 - Please refer to [SpringJdbcTemplate](https://github.com/taosdata/TDengine/tree/develop/tests/examples/JDBC/SpringJdbcTemplate) if using taos-jdbcdriver in Spring JdbcTemplate.
 - Please refer to [springbootdemo](https://github.com/taosdata/TDengine/tree/develop/tests/examples/JDBC/springbootdemo) if using taos-jdbcdriver in Spring JdbcTemplate.
+
+## Example Codes
+you see sample code here: ![JDBC example](https://github.com/taosdata/TDengine/tree/develop/tests/examples/JDBC)
+
 
 ## FAQ
 
