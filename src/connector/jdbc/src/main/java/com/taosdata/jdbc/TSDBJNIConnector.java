@@ -38,14 +38,6 @@ public class TSDBJNIConnector {
         System.loadLibrary("taos");
     }
 
-    public boolean isClosed() {
-        return this.taos == TSDBConstants.JNI_NULL_POINTER;
-    }
-
-    public boolean isResultsetClosed() {
-        return this.isResultsetClosed;
-    }
-
     public static void init(String configDir, String locale, String charset, String timezone) throws SQLWarning {
         synchronized (isInitialized) {
             if (!isInitialized) {
@@ -70,6 +62,8 @@ public class TSDBJNIConnector {
     public static native int setOptions(int optionIndex, String optionValue);
 
     public static native String getTsCharset();
+
+    public static native int setConfig(String config);
 
     public boolean connect(String host, int port, String dbName, String user, String password) throws SQLException {
         if (this.taos != TSDBConstants.JNI_NULL_POINTER) {
@@ -158,6 +152,14 @@ public class TSDBJNIConnector {
     }
 
     private native long isUpdateQueryImp(long connection, long pSql);
+
+    public boolean isClosed() {
+        return this.taos == TSDBConstants.JNI_NULL_POINTER;
+    }
+
+    public boolean isResultsetClosed() {
+        return this.isResultsetClosed;
+    }
 
     /**
      * Free result set operation from C to release result set pointer by JNI
@@ -357,4 +359,6 @@ public class TSDBJNIConnector {
     }
 
     private native int insertLinesImp(String[] lines, long conn);
+
+
 }
