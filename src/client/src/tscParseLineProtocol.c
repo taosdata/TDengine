@@ -418,7 +418,7 @@ static int32_t applySchemaAction(TAOS* taos, SSchemaAction* action, SSmlLinesInf
       }
       taos_free_result(res);
 
-      if (code == TSDB_CODE_MND_INVALID_COLUMN_LENGTH) {
+      if (code == TSDB_CODE_MND_INVALID_COLUMN_LENGTH || code == TSDB_CODE_TSC_INVALID_COLUMN_LENGTH) {
         TAOS_RES* res2 = taos_query(taos, "RESET QUERY CACHE");
         code = taos_errno(res2);
         if (code != TSDB_CODE_SUCCESS) {
@@ -439,7 +439,7 @@ static int32_t applySchemaAction(TAOS* taos, SSchemaAction* action, SSmlLinesInf
       }
       taos_free_result(res);
 
-      if (code == TSDB_CODE_MND_INVALID_TAG_LENGTH) {
+      if (code == TSDB_CODE_MND_INVALID_TAG_LENGTH || code == TSDB_CODE_TSC_INVALID_TAG_LENGTH) {
         TAOS_RES* res2 = taos_query(taos, "RESET QUERY CACHE");
         code = taos_errno(res2);
         if (code != TSDB_CODE_SUCCESS) {
