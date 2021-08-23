@@ -4,7 +4,7 @@
 # is required to use systemd to manage services at boot
 
 set -e
-#set -x
+set -x
 
 # -----------------------Variables definition
 source_dir=$1
@@ -30,8 +30,11 @@ fi
 
 data_link_dir="/usr/local/taos/data"
 log_link_dir="/usr/local/taos/log"
-
-cfg_install_dir="/etc/taos"
+if [ "$osType" != "Darwin" ]; then
+    cfg_install_dir="/etc/taos"
+else
+    cfg_install_dir="/usr/local/Cellar/tdengine/${verNumber}/taos"
+fi
 
 if [ "$osType" != "Darwin" ]; then
     bin_link_dir="/usr/bin"
@@ -42,14 +45,14 @@ fi
 
 #install main path
 if [ "$osType" != "Darwin" ]; then
-    install_main-dir="/usr/local/taos"
+    install_main_dir="/usr/local/taos"
 else
     install_main_dir="/usr/local/Cellar/tdengine/${verNumber}"
 fi
 
 # old bin dir
-if [ "$osType" != "Darwin"]; then
-     bin_dir="/usr/local/Cellar/tdengine/${verNumber}/bin"
+if [ "$osType" != "Darwin" ]; then
+     bin_dir="/usr/local/taos/bin"
 else
      bin_dir="/usr/local/Cellar/tdengine/${verNumber}/bin"
 fi
@@ -163,9 +166,10 @@ function install_bin() {
     ${csudo} chmod 0555 ${install_main_dir}/bin/*
 
     #Make link
+  
+    
     if [ "$osType" != "Darwin" ]; then
-        [ -x ${install_main_dir}/bin/taos ]      && ${csudo}
-            ln -s ${install_main_dir}/bin/taos
+        [ -x ${install_main_dir}/bin/taos ]      && ${csudo} ln -s ${install_main_dir}/bin/taos
             ${bin_link_dir}/taos    || :
         [ -x ${install_main_dir}/bin/taosd ]     && ${csudo} ln -s ${install_main_dir}/bin/taosd ${bin_link_dir}/taosd   || :
         [ -x ${install_main_dir}/bin/taosdump ]  && ${csudo} ln -s ${install_main_dir}/bin/taosdump ${bin_link_dir}/taosdump || :
@@ -184,7 +188,6 @@ function install_bin() {
 function install_jemalloc() {
     if [ "$osType" != "Darwin" ]; then
         /usr/bin/install -c -d /usr/local/bin
-
         if [ -f ${binary_dir}/build/bin/jemalloc-config ]; then
             /usr/bin/install -c -m 755 ${binary_dir}/build/bin/jemalloc-config /usr/local/bin
         fi
@@ -222,7 +225,6 @@ function install_jemalloc() {
             /usr/bin/install -c -d /usr/local/share/man/man3
             /usr/bin/install -c -m 644 ${binary_dir}/build/share/man/man3/jemalloc.3 /usr/local/share/man/man3
         fi
-
         if [ -d /etc/ld.so.conf.d ]; then
             ${csudo} echo "/usr/local/lib" > /etc/ld.so.conf.d/jemalloc.conf
             ${csudo} ldconfig
@@ -276,14 +278,14 @@ function install_config() {
 
     if [ ! -f ${cfg_install_dir}/taos.cfg ]; then
         ${csudo} mkdir -p ${cfg_install_dir}
-        [ -f ${script_dir}/../cfg/taos.cfg ] && ${csudo} cp ${script_dir}/../cfg/taos.cfg ${cfg_install_dir}
+        [ -f ${script_dir}/../cfg/taos.cfg ] &&
+        ${csudo} cp ${script_dir}/../cfg/taos.cfg ${cfg_install_dir}
         ${csudo} chmod 644 ${cfg_install_dir}/*
     fi
 
     ${csudo} cp -f ${script_dir}/../cfg/taos.cfg ${install_main_dir}/cfg/taos.cfg.org
     
-    if [ "$osType" != "Darwin" ]; then
-        ${csudo} ln -s ${cfg_install_dir}/taos.cfg ${install_main_dir}/cfg
+    if [ "$osType" != "Darwin" ]; then ${csudo} ln -s ${cfg_install_dir}/taos.cfg ${install_main_dir}/cfg
     fi
 }
 
@@ -303,7 +305,7 @@ function install_data() {
 }
 
 function install_connector() {
-    if [ -d "${source_dir}/src/connector/grafanaplugin/dist"]; then
+    if [ -d "${source_dir}/src/connector/grafanaplugin/dist" ]; then
         ${csudo} cp -rf ${source_dir}/src/connector/grafanaplugin/dist ${install_main_dir}/connector/grafanaplugin
     else
         echo "WARNING: grafanaplugin bundled dir not found, please check if want to use it!"
@@ -444,6 +446,7 @@ function update_TDengine() {
     fi
 
     install_main_path
+
     install_log
     install_header
     install_lib
