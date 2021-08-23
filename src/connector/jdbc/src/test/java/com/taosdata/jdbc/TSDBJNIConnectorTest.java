@@ -5,7 +5,6 @@ import org.junit.Test;
 import java.lang.management.ManagementFactory;
 import java.lang.management.RuntimeMXBean;
 import java.sql.SQLException;
-import java.sql.SQLWarning;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -19,7 +18,6 @@ public class TSDBJNIConnectorTest {
     @Test
     public void test() {
         try {
-
             try {
                 //change sleepSeconds when debugging with attach to process to find PID
                 int sleepSeconds = -1;
@@ -122,8 +120,6 @@ public class TSDBJNIConnectorTest {
             // close connection
             connector.closeConnection();
 
-        } catch (SQLWarning throwables) {
-            throwables.printStackTrace();
         } catch (SQLException e) {
             e.printStackTrace();
         }
@@ -140,11 +136,7 @@ public class TSDBJNIConnectorTest {
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_JNI_RESULT_SET_NULL);
         } else if (code == TSDBConstants.JNI_NUM_OF_FIELDS_0) {
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_JNI_NUM_OF_FIELDS_0);
-        } else if (code == TSDBConstants.JNI_FETCH_END) {
-            return false;
-        } else {
-            return true;
-        }
+        } else return code != TSDBConstants.JNI_FETCH_END;
     }
 
 }

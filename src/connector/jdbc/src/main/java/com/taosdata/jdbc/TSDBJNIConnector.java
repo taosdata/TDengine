@@ -357,4 +357,7 @@ public class TSDBJNIConnector {
     }
 
     private native int insertLinesImp(String[] lines, long conn);
+
+    private native int setConfig(String config);
+
 }
