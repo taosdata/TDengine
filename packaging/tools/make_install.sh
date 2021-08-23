@@ -65,7 +65,6 @@ NC='\033[0m'
 
 csudo=""
 
-
 if [ "$osType" != "Darwin" ]; then
     if command -v sudo > /dev/null; then
     csudo="sudo"
@@ -164,8 +163,6 @@ function install_bin() {
     ${csudo} chmod 0555 ${install_main_dir}/bin/*
 
     #Make link
-  
-    
     if [ "$osType" != "Darwin" ]; then
         [ -x ${install_main_dir}/bin/taos ]      && ${csudo}
             ln -s ${install_main_dir}/bin/taos
