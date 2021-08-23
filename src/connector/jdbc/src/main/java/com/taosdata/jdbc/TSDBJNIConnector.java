@@ -63,6 +63,8 @@ public class TSDBJNIConnector {
 
     public static native String getTsCharset();
 
+    public static native int setConfig(String config);
+
     public boolean connect(String host, int port, String dbName, String user, String password) throws SQLException {
         if (this.taos != TSDBConstants.JNI_NULL_POINTER) {
             closeConnection();
@@ -358,6 +360,5 @@ public class TSDBJNIConnector {
 
     private native int insertLinesImp(String[] lines, long conn);
 
-    private native int setConfig(String config);
 
 }
