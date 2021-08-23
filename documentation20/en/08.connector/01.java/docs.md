@@ -44,7 +44,7 @@ In terms of implementation, the JDBC driver of TDengine is as consistent as poss
   <td>Read performance</td>
   <td colspan="2">JDBC-RESTful is no different from JDBC-JNI</td>
 </tr>
-</talbe>
+</table>
 
 **Note**: RESTful interfaces are stateless. Therefore, when using JDBC-restful, you should specify the database name in SQL before all table names and super table names, for example:
 
