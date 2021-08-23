@@ -55,7 +55,7 @@ if __name__ == "__main__":
             restart = True
 
         if key in ['-f', '--file']:
-            fileName = value
+            fileName = value.replace('\r', "")
 
         if key in ['-p', '--path']:
             deployPath = value

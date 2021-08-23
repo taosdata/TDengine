@@ -49,6 +49,12 @@
 >   before the script line. Then you can look for the core file in
 >   \<TDengine\>/tests/pytest after the program crash.
 
+>   Note3: if you are on the windows platform, you can install the git client, 
+>   and then add %GitPath%\usr\bin;%GitPath%\mingw64\bin;%GitPath%\bin to the system 
+>   environment variable Path. Note that %GitPath% is the installation path of git, 
+>   such as C:\Program Files\Git. Then you can run the test script using the 
+>   "sh smoketest.sh" command.
+
 
 ### How to add a new test case
 
