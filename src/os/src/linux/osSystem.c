@@ -63,12 +63,12 @@ int taosSetConsoleEcho(bool on)
     }
 
     if (on)
-        term.c_lflag|=ECHOFLAGS;
+        term.c_lflag |= ECHOFLAGS;
     else
-        term.c_lflag &=~ECHOFLAGS;
+        term.c_lflag &= ~ECHOFLAGS;
 
-    err = tcsetattr(STDIN_FILENO,TCSAFLUSH,&term);
-    if (err == -1 && err == EINTR) {
+    err = tcsetattr(STDIN_FILENO, TCSAFLUSH, &term);
+    if (err == -1 || err == EINTR) {
         perror("Cannot set the attribution of the terminal");
         return -1;
     }
