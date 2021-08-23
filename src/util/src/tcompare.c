@@ -13,10 +13,11 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "tcompare.h"
+#include <tulog.h>
+#include "hash.h"
 #include "os.h"
 #include "ttype.h"
-#include "tcompare.h"
-#include "hash.h"
 
 int32_t setCompareBytes1(const void *pLeft, const void *pRight) {
   return NULL != taosHashGet((SHashObj *)pRight, pLeft, 1) ? 1 : 0;
@@ -343,6 +344,43 @@ int32_t compareStrPatternComp(const void* pLeft, const void* pRight) {
   return (ret == TSDB_PATTERN_MATCH) ? 0 : 1;
 }
 
+int32_t compareStrRegexComp(const void* pLeft, const void* pRight) {
+  size_t sz = varDataLen(pRight);
+  char *pattern = malloc(sz + 1);
+  memcpy(pattern, varDataVal(pRight), varDataLen(pRight));
+  pattern[sz] = 0;
+
+  sz = varDataLen(pLeft);
+  char *str = malloc(sz + 1);
+  memcpy(str, varDataVal(pLeft), sz);
+  str[sz] = 0;
+
+  int errCode = 0;
+  regex_t regex;
+  char    msgbuf[256] = {0};
+
+  int cflags = REG_EXTENDED | REG_ICASE;
+  if ((errCode = regcomp(&regex, pattern, cflags)) != 0) {
+    regerror(errCode, &regex, msgbuf, sizeof(msgbuf));
+    uError("Failed to compile regex pattern %s. reason %s", pattern, msgbuf);
+    regfree(&regex);
+    free(str);
+    free(pattern);
+    return 1;
+  }
+
+  errCode = regexec(&regex, str, 0, NULL, 0);
+  if (errCode != 0 && errCode != REG_NOMATCH) {
+    regerror(errCode, &regex, msgbuf, sizeof(msgbuf));
+    uError("Failed to match %s with pattern %s, reason %s", str, pattern, msgbuf)
+  }
+  int32_t result = (errCode == 0) ? 0 : 1;
+  regfree(&regex);
+  free(str);
+  free(pattern);
+  return result;
+}
+
 int32_t taosArrayCompareString(const void* a, const void* b) {
   const char* x = *(const char**)a;
   const char* y = *(const char**)b;
@@ -403,7 +441,9 @@ __compar_fn_t getComparFunc(int32_t type, int32_t optr) {
     case TSDB_DATA_TYPE_FLOAT:     comparFn = compareFloatVal;  break;
     case TSDB_DATA_TYPE_DOUBLE:    comparFn = compareDoubleVal; break;
     case TSDB_DATA_TYPE_BINARY: {
-      if (optr == TSDB_RELATION_LIKE) { /* wildcard query using like operator */
+      if (optr == TSDB_RELATION_MATCH) {
+        comparFn = compareStrRegexComp;
+      } else if (optr == TSDB_RELATION_LIKE) { /* wildcard query using like operator */
         comparFn = compareStrPatternComp;
       } else if (optr == TSDB_RELATION_IN) {
         comparFn = compareFindItemInSet;
@@ -415,7 +455,9 @@ __compar_fn_t getComparFunc(int32_t type, int32_t optr) {
     }
   
     case TSDB_DATA_TYPE_NCHAR: {
-      if (optr == TSDB_RELATION_LIKE) {
+      if (optr == TSDB_RELATION_MATCH) {
+        comparFn = compareStrRegexComp;
+      } else if (optr == TSDB_RELATION_LIKE) {
         comparFn = compareWStrPatternComp;
       } else if (optr == TSDB_RELATION_IN) {
         comparFn = compareFindItemInSet;

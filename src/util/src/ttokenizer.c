@@ -53,6 +53,7 @@ static SKeyword keywordTable[] = {
     {"NOTNULL",      TK_NOTNULL},
     {"IS",           TK_IS},
     {"LIKE",         TK_LIKE},
+    {"MATCH",        TK_MATCH},
     {"GLOB",         TK_GLOB},
     {"BETWEEN",      TK_BETWEEN},
     {"IN",           TK_IN},
