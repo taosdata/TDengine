@@ -443,7 +443,7 @@ static int taos_set_config_imp(const char *config){
   static bool setConfFlag = false;
   if (setConfFlag) {
     tscError("already set config");
-    return -1;
+    return 0;
   }
   cJSON *root = cJSON_Parse(config);
   if (root == NULL) {
