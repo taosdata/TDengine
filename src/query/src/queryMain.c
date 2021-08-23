@@ -402,7 +402,7 @@ int32_t qDumpRetrieveResult(qinfo_t qinfo, SRetrieveTableRsp **pRsp, int32_t *co
   }
 
   (*pRsp)->precision = htons(pQueryAttr->precision);
-  (*pRsp)->compressed = (int8_t)(tsCompressColData && checkNeedToCompressQueryCol(pQInfo));
+  (*pRsp)->compressed = (int8_t)((tsCompressColData != -1) && checkNeedToCompressQueryCol(pQInfo));
 
   if (GET_NUM_OF_RESULTS(&(pQInfo->runtimeEnv)) > 0 && pQInfo->code == TSDB_CODE_SUCCESS) {
     doDumpQueryResult(pQInfo, (*pRsp)->data, (*pRsp)->compressed, &compLen);
@@ -412,8 +412,12 @@ int32_t qDumpRetrieveResult(qinfo_t qinfo, SRetrieveTableRsp **pRsp, int32_t *co
 
   if ((*pRsp)->compressed && compLen != 0) {
     int32_t numOfCols = pQueryAttr->pExpr2 ? pQueryAttr->numOfExpr2 : pQueryAttr->numOfOutput;
-    *contLen = *contLen - pQueryAttr->resultRowSize * s + compLen + numOfCols * sizeof(int32_t);
+    int32_t origSize  = pQueryAttr->resultRowSize * s;
+    int32_t compSize  = compLen + numOfCols * sizeof(int32_t);
+    *contLen = *contLen - origSize + compSize;
     *pRsp = (SRetrieveTableRsp *)rpcReallocCont(*pRsp, *contLen);
+    qDebug("QInfo:0x%"PRIx64" compress col data, uncompressed size:%d, compressed size:%d, ratio:%.2f",
+        pQInfo->qId, origSize, compSize, (float)origSize / (float)compSize);
   }
   (*pRsp)->compLen = htonl(compLen);
 

@@ -62,6 +62,20 @@ typedef struct {
 #define errorPrint(fmt, ...) \
     do { fprintf(stderr, "\033[31m"); fprintf(stderr, "ERROR: "fmt, __VA_ARGS__); fprintf(stderr, "\033[0m"); } while(0)
 
+static bool isStringNumber(char *input)
+{
+    int len = strlen(input);
+    if (0 == len) {
+        return false;
+    }
+
+    for (int i = 0; i < len; i++) {
+        if (!isdigit(input[i]))
+            return false;
+    }
+
+    return true;
+}
 
 // -------------------------- SHOW DATABASE INTERFACE-----------------------
 enum _show_db_index {
@@ -243,19 +257,15 @@ static struct argp_option options[] = {
     {"table-batch", 't', "TABLE_BATCH", 0,  "Number of table dumpout into one output file. Default is 1.",  3},
     {"thread_num",  'T', "THREAD_NUM",  0,  "Number of thread for dump in file. Default is 5.", 3},
     {"debug",   'g', 0, 0,  "Print debug info.",    8},
-    {"verbose", 'b', 0, 0,  "Print verbose debug info.", 9},
-    {"performanceprint", 'm', 0, 0,  "Print performance debug info.", 10},
     {0}
 };
-
-#define MAX_PASSWORD_SIZE   20
 
 /* Used by main to communicate with parse_opt. */
 typedef struct arguments {
     // connection option
     char    *host;
     char    *user;
-    char    password[MAX_PASSWORD_SIZE];
+    char    password[SHELL_MAX_PASSWORD_LEN];
     uint16_t port;
     char     cversion[12];
     uint16_t mysqlFlag;
@@ -432,7 +442,6 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
             break;
             // dump unit option
         case 'A':
-            g_args.all_databases = true;
             break;
         case 'D':
             g_args.databases = true;
@@ -477,6 +486,10 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
             g_args.table_batch = atoi(arg);
             break;
         case 'T':
+            if (!isStringNumber(arg)) {
+                errorPrint("%s", "\n\t-T need a number following!\n");
+                exit(EXIT_FAILURE);
+            }
             g_args.thread_num = atoi(arg);
             break;
         case OPT_ABORT:
@@ -555,20 +568,37 @@ static void parse_precision_first(
     }
 }
 
-static void parse_password(
+static void parse_args(
         int argc, char *argv[], SArguments *arguments) {
+
     for (int i = 1; i < argc; i++) {
-        if (strncmp(argv[i], "-p", 2) == 0) {
-            if (strlen(argv[i]) == 2) {
+        if ((strncmp(argv[i], "-p", 2) == 0)
+              || (strncmp(argv[i], "--password", 10) == 0)) {
+            if ((strlen(argv[i]) == 2)
+                  || (strncmp(argv[i], "--password", 10) == 0)) {
                 printf("Enter password: ");
+                taosSetConsoleEcho(false);
                 if(scanf("%20s", arguments->password) > 1) {
                     errorPrint("%s() LN%d, password read error!\n", __func__, __LINE__);
                 }
+                taosSetConsoleEcho(true);
             } else {
-                tstrncpy(arguments->password, (char *)(argv[i] + 2), MAX_PASSWORD_SIZE);
+                tstrncpy(arguments->password, (char *)(argv[i] + 2),
+                        SHELL_MAX_PASSWORD_LEN);
+                strcpy(argv[i], "-p");
             }
-            argv[i] = "";
+        } else if (strcmp(argv[i], "-gg") == 0) {
+            arguments->verbose_print = true;
+            strcpy(argv[i], "");
+        } else if (strcmp(argv[i], "-PP") == 0) {
+            arguments->performance_print = true;
+            strcpy(argv[i], "");
+        } else if (strcmp(argv[i], "-A") == 0) {
+            g_args.all_databases = true;
+        } else {
+            continue;
         }
+
     }
 }
 
@@ -637,7 +667,7 @@ int main(int argc, char *argv[]) {
     if (argc > 1) {
         parse_precision_first(argc, argv, &g_args);
         parse_timestamp(argc, argv, &g_args);
-        parse_password(argc, argv, &g_args);
+        parse_args(argc, argv, &g_args);
     }
 
     argp_parse(&argp, argc, argv, 0, 0, &g_args);
