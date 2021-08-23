@@ -191,7 +191,7 @@ cdf548465318
 1，通过端口映射(-p)，将容器内部开放的网络端口映射到宿主机的指定端口上。通过挂载本地目录(-v)，可以实现宿主机与容器内部的数据同步，防止容器删除后，数据丢失。
 
 ```bash
-$ docker run -d -v /etc/taos:/etc/taos -p 6041:6041 tdengine/tdengine
+$ docker run -d -v /etc/taos:/etc/taos -P 6041:6041 tdengine/tdengine
 526aa188da767ae94b244226a2b2eec2b5f17dd8eff592893d9ec0cd0f3a1ccd
 
 $ curl -u root:taosdata -d 'show databases' 127.0.0.1:6041/rest/sql

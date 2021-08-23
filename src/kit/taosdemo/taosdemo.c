@@ -659,7 +659,21 @@ static FILE *          g_fpOfInsertResult = NULL;
         fprintf(stderr, "PERF: "fmt, __VA_ARGS__); } while(0)
 
 #define errorPrint(fmt, ...) \
-    do { fprintf(stderr, " \033[31m"); fprintf(stderr, "ERROR: "fmt, __VA_ARGS__); fprintf(stderr, " \033[0m"); } while(0)
+    do {\
+        struct tm      Tm, *ptm;\
+        struct timeval timeSecs; \
+        time_t         curTime;\
+        gettimeofday(&timeSecs, NULL); \
+        curTime = timeSecs.tv_sec;\
+        ptm = localtime_r(&curTime, &Tm);\
+        fprintf(stderr, " \033[31m");\
+        fprintf(stderr, "%02d/%02d %02d:%02d:%02d.%06d %08" PRId64 " ",\
+                ptm->tm_mon + 1, ptm->tm_mday, ptm->tm_hour,\
+                ptm->tm_min, ptm->tm_sec, (int32_t)timeSecs.tv_usec,\
+                taosGetSelfPthreadId());\
+        fprintf(stderr, "ERROR: "fmt, __VA_ARGS__);\
+        fprintf(stderr, " \033[0m");\
+    } while(0)
 
 // for strncpy buffer overflow
 #define min(a, b) (((a) < (b)) ? (a) : (b))
@@ -5202,7 +5216,8 @@ static int64_t generateStbRowData(
                 tmpLen = strlen(tmp);
                 tstrncpy(pstr + dataLen, tmp, min(tmpLen +1, INT_BUFF_LEN));
             }  else {
-                errorPrint( "Not support data type: %s\n", stbInfo->columns[i].dataType);
+                errorPrint( "Not support data type: %s\n",
+                        stbInfo->columns[i].dataType);
                 return -1;
             }
 
@@ -5215,8 +5230,7 @@ static int64_t generateStbRowData(
             return 0;
     }
 
-    dataLen -= 1;
-    dataLen += snprintf(pstr + dataLen, maxLen - dataLen, ")");
+    tstrncpy(pstr + dataLen - 1, ")", 2);
 
     verbosePrint("%s() LN%d, dataLen:%"PRId64"\n", __func__, __LINE__, dataLen);
     verbosePrint("%s() LN%d, recBuf:\n\t%s\n", __func__, __LINE__, recBuf);
