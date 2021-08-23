@@ -439,16 +439,26 @@ int taos_options(TSDB_OPTION option, const void *arg, ...) {
 }
 
 #include "cJSON.h"
-static int taos_set_config_imp(const char *config){
+typedef struct retMsg{
+  int ret;
+  char *msg;
+} retMsg;
+
+static retMsg taos_set_config_imp(const char *config){
+  retMsg ret = {0, "success"};
+
   static bool setConfFlag = false;
   if (setConfFlag) {
     tscError("already set config");
-    return -1;
+    ret.msg = "already set config";
+    return ret;
   }
   cJSON *root = cJSON_Parse(config);
   if (root == NULL) {
     tscError("failed to set config, invalid json format: %s", config);
-    return -1;
+    ret.ret = -1;
+    ret.msg = "invalid json format";
+    return ret;
   }
 
   int size = cJSON_GetArraySize(root);
@@ -456,13 +466,18 @@ static int taos_set_config_imp(const char *config){
     cJSON *item = cJSON_GetArrayItem(root, i);
     if (!item) {
       tscError("failed to read index:%d", i);
+      ret.ret = -2;
+      ret.msg = "part config failed, please see the log";
       continue;
     }
-    taosReadConfigOption(item->string, item->valuestring, NULL, NULL);
+    if(!taosReadConfigOption(item->string, item->valuestring, NULL, NULL)){
+      ret.ret = -2;
+      ret.msg = "part config failed, please see the log";
+    }
   }
   taosPrintGlobalCfg();
   setConfFlag = true;
-  return 0;
+  return ret;
 }
 
 int taos_set_config(const char *config){
