@@ -538,8 +538,8 @@ void taosCacheCleanup(SCacheObj *pCacheObj) {
 
   // wait for the refresh thread quit before destroying the cache object.
   // But in the dll, the child thread will be killed before atexit takes effect.So here we only wait for one second.
-  while(atomic_load_8(&pCacheObj->deleting)) {
-  // for (int i = 0; i < 20&&atomic_load_8(&pCacheObj->deleting) != 0; i++) {
+  // while(atomic_load_8(&pCacheObj->deleting)) {
+  for (int i = 0; i < 60&&atomic_load_8(&pCacheObj->deleting) != 0; i++) {
     taosMsleep(50);
   }
 
