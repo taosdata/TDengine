@@ -545,7 +545,7 @@ static void printVersion() {
 
 static void printHelp() {
     char indent[10] = "        ";
-    printf("%s%s%s%s\n", indent, "-f", indent, "The meta file to the execution procedure. Default is './meta.json'.");
+    printf("%s%s%s%s\n", indent, "-f", indent, "The json file to the execution procedure.\n");
 }
 
 static void parse_args(int argc, char *argv[], InArguments *arguments) {
@@ -4030,6 +4030,10 @@ int main(int argc, char *argv[]) {
     parse_args(argc, argv, &g_args);
 
     debugPrint("meta file: %s\n", g_args.metaFile);
+    if (NULL == g_args.metaFile) {
+      printf("Please specify a json!\n");
+      return 1;
+    }
 
     initOfInsertMeta();
     initOfQueryMeta();
