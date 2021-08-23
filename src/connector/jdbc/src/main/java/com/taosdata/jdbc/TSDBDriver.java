@@ -118,9 +118,6 @@ public class TSDBDriver extends AbstractDriver {
     }
 
     public Connection connect(String url, Properties info) throws SQLException {
-        if (url == null)
-            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_URL_NOT_SET);
-
         if (!acceptsURL(url))
             return null;
 
