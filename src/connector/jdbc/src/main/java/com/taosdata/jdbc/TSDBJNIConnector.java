@@ -38,14 +38,6 @@ public class TSDBJNIConnector {
         System.loadLibrary("taos");
     }
 
-    public boolean isClosed() {
-        return this.taos == TSDBConstants.JNI_NULL_POINTER;
-    }
-
-    public boolean isResultsetClosed() {
-        return this.isResultsetClosed;
-    }
-
     public static void init(String configDir, String locale, String charset, String timezone) throws SQLWarning {
         synchronized (isInitialized) {
             if (!isInitialized) {
@@ -158,6 +150,14 @@ public class TSDBJNIConnector {
     }
 
     private native long isUpdateQueryImp(long connection, long pSql);
+
+    public boolean isClosed() {
+        return this.taos == TSDBConstants.JNI_NULL_POINTER;
+    }
+
+    public boolean isResultsetClosed() {
+        return this.isResultsetClosed;
+    }
 
     /**
      * Free result set operation from C to release result set pointer by JNI
