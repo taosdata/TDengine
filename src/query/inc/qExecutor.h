@@ -470,6 +470,11 @@ typedef struct SSLimitOperatorInfo {
 
   char    **prevRow;
   SArray   *orderColumnList;
+  bool      hasPrev;
+  bool      ignoreCurrentGroup;
+  SSDataBlock *pRes;   // result buffer
+  int64_t      capacity;
+  int64_t      threshold;
 } SSLimitOperatorInfo;
 
 typedef struct SFilterOperatorInfo {
@@ -481,7 +486,7 @@ typedef struct SFillOperatorInfo {
   SFillInfo   *pFillInfo;
   SSDataBlock *pRes;
   int64_t      totalInputRows;
-
+  void       **p;
   SSDataBlock *existNewGroupBlock;
 } SFillOperatorInfo;
 
@@ -544,9 +549,9 @@ typedef struct SMultiwayMergeInfo {
   bool                 hasDataBlockForNewGroup;
   SSDataBlock         *pExistBlock;
 
-  bool                 hasPrev;
-  bool                 groupMix;
   SArray              *udfInfo;
+  bool                 hasPrev;
+  bool                 multiGroupResults;
 } SMultiwayMergeInfo;
 
 // todo support the disk-based sort
@@ -577,8 +582,8 @@ SOperatorInfo* createTagScanOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SExprInf
 SOperatorInfo* createDistinctOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorInfo* upstream, SExprInfo* pExpr, int32_t numOfOutput);
 SOperatorInfo* createTableBlockInfoScanOperator(void* pTsdbQueryHandle, SQueryRuntimeEnv* pRuntimeEnv);
 SOperatorInfo* createMultiwaySortOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SExprInfo* pExpr, int32_t numOfOutput,
-                                              int32_t numOfRows, void* merger, bool groupMix);
-SOperatorInfo* createGlobalAggregateOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorInfo* upstream, SExprInfo* pExpr, int32_t numOfOutput, void* param, SArray* pUdfInfo);
+                                              int32_t numOfRows, void* merger);
+SOperatorInfo* createGlobalAggregateOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorInfo* upstream, SExprInfo* pExpr, int32_t numOfOutput, void* param, SArray* pUdfInfo, bool groupResultMixedUp);
 SOperatorInfo* createStatewindowOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorInfo* upstream, SExprInfo* pExpr, int32_t numOfOutput);
 SOperatorInfo* createSLimitOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorInfo* upstream, SExprInfo* pExpr, int32_t numOfOutput, void* merger);
 SOperatorInfo* createFilterOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorInfo* upstream, SExprInfo* pExpr,

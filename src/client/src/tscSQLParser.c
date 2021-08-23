@@ -6917,7 +6917,6 @@ static int32_t doAddGroupbyColumnsOnDemand(SSqlCmd* pCmd, SQueryInfo* pQueryInfo
   const char* msg1 = "interval not allowed in group by normal column";
 
   STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
-
   SSchema* pSchema = tscGetTableSchema(pTableMetaInfo->pTableMeta);
 
   SSchema* tagSchema = NULL;
