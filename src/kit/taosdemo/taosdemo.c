@@ -1332,7 +1332,7 @@ static char *rand_bool_str(){
     static int cursor;
     cursor++;
     if (cursor > (MAX_PREPARED_RAND - 1)) cursor = 0;
-    return g_randbool_buff + (cursor * BOOL_BUFF_LEN);
+    return g_randbool_buff + ((cursor % MAX_PREPARED_RAND) * BOOL_BUFF_LEN);
 }
 
 static int32_t rand_bool(){
@@ -1347,7 +1347,8 @@ static char *rand_tinyint_str()
     static int cursor;
     cursor++;
     if (cursor > (MAX_PREPARED_RAND - 1)) cursor = 0;
-    return g_randtinyint_buff + (cursor * TINYINT_BUFF_LEN);
+    return g_randtinyint_buff +
+        ((cursor % MAX_PREPARED_RAND) * TINYINT_BUFF_LEN);
 }
 
 static int32_t rand_tinyint()
@@ -1363,7 +1364,8 @@ static char *rand_smallint_str()
     static int cursor;
     cursor++;
     if (cursor > (MAX_PREPARED_RAND - 1)) cursor = 0;
-    return g_randsmallint_buff + (cursor * SMALLINT_BUFF_LEN);
+    return g_randsmallint_buff +
+        ((cursor % MAX_PREPARED_RAND) * SMALLINT_BUFF_LEN);
 }
 
 static int32_t rand_smallint()
@@ -1379,7 +1381,7 @@ static char *rand_int_str()
     static int cursor;
     cursor++;
     if (cursor > (MAX_PREPARED_RAND - 1)) cursor = 0;
-    return g_randint_buff + (cursor * INT_BUFF_LEN);
+    return g_randint_buff + ((cursor % MAX_PREPARED_RAND) * INT_BUFF_LEN);
 }
 
 static int32_t rand_int()
@@ -1395,7 +1397,8 @@ static char *rand_bigint_str()
     static int cursor;
     cursor++;
     if (cursor > (MAX_PREPARED_RAND - 1)) cursor = 0;
-    return g_randbigint_buff + (cursor * BIGINT_BUFF_LEN);
+    return g_randbigint_buff +
+        ((cursor % MAX_PREPARED_RAND) * BIGINT_BUFF_LEN);
 }
 
 static int64_t rand_bigint()
@@ -1411,7 +1414,7 @@ static char *rand_float_str()
     static int cursor;
     cursor++;
     if (cursor > (MAX_PREPARED_RAND - 1)) cursor = 0;
-    return g_randfloat_buff + (cursor * FLOAT_BUFF_LEN);
+    return g_randfloat_buff + ((cursor % MAX_PREPARED_RAND) * FLOAT_BUFF_LEN);
 }
 
 static float rand_float()
@@ -1427,7 +1430,8 @@ static char *demo_current_float_str()
     static int cursor;
     cursor++;
     if (cursor > (MAX_PREPARED_RAND - 1)) cursor = 0;
-    return g_rand_current_buff + (cursor * FLOAT_BUFF_LEN);
+    return g_rand_current_buff +
+        ((cursor % MAX_PREPARED_RAND) * FLOAT_BUFF_LEN);
 }
 
 static float UNUSED_FUNC demo_current_float()
@@ -1443,7 +1447,8 @@ static char *demo_voltage_int_str()
     static int cursor;
     cursor++;
     if (cursor > (MAX_PREPARED_RAND - 1)) cursor = 0;
-    return g_rand_voltage_buff + (cursor * INT_BUFF_LEN);
+    return g_rand_voltage_buff +
+        ((cursor % MAX_PREPARED_RAND) * INT_BUFF_LEN);
 }
 
 static int32_t UNUSED_FUNC demo_voltage_int()
@@ -1458,7 +1463,7 @@ static char *demo_phase_float_str() {
     static int cursor;
     cursor++;
     if (cursor > (MAX_PREPARED_RAND - 1)) cursor = 0;
-    return g_rand_phase_buff + (cursor * FLOAT_BUFF_LEN);
+    return g_rand_phase_buff + ((cursor % MAX_PREPARED_RAND) * FLOAT_BUFF_LEN);
 }
 
 static float UNUSED_FUNC demo_phase_float(){
@@ -5169,7 +5174,8 @@ static int64_t generateStbRowData(
                         "SMALLINT", 8)) {
                 tmp = rand_smallint_str();
                 tmpLen = strlen(tmp);
-                tstrncpy(pstr + dataLen, tmp, min(tmpLen + 1, SMALLINT_BUFF_LEN));
+                tstrncpy(pstr + dataLen, tmp,
+                        min(tmpLen + 1, SMALLINT_BUFF_LEN));
             }  else if (0 == strncasecmp(stbInfo->columns[i].dataType,
                         "TINYINT", 7)) {
                 tmp = rand_tinyint_str();
@@ -5182,9 +5188,9 @@ static int64_t generateStbRowData(
                 tstrncpy(pstr + dataLen, tmp, min(tmpLen +1, BOOL_BUFF_LEN));
             }  else if (0 == strncasecmp(stbInfo->columns[i].dataType,
                         "TIMESTAMP", 9)) {
-                tmp = rand_int_str();
+                tmp = rand_bigint_str();
                 tmpLen = strlen(tmp);
-                tstrncpy(pstr + dataLen, tmp, min(tmpLen +1, INT_BUFF_LEN));
+                tstrncpy(pstr + dataLen, tmp, min(tmpLen +1, BIGINT_BUFF_LEN));
             }  else {
                 errorPrint( "Not support data type: %s\n", stbInfo->columns[i].dataType);
                 return -1;
