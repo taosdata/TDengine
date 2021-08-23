@@ -315,10 +315,6 @@ TDengine的异步API均采用非阻塞调用模式。应用程序可以用多线
 1. 调用 `taos_stmt_init` 创建参数绑定对象；
 2. 调用 `taos_stmt_prepare` 解析 INSERT 语句；
 3. 如果 INSERT 语句中预留了表名但没有预留 TAGS，那么调用 `taos_stmt_set_tbname` 来设置表名；
-  * 从 2.1.6.0 版本开始，对于向一个超级表下的多个子表同时写入数据（每个子表写入的数据较少，可能只有一行）的情形，提供了一个专用的优化接口 `taos_stmt_set_sub_tbname`，可以通过提前载入 meta 数据以及避免对 SQL 语法的重复解析来节省总体的处理时间（但这个优化方法并不支持自动建表语法）。具体使用方法如下：
-    1. 必须先提前调用 `taos_load_table_info` 来加载所有需要的超级表和子表的 table meta；
-    2. 然后对一个超级表的第一个子表调用 `taos_stmt_set_tbname` 来设置表名；
-    3. 后续子表用 `taos_stmt_set_sub_tbname` 来设置表名。
 4. 如果 INSERT 语句中既预留了表名又预留了 TAGS（例如 INSERT 语句采取的是自动建表的方式），那么调用 `taos_stmt_set_tbname_tags` 来设置表名和 TAGS 的值；
 5. 调用 `taos_stmt_bind_param_batch` 以多列的方式设置 VALUES 的值，或者调用 `taos_stmt_bind_param` 以单行的方式设置 VALUES 的值；
 6. 调用 `taos_stmt_add_batch` 把当前绑定的参数加入批处理；
@@ -361,12 +357,6 @@ typedef struct TAOS_BIND {
 
   （2.1.1.0 版本新增，仅支持用于替换 INSERT 语句中的参数值）  
   当 SQL 语句中的表名使用了 `?` 占位时，可以使用此函数绑定一个具体的表名。
-
-- `int taos_stmt_set_sub_tbname(TAOS_STMT* stmt, const char* name)`
-
-  （2.1.6.0 版本新增，仅支持用于替换 INSERT 语句中、属于同一个超级表下的多个子表中、作为写入目标的第 2 个到第 n 个子表的表名）  
-  当 SQL 语句中的表名使用了 `?` 占位时，如果想要一批写入的表是多个属于同一个超级表的子表，那么可以使用此函数绑定除第一个子表之外的其他子表的表名。  
-  *注意：*在使用时，客户端必须先调用 `taos_load_table_info` 来加载所有需要的超级表和子表的 table meta，然后对一个超级表的第一个子表调用 `taos_stmt_set_tbname`，后续子表用 `taos_stmt_set_sub_tbname`。
 
 - `int taos_stmt_set_tbname_tags(TAOS_STMT* stmt, const char* name, TAOS_BIND* tags)`
 
