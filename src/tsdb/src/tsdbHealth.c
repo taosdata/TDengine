@@ -40,6 +40,7 @@ int32_t tsdbInsertNewBlock(STsdbRepo * pRepo) {
         } else {
           pPool->nElasticBlocks ++;
           cnt ++ ; 
+          printf(" elastic block add one ok. current blocks=%d \n", pPool->nElasticBlocks);
         }
     }
  } 
@@ -68,7 +69,7 @@ bool tsdbUrgeQueryFree(STsdbRepo * pRepo) {
 
 bool tsdbIdleMemEnough() {
   // TODO config to taos.cfg
-  int32_t lowestRate = 10;  // below 10% idle memory, return not enough memory
+  int32_t lowestRate = 5;  // below 10% idle memory, return not enough memory
   float  memoryUsedMB = 0;
   float  memoryAvailMB;
 
@@ -94,8 +95,9 @@ bool tsdbIdleMemEnough() {
 
 bool tsdbAllowNewBlock(STsdbRepo* pRepo) {
   //TODO config to taos.cfg
-  int32_t nMaxElastic = 0;
+  int32_t nMaxElastic = 1;
   STsdbBufPool* pPool = pRepo->pPool;
+  printf("tsdbAllowNewBlock nElasticBlock(%d) MaxElasticBlocks(%d)\n", pPool->nElasticBlocks, nMaxElastic);
   if(pPool->nElasticBlocks >= nMaxElastic) {
     tsdbWarn("tsdbAllowNewBlock return fasle. nElasticBlock(%d) >= MaxElasticBlocks(%d)", pPool->nElasticBlocks, nMaxElastic);
     return false;
@@ -106,9 +108,7 @@ bool tsdbAllowNewBlock(STsdbRepo* pRepo) {
 bool tsdbNoProblem(STsdbRepo* pRepo) {
   if(!tsdbIdleMemEnough()) 
      return false;
-
-  if(listNEles(pRepo->pPool->bufBlockList)) 
+  if(listNEles(pRepo->pPool->bufBlockList) == 0) 
      return false;
-
   return true;
 }

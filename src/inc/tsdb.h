@@ -193,7 +193,6 @@ typedef struct {
   SList *      bufBlockList;
   int64_t      pointsAdd;   // TODO
   int64_t      storageAdd;  // TODO
-  int64_t      commitedMs;  // commited ms time , zero is no commit.
 } SMemTable;
 
 typedef struct {

@@ -249,7 +249,7 @@ int waitMoment(SQInfo* pQInfo){
         taosMsleep(1000);
         used_ms += 1000;
         if(isQueryKilled(pQInfo)){
-          printf(" check query is canceled, sleep break... \n");
+          printf(" check query is canceled, sleep break... %s\n", pQInfo->sql);
           break;
         }
       }
@@ -626,7 +626,7 @@ int32_t qKillQueryByQId(void* pMgmt, int64_t qId, int32_t waitMs, int32_t waitCo
   if (pQInfo == NULL || !isValidQInfo(pQInfo)) {
     return TSDB_CODE_QRY_INVALID_QHANDLE;
   }
-  qWarn("QId:0x%"PRIx64" query killed becase no memory commit.", pQInfo->qId);
+  qWarn("QId:0x%"PRIx64" be killed(no memory commit).", pQInfo->qId);
   setQueryKilled(pQInfo);
 
   // wait query stop
@@ -647,20 +647,19 @@ int32_t qKillQueryByQId(void* pMgmt, int64_t qId, int32_t waitMs, int32_t waitCo
 typedef struct {
   int64_t qId;
   int64_t startExecTs;
-  int64_t commitedMs;
 } SLongQuery;
 
 // callbark for sort compare 
 static int compareLongQuery(const void* p1, const void* p2) {
   // sort desc 
-  SLongQuery* plq1 = (SLongQuery*)p1;
-  SLongQuery* plq2 = (SLongQuery*)p2;
+  SLongQuery* plq1 = *(SLongQuery**)p1;
+  SLongQuery* plq2 = *(SLongQuery**)p2;
   if(plq1->startExecTs == plq2->startExecTs) {
     return 0;
   } else if(plq1->startExecTs > plq2->startExecTs) {
-    return -1;
-  } else {
     return 1;
+  } else {
+    return -1;
   }
 }
 
@@ -686,15 +685,7 @@ static void cbFoundItem(void* handle, void* param1) {
   // push to qids
   SLongQuery* plq = (SLongQuery*)malloc(sizeof(SLongQuery));
   plq->qId = qInfo->qId;
-  plq->startExecTs = qInfo->startExecTs;
-
-  // commitedMs
-  if(imem) {
-    plq->commitedMs = imem->commitedMs;
-  } else {
-    plq->commitedMs = 0;
-  }
- 
+  plq->startExecTs = qInfo->startExecTs; 
   taosArrayPush(qids, &plq);
 }
 
@@ -735,11 +726,13 @@ bool qFixedNoBlock(void* pRepo, void* pMgmt, int32_t longQueryMs) {
   SLongQuery* plq;
   for(i=0; i < cnt; i++) {
     plq = (SLongQuery* )taosArrayGetP(qids, i);
+    printf(" sort i=%d span=%d qid=0x%"PRIx64" exeTime=0x%"PRIx64". \n",(int)i, (int)(now - plq->startExecTs), plq->qId, plq->startExecTs);
     if(plq->startExecTs > now) continue;
     if(now - plq->startExecTs >= longQueryMs) {
-      qKillQueryByQId(pMgmt, plq->qId, 100, 30); // wait 50*100 ms 
+      qKillQueryByQId(pMgmt, plq->qId, 500, 10); // wait 50*100 ms 
       if(tsdbNoProblem(pRepo)) {
         fixed = true;
+        qWarn("QId:0x%"PRIx64" fixed problem after kill this query.", plq->qId);
         break;
       }
     }
@@ -755,6 +748,7 @@ bool qFixedNoBlock(void* pRepo, void* pMgmt, int32_t longQueryMs) {
 
 //solve tsdb no block to commit
 bool qSolveCommitNoBlock(void* pRepo, void* pMgmt) {
+  qWarn("start solve no block problem.");
   if(qFixedNoBlock(pRepo, pMgmt, 20*1000)) {
     return true;
   }

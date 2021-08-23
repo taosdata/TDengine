@@ -216,7 +216,10 @@ void tsdbRecycleBufferBlock(STsdbBufPool* pPool, SListNode *pNode, bool bELastic
   tsdbFreeBufBlock(pBufBlock);
   free(pNode);
   if(bELastic)
-    pPool->nElasticBlocks--;
+   {
+      pPool->nElasticBlocks--;
+      printf(" elastic block reduce one ok. current blocks=%d \n", pPool->nElasticBlocks);
+   }
   else
     pPool->nBufBlocks--;
 }

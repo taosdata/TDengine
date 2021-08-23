@@ -548,7 +548,6 @@ static void tsdbEndCommit(STsdbRepo *pRepo, int eno) {
   pRepo->imem = NULL;
   (void)tsdbUnlockRepo(pRepo);
   //save commited time
-  pIMem->commitedMs = taosGetTimestampMs();
   tsdbUnRefMemTable(pRepo, pIMem);
   tsem_post(&(pRepo->readyToCommit));
 }
