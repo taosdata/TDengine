@@ -445,6 +445,7 @@ static int taos_set_config_imp(const char *config){
     tscError("already set config");
     return 0;
   }
+  taosInitGlobalCfg();
   cJSON *root = cJSON_Parse(config);
   if (root == NULL) {
     tscError("failed to set config, invalid json format: %s", config);
@@ -460,21 +461,15 @@ static int taos_set_config_imp(const char *config){
       ret = -2;
       continue;
     }
-    if(!taosReadConfigOption(item->string, item->valuestring, NULL, NULL)){
+    if(!taosReadConfigOption(item->string, item->valuestring, NULL, NULL, TAOS_CFG_CSTATUS_OPTION)){
       ret = -2;
     }
   }
-  taosPrintGlobalCfg();
   setConfFlag = true;
   return ret;
 }
 
 int taos_set_config(const char *config){
-  if(taos_init()){
-    tscError("failed to call taos_init");
-    return -1;
-  }
-
   static int32_t lock = 0;
 
   for (int i = 1; atomic_val_compare_exchange_32(&lock, 0, 1) != 0; ++i) {
