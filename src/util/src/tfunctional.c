@@ -14,23 +14,24 @@
  */
 
 #include "tfunctional.h"
-#include "tarray.h"
-
 
 tGenericSavedFunc* genericSavedFuncInit(GenericVaFunc func, int numOfArgs) {
   tGenericSavedFunc* pSavedFunc = malloc(sizeof(tGenericSavedFunc) + numOfArgs * (sizeof(void*)));
+  if(pSavedFunc == NULL) return NULL;
   pSavedFunc->func = func;
   return pSavedFunc;
 }
 
 tI32SavedFunc* i32SavedFuncInit(I32VaFunc func, int numOfArgs) {
   tI32SavedFunc* pSavedFunc = malloc(sizeof(tI32SavedFunc) + numOfArgs * sizeof(void *));
+  if(pSavedFunc == NULL) return NULL;
   pSavedFunc->func = func;
   return pSavedFunc;
 }
 
 tVoidSavedFunc* voidSavedFuncInit(VoidVaFunc func, int numOfArgs) {
   tVoidSavedFunc* pSavedFunc = malloc(sizeof(tVoidSavedFunc) + numOfArgs * sizeof(void*));
+  if(pSavedFunc == NULL) return NULL;
   pSavedFunc->func = func;
   return pSavedFunc;
 }
