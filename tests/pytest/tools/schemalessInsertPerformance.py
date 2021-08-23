@@ -91,7 +91,7 @@ class TDTestCase:
         if init:
             tag_str = f'id="init",t0={random.randint(0, 65535)}i32,t1=\"{tdCom.getLongName(10, "letters")}\"'
         else:
-            tag_str = f'id=sub_{tdCom.getLongName(5, "letters")}_{tdCom.getLongName(5, "letters")},t0={random.randint(0, 65535)}i32,t1=\"{tdCom.getLongName(10, "letters")}\"'
+            tag_str = f'id="sub_{tdCom.getLongName(5, "letters")}_{tdCom.getLongName(5, "letters")}",t0={random.randint(0, 65535)}i32,t1=\"{tdCom.getLongName(10, "letters")}\"'
         col_str = self.genMultiColStr(int_count, double_count, binary_count)
         long_sql = 'stb' + ',' + tag_str + ' ' + col_str + '0'
         return long_sql
@@ -109,13 +109,19 @@ class TDTestCase:
         for i in range(table_count):
             yield self.getPerfSql(count)
 
+    
+            
+
+
+
+
     def genTableList(self, count=4, table_count=10000):
         table_list = list()
         for i in range(1, table_count+1):
             table_list.append(self.getPerfSql(count))
         return table_list
             
-    def splitTableList(self, count=4, thread_count=10, table_count=10000):
+    def splitTableList(self, count=4, thread_count=10, table_count=1000):
         per_list_len = int(table_count/thread_count)
         table_list = self.genTableList(count=count)
         # ts = int(time.time())
@@ -124,6 +130,22 @@ class TDTestCase:
         count = len(table_list) % per_list_len
         end_list.append(table_list[-count:]) if count !=0 else end_list
         return table_list, end_list
+
+    def rowsGenerator(self, end_list):
+        ts = int(time.time())
+        input_sql_list = list()
+        for elm_list in end_list:
+            for elm in elm_list:
+                for i in range(1, 10000):
+                    ts -= 1
+                    elm_new = self.replaceLastStr(elm, str(ts)) + 's'
+                    input_sql_list.append(elm_new)
+                yield input_sql_list
+
+    # def insertRows(self, count=4, thread_count=10):
+    #     table_list = self.splitTableList(count=count, thread_count=thread_count)[0]
+    #     for 
+
 
     def replaceLastStr(self, str, new):
         list_ori = list(str)
@@ -136,21 +158,39 @@ class TDTestCase:
         for table_str in table_list:
             for i in range(1, row_count+1):
                 ts -= 1
-                table_str_new = self.replaceLastStr(table_str, str(ts))
+                table_str_new = self.replaceLastStr(table_str, f'{str(ts)}s')
                 data_list.append(table_str_new)
         print(data_list)
         return data_list
+
+
+    def insertRows(self, count=4, table_count=1000):
+        table_generator = self.tableGenerator(count=count, table_count=table_count)
+        for table_name in table_generator:
+            pass
 
     def perfTableInsert(self):
         table_generator = self.tableGenerator()
         for input_sql in table_generator:
             self._conn.insert_lines([input_sql])
-            for i in range(10):
-                self._conn.insert_lines([input_sql])
+            # for i in range(10):
+            #     self._conn.insert_lines([input_sql])
 
-    def perfDataInsert(self, input_sql):
-        for i in range(10000):
+    def perfDataInsert(self, count=4):
+        table_generator = self.tableGenerator(count=count)
+        ts = int(time.time())
+        for input_sql in table_generator:
+            print("input_sql-----------", input_sql)
             self._conn.insert_lines([input_sql])
+            for i in range(100000):
+                ts -= 1
+                input_sql_new = self.replaceLastStr(input_sql, str(ts)) + 's'
+                print("input_sql_new---------", input_sql_new)
+                self._conn.insert_lines([input_sql_new])
+
+    def batchInsertTable(self, batch_list):
+        for insert_list in batch_list:
+            self._conn.insert_lines(insert_list)
 
     def genTableThread(self, thread_count=10):
         threads = list()
@@ -159,10 +199,10 @@ class TDTestCase:
             threads.append(t)
         return threads
 
-    def genMultiThread(self, input_sql, thread_count=10):
+    def genMultiThread(self, count, thread_count=10):
         threads = list()
         for i in range(thread_count):
-            t = threading.Thread(target=self.perfDataInsert,args=(input_sql,))
+            t = threading.Thread(target=self.perfDataInsert,args=(count,))
             threads.append(t)
         return threads
 
@@ -174,8 +214,23 @@ class TDTestCase:
 
     def createStb(self, count=4):
         input_sql = self.getPerfSql(count=count, init=True)
-        print("stb-----", input_sql)
         self._conn.insert_lines([input_sql])
+
+    def threadInsertTable(self, end_list, thread_count=10):
+        threads = list()
+        for i in range(thread_count):
+            t = threading.Thread(target=self.batchInsertTable, args=(end_list,))
+            threads.append(t)
+        return threads
+
+
+    def finalRun(self):
+        self.createStb()
+        table_list, end_list = self.splitTableList()
+        batchInsertTableThread = self.threadInsertTable(end_list=end_list)
+        print(end_list)
+        self.multiThreadRun(batchInsertTableThread)
+        # print(end_list)
 
     # def createTb(self, count=4):
     #     input_sql = self.getPerfSql(count=count)
@@ -188,37 +243,52 @@ class TDTestCase:
     #     end_time = time.time()
     #     return end_time - start_time
         
-    def calInsertTableTime(self):
+    # def calInsertTableTime(self):
+    #     start_time = time.time()
+    #     self.createStb()
+    #     self.multiThreadRun(self.genMultiThread())
+    #     end_time = time.time()
+    #     return end_time - start_time
+
+    def calRunTime(self, count=4):
         start_time = time.time()
         self.createStb()
-        self.multiThreadRun(self.genTableThread())
+        self.multiThreadRun(self.genMultiThread(count=count))
         end_time = time.time()
         return end_time - start_time
 
-    def calRunTime(self, input_sql):
+    def calRunTime1(self, count=4):
         start_time = time.time()
-        self.multiThreadRun(self.genMultiThread(input_sql))
-        end_time = time.time()
-        return end_time - start_time
+        self.createStb()
+        self.multiThreadRun(self.perfTableInsert())
+        # self.perfTableInsert()
 
-    def schemalessInsertPerfTest(self, count=4):
-        input_sql = self.getPerfSql(count)
-        self.calRunTime(input_sql)
+    # def schemalessInsertPerfTest(self, count=4):
+    #     input_sql = self.getPerfSql(count)
+    #     self.calRunTime(input_sql)
 
-    def test(self):
-        sql1 = 'stb,id="init",t0=14865i32,t1="tvnqbjuqck" c0=37i32,c1=217i32,c2=3i32,c3=88i32 1626006833640ms'
-        sql2 = 'stb,id="init",t0=14865i32,t1="tvnqbjuqck" c0=38i32,c1=217i32,c2=3i32,c3=88i32 1626006833641ms'
-        self._conn.insert_lines([sql1])
-        self._conn.insert_lines([sql2])
+    # def test(self):
+    #     sql1 = 'stb,id="init",t0=14865i32,t1="tvnqbjuqck" c0=37i32,c1=217i32,c2=3i32,c3=88i32 1626006833640ms'
+    #     sql2 = 'stb,id="init",t0=14865i32,t1="tvnqbjuqck" c0=38i32,c1=217i32,c2=3i32,c3=88i32 1626006833641ms'
+    #     self._conn.insert_lines([sql1])
+    #     self._conn.insert_lines([sql2])
+
     def run(self):
         print("running {}".format(__file__))
         tdSql.prepare()
+        self.finalRun()
+        # print(self.calRunTime1(count=4))
+        # print(self.calRunTime(count=4))
         # print(self.genRandomTs())
         # self.calInsertTableTime()
         # self.test()
-        table_list = self.splitTableList()[0]
-        data_list = self.genDataList(table_list)
-        print(len(data_list))
+        # table_list = self.splitTableList()[0]
+        # data_list = self.genDataList(table_list)
+        # print(len(data_list))
+        # end_list = [['stb,id="sub_vzvfx_dbuxp",t0=9961i32,t1="zjjfayhfep" c0=83i32,c1=169i32,c2=177i32,c3=4i32 0','stb,id="sub_vzvfx_dbuxp",t0=9961i32,t1="zjjfayhfep" c0=83i32,c1=169i32,c2=177i32,c3=4i32 0'], ['stb,id="sub_vzvfx_dbuxp",t0=9961i32,t1="zjjfayhfep" c0=83i32,c1=169i32,c2=177i32,c3=4i32 0','stb,id="sub_vzvfx_dbuxp",t0=9961i32,t1="zjjfayhfep" c0=83i32,c1=169i32,c2=177i32,c3=4i32 0']]
+        # rowsGenerator = self.rowsGenerator(end_list)
+        # for i in rowsGenerator:
+        #     print(i)
 
     def stop(self):
         tdSql.close()
