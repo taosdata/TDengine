@@ -580,25 +580,26 @@ static int32_t retrieveTableMeta(TAOS* taos, char* tableName, STableMeta** pTabl
     pSql->signature = pSql;
     pSql->fp = NULL;
 
+    registerSqlObj(pSql);
     SStrToken tableToken = {.z = tableNameLowerCase, .n = (uint32_t)strlen(tableNameLowerCase), .type = TK_ID};
     tGetToken(tableNameLowerCase, &tableToken.type);
     // Check if the table name available or not
     if (tscValidateName(&tableToken) != TSDB_CODE_SUCCESS) {
       code = TSDB_CODE_TSC_INVALID_TABLE_ID_LENGTH;
       sprintf(pSql->cmd.payload, "table name is invalid");
-      tscFreeSqlObj(pSql);
+      tscFreeRegisteredSqlObj(pSql);
       return code;
     }
 
     SName sname = {0};
     if ((code = tscSetTableFullName(&sname, &tableToken, pSql)) != TSDB_CODE_SUCCESS) {
-      tscFreeSqlObj(pSql);
+      tscFreeRegisteredSqlObj(pSql);
       return code;
     }
     char fullTableName[TSDB_TABLE_FNAME_LEN] = {0};
     memset(fullTableName, 0, tListLen(fullTableName));
     tNameExtractFullName(&sname, fullTableName);
-    tscFreeSqlObj(pSql);
+    tscFreeRegisteredSqlObj(pSql);
 
     size_t size = 0;
     taosHashGetCloneExt(tscTableMetaMap, fullTableName, strlen(fullTableName), NULL, (void**)&tableMeta, &size);
@@ -714,18 +715,21 @@ static int32_t changeChildTableTagValue(TAOS* taos, const char* cTableName, cons
 
   if (code != 0) {
     tscError("SML:0x%"PRIx64" taos_stmt_prepare return %d:%s", info->id, code, tstrerror(code));
+    taos_stmt_close(stmt);
     return code;
   }
 
   code = taos_stmt_bind_param(stmt, bind);
   if (code != 0) {
     tscError("SML:0x%"PRIx64" taos_stmt_bind_param return %d:%s", info->id, code, tstrerror(code));
+    taos_stmt_close(stmt);
     return code;
   }
 
   code = taos_stmt_execute(stmt);
   if (code != 0) {
     tscError("SML:0x%"PRIx64" taos_stmt_execute return %d:%s", info->id, code, tstrerror(code));
+    taos_stmt_close(stmt);
     return code;
   }
 
@@ -775,22 +779,22 @@ static int32_t creatChildTableIfNotExists(TAOS* taos, const char* cTableName, co
   free(sql);
 
   if (code != 0) {
-    tfree(stmt);
     tscError("SML:0x%"PRIx64" taos_stmt_prepare returns %d:%s", info->id, code, tstrerror(code));
+    taos_stmt_close(stmt);
     return code;
   }
 
   code = taos_stmt_bind_param(stmt, TARRAY_GET_START(tagsBind));
   if (code != 0) {
-    tfree(stmt);
     tscError("SML:0x%"PRIx64" taos_stmt_bind_param returns %d:%s", info->id, code, tstrerror(code));
+    taos_stmt_close(stmt);
     return code;
   }
 
   code = taos_stmt_execute(stmt);
   if (code != 0) {
-    tfree(stmt);
     tscError("SML:0x%"PRIx64" taos_stmt_execute returns %d:%s", info->id, code, tstrerror(code));
+    taos_stmt_close(stmt);
     return code;
   }
 
@@ -835,20 +839,21 @@ static int32_t insertChildTableBatch(TAOS* taos,  char* cTableName, SArray* cols
     tfree(sql);
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
   }
+
   code = taos_stmt_prepare(stmt, sql, (unsigned long)strlen(sql));
   tfree(sql);
 
   if (code != 0) {
-    tfree(stmt);
     tscError("SML:0x%"PRIx64" taos_stmt_prepare return %d:%s", info->id, code, tstrerror(code));
+    taos_stmt_close(stmt);
     return code;
   }
 
   do {
     code = taos_stmt_set_tbname(stmt, cTableName);
     if (code != 0) {
-      tfree(stmt);
       tscError("SML:0x%"PRIx64" taos_stmt_set_tbname return %d:%s", info->id, code, tstrerror(code));
+      taos_stmt_close(stmt);
       return code;
     }
 
@@ -857,14 +862,14 @@ static int32_t insertChildTableBatch(TAOS* taos,  char* cTableName, SArray* cols
       TAOS_BIND* colsBinds = taosArrayGetP(rowsBind, i);
       code = taos_stmt_bind_param(stmt, colsBinds);
       if (code != 0) {
-        tfree(stmt);
         tscError("SML:0x%"PRIx64" taos_stmt_bind_param return %d:%s", info->id, code, tstrerror(code));
+        taos_stmt_close(stmt);
         return code;
       }
       code = taos_stmt_add_batch(stmt);
       if (code != 0) {
-        tfree(stmt);
         tscError("SML:0x%"PRIx64" taos_stmt_add_batch return %d:%s", info->id, code, tstrerror(code));
+        taos_stmt_close(stmt);
         return code;
       }
     }
@@ -877,11 +882,9 @@ static int32_t insertChildTableBatch(TAOS* taos,  char* cTableName, SArray* cols
 
   if (code != 0) {
     tscError("SML:0x%"PRIx64" %d:%s", info->id, code, tstrerror(code));
-    taos_stmt_close(stmt);
-  } else {
-    taos_stmt_close(stmt);
   }
 
+  taos_stmt_close(stmt);
   return code;
 }
 
