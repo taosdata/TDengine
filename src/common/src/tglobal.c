@@ -277,7 +277,7 @@ char     Compressor[32] = "ZSTD_COMPRESSOR"; // ZSTD_COMPRESSOR or GZIP_COMPRESS
 #endif
 
 // long query death-lock
-int8_t tsDeathLockKillQuery = 0;
+int8_t tsDeadLockKillQuery = 0;
 
 int32_t (*monStartSystemFp)() = NULL;
 void (*monStopSystemFp)() = NULL;
@@ -1651,8 +1651,8 @@ static void doInitGlobalConfig(void) {
 #endif
 
   // enable kill long query
-  cfg.option = "deathLockKillQuery";
-  cfg.ptr = &tsDeathLockKillQuery;
+  cfg.option = "deadLockKillQuery";
+  cfg.ptr = &tsDeadLockKillQuery;
   cfg.valType = TAOS_CFG_VTYPE_INT8;
   cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
   cfg.minValue = 0;

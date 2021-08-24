@@ -118,7 +118,7 @@ SListNode *tsdbAllocBufBlockFromPool(STsdbRepo *pRepo) {
   STsdbBufPool *pBufPool = pRepo->pPool;
 
   while (POOL_IS_EMPTY(pBufPool)) {
-    if(tsDeathLockKillQuery) {
+    if(tsDeadLockKillQuery) {
       // supply new Block 
       if(tsdbInsertNewBlock(pRepo) > 0) {
         tsdbWarn("vgId:%d add new elastic block . elasticBlocks=%d totalBlocks=%d", REPO_ID(pRepo), pBufPool->nElasticBlocks, pBufPool->nBufBlocks);

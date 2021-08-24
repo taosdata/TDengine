@@ -239,8 +239,8 @@ int waitMoment(SQInfo* pQInfo){
         ms *= 1000;
       }
     }
-
-    printf("wait sleep %dms. sql=%s\n", ms, pQInfo->sql);
+    if(ms == 0) return 0;
+    qWarn("wait sleep %dms. sql=%s", ms, pQInfo->sql);
     
     if(ms < 1000) {
       taosMsleep(ms);
@@ -250,7 +250,7 @@ int waitMoment(SQInfo* pQInfo){
         taosMsleep(1000);
         used_ms += 1000;
         if(isQueryKilled(pQInfo)){
-          printf(" check query is canceled, sleep break... %s\n", pQInfo->sql);
+          qWarn("check query is canceled, sleep break... %s", pQInfo->sql);
           break;
         }
       }
