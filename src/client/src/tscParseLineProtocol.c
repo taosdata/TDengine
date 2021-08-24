@@ -1084,10 +1084,28 @@ static int32_t applyChildTableFields(TAOS* taos, SSmlSTableSchema* sTableSchema,
     taosArrayPush(rowsBind, &colBinds);
   }
 
-  code = insertChildTableBatch(taos, cTableName, sTableSchema->fields, rowsBind, info);
-  if (code != 0) {
-    tscError("SML:0x%"PRIx64" insert into child table %s failed. error %s", info->id, cTableName, tstrerror(code));
-  }
+  int32_t retry = 0;
+  bool retryAgain = false;
+  do {
+    code = insertChildTableBatch(taos, cTableName, sTableSchema->fields, rowsBind, info);
+    if (code != 0) {
+      tscError("SML:0x%" PRIx64 " insert into child table %s failed. error %s, retry %d", info->id, cTableName, tstrerror(code), retry);
+      if (code == TSDB_CODE_TDB_INVALID_TABLE_ID || code == TSDB_CODE_VND_INVALID_VGROUP_ID) {
+        TAOS_RES* res2 = taos_query(taos, "RESET QUERY CACHE");
+        int32_t   code2 = taos_errno(res2);
+        if (code2 != TSDB_CODE_SUCCESS) {
+          tscError("SML:0x%" PRIx64 " apply schema action. reset query cache. error: %s", info->id, taos_errstr(res2));
+        }
+        taos_free_result(res2);
+        retryAgain = (++retry < TSDB_MAX_REPLICA) ? true : false;
+        if (retryAgain) {
+          taosMsleep(100 * (2 << (retry)));
+        } else {
+          tscError("SML:0x%" PRIx64 " insert into child table %s reached max retry", info->id, cTableName);
+        }
+      }
+    }
+  } while (retryAgain);
 
   for (int i = 0; i < rows; ++i) {
     TAOS_BIND* colBinds = taosArrayGetP(rowsBind, i);
