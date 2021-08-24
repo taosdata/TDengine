@@ -2678,7 +2678,7 @@ int tscProcessQueryRsp(SSqlObj *pSql) {
   return 0;
 }
 
-static void decompressQueryColData(SSqlRes *pRes, SQueryInfo* pQueryInfo, char **data, int8_t compressed, int compLen) {
+static void decompressQueryColData(SSqlObj *pSql, SSqlRes *pRes, SQueryInfo* pQueryInfo, char **data, int8_t compressed, int32_t compLen) {
   int32_t decompLen = 0;
   int32_t numOfCols = pQueryInfo->fieldsInfo.numOfOutput;
   int32_t *compSizes;
@@ -2715,6 +2715,9 @@ static void decompressQueryColData(SSqlRes *pRes, SQueryInfo* pQueryInfo, char *
     pData = *data + compLen + numOfCols * sizeof(int32_t);
   }
 
+  tscDebug("0x%"PRIx64" decompress col data, compressed size:%d, decompressed size:%d",
+      pSql->self, (int32_t)(compLen + numOfCols * sizeof(int32_t)), decompLen);
+
   int32_t tailLen = pRes->rspLen - sizeof(SRetrieveTableRsp) - decompLen;
   memmove(*data + decompLen, pData, tailLen);
   memmove(*data, outputBuf, decompLen);
@@ -2749,7 +2752,7 @@ int tscProcessRetrieveRspFromNode(SSqlObj *pSql) {
   //Decompress col data if compressed from server
   if (pRetrieve->compressed) {
     int32_t compLen = htonl(pRetrieve->compLen);
-    decompressQueryColData(pRes, pQueryInfo, &pRes->data, pRetrieve->compressed, compLen);
+    decompressQueryColData(pSql, pRes, pQueryInfo, &pRes->data, pRetrieve->compressed, compLen);
   }
 
   STableMetaInfo *pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);

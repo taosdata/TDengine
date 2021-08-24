@@ -1,5 +1,87 @@
 #  Java Connector
 
+## 总体介绍
+
+TDengine 提供了遵循 JDBC 标准（3.0）API 规范的 `taos-jdbcdriver` 实现，可在 maven 的中央仓库 [Sonatype Repository](https://search.maven.org/artifact/com.taosdata.jdbc/taos-jdbcdriver) 搜索下载。
+
+`taos-jdbcdriver` 的实现包括 2 种形式： JDBC-JNI 和 JDBC-RESTful（taos-jdbcdriver-2.0.18 开始支持 JDBC-RESTful）。 JDBC-JNI 通过调用客户端 libtaos.so（或 taos.dll ）的本地方法实现， JDBC-RESTful 则在内部封装了 RESTful 接口实现。
+
+![tdengine-connector](page://images/tdengine-jdbc-connector.png)
+
+上图显示了 3 种 Java 应用使用连接器访问 TDengine 的方式：
+
+* JDBC-JNI：Java 应用在物理节点1（pnode1）上使用 JDBC-JNI 的 API ，直接调用客户端 API（libtaos.so 或 taos.dll）将写入和查询请求发送到位于物理节点2（pnode2）上的 taosd 实例。
+* RESTful：应用将 SQL 发送给位于物理节点2（pnode2）上的 RESTful 连接器，再调用客户端 API（libtaos.so）。
+* JDBC-RESTful：Java 应用通过 JDBC-RESTful 的 API ，将 SQL 封装成一个 RESTful 请求，发送给物理节点2的 RESTful 连接器。
+
+TDengine 的 JDBC 驱动实现尽可能与关系型数据库驱动保持一致，但时序空间数据库与关系对象型数据库服务的对象和技术特征存在差异，导致 `taos-jdbcdriver` 与传统的 JDBC driver 也存在一定差异。在使用时需要注意以下几点：
+
+* TDengine 目前不支持针对单条数据记录的删除操作。
+* 目前不支持事务操作。
+* 目前不支持嵌套查询（nested query）。
+* 对每个 Connection 的实例，至多只能有一个打开的 ResultSet 实例；如果在 ResultSet 还没关闭的情况下执行了新的查询，taos-jdbcdriver 会自动关闭上一个 ResultSet。
+
+### JDBC-JNI和JDBC-RESTful的对比
+
+<table>
+<tr align="center"><th>对比项</th><th>JDBC-JNI</th><th>JDBC-RESTful</th></tr>
+<tr align="center">
+  <td>支持的操作系统</td>
+  <td>linux、windows</td>
+  <td>全平台</td>
+</tr>
+<tr align="center">
+  <td>是否需要安装 client</td>
+  <td>需要</td>
+  <td>不需要</td>
+</tr>
+<tr align="center">
+  <td>server 升级后是否需要升级 client</td>
+  <td>需要</td>
+  <td>不需要</td>
+</tr>
+<tr align="center">
+  <td>写入性能</td>
+  <td colspan="2">JDBC-RESTful 是 JDBC-JNI 的 50%～90% </td>
+</tr>
+<tr align="center">
+  <td>查询性能</td>
+  <td colspan="2">JDBC-RESTful 与 JDBC-JNI 没有差别</td>
+</tr>
+</table>
+
+注意：与 JNI 方式不同，RESTful 接口是无状态的，因此 `USE db_name` 指令没有效果，RESTful 下所有对表名、超级表名的引用都需要指定数据库名前缀。
+
+### <a class="anchor" id="version"></a>TAOS-JDBCDriver 版本以及支持的 TDengine 版本和 JDK 版本
+
+| taos-jdbcdriver 版本 | TDengine 版本     | JDK 版本 |
+| -------------------- | ----------------- | -------- |
+| 2.0.33 - 2.0.34      | 2.0.3.0 及以上      | 1.8.x    |
+| 2.0.31 - 2.0.32      | 2.1.3.0 及以上      | 1.8.x    |
+| 2.0.22 - 2.0.30    | 2.0.18.0 - 2.1.2.x | 1.8.x    |
+| 2.0.12 - 2.0.21     | 2.0.8.0 - 2.0.17.x | 1.8.x    |
+| 2.0.4 - 2.0.11       | 2.0.0.0 - 2.0.7.x | 1.8.x    |
+| 1.0.3                | 1.6.1.x 及以上    | 1.8.x    |
+| 1.0.2                | 1.6.1.x 及以上    | 1.8.x    |
+| 1.0.1                | 1.6.1.x 及以上    | 1.8.x    |
+
+### TDengine DataType 和 Java DataType
+
+TDengine 目前支持时间戳、数字、字符、布尔类型，与 Java 对应类型转换如下：
+
+| TDengine DataType | Java DataType      |
+| ----------------- | ------------------ |
+| TIMESTAMP         | java.sql.Timestamp |
+| INT               | java.lang.Integer  |
+| BIGINT            | java.lang.Long     |
+| FLOAT             | java.lang.Float    |
+| DOUBLE            | java.lang.Double   |
+| SMALLINT          | java.lang.Short    |
+| TINYINT           | java.lang.Byte     |
+| BOOL              | java.lang.Boolean  |
+| BINARY            | byte array         |
+| NCHAR             | java.lang.String   |
+
 ## 安装
 
 Java连接器支持的系统有： Linux 64/Windows x64/Windows x86。
@@ -9,7 +91,7 @@ Java连接器支持的系统有： Linux 64/Windows x64/Windows x86。
 - 已安装TDengine服务器端
 - 已安装好TDengine应用驱动，具体请参照 [安装连接器驱动步骤](https://www.taosdata.com/cn/documentation/connector#driver) 章节
 
-TDengine 为了方便 Java 应用使用，提供了遵循 JDBC 标准(3.0)API 规范的 `taos-jdbcdriver` 实现。目前可以通过 [Sonatype Repository](https://search.maven.org/artifact/com.taosdata.jdbc/taos-jdbcdriver) 搜索并下载。
+TDengine 为了方便 Java 应用使用，遵循 JDBC 标准(3.0)API 规范提供了 `taos-jdbcdriver` 实现。可以通过 [Sonatype Repository](https://search.maven.org/artifact/com.taosdata.jdbc/taos-jdbcdriver) 搜索并下载。
 
 由于 TDengine 的应用驱动是使用C语言开发的，使用 taos-jdbcdriver 驱动包时需要依赖系统对应的本地函数库。
 
@@ -66,83 +148,6 @@ java -jar JDBCConnectorChecker.jar -host <fqdn>
 
 ## Java连接器的使用
 
-`taos-jdbcdriver` 的实现包括 2 种形式： JDBC-JNI 和 JDBC-RESTful（taos-jdbcdriver-2.0.18 开始支持 JDBC-RESTful）。 JDBC-JNI 通过调用客户端 libtaos.so（或 taos.dll ）的本地方法实现， JDBC-RESTful 则在内部封装了 RESTful 接口实现。
-
-![tdengine-connector](page://images/tdengine-jdbc-connector.png)
-
-上图显示了 3 种 Java 应用使用连接器访问 TDengine 的方式：
-
-* JDBC-JNI：Java 应用在物理节点1（pnode1）上使用 JDBC-JNI 的 API ，直接调用客户端 API（libtaos.so 或 taos.dll）将写入和查询请求发送到位于物理节点2（pnode2）上的 taosd 实例。
-* RESTful：应用将 SQL 发送给位于物理节点2（pnode2）上的 RESTful 连接器，再调用客户端 API（libtaos.so）。
-* JDBC-RESTful：Java 应用通过 JDBC-RESTful 的 API ，将 SQL 封装成一个 RESTful 请求，发送给物理节点2的 RESTful 连接器。
-
-TDengine 的 JDBC 驱动实现尽可能与关系型数据库驱动保持一致，但时序空间数据库与关系对象型数据库服务的对象和技术特征存在差异，导致 `taos-jdbcdriver` 与传统的 JDBC driver 也存在一定差异。在使用时需要注意以下几点：
-
-* TDengine 目前不支持针对单条数据记录的删除操作。
-* 目前不支持事务操作。
-* 目前不支持嵌套查询（nested query）。
-* 对每个 Connection 的实例，至多只能有一个打开的 ResultSet 实例；如果在 ResultSet 还没关闭的情况下执行了新的查询，taos-jdbcdriver 会自动关闭上一个 ResultSet。
-
-### JDBC-JNI和JDBC-RESTful的对比
-
-<table>
-<tr align="center"><th>对比项</th><th>JDBC-JNI</th><th>JDBC-RESTful</th></tr>
-<tr align="center">
-	<td>支持的操作系统</td>
-	<td>linux、windows</td>
-	<td>全平台</td>
-</tr>
-<tr align="center">
-	<td>是否需要安装 client</td>
-	<td>需要</td>
-	<td>不需要</td>
-</tr>
-<tr align="center">
-	<td>server 升级后是否需要升级 client</td>
-	<td>需要</td>
-	<td>不需要</td>
-</tr>
-<tr align="center">
-	<td>写入性能</td>
-	<td colspan="2">JDBC-RESTful 是 JDBC-JNI 的 50%～90% </td>
-</tr>
-<tr align="center">
-	<td>查询性能</td>
-	<td colspan="2">JDBC-RESTful 与 JDBC-JNI 没有差别</td>
-</tr>
-</table>
-
-注意：与 JNI 方式不同，RESTful 接口是无状态的，因此 `USE db_name` 指令没有效果，RESTful 下所有对表名、超级表名的引用都需要指定数据库名前缀。
-
-### <a class="anchor" id="version"></a>TAOS-JDBCDriver 版本以及支持的 TDengine 版本和 JDK 版本
-
-| taos-jdbcdriver 版本 | TDengine 版本     | JDK 版本 |
-| -------------------- | ----------------- | -------- |
-| 2.0.31              | 2.1.3.0 及以上      | 1.8.x    |
-| 2.0.22 - 2.0.30    | 2.0.18.0 - 2.1.2.x | 1.8.x    |
-| 2.0.12 - 2.0.21     | 2.0.8.0 - 2.0.17.x | 1.8.x    |
-| 2.0.4 - 2.0.11       | 2.0.0.0 - 2.0.7.x | 1.8.x    |
-| 1.0.3                | 1.6.1.x 及以上    | 1.8.x    |
-| 1.0.2                | 1.6.1.x 及以上    | 1.8.x    |
-| 1.0.1                | 1.6.1.x 及以上    | 1.8.x    |
-
-### TDengine DataType 和 Java DataType
-
-TDengine 目前支持时间戳、数字、字符、布尔类型，与 Java 对应类型转换如下：
-
-| TDengine DataType | Java DataType      |
-| ----------------- | ------------------ |
-| TIMESTAMP         | java.sql.Timestamp |
-| INT               | java.lang.Integer  |
-| BIGINT            | java.lang.Long     |
-| FLOAT             | java.lang.Float    |
-| DOUBLE            | java.lang.Double   |
-| SMALLINT          | java.lang.Short    |
-| TINYINT           | java.lang.Byte     |
-| BOOL              | java.lang.Boolean  |
-| BINARY            | byte array         |
-| NCHAR             | java.lang.String   |
-
 ### 获取连接
 
 #### 指定URL获取连接
@@ -173,15 +178,9 @@ Connection conn = DriverManager.getConnection(jdbcUrl);
 
 以上示例，使用了 JDBC-JNI 的 driver，建立了到 hostname 为 taosdemo.com，端口为 6030（TDengine 的默认端口），数据库名为 test 的连接。这个 URL 中指定用户名（user）为 root，密码（password）为 taosdata。
 
-**注意**：使用 JDBC-JNI 的 driver，taos-jdbcdriver 驱动包时需要依赖系统对应的本地函数库。
+**注意**：使用 JDBC-JNI 的 driver，taos-jdbcdriver 驱动包时需要依赖系统对应的本地函数库（Linux 下是 libtaos.so；Windows 下是 taos.dll）。
 
-* libtaos.so
-  在 Linux 系统中成功安装 TDengine 后，依赖的本地函数库 libtaos.so 文件会被自动拷贝至 /usr/lib/libtaos.so，该目录包含在 Linux 自动扫描路径上，无需单独指定。
-
-* taos.dll
-  在 Windows 系统中安装完客户端之后，驱动包依赖的 taos.dll 文件会自动拷贝到系统默认搜索路径 C:/Windows/System32 下，同样无需要单独指定。
-
-> 在 Windows 环境开发时需要安装 TDengine 对应的 [windows 客户端][14]，Linux 服务器安装完 TDengine 之后默认已安装 client，也可以单独安装 [Linux 客户端][15] 连接远程 TDengine Server。
+> 在 Windows 环境开发时需要安装 TDengine 对应的 [windows 客户端](https://www.taosdata.com/cn/all-downloads/#TDengine-Windows-Client)，Linux 服务器安装完 TDengine 之后默认已安装 client，也可以单独安装 [Linux 客户端](https://www.taosdata.com/cn/getting-started/#%E5%AE%A2%E6%88%B7%E7%AB%AF) 连接远程 TDengine Server。
 
 JDBC-JNI 的使用请参见[视频教程](https://www.taosdata.com/blog/2020/11/11/1955.html)。
 
@@ -189,9 +188,9 @@ TDengine 的 JDBC URL 规范格式为：
 `jdbc:[TAOS|TAOS-RS]://[host_name]:[port]/[database_name]?[user={user}|&password={password}|&charset={charset}|&cfgdir={config_dir}|&locale={locale}|&timezone={timezone}]`
 
 url中的配置参数如下：
-* user：登录 TDengine 用户名，默认值 root。
-* password：用户登录密码，默认值 taosdata。
-* cfgdir：客户端配置文件目录路径，Linux OS 上默认值 /etc/taos ，Windows OS 上默认值 C:/TDengine/cfg。
+* user：登录 TDengine 用户名，默认值 'root'。
+* password：用户登录密码，默认值 'taosdata'。
+* cfgdir：客户端配置文件目录路径，Linux OS 上默认值 `/etc/taos`，Windows OS 上默认值 `C:/TDengine/cfg`。
 * charset：客户端使用的字符集，默认值为系统字符集。
 * locale：客户端语言环境，默认值系统当前 locale。
 * timezone：客户端使用的时区，默认值为系统当前时区。
@@ -217,9 +216,9 @@ public Connection getConn() throws Exception{
 以上示例，建立一个到 hostname 为 taosdemo.com，端口为 6030，数据库名为 test 的连接。注释为使用 JDBC-RESTful 时的方法。这个连接在 url 中指定了用户名(user)为 root，密码（password）为 taosdata，并在 connProps 中指定了使用的字符集、语言环境、时区等信息。
 
 properties 中的配置参数如下：
-* TSDBDriver.PROPERTY_KEY_USER：登录 TDengine 用户名，默认值 root。
-* TSDBDriver.PROPERTY_KEY_PASSWORD：用户登录密码，默认值 taosdata。
-* TSDBDriver.PROPERTY_KEY_CONFIG_DIR：客户端配置文件目录路径，Linux OS 上默认值 /etc/taos ，Windows OS 上默认值 C:/TDengine/cfg。
+* TSDBDriver.PROPERTY_KEY_USER：登录 TDengine 用户名，默认值 'root'。
+* TSDBDriver.PROPERTY_KEY_PASSWORD：用户登录密码，默认值 'taosdata'。
+* TSDBDriver.PROPERTY_KEY_CONFIG_DIR：客户端配置文件目录路径，Linux OS 上默认值 `/etc/taos`，Windows OS 上默认值 `C:/TDengine/cfg`。
 * TSDBDriver.PROPERTY_KEY_CHARSET：客户端使用的字符集，默认值为系统字符集。
 * TSDBDriver.PROPERTY_KEY_LOCALE：客户端语言环境，默认值系统当前 locale。
 * TSDBDriver.PROPERTY_KEY_TIME_ZONE：客户端使用的时区，默认值为系统当前时区。
