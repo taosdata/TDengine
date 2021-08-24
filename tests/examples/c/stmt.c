@@ -353,11 +353,15 @@ void taos_stmt_use_result_query(void *taos, char *col, int type) {
         int64_t c3;
         float c4;
         double c5;
-        char c6[8];
+        char c6[10];
         int16_t c7;
         int8_t c8;
         int8_t c9;
         char c10[32];
+        uint32_t c11;
+        uint64_t c12;
+        uint16_t c13;
+        uint8_t c14;
     } v = {0};
     v.c1 = (int64_t)1591060628000;
     v.c2 = (int32_t)1;
@@ -370,6 +374,10 @@ void taos_stmt_use_result_query(void *taos, char *col, int type) {
     v.c9 = 1;
     strcpy(v.c10, "一二三四五六七八");
     uintptr_t c10len=strlen(v.c10);
+    v.c11 = 1;
+    v.c12 = 1;
+    v.c13 = 1;
+    v.c14 = 1;
     sprintf(stmt_sql, "select * from stmt_test.t1 where %s = ?", col);
     printf("stmt_sql: %s\n", stmt_sql);
     assert(taos_stmt_prepare(stmt, stmt_sql, 0) == 0);
@@ -424,6 +432,26 @@ void taos_stmt_use_result_query(void *taos, char *col, int type) {
             params->buffer = &v.c10;
             params->length = &c10len;
             break;
+        case TSDB_DATA_TYPE_UINT:
+            params->buffer_length = sizeof(v.c11);
+            params->buffer = &v.c11;
+            params->length = &params->buffer_length;
+            break;
+        case TSDB_DATA_TYPE_UBIGINT:
+            params->buffer_length = sizeof(v.c12);
+            params->buffer = &v.c12;
+            params->length = &params->buffer_length;
+            break;
+        case TSDB_DATA_TYPE_USMALLINT:
+            params->buffer_length = sizeof(v.c13);
+            params->buffer = &v.c13;
+            params->length = &params->buffer_length;
+            break;
+        case TSDB_DATA_TYPE_UTINYINT:
+            params->buffer_length = sizeof(v.c14);
+            params->buffer = &v.c14;
+            params->length = &params->buffer_length;
+            break;
         default:
             printf("Cannnot find type: %d\n", type);
             break;
@@ -450,11 +478,12 @@ void taos_stmt_use_result_test() {
     execute_simple_sql(taos, "drop database if exists stmt_test");
     execute_simple_sql(taos, "create database stmt_test");
     execute_simple_sql(taos, "use stmt_test");
-    execute_simple_sql(taos, "create table super(ts timestamp, c1 int, c2 bigint, c3 float, c4 double, c5 binary(8), c6 smallint, c7 tinyint, c8 bool, c9 nchar(8), c10 timestamp) tags (t1 int, t2 bigint, t3 float, t4 double, t5 binary(8), t6 smallint, t7 tinyint, t8 bool, t9 nchar(8))");
-    execute_simple_sql(taos, "create table t1 using super tags (1, 1, 1, 1, 'abcdefgh',1,1,1,'一二三四五六七八')");
-    execute_simple_sql(taos, "insert into t1 values (1591060628000, 1, 1, 1, 1, 'abcdefgh',1,1,1,'一二三四五六七八', now)");
-    execute_simple_sql(taos, "insert into t1 values (1591060628001, 1, 1, 1, 1, 'abcdefgh',1,1,1,'一二三四五六七八', now)");
+    execute_simple_sql(taos, "create table super(ts timestamp, c1 int, c2 bigint, c3 float, c4 double, c5 binary(8), c6 smallint, c7 tinyint, c8 bool, c9 nchar(8), c10 timestamp, c11 int unsigned, c12 bigint unsigned, c13 smallint unsigned, c14 tinyint unsigned) tags (t1 int, t2 bigint, t3 float, t4 double, t5 binary(8), t6 smallint, t7 tinyint, t8 bool, t9 nchar(8), t10 int unsigned, t11 bigint unsigned, t12 smallint unsigned, t13 tinyint unsigned)");
+    execute_simple_sql(taos, "create table t1 using super tags (1, 1, 1, 1, 'abcdefgh',1,1,1,'一二三四五六七八', 1, 1, 1, 1)");
+    execute_simple_sql(taos, "insert into t1 values (1591060628000, 1, 1, 1, 1, 'abcdefgh',1,1,1,'一二三四五六七八', now, 1, 1, 1, 1)");
+    execute_simple_sql(taos, "insert into t1 values (1591060628001, 1, 1, 1, 1, 'abcdefgh',1,1,1,'一二三四五六七八', now, 1, 1, 1, 1)");
     
+    // taos_stmt_use_result_query(taos, "ts", TSDB_DATA_TYPE_TIMESTAMP);
     taos_stmt_use_result_query(taos, "c1", TSDB_DATA_TYPE_INT);
     taos_stmt_use_result_query(taos, "c2", TSDB_DATA_TYPE_BIGINT);
     taos_stmt_use_result_query(taos, "c3", TSDB_DATA_TYPE_FLOAT);
@@ -464,6 +493,11 @@ void taos_stmt_use_result_test() {
     taos_stmt_use_result_query(taos, "c7", TSDB_DATA_TYPE_TINYINT);
     taos_stmt_use_result_query(taos, "c8", TSDB_DATA_TYPE_BOOL);
     taos_stmt_use_result_query(taos, "c9", TSDB_DATA_TYPE_NCHAR);
+    // taos_stmt_use_result_query(taos, "c10", TSDB_DATA_TYPE_TIMESTAMP);
+    taos_stmt_use_result_query(taos, "c11", TSDB_DATA_TYPE_UINT);
+    taos_stmt_use_result_query(taos, "c12", TSDB_DATA_TYPE_UBIGINT);
+    taos_stmt_use_result_query(taos, "c13", TSDB_DATA_TYPE_USMALLINT);
+    taos_stmt_use_result_query(taos, "c14", TSDB_DATA_TYPE_UTINYINT);
     
     printf("finish taos_stmt_use_result test\n");
 }
@@ -496,7 +530,7 @@ void test_query() {
 }
 
 int main(int argc, char *argv[]) {
-    test_api_reliability();
+    // test_api_reliability();
     test_query();
     return 0;
 }

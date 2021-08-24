@@ -17,6 +17,7 @@ exe:
 	gcc $(CFLAGS) ./stream.c -o $(ROOT)stream $(LFLAGS)
 	gcc $(CFLAGS) ./subscribe.c -o $(ROOT)subscribe $(LFLAGS)
 	gcc $(CFLAGS) ./apitest.c -o $(ROOT)apitest $(LFLAGS)
+	gcc $(CFLAGS) ./stmt.c -o $(ROOT)stmt $(LFLAGS)
 
 clean:
 	rm $(ROOT)asyncdemo
@@ -25,4 +26,5 @@ clean:
 	rm $(ROOT)batchprepare
 	rm $(ROOT)stream
 	rm $(ROOT)subscribe
-	rm $(ROOT)apitest
+	rm $(ROOT)apitest]
+	rm $(ROOT)stmt
