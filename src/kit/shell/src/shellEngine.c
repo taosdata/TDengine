@@ -147,7 +147,7 @@ TAOS *shellInit(SShellArguments *_args) {
 
 static bool isEmptyCommand(const char* cmd) {
   for (char c = *cmd++; c != 0; c = *cmd++) {
-    if (c != ' ' && c != '\t' && c != ';') {
+    if (isspace(c) && c != ';') {
       return false;
     }
   }

@@ -2684,7 +2684,7 @@ void tscDequoteAndTrimToken(SStrToken* pToken) {
   // trim leading spaces
   while (first < last) {
     char c = pToken->z[first];
-    if (c != ' ' && c != '\t') {
+    if (isspace(c)) {
       break;
     }
     first++;
@@ -2693,7 +2693,7 @@ void tscDequoteAndTrimToken(SStrToken* pToken) {
   // trim ending spaces
   while (first < last) {
     char c = pToken->z[last - 1];
-    if (c != ' ' && c != '\t') {
+    if (isspace(c)) {
       break;
     }
     last--;
