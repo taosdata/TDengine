@@ -170,7 +170,7 @@ JNIEXPORT void JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_initImp(JNIEnv *e
   jniDebug("jni initialized successfully, config directory: %s", configDir);
 }
 
-JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_setConfig(JNIEnv *env, jclass jobj, jstring config){
+JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_setConfigImp(JNIEnv *env, jclass jobj, jstring config){
   if (config == NULL) {
     jniDebug("config value is null");
     return -1;
