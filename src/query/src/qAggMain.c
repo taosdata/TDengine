@@ -4794,7 +4794,7 @@ void blockInfo_func(SQLFunctionCtx* pCtx) {
 
   int32_t len = *(int32_t*) pCtx->pInput;
   blockDistInfoFromBinary((char*)pCtx->pInput + sizeof(int32_t), len, pDist);
-  pDist->rowSize = (int16_t) pCtx->param[0].i64;
+  pDist->rowSize = (uint16_t)pCtx->param[0].i64;
 
   memcpy(pCtx->pOutput, pCtx->pInput, sizeof(int32_t) + len);
 
@@ -4802,51 +4802,85 @@ void blockInfo_func(SQLFunctionCtx* pCtx) {
   pResInfo->hasResult = DATA_SET_FLAG;
 }
 
-static void mergeTableBlockDist(STableBlockDist* pDist, const STableBlockDist* pSrc) {
+static void mergeTableBlockDist(SResultRowCellInfo* pResInfo, const STableBlockDist* pSrc) {
+  STableBlockDist* pDist = (STableBlockDist*) GET_ROWCELL_INTERBUF(pResInfo);
   assert(pDist != NULL && pSrc != NULL);
+
   pDist->numOfTables += pSrc->numOfTables;
   pDist->numOfRowsInMemTable += pSrc->numOfRowsInMemTable;
+  pDist->numOfSmallBlocks += pSrc->numOfSmallBlocks;
   pDist->numOfFiles += pSrc->numOfFiles;
   pDist->totalSize += pSrc->totalSize;
+  pDist->totalRows += pSrc->totalRows;
 
-  if (pDist->dataBlockInfos == NULL) {
-    pDist->dataBlockInfos = taosArrayInit(4, sizeof(SFileBlockInfo));
+  if (pResInfo->hasResult == DATA_SET_FLAG) {
+    pDist->maxRows = MAX(pDist->maxRows, pSrc->maxRows);
+    pDist->minRows = MIN(pDist->minRows, pSrc->minRows);
+  } else {
+    pDist->maxRows = pSrc->maxRows;
+    pDist->minRows = pSrc->minRows;
+
+    int32_t maxSteps = TSDB_MAX_MAX_ROW_FBLOCK/TSDB_BLOCK_DIST_STEP_ROWS;
+    if (TSDB_MAX_MAX_ROW_FBLOCK % TSDB_BLOCK_DIST_STEP_ROWS != 0) {
+      ++maxSteps;
+    }
+    pDist->dataBlockInfos = taosArrayInit(maxSteps, sizeof(SFileBlockInfo));
+    taosArraySetSize(pDist->dataBlockInfos, maxSteps);
   }
 
-  taosArrayPushBatch(pDist->dataBlockInfos, pSrc->dataBlockInfos->pData, (int32_t) taosArrayGetSize(pSrc->dataBlockInfos));
+  size_t steps = taosArrayGetSize(pSrc->dataBlockInfos);
+  for (int32_t i = 0; i < steps; ++i) {
+    int32_t srcNumBlocks = ((SFileBlockInfo*)taosArrayGet(pSrc->dataBlockInfos, i))->numBlocksOfStep;
+    SFileBlockInfo* blockInfo = (SFileBlockInfo*)taosArrayGet(pDist->dataBlockInfos, i);
+    blockInfo->numBlocksOfStep += srcNumBlocks;
+  }
 }
 
 void block_func_merge(SQLFunctionCtx* pCtx) {
-  SResultRowCellInfo *pResInfo = GET_RES_INFO(pCtx);
-
-  STableBlockDist* pDist = (STableBlockDist*) GET_ROWCELL_INTERBUF(pResInfo);
   STableBlockDist info = {0};
-
   int32_t len = *(int32_t*) pCtx->pInput;
   blockDistInfoFromBinary(((char*)pCtx->pInput) + sizeof(int32_t), len, &info);
 
-  mergeTableBlockDist(pDist, &info);
+  SResultRowCellInfo *pResInfo = GET_RES_INFO(pCtx);
+  mergeTableBlockDist(pResInfo, &info);
+
+  pResInfo->numOfRes = 1;
+  pResInfo->hasResult = DATA_SET_FLAG;
 }
 
-static int32_t doGetPercentile(const SArray* pArray, double rate) {
-  int32_t len = (int32_t)taosArrayGetSize(pArray);
-  if (len <= 0) {
-    return 0;
+void getPercentiles(STableBlockDist *pTableBlockDist, int64_t totalBlocks, int32_t numOfPercents,
+                    double* percents, int32_t* percentiles) {
+  if (totalBlocks == 0) {
+    for (int32_t i = 0; i < numOfPercents; ++i) {
+      percentiles[i] = 0;
+    }
+    return;
   }
 
-  assert(rate >= 0 && rate <= 1.0);
-  int idx = (int32_t)((len - 1) * rate);
+  SArray *blocksInfos = pTableBlockDist->dataBlockInfos;
+  size_t  numSteps = taosArrayGetSize(blocksInfos);
+  size_t  cumulativeBlocks = 0;
 
-  return ((SFileBlockInfo *)(taosArrayGet(pArray, idx)))->numOfRows;
-}
+  int percentIndex = 0;
+  for (int32_t indexStep = 0; indexStep < numSteps; ++indexStep) {
+    int32_t numStepBlocks = ((SFileBlockInfo *)taosArrayGet(blocksInfos, indexStep))->numBlocksOfStep;
+    if (numStepBlocks == 0) continue;
+    cumulativeBlocks += numStepBlocks;
 
-static int compareBlockInfo(const void *pLeft, const void *pRight) {
-  int32_t left  = ((SFileBlockInfo *)pLeft)->numOfRows;
-  int32_t right = ((SFileBlockInfo *)pRight)->numOfRows;
+    while (percentIndex < numOfPercents) {
+      double blockRank = totalBlocks * percents[percentIndex];
+      if (blockRank <= cumulativeBlocks) {
+        percentiles[percentIndex] = indexStep;
+        ++percentIndex;
+      } else {
+        break;
+      }
+    }
+  }
 
-  if (left > right) return 1;
-  if (left < right) return -1;
-  return 0;
+  for (int32_t i = 0; i < numOfPercents; ++i) {
+    percentiles[i] = (percentiles[i]+1) * TSDB_BLOCK_DIST_STEP_ROWS - TSDB_BLOCK_DIST_STEP_ROWS/2;
+  }
 }
 
 void generateBlockDistResult(STableBlockDist *pTableBlockDist, char* result) {
@@ -4854,41 +4888,56 @@ void generateBlockDistResult(STableBlockDist *pTableBlockDist, char* result) {
     return;
   }
 
-  int64_t min = INT64_MAX, max = INT64_MIN, avg = 0;
-  SArray* blockInfos= pTableBlockDist->dataBlockInfos;
-  int64_t totalRows = 0, totalBlocks = taosArrayGetSize(blockInfos);
+  SArray* blockInfos = pTableBlockDist->dataBlockInfos;
+  uint64_t totalRows = pTableBlockDist->totalRows;
+  size_t   numSteps = taosArrayGetSize(blockInfos);
+  int64_t totalBlocks = 0;
+  int64_t min = -1, max = -1, avg = 0;
 
-  for (size_t i = 0; i < taosArrayGetSize(blockInfos); i++) {
+  for (int32_t i = 0; i < numSteps; i++) {
     SFileBlockInfo *blockInfo = taosArrayGet(blockInfos, i);
-    int64_t rows = blockInfo->numOfRows;
-
-    min = MIN(min, rows);
-    max = MAX(max, rows);
-    totalRows += rows;
+    int64_t blocks = blockInfo->numBlocksOfStep;
+    totalBlocks += blocks;
   }
 
   avg = totalBlocks > 0 ? (int64_t)(totalRows/totalBlocks) : 0;
-  taosArraySort(blockInfos, compareBlockInfo);
+  min = totalBlocks > 0 ? pTableBlockDist->minRows : 0;
+  max = totalBlocks > 0 ? pTableBlockDist->maxRows : 0;
+
+  double stdDev = 0;
+  if (totalBlocks > 0) {
+    double variance = 0;
+    for (int32_t i = 0; i < numSteps; i++) {
+      SFileBlockInfo *blockInfo = taosArrayGet(blockInfos, i);
+      int64_t         blocks = blockInfo->numBlocksOfStep;
+      int32_t         rows = (i * TSDB_BLOCK_DIST_STEP_ROWS + TSDB_BLOCK_DIST_STEP_ROWS / 2);
+      variance += blocks * (rows - avg) * (rows - avg);
+    }
+    variance = variance / totalBlocks;
+    stdDev = sqrt(variance);
+  }
+
+  double percents[] = {0.05, 0.10, 0.20, 0.30, 0.40, 0.50, 0.60, 0.70, 0.80, 0.90, 0.95, 0.99};
+  int32_t percentiles[] = {-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1};
+  assert(sizeof(percents)/sizeof(double) == sizeof(percentiles)/sizeof(int32_t));
+  getPercentiles(pTableBlockDist, totalBlocks, sizeof(percents)/sizeof(double), percents, percentiles);
 
   uint64_t totalLen = pTableBlockDist->totalSize;
   int32_t rowSize = pTableBlockDist->rowSize;
-
+  int32_t smallBlocks = pTableBlockDist->numOfSmallBlocks;
+  double compRatio = (totalRows>0) ? ((double)(totalLen)/(rowSize*totalRows)) : 1;
   int sz = sprintf(result + VARSTR_HEADER_SIZE,
                    "summary: \n\t "
                    "5th=[%d], 10th=[%d], 20th=[%d], 30th=[%d], 40th=[%d], 50th=[%d]\n\t "
                    "60th=[%d], 70th=[%d], 80th=[%d], 90th=[%d], 95th=[%d], 99th=[%d]\n\t "
                    "Min=[%"PRId64"(Rows)] Max=[%"PRId64"(Rows)] Avg=[%"PRId64"(Rows)] Stddev=[%.2f] \n\t "
-                   "Rows=[%"PRId64"], Blocks=[%"PRId64"], Size=[%.3f(Kb)] Comp=[%.2f%%]\n\t "
-                   "RowsInMem=[%d] \n\t SeekHeaderTime=[%d(us)]",
-                   doGetPercentile(blockInfos, 0.05), doGetPercentile(blockInfos, 0.10),
-                   doGetPercentile(blockInfos, 0.20), doGetPercentile(blockInfos, 0.30),
-                   doGetPercentile(blockInfos, 0.40), doGetPercentile(blockInfos, 0.50),
-                   doGetPercentile(blockInfos, 0.60), doGetPercentile(blockInfos, 0.70),
-                   doGetPercentile(blockInfos, 0.80), doGetPercentile(blockInfos, 0.90),
-                   doGetPercentile(blockInfos, 0.95), doGetPercentile(blockInfos, 0.99),
-                   min, max, avg, 0.0,
-                   totalRows, totalBlocks, totalLen/1024.0, (double)(totalLen*100.0)/(rowSize*totalRows),
-                   pTableBlockDist->numOfRowsInMemTable, pTableBlockDist->firstSeekTimeUs);
+                   "Rows=[%"PRIu64"], Blocks=[%"PRId64"], SmallBlocks=[%d], Size=[%.3f(Kb)] Comp=[%.2f]\n\t "
+                   "RowsInMem=[%d] \n\t",
+                   percentiles[0], percentiles[1], percentiles[2], percentiles[3], percentiles[4], percentiles[5],
+                   percentiles[6], percentiles[7], percentiles[8], percentiles[9], percentiles[10], percentiles[11],
+                   min, max, avg, stdDev,
+                   totalRows, totalBlocks, smallBlocks, totalLen/1024.0, compRatio,
+                   pTableBlockDist->numOfRowsInMemTable);
   varDataSetLen(result, sz);
   UNUSED(sz);
 }
@@ -4897,8 +4946,13 @@ void blockinfo_func_finalizer(SQLFunctionCtx* pCtx) {
   SResultRowCellInfo *pResInfo = GET_RES_INFO(pCtx);
   STableBlockDist* pDist = (STableBlockDist*) GET_ROWCELL_INTERBUF(pResInfo);
 
-  pDist->rowSize = (int16_t)pCtx->param[0].i64;
+  pDist->rowSize = (uint16_t)pCtx->param[0].i64;
   generateBlockDistResult(pDist, pCtx->pOutput);
+
+  if (pDist->dataBlockInfos != NULL) {
+    taosArrayDestroy(pDist->dataBlockInfos);
+    pDist->dataBlockInfos = NULL;
+  }
 
   // cannot set the numOfIteratedElems again since it is set during previous iteration
   pResInfo->numOfRes  = 1;

@@ -211,7 +211,7 @@ typedef struct SDataBlockInfo {
 } SDataBlockInfo;
 
 typedef struct SFileBlockInfo {
-  int32_t numOfRows;
+  int32_t numBlocksOfStep;
 } SFileBlockInfo;
 
 typedef struct {
@@ -225,13 +225,18 @@ typedef struct {
   SHashObj *map;  // speedup acquire the tableQueryInfo by table uid
 } STableGroupInfo;
 
+#define TSDB_BLOCK_DIST_STEP_ROWS 16
 typedef struct {
   uint16_t  rowSize;
   uint16_t  numOfFiles;
   uint32_t  numOfTables;
   uint64_t  totalSize;
+  uint64_t  totalRows;
+  int32_t   maxRows;
+  int32_t   minRows;
   int32_t   firstSeekTimeUs;
   uint32_t  numOfRowsInMemTable;
+  uint32_t  numOfSmallBlocks;
   SArray   *dataBlockInfos;
 } STableBlockDist;
 

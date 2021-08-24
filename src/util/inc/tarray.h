@@ -99,6 +99,14 @@ void* taosArrayGetLast(const SArray* pArray);
 size_t taosArrayGetSize(const SArray* pArray);
 
 /**
+ * set the size of array
+ * @param pArray
+ * @param size size of the array
+ * @return
+ */
+void taosArraySetSize(SArray* pArray, size_t size);
+
+/**
  * insert data into array
  * @param pArray
  * @param index
