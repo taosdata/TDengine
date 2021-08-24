@@ -136,7 +136,7 @@ class taosdemoPerformace:
         binPath = buildPath + "/build/bin/"
 
         os.system(
-            "%staosdemo -f %s > /dev/null 2>&1" %
+            "%sperfMonitor -f %s > /dev/null 2>&1" %
             (binPath, self.generateJson()))
         self.createTableTime = self.getCMDOutput(
             "grep 'Spent' insert_res.txt | awk 'NR==1{print $2}'")
