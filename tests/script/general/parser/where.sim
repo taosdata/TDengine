@@ -95,15 +95,15 @@ if $rows != 2 then
   return -1
 endi
 
-print $tbPrefix
+print $tbPrefix, $data00 $data10
 $tb = $tbPrefix . 0
-if $data00 != wh_tb1 then
-  print expect wh_tb1, actual:$data00
+if $data00 != $tb then
+  print expect $tb, actual:$data00
   return -1
 endi
 $tb = $tbPrefix . 1
-if $data10 != wh_tb0 then
-  print expect wh_tb0, actual:$data00
+if $data10 != $tb then
+  print expect $tb, actual:$data00
   return -1
 endi
 

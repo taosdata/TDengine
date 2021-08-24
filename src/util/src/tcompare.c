@@ -12,10 +12,15 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
+#define _BSD_SOURCE
+#define _GNU_SOURCE
+#define _XOPEN_SOURCE
+#define _DEFAULT_SOURCE
 
 #include "tcompare.h"
-#include <tulog.h>
+#include "tulog.h"
 #include "hash.h"
+#include "regex.h"
 #include "os.h"
 #include "ttype.h"
 
