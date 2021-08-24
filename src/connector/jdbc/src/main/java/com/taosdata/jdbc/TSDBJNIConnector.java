@@ -49,7 +49,10 @@ public class TSDBJNIConnector {
                 for (String key : props.stringPropertyNames()) {
                     configJSON.put(key, props.getProperty(key));
                 }
-                setConfig(configJSON.toJSONString());
+                int ret = setConfigImp(configJSON.toJSONString());
+                if (ret == -1) {
+                    throw TSDBError.createSQLWarning("failed to set config, invalid json format: " + configJSON.toJSONString());
+                }
 
                 String configDir = props.getProperty(TSDBDriver.PROPERTY_KEY_CONFIG_DIR);
                 initImp(configDir);
@@ -78,10 +81,6 @@ public class TSDBJNIConnector {
     private static native int setOptions(int optionIndex, String optionValue);
 
     private static native String getTsCharset();
-
-    public static void setConfig(String config) {
-        setConfigImp(config);
-    }
 
     private static native int setConfigImp(String config);
 
