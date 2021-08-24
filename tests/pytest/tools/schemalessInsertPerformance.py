@@ -191,7 +191,8 @@ class TDTestCase:
     def batchInsertTable(self, batch_list):
         for insert_list in batch_list:
             print(threading.current_thread().name, "length=", len(insert_list))
-            print(threading.current_thread().name, 'firstline', insert_list[0], 'lastline:', insert_list[-1])
+            print(threading.current_thread().name, 'firstline', insert_list[0])
+            print(threading.current_thread().name, 'lastline:', insert_list[-1])
             self._conn.insert_lines(insert_list)
             print(threading.current_thread().name, 'end')
 
