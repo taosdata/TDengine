@@ -34,8 +34,7 @@ class TDTestCase:
         path = tdDnodes.dnodes[1].getDnodeRootDir(1)
         print(path)
         tdLog.info("sudo mkdir -p %s/data/vnode/vnode2/wal/old" % path)
-        # os.system("sudo mkdir -p %s/data/vnode/vnode2/wal/old" % path)       
-        os.makedirs("%s/data/vnode/vnode2/wal/old" % path, exist_ok=True) # like "mkdir -p"
+        os.system("sudo mkdir -p %s/data/vnode/vnode2/wal/old" % path)       
 
     def run(self):
         # os.system("rm -rf %s/ " % tdDnodes.getDnodesRootDir())
