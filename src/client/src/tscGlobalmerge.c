@@ -643,7 +643,7 @@ static void doExecuteFinalMerge(SOperatorInfo* pOperator, int32_t numOfExpr, SSD
         for(int32_t j = 0; j < numOfExpr; ++j) {
           pCtx[j].pOutput += (pCtx[j].outputBytes * numOfRows);
           if (pCtx[j].functionId == TSDB_FUNC_TOP || pCtx[j].functionId == TSDB_FUNC_BOTTOM) {
-            pCtx[j].ptsOutputBuf = pCtx[0].pOutput;
+            if(j > 0)pCtx[j].ptsOutputBuf = pCtx[j - 1].pOutput;
           }
         }
 

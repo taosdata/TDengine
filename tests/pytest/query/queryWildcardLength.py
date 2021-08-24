@@ -157,19 +157,6 @@ class TDTestCase:
         tdSql.execute(f'create table {table_name}_sub1 using {table_name} tags ("{table_name}", "{table_name}")')
         tdSql.execute(f'insert into {table_name}_sub1 values (now, "{table_name}", "{table_name}");')
 
-        # TODO sc1 leave a bug ---> TD-5918
-        # sql_list = [f'select * from {table_name} where bi1 like "{hp_name}"',
-        #             f'select * from {table_name} where bi1 like "{lp_name}"',
-        #             f'select * from {table_name} where bi1 like "{ul_name}"',
-        #             f'select * from {table_name} where nc1 like "{hp_name}"',
-        #             f'select * from {table_name} where nc1 like "{lp_name}"',
-        #             f'select * from {table_name} where nc1 like "{ul_name}"',
-        #             f'select * from {table_name} where si1 like "{hp_name}"',
-        #             f'select * from {table_name} where si1 like "{lp_name}"',
-        #             f'select * from {table_name} where si1 like "{ul_name}"',
-        #             f'select * from {table_name} where sc1 like "{hp_name}"',
-        #             f'select * from {table_name} where sc1 like "{lp_name}"',
-        #             f'select * from {table_name} where sc1 like "{ul_name}"']
         sql_list = [f'select * from {table_name} where bi1 like "{hp_name}"',
                     f'select * from {table_name} where bi1 like "{lp_name}"',
                     f'select * from {table_name} where bi1 like "{ul_name}"',
@@ -178,7 +165,11 @@ class TDTestCase:
                     f'select * from {table_name} where nc1 like "{ul_name}"',
                     f'select * from {table_name} where si1 like "{hp_name}"',
                     f'select * from {table_name} where si1 like "{lp_name}"',
-                    f'select * from {table_name} where si1 like "{ul_name}"']
+                    f'select * from {table_name} where si1 like "{ul_name}"',
+                    f'select * from {table_name} where sc1 like "{hp_name}"',
+                    f'select * from {table_name} where sc1 like "{lp_name}"',
+                    f'select * from {table_name} where sc1 like "{ul_name}"']
+      
         for sql in sql_list:
             tdSql.query(sql)
             if len(table_name) >= 1:
@@ -210,7 +201,6 @@ class TDTestCase:
     def stop(self):
         tdSql.close()
         tdLog.success("%s successfully executed" % __file__)
-
 
 tdCases.addWindows(__file__, TDTestCase())
 tdCases.addLinux(__file__, TDTestCase())

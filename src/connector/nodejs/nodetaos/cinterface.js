@@ -109,6 +109,24 @@ function convertDouble(data, num_of_rows, nbytes = 0, offset = 0, precision = 0)
   return res;
 }
 
+function convertBinary(data, num_of_rows, nbytes = 0, offset = 0, precision = 0) {
+  data = ref.reinterpret(data.deref(), nbytes * num_of_rows, offset);
+  let res = [];
+
+  let currOffset = 0;
+  while (currOffset < data.length) {
+    let len = data.readIntLE(currOffset, 2);
+    let dataEntry = data.slice(currOffset + 2, currOffset + len + 2); //one entry in a row under a column;
+    if (dataEntry[0] == 255) {
+      res.push(null)
+    } else {
+      res.push(dataEntry.toString("utf-8"));
+    }
+    currOffset += nbytes;
+  }
+  return res;
+}
+
 function convertNchar(data, num_of_rows, nbytes = 0, offset = 0, precision = 0) {
   data = ref.reinterpret(data.deref(), nbytes * num_of_rows, offset);
   let res = [];
@@ -117,7 +135,11 @@ function convertNchar(data, num_of_rows, nbytes = 0, offset = 0, precision = 0) 
   while (currOffset < data.length) {
     let len = data.readIntLE(currOffset, 2);
     let dataEntry = data.slice(currOffset + 2, currOffset + len + 2); //one entry in a row under a column;
-    res.push(dataEntry.toString("utf-8"));
+    if (dataEntry[0] == 255 && dataEntry[1] == 255) {
+      res.push(null)
+    } else {
+      res.push(dataEntry.toString("utf-8"));
+    }
     currOffset += nbytes;
   }
   return res;
@@ -132,7 +154,7 @@ let convertFunctions = {
   [FieldTypes.C_BIGINT]: convertBigint,
   [FieldTypes.C_FLOAT]: convertFloat,
   [FieldTypes.C_DOUBLE]: convertDouble,
-  [FieldTypes.C_BINARY]: convertNchar,
+  [FieldTypes.C_BINARY]: convertBinary,
   [FieldTypes.C_TIMESTAMP]: convertTimestamp,
   [FieldTypes.C_NCHAR]: convertNchar
 }

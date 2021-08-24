@@ -51,20 +51,18 @@ int            initMemRowBuilder(SMemRowBuilder *pBuilder, uint32_t nRows, uint3
     }
   }
 
+  // default compareStat is  ROW_COMPARE_NO_NEED
   if (nBoundCols == 0) {  // file input
     pBuilder->memRowType = SMEM_ROW_DATA;
-    pBuilder->compareStat = ROW_COMPARE_NO_NEED;
     return TSDB_CODE_SUCCESS;
   } else {
     float boundRatio = ((float)nBoundCols / (float)nCols);
 
     if (boundRatio < KVRatioKV) {
       pBuilder->memRowType = SMEM_ROW_KV;
-      pBuilder->compareStat = ROW_COMPARE_NO_NEED;
       return TSDB_CODE_SUCCESS;
     } else if (boundRatio > KVRatioData) {
       pBuilder->memRowType = SMEM_ROW_DATA;
-      pBuilder->compareStat = ROW_COMPARE_NO_NEED;
       return TSDB_CODE_SUCCESS;
     }
     pBuilder->compareStat = ROW_COMPARE_NEED;
@@ -76,7 +74,6 @@ int            initMemRowBuilder(SMemRowBuilder *pBuilder, uint32_t nRows, uint3
     }
   }
 
-  pBuilder->dataRowInitLen = TD_MEM_ROW_DATA_HEAD_SIZE + allNullLen;
   pBuilder->kvRowInitLen = TD_MEM_ROW_KV_HEAD_SIZE + nBoundCols * sizeof(SColIdx);
 
   if (nRows > 0) {
@@ -86,7 +83,7 @@ int            initMemRowBuilder(SMemRowBuilder *pBuilder, uint32_t nRows, uint3
     }
 
     for (int i = 0; i < nRows; ++i) {
-      (pBuilder->rowInfo + i)->dataLen = pBuilder->dataRowInitLen;
+      (pBuilder->rowInfo + i)->dataLen = TD_MEM_ROW_DATA_HEAD_SIZE + allNullLen;
       (pBuilder->rowInfo + i)->kvLen = pBuilder->kvRowInitLen;
     }
   }
@@ -460,7 +457,7 @@ int tsParseOneRow(char **str, STableDataBlocks *pDataBlocks, int16_t timePrec, i
   STableMeta *        pTableMeta = pDataBlocks->pTableMeta;
   SSchema *           schema = tscGetTableSchema(pTableMeta);
   SMemRowBuilder *    pBuilder = &pDataBlocks->rowBuilder;
-  int32_t             dataLen = pBuilder->dataRowInitLen;
+  int32_t             dataLen = spd->allNullLen + TD_MEM_ROW_DATA_HEAD_SIZE;
   int32_t             kvLen = pBuilder->kvRowInitLen;
   bool                isParseBindParam = false;
 
@@ -657,9 +654,7 @@ int32_t tsParseValues(char **str, STableDataBlocks *pDataBlock, int maxRows, SIn
     index = 0;
     sToken = tStrGetToken(*str, &index, false);
     if (sToken.n == 0 || sToken.type != TK_RP) {
-      tscSQLSyntaxErrMsg(pInsertParam->msg, ") expected", *str);
-      code = TSDB_CODE_TSC_SQL_SYNTAX_ERROR;
-      return code;
+      return tscSQLSyntaxErrMsg(pInsertParam->msg, ") expected", *str);
     }
     
     *str += index;
@@ -811,13 +806,12 @@ int tscSortRemoveDataBlockDupRows(STableDataBlocks *dataBuf, SBlockKeyInfo *pBlk
   // allocate memory
   size_t nAlloc = nRows * sizeof(SBlockKeyTuple);
   if (pBlkKeyInfo->pKeyTuple == NULL || pBlkKeyInfo->maxBytesAlloc < nAlloc) {
-    size_t nRealAlloc = nAlloc + 10 * sizeof(SBlockKeyTuple);
-    char * tmp = trealloc(pBlkKeyInfo->pKeyTuple, nRealAlloc);
+    char *tmp = trealloc(pBlkKeyInfo->pKeyTuple, nAlloc);
     if (tmp == NULL) {
       return TSDB_CODE_TSC_OUT_OF_MEMORY;
     }
     pBlkKeyInfo->pKeyTuple = (SBlockKeyTuple *)tmp;
-    pBlkKeyInfo->maxBytesAlloc = (int32_t)nRealAlloc;
+    pBlkKeyInfo->maxBytesAlloc = (int32_t)nAlloc;
   }
   memset(pBlkKeyInfo->pKeyTuple, 0, nAlloc);
 
@@ -1597,7 +1591,7 @@ int tsParseSql(SSqlObj *pSql, bool initial) {
     if (pSql->parseRetry < 1 && (ret == TSDB_CODE_TSC_SQL_SYNTAX_ERROR || ret == TSDB_CODE_TSC_INVALID_OPERATION)) {
       tscDebug("0x%"PRIx64 " parse insert sql statement failed, code:%s, clear meta cache and retry ", pSql->self, tstrerror(ret));
 
-      tscResetSqlCmd(pCmd, true);
+      tscResetSqlCmd(pCmd, true, pSql->self);
       pSql->parseRetry++;
 
       if ((ret = tsInsertInitialCheck(pSql)) == TSDB_CODE_SUCCESS) {
@@ -1614,7 +1608,7 @@ int tsParseSql(SSqlObj *pSql, bool initial) {
     if (ret == TSDB_CODE_TSC_INVALID_OPERATION && pSql->parseRetry < 1 && sqlInfo.type == TSDB_SQL_SELECT) {
       tscDebug("0x%"PRIx64 " parse query sql statement failed, code:%s, clear meta cache and retry ", pSql->self, tstrerror(ret));
 
-      tscResetSqlCmd(pCmd, true);
+      tscResetSqlCmd(pCmd, true, pSql->self);
       pSql->parseRetry++;
 
       ret = tscValidateSqlInfo(pSql, &sqlInfo);
@@ -1725,12 +1719,6 @@ static void parseFileSendDataBlock(void *param, TAOS_RES *tres, int32_t numOfRow
   tokenBuf = calloc(1, TSDB_MAX_BYTES_PER_ROW);
   if (tokenBuf == NULL) {
     code = TSDB_CODE_TSC_OUT_OF_MEMORY;
-    goto _error;
-  }
-
-  if (TSDB_CODE_SUCCESS !=
-      (ret = initMemRowBuilder(&pTableDataBlock->rowBuilder, 0, tinfo.numOfColumns, pTableDataBlock->numOfParams,
-                               pTableDataBlock->boundColumnInfo.allNullLen))) {
     goto _error;
   }
 

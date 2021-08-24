@@ -101,7 +101,14 @@ function runQueryPerfTest {
 
 	python3 insert/insertFromCSVPerformance.py -c $LOCAL_COMMIT -b $branch -T $type | tee -a $PERFORMANCE_TEST_REPORT
 	
+	echo "=========== taosdemo performance: 4 int columns, 10000 tables, 100000 recoreds per table ===========" | tee -a $PERFORMANCE_TEST_REPORT
 	python3 tools/taosdemoPerformance.py -c $LOCAL_COMMIT -b $branch -T $type | tee -a $PERFORMANCE_TEST_REPORT
+
+	echo "=========== taosdemo performance: 400 int columns, 400 double columns, 200 binary(128) columns, 10000 tables, 1000 recoreds per table ===========" | tee -a $PERFORMANCE_TEST_REPORT
+	python3 tools/taosdemoPerformance.py -c $LOCAL_COMMIT -b $branch -T $type -i 400 -D 400 -B 200 -t 10000 -r 100 | tee -a $PERFORMANCE_TEST_REPORT
+
+	echo "=========== taosdemo performance: 1900 int columns, 1900 double columns, 200 binary(128) columns, 10000 tables, 1000 recoreds per table ===========" | tee -a $PERFORMANCE_TEST_REPORT
+	python3 tools/taosdemoPerformance.py -c $LOCAL_COMMIT -b $branch -T $type -i 1900 -D 1900 -B 200 -t 10000 -r 100 | tee -a $PERFORMANCE_TEST_REPORT
 }
 
 

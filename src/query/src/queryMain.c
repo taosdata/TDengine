@@ -215,7 +215,6 @@ int32_t qCreateQueryInfo(void* tsdb, int32_t vgId, SQueryTableMsg* pQueryMsg, qi
   return code;
 }
 
-
 bool qTableQuery(qinfo_t qinfo, uint64_t *qId) {
   SQInfo *pQInfo = (SQInfo *)qinfo;
   assert(pQInfo && pQInfo->signature == pQInfo);
@@ -256,7 +255,11 @@ bool qTableQuery(qinfo_t qinfo, uint64_t *qId) {
 
   bool newgroup = false;
   publishOperatorProfEvent(pRuntimeEnv->proot, QUERY_PROF_BEFORE_OPERATOR_EXEC);
+
+  int64_t st = taosGetTimestampUs();
   pRuntimeEnv->outputBuf = pRuntimeEnv->proot->exec(pRuntimeEnv->proot, &newgroup);
+  pQInfo->summary.elapsedTime += (taosGetTimestampUs() - st);
+
   publishOperatorProfEvent(pRuntimeEnv->proot, QUERY_PROF_AFTER_OPERATOR_EXEC);
   pRuntimeEnv->resultInfo.total += GET_NUM_OF_RESULTS(pRuntimeEnv);
 
@@ -321,6 +324,7 @@ int32_t qRetrieveQueryResultInfo(qinfo_t qinfo, bool* buildRes, void* pRspContex
 
 int32_t qDumpRetrieveResult(qinfo_t qinfo, SRetrieveTableRsp **pRsp, int32_t *contLen, bool* continueExec) {
   SQInfo *pQInfo = (SQInfo *)qinfo;
+  int32_t compLen = 0;
 
   if (pQInfo == NULL || !isValidQInfo(pQInfo)) {
     return TSDB_CODE_QRY_INVALID_QHANDLE;
@@ -353,11 +357,24 @@ int32_t qDumpRetrieveResult(qinfo_t qinfo, SRetrieveTableRsp **pRsp, int32_t *co
   }
 
   (*pRsp)->precision = htons(pQueryAttr->precision);
+  (*pRsp)->compressed = (int8_t)((tsCompressColData != -1) && checkNeedToCompressQueryCol(pQInfo));
+
   if (GET_NUM_OF_RESULTS(&(pQInfo->runtimeEnv)) > 0 && pQInfo->code == TSDB_CODE_SUCCESS) {
-    doDumpQueryResult(pQInfo, (*pRsp)->data);
+    doDumpQueryResult(pQInfo, (*pRsp)->data, (*pRsp)->compressed, &compLen);
   } else {
     setQueryStatus(pRuntimeEnv, QUERY_OVER);
   }
+
+  if ((*pRsp)->compressed && compLen != 0) {
+    int32_t numOfCols = pQueryAttr->pExpr2 ? pQueryAttr->numOfExpr2 : pQueryAttr->numOfOutput;
+    int32_t origSize  = pQueryAttr->resultRowSize * s;
+    int32_t compSize  = compLen + numOfCols * sizeof(int32_t);
+    *contLen = *contLen - origSize + compSize;
+    *pRsp = (SRetrieveTableRsp *)rpcReallocCont(*pRsp, *contLen);
+    qDebug("QInfo:0x%"PRIx64" compress col data, uncompressed size:%d, compressed size:%d, ratio:%.2f",
+        pQInfo->qId, origSize, compSize, (float)origSize / (float)compSize);
+  }
+  (*pRsp)->compLen = htonl(compLen);
 
   pQInfo->rspContext = NULL;
   pQInfo->dataReady  = QUERY_RESULT_NOT_READY;

@@ -20,9 +20,9 @@ from util.log import *
 
 
 class TDSimClient:
-    def __init__(self):
+    def __init__(self, path):
         self.testCluster = False
-
+        self.path = path
         self.cfgDict = {
             "numOfLogLines": "100000000",
             "numOfThreadsPerCore": "2.0",
@@ -41,10 +41,7 @@ class TDSimClient:
             "jnidebugFlag": "135",
             "qdebugFlag": "135",
             "telemetryReporting": "0",
-            }
-    def init(self, path):
-        self.__init__()
-        self.path = path
+        }
 
     def getLogDir(self):
         self.logDir = "%s/sim/psim/log" % (self.path)
@@ -436,7 +433,7 @@ class TDDnodes:
         psCmd = "ps -ef|grep -w taosd| grep -v grep| grep -v defunct | awk '{print $2}'"
         processID = subprocess.check_output(psCmd, shell=True).decode("utf-8")
         while(processID):
-            killCmd = "kill -TERM %s > /dev/null 2>&1" % processID
+            killCmd = "kill -9 %s > /dev/null 2>&1" % processID
             os.system(killCmd)
             time.sleep(1)
             processID = subprocess.check_output(
@@ -445,7 +442,7 @@ class TDDnodes:
         psCmd = "ps -ef|grep -w valgrind.bin| grep -v grep | awk '{print $2}'"
         processID = subprocess.check_output(psCmd, shell=True).decode("utf-8")
         while(processID):
-            killCmd = "kill -TERM %s > /dev/null 2>&1" % processID
+            killCmd = "kill -9 %s > /dev/null 2>&1" % processID
             os.system(killCmd)
             time.sleep(1)
             processID = subprocess.check_output(
@@ -480,8 +477,7 @@ class TDDnodes:
         for i in range(len(self.dnodes)):
             self.dnodes[i].init(self.path)
 
-        self.sim = TDSimClient()
-        self.sim.init(self.path)
+        self.sim = TDSimClient(self.path)
 
     def setTestCluster(self, value):
         self.testCluster = value
@@ -556,7 +552,7 @@ class TDDnodes:
         psCmd = "ps -ef|grep -w taosd| grep -v grep| grep -v defunct | awk '{print $2}'"
         processID = subprocess.check_output(psCmd, shell=True).decode("utf-8")
         while(processID):
-            killCmd = "kill -TERM %s > /dev/null 2>&1" % processID
+            killCmd = "kill -9 %s > /dev/null 2>&1" % processID
             os.system(killCmd)
             time.sleep(1)
             processID = subprocess.check_output(
