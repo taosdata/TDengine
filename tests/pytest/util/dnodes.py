@@ -14,6 +14,7 @@
 import sys
 import os
 import os.path
+import platform
 import subprocess
 from time import sleep
 from util.log import *
@@ -61,7 +62,7 @@ class TDSimClient:
         self.cfgDict.update({option: value})
 
     def cfg(self, option, value):
-        cmd = "echo '%s %s' >> %s" % (option, value, self.cfgPath)
+        cmd = "echo %s %s >> %s" % (option, value, self.cfgPath)
         if os.system(cmd) != 0:
             tdLog.exit(cmd)
 
@@ -74,17 +75,19 @@ class TDSimClient:
         if os.system(cmd) != 0:
             tdLog.exit(cmd)
     
-        cmd = "mkdir -p " + self.logDir
-        if os.system(cmd) != 0:
-            tdLog.exit(cmd)
+        os.makedirs(self.logDir, exist_ok=True) # like "mkdir -p"
+        # cmd = "mkdir -p " + self.logDir
+        # if os.system(cmd) != 0:
+        #     tdLog.exit(cmd)
 
         cmd = "rm -rf " + self.cfgDir
         if os.system(cmd) != 0:
             tdLog.exit(cmd)
 
-        cmd = "mkdir -p " + self.cfgDir
-        if os.system(cmd) != 0:
-            tdLog.exit(cmd)
+        os.makedirs(self.cfgDir, exist_ok=True) # like "mkdir -p"
+        # cmd = "mkdir -p " + self.cfgDir
+        # if os.system(cmd) != 0:
+        #     tdLog.exit(cmd)
 
         cmd = "touch " + self.cfgPath
         if os.system(cmd) != 0:
@@ -185,17 +188,20 @@ class TDDnode:
         if os.system(cmd) != 0:
             tdLog.exit(cmd)
 
-        cmd = "mkdir -p " + self.dataDir
-        if os.system(cmd) != 0:
-            tdLog.exit(cmd)
+        os.makedirs(self.dataDir, exist_ok=True) # like "mkdir -p"
+        # cmd = "mkdir -p " + self.dataDir
+        # if os.system(cmd) != 0:
+        #     tdLog.exit(cmd)
 
-        cmd = "mkdir -p " + self.logDir
-        if os.system(cmd) != 0:
-            tdLog.exit(cmd)
+        os.makedirs(self.logDir, exist_ok=True) # like "mkdir -p"
+        # cmd = "mkdir -p " + self.logDir
+        # if os.system(cmd) != 0:
+        #     tdLog.exit(cmd)
 
-        cmd = "mkdir -p " + self.cfgDir
-        if os.system(cmd) != 0:
-            tdLog.exit(cmd)
+        os.makedirs(self.cfgDir, exist_ok=True) # like "mkdir -p"
+        # cmd = "mkdir -p " + self.cfgDir
+        # if os.system(cmd) != 0:
+        #     tdLog.exit(cmd)
 
         cmd = "touch " + self.cfgPath
         if os.system(cmd) != 0:
@@ -246,7 +252,7 @@ class TDDnode:
             projPath = selfPath[:selfPath.find("tests")]
 
         for root, dirs, files in os.walk(projPath):
-            if ("taosd" in files):
+            if (("taosd.exe") in files) or (("taosd") in files):
                 rootRealPath = os.path.dirname(os.path.realpath(root))
                 if ("packaging" not in rootRealPath):
                     buildPath = root[:len(root)-len("/build/bin")]
@@ -267,7 +273,11 @@ class TDDnode:
             tdLog.exit("dnode:%d is not deployed" % (self.index))
 
         if self.valgrind == 0:
-            cmd = "nohup %s -c %s > /dev/null 2>&1 & " % (
+            if platform.system()=="Windows":
+                cmd = "mintty %s -c %s" % (
+                binPath, self.cfgDir)
+            else:
+                cmd = "nohup %s -c %s > /dev/null 2>&1 & " % (
                 binPath, self.cfgDir)
         else:
             valgrindCmdline = "valgrind --tool=memcheck --leak-check=full --show-reachable=no --track-origins=yes --show-leak-kinds=all -v --workaround-gcc296-bugs=yes"
@@ -292,7 +302,7 @@ class TDDnode:
                 i += 1
                 if i>50:
                     break
-            popen = subprocess.Popen('tail -f ' + logFile, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
+            popen = subprocess.Popen('tail -f -n +0 ' + logFile, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
             pid = popen.pid
             # print('Popen.pid:' + str(pid))
             timeout = time.time() + 60*2
@@ -404,7 +414,7 @@ class TDDnode:
             tdLog.exit(cmd)
 
     def cfg(self, option, value):
-        cmd = "echo '%s %s' >> %s" % (option, value, self.cfgPath)
+        cmd = "echo %s %s >> %s" % (option, value, self.cfgPath)
         if os.system(cmd) != 0:
             tdLog.exit(cmd)
 
