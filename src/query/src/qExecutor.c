@@ -6985,7 +6985,7 @@ SOperatorInfo* createSLimitOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperator
   pInfo->slimit          = pQueryAttr->slimit;
   pInfo->limit           = pQueryAttr->limit;
   pInfo->capacity        = pRuntimeEnv->resultInfo.capacity;
-  pInfo->threshold       = pInfo->capacity * 0.8;
+  pInfo->threshold       = (int64_t)(pInfo->capacity * 0.8);
   pInfo->currentOffset   = pQueryAttr->limit.offset;
   pInfo->currentGroupOffset = pQueryAttr->slimit.offset;
   pInfo->multigroupResult= multigroupResult;
