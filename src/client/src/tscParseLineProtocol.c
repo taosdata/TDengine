@@ -1127,7 +1127,7 @@ static int32_t applyDataPoints(TAOS* taos, TAOS_SML_DATA_POINT* points, int32_t 
     tscDebug("SML:0x%"PRIx64" apply child table points. child table: %s", info->id, point->childTableName);
     code = applyChildTableFields(taos, sTableSchema, point->childTableName, cTablePoints, info);
     if (code != 0) {
-      tscError("Apply child table fields failed. child table %s, error %s", point->childTableName, tstrerror(code));
+      tscError("SML:0x%"PRIx64" Apply child table fields failed. child table %s, error %s", info->id, point->childTableName, tstrerror(code));
       goto cleanup;
     }
 
