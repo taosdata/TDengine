@@ -259,12 +259,12 @@ void validateResultFields() {
 }
 /* test parse time function */
 TEST(testCase, result_field_test) {
+  const char *config = "{\"debugFlag\":\"135\"}";
+  taos_set_config(config);
+  taos_set_config(config);
   taos_options(TSDB_OPTION_CONFIGDIR, "~/first/cfg");
   taos_init();
 
-  const char *config = "{\"tempDir\":\"/root/tmp/\",\"serverPort\":\"3333\"}";
-  taos_set_config(config);
-  taos_set_config(config);
   validateResultFields();
   stmtInsertTest();
 }
