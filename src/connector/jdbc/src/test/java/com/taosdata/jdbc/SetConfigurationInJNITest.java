@@ -30,6 +30,7 @@ public class SetConfigurationInJNITest {
             stmt.execute("create database if not exists " + dbname);
             stmt.execute("use " + dbname);
             stmt.execute("create table weather(ts timestamp, f1 int) tags(loc nchar(10))");
+            stmt.execute("drop database if exists " + dbname);
 
             stmt.close();
             conn.close();
@@ -50,6 +51,7 @@ public class SetConfigurationInJNITest {
             stmt.execute("create database if not exists " + dbname);
             stmt.execute("use " + dbname);
             stmt.execute("create table weather(ts timestamp, f1 int) tags(loc nchar(10))");
+            stmt.execute("drop database if exists " + dbname);
 
             stmt.close();
             conn.close();
