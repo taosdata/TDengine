@@ -57,13 +57,17 @@ public class TSDBJNIConnector {
         }
     }
 
-    public static native void initImp(String configDir);
+    private static native void initImp(String configDir);
 
-    public static native int setOptions(int optionIndex, String optionValue);
+    private static native int setOptions(int optionIndex, String optionValue);
 
-    public static native String getTsCharset();
+    private static native String getTsCharset();
 
-    public static native int setConfig(String config);
+    public static void setConfig(String config) {
+        setConfigImp(config);
+    }
+
+    private static native int setConfigImp(String config);
 
     public boolean connect(String host, int port, String dbName, String user, String password) throws SQLException {
         if (this.taos != TSDBConstants.JNI_NULL_POINTER) {

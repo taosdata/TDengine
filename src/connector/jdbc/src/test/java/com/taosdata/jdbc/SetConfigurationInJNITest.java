@@ -1,66 +1,60 @@
 package com.taosdata.jdbc;
 
+import org.junit.After;
 import org.junit.Test;
 
+import java.sql.Connection;
+import java.sql.DriverManager;
 import java.sql.SQLException;
-import java.util.Arrays;
-
-import static org.junit.Assert.*;
+import java.sql.Statement;
 
 
 public class SetConfigurationInJNITest {
 
     private String host = "127.0.0.1";
     private String dbname = "test_jni";
+    private String debugFlagJSON = "{ \"debugFlag\": \"135\"}";
+
     private long maxSQLLength = 1024000;
-    private String debugFlagJSON = "{ \"debugFlag\": 135}";
     private String maxSqlLengthJSON = "{ \"maxSQLLength\": " + maxSQLLength + "}";
 
     @Test
-    public void testDebugFlag() {
+    public void setConfigBeforeConnectIsValid() {
         try {
-            // init
-            TSDBJNIConnector.initImp(null);
-            TSDBJNIConnector.setOptions(0, null);
-            TSDBJNIConnector.setOptions(1, null);
-            TSDBJNIConnector.setOptions(2, null);
-            String tsCharset = TSDBJNIConnector.getTsCharset();
-            assertEquals("", tsCharset);
-
             TSDBJNIConnector.setConfig(debugFlagJSON);
 
-            // connect
-            TSDBJNIConnector jniConnector = new TSDBJNIConnector();
-            boolean connected = jniConnector.connect(host, 0, null, "root", "taosdata");
-            assertTrue(connected);
+            Connection conn = DriverManager.getConnection("jdbc:TAOS://" + host + ":0/?user=root&password=taosdata");
+            Statement stmt = conn.createStatement();
 
-            String[] setupSqls = {
-                    "drop database if exists " + dbname,
-                    "create database if not exists " + dbname,
-                    "use " + dbname,
-                    "create table weather(ts timestamp, f1 int) tags(loc nchar(10))",
-                    "insert into t1 using weather tags('beijing') values(now, 1)",
-                    "drop database if exists " + dbname
-            };
+            stmt.execute("drop database if exists " + dbname);
+            stmt.execute("create database if not exists " + dbname);
+            stmt.execute("use " + dbname);
+            stmt.execute("create table weather(ts timestamp, f1 int) tags(loc nchar(10))");
 
-            Arrays.asList(setupSqls).forEach(sql -> {
-                try {
-                    long setupSql = jniConnector.executeQuery(sql);
-                    if (jniConnector.isUpdateQuery(setupSql)) {
-                        jniConnector.freeResultSet(setupSql);
-                    }
-                } catch (SQLException e) {
-                    e.printStackTrace();
-                }
-            });
-
+            stmt.close();
+            conn.close();
         } catch (SQLException e) {
             e.printStackTrace();
         }
     }
 
     @Test
-    public void testMaxSQLLength() {
+    public void setConfigAfterConnectIsInvalid() {
+        try {
+            Connection conn = DriverManager.getConnection("jdbc:TAOS://" + host + ":0/?user=root&password=taosdata");
 
+            TSDBJNIConnector.setConfig(debugFlagJSON);
+            Statement stmt = conn.createStatement();
+
+            stmt.execute("drop database if exists " + dbname);
+            stmt.execute("create database if not exists " + dbname);
+            stmt.execute("use " + dbname);
+            stmt.execute("create table weather(ts timestamp, f1 int) tags(loc nchar(10))");
+
+            stmt.close();
+            conn.close();
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
     }
 }
