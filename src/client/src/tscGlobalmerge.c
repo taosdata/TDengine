@@ -1021,7 +1021,13 @@ static void ensureOutputBuf(SSLimitOperatorInfo * pInfo, SSDataBlock *pResultBlo
   }
 }
 
-static void doSlimitImpl(SOperatorInfo* pOperator, SSLimitOperatorInfo* pInfo, SSDataBlock* pBlock) {
+enum {
+  BLOCK_NEW_GROUP  = 1,
+  BLOCK_NO_GROUP   = 2,
+  BLOCK_SAME_GROUP = 3,
+};
+
+static int32_t doSlimitImpl(SOperatorInfo* pOperator, SSLimitOperatorInfo* pInfo, SSDataBlock* pBlock) {
   int32_t rowIndex = 0;
 
   while (rowIndex < pBlock->info.rows) {
@@ -1030,12 +1036,12 @@ static void doSlimitImpl(SOperatorInfo* pOperator, SSLimitOperatorInfo* pInfo, S
     bool samegroup = true;
     if (pInfo->hasPrev) {
       for (int32_t i = 0; i < numOfCols; ++i) {
-        SColIndex *      pIndex = taosArrayGet(pInfo->orderColumnList, i);
+        SColIndex       *pIndex = taosArrayGet(pInfo->orderColumnList, i);
         SColumnInfoData *pColInfoData = taosArrayGet(pBlock->pDataBlock, pIndex->colIndex);
 
         SColumnInfo *pColInfo = &pColInfoData->info;
 
-        char *  d = rowIndex * pColInfo->bytes + (char *)pColInfoData->pData;
+        char   *d = rowIndex * pColInfo->bytes + (char *)pColInfoData->pData;
         int32_t ret = columnValueAscendingComparator(pInfo->prevRow[i], d, pColInfo->type, pColInfo->bytes);
         if (ret != 0) {  // it is a new group
           samegroup = false;
@@ -1063,10 +1069,17 @@ static void doSlimitImpl(SOperatorInfo* pOperator, SSLimitOperatorInfo* pInfo, S
       if (pInfo->slimit.limit >= 0 && pInfo->groupTotal >= pInfo->slimit.limit) {
         setQueryStatus(pOperator->pRuntimeEnv, QUERY_COMPLETED);
         pOperator->status = OP_EXEC_DONE;
-        return;
+        return BLOCK_NO_GROUP;
       }
 
       pInfo->groupTotal += 1;
+
+      // data in current group not allowed, return if current result does not belong to the previous group.And there
+      // are results exists in current SSDataBlock
+      if (!pInfo->multigroupResult && !samegroup && pInfo->pRes->info.rows > 0) {
+        return BLOCK_NEW_GROUP;
+      }
+
       doHandleDataInCurrentGroup(pInfo, pBlock, rowIndex);
 
     } else {  // handle the offset in the same group
@@ -1081,6 +1094,8 @@ static void doSlimitImpl(SOperatorInfo* pOperator, SSLimitOperatorInfo* pInfo, S
 
     rowIndex += 1;
   }
+
+  return BLOCK_SAME_GROUP;
 }
 
 SSDataBlock* doSLimit(void* param, bool* newgroup) {
@@ -1091,6 +1106,14 @@ SSDataBlock* doSLimit(void* param, bool* newgroup) {
 
   SSLimitOperatorInfo *pInfo = pOperator->info;
   pInfo->pRes->info.rows = 0;
+
+  if (pInfo->pPrevBlock != NULL) {
+    ensureOutputBuf(pInfo, pInfo->pRes, pInfo->pPrevBlock->info.rows);
+    int32_t ret = doSlimitImpl(pOperator, pInfo, pInfo->pPrevBlock);
+    assert(ret != BLOCK_NEW_GROUP);
+
+    pInfo->pPrevBlock = NULL;
+  }
 
   assert(pInfo->currentGroupOffset >= 0);
 
@@ -1104,7 +1127,12 @@ SSDataBlock* doSLimit(void* param, bool* newgroup) {
     }
 
     ensureOutputBuf(pInfo, pInfo->pRes, pBlock->info.rows);
-    doSlimitImpl(pOperator, pInfo, pBlock);
+    int32_t ret = doSlimitImpl(pOperator, pInfo, pBlock);
+    if (ret == BLOCK_NEW_GROUP) {
+      pInfo->pPrevBlock = pBlock;
+      return pInfo->pRes;
+    }
+
     if (pOperator->status == OP_EXEC_DONE) {
       return pInfo->pRes->info.rows == 0 ? NULL : pInfo->pRes;
     }

@@ -926,7 +926,6 @@ int32_t tscValidateSqlInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
           pQueryInfo = pCmd->active;
           pQueryInfo->pUdfInfo = pUdfInfo;
           pQueryInfo->udfCopy = true;
-
         }
       }
 
@@ -8436,6 +8435,7 @@ static int32_t doValidateSubquery(SSqlNode* pSqlNode, int32_t index, SSqlObj* pS
   if (taosArrayGetSize(subInfo->pSubquery) >= 2) {
     return invalidOperationMsg(msgBuf, "not support union in subquery");
   }
+
   SQueryInfo* pSub = calloc(1, sizeof(SQueryInfo));
   tscInitQueryInfo(pSub);
 
@@ -8458,6 +8458,7 @@ static int32_t doValidateSubquery(SSqlNode* pSqlNode, int32_t index, SSqlObj* pS
   if (pTableMetaInfo1 == NULL) {
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
   }
+
   pTableMetaInfo1->pTableMeta        = extractTempTableMetaFromSubquery(pSub);
   pTableMetaInfo1->tableMetaCapacity = tscGetTableMetaSize(pTableMetaInfo1->pTableMeta);
 
@@ -8541,7 +8542,7 @@ int32_t validateSqlNode(SSqlObj* pSql, SSqlNode* pSqlNode, SQueryInfo* pQueryInf
       // check if there is 3 level select
       SRelElementPair* subInfo = taosArrayGet(pSqlNode->from->list, i);
       SSqlNode* p = taosArrayGetP(subInfo->pSubquery, 0);
-      if (p->from->type == SQL_NODE_FROM_SUBQUERY){
+      if (p->from->type == SQL_NODE_FROM_SUBQUERY) {
         return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg9);
       }
 
@@ -8630,6 +8631,15 @@ int32_t validateSqlNode(SSqlObj* pSql, SSqlNode* pSqlNode, SQueryInfo* pQueryInf
         if (validateFunctionsInIntervalOrGroupbyQuery(pCmd, pQueryInfo) != TSDB_CODE_SUCCESS) {
           return TSDB_CODE_TSC_INVALID_OPERATION;
         }
+      }
+    }
+
+    // disable group result mixed up if interval/session window query exists.
+    if (isTimeWindowQuery(pQueryInfo)) {
+      size_t num = taosArrayGetSize(pQueryInfo->pUpstream);
+      for(int32_t i = 0; i < num; ++i) {
+        SQueryInfo* pUp = taosArrayGetP(pQueryInfo->pUpstream, i);
+        pUp->multigroupResult = false;
       }
     }
 

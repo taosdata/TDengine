@@ -2261,7 +2261,7 @@ static int32_t setupQueryRuntimeEnv(SQueryRuntimeEnv *pRuntimeEnv, int32_t numOf
 
       case OP_Fill: {
         SOperatorInfo* pInfo = pRuntimeEnv->proot;
-        pRuntimeEnv->proot = createFillOperatorInfo(pRuntimeEnv, pInfo, pInfo->pExpr, pInfo->numOfOutput);
+        pRuntimeEnv->proot = createFillOperatorInfo(pRuntimeEnv, pInfo, pInfo->pExpr, pInfo->numOfOutput, pQueryAttr->multigroupResult);
         break;
       }
 
@@ -2271,16 +2271,20 @@ static int32_t setupQueryRuntimeEnv(SQueryRuntimeEnv *pRuntimeEnv, int32_t numOf
       }
 
       case OP_GlobalAggregate: { // If fill operator exists, the result rows of different group can not be in the same SSDataBlock.
-        bool groupResultMixedUp = (pQueryAttr->fillType == TSDB_FILL_NONE);
+        bool multigroupResult = pQueryAttr->multigroupResult;
+        if (pQueryAttr->multigroupResult) {
+          multigroupResult = (pQueryAttr->fillType == TSDB_FILL_NONE);
+        }
+
         pRuntimeEnv->proot = createGlobalAggregateOperatorInfo(pRuntimeEnv, pRuntimeEnv->proot, pQueryAttr->pExpr3,
-                                                               pQueryAttr->numOfExpr3, merger, pQueryAttr->pUdfInfo, groupResultMixedUp);
+                                                               pQueryAttr->numOfExpr3, merger, pQueryAttr->pUdfInfo, multigroupResult);
         break;
       }
 
       case OP_SLimit: {
         int32_t num = pRuntimeEnv->proot->numOfOutput;
         SExprInfo* pExpr = pRuntimeEnv->proot->pExpr;
-        pRuntimeEnv->proot = createSLimitOperatorInfo(pRuntimeEnv, pRuntimeEnv->proot, pExpr, num, merger);
+        pRuntimeEnv->proot = createSLimitOperatorInfo(pRuntimeEnv, pRuntimeEnv->proot, pExpr, num, merger, pQueryAttr->multigroupResult);
         break;
       }
 
@@ -6357,7 +6361,7 @@ static void doHandleRemainBlockFromNewGroup(SFillOperatorInfo *pInfo, SQueryRunt
   if (taosFillHasMoreResults(pInfo->pFillInfo)) {
     *newgroup = false;
     doFillTimeIntervalGapsInResults(pInfo->pFillInfo, pInfo->pRes, (int32_t)pRuntimeEnv->resultInfo.capacity, pInfo->p);
-    if (pInfo->pRes->info.rows > pRuntimeEnv->resultInfo.threshold) {
+    if (pInfo->pRes->info.rows > pRuntimeEnv->resultInfo.threshold || (!pInfo->multigroupResult)) {
       return;
     }
   }
@@ -6389,7 +6393,7 @@ static SSDataBlock* doFill(void* param, bool* newgroup) {
 
   SQueryRuntimeEnv  *pRuntimeEnv = pOperator->pRuntimeEnv;
   doHandleRemainBlockFromNewGroup(pInfo, pRuntimeEnv, newgroup);
-  if (pInfo->pRes->info.rows > pRuntimeEnv->resultInfo.threshold) {
+  if (pInfo->pRes->info.rows > pRuntimeEnv->resultInfo.threshold || (!pInfo->multigroupResult && pInfo->pRes->info.rows > 0)) {
     return pInfo->pRes;
   }
 //  if (taosFillHasMoreResults(pInfo->pFillInfo)) {
@@ -6426,8 +6430,8 @@ static SSDataBlock* doFill(void* param, bool* newgroup) {
       pInfo->existNewGroupBlock = pBlock;
       *newgroup = false;
 
-      // fill the previous group data block
-      // before handle a new data block, close the fill operation for previous group data block
+      // Fill the previous group data block, before handle the data block of new group.
+      // Close the fill operation for previous group data block
       taosFillSetStartInfo(pInfo->pFillInfo, 0, pRuntimeEnv->pQueryAttr->window.ekey);
     } else {
       if (pBlock == NULL) {
@@ -6448,8 +6452,9 @@ static SSDataBlock* doFill(void* param, bool* newgroup) {
 
     // current group has no more result to return
     if (pInfo->pRes->info.rows > 0) {
-      // the result in current group not reach the threshold of output result, continue
-      if (pInfo->pRes->info.rows > pRuntimeEnv->resultInfo.threshold || pBlock == NULL) {
+      // 1. The result in current group not reach the threshold of output result, continue
+      // 2. If multiple group results existing in one SSDataBlock is not allowed, return immediately
+      if (pInfo->pRes->info.rows > pRuntimeEnv->resultInfo.threshold || pBlock == NULL || (!pInfo->multigroupResult)) {
         return pInfo->pRes;
       }
 
@@ -6944,10 +6949,10 @@ SOperatorInfo* createGroupbyOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperato
   return pOperator;
 }
 
-SOperatorInfo* createFillOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorInfo* upstream, SExprInfo* pExpr,
-                                      int32_t numOfOutput) {
+SOperatorInfo* createFillOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorInfo* upstream, SExprInfo* pExpr, int32_t numOfOutput, bool multigroupResult) {
   SFillOperatorInfo* pInfo = calloc(1, sizeof(SFillOperatorInfo));
   pInfo->pRes = createOutputBuf(pExpr, numOfOutput, pRuntimeEnv->resultInfo.capacity);
+  pInfo->multigroupResult = multigroupResult;
 
   {
     SQueryAttr* pQueryAttr = pRuntimeEnv->pQueryAttr;
@@ -6983,7 +6988,7 @@ SOperatorInfo* createFillOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorIn
   return pOperator;
 }
 
-SOperatorInfo* createSLimitOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorInfo* upstream, SExprInfo* pExpr, int32_t numOfOutput, void* pMerger) {
+SOperatorInfo* createSLimitOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorInfo* upstream, SExprInfo* pExpr, int32_t numOfOutput, void* pMerger, bool multigroupResult) {
   SSLimitOperatorInfo* pInfo = calloc(1, sizeof(SSLimitOperatorInfo));
 
   SQueryAttr* pQueryAttr = pRuntimeEnv->pQueryAttr;
@@ -6995,6 +7000,7 @@ SOperatorInfo* createSLimitOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperator
   pInfo->threshold       = pInfo->capacity * 0.8;
   pInfo->currentOffset   = pQueryAttr->limit.offset;
   pInfo->currentGroupOffset = pQueryAttr->slimit.offset;
+  pInfo->multigroupResult= multigroupResult;
 
   // TODO refactor
   int32_t len = 0;
