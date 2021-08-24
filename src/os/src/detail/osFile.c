@@ -368,7 +368,7 @@ int32_t taosFsync(FileFd fd) {
 
   HANDLE h = (HANDLE)_get_osfhandle(fd);
 
-  return FlushFileBuffers(h);
+  return !FlushFileBuffers(h);
 }
 
 int32_t taosRename(char *oldName, char *newName) {

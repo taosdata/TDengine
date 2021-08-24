@@ -3,6 +3,7 @@
 import ctypes
 import platform
 import sys
+import os
 from ctypes import *
 try:
     from typing import Any
@@ -37,7 +38,11 @@ def _load_taos_darwin():
 
 
 def _load_taos_windows():
-    return ctypes.windll.LoadLibrary("taos")
+    if os.path.exists("c:\\Windows\\System32\\taos.dll"):
+        return ctypes.windll.LoadLibrary("taos")
+    else:
+        print("Please copy the \"C:\\TDengine\\driver\\taos.dll\" file to the \"C:\\windows\\system32\" directory.")
+        return ctypes.windll.LoadLibrary("C:\\TDengine\\driver\\taos.dll")
 
 
 def _load_taos():
