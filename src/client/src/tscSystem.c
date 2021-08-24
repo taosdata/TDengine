@@ -442,12 +442,13 @@ int taos_options(TSDB_OPTION option, const void *arg, ...) {
 static int taos_set_config_imp(const char *config){
   static bool setConfFlag = false;
   if (setConfFlag) {
-    tscError("already set config");
+    printf("already set config");
     return 0;
   }
+  taosInitGlobalCfg();
   cJSON *root = cJSON_Parse(config);
   if (root == NULL) {
-    tscError("failed to set config, invalid json format: %s", config);
+    printf("failed to set config, invalid json format: %s", config);
     return -1;
   }
 
@@ -456,30 +457,25 @@ static int taos_set_config_imp(const char *config){
   for(int i = 0; i < size; i++){
     cJSON *item = cJSON_GetArrayItem(root, i);
     if (!item) {
-      tscError("failed to read index:%d", i);
+      printf("failed to read index:%d", i);
       ret = -2;
       continue;
     }
-    if(!taosReadConfigOption(item->string, item->valuestring, NULL, NULL)){
+    if(!taosReadConfigOption(item->string, item->valuestring, NULL, NULL, TAOS_CFG_CSTATUS_OPTION)){
+      printf("set failed:%s->%s", item->string, item->valuestring);
       ret = -2;
     }
   }
-  taosPrintGlobalCfg();
   setConfFlag = true;
   return ret;
 }
 
 int taos_set_config(const char *config){
-  if(taos_init()){
-    tscError("failed to call taos_init");
-    return -1;
-  }
-
   static int32_t lock = 0;
 
   for (int i = 1; atomic_val_compare_exchange_32(&lock, 0, 1) != 0; ++i) {
     if (i % 1000 == 0) {
-      tscInfo("haven't acquire lock after spin %d times.", i);
+      printf("haven't acquire lock after spin %d times.", i);
       sched_yield();
     }
   }

@@ -293,7 +293,9 @@ SGlobalCfg *taosGetConfigOption(const char *option) {
   return NULL;
 }
 
-bool taosReadConfigOption(const char *option, char *value, char *value2, char *value3) {
+bool taosReadConfigOption(const char *option, char *value, char *value2, char *value3,
+                          int8_t cfgStatus) {
+  bool ret = false;
   for (int i = 0; i < tsGlobalConfigNum; ++i) {
     SGlobalCfg *cfg = tsGlobalConfig + i;
     if (!(cfg->cfgType & TSDB_CFG_CTYPE_B_CONFIG)) continue;
@@ -301,35 +303,48 @@ bool taosReadConfigOption(const char *option, char *value, char *value2, char *v
 
     switch (cfg->valType) {
       case TAOS_CFG_VTYPE_INT8:
-        return taosReadInt8Config(cfg, value);
+        ret = taosReadInt8Config(cfg, value);
+        break;
       case TAOS_CFG_VTYPE_INT16:
-        return taosReadInt16Config(cfg, value);
+        ret = taosReadInt16Config(cfg, value);
+        break;
       case TAOS_CFG_VTYPE_INT32:
-        return taosReadInt32Config(cfg, value);
+        ret = taosReadInt32Config(cfg, value);
+        break;
       case TAOS_CFG_VTYPE_UINT16:
-        return taosReadUInt16Config(cfg, value);
+        ret = taosReadUInt16Config(cfg, value);
+        break;
       case TAOS_CFG_VTYPE_FLOAT:
-        return taosReadFloatConfig(cfg, value);
+        ret = taosReadFloatConfig(cfg, value);
+        break;
       case TAOS_CFG_VTYPE_DOUBLE:
-        return taosReadDoubleConfig(cfg, value);
+        ret = taosReadDoubleConfig(cfg, value);
+        break;
       case TAOS_CFG_VTYPE_STRING:
-        return taosReadStringConfig(cfg, value);
+        ret = taosReadStringConfig(cfg, value);
+        break;
       case TAOS_CFG_VTYPE_IPSTR:
-        return taosReadIpStrConfig(cfg, value);
+        ret = taosReadIpStrConfig(cfg, value);
+        break;
       case TAOS_CFG_VTYPE_DIRECTORY:
-        return taosReadDirectoryConfig(cfg, value);
+        ret = taosReadDirectoryConfig(cfg, value);
+        break;
       case TAOS_CFG_VTYPE_DATA_DIRCTORY:
         if (taosReadDirectoryConfig(cfg, value)) {
            taosReadDataDirCfg(value, value2, value3);
-           return true;
+           ret = true;
         }
-        return false;
+        ret = false;
+        break;
       default:
         uError("config option:%s, input value:%s, can't be recognized", option, value);
-        return false;
+        ret = false;
+    }
+    if(ret && cfgStatus == TAOS_CFG_CSTATUS_OPTION){
+      cfg->cfgStatus = TAOS_CFG_CSTATUS_OPTION;
     }
   }
-  return false;
+  return ret;
 }
 
 void taosInitConfigOption(SGlobalCfg cfg) {
@@ -464,7 +479,7 @@ bool taosReadGlobalCfg() {
       if (vlen3 != 0) value3[vlen3] = 0;
     }
 
-    taosReadConfigOption(option, value, value2, value3);
+    taosReadConfigOption(option, value, value2, value3, TAOS_CFG_CSTATUS_FILE);
   }
 
   fclose(fp);
