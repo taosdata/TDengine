@@ -40,6 +40,7 @@
 #include "qScript.h"
 #include "ttype.h"
 #include "qFilter.h"
+#include "httpInt.h"
 
 #define DEFAULT_PRIMARY_TIMESTAMP_COL_NAME "_c0"
 
@@ -1687,8 +1688,28 @@ static bool has(SArray* pFieldList, int32_t startIdx, const char* name) {
 static char* getAccountId(SSqlObj* pSql) { return pSql->pTscObj->acctId; }
 
 static char* cloneCurrentDBName(SSqlObj* pSql) {
+  char        *p = NULL;
+  HttpContext *pCtx = NULL;
+
   pthread_mutex_lock(&pSql->pTscObj->mutex);
-  char *p = strdup(pSql->pTscObj->db);  
+  STscObj *pTscObj = pSql->pTscObj;
+  switch (pTscObj->from) {
+  case TAOS_REQ_FROM_HTTP:
+    pCtx = pSql->param;
+    if (pCtx && pCtx->db[0] != '\0') {
+      char db[TSDB_ACCT_ID_LEN + TSDB_DB_NAME_LEN] = {0};
+      int32_t len = sprintf(db, "%s%s%s", pTscObj->acctId, TS_PATH_DELIMITER, pCtx->db);
+      assert(len <= sizeof(db));
+
+      p = strdup(db);
+    }
+    break;
+  default:
+    break;
+  }
+  if (p == NULL) {
+    p = strdup(pSql->pTscObj->db);
+  }
   pthread_mutex_unlock(&pSql->pTscObj->mutex);
 
   return p;
@@ -8687,7 +8708,6 @@ static STableMeta* extractTempTableMetaFromSubquery(SQueryInfo* pUpstream) {
     n += 1;
   }
   info->numOfColumns = n;
-  
 
   return meta;
 }
