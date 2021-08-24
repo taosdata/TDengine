@@ -2440,7 +2440,7 @@ static void doSendQueryReqs(SSchedMsg* pSchedMsg) {
     SRetrieveSupport* pSupport = pSub->param;
 
     tscDebug("0x%"PRIx64" sub:0x%"PRIx64" launch subquery, orderOfSub:%d.", pSql->self, pSub->self, pSupport->subqueryIndex);
-    tscProcessSql(pSub);
+    tscBuildAndSendRequest(pSub, NULL);
   }
 
   tfree(p);
