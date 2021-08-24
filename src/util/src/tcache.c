@@ -720,8 +720,6 @@ void* taosCacheTimedRefresh(void *handle) {
         continue;
       }
 
-      pthread_mutex_unlock(&guard);
-
       if ((count % pCacheObj->checkTick) != 0) {
         continue;
       }
@@ -741,6 +739,8 @@ void* taosCacheTimedRefresh(void *handle) {
       }
 
       taosTrashcanEmpty(pCacheObj, false);
+
+      pthread_mutex_unlock(&guard);
     }
   }
 
