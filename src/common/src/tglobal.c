@@ -75,6 +75,13 @@ int32_t tsMaxBinaryDisplayWidth = 30;
  */
 int32_t tsCompressMsgSize = -1;
 
+/* denote if server needs to compress the retrieved column data before adding to the rpc response message body.
+ * 0: all data are compressed
+ * -1: all data are not compressed
+ * other values: if any retrieved column size is greater than the tsCompressColData, all data will be compressed.
+ */
+int32_t tsCompressColData = -1;
+
 // client
 int32_t tsMaxSQLStringLen = TSDB_MAX_ALLOWED_SQL_LEN;
 int32_t tsMaxWildCardsLen = TSDB_PATTERN_STRING_MAX_LEN;
@@ -86,6 +93,9 @@ int32_t tsMaxNumOfOrderedResults = 100000;
 
 // 10 ms for sliding time, the value will changed in case of time precision changed
 int32_t tsMinSlidingTime = 10;
+
+// the maxinum number of distict query result
+int32_t tsMaxNumOfDistinctResults  = 1000 * 10000;
 
 // 1 us for interval time range, changed accordingly
 int32_t tsMinIntervalTime = 1;
@@ -139,6 +149,12 @@ int32_t tsMaxVgroupsPerDb  = 0;
 int32_t tsMinTablePerVnode = TSDB_TABLES_STEP;
 int32_t tsMaxTablePerVnode = TSDB_DEFAULT_TABLES;
 int32_t tsTableIncStepPerVnode = TSDB_TABLES_STEP;
+int32_t tsTsdbMetaCompactRatio = TSDB_META_COMPACT_RATIO;
+
+// tsdb config 
+
+// For backward compatibility
+bool tsdbForceKeepFile = false;
 
 // balance
 int8_t  tsEnableBalance = 1;
@@ -543,6 +559,17 @@ static void doInitGlobalConfig(void) {
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosInitConfigOption(cfg);
+
+  cfg.option = "maxNumOfDistinctRes";
+  cfg.ptr = &tsMaxNumOfDistinctResults;
+  cfg.valType = TAOS_CFG_VTYPE_INT32;
+  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW | TSDB_CFG_CTYPE_B_CLIENT;
+  cfg.minValue = 10*10000;
+  cfg.maxValue = 10000*10000;
+  cfg.ptrLength = 0;
+  cfg.unitType = TAOS_CFG_UTYPE_NONE;
+  taosInitConfigOption(cfg);
+  
 
   cfg.option = "numOfMnodes";
   cfg.ptr = &tsNumOfMnodes;
@@ -969,6 +996,16 @@ static void doInitGlobalConfig(void) {
 
   cfg.option = "compressMsgSize";
   cfg.ptr = &tsCompressMsgSize;
+  cfg.valType = TAOS_CFG_VTYPE_INT32;
+  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_CLIENT | TSDB_CFG_CTYPE_B_SHOW;
+  cfg.minValue = -1;
+  cfg.maxValue = 100000000.0f;
+  cfg.ptrLength = 0;
+  cfg.unitType = TAOS_CFG_UTYPE_NONE;
+  taosInitConfigOption(cfg);
+
+  cfg.option = "compressColData";
+  cfg.ptr = &tsCompressColData;
   cfg.valType = TAOS_CFG_VTYPE_INT32;
   cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_CLIENT | TSDB_CFG_CTYPE_B_SHOW;
   cfg.minValue = -1;
@@ -1541,6 +1578,16 @@ static void doInitGlobalConfig(void) {
   cfg.minValue = 0;
   cfg.maxValue = 0;
   cfg.ptrLength = tListLen(tsTempDir);
+  cfg.unitType = TAOS_CFG_UTYPE_NONE;
+  taosInitConfigOption(cfg);
+
+  cfg.option = "tsdbMetaCompactRatio";
+  cfg.ptr = &tsTsdbMetaCompactRatio;
+  cfg.valType = TAOS_CFG_VTYPE_INT32;
+  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG;
+  cfg.minValue = 0;
+  cfg.maxValue = 100;
+  cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosInitConfigOption(cfg);
 

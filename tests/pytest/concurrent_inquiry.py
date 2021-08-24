@@ -175,12 +175,62 @@ class ConcurrentInquiry:
     def con_group(self,tlist,col_list,tag_list):
         rand_tag = random.randint(0,5)
         rand_col = random.randint(0,1)
-        return 'group by '+','.join(random.sample(col_list,rand_col) + random.sample(tag_list,rand_tag))
-    
+        if len(tag_list):
+            return 'group by '+','.join(random.sample(col_list,rand_col) + random.sample(tag_list,rand_tag))
+        else:
+            return 'group by '+','.join(random.sample(col_list,rand_col))
+
     def con_order(self,tlist,col_list,tag_list):
         return 'order by '+random.choice(tlist)
     
-    def gen_query_sql(self):                        #生成查询语句
+    def gen_subquery_sql(self):
+        subsql ,col_num = self.gen_query_sql(1)
+        if col_num == 0:
+            return 0
+        col_list=[]
+        tag_list=[]
+        for i in range(col_num):
+            col_list.append("taosd%d"%i)
+
+        tlist=col_list+['abc']            #增加不存在的域'abc'，是否会引起新bug
+        con_rand=random.randint(0,len(condition_list))
+        func_rand=random.randint(0,len(func_list))
+        col_rand=random.randint(0,len(col_list))
+        t_rand=random.randint(0,len(tlist))
+        sql='select '                                           #select 
+        random.shuffle(col_list)
+        random.shuffle(func_list)
+        sel_col_list=[]
+        col_rand=random.randint(0,len(col_list))
+        loop = 0
+        for i,j in zip(col_list[0:col_rand],func_list):         #决定每个被查询col的函数
+            alias = ' as '+ 'sub%d ' % loop
+            loop += 1
+            pick_func = ''
+            if j == 'leastsquares':
+                pick_func=j+'('+i+',1,1)'
+            elif j == 'top' or j == 'bottom' or j == 'percentile' or j == 'apercentile':
+                pick_func=j+'('+i+',1)'
+            else:
+                pick_func=j+'('+i+')'
+            if bool(random.getrandbits(1)) :
+                pick_func+=alias
+            sel_col_list.append(pick_func)
+        if col_rand == 0:
+            sql = sql + '*'   
+        else: 
+            sql=sql+','.join(sel_col_list)         #select col & func
+        sql = sql + ' from ('+ subsql +') ' 
+        con_func=[self.con_where,self.con_interval,self.con_limit,self.con_group,self.con_order,self.con_fill]
+        sel_con=random.sample(con_func,random.randint(0,len(con_func)))
+        sel_con_list=[]
+        for i in sel_con:
+            sel_con_list.append(i(tlist,col_list,tag_list))                                  #获取对应的条件函数
+        sql+=' '.join(sel_con_list)                                       # condition
+        #print(sql)
+        return sql
+    
+    def gen_query_sql(self,subquery=0):                        #生成查询语句
         tbi=random.randint(0,len(self.subtb_list)+len(self.stb_list))  #随机决定查询哪张表
         tbname=''
         col_list=[]
@@ -218,10 +268,10 @@ class ConcurrentInquiry:
                 pick_func=j+'('+i+',1)'
             else:
                 pick_func=j+'('+i+')'
-            if bool(random.getrandbits(1)):
+            if bool(random.getrandbits(1)) | subquery :
                 pick_func+=alias
             sel_col_list.append(pick_func)
-        if col_rand == 0:
+        if col_rand == 0 & subquery :
             sql = sql + '*'   
         else: 
             sql=sql+','.join(sel_col_list)         #select col & func
@@ -238,7 +288,7 @@ class ConcurrentInquiry:
             sel_con_list.append(i(tlist,col_list,tag_list))                                  #获取对应的条件函数
         sql+=' '.join(sel_con_list)                                       # condition
         #print(sql)
-        return sql
+        return (sql,loop)
 
     def gen_query_join(self):                        #生成join查询语句
         tbname   = []
@@ -429,9 +479,12 @@ class ConcurrentInquiry:
             
                 try:
                     if self.random_pick():
-                        sql=self.gen_query_sql()
+                        if self.random_pick():
+                            sql,temp=self.gen_query_sql()
+                        else:
+                            sql = self.gen_subquery_sql()
                     else:
-                        sql=self.gen_query_join()
+                        sql = self.gen_query_join()
                     print("sql is ",sql)
                     fo.write(sql+'\n')
                     start = time.time()
@@ -496,9 +549,12 @@ class ConcurrentInquiry:
         while loop:
             try:
                 if self.random_pick():
-                    sql=self.gen_query_sql()
+                    if self.random_pick():
+                        sql,temp=self.gen_query_sql()
+                    else:
+                        sql = self.gen_subquery_sql()
                 else:
-                    sql=self.gen_query_join()
+                    sql = self.gen_query_join()
                 print("sql is ",sql)
                 fo.write(sql+'\n')
                 start = time.time()

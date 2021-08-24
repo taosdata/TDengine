@@ -409,7 +409,7 @@ static void doProcessMsgFromServer(SSchedMsg* pSchedMsg) {
     if ((TSDB_QUERY_HAS_TYPE(pQueryInfo->type, (TSDB_QUERY_TYPE_STABLE_SUBQUERY | TSDB_QUERY_TYPE_SUBQUERY |
                                                TSDB_QUERY_TYPE_TAG_FILTER_QUERY)) &&
                                                !TSDB_QUERY_HAS_TYPE(pQueryInfo->type, TSDB_QUERY_TYPE_PROJECTION_QUERY)) ||
-                                               (TSDB_QUERY_HAS_TYPE(pQueryInfo->type, TSDB_QUERY_TYPE_NEST_SUBQUERY))) {
+                                               (TSDB_QUERY_HAS_TYPE(pQueryInfo->type, TSDB_QUERY_TYPE_NEST_SUBQUERY)) || (TSDB_QUERY_HAS_TYPE(pQueryInfo->type, TSDB_QUERY_TYPE_STABLE_SUBQUERY) &&  pQueryInfo->distinct)) {
       // do nothing in case of super table subquery
     }  else {
       pSql->retry += 1;
@@ -2678,6 +2678,53 @@ int tscProcessQueryRsp(SSqlObj *pSql) {
   return 0;
 }
 
+static void decompressQueryColData(SSqlObj *pSql, SSqlRes *pRes, SQueryInfo* pQueryInfo, char **data, int8_t compressed, int32_t compLen) {
+  int32_t decompLen = 0;
+  int32_t numOfCols = pQueryInfo->fieldsInfo.numOfOutput;
+  int32_t *compSizes;
+  char    *pData = *data;
+  compSizes = (int32_t *)(pData + compLen);
+
+  TAOS_FIELD *pField = tscFieldInfoGetField(&pQueryInfo->fieldsInfo, numOfCols - 1);
+  int16_t     offset = tscFieldInfoGetOffset(pQueryInfo, numOfCols - 1);
+  char       *outputBuf = tcalloc(pRes->numOfRows, (pField->bytes + offset));
+
+  char *p = outputBuf;
+  int32_t bufOffset;
+  for (int32_t i = 0; i < numOfCols; ++i) {
+    SInternalField* pInfo = (SInternalField*)TARRAY_GET_ELEM(pQueryInfo->fieldsInfo.internalField, i);
+    bufOffset = pInfo->field.bytes * pRes->numOfRows;
+
+    int32_t flen = (*(tDataTypes[pInfo->field.type].decompFunc))(pData, htonl(compSizes[i]), pRes->numOfRows, p, bufOffset,
+                                                               compressed, NULL, 0);
+
+    p += flen;
+    decompLen +=flen;
+    pData += htonl(compSizes[i]);
+  }
+
+  /* Resize rsp as decompressed data will occupy more space */
+  pRes->rspLen = pRes->rspLen - (compLen + numOfCols * sizeof(int32_t)) + decompLen;
+  char *new_rsp = (char *)realloc(pRes->pRsp, pRes->rspLen);
+  if (new_rsp == NULL) {
+    pRes->code = TSDB_CODE_TSC_OUT_OF_MEMORY;
+    return;
+  } else {
+    pRes->pRsp = new_rsp;
+    *data = ((SRetrieveTableRsp *)pRes->pRsp)->data;
+    pData = *data + compLen + numOfCols * sizeof(int32_t);
+  }
+
+  tscDebug("0x%"PRIx64" decompress col data, compressed size:%d, decompressed size:%d",
+      pSql->self, (int32_t)(compLen + numOfCols * sizeof(int32_t)), decompLen);
+
+  int32_t tailLen = pRes->rspLen - sizeof(SRetrieveTableRsp) - decompLen;
+  memmove(*data + decompLen, pData, tailLen);
+  memmove(*data, outputBuf, decompLen);
+
+  tfree(outputBuf);
+}
+
 int tscProcessRetrieveRspFromNode(SSqlObj *pSql) {
   SSqlRes *pRes = &pSql->res;
   SSqlCmd *pCmd = &pSql->cmd;
@@ -2690,16 +2737,22 @@ int tscProcessRetrieveRspFromNode(SSqlObj *pSql) {
     return pRes->code;
   }
 
-  pRes->numOfRows = htonl(pRetrieve->numOfRows);
-  pRes->precision = htons(pRetrieve->precision);
-  pRes->offset    = htobe64(pRetrieve->offset);
-  pRes->useconds  = htobe64(pRetrieve->useconds);
-  pRes->completed = (pRetrieve->completed == 1);
-  pRes->data      = pRetrieve->data;
-  
+  pRes->numOfRows  = htonl(pRetrieve->numOfRows);
+  pRes->precision  = htons(pRetrieve->precision);
+  pRes->offset     = htobe64(pRetrieve->offset);
+  pRes->useconds   = htobe64(pRetrieve->useconds);
+  pRes->completed  = (pRetrieve->completed == 1);
+  pRes->data       = pRetrieve->data;
+
   SQueryInfo* pQueryInfo = tscGetQueryInfo(pCmd);
   if (tscCreateResPointerInfo(pRes, pQueryInfo) != TSDB_CODE_SUCCESS) {
     return pRes->code;
+  }
+
+  //Decompress col data if compressed from server
+  if (pRetrieve->compressed) {
+    int32_t compLen = htonl(pRetrieve->compLen);
+    decompressQueryColData(pSql, pRes, pQueryInfo, &pRes->data, pRetrieve->compressed, compLen);
   }
 
   STableMetaInfo *pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
@@ -2714,10 +2767,10 @@ int tscProcessRetrieveRspFromNode(SSqlObj *pSql) {
 
   if (pSql->pSubscription != NULL) {
     int32_t numOfCols = pQueryInfo->fieldsInfo.numOfOutput;
-    
+
     TAOS_FIELD *pField = tscFieldInfoGetField(&pQueryInfo->fieldsInfo, numOfCols - 1);
     int16_t     offset = tscFieldInfoGetOffset(pQueryInfo, numOfCols - 1);
-    
+
     char* p = pRes->data + (pField->bytes + offset) * pRes->numOfRows;
 
     int32_t numOfTables = htonl(*(int32_t*)p);

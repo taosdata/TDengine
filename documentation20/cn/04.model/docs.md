@@ -1,19 +1,19 @@
 
 
-# 数据建模
+# TDengine数据建模
 
-TDengine采用关系型数据模型，需要建库、建表。因此对于一个具体的应用场景，需要考虑库的设计，超级表和普通表的设计。本节不讨论细致的语法规则，只介绍概念。
+TDengine采用关系型数据模型，需要建库、建表。因此对于一个具体的应用场景，需要考虑库、超级表和普通表的设计。本节不讨论细致的语法规则，只介绍概念。
 
 关于数据建模请参考[视频教程](https://www.taosdata.com/blog/2020/11/11/1945.html)。
 
 ## <a class="anchor" id="create-db"></a>创建库
 
-不同类型的数据采集点往往具有不同的数据特征，包括数据采集频率的高低，数据保留时间的长短，副本的数目，数据块的大小，是否允许更新数据等等。为让各种场景下TDengine都能最大效率的工作，TDengine建议将不同数据特征的表创建在不同的库里，因为每个库可以配置不同的存储策略。创建一个库时，除SQL标准的选项外，应用还可以指定保留时长、副本数、内存块个数、时间精度、文件块里最大最小记录条数、是否压缩、一个数据文件覆盖的天数等多种参数。比如：
+不同类型的数据采集点往往具有不同的数据特征，包括数据采集频率的高低，数据保留时间的长短，副本的数目，数据块的大小，是否允许更新数据等等。为了在各种场景下TDengine都能最大效率的工作，TDengine建议将不同数据特征的表创建在不同的库里，因为每个库可以配置不同的存储策略。创建一个库时，除SQL标准的选项外，应用还可以指定保留时长、副本数、内存块个数、时间精度、文件块里最大最小记录条数、是否压缩、一个数据文件覆盖的天数等多种参数。比如：
 
 ```mysql
-CREATE DATABASE power KEEP 365 DAYS 10 BLOCKS 4 UPDATE 1;
+CREATE DATABASE power KEEP 365 DAYS 10 BLOCKS 6 UPDATE 1;
 ```
-上述语句将创建一个名为power的库，这个库的数据将保留365天（超过365天将被自动删除），每10天一个数据文件，内存块数为4，允许更新数据。详细的语法及参数请见 [TAOS SQL 的数据管理](https://www.taosdata.com/cn/documentation/taos-sql#management) 章节。
+上述语句将创建一个名为power的库，这个库的数据将保留365天（超过365天将被自动删除），每10天一个数据文件，内存块数为6，允许更新数据。详细的语法及参数请见 [TAOS SQL 的数据管理](https://www.taosdata.com/cn/documentation/taos-sql#management) 章节。
 
 创建库之后，需要使用SQL命令USE将当前库切换过来，例如：
 
@@ -21,16 +21,17 @@ CREATE DATABASE power KEEP 365 DAYS 10 BLOCKS 4 UPDATE 1;
 USE power;	
 ```
 
-就当前连接里操作的库换为power，否则对具体表操作前，需要使用“库名.表名”来指定库的名字。  
+将当前连接里操作的库换为power，否则对具体表操作前，需要使用“库名.表名”来指定库的名字。  
 
 **注意：**
 
 - 任何一张表或超级表是属于一个库的，在创建表之前，必须先创建库。
 - 处于两个不同库的表是不能进行JOIN操作的。
+- 创建并插入记录、查询历史记录的时候，均需要指定时间戳。
 
 ## <a class="anchor" id="create-stable"></a>创建超级表
 
-一个物联网系统，往往存在多种类型的设备，比如对于电网，存在智能电表、变压器、母线、开关等等。为便于多表之间的聚合，使用TDengine, 需要对每个类型的数据采集点创建一超级表。以表一中的智能电表为例，可以使用如下的SQL命令创建超级表：
+一个物联网系统，往往存在多种类型的设备，比如对于电网，存在智能电表、变压器、母线、开关等等。为便于多表之间的聚合，使用TDengine, 需要对每个类型的数据采集点创建一个超级表。以[表1](https://www.taosdata.com/cn/documentation/architecture#model_table1)中的智能电表为例，可以使用如下的SQL命令创建超级表：
 
 ```mysql
 CREATE STABLE meters (ts timestamp, current float, voltage int, phase float) TAGS (location binary(64), groupId int);
@@ -46,7 +47,7 @@ CREATE STABLE meters (ts timestamp, current float, voltage int, phase float) TAG
 
 ## <a class="anchor" id="create-table"></a>创建表
 
-TDengine对每个数据采集点需要独立建表。与标准的关系型数据一样，一张表有表名，Schema，但除此之外，还可以带有一到多个标签。创建时，需要使用超级表做模板，同时指定标签的具体值。以表一中的智能电表为例，可以使用如下的SQL命令建表：
+TDengine对每个数据采集点需要独立建表。与标准的关系型数据库一样，一张表有表名，Schema，但除此之外，还可以带有一到多个标签。创建时，需要使用超级表做模板，同时指定标签的具体值。以[表1](https://www.taosdata.com/cn/documentation/architecture#model_table1)中的智能电表为例，可以使用如下的SQL命令建表：
 
 ```mysql
 CREATE TABLE d1001 USING meters TAGS ("Beijing.Chaoyang", 2);
@@ -61,10 +62,10 @@ TDengine建议将数据采集点的全局唯一ID作为表名(比如设备序列
 **自动建表**：在某些特殊场景中，用户在写数据时并不确定某个数据采集点的表是否存在，此时可在写入数据时使用自动建表语法来创建不存在的表，若该表已存在则不会建立新表。比如：
 
 ```mysql
-INSERT INTO d1001 USING METERS TAGS ("Beijng.Chaoyang", 2) VALUES (now, 10.2, 219, 0.32);
+INSERT INTO d1001 USING meters TAGS ("Beijng.Chaoyang", 2) VALUES (now, 10.2, 219, 0.32);
 ```
 
-上述SQL语句将记录 (now, 10.2, 219, 0.32) 插入表d1001。如果表d1001还未创建，则使用超级表meters做模板自动创建，同时打上标签值“Beijing.Chaoyang", 2。  
+上述SQL语句将记录 (now, 10.2, 219, 0.32) 插入表d1001。如果表d1001还未创建，则使用超级表meters做模板自动创建，同时打上标签值 `“Beijing.Chaoyang", 2`。
 
 关于自动建表的详细语法请参见 [插入记录时自动建表](https://www.taosdata.com/cn/documentation/taos-sql#auto_create_table) 章节。
 
@@ -72,5 +73,5 @@ INSERT INTO d1001 USING METERS TAGS ("Beijng.Chaoyang", 2) VALUES (now, 10.2, 21
 
 TDengine支持多列模型，只要物理量是一个数据采集点同时采集的（时间戳一致），这些量就可以作为不同列放在一张超级表里。但还有一种极限的设计，单列模型，每个采集的物理量都单独建表，因此每种类型的物理量都单独建立一超级表。比如电流、电压、相位，就建三张超级表。
 
-TDengine建议尽可能采用多列模型，因为插入效率以及存储效率更高。但对于有些场景，一个采集点的采集量的种类经常变化，这个时候，如果采用多列模型，就需要频繁修改超级表的结构定义，让应用变的复杂，这个时候，采用单列模型会显得简单。
+TDengine建议尽可能采用多列模型，因为插入效率以及存储效率更高。但对于有些场景，一个采集点的采集量的种类经常变化，这个时候，如果采用多列模型，就需要频繁修改超级表的结构定义，让应用变的复杂，这个时候，采用单列模型会显得更简单。
 

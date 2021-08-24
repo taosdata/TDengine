@@ -9,7 +9,7 @@ TAOS SQL 不支持关键字的缩写，例如 DESCRIBE 不能缩写为 DESC。
 本章节 SQL 语法遵循如下约定：
 
 - < > 里的内容是用户需要输入的，但不要输入 <> 本身
-- [ ] 表示内容为可选项，但不能输入 [] 本身
+- \[ \] 表示内容为可选项，但不能输入 [] 本身
 - | 表示多选一，选择其中一个即可，但不能输入 | 本身
 - … 表示前面的项可重复多个
 
@@ -265,7 +265,7 @@ TDengine 缺省的时间戳是毫秒精度，但通过在 CREATE DATABASE 时传
     ```mysql
     CREATE STABLE [IF NOT EXISTS] stb_name (timestamp_field_name TIMESTAMP, field1_name data_type1 [, field2_name data_type2 ...]) TAGS (tag1_name tag_type1, tag2_name tag_type2 [, tag3_name tag_type3]);
     ```
-    创建 STable，与创建表的 SQL 语法相似，但需要指定 TAGS 字段的名称和类型
+    创建 STable，与创建表的 SQL 语法相似，但需要指定 TAGS 字段的名称和类型。
 
     说明：
 
@@ -728,18 +728,6 @@ Query OK, 1 row(s) in set (0.001091s)
 4. 从 2.0.17.0 版本开始，条件过滤开始支持 BETWEEN AND 语法，例如 `WHERE col2 BETWEEN 1.5 AND 3.25` 表示查询条件为“1.5 ≤ col2 ≤ 3.25”。
 5. 从 2.1.4.0 版本开始，条件过滤开始支持 IN 算子，例如 `WHERE city IN ('Beijing', 'Shanghai')`。说明：BOOL 类型写作 `{true, false}` 或 `{0, 1}` 均可，但不能写作 0、1 之外的整数；FLOAT 和 DOUBLE 类型会受到浮点数精度影响，集合内的值在精度范围内认为和数据行的值完全相等才能匹配成功；TIMESTAMP 类型支持非主键的列。<!-- REPLACE_OPEN_TO_ENTERPRISE__IN_OPERATOR_AND_UNSIGNED_INTEGER -->
 
-<!-- 
-<a class="anchor" id="having"></a>
-### GROUP BY 之后的 HAVING 过滤
-
-从 2.0.20.0 版本开始，GROUP BY 之后允许再跟一个 HAVING 子句，对成组后的各组数据再做筛选。HAVING 子句可以使用聚合函数和选择函数作为过滤条件（但暂时不支持 LEASTSQUARES、TOP、BOTTOM、LAST_ROW）。
-
-例如，如下语句只会输出 `AVG(f1) > 0` 的分组：
-```mysql
-SELECT AVG(f1), SPREAD(f1, f2, st2.f1) FROM st2 WHERE f1 > 0 GROUP BY f1 HAVING AVG(f1) > 0;
-```
--->
-
 <a class="anchor" id="union"></a>
 ### UNION ALL 操作符
 
@@ -1025,9 +1013,9 @@ TDengine支持针对数据的聚合查询。提供支持的聚合和选择函数
 
     1）如果要返回各个列的首个（时间戳最小）非NULL值，可以使用FIRST(\*)；
 
-    2) 如果结果集中的某列全部为NULL值，则该列的返回结果也是NULL；
+    2）如果结果集中的某列全部为NULL值，则该列的返回结果也是NULL；
 
-    3) 如果结果集中所有列全部为NULL值，则不返回结果。
+    3）如果结果集中所有列全部为NULL值，则不返回结果。
 
     示例：
     ```mysql
@@ -1187,7 +1175,7 @@ TDengine支持针对数据的聚合查询。提供支持的聚合和选择函数
 
     适用于：**表、超级表**。
 
-    说明：*P*值取值范围0≤*P*≤100，为0的时候等同于MIN，为100的时候等同于MAX。推荐使用```APERCENTILE```函数，该函数性能远胜于```PERCENTILE```函数
+    说明：*P*值取值范围0≤*P*≤100，为0的时候等同于MIN，为100的时候等同于MAX。推荐使用```APERCENTILE```函数，该函数性能远胜于```PERCENTILE```函数。
 
     ```mysql
     taos> SELECT APERCENTILE(current, 20) FROM d1001;
@@ -1209,8 +1197,6 @@ TDengine支持针对数据的聚合查询。提供支持的聚合和选择函数
 
     适用于：**表、超级表**。
 
-    说明：与LAST函数不同，LAST_ROW不支持时间范围限制，强制返回最后一条记录。
-
     限制：LAST_ROW()不能与INTERVAL一起使用。
 
     示例：
@@ -1230,7 +1216,7 @@ TDengine支持针对数据的聚合查询。提供支持的聚合和选择函数
 
 - **INTERP**
     ```mysql
-    SELECT INTERP(field_name) FROM { tb_name | stb_name } WHERE ts='timestamp' [FILL ({ VALUE | PREV | NULL | LINEAR})];
+    SELECT INTERP(field_name) FROM { tb_name | stb_name } WHERE ts='timestamp' [FILL ({ VALUE | PREV | NULL | LINEAR | NEXT})];
     ```
     功能说明：返回表/超级表的指定时间截面、指定字段的记录。
 
@@ -1241,8 +1227,6 @@ TDengine支持针对数据的聚合查询。提供支持的聚合和选择函数
     适用于：**表、超级表**。
 
     说明：（从 2.0.15.0 版本开始新增此函数）INTERP 必须指定时间断面，如果该时间断面不存在直接对应的数据，那么会根据 FILL 参数的设定进行插值。其中，条件语句里面可以附带更多的筛选条件，例如标签、tbname。
-
-    限制：INTERP 目前不支持 FILL(NEXT)。
 
     示例：
     ```mysql
@@ -1298,6 +1282,19 @@ TDengine支持针对数据的聚合查询。提供支持的聚合和选择函数
     适用于：**表、（超级表）**。
 
     说明：（从 2.1.3.0 版本开始新增此函数）输出结果行数是范围内总行数减一，第一行没有结果输出。DERIVATIVE 函数可以在由 GROUP BY 划分出单独时间线的情况下用于超级表（也即 GROUP BY tbname）。
+
+    示例：
+    ```mysql
+    taos> select derivative(current, 10m, 0) from t1;
+               ts            | derivative(current, 10m, 0) |
+    ========================================================
+     2021-08-20 10:11:22.790 |                 0.500000000 |
+     2021-08-20 11:11:22.791 |                 0.166666620 |
+     2021-08-20 12:11:22.791 |                 0.000000000 |
+     2021-08-20 13:11:22.792 |                 0.166666620 |
+     2021-08-20 14:11:22.792 |                -0.666666667 |
+    Query OK, 5 row(s) in set (0.004883s)
+    ```
 
 - **SPREAD**
     ```mysql
@@ -1418,13 +1415,13 @@ SELECT AVG(current), MAX(current), LEASTSQUARES(current, start_val, step_val), P
 
 ## <a class="anchor" id="limitation"></a>TAOS SQL 边界限制
 
-- 数据库名最大长度为 32
-- 表名最大长度为 192，每行数据最大长度 16k 个字符（注意：数据行内每个 BINARY/NCHAR 类型的列还会额外占用 2 个字节的存储位置）
-- 列名最大长度为 64，最多允许 1024 列，最少需要 2 列，第一列必须是时间戳
-- 标签名最大长度为 64，最多允许 128 个，可以 1 个，一个表中标签值的总长度不超过 16k 个字符
-- SQL 语句最大长度 65480 个字符，但可通过系统配置参数 maxSQLLength 修改，最长可配置为 1M
+- 数据库名最大长度为 32。
+- 表名最大长度为 192，每行数据最大长度 16k 个字符（注意：数据行内每个 BINARY/NCHAR 类型的列还会额外占用 2 个字节的存储位置）。
+- 列名最大长度为 64，最多允许 1024 列，最少需要 2 列，第一列必须是时间戳。
+- 标签名最大长度为 64，最多允许 128 个，可以 1 个，一个表中标签值的总长度不超过 16k 个字符。
+- SQL 语句最大长度 65480 个字符，但可通过系统配置参数 maxSQLLength 修改，最长可配置为 1M。
 - SELECT 语句的查询结果，最多允许返回 1024 列（语句中的函数调用可能也会占用一些列空间），超限时需要显式指定较少的返回数据列，以避免语句执行报错。
-- 库的数目，超级表的数目、表的数目，系统不做限制，仅受系统资源限制
+- 库的数目，超级表的数目、表的数目，系统不做限制，仅受系统资源限制。
 
 ##  TAOS SQL其他约定
 

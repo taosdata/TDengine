@@ -195,11 +195,11 @@ int32_t compareLenPrefixedStrDesc(const void* pLeft, const void* pRight) {
 int32_t compareLenPrefixedWStr(const void *pLeft, const void *pRight) {
   int32_t len1 = varDataLen(pLeft);
   int32_t len2 = varDataLen(pRight);
-  
+
   if (len1 != len2) {
     return len1 > len2? 1:-1;
   } else {
-    int32_t ret = wcsncmp(varDataVal(pLeft), varDataVal(pRight), len1/TSDB_NCHAR_SIZE);
+    int32_t ret = memcmp((wchar_t*) pLeft, (wchar_t*) pRight, len1);
     if (ret == 0) {
       return 0;
     } else {
@@ -262,6 +262,7 @@ int patternMatch(const char *patterStr, const char *str, size_t size, const SPat
     c1 = str[j++];
     
     if (j <= size) {
+      if (c == '\\' && patterStr[i] == '_' && c1 == '_') { i++; continue; }
       if (c == c1 || tolower(c) == tolower(c1) || (c == pInfo->matchOne && c1 != 0)) {
         continue;
       }
@@ -508,8 +509,7 @@ int32_t doCompare(const char* f1, const char* f2, int32_t type, size_t size) {
       if (t1->len != t2->len) {
         return t1->len > t2->len? 1:-1;
       }
-
-      int32_t ret = wcsncmp((wchar_t*) t1->data, (wchar_t*) t2->data, t2->len/TSDB_NCHAR_SIZE);
+      int32_t ret = memcmp((wchar_t*) t1, (wchar_t*) t2, t2->len);
       if (ret == 0) {
         return ret;
       }
