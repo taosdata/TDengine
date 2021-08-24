@@ -178,4 +178,3 @@ void vnodeConfirmForward(void *vparam, uint64_t version, int32_t code, bool forc
   SVnodeObj *pVnode = vparam;
   syncConfirmForward(pVnode->sync, version, code, force);
 }
-

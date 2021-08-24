@@ -702,7 +702,6 @@ static void tsdbEndCommit(STsdbRepo *pRepo, int eno) {
   (void)tsdbLockRepo(pRepo);
   pRepo->imem = NULL;
   (void)tsdbUnlockRepo(pRepo);
-  //save commited time
   tsdbUnRefMemTable(pRepo, pIMem);
   tsem_post(&(pRepo->readyToCommit));
 }
