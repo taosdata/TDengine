@@ -754,8 +754,8 @@ bool qFixedNoBlock(void* pRepo, void* pMgmt, int32_t longQueryMs) {
 //solve tsdb no block to commit
 bool qSolveCommitNoBlock(void* pRepo, void* pMgmt) {
   qWarn("pRepo=%p start solve no block problem.", pRepo);
-  if(qFixedNoBlock(pRepo, pMgmt, 20*1000)) {
+  if(qFixedNoBlock(pRepo, pMgmt, 10*60*1000)) {
     return true;
   }
-  return qFixedNoBlock(pRepo, pMgmt, 5*1000);
+  return qFixedNoBlock(pRepo, pMgmt, 2*60*1000);
 }
