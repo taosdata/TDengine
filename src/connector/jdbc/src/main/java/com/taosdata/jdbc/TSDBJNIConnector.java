@@ -16,18 +16,21 @@
  */
 package com.taosdata.jdbc;
 
+import com.alibaba.fastjson.JSONObject;
 import com.taosdata.jdbc.utils.TaosInfo;
 
 import java.nio.ByteBuffer;
 import java.sql.SQLException;
 import java.sql.SQLWarning;
 import java.util.List;
+import java.util.Properties;
 
 /**
  * JNI connector
  */
 public class TSDBJNIConnector {
-    private static volatile Boolean isInitialized = false;
+    private static final Object LOCK = new Object();
+    private static volatile boolean isInitialized;
 
     private final TaosInfo taosInfo = TaosInfo.getInstance();
     private long taos = TSDBConstants.JNI_NULL_POINTER;     // Connection pointer used in C
@@ -38,10 +41,23 @@ public class TSDBJNIConnector {
         System.loadLibrary("taos");
     }
 
-    public static void init(String configDir, String locale, String charset, String timezone) throws SQLWarning {
-        synchronized (isInitialized) {
+    public static void init(Properties props) throws SQLWarning {
+        synchronized (LOCK) {
             if (!isInitialized) {
+
+                JSONObject configJSON = new JSONObject();
+                for (String key : props.stringPropertyNames()) {
+                    configJSON.put(key, props.getProperty(key));
+                }
+                setConfig(configJSON.toJSONString());
+
+                String configDir = props.getProperty(TSDBDriver.PROPERTY_KEY_CONFIG_DIR);
                 initImp(configDir);
+
+                String locale = props.getProperty(TSDBDriver.PROPERTY_KEY_LOCALE);
+                String charset = props.getProperty(TSDBDriver.PROPERTY_KEY_CHARSET);
+                String timezone = props.getProperty(TSDBDriver.PROPERTY_KEY_TIME_ZONE);
+
                 if (setOptions(0, locale) < 0) {
                     throw TSDBError.createSQLWarning("Failed to set locale: " + locale + ". System default will be used.");
                 }

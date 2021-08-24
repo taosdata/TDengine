@@ -7,6 +7,7 @@ import java.lang.management.RuntimeMXBean;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Properties;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
@@ -21,21 +22,22 @@ public class TSDBJNIConnectorTest {
             try {
                 //change sleepSeconds when debugging with attach to process to find PID
                 int sleepSeconds = -1;
-                if (sleepSeconds>0) {
+                if (sleepSeconds > 0) {
                     RuntimeMXBean runtimeBean = ManagementFactory.getRuntimeMXBean();
                     String jvmName = runtimeBean.getName();
                     long pid = Long.valueOf(jvmName.split("@")[0]);
                     System.out.println("JVM PID  = " + pid);
 
-                    Thread.sleep(sleepSeconds*1000);
+                    Thread.sleep(sleepSeconds * 1000);
                 }
-            }
-            catch (Exception e) {
+            } catch (Exception e) {
                 e.printStackTrace();
             }
 
             // init
-            TSDBJNIConnector.init("/etc/taos", null, null, null);
+            Properties properties = new Properties();
+            properties.setProperty(TSDBDriver.PROPERTY_KEY_CONFIG_DIR, "/etc/taos");
+            TSDBJNIConnector.init(properties);
 
             // connect
             TSDBJNIConnector connector = new TSDBJNIConnector();
@@ -43,12 +45,12 @@ public class TSDBJNIConnectorTest {
 
             // setup
             String setupSqlStrs[] = {"create database if not exists d precision \"us\"",
-                                      "create table if not exists d.t(ts timestamp, f int)",
-                                      "create database if not exists d2",
-                                      "create table if not exists d2.t2(ts timestamp, f int)",
-                                      "insert into d.t values(now+100s, 100)",
-                                      "insert into d2.t2 values(now+200s, 200)"
-                                      };
+                    "create table if not exists d.t(ts timestamp, f int)",
+                    "create database if not exists d2",
+                    "create table if not exists d2.t2(ts timestamp, f int)",
+                    "insert into d.t values(now+100s, 100)",
+                    "insert into d2.t2 values(now+200s, 200)"
+            };
             for (String setupSqlStr : setupSqlStrs) {
                 long setupSql = connector.executeQuery(setupSqlStr);
 
@@ -113,8 +115,8 @@ public class TSDBJNIConnectorTest {
             }
             // close statement
             connector.executeQuery("use d");
-            String[] lines = new String[] {"st,t1=3i64,t2=4f64,t3=\"t3\" c1=3i64,c3=L\"passit\",c2=false,c4=4f64 1626006833639000000ns",
-                                           "st,t1=4i64,t3=\"t4\",t2=5f64,t4=5f64 c1=3i64,c3=L\"passitagin\",c2=true,c4=5f64,c5=5f64 1626006833640000000ns"};
+            String[] lines = new String[]{"st,t1=3i64,t2=4f64,t3=\"t3\" c1=3i64,c3=L\"passit\",c2=false,c4=4f64 1626006833639000000ns",
+                    "st,t1=4i64,t3=\"t4\",t2=5f64,t4=5f64 c1=3i64,c3=L\"passitagin\",c2=true,c4=5f64,c5=5f64 1626006833640000000ns"};
             connector.insertLines(lines);
 
             // close connection
