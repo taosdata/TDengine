@@ -234,6 +234,8 @@ pipeline {
               cd ${WKC}/tests/examples/nodejs
               npm install td2.0-connector > /dev/null 2>&1
               node nodejsChecker.js host=localhost
+              cd ${WKC}/src/connector/nodejs/test
+              node test1970.js
               '''
               sh '''
                 cd ${WKC}/tests/examples/C#/taosdemo
