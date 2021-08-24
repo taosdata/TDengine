@@ -49,24 +49,19 @@ public class TSDBJNIConnector {
                 for (String key : props.stringPropertyNames()) {
                     configJSON.put(key, props.getProperty(key));
                 }
-                int ret = setConfigImp(configJSON.toJSONString());
-                if (ret == -1) {
-                    throw TSDBError.createSQLWarning("failed to set config, invalid json format: " + configJSON.toJSONString());
-                }
+                setConfigImp(configJSON.toJSONString());
 
-                String configDir = props.getProperty(TSDBDriver.PROPERTY_KEY_CONFIG_DIR);
-                initImp(configDir);
+                initImp(props.getProperty(TSDBDriver.PROPERTY_KEY_CONFIG_DIR, null));
 
                 String locale = props.getProperty(TSDBDriver.PROPERTY_KEY_LOCALE);
-                String charset = props.getProperty(TSDBDriver.PROPERTY_KEY_CHARSET);
-                String timezone = props.getProperty(TSDBDriver.PROPERTY_KEY_TIME_ZONE);
-
                 if (setOptions(0, locale) < 0) {
                     throw TSDBError.createSQLWarning("Failed to set locale: " + locale + ". System default will be used.");
                 }
+                String charset = props.getProperty(TSDBDriver.PROPERTY_KEY_CHARSET);
                 if (setOptions(1, charset) < 0) {
                     throw TSDBError.createSQLWarning("Failed to set charset: " + charset + ". System default will be used.");
                 }
+                String timezone = props.getProperty(TSDBDriver.PROPERTY_KEY_TIME_ZONE);
                 if (setOptions(2, timezone) < 0) {
                     throw TSDBError.createSQLWarning("Failed to set timezone: " + timezone + ". System default will be used.");
                 }

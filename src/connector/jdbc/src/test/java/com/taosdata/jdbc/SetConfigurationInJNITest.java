@@ -53,4 +53,5 @@ public class SetConfigurationInJNITest {
             e.printStackTrace();
         }
     }
+
 }
